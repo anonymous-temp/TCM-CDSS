@@ -96,9 +96,8 @@ export async function GET(req: Request) {
   const clinicalFactsEnabled = isClinicalFactsBackstopEnabled();
   const clinicalFactsSigningConfigured = clinicalFactsAttestationSigningConfigured();
   const clinicalFactsModelPlan = getClinicalFactsModelPlan();
-  const clinicalFactsModelPlanReady = clinicalFactsModelPlan.extractor.configured &&
-    clinicalFactsModelPlan.reviewer.configured && clinicalFactsModelPlan.adjudicator.configured &&
-    clinicalFactsModelPlan.separateInvocationReview && clinicalFactsModelPlan.separateInvocationAdjudication;
+  // 事实层只剩抽取一个模型相位（复核/裁决相位 2026-09-25 删除），就绪只看抽取模型。
+  const clinicalFactsModelPlanReady = clinicalFactsModelPlan.extractor.configured;
   const clinicalFactsModelsAvailable = !strictProbe || clinicalFactsModelProbe?.ok === true;
   const clinicalFactsReady = clinicalFactsEnabled && clinicalFactsSigningConfigured &&
     clinicalFactsModelPlanReady && clinicalFactsModelsAvailable;
@@ -150,10 +149,6 @@ export async function GET(req: Request) {
     ...(!clinicalFactsEnabled ? ["clinical_facts_backstop_disabled"] : []),
     ...(!clinicalFactsSigningConfigured ? ["clinical_facts_attestation_key_not_configured"] : []),
     ...(!clinicalFactsModelPlan.extractor.configured ? ["clinical_facts_extractor_not_configured"] : []),
-    ...(!clinicalFactsModelPlan.reviewer.configured ? ["clinical_facts_reviewer_not_configured"] : []),
-    ...(!clinicalFactsModelPlan.adjudicator.configured ? ["clinical_facts_adjudicator_not_configured"] : []),
-    ...(!clinicalFactsModelPlan.separateInvocationReview ? ["clinical_facts_reviewer_not_separate_invocation"] : []),
-    ...(!clinicalFactsModelPlan.separateInvocationAdjudication ? ["clinical_facts_adjudicator_not_separate_invocation"] : []),
     ...(strictProbe && !clinicalFactsModelsAvailable ? ["clinical_facts_model_chain_unavailable"] : []),
     ...(!tcmTreatmentProjects.configurationValid ? [`tcm_treatment_capabilities_${tcmTreatmentProjects.reason || "invalid"}`] : []),
     ...(!rateLimitIdentityReady ? ["trusted_proxy_rate_limit_identity_not_configured"] : []),
@@ -218,21 +213,6 @@ export async function GET(req: Request) {
           model: clinicalFactsModelPlan.extractor.model,
           configured: clinicalFactsModelPlan.extractor.configured,
         },
-        reviewer: {
-          provider: clinicalFactsModelPlan.reviewer.provider,
-          model: clinicalFactsModelPlan.reviewer.model,
-          configured: clinicalFactsModelPlan.reviewer.configured,
-        },
-        adjudicator: {
-          provider: clinicalFactsModelPlan.adjudicator.provider,
-          model: clinicalFactsModelPlan.adjudicator.model,
-          configured: clinicalFactsModelPlan.adjudicator.configured,
-        },
-        independentReview: clinicalFactsModelPlan.independentReview,
-        independentAdjudication: clinicalFactsModelPlan.independentAdjudication,
-        separateInvocationReview: clinicalFactsModelPlan.separateInvocationReview,
-        separateInvocationAdjudication: clinicalFactsModelPlan.separateInvocationAdjudication,
-        reductionsAllowed: clinicalFactsModelPlan.reductionsAllowed,
         ready: clinicalFactsModelPlanReady,
       },
       ...(clinicalFactsModelProbe ? { modelProbe: clinicalFactsModelProbe } : {}),

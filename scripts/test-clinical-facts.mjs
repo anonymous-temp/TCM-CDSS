@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import {
   BACKSTOP_RED_FLAG_CATEGORIES,
   buildClinicalFactsExtractionPrompt,
-  buildClinicalFactsReviewPrompt,
   parseClinicalFacts,
   groundClinicalFacts,
   additiveRedFlagsFromFacts,
@@ -77,17 +76,20 @@ ok("prompt: 明确允许同一当前事件的多线索深层合成，同时禁�
   /escalationRationale/.test(buildClinicalFactsExtractionPrompt("突发胸痛伴大汗")) &&
   /不得跨患者主体、跨既往与当前事件拼接/.test(buildClinicalFactsExtractionPrompt("突发胸痛伴大汗")) &&
   /绝不能降低任何确定性结论/.test(buildClinicalFactsExtractionPrompt("突发胸痛伴大汗")));
-ok("就诊范围: 仅既往稳定结论必须逐字落地且不能由单次模型获得同意状态", (() => {
+// 2026-09-25 复核/裁决相位删除：encounterScope 只剩 {status, quote}。模型输出里自带的 reviewAgreement
+// 不再被解析——单次抽取的模型可以在 JSON 里自己写 "agreed"，继续解析等于让它自证「两次一致」。
+ok("就诊范围: 仅既往稳定结论必须逐字落地，且模型自带的 reviewAgreement 不被解析", (() => {
   const parsed = parseClinicalFacts(JSON.stringify({
     redFlags: [],
     encounterScope: {
       status: "historical_or_stable_only",
       quote: "半年前心梗已放支架，目前无症状",
+      reviewAgreement: "agreed",
     },
   }));
   const grounded = parsed && groundClinicalFacts(parsed, "半年前心梗已放支架，目前无症状，近期心电图正常。");
   return grounded?.encounterScope?.status === "historical_or_stable_only" &&
-    grounded.encounterScope.reviewAgreement === "unreviewed";
+    JSON.stringify(Object.keys(grounded.encounterScope).sort()) === JSON.stringify(["quote", "status"]);
 })());
 ok("就诊范围: 伪造或无时态依据的历史限定引用不能落地", (() => {
   const parsed = parseClinicalFacts(JSON.stringify({
@@ -97,54 +99,36 @@ ok("就诊范围: 伪造或无时态依据的历史限定引用不能落地", ((
   return parsed != null && groundClinicalFacts(parsed, "慢性胃炎5年，轻度上腹隐痛").encounterScope == null;
 })());
 
-const agreedHistoricalScope = await extractClinicalFacts(
+let historicalScopeCalls = 0;
+const singlePassHistoricalScope = await extractClinicalFacts(
   "3年前胃溃疡已治愈，目前大便正常，无呕血、无黑便。",
-  async () => JSON.stringify({
-    redFlags: [],
-    encounterScope: {
-      status: "historical_or_stable_only",
-      quote: "3年前胃溃疡已治愈，目前大便正常",
-    },
-  }),
-  undefined,
-  { independentReview: true },
-);
-ok("就诊范围: 两次独立判断一致后才形成 agreed 历史稳定范围",
-  agreedHistoricalScope?.encounterScope?.status === "historical_or_stable_only" &&
-  agreedHistoricalScope.encounterScope.reviewAgreement === "agreed");
-
-let scopeCall = 0;
-const disagreedScope = await extractClinicalFacts(
-  "既往胃溃疡已治愈，但今天出现上腹痛。",
   async () => {
-    scopeCall += 1;
+    historicalScopeCalls += 1;
     return JSON.stringify({
       redFlags: [],
-      encounterScope: scopeCall === 1
-        ? { status: "historical_or_stable_only", quote: "既往胃溃疡已治愈" }
-        : { status: "active_current_target", quote: "今天出现上腹痛" },
+      encounterScope: {
+        status: "historical_or_stable_only",
+        quote: "3年前胃溃疡已治愈，目前大便正常",
+      },
     });
   },
-  undefined,
-  { independentReview: true },
 );
-ok("就诊范围: 两模型分歧时当前阳性目标优先且不得短路处方推理",
-  disagreedScope?.encounterScope?.status === "active_current_target" &&
-  disagreedScope.encounterScope.reviewAgreement === "disagreed");
+ok("就诊范围: 单次抽取原样保留仅既往稳定状态（只作上下文），不再发第二次模型调用",
+  historicalScopeCalls === 1 &&
+  singlePassHistoricalScope?.reviewStatus === "single_pass" &&
+  singlePassHistoricalScope.encounterScope?.status === "historical_or_stable_only" &&
+  !("reviewAgreement" in singlePassHistoricalScope.encounterScope));
 
-// —— 就诊范围类别矩阵: 当前目标 vs 既往稳定/他人/矛盾时态（沿用上文 mock-LLM 双轮模式）——
+// —— 就诊范围类别矩阵: 当前目标 vs 既往稳定/他人（单次抽取 + 确定性落地）——
 const recoveryActiveScope = await extractClinicalFacts(
   "骨折术后恢复期3周，仍有切口隐痛和患肢肿胀，希望继续调理。",
   async () => JSON.stringify({
     redFlags: [],
     encounterScope: { status: "active_current_target", quote: "仍有切口隐痛和患肢肿胀" },
   }),
-  undefined,
-  { independentReview: true },
 );
 ok("就诊范围: 恢复期仍有残余症状必须判为当前治疗目标而非既往背景",
-  recoveryActiveScope?.encounterScope?.status === "active_current_target" &&
-  recoveryActiveScope.encounterScope.reviewAgreement === "agreed");
+  recoveryActiveScope?.encounterScope?.status === "active_current_target");
 
 const stableChronicActiveAskScope = await extractClinicalFacts(
   "高血压5年服药控制稳定，近1周头晕加重，希望本次调整治疗。",
@@ -152,12 +136,9 @@ const stableChronicActiveAskScope = await extractClinicalFacts(
     redFlags: [],
     encounterScope: { status: "active_current_target", quote: "近1周头晕加重" },
   }),
-  undefined,
-  { independentReview: true },
 );
 ok("就诊范围: 慢性疾病稳定但本次明确要求治疗必须判为当前治疗目标",
-  stableChronicActiveAskScope?.encounterScope?.status === "active_current_target" &&
-  stableChronicActiveAskScope.encounterScope.reviewAgreement === "agreed");
+  stableChronicActiveAskScope?.encounterScope?.status === "active_current_target");
 
 // —— 疾病控制措辞不能单独支撑 historical_or_stable_only 落地（R3 活体假阳性类别）——
 ok("就诊范围: 疾病控制+规律服药的引用不能落地为纯既往范围", (() => {
@@ -194,10 +175,8 @@ const stableChronicTreatmentRequestScope = await extractClinicalFacts(
     redFlags: [],
     encounterScope: { status: "historical_or_stable_only", quote: "高血压8年，规律服氨氯地平，血压控制稳定" },
   }),
-  undefined,
-  { independentReview: true },
 );
-ok("就诊范围: 抽取与复核同时误判时，确定性落地仍拒绝疾病控制引用并放行当前治疗目标",
+ok("就诊范围: 抽取误判时，确定性落地仍拒绝疾病控制引用并放行当前治疗目标",
   stableChronicTreatmentRequestScope != null && stableChronicTreatmentRequestScope.encounterScope == null);
 const stableMetabolicTreatmentRequestScope = await extractClinicalFacts(
   "2型糖尿病6年，血糖控制可；近1月口干明显、乏力，要求干预调理。舌红少津。",
@@ -205,32 +184,9 @@ const stableMetabolicTreatmentRequestScope = await extractClinicalFacts(
     redFlags: [],
     encounterScope: { status: "historical_or_stable_only", quote: "2型糖尿病6年，血糖控制可" },
   }),
-  undefined,
-  { independentReview: true },
 );
 ok("就诊范围: 血糖控制可+当前症状与干预请求同样不得落地为纯既往范围",
   stableMetabolicTreatmentRequestScope != null && stableMetabolicTreatmentRequestScope.encounterScope == null);
-
-let negationScopeCall = 0;
-const negationWithOtherPositiveScope = await extractClinicalFacts(
-  "高血压病史10年目前稳定；否认胸痛，但近3天持续咳嗽咳痰。",
-  async () => {
-    negationScopeCall += 1;
-    return JSON.stringify({
-      redFlags: [],
-      encounterScope: negationScopeCall === 1
-        // 落地契约收紧后，带疾病控制框架的稳定性引用（如“高血压…目前稳定”）不再单独落地；
-        // 这里用无控制框架的“目前稳定”继续覆盖“分歧时当前阳性优先”的合并保护路径。
-        ? { status: "historical_or_stable_only", quote: "目前稳定" }
-        : { status: "active_current_target", quote: "近3天持续咳嗽咳痰" },
-    });
-  },
-  undefined,
-  { independentReview: true },
-);
-ok("就诊范围: 否认一个红旗但存在其他当前阳性症状时绝不得判为纯既往",
-  negationWithOtherPositiveScope?.encounterScope?.status === "active_current_target" &&
-  negationWithOtherPositiveScope.encounterScope.reviewAgreement === "disagreed");
 
 const bystanderScope = await extractClinicalFacts(
   "陪父亲就诊，父亲目前胸痛。本人既往胃溃疡已治愈，目前无不适。",
@@ -238,50 +194,9 @@ const bystanderScope = await extractClinicalFacts(
     redFlags: [],
     encounterScope: { status: "historical_or_stable_only", quote: "本人既往胃溃疡已治愈，目前无不适" },
   }),
-  undefined,
-  { independentReview: true },
 );
 ok("就诊范围: 家族史/陪诊者/引用病例不形成患者本人的当前治疗目标",
-  bystanderScope?.encounterScope?.status === "historical_or_stable_only" &&
-  bystanderScope.encounterScope.reviewAgreement === "agreed");
-
-let tenseConflictCall = 0;
-const tenseConflictScope = await extractClinicalFacts(
-  "一处记录目前无胸痛，另一处又写仍有胸痛未止。",
-  async () => {
-    tenseConflictCall += 1;
-    return JSON.stringify({
-      redFlags: [],
-      encounterScope: tenseConflictCall === 1
-        ? { status: "historical_or_stable_only", quote: "目前无胸痛" }
-        : { status: "active_current_target", quote: "仍有胸痛未止" },
-    });
-  },
-  undefined,
-  { independentReview: true },
-);
-ok("就诊范围: 前后时态互相矛盾时按保守当前目标处理，绝不得判为纯既往",
-  tenseConflictScope?.encounterScope?.status === "active_current_target" &&
-  tenseConflictScope.encounterScope.reviewAgreement === "disagreed");
-
-let unclearHistoricalCall = 0;
-const unclearVsHistoricalScope = await extractClinicalFacts(
-  "患者叙述含糊，既提到旧疾已治愈，又似乎提到近日常有不适。",
-  async () => {
-    unclearHistoricalCall += 1;
-    return JSON.stringify({
-      redFlags: [],
-      encounterScope: unclearHistoricalCall === 1
-        ? { status: "unclear", quote: "又似乎提到近日常有不适" }
-        : { status: "historical_or_stable_only", quote: "旧疾已治愈" },
-    });
-  },
-  undefined,
-  { independentReview: true },
-);
-ok("就诊范围: unclear 与 historical 分歧时保留 unclear 且显式标记分歧",
-  unclearVsHistoricalScope?.encounterScope?.status === "unclear" &&
-  unclearVsHistoricalScope.encounterScope.reviewAgreement === "disagreed");
+  bystanderScope?.encounterScope?.status === "historical_or_stable_only");
 
 ok("schema: emergency 缺少结构化急诊依据时整份拒绝，不默认降级后签名", (() => {
   const r = parseClinicalFacts(JSON.stringify({ redFlags: [{
@@ -599,190 +514,21 @@ const fHalluc = await extractClinicalFacts(src, async () => JSON.stringify({ red
   triageBasis: "time_sensitive_cardiovascular_event", quote: "剧烈胸痛",
 }] }));
 ok("extractor: 抽取器内即 grounding,造的 quote 被剔除", fHalluc && fHalluc.redFlags.length === 0);
-let independentReviewCalls = 0;
-const independentlyReviewed = await extractClinicalFacts("胸痛没有缓解，伴随症状暂未记录。", async (_system, _user, _signal, phase) => {
-  independentReviewCalls += 1;
-  return phase === "review"
-    ? JSON.stringify({ redFlags: [{ findingId: "rf-1", category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解" }], reviews: [{ findingId: "rf-1", decision: "modify" }] })
-    : JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "clarify", triageBasis: "clarification_needed", quote: "胸痛没有缓解" }] });
-}, undefined, { independentReview: true });
-ok("extractor: 独立LLM复核可纠正首轮处置层级且仍受逐字引用契约约束",
-  independentReviewCalls === 2 && independentlyReviewed?.reviewStatus === "checked" && independentlyReviewed.redFlags[0]?.urgency === "emergency");
-const affirmedSymptomOmittedByReviewer = await extractClinicalFacts("双下肢散在瘀斑。", async (_system, _user, _signal, phase) => phase === "review"
-  ? JSON.stringify({ redFlags: [], reviews: [] })
-  : JSON.stringify({ redFlags: [], affirmedSymptoms: [{ term: "瘀斑", quote: "双下肢散在瘀斑" }] }), undefined, { independentReview: true });
-ok(
-  "extractor: 复核省略 affirmedSymptoms 时不得擦除首轮已接地阳性症状",
-  affirmedSymptomOmittedByReviewer?.reviewStatus === "checked" &&
-    affirmedSymptomOmittedByReviewer.affirmedSymptoms?.[0]?.term === "瘀斑" &&
-    affirmedSymptomOmittedByReviewer.affirmedSymptoms?.[0]?.quote === "双下肢散在瘀斑",
-);
-let invalidReviewContractAttempts = 0;
-const recoveredInvalidReviewContract = await extractClinicalFacts("右边脑袋一跳一跳地疼。", async (_system, _user, _signal, phase) => {
-  if (phase !== "review") return JSON.stringify({ redFlags: [{ category: "neuro", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "右边脑袋一跳一跳地疼" }] });
-  invalidReviewContractAttempts += 1;
-  return invalidReviewContractAttempts === 1
-    ? JSON.stringify({ redFlags: [] })
-    : JSON.stringify({
-        redFlags: [{ findingId: "rf-1", category: "neuro", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "右边脑袋一跳一跳地疼" }],
-        reviews: [{ findingId: "rf-1", decision: "confirm" }],
-      });
-}, undefined, { independentReview: true, allowDispositionReductions: true });
-ok("extractor: 非空但违反findingId合同的独立复核可在相同首轮事实上一轮受限重试恢复",
-  invalidReviewContractAttempts === 2 && recoveredInvalidReviewContract?.reviewStatus === "checked" && recoveredInvalidReviewContract.redFlags.length === 1);
-
-let twiceInvalidReviewAttempts = 0;
-const recoveredTwiceInvalidReview = await extractClinicalFacts("手划伤后渗血半小时还没完全停，出血量说不清。", async (_system, _user, _signal, phase) => {
-  if (phase !== "review") return JSON.stringify({ redFlags: [{ category: "bleeding", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "手划伤后渗血半小时还没完全停" }] });
-  twiceInvalidReviewAttempts += 1;
-  if (twiceInvalidReviewAttempts < 3) return JSON.stringify({ redFlags: [] });
+// 2026-09-25 复核/裁决相位删除：抽取器只发抽取（与必要的结构/引用修复）调用。模型输出里残留的
+// 旧复核字段（findingId / reviews）不构成任何裁决，只按普通抽取结果解析与落地。
+const singlePassPhases = [];
+const singlePassEmergency = await extractClinicalFacts("胸痛没有缓解，已持续30分钟。", async (_system, _user, _signal, phase) => {
+  singlePassPhases.push(phase);
   return JSON.stringify({
-    redFlags: [{ findingId: "rf-1", category: "bleeding", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "手划伤后渗血半小时还没完全停" }],
-    reviews: [{ findingId: "rf-1", decision: "confirm" }],
+    redFlags: [{ findingId: "rf-1", category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }],
+    reviews: [{ findingId: "rf-1", decision: "reject" }],
   });
-}, undefined, { independentReview: true, allowDispositionReductions: true });
-ok("extractor: Qwen 连续两次复核合同抖动后允许第三次受总时限约束的恢复",
-  twiceInvalidReviewAttempts === 3 && recoveredTwiceInvalidReview?.reviewStatus === "checked");
-// ── 复核接地：逐条隔离，单条不合格不连坐整批（2026-08-27）──────────────────────
-// 生产实测：把相位超时从 8s 放宽到 12s 后，失败原因从 timeout 变成
-// clinical_facts_review_grounding_invalid，3 次尝试全废 → 30% 语义层不可用。
-// 判据原为 reviewedGrounded.redFlags.length !== reviewed.redFlags.length：复核返回
-// 5 条里只要 1 条引文不精确（长病历上 qwen3.8-max 也会），整批作废重来。
-// 这正是本仓复发多次的「单条非法连坐整批」形状（见 parseM02Plan 注释记录的前 7 次）。
-// 逐条隔离是安全的：接地失败的条目丢弃后，首轮已落地事实的单调性检查照旧把关，
-// 该擦不掉的仍擦不掉（下面那条「复核空结果不得静默擦除首轮已落地急症」的钉子不变）。
-let partialGroundingAttempts = 0;
-const partiallyGroundedReview = await extractClinicalFacts(
-  "胸痛没有缓解，已持续30分钟。另外这两天有点咳嗽。",
-  async (_system, _user, _signal, phase) => {
-    if (phase !== "review") {
-      return JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }] });
-    }
-    partialGroundingAttempts += 1;
-    // 一条接地良好（确认首轮急症），一条引文是模型改写过的、原文里逐字找不到。
-    return JSON.stringify({
-      redFlags: [
-        { findingId: "rf-1", category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" },
-        { findingId: "rf-2", category: "bleeding", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "近两日出现咳嗽症状" },
-      ],
-      reviews: [{ findingId: "rf-1", decision: "confirm" }, { findingId: "rf-2", decision: "confirm" }],
-    });
-  },
-  undefined,
-  { independentReview: true, allowDispositionReductions: true },
-);
-ok("extractor: 复核里单条引文接地失败不连坐整批（一次通过，不再重试三轮）",
-  partialGroundingAttempts === 1 && partiallyGroundedReview?.reviewStatus === "checked");
-ok("extractor: 逐条隔离后首轮急症仍在且强度不降",
-  partiallyGroundedReview?.redFlags?.some((f) => f.urgency === "emergency"));
-// 反证：复核**全部**条目都接地失败时仍按合同失败处理（重试→最终 unavailable）。
-let allGroundingFailAttempts = 0;
-const allGroundingFailed = await extractClinicalFacts(
-  "胸痛没有缓解，已持续30分钟。",
-  async (_system, _user, _signal, phase) => {
-    if (phase !== "review") {
-      return JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }] });
-    }
-    allGroundingFailAttempts += 1;
-    return JSON.stringify({
-      redFlags: [{ findingId: "rf-9", category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "患者主诉心前区压榨样疼痛" }],
-      reviews: [{ findingId: "rf-9", decision: "confirm" }],
-    });
-  },
-  undefined,
-  { independentReview: true, allowDispositionReductions: true },
-);
-ok("extractor: 复核全部条目接地失败仍判合同失败并保留首轮急症",
-  allGroundingFailAttempts === 3 && allGroundingFailed?.reviewStatus === "unavailable" &&
-  allGroundingFailed?.redFlags?.[0]?.urgency === "emergency");
-
-// ── 超时类失败不重试（2026-08-27，生产实测 30% 语义层不可用的根因）────────────────
-// 线上探针 10 例 3 例 unavailable，失败耗时全是 25.5–25.7s——精确撞总预算
-// CLINICAL_FACTS_TOTAL_TIMEOUT_MS(25s)；日志显示 attempt 1、2 均 reason:'timeout'。
-// 复核相位最多 3 次尝试 × 相位超时，超时时把整条总预算烧光。
-// 重试是为**契约抖动**设计的（那类失败瞬间返回，重试确实能恢复，上面两条钉子在钉它）；
-// 超时重试则是同提示词、同模型再等一遍，实测两次全超——纯粹浪费医生的等待时间。
-let timeoutReviewAttempts = 0;
-const timedOutReview = await extractClinicalFacts("手划伤后渗血半小时还没完全停，出血量说不清。", async (_system, _user, _signal, phase) => {
-  if (phase !== "review") return JSON.stringify({ redFlags: [{ category: "bleeding", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "手划伤后渗血半小时还没完全停" }] });
-  timeoutReviewAttempts += 1;
-  const error = new Error("The operation was aborted due to timeout");
-  error.name = "TimeoutError";
-  throw error;
-}, undefined, { independentReview: true, allowDispositionReductions: true });
-ok("extractor: 复核相位超时后不再重试（一次即降级，把预算还给医生）",
-  timeoutReviewAttempts === 1 && timedOutReview?.reviewStatus === "unavailable");
-// 反证一：契约抖动仍然重试——不得因本次改动把「能恢复的失败」也一并放弃。
-ok("extractor: 契约抖动的重试路径不受超时策略影响", invalidReviewContractAttempts === 2);
-// 反证二：超时降级仍保留首轮已落地的事实（additive-only 语义不变）。
-ok("extractor: 超时降级不擦除首轮事实", (timedOutReview?.redFlags?.length || 0) === 1);
-
-const omittedByReviewer = await extractClinicalFacts("胸痛没有缓解，已持续30分钟。", async (_system, _user, _signal, phase) => phase === "review"
-  ? JSON.stringify({ redFlags: [] })
-  : JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }] }), undefined, { independentReview: true, allowDispositionReductions: true });
-ok("extractor: 复核空结果不得静默擦除首轮已落地急症",
-  omittedByReviewer?.reviewStatus === "unavailable" && omittedByReviewer.redFlags[0]?.urgency === "emergency");
-const replacedBySameCategoryHistory = await extractClinicalFacts("当前持续胸痛30分钟；既往胸痛现已缓解。", async (_system, _user, _signal, phase) => phase === "review"
-  ? JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "historical", urgency: "routine", triageBasis: "routine_care", quote: "既往胸痛现已缓解" }], reviews: [] })
-  : JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "当前持续胸痛30分钟" }] }), undefined, { independentReview: true, allowDispositionReductions: true });
-ok("extractor: 同类目的另一条既往事实不能冒名覆盖当前急症",
-  replacedBySameCategoryHistory?.reviewStatus === "unavailable" && replacedBySameCategoryHistory.redFlags[0]?.quote === "当前持续胸痛30分钟");
-const silentlyReassignedSubject = await extractClinicalFacts("患者持续胸痛30分钟。", async (_system, _user, _signal, phase) => phase === "review"
-  ? JSON.stringify({ redFlags: [{ category: "cardiac", subject: "other", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "持续胸痛30分钟" }], reviews: [] })
-  : JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "持续胸痛30分钟" }] }), undefined, { independentReview: true, allowDispositionReductions: true });
-ok("extractor: 复核不得在无 findingId 裁决时静默改写主体",
-  silentlyReassignedSubject?.reviewStatus === "unavailable" && silentlyReassignedSubject.redFlags[0]?.subject === "patient");
-const explicitlyRejectedFinding = await extractClinicalFacts("胸口不适已澄清为胃胀；既往胸痛现已缓解。", async (_system, _user, _signal, phase) => phase === "review"
-  ? JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "historical", urgency: "routine", triageBasis: "routine_care", quote: "既往胸痛现已缓解" }], reviews: [{ findingId: "rf-1", decision: "reject", dispositionChangeEvidence: { basis: "polarity_correction", quote: "胸口不适已澄清为胃胀" } }] })
-  : phase === "adjudicate"
-    ? JSON.stringify({ decisions: [{ findingId: "rf-1", allowReduction: true, evidenceQuote: "胸口不适已澄清为胃胀" }] })
-    : JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "possible", urgency: "clarify", triageBasis: "clarification_needed", quote: "胸口不适" }] }), undefined, { independentReview: true, allowDispositionReductions: true });
-ok("extractor: 独立复核可用findingId显式拒绝错误首轮事实",
-  explicitlyRejectedFinding?.reviewStatus === "checked" && explicitlyRejectedFinding.redFlags.every((item) => item.quote !== "胸口不适"));
-const explicitlyModifiedFinding = await extractClinicalFacts("刚才大量呕鲜血一直没停，面色苍白出冷汗，人已经意识模糊。", async (_system, _user, _signal, phase) => phase === "review"
-  ? JSON.stringify({
-      redFlags: [{ findingId: "rf-1", category: "gi_bleed", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "shock_or_anaphylaxis", quote: "大量呕鲜血一直没停" }],
-      reviews: [{ findingId: "rf-1", decision: "modify" }],
-    })
-  : JSON.stringify({ redFlags: [{ category: "gi_bleed", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "major_active_bleeding", quote: "刚才大量呕鲜血一直没停，面色苍白出冷汗，人已经意识模糊" }] }), undefined, { independentReview: true });
-ok("extractor: findingId裁决允许复核模型修正依据片段而不会被误判为遗漏",
-  explicitlyModifiedFinding?.reviewStatus === "checked" &&
-  explicitlyModifiedFinding.redFlags[0]?.quote === "大量呕鲜血一直没停");
-
-const staleClearanceCannotDowngrade = await extractClinicalFacts("当前胸痛持续30分钟未缓解；昨日心电图正常。", async (_system, _user, _signal, phase) => phase === "review"
-  ? JSON.stringify({ redFlags: [], reviews: [{ findingId: "rf-1", decision: "reject", dispositionChangeEvidence: { basis: "current_same_episode_clearance", quote: "昨日心电图正常" } }] })
-  : phase === "adjudicate"
-    ? JSON.stringify({ decisions: [{ findingId: "rf-1", allowReduction: true, evidenceQuote: "昨日心电图正常" }] })
-    : JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "当前胸痛持续30分钟未缓解" }] }), undefined, { independentReview: true, allowDispositionReductions: true });
-ok("extractor: 陈旧检查即使被复核模型误作清除证据，也必须经第三方裁决拒绝降级",
-  staleClearanceCannotDowngrade?.reviewStatus === "checked" && staleClearanceCannotDowngrade.redFlags[0]?.urgency === "emergency");
-
-const modelConsensusCannotEraseEmergency = await extractClinicalFacts("吃完花生后嗓子眼一下堵住了，声音发不出来，脸也肿。", async (_system, _user, _signal, phase) => phase === "review"
-  ? JSON.stringify({ redFlags: [], reviews: [{ findingId: "rf-1", decision: "reject", dispositionChangeEvidence: { basis: "polarity_correction", quote: "嗓子眼一下堵住了" } }] })
-  : phase === "adjudicate"
-    ? JSON.stringify({ decisions: [{ findingId: "rf-1", allowReduction: true, evidenceQuote: "嗓子眼一下堵住了" }] })
-    : JSON.stringify({ redFlags: [{ category: "anaphylaxis", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "airway_breathing_failure", quote: "嗓子眼一下堵住了" }] }), undefined, { independentReview: true, allowDispositionReductions: true });
-ok("extractor: 多模型一致的错误解释也不能擦除已落地 emergency",
-  modelConsensusCannotEraseEmergency?.reviewStatus === "checked" && modelConsensusCannotEraseEmergency.redFlags[0]?.urgency === "emergency");
-
-const adjudicatorRejectsReduction = await extractClinicalFacts("手划伤后渗血半小时还没完全停，出血量说不清。", async (_system, _user, _signal, phase) => phase === "review"
-  ? JSON.stringify({
-      redFlags: [{ findingId: "rf-1", category: "bleeding", subject: "patient", status: "positive", urgency: "clarify", triageBasis: "clarification_needed", quote: "手划伤后渗血半小时还没完全停" }],
-      reviews: [{ findingId: "rf-1", decision: "modify", dispositionChangeEvidence: { basis: "current_same_episode_clearance", quote: "渗血" } }],
-    })
-  : phase === "adjudicate"
-    ? JSON.stringify({ decisions: [{ findingId: "rf-1", allowReduction: false, evidenceQuote: "手划伤后渗血半小时还没完全停" }] })
-    : JSON.stringify({ redFlags: [{ category: "bleeding", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "手划伤后渗血半小时还没完全停" }] }), undefined, { independentReview: true, allowDispositionReductions: true });
-ok("extractor: 第三方拒绝降级时保留更高处置级且复核仍为已完成",
-  adjudicatorRejectsReduction?.reviewStatus === "checked" &&
-  adjudicatorRejectsReduction.redFlags.length === 1 &&
-  adjudicatorRejectsReduction.redFlags[0]?.urgency === "urgent");
-
-const ungroundedDowngradeCannotClear = await extractClinicalFacts("近2日右侧无力明显加重。", async (_system, _user, _signal, phase) => phase === "review"
-  ? JSON.stringify({ redFlags: [], reviews: [{ findingId: "rf-1", decision: "reject" }] })
-  : JSON.stringify({ redFlags: [{ category: "neuro", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "acute_neurologic_deficit", quote: "近2日右侧无力明显加重" }] }), undefined, { independentReview: true, allowDispositionReductions: true });
-ok("extractor: 缺少逐字降级证据时复核不能清除已落地急症",
-  ungroundedDowngradeCannotClear?.reviewStatus === "unavailable" && ungroundedDowngradeCannotClear.redFlags[0]?.urgency === "emergency");
+});
+ok("extractor: 只发一次抽取调用，不存在复核/裁决相位；结果标 single_pass",
+  JSON.stringify(singlePassPhases) === JSON.stringify(["extract"]) &&
+  singlePassEmergency?.reviewStatus === "single_pass");
+ok("extractor: 输出里残留的旧复核裁决字段不能擦除已落地急症",
+  singlePassEmergency?.redFlags.length === 1 && singlePassEmergency.redFlags[0]?.urgency === "emergency");
 
 // —— 端到端集成:高频口语急症表达必须由确定性层直接覆盖，结构化事实仅作加法兜底 ——
 const { detectProgrammaticRedFlags, narrativeFallbackAdvisories } = await import("../src/lib/diagnosis-safety.ts");
@@ -823,10 +569,6 @@ ok("稳定性: T6 将孤立非急性胸闷约束为常规背景，避免批量�
 // —— 隐私边界: 即使生产开启 LLM 事实回填，外发文本也必须先经过统一 PHI 清洗 ——
 delete process.env.CDSS_CLINICAL_FACTS_BACKSTOP;
 process.env.CLINICAL_FACTS_ATTESTATION_KEY = "clinical-facts-test-key-2026";
-// 以下运行时用例验证的是**复核相位本身**的信任边界（单调合并、空复核不得抹掉首轮急症、
-// 复核失败不签名……）。2026-09-20 起复核缺省关闭，但这些性质在重新开启时必须照旧成立，
-// 所以这一段显式开启复核；缺省关闭的行为在文件末尾单独断言。
-process.env.CDSS_CLINICAL_FACTS_REVIEW = "true";
 const {
   CLINICAL_FACTS_ATTESTATION_VERSION,
   CLINICAL_FACTS_CACHE_TTL_MS,
@@ -870,15 +612,16 @@ ok("health: strict readiness 纳入 clinical facts 启用与签名配置状态",
   healthRouteSource.includes("clinicalFactsAttestationSigningConfigured") &&
   healthRouteSource.includes("getClinicalFactsModelPlan") &&
   healthRouteSource.includes("clinicalFactsModelPlanReady") &&
-  healthRouteSource.includes("clinical_facts_reviewer_not_separate_invocation") &&
-  healthRouteSource.includes("separateInvocationReview") &&
-  healthRouteSource.includes("separateInvocationAdjudication") &&
+  healthRouteSource.includes("clinical_facts_extractor_not_configured") &&
   healthRouteSource.includes("probeClinicalFactsModels") &&
   healthRouteSource.includes("clinical_facts_model_chain_unavailable") &&
   healthRouteSource.includes("clinicalFactsReady") &&
   healthRouteSource.includes("clinical_facts_attestation_key_not_configured") &&
   healthRouteSource.includes("strictReady") &&
   healthRouteSource.includes("clinicalFacts: {"));
+// 复核/裁决相位 2026-09-25 删除：严格就绪不得再依赖复核器/裁决器，健康体不得再报它们的配置或独立性。
+ok("health: 严格就绪与健康体不再包含事实层复核器/裁决器",
+  !/reviewer|adjudicator|separateInvocation|independentReview|independentAdjudication|reductionsAllowed/.test(healthRouteSource));
 let capturedFactsPrompt = "";
 await maybeAttachClinicalFactsBackstop({
   id: "phi-backstop",
@@ -918,9 +661,8 @@ for (const [chiefComplaint, category, quote, expectedMessage, triageBasis] of co
     completeness: { level: "A", redFlag: 0, infoGain: 0, managementImpact: 0, answerability: 0 },
     questionRounds: 0,
     maxQuestionRounds: 1,
-  }, async (_system, _user, _signal, phase) => JSON.stringify({
-    redFlags: [{ ...(phase === "review" ? { findingId: "rf-1" } : {}), category, subject: "patient", status: "positive", urgency: "emergency", triageBasis, quote }],
-    ...(phase === "review" ? { reviews: [{ findingId: "rf-1", decision: "confirm" }] } : {}),
+  }, async () => JSON.stringify({
+    redFlags: [{ category, subject: "patient", status: "positive", urgency: "emergency", triageBasis, quote }],
   }));
   const deterministicHits = detectProgrammaticRedFlags(enriched);
   const semanticAdvisories = semanticTriageAdvisoriesFromFacts(enriched.clinicalFacts, chiefComplaint);
@@ -942,25 +684,11 @@ const possibleState = await maybeAttachClinicalFactsBackstop({
   completeness: { level: "B", redFlag: 0.6, infoGain: 0.6, managementImpact: 0.6, answerability: 0.6 },
   questionRounds: 0,
   maxQuestionRounds: 1,
-}, async (_system, _user, _signal, phase) => JSON.stringify({
-  redFlags: [{ ...(phase === "review" ? { findingId: "rf-1" } : {}), category: "cardiac", subject: "patient", status: "possible", urgency: "clarify", triageBasis: "clarification_needed", quote: "说不清的压迫感" }],
-  ...(phase === "review" ? { reviews: [{ findingId: "rf-1", decision: "confirm" }] } : {}),
+}, async () => JSON.stringify({
+  redFlags: [{ category: "cardiac", subject: "patient", status: "possible", urgency: "clarify", triageBasis: "clarification_needed", quote: "说不清的压迫感" }],
 }));
 ok("语义纪律: possible保留为追问目标但不直接升级红旗",
   possibleState.clinicalFacts?.redFlags[0]?.status === "possible" && detectProgrammaticRedFlags(possibleState).length === 0);
-
-const signedEmergencyProtectedFromEmptyReview = await maybeAttachClinicalFactsBackstop({
-  ...possibleState,
-  id: "signed-emergency-empty-review",
-  chiefComplaint: "胸痛没有缓解，已持续30分钟",
-  clinicalFacts: undefined,
-}, async (_system, _user, _signal, phase) => phase === "review"
-  ? JSON.stringify({ redFlags: [] })
-  : JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }] }));
-ok("信任边界: 非独立降级路径按单调合并保留持续胸痛并签署保守结果",
-  hasValidClinicalFactsAttestation(signedEmergencyProtectedFromEmptyReview.clinicalFacts) &&
-  signedEmergencyProtectedFromEmptyReview.clinicalFacts?.reviewStatus === "checked" &&
-  detectProgrammaticRedFlags(signedEmergencyProtectedFromEmptyReview).some((item) => /心血管|胸痛/.test(item)));
 
 const signedEmptyCannotCloseCatastrophicFloor = await maybeAttachClinicalFactsBackstop({
   ...possibleState,
@@ -968,24 +696,10 @@ const signedEmptyCannotCloseCatastrophicFloor = await maybeAttachClinicalFactsBa
   chiefComplaint: "当前胸痛持续30分钟未缓解",
   clinicalFacts: undefined,
 }, async () => JSON.stringify({ redFlags: [] }));
-ok("信任边界: 两轮模型都漏报并形成签名空结果时仍不能关闭灾难性安全下限",
+ok("信任边界: 模型漏报并形成签名空结果时仍不能关闭灾难性安全下限",
   hasValidClinicalFactsAttestation(signedEmptyCannotCloseCatastrophicFloor.clinicalFacts) &&
   detectProgrammaticRedFlags(signedEmptyCannotCloseCatastrophicFloor).some((item) => /心血管|胸痛/.test(item)) &&
   withSafetyGate(signedEmptyCannotCloseCatastrophicFloor).safetyGate?.status === "red_flag");
-
-const unsignedEmptyExtractionAfterReviewFailure = await maybeAttachClinicalFactsBackstop({
-  ...possibleState,
-  id: "unsigned-empty-extraction-review-failure",
-  chiefComplaint: "当前胸痛持续30分钟未缓解",
-  clinicalFacts: undefined,
-}, async (_system, _user, _signal, phase) => {
-  if (phase === "review") throw new Error("review provider unavailable");
-  return JSON.stringify({ redFlags: [] });
-});
-ok("信任边界: 首轮空结果且复核失败不签名，当前胸痛仍由极端安全底线捕获",
-  unsignedEmptyExtractionAfterReviewFailure.clinicalFacts?.reviewStatus === "unavailable" &&
-  !hasValidClinicalFactsAttestation(unsignedEmptyExtractionAfterReviewFailure.clinicalFacts) &&
-  detectProgrammaticRedFlags(unsignedEmptyExtractionAfterReviewFailure).some((item) => /心血管|胸痛/.test(item)));
 
 let longSourcePrompt = "";
 const longSourceState = await maybeAttachClinicalFactsBackstop({
@@ -1001,10 +715,10 @@ const longSourceState = await maybeAttachClinicalFactsBackstop({
     rawText: "慢性随访资料。".repeat(2200),
     fields: { xianbingshi: "当前胸痛持续30分钟未缓解" },
   },
-}, async (_system, user, _signal, phase) => {
+}, async (_system, user) => {
   longSourcePrompt = user;
   const finding = { category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "当前胸痛持续30分钟未缓解" };
-  return JSON.stringify({ redFlags: [finding], ...(phase === "review" ? { reviews: [{ findingId: "rf-1", decision: "confirm" }] } : {}) });
+  return JSON.stringify({ redFlags: [finding] });
 });
 ok("长病历: 语义模型会看到投影后的最新尾部事实", longSourcePrompt.includes("当前胸痛持续30分钟未缓解"));
 ok("长病历: 部分覆盖不伪装全文已审且仍保留安全底线",
@@ -1027,10 +741,10 @@ const rawTailState = await maybeAttachClinicalFactsBackstop({
     rawText: `${"慢性随访资料。".repeat(2200)}${rawTailQuote}`,
     fields: {},
   },
-}, async (_system, user, _signal, phase) => {
+}, async (_system, user) => {
   rawTailPrompt = user;
   const finding = { category: "poisoning", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "airway_breathing_failure", quote: rawTailQuote };
-  return JSON.stringify({ redFlags: [finding], ...(phase === "review" ? { reviews: [{ findingId: "rf-1", decision: "confirm" }] } : {}) });
+  return JSON.stringify({ redFlags: [finding] });
 });
 ok("长病历: 急症仅位于真实 rawText 尾部时仍进入模型输入", rawTailPrompt.includes(rawTailQuote));
 ok("长病历: 真实 rawText 中段被省略后不得获得全文可信签名",
@@ -1041,9 +755,8 @@ const activityWheezeState = await maybeAttachClinicalFactsBackstop({
   id: "semantic-activity-wheeze",
   chiefComplaint: "一跑快了胸口呼呼响，晚上有时憋醒",
   clinicalFacts: undefined,
-}, async (_system, _user, _signal, phase) => JSON.stringify({
-  redFlags: [{ ...(phase === "review" ? { findingId: "rf-1" } : {}), category: "respiratory", subject: "patient", status: "positive", urgency: "clarify", triageBasis: "clarification_needed", quote: "一跑快了胸口呼呼响，晚上有时憋醒" }],
-  ...(phase === "review" ? { reviews: [{ findingId: "rf-1", decision: "confirm" }] } : {}),
+}, async () => JSON.stringify({
+  redFlags: [{ category: "respiratory", subject: "patient", status: "positive", urgency: "clarify", triageBasis: "clarification_needed", quote: "一跑快了胸口呼呼响，晚上有时憋醒" }],
 }));
 ok("语义分诊: 活动后喘鸣与偶发夜醒进入澄清，不被改写成静息急性呼吸困难",
   detectProgrammaticRedFlags(activityWheezeState).length === 0 && activityWheezeState.clinicalFacts?.redFlags[0]?.urgency === "clarify");
@@ -1053,9 +766,8 @@ const restingDyspneaState = await maybeAttachClinicalFactsBackstop({
   id: "semantic-resting-dyspnea",
   chiefComplaint: "现在静息也喘不上气，不能平卧，说一句话要停几次",
   clinicalFacts: undefined,
-}, async (_system, _user, _signal, phase) => JSON.stringify({
-  redFlags: [{ ...(phase === "review" ? { findingId: "rf-1" } : {}), category: "respiratory", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "airway_breathing_failure", quote: "静息也喘不上气，不能平卧，说一句话要停几次" }],
-  ...(phase === "review" ? { reviews: [{ findingId: "rf-1", decision: "confirm" }] } : {}),
+}, async () => JSON.stringify({
+  redFlags: [{ category: "respiratory", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "airway_breathing_failure", quote: "静息也喘不上气，不能平卧，说一句话要停几次" }],
 }));
 ok("语义分诊: 当前静息重度呼吸困难触发急诊级红旗",
   detectProgrammaticRedFlags(restingDyspneaState).some((item) => /急性呼吸受损|呼吸循环急症/.test(item)));
@@ -1075,6 +787,9 @@ ok("运行时: modelTrace 经 JSON 与请求归一化后保留，签名仍可复
   normalizedPossibleState?.clinicalFacts?.modelTrace?.extractor?.model &&
   hasValidClinicalFactsAttestation(normalizedPossibleState.clinicalFacts),
 ));
+ok("运行时: modelTrace 只记录抽取模型（复核/裁决相位已删除，不再签入不存在的相位）",
+  JSON.stringify(Object.keys(possibleState.clinicalFacts?.modelTrace || {})) === JSON.stringify(["extractor"]) &&
+  JSON.stringify(Object.keys(normalizedPossibleState?.clinicalFacts?.modelTrace || {})) === JSON.stringify(["extractor"]));
 
 const semanticNegative = {
   id: "semantic-negative",
@@ -1441,11 +1156,9 @@ ok("整类上限: 39.0℃伴意识模糊或低血压等受损表现不得降级"
   return groundClinicalFacts(facts, text).redFlags[0]?.urgency === "emergency";
 })());
 
-ok("prompt: 提取与复核提示含发热分诊 ≥40℃/受损 原则线", (() => {
+ok("prompt: 提取提示含发热分诊 ≥40℃/受损 原则线", (() => {
   const extract = buildClinicalFactsExtractionPrompt("发热");
-  const review = buildClinicalFactsReviewPrompt("发热", { redFlags: [] });
-  return /体温≥40℃/.test(extract) && /38–40℃/.test(extract) && /不得仅凭高热度数或寒战标 emergency/.test(extract) &&
-    /未达40℃/.test(review) && /纠正为 urgent/.test(review);
+  return /体温≥40℃/.test(extract) && /38–40℃/.test(extract) && /不得仅凭高热度数或寒战标 emergency/.test(extract);
 })());
 
 // —— T6 neuro benign-head-symptom cap（普通头痛头晕 clarify 收敛，但急症/后循环/急性起病一律保留）——
@@ -1485,27 +1198,99 @@ ok("prompt: 提取与复核提示含发热分诊 ≥40℃/受损 原则线", (()
   ok("neuro cap: 普通头晕若被模型判 urgent 不被 cap 抹除", shown("头晕", "urgent") === true);
 }
 
-// —— 2026-09-20 复核相位缺省关闭：单次抽取即权威结果 ——
+// —— 复核相位已删除（2026-09-25；09-20 起缺省关闭）：单次抽取即权威结果 ——
+// 部署环境里残留的 CDSS_CLINICAL_FACTS_REVIEW=true 不得复活任何第二次模型调用。
 {
-  delete process.env.CDSS_CLINICAL_FACTS_REVIEW;
+  const staleReviewSetting = process.env.CDSS_CLINICAL_FACTS_REVIEW;
+  process.env.CDSS_CLINICAL_FACTS_REVIEW = "true";
   const phases = [];
-  const singlePassState = await maybeAttachClinicalFactsBackstop({
-    ...possibleState,
-    id: "single-pass-default",
-    chiefComplaint: "胸痛没有缓解，已持续30分钟",
-    clinicalFacts: undefined,
-  }, async (_system, _user, _signal, phase) => {
-    phases.push(phase);
-    return JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }] });
-  });
-  ok("复核缺省关闭: 只发一次抽取调用，不再发复核", phases.length === 1 && phases[0] === "extract");
-  ok("复核缺省关闭: 结果标 single_pass 并签名（否则不进缓存，下一个路由整套重抽）",
+  let singlePassState;
+  try {
+    singlePassState = await maybeAttachClinicalFactsBackstop({
+      ...possibleState,
+      id: "single-pass-default",
+      chiefComplaint: "胸痛没有缓解，已持续30分钟",
+      clinicalFacts: undefined,
+    }, async (_system, _user, _signal, phase) => {
+      phases.push(phase);
+      return JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }] });
+    });
+  } finally {
+    if (staleReviewSetting === undefined) delete process.env.CDSS_CLINICAL_FACTS_REVIEW;
+    else process.env.CDSS_CLINICAL_FACTS_REVIEW = staleReviewSetting;
+  }
+  ok("单次抽取: 只发一次抽取调用；残留的 CDSS_CLINICAL_FACTS_REVIEW=true 不复活复核", phases.length === 1 && phases[0] === "extract");
+  ok("单次抽取: 结果标 single_pass 并签名（否则不进缓存，下一个路由整套重抽）",
     singlePassState.clinicalFacts?.reviewStatus === "single_pass" &&
     hasValidClinicalFactsAttestation(singlePassState.clinicalFacts));
-  ok("复核缺省关闭: 语义急症照常进入门禁，且不被判复核未完成",
+  ok("单次抽取: 语义急症照常进入门禁，且不被判复核未完成",
     withSafetyGate(singlePassState).safetyGate?.status === "red_flag" &&
     !(withSafetyGate(singlePassState).safetyGate?.missingItems || []).some((item) => /复核未完成/.test(item)));
-  process.env.CDSS_CLINICAL_FACTS_REVIEW = "true";
+}
+
+// —— 向后兼容: 浏览器里复核时代（attestation v8）签出的快照一律重抽 ——
+// v8 签名载荷含 encounterScope.reviewAgreement 与带 reviewer/adjudicator 的 modelTrace。这里用**真实**
+// HMAC 按旧载荷形状签一份「两次一致的仅既往」快照：它不得被当作有效签名复用（否则一个旧的 agreed
+// 下调判断会绕过重抽），无论是否经过请求归一化。
+{
+  const { createHmac } = await import("node:crypto");
+  const legacySign = (facts) => `hmac-sha256:${createHmac("sha256", process.env.CLINICAL_FACTS_ATTESTATION_KEY).update(JSON.stringify({
+    attestationVersion: facts.attestationVersion || "",
+    extractorVersion: facts.extractorVersion || "",
+    promptVersion: facts.promptVersion || "",
+    extractedAt: facts.extractedAt || "",
+    modelTrace: facts.modelTrace,
+    customerBindingHash: facts.customerBindingHash || "",
+    sourceFingerprint: facts.sourceFingerprint || "",
+    sourceCoverage: facts.sourceCoverage || "",
+    sourceCharCount: facts.sourceCharCount || 0,
+    semanticStatus: facts.semanticStatus || "",
+    reviewStatus: facts.reviewStatus || "",
+    encounterScope: facts.encounterScope,
+    redFlags: facts.redFlags,
+  })).digest("hex")}`;
+  const legacyText = "3年前胃溃疡已治愈，目前无不适";
+  const legacyBase = { ...possibleState, id: "legacy-v8-snapshot", chiefComplaint: legacyText, clinicalFacts: undefined };
+  const freshLegacyBase = await maybeAttachClinicalFactsBackstop(legacyBase, async () => JSON.stringify({
+    redFlags: [],
+    encounterScope: { status: "historical_or_stable_only", quote: legacyText },
+  }));
+  const freshFacts = freshLegacyBase.clinicalFacts;
+  ok("向后兼容前提: 本测试的 HMAC 复刻与生产签名逐字一致，且仅既往范围已落地",
+    legacySign(freshFacts) === freshFacts.attestation &&
+    freshLegacyBase.clinicalFacts.encounterScope?.status === "historical_or_stable_only");
+  const extractor = freshFacts.modelTrace.extractor;
+  const legacyUnsigned = {
+    ...freshFacts,
+    attestation: undefined,
+    attestationVersion: "tcm-cdss-clinical-facts-attestation-v8",
+    reviewStatus: "checked",
+    encounterScope: { status: "historical_or_stable_only", quote: legacyText, reviewAgreement: "agreed" },
+    modelTrace: {
+      extractor, reviewer: extractor, adjudicator: extractor,
+      independentReview: false, independentAdjudication: false,
+      separateInvocationReview: true, separateInvocationAdjudication: true,
+    },
+  };
+  const legacyFacts = { ...legacyUnsigned, attestation: legacySign(legacyUnsigned) };
+  const legacyState = { ...legacyBase, clinicalFacts: legacyFacts };
+  const normalizedLegacyState = normalizeCaseStateInput(JSON.parse(JSON.stringify(legacyState)));
+  ok("向后兼容: v8 快照（原样与经请求归一化）都不是有效签名",
+    !hasValidClinicalFactsAttestation(legacyFacts) &&
+    !hasValidClinicalFactsAttestation(normalizedLegacyState.clinicalFacts));
+  for (const [label, state] of [["原样", legacyState], ["归一化", normalizedLegacyState]]) {
+    let calls = 0;
+    const reextracted = await maybeAttachClinicalFactsBackstop(state, async () => {
+      calls += 1;
+      return JSON.stringify({ redFlags: [], encounterScope: { status: "historical_or_stable_only", quote: legacyText } });
+    });
+    ok(`向后兼容: v8 快照（${label}）强制重抽，新结果为 single_pass 且不带 reviewAgreement`,
+      calls === 1 &&
+      reextracted.clinicalFacts?.resultSource === "fresh" &&
+      reextracted.clinicalFacts.reviewStatus === "single_pass" &&
+      reextracted.clinicalFacts.attestationVersion === CLINICAL_FACTS_ATTESTATION_VERSION &&
+      !("reviewAgreement" in (reextracted.clinicalFacts.encounterScope || {})));
+  }
 }
 
 console.log(`\n${pass} passed`);

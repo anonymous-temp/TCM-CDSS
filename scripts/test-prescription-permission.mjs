@@ -407,34 +407,33 @@ const confirmedHisPayload = await confirmedHisResponse.json();
 assert.equal(confirmedHisResponse.status, 409, "确认后 unclear 门放行，本夹具停在 M04 签名门");
 assert.equal(confirmedHisPayload.code, "invalid_m04_signature");
 
-// 回归: agreed-historical 不触发 unclear 确认门；其剂量阻断仍由签名有限 M03 承担
-// 「仅既往/稳定背景」是**下调型**判断，只有抽取与复核两次一致（agreed）才采信。这一段验证的是
-// 复核相位本身的机制，所以显式开启复核（2026-09-20 起缺省关闭）。
+// 回归: 单次抽取给出的「仅既往/稳定背景」只作语义上下文。它是**下调型**判断，单模型结论不被采信：
+// 病例照常按活动性就诊处理（保守方向），也不得误触 unclear 确认门。此前「抽取与复核两次一致
+// （agreed）才下调」的路径依赖复核相位，2026-09-25 随复核/裁决相位一并删除。
 const historicalScopeModel = async () => JSON.stringify({
   redFlags: [],
-  encounterScope: { status: "historical_or_stable_only", quote: "胃溃疡3年前已治愈，目前无不适" },
+  // 模型在输出里自称「两次一致」：解析层必须丢弃这个自证字段。
+  encounterScope: { status: "historical_or_stable_only", quote: "胃溃疡3年前已治愈，目前无不适", reviewAgreement: "agreed" },
 });
-const reviewSettingBeforeHistorical = process.env.CDSS_CLINICAL_FACTS_REVIEW;
-process.env.CDSS_CLINICAL_FACTS_REVIEW = "true";
-const agreedHistoricalState = await maybeAttachClinicalFactsBackstop(
-  { ...roundTrippedScopeState, pastHistory: "胃溃疡3年前已治愈，目前无不适" },
-  historicalScopeModel,
-);
-delete process.env.CDSS_CLINICAL_FACTS_REVIEW;
-// 缺省（复核关闭）：单次抽取给出的「仅既往」保持 unreviewed——单模型的下调判断不被采信，
-// 病例照常按活动性就诊处理（保守方向），也不得误触 unclear 确认门。
 const singlePassHistoricalState = await maybeAttachClinicalFactsBackstop(
   { ...roundTrippedScopeState, id: `${roundTrippedScopeState.id}-single-pass`, pastHistory: "胃溃疡3年前已治愈，目前无不适" },
   historicalScopeModel,
 );
-if (reviewSettingBeforeHistorical === undefined) delete process.env.CDSS_CLINICAL_FACTS_REVIEW;
-else process.env.CDSS_CLINICAL_FACTS_REVIEW = reviewSettingBeforeHistorical;
-assert.equal(agreedHistoricalState.clinicalFacts?.encounterScope?.reviewAgreement, "agreed");
-assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(agreedHistoricalState)), false, "agreed-historical 不属于 unclear 确认门");
 assert.equal(singlePassHistoricalState.clinicalFacts?.reviewStatus, "single_pass");
-assert.equal(singlePassHistoricalState.clinicalFacts?.encounterScope?.reviewAgreement, "unreviewed",
-  "复核关闭时单模型的「仅既往」不得冒充两次一致");
-assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(singlePassHistoricalState)), false, "single-pass historical 同样不属于 unclear 确认门");
+assert.equal(singlePassHistoricalState.clinicalFacts?.encounterScope?.status, "historical_or_stable_only", "夹具前提：仅既往范围已落地");
+assert.equal("reviewAgreement" in (singlePassHistoricalState.clinicalFacts?.encounterScope || {}), false,
+  "模型自称的「两次一致」不得进入签名事实");
+assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(singlePassHistoricalState)), false, "single-pass historical 不属于 unclear 确认门");
+// 路由级：block 档下旧实现对「仅既往」直接返回非剂量有限 M03（「本次当前活动性治疗目标」待补录）。
+// 现在它不得再改变 M03 的任何输出——本夹具无模型密钥，推进到生成层即为越过了全部确定性门禁。
+const reparsedHistoricalState = normalizeCaseStateInput(JSON.parse(JSON.stringify(singlePassHistoricalState)));
+assert.equal(fingerprintOf(reparsedHistoricalState), singlePassHistoricalState.clinicalFacts.sourceFingerprint,
+  "夹具前提：归一化往返后指纹稳定，路由复用已签名事实而不重抽");
+const { POST: diagnosePost } = await jiti.import("../src/app/api/diagnosis/diagnose/route.ts");
+const historicalDiagnoseText = await (await diagnosePost(routeRequest("/api/diagnosis/diagnose", singlePassHistoricalState))).text();
+assert.doesNotMatch(historicalDiagnoseText, /仅含既往|本次当前活动性治疗目标|就诊目标以既往背景为主|以既往、已缓解或稳定背景为主/,
+  "「仅既往」不得再让 M03 走有限合同、横幅或提示词下调");
+assert.match(historicalDiagnoseText, /模型推理服务暂时不可用|OPENAI_API_KEY not configured/, "M03 应推进到生成层（本夹具无模型密钥）");
 
 const historicalLimitedM03 = signDiagnoseReasoning(
   buildSafetyLimitedDiagnosisReasoning(roundTrippedScopeState, {
@@ -444,14 +443,14 @@ const historicalLimitedM03 = signDiagnoseReasoning(
     action: "complete_before_prescription",
     missingItems: ["本次当前活动性治疗目标"],
     redFlags: [],
-    reasons: ["独立语义预检一致判断当前记录仅含既往、已缓解或稳定背景"],
+    reasons: ["当前记录未明确本次活动性诊疗目标"],
   }),
   buildDiagnoseContractSignatureContext(roundTrippedScopeState),
 );
 const historicalLimitedState = { ...roundTrippedScopeState, reasoningDiagnose: historicalLimitedM03, reasoningV2: historicalLimitedM03 };
 const historicalPrescribeText = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", historicalLimitedState))).text();
-assert.match(historicalPrescribeText, /CDSS_NON_DOSE_PRESCRIPTION/, "签名有限 M03（agreed-historical）必须仍然返回非剂量合同");
-assert.match(historicalPrescribeText, /本次当前活动性治疗目标/, "agreed-historical 非剂量合同必须保留待补录项");
+assert.match(historicalPrescribeText, /CDSS_NON_DOSE_PRESCRIPTION/, "签名有限 M03（缺当前治疗目标）必须仍然返回非剂量合同");
+assert.match(historicalPrescribeText, /本次当前活动性治疗目标/, "签名有限 M03 的非剂量合同必须保留待补录项");
 
 // G5: 签名急症有限 M03 的 M04 快速返回必须携带真实红旗内容与急诊指引，而不是泛化占位诊断名
 const emergencyLimitedM03 = signDiagnoseReasoning(

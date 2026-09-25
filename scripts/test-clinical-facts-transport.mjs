@@ -33,7 +33,7 @@ async function fixture(mode, run) {
   const original = console.info;
   console.info = (...args) => logs.push(args);
   try {
-    await run({ provider: "openai-compatible", model: "deepseek-v4-flash", apiKey: overrides.OPENAI_API_KEY, endpoint: `${baseUrl}/chat/completions`, configured: true, source: "primary" }, () => calls, logs);
+    await run({ provider: "openai-compatible", model: "deepseek-v4-flash", apiKey: overrides.OPENAI_API_KEY, endpoint: `${baseUrl}/chat/completions`, configured: true }, () => calls, logs);
     const serialized = JSON.stringify(logs);
     for (const secret of ["synthetic-secret-never-log", "synthetic-private-prompt", "synthetic-private-upstream-message"]) assert.ok(!serialized.includes(secret));
   } finally {
@@ -43,12 +43,13 @@ async function fixture(mode, run) {
   }
 }
 
-for (const phase of ["extract", "review", "repair", "adjudicate"]) {
+// 复核/裁决相位 2026-09-25 删除：只剩抽取（应用层重试）与修复（SDK 传输恢复）两个临床相位。
+for (const phase of ["extract", "repair"]) {
   for (const mode of ["503", "socket"]) {
     test(`${phase} preserves its retry owner on ${mode}`, async () => {
       await fixture(mode, async (config, count, logs) => {
         const call = () => callFactsPhaseModel(config, "synthetic-private-prompt", "synthetic-private-prompt", undefined, phase);
-        if (phase === "extract" || phase === "review") {
+        if (phase === "extract") {
           await assert.rejects(call());
           assert.equal(count(), 1, "application owner gets one physical attempt per invocation");
           assert.equal(await call(), "synthetic success");
@@ -62,17 +63,4 @@ for (const phase of ["extract", "review", "repair", "adjudicate"]) {
       });
     });
   }
-}
-
-for (const mode of ["503", "socket"]) {
-  test(`independent endpoint records ${mode} failure without response usage or PHI`, async () => {
-    await fixture(mode, async (config, count, logs) => {
-      await assert.rejects(callFactsPhaseModel({ ...config, source: "independent_review" }, "synthetic-private-prompt", "synthetic-private-prompt", undefined, "review"));
-      assert.equal(count(), 1);
-      assert.equal(logs.length, 1, "failed raw fetch must not disappear from ledger");
-      assert.equal(logs[0].at(-1).outcome, "error");
-      assert.equal(logs[0].at(-1).physicalAttempts, 1);
-      assert.equal(logs[0].at(-1).usageAvailable, false);
-    });
-  });
 }

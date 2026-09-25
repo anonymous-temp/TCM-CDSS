@@ -136,23 +136,20 @@ for (const name of directCallers) {
   });
 }
 
-// 裸 fetch 的独立复核端点也必须记账（它此前完全在账外）
+// 事实层原有一条走裸 fetch 的「独立复核」端点分支（曾完全在账外，后补记账）。复核/裁决相位
+// 2026-09-25 删除后，该分支随之删除：事实层只剩上面「直连调用点」清单里的 SDK 出口。这里钉住
+// 不得再出现绕过 SDK 的裸 fetch 模型出口——那种出口不会被上面按 `.chat.completions.create(`
+// 扫描的清单发现。
 const factsRuntime = fs.readFileSync(path.join(libDir, "clinical-facts-runtime.ts"), "utf8");
-check("事实回补的 independent_review 裸 fetch 分支已记账", () => {
-  // 终点必须从分支起点之后再找：getPrimaryTextModelConfig() 在本文件出现 4 次，
-  // 裸 indexOf 会取到分支之前那处，切出空片段让断言静默空转（本仓已栽过的一类）。
-  const branchStart = factsRuntime.indexOf('if (config.source === "independent_review") {');
-  const branchEnd = factsRuntime.indexOf("const primary = getPrimaryTextModelConfig();", branchStart);
-  assert.ok(branchStart >= 0 && branchEnd > branchStart, "定位锚点失效");
-  const branch = factsRuntime.slice(branchStart, branchEnd);
-  assert.ok(branch.length > 200, "分支切片越界，断言会空转");
-  assert.ok(branch.includes("observeModelTask("), "裸 fetch 复核分支的成功与失败必须统一记账");
-  assert.ok(branch.includes("observedModelFetch("), "裸 fetch 复核分支必须观测真实 HTTP 尝试次数");
+check("事实回补运行时没有绕过 SDK 的裸 fetch 模型出口", () => {
+  assert.ok(factsRuntime.includes(".chat.completions.create("), "定位锚点失效：事实层 SDK 出口不见了");
+  assert.ok(!/(?<![A-Za-z])fetch\(|observedModelFetch\(|independent_review/.test(factsRuntime),
+    "事实层出现了裸 fetch 模型出口，必须改走 SDK 出口并记账");
 });
-check("事实三相位在账本里可分辨", () => {
+check("事实层相位在账本里可分辨", () => {
   assert.ok(
     factsRuntime.includes("const task = `clinical_facts_${phase}`"),
-    "三相位应各自成键，否则 extract/review/adjudicate 的成本混在一起看不出",
+    "抽取/修复/健康探针应各自成键，否则成本混在一起看不出",
   );
 });
 

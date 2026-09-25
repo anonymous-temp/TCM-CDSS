@@ -64,21 +64,10 @@ export async function POST(req: Request) {
   if (redFlagAnalysis && !gateDispositionIsAdvisory()) {
     return markdownNdjsonResponse(signedLimitedDiagnosis(gated.safetyGate!));
   }
+  // 「仅既往/稳定背景」（historical_or_stable_only）是下调型判断，不再改变本路由的任何输出：此前要求
+  // 抽取与复核两次一致（reviewAgreement=agreed）才采信，复核相位 2026-09-25 删除后该路径已不可达，
+  // 病例一律按活动性就诊处理（保守方向）。只有 attested unclear 仍进入提示词（见下）。
   const encounterScope = gated.clinicalFacts?.encounterScope;
-  const historicalOnlyEncounter = encounterScope?.status === "historical_or_stable_only" &&
-    encounterScope.reviewAgreement === "agreed" &&
-    hasValidClinicalFactsAttestation(gated.clinicalFacts, Date.now(), undefined, gated.customerId);
-  if (historicalOnlyEncounter && !gateDispositionIsAdvisory()) {
-    return markdownNdjsonResponse(signedLimitedDiagnosis({
-      status: "needs_information",
-      allowDiagnosis: true,
-      allowDosePrescription: false,
-      action: "complete_before_prescription",
-      missingItems: ["本次当前活动性治疗目标"],
-      redFlags: [],
-      reasons: [`当前记录仅含既往、已缓解或稳定背景（原文：“${encounterScope.quote}”），未明确本次活动性诊疗目标，不据此推演当前剂量处方。`],
-    }));
-  }
   // 需求1「追问不阻断流程」：此处原有一道门——completeness 未达 C 且未做过首轮追问时，
   // 直接返回降级的 needs_information 有限诊断，把医生赶回 M02。已移除。
   //
@@ -140,9 +129,6 @@ export async function POST(req: Request) {
   if (redFlagAnalysis) {
     stageInstructions += `\n\n【急危重线索并存】服务器确定性判定本例存在红旗：${(gated.safetyGate?.redFlags || []).join("；") || "见安全提示"}。请照常完成辨病辨证；在 management 中把急诊/转诊评估列为第一优先级并给出具体处置指引，不得因红旗拒绝输出辨证结论，也不得淡化红旗。`;
   }
-  if (historicalOnlyEncounter) {
-    stageInstructions += `\n\n【就诊目标以既往背景为主】语义预检确认本次记录主要为既往、已缓解或稳定背景（原文：“${encounterScope.quote}”）。请照常完成辨证分析，并在本半负责的 limitations、uncertainties 或 management.mustCollect 中显式提示“本次活动性诊疗目标需医生确认”。`;
-  }
   // Attested "unclear" scope does not short-circuit M03; the model keeps reasoning but must make
   // the unconfirmed visit target explicit so the downstream dose gate stays evidence-bound.
   if (encounterScope?.status === "unclear" && hasValidClinicalFactsAttestation(
@@ -154,12 +140,7 @@ export async function POST(req: Request) {
     stageInstructions += "\n\n【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请在本半负责的 limitations、uncertainties 或 management.mustCollect 中显式记录“本次就诊目标需医生确认”，不得据此臆造当前治疗目标或直接给出剂量级结论。";
   }
   prompt += stageInstructions;
-  const initialSafetyBanner = buildSafetyAdvisoryBanner(
-    redFlagAnalysis ? gated.safetyGate : undefined,
-    historicalOnlyEncounter
-      ? [`本次记录以既往、已缓解或稳定背景为主（原文：“${encounterScope?.quote || ""}”），本次活动性诊疗目标需医生确认。`]
-      : [],
-  );
+  const initialSafetyBanner = buildSafetyAdvisoryBanner(redFlagAnalysis ? gated.safetyGate : undefined);
   // 兜底页的**可见理由按真实原因分支**（2026-09-13）。此前三类兜底共用一句「未通过完整性与
   // 临床一致性复核」，而 222 例实测里走 not_attempted_no_valid_draft 的 7 例复核尝试数为 0——
   // 复核根本没运行。文案与 attestation 的 unavailableReason 同源，避免两处各写各的。

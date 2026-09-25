@@ -265,20 +265,23 @@ export type ClinicalFactsSemanticStatus = "checked" | "unavailable";
 export type ClinicalFactsResultSource = "fresh" | "cache" | "failure";
 export type ClinicalFactsUnavailableReason = "disabled" | "aborted" | "timeout" | "model_error" | "invalid_output" | "signing_unavailable";
 /**
- * checked     —— 抽取后又经独立复核相位确认。
- * single_pass —— 部署配置关闭了复核相位（2026-09-20 owner 裁定），接地后的抽取结果即权威结果。
- *                依据：黄金基线去重后 198 个用例重放，「只抽取」与「抽取+复核」对安全门输入
- *                （追加红旗 / 优先评估项 / 接诊范围）的净差异为 0 例，复核每次冷启动多约 3.6s。
- * skipped     —— 调用方没要求复核、也没声明单次抽取即权威（仅测试构造），**不是**完成态。
- * unavailable —— 复核失败。
+ * 事实层的复核/裁决相位已删除（2026-09-25 owner 裁定；自 2026-09-20 起生产缺省关闭）。依据：黄金基线
+ * 去重后 198 个用例重放，「只抽取」与「抽取+复核」对安全门输入（追加红旗 / 优先评估项 / 接诊范围）的
+ * 净差异为 0 例，复核每次冷启动多约 3.6s、每个病人付两次。
+ *
+ * single_pass —— 接地后的单次抽取即权威结果。**服务端现在只产出这一种状态。**
+ * 其余三个值只为解析浏览器回传的旧状态而保留，门禁对它们的处理与删除前逐字节一致：
+ * checked     —— 旧版本开启复核时的完成态，仍按完成态处理。旧签名无法借此复用：签名载荷已升版
+ *                （attestation v9），旧快照一律重抽。
+ * skipped / unavailable —— 旧版本的非完成态（仅测试构造 / 复核失败），仍按「未完成」处理。
  */
 export type ClinicalFactsReviewStatus = "checked" | "single_pass" | "skipped" | "unavailable";
 
 /**
  * 语义结果是否已到「可参与门禁、可签名、可进缓存」的完成态——唯一判据。
  * 门禁的急症升级、筛查完成判定、签名、缓存校验和 red-flags 路由此前各写一遍
- * `reviewStatus === "checked"`；关掉复核只改其中几处，会让每一例都被判「独立复核未完成」、
- * 扣掉剂量，同时语义急症不再升级为红旗。收敛到这一个谓词。
+ * `reviewStatus === "checked"`；2026-09-20 关掉复核时若只改其中几处，会让每一例都被判「独立复核
+ * 未完成」、扣掉剂量，同时语义急症不再升级为红旗。收敛到这一个谓词。
  */
 export function clinicalFactsReviewSettled(status: ClinicalFactsReviewStatus | undefined): boolean {
   return status === "checked" || status === "single_pass";
@@ -291,18 +294,17 @@ export type ClinicalFactsModelIdentity = {
 
 export type ClinicalFactsModelTrace = {
   extractor: ClinicalFactsModelIdentity;
-  reviewer?: ClinicalFactsModelIdentity;
-  adjudicator?: ClinicalFactsModelIdentity;
-  independentReview: boolean;
-  independentAdjudication: boolean;
-  separateInvocationReview?: boolean;
-  separateInvocationAdjudication?: boolean;
 };
 
+/**
+ * 本次就诊是否存在当前治疗目标。只有 `unclear` 参与门禁（hasUnconfirmedUnclearEncounterScope：
+ * 未经医生按指纹确认前不出剂量）。`historical_or_stable_only` 只作语义上下文：它是**下调型**判断，
+ * 单次抽取不足以采信，病例一律按活动性就诊处理（保守方向）。此前的「两次一致（agreed）才下调」
+ * 路径依赖已删除的复核相位，生产上从未触发，已随之删除。
+ */
 export type EncounterScope = {
   status: "active_current_target" | "historical_or_stable_only" | "unclear";
   quote: string;
-  reviewAgreement?: "agreed" | "disagreed" | "unreviewed";
 };
 
 /**
@@ -525,9 +527,9 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
       category: category as BackstopRedFlagCategory,
       subject: subject as RedFlagFinding["subject"],
       status: status as ClinicalStateStatus,
-      // A first reader cannot acquire irreversible emergency authority from a quote that only
+      // A model reader cannot acquire irreversible emergency authority from a quote that only
       // supports the prompt's urgent tier. Preserve the grounded finding and fail closed for formal
-      // prescription, but cap it at urgent so the independent reviewer can still correct it.
+      // prescription, but cap it at urgent.
       urgency: evidenceFloorSatisfied ? parsedUrgency : "urgent",
       triageBasis: evidenceFloorSatisfied ? normalizedTriageBasis : "urgent_review",
       quote: quote.trim().slice(0, 200),
@@ -548,18 +550,10 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
   const encounterQuote = rawEncounterScope && typeof rawEncounterScope === "object"
     ? boundedString((rawEncounterScope as { quote?: unknown }).quote, 240)
     : undefined;
-  const encounterReviewAgreement = rawEncounterScope && typeof rawEncounterScope === "object"
-    ? memberOf(
-        (rawEncounterScope as { reviewAgreement?: unknown }).reviewAgreement,
-        ["agreed", "disagreed", "unreviewed"] as const,
-      )
-    : undefined;
+  // 旧快照里的 reviewAgreement 不再读取：它只服务于已删除的「两次一致才下调」路径，而且单次抽取的
+  // 模型输出本身就能写出这个字段——继续解析等于让抽取模型自证「已经过两次一致」。
   const encounterScope = encounterStatus && encounterQuote
-    ? {
-        status: encounterStatus,
-        quote: encounterQuote,
-        reviewAgreement: encounterReviewAgreement || "unreviewed" as const,
-      }
+    ? { status: encounterStatus, quote: encounterQuote }
     : undefined;
   const sourceFingerprint = typeof (root as { sourceFingerprint?: unknown }).sourceFingerprint === "string"
     ? (root as { sourceFingerprint: string }).sourceFingerprint.slice(0, 80)
@@ -603,35 +597,7 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
   const extractorIdentity = rawModelTrace && typeof rawModelTrace === "object"
     ? modelIdentity((rawModelTrace as { extractor?: unknown }).extractor)
     : undefined;
-  const reviewerIdentity = rawModelTrace && typeof rawModelTrace === "object"
-    ? modelIdentity((rawModelTrace as { reviewer?: unknown }).reviewer)
-    : undefined;
-  const adjudicatorIdentity = rawModelTrace && typeof rawModelTrace === "object"
-    ? modelIdentity((rawModelTrace as { adjudicator?: unknown }).adjudicator)
-    : undefined;
-  const independentReview = rawModelTrace && typeof rawModelTrace === "object"
-    ? (rawModelTrace as { independentReview?: unknown }).independentReview
-    : undefined;
-  const independentAdjudication = rawModelTrace && typeof rawModelTrace === "object"
-    ? (rawModelTrace as { independentAdjudication?: unknown }).independentAdjudication
-    : undefined;
-  const separateInvocationReview = rawModelTrace && typeof rawModelTrace === "object"
-    ? (rawModelTrace as { separateInvocationReview?: unknown }).separateInvocationReview
-    : undefined;
-  const separateInvocationAdjudication = rawModelTrace && typeof rawModelTrace === "object"
-    ? (rawModelTrace as { separateInvocationAdjudication?: unknown }).separateInvocationAdjudication
-    : undefined;
-  const modelTrace = extractorIdentity && typeof independentReview === "boolean" && typeof independentAdjudication === "boolean"
-    ? {
-        extractor: extractorIdentity,
-        ...(reviewerIdentity ? { reviewer: reviewerIdentity } : {}),
-        ...(adjudicatorIdentity ? { adjudicator: adjudicatorIdentity } : {}),
-        independentReview,
-        independentAdjudication,
-        ...(typeof separateInvocationReview === "boolean" ? { separateInvocationReview } : {}),
-        ...(typeof separateInvocationAdjudication === "boolean" ? { separateInvocationAdjudication } : {}),
-      }
-    : undefined;
+  const modelTrace = extractorIdentity ? { extractor: extractorIdentity } : undefined;
   const customerBindingHash = typeof (root as { customerBindingHash?: unknown }).customerBindingHash === "string" &&
     /^[a-f0-9]{64}$/.test((root as { customerBindingHash: string }).customerBindingHash)
     ? (root as { customerBindingHash: string }).customerBindingHash
@@ -1100,9 +1066,6 @@ function safeJsonParse(text: string): unknown {
 export const CLINICAL_FACTS_EXTRACTION_SYSTEM_PROMPT =
   "你是门诊安全分诊和就诊目标分层的结构化临床语义判断器。理解口语、否定、时序、严重程度和当前状态；把普通症状与真正急诊级红旗分开，并判断本次是否存在当前治疗目标；不得补充患者未写明的信息。";
 
-export const CLINICAL_FACTS_REVIEW_SYSTEM_PROMPT =
-  "你是独立的门诊分诊复核医师。你必须重新阅读患者原文，质疑初判，统一处置层级；不能因首轮结论而锚定，也不能补充原文没有的事实。";
-
 export function buildClinicalFactsExtractionPrompt(text: string): string {
   const categories = Object.entries(BACKSTOP_RED_FLAG_CATEGORIES)
     .map(([key, label]) => `  "${key}"（${label}）`)
@@ -1158,187 +1121,11 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
   ].join("\n");
 }
 
-export function buildClinicalFactsReviewPrompt(text: string, initialFacts: ClinicalFacts): string {
-  const initialFindings = initialFacts.redFlags.map((finding, index) => ({
-    findingId: `rf-${index + 1}`,
-    ...finding,
-  }));
-  return [
-    buildClinicalFactsExtractionPrompt(text),
-    "",
-    "【独立复核】下面是首轮结构化初判，只能作为待质疑材料，不能直接照抄。请重新阅读【临床文本】，重点复核：当前/既往、否定范围、症状组合、严重度、进展轨迹、是否真正达到即时急诊或优先评估条件。主动拒绝“只因出现症状名就纳入红旗”的过度分诊；同时，缺少伴随症状、生命体征或检查结果只是未知，不能作为降低急症等级的阴性证据。当前时间敏感事件不能被既往、昨日、上周或其他发作的正常检查清除。已知慢性心肺疾病背景下、由劳力或活动诱发的基线症状（平路气短、活动后气促等），在没有夜间阵发性呼吸困难、端坐呼吸、不能平卧、新发/突发、进行性加重或伴胸痛大汗等急性线索时，应把首轮 emergency 纠正为 urgent/clarify；出现急性线索时不得降级。发热分级按同一原则复核：体温未达40℃且无循环/意识/呼吸受损（意识改变、嗜睡、低血压/休克、呼吸急促困难、尿量减少、皮肤花斑、发绀、抽搐）的高热寒战，应把首轮 emergency 纠正为 urgent；达到40℃或伴上述受损表现时不得降级。",
-    "输出 JSON 格式：{\"redFlags\":[最终完整事实],\"encounterScope\":{\"status\":\"active_current_target|historical_or_stable_only|unclear\",\"quote\":\"原文逐字片段\"},\"reviews\":[{\"findingId\":\"rf-1\",\"decision\":\"confirm|modify|reject\",\"dispositionChangeEvidence\":{\"basis\":\"current_same_episode_clearance|polarity_correction|subject_correction\",\"quote\":\"支持降低等级的原文逐字片段\"}}]}。独立重判 encounterScope，不能照抄首轮；如果有任何新的当前阳性问题，不得判 historical_or_stable_only。当前治疗/处置请求（要求开药、加用中药、调理、治疗、续药等）或当前不适主诉同样意味着 active_current_target；‘控制稳定、血压达标、病情平稳’只描述疾病状态，不能单独支撑 historical_or_stable_only。",
-    "首轮每个 positive/possible finding 都必须被逐项处理：在 reviews 中显式写 findingId 和 decision，不能靠省略删除。",
-    "confirm/modify 时，在对应的最终 redFlags 条目内额外写入同一 findingId；可以依原文修正 category/subject/status/urgency/triageBasis/quote。reject 时不保留该条。首轮遗漏的新事实不写 findingId。",
-    "如果 reject，或把 emergency/urgent 降到更低等级，必须填写 dispositionChangeEvidence：只能引用本次当前同一事件已缓解/已由当次临床评估排除的事实，或能证明首轮极性/主体理解错误的逐字原文。陈旧检查、既往评估、未记录伴随症状、一般性的‘情况尚可’都不能作为降级证据。confirm 或升级时不要填写该字段。",
-    `首轮初判：${JSON.stringify({ redFlags: initialFindings, encounterScope: initialFacts.encounterScope }).slice(0, 5000)}`,
-  ].join("\n");
-}
-
-const DISPOSITION_CHANGE_BASES = new Set([
-  "current_same_episode_clearance",
-  "polarity_correction",
-  "subject_correction",
-]);
-
-type ReviewDecision = {
-  decision: "confirm" | "modify" | "reject";
-  evidenceBasis?: string;
-  evidenceQuote?: string;
-};
-
-type DispositionReduction = {
-  findingId: string;
-  initialFinding: RedFlagFinding;
-  proposedFinding?: RedFlagFinding;
-  evidenceBasis: string;
-  evidenceQuote: string;
-};
-
-function urgencyRank(urgency: RedFlagFinding["urgency"]): number {
-  return urgency === "emergency" ? 3 : urgency === "urgent" ? 2 : urgency === "clarify" ? 1 : 0;
-}
-
-function isDispositionReduction(initial: RedFlagFinding, proposed: RedFlagFinding | undefined): boolean {
-  if (!proposed) return true;
-  if (initial.subject === "patient" && proposed.subject !== "patient") return true;
-  if ((initial.status === "positive" || initial.status === "possible") &&
-      proposed.status !== "positive" && proposed.status !== "possible") return true;
-  return urgencyRank(proposed.urgency) < urgencyRank(initial.urgency);
-}
-
-function findingPreservesOrRaisesDisposition(initial: RedFlagFinding, reviewed: RedFlagFinding): boolean {
-  if (initial.category !== reviewed.category || initial.subject !== reviewed.subject) return false;
-  if ((initial.status === "positive" || initial.status === "possible") &&
-      reviewed.status !== "positive" && reviewed.status !== "possible") return false;
-  return urgencyRank(reviewed.urgency) >= urgencyRank(initial.urgency);
-}
-
-function mergeGroundedFindings(...groups: readonly RedFlagFinding[][]): RedFlagFinding[] {
-  const merged: RedFlagFinding[] = [];
-  for (const finding of groups.flat()) {
-    if (merged.some((item) => item.category === finding.category && item.subject === finding.subject &&
-      item.status === finding.status && item.urgency === finding.urgency && item.quote === finding.quote)) continue;
-    merged.push(finding);
-  }
-  return merged;
-}
-
-function mergeGroundedAffirmedSymptoms(
-  ...groups: ReadonlyArray<readonly AffirmedSymptom[] | undefined>
-): AffirmedSymptom[] {
-  const merged: AffirmedSymptom[] = [];
-  const seen = new Set<string>();
-  const normalize = (value: string) => value.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
-  for (const symptom of groups.flatMap((group) => group || [])) {
-    const key = `${normalize(symptom.term)}\u0000${normalize(symptom.quote)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(symptom);
-    if (merged.length >= 40) break;
-  }
-  return merged;
-}
-
-function mergeReviewedEncounterScope(
-  initial: ClinicalFacts["encounterScope"],
-  reviewed: ClinicalFacts["encounterScope"],
-): ClinicalFacts["encounterScope"] {
-  if (!initial || !reviewed) return undefined;
-  if (initial.status === reviewed.status) {
-    return { ...reviewed, reviewAgreement: "agreed" };
-  }
-  // A disagreement can never acquire authority to suppress current clinical reasoning. Preserve
-  // the conservative active/unclear state and make the disagreement explicit in the signed facts.
-  const conservative = initial.status === "active_current_target"
-    ? initial
-    : reviewed.status === "active_current_target"
-      ? reviewed
-      : { status: "unclear" as const, quote: reviewed.quote };
-  return { ...conservative, reviewAgreement: "disagreed" };
-}
-
-function explicitStaleClearanceEvidence(text: string): boolean {
-  return /(?:既往|曾经|之前|此前|上次|上周|上月|数日前|几天前|昨日|昨天|前天|两周前|一月前|往年|陈旧)/.test(text);
-}
-
-function reductionEvidencePassesTemporalContract(reduction: DispositionReduction): boolean {
-  if (reduction.evidenceBasis !== "current_same_episode_clearance") return true;
-  // This is deliberately a tiny temporal trust contract, not a symptom classifier. LLMs own the
-  // clinical interpretation; the server only prevents an explicitly old assessment from acquiring
-  // authority over a current time-sensitive event.
-  return !explicitStaleClearanceEvidence(reduction.evidenceQuote);
-}
-
-function buildDispositionAdjudicationPrompt(text: string, reductions: DispositionReduction[]): string {
-  return [
-    "你是第三方急诊分流降级裁决医师。只判断拟议的降级是否被患者原文明确支持，不重新生成整份红旗列表。",
-    "只有以下情况可 allowReduction=true：本次当前同一事件已经明确缓解或被当次临床评估直接排除；首轮把否定事实误判为阳性；首轮把他人事实误判为患者本人。",
-    "既往、昨日、上周、另一发作的正常检查或低风险评估不能清除当前时间敏感事件；未记录某个伴随症状、生命体征或检查不等于阴性；不确定时必须 false。",
-    "只输出 JSON：{\"decisions\":[{\"findingId\":\"rf-1\",\"allowReduction\":true|false,\"evidenceQuote\":\"原文逐字片段\"}]}。每个 findingId 恰好一次；evidenceQuote 必须逐字来自临床文本，false 时也要引用最相关的当前原文。",
-    `待裁决降级：${JSON.stringify(reductions)}`,
-    "【临床文本】",
-    text.slice(0, 12_000),
-  ].join("\n");
-}
-
-function dispositionReductionApprovals(
-  raw: string,
-  reductions: DispositionReduction[],
-  text: string,
-): Map<string, boolean> | null {
-  const root = safeJsonParse(raw);
-  const items = root && typeof root === "object" && Array.isArray((root as { decisions?: unknown }).decisions)
-    ? (root as { decisions: unknown[] }).decisions
-    : [];
-  if (items.length !== reductions.length) return null;
-  const expectedIds = new Set(reductions.map((item) => item.findingId));
-  const decisions = new Map<string, boolean>();
-  for (const item of items) {
-    if (!item || typeof item !== "object") return null;
-    const findingId = (item as { findingId?: unknown }).findingId;
-    const allowReduction = (item as { allowReduction?: unknown }).allowReduction;
-    const evidenceQuote = (item as { evidenceQuote?: unknown }).evidenceQuote;
-    if (typeof findingId !== "string" || !expectedIds.has(findingId) || decisions.has(findingId)) return null;
-    if (typeof allowReduction !== "boolean" || typeof evidenceQuote !== "string" ||
-        !evidenceQuote.trim() || !text.includes(evidenceQuote.trim())) return null;
-    decisions.set(findingId, allowReduction);
-  }
-  return decisions.size === expectedIds.size ? decisions : null;
-}
-
-function resolveReviewedDisposition(
-  grounded: ClinicalFacts,
-  reviewedGrounded: ClinicalFacts,
-  rawReviewedFlags: unknown[],
-  reductions: DispositionReduction[],
-  approvals: ReadonlyMap<string, boolean>,
-): ClinicalFacts {
-  const rejectedReductionIds = new Set(
-    reductions.filter((item) => approvals.get(item.findingId) !== true).map((item) => item.findingId),
-  );
-  const acceptedReviewed = reviewedGrounded.redFlags.filter((_, index) => {
-    const rawItem = rawReviewedFlags[index];
-    const findingId = rawItem && typeof rawItem === "object"
-      ? (rawItem as { findingId?: unknown }).findingId
-      : undefined;
-    return typeof findingId !== "string" || !rejectedReductionIds.has(findingId);
-  });
-  const conservativeFallbacks = grounded.redFlags.filter((_, index) =>
-    rejectedReductionIds.has(`rf-${index + 1}`));
-  return {
-    redFlags: mergeGroundedFindings(acceptedReviewed, conservativeFallbacks),
-    affirmedSymptoms: mergeGroundedAffirmedSymptoms(
-      grounded.affirmedSymptoms,
-      reviewedGrounded.affirmedSymptoms,
-    ),
-    encounterScope: mergeReviewedEncounterScope(grounded.encounterScope, reviewedGrounded.encounterScope),
-    reviewStatus: "checked",
-  };
-}
-
-/** 事实回补的四个相位。具名导出，让运行时与账本共用同一个词表，不各写一份联合类型。 */
-export type ClinicalFactsPhase = "extract" | "repair" | "review" | "adjudicate";
+/**
+ * 事实回补的模型相位：抽取，以及同一抽取模型上的结构修复/原文引用修复。复核与裁决相位已于
+ * 2026-09-25 删除（见 ClinicalFactsReviewStatus）。具名导出，让运行时与账本共用同一个词表。
+ */
+export type ClinicalFactsPhase = "extract" | "repair";
 
 export type FactsLlmCall = (
   systemPrompt: string,
@@ -1347,22 +1134,14 @@ export type FactsLlmCall = (
   phase?: ClinicalFactsPhase,
 ) => Promise<string>;
 
-export type ExtractClinicalFactsOptions = {
-  independentReview?: boolean;
-  /** 不复核时，接地后的抽取结果即权威结果（reviewStatus=single_pass）。 */
-  singlePass?: boolean;
-  allowDispositionReductions?: boolean;
-};
-
 /**
  * 受约束抽取器。护栏 1(schema)+2(grounding)在此应用;返回 null 表示抽取不可用(调用方 fallback 纯确定性)。
- * llmCall 依赖注入,便于确定性测试。
+ * 接地后的单次抽取即权威结果（reviewStatus=single_pass）。llmCall 依赖注入,便于确定性测试。
  */
 export async function extractClinicalFacts(
   text: string,
   llmCall: FactsLlmCall,
   signal?: AbortSignal,
-  options: ExtractClinicalFactsOptions = {},
 ): Promise<ClinicalFacts | null> {
   if (!text.trim()) return { redFlags: [] };
   if (signal?.aborted) return null;
@@ -1432,264 +1211,5 @@ export async function extractClinicalFacts(
       // Keep the already-grounded subset. A failed quote repair cannot restore rejected findings.
     }
   }
-  if (!options.independentReview) return { ...grounded, reviewStatus: options.singlePass ? "single_pass" : "skipped" };
-  // A reviewer response can be non-empty yet still violate the findingId/grounding contract. Give
-  // that independent phase up to two bounded fresh attempts using the exact same grounded first pass.
-  // The original findings stay fixed across attempts, so a malformed response can neither erase a
-  // stricter disposition nor trigger a new extractor run with an easier baseline. The outer clinical-
-  // facts total AbortSignal still owns the hard time budget, so a third attempt cannot overrun the stage.
-  for (let reviewAttempt = 1; reviewAttempt <= 3; reviewAttempt += 1) {
-    try {
-      const reviewedRaw = await llmCall(
-      CLINICAL_FACTS_REVIEW_SYSTEM_PROMPT,
-      buildClinicalFactsReviewPrompt(text, grounded),
-      signal,
-      "review",
-    );
-      if (signal?.aborted) return null;
-      const reviewed = parseClinicalFacts(reviewedRaw);
-      if (!reviewed) throw new Error("clinical_facts_review_schema_invalid");
-      const reviewedGrounded = groundClinicalFacts(reviewed, text);
-    // 复核条目**逐条隔离**（2026-08-27）：接地失败的条目丢弃，其余照常参与判定。
-    //
-    // 原判据是「有一条接地失败就整批作废重来」。生产实测：把相位超时从 8s 放宽到 12s
-    // 之后（复核终于跑得完了），失败原因从 timeout 变成 review_grounding_invalid，
-    // 三轮重试全废 → 语义层 30% 不可用。长病历上连 qwen3.8-max 也会把某一条引文写成
-    // 改写版；一条不精确就废掉整份复核，代价是整例失去语义回补。
-    // 这正是本仓复发多次的「单条非法连坐整批」形状（parseM02Plan 的注释记着前 7 次）。
-    //
-    // 逐条隔离为什么安全：复核的权威性由下面的**单调性检查**承担，而不是由「条数相等」
-    // 承担——首轮已落地的每条 active finding 必须在复核结果里被保留或升级，否则走
-    // dispositionReductions 的显式批准路径。丢掉一条接地失败的复核条目，只会让单调性
-    // 更难通过（更保守），不可能把该保留的急症擦掉。
-    // 全部条目都接地失败时仍按合同失败处理：那是复核整体不可信，不是个别引文抖动。
-    if (reviewedGrounded.redFlags.length === 0 && reviewed.redFlags.length > 0) {
-      throw new Error("clinical_facts_review_grounding_invalid");
-    }
-    if (reviewedGrounded.redFlags.length !== reviewed.redFlags.length) {
-      console.info("[tcm-cdss:facts] 复核条目逐条隔离：丢弃接地失败条目", {
-        returned: reviewed.redFlags.length,
-        grounded: reviewedGrounded.redFlags.length,
-      });
-    }
-    const activeInitial = grounded.redFlags.filter((finding) => finding.status === "positive" || finding.status === "possible");
-    const monotonicReview = activeInitial.every((initial) =>
-      reviewedGrounded.redFlags.some((candidate) => findingPreservesOrRaisesDisposition(initial, candidate)));
-    if (monotonicReview) {
-      return {
-        redFlags: mergeGroundedFindings(reviewedGrounded.redFlags, grounded.redFlags),
-        affirmedSymptoms: mergeGroundedAffirmedSymptoms(
-          grounded.affirmedSymptoms,
-          reviewedGrounded.affirmedSymptoms,
-        ),
-        encounterScope: mergeReviewedEncounterScope(grounded.encounterScope, reviewedGrounded.encounterScope),
-        reviewStatus: "checked",
-      };
-    }
-    // If the runtime cannot prove that the reduction reviewer and adjudicator are independent,
-    // disagreement is resolved monotonically. The review still contributes new grounded findings,
-    // but it cannot erase or downgrade the first-pass disposition.
-    if (!options.allowDispositionReductions) {
-      return {
-        redFlags: mergeGroundedFindings(grounded.redFlags, reviewedGrounded.redFlags),
-        affirmedSymptoms: mergeGroundedAffirmedSymptoms(
-          grounded.affirmedSymptoms,
-          reviewedGrounded.affirmedSymptoms,
-        ),
-        encounterScope: mergeReviewedEncounterScope(grounded.encounterScope, reviewedGrounded.encounterScope),
-        reviewStatus: "checked",
-      };
-    }
-    const reviewRoot = safeJsonParse(reviewedRaw);
-    const reviewItems = reviewRoot && typeof reviewRoot === "object" && Array.isArray((reviewRoot as { reviews?: unknown }).reviews)
-      ? (reviewRoot as { reviews: unknown[] }).reviews
-      : [];
-    const initialFindingIds = new Set(grounded.redFlags.map((_, index) => `rf-${index + 1}`));
-    const decisions = new Map<string, ReviewDecision>();
-    let malformedReviewDecision = false;
-    for (const item of reviewItems) {
-      if (!item || typeof item !== "object") {
-        malformedReviewDecision = true;
-        continue;
-      }
-      const findingId = (item as { findingId?: unknown }).findingId;
-      const decision = (item as { decision?: unknown }).decision;
-      const evidence = (item as { dispositionChangeEvidence?: unknown }).dispositionChangeEvidence;
-      const evidenceBasis = evidence && typeof evidence === "object"
-        ? (evidence as { basis?: unknown }).basis
-        : undefined;
-      const evidenceQuote = evidence && typeof evidence === "object"
-        ? (evidence as { quote?: unknown }).quote
-        : undefined;
-      if (typeof findingId !== "string" || !initialFindingIds.has(findingId) ||
-          (decision !== "confirm" && decision !== "modify" && decision !== "reject") ||
-          decisions.has(findingId)) {
-        malformedReviewDecision = true;
-        continue;
-      }
-      if (evidence != null && (
-        typeof evidence !== "object" ||
-        typeof evidenceBasis !== "string" || !DISPOSITION_CHANGE_BASES.has(evidenceBasis) ||
-        typeof evidenceQuote !== "string" || !evidenceQuote.trim() || !text.includes(evidenceQuote.trim())
-      )) {
-        malformedReviewDecision = true;
-        continue;
-      }
-      decisions.set(findingId, {
-        decision,
-        evidenceBasis: typeof evidenceBasis === "string" ? evidenceBasis : undefined,
-        evidenceQuote: typeof evidenceQuote === "string" ? evidenceQuote.trim() : undefined,
-      });
-    }
-    const rawReviewedFlags = reviewRoot && typeof reviewRoot === "object" && Array.isArray((reviewRoot as { redFlags?: unknown }).redFlags)
-      ? (reviewRoot as { redFlags: unknown[] }).redFlags
-      : [];
-    const reviewedFindingIds = new Map<string, number>();
-    rawReviewedFlags.forEach((item, index) => {
-      if (!item || typeof item !== "object") return;
-      const findingId = (item as { findingId?: unknown }).findingId;
-      if (typeof findingId !== "string") return;
-      if (!initialFindingIds.has(findingId) || reviewedFindingIds.has(findingId)) {
-        malformedReviewDecision = true;
-        return;
-      }
-      reviewedFindingIds.set(findingId, index);
-    });
-    if (malformedReviewDecision) throw new Error("clinical_facts_review_decision_invalid");
-    const dispositionReductions: DispositionReduction[] = [];
-    for (let index = 0; index < grounded.redFlags.length; index += 1) {
-      const initialFinding = grounded.redFlags[index];
-      if (initialFinding.status !== "positive" && initialFinding.status !== "possible") continue;
-      const findingId = `rf-${index + 1}`;
-      const reviewDecision = decisions.get(findingId);
-      if (!reviewDecision) throw new Error("clinical_facts_review_decision_missing");
-      const reviewedIndex = reviewedFindingIds.get(findingId);
-      const proposedFinding = reviewedIndex == null ? undefined : reviewedGrounded.redFlags[reviewedIndex];
-      if (reviewDecision.decision === "confirm" && !proposedFinding) {
-        throw new Error("clinical_facts_review_confirmed_finding_missing");
-      }
-      if (reviewDecision.decision === "modify" && !proposedFinding) {
-        throw new Error("clinical_facts_review_modified_finding_missing");
-      }
-      if (reviewDecision.decision === "reject" && proposedFinding) {
-        throw new Error("clinical_facts_review_rejected_finding_retained");
-      }
-      if (isDispositionReduction(initialFinding, proposedFinding)) {
-        if (!reviewDecision.evidenceBasis || !reviewDecision.evidenceQuote) {
-          throw new Error("clinical_facts_review_reduction_evidence_missing");
-        }
-        dispositionReductions.push({
-          findingId,
-          initialFinding,
-          proposedFinding,
-          evidenceBasis: reviewDecision.evidenceBasis,
-          evidenceQuote: reviewDecision.evidenceQuote,
-        });
-      }
-    }
-    const unresolvedInitialFinding = grounded.redFlags
-      .map((finding, index) => ({ finding, findingId: `rf-${index + 1}` }))
-      .filter(({ finding }) => finding.status === "positive" || finding.status === "possible")
-      .some(({ finding, findingId }) => {
-        if (reviewedGrounded.redFlags.some((reviewedFinding) =>
-          reviewedFinding.category === finding.category && reviewedFinding.subject === finding.subject &&
-          reviewedFinding.quote === finding.quote)) return false;
-        const decision = decisions.get(findingId)?.decision;
-        if (decision === "reject") return false;
-        if (decision !== "confirm" && decision !== "modify") return true;
-        const reviewedIndex = reviewedFindingIds.get(findingId);
-        return reviewedIndex == null || reviewedGrounded.redFlags[reviewedIndex] == null;
-      });
-    // The adjudicator may explicitly downgrade or negate a first-pass finding, but omission is not
-    // a review decision. Treating silence as clearance would let an empty second response erase a
-    // grounded emergency fact.
-    if (unresolvedInitialFinding) {
-      throw new Error("clinical_facts_review_initial_finding_unresolved");
-    }
-    if (dispositionReductions.length > 0) {
-      const approvals = new Map<string, boolean>();
-      const eligibleReductions: DispositionReduction[] = [];
-      for (const reduction of dispositionReductions) {
-        // A second model and an adjudicator may add or raise a disposition, but an already grounded
-        // emergency cannot be erased by model-only consensus. This model-agnostic monotonic contract
-        // prevents a fluent but semantically wrong explanation from reopening dose-level workflow.
-        if (reduction.initialFinding.urgency === "emergency") approvals.set(reduction.findingId, false);
-        else if (reductionEvidencePassesTemporalContract(reduction)) eligibleReductions.push(reduction);
-        else approvals.set(reduction.findingId, false);
-      }
-      if (eligibleReductions.length > 0) {
-        try {
-          const adjudicatedRaw = await llmCall(
-            CLINICAL_FACTS_REVIEW_SYSTEM_PROMPT,
-            buildDispositionAdjudicationPrompt(text, eligibleReductions),
-            signal,
-            "adjudicate",
-          );
-          if (signal?.aborted) return null;
-          const adjudicated = dispositionReductionApprovals(adjudicatedRaw, eligibleReductions, text);
-          for (const reduction of eligibleReductions) {
-            approvals.set(reduction.findingId, adjudicated?.get(reduction.findingId) === true);
-          }
-        } catch {
-          // A missing adjudicator cannot authorize a downgrade. Keep the stricter grounded
-          // disposition while preserving the fact that the independent review itself completed.
-          for (const reduction of eligibleReductions) approvals.set(reduction.findingId, false);
-        }
-      }
-      return resolveReviewedDisposition(
-        grounded,
-        reviewedGrounded,
-        rawReviewedFlags,
-        dispositionReductions,
-        approvals,
-      );
-    }
-    return {
-      ...reviewedGrounded,
-      affirmedSymptoms: mergeGroundedAffirmedSymptoms(
-        grounded.affirmedSymptoms,
-        reviewedGrounded.affirmedSymptoms,
-      ),
-      encounterScope: mergeReviewedEncounterScope(grounded.encounterScope, reviewedGrounded.encounterScope),
-      reviewStatus: "checked",
-    };
-    } catch (error) {
-      if (signal?.aborted) return null;
-      // 裸 catch{} 会把失败原因连同错误对象一起吞掉，只剩 reviewStatus:"unavailable"——
-      // 与 2026-08-16 已修的 M03 复核 attestation 同一形状（那处注释写着「算出来即丢弃」）。
-      // 「不可用」这三个字对运维毫无可操作性：不知道是未配置、超时、鉴权失败还是上游报错，
-      // 有限重试与跨提供方兜底都无从设计。这里只**分类记录**，不改变任何门控行为
-      // （仍然照旧 fail-closed 到 unavailable），也不回显任何临床文本。
-      const message = String(error instanceof Error ? error.message : error || "");
-      const reason = /not_configured/.test(message) ? "not_configured"
-        : /(?:http_|status code )401|unauthor/i.test(message) ? "unauthorized"
-        : /abort|timeout/i.test(message) ? "timeout"
-        : /(?:http_|status code )\d{3}/.test(message) ? "http_error"
-        : /schema|grounding|decision|finding/.test(message) ? "invalid_contract"
-        : "transport_or_unknown";
-      // 仅记录本模块自己定义的有限错误码，绝不记录模型原文或患者文本。此前所有结构失败
-      // 都被压成 invalid_contract，线上只能知道“坏了”却不知道是缺 findingId、缺 review
-      // decision、还是试图静默降级，无法在不放宽安全门的前提下做类别修复。
-      const contractCode = /^clinical_facts_[a-z0-9_]+$/.test(message) ? message : undefined;
-      // 超时不重试（2026-08-27，生产 30% 语义层不可用的根因）。
-      //
-      // 实测：线上探针 10 例 3 例 unavailable，失败耗时全是 25.5–25.7s——精确撞
-      // CLINICAL_FACTS_TOTAL_TIMEOUT_MS(25s) 总预算；日志里 attempt 1、2 均 reason:'timeout'。
-      // 本循环的重试是为**契约抖动**设计的（reviewer 回了非空但违反 findingId/接地合同，
-      // 那类失败瞬间返回，重试确实能恢复——上面注释与两条回归钉子都在说这件事）。
-      // 超时是另一回事：同提示词、同模型再等一遍，实测两次全超，只是把医生的等待从
-      // 一个相位拖成整条总预算。与 M03 修复轮预算门（shouldRetryStructuredRepairTransport）
-      // 同一条 doctrine：跑不完就别再开一轮，把预算还回去。
-      // 降级语义不变：仍 fail-closed 到 unavailable，首轮已落地的事实原样保留（additive-only）。
-      const retryable = reason !== "timeout" && reviewAttempt !== 3;
-      console.warn("[tcm-cdss:facts] clinical-facts review attempt failed", {
-        attempt: reviewAttempt,
-        reason,
-        ...(contractCode ? { contractCode } : {}),
-        willRetry: retryable,
-      });
-      if (!retryable) return { ...grounded, reviewStatus: "unavailable" };
-    }
-  }
-  return { ...grounded, reviewStatus: "unavailable" };
+  return { ...grounded, reviewStatus: "single_pass" };
 }

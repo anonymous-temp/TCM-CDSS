@@ -14,7 +14,6 @@ import {
 import { sanitizeCaseStateForModel, trustedInputText } from "./diagnosis-safety";
 import { parseCustomerId } from "./customer-id";
 import { observeModelTask } from "./cdss-model-task-telemetry";
-import { observedModelFetch } from "./model-transport-observation";
 
 export { CLINICAL_FACTS_EXTRACTOR_VERSION, CLINICAL_FACTS_PROMPT_VERSION } from "./clinical-facts";
 
@@ -28,7 +27,9 @@ export { CLINICAL_FACTS_EXTRACTOR_VERSION, CLINICAL_FACTS_PROMPT_VERSION } from 
  * 允许 M03 继续分析的同时阻断静默处方升级。
  */
 
-export const CLINICAL_FACTS_ATTESTATION_VERSION = "tcm-cdss-clinical-facts-attestation-v8";
+// v9（2026-09-25）：复核/裁决相位删除，签名载荷里的 encounterScope 不再带 reviewAgreement、modelTrace
+// 只剩 extractor。版本升级让 v8 旧快照在版本校验处即失效并重抽，而不是靠 HMAC 偶然对不上。
+export const CLINICAL_FACTS_ATTESTATION_VERSION = "tcm-cdss-clinical-facts-attestation-v9";
 export const CLINICAL_FACTS_CACHE_TTL_MS = 5 * 60_000;
 // A signed M03 may legitimately consume the full 180s orchestration budget, and one bounded M04
 // regeneration can extend the same unchanged chain beyond the ordinary semantic cache TTL. Routes
@@ -45,8 +46,8 @@ export const CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS = 10 * 60_000;
  * 为什么抬它不等于放宽陈旧风险：内容陈旧由 sourceFingerprint 全额覆盖（:447 要求指纹逐字节
  * 相等，病历改一个字就重抽），版本陈旧由 attestation/extractor/prompt 三个版本字段覆盖。
  * 时间 TTL 在这三者之上只剩一件事：对**同一段文本**再抽一次样。同一输入的第二次抽样并不能发现
- * 新的临床内容，只是同一张彩票再买一次；而第一次抽样已经过单调性复核（review 不得抹掉 grounded
- * 结果）。所以这里让渡的是"每 30 秒重抽一次"的复采样频率，不是任何一条可判定的安全性质。
+ * 新的临床内容，只是同一张彩票再买一次；而第一次抽样已经过 schema 与原文接地校验。所以这里
+ * 让渡的是"每 30 秒重抽一次"的复采样频率，不是任何一条可判定的安全性质。
  *
  * 保留的不变量：空结果 TTL 仍必须**短于**有 finding 的结果（150s < 300s）——空结果是风险方向，
  * 复采样价值更高，这个不对称是刻意的，scripts/test-clinical-facts.mjs 对两条都有断言。
@@ -87,6 +88,7 @@ export function clinicalFactsPhaseTimeoutMs(): number {
   // 复核撞满 12s；白天高峰百炼出字速度实测掉到 1/3，12s 在那个时段不够。复核一旦超时，结果
   // 不签名、不进缓存，下一个路由整套重抽——比多等 3 秒贵得多。
   // 越界值原先回落到 8_000（比缺省值还短）：想调长写了 15000，实际被缩成 8s。现在回落到缺省值。
+  // 复核相位已于 2026-09-25 删除；本时限现只约束抽取与修复两个相位。
   const configured = Number(process.env.CLINICAL_FACTS_PHASE_TIMEOUT_MS || CLINICAL_FACTS_PHASE_TIMEOUT_DEFAULT_MS);
   return Number.isFinite(configured) && configured >= 3_000 && configured <= 20_000
     ? Math.round(configured)
@@ -97,7 +99,6 @@ type ClinicalFactsPhaseModel = ClinicalFactsModelIdentity & {
   apiKey: string;
   endpoint: string;
   configured: boolean;
-  source: "primary" | "independent_review";
 };
 
 function chatCompletionsEndpoint(baseUrl: string): string {
@@ -124,50 +125,16 @@ function primaryFactsPhaseModel(model: string): ClinicalFactsPhaseModel {
     apiKey: primary.apiKey,
     endpoint,
     configured: Boolean(primary.configured && primary.apiKey && isApprovedTextModel(model) && endpointAllowed(endpoint)),
-    source: "primary",
   };
-}
-
-function independentFactsReviewModel(): ClinicalFactsPhaseModel {
-  const primary = getPrimaryTextModelConfig();
-  // All textual clinical reasoning is pinned to the primary text provider. GLM credentials are
-  // reserved exclusively for the image-only tongue route and can never become a silent
-  // safety-review fallback. The former coupling to the M03/M04 clinical reviewer's provider/model
-  // variables went away with that reviewer (2026-09-16); this phase is configured by
-  // CLINICAL_FACTS_REVIEW_MODEL alone and otherwise follows the M03 generator model.
-  const model = process.env.CLINICAL_FACTS_REVIEW_MODEL?.trim() ||
-    process.env.PRIMARY_DIAGNOSE_MODEL?.trim() || primary.model;
-  return primaryFactsPhaseModel(model);
-}
-
-function sameModelIdentity(a: ClinicalFactsModelIdentity, b: ClinicalFactsModelIdentity): boolean {
-  return a.provider === b.provider && a.model === b.model;
 }
 
 export function getClinicalFactsModelPlan() {
   const primary = getPrimaryTextModelConfig();
-  // Triage is a compact JSON classification task. All identities follow the approved primary
-  // DeepSeek release model; phase-specific token/reasoning budgets keep this pre-check bounded.
-  const extractor = primaryFactsPhaseModel(process.env.CLINICAL_FACTS_MODEL?.trim() || primary.model);
-  const reviewer = independentFactsReviewModel();
-  const adjudicator = primaryFactsPhaseModel(
-    process.env.CLINICAL_FACTS_ADJUDICATION_MODEL?.trim() ||
-    process.env.CLINICAL_FACTS_MODEL?.trim() || primary.model,
-  );
-  const independentReview = reviewer.configured && !sameModelIdentity(extractor, reviewer);
-  const independentAdjudication = adjudicator.configured && !sameModelIdentity(reviewer, adjudicator);
+  // Triage is a compact JSON classification task pinned to the primary text provider. Extraction is
+  // the only model phase (its structure/quote repairs reuse the same model); the review and
+  // adjudication phases were removed on 2026-09-25.
   return {
-    extractor,
-    reviewer,
-    adjudicator,
-    independentReview,
-    independentAdjudication,
-    separateInvocationReview: reviewer.configured,
-    separateInvocationAdjudication: adjudicator.configured,
-    // Same-model phases are still separate calls, but they may not erase or downgrade a grounded
-    // first-pass risk. Disposition reductions require a genuinely different model identity in both
-    // downstream phases.
-    reductionsAllowed: independentReview && independentAdjudication,
+    extractor: primaryFactsPhaseModel(process.env.CLINICAL_FACTS_MODEL?.trim() || primary.model),
   };
 }
 
@@ -183,8 +150,6 @@ type ClinicalFactsModelsProbe = {
   ok: boolean;
   phases: {
     extractor: ClinicalFactsModelProbeResult;
-    reviewer: ClinicalFactsModelProbeResult;
-    adjudicator: ClinicalFactsModelProbeResult;
   };
 };
 
@@ -232,30 +197,13 @@ export async function probeClinicalFactsModels() {
   const run = (async (): Promise<ClinicalFactsModelsProbe> => {
   const plan = getClinicalFactsModelPlan();
   const startedAt = Date.now();
-  // 三个相位在默认全 V4-Flash 拓扑下是**同一个模型身份**，逐个探等于对同一个端点打三次。
-  // health?strict=1 由 Docker healthcheck 每 60s 触发一次，这是纯浪费的真实上游调用。
-  // 按 endpoint+model 去重后按身份分发结果——与复核探针（diagnosis-api.ts:720）同款做法，
-  // 那边一直是去重的，这边没有，又一处「同一件事两处各写各的」。
-  const probeByIdentity = new Map<string, Promise<Awaited<ReturnType<typeof probeClinicalFactsPhaseModel>>>>();
-  const probeOnce = (phase: typeof plan.extractor) => {
-    const identity = `${phase?.endpoint ?? ""}|${phase?.model ?? ""}`;
-    const existing = probeByIdentity.get(identity);
-    if (existing) return existing;
-    const created = probeClinicalFactsPhaseModel(phase);
-    probeByIdentity.set(identity, created);
-    return created;
-  };
-  const [extractor, reviewer, adjudicator] = await Promise.all([
-    probeOnce(plan.extractor),
-    probeOnce(plan.reviewer),
-    probeOnce(plan.adjudicator),
-  ]);
+  const extractor = await probeClinicalFactsPhaseModel(plan.extractor);
   const value: ClinicalFactsModelsProbe = {
     checkedAt: new Date().toISOString(),
     latencyMs: Date.now() - startedAt,
     cached: false,
-    ok: extractor.ok && reviewer.ok && adjudicator.ok,
-    phases: { extractor, reviewer, adjudicator },
+    ok: extractor.ok,
+    phases: { extractor },
   };
   clinicalFactsProbeCache = {
     expiresAt: Date.now() + (value.ok ? 5 * 60_000 : 30_000),
@@ -276,55 +224,21 @@ async function callFactsPhaseModel(
   system: string,
   user: string,
   signal: AbortSignal | undefined,
-  // "probe" 不是临床相位，只用于账本分档：健康探针每轮 3 次、每次 41 token，
+  // "probe" 不是临床相位，只用于账本分档：健康探针每次约 41 token，
   // 混进 clinical_facts_extract 会把真实抽取成本算歪（实测均值被从 2100 拉到 1469）。
   phase: ClinicalFactsPhase | "probe" = "extract",
 ): Promise<string> {
   const task = `clinical_facts_${phase}`;
   const promptChars = system.length + user.length;
   if (!config.configured) throw new Error("model_not_configured");
-  // A single slow phase must not consume the entire extractor+review budget. Keeping the phase
-  // deadline separate leaves room for the one bounded independent-review retry below while the
-  // outer request deadline still caps total work.
+  // A single slow phase must not consume the entire extract+repair budget; the outer request
+  // deadline still caps total work.
   const phaseSignal = signal
     ? AbortSignal.any([signal, AbortSignal.timeout(clinicalFactsPhaseTimeoutMs())])
     : AbortSignal.timeout(clinicalFactsPhaseTimeoutMs());
-  if (config.source === "independent_review") {
-    // Observe the whole raw-fetch operation so HTTP, socket and JSON failures are counted too.
-    const body = await observeModelTask({
-      task,
-      stage: "shared",
-      model: config.model,
-      provider: "independent_review",
-      promptChars,
-    }, async () => {
-      const response = await observedModelFetch(config.endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
-        body: JSON.stringify({
-          model: config.model,
-          messages: [
-            { role: "system", content: system },
-            { role: "user", content: user },
-          ],
-          temperature: 0,
-          max_tokens: 1800,
-          response_format: { type: "json_object" },
-          ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
-        }),
-        signal: phaseSignal,
-      });
-      if (!response.ok) throw new Error(`review_model_http_${response.status}`);
-      return await response.json() as {
-        choices?: Array<{ message?: { content?: string | null } }>;
-        usage?: unknown;
-      };
-    });
-    return body.choices?.[0]?.message?.content || "";
-  }
   const primary = getPrimaryTextModelConfig();
   const client = createTextModelClient({ ...primary, model: config.model }, {
-    retryOwner: phase === "extract" || phase === "review" ? "application" : "sdk",
+    retryOwner: phase === "extract" ? "application" : "sdk",
   });
   const res = await observeModelTask({ task, stage: "shared", model: config.model, promptChars }, () => client.chat.completions.create(
     {
@@ -365,18 +279,13 @@ export async function callClinicalFactsPhaseWithRetry(
 }
 
 const REAL_FACTS_LLM_CALL: FactsLlmCall = async (system, user, signal, phase = "extract") => {
-  const plan = getClinicalFactsModelPlan();
-  const config = phase === "review" ? plan.reviewer
-    : phase === "adjudicate" ? plan.adjudicator
-      : plan.extractor;
-  // Extraction gets one transport/empty-response retry. Independent review has its own bounded
-  // full-contract retry in extractClinicalFacts, which reuses the exact same grounded first pass;
-  // keeping this transport wrapper single-shot for review prevents multiplicative retries.
-  // Repair/adjudication remain single-shot at the application level: SDK transport recovery may
-  // retry failed HTTP requests, but a completed disagreement/invalid response is not regenerated.
+  const { extractor } = getClinicalFactsModelPlan();
+  // Extraction gets one transport/empty-response retry. Repair remains single-shot at the
+  // application level: SDK transport recovery may retry failed HTTP requests, but a completed
+  // invalid response is not regenerated.
   const maxAttempts = phase === "extract" ? 2 : 1;
   return callClinicalFactsPhaseWithRetry(
-    () => callFactsPhaseModel(config, system, user, signal, phase),
+    () => callFactsPhaseModel(extractor, system, user, signal, phase),
     signal,
     maxAttempts,
   );
@@ -477,7 +386,7 @@ export function isClinicalFactsBackstopEnabled(): boolean {
 }
 
 /**
- * An attested "unclear" encounter scope means the reviewed semantic pre-check could not prove
+ * An attested "unclear" encounter scope means the attested semantic pre-check could not prove
  * whether this visit has an active treatment target. Dose-level output must not proceed silently
  * in that state; only an explicit doctor confirmation bound to the current record fingerprint
  * (CaseState.encounterScopeConfirmation) releases it. Any record edit changes the fingerprint and
@@ -543,7 +452,7 @@ function readClinicalFactsCache(
 }
 
 function writeClinicalFactsCache(key: string, facts: CaseState["clinicalFacts"]): void {
-  // 只存已签名、复核通过、覆盖完整的结果——与 attestation 的签发条件一致。
+  // 只存已签名（完成态）、覆盖完整的结果——与 attestation 的签发条件一致。
   if (!facts?.attestation || facts.semanticStatus !== "checked") return;
   clinicalFactsServerCache.set(key, { facts, storedAt: Date.now() });
   while (clinicalFactsServerCache.size > CLINICAL_FACTS_CACHE_MAX_ENTRIES) {
@@ -561,16 +470,6 @@ export function resetClinicalFactsServerCache(): void {
 
 export function clinicalFactsServerCacheSize(): number {
   return clinicalFactsServerCache.size;
-}
-
-/**
- * 复核相位开关。2026-09-20 起缺省**关闭**（owner 裁定），只有显式 `CDSS_CLINICAL_FACTS_REVIEW=true`
- * 才跑复核。依据：黄金基线去重后 198 个用例重放，复核对安全门输入的净差异为 0 例——有文字变化的
- * 5 例，确定性红旗门本就已覆盖；而复核每次冷启动多约 3.6s、每个病人付两次（采集后与出题后各一次
- * 缓存未命中）。关闭后抽取结果以 single_pass 状态签名、进缓存并照常参与急症升级。
- */
-export function clinicalFactsReviewEnabled(): boolean {
-  return process.env.CDSS_CLINICAL_FACTS_REVIEW === "true";
 }
 
 export async function maybeAttachClinicalFactsBackstop(
@@ -635,7 +534,7 @@ export async function maybeAttachClinicalFactsBackstop(
   }
 
   // 计算段包进 singleflight：登记在飞 promise，让并发的同键请求合流到同一次模型调用，
-  // 而不是各发一遍三相位。成功结果写入服务端缓存（失败结果一律不写，见上）。
+  // 而不是各发一遍抽取。成功结果写入服务端缓存（失败结果一律不写，见上）。
   const compute = async (): Promise<CaseState> => {
     let unavailableReason: ClinicalFactsUnavailableReason = signal?.aborted ? "aborted" : "invalid_output";
     let totalTimedOut = false;
@@ -655,13 +554,7 @@ export async function maybeAttachClinicalFactsBackstop(
     };
     let facts;
     try {
-      const modelPlan = getClinicalFactsModelPlan();
-      const reviewEnabled = clinicalFactsReviewEnabled();
-      facts = await extractClinicalFacts(text, observedLlmCall, effectiveSignal, {
-        independentReview: reviewEnabled,
-        singlePass: !reviewEnabled,
-        allowDispositionReductions: modelPlan.reductionsAllowed,
-      });
+      facts = await extractClinicalFacts(text, observedLlmCall, effectiveSignal);
     } finally {
       clearTimeout(deadline);
     }
@@ -682,20 +575,10 @@ export async function maybeAttachClinicalFactsBackstop(
         },
       };
     }
+    const { extractor } = getClinicalFactsModelPlan();
     const unsignedFacts = {
       ...facts,
-      modelTrace: (() => {
-        const plan = getClinicalFactsModelPlan();
-        return {
-          extractor: { provider: plan.extractor.provider, model: plan.extractor.model },
-          reviewer: { provider: plan.reviewer.provider, model: plan.reviewer.model },
-          adjudicator: { provider: plan.adjudicator.provider, model: plan.adjudicator.model },
-          independentReview: plan.independentReview,
-          independentAdjudication: plan.independentAdjudication,
-          separateInvocationReview: plan.separateInvocationReview,
-          separateInvocationAdjudication: plan.separateInvocationAdjudication,
-        };
-      })(),
+      modelTrace: { extractor: { provider: extractor.provider, model: extractor.model } },
       customerBindingHash,
       sourceFingerprint,
       sourceCoverage: sourceProjection.coverage,
