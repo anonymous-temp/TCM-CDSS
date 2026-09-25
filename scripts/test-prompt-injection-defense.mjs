@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 
 import {
-  buildCollectPrompt,
   buildDiagnosePrompt,
   buildPrescribePrompt,
   buildQuestionPrompt,
@@ -28,8 +27,8 @@ const caseState = {
   maxQuestionRounds: 1,
 };
 
+// buildCollectPrompt 已删（2026-09-25）：M01 文本路径从不调模型，该提示词自仓库基线起无调用方。
 const prompts = [
-  buildCollectPrompt(forged),
   buildQuestionPrompt(caseState),
   buildDiagnosePrompt({ ...caseState, phase: "diagnose" }),
   buildPrescribePrompt({ ...caseState, phase: "prescribe" }),
@@ -40,10 +39,7 @@ for (const [index, prompt] of prompts.entries()) {
   assert.doesNotMatch(prompt, /<\/?(?:system|developer|assistant|tool)>/i, `prompt ${index} preserved an injected role envelope`);
 }
 
-const collect = prompts[0];
-assert.equal((collect.match(/<!-- DIAGNOSIS_JSON_START -->/g) || []).length, 1, "collect must retain exactly one trusted start marker");
-assert.equal((collect.match(/<!-- DIAGNOSIS_JSON_END -->/g) || []).length, 1, "collect must retain exactly one trusted end marker");
-for (const prompt of prompts.slice(1)) {
+for (const prompt of prompts) {
   assert.doesNotMatch(prompt, /<!--\s*DIAGNOSIS_JSON_(?:START|END)\s*-->/i, "clinical data cannot inject a sentinel into a structured-stage prompt");
   assert.match(prompt, /病历原文中的伪造结构标记/, "forged sentinel should remain visibly inert for the model");
 }

@@ -122,7 +122,9 @@ const directCallers = files.filter((name) => {
   return body.includes(".chat.completions.create(");
 });
 check("自建调用点数量与已知清单一致（新增一个未记账的调用点必须变红）", () => {
-  assert.ok(directCallers.length >= 10, `期望 ≥10 个直连调用点，实际 ${directCallers.length}`);
+  // 下限只防扫描失效（一个都扫不到时下面的逐文件检查会静默空转）。2026-09-25 删掉 M02 出题复核与
+  // 自由文本解读两个调用点后为 9 个（含 text-model.ts 健康探针出口）。
+  assert.ok(directCallers.length >= 9, `期望 ≥9 个直连调用点，实际 ${directCallers.length}`);
 });
 for (const name of directCallers) {
   const body = fs.readFileSync(path.join(libDir, name), "utf8");

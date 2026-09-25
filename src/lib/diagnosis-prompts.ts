@@ -42,38 +42,6 @@ function promptDataText(value: string): string {
     .replace(/<\/?(?:system|developer|assistant|tool|untrusted_clinical_data)>/gi, (token) => `【病历原文角色标记:${token.slice(1, -1)}】`);
 }
 
-const SENTINEL_INSTRUCTION = `
-在回复**末尾**，必须严格按以下格式输出结构化数据（不得省略，不得更改标记符号）：
-<!-- DIAGNOSIS_JSON_START -->
-{
-  "completeness": {"level":"B","redFlag":0.82,"infoGain":0.6,"managementImpact":0.55,"answerability":0.65},
-  "patient": {"name":null,"sex":null,"age":null,"occupation":null},
-  "symptoms": {},
-  "tongue": null,
-  "tongueDx": null,
-  "pulse": null,
-  "faceNote": null,
-  "vitals": {},
-  "pastHistory": null,
-  "medicationHistory": null,
-  "allergyHistory": null
-}
-<!-- DIAGNOSIS_JSON_END -->
-JSON字段说明（**只填写患者实际提及的信息，未提及一律填null或{}**）：
-- completeness.level: "A"(信息严重不足)/"B"(基本够用需追问)/"C"(充分可诊断)
-- completeness四个分数必须按维度分别评估打分（0-1，保留一位小数），**严禁四项填同一占位值（尤其禁止全填0.5）**：
-  - redFlag（红旗排查充分度）：现有信息足以排查急危重症=高(≥0.8)；缺生命体征但主诉不提示危急=中(0.6~0.75)；关键危急线索不明=低
-  - infoGain（辨证信息增益）：主诉+舌+脉+相关问诊齐全=高(≥0.8)；主诉+舌+脉三者具备=0.6~0.75；仅主诉或缺舌脉=低(<0.5)
-  - managementImpact（治疗决策影响）：已足以确定治法方向=高；不足=低
-  - answerability（可回答度）：现有信息可支撑较明确证候=高；含糊难辨=低
-- level判定：redFlag≥0.7且其余≥0.6才可标记"C"；主诉+舌+脉齐备时 infoGain/answerability 通常应≥0.6，不要人为压低
-- patient: 从输入中提取，未提及字段填null
-- symptoms: 键值对，如 {"失眠":"入睡困难，多梦","心悸":"劳累后加重"}
-- tongue/pulse/faceNote: 文字描述或null
-- tongueDx: 仅在有舌照时填写；无舌照填null。格式为 {"schemaVersion":"tongue-dx-v1","quality":{"score":0-1,"issues":[],"needRetake":false},"tongueBody":{"color":null,"shape":[],"posture":[]},"coating":{"color":null,"thickness":null,"moisture":null,"greasiness":null,"peeling":null},"sublingualVeins":{"color":null,"distension":null,"source":null},"clinicalEvidenceLevel":"supportive","summaryText":"舌象摘要"}。若图片模糊/过暗/非舌图/舌体不完整，needRetake必须为true，clinicalEvidenceLevel为"insufficient"，summaryText不得写成确定舌象。
-- vitals: {"BP":"140/90mmHg","HR":"82次/分"} 或 {}
-- 史类字段: 字符串或null，**禁止编造**`;
-
 function tcmLineageInstruction(caseState: CaseState): string {
   const card = getLineageCard(caseState.tcmLineagePreference);
   if (card.code === "unrestricted") {
@@ -572,47 +540,6 @@ JSON要求：
 `;
 }
 
-// ─── M01：一诉五史、生命体征、四诊信息结构化采集（DeepSeek）────────────────────
-
-export function buildCollectPrompt(userInput: string): string {
-  return `你是中医CDSS AI Agent的一诉五史、生命体征和四诊信息采集模块。
-
-## 任务
-从医生录入的患者信息中，精准提取“一诉五史 + 生命体征 + 四诊信息”，为后续辨证、病机拆解和处方建议奠定基础。
-
-${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
-
-## 患者输入
-"""
-${promptDataText(userInput)}
-"""
-
-## 输出要求
-
-**【第一部分：四诊信息整理】**
-用Markdown整理已收集的信息，未提及的字段标注"未提及"，**禁止推断或编造**：
-
-| 项目 | 内容 |
-|------|------|
-| 基本信息 | 性别、年龄、职业（如有） |
-| 一诉：主诉 | 主要症状 + 持续时间 + 主要困扰 |
-| 五史：现病史 | 发病时间、病程经过、诱因、伴随症状、诊治情况 |
-| 五史：既往史 | 已知疾病、手术史、重要慢病 |
-| 五史：过敏史 | 药物/食物过敏 |
-| 五史：用药史 | 当前用药及剂量，中药/中成药/西药均需记录 |
-| 五史：个人/家族/婚育史 | 饮食睡眠、二便、烟酒、月经孕产、家族病史等 |
-| 生命体征 | 体温、血压、心率、呼吸、SpO2、疼痛评分、身高体重等 |
-| 舌象 | 舌质（颜色/形态）+ 舌苔（颜色/质地/厚薄） |
-| 脉象 | 脉型描述 |
-| 其他四诊 | 望诊面色/神志、闻诊声音气味、问诊寒热汗出饮食二便睡眠情志、切诊腹诊按诊等 |
-
-**【第二部分：完整度初评】**
-基于以上信息，简要说明哪些核心辨证要素、安全用药要素和病机拆解要素已知，哪些缺失，并给出充分度初步判断（A/B/C）。主诉、舌象、脉象和与本病相关的问诊信息是中医处方级推理的关键证据；生命体征和年龄属于重要参考信息但不是通用必填项，只有已录入但数值异常/格式错误、出现红旗线索、儿童/孕哺/备孕等特殊人群或候选处方明确受影响时，才列为必须补充。性别/生理状态、过敏史和当前用药在 M03 辨证阶段可作为待补项，但进入 M04 剂量级候选方药前必须形成明确状态；未询问不得按“无”处理。
-
-**【第三部分：结构化JSON（必须输出）】**
-${SENTINEL_INSTRUCTION}`;
-}
-
 // ─── M01-V：舌象图像采集（GLM-5V，最小必要数据）──────────────────────────────
 
 export function buildTongueVisionPrompt(): string {
@@ -669,8 +596,8 @@ export function buildQuestionPrompt(caseState: CaseState): string {
   const reassessment = caseState.questionRounds >= caseState.maxQuestionRounds;
   const classicDiscriminationContext = buildM02ClassicDiscriminationContext(caseState);
   const compactJsonContract = `只输出一个合法 JSON 对象，不要输出 Markdown、sentinel、代码围栏、说明文字或第二份结果。页面问题卡与病历回填都由此对象确定性渲染，不存在另一份可见问题文本：
-{"completeness":{"level":"B","redFlag":0.7,"infoGain":0.5,"managementImpact":0.5,"answerability":0.6},"m02Plan":{"schemaVersion":"tcm-cdss-m02-plan-v1","decision":"ask","rationale":"为什么仍值得追问","questions":[{"id":"q1","question":"与起病时相比，主要不适目前总体是否明显加重？","reason":"会改变哪项临床判断","targetField":"xianbingshi","decisionBranch":"differential","expectedDecisionImpact":"不同回答将如何改变下一步","informationGain":0.85,"sourceEvidence":["病历中的逐字短句"],"options":[{"id":"a","label":"明显加重","answer":"主要不适较起病时明显加重","kind":"clinical_fact","recordValue":"主要不适较起病时明显加重"},{"id":"b","label":"未明显加重","answer":"主要不适较起病时未明显加重","kind":"clinical_fact","recordValue":"主要不适较起病时未明显加重"},{"id":"unknown","label":"本次未取得","answer":"本次未取得该信息","kind":"unknown"}]}]}}
-level 只能取A/B/C；四个分数与 informationGain 取0到1并按本例判断，不得机械照抄示例。targetField 只能取 xianbingshi/jiwangshi/allergyHistory/medicationHistory/vitalsDetail/tcmFace/tcmTongue/tcmPulse/tcmDetail/fuzhuJiancha；decisionBranch 只能取 triage/differential/syndrome/treatment_safety。decision=ask 时必须1到2题；decision=proceed 时 questions 必须为空。每题必须有且只有一个 kind=unknown；clinical_fact 必须提供 recordValue 或 requiresDetail=true。sourceEvidence 只能逐字引用本次病历，问题基于尚未获得的信息时可为空。未获得的资料保持未知，不得补写患者事实。`;
+{"m02Plan":{"schemaVersion":"tcm-cdss-m02-plan-v1","decision":"ask","rationale":"为什么仍值得追问","questions":[{"id":"q1","question":"与起病时相比，主要不适目前总体是否明显加重？","reason":"会改变哪项临床判断","targetField":"xianbingshi","decisionBranch":"differential","expectedDecisionImpact":"不同回答将如何改变下一步","informationGain":0.85,"sourceEvidence":["病历中的逐字短句"],"options":[{"id":"a","label":"明显加重","answer":"主要不适较起病时明显加重","kind":"clinical_fact","recordValue":"主要不适较起病时明显加重"},{"id":"b","label":"未明显加重","answer":"主要不适较起病时未明显加重","kind":"clinical_fact","recordValue":"主要不适较起病时未明显加重"},{"id":"unknown","label":"本次未取得","answer":"本次未取得该信息","kind":"unknown"}]}]}}
+informationGain 取0到1并按本例判断，不得机械照抄示例。targetField 只能取 xianbingshi/jiwangshi/allergyHistory/medicationHistory/vitalsDetail/tcmFace/tcmTongue/tcmPulse/tcmDetail/fuzhuJiancha；decisionBranch 只能取 triage/differential/syndrome/treatment_safety。decision=ask 时必须1到2题；decision=proceed 时 questions 必须为空。每题必须有且只有一个 kind=unknown；clinical_fact 必须提供 recordValue 或 requiresDetail=true。sourceEvidence 只能逐字引用本次病历，问题基于尚未获得的信息时可为空。未获得的资料保持未知，不得补写患者事实。`;
 
   if (reassessment) {
     return `你是中医CDSS信息充分度评估模块。单轮追问已经结束，不得再提问题。普通缺项只降低置信度，不阻断后续；输出 decision=proceed、questions=[]，并在 rationale 中简述已补充信息、仍存不确定项及下一步。

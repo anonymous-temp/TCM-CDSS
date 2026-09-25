@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
-const jiti = createJiti(import.meta.url);
+const jiti = createJiti(import.meta.url, {
+  alias: {
+    "@": `${process.cwd()}/src`,
+    "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+  },
+});
 const {
   buildCaseAwareQuestionFallback,
   enforceM02UnansweredAxes,
@@ -12,6 +17,7 @@ const {
   getM02MinimumInformationGain,
   parseM02Plan,
   parseM02PlanFromContent,
+  withM02Completeness,
 } = jiti("../src/lib/m02-question-contract.ts");
 const { applyUserAnswer } = jiti("../src/lib/diagnosis-engine.ts");
 const { reviewM02QuestionPlan } = jiti("../src/lib/m02-question-review.server.ts");
@@ -85,7 +91,8 @@ assert.doesNotMatch(lowValueOnly, /喜欢什么颜色/);
 assert.match(lowValueOnly, /加重、缓解还是反复波动/);
 
 const envelope = ensureQuestionStructuredEnvelope(oneHighValue);
-assert.match(envelope, /DIAGNOSIS_JSON_START[\s\S]*"completeness"[\s\S]*DIAGNOSIS_JSON_END/);
+assert.match(envelope, /DIAGNOSIS_JSON_START -->\n\{"m02Plan":[\s\S]*DIAGNOSIS_JSON_END/);
+assert.doesNotMatch(envelope, /"completeness"/, "the contract layer never invents a completeness score; the route stamps the deterministic one");
 assert.equal(parseM02PlanFromContent(envelope)?.questions.length, 1, "provider failure falls back to a typed one-question plan");
 
 const typedPlan = {
@@ -152,6 +159,46 @@ const jsonOnlyTyped = ensureQuestionStructuredEnvelope(
 assert.equal(parseM02PlanFromContent(jsonOnlyTyped)?.questions[0]?.question, typedPlan.questions[0].question, "JSON-only provider output renders the same authoritative question");
 assert.match(jsonOnlyTyped, /\*\*问题1：\*\* 口中发黏在进食后是否明显加重/);
 
+// ── completeness：模型不再打分，对外信封里的 completeness 由服务端写入（2026-09-25）────────
+// 旧契约把模型给的 completeness 当成信封必填项：缺了就整份计划作废、换兜底题。所以只删提示词里的
+// 打分要求而不改契约，每一例都会落到兜底题——这两处必须一起改。
+const SENTINEL_START = "<!-- DIAGNOSIS_JSON_START -->";
+const SENTINEL_END = "<!-- DIAGNOSIS_JSON_END -->";
+const envelopeJson = (content) => JSON.parse(content.slice(content.indexOf(SENTINEL_START) + SENTINEL_START.length, content.indexOf(SENTINEL_END)));
+const visiblePart = (content) => content.slice(0, content.indexOf(SENTINEL_START));
+const unscoredProviderPlan = ensureQuestionStructuredEnvelope(
+  JSON.stringify({ m02Plan: typedPlan }),
+  "这阵子嘴里发黏，到了下午脑袋发沉",
+);
+assert.equal(parseM02PlanFromContent(unscoredProviderPlan)?.questions[0]?.question, typedPlan.questions[0].question,
+  "a provider plan without a completeness object is accepted, not replaced by the fallback");
+assert.doesNotMatch(unscoredProviderPlan, /模型结构化追问计划不可用/);
+const modelScoredPlan = ensureQuestionStructuredEnvelope(
+  JSON.stringify({ completeness: { level: "C", redFlag: 0.9, infoGain: 0.9, managementImpact: 0.9, answerability: 0.9 }, m02Plan: typedPlan }),
+  "这阵子嘴里发黏，到了下午脑袋发沉",
+);
+assert.deepEqual(Object.keys(envelopeJson(modelScoredPlan)), ["m02Plan"], "a model-authored completeness object is dropped, never passed through");
+for (const [label, transformed] of [
+  ["enforceM02UnansweredAxes", enforceM02UnansweredAxes(modelScoredPlan.replace('{"m02Plan"', '{"completeness":{"level":"C"},"m02Plan"'), "这阵子嘴里发黏，到了下午脑袋发沉")],
+  ["neutralizeM02PlanQuestionRationales", neutralizeM02PlanQuestionRationales(modelScoredPlan.replace('{"m02Plan"', '{"completeness":{"level":"C"},"m02Plan"'), ["q1"])],
+]) {
+  assert.ok(parseM02PlanFromContent(transformed), `${label} still accepts the envelope`);
+  assert.deepEqual(Object.keys(envelopeJson(transformed)), ["m02Plan"], `${label} does not carry a model completeness through`);
+}
+const operationalCompleteness = { redFlag: 0.53, infoGain: 0.5, managementImpact: 0.75, answerability: 0.5, level: "B" };
+const stampedPlan = withM02Completeness(unscoredProviderPlan, operationalCompleteness);
+assert.deepEqual(envelopeJson(stampedPlan), {
+  completeness: { level: "B", redFlag: 0.53, infoGain: 0.5, managementImpact: 0.75, answerability: 0.5 },
+  m02Plan: envelopeJson(unscoredProviderPlan).m02Plan,
+}, "the stamped envelope carries exactly the deterministic completeness and the unchanged plan");
+assert.deepEqual(Object.keys(envelopeJson(stampedPlan)), ["completeness", "m02Plan"], "field order matches the documented envelope");
+assert.deepEqual(Object.keys(envelopeJson(stampedPlan).completeness), ["level", "redFlag", "infoGain", "managementImpact", "answerability"]);
+assert.equal(visiblePart(stampedPlan), visiblePart(unscoredProviderPlan), "stamping never touches the visible Markdown");
+assert.equal(withM02Completeness(stampedPlan, operationalCompleteness), stampedPlan, "stamping is idempotent");
+assert.equal(envelopeJson(withM02Completeness(stampedPlan, { ...operationalCompleteness, level: "C", redFlag: 0.8, infoGain: 0.75, managementImpact: 1, answerability: 0.75 })).completeness.level, "C",
+  "a re-stamp replaces the previous object instead of keeping a stale score");
+assert.equal(withM02Completeness("没有结构化信封的文本", operationalCompleteness), "没有结构化信封的文本");
+
 const genericDetailOnlyPlan = structuredClone(typedPlan);
 genericDetailOnlyPlan.questions[0].options[1] = {
   id: "detail",
@@ -192,58 +239,11 @@ const riskGuardedPlan = enforceM02UnansweredAxes(
   possiblePoisoning,
 );
 assert.match(parseM02PlanFromContent(riskGuardedPlan)?.questions[0]?.question || "", /接触或摄入的物质/, "grounded possible red flag is enforced in the structured plan, not only in visible text");
-let semanticReviewPrompt = "";
-const semanticallyReviewed = await reviewM02QuestionPlan(
-  groundedTyped,
-  "现病史：进食后口中黏腻明显加重。",
-  undefined,
-  async (prompt) => {
-    semanticReviewPrompt = prompt;
-    return JSON.stringify({ decisions: [{ questionId: "q1", status: "remove_known", reason: "病历已明确记录进食后加重" }] });
-  },
-);
-assert.equal(parseM02PlanFromContent(semanticallyReviewed)?.decision, "proceed", "semantic review removes a paraphrased known-answer question without inventing another one");
-assert.doesNotMatch(semanticallyReviewed, /口中发黏在进食后是否明显加重/);
-assert.match(semanticReviewPrompt, /任一子条件已由病历明确回答/, "review contract decomposes bundled known and unknown subconditions");
-assert.match(semanticReviewPrompt, /sourceEvidence/, "the independent reviewer receives the provider's claimed grounding for known-answer detection");
-
-// 2026-09-20 owner 裁定：复核只调一次。此前同一提示词、同一模型、temperature 0 并行发两遍取并集，
-// 输入逐字相同，第二遍只是同一张彩票再买一次。
-let singleReviewAttempt = 0;
-const singleDrawReviewed = await reviewM02QuestionPlan(
-  groundedTyped,
-  "现病史：进食后口中黏腻明显加重。",
-  undefined,
-  async () => {
-    singleReviewAttempt += 1;
-    return JSON.stringify({ decisions: [{ questionId: "q1", status: "remove_known", reason: "病历已明确记录进食后加重" }] });
-  },
-);
-assert.equal(singleReviewAttempt, 1, "M02 semantic review is a single call");
-assert.equal(parseM02PlanFromContent(singleDrawReviewed)?.decision, "proceed", "the single review's known-answer removal is applied");
-
-let invalidReviewAttempt = 0;
-const invalidSingleReview = await reviewM02QuestionPlan(
-  groundedTyped,
-  "现病史：进食后口中黏腻明显加重。",
-  undefined,
-  async () => {
-    invalidReviewAttempt += 1;
-    return "not-json";
-  },
-);
-assert.equal(invalidReviewAttempt, 1, "an invalid review is not silently re-drawn");
-assert.ok(parseM02PlanFromContent(invalidSingleReview), "an invalid review falls back to the deterministic judgment and keeps a valid plan");
-
-const allRejectedWithFallback = await reviewM02QuestionPlan(
-  groundedTyped,
-  "现病史：进食后口中黏腻明显加重。",
-  undefined,
-  async () => JSON.stringify({ decisions: [{ questionId: "q1", status: "remove_known", reason: "病历已明确记录进食后加重" }] }),
-  buildCaseAwareQuestionFallback(novelCase),
-);
-assert.equal(parseM02PlanFromContent(allRejectedWithFallback)?.decision, "ask", "when review rejects every provider question, the route retains one bounded M02 opportunity");
-assert.match(allRejectedWithFallback, /加重、缓解还是反复波动/, "the replacement is server-owned and clinically bounded rather than a model-authored filler question");
+// M02 出题的模型复核 2026-09-25 删除（与出题同为 deepseek-flash，实验 E1 两臂无系统差异）。
+// 收口只剩确定性一条，同步返回字符串；没有删除条件的计划原样保留。
+const deterministicallyFinalized = reviewM02QuestionPlan(groundedTyped, "现病史：进食后口中黏腻明显加重。");
+assert.equal(typeof deterministicallyFinalized, "string", "the M02 finalizer is synchronous and makes no model call");
+assert.equal(deterministicallyFinalized, groundedTyped, "a plan with no deterministic removal or neutralization passes through byte-for-byte");
 
 const constipationPlan = structuredClone(typedPlan);
 const stoolCharacterQuestion = {
@@ -318,11 +318,9 @@ const independentPositiveContent = ensureQuestionStructuredEnvelope(
   JSON.stringify({ completeness: { level: "B" }, m02Plan: independentPositivePlan }),
   "晚上平躺反酸烧心",
 );
-const independentPositiveReviewed = await reviewM02QuestionPlan(
+const independentPositiveReviewed = reviewM02QuestionPlan(
   independentPositiveContent,
   "晚上平躺反酸烧心",
-  undefined,
-  async () => { throw new Error("review should not be needed"); },
 );
 assert.equal(parseM02PlanFromContent(independentPositiveReviewed)?.decision, "proceed", "two simultaneously possible positive findings cannot be rendered as a single-choice question");
 
@@ -341,11 +339,9 @@ const timePrefixedPositiveContent = ensureQuestionStructuredEnvelope(
   JSON.stringify({ completeness: { level: "B" }, m02Plan: timePrefixedPositivePlan }),
   "抽烟多年，晨起咳白痰，近半年加重",
 );
-const timePrefixedPositiveReviewed = await reviewM02QuestionPlan(
+const timePrefixedPositiveReviewed = reviewM02QuestionPlan(
   timePrefixedPositiveContent,
   "抽烟多年，晨起咳白痰，近半年加重",
-  undefined,
-  async () => { throw new Error("binary same-polarity choices must be rejected before semantic review"); },
 );
 assert.equal(parseM02PlanFromContent(timePrefixedPositiveReviewed)?.decision, "proceed", "a yes/no question cannot expose two differently worded affirmative radio choices");
 
@@ -370,11 +366,9 @@ const unrelatedPregnancyContent = ensureQuestionStructuredEnvelope(
   JSON.stringify({ completeness: { level: "B" }, m02Plan: unrelatedPregnancyPlan }),
   "早晨喷嚏一串串，清鼻涕不停",
 );
-const unrelatedPregnancyReviewed = await reviewM02QuestionPlan(
+const unrelatedPregnancyReviewed = reviewM02QuestionPlan(
   unrelatedPregnancyContent,
   "早晨喷嚏一串串，清鼻涕不停",
-  undefined,
-  async () => { throw new Error("unrelated reproductive status must be removed deterministically"); },
 );
 assert.deepEqual(
   parseM02PlanFromContent(unrelatedPregnancyReviewed)?.questions.map((question) => question.id),
@@ -398,18 +392,14 @@ const dryCoughContent = ensureQuestionStructuredEnvelope(
   JSON.stringify({ completeness: { level: "B" }, m02Plan: dryCoughPlan }),
   "感冒好了还一直干咳，嗓子痒",
 );
-const dryCoughReviewed = await reviewM02QuestionPlan(
+const dryCoughReviewed = reviewM02QuestionPlan(
   dryCoughContent,
   "感冒好了还一直干咳，嗓子痒",
-  undefined,
-  async () => { throw new Error("review should not be needed"); },
 );
 assert.equal(parseM02PlanFromContent(dryCoughReviewed)?.decision, "proceed", "a sputum-presence question is removed when dry cough is already documented");
-const dryCoughReviewedWithFallback = await reviewM02QuestionPlan(
+const dryCoughReviewedWithFallback = reviewM02QuestionPlan(
   dryCoughContent,
   "感冒好了还一直干咳，嗓子痒",
-  undefined,
-  async () => { throw new Error("review should not be needed"); },
   buildCaseAwareQuestionFallback({ chiefComplaint: "感冒好了还一直干咳，嗓子痒" }),
 );
 assert.equal(parseM02PlanFromContent(dryCoughReviewedWithFallback)?.decision, "ask", "route-level deterministic rejection retains one bounded M02 opportunity");
@@ -457,11 +447,9 @@ assert.deepEqual(
   "a grounded acute-abdomen axis replaces every provider wording on the same triage branch instead of occupying two slots",
 );
 assert.deepEqual(parseM02PlanFromContent(acuteAbdomenRiskCanonicalized)?.questions.map((question) => question.id), ["q1"], "risk replacement reindexes IDs deterministically");
-const acuteAbdomenReviewed = await reviewM02QuestionPlan(
+const acuteAbdomenReviewed = reviewM02QuestionPlan(
   acuteAbdomenContent,
   "大便四五天一次，肚子还胀",
-  undefined,
-  async () => JSON.stringify({ decisions: [{ questionId: "q1", status: "retain", reason: "保留急腹症分诊问题" }] }),
 );
 assert.deepEqual(
   parseM02PlanFromContent(acuteAbdomenReviewed)?.questions.map((question) => question.id),
@@ -477,24 +465,13 @@ const leadingContent = ensureQuestionStructuredEnvelope(
   JSON.stringify({ completeness: { level: "B" }, m02Plan: leadingPlan }),
   "这阵子嘴里发黏，到了下午脑袋发沉",
 );
-const modelNeutralized = await reviewM02QuestionPlan(
+const leadingNeutralized = reviewM02QuestionPlan(
   leadingContent,
   "这阵子嘴里发黏，到了下午脑袋发沉",
-  undefined,
-  async () => JSON.stringify({ decisions: [{ questionId: "q1", status: "rewrite_leading", reason: "理由提前确立证型和方药" }] }),
 );
-assert.equal(parseM02PlanFromContent(modelNeutralized)?.decision, "ask", "a useful question remains after its leading rationale is classified");
-assert.match(parseM02PlanFromContent(modelNeutralized)?.questions[0]?.reason || "", /未确认前不预设具体证型或治法/);
-assert.doesNotMatch(modelNeutralized, /阴虚火旺|知柏地黄丸|天王补心丹|滋阴降火|紧急处理/, "visible and structured surfaces both use the server-owned neutral rationale");
-
-const fallbackNeutralized = await reviewM02QuestionPlan(
-  leadingContent,
-  "这阵子嘴里发黏，到了下午脑袋发沉",
-  undefined,
-  async () => { throw new Error("review unavailable"); },
-);
-assert.match(parseM02PlanFromContent(fallbackNeutralized)?.questions[0]?.reason || "", /未确认前不预设具体证型或治法/);
-assert.doesNotMatch(fallbackNeutralized, /知柏地黄丸|天王补心丹/, "the deterministic backstop also neutralizes obvious prescription leakage when the reviewer is unavailable");
+assert.equal(parseM02PlanFromContent(leadingNeutralized)?.decision, "ask", "a useful question remains after its leading rationale is neutralized");
+assert.match(parseM02PlanFromContent(leadingNeutralized)?.questions[0]?.reason || "", /未确认前不预设具体证型或治法/);
+assert.doesNotMatch(leadingNeutralized, /阴虚火旺|知柏地黄丸|天王补心丹|滋阴降火|紧急处理/, "visible and structured surfaces both use the server-owned neutral rationale");
 
 const vagueRationalePlan = structuredClone(typedPlan);
 vagueRationalePlan.questions[0].question = "受伤后有无出现肉眼血尿或排尿异常？";
@@ -505,11 +482,9 @@ const vagueRationaleContent = ensureQuestionStructuredEnvelope(
   JSON.stringify({ completeness: { level: "B" }, m02Plan: vagueRationalePlan }),
   "搬重物后腰痛",
 );
-const vagueRationaleNeutralized = await reviewM02QuestionPlan(
+const vagueRationaleNeutralized = reviewM02QuestionPlan(
   vagueRationaleContent,
   "搬重物后腰痛",
-  undefined,
-  async () => JSON.stringify({ decisions: [{ questionId: "q1", status: "retain", reason: "问题本身有鉴别价值" }] }),
 );
 assert.match(
   parseM02PlanFromContent(vagueRationaleNeutralized)?.questions[0]?.reason || "",
@@ -571,15 +546,9 @@ const episodicTemporalContent = ensureQuestionStructuredEnvelope(
   JSON.stringify({ completeness: { level: "B" }, m02Plan: episodicTemporalPlan }),
   "反复喘鸣，活动后更明显",
 );
-const episodicTemporalNeutralized = await reviewM02QuestionPlan(
+const episodicTemporalNeutralized = reviewM02QuestionPlan(
   episodicTemporalContent,
   "反复喘鸣，活动后更明显",
-  undefined,
-  async (prompt) => {
-    assert.match(prompt, /问题标题、追问理由与预期影响必须使用一致的时间范围/);
-    assert.match(prompt, /发作时的事件.*核实当前状态/);
-    return JSON.stringify({ decisions: [{ questionId: "q1", status: "retain", reason: "问题本身有分诊价值" }] });
-  },
 );
 const episodicTemporalQuestion = parseM02PlanFromContent(episodicTemporalNeutralized)?.questions[0];
 assert.equal(episodicTemporalQuestion?.question, episodicTemporalPlan.questions[0].question, "neutralization preserves the useful clinical question");
@@ -663,5 +632,99 @@ assert.equal(proseUpdated.medicationHistory, undefined);
 assert.equal(proseUpdated.tongue, undefined);
 assert.equal(proseUpdated.pulse, undefined);
 assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be promoted into trusted red-flag facts by keyword parsing");
+
+// ── 路由：模型不再被要求打分；每个出口的 completeness 都是服务端确定性操作完整度 ─────────────
+{
+  Object.assign(process.env, {
+    AI_TEXT_PROVIDER: "openai-compatible",
+    OPENAI_API_KEY: "test-key",
+    OPENAI_BASE_URL: "https://api.deepseek.com",
+    OPENAI_MODEL: "deepseek-flash",
+    PRIMARY_QUESTION_MODEL: "deepseek-flash",
+    CDSS_CLINICAL_FACTS_BACKSTOP: "false",
+  });
+  const { POST: questionPost } = await jiti.import("../src/app/api/diagnosis/question/route.ts");
+  const { deriveOperationalCompleteness } = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
+  const routeCase = {
+    id: "m02-completeness-route", phase: "question", questionRounds: 0, maxQuestionRounds: 1,
+    patient: { sex: "女", age: 46 }, chiefComplaint: "反复入睡困难3月余",
+    symptoms: { presentHistory: "入睡困难，多梦易醒，心烦" }, tongue: "舌红少苔", pulse: "脉细数",
+    vitals: {}, conversation: [],
+    completeness: { level: "C", redFlag: 0.9, infoGain: 0.9, managementImpact: 0.9, answerability: 0.9 },
+  };
+  const expected = deriveOperationalCompleteness(normalizeCaseStateInput({ ...routeCase, customerId: "test-hospital" }));
+  const expectedObject = { level: expected.level, redFlag: expected.redFlag, infoGain: expected.infoGain, managementImpact: expected.managementImpact, answerability: expected.answerability };
+  assert.notEqual(expected.level, "C", "fixture: the deterministic level must differ from the model/client-claimed C");
+  const routePlan = structuredClone(typedPlan);
+  routePlan.questions[0] = {
+    ...routePlan.questions[0],
+    question: "入睡困难是否伴有夜间盗汗或手足心热？",
+    reason: "盗汗或手足心热会改变首要鉴别方向。",
+    targetField: "tcmDetail",
+    expectedDecisionImpact: "区分伴与不伴时的下一步鉴别。",
+    sourceEvidence: ["入睡困难"],
+    options: [
+      { id: "a", label: "伴有", answer: "伴夜间盗汗或手足心热", kind: "clinical_fact", requiresDetail: true },
+      { id: "b", label: "不伴", answer: "无夜间盗汗及手足心热", kind: "clinical_fact", recordValue: "无夜间盗汗及手足心热" },
+      { id: "unknown", label: "本次未取得", answer: "本次未取得该信息", kind: "unknown" },
+    ],
+  };
+  let providerContent = "";
+  let providerStatus = 200;
+  const upstreamBodies = [];
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    upstreamBodies.push(body);
+    if (!body.stream) throw new Error("M02 makes no non-streamed (review) call");
+    if (providerStatus !== 200) return new Response("upstream down", { status: providerStatus });
+    return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: providerContent }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`, {
+      headers: { "Content-Type": "text/event-stream" },
+    });
+  };
+  const runRoute = async () => {
+    const response = await questionPost(new Request("http://localhost/api/diagnosis/question", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-cdss-customer-id": "test-hospital" },
+      body: JSON.stringify({ caseState: routeCase }),
+    }));
+    assert.equal(response.status, 200);
+    const text = (await response.text()).split("\n").filter(Boolean)
+      .map((line) => JSON.parse(line).content || "").filter((chunk) => chunk !== "[END]").join("");
+    return text.slice(text.lastIndexOf(SENTINEL_START));
+  };
+  try {
+    providerContent = JSON.stringify({ m02Plan: routePlan });
+    const unscored = await runRoute();
+    assert.deepEqual(envelopeJson(unscored).completeness, expectedObject, "success path: completeness is the deterministic operational completeness");
+    assert.equal(envelopeJson(unscored).m02Plan.questions[0].question, routePlan.questions[0].question, "the unscored provider plan is delivered, not replaced by the fallback");
+    assert.equal(upstreamBodies.length, 1, "one streamed generation call, no review call");
+    const sentPrompt = upstreamBodies[0].messages.map((message) => message.content).join("\n");
+    assert.doesNotMatch(sentPrompt, /completeness|"redFlag"|infoGain"|answerability|managementImpact|level 只能取/, "the M02 prompt no longer asks the model to score completeness");
+    assert.match(sentPrompt, /"m02Plan":\{"schemaVersion":"tcm-cdss-m02-plan-v1"/, "the M02 prompt still carries the plan contract");
+
+    // 诱导性理由会被确定性收口改写（finalOutputTransform 重渲染信封）——改写后的出口同样要带服务端值。
+    const leadingRoutePlan = structuredClone(routePlan);
+    leadingRoutePlan.questions[0].reason = "盗汗提示阴虚火旺，据此选用知柏地黄丸滋阴降火。";
+    providerContent = JSON.stringify({ completeness: { level: "C", redFlag: 1, infoGain: 1, managementImpact: 1, answerability: 1 }, m02Plan: leadingRoutePlan });
+    const finalized = await runRoute();
+    assert.doesNotMatch(finalized, /阴虚火旺|知柏地黄丸/, "fixture: the deterministic finalizer rewrote this plan");
+    assert.match(envelopeJson(finalized).m02Plan.questions[0].reason, /未确认前保持未知/);
+    assert.deepEqual(envelopeJson(finalized).completeness, expectedObject, "a model-authored completeness never reaches the external envelope, including after the finalizer rewrites it");
+
+    providerStatus = 500;
+    const upstreamFailure = await runRoute();
+    assert.match(upstreamFailure, /m02Plan/);
+    assert.deepEqual(envelopeJson(upstreamFailure).completeness, expectedObject, "stream-error fallback path is stamped too");
+
+    providerStatus = 200;
+    delete process.env.OPENAI_API_KEY;
+    const unconfigured = await runRoute();
+    assert.deepEqual(envelopeJson(unconfigured).completeness, expectedObject, "non-2xx fallback path is stamped too");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+}
 
 console.log(JSON.stringify({ cases: 35, failures: 0 }));

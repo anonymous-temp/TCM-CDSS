@@ -188,7 +188,6 @@ const scripts = [
   "test:evidence-query-concurrency",
   "test:followup-shared-consumers",
   "test:model-transport-accounting",
-  "test:m02-answer-reuse",
   "test:model-routing-ab",
   "test:clinical-model-pairs",
   "test:experience-stream-measurement",

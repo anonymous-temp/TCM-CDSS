@@ -2017,15 +2017,25 @@ function normalizeCompleteness(value: unknown): Completeness {
   };
   return {
     ...scores,
-    level: determineCompletenessLevelFromScores(scores),
+    level: determineCompletenessLevel(scores),
   };
 }
 
-function determineCompletenessLevelFromScores(
+/**
+ * Completeness level from the four dimension scores — the single rule; no model-provided level is
+ * ever trusted.
+ *
+ * C (充分): all dims >= 0.6 AND redFlag >= 0.7 (redFlag has a higher bar — 0.7 — because
+ *   missing a red flag is more dangerous than missing other information)
+ * A (严重不足): any dim < 0.3
+ * B (部分充分): otherwise
+ */
+export function determineCompletenessLevel(
   scores: Pick<Completeness, "redFlag" | "infoGain" | "managementImpact" | "answerability">,
 ): "A" | "B" | "C" {
-  if (scores.redFlag >= 0.7 && scores.infoGain >= 0.6 && scores.managementImpact >= 0.6 && scores.answerability >= 0.6) return "C";
-  if (scores.redFlag < 0.3 || scores.infoGain < 0.3 || scores.managementImpact < 0.3 || scores.answerability < 0.3) return "A";
+  const { redFlag, infoGain, managementImpact, answerability } = scores;
+  if (redFlag >= 0.7 && infoGain >= 0.6 && managementImpact >= 0.6 && answerability >= 0.6) return "C";
+  if (redFlag < 0.3 || infoGain < 0.3 || managementImpact < 0.3 || answerability < 0.3) return "A";
   return "B";
 }
 

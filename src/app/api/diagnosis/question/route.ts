@@ -4,9 +4,10 @@ import {
   buildCaseAwareQuestionFallback,
   enforceM02UnansweredAxes,
   ensureQuestionStructuredEnvelope,
+  withM02Completeness,
 } from "@/lib/m02-question-contract";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
-import { markdownNdjsonResponse, sanitizeCaseStateForModel, trustedInputText } from "@/lib/diagnosis-safety";
+import { deriveOperationalCompleteness, markdownNdjsonResponse, sanitizeCaseStateForModel, trustedInputText } from "@/lib/diagnosis-safety";
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { reviewM02QuestionPlan } from "@/lib/m02-question-review.server";
 
@@ -26,21 +27,25 @@ export async function POST(req: Request) {
   const fallbackQuestions = buildCaseAwareQuestionFallback(caseState);
   const safeCaseState = sanitizeCaseStateForModel(caseState);
   const sourceText = trustedInputText(safeCaseState);
-  const fallback = enforceM02UnansweredAxes(
+  // 对外信封里的 completeness 由服务端按当前病历确定性写入（与各阶段路由 withSafetyGate 同一口径），
+  // 模型不打分。每个出口（成功、上游失败兜底、非 2xx 兜底）都经这一步。
+  const completeness = deriveOperationalCompleteness(caseState);
+  const withCompleteness = (content: string) => withM02Completeness(content, completeness);
+  const fallback = withCompleteness(enforceM02UnansweredAxes(
     ensureQuestionStructuredEnvelope(fallbackQuestions, sourceText),
     sourceText,
-  );
+  ));
   const prompt = buildQuestionPrompt(safeCaseState);
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "question", {
     requestSignal: req.signal,
     streamErrorFallback: fallbackQuestions,
-    outputTransform: (content) => enforceM02UnansweredAxes(
+    outputTransform: (content) => withCompleteness(enforceM02UnansweredAxes(
       ensureQuestionStructuredEnvelope(content, sourceText, fallbackQuestions),
       sourceText,
       fallbackQuestions,
       caseState,
-    ),
-    finalOutputTransform: (content) => reviewM02QuestionPlan(content, sourceText, req.signal, undefined, fallbackQuestions),
+    )),
+    finalOutputTransform: async (content) => withCompleteness(reviewM02QuestionPlan(content, sourceText, fallbackQuestions)),
   });
   if (response.ok || req.signal.aborted) return response;
   await response.body?.cancel().catch(() => undefined);

@@ -16,7 +16,7 @@ import {
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
 import { generalizeOccupation, shouldRedactNarrativeNameCandidate, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
-import { determineCompletenessLevel } from "./diagnosis-parse";
+import { determineCompletenessLevel } from "./diagnosis-types";
 import {
   additiveRedFlagsFromFacts,
   clinicalFactsReviewSettled,

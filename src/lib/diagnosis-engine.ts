@@ -823,10 +823,6 @@ export function applyUserAnswer(state: CaseState, answer: string): CaseState {
   return { ...state, conversation: newConv };
 }
 
-export function shouldProceedToDiagnose(state: CaseState): boolean {
-  return state.completeness.level === "C";
-}
-
 export function setPhase(state: CaseState, phase: Phase): CaseState {
   return { ...state, phase };
 }

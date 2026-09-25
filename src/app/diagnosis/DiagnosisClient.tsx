@@ -122,7 +122,6 @@ import {
 import {
   isCompoundAffirmativeQuestionOption,
   parseM02PlanFromContent,
-  type M02Plan,
   type M02TargetField,
 } from "@/lib/m02-question-contract";
 import {
@@ -6287,78 +6286,21 @@ function applySelectedQuestionOptionsToDraft(
   return next;
 }
 
-type M02InterpretationApiResponse = {
-  ok?: boolean;
-  answers?: unknown[];
-  failure?: { code?: string; message?: string };
-};
-
-function latestM02AskPlan(state: CaseState): M02Plan | undefined {
-  for (const message of [...state.conversation].reverse()) {
-    if (message.role !== "assistant") continue;
-    const plan = parseM02PlanFromContent(message.content);
-    if (plan?.decision === "ask" && plan.questions.length > 0) return plan;
-  }
-  return undefined;
-}
-
-async function interpretTypedQuestionDetails(
-  state: CaseState,
+/**
+ * M02 自由文本补充按原话写进该题已授权的 targetField，同步完成、不经网络。
+ * 2026-09-25 前这里先调 /api/diagnosis/question/interpret 让模型「解读」，失败才写原话；实验 E3
+ * （65 条真实医生口吻回答）里模型把 30 条截成子串、14 条不写入，丢掉的恰是「降压药一直吃着」
+ * 「说不清有无黑便」这类临床内容，且每次多等 p50 2.6s。现在原话即病历；医生原话同时照常进入对话。
+ */
+function applyTypedQuestionDetails(
   selections: Record<string, QuestionOptionSelection>,
-): Promise<Record<string, QuestionOptionSelection>> {
-  const plan = latestM02AskPlan(state);
-  if (!plan) return selections;
-  const detailAnswers = Object.entries(selections)
-    .filter(([, selection]) => selection.targetField && selection.detailAnswer?.trim())
-    .map(([questionId, selection]) => `问题${questionId}：${selection.detailAnswer?.trim()}`)
-    .join("\n");
-  if (!detailAnswers) return selections;
-
-  const preserveRawDetails = () => Object.fromEntries(Object.entries(selections).map(([questionId, selection]) => {
+): Record<string, QuestionOptionSelection> {
+  return Object.fromEntries(Object.entries(selections).map(([questionId, selection]) => {
     const rawDetail = selection.detailAnswer?.trim();
     return [questionId, rawDetail && selection.targetField
       ? { ...selection, patch: { [selection.targetField]: rawDetail } as Partial<HisRecordDraft> }
       : selection];
   }));
-
-  try {
-    const { response, body } = await fetchJsonWithTimeout<M02InterpretationApiResponse>(
-      apiUrl("/api/diagnosis/question/interpret"),
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caseState: state, m02Plan: plan, answer: detailAnswers }),
-      },
-      25_000,
-    );
-    if (!response.ok || body?.ok !== true || !Array.isArray(body.answers)) return preserveRawDetails();
-    const interpreted = { ...selections };
-    for (const rawAnswer of body.answers) {
-      if (!rawAnswer || typeof rawAnswer !== "object") continue;
-      const questionId = (rawAnswer as { questionId?: unknown }).questionId;
-      const targetField = (rawAnswer as { targetField?: unknown }).targetField;
-      const recordValue = (rawAnswer as { recordValue?: unknown }).recordValue;
-      if (typeof questionId !== "string" || typeof targetField !== "string" ||
-          (recordValue !== null && typeof recordValue !== "string")) continue;
-      const previous = interpreted[questionId];
-      const authorized = plan.questions.find((question) =>
-        question.id === questionId && question.targetField === targetField,
-      );
-      if (!previous || !authorized) continue;
-      interpreted[questionId] = {
-        ...previous,
-        targetField: authorized.targetField,
-        patch: recordValue?.trim()
-          ? { [authorized.targetField]: recordValue.trim() } as Partial<HisRecordDraft>
-          : undefined,
-      };
-    }
-    return interpreted;
-  } catch {
-    // The clinician's words still enter the reasoning conversation. A failed semantic projection
-    // must never be replaced with keyword guessing or block the workflow.
-    return preserveRawDetails();
-  }
 }
 
 function inferDraftPatchFromFreeText(text: string): Partial<HisRecordDraft> {
@@ -8846,7 +8788,6 @@ export default function DiagnosisPage() {
     if (runningRef.current || isRunning) return;
     if (!hasChiefComplaintInput(recordDraft)) return;
 
-    const submittedCaseId = caseState.id;
     setRunning(true);
     beginRunScope();
     try {
@@ -8861,11 +8802,10 @@ export default function DiagnosisPage() {
     } else if (caseState.phase === "error") {
       const failedPhase = caseState.lastError?.phase || "collect";
       const retrySelections = failedPhase === "question"
-        ? await interpretTypedQuestionDetails(caseState, selectedQuestionOptions)
+        ? applyTypedQuestionDetails(selectedQuestionOptions)
         : selectedQuestionOptions;
-      if (activeCaseIdRef.current !== submittedCaseId || activeRunAbortController?.signal.aborted) return;
-      // M02 answers are projected by the typed LLM interpreter. Legacy snapshots without a typed
-      // plan keep the doctor's words in conversation but never fall back to keyword field guessing.
+      // M02 answers are written verbatim to their typed targetField. Free text outside a typed
+      // question stays in the conversation and never falls back to keyword field guessing.
       const directPatch = failedPhase === "question" ? {} : inferDraftPatchFromFreeText(trimmed);
       const retryDraftWithSelections = applySelectedQuestionOptionsToDraft(recordDraft, retrySelections);
       const retryDraftWithDirect = Object.keys(directPatch).length > 0
@@ -8937,8 +8877,7 @@ export default function DiagnosisPage() {
       setInput("");
       await runCollect(caseInput, rerunState, hisRecord);
     } else if (caseState.phase === "question" || canContinueLimitedCase(caseState) || hasPendingFollowupQuestions(caseState)) {
-      const submissionSelections = await interpretTypedQuestionDetails(caseState, selectedQuestionOptions);
-      if (activeCaseIdRef.current !== submittedCaseId || activeRunAbortController?.signal.aborted) return;
+      const submissionSelections = applyTypedQuestionDetails(selectedQuestionOptions);
       const submissionAnswer = selectedQuestionAnswerText(submissionSelections);
       const directPatch: Partial<HisRecordDraft> = {};
       const draftWithSelections = applySelectedQuestionOptionsToDraft(recordDraft, submissionSelections);
@@ -9056,15 +8995,13 @@ export default function DiagnosisPage() {
 
     setRunning(true);
     beginRunScope();
-    const submittedCaseId = caseState.id;
     let recovered = caseState;
     let retryPhase: Phase = failedPhase;
     try {
         const supplemental = input.trim();
         const retrySelections = failedPhase === "question"
-          ? await interpretTypedQuestionDetails(caseState, selectedQuestionOptions)
+          ? applyTypedQuestionDetails(selectedQuestionOptions)
           : selectedQuestionOptions;
-        if (activeCaseIdRef.current !== submittedCaseId || activeRunAbortController?.signal.aborted) return;
         const directPatch = failedPhase === "question" ? {} : inferDraftPatchFromFreeText(supplemental);
         const retryDraftWithSelections = applySelectedQuestionOptionsToDraft(recordDraft, retrySelections);
         const retryDraft = Object.keys(directPatch).length > 0
