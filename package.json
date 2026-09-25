@@ -24,7 +24,6 @@
     "build:local-patent-medicines": "python3 scripts/build-local-patent-medicine-index.py",
     "build:book-corpus-evidence": "node scripts/build-tcm-book-corpus-evidence.mjs",
     "test:rxaudit-contract": "jiti scripts/test-local-prescription-checks.mjs",
-    "proof:rxaudit-removal-equivalence": "jiti scripts/test-rxaudit-removal-equivalence.mjs",
     "test:audit-skip-receipts": "node --test scripts/test-audit-skip-receipts.mjs",
     "regress:live-evidence": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-live-evidence.mjs",
     "test:safety-pediatric": "jiti scripts/test-safety-pediatric-gate.mjs",

@@ -51,8 +51,7 @@ const scripts = [
   // 2026-09-25 灵犀审方整体删除（owner 裁定永不启用）：开关随之删除，关闭档成为唯一档。
   // 远端客户端/载荷/供应商归一/配伍查询/性别裁剪的套件（rxai-query-integration、rxaudit-payload、
   // rxaudit-cache、rxaudit-routes、rxaudit-sex-applicability）随被测代码一并删除；删除前后三条
-  // 路由逐字节等价由 npm run proof:rxaudit-removal-equivalence 对 68ea3f0 基线证明（不入本闸门：
-  // 它钉的是一次性迁移，其他改动合法地改变路由输出时它会变红）。
+  // 路由 205 份输出对 68ea3f0 基线逐字节等价（一次性证明，结果记在合并提交说明里，脚本与基线未入库）。
   "test:rxaudit-presentation",
   // 本地确定性处方核对（十八反/十九畏、缺剂量、服法、现用药范围）+ 对外冻结词表（auditCorrelation 键序）。
   "test:rxaudit-contract",

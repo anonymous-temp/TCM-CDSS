@@ -11,7 +11,7 @@
  *   ⑤ 已由服务端签名证明的严重风险版本在改方后继续保留；
  *   ⑥ 对外冻结词表：auditCorrelation 的键序与取值、M05 流里的状态标记。
  * 药名身份归一的单一来源由 test:medication-identity-convergence 钉住。
- * 删除前后逐字节等价由 scripts/test-rxaudit-removal-equivalence.mjs（proof:rxaudit-removal-equivalence）另行钉住。
+ * 删除前后三条路由 205 份输出对 68ea3f0 逐字节等价（2026-09-25 一次性证明，见合并提交说明）。
  */
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
