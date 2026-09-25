@@ -51,9 +51,9 @@ export async function POST(req: Request) {
     initialPrescribed?.contractSignatureVersion != null
   )) {
     return Response.json({
-      error: "医生编辑后的处方仍携带编辑前的模型复核或合同签名，请从当前药味表重新生成待审版本。",
+      error: "医生编辑后的处方仍携带编辑前的合同签名，请从当前药味表重新生成待审版本。",
       code: "stale_workbench_contract_metadata",
-      section: "## 合理用药审方\n**提交前校验**：编辑前的模型复核与合同签名不适用于当前药味版本。\n**处置建议**：请从药味工作台重新提交，系统将对当前精确版本重新执行安全校验与审方。",
+      section: "## 合理用药审方\n**提交前校验**：编辑前的合同签名不适用于当前药味版本。\n**处置建议**：请从药味工作台重新提交，系统将对当前精确版本重新执行安全校验与审方。",
       risks: [],
     }, { status: 422 });
   }

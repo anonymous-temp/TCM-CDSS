@@ -247,5 +247,9 @@ test("医生可见文案：有限结果页、非剂量候选页与进度行都�
   for (const structuredStage of ["prescribe", "diagnose", undefined]) {
     const text = stageProgressHeartbeatStatus({ phase: "review", structuredStage, contentChars: 1, reasoningChars: 0, repairRound: 0 });
     assert.doesNotMatch(text, /独立复核/, text);
+    // 修订轮由确定性校验触发，心跳不得再说「按复核意见」（2026-09-25）。
+    const repair = stageProgressHeartbeatStatus({ phase: "repair", structuredStage, contentChars: 1, reasoningChars: 0, repairRound: 2 });
+    assert.doesNotMatch(repair, /复核/, repair);
+    assert.match(repair, /按校验结果第 2 轮修订定稿/, repair);
   }
 });

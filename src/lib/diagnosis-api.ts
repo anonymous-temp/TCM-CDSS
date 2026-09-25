@@ -2831,7 +2831,7 @@ async function callPrimaryTextModelStream(
       const enqueueClient = (content: string) => {
         if (clientStreamClosed) return;
         // 定稿正文一旦下发，就没有任何「进行中」可报了。心跳是独立的 5s 定时器，与 finalize
-        // 之间存在一个真实窗口：医生已经看到完整报告，下面却还挂着一行「正在按复核意见第 N 轮
+        // 之间存在一个真实窗口：医生已经看到完整报告，下面却还挂着一行「正在按校验结果第 N 轮
         // 修订定稿」。在唯一出口处停表，一次覆盖全部替换标记下发点（当前 6 处）。
         if (content.startsWith(STREAM_REPLACE_MARKER)) {
           finalReportEnqueued = true;
