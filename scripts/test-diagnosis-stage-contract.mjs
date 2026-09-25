@@ -15,7 +15,6 @@ const { normalizeModelNullableText, normalizePrescriptionRole } = await import("
 const { compileM04JsonObjectContent, compileM04Proposal, m04ProposalIssueCode } = await import("../src/lib/m04-proposal-compiler.ts");
 const { isConcreteClinicianDietPlan } = await import("../src/lib/tcm-diet-plan-contract.ts");
 const { sanitizeDiagnoseStreamingDraft } = await import("../src/lib/diagnosis-stream-safety.ts");
-const { buildM04ClinicalReviewPayload, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, m04ClinicalReviewSemanticHash, parseM04ClinicalReview } = await import("../src/lib/m04-clinical-review.ts");
 const { applyActionableFollowupSafetyNetContract, isActionableFollowupSafetyNet } = await import("../src/lib/followup-safety-net.ts");
 const { sanitizeUngroundedRedFlagNegations } = await import("../src/lib/diagnosis-safety.ts");
 const { rejectionTier } = await import("../src/lib/diagnosis-rejection-tiers.ts");
@@ -3660,45 +3659,6 @@ assert.equal(compiledProposal?.formula?.patentAndWestern[0].route, "口服", "in
 assert.equal(compiledProposal?.formula?.patentAndWestern[0].course, "5日", "an explicit label course must survive; absent course remains omitted");
 assert.equal(compiledProposal?.formula?.patentAndWestern[0].recommendationMode, "candidate_review");
 assert.equal(compiledProposal?.formula?.patentAndWestern[0].evidenceId, "EVID-INST-001");
-const clinicalReviewPayload = buildM04ClinicalReviewPayload(
-  { ...stable, contractSignature: "secret-signature", clinicalReview: { status: "accepted" }, irrelevantWorkflowBlob: "x".repeat(50_000) },
-  { ...compiledProposal, contractSignature: "secret-signature", clinicalReview: { status: "accepted" }, irrelevantWorkflowBlob: "y".repeat(50_000) },
-);
-assert.equal(clinicalReviewPayload.prior.contractSignature, undefined, "review projection excludes signature and workflow metadata");
-assert.equal(clinicalReviewPayload.candidate.contractSignature, undefined, "candidate review projection excludes final envelope metadata");
-assert.equal(clinicalReviewPayload.candidate.formula.candidates[0].herbs[0].name, "酸枣仁", "review projection retains the clinically material herb plan");
-assert.equal(clinicalReviewPayload.candidate.formula.candidates[0].herbs[0].targetPathogenesis, compiledProposal.formula.candidates[0].herbs[0].targetPathogenesis, "review projection retains the server-grounded pathogenesis target used to judge the herb role");
-assert.equal(clinicalReviewPayload.candidate.formula.candidates[0].herbs[0].function, compiledProposal.formula.candidates[0].herbs[0].function, "review projection retains the governed herb function used to judge the emperor role");
-assert.equal(clinicalReviewPayload.candidate.formula.candidates[0].herbs[0].prescriptionRole, compiledProposal.formula.candidates[0].herbs[0].prescriptionRole, "review projection retains the deterministic role explanation required by the reviewer");
-assert.equal(clinicalReviewPayload.candidate.formula.candidates[0].applicable, compiledProposal.formula.candidates[0].applicable, "review projection retains the self-devised formula rationale required by the reviewer");
-const selfDevisedReviewReasoning = structuredClone(compiledProposal);
-selfDevisedReviewReasoning.formula.candidates[0].constructionType = "self_devised";
-selfDevisedReviewReasoning.formula.candidates[0].applicable = "受控目录中的命名方未完整覆盖当前主证与病机链，故辨证组方。";
-const selfDevisedReviewPayload = buildM04ClinicalReviewPayload(stable, selfDevisedReviewReasoning);
-assert.equal(selfDevisedReviewPayload.candidate.formula.candidates[0].constructionType, "self_devised", "reviewer can distinguish a transparent self-devised plan from a falsely renamed classic formula");
-assert.match(selfDevisedReviewPayload.candidate.formula.candidates[0].applicable, /命名方未完整覆盖/, "reviewer receives the rationale it is required to assess");
-assert.ok(buildM04ClinicalReviewPrompt("入睡困难", stable, compiledProposal).length < 20_000, "bounded clinical review prompt cannot be inflated by unrelated envelope fields");
-assert.deepEqual(parseM04ClinicalReview("```json\n{\"status\":\"accepted\",\"issueCode\":\"none\"}\n```"), { status: "accepted", issueCode: "none" });
-assert.deepEqual(parseM04ClinicalReview('{"status":"repair","issueCode":"dose_rationale_concern"}'), { status: "repair", issueCode: "dose_rationale_concern" });
-assert.deepEqual(parseM04ClinicalReview('{"status":"pass","issueCode":"none"}'), { status: "unavailable", issueCode: "review_unavailable" }, "unknown reviewer statuses stay fail-closed");
-const reviewSemanticHash = m04ClinicalReviewSemanticHash(stable, compiledProposal);
-const serverFinalizedReviewPayload = structuredClone(compiledProposal);
-serverFinalizedReviewPayload.formula.candidates[0].formulaSource = { evidenceLevel: "classic_source", source: "《太平惠民和剂局方》" };
-serverFinalizedReviewPayload.formula.candidates[0].decoction.method = "服务端标准煎服法";
-serverFinalizedReviewPayload.formula.candidates[0].decoction.followUpNode = "完成5剂后复诊";
-assert.equal(m04ClinicalReviewSemanticHash(stable, serverFinalizedReviewPayload), reviewSemanticHash, "server-owned provenance and rendering do not trigger a second stochastic clinical review");
-assert.equal(canRebindM04ClinicalReview(stable, compiledProposal, serverFinalizedReviewPayload), true);
-const clinicallyChangedReviewPayload = structuredClone(compiledProposal);
-clinicallyChangedReviewPayload.formula.candidates[0].herbs[0].dose = "9g";
-assert.notEqual(m04ClinicalReviewSemanticHash(stable, clinicallyChangedReviewPayload), reviewSemanticHash, "a dose change always invalidates the clinical-review decision fingerprint");
-assert.equal(canRebindM04ClinicalReview(stable, compiledProposal, clinicallyChangedReviewPayload), false, "a core clinical change cannot reuse the earlier review");
-const planChangedReviewPayload = structuredClone(compiledProposal);
-planChangedReviewPayload.formula.modifications = [];
-assert.notEqual(m04ClinicalReviewSemanticHash(stable, planChangedReviewPayload), reviewSemanticHash, "a conditional modification change always invalidates the clinical-review decision fingerprint");
-assert.equal(canRebindM04ClinicalReview(stable, compiledProposal, planChangedReviewPayload), true, "evidence governance may monotonically remove an optional branch without a second stochastic review");
-const addedPlanReviewPayload = structuredClone(compiledProposal);
-addedPlanReviewPayload.formula.modifications.push({ ...addedPlanReviewPayload.formula.modifications[0], trigger: "新增触发条件" });
-assert.equal(canRebindM04ClinicalReview(stable, compiledProposal, addedPlanReviewPayload), false, "finalization cannot add an unreviewed optional branch");
 assert.equal(compiledProposal?.formula?.patentAndWestern[0].evidence.evidenceLevel, "instruction");
 
 const auditInputFidelityProposal = compileM04Proposal({

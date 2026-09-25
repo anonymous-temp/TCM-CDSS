@@ -78,7 +78,6 @@ const ALLOWLIST = new Map([
 
   // ── 结构/呈现锚点:判据是文本形态而非临床语义 ──
   ["src/lib/customer-evidence.ts", "证据行标签锚点(证据依据/来源依据…),解析结构不是临床词表。"],
-  ["src/lib/m03-diagnostic-review.ts", "服务端固定文案的回读判据(判断某段是否为服务端确定性生成),与文案同源维护。"],
   ["src/lib/result-display-policy.ts", "风险呈现分级的文案模式。"],
   ["src/lib/clinical-governance-tables.ts", "本身即受治理生成物(clinical-governance-static-tables)的读取层,其词表来自生成物;文件内剩余为结构判据。"],
   ["src/lib/followup-safety-net.ts", "随访动作词(复诊/急诊/转诊)。属临床动作而非证候术语;待受治理疗法词表补充动作维度后迁移。"],

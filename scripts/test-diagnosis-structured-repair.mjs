@@ -7,8 +7,6 @@ await import("./test-m04-compact-repair-compatibility.mjs");
 const { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, isM03WesternSupportContractReason, repairCompletedStructuredSentinel, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } = await import("../src/lib/diagnosis-structured-repair.ts");
 const { applyDeterministicDecoctionMethod, applyDeterministicHerbFunctions, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
 const { parseOpenAICompatCompletionPayload } = await import("../src/lib/openai-compatible-response.ts");
-const { buildM03DiagnosticReviewPrompt, parseM03DiagnosticReview } = await import("../src/lib/m03-diagnostic-review.ts");
-const { buildM04ClinicalReviewPrompt, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, parseM04ClinicalReview } = await import("../src/lib/m04-clinical-review.ts");
 const { enforceReviewedPrescriptionOutput } = await import("../src/lib/prescription-output-safety.ts");
 const { normalizeClinicalConfidence, normalizePrescriptionRole, normalizeReasoningV2, normalizeWesternDiagnosisStatus } = await import("../src/lib/diagnosis-types.ts");
 const { getTcmHerbFunctionDisplayText } = await import("../src/lib/tcm-knowledge.ts");
@@ -393,103 +391,6 @@ assert.match(combinedFormulaRepairHint, /另一个基础方即使已经命中，
 const modificationRepairHint = buildM04ClinicalRepairHint("m04_modification_1_herb_0_unsupported_high_impact_yang_warm");
 assert.match(modificationRepairHint, /删除整条不受支持的条件性加减/);
 assert.match(modificationRepairHint, /modifications 允许为空/);
-assert.deepEqual(parseM03DiagnosticReview('{"status":"accepted","issueCode":"none"}'), { status: "accepted", issueCode: "none" });
-assert.deepEqual(parseM03DiagnosticReview('{"status":"repair","issueCode":"criteria_not_met"}'), { status: "repair", issueCode: "criteria_not_met" });
-assert.deepEqual(parseM03DiagnosticReview('{"status":"repair","issueCode":"formula_indication_mismatch"}'), { status: "repair", issueCode: "formula_indication_mismatch" });
-assert.deepEqual(parseM03DiagnosticReview('```json\n{"status":"accepted","issueCode":"none"}\n```'), { status: "accepted", issueCode: "none" }, "gateway code fences do not turn a valid reviewer decision into unavailable");
-assert.deepEqual(parseM03DiagnosticReview('{"status":"accepted","issueCode":"criteria_not_met"}'), { status: "unavailable", issueCode: "review_unavailable" });
-const m03ReviewPrompt = buildM03DiagnosticReviewPrompt(
-  "稀便半个月，无腹痛",
-  { westernDiagnosis: { primary: { name: "IBS-D" } } },
-  "[EVID-GUIDE-001] 慢性腹泻诊断标准摘要",
-);
-assert.match(m03ReviewPrompt, /病程阈值[\s\S]*必备核心症状[\s\S]*症状性工作诊断[\s\S]*不得把尚未满足标准的病因[\s\S]*临床闭环[\s\S]*不得使用.*功能失调候[\s\S]*病机节点不得留空[\s\S]*命名方.*核心适应证/);
-assert.match(m03ReviewPrompt, /患者事实边界：稀便半个月，无腹痛[\s\S]*本轮可用证据[\s\S]*绝不能当作患者事实[\s\S]*EVID-GUIDE-001/);
-assert.deepEqual(parseM04ClinicalReview('{"status":"accepted","issueCode":"none"}'), { status: "accepted", issueCode: "none" });
-assert.deepEqual(parseM04ClinicalReview('{"status":"repair","issueCode":"herb_plan_mismatch"}'), { status: "repair", issueCode: "herb_plan_mismatch" });
-const classicCompositionReview = {
-  status: "repair",
-  issueCode: "formula_composition_mismatch",
-  repairFocus: "formula_core_composition",
-  candidateIndex: 0,
-  implicatedHerbs: [],
-};
-assert.deepEqual(
-  constrainM04ClinicalReviewScope(
-    classicCompositionReview,
-    { overview: { recommendedFormulaNames: [], formulaSelectionMode: "self_devised" } },
-    { formula: { candidates: [{ name: "本例辨证组方", formulaNames: [], constructionType: "self_devised", herbs: [] }] } },
-  ),
-  { status: "accepted", issueCode: "none" },
-  "a reviewer cannot impose a classic-formula composition contract on a fully self-devised M03/M04 chain",
-);
-assert.deepEqual(
-  constrainM04ClinicalReviewScope(
-    classicCompositionReview,
-    { overview: { recommendedFormulaNames: ["痛泻要方"], formulaSelectionMode: "single" } },
-    { formula: { candidates: [{ name: "痛泻要方加减", formulaNames: ["痛泻要方"], constructionType: "single_base", herbs: [] }] } },
-  ),
-  classicCompositionReview,
-  "a named-formula composition concern remains blocking and repairable",
-);
-assert.deepEqual(
-  constrainM04ClinicalReviewScope(
-    classicCompositionReview,
-    { overview: { recommendedFormulaNames: ["痛泻要方"], formulaSelectionMode: "single" } },
-    { formula: { candidates: [{
-      name: "本例辨证组方", formulaNames: [], constructionType: "self_devised",
-      identityDeclassified: true, herbs: [],
-    }] } },
-  ),
-  { status: "accepted", issueCode: "none" },
-  "after the server removes a named identity, a reviewer cannot resurrect the removed composition contract through M03",
-);
-assert.match(
-  buildM04ClinicalReviewPrompt("", { overview: { formulaSelectionMode: "self_devised" } }, { formula: { candidates: [] } }),
-  /方名与经典方组成身份由服务端确定性合同独占裁决.*不得返回 formula_composition_mismatch/,
-  "the reviewer prompt must preserve the same issue-domain boundary enforced by the server",
-);
-const focusedM04Repair = parseM04ClinicalReview('{"status":"repair","issueCode":"herb_plan_mismatch","repairFocus":"emperor_role","candidateIndex":0,"implicatedHerbs":["山药","山药","不存在药"]}');
-assert.deepEqual(focusedM04Repair, {
-  status: "repair",
-  issueCode: "herb_plan_mismatch",
-  repairFocus: "emperor_role",
-  candidateIndex: 0,
-  implicatedHerbs: ["山药", "不存在药"],
-});
-assert.match(m04ClinicalRepairGuidance(focusedM04Repair, {
-  formula: { candidates: [{ herbs: [{ name: "山药" }, { name: "茯苓" }] }] },
-}), /候选 1[\s\S]*emperor_role[\s\S]*山药/);
-assert.match(m04ClinicalRepairGuidance(focusedM04Repair, {
-  formula: { candidates: [{ herbs: [{ name: "山药" }, { name: "茯苓" }] }] },
-}), /山药[^\n]*不得继续标为君药[\s\S]*直接覆盖 P1[\s\S]*知识库已覆盖/);
-assert.doesNotMatch(m04ClinicalRepairGuidance(focusedM04Repair, {
-  formula: { candidates: [{ herbs: [{ name: "山药" }, { name: "茯苓" }] }] },
-}), /不存在药/);
-assert.deepEqual(
-  parseM04ClinicalReview('{"status":"repair","issueCode":"dose_rationale_concern","repairFocus":"emperor_role","candidateIndex":9,"implicatedHerbs":[42]}'),
-  { status: "repair", issueCode: "dose_rationale_concern", implicatedHerbs: [] },
-  "issue-incompatible focus, out-of-range candidate and non-string herb coordinates are discarded",
-);
-assert.deepEqual(parseM04ClinicalReview('复核结果：{"status":"repair","issueCode":"dose_rationale_concern"}'), { status: "repair", issueCode: "dose_rationale_concern" }, "bounded transport prose is tolerated while enum values stay strict");
-assert.deepEqual(parseM04ClinicalReview('{"status":"repair","issueCode":"unknown"}'), { status: "unavailable", issueCode: "review_unavailable" });
-const m04ReviewPrompt = buildM04ClinicalReviewPrompt(
-  "稀便半个月，无腹痛",
-  { overview: { primarySyndrome: "脾虚湿困" } },
-  { formula: { candidates: [{ name: "痛泻要方加减" }] } },
-  "[EVID-LITERATURE-001] 方剂适应证摘要",
-);
-assert.match(m04ReviewPrompt, /外部合理用药审方/);
-assert.match(m04ReviewPrompt, /formulaIdentityStatus=verified[\s\S]*不得用患者未提供/);
-assert.match(m04ReviewPrompt, /本轮可用证据[\s\S]*绝不能当作患者事实[\s\S]*EVID-LITERATURE-001/);
-assert.match(m04ReviewPrompt, /对重要未知状态保持保守鲁棒/);
-assert.match(m04ReviewPrompt, /不得用一句.*采纳前复核.*掩盖/);
-assert.match(m04ReviewPrompt, /慢性肾病3-5期[\s\S]*抗凝\/抗血小板[\s\S]*概念示例而非封闭关键词表/);
-assert.match(m04ReviewPrompt, /1–2 味并列君药均为合法结构[\s\S]*一味或两味君药已直接覆盖 P1 中心治法[\s\S]*偏好单君药/);
-assert.match(m04ReviewPrompt, /targetPathogenesis、function 与 prescriptionRole[\s\S]*不能因投影缺少自由文本解释而推定角色不成立/);
-assert.match(m04ReviewPrompt, /modifications 空数组是合法的保守方案[\s\S]*不得仅因没有加减而要求 repair/);
-assert.match(m04ReviewPrompt, /repairFocus[\s\S]*candidateIndex[\s\S]*implicatedHerbs[\s\S]*不得输出自由文本修复指令/);
-
 assert.equal(parseOpenAICompatCompletionPayload('{"choices":[{"message":{"content":"完整结果"},"finish_reason":"stop"}]}')?.choices?.[0]?.message?.content, "完整结果");
 assert.equal(parseOpenAICompatCompletionPayload([
   'data: {"choices":[{"delta":{"content":"完整"},"finish_reason":null}]}',

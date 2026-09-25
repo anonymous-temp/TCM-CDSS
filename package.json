@@ -163,7 +163,7 @@
     "test:model-rate-limit": "node scripts/test-proxy-model-rate-limit.mjs",
     "test:stage-telemetry": "jiti scripts/test-cdss-stage-telemetry.mjs",
     "test:knowledge-telemetry": "jiti scripts/test-knowledge-telemetry.mjs",
-    "test:m03-clinical-review": "jiti scripts/test-m03-diagnostic-review.mjs",
+    "test:m03-orchestration": "jiti scripts/test-m03-orchestration.mjs",
     "test:m03-prepare-idempotence": "jiti scripts/test-m03-prepare-idempotence.mjs",
     "test:transparent-declassification": "jiti scripts/test-transparent-declassification.mjs",
     "test:classic-evidence-sanitizer": "node scripts/test-classic-evidence-sanitizer.mjs",
@@ -279,7 +279,6 @@
     "regress:tcmbest4sdt": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-tcmbest4sdt-live.mjs",
     "test:inspection-field-slot": "npx jiti scripts/test-inspection-field-slot.mjs",
     "test:stage-progress-phase": "npx jiti scripts/test-stage-progress-phase.mjs",
-    "test:m04-review-identity-floor": "npx jiti scripts/test-m04-review-identity-floor.mjs",
     "test:rxaudit-presentation": "npx jiti scripts/test-rxaudit-presentation-switch.mjs",
     "test:rxai-query-integration": "npx jiti scripts/test-rxai-query-integration.mjs",
     "probe:rxai-query": "node scripts/probe-rxai-query.mjs"

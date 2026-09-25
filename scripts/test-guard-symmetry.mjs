@@ -13,9 +13,7 @@
  *    判据正是「任一鉴别项 reason 或 distinguishingPoints < 4 字」，而该过滤删掉的恰好就是它们，
  *    且过滤在 m03SemanticIssue 之前运行——那个本该触发一轮定向修复的 T2 码永远命中不到。
  *
- * 2) 独立复核的定位标签里没有「鉴别遗漏」。复核提示词明确布置了呼吸—心源性交叉鉴别审计
- *    （differentials 必须覆盖心功能不全、冠心病等方向），复核器报了也无法被分类，最终落进
- *    以「硬性删减」为首行的通用引导——「你漏了必须排除的方向」被翻译成「删掉没有支撑的概念」。
+ * 2) （原「独立复核定位标签缺鉴别遗漏」一条随模型复核模块于 2026-09-25 删除。）
  *
  * 3) 药味→病机节点的绑定只防「多」不防「少」：超出的一侧有 target_ref_invalid/_mismatch/_missing
  *    三重把守，反方向（M03 每个 Pn 是否真的被处方覆盖）全仓库不存在。实测：M03 给出 P1、P2，
@@ -28,7 +26,6 @@ import { m03NodeCoverageIssue, m04SafetyContractIssue, m04SemanticIssue } from "
 import { rejectionTier } from "../src/lib/diagnosis-rejection-tiers.ts";
 import { ReasoningV2Schema } from "../src/lib/diagnosis-types.ts";
 import { NON_DOSE_PRESCRIPTION_MARKER, buildSafetyLimitedPrescription, isNonDosePrescriptionText } from "../src/lib/diagnosis-safety.ts";
-import { boundedM03DiagnosticRepairGuidance, m03DiagnosticRepairGuidanceCodes } from "../src/lib/m03-diagnostic-review.ts";
 import { structuredClinicalRepairHint } from "../src/lib/structured-clinical-repair.ts";
 import { synchronizeEditedCandidate } from "../src/lib/prescription-revision.ts";
 import { clinicalTextForDisplay, isDisplayableClinicalText } from "../src/lib/diagnosis-client-guards.ts";
@@ -101,39 +98,7 @@ assert.equal(healthyOutput.westernDiagnosis.differentials.length, 1, "达标的�
 assert.notEqual(healthyOutput.westernDiagnosis.primary.confidence, "低",
   "鉴别项健在时不得因为下限守卫而误降置信度");
 
-// ── 2) 「鉴别遗漏」定位标签与方向对称的修复引导 ────────────────────────────────
-const differentialOmissionReview = {
-  status: "repair",
-  issueCode: "tcm_reasoning_unsupported",
-  repairInstruction: "differentials 未覆盖心功能不全与冠心病等心源性方向，需补充。",
-};
-assert.deepEqual(
-  m03DiagnosticRepairGuidanceCodes(differentialOmissionReview),
-  ["differential_omission"],
-  "复核器报告鉴别遗漏时必须能被分类——否则它既进不了遥测，也无法参与修复策略选择",
-);
-const omissionGuidance = boundedM03DiagnosticRepairGuidance(differentialOmissionReview, { hasCurrentPositiveFacts: true });
-assert.match(omissionGuidance, /只补不删/, "遗漏类意见的修复引导方向必须是补入，不能是删减");
-assert.match(omissionGuidance, /differentials/, "引导必须指明要补的字段");
-assert.doesNotMatch(omissionGuidance, /硬性删减/,
-  "纯遗漏意见不得落进以删减为首行的策略：模型照做只会删得更多，漏掉的方向仍不在结果里");
-assert.doesNotMatch(omissionGuidance, /心功能不全|冠心病/,
-  "复核器原文与患者事实必须留在服务端下发的修复引导之外");
-
-// 越界与遗漏并存时，仍以删减策略为准——越界是安全承重的一侧。
-const mixedReview = {
-  status: "repair",
-  issueCode: "tcm_reasoning_unsupported",
-  repairInstruction: "differentials 未覆盖心源性方向；同时 pathogenesis.chain 写入血瘀但无患者事实支撑。",
-};
-const mixedCodes = m03DiagnosticRepairGuidanceCodes(mixedReview);
-assert.ok(mixedCodes.includes("differential_omission") && mixedCodes.includes("blood_stasis_overreach"),
-  "混合意见必须同时被两类标签识别");
-assert.match(
-  boundedM03DiagnosticRepairGuidance(mixedReview, { hasCurrentPositiveFacts: true }),
-  /硬性删减/,
-  "越界与遗漏并存时必须优先处理越界——它写进了没有患者事实支撑的结论",
-);
+// ── 2) （原「鉴别遗漏」复核定位标签与修复引导，随模型复核模块于 2026-09-25 删除）
 
 // ── 3) 病机节点覆盖：只防多不防少的反方向守卫 ────────────────────────────────
 const COVERAGE_PRIOR = {

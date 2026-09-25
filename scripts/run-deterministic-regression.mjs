@@ -408,9 +408,8 @@ const scripts = [
   "test:stage-progress-phase",
   // （test:review-bounded-advisory 已于 2026-09-25 随模型复核遗留删除：它钉的有界受理谓词与
   // attestation 分支已无生产者；reviewStatus 各档分开计数的断言迁入 test:stage-telemetry。）
-  // 经典方组成身份判据单一化(2026-08-27): 复核载荷此前不带服务端核验数字，复核器凭记忆
-  // 推翻确定性层刚判过的同一件事 —— 30h 生产 6/29 次判组成不符、5 次零修复直接剥名。
-  "test:m04-review-identity-floor",
+  // （test:m04-review-identity-floor 已于 2026-09-25 随 m04-clinical-review.ts 删除：它只测复核载荷与
+  // 复核提示词；经典方组成身份的确定性核验本身由 test:formula-identity-restore 等套件覆盖。）
   "test:clinical-entry",
   "test:clinical-terminology",
   "test:controlled-semantic-normalization",
@@ -534,7 +533,8 @@ const scripts = [
   "test:model-rate-limit",
   "test:stage-telemetry",
   "test:knowledge-telemetry",
-  "test:m03-clinical-review",
+  // M03 结构化编排回归（2026-09-25 自 test:m03-clinical-review 拆出，复核器断言随模块删除）。
+  "test:m03-orchestration",
   // 甲方 2026-08 复测「临床四条」：西医依据混入就诊经过 / 病名鉴别缺失 / 病位缺主症锚 /
   // 治法方向无病例绑定。四条都锁在受治理数据上（GB/T 15657 病名编码、症状—病位映射、
   // GB/T 16751.3 治法编号），因此必须与它们一起回归——词表升级若改了编码层级，本套件先红。
