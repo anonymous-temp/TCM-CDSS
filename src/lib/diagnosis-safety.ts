@@ -4099,8 +4099,11 @@ function semanticScreeningUnavailableItem(state: CaseState): string | undefined 
   if (state.clinicalFacts?.sourceCoverage === "partial") {
     return "病历超出语义红旗预检完整覆盖范围";
   }
+  // 事实层复核相位 2026-09-25 删除后，本轮结果一律是 single_pass（已完成态）。这里只可能被
+  // **存量浏览器状态**里 reviewStatus 停在旧值（skipped 等）的快照触发，处置与此前一致（视为未完成）；
+  // 文案不再提一个已不存在的「独立复核」环节。
   if (state.clinicalFacts?.semanticStatus === "checked" && !clinicalFactsReviewSettled(state.clinicalFacts.reviewStatus)) {
-    return "语义红旗独立复核未完成";
+    return "语义红旗预检结果来自旧版本，需重新预检";
   }
   if (state.clinicalFacts?.semanticStatus !== "unavailable") return undefined;
   const reasonLabels = {
@@ -4741,8 +4744,12 @@ export function buildSafetyLimitedDiagnosis(state: CaseState, gate: SafetyGate):
  * 这里按 attestation 的 unavailableReason 逐支给出各自的理由、限制与下一步动作。
  * 模型复核环节已于 2026-09-16 移除：可见理由里不再提「独立临床复核」（owner 2026-09-25）；
  * 只由已删除的复核执行产生的码（accepted_but_draft_rejected_downstream / invalid_contract /
- * http_error / transport_error / not_configured）不再有专属文案。码缺席时维持旧文案
- * （仅 block 档的红旗/既往背景拦截会走到，存量客户端回退正则依赖它）。
+ * http_error / transport_error / not_configured）不再有专属文案。
+ *
+ * 缺省分支在生产路径上已不可达（diagnose 路由三处兜底页都显式传码，拦截档 2026-09-25 删除），
+ * 但保留为防御性兜底——旧文案里的「通过临床复核」指向一个不存在的环节，故 2026-09-25 一并改写。
+ * 存量浏览器状态里可能仍留着旧串，客户端的 M03 级重跑正则因此继续匹配旧文案（多匹配一条只会
+ * 让它从 M03 重跑，方向安全）。
  */
 export function limitedDiagnosisReasonCopy(
   reviewUnavailableReason?: ClinicalReviewAttestation["unavailableReason"],
@@ -4768,9 +4775,9 @@ export function limitedDiagnosisReasonCopy(
       };
     default:
       return {
-        reason: "本次分析尚未形成通过临床复核的稳定证候结果",
+        reason: "本次分析尚未形成稳定的证候结果",
         limitation: "本次分析尚未形成可信的完整诊断结果",
-        nextAction: "重新完成辨病辨证分析与临床复核",
+        nextAction: "重新运行辨病辨证分析",
       };
   }
 }

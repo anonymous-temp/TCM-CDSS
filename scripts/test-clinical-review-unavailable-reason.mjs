@@ -172,11 +172,11 @@ console.log("test-clinical-review-unavailable-reason: OK", { contractRoundTrip: 
   assert.doesNotMatch(limitedDiagnosisReasonCopy("not_attempted_upstream_down").reason, /通过临床复核|信息不足/,
     "上游故障不得说成临床结论");
   assert.match(limitedDiagnosisReasonCopy("deadline").reason, /安全时限/);
-  for (const code of codes.filter(Boolean)) {
+  for (const code of codes) {
     const copy = limitedDiagnosisReasonCopy(code);
-    assert.doesNotMatch(`${copy.reason}${copy.limitation}`, /独立临床复核|复核否决|模型复核|复核提出|复核未/,
-      `${code}: 可见理由不得再提已删除的模型复核`);
+    assert.doesNotMatch(`${copy.reason}${copy.limitation}${copy.nextAction}`, /临床复核|复核否决|模型复核|复核提出|复核未/,
+      `${code ?? "缺省"}: 可见理由不得再提已删除的模型复核`);
   }
-  // 未知码维持旧文案（block 档拦截与存量客户端回退正则依赖它）。
-  assert.equal(limitedDiagnosisReasonCopy(undefined).reason, "本次分析尚未形成通过临床复核的稳定证候结果");
+  // 缺省分支（生产路径上已不可达：三处兜底页都显式传码，拦截档 2026-09-25 删除）同样不得提复核。
+  assert.equal(limitedDiagnosisReasonCopy(undefined).reason, "本次分析尚未形成稳定的证候结果");
 }

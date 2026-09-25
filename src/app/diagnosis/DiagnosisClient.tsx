@@ -548,7 +548,7 @@ export function stepLimitedReason(caseState: CaseState, step: typeof PHASE_STEPS
   }
   if (step.phase === "assess") {
     return caseState.auditAdvisory?.available === false && !caseState.auditAdvisory?.presentationDisabled
-      ? "合理用药审方服务暂不可用，风险评估按人工药师复核路径处理。"
+      ? "本次风险随访评估未能完成，已给出确定性随访内容；可重试风险随访。"
       : "本阶段未生成完整评估内容；可重试风险随访。";
   }
   return "本阶段输出受限，请结合页面提示处理。";
@@ -1869,7 +1869,9 @@ function RiskSummaryPanel({
  * 稳定证候 / 辨证复核未完成）给出非剂量页或报错时，仅重跑 M04 会复用同一份 M03，必然原地复卡。
  * 命中以下判据的“重新生成候选方药/重试本阶段”动作一律升级为从 M03 重跑。
  */
-const M03_LEVEL_PRESCRIBE_BLOCK_PATTERN = /尚未形成通过临床复核的稳定证候|本次辨病辨证结果完整性|辨证语义复核未完成|未形成可执行|辨证信息完整度不足/;
+// 前两个备选是**存量浏览器状态**里的旧文案（模型复核环节 2026-09-16 删除、相关措辞 2026-09-25 改写），
+// 保留只为让旧快照照样升级为「从 M03 重跑」——多匹配一条的方向是安全的。
+const M03_LEVEL_PRESCRIBE_BLOCK_PATTERN = /尚未形成通过临床复核的稳定证候|辨证语义复核未完成|尚未形成稳定的证候结果|本次辨病辨证结果完整性|未形成可执行|辨证信息完整度不足/;
 
 export function prescribeRetryRequiresM03Rerun(
   caseState: Pick<CaseState, "lastError" | "prescription">,

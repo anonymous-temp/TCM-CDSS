@@ -200,7 +200,7 @@ async function runCase(entry) {
         ? "deterministic_reference"
         : /模型处方输出被截断|未通过处方合同校验|未能形成可核验/.test(record.stages.prescribe?.visible || "")
           ? "contract_rejected"
-        : /尚未形成通过临床复核的稳定证候结果|辨病辨证结果完整性/.test(record.stages.prescribe?.visible || "")
+        : /尚未形成稳定的证候结果|尚未形成通过临床复核的稳定证候结果|辨病辨证结果完整性/.test(record.stages.prescribe?.visible || "")
           ? "diagnosis_unstable"
           : record.stages.prescribe
             ? "safety_blocked"

@@ -1145,7 +1145,10 @@ console.log(JSON.stringify({ cases, failures: 0 }));
   assert.ok(!(singlePass?.missingItems || []).some((item) => /复核未完成/.test(item)), "single_pass 不得被判复核未完成");
   const skippedGate = mk("产后10天，持续剧烈头痛，视物异常。", {}, { ...facts, reviewStatus: "skipped" }).safetyGate;
   assert.notEqual(skippedGate?.status, "red_flag", "skipped 不是完成态，保持展示级");
-  assert.ok((skippedGate?.missingItems || []).some((item) => /独立复核未完成/.test(item)), "skipped 仍须提示复核未完成");
+  // 文案 2026-09-25 改写（复核环节已删，旧措辞指向不存在的环节）；钉的是**行为**：
+  // skipped 不是完成态 ⇒ 保持展示级 + 挂一条语义红旗预检的待办项。
+  assert.ok((skippedGate?.missingItems || []).some((item) => /语义红旗预检结果来自旧版本/.test(item)), "skipped 仍须挂出语义预检未完成的待办项");
+  assert.ok(!(skippedGate?.missingItems || []).some((item) => /独立复核/.test(item)), "待办项不得再提已删除的独立复核");
   const quietSinglePass = mk("反复失眠2个月，入睡困难。", {}, {
     redFlags: [], semanticStatus: "checked", reviewStatus: "single_pass", sourceCoverage: "full",
   }).safetyGate;
