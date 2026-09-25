@@ -13,7 +13,7 @@
 //
 // 用法:
 //   BASE_URL=https://host/tcm-cdss CDSS_API_TOKEN=xxx node scripts/verify-deployed-image.mjs
-// 退出码 0 = 镜像一致**且**主模型真实调用成功;非 0 = 任一不成立或无法证明(都当作部署失败)。
+// 退出码 0 = 镜像一致**且**每个模型家族的真实调用都成功;非 0 = 任一不成立或无法证明(都当作部署失败)。
 // 只验身份不打模型(例如上游明知在维护窗口): SKIP_MODEL_LIVE_CHECK=1。
 import { execFileSync } from "node:child_process";
 
@@ -50,9 +50,11 @@ const commitMatches = remote.commit === local.commit;
 const digestMatches = remote.sourceDigest === local.digest;
 const identityOk = !provenanceMissing && commitMatches && digestMatches;
 
-// 身份一致后仍要证明上游活着(2026-08-13 402 事故)。model-health?check=1 会发一次
-// 真实 completion 请求并校验最终内容流契约;它自带限流(6 次/10 分钟),部署验证单发一次。
-// 「无法证明」(网络失败/限流/非 JSON)一律按失败处理,与镜像验证同一条纪律。
+// 身份一致后仍要证明上游活着(2026-08-13 402 事故)。model-health?check=1 对每个不同的
+// 模型家族/端点各发一次真实 completion 请求并校验最终内容流契约(2026-09-25 起:此前只实调
+// 主 provider,而 M02/M03/M04 首轮与小任务跑在另一家,那一家欠费时本脚本照样全绿)。
+// 它自带限流(6 次/10 分钟),部署验证单发一次。
+// 「无法证明」(网络失败/限流/非 JSON/没有任何家族)一律按失败处理,与镜像验证同一条纪律。
 async function modelLiveCheck() {
   if (process.env.SKIP_MODEL_LIVE_CHECK === "1") return { skipped: true, ok: true };
   try {
@@ -61,15 +63,19 @@ async function modelLiveCheck() {
     });
     const body = await res.json().catch(() => null);
     const live = body?.liveCheck;
-    if (!live || typeof live.ok !== "boolean") {
+    if (!live || typeof live.ok !== "boolean" || !Array.isArray(live.families) || live.families.length === 0) {
       return { ok: false, reason: res.status === 429 ? "model_health_rate_limited" : "model_health_unverifiable", status: res.status };
     }
+    const families = live.families.map((item) => ({
+      family: String(item?.family || "unknown"),
+      ok: item?.ok === true,
+      ...(item?.ok === true ? {} : { reason: String(item?.reason || "unknown") }),
+    }));
+    const ok = live.ok === true && families.every((item) => item.ok);
     return {
-      ok: live.ok,
-      reason: live.ok ? "primary_model_live" : "primary_model_unreachable_or_unfunded",
-      provider: live.provider,
-      model: live.model,
-      ...(live.ok ? {} : { error: live.error || "" }),
+      ok,
+      reason: ok ? "all_model_families_live" : "model_family_unreachable_or_unfunded",
+      families,
     };
   } catch (error) {
     return { ok: false, reason: "model_health_unverifiable", error: String(error?.message || error) };

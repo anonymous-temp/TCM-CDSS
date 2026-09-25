@@ -106,9 +106,6 @@ export async function GET(req: Request) {
     controlledTerminology.model.configured &&
     (!strictProbe || controlledTerminologyProbe?.ok === true);
   const syndromeHypothesisRerank = getSyndromeHypothesisRerankStatus();
-  const syndromeHypothesisRerankReady = syndromeHypothesisRerank.enabled &&
-    syndromeHypothesisRerank.configured &&
-    (!strictProbe || controlledTerminologyProbe?.ok === true);
   const evidenceMissing = externalEvidence.sources
     .filter((source) => source.requiredForRelease && !source.configured)
     .map((source) => `evidence_${source.kind}_not_configured`);
@@ -154,7 +151,10 @@ export async function GET(req: Request) {
     ...(!syndromeHypothesisRerank.enabled ? ["syndrome_hypothesis_rerank_disabled"] : []),
     ...(!syndromeHypothesisRerank.configured ? ["syndrome_hypothesis_rerank_model_not_configured"] : []),
   ];
-  const strictReady = providers.primaryModel.configured && stageModelsReady && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && customerAuthorization.ready && controlledTerminologyReady && syndromeHypothesisRerankReady;
+  // 受控术语归一与证候重排都是 fail-open 的辅助层（未配置/不可用时各自退回确定性结果，临床生成
+  // 不受影响），所以只进 degradedReasons 报出来，不计入 strictReady——此前把它们与临床依赖一起
+  // AND 进就绪位，一次术语模型配置失误就会把容器判成 unhealthy、挡住部署（2026-09-25）。
+  const strictReady = providers.primaryModel.configured && stageModelsReady && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && customerAuthorization.ready;
 
   const body = {
     module: "tcm-cdss",

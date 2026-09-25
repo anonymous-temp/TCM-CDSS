@@ -278,17 +278,27 @@ export function textModelRequestTuning(
   return {};
 }
 
-export async function runTextModelHealthCheck() {
-  const config = getPrimaryTextModelConfig();
-  const publicStatus = getPublicTextModelStatus(config);
-  if (!config.configured) {
-    return {
-      ok: false,
-      ...publicStatus,
-      error: getTextModelMissingMessage(config),
-    };
-  }
+export type TextModelFamily = "qwen" | "deepseek" | "unapproved";
 
+export function textModelFamily(model: string): TextModelFamily {
+  if (isQwenModel(model)) return "qwen";
+  if (isDeepseekModel(model)) return "deepseek";
+  return "unapproved";
+}
+
+/** 实调失败的枚举原因。对外视图会删掉 error 原文（health-public-view 的删除集），运维靠它定位。 */
+export type TextModelLiveCheckReason =
+  | "ok"
+  | "not_configured"
+  | "reasoning_only"
+  | "no_final_content"
+  | "timeout"
+  | "request_failed";
+
+async function liveCheckTextModelConfig(config: TextModelConfig) {
+  if (!config.configured) {
+    return { ok: false, reason: "not_configured" as const, error: getTextModelMissingMessage(config) };
+  }
   try {
     const client = createTextModelClient(config);
     const controller = new AbortController();
@@ -320,22 +330,69 @@ export async function runTextModelHealthCheck() {
       clearTimeout(timeout);
     }
     const sampleReceived = Boolean(content.trim());
+    const streamContractOk = sampleReceived && Boolean(finishReason);
     return {
-      ok: sampleReceived && Boolean(finishReason),
-      ...publicStatus,
+      ok: streamContractOk,
+      reason: streamContractOk
+        ? "ok" as const
+        : !sampleReceived && reasoningReceived ? "reasoning_only" as const : "no_final_content" as const,
       sampleReceived,
       reasoningReceived,
-      streamContractOk: sampleReceived && Boolean(finishReason),
+      streamContractOk,
       finishReason,
       ...(!sampleReceived && reasoningReceived ? { error: "model health check returned reasoning but no final content" } : {}),
     };
   } catch (error) {
+    const timedOut = error instanceof Error && /abort|timeout/i.test(error.message);
     return {
       ok: false,
-      ...publicStatus,
-      error: error instanceof Error && /abort|timeout/i.test(error.message)
-        ? "model health check timed out"
-        : "model health check request failed",
+      reason: timedOut ? "timeout" as const : "request_failed" as const,
+      error: timedOut ? "model health check timed out" : "model health check request failed",
     };
   }
+}
+
+/**
+ * 部署期实调：每个**不同的模型家族/端点**发一次最小请求，并行，逐个校验最终内容流契约。
+ *
+ * 此前只实调主 provider 的模型（2026-09-25 前）。而 M02/M03/M04 首轮与五个小任务跑的是另一家
+ * （deepseek-flash），2026-08-13 那种 402 欠费若落在 DeepSeek 账户上，verify:deployed-image 照样
+ * 全绿。现在按 textModelConfigForModel 把每个阶段模型解析到它真实使用的端点，按（家族, 端点）去重，
+ * 于是今天的配置是一次 DashScope + 一次 DeepSeek；整体 ok 要求每一家都 ok。
+ *
+ * 模型名、厂商名、角色清单与 error 原文放在对外视图会删除的键里（model / provider / providerId /
+ * models / error），对外只剩 family 与枚举原因。
+ */
+export async function runTextModelFamilyHealthChecks(
+  entries: ReadonlyArray<{ role: string; model: string }>,
+) {
+  const groups = new Map<string, { family: TextModelFamily; config: TextModelConfig; models: Array<{ role: string; model: string }> }>();
+  for (const entry of entries) {
+    const model = entry.model.trim();
+    if (!model) continue;
+    const config = textModelConfigForModel(model);
+    const family = textModelFamily(model);
+    const key = `${family}|${config.baseUrl}`;
+    const group = groups.get(key);
+    if (group) group.models.push({ role: entry.role, model });
+    else groups.set(key, { family, config, models: [{ role: entry.role, model }] });
+  }
+  const families = await Promise.all([...groups.values()].map(async ({ family, config, models }) => {
+    const live = await liveCheckTextModelConfig(config);
+    return {
+      family,
+      ...live,
+      configured: config.configured,
+      transportAllowed: config.transportAllowed,
+      ...(config.disabledReason ? { disabledReason: config.disabledReason } : {}),
+      provider: config.providerLabel,
+      providerId: config.provider,
+      model: config.model,
+      models,
+    };
+  }));
+  return {
+    ok: families.length > 0 && families.every((item) => item.ok),
+    families,
+  };
 }

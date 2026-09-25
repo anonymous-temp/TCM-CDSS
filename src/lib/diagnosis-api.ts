@@ -10,7 +10,7 @@ import { explicitPromptCacheMessages } from "./model-prompt-cache";
 //
 // Both backends return NDJSON: {"content":"..."}\n per chunk, end with {"content":"[END]"}\n
 
-import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isApprovedTextModel, isQwenModel, textModelConfigForModel, textModelRequestTuning } from "@/lib/text-model";
+import { getControlledTerminologyModelConfig, getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isApprovedTextModel, isQwenModel, textModelConfigForModel, textModelRequestTuning } from "@/lib/text-model";
 import { getTongueVisionModelConfig } from "@/lib/tongue-vision-model";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosis-types";
 import { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
@@ -1346,10 +1346,42 @@ function structuredSystemPrompt(kind: PromptKind, model: string, task: Structure
  */
 export function structuredStrictFallbackModel(generationModel: string): string | undefined {
   if (supportsStrictJsonSchema(generationModel)) return undefined;
-  const configured = process.env.PRIMARY_STRUCTURED_FALLBACK_MODEL?.trim() || "qwen3.8-flash";
-  if (configured.toLowerCase() === "none") return undefined;
+  const configured = configuredStructuredFallbackModel();
+  if (!configured) return undefined;
   if (!isApprovedTextModel(configured) || !supportsStrictJsonSchema(configured)) return undefined;
   return textModelConfigForModel(configured).configured ? configured : undefined;
+}
+
+/** 部署变量里写的严格兜底模型名（未做可用性判断）；none 表示显式关闭。 */
+function configuredStructuredFallbackModel(): string | undefined {
+  const configured = process.env.PRIMARY_STRUCTURED_FALLBACK_MODEL?.trim() || "qwen3.8-flash";
+  return configured.toLowerCase() === "none" ? undefined : configured;
+}
+
+/**
+ * 部署期实调（model-health?check=1）要覆盖的全部文本模型：主模型、M02/M03/M04 首轮、严格兜底、
+ * 修复轮、M04 传输兜底、小任务（CONTROLLED_TERMINOLOGY_MODEL）。事实抽取模型由调用方另加
+ * （它在 clinical-facts-runtime 里解析）。严格兜底取**部署变量里写的名字**而不是
+ * structuredStrictFallbackModel 的结果——后者在兜底家族没配齐时返回 undefined，正是实调要抓的情形。
+ */
+export function configuredStageTextModels(): Array<{ role: string; model: string }> {
+  const primary = getPrimaryTextModelConfig().model;
+  const question = modelForQuestionStage(primary);
+  const diagnose = modelForStructuredStage(primary, "diagnose");
+  const prescribe = modelForStructuredStage(primary, "prescribe");
+  const fallback = configuredStructuredFallbackModel();
+  const needsStrictFallback = [diagnose, prescribe].some((model) => !supportsStrictJsonSchema(model));
+  return [
+    { role: "primary", model: primary },
+    { role: "question", model: question },
+    { role: "diagnose", model: diagnose },
+    { role: "prescribe", model: prescribe },
+    ...(needsStrictFallback && fallback ? [{ role: "structured_strict_fallback", model: fallback }] : []),
+    { role: "diagnose_repair", model: modelForStructuredRepair(primary, "diagnose") },
+    { role: "prescribe_repair", model: modelForStructuredRepair(primary, "prescribe") },
+    { role: "prescribe_connect_fallback", model: modelForInitialConnectAttempt(prescribe, "prescribe", 1) },
+    { role: "small_tasks", model: getControlledTerminologyModelConfig().model },
+  ];
 }
 
 function summarizeSchemaViolations(violations: readonly ProviderSchemaViolation[]): string {
