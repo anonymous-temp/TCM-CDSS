@@ -538,32 +538,7 @@ for (const [key, value] of Object.entries(modelEnv)) {
   else process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL = previousFallback;
 }
 
-process.env.RXAI_AUDIT_ENABLED = "true";
-process.env.RXAI_AUDIT_BASE_URL = "http://127.0.0.1:18092";
-process.env.RXAI_AUDIT_TOKEN = "test-audit-token";
-process.env.RXAI_AUDIT_ALLOW_INSECURE_HTTP = "true";
-const { probeRxAuditTransport } = await jiti.import("../src/lib/rxaudit.ts");
-let auditProbeRequest;
-globalThis.fetch = async (_url, init) => {
-  auditProbeRequest = init;
-  return new Response("unauthorized", { status: 401 });
-};
-const unauthorizedAudit = await probeRxAuditTransport();
-assert.equal(unauthorizedAudit.ok, false);
-assert.equal(unauthorizedAudit.reason, "unauthorized", "strict readiness must not treat an audit 401 as healthy");
-assert.equal(auditProbeRequest?.method, "POST", "the audit readiness probe must exercise the authenticated POST boundary");
-assert.equal(auditProbeRequest?.body, "{}", "the audit readiness probe must send no patient or prescription data");
-globalThis.fetch = async () => new Response("invalid payload", { status: 422 });
-const authenticatedAudit = await probeRxAuditTransport();
-assert.equal(authenticatedAudit.ok, true, "an authenticated request-validation response proves the credential reached the audit service");
-process.env.RXAI_AUDIT_ENABLED = "false";
-let skippedAuditFetches = 0;
-globalThis.fetch = async () => { skippedAuditFetches += 1; return new Response("invalid payload", { status: 422 }); };
-const skippedAudit = await probeRxAuditTransport();
-assert.equal(skippedAudit.ok, false, "an intentionally skipped probe must never claim provider health");
-assert.equal(skippedAudit.reason, "disabled");
-assert.equal(skippedAuditFetches, 0, "explicit audit disable must stop even credential-only probes");
-process.env.RXAI_AUDIT_ENABLED = "true";
+// 合理用药审方的凭据探针随审方一并删除（2026-09-25）；健康检查不再有审方依赖，见 test:audit-skip-receipts。
 
 await assert.rejects(
   () => readResponseTextLimited(new Response("0123456789", { headers: { "Content-Length": "10" } }), 5),

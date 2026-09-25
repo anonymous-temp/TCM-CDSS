@@ -51,7 +51,8 @@ const { positiveCaseFacts } = await jiti.import("../src/lib/tcm-formula-indicati
     assert.match(source, /authorFollowupForCase/, `${route} 未消费共享 M05 患者级撰写入口`);
   }
   const hisSource = readFileSync(path.join(repoRoot, "src/app/api/diagnosis/his-scheme/route.ts"), "utf8");
-  assert.ok((hisSource.match(/authorFollowupForCase\(/g) || []).length >= 2, "HIS 的审方成功与不可用分支都必须生成患者级随访");
+  // 合理用药审方删除（2026-09-25）后 HIS 只剩「未送审」一条分支（原先成功/不可用两条），它必须生成患者级随访。
+  assert.ok((hisSource.match(/await authorFollowupForCase\(/g) || []).length >= 1, "HIS 的唯一分支必须生成患者级随访");
 }
 const { affirmativeNegationFormsIn, affirmativeNegationFormCount } =
   await jiti.import("../src/lib/clinical-vocabulary.ts");

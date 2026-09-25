@@ -1,7 +1,6 @@
 import { getPublicTextModelStatus, runTextModelHealthCheck } from "@/lib/text-model";
 import { getCdssAuthenticatedRateLimitKey } from "@/lib/cdss-auth";
 import { getDiagnosisProviderStatus } from "@/lib/diagnosis-api";
-import { getRxAuditStatus } from "@/lib/rxaudit";
 
 const HEALTH_CHECK_WINDOW_MS = 10 * 60 * 1000;
 const HEALTH_CHECK_MAX_ATTEMPTS = 6;
@@ -41,7 +40,6 @@ export async function GET(req: Request) {
       module: "text-model",
       status: getPublicTextModelStatus(),
       diagnosis,
-      audit: getRxAuditStatus(),
       liveCheck: "append ?check=1 to call the configured provider",
     });
   }

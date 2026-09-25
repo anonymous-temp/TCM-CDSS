@@ -3,7 +3,6 @@ import path from "node:path";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createJiti } from "jiti";
 import {
-  M05_PRESCRIPTION_MUTATION_CONTROLS,
   PRIMARY_CARE_FIXTURE_METADATA,
   PRIMARY_CARE_POLARITY_CONTRASTS,
   PRIMARY_CARE_SPARSE_50,
@@ -12,8 +11,6 @@ import {
   DOSE_EXPRESSION,
   classifyTransportError,
   buildSemanticM02Answer,
-  evaluateAuditInputQualityControl,
-  evaluateAuditPositiveControl,
   evaluateDeterministicReference,
   evaluateLimitedNoDose,
   evaluateM02QuestionContract,
@@ -31,7 +28,6 @@ import {
   responseComplete,
   validatePrimaryCareFixture,
 } from "./lib/primary-care-sparse-50-contracts.mjs";
-import { buildAuditPositiveControlState } from "./lib/primary-care-audit-positive-controls.mjs";
 
 const BASE_URL = (process.env.BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const TOKEN = process.env.CDSS_API_TOKEN || "";
@@ -70,26 +66,13 @@ const M03_JUDGE_DIMENSIONS = Object.freeze({
 });
 
 const jiti = createJiti(import.meta.url);
-const signingJiti = createJiti(import.meta.url, {
-  alias: {
-    "@": `${process.cwd()}/src`,
-    "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
-  },
-});
 const { derivePrescriptionPermission, withSafetyGate } = jiti("../src/lib/diagnosis-safety.ts");
 const { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit } = jiti("../src/lib/tcm-knowledge.ts");
-const { buildAuditData, isMechanicallyPreventableAuditIssue } = jiti("../src/lib/rxaudit.ts");
 const { normalizeCaseStateInput, normalizeReasoningV2 } = jiti("../src/lib/diagnosis-types.ts");
 const { sanitizeCaseStateForBrowserPersistence } = jiti("../src/lib/diagnosis-engine.ts");
 const { createTextModelClient, getPrimaryTextModelConfig, isDeepseekModel } = jiti("../src/lib/text-model.ts");
 const { patientFactSourceQuote } = jiti("../src/lib/diagnosis-stage-contract.ts");
 const { getM03TherapyLock } = jiti("../src/lib/m03-therapy-lock.ts");
-const {
-  buildDiagnoseContractSignatureContext,
-  buildPrescribeContractSignatureContext,
-  signDiagnoseReasoning,
-  signPrescribeReasoning,
-} = await signingJiti.import("../src/lib/reasoning-contract-signature.ts");
 
 const selectedCases = PRIMARY_CARE_SPARSE_50.filter((item) => FILTER.size === 0 || FILTER.has(item.id));
 const knownCaseIds = new Set(PRIMARY_CARE_SPARSE_50.map((item) => item.id));
@@ -100,7 +83,6 @@ if (unknownCaseIds.length > 0 || selectedCases.length === 0 || (FILTER.size > 0 
 const reports = [];
 const suiteChecks = [];
 const polarityContrastReports = [];
-const auditPositiveControlReports = [];
 
 function baseCase(testCase) {
   const state = {
@@ -666,42 +648,6 @@ function evidenceConsistent(evidence) {
   return evidence.evidenceLevel === "insufficient" ? !evidence.source : Boolean(evidence.source);
 }
 
-/**
- * relatedItemNos 是**审方提交清单**的行号，不是饮片数组的下标（2026-08-11 修正）。
- *
- * 提交清单是「饮片 + 中成药 + 西药」按序拼成的，中成药的行号必然大于饮片条数。
- * 原实现只往 herbs 里查，于是任何针对中成药的问题都查不到药名，被
- * 「问题等级与药味关联」判为未关联药味——而中成药那两类问题（给药途径未提供、
- * 未提供可识别单次剂量）恰恰是最常出现的：后者还是我方**有意**不伪造中成药单次剂量
- * 的直接结果，属正确的 fail-closed 行为。50 例上一轮 8 例失败全在这条。
- * 这里改成按提交清单查名，判据本身（每个问题必须能指到具体药）一字未放宽。
- */
-function auditIssueDrugs(issue, submittedItems) {
-  const explicit = Array.isArray(issue.involvedDrugs) ? issue.involvedDrugs.map(String) : [];
-  const related = Array.isArray(issue.relatedItemNos)
-    ? issue.relatedItemNos.flatMap((itemNo) => {
-      if (!Number.isInteger(itemNo)) return [];
-      const item = submittedItems[itemNo - 1];
-      const name = typeof item?.drug_name === "string" ? item.drug_name : item?.name;
-      return name ? [String(name)] : [];
-    })
-    : [];
-  return [...new Set([...explicit, ...related])];
-}
-
-function duplicateAuditIssues(issues, submittedItems) {
-  const seen = new Set();
-  const duplicates = [];
-  for (const issue of issues) {
-    const objects = auditIssueDrugs(issue, submittedItems).sort().join("+");
-    const mechanism = String(issue.title || issue.description || "").replace(/[\s，。；、：:,.!?！？()（）]/g, "").slice(0, 48);
-    const key = `${objects}|${mechanism}|${issue.severity || issue.riskLevel || ""}`;
-    if (seen.has(key)) duplicates.push(issue.issueId || issue.title || key);
-    seen.add(key);
-  }
-  return duplicates;
-}
-
 function pushCheck(report, stage, name, ok, detail = "", severity = "error") {
   report.checks.push({ stage, name, ok: Boolean(ok), detail, severity });
   const prefix = ok ? "PASS" : severity === "warning" ? "WARN" : severity === "infrastructure" ? "INFRA" : "FAIL";
@@ -1102,7 +1048,7 @@ async function runCase(testCase) {
   const m04Timing = timingBand("M04", m04.elapsedMs);
   pushCheck(report, "M04", "效率", m04Timing.ok, `${m04.elapsedMs}ms; 建议阈值=${m04Timing.warning}ms`, "warning");
 
-  // advise 处置下已生成剂量级候选的病例照常往下跑 M05：审方与随访正是它最需要的两道复核。
+  // advise 处置下已生成剂量级候选的病例照常往下跑 M05：本地处方核对与随访正是它最需要的两道复核。
   if (!prescribe || (!doseExpected && !advisoryDoseCandidate) || herbs.length === 0) {
     pushCheck(report, "M05", "无剂量边界", degradedFromDoseCandidate || (!doseExpected && limitedNoDose), `${prescriptionPermission.candidateMode}:${prescriptionPermission.reasons.join("；") || "生产权限要求非剂量输出"}`);
     await persistCase(report);
@@ -1111,41 +1057,31 @@ async function runCase(testCase) {
   }
 
   const auditState = { ...m04State, phase: "assess", prescription: m04.content, reasoningPrescribe: prescribe, reasoningV2: prescribe };
+  // 合理用药审方已删除（owner 2026-09-25，永不启用）：本路由只做本地确定性核对，并为当前处方版本
+  // 签发「未送审」收据。这里只钉收据诚实——明说未送审、不带任何风险等级、也不自称降级。
   const audit = await request("/api/diagnosis/post-prescription-risk", { caseState: auditState }, {
-    accept: (result) => result.status === 200 && result.json?.audit?.source === "lingxi" && result.json?.audit?.degraded !== true,
+    accept: (result) => result.status === 200 && result.json?.audit?.source === "skipped",
   });
   report.timings.M05Audit = audit.elapsedMs;
-  const issues = Array.isArray(audit.json?.audit?.issues) ? audit.json.audit.issues : [];
-  // 与服务端**同一份**提交清单（饮片 + 中成药 + 西药，按 item_no 顺序），
-  // 这样 relatedItemNos 才查得到中成药那几行。构建失败时退回饮片清单，不让本例整体作废。
-  const submittedAuditItems = (() => {
-    try {
-      const built = buildAuditData(auditState);
-      const list = built?.data?.prescription?.items;
-      if (Array.isArray(list) && list.length > 0) return list;
-    } catch { /* 退回饮片清单 */ }
-    return herbs;
-  })();
-  const preventable = issues.filter(isMechanicallyPreventableAuditIssue);
-  const invalidIds = issues.filter((issue) => !issue.issueId || issue.issueIdGenerated === true || /^LOCAL-/i.test(String(issue.issueId)));
-  const invalidSeverities = issues.filter((issue) => !["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(String(issue.riskLevel || issue.severity || "").toUpperCase()));
-  const unlinkedIssues = issues.filter((issue) => auditIssueDrugs(issue, submittedAuditItems).length === 0);
-  const duplicates = duplicateAuditIssues(issues, submittedAuditItems);
+  const receipt = audit.json?.audit || {};
   report.summaries.M05 = {
-    source: audit.json?.audit?.source,
-    degraded: audit.json?.audit?.degraded,
-    issueCount: issues.length,
-    issues: issues.map((issue) => ({ id: issue.issueId, severity: issue.severity || issue.riskLevel, title: issue.title, drugs: auditIssueDrugs(issue, submittedAuditItems) })),
+    source: receipt.source,
+    reason: receipt.reason,
+    auditResult: receipt.auditResult,
+    degraded: receipt.degraded,
+    inputAdvisoryCount: Array.isArray(receipt.inputAdvisories) ? receipt.inputAdvisories.length : 0,
   };
   report.rawOutputs.M05Audit = audit.raw;
   report.visibleOutputs.M05Audit = audit.json;
   report.requestAttempts.M05Audit = audit.attempts;
   if (await stopForInfrastructure(report, "M05", audit, "审方")) return report;
-  pushCheck(report, "M05", "真实灵犀", audit.status === 200 && audit.json?.audit?.source === "lingxi" && audit.json?.audit?.degraded !== true, `${audit.status}; ${audit.elapsedMs}ms; issues=${issues.length}`);
-  pushCheck(report, "M05", "真实问题ID", invalidIds.length === 0, invalidIds.map((issue) => issue.title || issue.issueId).join("、") || "无本地伪造ID");
-  pushCheck(report, "M05", "问题等级与药味关联", invalidSeverities.length === 0 && unlinkedIssues.length === 0, [...invalidSeverities, ...unlinkedIssues].map((issue) => issue.issueId || issue.title).join("、") || "每个问题均含有效等级和药味关联");
-  pushCheck(report, "M05", "可预防问题", preventable.length === 0, preventable.map((issue) => `${issue.issueId || issue.title}:${issue.description || issue.title}`).join("、") || "未命中可由M04提前避免的问题");
-  pushCheck(report, "M05", "告警去重", duplicates.length === 0, duplicates.join("、") || "无重复同义告警");
+  const honestSkipReceipt = audit.status === 200 &&
+    receipt.source === "skipped" &&
+    receipt.reason === "rxaudit_disabled" &&
+    receipt.auditResult === "NOT_SUBMITTED" &&
+    receipt.highestRiskLevel === undefined &&
+    receipt.degraded === false;
+  pushCheck(report, "M05", "未送审收据", honestSkipReceipt, `${audit.status}; ${audit.elapsedMs}ms; source=${receipt.source}; reason=${receipt.reason}; auditResult=${receipt.auditResult}; highestRiskLevel=${receipt.highestRiskLevel ?? "无"}; degraded=${receipt.degraded}`);
   const assess = await request("/api/diagnosis/assess", { caseState: { ...auditState, riskAssessment: audit.content } }, {
     accept: (result) => result.status === 200 && responseComplete(result) && /随访|复诊|监测|观察|就医/.test(result.content),
   });
@@ -1216,63 +1152,6 @@ async function runPolarityContrast(contrast) {
   }
 }
 
-async function runAuditPositiveControl(control) {
-  const unsignedState = buildAuditPositiveControlState(control);
-  const unsignedPrescribe = normalizeReasoningV2(unsignedState.reasoningPrescribe);
-  const unsignedDiagnose = normalizeReasoningV2({
-    ...unsignedPrescribe,
-    stage: "diagnose",
-    formula: null,
-    nonPharma: null,
-    clinicalReview: { status: "unavailable" },
-    contractSignatureVersion: undefined,
-    contractSignature: undefined,
-  });
-  if (!unsignedPrescribe || !unsignedDiagnose) throw new Error(`${control.id}: unable to construct signed audit control`);
-  const signedDiagnose = signDiagnoseReasoning(unsignedDiagnose, buildDiagnoseContractSignatureContext(unsignedState));
-  const diagnoseBoundState = { ...unsignedState, reasoningDiagnose: signedDiagnose };
-  const signedPrescribe = signPrescribeReasoning(
-    unsignedPrescribe,
-    buildPrescribeContractSignatureContext(diagnoseBoundState),
-  );
-  const signedState = {
-    ...diagnoseBoundState,
-    reasoningPrescribe: signedPrescribe,
-    reasoningV2: signedPrescribe,
-  };
-  const result = await request("/api/diagnosis/post-prescription-risk", { caseState: signedState }, {
-    accept: (response) => control.controlLayer === "input_quality"
-      ? response.status === 422 &&
-        response.json?.audit?.source === "local_input_validation" &&
-        Array.isArray(response.json?.audit?.inputAdvisories)
-      : response.status === 200 && response.json?.audit?.source === "lingxi" && response.json?.audit?.degraded !== true,
-  });
-  const disposition = requestDisposition(result);
-  const audit = result.json?.audit || {};
-  const evaluated = control.controlLayer === "input_quality"
-    ? evaluateAuditInputQualityControl(control, audit)
-    : evaluateAuditPositiveControl(control, audit);
-  auditPositiveControlReports.push({
-    id: control.id,
-    mutation: control.mutation,
-    controlLayer: control.controlLayer,
-    fictional: true,
-    status: result.status,
-    evaluation: evaluated,
-    issues: audit.issues || [],
-    attempts: result.attempts,
-    raw: result.raw,
-  });
-  if (disposition === "infrastructure") {
-    pushSuiteCheck("M05", `正控 ${control.id} ${control.mutation}`, false, result.error || audit.reason || "灵犀审方不可用", "infrastructure");
-  } else {
-    if (disposition === "warning") pushSuiteCheck("M05", `正控 ${control.id} 重试恢复`, false, `attempts=${result.attempts.length}`, "warning");
-    const issueDetail = (evaluated.matchedIssues || []).map((issue) => `${issue.issueId}:${issue.severity}:${issue.drugs.join("+")}`).join("、") ||
-      (evaluated.matchedAdvisories || []).map((item) => `${item.code}:${item.drugName}`).join("、");
-    pushSuiteCheck("M05", `正控 ${control.id} ${control.mutation}`, result.accepted && evaluated.ok, evaluated.errors.join("、") || issueDetail);
-  }
-}
-
 async function mapPool(items, limit, worker) {
   let cursor = 0;
   const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -1293,7 +1172,6 @@ function markdownSummary(summary) {
     `- 数据声明：${PRIMARY_CARE_FIXTURE_METADATA.notice}`,
     `- 运行病例：${summary.caseCount}`,
     `- 极性对照：${summary.polarityContrastCount}`,
-    `- M05独立正控：${summary.auditPositiveControlCount}`,
     `- 检查项：${summary.checkCount}`,
     `- 产品失败：${summary.errorFailures}`,
     `- 基础设施不可判定：${summary.infrastructureFailures}`,
@@ -1323,22 +1201,12 @@ const fixtureEvaluation = validatePrimaryCareFixture({
   metadata: PRIMARY_CARE_FIXTURE_METADATA,
   cases: PRIMARY_CARE_SPARSE_50,
   polarityContrasts: PRIMARY_CARE_POLARITY_CONTRASTS,
-  auditControls: M05_PRESCRIPTION_MUTATION_CONTROLS,
 });
 pushSuiteCheck("FIXTURE", "虚构数据与逐例契约", fixtureEvaluation.ok, fixtureEvaluation.errors.join("、") || `${PRIMARY_CARE_SPARSE_50.length}例均声明fictional、红旗类别分区与关键临床断言`);
-const auditControlPreflightErrors = M05_PRESCRIPTION_MUTATION_CONTROLS.flatMap((control) => {
-  const normalized = normalizeCaseStateInput(buildAuditPositiveControlState(control));
-  const built = normalized ? buildAuditData(normalized) : null;
-  return normalized && built?.itemCount === control.herbs.length
-    ? []
-    : [`${control.id}:normalized=${Boolean(normalized)},items=${built?.itemCount || 0}/${control.herbs.length}`];
-});
-pushSuiteCheck("M05", "正控结构化处方预检", auditControlPreflightErrors.length === 0, auditControlPreflightErrors.join("、") || `${M05_PRESCRIPTION_MUTATION_CONTROLS.length}个正控均完整进入审方items`);
 await mapPool(selectedCases, CONCURRENCY, runCase);
 await mapPool(PRIMARY_CARE_POLARITY_CONTRASTS, Math.min(CONCURRENCY, 2), runPolarityContrast);
-await mapPool(M05_PRESCRIPTION_MUTATION_CONTROLS, Math.min(CONCURRENCY, 2), runAuditPositiveControl);
-if (reports.length !== selectedCases.length || polarityContrastReports.length !== PRIMARY_CARE_POLARITY_CONTRASTS.length || auditPositiveControlReports.length !== M05_PRESCRIPTION_MUTATION_CONTROLS.length) {
-  throw new Error(`regression execution incomplete: cases=${reports.length}/${selectedCases.length}, polarity=${polarityContrastReports.length}/${PRIMARY_CARE_POLARITY_CONTRASTS.length}, audit=${auditPositiveControlReports.length}/${M05_PRESCRIPTION_MUTATION_CONTROLS.length}`);
+if (reports.length !== selectedCases.length || polarityContrastReports.length !== PRIMARY_CARE_POLARITY_CONTRASTS.length) {
+  throw new Error(`regression execution incomplete: cases=${reports.length}/${selectedCases.length}, polarity=${polarityContrastReports.length}/${PRIMARY_CARE_POLARITY_CONTRASTS.length}`);
 }
 
 const allChecks = [
@@ -1355,7 +1223,6 @@ const summary = {
   fixtureMetadata: PRIMARY_CARE_FIXTURE_METADATA,
   caseCount: reports.length,
   polarityContrastCount: polarityContrastReports.length,
-  auditPositiveControlCount: auditPositiveControlReports.length,
   checkCount: allChecks.length,
   errorFailures: errorFailures.length,
   infrastructureFailures: infrastructureFailures.length,
@@ -1365,16 +1232,10 @@ const summary = {
   warnings: warningFailures,
   suiteChecks,
   polarityContrasts: polarityContrastReports,
-  auditPositiveControls: auditPositiveControlReports.map((report) => {
-    const sanitized = { ...report };
-    delete sanitized.raw;
-    return sanitized;
-  }),
   cases: reports.map((report) => ({ id: report.id, domain: report.domain, timings: report.timings, summaries: report.summaries })),
 };
 await fs.writeFile(path.join(ARTIFACT_ROOT, "report.json"), JSON.stringify(summary, null, 2));
 await fs.writeFile(path.join(ARTIFACT_ROOT, "polarity-contrasts.json"), JSON.stringify(polarityContrastReports, null, 2));
-await fs.writeFile(path.join(ARTIFACT_ROOT, "m05-positive-controls.json"), JSON.stringify(auditPositiveControlReports, null, 2));
 await fs.writeFile(path.join(ARTIFACT_ROOT, "summary.md"), markdownSummary(summary));
-console.log(JSON.stringify({ artifactRoot: ARTIFACT_ROOT, caseCount: reports.length, polarityContrasts: polarityContrastReports.length, auditPositiveControls: auditPositiveControlReports.length, checks: allChecks.length, failures: errorFailures.length, infrastructure: infrastructureFailures.length, warnings: warningFailures.length }, null, 2));
+console.log(JSON.stringify({ artifactRoot: ARTIFACT_ROOT, caseCount: reports.length, polarityContrasts: polarityContrastReports.length, checks: allChecks.length, failures: errorFailures.length, infrastructure: infrastructureFailures.length, warnings: warningFailures.length }, null, 2));
 process.exit(errorFailures.length || infrastructureFailures.length ? 1 : 0);

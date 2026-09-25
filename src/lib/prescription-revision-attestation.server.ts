@@ -3,7 +3,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { CustomerContext } from "./customer-context";
 import type { CaseState } from "./diagnosis-types";
-import { getRxAuditConfig } from "./rxaudit";
+import { RXAUDIT_DISABLED_REASON } from "./rxaudit-status";
 
 export const WORKBENCH_REVISION_ATTESTATION_VERSION = "tcm-cdss-workbench-revision-v1" as const;
 
@@ -30,10 +30,11 @@ function attestationPayload(
   if (!/^sha256-[a-f0-9]{64}$/i.test(revision.herbHash) || !Number.isFinite(Date.parse(revision.auditedAt))) {
     throw new Error("Cannot attest an invalid workbench prescription version");
   }
-  if (revision.auditResult === "NOT_SUBMITTED" && (!getRxAuditConfig().explicitlyDisabled ||
+  // 外部审方已删除（owner 2026-09-25）：「未送审」收据不得夹带任何风险等级或可用性声明。
+  if (revision.auditResult === "NOT_SUBMITTED" && (
     revision.highestRiskLevel !== undefined || revision.auditAvailable !== false ||
-    revision.degraded !== false || revision.auditReason !== "rxaudit_disabled")) {
-    throw new Error("Skipped workbench receipts are valid only while the external audit is explicitly disabled");
+    revision.degraded !== false || revision.auditReason !== RXAUDIT_DISABLED_REASON)) {
+    throw new Error("Skipped workbench receipts must carry the disabled reason and no invented risk grade");
   }
   return JSON.stringify({
     version: WORKBENCH_REVISION_ATTESTATION_VERSION,

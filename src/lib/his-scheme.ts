@@ -1,7 +1,5 @@
 import { derivePrescriptionPermission, deriveSafetyLocked, detectProgrammaticRedFlags, evaluateSafetyGate, hasCurrentRiskLine, isNonDosePrescriptionText, withSafetyGate } from "./diagnosis-safety";
 import { sectionTitleGroup } from "./cdss-vocab";
-import { buildAuditItemsFromHerbs, getRxAuditConfig, rxAuditPresentationEnabled, type RxAuditSubmissionScope } from "./rxaudit";
-import { medicineCandidateTable } from "./medicine-rendering";
 import { qualityAnnotationCopy } from "./diagnosis-rejection-tiers";
 import type { CaseState, ClinicalCitation, SafetyGate } from "./diagnosis-types";
 import { extractPrescribedHerbs, getTcmHerbDoseLimit, clinicianDoseHerbClass } from "./tcm-knowledge";
@@ -729,36 +727,22 @@ function hasConcreteWesternOrPatentMedication(medicine: string): boolean {
   return /(片|胶囊|颗粒|丸|口服液|注射液|滴丸|mg|ml|tid|bid|qd|qn|用法用量|阿司匹林|氯吡格雷|华法林|二甲双胍|胰岛素|氨氯地平|美托洛尔|阿莫西林|头孢|布洛芬|对乙酰氨基酚|复方丹参|藿香正气|逍遥丸|六味地黄丸)/i.test(text);
 }
 
-/** The route passes a receipt of actual successful submission, never a client audit claim or the
- * herb-only version hash. Identity/combination coverage can remove an unrelated herbal lock;
- * medicine order authority stays separate. Legacy/extra/edited prose retains conservative scope.
+/**
+ * 结构化中成药/西药候选从来没有经过任何审方（外部审方已于 2026-09-25 删除），因此一旦存在就按
+ * 「未审具体用药」保守处理；没有结构化条目时，再看处方文本里是否出现了具体中西药用法。
  */
-function medicineOutsideSubmittedScope(state: CaseState, medicine: string, receipt?: RxAuditSubmissionScope | null): boolean {
+function medicineOutsideSubmittedScope(state: CaseState, medicine: string): boolean {
   const medicines = prescribeReasoningFromState(state)?.formula?.patentAndWestern || [];
+  if (medicines.length > 0) return true;
   // Counting and extracting must recognize exactly the same aliases, colon and inline forms.
   const medicineSections = matchingSections(state.prescription, sectionTitleGroup("westernOrPatent"));
-  if (medicines.length === 0) return medicineSections.length > 1 || hasConcreteWesternOrPatentMedication(medicine);
-  const index = state.prescriptionRevision?.candidateIndex ?? 0;
-  if (!receipt || receipt.candidateIndex !== index || medicineSections.length !== 1) return true;
-  const expectedItems = buildAuditItemsFromHerbs(state, index);
-  const submittedMedicines = receipt.submittedItems.filter((item) => item.drug_type === "中成药" || item.drug_type === "西药");
-  if (submittedMedicines.length !== medicines.length || JSON.stringify(expectedItems) !== JSON.stringify(receipt.submittedItems)) return true;
-  return ![state, undefined].some((context) => medicine.trim() === medicineCandidateTable(medicines, context).slice(1).join("\n").trim());
+  return medicineSections.length > 1 || hasConcreteWesternOrPatentMedication(medicine);
 }
 
 function hasStrongPrescriptionRisk(...texts: string[]): boolean {
   const strongCue = /(强提示|(?<!最)高风险|禁用|禁忌|不宜|避免使用|十八反|十九畏|相互作用|当前用药冲突|同类互斥|特殊人群.*慎用|特殊人群.*禁用|剂量.*超|ADR.*高|转诊建议\s*[：:]\s*需要|确定性审方未完成|确定性处方风险复核未完成|风险复核失败)/;
   return hasCurrentRiskLine(texts.filter(Boolean).join("\n"), strongCue);
 }
-
-function missingMedicationAuditSection(): string {
-  return [
-    "## 合理用药审方",
-    "**审方服务状态**：本次未获得自动审方结果。",
-    "**处置建议**：当前不能等同为无用药风险，请医生或药师人工复核；该提示不阻断诊疗流程。",
-  ].join("\n");
-}
-
 
 /**
  * 无法定数值剂量边界的成分在处方里的核验级别。
@@ -928,7 +912,6 @@ export function buildHisAiSchemePayload(
   caseState: CaseState,
   evidenceScope?: EvidenceScope,
   deliveryAdvisories: readonly ClinicalDeliveryAdvisory[] = [],
-  auditSubmissionScope?: RxAuditSubmissionScope | null,
   ownedWarningProjection?: OwnedCaseWarningProjection,
 ): HisAiSchemePayload {
   const normalizedState = withSafetyGate(caseState);
@@ -943,12 +926,7 @@ export function buildHisAiSchemePayload(
   const prescription = suppressDoseLevelOutputs ? "" : caseState.prescription || "";
   const risk = caseState.riskAssessment || "";
   const deterministicRiskFromAssessment = suppressDoseLevelOutputs ? "" : section(risk, sectionTitleGroup("lingxiAudit"));
-  const hasPrescriptionCandidate = Boolean(clean(prescription)) && !isPlaceholderContent(prescription);
-  // 审方展示关闭时不得回落到「本次未获得自动审方结果」：那句话既把三方审方重新写进交付面，
-  // 又与事实相反（审方照常调用，只是不在本产品呈现）。此时 HIS 的配伍风险来自
-  // compatibilityRisk 段（本地确定性预检），不是这里。
-  const deterministicRisk = deterministicRiskFromAssessment
-    || (hasPrescriptionCandidate && rxAuditPresentationEnabled() ? missingMedicationAuditSection() : "");
+  const deterministicRisk = deterministicRiskFromAssessment;
   const western = section(diagnosis, sectionTitleGroup("westernDiagnosis"));
   const tcmPattern = section(diagnosis, sectionTitleGroup("tcmPattern"));
   const mechanism = [
@@ -983,7 +961,7 @@ export function buildHisAiSchemePayload(
     .join("；");
   const contentMismatch = suppressDoseLevelOutputs ? false : markdownV2HerbMismatch(markdownHerbal, caseState);
   const invalidStructuredDose = suppressDoseLevelOutputs ? false : structuredHerbs(caseState).some((herb) => !isValidEditedHerbDose(herb.dose));
-  const unauditedConcreteMedicine = medicineOutsideSubmittedScope(caseState, medicine, auditSubmissionScope);
+  const unauditedConcreteMedicine = medicineOutsideSubmittedScope(caseState, medicine);
   // 受理裁决范围读取(2026-08-03 根源工程): 生成侧带批注受理的裁决随合同签名下发,
   // HIS 侧**读取并呈现**豁免/批注码,而不是用自己的口径把已受理候选再判一遍——
   // "这里受理、那里重判"的分叉在写回边界由读取取代。哈希未绑定(旧快照/被篡改)时不显示。
@@ -1098,17 +1076,6 @@ export function buildHisAiSchemePayload(
   // reference deviation to an executable HIS item. Other clinical items retain their own policy.
   const historicalDoseReferenceOnly = structuredHerbs(caseState).some((herb) =>
     ordinaryHistoricalDoseDeviation(herb, structuredCandidate(caseState)?.decoction?.method || ""));
-  const auditStatus: HisAiSchemePayload["auditStatus"] = getRxAuditConfig().explicitlyDisabled
-    ? "not_submitted"
-    : caseState.prescriptionRevision?.auditAvailable === false
-    ? "unavailable"
-    : caseState.prescriptionRevision?.auditAvailable === true
-      ? strongPrescriptionRisk || caseState.prescriptionRevision.needManualReview === true ? "alert" : "pass"
-      : caseState.auditAdvisory?.available === false
-        ? "unavailable"
-        : caseState.auditAdvisory?.available === true
-          ? strongPrescriptionRisk ? "alert" : "pass"
-          : "not_submitted";
   const blockedReason = adoptionRestricted
       ? "当前候选存在安全合同问题或已标记为不可执行，不可采纳或写回医嘱；已有诊疗内容可继续查看和编辑"
     : contentMismatch || unauditedConcreteMedicine || invalidStructuredDose
@@ -1131,7 +1098,9 @@ export function buildHisAiSchemePayload(
     candidateStatus: structurallyInvalid || safetyDeliveryFinding
       ? "invalid"
       : canAdopt ? "valid" : "limited",
-    auditStatus: (deliveryAdvisories.length > 0 || adoptionRestricted) && auditStatus === "pass" ? "alert" : auditStatus,
+    // 外部审方已删除（owner 2026-09-25）：没有任何处方被送审，恒为 not_submitted（与删除前生产的
+    // 显式停用档逐字一致）。其余枚举值留在对外类型里，只为不破坏按旧文档写的集成方。
+    auditStatus: "not_submitted",
     workflowPermission: "continue",
     reviewRequired: true,
     warnings: deliveryAdvisories.map((advisory) => ({ ...advisory })),

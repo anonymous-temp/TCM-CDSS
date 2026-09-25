@@ -48,19 +48,16 @@ const scripts = [
   "test:deploy-runtime-env-protection",
   // 审方呈现开关(2026-08-28): 审方是独立交付的接口与产品页面，CDSS 默认不重复呈现；
   // 但本地确定性配伍检测必须照出且照进 HIS，且「展示关闭」不得被读成「审方不可用」。
+  // 2026-09-25 灵犀审方整体删除（owner 裁定永不启用）：开关随之删除，关闭档成为唯一档。
+  // 远端客户端/载荷/供应商归一/配伍查询/性别裁剪的套件（rxai-query-integration、rxaudit-payload、
+  // rxaudit-cache、rxaudit-routes、rxaudit-sex-applicability）随被测代码一并删除；删除前后三条
+  // 路由逐字节等价由 npm run proof:rxaudit-removal-equivalence 对 68ea3f0 基线证明（不入本闸门：
+  // 它钉的是一次性迁移，其他改动合法地改变路由输出时它会变红）。
   "test:rxaudit-presentation",
-  // 灵犀查询接口集成(2026-08-28): DRUG_MASTER_SEARCH 会把查不到的关键词原样回声成一条药品，
-  // 只按名字判存在等于任何字符串都能证成药物身份；配伍查询只加不减，本地分级不可被供应商下调。
-  "test:rxai-query-integration",
+  // 本地确定性处方核对（十八反/十九畏、缺剂量、服法、现用药范围）+ 对外冻结词表（auditCorrelation 键序）。
   "test:rxaudit-contract",
-  "test:rxaudit-payload",
-  "test:rxaudit-cache",
-  "test:rxaudit-routes",
-  "test:rxaudit-explicit-disable",
-  // 审方风险的性别适用性裁剪（甲方生产实测 2026-08-04 缺陷2）。风险的适用人群几乎都是析取枚举
-  // （出血倾向/月经期/抗凝状态、儿童/孕妇/经期妇女/年老体弱者），而下游只有一道按整格判定的
-  // 性别净化——与性别无关的那一半被连坐，医生动作整格变成「本例男性不适用」。
-  "test:rxaudit-sex-applicability",
+  // 「未送审」收据：诚实语义、已证明严重风险的保留、HMAC 归属、旧 RXAI_* 开关不能重开外部调用。
+  "test:audit-skip-receipts",
   "test:safety-pediatric",
   "test:safety-mutations",
   // 上消化道警示征象：吞咽/进食梗阻、恶性肿瘤病史伴消化道症状、不明原因消瘦。
@@ -657,11 +654,7 @@ if (listOnly) {
 }
 
 const startedAt = Date.now();
-// Defense-in-depth: suites must pin their own audit config. Scrub inherited RXAI_AUDIT_* shell
-// overrides (e.g. a small RXAI_AUDIT_TOTAL_TIMEOUT_MS) so they cannot leak into child processes.
-const childEnv = Object.fromEntries(
-  Object.entries(process.env).filter(([key]) => !key.startsWith("RXAI_AUDIT_")),
-);
+const childEnv = { ...process.env };
 if (freshArtifactSuites) childEnv.CDSS_IGNORE_LOCAL_ARTIFACTS = "1";
 const runtimeRoot = mkdtempSync(path.join(tmpdir(), "cdss-gate-runtime-"));
 let exitCode = 0;

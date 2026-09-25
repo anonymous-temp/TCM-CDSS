@@ -1,17 +1,24 @@
+// 合理用药审方已删除（owner 2026-09-25：永不启用）。三条临床路由只做本地确定性核对，并为当前
+// 精确处方版本签发「未送审」收据（source:"skipped"、auditResult:"NOT_SUBMITTED"、
+// auditReason:"rxaudit_disabled"）。本套件原为「显式停用档」回归（test:rxaudit-explicit-disable），
+// 删除后停用档就是唯一档：钉住收据的诚实语义、已证明严重风险的保留、HMAC 归属校验、
+// 本地配伍/剂量/现用药提示照出、以及任何 RXAI_* 环境变量都不再能重新打开外部调用。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createJiti } from "jiti";
 import { buildAuditPositiveControlState } from "./lib/primary-care-audit-positive-controls.mjs";
 
+// 已删除集成的旧开关刻意设成「全开」：代码里不再有任何读者，路由必须照旧离线跳过。
 Object.assign(process.env, {
-  RXAI_AUDIT_ENABLED: "false", RXAI_QUERY_ENABLED: "true", CDSS_SHOW_RX_AUDIT_SECTION: "true",
+  RXAI_AUDIT_ENABLED: "true", RXAI_QUERY_ENABLED: "true", CDSS_SHOW_RX_AUDIT_SECTION: "true",
   RXAI_AUDIT_BASE_URL: "https://audit.example.invalid", RXAI_AUDIT_TOKEN: "offline-fixture-token",
   CDSS_CLINICAL_FACTS_BACKSTOP: "true", M05_FOLLOWUP_AUTHORING: "false",
   REASONING_CONTRACT_SIGNING_KEY: "explicit-disable-offline-signing-key-at-least-32-characters",
 });
 for (const key of ["OPENAI_API_KEY", "BAILIAN_QWEN_API_KEY", "DASHSCOPE_API_KEY", "QWEN_API_KEY", "EVIMED_API_KEY"]) delete process.env[key];
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
-const audit = await jiti.import("../src/lib/rxaudit.ts");
+const checks = await jiti.import("../src/lib/local-prescription-checks.ts");
+const wire = await jiti.import("../src/lib/rxaudit-status.ts");
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
 const signatures = await jiti.import("../src/lib/reasoning-contract-signature.ts");
 const { POST: assess } = await jiti.import("../src/app/api/diagnosis/assess/route.ts");
@@ -52,7 +59,7 @@ async function withoutNetwork(fn) {
   const original = globalThis.fetch;
   let calls = 0;
   globalThis.fetch = async () => { calls += 1; throw new Error("offline test prohibits external calls"); };
-  try { await fn(); assert.equal(calls, 0, "explicit skip must invoke neither audit, medication extraction nor compatibility service"); }
+  try { await fn(); assert.equal(calls, 0, "routes must invoke no external audit, medication extraction or compatibility service"); }
   finally { globalThis.fetch = original; }
 }
 
@@ -186,71 +193,46 @@ test("HIS skipped audit keeps patent and western medicine submission scope restr
   assert.match(JSON.stringify(body.riskTips), /中成药\/西药展示内容尚未与本次实际送审/);
 }));
 
-test("HIS enabled audit still replaces client metadata with the actual fresh outcome", async () => {
-  const keys = ["RXAI_AUDIT_ENABLED", "RXAI_AUDIT_BASE_URL", "RXAI_AUDIT_API_KEY", "RXAI_QUERY_ENABLED"];
-  const beforeEnv = Object.fromEntries(keys.map(key => [key, process.env[key]]));
-  const beforeFetch = globalThis.fetch;
-  let calls = 0;
-  try {
-    Object.assign(process.env, { RXAI_AUDIT_ENABLED: "true", RXAI_AUDIT_BASE_URL: "https://audit.example.invalid",
-      RXAI_AUDIT_API_KEY: "offline-enabled-audit-control", RXAI_QUERY_ENABLED: "false" });
-    audit.resetRxAuditResultCache();
-    globalThis.fetch = async (url, options) => {
-      assert.equal(String(url), "https://audit.example.invalid/api/v1/rational-drug-use");
-      assert.equal(JSON.parse(options.body).operation, "PRESCRIPTION_AUDIT");
-      calls++;
-      return Response.json({ code: 200, data: { audit_result: "PASS", highest_risk_level: "INFO", need_manual_review: false, issues: [], degraded: false } });
-    };
-    const state = await signedHisCandidate(1);
-    const herbHash = await computePrescriptionVersionHash(state.reasoningPrescribe, 1, state);
-    state.prescriptionRevision = { source: "herb_workbench", candidateIndex: 1, herbHash: "fnv1a-client-forgery",
-      auditedAt: new Date(0).toISOString(), auditResult: "BLOCK", highestRiskLevel: "CRITICAL", auditAvailable: true };
-    const response = await hisScheme(request("/api/diagnosis/his-scheme", state));
+test("legacy RXAI_* switches cannot re-open an external call or change the receipt", async () => withoutNetwork(async () => {
+  for (const enabled of ["true", "false", ""]) {
+    process.env.RXAI_AUDIT_ENABLED = enabled;
+    const response = await postRisk(request("/api/diagnosis/post-prescription-risk", await readyCaseFor()));
     const body = await response.json();
     assert.equal(response.status, 200, JSON.stringify(body));
-    assert.equal(calls, 1, "the enabled control invokes only its finite offline audit response");
-    assert.equal(body.prescriptionRevision.herbHash, herbHash);
-    assert.equal(body.prescriptionRevision.auditResult, "PASS");
-    assert.equal(body.auditCorrelation.providerAuditResult, "PASS");
-    assert.notEqual(body.warningProfile.level, "L4");
-    assert.equal(body.prescriptions.herbal[0].adoptable, true);
-  } finally {
-    globalThis.fetch = beforeFetch;
-    audit.resetRxAuditResultCache();
-    for (const key of keys) {
-      if (beforeEnv[key] === undefined) delete process.env[key];
-      else process.env[key] = beforeEnv[key];
-    }
+    assert.equal(body.audit.source, "skipped", enabled);
+    assert.equal(body.audit.reason, "rxaudit_disabled", enabled);
+    assert.equal(body.audit.presentationDisabled, true, enabled);
   }
-});
+  process.env.RXAI_AUDIT_ENABLED = "true";
+}));
 
-test("only raw false selects a server-owned skipped state, even without sidecar configuration", async () => {
-  const prior = process.env.RXAI_AUDIT_BASE_URL;
-  try {
-  delete process.env.RXAI_AUDIT_BASE_URL;
-  assert.equal(audit.getRxAuditConfig().explicitlyDisabled, true);
-  assert.equal(audit.getRxAuditStatus().disabledReason, "rxaudit_disabled");
-  assert.equal(audit.rxAuditPresentationEnabled(), false);
-  process.env.RXAI_AUDIT_ENABLED = "";
-  assert.equal(audit.getRxAuditConfig().explicitlyDisabled, false);
-  assert.equal(audit.getRxAuditStatus().disabledReason, "rxaudit_not_configured");
-  } finally { process.env.RXAI_AUDIT_ENABLED = "false"; process.env.RXAI_AUDIT_BASE_URL = prior; }
-});
+// 迁自已删除的 test:rxaudit-routes（与外部审方无关的两条路由契约）。
+test("post-risk returns a typed follow-up timeline and an incomplete regimen cannot be signed", async () => withoutNetwork(async () => {
+  const response = await postRisk(request("/api/diagnosis/post-prescription-risk", await readyCaseFor()));
+  const body = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(body));
+  assert.ok(Array.isArray(body.followupTimeline) && body.followupTimeline.length > 0);
+  assert.ok(body.followupTimeline.every((item) => typeof item.time === "string" && typeof item.action === "string" &&
+    Array.isArray(item.indicators) && Array.isArray(item.triggers)));
+  assert.doesNotMatch(body.followup, /FOLLOWUP_TIMELINE_JSON/, "JSON route must return timeline as a typed field, not a Markdown sentinel");
+  const state = caseFor();
+  const missingFrequency = structuredClone(state.reasoningPrescribe);
+  delete missingFrequency.formula.candidates[0].decoction.dosesPerDay;
+  delete missingFrequency.contractSignature;
+  const unsigned = { ...structuredClone(state), reasoningPrescribe: missingFrequency, reasoningV2: missingFrequency };
+  assert.throws(() => signatures.signPrescribeReasoning(missingFrequency, signatures.buildPrescribeContractSignatureContext(unsigned)),
+    /invalid M04 reasoning contract/, "an incomplete frequency dimension cannot obtain the M04 signature");
+}));
 
-test("skip metadata never invents a provider result or unavailable-medication finding", async () => withoutNetwork(async () => {
-  const run = await audit.runBoundedRxAudit(caseFor(), 0);
-  assert.equal(run.providerAudit.source, "skipped");
-  assert.equal(run.providerAudit.ok, false);
-  assert.equal(run.medicationExtraction.needsManualReview, false);
-  assert.deepEqual(audit.buildAuditInputAdvisories(caseFor(), 0, run.medicationExtraction), []);
-  assert.equal(audit.ownedAuditWarningInputs(run.providerAudit), undefined);
-  const correlation = audit.buildRxAuditCorrelationMetadata({ providerOutcome: run.providerAudit });
+test("skip metadata never invents a provider result or unavailable-medication finding", () => {
+  assert.deepEqual(checks.buildPrescriptionInputAdvisories(caseFor(), 0), []);
+  const correlation = wire.skippedRxAuditCorrelation({ candidateIndex: 0, auditedAt: new Date().toISOString() });
   assert.equal(correlation.providerAvailable, false);
   assert.equal(correlation.providerReason, "rxaudit_disabled");
-  assert.equal(correlation.effectiveAuditResult, undefined);
-  assert.equal(correlation.effectiveHighestRiskLevel, undefined);
-  assert.equal(correlation.needManualReview, undefined);
-}));
+  for (const invented of ["effectiveAuditResult", "effectiveHighestRiskLevel", "needManualReview", "providerAuditResult", "auditId", "traceId"]) {
+    assert.equal(invented in correlation, false, invented);
+  }
+});
 
 test("three clinical routes deliver local content with honest skip semantics", async () => withoutNetwork(async () => {
   for (const [path, handler] of [["assess", assess], ["post-prescription-risk", postRisk], ["his-scheme", hisScheme]]) {
@@ -277,9 +259,7 @@ test("local medication uncertainty, dose validation and contraindicated pairs su
     { herbs: [{ name: "黄芪", dose: "" }], expected: /黄芪.*未标注|剂量/ },
     { herbs: [{ name: "甘草", dose: "6g" }, { name: "海藻", dose: "9g" }], expected: /十八反|甘草.*海藻/ }]) {
     const state = await readyCaseFor(variant);
-    const run = await audit.runBoundedRxAudit(state, 0);
-    assert.equal(run.providerAudit.source, "skipped");
-    const findings = audit.buildAuditInputAdvisorySection(audit.buildAuditInputAdvisories(state, 0, run.medicationExtraction), true) + audit.buildLocalHighRiskHerbPairSection(state, 0);
+    const findings = checks.buildPrescriptionInputAdvisorySection(checks.buildPrescriptionInputAdvisories(state, 0)) + checks.buildLocalHighRiskHerbPairSection(state, 0);
     assert.match(findings, variant.expected);
     if (variant.herbs?.[0].name === "甘草") assert.equal(deriveStructuredCaseWarningFloor(state).level, "L4");
     for (const [path, handler] of [["assess", assess], ["post-prescription-risk", postRisk], ["his-scheme", hisScheme]]) {
@@ -298,17 +278,18 @@ test("existing critical revision remains a floor when external service is skippe
   assert.equal(deriveStructuredCaseWarningFloor(state).level, "L4");
 });
 
-test("health treats explicit disable as optional skip and absent config as degraded", async () => {
-  const read = async () => (await health(new Request("http://localhost/api/diagnosis/health?diagnostics=1"))).json();
-  const disabled = await read();
-  assert.equal(disabled.rxAudit.enabled, false);
-  assert.equal(disabled.rxAudit.explicitlyDisabled, true);
-  assert.ok(!disabled.degradedReasons.some((reason) => /rxaudit/.test(reason)));
-  delete process.env.RXAI_AUDIT_ENABLED;
-  const unconfigured = await read();
-  assert.equal(unconfigured.rxAudit.explicitlyDisabled, false);
-  assert.ok(unconfigured.degradedReasons.some((reason) => /rxaudit/.test(reason)));
-  process.env.RXAI_AUDIT_ENABLED = "false";
+test("health no longer reports or depends on the removed audit, whatever the legacy switches say", async () => {
+  const read = async (query) => (await health(new Request(`http://localhost/api/diagnosis/health${query}`))).json();
+  for (const enabled of ["true", "false", undefined]) {
+    if (enabled === undefined) delete process.env.RXAI_AUDIT_ENABLED; else process.env.RXAI_AUDIT_ENABLED = enabled;
+    for (const query of ["?diagnostics=1", "?strict=1&diagnostics=1"]) {
+      const body = await read(query);
+      assert.equal("rxAudit" in body, false, `${query} ${enabled}`);
+      assert.equal("rxAuditProbe" in body, false, `${query} ${enabled}`);
+      assert.ok(!body.degradedReasons.some((reason) => /rxaudit/.test(reason)), `${query} ${enabled}: ${body.degradedReasons}`);
+    }
+  }
+  process.env.RXAI_AUDIT_ENABLED = "true";
 });
 
 async function workbenchCase() {
@@ -357,12 +338,11 @@ test("workbench skip issues an honest receipt that survives normalization and do
   const forged = structuredClone(normalized);
   forged.prescriptionRevision.attestation = `hmac-sha256:${"0".repeat(64)}`;
   assert.equal((await assess(request("/api/diagnosis/assess", forged))).status, 409);
-  process.env.RXAI_AUDIT_ENABLED = "true";
-  try {
-    assert.equal(verifyPrescriptionRevisionAttestation(normalized, customer, body.audit.herbHash), false, "reenabling external audit must invalidate old skip authority");
-    assert.equal((await assess(request("/api/diagnosis/assess", normalized))).status, 409);
-    assert.equal((await hisScheme(request("/api/diagnosis/his-scheme", normalized))).status, 409);
-  } finally { process.env.RXAI_AUDIT_ENABLED = "false"; }
+  // 外部审方已删除，没有能让「未送审」收据失效的开关；收据只随病例、租户与精确处方版本失效。
+  assert.equal(verifyPrescriptionRevisionAttestation(normalized, customer, body.audit.herbHash), true);
+  assert.equal(verifyPrescriptionRevisionAttestation({ ...normalized, customerId: "other-hospital" }, { ...customer, customerId: "other-hospital" }, body.audit.herbHash), false);
+  const otherHash = `${body.audit.herbHash.slice(0, -1)}${body.audit.herbHash.endsWith("0") ? "1" : "0"}`;
+  assert.equal(verifyPrescriptionRevisionAttestation(normalized, customer, otherHash), false);
 }));
 
 test("skipping a previously attested critical version retains its real result and signature", async () => withoutNetwork(async () => {
@@ -492,18 +472,10 @@ const skippedMedicationScopeCases = [
   ["未停用阿司匹林，发病后未服其他药", undefined],
 ];
 for (const [medicationHistory, expectedReason] of skippedMedicationScopeCases) {
-  test(`skipped medication scope preserves current/history polarity: ${JSON.stringify(medicationHistory)}`, async () => withoutNetwork(async () => {
+  test(`medication scope preserves current/history polarity: ${JSON.stringify(medicationHistory)}`, async () => withoutNetwork(async () => {
     const state = await readyCaseFor({ medicationHistory });
     const before = JSON.stringify(state);
-    const run = await audit.runBoundedRxAudit(state, 0);
-    assert.equal(run.providerAudit.source, "skipped");
-    assert.equal(run.medicationExtraction.reason, expectedReason);
-    assert.equal(run.medicationExtraction.needsManualReview, Boolean(expectedReason));
-    assert.deepEqual(run.medicationExtraction.events, [], "skip must not fabricate extracted current-medication events");
-    const existing = audit.verifyMedicationSemanticCoverage(audit.buildMedicationExtractionContext(state).text,
-      { source: "not_needed", events: [], unresolvedReferences: [], needsManualReview: false });
-    const existingScopeReasons = (existing.reason || "").split(",").filter((reason) => reason.startsWith("medication_current_scope_"));
-    assert.deepEqual(existingScopeReasons, expectedReason ? [expectedReason] : [], "the skipped path must match the existing pure scope semantics");
+    assert.equal(checks.localMedicationScopeReason(state), expectedReason);
     for (const [path, handler] of [["assess", assess], ["post-prescription-risk", postRisk], ["his-scheme", hisScheme]]) {
       const response = await handler(request(`/api/diagnosis/${path}`, state));
       const text = await response.text();

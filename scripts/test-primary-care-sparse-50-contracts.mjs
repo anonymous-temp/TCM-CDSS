@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { createJiti } from "jiti";
 import {
-  M05_PRESCRIPTION_MUTATION_CONTROLS,
   PRIMARY_CARE_FIXTURE_METADATA,
   PRIMARY_CARE_POLARITY_CONTRASTS,
   PRIMARY_CARE_SPARSE_50,
@@ -12,8 +11,6 @@ import {
   NON_DOSE_MARKER,
   RETRYABLE_HTTP_STATUSES,
   buildSemanticM02Answer,
-  evaluateAuditInputQualityControl,
-  evaluateAuditPositiveControl,
   evaluateLimitedNoDose,
   evaluateM02QuestionContract,
   evaluateM03CanonicalContract,
@@ -31,11 +28,8 @@ import {
   responseComplete,
   validatePrimaryCareFixture,
 } from "./lib/primary-care-sparse-50-contracts.mjs";
-import { buildAuditPositiveControlState } from "./lib/primary-care-audit-positive-controls.mjs";
 
 const jiti = createJiti(import.meta.url);
-const { normalizeCaseStateInput } = jiti("../src/lib/diagnosis-types.ts");
-const { buildAuditData } = jiti("../src/lib/rxaudit.ts");
 const { enforceM02UnansweredAxes, parseM02PlanFromContent } = jiti("../src/lib/m02-question-contract.ts");
 
 describe("live regression harness required-field contract", () => {
@@ -209,7 +203,7 @@ describe("retry allowlist", () => {
     for (const status of [200, 400, 409, 500, 501, 505]) assert.equal(isRetryableRequestFailure(result({ status })), false);
   });
 
-  it("does not retry HTTP 200 contract failures, unavailable semantic results, or degraded audits", async () => {
+  it("does not retry HTTP 200 contract failures, unavailable semantic results, or responses without the audit skip receipt", async () => {
     for (const scenario of [
       { value: result({ raw: "", content: "" }), accept: (value) => value.status === 200 && Boolean(value.raw) },
       {
@@ -217,7 +211,8 @@ describe("retry allowlist", () => {
         accept: (value) => value.status === 200 && responseComplete(value),
       },
       { value: result({ json: { available: false } }), accept: (value) => value.status === 200 && value.json?.available === true },
-      { value: result({ json: { audit: { source: "lingxi", degraded: true } } }), accept: (value) => value.status === 200 && value.json?.audit?.degraded !== true },
+      // 与回归脚本 M05 审方请求的 accept 同形：200 但不是「未送审」收据 ⇒ 判错、不重试。
+      { value: result({ json: { audit: { source: "local_input_validation", reason: "invalid_candidate_index" } } }), accept: (value) => value.status === 200 && value.json?.audit?.source === "skipped" },
     ]) {
       let calls = 0;
       const output = await executeRequestWithRetries(async () => {
@@ -640,79 +635,12 @@ describe("M04 all-candidate contract", () => {
   });
 });
 
-describe("M05 independent positive controls", () => {
-  it("declares provider and input-quality controls without conflating their ownership", () => {
-    assert.deepEqual(
-      new Set(M05_PRESCRIPTION_MUTATION_CONTROLS.map((item) => item.mutation)),
-      new Set(["overdose", "missing_dose", "duplicate_drug", "decoction_method", "pregnancy_lactation", "incompatibility", "interaction"]),
-    );
-    assert.equal(M05_PRESCRIPTION_MUTATION_CONTROLS.filter((item) => item.controlLayer === "input_quality").length, 1);
-    assert.equal(M05_PRESCRIPTION_MUTATION_CONTROLS.find((item) => item.mutation === "missing_dose")?.controlLayer, "input_quality");
-  });
-
-  it("does not allow an empty issue list to pass a positive control", () => {
-    const control = M05_PRESCRIPTION_MUTATION_CONTROLS[0];
-    const evaluated = evaluateAuditPositiveControl(control, { source: "lingxi", degraded: false, issues: [] });
-    assert.equal(evaluated.ok, false);
-    assert.match(evaluated.errors.join(";"), /issue/i);
-  });
-
-  it("survives the real CaseState schema and sends every mutated herb to audit items", () => {
-    for (const control of M05_PRESCRIPTION_MUTATION_CONTROLS) {
-      const normalized = normalizeCaseStateInput(buildAuditPositiveControlState(control));
-      assert.ok(normalized, `${control.id}: CaseState normalization`);
-      const built = buildAuditData(normalized);
-      assert.equal(built?.itemCount, control.herbs.length, `${control.id}: audit item count`);
-    }
-    const missingDose = M05_PRESCRIPTION_MUTATION_CONTROLS.find((item) => item.mutation === "missing_dose");
-    const built = buildAuditData(normalizeCaseStateInput(buildAuditPositiveControlState(missingDose)));
-    const item = built.data.prescription.items.find((candidate) => candidate.drug_name === "白术");
-    assert.ok(item);
-    assert.equal("single_dose" in item, false);
-  });
-
-  it("requires provider issue id, severity, and linked drugs", () => {
-    const control = {
-      id: "M05-PC-TEST",
-      expectedIssue: { type: /DOSE_OVER/, text: /剂量/, drugs: ["甘草"], minSeverity: "HIGH" },
-      herbs: [{ name: "甘草", dose: "60g" }],
-    };
-    const valid = {
-      source: "lingxi",
-      degraded: false,
-      issues: [{ issueId: "RX-DOSE-1", issueType: "DOSE_OVER", riskLevel: "HIGH", title: "甘草剂量超限", description: "剂量需调整", relatedItemNos: [1] }],
-    };
-    assert.equal(evaluateAuditPositiveControl(control, valid).ok, true);
-    assert.equal(evaluateAuditPositiveControl(control, { ...valid, issues: [{ ...valid.issues[0], issueIdGenerated: true }] }).ok, false);
-    assert.equal(evaluateAuditPositiveControl(control, { ...valid, issues: [{ ...valid.issues[0], riskLevel: "LOW" }] }).ok, false);
-    assert.equal(evaluateAuditPositiveControl(control, { ...valid, issues: [{ ...valid.issues[0], relatedItemNos: [] }] }).ok, false);
-  });
-
-  it("requires local input-quality advisories to stay separate from provider issues", () => {
-    const control = M05_PRESCRIPTION_MUTATION_CONTROLS.find((item) => item.mutation === "missing_dose");
-    const valid = {
-      source: "lingxi",
-      degraded: false,
-      needManualReview: true,
-      inputAdvisories: [{ code: "missing_dose", itemNo: 2, drugName: "白术", message: "白术未标注单次剂量" }],
-      issues: [],
-    };
-    assert.equal(evaluateAuditInputQualityControl(control, valid).ok, true);
-    assert.equal(evaluateAuditInputQualityControl(control, { ...valid, needManualReview: false }).ok, false);
-    assert.equal(evaluateAuditInputQualityControl(control, {
-      ...valid,
-      issues: [{ issueId: "LOCAL-DOSE", issueType: "DOSE_MISSING", title: "白术剂量缺失" }],
-    }).ok, false);
-  });
-});
-
 describe("fixture delivery gate", () => {
   it("is explicitly fictional, PHI-free, canonicalized, and dose-gated case by case", () => {
     const evaluated = validatePrimaryCareFixture({
       metadata: PRIMARY_CARE_FIXTURE_METADATA,
       cases: PRIMARY_CARE_SPARSE_50,
       polarityContrasts: PRIMARY_CARE_POLARITY_CONTRASTS,
-      auditControls: M05_PRESCRIPTION_MUTATION_CONTROLS,
     });
     assert.equal(evaluated.ok, true, evaluated.errors.join("\n"));
     assert.equal(PRIMARY_CARE_SPARSE_50.length, 50);

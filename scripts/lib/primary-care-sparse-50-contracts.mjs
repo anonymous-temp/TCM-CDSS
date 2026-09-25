@@ -852,84 +852,6 @@ export function evaluateM04CandidateContract(prescribe, testCase, options = {}) 
   return { ok: errors.length === 0, errors, candidateResults };
 }
 
-const AUDIT_RISK_ORDER = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"];
-
-function issueLinkedDrugs(issue, herbs) {
-  const explicit = Array.isArray(issue?.involvedDrugs) ? issue.involvedDrugs.map(String) : [];
-  const related = Array.isArray(issue?.relatedItemNos)
-    ? issue.relatedItemNos.flatMap((itemNo) => Number.isInteger(itemNo) && herbs[itemNo - 1]?.name ? [String(herbs[itemNo - 1].name)] : [])
-    : [];
-  return [...new Set([...explicit, ...related])];
-}
-
-export function evaluateAuditPositiveControl(control, audit) {
-  const issues = Array.isArray(audit?.issues) ? audit.issues : [];
-  const expected = control?.expectedIssue || {};
-  const errors = [];
-  if (audit?.source !== "lingxi") errors.push("audit_source_not_lingxi");
-  if (audit?.degraded === true) errors.push("audit_degraded");
-  if (issues.length === 0) errors.push("positive_control_requires_issue");
-  const semanticMatches = issues.filter((issue) => {
-    const typeOk = !(expected.type instanceof RegExp) || regexTest(expected.type, issue?.issueType);
-    const text = `${issue?.title || ""}；${issue?.description || ""}；${issue?.action || ""}`;
-    const textOk = !(expected.text instanceof RegExp) || regexTest(expected.text, text);
-    return typeOk && textOk;
-  });
-  if (semanticMatches.length === 0 && issues.length > 0) errors.push("expected_issue_semantics_missing");
-  const validMatches = semanticMatches.filter((issue) => {
-    const issueId = String(issue?.issueId || "").trim();
-    if (!issueId || issue?.issueIdGenerated === true || /^LOCAL-/i.test(issueId)) return false;
-    const risk = String(issue?.riskLevel || issue?.severity || "").toUpperCase();
-    const minRisk = String(expected.minSeverity || "LOW").toUpperCase();
-    if (!AUDIT_RISK_ORDER.includes(risk) || AUDIT_RISK_ORDER.indexOf(risk) < AUDIT_RISK_ORDER.indexOf(minRisk)) return false;
-    const linked = issueLinkedDrugs(issue, control?.herbs || []);
-    if (Array.isArray(expected.drugs) && !expected.drugs.every((drug) => linked.some((item) => item.includes(drug)))) return false;
-    const issueText = `${issue?.title || ""}；${issue?.description || ""}；${issue?.action || ""}`;
-    if (expected.contextDrug instanceof RegExp && !regexTest(expected.contextDrug, issueText)) return false;
-    return true;
-  });
-  if (semanticMatches.length > 0 && validMatches.length === 0) errors.push("issue_id_severity_or_drug_link_invalid");
-  return {
-    ok: errors.length === 0,
-    errors,
-    issueCount: issues.length,
-    matchedIssues: validMatches.map((issue) => ({
-      issueId: issue.issueId,
-      issueType: issue.issueType,
-      severity: issue.riskLevel || issue.severity,
-      drugs: issueLinkedDrugs(issue, control?.herbs || []),
-    })),
-  };
-}
-
-export function evaluateAuditInputQualityControl(control, audit) {
-  const advisories = Array.isArray(audit?.inputAdvisories) ? audit.inputAdvisories : [];
-  const issues = Array.isArray(audit?.issues) ? audit.issues : [];
-  const expected = control?.expectedInputAdvisory || {};
-  const errors = [];
-  const matches = advisories.filter((advisory) => {
-    const codeOk = !expected.code || advisory?.code === expected.code;
-    const drugName = String(advisory?.drugName || "");
-    const drugsOk = !Array.isArray(expected.drugs) || expected.drugs.every((drug) => drugName.includes(drug));
-    return codeOk && drugsOk;
-  });
-  if (control?.controlLayer !== "input_quality") errors.push("control_layer_not_input_quality");
-  if (matches.length === 0) errors.push("expected_input_advisory_missing");
-  if (audit?.needManualReview !== true) errors.push("input_advisory_must_request_manual_review");
-  const masqueradingIssues = issues.filter((issue) => {
-    const issueId = String(issue?.issueId || "");
-    const text = `${issue?.issueType || ""};${issue?.title || ""};${issue?.description || ""}`;
-    return /^LOCAL-/i.test(issueId) || issue?.issueIdGenerated === true || /missing.?dose|剂量缺失|未标注.*剂量/i.test(text);
-  });
-  if (masqueradingIssues.length > 0) errors.push("input_advisory_masquerades_as_provider_issue");
-  return {
-    ok: errors.length === 0,
-    errors,
-    advisoryCount: advisories.length,
-    matchedAdvisories: matches.map((item) => ({ code: item.code, itemNo: item.itemNo, drugName: item.drugName })),
-  };
-}
-
 function stringsFrom(value, output = []) {
   if (typeof value === "string") output.push(value);
   else if (Array.isArray(value)) value.forEach((item) => stringsFrom(item, output));
@@ -937,7 +859,7 @@ function stringsFrom(value, output = []) {
   return output;
 }
 
-export function validatePrimaryCareFixture({ metadata, cases, polarityContrasts, auditControls }) {
+export function validatePrimaryCareFixture({ metadata, cases, polarityContrasts }) {
   const errors = [];
   const regexList = (value) => Array.isArray(value) && value.length > 0 && value.every((item) => item instanceof RegExp);
   if (metadata?.fictional !== true || metadata?.prohibitsRealPhi !== true) errors.push("fixture_metadata_must_be_fictional_and_phi_prohibited");
@@ -974,15 +896,10 @@ export function validatePrimaryCareFixture({ metadata, cases, polarityContrasts,
       if ((testCase.redFlagStage === "none") !== (required.size === 0)) errors.push(`${testCase.id}:red_flag_required_stage_mismatch`);
     }
   }
-  const allArtifacts = { cases, polarityContrasts, auditControls };
+  const allArtifacts = { cases, polarityContrasts };
   if (/\b1[3-9]\d{9}\b|\b\d{17}[\dXx]\b/.test(stringsFrom(allArtifacts).join("\n"))) errors.push("real_phi_like_identifier_present");
   for (const contrast of polarityContrasts || []) {
     if (contrast.fictional !== true || !contrast.context || !contrast.position) errors.push(`${contrast.id || "contrast"}:invalid_polarity_contrast`);
-  }
-  for (const control of auditControls || []) {
-    const providerValid = control.controlLayer === "provider" && control.expectedIssue?.drugs?.length;
-    const inputQualityValid = control.controlLayer === "input_quality" && control.expectedInputAdvisory?.drugs?.length;
-    if (control.fictional !== true || !control.mutation || (!providerValid && !inputQualityValid)) errors.push(`${control.id || "control"}:invalid_audit_control`);
   }
   return { ok: errors.length === 0, errors };
 }

@@ -9,7 +9,6 @@ const Module = require("node:module");
 const ts = require("typescript");
 const previousKey = process.env.REASONING_CONTRACT_SIGNING_KEY;
 const previousClinicalFactsBackstop = process.env.CDSS_CLINICAL_FACTS_BACKSTOP;
-const previousRxAuditEnabled = process.env.RXAI_AUDIT_ENABLED;
 const previousTsLoader = Module._extensions[".ts"];
 const previousModuleLoad = Module._load;
 const previousResolveFilename = Module._resolveFilename;
@@ -18,7 +17,6 @@ const TEST_CUSTOMER_ID = "test-hospital";
 
 process.env.REASONING_CONTRACT_SIGNING_KEY = "test-only-m03-signature-key-0123456789abcdef";
 process.env.CDSS_CLINICAL_FACTS_BACKSTOP = "true";
-process.env.RXAI_AUDIT_ENABLED = "false";
 Module._load = function loadWithServerOnlyStub(request, parent, isMain) {
   if (request === "server-only") return {};
   return previousModuleLoad.call(this, request, parent, isMain);
@@ -1557,6 +1555,4 @@ try {
   else process.env.REASONING_CONTRACT_SIGNING_KEY = previousKey;
   if (previousClinicalFactsBackstop === undefined) delete process.env.CDSS_CLINICAL_FACTS_BACKSTOP;
   else process.env.CDSS_CLINICAL_FACTS_BACKSTOP = previousClinicalFactsBackstop;
-  if (previousRxAuditEnabled === undefined) delete process.env.RXAI_AUDIT_ENABLED;
-  else process.env.RXAI_AUDIT_ENABLED = previousRxAuditEnabled;
 }
