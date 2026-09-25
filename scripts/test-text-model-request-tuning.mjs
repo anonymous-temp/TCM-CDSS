@@ -128,7 +128,6 @@ try {
     "src/lib/formula-recall-normalization.server.ts",
     "src/lib/polarity-negation-assist.server.ts",
     "src/lib/syndrome-hypothesis-rerank.server.ts",
-    "src/lib/m02-answer-interpreter.server.ts",
     "src/lib/m05-followup-authoring.server.ts",
     "src/lib/medicine-candidate-planner.server.ts",
   ];

@@ -23,16 +23,9 @@ function typedFailure(
 function failureStatus(code: M02AnswerInterpretationFailureCode): number {
   if (code === "invalid_request" || code === "invalid_case_state") return 400;
   if (code === "invalid_plan" || code === "invalid_answer") return 422;
-  if (code === "model_not_configured") return 503;
-  // 解释是尽力而为：超时与契约失败同属业务降级（200 + ok:false + retryable），医生原话由
-  // 调用方原样保留；本接口不再出现 5xx（甲方 2026-08-25 复测：10 次 1 次 504）。
-  if (code === "model_timeout") return 200;
-  if (code === "request_aborted") return 408;
-  // 模型两轮都没交出合契约的结构——这是**业务降级**不是网关故障（甲方复测 P1-2：
-  // 5 次 4 次 502）。返回 200 + ok:false + retryable，医生原话由调用方原样保留
-  //（页面 preserveRawDetails 分支正是为 ok:false 设计的），接口消费者不再看到 5xx。
-  if (code === "model_output_invalid") return 200;
-  return 502;
+  // 回答无法逐题归属是业务结果不是请求错误：200 + ok:false，医生原话由调用方保留
+  //（与 2026-08-25 起「解释失败不出 5xx」的口径一致）。
+  return 200;
 }
 
 export async function POST(req: Request) {
@@ -57,7 +50,6 @@ export async function POST(req: Request) {
   if (!caseState) return typedFailure("invalid_case_state", "caseState 无效。", 400);
   const customer = await requireCustomerContext(req, caseState);
   if (!customer.ok) return customer.response;
-  caseState.customerId = customer.context.customerId;
 
   const plan = parseM02Plan(body.m02Plan);
   if (!plan || plan.decision !== "ask" || plan.questions.length === 0) {
@@ -68,12 +60,7 @@ export async function POST(req: Request) {
     return typedFailure("invalid_answer", "answer 必须是 1 至 6000 字符的自由文本。", 422);
   }
 
-  const result = await interpretM02Answer({
-    caseState,
-    plan,
-    doctorAnswer: body.answer,
-    requestSignal: req.signal,
-  });
+  const result = interpretM02Answer({ plan, doctorAnswer: body.answer });
   return result.ok
     ? Response.json(result)
     : Response.json(result, { status: failureStatus(result.failure.code) });

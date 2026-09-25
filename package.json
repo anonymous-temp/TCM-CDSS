@@ -54,7 +54,6 @@
     "test:evidence-rerank": "node --test scripts/test-evidence-rerank.mjs",
     "test:followup-shared-consumers": "jiti scripts/test-followup-shared-consumers.mjs",
     "test:model-transport-accounting": "node --test scripts/test-model-transport-accounting.mjs",
-    "test:m02-answer-reuse": "node scripts/test-m02-answer-reuse.mjs",
     "test:model-routing-ab": "node scripts/test-model-routing-ab.mjs",
     "test:clinical-model-pairs": "node scripts/test-clinical-model-pairs.mjs",
     "test:experience-stream-measurement": "node scripts/test-experience-stream-measurement.mjs",
