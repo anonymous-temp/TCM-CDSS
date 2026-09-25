@@ -198,7 +198,7 @@ export async function assistedPolarityDecisions(
       affirmativeSelection(caseState, signal),
     ]);
     const value: AssistedPolarityDecisions = {
-      negated: negated.picked instanceof Set ? negated.picked as AssistedNegationClauses : new Set<string>(),
+      negated: negated.picked,
       affirmed: affirmed.picked,
     };
     // 两侧都「有定论」才入缓存：没有候选分句，或模型确实作答（含明确答 none）。
