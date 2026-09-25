@@ -1,4 +1,37 @@
+// 确定性闸门：顺序跑下面登记数组里的每个 test:* 套件，任一非零即停（fail-fast）。
+//
+// 用法：
+//   node scripts/run-deterministic-regression.mjs                          全链（npm run test:deterministic）
+//   node scripts/run-deterministic-regression.mjs --fresh-artifact-suites  只跑归档敏感套件，且 CDSS_IGNORE_LOCAL_ARTIFACTS=1
+//   node scripts/run-deterministic-regression.mjs --only=test:a,test:b     只跑点名的已登记套件（排查用）
+//   … --list                                                               只做开跑前自检并列出将要跑的套件，不执行
+//
+// 发布闸门 verify:release = typecheck + lint + 全链常态一次 + 归档敏感套件 fresh 态一次
+// （test:deterministic:fresh-artifacts）。2026-09-25 之前它把全链 fresh 态再跑一遍（每遍约 3.7 分钟），
+// 但 CDSS_IGNORE_LOCAL_ARTIFACTS 只被 scripts/lib/local-artifacts.mjs 读、只有 4 个套件经它读归档，
+// 其余套件两态走同一路径；完整 fresh 链仍可用 npm run test:deterministic:fresh 手动跑。
+// 同时去掉了末尾的 `npm run build`：生产产物只从 scripts/deploy/prebuild-local.sh 来（它在白名单
+// 编译目录里重新编译），闸门里再编一遍约 2 分钟、峰值约 6GB，且编出来的东西没有任何人用——
+// 这台机 6–9GB 内存，峰值还会把并发的闸门进程挤掉（日志为空、无退出码）。编译错误由 typecheck 与
+// 预编译步骤各拦一次。
+//
+// 开跑前自检（任何一项不过都在第一个套件之前失败，列出全部问题）：
+//   ① 登记完整性：package.json 里每个 test:* 要么在下面的登记数组里，要么在 NOT_IN_GATE 里写明原因。
+//      此前这里只是手工数组，新增的套件不登记就静默不在闸门里。
+//   ② 本机状态：读 artifacts/ 的套件必须登记在 scripts/lib/gate-local-state.mjs；src 里以
+//      artifacts/runtime 为缺省落盘位置的运行态必须登记覆盖变量（见该文件头注释）。
+// 运行时：每个套件拿一个全新临时目录承载 src 运行态（术语缓存/库存/客户注册表/租户审计），
+// 本机 artifacts/runtime 里留存的文件漏不进结果，套件之间也不串。
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import {
+  ARTIFACT_SENSITIVE_SUITES,
+  auditLocalStateReaders,
+  RUNTIME_STATE_PATHS,
+  runtimeStateEnv,
+} from "./lib/gate-local-state.mjs";
 
 const scripts = [
   "test:m04-delivery-continuity",
@@ -557,24 +590,106 @@ const scripts = [
   "test:prompt-injection",
 ];
 
+// 不进闸门的 test:* 脚本，逐条写明原因。新增 test:* 脚本必须进上面的数组或进这里，否则闸门开头即失败。
+const NOT_IN_GATE = Object.freeze({
+  "test:deterministic": "闸门本身（全链）",
+  "test:deterministic:fresh": "闸门本身（全链 fresh 态，供需要时手动跑）",
+  "test:deterministic:fresh-artifacts": "闸门本身（归档敏感套件 fresh 态，verify:release 的第二段）",
+  "test:primary-care-m05-live": "live：需要运行中的服务与真实模型",
+  "test:primary-care-red-flags-live": "live：需要运行中的服务与真实模型",
+});
+
+const root = process.cwd();
+const args = process.argv.slice(2);
+const listOnly = args.includes("--list");
+const freshArtifactSuites = args.includes("--fresh-artifact-suites");
+const onlyArg = args.find((arg) => arg.startsWith("--only="));
+const unknownArgs = args.filter((arg) => arg !== "--list" && arg !== "--fresh-artifact-suites" && !arg.startsWith("--only="));
+
+function preflightProblems() {
+  const problems = unknownArgs.map((arg) => `未知参数 ${arg}`);
+  const npmScripts = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).scripts || {};
+  const registered = new Set(scripts);
+  const duplicates = scripts.filter((name, index) => scripts.indexOf(name) !== index);
+  if (duplicates.length) problems.push(`登记数组有重复：${duplicates.join("、")}`);
+  const missing = scripts.filter((name) => !(name in npmScripts));
+  if (missing.length) problems.push(`登记了但 package.json 里没有：${missing.join("、")}`);
+  for (const [name, reason] of Object.entries(NOT_IN_GATE)) {
+    if (!(name in npmScripts)) problems.push(`NOT_IN_GATE 里的 ${name} 在 package.json 里已不存在（${reason}）——请移除`);
+    if (registered.has(name)) problems.push(`${name} 同时在登记数组与 NOT_IN_GATE 里`);
+  }
+  const unregistered = Object.keys(npmScripts)
+    .filter((name) => name.startsWith("test:") && !registered.has(name) && !(name in NOT_IN_GATE));
+  if (unregistered.length) {
+    problems.push(`以下 test:* 脚本既未登记进闸门、也未写进 NOT_IN_GATE（写了不登记等于没写）：\n    ${unregistered.join("\n    ")}`);
+  }
+  problems.push(...auditLocalStateReaders(root, npmScripts, scripts));
+  return problems;
+}
+
+const problems = preflightProblems();
+if (problems.length) {
+  console.error(`[deterministic] 开跑前自检失败（${problems.length} 项）：\n  - ${problems.join("\n  - ")}`);
+  process.exit(1);
+}
+
+let selected = scripts;
+if (freshArtifactSuites) selected = selected.filter((name) => name in ARTIFACT_SENSITIVE_SUITES);
+if (onlyArg) {
+  const wanted = onlyArg.slice("--only=".length).split(",").map((name) => name.trim()).filter(Boolean);
+  const unknown = wanted.filter((name) => !scripts.includes(name));
+  if (unknown.length) {
+    console.error(`[deterministic] --only 点名了未登记的套件：${unknown.join("、")}`);
+    process.exit(1);
+  }
+  selected = selected.filter((name) => wanted.includes(name));
+}
+
+if (listOnly) {
+  console.log(JSON.stringify({
+    mode: freshArtifactSuites ? "fresh-artifact-suites" : onlyArg ? "only" : "full",
+    registered: scripts.length,
+    excluded: Object.keys(NOT_IN_GATE),
+    selected,
+    runtimeStateEnv: Object.values(RUNTIME_STATE_PATHS).map(({ env }) => env),
+  }, null, 2));
+  process.exit(0);
+}
+
 const startedAt = Date.now();
 // Defense-in-depth: suites must pin their own audit config. Scrub inherited RXAI_AUDIT_* shell
 // overrides (e.g. a small RXAI_AUDIT_TOTAL_TIMEOUT_MS) so they cannot leak into child processes.
 const childEnv = Object.fromEntries(
   Object.entries(process.env).filter(([key]) => !key.startsWith("RXAI_AUDIT_")),
 );
-for (const [index, script] of scripts.entries()) {
-  console.error(`[deterministic] ${index + 1}/${scripts.length} ${script}`);
-  const result = spawnSync("npm", ["run", script], {
-    cwd: process.cwd(),
-    env: childEnv,
-    stdio: "inherit",
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    console.error(JSON.stringify({ script, status: result.status, signal: result.signal }));
-    process.exit(result.status || 1);
+if (freshArtifactSuites) childEnv.CDSS_IGNORE_LOCAL_ARTIFACTS = "1";
+const runtimeRoot = mkdtempSync(path.join(tmpdir(), "cdss-gate-runtime-"));
+let exitCode = 0;
+try {
+  for (const [index, script] of selected.entries()) {
+    console.error(`[deterministic] ${index + 1}/${selected.length} ${script}`);
+    const result = spawnSync("npm", ["run", script], {
+      cwd: root,
+      // 套件自己设的运行态路径（多数库存/注册表套件会设）在子进程内覆盖这里的值。
+      env: { ...childEnv, ...runtimeStateEnv(path.join(runtimeRoot, String(index))) },
+      stdio: "inherit",
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      console.error(JSON.stringify({ script, status: result.status, signal: result.signal }));
+      exitCode = result.status || 1;
+      break;
+    }
   }
+} finally {
+  rmSync(runtimeRoot, { recursive: true, force: true });
 }
+if (exitCode) process.exit(exitCode);
 
-console.log(JSON.stringify({ suites: scripts.length, failures: 0, elapsedMs: Date.now() - startedAt }, null, 2));
+console.log(JSON.stringify({
+  suites: selected.length,
+  ...(selected.length !== scripts.length ? { registered: scripts.length } : {}),
+  ...(freshArtifactSuites ? { mode: "fresh-artifact-suites" } : {}),
+  failures: 0,
+  elapsedMs: Date.now() - startedAt,
+}, null, 2));
