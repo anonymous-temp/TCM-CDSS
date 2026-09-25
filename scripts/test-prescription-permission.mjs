@@ -527,6 +527,36 @@ assert.equal(singlePassHistoricalState.clinicalFacts?.encounterScope?.status, "h
 assert.equal("reviewAgreement" in (singlePassHistoricalState.clinicalFacts?.encounterScope || {}), false,
   "模型自称的「两次一致」不得进入签名事实");
 assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(singlePassHistoricalState)), false, "single-pass historical 不属于 unclear 确认门");
+
+// 1.2e（2026-09-25）：页面的确认入口与服务端门禁必须是**同一个判据**。此前页面另写一份、且只在
+// 非剂量结果页才判：advise 档下候选照常生成，页面没有确认按钮，而上面 1.2d 证明 HIS 在确认前一直
+// 不带处方——医生无路可走。现在两边共用 encounterScopeAwaitingConfirmation；服务端只多一层
+// attestation 校验（页面拿不到密钥）。
+{
+  const { encounterScopeAwaitingConfirmation } = await jiti.import("../src/lib/clinical-facts.ts");
+  for (const [label, state, expected] of [
+    ["未确认", unclearScopeState, true],
+    ["指纹匹配已确认", confirmedScopeState, false],
+    ["过期指纹确认", staleConfirmedState, true],
+    ["无语义事实", roundTrippedScopeState, false],
+    ["single-pass 仅既往", singlePassHistoricalState, false],
+  ]) {
+    assert.equal(encounterScopeAwaitingConfirmation(state.clinicalFacts, state.encounterScopeConfirmation), expected,
+      `${label}: 页面判据`);
+    assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(state)), expected,
+      `${label}: attestation 有效时服务端与页面必须同判`);
+  }
+  // 服务端多出的那一层：attestation 被篡改时页面仍给入口（它无法验签），服务端不把伪造事实当门禁依据。
+  const forged = { ...unclearScopeState, clinicalFacts: { ...unclearScopeState.clinicalFacts, attestation: "hmac-sha256:" + "0".repeat(64) } };
+  assert.equal(encounterScopeAwaitingConfirmation(forged.clinicalFacts, forged.encounterScopeConfirmation), true);
+  assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(forged)), false, "服务端必须继续校验 attestation");
+  // 判据不看剂量形态：同一份 unclear 事实挂在带剂量候选的病例上也要给入口（旧页面判据要求非剂量页）。
+  assert.ok(unclearScopeState.reasoningPrescribe?.formula?.candidates?.[0]?.herbs?.length > 0, "夹具前提：病例带剂量候选");
+  const clientSource = (await import("node:fs")).readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
+  const declaration = clientSource.match(/const unclearScopeAwaitingConfirmation = ([\s\S]*?);\n/)?.[1] || "";
+  assert.match(declaration, /^encounterScopeAwaitingConfirmation\(/, "页面判据必须直接调用共享函数，不得再叠加剂量形态条件");
+}
+
 // 路由级：block 档下旧实现对「仅既往」直接返回非剂量有限 M03（「本次当前活动性治疗目标」待补录）。
 // 现在它不得再改变 M03 的任何输出——本夹具无模型密钥，推进到生成层即为越过了全部确定性门禁。
 const reparsedHistoricalState = normalizeCaseStateInput(JSON.parse(JSON.stringify(singlePassHistoricalState)));
