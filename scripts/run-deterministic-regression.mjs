@@ -592,7 +592,6 @@ const NOT_IN_GATE = Object.freeze({
   "test:deterministic": "闸门本身（全链）",
   "test:deterministic:fresh": "闸门本身（全链 fresh 态，供需要时手动跑）",
   "test:deterministic:fresh-artifacts": "闸门本身（归档敏感套件 fresh 态，verify:release 的第二段）",
-  "test:primary-care-m05-live": "live：需要运行中的服务与真实模型",
   "test:primary-care-red-flags-live": "live：需要运行中的服务与真实模型",
 });
 
