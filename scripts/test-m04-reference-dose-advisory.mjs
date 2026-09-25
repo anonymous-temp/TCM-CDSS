@@ -14,7 +14,7 @@ const { classifyHerbWarning } = await jiti.import("../src/lib/clinical-warning-t
 const { getTcmHerbDoseLimit, isKnownTcmHerbName } = await jiti.import("../src/lib/tcm-knowledge.ts");
 const { rejectionTier, qualityAnnotationCopy } = await jiti.import("../src/lib/diagnosis-rejection-tiers.ts");
 const { collectClinicalDeliveryAdvisories } = await jiti.import("../src/lib/clinical-delivery-advisory.ts");
-const { m04FinalReviewQualityAnnotation, m04TherapyIssueQualityAnnotation, m04ZeroProviderRepairQualityAnnotation, m04BaselineVerifiedFinalReviewAnnotation, m04ArbitratedPatientContextAnnotation } = await jiti.import("../src/lib/m04-repair-policy.ts");
+const { m04TherapyIssueQualityAnnotation } = await jiti.import("../src/lib/m04-repair-policy.ts");
 const { buildAuditItemsFromHerbs } = await jiti.import("../src/lib/rxaudit.ts");
 const { clinicalReviewPayloadHash } = await jiti.import("../src/lib/clinical-review-binding.ts");
 const { signPrescribeReasoning, PRESCRIBE_CONTRACT_SIGNATURE_VERSION } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
@@ -130,7 +130,6 @@ test("doctor advice distinguishes a historical reference from medical approval",
   assert.match(doseAdvice.message, /历史参考/);
   assert.match(doseAdvice.suggestedAction, /医生/);
   assert.doesNotMatch(qualityAnnotationCopy("m04_candidate_0_herb_0_dose_reference_deviation"), /通过安全核验|剂量.*通过/);
-  assert.doesNotMatch(m04FinalReviewQualityAnnotation({ status: "repair", issueCode: "dose_rationale_concern" }), /每味剂量均在药典边界内/);
 });
 
 test("HIS preserves readable unverified dose and marks only herbal adoption as reference-only", () => {
@@ -193,10 +192,6 @@ test("audit receives the original proposal dose; signing binds unverified metada
 test("all quality acceptance copy remains truthful when another herb has an unverified reference dose", () => {
   const copies = [
     ...["transparent_therapy_coverage", "transparent_therapy_herb_support", "transparent_therapy_herb_knowledge_missing", "herb_0_unsupported_high_impact_heat_clear", "herb_0_emperor_therapy_mismatch", "therapy_direction_uncovered_heat_clear", "pathogenesis_node_uncovered_P2"].map(m04TherapyIssueQualityAnnotation),
-    ...["formula_composition_mismatch", "herb_plan_mismatch", "patient_context_mismatch", "dose_rationale_concern"].map((issueCode) => m04FinalReviewQualityAnnotation({ status: "repair", issueCode })),
-    m04ZeroProviderRepairQualityAnnotation({ status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "herb_direction" }),
-    m04BaselineVerifiedFinalReviewAnnotation({ review: { status: "repair", issueCode: "herb_plan_mismatch" }, baselineIdentityVerified: true }),
-    m04ArbitratedPatientContextAnnotation(),
     qualityAnnotationCopy("m04_candidate_0_herb_1_function_ungrounded"),
   ];
   for (const copy of copies) {

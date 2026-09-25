@@ -7,7 +7,7 @@ Object.assign(process.env, {
   AI_TEXT_PROVIDER: "bailian-qwen", BAILIAN_QWEN_API_KEY: "test-only",
   BAILIAN_QWEN_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
   BAILIAN_QWEN_MODEL: "qwen3.7-plus", PRIMARY_PRESCRIBE_MODEL: "qwen3.7-plus",
-  PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max", STRUCTURED_QUALITY_REPAIR_ROUNDS: "0",
+  PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max",
   M04_ORCHESTRATION_DEADLINE_MS: "60000", REASONING_CONTRACT_SIGNING_KEY: "synthetic-signing-key-at-least-32-characters",
 });
 const jiti = createJiti(import.meta.url, { alias: {
@@ -17,10 +17,10 @@ const { callDiagnosisStream } = await jiti.import("../src/lib/diagnosis-api.ts")
 const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
 const { canAcceptTransparentFormulaFallback } = await jiti.import("../src/lib/m04-repair-policy.ts");
 const { isSafetyClinicalDeliveryAdvisory } = await jiti.import("../src/lib/clinical-delivery-advisory.ts");
-const { retainM04DeliveryCheckpoint, bindM04DeliveryReview, preferM04DeliveryCheckpoint, renderM04DeliveryCheckpoint,
+const { retainM04DeliveryCheckpoint, bindM04DeliveryAttestation, preferM04DeliveryCheckpoint, renderM04DeliveryCheckpoint,
   m04DeliveryCheckpointIsClean, m04DeliveryCheckpointSafetyFindingCount, m04DeliveryCheckpointFeedbackCodes } = await jiti.import("../src/lib/m04-delivery-checkpoint.ts");
 const { compileM04Proposal } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
-const { clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation } = await jiti.import("../src/lib/clinical-review-binding.ts");
+const { clinicalReviewNotPerformedAttestation, clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation } = await jiti.import("../src/lib/clinical-review-binding.ts");
 const { applyPrescribeContractSignature } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
 const { isNonDosePrescriptionText } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { parseReasoningV2 } = await jiti.import("../src/lib/diagnosis-parse.ts");
@@ -52,11 +52,12 @@ const sse = (value) => new Response(new ReadableStream({ start(controller) {
   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(value) }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`));
   controller.close();
 } }), { headers: { "content-type": "text/event-stream" } });
-const accepted = { status: "accepted", issueCode: "none", repairFocus: "none" };
+// 修复轮的缺省回复：一个不是最小提案的对象（模型复核环节已于 2026-09-16 删除，非流式请求只剩修复轮）。
+const notAProposal = { status: "accepted", issueCode: "none" };
 const completion = (value) => Response.json({ choices: [{ message: { content: JSON.stringify(value) }, finish_reason: "stop" }] });
 const signatureContext = { contractVersion: "tcm-cdss-m04-signature-v3", caseId: "synthetic", encounterId: "synthetic",
   clinicalInputHash: `sha256:${"a".repeat(64)}`, diagnoseContractHash: `sha256:${"b".repeat(64)}` };
-async function runWire({ first = proposal, reviewer = accepted, remainingMs = 2000, abortAfterFirst = false,
+async function runWire({ first = proposal, repairReply = notAProposal, remainingMs = 2000, abortAfterFirst = false,
   priorReasoning = prior, respond, outputTransform } = {}) {
   const originalFetch = globalThis.fetch;
   const originalInfo = console.info;
@@ -77,8 +78,8 @@ async function runWire({ first = proposal, reviewer = accepted, remainingMs = 20
         return sse(first);
       }
       assert.ok(requests.length < 9, "automatic calls must remain bounded");
-      const next = respond ? respond(requests.length, body) : reviewer;
-      if (next === "stall") return new Promise((resolve) => { lateResolve = () => resolve(completion(accepted)); });
+      const next = respond ? respond(requests.length, body) : repairReply;
+      if (next === "stall") return new Promise((resolve) => { lateResolve = () => resolve(completion(notAProposal)); });
       if (next instanceof Response) return next;
       return completion(next);
     };
@@ -157,7 +158,7 @@ test("first T2 cannot mask a later T1: automatic repair retains its bounded oppo
   const first = structuredClone(proposal);
   first.nonPharma.diet = "清淡饮食";
   first.candidate.herbs[0].dose = "501g";
-  const result = await runWire({ first, remainingMs: 50000, respond: (number) => number === 2 ? proposal : accepted,
+  const result = await runWire({ first, remainingMs: 50000, respond: (number) => number === 2 ? proposal : notAProposal,
     outputTransform: withDietQualityFinding });
   assert.equal(result.requests.length, 2, "must repair the actual unsafe dose: one generation draw plus one repair draw, no reviewer (removed 2026-09-16)");
   assert.match(JSON.stringify(result.requests[1].messages), /dose|剂量/);
@@ -173,7 +174,7 @@ test("a candidate-scoped defect repairs only candidate; every other proposal sec
   first.nonPharma.diet = "早餐可用山药小米粥，午餐加一份清蒸鱼，少量多餐。";
   const result = await runWire({ first, remainingMs: 50000, respond: (number) => number === 2
     ? { candidate: proposal.candidate, nonPharma: { ...proposal.nonPharma, diet: "越权改写标记XQZ：每日饮用冰镇饮料。" } }
-    : accepted });
+    : notAProposal });
   assert.equal(result.requests.length, 2, "one generation draw plus one repair draw");
   const repairRequest = result.requests[1];
   assert.equal(repairRequest.response_format?.json_schema?.name, "m04_candidate_patch", "the repair asks the provider for candidate only");
@@ -188,7 +189,7 @@ test("a candidate-scoped defect repairs only candidate; every other proposal sec
 });
 
 test("a structurally broken first draw still regenerates the whole proposal", async () => {
-  const result = await runWire({ first: "not a proposal", remainingMs: 50000, respond: (number) => number === 2 ? proposal : accepted });
+  const result = await runWire({ first: "not a proposal", remainingMs: 50000, respond: (number) => number === 2 ? proposal : notAProposal });
   assert.ok(result.requests.length >= 2, "the broken draw is repaired");
   assert.equal(result.requests[1].response_format?.json_schema?.name, "m04_proposal", "non-candidate failures keep full regeneration");
 });
@@ -196,7 +197,7 @@ test("a structurally broken first draw still regenerates the whole proposal", as
 const wrap = (reasoning) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
 function checkpointInput() {
   const reasoning = compileM04Proposal(proposal, prior);
-  return { reasoning, content: wrap(reasoning), priorReasoning: prior, clinicalContext: "食少倦怠；大便溏薄", generatorModel: "synthetic" };
+  return { reasoning, content: wrap(reasoning), priorReasoning: prior, clinicalContext: "食少倦怠；大便溏薄" };
 }
 test("checkpoint owns immutable validated bytes and rejects malformed, unsafe and mismatched replacements", () => {
   const input = checkpointInput();
@@ -222,7 +223,7 @@ function unsafeCheckpointInput(mutate) {
   const unsafe = structuredClone(proposal);
   mutate(unsafe);
   const reasoning = compileM04Proposal(unsafe, prior);
-  return { reasoning, content: wrap(reasoning), priorReasoning: prior, clinicalContext: "食少倦怠；大便溏薄", generatorModel: "synthetic" };
+  return { reasoning, content: wrap(reasoning), priorReasoning: prior, clinicalContext: "食少倦怠；大便溏薄" };
 }
 test("a candidate that fails a deterministic contract is retained with findings, never signed", () => {
   for (const [label, mutate, expectCode] of [
@@ -245,13 +246,12 @@ test("a candidate that fails a deterministic contract is retained with findings,
     assert.match(rendered, /## 处方补充提示/, `${label}: 问题提示必须随结果交付`);
     assert.match(rendered, /尚未通过全部确定性校验/, `${label}: 不得冒充已通过校验`);
     assertNonDose(rendered);
-    // 签名/背书通道对脏候选必须关闭——保留内容不等于「已复核通过」。
-    const attestation = { status: "accepted", reviewedPayloadHash: clinicalReviewPayloadHash(input.reasoning),
-      provider: "bailian-qwen", model: "qwen3.7-plus", source: "preferred" };
+    // 签名/attestation 通道对脏候选必须关闭——保留内容不等于「已通过校验」。
+    const attestation = clinicalReviewNotPerformedAttestation(input.reasoning);
     const signed = applyPrescribeContractSignature(wrap({ ...input.reasoning, clinicalReview: attestation }), signatureContext);
-    const bound = bindM04DeliveryReview(checkpoint, input.reasoning, accepted, attestation, signed);
+    const bound = bindM04DeliveryAttestation(checkpoint, input.reasoning, attestation, signed);
     assert.equal(bound.signedContent, undefined, `${label}: 脏候选不得携带签名字节`);
-    assert.equal(bound.attestation, undefined, `${label}: 脏候选不得绑定复核背书`);
+    assert.equal(bound.attestation, undefined, `${label}: 脏候选不得绑定 attestation`);
     assertNonDose(renderM04DeliveryCheckpoint(bound, prior, "contract_rejected"));
     // 择优：干净候选永远胜过脏候选，与到达顺序无关。
     const clean = retainM04DeliveryCheckpoint(undefined, checkpointInput());
@@ -285,10 +285,11 @@ test("a route projection that rewrites the payload still retains the candidate",
     assert.equal(retainM04DeliveryCheckpoint(undefined, { ...input, content: bad }), undefined, "非法 sentinel 仍然丢弃");
   }
 });
-test("delivery ranking: signed > clean > fewer T1 > review status > fewer soft findings", () => {
+test("delivery ranking: signed > clean > fewer T1 > fewer soft findings", () => {
   // 择优排序的**优先级**必须逐级钉住。preferM04DeliveryCheckpoint 只读
-  // payloadHash / signedContent / contractIssues / findings / review，所以这里直接构造
+  // payloadHash / signedContent / contractIssues / findings，所以这里直接构造
   // 最小快照，把每一级单独隔离出来——用真实候选构造反而会让多级同时相等，测不出顺序。
+  // （原「复核状态」一级随模型复核环节删除：状态恒为 unavailable，与「已签名」一级重合。）
   let seq = 0;
   const T1 = { code: "candidate_0_high_risk_pair_incompatibility", candidateIndex: 0, message: "m", suggestedAction: "a" };
   const T2 = { code: "candidate_0_herb_0_dose_reference_deviation", candidateIndex: 0, message: "m", suggestedAction: "a" };
@@ -300,32 +301,28 @@ test("delivery ranking: signed > clean > fewer T1 > review status > fewer soft f
     assert.equal(preferM04DeliveryCheckpoint(loser, winner), winner, `${why}（后到）`);
   };
   // ① 已签名优先于「问题更少但没签名」——否则医生会从剂量页掉回非剂量页。
-  beats(mk({ signedContent: "signed", review: { status: "accepted" }, findings: [T2, T2] }),
+  beats(mk({ signedContent: "signed", findings: [T2, T2] }),
         mk({ findings: [] }), "已签名剂量页不得被未签名候选挤掉");
-  // ② 合同干净优先于带合同码，即便后者复核已通过。
+  // ② 合同干净优先于带合同码。
   beats(mk({ findings: [] }),
-        mk({ contractIssues: ["candidate_0_high_risk_pair_incompatibility"], findings: [T1], review: { status: "accepted" } }),
+        mk({ contractIssues: ["candidate_0_high_risk_pair_incompatibility"], findings: [T1] }),
         "干净候选优先于带合同码候选");
   // ③ 同为带合同码时，T1 少者优先。
   beats(mk({ contractIssues: ["a"], findings: [T1] }),
         mk({ contractIssues: ["a", "b"], findings: [T1, T1] }), "T1 少者优先");
-  // ④ 前三级相同的情况下才看复核状态。
-  beats(mk({ findings: [], review: { status: "accepted" } }), mk({ findings: [] }), "复核 accepted 优先于未跑");
-  // ⑤ 复核状态也相同时，软性问题少者优先。
-  beats(mk({ findings: [], review: { status: "accepted" } }),
-        mk({ findings: [T2, T2], review: { status: "accepted" } }), "软性问题少者优先");
-  // 既有规则不变：同一份字节的更新复核结论直接生效。
-  const bytes = mk({ review: { status: "accepted" } });
-  const objection = { ...bytes, review: { status: "repair", issueCode: "dose_rationale_concern" } };
-  assert.equal(preferM04DeliveryCheckpoint(bytes, objection), objection, "同一载荷的新复核结论直接生效");
+  // ④ 前三级相同时，软性问题少者优先。
+  beats(mk({ findings: [] }), mk({ findings: [T2, T2] }), "软性问题少者优先");
+  // 全部相同时后到者胜（同强度的完成结果前进）。
+  const first = mk({ findings: [] });
+  const second = mk({ findings: [] });
+  assert.equal(preferM04DeliveryCheckpoint(first, second), second, "同强度时后到者胜");
 });
 test("dose withheld keeps the candidate visible and never emits the signed dose page", () => {
   const input = checkpointInput();
   const checkpoint = retainM04DeliveryCheckpoint(undefined, input);
-  const attestation = { status: "accepted", reviewedPayloadHash: clinicalReviewPayloadHash(input.reasoning),
-    provider: "bailian-qwen", model: "qwen3.7-plus", source: "preferred" };
+  const attestation = clinicalReviewNotPerformedAttestation(input.reasoning);
   const signed = applyPrescribeContractSignature(wrap({ ...input.reasoning, clinicalReview: attestation }), signatureContext);
-  const reviewed = bindM04DeliveryReview(checkpoint, input.reasoning, accepted, attestation, signed);
+  const reviewed = bindM04DeliveryAttestation(checkpoint, input.reasoning, attestation, signed);
   assert.equal(renderM04DeliveryCheckpoint(reviewed, prior, "deadline"), signed, "其余原因下已签名剂量页照常交付");
   const withheld = renderM04DeliveryCheckpoint(reviewed, prior, "dose_withheld", ["儿童病例当前未配置可验证的个体化剂量规则"]);
   assert.notEqual(withheld, signed, "剂量轴收回时不得返回已签名剂量页");
@@ -338,22 +335,14 @@ test("dose withheld keeps the candidate visible and never emits the signed dose 
 test("only an exact completed attestation and signed payload can restore dose-level output", () => {
   const input = checkpointInput();
   const checkpoint = retainM04DeliveryCheckpoint(undefined, input);
-  const attestation = { status: "accepted", reviewedPayloadHash: clinicalReviewPayloadHash(input.reasoning),
-    provider: "bailian-qwen", model: "qwen3.7-plus", source: "preferred" };
+  const attestation = clinicalReviewNotPerformedAttestation(input.reasoning);
   const signed = applyPrescribeContractSignature(wrap({ ...input.reasoning, clinicalReview: attestation }), signatureContext);
-  const reviewed = bindM04DeliveryReview(checkpoint, input.reasoning, accepted, attestation, signed);
+  const reviewed = bindM04DeliveryAttestation(checkpoint, input.reasoning, attestation, signed);
   assert.equal(renderM04DeliveryCheckpoint(reviewed, prior, "deadline"), signed);
-  const unavailable = bindM04DeliveryReview(reviewed, input.reasoning, { status: "unavailable", reason: "deadline" });
-  assert.equal(renderM04DeliveryCheckpoint(unavailable, prior, "deadline"), signed,
-    "an unavailable repeat cannot erase an actually completed attestation");
-  const newlyRejected = bindM04DeliveryReview(reviewed, input.reasoning, { status: "repair", issueCode: "dose_rationale_concern" });
-  const newestEvidence = preferM04DeliveryCheckpoint(reviewed, newlyRejected);
-  assert.match(renderM04DeliveryCheckpoint(newestEvidence, prior, "deadline"), /剂量强度/);
-  assertNonDose(renderM04DeliveryCheckpoint(newestEvidence, prior, "deadline"));
   const later = checkpointInput(); later.reasoning.formula.candidates[0].formulaAnalysis += " 本例兼顾便溏。"; later.content = wrap(later.reasoning);
   assert.equal(retainM04DeliveryCheckpoint(reviewed, later), reviewed, "a pending later candidate cannot replace an attested result");
-  assert.equal(bindM04DeliveryReview(checkpoint, later.reasoning, accepted, attestation, signed), checkpoint);
-  const mismatch = bindM04DeliveryReview(checkpoint, input.reasoning, accepted, attestation, "WRONG_SIGNED_RESULT");
+  assert.equal(bindM04DeliveryAttestation(checkpoint, later.reasoning, attestation, signed), checkpoint);
+  const mismatch = bindM04DeliveryAttestation(checkpoint, input.reasoning, attestation, "WRONG_SIGNED_RESULT");
   assertNonDose(renderM04DeliveryCheckpoint(mismatch, prior, "deadline"));
   assert.doesNotMatch(renderM04DeliveryCheckpoint(mismatch, prior, "deadline"), /WRONG_SIGNED_RESULT/);
 });

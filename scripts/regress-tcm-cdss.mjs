@@ -467,10 +467,8 @@ async function runFrontendContractChecks() {
     diagnoseRoute.includes("structuredClinicalContext: clinicalGroundingText(safeState)") &&
       prescribeRoute.includes("const structuredClinicalContext = [") &&
       prescribeRoute.includes("clinicalGroundingText(safeState)") &&
-      prescribeRoute.includes("structuredClinicalContext,") &&
-      diagnoseRoute.includes("structuredReviewEvidenceContext: evidenceContext") &&
-      prescribeRoute.includes("structuredReviewEvidenceContext: boundedEvidence.text"),
-    "privacy and grounding: M03/M04 repair/review receive deidentified patient facts while evidence travels in a separate non-patient channel",
+      prescribeRoute.includes("structuredClinicalContext,"),
+    "privacy and grounding: M03/M04 repair rounds receive deidentified patient facts",
     `${diagnoseRoute}\n${prescribeRoute}`,
   );
   assert(diagnoseChain.includes("prescriptionContractInvalid") && diagnoseChain.includes("!prescriptionReasoningV2") && diagnoseChain.includes("!rawPrescription.includes(\"<!-- DIAGNOSIS_JSON_START -->\")") && diagnoseChain.includes('phase: "prescribe"') && diagnoseChain.includes("候选方药本次未完整生成"), "frontend: truncated or structurally invalid M04 becomes a visible section retry state while preserving completed M03", diagnoseChain.slice(0, 7600));
@@ -520,12 +518,10 @@ async function runFrontendContractChecks() {
     `${diagnosisApiSource.slice(4500, 6500)}\n${promptSource.slice(21000, 27000)}`,
   );
   assert(
-      diagnosisApiSource.includes("clinicalReviewUnavailableNotice") &&
-      diagnosisApiSource.includes("retry.ok ? retry.model : m04GeneratorModel") &&
-      diagnosisApiSource.includes("secondRetry.ok ? secondRetry.model : m04GeneratorModel") &&
-      diagnosisApiSource.includes('m03DiagnosticReviewStatus !== "accepted"') &&
-      diagnosisApiSource.includes('m04ClinicalReviewStatus !== "accepted"'),
-    "clinical review: the model reviewer was removed (2026-09-16); the review-status channel must still disclose that no model review ran",
+      diagnosisApiSource.includes("clinicalReviewNotPerformedAttestation") &&
+      !diagnosisApiSource.includes("reviewM03DiagnosticCriteria") &&
+      !diagnosisApiSource.includes("reviewM04ClinicalPlan"),
+    "clinical review: the model reviewer was removed (2026-09-16); every signed M03/M04 carries the constant not_configured attestation",
     diagnosisApiSource.slice(0, 19000),
   );
   assert(diagnosisApiSource.includes("CLIENT_HEARTBEAT_INTERVAL_MS") && diagnosisApiSource.includes("enqueueHeartbeat") && diagnosisApiSource.includes("contentChars + reasoningChars") && diagnosisApiSource.includes("stageProgressHeartbeatStatus({") && diagnosisApiSource.includes("服务保持响应并持续校验") && diagnosisApiSource.includes("stopClientHeartbeat") && diagnosisApiSource.includes("clearTimeout(totalTimeout)") && diagnosisApiSource.includes("parentSignal?.addEventListener") && diagnosisApiSource.includes("clientStreamClosed = true"), "model stream: M03/M04 keep the public chunked connection alive, count reasoning progress, bound retry response-body time, and propagate client cancellation without enqueueing after close", diagnosisApiSource.slice(0, 19000));

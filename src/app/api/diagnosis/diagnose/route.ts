@@ -116,7 +116,7 @@ export async function POST(req: Request) {
   );
   // Only add facts absent from the legacy template; its coherent TCM chain stays intact.
   const diagnoseBasePrompt = originalDiagnoseBasePrompt + buildM03AdditionalPatientContext(safeState, originalDiagnoseBasePrompt);
-  // 证据块此前无总量上限，直接拼到提示词硬上限为止。M03 的这块要被中医半 + 西医半 + 独立复核
+  // 证据块此前无总量上限，直接拼到提示词硬上限为止。M03 的这块要被中医半 + 西医半
   // + 每个修复轮重复携带，放大倍数比 M04 更高（M04 已于 2026-08-25 加过同款预算）。
   const diagnoseEvidenceBudget = Math.min(
     m03EvidencePromptBudgetChars(),
@@ -214,16 +214,13 @@ export async function POST(req: Request) {
     // 时限触发是另一回事：复核可能已经启动并被切断，所以标 deadline 而不是「没有合法草稿」。
     // 焊死在一个预渲染字符串上会让这两类共用一个原因码——本轮刚修掉的混淆，低一层的同款。
     deadlineFallback: signedLimitedDiagnosis(truncatedGateFor("deadline"), "deadline"),
-    // 复核通过、却被受控证候词表等下游校验驳回：不能记成「复核不可用」——
-    // 线上实测这一例 reviewStatus=accepted、reviewAttemptCount=2，冤枉复核会让归因跑偏。
-    reviewAcceptedButRejectedFallback: signedLimitedDiagnosis(truncatedGateFor("accepted_but_draft_rejected_downstream"), "accepted_but_draft_rejected_downstream"),
     authoritativeTruncateFallback: true,
     structuredStage: "diagnose",
     structuredQueueKey: parsed.customer.customerHash,
     // 与 M04 同口径：时钟起在临床事实准备之前，否则那段模型调用不计入 180s 预算。
     structuredOrchestrationStartedAt: orchestrationStartedAt,
-    // Structured retries and independent review are external model calls. Keep their grounding
-    // context on the same deidentified DTO as the primary generation request.
+    // Structured retries are external model calls. Keep their grounding context on the same
+    // deidentified DTO as the primary generation request.
     structuredClinicalContext: clinicalGroundingText(safeState),
     // 事实来源归属要读**受治理字段路径**，光靠接地正文的行结构不够：HIS 直传的字段在正文里
     // 是不带标题的裸行，会被一律猜成「现病史」（2026-08-12 线上实测）。与上一行同一份脱敏 DTO。
@@ -234,9 +231,6 @@ export async function POST(req: Request) {
     // （方名锁定只认签名证候的 positiveSufficiency，症状召回证明不了充分性）。原先这一行是一次
     // 完整的 1796 方目录扫描 + 滑窗索引匹配，结果全程未被使用，且入参与真正喂给模型的短名单
     // 不同口径（不带 recallHint），读代码时会误以为「模型只能从检索短名单里选」。
-    // Evidence is isolated from the patient-fact grounding channel so literature text can never
-    // satisfy a missing patient fact during contract validation.
-    structuredReviewEvidenceContext: evidenceContext,
     diagnoseSignatureContext: buildDiagnoseContractSignatureContext(gated),
     outputTransform: buildEvidenceOutputTransform(
       evidenceContext,

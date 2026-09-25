@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 import {
@@ -11,7 +10,6 @@ import {
   m03DiagnosticRepairGuidanceCodes,
   m03DiagnosticReviewSemanticHash,
   m03GroundingHasCurrentPositiveFacts,
-  m03PathogenesisSummaryIsExactProjection,
   m03SymptomDowngradeReviewIsNonActionable,
   m03TcmRepairMode,
   matchesM03QuarantineShape,
@@ -412,116 +410,24 @@ const jiti = createJiti(import.meta.url, {
     "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
   },
 });
-const { boundM03AdvisoryReview, callDiagnosisStream, clinicalReviewAttestation, clinicalReviewQualityAttestation, m03ReviewCanDowngradeToAdvisory, modelForStructuredRepair, shouldRegenerateM03ClinicalRepair, shouldRepairM03TcmHalfOnly, shouldRetryStructuredRepairTransport } = await jiti.import("../src/lib/diagnosis-api.ts");
-assert.equal(shouldRegenerateM03ClinicalRepair("diagnose", "m03_tcm_reasoning_semantic_review", "独立复核的受控定位标签：phlegm_damp_overreach"), true, "TCM semantic overreach is regenerated from patient facts instead of editing the biased candidate");
-assert.equal(shouldRegenerateM03ClinicalRepair("diagnose", "m03_primary_diagnosis_semantic_review", "独立复核的受控定位标签"), false, "western label repair retains its field-targeted path");
-assert.equal(shouldRegenerateM03ClinicalRepair("prescribe", "m03_tcm_reasoning_semantic_review", "独立复核的受控定位标签"), false, "M04 repair behavior is unchanged");
+const { callDiagnosisStream, modelForStructuredRepair, shouldRepairM03TcmHalfOnly, shouldRetryStructuredRepairTransport } = await jiti.import("../src/lib/diagnosis-api.ts");
 assert.equal(m03PreservedParallelHalfIssue(reviewed, reviewedClinicalContext), undefined,
   "the owner-scoped validator accepts a complete Western/management half independently of the TCM chain");
-assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_chain_empty", true, false, true), true,
+assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_chain_empty", true, true), true,
   "a chain-only hard-contract gap regenerates only the TCM half when parallel ownership is available");
-assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_chain_empty", false, false, true), false,
+assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_chain_empty", false, true), false,
   "single-shot deployments retain the existing full M03 repair fallback");
-assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_tcm_reasoning_semantic_review", true, true, true), true,
-  "review-driven TCM regeneration continues to use the TCM half");
-assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_western_support_empty", true, false, true), false,
+assert.equal(shouldRepairM03TcmHalfOnly("prescribe", "m03_chain_empty", true, true), false,
+  "M04 never takes the M03 TCM-half route");
+assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_western_support_empty", true, true), false,
   "a Western-half contract gap must never be routed to the TCM-only repair");
 const chainAndWesternGap = structuredClone(reviewed);
 chainAndWesternGap.pathogenesis.chain = [];
 chainAndWesternGap.westernDiagnosis.primary.supportingFacts = [];
 assert.equal(m03PreservedParallelHalfIssue(chainAndWesternGap, reviewedClinicalContext), "western_support_empty",
   "the preserved-half validator exposes a Western gap hidden behind the full contract's earlier chain_empty result");
-assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_chain_empty", true, false, false), false,
+assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_chain_empty", true, false), false,
   "chain_empty plus any preserved-half gap must use the existing full M03 repair");
-assert.equal(
-  m03ReviewCanDowngradeToAdvisory(
-    { status: "repair", issueCode: "tcm_reasoning_unsupported", repairInstruction: "phlegm_damp_overreach" },
-    reviewed,
-    reviewedClinicalContext,
-  ),
-  true,
-  "an M03 review quality concern becomes a bounded advisory after the deterministic safety contract passes",
-);
-
-// ─── 有界建议的审计完整性（甲方 08cc573 复测第 3 项）────────────────────────────
-// 复核器真实决定是 repair、服务端按质量意见有界受理时，签名 attestation 必须保留
-// reviewDecision=repair 与原始问题码，绝不能写成无原因的 unavailable。
-// TCMEval 20 例实测 10 例、麻黄汤活体探针 4/4 曾把这类签成 unavailable//（空原因）。
-const advisoryConverted = boundM03AdvisoryReview(
-  {
-    status: "repair",
-    issueCode: "tcm_reasoning_unsupported",
-    repairInstruction: "phlegm_damp_overreach",
-    reviewer: { provider: "bailian-qwen", model: "qwen3.8-max", source: "preferred", independentFromGenerator: true },
-    execution: { durationMs: 1200, attemptCount: 1, reason: "repair" },
-  },
-  reviewed,
-  reviewedClinicalContext,
-);
-assert.equal(advisoryConverted.status, "unavailable", "orchestration semantics stay advisory (no repair round)");
-assert.equal(advisoryConverted.advisoryBoundary, "quality_concern");
-assert.deepEqual(advisoryConverted.qualityOpinion, { decision: "repair", issueCode: "tcm_reasoning_unsupported" },
-  "the reviewer's raw decision survives the advisory conversion");
-const advisoryAttestation = clinicalReviewAttestation(advisoryConverted, reviewed);
-assert.equal(advisoryAttestation.status, "accepted", "bounded acceptance signs as accepted, not unavailable");
-assert.equal(advisoryAttestation.reviewDecision, "repair");
-assert.equal(advisoryAttestation.reviewIssueCode, "tcm_reasoning_unsupported");
-assert.equal(advisoryAttestation.unavailableReason, undefined);
-assert.equal(advisoryAttestation.independentFromGenerator, true, "reviewer identity still travels");
-assert.equal(advisoryAttestation.attemptCount, 1);
-// 反证 1：安全接地被破坏时不降档——原始 repair 原样返回，走修复轮，不产 qualityOpinion。
-const unsafeAdvisory = boundM03AdvisoryReview(
-  { status: "repair", issueCode: "tcm_reasoning_unsupported", repairInstruction: "chain_not_closed" },
-  (() => { const c = structuredClone(reviewed); c.pathogenesis.chain[0].patientFact = "意识异常"; return c; })(),
-  `${reviewedClinicalContext}；否认意识异常`,
-);
-assert.equal(unsafeAdvisory.status, "repair", "a safety-relevant concern is never converted to advisory");
-assert.equal(unsafeAdvisory.qualityOpinion, undefined);
-// 反证 2：真正的传输类不可用仍是 unavailable，且带原因码、不带 reviewDecision。
-const transportAttestation = clinicalReviewAttestation(
-  { status: "unavailable", issueCode: "review_unavailable", execution: { durationMs: 5, attemptCount: 3, reason: "http_error" } },
-  reviewed,
-);
-assert.equal(transportAttestation.status, "unavailable");
-assert.equal(transportAttestation.unavailableReason, "http_error");
-assert.equal(transportAttestation.reviewDecision, undefined);
-// 反证 3：advisory 标志存在但没有 qualityOpinion（防御空档）→ 不得伪装 accepted。
-const advisoryWithoutOpinion = clinicalReviewAttestation(
-  { status: "unavailable", issueCode: "review_unavailable", advisoryBoundary: "quality_concern" },
-  reviewed,
-);
-assert.equal(advisoryWithoutOpinion.status, "unavailable");
-// M03 侧质量受理 attestation（finalize 有界受理分支专用）与 M04 同一形状。
-const m03QualityAttestation = clinicalReviewQualityAttestation(
-  { status: "repair", issueCode: "formula_indication_mismatch", execution: { durationMs: 800, attemptCount: 1, reason: "repair" } },
-  reviewed,
-);
-assert.equal(m03QualityAttestation.status, "accepted");
-assert.equal(m03QualityAttestation.reviewDecision, "repair");
-assert.equal(m03QualityAttestation.reviewIssueCode, "formula_indication_mismatch");
-// 接线完备性：六处 advisory 消费点都把质量码并进 acceptanceScope；finalize 两个阶段各落 attestation。
-{
-  const apiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
-  const scopeSites = apiSource.split("if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);").length - 1;
-  assert.equal(scopeSites, 6, "all six advisory consumer sites merge the quality issue code into acceptanceScope");
-  assert.ok(apiSource.includes("m03ClinicalReviewAttestation = clinicalReviewQualityAttestation("),
-    "the M03 finalize bounded-acceptance branch records a quality attestation");
-  const m04FinalizeSites = apiSource.split("m04ClinicalReviewAttestation = clinicalReviewQualityAttestation(").length - 1;
-  assert.equal(m04FinalizeSites, 3, "M04 quality attestations: mid-loop, second-round and finalize bounded acceptance");
-}
-
-const unsafeReviewedCandidate = structuredClone(reviewed);
-unsafeReviewedCandidate.pathogenesis.chain[0].patientFact = "意识异常";
-assert.equal(
-  m03ReviewCanDowngradeToAdvisory(
-    { status: "repair", issueCode: "tcm_reasoning_unsupported", repairInstruction: "chain_not_closed" },
-    unsafeReviewedCandidate,
-    `${reviewedClinicalContext}；否认意识异常`,
-  ),
-  false,
-  "review downgrade never masks a patient-fact polarity violation",
-);
-
 const reviewModelEnv = {
   diagnose: process.env.PRIMARY_DIAGNOSE_MODEL,
   prescribe: process.env.PRIMARY_PRESCRIBE_MODEL,
@@ -768,35 +674,17 @@ assert.equal(
 const {
   M03_ORCHESTRATION_DEADLINE_MS,
   m03OrchestrationDeadlineExpired,
-  m03ReviewerProjectionContradiction,
   m03SignedLimitedFallbackReasonCode,
   reasoningEffortForStructuredRepair,
 } = await jiti.import("../src/lib/diagnosis-api.ts");
 assert.equal(M03_ORCHESTRATION_DEADLINE_MS, 180_000);
-const exactProjectionReasoning = structuredClone(reviewed);
-exactProjectionReasoning.pathogenesis.summary = exactProjectionReasoning.pathogenesis.chain.map((node) => node.pathogenesis).join("；");
-const falseSummaryReview = {
-  status: "repair",
-  issueCode: "tcm_reasoning_unsupported",
-  repairInstruction: "pathogenesis_summary_drift：总结与病机链不一致。",
-};
-assert.equal(m03PathogenesisSummaryIsExactProjection(exactProjectionReasoning), true);
-assert.equal(m03ReviewerProjectionContradiction(falseSummaryReview, exactProjectionReasoning), true, "an exact server projection cannot consume a full diagnosis regeneration round");
-assert.match(buildM03DiagnosticReviewPrompt("入睡困难3个月", exactProjectionReasoning, ""), /本轮禁止返回 pathogenesis_summary_drift/);
-const realSummaryDrift = structuredClone(exactProjectionReasoning);
-realSummaryDrift.pathogenesis.summary = "额外引入未支持的病性";
-assert.equal(m03PathogenesisSummaryIsExactProjection(realSummaryDrift), false);
-assert.equal(m03ReviewerProjectionContradiction(falseSummaryReview, realSummaryDrift), false, "real summary drift remains repairable and is never suppressed");
-assert.equal(m03ReviewerProjectionContradiction({ ...falseSummaryReview, repairInstruction: "病机链引入气虚，需删除。" }, exactProjectionReasoning), false, "a core clinical overreach is never mistaken for a projection-only contradiction");
 const deadlineStart = 1_000_000;
 assert.equal(m03OrchestrationDeadlineExpired(deadlineStart, deadlineStart + M03_ORCHESTRATION_DEADLINE_MS - 1), false);
 assert.equal(m03OrchestrationDeadlineExpired(deadlineStart, deadlineStart + M03_ORCHESTRATION_DEADLINE_MS), true);
 // Default 180s + one in-flight repair (≤120s absolute clamp) must bound worst-case M03 to 300s.
 assert.ok(M03_ORCHESTRATION_DEADLINE_MS + 120_000 <= 300_000);
-assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: true, quarantineLoopEarlyExit: false }), "signed_limited_fallback_deadline");
-assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: true, quarantineLoopEarlyExit: true }), "signed_limited_fallback_deadline");
-assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: false, quarantineLoopEarlyExit: true }), "signed_limited_fallback_quarantine_loop");
-assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: false, quarantineLoopEarlyExit: false }), "signed_limited_fallback");
+assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: true }), "signed_limited_fallback_deadline");
+assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: false }), "signed_limited_fallback");
 assert.equal(reasoningEffortForStructuredRepair("diagnose"), "low", "bounded M03 repair avoids a second full diagnostic reasoning budget");
 assert.equal(reasoningEffortForStructuredRepair("prescribe"), "medium", "M04 multi-invariant reconstruction keeps medium repair effort");
 const originalPrescribeRepairEffort = process.env.PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT;
@@ -904,12 +792,7 @@ const {
   M04_ORCHESTRATION_DEADLINE_MS,
   m04OrchestrationDeadlineExpired,
   m04TruncatedFallbackReasonCode,
-  shouldSkipM03RepairForIdenticalGuidance,
 } = await jiti.import("../src/lib/diagnosis-api.ts");
-assert.equal(shouldSkipM03RepairForIdenticalGuidance({ reviewBasedRejection: true, guidanceToInject: "G", lastInjectedGuidance: "G" }), true);
-assert.equal(shouldSkipM03RepairForIdenticalGuidance({ reviewBasedRejection: false, guidanceToInject: "G", lastInjectedGuidance: "G" }), false, "a resolver-rejected repair keeps its retry budget");
-assert.equal(shouldSkipM03RepairForIdenticalGuidance({ reviewBasedRejection: true, guidanceToInject: "G2", lastInjectedGuidance: "G" }), false);
-assert.equal(shouldSkipM03RepairForIdenticalGuidance({ reviewBasedRejection: true, guidanceToInject: "", lastInjectedGuidance: "" }), false);
 
 // ─── (b) M04 orchestration deadline: config, predicate, reason-code selection ───
 assert.equal(M04_ORCHESTRATION_DEADLINE_MS, 180_000);

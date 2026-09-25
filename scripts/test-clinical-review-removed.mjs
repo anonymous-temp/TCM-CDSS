@@ -1,31 +1,28 @@
 /**
- * M03/M04 模型复核环节删除（owner 裁定 2026-09-16）。
+ * M03/M04 模型复核环节删除（owner 裁定 2026-09-16；编排遗留于 2026-09-25 清除）。
  *
  * 线上实测（2026-09-15 容器）：107 次复核全部是与生成方同一模型（deepseek-flash）、reasoning=low、
  * 中位 1.4s 的请求，90 次判 repair / 15 次通过 / 2 次不可用；M03 侧 43 次意见全部被服务端降成
  * 有界建议（24/25 签名态 unavailable）；M04 侧 19 轮修复里 17 轮由它触发（162s、22.5 万 prompt token），
- * 15/35 次把 contractIssues=[]、safetyFindingCount=0 的候选扣成非剂量，同一病例重试 14 次逐次相同；
- * 健康探针另打 214 次/天。仓库里没有任何一份「有/无复核」对照。结论：无可证明的正收益，可测量的
- * 效果全是负的。
+ * 15/35 次把 contractIssues=[]、safetyFindingCount=0 的候选扣成非剂量，同一病例重试 14 次逐次相同。
+ * 结论：无可证明的正收益，可测量的效果全是负的。
  *
- * 本套件钉住四件事（每条都跑过反证，见 STATUS 2026-09-16）：
- *  1. 整个 M04 编排只有一次生成调用——没有复核调用；产出的是**已签名的剂量页**，
- *     attestation 固定 unavailable/not_configured 且哈希绑定（签名契约不变）；
- *  2. 交付连续性路径：已签名候选按「签名 + 哈希绑定」视为已完成，不再要求 accepted；
- *     剂量轴收回时仍不返回剂量页（安全底线不动）；
- *  3. 执行层（请求体、候选链、探针、非剂量门）在源码里不存在；健康检查不再依赖复核器；
- *  4. 医生可见文案不再暗示「配一下就有复核」或「正在独立复核」。
+ * 本套件只钉**行为**（不钉「某个函数名不在源码里」这类墓碑断言）：
+ *  1. 签名载荷里的 clinicalReview 是逐字固定的常量 attestation（对外契约：字段、取值、键序）；
+ *  2. M03 与 M04 编排都只有生成调用、没有任何复核请求；产出照常签名，attestation 为常量且哈希绑定；
+ *  3. 交付连续性路径：已签名 + 哈希绑定即已完成；剂量轴收回时仍不返回剂量页（安全底线不动）；
+ *  4. 医生可见的进度文案不再暗示「正在独立复核」。
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 Object.assign(process.env, {
   AI_TEXT_PROVIDER: "bailian-qwen", BAILIAN_QWEN_API_KEY: "test-only",
   BAILIAN_QWEN_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
   BAILIAN_QWEN_MODEL: "qwen3.7-plus", PRIMARY_PRESCRIBE_MODEL: "qwen3.7-plus",
-  PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max", STRUCTURED_QUALITY_REPAIR_ROUNDS: "0",
+  PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max", PRIMARY_DIAGNOSE_MODEL: "qwen3.8-flash",
+  CONTROLLED_TERMINOLOGY_NORMALIZATION: "false",
   M04_ORCHESTRATION_DEADLINE_MS: "60000", REASONING_CONTRACT_SIGNING_KEY: "synthetic-signing-key-at-least-32-characters",
 });
 const jiti = createJiti(import.meta.url, { alias: {
@@ -33,9 +30,10 @@ const jiti = createJiti(import.meta.url, { alias: {
 } });
 const { callDiagnosisStream } = await jiti.import("../src/lib/diagnosis-api.ts");
 const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
-const { retainM04DeliveryCheckpoint, bindM04DeliveryReview, renderM04DeliveryCheckpoint, m04DeliveryCheckpointIsClean } =
+const { retainM04DeliveryCheckpoint, bindM04DeliveryAttestation, renderM04DeliveryCheckpoint, m04DeliveryCheckpointIsClean } =
   await jiti.import("../src/lib/m04-delivery-checkpoint.ts");
-const { clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation } = await jiti.import("../src/lib/clinical-review-binding.ts");
+const { clinicalReviewNotPerformedAttestation, clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation } =
+  await jiti.import("../src/lib/clinical-review-binding.ts");
 const { applyPrescribeContractSignature } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
 const { isNonDosePrescriptionText, limitedDiagnosisReasonCopy } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { stageProgressHeartbeatStatus } = await jiti.import("../src/lib/diagnosis-stream-protocol.ts");
@@ -80,6 +78,23 @@ const sentinelPayload = (content) => {
   return JSON.parse(content.slice(start + START.length, end));
 };
 
+/** 对外契约：常量 attestation 的字段、取值与键序（签名覆盖的是序列化字节）。 */
+const expectedAttestation = (reasoning) => JSON.stringify({
+  status: "unavailable", unavailableReason: "not_configured", attemptCount: 0, durationMs: 0,
+  reviewedPayloadHash: clinicalReviewPayloadHash(reasoning),
+});
+
+test("常量 attestation：字段、取值与键序逐字固定，且哈希绑定到这份载荷", () => {
+  const attestation = clinicalReviewNotPerformedAttestation(prior);
+  assert.equal(JSON.stringify(attestation), expectedAttestation(prior));
+  assert.match(attestation.reviewedPayloadHash, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(hasBoundClinicalReviewAttestation({ ...prior, clinicalReview: attestation }), true);
+  const other = structuredClone(prior);
+  other.overview.primarySyndrome = "脾虚湿盛证";
+  assert.equal(hasBoundClinicalReviewAttestation({ ...other, clinicalReview: attestation }), false,
+    "attestation 只绑定它计算时的那份载荷");
+});
+
 async function runM04() {
   const originalFetch = globalThis.fetch;
   const originalInfo = console.info;
@@ -122,14 +137,71 @@ test("M04 只有一次生成调用，且直接签出剂量页（attestation 固�
   assert.equal(isNonDosePrescriptionText(content), false, "不得再落到非剂量投影");
   assert.match(content, /"contractSignature":\s*"hmac-sha256:/, "必须是已签名的剂量页");
   const reasoning = sentinelPayload(content);
-  assert.equal(reasoning.clinicalReview?.status, "unavailable");
-  assert.equal(reasoning.clinicalReview?.unavailableReason, "not_configured");
-  assert.equal(reasoning.clinicalReview?.attemptCount, 0, "没有复核尝试");
+  assert.equal(JSON.stringify(reasoning.clinicalReview), expectedAttestation(reasoning), "attestation 必须是常量且绑定这份载荷");
   assert.equal(hasBoundClinicalReviewAttestation(reasoning), true, "attestation 必须哈希绑定到这份载荷（签名契约不变）");
   assert.match(content, /<!-- CDSS_REVIEW_STATUS -->/, "复核状态独立信道标记保留，前端分流不变");
   assert.match(content, /本版本不设模型复核环节/);
   assert.doesNotMatch(content, /独立处方复核|复核未完成|服务繁忙或超时/, "不得再暗示复核器存在或没跑完");
   assert.equal(delivered.telemetry?.outcome, "success", JSON.stringify(delivered.telemetry));
+});
+
+const m03Evidence = { evidenceLevel: "model_inference", source: "本例四诊资料", confidence: "中" };
+const m03Fixture = {
+  schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+  overview: {
+    tcmDiseaseName: "不寐", primarySyndrome: "心脾两虚证", primarySyndromeBasis: ["心悸健忘", "纳差便溏"],
+    tcmDiseaseRationale: "以入睡困难、多梦易醒为主症，病程3个月，符合不寐范畴，与郁病、心悸相区分。",
+    tcmDiagnosticRationale: "心悸健忘与纳差便溏并见，结合舌淡脉细弱，支持心脾两虚、心神失养。",
+    tcmDifferentials: [],
+    tcmDiseaseDifferentials: [{ diseaseName: "多寐病", reason: "同属睡眠病症但方向相反，需先分辨主症", distinguishingPoints: "本例为入睡困难与多梦易醒，非日间嗜睡", nextCheck: null }],
+    secondarySyndromes: [], overallPathogenesis: "脾气亏虚，心血失养", overallTherapy: "健脾益气，养血安神",
+    recommendedFormulaDirection: "归脾汤加减", recommendedFormulaNames: ["归脾汤"], formulaSelectionMode: "single", evidence: m03Evidence,
+  },
+  westernDiagnosis: {
+    primary: { name: "失眠症状", status: "考虑", confidence: "中", supportingFacts: ["入睡困难、多梦易醒3个月"],
+      clinicalRationale: "入睡困难、多梦易醒3个月支持失眠症状方向，但尚未取得日间功能受损情况，暂不升级为正式失眠障碍诊断。",
+      limitations: ["未完成睡眠量表"], suggestedChecks: [], evidence: m03Evidence },
+    differentials: [],
+  },
+  pathogenesis: {
+    summary: "心脾两虚，心神失养",
+    locationDifferentiation: { items: ["心", "脾"], evidence: m03Evidence },
+    natureDifferentiation: { items: ["气虚", "血虚"], evidence: m03Evidence },
+    chain: [{ nodeId: "P1", patientFact: "心悸健忘、纳差便溏", syndromeEvidence: "舌淡，脉细弱", pathogenesis: "脾气亏虚，心血失养", therapyDirection: "健脾益气，养血安神", evidence: m03Evidence }],
+    uncertainties: [],
+  },
+  therapy: { overallPrinciple: "虚则补之，标本兼顾", overallMethod: "健脾益气，养血安神",
+    subTherapies: [{ therapy: "健脾益气", targetPathogenesis: "脾气亏虚", priority: "主要" }, { therapy: "养血安神", targetPathogenesis: "心血失养", priority: "兼顾" }] },
+  management: { followupSafetyNet: "若入睡困难持续2周不缓解或明显加重，及时复诊评估。" },
+};
+
+test("M03 编排只有一次生成调用、没有任何复核请求；签名照常，attestation 为常量并哈希绑定", async () => {
+  const originalFetch = globalThis.fetch;
+  const abort = new AbortController();
+  const requests = [];
+  try {
+    globalThis.fetch = async (_url, init) => {
+      const body = JSON.parse(init.body);
+      requests.push(body);
+      assert.ok(requests.length < 4, "模型调用次数失控");
+      return sse(m03Fixture);
+    };
+    const response = await callDiagnosisStream("synthetic no-reviewer M03 fixture", "deepseek", undefined, "markdown", {
+      structuredStage: "diagnose", requestSignal: abort.signal, structuredOrchestrationStartedAt: Date.now(),
+      structuredClinicalContext: "心悸健忘、纳差便溏；舌淡，脉细弱；入睡困难、多梦易醒3个月",
+      structuredAllowedM03FormulaNames: ["归脾汤"], truncateFallback: "SYNTHETIC_FALLBACK",
+      diagnoseSignatureContext: { contractVersion: "tcm-cdss-m03-signature-v5", caseId: "synthetic-m03", encounterId: "synthetic-m03",
+        clinicalInputHash: `sha256:${"c".repeat(64)}` },
+    });
+    const frames = (await response.text()).trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+    const content = frames.filter((frame) => frame.content?.startsWith("<<<CDSS_STREAM_FINAL>>>")).at(-1)?.content || "";
+    assert.equal(requests.length, 1, `模型复核环节已删除：M03 只能有一次生成调用，实际 ${requests.length}`);
+    assert.ok(requests.every((request) => request.stream === true), "不得有任何非流式（复核/裁决）请求");
+    const reasoning = sentinelPayload(content);
+    assert.match(reasoning.contractSignature || "", /^hmac-sha256:/, "M03 照常签名");
+    assert.equal(JSON.stringify(reasoning.clinicalReview), expectedAttestation(reasoning), "attestation 必须是常量且绑定这份载荷");
+    assert.equal(hasBoundClinicalReviewAttestation(reasoning), true);
+  } finally { abort.abort(); globalThis.fetch = originalFetch; }
 });
 
 test("交付连续性：已签名 + 哈希绑定即已完成，不再要求 accepted；剂量轴收回时仍不返回剂量页", () => {
@@ -142,10 +214,9 @@ test("交付连续性：已签名 + 哈希绑定即已完成，不再要求 acce
   });
   assert.ok(checkpoint, "通过合同的候选必须被保留");
   assert.equal(m04DeliveryCheckpointIsClean(checkpoint), true, JSON.stringify(checkpoint.contractIssues));
-  const attestation = { status: "unavailable", unavailableReason: "not_configured", attemptCount: 0, durationMs: 0,
-    reviewedPayloadHash: clinicalReviewPayloadHash(bare) };
+  const attestation = clinicalReviewNotPerformedAttestation(bare);
   const signed = applyPrescribeContractSignature(wrap({ ...bare, clinicalReview: attestation }), signatureContext);
-  const bound = bindM04DeliveryReview(checkpoint, bare, { status: "unavailable", reason: "not_configured" }, attestation, signed);
+  const bound = bindM04DeliveryAttestation(checkpoint, bare, attestation, signed);
   assert.equal(bound.signedContent, signed, "签名 + 哈希绑定的候选必须被绑定为已完成");
   assert.equal(renderM04DeliveryCheckpoint(bound, prior, "deadline"), signed, "时限到期时交付已签名剂量页");
   assert.equal(renderM04DeliveryCheckpoint(bound, prior, "contract_rejected"), signed);
@@ -153,35 +224,8 @@ test("交付连续性：已签名 + 哈希绑定即已完成，不再要求 acce
   assert.notEqual(withheld, signed, "剂量轴收回是独立硬边界，删复核不得放松它");
   assert.ok(isNonDosePrescriptionText(withheld));
   assert.doesNotMatch(withheld, /12g|10g|6g|5剂/);
-  const mismatch = bindM04DeliveryReview(checkpoint, bare, { status: "unavailable", reason: "not_configured" }, attestation, "WRONG_SIGNED_BYTES");
+  const mismatch = bindM04DeliveryAttestation(checkpoint, bare, attestation, "WRONG_SIGNED_BYTES");
   assert.equal(mismatch.signedContent, undefined, "不匹配的签名字节仍不得被当成已完成");
-});
-
-test("执行层在源码里不存在；健康检查与 HIS 不再依赖复核器", () => {
-  const api = readFileSync("src/lib/diagnosis-api.ts", "utf8");
-  for (const gone of ["runIndependentClinicalReview", "probeClinicalReviewModels", "clinicalReviewModelCandidates",
-    "buildClinicalReviewRequestBody", "clinicalReviewUnavailableFallback", "m04ClinicalReviewRequiresNonDoseFallback",
-    "PRIMARY_CLINICAL_REVIEW", "structuredReviewRequestFields"]) {
-    assert.ok(!api.includes(gone), `${gone} 回到 diagnosis-api.ts 了`);
-  }
-  for (const entry of ["async function reviewM03DiagnosticCriteria(", "async function reviewM04ClinicalPlan("]) {
-    const start = api.indexOf(entry);
-    const end = api.indexOf("\n}\n", start);
-    assert.ok(start > 0 && end > start && end - start < 2_000, `${entry} 切片越界，断言会空转`);
-    const body = api.slice(start, end);
-    assert.ok(body.includes("clinicalReviewNotPerformed"), `${entry} 必须是不发请求的桩`);
-    assert.ok(!/\bfetch\(|createTextModelClient|chat\.completions/.test(body), `${entry} 里不得有模型调用`);
-  }
-  const health = readFileSync("src/app/api/diagnosis/health/route.ts", "utf8");
-  assert.ok(!/independent_clinical_reviewer|probeClinicalReviewModels|clinicalReviewProbe/.test(health), "严格健康检查不得再依赖复核器");
-  const modelHealth = readFileSync("src/app/api/model-health/route.ts", "utf8");
-  assert.ok(!modelHealth.includes("probeClinicalReviewModels"));
-  const his = readFileSync("src/lib/his-scheme.ts", "utf8");
-  assert.match(his, /if \(!attestation \|\| attestation\.status !== "accepted"\) return null;/, "HIS 不得把未复核写成「二次复核」");
-  assert.ok(!readFileSync("src/lib/m04-clinical-review.ts", "utf8").includes("m04ClinicalReviewRequiresNonDoseFallback"));
-  for (const file of [".env.example", "docker-compose.yml"]) {
-    assert.ok(!readFileSync(file, "utf8").includes("PRIMARY_CLINICAL_REVIEW"), `${file} 仍带已删的复核变量`);
-  }
 });
 
 test("医生可见文案：不再暗示「配一下就有复核」或「正在独立复核」", () => {

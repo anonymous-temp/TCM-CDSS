@@ -51,25 +51,20 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
-  /review\.status === "repair" && review\.issueCode === "formula_composition_mismatch"[\s\S]{0,700}?m04RepairLoopEarlyExit = true;/,
-  "a composition-only M04 review must select deterministic identity declassification instead of redrawing the whole prescription",
-);
-assert.match(
-  diagnosisApiSource,
   /structuredSentinelIncomplete &&[\s\S]{0,250}?retryableStructuredTerminal &&[\s\S]{0,250}?!m04RepairLoopEarlyExit &&[\s\S]{0,250}?!m04OrchestrationDeadlineGate\(\)/,
-  "the first full-response repair must stop once deterministic M04 identity declassification has been selected",
+  "the first full-response repair must stop once the M04 repair loop has been proven exhausted (fixpoint)",
 );
 assert.match(
   diagnosisApiSource,
   /if \(targetedM04Retry && m04RepairLoopEarlyExit\) targetedM04Retry = false;/,
-  "a composition rejection after one completed repair must not launch another full M04 redraw",
+  "an exhausted M04 repair loop must not launch another full M04 redraw",
 );
 assert.equal(shouldUseM04FinalizeSafetyFloor(false, false), false, "ordinary M04 output keeps the full final contract");
 assert.equal(shouldUseM04FinalizeSafetyFloor(false, true), true, "quality-annotated acceptance keeps its safety-floor scope");
 assert.equal(
   shouldUseM04FinalizeSafetyFloor(true, false),
   true,
-  "an accepted transparent declassification must keep its safety-floor scope even when review produced no annotation",
+  "an accepted transparent declassification must keep its safety-floor scope even when it carries no annotation",
 );
 assert.equal(
   shouldUseM04FinalizeSafetyFloor(false, false, true),
@@ -144,20 +139,17 @@ assert.match(
   /m03QualityAcceptedReason\) \{\s*\n\s*const annotation = qualityAnnotationCopy\(m03QualityAcceptedReason\);\s*\n\s*if \(annotation && !signedContent\.includes\(annotation\)\) signedContent = `\$\{annotation\}\\n\\n\$\{signedContent\}`;/,
   "受理时必须把医生可读批注前置到签名后的可见正文（且带防重复守卫）",
 );
-// 受理结果仍要过 finalize 的 attestation 绑定门：无既有 attestation（复核 not_run）时，
-// 管线必须对最终 reasoning 补跑独立临床复核，repair 仍走兜底——受理不产生未复核的签名结论。
+// 受理结果仍要过 finalize 的 attestation 绑定门：最终载荷的哈希必须与 attestation 绑定；
+// 此前没有绑定过的最终 M03 候选在这里补绑常量 attestation（模型复核环节已于 2026-09-16 删除）。
 assert.match(
   diagnosisApiSource,
   /currentAttestation\?\.reviewedPayloadHash !== finalPayloadHash/,
-  "finalize 必须校验临床复核 attestation 与最终载荷哈希的绑定",
+  "finalize 必须校验 attestation 与最终载荷哈希的绑定",
 );
 assert.match(
   diagnosisApiSource,
-  // 2026-08-27：观察点改接 Promise（心跳阶段名要在复核**进行中**就置位），形态由
-  //   observeClinicalReview(await reviewM03DiagnosticCriteria(  →  await observeClinicalReview(reviewM03DiagnosticCriteria(
-  // 本断言钉的是「finalize 补跑复核」这件事本身，跟着改形态，不放宽。
-  /\} else if \(opts\.structuredStage === "diagnose"\) \{\s*\n\s*const review = await observeClinicalReview\(reviewM03DiagnosticCriteria\(/,
-  "attestation 未绑定时 finalize 必须对最终 M03 reasoning 补跑独立临床复核",
+  /\} else if \(opts\.structuredStage === "diagnose"\) \{[\s\S]{0,200}?m03ClinicalReviewAttestation = clinicalReviewNotPerformedAttestation\(finalReasoning\);/,
+  "attestation 未绑定时 finalize 必须对最终 M03 reasoning 补绑常量 attestation",
 );
 assert.match(
   diagnosisApiSource,
@@ -200,8 +192,8 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
-  /immediateM04Declassification\?\.reasoning[\s\S]{0,4000}?reviewTrackedM04Candidate\(structuredReasoning, m04GeneratorModel, "for initial candidate", authoritativeContent\)/,
-  "即时身份剥离只能省掉提供商重写，剥离后的准确字节仍须进入首轮独立临床复核",
+  /immediateM04Declassification\?\.reasoning[\s\S]{0,4000}?attestM04Candidate\(structuredReasoning, authoritativeContent\)/,
+  "即时身份剥离只能省掉提供商重写，剥离后的准确字节仍须进入首轮 attestation 绑定与交付快照",
 );
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "sentinel_count_0_0"), true);
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "json_invalid"), true);
@@ -979,9 +971,9 @@ assert.doesNotMatch(
   "不得再出现裸草稿长度阈值判断：JSON-only 契约下它恒为 0，必须走 m03CandidateSubstanceLength",
 );
 {
-  // 两处调用点都必须经统一口径
+  // 调用点都必须经统一口径（原「语义复核救援」调用点随模型复核遗留于 2026-09-25 删除）。
   const tierUsesUnified = /tierDraftLength = m03CandidateSubstanceLength\(/.test(diagnosisApiSource);
-  const salvageUsesUnified = /m03CandidateSubstanceLength\(\s*\n\s*accumulatedContent,/.test(diagnosisApiSource);
+  const finalizeUsesUnified = /visibleDraftLength: m03CandidateSubstanceLength\(transformed\.content, finalizeTierReasoning\)/.test(diagnosisApiSource);
   assert.ok(tierUsesUnified, "质量批注受理必须走统一口径");
-  assert.ok(salvageUsesUnified, "语义复核救援必须走统一口径");
+  assert.ok(finalizeUsesUnified, "finalize 质量档受理必须走统一口径");
 }

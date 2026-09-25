@@ -329,9 +329,8 @@ export async function POST(req: Request) {
     // 非剂量投影从结构化载荷重建页面，横幅不在载荷里；显式带上，红旗警示不得丢失。
     structuredContinuityBanner: advisoryBanner || undefined,
     structuredQueueKey: parsed.customer.customerHash,
-    // M04 repair/review must never receive raw HIS identifiers.
+    // M04 repair must never receive raw HIS identifiers.
     structuredClinicalContext,
-    structuredReviewEvidenceContext: boundedEvidence.text,
     structuredPatientAge: authoritativePatientAgeYears(gated),
     structuredCaseState: safeState,
     structuredMedicineCandidates: medicinePlan.candidates,
