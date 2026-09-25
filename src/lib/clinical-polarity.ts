@@ -350,21 +350,6 @@ export function affirmedClinicalText(
   return uniqueClauses.length > 0 ? uniqueClauses.join("；") : undefined;
 }
 
-function commaScopedAffirmedText(value: string | null | undefined): string | undefined {
-  const normalized = value ? normalizedClinicalText(value) : "";
-  if (!normalized) return undefined;
-  const clauses = normalized
-    .replace(/[，,]/g, "；")
-    .split(/[。；;\n]+/)
-    .map((clause) => clause.trim())
-    .filter((clause) => clause && clinicalClausePolarity(clause) === "affirmed");
-  return clauses.length > 0 ? [...new Set(clauses)].join("；") : undefined;
-}
-
-export function affirmedAllergyText(value: string | null | undefined): string | undefined {
-  return commaScopedAffirmedText(value);
-}
-
 type ActiveMedicationEvent = { identity: string; text: string };
 
 const MEDICATION_STOP_EVENT = /(?:现已|目前已|当前已|已经|已)\s*(?:停止服用|停止|停用|停服|停药|停)(?!车|电|水)|(?:不再服用|未再服用|停止服用|停止|停用|停服|停药|停了)(?!车|电|水)/;

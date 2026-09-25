@@ -4,7 +4,7 @@ import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server
 import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
 import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-parse";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, markdownNdjsonResponse, mergePrescriptionReviewItems, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
@@ -16,6 +16,7 @@ import { enforceReviewedPrescriptionOutput } from "@/lib/prescription-output-saf
 import type { SafetyGate } from "@/lib/diagnosis-types";
 import { buildPrescribeContractSignatureContext, verifyDiagnoseReasoningSignature } from "@/lib/reasoning-contract-signature";
 import { CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS, hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
+import { isLimitedM03NotPrescribable } from "@/lib/his-prescription-validation";
 import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-planner.server";
 import { buildDrugInventoryPromptContext } from "@/lib/drug-inventory.server";
 import { m04AttemptKey } from "@/lib/m04-retry-policy";
@@ -43,17 +44,26 @@ export async function POST(req: Request) {
   if (!signedPriorReasoning || !verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)) {
     return Response.json({ error: "辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。" }, { status: 409 });
   }
+  // A deterministic hard red flag already imposes the strongest prescription boundary. Avoid an
+  // unnecessary semantic-model round trip before signature verification and the non-dose response.
+  const deterministicGate = withSafetyGate(parsed.caseState);
   // A signed M03 with no syndrome resolution and no pathogenesis chain is a server-owned limited
   // contract. It can never authorize dose generation, so close M04 before any external model call.
-  if (signedPriorReasoning.overview.primarySyndromeResolution === "unresolved" &&
-      signedPriorReasoning.pathogenesis.chain.length === 0) {
-    const emergencyLimited = /急危重|急症/.test(signedPriorReasoning.westernDiagnosis.primary.name) ||
-      /呼叫120|转急诊/.test(signedPriorReasoning.management?.redFlagLoop || "");
+  // 判据与 HIS 写回同源（isLimitedM03NotPrescribable）。红旗状态 = 安全门 ∨ 签名 M03 自己记下的
+  // 急症收口（isEmergencyLimitedDiagnosis，构造器常量），不再对服务端自己写的占位文案
+  // （「急危重|急症」「呼叫120|转急诊」）做正则反推（2026-09-25）。两者在黄金红旗矩阵上逐例同判；
+  // 取「或」是因为签名记下的红旗只可追加、不可降级（语义事实未随请求带回时安全门会变成非红旗）。
+  if (isLimitedM03NotPrescribable(signedPriorReasoning)) {
+    const signedEmergency = isEmergencyLimitedDiagnosis(signedPriorReasoning);
+    const emergencyLimited = signedEmergency || deterministicGate.safetyGate?.status === "red_flag";
     // The signed limited M03 keeps the concrete red-flag findings in supportingFacts; the primary
-    // name is only the generic "急危重症风险待排除" placeholder and must not replace them.
-    const emergencyRedFlags = signedPriorReasoning.westernDiagnosis.primary.supportingFacts.length > 0
-      ? signedPriorReasoning.westernDiagnosis.primary.supportingFacts
-      : [signedPriorReasoning.westernDiagnosis.primary.name];
+    // name is only the generic "急危重症风险待排除" placeholder and must not replace them. A
+    // non-emergency limited M03 lists the chief complaint there instead, so the gate supplies them.
+    const emergencyRedFlags = !signedEmergency
+      ? deterministicGate.safetyGate?.redFlags || []
+      : signedPriorReasoning.westernDiagnosis.primary.supportingFacts.length > 0
+        ? signedPriorReasoning.westernDiagnosis.primary.supportingFacts
+        : [signedPriorReasoning.westernDiagnosis.primary.name];
     return markdownNdjsonResponse(buildSafetyLimitedPrescription({
       status: emergencyLimited ? "red_flag" : "needs_information",
       allowDiagnosis: true,
@@ -67,9 +77,6 @@ export async function POST(req: Request) {
       ],
     }, "m03_unstable"));
   }
-  // A deterministic hard red flag already imposes the strongest prescription boundary. Avoid an
-  // unnecessary semantic-model round trip before signature verification and the non-dose response.
-  const deterministicGate = withSafetyGate(parsed.caseState);
   const caseState = deterministicGate.safetyGate?.status === "red_flag"
     ? parsed.caseState
     // The M03 signature above binds this exact record. Reusing its signed semantic pre-check for
@@ -336,17 +343,15 @@ export async function POST(req: Request) {
       // 最终出口必须每次先完整重跑 T1 安全底线。之前只在全量语义合同“已经有 issue”
       // 的分支内才算 safetyIssue；若全量口径把审方风险当作 advisory，十八反会返回
       // undefined 并绕过整个安全分支。安全底线不能依赖另一个质量问题先触发。
-      const detectedSafetyIssue = m04SafetyContractIssue(
-        reasoning,
-        signedPriorReasoning,
-        isKnownTcmHerbName,
-        false,
-        false,
-        clinicalGroundingText(safeState),
+      const detectedSafetyIssue = m04SafetyContractIssue(reasoning, signedPriorReasoning, {
+        isKnownHerbName: isKnownTcmHerbName,
+        trustedWorkbenchEdit: false,
+        auditedClinicalRisksAreAdvisory: false,
+        clinicalContext: clinicalGroundingText(safeState),
         // 对所有候选统一按「词表能力边界可批注、真实方向对立仍阻断」口径重跑 T1。
         // 该参数不会豁免寒热对立；它只移除 unsupportedHighImpactHerbIssue 的 vocab 分支。
-        true,
-      ) || "";
+        waiveTherapyCoverageAnnotated: true,
+      }) || "";
       // 核心结构化编排器仍会在初次生成与修复轮严格驳回君药标签不一致；outputTransform 同时
       // 也是修复耗尽后终审，不能在核心已按质量项受理后再次把同一码升级成剂量安全 T1。
       // 真正的药物安全码不匹配本谓词，继续逐字硬拦。

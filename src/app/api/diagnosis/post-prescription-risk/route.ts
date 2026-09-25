@@ -51,9 +51,9 @@ export async function POST(req: Request) {
     initialPrescribed?.contractSignatureVersion != null
   )) {
     return Response.json({
-      error: "医生编辑后的处方仍携带编辑前的模型复核或合同签名，请从当前药味表重新生成待审版本。",
+      error: "医生编辑后的处方仍携带编辑前的合同签名，请从当前药味表重新生成待审版本。",
       code: "stale_workbench_contract_metadata",
-      section: "## 合理用药审方\n**提交前校验**：编辑前的模型复核与合同签名不适用于当前药味版本。\n**处置建议**：请从药味工作台重新提交，系统将对当前精确版本重新执行安全校验与审方。",
+      section: "## 合理用药审方\n**提交前校验**：编辑前的合同签名不适用于当前药味版本。\n**处置建议**：请从药味工作台重新提交，系统将对当前精确版本重新执行安全校验与审方。",
       risks: [],
     }, { status: 422 });
   }
@@ -104,15 +104,13 @@ export async function POST(req: Request) {
     };
     // The revision attests which edited version was reviewed, not an absence of clinical risk.
     // Findings accompany the exact version so the physician can continue reviewing the report.
-    const floorIssue = m04SafetyContractIssue(
-      selectedReasoning,
-      diagnoseReasoning,
-      isKnownTcmHerbName,
-      true,
-      false,
-      clinicalGroundingText(caseState),
-      true,
-    );
+    const floorIssue = m04SafetyContractIssue(selectedReasoning, diagnoseReasoning, {
+      isKnownHerbName: isKnownTcmHerbName,
+      trustedWorkbenchEdit: true,
+      auditedClinicalRisksAreAdvisory: false,
+      clinicalContext: clinicalGroundingText(caseState),
+      waiveTherapyCoverageAnnotated: true,
+    });
     if (floorIssue && !clinicalAdvisories.some((advisory) => advisory.code === floorIssue)) {
       clinicalAdvisories.push(clinicalDeliveryAdvisoryFromIssue(floorIssue, selectedCandidate, candidateIndex));
     }

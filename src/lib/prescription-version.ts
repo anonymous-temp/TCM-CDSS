@@ -11,7 +11,7 @@ function canonicalize(value: unknown): unknown {
   );
 }
 
-export function prescriptionVersionPayload(reasoning: ClinicalReasoningResultV2, candidateIndex: number, state?: CaseState): string {
+function prescriptionVersionPayload(reasoning: ClinicalReasoningResultV2, candidateIndex: number, state?: CaseState): string {
   const candidate = reasoning.formula?.candidates[candidateIndex];
   if (!candidate) return "";
   return JSON.stringify(canonicalize({

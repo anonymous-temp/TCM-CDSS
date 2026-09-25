@@ -1069,9 +1069,10 @@ export function buildHisAiSchemePayload(
       : "limited";
   // The clinical journey remains available. All adoption fields share the existing T1 and
   // nonexecutable-warning boundary; ordinary T2/T3 quality findings do not restrict adoption.
-  const canAdopt = status === "ready"
-    && permission.formalAdoption === "eligible_after_doctor_confirmation"
-    && !structurallyInvalid;
+  // status==="ready" 已蕴含另外两项（2026-09-25 收敛，等价性见 test:prescription-permission D7）：
+  // ready ⇒ !safetyLocked；deriveSafetyLocked 含 formalAdoption==="blocked"（二值枚举），且
+  // structurallyInvalid 的每一项都作为 truncated / placeholderSource / contentMismatch 传给了它。
+  const canAdopt = status === "ready";
   // Retain the actual AI proposal for physician review without promoting an unverified historical
   // reference deviation to an executable HIS item. Other clinical items retain their own policy.
   const historicalDoseReferenceOnly = structuredHerbs(caseState).some((herb) =>

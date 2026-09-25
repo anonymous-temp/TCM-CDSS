@@ -17,7 +17,7 @@ import {
   type TcmTreatmentProjectCode,
   type TcmTreatmentIndicationTag,
 } from "./tcm-treatment-projects";
-import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
+import { affirmedClinicalText } from "./clinical-polarity";
 import { assessPregnancyState } from "./clinical-state";
 
 type DeliveryMode = "onsite" | "referral";
@@ -557,7 +557,7 @@ function clinicalAffinity(
   return Math.max(...compatible.map((tag) => PROJECT_TAG_AFFINITY[projectCode]?.[tag] || 50));
 }
 
-function treatmentCaseFacts(caseState?: Partial<TreatmentCaseContext>, assistedNegations?: AssistedNegationClauses): string {
+function treatmentCaseFacts(caseState?: Partial<TreatmentCaseContext>): string {
   if (!caseState) return "";
   const fields = caseState.hisRecord?.fields;
   const rawValues: unknown[] = [
@@ -574,7 +574,7 @@ function treatmentCaseFacts(caseState?: Partial<TreatmentCaseContext>, assistedN
     ...(caseState.conversation || []).filter((item) => item.role === "user").map((item) => item.content),
   ];
   return rawValues
-    .map((value) => affirmedClinicalText(typeof value === "string" ? value : "", "affirmed", assistedNegations))
+    .map((value) => affirmedClinicalText(typeof value === "string" ? value : "", "affirmed"))
     .filter((value): value is string => Boolean(value))
     .join("；");
 }
@@ -586,7 +586,7 @@ function treatmentCaseFacts(caseState?: Partial<TreatmentCaseContext>, assistedN
  * symptoms and HIS present-illness fields are current-encounter inputs by contract; negated clauses
  * are removed before matching.
  */
-function treatmentCurrentFacts(caseState?: Partial<TreatmentCaseContext>, assistedNegations?: AssistedNegationClauses): string {
+function treatmentCurrentFacts(caseState?: Partial<TreatmentCaseContext>): string {
   if (!caseState) return "";
   const fields = caseState.hisRecord?.fields;
   const rawValues: unknown[] = [
@@ -597,7 +597,7 @@ function treatmentCurrentFacts(caseState?: Partial<TreatmentCaseContext>, assist
     fields?.tcmDetail,
   ];
   return rawValues
-    .map((value) => affirmedClinicalText(typeof value === "string" ? value : "", "affirmed", assistedNegations))
+    .map((value) => affirmedClinicalText(typeof value === "string" ? value : "", "affirmed"))
     .filter((value): value is string => Boolean(value))
     .join("；");
 }

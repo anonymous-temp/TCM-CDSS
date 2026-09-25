@@ -4312,15 +4312,35 @@ export function m03NodeCoverageIssue(
  * 维护要求：往 m04SemanticIssue 新增任何安全承重检查时必须同步加到这里；
  * scripts/test-m04-safety-contract.mjs 对遗漏做确定性断言。
  */
+/**
+ * m04SafetyContractIssue 的调用口径。四个开关全部**必填**（2026-09-25）：此前是 4 个位置参数且带
+ * 缺省值，漏传第 7 个（waiveTherapyCoverageAnnotated）不报错、静默换成更严的口径——生产 68ea3f0
+ * 里已删除的模型复核分支就是唯一一个漏传的调用点。写成具名必填后，漏传是编译错误。
+ */
+export type M04SafetyContractOptions = {
+  isKnownHerbName: (name: string) => boolean;
+  /** 候选来自医生工作台编辑。只证明来源，不授予任何临床豁免。 */
+  trustedWorkbenchEdit: boolean;
+  /** 十八反/高影响药味等已由审方类出口呈现的风险只作提示、不作驳回（归因/兜底口径）。 */
+  auditedClinicalRisksAreAdvisory: boolean;
+  /** 已脱敏的病历接地正文（特殊人群、方向判定读它）。 */
+  clinicalContext: string;
+  /** 词表覆盖类治法缺口可批注受理；真实方向对立仍阻断。 */
+  waiveTherapyCoverageAnnotated: boolean;
+};
+
 export function m04SafetyContractIssue(
   reasoning: M04ReasoningLike | null | undefined,
-  priorReasoning?: M03ReasoningLike | null,
-  isKnownHerbName?: (name: string) => boolean,
-  trustedWorkbenchEdit = false,
-  auditedClinicalRisksAreAdvisory = false,
-  clinicalContext = "",
-  waiveTherapyCoverageAnnotated = false,
+  priorReasoning: M03ReasoningLike | null | undefined,
+  options: M04SafetyContractOptions,
 ): string | undefined {
+  const {
+    isKnownHerbName,
+    trustedWorkbenchEdit,
+    auditedClinicalRisksAreAdvisory,
+    clinicalContext,
+    waiveTherapyCoverageAnnotated,
+  } = options;
   if (reasoning?.stage !== "prescribe") return "stage";
   // 锁定字段漂移与君药绑定：绝对否决。
   const stageIssue = crossStageReasoningIssue(reasoning, priorReasoning, "", trustedWorkbenchEdit, waiveTherapyCoverageAnnotated);

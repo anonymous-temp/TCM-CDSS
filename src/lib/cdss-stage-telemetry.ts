@@ -22,26 +22,6 @@ export type CdssStageTelemetryEvent = Readonly<{
   reasonCode?: string;
 }>;
 
-/** Independent clinical review (M03/M04 reviewer chain) outcome vocabulary. */
-export type CdssClinicalReviewOutcome = "accepted" | "repair_demanded" | "invalid" | "unavailable";
-
-export type CdssClinicalReviewTelemetryEvent = Readonly<{
-  stage: "diagnose" | "prescribe";
-  outcome: CdssClinicalReviewOutcome;
-  provider: string;
-  model: string;
-  /** Which candidate-chain entry produced this outcome: "preferred" | "cross_model_fallback". */
-  source: string;
-  durationMs: number;
-  attemptCount: number;
-  /** Execution reason: accepted | repair | not_configured | deadline | invalid_contract | http_error | transport_error. */
-  reasonCode?: string;
-  /** Reviewer clinical issue code (criteria_not_met, formula_indication_mismatch, …) when present. */
-  issueCode?: string;
-  /** Truncated sha256 of the review request+response payload; correlation-only, never PHI. */
-  payloadHash?: string;
-}>;
-
 type StageAggregate = {
   total: number;
   durationMsTotal: number;
@@ -58,20 +38,6 @@ type StageAggregate = {
   auditReached: number;
   modelResponded: number;
   reasonCodes: Record<string, number>;
-};
-
-type ClinicalReviewAggregate = {
-  total: number;
-  durationMsTotal: number;
-  attemptCountTotal: number;
-  outcomes: Record<CdssClinicalReviewOutcome, number>;
-  recentEvents: Array<{
-    at: number;
-    outcome: CdssClinicalReviewOutcome;
-  }>;
-  reasons: Record<string, number>;
-  issueCodes: Record<string, number>;
-  reviewers: Record<string, number>;
 };
 
 /** Request-funnel counters derived from stage events (P2-8). */
@@ -91,15 +57,12 @@ type TelemetryStore = {
   startedAt: string;
   updatedAt: string;
   stages: Record<string, StageAggregate>;
-  clinicalReviews: Record<string, ClinicalReviewAggregate>;
   funnel: FunnelCounters;
 };
 const TELEMETRY_STORE = Symbol.for("tcm-cdss.stage-telemetry.v1");
 
 /** Bounded distinct keys per map; overflow folds into "other" so a buggy reason stream cannot grow memory. */
 const MAX_DISTINCT_KEYS = 64;
-const CLINICAL_REVIEW_RECENT_WINDOW_MS = 15 * 60_000;
-const CLINICAL_REVIEW_RECENT_EVENT_LIMIT = 100;
 
 function nullProtoRecord(): Record<string, number> {
   return Object.create(null) as Record<string, number>;
@@ -121,19 +84,6 @@ function emptyAggregate(): StageAggregate {
     auditReached: 0,
     modelResponded: 0,
     reasonCodes: nullProtoRecord(),
-  };
-}
-
-function emptyClinicalReviewAggregate(): ClinicalReviewAggregate {
-  return {
-    total: 0,
-    durationMsTotal: 0,
-    attemptCountTotal: 0,
-    outcomes: { accepted: 0, repair_demanded: 0, invalid: 0, unavailable: 0 },
-    recentEvents: [],
-    reasons: nullProtoRecord(),
-    issueCodes: nullProtoRecord(),
-    reviewers: nullProtoRecord(),
   };
 }
 
@@ -159,13 +109,11 @@ function store(): TelemetryStore {
       startedAt: now,
       updatedAt: now,
       stages: {},
-      clinicalReviews: {},
       funnel: emptyFunnel(),
     };
   }
   const state = root[TELEMETRY_STORE];
   // Backfill shape for stores created by an earlier module version in the same process.
-  if (!state.clinicalReviews) state.clinicalReviews = {};
   if (!state.funnel) state.funnel = emptyFunnel();
   return state;
 }
@@ -175,22 +123,11 @@ function safeReasonCode(value: string | undefined): string | undefined {
   return normalized || undefined;
 }
 
-/** Provider/model keys keep dots and dashes readable (deepseek-v4.5-flash); still bounded and non-PHI. */
-function safeIdentityKey(value: string | undefined): string {
-  const normalized = value?.toLowerCase().replace(/[^a-z0-9_.:/-]/g, "_").slice(0, 120);
-  return normalized || "none";
-}
-
 function bumpKey(map: Record<string, number>, rawKey: string | undefined): void {
   const safe = safeReasonCode(rawKey);
   if (!safe) return;
   const key = map[safe] == null && Object.keys(map).length >= MAX_DISTINCT_KEYS ? "other" : safe;
   map[key] = (map[key] || 0) + 1;
-}
-
-function bumpIdentityKey(map: Record<string, number>, key: string): void {
-  const bounded = map[key] == null && Object.keys(map).length >= MAX_DISTINCT_KEYS ? "other" : key;
-  map[bounded] = (map[bounded] || 0) + 1;
 }
 
 export function recordCdssStageTelemetry(event: CdssStageTelemetryEvent): void {
@@ -239,35 +176,6 @@ export function recordCdssStageTelemetry(event: CdssStageTelemetryEvent): void {
   });
 }
 
-/**
- * Aggregate-only observability for the independent clinical reviewer chain (P1-4). The per-request
- * record rides the existing "[tcm-cdss:timing] clinical_review" log in diagnosis-api.ts (extended
- * with outcome + payloadHash); this channel exists to make invalid/unavailable/repair-loop ratios
- * measurable per stage without parsing logs. All fields are config values, reason vocabulary or
- * truncated hashes — never patient content.
- */
-export function recordCdssClinicalReviewTelemetry(event: CdssClinicalReviewTelemetryEvent): void {
-  const state = store();
-  const aggregate = state.clinicalReviews[event.stage] || emptyClinicalReviewAggregate();
-  if (!aggregate.recentEvents) aggregate.recentEvents = [];
-  aggregate.total += 1;
-  aggregate.durationMsTotal += Math.max(0, Math.round(event.durationMs));
-  aggregate.attemptCountTotal += Math.max(0, Math.round(event.attemptCount));
-  aggregate.outcomes[event.outcome] += 1;
-  const now = Date.now();
-  aggregate.recentEvents.push({ at: now, outcome: event.outcome });
-  aggregate.recentEvents = aggregate.recentEvents
-    .filter((recent) => now - recent.at <= CLINICAL_REVIEW_RECENT_WINDOW_MS)
-    .slice(-CLINICAL_REVIEW_RECENT_EVENT_LIMIT);
-  bumpKey(aggregate.reasons, event.reasonCode);
-  bumpKey(aggregate.issueCodes, event.issueCode);
-  bumpIdentityKey(
-    aggregate.reviewers,
-    `${safeIdentityKey(event.provider)}/${safeIdentityKey(event.model)}/${safeIdentityKey(event.source)}`,
-  );
-  state.clinicalReviews[event.stage] = aggregate;
-  state.updatedAt = new Date().toISOString();
-}
 
 function percentile(values: readonly number[], quantile: number): number {
   if (values.length === 0) return 0;
@@ -277,7 +185,6 @@ function percentile(values: readonly number[], quantile: number): number {
 
 export function getCdssStageTelemetrySnapshot(): unknown {
   const state = store();
-  const now = Date.now();
   return {
     schemaVersion: "tcm-cdss-stage-telemetry-v1",
     startedAt: state.startedAt,
@@ -302,39 +209,5 @@ export function getCdssStageTelemetrySnapshot(): unknown {
       reasonCodes: { ...(aggregate.reasonCodes || nullProtoRecord()) },
     }])),
     funnel: { ...state.funnel },
-    clinicalReviews: Object.fromEntries(Object.entries(state.clinicalReviews).map(([stage, aggregate]) => {
-      const recentEvents = (aggregate.recentEvents || [])
-        .filter((recent) => now - recent.at <= CLINICAL_REVIEW_RECENT_WINDOW_MS)
-        .slice(-CLINICAL_REVIEW_RECENT_EVENT_LIMIT);
-      aggregate.recentEvents = recentEvents;
-      const recentAccepted = recentEvents.filter((event) => event.outcome === "accepted").length;
-      const recentRepairDemanded = recentEvents.filter((event) => event.outcome === "repair_demanded").length;
-      const recentInvalid = recentEvents.filter((event) => event.outcome === "invalid").length;
-      const recentUnavailable = recentEvents.filter((event) => event.outcome === "unavailable").length;
-      const recentCompleted = recentAccepted + recentRepairDemanded;
-      const recentSampleSize = recentEvents.length;
-      return [stage, {
-        total: aggregate.total,
-        outcomes: { ...aggregate.outcomes },
-        averageDurationMs: aggregate.total > 0 ? Math.round(aggregate.durationMsTotal / aggregate.total) : 0,
-        attemptCountTotal: aggregate.attemptCountTotal,
-        recentWindow: {
-          durationMinutes: CLINICAL_REVIEW_RECENT_WINDOW_MS / 60_000,
-          maximumSampleSize: CLINICAL_REVIEW_RECENT_EVENT_LIMIT,
-          sampleSize: recentSampleSize,
-          completed: recentCompleted,
-          accepted: recentAccepted,
-          repairDemanded: recentRepairDemanded,
-          invalid: recentInvalid,
-          unavailable: recentUnavailable,
-          completionRate: recentSampleSize > 0 ? Number((recentCompleted / recentSampleSize).toFixed(4)) : null,
-          acceptanceRate: recentSampleSize > 0 ? Number((recentAccepted / recentSampleSize).toFixed(4)) : null,
-          unavailableRate: recentSampleSize > 0 ? Number((recentUnavailable / recentSampleSize).toFixed(4)) : null,
-        },
-        reasons: { ...aggregate.reasons },
-        issueCodes: { ...aggregate.issueCodes },
-        reviewers: { ...aggregate.reviewers },
-      }];
-    })),
   };
 }

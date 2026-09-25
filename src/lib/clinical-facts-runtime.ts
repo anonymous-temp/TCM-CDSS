@@ -5,6 +5,7 @@ import {
   CLINICAL_FACTS_EXTRACTOR_VERSION,
   CLINICAL_FACTS_PROMPT_VERSION,
   clinicalFactsReviewSettled,
+  encounterScopeAwaitingConfirmation,
   extractClinicalFacts,
   type ClinicalFactsModelIdentity,
   type ClinicalFactsUnavailableReason,
@@ -396,12 +397,9 @@ export function isClinicalFactsBackstopEnabled(): boolean {
  * this module — importing back would create a cycle. Routes call it after the backstop re-attach.
  */
 export function hasUnconfirmedUnclearEncounterScope(state: CaseState): boolean {
-  const facts = state.clinicalFacts;
-  if (!hasValidClinicalFactsAttestation(facts, Date.now(), undefined, state.customerId)) return false;
-  if (facts?.encounterScope?.status !== "unclear") return false;
-  const sourceFingerprint = facts.sourceFingerprint;
-  if (!sourceFingerprint) return false;
-  return state.encounterScopeConfirmation?.sourceFingerprint !== sourceFingerprint;
+  if (!hasValidClinicalFactsAttestation(state.clinicalFacts, Date.now(), undefined, state.customerId)) return false;
+  // 非密钥部分与页面的确认入口共用同一个判据（clinical-facts.encounterScopeAwaitingConfirmation）。
+  return encounterScopeAwaitingConfirmation(state.clinicalFacts, state.encounterScopeConfirmation);
 }
 
 /**

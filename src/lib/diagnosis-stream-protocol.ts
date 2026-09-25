@@ -78,7 +78,9 @@ export function stageProgressHeartbeatStatus(input: {
     // 轮次对医生是有用的信息：它说明「还在改」而不是「卡住了」。轮次上限由编排时限兜底，
     // 这里不做封顶，但至少从第 1 轮起计（0 轮不会进入 repair 阶段）。
     const round = Number.isFinite(repairRound) && repairRound > 0 ? Math.floor(repairRound) : 1;
-    return `正在按复核意见第 ${round} 轮修订定稿${STAGE_PROGRESS_HEARTBEAT_SUFFIX}`;
+    // 修订由确定性校验（结构、剂量、配伍、跨阶段一致性）触发；模型复核环节已于 2026-09-16 删除，
+    // 此前的「按复核意见」措辞指向一个不存在的环节（2026-09-25 更正）。
+    return `正在按校验结果第 ${round} 轮修订定稿${STAGE_PROGRESS_HEARTBEAT_SUFFIX}`;
   }
   const label = contentChars === 0 && reasoningChars > 0
     ? "模型正在进行深度推理"

@@ -298,14 +298,34 @@ export type ClinicalFactsModelTrace = {
 
 /**
  * 本次就诊是否存在当前治疗目标。只有 `unclear` 参与门禁（hasUnconfirmedUnclearEncounterScope：
- * 未经医生按指纹确认前不出剂量）。`historical_or_stable_only` 只作语义上下文：它是**下调型**判断，
- * 单次抽取不足以采信，病例一律按活动性就诊处理（保守方向）。此前的「两次一致（agreed）才下调」
- * 路径依赖已删除的复核相位，生产上从未触发，已随之删除。
+ * 未经医生按指纹确认前，M04 照常生成但带「就诊目标待确认」警示，HIS 方案不带处方）。
+ * `historical_or_stable_only` 只作语义上下文：它是**下调型**判断，单次抽取不足以采信，病例一律
+ * 按活动性就诊处理（保守方向）。此前的「两次一致（agreed）才下调」路径依赖已删除的复核相位，
+ * 生产上从未触发，已随之删除。
  */
 export type EncounterScope = {
   status: "active_current_target" | "historical_or_stable_only" | "unclear";
   quote: string;
 };
+
+/**
+ * 「本次就诊目标待医生确认」判据里**不需要密钥**的那一半：语义预检给出 unclear，且医生还没有
+ * 针对当前病历指纹确认过（任何病历改动都会换指纹，旧确认随之失效）。
+ *
+ * 服务端 hasUnconfirmedUnclearEncounterScope 在此之上再验事实 attestation（HMAC/租户/TTL），
+ * 用它扣住 HIS 方案里的处方；页面拿不到密钥，只用这一半决定要不要给医生确认入口。两处必须是
+ * 同一个函数（2026-09-25）：此前页面另写一份，且只在「非剂量结果页」才判——advise 档下
+ * M04 照常出候选，页面于是没有确认按钮，HIS 却一直拿不到处方，医生无路可走。
+ */
+export function encounterScopeAwaitingConfirmation(
+  facts: Pick<ClinicalFacts, "encounterScope" | "sourceFingerprint"> | undefined,
+  confirmation: { sourceFingerprint: string } | undefined,
+): boolean {
+  if (facts?.encounterScope?.status !== "unclear") return false;
+  const sourceFingerprint = facts.sourceFingerprint;
+  if (!sourceFingerprint) return false;
+  return confirmation?.sourceFingerprint !== sourceFingerprint;
+}
 
 /**
  * 病历中**明确记载为阳性**的症状(2026-08-05)。

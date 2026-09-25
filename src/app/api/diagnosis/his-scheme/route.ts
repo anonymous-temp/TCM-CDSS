@@ -93,7 +93,8 @@ export async function POST(req: Request) {
     }, { status: 409 });
   }
   if (initialPrescribed) {
-    if (!verifyDiagnoseReasoningSignature(initialDiagnose, preflightCaseState)) {
+    // 有 M03 时上面已验过签名（同一输入、确定性 HMAC）；这里只剩「带处方却没有 M03」这一种情形。
+    if (!initialDiagnose) {
       return Response.json({
         error: "当前辨病辨证结果已失效，请重新生成后再生成 HIS 方案。",
         code: "invalid_m03_signature",

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import {
-  affirmedAllergyText,
   affirmedClinicalSourceClauses,
   affirmedClinicalText,
   affirmedCurrentMedicationText,
@@ -51,7 +50,6 @@ assert.equal(affirmedClinicalText("否认高血压、糖尿病、冠心病"), un
 assert.equal(affirmedCurrentMedicationText("未服用华法林，3日前开始服用阿司匹林100mg每日一次"), "3日前开始服用阿司匹林100mg每日一次");
 assert.equal(affirmedCurrentMedicationText("既往服用华法林，3月前已停用"), undefined);
 assert.equal(affirmedCurrentMedicationText("否认阿司匹林、华法林，氯吡格雷75mg每日一次"), "氯吡格雷75mg每日一次");
-assert.equal(affirmedAllergyText("否认青霉素、头孢，磺胺过敏"), "磺胺过敏");
 assert.equal(affirmedCurrentMedicationText("既往服用华法林，已停药，今日新启用阿司匹林100mg每日一次"), "新启用阿司匹林100mg每日一次");
 for (const historyOnly of [
   "3年前服用华法林3mg每日一次",

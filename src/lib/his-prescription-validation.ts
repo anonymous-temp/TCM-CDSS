@@ -152,15 +152,13 @@ export function validateHisPrescriptionForWriteBack(
 
   // Run existing clinical checks, then attach their findings to the authenticated report.
   // A clinical concern must not replace an otherwise readable signed result with HTTP 422.
-  const floorIssue = m04SafetyContractIssue(
-    selectedReasoning,
-    diagnoseReasoning,
-    isKnownTcmHerbName,
+  const floorIssue = m04SafetyContractIssue(selectedReasoning, diagnoseReasoning, {
+    isKnownHerbName: isKnownTcmHerbName,
     trustedWorkbenchEdit,
-    false,
-    clinicalGroundingText(caseState),
-    true,
-  );
+    auditedClinicalRisksAreAdvisory: false,
+    clinicalContext: clinicalGroundingText(caseState),
+    waiveTherapyCoverageAnnotated: true,
+  });
 
   // Compilation differences are reported alongside the candidate as well.
   const formulaIssue = formulaCompilationContractIssue(

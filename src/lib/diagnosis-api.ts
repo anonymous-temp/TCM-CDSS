@@ -10,7 +10,7 @@ import { explicitPromptCacheMessages } from "./model-prompt-cache";
 //
 // Both backends return NDJSON: {"content":"..."}\n per chunk, end with {"content":"[END]"}\n
 
-import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isApprovedTextModel, isQwenModel, textModelConfigForModel, textModelRequestTuning } from "@/lib/text-model";
+import { getControlledTerminologyModelConfig, getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isApprovedTextModel, isQwenModel, textModelConfigForModel, textModelRequestTuning } from "@/lib/text-model";
 import { getTongueVisionModelConfig } from "@/lib/tongue-vision-model";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosis-types";
 import { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
@@ -859,15 +859,13 @@ function validatedStructuredReasoning(
       // 全量口径复验，等于任何一个没打豁免旗的质量发射点都能把已受理的候选再判成 0 味——
       // 这个「逐点打旗、漏一点复发一类」的模式已经复发了四次，结构上必须终结。
       if (waiveM04TherapyCoverageAnnotated) {
-        const floorIssue = m04SafetyContractIssue(
-          enrichedReasoning,
-          priorReasoning,
-          isKnownTcmHerbName,
-          false,
+        const floorIssue = m04SafetyContractIssue(enrichedReasoning, priorReasoning, {
+          isKnownHerbName: isKnownTcmHerbName,
+          trustedWorkbenchEdit: false,
           auditedClinicalRisksAreAdvisory,
           clinicalContext,
-          true,
-        );
+          waiveTherapyCoverageAnnotated: true,
+        });
         if (floorIssue) {
           // 归因必须与拒绝同源（2026-08-27）。structuredRejectionReason 的默认
           // attributionScope="strict" 走的是全量质量口径，而这里拒的是**底线合同**——
@@ -908,15 +906,13 @@ function validatedStructuredReasoning(
             });
             return undefined;
           }
-          const floorAfterQuality = m04SafetyContractIssue(
-            enrichedReasoning,
-            priorReasoning,
-            isKnownTcmHerbName,
-            false,
-            false,
+          const floorAfterQuality = m04SafetyContractIssue(enrichedReasoning, priorReasoning, {
+            isKnownHerbName: isKnownTcmHerbName,
+            trustedWorkbenchEdit: false,
+            auditedClinicalRisksAreAdvisory: false,
             clinicalContext,
-            true,
-          );
+            waiveTherapyCoverageAnnotated: true,
+          });
           if (floorAfterQuality) {
             console.warn("[tcm-cdss:contract] M04 safety-floor rejection after quality-tier acceptance", {
               qualityIssue: semanticIssue,
@@ -1123,9 +1119,10 @@ function structuredRejectionReason(
       const enrichedReasoning = enrichReasoning(reasoning).reasoning;
       // Repair dispatch must see the complete hard floor before the first documentation/identity
       // finding. A T2 finding may not hide a later T1 and consume its automatic repair opportunity.
-      const hardFloorIssue = m04SafetyContractIssue(
-        enrichedReasoning, priorReasoning, isKnownTcmHerbName, false, false, clinicalContext, true,
-      );
+      const hardFloorIssue = m04SafetyContractIssue(enrichedReasoning, priorReasoning, {
+        isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false,
+        auditedClinicalRisksAreAdvisory: false, clinicalContext, waiveTherapyCoverageAnnotated: true,
+      });
       if (hardFloorIssue) return `m04_${hardFloorIssue}`;
       const semanticIssue = m04SemanticIssue(enrichedReasoning, content.slice(0, start), priorReasoning,
         isKnownTcmHerbName, true, true, false, false, clinicalContext);
@@ -1141,15 +1138,13 @@ function structuredRejectionReason(
       );
       if (formulaIssue) return `m04_${formulaIssue}`;
       if (attributionScope === "safety_floor_waived") {
-        const floorIssue = m04SafetyContractIssue(
-          enrichedReasoning,
-          priorReasoning,
-          isKnownTcmHerbName,
-          false,
-          true,
+        const floorIssue = m04SafetyContractIssue(enrichedReasoning, priorReasoning, {
+          isKnownHerbName: isKnownTcmHerbName,
+          trustedWorkbenchEdit: false,
+          auditedClinicalRisksAreAdvisory: true,
           clinicalContext,
-          true,
-        );
+          waiveTherapyCoverageAnnotated: true,
+        });
         return floorIssue ? `m04_${floorIssue}` : "resolver_rejected";
       }
       const issue = m04SemanticIssue(
@@ -1346,10 +1341,42 @@ function structuredSystemPrompt(kind: PromptKind, model: string, task: Structure
  */
 export function structuredStrictFallbackModel(generationModel: string): string | undefined {
   if (supportsStrictJsonSchema(generationModel)) return undefined;
-  const configured = process.env.PRIMARY_STRUCTURED_FALLBACK_MODEL?.trim() || "qwen3.8-flash";
-  if (configured.toLowerCase() === "none") return undefined;
+  const configured = configuredStructuredFallbackModel();
+  if (!configured) return undefined;
   if (!isApprovedTextModel(configured) || !supportsStrictJsonSchema(configured)) return undefined;
   return textModelConfigForModel(configured).configured ? configured : undefined;
+}
+
+/** 部署变量里写的严格兜底模型名（未做可用性判断）；none 表示显式关闭。 */
+function configuredStructuredFallbackModel(): string | undefined {
+  const configured = process.env.PRIMARY_STRUCTURED_FALLBACK_MODEL?.trim() || "qwen3.8-flash";
+  return configured.toLowerCase() === "none" ? undefined : configured;
+}
+
+/**
+ * 部署期实调（model-health?check=1）要覆盖的全部文本模型：主模型、M02/M03/M04 首轮、严格兜底、
+ * 修复轮、M04 传输兜底、小任务（CONTROLLED_TERMINOLOGY_MODEL）。事实抽取模型由调用方另加
+ * （它在 clinical-facts-runtime 里解析）。严格兜底取**部署变量里写的名字**而不是
+ * structuredStrictFallbackModel 的结果——后者在兜底家族没配齐时返回 undefined，正是实调要抓的情形。
+ */
+export function configuredStageTextModels(): Array<{ role: string; model: string }> {
+  const primary = getPrimaryTextModelConfig().model;
+  const question = modelForQuestionStage(primary);
+  const diagnose = modelForStructuredStage(primary, "diagnose");
+  const prescribe = modelForStructuredStage(primary, "prescribe");
+  const fallback = configuredStructuredFallbackModel();
+  const needsStrictFallback = [diagnose, prescribe].some((model) => !supportsStrictJsonSchema(model));
+  return [
+    { role: "primary", model: primary },
+    { role: "question", model: question },
+    { role: "diagnose", model: diagnose },
+    { role: "prescribe", model: prescribe },
+    ...(needsStrictFallback && fallback ? [{ role: "structured_strict_fallback", model: fallback }] : []),
+    { role: "diagnose_repair", model: modelForStructuredRepair(primary, "diagnose") },
+    { role: "prescribe_repair", model: modelForStructuredRepair(primary, "prescribe") },
+    { role: "prescribe_connect_fallback", model: modelForInitialConnectAttempt(prescribe, "prescribe", 1) },
+    { role: "small_tasks", model: getControlledTerminologyModelConfig().model },
+  ];
 }
 
 function summarizeSchemaViolations(violations: readonly ProviderSchemaViolation[]): string {
@@ -2804,7 +2831,7 @@ async function callPrimaryTextModelStream(
       const enqueueClient = (content: string) => {
         if (clientStreamClosed) return;
         // 定稿正文一旦下发，就没有任何「进行中」可报了。心跳是独立的 5s 定时器，与 finalize
-        // 之间存在一个真实窗口：医生已经看到完整报告，下面却还挂着一行「正在按复核意见第 N 轮
+        // 之间存在一个真实窗口：医生已经看到完整报告，下面却还挂着一行「正在按校验结果第 N 轮
         // 修订定稿」。在唯一出口处停表，一次覆盖全部替换标记下发点（当前 6 处）。
         if (content.startsWith(STREAM_REPLACE_MARKER)) {
           finalReportEnqueued = true;
@@ -3618,8 +3645,10 @@ async function callPrimaryTextModelStream(
         const m04CandidateQualityRepairExhausted = (content: string): boolean => {
           if (opts.structuredStage !== "prescribe" || finishReason !== "stop") return false;
           const candidate = structuredReasoningFromContent(content);
-          if (!candidate || m04SafetyContractIssue(enrichReasoning(candidate).reasoning,
-            opts.structuredPriorReasoning, isKnownTcmHerbName, false, false, opts.structuredClinicalContext || "", true)) return false;
+          if (!candidate || m04SafetyContractIssue(enrichReasoning(candidate).reasoning, opts.structuredPriorReasoning, {
+            isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false,
+            clinicalContext: opts.structuredClinicalContext || "", waiveTherapyCoverageAnnotated: true,
+          })) return false;
           const reason = structuredRejectionReason(content, "prescribe", finishReason,
             opts.structuredClinicalContext, opts.structuredPriorReasoning);
           return Boolean(qualityAnnotationCopy(reason)) && !qualityRepairAvailable(reason);

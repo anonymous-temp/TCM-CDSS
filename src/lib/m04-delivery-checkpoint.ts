@@ -130,8 +130,10 @@ export function retainM04DeliveryCheckpoint(
   // 现在改为：合同码变成**随候选交付的问题条目**，候选照常保留。保留的候选只作
   // 非剂量呈现（renderM04DeliveryCheckpoint 从不输出剂量/用法/疗程），且 bindM04DeliveryAttestation
   // 拒绝为带合同码的候选绑定签名或 attestation —— 「保留内容」不得被冒充成「已通过校验」。
-  const safetyIssue = m04SafetyContractIssue(
-    enriched, input.priorReasoning, isKnownTcmHerbName, false, false, input.clinicalContext || "", true);
+  const safetyIssue = m04SafetyContractIssue(enriched, input.priorReasoning, {
+    isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false,
+    clinicalContext: input.clinicalContext || "", waiveTherapyCoverageAnnotated: true,
+  });
   const compilationIssue = formulaCompilationContractIssue(
     enriched, input.priorReasoning, false, reasoning.formula?.candidates?.[0]?.identityDeclassified === true);
   const contractIssues = [...new Set([safetyIssue, compilationIssue, ...(input.extraContractIssues || [])]

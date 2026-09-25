@@ -108,7 +108,7 @@ import {
   type StreamDraftModule,
   type StreamModuleDraftFrame,
 } from "@/lib/diagnosis-stream-protocol";
-import { parseClinicalFacts, type ClinicalFacts } from "@/lib/clinical-facts";
+import { encounterScopeAwaitingConfirmation, parseClinicalFacts, type ClinicalFacts } from "@/lib/clinical-facts";
 import {
   buildMedicineCandidateEmptyState,
   buildTieredSuggestedChecks,
@@ -547,7 +547,7 @@ export function stepLimitedReason(caseState: CaseState, step: typeof PHASE_STEPS
   }
   if (step.phase === "assess") {
     return caseState.auditAdvisory?.available === false && !caseState.auditAdvisory?.presentationDisabled
-      ? "合理用药审方服务暂不可用，风险评估按人工药师复核路径处理。"
+      ? "本次风险随访评估未能完成，已给出确定性随访内容；可重试风险随访。"
       : "本阶段未生成完整评估内容；可重试风险随访。";
   }
   return "本阶段输出受限，请结合页面提示处理。";
@@ -1868,7 +1868,9 @@ function RiskSummaryPanel({
  * 稳定证候 / 辨证复核未完成）给出非剂量页或报错时，仅重跑 M04 会复用同一份 M03，必然原地复卡。
  * 命中以下判据的“重新生成候选方药/重试本阶段”动作一律升级为从 M03 重跑。
  */
-const M03_LEVEL_PRESCRIBE_BLOCK_PATTERN = /尚未形成通过临床复核的稳定证候|本次辨病辨证结果完整性|辨证语义复核未完成|未形成可执行|辨证信息完整度不足/;
+// 前两个备选是**存量浏览器状态**里的旧文案（模型复核环节 2026-09-16 删除、相关措辞 2026-09-25 改写），
+// 保留只为让旧快照照样升级为「从 M03 重跑」——多匹配一条的方向是安全的。
+const M03_LEVEL_PRESCRIBE_BLOCK_PATTERN = /尚未形成通过临床复核的稳定证候|辨证语义复核未完成|尚未形成稳定的证候结果|本次辨病辨证结果完整性|未形成可执行|辨证信息完整度不足/;
 
 export function prescribeRetryRequiresM03Rerun(
   caseState: Pick<CaseState, "lastError" | "prescription">,
@@ -3068,6 +3070,36 @@ function hasGeneratedDosePrescription(summary: DecisionSummary, reasoning?: Clin
   // safety explanation. Otherwise “当前不展示剂量级候选方药” is misclassified as a prescription.
   if (/(?:暂不|不再|未|不)(?:展示|生成|形成).{0,16}剂量级|不生成候选|待生成|信息不足|尚不具备.{0,20}(?:剂量|处方)|未满足剂量级|无剂量级候选|本轮非剂量/.test(text)) return false;
   return /(候选处方|处方名称|推荐处方|剂量|煎服法|\d+\s*g|克)/.test(text);
+}
+
+/**
+ * 「本次就诊目标待医生确认」入口。两种结果形态各一句说明：非剂量页说明为什么没有剂量；
+ * 候选页说明确认前 HIS 方案不带处方（服务端 his-scheme 按同一判据扣住处方）。
+ * 确认只绑定当前病历指纹，并重新生成候选方药（handleConfirmEncounterScope）。
+ */
+function EncounterScopeConfirmationNotice({ resultKind, onConfirm }: {
+  resultKind: "non_dose" | "candidate";
+  onConfirm: () => Promise<void>;
+}) {
+  return (
+    <div data-testid="encounter-scope-confirmation" className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-950">
+      <p className="font-bold text-sky-800">本次就诊目标待医生确认</p>
+      <p className="mt-1">
+        {resultKind === "non_dose"
+          ? "语义预检尚未确认本次就诊是否存在当前活动性治疗目标，因此未生成具体剂量。"
+          : "语义预检尚未确认本次就诊是否存在当前活动性治疗目标。确认前，本候选方药不会写入 HIS 诊疗方案。"}
+        如确认本次确有需要治疗的目标，可确认后重新生成候选方药；如病情有变化，请先补充病历后再重新分析。
+      </p>
+      <button
+        type="button"
+        data-testid="confirm-encounter-scope"
+        onClick={() => { void onConfirm(); }}
+        className="mt-2 inline-flex items-center gap-1 rounded-md border border-sky-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-sky-700 transition-colors hover:bg-sky-100"
+      >
+        确认本次有治疗目标并重新生成候选方药
+      </button>
+    </div>
+  );
 }
 
 export function hasExplicitNonDosePrescriptionResult(caseState: Pick<CaseState, "prescription">, hasCandidate = false): boolean {
@@ -4671,12 +4703,14 @@ function ResultTabsV2({
   const clinicianTreatmentProjects = buildClinicianTreatmentProjects(reasoning.nonPharma);
   const hasDietTherapyProject = clinicianTreatmentProjects.some((item) => item.projectCode === "diet_therapy");
   const hasExplicitNonDoseResult = hasExplicitNonDosePrescriptionResult(caseState, Boolean(firstCandidate));
-  // The server remains the enforcement point (attestation + fingerprint); this only mirrors the
-  // visible state so the doctor gets an explicit confirmation action instead of a dead end.
-  const unclearScopeAwaitingConfirmation = hasExplicitNonDoseResult &&
-    caseState.clinicalFacts?.encounterScope?.status === "unclear" &&
-    Boolean(caseState.clinicalFacts.sourceFingerprint) &&
-    caseState.encounterScopeConfirmation?.sourceFingerprint !== caseState.clinicalFacts.sourceFingerprint;
+  // The server remains the enforcement point (attestation + fingerprint); this mirrors the
+  // non-cryptographic half of the same predicate so the doctor always has the confirmation action.
+  // 与剂量形态无关：advise 档下候选照常生成，HIS 方案却在确认前不带处方（2026-09-25 前这里只在
+  // 非剂量结果页才判，候选页上没有确认入口）。
+  const unclearScopeAwaitingConfirmation = encounterScopeAwaitingConfirmation(
+    caseState.clinicalFacts,
+    caseState.encounterScopeConfirmation,
+  );
   const medicineCandidates = formula?.patentAndWestern?.filter(isCompleteStructuredMedicineCandidate) || [];
   const hasMedicineCandidates = medicineCandidates.length > 0;
   const medicineCandidateEmptyState = buildMedicineCandidateEmptyState(caseState);
@@ -5214,6 +5248,9 @@ function ResultTabsV2({
           （2026-08-25 审查 X1；且两个 section 此前共用同一个 id）。 */}
       {!prescribeStageFailed && firstCandidate && <SchemeSection order={sectionOrder("M04-formula")} id="cdss-section-prescription" title="候选方药" subtitle="方名、出处、药味、方义与煎服" contractIds="M04-formula" rendererId="formula-section">
         <div className="space-y-3">
+          {unclearScopeAwaitingConfirmation && (
+            <EncounterScopeConfirmationNotice resultKind="candidate" onConfirm={onConfirmEncounterScope} />
+          )}
           {firstCandidate ? (
             <div className="space-y-3">
               <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2">
@@ -5420,18 +5457,7 @@ function ResultTabsV2({
               )}
             </div>
             {unclearScopeAwaitingConfirmation && (
-              <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-950">
-                <p className="font-bold text-sky-800">本次就诊目标待医生确认</p>
-                <p className="mt-1">语义预检尚未确认本次就诊是否存在当前活动性治疗目标，因此未生成具体剂量。如确认本次确有需要治疗的目标，可确认后重新生成候选方药；如病情有变化，请先补充病历后再重新分析。</p>
-                <button
-                  type="button"
-                  data-testid="confirm-encounter-scope"
-                  onClick={() => { void onConfirmEncounterScope(); }}
-                  className="mt-2 inline-flex items-center gap-1 rounded-md border border-sky-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-sky-700 transition-colors hover:bg-sky-100"
-                >
-                  确认本次有治疗目标并重新生成候选方药
-                </button>
-              </div>
+              <EncounterScopeConfirmationNotice resultKind="non_dose" onConfirm={onConfirmEncounterScope} />
             )}
             <div className="rounded-lg border bg-white p-3">
               <MarkdownBlock

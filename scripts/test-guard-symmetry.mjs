@@ -145,7 +145,7 @@ assert.equal(
 assert.equal(rejectionTier("m04_pathogenesis_node_uncovered_P2"), "T2",
   "覆盖不足不影响这张方能否安全服用，应带批注受理而不是驳回");
 assert.equal(
-  m04SafetyContractIssue(uncovered, COVERAGE_PRIOR, isKnownTcmHerbName, false, false, "食少倦怠；大便溏薄"),
+  m04SafetyContractIssue(uncovered, COVERAGE_PRIOR, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false, clinicalContext: "食少倦怠；大便溏薄", waiveTherapyCoverageAnnotated: false }),
   undefined,
   "T1 硬门不应被覆盖不足触发",
 );

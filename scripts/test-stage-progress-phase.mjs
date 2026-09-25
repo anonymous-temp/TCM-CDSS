@@ -61,7 +61,7 @@ check("复核·非结构化阶段有中性兜底，不落空串", () => {
 
 // ── 3. 修订阶段：轮次要如实报出（医生据此区分「还在改」与「卡住了」）
 check("修订·报出真实轮次", () => {
-  assert.equal(status({ phase: "repair", repairRound: 2, contentChars: 9_000 }), `正在按复核意见第 2 轮修订定稿${STAGE_PROGRESS_HEARTBEAT_SUFFIX}`);
+  assert.equal(status({ phase: "repair", repairRound: 2, contentChars: 9_000 }), `正在按校验结果第 2 轮修订定稿${STAGE_PROGRESS_HEARTBEAT_SUFFIX}`);
 });
 check("修订·轮次异常值不产出「第 0 轮」这类不可能文案", () => {
   for (const round of [0, -3, Number.NaN, undefined]) {

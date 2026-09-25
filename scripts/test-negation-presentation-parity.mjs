@@ -23,7 +23,7 @@ const jiti = createJiti(import.meta.url, { alias: {
   "@": `${process.cwd()}/src`,
   "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
 } });
-const { clinicalClausePolarity, affirmedClinicalSourceClauses, isWhollyNegatedClinicalFact, affirmedAllergyText } = await jiti.import("../src/lib/clinical-polarity.ts");
+const { clinicalClausePolarity, affirmedClinicalSourceClauses, isWhollyNegatedClinicalFact } = await jiti.import("../src/lib/clinical-polarity.ts");
 const { classifyWesternDiagnosticEvidence } = await jiti.import("../src/lib/clinical-fact-source.ts");
 const { withSafetyGate, hasGiBleedPrioritySignal } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
@@ -37,7 +37,6 @@ for (const clause of ["咳嗽并未缓解", "无痛性黄疸", "无症状性菌�
 }
 assert.equal(clinicalClausePolarity("无法完全否认呕血"), "uncertain");
 assert.equal(clinicalClausePolarity("都不清楚"), "uncertain", "总括不知形态 → uncertain");
-assert.equal(affirmedAllergyText("都没有"), undefined, "M02 回填的「都没有」不是阳性过敏史");
 
 // B. 混合极性整句
 assert.deepEqual(affirmedClinicalSourceClauses("否认腹痛，呕血1次"), ["呕血1次"], "数量断言是独立的阳性子句");

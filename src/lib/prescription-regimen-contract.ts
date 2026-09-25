@@ -161,7 +161,3 @@ export function prescriptionRegimenFromDecoction(value: unknown): PrescriptionRe
     followUpNode,
   };
 }
-
-export function prescriptionRegimenSummary(regimen: PrescriptionRegimenDto): string {
-  return `处方计划：共${regimen.doseCount}，疗程${regimen.course}，每日${regimen.dosesPerDay}剂、每日分${regimen.administrationTimesPerDay}次服；服法：${regimen.administration}；复诊节点：${regimen.followUpNode}`;
-}

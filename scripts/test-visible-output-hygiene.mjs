@@ -705,6 +705,59 @@ check("H/内部记号规则表非空且每条规则都有 id", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// L. 「本次就诊目标待医生确认」入口与剂量形态无关（2026-09-25）
+// ─────────────────────────────────────────────────────────────────────────────
+// 服务端在语义预检 unclear、医生未按当前指纹确认时，HIS 方案不带处方（his-scheme 路由）；
+// 页面此前只在「非剂量结果页」给确认按钮，而 advise 档下候选照常生成——医生看得到候选、
+// 找不到确认入口，HIS 永远拿不到处方。这里渲染真实结果区，两种形态都必须有入口。
+{
+  const loadFixture = (name) => JSON.parse(fs.readFileSync(new URL(name, FIXTURE_DIR), "utf8"));
+  const unclearFacts = (state) => ({
+    ...(state.clinicalFacts || {}),
+    redFlags: state.clinicalFacts?.redFlags || [],
+    sourceFingerprint: "e".repeat(32),
+    encounterScope: { status: "unclear", quote: "本次就诊目标不明确" },
+  });
+  const withScope = (state, confirmation) => ({
+    ...state,
+    clinicalFacts: unclearFacts(state),
+    ...(confirmation ? { encounterScopeConfirmation: confirmation } : {}),
+  });
+  const CONFIRM_BUTTON = 'data-testid="confirm-encounter-scope"';
+  const dosed = doctorVisibleSurfaces(loadFixture("largest-formula.json")).caseState;
+  const nonDose = doctorVisibleSurfaces(loadFixture("no-dose-candidate.json")).caseState;
+
+  check("L/候选页（带剂量候选）在就诊目标未确认时给出确认入口，并说明 HIS 暂不带处方", () => {
+    const baseline = renderResultAreaHtml(dosed);
+    const candidateName = dosed.reasoningPrescribe?.formula?.candidates?.[0]?.name || "";
+    assert.ok(candidateName && visibleTextFromHtml(baseline).includes(candidateName), "夹具前提：结果区渲染出带剂量的候选方");
+    assert.ok(!baseline.includes(CONFIRM_BUTTON), "无语义事实时不得出现确认入口");
+    const html = renderResultAreaHtml(withScope(dosed));
+    assert.ok(html.includes(CONFIRM_BUTTON), "候选页必须有确认入口");
+    const text = visibleTextFromHtml(html);
+    assert.match(text, /本次就诊目标待医生确认/);
+    assert.match(text, /确认前，本候选方药不会写入 HIS 诊疗方案/);
+    assert.doesNotMatch(text, /因此未生成具体剂量/, "候选页不得套用非剂量页的说明");
+  });
+
+  check("L/指纹匹配的确认让入口消失；过期指纹的确认不算数", () => {
+    const confirmed = renderResultAreaHtml(withScope(dosed, { sourceFingerprint: "e".repeat(32), confirmedAt: "2026-09-25T00:00:00Z" }));
+    assert.ok(!confirmed.includes(CONFIRM_BUTTON));
+    const stale = renderResultAreaHtml(withScope(dosed, { sourceFingerprint: "0".repeat(32), confirmedAt: "2026-09-25T00:00:00Z" }));
+    assert.ok(stale.includes(CONFIRM_BUTTON));
+  });
+
+  check("L/非剂量结果页的确认入口与原文案保持不变", () => {
+    const html = renderResultAreaHtml(withScope(nonDose));
+    assert.ok(html.includes('data-testid="non-dose-prescription-result"'), "夹具前提：非剂量结果页");
+    assert.ok(html.includes(CONFIRM_BUTTON));
+    assert.ok(visibleTextFromHtml(html).includes(
+      "语义预检尚未确认本次就诊是否存在当前活动性治疗目标，因此未生成具体剂量。如确认本次确有需要治疗的目标，可确认后重新生成候选方药；如病情有变化，请先补充病历后再重新分析。"),
+      "非剂量页文案逐字不变");
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // I. 全量归档扫描（可选）：本机存在 artifacts/ 时，把所有归档阶段正文重放一遍投影链。
 //    CI/新克隆没有 artifacts/（.gitignore 排除），此时跳过并明确打印跳过原因——
 //    不能让「没扫」看起来像「扫过且干净」。
