@@ -67,9 +67,6 @@ for (const qualityOnly of [
   "western_support_polarity_mismatch",
   "primary_syndrome_resolved_without_basis",
   "nature_dimension_insufficient",
-  "m03_primary_diagnosis_semantic_review",
-  "m03_tcm_reasoning_semantic_review",
-  "m03_formula_indication_semantic_review",
 ]) {
   assert.equal(
     rejectionTier(qualityOnly),

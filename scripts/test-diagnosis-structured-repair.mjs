@@ -232,21 +232,17 @@ for (const reason of [
   assert.equal(shouldRunTargetedStructuredRetry("diagnose", reason), true, `${reason} must reach the bounded second repair`);
 }
 assert.equal(isM03WesternSupportContractReason("m03_western_support_unknown"), false);
-assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_primary_diagnosis_semantic_review"), true);
-assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_tcm_reasoning_semantic_review"), true);
-assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_formula_indication_semantic_review"), true);
-assert.equal(shouldRunTargetedStructuredRetry("prescribe", "m04_clinical_semantic_review"), true);
 assert.equal(
   shouldRunTargetedStructuredRetry("prescribe", "m04_formula_component_1_unverified"),
   true,
   "an independently failed combined-formula component must reach bounded composition repair",
 );
-for (const reason of [
-  "m04_formula_composition_semantic_review",
-  "m04_herb_plan_semantic_review",
-  "m04_dose_rationale_semantic_review",
-  "m04_patient_context_semantic_review",
-]) assert.equal(shouldRunTargetedStructuredRetry("prescribe", reason), true, `${reason} must reach bounded prescription repair`);
+// 模型复核的 *_semantic_review 拒绝码已无生产者（复核环节 2026-09-16 删除），不再进入定向修复。
+for (const [stage, reason] of [
+  ["diagnose", "m03_primary_diagnosis_semantic_review"],
+  ["diagnose", "m03_tcm_reasoning_semantic_review"],
+  ["prescribe", "m04_herb_plan_semantic_review"],
+]) assert.equal(shouldRunTargetedStructuredRetry(stage, reason), false, `${reason} has no producer and no repair route`);
 for (const reason of [
   "m04_candidate_0_emperor_missing",
   "m04_candidate_0_emperor_excess",

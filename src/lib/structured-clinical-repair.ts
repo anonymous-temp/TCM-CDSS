@@ -334,24 +334,6 @@ export function buildM04ClinicalRepairHint(
       "当前候选处方主体、已通过的其他加减和非药物建议保持不变。modifications 允许为空；无法形成安全且有依据的分支时，宁可不预设加减。",
     ].join("\n");
   }
-  if (/^m04_(?:clinical|formula_composition|herb_plan|dose_rationale|patient_context)_semantic_review$/.test(reason)) {
-    const focus = reason === "m04_formula_composition_semantic_review"
-      ? "本次只修复命名方组成：按 M03 锁定的 governedFormulaBaselines 保留必需锚点和最低组成数，逐味给出保守剂量；不得只改方名，也不得用自拟方绕过命名方合同。"
-      : reason === "m04_herb_plan_semantic_review"
-        ? "本次只修复方药-病机匹配与君臣佐使：删除不服务于已成立 P 节点的药味；整个候选必须恰有 1–2 味君药，且每味君药都直接承担 P1 中心治法，不能用通用补益/调和药或药味顺序机械决定君药。"
-        : reason === "m04_dose_rationale_semantic_review"
-          ? "本次只修复剂量强度：在每味 ingredientDoseBoundaries 内选择与年龄、证候强度和药物角色相称的保守剂量，不得改写患者事实或用区间/待定值。"
-          : reason === "m04_patient_context_semantic_review"
-            ? "本次只修复患者上下文依赖：不得依赖未成立、已否认或仅属未知的生理状态、用药、过敏和肝肾功能前提；存在更安全路径时改用对未知状态鲁棒的组方。"
-            : "请优先修正独立复核指出的最关键临床不一致。";
-    return [
-      "独立中药候选复核认为当前方药与已签名 M03 或患者事实存在语义不一致。",
-      focus,
-      "请重新逐味核对实际药味、剂量、君臣佐使和病机引用：每味药都必须服务于 M03 已成立的证候/病机/治法，不能借用患者未提供、明确否认、仅在不确定项或条件句中的表现来证明必要性。",
-      "沿用命名方时必须保留其核心组成和方义；若当前病机不需要某个加味则删除。M03 锁定上下文含 governedFormulaBaselines 时，实际组成失去原方核心结构正是本轮必须修复的问题，须按基准重建，不得改称本例辨证组方绕过；只有 M03 未锁定可执行基准时才允许自拟。剂量须与本例证候强度、年龄和已知安全信息相称。",
-      "只修复 M04 最小提案，不得改写 M03 或新增患者事实；常规配伍禁忌和相互作用仍交由后续独立审方提示。",
-    ].join("\n");
-  }
 
   // ─── 逐族修复引导 ────────────────────────────────────────────────────────────
   // 为什么必须逐族写：M04 的驳回码几乎全是模板字面量（candidate_${i}_herb_${j}_xxx），
@@ -870,21 +852,6 @@ export function structuredClinicalRepairHint(
       "保持已通过校验的患者事实、中医证候、病机链和治法不变；不得延长病程、补造检查结果或把阴性事实改写成阳性。",
     ].join("\n");
   }
-  if (reason === "m03_primary_diagnosis_semantic_review") {
-    return [
-      "独立临床复核认为 westernDiagnosis.primary 未满足相应疾病的必备诊断条件，或其支持事实与诊断标签不匹配。",
-      "请保持中医证候、病位病性、病机链和治法等合法字段不变，只修正 westernDiagnosis：病程、核心症状或必要排除条件不足时，primary 改为与当前主诉和病程相符的症状性工作诊断，并降低 status/confidence。",
-      "把尚未满足标准的具体疾病移入 differentials，在 reason/nextCheck 中写清尚缺条件；不得新增患者事实，不得继续沿用原来的过度诊断标签。",
-    ].join("\n");
-  }
-  if (reason === "m03_tcm_reasoning_semantic_review") {
-    return [
-      "独立中医推理复核认为主证、病位病性、病机链或治法使用了当前患者事实不能支持的结论。",
-      "请保持 westernDiagnosis 中合法字段不变，只使用阳性患者事实重建最小、保守且闭合的中医推理；未知、未询问、条件句和 uncertainties 中的方向不能当作已成立证候。",
-      "pathogenesis.chain 不得清空且至少保留一条。每条 patientFact 必须从“患者事实边界”逐字复制一段当前阳性原文，不能缩写、同义改写、合并未同时出现的症状或写入推断；syndromeEvidence 只能引用同一事实，不得补造典型伴随症状。",
-      "资料有限时必须降到低置信度、中性功能性病机并使用 bounded/uncertainties 表达边界，不得为形成完整证型而补造舌脉、寒热、痰湿、血瘀、阴阳气血亏虚等表现。单一汗出、失眠、疼痛或乏力不能独自证明某个寒热虚实证型；不能通过删除病机链逃避最小临床闭环。",
-    ].join("\n");
-  }
   if (reason === "m03_tcm_disease_missing") {
     return [
       "overview.tcmDiseaseName 必须是一个非空的本例中医工作病名，不得留空或使用‘中医病名/待定/未知’等占位文字。",
@@ -921,13 +888,6 @@ export function structuredClinicalRepairHint(
       "只修正 management.followupSafetyNet，其他已经通过校验的诊断、证候、病机链、治法和患者事实保持不变。",
       "同一句中必须同时写明：何种症状变化或时间节点触发处置，以及患者应采取的动作（及时复诊、尽快就诊或立即急诊评估）。",
       "不得把未知表现写成患者已有症状；可使用条件式安全边界，例如症状持续不缓解/明显加重时复诊，出现突发剧烈症状、意识改变、呼吸困难、活动性出血或新发神经功能异常时立即急诊评估。",
-    ].join("\n");
-  }
-  if (reason === "m03_formula_indication_semantic_review") {
-    return [
-      "独立方证复核认为 recommendedFormulaNames 中至少一个命名方的核心适应证在当前阳性患者事实中未成立。",
-      "请保持已成立的 westernDiagnosis、中医主证、病机链和治法不变，重新选择与这些事实直接相符的命名方；不能用 uncertainties、假设句、‘若有则’或建议补问中的表现支持方名。",
-      "若没有足够方证锚点，请清空 recommendedFormulaNames，将 formulaSelectionMode 改为 self_devised，并把 recommendedFormulaDirection 写成本例辨证组方方向；不得勉强套用经方名。",
     ].join("\n");
   }
   if (reason === "m03_western_primary_background_comorbidity") {
