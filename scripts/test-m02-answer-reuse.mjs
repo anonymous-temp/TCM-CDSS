@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createJiti } from "jiti";
+import { answerNonModelRequest } from "./lib/local-model-endpoint.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
 const { interpretM02Answer } = jiti("../src/lib/m02-answer-interpreter.server.ts");
@@ -28,6 +29,8 @@ let calls = 0;
 let failed = false;
 let resetOnce = false;
 const server = createServer(async (req, res) => {
+  // 只数模型端点：宿主会探测新监听端口（GET /），会多数一次调用。见 local-model-endpoint.mjs。
+  if (await answerNonModelRequest(req, res)) return;
   for await (const chunk of req) { void chunk; /* synthetic request */ }
   calls += 1;
   if (resetOnce) { resetOnce = false; req.socket.destroy(); return; }

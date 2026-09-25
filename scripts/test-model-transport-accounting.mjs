@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "node:test";
 import { createJiti } from "jiti";
+import { answerNonModelRequest } from "./lib/local-model-endpoint.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
 const { createTextModelClient } = jiti("../src/lib/text-model.ts");
@@ -10,6 +11,8 @@ const { observeModelTask, getCdssModelTaskTelemetrySnapshot } = jiti("../src/lib
 async function fixture(run, { succeedAfter = Infinity, onRequest } = {}) {
   let requests = 0;
   const server = createServer(async (req, res) => {
+    // 只数模型端点：宿主会探测新监听端口（GET /），曾让本套件 ~17% 报 2 !== 1。见 local-model-endpoint.mjs。
+    if (await answerNonModelRequest(req, res)) return;
     for await (const chunk of req) { void chunk; /* Drain only: never log request data. */ }
     requests += 1;
     onRequest?.(requests);
