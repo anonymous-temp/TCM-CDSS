@@ -37,7 +37,7 @@ services:
       # M04 候选方药正文较长(药味清单+君臣佐使+配伍),给独立更高上限避免截断。
       PRIMARY_PRESCRIBE_MAX_TOKENS: ${PRIMARY_PRESCRIBE_MAX_TOKENS:-24000}
       # Qwen stays on two tiers (2026-09-19): qwen3.8-flash as the strict fallback for the DeepSeek first
-      # passes, qwen3.8-max for repair rounds and all three clinical-facts phases. Both enforce strict
+      # passes, qwen3.8-max for repair rounds and clinical-facts extraction. Both enforce strict
       # JSON Schema; qwen3.7-flash does not, so it is no longer a rollback for structured stages.
       # With a DeepSeek first pass, the M04 transport fallback is PRIMARY_STRUCTURED_FALLBACK_MODEL.
       PRIMARY_DIAGNOSE_MODEL: ${PRIMARY_DIAGNOSE_MODEL:-deepseek-flash}
@@ -51,8 +51,6 @@ services:
       BAILIAN_QWEN_BASE_URL: ${BAILIAN_QWEN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
       BAILIAN_QWEN_MODEL: ${BAILIAN_QWEN_MODEL:-qwen3.8-flash}
       CLINICAL_FACTS_MODEL: ${CLINICAL_FACTS_MODEL:-qwen3.8-max}
-      CLINICAL_FACTS_REVIEW_MODEL: ${CLINICAL_FACTS_REVIEW_MODEL:-qwen3.8-max}
-      CLINICAL_FACTS_ADJUDICATION_MODEL: ${CLINICAL_FACTS_ADJUDICATION_MODEL:-qwen3.8-max}
       M02_MIN_INFORMATION_GAIN: ${M02_MIN_INFORMATION_GAIN:-0.6}
       # GOV-08 explicit exception: independent closed-set terminology classification, never a
       # fallback clinical reasoner. The persistent cache turns accepted variants into a stable,
@@ -70,8 +68,8 @@ services:
       M05_FOLLOWUP_AUTHORING_TIMEOUT_MS: ${M05_FOLLOWUP_AUTHORING_TIMEOUT_MS:-20000}
       M02_QUESTION_REVIEW_TIMEOUT_MS: ${M02_QUESTION_REVIEW_TIMEOUT_MS:-20000}
       CLINICAL_FACTS_PHASE_TIMEOUT_MS: ${CLINICAL_FACTS_PHASE_TIMEOUT_MS:-15000}
-      # 事实层复核相位缺省关闭（2026-09-20）：复核对安全门输入净差异 0/198，每个病人省约 7s。
-      CDSS_CLINICAL_FACTS_REVIEW: ${CDSS_CLINICAL_FACTS_REVIEW:-false}
+      # 事实层复核/裁决相位已删除（2026-09-25；09-20 起缺省关闭，复核对安全门输入净差异 0/198）。
+      # CDSS_CLINICAL_FACTS_REVIEW / CLINICAL_FACTS_REVIEW_MODEL / CLINICAL_FACTS_ADJUDICATION_MODEL 不再被读取。
       # 容器健康检查缺省**不发**上游实调探针（2026-09-20 owner 裁定暂停）：每 60s 一次 strict=1 会实调
       # 事实层/术语模型、GLM 视觉、审方与证据源，每天约 1000 次模型调用。非严格模式仍按**配置**计算
       # strictReady，新依赖没配齐照样判不健康；上线时的实调由 verify:deployed-image 负责。设 true 恢复。

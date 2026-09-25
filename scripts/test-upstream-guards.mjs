@@ -109,8 +109,8 @@ assert.match(
   "the deployable environment template must document the production model rate limit",
 );
 // 2026-09-19 owner 裁定：只用 qwen3.8-flash + qwen3.8-max 两档。首轮与小任务 flash，修复轮与 M04 传输兜底 max。
-// 事实层三相位全用 max（整套黄金基线 222 例定档）：flash 抽取常漏标低体温 35.5℃ 与「否认头晕，剧烈头痛」
-// （冷启动各 3 次只过 1 次）；flash 复核更慢且超时/不合格输出多，整套 21 条失败；全 max 只剩 1 条偏保守的失败。
+// 事实层抽取用 max（整套黄金基线 222 例定档）：flash 抽取常漏标低体温 35.5℃ 与「否认头晕，剧烈头痛」
+// （冷启动各 3 次只过 1 次）。复核/裁决相位 2026-09-25 删除（其模型变量见下方「已删除变量」断言）。
 // 2026-09-24（提速第三批）：M02 出题、M03 两半、M04 首轮改跑 DeepSeek，Qwen strict 退为兜底——
 // 不合 schema / 连不上时由 PRIMARY_STRUCTURED_FALLBACK_MODEL 对同一份提示词重生成。
 const expectedModelMatrix = {
@@ -124,8 +124,6 @@ const expectedModelMatrix = {
   PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL: "qwen3.8-max",
   PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max",
   CLINICAL_FACTS_MODEL: "qwen3.8-max",
-  CLINICAL_FACTS_REVIEW_MODEL: "qwen3.8-max",
-  CLINICAL_FACTS_ADJUDICATION_MODEL: "qwen3.8-max",
   // 小任务改跑 DeepSeek（2026-09-20）。主生成留在 Qwen：严格 JSON Schema 是 9/19 换回 Qwen 的全部理由。
   CONTROLLED_TERMINOLOGY_MODEL: "deepseek-flash",
   PRIMARY_REVIEW_MODEL: "deepseek-flash",
@@ -268,6 +266,16 @@ assert.match(composeSource, /AI_TEXT_PROVIDER: \$\{AI_TEXT_PROVIDER:-bailian-qwe
   });
 }
 assert.match(envExampleSource, /^AI_TEXT_PROVIDER=bailian-qwen$/m);
+// 事实层复核/裁决相位 2026-09-25 删除：三个变量不得再作为部署配置下发，也不得再被源码读取——
+// 否则运维会以为「设 true 就能恢复复核」，而代码里已没有那条路径。
+{
+  const factsRuntimeSource = readFileSync(new URL("../src/lib/clinical-facts-runtime.ts", import.meta.url), "utf8");
+  for (const removedVariable of ["CDSS_CLINICAL_FACTS_REVIEW", "CLINICAL_FACTS_REVIEW_MODEL", "CLINICAL_FACTS_ADJUDICATION_MODEL"]) {
+    assert.doesNotMatch(composeSource, new RegExp(`^\\s*${removedVariable}:`, "m"), `${removedVariable} must not be forwarded to the container`);
+    assert.doesNotMatch(envExampleSource, new RegExp(`^${removedVariable}=`, "m"), `${removedVariable} must not be documented as a live setting`);
+    assert.ok(!factsRuntimeSource.includes(`process.env.${removedVariable}`), `${removedVariable} must not be read by the facts runtime`);
+  }
+}
 for (const [modelVariable, expectedModel] of Object.entries(expectedModelMatrix)) {
   assert.match(
     composeSource,
