@@ -170,13 +170,10 @@ const envDefault = (source, envName) => {
   assert.ok(match, `${envName} 必须是环境变量可调的：调一次预算不该重建一次镜像`);
   return numeric(match[1]);
 };
-check("证候重排 / M05 作文 / M02 复核的时限可调且不低于实测需要", () => {
+check("证候重排 / M05 作文的时限可调且不低于实测需要", () => {
   const rerank = read("src/lib/syndrome-hypothesis-rerank.server.ts");
-  const review = read("src/lib/m02-question-review.server.ts");
   assert.ok(envDefault(rerank, "SYNDROME_RERANK_TIMEOUT_MS") >= 10_000, "重排 p90 贴着 6s：时限不得回到 10s 以下");
   assert.ok(envDefault(m05, "M05_FOLLOWUP_AUTHORING_TIMEOUT_MS") >= 20_000, "M05 作文 p50 9s、p90 撞 12s：时限不得回到 20s 以下");
-  assert.ok(envDefault(review, "M02_QUESTION_REVIEW_TIMEOUT_MS") >= 20_000, "M02 复核时限不得回到 20s 以下");
-  assert.ok(!/controller\.abort\(new Error\("m02_question_review_timeout"\)\), [0-9_]+\)/.test(review), "M02 复核时限又写回了行内字面量");
 });
 check("事实层相位时限：越界值回落到缺省值，不得回落到更短的值", () => {
   const original = process.env.CLINICAL_FACTS_PHASE_TIMEOUT_MS;
@@ -205,10 +202,10 @@ check("浏览器端语义预检时限不低于服务端总预算", () => {
     "浏览器先于服务端超时 ⇒ 中止信号取消上游调用、结果不进缓存、下一个路由整套重抽（线上冷启动实测 11.4s 对 12s）",
   );
 });
-check("四个时限都下发到容器并写进 .env.example", () => {
+check("三个时限都下发到容器并写进 .env.example", () => {
   const compose = read("docker-compose.yml");
   const envExample = read(".env.example");
-  for (const name of ["SYNDROME_RERANK_TIMEOUT_MS", "M05_FOLLOWUP_AUTHORING_TIMEOUT_MS", "M02_QUESTION_REVIEW_TIMEOUT_MS", "CLINICAL_FACTS_PHASE_TIMEOUT_MS"]) {
+  for (const name of ["SYNDROME_RERANK_TIMEOUT_MS", "M05_FOLLOWUP_AUTHORING_TIMEOUT_MS", "CLINICAL_FACTS_PHASE_TIMEOUT_MS"]) {
     assert.ok(new RegExp(`^\\s+${name}: \\$\\{${name}:-[0-9]+\\}$`, "m").test(compose), `compose 未下发 ${name}：运行时改不了`);
     assert.ok(new RegExp(`^${name}=`, "m").test(envExample), `.env.example 缺 ${name}`);
   }

@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       fallbackQuestions,
       caseState,
     ),
-    finalOutputTransform: (content) => reviewM02QuestionPlan(content, sourceText, req.signal, undefined, fallbackQuestions),
+    finalOutputTransform: async (content) => reviewM02QuestionPlan(content, sourceText, fallbackQuestions),
   });
   if (response.ok || req.signal.aborted) return response;
   await response.body?.cancel().catch(() => undefined);

@@ -624,7 +624,7 @@ const AXIS_SOURCE_PATTERNS: Record<KnownClinicalAxis, RegExp> = {
  * Remove only high-confidence repeats of a clinical axis that is already explicit in the record.
  * This intentionally does not infer a negative from missing data and does not collapse a
  * trigger-specific question (for example, meal-related worsening) into an overall trajectory.
- * Broader paraphrases remain the independent semantic reviewer's responsibility.
+ * Broader paraphrases are left to the generator prompt; there is no model reviewer (removed 2026-09-25).
  */
 /**
  * 轴向证据的取材范围：**只看本次病程**。
@@ -775,10 +775,9 @@ export function removeM02PlanQuestions(content: string, questionIds: string[], r
  * Detect high-confidence leading, non-actionable, or temporally contradictory rationales here. A
  * non-empty explanation such as "用于了解情况" still fails the clinician-facing contract because
  * it does not say which decision the answer can change. Likewise, an episodic question cannot be
- * explained as checking the patient's current state (and vice versa). Broader semantic cases are
- * classified by the independent M02 reviewer. The final wording always comes from a server-owned
- * template, so reviewer prose can neither diagnose the patient nor leak a prescription into the
- * question card.
+ * explained as checking the patient's current state (and vice versa). The final wording always
+ * comes from a server-owned template, so generated prose can neither diagnose the patient nor leak a
+ * prescription into the question card.
  */
 export function m02QuestionRationaleNeedsNeutralization(question: M02PlanQuestion): boolean {
   const rationale = `${question.reason}\n${question.expectedDecisionImpact}`;

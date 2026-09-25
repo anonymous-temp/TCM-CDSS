@@ -126,7 +126,6 @@ const expectedModelMatrix = {
   CLINICAL_FACTS_MODEL: "qwen3.8-max",
   // 小任务改跑 DeepSeek（2026-09-20）。主生成留在 Qwen：严格 JSON Schema 是 9/19 换回 Qwen 的全部理由。
   CONTROLLED_TERMINOLOGY_MODEL: "deepseek-flash",
-  PRIMARY_REVIEW_MODEL: "deepseek-flash",
 };
 {
   // 结构化阶段靠供应商解码器执行 schema；矩阵里任何一个 Qwen 档没有严格模式，对应任务就退回
@@ -275,6 +274,17 @@ assert.match(envExampleSource, /^AI_TEXT_PROVIDER=bailian-qwen$/m);
     assert.doesNotMatch(envExampleSource, new RegExp(`^${removedVariable}=`, "m"), `${removedVariable} must not be documented as a live setting`);
     assert.ok(!factsRuntimeSource.includes(`process.env.${removedVariable}`), `${removedVariable} must not be read by the facts runtime`);
   }
+}
+// M02 出题的模型复核 2026-09-25 删除（与出题同模型自评，实验 E1 两臂无系统差异）：变量不得再下发，
+// 源码也不得再读取——否则运维会以为改它能换复核模型。
+{
+  const questionReviewSource = readFileSync(new URL("../src/lib/m02-question-review.server.ts", import.meta.url), "utf8");
+  for (const removedVariable of ["PRIMARY_REVIEW_MODEL", "M02_QUESTION_REVIEW_TIMEOUT_MS"]) {
+    assert.doesNotMatch(composeSource, new RegExp(`^\\s*${removedVariable}:`, "m"), `${removedVariable} must not be forwarded to the container`);
+    assert.doesNotMatch(envExampleSource, new RegExp(`^${removedVariable}=`, "m"), `${removedVariable} must not be documented as a live setting`);
+    assert.ok(!questionReviewSource.includes(`process.env.${removedVariable}`), `${removedVariable} must not be read by the M02 finalizer`);
+  }
+  assert.doesNotMatch(questionReviewSource, /createTextModelClient|observeModelTask/, "the M02 finalizer makes no model call");
 }
 for (const [modelVariable, expectedModel] of Object.entries(expectedModelMatrix)) {
   assert.match(
