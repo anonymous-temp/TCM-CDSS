@@ -9,7 +9,7 @@ Object.assign(process.env, {
   REASONING_CONTRACT_SIGNING_KEY: "warning-display-offline-signing-key-at-least-32-characters",
   CDSS_API_CLIENT_ID: "warning-client", CDSS_API_CUSTOMER_IDS: "warning-customer,other-customer",
   CDSS_DEFAULT_CUSTOMER_ID: "warning-customer", CDSS_CUSTOMER_ID: "warning-customer",
-  RXAI_AUDIT_ENABLED: "false", CDSS_CLINICAL_FACTS_BACKSTOP: "false",
+  CDSS_CLINICAL_FACTS_BACKSTOP: "false",
 });
 const jiti = createJiti(import.meta.url, { alias: {
   "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
@@ -237,9 +237,9 @@ test("wire normalization omits undefined fields while keeping explicit capabilit
 
 test("the shared M05 reducer retains old current audit, clears completed state and preserves display parity", async () => {
   const { applyCompletedM05DisplayResult, replaceRiskAssessmentFollowup } = await jiti.import("../src/lib/followup-display-state.ts");
-  const { buildRxAuditStatusMarker } = await jiti.import("../src/lib/rxaudit-status.ts");
   const previous = { ...makeCase(), phase: "assess", skipDifferentiationGate: true, riskAssessment: "## 合理用药审方\n本例禁止使用。\n## 生活管理\n旧建议" };
-  const content = `${buildRxAuditStatusMarker({ available: true })}\n## 生活管理\n严禁过度劳累。`;
+  // 旧会话里已落盘的流文本（审方删除前的 AVAILABLE 档）仍须按原口径归并。
+  const content = "<!-- TCM_CDSS_RXAUDIT_STATUS:AVAILABLE -->\n## 生活管理\n严禁过度劳累。";
   const state = applyCompletedM05DisplayResult(previous, { content, followupTimeline: [] }, customer.customerId);
   assert.equal(state.phase, "done");
   assert.equal(state.skipDifferentiationGate, undefined);
@@ -556,12 +556,11 @@ test("the real M05 route binds the submitted state despite enrichment and contro
   const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
   const { getTcmHerbFunctionText } = await jiti.import("../src/lib/tcm-knowledge.ts");
   const { synchronizeVisibleClinicalSummary } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
-  const { buildUnavailableRxAuditSection } = await jiti.import("../src/lib/rxaudit.ts");
   const { findLocalPatentMedicineEntry } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
   const source = readFileSync(new URL("./regress-tcm-cdss.mjs", import.meta.url), "utf8");
   const helpers = source.slice(source.indexOf("function hisRecord("), source.indexOf("function expected("));
   const bindings = { ...signatures, ...safety, normalizeCaseStateInput, getTcmHerbFunctionText, synchronizeVisibleClinicalSummary,
-    buildUnavailableRxAuditSection, findLocalPatentMedicineEntry, CDSS_CUSTOMER_ID: customer.customerId };
+    findLocalPatentMedicineEntry, CDSS_CUSTOMER_ID: customer.customerId };
   const cases = new Function(...Object.keys(bindings), `${helpers}\nreturn buildHisProjectionRegressionCases();`)(...Object.values(bindings));
   const submitted = { ...cases[1].state, phase: "assess", riskAssessment: "" };
   const routeJiti = createJiti(import.meta.url, { moduleCache: false, alias: {
@@ -573,16 +572,17 @@ test("the real M05 route binds the submitted state despite enrichment and contro
   const { applyCompletedM05DisplayResult } = await jiti.import("../src/lib/followup-display-state.ts");
   const { prepareWarningObservation, resolveWarningDisplayProfile } = await jiti.import("../src/lib/warning-display-observation.ts");
   const { warningDisplayMaterial, warningDisplayHash } = await jiti.import("../src/lib/warning-display-binding.ts");
+  // 旧审方开关刻意设成「开」：审方已删除（2026-09-25），不得再有任何 PRESCRIPTION_AUDIT 请求。
   const settings = { RXAI_AUDIT_ENABLED: "true", RXAI_AUDIT_BASE_URL: "https://audit.example.invalid", RXAI_AUDIT_API_KEY: "offline-audit",
-    RXAI_QUERY_ENABLED: "false", AI_TEXT_PROVIDER: "openai-compatible", OPENAI_API_KEY: "offline-model", OPENAI_BASE_URL: "https://api.deepseek.com", OPENAI_MODEL: "deepseek-v4-flash", CONTROLLED_TERMINOLOGY_MODEL: "deepseek-v4-flash", M05_FOLLOWUP_AUTHORING: "true" };
+    RXAI_QUERY_ENABLED: "true", AI_TEXT_PROVIDER: "openai-compatible", OPENAI_API_KEY: "offline-model", OPENAI_BASE_URL: "https://api.deepseek.com", OPENAI_MODEL: "deepseek-v4-flash", CONTROLLED_TERMINOLOGY_MODEL: "deepseek-v4-flash", M05_FOLLOWUP_AUTHORING: "true" };
   const savedEnv = Object.fromEntries(Object.keys(settings).map((key) => [key, process.env[key]]));
   const savedFetch = globalThis.fetch;
   Object.assign(process.env, settings);
   let authorCalls = 0;
-  let providerOutcome = { audit_result: "MANUAL_REVIEW", highest_risk_level: "MEDIUM", need_manual_review: true, issues: [] };
+  let auditCalls = 0;
   globalThis.fetch = async (_url, options) => {
     const data = JSON.parse(options.body);
-    if (data.operation === "PRESCRIPTION_AUDIT") return Response.json({ code: 200, data: providerOutcome });
+    if (data.operation) { auditCalls += 1; throw new Error("the removed prescription audit must never be called"); }
     assert.ok(Array.isArray(data.messages), "only the expected offline author request is allowed");
     authorCalls += 1;
     const authored = { reviewFocus: "重点复评乏力与活动耐量变化，避免过早判定疗效。", efficacyCriteria: "对照首诊症状记录评估活动耐量和乏力变化。",
@@ -650,28 +650,25 @@ test("the real M05 route binds the submitted state despite enrichment and contro
       revision: revisionFromAudit(body.audit, 0, herbHash, true) };
     const acceptedState = applyAcceptedPrescriptionDisplayResult(completed, accepted);
     assert.ok(await prepareWarningObservation({ receipt: body.warningObservation, requestState, finalState: acceptedState, customerId: customer.customerId, isCurrent: () => true }));
-    assert.equal(body.audit.highestRiskLevel, "MEDIUM");
-    assert.deepEqual(body.audit.issues, []);
+    // 「未送审」收据替换请求里未审的 HIGH 占位，且不另造审方地板。
+    assert.equal(body.audit.source, "skipped");
+    assert.equal(body.audit.auditResult, "NOT_SUBMITTED");
+    assert.equal(body.audit.highestRiskLevel, undefined);
+    assert.equal("issues" in body.audit, false);
     assert.deepEqual(body.audit.inputAdvisories, []);
-    assert.equal(body.warningObservation.live.profile.level, "L1", "fresh MEDIUM audit must replace the unaudited HIGH request placeholder");
-    assert.equal(body.warningObservation.stored.profile.level, "L1");
-    const { resetRxAuditResultCache } = await routeJiti.import("../src/lib/rxaudit.ts");
-    for (const [auditResult, highestRiskLevel, enabled, expectedLevel] of [
-      ["MANUAL_REVIEW", "HIGH", true, "L3"], ["BLOCK", "CRITICAL", true, "L4"],
-      ["MANUAL_REVIEW", "CRITICAL", true, "L4"], ["NOT_SUBMITTED", undefined, false, "L0"],
-      ["MANUAL_REVIEW", "HIGH", "", "L3"],
-    ]) {
-      resetRxAuditResultCache();
-      process.env.RXAI_AUDIT_ENABLED = String(enabled);
-      providerOutcome = { audit_result: auditResult, highest_risk_level: highestRiskLevel, need_manual_review: true, issues: [] };
+    assert.equal(body.warningObservation.live.profile.level, "L0", "the skip receipt must replace the unaudited HIGH request placeholder");
+    assert.equal(body.warningObservation.stored.profile.level, "L0");
+    for (const enabled of ["true", "false", ""]) {
+      process.env.RXAI_AUDIT_ENABLED = enabled;
       const control = await postRisk(new Request("http://localhost/api/diagnosis/post-prescription-risk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseState: requestState }) }));
       assert.equal(control.status, 200);
       const actual = await control.json();
-      assert.equal(actual.audit.highestRiskLevel, highestRiskLevel);
-      assert.equal(actual.warningObservation.live.profile.level, expectedLevel);
-      assert.equal(actual.warningObservation.stored.profile.level, expectedLevel);
-      assert.equal(actual.audit.source === "lingxi", enabled === true);
+      assert.equal(actual.audit.source, "skipped", enabled);
+      assert.equal(actual.audit.highestRiskLevel, undefined, enabled);
+      assert.equal(actual.warningObservation.live.profile.level, "L0", enabled);
+      assert.equal(actual.warningObservation.stored.profile.level, "L0", enabled);
     }
+    assert.equal(auditCalls, 0, "no route may reach the removed audit service");
   } finally {
     globalThis.fetch = savedFetch;
     for (const key of Object.keys(settings)) { if (savedEnv[key] === undefined) delete process.env[key]; else process.env[key] = savedEnv[key]; }

@@ -23,7 +23,6 @@ const CASE_FILTER = new Set((process.env.CLINICAL_MATRIX_CASES || "").split(",")
 const selected = (caseId) => CASE_FILTER.size === 0 || CASE_FILTER.has(caseId);
 const jiti = createJiti(import.meta.url);
 const { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit } = jiti("../src/lib/tcm-knowledge.ts");
-const { isMechanicallyPreventableAuditIssue } = jiti("../src/lib/rxaudit.ts");
 
 const results = [];
 const record = (caseId, stage, ok, detail = "") => {
@@ -275,11 +274,9 @@ for (const testCase of fullCases.filter((item) => selected(item.id))) {
 
   const auditState = { ...m04State, phase: "assess", prescription: m04.content, reasoningPrescribe: prescribe, reasoningV2: prescribe };
   const audit = await request("/api/diagnosis/post-prescription-risk", auditState);
-  const issues = Array.isArray(audit.json?.audit?.issues) ? audit.json.audit.issues : [];
-  const preventable = issues.filter(isMechanicallyPreventableAuditIssue);
-  record(testCase.id, "M05真实审方", audit.status === 200 && audit.json?.audit?.source === "lingxi" && audit.json?.audit?.degraded !== true, `issues=${issues.length}, ${audit.elapsedMs}ms`);
-  record(testCase.id, "M05问题标识", issues.every((issue) => typeof issue.issueId === "string" && issue.issueId.length > 0 && issue.issueIdGenerated !== true && !/^LOCAL-/i.test(issue.issueId)), issues.filter((issue) => !issue.issueId || issue.issueIdGenerated === true || /^LOCAL-/i.test(String(issue.issueId))).map((issue) => issue.title).join("、"));
-  record(testCase.id, "M05可避免问题", preventable.length === 0, preventable.map((item) => `${item.issueId || item.title}:${item.description || item.title}`).join("、"));
+  // 合理用药审方已删除（owner 2026-09-25，永不启用）：只钉「未送审」收据诚实——明说未送审、不带风险等级、不自称降级。
+  const receipt = audit.json?.audit || {};
+  record(testCase.id, "M05未送审收据", audit.status === 200 && receipt.source === "skipped" && receipt.reason === "rxaudit_disabled" && receipt.auditResult === "NOT_SUBMITTED" && receipt.highestRiskLevel === undefined && receipt.degraded === false, `source=${receipt.source}; reason=${receipt.reason}; auditResult=${receipt.auditResult}; highestRiskLevel=${receipt.highestRiskLevel ?? "无"}; degraded=${receipt.degraded}; ${audit.elapsedMs}ms`);
   const assess = await request("/api/diagnosis/assess", { ...auditState, riskAssessment: audit.content });
   record(testCase.id, "M05随访", assess.status === 200 && /随访|复诊|监测|观察/.test(assess.content), `${assess.elapsedMs}ms`);
 }

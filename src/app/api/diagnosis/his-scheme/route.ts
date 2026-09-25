@@ -1,21 +1,12 @@
 import { buildHisAiSchemePayload } from "@/lib/his-scheme";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import {
-  applyRxAuditInputAdvisories,
-  buildAuditInputAdvisories,
-  buildAuditInputAdvisorySection,
-  buildLingxiRiskSection,
-  buildLingxiWarningProjection,
-  ownedAuditWarningInputs,
   buildLocalHighRiskHerbPairSection,
-  buildRetainedRxAuditRiskSection,
-  buildRxAuditScopeSection,
-  buildRxAuditCorrelationMetadata,
-  buildUnavailableRxAuditSection,
-  mergeLocalHighRiskHerbPairIssues,
-  normalizeAuditOutcomeForPatient,
-  runBoundedRxAudit,
-} from "@/lib/rxaudit";
+  buildPrescriptionInputAdvisories,
+  buildPrescriptionInputAdvisorySection,
+  buildRetainedPrescriptionRiskSection,
+} from "@/lib/local-prescription-checks";
+import { RXAUDIT_DISABLED_REASON, skippedRxAuditCorrelation } from "@/lib/rxaudit-status";
 import { buildDeterministicRiskFollowupProjection, buildForcedIncompleteRiskFollowup, derivePrescriptionPermission, deriveSafetyLocked, sanitizeCaseStateForModel, withSafetyGate } from "@/lib/diagnosis-safety";
 import { joinedWarningProjections, joinWarningText } from "@/lib/warning-text-projection";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
@@ -88,7 +79,7 @@ export async function POST(req: Request) {
   if (!parsed.ok) return parsed.response;
   const contractVersion = hisSchemeContractVersionFromRequest(req, parsed.body);
   // A supplied prescription must at least carry a current tenant-bound M03 chain. Validate that
-  // root immediately, before clinical-fact extraction, evidence retrieval or RxAudit can make an
+  // root immediately, before clinical-fact extraction or evidence retrieval can make an
   // upstream call. A present M04 signature is also checked here; an unsigned draft may still be
   // projected as diagnose-only for unresolved encounters, but an invalid/cross-tenant signed M04
   // is an explicit replay signal and must be rejected before any upstream work.
@@ -205,86 +196,30 @@ export async function POST(req: Request) {
       code: "invalid_candidate_index",
     }, { status: 422 });
   }
-  // HIS is a server trust boundary. Re-audit the exact normalized structured herbs so the warning shown
-  // to the doctor is trustworthy; the audit outcome itself is advisory and never becomes a hard lock.
-  const { medicationExtraction, providerAudit } = await runBoundedRxAudit(caseState, candidateIndex, req.signal);
-  const inputAdvisories = buildAuditInputAdvisories(caseState, candidateIndex, medicationExtraction);
-  const inputAdvisorySection = buildAuditInputAdvisorySection(inputAdvisories);
+  // HIS is a server trust boundary. Re-run the local deterministic checks on the exact normalized
+  // structured herbs; the findings are advisory and never become a hard lock. 合理用药审方已删除
+  // （owner 2026-09-25），修订收据恒为「未送审」，字段取值与原显式停用档逐字节一致。
+  const inputAdvisories = buildPrescriptionInputAdvisories(caseState, candidateIndex);
   const auditedAt = new Date().toISOString();
-  if (!providerAudit.ok) {
-    const skipped = providerAudit.source === "skipped";
-    if (!skipped) console.warn("[tcm-cdss:rxaudit] HIS advisory audit unavailable", { reason: providerAudit.reason });
-    // A valid M04 contract authenticates its clinical candidate, not caller-supplied audit
-    // metadata. Retain only separately attested skip/critical history for this exact version;
-    // otherwise describe the server's current selection without issuing doctor-edit authority.
-    const priorRevision = caseState.prescriptionRevision;
-    const retainedRevision = skipped && priorRevision &&
-      (priorRevision.auditResult === "NOT_SUBMITTED" || priorRevision.auditResult === "BLOCK" || priorRevision.highestRiskLevel === "CRITICAL") &&
-      verifyPrescriptionRevisionAttestation(caseState, parsed.customer, herbHash)
-      ? priorRevision : undefined;
-    const auditCaseState = skipped ? { ...caseState, prescriptionRevision: retainedRevision || {
-      source: "herb_workbench" as const, candidateIndex, herbHash, auditedAt,
-      auditResult: "NOT_SUBMITTED" as const, auditAvailable: false, degraded: false,
-      auditReason: "rxaudit_disabled",
-    } } : caseState;
-    const auditSection = [
-      skipped ? "" : buildRxAuditScopeSection(auditCaseState, candidateIndex),
-      buildLocalHighRiskHerbPairSection(auditCaseState, candidateIndex),
-      skipped ? buildRetainedRxAuditRiskSection(retainedRevision) : "",
-      skipped ? buildAuditInputAdvisorySection(inputAdvisories, true) : inputAdvisorySection,
-      skipped ? "" : buildUnavailableRxAuditSection(providerAudit.reason),
-    ].filter(Boolean).join("\n\n");
-    const assessed = withSafetyGate({ ...auditCaseState, riskAssessment: auditSection, safetyLocked: deriveSafetyLocked(auditCaseState) });
-    const forcedIncomplete = caseState.skipDifferentiationGate === true && (assessed.completeness.level !== "C" || assessed.safetyGate?.status !== "ready");
-    const authoredFollowup = forcedIncomplete
-      ? null
-      : await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate, req.signal);
-    const followup = forcedIncomplete
-      ? joinWarningText([buildForcedIncompleteRiskFollowup(assessed)])
-      : buildDeterministicRiskFollowupProjection(assessed, authoredFollowup);
-    const riskProjection = joinedWarningProjections([auditSection, followup]);
-    const advisoryState = {
-      ...auditCaseState,
-      safetyLocked: deriveSafetyLocked(auditCaseState),
-      prescriptionRevision: skipped ? auditCaseState.prescriptionRevision : herbHash ? {
-        source: "herb_workbench" as const,
-        candidateIndex,
-        herbHash,
-        auditedAt,
-        auditResult: "MANUAL_REVIEW" as const,
-        highestRiskLevel: "HIGH" as const,
-        auditAvailable: false,
-        degraded: true,
-        degradeReason: providerAudit.reason,
-        needManualReview: true,
-        auditReason: providerAudit.reason,
-      } : undefined,
-      riskAssessment: riskProjection.markdown,
-    };
-    const correlation = buildRxAuditCorrelationMetadata({
-      providerOutcome: providerAudit,
-      candidateIndex,
-      prescriptionHash: herbHash,
-      auditedAt,
-    });
-    return Response.json({
-      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise, validation.advisories, undefined, { riskAssessment: riskProjection, audit: ownedAuditWarningInputs(providerAudit), auditSkipped: skipped }), contractVersion, parsed.customer.customerId)),
-      auditCorrelation: correlation,
-    });
-  }
-
-  const patientSex = caseState.hisRecord?.fields.sex || caseState.patient.sex;
-  const mergedAudit = mergeLocalHighRiskHerbPairIssues(caseState, candidateIndex, providerAudit);
-  const effectiveAudit = applyRxAuditInputAdvisories(
-    normalizeAuditOutcomeForPatient(mergedAudit, patientSex),
-    inputAdvisories,
-  );
+  // A valid M04 contract authenticates its clinical candidate, not caller-supplied audit
+  // metadata. Retain only separately attested skip/critical history for this exact version;
+  // otherwise describe the server's current selection without issuing doctor-edit authority.
+  const priorRevision = caseState.prescriptionRevision;
+  const retainedRevision = priorRevision &&
+    (priorRevision.auditResult === "NOT_SUBMITTED" || priorRevision.auditResult === "BLOCK" || priorRevision.highestRiskLevel === "CRITICAL") &&
+    verifyPrescriptionRevisionAttestation(caseState, parsed.customer, herbHash)
+    ? priorRevision : undefined;
+  const auditCaseState = { ...caseState, prescriptionRevision: retainedRevision || {
+    source: "herb_workbench" as const, candidateIndex, herbHash, auditedAt,
+    auditResult: "NOT_SUBMITTED" as const, auditAvailable: false, degraded: false,
+    auditReason: RXAUDIT_DISABLED_REASON,
+  } };
   const auditSection = [
-    buildRxAuditScopeSection(caseState, candidateIndex, providerAudit.submissionScope),
-    inputAdvisorySection,
-    buildLingxiRiskSection(effectiveAudit, patientSex),
+    buildLocalHighRiskHerbPairSection(auditCaseState, candidateIndex),
+    buildRetainedPrescriptionRiskSection(retainedRevision),
+    buildPrescriptionInputAdvisorySection(inputAdvisories),
   ].filter(Boolean).join("\n\n");
-  const assessed = withSafetyGate({ ...caseState, riskAssessment: auditSection, safetyLocked: deriveSafetyLocked(caseState) });
+  const assessed = withSafetyGate({ ...auditCaseState, riskAssessment: auditSection, safetyLocked: deriveSafetyLocked(auditCaseState) });
   const forcedIncomplete = caseState.skipDifferentiationGate === true && (assessed.completeness.level !== "C" || assessed.safetyGate?.status !== "ready");
   const authoredFollowup = forcedIncomplete
     ? null
@@ -292,40 +227,14 @@ export async function POST(req: Request) {
   const followup = forcedIncomplete
     ? joinWarningText([buildForcedIncompleteRiskFollowup(assessed)])
     : buildDeterministicRiskFollowupProjection(assessed, authoredFollowup);
-  const riskProjection = joinedWarningProjections([{
-    markdown: auditSection,
-    currentRiskMarkdown: [buildRxAuditScopeSection(caseState, candidateIndex, providerAudit.submissionScope), inputAdvisorySection,
-      buildLingxiWarningProjection(effectiveAudit, patientSex).currentRiskMarkdown].filter(Boolean).join("\n\n"),
-  }, followup]);
-  const auditedState = {
-    ...caseState,
+  const riskProjection = joinedWarningProjections([auditSection, followup]);
+  const advisoryState = {
+    ...auditCaseState,
+    safetyLocked: deriveSafetyLocked(auditCaseState),
     riskAssessment: riskProjection.markdown,
-    safetyLocked: deriveSafetyLocked(caseState),
-    prescriptionRevision: herbHash ? {
-      source: "herb_workbench" as const,
-      candidateIndex,
-      herbHash,
-      auditedAt,
-      auditResult: effectiveAudit.auditResult,
-      highestRiskLevel: effectiveAudit.highestRiskLevel,
-      auditAvailable: !providerAudit.degraded,
-      degraded: providerAudit.degraded,
-      degradeReason: providerAudit.degradeReason,
-      needManualReview: effectiveAudit.needManualReview,
-      auditReason: providerAudit.degradeReason,
-      auditId: providerAudit.auditId,
-      traceId: providerAudit.traceId,
-    } : undefined,
   };
-  const correlation = buildRxAuditCorrelationMetadata({
-    providerOutcome: providerAudit,
-    effectiveOutcome: effectiveAudit,
-    candidateIndex,
-    prescriptionHash: herbHash,
-    auditedAt,
-  });
   return Response.json({
-    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise, validation.advisories, providerAudit.submissionScope, { riskAssessment: riskProjection, audit: ownedAuditWarningInputs(providerAudit, effectiveAudit) }), contractVersion, parsed.customer.customerId)),
-    auditCorrelation: correlation,
+    ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise, validation.advisories, { riskAssessment: riskProjection, auditSkipped: true }), contractVersion, parsed.customer.customerId)),
+    auditCorrelation: skippedRxAuditCorrelation({ candidateIndex, prescriptionHash: herbHash, auditedAt }),
   });
 }

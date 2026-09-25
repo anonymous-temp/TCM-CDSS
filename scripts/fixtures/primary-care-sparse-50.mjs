@@ -4,7 +4,7 @@ export const PRIMARY_CARE_FIXTURE_METADATA = Object.freeze({
   suite: "primary-care-sparse-50",
   fictional: true,
   prohibitsRealPhi: true,
-  notice: "全部病例、人物与处方变异均为虚构测试数据，禁止复制或改写真实患者 PHI。",
+  notice: "全部病例与人物均为虚构测试数据，禁止复制或改写真实患者 PHI。",
 });
 
 const TCM_DISEASE_BY_ID = {
@@ -350,78 +350,4 @@ export const PRIMARY_CARE_POLARITY_CONTRASTS = [
     text: "如果以后突然喘不上气就去急诊；现在血氧正常，没有气促，家属也说若嘴唇发紫会立即呼救。",
     expected: { category: "respiratory", allowedStatuses: ["negative"], allowAbsent: true, forbidPositive: true },
   },
-];
-
-const auditHerb = (name, dose) => ({ name, dose });
-const auditControl = (id, mutation, overrides) => ({
-  id,
-  fictional: true,
-  controlLayer: "provider",
-  mutation,
-  patient: { sex: "女", age: 35 },
-  chiefComplaint: "虚构审方正控，不代表临床建议",
-  diagnosis: "失眠障碍",
-  syndrome: "心脾两虚证",
-  pastHistory: "否认肝肾功能不全",
-  medicationHistory: "否认当前其他用药",
-  allergyHistory: "否认药物过敏",
-  herbs: [
-    auditHerb("黄芪", "15g"),
-    auditHerb("白术", "10g"),
-    auditHerb("茯苓", "15g"),
-    auditHerb("酸枣仁", "15g"),
-    auditHerb("甘草", "6g"),
-  ],
-  ...overrides,
-});
-
-/**
- * Independent fictional prescription mutations. Provider controls must produce a traceable
- * LingXi issue. Input-quality controls exercise the CDSS boundary before any provider result is
- * interpreted and must never be represented as provider issues.
- */
-export const M05_PRESCRIPTION_MUTATION_CONTROLS = [
-  auditControl("M05-PC-01", "overdose", {
-    herbs: [auditHerb("黄芪", "15g"), auditHerb("白术", "10g"), auditHerb("茯苓", "15g"), auditHerb("酸枣仁", "15g"), auditHerb("甘草", "60g")],
-    expectedIssue: { type: /DOSE_OVER|DOSE/i, text: /剂量|用量|超/, drugs: ["甘草"], minSeverity: "MEDIUM" },
-  }),
-  auditControl("M05-PC-02", "missing_dose", {
-    controlLayer: "input_quality",
-    herbs: [auditHerb("黄芪", "15g"), auditHerb("白术", null), auditHerb("茯苓", "15g"), auditHerb("酸枣仁", "15g"), auditHerb("甘草", "6g")],
-    expectedInputAdvisory: { code: "missing_dose", drugs: ["白术"] },
-  }),
-  auditControl("M05-PC-03", "duplicate_drug", {
-    herbs: [auditHerb("黄芪", "15g"), auditHerb("白术", "10g"), auditHerb("茯苓", "15g"), auditHerb("酸枣仁", "15g"), auditHerb("酸枣仁", "10g")],
-    expectedIssue: { type: /DUPLICATE|REPEAT|重复/i, text: /重复|叠加|同味/, drugs: ["酸枣仁"], minSeverity: "MEDIUM" },
-  }),
-  auditControl("M05-PC-04", "decoction_method", {
-    diagnosis: "失眠障碍",
-    syndrome: "心脾两虚证",
-    herbs: [auditHerb("大黄", "10g"), auditHerb("芒硝", "6g"), auditHerb("枳实", "10g"), auditHerb("厚朴", "10g")],
-    expectedIssue: { type: /TCM_(?:DECOCTION|SPECIAL)|DECOCTION|煎法|煎煮/i, text: /先煎|后下|烊化|煎法|煎煮|冲服/, drugs: ["大黄"], minSeverity: "MEDIUM" },
-  }),
-  auditControl("M05-PC-05A", "pregnancy_lactation", {
-    patient: { sex: "女", age: 29 },
-    pastHistory: "当前妊娠12周",
-    herbs: [auditHerb("桃仁", "10g"), auditHerb("牛膝", "12g"), auditHerb("当归", "10g"), auditHerb("川芎", "6g")],
-    expectedIssue: { type: /PREGN|SPECIAL_POP|CONTRAINDICATION|妊娠/i, text: /妊娠|孕妇|孕期|特殊人群/, drugs: ["桃仁"], minSeverity: "MEDIUM" },
-  }),
-  auditControl("M05-PC-05B", "pregnancy_lactation", {
-    patient: { sex: "女", age: 31 },
-    pastHistory: "产后6周，明确正在哺乳",
-    herbs: [auditHerb("大黄", "6g"), auditHerb("芒硝", "3g"), auditHerb("枳实", "6g"), auditHerb("厚朴", "6g")],
-    expectedIssue: { type: /LACT|SPECIAL_POP|CONTRAINDICATION|哺乳/i, text: /哺乳|乳汁|乳母|特殊人群/, drugs: ["大黄"], minSeverity: "MEDIUM" },
-  }),
-  auditControl("M05-PC-06", "incompatibility", {
-    herbs: [auditHerb("甘草", "6g"), auditHerb("甘遂", "3g"), auditHerb("白术", "10g"), auditHerb("茯苓", "15g")],
-    expectedIssue: { type: /INCOMPAT|REPULSION|TCM.*PAIR|十八反|十九畏|配伍/i, text: /十八反|十九畏|配伍|相反|禁忌/, drugs: ["甘草", "甘遂"], minSeverity: "CRITICAL" },
-  }),
-  auditControl("M05-PC-07", "interaction", {
-    patient: { sex: "男", age: 67 },
-    diagnosis: "心房颤动",
-    syndrome: "气虚血瘀证",
-    medicationHistory: "当前规律服用华法林",
-    herbs: [auditHerb("丹参", "15g"), auditHerb("黄芪", "15g"), auditHerb("当归", "10g"), auditHerb("川芎", "6g")],
-    expectedIssue: { type: /INTERACTION|DRUG.*DRUG|相互作用/i, text: /相互作用|出血|抗凝|华法林/, contextDrug: /华法林/, drugs: ["丹参"], minSeverity: "HIGH" },
-  }),
 ];

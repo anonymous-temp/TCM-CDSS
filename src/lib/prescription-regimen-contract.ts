@@ -32,8 +32,8 @@ export function prescriptionRegimenIssue(
  * doseCount/dosesPerDay 纯确定性推导），**已从处方 UI 与处方可见 Markdown 移除展示**（需求5）。
  *
  * 不得因为「界面上看不到了」而清理这个字段或下面的 follow_up_inconsistent 校验：它仍是
- *   1) rxaudit 的提交门（rxaudit.ts → rxAuditSubmissionIssue "regimen_incomplete"，缺失即不提交
- *      外部审方，fail-closed 到人工药师复核锁）；
+ *   1) 本地处方核对的提交前问题码（local-prescription-checks.ts → prescriptionSubmissionIssue
+ *      "regimen_incomplete"，经 clinical-delivery-advisory 转成医生可见的提示；外部审方已于 2026-09-25 删除）；
  *   2) 医生编辑处方回写路径的合同（prescription-revision.ts / his-prescription-validation.ts 走
  *      trustedWorkbenchEdit ⇒ prescriptionRegimenContractIssue）；
  *   3) HIS 导出契约（his-scheme.ts 的「复诊节点」）；

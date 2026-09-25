@@ -13,7 +13,6 @@ const syntheticEnv = {
   REASONING_CONTRACT_SIGNING_KEY: "golden-frontend-offline-signing-key-at-least-32-characters",
   CDSS_API_CLIENT_ID: "golden-frontend-client", CDSS_API_CUSTOMER_IDS: "golden-frontend-customer",
   CDSS_DEFAULT_CUSTOMER_ID: "golden-frontend-customer", CDSS_CUSTOMER_ID: "golden-frontend-customer",
-  RXAI_AUDIT_ENABLED: "false",
 };
 Object.assign(process.env, syntheticEnv);
 const harnessUrl = new URL("./regress-tcm-cdss.mjs", import.meta.url);
@@ -28,8 +27,7 @@ const knowledge = await jiti.import("../src/lib/tcm-knowledge.ts");
 const display = await jiti.import("../src/lib/followup-display-state.ts");
 const persistence = await jiti.import("../src/lib/browser-case-persistence.ts");
 const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
-const rxaudit = await jiti.import("../src/lib/rxaudit.ts");
-const bindings = { ...signature, ...safety, ...types, ...knowledge, ...visible, ...rxaudit,
+const bindings = { ...signature, ...safety, ...types, ...knowledge, ...visible,
   CDSS_CUSTOMER_ID: syntheticEnv.CDSS_CUSTOMER_ID };
 
 function between(start, end) {

@@ -6,6 +6,7 @@
  * 一模一样，连 controlledAliases 映射表都逐字重复。差别只有一处：
  * **rxaudit 那份缺「混悬滴剂」「胶囊剂」。**
  *
+ * （2026-09-25 起该判据随灵犀审方一并删除，身份归一现在喂本地现用药范围判据，见文件末段。）
  * 这不是「只是重复」——身份归一喂 verifyMedicationSemanticCoverage 的**同药状态冲突**判据，
  * 剥不掉后缀就被当成两个不同的药，冲突检测不到。方向是 fail-open：
  *   「现服阿莫西林胶囊，阿莫西林已停用」  → medication_status_conflict ✓（胶囊在表内）
@@ -32,24 +33,18 @@ const jiti = createJiti(import.meta.url, {
     "server-only": path.join(repoRoot, "node_modules/next/dist/compiled/server-only/empty.js"),
   },
 });
-const { verifyMedicationSemanticCoverage } = await jiti.import("../src/lib/rxaudit.ts");
+const { localMedicationScopeReason } = await jiti.import("../src/lib/local-prescription-checks.ts");
 const { canonicalMedicationIdentity, MEDICATION_DOSAGE_FORM_SUFFIXES } =
   await jiti.import("../src/lib/clinical-polarity.ts");
 
-const event = (drugName, status, quote) => ({
-  drugName, status, doseText: null, frequency: null, administrationTiming: null,
-  sourceQuotes: [quote], confidence: 0.9,
-});
-const conflictDetected = (current, stopped) => {
-  const result = verifyMedicationSemanticCoverage(`现服${current}，${stopped}已停用`, {
-    source: "model",
-    events: [event(current, "current", `现服${current}`), event(stopped, "stopped", `${stopped}已停用`)],
-    unresolvedReferences: [], needsManualReview: false, reason: "",
-  });
-  return (result.reason || "").includes("medication_status_conflict");
-};
+// 2026-09-25 灵犀审方删除后，模型用药事件抽取随之删除，「同药状态冲突」判据不再存在；
+// 身份归一如今喂的是本地现用药范围判据：原文只记了「本次/局部未用药」时，只有能证明的
+// **具体**现用药才能免于「不能排除长期或其他现用药」的待核对提示。剥不掉剂型后缀或
+// 认不出受控别名，具体药名就被当成身份不明，同样是分叉的样子（方向相反：多报而非漏报）。
+const provenCurrent = (medicine) =>
+  localMedicationScopeReason({ patient: {}, conversation: [], medicationHistory: `现服${medicine}，发病后未服其他药` }) === undefined;
 
-// ── 1. 受控剂型表里的**每一个**后缀都必须能让状态冲突检出 ──────────────────
+// ── 1. 受控剂型表里的**每一个**后缀都必须能被剥离、认出同一具体药 ─────────────
 // 逐个跑而不是抽查：分叉正是「表里有、某一处没有」，抽查会漏掉恰好没抽到的那个。
 {
   assert.ok(
@@ -58,25 +53,19 @@ const conflictDetected = (current, stopped) => {
   );
   for (const suffix of MEDICATION_DOSAGE_FORM_SUFFIXES) {
     assert.ok(
-      conflictDetected(`布洛芬${suffix}`, "布洛芬"),
-      `剂型后缀「${suffix}」未被剥离，同药状态冲突漏检：`
-      + `「现服布洛芬${suffix}，布洛芬已停用」应报 medication_status_conflict。`
-      + "身份归一在 rxaudit 另抄一份短表时，这里就是漏检的样子。",
+      provenCurrent(`布洛芬${suffix}`),
+      `剂型后缀「${suffix}」未被剥离：「现服布洛芬${suffix}」应认作具体现用药布洛芬。`
+      + "身份归一另抄一份短表时，这里就是分叉的样子。",
     );
   }
 }
 
-// ── 2. 阴性对照：确实是两个不同的药，不得误报冲突 ──────────────────────────
-// 缺了这条，上面那组可以靠「一律报冲突」全绿。
+// ── 2. 阴性对照：认不出的名字不得被当成具体药 ─────────────────────────────────
+// 缺了这条，上面那组可以靠「一律认作具体药」全绿。
 {
-  assert.equal(
-    conflictDetected("阿莫西林", "布洛芬"), false,
-    "两个确实不同的药不得报状态冲突——否则上一组断言可由「恒报」满足，是空转",
-  );
-  assert.equal(
-    conflictDetected("阿莫西林胶囊", "布洛芬缓释片"), false,
-    "剥掉剂型后仍是不同的药，不得报冲突",
-  );
+  for (const unknown of ["维生素片", "降压药片", "感冒药片", "抗生素胶囊"]) {
+    assert.equal(provenCurrent(unknown), false, `「${unknown}」不是可证明的具体药名，不得免于待核对`);
+  }
 }
 
 // ── 3. 受控别名同样只能有一份 ──────────────────────────────────────────────
@@ -87,10 +76,7 @@ const conflictDetected = (current, stopped) => {
       canonicalMedicationIdentity(alias), canonical,
       `受控别名未落到规范名：「${alias}」应归一为「${canonical}」`,
     );
-    assert.ok(
-      conflictDetected(alias, canonical),
-      `别名与规范名指同一个药，状态冲突必须检出：「现服${alias}，${canonical}已停用」`,
-    );
+    assert.ok(provenCurrent(alias), `别名「${alias}」必须认作具体现用药「${canonical}」`);
   }
 }
 
@@ -98,12 +84,12 @@ const conflictDetected = (current, stopped) => {
 // 行为断言证明「现在是对的」，这条防止有人再抄一份回去。
 {
   const polarity = readFileSync(path.join(repoRoot, "src/lib/clinical-polarity.ts"), "utf8");
-  const rxaudit = readFileSync(path.join(repoRoot, "src/lib/rxaudit.ts"), "utf8");
+  const local = readFileSync(path.join(repoRoot, "src/lib/local-prescription-checks.ts"), "utf8");
   assert.ok(
     /export const MEDICATION_DOSAGE_FORM_SUFFIXES/.test(polarity),
     "剂型后缀表必须是 clinical-polarity 的单一导出常量",
   );
-  for (const [label, source] of [["clinical-polarity", polarity], ["rxaudit", rxaudit]]) {
+  for (const [label, source] of [["clinical-polarity", polarity], ["local-prescription-checks", local]]) {
     const inlineTables = (source.match(/const dosageForms\s*=/g) || []).length;
     assert.equal(
       inlineTables, 0,
@@ -116,8 +102,8 @@ const conflictDetected = (current, stopped) => {
     );
   }
   assert.ok(
-    /canonicalMedicationIdentity/.test(rxaudit),
-    "rxaudit 必须调用共享的 canonicalMedicationIdentity，而不是自己再实现一遍剥离循环",
+    /canonicalMedicationIdentity/.test(local),
+    "local-prescription-checks 必须调用共享的 canonicalMedicationIdentity，而不是自己再实现一遍剥离循环",
   );
 }
 

@@ -16,7 +16,7 @@ const settings = {
   OPENAI_BASE_URL: "https://api.deepseek.com", OPENAI_MODEL: "deepseek-v4-flash",
   CLINICAL_FACTS_MODEL: "deepseek-v4-flash",
   CLINICAL_FACTS_REVIEW_MODEL: "deepseek-v4-flash", CLINICAL_FACTS_ADJUDICATION_MODEL: "deepseek-v4-flash",
-  RXAI_AUDIT_ENABLED: "false", RXAI_QUERY_ENABLED: "false", M05_FOLLOWUP_AUTHORING: "false",
+  M05_FOLLOWUP_AUTHORING: "false",
 };
 Object.assign(process.env, settings);
 const jiti = createJiti(import.meta.url, { alias: {
@@ -156,12 +156,11 @@ async function signedCase() {
   const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
   const { getTcmHerbFunctionText } = await jiti.import("../src/lib/tcm-knowledge.ts");
   const { synchronizeVisibleClinicalSummary } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
-  const { buildUnavailableRxAuditSection } = await jiti.import("../src/lib/rxaudit.ts");
   const { findLocalPatentMedicineEntry } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
   const source = readFileSync(new URL("./regress-tcm-cdss.mjs", import.meta.url), "utf8");
   const helpers = source.slice(source.indexOf("function hisRecord("), source.indexOf("function expected("));
   const bindings = { ...signatures, ...safety, normalizeCaseStateInput, getTcmHerbFunctionText,
-    synchronizeVisibleClinicalSummary, buildUnavailableRxAuditSection, findLocalPatentMedicineEntry,
+    synchronizeVisibleClinicalSummary, findLocalPatentMedicineEntry,
     CDSS_CUSTOMER_ID: customer.customerId };
   const cases = new Function(...Object.keys(bindings), `${helpers}\nreturn buildHisProjectionRegressionCases();`)(...Object.values(bindings));
   return { ...cases[1].state, phase: "assess", riskAssessment: "" };

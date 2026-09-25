@@ -9,7 +9,7 @@ Object.assign(process.env, {
   REASONING_CONTRACT_SIGNING_KEY: "golden-harness-test-signing-key-at-least-32-characters",
   CDSS_API_CLIENT_ID: "golden-harness-client", CDSS_API_CUSTOMER_IDS: "golden-harness-customer",
   CDSS_DEFAULT_CUSTOMER_ID: "golden-harness-customer",
-  CDSS_CUSTOMER_ID: "golden-harness-customer", RXAI_AUDIT_ENABLED: "false",
+  CDSS_CUSTOMER_ID: "golden-harness-customer",
 });
 const source = readFileSync(new URL("./regress-tcm-cdss.mjs", import.meta.url), "utf8");
 const jiti = createJiti(import.meta.url, { alias: {
@@ -20,7 +20,6 @@ const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-type
 const { withSafetyGate, buildDeterministicRiskFollowup } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { getTcmHerbFunctionText } = await jiti.import("../src/lib/tcm-knowledge.ts");
 const { synchronizeVisibleClinicalSummary } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
-const { buildUnavailableRxAuditSection } = await jiti.import("../src/lib/rxaudit.ts");
 const { validateHisPrescriptionForWriteBack } = await jiti.import("../src/lib/his-prescription-validation.ts");
 const { buildHisAiSchemePayload } = await jiti.import("../src/lib/his-scheme.ts");
 const { buildEvidenceScope } = await jiti.import("../src/lib/evidence-source-validation.ts");
@@ -45,7 +44,7 @@ const declarations = between("  const invalidWorkbenchReasoning =", "  const tru
 const requests = [];
 const bindings = {
   ...signatures, normalizeCaseStateInput, withSafetyGate, getTcmHerbFunctionText,
-  synchronizeVisibleClinicalSummary, buildUnavailableRxAuditSection, buildDeterministicRiskFollowup,
+  synchronizeVisibleClinicalSummary, buildDeterministicRiskFollowup,
   buildHisAiSchemePayload, buildEvidenceScope,
   revisionFromAudit,
   CDSS_CUSTOMER_ID: "golden-harness-customer",
@@ -96,11 +95,12 @@ test("live harness preserves every issuer-bound revision field including explici
   }
 });
 
-test("advisory assertions accept truthful NOT_SUBMITTED only in explicit-off mode and still reject a fabricated PASS", () => {
+test("advisory assertions accept the truthful NOT_SUBMITTED receipt and still reject a fabricated PASS", () => {
   const checks = between("function matchingDeliveryWarning(", "// 源码级断言");
-  const execute = (payload, enabled, his = false) => {
+  // 外部审方已删除（2026-09-25），不再有「审方已启用」档；第二个参数保留为占位以免改动调用点。
+  const execute = (payload, _unused, his = false) => {
     const failures = [];
-    new Function("expectRxAuditEnabled", "assert", `${checks}\nassertDeliveryReport({status:200,json:arguments[2]}, /dose_sanity_ceiling/, "test", {his:arguments[3]});`)(enabled,
+    new Function("assert", `${checks}\nassertDeliveryReport({status:200,json:arguments[1]}, /dose_sanity_ceiling/, "test", {his:arguments[2]});`)(
       (condition, message) => { if (!condition) failures.push(message); }, payload, his);
     return failures;
   };
@@ -110,7 +110,9 @@ test("advisory assertions accept truthful NOT_SUBMITTED only in explicit-off mod
     reason: "rxaudit_disabled", needManualReview: true,
   } };
   assert.deepEqual(execute(post, false), []);
-  assert.ok(execute(post, true).length > 0, "enabled audit cannot silently become skipped");
+  for (const forged of [{ source: "lingxi" }, { reason: "rxaudit_timeout" }, { auditAvailable: true }, { degraded: true }, { highestRiskLevel: "HIGH" }]) {
+    assert.ok(execute({ ...post, audit: { ...post.audit, ...forged } }, false).length > 0, `receipt must stay honest: ${JSON.stringify(forged)}`);
+  }
   assert.ok(execute({ ...post, audit: { ...post.audit, auditResult: "PASS", highestRiskLevel: "INFO" } }, false).length > 0);
   const item = { content: "合成可读内容", adoptable: false };
   const his = { warnings: [warning], status: "limited", candidateStatus: "invalid", workflowPermission: "continue", auditStatus: "not_submitted",
@@ -118,7 +120,7 @@ test("advisory assertions accept truthful NOT_SUBMITTED only in explicit-off mod
     prescriptions: { structuredHerbs: [{ name: "合成药味" }], herbal: [item], westernOrPatent: [item] },
     checks: [item], followup: [item], writeBackPolicy: { allowSingleItemAdoption: false, allowOneClickAdoption: false } };
   assert.deepEqual(execute(his, false, true), []);
-  assert.ok(execute(his, true, true).length > 0);
+  assert.ok(execute({ ...his, auditStatus: "unavailable" }, false, true).length > 0, "HIS cannot claim an audit was attempted");
   assert.ok(execute({ ...his, auditStatus: "pass" }, false, true).length > 0);
   assert.ok(execute({ ...his, prescriptions: { ...his.prescriptions, herbal: [{ ...item, adoptable: true }] } }, false, true).length > 0,
     "skipping a dependency cannot waive the local T1 item boundary");

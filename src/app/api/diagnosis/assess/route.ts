@@ -9,27 +9,13 @@ import {
   withSafetyGate,
 } from "@/lib/diagnosis-safety";
 import {
-  applyRxAuditInputAdvisories,
-  buildAuditInputAdvisories,
-  buildAuditInputAdvisorySection,
-  buildLingxiRiskSection,
-  buildLingxiWarningProjection,
-  ownedAuditWarningInputs,
   buildLocalHighRiskHerbPairSection,
-  buildRetainedRxAuditRiskSection,
-  buildRxAuditScopeSection,
-  rxAuditPresentationEnabled,
-  resolveProviderCompatibilityFindings,
-  buildRxAuditCorrelationMarker,
-  buildRxAuditCorrelationMetadata,
-  buildUnavailableRxAuditSection,
-  isRxAuditSubmissionIssueReason,
-  mergeLocalHighRiskHerbPairIssues,
-  normalizeAuditOutcomeForPatient,
-  resolveRxAuditCandidateIndex,
-  runBoundedRxAudit,
-} from "@/lib/rxaudit";
-import { buildRxAuditStatusMarker } from "@/lib/rxaudit-status";
+  buildPrescriptionInputAdvisories,
+  buildPrescriptionInputAdvisorySection,
+  buildRetainedPrescriptionRiskSection,
+  resolvePrescriptionCandidateIndex,
+} from "@/lib/local-prescription-checks";
+import { RXAUDIT_DISABLED_STATUS_MARKER, skippedRxAuditCorrelation, skippedRxAuditCorrelationMarker } from "@/lib/rxaudit-status";
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
@@ -88,10 +74,10 @@ export async function POST(req: Request) {
     // 随访与安全总评——「不给剂量」再一次被实现成「什么都不给」（2026-09-11 只读归因第五节
     // 点名的「资格混用」）。规则与 his-scheme 完全一致：
     //   · 必须有**有效签名的 M03**（边界前移到 M03，没有就 409）；
-    //   · 手写/未签名的处方 Markdown 不得跨界：审方层会解析 prescription 文本，所以这种
+    //   · 手写/未签名的处方 Markdown 不得跨界：本地处方核对会解析 prescription 文本，所以这种
     //     形态返回 422 missing_structured_prescription（与 HIS 同码），不进入评估；
-    //   · 其余（空处方或服务端非剂量页）剥掉全部处方字段后 diagnose-only 评估：审方按既有
-    //     fail-closed 逻辑（candidate_missing）转人工，随访由签名 M03 撰写，模型仍不写风险结论。
+    //   · 其余（空处方或服务端非剂量页）剥掉全部处方字段后 diagnose-only 评估：只出本地确定性
+    //     内容，随访由签名 M03 撰写，模型仍不写风险结论。
     // 非剂量页标记本身可伪造，但被剥掉的处方文本从不进入任何消费方，伪造只能换来一份
     // 不含处方的评估——单测用「带标记 + 藏药味表」反证过：药名不得出现在结果里。
     if (!verifyDiagnoseReasoningSignature(initialDiagnoseReasoning, parsed.caseState)) {
@@ -113,7 +99,7 @@ export async function POST(req: Request) {
       code: "invalid_m04_signature",
     }, { status: 409 });
   }
-  // diagnose-only 时剥掉全部处方字段：审方（rxaudit 会解析 prescription Markdown）、
+  // diagnose-only 时剥掉全部处方字段：本地处方核对（无结构化候选时会解析 prescription Markdown）、
   // 警示地板与随访都只能看到签名 M03。
   const evaluatedCaseState = !workbenchRevision && !initialPrescribed
     ? {
@@ -129,7 +115,7 @@ export async function POST(req: Request) {
   const diagnoseReasoning = diagnoseReasoningFromState(gated);
   const prescribed = prescribeReasoningFromState(gated);
   const explicitCandidateIndex = gated.prescriptionRevision?.candidateIndex;
-  const candidateIndex = explicitCandidateIndex ?? resolveRxAuditCandidateIndex(gated);
+  const candidateIndex = explicitCandidateIndex ?? resolvePrescriptionCandidateIndex(gated);
   const selectedCandidate = candidateIndex == null ? undefined : prescribed?.formula?.candidates[candidateIndex];
   if (workbenchRevision && (!selectedCandidate || selectedCandidate.herbs.length === 0)) {
     return Response.json({
@@ -149,62 +135,16 @@ export async function POST(req: Request) {
       clinicalAdvisorySection = clinicalDeliveryAdvisorySection(clinicalAdvisories);
     }
   }
-  const { medicationExtraction, providerAudit } = await runBoundedRxAudit(gated, candidateIndex, req.signal);
-  const inputAdvisories = buildAuditInputAdvisories(gated, candidateIndex, medicationExtraction);
-  const inputAdvisorySection = buildAuditInputAdvisorySection(inputAdvisories);
-
-  // M05 owns the single server-side audit call for the normal M03->M04->M05 chain. Client-supplied
-  // audit-looking Markdown is never trusted, but every audit outcome is advisory rather than blocking.
-  if (providerAudit.source === "unavailable") console.warn("[tcm-cdss:rxaudit] M05 advisory audit unavailable", { reason: providerAudit.reason });
-  // 配伍查询与主审方独立：主审方成功时并入 effectiveAudit，不可因展示开关丢失；
-  // 主审方不可用时则仍由本地配伍段呈现。两条路径共用 providerCompatibilityIssues 去重。
-  const providerCompatibility = await resolveProviderCompatibilityFindings(gated, candidateIndex, req.signal);
-  const mergedAudit = providerAudit.ok
-    ? mergeLocalHighRiskHerbPairIssues(gated, candidateIndex, providerAudit, providerCompatibility)
-    : providerAudit;
-  const patientSex = gated.hisRecord?.fields.sex || gated.patient.sex;
-  const effectiveAudit = mergedAudit.ok
-    ? applyRxAuditInputAdvisories(normalizeAuditOutcomeForPatient(mergedAudit, patientSex), inputAdvisories)
-    : undefined;
-  // 审方展示被关闭时（本客户默认档）：报告里不出现任何以三方审方为主语的内容——
-  // 结论、范围说明、输入待核对、以及「自动审方未完成」。但**本地确定性配伍预检必须照出**，
-  // 而且不能再挂在 providerAudit.ok 上：那个条件原本的含义是「审方没给结论时用本地兜底」，
-  // 展示关闭后若沿用它，审方正常返回的病例反而一条本地提示都看不到。
-  const showRxAudit = rxAuditPresentationEnabled();
-  // 配伍禁忌属本地安全内容：两档都出，且不受审方是否可用影响。供应商条目只加不减地追加。
-  const localHighRiskSection = buildLocalHighRiskHerbPairSection(gated, candidateIndex, providerCompatibility);
-  const retainedRiskSection = providerAudit.source === "skipped" ? buildRetainedRxAuditRiskSection(gated.prescriptionRevision) : "";
-  const providerRisk = providerAudit.source === "skipped" ? "" : effectiveAudit
-    ? buildLingxiRiskSection(effectiveAudit, patientSex)
-    : buildUnavailableRxAuditSection(providerAudit.ok ? "rxaudit_incomplete" : providerAudit.reason);
-  const postPrescriptionRisk = (showRxAudit
-    ? [
-        buildRxAuditScopeSection(gated, candidateIndex, providerAudit.ok ? providerAudit.submissionScope : undefined),
-        providerAudit.ok ? "" : localHighRiskSection,
-        inputAdvisorySection,
-        providerRisk,
-      ]
-    : [localHighRiskSection, retainedRiskSection, buildAuditInputAdvisorySection(inputAdvisories, true)]
-  ).filter(Boolean).join("\n\n");
-  const auditStatusMarker = buildRxAuditStatusMarker(!showRxAudit
-    ? { available: false, presentationDisabled: true }
-    : providerAudit.ok && !providerAudit.degraded
-      ? { available: true }
-      : {
-          available: false,
-          reason: !providerAudit.ok && (providerAudit.reason === "no_prescription_items" || isRxAuditSubmissionIssueReason(providerAudit.reason))
-            ? "no_prescription_items"
-            : "service_unavailable",
-        });
+  // 合理用药审方已删除（owner 2026-09-25）；报告里只出本地确定性内容：配伍预检（十八反/十九畏）、
+  // 已证明的严重风险版本、处方信息待核对。这三段与原「审方展示关闭」档逐字相同。
+  const localHighRiskSection = buildLocalHighRiskHerbPairSection(gated, candidateIndex);
+  const retainedRiskSection = buildRetainedPrescriptionRiskSection(gated.prescriptionRevision);
+  const inputAdvisorySection = buildPrescriptionInputAdvisorySection(buildPrescriptionInputAdvisories(gated, candidateIndex));
+  const postPrescriptionRisk = [localHighRiskSection, retainedRiskSection, inputAdvisorySection].filter(Boolean).join("\n\n");
   const prescriptionHash = prescribed && candidateIndex != null
     ? await computePrescriptionVersionHash(prescribed, candidateIndex, gated)
     : "";
-  const correlationMarker = buildRxAuditCorrelationMarker(buildRxAuditCorrelationMetadata({
-    providerOutcome: providerAudit,
-    effectiveOutcome: effectiveAudit,
-    candidateIndex,
-    prescriptionHash,
-  }));
+  const correlationMarker = skippedRxAuditCorrelationMarker(skippedRxAuditCorrelation({ candidateIndex, prescriptionHash }));
   const safetyLocked = deriveSafetyLocked(gated);
   const assessed = withSafetyGate({
     ...gated,
@@ -220,34 +160,26 @@ export async function POST(req: Request) {
     req.signal,
   );
   const followup = buildDeterministicRiskFollowupProjection(assessed, authoredFollowup);
-  const currentAuditText = effectiveAudit ? buildLingxiWarningProjection(effectiveAudit, patientSex).currentRiskMarkdown : providerRisk;
-  const postRiskProjection = {
-    markdown: postPrescriptionRisk,
-    currentRiskMarkdown: (showRxAudit
-      ? [buildRxAuditScopeSection(gated, candidateIndex, providerAudit.ok ? providerAudit.submissionScope : undefined),
-          providerAudit.ok ? "" : localHighRiskSection, inputAdvisorySection, currentAuditText]
-      : [localHighRiskSection, retainedRiskSection, buildAuditInputAdvisorySection(inputAdvisories, true), currentAuditText]
-    ).filter(Boolean).join("\n\n"),
-  };
+  const postRiskProjection = { markdown: postPrescriptionRisk, currentRiskMarkdown: postPrescriptionRisk };
   const clinicalProjection = mapWarningText(joinedWarningProjections([postRiskProjection, followup]),
     (text) => sanitizeUngroundedRedFlagNegations(text, gated));
-  const rawProjection = joinedWarningProjections([auditStatusMarker, correlationMarker, clinicalAdvisorySection, clinicalProjection]);
+  const rawProjection = joinedWarningProjections([RXAUDIT_DISABLED_STATUS_MARKER, correlationMarker, clinicalAdvisorySection, clinicalProjection]);
   // The browser can reproduce only its submitted state plus the final wire result. Fresh server
   // enrichment remains an independent floor; it must not silently alter request/display hashes.
   const final = finalizeM05DisplayResult(parsed.caseState, rawProjection, parsed.customer.customerId);
   const observation = await createWarningDisplayReceipt({ producer: "assess", requestState: parsed.caseState,
     sourceRepresentation: (parsed.body as { caseState?: unknown }).caseState,
     finalState: final.state, customer: parsed.customer, advisories: clinicalAdvisories,
-    owned: { riskAssessment: final.projection, audit: ownedAuditWarningInputs(providerAudit, effectiveAudit),
-      auditSkipped: providerAudit.source === "skipped",
-      floor: deriveStructuredCaseWarningFloor(providerAudit.source === "skipped" ? caseWarningStateWithoutSkippedAudit(gated) : gated) },
+    owned: { riskAssessment: final.projection, auditSkipped: true,
+      floor: deriveStructuredCaseWarningFloor(caseWarningStateWithoutSkippedAudit(gated)) },
   });
   recordCdssStageTelemetry({
     stage: "assess",
     outcome: "success",
     durationMs: Date.now() - startedAt,
-    auditReached: providerAudit.source !== "skipped" && (providerAudit.ok || !isRxAuditSubmissionIssueReason(providerAudit.reason)),
-    reasonCode: providerAudit.ok ? "audit_available" : `audit_${providerAudit.reason}`,
+    // 遥测口径沿用停用档的取值，账本按它统计（审方从未被调用）。
+    auditReached: false,
+    reasonCode: "audit_rxaudit_disabled",
   });
   return markdownNdjsonResponse(rawProjection.markdown, observation);
 }

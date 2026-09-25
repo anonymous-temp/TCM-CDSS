@@ -15,7 +15,7 @@ const { getTcmHerbDoseLimit, isKnownTcmHerbName } = await jiti.import("../src/li
 const { rejectionTier, qualityAnnotationCopy } = await jiti.import("../src/lib/diagnosis-rejection-tiers.ts");
 const { collectClinicalDeliveryAdvisories } = await jiti.import("../src/lib/clinical-delivery-advisory.ts");
 const { m04FinalReviewQualityAnnotation, m04TherapyIssueQualityAnnotation, m04ZeroProviderRepairQualityAnnotation, m04BaselineVerifiedFinalReviewAnnotation, m04ArbitratedPatientContextAnnotation } = await jiti.import("../src/lib/m04-repair-policy.ts");
-const { buildAuditItemsFromHerbs } = await jiti.import("../src/lib/rxaudit.ts");
+const { buildPrescriptionInputAdvisories, prescriptionSubmissionIssue } = await jiti.import("../src/lib/local-prescription-checks.ts");
 const { clinicalReviewPayloadHash } = await jiti.import("../src/lib/clinical-review-binding.ts");
 const { signPrescribeReasoning, PRESCRIBE_CONTRACT_SIGNATURE_VERSION } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
 
@@ -162,12 +162,13 @@ test("HIS preserves readable unverified dose and marks only herbal adoption as r
   assert.ok(warning.reasons.some((reason) => reason.includes("31g")));
 });
 
-test("audit receives the original proposal dose; signing binds unverified metadata without approval", () => {
+test("local checks see the original proposal dose; signing binds unverified metadata without approval", () => {
   const value = compiled("31g");
   const state = normalizeCaseStateInput({ chiefComplaint: "食少倦怠", phase: "done", prescription: "## 中药饮片处方\n党参31g 白术10g 茯苓12g 炙甘草6g", reasoningPrescribe: value, reasoningDiagnose: prior });
-  const items = buildAuditItemsFromHerbs(state);
-  assert.ok(items.length > 0);
-  assert.equal(items[0].single_dose, 31);
+  // 外部审方已删除（2026-09-25）；原先送审的单味剂量如今只喂本地核对，同样必须是原始提案剂量。
+  assert.equal(state.reasoningPrescribe.formula.candidates[0].herbs[0].dose, "31g");
+  assert.equal(prescriptionSubmissionIssue(state), undefined, "the unverified 31g proposal remains a parseable, complete dose");
+  assert.deepEqual(buildPrescriptionInputAdvisories(state).filter((item) => item.code === "missing_dose"), []);
   const before = clinicalReviewPayloadHash(value);
   const falselyVerified = structuredClone(value);
   falselyVerified.formula.candidates[0].herbs[0].verificationTier = "verified";

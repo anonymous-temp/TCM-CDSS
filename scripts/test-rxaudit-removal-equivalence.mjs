@@ -6,18 +6,26 @@
 // 对外接口文档消费 audit.source / auditReason / presentationDisabled / auditCorrelation 等字段，
 // 签名收据（工作台 attestation、warningObservation 的 MAC）也绑定这些取值。
 //
-// fixture 来源：在删除前的基线提交 68ea3f0 上用 CAPTURE=1 跑本脚本，把三条路由的原始响应
+// routes.json.gz 来源：在删除前的基线提交 68ea3f0 上用 CAPTURE=1 跑本脚本，把三条路由的原始响应
 // （状态码 + 响应体原文）落盘；删除后默认模式逐字比对。时间被冻结、网络被禁止、模型全部未配置，
 // 因此两次运行之间唯一可能的差异来自被测代码本身。
 //
-// 另一份 fixture（medication-scope.json）钉的是「显式停用」档里唯一还在工作的用药史判据：
-// 本次/局部未用药、现用药不详 → 待核对提示。基线上由旧 runBoundedRxAudit 的停用分支 +
-// buildAuditInputAdvisories 产出，覆盖从本仓测试里收集的全部用药史类文本。
+// 另两份 fixture 在同一基线源码（git archive 68ea3f0，不经工作区改动）上由旧 API 捕获：
+//  · medication-scope.json.gz：「显式停用」档里唯一还在工作的用药史判据（本次/局部未用药、
+//    现用药不详 → 待核对提示），旧停用分支 runBoundedRxAudit + buildAuditInputAdvisories 的输出摘要，
+//    覆盖本仓测试/夹具里收集的全部用药史类文本 + 两批「局部未用药 × 药名 × 时态/否定/家属」组合，共 5730 条；
+//  · unit.json.gz：scripts/lib/rxaudit-removal-unit-states.mjs 生成的 704 个病例上，候选定位、缺剂量
+//    （结构化/Markdown 回落）、提交前问题码、十八反/十九畏配伍段、已证明严重风险段的逐函数输出。
+//
+// 这是一次性迁移证明，不入 test:deterministic：其他改动合法地改变这三条路由的输出时它会变红，
+// 那时应核对差异是否全部来自那次改动，而不是重新捕获（旧代码已不存在）。
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { gzipSync, gunzipSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { createJiti } from "jiti";
 import { buildAuditPositiveControlState } from "./lib/primary-care-audit-positive-controls.mjs";
+import { buildUnitStates } from "./lib/rxaudit-removal-unit-states.mjs";
 
 const FIXTURE_DIR = new URL("./fixtures/rxaudit-removal-equivalence/", import.meta.url);
 const CAPTURE = process.env.CAPTURE === "1";
@@ -59,8 +67,11 @@ const { getM03TherapyLock } = await jiti.import("../src/lib/m03-therapy-lock.ts"
 const { findLocalPatentMedicineEntry } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
 const { medicineCandidateTable } = await jiti.import("../src/lib/medicine-rendering.ts");
 const { getCdssStageTelemetrySnapshot } = await jiti.import("../src/lib/cdss-stage-telemetry.ts");
+const localChecks = CAPTURE ? undefined : await jiti.import("../src/lib/local-prescription-checks.ts");
 const customer = { clientId: "local-development", customerId: "test-hospital" };
 
+// jiti 的 CLI 在脚本抛错后会换加载器重跑一遍；遥测是进程级全局存储，先清空，免得第二遍把计数翻倍。
+delete globalThis[Symbol.for("tcm-cdss.stage-telemetry.v1")];
 let fetchCalls = 0;
 globalThis.fetch = async () => { fetchCalls += 1; throw new Error("offline equivalence harness prohibits external calls"); };
 
@@ -279,4 +290,54 @@ if (CAPTURE) {
   }
   assert.equal(mismatches, 0, `${mismatches} route outputs differ from the pre-removal baseline`);
   console.log(`rxaudit removal equivalence: ${results.length} route outputs byte-identical to baseline 68ea3f0`);
+
+  // ── 用药史范围判据：逐条比对基线（旧停用分支 runBoundedRxAudit + buildAuditInputAdvisories）──
+  // 旧停用分支的 medicationExtraction 恒为 not_needed，只有 needsManualReview/reason 随判据变化，
+  // 这里按同一形状重建后与处方待核对条目、段落一起取摘要。
+  const records = JSON.parse(gunzipSync(readFileSync(new URL("medication-scope.json.gz", FIXTURE_DIR))).toString("utf8"));
+  assert.ok(records.length >= 5000, `medication-scope baseline too small: ${records.length}`);
+  let scopeMismatches = 0;
+  const seenReasons = new Set();
+  for (const record of records) {
+    const raw = buildAuditPositiveControlState({ id: "med-scope", patient: { sex: "男", age: 46, name: "张三" }, chiefComplaint: "入睡困难三个月", diagnosis: "失眠障碍", syndrome: "心脾两虚证",
+      pastHistory: "否认重要慢病", allergyHistory: "否认药物过敏", medicationHistory: "", herbs: [{ name: "黄芪", dose: "15g" }, { name: "茯苓", dose: "" }] });
+    if (record.variant === "medicationHistory") raw.medicationHistory = record.text;
+    else { raw.medicationHistory = "否认当前用药"; raw.hisRecord = { caseId: "his-eq", fields: { yongyaoshi: record.text, patientName: "张三" } }; }
+    const state = normalizeCaseStateInput(raw);
+    const reason = localChecks.localMedicationScopeReason(state);
+    const advisories = localChecks.buildPrescriptionInputAdvisories(state, 0);
+    const medicationExtraction = { source: "not_needed", events: [], unresolvedReferences: [], needsManualReview: Boolean(reason), ...(reason ? { reason } : {}) };
+    const digest = createHash("sha256").update(JSON.stringify({ medicationExtraction, advisories, section: localChecks.buildPrescriptionInputAdvisorySection(advisories) })).digest("hex").slice(0, 16);
+    seenReasons.add(record.reason);
+    if ((reason ?? null) !== record.reason || digest !== record.digest) {
+      scopeMismatches += 1;
+      if (scopeMismatches <= 20) console.error(`MEDICATION MISMATCH [${record.variant}] ${JSON.stringify(record.text.slice(0, 120))}: ${record.reason} → ${reason ?? null}`);
+    }
+  }
+  assert.equal(seenReasons.size, 3, "baseline must exercise unknown, incomplete and no-finding outcomes");
+  assert.equal(scopeMismatches, 0, `${scopeMismatches}/${records.length} medication-history outcomes differ from baseline`);
+  console.log(`medication scope equivalence: ${records.length} histories identical to baseline 68ea3f0`);
+
+  // ── 逐函数：候选定位、缺剂量（结构化/Markdown 回落）、提交前问题码、配伍段、保留段 ──
+  const unitBaseline = JSON.parse(gunzipSync(readFileSync(new URL("unit.json.gz", FIXTURE_DIR))).toString("utf8"));
+  const unitStates = buildUnitStates();
+  assert.equal(unitStates.length, unitBaseline.length, "unit state generator drifted from the baseline");
+  let unitMismatches = 0;
+  for (const [index, { label, state, candidateIndex }] of unitStates.entries()) {
+    assert.equal(label, unitBaseline[index].label);
+    const advisories = localChecks.buildPrescriptionInputAdvisories(state, candidateIndex);
+    const value = JSON.stringify({
+      advisories, advisorySection: localChecks.buildPrescriptionInputAdvisorySection(advisories),
+      pairSection: localChecks.buildLocalHighRiskHerbPairSection(state, candidateIndex),
+      submissionIssue: localChecks.prescriptionSubmissionIssue(state, candidateIndex) ?? null,
+      resolvedIndex: localChecks.resolvePrescriptionCandidateIndex(state, candidateIndex) ?? null,
+      retained: localChecks.buildRetainedPrescriptionRiskSection(state.prescriptionRevision),
+    });
+    if (value !== unitBaseline[index].value) {
+      unitMismatches += 1;
+      if (unitMismatches <= 10) console.error(`UNIT MISMATCH ${label}\n  want: ${unitBaseline[index].value.slice(0, 400)}\n  got:  ${value.slice(0, 400)}`);
+    }
+  }
+  assert.equal(unitMismatches, 0, `${unitMismatches}/${unitStates.length} unit-level outputs differ from baseline`);
+  console.log(`unit equivalence: ${unitStates.length} generated states identical to baseline 68ea3f0`);
 }

@@ -2,7 +2,6 @@ import { getDiagnosisProviderStatus, probeTongueVisionModel } from "@/lib/diagno
 import { getEvimedEvidenceStatus, getEvimedGuideStatus, probeExternalEvidenceSources } from "@/lib/evimed-guide";
 import { getTcmKnowledgeStatus } from "@/lib/tcm-knowledge";
 import { getFormulaCatalogStatus } from "@/lib/tcm-formula-provenance";
-import { getRxAuditStatus, probeRxAuditTransport } from "@/lib/rxaudit";
 import { reasoningContractSigningConfigured } from "@/lib/reasoning-contract-signature";
 import { getTcmTreatmentProjectStatus } from "@/lib/tcm-treatment-capabilities.server";
 import {
@@ -76,17 +75,15 @@ export async function GET(req: Request) {
   }
   const providers = getDiagnosisProviderStatus();
   const externalEvidence = getEvimedEvidenceStatus();
-  const [externalEvidenceProbe, clinicalFactsModelProbe, tongueVisionProbe, rxAuditProbe, controlledTerminologyProbe] = strictProbe
+  // 合理用药审方已删除（owner 2026-09-25），不再是就绪依赖，也不再有探针。
+  const [externalEvidenceProbe, clinicalFactsModelProbe, tongueVisionProbe, controlledTerminologyProbe] = strictProbe
     ? await Promise.all([
       probeExternalEvidenceSources(),
       probeClinicalFactsModels(),
       probeTongueVisionModel(),
-      probeRxAuditTransport(),
       probeControlledTerminologyModel(),
     ])
-    : [undefined, undefined, undefined, undefined, undefined];
-  const rxAudit = getRxAuditStatus();
-  const rxAuditReady = rxAudit.explicitlyDisabled || (rxAudit.enabled && (!strictProbe || rxAuditProbe?.ok === true));
+    : [undefined, undefined, undefined, undefined];
   const tcmTreatmentProjects = getTcmTreatmentProjectStatus();
   const tcmTreatmentConfigurationSafe = tcmTreatmentProjects.configurationValid || tcmTreatmentProjects.reason === "not_configured";
   const browserPersistenceEnabled = process.env.NEXT_PUBLIC_ENABLE_BROWSER_CASE_PERSISTENCE !== "false";
@@ -141,10 +138,6 @@ export async function GET(req: Request) {
       : []),
     ...evidenceMissing,
     ...evidenceUnavailable,
-    ...(!rxAudit.enabled && !rxAudit.explicitlyDisabled ? [rxAudit.disabledReason || "rxaudit_disabled"] : []),
-    ...(strictProbe && rxAudit.enabled && !rxAuditProbe?.ok
-      ? [`rxaudit_${rxAuditProbe?.reason || "unavailable"}`]
-      : []),
     ...(!snapshotPersistenceReady ? ["snapshot_encryption_key_not_configured"] : []),
     ...(!reasoningSigningReady ? ["reasoning_contract_signing_key_not_configured"] : []),
     ...(!clinicalFactsEnabled ? ["clinical_facts_backstop_disabled"] : []),
@@ -166,9 +159,7 @@ export async function GET(req: Request) {
     ...(!syndromeHypothesisRerank.enabled ? ["syndrome_hypothesis_rerank_disabled"] : []),
     ...(!syndromeHypothesisRerank.configured ? ["syndrome_hypothesis_rerank_model_not_configured"] : []),
   ];
-  // RxAudit remains advisory for an individual clinical decision, but a release advertised as the
-  // complete M01-M05 product is not healthy when its configured audit sidecar is unreachable.
-  const strictReady = providers.primaryModel.configured && stageModelsReady && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && rxAuditReady && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && customerAuthorization.ready && controlledTerminologyReady && syndromeHypothesisRerankReady;
+  const strictReady = providers.primaryModel.configured && stageModelsReady && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && customerAuthorization.ready && controlledTerminologyReady && syndromeHypothesisRerankReady;
 
   const body = {
     module: "tcm-cdss",
@@ -198,8 +189,6 @@ export async function GET(req: Request) {
     guideEvidence: getEvimedGuideStatus(),
     externalEvidence,
     ...(externalEvidenceProbe ? { externalEvidenceProbe } : {}),
-    rxAudit,
-    ...(rxAuditProbe ? { rxAuditProbe } : {}),
     snapshotPersistence: {
       enabled: browserPersistenceEnabled,
       encryptionConfigured: snapshotEncryptionConfigured,

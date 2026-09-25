@@ -51,7 +51,6 @@ const { getTcmHerbFunctionText } = await regressionJiti.import("../src/lib/tcm-k
 const { buildHisAiSchemePayload } = await regressionJiti.import("../src/lib/his-scheme.ts");
 const { buildEvidenceScope } = await regressionJiti.import("../src/lib/evidence-source-validation.ts");
 const { synchronizeVisibleClinicalSummary } = await regressionJiti.import("../src/lib/diagnosis-visible-summary.ts");
-const { buildUnavailableRxAuditSection } = await regressionJiti.import("../src/lib/rxaudit.ts");
 const { revisionFromAudit } = await regressionJiti.import("../src/lib/followup-display-state.ts");
 const { findLocalPatentMedicineEntry } = await regressionJiti.import("../src/lib/local-patent-medicine-candidates.ts");
 
@@ -70,11 +69,8 @@ const REGRESSION_SECTION = process.env.REGRESSION_SECTION?.trim() || "";
 const EXPECT_SECURE_COOKIE = process.env.EXPECT_SECURE_COOKIE;
 const EXPECTED_RELEASE_ID = process.env.EXPECTED_RELEASE_ID?.trim() || "";
 const REGRESSION_REAL_IP = process.env.REGRESSION_REAL_IP?.trim() || "";
-let expectRxAuditEnabled = process.env.EXPECT_RXAUDIT_ENABLED === "true"
-  ? true
-  : process.env.EXPECT_RXAUDIT_ENABLED === "false"
-    ? false
-    : null;
+// 合理用药审方已删除（owner 2026-09-25：永不启用）：所有环境都只会返回「未送审」收据，
+// 原 EXPECT_RXAUDIT_ENABLED 开关与「审方已启用」分支随之删除。
 
 let callCount = 0;
 const failures = [];
@@ -122,7 +118,7 @@ function matchingDeliveryWarning(payload, issue) {
 }
 
 function isExpectedSkippedAudit(audit) {
-  return expectRxAuditEnabled === false && audit?.source === "skipped" && audit.reason === "rxaudit_disabled" &&
+  return audit?.source === "skipped" && audit.reason === "rxaudit_disabled" &&
     audit.auditResult === "NOT_SUBMITTED" && audit.highestRiskLevel === undefined &&
     audit.auditAvailable === false && audit.degraded === false;
 }
@@ -147,7 +143,7 @@ function assertDeliveryReport(response, issue, name, { his = false, qualityOnly 
     assert(Array.isArray(payload?.prescriptions?.structuredHerbs) && payload.prescriptions.structuredHerbs.length > 0 &&
       payload?.prescriptions?.herbal?.some((item) => typeof item.content === "string" && item.content.length > 0) &&
       payload?.workflowPermission === "continue", `${name}: structured and readable prescription remain available`, payload?.prescriptions);
-    assert((expectRxAuditEnabled === false ? ["alert", "not_submitted"] : ["alert", "unavailable"]).includes(payload?.auditStatus),
+    assert(["alert", "not_submitted"].includes(payload?.auditStatus),
       `${name}: finding cannot be represented as an audit PASS`, payload?.auditStatus);
     if (qualityOnly) {
       assert(payload?.status === "ready" && payload?.candidateStatus === "valid" && payload?.writeBackPolicy?.allowSingleItemAdoption === true &&
@@ -160,8 +156,7 @@ function assertDeliveryReport(response, issue, name, { his = false, qualityOnly 
     assert(typeof payload?.section === "string" && payload.section.includes(warning?.message) &&
       typeof payload?.followup === "string" && payload.followup.length > 0,
     `${name}: finding and follow-up remain readable`, payload);
-    const truthfulAudit = expectRxAuditEnabled === false ? isExpectedSkippedAudit(payload?.audit)
-      : ["MANUAL_REVIEW", "BLOCK", "REMIND"].includes(payload?.audit?.auditResult);
+    const truthfulAudit = isExpectedSkippedAudit(payload?.audit);
     assert(truthfulAudit && payload?.audit?.needManualReview === true,
       `${name}: advisory audit reports explicit review, never false PASS`, payload?.audit);
   }
@@ -221,8 +216,7 @@ async function runFrontendContractChecks() {
   const hisSchemeRoute = readFileSync(new URL("../src/app/api/diagnosis/his-scheme/route.ts", import.meta.url), "utf8");
   const hisPrescriptionValidationSource = readFileSync(new URL("../src/lib/his-prescription-validation.ts", import.meta.url), "utf8");
   const textModelSource = readFileSync(new URL("../src/lib/text-model.ts", import.meta.url), "utf8");
-  const rxauditSource = readFileSync(new URL("../src/lib/rxaudit.ts", import.meta.url), "utf8");
-  const rxauditNormalizeSource = readFileSync(new URL("../src/lib/rxaudit-normalize.ts", import.meta.url), "utf8");
+  const localChecksSource = readFileSync(new URL("../src/lib/local-prescription-checks.ts", import.meta.url), "utf8");
   const hisSchemeSource = readFileSync(new URL("../src/lib/his-scheme.ts", import.meta.url), "utf8");
   const m04ProposalCompilerSource = readFileSync(new URL("../src/lib/m04-proposal-compiler.ts", import.meta.url), "utf8");
   const diagnosisVisibleSummarySource = readFileSync(new URL("../src/lib/diagnosis-visible-summary.ts", import.meta.url), "utf8");
@@ -476,17 +470,7 @@ async function runFrontendContractChecks() {
   assert(diagnoseChain.includes("prescriptionContractInvalid") && diagnoseChain.includes("!prescriptionReasoningV2") && diagnoseChain.includes("!rawPrescription.includes(\"<!-- DIAGNOSIS_JSON_START -->\")") && diagnoseChain.includes('phase: "prescribe"') && diagnoseChain.includes("候选方药本次未完整生成"), "frontend: truncated or structurally invalid M04 becomes a visible section retry state while preserving completed M03", diagnoseChain.slice(0, 7600));
   assert(engineSource.includes("STREAM_IDLE_TIMEOUT_MS") && engineSource.includes("STREAM_TOTAL_TIMEOUT_MS = 210_000") && engineSource.includes("readStreamChunk") && engineSource.includes("reader.cancel") && source.includes("DIAGNOSIS_STREAM_TOTAL_TIMEOUT_MS = 210_000"), "frontend: stream body consumption keeps a bounded margin above the server's single 180-second stage deadline and still cancels idle/aborted readers", `${engineSource.slice(0, 2600)}\n${source.slice(1800, 3400)}`);
   assert(deterministicRisk.includes("riskReviewSource") && deterministicRisk.includes("extractMarkdownSections") && !deterministicRisk.includes("state.riskAssessment, state.prescription, state.diagnosis"), "risk: deterministic M05 risk scans risk-review sections instead of the whole diagnosis+prescription body", deterministicRisk.slice(0, 2400));
-  assert(!assessRoute.includes("safetyLockedFromPriorAudit") && assessRoute.includes("audit outcome is advisory rather than blocking"), "risk: M05 performs one trusted server audit and treats every audit outcome as advisory", assessRoute.slice(0, 2400));
-  assert(rxauditSource.includes("主要证候") && rxauditSource.includes("中医辨证结论") && rxauditSource.includes("tableRow"), "rxaudit: fallback syndrome extraction supports table/heading/non-colon formats", sourceBetween(rxauditSource, "function extractSyndromeName", "function extractWesternDiagnosisName"));
-  assert(rxauditSource.includes("function extractWesternDiagnosisName") && !rxauditSource.includes('diagnosis_name: (chiefComplaint'), "rxaudit: LingXi diagnosis_name comes from diagnosis/syndrome, not chief complaint", sourceBetween(rxauditSource, "function extractWesternDiagnosisName", "function normalizeIssues"));
-  assert(
-    rxauditNormalizeSource.includes("RX_AUDIT_RESULTS") &&
-      rxauditNormalizeSource.includes("RX_AUDIT_RISK_LEVELS") &&
-      rxauditNormalizeSource.includes("forceManualReview") &&
-      rxauditNormalizeSource.includes('auditResult: forceManualReview ? "MANUAL_REVIEW"'),
-    "rxaudit: missing, unknown, or contradictory vendor enums normalize to an explicit manual-review advisory",
-    rxauditNormalizeSource
-  );
+  assert(!assessRoute.includes("safetyLockedFromPriorAudit") && !assessRoute.includes("runBoundedRxAudit") && assessRoute.includes("buildLocalHighRiskHerbPairSection(gated, candidateIndex)"), "risk: M05 makes no external audit call; its local deterministic findings are advisory and never become a lock", assessRoute.slice(0, 2400));
   assert(
     safetySource.includes("hardSafetyLock?: boolean") &&
       !sourceBetween(safetySource, "export function deriveSafetyLocked", "export function buildSafetyLimitedDiagnosis").includes("auditResult") &&
@@ -728,12 +712,13 @@ async function runFrontendContractChecks() {
       postPrescriptionRiskRoute.includes("invalid_candidate_index") &&
       postPrescriptionRiskRoute.includes("editedPrescriptionSemanticIssue") &&
       postPrescriptionRiskRoute.includes("collectClinicalDeliveryAdvisories") &&
-      postPrescriptionRiskRoute.includes("rxAuditSubmissionIssue(caseState, resolvedCandidateIndex)") &&
-      postPrescriptionRiskRoute.indexOf("stale_workbench_contract_metadata") < postPrescriptionRiskRoute.indexOf("runBoundedRxAudit(caseState, resolvedCandidateIndex") &&
-      postPrescriptionRiskRoute.indexOf("invalid_candidate_index") < postPrescriptionRiskRoute.indexOf("runBoundedRxAudit(caseState, resolvedCandidateIndex") &&
-      rxauditSource.includes('return "herb_dose_incomplete"') &&
-      rxauditSource.includes('return "regimen_incomplete"'),
-    "risk: forged/stale contracts and invalid edited-candidate envelopes are rejected before LingXi; clinical findings remain advisory and the provider input guard retains dose/regimen requirements",
+      postPrescriptionRiskRoute.includes("prescriptionSubmissionIssue(caseState, resolvedCandidateIndex)") &&
+      postPrescriptionRiskRoute.indexOf("stale_workbench_contract_metadata") > 0 &&
+      postPrescriptionRiskRoute.indexOf("stale_workbench_contract_metadata") < postPrescriptionRiskRoute.indexOf("buildPrescriptionInputAdvisories(caseState, resolvedCandidateIndex") &&
+      postPrescriptionRiskRoute.indexOf("invalid_candidate_index") < postPrescriptionRiskRoute.indexOf("buildPrescriptionInputAdvisories(caseState, resolvedCandidateIndex") &&
+      localChecksSource.includes('return "herb_dose_incomplete"') &&
+      localChecksSource.includes('return "regimen_incomplete"'),
+    "risk: forged/stale contracts and invalid edited-candidate envelopes are rejected before the local checks issue a receipt; clinical findings remain advisory and the submission guard retains dose/regimen requirements",
     postPrescriptionRiskRoute,
   );
   assert(safetySource.includes("patientSexText") && safetySource.includes("patientAgeText") && safetySource.includes("trustedInputText(state)"), "safety: raw HIS demographics and prescription-safety clues participate in deterministic gating", sourceBetween(safetySource, "function numberFromClinicalText", "function missingVitalsForHighRiskPresentation"));
@@ -802,7 +787,7 @@ async function runFrontendContractChecks() {
   "frontend: only traceable external evidence is shown; inference, insufficient, and pending states never reach customers", evidenceVisibility);
   assert(hisSchemeSource.includes("customerEvidenceDisplayStatus") && hisSchemeSource.includes('formulaEvidenceStatus === "traceable"') && !hisSchemeSource.includes("方剂依据核验状态") && !hisSchemeSource.includes("药味依据核验") && !hisSchemeSource.includes("随症加减依据核验"), "HIS: only traceable formula references are emitted; missing evidence is omitted instead of rendered as an internal gap", sourceBetween(hisSchemeSource, "function structuredHerbalSection", "function normalizedHerbName"));
   assert(hisSchemeSource.includes("withSafetyGate(caseState)") && hisSchemeSource.includes("prescribeReasoningFromState") && hisSchemeSource.includes("function structuredHerbalSection") && hisSchemeSource.includes("candidate.herbs"), "HIS: payload rebuilds safety invariants and uses M04 structured herbs as the write-back source", hisSchemeSource.slice(0, 9200));
-  assert(hisSchemeRoute.includes("runBoundedRxAudit") && hisSchemeRoute.includes("audit outcome itself is advisory") && hisSchemeRoute.includes("deriveSafetyLocked"), "HIS: the server refreshes trustworthy audit warnings without turning audit results into adoption locks", hisSchemeRoute);
+  assert(!hisSchemeRoute.includes("runBoundedRxAudit") && hisSchemeRoute.includes("the findings are advisory") && hisSchemeRoute.includes("deriveSafetyLocked") && hisSchemeRoute.includes("buildLocalHighRiskHerbPairSection(auditCaseState, candidateIndex)"), "HIS: the server re-runs the local deterministic checks without turning their findings into adoption locks", hisSchemeRoute);
   assert(
     hisSchemeRoute.includes("validateHisPrescriptionForWriteBack") &&
       hisPrescriptionValidationSource.includes("verifyDiagnoseReasoningSignature") &&
@@ -817,14 +802,14 @@ async function runFrontendContractChecks() {
     "HIS: server write-back boundary verifies signed M03 and selected candidates, runs herb/regimen/formula checks, and preserves their clinical findings as advisories",
     `${hisSchemeRoute}\n${hisPrescriptionValidationSource}`,
   );
-  assert(rxauditSource.includes("drugName") && rxauditSource.includes("炮制：") && hisSchemeSource.includes("炮制："), "prescription identity: processing and decoction instructions survive audit and HIS rendering", `${sourceBetween(rxauditSource, "export function buildAuditItemsFromHerbs", "function extractSection")}\n${sourceBetween(hisSchemeSource, "function structuredHerbalSection", "function normalizedHerbName")}`);
+  assert(localChecksSource.includes("`${processing}${baseName}`") && hisSchemeSource.includes("炮制："), "prescription identity: processing instructions survive local checks and HIS rendering", `${sourceBetween(localChecksSource, "function structuredHerbDoseRows", "function extractSection")}\n${sourceBetween(hisSchemeSource, "function structuredHerbalSection", "function normalizedHerbName")}`);
   assert(
-    rxauditSource.includes("const submissionIssue = rxAuditSubmissionIssue(state, candidateIndex)") &&
-      postPrescriptionRiskRoute.includes("rxAuditSubmissionIssue(caseState, resolvedCandidateIndex)") &&
-      assessRoute.includes("runBoundedRxAudit(gated, candidateIndex") &&
-      hisSchemeRoute.includes("runBoundedRxAudit(caseState, candidateIndex"),
-    "prescription identity: post-risk, M05, HIS, and the shared provider client all reject missing frequency, regimen, or dose before external audit",
-    `${rxauditSource.slice(36000, 44500)}\n${postPrescriptionRiskRoute}\n${assessRoute}\n${hisSchemeRoute}`,
+    postPrescriptionRiskRoute.includes("prescriptionSubmissionIssue(caseState, resolvedCandidateIndex)") &&
+      assessRoute.includes("buildPrescriptionInputAdvisories(gated, candidateIndex)") &&
+      hisSchemeRoute.includes("buildPrescriptionInputAdvisories(caseState, candidateIndex)") &&
+      !`${postPrescriptionRiskRoute}${assessRoute}${hisSchemeRoute}`.includes("@/lib/rxaudit\""),
+    "prescription identity: post-risk, M05 and HIS run the shared local checks for missing frequency, regimen, or dose; no route calls an external audit",
+    `${postPrescriptionRiskRoute}\n${assessRoute}\n${hisSchemeRoute}`,
   );
 
   assert(!source.includes("function MiniField("), "frontend: removed bulky mini-field renderer from candidate prescription cards");
@@ -1300,8 +1285,8 @@ function completeHisDeliveryFixture(caseState) {
   completed.prescription = render(prescribe, "prescribe");
   // This fixture has not been audited. The route replaces both sections with its current audit and
   // deterministic M05 output; do not forge a PASS just to satisfy the three-body completeness rule.
-  completed.riskAssessment = [buildUnavailableRxAuditSection("regression_fixture_not_audited"),
-    buildDeterministicRiskFollowup(withSafetyGate(completed))].join("\n\n");
+  // 外部审方已删除：M05 不再产出「合理用药审方」段，风险评估只有本地段与确定性随访。
+  completed.riskAssessment = buildDeterministicRiskFollowup(withSafetyGate(completed));
   const normalized = normalizeCaseStateInput(completed);
   if (!normalized) throw new Error("Unable to normalize complete HIS delivery fixture");
   completed.reasoningDiagnose = signDiagnoseReasoning(diagnose, buildDiagnoseContractSignatureContext(withSafetyGate(normalized)));
@@ -1434,7 +1419,7 @@ async function runHisProjectionCases() {
       assert(body?.code === "invalid_m04_signature", `HIS projection ${fixture.name}: edits invalidate acceptance`, body);
       continue;
     }
-    const expectedAdoption = !fixture.restricted && (!fixture.medicine || expectRxAuditEnabled !== false);
+    const expectedAdoption = !fixture.restricted && !fixture.medicine;
     assert(body?.prescriptions?.herbal?.[0]?.adoptable === expectedAdoption,
       `HIS projection ${fixture.name}: exact herbal adoption boundary`, body);
     assert(body?.workflowPermission === "continue", `HIS projection ${fixture.name}: report remains readable`, body);
@@ -2452,7 +2437,7 @@ async function runEndpointRegressionCases() {
   });
   const m05 = await request("POST", "/api/diagnosis/assess", { caseState: negatedRiskCase });
   assert(m05.status === 200, "m05 negated risk status", m05.text.slice(0, 200));
-  // 审方呈现开关 888dcad（owner 裁定 2026-08-28）：CDSS_SHOW_RX_AUDIT_SECTION 默认关，
+  // 审方呈现开关 888dcad（owner 裁定 2026-08-28；开关与审方本身已于 2026-09-25 删除）：CDSS_SHOW_RX_AUDIT_SECTION 默认关，
   // 「审方结论/最高风险等级」这类以三方审方为主语的呈现默认不再出现在本产品内
   // （呈现开关，不是检测开关）。本条改钉呈现态无关的不变量：M05 的**确定性安全总评**
   // （最高提示强度/综合风险判断，模型永不写风险结论）必须始终在场。
@@ -2534,12 +2519,8 @@ async function runEndpointRegressionCases() {
   });
   const benignRisk = await request("POST", "/api/diagnosis/assess", { caseState: benignHerbCautionCase });
   assert(benignRisk.status === 200, "m05 herb caution status", benignRisk.text.slice(0, 200));
-  if (expectRxAuditEnabled) {
-    assert(!/最高提示强度\*\*[：:]\s*强提示|综合风险判断\*\*[：:]\s*较高风险/.test(benignRisk.text), "m05 should not promote whole prescription to strong risk from herb-table generic cautions", benignRisk.text.slice(0, 1200));
-  } else {
-    assert(/TCM_CDSS_RXAUDIT_STATUS:DISABLED/.test(benignRisk.text), "m05 marks the explicitly disabled external module as hidden", benignRisk.text.slice(0, 1200));
-    assert(!/确定性审方未完成|外部审方引擎不可用|最高提示强度\*\*[：:]\s*强提示/.test(benignRisk.text), "intentional audit skip alone must not manufacture strong clinical risk", benignRisk.text.slice(0, 1200));
-  }
+  assert(/TCM_CDSS_RXAUDIT_STATUS:DISABLED/.test(benignRisk.text), "m05 marks the removed external module as hidden", benignRisk.text.slice(0, 1200));
+  assert(!/确定性审方未完成|外部审方引擎不可用|最高提示强度\*\*[：:]\s*强提示/.test(benignRisk.text), "the absent audit alone must not manufacture strong clinical risk", benignRisk.text.slice(0, 1200));
 
   const realRiskSectionCase = baseCase("m05-real-risk-section-strong", {
     prescription: [
@@ -2566,27 +2547,13 @@ async function runKnowledgeCalls() {
   assert(health.status === 200 && health.json?.ready === true, "health ready", health.json);
   assert(health.json?.snapshotPersistence?.ready === true, "health reports encrypted snapshot persistence ready", health.json);
   assert(health.json?.reasoningContract?.ready === true, "health reports signed M03 reasoning contracts ready", health.json);
-  const runtimeRxAuditEnabled = health.json?.rxAudit?.enabled === true;
-  if (expectRxAuditEnabled == null) {
-    expectRxAuditEnabled = runtimeRxAuditEnabled;
-  } else {
-    assert(runtimeRxAuditEnabled === expectRxAuditEnabled, `health rxAudit enabled=${expectRxAuditEnabled}`, health.json?.rxAudit);
-  }
   const strictHealth = await request("GET", "/api/diagnosis/health?strict=1");
-  assert(strictHealth.status === 200 && strictHealth.json?.strictReady === true, "strict health requires all enabled dependencies; an explicitly disabled audit is optional", { status: strictHealth.status, strictReady: strictHealth.json?.strictReady });
-  if (!expectRxAuditEnabled) {
-    assert(strictHealth.json?.rxAudit?.explicitlyDisabled === true, "audit absence must be an explicit operator skip, never missing configuration", strictHealth.json?.rxAudit);
-    assert(strictHealth.json?.rxAuditProbe?.ok === false && strictHealth.json?.rxAuditProbe?.reason === "disabled", "skipped audit probe must not claim a provider health check", strictHealth.json?.rxAuditProbe);
-  }
-  if (expectRxAuditEnabled) {
-    assert(strictHealth.json?.strictReady === true, "health strict readiness includes model, evidence, audit, and encrypted snapshot persistence", strictHealth.json);
-    assert(
-      strictHealth.json?.controlledTerminology?.ready === true &&
-      strictHealth.json?.controlledTerminology?.probe?.ok === true &&
-      strictHealth.json?.controlledTerminology?.probe?.selectedCandidate === "痰火扰神",
-      "health strict readiness proves the Flash closed-set mapper can reach the expected governed syndrome by consensus",
-      strictHealth.json?.controlledTerminology,
-    );
+  assert(strictHealth.status === 200 && strictHealth.json?.strictReady === true, "strict health requires all enabled dependencies", { status: strictHealth.status, strictReady: strictHealth.json?.strictReady });
+  // 合理用药审方已删除：健康检查不再报告审方就绪，也不再对它发探针。
+  for (const body of [health.json, strictHealth.json]) {
+    assert(!Object.hasOwn(body || {}, "rxAudit") && !Object.hasOwn(body || {}, "rxAuditProbe") &&
+      !(body?.degradedReasons || []).some((reason) => /rxaudit/.test(reason)),
+    "health no longer reports or probes the removed prescription audit", { rxAudit: body?.rxAudit, degradedReasons: body?.degradedReasons });
   }
   const primaryModel = health.json?.providers?.primaryModel;
   assert(
@@ -3028,23 +2995,17 @@ async function runKnowledgeCalls() {
       const expectedDoseAdvisory = item.expectedSubmissionIssue !== "herb_dose_incomplete" ||
         res.json?.audit?.inputAdvisories?.some((advisory) => advisory?.code === "missing_dose");
       assertDeliveryReport(res, new RegExp(item.expectedSubmissionIssue), item.name);
-      const localOnlyStatus = expectRxAuditEnabled === false ? isExpectedSkippedAudit(res.json?.audit)
-        : res.json?.audit?.reason === item.expectedSubmissionIssue && res.json?.audit?.degraded === true &&
-          /未调用外部审方接口/.test(res.json?.section || "");
+      const localOnlyStatus = isExpectedSkippedAudit(res.json?.audit);
       assert(localOnlyStatus && expectedDoseAdvisory,
       `${item.name}: unprocessable input is reported locally without an external audit call`, res.json);
       continue;
     }
     assert(res.status === 200, `${item.name}: post risk status`, res.text.slice(0, 200));
-    if (expectRxAuditEnabled === false) {
-      // External audit branding/verdicts are intentionally hidden, not a clinical
-      // success claim. Local contraindication/dose/unknown-herb findings remain.
-      assert(isExpectedSkippedAudit(res.json?.audit), `${item.name}: explicit skip never fabricates an external verdict`, res.json?.audit);
-      if (item.expectedLocalWarning) assert(matchingDeliveryWarning(res.json, item.expectedLocalWarning),
-        `${item.name}: disabling the provider preserves the concrete local finding`, res.json?.warnings);
-    } else {
-      assert(item.pattern.test([res.json?.section, res.json?.followup].filter(Boolean).join("\n")), `${item.name}: post risk pattern`, res.json);
-    }
+    // External audit verdicts no longer exist (removed 2026-09-25), which is not a clinical
+    // success claim. Local contraindication/dose/unknown-herb findings remain.
+    assert(isExpectedSkippedAudit(res.json?.audit), `${item.name}: the receipt never fabricates an external verdict`, res.json?.audit);
+    if (item.expectedLocalWarning) assert(matchingDeliveryWarning(res.json, item.expectedLocalWarning),
+      `${item.name}: the concrete local finding is preserved`, res.json?.warnings);
     assert(
       res.json?.audit?.safetyLocked === (item.expectHardSafetyLock === true),
       `${item.name}: only independent hard safety gates may lock the post-prescription flow`,

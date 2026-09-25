@@ -39,7 +39,11 @@ const ALLOWLIST = new Map([
   ["src/lib/clinical-facts.ts", "语义事实回补的 schema 字段与文案。"],
   ["src/lib/m02-question-contract.ts", "追问模板文案。"],
   ["src/lib/m04-proposal-compiler.ts", "M04 编译期的结构校验文案。"],
-  ["src/lib/rxaudit.ts", "灵犀审方接口的字段映射与文案。"],
+  ["src/lib/local-prescription-checks.ts",
+    "原 rxaudit.ts 本地核对部分逐字迁入（2026-09-25 灵犀审方删除）。用药否定/局部范围/不详的**语言学**判据与" +
+    "字段标签形态（与 clinical-polarity 同类），以及受控具体药名兜底闭集（16 个西药名、3 个日常类别说法）。" +
+    "它只决定「现用药能否排除」的待核对提示，表短于实际时结果偏严（多提示人工核对），方向安全。" +
+    "待建 tcm-linguistic-lexicon.source.json 与受治理药品主数据后迁出。"],
   ["src/lib/diagnosis-types.ts", "类型定义中的受控枚举字面量(君/臣/佐/使 等),是 schema 不是词表。"],
   ["src/lib/tcm-formula-provenance.ts", "方剂出处解析的结构词(《》括号等)与文案。"],
   ["src/lib/tcm-treatment-projects.ts", "受控治疗项目目录标签,已是集中来源。"],
@@ -63,7 +67,6 @@ const ALLOWLIST = new Map([
   // ── 语言学层(否定/极性/主语/占位):中医术语词表不覆盖,待建 tcm-linguistic-lexicon.source.json ──
   ["src/lib/clinical-entry.ts", "TODO-迁移:CLINICAL_NEGATION 等否定词。属语言学层,受治理中医术语表不含;待建语言学词表来源后迁移。"],
   ["src/lib/polarity-negation-assist.server.ts", "TODO-迁移:口语否定线索词。同上语言学层。"],
-  ["src/lib/medication-event-extractor.ts", "TODO-迁移:家属主语词(区分患者自述与家属代述)。语言学层。"],
   ["src/lib/prescription-revision.ts", "TODO-迁移:编辑占位符词。语言学/呈现层。"],
   ["src/lib/diagnosis-client-guards.ts", "占位符与未生成态判据,呈现层结构判据不是临床词表。"],
   ["src/lib/clinical-output-authority.ts", "AMBIGUOUS_PLAIN_TERMS 是**工程术语**黑名单(前端/后端/权重/槽位),防止内部词汇泄漏到医生正文;与临床词表无关。"],

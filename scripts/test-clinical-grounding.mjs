@@ -26,11 +26,11 @@ execFileSync(process.execPath, ["scripts/build-phi-clinical-lexemes.mjs", "--che
 const { isUnknownClinicalFieldText, isUnknownClinicalText } = await import("../src/lib/clinical-state.ts");
 const { consumeCollectStream, consumeMarkdownStream, consumeMarkdownStreamWithMetadata, sanitizeCaseStateForBrowserPersistence, scrubPersistentPhiText } = await import("../src/lib/diagnosis-engine.ts");
 const { computePrescriptionVersionHash } = await import("../src/lib/prescription-version.ts");
-const { buildAuditData, buildAuditItemsFromHerbs, buildLingxiRiskSection } = await import("../src/lib/rxaudit.ts");
+const { buildPrescriptionInputAdvisories, prescriptionSubmissionIssue } = await import("../src/lib/local-prescription-checks.ts");
 const { normalizeExternalEvidenceResponse } = await import("../src/lib/evimed-guide.ts");
 const { isKnownTcmHerbName } = await import("../src/lib/tcm-knowledge.ts");
 const { prescriptionRegimenFromDecoction } = await import("../src/lib/prescription-regimen-contract.ts");
-const { buildRxAuditStatusMarker, parseRxAuditStatusMarker, stripRxAuditStatusMarker } = await import("../src/lib/rxaudit-status.ts");
+const { parseRxAuditStatusMarker, stripRxAuditStatusMarker } = await import("../src/lib/rxaudit-status.ts");
 const { buildSeasonalCare, currentSolarTerm } = await import("../src/lib/tcm-seasonal-care.ts");
 const { computeTongueRoiCrop, detectTongueRoi } = await import("../src/lib/tongue-image-roi.ts");
 const {
@@ -214,10 +214,11 @@ assert.equal(
 for (const identifier of ["病历号：ABCD1234", "病例号 CASE-5678", "MRN: MRN998877", "患者编号：PT-20260714"]) {
   assert.doesNotMatch(sanitizeFreeTextForExternalClinicalService(`咳嗽3日；${identifier}`), /ABCD1234|CASE-5678|MRN998877|PT-20260714/i, identifier);
 }
-const unavailableAuditMarker = buildRxAuditStatusMarker({ available: false, reason: "no_prescription_items" });
+// 旧会话里落盘的审方状态标记（审方已于 2026-09-25 删除，服务端只再产出 DISABLED）。
+const unavailableAuditMarker = "<!-- TCM_CDSS_RXAUDIT_STATUS:UNAVAILABLE:NO_PRESCRIPTION_ITEMS -->";
 assert.deepEqual(parseRxAuditStatusMarker(`${unavailableAuditMarker}\n## 合理用药审方`), { available: false, reason: "no_prescription_items" });
 assert.equal(stripRxAuditStatusMarker(`${unavailableAuditMarker}\n## 合理用药审方`), "## 合理用药审方");
-assert.deepEqual(parseRxAuditStatusMarker(buildRxAuditStatusMarker({ available: true })), { available: true });
+assert.deepEqual(parseRxAuditStatusMarker("<!-- TCM_CDSS_RXAUDIT_STATUS:AVAILABLE -->"), { available: true });
 assert.equal(currentSolarTerm(new Date("2026-07-14T02:00:00Z")).name, "小暑");
 assert.equal(currentSolarTerm(new Date("2026-01-02T02:00:00Z")).name, "冬至");
 assert.match(buildSeasonalCare("阴虚火旺夹湿", new Date("2026-07-14T02:00:00Z")).solarTerm, /小暑前后/);
@@ -1246,29 +1247,6 @@ const maleApplicableOutput = sanitizeUngroundedRedFlagNegations([
 assert.doesNotMatch(maleApplicableOutput, /月经|经期|妊娠|孕妇|孕期|孕产|哺乳/);
 assert.match(maleApplicableOutput, /注意头晕|观察头晕/);
 
-const maleLingxiOutput = buildLingxiRiskSection({
-  ok: true,
-  source: "lingxi",
-  degraded: false,
-  auditResult: "BLOCK",
-  highestRiskLevel: "CRITICAL",
-  needManualReview: true,
-  itemCount: 1,
-  issues: [{
-    issueId: "LX-1001",
-    riskLevel: "CRITICAL",
-    title: "孕妇禁用",
-    description: "孕期禁用，备孕女性停药",
-    suggestions: ["哺乳期停药"],
-    relatedItemNos: [1],
-    evidence: [],
-    action: "BLOCK",
-  }],
-}, "男");
-assert.match(maleLingxiOutput, /LX-1001/);
-assert.match(maleLingxiOutput, /强提示，需人工复核/);
-assert.match(maleLingxiOutput, /孕期禁用/);
-assert.doesNotMatch(maleLingxiOutput, /当前资料判定不适用|未见需提示问题/);
 
 assert.deepEqual(normalizeExternalEvidenceResponse("literature", {
   data: [{ title: "伪造文献", url: "http://127.0.0.1/fake", summary: "无可追溯元数据" }],
@@ -1377,47 +1355,17 @@ const processedOriginal = {
 };
 const processedEdited = [{ ...processedOriginal.herbs[0], processing: "生", decoctionRequirement: "后下" }, processedOriginal.herbs[1]];
 const processedSynchronized = synchronizeEditedCandidate(processedOriginal, processedEdited);
-const auditItems = buildAuditItemsFromHerbs({ reasoningV2: {
-  schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [processedSynchronized], modifications: [] },
-} });
-assert.equal(auditItems[0].drug_name, "生酸枣仁");
-assert.equal(auditItems[0].decoction_requirement, "炮制：生；后下");
-const mgAuditItems = buildAuditItemsFromHerbs({ reasoningV2: {
-  schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [{ ...processedSynchronized, herbs: [{ ...processedSynchronized.herbs[0], dose: "999mg" }] }], modifications: [] },
-} });
-assert.equal(mgAuditItems[0].single_dose, 999);
-assert.equal(mgAuditItems[0].single_dose_unit, "mg");
-const secondCandidateAuditItems = buildAuditItemsFromHerbs({ reasoningV2: {
-  schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: {
-    candidates: [processedOriginal, { ...processedSynchronized, name: "第二候选方", herbs: [{ ...processedSynchronized.herbs[0], name: "茯神", dose: "12g" }] }],
-    modifications: [],
-  },
-} }, 1);
-assert.equal(secondCandidateAuditItems[0].drug_name, "生茯神");
-assert.equal(secondCandidateAuditItems[0].single_dose, 12);
-const regimenAuditData = buildAuditData({ patient: {}, reasoningV2: {
-  schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: {
-    candidates: [processedSynchronized], modifications: [],
-  },
-} });
-assert.match(String(regimenAuditData?.data?.prescription?.patient?.clinical_summary || ""), /共5剂.*疗程5日.*每日1剂.*复诊节点/);
-const phiAuditData = buildAuditData({
-  patient: { name: "张三" },
-  chiefComplaint: "张三咳嗽3日；Alice Wang 昨夜失眠三周",
-  hisRecord: {
-    source: "manual",
-    encounterId: "phi-audit",
-    rawText: "张三咳嗽3日；病历号：ABCD1234；MRN: MRN998877",
-    fields: { patientName: "张三", zhushu: "张三咳嗽3日", xianbingshi: "张三近3日咳嗽；病例号 CASE-5678", patientRecordNumber: "PT-20260714" },
-    collectedAt: new Date(0).toISOString(),
-    tongueImageUploaded: false,
-  },
-  reasoningV2: {
-    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: { primarySyndrome: "Alice Wang 心脾两虚" }, formula: { candidates: [processedSynchronized], modifications: [] },
-  },
-});
-assert.doesNotMatch(JSON.stringify(phiAuditData?.data || {}), /张三/, "the external audit payload must remove an explicit patient name even when embedded in prose");
-assert.doesNotMatch(JSON.stringify(phiAuditData?.data || {}), /ABCD1234|CASE-5678|MRN998877|PT-20260714|Alice Wang/i, "the external audit payload must remove all common medical-record identifiers and English patient names");
+// 编辑后的炮制与剂量单位必须原样进入本地处方核对（外部审方载荷已随审方删除，2026-09-25）。
+const reasoningWith = (candidates) => ({ reasoningV2: { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates, modifications: [] } } });
+const withoutFirstDose = (candidate, overrides = {}) => ({ ...candidate, herbs: candidate.herbs.map((herb, index) => index === 0 ? { ...herb, ...overrides, dose: "" } : herb) });
+const processedAdvisories = buildPrescriptionInputAdvisories(reasoningWith([withoutFirstDose(processedSynchronized)]));
+assert.equal(processedAdvisories[0]?.drugName, "生酸枣仁", "the edited processing must reach the local check, not the original 炒");
+const mgState = reasoningWith([{ ...processedSynchronized, herbs: [{ ...processedSynchronized.herbs[0], dose: "999mg" }] }]);
+assert.equal(prescriptionSubmissionIssue(mgState), undefined, "a milligram dose is a complete, parseable dose");
+assert.deepEqual(buildPrescriptionInputAdvisories(mgState).filter((item) => item.code === "missing_dose"), []);
+const secondCandidateAdvisories = buildPrescriptionInputAdvisories(reasoningWith([processedOriginal,
+  withoutFirstDose({ ...processedSynchronized, name: "第二候选方" }, { name: "茯神" })]), 1);
+assert.equal(secondCandidateAdvisories[0]?.drugName, "生茯神", "the explicitly selected candidate is checked, not the first one");
 assert.equal(prescriptionRegimenFromDecoction(processedSynchronized.decoction)?.dosesPerDay, 1);
 assert.equal(prescriptionRegimenFromDecoction({ ...processedSynchronized.decoction, method: "每日2剂，早晚分服" }), null);
 assert.equal(prescriptionRegimenFromDecoction({ ...processedSynchronized.decoction, method: "2剂/日，早晚分服" }), null);
