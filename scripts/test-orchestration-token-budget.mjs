@@ -143,12 +143,8 @@ check("极性缓存键取送模型的脱敏正文，不是整个 CaseState", () 
   assert.ok(body.includes("trustedInputText(sanitizeCaseStateForModel(caseState))"),
     "键必须与实际模型输入一致，否则 id/时间戳变化会造成无谓未命中");
 });
-check("极性全空结果不入缓存（那是降级值不是结论）", () => {
-  assert.ok(
-    polarity.includes("if (value.negated.size > 0 || value.affirmed.size > 0)"),
-    "模型不可用时返回空集，缓存它会把瞬时不可用钉死成整窗不可用",
-  );
-});
+// 「降级空集不入缓存、明确作答（含 none）入缓存」改为行为断言，见 test-upstream-guards.mjs 末尾
+//（2026-09-25：原先按源码字面钉「非空才缓存」，那条规则让明确答 none 的病例在 M04 整轮重发）。
 
 // ── 7. preflight 必须**保持不接线**（2026-08-29 实测回归后反向钉住）────────────
 const api = read("src/lib/diagnosis-api.ts");

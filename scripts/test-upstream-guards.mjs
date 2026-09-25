@@ -673,3 +673,47 @@ console.log(JSON.stringify({ cases: 36, failures: 0 }));
 }
 
 
+
+{
+  // 极性助手缓存（2026-09-25）：模型「明确作答」（含答 none）即入缓存，M04 不再对同一份病历整轮重发；
+  // 不可用/异常返回的空集是降级值不是结论，不得入缓存（否则一次瞬时故障被钉死成整窗不可用）。
+  const { assistedPolarityDecisions, resetAssistedPolarityCache } = await jiti.import("../src/lib/polarity-negation-assist.server.ts");
+  const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
+  const polarityEnv = {
+    AI_TEXT_PROVIDER: "bailian-qwen", BAILIAN_QWEN_API_KEY: "test-qwen-key",
+    BAILIAN_QWEN_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1", BAILIAN_QWEN_MODEL: "qwen3.8-flash",
+    CONTROLLED_TERMINOLOGY_MODEL: "deepseek-flash", OPENAI_API_KEY: "test-deepseek-key", OPENAI_BASE_URL: "https://api.deepseek.com",
+  };
+  const saved = Object.fromEntries(Object.keys(polarityEnv).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, polarityEnv);
+  const state = normalizeCaseStateInput({ id: "polarity-cache", conversation: [], chiefComplaint: "胃脘胀痛3天",
+    symptoms: { presentHistory: "胃脘胀痛，胸口不疼，哪有什么胸痛，无汗" } });
+  const savedFetch = globalThis.fetch;
+  let calls = 0;
+  let reply = "none";
+  globalThis.fetch = async () => {
+    calls += 1;
+    if (reply === "throw") throw new TypeError("fetch failed");
+    return new Response(JSON.stringify({ id: "x", object: "chat.completion", created: 0, model: "deepseek-flash",
+      choices: [{ index: 0, message: { role: "assistant", content: reply }, finish_reason: "stop" }] }), { headers: { "Content-Type": "application/json" } });
+  };
+  try {
+    resetAssistedPolarityCache();
+    await assistedPolarityDecisions(state);
+    const firstCalls = calls;
+    assert.ok(firstCalls > 0, "病例含口语否定候选，首轮必须真的问模型（否则下面的缓存断言空转）");
+    await assistedPolarityDecisions(state);
+    assert.equal(calls, firstCalls, "模型明确答 none 属于定论，同一份病历的第二次调用必须命中缓存");
+    resetAssistedPolarityCache();
+    calls = 0;
+    reply = "throw";
+    await assistedPolarityDecisions(state);
+    const failedCalls = calls;
+    await assistedPolarityDecisions(state);
+    assert.ok(calls > failedCalls, "模型不可用时的空集不得入缓存，下一次必须重新尝试");
+  } finally {
+    globalThis.fetch = savedFetch;
+    resetAssistedPolarityCache();
+    Object.entries(saved).forEach(([key, value]) => { if (value === undefined) delete process.env[key]; else process.env[key] = value; });
+  }
+}

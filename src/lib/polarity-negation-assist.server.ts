@@ -194,15 +194,17 @@ export async function assistedPolarityDecisions(
 
   const pending = (async (): Promise<AssistedPolarityDecisions> => {
     const [negated, affirmed] = await Promise.all([
-      assistedNegationClauses(caseState, signal),
-      assistedAffirmativeClauses(caseState, signal),
+      negationSelection(caseState, signal),
+      affirmativeSelection(caseState, signal),
     ]);
     const value: AssistedPolarityDecisions = {
-      negated: negated instanceof Set ? negated : new Set<string>(),
-      affirmed,
+      negated: negated.picked,
+      affirmed: affirmed.picked,
     };
-    // 两侧都拿到了非空结论才算「成功」；全空可能是模型不可用的降级值，不入缓存。
-    if (value.negated.size > 0 || value.affirmed.size > 0) {
+    // 两侧都「有定论」才入缓存：没有候选分句，或模型确实作答（含明确答 none）。
+    // 不可用/超时/异常返回的空集是降级值不是结论，不入缓存。此前规则是「非空才缓存」，
+    // 于是模型明确答 none 的病例到 M04 又整轮重发（2026-09-25 过度设计清理）。
+    if (negated.settled && affirmed.settled) {
       polarityCache.set(key, { value, expiresAt: Date.now() + POLARITY_CACHE_TTL_MS });
       while (polarityCache.size > POLARITY_CACHE_MAX_ENTRIES) {
         const oldest = polarityCache.keys().next();
@@ -220,6 +222,26 @@ export async function assistedPolarityDecisions(
   }
 }
 
+type ClauseSelection = { picked: ReadonlySet<string>; settled: boolean };
+
+async function affirmativeSelection(caseState: CaseState, signal?: AbortSignal): Promise<ClauseSelection> {
+  const candidates = affirmativeNegationCandidatePairs(caseState);
+  if (candidates.length === 0) return { picked: new Set<string>(), settled: true };
+  const selection = await selectClauses(candidates, AFFIRMATIVE_SYSTEM_PROMPT, signal);
+  // 二次闭集校验：即便模型返回的序号合法，被选中的分句也必须仍然含受治理词。
+  // 候选生成与结果采纳各校验一次，中间任何改动让两者分叉时都会在这里被挡住。
+  return {
+    picked: new Set([...selection.picked].filter((clause) => affirmativeNegationFormsIn(clause).length > 0)),
+    settled: selection.settled,
+  };
+}
+
+async function negationSelection(caseState: CaseState, signal?: AbortSignal): Promise<ClauseSelection> {
+  const candidates = colloquialNegationCandidatePairs(caseState);
+  if (candidates.length === 0) return { picked: new Set<string>(), settled: true };
+  return selectClauses(candidates, SYSTEM_PROMPT, signal);
+}
+
 /**
  * 返回「确定性层判否定、实为阳性体征」的分句集合；不可用时返回空集（等于今天的行为）。
  */
@@ -227,16 +249,8 @@ export async function assistedAffirmativeClauses(
   caseState: CaseState,
   signal?: AbortSignal,
 ): Promise<ReadonlySet<string>> {
-  const empty = new Set<string>();
-  if (!enabled() || signal?.aborted) return empty;
-  const config = getControlledTerminologyModelConfig();
-  if (!config.configured) return empty;
-  const candidates = affirmativeNegationCandidatePairs(caseState);
-  if (candidates.length === 0) return empty;
-  const picked = await askClauseSelection(candidates, AFFIRMATIVE_SYSTEM_PROMPT, signal);
-  // 二次闭集校验：即便模型返回的序号合法，被选中的分句也必须仍然含受治理词。
-  // 候选生成与结果采纳各校验一次，中间任何改动让两者分叉时都会在这里被挡住。
-  return new Set([...picked].filter((clause) => affirmativeNegationFormsIn(clause).length > 0));
+  if (!enabled() || signal?.aborted) return new Set<string>();
+  return (await affirmativeSelection(caseState, signal)).picked;
 }
 
 /**
@@ -246,9 +260,7 @@ export async function assistedNegationClauses(
   caseState: CaseState,
   signal?: AbortSignal,
 ): Promise<AssistedNegationClauses> {
-  const candidates = colloquialNegationCandidatePairs(caseState);
-  if (candidates.length === 0) return new Set<string>();
-  return askClauseSelection(candidates, SYSTEM_PROMPT, signal);
+  return (await negationSelection(caseState, signal)).picked as AssistedNegationClauses;
 }
 
 /**
@@ -259,15 +271,15 @@ export async function assistedNegationClauses(
  *
  * 三条边界与原实现逐字一致：
  *  · 模型只能返回**候选序号**，越界与重复一律丢弃——它无法引入任何新文本；
- *  · 未启用/未配置/超时/异常/解析失败一律返回空集，等于确定性层今天的行为；
+ *  · 未启用/未配置/超时/异常/解析失败一律返回空集，等于确定性层今天的行为，且 settled=false（不入缓存）；
  *  · 送模型前过 sanitizeFreeTextForModel。
  */
-async function askClauseSelection(
+async function selectClauses(
   candidates: readonly PolarityCandidate[],
   systemPrompt: string,
   signal?: AbortSignal,
-): Promise<ReadonlySet<string>> {
-  const empty = new Set<string>();
+): Promise<ClauseSelection> {
+  const empty: ClauseSelection = { picked: new Set<string>(), settled: false };
   if (!enabled() || signal?.aborted) return empty;
   const config = getControlledTerminologyModelConfig();
   if (!config.configured) return empty;
@@ -299,14 +311,16 @@ async function askClauseSelection(
       ],
     }, { signal: controller.signal }));
     const raw = response.choices?.[0]?.message?.content;
-    if (typeof raw !== "string" || /none/i.test(raw)) return empty;
+    if (typeof raw !== "string") return empty;
+    if (/none/i.test(raw)) return { picked: new Set<string>(), settled: true };
     const picked = new Set<string>();
     for (const token of raw.match(/\d+/g) || []) {
       const candidate = candidates[Number(token) - 1];
       // 越界或重复的序号直接丢弃：模型返回值只能选中候选，不能引入任何新文本。
       if (candidate) picked.add(candidate.clause);
     }
-    return picked;
+    // 全部序号越界视为未作答（不入缓存），与「明确答 none」区分开。
+    return { picked, settled: picked.size > 0 };
   } catch {
     return empty;
   } finally {

@@ -20,6 +20,44 @@ const shortlist = prefilterControlledSemanticCandidates("痰热蒙扰心神", sy
 const governedPhlegmFire = shortlist.find((item) => item.canonical === "痰火扰神");
 check(Boolean(governedPhlegmFire), "generic lexical prefilter must retain the governed semantic equivalent without a case-specific regex");
 
+// 2026-09-25 预筛改为按候选缓存预处理 + 整数名次排序（去掉每次对几千个同分项逐对 localeCompare）。
+// 下面是 68ea3f0 的原算法逐字参照实现：新实现必须与它逐项同序，含「正分不足 limit 时零分项补齐」。
+{
+  const TERM_PUNCTUATION = /[\s，,。.!！?？；;：:、（）()【】\[\]《》"'“”‘’_\-/\\]+/g;
+  const norm = (v) => typeof v === "string" ? v.normalize("NFKC").replace(TERM_PUNCTUATION, "").toLowerCase().trim() : "";
+  const chars = (v) => new Set([...v]);
+  const grams = (v, w) => !v ? new Set() : v.length <= w ? new Set([v]) : new Set(Array.from({ length: v.length - w + 1 }, (_, i) => v.slice(i, i + w)));
+  const dice = (l, r) => { if (!l.size || !r.size) return 0; let o = 0; for (const x of l) if (r.has(x)) o += 1; return (2 * o) / (l.size + r.size); };
+  const score = (input, c) => {
+    let best = 0;
+    for (const v of [c.canonical, ...c.aliases].map(norm).filter(Boolean)) {
+      if (v === input) return 100;
+      const containment = v.includes(input) || input.includes(v) ? Math.min(v.length, input.length) / Math.max(v.length, input.length) : 0;
+      best = Math.max(best, containment * 8 + dice(grams(input, 2), grams(v, 2)) * 6 + dice(chars(input), chars(v)) * 3 +
+        Number(input[0] === v[0]) * 0.25 + Number(input.at(-1) === v.at(-1)) * 0.25);
+    }
+    return best;
+  };
+  const reference = (inputValue, candidates, limit = 24) => {
+    const input = norm(inputValue);
+    if (!input) return [];
+    return candidates.map((c) => ({ c, s: score(input, c) }))
+      .sort((a, b) => b.s - a.s || a.c.canonical.localeCompare(b.c.canonical) || a.c.id.localeCompare(b.c.id))
+      .slice(0, Math.max(1, limit)).map((x) => x.c.id);
+  };
+  const inputs = ["痰热蒙扰心神", "肝胃不和", "脾虚湿盛", "心脾两虚", "a", "", "湿热下注证", "不寐"];
+  for (let i = 0; i < syndromeCandidates.length; i += 97) inputs.push(syndromeCandidates[i].canonical.slice(1));
+  for (const input of inputs) for (const limit of [1, 24, 60]) {
+    assert.deepEqual(prefilterControlledSemanticCandidates(input, syndromeCandidates, limit).map((c) => c.id), reference(input, syndromeCandidates, limit), `prefilter order drift: ${input}/${limit}`);
+    cases += 1;
+  }
+  const tiny = [{ id: "b", canonical: "乙", aliases: [] }, { id: "a", canonical: "甲", aliases: ["丙"] }, { id: "c", canonical: "乙", aliases: [] }];
+  for (const input of ["甲", "丁", "乙丙"]) for (const limit of [1, 2, 3, 10]) {
+    assert.deepEqual(prefilterControlledSemanticCandidates(input, tiny, limit).map((c) => c.id), reference(input, tiny, limit), `zero-score fill drift: ${input}/${limit}`);
+    cases += 1;
+  }
+}
+
 const target = {
   key: "m1",
   namespace: "tcm_syndrome",

@@ -69,23 +69,70 @@ function dice(left: Set<string>, right: Set<string>): number {
   return (2 * overlap) / (left.size + right.size);
 }
 
-function lexicalCandidateScore(input: string, candidate: ControlledSemanticCandidate): number {
-  const values = [candidate.canonical, ...candidate.aliases]
-    .map(normalizeControlledSemanticText)
-    .filter(Boolean);
+type PreparedCandidateValue = { text: string; chars: Set<string>; bigrams: Set<string> };
+
+// 候选词表是模块级常量（数千条），此前每次预筛都对每个候选的每个别名重算归一化、字集与二元组，
+// 生产 M03 的术语归一相位因此有约 1–2s 纯 CPU（2026-09-25 cpu-prof：ngrams/characterSet/dice
+// 占该相位绝大部分，模型调用本身只有 ~0.9s）。按候选对象缓存预处理结果，打分公式与排序逐字不变。
+const preparedCandidateValues = new WeakMap<ControlledSemanticCandidate, PreparedCandidateValue[]>();
+
+function preparedValues(candidate: ControlledSemanticCandidate): PreparedCandidateValue[] {
+  let prepared = preparedCandidateValues.get(candidate);
+  if (!prepared) {
+    prepared = [candidate.canonical, ...candidate.aliases]
+      .map(normalizeControlledSemanticText)
+      .filter(Boolean)
+      .map((text) => ({ text, chars: characterSet(text), bigrams: ngrams(text, 2) }));
+    preparedCandidateValues.set(candidate, prepared);
+  }
+  return prepared;
+}
+
+function lexicalCandidateScore(
+  input: string,
+  inputChars: Set<string>,
+  inputBigrams: Set<string>,
+  candidate: ControlledSemanticCandidate,
+): number {
   let best = 0;
-  for (const value of values) {
-    if (value === input) return 100;
-    const containment = value.includes(input) || input.includes(value)
-      ? Math.min(value.length, input.length) / Math.max(value.length, input.length)
+  for (const value of preparedValues(candidate)) {
+    if (value.text === input) return 100;
+    const containment = value.text.includes(input) || input.includes(value.text)
+      ? Math.min(value.text.length, input.length) / Math.max(value.text.length, input.length)
       : 0;
-    const charDice = dice(characterSet(input), characterSet(value));
-    const bigramDice = dice(ngrams(input, 2), ngrams(value, 2));
-    const prefixSuffix = Number(input[0] === value[0]) * 0.25 +
-      Number(input.at(-1) === value.at(-1)) * 0.25;
+    const charDice = dice(inputChars, value.chars);
+    const bigramDice = dice(inputBigrams, value.bigrams);
+    const prefixSuffix = Number(input[0] === value.text[0]) * 0.25 +
+      Number(input.at(-1) === value.text.at(-1)) * 0.25;
     best = Math.max(best, containment * 8 + bigramDice * 6 + charDice * 3 + prefixSuffix);
   }
   return best;
+}
+
+function compareByCanonicalThenId(left: ControlledSemanticCandidate, right: ControlledSemanticCandidate): number {
+  return left.canonical.localeCompare(right.canonical) || left.id.localeCompare(right.id);
+}
+
+// 同分项的相对顺序只取决于 canonical/id，与输入无关——按词表数组缓存一次排好的次序与名次，
+// 排序时用整数名次代替逐对 localeCompare（原实现对几千个同分/近同分项逐对 localeCompare）。
+// 名次取自同一比较器的稳定排序，故与原排序逐项一致（含 canonical/id 完全相同的项保持原相对次序）。
+const tieOrderCache = new WeakMap<readonly ControlledSemanticCandidate[], {
+  ordered: ControlledSemanticCandidate[];
+  rank: Map<ControlledSemanticCandidate, number>;
+}>();
+
+function tieOrder(candidates: readonly ControlledSemanticCandidate[]) {
+  let cached = tieOrderCache.get(candidates);
+  if (!cached) {
+    const ordered = [...candidates].sort(compareByCanonicalThenId);
+    const rank = new Map<ControlledSemanticCandidate, number>();
+    ordered.forEach((candidate, index) => {
+      if (!rank.has(candidate)) rank.set(candidate, index);
+    });
+    cached = { ordered, rank };
+    tieOrderCache.set(candidates, cached);
+  }
+  return cached;
 }
 
 /**
@@ -99,14 +146,27 @@ export function prefilterControlledSemanticCandidates(
 ): ControlledSemanticCandidate[] {
   const input = normalizeControlledSemanticText(inputValue);
   if (!input) return [];
-  return candidates
-    .map((candidate) => ({ candidate, score: lexicalCandidateScore(input, candidate) }))
-    .sort((left, right) =>
-      right.score - left.score ||
-      left.candidate.canonical.localeCompare(right.candidate.canonical) ||
-      left.candidate.id.localeCompare(right.candidate.id))
-    .slice(0, Math.max(1, limit))
-    .map((item) => item.candidate);
+  const size = Math.max(1, limit);
+  const inputChars = characterSet(input);
+  const inputBigrams = ngrams(input, 2);
+  const scored: Array<{ candidate: ControlledSemanticCandidate; score: number }> = [];
+  const zeroScored = new Set<ControlledSemanticCandidate>();
+  for (const candidate of candidates) {
+    const score = lexicalCandidateScore(input, inputChars, inputBigrams, candidate);
+    if (score > 0) scored.push({ candidate, score });
+    else zeroScored.add(candidate);
+  }
+  const { ordered, rank } = tieOrder(candidates);
+  scored.sort((left, right) =>
+    right.score - left.score || (rank.get(left.candidate) ?? 0) - (rank.get(right.candidate) ?? 0));
+  const shortlist = scored.slice(0, size).map((item) => item.candidate);
+  if (shortlist.length >= size) return shortlist;
+  // 正分不足 limit 时按原算法用零分项补齐：它们在原排序里排在所有正分之后、彼此按 canonical/id。
+  for (const candidate of ordered) {
+    if (shortlist.length >= size) break;
+    if (zeroScored.has(candidate)) shortlist.push(candidate);
+  }
+  return shortlist;
 }
 
 /**
