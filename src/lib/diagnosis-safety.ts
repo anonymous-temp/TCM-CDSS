@@ -4734,13 +4734,15 @@ export function buildSafetyLimitedDiagnosis(state: CaseState, gate: SafetyGate):
 /**
  * 有限 M03 兜底页的**可见理由必须说出真实原因**（2026-09-13，222 例实测第二类 7 例）。
  *
- * 此前非红旗分支无条件写「本次分析尚未形成通过临床复核的稳定证候结果」，而那 7 例的
- * attestation 是 `not_attempted_no_valid_draft`、复核尝试数 0——**复核根本没运行**。
- * 把结构化交付/解析问题说成复核问题，会让医生以为是临床证据不够而去补录，也让归因跑偏
- * （与 2026-08-04 「上游 503 被写成证候依据不足」是同一类混淆，那次只拆了上游一支）。
+ * 此前非红旗分支无条件写「本次分析尚未形成通过临床复核的稳定证候结果」，把结构化交付/解析
+ * 问题说成复核问题，会让医生以为是临床证据不够而去补录，也让归因跑偏（与 2026-08-04
+ * 「上游 503 被写成证候依据不足」是同一类混淆）。
  *
  * 这里按 attestation 的 unavailableReason 逐支给出各自的理由、限制与下一步动作。
- * 码缺席时维持旧文案（存量调用方与既有断言不变）。
+ * 模型复核环节已于 2026-09-16 移除：可见理由里不再提「独立临床复核」（owner 2026-09-25）；
+ * 只由已删除的复核执行产生的码（accepted_but_draft_rejected_downstream / invalid_contract /
+ * http_error / transport_error / not_configured）不再有专属文案。码缺席时维持旧文案
+ * （仅 block 档的红旗/既往背景拦截会走到，存量客户端回退正则依赖它）。
  */
 export function limitedDiagnosisReasonCopy(
   reviewUnavailableReason?: ClinicalReviewAttestation["unavailableReason"],
@@ -4748,43 +4750,21 @@ export function limitedDiagnosisReasonCopy(
   switch (reviewUnavailableReason) {
     case "not_attempted_no_valid_draft":
       return {
-        reason: "本次结构化辨证结果未通过服务端完整性校验，独立临床复核尚未启动（非复核否决）",
-        limitation: "本次未形成可复核的结构化辨证结果；独立临床复核未运行，不代表复核提出过否定意见",
+        reason: "本次结构化辨证结果未通过服务端完整性校验",
+        limitation: "本次未形成可复核的结构化辨证结果",
         nextAction: "重新运行辨病辨证分析；已录入病历无需修改",
       };
     case "not_attempted_upstream_down":
       return {
-        reason: "模型推理服务暂时不可用，本轮未能完成辨病辨证，独立临床复核未启动",
-        limitation: "本次为上游服务故障，不是病历信息不足，也不是复核否决",
+        reason: "模型推理服务暂时不可用，本轮未能完成辨病辨证",
+        limitation: "本次为上游服务故障，不是病历信息不足",
         nextAction: "稍后重新运行辨病辨证分析；已录入病历无需修改",
       };
     case "deadline":
       return {
-        reason: "本次辨病辨证与复核未在本阶段安全时限内完成",
-        limitation: "本次受时限约束提前收口，不代表复核提出过否定意见",
+        reason: "本次辨病辨证未在本阶段安全时限内完成",
+        limitation: "本次受时限约束提前收口",
         nextAction: "重新运行辨病辨证分析；如反复超时请联系系统管理员",
-      };
-    case "accepted_but_draft_rejected_downstream":
-      return {
-        reason: "独立临床复核已通过，但结果未通过其后的术语规范与结构完整性校验",
-        limitation: "未通过的是复核之后的确定性校验环节，临床复核本身未提出否定意见",
-        nextAction: "重新运行辨病辨证分析；若持续复现请把本次原因码提供给系统管理员",
-      };
-    case "invalid_contract":
-    case "http_error":
-    case "transport_error":
-      return {
-        reason: "独立临床复核本轮执行失败（复核服务返回错误或结果不合法），未取得复核结论",
-        limitation: "复核执行失败不等于复核否决，也不代表病历信息不足",
-        nextAction: "重新运行辨病辨证分析；如持续失败请联系系统管理员",
-      };
-    case "not_configured":
-      // 2026-09-16 起模型复核环节已移除，本码是所有签名结果的固定取值；措辞不得再暗示
-      // 「配一下就有复核」。
-      return {
-        reason: "本版本不设模型复核环节，本次未取得模型复核结论",
-        limitation: "临床合理性由医生把关；不存在复核否决",
-        nextAction: "由医生结合现有病历判断",
       };
     default:
       return {

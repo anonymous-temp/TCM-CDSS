@@ -1644,15 +1644,16 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
   }
   assert.equal(cleared.id, "case-x1");
 
-  // ── C2：复核状态是独立信道，不丢弃、不染红 ──
-  const reviewNotice = "<!-- CDSS_REVIEW_STATUS -->\n> 临床复核状态：独立处方复核本轮未完成。以下候选已通过结构与患者事实边界校验，仍须结合合理用药审方和医生判断复核。\n\n## 中药饮片处方\n正文";
+  // ── C2：旧版「临床复核状态」行（模型复核环节已移除，服务端 2026-09-25 起不再下发）──
+  // 本机缓存的旧病例仍可能带着这一行：它既不是安全警示也不是质量批注，按旧行丢弃，
+  // 不得落进红色安全卡或批注卡。
+  const reviewNotice = "<!-- CDSS_REVIEW_STATUS -->\n> 临床复核状态：本版本不设模型复核环节。以下候选已通过结构、患者事实、剂量边界与配伍禁忌的确定性核验；是否采纳仍须结合合理用药审方与医生判断。\n\n## 中药饮片处方\n正文";
   const noticed = extractServerLeadingNotices({ ...dirty, diagnosis: undefined, prescription: reviewNotice });
-  assert.equal(noticed.review.length, 1, "复核通知必须进入 review 信道（此前无安全 marker 时被整条丢弃）");
-  assert.equal(noticed.safety.length, 0, "复核通知绝不能染成安全警示");
+  assert.deepEqual(noticed, { safety: [], annotations: [] }, "旧版复核状态行必须丢弃，不得进任何卡片");
   const withSafety = "<!-- CDSS_SAFETY_ADVISORY -->\n> 存在未解除的红旗风险\n<!-- CDSS_REVIEW_STATUS -->\n> 临床复核状态：独立处方复核本轮未完成。\n\n## 正文";
   const both = extractServerLeadingNotices({ ...dirty, diagnosis: undefined, prescription: withSafety });
-  assert.equal(both.safety.length, 1);
-  assert.equal(both.review.length, 1, "同时有安全横幅时复核通知仍必须独立分类，不得并进安全卡");
+  assert.deepEqual(both.safety, ["存在未解除的红旗风险"], "旧版复核状态行绝不能染成安全警示");
+  assert.deepEqual(both.annotations, []);
   const unmarked = extractServerLeadingNotices({ ...dirty, diagnosis: undefined, prescription: "> 某条无标记引用说明。\n\n## 正文" });
   assert.equal(unmarked.annotations.some((line) => line.includes("无标记引用")), true,
     "无 marker 引用块降级为批注展示而不是丢弃（fail-visible）");

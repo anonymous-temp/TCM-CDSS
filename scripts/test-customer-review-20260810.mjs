@@ -46,7 +46,7 @@ const { herbFunctionMatchesKnowledge } = await load("src/lib/diagnosis-stage-con
 const { compileTcmTreatmentRecommendations } = await load("src/lib/tcm-treatment-capabilities.server.ts");
 const { buildEvidenceScope, governedEvidenceCitation } = await load("src/lib/evidence-source-validation.ts");
 const { buildEvidenceOutputTransform } = await load("src/lib/cdss-evidence-context.ts");
-const { applyClinicalReviewIndependenceWording, clinicalReviewIndependenceOf, clinicalReviewLabel } =
+const { clinicalReviewIndependenceOf, clinicalReviewLabel } =
   await load("src/lib/clinical-review-independence.ts");
 const { importDrugInventory, drugInventorySnapshot, resetDrugInventoryCacheForTests } =
   await load("src/lib/drug-inventory.server.ts");
@@ -526,10 +526,7 @@ check("⑨ 同模型第二次请求不得被称作「独立复核」", () => {
   assert.equal(clinicalReviewIndependenceOf(undefined), "same_model_second_pass", "未记录时按较弱一档，不得缺省成独立");
   assert.equal(clinicalReviewIndependenceOf(true), "cross_model");
   assert.equal(clinicalReviewLabel("same_model_second_pass"), "二次临床复核");
-  const notice = "> 临床复核状态：独立诊断复核本轮未完成。以下结果已通过独立临床复核的结构校验。";
-  const rewritten = applyClinicalReviewIndependenceWording(notice, "same_model_second_pass");
-  assert.doesNotMatch(rewritten, /独立/, `同模型拓扑下不得残留「独立」字样：${rewritten}`);
-  assert.equal(applyClinicalReviewIndependenceWording(notice, "cross_model"), notice, "跨模型拓扑下必须零操作");
+  assert.equal(clinicalReviewLabel("cross_model"), "独立临床复核");
 });
 
 // ── ⑫④ 库存分片必须要么全到齐、要么一条不落地 ──────────────────────────────────

@@ -21,7 +21,7 @@ await import("./test-m04-reference-dose-advisory.mjs");
 import { m04SafetyContractIssue, m04SemanticIssue } from "../src/lib/diagnosis-stage-contract.ts";
 import { rejectionTier, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "../src/lib/diagnosis-rejection-tiers.ts";
 import { isKnownTcmHerbName } from "../src/lib/tcm-knowledge.ts";
-import { m03LimitedInformationRepairRoundAllowed, m04BaselineVerifiedFinalReviewAnnotation, m04ProviderRepairExhaustedQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "../src/lib/m04-repair-policy.ts";
+import { m03LimitedInformationRepairRoundAllowed } from "../src/lib/m04-repair-policy.ts";
 import { mergePrescriptionReviewItems } from "../src/lib/diagnosis-safety.ts";
 import { readFileSync } from "node:fs";
 import { clinicalDeliveryAdvisoryFromIssue } from "../src/lib/clinical-delivery-advisory.ts";
@@ -92,32 +92,6 @@ const contract = (reasoning, context = CLINICAL_CONTEXT) =>
 assert.equal(safety(BASELINE), undefined, "baseline must pass the T1 hard gate");
 assert.equal(contract(BASELINE), undefined, "baseline must pass the full contract");
 
-assert.ok(
-  m04ZeroProviderRepairQualityAnnotation({
-    status: "repair",
-    issueCode: "herb_plan_mismatch",
-    repairFocus: "herb_direction",
-  }),
-  "an otherwise safe herb-direction quality opinion is annotated without a provider rewrite",
-);
-assert.match(m04ZeroProviderRepairQualityAnnotation({
-  status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "emperor_role",
-}) || "", /君药.*主要病机/, "a role-quality review must offer actionable advice without regenerating the candidate");
-for (const review of [
-  { status: "repair", issueCode: "herb_plan_mismatch" },
-  { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "future_focus" },
-  { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "modification_logic" },
-  { status: "repair", issueCode: "formula_composition_mismatch", repairFocus: "formula_core_composition" },
-  { status: "repair", issueCode: "dose_rationale_concern", repairFocus: "dose_strength" },
-  { status: "repair", issueCode: "patient_context_mismatch", repairFocus: "patient_dependency" },
-]) {
-  assert.equal(
-    m04ZeroProviderRepairQualityAnnotation(review),
-    undefined,
-    `zero-rewrite quality policy must fail closed for ${review.issueCode}/${review.repairFocus}`,
-  );
-}
-
 // Closed issue-code family, independent of the particular herb and row reported in production.
 for (const row of [0, 1, 12]) {
   for (const suffix of ["emperor_not_primary", "emperor_therapy_mismatch"]) {
@@ -145,54 +119,6 @@ assert.ok(m04SafetyContractIssue(emptyCandidate, PRIOR, isKnownTcmHerbName, fals
 const roleAdvice = clinicalDeliveryAdvisoryFromIssue("candidate_0_herb_0_emperor_not_primary", roleMismatch.formula.candidates[0]);
 assert.match(roleAdvice.message, /党参.*君药.*主要病机/);
 assert.match(roleAdvice.suggestedAction, /君臣佐使|角色/);
-assert.ok(
-  m04ProviderRepairExhaustedQualityAnnotation({
-    review: { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "herb_direction" },
-    previousReviewReason: "m04_herb_plan_semantic_review",
-    previousReviewFocus: "herb_direction",
-    completedRepairAttemptsForIssue: 1,
-  }),
-  "a completed provider repair may resolve only the same herb-plan quality opinion",
-);
-for (const input of [
-  {
-    review: { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "modification_logic" },
-    previousReviewReason: "m04_herb_plan_semantic_review",
-    previousReviewFocus: "emperor_role",
-    completedRepairAttemptsForIssue: 1,
-  },
-  {
-    review: { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "herb_direction" },
-    previousReviewReason: "m04_formula_composition_semantic_review",
-    previousReviewFocus: "formula_core_composition",
-    completedRepairAttemptsForIssue: 1,
-  },
-  {
-    review: { status: "repair", issueCode: "dose_rationale_concern", repairFocus: "dose_strength" },
-    previousReviewReason: "m04_dose_rationale_semantic_review",
-    previousReviewFocus: "dose_strength",
-    completedRepairAttemptsForIssue: 1,
-  },
-  {
-    review: { status: "repair", issueCode: "patient_context_mismatch", repairFocus: "patient_dependency" },
-    previousReviewReason: "m04_patient_context_semantic_review",
-    previousReviewFocus: "patient_dependency",
-    completedRepairAttemptsForIssue: 2,
-  },
-  {
-    review: { status: "repair", issueCode: "formula_composition_mismatch", repairFocus: "formula_core_composition" },
-    previousReviewReason: "m04_formula_composition_semantic_review",
-    previousReviewFocus: "formula_core_composition",
-    completedRepairAttemptsForIssue: 1,
-  },
-]) {
-  assert.equal(
-    m04ProviderRepairExhaustedQualityAnnotation(input),
-    undefined,
-    `provider-repair quality policy must not reuse unrelated/global exhaustion for ${input.review.issueCode}`,
-  );
-}
-
 // ── 建议性缺陷：必须被判为可受理（这正是本次改动要拿回来的东西）──────────────────
 /** 每项注入一个**只影响说明或建议内容**的缺陷，安全面完全不动。 */
 const ADVISORY_DEFECTS = [
@@ -443,9 +369,16 @@ assert.equal(rejectionTier("m04_visible_extra_herb_rows"), "T3");
 const prescribeRouteSource = readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
 const finalSafetyIndex = prescribeRouteSource.indexOf("const detectedSafetyIssue = m04SafetyContractIssue(");
 const deferredLabelIndex = prescribeRouteSource.indexOf("const safetyIssue = isM04FinalizerDeferredLabelIssue(detectedSafetyIssue)");
-const finalIssueIndex = prescribeRouteSource.indexOf("const issue = safetyIssue || formulaCompilationContractIssue");
+const finalIssueIndex = prescribeRouteSource.indexOf('const qualityIssue = safetyIssue ? "" : formulaCompilationContractIssue');
 assert.ok(finalSafetyIndex >= 0 && deferredLabelIndex > finalSafetyIndex && finalIssueIndex > deferredLabelIndex,
   "M04 最终出口必须先无条件重跑 safetyIssue，再进入质量合同分级");
+// 终审只有一条驳回判据（2026-09-25 收敛）：抛错的唯一条件是 T1 底线合同不干净；
+// 质量类合同码只记日志、不阻断、不上屏（两条返回分支此前逐字相同，批注从不进入任何出口）。
+const finalizerThrows = prescribeRouteSource.match(/throw new Error\(`finalized_prescription_/g) || [];
+assert.equal(finalizerThrows.length, 1, "终审投影只能有一个驳回出口");
+assert.match(prescribeRouteSource,
+  /if \(safetyIssue\) \{[\s\S]{0,900}?throw new Error\(`finalized_prescription_\$\{safetyIssue\}`\);\s*\}/,
+  "终审驳回只能由 T1 底线合同触发，质量类合同码不得阻断");
 const provenanceEnrichmentIndex = prescribeRouteSource.indexOf("const enriched = enrichPrescriptionProvenance(");
 const postEnrichmentPruneIndex = prescribeRouteSource.indexOf("const directionPruned = declassifyAndDropOpposingM04CandidateHerbs(enriched");
 const postEnrichmentParseIndex = prescribeRouteSource.indexOf("const reasoning = parseReasoningV2(directionPruned)");
@@ -477,21 +410,6 @@ assert.match(
   diagnosisApiSource,
   /pendingQualityRepairUnavailable[\s\S]{0,1200}?validatedStructuredReasoning\([\s\S]{0,700}?true,\s*\/\/ acceptM04QualityTierAfterRepair[\s\S]{0,350}?structuredSentinelIncomplete = false;[\s\S]{0,250}?noteM04QualityTierAcceptance\(pendingRejectionReason\)/,
   "质量修复预算为 0 时，首轮 M04 的已登记 T2/T3 项也必须在完整重跑 T1 硬门后进入带范围受理，不能清空安全处方",
-);
-assert.match(
-  diagnosisApiSource,
-  /const finalReviewCandidateAnnotation = m04ZeroProviderRepairQualityAnnotation\(review\)[\s\S]{0,1000}?acceptM04QualityReviewWithoutProviderRepair\([\s\S]{0,300}?finalReviewCandidateAnnotation/,
-  "终审质量受理必须复用完整 T1/方剂合同与真实 reviewDecision=repair attestation，不能只写批注后伪装 unavailable",
-);
-assert.doesNotMatch(
-  diagnosisApiSource,
-  /repairExhaustedOnEntry[\s\S]{0,800}?m04FinalReviewQualityAnnotation\(review\)/,
-  "历史 attempt key 不能授权本轮首次出现的 dose/patient/formula reviewer repair",
-);
-assert.match(
-  diagnosisApiSource,
-  /repeatedPatientContextReviewAcceptedAfterRepairExhaustion[\s\S]{0,1400}?clinicalReviewQualityAttestation\(review, secondReasoning\)/,
-  "患者依赖两轮修复后的服务端受理必须保留 reviewer 的真实 repair 决定",
 );
 assert.match(
   diagnosisApiSource,
@@ -905,79 +823,6 @@ console.log(JSON.stringify({
     "剔除后不得零治疗性药味——那比原驳回更糟，此时放弃剔除");
 }
 
-// ─── 修复轮走完之后，复核 repair 意见的分流 ─────────────────────────────────────
-// 这条规则此前散落在三处，每处各自决定「repair ⇒ 作废」，同一类 0 味修了三遍还在复发：
-// 透明降级块内、块外的入口守卫、finalize 阶段的最后一次复核（后者会把刚刚受理的降级候选
-// 重新判死——实测网络医案 3，郁证-天王补心丹）。现在只有一处实现，这里钉住它的取值。
-{
-const {
-    canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion,
-    m04FinalReviewQualityAnnotation,
-} = await import("../src/lib/m04-repair-policy.ts");
-  // 受理：这三项在确定性层都有对应检查且已经跑过（方剂基准组成、君臣结构与病机引用、
-  // 妊娠哺乳儿科门禁 + 十八反十九畏 + 逐味剂量上限）。复核在其上给的是质量意见。
-  for (const issueCode of ["formula_composition_mismatch", "herb_plan_mismatch", "patient_context_mismatch"]) {
-    const annotation = m04FinalReviewQualityAnnotation({ status: "repair", issueCode });
-    assert.ok(annotation && annotation.length > 20,
-      `${issueCode} 应当带批注受理，而不是把整方判成 0 味`);
-    assert.ok(/已完成确定性核查/.test(annotation),
-      `${issueCode} 的批注必须写明哪一层已通过，否则医生无从判断能不能用`);
-  }
-  // 普通历史参考量偏离可保留为未核验候选，批注不得再概括成每味均在药典范围内。
-  {
-    const annotation = m04FinalReviewQualityAnnotation({ status: "repair", issueCode: "dose_rationale_concern" });
-    assert.ok(annotation && /剂量强度/.test(annotation) && /剂量参考来源/.test(annotation),
-      `dose_rationale_concern 必须说明参考来源与医生判断边界：${annotation}`);
-    assert.doesNotMatch(annotation, /每味剂量均在药典边界内/);
-  }
-  // 未知码 default-deny：策略表之外的意见永远不能自动受理。
-  for (const issueCode of ["some_future_issue_code", "none"]) {
-    assert.equal(m04FinalReviewQualityAnnotation({ status: "repair", issueCode }), undefined,
-      `${issueCode} 不得被带批注受理`);
-  }
-  // 非 repair 状态不产生批注（accepted 走正常路径，unavailable 另有转人工通道）。
-  for (const status of ["accepted", "unavailable"]) {
-    assert.equal(m04FinalReviewQualityAnnotation({ status, issueCode: "herb_plan_mismatch" }), undefined,
-      `status=${status} 不应产生质量批注`);
-  }
-
-  const safeRepeatedPatientContextReview = {
-    review: {
-      status: "repair",
-      issueCode: "patient_context_mismatch",
-      repairFocus: "patient_dependency",
-      implicatedHerbs: [],
-    },
-    previousReviewReason: "m04_patient_context_semantic_review",
-    completedRepairAttempts: 2,
-    hardSafetyIssue: undefined,
-    formulaCompilationIssue: undefined,
-    requestAborted: false,
-  };
-  assert.equal(
-    canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion(safeRepeatedPatientContextReview),
-    true,
-    "同一患者前提意见连续两轮、修复机会耗尽且最新候选硬合同全过时应当收敛",
-  );
-  for (const unsafeVariant of [
-    { completedRepairAttempts: 1 },
-    { previousReviewReason: "m04_herb_plan_semantic_review" },
-    { hardSafetyIssue: "candidate_0_herb_0_dose_outside_conservative_range" },
-    { formulaCompilationIssue: "candidate_0_formula_core_missing" },
-    { requestAborted: true },
-    { review: { ...safeRepeatedPatientContextReview.review, issueCode: "dose_rationale_concern", repairFocus: "dose_strength" } },
-  ]) {
-    assert.equal(
-      canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion({
-        ...safeRepeatedPatientContextReview,
-        ...unsafeVariant,
-      }),
-      false,
-      `必须 fail-closed: ${JSON.stringify(unsafeVariant)}`,
-    );
-  }
-}
-
 // ─── 功用补充表：只追加、不替换，且必须真的补出目标方向 ─────────────────────
 // 缺口形态：《中药学》功效归类表按**主章节**归类，牡蛎→平抑肝阳药、龙骨→重镇安神药，
 // 于是"煅牡蛎收敛固涩"这个第二功效在知识库里查不到。后果不是提示不全，而是整方被驳——
@@ -1007,16 +852,14 @@ const {
 }
 
 
-// ─── 最后一公里统一策略：治法覆盖阈值 + M03 finalize 复核意见 ───────────────────
+// ─── 最后一公里统一策略：治法覆盖阈值 ───────────────────────────────────────────
 // 产品语义（甲方定）：**安全问题阻断，质量问题标注**。0 味只保留给真正的安全阻断与
-// 「模型根本没给出候选」。这里钉住三件事：
+// 「模型根本没给出候选」。这里钉住两件事：
 //   ① 治法覆盖率阈值码（coverage/herb_support）在修复耗尽后必须能带批注受理——
 //      它们是本系统词表上的覆盖率，不是逐味安全事实（实测网络医案 37/41 两例自汗 0 味）；
-//   ② contract_missing / unresolved 不在豁免列：结构缺失无从标注；
-//   ③ M03 finalize 复核的质量意见（tcm_reasoning_unsupported 等）同样带批注受理，
-//      诊断标签类意见（criteria_not_met 族）维持作废。
+//   ② contract_missing / unresolved 不在豁免列：结构缺失无从标注。
 {
-  const { m04TherapyIssueQualityAnnotation, m03FinalReviewQualityAnnotation, canAcceptTransparentFormulaFallback } =
+  const { m04TherapyIssueQualityAnnotation, canAcceptTransparentFormulaFallback } =
     await import("../src/lib/m04-repair-policy.ts");
   const { isWaivableM04TherapyCoverageCode } = await import("../src/lib/diagnosis-stage-contract.ts");
   // herb_knowledge_missing 与上面两条同性质：判据是「本系统药味功效词表有没有收载」，
@@ -1104,19 +947,6 @@ const {
     "transparent_therapy_herb_knowledge_missing"]) {
     assert.ok(isWaivableM04TherapyCoverageCode(code), `${code} 是词表覆盖率码，复验必须放行`);
     assert.ok(m04TherapyIssueQualityAnnotation(code) !== undefined, `${code} 必须有批注文案`);
-  }
-  for (const [issueCode, ok] of [
-    ["tcm_reasoning_unsupported", true],
-    ["formula_indication_mismatch", true],
-    ["criteria_not_met", false],
-    ["diagnostic_label_overstated", false],
-    ["supporting_fact_mismatch", false],
-    ["future_unknown_code", false],
-  ]) {
-    const annotation = m03FinalReviewQualityAnnotation({ status: "repair", issueCode });
-    assert.equal(annotation !== undefined, ok,
-      `M03 finalize 复核 ${issueCode} 的受理处置应为 ${ok ? "带批注受理" : "作废"}：${annotation}`);
-    if (ok) assert.ok(/确定性核验/.test(annotation), `${issueCode} 的批注必须写明确定性层已通过`);
   }
 }
 
@@ -1246,9 +1076,6 @@ const {
   const forged = stripUntrustedM04IdentityMetadata(declassified);
   assert.equal(m04ContentServerDeclassified(forged), false,
     "provider 输出里的 identityDeclassified 必须在入口被剥——内容级许可的防伪前提");
-  const { m04ArbitratedPatientContextAnnotation } = await aliasJiti.import("../src/lib/m04-repair-policy.ts");
-  assert.ok(m04ArbitratedPatientContextAnnotation().includes("保留意见"),
-    "复核仲裁放行的批注必须存在且向医生说明保留意见（放行不带批注=安全语义静默消失）");
 }
 
 {
@@ -1277,38 +1104,6 @@ const {
   assert.ok(fnBody.includes("m04ImmediateDeclassificationAllowed("),
     "立即剥名捷径必须先过锁定基线守卫——guard 被删即红");
 }
-// ─── 基准核验候选的终审有界受理（甲方 08cc573 复测第 1 项：同病例结果不稳定）──────────
-// 麻黄汤活体探针 RUN2：M03 稳定锁方、候选组成按受治理基准逐味核验通过，终审复核仍判
-// 组成类 repair 且无修复轮可承接 → 旧行为整方截断成非剂量参考页。经典方身份已由服务端
-// 确定性核验的候选，组成/药味类质量意见按有界受理；剂量与患者前提类意见维持 fail-closed。
-assert.ok(
-  m04BaselineVerifiedFinalReviewAnnotation({
-    review: { status: "repair", issueCode: "formula_composition_mismatch" },
-    baselineIdentityVerified: true,
-  })?.includes("具体用量仍需结合药味表中的历史参考来源由医生确认"),
-  "a baseline-verified candidate survives a final composition opinion with an annotation",
-);
-assert.ok(m04BaselineVerifiedFinalReviewAnnotation({
-  review: { status: "repair", issueCode: "herb_plan_mismatch" },
-  baselineIdentityVerified: true,
-}), "herb-plan opinions on a baseline-verified candidate are bounded-accepted");
-assert.equal(m04BaselineVerifiedFinalReviewAnnotation({
-  review: { status: "repair", issueCode: "formula_composition_mismatch" },
-  baselineIdentityVerified: false,
-}), undefined, "an unverified (self-devised) candidate never uses the baseline acceptance");
-assert.equal(m04BaselineVerifiedFinalReviewAnnotation({
-  review: { status: "repair", issueCode: "dose_bound_violation" },
-  baselineIdentityVerified: true,
-}), undefined, "dose opinions stay fail-closed");
-assert.equal(m04BaselineVerifiedFinalReviewAnnotation({
-  review: { status: "repair", issueCode: "patient_context_mismatch" },
-  baselineIdentityVerified: true,
-}), undefined, "patient-context opinions stay fail-closed");
-assert.equal(m04BaselineVerifiedFinalReviewAnnotation({
-  review: { status: "accepted", issueCode: "none" },
-  baselineIdentityVerified: true,
-}), undefined);
-
 // ─── 信息不足病例的最小判断修复轮预算（甲方 08cc573 复测第 2 项：M03 长尾）────────────
 assert.equal(m03LimitedInformationRepairRoundAllowed(0, "m03_primary_syndrome_unstable", true), true,
   "the first minimal-judgment repair round always runs");
@@ -1322,14 +1117,12 @@ assert.equal(m03LimitedInformationRepairRoundAllowed(2, "patient_fact_ungrounded
   "grounding/polarity repairs are never budget-capped");
 assert.equal(m03LimitedInformationRepairRoundAllowed(3, "m03_primary_syndrome_unstable", false), true,
   "information-complete cases keep the full repair budget");
-// 接线完备性：预算谓词恰在第二轮/第三轮/终审重试三处被查询；终审链挂上基准受理；
+// 接线完备性：预算谓词恰在第二轮/第三轮/终审重试三处被查询；
 // 路由把门禁的信息不足判定传进编排。
 {
   const apiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
   const gateSites = apiSource.split("m03LimitedInformationRepairRoundAllowed(").length - 1;
   assert.equal(gateSites, 3, "limited-information repair budget is consulted at exactly the three retry sites");
-  assert.ok(apiSource.includes("m04BaselineVerifiedFinalReviewAnnotation({ review, baselineIdentityVerified: finalBaselineIdentityVerified })"),
-    "the finalize chain consults the baseline-verified acceptance policy");
   const routeSource = readFileSync(new URL("../src/app/api/diagnosis/diagnose/route.ts", import.meta.url), "utf8");
   assert.ok(routeSource.includes("structuredLimitedInformation: limitedInformation,"),
     "the diagnose route passes the gate's limited-information verdict into orchestration");

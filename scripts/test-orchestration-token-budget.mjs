@@ -152,7 +152,8 @@ check("M03/M04 模型复核执行层已删除（owner 2026-09-16）：编排器�
   for (const gone of ["runIndependentClinicalReview", "probeClinicalReviewModels", "clinicalReviewModelCandidates", "buildClinicalReviewRequestBody", "preflightM03DiagnosticReview("]) {
     assert.ok(!api.includes(gone), `${gone} 又回到生产路径了`);
   }
-  assert.ok(api.includes("function clinicalReviewNotPerformed<"), "两个复核入口必须收敛到 clinicalReviewNotPerformed 这一个不发请求的桩");
+  assert.ok(api.includes("clinicalReviewNotPerformedAttestation("),
+    "签名 attestation 必须只来自不发请求的常量构造器 clinicalReviewNotPerformedAttestation（复核遗留 2026-09-25 清除）");
 });
 
 // ── 8. 死代码已清除 ───────────────────────────────────────────────────────

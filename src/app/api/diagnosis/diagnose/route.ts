@@ -38,8 +38,8 @@ export async function POST(req: Request) {
     return markdownNdjsonResponse(buildSafetyLimitedDiagnosis(gated, gated.safetyGate!));
   }
 
-  // 第三参是**复核不可用原因码**。不传时 attestation 仍是裸的 {status:"unavailable"}——
-  // 那正是 194 例里 4 例最坏情形（完全 unresolved）拿不到原因码的原因。
+  // 第三参是 attestation 的**不可用原因码**（本轮为什么没有完成）。不传时 attestation 仍是裸的
+  // {status:"unavailable"}——那正是 194 例里 4 例最坏情形（完全 unresolved）拿不到原因码的原因。
   const signedLimitedDiagnosis = (
     gate: NonNullable<typeof gated.safetyGate>,
     reviewUnavailableReason?: Parameters<typeof buildSafetyLimitedDiagnosisReasoning>[2],
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
   );
   // Only add facts absent from the legacy template; its coherent TCM chain stays intact.
   const diagnoseBasePrompt = originalDiagnoseBasePrompt + buildM03AdditionalPatientContext(safeState, originalDiagnoseBasePrompt);
-  // 证据块此前无总量上限，直接拼到提示词硬上限为止。M03 的这块要被中医半 + 西医半 + 独立复核
+  // 证据块此前无总量上限，直接拼到提示词硬上限为止。M03 的这块要被中医半 + 西医半
   // + 每个修复轮重复携带，放大倍数比 M04 更高（M04 已于 2026-08-25 加过同款预算）。
   const diagnoseEvidenceBudget = Math.min(
     m03EvidencePromptBudgetChars(),
@@ -138,8 +138,8 @@ export async function POST(req: Request) {
   prompt += stageInstructions;
   const initialSafetyBanner = buildSafetyAdvisoryBanner(redFlagAnalysis ? gated.safetyGate : undefined);
   // 兜底页的**可见理由按真实原因分支**（2026-09-13）。此前三类兜底共用一句「未通过完整性与
-  // 临床一致性复核」，而 222 例实测里走 not_attempted_no_valid_draft 的 7 例复核尝试数为 0——
-  // 复核根本没运行。文案与 attestation 的 unavailableReason 同源，避免两处各写各的。
+  // 临床一致性复核」，把结构化交付问题说成了复核否决。文案与 attestation 的 unavailableReason
+  // 同源（limitedDiagnosisReasonCopy），避免两处各写各的。
   const truncatedGateFor = (
     reviewUnavailableReason: Parameters<typeof buildSafetyLimitedDiagnosisReasoning>[2],
   ) => {
@@ -185,22 +185,18 @@ export async function POST(req: Request) {
           }),
         }
       : {}),
-    // 合同修复耗尽后的兜底：复核**没有启动**（生成方合同始终不合法，没有东西可供复核），
-    // 不是复核尝试过并失败。这两件事此前都写 unavailable，重试策略会对着前者空转。
+    // 合同修复耗尽后的兜底：生成方合同始终不合法（attestation 原因码 not_attempted_no_valid_draft）。
     truncateFallback: signedLimitedDiagnosis(truncatedGateFor("not_attempted_no_valid_draft"), "not_attempted_no_valid_draft"),
-    // 时限触发是另一回事：复核可能已经启动并被切断，所以标 deadline 而不是「没有合法草稿」。
-    // 焊死在一个预渲染字符串上会让这两类共用一个原因码——本轮刚修掉的混淆，低一层的同款。
+    // 时限触发是另一回事，标 deadline 而不是「没有合法草稿」：两者的处置（重试 vs 修合同）不同，
+    // 焊死在一个预渲染字符串上会让这两类共用一个原因码。
     deadlineFallback: signedLimitedDiagnosis(truncatedGateFor("deadline"), "deadline"),
-    // 复核通过、却被受控证候词表等下游校验驳回：不能记成「复核不可用」——
-    // 线上实测这一例 reviewStatus=accepted、reviewAttemptCount=2，冤枉复核会让归因跑偏。
-    reviewAcceptedButRejectedFallback: signedLimitedDiagnosis(truncatedGateFor("accepted_but_draft_rejected_downstream"), "accepted_but_draft_rejected_downstream"),
     authoritativeTruncateFallback: true,
     structuredStage: "diagnose",
     structuredQueueKey: parsed.customer.customerHash,
     // 与 M04 同口径：时钟起在临床事实准备之前，否则那段模型调用不计入 180s 预算。
     structuredOrchestrationStartedAt: orchestrationStartedAt,
-    // Structured retries and independent review are external model calls. Keep their grounding
-    // context on the same deidentified DTO as the primary generation request.
+    // Structured retries are external model calls. Keep their grounding context on the same
+    // deidentified DTO as the primary generation request.
     structuredClinicalContext: clinicalGroundingText(safeState),
     // 事实来源归属要读**受治理字段路径**，光靠接地正文的行结构不够：HIS 直传的字段在正文里
     // 是不带标题的裸行，会被一律猜成「现病史」（2026-08-12 线上实测）。与上一行同一份脱敏 DTO。
@@ -211,9 +207,6 @@ export async function POST(req: Request) {
     // （方名锁定只认签名证候的 positiveSufficiency，症状召回证明不了充分性）。原先这一行是一次
     // 完整的 1796 方目录扫描 + 滑窗索引匹配，结果全程未被使用，且入参与真正喂给模型的短名单
     // 不同口径（不带 recallHint），读代码时会误以为「模型只能从检索短名单里选」。
-    // Evidence is isolated from the patient-fact grounding channel so literature text can never
-    // satisfy a missing patient fact during contract validation.
-    structuredReviewEvidenceContext: evidenceContext,
     diagnoseSignatureContext: buildDiagnoseContractSignatureContext(gated),
     outputTransform: buildEvidenceOutputTransform(
       evidenceContext,

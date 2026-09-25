@@ -130,4 +130,25 @@ assert.equal(logs.length, 11);
 assert.doesNotMatch(JSON.stringify(logs), /李四/);
 assert.doesNotMatch(JSON.stringify(extended), /李四|张三/);
 
-console.log("stage telemetry tests passed: 44 assertions");
+// ─── reviewStatus 各档分开计数（自 test:review-bounded-advisory 迁入，2026-09-25）────────
+// 模型复核环节已移除，编排只再上报 unavailable / not_run；bounded_advisory 等档位保留为
+// health 快照里的常量字段（看板不断档）。计数逻辑本身仍须各档互不污染。
+{
+  const readDiagnose = () => getCdssStageTelemetrySnapshot().stages.diagnose;
+  const before = readDiagnose();
+  const baseUnavailable = Number(before.reviewUnavailable || 0);
+  const baseBounded = Number(before.reviewBoundedAdvisory || 0);
+  console.info = () => undefined;
+  recordCdssStageTelemetry({ stage: "diagnose", outcome: "success", durationMs: 1000, reviewStatus: "bounded_advisory" });
+  const afterBounded = readDiagnose();
+  assert.equal(Number(afterBounded.reviewBoundedAdvisory || 0), baseBounded + 1, "bounded_advisory 未被单独计数");
+  assert.equal(Number(afterBounded.reviewUnavailable || 0), baseUnavailable, "bounded_advisory 污染了 reviewUnavailable 计数");
+  recordCdssStageTelemetry({ stage: "diagnose", outcome: "success", durationMs: 1000, reviewStatus: "unavailable" });
+  recordCdssStageTelemetry({ stage: "diagnose", outcome: "success", durationMs: 1000, reviewStatus: "not_run" });
+  console.info = originalInfo;
+  const afterUnavailable = readDiagnose();
+  assert.equal(Number(afterUnavailable.reviewUnavailable || 0), baseUnavailable + 1, "unavailable 漏计，或 not_run 被误计成 unavailable");
+  assert.equal(Number(afterUnavailable.reviewBoundedAdvisory || 0), baseBounded + 1, "unavailable 被误计成 bounded_advisory");
+}
+
+console.log("stage telemetry tests passed: 49 assertions");

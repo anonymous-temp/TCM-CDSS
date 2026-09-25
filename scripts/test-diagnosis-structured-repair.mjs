@@ -7,8 +7,6 @@ await import("./test-m04-compact-repair-compatibility.mjs");
 const { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, isM03WesternSupportContractReason, repairCompletedStructuredSentinel, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } = await import("../src/lib/diagnosis-structured-repair.ts");
 const { applyDeterministicDecoctionMethod, applyDeterministicHerbFunctions, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
 const { parseOpenAICompatCompletionPayload } = await import("../src/lib/openai-compatible-response.ts");
-const { buildM03DiagnosticReviewPrompt, parseM03DiagnosticReview } = await import("../src/lib/m03-diagnostic-review.ts");
-const { buildM04ClinicalReviewPrompt, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, parseM04ClinicalReview } = await import("../src/lib/m04-clinical-review.ts");
 const { enforceReviewedPrescriptionOutput } = await import("../src/lib/prescription-output-safety.ts");
 const { normalizeClinicalConfidence, normalizePrescriptionRole, normalizeReasoningV2, normalizeWesternDiagnosisStatus } = await import("../src/lib/diagnosis-types.ts");
 const { getTcmHerbFunctionDisplayText } = await import("../src/lib/tcm-knowledge.ts");
@@ -51,25 +49,20 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
-  /review\.status === "repair" && review\.issueCode === "formula_composition_mismatch"[\s\S]{0,700}?m04RepairLoopEarlyExit = true;/,
-  "a composition-only M04 review must select deterministic identity declassification instead of redrawing the whole prescription",
-);
-assert.match(
-  diagnosisApiSource,
   /structuredSentinelIncomplete &&[\s\S]{0,250}?retryableStructuredTerminal &&[\s\S]{0,250}?!m04RepairLoopEarlyExit &&[\s\S]{0,250}?!m04OrchestrationDeadlineGate\(\)/,
-  "the first full-response repair must stop once deterministic M04 identity declassification has been selected",
+  "the first full-response repair must stop once the M04 repair loop has been proven exhausted (fixpoint)",
 );
 assert.match(
   diagnosisApiSource,
   /if \(targetedM04Retry && m04RepairLoopEarlyExit\) targetedM04Retry = false;/,
-  "a composition rejection after one completed repair must not launch another full M04 redraw",
+  "an exhausted M04 repair loop must not launch another full M04 redraw",
 );
 assert.equal(shouldUseM04FinalizeSafetyFloor(false, false), false, "ordinary M04 output keeps the full final contract");
 assert.equal(shouldUseM04FinalizeSafetyFloor(false, true), true, "quality-annotated acceptance keeps its safety-floor scope");
 assert.equal(
   shouldUseM04FinalizeSafetyFloor(true, false),
   true,
-  "an accepted transparent declassification must keep its safety-floor scope even when review produced no annotation",
+  "an accepted transparent declassification must keep its safety-floor scope even when it carries no annotation",
 );
 assert.equal(
   shouldUseM04FinalizeSafetyFloor(false, false, true),
@@ -144,20 +137,17 @@ assert.match(
   /m03QualityAcceptedReason\) \{\s*\n\s*const annotation = qualityAnnotationCopy\(m03QualityAcceptedReason\);\s*\n\s*if \(annotation && !signedContent\.includes\(annotation\)\) signedContent = `\$\{annotation\}\\n\\n\$\{signedContent\}`;/,
   "受理时必须把医生可读批注前置到签名后的可见正文（且带防重复守卫）",
 );
-// 受理结果仍要过 finalize 的 attestation 绑定门：无既有 attestation（复核 not_run）时，
-// 管线必须对最终 reasoning 补跑独立临床复核，repair 仍走兜底——受理不产生未复核的签名结论。
+// 受理结果仍要过 finalize 的 attestation 绑定门：最终载荷的哈希必须与 attestation 绑定；
+// 此前没有绑定过的最终 M03 候选在这里补绑常量 attestation（模型复核环节已于 2026-09-16 删除）。
 assert.match(
   diagnosisApiSource,
   /currentAttestation\?\.reviewedPayloadHash !== finalPayloadHash/,
-  "finalize 必须校验临床复核 attestation 与最终载荷哈希的绑定",
+  "finalize 必须校验 attestation 与最终载荷哈希的绑定",
 );
 assert.match(
   diagnosisApiSource,
-  // 2026-08-27：观察点改接 Promise（心跳阶段名要在复核**进行中**就置位），形态由
-  //   observeClinicalReview(await reviewM03DiagnosticCriteria(  →  await observeClinicalReview(reviewM03DiagnosticCriteria(
-  // 本断言钉的是「finalize 补跑复核」这件事本身，跟着改形态，不放宽。
-  /\} else if \(opts\.structuredStage === "diagnose"\) \{\s*\n\s*const review = await observeClinicalReview\(reviewM03DiagnosticCriteria\(/,
-  "attestation 未绑定时 finalize 必须对最终 M03 reasoning 补跑独立临床复核",
+  /\} else if \(opts\.structuredStage === "diagnose"\) \{[\s\S]{0,200}?m03ClinicalReviewAttestation = clinicalReviewNotPerformedAttestation\(finalReasoning\);/,
+  "attestation 未绑定时 finalize 必须对最终 M03 reasoning 补绑常量 attestation",
 );
 assert.match(
   diagnosisApiSource,
@@ -200,8 +190,8 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
-  /immediateM04Declassification\?\.reasoning[\s\S]{0,4000}?reviewTrackedM04Candidate\(structuredReasoning, m04GeneratorModel, "for initial candidate", authoritativeContent\)/,
-  "即时身份剥离只能省掉提供商重写，剥离后的准确字节仍须进入首轮独立临床复核",
+  /immediateM04Declassification\?\.reasoning[\s\S]{0,4000}?attestM04Candidate\(structuredReasoning, authoritativeContent\)/,
+  "即时身份剥离只能省掉提供商重写，剥离后的准确字节仍须进入首轮 attestation 绑定与交付快照",
 );
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "sentinel_count_0_0"), true);
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "json_invalid"), true);
@@ -242,21 +232,17 @@ for (const reason of [
   assert.equal(shouldRunTargetedStructuredRetry("diagnose", reason), true, `${reason} must reach the bounded second repair`);
 }
 assert.equal(isM03WesternSupportContractReason("m03_western_support_unknown"), false);
-assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_primary_diagnosis_semantic_review"), true);
-assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_tcm_reasoning_semantic_review"), true);
-assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_formula_indication_semantic_review"), true);
-assert.equal(shouldRunTargetedStructuredRetry("prescribe", "m04_clinical_semantic_review"), true);
 assert.equal(
   shouldRunTargetedStructuredRetry("prescribe", "m04_formula_component_1_unverified"),
   true,
   "an independently failed combined-formula component must reach bounded composition repair",
 );
-for (const reason of [
-  "m04_formula_composition_semantic_review",
-  "m04_herb_plan_semantic_review",
-  "m04_dose_rationale_semantic_review",
-  "m04_patient_context_semantic_review",
-]) assert.equal(shouldRunTargetedStructuredRetry("prescribe", reason), true, `${reason} must reach bounded prescription repair`);
+// 模型复核的 *_semantic_review 拒绝码已无生产者（复核环节 2026-09-16 删除），不再进入定向修复。
+for (const [stage, reason] of [
+  ["diagnose", "m03_primary_diagnosis_semantic_review"],
+  ["diagnose", "m03_tcm_reasoning_semantic_review"],
+  ["prescribe", "m04_herb_plan_semantic_review"],
+]) assert.equal(shouldRunTargetedStructuredRetry(stage, reason), false, `${reason} has no producer and no repair route`);
 for (const reason of [
   "m04_candidate_0_emperor_missing",
   "m04_candidate_0_emperor_excess",
@@ -401,103 +387,6 @@ assert.match(combinedFormulaRepairHint, /另一个基础方即使已经命中，
 const modificationRepairHint = buildM04ClinicalRepairHint("m04_modification_1_herb_0_unsupported_high_impact_yang_warm");
 assert.match(modificationRepairHint, /删除整条不受支持的条件性加减/);
 assert.match(modificationRepairHint, /modifications 允许为空/);
-assert.deepEqual(parseM03DiagnosticReview('{"status":"accepted","issueCode":"none"}'), { status: "accepted", issueCode: "none" });
-assert.deepEqual(parseM03DiagnosticReview('{"status":"repair","issueCode":"criteria_not_met"}'), { status: "repair", issueCode: "criteria_not_met" });
-assert.deepEqual(parseM03DiagnosticReview('{"status":"repair","issueCode":"formula_indication_mismatch"}'), { status: "repair", issueCode: "formula_indication_mismatch" });
-assert.deepEqual(parseM03DiagnosticReview('```json\n{"status":"accepted","issueCode":"none"}\n```'), { status: "accepted", issueCode: "none" }, "gateway code fences do not turn a valid reviewer decision into unavailable");
-assert.deepEqual(parseM03DiagnosticReview('{"status":"accepted","issueCode":"criteria_not_met"}'), { status: "unavailable", issueCode: "review_unavailable" });
-const m03ReviewPrompt = buildM03DiagnosticReviewPrompt(
-  "稀便半个月，无腹痛",
-  { westernDiagnosis: { primary: { name: "IBS-D" } } },
-  "[EVID-GUIDE-001] 慢性腹泻诊断标准摘要",
-);
-assert.match(m03ReviewPrompt, /病程阈值[\s\S]*必备核心症状[\s\S]*症状性工作诊断[\s\S]*不得把尚未满足标准的病因[\s\S]*临床闭环[\s\S]*不得使用.*功能失调候[\s\S]*病机节点不得留空[\s\S]*命名方.*核心适应证/);
-assert.match(m03ReviewPrompt, /患者事实边界：稀便半个月，无腹痛[\s\S]*本轮可用证据[\s\S]*绝不能当作患者事实[\s\S]*EVID-GUIDE-001/);
-assert.deepEqual(parseM04ClinicalReview('{"status":"accepted","issueCode":"none"}'), { status: "accepted", issueCode: "none" });
-assert.deepEqual(parseM04ClinicalReview('{"status":"repair","issueCode":"herb_plan_mismatch"}'), { status: "repair", issueCode: "herb_plan_mismatch" });
-const classicCompositionReview = {
-  status: "repair",
-  issueCode: "formula_composition_mismatch",
-  repairFocus: "formula_core_composition",
-  candidateIndex: 0,
-  implicatedHerbs: [],
-};
-assert.deepEqual(
-  constrainM04ClinicalReviewScope(
-    classicCompositionReview,
-    { overview: { recommendedFormulaNames: [], formulaSelectionMode: "self_devised" } },
-    { formula: { candidates: [{ name: "本例辨证组方", formulaNames: [], constructionType: "self_devised", herbs: [] }] } },
-  ),
-  { status: "accepted", issueCode: "none" },
-  "a reviewer cannot impose a classic-formula composition contract on a fully self-devised M03/M04 chain",
-);
-assert.deepEqual(
-  constrainM04ClinicalReviewScope(
-    classicCompositionReview,
-    { overview: { recommendedFormulaNames: ["痛泻要方"], formulaSelectionMode: "single" } },
-    { formula: { candidates: [{ name: "痛泻要方加减", formulaNames: ["痛泻要方"], constructionType: "single_base", herbs: [] }] } },
-  ),
-  classicCompositionReview,
-  "a named-formula composition concern remains blocking and repairable",
-);
-assert.deepEqual(
-  constrainM04ClinicalReviewScope(
-    classicCompositionReview,
-    { overview: { recommendedFormulaNames: ["痛泻要方"], formulaSelectionMode: "single" } },
-    { formula: { candidates: [{
-      name: "本例辨证组方", formulaNames: [], constructionType: "self_devised",
-      identityDeclassified: true, herbs: [],
-    }] } },
-  ),
-  { status: "accepted", issueCode: "none" },
-  "after the server removes a named identity, a reviewer cannot resurrect the removed composition contract through M03",
-);
-assert.match(
-  buildM04ClinicalReviewPrompt("", { overview: { formulaSelectionMode: "self_devised" } }, { formula: { candidates: [] } }),
-  /方名与经典方组成身份由服务端确定性合同独占裁决.*不得返回 formula_composition_mismatch/,
-  "the reviewer prompt must preserve the same issue-domain boundary enforced by the server",
-);
-const focusedM04Repair = parseM04ClinicalReview('{"status":"repair","issueCode":"herb_plan_mismatch","repairFocus":"emperor_role","candidateIndex":0,"implicatedHerbs":["山药","山药","不存在药"]}');
-assert.deepEqual(focusedM04Repair, {
-  status: "repair",
-  issueCode: "herb_plan_mismatch",
-  repairFocus: "emperor_role",
-  candidateIndex: 0,
-  implicatedHerbs: ["山药", "不存在药"],
-});
-assert.match(m04ClinicalRepairGuidance(focusedM04Repair, {
-  formula: { candidates: [{ herbs: [{ name: "山药" }, { name: "茯苓" }] }] },
-}), /候选 1[\s\S]*emperor_role[\s\S]*山药/);
-assert.match(m04ClinicalRepairGuidance(focusedM04Repair, {
-  formula: { candidates: [{ herbs: [{ name: "山药" }, { name: "茯苓" }] }] },
-}), /山药[^\n]*不得继续标为君药[\s\S]*直接覆盖 P1[\s\S]*知识库已覆盖/);
-assert.doesNotMatch(m04ClinicalRepairGuidance(focusedM04Repair, {
-  formula: { candidates: [{ herbs: [{ name: "山药" }, { name: "茯苓" }] }] },
-}), /不存在药/);
-assert.deepEqual(
-  parseM04ClinicalReview('{"status":"repair","issueCode":"dose_rationale_concern","repairFocus":"emperor_role","candidateIndex":9,"implicatedHerbs":[42]}'),
-  { status: "repair", issueCode: "dose_rationale_concern", implicatedHerbs: [] },
-  "issue-incompatible focus, out-of-range candidate and non-string herb coordinates are discarded",
-);
-assert.deepEqual(parseM04ClinicalReview('复核结果：{"status":"repair","issueCode":"dose_rationale_concern"}'), { status: "repair", issueCode: "dose_rationale_concern" }, "bounded transport prose is tolerated while enum values stay strict");
-assert.deepEqual(parseM04ClinicalReview('{"status":"repair","issueCode":"unknown"}'), { status: "unavailable", issueCode: "review_unavailable" });
-const m04ReviewPrompt = buildM04ClinicalReviewPrompt(
-  "稀便半个月，无腹痛",
-  { overview: { primarySyndrome: "脾虚湿困" } },
-  { formula: { candidates: [{ name: "痛泻要方加减" }] } },
-  "[EVID-LITERATURE-001] 方剂适应证摘要",
-);
-assert.match(m04ReviewPrompt, /外部合理用药审方/);
-assert.match(m04ReviewPrompt, /formulaIdentityStatus=verified[\s\S]*不得用患者未提供/);
-assert.match(m04ReviewPrompt, /本轮可用证据[\s\S]*绝不能当作患者事实[\s\S]*EVID-LITERATURE-001/);
-assert.match(m04ReviewPrompt, /对重要未知状态保持保守鲁棒/);
-assert.match(m04ReviewPrompt, /不得用一句.*采纳前复核.*掩盖/);
-assert.match(m04ReviewPrompt, /慢性肾病3-5期[\s\S]*抗凝\/抗血小板[\s\S]*概念示例而非封闭关键词表/);
-assert.match(m04ReviewPrompt, /1–2 味并列君药均为合法结构[\s\S]*一味或两味君药已直接覆盖 P1 中心治法[\s\S]*偏好单君药/);
-assert.match(m04ReviewPrompt, /targetPathogenesis、function 与 prescriptionRole[\s\S]*不能因投影缺少自由文本解释而推定角色不成立/);
-assert.match(m04ReviewPrompt, /modifications 空数组是合法的保守方案[\s\S]*不得仅因没有加减而要求 repair/);
-assert.match(m04ReviewPrompt, /repairFocus[\s\S]*candidateIndex[\s\S]*implicatedHerbs[\s\S]*不得输出自由文本修复指令/);
-
 assert.equal(parseOpenAICompatCompletionPayload('{"choices":[{"message":{"content":"完整结果"},"finish_reason":"stop"}]}')?.choices?.[0]?.message?.content, "完整结果");
 assert.equal(parseOpenAICompatCompletionPayload([
   'data: {"choices":[{"delta":{"content":"完整"},"finish_reason":null}]}',
@@ -979,9 +868,9 @@ assert.doesNotMatch(
   "不得再出现裸草稿长度阈值判断：JSON-only 契约下它恒为 0，必须走 m03CandidateSubstanceLength",
 );
 {
-  // 两处调用点都必须经统一口径
+  // 调用点都必须经统一口径（原「语义复核救援」调用点随模型复核遗留于 2026-09-25 删除）。
   const tierUsesUnified = /tierDraftLength = m03CandidateSubstanceLength\(/.test(diagnosisApiSource);
-  const salvageUsesUnified = /m03CandidateSubstanceLength\(\s*\n\s*accumulatedContent,/.test(diagnosisApiSource);
+  const finalizeUsesUnified = /visibleDraftLength: m03CandidateSubstanceLength\(transformed\.content, finalizeTierReasoning\)/.test(diagnosisApiSource);
   assert.ok(tierUsesUnified, "质量批注受理必须走统一口径");
-  assert.ok(salvageUsesUnified, "语义复核救援必须走统一口径");
+  assert.ok(finalizeUsesUnified, "finalize 质量档受理必须走统一口径");
 }

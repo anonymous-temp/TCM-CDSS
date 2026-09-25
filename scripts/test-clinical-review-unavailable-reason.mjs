@@ -1,23 +1,11 @@
 /**
- * 复核不可用的**原因码**必须随 attestation 一起走。
+ * 签名载荷 clinicalReview 上的**不可用原因码**必须随 attestation 一起走，并穿过契约。
  *
- * 【钉的是什么】TCMEval-SDT 194 例实测（提交 9cb0fca4）：
- *   clinicalReview=accepted    176 例，均分 20.34%
- *   clinicalReview=unavailable  18 例，均分 **13.48%**（其中 4 例完全 unresolved）
- * 但从导出的 194 例原始数据里逐条查 attestation，字段只有
- *   ["status", "reviewedPayloadHash"]
- * ——**没有任何原因码**。于是这 18 例只知道「不可用」，不知道是超时、上游报错、
- * 契约不合法还是压根没配置。「列为生产降级项」这句话没有原因码就无从下手，
- * 有限重试与跨提供方兜底也无从设计。
- *
- * 【根因是同一种老毛病】diagnosis-api 的 ClinicalReviewExecutionMeta.reason 一直算着这五种失败，
- * 但 clinicalReviewAttestation() 只取 status 就返回，**算出来即丢弃**——
- * 与同文件里 independentFromGenerator 曾经的毛病同形（那处注释写着「一直算着这一位，
- * 却算出来即丢弃：只进了 /api/model-health 的拓扑遥测，呈现层无人读」）。
- * 同一个函数、同一种丢法，第二次。
- *
- * 【为什么做成单一导出谓词】不提出来就只能写源码级断言（grep 函数体），
- * 那种断言只能证明「代码里有这一行」，不能证明「这一行算得对」——本轮已经吃过一次亏。
+ * 【钉的是什么】TCMEval-SDT 194 例实测（提交 9cb0fca4）：clinicalReview=unavailable 的 18 例
+ * attestation 字段只有 ["status", "reviewedPayloadHash"]——没有任何原因码，降级项无从归因。
+ * 模型复核环节已于 2026-09-16 移除（2026-09-25 清除编排遗留）：正常签名结果的原因码恒为
+ * not_configured；有限兜底页按真实原因标 not_attempted_no_valid_draft / not_attempted_upstream_down /
+ * deadline。原「复核执行元信息 → 原因码」映射谓词随复核器一并删除（它只服务于已删除的复核执行）。
  */
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
@@ -35,35 +23,9 @@ const jiti = createJiti(import.meta.url, {
     "server-only": path.join(repoRoot, "node_modules/next/dist/compiled/server-only/empty.js"),
   },
 });
-const { clinicalReviewUnavailableReason } = await jiti.import("../src/lib/clinical-review-binding.ts");
 const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
 
-// ── 1. 五种失败都必须产出对应原因码 ────────────────────────────────────────
-const FAILURES = ["not_configured", "deadline", "invalid_contract", "http_error", "transport_error"];
-for (const reason of FAILURES) {
-  assert.equal(
-    clinicalReviewUnavailableReason("unavailable", reason), reason,
-    `不可用时必须原样带出原因码：${reason}`,
-  );
-}
-
-// ── 2. 成功档不得产出原因码（原因码只描述不可用）──────────────────────────
-assert.equal(clinicalReviewUnavailableReason("accepted", "accepted"), undefined, "accepted 不得带原因码");
-assert.equal(
-  clinicalReviewUnavailableReason("accepted", "deadline"), undefined,
-  "status=accepted 时即便执行元信息带着 deadline 也不得产出原因码——原因码只描述不可用",
-);
-assert.equal(clinicalReviewUnavailableReason("unavailable", "accepted"), undefined, "accepted 不是失败原因");
-assert.equal(
-  clinicalReviewUnavailableReason("unavailable", "repair"), undefined,
-  "repair 是修复轮，不是不可用原因",
-);
-
-// ── 3. 未知/缺失一律不猜 ───────────────────────────────────────────────────
-assert.equal(clinicalReviewUnavailableReason("unavailable", undefined), undefined, "缺执行元信息时不得编造原因码");
-assert.equal(clinicalReviewUnavailableReason("unavailable", "unknown_reason"), undefined, "未登记的码一律不放行");
-
-// ── 4. 原因码必须能穿过契约（否则算了也传不出去）──────────────────────────
+// ── 1. 原因码必须能穿过契约（否则算了也传不出去）──────────────────────────
 {
   // 底座用**导出数据里的真实 M03 载荷**，不手搓：ReasoningV2Schema 要求 formula 等多个字段，
   // 手搓夹具会因为缺字段而失败，测出来的是夹具不是契约（本轮已踩过一次）。
@@ -96,7 +58,7 @@ assert.equal(clinicalReviewUnavailableReason("unavailable", "unknown_reason"), u
   assert.equal(bad.data.clinicalReview.status, "unavailable", "status 必须保留");
 }
 
-// ── 5. 回归对照：194 例导出数据里这批 attestation 当时确实没有原因码 ────────
+// ── 2. 回归对照：194 例导出数据里这批 attestation 当时确实没有原因码 ────────
 // 这条不是断言产品行为，是把「修复前长什么样」钉在案，避免以后有人以为一直都有。
 {
   const exported = path.join(repoRoot, "docs/evaluations/TCMEval-SDT-194-reasoning-vs-gold-20260816.jsonl");
@@ -113,7 +75,7 @@ assert.equal(clinicalReviewUnavailableReason("unavailable", "unknown_reason"), u
   }
 }
 
-// ── 6. 确定性兜底路径也必须带原因码，且必须与「尝试过并失败」区分开 ────────────
+// ── 3. 确定性兜底路径也必须带原因码，且必须与「尝试过并失败」区分开 ────────────
 // 【为什么单列】首轮修复只覆盖了 clinicalReviewAttestation()（复核跑了但失败）。
 // 194 例 18 例 unavailable 里，14 例走那条路、**4 例走确定性兜底**——而那 4 例正是
 // 「完全 unresolved」的最坏情形（病例 4/35/148/250）。兜底路径根本不写 clinicalReview，
@@ -149,21 +111,7 @@ assert.equal(clinicalReviewUnavailableReason("unavailable", "unknown_reason"), u
     /deadlineFallback: signedLimitedDiagnosis\([\s\S]{0,80}"deadline"\)/.test(route),
     "编排时限兜底必须单独标 deadline：时限触发时复核可能已启动并被切断，与「压根没启动」处置不同",
   );
-  // 复核 accepted 却被下游驳回，必须与「复核未启动」分开。
-  // 线上日志实测：finalized M03 rejected {reason:'m03_primary_syndrome_name_nonstandard'}
-  // 同一次 stage_result 是 {outcome:'fallback', reviewStatus:'accepted', reviewAttemptCount:2}
-  // ——复核跑了两轮并通过，随后受控证候词表判名称不规范，整份结果连同 accepted 的 attestation
-  // 一起被丢弃并对外记成「复核不可用」。冤枉复核会把归因引向「复核可用性」，
-  // 而真正该修的是证候名归一。
-  assert.ok(
-    /reviewAcceptedButRejectedFallback: signedLimitedDiagnosis\([\s\S]{0,80}"accepted_but_draft_rejected_downstream"\)/.test(route),
-    "复核通过但被下游驳回时必须单独标注，不得记成复核不可用",
-  );
   const api = readFileSync(path.join(repoRoot, "src/lib/diagnosis-api.ts"), "utf8");
-  assert.ok(
-    /m03ClinicalReviewAttestation\?\.status === "accepted" && opts\.reviewAcceptedButRejectedFallback/.test(api),
-    "兜底选页必须看复核实际状态——accepted 时不能再用默认页",
-  );
   assert.ok(
     /deadlineFallback\?:\s*string;/.test(api),
     "StreamSafetyOptions 必须有独立的 deadlineFallback",
@@ -173,7 +121,7 @@ assert.equal(clinicalReviewUnavailableReason("unavailable", "unknown_reason"), u
     "时限分支必须优先用 deadlineFallback（缺省回落 truncateFallback 以保持既有行为）",
   );
 
-  // 两个新码必须能穿过契约
+  // 有限兜底的原因码（含历史快照里可能出现的 accepted_but_draft_rejected_downstream）必须能穿过契约
   const exported = path.join(repoRoot, "docs/evaluations/TCMEval-SDT-194-reasoning-vs-gold-20260816.jsonl");
   const rows = readFileSync(exported, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
   const realReasoning = (rows.slice(1).find((item) => item?.productionResult?.reasoning?.formula !== undefined)
@@ -187,18 +135,9 @@ assert.equal(clinicalReviewUnavailableReason("unavailable", "unknown_reason"), u
     assert.ok(parsed.success, `契约必须接受「未启动」码 ${code}`);
     assert.equal(parsed.data.clinicalReview.unavailableReason, code, `${code} 必须原样穿过契约`);
   }
-
-  // 「未启动」不得由 clinicalReviewUnavailableReason 产出——那个谓词只描述**跑过并失败**的执行元信息。
-  // 混进去会让「没东西可审」被当成「审了但失败」，重试策略据此空转。
-  for (const code of ["not_attempted_no_valid_draft", "not_attempted_upstream_down"]) {
-    assert.equal(
-      clinicalReviewUnavailableReason("unavailable", code), undefined,
-      `${code} 不是复核执行失败原因，不得由执行元信息映射产出`,
-    );
-  }
 }
 
-// ── 7. 基线对照：18 例里走兜底与走正常路径的分布钉在案 ────────────────────
+// ── 4. 基线对照：18 例里走兜底与走正常路径的分布钉在案 ────────────────────
 {
   const exported = path.join(repoRoot, "docs/evaluations/TCMEval-SDT-194-reasoning-vs-gold-20260816.jsonl");
   if (existsSync(exported)) {
@@ -215,29 +154,29 @@ assert.equal(clinicalReviewUnavailableReason("unavailable", "unknown_reason"), u
   }
 }
 
-console.log("test-clinical-review-unavailable-reason: OK", {
-  failureReasons: FAILURES.length,
-  contractRoundTrip: true,
-});
+console.log("test-clinical-review-unavailable-reason: OK", { contractRoundTrip: true });
 
-// ── 7. 四类兜底的可见理由必须各不相同（2026-09-13）────────────────────────────────
-// 222 例实测第二类 7 例：attestation 是 not_attempted_no_valid_draft、复核尝试数 0，
-// 医生看到的却是「本次分析尚未形成通过临床复核的稳定证候结果」——把结构化交付问题
-// 说成复核否决。措辞与原因码同源之后，这四类必须逐条可区分。
+// ── 5. 各类兜底的可见理由必须各不相同（2026-09-13）────────────────────────────────
+// 222 例实测第二类 7 例：attestation 是 not_attempted_no_valid_draft，医生看到的却是
+// 「本次分析尚未形成通过临床复核的稳定证候结果」——把结构化交付问题说成复核否决。
+// 措辞与原因码同源之后，路由实际会传的三类码与缺省必须逐条可区分；
+// 模型复核环节已移除（owner 2026-09-25）：这些可见理由不得再提「独立临床复核」。
 {
   const { limitedDiagnosisReasonCopy } = await jiti.import("../src/lib/diagnosis-safety.ts");
-  const codes = ["not_attempted_no_valid_draft", "not_attempted_upstream_down", "deadline",
-    "accepted_but_draft_rejected_downstream", "invalid_contract", "not_configured", undefined];
+  const codes = ["not_attempted_no_valid_draft", "not_attempted_upstream_down", "deadline", undefined];
   const reasons = codes.map((code) => limitedDiagnosisReasonCopy(code).reason);
   assert.equal(new Set(reasons).size, reasons.length, "每个原因码必须有各自的可见理由");
-  assert.match(limitedDiagnosisReasonCopy("not_attempted_no_valid_draft").reason, /复核尚未启动|未启动/);
+  assert.match(limitedDiagnosisReasonCopy("not_attempted_no_valid_draft").reason, /完整性校验/);
   assert.doesNotMatch(limitedDiagnosisReasonCopy("not_attempted_no_valid_draft").reason, /通过临床复核/,
-    "复核没运行时不得把问题说成复核否决");
+    "结构化交付问题不得说成复核否决");
   assert.doesNotMatch(limitedDiagnosisReasonCopy("not_attempted_upstream_down").reason, /通过临床复核|信息不足/,
     "上游故障不得说成临床结论");
-  assert.match(limitedDiagnosisReasonCopy("accepted_but_draft_rejected_downstream").reason, /复核已通过|已通过/,
-    "复核通过被下游驳回时必须如实说明复核已通过");
-  // 未知码维持旧文案（存量调用方不变）。
+  assert.match(limitedDiagnosisReasonCopy("deadline").reason, /安全时限/);
+  for (const code of codes.filter(Boolean)) {
+    const copy = limitedDiagnosisReasonCopy(code);
+    assert.doesNotMatch(`${copy.reason}${copy.limitation}`, /独立临床复核|复核否决|模型复核|复核提出|复核未/,
+      `${code}: 可见理由不得再提已删除的模型复核`);
+  }
+  // 未知码维持旧文案（block 档拦截与存量客户端回退正则依赖它）。
   assert.equal(limitedDiagnosisReasonCopy(undefined).reason, "本次分析尚未形成通过临床复核的稳定证候结果");
 }
-

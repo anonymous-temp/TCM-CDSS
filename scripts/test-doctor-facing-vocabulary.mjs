@@ -38,7 +38,6 @@ const SCAN_ROOTS = ["src/lib", "src/app"];
 const PROMPT_ONLY_FILES = new Set([
   "src/lib/diagnosis-prompts.ts",                        // M01–M05 提示词本体
   "src/lib/structured-clinical-repair.ts",               // 修复轮指导语
-  "src/lib/m04-clinical-review.ts",                      // 复核提示词
   "src/lib/controlled-semantic-normalization.server.ts", // 术语归一提示词
   "src/lib/drug-inventory.server.ts",                    // 院内库存提示词上下文
   "src/lib/tcm-clinical-decision-cards.ts",              // 决策卡片提示词上下文

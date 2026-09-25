@@ -4,7 +4,6 @@ import { buildPromptWithPublicPrefix, explicitPromptCacheMessages } from "../src
 import { modelUsageSnapshot } from "../src/lib/openai-compatible-response.ts";
 import { createInitialCaseState } from "../src/lib/diagnosis-types.ts";
 import { buildQuestionPrompt, buildDiagnosePrompt, buildPrescribePrompt } from "../src/lib/diagnosis-prompts.ts";
-import { buildM03DiagnosticReviewPrompt } from "../src/lib/m03-diagnostic-review.ts";
 import { buildM03ContextPackets } from "../src/lib/m03-context-packets.ts";
 import { recordModelTaskTelemetry, getCdssModelTaskTelemetrySnapshot } from "../src/lib/cdss-model-task-telemetry.ts";
 
@@ -58,10 +57,6 @@ try {
     assert.equal(content(a), a);
     process.env.CDSS_EXPLICIT_PROMPT_CACHE = "true";
   }
-  const a = buildM03DiagnosticReviewPrompt("主诉：CACHE_PATIENT_A；咳嗽", {});
-  const b = buildM03DiagnosticReviewPrompt("主诉：CACHE_PATIENT_B；膝关节红肿", {});
-  assert.equal(marked(a)[0].text, marked(b)[0].text, "topic and depth variants remain after fixed review norms");
-  assert.ok(!marked(a)[0].text.includes("服务端事实极性分类"));
   for (const prompt of [buildM03ContextPackets({ sharedPatientContext: "CACHE_PATIENT_A", fullPrompt: "", evidenceContext: "", stageInstructions: "" }).western]) {
     assert.ok(!marked(prompt)[0].text.includes("CACHE_PATIENT_A"));
     assert.ok(marked(prompt)[1].text.includes("CACHE_PATIENT_A"));

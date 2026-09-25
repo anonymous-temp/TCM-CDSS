@@ -8,7 +8,8 @@
  * M04 中位 43.6s 里有相当一段医生读到的是一句与实际不符的进度。
  *
  * 修法不是在心跳里补 if，而是把阶段名收成**单一权威**：一个 orchestrationPhase 变量，
- * 只由「进入复核」和「进入第 N 轮修订」这两个单一入口写。因此本套件既钉纯函数的输出，
+ * 只由「进入核验（attestation 绑定）」和「进入第 N 轮修订」这两个单一入口写。
+ * （模型复核环节已于 2026-09-16 删除；「核验」阶段现指确定性定稿与 attestation 绑定。）因此本套件既钉纯函数的输出，
  * 也钉 diagnosis-api.ts 的接线——后者才是真正会漂移的地方（本仓头号缺陷形状：
  * 同一判据两处各写各的）。
  *
@@ -94,46 +95,50 @@ check("修复轮计数只有一个写入点，且在 beginStructuredRepairRound 
   assert.ok((api.match(/beginStructuredRepairRound\(\);/g) || []).length >= 4, "修复轮调用点少于已知的 4 处");
 });
 
-function verifyReviewObservation(source) {
+// 每一个 attestation 绑定点（常量 attestation 的产生处）都必须先进入核验阶段：
+// 绑定点与 enterVerificationPhase() 必须在同一个语句块内。
+function verifyAttestationEntersPhase(source) {
   const tree = ts.createSourceFile("diagnosis-api.ts", source, ts.ScriptTarget.Latest, true);
-  const reviews = new Map([["reviewM03DiagnosticCriteria", 0], ["reviewM04ClinicalPlan", 0]]);
-  let trackedM04Calls = 0;
-  const visit = node => {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      const name = node.expression.text;
-      if (reviews.has(name)) {
-        const parent = node.parent;
-        assert.ok(ts.isCallExpression(parent) && ts.isIdentifier(parent.expression) && parent.expression.text === "observeClinicalReview",
-          `${name} 绕过阶段观察入口`);
-        reviews.set(name, reviews.get(name) + 1);
-      }
-      if (name === "observeClinicalReview") {
-        assert.ok(node.arguments[0] && !ts.isAwaitExpression(node.arguments[0]),
-          "复核结束后才进入观察器，等待期间阶段名会错误");
-      }
-      if (name === "reviewTrackedM04Candidate") trackedM04Calls += 1;
+  let sites = 0;
+  const callsEnterPhase = (statement) => ts.isExpressionStatement(statement) &&
+    ts.isCallExpression(statement.expression) && ts.isIdentifier(statement.expression.expression) &&
+    statement.expression.expression.text === "enterVerificationPhase";
+  const visit = (node) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) &&
+        node.expression.text === "clinicalReviewNotPerformedAttestation") {
+      sites += 1;
+      let block = node.parent;
+      while (block && !ts.isBlock(block)) block = block.parent;
+      assert.ok(block && block.statements.some(callsEnterPhase),
+        `attestation 绑定点（第 ${sites} 处）未进入核验阶段，心跳阶段名会与编排状态分叉`);
     }
     ts.forEachChild(node, visit);
   };
   visit(tree);
-  assert.ok([...reviews.values()].every(count => count > 0), "M03/M04 复核入口必须仍在接线中");
-  assert.ok(trackedM04Calls > 0, "统一 M04 复核入口不能成为未使用的死代码");
+  assert.ok(sites >= 3, `attestation 绑定点只剩 ${sites} 处（M03 候选 / M04 候选 / M03 定稿补绑，至少 3 处）`);
 }
 
-check("每一处实际复核调用都先进入阶段观察器，允许多个路径共用入口", () => {
-  verifyReviewObservation(api);
+check("每一处 attestation 绑定都先进入核验阶段", () => {
+  verifyAttestationEntersPhase(api);
 });
-check("移除某阶段的观察接线会失败，而非依赖固定调用次数", () => {
-  for (const name of ["reviewM03DiagnosticCriteria", "reviewM04ClinicalPlan"]) {
-    const changed = api.replace(`observeClinicalReview(${name}(`, `unobservedReview(${name}(`);
-    assert.notEqual(changed, api, `${name} 反证必须实际修改一个调用点`);
-    assert.throws(() => verifyReviewObservation(changed), /绕过阶段观察入口/);
+check("移除某一处的阶段接线会失败，而非依赖固定调用次数", () => {
+  const needle = "enterVerificationPhase();";
+  const first = api.indexOf(needle);
+  assert.ok(first > 0, "反证必须能找到接线点");
+  let index = first;
+  let mutated = 0;
+  while (index >= 0) {
+    const changed = `${api.slice(0, index)}void 0;${api.slice(index + needle.length)}`;
+    assert.throws(() => verifyAttestationEntersPhase(changed), /未进入核验阶段/);
+    mutated += 1;
+    index = api.indexOf(needle, index + needle.length);
   }
+  assert.ok(mutated >= 3, `只反证了 ${mutated} 处接线`);
 });
 
 check("阶段名写入点恰好两处，心跳文案不在 diagnosis-api.ts 内重复", () => {
   const writes = api.match(/orchestrationPhase = "/g) || [];
-  assert.equal(writes.length, 2, `阶段名写入点为 ${writes.length} 处（应为复核 + 修订各一处）`);
+  assert.equal(writes.length, 2, `阶段名写入点为 ${writes.length} 处（应为核验 + 修订各一处）`);
   assert.ok(api.includes("stageProgressHeartbeatStatus({"), "心跳未接线到阶段名函数");
   assert.ok(!api.includes("模型正在组织临床正文"), "首稿文案在 diagnosis-api.ts 里被复写了一份，两处会分叉");
 });

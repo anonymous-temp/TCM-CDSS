@@ -1,14 +1,13 @@
 // Live debug harness for the M04 deterministic herb-contract gauntlet (unregistered, not a test).
 // NOTE 2026-09-16: the production M04 pipeline no longer runs a model reviewer (removed by owner
-// decision); the "independent M04 reviewer per round" step below is kept only as a local probe and
-// is NOT representative of production behaviour.
+// decision; the reviewer modules were deleted 2026-09-25). A round whose deterministic contracts all
+// pass is therefore reported as dose-level accepted, exactly as production signs it.
 // EXACT replica of the production M04 pipeline for evaluator caseStates with real signed M03
 // priors (artifacts/real-100-smoke-r6-20260719/*.txt):
 //   toCaseState + reasoningDiagnose → withSafetyGate → maybeAttachClinicalFactsBackstop (REAL) →
 //   derivePrescriptionPermission → sanitizeCaseStateForModel → buildCdssEvidenceContext +
 //   buildPrescribePrompt (shortlist section printed) → real prescribe model → proposal compile →
-//   deterministic transform chain → strict + advisory contract checks with per-herb issue codes →
-//   real independent M04 reviewer per round.
+//   deterministic transform chain → strict + advisory contract checks with per-herb issue codes.
 // Run: node --env-file-if-exists=.env.local scripts/debug-m04-prescribe-live.mjs [ES03,ES04] [runs]
 // Prints only sanitized clinical payloads and verdicts; never prints env or credentials.
 import { readFileSync } from "node:fs";
@@ -27,7 +26,6 @@ const { buildCdssEvidenceContext, appendEvidenceContext, buildEvidenceOutputTran
 const { buildPrescribePrompt } = await jiti.import("../src/lib/diagnosis-prompts.ts");
 const { parseReasoningV2 } = await jiti.import("../src/lib/diagnosis-parse.ts");
 const { m04SemanticIssue, highImpactHerbDirectionIssue, canonicalTcmHerbIdentity } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
-const { buildM04ClinicalReviewPrompt, m04ClinicalRepairGuidance, parseM04ClinicalReview } = await jiti.import("../src/lib/m04-clinical-review.ts");
 const { compileM04JsonObjectContent } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
 const { resolveCompletedStructuredResponse, enforceStructuredStageOwnership } = await jiti.import("../src/lib/diagnosis-structured-repair.ts");
 const { applyDeterministicFormulaReferences, enrichReasoning, formulaCompilationContractIssue } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
@@ -56,12 +54,10 @@ if (!config.configured) {
 const endpoint = `${config.baseUrl.replace(/\/+$/, "")}/chat/completions`;
 const prescribeModel = process.env.PRIMARY_PRESCRIBE_MODEL?.trim() || config.model;
 const repairModel = process.env.PRIMARY_PRESCRIBE_REPAIR_MODEL?.trim() || process.env.PRIMARY_DIAGNOSE_MODEL?.trim() || config.model;
-const reviewModel = process.env.PRIMARY_CLINICAL_REVIEW_MODEL?.trim() || process.env.PRIMARY_REVIEW_MODEL?.trim() || config.model;
 const prescribeMaxTokens = Number(process.env.PRIMARY_PRESCRIBE_MAX_TOKENS) > 0
   ? Number(process.env.PRIMARY_PRESCRIBE_MAX_TOKENS)
   : Number(process.env.PRIMARY_TEXT_MAX_TOKENS) > 0 ? Number(process.env.PRIMARY_TEXT_MAX_TOKENS) : 14_000;
 const prescribeEffort = (process.env.PRIMARY_PRESCRIBE_REASONING_EFFORT || "low").trim();
-const reviewEffort = (process.env.PRIMARY_CLINICAL_REVIEW_REASONING_EFFORT || "low").trim();
 
 async function chat({ model, system, user, maxTokens, effort, timeoutMs = 170_000 }) {
   const controller = new AbortController();
@@ -294,7 +290,6 @@ async function runM04Pipeline(fixture, prepared, runIndex) {
   console.log("kbShortlist:", shortlistMatch ? JSON.stringify(shortlistMatch[0].slice(0, 500)) : "ABSENT");
   let rejectedJson = "";
   let lastReason = "";
-  let clinicalReviewGuidance = "";
   for (let round = 1; round <= 3; round += 1) {
     const isRepair = round > 1;
     // Replica of the server's deterministic dose-boundary hint (doseOutsideConservativeRange).
@@ -403,7 +398,6 @@ async function runM04Pipeline(fixture, prepared, runIndex) {
           candidateWideRepairHint,
           emperorDirectionHint,
           unknownHerbHint,
-          clinicalReviewGuidance,
           prompt.match(/【本例治法方向的知识库覆盖药味短名单[^]*?(?=【M04药味可引用病机节点】)/)?.[0]?.trim() || "",
           buildM04ClinicalRepairHint(lastReason),
           "M04 修复结果始终必须是 schemaVersion=tcm-cdss-m04-proposal-v1 的最小提案对象；candidate.herbs 必须是数组且只含本次实际采用药味；candidate.decoction 必须是单个对象，且必须包含格式严格为1–30整数加‘剂’的 doseCount 纯字符串；整个 candidate.herbs 必须恰有 1–2 味君药，且每味君药都必须 targetKind=pathogenesis_node、targetRef=P1；targetKind=pathogenesis_node 时 structureRole 必须为 null。顶层还必须包含 patentAndWestern 数组、modifications 数组以及完整 nonPharma 对象；无逐药可靠证据时 patentAndWestern 输出空数组。modifications 仅允许0-4条无剂量条件性加减，包含 trigger/targetRef/actionType/herbName/reason。nonPharma 的 diet、lifestyle、emotion 必须是非空字符串，acupointCare 固定为 null，monitoring 至少一项且包含 metric、timing、trigger。",
@@ -458,27 +452,8 @@ async function runM04Pipeline(fixture, prepared, runIndex) {
     console.log("issues:", JSON.stringify({ compilation: strictCompilationIssue || "none", semanticStrict: strictSemanticIssue || "none", semanticAdvisory: advisorySemanticIssue || "none", transformError: transformError || "none" }));
     const blockingIssue = strictCompilationIssue || strictSemanticIssue;
     if (enriched && !blockingIssue) {
-      const reviewStarted = Date.now();
-      const reviewOutput = await chat({
-        model: reviewModel,
-        system: "你是独立中药候选处方临床复核器，只输出约定 JSON。不得编造患者事实。",
-        user: buildM04ClinicalReviewPrompt(grounding, prior, enriched, evidenceContext),
-        maxTokens: 800,
-        effort: reviewEffort,
-      });
-      const reviewMs = Date.now() - reviewStarted;
-      const verdict = parseM04ClinicalReview(reviewOutput);
-      console.log(`reviewer (${reviewMs}ms):`, JSON.stringify({ status: verdict.status, issueCode: verdict.issueCode }));
-      if (verdict.status === "accepted") {
-        console.log(`RESULT: dose-level accepted in round ${round}`);
-        return "accepted";
-      }
-      lastReason = verdict.status === "repair" ? `m04_${verdict.issueCode}_semantic_review` : "m04_clinical_semantic_review";
-      clinicalReviewGuidance = m04ClinicalRepairGuidance(verdict, enriched);
-      console.log("reviewRaw:", JSON.stringify(reviewOutput.slice(0, 400)));
-      console.log("reviewGuidance:", JSON.stringify(clinicalReviewGuidance.slice(0, 800)));
-      rejectedJson = extractSentinelJson(content).slice(0, 8_000);
-      continue;
+      console.log(`RESULT: dose-level accepted in round ${round}`);
+      return "accepted";
     }
     lastReason = blockingIssue ? `m04_${blockingIssue}` : transformError;
     rejectedJson = extractSentinelJson(content).slice(0, 8_000);

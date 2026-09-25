@@ -10,7 +10,6 @@ const { responseFormatForTask } = await jiti.import("../src/lib/model-response-f
 const { compileM04Proposal, compileM04JsonObjectContent, M04ProposalSchema } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
 const { getM03TherapyLock } = await jiti.import("../src/lib/m03-therapy-lock.ts");
 const { buildPrescribePrompt } = await jiti.import("../src/lib/diagnosis-prompts.ts");
-const { m04ZeroProviderRepairQualityAnnotation } = await jiti.import("../src/lib/m04-repair-policy.ts");
 
 const prior = {
   schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
@@ -104,7 +103,6 @@ test("optional warnings remain advice and malformed warning rows cannot discard 
   assert.ok(result);
   assert.equal(result.nonPharma.precautions.includes(compact.nonPharma.precautions[0]), true);
   assert.deepEqual(result.formula.candidates[0].herbs, compileM04Proposal(compact, prior).formula.candidates[0].herbs);
-  assert.match(m04ZeroProviderRepairQualityAnnotation({ status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "emperor_role" }), /君药/);
 });
 
 test("M04 prompt assigns one clinical purpose per explanation without requesting owned fields", () => {

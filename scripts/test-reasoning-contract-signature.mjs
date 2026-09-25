@@ -992,6 +992,43 @@ try {
     }
   });
 
+  await checkAsync("M04 prompt carries no instruction about the removed M03 model review (owner 2026-09-25)", async () => {
+    // 模型复核环节已于 2026-09-16 删除，签名 M03 的 clinicalReview 恒为 unavailable；此前路由据此
+    // 给每一次 M04 生成追加「【辨证复核状态】M03 独立复核本轮未完成…」，让模型在适用边界里提示一个
+    // 并不存在的复核环节。钉住：M04 生成请求里不再出现任何关于该复核的指令。
+    const promptEnv = {
+      AI_TEXT_PROVIDER: "bailian-qwen", BAILIAN_QWEN_API_KEY: "test-only-prompt-capture",
+      BAILIAN_QWEN_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1", BAILIAN_QWEN_MODEL: "qwen3.8-flash",
+      PRIMARY_PRESCRIBE_MODEL: "qwen3.8-flash", CONTROLLED_TERMINOLOGY_NORMALIZATION: "false",
+    };
+    const savedEnv = Object.fromEntries(Object.keys(promptEnv).map((key) => [key, process.env[key]]));
+    const previousFetch = globalThis.fetch;
+    const bodies = [];
+    Object.assign(process.env, promptEnv);
+    globalThis.fetch = async (_url, init) => {
+      try { bodies.push(JSON.parse(init.body)); } catch { /* non-JSON bodies are not model requests */ }
+      return new Response("{}", { status: 503 });
+    };
+    try {
+      const promptCase = clone(routeBaseCase);
+      promptCase.reasoningDiagnose = clone(signed);
+      assert.notEqual(signed.clinicalReview?.status, "accepted", "前提：签名 M03 不带「复核已通过」");
+      const response = await prescribePost(routeRequest("/api/diagnosis/prescribe", promptCase)).catch(() => undefined);
+      if (response) await response.text();
+    } finally {
+      globalThis.fetch = previousFetch;
+      for (const [key, value] of Object.entries(savedEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+    const m04Requests = bodies.map((body) => JSON.stringify(body.messages || [])).filter((text) => text.includes("候选治疗方案"));
+    assert.ok(m04Requests.length > 0, "夹具必须真正走到 M04 生成请求，否则断言空转");
+    for (const text of m04Requests) {
+      assert.doesNotMatch(text, /辨证复核状态|独立复核|模型复核/, "M04 提示词不得再提已删除的模型复核");
+    }
+  });
+
   await checkAsync("assess route evaluates diagnose-only when M04 is absent, mirroring the HIS rule", async () => {
     // ── diagnose-only M05（owner 2026-09-14）───────────────────────────────────────
     // 有签名 M03 + 无结构化 M04 ⇒ 200，随访与安全总评照常，审方 fail-closed；

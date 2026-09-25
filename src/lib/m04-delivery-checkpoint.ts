@@ -12,9 +12,12 @@ export type M04DeliveryCheckpoint = Readonly<{
   content: string;
   reasoning: ClinicalReasoningResultV2;
   payloadHash: string;
-  generatorModel?: string;
   acceptanceScope?: ClinicalReviewAttestation["acceptanceScope"];
-  review?: { status: "accepted" | "repair" | "unavailable"; issueCode?: string; reason?: string };
+  /**
+   * 本候选走过 attestation 绑定这一步（不论是否因合同码而未绑定）。只供遥测区分
+   * reviewStatus=unavailable（走过）与 not_run（只被保留、未走到绑定）。
+   */
+  attestationAttempted?: true;
   attestation?: ClinicalReviewAttestation;
   signedContent?: string;
   /**
@@ -39,31 +42,25 @@ export function m04DeliveryCheckpointSafetyFindingCount(checkpoint: M04DeliveryC
 /**
  * Keep completed evidence ahead of pending/failed work; equal-strength completed candidates advance.
  *
- * 择优而非取最后一版（2026-09-13）。此前只按复核状态排序，于是「合同全过但复核未跑」
- * 与「带 T1 问题」的候选无法区分——保留候选之后必须由**问题严重度**先分层，否则一轮
+ * 择优而非取最后一版（2026-09-13）。保留候选之后必须由**问题严重度**先分层，否则一轮
  * 带十八反的重写会顶掉上一轮干净的候选。
  *
  * 排序键依次为：
- *  1. **已签名**：走完全部合同 + 复核 + 签名的剂量页永远优先，任何软性问题计数都不得把它挤掉
- *     （否则一轮「问题更少但没复核」的新候选会让医生从剂量页掉回非剂量页，是纯粹的可交付性倒退）；
+ *  1. **已签名**：走完全部合同 + attestation + 签名的剂量页永远优先，任何软性问题计数都不得把它挤掉
+ *     （否则一轮「问题更少但未签名」的新候选会让医生从剂量页掉回非剂量页，是纯粹的可交付性倒退）；
  *  2. 合同干净 > 带合同码；
  *  3. T1（安全底线）问题少者优先；
- *  4. 复核状态 accepted > repair > 未跑；
- *  5. 问题总数少者优先（T2/T3 软性项，只在前四项全平时才起作用）。
+ *  4. 问题总数少者优先（T2/T3 软性项，只在前三项全平时才起作用）。
+ * （原第 4 键「复核状态 accepted > repair > 未跑」随模型复核环节删除：状态恒为 unavailable，
+ *  该键只剩「已签名」一种取值，与第 1 键重合。）
  */
 export function preferM04DeliveryCheckpoint(previous: M04DeliveryCheckpoint | undefined, next: M04DeliveryCheckpoint | undefined) {
-  // A newer completed objection to these exact bytes supersedes an older approval. An unrelated
-  // candidate cannot do so, and a transport outage cannot invent a new clinical decision.
-  if (previous?.payloadHash === next?.payloadHash && next?.review && next.review.status !== "unavailable") return next;
-  const reviewRank = (value: M04DeliveryCheckpoint) => value.signedContent ? 3
-    : value.review?.status === "accepted" ? 2 : value.review?.status === "repair" ? 1 : 0;
   const score = (value: M04DeliveryCheckpoint | undefined): readonly number[] => !value
-    ? [-1, -1, 0, -1, 0]
+    ? [-1, -1, 0, 0]
     : [
         value.signedContent ? 1 : 0,
         m04DeliveryCheckpointIsClean(value) ? 1 : 0,
         -m04DeliveryCheckpointSafetyFindingCount(value),
-        reviewRank(value),
         -(value.findings?.length || 0),
       ];
   const left = score(previous);
@@ -90,7 +87,6 @@ export function retainM04DeliveryCheckpoint(
     reasoning: ClinicalReasoningResultV2;
     priorReasoning?: ClinicalReasoningResultV2;
     clinicalContext?: string;
-    generatorModel?: string;
     acceptanceScope?: ClinicalReviewAttestation["acceptanceScope"];
     /** 调用方已经知道的驳回码（路由终审投影抛出的 finalized_prescription_*）。 */
     extraContractIssues?: readonly string[];
@@ -132,8 +128,8 @@ export function retainM04DeliveryCheckpoint(
   // 而连一味药都没留下，医生拿到的是「本次尚未形成通过校验的个体化方药候选」。
   //
   // 现在改为：合同码变成**随候选交付的问题条目**，候选照常保留。保留的候选只作
-  // 非剂量呈现（renderM04DeliveryCheckpoint 从不输出剂量/用法/疗程），且 bindM04DeliveryReview
-  // 拒绝为带合同码的候选绑定签名或复核背书 —— 「保留内容」不得被冒充成「已复核通过」。
+  // 非剂量呈现（renderM04DeliveryCheckpoint 从不输出剂量/用法/疗程），且 bindM04DeliveryAttestation
+  // 拒绝为带合同码的候选绑定签名或 attestation —— 「保留内容」不得被冒充成「已通过校验」。
   const safetyIssue = m04SafetyContractIssue(
     enriched, input.priorReasoning, isKnownTcmHerbName, false, false, input.clinicalContext || "", true);
   const compilationIssue = formulaCompilationContractIssue(
@@ -141,7 +137,7 @@ export function retainM04DeliveryCheckpoint(
   const contractIssues = [...new Set([safetyIssue, compilationIssue, ...(input.extraContractIssues || [])]
     .filter((issue): issue is string => Boolean(issue)))];
   // Never replace a completed attested result with a pending or malformed repair. For the same
-  // payload preserve its review disposition, even if a later phase checks it again.
+  // payload preserve its attestation, even if a later phase checks it again.
   if (previous?.signedContent || previous?.payloadHash === payloadHash) return previous;
   const candidate = reasoning.formula?.candidates?.[0];
   const findings = candidate
@@ -151,7 +147,7 @@ export function retainM04DeliveryCheckpoint(
       ])
     : [];
   return immutable(structuredClone({ content: input.content, reasoning, payloadHash,
-    generatorModel: input.generatorModel, acceptanceScope: input.acceptanceScope,
+    acceptanceScope: input.acceptanceScope,
     ...(contractIssues.length > 0 ? { contractIssues } : {}),
     ...(findings.length > 0 ? { findings } : {}) }));
 }
@@ -162,20 +158,18 @@ export function m04DeliveryCheckpointFeedbackCodes(checkpoint: M04DeliveryCheckp
     .filter(Boolean);
 }
 
-/** Review and signature belong to the exact candidate hash, never the latest global review flag. */
-export function bindM04DeliveryReview(
+/** Attestation and signature belong to the exact candidate hash, never the latest global flag. */
+export function bindM04DeliveryAttestation(
   checkpoint: M04DeliveryCheckpoint | undefined,
   reasoning: ClinicalReasoningResultV2,
-  review: NonNullable<M04DeliveryCheckpoint["review"]>,
   attestation?: ClinicalReviewAttestation,
   signedContent?: string,
 ): M04DeliveryCheckpoint | undefined {
   if (!checkpoint || checkpoint.payloadHash !== clinicalReviewPayloadHash(reasoning)) return checkpoint;
-  if (review.status === "unavailable" && checkpoint.review && checkpoint.review.status !== "unavailable") return checkpoint;
-  // 带确定性合同码的候选**永不签名、永不绑背书**：它保留下来是为了让医生看见药味与问题条目，
-  // 不是为了冒充「已通过校验」。这条是「保留候选」与「安全底线」之间的唯一分界。
+  // 带确定性合同码的候选**永不签名、永不绑 attestation**：它保留下来是为了让医生看见药味与
+  // 问题条目，不是为了冒充「已通过校验」。这条是「保留候选」与「安全底线」之间的唯一分界。
   // 模型复核环节已移除（2026-09-16）：attestation 固定为 unavailable/not_configured，
-  // 「已完成」的判据变成「签名存在且哈希绑定到这份字节」——hasBoundClinicalReviewAttestation
+  // 「已完成」的判据是「签名存在且哈希绑定到这份字节」——hasBoundClinicalReviewAttestation
   // 本就接受 unavailable，签名模块与这里读同一个谓词。
   const bound = m04DeliveryCheckpointIsClean(checkpoint) && attestation !== undefined &&
     hasBoundClinicalReviewAttestation({ ...checkpoint.reasoning, clinicalReview: attestation });
@@ -196,7 +190,7 @@ export function bindM04DeliveryReview(
     } catch { /* Mismatched or incomplete signed bytes remain a non-dose candidate. */ }
   }
   return immutable(structuredClone({ ...checkpoint,
-    review,
+    attestationAttempted: true as const,
     attestation: bound ? attestation : undefined, signedContent: matchingSignedContent }));
 }
 
@@ -212,13 +206,6 @@ function factText(value: unknown): string {
 function text(value: unknown): string {
   return factText(typeof value === "string" ? sanitizeGeneratedSuggestionPreviewText(value) : value);
 }
-
-const REVIEW_ISSUES: Record<string, string> = {
-  dose_rationale_concern: "候选剂量强度与本例病情的相称性仍需核对",
-  patient_context_mismatch: "候选方案依赖的患者前提仍需核对",
-  herb_plan_mismatch: "药味与本例病机、治法的对应仍有保留意见",
-  formula_composition_mismatch: "所引方名与实际组成的对应仍有保留意见",
-};
 
 /** A read-only non-dose projection, or the exact already-signed completed candidate. */
 export function renderM04DeliveryCheckpoint(
@@ -265,17 +252,12 @@ export function renderM04DeliveryCheckpoint(
       : `本轮尚未形成可保留的个体化方药候选（模型未产出结构完整的候选）。${retainedState}暂不提供药味、剂量或用法。`);
     return lines.join("\n\n");
   }
-  const review = checkpoint.review;
   const clean = m04DeliveryCheckpointIsClean(checkpoint);
   const status = reason === "dose_withheld"
     ? `本次已生成候选方药；按独立硬边界本例暂不显示具体用量（${doseWithheldReasons.join("；") || "需先完成相关核实"}）。`
-    : review?.status === "repair"
-    ? `本次已生成候选，复核提出的意见尚未解决：${REVIEW_ISSUES[review.issueCode || ""] || "临床方案仍需核对"}。`
-    : review?.status === "accepted"
-      ? "本次候选已完成临床复核，交付合同尚未完成。"
-    : reason === "deadline" || review?.reason === "deadline"
-      ? "本次已生成候选，复核未完成或超过时限。"
-      : "本次已生成候选，复核未完成。";
+    : reason === "deadline"
+      ? "本次已生成候选，本阶段超过时限。"
+      : "本次已生成候选。";
   // 「已通过确定性校验」这句话只有在候选确实干净时才成立。带合同码的候选照常展示，
   // 但必须如实写明它没有通过哪些校验——保留内容不等于冒充已复核通过（owner 2026-09-13）。
   const scopeLine = clean

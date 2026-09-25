@@ -10,8 +10,10 @@
  * 实际是**对同一模型的第二次无对话状态请求**。那仍是有价值的安全环节（无生成侧对话状态、
  * 复核专用提示词、只能加不能减风险），但它不是「独立」，把它说成独立就是对医生夸大了强度。
  *
- * 本模块是这条措辞的**唯一**导出谓词：拓扑位写进签名 attestation，三个出口
- *（服务端可见 Markdown、客户端卡片、HIS 方案）读同一份、用同一个改写函数。
+ * 本模块是这条措辞的**唯一**导出谓词：拓扑位写进签名 attestation，HIS 方案按它写回
+ * clinicalReviewMethod。模型复核环节已于 2026-09-16 删除——新结果的 attestation 恒为
+ * unavailable，HIS 写回 null；这里只为旧快照里 accepted 的 attestation 保留如实呈现。
+ * （原「可见正文措辞改写」函数随复核遗留于 2026-09-25 删除：它改写的文案均已不再生成。）
  */
 
 export type ClinicalReviewIndependence = "cross_model" | "same_model_second_pass";
@@ -36,23 +38,4 @@ export function clinicalReviewMethodNote(independence: ClinicalReviewIndependenc
   return independence === "cross_model"
     ? "复核由与生成阶段不同的模型独立完成。"
     : "复核由同一模型另起一次无生成侧对话状态的请求完成（复核专用提示词，只增不减风险提示），不构成跨模型独立复核。";
-}
-
-/**
- * 把可见正文里无条件写死的「独立（临床）复核」改写成与**实际拓扑**一致的措辞。
- *
- * 之所以做成一次统一改写而不是逐处传参：这句措辞散落在 m04-repair-policy 的批注文案、
- * M03/M04 复核未完成通知、可见摘要的 resolutionReason、以及内部码降级文案里，
- * 逐处穿参会重演「同一判据多处各写各的」——本仓库的头号缺陷形状。
- * 跨模型拓扑下原样返回（措辞本就正确），因此这条改写在正确配置上是零操作。
- */
-export function applyClinicalReviewIndependenceWording(
-  text: string,
-  independence: ClinicalReviewIndependence,
-): string {
-  if (independence === "cross_model") return text;
-  return text
-    .replace(/独立临床复核/g, "二次临床复核")
-    .replace(/独立(?:诊断|处方)复核/g, (match) => match.replace("独立", "二次"))
-    .replace(/独立复核/g, "二次复核");
 }

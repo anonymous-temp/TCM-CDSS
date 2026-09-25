@@ -10,7 +10,7 @@ import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.serve
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { applyTcmTreatmentCapabilityPriority } from "@/lib/tcm-treatment-capabilities.server";
 import { m03SafetyContractIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
-import { isM04FinalizerDeferredLabelIssue, isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
+import { isM04FinalizerDeferredLabelIssue, isSafetyRejection } from "@/lib/diagnosis-rejection-tiers";
 import { isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { enforceReviewedPrescriptionOutput } from "@/lib/prescription-output-safety";
 import type { SafetyGate } from "@/lib/diagnosis-types";
@@ -18,7 +18,6 @@ import { buildPrescribeContractSignatureContext, verifyDiagnoseReasoningSignatur
 import { CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS, hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-planner.server";
 import { buildDrugInventoryPromptContext } from "@/lib/drug-inventory.server";
-import { m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
 import { compactEvidenceContextForPrompt, m04EvidencePromptBudgetChars } from "@/lib/prompt-budget";
@@ -90,7 +89,7 @@ export async function POST(req: Request) {
   // 此前本分支在任何模型调用之前就返回一页固定说明，整条候选生成环节被跳过。
   // 222 例实测 published_case-82：M03 已有气血亏虚工作判断与 2 个病机节点，M04 一味药未生成。
   //
-  // 现在照常完整生成、修复、复核、保留候选，最终交付走服务端的**非剂量投影**
+  // 现在照常完整生成、修复、校验、保留候选，最终交付走服务端的**非剂量投影**
   // （药味、君臣佐使、方义、适用边界、调护全部可见；剂量/用法/疗程由服务端剥离）。
   // candidateMode=blocked 只有「缺主诉」一种来源——那是真的无从生成，维持原页。
   const doseWithheldReasons = permission.candidateMode === "non_dose_only"
@@ -190,9 +189,6 @@ export async function POST(req: Request) {
   if (limitedInformation) {
     promptSuffixes.push(`【有限信息候选】当前待复核：${reviewItemsText}。请基于已知证候、病机和治法生成医生审阅用候选方案，并把相关未知项或阳性风险写入适用边界；不得臆造患者事实，也不得仅因缺项或风险提示拒绝生成。`);
   }
-  if (signedPriorReasoning.clinicalReview?.status !== "accepted") {
-    promptSuffixes.push("【辨证复核状态】M03 独立复核本轮未完成，但其结构、病历接地、极性与安全边界已通过确定性核验。可继续生成有界候选；必须在适用边界中提示复核状态，不得把未完成复核写成已经通过，也不得因此拒绝生成。");
-  }
   if (advisorySafetyNotes.length > 0) {
     promptSuffixes.push(`【急危重线索并存】服务器确定性判定本例存在未解除的安全提示：${advisorySafetyNotes.join("；")}。请照常生成剂量级候选方药；在用药风险提示中把急诊/转诊评估列为第一优先级，剂量取保守区间下段，不得因安全提示拒绝生成，也不得淡化提示。`);
   }
@@ -255,9 +251,9 @@ export async function POST(req: Request) {
     allowDiagnosis: true,
     allowDosePrescription: false,
     action: "complete_before_prescription",
-    missingItems: ["在安全时限内完整生成并复核候选方药"],
+    missingItems: ["在安全时限内完整生成并校验候选方药"],
     redFlags: [],
-    reasons: ["候选方药生成、修复与独立复核未在本阶段安全时限内完成，本轮不采纳任何未完成验证的药味与剂量。已录入病历与辨病辨证结论仍保留，可直接重新生成候选方药。"],
+    reasons: ["候选方药生成与修复未在本阶段安全时限内完成，本轮不采纳任何未完成验证的药味与剂量。已录入病历与辨病辨证结论仍保留，可直接重新生成候选方药。"],
   };
   const advisoryBanner = buildSafetyAdvisoryBanner(
     advisorySafetyNotes.length > 0 ? gated.safetyGate : undefined,
@@ -297,9 +293,8 @@ export async function POST(req: Request) {
     // 非剂量投影从结构化载荷重建页面，横幅不在载荷里；显式带上，红旗警示不得丢失。
     structuredContinuityBanner: advisoryBanner || undefined,
     structuredQueueKey: parsed.customer.customerHash,
-    // M04 repair/review must never receive raw HIS identifiers.
+    // M04 repair must never receive raw HIS identifiers.
     structuredClinicalContext,
-    structuredReviewEvidenceContext: boundedEvidence.text,
     structuredPatientAge: authoritativePatientAgeYears(gated),
     structuredCaseState: safeState,
     structuredMedicineCandidates: medicinePlan.candidates,
@@ -324,7 +319,7 @@ export async function POST(req: Request) {
       // 药味功用/身份在 enrichPrescriptionProvenance 之后才完整。流层更早执行的 deletion-only
       // 剔除看不到这些新增知识，额外坏味会一直潜伏到最终 T1 合同才把整方清空。对同一最终字节
       // 再做一次只减不增的剔除：唯一君药、经典方基准或删除后结构不成立时函数原样返回，随后
-      // 现有安全合同继续 fail-closed；成功剔除时独立复核、审方与签名都消费剔除后的候选。
+      // 现有安全合同继续 fail-closed；成功剔除时审方与签名都消费剔除后的候选。
       const directionPruned = declassifyAndDropOpposingM04CandidateHerbs(enriched, signedPriorReasoning);
       const reasoning = parseReasoningV2(directionPruned);
       // The stream layer has already exhausted formula-composition repair before allowing a
@@ -356,7 +351,16 @@ export async function POST(req: Request) {
       // 也是修复耗尽后终审，不能在核心已按质量项受理后再次把同一码升级成剂量安全 T1。
       // 真正的药物安全码不匹配本谓词，继续逐字硬拦。
       const safetyIssue = isM04FinalizerDeferredLabelIssue(detectedSafetyIssue) ? "" : detectedSafetyIssue;
-      const issue = safetyIssue || formulaCompilationContractIssue(reasoning, signedPriorReasoning, false, true) || declassificationTherapyIssue || m04SemanticIssue(
+      // ── 终审只有一条判据：T1 底线合同干不干净（甲方 2026-08-08 定口径）──────────────────
+      // safetyIssue 非空 = 逐味药典剂量越界 / 十八反十九畏 / 特殊人群禁忌 / 管制毒性 / 方向对立——
+      // 继续硬拦，医生拿到的是明确的安全拒绝。safetyIssue 为空时，剩下的方剂编译、降级治法覆盖与
+      // 全量语义合同码全是「本系统没能自动核验」类（治法词表覆盖率、君药功效方向、病机节点覆盖、
+      // 方名可追溯…），**一律不阻断、批注也不上屏**（口径 4：医生无从处置，受理事实只进服务端日志）。
+      // 此前这里还算一段「带批注受理」的批注文案，但两个返回分支逐字相同、批注从不进入任何出口，
+      // 真正的判定只有 safetyIssue 这一条（2026-09-25 收敛；路由级差分验证输出逐字节不变）。
+      // 为什么全量语义合同不能替代 T1 重跑：m04SemanticIssue 命中第一个问题就短路返回，
+      // 检查顺序不反映临床严重度，拿到一个 T2 码只证明排在它前面的检查通过了。
+      const qualityIssue = safetyIssue ? "" : formulaCompilationContractIssue(reasoning, signedPriorReasoning, false, true) || declassificationTherapyIssue || m04SemanticIssue(
         reasoning,
         "",
         signedPriorReasoning,
@@ -394,72 +398,27 @@ export async function POST(req: Request) {
         clinicalGroundingText(safeState),
         safeState,
       );
-      if (issue) {
-        // Tier-2/3 带批注受理。在此之前，M04 的 60+ 个原因码一律等价于最高危级别：一条建议性
-        // 中医治疗项目卡片的字段缺失，与附子超量一样会作废整张已通过剂量、十八反十九畏、
-        // 特殊人群与审方的处方，医生拿到的是一页拒绝说明。
-        //
-        // 受理的前提是重跑 m04SafetyContractIssue，而不是只看这个拒绝码——这一步不能省：
-        // m04SemanticIssue 命中第一个问题就短路返回，而它的检查顺序**不反映临床严重度**
-        // （nonPharma.tcmTreatments 的 15 个字段检查排在剂量、配伍禁忌与特殊人群之前）。
-        // 拿到一个 T2 码只证明排在它前面的检查通过了，后面的 T1 检查根本没有执行。
-        // shouldAcceptWithQualityAnnotation 在 safetyIssue 缺省时判为不可受理，双重 fail-closed。
-        const rejectionReason = `m04_${issue}`;
-        const annotation = (shouldAcceptWithQualityAnnotation({
-          rejectionReason,
+      if (safetyIssue) {
+        console.warn("[tcm-cdss:contract] finalized M04 rejected", {
+          issue: safetyIssue,
           safetyIssue,
-          visibleDraftLength: synchronized.trim().length,
-          // 处方正文含药味表与煎服法，远长于 M03 叙述；沿用 80 字下限等于不设限。
-          minimumDraftLength: 200,
-        })
-          ? qualityAnnotationCopy(rejectionReason)
-          : undefined)
-          // 降级候选的治法覆盖/词表族批注：与流层受理策略同源（m04-repair-policy 唯一权威）。
-          // 前提同样是底线合同干净（safetyIssue 为空）——批注永远不放行 T1。
-          ?? (declassifiedAccepted && !safetyIssue ? m04TherapyIssueQualityAnnotation(rejectionReason) : undefined);
-        // ── 质量类问题一律不阻断（甲方 2026-08-08 定口径）────────────────────────
-        //
-        // 判据只剩一条：**底线合同（T1）干不干净**。safetyIssue 非空 = 逐味药典剂量越界 /
-        // 十八反十九畏 / 特殊人群禁忌 / 管制毒性——这些继续硬拦，医生拿到的是明确的安全拒绝。
-        // safetyIssue 为空时，剩下的全是「本系统没能自动核验」类（治法词表覆盖率、
-        // 君药功效方向、病机节点覆盖、方名可追溯…），**它们一律不再让医生一无所获**。
-        //
-        // 为什么这条口径成立：这类码指向的是我方词表能力边界，不是这张方有临床错误。
-        // 全量归档重放（922 组）逐例还原过第一大驳回族 emperor_therapy_mismatch 的 8 个真实病例，
-        // 没有一例是临床用错君药——全部是知识库缺功用文本、治法写法未收词、双君方配伍才成立。
-        // 而每一味的剂量边界、配伍禁忌、特殊人群门禁、寒热极性对立在这道门之外**独立执行**，
-        // 灵犀审方还会再过一遍。把「我们没读懂」变成「医生一无所获」，是拿产品可用性
-        // 为我方的词表缺口买单。
-        const qualityOnly = !safetyIssue;
-        if (!annotation && !qualityOnly) {
-          console.warn("[tcm-cdss:contract] finalized M04 rejected", {
-            issue,
-            safetyIssue: safetyIssue || undefined,
-            stage: "prescribe",
-            // 原因码里的 herb_2 是**下标**，日志里没有药名，线上根本无法定位是哪味药被驳回——
-            // 而 herb_*_unsupported_high_impact_* 恰恰是最高频的驳回族。补上该下标对应的药名
-            // （药名不是 PHI），把「无法形成处方」从不可诊断变成可诊断。
-            offendingHerb: rejectedHerbName(issue, reasoning),
-          });
-          throw new Error(`finalized_prescription_${issue}`);
-        }
+          stage: "prescribe",
+          // 原因码里的 herb_2 是**下标**，日志里没有药名，线上根本无法定位是哪味药被驳回——
+          // 而 herb_*_unsupported_high_impact_* 恰恰是最高频的驳回族。补上该下标对应的药名
+          // （药名不是 PHI），把「无法形成处方」从不可诊断变成可诊断。
+          offendingHerb: rejectedHerbName(safetyIssue, reasoning),
+        });
+        throw new Error(`finalized_prescription_${safetyIssue}`);
+      }
+      if (qualityIssue) {
         console.warn("[tcm-cdss:contract] finalized M04 accepted with quality annotation", {
-          issue,
+          issue: qualityIssue,
           stage: "prescribe",
         });
-        // synchronizeVisibleClinicalSummary 从结构化载荷重建可见正文，标题前的警示横幅
-        // 不在载荷里、会被重建丢掉——这里显式补回，横幅必须活到最终输出。
-        // 批注**不再呈现给医生**（甲方 2026-08-08 定口径 4）：
-        // 「君药方向未自动核验」这类是后台细节，医生并不知道系统内部怎么算的，
-        // 把它印在处方页顶端只会制造无从处置的疑虑。安全类横幅（CDSS_SAFETY_ADVISORY）
-        // 与信息提示（informationNotice）不受影响，那两类是医生需要行动的内容。
-        // 受理事实仍写进服务端日志与遥测，可追溯，只是不上屏。
-        return [
-          advisoryBanner && !synchronized.includes("CDSS_SAFETY_ADVISORY") ? advisoryBanner.trimEnd() : "",
-          informationNotice,
-          synchronized,
-        ].filter(Boolean).join("\n\n");
       }
+      // synchronizeVisibleClinicalSummary 从结构化载荷重建可见正文，标题前的警示横幅
+      // 不在载荷里、会被重建丢掉——这里显式补回，横幅必须活到最终输出。安全类横幅
+      //（CDSS_SAFETY_ADVISORY）与信息提示（informationNotice）是医生需要行动的内容。
       return [
         advisoryBanner && !synchronized.includes("CDSS_SAFETY_ADVISORY") ? advisoryBanner.trimEnd() : "",
         informationNotice,

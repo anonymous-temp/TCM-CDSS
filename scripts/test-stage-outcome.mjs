@@ -116,8 +116,8 @@ assert.equal(extractStageReasoning(`${START_MARKER}\n{not json\n${END_MARKER}`, 
 console.log(JSON.stringify({ suite: "stage-outcome", assertions: 24, failures: 0 }, null, 2));
 
 // ─── 同一条确定性合同拒绝码只修一次 ──────────────────────────────────────────
-// 既有的三处定点守卫都键在复核驱动的条件上（quarantineShape / reviewBasedRejection），
-// 纯合同拒绝码不满足任何一条，于是那条路上没有定点检测：同一个码可在多个顺序重试阶段被反复注入。
+// 此前的定点守卫都键在（已删除的）模型复核驱动条件上，纯合同拒绝码没有定点检测：
+// 同一个码可在多个顺序重试阶段被反复注入。
 // 实测一次 M03 里 m03_patient_fact_ungrounded_0_1_literal 连续出现 3 次（同节点同事实），
 // M04 的 m04_formula_reference_declassified 连续 2 次，单例 M03 从 15s 涨到 2.4 分钟。
 // 合同拒绝码的修复提示是 (阶段, 原因码) 的纯函数，同码必然同提示，再注入一次是重抽同一张彩票。
@@ -136,11 +136,11 @@ console.log(JSON.stringify({ suite: "stage-outcome", assertions: 24, failures: 0
   assert.ok(notes.length >= 4, `只有 ${notes.length} 处记录了已修原因码，记录与查询必须成对`);
   assert.match(
     source,
-    /shouldRunTargetedStructuredRetry\("diagnose", finalizedM03RejectionReason\)[\s\S]{0,350}?!isRepeatedContractRepair\(finalizedM03RejectionReason, false\)[\s\S]{0,650}?noteContractRepair\(finalizedM03RejectionReason, false\)/,
+    /shouldRunTargetedStructuredRetry\("diagnose", finalizedM03RejectionReason\)[\s\S]{0,350}?!isRepeatedContractRepair\(finalizedM03RejectionReason\)[\s\S]{0,650}?noteContractRepair\(finalizedM03RejectionReason\)/,
     "finalize 后的 M03 重试入口也必须先查同码账本并在 provider 调用前登记",
   );
-  // 复核驱动的拒绝码不进账本：同一个宽泛码带不同子型仍算新信息，这条既有语义不得被改掉。
-  assert.match(source, /!reviewDriven/, "复核驱动的拒绝码必须排除在账本之外");
+  // 模型复核环节已删除（2026-09-16）：所有拒绝码都是确定性合同码，一律进账本，没有豁免旁路。
+  assert.doesNotMatch(source, /reviewDriven/, "账本不得再有「复核驱动」豁免——那条路径已无生产者，留着就是未来的旁路");
   // 提前收敛不得绕过 T1 硬门：终态出口仍须重跑安全合同再决定受理或降级。
   assert.match(source, /m03SafetyContractIssue\(/, "M03 终态出口必须仍执行 T1 硬门");
   // M04 的 T1 硬门在处方路由的终态受理处，不在流式层。
@@ -148,14 +148,3 @@ console.log(JSON.stringify({ suite: "stage-outcome", assertions: 24, failures: 0
   assert.match(prescribeRoute, /m04SafetyContractIssue\(/, "M04 终态出口必须仍执行 T1 硬门");
 }
 
-// 复核标志必须按阶段取：M04 的合同拒绝码不得用 M03 的复核标志判定。
-// 传错会让 M04 的合同码被当成「复核驱动」而绕过账本——实测一次 prescribe 里
-// m04_formula_reference_declassified 仍连注两轮，最后靠 M04 自己那道守卫才收住。
-{
-  const { readFileSync } = await import("node:fs");
-  const source = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
-  assert.match(source, /targetedReviewDriven[\s\S]{0,200}retriedM04ClinicalReviewRejected/,
-    "定向重试门必须按阶段选择复核标志（prescribe 用 M04 的）");
-  assert.doesNotMatch(source, /isRepeatedContractRepair\(retryRejectionReason, retriedDiagnosticReviewRejected\)/,
-    "不得再对 M04 使用 M03 的复核标志");
-}

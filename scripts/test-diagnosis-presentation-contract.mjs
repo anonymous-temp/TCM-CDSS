@@ -472,7 +472,6 @@ console.log(`diagnosis-presentation-contract: ${checks} checks passed`);
 {
   const promptSrc = fs.readFileSync(new URL("../src/lib/diagnosis-prompts.ts", import.meta.url), "utf8");
   const repairSrc = fs.readFileSync(new URL("../src/lib/structured-clinical-repair.ts", import.meta.url), "utf8");
-  const reviewSrc = fs.readFileSync(new URL("../src/lib/m03-diagnostic-review.ts", import.meta.url), "utf8");
   check(() => {
     assert.ok(
       /病因待查[^。]*只能[^。]*症状级或症候群级/.test(promptSrc),
@@ -489,14 +488,5 @@ console.log(`diagnosis-presentation-contract: ${checks} checks passed`);
     );
     assert.ok(/不得[^。]*写成“腹泻（病因待查）”/.test(repairSrc), "修复引导必须显式禁止括注形态");
     assert.ok(/“腹泻，病因待查”/.test(repairSrc), "修复引导应给出与提示词一致的逗号形态");
-  });
-  check(() => {
-    for (const anchor of ["血尿酸", "尿酸盐结晶", "双能CT", "痛风石", "化脓性关节炎"]) {
-      assert.ok(reviewSrc.includes(anchor), `风湿科校准缺少客观依据锚点：${anchor}`);
-    }
-    assert.ok(
-      /痛风性关节炎[^"]*只能进 differentials/.test(reviewSrc),
-      "缺少「缺客观依据时痛风只能进 differentials」这条硬要求",
-    );
   });
 }

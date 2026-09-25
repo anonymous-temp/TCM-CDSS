@@ -123,18 +123,6 @@ assert.match(prodSmokeSource, /percentile95\(m04Durations\)/);
 assert.match(prodSmokeSource, /chunk\.status\s*===\s*"模型已开始返回临床正文"/,
   "first-content SLO must use the provider marker rather than the immediate server heartbeat");
 
-for (const [file, fixedMarker, patientMarker, candidateMarker] of [
-  ["src/lib/m03-diagnostic-review.ts", "你是独立的中西医临床推理复核器", "患者事实边界：", "待复核M03临床投影："],
-  ["src/lib/m04-clinical-review.ts", "你是独立的中药候选处方临床复核器", "患者事实边界：", "待复核M04临床投影："],
-]) {
-  const source = readFileSync(file, "utf8");
-  const fixedRules = source.indexOf(fixedMarker);
-  const patient = source.indexOf(patientMarker);
-  const candidate = source.indexOf(candidateMarker);
-  assert.ok(fixedRules >= 0 && patient > fixedRules && candidate > patient,
-    `${file} must keep fixed review rules before patient/candidate payloads for prefix caching`);
-}
-
 console.log(JSON.stringify({ suite: "model-structured-output", tasks: 6, models: 6, failures: 0 }));
 
 

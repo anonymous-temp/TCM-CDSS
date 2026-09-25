@@ -9,7 +9,6 @@
  * 默认拒绝（default-deny）：只有出现在下面的白名单／模式表里的原因码才会被判为 T2/T3，其余一律 T1。
  * 未来新增的检查、传输类失败（json_invalid / sentinel_count_* / schema_invalid_* /
  * trailing_content / stage_* / resolver_rejected / finish_*）自动保持今天的 fail-closed 行为。
- * M03 独立复核意见只影响建议置信度；候选仍须另行通过完整的确定性安全合同。
  *
  * M04 曾经被一行 `if (code.startsWith("m04_")) return "T1"` 整体钉死在最高危级别——理由是
  * 「不存在与 m03SafetyContractIssue 等价的 T1 复核门」。该硬门已补齐（m04SafetyContractIssue），
@@ -99,10 +98,6 @@ const T2_M03: ReadonlySet<string> = new Set([
   "sub_therapy_primary_missing",
   "treatment_principle_target_mismatch",
   "therapy_principle_invalid",
-  // M03 独立复核是质量层：复核提出意见时保留通过确定性安全合同的内容并标为有界。
-  "primary_diagnosis_semantic_review",
-  "tcm_reasoning_semantic_review",
-  "formula_indication_semantic_review",
 ]);
 
 /** T3 —— 结论与叙述都成立，问题只在措辞、重复、模板残留。 */
