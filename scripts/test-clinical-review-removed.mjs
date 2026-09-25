@@ -139,8 +139,8 @@ test("M04 只有一次生成调用，且直接签出剂量页（attestation 固�
   const reasoning = sentinelPayload(content);
   assert.equal(JSON.stringify(reasoning.clinicalReview), expectedAttestation(reasoning), "attestation 必须是常量且绑定这份载荷");
   assert.equal(hasBoundClinicalReviewAttestation(reasoning), true, "attestation 必须哈希绑定到这份载荷（签名契约不变）");
-  assert.match(content, /<!-- CDSS_REVIEW_STATUS -->/, "复核状态独立信道标记保留，前端分流不变");
-  assert.match(content, /本版本不设模型复核环节/);
+  // owner 2026-09-25：页面顶端的「临床复核状态」行连同其信道标记一并删除。
+  assert.doesNotMatch(content, /CDSS_REVIEW_STATUS|临床复核状态|模型复核/, "页面不得再出现关于已删除模型复核的状态行");
   assert.doesNotMatch(content, /独立处方复核|复核未完成|服务繁忙或超时/, "不得再暗示复核器存在或没跑完");
   assert.equal(delivered.telemetry?.outcome, "success", JSON.stringify(delivered.telemetry));
 });
@@ -201,6 +201,7 @@ test("M03 编排只有一次生成调用、没有任何复核请求；签名照�
     assert.match(reasoning.contractSignature || "", /^hmac-sha256:/, "M03 照常签名");
     assert.equal(JSON.stringify(reasoning.clinicalReview), expectedAttestation(reasoning), "attestation 必须是常量且绑定这份载荷");
     assert.equal(hasBoundClinicalReviewAttestation(reasoning), true);
+    assert.doesNotMatch(content, /CDSS_REVIEW_STATUS|临床复核状态|模型复核/, "页面不得再出现关于已删除模型复核的状态行");
   } finally { abort.abort(); globalThis.fetch = originalFetch; }
 });
 
@@ -228,10 +229,21 @@ test("交付连续性：已签名 + 哈希绑定即已完成，不再要求 acce
   assert.equal(mismatch.signedContent, undefined, "不匹配的签名字节仍不得被当成已完成");
 });
 
-test("医生可见文案：不再暗示「配一下就有复核」或「正在独立复核」", () => {
-  const copy = limitedDiagnosisReasonCopy("not_configured");
-  assert.match(copy.reason, /本版本不设模型复核环节/);
-  assert.doesNotMatch(`${copy.reason}${copy.limitation}${copy.nextAction}`, /配置|系统管理员/);
+test("医生可见文案：有限结果页、非剂量候选页与进度行都不再提已删除的模型复核", () => {
+  for (const code of ["not_attempted_no_valid_draft", "not_attempted_upstream_down", "deadline"]) {
+    const copy = limitedDiagnosisReasonCopy(code);
+    assert.doesNotMatch(`${copy.reason}${copy.limitation}${copy.nextAction}`, /独立临床复核|复核否决|模型复核|复核提出|复核未/, code);
+  }
+  const bare = { ...sentinelPayload(delivered.content) };
+  delete bare.clinicalReview; delete bare.contractSignature; delete bare.contractSignatureVersion;
+  const checkpoint = retainM04DeliveryCheckpoint(undefined, {
+    content: wrap(bare), reasoning: bare, priorReasoning: prior, clinicalContext: "成人；食少倦怠；大便溏薄",
+  });
+  for (const reason of ["deadline", "contract_rejected", "interrupted", "upstream_unavailable"]) {
+    const page = renderM04DeliveryCheckpoint(checkpoint, prior, reason);
+    assert.match(page, /本次已生成候选/, reason);
+    assert.doesNotMatch(page, /复核未完成|复核提出|已完成临床复核|独立复核/, `${reason}: ${page.slice(0, 200)}`);
+  }
   for (const structuredStage of ["prescribe", "diagnose", undefined]) {
     const text = stageProgressHeartbeatStatus({ phase: "review", structuredStage, contentChars: 1, reasoningChars: 0, repairRound: 0 });
     assert.doesNotMatch(text, /独立复核/, text);

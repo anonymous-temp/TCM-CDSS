@@ -4561,49 +4561,50 @@ export function truncateClinicalTextForDisplay(value: string, limit: number): st
  * 服务端置顶通知：安全警示横幅（`<!-- CDSS_SAFETY_ADVISORY -->` 后的引用块）与质量批注
  * （前置普通段落）都位于可见正文首个 "## " 标题之前。结果区按节抽取渲染，标题前的内容
  * 不属于任何节——不在这里显式提取，服务端刚写进去的警示与批注就会被前端整体丢掉。
+ *
+ * 模型复核环节已移除（2026-09-16），服务端自 2026-09-25 起不再下发「临床复核状态」行。
+ * 本机缓存里旧病例的正文仍可能带着这一行（`<!-- CDSS_REVIEW_STATUS -->` 标记 + 引用块）：
+ * 它不是安全警示也不是质量批注，按旧行丢弃，不得落进红色安全卡或批注卡。
  */
-export function extractServerLeadingNotices(caseState: CaseState): { safety: string[]; annotations: string[]; review: string[] } {
+export function extractServerLeadingNotices(caseState: CaseState): { safety: string[]; annotations: string[] } {
   const safety: string[] = [];
   const annotations: string[] = [];
-  const review: string[] = [];
   for (const text of [caseState.diagnosis, caseState.prescription]) {
     const head = (text || "").split(/^##\s/m)[0] || "";
     if (!head.trim()) continue;
     const hasMarker = head.includes("<!-- CDSS_SAFETY_ADVISORY -->");
-    // 复核状态是独立信道（CDSS_REVIEW_STATUS），不是安全警示：此前按「引用块」一刀切，
-    // 无安全 marker 时整条丢弃（医生不知道结论没过复核），有安全 marker 时误染成红色警示。
-    let pendingChannel: "safety" | "review" | null = null;
+    let legacyReviewStatusLine = false;
     for (const rawLine of head.split("\n")) {
       const line = rawLine.trim();
       if (!line) continue;
       if (line.startsWith("<!--")) {
-        if (line.includes("CDSS_REVIEW_STATUS")) pendingChannel = "review";
+        if (line.includes("CDSS_REVIEW_STATUS")) legacyReviewStatusLine = true;
         continue;
       }
       if (line.startsWith(">")) {
         const quoted = line.replace(/^>+\s*-?\s*/, "").replace(/\*\*/g, "").trim();
-        if (!quoted) { pendingChannel = null; continue; }
-        if (pendingChannel === "review" || /^临床复核状态[：:]/.test(quoted)) {
-          if (!review.includes(quoted)) review.push(quoted);
+        if (!quoted) { legacyReviewStatusLine = false; continue; }
+        if (legacyReviewStatusLine || /^临床复核状态[：:]/.test(quoted)) {
+          // 旧版复核状态行：丢弃（见上）。
         } else if (hasMarker && !safety.includes(quoted)) {
           safety.push(quoted);
         } else if (!hasMarker && !annotations.includes(quoted)) {
           // 无任何 marker 的引用块降级为批注展示而不是丢弃：fail-visible。
           annotations.push(quoted);
         }
-        pendingChannel = null;
+        legacyReviewStatusLine = false;
         continue;
       }
-      pendingChannel = null;
+      legacyReviewStatusLine = false;
       if (!line.startsWith("#") && /[。；]/.test(line) && !annotations.includes(line)) annotations.push(line);
     }
   }
-  return { safety, annotations, review };
+  return { safety, annotations };
 }
 
 function ServerLeadingNotices({ caseState }: { caseState: CaseState }) {
-  const { safety, annotations, review } = extractServerLeadingNotices(caseState);
-  if (safety.length === 0 && annotations.length === 0 && review.length === 0) return null;
+  const { safety, annotations } = extractServerLeadingNotices(caseState);
+  if (safety.length === 0 && annotations.length === 0) return null;
   return (
     <div className="space-y-2" data-testid="server-leading-notices">
       {safety.length > 0 && (
@@ -4611,14 +4612,6 @@ function ServerLeadingNotices({ caseState }: { caseState: CaseState }) {
           <p className="text-xs font-bold text-red-800">安全警示（系统判定，未解除）</p>
           <ul className="mt-1 list-disc space-y-1 pl-5 text-xs leading-relaxed text-red-800">
             {safety.map((line) => <li key={line}>{line}</li>)}
-          </ul>
-        </div>
-      )}
-      {review.length > 0 && (
-        <div className="rounded-xl border border-slate-300 bg-slate-50 p-3" data-testid="server-review-status">
-          <p className="text-xs font-bold text-slate-700">独立复核状态</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5 text-xs leading-relaxed text-slate-700">
-            {review.map((line) => <li key={line}>{line}</li>)}
           </ul>
         </div>
       )}

@@ -157,23 +157,26 @@ const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts")
 console.log("test-clinical-review-unavailable-reason: OK", { contractRoundTrip: true });
 
 // ── 5. 各类兜底的可见理由必须各不相同（2026-09-13）────────────────────────────────
-// 222 例实测第二类 7 例：attestation 是 not_attempted_no_valid_draft、复核尝试数 0，
-// 医生看到的却是「本次分析尚未形成通过临床复核的稳定证候结果」——把结构化交付问题
-// 说成复核否决。措辞与原因码同源之后，这四类必须逐条可区分。
+// 222 例实测第二类 7 例：attestation 是 not_attempted_no_valid_draft，医生看到的却是
+// 「本次分析尚未形成通过临床复核的稳定证候结果」——把结构化交付问题说成复核否决。
+// 措辞与原因码同源之后，路由实际会传的三类码与缺省必须逐条可区分；
+// 模型复核环节已移除（owner 2026-09-25）：这些可见理由不得再提「独立临床复核」。
 {
   const { limitedDiagnosisReasonCopy } = await jiti.import("../src/lib/diagnosis-safety.ts");
-  const codes = ["not_attempted_no_valid_draft", "not_attempted_upstream_down", "deadline",
-    "accepted_but_draft_rejected_downstream", "invalid_contract", "not_configured", undefined];
+  const codes = ["not_attempted_no_valid_draft", "not_attempted_upstream_down", "deadline", undefined];
   const reasons = codes.map((code) => limitedDiagnosisReasonCopy(code).reason);
   assert.equal(new Set(reasons).size, reasons.length, "每个原因码必须有各自的可见理由");
-  assert.match(limitedDiagnosisReasonCopy("not_attempted_no_valid_draft").reason, /复核尚未启动|未启动/);
+  assert.match(limitedDiagnosisReasonCopy("not_attempted_no_valid_draft").reason, /完整性校验/);
   assert.doesNotMatch(limitedDiagnosisReasonCopy("not_attempted_no_valid_draft").reason, /通过临床复核/,
-    "复核没运行时不得把问题说成复核否决");
+    "结构化交付问题不得说成复核否决");
   assert.doesNotMatch(limitedDiagnosisReasonCopy("not_attempted_upstream_down").reason, /通过临床复核|信息不足/,
     "上游故障不得说成临床结论");
-  assert.match(limitedDiagnosisReasonCopy("accepted_but_draft_rejected_downstream").reason, /复核已通过|已通过/,
-    "复核通过被下游驳回时必须如实说明复核已通过");
-  // 未知码维持旧文案（存量调用方不变）。
+  assert.match(limitedDiagnosisReasonCopy("deadline").reason, /安全时限/);
+  for (const code of codes.filter(Boolean)) {
+    const copy = limitedDiagnosisReasonCopy(code);
+    assert.doesNotMatch(`${copy.reason}${copy.limitation}`, /独立临床复核|复核否决|模型复核|复核提出|复核未/,
+      `${code}: 可见理由不得再提已删除的模型复核`);
+  }
+  // 未知码维持旧文案（block 档拦截与存量客户端回退正则依赖它）。
   assert.equal(limitedDiagnosisReasonCopy(undefined).reason, "本次分析尚未形成通过临床复核的稳定证候结果");
 }
-

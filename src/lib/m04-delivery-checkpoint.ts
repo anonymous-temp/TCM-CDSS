@@ -256,8 +256,8 @@ export function renderM04DeliveryCheckpoint(
   const status = reason === "dose_withheld"
     ? `本次已生成候选方药；按独立硬边界本例暂不显示具体用量（${doseWithheldReasons.join("；") || "需先完成相关核实"}）。`
     : reason === "deadline"
-      ? "本次已生成候选，复核未完成或超过时限。"
-      : "本次已生成候选，复核未完成。";
+      ? "本次已生成候选，本阶段超过时限。"
+      : "本次已生成候选。";
   // 「已通过确定性校验」这句话只有在候选确实干净时才成立。带合同码的候选照常展示，
   // 但必须如实写明它没有通过哪些校验——保留内容不等于冒充已复核通过（owner 2026-09-13）。
   const scopeLine = clean

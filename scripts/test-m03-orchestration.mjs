@@ -375,7 +375,7 @@ assert.equal(m04FinalizedTwice, m04FinalizedOnce, "the M04 finalization transfor
 // A route sanitizer can clear an explanatory field after preparation. Its deterministic final
 // projection must already be settled before signing, with exactly one generation draw.
 // 2026-09-16 起没有模型复核环节：这里同时钉住 M03 编排零复核/裁决请求、attestation 固定
-// unavailable/not_configured、签名照常、复核状态行改为「本版本不设模型复核环节」。
+// unavailable/not_configured、签名照常；页面顶端不再有任何「临床复核状态」行（owner 2026-09-25）。
 const settledEnv = {
   AI_TEXT_PROVIDER: "openai-compatible",
   OPENAI_API_KEY: "test-only-m03-settled",
@@ -440,7 +440,7 @@ try {
   assert.equal(signed.clinicalReview.status, "unavailable");
   assert.equal(signed.clinicalReview.unavailableReason, "not_configured");
   assert.equal(settledLogs.filter(([name]) => name === "[tcm-cdss:timing] clinical_review").length, 0, "no clinical_review telemetry without a reviewer");
-  assert.match(output, /本版本不设模型复核环节/);
+  assert.doesNotMatch(output, /CDSS_REVIEW_STATUS|临床复核状态|模型复核/, "页面顶端的复核状态行已删除");
 } finally {
   globalThis.fetch = savedSettledFetch;
   console.info = savedSettledInfo;

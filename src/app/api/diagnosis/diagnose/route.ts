@@ -38,8 +38,8 @@ export async function POST(req: Request) {
     return markdownNdjsonResponse(buildSafetyLimitedDiagnosis(gated, gated.safetyGate!));
   }
 
-  // 第三参是**复核不可用原因码**。不传时 attestation 仍是裸的 {status:"unavailable"}——
-  // 那正是 194 例里 4 例最坏情形（完全 unresolved）拿不到原因码的原因。
+  // 第三参是 attestation 的**不可用原因码**（本轮为什么没有完成）。不传时 attestation 仍是裸的
+  // {status:"unavailable"}——那正是 194 例里 4 例最坏情形（完全 unresolved）拿不到原因码的原因。
   const signedLimitedDiagnosis = (
     gate: NonNullable<typeof gated.safetyGate>,
     reviewUnavailableReason?: Parameters<typeof buildSafetyLimitedDiagnosisReasoning>[2],
@@ -161,8 +161,8 @@ export async function POST(req: Request) {
       : [],
   );
   // 兜底页的**可见理由按真实原因分支**（2026-09-13）。此前三类兜底共用一句「未通过完整性与
-  // 临床一致性复核」，而 222 例实测里走 not_attempted_no_valid_draft 的 7 例复核尝试数为 0——
-  // 复核根本没运行。文案与 attestation 的 unavailableReason 同源，避免两处各写各的。
+  // 临床一致性复核」，把结构化交付问题说成了复核否决。文案与 attestation 的 unavailableReason
+  // 同源（limitedDiagnosisReasonCopy），避免两处各写各的。
   const truncatedGateFor = (
     reviewUnavailableReason: Parameters<typeof buildSafetyLimitedDiagnosisReasoning>[2],
   ) => {
@@ -208,11 +208,10 @@ export async function POST(req: Request) {
           }),
         }
       : {}),
-    // 合同修复耗尽后的兜底：复核**没有启动**（生成方合同始终不合法，没有东西可供复核），
-    // 不是复核尝试过并失败。这两件事此前都写 unavailable，重试策略会对着前者空转。
+    // 合同修复耗尽后的兜底：生成方合同始终不合法（attestation 原因码 not_attempted_no_valid_draft）。
     truncateFallback: signedLimitedDiagnosis(truncatedGateFor("not_attempted_no_valid_draft"), "not_attempted_no_valid_draft"),
-    // 时限触发是另一回事：复核可能已经启动并被切断，所以标 deadline 而不是「没有合法草稿」。
-    // 焊死在一个预渲染字符串上会让这两类共用一个原因码——本轮刚修掉的混淆，低一层的同款。
+    // 时限触发是另一回事，标 deadline 而不是「没有合法草稿」：两者的处置（重试 vs 修合同）不同，
+    // 焊死在一个预渲染字符串上会让这两类共用一个原因码。
     deadlineFallback: signedLimitedDiagnosis(truncatedGateFor("deadline"), "deadline"),
     authoritativeTruncateFallback: true,
     structuredStage: "diagnose",

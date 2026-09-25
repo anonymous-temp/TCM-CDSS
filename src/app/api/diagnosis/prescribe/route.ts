@@ -91,7 +91,7 @@ export async function POST(req: Request) {
   // 此前本分支在任何模型调用之前就返回一页固定说明，整条候选生成环节被跳过。
   // 222 例实测 published_case-82：M03 已有气血亏虚工作判断与 2 个病机节点，M04 一味药未生成。
   //
-  // 现在照常完整生成、修复、复核、保留候选，最终交付走服务端的**非剂量投影**
+  // 现在照常完整生成、修复、校验、保留候选，最终交付走服务端的**非剂量投影**
   // （药味、君臣佐使、方义、适用边界、调护全部可见；剂量/用法/疗程由服务端剥离）。
   // candidateMode=blocked 只有「缺主诉」一种来源——那是真的无从生成，维持原页。
   const doseWithheldReasons = permission.candidateMode === "non_dose_only" && advisoryDisposition
@@ -225,9 +225,6 @@ export async function POST(req: Request) {
   if (limitedInformation) {
     promptSuffixes.push(`【有限信息候选】当前待复核：${reviewItemsText}。请基于已知证候、病机和治法生成医生审阅用候选方案，并把相关未知项或阳性风险写入适用边界；不得臆造患者事实，也不得仅因缺项或风险提示拒绝生成。`);
   }
-  if (signedPriorReasoning.clinicalReview?.status !== "accepted") {
-    promptSuffixes.push("【辨证复核状态】M03 独立复核本轮未完成，但其结构、病历接地、极性与安全边界已通过确定性核验。可继续生成有界候选；必须在适用边界中提示复核状态，不得把未完成复核写成已经通过，也不得因此拒绝生成。");
-  }
   if (advisorySafetyNotes.length > 0) {
     promptSuffixes.push(`【急危重线索并存】服务器确定性判定本例存在未解除的安全提示：${advisorySafetyNotes.join("；")}。请照常生成剂量级候选方药；在用药风险提示中把急诊/转诊评估列为第一优先级，剂量取保守区间下段，不得因安全提示拒绝生成，也不得淡化提示。`);
   }
@@ -287,9 +284,9 @@ export async function POST(req: Request) {
     allowDiagnosis: true,
     allowDosePrescription: false,
     action: "complete_before_prescription",
-    missingItems: ["在安全时限内完整生成并复核候选方药"],
+    missingItems: ["在安全时限内完整生成并校验候选方药"],
     redFlags: [],
-    reasons: ["候选方药生成、修复与独立复核未在本阶段安全时限内完成，本轮不采纳任何未完成验证的药味与剂量。已录入病历与辨病辨证结论仍保留，可直接重新生成候选方药。"],
+    reasons: ["候选方药生成与修复未在本阶段安全时限内完成，本轮不采纳任何未完成验证的药味与剂量。已录入病历与辨病辨证结论仍保留，可直接重新生成候选方药。"],
   };
   const advisoryBanner = buildSafetyAdvisoryBanner(
     advisorySafetyNotes.length > 0 ? gated.safetyGate : undefined,
@@ -355,7 +352,7 @@ export async function POST(req: Request) {
       // 药味功用/身份在 enrichPrescriptionProvenance 之后才完整。流层更早执行的 deletion-only
       // 剔除看不到这些新增知识，额外坏味会一直潜伏到最终 T1 合同才把整方清空。对同一最终字节
       // 再做一次只减不增的剔除：唯一君药、经典方基准或删除后结构不成立时函数原样返回，随后
-      // 现有安全合同继续 fail-closed；成功剔除时独立复核、审方与签名都消费剔除后的候选。
+      // 现有安全合同继续 fail-closed；成功剔除时审方与签名都消费剔除后的候选。
       const directionPruned = declassifyAndDropOpposingM04CandidateHerbs(enriched, signedPriorReasoning);
       const reasoning = parseReasoningV2(directionPruned);
       // The stream layer has already exhausted formula-composition repair before allowing a

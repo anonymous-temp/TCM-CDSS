@@ -520,8 +520,9 @@ async function runFrontendContractChecks() {
   assert(
       diagnosisApiSource.includes("clinicalReviewNotPerformedAttestation") &&
       !diagnosisApiSource.includes("reviewM03DiagnosticCriteria") &&
-      !diagnosisApiSource.includes("reviewM04ClinicalPlan"),
-    "clinical review: the model reviewer was removed (2026-09-16); every signed M03/M04 carries the constant not_configured attestation",
+      !diagnosisApiSource.includes("reviewM04ClinicalPlan") &&
+      !diagnosisApiSource.includes("CDSS_REVIEW_STATUS"),
+    "clinical review: the model reviewer was removed (2026-09-16); every signed M03/M04 carries the constant not_configured attestation and the page no longer shows a review-status line (2026-09-25)",
     diagnosisApiSource.slice(0, 19000),
   );
   assert(diagnosisApiSource.includes("CLIENT_HEARTBEAT_INTERVAL_MS") && diagnosisApiSource.includes("enqueueHeartbeat") && diagnosisApiSource.includes("contentChars + reasoningChars") && diagnosisApiSource.includes("stageProgressHeartbeatStatus({") && diagnosisApiSource.includes("服务保持响应并持续校验") && diagnosisApiSource.includes("stopClientHeartbeat") && diagnosisApiSource.includes("clearTimeout(totalTimeout)") && diagnosisApiSource.includes("parentSignal?.addEventListener") && diagnosisApiSource.includes("clientStreamClosed = true"), "model stream: M03/M04 keep the public chunked connection alive, count reasoning progress, bound retry response-body time, and propagate client cancellation without enqueueing after close", diagnosisApiSource.slice(0, 19000));

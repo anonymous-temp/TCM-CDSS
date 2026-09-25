@@ -239,18 +239,6 @@ function m03CandidateSubstanceLength(content: string, reasoning?: unknown): numb
   );
 }
 
-function clinicalReviewUnavailableNotice(stage: "diagnose" | "prescribe"): string {
-  // <!-- CDSS_REVIEW_STATUS --> 是复核状态的**独立信道标记**（2026-08-25），前端按它分流，
-  // 不与安全横幅混在一起。模型复核环节已于 2026-09-16 移除（owner 裁定）：线上 107 次复核全部是
-  // 与生成方同一模型、低推理力度、中位 1.4s 的请求，84% 打回；M03 侧 43 次意见全部被服务端降成
-  // 有界建议，M04 侧把通过全部确定性合同、零安全问题的候选扣成非剂量 15 次——没有可证明的正收益。
-  // 这里如实告诉医生：没有第二个模型看过这份结果，临床合理性由医生把关。
-  const marker = "<!-- CDSS_REVIEW_STATUS -->";
-  return stage === "diagnose"
-    ? `${marker}\n> 临床复核状态：本版本不设模型复核环节。以下辨病辨证已通过结构、患者事实、极性与安全边界的确定性核验；证候与病机的临床合理性由医生把关。`
-    : `${marker}\n> 临床复核状态：本版本不设模型复核环节。以下候选已通过结构、患者事实、剂量边界与配伍禁忌的确定性核验；是否采纳仍须结合合理用药审方与医生判断。`;
-}
-
 function enqError(ctrl: ReadableStreamDefaultController, error: unknown) {
   ctrl.enqueue(enc.encode(JSON.stringify({ error: publicModelErrorMessage(error) }) + "\n"));
 }
@@ -4825,11 +4813,6 @@ async function callPrimaryTextModelStream(
             const signatureContext = opts.prescribeSignatureContext;
             if (!signatureContext) throw new Error("Missing M04 signature context");
             signedContent = applyPrescribeContractSignature(signedContent, signatureContext);
-          }
-          if (!truncated && transformed.ok && opts.structuredStage === "diagnose") {
-            signedContent = `${clinicalReviewUnavailableNotice("diagnose")}\n\n${signedContent}`;
-          } else if (!truncated && transformed.ok && opts.structuredStage === "prescribe") {
-            signedContent = `${clinicalReviewUnavailableNotice("prescribe")}\n\n${signedContent}`;
           }
           // 质量批注必须与结果一起呈现：带批注受理的 M03 是完整签名结果，但医生要一眼看到
           // 「哪一项文档质量项未达标、为什么仍可继续」。批注只加在可见正文最前，不进签名载荷。
