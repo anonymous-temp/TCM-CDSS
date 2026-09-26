@@ -1616,9 +1616,11 @@ const redFlags = [
   ["acute-abdominal-pain", "突发剧烈腹痛2小时，伴恶心。", "red_flag", "高风险"],
   ["acute-dyspnea", "突发呼吸困难2小时，端坐呼吸，否认胸痛。", "red_flag", "高风险"],
   ["negated-abdominal-then-melena", "否认腹痛、呕吐，排黑色便3天。", "needs_information", "需关注", { expectedRiskSignal: "消化道出血", ...PRIORITY_OR_EMERGENCY_GATE }],
-  ["negated-abdominal-then-hematemesis", "否认腹痛，呕血1次。", "needs_information", "需关注", { expectedAdvisory: "消化道出血", ...PRESCRIPTION_ONLY_GATE }],
+  // 2026-09-26 起开方前处置去向（V2.21）把单次呕血判为需立即急诊评估（事实层 v25 配对 8/8 red_flag，v22 为
+  // needs_information）：只会更谨慎，剂量照旧扣；两条单次呕血与下面的便血同口径，两档都接受。
+  ["negated-abdominal-then-hematemesis", "否认腹痛，呕血1次。", "needs_information", "需关注", { expectedAdvisory: "消化道出血", ...PRIORITY_OR_EMERGENCY_GATE }],
   ["negated-hemoptysis-then-hematochezia", "否认咯血，便血2日。", "needs_information", "需关注", { expectedRiskSignal: "消化道出血", ...PRIORITY_OR_EMERGENCY_GATE }],
-  ["negated-abdominal-then-cn-hematemesis", "否认腹痛，呕血一次。", "needs_information", "需关注", { expectedAdvisory: "消化道出血", ...PRESCRIPTION_ONLY_GATE }],
+  ["negated-abdominal-then-cn-hematemesis", "否认腹痛，呕血一次。", "needs_information", "需关注", { expectedAdvisory: "消化道出血", ...PRIORITY_OR_EMERGENCY_GATE }],
   ["negated-hemoptysis-then-cn-hematochezia", "否认咯血，便血两日。", "needs_information", "需关注", { expectedRiskSignal: "消化道出血", ...PRIORITY_OR_EMERGENCY_GATE }],
   ["negated-chest-then-cn-syncope", "否认胸痛，晕厥一次。", "needs_information", "需关注", { expectedAdvisory: "意识丧失", ...PRESCRIPTION_ONLY_GATE }],
   ["negated-chest-then-syncope-fall", "否认胸痛，晕厥后跌倒。", "needs_information", "需关注", { expectedAdvisory: "意识丧失", ...PRESCRIPTION_ONLY_GATE }],

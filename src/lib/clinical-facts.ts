@@ -159,7 +159,7 @@ export type RedFlagFinding = {
 };
 
 export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v20";
-export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v24";
+export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v25";
 
 // 劳力/活动诱发的慢性基线症状限定词（“平路气短”“活动后气促”“劳力性胸闷”）：在已知慢性心肺肾
 // 疾病或慢性病程框架下，这类限定描述的是基线功能状态而非急性事件；静息/夜间/端坐/新发/突发/
@@ -1292,7 +1292,7 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
     "- 再定 setting。判据是「此刻是否存在尚未被处理、有处置时间窗的危险」，不是病名听起来有多重：emergency=现有资料已足以要求立即急诊/急救评估（以小时计）；urgent_specialist=不必立即急诊，但属于下面两种之一、评估前不宜直接开剂量级中药：①尚未被西医明确诊断、要靠影像/病理/手术/住院才能明确或处理的新问题；②已确诊的疾病出现了急性加重的客观证据（新发或明显加重的器官功能受损、检验指标显著恶化、出现新的受累器官）。insufficient_info=原文已有指向某个必须排除情况的具体危险线索，但还差一个关键信息才能决定去向，missingInfo 写出最该问的那一个问题；outpatient_ok=没有尚未处理的时间敏感危险，可在中医门诊常规诊治。setting 不是 outpatient_ok 时 mustNotMiss 不能为空。",
     "- 已在医院确诊、正在或曾经接受西医诊治的慢性病，本次来中医调理或治疗症状，即使仍有长期存在的检验异常（如持续蛋白尿、转氨酶或肌酐偏高），只要没有上面②所说的急性加重证据，判 outpatient_ok；这类病人用药的剂量与肝肾安全由后续开方环节的剂量和禁忌核对处理，不是这里升档的理由。患有严重或慢性疾病本身不是升档理由。",
     "- 婴幼儿与儿童的普通感冒、咳嗽、发热、腹泻、积食等常见病，只要原文没有公认的危险征象（精神萎靡或反应差、拒奶拒食或不能饮水、呼吸急促或费力、尿量明显减少、抽搐、高热持续不退、新生儿期异常），判 outpatient_ok。只是信息少、没有具体危险线索的，判 outpatient_ok——补问信息是后续问诊环节的事，不是这里升档的理由。既往已治愈或已缓解的事、家属或他人的情况、宣教或引用文本，都不能作为依据。",
-    "- 一旦原文出现了具体的危险线索，拿不准时往更需要处置的一档判；这时病历未记录的伴随情况不等于没有，不能把资料缺项当作 outpatient_ok 的理由。disposition 与 redFlags 各自独立作答、互不替代：redFlags 已经表达的风险，这里照样按整体情况给出 setting。",
+    "- 一旦原文出现了具体的危险线索，拿不准时往更需要处置的一档判；这时病历未记录的伴随情况不等于没有，不能把资料缺项当作 outpatient_ok 的理由。disposition 与 redFlags 各自独立作答、互不替代：redFlags 已经表达的风险，这里照样按整体情况给出 setting；反过来，setting 判为 outpatient_ok 也不改变 redFlags 的分级——每条 redFlags 的 urgency 只按上面的类目规则判定（例如体温 35.0–35.9℃、呼吸 25–34 次/分这类孤立的重度非极端生命体征仍标 vital_instability + urgent），不得为了与 setting 一致而下调。",
     "",
     "【临床文本】",
     text.slice(0, 12_000),

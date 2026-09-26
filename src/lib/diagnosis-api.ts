@@ -40,7 +40,7 @@ import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation } 
 import { recordCdssStageTelemetry, type CdssTelemetryOutcome, type CdssTelemetryStage } from "@/lib/cdss-stage-telemetry";
 import { createHash } from "node:crypto";
 import { requiredDecoctionRequirement } from "@/lib/herb-decoction-rules";
-import { m04CandidateHerbsFromRepairPayload, m04CandidatePatchBase, m04CandidatePatchEligible, m04DoseRepairHerbIndex, m04KnowledgeShortlistFromPrompt, spliceM04CandidatePatch, stabilizeM04DoseOnlyRepair, structuredClinicalRepairHint } from "@/lib/structured-clinical-repair";
+import { m04CandidateHerbsFromRepairPayload, m04CandidatePatchBase, m04CandidatePatchEligible, m04DoseRepairHerbIndex, m04IncompatiblePairRepairItems, m04KnowledgeShortlistFromPrompt, spliceM04CandidatePatch, stabilizeM04DoseOnlyRepair, structuredClinicalRepairHint } from "@/lib/structured-clinical-repair";
 import { missedLockableFormulaCandidates } from "@/lib/tcm-formula-indications";
 import { governedTcmDiseaseNeighbors } from "@/lib/clinical-terminology";
 import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy } from "@/lib/tcm-chief-complaint-anchor";
@@ -68,13 +68,18 @@ const GLM_VISION_TOTAL_TIMEOUT_MS = (() => {
 // comfortably below the 15s client/test liveness boundary so scheduling and
 // network overhead cannot create a false "stalled" window.
 const CLIENT_HEARTBEAT_INTERVAL_MS = 5_000;
-// One structured stage fans out internally (M03 western/TCM halves, terminology consensus,
-// clinical review and bounded repair). Letting two HTTP stages fan out at once overloaded the
-// configured production gateway. The reviewed default admits three stages, while the tenant-aware
-// gate below prevents one hospital from monopolizing the queue.
+// One structured stage fans out internally (M03 western/TCM halves, terminology, bounded repair).
+// The cap protects the upstream providers, while the tenant-aware gate below prevents one hospital
+// from monopolizing the queue. It used to be 3 (clamped ≤4), sized when a second-model reviewer and
+// double-draw terminology doubled every stage's fan-out against a gateway that has since been
+// replaced. At 3 the fourth doctor clicking 诊断 at the same moment waited out the 25 s queue ceiling
+// and received the 症状级工作判断 placeholder (2026-09-26: 6 of 34 cases at six concurrent flows).
+// The queue ceiling cannot simply grow instead: 25 s + the 180 s stage ceiling already fills the
+// client's 210 s total timeout. Post-processing is I/O-bound (the only phase above 500 ms is a model
+// call), so the cap is sized by the providers; see the 2026-09-26 load test in the commit message.
 const PRIMARY_STRUCTURED_STAGE_MAX_CONCURRENCY = (() => {
-  const value = Number(process.env.PRIMARY_STRUCTURED_STAGE_MAX_CONCURRENCY || 3);
-  return Number.isFinite(value) && value >= 1 && value <= 4 ? Math.trunc(value) : 3;
+  const value = Number(process.env.PRIMARY_STRUCTURED_STAGE_MAX_CONCURRENCY || 8);
+  return Number.isFinite(value) && value >= 1 && value <= 16 ? Math.trunc(value) : 8;
 })();
 const primaryStructuredStageCapacity = createAbortableCapacityGate(PRIMARY_STRUCTURED_STAGE_MAX_CONCURRENCY);
 const PRIMARY_STRUCTURED_STAGE_QUEUE_TIMEOUT_MS = (() => {
@@ -1675,11 +1680,18 @@ async function retryCompletePrimaryResponse(
               rejectedCandidateFormulaNames,
             ).map((finding) => `${finding.name}（${finding.concepts.join("_")}）`)
           : [];
-        if (doseIssues.length > 0 || directionIssues.length > 0) {
+        // 十八反/十九畏药对同一条 doctrine：驳回码只有 candidate_0_high_risk_pair_incompatibility，
+        // 提示只说「方中出现禁忌药对」，模型得在十来味药里自己猜是哪一对。实测（脾肾阳虚案，
+        // 附子与另一味构成十八反）修复一轮原样返回、identical-guidance fixpoint 早退，整方落成非剂量页。
+        const pairIssues = m04IncompatiblePairRepairItems(rejectedHerbs
+          .map((herb) => (typeof herb.name === "string" ? herb.name.trim() : ""))
+          .filter(Boolean));
+        if (doseIssues.length > 0 || directionIssues.length > 0 || pairIssues.length > 0) {
           candidateWideRepairHint = [
             "⚠️ 一次性收口：不要只修当前第一条错误；本轮必须同时处理整张候选方中的下列已知问题，避免下一轮才暴露同类错误。",
             doseIssues.length > 0 ? `- 全部剂量越界：${doseIssues.join("；")}。` : "",
             directionIssues.length > 0 ? `- 全部未成立高影响方向：${directionIssues.join("；")}。除上方明确给出的受控反佐结构外，删除或换用已成立治法方向药味。` : "",
+            pairIssues.length > 0 ? `- 全部配伍禁忌药对：${pairIssues.join("；")}。每一对删去其中一味，并从同一治法方向另选不构成禁忌的药味承接其功能。` : "",
           ].filter(Boolean).join("\n");
         }
       } catch {
@@ -4343,9 +4355,16 @@ async function callPrimaryTextModelStream(
           }
         }
         if (structuredSentinelIncomplete && opts.structuredStage) {
+          // 记下挡住带批注受理的那条 T1 硬合同码：reason 只是语义检查里排第一的码（常是 T2），
+          // 只看它会把「西医鉴别名写法」误当成整份 M03 退回占位的原因。
+          const finalReasoning = opts.structuredStage === "diagnose" ? m03ReasoningFromStructuredContent(authoritativeContent) : undefined;
           console.warn("[tcm-cdss:model] structured response rejected after retry", {
             stage: opts.structuredStage,
             reason: structuredRejectionReason(authoritativeContent, opts.structuredStage, finishReason, opts.structuredClinicalContext, opts.structuredPriorReasoning),
+            finishReason,
+            safetyIssue: opts.structuredStage === "diagnose"
+              ? (finalReasoning ? m03SafetyContractIssue(finalReasoning, opts.structuredClinicalContext || "", isSafetyRejection) || "none" : "reasoning_unparsed")
+              : undefined,
             m03DeadlineExceeded,
           });
         }

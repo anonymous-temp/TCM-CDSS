@@ -4883,3 +4883,170 @@ console.log(JSON.stringify({ cases: 382, failures: 0 }));
   assert.equal(m03SafetyContractIssue(empty2, ctxStable, () => false), "chain_empty",
     "绝对硬核黑名单不受谓词影响——chain_empty 在任何谓词下都拦");
 }
+
+// ── 2026-09-26 公开病案质量评测暴露的三处西医主诊断缺陷 ─────────────────────────────
+// ① 顿号列举的是同时成立的项目（并发症、症候群里的几个症状），不是择一；原先把它当歧义，
+//    65 例里 5 例主诊断被降级，其中包括与专家一致的「先天性心脏病（房间隔缺损）」。
+// ② 降级回落取「主诉那一行」时，把服务端补写的「患者年龄：N岁」当成了主诉，主诊断落成
+//    「年龄：45岁症状」。回落句由 clinicalGroundingText 写、由 declassify 读，这里用真实写入方造语料。
+// ③ 择一只出现在括注里时，保留模型自己写的主干，括注方向进鉴别。
+{
+  const { clinicalGroundingText } = await import("../src/lib/diagnosis-safety.ts");
+  const { isAmbiguousM03WesternPrimaryLabel } = await import("../src/lib/diagnosis-stage-contract.ts");
+  const { normalizeCaseStateInput } = await import("../src/lib/diagnosis-types.ts");
+  const S = "<!-- DIAGNOSIS_JSON_START -->", E = "<!-- DIAGNOSIS_JSON_END -->";
+  const wrap = (reasoning) => `${S}\n${JSON.stringify(reasoning)}\n${E}`;
+  const unwrap = (content) => JSON.parse(content.split(S)[1].split(E)[0]);
+  const withPrimary = (name, extra = {}) => {
+    const value = structuredClone(stable);
+    value.westernDiagnosis.primary = { ...value.westernDiagnosis.primary, name, ...extra };
+    return value;
+  };
+
+  for (const name of [
+    "先天性心脏病（房间隔缺损，中央型，左向右分流），合并中度肺动脉高压、三尖瓣中度关闭不全",
+    "胸闷伴心悸、下肢浮肿，病因待查",
+    "结肠多发息肉伴黑便、大便习惯改变，病因待查",
+    "下尿路症状（尿频、尿急、尿不尽），病因待查",
+    "发热伴头痛、恶心，病因待查",
+  ]) {
+    assert.equal(isAmbiguousM03WesternPrimaryLabel(name), false, `顿号列举不是择一：${name}`);
+    const content = wrap(withPrimary(name));
+    assert.equal(declassifyAmbiguousM03WesternPrimary(content, "主诉：胸闷"), content, `非歧义主诊断不得被改写：${name}`);
+  }
+  for (const name of ["胃炎、胃食管反流病待鉴别", "功能性腹泻或感染性腹泻", "丹毒/蜂窝织炎", "睡眠呼吸障碍？心功能不全？"]) {
+    assert.equal(isAmbiguousM03WesternPrimaryLabel(name), true, `择一写法仍是歧义：${name}`);
+  }
+
+  const groundingFor = (chiefComplaint, age, extra = {}) => clinicalGroundingText(normalizeCaseStateInput({
+    chiefComplaint, patient: { age, sex: "女" }, symptoms: { presentHistory: chiefComplaint },
+    tongue: "舌淡红，苔薄白", pulse: "脉细", vitals: { T: "36.6℃" }, pastHistory: "既往体健",
+    medicationHistory: "未诉用药", allergyHistory: "否认药物过敏", conversation: [], ...extra,
+  }));
+  const groundedContext = groundingFor("反复心悸2年，加重1周", 45);
+  assert.match(groundedContext.split("\n")[0], /^患者年龄：45岁$/, "前提：接地语料首行是服务端补写的年龄行");
+  const ambiguousWithAgeLine = declassifyAmbiguousM03WesternPrimary(
+    wrap(withPrimary("心律失常或焦虑状态")), groundedContext);
+  const collapsed = unwrap(ambiguousWithAgeLine).westernDiagnosis.primary;
+  assert.doesNotMatch(collapsed.name, /年龄|岁/, `回落主诊断不得取自年龄行，实得 ${collapsed.name}`);
+  assert.equal(collapsed.name, "心悸症状");
+  assert.ok(collapsed.supportingFacts.every((fact) => !/患者年龄/.test(fact)), "年龄行不是西医诊断依据");
+  // 舌脉、体征、病史等同类服务端标签行同样不是主诉：主诉缺席时也不得被取作主诊断。
+  const noComplaintContext = groundingFor("", 60, { symptoms: {}, hisRecord: undefined });
+  for (const line of noComplaintContext.split("\n").filter(Boolean)) {
+    assert.match(line, /^(?:患者年龄|舌象|脉象|生命体征|既往史|用药史|过敏史)：/, `前提：无主诉时每行都是服务端标签行，实得 ${line}`);
+  }
+  const noComplaint = unwrap(declassifyAmbiguousM03WesternPrimary(wrap(withPrimary("心律失常或焦虑状态")), noComplaintContext)).westernDiagnosis.primary;
+  assert.equal(noComplaint.name, "心律失常或焦虑状态", "找不到主诉时不改写，交给修复轮，而不是拿标签行造诊断名");
+
+  const bracketed = withPrimary("左下肢皮肤软组织感染（丹毒/蜂窝织炎待鉴别），病因待查", { status: "考虑", suggestedChecks: ["血常规及下肢静脉超声"] });
+  const splitContent = declassifyAmbiguousM03WesternPrimary(wrap(bracketed), groundingFor("发现左下肢红肿伴发热2天", 69));
+  const split = unwrap(splitContent).westernDiagnosis;
+  assert.equal(split.primary.name, "左下肢皮肤软组织感染，病因待查", "保留括注外主干");
+  assert.equal(split.primary.status, "考虑", "只做结构拆分，不改模型的确定度");
+  assert.deepEqual(split.differentials.slice(0, 2).map((item) => item.name), ["丹毒", "蜂窝织炎"]);
+  assert.ok(split.differentials.slice(0, 2).every((item) => item.reason.length >= 4 && item.distinguishingPoints.length >= 4));
+  assert.equal(isAmbiguousM03WesternPrimaryLabel(split.primary.name), false);
+  assert.equal(declassifyAmbiguousM03WesternPrimary(splitContent, groundingFor("发现左下肢红肿伴发热2天", 69)), splitContent, "拆分幂等");
+
+  // 确诊病名的推理句回落不得写「尚不足以确定具体病因」；症状级工作诊断维持原口径。
+  const established = withPrimary("社区获得性肺炎（右下叶）", {
+    status: "考虑", supportingFacts: ["胸片示右下叶片状实变影"], clinicalRationale: "胸片示右下叶片状实变影。",
+  });
+  const establishedRationale = unwrap(alignNormalizedM03WesternClinicalRationale(wrap(established))).westernDiagnosis.primary.clinicalRationale;
+  assert.doesNotMatch(establishedRationale, /尚不足以确定具体病因|暂不采用更具体/, establishedRationale);
+  assert.match(establishedRationale, /社区获得性肺炎（右下叶）/);
+  const working = withPrimary("咳嗽症状", { status: "证据有限", supportingFacts: ["咳嗽2周"], clinicalRationale: "咳嗽2周。" });
+  assert.match(unwrap(alignNormalizedM03WesternClinicalRationale(wrap(working))).westernDiagnosis.primary.clinicalRationale, /暂不采用更具体的病因标签/);
+}
+
+// ── 鉴别行「A/B」「A或B」拆成逐条（2026-09-26）─────────────────────────────────────
+// 原先这类写法只触发 western_differential_ambiguous：它是 T2，但与其他问题叠加时整份 M03 退回占位
+// （本机评测 tcm04：21 秒、零修复轮，中医辨证一并丢失）。拆分只用模型自己的文字，理由沿用原行。
+{
+  const S = "<!-- DIAGNOSIS_JSON_START -->", E = "<!-- DIAGNOSIS_JSON_END -->";
+  const row = (name) => ({ name, reason: "头晕需鉴别前庭来源", distinguishingPoints: "发作时长与诱因不同", nextCheck: "位置试验" });
+  const reasoning = structuredClone(stable);
+  reasoning.westernDiagnosis.differentials = [
+    row("良性阵发性位置性眩晕或前庭性偏头痛"),
+    row("慢性阻塞性肺疾病/慢性肺源性心脏病"),
+    row("肠易激综合征（腹泻型/混合型）"),
+    row("心律失常（如心房颤动等）"),
+  ];
+  const normalized = normalizeM03WesternDifferentials(`${S}\n${JSON.stringify(reasoning)}\n${E}`, "主诉：头晕");
+  const differentials = JSON.parse(normalized.split(S)[1].split(E)[0]).westernDiagnosis.differentials;
+  const names = differentials.map((item) => item.name);
+  for (const expected of ["良性阵发性位置性眩晕", "前庭性偏头痛", "慢性阻塞性肺疾病", "慢性肺源性心脏病", "肠易激综合征", "心律失常（如心房颤动等）"]) {
+    assert.ok(names.includes(expected), `拆分后应含 ${expected}，实得 ${names.join("｜")}`);
+  }
+  assert.ok(!names.some((name) => /^(?:腹泻型|混合型)$/.test(name)), "括注里的分型不是另一个诊断");
+  assert.ok(differentials.every((item) => item.reason === "头晕需鉴别前庭来源"), "理由沿用原行");
+  const { isAmbiguousM03WesternPrimaryLabel: ambiguous } = await import("../src/lib/diagnosis-stage-contract.ts");
+  assert.ok(!differentials.some((item) => ambiguous(item.name)), "拆分后不再有择一写法");
+  assert.equal(normalizeM03WesternDifferentials(normalized, "主诉：头晕"), normalized, "拆分幂等");
+}
+
+// ── 服务端自己追加的病机提示不得触发自己的 T1（2026-09-26）──────────────────────────────
+// 12 岁白癜风「气血两虚证」本机两次复现 2/2：模型写「气血不足，肌肤失于濡养，发为白斑」，
+// 谓词认不出「失于濡养」→ 追加「（服务端提示：…是否需要补充病机推演）」→「需要补充」命中不稳定判据
+// → overall_pathogenesis_unstable（T1）→ 整份 M03（含正确的白癜风诊断）退回占位。
+{
+  const { SERVER_PATHOGENESIS_NO_MECHANISM_NOTE: NOTE, m03SafetyContractIssue: safetyIssueOf, isUnstableM03CoreText: unstable } = await import("../src/lib/diagnosis-stage-contract.ts");
+  const { applyDeterministicTreatmentPrinciple: applyPrinciple } = await import("../src/lib/diagnosis-visible-summary.ts");
+  const { isSafetyRejection: t1 } = await import("../src/lib/diagnosis-rejection-tiers.ts");
+  const S = "<!-- DIAGNOSIS_JSON_START -->", E = "<!-- DIAGNOSIS_JSON_END -->";
+  const run = (mutate) => {
+    const value = structuredClone(stable);
+    mutate(value);
+    return JSON.parse(applyPrinciple(`${S}\n${JSON.stringify(value)}\n${E}`).split(S)[1].split(E)[0]);
+  };
+  assert.equal(unstable(`气血不足，肌肤失于濡养，发为白斑${NOTE}`), false, "服务端提示不是模型的对冲");
+  assert.equal(unstable(`病机待定${NOTE}`), true, "模型自己的对冲照旧拦");
+  assert.equal(unstable(NOTE), true, "只剩提示时视为空");
+
+  const textbook = run((value) => { value.overview.overallPathogenesis = "气血不足，肌肤失于濡养，发为白斑"; });
+  assert.equal(textbook.overview.overallPathogenesis, "气血不足，肌肤失于濡养，发为白斑", "「失于濡养」「气血不足」是病机，不追加提示");
+
+  const noMechanism = run((value) => { value.overview.overallPathogenesis = "白斑散在分布，形态不规则，部分融合成片"; });
+  assert.ok(noMechanism.overview.overallPathogenesis.endsWith(NOTE), "真没有病机要素时仍追加提示");
+  assert.notEqual(safetyIssueOf(noMechanism, "", t1), "overall_pathogenesis_unstable", "追加提示后不得因提示本身判 T1");
+
+  const restated = run((value) => {
+    value.overview.overallPathogenesis = value.pathogenesis.chain[0].patientFact;
+    value.pathogenesis.chain[0].pathogenesis = "气血不足，肌肤失于濡养";
+  });
+  assert.equal(restated.overview.overallPathogenesis, "气血不足，肌肤失于濡养", "复述病历时由病机链投影，而不是写一句必然判 T1 的「尚不足以形成」");
+  assert.equal(unstable(restated.overview.overallPathogenesis), false);
+}
+
+// ── 症状里的「不清/不明/不定期」不是对冲（2026-09-26）──────────────────────────────────
+// 胰岛素瘤病例「…甚则神志不清」两次复现 2/2 被判 overall_pathogenesis_unstable（T1），整份 M03 退回占位。
+{
+  const { isUnstableM03CoreText: unstable } = await import("../src/lib/diagnosis-stage-contract.ts");
+  for (const text of [
+    "中焦脾胃运化不足，气血化源不充，清阳不升，故餐前乏力、大汗，甚则神志不清",
+    "肝肾阴虚，精血亏耗，故视物不清、头晕耳鸣",
+    "风痰阻络，故言语不清、肢体麻木",
+    "痰蒙清窍，故意识不清、喉中痰鸣",
+    "肝郁脾虚，冲任失调，故月经先后不定期",
+    "瘀阻胞宫，经行无定期，经色紫暗",
+  ]) assert.equal(unstable(text), false, `症状固定搭配不是对冲：${text}`);
+  for (const text of ["病因不清，证候待定", "证候尚不明确", "病机不明，需进一步辨证", "病位不定，待补充舌脉后判断"]) {
+    assert.equal(unstable(text), true, `真对冲照旧判不稳定：${text}`);
+  }
+}
+
+// ── 十八反/十九畏修复提示必须点名药对（2026-09-26）──────────────────────────────────
+// 驳回码只有 candidate_0_high_risk_pair_incompatibility，原提示只说「方中出现禁忌药对」；实测一轮原样返回、
+// fixpoint 早退，整方落成非剂量页。与高影响方向、剂量越界同一条 doctrine：修复提示必须带真实候选。
+{
+  const { m04IncompatiblePairRepairItems } = await import("../src/lib/structured-clinical-repair.ts");
+  const items = m04IncompatiblePairRepairItems(["附子", "法半夏", "茯苓", "甘草", "海藻", "白术"]);
+  assert.ok(items.includes("附子与法半夏（十八反）"), items.join("；"));
+  assert.ok(items.includes("甘草与海藻（十八反）"), items.join("；"));
+  assert.deepEqual(m04IncompatiblePairRepairItems(["党参", "白术", "茯苓", "炙甘草"]), []);
+  const apiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+  assert.match(apiSource, /const pairIssues = m04IncompatiblePairRepairItems\(/, "一次性收口提示必须计算禁忌药对");
+  assert.match(apiSource, /if \(doseIssues\.length > 0 \|\| directionIssues\.length > 0 \|\| pairIssues\.length > 0\)/, "只有禁忌药对时也必须发出收口提示");
+  assert.match(apiSource, /全部配伍禁忌药对：\$\{pairIssues\.join/, "药对要逐对写进提示");
+}

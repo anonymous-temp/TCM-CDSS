@@ -1182,7 +1182,8 @@ export function compileM04Proposal(
   const parsed = M04ProposalSchema.safeParse(normalizeM04ProposalInput(value, prior));
   if (!parsed.success) return undefined;
   // Preserve the exact model proposal through compilation. Dose normalization may canonicalize
-  // representation, but must never change the clinical value before the independent audit sees it.
+  // representation; the only clinical value the server changes is an ordinary herb above its
+  // pharmacopoeia ceiling (see compiledHerbs below), and it says so on that herb's row.
   const trustedMedicines = trustedMedicineCandidates.flatMap((item) => {
     const checked = PatentAndWesternProposalSchema.safeParse(item);
     return checked.success ? [checked.data] : [];
@@ -1207,9 +1208,23 @@ export function compileM04Proposal(
     const targetPathogenesis = node?.pathogenesis || node?.syndromeEvidence ||
       formulaStructureTarget(herb.structureRole) || herb.targetRef;
     const intendedTherapy = node?.therapyDirection || targetPathogenesis;
-    const verification = compileHerbVerification(herb.name, herb.dose, proposal.candidate.decoction.method || "", herb.isToxic === true);
+    // 常规药味（身份确定、非毒性、非医师定量类、单一《中国药典》来源）的候选剂量高于药典上限时，
+    // 按上限给出并在该味写明原值（2026-09-26）。原先原值照出、只在页面批注「偏离参考」：实测
+    // 海螵蛸 12g（药典 5–10g）进了候选方。低于下限不改——儿童、老人和体弱者的用量本就可低于
+    // 成人常用量下限，仍按原批注提示医生核对。毒性、医师定量与来源冲突的药味一律不在此列。
+    const ceilingDeviation = ordinaryHistoricalDoseDeviation(herb, proposal.candidate.decoction.method || "");
+    const cappedDose = ceilingDeviation?.direction === "above_reference" ? `${ceilingDeviation.max}g` : undefined;
+    const dose = cappedDose || herb.dose;
+    const verification = compileHerbVerification(herb.name, dose, proposal.candidate.decoction.method || "", herb.isToxic === true);
+    if (ceilingDeviation && cappedDose) {
+      verification.verificationReasons = [
+        `候选剂量原为 ${ceilingDeviation.dose}，高于《中国药典》2020年版一部规定的 ${ceilingDeviation.min}–${ceilingDeviation.max}g，已按上限 ${cappedDose} 给出；如需超常规用量，请医生注明理由并签名确认。`,
+        ...verification.verificationReasons,
+      ].slice(0, 8);
+    }
     return {
       ...herb,
+      dose,
       ...verification,
       isToxic: herb.isToxic === true || verification.isToxic,
       prescriptionRole: `${herb.role}药：${intendedTherapy}`,

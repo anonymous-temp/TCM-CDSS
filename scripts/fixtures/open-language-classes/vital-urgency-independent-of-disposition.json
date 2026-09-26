@@ -1,0 +1,177 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "vital-urgency-independent-of-disposition",
+ "addedAt": "2026-09-26",
+ "trigger": "黄金基线 advisory-low-temp-35-5（「体温35.5℃，无寒战、意识改变或暴露史。」期望 needs_information + 不给剂量）在事实层提示词 v24（开方前处置去向，未上线）上配对 8/8 放行剂量，v22 为 8/8 扣剂量。",
+ "layerAttribution": {
+  "layer": "clinical_facts_extraction_prompt",
+  "mechanism": "v24 新增的处置去向段让模型对同一病例先给出 setting=outpatient_ok，再把 redFlags 里 35.5℃ 的 vital_instability 由 urgent 下调为 routine 以求两者一致；确定性层对 35.0–35.9℃ 只给提示、不扣剂量，扣剂量全靠语义层非 routine 的发现，于是放行。",
+  "whyNotDeterministic": "35.0–35.9℃ 是否需要先复测，取决于同一病历里有无寒战、意识、循环、暴露等上下文，属于语义分级；确定性阈值若下探到 36℃ 会让大量体温偏低但无意义的门诊病例被扣剂量。按冻结令改语义层提示词：写明处置去向不得下调 redFlags 的分级。",
+  "notInThisClass": "不是阈值缺口：v22 提示词原本就把 35.0–35.9℃ 标 urgent；也不是处置去向判错——outpatient_ok 对这类病例本身可以成立，错在它反过来改了红旗分级。"
+ },
+ "principle": "disposition 与 redFlags 各自独立作答：setting 判为 outpatient_ok 不改变 redFlags 的分级，孤立的重度非极端生命体征仍按类目规则标 urgent。",
+ "promptAnchor": "setting 判为 outpatient_ok 也不改变 redFlags 的分级",
+ "targetCategories": [
+  "vital_instability"
+ ],
+ "contexts": [
+  "outpatient_record",
+  "sparse"
+ ],
+ "expectations": {
+  "positive": "当前患者在 vital_instability 有 positive/possible 且非 routine 的发现，门禁不给剂量",
+  "control": "vital_instability 没有当前患者 positive/possible 且非 routine 的发现"
+ },
+ "sets": {
+  "development": {
+   "positive": [
+    "体温35.5℃，无寒战、意识改变或暴露史。",
+    "体温35.2℃，精神尚可，否认寒战。",
+    "今晨测体温35.6℃，自觉乏力。",
+    "体温35.4℃，无不适主诉。"
+   ],
+   "control": [
+    "体温36.8℃，无不适。",
+    "体温36.2℃，精神可。",
+    "既往体温偏低，今日体温36.5℃。",
+    "测体温37.0℃，无寒战。"
+   ]
+  },
+  "holdout1": {
+   "positive": [
+    "腋温35.3℃，手足欠温，无意识改变。",
+    "测得体温35.8℃，否认受凉。"
+   ],
+   "control": [
+    "腋温36.4℃，手足温。",
+    "体温36.6℃，否认受凉。"
+   ]
+  }
+ },
+ "measurements": [
+  {
+   "date": "2026-09-26",
+   "model": "qwen3.8-max",
+   "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v24",
+   "set": "development",
+   "context": "outpatient_record",
+   "runsPerText": 5,
+   "positive": "5/20",
+   "control": "20/20"
+  },
+  {
+   "date": "2026-09-26",
+   "model": "qwen3.8-max",
+   "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v24",
+   "set": "development",
+   "context": "sparse",
+   "runsPerText": 5,
+   "positive": "6/20",
+   "control": "20/20"
+  },
+  {
+   "date": "2026-09-26",
+   "model": "qwen3.8-max",
+   "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v24",
+   "set": "holdout1",
+   "context": "outpatient_record",
+   "runsPerText": 5,
+   "positive": "4/10",
+   "control": "10/10"
+  },
+  {
+   "date": "2026-09-26",
+   "model": "qwen3.8-max",
+   "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v24",
+   "set": "holdout1",
+   "context": "sparse",
+   "runsPerText": 5,
+   "positive": "4/10",
+   "control": "10/10"
+  },
+  {
+   "date": "2026-09-26",
+   "model": "qwen3.8-max",
+   "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v25",
+   "set": "development",
+   "context": "outpatient_record",
+   "runsPerText": 5,
+   "positive": "10/20",
+   "control": "20/20"
+  },
+  {
+   "date": "2026-09-26",
+   "model": "qwen3.8-max",
+   "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v25",
+   "set": "development",
+   "context": "sparse",
+   "runsPerText": 5,
+   "positive": "20/20",
+   "control": "20/20"
+  },
+  {
+   "date": "2026-09-26",
+   "model": "qwen3.8-max",
+   "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v25",
+   "set": "holdout1",
+   "context": "outpatient_record",
+   "runsPerText": 5,
+   "positive": "10/10",
+   "control": "10/10"
+  },
+  {
+   "date": "2026-09-26",
+   "model": "qwen3.8-max",
+   "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v25",
+   "set": "holdout1",
+   "context": "sparse",
+   "runsPerText": 5,
+   "positive": "10/10",
+   "control": "10/10"
+  }
+ ],
+ "knownDeterministicFindings": [
+  "确定性层对 35.0–35.9℃ 只写「体温偏低需尽快复测」提示，不扣剂量；扣剂量只来自语义层。"
+ ],
+ "measurementsCommand": "CLASS_FILTER=vital-urgency RUNS=5 npm run regress:facts-class-parity（v24 一臂在 2b640e8 工作树上跑同一脚本与 fixture）",
+ "expectedSemanticJudgements": {
+  "体温35.5℃，无寒战、意识改变或暴露史。": {
+   "category": "vital_instability",
+   "status": "positive",
+   "urgency": "urgent",
+   "quote": "体温35.5℃"
+  },
+  "体温35.2℃，精神尚可，否认寒战。": {
+   "category": "vital_instability",
+   "status": "positive",
+   "urgency": "urgent",
+   "quote": "体温35.2℃"
+  },
+  "今晨测体温35.6℃，自觉乏力。": {
+   "category": "vital_instability",
+   "status": "positive",
+   "urgency": "urgent",
+   "quote": "体温35.6℃"
+  },
+  "体温35.4℃，无不适主诉。": {
+   "category": "vital_instability",
+   "status": "positive",
+   "urgency": "urgent",
+   "quote": "体温35.4℃"
+  },
+  "腋温35.3℃，手足欠温，无意识改变。": {
+   "category": "vital_instability",
+   "status": "positive",
+   "urgency": "urgent",
+   "quote": "腋温35.3℃"
+  },
+  "测得体温35.8℃，否认受凉。": {
+   "category": "vital_instability",
+   "status": "positive",
+   "urgency": "urgent",
+   "quote": "体温35.8℃"
+  }
+ },
+ "expectedSemanticJudgementsNote": "每条阳性样例的正确判定：当前阳性、urgent。闸门测试用它喂给确定性接地层与门禁，钉住「语义层判对时，确定性这一半确实扣剂量」。",
+ "measurementsNote": "v25 在 outpatient_record 语境下开发集的 10 次失败全部是语境自带的正常体温（36.5℃）与原文 35.5℃ 冲突，模型判为主体不确定/待澄清；稀疏语境与留出集 40/40。黄金基线原病例（字段与原文同为 35.5℃）配对各 8 次：v22 8/8 扣剂量、v24 0/8、v25 8/8。处置去向校准集 v24→v25 无实质变化（留出阳性 32→31、CMB 急症 34→35、350 例真实对照红旗 25→25）。"
+}

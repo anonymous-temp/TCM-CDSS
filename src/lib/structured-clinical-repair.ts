@@ -1,5 +1,6 @@
 import { isM03WesternSupportContractReason } from "./diagnosis-structured-repair";
 import { rejectionTier } from "./diagnosis-rejection-tiers";
+import { findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
 
 export type M04RepairHerb = {
   name?: unknown;
@@ -195,6 +196,12 @@ export function m04KnowledgeShortlistFromPrompt(prompt: string): string {
   const end = prompt.indexOf(M04_KB_SHORTLIST_END, start);
   if (end <= start) return "";
   return prompt.slice(start, end).trim().slice(0, 6_000);
+}
+
+/** 候选方里全部十八反/十九畏高危药对，写成修复提示可直接照做的「甲与乙（十八反）」。 */
+export function m04IncompatiblePairRepairItems(herbNames: readonly string[]): string[] {
+  return [...new Set(findTcmHerbPairIncompatibilities(herbNames)
+    .map((pair) => `${pair.leftDrug}与${pair.rightDrug}（${pair.category}）`))];
 }
 
 export function buildM04ClinicalRepairHint(

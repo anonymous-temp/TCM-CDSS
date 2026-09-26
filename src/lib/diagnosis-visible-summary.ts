@@ -1,4 +1,4 @@
-import { discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
+import { discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
@@ -8,7 +8,7 @@ import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesis
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
+import { SERVER_LABELED_GROUNDING_LINE, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
@@ -301,7 +301,7 @@ function semanticItems(value: unknown): string[] {
 function deduplicateWesternDifferentials(value: unknown): Record<string, unknown>[] {
   const unique: Record<string, unknown>[] = [];
   const byName = new Map<string, Record<string, unknown>>();
-  for (const raw of recordList(value)) {
+  for (const raw of recordList(value).flatMap(splitWesternDifferentialRow)) {
     const name = canonicalWesternDifferentialName(raw.name);
     const identity = westernDifferentialIdentity(name);
     if (!identity) continue;
@@ -1349,14 +1349,26 @@ function overallPathogenesisDisposition(
 ): "replace" | "annotate" | "keep" {
   const text = typeof value === "string" ? value.trim() : "";
   if (!text) return "keep";
+  // 服务端自己写的「尚不足以形成」回落句（第二遍时句末「。」已被事实尾巴剥离步骤去掉）不是模型输出，
+  // 不再判「未见病机要素」追加提示——否则 prepare 不幂等，第二遍会给自己的句子再加一段提示。
+  if (text.replace(/[。.]+$/, "") === PATHOGENESIS_NOT_ESTABLISHED.replace(/[。.]+$/, "")) return "keep";
   if (/^(?:病历已记录|病历尚未确认|病历记载|患者诉|患者自述|现病史记录|本例记录)/.test(text)) return "replace";
   if (narrativeMostlyCopies(text, facts)) return "replace";
-  return MECHANISM_PREDICATE.test(text) ? "keep" : "annotate";
+  return MECHANISM_PREDICATE.test(text) || OVERALL_PATHOGENESIS_MECHANISM_FORM.test(text) ? "keep" : "annotate";
 }
+
+/**
+ * 总体病机里另两种教科书写法，只用于「要不要追加提示」这一处：「肌肤失于濡养」「肺失于宣降」
+ * （原谓词只收「失养」「失宣」，中间隔一个「于」就认不出），以及「气血不足」「肾精亏虚」这类
+ * 物质亏虚。不并入 NATURE_MECHANISM_PHRASE——那条还用来剔除病性条目，「气血亏虚」写进病性
+ * 是合法的，并进去会被当成病机误删。
+ */
+const OVERALL_PATHOGENESIS_MECHANISM_FORM =
+  /失于(?:濡养|荣养|滋养|温煦|温养|固摄|宣降|宣发|肃降|和降|运化|疏泄|濡润|收摄)|(?:气|血|阴|阳|精|津)[血液气精]?(?:不足|亏虚|亏损|虚衰|两虚|两亏|不继)/;
 
 const PATHOGENESIS_NOT_ESTABLISHED =
   "现有四诊与病史尚不足以形成可采纳的总体病机，请补充关键问诊后复核（本栏不采用主诉复述代替病机）。";
-const PATHOGENESIS_NO_MECHANISM_NOTE = "（服务端提示：本栏未见病机要素，请医生核定是否需要补充病机推演）";
+const PATHOGENESIS_NO_MECHANISM_NOTE = SERVER_PATHOGENESIS_NO_MECHANISM_NOTE;
 
 /**
  * 临床事实状态模板只能用于事实展示，不能混入病机结论。
@@ -1475,7 +1487,17 @@ export function applyDeterministicTreatmentPrinciple(content: string): string {
       ].filter(Boolean);
       const disposition = overallPathogenesisDisposition(overview.overallPathogenesis, pathogenesisFactSurface);
       if (disposition === "replace") {
-        overview.overallPathogenesis = PATHOGENESIS_NOT_ESTABLISHED;
+        // 病机链里模型已写出成立的节点病机时，总体病机由它们投影（只复用已存在的结构字段，不新增结论）。
+        // 原先一律换成「尚不足以形成…」这句——它本身就命中 overall_pathogenesis_unstable（T1），
+        // 于是整份 M03（证候、病机链、西医诊断）退回占位，只因总体病机一栏复述了病历。
+        const chainMechanisms = [...new Set(recordList(recordValue(reasoning.pathogenesis)?.chain)
+          .map((node) => markdownCell(node.pathogenesis))
+          .filter((text) => Boolean(text) && !isUnstableM03CoreText(text) &&
+            (MECHANISM_PREDICATE.test(text) || OVERALL_PATHOGENESIS_MECHANISM_FORM.test(text)) &&
+            !narrativeMostlyCopies(text, pathogenesisFactSurface)))];
+        overview.overallPathogenesis = chainMechanisms.length > 0
+          ? chainMechanisms.join("；").slice(0, 600)
+          : PATHOGENESIS_NOT_ESTABLISHED;
       } else if (disposition === "annotate") {
         const text = String(overview.overallPathogenesis || "").trim();
         // 幂等：批注只加一次。
@@ -1972,9 +1994,15 @@ export function alignNormalizedM03WesternClinicalRationale(content: string): str
     const firstGroundedFact = semanticItems(primary.supportingFacts)[0];
     if (!isDisplayableClinicalText(name) || !isDisplayableClinicalText(firstGroundedFact)) return content;
 
-    primary.clinicalRationale =
-      `${firstGroundedFact}支持将“${name}”作为当前工作诊断；` +
-      "但现有资料尚不足以确定具体病因，因此暂不采用更具体的病因标签。";
+    // 模型已按客观依据确立具体疾病（status=考虑、名称不是症状级工作诊断）时，回落句不能反过来
+    // 说「尚不足以确定具体病因」——那等于替模型撤回一个成立的诊断。只有工作诊断才写待查口径。
+    const establishedDisease = primary.status === "考虑" &&
+      !isSymptomLevelWorkingLabel(name) &&
+      !/(?:待查|待明确|待鉴别|病因不明|病因未明)/.test(name);
+    primary.clinicalRationale = establishedDisease
+      ? `${firstGroundedFact}支持“${name}”的诊断；仍需结合鉴别诊断中的要点排除其他解释。`
+      : `${firstGroundedFact}支持将“${name}”作为当前工作诊断；` +
+        "但现有资料尚不足以确定具体病因，因此暂不采用更具体的病因标签。";
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {
     return content;
@@ -2341,12 +2369,79 @@ export function declassifyAmbiguousM03WesternPrimary(content: string, clinicalCo
   if (start < 0 || end < 0) return content;
   try {
     const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
-    const primary = recordValue(recordValue(reasoning.westernDiagnosis)?.primary);
+    const western = recordValue(reasoning.westernDiagnosis);
+    const primary = recordValue(western?.primary);
     if (!isAmbiguousM03WesternPrimaryLabel(primary?.name)) return content;
+    const split = splitParentheticalAlternatives(markdownCell(primary?.name));
+    if (western && primary && split) {
+      const previous = { name: primary.name, differentials: western.differentials };
+      primary.name = split.head;
+      if (!m03WesternDurationIssue(reasoning, clinicalContext)) {
+        const suggestedChecks = semanticItems(primary.suggestedChecks);
+        const differentials = recordList(western.differentials).map((item) => ({ ...item }));
+        const listed = new Set(differentials.map((item) => markdownCell(item.name)));
+        const added = split.alternatives.filter((name) => !listed.has(name)).map((name) => ({
+          name,
+          reason: "原主诊断括注中列出的待鉴别方向，暂列鉴别诊断",
+          distinguishingPoints: "结合病程、查体及针对性检查结果区分",
+          nextCheck: suggestedChecks[0] || "结合病程演变、查体及必要检查复核",
+        }));
+        western.differentials = [...added, ...differentials].slice(0, 8);
+        return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
+      }
+      primary.name = previous.name;
+      western.differentials = previous.differentials;
+    }
     return declassifyUnsupportedM03WesternPrimary(content, clinicalContext);
   } catch {
     return content;
   }
+}
+
+/**
+ * 「工作诊断（A/B待鉴别）」「喘息症状（支气管哮喘可能）」这类写法：括注外的主干本身是一个
+ * 不含择一的工作诊断，歧义只在括注里。此时保留模型自己写的主干、把括注里的方向逐条放进鉴别，
+ * 而不是整条换成由主诉拼出的症状名——后者实测把「左下肢皮肤软组织感染（丹毒/蜂窝织炎待鉴别）」
+ * 换成了与病情无关的文字。只做结构拆分，不新增任何诊断名。
+ */
+function splitParentheticalAlternatives(name: string): { head: string; alternatives: string[] } | undefined {
+  const match = name.trim().match(/^([^（()）]+?)\s*[（(]([^（()）]+)[）)]([^（()）]*)$/);
+  if (!match) return undefined;
+  const head = `${match[1].trim()}${match[3].trim()}`;
+  if (head.length < 2 || isAmbiguousM03WesternPrimaryLabel(head)) return undefined;
+  const alternatives = splitAlternativeParts(match[2]);
+  if (alternatives.length === 0) return undefined;
+  // 括注里是分型/分期（「腹泻型/混合型」）时不是另一个诊断，只保留主干，不造鉴别行。
+  if (alternatives.every((item) => SUBTYPE_QUALIFIER.test(item))) return { head, alternatives: [] };
+  return { head, alternatives };
+}
+
+const SUBTYPE_QUALIFIER = /(?:型|期|级|度)$/;
+
+function splitAlternativeParts(text: string): string[] {
+  return [...new Set(text
+    .split(/[\/／、?？]|或/)
+    .map((item) => item.trim()
+      .replace(/^(?:如|疑似|考虑|倾向)/, "")
+      .replace(/(?:待鉴别|待排除|待排|可能性大|可能性|可能|倾向|等)$/, "")
+      .trim())
+    .filter((item) => item.length >= 2))];
+}
+
+/**
+ * 一条鉴别写成「A/B」「A或B」「A？B？」时拆成逐条，理由、区分点与下一步沿用原行。
+ * 只做结构拆分，不新增诊断名。原先这类写法触发 western_differential_ambiguous，与其他问题叠加时
+ * 整份 M03 退回占位——一条鉴别的写法不该连累中医辨证。
+ */
+function splitWesternDifferentialRow(raw: Record<string, unknown>): Record<string, unknown>[] {
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!name || !isAmbiguousM03WesternPrimaryLabel(name)) return [raw];
+  const bracket = splitParentheticalAlternatives(name);
+  const names = bracket
+    ? [bracket.head, ...bracket.alternatives]
+    : splitAlternativeParts(name.replace(/^[^：:]*(?:待查|待排|待鉴别)[：:]/, ""));
+  const usable = names.filter((item) => !isAmbiguousM03WesternPrimaryLabel(item));
+  return usable.length > 0 ? usable.map((item) => ({ ...raw, name: item })) : [raw];
 }
 
 type FormalWesternCriteriaGuard = {
@@ -2509,8 +2604,11 @@ function looksLikeSerializedClinicalState(value: string): boolean {
 }
 
 function chiefComplaintFallbackDiagnosis(clinicalContext: string): { name: string; fact?: string } {
+  // 无「主诉：」标签时取首个病历行，但跳过服务端加标签写入的字段行（年龄/舌脉/体征/病史）：
+  // 接地语料首行是服务端补写的「患者年龄：N岁」，原先被当成主诉，主诊断落成「年龄：45岁症状」。
   const fact = clinicalContext.match(/(?:^|\n)主诉[：:]\s*([^\n]+)/)?.[1]?.trim() ||
-    clinicalContext.split("\n").map((item) => item.trim()).find((item) => Boolean(item) && !looksLikeSerializedClinicalState(item));
+    clinicalContext.split("\n").map((item) => item.trim()).find((item) =>
+      Boolean(item) && !looksLikeSerializedClinicalState(item) && !SERVER_LABELED_GROUNDING_LINE.test(item));
   if (!fact) return { name: "症状性诊断，病因待临床鉴别" };
   const core = fact
     .split(/[，,；;]/)[0]

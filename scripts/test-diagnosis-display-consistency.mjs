@@ -702,7 +702,10 @@ assert.match(sparseDiagnosePrompt, /阳性事实→核心推理/, "M03 generatio
 assert.match(sparseDiagnosePrompt, /不得自动补出痰湿、寒热、血瘀、阴虚、阳虚、气虚、血虚/, "sparse M03 generation blocks the recurring unsupported nature classes before review");
 assert.match(sparseDiagnosePrompt, /pathogenesis\.summary 只能归纳/, "M03 summary is constrained to a projection of already-supported core reasoning");
 assert.match(sparseDiagnosePrompt, /不得逐项串联或复制 supportingFacts/, "M03 prompt forbids the live failure mode where Western rationale merely re-punctuates the fact list");
-assert.match(sparseDiagnosePrompt, /病程\/表现模式 → 当前工作诊断 → 尚缺哪类病因判别信息/, "M03 prompt gives a concrete non-restatement reasoning sequence");
+assert.match(sparseDiagnosePrompt, /病程\/表现模式 → 当前工作诊断 → 还需排除或核实什么/, "M03 prompt gives a concrete non-restatement reasoning sequence");
+// 2026-09-26：有确诊依据时直接写病名。原推理链末段固定为「尚缺哪类病因判别信息」，实测把已由影像/病理确立的
+// 诊断也推成「病因待查」（65 例里 45 例主诊断带「病因待查」）。
+assert.match(sparseDiagnosePrompt, /足以确立具体疾病时，primary\.name 直接写该疾病名[^。]*不写“病因待查”/, "M03 prompt commits to the disease name when the chart already establishes it");
 assert.match(sparseDiagnosePrompt, /没有具体病因候选时写“具体病因”而不得臆造疾病/, "M03 prompt keeps the rationale repair from inventing an etiologic diagnosis");
 
 const stableM03 = {

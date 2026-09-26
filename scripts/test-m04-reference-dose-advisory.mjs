@@ -85,7 +85,10 @@ test("toxic, controlled, ambiguous, missing/curated ranges and invalid magnitude
 test("generation emits advice while full safety rerun retains every other safety check", () => {
   assert.equal(floor(compiled()), undefined, "baseline is a valid safety-floor fixture");
   for (const dose of ["1g", "31g"]) {
+    // 合同分类本身两个方向都保留（修复轮拼回的原始行等未经编译器的候选仍按它分级）；
+    // 编译器会把高于上限的常规药味改成上限，所以这里把原始剂量写回编译结果再判。
     const value = compiled(dose);
+    value.formula.candidates[0].herbs[0].dose = dose;
     assert.equal(m04SemanticIssue(value, "", prior, isKnownTcmHerbName, true, true, false, false, "", true), "candidate_0_herb_0_dose_reference_deviation");
     assert.equal(floor(value), undefined);
     const badSecond = structuredClone(value);
@@ -104,8 +107,8 @@ test("generation emits advice while full safety rerun retains every other safety
   assert.equal(dosePassesSafetySanityCeiling("党参", "1000g"), false);
 });
 
-test("compiler keeps dose visible and explicitly unverified through normalization", () => {
-  for (const dose of ["1g", "31g"]) {
+test("compiler keeps a below-reference dose visible and explicitly unverified through normalization", () => {
+  for (const dose of ["1g", "4g"]) {
     const value = compiled(dose);
     const herb = value.formula.candidates[0].herbs[0];
     assert.equal(herb.dose, dose);
@@ -121,12 +124,39 @@ test("compiler keeps dose visible and explicitly unverified through normalizatio
   assert.equal(compiled().formula.candidates[0].herbs[0].verificationTier, "verified");
 });
 
+test("compiler caps an ordinary herb above its pharmacopoeia ceiling and states the original dose", () => {
+  const limit = getTcmHerbDoseLimit("党参");
+  assert.equal(limit.max, 30, "fixture assumes the 2020 pharmacopoeia 9–30g range for 党参");
+  for (const dose of ["31g", "45g"]) {
+    const value = compiled(dose);
+    const herb = value.formula.candidates[0].herbs[0];
+    assert.equal(herb.dose, "30g", `${dose} must be capped at the ceiling`);
+    assert.equal(herb.verificationTier, "verified");
+    const reasons = herb.verificationReasons.join("；");
+    assert.ok(reasons.includes(`原为 ${dose}`), "the doctor must see the original model dose");
+    assert.match(reasons, /2020/);
+    assert.match(reasons, /已按上限 30g/);
+    assert.match(reasons, /医生/);
+    assert.equal(floor(value), undefined, "the capped candidate passes the full safety floor");
+    assert.equal(m04SemanticIssue(value, "", prior, isKnownTcmHerbName, true, true, false, false, "", true), undefined);
+    const normalized = normalizeReasoningV2(value);
+    assert.equal(normalized.formula.candidates[0].herbs[0].dose, "30g");
+    assert.deepEqual(normalized.formula.candidates[0].herbs[0].verificationReasons, herb.verificationReasons);
+  }
+  // 其余三味（剂量在范围内）逐字不动。
+  const untouched = compiled("45g").formula.candidates[0].herbs.slice(1).map((herb) => herb.dose);
+  assert.deepEqual(untouched, ["10g", "12g", "6g"]);
+  // 毒性、医师定量、来源冲突的药味不在此列：上限改写只在 ordinaryHistoricalDoseDeviation 判为常规药味
+  // 时发生，而上一条测试已逐项断言附子/朱砂/犀角等对它返回 undefined——超限仍由原有 T1 合同处理。
+  assert.equal(ordinaryHistoricalDoseDeviation({ name: "附子", dose: "16g", isToxic: true }, "煎服"), undefined);
+});
+
 test("doctor advice distinguishes a historical reference from medical approval", () => {
-  const candidate = compiled("31g").formula.candidates[0];
+  const candidate = compiled("4g").formula.candidates[0];
   const advice = collectClinicalDeliveryAdvisories(candidate, prior, "食少倦怠；大便溏薄");
   const doseAdvice = advice.find((row) => row.code === "candidate_0_herb_0_dose_reference_deviation");
   assert.ok(doseAdvice);
-  assert.match(doseAdvice.message, /31g/);
+  assert.match(doseAdvice.message, /4g/);
   assert.match(doseAdvice.message, /历史参考/);
   assert.match(doseAdvice.suggestedAction, /医生/);
   assert.doesNotMatch(qualityAnnotationCopy("m04_candidate_0_herb_0_dose_reference_deviation"), /通过安全核验|剂量.*通过/);
@@ -143,10 +173,10 @@ test("HIS preserves readable unverified dose and marks only herbal adoption as r
     reasoningDiagnose: prior, reasoningPrescribe: compiled(dose),
   }));
   const normal = scheme("12g");
-  const unusual = scheme("31g");
+  const unusual = scheme("4g");
   const herb = unusual.prescriptions.structuredHerbs[0];
   assert.ok(herb, "reference-only mode must preserve the entire herbal table");
-  assert.equal(herb.dose, "31g");
+  assert.equal(herb.dose, "4g");
   assert.equal(herb.verificationTier, "unverified_dose");
   assert.equal(unusual.prescriptions.herbal[0].referenceOnly, true);
   assert.equal(unusual.prescriptions.herbal[0].adoptable, false);
@@ -158,15 +188,18 @@ test("HIS preserves readable unverified dose and marks only herbal adoption as r
   assert.equal(normal.prescriptions.herbal[0].referenceOnly, undefined);
   const warning = classifyHerbWarning({ drug: herb.name, dose: herb.dose, verificationTier: herb.verificationTier, verificationReasons: herb.verificationReasons });
   assert.equal(warning.level, "L2");
-  assert.ok(warning.reasons.some((reason) => reason.includes("31g")));
+  assert.ok(warning.reasons.some((reason) => reason.includes("4g")));
+  const capped = scheme("31g");
+  assert.equal(capped.prescriptions.structuredHerbs[0].dose, "30g", "HIS receives the capped dose");
+  assert.equal(capped.prescriptions.herbal[0].referenceOnly, undefined, "a capped ordinary dose is no longer reference-only");
 });
 
 test("local checks see the original proposal dose; signing binds unverified metadata without approval", () => {
-  const value = compiled("31g");
-  const state = normalizeCaseStateInput({ chiefComplaint: "食少倦怠", phase: "done", prescription: "## 中药饮片处方\n党参31g 白术10g 茯苓12g 炙甘草6g", reasoningPrescribe: value, reasoningDiagnose: prior });
+  const value = compiled("4g");
+  const state = normalizeCaseStateInput({ chiefComplaint: "食少倦怠", phase: "done", prescription: "## 中药饮片处方\n党参4g 白术10g 茯苓12g 炙甘草6g", reasoningPrescribe: value, reasoningDiagnose: prior });
   // 外部审方已删除（2026-09-25）；原先送审的单味剂量如今只喂本地核对，同样必须是原始提案剂量。
-  assert.equal(state.reasoningPrescribe.formula.candidates[0].herbs[0].dose, "31g");
-  assert.equal(prescriptionSubmissionIssue(state), undefined, "the unverified 31g proposal remains a parseable, complete dose");
+  assert.equal(state.reasoningPrescribe.formula.candidates[0].herbs[0].dose, "4g");
+  assert.equal(prescriptionSubmissionIssue(state), undefined, "the unverified 4g proposal remains a parseable, complete dose");
   assert.deepEqual(buildPrescriptionInputAdvisories(state).filter((item) => item.code === "missing_dose"), []);
   const before = clinicalReviewPayloadHash(value);
   const falselyVerified = structuredClone(value);
@@ -182,7 +215,7 @@ test("local checks see the original proposal dose; signing binds unverified meta
     });
     assert.equal(typeof signed.contractSignature, "string");
     assert.equal(signed.formula.candidates[0].herbs[0].verificationTier, "unverified_dose");
-    assert.equal(signed.formula.candidates[0].herbs[0].dose, "31g");
+    assert.equal(signed.formula.candidates[0].herbs[0].dose, "4g");
     assert.equal(signed.clinicalReview.status, "unavailable", "signing cannot manufacture reviewer acceptance");
   } finally {
     if (previousKey === undefined) delete process.env.REASONING_CONTRACT_SIGNING_KEY;

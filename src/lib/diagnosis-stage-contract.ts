@@ -177,9 +177,17 @@ const WESTERN_EXCLUSION_REASONING = /(?:但|尚不支持|不足以|不支持|排
 export const NATURE_MECHANISM_PHRASE = /(?:失和|失降|失运|失司|失调|失常|失养|失煦|失聪|失职|失摄|失固|失统|不利|不畅|不通|不降|不纳|不宁|不升|不和|不固|不化|受阻|上逆|上炎|上扰|下注|内停|内生|内蕴|内动|外袭|外束|化风|化火|化燥|耗伤|亏耗|壅滞|痹阻|郁结|犯胃|犯肺|凌心|侮肺|失宣|失肃)/;
 const CLINICAL_NEGATION = /(?:绝非|绝无|毫无|全无|断非|尚无|暂无|没有|阴性|排除|已除外|需除外|未排除|待排除|否认|否定|并非|并无|不认为是|不属|不属于|不存在|不能证实|未能证实|未获证实|未查见|未呈现|未见|未发现|未提示|未观察到|未显示|未证实|尚未证实|未检出|未检测到|未表明|未达到|未成立|未采用|未使用|未选择|未予|未考虑|未支持|未获支持|未得到支持|(?:尚|仍|现有)?不足以(?:支持|证实|形成|判断)|(?:依据|证据)(?:不足|薄弱)[^，,。；;]{0,12}(?:支持|证实)|缺乏[^，,。；;]{0,12}(?:依据|证据|支持)|缺少[^，,。；;]{0,12}(?:依据|证据|支持)|难以|难于|不支持|不符合|不考虑|不宜|不应|不建议|不推荐|不适用|不作为|不选择|不选用|不采取|不施用|不赞成|不认同|反对|非首选|拒用|禁用|禁止|禁忌|忌用|勿用|暂缓(?:治疗|处置|用药)|暂停(?:治疗|处置|用药)|避免|慎用|不可|不予|无需|不需|不主张|暂不|不成立|不采用|不使用|不用|停止(?:治疗|处置|用药)|停用|停服|撤除)/;
 
+/**
+ * 主诊断名里是否并列了**择一**的多个诊断（A/B、A或B、A？B？、A待鉴别）。
+ *
+ * 顿号「、」不在其中：它列举的是同时成立的项目——并发症（「房间隔缺损，合并中度肺动脉高压、
+ * 三尖瓣中度关闭不全」）或同一症候群里的几个症状（「胸闷伴心悸、下肢浮肿，病因待查」），
+ * 不是二选一。原先把顿号也算歧义，2026-09-26 实测 65 例公开病案里 5 例主诊断因此被降级并换成
+ * 由主诉拼出的症状名，其中包括与专家诊断一致的「先天性心脏病（房间隔缺损）」。
+ */
 export function isAmbiguousM03WesternPrimaryLabel(value: unknown): boolean {
   if (typeof value !== "string" || !value.trim()) return false;
-  return /[\/／、?？]|(?:或|二者之一|待鉴别)/.test(value) ||
+  return /[\/／?？]|(?:或|二者之一|待鉴别)/.test(value) ||
     /(?:待查|待排|疑似|可能性?)[：:][^。；\n]{1,80}|[：:(（][^。；\n]{1,80}(?:可能|倾向|待排|疑似)[)）]?$/.test(value);
 }
 
@@ -337,12 +345,31 @@ function hasNegatedClinicalTerm(value: string, pattern: RegExp): boolean {
  * 等真对冲词判定逐字不变（本文件对应套件逐条钉住）。
  */
 const CLINICAL_UNFIXED_LOCATION_IDIOM = /(?:痛|疼)?(?:无定处|不定处)|(?:走窜|游走|窜行|攻窜)(?:不定|无定)|痛处不定|部位不定/g;
+/**
+ * 同一类问题的另两组固定搭配（2026-09-26）：主语是感官/神志功能的「不清」「不明」是症状，
+ * 不是「尚不清楚」式的对冲；「月经先后不定期」是月经病的规范症名。实测胰岛素瘤病例
+ * 「…清阳不升，故餐前乏力、大汗，甚则神志不清」两次复现 2/2 判为 overall_pathogenesis_unstable
+ * （T1），整份 M03 退回占位。主语是闭集；「病因不清」「证候不明」等无此主语的写法判定不变。
+ */
+const CLINICAL_IMPAIRED_FUNCTION_IDIOM = /(神志|意识|神识|视物|视力|言语|语言|说话|口齿|吐字|发音|头目|头脑)(?:不清|不明)/g;
+const CLINICAL_IRREGULAR_MENSES_IDIOM = /(?:月经|经期|经行)(?:先后)?(?:不定期|无定期|不定|无定)/g;
+
+/**
+ * 服务端给总体病机追加的提示（原文保留、只提醒医生核定）。它是服务端自己写的，不是模型的对冲：
+ * 措辞里的「需要补充」曾被下面的不稳定判据读成模型没下结论，于是 overall_pathogenesis_unstable
+ * （T1）把整份 M03 退回占位——实测 12 岁白癜风「气血两虚证」两次复现 2/2。判据前先剥掉它。
+ */
+export const SERVER_PATHOGENESIS_NO_MECHANISM_NOTE = "（服务端提示：本栏未见病机要素，请医生核定是否需要补充病机推演）";
 
 export function isUnstableM03CoreText(value: unknown): boolean {
-  if (typeof value !== "string" || !value.trim()) return true;
-  const normalized = value.trim().replace(/^[：:；;，,。.!！?？\s]+/, "")
+  if (typeof value !== "string") return true;
+  const withoutServerNote = value.split(SERVER_PATHOGENESIS_NO_MECHANISM_NOTE).join("");
+  if (!withoutServerNote.trim()) return true;
+  const normalized = withoutServerNote.trim().replace(/^[：:；;，,。.!！?？\s]+/, "")
     // 先把气滞主症的固定搭配遮蔽掉再判对冲词，避免临床体征被读成不确定表述。
-    .replace(CLINICAL_UNFIXED_LOCATION_IDIOM, "痛处游走");
+    .replace(CLINICAL_UNFIXED_LOCATION_IDIOM, "痛处游走")
+    .replace(CLINICAL_IMPAIRED_FUNCTION_IDIOM, "$1昏蒙")
+    .replace(CLINICAL_IRREGULAR_MENSES_IDIOM, "经期错杂");
   const markerIndex = normalized.search(UNSTABLE_REASONING_MARKER);
   if (markerIndex < 0) return concreteClinicalAnchor(normalized).length < 2;
   const prefix = normalized.slice(0, markerIndex);
