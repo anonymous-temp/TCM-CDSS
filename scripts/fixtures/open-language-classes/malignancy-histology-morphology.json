@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "cdss-open-language-class-v1",
+  "id": "malignancy-histology-morphology",
+  "mode": "deterministic",
+  "paritySchema": "sibling-phrasing",
+  "addedAt": "2026-09-26",
+  "trigger": "修好 exam-negation-verbs 之后，CMB-Clin「结肠癌肝转移」一例（结肠腺癌、肝区胀痛伴乏力食欲不振1个月、Hb 78g/L、CEA>106）整例漏掉上消化道警示——此前它命中只是因为「未触及腹部包块」被误读成阳性包块。",
+  "layerAttribution": {
+    "layer": "deterministic_governed_vocabulary",
+    "mechanism": "受治理词表 redflag-triage-lexicon 的 gi_alarm.detection.gastrointestinalMalignancy 收的是**病种名**（食管癌/胃癌/结肠癌/直肠癌…），而病理报告写的是**组织学名**：结肠腺癌、胃低分化腺癌、食管鳞癌、直肠印戒细胞癌——部位与「癌」之间多一个组织学定语，整类失配。同一条 detection 里 currentDigestiveSymptoms 已有『纳差/纳少』却没有同概念的『食欲不振』，该例的当前消化道症状也因此落空。",
+    "exception": "冻结令允许的确定性例外：构词式词法守卫（部位仍只取受治理词表里的那几个，代码只补组织学定语这一闭集）+ 有限闭集（『食欲不振』等是词表内已有概念『纳差』的其他写法，补的是写法不是概念）。与本文件里既有的 `(?<![防抗致])癌(?!胚|抗原)` 是同一修法。",
+    "whyDeterministic": "漏检出在承重层的词表构词上。上消化道警示是扣剂量的硬判据之一，事实层不可用时无人兜底。",
+    "residual": "组织学定语取闭集（低/中/高/未分化、印戒细胞、黏液、管状、乳头状、神经内分泌、鳞状细胞、鳞、腺鳞、腺）。少见写法（如「结肠黏液腺癌伴印戒细胞分化」的完整描述）仍靠 `(?<![防抗致])癌(?!胚|抗原)` 那一档 + 警示级消化道表现覆盖。"
+  },
+  "contexts": ["outpatient_record", "sparse"],
+  "parity": {
+    "note": "兄弟句法：病理报告的组织学写法与词表里的病种写法，门禁结果必须完全相同；兄弟句自身必须带红旗，否则两边都不报也算相同，断言空转。",
+    "pairs": [
+      { "subject": "病理报告为结肠腺癌，近一月纳差腹胀", "sibling": "病理报告为结肠癌，近一月纳差腹胀", "siblingExpect": "flagged" },
+      { "subject": "胃低分化腺癌术后，腹胀1周", "sibling": "胃癌术后，腹胀1周", "siblingExpect": "flagged" },
+      { "subject": "食管鳞癌放疗后，进食哽噎", "sibling": "食管癌放疗后，进食哽噎", "siblingExpect": "flagged" },
+      { "subject": "直肠印戒细胞癌，腹痛2周", "sibling": "直肠癌，腹痛2周", "siblingExpect": "flagged" },
+      { "subject": "肝区胀痛伴乏力、食欲不振1个月，病理报告为结肠腺癌", "sibling": "肝区胀痛伴乏力、纳差1个月，病理报告为结肠癌", "siblingExpect": "flagged" }
+    ]
+  },
+  "controls": {
+    "note": "反例：不能把『癌』字沾边的一切都抬成警示。",
+    "mustStayReady": [
+      "血癌胚抗原轻度升高，腹胀2天",
+      "体检发现肝血管瘤，腹胀2天",
+      "否认肿瘤病史，腹胀1周",
+      "母亲患胃癌，本人腹胀1周",
+      "定期防癌体检，腹胀1周"
+    ],
+    "mustStillFlag": [
+      { "text": "结肠癌术后，腹胀1周", "flag": "上消化道警示征象" }
+    ]
+  },
+  "measurements": [
+    { "date": "2026-09-26", "what": "CMB-Clin「结、直肠与肛管疾病 案例分析-结肠癌肝转移」整案过安全门", "before": "red_flag（但理由是被误读成阳性的「未触及腹部包块」）", "after": "red_flag（理由改为结肠腺癌 + 当前食欲不振，即本该命中的那一档）" },
+    { "date": "2026-09-26", "what": "合并语料 39,854 条 × 2 形状回放", "result": "本类未在语料中制造任何新增红旗（0 条变严格），也未减少任何已有红旗" }
+  ]
+}

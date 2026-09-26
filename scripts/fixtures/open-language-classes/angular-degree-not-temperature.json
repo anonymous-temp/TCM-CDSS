@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "cdss-open-language-class-v1",
+  "id": "angular-degree-not-temperature",
+  "mode": "deterministic",
+  "paritySchema": "sibling-phrasing",
+  "addedAt": "2026-09-26",
+  "trigger": "联网取公开病历复验 9/26 两处时序修复时发现：CMB-Clin 74 例真实病案里「颈、腰椎退行性疾病 案例分析-腰椎间盘突出症」被判 red_flag，理由是「体温 30℃ 低体温」——原文写的是「左下肢直腿抬高试验30度阳性」。",
+  "layerAttribution": {
+    "layer": "deterministic_vitals_parsing",
+    "mechanism": "diagnosis-safety.parseTemperature / parseContextualTemperature 把裸「度」当作体温单位（为了认「发烧39度」「38度5」这种口语），值域 30–45。骨伤/推拿/针灸病历里的角度恰好落在同一段：直腿抬高试验30度、颈椎旋转45度、针尖与皮肤成45度角、折端向外成角约40度、掌倾角约负30度，于是整份病历被扣掉剂量并弹出低体温/极高热红旗。",
+    "exception": "冻结令允许的确定性例外：数值阈值 + 构词式词法守卫。只在单位是**裸「度」**时生效（带 ℃/°C 或 T/体温 标签的一律照旧）；判据是「最近锚点胜出」——同一硬句里角度线索比体温线索更靠近该数值时不算体温，与 clinicalEventTemporalScopeAt 的既往/当前锚点同一口径。没有新增任何症状词表面正则。",
+    "whyDeterministic": "误报出在承重层自己的数值解析上，与模型无关。语义事实层只能追加风险、不能取消确定性红旗，所以模型再正确也抹不掉这条假低体温。",
+    "residual": "只覆盖 30–45 这一段——其余数值本就不在体温值域内。「45度角」后面紧跟「角」字时按构词直接判角度；其余靠上下文线索，若一句话里既无角度词也无体温词（如单独一行「30度」），仍按体温处理（保守方向）。"
+  },
+  "contexts": [
+    "outpatient_record",
+    "sparse"
+  ],
+  "parity": {
+    "note": "兄弟句法：把角度数值去掉后的同一句话，门禁结果（状态、剂量、红旗条数）必须完全相同；兄弟句自身必须零红旗，否则两边都报警也算相同，断言空转。",
+    "pairs": [
+      {
+        "subject": "腰痛伴左下肢放射痛，直腿抬高试验30度阳性",
+        "sibling": "腰痛伴左下肢放射痛，直腿抬高试验阳性",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "针刺三阴交，针尖与皮肤成45度角斜刺",
+        "sibling": "针刺三阴交，针尖与皮肤斜刺",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "颈椎旋转45度时右肩疼痛",
+        "sibling": "颈椎旋转时右肩疼痛",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "左桡骨远端骨折，掌倾角约负30度",
+        "sibling": "左桡骨远端骨折，掌倾角偏负",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "膝关节屈曲受限，仅能前屈40度",
+        "sibling": "膝关节屈曲受限，仅能前屈",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "腰前屈45度时左侧臀部疼痛",
+        "sibling": "腰前屈时左侧臀部疼痛",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "复查X线示对位可，残余30度角",
+        "sibling": "复查X线示对位可，残余成角",
+        "siblingExpect": "clean",
+        "note": "数值前没有任何角度动词，只靠「度」后面紧跟的「角」这条构词分支判定——拆掉该分支此句即误报低体温。"
+      },
+      {
+        "subject": "石膏固定后残留30度角畸形",
+        "sibling": "石膏固定后残留成角畸形",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "术后残余45度角",
+        "sibling": "术后残余成角",
+        "siblingExpect": "clean"
+      }
+    ]
+  },
+  "controls": {
+    "note": "真体温必须照旧报警——这一臂证明守卫没有把体温一起关掉。",
+    "mustStillFlag": [
+      {
+        "text": "发热3天，最高体温40度",
+        "flag": "体温 40℃"
+      },
+      {
+        "text": "高烧40度",
+        "flag": "体温 40℃"
+      },
+      {
+        "text": "体温40℃",
+        "flag": "体温 40℃"
+      },
+      {
+        "text": "T 40℃，咳嗽3天",
+        "flag": "体温 40℃"
+      },
+      {
+        "text": "腋温40度，寒战",
+        "flag": "体温 40℃"
+      },
+      {
+        "text": "体温30℃，四肢冰凉",
+        "flag": "体温 30℃"
+      },
+      {
+        "text": "直腿抬高试验30度阳性，查体腋温40度",
+        "flag": "体温 40℃"
+      }
+    ],
+    "mustStayReady": [
+      "发热38度，咳嗽3天",
+      "持续高热38.5-39度",
+      "膝关节屈曲90度受限",
+      "肩关节外展受限，仅60度",
+      "侧凸Cobb角测量为40度"
+    ]
+  },
+  "measurements": [
+    {
+      "date": "2026-09-26",
+      "what": "CMB-Clin 74 例真实复杂病案（FreedomIntelligence/CMB，公开）整案过安全门",
+      "before": "「腰椎间盘突出症」误报 red_flag「体温 30℃ 低体温」",
+      "after": "ready，同案其余判定不变"
+    },
+    {
+      "date": "2026-09-26",
+      "what": "灵丹医案语料 30–45 区间的「N度」共 50 处人工分类",
+      "result": "10 处是角度（三阴交与皮肤成45度角×5、抬腿30～45度角、掌倾角负30度、折端成角30/40度、仅能抬高约30度），其余 40 处是真体温"
+    },
+    {
+      "date": "2026-09-26",
+      "what": "合并语料 39,854 条 × 2 病历形状回放（灵丹命中形状 270 + 随机对照 30,000 + 本次联网 9,584）",
+      "result": "40 条判定改变、全部变宽松且全部是误报消失（38 条角度 + 2 条查体否定），0 条变严格"
+    }
+  ]
+}

@@ -26,7 +26,7 @@ import {
   structuredRedFlagEvidenceFromFacts,
   type BackstopRedFlagCategory,
 } from "./clinical-facts";
-import { affirmedCurrentMedicationText, clinicalEventTemporalScopeAt } from "./clinical-polarity";
+import { CLINICAL_EXAM_NEGATION_VERB_SOURCE, affirmedCurrentMedicationText, clinicalEventTemporalScopeAt } from "./clinical-polarity";
 import { ensureActionableFollowupSafetyNet } from "./followup-safety-net";
 import { buildThreePartLimitedStateCopyForSurface, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 import { clinicalFieldRequiresExplicitPrescriptionState, clinicalRequiredFieldLabel } from "./clinical-governance-tables";
@@ -1463,18 +1463,60 @@ function bloodPressureIsCritical(bp: { systolic: number; diastolic: number } | n
   return Boolean(bp && (bp.systolic >= 180 || bp.diastolic >= 120 || bp.systolic <= 80 || bp.diastolic <= 45));
 }
 
+/**
+ * 裸「度」既是体温的口语单位（发烧39度、38度5），也是角度单位。骨伤/推拿/针灸病历里
+ * 「直腿抬高试验30度阳性」「针尖与皮肤成45度角斜刺」「折端向外成角约40度」「掌倾角约负30度」
+ * 的数值正好落在 30–45 这一段，被读成低体温/极高热红旗，于是整份腰椎间盘突出症病历扣掉剂量。
+ * 2026-09-26 公开语料实测：CMB-Clin 74 例真实病案里「腰椎间盘突出症」因
+ * 「左下肢直腿抬高试验30度阳性」误报「体温 30℃ 低体温」；灵丹医案 30–45 区间的 50 处「N度」
+ * 里 10 处是角度（针刺进针角、抬腿角、骨折成角）。
+ *
+ * 冻结令例外：数值阈值 + 构词式词法守卫。只在**单位是裸「度」**时生效——带 ℃/°C 或
+ * T/体温 标签的一律照旧按体温处理，本守卫不碰。判据取「最近锚点胜出」：同一硬句里，
+ * 角度线索若比体温线索更靠近该数值，它就不是体温。这与 clinicalEventTemporalScopeAt
+ * 的既往/当前锚点是同一口径，因此「直腿抬高试验30度阳性，体温39度」里 39 仍是发热。
+ */
+const ANGLE_MEASURE_CUE_SOURCE = String.raw`(?:抬高|抬腿|抬起|屈曲|屈伸|伸展|后伸|前屈|背伸|跖屈|外展|内收|内旋|外旋|旋转|旋颈|侧弯|侧屈|侧倾|外翻|内翻|活动度|关节活动|角度|成角|夹角|倾角|倾斜|弧度|斜刺|平刺|直刺|进针|针尖|针身|Cobb|试验|[成呈](?=\s*(?:负|约|[0-9]|[一二两三四五六七八九十])))`;
+const TEMPERATURE_MEASURE_CUE_SOURCE = String.raw`(?:体温|腋温|耳温|肛温|口温|腋下|发热|发烧|高热|低热|壮热|身热|潮热|烧到|烧至|烧得|热度|退热|降温|寒战)`;
+
+function lastCueIndex(text: string, source: string): number {
+  let last = -1;
+  for (const match of text.matchAll(new RegExp(source, "g"))) last = match.index ?? last;
+  return last;
+}
+
+/** 见上方说明：该处的裸「度」是角度而非体温。matched 里已带 ℃/°C 或 T/体温 时恒为 false。 */
+function isAngularDegreeAt(text: string, matchStart: number, matched: string): boolean {
+  if (/℃|°C|T|体温/i.test(matched)) return false;
+  if (!matched.includes("度")) return false;
+  // 「45度角」「30～45度角」：单位后面直接跟「角」，构词式判定，不必看上下文。
+  if (/^\s*角/.test(text.slice(matchStart + matched.length))) return true;
+  const hardStart = Math.max(
+    text.lastIndexOf("。", matchStart - 1),
+    text.lastIndexOf("；", matchStart - 1),
+    text.lastIndexOf(";", matchStart - 1),
+    text.lastIndexOf("\n", matchStart - 1),
+  ) + 1;
+  const before = text.slice(hardStart, matchStart);
+  return lastCueIndex(before, ANGLE_MEASURE_CUE_SOURCE) > lastCueIndex(before, TEMPERATURE_MEASURE_CUE_SOURCE);
+}
+
 // Accepts "38.9℃", "38.9度", the Chinese decimal idiom "38度9" (=38.9), and full-width input.
 function parseTemperature(text: string): number | null {
   const t = normalizeClinicalText(text);
   // "38度9" / "38度9分" → 38.9 (度 as a decimal separator, 分 = tenth-of-a-degree). But a trailing digit
   // that begins a duration/count word ("39度2小时后复测", "38度9天") is NOT a decimal, so exclude those
   // units to avoid fabricating a temperature that could trip a red flag.
-  const decimalDu = t.match(/(?<!\d)(4[0-5]|3\d)度(\d)(?!\d)(?!\s*(?:天|次|日|周|月|年|岁|小时|分钟|秒|时|点|余|多|回|下|个|号))/);
-  if (decimalDu) return Number(`${decimalDu[1]}.${decimalDu[2]}`);
+  for (const match of t.matchAll(/(?<!\d)(4[0-5]|3\d)度(\d)(?!\d)(?!\s*(?:天|次|日|周|月|年|岁|小时|分钟|秒|时|点|余|多|回|下|个|号))/g)) {
+    if (isAngularDegreeAt(t, match.index ?? 0, match[0])) continue;
+    return Number(`${match[1]}.${match[2]}`);
+  }
   const labeled = t.match(/(?:^|[^A-Za-z])(?:T|体温)["']?\s*[:：]?\s*["']?\s*(4[0-5]|3\d)(?:[.](\d))?/i);
   if (labeled) return Number(labeled[2] ? `${labeled[1]}.${labeled[2]}` : labeled[1]);
-  const standalone = t.match(/(?<!\d)(4[0-5]|3\d)(?:[.](\d))?\s*(?:℃|°C|度)/i);
-  if (standalone) return Number(standalone[2] ? `${standalone[1]}.${standalone[2]}` : standalone[1]);
+  for (const match of t.matchAll(/(?<!\d)(4[0-5]|3\d)(?:[.](\d))?\s*(?:℃|°C|度)/gi)) {
+    if (isAngularDegreeAt(t, match.index ?? 0, match[0])) continue;
+    return Number(match[2] ? `${match[1]}.${match[2]}` : match[1]);
+  }
   return null;
 }
 
@@ -1576,13 +1618,13 @@ function isHistoricalOrResolvedAt(text: string, index: number, eventLength = 0):
 function parseContextualNumber(
   text: string,
   pattern: RegExp,
-  toNumber: (match: RegExpMatchArray) => number | null,
+  toNumber: (match: RegExpMatchArray, normalized: string) => number | null,
   isAbnormal: (value: number) => boolean,
 ): number | null {
   const normalized = normalizeClinicalText(text);
   let fallback: number | null = null;
   for (const match of normalized.matchAll(pattern)) {
-    const value = toNumber(match);
+    const value = toNumber(match, normalized);
     if (value == null || !Number.isFinite(value)) continue;
     const numericCapture = match.slice(1).find((part) => part && /\d/.test(part));
     const valueOffset = numericCapture ? match[0].lastIndexOf(numericCapture) : 0;
@@ -1599,8 +1641,9 @@ function parseContextualTemperature(text: string): number | null {
   return parseContextualNumber(
     text,
     /(?:(?:^|[^A-Za-z])(?:T|体温)["']?\s*[:：]?\s*["']?\s*)?(4[0-5]|3\d)(?:(?:[.](\d))|(?:度(\d)))?\s*(?:℃|°C|度)?/gi,
-    (match) => {
+    (match, normalized) => {
       if (!/(?:T|体温|℃|°C|度)/i.test(match[0])) return null;
+      if (isAngularDegreeAt(normalized, match.index ?? 0, match[0])) return null;
       const decimal = match[2] || match[3];
       return Number(decimal ? `${match[1]}.${decimal}` : match[1]);
     },
@@ -1965,7 +2008,9 @@ export function canProceedToM03AfterFollowup(state: CaseState): boolean {
 
 // 裸“没”是口语标准否定词（“没胸痛晕倒”），但大量固定搭配里它不是对后续症状词的否定
 // （没胃口=纳差、没精神=乏力、没什么/没关系/没问题…），用负向前瞻排除这些搭配，避免制造漏报。
-const NEGATION_PATTERN = new RegExp(`(否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|无|未见|未发现|未诊断|未患|没有|没(?!有什么|关系|问题|事|错|完|意思|办法|时间|空|钱|人|影|底|数|辙|门|胃口|精神|力气|劲儿|劲|趣)|未诉|无诉|未主诉|未出现|未发生|未有|未曾|未再发|无再发|从未|从无|没有过|不伴|已缓解|已消失|排除)`, "g");
+// 查体否定动词与 clinical-polarity 的 NEGATIVE_PREFIX 共用同一份闭集——同一判据只写一处
+// （「全腹未触及压痛反跳痛」原判阳性反跳痛，见该文件里的实测记录）。
+const NEGATION_PATTERN = new RegExp(`(${CLINICAL_EXAM_NEGATION_VERB_SOURCE}|否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|无|未见|未发现|未诊断|未患|没有|没(?!有什么|关系|问题|事|错|完|意思|办法|时间|空|钱|人|影|底|数|辙|门|胃口|精神|力气|劲儿|劲|趣)|未诉|无诉|未主诉|未出现|未发生|未有|未曾|未再发|无再发|从未|从无|没有过|不伴|已缓解|已消失|排除)`, "g");
 const NON_NEGATING_PHRASES = /(无明显诱因|无诱因|无缓解|无好转|无改善|没缓解|没好转|没改善|没消失|无规律|无特殊处理|未予处理|未治疗)/g;
 
 function containsNegation(value: string): boolean {
@@ -2531,7 +2576,18 @@ function hasUpperGiAlarmFeatureSignal(text: string): boolean {
   // 而裸「癌」会被「癌胚抗原」「防癌体检」误命中，两头都要挡住。词表管的是词，
   // (?<![防抗致])癌(?!胚|抗原) 管的是构词，两者性质不同，不该混进同一张表。
   const CANCER = `${governedTermAlternation(GI_ALARM_DETECTION.malignancyGeneric)}|(?<![防抗致])癌(?!胚|抗原)`;
-  const GI_CANCER = governedTermAlternation(GI_ALARM_DETECTION.gastrointestinalMalignancy);
+  // 病理报告写的是**组织学名**：「结肠腺癌」「胃低分化腺癌」「食管鳞癌」「直肠印戒细胞癌」，
+  // 受治理词表收的是**病种名**「结肠癌/胃癌/食管癌」——中间多一个组织学定语就整类失配。
+  // 2026-09-26 公开语料实测（CMB-Clin「结肠癌肝转移」一例）：病理报告为「结肠腺癌」，
+  // 该例此前能出警示靠的是把「未触及腹部包块」误读成阳性包块；查体否定动词补齐后本例整例漏检。
+  // 与上面 CANCER 那条同一修法：部位仍只取受治理词表里的那几个（去掉词尾「癌」），
+  // 代码只补构词——中间允许的组织学定语是闭集。冻结令例外：构词式词法守卫。
+  const GI_CANCER_SITE = governedTermAlternation(
+    GI_ALARM_DETECTION.gastrointestinalMalignancy.map((term) => term.replace(/癌$/, "")),
+  );
+  const GI_CANCER_HISTOLOGY =
+    "(?:低分化|中分化|高分化|中低分化|未分化|印戒细胞|黏液|粘液|管状|乳头状|神经内分泌|鳞状细胞|鳞|腺鳞|腺)*";
+  const GI_CANCER = `(?:${GI_CANCER_SITE})${GI_CANCER_HISTOLOGY}癌(?!胚|抗原)`;
   const digestive = governedTermAlternation(GI_ALARM_DETECTION.currentDigestiveSymptoms);
   const alarmDigestive = governedTermAlternation(GI_ALARM_DETECTION.alarmDigestiveFindings);
   if (hasPatientHistoryTermWithoutNegation(text, new RegExp(GI_CANCER))

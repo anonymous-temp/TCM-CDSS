@@ -43,6 +43,7 @@ const jiti = createJiti(import.meta.url, {
 });
 const { BACKSTOP_RED_FLAG_CATEGORIES, buildClinicalFactsExtractionPrompt } =
   await jiti.import("../src/lib/clinical-facts.ts");
+const { clinicalClausePolarity } = await jiti.import("../src/lib/clinical-polarity.ts");
 const { maybeAttachClinicalFactsBackstop } = await jiti.import("../src/lib/clinical-facts-runtime.ts");
 const { evaluateSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
 
@@ -75,9 +76,59 @@ async function gateFor(context, text, customerId, judgement) {
   return evaluateSafetyGate(withFacts);
 }
 
+function gateOf(context, text) {
+  return evaluateSafetyGate(OPEN_LANGUAGE_CLASS_CONTEXTS[context](text, "olc-deterministic"));
+}
+
 function gateSignature(context, text) {
-  const gate = evaluateSafetyGate(OPEN_LANGUAGE_CLASS_CONTEXTS[context](text, "olc-deterministic"));
+  const gate = gateOf(context, text);
   return `${gate.status}/${gate.allowDosePrescription ? "dose" : "no-dose"}/redFlags=${gate.redFlags.length}`;
+}
+
+/**
+ * 兄弟句法 parity（paritySchema: "sibling-phrasing"）。
+ * 缺陷形状是「同一个临床事实的另一种写法没被认出来」：角度的「30度」被当成体温、
+ * 查体的「未触及反跳痛」没被当成否定、病理的「结肠腺癌」没被当成结肠癌。
+ * 判据因此是：被测写法与**早已判对的兄弟写法**必须得到完全相同的门禁结果。
+ * 兄弟句自身的方向要先钉住（clean 必须零红旗、flagged 必须有红旗），
+ * 否则两边同为 ready 或同为红旗也算「相同」，断言空转。
+ */
+function checkSiblingPhrasingClass(entry, label) {
+  assert.ok(entry.layerAttribution?.exception, `${label}: 确定性类目必须写明冻结令的哪条例外`);
+  assert.ok(entry.parity?.pairs?.length > 0, `${label}: 缺兄弟句法配对`);
+  for (const context of entry.contexts) {
+    for (const { subject, sibling, siblingExpect } of entry.parity.pairs) {
+      const siblingFlags = gateOf(context, sibling).redFlags;
+      if (siblingExpect === "flagged") {
+        assert.ok(siblingFlags.length > 0, `${label}/${context}: 兄弟句「${sibling}」自身不报警，parity 断言会空转`);
+      } else {
+        assert.equal(siblingFlags.length, 0, `${label}/${context}: 兄弟句「${sibling}」自身带红旗（${siblingFlags[0]}），parity 断言会空转`);
+      }
+      assert.equal(gateSignature(context, subject), gateSignature(context, sibling),
+        `${label}/${context}: 「${subject}」与兄弟写法「${sibling}」判定不同`);
+      cases += 1;
+    }
+    for (const { text, flag } of entry.controls?.mustStillFlag || []) {
+      const flags = gateOf(context, text).redFlags;
+      assert.ok(flags.some((item) => item.includes(flag)),
+        `${label}/${context}: 反例「${text}」应仍报「${flag}」，实得 ${JSON.stringify(flags)}`);
+      cases += 1;
+    }
+    for (const text of entry.controls?.mustStayReady || []) {
+      const flags = gateOf(context, text).redFlags;
+      assert.equal(flags.length, 0, `${label}/${context}: 反例「${text}」被抬成当前风险（${flags[0]}）`);
+      cases += 1;
+    }
+  }
+  // 极性层自己的一臂：安全门的红旗断言覆盖不到它，而可见摘要与西医依据表读的是它。
+  for (const clause of entry.clausePolarity?.negative || []) {
+    assert.equal(clinicalClausePolarity(clause), "negative", `${label}: 「${clause}」极性层未判 negative`);
+    cases += 1;
+  }
+  for (const clause of entry.clausePolarity?.notNegative || []) {
+    assert.notEqual(clinicalClausePolarity(clause), "negative", `${label}: 「${clause}」被极性层误判 negative`);
+    cases += 1;
+  }
 }
 
 function checkDeterministicClass(entry, label) {
@@ -108,7 +159,8 @@ for (const file of fixtureFiles) {
   if (entry.mode === "deterministic") {
     assert.equal(entry.schemaVersion, "cdss-open-language-class-v1", `${label}: schemaVersion`);
     assert.ok(entry.layerAttribution?.layer && entry.layerAttribution?.mechanism, `${label}: 缺归因记录`);
-    checkDeterministicClass(entry, label);
+    if (entry.paritySchema === "sibling-phrasing") checkSiblingPhrasingClass(entry, label);
+    else checkDeterministicClass(entry, label);
     continue;
   }
 

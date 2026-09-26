@@ -1,0 +1,112 @@
+{
+  "schemaVersion": "cdss-open-language-class-v1",
+  "id": "exam-negation-verbs",
+  "mode": "deterministic",
+  "paritySchema": "sibling-phrasing",
+  "addedAt": "2026-09-26",
+  "trigger": "CMB-Clin「案例分析-痈」（颈后部皮肤痈，无任何腹部症状）被判 red_flag「急性、突发或剧烈腹痛/腹胀已出现」，触发句是体格检查段那句每份外科病历都有的**阴性**记录：「全腹未触及压痛反跳痛」。",
+  "layerAttribution": {
+    "layer": "deterministic_negation_scope",
+    "mechanism": "否定动词表（clinical-polarity.NEGATIVE_PREFIX 与 diagnosis-safety.NEGATION_PATTERN）收的是叙述性否定：否认/无/未见/未发现/未患/没有…。书面病历的**查体段**不写这些，写触诊/叩诊/听诊动词的否定式：未触及/未扪及/未查及/未叩及/未闻及/未引出。于是「全腹未触及压痛反跳痛」读成阳性反跳痛→急腹症红旗，「四肢肌力正常，未触及抽搐」读成阳性抽搐→神经系统急症。同一份「无反跳痛」写法一直是对的——差的只是动词。",
+    "exception": "冻结令允许的确定性例外：有限闭集。触诊/叩诊/听诊/引出是封闭的查体动词类，枚举安全。刻意不收裸「未及」——「未及时就诊，胸痛持续加重」会被整条判成否定，方向最危险。",
+    "whyDeterministic": "误报出在承重层的否定作用域上。语义事实层只能追加风险，抹不掉确定性红旗，所以模型判对也没用。",
+    "residual": "只收前缀式。后置写法（「反跳痛未触及」「病理反射未引出」以体征在前）目前只有「未引出」这类动词在句尾的形式被 POSTFIX 规则覆盖到一部分；后置式在真实病历里罕见，未一并处理。",
+    "sharedPredicate": "clinical-polarity.CLINICAL_EXAM_NEGATION_VERB_SOURCE —— 安全门的 NEGATION_PATTERN 直接引用同一份，避免『同一判据两处各写各的』再次分叉。"
+  },
+  "contexts": [
+    "outpatient_record",
+    "sparse"
+  ],
+  "parity": {
+    "note": "兄弟句法：查体否定动词式与早已判对的「无/未见」式，门禁结果必须完全相同。",
+    "pairs": [
+      {
+        "subject": "腹部平软，全腹未触及压痛反跳痛",
+        "sibling": "腹部平软，全腹无压痛反跳痛",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "全腹未触及明显压痛及反跳痛，肠鸣音正常",
+        "sibling": "全腹无明显压痛及反跳痛，肠鸣音正常",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "腹软，未扪及反跳痛及肌紧张",
+        "sibling": "腹软，无反跳痛及肌紧张",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "四肢肌力正常，未触及抽搐",
+        "sibling": "四肢肌力正常，无抽搐",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "神志清楚，未引出病理反射",
+        "sibling": "神志清楚，无病理反射",
+        "siblingExpect": "clean"
+      },
+      {
+        "subject": "查体未查及反跳痛",
+        "sibling": "查体无反跳痛",
+        "siblingExpect": "clean"
+      }
+    ]
+  },
+  "controls": {
+    "note": "阳性体征必须照旧报警——这一臂证明补的是否定动词，不是把反跳痛/抽搐从词表里删掉。",
+    "mustStillFlag": [
+      {
+        "text": "腹部压痛明显，伴反跳痛",
+        "flag": "急腹症"
+      },
+      {
+        "text": "腹痛剧烈，腹部反跳痛",
+        "flag": "急腹症"
+      },
+      {
+        "text": "今晨抽搐一次，呼之不应",
+        "flag": "神经"
+      }
+    ],
+    "mustStayReady": [
+      "未及时就诊，目前无不适",
+      "肝脾肋下未触及，腹部平软",
+      "两肺呼吸音清晰，未闻及干湿啰音"
+    ]
+  },
+  "measurements": [
+    {
+      "date": "2026-09-26",
+      "what": "改前逐句实测",
+      "result": "无压痛反跳痛→ready（对）；未触及反跳痛/未扪及反跳痛/未查及反跳痛/不存在反跳痛→red_flag 急腹症（错）；未触及抽搐→red_flag 神经系统急症（错）"
+    },
+    {
+      "date": "2026-09-26",
+      "what": "合并语料 39,854 条 × 2 形状回放",
+      "result": "本类改变 2 条（CMB-Clin「案例分析-痈」两种病历形状），0 条变严格"
+    },
+    {
+      "date": "2026-09-26",
+      "what": "连带发现并同批修复",
+      "result": "CMB-Clin「结肠癌肝转移」此前能出上消化道警示，靠的正是把「未触及腹部包块」误读成阳性包块；本类修好后该例改由 malignancy-histology-morphology 与词表补全的「食欲不振」正常命中，见那份样例"
+    }
+  ],
+  "clausePolarity": {
+    "note": "极性层（clinical-polarity.clinicalClausePolarity）与安全门共用同一份查体否定动词。这一节单独钉极性层：安全门的断言走的是红旗，覆盖不到极性层，而极性层决定可见摘要与西医依据表里这条体征算阳性还是阴性。",
+    "negative": [
+      "未扪及反跳痛",
+      "未触及肿大淋巴结",
+      "未引出病理反射",
+      "未查及肿大淋巴结",
+      "不存在反跳痛",
+      "未叩及移动性浊音",
+      "未闻及病理性杂音"
+    ],
+    "notNegative": [
+      "未及时就诊",
+      "未及时用药",
+      "腹部反跳痛",
+      "反跳痛明显"
+    ]
+  }
+}
