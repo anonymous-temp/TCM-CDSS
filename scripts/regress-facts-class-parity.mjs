@@ -87,17 +87,22 @@ async function runJob(job) {
     return { ...job, unavailable: facts?.unavailableReason || "unavailable" };
   }
   const gate = evaluateSafetyGate(withFacts);
-  const active = activeTargetFindings(facts, job.entry.targetCategories);
+  // mode=disposition（开放判断）：阳性=门禁不给剂量；反例=处置去向没有形成开方前评估项。
+  const dispositionItems = (gate.missingItems || []).filter((item) => item.includes("开方前处置去向"));
+  const active = job.entry.mode === "disposition" ? dispositionItems : activeTargetFindings(facts, job.entry.targetCategories);
   const pass = job.kind === "positive"
-    ? active.length > 0 && gate.allowDosePrescription === false
+    ? (job.entry.mode === "disposition" ? gate.allowDosePrescription === false : active.length > 0 && gate.allowDosePrescription === false)
     : active.length === 0;
   return {
     ...job,
     pass,
     gate: gate.status,
     allowDosePrescription: gate.allowDosePrescription,
-    findings: (facts.redFlags || []).map((finding) =>
-      `${finding.category}/${finding.subject}/${finding.status}/${finding.urgency}「${finding.quote}」`),
+    findings: [
+      ...(facts.redFlags || []).map((finding) =>
+        `${finding.category}/${finding.subject}/${finding.status}/${finding.urgency}「${finding.quote}」`),
+      ...(facts.disposition ? [`disposition/${facts.disposition.setting}：${facts.disposition.mustNotMiss.map((item) => item.condition).join("、")}`] : []),
+    ],
   };
 }
 

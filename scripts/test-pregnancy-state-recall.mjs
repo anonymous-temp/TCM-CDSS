@@ -106,6 +106,18 @@ assert.ok(
   !(elderlyUnknownGate.missingItemCodes || []).some((code) => ["pregnancy_unknown", "lactation_unknown", "conception_unknown"].includes(code)),
   `78岁女性不得再追问妊娠/哺乳/备孕：${JSON.stringify(elderlyUnknownGate.missingItems)}`,
 );
+for (const childAge of [3, 8]) {
+  const childGate = evaluateSafetyGate(safetyCase(childAge));
+  assert.ok(
+    !(childGate.missingItemCodes || []).some((code) => ["pregnancy_unknown", "lactation_unknown", "conception_unknown"].includes(code)),
+    `${childAge}岁女童不得追问妊娠/哺乳/备孕：${JSON.stringify(childGate.missingItems)}`,
+  );
+}
+// 下限的另一臂：10 岁以上仍须追问（初潮最早 8–9 岁），否则下限挪高也不会有断言发现。
+assert.ok(
+  (evaluateSafetyGate(safetyCase(12)).missingItemCodes || []).includes("pregnancy_unknown"),
+  "12岁女性未记录状态时仍须追问妊娠状态",
+);
 const youngerUnknownGate = evaluateSafetyGate(safetyCase(38));
 assert.ok(
   (youngerUnknownGate.missingItemCodes || []).includes("pregnancy_unknown"),

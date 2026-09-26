@@ -19,6 +19,9 @@ import { generalizeOccupation, shouldRedactNarrativeNameCandidate, scrubQuasiIde
 import { determineCompletenessLevel } from "./diagnosis-types";
 import {
   additiveRedFlagsFromFacts,
+  dispositionAdvisoriesFromFacts,
+  dispositionEmergencyRedFlagsFromFacts,
+  dispositionPriorityItemsFromFacts,
   clinicalFactsReviewSettled,
   groundedPatientTriageCategories,
   priorityEvaluationItemsFromFacts,
@@ -3919,7 +3922,9 @@ function pregnancyScreenRequired(state: CaseState): boolean {
     /(绝经|停经)\s*(?:已|约)?\s*(?:1[2-9]|[2-9]\d)\s*(?:个月|月)|绝经\s*(?:已|约)?\s*[1-9]\d*\s*年|绝经后|双侧卵巢切除|子宫全切(?:除)?|无子宫/.test(text) ||
     // 年龄仅关闭“未知状态必须追问”，绝不覆盖下游已记录的阳性妊娠/哺乳/备孕硬边界。
     // 60 岁以下继续 fail-closed；60 岁及以上不再生成无临床价值的常规生殖状态追问。
-    (age != null && age >= 60);
+    // 下限同理（2026-09-26 实测：3 岁女童病例被要求填写妊娠/哺乳/备孕状态）。取 10 岁而不是
+    // 月经初潮的常见年龄：初潮最早可在 8–9 岁，10 岁及以上仍然追问，宁可多问一句。
+    (age != null && (age >= 60 || age < 10));
   return !physiologicallyNotAtRisk;
 }
 
@@ -4426,10 +4431,18 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   const reasons: string[] = [];
   const vitalAdvisories = measuredVitalAdvisories(state);
   const semanticSourceText = trustedInputText(state);
-  const semanticAdvisories = semanticTriageAdvisoriesFromFacts(state.clinicalFacts, semanticSourceText);
-  const semanticEmergencyFindings = additiveRedFlagsFromFacts(state.clinicalFacts, semanticSourceText, []);
+  const semanticAdvisories = [
+    ...semanticTriageAdvisoriesFromFacts(state.clinicalFacts, semanticSourceText),
+    ...dispositionAdvisoriesFromFacts(state.clinicalFacts, semanticSourceText),
+  ];
+  const semanticEmergencyFindings = [
+    ...additiveRedFlagsFromFacts(state.clinicalFacts, semanticSourceText, []),
+    ...dispositionEmergencyRedFlagsFromFacts(state.clinicalFacts, semanticSourceText),
+  ];
   const semanticEmergencyEvidence = structuredRedFlagEvidenceFromFacts(state.clinicalFacts, semanticSourceText);
   const priorityEvaluationItems = priorityEvaluationItemsFromFacts(state.clinicalFacts, semanticSourceText);
+  // 开方前处置去向（开放判断）：类目表之外的必须排除情况也扣剂量，见 clinical-facts ClinicalDisposition。
+  priorityEvaluationItems.push(...dispositionPriorityItemsFromFacts(state.clinicalFacts, semanticSourceText, priorityEvaluationItems));
   if (hasAbdominalPrioritySignal(semanticSourceText) && !hasAcuteAbdominalSignal(semanticSourceText)) {
     priorityEvaluationItems.push("突发、持续或进展性腹痛/胃痛需优先完成腹部查体与严重度评估");
   }
@@ -4543,7 +4556,10 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   //（reviewStatus=checked）时参与升级，未复核的语义结果保持展示级。
   // 2026-09-20 起复核相位按配置关闭，接地后的单次抽取（single_pass）同为完成态，照常参与升级。
   const reviewedSemanticEmergencyFindings = clinicalFactsReviewSettled(state.clinicalFacts?.reviewStatus)
-    ? additiveRedFlagsFromFacts(state.clinicalFacts, semanticSourceText, programmaticRedFlags)
+    ? [
+        ...additiveRedFlagsFromFacts(state.clinicalFacts, semanticSourceText, programmaticRedFlags),
+        ...dispositionEmergencyRedFlagsFromFacts(state.clinicalFacts, semanticSourceText),
+      ]
     : [];
   const redFlags = [...programmaticRedFlags, ...reviewedSemanticEmergencyFindings];
   if (redFlags.length > 0) {

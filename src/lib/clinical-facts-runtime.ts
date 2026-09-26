@@ -30,7 +30,7 @@ export { CLINICAL_FACTS_EXTRACTOR_VERSION, CLINICAL_FACTS_PROMPT_VERSION } from 
 
 // v9（2026-09-25）：复核/裁决相位删除，签名载荷里的 encounterScope 不再带 reviewAgreement、modelTrace
 // 只剩 extractor。版本升级让 v8 旧快照在版本校验处即失效并重抽，而不是靠 HMAC 偶然对不上。
-export const CLINICAL_FACTS_ATTESTATION_VERSION = "tcm-cdss-clinical-facts-attestation-v9";
+export const CLINICAL_FACTS_ATTESTATION_VERSION = "tcm-cdss-clinical-facts-attestation-v10";
 export const CLINICAL_FACTS_CACHE_TTL_MS = 5 * 60_000;
 // A signed M03 may legitimately consume the full 180s orchestration budget, and one bounded M04
 // regeneration can extend the same unchanged chain beyond the ordinary semantic cache TTL. Routes
@@ -251,7 +251,7 @@ async function callFactsPhaseModel(
       temperature: 0,
       // This classifier has a tiny JSON contract. Disable extended thinking so the provider cannot
       // spend the whole output budget on hidden reasoning and leave an empty/partial final object.
-      max_tokens: 1800,
+      max_tokens: 2400,
       response_format: { type: "json_object" },
       ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
     },
@@ -317,6 +317,8 @@ function attestationPayload(facts: NonNullable<CaseState["clinicalFacts"]>): str
     reviewStatus: facts.reviewStatus || "",
     encounterScope: facts.encounterScope,
     redFlags: facts.redFlags,
+    // 处置去向同样签入：客户端删掉它就能把「宜先专科评估」变回放行剂量。
+    disposition: facts.disposition,
   });
 }
 
@@ -370,7 +372,8 @@ export function hasValidClinicalFactsAttestation(
   if (!Number.isFinite(extractedAtMs)) return false;
   const ageMs = nowMs - extractedAtMs;
   if (ageMs < -CLINICAL_FACTS_FUTURE_SKEW_MS) return false;
-  const defaultTtlMs = facts.redFlags.length === 0
+  // 「无发现」的短 TTL 只给真正空的结果：处置去向已升档的结果与有类目发现的同等对待。
+  const defaultTtlMs = facts.redFlags.length === 0 && (!facts.disposition || facts.disposition.setting === "outpatient_ok")
     ? CLINICAL_FACTS_EMPTY_CACHE_TTL_MS
     : CLINICAL_FACTS_CACHE_TTL_MS;
   const ttlMs = Number.isFinite(cacheTtlOverrideMs) && Number(cacheTtlOverrideMs) > defaultTtlMs

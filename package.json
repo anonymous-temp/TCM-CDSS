@@ -205,6 +205,7 @@
     "test:disease-lexicon": "jiti scripts/test-disease-lexicon.mjs",
     "test:runtime-data-presence": "jiti scripts/test-runtime-data-presence.mjs",
     "test:pregnancy-recall": "jiti scripts/test-pregnancy-state-recall.mjs",
+    "test:clinical-disposition": "node scripts/test-clinical-disposition.mjs",
     "test:warm-disease-rules": "jiti scripts/test-warm-disease-rules.mjs",
     "test:clinical-decision-cards": "jiti scripts/test-clinical-decision-cards.mjs",
     "test:formula-discrimination-guard": "jiti scripts/test-formula-discrimination-guard.mjs",

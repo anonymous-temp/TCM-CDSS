@@ -158,8 +158,8 @@ export type RedFlagFinding = {
   escalationEvidenceQuotes?: string[];
 };
 
-export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v19";
-export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v22";
+export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v20";
+export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v24";
 
 // 劳力/活动诱发的慢性基线症状限定词（“平路气短”“活动后气促”“劳力性胸闷”）：在已知慢性心肺肾
 // 疾病或慢性病程框架下，这类限定描述的是基线功能状态而非急性事件；静息/夜间/端坐/新发/突发/
@@ -350,8 +350,42 @@ export type AffirmedSymptom = {
   quote: string;
 };
 
+/**
+ * 开方前处置去向（2026-09-26）。与 redFlags 的受治理类目表**独立**的开放判断：模型先列出与本次表现
+ * 相符、漏掉可能致死致残且有处置时间窗的情况（自由文本病名，不限类目、不限系统），再回答一个问题——
+ * 今天能不能在中医门诊直接开剂量级中药。
+ *
+ * 为什么不是再补一个类目：类目表/词表对开放域输入永远有下一个没列到的说法。9/26 公开病案实测，
+ * 「车祸伤3小时，左膝肿胀外翻畸形」「无痛性进行性黄疸 + 胰头占位 + TBIL 262」都落在类目表之外，
+ * 类目式抽取一条不报（前者 redFlags 为空，后者把「考虑胰腺癌」判成既往/常规）。
+ * 做法取自急诊/全科 LLM 分诊研究的共同结论：把「处置去向」与「诊断/类目识别」分开问（模型常在鉴别里
+ * 提到危重诊断却不保留升级处置）；显式列「必须排除」清单；用临床医生视角与安全优先的框架（患者视角的
+ * 漏分诊约为专科视角的 3 倍）；拿不准向高一档判，资料缺项不作为放行理由。
+ *
+ * 只增不减：只能扣剂量/加红旗，不能抵消任何确定性结论；每条升级都要有接地的原文逐字依据。
+ */
+export const DISPOSITION_SETTINGS = ["emergency", "urgent_specialist", "insufficient_info", "outpatient_ok"] as const;
+export type DispositionSetting = (typeof DISPOSITION_SETTINGS)[number];
+
+export type MustNotMissCondition = {
+  /** 自由文本的病名或情况——刻意不设闭集。 */
+  condition: string;
+  plausibility: "likely" | "possible";
+  /** 1–4 条原文逐字片段；接地在消费侧执行（这里看不到病历原文）。 */
+  evidenceQuotes: string[];
+};
+
+export type ClinicalDisposition = {
+  setting: DispositionSetting;
+  mustNotMiss: MustNotMissCondition[];
+  missingInfo?: string;
+  rationale?: string;
+};
+
 export type ClinicalFacts = {
   redFlags: RedFlagFinding[];
+  /** 开方前处置去向（开放判断），见 ClinicalDisposition。 */
+  disposition?: ClinicalDisposition;
   /** 病历明确记载为阳性的症状;仅用于否认核对,不参与红旗与门禁判定。 */
   affirmedSymptoms?: AffirmedSymptom[];
   encounterScope?: EncounterScope;
@@ -641,9 +675,14 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
       }).slice(0, 40)
     : [];
 
+  const disposition = semanticStatus === "unavailable"
+    ? undefined
+    : parseClinicalDisposition((root as { disposition?: unknown }).disposition);
+
   return {
     // An unavailable semantic check cannot carry forward findings from an earlier successful run.
     redFlags: semanticStatus === "unavailable" ? [] : redFlags,
+    disposition,
     affirmedSymptoms: semanticStatus === "unavailable" ? undefined : affirmedSymptoms,
     encounterScope: semanticStatus === "unavailable" ? undefined : encounterScope,
     sourceFingerprint,
@@ -660,6 +699,43 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
     modelTrace,
     customerBindingHash,
     attestation,
+  };
+}
+
+/**
+ * 处置去向的结构校验。字段不合格时整段丢弃（undefined），不连累同一份输出里的 redFlags——
+ * 与类目 finding 逐条隔离是同一原则。自由文本病名只限长度，不限词表。
+ */
+function parseClinicalDisposition(raw: unknown): ClinicalDisposition | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const setting = memberOf((raw as { setting?: unknown }).setting, DISPOSITION_SETTINGS);
+  if (!setting) return undefined;
+  const rawList = (raw as { mustNotMiss?: unknown }).mustNotMiss;
+  const mustNotMiss = Array.isArray(rawList)
+    ? rawList.flatMap((item): MustNotMissCondition[] => {
+        if (!item || typeof item !== "object") return [];
+        const condition = String((item as { condition?: unknown }).condition || "").trim();
+        const plausibility = memberOf((item as { plausibility?: unknown }).plausibility, ["likely", "possible"] as const);
+        const rawQuotes = (item as { evidenceQuotes?: unknown }).evidenceQuotes;
+        const evidenceQuotes = Array.isArray(rawQuotes)
+          ? [...new Set(rawQuotes
+              .filter((value): value is string => typeof value === "string")
+              .map((value) => value.trim())
+              .filter((value) => value.length >= 2 && value.length <= 200))].slice(0, 4)
+          : [];
+        if (condition.length < 2 || condition.length > 60 || !plausibility || evidenceQuotes.length === 0) return [];
+        return [{ condition, plausibility, evidenceQuotes }];
+      }).slice(0, 6)
+    : [];
+  // 升档必须说出要排除什么；只写 setting 不给依据的升档不作数（outpatient_ok 本身不需要依据）。
+  if (setting !== "outpatient_ok" && mustNotMiss.length === 0) return undefined;
+  const missingInfo = boundedString((raw as { missingInfo?: unknown }).missingInfo, 120);
+  const rationale = boundedString((raw as { rationale?: unknown }).rationale, 300);
+  return {
+    setting,
+    mustNotMiss,
+    ...(missingInfo ? { missingInfo } : {}),
+    ...(rationale ? { rationale } : {}),
   };
 }
 
@@ -1025,6 +1101,79 @@ export function priorityEvaluationItemsFromFacts(
   return items;
 }
 
+type GroundedDisposition = {
+  setting: Exclude<DispositionSetting, "outpatient_ok">;
+  conditions: string[];
+  quote: string;
+  missingInfo?: string;
+};
+
+/**
+ * 处置去向的接地：每条「必须排除」至少要有一条原文逐字、且为当前（非既往/非已缓解/非被否认）的依据，
+ * 否则该条不参与升级；一条都接不上地，整段不参与。疑似本身就是这一层要处理的对象
+ * （「考虑胰腺癌」），所以当前性核验允许不确定措辞。
+ */
+function groundedDisposition(facts: ClinicalFacts | undefined, sourceText: string): GroundedDisposition | undefined {
+  const disposition = facts?.disposition;
+  if (!disposition || disposition.setting === "outpatient_ok") return undefined;
+  const grounded = disposition.mustNotMiss.flatMap((item) => {
+    const quotes = item.evidenceQuotes.filter((quote) =>
+      sourceText.includes(quote) && hasCurrentQuoteOccurrence(sourceText, quote, true));
+    return quotes.length > 0 ? [{ ...item, evidenceQuotes: quotes }] : [];
+  });
+  if (grounded.length === 0) return undefined;
+  const ordered = [...grounded].sort((left, right) =>
+    (left.plausibility === "likely" ? 0 : 1) - (right.plausibility === "likely" ? 0 : 1));
+  return {
+    setting: disposition.setting,
+    conditions: [...new Set(ordered.map((item) => item.condition))].slice(0, 3),
+    quote: ordered[0].evidenceQuotes[0],
+    ...(disposition.missingInfo ? { missingInfo: disposition.missingInfo } : {}),
+  };
+}
+
+/**
+ * 处置去向形成的开方前评估项（扣剂量，医生评估后解除）。已有类目条目引用了同一原文时不重复。
+ */
+export function dispositionPriorityItemsFromFacts(
+  facts: ClinicalFacts | undefined,
+  sourceText: string,
+  existingItems: readonly string[] = [],
+): string[] {
+  const disposition = groundedDisposition(facts, sourceText);
+  // 「还差一个信息」交给追问环节（dispositionAdvisoriesFromFacts），不在这里扣剂量：9/26 配对实测，
+  // 把它算作开方前评估项时，120 例真实儿科问诊里 101 例被拦——信息少本来就是问诊的常态。
+  if (!disposition || disposition.setting === "insufficient_info") return [];
+  if (existingItems.some((item) => item.includes(`“${disposition.quote}”`))) return [];
+  const conditions = disposition.conditions.join("、");
+  const lead = disposition.setting === "emergency"
+    ? `开方前处置去向：现有资料提示需立即急诊评估（需排除：${conditions}）；需立即现场复核并完成相应处置后再评估处方`
+    : disposition.setting === "urgent_specialist"
+      ? `开方前处置去向：宜先由西医相关专科尽快评估（需排除：${conditions}）；处方前需完成评估`
+      : `开方前处置去向：需先澄清${disposition.missingInfo ? `「${disposition.missingInfo}」` : "关键信息"}以排除${conditions}；处方前需澄清`;
+  return [`${lead}。原文依据：“${disposition.quote}”`];
+}
+
+/** 处置去向为「还差一个关键信息」时的可见提示（不扣剂量），供医生在本轮问诊里补问。 */
+export function dispositionAdvisoriesFromFacts(
+  facts: ClinicalFacts | undefined,
+  sourceText: string,
+): string[] {
+  const disposition = groundedDisposition(facts, sourceText);
+  if (!disposition || disposition.setting !== "insufficient_info") return [];
+  return [`建议补问${disposition.missingInfo ? `「${disposition.missingInfo}」` : "关键信息"}，以排除${disposition.conditions.join("、")}。原文依据：“${disposition.quote}”`];
+}
+
+/** 处置去向为立即急诊时追加的语义红旗（与类目红旗同一通道、同一 additive-only 纪律）。 */
+export function dispositionEmergencyRedFlagsFromFacts(
+  facts: ClinicalFacts | undefined,
+  sourceText: string,
+): string[] {
+  const disposition = groundedDisposition(facts, sourceText);
+  if (!disposition || disposition.setting !== "emergency") return [];
+  return [`AI语义分诊提示：现有资料提示需立即急诊评估（需排除：${disposition.conditions.join("、")}），原文依据：“${disposition.quote}”`];
+}
+
 const CATEGORY_DEDUP_KEYWORDS: Record<BackstopRedFlagCategory, RegExp> = {
   cardiac: /心血管|冠脉|胸痛|胸闷/,
   syncope: /晕厥|黑矇|意识丧失/,
@@ -1095,7 +1244,7 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
   ).join("\n");
   return [
     "从下面【临床文本】中识别急危重红旗线索。先在内部完成口语归一、否定与时序判断，只输出**一个 JSON 对象**，不要正文/代码围栏/解释。",
-    "格式：{\"redFlags\":[{\"category\":<类目键>,\"subject\":<patient|other|uncertain>,\"status\":<positive|possible|negative|historical|unknown>,\"urgency\":<emergency|urgent|clarify|routine>,\"triageBasis\":<处置依据键>,\"quote\":<原文逐字片段>,\"escalationRationale\":<可选：多线索合成升级理由>,\"escalationEvidenceQuotes\":<可选：2-6条原文逐字片段>}],\"affirmedSymptoms\":[{\"term\":<症状名>,\"quote\":<原文逐字片段>}],\"encounterScope\":{\"status\":<active_current_target|historical_or_stable_only|unclear>,\"quote\":<原文逐字片段>}}",
+    "格式：{\"disposition\":{\"setting\":<emergency|urgent_specialist|insufficient_info|outpatient_ok>,\"mustNotMiss\":[{\"condition\":<自由文本病名或情况>,\"plausibility\":<likely|possible>,\"evidenceQuotes\":[<1-4条原文逐字片段>]}],\"missingInfo\":<可选：最该问的一个问题>,\"rationale\":<一句话>},\"redFlags\":[{\"category\":<类目键>,\"subject\":<patient|other|uncertain>,\"status\":<positive|possible|negative|historical|unknown>,\"urgency\":<emergency|urgent|clarify|routine>,\"triageBasis\":<处置依据键>,\"quote\":<原文逐字片段>,\"escalationRationale\":<可选：多线索合成升级理由>,\"escalationEvidenceQuotes\":<可选：2-6条原文逐字片段>}],\"affirmedSymptoms\":[{\"term\":<症状名>,\"quote\":<原文逐字片段>}],\"encounterScope\":{\"status\":<active_current_target|historical_or_stable_only|unclear>,\"quote\":<原文逐字片段>}}",
     "affirmedSymptoms：文本中**明确陈述为存在**的症状，不限于红旗类目，常见如瘀斑、肿胀、乏力、纳差、腰酸、多梦等一律照收；每条 quote 必须逐字来自原文。被否定的（无X、否认X）与未提及的一律不收。该字段仅用于核对后续结论有没有把已记录的症状误写成否认，不参与任何分级判定。",
     "类目键只能取以下之一：",
     categories,
@@ -1136,6 +1285,14 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
     "- 没有合适专类但原文确实提示可能立即改变处置路径时，使用 other_critical；不得把普通慢性症状、常规检查缺失或一般鉴别诊断放入该类。",
     "- 不做任何超出文本的事实补全；不得把‘晚上偶尔憋醒’改写成‘端坐呼吸’，不得把‘跑快时胸口呼呼响’改写成‘静息呼吸困难’。",
     "- 已知心衰/冠心病/心绞痛/COPD/慢阻肺/哮喘/CKD 等慢性心肺肾疾病患者的劳力或活动诱发的基线症状（如平路气短、活动后气促、上楼喘、劳力性胸闷），是基线功能状态而非急性事件：只要没有夜间阵发性呼吸困难、端坐呼吸、不能平卧、新发/突发、进行性加重、不缓解或伴胸痛大汗等急性变化线索，一律不得标 emergency，按 urgent/clarify 保持优先复核即可；出现上述任一急性线索时必须按急性事件正常升级。不含劳力限定或疾病背景的含混表述按未知处理，不得据此降级。",
+    "",
+    "disposition（开方前处置去向）是独立于上面类目表的开放判断，不受类目表、词表或上面任何举例的限制：",
+    "- 角色：你是同时有急诊与全科经验的主治医师，正在为中医门诊开具剂量级中药做开方前安全把关。只回答一个问题：按现有资料，这位患者今天由门诊中医师直接开中药，是否安全、是否在门诊中医的处置范围之内。",
+    "- 先想「必须排除」：与本次表现相符、一旦漏掉可能致死致残或造成不可逆损害、且有处置时间窗的情况，不限系统、不限类目。依据不限于症状，受伤经过、体征、检验与影像/病理结论、用药与暴露同样是依据。每条写 condition（自由文本的病名或情况）、plausibility（likely=现有资料已较支持；possible=现有资料指向它、尚不能排除）、evidenceQuotes（1–4 条原文逐字片段，必须是患者本人当前或近期未解决的事实）。只是理论上可能、现有资料并不指向的，不要列。",
+    "- 再定 setting。判据是「此刻是否存在尚未被处理、有处置时间窗的危险」，不是病名听起来有多重：emergency=现有资料已足以要求立即急诊/急救评估（以小时计）；urgent_specialist=不必立即急诊，但属于下面两种之一、评估前不宜直接开剂量级中药：①尚未被西医明确诊断、要靠影像/病理/手术/住院才能明确或处理的新问题；②已确诊的疾病出现了急性加重的客观证据（新发或明显加重的器官功能受损、检验指标显著恶化、出现新的受累器官）。insufficient_info=原文已有指向某个必须排除情况的具体危险线索，但还差一个关键信息才能决定去向，missingInfo 写出最该问的那一个问题；outpatient_ok=没有尚未处理的时间敏感危险，可在中医门诊常规诊治。setting 不是 outpatient_ok 时 mustNotMiss 不能为空。",
+    "- 已在医院确诊、正在或曾经接受西医诊治的慢性病，本次来中医调理或治疗症状，即使仍有长期存在的检验异常（如持续蛋白尿、转氨酶或肌酐偏高），只要没有上面②所说的急性加重证据，判 outpatient_ok；这类病人用药的剂量与肝肾安全由后续开方环节的剂量和禁忌核对处理，不是这里升档的理由。患有严重或慢性疾病本身不是升档理由。",
+    "- 婴幼儿与儿童的普通感冒、咳嗽、发热、腹泻、积食等常见病，只要原文没有公认的危险征象（精神萎靡或反应差、拒奶拒食或不能饮水、呼吸急促或费力、尿量明显减少、抽搐、高热持续不退、新生儿期异常），判 outpatient_ok。只是信息少、没有具体危险线索的，判 outpatient_ok——补问信息是后续问诊环节的事，不是这里升档的理由。既往已治愈或已缓解的事、家属或他人的情况、宣教或引用文本，都不能作为依据。",
+    "- 一旦原文出现了具体的危险线索，拿不准时往更需要处置的一档判；这时病历未记录的伴随情况不等于没有，不能把资料缺项当作 outpatient_ok 的理由。disposition 与 redFlags 各自独立作答、互不替代：redFlags 已经表达的风险，这里照样按整体情况给出 setting。",
     "",
     "【临床文本】",
     text.slice(0, 12_000),

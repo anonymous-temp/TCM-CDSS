@@ -156,6 +156,23 @@ function checkDeterministicClass(entry, label) {
 for (const file of fixtureFiles) {
   const entry = JSON.parse(readFileSync(path.join(fixtureDir, file), "utf8"));
   const label = entry.id || file;
+  if (entry.mode === "disposition") {
+    // 开放判断类（开方前处置去向）：没有类目、没有「正确判定」可喂给确定性一半——判定本身全在模型。
+    // 这里只钉样例合规与提示词原则仍在；门禁映射在 test:clinical-disposition，语义在实机回归。
+    assert.equal(entry.schemaVersion, "cdss-open-language-class-v1", `${label}: schemaVersion`);
+    assert.ok(entry.layerAttribution?.layer && entry.layerAttribution?.mechanism, `${label}: 缺归因记录`);
+    const seen = new Map();
+    for (const [setName, set] of Object.entries(entry.sets)) {
+      assert.ok(set.positive.length > 0 && set.control.length > 0, `${label}/${setName}: 阳性与反例都不能为空`);
+      for (const text of [...set.positive, ...set.control]) {
+        assert.ok(!seen.has(text), `${label}: 「${text}」同时出现在 ${seen.get(text)} 与 ${setName}`);
+        seen.set(text, setName);
+      }
+    }
+    assert.ok(entry.promptAnchor && prompt.includes(entry.promptAnchor), `${label}: 事实抽取提示词里找不到「${entry.promptAnchor}」`);
+    cases += 2;
+    continue;
+  }
   if (entry.mode === "deterministic") {
     assert.equal(entry.schemaVersion, "cdss-open-language-class-v1", `${label}: schemaVersion`);
     assert.ok(entry.layerAttribution?.layer && entry.layerAttribution?.mechanism, `${label}: 缺归因记录`);
