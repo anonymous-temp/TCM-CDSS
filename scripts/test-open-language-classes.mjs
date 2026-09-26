@@ -17,6 +17,11 @@
  *
  * 反例只在实机回归里量：反例上的语义判断归模型，确定性层对部分反例本就保守
  * （见 fixture 的 knownDeterministicFindings）。
+ *
+ * mode = "deterministic" 的类目（缺陷在确定性层自己，与模型无关）整类都在这里量，不走实机回归：
+ *   兄弟句法 parity——「背景句，当前急症」的门禁结果（状态、剂量、红旗条数）必须与单说
+ *   「当前急症」相同，且单说时本身不是 ready（否则两边都 ready 也算相同，断言空转）；
+ *   反例——背景句后面接真正的既往/已缓解内容，门禁必须保持 ready 且无红旗。
  */
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
@@ -70,9 +75,42 @@ async function gateFor(context, text, customerId, judgement) {
   return evaluateSafetyGate(withFacts);
 }
 
+function gateSignature(context, text) {
+  const gate = evaluateSafetyGate(OPEN_LANGUAGE_CLASS_CONTEXTS[context](text, "olc-deterministic"));
+  return `${gate.status}/${gate.allowDosePrescription ? "dose" : "no-dose"}/redFlags=${gate.redFlags.length}`;
+}
+
+function checkDeterministicClass(entry, label) {
+  assert.ok(entry.layerAttribution?.exception, `${label}: 确定性类目必须写明冻结令的哪条例外`);
+  const { closedPrefixes, anyPrefixes, unanchoredEvents, anchoredEvents } = entry.parity;
+  for (const context of entry.contexts) {
+    for (const event of [...unanchoredEvents, ...anchoredEvents]) {
+      assert.ok(!gateSignature(context, event).startsWith("ready/"), `${label}/${context}: 「${event}」单说就是 ready，parity 断言会空转`);
+    }
+    const pairs = [
+      ...closedPrefixes.flatMap((prefix) => [...unanchoredEvents, ...anchoredEvents].map((event) => [prefix, event])),
+      ...anyPrefixes.flatMap((prefix) => anchoredEvents.map((event) => [prefix, event])),
+    ];
+    for (const [prefix, event] of pairs) {
+      assert.equal(gateSignature(context, `${prefix}，${event}`), gateSignature(context, event), `${label}/${context}: 「${prefix}，${event}」与单说「${event}」判定不同`);
+      cases += 1;
+    }
+    for (const text of entry.controls.texts) {
+      assert.equal(gateSignature(context, text), "ready/dose/redFlags=0", `${label}/${context}: 反例「${text}」被抬成当前风险`);
+      cases += 1;
+    }
+  }
+}
+
 for (const file of fixtureFiles) {
   const entry = JSON.parse(readFileSync(path.join(fixtureDir, file), "utf8"));
   const label = entry.id || file;
+  if (entry.mode === "deterministic") {
+    assert.equal(entry.schemaVersion, "cdss-open-language-class-v1", `${label}: schemaVersion`);
+    assert.ok(entry.layerAttribution?.layer && entry.layerAttribution?.mechanism, `${label}: 缺归因记录`);
+    checkDeterministicClass(entry, label);
+    continue;
+  }
 
   // ① 样例合规
   assert.equal(entry.schemaVersion, "cdss-open-language-class-v1", `${label}: schemaVersion`);

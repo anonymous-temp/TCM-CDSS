@@ -43,8 +43,42 @@ function normalizedClinicalText(value: string): string {
   return value.normalize("NFKC").replace(/\r\n?/g, "\n").trim();
 }
 
-const HISTORICAL_TEMPORAL_CUE_SOURCE = String.raw`(?:既往|曾经|曾有|此前|过去|当时|小时候|幼时|上次|入院时|术前|治疗前|发作时|一度|昨日|昨天|前天|上周|上月|去年|前年|多年前|(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:年|个月|月|周|天|日)前|(?<!现)病史)`;
-const CURRENT_TEMPORAL_CUE_SOURCE = String.raw`(?:本次|本轮|当前|目前|现在|今日|今天|今晨|今早|刚刚|刚才|方才|昨日起|昨日(?:起|开始)|昨天(?:起|开始)|昨夜开始|昨晚开始|新发|再发|复发|又发|又有)`;
+const HISTORICAL_TEMPORAL_CUE_SOURCE = String.raw`(?:既往|曾经|曾有|此前|过去|当时|小时候|幼时|儿时|童年|年幼时|上次|入院时|术前|治疗前|发作时|一度|昨日|昨天|前天|上周|上月|去年|前年|多年前|(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:年|个月|月|周|天|日)前|(?<!现)病史)`;
+// 当前时间框架的指示词。2026-09-26 前只认「本次/今天/目前…」，于是「既往体健，这次胸痛伴大汗」
+// 「去年诊断冠心病，近两天胸闷持续加重」「3天前开始胸痛」里的当前事件被前面的既往锚点吞掉
+// （安全门判 ready、给剂量）。补的是同一闭集里漏掉的成员，不是新判据：
+// 这次/此次/这回/此番 与「本次」同义；刻下/现症见 是病历里的当前症状起首语；
+// 近日/近来/近期/近N天/这两天、N小时前/N分钟前 是近期时段；「N天前开始/起」是起病时间，
+// 与「N天前」同一起点位置，lastHistorical > lastCurrent 不成立，按当前事件处理。
+// 刻意不收单字「现」：它在「出现/发现/表现」里，会把每个「出现」都当成当前锚点。
+const CURRENT_TEMPORAL_CUE_SOURCE = String.raw`(?:本次|本轮|这次|此次|这回|此番|这一次|当前|目前|现在|当下|如今|眼下|刻下|刻诊|现症见?|今日|今天|今晨|今早|刚刚|刚才|方才|近日|近来|近期|近(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:天|日|周|个月|月)|这(?:两|几|数)天|(?:\d+|[一二两三四五六七八九十半数几]+)\s*(?:天|日|周|个月|月)前(?:开始|起)|(?:\d+(?:\.\d+)?|[一二两三四五六七八九十半数几]+)\s*(?:个)?(?:小时|分钟)前|昨日起|昨日(?:起|开始)|昨天(?:起|开始)|昨夜开始|昨晚开始|新发|再发|复发|又发|又有)`;
+
+/**
+ * 封闭背景句：本身是一句完整的基线概括——「既往体健」「既往史无特殊」「否认高血压、糖尿病病史」
+ * 「此前从未有过类似情况」。
+ * 它的时间锚点只管自己这一逗号分句，不能越过逗号把后面的当前主诉一起算成既往。
+ * 2026-09-26 实测：「患者既往体健，2小时前无明显诱因出现胸痛，伴大汗」「既往体健，呕血2次，
+ * 黑便1天，头晕乏力」在安全门上 ready、给剂量；「否认高血压病史，血压190/125mmHg，头痛」连当前
+ * 血压读数都被「病史」吞成既往。把逗号换成句号就正确报红旗。
+ *
+ * 只认闭集结尾（体健/健康/无特殊/否认或无…史/从未…类似情况），这是构词式守卫。否定式病史没有
+ * 可供后文展开的既往内容，所以可以截断；刻意不收肯定式「…病史」：
+ * 医案语料 27,329 句实测，「…史」后面接的常是那段病史的细节——「3年前有2次人流史，术后流血
+ * 持续了十多天」「高血压病史2年，最高血压220/110mmHg」「根据既往史，2岁时曾发生过一次热惊厥」，
+ * 截断会把这些既往细节抬成当前急症。「…病史，近期/N天前开始/这次…」由上面的当前锚点覆盖；
+ * 没有任何时间词的「既往有高血压病史，胸痛2小时伴大汗」仍归语义层（字面上与既往细节分不开）。
+ * 开放的叙事链「3年前劳累后出现胸痛，伴大汗，经治疗缓解」同理不在此列。
+ */
+const CLOSED_BACKGROUND_CLAUSE = /^\s*(?:患者|病人|患儿|本人)?\s*[^，,]{0,24}?(?:体健|身体健康|体质尚可|无特殊|无殊|(?:无|否认|没有|未见)[^，,]{0,16}?(?:史|病)|(?:从未|未曾|没有|无)[^，,]{0,8}(?:类似|这种|此类|同样)[^，,]{0,6}(?:情况|症状|发作|表现))\s*$/;
+
+function maskClosedBackgroundClauses(before: string): string {
+  const segments = before.split(/([，,])/);
+  // 最后一段是事件自己所在的分句：它的锚点照常生效。
+  for (let index = 0; index < segments.length - 1; index += 2) {
+    if (CLOSED_BACKGROUND_CLAUSE.test(segments[index])) segments[index] = " ".repeat(segments[index].length);
+  }
+  return segments.join("");
+}
 
 function lastMatchIndex(value: string, source: string): number {
   let last = -1;
@@ -84,7 +118,7 @@ export function clinicalEventTemporalScopeAt(
   const before = normalized.slice(hardStart, safeIndex);
   const afterEvent = normalized.slice(Math.min(hardEnd, safeIndex + Math.max(0, eventLength)), hardEnd);
 
-  const lastHistorical = lastMatchIndex(before, HISTORICAL_TEMPORAL_CUE_SOURCE);
+  const lastHistorical = lastMatchIndex(maskClosedBackgroundClauses(before), HISTORICAL_TEMPORAL_CUE_SOURCE);
   const lastCurrent = lastMatchIndex(before, CURRENT_TEMPORAL_CUE_SOURCE);
   const postfixHistorical = new RegExp(
     `^(?:\\s*(?:发生|发作|出现|起病|开始)?\\s*(?:于|在|是)?\\s*)${HISTORICAL_TEMPORAL_CUE_SOURCE}`,
