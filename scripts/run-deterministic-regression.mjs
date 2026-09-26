@@ -117,6 +117,12 @@ const scripts = [
   // 对照集里那 10 条常规主诉是本套件的另一半：躺不平/垫高枕头/冒虚汗/没精神/摔倒在地/
   // 不吃不喝都是常规门诊写法，直觉加词会把整类抬成红旗，删这些反例等于放开误报。
   "test:colloquial-redflag-parity",
+  // 开放语言类目样例的确定性一半（样例本体在 scripts/fixtures/open-language-classes/，
+  // 实机一半是 regress:facts-class-parity）。首个类目：事实抽取模型把「晕厥后跌倒」
+  // 「昏倒过一次」「抽搐过一次」这类只说明发生过、没写何时的事件判成既往，晕厥/抽搐/出血在
+  // 确定性层只到提示档，于是放行剂量——黄金基线 negated-chest-then-syncope-fall 的线上既有漏检。
+  // 钉的是：提示词里的原则还在；语义层判对时确定性一半确实扣剂量、判错时不出该项。
+  "test:open-language-classes",
   // 质量分档表必须在**两道校验点**都被读到。此前 shouldAcceptWithQualityAnnotation
   // 全文件只调用一次（编排校验、客户输出变换之前），变换之后的 finalize 校验直接走兜底、
   // 不查分档表——于是 T2 只要拖到 finalize 才暴露，分档表注释里声称的「带批注放行」就不存在。

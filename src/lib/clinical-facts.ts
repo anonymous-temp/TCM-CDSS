@@ -159,7 +159,7 @@ export type RedFlagFinding = {
 };
 
 export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v19";
-export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v21";
+export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v22";
 
 // 劳力/活动诱发的慢性基线症状限定词（“平路气短”“活动后气促”“劳力性胸闷”）：在已知慢性心肺肾
 // 疾病或慢性病程框架下，这类限定描述的是基线功能状态而非急性事件；静息/夜间/端坐/新发/突发/
@@ -1117,6 +1117,7 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
     "- 只报确有文本依据的处置线索;文本未提及的类目不要输出。若文本已明确限定为轻度/稳定，并否认该类急症的主要危险组合，不得仅因症状名称将其塞入红旗类目。",
     "- 逐项识别所有会改变处置优先级的当前事实；不能因为同一句否认了另一个症状，就遗漏‘但/同时/随后’之后的当前阳性事实。",
     "- 被明确否认的(如“否认黑便”“无胸痛”)用 status=negative;既往已缓解用 historical;当前阳性用 positive;疑似/不确定用 possible。",
+    "- historical 只用于原文写明属于既往的事件：带既往时间锚点（既往、曾、以前、X年前、去年等），或写明已缓解、已治愈、此后未再发。‘…过’（晕倒过、抽搐过一次、咳出过血）和‘…后…’（晕厥后跌倒、晕倒后被扶起）这类语气只说明事件发生过，既不说明何时发生，也不说明已经缓解；原文没有既往锚点或缓解陈述时，它是本次就诊需要处理的近期事件，判 positive 并按严重度取 urgency，发生时间确实无法判断时用 positive+clarify，不得判 historical。今天、昨天、近几天发生的事件同样是近期事件。该原则适用于晕厥、抽搐、出血、胸痛发作等所有事件。",
     "- ‘差点/险些/几乎/像要/感觉要’描述的是未完成或近似事件，不得直接当作该事件已经发生；应按原文语义归入 possible/clarify，除非同一文本另有明确已发生事实。该原则适用于晕厥、跌倒、呕吐、抽搐等所有事件。",
     "- urgency 与 status 分开判断：emergency=现有资料本身已足以要求立即急诊/急救评估；urgent=需尽快优先评估但现有资料不支持立即急诊；clarify=事实、严重度或当前状态仍需一个问题澄清；routine=普通阳性症状，进入常规诊疗即可。",
     "- triageBasis 必须与 urgency 一致：emergency 只能使用疑似时间敏感性急性心血管事件、急性靶器官损害、呼吸衰竭、休克/严重过敏、急性神经缺损、活动性大出血、行为危机、产科急症、极端生命体征或其他明确即时威胁对应的键；urgent/clarify/routine 分别使用 urgent_review/clarification_needed/routine_care。",

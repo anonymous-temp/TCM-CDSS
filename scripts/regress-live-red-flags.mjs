@@ -1,4 +1,15 @@
 import assert from "node:assert/strict";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createJiti } from "jiti";
+
+// 完成态判据只有一处（clinical-facts.clinicalFactsReviewSettled）。此前这里手写
+// `reviewStatus === "checked"`，2026-09-20 事实层复核关闭后结果一律是 single_pass，
+// 于是每条探针都被当成「语义层不可用」重试到放弃——整套回归跑不出任何结论。
+const jiti = createJiti(import.meta.url, {
+  alias: { "@": path.join(path.dirname(fileURLToPath(import.meta.url)), "../src") },
+});
+const { clinicalFactsReviewSettled } = await jiti.import("../src/lib/clinical-facts.ts");
 
 const BASE_URL = (
   process.env.BASE_URL ||
@@ -46,7 +57,7 @@ async function assessOnce(id, text, vitals = {}) {
       }
       const body = await response.json();
       if (response.ok && (
-        (body.clinicalFacts?.semanticStatus === "checked" && body.clinicalFacts?.reviewStatus === "checked") ||
+        (body.clinicalFacts?.semanticStatus === "checked" && clinicalFactsReviewSettled(body.clinicalFacts?.reviewStatus)) ||
         body.semanticStatus === "skipped_deterministic_critical_vital"
       )) {
         return { id, body, elapsedMs: Date.now() - startedAt, attempts: attempt };

@@ -1,0 +1,429 @@
+{
+  "schemaVersion": "cdss-open-language-class-v1",
+  "id": "event-aspect-not-historical",
+  "addedAt": "2026-09-26",
+  "trigger": "黄金基线 negated-chest-then-syncope-fall（「否认胸痛，晕厥后跌倒。」期望 needs_information + 不给剂量）在 68ea3f0 上 6/6 失败、cc34789 上 3/6 失败，线上既有。",
+  "layerAttribution": {
+    "layer": "clinical_facts_extraction_prompt",
+    "mechanism": "事实抽取模型把「…过」「…后…」这类只说明事件发生过的语气当成「既往已缓解」，输出 status=historical + urgency=routine。晕厥、抽搐、出血在确定性层只到提示档（narrativeFallbackAdvisories 只展示、不扣剂量），扣剂量只来自语义层 positive 且非 routine 的发现（priorityEvaluationItemsFromFacts），所以一次误判既往就放行剂量。",
+    "whyNotDeterministic": "groundClinicalFacts 只核验模型给出的 positive/possible，对 historical/negative 不做核验。若让确定性时序判据反过来否决模型的 historical，会覆盖模型在复杂时序上的正确判断：确定性判据不认「以前」「儿时」等锚点，且把「昨天」算作既往，实测会在「以前拉过黑便…治愈后未再发」这类反例上误报。按开放语言检测冻结令，这类问题默认改语义层提示词。",
+    "notInThisClass": "不是口语词表缺口：「眼前一黑就倒了」「晕过去了」在原提示词下就能正确判阳性；漏检只取决于语气和是否有既往锚点。也不取决于病历语境：完整门诊病历（主诉是别的问题）与稀疏病历（只有这一句）下，原提示词都漏，漏法相同（historical/routine）。"
+  },
+  "principle": "historical 只用于原文写明属于既往的事件（有既往时间锚点，或写明已缓解、已治愈、此后未再发）；「…过」「…后…」只说明事件发生过，没有锚点时按近期事件判 positive，时间无法判断时用 positive+clarify。",
+  "promptAnchor": "historical 只用于原文写明属于既往的事件",
+  "targetCategories": [
+    "syncope",
+    "neuro",
+    "gi_bleed",
+    "bleeding"
+  ],
+  "contexts": [
+    "outpatient_record",
+    "sparse"
+  ],
+  "expectations": {
+    "positive": "当前患者在目标类目有 positive/possible 且非 routine 的发现，门禁不给剂量",
+    "control": "目标类目没有当前患者 positive/possible 且非 routine 的发现"
+  },
+  "sets": {
+    "development": {
+      "positive": [
+        "否认胸痛，晕厥后跌倒。",
+        "晕厥后跌倒，额头擦伤。",
+        "否认胸痛，晕倒后被家人扶起。",
+        "蹲起时晕过去了，摔在地上。",
+        "否认头痛，昏倒过一次。",
+        "今早晕厥后摔倒。",
+        "昨天晕倒过一次，现已清醒。",
+        "否认胸痛，眼前一黑就倒了。",
+        "否认腹痛，呕血后来诊。",
+        "否认发热，抽搐过一次。",
+        "否认胸痛，解了一次柏油样便。",
+        "否认头晕，咯血后来诊。"
+      ],
+      "control": [
+        "三年前曾晕厥一次，之后没有再发。",
+        "既往晕厥史，已完成心内科评估，目前无再发。",
+        "去年晕倒过一次，查过心电图正常，至今未再发作。",
+        "我妈妈以前晕倒过，我本人没晕过。",
+        "否认胸痛、晕厥。",
+        "十年前抽搐过一次，此后未再发。",
+        "五年前呕血一次，已胃镜治疗，之后未再出血。",
+        "脑梗死后右侧肢体无力3个月，出院后病情稳定，可扶杖行走；近三个月无新发口角歪斜、言语不清或意识改变。",
+        "脑卒中恢复期半年，左手精细动作较差，康复期逐步恢复，无再发或明显加重。",
+        "胃出血术后两年，目前无黑便呕血。",
+        "心梗支架术后3年，平时无胸痛。",
+        "摔倒后腰痛3天，无头晕黑矇。",
+        "老人晨起下地时不慎摔倒在地，左髋疼痛。",
+        "其父亲曾有晕厥史，患者本人从未发生晕厥。",
+        "否认胸痛，晕厥并未发生。"
+      ]
+    },
+    "holdout1": {
+      "positive": [
+        "否认头晕，上厕所时昏过去，醒来躺在地上。",
+        "否认心悸，洗澡时晕了一下摔倒，碰破了头。",
+        "否认胸痛，吃饭时突然没了意识，几分钟后醒来。",
+        "否认发热，四肢抽动、口吐白沫一次。",
+        "否认腹痛，吐了一口血。",
+        "否认腹痛，大便黑了两次。",
+        "否认胸痛，咳出过鲜血。",
+        "否认头痛，眼前一黑栽倒在地。",
+        "否认胸痛，跑步时晕厥摔伤。",
+        "起床时突然人事不省，家属发现后叫醒。"
+      ],
+      "control": [
+        "小时候晕倒过一次，此后几十年都没再发生。",
+        "2019年因晕厥住院检查，未见异常，此后未再发作。",
+        "多年前癫痫发作过，规律服药后已数年未发。",
+        "三个月前因胃溃疡出血住院，已治愈，近期大便颜色正常。",
+        "外婆去年晕倒住院，患者本人无不适。",
+        "否认黑矇、晕厥及抽搐。",
+        "半年前摔倒致右腕骨折，已愈合。",
+        "腰扭伤后疼痛2天，无晕厥。"
+      ]
+    },
+    "holdout2": {
+      "positive": [
+        "否认腹痛，拉过黑色大便。",
+        "否认头晕，呕过咖啡色的东西。",
+        "否认发热，犯过一次抽风。",
+        "否认胸闷，咯过几口鲜血。",
+        "否认心悸，昏迷过一阵。",
+        "否认胸痛，失去过知觉。",
+        "否认腹痛，便过一次鲜血。",
+        "否认头痛，突然倒地过一次，很快醒来。"
+      ],
+      "control": [
+        "年轻时咯过血，诊断支气管扩张，近十年未再咯血。",
+        "以前拉过黑便，胃镜查为溃疡，治愈后未再发。",
+        "儿时发过高热惊厥，此后未再抽搐。",
+        "丈夫昏倒过，患者本人无此情况。",
+        "否认咯血、呕血、黑便。",
+        "曾因低血糖晕倒，此后规律进餐未再发生。"
+      ]
+    }
+  },
+  "measurements": [
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v21",
+      "set": "development",
+      "context": "outpatient_record",
+      "runsPerText": 5,
+      "positive": "38/60",
+      "control": "75/75"
+    },
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v21",
+      "set": "development",
+      "context": "sparse",
+      "runsPerText": 5,
+      "positive": "42/60",
+      "control": "75/75"
+    },
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v21",
+      "set": "holdout1",
+      "context": "outpatient_record",
+      "runsPerText": 5,
+      "positive": "43/50",
+      "control": "40/40"
+    },
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v21",
+      "set": "holdout1",
+      "context": "sparse",
+      "runsPerText": 5,
+      "positive": "39/50",
+      "control": "40/40"
+    },
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v21",
+      "set": "holdout2",
+      "context": "outpatient_record",
+      "runsPerText": 5,
+      "positive": "11/40",
+      "control": "30/30"
+    },
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v21",
+      "set": "holdout2",
+      "context": "sparse",
+      "runsPerText": 5,
+      "positive": "13/40",
+      "control": "30/30"
+    },
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v22",
+      "set": "development",
+      "context": "outpatient_record",
+      "runsPerText": 5,
+      "positive": "60/60",
+      "control": "75/75"
+    },
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v22",
+      "set": "development",
+      "context": "sparse",
+      "runsPerText": 5,
+      "positive": "60/60",
+      "control": "75/75"
+    },
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v22",
+      "set": "holdout1",
+      "context": "outpatient_record",
+      "runsPerText": 5,
+      "positive": "50/50",
+      "control": "40/40"
+    },
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v22",
+      "set": "holdout1",
+      "context": "sparse",
+      "runsPerText": 5,
+      "positive": "50/50",
+      "control": "40/40"
+    },
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v22",
+      "set": "holdout2",
+      "context": "outpatient_record",
+      "runsPerText": 5,
+      "positive": "40/40",
+      "control": "30/30"
+    },
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v22",
+      "set": "holdout2",
+      "context": "sparse",
+      "runsPerText": 5,
+      "positive": "40/40",
+      "control": "30/30"
+    },
+    {
+      "date": "2026-09-26",
+      "model": "qwen3.8-max",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v22（初稿措辞）",
+      "set": "holdout1",
+      "context": "outpatient_record",
+      "runsPerText": 5,
+      "positive": "46/50",
+      "control": "40/40",
+      "note": "初稿只举了「晕倒过」「晕厥后跌倒」，「咳出过鲜血」（经历体「过」）仍 4/5 判既往；定稿点明「…过」「…后…」两种语气。holdout2 在定稿时新写，此前没有用它调过提示词。"
+    }
+  ],
+  "knownDeterministicFindings": [
+    "「以前拉过黑便，胃镜查为溃疡，治愈后未再发。」确定性层给出消化道出血优先评估并扣剂量；换成「既往」则不会。v21、v22 相同，与提示词无关。",
+    "「儿时发过高热惊厥，此后未再抽搐。」确定性层判神经系统硬红旗；换成「既往」则不会。v21、v22 相同，与提示词无关。",
+    "两者都是 clinical-polarity.ts 事件时序锚点表不认「以前」「儿时」（用药史前缀表里有），属保守方向的误报，单独处理。"
+  ],
+  "measurementsCommand": "RUNS=5 npm run regress:facts-class-parity（v21 一臂在 cc34789 工作树上跑同一脚本与 fixture）",
+  "expectedSemanticJudgements": {
+    "否认胸痛，晕厥后跌倒。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "晕厥后跌倒"
+    },
+    "晕厥后跌倒，额头擦伤。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "晕厥后跌倒"
+    },
+    "否认胸痛，晕倒后被家人扶起。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "晕倒后被家人扶起"
+    },
+    "蹲起时晕过去了，摔在地上。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "蹲起时晕过去了，摔在地上"
+    },
+    "否认头痛，昏倒过一次。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "昏倒过一次"
+    },
+    "今早晕厥后摔倒。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "今早晕厥后摔倒"
+    },
+    "昨天晕倒过一次，现已清醒。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "昨天晕倒过一次，现已清醒"
+    },
+    "否认胸痛，眼前一黑就倒了。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "眼前一黑就倒了"
+    },
+    "否认腹痛，呕血后来诊。": {
+      "category": "gi_bleed",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "呕血后来诊"
+    },
+    "否认发热，抽搐过一次。": {
+      "category": "neuro",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "抽搐过一次"
+    },
+    "否认胸痛，解了一次柏油样便。": {
+      "category": "gi_bleed",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "解了一次柏油样便"
+    },
+    "否认头晕，咯血后来诊。": {
+      "category": "bleeding",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "咯血后来诊"
+    },
+    "否认头晕，上厕所时昏过去，醒来躺在地上。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "上厕所时昏过去，醒来躺在地上"
+    },
+    "否认心悸，洗澡时晕了一下摔倒，碰破了头。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "洗澡时晕了一下摔倒"
+    },
+    "否认胸痛，吃饭时突然没了意识，几分钟后醒来。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "吃饭时突然没了意识，几分钟后醒来"
+    },
+    "否认发热，四肢抽动、口吐白沫一次。": {
+      "category": "neuro",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "四肢抽动、口吐白沫一次"
+    },
+    "否认腹痛，吐了一口血。": {
+      "category": "gi_bleed",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "吐了一口血"
+    },
+    "否认腹痛，大便黑了两次。": {
+      "category": "gi_bleed",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "大便黑了两次"
+    },
+    "否认胸痛，咳出过鲜血。": {
+      "category": "bleeding",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "咳出过鲜血"
+    },
+    "否认头痛，眼前一黑栽倒在地。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "眼前一黑栽倒在地"
+    },
+    "否认胸痛，跑步时晕厥摔伤。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "跑步时晕厥摔伤"
+    },
+    "起床时突然人事不省，家属发现后叫醒。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "起床时突然人事不省，家属发现后叫醒。"
+    },
+    "否认腹痛，拉过黑色大便。": {
+      "category": "gi_bleed",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "拉过黑色大便"
+    },
+    "否认头晕，呕过咖啡色的东西。": {
+      "category": "gi_bleed",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "呕过咖啡色的东西"
+    },
+    "否认发热，犯过一次抽风。": {
+      "category": "neuro",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "犯过一次抽风"
+    },
+    "否认胸闷，咯过几口鲜血。": {
+      "category": "bleeding",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "咯过几口鲜血"
+    },
+    "否认心悸，昏迷过一阵。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "昏迷过一阵"
+    },
+    "否认胸痛，失去过知觉。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "失去过知觉"
+    },
+    "否认腹痛，便过一次鲜血。": {
+      "category": "gi_bleed",
+      "status": "positive",
+      "urgency": "clarify",
+      "quote": "便过一次鲜血"
+    },
+    "否认头痛，突然倒地过一次，很快醒来。": {
+      "category": "syncope",
+      "status": "positive",
+      "urgency": "urgent",
+      "quote": "突然倒地过一次，很快醒来"
+    }
+  },
+  "expectedSemanticJudgementsNote": "每条阳性样例在 v22 实测里最常见的那条当前发现（类目、状态、紧急度、原文引用）。闸门测试用它喂给确定性接地层与门禁，钉住「语义层判对时，确定性这一半确实扣剂量」。"
+}
