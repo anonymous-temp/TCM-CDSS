@@ -47,6 +47,9 @@ await check("trusted model formula names: aligned common formulas kept; misalign
   const liverFire = { overview: { recommendedFormulaDirection: "玉女煎加减", primarySyndrome: "肝火扰心证", primarySyndromeResolution: "bounded" }, therapy: { overallMethod: "清肝泻火，安神" } };
   assert.equal(m.trustedModelFormulaIdentityNames(liverFire, ["玉女煎"]).size, 0, "syndrome-tag counter-evidence: 玉女煎〔胃热阴虚〕 vs 肝火扰心");
   assert.equal(m.trustedModelFormulaIdentityNames(liverFire, ["龙胆泻肝汤"]).size > 0, true, "compatible syndrome tags are kept");
+  // 功效与签名治法精确对齐的方有正面证据：即便目录证候标注与主证不相容也保留（证候反证只管功效为空的方）。
+  const stasisWithLiverQi = { overview: { recommendedFormulaDirection: "血府逐瘀汤加减", primarySyndrome: "肝郁气滞证", primarySyndromeResolution: "bounded" }, therapy: { overallMethod: "活血化瘀，行气止痛" } };
+  assert.equal(m.trustedModelFormulaIdentityNames(stasisWithLiverQi, ["血府逐瘀汤"]).size > 0, true, "aligned functions outweigh an incompatible syndrome tag");
   const noSyndrome = { overview: { recommendedFormulaDirection: "完带汤加减" }, therapy: { overallMethod: "健脾益气，升阳除湿止带" } };
   assert.equal(m.trustedModelFormulaIdentityNames(noSyndrome, ["完带汤"]).size, 0, "no primary syndrome ⇒ nothing to trust against");
   const noMethod = { overview: { recommendedFormulaDirection: "完带汤加减", primarySyndrome: "脾虚湿盛证" }, therapy: { overallMethod: "" } };

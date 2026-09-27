@@ -1290,10 +1290,13 @@ export function trustedModelFormulaIdentityNames(reasoning: unknown, names: read
     const identities = [entry.name, ...entry.aliases].map(normalizedFormulaIdentity);
     if (!identities.some((identity) => wanted.has(identity))) continue;
     if (!formulaTherapyAlignedWithSigned(entry.functions, signedMethods)) continue;
-    // 证候层反证：目录给这张方标了证候、却没有一个与已签名主证/兼证相容（如玉女煎〔胃热阴虚〕对
-    // 肝火扰心，test:formula-provenance 钉住）⇒ 不信任。目录功效为空的方（约八成）只能靠这一道拦。
+    // 证候层反证只用在「目录功效为空」的方上（没有任何治法层证据可核对时）：目录给它标了证候、
+    // 却没有一个与已签名主证/兼证相容（如玉女煎〔胃热阴虚〕对肝火扰心，test:formula-provenance 钉住）
+    // ⇒ 不信任。功效与签名治法已精确对齐的方有正面证据，不再用证候标注二次否决——9/27 实测对所有方
+    // 一律加这道门，会把血府逐瘀汤、逍遥散、八珍汤、归脾汤等主流方也剥掉（M03 给出方名 23→10/40）。
     // 没有证候标注的方按数据缺口放行。
-    if (signedSyndromeIds.length > 0 && entry.syndromeTags.length > 0 &&
+    const functionsEmpty = governedTreatmentMethodsInText((entry.functions || []).join("；")).length === 0;
+    if (functionsEmpty && signedSyndromeIds.length > 0 && entry.syndromeTags.length > 0 &&
       !entry.syndromeTags.some((tag) => signedSyndromeIds.some((id) => formulaMatchSyndromeCompatible(tag, id)))) continue;
     for (const identity of identities) trusted.add(identity);
   }
