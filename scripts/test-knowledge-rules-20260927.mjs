@@ -184,8 +184,9 @@ await check("similar modern cases: deterministic top-3, disease-relevant, no dos
   assert.match(m04, /referenceCaseUse/, "M04 context carries the accountability format");
   assert.match(m04, /不是处方依据/);
   const moduleSource = readFileSync("src/lib/modern-case-exemplars.server.ts", "utf8");
-  assert.match(moduleSource, /readFileSync\(new URL\("\.\.\/data\/tcm-modern-case-exemplars\.json", import\.meta\.url\), "utf8"\)/,
-    "exemplars load at runtime with a literal URL (static import bundled 7.7MB into two route chunks and OOM-killed the prebuild)");
+  assert.match(moduleSource, /readFileSync\(path\.join\(process\.cwd\(\), "src", "data", "tcm-modern-case-exemplars\.json"\), "utf8"\)/,
+    "exemplars load at runtime from src/data (static import bundled 7.7MB into two route chunks and OOM-killed the prebuild)");
+  assert.doesNotMatch(moduleSource, /new URL\("\.\.\/data\/tcm-modern-case-exemplars/, "webpack rewrites new URL(…, import.meta.url) into an asset RelativeURL that fs rejects in production");
   assert.doesNotMatch(moduleSource, /from "\.\.\/data\/tcm-modern-case-exemplars\.json"/);
   process.env.CDSS_SIMILAR_CASES = "false";
   assert.equal(m.retrieveSimilarModernCases(state, "diagnose").length, 0);

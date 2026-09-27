@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { CaseState } from "./diagnosis-types";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 
@@ -56,14 +57,16 @@ const EVALUATION_EXCLUDED = evaluationExclusions();
 /**
  * 运行时读取（不走静态 import）：7.7MB 的医案索引若静态 import，会被 webpack 打进 diagnose 与
  * prescribe 两条路由的服务端产物、并在 terser 阶段抬高构建内存（本机 7.7GB 机器上预编译两次被
- * OOM 杀掉）。readFileSync 的 URL 必须保持字面量，文件追踪才会把它收进 standalone（同
- * tcm-classic-evidence.server.ts 的写法）。读不到时功能静默关闭，不影响诊断链路。
+ * OOM 杀掉）。路径用 process.cwd() 拼：standalone 的 server.js 先 chdir 到自身目录，src/data 整目录
+ * 已被文件追踪收进产物。**不要**写成 new URL("../data/…", import.meta.url)：webpack 会把它改写成
+ * 资产模块 + RelativeURL 对象，fs 不认，生产构建里静默读不到（2026-09-27 本机 standalone 实测）。
+ * 读不到时功能关闭并打一行告警，不影响诊断链路。
  */
 let exemplarCache: Exemplar[] | undefined;
 function exemplars(): Exemplar[] {
   if (exemplarCache) return exemplarCache;
   try {
-    const raw = readFileSync(new URL("../data/tcm-modern-case-exemplars.json", import.meta.url), "utf8");
+    const raw = readFileSync(path.join(process.cwd(), "src", "data", "tcm-modern-case-exemplars.json"), "utf8");
     const parsed = JSON.parse(raw) as { exemplars?: Exemplar[] };
     exemplarCache = (parsed.exemplars || []).filter((item) => !EVALUATION_EXCLUDED.has(item.id));
   } catch {
