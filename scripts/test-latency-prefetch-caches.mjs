@@ -159,6 +159,9 @@ await checkAsync("tapFinalStageContent passes bytes through and reports the fina
 // ── ⑤ 路由接线 ──────────────────────────────────────────────────────────────
 check("M03 route taps the final stream for M04 prefetch; M04 uses the external-evidence soft deadline", () => {
   const diagnose = readFileSync("src/app/api/diagnosis/diagnose/route.ts", "utf8");
+  const prefetchAt = diagnose.indexOf("prefetchDiagnoseInputs(parsed.caseState);");
+  assert.ok(prefetchAt > 0 && prefetchAt < diagnose.indexOf("await maybeAttachClinicalFactsBackstop("),
+    "M03 must start its pre-model prefetch before awaiting clinical facts (parallel, not serial)");
   assert.match(diagnose, /tapFinalStageContent\(response, \(finalContent\) =>\s*prefetchPrescribeInputsFromSignedDiagnose\(gated, finalContent, parsed\.customer\.customerId\)\)/);
   const prescribe = readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
   assert.match(prescribe, /externalSoftDeadlineMs:/);

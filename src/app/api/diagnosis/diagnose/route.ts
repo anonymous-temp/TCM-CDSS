@@ -1,4 +1,4 @@
-import { prefetchPrescribeInputsFromSignedDiagnose, tapFinalStageContent } from "@/lib/stage-prefetch.server";
+import { prefetchDiagnoseInputs, prefetchPrescribeInputsFromSignedDiagnose, tapFinalStageContent } from "@/lib/stage-prefetch.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
 import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars } from "@/lib/prompt-budget";
@@ -25,6 +25,10 @@ export async function POST(req: Request) {
   // 且两例复核都 unavailable。M04 路由早已这么做（prescribe/route.ts 顶部），
   // M03 一直漏传——同一处修复只做了一半。
   const orchestrationStartedAt = Date.now();
+  // 与事实层抽取并行预取两半开跑前的四样输入（EviMed、方名召回改写、否定增补、证候重排；
+  // stage-prefetch.server.ts）。它们只读病例字段、不读事实层；M02 已预取过时这里全部命中缓存，
+  // 未经 M02 直调 M03（或事实缓存已冷）时，原本「事实 ~6s → 前置 ~2–3s」的串行变成并行。
+  prefetchDiagnoseInputs(parsed.caseState);
   // Deterministic hard red flags must reach emergency guidance without waiting on a semantic model.
   // For all remaining cases, the additive semantic fact layer stays enabled and can identify
   // colloquial risks that are not covered by the conservative deterministic lower bound.
