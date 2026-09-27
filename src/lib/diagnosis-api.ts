@@ -49,7 +49,7 @@ import { applyGovernedTcmDiagnosticCitations } from "@/lib/tcm-diagnostic-citati
 import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-normalization.server";
 import { declassifyAndDropOpposingM04CandidateHerbs, dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
 import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
-import { checkNonStrictStructuredContent, checkNonStrictStructuredValue, responseFormatForTask, structuredOutputSchemaInstruction, supportsStrictJsonSchema, type ProviderSchemaViolation, type StructuredOutputTask } from "@/lib/model-response-format";
+import { checkNonStrictStructuredContent, checkNonStrictStructuredValue, responseFormatForTask, strictToolParametersForTask, strictToolSystemInstruction, structuredOutputSchemaInstruction, structuredValueFromToolArguments, supportsStrictJsonSchema, supportsStrictToolRetry, type ProviderSchemaViolation, type StructuredOutputTask } from "@/lib/model-response-format";
 import { insertM03ProvisionalDraft, renderM03ProvisionalDraftSection, schemaValidDiagnoseDraft } from "@/lib/m03-provisional-draft";
 import { bindM04DeliveryAttestation, m04DeliveryCheckpointFeedbackCodes, m04DeliveryCheckpointSafetyFindingCount, preferM04DeliveryCheckpoint, renderM04DeliveryCheckpoint, retainM04DeliveryCheckpoint, type M04DeliveryCheckpoint } from "./m04-delivery-checkpoint";
 
@@ -2043,6 +2043,128 @@ async function requestStructuredCompletion(args: {
   }
 }
 
+/**
+ * 同一份提示词的 DeepSeek strict 工具调用重生成（非流式）。只用于 M03 两半首轮「内容不合规」之后、
+ * Qwen 严格兜底之前（依据与边界见 model-response-format 的 STRICT_TOOL_RETRY_TASKS 说明）。
+ * 返回的 content 是回映射到严格供应商 schema 形状的 JSON 文本，调用方照常走同一套解析与校验。
+ */
+async function requestStructuredToolCompletion(args: {
+  model: string;
+  prompt: string;
+  kind: PromptKind;
+  task: StructuredOutputTask;
+  stage: "diagnose" | "prescribe";
+  usageLabel: string;
+  parentSignal: AbortSignal;
+  absoluteDeadline: number;
+}): Promise<StructuredCompletionResult> {
+  const { model, prompt, kind, task, stage, parentSignal, absoluteDeadline } = args;
+  const config = textModelConfigForModel(model);
+  if (!config.configured || !isApprovedTextModel(model)) return { ok: false, reason: "text_model_vendor_policy" };
+  const remaining = absoluteDeadline - Date.now();
+  if (remaining <= 1_000) return { ok: false, reason: "deadline_exhausted" };
+  const controller = new AbortController();
+  const abortFromParent = () => controller.abort();
+  if (parentSignal.aborted) controller.abort();
+  else parentSignal.addEventListener("abort", abortFromParent, { once: true });
+  const startedAt = Date.now();
+  const timer = setTimeout(() => controller.abort(), remaining);
+  const toolName = `submit_${task}`;
+  const instruction = strictToolSystemInstruction(task);
+  try {
+    const response = await fetchWithConnectTimeout(chatCompletionsUrl(config.baseUrl), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: explicitPromptCacheMessages(
+          instruction ? `${cdssSystemPrompt(kind)}\n\n${instruction}` : cdssSystemPrompt(kind),
+          prompt,
+          { provider: config.provider, model },
+        ),
+        stream: false,
+        ...structuredMaxTokensParam(model, stage),
+        temperature: 0,
+        tools: [{
+          type: "function",
+          function: {
+            name: toolName,
+            strict: true,
+            description: "提交本阶段结构化结果。",
+            parameters: strictToolParametersForTask(task),
+          },
+        }],
+        tool_choice: { type: "function", function: { name: toolName } },
+        ...textModelRequestTuning(model, {
+          thinkingEnabled: false,
+          reasoningEffort: reasoningEffortForStructuredStage(stage),
+        }),
+      }),
+    }, controller);
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      return { ok: false, reason: `http_${response.status}`, status: response.status };
+    }
+    const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, PRIMARY_TEXT_MAX_OUTPUT_CHARS * 4 + 65_536));
+    recordModelUsage(args.usageLabel, model, result, {
+      taskStage: stage,
+      promptChars: prompt.length,
+      durationMs: Date.now() - startedAt,
+    });
+    if (!result) return { ok: false, reason: "invalid_json" };
+    const argumentsText = result.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments || "";
+    if (!argumentsText) return { ok: false, reason: "empty_content" };
+    if (argumentsText.length > PRIMARY_TEXT_MAX_OUTPUT_CHARS) return { ok: false, reason: "output_too_large" };
+    const mapped = structuredValueFromToolArguments(task, argumentsText);
+    if (!mapped) return { ok: false, reason: "unparseable_content" };
+    if (mapped.repairs.length > 0) {
+      console.info("[tcm-cdss:model] strict tool arguments normalized", { stage, task, model, repairs: mapped.repairs.join("; ") });
+    }
+    return { ok: true, content: JSON.stringify(mapped.value), finishReason: result.choices?.[0]?.finish_reason ?? null, model };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof UpstreamResponseTooLargeError
+        ? "output_too_large"
+        : controller.signal.aborted
+          ? "timeout_or_cancelled"
+          : "network_error",
+    };
+  } finally {
+    clearTimeout(timer);
+    parentSignal.removeEventListener("abort", abortFromParent);
+  }
+}
+
+/**
+ * M04 首轮对相似医案的问责说明（referenceCaseUse）：记遥测（是否填写、采纳几例，编号 MC-1..3），
+ * 然后返回摘掉该键的提案文本。内容不是合法 JSON 时原样返回，交给既有校验与兜底。
+ */
+function takeM04ReferenceCaseUse(content: string): string {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(content) as Record<string, unknown>;
+  } catch {
+    return content;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return content;
+  const use = parsed.referenceCaseUse as { adoptedCaseIds?: unknown; note?: unknown } | undefined;
+  const ids = Array.isArray(use?.adoptedCaseIds) ? use.adoptedCaseIds.filter((id): id is string => typeof id === "string") : [];
+  console.info("[tcm-cdss:knowledge] m04_reference_case_use", {
+    present: Boolean(use),
+    adopted: ids.filter((id) => /^MC-[1-3]$/.test(id)).length,
+    invalidIds: ids.filter((id) => !/^MC-[1-3]$/.test(id)).length,
+    noteChars: typeof use?.note === "string" ? use.note.length : 0,
+  });
+  if (!("referenceCaseUse" in parsed)) return content;
+  const { referenceCaseUse: _dropped, ...rest } = parsed;
+  void _dropped;
+  return JSON.stringify(rest);
+}
+
 async function collectM03ParallelWesternHalf(
   prompt: string,
   kind: PromptKind,
@@ -2057,17 +2179,23 @@ async function collectM03ParallelWesternHalf(
       ? { ok: true, content: result.content, model: result.model, durationMs: Date.now() - startedAt }
       : { ok: false, reason: result.reason, durationMs: Date.now() - startedAt };
   if (!isApprovedTextModel(model)) return finish({ ok: false, reason: "text_model_vendor_policy" });
-  const attemptOnce = async (attemptModel: string): Promise<{ ok: true; content: string; model: string } | { ok: false; reason: string }> => {
-    const result = await requestStructuredCompletion({
+  const attemptOnce = async (
+    attemptModel: string,
+    mode: "json" | "strict_tool" = "json",
+  ): Promise<{ ok: true; content: string; model: string } | { ok: false; reason: string }> => {
+    const request = {
       model: attemptModel,
       prompt,
       kind,
-      task: "m03_western",
-      stage: "diagnose",
-      usageLabel: "m03_western",
+      task: "m03_western" as const,
+      stage: "diagnose" as const,
+      usageLabel: mode === "strict_tool" ? "m03_western_strict_tool" : "m03_western",
       parentSignal,
       absoluteDeadline,
-    });
+    };
+    const result = mode === "strict_tool"
+      ? await requestStructuredToolCompletion(request)
+      : await requestStructuredCompletion(request);
     if (!result.ok) return result;
     // HTTP 成功不等于西医半可用：json_object 模式下模型会交回括号错位的「像 JSON」文本。
     // 结构修复也救不回来时按可重试失败处理，而不是当成功交给合并层再被静默丢弃——
@@ -2104,6 +2232,23 @@ async function collectM03ParallelWesternHalf(
   let result = await attemptOnce(model);
   const transientReasons = ["network_error", "timeout_or_cancelled", "empty_content", "invalid_json", "unparseable_content", "http_408", "http_425", "http_429", "http_500", "http_502", "http_503", "http_504"];
   const strictFallback = structuredStrictFallbackModel(model);
+  // 内容不合规（不是传输失败）时，先用同一模型的 strict 工具调用重生成一次（约 9–11s），
+  // 仍不合规才交给 Qwen 严格兜底（约 24s）。依据见 model-response-format 的 STRICT_TOOL_RETRY_TASKS。
+  if (!result.ok && !parentSignal.aborted && absoluteDeadline - Date.now() > 45_000 &&
+    (result.reason === "provider_schema_violation" || result.reason === "unparseable_content") &&
+    supportsStrictToolRetry(model, "m03_western")) {
+    const toolStartedAt = Date.now();
+    const firstReason = result.reason;
+    result = await attemptOnce(model, "strict_tool");
+    console.info("[tcm-cdss:timing] structured_strict_tool_retry", {
+      stage: "diagnose",
+      task: "m03_western",
+      model,
+      trigger: firstReason,
+      outcome: result.ok ? "replaced" : result.reason,
+      durationMs: Date.now() - toolStartedAt,
+    });
+  }
   if (!result.ok && !parentSignal.aborted && absoluteDeadline - Date.now() > 45_000) {
     if (strictFallback && result.reason !== "deadline_exhausted" && result.reason !== "output_too_large") {
       // 非严格模型的任何失败（结构不合规、传输、非 2xx）都改由严格模型重生成，而不是同模型再抽一次。
@@ -3378,6 +3523,10 @@ async function callPrimaryTextModelStream(
         // 校验——而不是让 zod 的 `.catch` 缺省值静默顶替（9/11–9/19 西医依据分栏就是这样丢的）。
         // 已推给页面的流式草稿只是草稿，终稿以替换后的内容为准；心跳在此期间照常发送。
         if (initialStructuredTask && opts.structuredStage && !supportsStrictJsonSchema(initialResponseModel)) {
+          // 相似医案问责说明：读出做遥测后立即从提案里摘掉，下游（编译、定向修复底稿）只见标准提案。
+          if (initialStructuredTask === "m04_proposal" && !nonStrictStreamFailure) {
+            accumulatedContent = takeM04ReferenceCaseUse(accumulatedContent);
+          }
           const check = nonStrictStreamFailure
             ? { content: accumulatedContent, violations: [{ path: "/", keyword: "stream_interrupted" }], repairs: [] }
             : checkNonStrictStructuredContent(initialStructuredTask, accumulatedContent);
@@ -3390,6 +3539,39 @@ async function callPrimaryTextModelStream(
               repairs: check.repairs.slice(0, 6).join("; "),
             });
             accumulatedContent = check.content;
+          }
+          // 内容不合规（不是流中断）且本任务有 strict 工具调用重试通道时，先让同一模型用 strict
+          // 工具调用重生成一次；通过同一套校验就替换本轮输出，不再动用 Qwen 严格兜底。
+          if (violations.length > 0 && !nonStrictStreamFailure &&
+            supportsStrictToolRetry(initialResponseModel, initialStructuredTask) &&
+            absoluteRunDeadline - Date.now() > STRUCTURED_STRICT_FALLBACK_MIN_BUDGET_MS) {
+            const toolStartedAt = Date.now();
+            const toolAttempt = await requestStructuredToolCompletion({
+              model: initialResponseModel,
+              prompt: m03ParallelHalves ? m03ParallelHalves.tcm : prompt,
+              kind,
+              task: initialStructuredTask,
+              stage: opts.structuredStage,
+              usageLabel: `${opts.structuredStage}_strict_tool_retry`,
+              parentSignal: upstreamController.signal.aborted
+                ? opts.requestSignal ?? new AbortController().signal
+                : upstreamController.signal,
+              absoluteDeadline: absoluteRunDeadline,
+            });
+            const toolCheck = toolAttempt.ok ? checkNonStrictStructuredContent(initialStructuredTask, toolAttempt.content) : undefined;
+            const toolAccepted = Boolean(toolAttempt.ok && toolCheck && toolCheck.violations.length === 0);
+            console.info("[tcm-cdss:timing] structured_strict_tool_retry", {
+              stage: opts.structuredStage,
+              task: initialStructuredTask,
+              model: initialResponseModel,
+              outcome: toolAccepted ? "replaced" : toolAttempt.ok ? "provider_schema_violation" : toolAttempt.reason,
+              durationMs: Date.now() - toolStartedAt,
+            });
+            if (toolAccepted && toolAttempt.ok && toolCheck) {
+              accumulatedContent = toolCheck.content;
+              finishReason = toolAttempt.finishReason;
+              violations.length = 0;
+            }
           }
           if (violations.length > 0) {
             const strictFallback = structuredStrictFallbackModel(initialResponseModel);

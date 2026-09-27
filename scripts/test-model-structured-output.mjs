@@ -107,8 +107,15 @@ const diagnosisSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
 assert.match(diagnosisSource, /stream_options:\s*\{\s*include_usage:\s*true\s*\}/);
 assert.match(diagnosisSource, /enqueueHeartbeat\("模型已开始返回临床正文",\s*contentChars\s*\+\s*reasoningChars\)/,
   "provider first-content timing must be observable separately from server-owned banners");
-assert.doesNotMatch(diagnosisSource, /\btool_choice\b|\bparallel_tool_calls\b/,
+// 检索与取数只由服务端确定性完成，模型不得调用工具（不得有工具执行回合、不得并行工具调用）。
+// 唯一允许的 tool_choice 是 2026-09-27 起 M03 两半的 strict 结构化提交：强制调用单个 submit_<task>，
+// 参数即本阶段结构化结果，服务端从不执行它、也不回送 role:"tool" 消息——它只是另一种输出格式约束。
+assert.doesNotMatch(diagnosisSource, /\bparallel_tool_calls\b|role:\s*"tool"/,
   "deterministic server retrieval must not be replaced by model-controlled tool calls");
+assert.deepEqual([...diagnosisSource.matchAll(/\btool_choice:\s*([^\n]+)/g)].map((match) => match[1].trim()),
+  ['{ type: "function", function: { name: toolName } },'],
+  "the only tool_choice is the forced structured-output submission");
+assert.match(diagnosisSource, /const toolName = `submit_\$\{task\}`;/);
 // 2026-09-16：M03/M04 模型复核环节已移除，随之删除的还有复核器的 strict tool-call 取回。
 // 结构化输出层与编排器现在都必须是零 tool 面：模型不控制任何检索或流程。
 const responseFormatSource = readFileSync("src/lib/model-response-format.ts", "utf8");
@@ -204,6 +211,19 @@ console.log(JSON.stringify({ suite: "model-structured-output", tasks: 6, models:
     "多写服务端自有字段无害（服务端覆盖、zod 丢弃），不得触发兜底");
   assert.ok(providerSchemaViolations("m03_western", serverOwned).length > 0,
     "裸校验（严格供应商视角）仍把它们当 schema 外的键——容忍只发生在非严格入口");
+  // 2026-09-27：非严格入口对「只有多余键」确定性剔除（zod 本就丢弃；9/26 线上西医半因参考文献多写 doi/pmid
+  // 白跑一轮 24s 严格兜底）。拼错必填键时另有 required 违规，仍须判违规、走兜底。
+  const extraOnly = structuredClone(western);
+  extraOnly.westernDiagnosis.primary.suggestedCheck = ["睡眠日记"];
+  const stripped = checkNonStrictStructuredValue("m03_western", extraOnly);
+  assert.deepEqual(stripped.violations, [], "只有多余键：剔除后合规");
+  assert.ok(stripped.repairs.some((item) => item.startsWith("stripped_unknown_key:")), "剔除必须留痕");
+  assert.equal("suggestedCheck" in JSON.parse(stripped.content).westernDiagnosis.primary, false);
+  const misnamedRequired = structuredClone(western);
+  delete misnamedRequired.westernDiagnosis.primary.suggestedChecks;
+  misnamedRequired.westernDiagnosis.primary.suggestedCheck = ["睡眠日记"];
+  assert.ok(checkNonStrictStructuredValue("m03_western", misnamedRequired).violations.some((item) => item.keyword === "required:suggestedChecks"),
+    "拼错必填键：多余键不剔除，必填缺失照报");
   const emptyOptional = structuredClone(western);
   emptyOptional.westernDiagnosis.primary.coding = "";
   assert.deepEqual(providerSchemaViolations("m03_western", emptyOptional), [], "可空字段写空串与省略同义");

@@ -7,6 +7,7 @@ import formulaRoleBindingsJson from "../data/tcm-formula-role-bindings.source.js
 import type { CaseState, ClinicalReasoningResultV2, EvidenceRef } from "./diagnosis-types";
 import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
+import { lockedFormulaNamesIncludeModelTrustedOnly } from "./tcm-formula-indications";
 import {
   compositionLogicForFormulaNames,
   formulaDiscriminationPaths,
@@ -116,6 +117,7 @@ function governedFormulaRoleHerbs(
 }
 
 type GovernedFormulaCompilationRow = {
+  id: string;
   name: string;
   source: string;
   ingredients: string[];
@@ -146,6 +148,9 @@ type GovernedFormulaCompilationRow = {
   doseCompilationEligible: boolean;
 };
 
+// 编译基准与按组成反查仍用全目录（不做常用度分层）：分层只管 M03 能锁定哪些方（tcm-formula-tier.ts）。
+// M04 按组成反查命名是甲方「首选经方名、确无对应才自拟」的要求（test:formula-core-herbs 钉召回下限），
+// 分层会把它的召回从 69% 压到 48%。
 const governedFormulaCompilationRows = (governedFormulaCatalogJson.entries as readonly GovernedFormulaCompilationRow[])
   .filter((entry) => entry.identityLockEligible);
 const governedFormulaCompilationByExactName = new Map(governedFormulaCompilationRows.map((entry) => [
@@ -581,6 +586,17 @@ export function identifyKnownFormulaNames(value: string): string[] {
  * prompt input, not a prescription: doses still come from the governed herb knowledge and model
  * reasoning, while M04 composition is checked back against the same catalog after generation.
  */
+/**
+ * 沿用经典方名时的组成保留下限比例（2026-09-27 起可调）。默认 0.8（原口径不变）；
+ * `CDSS_FORMULA_COMPOSITION_FLOOR` 取 0.5–0.9。锚点药味（方名药、核心安全药、首味）无论比例如何都必须保留，
+ * 比例只决定「锚点之外还要留几味才能继续叫这个方名」。M04 首轮最常见的修复触发就是这一条
+ * （formula_reference_declassified，本机 16 次 M04 里 4 次，每次 qwen3.8-max 定向修复 23–27s）。
+ */
+export function formulaCompositionFloorFraction(): number {
+  const value = Number(process.env.CDSS_FORMULA_COMPOSITION_FLOOR || 0.8);
+  return Number.isFinite(value) && value >= 0.5 && value <= 0.9 ? value : 0.8;
+}
+
 function compilationReference(
   formulaName: string,
   variant: FormulaVariant,
@@ -594,7 +610,7 @@ function compilationReference(
     formulaName,
     source: variant.source,
     ingredients,
-    minimumPreservedIngredientCount: Math.max(1, Math.ceil(ingredients.length * 0.8)),
+    minimumPreservedIngredientCount: Math.min(ingredients.length, Math.max(1, Math.ceil(ingredients.length * formulaCompositionFloorFraction()))),
     requiredIngredients: requiredFormulaAnchors(formulaName, variant, ingredients),
     origin,
   };
@@ -1021,6 +1037,9 @@ export function formulaCompilationContractIssue(
       references.every((reference) =>
         verifyFormulaCompilationComponent(reference, candidate.herbs, mode === "combined", true).verified);
     if (declassifiedButMatchesBaseline) return undefined;
+    // 只靠「信任模型选方」保留的方名是推荐方向，不是受控关系核验过的身份：M04 透明降级为辨证组方
+    // 直接受理，不再为「必须沿用」白跑一轮 qwen3.8-max 修复（9/27 本机：强制时组成修复 29/65、M04 中位 37s）。
+    if (lockedFormulaNamesIncludeModelTrustedOnly(prior, governedNames)) return undefined;
     // Provider generation gets a chance to honour an M03-governed classic baseline. Transparent
     // declassification remains a valid final safety fallback, but accepting it during provider
     // validation would suppress the targeted composition repair entirely.
@@ -1569,10 +1588,10 @@ function bestFormulaSourceCandidate(
         normalizedHerbs.some((herb) => canMatch(herb, required))
       );
       // Formula identity is provenance, not a fuzzy similarity label. Every source and every
-      // single/combined branch must enforce the same public contract: retain at least 80% of the
+      // single/combined branch must enforce the same public contract: retain at least the configured floor (default 80%) of the
       // governed baseline and every identity/safety anchor. F1 remains a ranking signal only; it
       // must never let a low-recall local formula inherit a classic name or source.
-      const identityFloorSatisfied = overlap >= (variant.minimumPreservedIngredientCount ?? Math.max(1, Math.ceil(ingredients.length * 0.8))) && requiredIngredientsPresent;
+      const identityFloorSatisfied = overlap >= (variant.minimumPreservedIngredientCount ?? Math.min(ingredients.length, Math.max(1, Math.ceil(ingredients.length * formulaCompositionFloorFraction())))) && requiredIngredientsPresent;
       const inferredAdditiveMatch = inferredAdditionsOnly &&
         recall >= 0.999 &&
         precision >= 0.35 &&
@@ -2035,7 +2054,7 @@ function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: For
       matchedIngredientCount: matched.overlap,
       totalIngredientCount: matched.candidate.variant.ingredients.length,
       minimumPreservedIngredientCount: matched.candidate.variant.minimumPreservedIngredientCount ??
-        Math.max(1, Math.ceil(normalizedIngredients.length * 0.8)),
+        Math.min(normalizedIngredients.length, Math.max(1, Math.ceil(normalizedIngredients.length * formulaCompositionFloorFraction()))),
       matchedRequiredIngredientCount,
       requiredIngredientCount: requiredIngredients.length,
       verificationStatus: "verified_individually",

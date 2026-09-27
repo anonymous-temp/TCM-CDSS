@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 import { createJiti } from "jiti";
+// 本套件逐步改写 fetch 桩、同一检索词期望不同结果：关闭检索缓存（缓存本身由 test-evidence-fetch-cache 覆盖）。
+process.env.CDSS_EVIDENCE_FETCH_CACHE = "false";
+// 合成条目不含临床问题词：关闭病例相关性过滤（过滤本身由 test-evidence-relevance-filter 覆盖）。
+process.env.CDSS_EVIDENCE_RELEVANCE_FILTER = "false";
 
 const envNames = ["EVIDENCE_RERANK_ENABLED", "BAILIAN_QWEN_API_KEY", "DASHSCOPE_API_KEY", "QWEN_API_KEY", "BAILIAN_QWEN_BASE_URL", "BAILIAN_QWEN_MODEL", "CDSS_TEXT_MODEL_ALLOWED_HOSTS", "EVIMED_GUIDE_API_KEY", "EVIMED_INSTRUCTION_API_KEY", "EVIMED_LITERATURE_API_KEY", "EVIMED_INSTRUCTION_API_URL", "EVIMED_LITERATURE_API_URL"];
 const savedEnv = Object.fromEntries(envNames.map(name => [name, process.env[name]]));

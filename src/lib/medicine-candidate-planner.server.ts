@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { CaseState } from "./diagnosis-types";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
@@ -158,7 +159,70 @@ function externalCandidateToProposal(
  */
 export const MEDICINE_PLANNER_MODEL_TIMEOUT_MS = 12_000;
 
+/**
+ * 规划结果缓存与并发合流（2026-09-27，提速）。规划器输入是（模型，病例规划文本，本地候选目录）
+ * 的纯函数、temperature 0；M03 签名完成时服务端按同一份已签名推理**预取**本次 M04 的规划，
+ * M04 路由再调用时直接命中，省掉规划器（约 1.2s）与其后串行的西药说明书检索。
+ * 只缓存成功解析的结果（10 分钟、至多 64 条）；共享请求不绑定任一调用方的中止信号，
+ * 调用方中止时只是自己按「规划器不可用」返回，与原降级语义一致。
+ */
+const PLANNER_CACHE_TTL_MS = 10 * 60_000;
+const PLANNER_CACHE_MAX = 64;
+const plannerCache = new Map<string, { storedAt: number; value: PlannerSelection }>();
+const plannerInFlight = new Map<string, Promise<PlannerSelection | undefined>>();
+
+function awaitPlannerWithSignal(
+  pending: Promise<PlannerSelection | undefined>,
+  signal: AbortSignal | undefined,
+): Promise<PlannerSelection | undefined> {
+  if (!signal) return pending;
+  if (signal.aborted) return Promise.resolve(undefined);
+  return new Promise((resolve) => {
+    const onAbort = () => resolve(undefined);
+    signal.addEventListener("abort", onAbort, { once: true });
+    pending.then(
+      (value) => { signal.removeEventListener("abort", onAbort); resolve(value); },
+      () => { signal.removeEventListener("abort", onAbort); resolve(undefined); },
+    );
+  });
+}
+
 async function runPlannerModel(
+  caseState: CaseState,
+  localCandidates: readonly LocalPatentMedicineCandidate[],
+  requestSignal?: AbortSignal,
+): Promise<PlannerSelection | undefined> {
+  const config = getPrimaryTextModelConfig();
+  if (!config.configured || !isApprovedTextModel(config.model)) return undefined;
+  if (requestSignal?.aborted) return undefined;
+  const key = createHash("sha256")
+    .update(JSON.stringify([config.model, config.baseUrl || "", casePlanningText(caseState), localCandidates.map((item) => [
+      item.id, item.name, compact(item.indication, 240), item.matchedConcepts, item.matchedPatientFacts,
+    ])]))
+    .digest("hex");
+  const cached = plannerCache.get(key);
+  if (cached && Date.now() - cached.storedAt < PLANNER_CACHE_TTL_MS) return cached.value;
+  if (cached) plannerCache.delete(key);
+  const joined = plannerInFlight.get(key);
+  if (joined) return awaitPlannerWithSignal(joined, requestSignal);
+  const pending = runPlannerModelUncached(caseState, localCandidates)
+    .then((value) => {
+      if (value) {
+        plannerCache.set(key, { storedAt: Date.now(), value });
+        while (plannerCache.size > PLANNER_CACHE_MAX) {
+          const oldest = plannerCache.keys().next().value;
+          if (oldest === undefined) break;
+          plannerCache.delete(oldest);
+        }
+      }
+      return value;
+    })
+    .finally(() => plannerInFlight.delete(key));
+  plannerInFlight.set(key, pending);
+  return awaitPlannerWithSignal(pending, requestSignal);
+}
+
+async function runPlannerModelUncached(
   caseState: CaseState,
   localCandidates: readonly LocalPatentMedicineCandidate[],
   requestSignal?: AbortSignal,

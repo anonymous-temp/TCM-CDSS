@@ -530,6 +530,9 @@ const SERVER_OWNED_FIELD_NAMES: ReadonlySet<string> = new Set([
   ...M03_SERVER_OWNED_TOP_LEVEL, "evidence", "summary",
   "lineageCode", "label", "applicable", "unaffectedBySafety", "safetyDeference",
   "modificationReview", "therapyMatch", "course", "acupointCare",
+  // M04 相似医案问责说明（2026-09-27，modern-case-exemplars.server）：不进 schema、不进签名载荷，
+  // 服务端只读取做遥测；模型写了它不应触发严格兜底。
+  "referenceCaseUse",
 ]);
 
 function collectSchemaViolations(
@@ -710,11 +713,210 @@ export function checkNonStrictStructuredValue(
   const clamped: string[] = [];
   const normalized = clampArraysToSchemaMaxItems(schema, schema, value, clamped);
   const repairs = [...priorRepairs, ...clamped.map((path) => `max_items:${path}`)];
-  const violations: ProviderSchemaViolation[] = [];
-  collectSchemaViolations(schema, schema, normalized, "", violations, 12, SERVER_OWNED_FIELD_NAMES);
+  let current = normalized;
+  let violations: ProviderSchemaViolation[] = [];
+  collectSchemaViolations(schema, schema, current, "", violations, 12, SERVER_OWNED_FIELD_NAMES);
+  // 两类确定性归一（2026-09-27）：只在它们是**全部**违规时才做，任何其它违规照报、照走严格兜底。
+  //  · 多出的 schema 外键（additionalProperties）：zod 本来就会丢掉它们；9/26 线上西医半因
+  //    guidelineReferences 条目多写了 doi/pmid 触发一次 24s 的 Qwen 重生成，本机 M04 因顶层多写
+  //    modificationsNote 同样如此。拼错必填键时另有 required 违规，不会被这条放过。
+  //  · M04 中成药/西药建议（patentAndWestern）里某一条的枚举值越界：只删那一条建议，不重生成整张处方
+  //    （重生成会换掉已合格的饮片方案）。药味、剂量、病机链等任何其它位置的违规都不在此列。
+  if (violations.length > 0 && violations.length < 12) {
+    const repairable = violations.every((violation) =>
+      violation.keyword.startsWith("additionalProperties:") ||
+      (task === "m04_proposal" && /^\/patentAndWestern\/\d+(?:\/|$)/.test(violation.path)));
+    if (repairable) {
+      const cleaned = JSON.parse(JSON.stringify(current)) as Record<string, unknown>;
+      const droppedItems = new Set<number>();
+      for (const violation of violations) {
+        const segments = violation.path.split("/").filter(Boolean);
+        if (task === "m04_proposal" && segments[0] === "patentAndWestern" && /^\d+$/.test(segments[1] || "")) {
+          droppedItems.add(Number(segments[1]));
+          continue;
+        }
+        const key = violation.keyword.slice("additionalProperties:".length);
+        let target: unknown = cleaned;
+        for (const segment of segments) target = target && typeof target === "object" ? (target as Record<string, unknown>)[segment] : undefined;
+        if (target && typeof target === "object" && !Array.isArray(target)) delete (target as Record<string, unknown>)[key];
+      }
+      if (droppedItems.size > 0 && Array.isArray(cleaned.patentAndWestern)) {
+        cleaned.patentAndWestern = cleaned.patentAndWestern.filter((_, index) => !droppedItems.has(index));
+      }
+      const recheck: ProviderSchemaViolation[] = [];
+      collectSchemaViolations(schema, schema, cleaned, "", recheck, 12, SERVER_OWNED_FIELD_NAMES);
+      if (recheck.length === 0) {
+        repairs.push(...violations.map((violation) => violation.keyword.startsWith("additionalProperties:")
+          ? `stripped_unknown_key:${violation.path.replace(/\/\d+/g, "/N")}/${violation.keyword.slice("additionalProperties:".length)}`
+          : `dropped_patent_western_item:${violation.path.replace(/\/\d+/g, "/N")}`));
+        current = cleaned;
+        violations = [];
+      }
+    }
+  }
   return {
-    content: repairs.length === 0 && originalContent !== undefined ? originalContent : JSON.stringify(normalized),
+    content: repairs.length === 0 && originalContent !== undefined ? originalContent : JSON.stringify(current),
     violations,
     repairs,
   };
+}
+
+/**
+ * DeepSeek 严格工具调用（strict function calling）重试通道（2026-09-27）。
+ *
+ * 【为什么不是首轮】两次真实提示词配对重放（9/24、9/27，558e9ea 抓取的 16 例 × 3 个结构化阶段）：
+ *  · DeepSeek 的 strict 对这几份大 schema **并不真正约束解码**——参数末尾常多一个 `}`（M03 两半
+ *    3–10/16）、偶发把整份 JSON 包进 `{"parameter":"…"}` 字符串、M04 把 patentAndWestern 嵌进
+ *    candidate（M04 有效 5–9/16，json_object+schema 现状 15/16）；
+ *  · strict 要求所有属性必填，可选字段必须显式写出，输出多 20–30% token，单次慢 1.7–2.5s。
+ *  所以 M02/M03/M04 首轮仍走 json_object + 同源 schema + 服务端逐项校验。
+ *
+ * 【为什么做重试通道】首轮不合规时原先直接交给严格兜底 qwen3.8-flash（约 24s）。同一批重放里，
+ * M03 两半走正式端点 strict 工具调用、经下面两项确定性修补后 32/32 通过同一套校验，约 11–14s。
+ * 所以 M03 两半「内容不合规」时先用 strict 工具调用重生成一次，仍不合规才交给 Qwen 严格兜底；
+ * 传输类失败（连不上、非 2xx）不走这里——那说明 DeepSeek 本身不可用。
+ *
+ * 【schema 形状】DeepSeek strict 子集：所有属性必填、additionalProperties:false、不支持
+ * minLength/maxLength/minItems/maxItems。9/24 的第一版把可空对象写成 anyOf(object|null)，
+ * 那一版西医半 management 15/16 不合规、中医半 lineageAdaptation 出现 `::`——所以这里不用带对象/
+ * 数组分支的 anyOf：可空对象写成必填对象（全空=null），可空字符串写成字符串（空串=null），
+ * 可空枚举追加空串；数值/布尔的可空才保留 anyOf(原类型|null)。回映射见 structuredValueFromToolArguments。
+ */
+const STRICT_TOOL_RETRY_TASKS: ReadonlySet<StructuredOutputTask> = new Set(["m03_western", "m03_tcm"]);
+const STRICT_TOOL_DROPPED_KEYWORDS = new Set([
+  "minLength", "maxLength", "minItems", "maxItems", "pattern", "format", "uniqueItems",
+  "default", "examples", "minProperties", "maxProperties", "$schema", "$id", "title",
+]);
+
+export function supportsStrictToolRetry(model: string, task: StructuredOutputTask): boolean {
+  return supportsStrictToolArguments(model) && STRICT_TOOL_RETRY_TASKS.has(task);
+}
+
+function nonNullSchemaBranch(root: JsonSchema, node: JsonSchema): JsonSchema {
+  if (Array.isArray(node.anyOf)) {
+    const branches = (node.anyOf as JsonSchema[]).map((branch) => resolveSchemaRef(root, branch))
+      .filter((branch) => branch.type !== "null");
+    return branches.length === 1 ? branches[0] : { anyOf: branches };
+  }
+  if (Array.isArray(node.type)) {
+    const types = (node.type as string[]).filter((type) => type !== "null");
+    return {
+      ...node,
+      type: types.length === 1 ? types[0] : types,
+      ...(Array.isArray(node.enum) ? { enum: (node.enum as unknown[]).filter((item) => item !== null) } : {}),
+    };
+  }
+  if (Array.isArray(node.enum)) return { ...node, enum: (node.enum as unknown[]).filter((item) => item !== null) };
+  return node;
+}
+
+function toolSchemaNode(root: JsonSchema, rawNode: JsonSchema): JsonSchema {
+  const resolved = resolveSchemaRef(root, rawNode);
+  const nullable = schemaAdmitsNull(resolved);
+  let node = nullable ? nonNullSchemaBranch(root, resolved) : resolved;
+  if (Array.isArray(node.anyOf)) node = resolveSchemaRef(root, (node.anyOf as JsonSchema[])[0]);
+  const out: JsonSchema = {};
+  for (const [key, value] of Object.entries(node)) {
+    if (STRICT_TOOL_DROPPED_KEYWORDS.has(key) || key === "$defs" || key === "definitions" || key === "anyOf") continue;
+    if (key === "properties" && value && typeof value === "object") {
+      out.properties = Object.fromEntries(Object.entries(value as JsonSchema)
+        .map(([name, child]) => [name, toolSchemaNode(root, child as JsonSchema)]));
+    } else if (key === "items" && value && typeof value === "object" && !Array.isArray(value)) {
+      out.items = toolSchemaNode(root, value as JsonSchema);
+    } else {
+      out[key] = value;
+    }
+  }
+  if (out.type === "object" || out.properties) {
+    out.type = "object";
+    out.required = Object.keys((out.properties || {}) as JsonSchema);
+    out.additionalProperties = false;
+  }
+  if (nullable) {
+    if (out.type === "string" && Array.isArray(out.enum)) out.enum = [...(out.enum as unknown[]), ""];
+    if (out.type === "number" || out.type === "integer" || out.type === "boolean") return { anyOf: [out, { type: "null" }] };
+  }
+  return out;
+}
+
+/** strict 工具参数 schema（DeepSeek 子集，见上方说明）。 */
+export function strictToolParametersForTask(task: StructuredOutputTask): JsonSchema {
+  const root = providerJsonSchemaForTask(task);
+  return toolSchemaNode(root, root);
+}
+
+/** strict 工具调用的系统消息附加段：不再附 schema（在工具参数里），只保留中医半的 resolution 定档句。 */
+export function strictToolSystemInstruction(task: StructuredOutputTask): string {
+  return task === "m03_western" ? "" : NON_STRICT_RESOLUTION_RULE;
+}
+
+function blankToolValue(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") return !value.trim();
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === "object") return Object.values(value as Record<string, unknown>).every(blankToolValue);
+  return false;
+}
+
+function fromToolValue(root: JsonSchema, rawNode: JsonSchema, value: unknown): unknown {
+  const resolved = resolveSchemaRef(root, rawNode);
+  const nullable = schemaAdmitsNull(resolved);
+  if (nullable && (value === "" || (value && typeof value === "object" && !Array.isArray(value) && blankToolValue(value)))) return null;
+  const branch = nullable ? nonNullSchemaBranch(root, resolved) : resolved;
+  const body = Array.isArray(branch.anyOf)
+    ? resolveSchemaRef(root, (branch.anyOf as JsonSchema[]).find((item) => resolveSchemaRef(root, item).type !== "null") || (branch.anyOf as JsonSchema[])[0])
+    : branch;
+  if (Array.isArray(value)) {
+    return body.items && typeof body.items === "object" ? value.map((item) => fromToolValue(root, body.items as JsonSchema, item)) : value;
+  }
+  if (value && typeof value === "object") {
+    const properties = (body.properties || {}) as Record<string, JsonSchema>;
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+      .map(([key, child]) => [key, properties[key] ? fromToolValue(root, properties[key], child) : child]));
+  }
+  return value;
+}
+
+/**
+ * 工具参数文本 → 严格供应商 schema 形状的值。两项确定性修补（重放实测的两类格式噪声，都不改字段取值）：
+ *  · 末尾多出的 1–3 个闭合括号；
+ *  · 整份结果被包进单键 `parameter(s)`/`arguments`/`input`（字符串或对象）。
+ * 之后空串/全空对象按原 schema 的可空位置还原为 null。返回 undefined = 无法解析，交给下一级兜底。
+ */
+export function structuredValueFromToolArguments(
+  task: StructuredOutputTask,
+  argumentsText: string,
+): { value: unknown; repairs: string[] } | undefined {
+  const repairs: string[] = [];
+  const text = argumentsText.trim();
+  const tryParse = (candidate: string): { ok: true; value: unknown } | { ok: false } => {
+    try {
+      return { ok: true, value: JSON.parse(candidate) };
+    } catch {
+      return { ok: false };
+    }
+  };
+  let parsed = tryParse(text);
+  for (let cut = 1; cut <= 3 && !parsed.ok; cut += 1) {
+    if (!/^[\]}\s]+$/.test(text.slice(-cut))) break;
+    parsed = tryParse(text.slice(0, -cut));
+    if (parsed.ok) repairs.push("trailing_extra_closers");
+  }
+  if (!parsed.ok) return undefined;
+  let value = parsed.value;
+  const keys = value && typeof value === "object" && !Array.isArray(value) ? Object.keys(value) : [];
+  if (keys.length === 1 && /^(?:parameters?|arguments|input)$/.test(keys[0])) {
+    const inner = (value as Record<string, unknown>)[keys[0]];
+    if (typeof inner === "string") {
+      const unwrapped = tryParse(inner);
+      if (!unwrapped.ok) return undefined;
+      value = unwrapped.value;
+      repairs.push("unwrapped_string_wrapper");
+    } else if (inner && typeof inner === "object") {
+      value = inner;
+      repairs.push("unwrapped_object_wrapper");
+    }
+  }
+  const root = providerJsonSchemaForTask(task);
+  return { value: fromToolValue(root, root, value), repairs };
 }

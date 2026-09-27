@@ -328,9 +328,31 @@ const POSSIBLE_RISK_QUESTIONS: Record<string, Omit<PossibleRiskQuestion, "catego
   other_critical: { question: "请复核该异常是否正在发生，并补充起病时间、严重程度、生命体征和意识呼吸状态。", positive: "异常仍在发生，请补充具体表现", negative: "经复核异常未在发生，且无生命体征、意识或呼吸改变" },
 };
 
+/** possibleRiskQuestion 读取的那部分事实层红旗（唯一口径，m02ClinicalFactsFootprint 同源复用）。 */
+function groundedRiskFactCandidates(state?: QuestionFallbackCase) {
+  return (state?.clinicalFacts?.redFlags || [])
+    .filter((item) => typeof item.category === "string" && (item.status === "possible" || item.urgency === "clarify" || item.urgency === "urgent"));
+}
+
+/**
+ * M02 从语义事实层读到的**全部**内容的指纹（2026-09-27，M02 事实抽取与出题并行）。
+ *
+ * M02 只在两处读 clinicalFacts：出题提示词的 redFlagSemanticFacts（buildQuestionPrompt 里
+ * status=positive|possible 的条目）与接地风险追问（groundedRiskFactCandidates）。两份事实的指纹
+ * 相同 ⇒ 提示词、兜底追问、接地风险替换三者逐字相同 ⇒ 不带事实先发的出题结果可以原样采用。
+ * question 路由据此在事实抽取（qwen3.8-max，冷启动约 6.6s）进行中先发出题（约 3.4s），
+ * 事实回来后指纹不同就丢弃先发结果、按事实重出——输出与串行时逐字等价，只省等待。
+ * 新增任何读取 clinicalFacts 的 M02 环节，必须同时进入本指纹，否则先发结果会漏掉它。
+ */
+export function m02ClinicalFactsFootprint(state?: QuestionFallbackCase): string {
+  const flags = state?.clinicalFacts?.redFlags || [];
+  const promptFacts = flags.filter((item) => item.status === "positive" || item.status === "possible");
+  const riskFacts = groundedRiskFactCandidates(state);
+  return JSON.stringify([promptFacts, riskFacts]);
+}
+
 function possibleRiskQuestion(state?: QuestionFallbackCase): PossibleRiskQuestion | undefined {
-  const candidates = (state?.clinicalFacts?.redFlags || [])
-    .filter((item) => typeof item.category === "string" && (item.status === "possible" || item.urgency === "clarify" || item.urgency === "urgent"))
+  const candidates = groundedRiskFactCandidates(state)
     .sort((left, right) => {
       const rank = (item: { status?: string; urgency?: string }) =>
         item.urgency === "urgent" ? 3 : item.urgency === "clarify" ? 2 : item.status === "possible" ? 1 : 0;

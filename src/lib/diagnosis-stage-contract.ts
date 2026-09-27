@@ -391,6 +391,26 @@ export function isUnstableM03CoreText(value: unknown): boolean {
   return (!boundedUncertainty && !multiAnchorConclusion && !namedDiseaseConclusion) || concreteClinicalAnchor(prefix).length < 2;
 }
 
+/**
+ * 「这一栏结构上是空的」——没有文字，或剥掉服务端提示后连两个临床锚点都凑不出（2026-09-27）。
+ *
+ * 与 isUnstableM03CoreText 的区别：后者还用对冲词表（待定/不明/尚不能…）判「模型没下结论」。
+ * 对冲词表是开放域词表，已经为「神志不清」「月经先后不定期」「需要补充」这类误报打过三次补丁；
+ * 9/27 本机 8 组 520 次 M03 里仍有 8 次因它把整份诊断退回占位（其中 6 次是总体病机一栏）。
+ * 总体病机只是一句概括，真正承重的是病机链各节点（仍按原判据逐节点核验）和模型自己在
+ * resolution 字段里声明的定档。所以总体病机的 T1（绝对核）只拦结构性缺失；对冲措辞改为
+ * T2 质量码 overall_pathogenesis_hedged：先走修复轮，修不出来带批注受理，不再清空整份诊断。
+ */
+const UNSTABLE_REASONING_MARKER_GLOBAL = new RegExp(UNSTABLE_REASONING_MARKER.source, "g");
+export function isStructurallyEmptyM03CoreText(value: unknown): boolean {
+  if (typeof value !== "string") return true;
+  const withoutServerNote = value.split(SERVER_PATHOGENESIS_NO_MECHANISM_NOTE).join("").trim();
+  if (!withoutServerNote) return true;
+  // 只剩对冲词（「待定」「资料不足」）本身也是结构性缺失：先剥掉对冲词再数临床锚点。
+  // 这里用对冲词表只为「剥掉占位」，不再据它判「模型没下结论」。
+  return concreteClinicalAnchor(withoutServerNote.replace(UNSTABLE_REASONING_MARKER_GLOBAL, "")).length < 2;
+}
+
 /** Customer-facing cards and exports share this check so placeholders cannot reappear on fallback paths. */
 export function isDisplayableClinicalText(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && !CUSTOMER_DISPLAY_PLACEHOLDER.test(value.trim());
@@ -1895,6 +1915,10 @@ function m03PathogenesisAndTherapyStructureIssue(
     clinicalContext,
   ];
   if (narrativeMostlyCopies(overallPathogenesis, factSurface)) return "overall_pathogenesis_restates_facts";
+  // 对冲措辞（「病机尚不明确」「待进一步辨证」）只是质量问题：结构性缺失已由绝对核
+  // 的 overall_pathogenesis_unstable 拦住（见 isStructurallyEmptyM03CoreText）。
+  if (typeof overallPathogenesis === "string" && !isStructurallyEmptyM03CoreText(overallPathogenesis) &&
+    isUnstableM03CoreText(overallPathogenesis)) return "overall_pathogenesis_hedged";
 
   const nodePathogenesis = chain.map((item) => narrativeFingerprint(item.pathogenesis)).filter(Boolean);
   const nodeTherapies = chain.map((item) => narrativeFingerprint(item.therapyDirection)).filter(Boolean);
@@ -2329,7 +2353,7 @@ function m03HardContractIssue(
   const overallPathogenesis = typeof reasoning.overview?.overallPathogenesis === "string"
     ? reasoning.overview.overallPathogenesis.trim()
     : "";
-  if (!overallPathogenesis || isUnstableM03CoreText(overallPathogenesis)) { const e = emit("overall_pathogenesis_unstable"); if (e) return e; }
+  if (!overallPathogenesis || isStructurallyEmptyM03CoreText(overallPathogenesis)) { const e = emit("overall_pathogenesis_unstable"); if (e) return e; }
   const overallMethod = typeof reasoning.therapy?.overallMethod === "string"
     ? reasoning.therapy.overallMethod.trim()
     : "";

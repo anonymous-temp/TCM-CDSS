@@ -121,3 +121,16 @@ export function matchingMedicineClinicalProblemTerms(caseText: string): string[]
     .filter((concept) => concept.axis === "problem" && concept.casePattern.test(caseText))
     .map((concept) => concept.key);
 }
+
+/**
+ * 检索条目与本例临床问题是否相关（2026-09-27，EviMed 条目相关性过滤用）。
+ * 本例文本按病例侧写法（casePattern）抽出问题概念；条目文本按病例侧或说明书/指南侧写法
+ * （indicationPattern）任一命中即相关——同一概念的两种写法（「胃脘疼痛」与「慢性胃炎」）视为同一问题。
+ * 本例抽不出任何问题概念时返回 undefined（调用方不据此过滤）。
+ */
+export function clinicalProblemConceptsRelevant(caseText: string, targetText: string): boolean | undefined {
+  const concepts = MEDICINE_CLINICAL_CONCEPTS.filter((concept) => concept.axis === "problem" && concept.casePattern.test(caseText));
+  if (concepts.length === 0) return undefined;
+  return concepts.some((concept) => concept.casePattern.test(targetText) || concept.indicationPattern.test(targetText));
+}
+

@@ -50,6 +50,9 @@ const T2_M03: ReadonlySet<string> = new Set([
   // 分级本身也是倒置的：紧邻的「证候无依据」severity 高得多，反倒是 T2 带批注受理。
   // 改为 T2 后仍先走修复轮按规范重述，只有修不出来才带批注放行。
   "primary_syndrome_name_nonstandard",
+  // 总体病机一句概括里带对冲措辞（2026-09-27）。结构性缺失仍是绝对核 overall_pathogenesis_unstable；
+  // 这里只剩「有病机要素、但措辞没下定论」，病机链节点另行逐一核验，不应清空整份诊断。
+  "overall_pathogenesis_hedged",
   // 有结论但证据层级未达到 resolved 时，改成 bounded/unresolved，而不是整单作废。
   "primary_syndrome_resolved_without_basis",
   "primary_syndrome_basis_ungrounded",

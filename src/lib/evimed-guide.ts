@@ -4,7 +4,7 @@ import { sanitizeFreeTextForExternalClinicalService } from "./diagnosis-safety";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "./http-response-limit";
 import { cancelResponseBody } from "./http-response-lifecycle";
 import { createHash } from "node:crypto";
-import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
+import { clinicalProblemConceptsRelevant, matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
 import { boundedEvidenceRerankText, rerankEvidenceDocuments } from "./evidence-rerank";
 
 const EVIMED_BASE_URL = (process.env.EVIMED_EVIDENCE_BASE_URL || "https://www.evimed.com/api-evimed").trim().replace(/\/$/, "");
@@ -486,7 +486,90 @@ function requestPayload(kind: EvidenceSourceKind, safeQuery: string, opts?: { co
   return payload;
 }
 
+/**
+ * EviMed 检索结果缓存与并发合流（2026-09-27，提速）。
+ *
+ * 线上一条链路里 EviMed 是 M03、M04 生成前唯一没有计时的网络环节：M03 两个半程在症状召回、
+ * 证候重排都完成后还要再等约 1.9s，M04 在规划器之后还要再等约 3.5s，全是在等 EviMed。
+ * 检索结果是（来源，脱敏检索词，条数，起始年）的函数，与租户、病人身份无关（检索词已经
+ * scrubQuery 去标识）。所以：
+ *  · 只缓存成功结果（ok=true，含 no_hits），10 分钟、至多 256 条；失败一律不缓存，下次照常重试；
+ *  · 同键并发只发一次请求；共享请求不绑定任何一个调用方的中止信号（调用方中止时只是自己先返回
+ *    cancelled，不会把别人正在等的请求一起掐断）；
+ *  · `CDSS_EVIDENCE_FETCH_CACHE=false` 关闭（回滚开关；逐次打桩 fetch 的单元测试也用它）；
+ *  · 路由据此可以**预取**下一阶段的检索（M02 预取 M03 的、M03 签名后预取 M04 的），预取与正式
+ *    调用的检索词一致时正式调用直接命中，不一致时只是多了几次检索，不改变任何结果。
+ */
+const EVIDENCE_FETCH_CACHE_TTL_MS = 10 * 60_000;
+const EVIDENCE_FETCH_CACHE_MAX = 256;
+const evidenceFetchCache = new Map<string, { storedAt: number; value: GuideEvidenceResult }>();
+const evidenceFetchInFlight = new Map<string, Promise<GuideEvidenceResult>>();
+
+function evidenceFetchCacheKey(kind: EvidenceSourceKind, safeQuery: string, opts?: { count?: number; startYear?: number }): string {
+  return createHash("sha256")
+    .update(JSON.stringify([kind, SOURCE_CONFIG[kind].endpoint || "", safeQuery, opts?.count ?? null, opts?.startYear ?? null]))
+    .digest("hex");
+}
+
+function awaitWithCallerSignal(
+  pending: Promise<GuideEvidenceResult>,
+  signal: AbortSignal | undefined,
+  cancelled: () => GuideEvidenceResult,
+): Promise<GuideEvidenceResult> {
+  if (!signal) return pending;
+  if (signal.aborted) return Promise.resolve(cancelled());
+  return new Promise((resolve) => {
+    const onAbort = () => resolve(cancelled());
+    signal.addEventListener("abort", onAbort, { once: true });
+    pending.then(
+      (value) => { signal.removeEventListener("abort", onAbort); resolve(value); },
+      () => { signal.removeEventListener("abort", onAbort); resolve(cancelled()); },
+    );
+  });
+}
+
+/** 测试用：清空检索缓存。 */
+export function resetExternalEvidenceCacheForTests(): void {
+  evidenceFetchCache.clear();
+  evidenceFetchInFlight.clear();
+}
+
 export async function fetchExternalEvidence(kind: EvidenceSourceKind, query: string, opts?: { count?: number; startYear?: number; signal?: AbortSignal }): Promise<GuideEvidenceResult> {
+  const safeQuery = scrubQuery(query);
+  const cancelled = (): GuideEvidenceResult => ({ ok: false, reason: "upstream_error", query: safeQuery, list: [], message: "request_cancelled" });
+  if (opts?.signal?.aborted) return cancelled();
+  if (process.env.CDSS_EVIDENCE_FETCH_CACHE === "false" || !safeQuery || !SOURCE_CONFIG[kind].endpoint || !getEvimedEvidenceApiKey(kind)) {
+    return fetchExternalEvidenceUncached(kind, query, opts);
+  }
+  const key = evidenceFetchCacheKey(kind, safeQuery, opts);
+  const cached = evidenceFetchCache.get(key);
+  if (cached && Date.now() - cached.storedAt < EVIDENCE_FETCH_CACHE_TTL_MS) {
+    console.info("[tcm-cdss:timing] evidence_fetch", { kind, durationMs: 0, reason: cached.value.reason, source: "cache" });
+    return cached.value;
+  }
+  if (cached) evidenceFetchCache.delete(key);
+  const joined = evidenceFetchInFlight.get(key);
+  if (joined) return awaitWithCallerSignal(joined, opts?.signal, cancelled);
+  const startedAt = Date.now();
+  const pending = fetchExternalEvidenceUncached(kind, query, { count: opts?.count, startYear: opts?.startYear })
+    .then((value) => {
+      console.info("[tcm-cdss:timing] evidence_fetch", { kind, durationMs: Date.now() - startedAt, reason: value.reason, source: "network" });
+      if (value.ok) {
+        evidenceFetchCache.set(key, { storedAt: Date.now(), value });
+        while (evidenceFetchCache.size > EVIDENCE_FETCH_CACHE_MAX) {
+          const oldest = evidenceFetchCache.keys().next().value;
+          if (oldest === undefined) break;
+          evidenceFetchCache.delete(oldest);
+        }
+      }
+      return value;
+    })
+    .finally(() => evidenceFetchInFlight.delete(key));
+  evidenceFetchInFlight.set(key, pending);
+  return awaitWithCallerSignal(pending, opts?.signal, cancelled);
+}
+
+async function fetchExternalEvidenceUncached(kind: EvidenceSourceKind, query: string, opts?: { count?: number; startYear?: number; signal?: AbortSignal }): Promise<GuideEvidenceResult> {
   const apiKey = getEvimedEvidenceApiKey(kind);
   const safeQuery = scrubQuery(query);
   const endpoint = SOURCE_CONFIG[kind].endpoint;
@@ -615,6 +698,26 @@ export async function buildGuideEvidenceContext(
   return buildSingleEvidenceSection("guide", caseState, stage, signal);
 }
 
+/**
+ * 本例阳性临床问题（受治理问题词表，与 buildEvidenceFallbackQueries 同一词表）与检索条目的交集。
+ * 返回相关条目的原序号；本例抽不出任何问题词时返回 undefined（不过滤）。
+ */
+function evidenceItemsRelevantToCase(items: readonly ExternalEvidenceItem[], caseState: CaseState): Set<number> | undefined {
+  const reasoning = diagnoseReasoningFromState(caseState);
+  const caseText = [
+    caseState.hisRecord?.fields?.zhushu || caseState.chiefComplaint,
+    evidenceSymptomTerms(caseState),
+    reasoning?.westernDiagnosis?.primary?.name,
+    reasoning?.overview?.tcmDiseaseName,
+  ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；");
+  if (clinicalProblemConceptsRelevant(caseText, "") === undefined) return undefined;
+  const relevant = new Set<number>();
+  items.forEach((item, index) => {
+    if (clinicalProblemConceptsRelevant(caseText, `${item.title || ""}\n${item.summary || ""}`)) relevant.add(index);
+  });
+  return relevant;
+}
+
 async function buildSingleEvidenceSection(
   kind: EvidenceSourceKind,
   caseState: CaseState,
@@ -679,16 +782,31 @@ async function buildSingleEvidenceSection(
     return "";
   }
 
-  lines.push("命中证据摘要（仅引用下列真实题名、机构、年份和URL；不得编造未列出的资料；引用时使用方括号ID）：");
   let orderedIndices = items.map((_, index) => index);
-  if (result.ok && kind !== "instruction") {
+  // 病例相关性过滤（2026-09-27）：指南/文献检索词里带着整段病历，EviMed 常返回与本例无关的条目
+  // （9/27 抓取：胃痛病例拿到黄褐斑、脓疱疮共识与心血管指南质量评价；浮肿病例拿到口腔溃疡、不孕症）。
+  // 条目题名/摘要与本例阳性临床问题（受治理问题词表）没有任何交集就不进提示词；本例抽不出问题词时
+  // 不过滤。说明书检索按药名精确检索，不在此列。ID 仍绑定原检索序号。
+  // `CDSS_EVIDENCE_RELEVANCE_FILTER=false` 关闭（回滚开关；用合成条目测检索/重排机制的套件也用它）。
+  if (kind !== "instruction" && process.env.CDSS_EVIDENCE_RELEVANCE_FILTER !== "false") {
+    const relevant = evidenceItemsRelevantToCase(items, caseState);
+    if (relevant) {
+      const dropped = orderedIndices.length - relevant.size;
+      if (dropped > 0) console.info("[tcm-cdss:evidence] irrelevant items dropped", { kind, stage, kept: relevant.size, dropped });
+      orderedIndices = orderedIndices.filter((index) => relevant.has(index));
+      if (orderedIndices.length === 0) return "";
+    }
+  }
+  lines.push("命中证据摘要（仅引用下列真实题名、机构、年份和URL；不得编造未列出的资料；引用时使用方括号ID）：");
+  if (result.ok && kind !== "instruction" && orderedIndices.length > 1) {
     const explicitNames = evidenceQueryExplicitNames(caseState);
+    const pool = orderedIndices;
     const reranked = await rerankEvidenceDocuments(
       buildEvidenceRerankQuery(caseState, usedQuery),
-      items.map(item => sanitizeFreeTextForExternalClinicalService(`${item.title}\n${item.summary || ""}`, explicitNames)),
+      pool.map((index) => sanitizeFreeTextForExternalClinicalService(`${items[index].title}\n${items[index].summary || ""}`, explicitNames)),
       { signal },
     );
-    orderedIndices = reranked.order;
+    orderedIndices = reranked.order.map((position) => pool[position]).filter((index) => index !== undefined);
   }
   // Sort only the already-selected pool before the display window. IDs remain bound to the
   // original result indices, including candidates newly promoted into the top five.

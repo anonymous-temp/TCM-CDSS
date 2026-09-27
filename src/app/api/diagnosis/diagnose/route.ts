@@ -1,3 +1,5 @@
+import { prefetchPrescribeInputsFromSignedDiagnose, tapFinalStageContent } from "@/lib/stage-prefetch.server";
+import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
 import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars } from "@/lib/prompt-budget";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
@@ -83,7 +85,14 @@ export async function POST(req: Request) {
   // 让它与增补层、证候重排全程重叠。此前它被排在第二批、白等第一批跑完——实测前置层
   // 占 M03 端到端 4~15s，这一条重排把 EviMed 的往返基本藏进了其余前置工作里。
   // 失败不阻断：catch 回退到空证据上下文，与既有降级语义一致。
-  const evidenceContextPromise = buildCdssEvidenceContext(safeState, "diagnose", undefined, req.signal).catch(() => "");
+  // 前置各段计时（2026-09-27）：此前 M03 两半开跑前约 4s 里只有模型小任务有遥测，EviMed 与本地
+  // 构建都没有，线上「空白 1.9s」只能靠推断。只记毫秒数，不含病例内容。
+  const preModelTimings: Record<string, number> = {};
+  const preModelMark = (name: string) => { preModelTimings[name] = Date.now() - orchestrationStartedAt; };
+  preModelMark("facts");
+  const evidenceContextPromise = buildCdssEvidenceContext(safeState, "diagnose", undefined, req.signal)
+    .then((value) => { preModelMark("evidence"); return value; })
+    .catch(() => "");
   // 两个增补层互不依赖，并发跑；任一不可用都静默退回确定性行为。
   const [formulaRecallHint, assistedNegations] = await Promise.all([
     normalizeCaseTextForFormulaRecall(safeState, req.signal),
@@ -91,13 +100,20 @@ export async function POST(req: Request) {
   ]);
   // L1b 只在 L1a 的受控证候 ID 闭集内做最多 +20% 的召回重排；失败、超时或非法输出均返回空集，
   // 下游严格保持 L1a 原顺序。它不写病历、不做诊断、不绕过方名身份锁。
+  preModelMark("recallAndPolarity");
   const [syndromeHypothesisRerank, evidenceContext] = await Promise.all([
-    rerankSyndromeHypothesesForFormulaRecall(safeState, assistedNegations, req.signal),
+    rerankSyndromeHypothesesForFormulaRecall(safeState, assistedNegations, req.signal)
+      .then((value) => { preModelMark("syndromeRerank"); return value; }),
     evidenceContextPromise,
   ]);
+  // 相似现代医案参考（modern-case-exemplars.server.ts）：确定性检索，只进中医半与修复轮的完整提示词。
+  const similarCases = buildSimilarModernCaseContext(safeState, "diagnose");
+  if (similarCases.cases.length > 0) {
+    console.info("[tcm-cdss:knowledge] similar_modern_cases", { stage: "diagnose", count: similarCases.cases.length, topScore: similarCases.cases[0].score });
+  }
   const originalDiagnoseBasePrompt = buildDiagnosePrompt(
     safeState,
-    { formulaRecallHint, assistedNegations, syndromeHypothesisRerank },
+    { formulaRecallHint, assistedNegations, syndromeHypothesisRerank, similarCasesContext: similarCases.context },
   );
   // Only add facts absent from the legacy template; its coherent TCM chain stays intact.
   const diagnoseBasePrompt = originalDiagnoseBasePrompt + buildM03AdditionalPatientContext(safeState, originalDiagnoseBasePrompt);
@@ -166,7 +182,9 @@ export async function POST(req: Request) {
     redFlags: [],
     reasons: ["模型推理服务暂时不可用（上游返回错误或超时），本轮未能完成辨病辨证。这不是病历信息不足——已录入内容无需修改，请稍后点击「重新生成」重试；若持续失败请联系系统管理员。"],
   };
-  return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
+  preModelMark("promptReady");
+  console.info("[tcm-cdss:timing] m03_pre_model", preModelTimings);
+  const response = await callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: req.signal,
     structuredLimitedInformation: limitedInformation,
     initialVisiblePrefix: initialSafetyBanner || undefined,
@@ -219,4 +237,7 @@ export async function POST(req: Request) {
       safeState,
     ),
   });
+  // M03 签名完成即预取本例 M04 的规划器与 EviMed 检索（stage-prefetch.server.ts）。只写缓存。
+  return tapFinalStageContent(response, (finalContent) =>
+    prefetchPrescribeInputsFromSignedDiagnose(gated, finalContent, parsed.customer.customerId));
 }

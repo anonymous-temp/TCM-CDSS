@@ -668,6 +668,8 @@ export type M03FormulaRetrievalOptions = {
   formulaRecallHint?: string;
   assistedNegations?: AssistedNegationClauses;
   syndromeHypothesisRerank?: readonly SyndromeHypothesisRerankDecision[];
+  /** 相似现代医案参考段（modern-case-exemplars.server 生成；路由传入，本模块不直接读语料）。 */
+  similarCasesContext?: string;
 };
 
 export function buildDiagnosePrompt(caseState: CaseState, retrieval: M03FormulaRetrievalOptions = {}): string {
@@ -745,7 +747,7 @@ ${safePatientDesc}
 ${safeConversationText || "（无）"}
 
 ${formulaIndicationContext}
-
+${retrieval.similarCasesContext ? `\n${retrieval.similarCasesContext}\n` : ""}
 ${sevenStageContext}
 
 【当前信息覆盖度】
@@ -786,7 +788,12 @@ const HIGH_IMPACT_DIRECTION_LABELS: Record<string, string> = {
   mass_soften: "软坚散结",
 };
 
-export function buildPrescribePrompt(caseState: CaseState): string {
+export type M04PromptExtras = {
+  /** 相似现代医案参考段（含使用纪律与 referenceCaseUse 格式）；空串表示本例无检索结果或功能关闭。 */
+  similarCasesContext?: string;
+};
+
+export function buildPrescribePrompt(caseState: CaseState, extras: M04PromptExtras = {}): string {
   const diagnoseReasoning = diagnoseReasoningFromState(caseState);
   // 纠错器前移（2026-08-27）：把门禁判定「本例哪些高影响方向已成立」直接告诉首轮，
   // 而不是等它放错药再用 40–50s 的修复轮纠正。清单与门禁同源
@@ -962,7 +969,7 @@ ${m03FormulaRetrievalContext}
 
 ${classicSafetyContext}
 
-${kbShortlistContext ? `${kbShortlistContext}\n\n` : ""}【M04药味可引用病机节点】
+${kbShortlistContext ? `${kbShortlistContext}\n\n` : ""}${extras.similarCasesContext ? `${extras.similarCasesContext}\n\n` : ""}【M04药味可引用病机节点】
 ${pathogenesisNodeOptions || "（无可引用节点；不得生成剂量级候选处方）"}
 
 ${buildTcmTreatmentProjectPromptContext(caseState)}`);

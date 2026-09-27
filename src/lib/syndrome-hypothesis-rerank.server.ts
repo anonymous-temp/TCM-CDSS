@@ -1,3 +1,4 @@
+import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import "server-only";
 
 import type { AssistedNegationClauses } from "./clinical-polarity";
@@ -64,53 +65,55 @@ export async function rerankSyndromeHypothesesForFormulaRecall(
   const source = sanitizeFreeTextForModel([...new Set(facts)].join("；").slice(0, MAX_FACT_CHARS));
   if (source.length < 4) return [];
 
-  const controller = new AbortController();
-  const onParentAbort = () => controller.abort();
-  signal?.addEventListener("abort", onParentAbort, { once: true });
-  const timer = setTimeout(() => controller.abort(), RERANK_TIMEOUT_MS);
-  try {
-    const response = await observeModelTask({ task: "syndrome_rerank", stage: "diagnose", model: config.model }, () => createTextModelClient(config).chat.completions.create({
-      model: config.model,
-      temperature: 0,
-      max_tokens: 500,
-      stream: false,
-      response_format: { type: "json_object" },
-      ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
-      messages: [
-        {
-          role: "system",
-          content: [
-            "你是中医检索候选闭集重排器，不负责诊断、处方或安全判断。",
-            "只能复制候选中的 syndromeId；不得生成候选外术语，不得添加患者事实，不得给方名。",
-            "relevance 仅表示该候选与已给阳性事实的检索相关度，范围 0 到 1；不确定时省略该候选。",
-            `按相关度从高到低最多返回 ${MAX_RERANK_DECISIONS} 条，不得把全部候选照抄进结果。`,
-            "只输出 JSON：{\"rankings\":[{\"syndromeId\":\"候选ID\",\"relevance\":0.0}]}，不要解释。",
-          ].join("\n"),
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            affirmedFacts: source,
-            candidates: hypotheses.map((item) => ({
-              syndromeId: item.syndromeId,
-              canonical: item.canonical,
-              deterministicMatchedAxes: item.matchedAxes,
-              deterministicCoverage: Number(item.coverage.toFixed(4)),
-            })),
-          }),
-        },
-      ],
-    }, { signal: controller.signal }));
-    return parseClosedSetSyndromeHypothesisRerank(
-      response.choices[0]?.message?.content,
-      candidateIds,
-    )
-      .sort((left, right) => right.relevance - left.relevance || left.syndromeId.localeCompare(right.syndromeId))
-      .slice(0, MAX_RERANK_DECISIONS);
-  } catch {
-    return [];
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener("abort", onParentAbort);
-  }
+  const messages = [
+    {
+      role: "system" as const,
+      content: [
+        "你是中医检索候选闭集重排器，不负责诊断、处方或安全判断。",
+        "只能复制候选中的 syndromeId；不得生成候选外术语，不得添加患者事实，不得给方名。",
+        "relevance 仅表示该候选与已给阳性事实的检索相关度，范围 0 到 1；不确定时省略该候选。",
+        `按相关度从高到低最多返回 ${MAX_RERANK_DECISIONS} 条，不得把全部候选照抄进结果。`,
+        "只输出 JSON：{\"rankings\":[{\"syndromeId\":\"候选ID\",\"relevance\":0.0}]}，不要解释。",
+      ].join("\n"),
+    },
+    {
+      role: "user" as const,
+      content: JSON.stringify({
+        affirmedFacts: source,
+        candidates: hypotheses.map((item) => ({
+          syndromeId: item.syndromeId,
+          canonical: item.canonical,
+          deterministicMatchedAxes: item.matchedAxes,
+          deterministicCoverage: Number(item.coverage.toFixed(4)),
+        })),
+      }),
+    },
+  ];
+  // 同一份病例在 M02 已预取过（stage-prefetch.server.ts），这里命中缓存；共享计算不绑定调用方信号。
+  return memoizedSmallTask<SyndromeHypothesisRerankDecision[]>("syndrome_rerank", smallTaskMemoKey([config.model, messages]), async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), RERANK_TIMEOUT_MS);
+    try {
+      const response = await observeModelTask({ task: "syndrome_rerank", stage: "diagnose", model: config.model }, () => createTextModelClient(config).chat.completions.create({
+        model: config.model,
+        temperature: 0,
+        max_tokens: 500,
+        stream: false,
+        response_format: { type: "json_object" },
+        ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
+        messages,
+      }, { signal: controller.signal }));
+      const content = response.choices[0]?.message?.content;
+      return {
+        value: parseClosedSetSyndromeHypothesisRerank(content, candidateIds)
+          .sort((left, right) => right.relevance - left.relevance || left.syndromeId.localeCompare(right.syndromeId))
+          .slice(0, MAX_RERANK_DECISIONS),
+        cacheable: typeof content === "string" && content.trim().length > 0,
+      };
+    } catch {
+      return { value: [], cacheable: false };
+    } finally {
+      clearTimeout(timer);
+    }
+  }, [], signal);
 }

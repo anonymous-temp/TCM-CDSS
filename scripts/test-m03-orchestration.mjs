@@ -475,12 +475,19 @@ const runParallelM03 = async (westernReplies) => {
   const replies = [...westernReplies];
   let streamCalls = 0;
   let westernCalls = 0;
+  let strictToolCalls = 0;
   try {
     Object.assign(process.env, settledEnv);
     console.info = (...args) => { logs.push(args); };
     console.warn = (...args) => { logs.push(args); };
     globalThis.fetch = async (_url, init) => {
       const request = JSON.parse(init.body);
+      // 2026-09-27：中医半内容不合规时先走 DeepSeek strict 工具调用重试（非流式、带 tools）。
+      // 它不是西医半请求，单独计数；桩返回空参数 ⇒ 重试不被采纳，行为与此前「无兜底模型」一致。
+      if (Array.isArray(request.tools)) {
+        strictToolCalls += 1;
+        return Response.json({ choices: [{ message: { content: null, tool_calls: [] }, finish_reason: "tool_calls" }] });
+      }
       if (request.stream) {
         streamCalls += 1;
         return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(tcmHalfOnly) }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`, {
@@ -507,7 +514,7 @@ const runParallelM03 = async (westernReplies) => {
     assert.deepEqual(frames.filter((frame) => frame.error), [], "the mock stream must finish without an error");
     const output = frames.filter((frame) => typeof frame.content === "string").map((frame) => frame.content).join("");
     const halves = logs.find(([name]) => name === "[tcm-cdss:timing] m03_parallel_halves")?.[1];
-    return { signed: parseSentinelReasoning(output), halves, streamCalls, westernCalls };
+    return { signed: parseSentinelReasoning(output), halves, streamCalls, westernCalls, strictToolCalls };
   } finally {
     globalThis.fetch = savedFetch;
     console.info = savedInfo;
@@ -524,6 +531,7 @@ assert.ok(settledSigned?.westernDiagnosis?.primary?.name, "单发基线必须先
   const run = await runParallelM03([misnestedWesternHalf]);
   assert.equal(run.streamCalls, 1);
   assert.equal(run.westernCalls, 1, "可修复的错位文本不需要重试");
+  assert.ok(run.strictToolCalls <= 1, "中医半的 strict 工具调用重试至多一次");
   assert.ok(run.signed.contractSignature, "并行路径照常签名");
   assert.equal(run.signed.westernDiagnosis.primary.name, settledSigned.westernDiagnosis.primary.name,
     "错位 JSON 修复后，签名里的西医诊断必须与单发路径一致，而不是默认占位");

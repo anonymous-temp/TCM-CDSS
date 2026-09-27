@@ -21,8 +21,9 @@ import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-pl
 import { buildDrugInventoryPromptContext } from "@/lib/drug-inventory.server";
 import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
-import { compactEvidenceContextForPrompt, m04EvidencePromptBudgetChars } from "@/lib/prompt-budget";
+import { compactEvidenceContextForPrompt, m04EvidencePromptBudgetChars, m04ExternalEvidenceSoftDeadlineMs } from "@/lib/prompt-budget";
 import { declassifyAndDropOpposingM04CandidateHerbs } from "@/lib/m04-modification-safety";
+import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
 
 /** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
 function rejectedHerbName(issue: string, reasoning: ReturnType<typeof parseReasoningV2>): string | undefined {
@@ -174,16 +175,32 @@ export async function POST(req: Request) {
   // 并行结构与 diagnose 对齐：assistedNegations 只被 buildLocalPatentMedicineContext 消费，
   // 而 EviMed 那条慢腿不依赖它。原写法把两者串成一条 then 链，等于让 EviMed 白等 6s。
   const assistedNegationsPromise = assistedPolarityDecisions(safeState, req.signal);
+  // 前置各段计时（2026-09-27）：规划器链（模型 + 西药说明书精确检索）与证据链（EviMed）各自耗时，
+  // 此前只能从「规划器结束到提示词压缩日志」之间的 3.5s 空白推断。只记毫秒数。
+  const preModelTimings: Record<string, number> = { prepared: Date.now() - orchestrationStartedAt };
   const [medicinePlan, baseEvidenceContext, inventoryContext] = await Promise.all([
-    planEvidenceBoundMedicineCandidates(safeState, parsed.customer.customerId, req.signal),
-    assistedNegationsPromise.then((assistedNegations) =>
-      buildCdssEvidenceContext(safeState, "prescribe", assistedNegations, req.signal)),
+    planEvidenceBoundMedicineCandidates(safeState, parsed.customer.customerId, req.signal)
+      .then((value) => { preModelTimings.planner = Date.now() - orchestrationStartedAt; return value; }),
+    assistedNegationsPromise.then((assistedNegations) => {
+      const softDeadline = m04ExternalEvidenceSoftDeadlineMs();
+      return buildCdssEvidenceContext(safeState, "prescribe", assistedNegations, req.signal, {
+        externalSoftDeadlineMs: softDeadline == null
+          ? undefined
+          : Math.max(0, softDeadline - (Date.now() - orchestrationStartedAt)),
+      });
+    })
+      .then((value) => { preModelTimings.evidence = Date.now() - orchestrationStartedAt; return value; }),
     // 院内库存可得性（甲方 2026-08-05 入站药品同步）。未导入库存时返回空串，
     // 提示词与导入前逐字节相同——可得性不是安全控制，缺数据不得改变链路行为。
     buildDrugInventoryPromptContext(parsed.customer.customerId),
   ]);
   const evidenceContext = [baseEvidenceContext, medicinePlan.evidenceContext].filter(Boolean).join("\n\n");
-  const basePrompt = buildPrescribePrompt(safeState);
+  // 相似现代医案参考（modern-case-exemplars.server.ts）：按已签名病名、证候、治法与病历检索，引导 + 问责。
+  const similarCases = buildSimilarModernCaseContext(safeState, "prescribe");
+  if (similarCases.cases.length > 0) {
+    console.info("[tcm-cdss:knowledge] similar_modern_cases", { stage: "prescribe", count: similarCases.cases.length, topScore: similarCases.cases[0].score });
+  }
+  const basePrompt = buildPrescribePrompt(safeState, { similarCasesContext: similarCases.context });
   const promptSuffixes = inventoryContext ? [inventoryContext] : [];
   const reviewItems = mergePrescriptionReviewItems(permission.reasons, gated.safetyGate?.missingItems);
   const reviewItemsText = reviewItems.join("、") || "部分病历信息";
@@ -282,6 +299,8 @@ export async function POST(req: Request) {
     },
     safeState,
   );
+  preModelTimings.promptReady = Date.now() - orchestrationStartedAt;
+  console.info("[tcm-cdss:timing] m04_pre_model", preModelTimings);
   return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: req.signal,
     upstreamUnavailableFallback: buildSafetyLimitedPrescription(

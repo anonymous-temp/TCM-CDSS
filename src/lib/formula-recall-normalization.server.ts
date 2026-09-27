@@ -1,3 +1,4 @@
+import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import "server-only";
 
 import type { CaseState } from "./diagnosis-types";
@@ -69,36 +70,40 @@ export async function normalizeCaseTextForFormulaRecall(
   const source = affirmedCaseText(caseState);
   if (source.length < 4) return "";
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), RECALL_TIMEOUT_MS);
-  const onParentAbort = () => controller.abort();
-  signal?.addEventListener("abort", onParentAbort, { once: true });
-  try {
-    const client = createTextModelClient(config);
-    const response = await observeModelTask({ task: "formula_recall_normalize", stage: "diagnose", model: config.model }, () => client.chat.completions.create({
-      model: config.model,
-      temperature: 0,
-      max_tokens: 128,
-      ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: sanitizeFreeTextForModel(source) },
-      ],
-    }, { signal: controller.signal }));
-    const raw = response.choices?.[0]?.message?.content;
-    if (typeof raw !== "string") return "";
-    // 只保留中文词与分隔符：模型若违反格式输出解释性文字，这里会把它压回术语串，
-    // 匹配不到受控主治语料的内容自然不产生任何候选。
-    return raw
-      .replace(/[^一-龥、，,；;\s]/g, "")
-      .replace(/[，,；;\s]+/g, "、")
-      .slice(0, MAX_OUTPUT_CHARS)
-      .trim();
-  } catch {
-    // 召回增强不可用时静默降级为确定性召回，不影响 M03 主链路。
-    return "";
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener("abort", onParentAbort);
-  }
+  const userContent = sanitizeFreeTextForModel(source);
+  // 同一份病例在 M02 已预取过（stage-prefetch.server.ts），这里命中缓存；共享计算不绑定调用方信号。
+  return memoizedSmallTask("formula_recall_normalize", smallTaskMemoKey([config.model, SYSTEM_PROMPT, userContent]), async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), RECALL_TIMEOUT_MS);
+    try {
+      const client = createTextModelClient(config);
+      const response = await observeModelTask({ task: "formula_recall_normalize", stage: "diagnose", model: config.model }, () => client.chat.completions.create({
+        model: config.model,
+        temperature: 0,
+        max_tokens: 128,
+        ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userContent },
+        ],
+      }, { signal: controller.signal }));
+      const raw = response.choices?.[0]?.message?.content;
+      if (typeof raw !== "string") return { value: "", cacheable: false };
+      // 只保留中文词与分隔符：模型若违反格式输出解释性文字，这里会把它压回术语串，
+      // 匹配不到受控主治语料的内容自然不产生任何候选。
+      return {
+        value: raw
+          .replace(/[^一-龥、，,；;\s]/g, "")
+          .replace(/[，,；;\s]+/g, "、")
+          .slice(0, MAX_OUTPUT_CHARS)
+          .trim(),
+        cacheable: true,
+      };
+    } catch {
+      // 召回增强不可用时静默降级为确定性召回，不影响 M03 主链路。
+      return { value: "", cacheable: false };
+    } finally {
+      clearTimeout(timer);
+    }
+  }, "", signal);
 }

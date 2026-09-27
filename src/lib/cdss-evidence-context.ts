@@ -31,9 +31,30 @@ export async function buildCdssEvidenceContext(
   // 症状去召回中成药。兜底层建对了但只铺了一个阶段，这里把它接到 M04。
   assistedNegations?: AssistedNegationClauses,
   signal?: AbortSignal,
+  options?: {
+    /**
+     * 外部检索（EviMed）的软等待上限（毫秒，2026-09-27）。到点仍未返回就不等，本次提示词只带院内/本地
+     * 证据；检索照常跑完并进缓存（修复轮、重新生成与同一病例的下一次调用直接命中）。只有 M04 传：
+     * 线上 M04 的规划器腿约 1.7–2.2s、EviMed 腿 3.6–5.1s，多等的 2–3s 换来的多是与本例无关的条目。
+     */
+    externalSoftDeadlineMs?: number;
+  },
 ): Promise<string> {
   const localContext = buildTcmKnowledgeContext(caseState, stage);
-  const externalEvidenceContext = await buildExternalEvidenceContext(caseState, stage, signal);
+  const externalPromise = buildExternalEvidenceContext(caseState, stage, signal);
+  const softDeadline = options?.externalSoftDeadlineMs;
+  const externalEvidenceContext = softDeadline != null && Number.isFinite(softDeadline)
+    ? await new Promise<string>((resolve) => {
+        const timer = setTimeout(() => {
+          console.info("[tcm-cdss:timing] external_evidence_soft_deadline", { stage, softDeadlineMs: softDeadline });
+          resolve("");
+        }, Math.max(0, softDeadline));
+        externalPromise.then(
+          (value) => { clearTimeout(timer); resolve(value); },
+          () => { clearTimeout(timer); resolve(""); },
+        );
+      })
+    : await externalPromise;
   const formulaProvenanceContext = stage === "prescribe" ? buildFormulaProvenanceContext(caseState) : "";
   // 方剂检索段由阶段提示词自己拼（buildDiagnosePrompt / buildPrescribePrompt），这里不再重复。
   // 曾经两处各拼一份，而提示词那份**不带 recallHint**：口语主诉下它返回「未命中受控经典方主治索引，

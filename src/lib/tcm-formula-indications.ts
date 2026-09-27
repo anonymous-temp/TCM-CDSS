@@ -4,6 +4,7 @@ import retrievalConceptJson from "../data/tcm-formula-retrieval-concepts.json" w
 import retrievalIndexJson from "../data/tcm-formula-retrieval-index.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { applyLineageAffinityPresentationOrder, type FormulaLineageAffinity } from "./tcm-formula-lineage-affinity";
+import { formulaIdentityLockAllowed } from "./tcm-formula-tier";
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, canonicalTcmSyndromeTerm, formulaMatchSyndromeCompatible, governedSyndromeFeatureMatch, governedTcmTermLabelById, governedTreatmentMethodsInText, matchCompatibleGovernedSyndromeIds } from "./clinical-governance-tables";
 import {
@@ -148,7 +149,8 @@ const ENTRIES: readonly FormulaIndicationEntry[] = governedCatalog.entries
     symptomTags: entry.symptomTags,
     diseaseTags: entry.diseaseTags,
     retrievalEligible: entry.retrievalEligible,
-    identityLockEligible: entry.identityLockEligible,
+    // 常用度分层（tcm-formula-tier.ts）：不入层的方仍可检索、仍可作鉴别参考，只是不能锁定为主方身份。
+    identityLockEligible: formulaIdentityLockAllowed(entry),
     prescriptionLockEligible: entry.prescriptionLockEligible,
     doseCompilationEligible: entry.doseCompilationEligible === true,
     governanceStatus: entry.governanceStatus,
@@ -1106,9 +1108,24 @@ export function buildTcmFormulaReasoningContext(
   lineagePreference?: string,
 ): string {
   if (!reasoning) return "【M03后方剂精确检索】无已签名结构化辨证结果，未执行证候/病机召回。";
+  // M03 已锁定、且经「信任模型选方」核验（常用层 + 与签名治法二级类相容，trustedModelFormulaIdentityNames）
+  // 的方名，与正向充分性通过的方同样可以承接。M04 前复核（namedFormulaPositiveSufficiencyIssue）已认它；
+  // 这里的提示词若仍写「未通过正向充分性必须停止沿用」，模型就会把已锁定的方写成「本例辨证组方」，
+  // 随后被 formula_reference_declassified 打回修复（9/27 本机 65 例：32 次，M04 中位 16→37s）。
+  const lockedNames = Array.isArray((reasoning as { overview?: { recommendedFormulaNames?: unknown } }).overview?.recommendedFormulaNames)
+    ? ((reasoning as { overview: { recommendedFormulaNames: unknown[] } }).overview.recommendedFormulaNames)
+      .filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+    : [];
+  const trustedLocked = trustedModelFormulaIdentityNames(reasoning, lockedNames);
+  const carriedLocked = lockedNames.filter((name) => trustedLocked.has(normalizedFormulaIdentity(name)));
+  const lockedCarryLine = carriedLocked.length > 0
+    ? `M03 已锁定方：${carriedLocked.join("、")}（常用方，功效与已签名治法同类，已通过承接核验）。M04 优先承接该方：candidate.name 写「${carriedLocked[0]}加减」，保留服务端给出的基础组成并在其上随证加减。只有本例病机确需另起组方、基础组成大部分不适用时，才写「本例辨证组方」，并在 candidate.applicable 用一句话写明未沿用该方的病例内理由。`
+    : "";
   const candidates = retrieveTcmFormulaCandidatesForReasoning(reasoning, limit);
   if (candidates.length === 0) {
-    return "【M03后方剂精确检索】已签名证候/病机未命中 T8 受控关系；M04 只能承接 M03 的自拟方向，不得临时附会命名方。";
+    return lockedCarryLine
+      ? `【M03后方剂精确检索（T1/T3/T4 → T8；只核对既有选择）】\n${lockedCarryLine}`
+      : "【M03后方剂精确检索】已签名证候/病机未命中 T8 受控关系；M04 只能承接 M03 的自拟方向，不得临时附会命名方。";
   }
   // 展示顺序可按已终审流派取向有限调整；systemLockable 自动锁方读的是
   // retrieveTcmFormulaCandidatesForReasoning 的原始返回序，与此处无关。
@@ -1119,12 +1136,33 @@ export function buildTcmFormulaReasoningContext(
       ? ["流派偏好排序说明：带「流派取向」标注的候选按医师已终审的流派归属做了有限的展示顺序调整；承接纪律与正向充分性判据不因此放宽。"]
       : []),
     ...renderFormulaCandidates(lineagePresentation.ordered, "M03签名证候/病机", lineagePresentation.affinityByName),
-    "承接纪律：只有“命名方正向充分性=通过”的条目才可承接 M03 方名；病性/病位粗粒度命中只能用于鉴别。M04 不得新增、替换或合并 M03 未锁定的方名。若已锁定方未通过正向充分性，必须停止沿用该方名并交回临床复核。",
+    ...(lockedCarryLine ? [lockedCarryLine] : []),
+    lockedCarryLine
+      ? "承接纪律：M03 已锁定方按上一行承接；其余条目只有“命名方正向充分性=通过”的才可作承接参考，病性/病位粗粒度命中只能用于鉴别。M04 不得新增、替换或合并 M03 未锁定的方名。"
+      : "承接纪律：只有“命名方正向充分性=通过”的条目才可承接 M03 方名；病性/病位粗粒度命中只能用于鉴别。M04 不得新增、替换或合并 M03 未锁定的方名。若已锁定方未通过正向充分性，必须停止沿用该方名并交回临床复核。",
   ].join("\n");
 }
 
 function normalizedFormulaIdentity(value: string): string {
   return value.replace(/\s+/g, "").replace(/(?:加减|化裁)$/, "");
+}
+
+/**
+ * M03 锁定的方名里是否有「只靠信任模型选方保留」的（没有受控证候—方剂正向充分性）。
+ * 这类方名是模型推荐的方向，不是受控关系核验过的身份：M04 若按本例病机另行组方，不强制修复
+ * （formulaCompilationContractIssue 据此放行透明降级）。9/27 本机实测：强制时 M04 组成修复
+ * 29/65、中位 37s；受控关系核验过的方仍按原口径强制承接。
+ */
+export function lockedFormulaNamesIncludeModelTrustedOnly(reasoning: unknown, formulaNames: readonly string[]): boolean {
+  if (formulaNames.length === 0 || !trustModelFormulaSelectionEnabled()) return false;
+  try {
+    const governed = new Set(retrieveTcmFormulaCandidatesForReasoning(reasoning as FormulaReasoningProjection, ENTRIES.length)
+      .filter((entry) => entry.positiveSufficiency)
+      .flatMap((entry) => [entry.name, ...entry.aliases].map(normalizedFormulaIdentity)));
+    return formulaNames.some((name) => !governed.has(normalizedFormulaIdentity(name)));
+  } catch {
+    return false;
+  }
 }
 
 /** Recheck a signed M03 formula identity before M04; stale/tampered snapshots fail closed. */
@@ -1140,6 +1178,7 @@ export function namedFormulaPositiveSufficiencyIssue(
     .filter((entry) => entry.positiveSufficiency);
   const allowed = new Set(candidates.flatMap((entry) =>
     [entry.name, ...entry.aliases].map(normalizedFormulaIdentity)));
+  for (const identity of trustedModelFormulaIdentityNames(reasoning, formulaNames)) allowed.add(identity);
   const unsupported = formulaNames.find((name) => !allowed.has(normalizedFormulaIdentity(name)));
   return unsupported ? `named_formula_positive_sufficiency_missing:${unsupported}` : undefined;
 }
@@ -1210,6 +1249,55 @@ export function formulaTherapyAlignedWithSigned(
   const formulaMethods = governedTreatmentMethodsInText((functions || []).join("；"));
   if (formulaMethods.length === 0) return true;
   return formulaMethods.some((method) => signedMethods.has(method.id));
+}
+
+export function trustModelFormulaSelectionEnabled(): boolean {
+  return process.env.CDSS_FORMULA_TRUST_MODEL !== "false";
+}
+
+/**
+ * 模型自选方名的身份核验（M03 签名前 enforceRetrievedM03FormulaSelection 与 M04 前
+ * namedFormulaPositiveSufficiencyIssue **共用这一个谓词**，否则 M03 留下的方 M04 又判不合格）。
+ *
+ * 原判据只认「受控证候—方剂关系」的正向充分性集合。那张关系表太稀：9/27 本机 40 例名医医案里，
+ * 模型给出的主流方名 25 例被它剥掉（含名医原方完带汤）；改为「信任模型选方」后三次重复评测合并，
+ * 对照名医答案的可采纳度 2.94→3.06（逐例 11 升 1 降，p=0.006），安全疑虑不增。
+ * 模型自选的方满足以下全部即保留：目录可锁定（含常用度分层）且功效与已签名治法对齐
+ * （formulaTherapyAlignedWithSigned，与系统自锁、修复候选同一判据——阳黄例导赤散照旧剔除，
+ * test:governed-formula-lock 钉住）。正向充分性集合里的方照旧保留。
+ * 曾试过按国标二级治法类判相容，会把导赤散对阳黄重新放行，且没有评测证据支持，已撤回。
+ * `CDSS_FORMULA_TRUST_MODEL=false` 回退到只认正向充分性（回滚开关，也是 A/B 基线臂）。
+ */
+export function trustedModelFormulaIdentityNames(reasoning: unknown, names: readonly string[]): Set<string> {
+  if (!trustModelFormulaSelectionEnabled() || names.length === 0) return new Set();
+  // 信任的前提是「有可核对的对象」：主证候已形成（不是 unresolved）且签名治法抽得出受控治法词。
+  // 两者缺一，就没有任何东西可以证明这个方对证——退回原判据（只认正向充分性），
+  // 「只凭症状召回不得锁定方名」（test:formula-provenance）照旧成立。
+  const overview = (reasoning as { overview?: { primarySyndrome?: unknown; primarySyndromeResolution?: unknown } } | null | undefined)?.overview;
+  if (typeof overview?.primarySyndrome !== "string" || !overview.primarySyndrome.trim() ||
+    overview.primarySyndromeResolution === "unresolved") return new Set();
+  const signedMethods = signedTherapyMethodIds(reasoning);
+  if (signedMethods.size === 0) return new Set();
+  // 主证 + 兼证：合方常为兼证而设（归脾汤合温胆汤治心脾两虚兼痰热内扰），只对主证核对会误剔。
+  const secondary = (reasoning as { overview?: { secondarySyndromes?: unknown } }).overview?.secondarySyndromes;
+  const signedSyndromeIds = [overview.primarySyndrome, ...(Array.isArray(secondary) ? secondary : [])]
+    .map((value) => canonicalPrimarySyndromeId(value))
+    .filter((id): id is string => Boolean(id));
+  const wanted = new Set(names.map(normalizedFormulaIdentity));
+  const trusted = new Set<string>();
+  for (const entry of ENTRIES) {
+    if (!entry.identityLockEligible) continue;
+    const identities = [entry.name, ...entry.aliases].map(normalizedFormulaIdentity);
+    if (!identities.some((identity) => wanted.has(identity))) continue;
+    if (!formulaTherapyAlignedWithSigned(entry.functions, signedMethods)) continue;
+    // 证候层反证：目录给这张方标了证候、却没有一个与已签名主证/兼证相容（如玉女煎〔胃热阴虚〕对
+    // 肝火扰心，test:formula-provenance 钉住）⇒ 不信任。目录功效为空的方（约八成）只能靠这一道拦。
+    // 没有证候标注的方按数据缺口放行。
+    if (signedSyndromeIds.length > 0 && entry.syndromeTags.length > 0 &&
+      !entry.syndromeTags.some((tag) => signedSyndromeIds.some((id) => formulaMatchSyndromeCompatible(tag, id)))) continue;
+    for (const identity of identities) trusted.add(identity);
+  }
+  return trusted;
 }
 
 export function missedLockableFormulaCandidates(reasoning: unknown, limit = 3): string[] {
@@ -1308,6 +1396,13 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
         const names = Array.isArray(parsed.overview.recommendedFormulaNames)
           ? parsed.overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string")
           : [];
+        // 模型自己选的方按 trustedModelFormulaIdentityNames 放行（与 M04 前复核同一谓词）；
+        // 只扩大「模型原选名单」的保留范围，不改变系统自锁与修复候选的判据。
+        const trustedIdentities = trustedModelFormulaIdentityNames(parsed, names);
+        for (const name of names) {
+          const identity = normalizedFormulaIdentity(name);
+          if (trustedIdentities.has(identity) && lockEligible.has(identity)) allowed.add(name.replace(/\s+/g, ""));
+        }
         // 证候级检索里已通过确定性核验、可直接锁定的方（top1 锁定，其余留作医生备选）。
         //
         // 判据与「校验模型选的方」完全同源：identityLockEligible（目录有证候标注）

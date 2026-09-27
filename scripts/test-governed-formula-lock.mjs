@@ -188,7 +188,12 @@ const YANGHUANG = {
 {
   // 作废不得静默:模型原选必须留在签名信封里,否则医生看到一张自拟方,
   // 既不知道系统本来锁的是什么,也不知道为什么撤——M04 剥名说明的兜底取的正是这里。
-  const out = run(m03({ ...YANGHUANG, names: ["茵陈蒿汤"], mode: "single" }));
+  //
+  // 2026-09-27 起「信任模型选方」：模型自选的常用方与签名治法对齐、且目录证候标注无反证即保留
+  // （见 trustedModelFormulaIdentityNames）。留痕机制改用治法对立的导赤散来钉，断言一条不减。
+  // 注：茵陈蒿汤目录功效为空、证候标注（湿热困脾/湿热发黄）与本夹具主证候在受控相容表里不相容，
+  // 按「证候层反证」仍不信任——这是相容表的数据缺口，不是本规则要放宽的对象（已记入 9/27 报告）。
+  const out = run(m03({ ...YANGHUANG, names: ["导赤散"], mode: "single" }));
   const deferred = out?.overview?.deferredFormulaSelection;
   if ((out?.overview?.recommendedFormulaNames || []).length > 0) {
     failures.push({ case: "作废留痕", why: "留痕不得放宽锁定，names 仍须清空" });
@@ -196,7 +201,7 @@ const YANGHUANG = {
   if (out?.overview?.formulaSelectionMode !== "self_devised") {
     failures.push({ case: "作废留痕", why: `仍须降为自拟方，实际 ${out?.overview?.formulaSelectionMode}` });
   }
-  if (!deferred || !(deferred.names || []).includes("茵陈蒿汤")) {
+  if (!deferred || !(deferred.names || []).includes("导赤散")) {
     failures.push({ case: "作废留痕", why: `模型原选未留痕，deferred=${JSON.stringify(deferred)}` });
   }
   if (deferred && !deferred.reason) {
@@ -372,28 +377,44 @@ assert.equal(
 // 这与第二节「模型选了但没过核验不得用系统的方顶替」不冲突：保留的方是**模型自己选的**，
 // 且自己通过了同一道门（identityLockEligible + positiveSufficiency + 目录级 lockEligible）。
 // 阳黄例的教训针对的是「全部未通过时换一个模型没考虑过的方」，这里一个都没换。
+//
+// 2026-09-27 起「信任模型选方」：模型自选的常用方、治法对齐（含目录功效缺失）即保留，
+// 于是病例78 的归脾汤合温胆汤（心脾两虚痰热内扰的常用合方）整组保留，下方先钉这一条；
+// 「部分通过 / 全部未通过」的机制本身改用治法对立的藿香正气散、导赤散作夹具，断言一条不减。
 {
-  const out = run(m03({
+  const combinedInput = m03({
     syndrome: "心脾两虚证",
     pathogenesis: "心脾两虚，气血不足，心神失养",
     therapy: "健脾养心，益气补血",
     names: ["归脾汤", "温胆汤"],
     mode: "combined",
+  });
+  combinedInput.overview.secondarySyndromes = ["痰热内扰证"];
+  const combinedKept = run(combinedInput);
+  check("信任模型选方：兼证对应的常用合方整组保留", () => {
+    assert.deepEqual([...(combinedKept?.overview?.recommendedFormulaNames || [])].sort(), ["归脾汤", "温胆汤"].sort());
+  });
+  const out = run(m03({
+    syndrome: "心脾两虚证",
+    pathogenesis: "心脾两虚，气血不足，心神失养",
+    therapy: "健脾养心，益气补血",
+    names: ["归脾汤", "藿香正气散"],
+    mode: "combined",
   }));
   const kept = out?.overview?.recommendedFormulaNames || [];
   check("合方部分通过：保留已核验的方，不再整组撤销", () => {
     assert.ok(kept.includes("归脾汤"), `应保留归脾汤，实际 ${JSON.stringify(kept)}`);
-    assert.ok(!kept.includes("温胆汤"), `未通过核验的方必须剔除，实际 ${JSON.stringify(kept)}`);
+    assert.ok(!kept.includes("藿香正气散"), `未通过核验的方必须剔除，实际 ${JSON.stringify(kept)}`);
     assert.equal(out?.overview?.formulaSelectionMode, "single", "只剩一个方时降为 single");
   });
   check("合方部分通过：被剔除的方名留痕可追溯", () => {
     const deferred = out?.overview?.deferredFormulaSelection;
     assert.ok(deferred, "必须留痕");
-    assert.ok((deferred.names || []).includes("温胆汤"), `留痕需含被剔除方名，实际 ${JSON.stringify(deferred)}`);
+    assert.ok((deferred.names || []).includes("藿香正气散"), `留痕需含被剔除方名，实际 ${JSON.stringify(deferred)}`);
     assert.equal(deferred.reason, "governed_syndrome_relation_unverified");
   });
   check("合方部分通过：方向文本不得再声称已被剔除的方", () => {
-    assert.ok(!String(out?.overview?.recommendedFormulaDirection || "").includes("温胆汤"),
+    assert.ok(!String(out?.overview?.recommendedFormulaDirection || "").includes("藿香正气散"),
       `方向仍提着被剔除的方：${out?.overview?.recommendedFormulaDirection}`);
   });
 }
@@ -403,7 +424,7 @@ assert.equal(
     syndrome: "心脾两虚证",
     pathogenesis: "心脾两虚，气血不足",
     therapy: "健脾养心，益气补血",
-    names: ["温胆汤", "藿香正气散"],
+    names: ["导赤散", "藿香正气散"],
     mode: "combined",
   }));
   check("合方全部未通过：仍整组撤销走自拟方", () => {

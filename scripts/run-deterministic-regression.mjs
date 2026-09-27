@@ -350,6 +350,12 @@ const scripts = [
   // 判据不是"字段对不对"，是"产物是不是源文档的当前产物"：重跑生成器逐字节比对。
   "test:delivery-doc-freshness",
   "test:prompt-evidence-budget",
+  // 2026-09-27 提速第四批：M02 事实/出题并行的指纹等价、EviMed 与小任务缓存、阶段预取接线、M04 外部证据软等待。
+  "test:latency-prefetch-caches",
+  // 2026-09-27：DeepSeek strict 工具调用只作 M03 两半「内容不合规」后的重试通道；参数 schema 落在 strict 子集、回映射可过同一套校验。
+  "test:strict-tool-retry",
+  // 2026-09-27 知识/规则层：方剂常用度分层+信任模型选方（二级治法相容）、总体病机对冲改 T2、证据相关性过滤与按段裁剪、相似现代医案（引导+问责）。
+  "test:knowledge-rules-20260927",
   "test:modern-case-corpus",
   "test:disease-lexicon",
   "test:runtime-data-presence",

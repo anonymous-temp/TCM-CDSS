@@ -67,7 +67,12 @@ const M04_DOSE_REPAIR_ENVELOPE_KEYS = new Set([
 ]);
 
 function doseRepairProposalRecord(value: unknown): Record<string, unknown> | undefined {
-  const root = recordValue(value);
+  const raw = recordValue(value);
+  // referenceCaseUse 是相似医案的问责说明，只供遥测（modern-case-exemplars.server）；它不是提案字段，
+  // 不能让「多一个键」把本可定向修复的提案推到整份重写（本机实测 41s vs 定向约 25s）。
+  const root = raw && "referenceCaseUse" in raw
+    ? Object.fromEntries(Object.entries(raw).filter(([key]) => key !== "referenceCaseUse"))
+    : raw;
   if (!root || (root.schemaVersion !== undefined && root.schemaVersion !== "tcm-cdss-m04-proposal-v1")) {
     return undefined;
   }
@@ -904,7 +909,7 @@ export function structuredClinicalRepairHint(
     ].join("\n");
   }
   const decision = reason.match(/^m03_(heat|cold_yang|phlegm_damp|blood_stasis|yin_deficiency)_decision_ungrounded$/)?.[1];
-  if (!decision && /^m03_(?:chain_(?:empty|incomplete)|primary_syndrome_unstable|overall_pathogenesis_unstable|therapy(?:_method)?_unstable|western_(?:diagnosis_unstable|support_empty))$/.test(reason)) {
+  if (!decision && /^m03_(?:chain_(?:empty|incomplete)|primary_syndrome_unstable|overall_pathogenesis_(?:unstable|hedged)|therapy(?:_method)?_unstable|western_(?:diagnosis_unstable|support_empty))$/.test(reason)) {
     return [
       "本例资料有限，但有限不等于不能形成最小临床判断。请把所有“待辨、未明、无法明确、资料不足、需补充”等不确定表述移到 pathogenesis.uncertainties，不能留在 overview、westernDiagnosis.primary、pathogenesis.chain 或 therapy 的核心字段中。",
       "至少保留一条完全闭合的病机链：patientFact 必须从“患者事实边界”逐字复制一段完整的当前阳性原文，不能缩写或同义改写；syndromeEvidence 只引用同一事实；pathogenesis 给出与该事实相称的最小、保守病机（可用“失养、失和、失司、受扰”等中性机制，不得擅自锁定寒热痰瘀虚实）；therapyDirection 给出与该最小病机一致、且不含具体药物剂量的治法方向。",
