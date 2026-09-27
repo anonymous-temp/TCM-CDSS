@@ -352,6 +352,9 @@ const scripts = [
   "test:prompt-evidence-budget",
   // 2026-09-27 提速第四批：M02 事实/出题并行的指纹等价、EviMed 与小任务缓存、阶段预取接线、M04 外部证据软等待。
   "test:latency-prefetch-caches",
+  // 2026-09-27 提速第五批：M04 签名后预取 M05 随访作文（前端形状与接口直调形状都须命中，含十八反改写首次复诊时间的一例）；
+  // 请求体 gzip/deflate（M05 请求体 140–170KB，外网上行慢时上传占 M05 客户端耗时一半），解压后与传输字节双上限。
+  "test:m05-prefetch-request-compression",
   // 2026-09-27：DeepSeek strict 工具调用只作 M03 两半「内容不合规」后的重试通道；参数 schema 落在 strict 子集、回映射可过同一套校验。
   "test:strict-tool-retry",
   // 2026-09-27 知识/规则层：方剂常用度分层+信任模型选方（二级治法相容）、总体病机对冲改 T2、证据相关性过滤与按段裁剪、相似现代医案（引导+问责）。

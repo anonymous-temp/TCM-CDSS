@@ -1,12 +1,27 @@
 import type { CaseState } from "./diagnosis-types";
-import { extractDiagnosisJSON, stripDiagnosisJSON } from "./diagnosis-parse";
+import {
+  diagnoseReasoningFromState,
+  extractDiagnosisJSON,
+  mergeReasoningStages,
+  prescribeReasoningFromState,
+  stripDiagnosisJSON,
+} from "./diagnosis-parse";
 import { STREAM_REPLACE_MARKER } from "./diagnosis-stream-protocol";
 import { buildExternalEvidenceContext } from "./evimed-guide";
 import { normalizeCaseTextForFormulaRecall } from "./formula-recall-normalization.server";
 import { assistedPolarityDecisions } from "./polarity-negation-assist.server";
 import { rerankSyndromeHypothesesForFormulaRecall } from "./syndrome-hypothesis-rerank.server";
-import { sanitizeCaseStateForModel, withSafetyGate } from "./diagnosis-safety";
+import { deriveSafetyLocked, sanitizeCaseStateForModel, withSafetyGate } from "./diagnosis-safety";
 import { planEvidenceBoundMedicineCandidates } from "./medicine-candidate-planner.server";
+import { maybeAttachClinicalFactsBackstop } from "./clinical-facts-runtime";
+import {
+  buildLocalHighRiskHerbPairSection,
+  buildPrescriptionInputAdvisories,
+  buildPrescriptionInputAdvisorySection,
+  buildRetainedPrescriptionRiskSection,
+  resolvePrescriptionCandidateIndex,
+} from "./local-prescription-checks";
+import { authorFollowupForCase } from "./m05-followup-authoring.server";
 
 /**
  * 阶段间预取（2026-09-27，提速）。
@@ -121,4 +136,49 @@ export function prefetchDiagnoseInputs(caseState: CaseState): void {
   } catch {
     // 预取是纯增益：任何异常都不影响 M02 本身。
   }
+}
+
+/**
+ * M04 → M05 预取（2026-09-27，提速）。M05 路由 ~4s 里 ~3.7s 是随访作文这一次模型调用
+ * （生产 9/27 四例 3.2–4.1s），其输入只有「病例 + 已签名 M03 + 已签名 M04 选中候选的药味 +
+ * 本地确定性处方核对」，M04 签名那一刻就全部齐了。所以 M04 流结束时按「M05 将会收到的病例形状」
+ * （与前端 M04 完成后写回的状态同形：去掉 JSON 块的处方正文、签名 M04、合并后的 reasoningV2）
+ * 把 assess 路由到作文为止的计算走一遍，结果进 m05-followup-authoring 的缓存；M05 原样调用时命中。
+ *
+ * 这里与 assess 路由逐步对应（非工作台改方、带签名 M04 的那条路径）。两边一旦不一致，后果只是
+ * 缓存未命中（作文缓存的键是实际下发给模型的用户消息），不会拿错结果；test:latency-prefetch-caches
+ * 用「先预取、再真实调用 assess 路由、模型只被调一次」钉住两边同形。
+ * `CDSS_M05_PREFETCH=false` 关闭。
+ */
+export function prefetchAssessFollowupFromSignedPrescribe(requestCaseState: CaseState, finalPrescribeContent: string): Promise<void> {
+  if (process.env.CDSS_M05_PREFETCH === "false") return Promise.resolve();
+  return (async () => {
+    const reasoning = extractDiagnosisJSON(finalPrescribeContent);
+    if (!reasoning || reasoning.stage !== "prescribe" || typeof reasoning.contractSignature !== "string") return;
+    const reasoningPrescribe = reasoning as unknown as CaseState["reasoningPrescribe"];
+    const handoff: CaseState = {
+      ...requestCaseState,
+      prescription: stripDiagnosisJSON(finalPrescribeContent).replace(/\[TRUNCATED\]/g, "").trim(),
+      reasoningPrescribe,
+      reasoningV2: mergeReasoningStages(diagnoseReasoningFromState(requestCaseState), reasoningPrescribe) || requestCaseState.reasoningV2,
+      riskAssessment: undefined,
+      followupTimeline: undefined,
+      safetyLocked: false,
+      phase: "assess",
+    };
+    // ↓ 与 assess/route.ts 同序同参：事实回补 → 安全门 → 选中候选 → 本地处方核对三段 → 作文。
+    const caseState = await maybeAttachClinicalFactsBackstop(handoff, undefined, undefined);
+    const gated = withSafetyGate(caseState);
+    const diagnoseReasoning = diagnoseReasoningFromState(gated);
+    const prescribed = prescribeReasoningFromState(gated);
+    const candidateIndex = gated.prescriptionRevision?.candidateIndex ?? resolvePrescriptionCandidateIndex(gated);
+    const selectedCandidate = candidateIndex == null ? undefined : prescribed?.formula?.candidates[candidateIndex];
+    const postPrescriptionRisk = [
+      buildLocalHighRiskHerbPairSection(gated, candidateIndex),
+      buildRetainedPrescriptionRiskSection(gated.prescriptionRevision),
+      buildPrescriptionInputAdvisorySection(buildPrescriptionInputAdvisories(gated, candidateIndex)),
+    ].filter(Boolean).join("\n\n");
+    const assessed = withSafetyGate({ ...gated, riskAssessment: postPrescriptionRisk, safetyLocked: deriveSafetyLocked(gated) });
+    await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate);
+  })().catch(() => undefined);
 }

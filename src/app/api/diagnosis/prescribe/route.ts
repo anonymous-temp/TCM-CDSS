@@ -1,3 +1,4 @@
+import { prefetchAssessFollowupFromSignedPrescribe, tapFinalStageContent } from "@/lib/stage-prefetch.server";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
@@ -301,7 +302,7 @@ export async function POST(req: Request) {
   );
   preModelTimings.promptReady = Date.now() - orchestrationStartedAt;
   console.info("[tcm-cdss:timing] m04_pre_model", preModelTimings);
-  return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
+  const response = await callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: req.signal,
     upstreamUnavailableFallback: buildSafetyLimitedPrescription(
       upstreamUnavailableGate,
@@ -449,5 +450,9 @@ export async function POST(req: Request) {
         synchronized,
       ].filter(Boolean).join("\n\n");
     },
+  });
+  // M04 签名完成即预取本例 M05 的随访作文（stage-prefetch.server.ts）。只写作文缓存。
+  return tapFinalStageContent(response, (finalContent) => {
+    void prefetchAssessFollowupFromSignedPrescribe(parsed.caseState, finalContent);
   });
 }

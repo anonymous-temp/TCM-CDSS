@@ -212,6 +212,26 @@ async function isTongueVisionAvailable(): Promise<boolean> {
 // and avoids threading an AbortSignal through every stage fetch.
 let activeRunAbortController: AbortController | null = null;
 
+// 请求体压缩（2026-09-27，提速）：M04/M05 要原样回传上一阶段的正文与签名结论，请求体 50–170KB，
+// 上行慢的链路上光上传就占 M05 耗时的一半。服务端 readJsonBodyWithLimit 接受 Content-Encoding: gzip，
+// 中文 JSON 压到约 1/5。浏览器不支持 CompressionStream、压缩失败，或中间设备不接受压缩请求
+//（415 / 400）时退回原样发送，并在本页后续请求里不再压缩。
+const REQUEST_COMPRESSION_MIN_CHARS = 16 * 1024;
+let requestCompressionRejected = false;
+
+async function gzipRequestInit(init?: RequestInit): Promise<RequestInit | undefined> {
+  if (requestCompressionRejected || !init || typeof init.body !== "string" || init.body.length < REQUEST_COMPRESSION_MIN_CHARS) return undefined;
+  if (typeof CompressionStream === "undefined") return undefined;
+  try {
+    const compressed = await new Response(new Blob([init.body]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
+    const headers = new Headers(init.headers);
+    headers.set("Content-Encoding", "gzip");
+    return { ...init, body: compressed, headers };
+  } catch {
+    return undefined;
+  }
+}
+
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, timeoutMs = DIAGNOSIS_REQUEST_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -222,6 +242,17 @@ async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, ti
     else runController.signal.addEventListener("abort", onRunAbort, { once: true });
   }
   try {
+    const compressedInit = await gzipRequestInit(init);
+    if (compressedInit) {
+      const response = await fetch(input, { ...compressedInit, signal: controller.signal });
+      if (response.status !== 415 && response.status !== 400) return response;
+      // 400 也可能是病例本身不合法：原样重发得到同一个 400、不产生模型调用，压缩照旧；
+      // 原样重发成功才说明是压缩请求被链路弄坏了，本页此后不再压缩。
+      await response.body?.cancel().catch(() => undefined);
+      const plain = await fetch(input, { ...init, signal: controller.signal });
+      if (response.status === 415 || plain.status !== 400) requestCompressionRejected = true;
+      return plain;
+    }
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
