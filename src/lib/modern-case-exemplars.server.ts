@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import exemplarJson from "../data/tcm-modern-case-exemplars.json" with { type: "json" };
 import type { CaseState } from "./diagnosis-types";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 
@@ -53,8 +52,26 @@ function evaluationExclusions(): Set<string> {
   }
 }
 const EVALUATION_EXCLUDED = evaluationExclusions();
-const EXEMPLARS = (exemplarJson as unknown as { exemplars: Exemplar[] }).exemplars
-  .filter((item) => !EVALUATION_EXCLUDED.has(item.id));
+
+/**
+ * 运行时读取（不走静态 import）：7.7MB 的医案索引若静态 import，会被 webpack 打进 diagnose 与
+ * prescribe 两条路由的服务端产物、并在 terser 阶段抬高构建内存（本机 7.7GB 机器上预编译两次被
+ * OOM 杀掉）。readFileSync 的 URL 必须保持字面量，文件追踪才会把它收进 standalone（同
+ * tcm-classic-evidence.server.ts 的写法）。读不到时功能静默关闭，不影响诊断链路。
+ */
+let exemplarCache: Exemplar[] | undefined;
+function exemplars(): Exemplar[] {
+  if (exemplarCache) return exemplarCache;
+  try {
+    const raw = readFileSync(new URL("../data/tcm-modern-case-exemplars.json", import.meta.url), "utf8");
+    const parsed = JSON.parse(raw) as { exemplars?: Exemplar[] };
+    exemplarCache = (parsed.exemplars || []).filter((item) => !EVALUATION_EXCLUDED.has(item.id));
+  } catch {
+    console.warn("[tcm-cdss:knowledge] modern-case exemplars unavailable; similar-case reference disabled");
+    exemplarCache = [];
+  }
+  return exemplarCache;
+}
 const SIMILAR_CASE_LIMIT = 3;
 
 export function similarModernCasesEnabled(): boolean {
@@ -83,6 +100,7 @@ function exemplarText(item: Exemplar): string {
 
 function buildIndex(): Index {
   const lists = new Map<string, number[]>();
+  const EXEMPLARS = exemplars();
   const lengths = new Float64Array(EXEMPLARS.length);
   EXEMPLARS.forEach((item, docId) => {
     const unique = new Set(bigrams(exemplarText(item)));
@@ -133,7 +151,9 @@ function queryTextFor(caseState: CaseState, stage: "diagnose" | "prescribe"): { 
 
 /** 确定性检索：字符二元组 BM25 式打分 + 病名一致加权 + 同方同药去重。 */
 export function retrieveSimilarModernCases(caseState: CaseState, stage: "diagnose" | "prescribe"): SimilarModernCase[] {
-  if (!similarModernCasesEnabled() || EXEMPLARS.length === 0) return [];
+  if (!similarModernCasesEnabled()) return [];
+  const EXEMPLARS = exemplars();
+  if (EXEMPLARS.length === 0) return [];
   const { text, chiefComplaint, diseaseNames } = queryTextFor(caseState, stage);
   // 主诉是全案锚点（与 M03 提示词「主诉主症是全案锚点」同一口径）：主诉里的字对权重加倍，
   // 并按主诉相似度再加权，避免长病史里的旁支信息（月经、既往病）把检索带偏。
