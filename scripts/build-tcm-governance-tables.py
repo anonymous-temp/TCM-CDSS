@@ -32,6 +32,8 @@ VERIFIED_FORMULAS = DATA_ROOT / "tcm-verified-formula-supplements.json"
 FORMULA_STANDARD_SOURCE = DATA_ROOT / "szjg-tcm-formula-standard.json"
 HERB_IDENTITY_SUPPLEMENTS = DATA_ROOT / "tcm-herb-identity-supplements.json"
 FORMULA_OUTPUT = DATA_ROOT / "tcm-formula-governed-catalog.json"
+# 《方剂学》教材功用（scripts/build-formula-textbook-functions.py 生成）：给目录里功效为空的条目补 functions。
+TEXTBOOK_FUNCTIONS = DATA_ROOT / "tcm-formula-textbook-functions.json"
 FORMULA_RETRIEVAL_CONCEPTS = DATA_ROOT / "tcm-formula-retrieval-concepts.json"
 FORMULA_RETRIEVAL_CONCEPTS_SOURCE = DATA_ROOT / "tcm-formula-retrieval-concepts.source.json"
 # 受治理症状词族表（症状→病位/病性轴），已被 tcm-syndrome-hypothesis / tcm-chief-complaint-anchor
@@ -1453,6 +1455,63 @@ def build_retrieval_concepts() -> list[dict[str, Any]]:
     return entries
 
 
+
+def fill_textbook_functions(entries: list[dict[str, Any]]) -> int:
+    """
+    目录功效补全（2026-09-28）。2,969 首里只有 545 首（深圳方剂标准那批）带 functions，其余为空——
+    运行期「信任模型选方」与系统自锁的治法对齐判据（formulaTherapyAlignedWithSigned）对功效为空的方一律
+    默认对齐，只能退而用证候标注做反证：完带汤、茵陈蒿汤这类名医常用方因证候标注不全被剥掉，
+    达原饮这类方也会被自锁到胃痛病例上。这里用《方剂学》规划教材的【功用】补空（只补空，已有的不动）。
+
+    同名不等于同方：只有下列之一成立才补——
+      ① 教材出处书名出现在目录出处里（或反之）；
+      ② 目录组成至少 60% 的药味（且不少于 2 味）出现在教材【组成】原文里。
+    每条补上的功效都记来源（functionsSource），便于复核与回滚。
+    """
+    if not TEXTBOOK_FUNCTIONS.exists():
+        return 0
+    textbook = json.loads(TEXTBOOK_FUNCTIONS.read_text(encoding="utf-8")).get("entries", [])
+    by_name: dict[str, list[dict[str, Any]]] = {}
+    for row in textbook:
+        for key in {compact(row.get("name")), *[compact(alias) for alias in row.get("aliases") or []]}:
+            if key:
+                by_name.setdefault(key, []).append(row)
+    filled = 0
+    for entry in entries:
+        if entry.get("functions"):
+            continue
+        keys = {compact(entry.get("name")), *[compact(alias) for alias in entry.get("aliases") or []]}
+        candidates = [row for key in keys if key for row in by_name.get(key, [])]
+        if not candidates:
+            continue
+        entry_source = compact(entry.get("source"))
+        chosen = None
+        match_kind = ""
+        for row in candidates:
+            book = compact(row.get("source")).strip("《》")
+            if book and (book in entry_source or (entry_source.strip("《》。") and entry_source.strip("《》。") in book)):
+                chosen, match_kind = row, "source_book"
+                break
+        if chosen is None:
+            ingredients = [compact(name) for name in entry.get("ingredients") or [] if compact(name)]
+            for row in candidates:
+                composition = compact(row.get("composition"))
+                present = sum(1 for name in ingredients if name and name in composition)
+                if len(ingredients) >= 2 and present >= 2 and present / len(ingredients) >= 0.6:
+                    chosen, match_kind = row, "composition_overlap"
+                    break
+        if chosen is None:
+            continue
+        entry["functions"] = list(chosen["functions"])
+        entry["functionsSource"] = {
+            "work": "《方剂学》规划教材",
+            "textbookSource": chosen.get("source"),
+            "textbookKind": chosen.get("kind"),
+            "match": match_kind,
+        }
+        filled += 1
+    return filled
+
 def build_formula_catalog(
     resolution_index: dict[str, dict[str, Any]],
     numeric_dose_names: set[str],
@@ -2231,10 +2290,13 @@ def build_formula_catalog(
             + "; ".join(unreachable)
         )
 
+    textbook_functions_filled = fill_textbook_functions(entries)
+
     payload = {
         "schemaVersion": "tcm-formula-governed-catalog-v2",
         "sources": [
             {"file": FORMULA_SOURCE.name, "sha256": sha256(FORMULA_SOURCE)},
+            *([{"file": TEXTBOOK_FUNCTIONS.name, "sha256": sha256(TEXTBOOK_FUNCTIONS)}] if TEXTBOOK_FUNCTIONS.exists() else []),
             {"file": FORMULA_INDICATIONS.name, "sha256": sha256(FORMULA_INDICATIONS)},
             {"file": VERIFIED_FORMULAS.name, "sha256": sha256(VERIFIED_FORMULAS)},
             {
@@ -2252,6 +2314,7 @@ def build_formula_catalog(
             "sameNamePolicy": "门诊裸词“加味逍遥散”按别名归入丹栀逍遥散；只有明确《审视瑶函》或暴盲语境才进入具名眼科变体。",
         },
         "summary": {
+            "textbookFunctionsFilled": textbook_functions_filled,
             "syndromeTagRouteRejectedCount": sum(bool(item.get("syndromeTagRejection")) for item in entries),
             "syndromeTagCuratedNeutralizedCount": len(neutralized_curated_tags),
             # 名实不符被整条剔除的条目。落进 summary 而不只是打印，

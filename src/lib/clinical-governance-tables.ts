@@ -604,6 +604,25 @@ export function treatmentMethodCoveredBy(
   });
 }
 
+/**
+ * 两条治法是否同一方向：同一受控 ID，或互为编号上下位（同一支系，如 化湿 4.9.1 之于 除湿止带 4.9.1.1.4.1）。
+ * 与 treatmentMethodCoveredBy 不同，这里**不认同族兄弟**：补气 4.11.1 与补血 4.11.2、补阴与补阳同族，
+ * 却不是同一方向；上位一方至少三级编号，避免「4.9 祛湿」这类大类把整支都算作对齐。
+ * 方剂功效与签名治法的对齐判据（tcm-formula-indications.formulaTherapyAlignedWithSigned）用它。
+ */
+export function treatmentMethodsShareLineage(left: TreatmentPrincipleEntry, right: TreatmentPrincipleEntry): boolean {
+  if (left.id === right.id) return true;
+  const a = typeof left.standardNumber === "string" ? left.standardNumber.trim() : "";
+  const b = typeof right.standardNumber === "string" ? right.standardNumber.trim() : "";
+  if (!a || !b || a === b) return a !== "" && a === b;
+  const [ancestor, descendant] = a.length <= b.length ? [a, b] : [b, a];
+  return ancestor.split(".").length >= 3 && descendant.startsWith(`${ancestor}.`);
+}
+
+export function governedTreatmentMethodById(id: string): TreatmentPrincipleEntry | undefined {
+  return treatmentPrincipleEntries.find((entry) => entry.id === id);
+}
+
 export function governedTreatmentPrinciplePromptContext(): string {
   const entries = treatmentPrincipleEntries.filter((entry) =>
     entry.termClass !== "category_heading" &&

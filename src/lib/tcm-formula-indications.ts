@@ -6,7 +6,7 @@ import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { applyLineageAffinityPresentationOrder, type FormulaLineageAffinity } from "./tcm-formula-lineage-affinity";
 import { formulaIdentityLockAllowed } from "./tcm-formula-tier";
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
-import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, canonicalTcmSyndromeTerm, formulaMatchSyndromeCompatible, governedSyndromeFeatureMatch, governedTcmTermLabelById, governedTreatmentMethodsInText, matchCompatibleGovernedSyndromeIds } from "./clinical-governance-tables";
+import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, canonicalTcmSyndromeTerm, formulaMatchSyndromeCompatible, governedSyndromeFeatureMatch, governedTcmTermLabelById, governedTreatmentMethodById, governedTreatmentMethodsInText, matchCompatibleGovernedSyndromeIds, treatmentMethodsShareLineage } from "./clinical-governance-tables";
 import {
   applyBoundedSyndromeHypothesisRerank,
   clinicalAxesFromAffirmedText,
@@ -32,6 +32,8 @@ type FormulaIndicationEntry = {
   indications: string[];
   /** 方剂功效（目录 functions 列），用于系统自主锁定时的治法一致性核验。 */
   functions: string[];
+  /** 功效来源：教材补全（textbook）只作正面对齐证据，见 formulaTherapyAlignedWithSigned。 */
+  functionsProvenance?: "textbook";
   syndromeTags: string[];
   curatedSyndromeTags: string[];
   curatedSyndromeRelations: CuratedSyndromeRelation[];
@@ -103,6 +105,7 @@ const CLINICAL_CONCEPTS: readonly ClinicalConcept[] = (
 
 type GovernedFormulaRow = {
   id: string;
+  functionsSource?: { work: string; textbookSource?: string; match?: string };
   name: string;
   aliases?: string[];
   source: string;
@@ -141,6 +144,7 @@ const ENTRIES: readonly FormulaIndicationEntry[] = governedCatalog.entries
     catalog: entry.sourceClass,
     indications: entry.indications,
     functions: entry.functions || [],
+    ...(entry.functionsSource ? { functionsProvenance: "textbook" as const } : {}),
     syndromeTags: entry.syndromeTags,
     curatedSyndromeTags: entry.curatedSyndromeTags || [],
     curatedSyndromeRelations: entry.curatedSyndromeRelations || [],
@@ -1244,11 +1248,35 @@ export function signedTherapyMethodIds(reasoning: unknown): Set<string> {
 export function formulaTherapyAlignedWithSigned(
   functions: readonly string[] | undefined,
   signedMethods: ReadonlySet<string>,
+  provenance?: "textbook",
 ): boolean {
   if (signedMethods.size === 0) return true;
   const formulaMethods = governedTreatmentMethodsInText((functions || []).join("；"));
   if (formulaMethods.length === 0) return true;
-  return formulaMethods.some((method) => signedMethods.has(method.id));
+  if (formulaFunctionsPositivelyAligned(functions, signedMethods)) return true;
+  // 教材补全的功效（2026-09-28，目录里原本功效为空的 154 首）只作正面证据：受控词表按整词包含匹配，
+  // 教材短语「补脾疏肝」「健脾养心」往往一个治法词也抽不出，对不上是词表粒度，不是方证相悖。
+  // 对不上时退回补全前的判法（功效为空＝不据此否决），否则归脾汤对心脾两虚不寐、温胆汤对痰热内扰都会被误剔。
+  return provenance === "textbook";
+}
+
+/**
+ * 功效与签名治法有**正面**对齐证据：同一受控治法，或编号上下位（treatmentMethodsShareLineage）。
+ * 9/27 前只认 ID 精确相等，「化湿」与「除湿止带」、「清肝泻火」与「清肝泄火解郁」这类同一支系的上下位
+ * 措辞被当成不对齐；兄弟类（补气/补血）与大类前缀（4.9）仍不算，导赤散〔清心利湿 4.9.3.1.3〕对
+ * 阳黄〔清热利湿 4.9.1.3.2〕照旧不对齐。
+ */
+export function formulaFunctionsPositivelyAligned(
+  functions: readonly string[] | undefined,
+  signedMethods: ReadonlySet<string>,
+): boolean {
+  const formulaMethods = governedTreatmentMethodsInText((functions || []).join("；"));
+  if (formulaMethods.length === 0 || signedMethods.size === 0) return false;
+  const signedEntries = [...signedMethods]
+    .map((id) => governedTreatmentMethodById(id))
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+  return formulaMethods.some((method) => signedMethods.has(method.id) ||
+    signedEntries.some((signed) => treatmentMethodsShareLineage(method, signed)));
 }
 
 export function trustModelFormulaSelectionEnabled(): boolean {
@@ -1289,13 +1317,14 @@ export function trustedModelFormulaIdentityNames(reasoning: unknown, names: read
     if (!entry.identityLockEligible) continue;
     const identities = [entry.name, ...entry.aliases].map(normalizedFormulaIdentity);
     if (!identities.some((identity) => wanted.has(identity))) continue;
-    if (!formulaTherapyAlignedWithSigned(entry.functions, signedMethods)) continue;
+    if (!formulaTherapyAlignedWithSigned(entry.functions, signedMethods, entry.functionsProvenance)) continue;
     // 证候层反证只用在「目录功效为空」的方上（没有任何治法层证据可核对时）：目录给它标了证候、
     // 却没有一个与已签名主证/兼证相容（如玉女煎〔胃热阴虚〕对肝火扰心，test:formula-provenance 钉住）
     // ⇒ 不信任。功效与签名治法已精确对齐的方有正面证据，不再用证候标注二次否决——9/27 实测对所有方
     // 一律加这道门，会把血府逐瘀汤、逍遥散、八珍汤、归脾汤等主流方也剥掉（M03 给出方名 23→10/40）。
     // 没有证候标注的方按数据缺口放行。
-    const functionsEmpty = governedTreatmentMethodsInText((entry.functions || []).join("；")).length === 0;
+    // 「没有正面治法证据」＝功效为空，或只有对不上号的教材补全功效（见 formulaTherapyAlignedWithSigned）。
+    const functionsEmpty = !formulaFunctionsPositivelyAligned(entry.functions, signedMethods);
     if (functionsEmpty && signedSyndromeIds.length > 0 && entry.syndromeTags.length > 0 &&
       !entry.syndromeTags.some((tag) => signedSyndromeIds.some((id) => formulaMatchSyndromeCompatible(tag, id)))) continue;
     for (const identity of identities) trusted.add(identity);
@@ -1330,7 +1359,7 @@ export function missedLockableFormulaCandidates(reasoning: unknown, limit = 3): 
       .filter((entry) => entry.identityLockEligible && entry.positiveSufficiency)
       // 修复提示词会把这些方名写成「已通过正向充分性核验……逐字抄写」，是三条通路里
       // 对模型影响最强的一条。治法方向对立的方在这里必须先掉队，否则等于指挥模型改错。
-      .filter((entry) => formulaTherapyAlignedWithSigned(entry.functions, signedMethods))
+      .filter((entry) => formulaTherapyAlignedWithSigned(entry.functions, signedMethods, entry.functionsProvenance))
       .slice(0, limit)
       .map((entry) => entry.name);
   } catch {
@@ -1392,7 +1421,7 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
         // 判据见 formulaTherapyAlignedWithSigned：只否决两侧都抽得出治法词且交集为空的情形。
         const signedMethodIds = signedTherapyMethodIds(parsed);
         const allowed = new Set(reasoningCandidates
-          .filter((entry) => formulaTherapyAlignedWithSigned(entry.functions, signedMethodIds))
+          .filter((entry) => formulaTherapyAlignedWithSigned(entry.functions, signedMethodIds, entry.functionsProvenance))
           .flatMap((entry) => [entry.name, ...entry.aliases])
           .map((entry) => entry.replace(/\s+/g, ""))
           .filter((name) => lockEligible.has(name)));
@@ -1419,7 +1448,7 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
         // 但系统把方摆到医生面前的路有三条,当时只堵了这一条;判据现已上移为共用导出
         // formulaTherapyAlignedWithSigned,三处同源(见其注释与实测)。
         const systemLockable = reasoningCandidates
-          .filter((entry) => formulaTherapyAlignedWithSigned(entry.functions, signedMethodIds))
+          .filter((entry) => formulaTherapyAlignedWithSigned(entry.functions, signedMethodIds, entry.functionsProvenance))
           .map((entry) => entry.name)
           .filter((name) => lockEligible.has(name.replace(/\s+/g, "")));
         // 模型未给方名（自拟）时：若证候级检索找到了满足充分性的受治理经典方，锁定其首选。

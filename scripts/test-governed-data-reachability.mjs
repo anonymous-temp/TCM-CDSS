@@ -48,9 +48,9 @@ const BUILD_TIME_ONLY = new Set([
   "tcm-classic-case-eval-corpus.json",          // 评测语料
   "tcm-modern-case-eval-corpus.json",           // 评测语料
   "tcm-herb-identity-supplements.json",         // 药名识别补充，由 build:tcm-knowledge 合并
-  // 下面两条被 .jsonl 取代：运行时经 tcm-classic-evidence.server.ts 读
-  // tcm-classic-text-evidence.jsonl 与 tcm-classic-text-evidence-tcmoc.jsonl；
-  // 这两个 .json 是早期产物与其构建清单，保留作溯源，不参与运行时。
+  "tcm-formula-textbook-functions.json",        // 《方剂学》教材功用，由 build-tcm-governance-tables.py 补进方剂目录 functions
+  // 下面两条是早期产物与其构建清单，保留作溯源，不参与运行时。古籍证据运行期（2026-09-28 起）只读
+  // tcm-classic-evidence-formula-index.json（由 build:classic-evidence-index 从三份 .jsonl 语料派生）。
   // （本条登记正是这条检测的价值：它逼着把「为什么没人读」查清楚，而不是含糊放过。）
   "tcm-classic-formula-evidence.json",
   "tcm-classic-text-evidence-tcmoc-manifest.json",

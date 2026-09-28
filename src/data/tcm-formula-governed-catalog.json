@@ -6,6 +6,10 @@
       "sha256": "d49f44b89877fd67272b958e8cc952ca11daacb11d71d42b5dbcefb36ea1f441"
     },
     {
+      "file": "tcm-formula-textbook-functions.json",
+      "sha256": "45ac6dc4c3494683f80dfc9f0e735e19681704925ebd8fefa426d4cb330734cc"
+    },
+    {
       "file": "tcm-formula-indications.json",
       "sha256": "30570bc7479811a89ce8b864ca7c0a360937fce9679559cbe7e3a344e73680ad"
     },
@@ -37,6 +41,7 @@
     "sameNamePolicy": "门诊裸词“加味逍遥散”按别名归入丹栀逍遥散；只有明确《审视瑶函》或暴盲语境才进入具名眼科变体。"
   },
   "summary": {
+    "textbookFunctionsFilled": 154,
     "syndromeTagRouteRejectedCount": 207,
     "syndromeTagCuratedNeutralizedCount": 46,
     "nameCompositionMismatchDropped": [
@@ -1506,7 +1511,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "滋阴疏肝"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《续名医类案》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-A87B73C136D2",
@@ -8267,7 +8281,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "滋阴复脉",
+        "潜阳息风"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《温病条辨》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-3EB5D8B7662F",
@@ -13893,7 +13917,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "益气举陷"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《景岳全书》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-1144226056FA",
@@ -15377,7 +15410,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "行气疏肝",
+        "调经止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《兰室秘藏》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-7F9234AEF76A",
@@ -20665,7 +20708,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热解毒",
+        "消散疔疮"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《医宗金鉴》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-9A7CDE1A2868",
@@ -23085,7 +23138,18 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "发表温里",
+        "顺气化痰",
+        "活血消积"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《仙授理伤续断秘方》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-1FB64E3B67D0",
@@ -27679,7 +27743,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补肺益肾",
+        "止咳定喘"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《博济方》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-F5478FF94DAA",
@@ -30628,7 +30702,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "活血化瘀",
+        "散结利咽"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《医林改错》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-56D123D85446",
@@ -31644,7 +31728,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "益气温阳"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《博爱心鉴》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-7746550F9B34",
@@ -36060,7 +36153,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "益气补血"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《瑞竹堂经验方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-FAD7DF4500DF",
@@ -37782,7 +37884,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "解表散寒",
+        "化湿和中"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《太平惠民和剂局方》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-397D59ABB35F",
@@ -46142,7 +46254,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "滋阴养血",
+        "生津润燥"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《温病条辨》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-5CAE2C626C97",
@@ -49760,7 +49882,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温助肾阳",
+        "利水消肿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《济生方》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-D3404823B51A",
@@ -56888,7 +57020,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "益气升阳",
+        "清热除湿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《内外伤辨惑论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-85819A310978",
@@ -57304,7 +57446,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "益气升陷"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《医学衷中参西录》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-2E998B9625E4",
@@ -57801,7 +57952,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "解肌透疹"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《太平惠民和剂局方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-150842876E42",
@@ -58156,7 +58316,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "行气散结",
+        "降逆化痰"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-CDA8645C1259",
@@ -58942,7 +59112,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "寒热平调",
+        "散结除痞"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-48F5B7D425E8",
@@ -59047,7 +59227,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "化痰息风",
+        "健脾祛湿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《医学心悟》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-2690E941F7F4",
@@ -59747,7 +59937,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "宣肺解表",
+        "止咳祛痰"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《博济方》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-DEC565200003",
@@ -60321,7 +60521,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "行气除满",
+        "温中燥湿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《内外伤辨惑论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-E0E20DF54B0B",
@@ -66244,7 +66454,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温中补虚",
+        "降逆止呕"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-46158C0C83A1",
@@ -70308,7 +70528,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热解毒",
+        "活血止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《验方新编》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-780FE06BE9CE",
@@ -72651,7 +72881,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "利水渗湿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《丹溪心法》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-CDD05C477AB3",
@@ -77687,7 +77926,18 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "滋肾阴",
+        "补肾阳",
+        "开窍化痰"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《黄帝素问宣明论方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-CE28DBA67E9D",
@@ -78574,7 +78824,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "和解少阳"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《温病条辨》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-94BB46808416",
@@ -83436,7 +83695,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温中补虚",
+        "缓急止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-F34F24C00E0C",
@@ -85697,7 +85966,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "祛风清热",
+        "养血活血"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《素问病机气宜保命集》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-5AE399426AC6",
@@ -86013,7 +86292,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "发散风寒",
+        "祛湿清热"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《此事难知》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-18294ECC36E6",
@@ -88301,7 +88590,16 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "泻热逐水"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-0D0B96B75E03",
@@ -89919,7 +90217,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温里散寒",
+        "通便止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-966AD5D64D38",
@@ -95434,7 +95742,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补肾宁心",
+        "益智安神"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《备急千金要方》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-C030AA75B5DA",
@@ -97447,7 +97765,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补脾疏肝",
+        "化湿止带"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《傅青主女科》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-398D775A8127",
@@ -98972,7 +99300,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温阳健脾",
+        "行气利水"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《严氏济生方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-FAC1B9C56CBE",
@@ -99976,7 +100314,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热祛湿",
+        "通络止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《温病条辨》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-95FE554648C9",
@@ -101561,7 +101909,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "攻下逐水"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《儒门事亲》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-9C99D440A742",
@@ -101668,7 +102025,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "燥湿祛痰",
+        "行气开郁"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《传信适用方》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-6F6B888BEA9B",
@@ -102453,7 +102820,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "宣肺祛痰",
+        "降气止咳"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-65CC12633EEB",
@@ -104540,7 +104917,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "轻下热结"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-B97EEF45881A",
@@ -105024,7 +105410,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "祛风散寒",
+        "益气温阳"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《备急千金要方》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-EF1DF0EC0372",
@@ -105538,7 +105934,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "凉血止血",
+        "利水通淋"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《济生方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-860B1317EDFD",
@@ -105766,7 +106172,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热化痰",
+        "宽胸散结"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒沦》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-03B243CF7C90",
@@ -105895,7 +106311,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "解表蠲饮",
+        "清热除烦"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-03E6176ACA1C",
@@ -108124,7 +108550,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补益肾阴"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《景岳全书》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-378EBE52F0D3",
@@ -109789,7 +110224,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "燥湿运脾",
+        "行气和胃"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《简要济众方》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-CC9E6B2E1BF4",
@@ -112801,7 +113246,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "益气健脾",
+        "行气化滞"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《小儿药证直诀》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-12E9AD3D58C3",
@@ -114086,7 +114541,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "益气补血",
+        "健脾养心"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《济生方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-0A3D4FAB2837",
@@ -114272,7 +114737,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "滋阴泻火",
+        "固表止汗"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《兰室秘藏》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-40DF3683E439",
@@ -114496,7 +114971,18 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温经散寒",
+        "养血通脉",
+        "和中止呕"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-B6D2B19C4C20",
@@ -114637,7 +115123,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温经散寒",
+        "养血通脉"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-A238C7F4868C",
@@ -114968,7 +115464,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温补气血",
+        "缓急止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《千金翼方》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-9CEECE6C269F",
@@ -116348,7 +116854,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补气生血"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《内外伤辨惑论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-2658A3FF80AA",
@@ -116825,7 +117340,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "养血活血",
+        "祛风止痒"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《济生方》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-576A5E6D0009",
@@ -119507,7 +120032,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "疏肝理脾",
+        "清热和胃"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《太平惠民和剂局方》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-DFE2016851AA",
@@ -122295,7 +122830,16 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "破血逐瘀"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-8720C6B3456A",
@@ -125669,7 +126213,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "祛痰逐饮"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《三因极一病证方论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-8ED489B939B1",
@@ -129548,7 +130101,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "祛暑解表",
+        "清热化湿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《温病条辨》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-43E661A35B1D",
@@ -130130,7 +130693,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "降逆化痰",
+        "益气和胃"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-508A432C085B",
@@ -131428,7 +132001,18 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补益脾肾",
+        "清热祛湿",
+        "收涩止带"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《傅青主女科》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-60D19C265763",
@@ -132359,7 +132943,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热解毒",
+        "疏风散邪"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《东垣试效方》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-44764143214C",
@@ -132485,7 +133079,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温补肝肾",
+        "行气止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《景岳全书》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-07B89DDD2626",
@@ -138689,7 +139293,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "行气消痞",
+        "健脾和胃"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《兰室秘藏》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-2FAD6C664E6B",
@@ -139107,7 +139721,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "通阳散结",
+        "祛痰下气"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-2D91F517017B",
@@ -139338,7 +139962,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "行气消痞"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-0757A450940A",
@@ -140292,7 +140925,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "和解少阳",
+        "祛湿和胃"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《景岳全书》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-C97F4C56BCB1",
@@ -140917,7 +141560,18 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "和解少阳",
+        "通阳泻热",
+        "重镇安神"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-20623701F790",
@@ -141846,7 +142500,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "和解少阳",
+        "温化水饮"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-3267F1D2606B",
@@ -143182,7 +143846,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "和解清热",
+        "涤痰宽胸"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《重订通俗伤寒论》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-142014BFA416",
@@ -143642,7 +144316,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "解肌清热"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒六书》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-199AB2B5421C",
@@ -144254,7 +144937,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热利湿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-ECB6900C1A4B",
@@ -146269,7 +146961,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温阳健脾",
+        "解表散寒"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-C4D7F6EEC035",
@@ -146380,7 +147082,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "解肌发表",
+        "降气平喘"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-6EEC3067AF9F",
@@ -146561,7 +147273,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温通心阳",
+        "平冲降逆"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-249FDAEB8A80",
@@ -146776,7 +147498,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温脾和中",
+        "缓急止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-43CCE298E369",
@@ -146994,7 +147726,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "解肌发表",
+        "升津舒筋"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-8559F4E6EDE6",
@@ -150682,7 +151424,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "逐瘀泻热"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-9DA81EF94777",
@@ -151285,7 +152036,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清宣温燥",
+        "润肺止咳"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《温病条辨》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-399C6BD4BEFF",
@@ -152198,7 +152959,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热解毒",
+        "消肿排脓"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-79C2986FE1DA",
@@ -153049,7 +153820,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清肠止血",
+        "疏风行气"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《普济本事方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-11A8CC96786B",
@@ -154053,7 +154834,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "降逆止呃",
+        "益气清热"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-F51991540765",
@@ -158177,7 +158968,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补肾涩精"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《洪氏集验方》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-9E4F6CBF06A9",
@@ -159393,7 +160193,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清养肺胃",
+        "生津润燥"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《温病条辨》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-808DF120CA78",
@@ -177950,7 +178760,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "益气健脾",
+        "养血安胎"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《古今医统大全》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-75F0442E15AD",
@@ -178029,7 +178849,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "泻火解毒",
+        "燥湿泄痞"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-851A47AD58FF",
@@ -178378,7 +179208,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清泻肺热",
+        "止咳平喘"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《小儿药证直诀》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-22A27A7B1549",
@@ -179384,7 +180224,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "泻脾胃伏火"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《小儿药证直诀》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-34D8C7697BC4",
@@ -181080,7 +181929,18 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "祛风除湿",
+        "化痰通络",
+        "活血止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《太平惠民和剂局方》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-1D0DF9D81161",
@@ -181171,7 +182031,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "活血祛瘀",
+        "通络止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《医学衷中参西录》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-075CE899B32F",
@@ -182540,7 +183410,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温肾益精",
+        "润肠通便"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《景岳全书》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-37097FB68F8B",
@@ -185630,7 +186510,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热化痰",
+        "软坚散结"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《医学心悟》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-149924F9E258",
@@ -189804,7 +190694,18 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清心火",
+        "益气阴",
+        "止淋浊"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《太平惠民和剂局方》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-06E8ACE8E4A7",
@@ -191365,7 +192266,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清燥润肺",
+        "益气养阴"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《医门法律》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-C5CF414B99D7",
@@ -192732,7 +193643,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清胃凉血"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《脾胃论》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-C1C73BB286C2",
@@ -194551,7 +195471,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清虚热",
+        "退骨蒸"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《证治准绳》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-6427D871D32D",
@@ -195564,7 +196494,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温经补虚",
+        "化瘀止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《妇人大全良方》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-91E68068A398",
@@ -196400,7 +197340,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "理气化痰",
+        "清胆和胃"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《三因极一病证方论》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-6F402CF14DBA",
@@ -196762,7 +197712,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "攻下冷积",
+        "温补脾阳"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《备急千金要方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-AFDAF75B630E",
@@ -199022,7 +199982,16 @@
           "reason": "catalog_records_bare_genus"
         }
       ],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "泻火逐痰"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《泰定养生主论》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-F4494CABAD0D",
@@ -203669,7 +204638,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "敛阴止汗",
+        "益气固表"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《太平惠民和剂局方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-C1CEB941B42A",
@@ -203758,7 +204737,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "祛风化痰",
+        "通络止痉"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《杨氏家藏方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-920FAC289AAF",
@@ -206612,7 +207601,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "利水渗湿",
+        "养阴清热"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-C6B83850BB4D",
@@ -207453,7 +208452,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清胃热",
+        "滋肾阴"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《景岳全书》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-FF7B928656A5",
@@ -211186,7 +212195,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "滋阴润肺",
+        "益气补脾"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《洪氏集验方》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-570BC91BB071",
@@ -211475,7 +212494,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "通阳散结",
+        "祛痰宽胸"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-6DCAC2FF75E8",
@@ -212484,7 +213513,16 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "化痰逐饮"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-61C8FFCBFD5F",
@@ -213558,7 +214596,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "和胃消痞",
+        "宣散水气"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-0988D50C0E49",
@@ -222021,7 +223069,18 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热",
+        "益气",
+        "生津"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-3AB26924DF18",
@@ -222326,7 +223385,16 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热祛湿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《类证活人书》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-03F7D7ADB2AE",
@@ -222956,7 +224024,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "破阴回阳",
+        "宣通上下"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-C65D8B7C15C9",
@@ -224780,7 +225858,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清暑利湿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《黄帝素问宣明论方》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-A11FB4AF2BA1",
@@ -226560,7 +227647,16 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "养阴益胃"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《温病条辨》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-5150E8451373",
@@ -228445,7 +229541,16 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温阳利水"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-0312F30A590A",
@@ -232897,7 +234002,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "重镇安神",
+        "交通心肾"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《备急千金要方》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-AED64FDAED63",
@@ -237541,7 +238656,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "逐水通便",
+        "行气消肿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《儒门事亲》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-CE79BD5C9713",
@@ -240449,7 +241574,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热生津",
+        "益气和胃"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-D3703269262B",
@@ -247586,7 +248721,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "祛风胜湿止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《脾胃论》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-473EE0353565",
@@ -250384,7 +251528,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补肾助阳",
+        "化生肾气"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-E046CF104AF5",
@@ -253468,7 +254622,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "润肠泄热",
+        "行气通便"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-C762E4BF33C3",
@@ -253945,7 +255109,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "活血祛瘀",
+        "行气止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《医林改错》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-8220BC3C82CB",
@@ -254832,7 +256006,16 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "行气逐水"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《太平圣惠方》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-BFCBC17FFEBA",
@@ -255823,7 +257006,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热燥湿",
+        "调气和血"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《素问病机气宜保命集》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-CFCE48D43713",
@@ -259790,7 +260983,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "降气平喘",
+        "祛痰止咳"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《太平惠民和剂局方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-EAA7C58CD50A",
@@ -260157,7 +261360,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温阳化饮",
+        "健脾利水"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-8996D50EB430",
@@ -260253,7 +261466,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温肺化饮"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-34ABA2A1991C",
@@ -261394,7 +262616,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "燥湿行气",
+        "软坚化痰"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《全生指迷方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-EDBB5059FBBB",
@@ -263364,7 +264596,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温里助阳",
+        "利湿退黄"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒微旨论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-7683C013EED8",
@@ -263867,7 +265109,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热利湿退黄"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-F416F7AF96F0",
@@ -270098,7 +271349,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "泻肺行水",
+        "下气平喘"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-14B3CCEB7CC9",
@@ -270637,7 +271898,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清胆利湿",
+        "和胃化痰"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《通俗伤寒论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-B8CADF1EA1DE",
@@ -285166,7 +286437,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "缓下热结"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-46C7741F51FD",
@@ -287994,7 +289274,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "涩肠止泻"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-B4A93106BBE6",
@@ -289041,7 +290330,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "发汗行水"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-AE9EA917CAC9",
@@ -290020,7 +291318,18 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "活血行气",
+        "祛瘀通络",
+        "通痹止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《医林改错》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-166CE2AFF32D",
@@ -291477,7 +292786,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "开达膜原",
+        "辟秽化浊"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《温疫论》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-3A93C0AC5FAC",
@@ -292084,7 +293403,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温补脾肾"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《医方集解》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-6B5B223DB8EE",
@@ -292747,7 +294075,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热化湿",
+        "理气和中"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《霍乱论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-6D9E1D5AFD43",
@@ -294229,7 +295567,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "疏肝解郁",
+        "养血健脾"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《太平惠民和剂局方》",
+        "textbookKind": "main",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-1E258B7B608D",
@@ -297011,7 +298359,16 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "活血通窍"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《医林改错》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-C6CB94A84BBE",
@@ -297272,7 +298629,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "破阴回阳",
+        "通达内外"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-3BFFAF4B05D2",
@@ -298570,7 +299937,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "养血安神",
+        "清热除烦"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-F66581393774",
@@ -305061,7 +306438,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "利水消肿",
+        "益气通阳"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-56D632E69AFE",
@@ -305473,7 +306860,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "益气祛风",
+        "健脾利水"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-4FAF896B49F6",
@@ -306871,7 +308268,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温阳补血",
+        "散寒通滞"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《外科证治全生集》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-1EACE54712D8",
@@ -310406,7 +311813,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温经助阳",
+        "祛寒化湿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-2AFC5D117A1C",
@@ -314504,7 +315921,16 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "止血化瘀"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《太平惠民和剂局方》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-1CDEEE28F79A",
@@ -319047,7 +320473,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "疏散风寒",
+        "理气和中"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《太平惠民和剂局方》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-215B2D47192B",
@@ -324909,7 +326345,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "滋养肺胃",
+        "降逆下气"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-92F5195AF20A",
@@ -325786,7 +327232,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "发汗解表",
+        "散寒祛湿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-4B6429DC621E",
@@ -326202,7 +327658,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "发汗解表",
+        "祛风除湿"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-73CDDEDD8ACC",
@@ -326674,7 +328140,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "发汗解表",
+        "宣肺平喘"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-84F950E7A43C",
@@ -326966,7 +328442,16 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "助阳解表"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-CED407489CD1",
@@ -328448,7 +329933,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热止利",
+        "和中止痛"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-FA44EFCB9995",
@@ -329070,7 +330565,17 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "益气温经",
+        "和血通痹"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《金匮要略》",
+        "textbookKind": "main",
+        "match": "source_book"
+      }
     },
     {
       "id": "TCM-FORMULA-DD755EB44E65",
@@ -330089,7 +331594,17 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "寒热并调",
+        "和胃降逆"
+      ],
+      "functionsSource": {
+        "work": "《方剂学》规划教材",
+        "textbookSource": "《伤寒论》",
+        "textbookKind": "appended",
+        "match": "composition_overlap"
+      }
     },
     {
       "id": "TCM-FORMULA-89BDF8FBE618",
