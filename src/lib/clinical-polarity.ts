@@ -145,15 +145,18 @@ export function clinicalEventTemporalScopeAt(
     .map((mark) => normalized.indexOf(mark, safeIndex + Math.max(0, eventLength)))
     .filter((position) => position >= 0);
   const hardEnd = endCandidates.length > 0 ? Math.min(...endCandidates) : normalized.length;
-  const before = normalized.slice(hardStart, safeIndex) + (options.groundingQuote
-    ? normalized.slice(safeIndex, Math.min(hardEnd, safeIndex + Math.max(0, eventLength)))
-    : "");
+  const before = normalized.slice(hardStart, safeIndex);
+  // 引用自带的文字只用来找「当前/近期」线索（「近两天来出现血尿」的「近两天」），不参与找既往锚点：
+  // 引用里的词会碰巧含既往锚点字面——「晕过去了」含「过去」，并进来会把当前晕厥判成既往（open-language-classes 钉住）。
+  const currentSearchText = options.groundingQuote
+    ? before + normalized.slice(safeIndex, Math.min(hardEnd, safeIndex + Math.max(0, eventLength)))
+    : before;
   const afterEvent = normalized.slice(Math.min(hardEnd, safeIndex + Math.max(0, eventLength)), hardEnd);
 
   const lastHistorical = lastMatchIndex(maskClosedBackgroundClauses(before), HISTORICAL_TEMPORAL_CUE_SOURCE);
   const lastCurrent = Math.max(
-    lastMatchIndex(before, CURRENT_TEMPORAL_CUE_SOURCE),
-    options.groundingQuote ? lastMatchIndex(before, RECENT_ONSET_TEMPORAL_CUE_SOURCE) : -1,
+    lastMatchIndex(currentSearchText, CURRENT_TEMPORAL_CUE_SOURCE),
+    options.groundingQuote ? lastMatchIndex(currentSearchText, RECENT_ONSET_TEMPORAL_CUE_SOURCE) : -1,
   );
   const postfixHistorical = new RegExp(
     `^(?:\\s*(?:发生|发作|出现|起病|开始)?\\s*(?:于|在|是)?\\s*)${HISTORICAL_TEMPORAL_CUE_SOURCE}`,
