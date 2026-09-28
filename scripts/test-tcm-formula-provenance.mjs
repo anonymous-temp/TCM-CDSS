@@ -1083,7 +1083,9 @@ assert.ok(emperorKnowledgeHint.includes("同一治法方向"), "the repair hint 
 assert.ok(buildM04ClinicalRepairHint("m04_candidate_0_herb_1_emperor_not_primary").includes("君药数量或 P1 归属不合法"), "adjacent emperor branches must remain unchanged");
 assert.ok(buildM04ClinicalRepairHint("m04_candidate_0_emperor_missing").includes("君药数量或 P1 归属不合法"), "adjacent emperor branches must remain unchanged");
 const doseRangeHint = buildM04ClinicalRepairHint("m04_candidate_0_herb_2_dose_outside_conservative_range");
-assert.ok(doseRangeHint.includes("保守常用量边界"), "the dose-range repair hint must name the conservative boundary cause");
+assert.ok(doseRangeHint.includes("药典用量范围"), "the dose-range repair hint must name the pharmacopoeia range as the cause");
+// 下限也会触发（山药 12g < 药典 15g）：提示不得只说「下调」，否则模型把低于下限的剂量再往下改。
+assert.ok(doseRangeHint.includes("低于下限就上调"), "the dose-range repair hint must cover doses below the floor, not only above the ceiling");
 assert.ok(doseRangeHint.includes("其余已通过校验的药味"), "the dose-range repair hint must scope the edit to the offending herb only");
 assert.ok(doseRangeHint.includes("中低段"), "the dose-range repair hint must steer toward the conservative part of the interval");
 const highImpactHint = buildM04ClinicalRepairHint("m04_candidate_0_herb_5_unsupported_high_impact_heat_clear");

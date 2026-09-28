@@ -1533,7 +1533,7 @@ async function retryCompletePrimaryResponse(
         const herbName = m04CandidateHerbsFromRepairPayload(rejectedReasoning)[doseRepairHerbIndex]?.name;
         const limit = typeof herbName === "string" && herbName.trim() ? getTcmHerbDoseLimit(herbName.trim()) : null;
         if (herbName && limit?.min != null && limit.max != null) {
-          doseBoundaryHint = `⚠️ 剂量边界：${String(herbName).trim()} 的服务端保守常用量区间为 ${limit.min}–${limit.max}g。只把该味剂量调整到该区间内（优先中低段），其余已通过校验的药味、剂量与组成保持不变。`;
+          doseBoundaryHint = `⚠️ 剂量边界：${String(herbName).trim()} 的药典用量范围为 ${limit.min}–${limit.max}g。只把该味剂量调整到该范围内（优先中低段），其余已通过校验的药味、剂量与组成保持不变。`;
         }
       } catch {
         // 被拒 JSON 可能本身不合法；通用剂量修复提示仍会指引重试。

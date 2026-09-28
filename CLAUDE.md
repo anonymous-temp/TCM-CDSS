@@ -159,6 +159,12 @@ clientId 重算,于是每个需要已签名 M03 的用例全线 `409 invalid_m03
     - **Exercise:** `nonPharma.exercise` is model-authored and optional; the M04 prompt now asks for four care sections, and `lifestyle` holds only 起居/睡眠. It sits under exam-claim sanitization, since a new narrative field may not join the frozen naked list.
     - **HIS:** `healthGuidance` gains `exercise` and `acupointCare`.
     - **Existing defect fixed on the way:** the project-level pregnancy check read only affirmed sentences, so «可能怀孕» was filtered out and acupuncture/moxibustion cards were still recommended. It now reads the raw text (`treatmentPregnancyText`); the state layer handles «否认妊娠» itself.
+  - **Dose bounds are the pharmacopoeia only (9/28).** `getTcmHerbDoseLimit` used to intersect the ChP range with `curatedDose`, called "clinic/dispensing range" in the code. It is actually `tcm_curated_llm_candidates_20260626`: 99 LLM-generated rows, every basis «待人工复核», never reviewed, and nothing institutional. The stated reason was avoiding warnings from the downstream audit, which was removed on 9/25.
+    - **Effect:** 23 ranges were narrowed, and 杜仲 10, 板蓝根 15 and 川贝母 3 collapsed to a single value while the basis still read 药典.
+    - **Side effect:** the combined basis kept those 95 herbs out of the 9/26 ordinary-herb cap/annotate path (`ordinaryHistoricalDoseDeviation` requires the single ChP basis), so every deviation became a T1 repair round.
+    - **Measured:** 4 of 7 local dose repairs were ChP-legal doses (北沙参 12g, 牛膝 6g), and all 7 needed no repair after the fix. In the 65-case arm, repair prompts went 7 → 4 and dose repairs 2 → 0.
+    - **Unchanged:** `curatedDose` still supplies decoction and risk annotations. 天南星 (no internal ChP dose) now has no bound and is clinician-dosed.
+    - **Still unreviewed but labelled honestly:** 五灵脂, 神曲, 藜芦, 败酱草 and 龙骨 fall back to the «高置信中药饮片剂量校准层» route rows.
   - **Measured and rejected (9/28).** ① Speculative M03 before facts: after answers, EviMed/recall/polarity/rerank are cold too (~3s, in parallel with facts ~4s), so the gain is ~1s; it would also need facts removed from the prompt and a quality re-run. ② Prompt diet (M03 herb-rule section 23% of the TCM prompt, M04 dictionaries, alternatives when locked): no latency change (decode-bound); safety concerns 8 → 13 and 方切合病例 36 → 33 over 65 cases; reverted (1d62ad5).
 
 ### Deterministic safety is the load-bearing layer — `src/lib/diagnosis-safety.ts`

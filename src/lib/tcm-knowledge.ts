@@ -1367,27 +1367,19 @@ export function getTcmHerbDoseLimit(herb: string): TcmHerbDoseLimit | null {
   // 范围不相交则显式标记冲突，而不是把整味药静默降成“无剂量数据”。
   const entries = herbData?.entries || [];
   const primaryDoseEntries = validDoseEntries(entries, "dose");
-  const curatedDoseEntries = validDoseEntries(entries, "curatedDose");
   const decoctionRouteEntries = validDoseEntries(entries, "routeDose").filter((entry) =>
     /煎服|汤剂|另煎|另炖/.test(`${entry.routeForm || ""}${entry.method || ""}`)
   );
-  // When the pharmacopoeia range and the clinic/dispensing range overlap, model-generated doses
-  // use their conservative intersection. This prevents a candidate that is legal at the broad
-  // source ceiling but predictably rejected by the downstream institutional audit. Disjoint
-  // sources remain an explicit sourceConflict and retain the primary pharmacopoeia range.
-  const primary = resolvedDoseEntry(
-    [...primaryDoseEntries, ...curatedDoseEntries],
-    "dose",
-    equivalent?.basis,
-    decoctionRouteEntries,
-  );
+  // 剂量边界只取药典条目（主条目，缺失时退到分途径煎服条目）。curatedDose / commonHerbs 不参与：
+  // 它们来自上游 tcm_curated_llm_candidates_20260626（大模型生成的候选清单，99 行，依据一律
+  // 「常用药典用量/调剂规范待人工复核」，从未复核）。此前代码把它当成「门诊/调剂用量」与药典
+  // 取交集（注释称可免下游机构审方告警——那条审方链路 2026-09-25 已下线），结果 23 味药的区间被
+  // 改窄，其中 杜仲 6–10→10、板蓝根 9–15→15、川贝母 3–10→3 压成单值，依据却仍写着「药典」；
+  // 本机 65 例 7 次剂量修复里 4 次是在药典范围内被判越界（北沙参 12g、牛膝 6g）。
+  // 分途径条目仍只用于标记冲突（sourceConflict / alternatives），不参与收窄。
+  const primary = resolvedDoseEntry(primaryDoseEntries, "dose", equivalent?.basis, decoctionRouteEntries);
   if (primary) return primary;
-  const route = resolvedDoseEntry(decoctionRouteEntries, "routeDose", equivalent?.basis);
-  if (route) return route;
-  const curated = curatedDoseEntries[0];
-  if (curated) return { min: curated.minG, max: curated.maxG, basis: equivalent?.basis || curated.basis, sourceType: "curatedDose" };
-  const common = data.commonHerbs.find((item) => item.name === doseName);
-  return common ? { min: common.minG, max: common.maxG, basis: equivalent?.basis || common.basis, sourceType: "common" } : null;
+  return resolvedDoseEntry(decoctionRouteEntries, "routeDose", equivalent?.basis);
 }
 
 

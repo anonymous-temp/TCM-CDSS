@@ -115,8 +115,22 @@ assert.equal(isKnownTcmHerbName("延胡索"), true, "parenthetical aliases in th
 assert.deepEqual({ min: getTcmHerbDoseLimit("延胡索")?.min, max: getTcmHerbDoseLimit("延胡索")?.max }, { min: 3, max: 10 });
 assert.equal(isKnownTcmHerbName("元胡"), true);
 assert.equal(isKnownTcmHerbName("丹皮"), true);
-assert.deepEqual({ min: getTcmHerbDoseLimit("板蓝根")?.min, max: getTcmHerbDoseLimit("板蓝根")?.max }, { min: 15, max: 15 }, "overlapping pharmacopoeia and clinic ranges use their conservative intersection");
-assert.deepEqual({ min: getTcmHerbDoseLimit("莱菔子")?.min, max: getTcmHerbDoseLimit("莱菔子")?.max }, { min: 6, max: 10 }, "M04 prevents a predictable downstream institutional-dose warning by intersecting overlapping governed ranges");
+// 剂量边界只取药典（2026-09-28）。此前与上游 tcm_curated_llm_candidates（大模型生成、99 行全部
+// 「待人工复核」，并非院内用量）取交集：板蓝根 9–15→15、杜仲 6–10→10、川贝母 3–10→3，依据仍写「药典」；
+// 本机 65 例 7 次剂量修复里 4 次是药典范围内的剂量被判越界（北沙参 12g、牛膝 6g）。
+for (const [herb, min, max] of [["板蓝根", 9, 15], ["莱菔子", 5, 12], ["杜仲", 6, 10], ["川贝母", 3, 10], ["北沙参", 5, 12], ["牛膝", 5, 12], ["益母草", 9, 30]]) {
+  assert.deepEqual({ min: getTcmHerbDoseLimit(herb)?.min, max: getTcmHerbDoseLimit(herb)?.max }, { min, max }, `${herb}: pharmacopoeia range, not narrowed by the unreviewed LLM candidate list`);
+}
+{
+  const knowledge = JSON.parse(readFileSync(new URL("../src/data/tcm-knowledge.json", import.meta.url), "utf8"));
+  const curatedNames = knowledge.herbs.filter((herb) => herb.entries.some((entry) => entry.type === "curatedDose")).map((herb) => herb.name);
+  assert.ok(curatedNames.length >= 90, "the unreviewed list is still in the KB (its decoction/risk annotations stay in use)");
+  const leaked = [...new Set([...curatedNames, ...knowledge.herbs.map((herb) => herb.name)])]
+    .filter((name) => { const limit = getTcmHerbDoseLimit(name); return limit && (/待人工复核/.test(limit.basis || "") || ["curatedDose", "common"].includes(limit.sourceType)); });
+  assert.deepEqual(leaked, [], "no dose boundary may come from, or cite, the unreviewed candidate list");
+  // 天南星：药典只收外用的生天南星（制天南星另有 3–9g 条目），此前唯一的内服区间来自这份清单；现在无边界，按医师定量处理。
+  assert.equal(getTcmHerbDoseLimit("天南星"), null);
+}
 assert.deepEqual({ min: getTcmHerbDoseLimit("何首乌")?.min, max: getTcmHerbDoseLimit("何首乌")?.max }, { min: 3, max: 6 }, "dose-source conflicts resolve to the governed per-herb decoction record");
 for (const [herb, min, max] of [
   ["石斛", 6, 12],
@@ -2950,7 +2964,10 @@ const advisoryRangeM04 = {
     m04.formula.candidates[0].herbs[1],
   ] }] },
 };
-assert.match(m04SemanticIssue(advisoryRangeM04, visiblePrescription("30g", "6g")) || "", /dose_outside_conservative_range/, "model-generated doses above the local conservative range must be repaired before display");
+// 酸枣仁的剂量依据只剩药典一家（2026-09-28 去掉未复核的大模型候选清单之前，依据被拼成「药典；待人工复核」，
+// 于是走不到 9/26 的普通药超上限批注通道、只能退回修复）。现在按 9/26 口径：普通药超出药典范围是
+// 「参考范围偏离」批注（编译时压到上限），不再占一轮修复。
+assert.match(m04SemanticIssue(advisoryRangeM04, visiblePrescription("30g", "6g")) || "", /dose_reference_deviation/, "an ordinary herb above its pharmacopoeia range is an annotated reference deviation, not a repair round");
 assert.equal(m04SemanticIssue(advisoryRangeM04, visiblePrescription("30g", "6g"), stable, isKnownTcmHerbName, false, false, true), undefined, "a doctor workbench edit above the historical range remains advisory and reaches the real audit");
 const yinDeficiencyPrior = {
   ...stable,
@@ -2975,7 +2992,8 @@ const belowRangeM04 = {
     m04.formula.candidates[0].herbs[1],
   ] }] },
 };
-assert.match(m04SemanticIssue(belowRangeM04, visiblePrescription("1g", "6g"), stable) || "", /dose_outside_conservative_range/, "model-generated doses below the governed decoction range must be repaired before display");
+// 同上（2026-09-28）：普通药低于药典下限按 9/26 口径只批注不改（儿童、老人可能用小剂量），不再占一轮修复。
+assert.match(m04SemanticIssue(belowRangeM04, visiblePrescription("1g", "6g"), stable) || "", /dose_reference_deviation/, "an ordinary herb below its pharmacopoeia floor is annotated, not repaired");
 const grossDoseM04 = {
   ...m04,
   formula: { ...m04.formula, candidates: [{ ...m04.formula.candidates[0], herbs: [
