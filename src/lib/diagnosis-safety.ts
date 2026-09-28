@@ -5787,6 +5787,13 @@ export function sanitizeCaseStateForModel(state: CaseState): CaseState {
   };
   const scrubUnknown = <T>(value: T, maxStringLength = 6000): T =>
     sanitizeUnknownForModel(value, { patientName, maxStringLength });
+  // 已签名推理载荷：保留 schema 键、逐值脱敏（2026-09-28）。此前走上面的通用规则，键名含 name 的字段
+  // 整键丢弃——M04 提示词里的 M03 结论因此没有 recommendedFormulaNames/tcmDiseaseName，
+  // 「服务端方剂目录编译基准」段恒为「M03 未锁定命名方」，模型写自拟方，随后被组成合同按锁定方驳回、
+  // 再跑一轮修复（本机 65 例基线 64 次 M04 里 14 次 formula_reference_declassified，11 次即此）。
+  // 路由在用之前已验签，客户端带不进签名域外的键。
+  const scrubSignedReasoning = <T>(value: T): T =>
+    sanitizeUnknownForModel(value, { patientName, maxStringLength: 12000, preserveSchemaKeys: true });
   const safeHisRecord = state.hisRecord
     ? {
         schemaVersion: state.hisRecord.schemaVersion,
@@ -5845,21 +5852,32 @@ export function sanitizeCaseStateForModel(state: CaseState): CaseState {
     // A previous result is retained solely for read-only UI continuity. Sending it to the model
     // would contaminate the new run with stale conclusions and defeat the independent rerun.
     previousResult: undefined,
-    reasoningDiagnose: state.reasoningDiagnose ? scrubUnknown(state.reasoningDiagnose, 12000) as typeof state.reasoningDiagnose : undefined,
-    reasoningPrescribe: state.reasoningPrescribe ? scrubUnknown(state.reasoningPrescribe, 12000) as typeof state.reasoningPrescribe : undefined,
-    reasoningV2: state.reasoningV2 ? scrubUnknown(state.reasoningV2, 12000) as typeof state.reasoningV2 : undefined,
+    reasoningDiagnose: state.reasoningDiagnose ? scrubSignedReasoning(state.reasoningDiagnose) : undefined,
+    reasoningPrescribe: state.reasoningPrescribe ? scrubSignedReasoning(state.reasoningPrescribe) : undefined,
+    reasoningV2: state.reasoningV2 ? scrubSignedReasoning(state.reasoningV2) : undefined,
     safetyLocked: state.safetyLocked,
   };
 }
 
 export function sanitizeUnknownForModel<T>(
   value: T,
-  opts?: { patientName?: string; maxStringLength?: number; maxDepth?: number },
+  opts?: {
+    patientName?: string;
+    maxStringLength?: number;
+    maxDepth?: number;
+    /**
+     * 只给**服务端签名过的推理载荷**（reasoningDiagnose / reasoningPrescribe / reasoningV2）用：
+     * 键名是受治理 schema 的字段名，不是客户端随意带来的键，保留全部键、照常逐值脱敏。
+     * 缺省的「键名像身份标识就整键丢弃」对它们是误伤：`/name/i` 把 recommendedFormulaNames、
+     * tcmDiseaseName、deferredFormulaSelection.names、药味 name 一并删掉（见 sanitizeCaseStateForModel）。
+     */
+    preserveSchemaKeys?: boolean;
+  },
 ): T {
   const patientName = opts?.patientName || "";
   const maxStringLength = opts?.maxStringLength ?? 6000;
   const maxDepth = opts?.maxDepth ?? 8;
-  return scrubUnknownValue(value, patientName, maxStringLength, maxDepth, 0) as T;
+  return scrubUnknownValue(value, patientName, maxStringLength, maxDepth, 0, Boolean(opts?.preserveSchemaKeys)) as T;
 }
 
 function scrubUnknownValue(
@@ -5868,6 +5886,7 @@ function scrubUnknownValue(
   maxStringLength: number,
   maxDepth: number,
   depth: number,
+  preserveSchemaKeys = false,
 ): unknown {
   if (value == null) return value;
   if (typeof value === "string") return limitModelText(scrubPhi(value, patientName), maxStringLength);
@@ -5875,7 +5894,7 @@ function scrubUnknownValue(
   if (depth >= maxDepth) return "[嵌套内容已截断]";
   if (Array.isArray(value)) {
     return value.slice(0, 100).map((item) =>
-      scrubUnknownValue(item, patientName, maxStringLength, maxDepth, depth + 1)
+      scrubUnknownValue(item, patientName, maxStringLength, maxDepth, depth + 1, preserveSchemaKeys)
     );
   }
   if (typeof value === "object") {
@@ -5883,10 +5902,11 @@ function scrubUnknownValue(
     for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 200)) {
       const safeKey = scrubPhi(key, patientName)
         .replace(/[\u4e00-\u9fa5]{2,4}(?=(?:病情|症状|主诉|记录|备注|信息|情况))/g, "[已脱敏]");
-      const keyLooksIdentifying = /(name|姓名|患者名|联系人|身份证|证件|电话|手机|地址|住址|就诊号|门诊号|住院号|病案号|病历号|病例号|电子病历号|医疗记录号|患者编号|mrn|medical.?record|record.?number|patient.?id)/i.test(key);
+      const keyLooksIdentifying = !preserveSchemaKeys &&
+        /(name|姓名|患者名|联系人|身份证|证件|电话|手机|地址|住址|就诊号|门诊号|住院号|病案号|病历号|病例号|电子病历号|医疗记录号|患者编号|mrn|medical.?record|record.?number|patient.?id)/i.test(key);
       next[safeKey] = keyLooksIdentifying
         ? undefined
-        : scrubUnknownValue(item, patientName, maxStringLength, maxDepth, depth + 1);
+        : scrubUnknownValue(item, patientName, maxStringLength, maxDepth, depth + 1, preserveSchemaKeys);
     }
     return next;
   }

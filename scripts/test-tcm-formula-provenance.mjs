@@ -890,6 +890,39 @@ function prescribePromptFor(m03) {
   return buildPrescribePrompt({ patient: {}, chiefComplaint: "测试主诉", conversation: [], reasoningDiagnose: m03 });
 }
 
+// 路由传给 buildPrescribePrompt 的是 sanitizeCaseStateForModel 之后的状态（prescribe/route.ts），不是原始状态。
+// 2026-09-28 前通用脱敏规则把键名含 name 的字段整键丢弃：recommendedFormulaNames/tcmDiseaseName 在提示词里
+// 消失，「服务端方剂目录编译基准」段恒为「M03 未锁定命名方」，而组成合同按锁定方驳回——本机基线 64 次 M04 里
+// 11 次白跑修复轮。上面的提示词断言都直接喂原始状态，所以一直没抓到。这里走真实接缝。
+{
+  const { sanitizeCaseStateForModel } = await import("../src/lib/diagnosis-safety.ts");
+  const locked = promptM03Reasoning({
+    syndrome: "心脾两虚证",
+    therapy: "益气补血、健脾养心",
+    method: "益气补血、健脾养心",
+    chain: [["P1", "心脾两虚，气血不足", "益气补血、健脾养心"]],
+    formulaNames: ["归脾汤"],
+  });
+  locked.overview.tcmDiseaseName = "不寐";
+  const raw = { id: "c", patient: { name: "张三", sex: "女", age: 45 }, chiefComplaint: "失眠多梦", conversation: [],
+    symptoms: {}, completeness: { level: "C" }, questionRounds: 1, maxQuestionRounds: 1, reasoningDiagnose: locked };
+  const safe = sanitizeCaseStateForModel(raw);
+  assert.deepEqual(safe.reasoningDiagnose.overview.recommendedFormulaNames, ["归脾汤"], "signed reasoning keeps the locked formula names");
+  assert.equal(safe.reasoningDiagnose.overview.tcmDiseaseName, "不寐", "signed reasoning keeps the TCM disease name");
+  assert.equal(safe.patient.name, undefined, "the patient's own name is still removed");
+  const sanitizedPrompt = buildPrescribePrompt(safe);
+  assert.match(sanitizedPrompt, /- 方名：归脾汤/, "the M04 prompt built from the sanitized state shows the lock");
+  assert.match(sanitizedPrompt, /组成身份下限：至少保留上述/);
+  assert.doesNotMatch(sanitizedPrompt, /（M03 未锁定命名方/, "a locked formula is never announced as unlocked");
+  assert.doesNotMatch(sanitizedPrompt, /张三/);
+  // 值照常脱敏：签名载荷里混进的患者姓名仍被抹掉。
+  const leaky = sanitizeCaseStateForModel({ ...raw, reasoningDiagnose: { ...locked, overview: { ...locked.overview, primarySyndromeBasis: ["张三诉失眠多梦"] } } });
+  assert.doesNotMatch(JSON.stringify(leaky.reasoningDiagnose), /张三/, "string values inside signed reasoning are still PHI-scrubbed");
+  // 非签名的未知嵌套对象维持原有的键名规则。
+  const other = sanitizeCaseStateForModel({ ...raw, tongueDx: { contactName: "李四", note: "舌淡" } });
+  assert.equal(other.tongueDx.contactName, undefined, "identifying keys outside signed reasoning are still dropped");
+}
+
 const xinmaiPrompt = prescribePromptFor(promptM03Reasoning({
   syndrome: "心脉瘀阻证",
   therapy: "活血化瘀、通脉止痛",
