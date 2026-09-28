@@ -246,6 +246,7 @@
     "test:customer-authorization": "jiti scripts/test-customer-authorization.mjs",
     "test:customer-auth-binding": "jiti scripts/test-customer-auth-binding.mjs",
     "test:customer-jit-registration": "jiti scripts/test-customer-jit-registration.mjs",
+    "test:customer-registry-scale": "jiti scripts/test-customer-registry-scale.mjs",
     "test:multitenant-drug-inventory": "jiti scripts/test-multitenant-drug-inventory.mjs",
     "test:drug-inventory-concurrency": "jiti scripts/test-drug-inventory-concurrency.mjs",
     "test:inventory-import-idempotency": "jiti scripts/test-inventory-import-idempotency.mjs",

@@ -5,6 +5,7 @@ import {
   customerJitRegistrationEnabled,
   customerRegistryAvailable,
   registerCustomerForClient,
+  registeredActiveCustomerIdSetForClient,
   registeredCustomerIdsForClient,
   registeredCustomerForClient,
   type RegisterCustomerResult,
@@ -60,15 +61,18 @@ function parseCustomerAuthorization(): ParsedCustomerAuthorization {
     ),
   );
   const valid = customerListValid && defaultCustomerValid && registryAvailable;
+  // 每个请求都会走到这里：只读缓存里的集合计数，不再把全部已登记客户号展开成数组再建一次集合
+  // （2 万家时那是每请求 2 万次字符串复制）。
   const registeredCustomerIds = clientConfigured
-    ? registeredCustomerIdsForClient(rawClientId)
-    : [];
+    ? registeredActiveCustomerIdSetForClient(rawClientId)
+    : undefined;
   const status = {
     configured,
     valid,
     clientConfigured,
     customerCount: customerListValid
-      ? new Set([...allowedCustomerIds, ...(registeredCustomerIds || [])]).size
+      ? (registeredCustomerIds?.size || 0) +
+        [...allowedCustomerIds].filter((customerId) => !registeredCustomerIds?.has(customerId)).length
       : 0,
     ready: configured && valid && clientConfigured,
   } satisfies CustomerAuthorizationStatus;

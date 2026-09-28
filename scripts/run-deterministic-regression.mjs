@@ -309,6 +309,9 @@ const scripts = [
   "test:syndrome-hypothesis",
   "test:customer-dose-parity",
   "test:customer-jit-registration",
+  // 2026-09-28：甲方一次接入 1,926 家诊所，1,821 家被客户上限拒绝；代码硬顶 1,000 且登记表超 1,000 条整表判损坏；
+  // 每个请求鉴权都整表解析登记表（2 万家实测 67ms/次）。钉住：超旧硬顶可用、配额可配到 20,000、鉴权走缓存、原地改写即失效、登录下拉不整表下发。
+  "test:customer-registry-scale",
   "test:primary-care-50-safety",
   "test:snapshot-auth-binding",
   "test:lineage-governance",

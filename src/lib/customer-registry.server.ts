@@ -1,8 +1,8 @@
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { mkdir, rename, writeFile } from "node:fs/promises";
+import { readFileSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseCustomerId } from "./customer-id";
 import { normalizeIdempotencyKey } from "./idempotency-key";
@@ -10,7 +10,9 @@ import { normalizeIdempotencyKey } from "./idempotency-key";
 const REGISTRY_SCHEMA_VERSION = "tcm-cdss-customer-registry-v1" as const;
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{3,64}$/;
 const DEFAULT_JIT_CUSTOMER_QUOTA = 100;
-const MAX_JIT_CUSTOMER_QUOTA = 1_000;
+// 甲方客户一万多家（2026-09-28），生产配 20,000。硬顶留出余量。
+const MAX_JIT_CUSTOMER_QUOTA = 50_000;
+const REGISTRY_SANITY_MAX_ENTRIES = 200_000;
 
 type RegisteredCustomer = Readonly<{
   clientId: string;
@@ -61,37 +63,101 @@ function parseRegistry(raw: string): CustomerRegistryFile | undefined {
       /^[a-f0-9]{64}$/.test(item.idempotencyKeyHash) &&
       (item.authorizationSource === undefined || ["jit", "static"].includes(item.authorizationSource)),
     ));
-    if (customers.length !== value.customers.length || customers.length > MAX_JIT_CUSTOMER_QUOTA) return undefined;
+    // 条目数只做健全性上限，不与配额挂钩。2026-09-28 之前这里用的是配额硬顶 1,000：
+    // 登记表一旦写进第 1,001 条，整张表判为损坏，**全部**客户一起 403——而当天甲方
+    // 一次接入 1,926 家诊所，只差配置一改就会踩上。配额只在登记新客户时检查。
+    if (customers.length !== value.customers.length || customers.length > REGISTRY_SANITY_MAX_ENTRIES) return undefined;
     return { schemaVersion: REGISTRY_SCHEMA_VERSION, customers };
   } catch {
     return undefined;
   }
 }
 
-function readRegistrySync(): CustomerRegistryFile | undefined {
+/**
+ * 登记表的进程内缓存与索引。
+ *
+ * 每个接口请求的鉴权都要查登记表 2～4 次（可用性、客户列表、单客户查找）。此前每次都
+ * readFileSync + 整表解析：105 家时无感，2 万家时实测每次鉴权卡住事件循环 67ms，
+ * 所有请求排队。缓存按文件身份（设备、inode、大小、纳秒修改时间）失效：本模块的写入是
+ * 临时文件 + rename（换 inode），运维或测试原地改写会改变大小或修改时间，都能被看到。
+ */
+type IndexedRegistry = Readonly<{
+  registry: CustomerRegistryFile;
+  activeByBinding: ReadonlyMap<string, RegisteredCustomer>;
+  activeIdsByClient: ReadonlyMap<string, ReadonlySet<string>>;
+}>;
+
+let registryCache: { key: string; value: IndexedRegistry | undefined } | undefined;
+
+function bindingKey(clientId: string, customerId: string): string {
+  return `${clientId}\0${customerId}`;
+}
+
+function indexRegistry(registry: CustomerRegistryFile): IndexedRegistry {
+  const activeByBinding = new Map<string, RegisteredCustomer>();
+  const activeIdsByClient = new Map<string, Set<string>>();
+  for (const item of registry.customers) {
+    if (item.status !== "active") continue;
+    activeByBinding.set(bindingKey(item.clientId, item.customerId), item);
+    const ids = activeIdsByClient.get(item.clientId) || new Set<string>();
+    ids.add(item.customerId);
+    activeIdsByClient.set(item.clientId, ids);
+  }
+  return { registry, activeByBinding, activeIdsByClient };
+}
+
+function registryFileKey(target: string): string | undefined {
   try {
-    return parseRegistry(readFileSync(registryPath(), "utf8"));
+    const stats = statSync(target, { bigint: true });
+    return `${stats.dev}:${stats.ino}:${stats.size}:${stats.mtimeNs}`;
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
-    return code === "ENOENT" ? emptyRegistry() : undefined;
+    return code === "ENOENT" ? "missing" : undefined;
   }
 }
 
-async function readRegistry(): Promise<CustomerRegistryFile | undefined> {
-  try {
-    return parseRegistry(await readFile(registryPath(), "utf8"));
-  } catch (error) {
-    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
-    return code === "ENOENT" ? emptyRegistry() : undefined;
+function indexedRegistrySync(): IndexedRegistry | undefined {
+  const target = registryPath();
+  const key = registryFileKey(target);
+  // stat 本身失败（权限、I/O）不缓存：按「不可用」返回，下一次请求重新判断。
+  if (!key) return undefined;
+  const cacheKey = `${target}\0${key}`;
+  if (registryCache?.key === cacheKey) return registryCache.value;
+  let value: IndexedRegistry | undefined;
+  if (key === "missing") {
+    value = indexRegistry(emptyRegistry());
+  } else {
+    try {
+      const parsed = parseRegistry(readFileSync(target, "utf8"));
+      value = parsed ? indexRegistry(parsed) : undefined;
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+      value = code === "ENOENT" ? indexRegistry(emptyRegistry()) : undefined;
+    }
   }
+  registryCache = { key: cacheKey, value };
+  return value;
+}
+
+function readRegistrySync(): CustomerRegistryFile | undefined {
+  return indexedRegistrySync()?.registry;
+}
+
+async function readRegistry(): Promise<CustomerRegistryFile | undefined> {
+  // 变更路径同样走缓存：变更已由 registryMutationTail 串行化，且写入后立刻按新文件身份
+  // 回填缓存，所以这里拿到的就是最近一次落盘的内容，不必每次登记都重新解析整张表。
+  return readRegistrySync();
 }
 
 async function writeRegistry(registry: CustomerRegistryFile): Promise<void> {
   const target = registryPath();
   await mkdir(dirname(target), { recursive: true, mode: 0o700 });
   const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(registry, null, 2)}\n`, { mode: 0o600 });
+  // 紧凑格式：2 万家时缩进格式约 8MB，每次登记要写两遍。
+  await writeFile(temporary, `${JSON.stringify(registry)}\n`, { mode: 0o600 });
   await rename(temporary, target);
+  const key = registryFileKey(target);
+  registryCache = key && key !== "missing" ? { key: `${target}\0${key}`, value: indexRegistry(registry) } : undefined;
 }
 
 function idempotencyKeyHash(value: string): string {
@@ -118,17 +184,20 @@ export function registeredCustomerForClient(
   clientId: string,
   customerId: string,
 ): RegisteredCustomer | undefined {
-  const registry = readRegistrySync();
-  return registry?.customers.find(
-    (item) => item.clientId === clientId && item.customerId === customerId && item.status === "active",
-  );
+  return indexedRegistrySync()?.activeByBinding.get(bindingKey(clientId, customerId));
 }
 
 export function registeredCustomerIdsForClient(clientId: string): string[] | undefined {
-  const registry = readRegistrySync();
-  return registry?.customers
-    .filter((item) => item.clientId === clientId && item.status === "active")
-    .map((item) => item.customerId);
+  const indexed = indexedRegistrySync();
+  if (!indexed) return undefined;
+  return [...(indexed.activeIdsByClient.get(clientId) || [])];
+}
+
+/** 每个请求都要用的客户计数走这里：返回缓存里的只读集合，不复制 2 万个字符串。 */
+export function registeredActiveCustomerIdSetForClient(clientId: string): ReadonlySet<string> | undefined {
+  const indexed = indexedRegistrySync();
+  if (!indexed) return undefined;
+  return indexed.activeIdsByClient.get(clientId) || new Set<string>();
 }
 
 export async function registerCustomerForClient(input: {

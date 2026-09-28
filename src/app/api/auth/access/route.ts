@@ -73,6 +73,16 @@ function recordFailedAttempt(key: string, now: number): LoginAttemptBucket {
   return bucket;
 }
 
+/**
+ * 登录页的客户下拉选项。已授权客户过多时（甲方 2026-09-28 接入一万多家诊所）不再列出：
+ * 上万个选项的下拉框没法用，响应也会变成几百 KB。页面此时退回文本输入框，由使用者填写客户标识。
+ */
+const LOGIN_CUSTOMER_OPTIONS_MAX = 200;
+
+function loginCustomerOptions(customerIds: string[]): string[] {
+  return customerIds.length <= LOGIN_CUSTOMER_OPTIONS_MAX ? customerIds : [];
+}
+
 export async function POST(req: Request) {
   if (!isCdssAuthRequired()) {
     return NextResponse.json({ ok: true, authRequired: false });
@@ -120,13 +130,16 @@ export async function POST(req: Request) {
 
   const customerId = parseCustomerId(body.customerId);
   if (!customerId) {
-    const customerOptions = authorizedCustomerIdsForAuthenticatedLogin();
+    const allCustomerIds = authorizedCustomerIdsForAuthenticatedLogin();
+    const customerOptions = loginCustomerOptions(allCustomerIds);
     return finalize(NextResponse.json(
       {
         ok: false,
         error: customerOptions.length
           ? "访问口令正确，请选择已授权客户"
-          : "客户标识格式不正确",
+          : allCustomerIds.length > 0
+            ? "访问口令正确，请填写客户标识"
+            : "客户标识格式不正确",
         code: "invalid_customer_id",
         ...(customerOptions.length ? { customerOptions } : {}),
       },
@@ -136,7 +149,7 @@ export async function POST(req: Request) {
   const customerAuthorization = authorizeCustomerId(customerId, true);
   if (!customerAuthorization.ok) {
     const customerOptions = customerAuthorization.code === "customer_forbidden"
-      ? authorizedCustomerIdsForAuthenticatedLogin()
+      ? loginCustomerOptions(authorizedCustomerIdsForAuthenticatedLogin())
       : [];
     return finalize(NextResponse.json(
       {
