@@ -34,6 +34,8 @@ HERB_IDENTITY_SUPPLEMENTS = DATA_ROOT / "tcm-herb-identity-supplements.json"
 FORMULA_OUTPUT = DATA_ROOT / "tcm-formula-governed-catalog.json"
 # 《方剂学》教材功用（scripts/build-formula-textbook-functions.py 生成）：给目录里功效为空的条目补 functions。
 TEXTBOOK_FUNCTIONS = DATA_ROOT / "tcm-formula-textbook-functions.json"
+# 常用层里教材与标准都未覆盖的方：逐首联网核对的功用（人工筛过来源与组成，见文件内 method）。
+CURATED_FUNCTIONS = DATA_ROOT / "tcm-formula-curated-functions.source.json"
 FORMULA_RETRIEVAL_CONCEPTS = DATA_ROOT / "tcm-formula-retrieval-concepts.json"
 FORMULA_RETRIEVAL_CONCEPTS_SOURCE = DATA_ROOT / "tcm-formula-retrieval-concepts.source.json"
 # 受治理症状词族表（症状→病位/病性轴），已被 tcm-syndrome-hypothesis / tcm-chief-complaint-anchor
@@ -1510,6 +1512,23 @@ def fill_textbook_functions(entries: list[dict[str, Any]]) -> int:
             "match": match_kind,
         }
         filled += 1
+    if CURATED_FUNCTIONS.exists():
+        curated = json.loads(CURATED_FUNCTIONS.read_text(encoding="utf-8")).get("rows", [])
+        by_key = {(compact(row.get("name")), compact(row.get("source"))): row for row in curated}
+        for entry in entries:
+            if entry.get("functions"):
+                continue
+            row = by_key.get((compact(entry.get("name")), compact(entry.get("source"))))
+            if not row or not row.get("functions"):
+                continue
+            entry["functions"] = list(row["functions"])
+            entry["functionsSource"] = {
+                "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+                "reference": row.get("reference"),
+                "compositionCheck": row.get("compositionCheck"),
+                "match": "curated_row",
+            }
+            filled += 1
     return filled
 
 def build_formula_catalog(
@@ -2297,6 +2316,7 @@ def build_formula_catalog(
         "sources": [
             {"file": FORMULA_SOURCE.name, "sha256": sha256(FORMULA_SOURCE)},
             *([{"file": TEXTBOOK_FUNCTIONS.name, "sha256": sha256(TEXTBOOK_FUNCTIONS)}] if TEXTBOOK_FUNCTIONS.exists() else []),
+            *([{"file": CURATED_FUNCTIONS.name, "sha256": sha256(CURATED_FUNCTIONS)}] if CURATED_FUNCTIONS.exists() else []),
             {"file": FORMULA_INDICATIONS.name, "sha256": sha256(FORMULA_INDICATIONS)},
             {"file": VERIFIED_FORMULAS.name, "sha256": sha256(VERIFIED_FORMULAS)},
             {

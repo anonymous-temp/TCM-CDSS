@@ -32,8 +32,8 @@ type FormulaIndicationEntry = {
   indications: string[];
   /** 方剂功效（目录 functions 列），用于系统自主锁定时的治法一致性核验。 */
   functions: string[];
-  /** 功效来源：教材补全（textbook）只作正面对齐证据，见 formulaTherapyAlignedWithSigned。 */
-  functionsProvenance?: "textbook";
+  /** 功效来源：教材或联网核对补全（supplementary）只作正面对齐证据，见 formulaTherapyAlignedWithSigned。 */
+  functionsProvenance?: "supplementary";
   syndromeTags: string[];
   curatedSyndromeTags: string[];
   curatedSyndromeRelations: CuratedSyndromeRelation[];
@@ -144,7 +144,7 @@ const ENTRIES: readonly FormulaIndicationEntry[] = governedCatalog.entries
     catalog: entry.sourceClass,
     indications: entry.indications,
     functions: entry.functions || [],
-    ...(entry.functionsSource ? { functionsProvenance: "textbook" as const } : {}),
+    ...(entry.functionsSource ? { functionsProvenance: "supplementary" as const } : {}),
     syndromeTags: entry.syndromeTags,
     curatedSyndromeTags: entry.curatedSyndromeTags || [],
     curatedSyndromeRelations: entry.curatedSyndromeRelations || [],
@@ -1258,7 +1258,7 @@ export function signedTherapyMethodIds(reasoning: unknown): Set<string> {
 export function formulaTherapyAlignedWithSigned(
   functions: readonly string[] | undefined,
   signedMethods: ReadonlySet<string>,
-  provenance?: "textbook",
+  provenance?: "supplementary",
 ): boolean {
   if (signedMethods.size === 0) return true;
   const formulaMethods = governedTreatmentMethodsInText((functions || []).join("；"));
@@ -1267,7 +1267,7 @@ export function formulaTherapyAlignedWithSigned(
   // 教材补全的功效（2026-09-28，目录里原本功效为空的 154 首）只作正面证据：受控词表按整词包含匹配，
   // 教材短语「补脾疏肝」「健脾养心」往往一个治法词也抽不出，对不上是词表粒度，不是方证相悖。
   // 对不上时退回补全前的判法（功效为空＝不据此否决），否则归脾汤对心脾两虚不寐、温胆汤对痰热内扰都会被误剔。
-  return provenance === "textbook";
+  return provenance === "supplementary";
 }
 
 /**

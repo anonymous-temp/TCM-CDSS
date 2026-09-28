@@ -28,8 +28,17 @@ check("the textbook extraction covers the textbook's main formulas and carries i
 });
 
 check("every textbook fill is the same formula (source book or ≥60% composition) and never overwrites standard functions", () => {
-  const filled = catalog.filter((entry) => entry.functionsSource);
+  const curated = JSON.parse(readFileSync(new URL("../src/data/tcm-formula-curated-functions.source.json", import.meta.url), "utf8")).rows;
+  const filled = catalog.filter((entry) => entry.functionsSource && entry.functionsSource.match !== "curated_row");
   assert.ok(filled.length >= 140, `filled ${filled.length}`);
+  // 联网核对行：方名与目录出处逐字对上才补，来源 URL 随条目保存。
+  for (const entry of catalog.filter((item) => item.functionsSource?.match === "curated_row")) {
+    const row = curated.find((candidate) => candidate.name === entry.name && compact(candidate.source) === compact(entry.source));
+    assert.ok(row, `${entry.name}: curated row missing`);
+    assert.deepEqual(entry.functions, row.functions);
+    assert.match(String(entry.functionsSource.reference?.url || ""), /^https?:\/\//, `${entry.name}: curated fill must carry its source URL`);
+    assert.ok(["matches", "partial"].includes(row.compositionCheck), `${entry.name}: composition must have been checked`);
+  }
   for (const entry of filled) {
     assert.equal(entry.standardCode, undefined, `${entry.name}: standard functions must not be overwritten`);
     const rows = textbook.entries.filter((row) => row.name === entry.name || (row.aliases || []).includes(entry.name) ||
@@ -67,7 +76,7 @@ check("alignment: same controlled method or ancestor/descendant lineage; sibling
   // 教材功效对不上号：不作否决（退回功效为空），但也不算正面证据。
   const heartSpleen = indications.signedTherapyMethodIds({ therapy: { overallMethod: "补益心脾，养心安神" } });
   assert.equal(indications.formulaFunctionsPositivelyAligned(["益气补血", "健脾养心"], heartSpleen), false);
-  assert.equal(indications.formulaTherapyAlignedWithSigned(["益气补血", "健脾养心"], heartSpleen, "textbook"), true);
+  assert.equal(indications.formulaTherapyAlignedWithSigned(["益气补血", "健脾养心"], heartSpleen, "supplementary"), true);
   assert.equal(indications.formulaTherapyAlignedWithSigned(["益气补血", "健脾养心"], heartSpleen), false, "the same misalignment still vetoes standard functions");
 });
 

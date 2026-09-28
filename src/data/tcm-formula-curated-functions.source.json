@@ -1,0 +1,753 @@
+{
+ "schemaVersion": "tcm-formula-curated-functions-v1",
+ "compiledAt": "2026-09-28",
+ "method": "常用层（可锁定 732 首）中教材与深圳方剂标准都未覆盖的方，逐首联网核对功用：优先《中医方剂大辞典》/《方剂学》教材转载页（A+医学百科）、人卫中医助手；只收组成与目录条目一致或部分一致者；来源存疑（抄录错误的系列页、个人站）与只取到论文摘要句的不收。",
+ "rows": [
+  {
+   "name": "三痹汤",
+   "source": "《妇人大全良方》",
+   "functions": [
+    "祛风湿",
+    "止痹痛",
+    "益肝肾",
+    "补气血"
+   ],
+   "reference": {
+    "title": "医砭·常用方剂「三痹汤」",
+    "url": "https://yibian.hopto.org/cn/db/?fno=464"
+   },
+   "compositionCheck": "matches",
+   "note": "医砭组成16味与输入一致。另：振华经典名方系列（出处《妇人良方》）作“益气活血，祛风除湿”（zhenhua520.com id=3327）。A+大辞典条目仅主治。"
+  },
+  {
+   "name": "两地汤",
+   "source": "《傅青主女科》",
+   "functions": [
+    "滋阴清热"
+   ],
+   "reference": {
+    "title": "A+医学百科「两地汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E4%B8%A4%E5%9C%B0%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《傅青主女科》卷上条目；医砭同。振华经典名方系列作“养阴清热，凉血调经”。"
+  },
+  {
+   "name": "五虎汤",
+   "source": "《仁斋直指》",
+   "functions": [
+    "清热宣肺",
+    "止咳平喘"
+   ],
+   "reference": {
+    "title": "中医药网(zhongyoo)「五虎汤」方剂配方",
+    "url": "http://www.zhongyoo.com/fangji/wht_12913.html"
+   },
+   "compositionCheck": "matches",
+   "note": "该页出处标《幼科发挥》，组成麻黄、杏仁、甘草、腊茶、石膏与输入（《仁斋直指》，细茶）一致；A+所收《仁斋直指》卷八条目仅主治“治风热壅肺，身热，咳喘痰多者”。"
+  },
+  {
+   "name": "保阴煎",
+   "source": "《景岳全书》",
+   "functions": [
+    "滋阴降火",
+    "清热凉血"
+   ],
+   "reference": {
+    "title": "中医药网(zhongyoo)「保阴煎」方剂配方",
+    "url": "http://m.zhongyoo.com/fangji/byj_12489.html"
+   },
+   "compositionCheck": "matches",
+   "note": "出处《景岳全书》，组成8味一致；A+/医砭条目无功用栏。"
+  },
+  {
+   "name": "六磨汤",
+   "source": "《证治准绳》",
+   "functions": [
+    "理气通便"
+   ],
+   "reference": {
+    "title": "医学教育网（正保）气滞便秘用六磨汤",
+    "url": "https://www.med66.com/new/40a187a2011/2011611wangju16200.shtml"
+   },
+   "compositionCheck": "partial",
+   "note": "页面称摘自《症治准绳》，栏目名为“功能”；组成用枳实（输入为枳壳），余同。A+所收《世医得效方》同组成条目仅主治。"
+  },
+  {
+   "name": "养精种玉汤",
+   "source": "《傅青主女科》",
+   "functions": [
+    "补肾养血"
+   ],
+   "reference": {
+    "title": "A+医学百科「养精种玉汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E5%85%BB%E7%B2%BE%E7%A7%8D%E7%8E%89%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《傅青主女科》卷上条目。"
+  },
+  {
+   "name": "凉血四物汤",
+   "source": "《医宗金鉴》",
+   "functions": [
+    "凉血调荣",
+    "散瘀化滞"
+   ],
+   "reference": {
+    "title": "A+医学百科「凉血四物汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E5%87%89%E8%A1%80%E5%9B%9B%E7%89%A9%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《医宗金鉴》卷六十五条目。"
+  },
+  {
+   "name": "凉血地黄汤",
+   "source": "《外科大成》",
+   "functions": [
+    "清热燥湿",
+    "凉血止血"
+   ],
+   "reference": {
+    "title": "A+医学百科「凉血地黄汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E5%87%89%E8%A1%80%E5%9C%B0%E9%BB%84%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《外科大成》卷二条目；振华经典名方系列作“清热凉血止血”。"
+  },
+  {
+   "name": "厚朴七物汤",
+   "source": "《金匮要略》",
+   "functions": [
+    "解肌发表",
+    "行气通便"
+   ],
+   "reference": {
+    "title": "人卫中医助手（人民卫生出版社）「厚朴七物汤」",
+    "url": "https://rwzyzs.pmphai.com/gdsdetail/661454-323035"
+   },
+   "compositionCheck": "matches",
+   "note": "出处《金匮要略》；中医药网与振华经典名方系列同。"
+  },
+  {
+   "name": "厚朴三物汤",
+   "source": "《金匮要略》",
+   "functions": [
+    "行气除满",
+    "去积通便"
+   ],
+   "reference": {
+    "title": "A+医学百科「厚朴三物汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E5%8E%9A%E6%9C%B4%E4%B8%89%E7%89%A9%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《金匮要略》卷上条目，【功用】栏。"
+  },
+  {
+   "name": "四物消风饮",
+   "source": "《医宗金鉴》",
+   "functions": [
+    "调荣滋血消风"
+   ],
+   "reference": {
+    "title": "A+医学百科「四物消风饮」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E5%9B%9B%E7%89%A9%E6%B6%88%E9%A3%8E%E9%A5%AE"
+   },
+   "compositionCheck": "matches",
+   "note": "A+转录《金鉴》卷七十三条目“【方剂功效】调荣滋血消风”。"
+  },
+  {
+   "name": "固本止崩汤",
+   "source": "《傅青主女科》",
+   "functions": [
+    "补气摄血",
+    "固冲止崩"
+   ],
+   "reference": {
+    "title": "医砭·常用方剂「固本止崩汤」",
+    "url": "https://yibian.hopto.org/cn/db/?fno=831"
+   },
+   "compositionCheck": "partial",
+   "note": "医砭组成以党参代人参，余同；A+（大辞典）条目仅主治。"
+  },
+  {
+   "name": "圣愈汤",
+   "source": "《兰室秘藏》",
+   "functions": [
+    "补气养血"
+   ],
+   "reference": {
+    "title": "A+医学百科「圣愈汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E5%9C%A3%E6%84%88%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "A+“功用”栏（兰室秘藏组成）；振华经典名方系列同。"
+  },
+  {
+   "name": "地黄饮",
+   "source": "《医宗金鉴》",
+   "functions": [
+    "凉血润燥",
+    "祛风止痒"
+   ],
+   "reference": {
+    "title": "A+医学百科「地黄饮」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E5%9C%B0%E9%BB%84%E9%A5%AE"
+   },
+   "compositionCheck": "matches",
+   "note": "《医宗金鉴》卷七十四条目。"
+  },
+  {
+   "name": "大补元煎",
+   "source": "《景岳全书》",
+   "functions": [
+    "救本培元",
+    "大补气血"
+   ],
+   "reference": {
+    "title": "A+医学百科「大补元煎」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E5%A4%A7%E8%A1%A5%E5%85%83%E7%85%8E"
+   },
+   "compositionCheck": "matches",
+   "note": "《景岳全书》卷五十，【功用】栏；医砭同。"
+  },
+  {
+   "name": "大黄黄连泻心汤",
+   "source": "《伤寒论》",
+   "functions": [
+    "清热消痞",
+    "泻火解毒"
+   ],
+   "reference": {
+    "title": "《简易名方临证备要》大黄黄连泻心汤《伤寒论》《金匮要略》",
+    "url": "https://m.yunqi.qq.com/read/27614547/21"
+   },
+   "compositionCheck": "partial",
+   "note": "该书将《伤寒论》本方与《金匮》泻心汤并条，组成列大黄、黄连、黄芩（林亿按语“当有黄芩”），输入仅大黄、黄连。A+/医砭/医学教育网条目均无功用。可信度中等。"
+  },
+  {
+   "name": "定经汤",
+   "source": "《傅青主女科》",
+   "functions": [
+    "舒肝补肾",
+    "养血调经"
+   ],
+   "reference": {
+    "title": "A+医学百科「定经汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E5%AE%9A%E7%BB%8F%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《傅青主女科》卷上条目；医砭同。"
+  },
+  {
+   "name": "宣郁通经汤",
+   "source": "《傅青主女科》",
+   "functions": [
+    "疏肝泻火",
+    "理气调经"
+   ],
+   "reference": {
+    "title": "A+医学百科「宣郁通经汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E5%AE%A3%E9%83%81%E9%80%9A%E7%BB%8F%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《傅青主女科》卷上条目，【功用】栏。"
+  },
+  {
+   "name": "寿胎丸",
+   "source": "《医学衷中参西录》",
+   "functions": [
+    "补肾",
+    "安胎"
+   ],
+   "reference": {
+    "title": "A+医学百科「寿胎丸」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E5%AF%BF%E8%83%8E%E4%B8%B8"
+   },
+   "compositionCheck": "matches",
+   "note": "【功用】栏；医砭同。"
+  },
+  {
+   "name": "托里消毒散",
+   "source": "《外科正宗》",
+   "functions": [
+    "扶正托毒"
+   ],
+   "reference": {
+    "title": "人卫中医助手（人民卫生出版社）「托里消毒散」",
+    "url": "https://rwzyzs.pmphai.com/gdsdetail/663940-323353"
+   },
+   "compositionCheck": "matches",
+   "note": "人卫条目出处标《医宗金鉴》（转录《外科正宗》方），组成12味与输入一致；振华经典名方系列（出处《外科正宗》）作“益气养血，托毒生肌”。"
+  },
+  {
+   "name": "散偏汤",
+   "source": "《辨证录》",
+   "functions": [
+    "疏肝解郁",
+    "活血止痛"
+   ],
+   "reference": {
+    "title": "A+医学百科「散偏汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E6%95%A3%E5%81%8F%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《辨证录》卷二条目。"
+  },
+  {
+   "name": "枇杷清肺饮",
+   "source": "《医宗金鉴》",
+   "functions": [
+    "宣肺",
+    "清热",
+    "化湿"
+   ],
+   "reference": {
+    "title": "医学教育网（正保）方剂集锦：枇杷清肺饮",
+    "url": "https://www.med66.com/songjijijin/ha1903251158.shtml"
+   },
+   "compositionCheck": "matches",
+   "note": "出处《医宗金鉴》，【功效】栏；A+所收《外科大成》同组成条目仅主治。"
+  },
+  {
+   "name": "枳实芍药散",
+   "source": "《金匮要略》",
+   "functions": [
+    "行气和血",
+    "缓急止痛"
+   ],
+   "reference": {
+    "title": "人卫中医助手（人民卫生出版社）「枳实芍药散」",
+    "url": "https://rwzyzs.pmphai.com/gdsdetail/663364-323168"
+   },
+   "compositionCheck": "matches",
+   "note": "出处《金匮要略》；医砭作“行气和血”。"
+  },
+  {
+   "name": "柴胡桂枝汤",
+   "source": "《古今名医方论》",
+   "functions": [
+    "和解少阳",
+    "调和营卫"
+   ],
+   "reference": {
+    "title": "中医世家「柴胡桂枝汤」条目（新浪转载；zysj.com.cn 本机网络不可达）",
+    "url": "https://www.sina.cn/news/detail/4847047558037990.html"
+   },
+   "compositionCheck": "matches",
+   "note": "组成9味与输入一致（伤寒论方，输入出处《古今名医方论》为转录）。来源间不一致：A+“功用 解表和里”；中医药网“解肌散邪，清热调气”；医砭“表里两解、寒热兼除”。"
+  },
+  {
+   "name": "柴胡清肝汤",
+   "source": "《医宗金鉴》",
+   "functions": [
+    "养血清火",
+    "疏肝散结"
+   ],
+   "reference": {
+    "title": "A+医学百科「柴胡清肝汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E6%9F%B4%E8%83%A1%E6%B8%85%E8%82%9D%E6%B1%A4"
+   },
+   "compositionCheck": "partial",
+   "note": "A+（大辞典）条目出处为《外科正宗》卷二，组成与输入同（白芍 vs 输入赤芍），《医宗金鉴》鬓疽门本方即转录此方；未检得以《医宗金鉴》为出处的功用。医砭同名方组成不同（含黄连、黄柏、桔梗、薄荷），未采用。"
+  },
+  {
+   "name": "桂枝芍药知母汤",
+   "source": "《金匮要略·中风历节病脉证并治第五》",
+   "functions": [
+    "祛风除湿",
+    "温经宣痹",
+    "养阴清热"
+   ],
+   "reference": {
+    "title": "人卫中医助手（人民卫生出版社）「桂枝芍药知母汤」",
+    "url": "https://rwzyzs.pmphai.com/gdsdetail/615024-289622"
+   },
+   "compositionCheck": "matches",
+   "note": "出处《金匮要略》卷上；A+（大辞典《金匮》卷上）作“通阳行痹，祛风逐湿，和营止痛”。"
+  },
+  {
+   "name": "桂枝麻黄各半汤",
+   "source": "《伤寒论》",
+   "functions": [
+    "解表散邪",
+    "小发其汗"
+   ],
+   "reference": {
+    "title": "中医药网(zhongyoo)「桂枝麻黄各半汤」方剂配方",
+    "url": "http://m.zhongyoo.com/fangji/gzmhgbt_13552.html"
+   },
+   "compositionCheck": "matches",
+   "note": "出处《伤寒论》，【功效作用】栏；A+条目仅主治。"
+  },
+  {
+   "name": "桃红四物汤",
+   "source": "《妇科冰鉴》",
+   "functions": [
+    "养血活血"
+   ],
+   "reference": {
+    "title": "A+医学百科「桃红四物汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E6%A1%83%E7%BA%A2%E5%9B%9B%E7%89%A9%E6%B1%A4"
+   },
+   "compositionCheck": "partial",
+   "note": "A+条目出处《医垒元戎》录自《玉机微义》，组成熟地、当归、白芍、川芎、桃仁、红花；输入为《妇科冰鉴》版（生地）。同名同系，差一味地黄炮制品，按 partial 记录；医砭作“养血活血，通络调经，祛瘀止痛”。"
+  },
+  {
+   "name": "桑白皮汤",
+   "source": "《景岳全书》",
+   "functions": [
+    "清肺降气",
+    "化痰止嗽"
+   ],
+   "reference": {
+    "title": "A+医学百科「桑白皮汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E6%A1%91%E7%99%BD%E7%9A%AE%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "A+（大辞典）《古今医统》引《医林》条目，组成8味与输入（《景岳全书》）完全一致；振华经典名方系列（出处《景岳全书》）作“清热化痰，降气平喘”。"
+  },
+  {
+   "name": "泽泻汤",
+   "source": "《金匮要略》",
+   "functions": [
+    "健脾利水除饮"
+   ],
+   "reference": {
+    "title": "中医药网(zhongyoo)「泽泻汤」方剂配方",
+    "url": "http://m.zhongyoo.com/fangji/zxt_12888.html"
+   },
+   "compositionCheck": "matches",
+   "note": "出处《金匮要略》；检索摘要另见“利水除饮，健脾制水”（未核对原页）。"
+  },
+  {
+   "name": "消乳丸",
+   "source": "《婴童百问》",
+   "functions": [
+    "温中快膈",
+    "止呕吐",
+    "消乳食"
+   ],
+   "reference": {
+    "title": "A+医学百科「消乳丸」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E6%B6%88%E4%B9%B3%E4%B8%B8"
+   },
+   "compositionCheck": "matches",
+   "note": "《婴童百问》卷七，【功用】栏。"
+  },
+  {
+   "name": "清上蠲痛汤",
+   "source": "《寿世保元》",
+   "functions": [
+    "疏风散寒",
+    "清热止痛"
+   ],
+   "reference": {
+    "title": "医砭·常用方剂「清上蠲痛汤」",
+    "url": "https://yibian.hopto.org/cn/db/?fno=623"
+   },
+   "compositionCheck": "matches",
+   "note": "医砭组成与输入一致；振华经典名方系列（出处《寿世保元》）作“疏风散邪，清热止痛”。"
+  },
+  {
+   "name": "清肝止淋汤",
+   "source": "《傅青主女科》",
+   "functions": [
+    "养血清肝"
+   ],
+   "reference": {
+    "title": "A+医学百科「清肝止淋汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E6%B8%85%E8%82%9D%E6%AD%A2%E6%B7%8B%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《傅青主女科》卷上条目；医砭同；振华系列作“养血柔肝，清热化湿”。"
+  },
+  {
+   "name": "清金化痰汤",
+   "source": "《医学统旨》",
+   "functions": [
+    "清肺化痰"
+   ],
+   "reference": {
+    "title": "A+医学百科「清金化痰汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E6%B8%85%E9%87%91%E5%8C%96%E7%97%B0%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《杂病广要》引《医学统旨》条目。"
+  },
+  {
+   "name": "滋水清肝饮",
+   "source": "《寿世新编》",
+   "functions": [
+    "滋阴养血",
+    "清热疏肝"
+   ],
+   "reference": {
+    "title": "A+医学百科「滋水清肝饮」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E6%BB%8B%E6%B0%B4%E6%B8%85%E8%82%9D%E9%A5%AE"
+   },
+   "compositionCheck": "matches",
+   "note": "A+出处标《医宗己任编》卷六，输入出处《寿世新编》，组成11味一致；医砭同。"
+  },
+  {
+   "name": "理冲汤",
+   "source": "《医学衷中参西录》",
+   "functions": [
+    "益气行血",
+    "调经祛瘀"
+   ],
+   "reference": {
+    "title": "A+医学百科「理冲汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E7%90%86%E5%86%B2%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《医学衷中参西录》上册条目。"
+  },
+  {
+   "name": "瓜蒌桂枝汤",
+   "source": "《金匮要略》",
+   "functions": [
+    "解肌发表",
+    "生津舒筋"
+   ],
+   "reference": {
+    "title": "医砭·常用方剂「栝蒌桂枝汤」",
+    "url": "https://yibian.hopto.org/cn/db/?fno=755"
+   },
+   "compositionCheck": "matches",
+   "note": "医砭以“栝蒌桂枝汤”收录，组成六味一致。"
+  },
+  {
+   "name": "甘姜苓术汤",
+   "source": "《金匮要略》",
+   "functions": [
+    "温脾祛湿止痛"
+   ],
+   "reference": {
+    "title": "医砭·常用方剂「甘草干姜茯苓白术汤」",
+    "url": "https://yibian.hopto.org/cn/db/?fno=260"
+   },
+   "compositionCheck": "matches",
+   "note": "医砭以“甘草干姜茯苓白术汤”收录，取功效栏首句；振华经典名方系列作“散寒除湿”。"
+  },
+  {
+   "name": "甘草泻心汤",
+   "source": "《伤寒论》",
+   "functions": [
+    "益气和胃",
+    "消痞止呕"
+   ],
+   "reference": {
+    "title": "A+医学百科「甘草泻心汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E7%94%98%E8%8D%89%E6%B3%BB%E5%BF%83%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《伤寒论》条目【功用】栏；医砭同；振华系列作“益气和胃，消痞止利”。"
+  },
+  {
+   "name": "甘露饮",
+   "source": "《太平惠民和剂局方》",
+   "functions": [
+    "清热养阴",
+    "行气利湿"
+   ],
+   "reference": {
+    "title": "A+医学百科「甘露饮」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E7%94%98%E9%9C%B2%E9%A5%AE"
+   },
+   "compositionCheck": "matches",
+   "note": "《太平惠民和剂局方》卷六条目；振华系列作“滋阴清热，利湿降气”，医砭作“养阴润燥、清热解毒”。"
+  },
+  {
+   "name": "白术散",
+   "source": "《小儿药证直诀》",
+   "functions": [
+    "健脾止泻"
+   ],
+   "reference": {
+    "title": "A+医学百科「白术散」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E7%99%BD%E6%9C%AF%E6%95%A3"
+   },
+   "compositionCheck": "matches",
+   "note": "《小儿药证直诀》卷下（七味白术散）条目；同页有多首同名异方。"
+  },
+  {
+   "name": "芍药甘草汤",
+   "source": "《伤寒论》",
+   "functions": [
+    "调和肝脾",
+    "缓急止痛"
+   ],
+   "reference": {
+    "title": "A+医学百科「芍药甘草汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E8%8A%8D%E8%8D%AF%E7%94%98%E8%8D%89%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《伤寒论》条目【功用】栏；医砭作“调和气血，镇挛止痛”。"
+  },
+  {
+   "name": "薏苡附子败酱散",
+   "source": "《金匮要略》",
+   "functions": [
+    "排脓消肿"
+   ],
+   "reference": {
+    "title": "A+医学百科「薏苡附子败酱散」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E8%96%8F%E8%8B%A1%E9%99%84%E5%AD%90%E8%B4%A5%E9%85%B1%E6%95%A3"
+   },
+   "compositionCheck": "matches",
+   "note": "《金匮要略》卷中条目【功用】栏；医砭作“清热排脓，化瘀消肿”。"
+  },
+  {
+   "name": "藿朴夏苓汤",
+   "source": "《医原》",
+   "functions": [
+    "理气化湿",
+    "疏表和中"
+   ],
+   "reference": {
+    "title": "A+医学百科「藿朴夏苓汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E8%97%BF%E6%9C%B4%E5%A4%8F%E8%8B%93%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《医原》卷下条目【功用】栏；振华系列作“宣通气机，解表化湿”，医砭作“芳香健胃，解表化湿”。"
+  },
+  {
+   "name": "蠲痹汤",
+   "source": "《医学心悟》",
+   "functions": [
+    "祛风除湿",
+    "蠲痹止痛"
+   ],
+   "reference": {
+    "title": "A+医学百科「蠲痹汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E8%A0%B2%E7%97%B9%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "A+页“蠲痹汤（程钟龄方）来源《医学心悟》”段，组成11味一致；同页《严氏济生方》《杨氏家藏方》蠲痹汤为同名异方；振华系列作“祛风除湿，散寒止痛”。"
+  },
+  {
+   "name": "补肾活血汤",
+   "source": "《伤科大成》",
+   "functions": [
+    "补肾壮筋",
+    "活血止痛"
+   ],
+   "reference": {
+    "title": "科普中国「补肾活血汤」",
+    "url": "https://www.kepuchina.cn/article/articleinfo?business_type=100&classify=0&ar_id=315746"
+   },
+   "compositionCheck": "matches",
+   "note": "出处《伤科大成》，功用栏；组成11味一致。"
+  },
+  {
+   "name": "解郁汤",
+   "source": "《傅青主女科》",
+   "functions": [
+    "解郁健脾",
+    "养血柔肝"
+   ],
+   "reference": {
+    "title": "A+医学百科「解郁汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E8%A7%A3%E9%83%81%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《傅青主女科》卷下条目。"
+  },
+  {
+   "name": "调肝汤",
+   "source": "《傅青主女科》",
+   "functions": [
+    "补益肾水",
+    "平调肝气"
+   ],
+   "reference": {
+    "title": "A+医学百科「调肝汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E8%B0%83%E8%82%9D%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《傅青主女科》卷上条目【功用】栏；医砭同。"
+  },
+  {
+   "name": "通关丸",
+   "source": "《绛雪园古方选注》",
+   "functions": [
+    "滋肾通关"
+   ],
+   "reference": {
+    "title": "A+医学百科「通关丸」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E9%80%9A%E5%85%B3%E4%B8%B8"
+   },
+   "compositionCheck": "matches",
+   "note": "A+条目摘录《兰室秘藏》卷下（即滋肾丸），组成黄柏、知母、肉桂与输入一致，输入出处《绛雪园古方选注》为转录；医砭“滋肾丸”同。"
+  },
+  {
+   "name": "金铃子散",
+   "source": "《素问病机气宜保命集》",
+   "functions": [
+    "疏肝泄热",
+    "活血止痛"
+   ],
+   "reference": {
+    "title": "A+医学百科「金铃子散」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E9%87%91%E9%93%83%E5%AD%90%E6%95%A3"
+   },
+   "compositionCheck": "matches",
+   "note": "《素问病机气宜保命集》条目〖功用〗栏；医砭作“疏肝泻热，活血止痛”。"
+  },
+  {
+   "name": "附子泻心汤",
+   "source": "《伤寒论》",
+   "functions": [
+    "温经回阳",
+    "扶阳固表",
+    "泄热消痞"
+   ],
+   "reference": {
+    "title": "A+医学百科「附子泻心汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E9%99%84%E5%AD%90%E6%B3%BB%E5%BF%83%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《伤寒论》条目【功效】栏。"
+  },
+  {
+   "name": "除湿胃苓汤",
+   "source": "《医宗金鉴》",
+   "functions": [
+    "清热燥湿"
+   ],
+   "reference": {
+    "title": "A+医学百科「除湿胃苓汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E9%99%A4%E6%B9%BF%E8%83%83%E8%8B%93%E6%B1%A4"
+   },
+   "compositionCheck": "matches",
+   "note": "《医宗金鉴》卷六十四条目；振华系列作“健脾利湿，清热止痒”。"
+  },
+  {
+   "name": "麻黄附子细辛汤",
+   "source": "《医方集解》",
+   "functions": [
+    "温壮阳气",
+    "解表散寒"
+   ],
+   "reference": {
+    "title": "中医药网(zhongyoo)「麻黄附子细辛汤」方剂配方",
+    "url": "http://m.zhongyoo.com/fangji/mhfzxxt_12599.html"
+   },
+   "compositionCheck": "matches",
+   "note": "中医药网出处《伤寒论》（又名麻黄细辛附子汤），输入出处《医方集解》为转录；医砭作“温经解表”。"
+  },
+  {
+   "name": "黄连膏",
+   "source": "《医宗金鉴》",
+   "functions": [
+    "清火解毒"
+   ],
+   "reference": {
+    "title": "A+医学百科「黄连膏」条目（转录《中医方剂大辞典》/方剂学条目）",
+    "url": "https://www.a-hospital.com/w/%E9%BB%84%E8%BF%9E%E8%86%8F"
+   },
+   "compositionCheck": "matches",
+   "note": "《医宗金鉴》卷六十五条目【功能主治】首句；振华系列作“清热润燥，解毒止痛”。"
+  }
+ ]
+}

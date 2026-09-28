@@ -1,6 +1,7 @@
 import { getDiagnosisProviderStatus, probeTongueVisionModel } from "@/lib/diagnosis-api";
 import { getEvimedEvidenceStatus, getEvimedGuideStatus, probeExternalEvidenceSources } from "@/lib/evimed-guide";
 import { getTcmKnowledgeStatus } from "@/lib/tcm-knowledge";
+import { classicEvidenceCorpusStatus } from "@/lib/tcm-classic-evidence.server";
 import { getFormulaCatalogStatus } from "@/lib/tcm-formula-provenance";
 import { reasoningContractSigningConfigured } from "@/lib/reasoning-contract-signature";
 import { getTcmTreatmentProjectStatus } from "@/lib/tcm-treatment-capabilities.server";
@@ -180,6 +181,9 @@ export async function GET(req: Request) {
     ...(tongueVisionProbe ? { tongueVisionProbe } : {}),
     knowledge: getTcmKnowledgeStatus(),
     formulaKnowledge: getFormulaCatalogStatus(),
+    // 古籍原文证据（「原典出处」）逐语料进入紧凑索引的条数。9/27 前生产一直读不到语料（0 条）且无人察觉；
+    // 部署后看这里即可证明索引被读到（records=构建时原始条数，indexed=进索引条数）。
+    classicEvidence: classicEvidenceCorpusStatus(),
     tcmTreatmentProjects,
     guideEvidence: getEvimedGuideStatus(),
     externalEvidence,

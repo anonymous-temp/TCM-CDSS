@@ -10,6 +10,10 @@
       "sha256": "45ac6dc4c3494683f80dfc9f0e735e19681704925ebd8fefa426d4cb330734cc"
     },
     {
+      "file": "tcm-formula-curated-functions.source.json",
+      "sha256": "b65ca534514354acb4f6d2ed0fbaba11bc367dd1aec87d30df66b22d76e4633b"
+    },
+    {
       "file": "tcm-formula-indications.json",
       "sha256": "30570bc7479811a89ce8b864ca7c0a360937fce9679559cbe7e3a344e73680ad"
     },
@@ -41,7 +45,7 @@
     "sameNamePolicy": "门诊裸词“加味逍遥散”按别名归入丹栀逍遥散；只有明确《审视瑶函》或暴盲语境才进入具名眼科变体。"
   },
   "summary": {
-    "textbookFunctionsFilled": 154,
+    "textbookFunctionsFilled": 208,
     "syndromeTagRouteRejectedCount": 207,
     "syndromeTagCuratedNeutralizedCount": 46,
     "nameCompositionMismatchDropped": [
@@ -8572,7 +8576,22 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "祛风湿",
+        "止痹痛",
+        "益肝肾",
+        "补气血"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "医砭·常用方剂「三痹汤」",
+          "url": "https://yibian.hopto.org/cn/db/?fno=464"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-C873CD4AF7F2",
@@ -11455,7 +11474,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "滋阴清热"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「两地汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E4%B8%A4%E5%9C%B0%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-17B68491F0EE",
@@ -23588,7 +23619,20 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热宣肺",
+        "止咳平喘"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "中医药网(zhongyoo)「五虎汤」方剂配方",
+          "url": "http://www.zhongyoo.com/fangji/wht_12913.html"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-3690F12CF57B",
@@ -32783,7 +32827,20 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "滋阴降火",
+        "清热凉血"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "中医药网(zhongyoo)「保阴煎」方剂配方",
+          "url": "http://m.zhongyoo.com/fangji/byj_12489.html"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-EFC333EE3015",
@@ -38643,7 +38700,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "理气通便"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "医学教育网（正保）气滞便秘用六磨汤",
+          "url": "https://www.med66.com/new/40a187a2011/2011611wangju16200.shtml"
+        },
+        "compositionCheck": "partial",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-1D6F4DBE9AD2",
@@ -39612,7 +39681,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补肾养血"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「养精种玉汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E5%85%BB%E7%B2%BE%E7%A7%8D%E7%8E%89%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-3C4BAAFDA9FD",
@@ -44145,7 +44226,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "凉血调荣",
+        "散瘀化滞"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「凉血四物汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E5%87%89%E8%A1%80%E5%9B%9B%E7%89%A9%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-48159221DFAF",
@@ -44290,7 +44384,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热燥湿",
+        "凉血止血"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「凉血地黄汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E5%87%89%E8%A1%80%E5%9C%B0%E9%BB%84%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-7BA4705E975E",
@@ -60330,7 +60437,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "解肌发表",
+        "行气通便"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "人卫中医助手（人民卫生出版社）「厚朴七物汤」",
+          "url": "https://rwzyzs.pmphai.com/gdsdetail/661454-323035"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-678EF70C0840",
@@ -60409,7 +60529,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "行气除满",
+        "去积通便"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「厚朴三物汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E5%8E%9A%E6%9C%B4%E4%B8%89%E7%89%A9%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-DA2F52C2008E",
@@ -72077,7 +72210,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "调荣滋血消风"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「四物消风饮」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E5%9B%9B%E7%89%A9%E6%B6%88%E9%A3%8E%E9%A5%AE"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-A7F30F4D5B33",
@@ -75179,7 +75324,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补气摄血",
+        "固冲止崩"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "医砭·常用方剂「固本止崩汤」",
+          "url": "https://yibian.hopto.org/cn/db/?fno=831"
+        },
+        "compositionCheck": "partial",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-F72F25FDC2D5",
@@ -76463,7 +76621,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补气养血"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「圣愈汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E5%9C%A3%E6%84%88%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-E338A9BAD8FA",
@@ -77777,7 +77947,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "凉血润燥",
+        "祛风止痒"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「地黄饮」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E5%9C%B0%E9%BB%84%E9%A5%AE"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-9FCD41DDEA39",
@@ -87180,7 +87363,20 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "救本培元",
+        "大补气血"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「大补元煎」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E5%A4%A7%E8%A1%A5%E5%85%83%E7%85%8E"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-3891AB4147CA",
@@ -90303,7 +90499,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热消痞",
+        "泻火解毒"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "《简易名方临证备要》大黄黄连泻心汤《伤寒论》《金匮要略》",
+          "url": "https://m.yunqi.qq.com/read/27614547/21"
+        },
+        "compositionCheck": "partial",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-599CC03D101F",
@@ -98720,7 +98929,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "舒肝补肾",
+        "养血调经"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「定经汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E5%AE%9A%E7%BB%8F%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-630DB0D972D8",
@@ -100453,7 +100675,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "疏肝泻火",
+        "理气调经"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「宣郁通经汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E5%AE%A3%E9%83%81%E9%80%9A%E7%BB%8F%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-62DFEE946BFE",
@@ -102393,7 +102628,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补肾",
+        "安胎"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「寿胎丸」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E5%AF%BF%E8%83%8E%E4%B8%B8"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-F5274AB2AA19",
@@ -121137,7 +121385,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "扶正托毒"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "人卫中医助手（人民卫生出版社）「托里消毒散」",
+          "url": "https://rwzyzs.pmphai.com/gdsdetail/663940-323353"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-CCDDC7017A28",
@@ -128259,7 +128519,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "疏肝解郁",
+        "活血止痛"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「散偏汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E6%95%A3%E5%81%8F%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-31F9D0872882",
@@ -138620,7 +138893,21 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "宣肺",
+        "清热",
+        "化湿"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "医学教育网（正保）方剂集锦：枇杷清肺饮",
+          "url": "https://www.med66.com/songjijijin/ha1903251158.shtml"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-7C123E451F4B",
@@ -139630,7 +139917,20 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "行气和血",
+        "缓急止痛"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "人卫中医助手（人民卫生出版社）「枳实芍药散」",
+          "url": "https://rwzyzs.pmphai.com/gdsdetail/663364-323168"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-437868AA57B7",
@@ -142639,7 +142939,20 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "和解少阳",
+        "调和营卫"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "中医世家「柴胡桂枝汤」条目（新浪转载；zysj.com.cn 本机网络不可达）",
+          "url": "https://www.sina.cn/news/detail/4847047558037990.html"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-62E1EF1D87FC",
@@ -143029,7 +143342,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "养血清火",
+        "疏肝散结"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「柴胡清肝汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E6%9F%B4%E8%83%A1%E6%B8%85%E8%82%9D%E6%B1%A4"
+        },
+        "compositionCheck": "partial",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-60B9F271AD79",
@@ -149488,7 +149814,21 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "祛风除湿",
+        "温经宣痹",
+        "养阴清热"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "人卫中医助手（人民卫生出版社）「桂枝芍药知母汤」",
+          "url": "https://rwzyzs.pmphai.com/gdsdetail/615024-289622"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-A420DE79BD07",
@@ -149801,7 +150141,20 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "解表散邪",
+        "小发其汗"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "中医药网(zhongyoo)「桂枝麻黄各半汤」方剂配方",
+          "url": "http://m.zhongyoo.com/fangji/gzmhgbt_13552.html"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-805AEB8C0BD2",
@@ -151628,7 +151981,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "养血活血"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「桃红四物汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E6%A1%83%E7%BA%A2%E5%9B%9B%E7%89%A9%E6%B1%A4"
+        },
+        "compositionCheck": "partial",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-EB89439BD5F7",
@@ -152189,7 +152554,20 @@
           "reason": "catalog_records_bare_genus"
         }
       ],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清肺降气",
+        "化痰止嗽"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「桑白皮汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E6%A1%91%E7%99%BD%E7%9A%AE%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-8ED35F2BCB5D",
@@ -180484,7 +180862,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "健脾利水除饮"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "中医药网(zhongyoo)「泽泻汤」方剂配方",
+          "url": "http://m.zhongyoo.com/fangji/zxt_12888.html"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-3953F0E56698",
@@ -185076,7 +185466,21 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温中快膈",
+        "止呕吐",
+        "消乳食"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「消乳丸」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E6%B6%88%E4%B9%B3%E4%B8%B8"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-546ECCE37BF4",
@@ -189007,7 +189411,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "疏风散寒",
+        "清热止痛"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "医砭·常用方剂「清上蠲痛汤」",
+          "url": "https://yibian.hopto.org/cn/db/?fno=623"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-AFF315A34467",
@@ -193184,7 +193601,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "养血清肝"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「清肝止淋汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E6%B8%85%E8%82%9D%E6%AD%A2%E6%B7%8B%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-94A489CD024F",
@@ -195146,7 +195575,19 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清肺化痰"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「清金化痰汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E6%B8%85%E9%87%91%E5%8C%96%E7%97%B0%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-7056AC45C6CF",
@@ -198095,7 +198536,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "滋阴养血",
+        "清热疏肝"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「滋水清肝饮」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E6%BB%8B%E6%B0%B4%E6%B8%85%E8%82%9D%E9%A5%AE"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-43D5B3C17894",
@@ -211109,7 +211563,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "益气行血",
+        "调经祛瘀"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「理冲汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E7%90%86%E5%86%B2%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-211A287D8B67",
@@ -212407,7 +212874,20 @@
           "reason": "adjudication_evidence_is_inferential:formula_intent_inference"
         }
       ],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "解肌发表",
+        "生津舒筋"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "医砭·常用方剂「栝蒌桂枝汤」",
+          "url": "https://yibian.hopto.org/cn/db/?fno=755"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-0ED37261CD40",
@@ -212684,7 +213164,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温脾祛湿止痛"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "医砭·常用方剂「甘草干姜茯苓白术汤」",
+          "url": "https://yibian.hopto.org/cn/db/?fno=260"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-B96DA5220A59",
@@ -213254,7 +213746,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "益气和胃",
+        "消痞止呕"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「甘草泻心汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E7%94%98%E8%8D%89%E6%B3%BB%E5%BF%83%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-2CE96FAF5426",
@@ -213992,7 +214497,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热养阴",
+        "行气利湿"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「甘露饮」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E7%94%98%E9%9C%B2%E9%A5%AE"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-DEED4083F5EB",
@@ -221354,7 +221872,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "健脾止泻"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「白术散」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E7%99%BD%E6%9C%AF%E6%95%A3"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-D10CBA885AAA",
@@ -257377,7 +257907,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "调和肝脾",
+        "缓急止痛"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「芍药甘草汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E8%8A%8D%E8%8D%AF%E7%94%98%E8%8D%89%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-78E057580D44",
@@ -272382,7 +272925,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "排脓消肿"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「薏苡附子败酱散」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E8%96%8F%E8%8B%A1%E9%99%84%E5%AD%90%E8%B4%A5%E9%85%B1%E6%95%A3"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-9104EC8F41CB",
@@ -272890,7 +273445,20 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "理气化湿",
+        "疏表和中"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「藿朴夏苓汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E8%97%BF%E6%9C%B4%E5%A4%8F%E8%8B%93%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-96370FD3E41F",
@@ -276244,7 +276812,20 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "祛风除湿",
+        "蠲痹止痛"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「蠲痹汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E8%A0%B2%E7%97%B9%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-AD7DED8FF318",
@@ -280938,7 +281519,20 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补肾壮筋",
+        "活血止痛"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "科普中国「补肾活血汤」",
+          "url": "https://www.kepuchina.cn/article/articleinfo?business_type=100&classify=0&ar_id=315746"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-20F240E8B9D6",
@@ -284110,7 +284704,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "解郁健脾",
+        "养血柔肝"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「解郁汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E8%A7%A3%E9%83%81%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-701695B4951B",
@@ -286353,7 +286960,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "补益肾水",
+        "平调肝气"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「调肝汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E8%B0%83%E8%82%9D%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-6677E8C16829",
@@ -297204,7 +297824,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "滋肾通关"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「通关丸」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E9%80%9A%E5%85%B3%E4%B8%B8"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-4472207EEE82",
@@ -301803,7 +302435,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "疏肝泄热",
+        "活血止痛"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「金铃子散」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E9%87%91%E9%93%83%E5%AD%90%E6%95%A3"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-D6EC81A518B8",
@@ -311913,7 +312558,21 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温经回阳",
+        "扶阳固表",
+        "泄热消痞"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「附子泻心汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E9%99%84%E5%AD%90%E6%B3%BB%E5%BF%83%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-0BBA50591ADD",
@@ -313559,7 +314218,19 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清热燥湿"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「除湿胃苓汤」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E9%99%A4%E6%B9%BF%E8%83%83%E8%8B%93%E6%B1%A4"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-3F7373673940",
@@ -328941,7 +329612,20 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "温壮阳气",
+        "解表散寒"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "中医药网(zhongyoo)「麻黄附子细辛汤」方剂配方",
+          "url": "http://m.zhongyoo.com/fangji/mhfzxxt_12599.html"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-E3B863B857CF",
@@ -332110,7 +332794,19 @@
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [],
+      "functions": [
+        "清火解毒"
+      ],
+      "functionsSource": {
+        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
+        "reference": {
+          "title": "A+医学百科「黄连膏」条目（转录《中医方剂大辞典》/方剂学条目）",
+          "url": "https://www.a-hospital.com/w/%E9%BB%84%E8%BF%9E%E8%86%8F"
+        },
+        "compositionCheck": "matches",
+        "match": "curated_row"
+      }
     },
     {
       "id": "TCM-FORMULA-9BF90212BB9F",
