@@ -144,6 +144,9 @@ import { clinicianVisibleMedicationRiskNote } from "@/lib/patient-relevant-medic
 const APP_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const BROWSER_CASE_PERSISTENCE_ENABLED = isBrowserCasePersistenceEnabled();
 const DIAGNOSIS_REQUEST_TIMEOUT_MS = 210_000;
+// 答题期事实层预热（见 useEffect「答题期事实层预热」）：停手多久再发、每轮追问最多几次。
+const QUESTION_FACTS_WARMUP_DEBOUNCE_MS = 1200;
+const QUESTION_FACTS_WARMUP_MAX_PER_ROUND = 3;
 const MAX_SHORT_INPUT_CHARS = 200;
 const MAX_LONG_INPUT_CHARS = 3000;
 const MAX_CASE_SUPPLEMENT_CHARS = 6000;
@@ -3017,7 +3020,7 @@ export function buildCompleteReport(
   ].filter(Boolean).join("\n\n"));
 }
 
-function capturePreviousResult(state: CaseState): CaseState["previousResult"] {
+export function capturePreviousResult(state: CaseState): CaseState["previousResult"] {
   if (!state.diagnosis && !state.prescription && !state.riskAssessment) return state.previousResult;
   return {
     diagnosis: state.diagnosis,
@@ -6360,6 +6363,50 @@ function applyTypedQuestionDetails(
   }));
 }
 
+/**
+ * 追问补充回答的提交形状（2026-09-28 抽出，提交与答题期预热共用）。
+ *
+ * 返回写回的草稿，以及（要提交时）提交后的病例：needsInformation 决定走哪条续跑支路；updated 已含本轮
+ * 回答（applyUserAnswer）与轮次、outcome。两条支路发往 red-flags 的病例文本相同（事实层按病历文本指纹缓存），
+ * 所以答题期用同一个函数预先调用 red-flags，提交时的事实抽取就是缓存命中或进行中合流。
+ * 逐步与原提交分支等价：先写回草稿，再按「无变化 / 病历超预算 / 回答超预算」早退；非待补充支路回答为空也早退。
+ */
+export function buildQuestionAnswerSubmission(
+  caseState: CaseState,
+  recordDraft: HisRecordDraft,
+  selectedQuestionOptions: Record<string, QuestionOptionSelection>,
+  trimmedInput: string,
+  hasTongueImage: boolean,
+): { draftForSubmit: HisRecordDraft; submission?: { needsInformation: boolean; updated: CaseState } } {
+  const submissionSelections = applyTypedQuestionDetails(selectedQuestionOptions);
+  const submissionAnswer = selectedQuestionAnswerText(submissionSelections);
+  const draftForSubmit = applySelectedQuestionOptionsToDraft(recordDraft, submissionSelections);
+  const hasRecordChange = hasQuestionRecordChange(draftForSubmit, caseState.hisRecord, hasTongueImage, caseState.id);
+  if (!trimmedInput && !hasRecordChange && !submissionAnswer) return { draftForSubmit };
+  const draftAppliedState = withSafetyGateAndOperationalCompleteness(applyDraftToCaseState(caseState, draftForSubmit, trimmedInput, hasTongueImage));
+  const hisRecord = draftAppliedState.hisRecord || caseState.hisRecord;
+  if (hisRecord?.rawText && isModelInputOverBudget(hisRecord.rawText)) return { draftForSubmit };
+  const recordSupplement = hasRecordChange && hisRecord?.rawText.trim() ? `本轮病历补充：\n${hisRecord.rawText}` : "";
+  const combinedAnswer = [submissionAnswer, hasRecordChange ? recordSupplement : trimmedInput].filter(Boolean).join("\n\n");
+  if (isModelInputOverBudget(combinedAnswer)) return { draftForSubmit };
+  const needsInformation = draftAppliedState.safetyGate?.status === "needs_information";
+  if (!needsInformation && !combinedAnswer.trim()) return { draftForSubmit };
+  const answered = combinedAnswer.trim()
+    ? applyUserAnswer({ ...draftAppliedState, hisRecord }, combinedAnswer)
+    : draftAppliedState;
+  return {
+    draftForSubmit,
+    submission: {
+      needsInformation,
+      updated: {
+        ...answered,
+        questionRounds: Math.min(answered.maxQuestionRounds, answered.questionRounds + 1),
+        questionOutcome: "answered",
+      },
+    },
+  };
+}
+
 function inferDraftPatchFromFreeText(text: string): Partial<HisRecordDraft> {
   const normalized = text.replace(/\s+/g, " ").trim();
   const patch: Partial<HisRecordDraft> = {};
@@ -6587,11 +6634,11 @@ function hasAnyDraftInputInDocument(): boolean {
   });
 }
 
-function withSafetyGateAndOperationalCompleteness(state: CaseState): CaseState {
+export function withSafetyGateAndOperationalCompleteness(state: CaseState): CaseState {
   return withSafetyGate(state);
 }
 
-function applyDraftToCaseState(
+export function applyDraftToCaseState(
   state: CaseState,
   draft: HisRecordDraft,
   extraText: string,
@@ -8934,34 +8981,16 @@ export default function DiagnosisPage() {
       setInput("");
       await runCollect(caseInput, rerunState, hisRecord);
     } else if (caseState.phase === "question" || canContinueLimitedCase(caseState) || hasPendingFollowupQuestions(caseState)) {
-      const submissionSelections = applyTypedQuestionDetails(selectedQuestionOptions);
-      const submissionAnswer = selectedQuestionAnswerText(submissionSelections);
-      const directPatch: Partial<HisRecordDraft> = {};
-      const draftWithSelections = applySelectedQuestionOptionsToDraft(recordDraft, submissionSelections);
-      const draftWithDirectFields = Object.keys(directPatch).length > 0
-        ? mergeDraftPatch(draftWithSelections, directPatch, true)
-        : draftWithSelections;
-      const draftForSubmit = draftWithDirectFields;
-      if (draftForSubmit !== recordDraft) setRecordDraft(draftForSubmit);
-      const hasRecordChange = hasQuestionRecordChange(draftForSubmit, caseState.hisRecord, Boolean(tongueImage), caseState.id);
-      if (!trimmed && !hasRecordChange && !submissionAnswer) return;
-      const draftAppliedState = withSafetyGateAndOperationalCompleteness(applyDraftToCaseState(caseState, draftForSubmit, trimmed, Boolean(tongueImage)));
-      const hisRecord = draftAppliedState.hisRecord || caseState.hisRecord;
-      if (hisRecord?.rawText && isModelInputOverBudget(hisRecord.rawText)) return;
-      const recordSupplement = hasRecordChange && hisRecord?.rawText.trim() ? `本轮病历补充：\n${hisRecord.rawText}` : "";
-      const combinedAnswer = [submissionAnswer, hasRecordChange ? recordSupplement : trimmed].filter(Boolean).join("\n\n");
-      if (isModelInputOverBudget(combinedAnswer)) return;
-      if (draftAppliedState.safetyGate?.status === "needs_information") {
+      // 与答题期预热（useQuestionAnswerFactsWarmup）同一个构造函数：两边发往 red-flags 的病例逐字相同，
+      // 预热算好的事实层在这里直接命中缓存（进行中则合流）。
+      const prepared = buildQuestionAnswerSubmission(caseState, recordDraft, selectedQuestionOptions, trimmed, Boolean(tongueImage));
+      if (prepared.draftForSubmit !== recordDraft) setRecordDraft(prepared.draftForSubmit);
+      const submission = prepared.submission;
+      if (!submission) return;
+      if (submission.needsInformation) {
         setInput("");
         commitSelectedQuestionOptions({});
-        const answered = combinedAnswer.trim()
-          ? applyUserAnswer({ ...draftAppliedState, hisRecord }, combinedAnswer)
-          : draftAppliedState;
-        const updated: CaseState = {
-          ...answered,
-          questionRounds: Math.min(answered.maxQuestionRounds, answered.questionRounds + 1),
-          questionOutcome: "answered",
-        };
+        const updated = submission.updated;
         const nextState = await refreshClinicalSafetyFacts(withSafetyGateAndOperationalCompleteness(updated));
         if (nextState.safetyGate?.status === "red_flag") {
           const readyState = setPhase(clearDownstreamClinicalResults({
@@ -8998,15 +9027,9 @@ export default function DiagnosisPage() {
         }
         return;
       }
-      if (!combinedAnswer.trim()) return;
       setInput("");
       commitSelectedQuestionOptions({});
-      const answered = applyUserAnswer({ ...draftAppliedState, hisRecord }, combinedAnswer);
-      const updated: CaseState = {
-        ...answered,
-        questionRounds: Math.min(answered.maxQuestionRounds, answered.questionRounds + 1),
-        questionOutcome: "answered",
-      };
+      const updated = submission.updated;
       const reassessBase = await refreshClinicalSafetyFacts(withSafetyGateAndOperationalCompleteness(clearDownstreamClinicalResults({
         ...updated,
         previousResult: capturePreviousResult(updated),
@@ -9524,6 +9547,33 @@ export default function DiagnosisPage() {
   const canSubmit = isQuestionSupplementFlow
     ? patientSexReady && patientAgeReady && chiefComplaintReady && hasSubmitChange && !modelInputTooLong
     : patientSexReady && patientAgeReady && chiefComplaintReady && hasHisRecordInput(recordDraft, input, Boolean(tongueImage)) && !modelInputTooLong;
+  // 答题期事实层预热（2026-09-28）。医生答完追问后，提交链路是 red-flags（冷的事实抽取约 4–5s，
+  // 偶尔再多一轮引用修复）→ M03（前置输入同样是冷的）。而提交时要发的病例在选齐答案那一刻就定了：
+  // 停手 1.2s 后用与提交完全相同的构造函数（buildQuestionAnswerSubmission）把它先发给 red-flags，
+  // 服务端按病历文本指纹缓存事实层（进行中则合流），并预取 M03 前置输入。提交时两者都命中。
+  // 只写服务端缓存、不改页面任何状态；同一内容不重发，每轮追问最多 QUESTION_FACTS_WARMUP_MAX_PER_ROUND 次。
+  // 不挂运行中止信号：提交会开启新的运行作用域，若随之取消预热请求，服务端的抽取也会被取消。
+  const factsWarmupRef = useRef({ roundKey: "", lastKey: "", count: 0 });
+  useEffect(() => {
+    if (!isQuestionSupplementFlow || isRunning || !hasSubmitChange || modelInputTooLong) return;
+    const timer = window.setTimeout(() => {
+      const submission = buildQuestionAnswerSubmission(caseState, recordDraft, selectedQuestionOptions, input.trim(), Boolean(tongueImage)).submission;
+      if (!submission) return;
+      const warmState = withSafetyGateAndOperationalCompleteness(submission.updated);
+      const warm = factsWarmupRef.current;
+      const roundKey = `${caseState.id}:${caseState.questionRounds}`;
+      if (warm.roundKey !== roundKey) factsWarmupRef.current = { roundKey, lastKey: "", count: 0 };
+      const key = JSON.stringify([warmState.hisRecord?.fields || null, warmState.conversation.filter((item) => item.role === "user").map((item) => item.content)]);
+      if (key === factsWarmupRef.current.lastKey || factsWarmupRef.current.count >= QUESTION_FACTS_WARMUP_MAX_PER_ROUND) return;
+      factsWarmupRef.current = { roundKey, lastKey: key, count: factsWarmupRef.current.count + 1 };
+      void fetch(apiUrl("/api/diagnosis/red-flags?prefetch=diagnose"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseState: warmState }),
+      }).then((response) => response.body?.cancel()).catch(() => undefined);
+    }, QUESTION_FACTS_WARMUP_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [isQuestionSupplementFlow, isRunning, hasSubmitChange, modelInputTooLong, caseState, recordDraft, selectedQuestionOptions, input, tongueImage]);
   const noChangeToSubmit = patientSexReady && patientAgeReady && chiefComplaintReady && !canSubmit;
   const submitHint = !patientSexReady
     ? "请先选择性别；无法确认时可选择“其他或未明确”。"
