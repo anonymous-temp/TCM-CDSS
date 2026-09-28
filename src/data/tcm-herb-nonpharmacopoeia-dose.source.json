@@ -1,0 +1,646 @@
+{
+  "schemaVersion": "tcm-herb-nonpharmacopoeia-dose-v1",
+  "governance": {
+    "status": "web_verified",
+    "adjudicatedAt": "2026-09-28",
+    "decision": "用户 2026-09-28：药典外药材用量不再等中医师复核，按联网核查结果裁决。",
+    "scope": "只收《中国药典》2020 年版一部未收载的药材。运行时只取 route=煎服 的条目作为剂量参考区间，且须至少两条出处；同名药一旦有药典剂量条目，本表不生效（药典优先）。",
+    "rangeRule": "minG/maxG 取各权威来源（《中药学》规划教材、中国医药信息查询平台、省级炮制规范/药材标准、《中药大辞典》《全国中草药汇编》）的并集：参考区间只用于标注——区间内写明出处，区间外批注偏离，不压剂量、不触发修复；取并集是为了不把常用剂量误标成偏离。adjudicated 保留教材口径供对照。",
+    "excluded": "竹叶（只找到一条出处）、建曲（第二出处为科普站点）未收入；藜芦、紫河车、琥珀的口径为入丸散/研末吞服，保留在表中供页面说明，但不作为煎剂剂量区间。",
+    "replaces": "「高置信中药饮片剂量校准层」中药典外 5 味（五灵脂、神曲、败酱草、龙骨、藜芦）的推定值。",
+    "aliasNote": "别名只收同一药材的写法。北败酱（菊科苣荬菜）、红米（食用）、海石（写法有歧义）不作别名；上海规范里「败酱草/苏败酱」指十字花科菥蓂（药典另有条目），本表的败酱草指败酱科黄花败酱/白花败酱，与中医师 2026-08-16 裁定一致。"
+  },
+  "entries": [
+    {
+      "herb": "五灵脂",
+      "aliases": [
+        "灵脂",
+        "醋五灵脂"
+      ],
+      "route": "煎服",
+      "minG": 3,
+      "maxG": 10,
+      "adjudicated": "3–10g 包煎",
+      "method": "包煎",
+      "cautions": "孕妇慎用；十九畏：人参畏五灵脂，不宜与人参同用；血虚无瘀者慎用。",
+      "basis": "《中药学》全国规划教材；中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；A+医学百科（《全国中草药汇编》）",
+      "confidence": "high",
+      "disagreement": "上海2018上限9g，其余一致。",
+      "chpHistory": "1963、1977、1985、1990年版正文收载；1995–2010年版移入附录；2015年版起不再收载（据检索摘要，未见药典原文）",
+      "sources": [
+        {
+          "title": "《中药学》全国规划教材（本地语料：中医补充数据/灵丹GitHub/TCM Educational Materials.txt）",
+          "url": "",
+          "quote": "煎服，3～10g，包煎。"
+        },
+        {
+          "title": "中国医药信息查询平台·五灵脂（国家中医药管理局名词术语项目审核；审核人华国栋）",
+          "url": "https://www.dayi.org.cn/cmedical/1118127.html",
+          "quote": "煎服，3-10g。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1661",
+          "quote": "3～9g，包煎。外用适量。【注意】(1)不宜与人参同用。(2)孕妇慎服。"
+        },
+        {
+          "title": "A+医学百科·五灵脂（《全国中草药汇编》）",
+          "url": "https://www.a-hospital.com/w/五灵脂",
+          "quote": "1～3钱；外用适量"
+        }
+      ]
+    },
+    {
+      "herb": "六神曲",
+      "aliases": [
+        "六曲",
+        "炒神曲",
+        "焦神曲",
+        "神曲"
+      ],
+      "route": "煎服",
+      "minG": 3,
+      "maxG": 15,
+      "adjudicated": "6–15g",
+      "method": "",
+      "cautions": "消食宜炒焦用；脾阴不足、胃火盛者及孕妇慎服。",
+      "basis": "《中药学》全国规划教材；中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；A+医学百科（《中药大辞典》）",
+      "confidence": "high",
+      "disagreement": "上海2018（沪）3～9g、《中药大辞典》2～4钱（约6～12g）偏低；教材与医药信息平台一致6～15g。",
+      "chpHistory": "未见历版药典收载（曲类发酵制品）；见《全国中药炮制规范》1988年版及各省炮制规范（未逐版核实）",
+      "sources": [
+        {
+          "title": "《中药学》全国规划教材（本地语料：中医补充数据/灵丹GitHub/TCM Educational Materials.txt）",
+          "url": "",
+          "quote": "煎服，6～15g。消食宜炒焦用。"
+        },
+        {
+          "title": "中国医药信息查询平台·六神曲（国家中医药管理局名词术语项目审核；审核人王丽霞）",
+          "url": "https://www.dayi.org.cn/cmedical/303424.html",
+          "quote": "内服：煎服，6-15g。消食宜炒焦用。…脾阴不足、胃火盛及孕妇慎服。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）·六神曲（沪）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1810",
+          "quote": "【用法与用量】3～9g。"
+        },
+        {
+          "title": "A+医学百科·六神曲（《中药大辞典》）",
+          "url": "https://www.a-hospital.com/w/六神曲",
+          "quote": "内服：煎汤，2～4钱；或研末入丸、散。"
+        }
+      ]
+    },
+    {
+      "herb": "败酱草",
+      "aliases": [
+        "白花败酱",
+        "败酱",
+        "黄花败酱"
+      ],
+      "route": "煎服",
+      "minG": 6,
+      "maxG": 15,
+      "adjudicated": "6–15g",
+      "method": "",
+      "cautions": "脾胃虚弱、食少泄泻者不宜；虚寒下脱者忌用。",
+      "basis": "《中药学》全国规划教材；中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；A+医学百科（《全国中草药汇编》）",
+      "confidence": "medium",
+      "disagreement": "教材6～15g、医药信息平台9～15g；《全国中草药汇编》0.5～1两（约15～30g）偏高。关键风险是同名异物：处方“败酱草”在上海等地可能调配为菥蓂（药典品，9～15g），剂量区间相近但身份不同。",
+      "chpHistory": "未核实（药典2020未收载败酱科败酱草）。同名异物：上海2018规范“败酱草/苏败酱”习用名指十字花科菥蓂 Thlaspi arvense，菥蓂为药典2020收载品种（9～15g）",
+      "sources": [
+        {
+          "title": "《中药学》全国规划教材（本地语料：中医补充数据/灵丹GitHub/TCM Educational Materials.txt）",
+          "url": "",
+          "quote": "煎服，6～15g。外用适量。"
+        },
+        {
+          "title": "中国医药信息查询平台·败酱草（国家中医药管理局名词术语项目审核；审核人华国栋）",
+          "url": "https://www.dayi.org.cn/cmedical/300138.html",
+          "quote": "内服：煎服，9-15g。外用鲜品适量，捣烂敷患处。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）·菥蓂（苏败酱）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1424",
+          "quote": "【习用名称】苏败酱、败酱草。…【用法与用量】9～15g。"
+        },
+        {
+          "title": "A+医学百科·败酱草（《全国中草药汇编》）",
+          "url": "https://www.a-hospital.com/w/败酱草",
+          "quote": "0.5～1两，鲜全草2～4两"
+        }
+      ]
+    },
+    {
+      "herb": "龙骨",
+      "aliases": [
+        "五花龙骨",
+        "煅龙骨",
+        "生龙骨",
+        "花龙骨"
+      ],
+      "route": "煎服",
+      "minG": 9,
+      "maxG": 30,
+      "adjudicated": "15–30g 先煎",
+      "method": "先煎",
+      "cautions": "湿热积滞者慎服；收敛固涩宜煅用，安神平肝宜生用。",
+      "basis": "《龙骨中药饮片炮制规范（草案）》2024；中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；《中药饮片处方审核规范》附录B",
+      "confidence": "medium",
+      "disagreement": "福建2024草案（及常见教材表述）15～30g；上海2018 9～15g、医药信息平台10～15g。本地教材语料未收龙骨条目。",
+      "chpHistory": "1963、1977年版收载；1985年版起不再收载（据检索摘要）",
+      "sources": [
+        {
+          "title": "福建省药品监督管理局《龙骨中药饮片炮制规范（草案）》2024",
+          "url": "https://yjj.scjgj.fujian.gov.cn/zwgk/gstg/tzgg/202412/P020241205559025453778.doc",
+          "quote": "【用法与用量】15～30g，先煎。外用适量。…【注意事项】湿热积滞者慎服。"
+        },
+        {
+          "title": "中国医药信息查询平台·龙骨（国家中医药管理局名词术语项目审核；审核人王丽霞）",
+          "url": "https://www.dayi.org.cn/cmedical/301894.html",
+          "quote": "内服：煎汤，10-15g；打碎先煎；或入丸、散。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1750",
+          "quote": "【用法与用量】9～15g，先煎。外用适量。"
+        },
+        {
+          "title": "深圳市地方标准 DB4403/T 142—2021《中药饮片处方审核规范》附录B",
+          "url": "http://wjw.sz.gov.cn/attachment/0/758/758943/8615641.pdf",
+          "quote": "先煎：…牡蛎、龙骨、磁石…"
+        }
+      ]
+    },
+    {
+      "herb": "龙齿",
+      "aliases": [
+        "煅龙齿",
+        "生龙齿"
+      ],
+      "route": "煎服",
+      "minG": 9,
+      "maxG": 15,
+      "adjudicated": "10–15g 先煎",
+      "method": "先煎",
+      "cautions": "脾胃虚寒者慎用；传统畏石膏。",
+      "basis": "中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；A+医学百科（中药学）",
+      "confidence": "medium",
+      "disagreement": "来源间一致（9～15g）；部分教材把龙齿作为龙骨附药写“同龙骨”（15～30g），未核实。",
+      "chpHistory": "1963、1977年版收载；1985年版起不再收载（据检索摘要）",
+      "sources": [
+        {
+          "title": "中国医药信息查询平台·龙齿（国家中医药管理局名词术语项目审核；审核人王丽霞）",
+          "url": "https://www.dayi.org.cn/cmedical/1118085.html",
+          "quote": "内服：煎汤，10-15g，打碎先煎；或入丸、散。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1749",
+          "quote": "【功能与主治】镇惊安神。…【用法与用量】9～15g，先煎。"
+        },
+        {
+          "title": "A+医学百科·龙齿",
+          "url": "https://www.a-hospital.com/w/龙齿",
+          "quote": "内服：煎汤，10-15g，打碎先煎;或入丸、散。"
+        }
+      ]
+    },
+    {
+      "herb": "藜芦",
+      "aliases": [],
+      "route": "入丸散",
+      "minG": 0.3,
+      "maxG": 0.6,
+      "adjudicated": "0.3–0.6g 入丸散",
+      "method": "入丸散（不作常规汤剂）",
+      "cautions": "有毒（剧毒），内服致吐；体虚气弱者及孕妇禁服；十八反：反人参、沙参、丹参、玄参、苦参、细辛、芍药。",
+      "basis": "中国医药信息查询平台（国家中医药管理局名词术语项目审核）；A+医学百科（《中药大辞典》）",
+      "confidence": "medium",
+      "disagreement": "两来源一致（1～2分≈0.3～0.6g）；上海2018等所查地方规范未收载。汤剂中出现藜芦应视为异常。",
+      "chpHistory": "未核实",
+      "sources": [
+        {
+          "title": "中国医药信息查询平台·藜芦（国家中医药管理局名词术语项目审核；审核人王丽霞）",
+          "url": "https://www.dayi.org.cn/cmedical/301771.html",
+          "quote": "内服：入丸、散，0.3-0.6g。外用：适量，研末…体虚气弱者及孕妇禁服。反细辛、芍药、人参、沙参、丹参、玄参、苦参。"
+        },
+        {
+          "title": "A+医学百科·藜芦（《中药大辞典》）",
+          "url": "https://www.a-hospital.com/w/藜芦",
+          "quote": "内服：研末，1~2分；或入丸剂。…体虚气弱及孕妇忌服。"
+        }
+      ]
+    },
+    {
+      "herb": "浮小麦",
+      "aliases": [
+        "浮麦"
+      ],
+      "route": "煎服",
+      "minG": 6,
+      "maxG": 30,
+      "adjudicated": "6–12g（教材）；文献与上海规范上限30g",
+      "method": "",
+      "cautions": "表邪汗出者忌用。",
+      "basis": "《中药学》全国规划教材；中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；A+医学百科（中药学）",
+      "confidence": "medium",
+      "disagreement": "明显分歧：教材6～12g，而医药信息平台/中华本草系15～30g、上海2018 10～30g。建议上限按30g作参考，教材区间仅作常用量。",
+      "chpHistory": "未核实",
+      "sources": [
+        {
+          "title": "《中药学》全国规划教材（本地语料：中医补充数据/灵丹GitHub/TCM Educational Materials.txt）",
+          "url": "",
+          "quote": "煎服，6～12g。【使用注意】表邪汗出者忌用。"
+        },
+        {
+          "title": "中国医药信息查询平台·浮小麦（国家中医药管理局名词术语项目审核；审核人华国栋）",
+          "url": "https://www.dayi.org.cn/cmedical/300942.html",
+          "quote": "内服：煎汤，15-30g；或研末。止汗，宜微炒用。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1265",
+          "quote": "【用法与用量】10～30g。"
+        },
+        {
+          "title": "A+医学百科·浮小麦",
+          "url": "https://www.a-hospital.com/w/浮小麦",
+          "quote": "内服：煎汤，15-30g；或研末。"
+        }
+      ]
+    },
+    {
+      "herb": "白花蛇舌草",
+      "aliases": [
+        "蛇舌草"
+      ],
+      "route": "煎服",
+      "minG": 6,
+      "maxG": 60,
+      "adjudicated": "15–60g（常用15–30g）",
+      "method": "",
+      "cautions": "阴疽及脾胃虚寒者忌用；孕妇慎用（《广西中药志》）。",
+      "basis": "《中药学》全国规划教材；中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；A+医学百科（中药学）",
+      "confidence": "medium",
+      "disagreement": "分歧大：教材15～60g；医药信息平台6～30g；上海2018仅9～15g；中华本草系15～30g、大剂量60g。",
+      "chpHistory": "未核实",
+      "sources": [
+        {
+          "title": "《中药学》全国规划教材（本地语料：中医补充数据/灵丹GitHub/TCM Educational Materials.txt）",
+          "url": "",
+          "quote": "煎服，15～60g。外用适量。【使用注意】阴疽及脾胃虚寒者忌用。"
+        },
+        {
+          "title": "中国医药信息查询平台·白花蛇舌草（国家中医药管理局名词术语项目审核；审核人华国栋）",
+          "url": "https://www.dayi.org.cn/cmedical/300124.html",
+          "quote": "内服：煎服，6-30g。…阴疽及脾胃虚寒者禁用。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1357",
+          "quote": "【用法与用量】9～15g。外用适量。"
+        },
+        {
+          "title": "A+医学百科·白花蛇舌草",
+          "url": "https://www.a-hospital.com/w/白花蛇舌草",
+          "quote": "内服：煎汤，15-30g，大剂量可用至60g"
+        }
+      ]
+    },
+    {
+      "herb": "冬瓜子",
+      "aliases": [
+        "冬瓜仁",
+        "炒冬瓜子"
+      ],
+      "route": "煎服",
+      "minG": 9,
+      "maxG": 15,
+      "adjudicated": "9–15g",
+      "method": "",
+      "cautions": "脾胃虚寒者慎服；久服寒中。",
+      "basis": "中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；A+医学百科（《中药大辞典》）",
+      "confidence": "medium",
+      "disagreement": "现代来源一致（9/10～15g）；《中药大辞典》1～4钱（约3～12g）。本地教材语料未找到。",
+      "chpHistory": "未核实（药典2020仅收冬瓜皮）",
+      "sources": [
+        {
+          "title": "中国医药信息查询平台·冬瓜子（国家中医药管理局名词术语项目审核；审核人华国栋）",
+          "url": "https://www.dayi.org.cn/cmedical/1114060.html",
+          "quote": "内服：煎汤，10-15g；或研末服。…脾胃虚寒者慎服本品。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1161",
+          "quote": "【用法与用量】9～15g。"
+        },
+        {
+          "title": "A+医学百科·冬瓜子（《中药大辞典》）",
+          "url": "https://www.a-hospital.com/w/冬瓜子",
+          "quote": "内服：煎汤，1～4钱；或研末。"
+        }
+      ]
+    },
+    {
+      "herb": "玉米须",
+      "aliases": [
+        "苞米须"
+      ],
+      "route": "煎服",
+      "minG": 15,
+      "maxG": 60,
+      "adjudicated": "15–30g（鲜品加倍）",
+      "method": "",
+      "cautions": "药食两用，毒性低；鲜品加倍。",
+      "basis": "《中药学》全国规划教材；中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；A+医学百科（中药学）",
+      "confidence": "high",
+      "disagreement": "常用量一致15～30g；文献大剂量60～90g。",
+      "chpHistory": "未核实（检索摘要称未被药典收载、见地方标准）",
+      "sources": [
+        {
+          "title": "《中药学》全国规划教材（本地语料：中医补充数据/灵丹GitHub/TCM Educational Materials.txt）",
+          "url": "",
+          "quote": "煎服，15～30g。鲜品加倍。"
+        },
+        {
+          "title": "中国医药信息查询平台·玉米须（国家中医药管理局名词术语项目审核；审核人李培红）",
+          "url": "https://www.dayi.org.cn/cmedical/305574.html",
+          "quote": "内服：煎汤，15~30g；大剂量60~90g；或烧存性研末。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1465",
+          "quote": "【用法与用量】15～30g。"
+        },
+        {
+          "title": "A+医学百科·玉米须",
+          "url": "https://www.a-hospital.com/w/玉米须",
+          "quote": "内服：煎汤，1～2两；或烧存性研末。"
+        }
+      ]
+    },
+    {
+      "herb": "绞股蓝",
+      "aliases": [
+        "七叶胆"
+      ],
+      "route": "煎服",
+      "minG": 6,
+      "maxG": 30,
+      "adjudicated": "10–20g（参考上限30g）",
+      "method": "亦可泡服；研末3～6g",
+      "cautions": "虚寒证忌用；少数人服后恶心呕吐、腹胀腹泻、头晕。",
+      "basis": "《中药学》全国规划教材；中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；A+医学百科（中药学）",
+      "confidence": "medium",
+      "disagreement": "分歧：教材10～20g；中华本草系/医药信息平台15～30g；上海2018 6～10g。",
+      "chpHistory": "未核实",
+      "sources": [
+        {
+          "title": "《中药学》全国规划教材（本地语料：中医补充数据/灵丹GitHub/TCM Educational Materials.txt）",
+          "url": "",
+          "quote": "煎服，10～20g；亦可泡服。"
+        },
+        {
+          "title": "中国医药信息查询平台·绞股蓝（国家中医药管理局名词术语项目审核；审核人华国栋）",
+          "url": "https://www.dayi.org.cn/cmedical/1114422.html",
+          "quote": "内服：煎汤，15-30g，研末，3-6g；或泡茶饮。…虚寒证忌用。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1412",
+          "quote": "【用法与用量】6～10g。"
+        },
+        {
+          "title": "A+医学百科·绞股蓝",
+          "url": "https://www.a-hospital.com/w/绞股蓝",
+          "quote": "内服：煎汤，15～30g；研末，每次～6g；或泡茶。"
+        }
+      ]
+    },
+    {
+      "herb": "紫河车",
+      "aliases": [
+        "杜河车",
+        "胎盘",
+        "胎衣"
+      ],
+      "route": "研末吞服",
+      "minG": 1,
+      "maxG": 3,
+      "adjudicated": "2–3g 研末吞服（不入汤剂）",
+      "method": "研末吞服",
+      "cautions": "阴虚火旺者不宜单独应用；高血压、乳腺炎、痤疮患者及婴幼儿、孕妇不宜大量长期服；医疗机构不得买卖胎盘。",
+      "basis": "《中药学》全国规划教材；中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；中国中药协会转载药典委通知（2014）",
+      "confidence": "high",
+      "disagreement": "上海2018下限1g；其余与药典2010一致。已退出药典，存在合规（胎盘买卖）问题。",
+      "chpHistory": "2010年版及以前版本收载（2010年版：2～3g，研末吞服）；2015年版起不再收载（安全与伦理原因）",
+      "sources": [
+        {
+          "title": "《中药学》全国规划教材（本地语料：中医补充数据/灵丹GitHub/TCM Educational Materials.txt）",
+          "url": "",
+          "quote": "2～3g，研末吞服。【使用注意】阴虚火旺者不宜单独应用。"
+        },
+        {
+          "title": "中国医药信息查询平台·紫河车（国家中医药管理局名词术语项目审核；审核人王丽霞）",
+          "url": "https://www.dayi.org.cn/cmedical/1155695.html",
+          "quote": "2-3g，研末吞服"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1719",
+          "quote": "【用法与用量】1～3g，用时砸成小块。"
+        },
+        {
+          "title": "中国中药协会转载药典委通知（2014）",
+          "url": "https://www.catcm.org.cn/129/201409/945.html",
+          "quote": "《中国药典》2015年版拟不收载“紫河车”及含紫河车的中成药"
+        }
+      ]
+    },
+    {
+      "herb": "红曲",
+      "aliases": [
+        "福曲",
+        "赤曲"
+      ],
+      "route": "煎服",
+      "minG": 3,
+      "maxG": 12,
+      "adjudicated": "6–12g",
+      "method": "",
+      "cautions": "孕妇慎用（能损胎）；脾阴不足及无食积瘀滞者慎用；过量可致胃肠不适或肝酶升高。",
+      "basis": "中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；A+医学百科（《中药大辞典》）",
+      "confidence": "medium",
+      "disagreement": "上海2018 3～9g偏低；医药信息平台与《中药大辞典》（2～4钱≈6～12g）一致。本地教材语料未找到。上海规范另设桔青霉素限量（≤5mg/kg）。",
+      "chpHistory": "未核实",
+      "sources": [
+        {
+          "title": "中国医药信息查询平台·红曲（国家中医药管理局名词术语项目审核；审核人华国栋）",
+          "url": "https://www.dayi.org.cn/cmedical/301230.html",
+          "quote": "内服：煎汤，6-12g。外用：适量，捣敷患处。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1178",
+          "quote": "【用法与用量】3～9g。外用捣敷。"
+        },
+        {
+          "title": "A+医学百科·红曲（《中药大辞典》）",
+          "url": "https://www.a-hospital.com/w/红曲",
+          "quote": "内服：煎汤，2～4钱；或研末入丸、散。…脾阴不足及无食积瘀滞者慎用。"
+        }
+      ]
+    },
+    {
+      "herb": "橘络",
+      "aliases": [
+        "橘丝",
+        "橘筋",
+        "蜜炙橘络"
+      ],
+      "route": "煎服",
+      "minG": 3,
+      "maxG": 9,
+      "adjudicated": "3–5g（上海规范上限9g）",
+      "method": "",
+      "cautions": "虚寒者忌用（上海规范）。",
+      "basis": "《中药学》全国规划教材；中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018",
+      "confidence": "high",
+      "disagreement": "上海2018上限9g；教材与医药信息平台3～5g。A+医学百科所列“3～30克”出处不明，未采用。",
+      "chpHistory": "未核实",
+      "sources": [
+        {
+          "title": "《中药学》全国规划教材（本地语料：中医补充数据/灵丹GitHub/TCM Educational Materials.txt）（橘皮附药）",
+          "url": "",
+          "quote": "功能行气通络，化痰止咳。…煎服，3～5g。"
+        },
+        {
+          "title": "中国医药信息查询平台·橘络（国家中医药管理局名词术语项目审核；审核人王丽霞）",
+          "url": "https://www.dayi.org.cn/cmedical/301515.html",
+          "quote": "煎服，3～5g。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1311",
+          "quote": "【用法与用量】3～9g。【注意】虚寒者忌用。"
+        }
+      ]
+    },
+    {
+      "herb": "海浮石",
+      "aliases": [
+        "浮海石",
+        "浮石"
+      ],
+      "route": "煎服",
+      "minG": 9,
+      "maxG": 15,
+      "adjudicated": "10–15g 打碎先煎",
+      "method": "打碎先煎",
+      "cautions": "虚寒咳嗽者忌服；多服损人血气。",
+      "basis": "《中药学》全国规划教材；中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2008；A+医学百科（《中药大辞典》）",
+      "confidence": "high",
+      "disagreement": "剂量一致（9/10～15g）；“先煎”仅教材写明。来源有苔虫骨骼（石花）与火山浮石两类。",
+      "chpHistory": "未核实",
+      "sources": [
+        {
+          "title": "《中药学》全国规划教材（本地语料：中医补充数据/灵丹GitHub/TCM Educational Materials.txt）",
+          "url": "",
+          "quote": "煎服，10～15g；打碎先煎。"
+        },
+        {
+          "title": "中国医药信息查询平台·海浮石（国家中医药管理局名词术语项目审核；审核人李培红）",
+          "url": "https://www.dayi.org.cn/cmedical/1156351.html",
+          "quote": "内服：煎汤，9-15g；或入丸、散。…虚寒咳嗽者慎服。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2008年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=781",
+          "quote": "【习用名称】海石、浮海石。…【用法与用量】9～15g。"
+        },
+        {
+          "title": "A+医学百科·海浮石（《中药大辞典》）",
+          "url": "https://www.a-hospital.com/w/海浮石",
+          "quote": "内服：煎汤，3～5钱；或入丸、散。…虚寒咳嗽忌服。"
+        }
+      ]
+    },
+    {
+      "herb": "琥珀",
+      "aliases": [
+        "琥珀粉",
+        "血珀"
+      ],
+      "route": "研末冲服",
+      "minG": 1,
+      "maxG": 3,
+      "adjudicated": "1–3g 研末冲服（不入煎剂）",
+      "method": "研末冲服/吞服，不入煎剂",
+      "cautions": "阴虚内热及无瘀滞者慎服；与巴比妥类合用增强中枢抑制。",
+      "basis": "中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；《中药饮片处方审核规范》附录B；A+医学百科（《中华本草》）",
+      "confidence": "high",
+      "disagreement": "上海2018上限2g；常见教材写1.5～3g（本地语料未找到，未核实）。",
+      "chpHistory": "未核实",
+      "sources": [
+        {
+          "title": "中国医药信息查询平台·琥珀（国家中医药管理局名词术语项目审核；审核人华国栋）",
+          "url": "https://www.dayi.org.cn/cmedical/1114398.html",
+          "quote": "内服：研末，1-3g；或入丸、散。…阴虚内热及无瘀滞者慎服。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1791",
+          "quote": "【用法与用量】1～2g，吞服或冲服。"
+        },
+        {
+          "title": "深圳市地方标准 DB4403/T 142—2021《中药饮片处方审核规范》附录B",
+          "url": "http://wjw.sz.gov.cn/attachment/0/758/758943/8615641.pdf",
+          "quote": "冲服：三七粉、朱砂粉…琥珀粉…"
+        },
+        {
+          "title": "A+医学百科·琥珀（《中华本草》段）",
+          "url": "https://www.a-hospital.com/w/琥珀",
+          "quote": "内服：入丸、散，3-6分。"
+        }
+      ]
+    },
+    {
+      "herb": "蚕沙",
+      "aliases": [
+        "二蚕砂",
+        "夏蚕砂",
+        "晚蚕沙",
+        "晚蚕砂",
+        "蚕砂"
+      ],
+      "route": "煎服",
+      "minG": 3,
+      "maxG": 15,
+      "adjudicated": "5–15g 包煎",
+      "method": "包煎",
+      "cautions": "血不养筋、手足不遂者禁服；肝肾亏损、血虚所致腰膝酸痛不宜。",
+      "basis": "中国医药信息查询平台（国家中医药管理局名词术语项目审核）；《上海市中药饮片炮制规范》2018；A+医学百科（《全国中草药汇编》）",
+      "confidence": "medium",
+      "disagreement": "上海2018 3～9g；医药信息平台10～15g；《全国中草药汇编》3～8钱（约9～24g）。本地教材语料未找到，5～15g为教材常见表述（经检索摘要，未见原文）。",
+      "chpHistory": "未核实",
+      "sources": [
+        {
+          "title": "中国医药信息查询平台·蚕砂（国家中医药管理局名词术语项目审核；审核人华国栋）",
+          "url": "https://www.dayi.org.cn/cmedical/1117410.html",
+          "quote": "内服：煎汤，10-15g，纱布包煎；或入丸、散。…血不养筋、手足不遂者禁服。"
+        },
+        {
+          "title": "《上海市中药饮片炮制规范》2018年版（蒲标网扫描页）",
+          "url": "https://db.ouryao.com/dfbz/view.php?bookid=shszyyppzgf&idx=1700",
+          "quote": "【习用名称】二蚕砂、夏蚕砂、晚蚕砂。…【用法与用量】3～9g，包煎。"
+        },
+        {
+          "title": "A+医学百科·蚕砂（《全国中草药汇编》）",
+          "url": "https://www.a-hospital.com/w/蚕砂",
+          "quote": "3～8钱，包煎"
+        }
+      ]
+    }
+  ]
+}

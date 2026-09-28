@@ -31,7 +31,22 @@ type ResolutionRow = {
   doseCanonicalName?: string;
 };
 
-const RESOLUTION_INDEX = herbIdentityJson.resolutionIndex as Readonly<Record<string, ResolutionRow>>;
+const RAW_RESOLUTION_INDEX = herbIdentityJson.resolutionIndex as Readonly<Record<string, ResolutionRow>>;
+
+/**
+ * 查询键与输入走同一套 NFKC 归一（2026-09-28）。identityInput 会把全角括号转成半角，而药典有
+ * 8 个正名自带全角括注——延胡索（元胡）、土鳖虫（䗪虫）、冰片（合成龙脑）等——于是**正名查不到
+ * 自己**：模型照抄正名「延胡索（元胡）」写进处方，编译器判「药味身份尚未进入标准名目录」
+ * （本机 4,877 味处方药里 21 味）。原键保留，归一后的键只在不冲突时补入。
+ */
+const RESOLUTION_INDEX: Readonly<Record<string, ResolutionRow>> = (() => {
+  const index: Record<string, ResolutionRow> = { ...RAW_RESOLUTION_INDEX };
+  for (const [key, row] of Object.entries(RAW_RESOLUTION_INDEX)) {
+    const normalized = identityInput(key);
+    if (normalized && normalized !== key && !(normalized in RAW_RESOLUTION_INDEX)) index[normalized] = row;
+  }
+  return index;
+})();
 
 function identityInput(value: unknown): string {
   return String(value ?? "").normalize("NFKC").replace(/\s+/g, "").trim();

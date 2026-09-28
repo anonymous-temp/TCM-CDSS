@@ -7,8 +7,8 @@
   },
   "supplementSource": {
     "file": "tcm-herb-identity-supplements.json",
-    "sha256": "8b6e36372ab08a180ac5ba6102c96ffafe15601096761375a0b0e61357ce741e",
-    "rowCount": 381
+    "sha256": "aa4128f553a4dd41d3e3c334e103be0100feefd6fe949c35d5eec0970ab73f64",
+    "rowCount": 407
   },
   "governance": {
     "status": "generated_mapping_plus_source_backed_clinical_extensions",
@@ -17,15 +17,15 @@
     "scopeNote": "联网检索可用于收集权威来源和完成知识治理，但不能替代真实处方依法依规的审核职责；多目标别名保持 fail-closed。"
   },
   "summary": {
-    "standardNameCount": 631,
+    "standardNameCount": 644,
     "ambiguousInputCount": 499,
     "resolutionStatusCounts": {
       "ambiguous": 499,
       "exact_standard_name": 616,
-      "source_backed_clinical_extension": 378,
-      "source_backed_preparation_form": 125,
+      "source_backed_clinical_extension": 404,
+      "source_backed_preparation_form": 127,
       "unique_high_confidence": 74,
-      "unique_source_backed": 4703
+      "unique_source_backed": 4702
     }
   },
   "entries": [
@@ -5129,6 +5129,18 @@
           "mappingAction": "归一到standard_name",
           "note": ""
         }
+      ]
+    },
+    {
+      "standardName": "冬瓜子",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
     {
@@ -20642,6 +20654,18 @@
       ]
     },
     {
+      "standardName": "建曲",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    {
       "standardName": "当归",
       "inChp2020": true,
       "chpEntryId": "204",
@@ -27026,6 +27050,18 @@
       ]
     },
     {
+      "standardName": "浮小麦",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    {
       "standardName": "浮萍",
       "inChp2020": true,
       "chpEntryId": "467",
@@ -27310,6 +27346,18 @@
           "mappingAction": "归一到standard_name",
           "note": ""
         }
+      ]
+    },
+    {
+      "standardName": "海浮石",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
     {
@@ -31707,6 +31755,18 @@
       ]
     },
     {
+      "standardName": "玉米须",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    {
       "standardName": "王不留行",
       "inChp2020": true,
       "chpEntryId": "75",
@@ -32502,6 +32562,18 @@
           "mappingAction": "归一到standard_name",
           "note": ""
         }
+      ]
+    },
+    {
+      "standardName": "琥珀",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
     {
@@ -34595,6 +34667,18 @@
           "mappingAction": "归一到standard_name",
           "note": ""
         }
+      ]
+    },
+    {
+      "standardName": "白花蛇舌草",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
     {
@@ -40243,6 +40327,18 @@
       ]
     },
     {
+      "standardName": "紫河车",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    {
       "standardName": "紫珠叶",
       "inChp2020": true,
       "chpEntryId": "541",
@@ -41154,6 +41250,18 @@
       ]
     },
     {
+      "standardName": "红曲",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    {
       "standardName": "红粉",
       "inChp2020": true,
       "chpEntryId": "238",
@@ -41798,6 +41906,18 @@
           "mappingAction": "归一到standard_name",
           "note": ""
         }
+      ]
+    },
+    {
+      "standardName": "绞股蓝",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
     {
@@ -49735,6 +49855,18 @@
           "mappingAction": "归一到standard_name",
           "note": ""
         }
+      ]
+    },
+    {
+      "standardName": "蚕沙",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
     {
@@ -65169,6 +65301,30 @@
           "mappingAction": "归一到standard_name",
           "note": ""
         }
+      ]
+    },
+    {
+      "standardName": "龙骨",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    {
+      "standardName": "龙齿",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
     {
@@ -90541,9 +90697,13 @@
       "autoResolvable": true
     },
     "败酱": {
-      "canonicalName": "小蓟",
-      "status": "unique_source_backed",
-      "autoResolvable": true
+      "canonicalName": "败酱草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
     },
     "败酱草": {
       "canonicalName": "败酱草",
@@ -100724,6 +100884,235 @@
         "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
+    "六神曲": {
+      "canonicalName": "六神曲",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "龙骨": {
+      "canonicalName": "龙骨",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "生龙骨": {
+      "canonicalName": "龙骨",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "preparation": "生品"
+    },
+    "煅龙骨": {
+      "canonicalName": "龙骨",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "preparation": "煅"
+    },
+    "龙齿": {
+      "canonicalName": "龙齿",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "煅龙齿": {
+      "canonicalName": "龙齿",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "preparation": "煅"
+    },
+    "五灵脂": {
+      "canonicalName": "五灵脂",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "醋五灵脂": {
+      "canonicalName": "五灵脂",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "preparation": "醋"
+    },
+    "浮小麦": {
+      "canonicalName": "浮小麦",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "白花蛇舌草": {
+      "canonicalName": "白花蛇舌草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "冬瓜子": {
+      "canonicalName": "冬瓜子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "玉米须": {
+      "canonicalName": "玉米须",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "绞股蓝": {
+      "canonicalName": "绞股蓝",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "紫河车": {
+      "canonicalName": "紫河车",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "琥珀": {
+      "canonicalName": "琥珀",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "红曲": {
+      "canonicalName": "红曲",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "海浮石": {
+      "canonicalName": "海浮石",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "浮海石": {
+      "canonicalName": "海浮石",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "蚕沙": {
+      "canonicalName": "蚕沙",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "蚕砂": {
+      "canonicalName": "蚕沙",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "晚蚕沙": {
+      "canonicalName": "蚕沙",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "晚蚕砂": {
+      "canonicalName": "蚕沙",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "建曲": {
+      "canonicalName": "建曲",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "土鳖虫": {
+      "canonicalName": "土鳖虫（䗪虫）",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "䗪虫": {
+      "canonicalName": "土鳖虫（䗪虫）",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
     "制南星": {
       "canonicalName": "天南星",
       "status": "source_backed_preparation_form",
@@ -100816,6 +101205,15 @@
     },
     "炒五味子": {
       "canonicalName": "五味子",
+      "status": "source_backed_preparation_form",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011"
+      ],
+      "preparation": "炒"
+    },
+    "炒五灵脂": {
+      "canonicalName": "五灵脂",
       "status": "source_backed_preparation_form",
       "autoResolvable": true,
       "sourceRefs": [
@@ -101464,6 +101862,15 @@
     },
     "酒丹皮": {
       "canonicalName": "牡丹皮",
+      "status": "source_backed_preparation_form",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011"
+      ],
+      "preparation": "酒"
+    },
+    "酒五灵脂": {
+      "canonicalName": "五灵脂",
       "status": "source_backed_preparation_form",
       "autoResolvable": true,
       "sourceRefs": [

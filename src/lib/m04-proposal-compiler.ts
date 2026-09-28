@@ -7,12 +7,13 @@ import {
 import { sanitizeUnverifiedClinicalNarrative } from "./customer-evidence";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
-import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isKnownTcmHerbName } from "./tcm-knowledge";
+import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName } from "./tcm-knowledge";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
 import {
   canonicalTcmHerbIdentity,
+  doseInGrams,
   doseWithinConservativeModelLimit,
   highImpactHerbDirectionIssue,
   ordinaryHistoricalDoseDeviation,
@@ -72,6 +73,32 @@ function compileHerbVerification(name: string, dose: string, method: string, mod
         doseLimit?.sourceConflict
           ? "剂量边界存在分用途冲突，当前数值不能标为已核验"
           : "标准药材资料尚无完整数值型内服剂量边界",
+      ],
+      isToxic: false,
+    };
+  }
+
+  // 医师定量药（药典未收载等）：合同层不校验它们的数值边界（doseWithinConservativeModelLimit 恒放行，
+  // 不触发修复轮），但**标注**必须如实。2026-09-28 前这里一律落到下面的「已校验」——实测败酱草 45g
+  // 显示「剂量已按 6-15g 的标准区间完成规则校验」。现在有参考区间就比一次：区间内写明出处，
+  // 区间外批注偏离，都不改剂量；没有参考区间就写由医师确定。
+  if (isClinicianDoseHerb(name)) {
+    const grams = doseInGrams(dose);
+    const basisLabel = doseLimit.basis || "参考用量";
+    if (grams != null && grams >= doseLimit.min && grams <= doseLimit.max) {
+      return {
+        verificationTier: "verified",
+        doseSource: "governed_boundary",
+        verificationReasons: [`剂量在 ${doseLimit.min}-${doseLimit.max}g 参考区间内；来源：${basisLabel}。`],
+        isToxic: false,
+      };
+    }
+    return {
+      verificationTier: "unverified_dose",
+      doseSource: "governed_boundary",
+      verificationReasons: [
+        `本次候选剂量 ${dose}，参考区间 ${doseLimit.min}–${doseLimit.max}g；来源：${basisLabel}。`,
+        "剂量尚未经医生确认，保留供审阅；AI结果签名不代表医嘱或用量批准。",
       ],
       isToxic: false,
     };
@@ -1409,3 +1436,6 @@ export function compileM04JsonObjectContent(
     return undefined;
   }
 }
+
+/** 测试用：单味药的核验级别与理由（医生在页面上看到的那一行）。 */
+export const m04CompilerTestHooks = { compileHerbVerification };

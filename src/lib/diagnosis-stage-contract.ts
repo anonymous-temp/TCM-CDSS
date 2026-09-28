@@ -3494,7 +3494,7 @@ function targetContradictionReason(
   return "unrecognized";
 }
 
-function doseInGrams(dose: string): number | undefined {
+export function doseInGrams(dose: string): number | undefined {
   const normalized = dose.trim().match(HERB_DOSE);
   if (!normalized) return undefined;
   const amount = Number(normalized[1]);

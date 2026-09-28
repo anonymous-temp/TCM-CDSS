@@ -2858,6 +2858,192 @@
       "autoResolvable": true,
       "medicinalPart": "成熟种子",
       "basis": "中医师终审 2026-08-16：冬葵子为锦葵科冬葵 Malva verticillata 成熟种子，保留独立历史药名实体。**否决**候选『苘麻子』（苘麻 Abutilon theophrasti，连植物种都不同）。『冬葵果』为同一植物的干燥成熟果实，属**同植物不同药用部位**，功效正文亦不同（清热利尿，消肿），仅标记为相关项，**不得自动替换**。若某机构实际以冬葵果调剂冬葵子，须另建机构药品码 + 调剂规范 + 药师确认的机构替代关系，不写进全国通用同义词表。"
+    },
+    {
+      "inputName": "败酱",
+      "canonicalName": "败酱草",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "「败酱」是《金匮要略》薏苡附子败酱散等经方对败酱草的写法（方剂库 56 处），指同一药材——败酱科黄花败酱或白花败酱干燥全草。中医师 2026-08-16 已裁定败酱草为独立规范实体、否决到小蓟/菥蓂的映射；原目录把「败酱」按中草药数据集中等置信别名挂到小蓟，属同一类假同义，漏裁。实测后果：败酱 15g 按小蓟药典 5–12g 判超量。"
+    },
+    {
+      "inputName": "六神曲",
+      "canonicalName": "六神曲",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身。中医师 2026-08-16 裁定规范名为六神曲（《重庆市中药饮片炮制规范》DB50/YP068—2022），「神曲」已映射到六神曲，但正名本身漏登，处方写「六神曲」时判待核定。炒神曲/焦神曲按同一裁定不在此自动合并。"
+    },
+    {
+      "inputName": "龙骨",
+      "canonicalName": "龙骨",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（《中国药典》1977 年版起未收载）。福建省药品监督管理局《龙骨中药饮片炮制规范（草案）》（2024）：古代哺乳动物骨骼化石；处方写龙骨付龙骨，写煅龙骨付煅龙骨。"
+    },
+    {
+      "inputName": "生龙骨",
+      "canonicalName": "龙骨",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "福建省《龙骨中药饮片炮制规范（草案）》（2024）【炮制】龙骨：除去杂质及泥沙，打碎。",
+      "preparation": "生品"
+    },
+    {
+      "inputName": "煅龙骨",
+      "canonicalName": "龙骨",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "福建省《龙骨中药饮片炮制规范（草案）》（2024）【炮制】煅龙骨：取净龙骨，明煅至酥脆；煅用增强收敛固涩。",
+      "preparation": "煅"
+    },
+    {
+      "inputName": "龙齿",
+      "canonicalName": "龙齿",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（药典未收载）。古代哺乳动物牙齿化石，《中药学》教材列为龙骨附药，功能镇惊安神。"
+    },
+    {
+      "inputName": "煅龙齿",
+      "canonicalName": "龙齿",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "龙齿的煅制品。",
+      "preparation": "煅"
+    },
+    {
+      "inputName": "五灵脂",
+      "canonicalName": "五灵脂",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身。1977–1990 年版《中国药典》收载，1995–2010 年版移入附录，2015 年版起不再收载；《中药学》教材：煎服 3～10g，包煎。"
+    },
+    {
+      "inputName": "醋五灵脂",
+      "canonicalName": "五灵脂",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "五灵脂的醋炙品。",
+      "preparation": "醋"
+    },
+    {
+      "inputName": "浮小麦",
+      "canonicalName": "浮小麦",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（药典未收载）。《中药学》教材收载：禾本科植物小麦的干燥轻浮瘪瘦果实。"
+    },
+    {
+      "inputName": "白花蛇舌草",
+      "canonicalName": "白花蛇舌草",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（药典未收载）。《中药学》教材收载：茜草科植物白花蛇舌草的干燥全草。"
+    },
+    {
+      "inputName": "冬瓜子",
+      "canonicalName": "冬瓜子",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（药典未收载；药典收冬瓜皮）。葫芦科植物冬瓜的干燥成熟种子。"
+    },
+    {
+      "inputName": "玉米须",
+      "canonicalName": "玉米须",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（药典未收载）。《中药学》教材收载：禾本科植物玉蜀黍的花柱及柱头。"
+    },
+    {
+      "inputName": "绞股蓝",
+      "canonicalName": "绞股蓝",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（药典未收载）。《中药学》教材收载：葫芦科植物绞股蓝的干燥全草。"
+    },
+    {
+      "inputName": "紫河车",
+      "canonicalName": "紫河车",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（2015 年版起药典未收载）。《中药学》教材收载：健康人的干燥胎盘。"
+    },
+    {
+      "inputName": "琥珀",
+      "canonicalName": "琥珀",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（药典未收载）。古代松科植物的树脂埋藏地下经年久转化而成的化石样物质；多研末冲服，不入煎剂。"
+    },
+    {
+      "inputName": "红曲",
+      "canonicalName": "红曲",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（药典未收载）。曲霉科真菌紫色红曲霉寄生在粳米上而成的红曲米。"
+    },
+    {
+      "inputName": "海浮石",
+      "canonicalName": "海浮石",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（药典未收载）。《中药学》教材收载：煎服 10～15g，打碎先煎。"
+    },
+    {
+      "inputName": "浮海石",
+      "canonicalName": "海浮石",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "海浮石的常用异写。"
+    },
+    {
+      "inputName": "蚕沙",
+      "canonicalName": "蚕沙",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（药典未收载）。蚕蛾科昆虫家蚕幼虫的干燥粪便。"
+    },
+    {
+      "inputName": "蚕砂",
+      "canonicalName": "蚕沙",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "蚕沙的常用异写。"
+    },
+    {
+      "inputName": "晚蚕沙",
+      "canonicalName": "蚕沙",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "蚕沙的常用异写（夏秋季收集者）。"
+    },
+    {
+      "inputName": "晚蚕砂",
+      "canonicalName": "蚕沙",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "蚕沙的常用异写。"
+    },
+    {
+      "inputName": "建曲",
+      "canonicalName": "建曲",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "正名自身（药典未收载）。建曲与六神曲组成、功效不同，不得合并。"
+    },
+    {
+      "inputName": "土鳖虫",
+      "canonicalName": "土鳖虫（䗪虫）",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "《中国药典》2020 年版一部正名为「土鳖虫（䗪虫）」，药名本身即此二者。此前查询把正名的全角括号归一掉而查不到，土鳖虫被当成药典未收载、改由医师定量；实际药典有剂量 3～10g、有小毒。"
+    },
+    {
+      "inputName": "䗪虫",
+      "canonicalName": "土鳖虫（䗪虫）",
+      "autoResolvable": true,
+      "batch": "2026-09-28-nonchp-identity",
+      "basis": "《中国药典》2020 年版一部正名「土鳖虫（䗪虫）」的另一写法。"
     }
   ]
 }

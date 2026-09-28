@@ -92,9 +92,13 @@ export function buildDeterministicFormulaReferenceFallback(
       const clinicianClass = clinicianDoseHerbClass(name);
       const regulatoryBlocked = clinicianClass === "controlled_or_toxic" || clinicianClass === "endangered_or_banned";
       const limit = getTcmHerbDoseLimit(name);
+      // 区间来源如实写：药典未收载药材的参考用量不得标成「药典区间」（2026-09-28 前龙骨、五灵脂等
+      // 未复核的校准层数值在这里一律印成「药典区间」）。
       const range = regulatoryBlocked
         ? "受监管限制，不展示剂量"
-        : limit?.min != null && limit?.max != null ? `${limit.min}–${limit.max}g（药典区间）` : "由医师确定";
+        : limit?.min != null && limit?.max != null
+          ? `${limit.min}–${limit.max}g（${limit.sourceType === "reference" ? "参考用量，药典未收载" : "药典区间"}）`
+          : "由医师确定";
       const decoction = requiredDecoctionRequirement(name) || "";
       return `| ${index + 1} | ${name} | ${range} | ${decoction} |`;
     });
@@ -102,7 +106,7 @@ export function buildDeterministicFormulaReferenceFallback(
     return [
       `### ${reference.formulaName}（${reference.source}）`,
       "",
-      "| 序号 | 药名 | 药典剂量区间 | 特殊煎法 |",
+      "| 序号 | 药名 | 剂量区间（来源） | 特殊煎法 |",
       "|---|---|---|---|",
       ...rows,
       ...(deducted.length > 0

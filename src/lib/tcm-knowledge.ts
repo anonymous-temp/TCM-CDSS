@@ -1,6 +1,7 @@
 import knowledge from "../data/tcm-knowledge.json";
 import herbFunctionCategories from "../data/tcm-herb-function-categories.json";
 import doseWebSupplementsJson from "../data/tcm-herb-dose-web-supplements.source.json";
+import nonPharmacopoeiaDoseJson from "../data/tcm-herb-nonpharmacopoeia-dose.source.json";
 import clinicianDosePolicyJson from "../data/tcm-herb-dose-clinician-policy.source.json";
 import controlledToxicPolicyJson from "../data/tcm-controlled-toxic-herb-policy.source.json";
 import functionSupplementsJson from "../data/tcm-herb-function-supplements.source.json";
@@ -215,6 +216,17 @@ export type PrescribedHerb = {
 };
 
 const data = knowledge as KnowledgeData;
+// 「高置信中药饮片剂量校准层」剔除（2026-09-28）。它是上游合理用药仓 tcm_dose_limits.py 里手写的
+// _CURATED_LIMITS（版本标记「高置信校准_20260626」，与未复核的大模型候选用量同一批），每行只有
+// 「常用量 x–y g」、没有逐条出处，数据表里的出处链接却统一指向药典网站。逐条比对的结果：17 行与药典
+// 完全重复；三七/川贝母/桃仁/肉桂的研粉量按汤剂量写（三七粉 3–9g，药典研粉吞服 1–3g）；朱砂、雄黄等
+// 5 味把「只入丸散」写成「煎服」；药典外 5 味（五灵脂、神曲、败酱草、龙骨、藜芦）改由受治理的
+// tcm-herb-nonpharmacopoeia-dose.source.json 逐条带出处给出。生成器依赖的上游候选清单本机已不在、
+// 无法重建知识库，所以在这里（运行时读入处）剔除，不手改生成物。
+const CALIBRATION_LAYER_BASIS = "高置信中药饮片剂量校准层";
+for (const herb of data.herbs as Array<{ entries: Array<Record<string, unknown>> }>) {
+  herb.entries = herb.entries.filter((entry) => !(entry.type === "routeDose" && entry.basis === CALIBRATION_LAYER_BASIS));
+}
 // 官方联网剂量补充与构建期同源。只有 HTTPS 政府域名、显式 webCurated 标记且数值合法的
 // 记录才可进入运行时；模型复核、二手网页或仅出现药名的文件均不能授予自动配剂量权限。
 const WEB_DOSE_SUPPLEMENTS = doseWebSupplementsJson as unknown as {
@@ -1278,7 +1290,8 @@ export type TcmHerbDoseLimit = {
   min?: number | null;
   max?: number | null;
   basis?: string;
-  sourceType?: "dose" | "routeDose" | "curatedDose" | "common";
+  /** reference = 药典未收载药材的受治理参考用量（tcm-herb-nonpharmacopoeia-dose.source.json）。 */
+  sourceType?: "dose" | "routeDose" | "curatedDose" | "common" | "reference";
   sourceConflict?: boolean;
   alternatives?: Array<{
     min: number;
@@ -1340,6 +1353,54 @@ function resolvedDoseEntry(
   };
 }
 
+type NonPharmacopoeiaDoseEntry = {
+  herb: string;
+  aliases?: string[];
+  route: string;
+  minG: number;
+  maxG: number;
+  method?: string;
+  cautions?: string;
+  basis: string;
+  sources: Array<{ title: string; url?: string; quote: string }>;
+};
+
+/**
+ * 药典外药材参考用量（2026-09-28，用户：不再等中医师复核，联网核查裁决）。只收《中国药典》2020 年版
+ * 一部未收载的药材，且只取「煎服」口径作为剂量参考区间；每条至少两条出处（教材原文 + 公开权威来源）。
+ * 加载期守卫：同名药一旦有药典剂量条目就不采用参考值（药典优先，不允许参考值盖过药典）。
+ */
+const NON_PHARMACOPOEIA_DOSE_BY_NAME: ReadonlyMap<string, NonPharmacopoeiaDoseEntry> = (() => {
+  const entries = ((nonPharmacopoeiaDoseJson as unknown as { entries?: NonPharmacopoeiaDoseEntry[] }).entries || [])
+    .filter((entry) =>
+      entry.route === "煎服" &&
+      Number.isFinite(entry.minG) && Number.isFinite(entry.maxG) && entry.minG > 0 && entry.maxG >= entry.minG &&
+      typeof entry.basis === "string" && entry.basis.trim() &&
+      Array.isArray(entry.sources) && entry.sources.length >= 2);
+  const map = new Map<string, NonPharmacopoeiaDoseEntry>();
+  for (const entry of entries) {
+    const herbData = data.herbs.find((item) => item.name === entry.herb);
+    if (herbData && validDoseEntries(herbData.entries, "dose").length > 0) continue;
+    for (const name of [entry.herb, ...(entry.aliases || [])]) if (!map.has(name)) map.set(name, entry);
+  }
+  return map;
+})();
+
+/** 医生看得到的出处说明：首个来源 + 来源数（完整出处与原文摘句在数据文件里）。 */
+function nonPharmacopoeiaBasisLabel(entry: NonPharmacopoeiaDoseEntry): string {
+  const sources = entry.basis.split("；").map((item) => item.trim()).filter(Boolean);
+  const head = sources[0] || "参考用量";
+  return `${head}${sources.length > 1 ? `等 ${sources.length} 个来源` : ""}（药典未收载，参考用量）`;
+}
+
+/** 药典外药材参考用量的原始条目（出处、用法、注意），供页面与测试读取。 */
+export function nonPharmacopoeiaDoseReference(herb: string): Readonly<NonPharmacopoeiaDoseEntry> | undefined {
+  const name = String(herb || "").trim();
+  return NON_PHARMACOPOEIA_DOSE_BY_NAME.get(name)
+    || NON_PHARMACOPOEIA_DOSE_BY_NAME.get(canonicalKnowledgeHerbName(name))
+    || NON_PHARMACOPOEIA_DOSE_BY_NAME.get(resolveGovernedTcmHerbIdentity(name).canonicalName || "");
+}
+
 export function getTcmHerbDoseLimit(herb: string): TcmHerbDoseLimit | null {
   const canonical = canonicalKnowledgeHerbName(herb);
   // 显式炮制边界必须先按**身份正名**查，再退回剂量归一名。
@@ -1379,8 +1440,18 @@ export function getTcmHerbDoseLimit(herb: string): TcmHerbDoseLimit | null {
   // 分途径条目仍只用于标记冲突（sourceConflict / alternatives），不参与收窄。
   const primary = resolvedDoseEntry(primaryDoseEntries, "dose", equivalent?.basis, decoctionRouteEntries);
   if (primary) return primary;
-  return resolvedDoseEntry(decoctionRouteEntries, "routeDose", equivalent?.basis);
+  const route = resolvedDoseEntry(decoctionRouteEntries, "routeDose", equivalent?.basis);
+  if (route) return route;
+  // 药典未收载的药材：受治理参考用量（逐条出处；只作参考区间，区间外批注、不压剂量）。
+  const reference = [herb.trim(), identityName, canonical, doseName]
+    .map((name) => (name ? NON_PHARMACOPOEIA_DOSE_BY_NAME.get(name) : undefined))
+    .find(Boolean);
+  return reference
+    ? { min: reference.minG, max: reference.maxG, basis: nonPharmacopoeiaBasisLabel(reference), sourceType: "reference" }
+    : null;
 }
+
+
 
 
 /**

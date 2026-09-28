@@ -64,7 +64,12 @@ async function withDrugAvailability(
   contractVersion: HisSchemeContractVersion,
   customerId: string,
 ) {
-  const availability = await drugAvailabilityProjection(payload.prescriptions.structuredHerbs, customerId);
+  // 中成药/西药同样标院内状态（2026-09-28）：院内没有的照常保留，只标「库存外用药」。
+  const availability = await drugAvailabilityProjection(
+    payload.prescriptions.structuredHerbs,
+    customerId,
+    payload.prescriptions.patentMedicines,
+  );
   // 契约版本投影必须是出参的**最后一步**：折叠 protocolStatus 之后就再也读不到规范三态，
   // 因此先把规范值取出来交给投影函数（见 his-scheme-contract-version 的说明）。
   return projectHisSchemeForContractVersion(

@@ -31,7 +31,7 @@
     },
     {
       "file": "tcm-herb-identity-catalog.json",
-      "sha256": "6aa117327b04f8f3c612a6e7a36e6f2a2581d14f3559eb66310a2078cf25d1c1"
+      "sha256": "f8c8171aa10b34f3787e9c135a544349ec74e28b047b6228dbfa2f9f7153aaa7"
     },
     {
       "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
@@ -4748,8 +4748,9 @@
         },
         {
           "rawName": "晚蚕砂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "蚕沙",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [],
@@ -24297,8 +24298,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -31058,8 +31060,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -31900,8 +31903,9 @@
         },
         {
           "rawName": "六神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "姜半夏",
@@ -32966,8 +32970,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -34338,8 +34343,9 @@
       "ingredientLinks": [
         {
           "rawName": "紫河车",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "紫河车",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "熟地黄",
@@ -35586,8 +35592,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "珍珠",
@@ -52904,8 +52911,10 @@
         },
         {
           "rawName": "醋五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "醋"
         },
         {
           "rawName": "煅瓦楞子",
@@ -52922,8 +52931,9 @@
         },
         {
           "rawName": "浮海石",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "海浮石",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "槟榔",
@@ -54771,8 +54781,9 @@
         },
         {
           "rawName": "龙齿",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙齿",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -60102,8 +60113,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -61759,8 +61771,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -62454,8 +62467,10 @@
         },
         {
           "rawName": "煅龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "煅"
         },
         {
           "rawName": "白芍",
@@ -64797,8 +64812,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "冰片",
@@ -68419,8 +68435,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "熊胆",
@@ -74371,8 +74388,9 @@
         },
         {
           "rawName": "紫河车",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "紫河车",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "全蝎",
@@ -74388,8 +74406,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "牛黄",
@@ -75139,8 +75158,10 @@
         },
         {
           "rawName": "煅龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "煅"
         },
         {
           "rawName": "煅牡蛎",
@@ -80177,8 +80198,9 @@
         },
         {
           "rawName": "土鳖虫",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "土鳖虫（䗪虫）",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -80214,9 +80236,7 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [
-        "土鳖虫"
-      ],
+      "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -87948,8 +87968,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -88413,8 +88434,9 @@
       "ingredientLinks": [
         {
           "rawName": "紫河车",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "紫河车",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "龟板",
@@ -88623,8 +88645,9 @@
         },
         {
           "rawName": "龙齿",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙齿",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -89343,8 +89366,9 @@
         },
         {
           "rawName": "䗪虫",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "土鳖虫（䗪虫）",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -89378,7 +89402,6 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "䗪虫",
         "虻虫",
         "蛴螬"
       ],
@@ -90115,8 +90138,9 @@
         },
         {
           "rawName": "䗪虫",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "土鳖虫（䗪虫）",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "水蛭",
@@ -90167,7 +90191,6 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "䗪虫",
         "芍药",
         "虻虫",
         "蛴螬"
@@ -90227,8 +90250,9 @@
         },
         {
           "rawName": "土鳖虫",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "土鳖虫（䗪虫）",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "烫水蛭",
@@ -90326,7 +90350,6 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "土鳖虫",
         "炒虻虫",
         "炒蛴螬"
       ],
@@ -91511,8 +91534,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "巴戟天",
@@ -92100,8 +92124,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "乌药",
@@ -93298,8 +93323,10 @@
       "ingredientLinks": [
         {
           "rawName": "酒五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "酒"
         },
         {
           "rawName": "生蒲黄",
@@ -95887,8 +95914,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "远志",
@@ -96039,8 +96067,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "乳香",
@@ -96299,8 +96328,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "远志",
@@ -96622,8 +96652,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "牡蛎",
@@ -97313,8 +97344,10 @@
         },
         {
           "rawName": "煅龙齿",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙齿",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "煅"
         }
       ],
       "indications": [
@@ -98765,8 +98798,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -100362,8 +100396,9 @@
         },
         {
           "rawName": "晚蚕砂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "蚕沙",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "皂荚子",
@@ -100484,8 +100519,9 @@
         },
         {
           "rawName": "晚蚕沙",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "蚕沙",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "赤小豆皮",
@@ -104393,8 +104429,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "黄丹",
@@ -106247,8 +106284,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "地龙",
@@ -107321,8 +107359,10 @@
         },
         {
           "rawName": "炒五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "炒"
         },
         {
           "rawName": "赤芍",
@@ -111660,8 +111700,9 @@
         },
         {
           "rawName": "晚蚕砂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "蚕沙",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "当归",
@@ -112073,8 +112114,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -114434,8 +114476,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -118252,8 +118295,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -122722,8 +122766,9 @@
       "ingredientLinks": [
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "辰砂",
@@ -125834,8 +125879,9 @@
       "ingredientLinks": [
         {
           "rawName": "土鳖虫",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "土鳖虫（䗪虫）",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "醋乳香",
@@ -125933,7 +125979,6 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "土鳖虫",
         "煅自然铜",
         "醋乳香",
         "醋没药"
@@ -126152,8 +126197,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "朱砂",
@@ -128085,8 +128131,9 @@
         },
         {
           "rawName": "龙齿",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙齿",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "丹参",
@@ -130015,8 +130062,9 @@
         },
         {
           "rawName": "土鳖虫",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "土鳖虫（䗪虫）",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "醋乳香",
@@ -130123,7 +130171,6 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "土鳖虫",
         "煅自然铜",
         "醋乳香",
         "醋没药"
@@ -131577,8 +131624,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -136054,8 +136102,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "珍珠",
@@ -141811,8 +141860,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "茯苓",
@@ -143656,8 +143706,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "牡蛎",
@@ -148642,8 +148693,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -149359,8 +149411,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "煅牡蛎",
@@ -152932,8 +152985,10 @@
         },
         {
           "rawName": "煅龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "煅"
         },
         {
           "rawName": "醋龟甲",
@@ -158049,8 +158104,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "雄黄",
@@ -158309,8 +158365,9 @@
         },
         {
           "rawName": "蚕砂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "蚕沙",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "生地黄",
@@ -159645,8 +159702,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "山楂",
@@ -160355,8 +160413,9 @@
         },
         {
           "rawName": "晚蚕砂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "蚕沙",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "苁蓉",
@@ -171927,8 +171986,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "厚朴",
@@ -176008,8 +176068,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "新生犊子未食草者脐屎",
@@ -177423,8 +177484,9 @@
       "ingredientLinks": [
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "米醋",
@@ -181144,8 +181206,9 @@
         },
         {
           "rawName": "六神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "石菖蒲",
@@ -182684,8 +182747,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -183078,8 +183142,9 @@
         },
         {
           "rawName": "土鳖虫",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "土鳖虫（䗪虫）",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "三七粉",
@@ -183150,7 +183215,6 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "土鳖虫",
         "紫荆藤",
         "醋乳香",
         "醋没药"
@@ -183617,8 +183681,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "硫黄",
@@ -188052,8 +188117,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -189583,8 +189649,9 @@
         },
         {
           "rawName": "红曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "红曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -190923,8 +190990,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "当归",
@@ -191964,8 +192032,10 @@
         },
         {
           "rawName": "煅龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "煅"
         }
       ],
       "indications": [
@@ -198325,8 +198395,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "玄参",
@@ -202553,8 +202624,9 @@
         },
         {
           "rawName": "六神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "蒲公英",
@@ -210321,8 +210393,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "茯神",
@@ -210500,8 +210573,9 @@
       "ingredientLinks": [
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "珍珠粉",
@@ -211946,8 +212020,9 @@
       "ingredientLinks": [
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "天竺黄",
@@ -212102,8 +212177,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "木通",
@@ -212215,8 +212291,9 @@
       "ingredientLinks": [
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "阿胶",
@@ -212348,8 +212425,9 @@
       "ingredientLinks": [
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "茯苓",
@@ -212478,8 +212556,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "川芎",
@@ -212519,8 +212598,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -215848,8 +215928,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "血蝎",
@@ -215943,8 +216024,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "海螵蛸",
@@ -221177,8 +221259,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "细辛",
@@ -226560,8 +226643,9 @@
         },
         {
           "rawName": "建曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "建曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "扁豆",
@@ -226688,8 +226772,9 @@
         },
         {
           "rawName": "龙齿",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙齿",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -232368,8 +232453,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "甘草",
@@ -234586,8 +234672,9 @@
         },
         {
           "rawName": "龙齿",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙齿",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "肉苁蓉",
@@ -237485,8 +237572,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "茯苓",
@@ -238114,8 +238202,9 @@
       "ingredientLinks": [
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "桂心",
@@ -244710,8 +244799,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -247207,8 +247297,9 @@
         },
         {
           "rawName": "土鳖虫",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "土鳖虫（䗪虫）",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "烫骨碎补",
@@ -247285,7 +247376,6 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "土鳖虫",
         "煅自然铜",
         "醋乳香",
         "醋没药"
@@ -248547,8 +248637,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "生姜",
@@ -253304,8 +253395,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "丁香",
@@ -255863,8 +255955,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "朱砂粉",
@@ -256013,8 +256106,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "玳瑁",
@@ -256134,8 +256228,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "牛膝",
@@ -259914,8 +260009,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "菟丝子",
@@ -262867,13 +262963,15 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "龙齿",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙齿",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "地黄",
@@ -262989,8 +263087,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "阿胶",
@@ -263976,8 +264075,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -267052,8 +267152,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "甘草",
@@ -272805,8 +272906,8 @@
         },
         {
           "rawName": "败酱",
-          "canonicalName": "小蓟",
-          "linkageStatus": "unique_source_backed",
+          "canonicalName": "败酱草",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         }
       ],
@@ -272841,7 +272942,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "败酱"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -272882,8 +272985,8 @@
         },
         {
           "rawName": "败酱",
-          "canonicalName": "小蓟",
-          "linkageStatus": "unique_source_backed",
+          "canonicalName": "败酱草",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         }
       ],
@@ -272922,7 +273025,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "败酱"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": [],
@@ -274376,8 +274481,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "白附子",
@@ -274581,8 +274687,9 @@
       "ingredientLinks": [
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "白薇",
@@ -275292,8 +275399,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -277160,8 +277268,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "牡蛎",
@@ -278527,8 +278636,9 @@
       "ingredientLinks": [
         {
           "rawName": "紫河车",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "紫河车",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "黄柏",
@@ -278716,8 +278826,9 @@
         },
         {
           "rawName": "紫河车",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "紫河车",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "龟甲胶",
@@ -279416,8 +279527,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "牛膝",
@@ -286086,8 +286198,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "地骨皮",
@@ -286603,8 +286716,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "赤芍",
@@ -289502,8 +289616,9 @@
         },
         {
           "rawName": "六神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "炙甘草",
@@ -290227,8 +290342,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -291096,8 +291212,9 @@
         },
         {
           "rawName": "六神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -297342,8 +297459,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "丹皮炭",
@@ -297370,8 +297488,10 @@
         },
         {
           "rawName": "煅龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "煅"
         },
         {
           "rawName": "煅牡蛎",
@@ -300032,8 +300152,9 @@
         },
         {
           "rawName": "建曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "建曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "夏曲",
@@ -300942,8 +301063,9 @@
       "ingredientLinks": [
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "番木鳖",
@@ -302564,8 +302686,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "牡蛎",
@@ -302666,8 +302789,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "牡蛎",
@@ -303688,8 +303812,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "木鳖子",
@@ -305395,8 +305520,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "白茯苓",
@@ -305952,8 +306078,9 @@
       "ingredientLinks": [
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "石菖蒲",
@@ -305975,8 +306102,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "青黛",
@@ -306089,8 +306217,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "牡蛎",
@@ -309200,8 +309329,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "木香",
@@ -310747,8 +310877,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "桑白皮",
@@ -314757,8 +314888,9 @@
         },
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "麝香",
@@ -315092,8 +315224,9 @@
       "ingredientLinks": [
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "雄黄",
@@ -316293,8 +316426,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "夜明沙",
@@ -316540,8 +316674,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -318915,8 +319050,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "石苇",
@@ -320688,8 +320824,9 @@
         },
         {
           "rawName": "蚕砂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "蚕沙",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [],
@@ -323531,8 +323668,9 @@
         },
         {
           "rawName": "土鳖虫",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "土鳖虫（䗪虫）",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -323568,7 +323706,6 @@
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
         "乳香",
-        "土鳖虫",
         "无名异",
         "没药",
         "自然铜"
@@ -323950,8 +324087,9 @@
         },
         {
           "rawName": "土鳖虫",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "土鳖虫（䗪虫）",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "阿胶珠",
@@ -324024,7 +324162,6 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "土鳖虫",
         "蜣螂",
         "鼠妇虫"
       ],
@@ -334221,8 +334358,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "没药",
@@ -334902,8 +335040,9 @@
         },
         {
           "rawName": "五灵脂",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "五灵脂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "川芎",
@@ -334950,8 +335089,9 @@
         },
         {
           "rawName": "琥珀",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "琥珀",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -336457,8 +336597,9 @@
       "ingredientLinks": [
         {
           "rawName": "龙骨",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "龙骨",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "虎骨",
@@ -345026,8 +345167,9 @@
             },
             {
               "rawName": "六神曲",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "六神曲",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             },
             {
               "rawName": "老麦芽",

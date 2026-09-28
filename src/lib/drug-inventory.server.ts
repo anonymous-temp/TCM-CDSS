@@ -5,8 +5,16 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { parseCustomerId } from "./customer-id";
 import { withSerializedLock } from "./serialized-lock";
-import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
-import { governedHerbSubstitutes, isKnownTcmHerbName, type GovernedHerbSubstitute } from "./tcm-knowledge";
+import {
+  inventoryAvailableFromInput,
+  inventoryKindFromInput,
+  medicineBaseKey,
+  medicineNameKey,
+  resolveInventoryHerbName,
+  type DrugInventoryItemKind,
+  type InventoryItemForm,
+} from "./drug-inventory-names";
+import { governedHerbSubstitutes, type GovernedHerbSubstitute } from "./tcm-knowledge";
 
 /**
  * 院内药品库存（甲方 2026-08-05「药品同步接口」的**入站**方向）。
@@ -38,7 +46,18 @@ import { governedHerbSubstitutes, isKnownTcmHerbName, type GovernedHerbSubstitut
  * ——空库存会让整院所有药味变成「缺货」，是比写失败严重得多的故障。
  */
 
-export type DrugInventoryItemKind = "herb" | "patent" | "western";
+export type { DrugInventoryItemKind } from "./drug-inventory-names";
+export const DRUG_INVENTORY_KINDS: readonly DrugInventoryItemKind[] = ["herb", "patent", "western"];
+
+/**
+ * 每一类药的同步状态（2026-09-28）。「没同步」和「缺货」是两回事：只同步了饮片的诊所，
+ * 中成药/西药此前一律判「不在库存里」并被规划器删掉——生产 105 份库存里 100 份只有饮片。
+ * - synced：本类已同步；
+ * - declared_none：调用方用 `kinds` 声明了本类、但条目为 0，即「本院没有这一类药」；
+ * - 缺省（不在 coverage 里）：本类没同步过。
+ */
+export type DrugInventoryKindCoverage = "synced" | "declared_none";
+export type DrugInventoryCoverage = Partial<Record<DrugInventoryItemKind, DrugInventoryKindCoverage>>;
 
 export type DrugInventoryItem = {
   /** 院内药品名（原样保留，用于回显与对账）。 */
@@ -49,6 +68,8 @@ export type DrugInventoryItem = {
   available: boolean;
   specification?: string;
   goodsId?: string;
+  /** 院内剂型：粉剂（三七粉）、配方颗粒。只用于标注，不改变匹配。 */
+  form?: InventoryItemForm;
 };
 
 export const DRUG_INVENTORY_SCHEMA_VERSION = "tcm-cdss-drug-inventory-v2" as const;
@@ -67,6 +88,12 @@ export type DrugInventorySnapshot = {
   unresolvedNames: string[];
   /** 归一后存在多个候选、系统拒绝自动择一的院内药名。 */
   ambiguousNames: string[];
+  /** 各类药的同步状态；旧文件没有这一栏时按「有没有这一类条目」推出。 */
+  coverage: DrugInventoryCoverage;
+  /** 疑似测试或编号条目（「测试中药75601669」「砒霜0631」），供甲方清理。 */
+  suspectNames?: string[];
+  /** 名字像中成药/西药却按饮片推送的条目（多半是 kind 漏填缺省成了饮片）。 */
+  likelyNonHerbNames?: string[];
 };
 
 type InventoryFile = DrugInventorySnapshot & { items: DrugInventoryItem[] };
@@ -154,6 +181,57 @@ function writeInventoryCache(customerId: string, value: InventoryFile | null): v
   cacheByCustomer.set(customerId, { value, lastAccessedAt: now });
 }
 
+function withResolvedHerbName(item: DrugInventoryItem): DrugInventoryItem {
+  const resolution = resolveInventoryHerbName(item.name);
+  return {
+    ...item,
+    canonicalName: resolution.canonicalName,
+    ...(resolution.form && !item.form ? { form: resolution.form } : {}),
+  };
+}
+
+/** 对不上/歧义/疑似测试/疑似非饮片的院内药名，如实回报供甲方核对（各至多 200 条）。 */
+function herbNameReport(items: readonly DrugInventoryItem[]): Pick<
+  DrugInventorySnapshot,
+  "unresolvedNames" | "ambiguousNames" | "suspectNames" | "likelyNonHerbNames"
+> {
+  const unresolved = new Set<string>();
+  const ambiguous = new Set<string>();
+  const suspect = new Set<string>();
+  const likelyNonHerb = new Set<string>();
+  for (const item of items) {
+    if (item.kind !== "herb") continue;
+    const resolution = resolveInventoryHerbName(item.name);
+    if (resolution.status === "ambiguous") ambiguous.add(item.name);
+    else if (!item.canonicalName) unresolved.add(item.name);
+    if (resolution.suspect) suspect.add(item.name);
+    if (resolution.likelyNotHerb) likelyNonHerb.add(item.name);
+  }
+  const capped = (values: Set<string>) => [...values].sort().slice(0, MAX_UNRESOLVED_REPORTED);
+  return {
+    unresolvedNames: capped(unresolved),
+    ambiguousNames: capped(ambiguous),
+    ...(suspect.size ? { suspectNames: capped(suspect) } : {}),
+    ...(likelyNonHerb.size ? { likelyNonHerbNames: capped(likelyNonHerb) } : {}),
+  };
+}
+
+function coverageFromItems(items: readonly DrugInventoryItem[]): DrugInventoryCoverage {
+  const coverage: DrugInventoryCoverage = {};
+  for (const item of items) coverage[item.kind] = "synced";
+  return coverage;
+}
+
+function validCoverage(value: unknown): DrugInventoryCoverage | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const coverage: DrugInventoryCoverage = {};
+  for (const kind of DRUG_INVENTORY_KINDS) {
+    const state = (value as Record<string, unknown>)[kind];
+    if (state === "synced" || state === "declared_none") coverage[kind] = state;
+  }
+  return coverage;
+}
+
 async function load(customerIdInput: string): Promise<InventoryFile | null> {
   const customerId = validCustomerId(customerIdInput);
   const cached = readInventoryCache(customerId);
@@ -176,19 +254,24 @@ async function load(customerIdInput: string): Promise<InventoryFile | null> {
       writeInventoryCache(customerId, null);
       return null;
     }
+    // 旧文件导入时没有这层写法清洗：对不上正名的饮片在读入时按当前规则重算一次，已在线的
+    // 库存不必甲方重推就能用上（生产 55 家诊所：63.0% → 约 80% 对得上）。
+    const items = parsed.items.map((item) => item.kind === "herb" && !item.canonicalName
+      ? withResolvedHerbName(item)
+      : item);
     const loaded: InventoryFile = {
       schemaVersion: DRUG_INVENTORY_SCHEMA_VERSION,
       customerId,
       inventoryVersion: parsed.inventoryVersion,
       importedAt: text(parsed.importedAt),
       source: text(parsed.source),
-      itemCount: parsed.items.length,
-      availableHerbCount: parsed.items.filter((item) => item.kind === "herb" && item.available).length,
-      availablePatentCount: parsed.items.filter((item) => item.kind === "patent" && item.available).length,
-      availableWesternCount: parsed.items.filter((item) => item.kind === "western" && item.available).length,
-      unresolvedNames: Array.isArray(parsed.unresolvedNames) ? parsed.unresolvedNames : [],
-      ambiguousNames: Array.isArray(parsed.ambiguousNames) ? parsed.ambiguousNames : [],
-      items: parsed.items,
+      itemCount: items.length,
+      availableHerbCount: items.filter((item) => item.kind === "herb" && item.available).length,
+      availablePatentCount: items.filter((item) => item.kind === "patent" && item.available).length,
+      availableWesternCount: items.filter((item) => item.kind === "western" && item.available).length,
+      ...herbNameReport(items),
+      coverage: validCoverage(parsed.coverage) || coverageFromItems(items),
+      items,
     };
     writeInventoryCache(customerId, loaded);
     return loaded;
@@ -207,12 +290,19 @@ export type DrugInventoryImportInput = {
    * 原子替换。没有 part 时行为与此前逐字节相同（单次整批替换）。
    */
   part?: unknown;
+  /**
+   * 本批负责哪几类药（2026-09-28）。给出时只替换这几类、其余类别原样保留；某类在本批里
+   * 没有条目 = 声明本院没有这一类药。不给时整批替换（与此前相同）。
+   */
+  kinds?: unknown;
 };
 
 export type DrugInventoryRejectedEntry = { index: number; reason: string };
 
 export type DrugInventoryImportResult =
   | { ok: true; snapshot: DrugInventorySnapshot }
+  /** 不带 kinds 的空清单：不改动现有库存（snapshot 为当前库存，可能为 null）。 */
+  | { ok: true; unchanged: true; snapshot: DrugInventorySnapshot | null }
   | { ok: true; pending: DrugInventoryPartAck }
   | {
       ok: false;
@@ -240,6 +330,7 @@ type StagedImport = {
   importId: string;
   total: number;
   source: string;
+  kinds?: DrugInventoryItemKind[];
   startedAt: string;
   parts: Record<string, unknown[]>;
 };
@@ -268,6 +359,9 @@ async function readStagedImport(customerId: string, importId: string): Promise<S
       importId,
       total: Number(parsed.total) || 0,
       source: text(parsed.source),
+      ...(Array.isArray(parsed.kinds)
+        ? { kinds: DRUG_INVENTORY_KINDS.filter((kind) => (parsed.kinds as unknown[]).includes(kind)) }
+        : {}),
       startedAt: String(parsed.startedAt),
       parts: parsed.parts as Record<string, unknown[]>,
     };
@@ -302,21 +396,38 @@ async function writeStagedImport(customerId: string, staged: StagedImport): Prom
  * 集齐 total 片后才做一次整批替换；缺片时返回 409 并列出缺哪几片，
  * 在此之前线上库存一个字节都不动。语义仍然是「整批替换」，只是这一整批分了几次传。
  */
-function inventoryEntryRejection(raw: unknown): string | undefined {
+function inventoryEntryRejection(raw: unknown, kinds?: ReadonlySet<DrugInventoryItemKind>): string | undefined {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "entry must be an object";
   const entry = raw as Record<string, unknown>;
   const name = text(entry.name);
   if (!name) return "name is required";
   if (name.length > 120) return "name exceeds 120 characters";
-  if (entry.kind !== undefined && entry.kind !== "herb" && entry.kind !== "patent" && entry.kind !== "western") {
+  const kind = inventoryKindFromInput(entry.kind);
+  if (!kind) {
     // kind 静默兜底成 herb 会把「中成药」当饮片建目录——可得性判定直接跟着错。
-    return "kind must be one of herb|patent|western";
+    // 2026-09-28 起接受常见中文写法（饮片/中药/中成药/西药/配方颗粒），其余仍整批拒收。
+    return "kind must be one of herb|patent|western (or 饮片|中药|中成药|西药|配方颗粒)";
   }
-  if (entry.available !== undefined && typeof entry.available !== "boolean") {
+  if (kinds && !kinds.has(kind.kind)) return `kind ${kind.kind} is outside the declared kinds of this batch`;
+  if (inventoryAvailableFromInput(entry.available) === undefined) {
     // available:1 在旧实现里等于 false（=== true 比较），一个真值字段悄悄把在售药标成缺货。
-    return "available must be a boolean when present";
+    // 现在 1/0、Y/N、是/否、有货/缺货都按字面映射；其他写法（2、"maybe"）整批拒收。
+    return "available must be a boolean, 1/0, Y/N or 是/否 when present";
   }
   return undefined;
+}
+
+/** `kinds` 的受控写法；缺省返回 undefined（整批替换）。写法不合法返回 "invalid"。 */
+function parseInventoryKinds(value: unknown): Set<DrugInventoryItemKind> | undefined | "invalid" {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.length === 0 || value.length > DRUG_INVENTORY_KINDS.length * 4) return "invalid";
+  const kinds = new Set<DrugInventoryItemKind>();
+  for (const entry of value) {
+    const kind = inventoryKindFromInput(entry);
+    if (!kind || entry === undefined || entry === null || entry === "") return "invalid";
+    kinds.add(kind.kind);
+  }
+  return kinds;
 }
 
 function importPartShapeRejection(partInput: Record<string, unknown>): DrugInventoryPayloadRejection | undefined {
@@ -353,12 +464,13 @@ export function validateDrugInventoryPayload(input: DrugInventoryImportInput): D
     return { ok: false, status: 400, code: "invalid_inventory_items", error: "items must be an array" };
   }
   const rawItems = input.items as unknown[];
-  if (rawItems.length === 0) {
+  const kinds = parseInventoryKinds(input.kinds);
+  if (kinds === "invalid") {
     return {
       ok: false,
       status: 400,
-      code: "invalid_inventory_items",
-      error: "items must not be empty; an empty batch would atomically replace the catalog with nothing",
+      code: "invalid_inventory_kinds",
+      error: "kinds must be a non-empty array of herb|patent|western (or 饮片|中药|中成药|西药|配方颗粒)",
     };
   }
   const partInput = input.part && typeof input.part === "object" && !Array.isArray(input.part)
@@ -366,6 +478,19 @@ export function validateDrugInventoryPayload(input: DrugInventoryImportInput): D
     : undefined;
   if (input.part !== undefined && input.part !== null && !partInput) {
     return { ok: false, status: 400, code: "invalid_import_part_id", error: "part must be an object of {importId,index,total}" };
+  }
+  // 空清单（2026-09-28 起不再报错）：
+  // - 带 kinds：声明「本院没有这几类药」，只清这几类；
+  // - 不带 kinds：不改动现有库存、返回 200 并说明——整批替换语义下，空清单字面意思是「清空全部」，
+  //   HIS 故障时误推一个空清单就会让整院所有药变成库存外，所以这里宁可不动。
+  // 分片请求的单片仍不接受空清单：分片只用于超大目录，一片为空多半是调用方切片出错。
+  if (rawItems.length === 0 && partInput) {
+    return {
+      ok: false,
+      status: 400,
+      code: "invalid_inventory_items",
+      error: "a part must carry at least one item",
+    };
   }
   if (partInput) {
     const partRejection = importPartShapeRejection(partInput);
@@ -383,7 +508,7 @@ export function validateDrugInventoryPayload(input: DrugInventoryImportInput): D
   const rejectedEntries: DrugInventoryRejectedEntry[] = [];
   let rejectedEntryCount = 0;
   rawItems.forEach((raw, index) => {
-    const reason = inventoryEntryRejection(raw);
+    const reason = inventoryEntryRejection(raw, kinds);
     if (!reason) return;
     rejectedEntryCount += 1;
     if (rejectedEntries.length < MAX_REJECTED_ENTRIES_REPORTED) rejectedEntries.push({ index, reason });
@@ -409,26 +534,33 @@ export async function importDrugInventory(
   const invalidPayload = validateDrugInventoryPayload(input);
   if (invalidPayload) return invalidPayload;
   const rawItems = input.items as unknown[];
+  const parsedKinds = parseInventoryKinds(input.kinds);
+  const kinds = parsedKinds instanceof Set ? parsedKinds : undefined;
   const partInput = input.part && typeof input.part === "object" && !Array.isArray(input.part)
     ? input.part as Record<string, unknown>
     : undefined;
   if (partInput) {
     const importId = normalizedImportId(partInput.importId) || "invalid-import-id";
     return withSerializedLock(stagedImportLocks, `${customerId}:${importId}`, async () => {
-      const staged = await stageInventoryPart(customerId, partInput, rawItems, text(input.source));
+      const staged = await stageInventoryPart(customerId, partInput, rawItems, text(input.source), kinds);
       if (!staged.ok || "pending" in staged) return staged;
       return withSerializedLock(
         inventoryCommitLocks,
         customerId,
-        () => commitInventoryItems(customerId, staged.items, staged.source),
+        () => commitInventoryItems(customerId, staged.items, staged.source, staged.kinds),
       );
     });
+  }
+
+  if (rawItems.length === 0 && !kinds) {
+    // 不带 kinds 的空清单：不改动现有库存（见 validateDrugInventoryPayload 的说明）。
+    return { ok: true, unchanged: true, snapshot: await drugInventorySnapshot(customerId) };
   }
 
   return withSerializedLock(
     inventoryCommitLocks,
     customerId,
-    () => commitInventoryItems(customerId, rawItems, text(input.source)),
+    () => commitInventoryItems(customerId, rawItems, text(input.source), kinds),
   );
 }
 
@@ -437,7 +569,8 @@ async function stageInventoryPart(
   partInput: Record<string, unknown>,
   rawItems: unknown[],
   source: string,
-): Promise<{ ok: true; items: unknown[]; source: string } | { ok: true; pending: DrugInventoryPartAck } | { ok: false; status: 400 | 409 | 413; code: string; error: string }> {
+  kinds?: ReadonlySet<DrugInventoryItemKind>,
+): Promise<{ ok: true; items: unknown[]; source: string; kinds?: Set<DrugInventoryItemKind> } | { ok: true; pending: DrugInventoryPartAck } | { ok: false; status: 400 | 409 | 413; code: string; error: string }> {
   // 形状校验共用 validateDrugInventoryPayload 的同一份判据（单一谓词）；这里兜底再跑一次。
   const shapeRejection = importPartShapeRejection(partInput);
   if (shapeRejection) return shapeRejection;
@@ -448,10 +581,15 @@ async function stageInventoryPart(
   if (existing && existing.total !== total) {
     return { ok: false, status: 409, code: "import_part_total_conflict", error: `part.total changed mid-import (was ${existing.total})` };
   }
+  const kindList = kinds ? DRUG_INVENTORY_KINDS.filter((kind) => kinds.has(kind)) : undefined;
+  if (existing && (existing.kinds || []).join(",") !== (kindList || []).join(",")) {
+    return { ok: false, status: 409, code: "import_part_kinds_conflict", error: "every part of one import must declare the same kinds" };
+  }
   const staged: StagedImport = existing || {
     importId,
     total,
     source,
+    ...(kindList ? { kinds: kindList } : {}),
     startedAt: new Date().toISOString(),
     parts: {},
   };
@@ -476,17 +614,16 @@ async function stageInventoryPart(
   }
   const items = receivedParts.flatMap((position) => staged.parts[String(position)]);
   await rm(stagedImportPath(customerId, importId), { force: true }).catch(() => undefined);
-  return { ok: true, items, source: staged.source };
+  return { ok: true, items, source: staged.source, ...(staged.kinds ? { kinds: new Set(staged.kinds) } : {}) };
 }
 
 async function commitInventoryItems(
   customerId: string,
   rawItems: unknown[],
   source: string,
+  kinds?: ReadonlySet<DrugInventoryItemKind>,
 ): Promise<DrugInventoryImportResult> {
-  const items: DrugInventoryItem[] = [];
-  const unresolved = new Set<string>();
-  const ambiguous = new Set<string>();
+  const incoming: DrugInventoryItem[] = [];
   const seen = new Set<string>();
 
   for (const raw of rawItems) {
@@ -494,43 +631,51 @@ async function commitInventoryItems(
     const entry = raw as Record<string, unknown>;
     const name = text(entry.name);
     if (!name || name.length > 120) continue;
-    const kind: DrugInventoryItemKind = entry.kind === "western" ? "western" : entry.kind === "patent" ? "patent" : "herb";
-    // available 缺省为 true：甲方推过来的就是院内在售目录，缺字段不应被当成缺货。
-    const available = entry.available === undefined ? true : entry.available === true;
+    const kindInput = inventoryKindFromInput(entry.kind);
+    const available = inventoryAvailableFromInput(entry.available);
+    // 校验已整批拒收非法写法；这里是暂存/兜底路径的最后一道守卫，不猜。
+    if (!kindInput || available === undefined) continue;
+    const kind = kindInput.kind;
     const dedupeKey = `${kind}:${name}`;
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
 
-    let canonicalName = "";
-    if (kind === "herb") {
-      const identity = resolveGovernedTcmHerbIdentity(name);
-      if (identity.status === "ambiguous") {
-        // 歧义药名**绝不自动择一**（一包针 → 千年健/石韦）。该条按原名保留，
-        // 不参与正名级匹配，并如实回报给甲方补映射。
-        ambiguous.add(name);
-      } else {
-        canonicalName = identity.doseCanonicalName || identity.canonicalName || "";
-        if (!canonicalName || !isKnownTcmHerbName(canonicalName)) {
-          canonicalName = "";
-          unresolved.add(name);
-        }
-      }
-    }
-
-    items.push({
+    const item: DrugInventoryItem = {
       name,
       kind,
-      canonicalName,
+      canonicalName: "",
       available,
       ...(text(entry.specification) ? { specification: text(entry.specification) } : {}),
       ...(text(entry.goodsId) ? { goodsId: text(entry.goodsId) } : {}),
-    });
+      ...(kindInput.form ? { form: kindInput.form } : {}),
+    };
+    // 饮片归一到受治理正名：歧义药名**绝不自动择一**（一包针 → 千年健/石韦），按原名保留、
+    // 不参与正名级匹配，并如实回报给甲方补映射。
+    incoming.push(kind === "herb" ? withResolvedHerbName(item) : item);
   }
 
-  if (items.length === 0) {
-    // 归一化后一条不剩（历史暂存分片或绕过校验的调用方）。零条目库存等于把整院药味
-    // 判成缺货/unknown——宁可整批失败也不落盘。新请求在 validateDrugInventoryPayload
-    // 已整批拒绝，这里是暂存/兜底路径的最后一道守卫。
+  // 带 kinds：只替换声明的类别，其余类别与它们的同步状态原样保留。
+  const existing = kinds ? await load(customerId) : null;
+  const kept = kinds && existing ? existing.items.filter((item) => !kinds.has(item.kind)) : [];
+  const items = [...kept, ...incoming];
+  const coverage: DrugInventoryCoverage = kinds
+    ? {
+        ...(existing ? existing.coverage : {}),
+        ...Object.fromEntries([...kinds].map((kind) => [
+          kind,
+          incoming.some((item) => item.kind === kind) ? "synced" : "declared_none",
+        ])),
+      }
+    : coverageFromItems(items);
+  if (kinds) {
+    for (const kind of DRUG_INVENTORY_KINDS) {
+      if (!kinds.has(kind) && !items.some((item) => item.kind === kind) && coverage[kind] === "synced") delete coverage[kind];
+    }
+  }
+
+  if (items.length === 0 && !kinds) {
+    // 归一化后一条不剩（历史暂存分片或绕过校验的调用方）。不带 kinds 的零条目库存等于把整院
+    // 药味判成库存外——宁可整批失败也不落盘。带 kinds 的空清单是「本院没有这几类药」的声明，照常落盘。
     return {
       ok: false,
       status: 400,
@@ -544,6 +689,7 @@ async function commitInventoryItems(
     .update(JSON.stringify({
       schemaVersion: DRUG_INVENTORY_SCHEMA_VERSION,
       customerId,
+      coverage: DRUG_INVENTORY_KINDS.map((kind) => [kind, coverage[kind] || "not_synced"]),
       items: [...items].sort((left, right) =>
         `${left.kind}:${left.name}`.localeCompare(`${right.kind}:${right.name}`, "zh-CN")),
     }))
@@ -560,8 +706,8 @@ async function commitInventoryItems(
     availableHerbCount: items.filter((item) => item.kind === "herb" && item.available).length,
     availablePatentCount: items.filter((item) => item.kind === "patent" && item.available).length,
     availableWesternCount: items.filter((item) => item.kind === "western" && item.available).length,
-    unresolvedNames: [...unresolved].sort().slice(0, MAX_UNRESOLVED_REPORTED),
-    ambiguousNames: [...ambiguous].sort().slice(0, MAX_UNRESOLVED_REPORTED),
+    ...herbNameReport(items),
+    coverage,
     items,
   };
 
@@ -582,16 +728,216 @@ async function commitInventoryItems(
   return { ok: true, snapshot };
 }
 
-export async function drugInventorySnapshot(customerId: string): Promise<DrugInventorySnapshot | null> {
+const DEFAULT_STALE_DAYS = 30;
+const DEFAULT_READ_BUDGET_MS = 300;
+
+function inventoryStaleDays(): number {
+  const parsed = Number.parseInt(process.env.CDSS_DRUG_INVENTORY_STALE_DAYS || "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_STALE_DAYS;
+}
+
+function inventoryReadBudgetMs(): number {
+  const parsed = Number.parseInt(process.env.CDSS_DRUG_INVENTORY_READ_BUDGET_MS || "", 10);
+  return Number.isFinite(parsed) && parsed >= 50 ? parsed : DEFAULT_READ_BUDGET_MS;
+}
+
+/** 库存多久没更新（天，向下取整）；导入时间不可解析时为 undefined。 */
+function inventoryAgeDays(importedAt: string): number | undefined {
+  const at = Date.parse(importedAt);
+  return Number.isFinite(at) ? Math.max(0, Math.floor((Date.now() - at) / 86_400_000)) : undefined;
+}
+
+export type DrugInventoryStatusSnapshot = DrugInventorySnapshot & {
+  /** 超过 CDSS_DRUG_INVENTORY_STALE_DAYS（默认 30 天）没更新。只标注，照常使用。 */
+  stale: boolean;
+  ageDays?: number;
+};
+
+export async function drugInventorySnapshot(customerId: string): Promise<DrugInventoryStatusSnapshot | null> {
   const file = await load(customerId);
   if (!file) return null;
   const { items: _items, ...snapshot } = file;
   void _items;
-  return snapshot;
+  const ageDays = inventoryAgeDays(file.importedAt);
+  return { ...snapshot, stale: ageDays !== undefined && ageDays > inventoryStaleDays(), ...(ageDays !== undefined ? { ageDays } : {}) };
+}
+
+/**
+ * 诊疗链路读库存的时限（2026-09-28，甲方：同步药品不能阻塞推理）。库存是本机文件 + 进程内缓存，
+ * 正常读取毫秒级；这里再加一道上限：超过 CDSS_DRUG_INVENTORY_READ_BUDGET_MS（默认 300ms）就按
+ * 「未接库存」处理本次请求，读取在后台继续并回填缓存，下一次请求即可用上。
+ */
+async function loadForClinicalUse(customerId: string): Promise<InventoryFile | null> {
+  const budgetMs = inventoryReadBudgetMs();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<"timeout">((resolveTimeout) => {
+    timer = setTimeout(() => resolveTimeout("timeout"), budgetMs);
+  });
+  try {
+    const result = await Promise.race([load(customerId).catch(() => null), timedOut]);
+    if (result === "timeout") {
+      console.warn("[tcm-cdss:inventory] read_budget_exceeded", {
+        budgetMs,
+        customerHash: createHash("sha256").update(customerId).digest("hex").slice(0, 32),
+      });
+      return null;
+    }
+    return result;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export type HerbAvailability = "in_stock" | "out_of_stock" | "unknown";
 export type MedicineAvailability = HerbAvailability;
+export type DrugInventoryKindState = DrugInventoryKindCoverage | "not_synced";
+
+/**
+ * 页面与 HIS 显示的库存标签（甲方 2026-09-28 定名）：
+ * - 院内有货：在院内目录里且有货；
+ * - 缺货：在院内目录里但标了无货；
+ * - 库存外用药：不在院内目录里（包括本院没同步或声明没有这一类药）。系统照常推荐，由医生决定。
+ * 未接库存（该客户从没导入过）时不给标签，行为与接入前一致。
+ */
+export type InventoryLabel = "院内有货" | "缺货" | "库存外用药";
+
+export type MedicineInventoryStatus = {
+  availability: HerbAvailability;
+  label?: InventoryLabel;
+  /** 匹配到的院内药品原名与商品号（HIS 可直接据此下单）。 */
+  inventoryName?: string;
+  goodsId?: string;
+  specification?: string;
+  note?: string;
+};
+
+export type InventoryAvailabilityView = {
+  /** 未导入库存（或本次读取超时）时为 false —— 调用方据此完全跳过可得性呈现。 */
+  inventoryLoaded: boolean;
+  inventoryVersion: string;
+  importedAt: string;
+  stale: boolean;
+  ageDays?: number;
+  coverage: Record<DrugInventoryItemKind, DrugInventoryKindState>;
+  /** 院内有货饮片的受治理正名（生成前软偏好清单）。 */
+  availableHerbNames: readonly string[];
+  statusOf: (name: string, kind: DrugInventoryItemKind) => MedicineInventoryStatus;
+};
+
+const KIND_LABEL: Record<DrugInventoryItemKind, string> = { herb: "中药饮片", patent: "中成药", western: "西药" };
+
+const NOT_LOADED_COVERAGE: Record<DrugInventoryItemKind, DrugInventoryKindState> = {
+  herb: "not_synced",
+  patent: "not_synced",
+  western: "not_synced",
+};
+
+const EMPTY_INVENTORY_VIEW: InventoryAvailabilityView = {
+  inventoryLoaded: false,
+  inventoryVersion: "",
+  importedAt: "",
+  stale: false,
+  coverage: NOT_LOADED_COVERAGE,
+  availableHerbNames: [],
+  statusOf: () => ({ availability: "unknown" }),
+};
+
+function pickItem(candidates: readonly DrugInventoryItem[] | undefined, preferredName?: string): DrugInventoryItem | undefined {
+  if (!candidates?.length) return undefined;
+  return candidates.find((item) => item.available && item.name === preferredName)
+    || candidates.find((item) => item.available)
+    || candidates[0];
+}
+
+function statusFromItem(item: DrugInventoryItem, note?: string): MedicineInventoryStatus {
+  const formNote = item.form === "powder" ? "院内为粉剂" : item.form === "granule" ? "院内为配方颗粒" : "";
+  const notes = [note, formNote].filter(Boolean).join("；");
+  return {
+    availability: item.available ? "in_stock" : "out_of_stock",
+    label: item.available ? "院内有货" : "缺货",
+    inventoryName: item.name,
+    ...(item.goodsId ? { goodsId: item.goodsId } : {}),
+    ...(item.specification ? { specification: item.specification } : {}),
+    ...(notes ? { note: notes } : {}),
+  };
+}
+
+function viewFromFile(file: InventoryFile): InventoryAvailabilityView {
+  const coverage: Record<DrugInventoryItemKind, DrugInventoryKindState> = {
+    herb: file.coverage.herb || "not_synced",
+    patent: file.coverage.patent || "not_synced",
+    western: file.coverage.western || "not_synced",
+  };
+  const herbsByRaw = new Map<string, DrugInventoryItem[]>();
+  const herbsByCanonical = new Map<string, DrugInventoryItem[]>();
+  const medicinesByKey = new Map<string, DrugInventoryItem[]>();
+  const medicinesByBase = new Map<string, DrugInventoryItem[]>();
+  const push = (map: Map<string, DrugInventoryItem[]>, key: string, item: DrugInventoryItem) => {
+    if (!key) return;
+    const list = map.get(key) || [];
+    list.push(item);
+    map.set(key, list);
+  };
+  for (const item of file.items) {
+    if (item.kind === "herb") {
+      push(herbsByRaw, item.name, item);
+      push(herbsByCanonical, item.canonicalName, item);
+    } else {
+      push(medicinesByKey, `${item.kind}:${medicineNameKey(item.name)}`, item);
+      push(medicinesByBase, `${item.kind}:${medicineBaseKey(item.name)}`, item);
+    }
+  }
+  const availableHerbNames = [...new Set(file.items
+    .filter((item) => item.kind === "herb" && item.available && item.canonicalName)
+    .map((item) => item.canonicalName))].sort();
+  const ageDays = inventoryAgeDays(file.importedAt);
+
+  const outsideInventory = (kind: DrugInventoryItemKind): MedicineInventoryStatus => {
+    const state = coverage[kind];
+    if (state === "declared_none") {
+      return { availability: "out_of_stock", label: "库存外用药", note: `本院未配备${KIND_LABEL[kind]}` };
+    }
+    if (state === "not_synced") {
+      return { availability: "unknown", label: "库存外用药", note: `本院未同步${KIND_LABEL[kind]}库存` };
+    }
+    return { availability: "out_of_stock", label: "库存外用药", note: "不在院内药品目录中" };
+  };
+
+  return {
+    inventoryLoaded: true,
+    inventoryVersion: file.inventoryVersion,
+    importedAt: file.importedAt,
+    stale: ageDays !== undefined && ageDays > inventoryStaleDays(),
+    ...(ageDays !== undefined ? { ageDays } : {}),
+    coverage,
+    availableHerbNames,
+    statusOf(name: string, kind: DrugInventoryItemKind): MedicineInventoryStatus {
+      const raw = text(name);
+      if (!raw) return { availability: "unknown" };
+      if (coverage[kind] !== "synced") return outsideInventory(kind);
+      if (kind === "herb") {
+        const exact = pickItem(herbsByRaw.get(raw), raw);
+        if (exact) return statusFromItem(exact);
+        // 处方侧与院内侧走同一套写法清洗（延胡索（元胡）、甘草片），只比受治理正名。
+        const canonical = resolveInventoryHerbName(raw).canonicalName;
+        const matched = canonical ? pickItem(herbsByCanonical.get(canonical)) : undefined;
+        return matched ? statusFromItem(matched) : outsideInventory(kind);
+      }
+      const exact = pickItem(medicinesByKey.get(`${kind}:${medicineNameKey(raw)}`));
+      if (exact) return statusFromItem(exact);
+      // 同一基础方/通用名的其他剂型（推荐逍遥丸、院内有逍遥颗粒）：给出院内品名，用法以院内药品说明书为准。
+      const sameBase = pickItem(medicinesByBase.get(`${kind}:${medicineBaseKey(raw)}`));
+      if (sameBase) return statusFromItem(sameBase, `院内剂型/规格为「${sameBase.name}」，用法以院内药品说明书为准`);
+      return outsideInventory(kind);
+    },
+  };
+}
+
+/** 诊疗链路使用的统一库存视图（饮片、中成药、西药同一判据）。 */
+export async function inventoryAvailabilityView(customerId: string): Promise<InventoryAvailabilityView> {
+  const file = await loadForClinicalUse(customerId);
+  return file ? viewFromFile(file) : EMPTY_INVENTORY_VIEW;
+}
 
 export type MedicineAvailabilityView = {
   inventoryLoaded: boolean;
@@ -599,22 +945,13 @@ export type MedicineAvailabilityView = {
   statusOf: (name: string, kind: "patent" | "western") => MedicineAvailability;
 };
 
+/** 兼容旧调用：只回可得性三值。 */
 export async function medicineAvailabilityView(customerId: string): Promise<MedicineAvailabilityView> {
-  const file = await load(customerId);
-  if (!file) return { inventoryLoaded: false, inventoryVersion: "", statusOf: () => "unknown" };
-  const normalized = (value: string) => value.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
-  const byKind = new Map<string, boolean>();
-  for (const item of file.items) {
-    if (item.kind !== "patent" && item.kind !== "western") continue;
-    byKind.set(`${item.kind}:${normalized(item.name)}`, item.available);
-  }
+  const view = await inventoryAvailabilityView(customerId);
   return {
-    inventoryLoaded: true,
-    inventoryVersion: file.inventoryVersion,
-    statusOf(name, kind) {
-      const available = byKind.get(`${kind}:${normalized(name)}`);
-      return available === true ? "in_stock" : "out_of_stock";
-    },
+    inventoryLoaded: view.inventoryLoaded,
+    inventoryVersion: view.inventoryVersion,
+    statusOf: (name, kind) => view.statusOf(name, kind).availability,
   };
 }
 
@@ -626,45 +963,14 @@ export type HerbAvailabilityView = {
   statusOf: (herb: string) => HerbAvailability;
 };
 
-const EMPTY_VIEW: HerbAvailabilityView = {
-  inventoryLoaded: false,
-  inventoryVersion: "",
-  availableHerbNames: [],
-  statusOf: () => "unknown",
-};
-
+/** 兼容旧调用：饮片可得性三值。 */
 export async function herbAvailabilityView(customerId: string): Promise<HerbAvailabilityView> {
-  const file = await load(customerId);
-  if (!file) return EMPTY_VIEW;
-  const availableCanonical = new Set<string>();
-  const availableRaw = new Set<string>();
-  const knownCanonical = new Set<string>();
-  const knownRaw = new Set<string>();
-  for (const item of file.items) {
-    if (item.kind !== "herb") continue;
-    if (item.canonicalName) knownCanonical.add(item.canonicalName);
-    knownRaw.add(item.name);
-    if (!item.available) continue;
-    if (item.canonicalName) availableCanonical.add(item.canonicalName);
-    availableRaw.add(item.name);
-  }
+  const view = await inventoryAvailabilityView(customerId);
   return {
-    inventoryLoaded: true,
-    inventoryVersion: file.inventoryVersion,
-    availableHerbNames: [...availableCanonical].sort(),
-    statusOf(herb: string): HerbAvailability {
-      const raw = text(herb);
-      if (!raw) return "unknown";
-      if (availableRaw.has(raw)) return "in_stock";
-      const identity = resolveGovernedTcmHerbIdentity(raw);
-      const canonical = identity.doseCanonicalName || identity.canonicalName || "";
-      if (canonical && availableCanonical.has(canonical)) return "in_stock";
-      // 只有当这味药**确实出现在院内目录里且标记为不可用**、或目录里根本没有它时，
-      // 才判缺货。归一不到正名的院内条目不参与判定，避免把「我们没认出这个名字」
-      // 说成「医院没有这个药」。
-      if (knownRaw.has(raw) || (canonical && knownCanonical.has(canonical))) return "out_of_stock";
-      return "out_of_stock";
-    },
+    inventoryLoaded: view.inventoryLoaded,
+    inventoryVersion: view.inventoryVersion,
+    availableHerbNames: view.availableHerbNames,
+    statusOf: (herb) => view.statusOf(herb, "herb").availability,
   };
 }
 
@@ -677,10 +983,11 @@ const PROMPT_SHORTLIST_LIMIT = 600;
  * 措辞刻意留了出口：临床必须用清单外药味时照常开出并说明。
  * 若写成「只能从清单里选」，遇到院内没有麻黄的风寒表实证，模型就会去凑一个次优方，
  * 而医生看不出这是被库存扭曲过的推荐——那比直接告诉他「本方需要麻黄、院内暂无」危险得多。
+ * 饮片没同步或声明没有饮片时返回空串：不给偏好，由模型按证推荐（甲方：客户没有中药时推 AI 推的药）。
  */
 export async function buildDrugInventoryPromptContext(customerId: string): Promise<string> {
-  const view = await herbAvailabilityView(customerId);
-  if (!view.inventoryLoaded || view.availableHerbNames.length === 0) return "";
+  const view = await inventoryAvailabilityView(customerId);
+  if (!view.inventoryLoaded || view.coverage.herb !== "synced" || view.availableHerbNames.length === 0) return "";
   const listed = view.availableHerbNames.slice(0, PROMPT_SHORTLIST_LIMIT);
   const truncated = view.availableHerbNames.length > listed.length;
   return [
@@ -706,15 +1013,23 @@ export type OutOfStockHerbAdvice = {
  * （同最具体功效分类、风险不得升级、药典剂量边界、十八反十九畏、管制毒性排除），
  * **再**按库存过滤——顺序不能反：先按库存挑再谈安全，等于让库存决定临床安全边界。
  */
+export type HerbAvailabilityRow = { name: string; availability: HerbAvailability } & Omit<MedicineInventoryStatus, "availability">;
+export type MedicineAvailabilityRow = HerbAvailabilityRow & { type: "中成药" | "西药" };
+
 export type DrugAvailabilityProjection = {
   inventory: {
     loaded: boolean;
     inventoryVersion: string;
     /** 库存**不进已签名的临床合同**：它每天都在变，进合同会让昨天签发的方案今天验签失败。 */
     note: string;
+    coverage?: Record<DrugInventoryItemKind, DrugInventoryKindState>;
+    importedAt?: string;
+    stale?: boolean;
   };
-  herbAvailability: Array<{ name: string; availability: HerbAvailability }>;
+  herbAvailability: HerbAvailabilityRow[];
   outOfStock: OutOfStockHerbAdvice[];
+  /** 中成药/西药的院内状态（2026-09-28 起；未导入库存时各条为 unknown、无标签）。 */
+  medicineAvailability: MedicineAvailabilityRow[];
 };
 
 /**
@@ -723,11 +1038,15 @@ export type DrugAvailabilityProjection = {
 export async function drugAvailabilityProjection(
   structuredHerbs: ReadonlyArray<{ name?: unknown }>,
   customerId: string,
+  medicines: ReadonlyArray<{ name?: unknown; type?: unknown }> = [],
 ): Promise<DrugAvailabilityProjection> {
-  const view = await herbAvailabilityView(customerId);
+  const view = await inventoryAvailabilityView(customerId);
   const names = structuredHerbs
     .map((herb) => text(herb?.name))
     .filter(Boolean);
+  const medicineRows = medicines
+    .map((item) => ({ name: text(item?.name), type: item?.type === "西药" ? "西药" as const : "中成药" as const }))
+    .filter((item) => item.name);
   if (!view.inventoryLoaded) {
     return {
       inventory: {
@@ -737,33 +1056,55 @@ export async function drugAvailabilityProjection(
       },
       herbAvailability: names.map((name) => ({ name, availability: "unknown" as const })),
       outOfStock: [],
+      medicineAvailability: medicineRows.map((item) => ({ ...item, availability: "unknown" as const })),
     };
   }
+  const notSynced = DRUG_INVENTORY_KINDS.filter((kind) => view.coverage[kind] === "not_synced").map((kind) => KIND_LABEL[kind]);
+  const declaredNone = DRUG_INVENTORY_KINDS.filter((kind) => view.coverage[kind] === "declared_none").map((kind) => KIND_LABEL[kind]);
   return {
     inventory: {
       loaded: true,
       inventoryVersion: view.inventoryVersion,
-      note: "可得性为院内库存标注，不参与临床合同签名；缺货药味未从处方中删除，替代候选仅供医师选择。",
+      note: [
+        "可得性为院内库存标注，不参与临床合同签名；缺货与库存外药味未从处方中删除，替代候选仅供医师选择。",
+        notSynced.length ? `本院尚未同步${notSynced.join("、")}库存，这几类药标为「库存外用药」。` : "",
+        declaredNone.length ? `本院已声明未配备${declaredNone.join("、")}。` : "",
+        view.stale ? `院内库存数据已 ${view.ageDays} 天未更新，可得性仅供参考。` : "",
+      ].filter(Boolean).join(""),
+      coverage: view.coverage,
+      importedAt: view.importedAt,
+      stale: view.stale,
     },
-    herbAvailability: names.map((name) => ({ name, availability: view.statusOf(name) })),
-    outOfStock: await outOfStockAdvice(names, customerId),
+    herbAvailability: names.map((name) => ({ name, ...view.statusOf(name, "herb") })),
+    outOfStock: await outOfStockAdviceFromView(names, view),
+    medicineAvailability: medicineRows.map((item) => ({
+      ...item,
+      ...view.statusOf(item.name, item.type === "西药" ? "western" : "patent"),
+    })),
   };
+}
+
+async function outOfStockAdviceFromView(
+  prescriptionHerbs: readonly string[],
+  view: InventoryAvailabilityView,
+): Promise<OutOfStockHerbAdvice[]> {
+  // 饮片没同步或声明没有饮片时，院内不存在可替代的有货药，列替代只会是一串空数组。
+  if (!view.inventoryLoaded || view.coverage.herb !== "synced") return [];
+  const advice: OutOfStockHerbAdvice[] = [];
+  for (const herb of prescriptionHerbs) {
+    const availability = view.statusOf(herb, "herb").availability;
+    if (availability !== "out_of_stock") continue;
+    const substitutes = governedHerbSubstitutes(herb, prescriptionHerbs, 6)
+      .filter((item) => view.statusOf(item.substitute, "herb").availability === "in_stock")
+      .slice(0, 2);
+    advice.push({ herb, availability, substitutes });
+  }
+  return advice;
 }
 
 export async function outOfStockAdvice(
   prescriptionHerbs: readonly string[],
   customerId: string,
 ): Promise<OutOfStockHerbAdvice[]> {
-  const view = await herbAvailabilityView(customerId);
-  if (!view.inventoryLoaded) return [];
-  const advice: OutOfStockHerbAdvice[] = [];
-  for (const herb of prescriptionHerbs) {
-    const availability = view.statusOf(herb);
-    if (availability !== "out_of_stock") continue;
-    const substitutes = governedHerbSubstitutes(herb, prescriptionHerbs, 6)
-      .filter((item) => view.statusOf(item.substitute) === "in_stock")
-      .slice(0, 2);
-    advice.push({ herb, availability, substitutes });
-  }
-  return advice;
+  return outOfStockAdviceFromView(prescriptionHerbs, await inventoryAvailabilityView(customerId));
 }

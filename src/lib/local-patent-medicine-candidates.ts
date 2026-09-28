@@ -1,4 +1,5 @@
 import localMedicineIndex from "../data/local-patent-medicine-index.json" with { type: "json" };
+import localPrescriptionMedicineIndex from "../data/local-patent-medicine-rx-index.json" with { type: "json" };
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
 import { affirmativeNegationFormsIn, governedSyndromeLabelAxes } from "./clinical-vocabulary";
@@ -7,7 +8,7 @@ import { formulaCounterEvidence } from "./formula-discrimination-guard";
 import { matchingMedicineClinicalConcepts } from "./medicine-clinical-concepts";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 
-type LocalPatentMedicineEntry = {
+export type LocalPatentMedicineEntry = {
   name: string;
   specification: string;
   approvalNumber: string;
@@ -38,6 +39,13 @@ export type LocalPatentMedicineCandidate = LocalPatentMedicineEntry & {
 // controlled clinical concept. The model therefore cannot retrieve a medicine from a disease name
 // alone when the patient explicitly denies the corresponding symptom.
 const ENTRIES = (localMedicineIndex as { entries?: LocalPatentMedicineEntry[] }).entries || [];
+
+/**
+ * 处方类中成药说明书目录（2026-09-28，4,899 种，不含注射剂）。不参与病例检索的默认范围，
+ * 只供规划器用于：院内有货的处方中成药进入候选；AI 提名的中成药核对说明书。
+ */
+export const LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES: readonly LocalPatentMedicineEntry[] =
+  (localPrescriptionMedicineIndex as { entries?: LocalPatentMedicineEntry[] }).entries || [];
 
 /** 中成药名去掉剂型后缀后的基础方名，用作同方多剂型的去重键。 */
 const PATENT_DOSAGE_FORM_SUFFIX = /(?:缓释|控释|肠溶)?(?:片|胶囊|颗粒|丸|口服液|合剂|液|冲剂|糖浆|散|膏|丹|栓|贴|酊|露|饮)$/;
@@ -236,6 +244,12 @@ export function retrieveLocalPatentMedicineCandidates(
   caseState: CaseState,
   limit = 10,
   assistedNegations?: AssistedNegationClauses,
+  options: {
+    /** 检索的说明书目录；缺省为本地非处方中成药索引（病例检索的默认范围，行为与此前相同）。 */
+    entries?: readonly LocalPatentMedicineEntry[];
+    /** 编号起点：规划器追加的候选用 501 起，避免与证据段里 001–010 的病例检索候选撞号。 */
+    idOffset?: number;
+  } = {},
 ): LocalPatentMedicineCandidate[] {
   const facts = positiveCaseFacts(caseState, assistedNegations);
   if (facts.length === 0) return [];
@@ -268,7 +282,7 @@ export function retrieveLocalPatentMedicineCandidates(
       item.namespace === "medicine_clinical_concept" &&
       item.fieldPath.startsWith("retrieval.medicineClinicalConcept."))
     .map((item) => item.candidateId);
-  const scored = ENTRIES.map((entry) => {
+  const scored = (options.entries || ENTRIES).map((entry) => {
     const matched = matchingMedicineClinicalConcepts(facts.join("；"), entry.indication, semanticConceptIds);
     const matchedPatientFacts = facts.filter((fact) => matched.some((concept) => concept.casePattern.test(fact)));
     // 原实现在这里加一项 riskDetailScore：说明书的禁忌/注意/孕哺/相互作用四栏每填一栏 +0.05。
@@ -328,14 +342,23 @@ export function retrieveLocalPatentMedicineCandidates(
     const key = entry.classicFormula || patentMedicineBaseName(entry.name) || entry.name;
     if (!byBaseFormula.has(key)) byBaseFormula.set(key, entry);
   }
+  const idOffset = Math.max(0, options.idOffset || 0);
   return [...byBaseFormula.values()]
     .slice(0, Math.max(0, limit))
-    .map((entry, index) => ({ ...entry, id: `LOCAL-INST-${String(index + 1).padStart(3, "0")}` }));
+    .map((entry, index) => ({ ...entry, id: `LOCAL-INST-${String(idOffset + index + 1).padStart(3, "0")}` }));
 }
 
 function compact(value: string, limit: number, fallback = "未载明"): string {
   const clean = value.replace(/\s+/g, " ").trim();
   return (clean || fallback).slice(0, limit);
+}
+
+/**
+ * 单条中成药说明书证据行。ID、指纹、药名、规格、适应证必须在同一行：证据净化按「同一条目」
+ * 绑定这几项。规划器追加的候选（院内有货、AI 提名后核对到的）也用这一格式写进证据段。
+ */
+export function formatLocalPatentMedicineRecord(candidate: LocalPatentMedicineCandidate): string {
+  return `- [${candidate.id}] 药名：${candidate.name}｜规格：${compact(candidate.specification, 120)}｜批准文号：${candidate.approvalNumber}｜生产企业：${candidate.manufacturer}｜适应证：${compact(candidate.indication, 360)}｜本例命中：${candidate.matchedConcepts.join("、")}｜事实：${candidate.matchedPatientFacts.join("；")}｜用法：${compact(candidate.usage, 220)}｜禁忌/注意：${compact([candidate.contraindication, candidate.precaution].filter(Boolean).join("；"), 360)}｜特殊人群：${compact([candidate.children, candidate.elderly, candidate.pregnancyLactation].filter(Boolean).join("；"), 260)}｜相互作用：${compact(candidate.interaction, 220)}｜条目指纹：${candidate.fingerprint}${/^https:\/\//i.test(candidate.url) ? `｜URL:${candidate.url}` : ""}`;
 }
 
 export function buildLocalPatentMedicineContext(
@@ -351,8 +374,7 @@ export function buildLocalPatentMedicineContext(
     "【本地中成药说明书检索（病例绑定候选；不是自动处方）】",
     // Keep each candidate on one evidence-record line: the sanitizer deliberately binds an ID,
     // fingerprint, medicine name, specification and indication within the same retrieved record.
-    ...candidates.map((candidate) =>
-      `- [${candidate.id}] 药名：${candidate.name}｜规格：${compact(candidate.specification, 120)}｜批准文号：${candidate.approvalNumber}｜生产企业：${candidate.manufacturer}｜适应证：${compact(candidate.indication, 360)}｜本例命中：${candidate.matchedConcepts.join("、")}｜事实：${candidate.matchedPatientFacts.join("；")}｜用法：${compact(candidate.usage, 220)}｜禁忌/注意：${compact([candidate.contraindication, candidate.precaution].filter(Boolean).join("；"), 360)}｜特殊人群：${compact([candidate.children, candidate.elderly, candidate.pregnancyLactation].filter(Boolean).join("；"), 260)}｜相互作用：${compact(candidate.interaction, 220)}｜条目指纹：${candidate.fingerprint}${/^https:\/\//i.test(candidate.url) ? `｜URL:${candidate.url}` : ""}`),
+    ...candidates.map(formatLocalPatentMedicineRecord),
     "选择纪律：只能复制上方同一条目的药名、规格、ID和指纹；适应证必须覆盖本例当前阳性问题。条目是候选边界，不替代医师辨证、说明书原文核验或药师审查；不得补写条目未载明的信息。",
   ].join("\n");
 }

@@ -4344,6 +4344,68 @@ function MedicinePlanCards({ section, nonDrugSection }: { section?: string; nonD
   );
 }
 
+type InventoryTag = { label: "院内有货" | "缺货" | "库存外用药"; inventoryName?: string; note?: string };
+type InventoryTagMap = ReadonlyMap<string, InventoryTag>;
+const EMPTY_INVENTORY_TAGS: InventoryTagMap = new Map();
+
+/**
+ * 院内库存标签（甲方 2026-09-28：药名旁显示「院内有货 / 缺货 / 库存外用药」）。方案出来后单独查一次
+ * /api/drug-inventory/availability，与 HIS 方案出参同一判据；查询失败或该客户未接库存时不显示，
+ * 不影响任何诊疗内容。键为 `${kind}:${name}`。
+ */
+function useInventoryTags(herbNames: readonly string[], medicines: ReadonlyArray<{ name: string; type: string }>): InventoryTagMap {
+  const [tags, setTags] = useState<InventoryTagMap>(EMPTY_INVENTORY_TAGS);
+  const requestKey = JSON.stringify([
+    ...herbNames.map((name) => ({ name, kind: "herb" })),
+    ...medicines.map((item) => ({ name: item.name, kind: item.type === "西药" ? "western" : "patent" })),
+  ]);
+  useEffect(() => {
+    const items = JSON.parse(requestKey) as Array<{ name: string; kind: string }>;
+    if (items.length === 0) return;
+    const controller = new AbortController();
+    void fetch(apiUrl("/api/drug-inventory/availability"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: items.slice(0, 100) }),
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then((response) => response.ok ? response.json() : null)
+      .then((body: { inventoryLoaded?: unknown; items?: unknown } | null) => {
+        if (!body || body.inventoryLoaded !== true || !Array.isArray(body.items)) return;
+        const next = new Map<string, InventoryTag>();
+        for (const raw of body.items as Array<Record<string, unknown>>) {
+          const label = raw.label;
+          if (label !== "院内有货" && label !== "缺货" && label !== "库存外用药") continue;
+          next.set(`${String(raw.kind)}:${String(raw.name)}`, {
+            label,
+            ...(typeof raw.inventoryName === "string" ? { inventoryName: raw.inventoryName } : {}),
+            ...(typeof raw.note === "string" ? { note: raw.note } : {}),
+          });
+        }
+        setTags(next);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [requestKey]);
+  return tags;
+}
+
+function InventoryTagChip({ tag }: { tag?: InventoryTag }) {
+  if (!tag) return null;
+  const tone = tag.label === "院内有货"
+    ? "bg-emerald-50 text-emerald-700"
+    : tag.label === "缺货"
+      ? "bg-orange-50 text-orange-700"
+      : "bg-slate-100 text-slate-600";
+  const title = [tag.inventoryName ? `院内药名：${tag.inventoryName}` : "", tag.note || ""].filter(Boolean).join("；");
+  return (
+    <span className={`ml-1.5 inline-flex rounded-full px-1.5 py-0.5 align-middle text-[10px] font-semibold ${tone}`} title={title || undefined} data-inventory-label={tag.label}>
+      {tag.label}
+    </span>
+  );
+}
+
 function isCompleteStructuredMedicineCandidate(
   item: NonNullable<StructuredFormula["patentAndWestern"]>[number],
 ): boolean {
@@ -4352,9 +4414,10 @@ function isCompleteStructuredMedicineCandidate(
     shouldRenderEvidenceStatus(item.evidence);
 }
 
-function StructuredMedicinePlanCards({ candidates, caseState }: {
+function StructuredMedicinePlanCards({ candidates, caseState, inventoryTags = EMPTY_INVENTORY_TAGS }: {
   candidates: NonNullable<StructuredFormula["patentAndWestern"]>;
   caseState: CaseState;
+  inventoryTags?: InventoryTagMap;
 }) {
   const visible = candidates.filter(isCompleteStructuredMedicineCandidate);
   if (visible.length === 0) return null;
@@ -4368,6 +4431,7 @@ function StructuredMedicinePlanCards({ candidates, caseState }: {
                 <Pill className="h-4 w-4 text-blue-600" />
                 <p className="break-words text-sm font-semibold text-gray-950">{item.name}</p>
                 <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">{item.type}</span>
+                <InventoryTagChip tag={inventoryTags.get(`${item.type === "西药" ? "western" : "patent"}:${item.name}`)} />
               </div>
               <p className="mt-1 text-xs text-gray-500">{item.specification}</p>
             </div>
@@ -4721,6 +4785,10 @@ function ResultTabsV2({
   // F3（甲方反馈：西医支持依据罗列病历、冗余）：默认只展示前 4 条且每条约 60 字截断，
   // 展开后显示全部完整内容。仅展示层状态，不改结构化载荷。Hook 须在下方 early return 之前调用。
   const reasoning = mergeReasoningStages(diagnoseReasoningFromState(caseState), prescribeReasoningFromState(caseState)) || caseState.reasoningV2;
+  const inventoryTags = useInventoryTags(
+    (reasoning?.formula?.candidates?.[0]?.herbs || []).map((herb) => herb.name).filter(Boolean),
+    (reasoning?.formula?.patentAndWestern || []).map((item) => ({ name: item.name, type: item.type })).filter((item) => item.name),
+  );
   if (!reasoning) return null;
 
   const formula = reasoning.formula;
@@ -5377,6 +5445,7 @@ function ResultTabsV2({
                       <div className="grid grid-cols-[1fr_0.6fr_0.5fr_1.4fr] gap-2">
                         <span className="font-semibold text-gray-950">
                           {herb.name}{herb.processing ? `（${herb.processing}）` : ""}
+                          <InventoryTagChip tag={inventoryTags.get(`herb:${herb.name}`)} />
                           {/* 甲方评测(2026-08-04) 第 1 条「混入 L0/L1/L3 等工程标签」的**可复现来源**就在这里：
                               ClinicalWarningLevel 是内部分级枚举（L0–L4），这枚 chip 此前把枚举值本身印在
                               每一味药后面，医生看到的是「桂枝 L0 9g 君 …」。分级枚举有现成的中文标签
@@ -5508,7 +5577,7 @@ function ResultTabsV2({
       )}
 
       {hasMedicineCandidates && <SchemeSection order={sectionOrder("M04-patent-western", 1)} id="cdss-section-medicine" title={clinicalOutputLabel("M04-patent-western", "中成药/西药候选")} subtitle="基于西医诊断与证据的独立候选方案" contractIds="M04-patent-western" rendererId="medicine-section">
-        <StructuredMedicinePlanCards candidates={medicineCandidates} caseState={caseState} />
+        <StructuredMedicinePlanCards candidates={medicineCandidates} caseState={caseState} inventoryTags={inventoryTags} />
       </SchemeSection>}
       {!hasMedicineCandidates && caseState.phase !== "diagnose" && caseState.phase !== "prescribe" && (
         <SchemeSection order={sectionOrder("M04-patent-western", 1)} id="cdss-section-medicine" title="中成药候选" subtitle="本地证型检索结果；西药需外部说明书证据" contractIds="M04-patent-western" rendererId="medicine-section">

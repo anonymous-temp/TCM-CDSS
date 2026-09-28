@@ -196,7 +196,7 @@ async function runCase(entry) {
         || (record.stages.diagnose?.visible || "").includes("<!-- CDSS_SAFETY_ADVISORY -->")
         ? "prescribed_with_alerts"
         : "prescribed")
-      : /药典剂量区间/.test(record.stages.prescribe?.visible || "")
+      : /药典剂量区间|剂量区间（来源）/.test(record.stages.prescribe?.visible || "")
         ? "deterministic_reference"
         : /模型处方输出被截断|未通过处方合同校验|未能形成可核验/.test(record.stages.prescribe?.visible || "")
           ? "contract_rejected"

@@ -63,7 +63,7 @@ for (const dir of process.argv.slice(2)) {
     // 1. 零味/空页: M04 200 但既无药味表、无参考页、也无非剂量说明
     if (st.prescribe?.status === 200) {
       const hasHerbTable = herbRowsFromVisible(rxVis).length > 0;
-      const hasReference = /药典剂量区间/.test(rxVis);
+      const hasReference = /药典剂量区间|剂量区间（来源）/.test(rxVis);
       const hasNonDoseExplain = /未能形成可核验|不生成候选|本次分析结论|辨证信息|安全边界/.test(rxVis);
       if (!hasHerbTable && !hasReference && !hasNonDoseExplain) note(caseId, "EMPTY_RX", `M04 200 但无内容, len=${rxVis.length}`);
       if (rxVis.trim().length < 60) note(caseId, "EMPTY_RX", `M04 正文过短 len=${rxVis.trim().length}`);

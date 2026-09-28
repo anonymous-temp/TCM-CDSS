@@ -122,10 +122,6 @@
         "blockedFormulaCount": 8
       },
       {
-        "name": "土鳖虫",
-        "blockedFormulaCount": 8
-      },
-      {
         "name": "百草霜",
         "blockedFormulaCount": 8
       },
@@ -655,10 +651,6 @@
       },
       {
         "name": "蛴螬",
-        "blockedFormulaCount": 2
-      },
-      {
-        "name": "䗪虫",
         "blockedFormulaCount": 2
       },
       {
@@ -3464,6 +3456,10 @@
       {
         "name": "败酱草",
         "blockedFormulaCount": 1
+      },
+      {
+        "name": "败酱",
+        "blockedFormulaCount": 2
       },
       {
         "name": "无名异",

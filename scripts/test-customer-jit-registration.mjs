@@ -320,22 +320,20 @@ try {
   assert.equal(prov08Registry.customers.some((customer) => customer.customerId === "hospital-prov08"), false,
     "被拒的首提交不得在注册表留下任何状态的残留条目");
 
-  // 空 items 同属载荷不合法：旧行为是 200 + 零条目库存落盘（整院药味被推成缺货/unknown）。
-  const prov08EmptyItems = await prov08Post({ source: "prov08", items: [] });
-  assert.equal(prov08EmptyItems.status, 400);
-  assert.equal((await prov08EmptyItems.json()).code, "invalid_inventory_items");
-  assert.equal(authorizeCustomerId("hospital-prov08", true).ok, false);
+  // 空 items：2026-09-28 起（甲方：客户没有中药时调接口不要报错）不再 400——不写类别的空清单
+  // 返回 200 且**不改动现有库存**（旧缺陷是 200 + 零条目库存落盘，整院药味被推成缺货），客户照常登记；
+  // 写明 kinds 的空清单是「本院没有这一类药」的声明。两者在 test:drug-inventory-sync-kinds 里钉住，
+  // 这里不再用 hospital-prov08 跑，免得它被登记后改变本段其余「不得登记」断言的前提。
 
-  // 条目级错误整批拒绝并回报 rejectedEntries，绝不静默丢弃：
-  // 缺 name / kind 非枚举（"中成药" 悄悄当 herb）/ available 非布尔（1 悄悄当 false）
-  // 都会直接改变临床可得性。4 条中 3 条非法。
+  // 条目级错误整批拒绝并回报 rejectedEntries，绝不静默丢弃。2026-09-28 起 kind 接受常见中文写法
+  // （中成药/饮片/西药…）、available 接受 1/0、Y/N、是/否；仍非法的是无法识别的写法。4 条中 3 条非法。
   const prov08BadEntries = await prov08Post({
     source: "prov08",
     items: [
       { name: "黄芪", kind: "herb", available: true },
       { kind: "herb", available: true },
-      { name: "藿香正气水", kind: "中成药" },
-      { name: "对乙酰氨基酚", kind: "western", available: 1 },
+      { name: "藿香正气水", kind: "药品" },
+      { name: "对乙酰氨基酚", kind: "western", available: 2 },
     ],
   });
   assert.equal(prov08BadEntries.status, 400);

@@ -96,9 +96,16 @@ export function inventoryRequestFingerprint(body: {
   source?: unknown;
   items?: unknown;
   part?: unknown;
+  kinds?: unknown;
 }): string {
+  // kinds（2026-09-28）只在出现时进指纹：不带 kinds 的旧请求指纹逐字节不变，已落盘的幂等记录照常重放。
   return createHash("sha256")
-    .update(canonicalJson({ source: body.source ?? null, items: body.items ?? null, part: body.part ?? null }))
+    .update(canonicalJson({
+      source: body.source ?? null,
+      items: body.items ?? null,
+      part: body.part ?? null,
+      ...(body.kinds !== undefined ? { kinds: body.kinds } : {}),
+    }))
     .digest("hex");
 }
 

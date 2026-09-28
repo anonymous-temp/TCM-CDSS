@@ -72,7 +72,7 @@ export async function POST(req: Request) {
   const parsed = await readJsonBodyWithLimit(req, MAX_BODY_BYTES);
   if (!parsed.ok) return parsed.response;
   const body = parsed.body && typeof parsed.body === "object" && !Array.isArray(parsed.body)
-    ? parsed.body as { source?: unknown; items?: unknown; part?: unknown }
+    ? parsed.body as { source?: unknown; items?: unknown; part?: unknown; kinds?: unknown }
     : {};
   // PROV-08（甲方 2026-08-24 验收）：载荷内在的 4xx/413 必须先于 requireCustomerContext 的
   // JIT 登记，否则一次失败的首提交会留下已激活、可正常 GET 的空租户。此时尚无客户上下文，
@@ -160,6 +160,32 @@ export async function POST(req: Request) {
           + " 集齐全部分片后系统才会做一次整批替换；在此之前线上库存保持上一版本不变。",
       }, { status: 202 }) };
     }
+    if ("unchanged" in result) {
+      // 不带 kinds 的空清单（2026-09-28 起不再 400）：不改动现有库存，返回 200 并说明原因。
+      const unchangedAudit = await tryRecordInventoryAudit({
+        event: "inventory_import",
+        clientId: customer.context.clientId,
+        customerHash: auditCustomerHash,
+        outcome: "accepted",
+        code: "inventory_import_unchanged",
+        requestId,
+        operationId,
+      });
+      const unchangedBody = {
+        unchanged: true,
+        inventoryLoaded: Boolean(result.snapshot),
+        ...(result.snapshot || {}),
+        ...(customer.context.provisioned ? { customerRegistered: true } : {}),
+        ...(!unchangedAudit ? { auditStatus: "pending_reconciliation" } : {}),
+        note: "空清单未改动现有库存。本接口是整批替换，不写类别的空清单字面意思是「清空全部库存」，"
+          + "为防止 HIS 误推把库存清掉，这类请求不做改动。如需声明本院没有某一类药，"
+          + "请写明 kinds（如 [\"herb\"]）并传空的 items。",
+      };
+      return {
+        result: customerJsonResponse(customer.context.customerId, unchangedBody),
+        record: { status: 200, body: unchangedBody },
+      };
+    }
     const auditFinalized = await tryRecordInventoryAudit({
       event: "inventory_import",
       clientId: customer.context.clientId,
@@ -177,10 +203,18 @@ export async function POST(req: Request) {
       ...(!auditFinalized ? { auditStatus: "pending_reconciliation" } : {}),
       // 归一不到与歧义的药名如实回报，供甲方补映射。静默吞掉会让这些药永远处于「缺货」，
       // 而甲方无从知道是自己没推还是我们没认出来。
-      note: result.snapshot.unresolvedNames.length > 0 || result.snapshot.ambiguousNames.length > 0
-        ? "部分院内药名未能归一到标准正名（unresolvedNames）或存在多个候选（ambiguousNames）。"
-          + "系统不会替这些名字自动择一；它们不参与正名级匹配，请补充映射后重新导入。"
-        : undefined,
+      note: [
+        result.snapshot.unresolvedNames.length > 0 || result.snapshot.ambiguousNames.length > 0
+          ? "部分院内药名未能归一到标准正名（unresolvedNames）或存在多个候选（ambiguousNames）。"
+            + "系统不会替这些名字自动择一；它们只按原名匹配，请补充映射后重新导入。"
+          : "",
+        result.snapshot.likelyNonHerbNames?.length
+          ? "likelyNonHerbNames 里的条目名字像中成药或西药却按饮片推送，请核对 kind。"
+          : "",
+        result.snapshot.suspectNames?.length
+          ? "suspectNames 里的条目像测试或编号数据，请核对是否应在院内目录中。"
+          : "",
+      ].filter(Boolean).join("") || undefined,
     };
     return {
       result: customerJsonResponse(customer.context.customerId, responseBody),
