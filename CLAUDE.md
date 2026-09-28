@@ -153,7 +153,7 @@ clientId 重算,于是每个需要已签名 M03 的用例全线 `409 invalid_m03
     - `nonPharma.acupointCare` is compiled server-side in `applyTcmTreatmentCapabilityPriority` → `home-acupoint-care.server.ts` from `tcm-home-acupoint-care.source.json`. That file holds the original text of 《老年人/0～36个月儿童中医药健康管理服务技术规范》.
     - **Selection:** signed M03 nature (controlled `tcm-nature-lexicon`) maps to a constitution, deficiency first (阳虚 > 阴虚 > 气虚), then 湿热 > 血瘀 > 气滞 > 痰湿. 痰热 and external/acute natures (风/暑/毒/动风/气脱) map to nothing.
     - **Contraindications reuse the project-level rules:** acupressure as `tuina`, moxibustion as `moxibustion`, plus a burn-risk check (糖尿病/感觉减退/T≥37.3).
-    - **Nothing is output for:** red flags, non-full-dose, pregnancy positive/possible, age 3–17 or under 6 months.
+    - **Nothing is output for:** red flags, `non_dose_only`/`blocked` (limited_dose still gets it: it is mostly undocumented pregnancy/medication detail), pregnancy positive/possible, age 3–17 or under 6 months.
     - **Women aged 10–59 with unrecorded pregnancy status:** contraindicated points, abdominal/lumbosacral points and moxibustion are dropped.
     - **Review gate:** every entry is `pending_clinician_review` and is not applied by default. `CDSS_HOME_ACUPOINT_CARE=include_pending` enables it; `=off` disables it.
     - **Exercise:** `nonPharma.exercise` is model-authored and optional; the M04 prompt now asks for four care sections, and `lifestyle` holds only 起居/睡眠. It sits under exam-claim sanitization, since a new narrative field may not join the frozen naked list.

@@ -123,10 +123,16 @@ export type HomeAcupointCareContext = {
   pregnancyUnresolved?: boolean;
 };
 
-/** 红旗、非全剂量方案、硬边界降级一律不给居家保健——那时患者要做的是先就医、先复核。 */
+/**
+ * 红旗、不出剂量（non_dose_only）或整份拦截（blocked）时不给居家保健——那时患者要做的是先就医、先复核。
+ * limited_dose（参考剂量、待医师复核）照常给：它多半只是妊娠/哺乳状态或现用药细节没写，
+ * 妊娠未写明由 pregnancyUnresolved 去掉禁用穴，阳性/可疑由项目级禁忌整段排除。若也在这里拦，
+ * 未写明妊娠状态的育龄女性几乎一律拿不到（线上 26 岁痛经例实测即如此）。
+ */
 function gateAllowsHomeCare(gate: SafetyGate | undefined): boolean {
   if (!gate || gate.status === "red_flag" || gate.redFlags.length > 0) return false;
-  return gate.candidateMode ? gate.candidateMode === "full_dose" : gate.allowDosePrescription === true;
+  if (gate.candidateMode) return gate.candidateMode === "full_dose" || gate.candidateMode === "limited_dose";
+  return gate.allowDosePrescription === true;
 }
 
 function childBandText(ageMonths: number, mode: HomeAcupointCareMode): string | null {

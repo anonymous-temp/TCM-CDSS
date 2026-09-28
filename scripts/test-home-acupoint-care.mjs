@@ -119,6 +119,9 @@ check("safety: red flag, non-dose, missing gate and acute inflammation give noth
   const m03 = prior("脾胃气虚证");
   assert.equal(compileFor(m03, caseState({ safetyGate: { ...readyGate, status: "red_flag", redFlags: ["黑便"] } })), null);
   assert.equal(compileFor(m03, caseState({ safetyGate: { ...readyGate, candidateMode: "non_dose_only", allowDosePrescription: false } })), null);
+  assert.equal(compileFor(m03, caseState({ safetyGate: { ...readyGate, candidateMode: "blocked", allowDosePrescription: false } })), null);
+  // 参考剂量待复核（多半只是妊娠/用药细节未写）照常给：线上 26 岁痛经例就是 limited_dose。
+  assert.match(compileFor(m03, caseState({ safetyGate: { ...readyGate, status: "needs_information", candidateMode: "limited_dose", allowDosePrescription: false } })) || "", /按揉气海/);
   assert.equal(compileFor(m03, caseState({ safetyGate: undefined })), null);
   assert.equal(compileFor(m03, caseState({ symptoms: { presentHistory: "右小腿蜂窝织炎，红肿热痛" } })), null, "acute inflammation");
 }));
@@ -132,6 +135,10 @@ check("pregnancy: positive/possible give nothing; unrecorded status drops contra
   const yin = compileFor(prior("肝肾阴虚证", ["阴虚"]), woman("乏力纳差2月"));
   assert.match(yin, /^按揉太溪（/);
   assert.doesNotMatch(yin, /三阴交|艾灸/);
+  // 线上 26 岁痛经例的形状：寒凝血瘀 → 血瘀质，妊娠未写明、参考剂量待复核；期门（胸部）与血海（下肢）不在禁用之列。
+  const stasis = compileFor(prior("寒凝血瘀证", ["寒", "血瘀"]), caseState({ patient: { sex: "女", age: 26 }, chiefComplaint: "经行腹痛2年",
+    safetyGate: { ...readyGate, status: "needs_information", candidateMode: "limited_dose", allowDosePrescription: false } }));
+  assert.match(stasis, /^按揉期门（[^）]+）、血海（/);
   const qiStagnation = compileFor(prior("肝气郁结证"), woman("胁胀易怒2月"));
   assert.match(qiStagnation, /^按揉太冲（/);
   assert.doesNotMatch(qiStagnation, /合谷/);
