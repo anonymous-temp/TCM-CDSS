@@ -1,4 +1,5 @@
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
+import { compileHomeAcupointCare } from "./home-acupoint-care.server";
 import { resolveAcupoint } from "./tcm-acupoints";
 import {
   TCM_TREATMENT_PROJECTS,
@@ -19,6 +20,7 @@ import {
 } from "./tcm-treatment-projects";
 import { affirmedClinicalText } from "./clinical-polarity";
 import { assessPregnancyState } from "./clinical-state";
+import { pregnancyScreenRequired } from "./diagnosis-safety";
 
 type DeliveryMode = "onsite" | "referral";
 type DeploymentCapability = {
@@ -46,7 +48,7 @@ type TreatmentCandidate = ModelTreatmentProposal & { score: number; explicit: bo
 type TreatmentCaseContext = Pick<CaseState,
   "clinicTreatmentCapabilities" | "clinicTreatmentCapabilitiesRestricted" | "safetyGate" |
   "patient" | "hisRecord" | "chiefComplaint" | "symptoms" | "pastHistory" | "medicationHistory" |
-  "allergyHistory" | "conversation"
+  "allergyHistory" | "conversation" | "vitals"
 >;
 
 // This classifier prefers signed positive diagnosis/pathogenesis fields. When both a node and the
@@ -613,11 +615,37 @@ function treatmentPatientAgeYears(caseState?: Partial<TreatmentCaseContext>): nu
 }
 
 /**
+ * 妊娠判定用的原文（2026-09-28）。treatmentCaseFacts 只保留肯定句，会把「可能怀孕」「妊娠可能」这类
+ * 可疑表述当作不确定陈述剔掉，于是下面「取 positive 与 possible 两档」的妊娠禁忌实际只拦得住阳性：
+ * 「停经7周，可能怀孕」的患者照样拿到针刺、艾灸项目卡。妊娠状态层自己处理否认与既往，
+ * 直接喂原文即可，不会把「否认妊娠」判成阳性。
+ */
+function treatmentPregnancyText(caseState?: Partial<TreatmentCaseContext>): string {
+  if (!caseState) return "";
+  const fields = caseState.hisRecord?.fields;
+  return [
+    caseState.chiefComplaint,
+    ...Object.values(caseState.symptoms || {}),
+    caseState.pastHistory,
+    caseState.medicationHistory,
+    fields?.zhushu,
+    fields?.xianbingshi,
+    fields?.jiwangshi,
+    fields?.tcmDetail,
+  ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；");
+}
+
+/**
  * Project-level contraindications are a separate deterministic boundary from diagnostic affinity.
  * They remove a project before it reaches the model and again before server compilation. This is
  * intentionally project-specific: a contraindicated procedure must not erase unrelated low-risk
  * care such as diet or emotion support and therefore never blocks the overall consultation flow.
  */
+function treatmentPregnancyStatus(caseState: Partial<TreatmentCaseContext> | undefined, facts: string) {
+  const raw = assessPregnancyState(treatmentPregnancyText(caseState)).status;
+  return raw === "positive" || raw === "possible" ? raw : assessPregnancyState(facts).status;
+}
+
 export function tcmTreatmentProjectExclusionReason(
   projectCode: TcmTreatmentProjectCode,
   prior: ClinicalReasoningResultV2,
@@ -684,7 +712,7 @@ export function tcmTreatmentProjectExclusionReason(
   // 取 positive 与 possible 两档：可疑妊娠同样不能扎。既往妊娠（historical）不拦。
   // 系统不建模具体穴位与部位，因此对侵入性/热疗/腹腰骶相关项目一律转人工按禁忌穴位评估——
   // 这是 fail-closed：宁可让医师多确认一次，不可默认放行。
-  const pregnancyStatus = assessPregnancyState(facts).status;
+  const pregnancyStatus = treatmentPregnancyStatus(caseState, facts);
   if (pregnancyStatus === "positive" || pregnancyStatus === "possible") {
     if (new Set<TcmTreatmentProjectCode>([
       "acupuncture", "moxibustion", "tuina", "cupping", "guasha", "needle_knife",
@@ -1062,6 +1090,38 @@ export function compileTcmTreatmentRecommendations(
   return compiled.filter((_, index) => selected.has(index));
 }
 
+// 艾灸的烫伤风险另算：糖尿病与感觉减退者对热不敏感，体温升高时不宜温灸（《护理人员中医技术使用手册》悬灸禁忌）。
+// 只读确定性肯定句（treatmentCaseFacts 已剔除否认与既往），闭集词与数值阈值。
+const MOXIBUSTION_BURN_RISK = /糖尿病|消渴|感觉(?:减退|迟钝|障碍|异常)|周围神经病变/;
+
+// 需要筛查妊娠的患者（与安全门同一判据 pregnancyScreenRequired：育龄女性、未写明已绝经或无子宫）
+// 没有写明否认妊娠时，居家保健按妊娠禁忌从严去掉禁用穴与腹部、腰骶部穴位。
+function homeCarePregnancyUnresolved(caseState: Partial<TreatmentCaseContext>): boolean {
+  if (!pregnancyScreenRequired(caseState as CaseState)) return false;
+  return assessPregnancyState(treatmentPregnancyText(caseState)).status !== "negative";
+}
+
+function homeAcupointCareForCase(
+  prior: ClinicalReasoningResultV2,
+  caseState: Partial<TreatmentCaseContext> | undefined,
+  recommendations: ReadonlyArray<{ projectCode: string; suggestedSitesOrPoints?: string[] }>,
+): string | null {
+  if (!caseState) return null;
+  const temperature = Number.parseFloat(String(caseState.vitals?.T ?? "").replace(/[^\d.]/g, ""));
+  return compileHomeAcupointCare({
+    prior,
+    safetyGate: caseState.safetyGate,
+    ageYears: treatmentPatientAgeYears(caseState),
+    acupressureExclusion: tcmTreatmentProjectExclusionReason("tuina", prior, caseState),
+    moxibustionExclusion: tcmTreatmentProjectExclusionReason("moxibustion", prior, caseState),
+    moxibustionBurnRisk: MOXIBUSTION_BURN_RISK.test(treatmentCaseFacts(caseState)) ||
+      (Number.isFinite(temperature) && temperature >= 37.3),
+    clinicianPointText: recommendations.flatMap((item) => item.suggestedSitesOrPoints || []).join("、"),
+    clinicianMoxibustion: recommendations.some((item) => item.projectCode === "moxibustion"),
+    pregnancyUnresolved: homeCarePregnancyUnresolved(caseState),
+  });
+}
+
 export function applyTcmTreatmentCapabilityPriority(
   content: string,
   caseState?: Partial<TreatmentCaseContext>,
@@ -1092,7 +1152,9 @@ export function applyTcmTreatmentCapabilityPriority(
       precautions: [],
     };
     reasoning.nonPharma.tcmTreatments = recommendations;
-    reasoning.nonPharma.acupointCare = null;
+    // 穴位保健不收模型文字（会绕过禁忌核对），只由服务端从受治理清单确定性编译；
+    // 清单未经中医师终审、红旗或非全剂量方案时为 null（见 home-acupoint-care.server.ts）。
+    reasoning.nonPharma.acupointCare = prior ? homeAcupointCareForCase(prior, caseState, recommendations) : null;
     return `${content.slice(0, start + startMarker.length)}\n${JSON.stringify(reasoning)}\n${content.slice(end)}`;
   } catch {
     return content;

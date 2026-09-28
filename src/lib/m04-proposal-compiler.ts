@@ -332,6 +332,8 @@ export const M04ProposalSchema = z.object({
     diet: z.string().min(1).max(1600),
     lifestyle: z.string().min(1).max(1600),
     emotion: z.string().min(1).max(1600),
+    // 运动保健（2026-09-28 甲方：公卫规范五类保健指导，运动单列）。可选：缺席不驳回整份处方。
+    exercise: z.string().max(1600).nullable().optional(),
     acupointCare: z.string().max(1600).nullable(),
     tcmTreatments: z.array(z.object({
       projectCode: z.enum(TCM_TREATMENT_PROJECT_CODES),
@@ -1034,6 +1036,7 @@ function normalizeM04ProposalInput(
         // 食疗文字属于建议质量，不拥有对整张已通过剂量/配伍/特殊人群门禁处方的一票否决权。
         // 模型未给出普通餐食示例时只补齐这一段，候选药味和 M03 锁定结论保持不变。
         diet: ensureConcreteClinicianDietPlan(rawNonPharma.diet),
+        exercise: unwrapSingleText(rawNonPharma.exercise ?? rawNonPharma["运动保健"]) || null,
         acupointCare: null,
         // These are optional recommendations chosen from a server-owned catalog. Extra, repeated,
         // or malformed model rows must not invalidate an otherwise usable prescription.

@@ -281,6 +281,6 @@ export function renderM04DeliveryCheckpoint(
   })));
   if (findingsSection) lines.push("", findingsSection);
   const care = checkpoint.reasoning.nonPharma;
-  if (care) lines.push("", "## 已生成的健康调护建议", ...[care.diet, care.lifestyle, care.emotion, ...care.precautions].filter(Boolean).map(text));
+  if (care) lines.push("", "## 已生成的健康调护建议", ...[care.diet, care.lifestyle, care.exercise, care.emotion, care.acupointCare, ...care.precautions].filter(Boolean).map(text));
   return lines.filter((line) => line !== "").join("\n\n");
 }

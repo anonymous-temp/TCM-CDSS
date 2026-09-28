@@ -3718,7 +3718,7 @@ function renderPrescribeWarningProjection(
     );
     const hasDietTherapyProject = clinicianTreatmentProjects.some((item) => item.projectCode === "diet_therapy");
     lines.push("", `## ${clinicalOutputLabel("M03-M04-nonpharma", "非药物调护与中医项目")}`);
-    for (const [label, key] of [["饮食", "diet"], ["起居", "lifestyle"], ["情志", "emotion"], ["穴位保健", "acupointCare"]] as const) {
+    for (const [label, key] of [["饮食", "diet"], ["起居", "lifestyle"], ["运动保健", "exercise"], ["情志", "emotion"], ["穴位保健", "acupointCare"]] as const) {
       // 饮食一栏必须过食疗净化再印（甲方 2026-08-05 衍生条目）。
       //
       // 此前净化只做在客户端 DiagnosisClient，而**服务端可见正文走的是未净化原文**——

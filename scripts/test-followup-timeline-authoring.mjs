@@ -118,8 +118,9 @@ check("④ 模型没给（或校验没过）时逐字回落原两条模板", () 
   for (const authored of [null, { ...AUTHORED, timeline: [] }, { ...AUTHORED, timeline: [AUTHORED.timeline[0]] }]) {
     const payload = buildDeterministicRiskFollowupPayload(doseCase(), authored);
     assert.equal(payload.timelineItems.length, 2, "回落后仍是两条");
-    assert.equal(payload.timelineItems[1].time, "治疗期间随时", "回落应逐字回到原模板");
-    assert.equal(payload.timelineItems[1].action, "记录症状变化并按触发条件提前复评");
+    // 2026-09-28 起模板改为患者口吻（随访写进病历交给患者）；「回落逐字等于模板」的约束不变。
+    assert.equal(payload.timelineItems[1].time, "服药期间", "回落应逐字回到模板");
+    assert.equal(payload.timelineItems[1].action, "每天留意症状变化，出现下列情况请提前就诊");
   }
 });
 
@@ -359,8 +360,92 @@ check("⑮ 单独说明文档与接口文档字段一致", () => {
   }
 });
 
+// ── 2026-09-28 甲方：随访计划要写进病历、告诉患者什么时候复诊 ─────────────────────────
+// 栏目名不变，内容一律写给患者本人；前瞻句不得被接地净化改写；三出口同一份随访。
+
+const followupSection = (markdown) => {
+  const start = markdown.indexOf("## 随访管理方案");
+  return start >= 0 ? markdown.slice(start) : "";
+};
+const CLINICIAN_ONLY_FOLLOWUP = /病历已记录|病历尚未确认|候选方案|不自动沿用|由医生复评|辨证与处方风险|较首诊如何变化|处方后安全审方|以上调护按本例证候拟定/;
+
+check("⑯ 随访管理方案写给患者本人：模板与模型两条路径都不出现医生/系统口吻", () => {
+  for (const authored of [null, AUTHORED]) {
+    const section = followupSection(buildDeterministicRiskFollowupPayload(doseCase(), authored).markdown);
+    assert.ok(section, "缺少随访管理方案");
+    assert.doesNotMatch(section, CLINICIAN_ONLY_FOLLOWUP, `随访正文仍是医生/系统口吻：${section.match(CLINICIAN_ONLY_FOLLOWUP)?.[0]}`);
+    assert.match(section, /\*\*无效或加重的处置预案\*\*：[^\n]*请及时回门诊复诊/);
+    assert.match(section, /请不要自行叠加中药或中成药/);
+  }
+});
+
+check("⑰ 首次复诊时间按剂数写成患者句式，正文与时间轴第一条仍逐字同源", () => {
+  const state = doseCase();
+  state.reasoningPrescribe.formula.candidates[0].decoction = {
+    followUpNode: "完成7剂（7日）后复诊；出现不适或症状加重时提前复诊", followUpAfterDoses: 7, followUpAfterDays: 7,
+  };
+  for (const authored of [null, AUTHORED]) {
+    const payload = buildDeterministicRiskFollowupPayload(state, authored);
+    const expected = "请在服完7剂药后（约7天后）复诊；如有不适或症状加重，请提前复诊。";
+    assert.ok(payload.markdown.includes(`**首次复诊时间**：${expected}`), "正文首次复诊时间不是患者句式");
+    assert.equal(payload.timelineItems[0].time, expected, "时间轴第一条与正文不同源");
+  }
+});
+
+check("⑱ 立即就医：模型写了本例急症表现就用它，没写就回落通用急症表现，不会空着", () => {
+  const withSigns = followupSection(buildDeterministicRiskFollowupPayload(doseCase(),
+    { ...AUTHORED, urgentSigns: ["高热不退", "气喘明显", "痰中带血"] }).markdown);
+  assert.match(withSigns, /如出现高热不退、气喘明显、痰中带血，请立即到急诊就医/);
+  for (const authored of [null, { ...AUTHORED, urgentSigns: [] }]) {
+    const section = followupSection(buildDeterministicRiskFollowupPayload(doseCase(), authored).markdown);
+    assert.match(section, /如出现高热不退、胸痛或呼吸困难[^\n]*请立即到急诊就医/);
+  }
+});
+
+check("⑲ 前瞻/条件句整类不被接地净化改写；对当前病历的错误断言照旧纠正（阴性对照）", () => {
+  const state = {
+    ...doseCase(),
+    chiefComplaint: "咳嗽、咽干5天",
+    symptoms: { presentHistory: "5天前受凉后出现咳嗽，咽干咽痒，痰少色白质黏难咯，无发热恶寒，无胸痛气促。" },
+  };
+  // 2026-09-28 线上实测被改坏的四种句式：疑问「有无」、条件「如…无改善」、「服药期间出现…」、「若…」。
+  const prospective = [
+    "如症状无改善甚至出现胸痛、呼吸困难、气促，应立即急诊就医，排除肺炎等重症。",
+    "**复诊评估重点**：复诊重点评估咳嗽频次与程度、咽干咽痒是否减轻、有无新出现恶寒发热或汗出。",
+    "服药期间出现发热不退或痰中带血，应立即就医。",
+    "若服药3天未见好转或出现胸痛，请及时复诊。",
+    "一旦出现高热、气促，请立即就医。",
+    "出现胸痛、呼吸困难时应立即急诊就医。",
+  ];
+  for (const text of prospective) {
+    assert.equal(sanitizeUngroundedRedFlagNegations(text, state), text, `前瞻句被改写：${text}`);
+    const block = `<!-- DIAGNOSIS_JSON_START -->${JSON.stringify({ stage: "prescribe", nonPharma: { precautions: [text] } })}<!-- DIAGNOSIS_JSON_END -->`;
+    const out = sanitizeUngroundedRedFlagNegations(block, state);
+    const precaution = JSON.parse(out.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).nonPharma.precautions[0];
+    assert.equal(precaution, text, `M04 注意事项里的前瞻句被改写：${text}`);
+  }
+  // 阴性对照：陈述当前病历的否认句与病历矛盾时仍须纠正，前瞻判据不得放行它。
+  assert.notEqual(sanitizeUngroundedRedFlagNegations("患者否认咳嗽，咽部无不适。", state), "患者否认咳嗽，咽部无不适。");
+  // 同句混合：条件虚词之前是对当前病历的否认（病历未记录便血黑便），前半照旧纠正，
+  // 只有「如出现…」起到句末原样保留——本净化器也作用于 M03/M04 可见正文，不能整句放行。
+  const mixed = "患者否认便血、黑便，如出现上述情况请立即就医。";
+  const mixedOut = sanitizeUngroundedRedFlagNegations(mixed, state);
+  assert.notEqual(mixedOut, mixed, "条件虚词之前的无依据否认被整句放行");
+  assert.ok(mixedOut.endsWith("如出现上述情况请立即就医。"), `条件部分被改写：${mixedOut}`);
+});
+
+check("⑳ assess 与 HIS、处方后审同源：接地净化只作用于处方后审文本，不作用于随访", () => {
+  const source = readFileSync(fileURLToPath(new URL("../src/app/api/diagnosis/assess/route.ts", import.meta.url)), "utf8");
+  assert.match(source, /mapWarningText\(postRiskProjection, \(text\) => sanitizeUngroundedRedFlagNegations\(text, gated\)\)/);
+  assert.doesNotMatch(source, /mapWarningText\(joinedWarningProjections\(\[postRiskProjection, followup\]\)/);
+  for (const route of ["his-scheme", "post-prescription-risk"]) {
+    const other = readFileSync(fileURLToPath(new URL(`../src/app/api/diagnosis/${route}/route.ts`, import.meta.url)), "utf8");
+    assert.doesNotMatch(other, /sanitizeUngroundedRedFlagNegations/, `${route} 对随访做了净化，三出口会再次分叉`);
+  }
+});
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "followup-timeline-authoring", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "followup-timeline-authoring", checks: 15, failures: 0 }));
+console.log(JSON.stringify({ suite: "followup-timeline-authoring", checks: 20, failures: 0 }));

@@ -898,6 +898,28 @@ function reconcileSyntheticPolarityContradictions(value: string, source: string)
     .replace(/([。；;]){2,}/g, "$1");
 }
 
+/**
+ * 前瞻/条件/疑问句不是对当前病历的断言（2026-09-28 线上实测）。
+ *
+ * 接地净化器判断的是「模型有没有断言一件病历里没有的事」。可是随访、注意事项、复诊安排
+ * 里的句子按定义指向**将来**：「如症状无改善甚至出现胸痛、气促，应立即急诊就医」
+ * 「有无新出现恶寒发热」「服药期间出现发热不退或痰中带血，应立即就医」。净化器把句内的
+ * 「无改善」「有无」「出现X」读成对当前病历的否定/阳性断言，整句换成
+ * 「病历尚未确认胸痛……是否存在」「病历已记录否认发热」——就医指征被删掉，
+ * 写进病历的是一句自相矛盾的话。随访时间轴 sentinel 早已因同一原因整段豁免
+ * （见 sanitizeFollowupTimelineSentinel），散文与 M04 注意事项没有跟上。
+ *
+ * 判据是**有限闭集**的条件/疑问虚词（若、如果、一旦、如出现、有无、服药期间、出现……时），
+ * 属构词式守卫，不是开放语言词表。命中句从虚词起到句末原样保留，虚词之前与未命中的句子照旧净化，
+ * 所以「患者否认X」这类对当前病历的断言仍受约束。
+ * 「是否」不在其中：「X是否存在尚未确认」本身就是净化器要纠正的记录完整性断言。
+ */
+const PROSPECTIVE_CLINICAL_SENTENCE = /(?:若(?!干)|如果|假如|倘若|万一|一旦|要是|如(?:出现|有|发现|伴|仍|再|症状|病情|服药|用药|感到|觉得|遇)|有无|(?:服药|用药|治疗|疗程)期间|(?:出现|发生)[^，,。；;]{1,24}时)/;
+
+export function isProspectiveClinicalSentence(value: string): boolean {
+  return PROSPECTIVE_CLINICAL_SENTENCE.test(String(value || ""));
+}
+
 function sanitizeUngroundedNegationText(
   value: string,
   source: string,
@@ -1028,7 +1050,18 @@ function sanitizeUngroundedNegationText(
     }
     return clause;
   };
-  const scoped = value.replace(/[，,](?=(?:但|而|仍|却|同时|另有|随后|继而|突发|新发|出现|伴有))/g, "；");
+  // 前瞻句整句屏蔽，放在逗号→分号改写之前：那一步会把「如症状无改善，出现胸痛」
+  // 拆成两句，后半句失去条件词后又会被当成断言改写。
+  // 只屏蔽从条件/疑问虚词起到句末的部分：虚词之前的分句仍是对当前病历的陈述，照常净化——
+  // 「患者否认胸痛、呼吸困难，如出现上述症状应立即就医」里前半句的否认若病历里没有，仍要纠正，
+  // 不能因为同句后半有「如出现」就整句放行（本函数也作用于 M03/M04 可见正文）。
+  const prospectiveSentences: string[] = [];
+  const shielded = value.replace(/[^。；;！!？?\n|]+[。；;！!？?]?/g, (sentence) => {
+    const marker = sentence.search(PROSPECTIVE_CLINICAL_SENTENCE);
+    if (marker < 0) return sentence;
+    return `${sentence.slice(0, marker)}__TCM_CDSS_PROSPECTIVE_${prospectiveSentences.push(sentence.slice(marker)) - 1}__`;
+  });
+  const scoped = shielded.replace(/[，,](?=(?:但|而|仍|却|同时|另有|随后|继而|突发|新发|出现|伴有))/g, "；");
   let sanitized = scoped.split("\n").map((line) => {
     if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
       return line.split("|").map((cell) => cell.replace(/[^。；;，]+/g, sanitizeClause)).join("|");
@@ -1053,7 +1086,7 @@ function sanitizeUngroundedNegationText(
       .replace(new RegExp(`脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?`, "g"), "脉象待核实")
       .replace(new RegExp(inspectionLexiconPattern("pulse").source, "g"), "脉象待核实");
   }
-  return sanitized;
+  return sanitized.replace(/__TCM_CDSS_PROSPECTIVE_(\d+)__/g, (_, index: string) => prospectiveSentences[Number(index)] ?? "");
 }
 
 function normalizedAgeLiteral(value: unknown): string {
@@ -1086,6 +1119,8 @@ export const PHYSICAL_EXAM_ASSERTION_FIELDS = new Set([
   "clinicalRationale", "tcmDiagnosticRationale", "limitations", "suggestedChecks",
   "reason", "distinguishingPoints", "nextCheck", "overallPathogenesis", "summary",
   "mechanism", "basis", "affects", "followupSafetyNet",
+  // 运动保健（2026-09-28 新增的模型叙述字段）：新字段不得进入已知裸奔清单，直接接受查体断言净化。
+  "exercise",
 ]);
 
 function physicalExamGroupPattern(group: PhysicalExamClaimGroup): RegExp {
@@ -3920,7 +3955,8 @@ export function authoritativePatientAgeYears(state: CaseState): number | undefin
   return numberFromClinicalText(patientAgeText(state)) ?? undefined;
 }
 
-function pregnancyScreenRequired(state: CaseState): boolean {
+/** 育龄女性、未写明已绝经/无子宫：安全门据此追问妊娠状态；居家穴位保健据此按妊娠禁忌从严（同一判据）。 */
+export function pregnancyScreenRequired(state: CaseState): boolean {
   const sex = patientSexText(state);
   if (!/女/.test(sex)) return false;
   const text = normalizeClinicalText(trustedInputText(state));
@@ -5240,12 +5276,52 @@ export function hasStrongPrescriptionRisk(state: CaseState): boolean {
   );
 }
 
+const DEFAULT_FIRST_REVIEW_TIMING = "3-5天后复诊或线上随访";
+
+function primaryPrescribeCandidate(state: CaseState) {
+  return state.reasoningPrescribe?.formula?.candidates?.[0] ||
+    (state.reasoningV2?.stage === "prescribe" ? state.reasoningV2.formula?.candidates?.[0] : undefined);
+}
+
 export function deriveFirstReviewTiming(state: CaseState, hasStrongRisk: boolean): string {
   if (hasStrongRisk) return "调整处方后当日复核；若采纳，1-3天内随访";
-  const candidate = state.reasoningPrescribe?.formula?.candidates?.[0] ||
-    (state.reasoningV2?.stage === "prescribe" ? state.reasoningV2.formula?.candidates?.[0] : undefined);
-  const followUpNode = candidate?.decoction?.followUpNode?.trim();
-  return followUpNode || "3-5天后复诊或线上随访";
+  const followUpNode = primaryPrescribeCandidate(state)?.decoction?.followUpNode?.trim();
+  return followUpNode || DEFAULT_FIRST_REVIEW_TIMING;
+}
+
+/**
+ * 首次复诊时间写给患者的那句话（2026-09-28，甲方：随访计划要写进病历、告诉患者何时复诊）。
+ *
+ * 时间点仍以 deriveFirstReviewTiming 为唯一来源（处方煎服法 → 复诊节点），这里只换说法：
+ * 「完成7剂（7日）后复诊」「调整处方后当日复核；若采纳，1-3天内随访」是写给医生/系统的，
+ * 患者读到的应当是「请在服完7剂药后（约7天后）复诊」。剂数与天数优先取结构化字段，
+ * 与 prescription-regimen-contract 的 followUpAfterDoses/followUpAfterDays 同源。
+ * 正文「首次复诊时间」与随访时间轴第一条共用本函数的结果，两处仍逐字相同。
+ */
+export function patientFacingFirstReview(state: CaseState, hasStrongRisk: boolean): string {
+  if (hasStrongRisk) return "处方需经医生调整确认后再服用；确认用药后，请在1-3天内复诊。";
+  const decoction = primaryPrescribeCandidate(state)?.decoction;
+  const doses = decoction?.followUpAfterDoses;
+  const days = decoction?.followUpAfterDays;
+  if (Number.isInteger(doses) && Number.isInteger(days) && Number(doses) > 0 && Number(days) > 0) {
+    return `请在服完${doses}剂药后（约${days}天后）复诊；如有不适或症状加重，请提前复诊。`;
+  }
+  const timing = deriveFirstReviewTiming(state, false);
+  if (timing === DEFAULT_FIRST_REVIEW_TIMING) {
+    return "请在3-5天后复诊，或通过电话、线上向医生反馈服药后的变化；如有不适或症状加重，请提前复诊。";
+  }
+  return timing;
+}
+
+/** 就医警示的兜底：模型没有写出本例的急症表现时，至少给出不分病种都成立的几条。 */
+const GENERIC_URGENT_SIGNS = ["高热不退", "胸痛或呼吸困难", "神志不清或抽搐", "呕血、便血或咯血等出血"];
+const PATIENT_EFFICACY_TRIGGER = "服药后主要症状没有好转或反而加重，或出现新的不适";
+const PATIENT_WORSENING_PLAN = "服药后症状没有好转、反而加重，或出现新的不适，请及时回门诊复诊，由医生重新评估并调整治疗；请不要自行加减或更换药物。如出现皮疹、瘙痒、胸闷气短等过敏或明显不适，请暂停服药并及时就医。";
+const PATIENT_MEDICATION_NOTE = "请不要自行叠加中药或中成药；复诊时请携带正在使用的全部药物（或药盒、药品清单）。";
+
+function patientUrgentCareLine(signs: readonly string[] | undefined): string {
+  const usable = uniqueFollowupText([...(signs || [])], 6).filter((item) => !isRecordCompletenessStatement(item));
+  return `如出现${(usable.length >= 2 ? usable : GENERIC_URGENT_SIGNS).join("、")}，请立即到急诊就医。`;
 }
 
 function hasStructuredDoseCandidate(state: CaseState): boolean {
@@ -5516,6 +5592,7 @@ export function buildDeterministicRiskFollowupPayload(
   authored?: {
     reviewFocus: string; efficacyCriteria: string; lifestyle: string; dimensions: string[];
     monitoringIndicators?: string[];
+    urgentSigns?: string[];
     timeline?: Array<{ time: string; action: string; indicators: string[]; triggers: string[] }>;
   } | null,
 ): DeterministicRiskFollowupPayload {
@@ -5571,14 +5648,14 @@ export function buildDeterministicRiskFollowupPayload(
     : hasReviewRisk
       ? "处方可作为候选方案审阅，请结合过敏史、现用药、特殊人群状态和院内规则完成复核。"
       : "当前无确定性强提示；仍需医生按病情、说明书和院内药事规则最终确认。";
-  const firstReview = deriveFirstReviewTiming(state, hasStrongRisk);
-  // 逐条成句（2026-08-25 审查 V2）：N 条异构事实共用一个后缀会产出
-  // 「下尿路感染；苔黄腻的严重程度、发作频次」这类病句——后缀只能挂在单条上。
-  const coreMetrics = followup.coreFacts.length > 0
-    ? followup.coreFacts.map((fact) => `${fact.replace(/[。.；;，,]+$/g, "")}的变化`).join("；")
-      + "，及其严重程度、发作频次与对日常功能的影响"
-    : "本次主要症状的严重程度、发作频次及对日常功能的影响";
-  const efficacyTrigger = "主要症状较首诊无改善或加重，或出现新的伴随症状";
+  // 随访管理方案写进病历、交给患者（2026-09-28 甲方）：栏目名不变，内容一律写给患者本人——
+  // 什么时候复诊、服药期间留意什么、出现什么提前来、出现什么立即去急诊。
+  // 安全总评（上方「处方安全总评」）仍是给医生的确定性结论，不在此列。
+  const firstReview = patientFacingFirstReview(state, hasStrongRisk);
+  const symptomFocus = followup.coreFacts.length > 0
+    ? followup.coreFacts.map((fact) => fact.replace(/[。.；;，,]+$/g, "")).join("、")
+    : "本次主要不适";
+  const efficacyTrigger = PATIENT_EFFICACY_TRIGGER;
   const authoredIndicators = (authored?.monitoringIndicators || []).filter((item) => Boolean(item?.trim()));
   const actualRiskIndicators = concreteAuditRiskObservations(riskSource);
   // 随访时间轴只保留两条确定性行（首次复诊 + 治疗期间随时）。原先由 nonPharma.monitoring 派生的
@@ -5618,28 +5695,26 @@ export function buildDeterministicRiskFollowupPayload(
     : [
       {
         time: firstReview,
-        action: "完成首次复诊与疗效复评",
-        // 观察指标由模型按本例写；模型没给（或校验没过）就逐字回落 coreMetrics 拼串。
-        // 拼串的实测形态：「下尿路感染；小便灼热涩痛5天；苔黄腻的严重程度、发作频次及对日常
-        // 功能的影响」——诊断名当成了观察项，舌苔当成了有发作频次的东西。
+        action: "按时复诊，把服药后的变化和不适告诉医生",
+        // 观察项由模型按本例写；模型没给（或校验没过）就回落本例已记录的主要表现。
         indicators: uniqueFollowupText(
           authoredIndicators.length > 0
-            ? [...authoredIndicators, "舌脉变化", "实际用药与不适反应"]
-            : [coreMetrics, "舌脉变化", "实际用药与不适反应"],
+            ? [...authoredIndicators, "服药后有无不适", "是否按时服药"]
+            : [...followup.coreFacts.map((fact) => `${fact.replace(/[。.；;，,]+$/g, "")}的变化`), "服药后有无不适", "是否按时服药"],
           6),
         triggers: uniqueFollowupText(usableFollowupTriggers([efficacyTrigger, ...safetyTriggers]), 6),
       },
       {
-        time: "治疗期间随时",
-        action: "记录症状变化并按触发条件提前复评",
+        time: "服药期间",
+        action: "每天留意症状变化，出现下列情况请提前就诊",
         indicators: uniqueFollowupText(
           authoredIndicators.length > 0
-            ? [...authoredIndicators, "新发不适或原症加重"]
-            : [...followup.coreFacts, "新发不适或原症加重"],
+            ? [...authoredIndicators, "新出现的不适或原有症状加重"]
+            : [...followup.coreFacts, "新出现的不适或原有症状加重"],
           6),
         triggers: uniqueFollowupText([
           efficacyTrigger,
-          "出现急性加重或新的红旗症状时及时就医",
+          "症状突然明显加重时，请立即就医",
         ], 6),
       },
     ];
@@ -5659,17 +5734,17 @@ export function buildDeterministicRiskFollowupPayload(
     adviceText(`**首次复诊时间**：${firstReview}`),
     adviceText(authored
       ? `**复诊评估重点**：${authored.reviewFocus}`
-      : `**复诊评估重点**：${coreMetrics}；舌脉及本例已记录的客观指标变化；用药执行情况。`),
+      : `**复诊评估重点**：复诊时医生会重点了解${symptomFocus}有没有减轻、发作次数和对日常生活的影响，并查看舌象和脉象；请您服药期间留意这些变化，复诊时如实告诉医生实际服药情况和服药后的不适。`),
     adviceText(authored
       ? `**疗效评价标准**：${authored.efficacyCriteria}`
-      : `**疗效评价标准**：以首诊记录为基线，比较${coreMetrics}；同时确认未出现新发不适。`),
-    ...(actualRiskIndicators.length > 0 ? [`**安全性观察**：${actualRiskIndicators.map((item) => item.replace(/[。.；;，,]+$/g, "")).join("；")}。`] : []),
+      : `**疗效评价标准**：与这次就诊时相比，${symptomFocus}明显减轻或发作减少，且没有出现新的不适，说明治疗有效；如果没有好转甚至加重，请按时或提前复诊。`),
+    ...(actualRiskIndicators.length > 0 ? [`**安全性观察**：服药期间请留意：${actualRiskIndicators.map((item) => item.replace(/[。.；;，,]+$/g, "")).join("；")}；如出现上述情况，请及时复诊。`] : []),
     // 同一批注意事项的 owner 是 M04 处方正文的「### 注意事项」节（2026-08-25 审查 V3）；
     // M05 只在 M04 段缺席时兜底渲染，否则下载报告里同一内容双印且格式不一致。
     ...(followup.precautions.length > 0 && !(state.prescription || "").includes("### 注意事项")
       ? [`**注意事项**：${followup.precautions.map((item) => item.replace(/[。.；;，,]+$/g, "")).join("；")}。`]
       : []),
-    adviceText(`**无效或加重的处置预案**：${efficacyTrigger}时，不自动沿用候选方案，由医生复评诊断、辨证与处方风险，并按实际情况安排检查或转诊。`),
+    adviceText(`**无效或加重的处置预案**：${PATIENT_WORSENING_PLAN}${patientUrgentCareLine(authored?.urgentSigns)}`),
     "",
     ...sixHealthFollowupTable(authored?.dimensions).split("\n").map(adviceText),
     "",
@@ -5681,8 +5756,8 @@ export function buildDeterministicRiskFollowupPayload(
     // 模型写本例证候该注意什么；固定安全句无论如何都保留——它不是调护建议，是边界声明。
     ...(authored ? [adviceText(authored.lifestyle)] : []),
     adviceText(authored
-      ? "以上调护按本例证候拟定；不要自行叠加中药或中成药，复诊时携带实际使用的全部药物清单。"
-      : "按本例非药物建议安排饮食、作息、情志和活动；不要自行叠加中药或中成药，复诊时携带实际使用的全部药物清单。"),
+      ? PATIENT_MEDICATION_NOTE
+      : `饮食、作息、情绪和活动请按本次调护建议安排；${PATIENT_MEDICATION_NOTE}`),
     ]),
     timelineItems: normalizedStructuredFollowupItems(timelineItems),
   };
@@ -5714,18 +5789,18 @@ export function buildForcedIncompleteRiskFollowup(state: CaseState): string {
     `**待复核信息**：${missing}。请结合本次接诊可获得的资料核对证候、病机、方药匹配与剂量合理性。`,
     "",
     "## 随访管理方案",
-    "**首次复诊时间**：结合病情轻重和候选方案，由医生确定首次复诊节点。",
-    `**复诊评估重点**：按临床可得情况补录${missing}，复核主症、兼症、舌脉变化与用药反应。`,
-    "**安全性观察**：皮疹瘙痒、胃肠不适、头晕乏力、心悸胸闷、出血倾向及原症加重。",
-    "**无效或加重的处置预案**：停止自动沿用候选方案，由医生重新辨证并复核处方。",
+    "**首次复诊时间**：请按医生告知的时间复诊；如有不适或症状加重，请提前复诊。",
+    "**复诊评估重点**：复诊时医生会再次核对本次尚未确认的病情信息，并查看主要症状、伴随不适、舌象脉象和服药后的反应；请您如实告知过敏史、正在使用的药物等情况，服药期间留意症状变化。",
+    "**安全性观察**：服药期间请留意有无皮疹瘙痒、胃肠不适、头晕乏力、心悸胸闷、出血倾向或原有症状加重；如出现上述情况，请及时复诊。",
+    `**无效或加重的处置预案**：${PATIENT_WORSENING_PLAN}${patientUrgentCareLine(undefined)}`,
     "",
     ...sixHealthFollowupTable().split("\n"),
     "",
     "## 随访时间轴",
     "| 时间点 | 医生/患者动作 | 观察指标 | 触发处置 |",
     "|------|--------------|---------|---------|",
-    `| 采纳前 | 结合临床实际复核${missing} | 证候、病机、方药匹配、剂量与禁忌 | 复核结论改变时调整候选方案 |`,
-    "| 首次随访 | 记录疗效与不良反应 | 主症变化、舌脉、胃肠反应及过敏表现 | 无效、加重或ADR时停用并复评 |",
+    "| 首次复诊 | 按医生告知的时间复诊，把服药后的变化告诉医生 | 主要症状变化、服药后有无胃肠不适或过敏表现 | 症状没有好转或加重、出现皮疹等不适时，请提前复诊 |",
+    "| 服药期间 | 每天留意症状变化 | 主要症状、精神体力 | 症状突然明显加重时，请立即就医 |",
   ].join("\n");
 }
 

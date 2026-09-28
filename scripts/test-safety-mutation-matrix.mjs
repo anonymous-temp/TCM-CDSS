@@ -702,8 +702,9 @@ assert.doesNotMatch(structuredDoseRisk, /睡眠\/疼痛\/消化|出血倾向|7-1
 const structuredDoseTimeline = parseStructuredFollowupTimeline(structuredDoseRisk);
 // 时间轴只保留两条确定性行。原先第一行由 monitoring 三元组逐字派生（time=服药后第1-3天），
 // 那条路随该字段一并移除；随访要点改走上面的注意事项栏，不再伪装成结构化时间轴行。
-assert.ok(structuredDoseTimeline.some((item) => item.time === "5天后复诊" && /首次复诊/.test(item.action)));
-assert.ok(structuredDoseTimeline.some((item) => item.time === "治疗期间随时" && item.triggers.some((trigger) => /红旗症状/.test(trigger))));
+// 2026-09-28 起随访写给患者本人：动作与触发条件改为患者口吻，「首次复诊行 + 服药期间急症行」两条约束不变。
+assert.ok(structuredDoseTimeline.some((item) => item.time === "5天后复诊" && /按时复诊/.test(item.action)));
+assert.ok(structuredDoseTimeline.some((item) => item.time === "服药期间" && item.triggers.some((trigger) => /立即就医/.test(trigger))));
 assert.doesNotMatch(JSON.stringify(structuredDoseTimeline), /采纳候选前|完成针对性安全复核/);
 cases += 1;
 

@@ -1,0 +1,442 @@
+{
+ "schemaVersion": "tcm-home-acupoint-care-v1",
+ "note": "居家穴位保健的受治理清单（2026-09-28 建，甲方反馈：M04 调护「穴位保健」从未出现）。\n\n【它解决什么】nonPharma.acupointCare 此前被服务端固定置空：系统只有需要医师操作的针刺、耳穴等项目目录，没有患者或家属可以居家完成的穴位保健来源，又不能让模型自由书写穴位（会绕过妊娠等禁忌核对）。\n\n【来源】首批只收《老年人中医药健康管理服务技术规范》与《0～36个月儿童中医药健康管理服务技术规范》（国家基本公共卫生服务规范配套，2013）原文：九种体质各自的保健穴、定位、手法、时长与次数（含其中给出的艾条温和灸），以及儿童按月龄的摩腹、捏脊与穴位按揉。甲方 2026-09-28 确认：首批来源采用该技术规范；艾灸纳入居家保健；运动保健单列（由 M04 按本例撰写，不在本表）。\n\n【怎么用】选穴全程确定性：已签名 M03 的病性（受控病性词表 tcm-nature-lexicon）经本表 natureToConstitution 对应到体质，取该体质的保健穴；禁忌复用 tcm-treatment-capabilities 的项目级禁忌（居家按揉按「推拿」、艾灸按「艾灸」判定，妊娠阳性/可疑、急性感染、热象等一律排除）。红旗、非全剂量方案不输出。\n\n【终审】adjudicationStatus 只有两个值：approved 可用；pending_clinician_review 运行时不应用（与 tcm-acupoint-syndrome-refinement-adjudications 同一口径）。患者可读定位由技术规范的标准定位按同身寸换算（3寸≈四横指，1.5寸≈两横指），待中医师按 GB/T 12346-2021 逐条核对签字。运维可用 CDSS_HOME_ACUPOINT_CARE=include_pending 在签字前临时启用、=off 整体关闭。",
+ "sourceRefs": [
+  {
+   "id": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
+   "authorityTier": "regulatory_primary",
+   "name": "《老年人中医药健康管理服务技术规范》（国家基本公共卫生服务规范配套，2013）",
+   "detail": "四、老年人体质的中医药保健方法：九种体质各自的情志调摄、饮食调养、起居调摄、运动保健、穴位保健",
+   "reference": {
+    "url": "https://www.jkchina.org/newshtml/news_25922.html",
+    "publisher": "中国中医药报 2013-09-26 全文转载"
+   }
+  },
+  {
+   "id": "SRC-NHC-CHILD-TCM-HEALTH-MGMT-TECH-2013",
+   "authorityTier": "regulatory_primary",
+   "name": "《0～36个月儿童中医药健康管理服务技术规范》（2013）",
+   "detail": "三、儿童中医保健方法和技术：摩腹、捏脊、足三里、迎香、四神聪；注意事项",
+   "reference": {
+    "url": "https://www.jkchina.org/newshtml/news_25922.html",
+    "publisher": "中国中医药报 2013-09-26 全文转载"
+   }
+  },
+  {
+   "id": "SRC-NHC-BASIC-PUBLIC-HEALTH-SPEC-3RD",
+   "authorityTier": "regulatory_primary",
+   "name": "《国家基本公共卫生服务规范（第三版）》中医药健康管理服务规范",
+   "detail": "根据不同体质从情志调摄、饮食调养、起居调摄、运动保健、穴位保健等方面进行相应的中医药保健指导",
+   "reference": {
+    "url": "https://www.nhc.gov.cn/ewebeditor/uploadfile/2013/08/20130805102632753.doc",
+    "publisher": "国家卫生健康委员会"
+   }
+  },
+  {
+   "id": "SRC-NATCM-NURSING-TCM-TECH-HANDBOOK-2015",
+   "authorityTier": "government_primary",
+   "name": "国家中医药管理局《护理人员中医技术使用手册》（2015）",
+   "detail": "悬灸：孕妇腹部和腰骶部、实热证、出血倾向、皮肤破损处不宜；糖尿病、感觉障碍者防烫伤",
+   "reference": {
+    "url": "http://www.natcm.gov.cn/yizhengsi/gongzuodongtai/2018-03-24/2691.html",
+    "publisher": "国家中医药管理局医政司"
+   }
+  },
+  {
+   "id": "SRC-GBT-12346-2021",
+   "authorityTier": "regulatory_primary",
+   "name": "GB/T 12346-2021《经穴名称与定位》",
+   "detail": "患者可读定位的核对基准（待中医师逐条核对）"
+  }
+ ],
+ "natureToConstitution": {
+  "note": "病性 id 取自 tcm-nature-lexicon。只收体质学上对应明确的病性；外感病邪（风、暑、毒）与急性状态不对应体质，命中即不输出。先看本虚（rootDeficiency），再看标实。平和质、特禀质不对应任何病性，不收。痰与热同见（痰热）不对应痰湿质。",
+  "adjudicationStatus": "pending_clinician_review",
+  "deficiencyPriority": [
+   {
+    "natures": [
+     "yang_deficiency"
+    ],
+    "constitution": "yang_deficiency"
+   },
+   {
+    "natures": [
+     "yin_deficiency"
+    ],
+    "constitution": "yin_deficiency"
+   },
+   {
+    "natures": [
+     "qi_deficiency",
+     "qi_sinking"
+    ],
+    "constitution": "qi_deficiency"
+   }
+  ],
+  "excessPriority": [
+   {
+    "allOf": [
+     "dampness",
+     "heat"
+    ],
+    "constitution": "damp_heat"
+   },
+   {
+    "natures": [
+     "blood_stasis"
+    ],
+    "constitution": "blood_stasis"
+   },
+   {
+    "natures": [
+     "qi_stagnation"
+    ],
+    "constitution": "qi_stagnation"
+   },
+   {
+    "natures": [
+     "phlegm",
+     "dampness",
+     "water_dampness"
+    ],
+    "constitution": "phlegm_dampness",
+    "excludeWhenAny": [
+     "heat",
+     "fire_heat"
+    ]
+   }
+  ],
+  "suppressWhenAny": [
+   "wind",
+   "summerheat",
+   "toxin",
+   "internal_wind",
+   "qi_collapse"
+  ],
+  "syndromeTermAliases": [
+   {
+    "term": "脾虚",
+    "nature": "qi_deficiency",
+    "basis": "「脾虚」在门诊辨证中通常指脾气虚（脾阳虚、脾阴虚另有专名）"
+   },
+   {
+    "term": "心脾两虚",
+    "nature": "qi_deficiency",
+    "basis": "心脾两虚为心脾气血不足，以气虚一侧对应气虚质（技术规范无血虚质）"
+   },
+   {
+    "term": "气血两虚",
+    "nature": "qi_deficiency",
+    "basis": "同上：技术规范无血虚质，气血两虚以气虚一侧对应"
+   },
+   {
+    "term": "气血亏虚",
+    "nature": "qi_deficiency",
+    "basis": "同气血两虚"
+   },
+   {
+    "term": "气血不足",
+    "nature": "qi_deficiency",
+    "basis": "同气血两虚"
+   },
+   {
+    "term": "肾气不足",
+    "nature": "qi_deficiency",
+    "basis": "「肾气不足」即该脏气虚（不写「气不足」通配，避免吞掉「阳气不足」）"
+   },
+   {
+    "term": "心气不足",
+    "nature": "qi_deficiency",
+    "basis": "「心气不足」即该脏气虚（不写「气不足」通配，避免吞掉「阳气不足」）"
+   },
+   {
+    "term": "肺气不足",
+    "nature": "qi_deficiency",
+    "basis": "「肺气不足」即该脏气虚（不写「气不足」通配，避免吞掉「阳气不足」）"
+   },
+   {
+    "term": "脾气不足",
+    "nature": "qi_deficiency",
+    "basis": "「脾气不足」即该脏气虚（不写「气不足」通配，避免吞掉「阳气不足」）"
+   },
+   {
+    "term": "中气不足",
+    "nature": "qi_deficiency",
+    "basis": "「中气不足」即该脏气虚（不写「气不足」通配，避免吞掉「阳气不足」）"
+   },
+   {
+    "term": "肝胃不和",
+    "nature": "qi_stagnation",
+    "basis": "肝胃不和即肝气郁滞、横逆犯胃，以气滞对应气郁质"
+   },
+   {
+    "term": "气阴两虚",
+    "nature": "yin_deficiency",
+    "basis": "气阴两虚取阴虚一侧对应阴虚质（技术规范未设兼夹体质的独立保健穴）"
+   },
+   {
+    "term": "湿热",
+    "nature": "dampness",
+    "alsoNature": "heat",
+    "basis": "湿热作为一个复合病性出现时同时计湿与热"
+   }
+  ]
+ },
+ "constitutions": {
+  "qi_deficiency": {
+   "label": "气虚质",
+   "adjudicationStatus": "pending_clinician_review",
+   "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
+   "acupressure": {
+    "points": [
+     {
+      "name": "气海",
+      "region": "abdomen",
+      "standardLocation": "下腹部，前正中线上，当脐中下1.5寸",
+      "patientLocation": "肚脐正下方约两横指处"
+     },
+     {
+      "name": "关元",
+      "region": "abdomen",
+      "standardLocation": "下腹部，前正中线上，当脐下3寸",
+      "patientLocation": "肚脐正下方约四横指处"
+     }
+    ],
+    "method": "用掌根按在穴位上，轻柔缓和地打圈按揉",
+    "dose": "每个穴位2～3分钟，每天1～2次",
+    "sourceText": "用掌根着力于穴位，做轻柔缓和的环旋活动，每个穴位按揉2～3分钟，每天操作1～2次。"
+   },
+   "moxibustion": {
+    "points": [
+     "气海",
+     "关元"
+    ],
+    "method": "点燃艾条（或用温灸盒）对着穴位温灸，艾条燃着的一端与皮肤保持2～3厘米，以温热不烫为度",
+    "dose": "每次10分钟，每周1次",
+    "sourceText": "还可以采用艾条温和灸，增加温阳益气的作用。点燃艾条或借助温灸盒，对穴位进行温灸，每次10分钟。艾条温和灸点燃端要与皮肤保持2～3厘米的距离，不要烫伤皮肤。温和灸可每周操作1次。"
+   }
+  },
+  "yang_deficiency": {
+   "label": "阳虚质",
+   "adjudicationStatus": "pending_clinician_review",
+   "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
+   "acupressure": {
+    "points": [
+     {
+      "name": "关元",
+      "region": "abdomen",
+      "standardLocation": "下腹部，前正中线上，当脐下3寸",
+      "patientLocation": "肚脐正下方约四横指处"
+     }
+    ],
+    "method": "用掌根按在穴位上，轻柔缓和地打圈按揉",
+    "dose": "每次2～3分钟，每天1～2次",
+    "sourceText": "关元穴还可采用掌根揉法（见气虚质），按揉每穴2～3分钟，每天1～2次。"
+   },
+   "moxibustion": {
+    "points": [
+     "关元",
+     "命门"
+    ],
+    "method": "点燃艾条（或用温灸盒）对着穴位温灸，艾条燃着的一端与皮肤保持2～3厘米，以温热不烫为度",
+    "dose": "每次10分钟，每周1次",
+    "sourceText": "两穴均可采用温和灸（见气虚质）的方法，每周进行1次。"
+   },
+   "extraPoints": [
+    {
+     "name": "命门",
+     "region": "lumbosacral",
+     "standardLocation": "腰部，当后正中线上，第2腰椎棘突下凹陷中",
+     "patientLocation": "后腰正中，约与肚脐相对的脊柱凹陷处"
+    }
+   ]
+  },
+  "yin_deficiency": {
+   "label": "阴虚质",
+   "adjudicationStatus": "pending_clinician_review",
+   "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
+   "acupressure": {
+    "points": [
+     {
+      "name": "太溪",
+      "region": "limb",
+      "standardLocation": "足内侧，内踝后方，当内踝尖与跟腱之间的凹陷处",
+      "patientLocation": "脚内侧，内踝尖与脚后跟上方那根大筋之间的凹陷处"
+     },
+     {
+      "name": "三阴交",
+      "region": "limb",
+      "standardLocation": "小腿内侧，当足内踝尖上3寸，胫骨内侧缘后方",
+      "patientLocation": "小腿内侧，内踝尖往上约四横指、小腿骨内侧边缘后方"
+     }
+    ],
+    "method": "用拇指或中指指腹按住穴位，轻柔缓和地打圈按揉，以感到酸胀为度",
+    "dose": "每个穴位2～3分钟，每天1～2次",
+    "sourceText": "采用指揉的方法（见平和质），每个穴位按揉2～3分钟，每天操作1～2次。"
+   }
+  },
+  "phlegm_dampness": {
+   "label": "痰湿质",
+   "adjudicationStatus": "pending_clinician_review",
+   "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
+   "acupressure": {
+    "points": [
+     {
+      "name": "丰隆",
+      "region": "limb",
+      "standardLocation": "小腿前外侧，当外踝尖上8寸，条口外，距胫骨前缘二横指处",
+      "patientLocation": "小腿前外侧，膝盖外侧下方凹陷与外踝尖连线的中点、小腿骨前缘外侧约两横指处"
+     },
+     {
+      "name": "足三里",
+      "region": "limb",
+      "standardLocation": "小腿前外侧，当犊鼻下3寸，距胫骨前缘一横指处",
+      "patientLocation": "小腿前外侧，膝盖外侧下方凹陷往下约四横指、小腿骨前缘外侧约一横指处"
+     }
+    ],
+    "method": "用拇指或中指指腹按住穴位，轻柔缓和地打圈按揉，以感到酸胀为度",
+    "dose": "每个穴位2～3分钟，每天1～2次",
+    "sourceText": "采用指揉法（见平和质）。（平和质：用大拇指或中指指腹按压穴位，做轻柔缓和的环旋活动，以穴位感到酸胀为度，按揉2～3分钟。每天操作1～2次。）"
+   }
+  },
+  "damp_heat": {
+   "label": "湿热质",
+   "adjudicationStatus": "pending_clinician_review",
+   "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
+   "acupressure": {
+    "points": [
+     {
+      "name": "支沟",
+      "region": "limb",
+      "standardLocation": "前臂背侧，当阳池与肘尖的连线上，腕背横纹上3寸，尺骨与桡骨之间",
+      "patientLocation": "前臂背面，手腕背面横纹往上约四横指、两根前臂骨之间"
+     },
+     {
+      "name": "阴陵泉",
+      "region": "limb",
+      "standardLocation": "小腿内侧，当胫骨内侧髁后下方凹陷处",
+      "patientLocation": "小腿内侧，膝盖下方小腿骨内侧突起下缘的凹陷处"
+     }
+    ],
+    "method": "用拇指或中指指腹按住穴位，轻柔缓和地打圈按揉，以感到酸胀为度",
+    "dose": "每个穴位2～3分钟，每天1～2次",
+    "sourceText": "采用指揉法（见平和质）。（刮痧为技术规范可选方法，居家患者不收）"
+   }
+  },
+  "blood_stasis": {
+   "label": "血瘀质",
+   "adjudicationStatus": "pending_clinician_review",
+   "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
+   "acupressure": {
+    "points": [
+     {
+      "name": "期门",
+      "region": "chest",
+      "standardLocation": "胸部，当乳头直下，第6肋间隙，前正中线旁开4寸",
+      "patientLocation": "胸部，乳头正下方、往下数第2个肋骨间隙处"
+     },
+     {
+      "name": "血海",
+      "region": "limb",
+      "standardLocation": "屈膝，在大腿内侧，髌底内侧端上2寸，当股四头肌内侧头的隆起处",
+      "patientLocation": "屈膝时，大腿内侧、膝盖骨内上缘往上约三横指的肌肉隆起处"
+     }
+    ],
+    "method": "用拇指或中指指腹按住穴位，轻柔缓和地打圈按揉，以感到酸胀为度",
+    "dose": "每个穴位2～3分钟，每天1～2次",
+    "sourceText": "采用指揉法（见平和质）。"
+   }
+  },
+  "qi_stagnation": {
+   "label": "气郁质",
+   "adjudicationStatus": "pending_clinician_review",
+   "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
+   "acupressure": {
+    "points": [
+     {
+      "name": "合谷",
+      "region": "limb",
+      "standardLocation": "手背，第1、2掌骨间，当第2掌骨桡侧的中点处",
+      "patientLocation": "手背虎口处，拇指与食指两根掌骨之间、靠近食指一侧的中点"
+     },
+     {
+      "name": "太冲",
+      "region": "limb",
+      "standardLocation": "足背侧，当第1跖骨间隙的后方凹陷处",
+      "patientLocation": "脚背，大脚趾与第二脚趾之间往脚背方向推到尽头的凹陷处"
+     }
+    ],
+    "method": "用拇指或中指指腹按住穴位，轻柔缓和地打圈按揉，以感到酸胀为度",
+    "dose": "每个穴位2～3分钟，每天1～2次",
+    "sourceText": "采用指揉的方法（见平和质）。"
+   }
+  }
+ },
+ "children": {
+  "adjudicationStatus": "pending_clinician_review",
+  "sourceRef": "SRC-NHC-CHILD-TCM-HEALTH-MGMT-TECH-2013",
+  "bands": [
+   {
+    "minMonths": 6,
+    "maxMonths": 17,
+    "items": [
+     {
+      "name": "摩腹",
+      "text": "家长用手掌或食指、中指、无名指的指面贴在孩子腹部，连同前臂一起做有节律的环形移动，每次1～3分钟",
+      "sourceText": "操作者用手掌掌面或示指、中指、环指的指面附着于小儿腹部，以腕关节连同前臂反复做环形有节律的移动，每次1～3分钟。"
+     },
+     {
+      "name": "捏脊",
+      "text": "沿孩子后背正中脊柱两侧，从尾骨末端（长强穴）向上边推边捏起皮肤，一直捏到颈后大椎穴为一遍，每次4～6遍，手法轻柔",
+      "sourceText": "施术从长强穴开始……自长强穴向前捏拿至脊背上端的大椎穴捏一遍。如此循环，根据病情及体质可捏拿4～6遍。"
+     }
+    ]
+   },
+   {
+    "minMonths": 18,
+    "maxMonths": 29,
+    "items": [
+     {
+      "name": "迎香",
+      "text": "在鼻翼外缘中点旁的鼻唇沟中，用中指按顺时针方向轻轻按揉，每次1～3分钟",
+      "sourceText": "双手拇指分别按于同侧下颌部，中指分别按于同侧迎香穴……使中指在迎香穴处做顺时针方向按揉，每次1～3分钟。"
+     },
+     {
+      "name": "足三里",
+      "text": "在小腿前外侧、膝盖外侧下方凹陷往下约孩子自己的四横指、小腿骨前缘外侧约一横指处，用拇指指端按揉，每次1～3分钟",
+      "sourceText": "操作者用拇指端按揉，每次1～3分钟。"
+     }
+    ]
+   },
+   {
+    "minMonths": 30,
+    "maxMonths": 36,
+    "items": [
+     {
+      "name": "四神聪",
+      "text": "头顶正中（百会穴）前后左右各旁开约孩子自己的一个拇指宽处，共4个点，用手指逐一按揉，先左右、再前后，每次1～3分钟",
+      "sourceText": "用手指逐一按揉，先按左右神聪穴，再按前后神聪穴，每次1～3分钟。"
+     }
+    ]
+   }
+  ],
+  "cautions": "手法要柔和，操作前洗手、修剪指甲，天冷先把手搓热；局部皮肤破损或骨折处不要按揉。居家保健只作辅助，不能代替治疗。"
+ },
+ "cautions": {
+  "acupressure": "饭后1小时内不宜按揉；局部皮肤破损、红肿或感染处不要按揉；有出血倾向或正在服用抗凝、抗血小板药物者请先咨询医生。居家保健只作辅助，不能代替治疗；按揉后如有不适请停止。",
+  "moxibustion": "艾灸时注意防火防烫伤，灸后局部皮肤微红属正常；如起小水疱不要挑破，较大水疱请到医院处理。发热、皮肤破损处不要灸；糖尿病、手脚感觉减退或有出血倾向者，灸前请先咨询医生。"
+ },
+ "pregnancyUnresolved": {
+  "excludedPoints": [
+   "三阴交",
+   "合谷",
+   "昆仑",
+   "至阴"
+  ],
+  "excludedRegions": [
+   "abdomen",
+   "lumbosacral"
+  ],
+  "basis": "育龄女性（10～59岁）病历未写明是否妊娠时，按妊娠禁忌从严：去掉孕期禁用的三阴交、合谷、昆仑、至阴与腹部、腰骶部穴位，不给艾灸（《针灸学》教材针刺禁忌外推；悬灸孕妇腹部和腰骶部不宜）。妊娠阳性或可疑时整段不给。"
+ }
+}

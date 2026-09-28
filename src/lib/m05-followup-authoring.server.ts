@@ -5,7 +5,7 @@ import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { SIX_HEALTH_FOLLOWUP_DIMENSIONS } from "./tcm-followup-dimensions";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
-import { deriveFirstReviewTiming, hasStrongPrescriptionRisk, sanitizeFreeTextForModel } from "./diagnosis-safety";
+import { deriveFirstReviewTiming, hasStrongPrescriptionRisk, isRecordCompletenessStatement, sanitizeFreeTextForModel } from "./diagnosis-safety";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { consumeFollowupWork, type FollowupSharedWork } from "./m05-followup-shared-work";
@@ -68,6 +68,14 @@ export type AuthoredFollowupContent = {
    */
   monitoringIndicators: string[];
   /**
+   * 本例出现后应立即去急诊的危险表现（2026-09-28）。
+   *
+   * 随访计划写进病历、交给患者，「什么情况立即去急诊」必须针对本例病情写具体表现
+   * （腹泻例：便血或黑便、脱水；咳嗽例：高热、气促、胸痛、咯血），这是模型的活。
+   * 不足 2 条时调用方回落不分病种都成立的通用急症表现，不会空着。
+   */
+  urgentSigns: string[];
+  /**
    * 结构化随访时间轴条目（2026-08-12）。
    *
    * 此前这张表**只有 indicators 一栏是模型写的**，而且两条目共用同一份：
@@ -102,7 +110,13 @@ const TEMPLATE_BOILERPLATE = [
   "主要症状较首诊无改善或加重，或出现新的伴随症状",
   "治疗期间随时",
   "新发不适或原症加重",
+  // 2026-09-28 起的患者口吻模板原话，同理。
+  "按时复诊，把服药后的变化和不适告诉医生",
+  "每天留意症状变化，出现下列情况请提前就诊",
+  "服药后主要症状没有好转或反而加重，或出现新的不适",
+  "服药期间",
 ];
+
 
 export function clinicalContextForAuthoring(
   state: CaseState,
@@ -141,36 +155,46 @@ export function clinicalContextForAuthoring(
 }
 
 const SYSTEM_PROMPT = [
-  "你是中医门诊随访方案的撰写者。根据本例的证候、病机、治法与处方，写出**针对这一例**的随访内容。",
+  "你是中医门诊随访方案的撰写者。随访方案会**写进门诊病历、交给患者本人**，告诉患者：什么时候复诊、",
+  "服药期间留意什么、出现什么情况要提前来、出现什么情况要立即去急诊、日常怎么调护。",
+  "根据本例的证候、病机、治法与处方，写出**针对这一例**、患者能看懂并照着做的随访内容。",
   "只输出 JSON，字段固定为：",
-  '{"reviewFocus":"复诊重点评估什么","efficacyCriteria":"疗效怎么判定算有效","lifestyle":"饮食/作息/情志/活动的调护","dimensions":["从可选复评维度里挑3到4个"],"monitoringIndicators":["随访时间轴表格里逐次记录的观察指标，3到5条短语"],"timeline":[{"time":"时间点","action":"这个时间点要做什么","indicators":["这个时间点要看的观察项"],"triggers":["出现什么就提前复诊"]}]}',
+  '{"reviewFocus":"复诊时医生会重点了解什么、请患者留意记录什么","efficacyCriteria":"患者自己能感觉到的好转标志","lifestyle":"饮食/作息/情绪/活动的具体做法","dimensions":["从可选复评维度里挑3到4个"],"monitoringIndicators":["服药期间请患者留意的变化，3到5条短语"],"urgentSigns":["出现后应立即去急诊的危险表现，3到6条短语"],"timeline":[{"time":"时间点","action":"患者在这个时间点要做什么","indicators":["这段时间请患者留意的变化"],"triggers":["出现什么就提前来诊"]}]}',
   "",
-  "写作要求：",
-  "· 必须体现本例证候特点。寒证与湿热证的调护不该相同——寒证忌生冷、湿热忌肥甘厚味、",
-  "  肝郁重情志疏导、阴虚忌辛燥熬夜、气虚忌过劳。写出这一例真正该注意的。",
-  "· reviewFocus 写**复诊时要重点看什么**，是给医生的检查清单，不是复述病历状态。",
-  "  反例（线上实测出现过，不要这样写）：「病历已记录发热阳性；病历尚未确认头痛是否存在」——",
-  "  那是在陈述记录完整性，不是复诊重点。正例：「重点复评恶寒与发热的消长、有无汗出及汗后热退情况、",
-  "  头身疼痛程度、舌苔由白转黄与否、脉象由浮紧转浮缓与否」。",
-  "· efficacyCriteria 写**达到什么状态算这一轮有效**，同样指向本例主症与舌脉。",
+  "口吻（所有字段都适用）：",
+  "· 写给患者本人：用「请您」或祈使句，白话，一句一件事。不写证候、病机、治法术语",
+  "  （如「脾气来复」「中阳」「浮数」「健脾益气」）；需要提到舌脉时只说「医生会查看舌象和脉象」。",
+  "· 不写病历记录状态（如「病历已记录……阳性」「尚未确认……是否存在」），不写系统或医生内部流程",
+  "  （如「候选方案」「审方」「复评」「采纳」「辨证」）。这些一经出现，该段会被服务端丢弃。",
+  "",
+  "字段要求：",
+  "· 必须体现本例证候特点，但用白话写出来。寒证忌生冷、湿热忌肥甘厚味、肝郁重情绪疏导、",
+  "  阴虚忌辛辣熬夜、气虚忌过劳——写出这一例真正该注意的。",
+  "· reviewFocus：告诉患者复诊时医生会重点了解什么，以及请患者服药期间留意、记下哪些变化。",
+  "  正例：「复诊时医生会重点了解大便每天几次、是否成形，腹胀和胃口有没有好转，精神体力怎样，",
+  "  并查看舌象和脉象；请您服药期间留意并记下这些变化。」",
+  "· efficacyCriteria：用患者自己能感觉到的变化说明怎样算好转，不承诺疗效。",
+  "  正例：「大便逐渐成形、次数减少，腹胀减轻、胃口变好、精神体力恢复，说明治疗有效。」",
+  "· lifestyle：本例饮食、作息、情绪、活动的具体做法。",
   "· 以上三段每段 30–120 字，中文，不分条不加标题。",
-  "· monitoringIndicators 是随访表格里**逐次记录的观察项**，3–5 条，每条一个短语（不超过 24 字）。",
-  "  写病人身上能被观察或测量的东西，不要写诊断名。",
-  "  反例（线上实测出现过，不要这样写）：「下尿路感染」是诊断不是观察项；",
-  "  「苔黄腻的严重程度、发作频次及对日常功能的影响」——舌苔没有发作频次。",
-  "  正例：「排尿灼痛程度与次数」「小便颜色与浑浊度」「有无腰痛或发热」「舌苔黄腻消退情况」。",
+  "· monitoringIndicators：服药期间患者自己能观察到的变化，3–5 条，每条一个短语（不超过 24 字），",
+  "  不写诊断名。正例：「大便次数和是否成形」「腹胀和胃口」「白天精神和体力」。",
+  "· urgentSigns：本例出现后**不要等复诊、应立即去急诊**的危险表现，3–6 条短语（每条不超过 24 字），",
+  "  针对本例病情写具体表现。正例（腹泻）：「大便带血或发黑」「高热不退」「剧烈腹痛」「呕吐不止、口干尿少」。",
   "",
-    "· timeline 是**本例的**随访时间轴，2–4 条，按时间先后排列。每条四栏：",
-  "  time＝时间点（如「服药3天」「一周后」「疗程结束时」）。**第一条固定是首次复诊，time 写「首次复诊」即可**，",
-  "  系统会替换成上面给出的实际时间；第二条起按本例病程自己排，不得与第一条撞车；",
-  "  action＝这个时间点具体要做什么（复诊查体？线上问诊？调方？停药观察？），写本例真正该做的动作；",
-  "  indicators＝这个时间点要看的观察项（不同时间点看的东西应当不同，早期看表证消长、后期看正气恢复）；",
-  "  triggers＝出现什么情况就不等到这个时间点、提前来诊。indicators 与 triggers 都写成**字符串数组**。",
-  "  **每条的 action 与 triggers 必须因本例而异**。反例（这是旧模板的原话，写出来整份会被丢弃）：",
-  "  「完成首次复诊与疗效复评」「记录症状变化并按触发条件提前复评」",
-  "  「主要症状较首诊无改善或加重，或出现新的伴随症状」——这几句放在任何病人身上都成立，等于没写。",
-  "  正例（风寒袭肺咳嗽）：time「服药3天」action「电话或线上复诊，确认恶寒是否已解、咳嗽是否转为松畅」",
-  "  triggers「出现高热、气促、痰转黄稠或胸痛」。",
+  "· timeline 是**本例的**随访安排，2–4 条，按时间先后排列。每条四栏：",
+  "  time＝时间点（如「服药3天」「服药满2周」「疗程结束时」）。**第一条固定是首次复诊，time 写「首次复诊」即可**，",
+  "  系统会替换成上面给出的实际时间；第二条起按本例病程安排，不得与第一条重复——",
+  "  首次复诊就是服完全部剂数的那一天，后续条目不要再写同一天（如首次复诊是服完7剂，就不要再写「服药满7天」「服药满7剂」）；",
+  "  action＝患者在这个时间点要做什么（回门诊复诊？电话或线上告诉医生变化？继续按时服药并观察？），",
+  "  写本例真正需要的安排；",
+  "  indicators＝这段时间请患者留意的变化（不同时间点留意的内容应不同）；",
+  "  triggers＝出现什么情况不要等到这个时间点、应提前来诊。indicators 与 triggers 都写成**字符串数组**。",
+  "  **每条的 action 与 triggers 必须因本例而异**。反例（这是模板原话，写出来整份会被丢弃）：",
+  "  「完成首次复诊与疗效复评」「按时复诊，把服药后的变化和不适告诉医生」",
+  "  「服药后主要症状没有好转或反而加重，或出现新的不适」——这几句放在任何病人身上都成立，等于没写。",
+  "  正例（风寒袭肺咳嗽）：time「服药3天」action「电话或线上告诉医生怕冷是否好转、咳嗽是否变得顺畅」",
+  "  triggers「出现高热、气喘、痰变黄稠或胸痛」。",
   "· 不得写具体日期（如「8月15日」）——只写相对时间点。",
   "",
   "严禁：写任何剂量或药量；写让患者自行加减药、换方、停药；引用指南或文献；",
@@ -202,6 +226,9 @@ function validAuthoredText(value: unknown, min = 10, max = 200): string {
   if (text.length < min || text.length > max) return "";
   // 剂量写法复用 M04 那条已导出的判据，不写第二份。
   if (PRECAUTION_DOSE_LIKE.test(text) || CITATION_LIKE.test(text)) return "";
+  // 随访写进病历、交给患者（2026-09-28 甲方）：病历记录状态句与诊断阶段同一判据拦截；
+  // 医生/系统内部流程用语（候选方案、审方、复评……）归在下面的受治理禁述表里。
+  if (isRecordCompletenessStatement(text)) return "";
   // 处方级动作与疗效承诺走**受治理禁述表**，不在代码里手写：
   // 这一层漏收一个词等于放行「可自行减量」，失败方向不安全，必须可审核可回归。
   if (patientInstructionProhibitionsIn(text).length > 0) return "";
@@ -331,6 +358,8 @@ export async function authorFollowupClinicalContent(
       // 与三段散文不同，它**不是**采纳与否的门槛：挑不出来就回落 coreMetrics 拼串，
       // 那只是回到今天的行为，不影响另外三段的正确性。
       const monitoringIndicators = authoredPhraseList(parsed.monitoringIndicators, 3, 24, 5);
+      // 急症表现同样逐条校验；不足 2 条由调用方回落通用急症表现，不影响另外几段。
+      const urgentSigns = authoredPhraseList(parsed.urgentSigns, 2, 24, 6);
 
       // ── 时间轴逐条校验 ──────────────────────────────────────────────────
       // 判据与三段散文同源（剂量写法 / 引用 / 受治理禁述表），另加三条这一栏特有的：
@@ -373,6 +402,7 @@ export async function authorFollowupClinicalContent(
         // 维度挑不出来就用全六维——那只是少一层裁剪，不影响正确性。
         dimensions: dimensions.length >= 2 ? dimensions : [...GOVERNED_DIMENSIONS],
         monitoringIndicators: monitoringIndicators.length >= 2 ? monitoringIndicators : [],
+        urgentSigns: urgentSigns.length >= 2 ? urgentSigns : [],
         // 时间轴与三段散文各自独立：时间轴没写好只回落这一栏，不牵连另外三段。
         timeline: usableTimeline,
       };

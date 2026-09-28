@@ -48,8 +48,9 @@ const { POST: assess } = await jiti.import("../src/app/api/diagnosis/assess/rout
 
 const AUTHORED_LIFESTYLE = "饮食宜清淡易消化，忌生冷油腻；作息规律，避免劳累，保持情志舒畅，适度散步以助运化。";
 const authoredReply = {
-  reviewFocus: "重点复评乏力与纳差的变化、大便是否成形、舌苔腻象是否减退、脉象是否由濡转和。",
-  efficacyCriteria: "乏力减轻、食量恢复、大便成形且次数减少，舌苔由厚腻转薄即为本轮有效。",
+  // 2026-09-28 起随访写给患者本人：「复评」等内部流程词会被作文校验拒收，桩回复按患者口吻写。
+  reviewFocus: "复诊时医生会重点了解乏力和胃口的变化、大便是否成形，并查看舌象和脉象；请您服药期间留意这些变化。",
+  efficacyCriteria: "乏力减轻、饭量恢复、大便成形且次数减少，说明治疗有效。",
   lifestyle: AUTHORED_LIFESTYLE,
   dimensions: ["饮食", "睡眠", "情志"],
   monitoringIndicators: ["乏力程度", "食欲与食量", "大便性状"],
@@ -294,6 +295,36 @@ check("frontend gzips large stage request bodies and falls back to the plain bod
   assert.match(fetchHelper, /response\.status !== 415 && response\.status !== 400/);
   assert.match(fetchHelper, /await fetch\(input, \{ \.\.\.init, signal: controller\.signal \}\)/, "fallback must resend the original body");
   assert.match(client, /headers\.set\("Content-Encoding", "gzip"\)/);
+});
+
+// 2026-09-28 甲方：随访写进病历、交给患者。模型写出病历状态句或内部流程词时整段拒收、回落模板；
+// 急症表现逐条校验，混进来的记录状态句只丢那一条。
+await checkAsync("M05 authoring rejects record-status / clinician-workflow wording and keeps valid urgent signs", async () => {
+  const { authorFollowupClinicalContent } = await jiti.import("../src/lib/m05-followup-authoring.server.ts");
+  const original = globalThis.fetch;
+  const replyWith = (content) => async () => new Response(JSON.stringify({ id: "x", object: "chat.completion", created: 0, model: "deepseek-flash",
+    choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(content) } }],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }), { headers: { "content-type": "application/json" } });
+  const state = normalizeCaseStateInput({ id: "m05-patient-voice", chiefComplaint: "咳嗽5天", patient: { sex: "男", age: 30 } });
+  const input = { syndrome: "风寒束肺证", herbs: ["麻黄", "杏仁"] };
+  try {
+    for (const reviewFocus of [
+      "病历已记录咳嗽阳性；病历已记录否认发热，复诊时再看。",
+      "重点复评咳嗽的消长与舌脉变化，据此决定是否调整候选方案。",
+    ]) {
+      resetAuthoredFollowupCache();
+      globalThis.fetch = replyWith({ ...authoredReply, reviewFocus });
+      assert.equal(await authorFollowupClinicalContent(state, input), null, `应整段拒收：${reviewFocus}`);
+    }
+    resetAuthoredFollowupCache();
+    globalThis.fetch = replyWith({ ...authoredReply, urgentSigns: ["高热不退", "气喘明显", "病历尚未确认咯血是否存在"] });
+    const authored = await authorFollowupClinicalContent(state, input);
+    assert.ok(authored, "患者口吻的回复应被采纳");
+    assert.deepEqual(authored.urgentSigns, ["高热不退", "气喘明显"]);
+  } finally {
+    globalThis.fetch = original;
+    resetAuthoredFollowupCache();
+  }
 });
 
 console.log(JSON.stringify({ suite: "m05-prefetch-request-compression", failures }, null, 1));

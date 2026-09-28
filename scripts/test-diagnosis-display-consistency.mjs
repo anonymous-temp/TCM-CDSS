@@ -345,8 +345,8 @@ const journeyFollowup = buildDeterministicRiskFollowupPayload({
 // 该字段（连同它在合同层的 5 个驳回码）已按需求10 移除：一条建议性随访行的措辞瑕疵不该作废
 // 整份 M04。M05 随访时间轴本身**没有**被删——它由服务端确定性生成，下面两条断言就是它的证据。
 // 注意区分两个「时间轴」：被删的是健康调护区里模型填写的监测三元组，保留的是 M05 这条确定性随访轴。
-assert.ok(journeyFollowup.timelineItems.some((item) => /首次复诊/.test(item.action)));
-assert.ok(journeyFollowup.timelineItems.some((item) => /治疗期间随时/.test(item.time)));
+assert.ok(journeyFollowup.timelineItems.some((item) => /按时复诊/.test(item.action)));
+assert.ok(journeyFollowup.timelineItems.some((item) => /服药期间/.test(item.time)));
 assert.ok(journeyFollowup.timelineItems.length >= 2, "M05 确定性随访时间轴必须继续给出可执行行");
 assert.doesNotMatch(JSON.stringify(journeyFollowup.timelineItems), /采纳候选前|完成针对性安全复核/);
 const { buildCaseAwareQuestionFallback, ensureQuestionStructuredEnvelope, ensureSingleRoundQuestionContract } = await jiti.import("../src/lib/m02-question-contract.ts");

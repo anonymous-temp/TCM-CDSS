@@ -414,8 +414,10 @@ ok("营销词不得活过 finalize", (() => {
     indicators({ ...authored, monitoringIndicators: [] }).join("|") === template.join("|"));
   ok("authored 整体缺席时逐字回落原拼串", template.join("|") === indicators(null).join("|"));
   // 安全类固定行不得被模型的指标挤掉。
-  ok("「实际用药与不适反应」始终保留", withModel[0].includes("实际用药与不适反应"));
-  ok("「新发不适或原症加重」始终保留", withModel[1].includes("新发不适或原症加重"));
+  // 2026-09-28 起固定行改写成患者口吻（随访写进病历交给患者），「始终保留」的约束不变。
+  ok("「服药后有无不适 / 是否按时服药」始终保留",
+    withModel[0].includes("服药后有无不适") && withModel[0].includes("是否按时服药"));
+  ok("「新出现的不适或原有症状加重」始终保留", withModel[1].includes("新出现的不适或原有症状加重"));
 }
 
 // ── ⑦ 煎法：准备指令不得给一味药挂上第二个投料时机 ────────────────────────

@@ -56,6 +56,7 @@ const CONDITIONAL = new Map([
   ["formula.candidates[].herbs[].decoctionRequirement", "仅特殊煎法药味有值，其余为 null"],
   ["formula.medicineCandidateStatus", "仅当无匹配中成药候选时输出"],
   ["nonPharma.acupointCare", "可为 null"],
+  ["nonPharma.exercise", "V2.26 新增，未生成时为 null"],
   ["formula.candidates[].herbs[].processing", "无特殊炮制要求时为 null"],
   ["formula.patentAndWestern[].singleDose", "西药一律不下发；中成药仅说明书给全时填写"],
   ["formula.patentAndWestern[].frequency", "同 singleDose"],

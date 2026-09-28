@@ -5557,7 +5557,7 @@ function ResultTabsV2({
         order={sectionOrder(["M03-M04-nonpharma", "M03-M04-management"])}
         id="cdss-section-followup"
         title="健康调护与注意事项"
-        subtitle="饮食起居、情志调护、注意事项与随访安全网"
+        subtitle="饮食起居、运动与穴位保健、情志调护、注意事项与随访安全网"
         contractIds={["M03-M04-nonpharma", "M03-M04-management"]}
         rendererId="followup-care-section"
       >
@@ -5568,8 +5568,9 @@ function ResultTabsV2({
                 <SummaryLine label="饮食调养" value={safeDietAdviceForDisplay(reasoning.nonPharma.diet, caseState)} tone="green" />
               )}
               <SummaryLine label="生活方式" value={reasoning.nonPharma.lifestyle} tone="blue" />
+              {reasoning.nonPharma.exercise && <SummaryLine label="运动保健" value={reasoning.nonPharma.exercise} tone="green" />}
               <SummaryLine label="情志调护" value={reasoning.nonPharma.emotion} tone="amber" />
-              {reasoning.nonPharma.acupointCare && <SummaryLine label="穴位/外治" value={reasoning.nonPharma.acupointCare} tone="blue" />}
+              {reasoning.nonPharma.acupointCare && <SummaryLine label="穴位保健" value={reasoning.nonPharma.acupointCare} tone="blue" />}
               {/* 中医治疗项目已上移为独立模块（cdss-section-tcm-treatment），此处不再重复渲染。 */}
               {seasonalCare && <SummaryLine label={`节气调护（${seasonalCare.solarTerm}）`} value={`${seasonalCare.climateFocus}：${seasonalCare.advice}`} tone="green" />}
               {reasoning.nonPharma.precautions.length > 0 && (

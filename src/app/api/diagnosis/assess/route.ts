@@ -161,8 +161,15 @@ export async function POST(req: Request) {
   );
   const followup = buildDeterministicRiskFollowupProjection(assessed, authoredFollowup);
   const postRiskProjection = { markdown: postPrescriptionRisk, currentRiskMarkdown: postPrescriptionRisk };
-  const clinicalProjection = mapWarningText(joinedWarningProjections([postRiskProjection, followup]),
-    (text) => sanitizeUngroundedRedFlagNegations(text, gated));
+  // 接地净化只作用于处方后审文本。随访管理方案通篇是写给患者的前瞻性内容（何时复诊、
+  // 出现什么提前来），对它做「当前病历断言」净化会把「有无新出现发热」「无新发恶寒发热，
+  // 视为有效」改写成「病历已记录否认发热」——2026-09-28 线上实测，且 his-scheme 与
+  // post-prescription-risk 两个出口本就不净化随访，于是同一段随访页面与 HIS 各是一个样。
+  // 模型撰写的随访字段已在 m05-followup-authoring 校验层拒收病历状态句，这里不再改写。
+  const clinicalProjection = joinedWarningProjections([
+    mapWarningText(postRiskProjection, (text) => sanitizeUngroundedRedFlagNegations(text, gated)),
+    followup,
+  ]);
   const rawProjection = joinedWarningProjections([RXAUDIT_DISABLED_STATUS_MARKER, correlationMarker, clinicalAdvisorySection, clinicalProjection]);
   // The browser can reproduce only its submitted state plus the final wire result. Fresh server
   // enrichment remains an independent floor; it must not silently alter request/display hashes.

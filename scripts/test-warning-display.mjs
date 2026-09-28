@@ -585,7 +585,8 @@ test("the real M05 route binds the submitted state despite enrichment and contro
     if (data.operation) { auditCalls += 1; throw new Error("the removed prescription audit must never be called"); }
     assert.ok(Array.isArray(data.messages), "only the expected offline author request is allowed");
     authorCalls += 1;
-    const authored = { reviewFocus: "重点复评乏力与活动耐量变化，避免过早判定疗效。", efficacyCriteria: "对照首诊症状记录评估活动耐量和乏力变化。",
+    // 2026-09-28 起随访写给患者本人，「复评」等内部流程词会被作文校验拒收，桩回复按患者口吻写。
+    const authored = { reviewFocus: "复诊时医生会重点了解乏力和活动耐力的变化，请您服药期间留意记录。", efficacyCriteria: "乏力减轻、能走的路和做的事比这次就诊时多，说明治疗有效。",
       lifestyle: "作息规律，适当散步以调养气血，但严禁过度劳累耗气。", dimensions: ["精力", "食欲", "大便"], monitoringIndicators: ["活动耐量", "乏力程度", "气短变化"], timeline: [] };
     return Response.json({ choices: [{ message: { content: JSON.stringify(authored) }, finish_reason: "stop" }] });
   };

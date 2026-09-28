@@ -1,10 +1,11 @@
 export const SIX_HEALTH_FOLLOWUP_DIMENSIONS = [
-  { dimension: "睡眠", question: "入睡、夜醒、早醒和醒后精神较首诊如何变化？" },
-  { dimension: "食欲", question: "食欲、餐量及进食后不适较首诊如何变化？" },
-  { dimension: "大便", question: "频次、形态、排便难易及异常颜色较首诊如何变化？" },
-  { dimension: "小便", question: "频次、尿量、颜色及排尿不适较首诊如何变化？" },
-  { dimension: "四肢温度", question: "手足冷暖及活动后变化较首诊如何？" },
-  { dimension: "精力", question: "白天精神、乏力程度及日常活动耐量较首诊如何变化？" },
+  // 问句写给患者本人（2026-09-28 甲方：随访计划写进病历、交给患者），维度闭集不变。
+  { dimension: "睡眠", question: "入睡快慢、夜里醒几次、是否早醒，醒后精神怎样，和这次就诊时比有没有变化？" },
+  { dimension: "食欲", question: "胃口和饭量怎样，吃完饭后有没有不舒服，和这次就诊时比有没有变化？" },
+  { dimension: "大便", question: "每天几次、是否成形、排便是否费力，颜色有没有异常，和这次就诊时比有没有变化？" },
+  { dimension: "小便", question: "次数、尿量和颜色怎样，排尿时有没有不适，和这次就诊时比有没有变化？" },
+  { dimension: "四肢温度", question: "手脚是凉还是热，活动后有没有变化，和这次就诊时比怎样？" },
+  { dimension: "精力", question: "白天精神怎样、是否容易累，日常活动能不能坚持，和这次就诊时比有没有变化？" },
 ] as const;
 
 /**
@@ -25,6 +26,6 @@ export function sixHealthFollowupTable(selected?: readonly string[]): string {
     "|---|---|",
     ...rows.map((item) => `| ${item.dimension} | ${item.question} |`),
     "",
-    "六维变化仅用于复评整体趋势，不替代主诉疗效指标、现代危险信号或处方后安全审方。",
+    "服药期间请留意以上几方面的变化，复诊时告诉医生；如出现明显不适，不要等到复诊，请及时就医。",
   ].join("\n");
 }

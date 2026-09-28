@@ -698,6 +698,8 @@ export interface ClinicalReasoningResultV2 {
     diet: string;
     lifestyle: string;
     emotion: string;
+    /** 运动保健（2026-09-28 起单列；此前运动写在 lifestyle 里）。 */
+    exercise?: string | null;
     acupointCare: string | null;
     tcmTreatments: Array<{
       projectCode: TcmTreatmentProjectCode;
@@ -1616,6 +1618,7 @@ const ReasoningV2SchemaBase = z.object({
     diet: z.string().max(1600).catch(""),
     lifestyle: z.string().max(1600).catch(""),
     emotion: z.string().max(1600).catch(""),
+    exercise: z.string().max(1600).nullable().optional().catch(null),
     acupointCare: z.string().max(1600).nullable().catch(null),
     tcmTreatments: z.preprocess(
       isolateInvalidItems(TcmTreatmentRecommendationSchema),

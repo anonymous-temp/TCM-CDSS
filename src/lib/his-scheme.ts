@@ -311,6 +311,10 @@ export type HisAiSchemePayload = {
     diet: string;
     lifestyle: string;
     emotion: string;
+    /** 运动保健（2026-09-28 起单列）；未生成时为 null。 */
+    exercise: string | null;
+    /** 穴位保健（服务端按受治理清单确定性生成，2026-09-28 起可写回）；未生成时为 null。 */
+    acupointCare: string | null;
     precautions: string[];
   } | null;
   treatments: {
@@ -1433,9 +1437,11 @@ export function buildHisAiSchemePayload(
       }));
       const lifestyle = clean(nonPharma.lifestyle || "");
       const emotion = clean(nonPharma.emotion || "");
+      const exercise = clean(nonPharma.exercise || "") || null;
+      const acupointCare = clean(nonPharma.acupointCare || "") || null;
       const precautions = (nonPharma.precautions || []).map((entry) => clean(entry)).filter(Boolean);
-      if (!diet && !lifestyle && !emotion && precautions.length === 0) return null;
-      return { diet, lifestyle, emotion, precautions };
+      if (!diet && !lifestyle && !emotion && !exercise && !acupointCare && precautions.length === 0) return null;
+      return { diet, lifestyle, emotion, exercise, acupointCare, precautions };
     })(),
     checks: [item("check-1", "检验检查建议", checks, { adoptable: canAdopt, safetyLocked, blockedReason })],
     followup: [item("followup-1", "风险随访时间轴", followup, { adoptable: canAdopt, safetyLocked, blockedReason })],
