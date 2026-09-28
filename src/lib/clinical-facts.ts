@@ -896,7 +896,7 @@ function isCurrentQuoteOccurrence(sourceText: string, quote: string, quoteStart:
   const polarity = clinicalClausePolarity(quote);
   if (polarity !== "affirmed" && !(allowUncertain && polarity === "uncertain")) return false;
   if (DIRECT_NEGATION_BEFORE_QUOTE.test(beforeQuote) && !NON_NEGATING_MODIFIER_BEFORE_QUOTE.test(beforeQuote)) return false;
-  if (clinicalEventTemporalScopeAt(sourceText, quoteStart, quote.length) !== "current" &&
+  if (clinicalEventTemporalScopeAt(sourceText, quoteStart, quote.length, { groundingQuote: true }) !== "current" &&
       !hasSameSentenceAcuteCue(sourceText, quoteStart)) return false;
   if (/^\s*(?:病史|史)/.test(afterQuote)) return false;
   if (DIRECT_NEGATION_AFTER_QUOTE.test(afterQuote)) return false;

@@ -642,6 +642,53 @@ function completeTrailingJsonClosers(text: string): string | undefined {
 }
 
 /**
+ * 根对象被**提前闭合**：多写了一个 `}`/`]`，根在文末之前就闭合了，后面紧跟 `,"下一个键":…`。
+ * 2026-09-28 本机 65 例基线 M04 唯一一次 JSON 语法错即此形状（nonPharma 之后多一个 `}`，
+ * 随后的 `,"referenceCaseUse":{…}}` 成了「多余内容」），线上同形错误改由 qwen3.8-flash 重生成约 20s。
+ *
+ * 只删那个让根提前闭合的括号：前提是它后面（去空白）紧跟逗号——JSON 里根闭合之后不可能合法地出现逗号，
+ * 所以这个括号必然是多写的。字符串内容一个字符不改；最多删两处；删完必须能完整解析且括号成对。
+ * 删的若其实是更里层该闭合的位置（模型把某层提前闭合），键会落到根上，由后面的严格 schema 校验
+ * 报 additionalProperties/required 违规、照走兜底，不会静默接受错位结构。
+ */
+export function removePrematureRootClosers(text: string): string | undefined {
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  let removed = 0;
+  let out = "";
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      out += char;
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === "\"") inString = false;
+      continue;
+    }
+    if (char === "\"") {
+      inString = true;
+    } else if (char === "{") {
+      stack.push("}");
+    } else if (char === "[") {
+      stack.push("]");
+    } else if (char === "}" || char === "]") {
+      const expected = stack.pop();
+      if (expected !== char) return undefined;
+      if (stack.length === 0 && /^\s*,/.test(text.slice(index + 1))) {
+        removed += 1;
+        if (removed > 2) return undefined;
+        stack.push(expected);
+        continue;
+      }
+    }
+    out += char;
+  }
+  if (inString || stack.length > 0 || removed === 0) return undefined;
+  return out;
+}
+
+/**
  * 超过 maxItems 的数组截到上限。严格解码器本来就写不出第 9 条；而 zod 契约对超长数组是
  * `.max(8)...catch([])`——整组清空（中医半主证候依据重放 2/18 次）。保留前 N 条严格优于全丢。
  */
@@ -691,10 +738,11 @@ export function checkNonStrictStructuredContent(task: StructuredOutputTask, cont
     value = JSON.parse(text);
   } catch {
     const completed = completeTrailingJsonClosers(text);
+    const merged = completed ? undefined : removePrematureRootClosers(text);
     try {
-      if (!completed) throw new Error("unrecoverable");
-      value = JSON.parse(completed);
-      repairs.push("trailing_closers");
+      if (!completed && !merged) throw new Error("unrecoverable");
+      value = JSON.parse((completed || merged) as string);
+      repairs.push(completed ? "trailing_closers" : "premature_root_close");
     } catch {
       return { content, violations: [{ path: "/", keyword: "json" }], repairs };
     }
@@ -723,8 +771,11 @@ export function checkNonStrictStructuredValue(
   //  · M04 中成药/西药建议（patentAndWestern）里某一条的枚举值越界：只删那一条建议，不重生成整张处方
   //    （重生成会换掉已合格的饮片方案）。药味、剂量、病机链等任何其它位置的违规都不在此列。
   if (violations.length > 0 && violations.length < 12) {
+    // 删过提前闭合的括号之后，落到根上的 schema 外键是**错位**的证据（本该在里层），不是多写的元数据：
+    // 不得按「多余键」剥掉——否则「西医半 differentials 提前闭合到根上」会被静默删掉整组鉴别诊断。
+    const displacedToRoot = priorRepairs.includes("premature_root_close");
     const repairable = violations.every((violation) =>
-      violation.keyword.startsWith("additionalProperties:") ||
+      (violation.keyword.startsWith("additionalProperties:") && !(displacedToRoot && (violation.path === "" || violation.path === "/"))) ||
       (task === "m04_proposal" && /^\/patentAndWestern\/\d+(?:\/|$)/.test(violation.path)));
     if (repairable) {
       const cleaned = JSON.parse(JSON.stringify(current)) as Record<string, unknown>;

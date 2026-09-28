@@ -2043,6 +2043,69 @@ async function requestStructuredCompletion(args: {
   }
 }
 
+/** 同模型重抽的采样温度：与 M04 重试温度阶梯的第二级相同（m04-retry-policy）。 */
+const M04_SAME_MODEL_REDRAW_TEMPERATURE = 0.3;
+
+/** `CDSS_M04_SAME_MODEL_REDRAW=false` 回到「只交给严格兜底」，不需重建。 */
+function m04SameModelRedrawEnabled(): boolean {
+  return process.env.CDSS_M04_SAME_MODEL_REDRAW !== "false";
+}
+
+type AcceptedStructuredCompletion =
+  | { ok: true; content: string; finishReason: string | null; model: string }
+  | { ok: false; reason: string };
+
+/**
+ * 并发发出若干份结构化重生成，第一份通过各自校验（accept 返回规范化内容）的胜出，其余立即取消并等待收尾，
+ * 不留孤儿请求。全部失败时返回第一路（严格兜底）的失败原因，与单路时的日志口径一致。
+ */
+async function firstAcceptedStructuredCompletion(
+  parentSignal: AbortSignal,
+  attempts: Array<{
+    model: string;
+    run: (signal: AbortSignal) => Promise<StructuredCompletionResult>;
+    accept: (content: string) => string | undefined;
+  }>,
+): Promise<AcceptedStructuredCompletion> {
+  const controllers = attempts.map(() => new AbortController());
+  const abortAll = () => controllers.forEach((controller) => controller.abort());
+  if (parentSignal.aborted) abortAll();
+  else parentSignal.addEventListener("abort", abortAll, { once: true });
+  let winner: AcceptedStructuredCompletion | undefined;
+  const failures: string[] = attempts.map(() => "not_attempted");
+  try {
+    await new Promise<void>((resolve) => {
+      let pending = attempts.length;
+      if (pending === 0) resolve();
+      attempts.forEach((attempt, index) => {
+        attempt.run(controllers[index].signal).then((result) => {
+          if (winner) return;
+          if (!result.ok) {
+            failures[index] = result.reason;
+            return;
+          }
+          const accepted = attempt.accept(result.content);
+          if (accepted === undefined) {
+            failures[index] = "provider_schema_violation";
+            return;
+          }
+          winner = { ok: true, content: accepted, finishReason: result.finishReason, model: result.model || attempt.model };
+          controllers.forEach((controller, other) => { if (other !== index) controller.abort(); });
+          resolve();
+        }, () => {
+          failures[index] = "network_error";
+        }).finally(() => {
+          pending -= 1;
+          if (pending === 0) resolve();
+        });
+      });
+    });
+  } finally {
+    parentSignal.removeEventListener("abort", abortAll);
+  }
+  return winner || { ok: false, reason: failures[0] };
+}
+
 /**
  * 同一份提示词的 DeepSeek strict 工具调用重生成（非流式）。只用于 M03 两半首轮「内容不合规」之后、
  * Qwen 严格兜底之前（依据与边界见 model-response-format 的 STRICT_TOOL_RETRY_TASKS 说明）。
@@ -3585,32 +3648,68 @@ async function callPrimaryTextModelStream(
             });
             if (strictFallback && budgetAllows) {
               const fallbackStartedAt = Date.now();
-              const fallback = await requestStructuredCompletion({
-                model: strictFallback,
-                prompt: m03ParallelHalves ? m03ParallelHalves.tcm : prompt,
-                kind,
-                task: initialStructuredTask,
-                stage: opts.structuredStage,
-                usageLabel: `${opts.structuredStage}_strict_fallback`,
-                // 空闲超时会先 abort 上游控制器；那时兜底只跟随客户端连接本身。
-                parentSignal: upstreamController.signal.aborted
-                  ? opts.requestSignal ?? new AbortController().signal
-                  : upstreamController.signal,
-                absoluteDeadline: absoluteRunDeadline,
-                temperature: m04Retry.samplingTemperature,
-              });
+              // 空闲超时会先 abort 上游控制器；那时兜底只跟随客户端连接本身。
+              const fallbackParentSignal = upstreamController.signal.aborted
+                ? opts.requestSignal ?? new AbortController().signal
+                : upstreamController.signal;
+              const fallbackTask = initialStructuredTask;
+              const fallbackStage = opts.structuredStage;
+              const fallbackPrompt = m03ParallelHalves ? m03ParallelHalves.tcm : prompt;
+              const nonStrictModel = initialResponseModel;
+              // 同模型重抽与严格兜底**并发**，先通过同一套校验者胜出、另一路立即取消（2026-09-28）。
+              // 只在「内容不合规」且本任务没有 strict 工具调用重试通道时（M04）：DeepSeek 非流式整份重生成
+              // 约 10s，Qwen 严格兜底约 20s；重抽若撞上同一种输入相关的错误，严格兜底照旧按原时长到达，
+              // 最坏情形与此前相同。重抽升到重试温度，避免同一张彩票。
+              const sameModelRedraw = !nonStrictStreamFailure && m04SameModelRedrawEnabled() &&
+                !supportsStrictToolRetry(nonStrictModel, fallbackTask);
+              const fallback = await firstAcceptedStructuredCompletion(fallbackParentSignal, [
+                {
+                  model: strictFallback,
+                  run: (signal) => requestStructuredCompletion({
+                    model: strictFallback,
+                    prompt: fallbackPrompt,
+                    kind,
+                    task: fallbackTask,
+                    stage: fallbackStage,
+                    usageLabel: `${fallbackStage}_strict_fallback`,
+                    parentSignal: signal,
+                    absoluteDeadline: absoluteRunDeadline,
+                    temperature: m04Retry.samplingTemperature,
+                  }),
+                  accept: (content) => content,
+                },
+                ...(sameModelRedraw ? [{
+                  model: nonStrictModel,
+                  run: (signal: AbortSignal) => requestStructuredCompletion({
+                    model: nonStrictModel,
+                    prompt: fallbackPrompt,
+                    kind,
+                    task: fallbackTask,
+                    stage: fallbackStage,
+                    usageLabel: `${fallbackStage}_same_model_redraw`,
+                    parentSignal: signal,
+                    absoluteDeadline: absoluteRunDeadline,
+                    temperature: Math.max(m04Retry.samplingTemperature, M04_SAME_MODEL_REDRAW_TEMPERATURE),
+                  }),
+                  accept: (content: string) => {
+                    const redrawCheck = checkNonStrictStructuredContent(fallbackTask, content);
+                    return redrawCheck.violations.length === 0 ? redrawCheck.content : undefined;
+                  },
+                }] : []),
+              ]);
               console.info("[tcm-cdss:timing] structured_strict_fallback", {
                 stage: opts.structuredStage,
                 task: initialStructuredTask,
                 fromModel: initialResponseModel,
-                toModel: strictFallback,
+                toModel: fallback.ok ? fallback.model : strictFallback,
+                sameModelRedraw,
                 outcome: fallback.ok ? "replaced" : fallback.reason,
                 durationMs: Date.now() - fallbackStartedAt,
               });
               if (fallback.ok) {
                 accumulatedContent = fallback.content;
                 finishReason = fallback.finishReason;
-                initialResponseModel = strictFallback;
+                initialResponseModel = fallback.model;
                 // 首轮流虽然断了，兜底已给出完整结果：不再按「上游不可用」选页。
                 initialGenerationFailedOnTransport = false;
                 nonStrictStreamFailure = undefined;

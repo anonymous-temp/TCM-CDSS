@@ -1293,4 +1293,40 @@ ok("prompt: 提取提示含发热分诊 ≥40℃/受损 原则线", (() => {
   }
 }
 
+// —— 近期起病的当前红旗不得被原文落地核验判成既往（2026-09-28）——
+// 本机 65 例基线：8 次事实层引用修复（每次 6–10s，串在 M02/M03 前面）里 5 次是模型判对的当前红旗
+// 被「N天前」吞成既往：「4天前出现发热，最高38.5℃」「1周前出现肢体无力，最重时不能站立」
+// 「一周前触及肿块，近两天来出现血尿」。只放宽事实层核验；安全门的时间判定不变（下面最后一条钉住）。
+{
+  const { clinicalEventTemporalScopeAt } = await import("../src/lib/clinical-polarity.ts");
+  const finding = (quote, category = "sepsis") => ({ category, subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote });
+  const keeps = (source, quote, category) => groundClinicalFacts({ redFlags: [finding(quote, category)] }, source).redFlags.length === 1;
+  const recentOnset = [
+    ["病人4天前出现发热症状，最高38.5℃，伴畏寒。颈部皮肤红肿破溃。", "最高38.5℃，伴畏寒"],
+    ["于两日前出现发热症状，最高38.3℃，伴畏寒，左下肢红肿。", "发热症状，最高38.3℃，伴畏寒"],
+    ["血压控制可。1周前出现肢体无力，最重时不能站立。", "最重时不能站立", "neuro"],
+    ["病人一周前无意中触及左侧上腹部肿块，近两天来出现血尿，色暗红。", "近两天来出现血尿", "bleeding"],
+    ["3天前受凉后出现高热寒战，神志淡漠。", "高热寒战"],
+  ];
+  for (const [source, quote, category] of recentOnset) {
+    ok(`原文落地: 近期起病「${quote}」按当前事件保留`, keeps(source, quote, category));
+  }
+  // 反例：真正的既往、已缓解、月/年前起病（交给修复轮由模型重判）仍然丢弃。
+  const controls = [
+    ["她还有慢性盆腔炎的病史，并在1973年患急性肾炎，经过治疗后转为慢性，并且出现了肾结核和输卵管结核并阻塞等症状。", "肾结核和输卵管结核并阻塞"],
+    ["3天前出现胸痛，现已缓解，今日无不适。", "胸痛", "cardiac"],
+    ["既往体健。曾于10年前出现呕血，住院治疗。", "呕血", "gi_bleed"],
+    ["3个月前出现阴道出血，量多，色红。", "阴道出血", "bleeding"],
+    ["患者在1年前开始出现胸闷症状，阵发性胸闷痛。", "阵发性胸闷痛", "cardiac"],
+  ];
+  for (const [source, quote, category] of controls) {
+    ok(`原文落地反例: 「${quote}」（${source.slice(0, 12)}…）仍不按当前事件保留`, !keeps(source, quote, category));
+  }
+  // 安全门的时间判定不受影响：不带 groundingQuote 时「4天前出现发热」仍是既往（门禁口径另行裁定）。
+  const gateText = "病人4天前出现发热症状，最高38.5℃，伴畏寒。";
+  ok("安全门时间判定不变: 不带 groundingQuote 时近期起病句式仍按既往",
+    clinicalEventTemporalScopeAt(gateText, gateText.indexOf("最高"), 0) === "historical" &&
+    clinicalEventTemporalScopeAt(gateText, gateText.indexOf("最高"), "最高38.5℃，伴畏寒".length, { groundingQuote: true }) === "current");
+}
+
 console.log(`\n${pass} passed`);

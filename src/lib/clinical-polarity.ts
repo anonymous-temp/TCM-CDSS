@@ -64,6 +64,18 @@ const HISTORICAL_TEMPORAL_CUE_SOURCE = String.raw`(?:既往|曾经|曾有|此前
 const CURRENT_TEMPORAL_CUE_SOURCE = String.raw`(?:本次|本轮|这次|此次|这回|此番|这一次|当前|目前|现在|当下|如今|眼下|刻下|刻诊|现症见?|今日|今天|今晨|今早|刚刚|刚才|方才|近日|近来|近期|近(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:天|日|周|个月|月)|这(?:两|几|数)天|(?:\d+|[一二两三四五六七八九十半数几]+)\s*(?:天|日|周|个月|月)前(?:开始|起)|(?:\d+(?:\.\d+)?|[一二两三四五六七八九十半数几]+)\s*(?:个)?(?:小时|分钟)前|昨日起|昨日(?:起|开始)|昨天(?:起|开始)|昨夜开始|昨晚开始|新发|再发|复发|又发|又有)`;
 
 /**
+ * 近期起病句式：「N天/日/周前（受凉后/无明显诱因/无意中…）出现/发生/发病/起病/发作/感到/感觉/自觉」。
+ * 它与「N天前开始/起」是同一个起病时间表达，但**只给事实层原文落地核验用**（见 clinicalEventTemporalScopeAt
+ * 的 groundingQuote 选项），安全门的时间判定不收：2026-09-28 用灵丹医案语料 27,329 句实测，把它并进
+ * CURRENT 闭集会让 255 句的门禁结论改变（「6个月前受凉后出现发热，最高41℃」「9个月前出现胸闷气促」
+ * 都被抬成急症红旗），那是另一个需要单独裁定的安全口径。事实层不同：模型已经判定该条为当前阳性，
+ * 这里只核验引用不是既往叙述；此前「4天前出现发热，最高38.5℃」「1周前出现肢体无力，最重时不能站立」
+ * 被判既往而丢弃，再多跑一轮 6–10s 的引用修复（本机 65 例 8 次修复里 5 次是这一类）。
+ * 月、年不收：「3个月前出现阴道出血」「1年前开始出现胸闷」是否仍在进行，由修复轮交给模型重判。
+ */
+const RECENT_ONSET_TEMPORAL_CUE_SOURCE = String.raw`(?:\d+|[一二两三四五六七八九十半数几]+)\s*(?:天|日|周)前[^，,。；;\n]{0,12}?(?:出现|发生|发病|起病|发作|感到|感觉|自觉)`;
+
+/**
  * 封闭背景句：本身是一句完整的基线概括——「既往体健」「既往史无特殊」「否认高血压、糖尿病病史」
  * 「此前从未有过类似情况」。
  * 它的时间锚点只管自己这一逗号分句，不能越过逗号把后面的当前主诉一起算成既往。
@@ -112,6 +124,14 @@ export function clinicalEventTemporalScopeAt(
   value: string,
   index: number,
   eventLength = 0,
+  options: {
+    /**
+     * 事实层原文落地核验专用（clinical-facts.isCurrentQuoteOccurrence）：事件是模型给出的整段引用。
+     * 引用自带的时间词（「近两天来出现血尿」的「近两天」）参与判定，并额外承认近期起病句式
+     * （RECENT_ONSET_TEMPORAL_CUE_SOURCE）。安全门不传，行为不变。
+     */
+    groundingQuote?: boolean;
+  } = {},
 ): ClinicalEventTemporalScope {
   const normalized = value.normalize("NFKC").replace(/\r\n?/g, "\n");
   const safeIndex = Math.max(0, Math.min(index, normalized.length));
@@ -125,11 +145,16 @@ export function clinicalEventTemporalScopeAt(
     .map((mark) => normalized.indexOf(mark, safeIndex + Math.max(0, eventLength)))
     .filter((position) => position >= 0);
   const hardEnd = endCandidates.length > 0 ? Math.min(...endCandidates) : normalized.length;
-  const before = normalized.slice(hardStart, safeIndex);
+  const before = normalized.slice(hardStart, safeIndex) + (options.groundingQuote
+    ? normalized.slice(safeIndex, Math.min(hardEnd, safeIndex + Math.max(0, eventLength)))
+    : "");
   const afterEvent = normalized.slice(Math.min(hardEnd, safeIndex + Math.max(0, eventLength)), hardEnd);
 
   const lastHistorical = lastMatchIndex(maskClosedBackgroundClauses(before), HISTORICAL_TEMPORAL_CUE_SOURCE);
-  const lastCurrent = lastMatchIndex(before, CURRENT_TEMPORAL_CUE_SOURCE);
+  const lastCurrent = Math.max(
+    lastMatchIndex(before, CURRENT_TEMPORAL_CUE_SOURCE),
+    options.groundingQuote ? lastMatchIndex(before, RECENT_ONSET_TEMPORAL_CUE_SOURCE) : -1,
+  );
   const postfixHistorical = new RegExp(
     `^(?:\\s*(?:发生|发作|出现|起病|开始)?\\s*(?:于|在|是)?\\s*)${HISTORICAL_TEMPORAL_CUE_SOURCE}`,
   ).test(afterEvent);
