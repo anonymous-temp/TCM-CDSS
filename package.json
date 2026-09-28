@@ -263,6 +263,8 @@
     "test:prompt-evidence-budget": "jiti scripts/test-prompt-evidence-budget.mjs",
     "test:latency-prefetch-caches": "jiti scripts/test-latency-prefetch-caches.mjs",
     "test:m05-prefetch-request-compression": "jiti scripts/test-m05-prefetch-request-compression.mjs",
+    "test:evidence-topic-queries": "jiti scripts/test-evidence-topic-queries.mjs",
+    "build:classic-evidence-index": "node scripts/build-classic-evidence-index.mjs",
     "test:m04-json-fallback-race": "node --test scripts/test-m04-json-fallback-race.mjs",
     "test:strict-tool-retry": "jiti scripts/test-strict-tool-retry.mjs",
     "test:knowledge-rules-20260927": "jiti scripts/test-knowledge-rules-20260927.mjs",

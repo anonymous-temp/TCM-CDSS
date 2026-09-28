@@ -22,6 +22,7 @@ import {
   resolvePrescriptionCandidateIndex,
 } from "./local-prescription-checks";
 import { authorFollowupForCase } from "./m05-followup-authoring.server";
+import { applyDeterministicFollowUpNode } from "./diagnosis-visible-summary";
 
 /**
  * 阶段间预取（2026-09-27，提速）。
@@ -155,30 +156,69 @@ export function prefetchAssessFollowupFromSignedPrescribe(requestCaseState: Case
   return (async () => {
     const reasoning = extractDiagnosisJSON(finalPrescribeContent);
     if (!reasoning || reasoning.stage !== "prescribe" || typeof reasoning.contractSignature !== "string") return;
-    const reasoningPrescribe = reasoning as unknown as CaseState["reasoningPrescribe"];
-    const handoff: CaseState = {
-      ...requestCaseState,
-      prescription: stripDiagnosisJSON(finalPrescribeContent).replace(/\[TRUNCATED\]/g, "").trim(),
-      reasoningPrescribe,
-      reasoningV2: mergeReasoningStages(diagnoseReasoningFromState(requestCaseState), reasoningPrescribe) || requestCaseState.reasoningV2,
-      riskAssessment: undefined,
-      followupTimeline: undefined,
-      safetyLocked: false,
-      phase: "assess",
-    };
-    // ↓ 与 assess/route.ts 同序同参：事实回补 → 安全门 → 选中候选 → 本地处方核对三段 → 作文。
-    const caseState = await maybeAttachClinicalFactsBackstop(handoff, undefined, undefined);
-    const gated = withSafetyGate(caseState);
-    const diagnoseReasoning = diagnoseReasoningFromState(gated);
-    const prescribed = prescribeReasoningFromState(gated);
-    const candidateIndex = gated.prescriptionRevision?.candidateIndex ?? resolvePrescriptionCandidateIndex(gated);
-    const selectedCandidate = candidateIndex == null ? undefined : prescribed?.formula?.candidates[candidateIndex];
-    const postPrescriptionRisk = [
-      buildLocalHighRiskHerbPairSection(gated, candidateIndex),
-      buildRetainedPrescriptionRiskSection(gated.prescriptionRevision),
-      buildPrescriptionInputAdvisorySection(buildPrescriptionInputAdvisories(gated, candidateIndex)),
-    ].filter(Boolean).join("\n\n");
-    const assessed = withSafetyGate({ ...gated, riskAssessment: postPrescriptionRisk, safetyLocked: deriveSafetyLocked(gated) });
-    await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate);
+    await authorFollowupFromPrescribeHandoff(
+      requestCaseState,
+      reasoning as unknown as CaseState["reasoningPrescribe"],
+      stripDiagnosisJSON(finalPrescribeContent).replace(/\[TRUNCATED\]/g, "").trim(),
+    );
   })().catch(() => undefined);
+}
+
+/**
+ * M04 首轮流 → M05 预取（2026-09-28）。上面的签名后预取要等 M04 整段结束（约 13s）才开始作文（约 4s），
+ * 前端/调用方 M04 一结束就调 M05 时仍要等 3–4s。而作文的全部 M04 依赖——选中候选的药味与剂数（剂数
+ * 决定首次复诊时间）——在首轮流的 `candidate` 对象闭合时（本机 65 例中位约在输出的 49% 处，距 M04 结束
+ * 约 6s）就已写定。这里在那一刻按同一条 assess 管线把作文算一遍：
+ *  · 药味按模型原文；首次复诊时间由服务端同一个确定性函数（applyDeterministicFollowUpNode）从剂数算出；
+ *  · 只进作文缓存（键 = 实际下发给模型的用户消息）。终稿与原文不一致（被修复轮改过药、药名被规范化、
+ *    处方正文带强提示改写了首次复诊时间）时只是不命中，签名后预取照常再算一次，结果不会拿错。
+ * 本机 65 例基线：未修复的 26 例 M04 里 24 例原文药味与终稿逐字相同。
+ * `CDSS_M05_DRAFT_PREFETCH=false` 单独关闭（`CDSS_M05_PREFETCH=false` 连同签名后预取一起关）。
+ */
+export function prefetchAssessFollowupFromDraftCandidate(requestCaseState: CaseState, rawCandidate: Record<string, unknown>): Promise<void> {
+  if (process.env.CDSS_M05_PREFETCH === "false" || process.env.CDSS_M05_DRAFT_PREFETCH === "false") return Promise.resolve();
+  return (async () => {
+    if (!diagnoseReasoningFromState(requestCaseState)) return;
+    const draft = {
+      schemaVersion: "tcm-cdss-reasoning-v2",
+      stage: "prescribe",
+      formula: { candidates: [rawCandidate], patentAndWestern: [], modifications: [] },
+    };
+    const withFollowUp = extractDiagnosisJSON(applyDeterministicFollowUpNode(
+      `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(draft)}\n<!-- DIAGNOSIS_JSON_END -->`,
+    ));
+    if (!withFollowUp) return;
+    await authorFollowupFromPrescribeHandoff(requestCaseState, withFollowUp as unknown as CaseState["reasoningPrescribe"], "");
+  })().catch(() => undefined);
+}
+
+/** 与 assess/route.ts 同序同参：事实回补 → 安全门 → 选中候选 → 本地处方核对三段 → 作文（只写作文缓存）。 */
+async function authorFollowupFromPrescribeHandoff(
+  requestCaseState: CaseState,
+  reasoningPrescribe: CaseState["reasoningPrescribe"],
+  prescriptionText: string,
+): Promise<void> {
+  const handoff: CaseState = {
+    ...requestCaseState,
+    prescription: prescriptionText,
+    reasoningPrescribe,
+    reasoningV2: mergeReasoningStages(diagnoseReasoningFromState(requestCaseState), reasoningPrescribe) || requestCaseState.reasoningV2,
+    riskAssessment: undefined,
+    followupTimeline: undefined,
+    safetyLocked: false,
+    phase: "assess",
+  };
+  const caseState = await maybeAttachClinicalFactsBackstop(handoff, undefined, undefined);
+  const gated = withSafetyGate(caseState);
+  const diagnoseReasoning = diagnoseReasoningFromState(gated);
+  const prescribed = prescribeReasoningFromState(gated);
+  const candidateIndex = gated.prescriptionRevision?.candidateIndex ?? resolvePrescriptionCandidateIndex(gated);
+  const selectedCandidate = candidateIndex == null ? undefined : prescribed?.formula?.candidates[candidateIndex];
+  const postPrescriptionRisk = [
+    buildLocalHighRiskHerbPairSection(gated, candidateIndex),
+    buildRetainedPrescriptionRiskSection(gated.prescriptionRevision),
+    buildPrescriptionInputAdvisorySection(buildPrescriptionInputAdvisories(gated, candidateIndex)),
+  ].filter(Boolean).join("\n\n");
+  const assessed = withSafetyGate({ ...gated, riskAssessment: postPrescriptionRisk, safetyLocked: deriveSafetyLocked(gated) });
+  await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate);
 }

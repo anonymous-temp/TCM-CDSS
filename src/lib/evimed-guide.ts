@@ -387,10 +387,30 @@ function extractPrescriptionTerms(caseState: CaseState): string {
   return matches;
 }
 
+/**
+ * 病例叙述里对检索没有主题价值、却会占掉 200 字检索预算的片段：就诊/出生日期、年份、年龄性别起首、
+ * 病历样板词（2026-09-28）。9/27 抓到的检索词以「女性，93岁。于1993年8月13日初诊。」开头，
+ * 真正的临床问题被截在 200 字之外。只删这些闭集片段，症状描述逐字保留。
+ */
+const RETRIEVAL_NOISE = [
+  /(?:出生日期|就诊时间|就诊日期|初诊日期|节气)\s*[:：]\s*[^\s，,。；;]{1,24}/g,
+  /(?:于|在)?\s*\d{4}\s*[-/.年]\s*\d{1,2}\s*[-/.月]\s*\d{1,2}\s*日?(?:初诊|复诊|就诊|来诊|入院)?/g,
+  /(?:于|在)?\s*\d{4}\s*年(?:\s*\d{1,2}\s*月)?/g,
+  /(?:^|[，,。；;\s])(?:男|女)(?:性)?\s*[，,]\s*\d{1,3}\s*岁[。，,；;]?/g,
+  /\d{1,3}\s*岁/g,
+  /(?:病史摘要|病人xx|患者xx|病历摘要)/gi,
+];
+
+function stripRetrievalNoise(text: string): string {
+  let out = text;
+  for (const pattern of RETRIEVAL_NOISE) out = out.replace(pattern, " ");
+  return out.replace(/\s*([，,。；;])\s*(?=[，,。；;])/g, "").replace(/\s+/g, " ").replace(/^[\s，,。；;]+/, "").trim();
+}
+
 function evidenceSymptomTerms(caseState: CaseState): string {
   const hisFields = caseState.hisRecord?.fields;
   const symptomRecord = caseState.symptoms && typeof caseState.symptoms === "object" ? caseState.symptoms : {};
-  return [
+  return stripRetrievalNoise([
     hisFields?.zhushu || caseState.chiefComplaint,
     hisFields?.xianbingshi || stringifyClinicalValue(symptomRecord.presentHistory),
     hisFields?.tcmDetail || stringifyClinicalValue(symptomRecord.tcmDetail),
@@ -398,7 +418,72 @@ function evidenceSymptomTerms(caseState: CaseState): string {
     hisFields?.tcmPulse || caseState.pulse,
     caseState.diagnosis?.match(/现代医学风险\/需排除方向[\s\S]{0,240}/)?.[0],
     caseState.diagnosis?.match(/中医证候诊断[\s\S]{0,220}/)?.[0],
-  ].filter(Boolean).join(" ");
+  ].filter(Boolean).join(" "));
+}
+
+/**
+ * 已签名 M03 结论里的检索主题词（2026-09-28）。M04/M05 检索此前只拿病例原文拼查询（再截到 200 字），
+ * 已签名的西医诊断、中医病名、证候、锁定方剂一个都不用——而它们正是指南与文献检索该用的主题。
+ * 研究依据：TrialGPT（Nat Commun 2024）以原始病历作查询 recall@500 50%，改用生成的关键词 83–86%；
+ * Cochrane Handbook 第 4 章按病症/人群 + 干预组织检索词。只取短名词，括注、定性词（待查/考虑）去掉；
+ * 「病因待查」这类不是主题的诊断不用。没有签名 M03（M03 阶段本身）时返回 undefined。
+ */
+export function signedDiagnosisEvidenceTopics(caseState: CaseState): {
+  western?: string;
+  tcmDisease?: string;
+  syndrome?: string;
+  formula?: string;
+  therapy?: string;
+} | undefined {
+  const reasoning = diagnoseReasoningFromState(caseState);
+  if (!reasoning) return undefined;
+  const term = (value: unknown, max: number): string | undefined => {
+    if (typeof value !== "string") return undefined;
+    const cleaned = value
+      .replace(/[（(][^）)]*[）)]/g, "")
+      .replace(/(?:待查|待排除?|可能性?大?|考虑|疑似|倾向)/g, "")
+      .split(/[，,；;、。\s]/)[0]
+      .trim();
+    if (!cleaned || cleaned.length < 2 || /^(?:病因|原因不明|不明原因|未明|未定)/.test(cleaned)) return undefined;
+    return cleaned.slice(0, max);
+  };
+  const topics = {
+    western: term(reasoning.westernDiagnosis?.primary?.name, 20),
+    tcmDisease: term(reasoning.overview?.tcmDiseaseName, 12),
+    syndrome: term(reasoning.overview?.primarySyndrome, 14),
+    formula: term(reasoning.overview?.recommendedFormulaNames?.[0], 12),
+    therapy: term(reasoning.therapy?.overallMethod || reasoning.overview?.overallTherapy, 12),
+  };
+  return topics.western || topics.tcmDisease || topics.syndrome ? topics : undefined;
+}
+
+/**
+ * M04/M05 阶段按已签名结论组织的短检索词，按临床优先级排列；首个有结果的被采用，原病例叙述查询垫底。
+ * 说明书检索按药名，不在此列。
+ */
+export function buildSignedTopicEvidenceQueries(
+  caseState: CaseState,
+  stage: "diagnose" | "prescribe" | "assess",
+  kind: EvidenceSourceKind,
+): string[] {
+  if (stage === "diagnose" || kind === "instruction" || process.env.CDSS_EVIDENCE_TOPIC_QUERIES === "false") return [];
+  const topics = signedDiagnosisEvidenceTopics(caseState);
+  if (!topics) return [];
+  const explicitNames = evidenceQueryExplicitNames(caseState);
+  const disease = topics.western || topics.tcmDisease;
+  const tcm = [topics.tcmDisease, topics.syndrome].filter(Boolean).join(" ");
+  const intervention = topics.formula || topics.therapy;
+  const queries = kind === "guide"
+    ? stage === "assess"
+      ? [disease && `${disease} 随访 管理 指南`, tcm && `${tcm} 中医 调护`]
+      : [topics.western && `${topics.western} 诊疗指南 专家共识`, tcm && `${tcm} 中医诊疗指南 专家共识`]
+    : stage === "assess"
+      ? [disease && `${disease} 安全性 不良反应`]
+      : [disease && intervention && `${disease} ${intervention} 临床研究`, tcm && `${tcm} 中医药 临床研究`];
+  return [...new Set(queries
+    .filter((query): query is string => typeof query === "string" && Boolean(query.trim()))
+    .map((query) => scrubQuery(query, explicitNames))
+    .filter(Boolean))];
 }
 
 function evidenceQuerySuffix(caseState: CaseState, stage: "diagnose" | "prescribe" | "assess", kind: EvidenceSourceKind): string {
@@ -733,7 +818,39 @@ async function buildSingleEvidenceSection(
     .filter((candidate) => candidate !== query).slice(0, 2);
   let result: GuideEvidenceResult | undefined;
   let usedQuery = query;
-  if (stage === "diagnose" && kind !== "instruction" && problemQueries.length) {
+  const topicQueries = buildSignedTopicEvidenceQueries(caseState, stage, kind).filter((candidate) => candidate !== query);
+  if (topicQueries.length > 0) {
+    // 与 M03 阶段同一套有界扇出：签名主题词按优先级在前，原叙述查询垫底；先到先用、其余取消。
+    const unused = new AbortController();
+    const querySignal = signal ? AbortSignal.any([unused.signal, signal]) : unused.signal;
+    const ordered = [...topicQueries, query];
+    const pending = ordered.map((candidate) => fetchExternalEvidence(kind, candidate, { ...options, signal: querySignal }));
+    const relevanceFilterOn = process.env.CDSS_EVIDENCE_RELEVANCE_FILTER !== "false";
+    try {
+      // 首个「过了本例相关性过滤后仍有条目」的查询胜出：只看有没有返回会让一个全被过滤掉的结果
+      // 挡住后面本可用的查询（9/28 对照：整页无证据 23→34 例即此）。都过不了时退回首个有返回的结果，
+      // 由下面同一道过滤决定是否整段不出。
+      let firstResult: GuideEvidenceResult | undefined;
+      let firstNonEmpty: { result: GuideEvidenceResult; query: string } | undefined;
+      let chosen: { result: GuideEvidenceResult; query: string } | undefined;
+      for (const [index, attempt] of pending.entries()) {
+        const candidate = await attempt;
+        firstResult ??= candidate;
+        if (!candidate.ok || candidate.list.length === 0) continue;
+        firstNonEmpty ??= { result: candidate, query: ordered[index] };
+        const relevant = relevanceFilterOn ? evidenceItemsRelevantToCase(candidate.list, caseState) : undefined;
+        if (!relevant || relevant.size > 0) {
+          chosen = { result: candidate, query: ordered[index] };
+          break;
+        }
+      }
+      chosen ??= firstNonEmpty;
+      result = chosen?.result ?? firstResult;
+      usedQuery = chosen?.query ?? query;
+    } finally {
+      unused.abort();
+    }
+  } else if (stage === "diagnose" && kind !== "instruction" && problemQueries.length) {
     const unused = new AbortController();
     const querySignal = signal ? AbortSignal.any([unused.signal, signal]) : unused.signal;
     // Start the same bounded fan-out, consume by clinical priority instead of waiting for all.
@@ -757,6 +874,7 @@ async function buildSingleEvidenceSection(
   } else {
     result = await fetchExternalEvidence(kind, query, { ...options, signal });
   }
+  if (!result) result = await fetchExternalEvidence(kind, query, { ...options, signal });
   const shouldTryProblemFallback = kind !== "instruction" && stage !== "diagnose" &&
     result.ok && result.reason === "no_hits";
   if (shouldTryProblemFallback) {

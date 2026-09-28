@@ -158,6 +158,26 @@ function fieldTail(object: string, wanted: string): string | undefined {
 }
 
 /** A complete first candidate can be read before its containing array or later nonPharma closes. */
+/**
+ * M04 首轮流里 `candidate` 对象一闭合就返回它（与下面的只读预览同一套判据）。只给服务端预取用：
+ * 候选方的药味与剂数在全文约一半处已定，随访作文可以提前开始（stage-prefetch.server.ts）。
+ * 返回的是模型原文，未经任何校验，只能用于「按模型输入逐字比对命中」的缓存预热，绝不能进任何出口。
+ */
+export function completedM04ProposalCandidate(partial: string): Record<string, unknown> | undefined {
+  const start = partial.indexOf("{");
+  if (start < 0) return undefined;
+  const candidateTail = fieldTail(partial.slice(start), "candidate");
+  if (!candidateTail) return undefined;
+  const candidateJson = completedTopLevelValueJson(`{"candidate":${candidateTail}`, "candidate");
+  if (!candidateJson) return undefined;
+  try {
+    const candidate = record(JSON.parse(candidateJson));
+    return candidate && Array.isArray(candidate.herbs) && candidate.herbs.length > 0 ? candidate : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function newM04ModuleDraftFrames(partial: string, emitted: Set<string>): StreamModuleDraftFrame[] {
   if (emitted.has("m04.candidate")) return [];
   const object = partial.slice(partial.indexOf("{"));

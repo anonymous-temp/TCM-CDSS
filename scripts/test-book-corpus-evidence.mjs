@@ -63,7 +63,7 @@ if (leaked.length) failures.push(`  样例: ${String(leaked[0].text).slice(0, 80
 
 // ── ③ 证据等级：不得压过受治理经典条文 ───────────────────────────────────────
 ok("③ 全部条目 tier=book", rows.every((row) => row.tier === "book"));
-const tierRankLine = source.match(/const tierRank = \{([^}]*)\}/)?.[1] || "";
+const tierRankLine = source.match(/const (?:tierRank|TIER_RANK) = \{([^}]*)\}/)?.[1] || "";
 const bookRank = Number(tierRankLine.match(/book:\s*(\d+)/)?.[1] ?? -1);
 const maxGoverned = Math.max(
   Number(tierRankLine.match(/canon:\s*(\d+)/)?.[1] ?? 0),

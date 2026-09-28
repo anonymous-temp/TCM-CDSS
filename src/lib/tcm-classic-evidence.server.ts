@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import formulaAliasesJson from "../data/tcm-formula-aliases.json" with { type: "json" };
 
 export type ClassicFormulaEvidence = {
@@ -10,7 +11,7 @@ export type ClassicFormulaEvidence = {
   tier: "canon" | "common" | "experience" | "book";
 };
 
-type ClassicEvidenceRecord = {
+export type ClassicEvidenceRecord = {
   evidenceId: string;
   sourceName?: string;
   module?: string;
@@ -30,7 +31,7 @@ for (const entry of formulaAliasesJson.entries) {
   for (const alias of entry.aliases) aliasToCanonical.set(alias, entry.canonical);
 }
 
-function normalizedFormulaName(value: string): string {
+export function normalizedFormulaName(value: string): string {
   const compact = value
     .replace(/[（(]?\s*《[^》]+》\s*[）)]?/g, "")
     .replace(/(?:加减|化裁|加味)方?$/g, "")
@@ -39,7 +40,7 @@ function normalizedFormulaName(value: string): string {
   return aliasToCanonical.get(compact) || compact;
 }
 
-const CLASSIC_RUNTIME_DANGEROUS_CONTENT =
+export const CLASSIC_RUNTIME_DANGEROUS_CONTENT =
   /童子尿|人尿|生硫磺|服硫磺|拒绝.{0,12}(?:急诊|手术|化疗|放疗)|自行.{0,8}(?:服|用|煎|灸|针)|生附子.{0,30}(?:使用|用到|剂量|钱|克|煎|服)/i;
 /**
  * 药名与「数量+单位」的字面碰撞白名单。
@@ -81,7 +82,7 @@ const CLASSIC_RUNTIME_DOSE_OR_OPERATION =
     "gi",
   );
 
-function sanitizeClassicRuntimeExcerpt(value: string): string {
+export function sanitizeClassicRuntimeExcerpt(value: string): string {
   return value
     .replace(CLASSIC_RUNTIME_DOSE_OR_OPERATION, "[具体剂量或操作已隔离]")
     .replace(/\s+/g, " ")
@@ -89,120 +90,82 @@ function sanitizeClassicRuntimeExcerpt(value: string): string {
     .slice(0, 320);
 }
 
-let fullClassicEvidenceRecords: ClassicEvidenceRecord[] | undefined;
+/**
+ * 运行期只读**构建期派生的紧凑索引**（2026-09-28）：`src/data/tcm-classic-evidence-formula-index.json`，
+ * 由 scripts/build-classic-evidence-index.mjs 从三份古籍语料生成。
+ *
+ * 为什么不再运行期读原始语料：
+ *  · 生产 standalone 构建里「new URL(数据相对路径, import.meta.url)」被 webpack 改写成资产相对 URL，
+ *    fs 读不到、catch 后静默为 0 条——9/27 实测麻黄汤 jiti 下 12 条、生产 0 条，「原典出处」线上一直是空的；
+ *  · 即使路径读得到，tcmoc 语料 347MB，整份 JSON.parse 进内存会把 2GiB 容器顶爆。
+ * 运行期真正用到的只是「safetyClass=standard、带方名、不含危险内容」记录里每个方名排序靠前的一小段，
+ * 所以构建期把这部分算好：每个规范方名保留排序前 CLASSIC_INDEX_PER_FORMULA 条（排序键与运行期同一个），
+ * 摘录按同一个 sanitizeClassicRuntimeExcerpt 预先隔离剂量。约 10MB，按 process.cwd()/src/data 读取
+ * （standalone 的 server.js 先 chdir 到自身目录，Next 文件追踪把 src/data 整目录带进镜像；同 modern-case-exemplars）。
+ * 原始语料在 next.config.ts 里排除出镜像。
+ */
+export const CLASSIC_INDEX_PER_FORMULA = 24;
+export const CLASSIC_INDEX_FILE = "tcm-classic-evidence-formula-index.json";
 
-// 每个语料必须写成**独立的字面量** `new URL("字面路径", import.meta.url)`。
-// 不要改回「路径数组 + 循环里 new URL(变量)」的写法：Turbopack 只能静态求值字面量实参，
-// 循环变量它追不到，于是整个循环体被编译成**同一个**资源常量 `e.R(85552)`。
-// 实测后果（next build standalone，dev 下完全正常所以极难发现）：
-//   · 292MB 的 tcmoc 语料被打包进镜像却从未被读取——146,407 条古籍证据线上全部失效；
-//   · 44MB 旧语料被读两遍，55,127 条记录在内存里翻倍，医生看到的引用成对重复，
-//     top-12 排序实际只剩 6 条不同证据。
-// 这类失效不会报错、不会降级，只会安静地少一半证据，因此这里的写法本身就是防线，
-// 由 scripts/test-classic-evidence-bundling.mjs 钉死。
-const CLASSIC_EVIDENCE_SOURCE_NAMES = [
-  "tcm-classic-text-evidence.jsonl",
-  "tcm-classic-text-evidence-tcmoc.jsonl",
-  // 书籍语料补充（2026-08-09）。构建期已过三层筛选：对上面两个语料去重（只留 dup<0.1 的
-  // 真新增）、危险内容确定性硬拦、逐条噪声判定；且只保留命中受治理方名的条目
-  // （运行期按方名键控，无方名的条目本就永远查不到）。生成器见
-  // scripts/build-tcm-book-corpus-evidence.mjs。
-  "tcm-classic-text-evidence-books.jsonl",
-] as const;
+export type ClassicEvidenceIndexRecord = {
+  evidenceId: string;
+  citation: string;
+  anchorLevel: ClassicEvidenceRecord["anchorLevel"];
+  clauseNumber?: number;
+  chapter?: string;
+  tier: ClassicEvidenceRecord["tier"];
+  excerpt: string;
+  source: string;
+  /** 规范方名（运行期合查时判断章节题名交叉记录是否与查询方名相交）。 */
+  formulaNames: string[];
+};
 
-/** 每个语料实际加载到的条数；语料缺失是允许的（可选语料），但必须可观测。 */
-const classicEvidenceLoadCounts = new Map<string, number>();
+export type ClassicEvidenceIndex = {
+  schemaVersion: "tcm-classic-evidence-formula-index-v1";
+  perFormulaLimit: number;
+  sources: { name: string; bytes: number; sha256: string; records: number; eligible: number }[];
+  records: ClassicEvidenceIndexRecord[];
+  byFormula: Record<string, number[]>;
+  /** 章节以该方名为题、方名字段却不含该方名的记录（全部保留，见构建脚本）。 */
+  crossTitled: Record<string, number[]>;
+};
 
-function appendClassicEvidenceRows(records: ClassicEvidenceRecord[], raw: string): number {
-  let loaded = 0;
-  for (const line of raw.split("\n")) {
-    if (!line.trim()) continue;
-    records.push(JSON.parse(line) as ClassicEvidenceRecord);
-    loaded += 1;
-  }
-  return loaded;
-}
-
-function loadFullClassicEvidenceRecords(): ClassicEvidenceRecord[] {
-  if (fullClassicEvidenceRecords) return fullClassicEvidenceRecords;
-  const records: ClassicEvidenceRecord[] = [];
-
-  // Keep each readFileSync call fully literal. Passing a literal URL through an array/loop still
-  // makes the fs call dynamic to Turbopack/NFT and broadens the trace to the whole project.
-  try {
-    const raw = readFileSync(
-      new URL("../data/tcm-classic-text-evidence.jsonl", import.meta.url),
-      "utf8",
-    );
-    classicEvidenceLoadCounts.set(
-      "tcm-classic-text-evidence.jsonl",
-      appendClassicEvidenceRows(records, raw),
-    );
-  } catch {
-    classicEvidenceLoadCounts.set("tcm-classic-text-evidence.jsonl", 0);
-  }
-  try {
-    const raw = readFileSync(
-      new URL("../data/tcm-classic-text-evidence-tcmoc.jsonl", import.meta.url),
-      "utf8",
-    );
-    classicEvidenceLoadCounts.set(
-      "tcm-classic-text-evidence-tcmoc.jsonl",
-      appendClassicEvidenceRows(records, raw),
-    );
-  } catch {
-    classicEvidenceLoadCounts.set("tcm-classic-text-evidence-tcmoc.jsonl", 0);
-  }
-  try {
-    const raw = readFileSync(
-      new URL("../data/tcm-classic-text-evidence-books.jsonl", import.meta.url),
-      "utf8",
-    );
-    classicEvidenceLoadCounts.set(
-      "tcm-classic-text-evidence-books.jsonl",
-      appendClassicEvidenceRows(records, raw),
-    );
-  } catch {
-    classicEvidenceLoadCounts.set("tcm-classic-text-evidence-books.jsonl", 0);
-  }
-  fullClassicEvidenceRecords = records;
-  return fullClassicEvidenceRecords;
-}
+const TIER_RANK = { canon: 0, common: 1, experience: 2, book: 3 } as const;
+const ANCHOR_RANK = { tiaowen: 0, chapter_paragraph: 1, page_paragraph: 2 } as const;
 
 /**
- * 逐语料加载条数，供健康检查与部署核对。
- * 任一语料为 0 都意味着该部署缺证据——不阻断流程（语料可选），但必须看得见。
+ * 排序键（运行期、构建期、全量对照三处共用）：以方名为题的章节条目在前（《医方集解》·归脾汤），
+ * 然后 canon < common < experience < book（书籍语料是补充来源，任何时候不得压过受治理经典条文），
+ * 再按锚点精度与证据 ID。
  */
-export function classicEvidenceCorpusStatus(): { name: string; records: number }[] {
-  loadFullClassicEvidenceRecords();
-  return CLASSIC_EVIDENCE_SOURCE_NAMES.map((name) => ({
-    name,
-    records: classicEvidenceLoadCounts.get(name) || 0,
-  }));
+export function compareClassicEvidence(
+  names: ReadonlySet<string>,
+  left: { chapter?: string; tier: ClassicEvidenceRecord["tier"]; anchorLevel: ClassicEvidenceRecord["anchorLevel"]; evidenceId: string },
+  right: { chapter?: string; tier: ClassicEvidenceRecord["tier"]; anchorLevel: ClassicEvidenceRecord["anchorLevel"]; evidenceId: string },
+): number {
+  const titled = (record: { chapter?: string }) =>
+    Number(record.chapter != null && [...names].some((name) => String(record.chapter).includes(name)));
+  return titled(right) - titled(left) ||
+    TIER_RANK[left.tier] - TIER_RANK[right.tier] ||
+    ANCHOR_RANK[left.anchorLevel] - ANCHOR_RANK[right.anchorLevel] ||
+    left.evidenceId.localeCompare(right.evidenceId);
 }
 
-/** T15 runtime lookup scans every safe/restricted source record; no compact sample index is used. */
-export function classicEvidenceForFormulaNames(formulaNames: string[]): ClassicFormulaEvidence[] {
+/** 运行期可用的原始语料记录（构建期与全量对照共用的同一道门）。 */
+export function isRuntimeEligibleClassicRecord(record: ClassicEvidenceRecord): boolean {
+  return record.safetyClass === "standard" &&
+    Array.isArray(record.formulas) && record.formulas.length > 0 &&
+    !CLASSIC_RUNTIME_DANGEROUS_CONTENT.test(record.text);
+}
+
+/** 旧的全量扫描算法，只给构建期派生与对照测试用（运行期不再读原始语料）。 */
+export function classicEvidenceFromFullRecords(records: readonly ClassicEvidenceRecord[], formulaNames: string[]): ClassicFormulaEvidence[] {
   const names = new Set(formulaNames.map(normalizedFormulaName).filter(Boolean));
   if (names.size === 0) return [];
-  const records = loadFullClassicEvidenceRecords();
-  const anchorRank = { tiaowen: 0, chapter_paragraph: 1, page_paragraph: 2 } as const;
-  // book 排在最后：书籍语料是补充来源，任何时候都不得压过受治理经典条文。
-  // 同一张方既有 canon 条文又有 book 条文时，canon 必然先出。
-  const tierRank = { canon: 0, common: 1, experience: 2, book: 3 } as const;
   return records
-    .filter((record) =>
-      record.safetyClass === "standard" &&
-      record.formulas.some((formula) => names.has(normalizedFormulaName(formula))) &&
-      !CLASSIC_RUNTIME_DANGEROUS_CONTENT.test(record.text))
-    .sort((left, right) =>
-      // A chapter/section titled after the formula itself (《医方集解》·归脾汤) is the formula's
-      // own entry and outranks tangential mentions elsewhere in the corpus.
-      Number(right.chapter != null && [...names].some((name) => String(right.chapter).includes(name))) -
-        Number(left.chapter != null && [...names].some((name) => String(left.chapter).includes(name)) || 0) ||
-      tierRank[left.tier] - tierRank[right.tier] ||
-      anchorRank[left.anchorLevel] - anchorRank[right.anchorLevel] ||
-      left.evidenceId.localeCompare(right.evidenceId))
+    .filter((record) => isRuntimeEligibleClassicRecord(record) &&
+      record.formulas.some((formula) => names.has(normalizedFormulaName(formula))))
+    .sort((left, right) => compareClassicEvidence(names, left, right))
     .slice(0, 12)
     .map((record) => ({
       evidenceId: record.evidenceId,
@@ -210,6 +173,79 @@ export function classicEvidenceForFormulaNames(formulaNames: string[]): ClassicF
       anchorLevel: record.anchorLevel,
       ...(record.clauseNumber ? { clauseNumber: record.clauseNumber } : {}),
       excerpt: sanitizeClassicRuntimeExcerpt(record.text),
+      tier: record.tier,
+    }));
+}
+
+let classicEvidenceIndex: ClassicEvidenceIndex | null | undefined;
+
+function loadClassicEvidenceIndex(): ClassicEvidenceIndex | null {
+  if (classicEvidenceIndex !== undefined) return classicEvidenceIndex;
+  try {
+    classicEvidenceIndex = JSON.parse(
+      readFileSync(path.join(process.cwd(), "src", "data", CLASSIC_INDEX_FILE), "utf8"),
+    ) as ClassicEvidenceIndex;
+  } catch (error) {
+    // 缺索引允许（证据可选），但必须看得见：健康检查报 0 条，日志留一行。
+    console.warn("[tcm-cdss:knowledge] classic evidence index unavailable", {
+      reason: error instanceof Error ? error.message.slice(0, 120) : "unknown",
+    });
+    classicEvidenceIndex = null;
+  }
+  return classicEvidenceIndex;
+}
+
+/**
+ * 逐语料进入索引的条数，供健康检查与部署核对。
+ * 任一语料为 0 都意味着该部署缺证据——不阻断流程（语料可选），但必须看得见。
+ */
+export function classicEvidenceCorpusStatus(): { name: string; records: number; indexed: number }[] {
+  const index = loadClassicEvidenceIndex();
+  const counts = new Map<string, number>();
+  for (const record of index?.records || []) counts.set(record.source, (counts.get(record.source) || 0) + 1);
+  // records = 索引构建时读到的原始语料条数（语料是否完整进入索引）；indexed = 实际保留进索引的条数。
+  return CLASSIC_EVIDENCE_SOURCE_NAMES.map((name) => ({
+    name,
+    records: index?.sources.find((source) => source.name === name)?.records || 0,
+    indexed: counts.get(name) || 0,
+  }));
+}
+
+export const CLASSIC_EVIDENCE_SOURCE_NAMES = [
+  "tcm-classic-text-evidence.jsonl",
+  "tcm-classic-text-evidence-tcmoc.jsonl",
+  // 书籍语料补充（2026-08-09）：构建期已对上面两个语料去重、危险内容硬拦、逐条噪声判定，且只保留命中受治理方名的条目。
+  "tcm-classic-text-evidence-books.jsonl",
+] as const;
+
+/**
+ * T15 运行期查找：取查询方名各自的索引候选（每名前 CLASSIC_INDEX_PER_FORMULA 条），并集后用与全量扫描
+ * 同一个排序键重排、取前 12。单方名查询与全量扫描逐条相同；多方名时并集覆盖各方前 24 条，
+ * 只有「某条在自己方名下排 24 名之后、却因章节题名含另一个查询方名而进前 12」才会不同——test:classic-evidence-index
+ * 用真实语料对照钉住。
+ */
+export function classicEvidenceForFormulaNames(formulaNames: string[]): ClassicFormulaEvidence[] {
+  const names = new Set(formulaNames.map(normalizedFormulaName).filter(Boolean));
+  if (names.size === 0) return [];
+  const index = loadClassicEvidenceIndex();
+  if (!index) return [];
+  const positions = new Set<number>();
+  for (const name of names) for (const position of index.byFormula[name] || []) positions.add(position);
+  if (names.size > 1) {
+    for (const name of names) for (const position of index.crossTitled?.[name] || []) positions.add(position);
+  }
+  return [...positions]
+    .map((position) => index.records[position])
+    .filter((record): record is ClassicEvidenceIndexRecord => Boolean(record) &&
+      record.formulaNames.some((formulaName) => names.has(formulaName)))
+    .sort((left, right) => compareClassicEvidence(names, left, right))
+    .slice(0, 12)
+    .map((record) => ({
+      evidenceId: record.evidenceId,
+      citation: record.citation,
+      anchorLevel: record.anchorLevel,
+      ...(record.clauseNumber ? { clauseNumber: record.clauseNumber } : {}),
+      excerpt: record.excerpt,
       tier: record.tier,
     }));
 }

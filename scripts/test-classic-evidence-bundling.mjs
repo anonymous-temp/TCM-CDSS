@@ -1,105 +1,88 @@
 /**
- * 古籍证据语料的**打包可达性**测试。
+ * 古籍证据的**生产可达性**测试（2026-09-28 重写）。
  *
- * 为什么需要一个专门测试源码写法：这类失效在 `npm run dev` 下完全看不见。
- * Turbopack 只对**字面量**实参的 `new URL("...", import.meta.url)` 建立资源引用；
- * 写成「路径数组 + 循环里 new URL(变量)」时它追不到循环变量，整个循环体被编译成
- * 同一个资源常量。实测（本仓 next build standalone，修复前）：
- *   · 编译产物里 `e.R(...)` 全篇只出现一次，常量指向 44MB 旧语料；
- *   · 292MB 的 tcmoc 语料被打包进镜像却无任何代码引用 → 146,407 条证据线上全部失效；
- *   · 旧语料被循环读了两遍 → 55,127 条记录内存翻倍，医生看到成对重复的引用。
- * 加载器对缺文件是静默 catch（语料本就可选），所以线上不会报错、不会降级，只会安静地少一半证据。
- *
- * 因此这里断言的是**源码形状**（dev/prod 都能跑），并在存在构建产物时顺带校验产物。
+ * 历史：运行期曾用 `readFileSync(new URL("../data/x.jsonl", import.meta.url))` 直读三份原始语料。
+ * dev/jiti 下正常；生产 standalone（webpack）把它改写成资产相对 URL，fs 读不到、catch 后静默 0 条——
+ * 9/27 实测麻黄汤 jiti 12 条、生产 0 条，「原典出处」线上一直是空的。即使读得到，tcmoc 语料 347MB，
+ * 整份解析会顶爆 2GiB 容器。现在运行期只读构建期派生的紧凑索引（process.cwd()/src/data），
+ * 原始语料排除出镜像。这里钉住：①运行期不再碰原始语料；②索引与当前语料同步；③索引查询与全量扫描逐条一致；
+ * ④ 原始语料不进镜像。
  */
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { createInterface } from "node:readline";
 
-const sourcePath = new URL("../src/lib/tcm-classic-evidence.server.ts", import.meta.url);
-const source = readFileSync(sourcePath, "utf8");
-
+// 只看代码，不看注释（注释里保留了历史写法的说明）。
+const source = readFileSync(new URL("../src/lib/tcm-classic-evidence.server.ts", import.meta.url), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/^\s*\/\/.*$/gm, "");
 const CORPUS_FILES = [
-  "../data/tcm-classic-text-evidence.jsonl",
-  "../data/tcm-classic-text-evidence-tcmoc.jsonl",
-  // 书籍语料补充（2026-08-09）。新增语料必须同样写成独立字面量 URL——
-  // 这正是本套件存在的原因：循环变量写法会让 Turbopack 把整个循环体编译成同一个资源常量，
-  // 结果是语料进了镜像却从未被读取，且不报错、不降级，只安静地少一批证据。
-  "../data/tcm-classic-text-evidence-books.jsonl",
+  "tcm-classic-text-evidence.jsonl",
+  "tcm-classic-text-evidence-tcmoc.jsonl",
+  "tcm-classic-text-evidence-books.jsonl",
 ];
 
-// ① 每个语料的 readFileSync 必须直接包住字面量 URL。仅在数组里构造字面量 URL、再把
-// source.url 传给 readFileSync，仍会让 Turbopack/NFT 把 fs 模式扩成整个项目。
+// ① 运行期只读索引，且按 process.cwd() 拼路径（不得再用 import.meta.url 资源引用）。
+assert.match(source, /readFileSync\(\s*path\.join\(process\.cwd\(\), "src", "data", CLASSIC_INDEX_FILE\)/,
+  "运行期必须按 process.cwd()/src/data 读紧凑索引");
+assert.doesNotMatch(source, /import\.meta\.url/, "运行期不得再用 import.meta.url 读数据（生产 standalone 下静默读不到）");
 for (const file of CORPUS_FILES) {
-  const literal = `new URL("${file}", import.meta.url)`;
-  const occurrences = source.split(literal).length - 1;
-  assert.equal(occurrences, 1,
-    `${file} 必须以字面量形式构造 URL 恰好一次（实际 ${occurrences} 次）——` +
-    "写成变量或循环变量会让 Turbopack 只保留一个资源引用，该语料线上永久失效");
-  const escapedLiteral = literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  assert.match(
-    source,
-    new RegExp(`readFileSync\\(\\s*${escapedLiteral}\\s*,\\s*"utf8"\\s*,?\\s*\\)`),
-    `${file} 必须在 readFileSync 调用点直接使用字面量 URL，禁止经 source.url/数组间接传递`,
-  );
+  assert.doesNotMatch(source, new RegExp(`readFileSync\\([^)]*${file.replace(/[.]/g, "\\.")}`),
+    `运行期不得再直读原始语料 ${file}`);
 }
-assert.doesNotMatch(source, /readFileSync\(\s*source\.(?:url|path)/,
-  "Turbopack/NFT 会把 readFileSync(source.url) 追踪成宽泛文件模式");
 
-// ② 不允许任何以标识符（而非字符串字面量）作首参的 URL 构造。这正是回归会长成的样子。
-const variableUrl = /new URL\(\s*(?!["'`])[A-Za-z_$][\w$.]*\s*,\s*import\.meta\.url\s*\)/.exec(source);
-assert.equal(variableUrl, null,
-  `禁止 new URL(变量, import.meta.url)：Turbopack 无法静态求值，会把多个语料折叠成一个。命中：${variableUrl?.[0]}`);
+// ④ 原始语料排除出镜像追踪（运行期不读它们；347MB 进镜像只是负担）。
+const nextConfig = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
+for (const file of CORPUS_FILES) {
+  assert.ok(nextConfig.includes(`"src/data/${file}"`), `next.config.ts 必须把 ${file} 排除出 outputFileTracing`);
+}
+assert.ok(!nextConfig.includes('"src/data/tcm-classic-evidence-formula-index.json"'), "索引本身必须随镜像发布");
 
-// ③ 运行时逐语料条数必须可观测——缺语料是允许的，静默是不允许的。
-const { classicEvidenceCorpusStatus, classicEvidenceForFormulaNames } =
-  await import("../src/lib/tcm-classic-evidence.server.ts");
+const { classicEvidenceCorpusStatus, classicEvidenceForFormulaNames, classicEvidenceFromFullRecords,
+  isRuntimeEligibleClassicRecord, CLASSIC_INDEX_FILE } = await import("../src/lib/tcm-classic-evidence.server.ts");
+const indexUrl = new URL(`../src/data/${CLASSIC_INDEX_FILE}`, import.meta.url);
+assert.ok(existsSync(indexUrl), "紧凑索引必须入库：npm run build:classic-evidence-index");
+const index = JSON.parse(readFileSync(indexUrl, "utf8"));
+
+// ③ 运行期逐语料条数必须可观测（records = 构建时读到的原始条数，indexed = 进索引条数）。
 const status = classicEvidenceCorpusStatus();
-assert.equal(status.length, CORPUS_FILES.length, "每个语料都必须单独上报加载条数");
+assert.equal(status.length, CORPUS_FILES.length, "每个语料都必须单独上报");
 for (const item of status) {
-  assert.ok(typeof item.records === "number", `${item.name} 必须上报条数`);
+  assert.ok(item.records > 0 && item.indexed > 0, `${item.name} 必须真的进入索引（records=${item.records}, indexed=${item.indexed}）`);
 }
+const hits = classicEvidenceForFormulaNames(["归脾汤", "桂枝汤", "银翘散"]);
+assert.ok(hits.some((hit) => /^《.+》/.test(String(hit.citation || ""))), "tcmoc 的《书名》·篇名式 citation 必须到达查询结果");
+assert.equal(classicEvidenceForFormulaNames(["麻黄汤"]).length, 12, "常用经典方应取满 12 条");
 
-// ④ 本机语料齐备时，必须两个语料都真的贡献了记录。
-//    两个语料现已入库；仍按"存在才断言"处理，因为加载器把语料视为可选（缺文件静默 catch），
-//    测试不应比运行时更严，否则精简部署会红在测试而不是红在真正的问题上。
-const present = status.filter((item) =>
-  existsSync(new URL(`../src/data/${item.name}`, import.meta.url)));
-for (const item of present) {
-  assert.ok(item.records > 0,
-    `${item.name} 文件存在却加载到 0 条——加载路径没有指向它（正是打包折叠的表现）`);
-}
-
-// ⑤ 语料齐备时，tcmoc 独有的书名篇名式 citation 必须真的到达查询结果。
-//    旧语料的 citation 全是 pdf-evidence:<hash>#p<n>，只有 tcmoc 是《书名》·篇名。
+// ② 语料在本机齐备（不是 LFS 指针）时：索引与语料逐字节同步，且查询与全量扫描逐条一致。
+const lfsPointer = (file) => readFileSync(new URL(`../src/data/${file}`, import.meta.url), { encoding: "utf8" }).startsWith("version https://git-lfs");
+const present = CORPUS_FILES.filter((file) => existsSync(new URL(`../src/data/${file}`, import.meta.url)) &&
+  statSync(new URL(`../src/data/${file}`, import.meta.url)).size > 1024 && !lfsPointer(file));
 if (present.length === CORPUS_FILES.length) {
-  const hits = classicEvidenceForFormulaNames(["归脾汤", "桂枝汤", "银翘散"]);
-  assert.ok(hits.some((hit) => /^《.+》/.test(String(hit.citation || ""))),
-    "查询结果里必须出现 tcmoc 的《书名》·篇名式 citation，否则该语料没有参与检索");
-}
-
-// ⑥ 若存在构建产物，直接校验编译后的资源引用数——这是唯一能验证真实产物的检查。
-// Turbopack 用 `.R(<asset id>)`，Webpack 则生成 `static/media/<name>.<hash>.jsonl`。
-// 两种都是 Next.js 16 的正式产物形式；闸门必须校验资源可达性，不能绑定某一构建器的内部编号。
-const chunkDir = new URL("../.next/server/chunks/", import.meta.url);
-if (existsSync(chunkDir)) {
-  const chunks = readdirSync(chunkDir)
-    .filter((name) => name.endsWith(".js"))
-    .map((name) => ({ name, text: readFileSync(new URL(name, chunkDir), "utf8") }))
-    .filter((item) => item.text.includes("tcm-classic-text-evidence"));
-  if (chunks.length > 0) {
-    const combined = chunks.map((item) => item.text).join("\n");
-    const webpackAssets = new Set(
-      [...combined.matchAll(/static\/media\/(tcm-classic-text-evidence(?:-tcmoc|-books)?\.[a-z0-9]+\.jsonl)/g)]
-        .map((match) => match[1]),
-    );
-    const turbopackAssetIds = new Set(
-      [...combined.matchAll(/\.R\((\d+)\)/g)].map((match) => match[1]),
-    );
-    const referencedAssetCount = Math.max(webpackAssets.size, turbopackAssetIds.size);
-    assert.ok(referencedAssetCount >= CORPUS_FILES.length,
-      `构建产物只引用了 ${referencedAssetCount} 个语料资源，应为 ${CORPUS_FILES.length} 个——` +
-      `多个语料被折叠成一个（chunks: ${chunks.map((item) => item.name).join(", ")}）`);
+  const records = [];
+  for (const file of CORPUS_FILES) {
+    const url = new URL(`../src/data/${file}`, import.meta.url);
+    const hash = createHash("sha256");
+    for await (const chunk of createReadStream(url)) hash.update(chunk);
+    const recorded = index.sources.find((item) => item.name === file);
+    assert.equal(recorded?.sha256, hash.digest("hex"), `${file} 已变，索引过期：npm run build:classic-evidence-index`);
+    for await (const line of createInterface({ input: createReadStream(url, "utf8"), crlfDelay: Infinity })) {
+      if (!line.trim()) continue;
+      const record = JSON.parse(line);
+      if (isRuntimeEligibleClassicRecord(record)) records.push(record);
+    }
   }
+  const names = Object.keys(index.byFormula);
+  const queries = [
+    ...names.filter((_, position) => position % 7 === 0).map((name) => [name]),
+    ...Array.from({ length: 120 }, (_, i) => [names[(i * 7) % names.length], names[(i * 13 + 5) % names.length]]),
+    ["归脾汤", "酸枣仁汤"], ["麻黄汤"], ["小柴胡汤加减"], ["葛根芩连汤"],
+  ];
+  const mismatched = queries.filter((query) =>
+    JSON.stringify(classicEvidenceFromFullRecords(records, query)) !== JSON.stringify(classicEvidenceForFormulaNames(query)));
+  assert.deepEqual(mismatched, [], "索引查询必须与全量扫描逐条一致");
+  console.log(`[test:classic-evidence-bundling] parity ${queries.length} queries over ${records.length} eligible records`);
 }
 
 // ─── 结构化候选里的经典证据条数必须在 contract 上限之内 ───
@@ -153,6 +136,6 @@ if (present.length === CORPUS_FILES.length) {
 
 console.log(JSON.stringify({
   corpora: status,
-  checkedBuildOutput: existsSync(chunkDir),
+  indexRecords: index.records.length,
   failures: 0,
 }));

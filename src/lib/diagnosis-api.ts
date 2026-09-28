@@ -30,7 +30,7 @@ import { compileM04JsonObjectContent, m04ProposalIssueCode, m04ProposalRegimenSh
 import { applyDeterministicIcd10Coding } from "@/lib/icd10-diagnosis-coding.server";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { newModuleNotices } from "@/lib/diagnosis-stream-modules";
-import { newM03ModuleDraftFrames, newM04ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
+import { completedM04ProposalCandidate, newM03ModuleDraftFrames, newM04ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
 import { mergeParallelM03Halves, parseM03WesternHalf } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
@@ -458,6 +458,11 @@ type StreamSafetyOptions = {
    * 修复轮仍使用完整单发提示词（prompt 参数），并行层不改变任何修复/降级语义。
    */
   m03ParallelHalfPrompts?: { western: string; tcm: string };
+  /**
+   * M04 首轮流里 `candidate` 对象闭合时回调一次（2026-09-28）。只用于服务端预热 M05 随访作文缓存
+   * （缓存按实际模型输入逐字命中，原文与终稿不一致只是不命中）；回调异常被吞掉，不影响本阶段。
+   */
+  onInitialM04Candidate?: (candidate: Record<string, unknown>) => void;
   /**
    * 上游模型服务不可用时的专用降级页(2026-08-04)。修复轮走**非流式**端点,
    * provider 503/超时会让它们整体失败;此前这种情况与「临床证据不足」共用同一句降级文案,
@@ -2583,6 +2588,7 @@ async function callPrimaryTextModelStream(
       const qualityRepairAvailable = (reason: string | undefined): boolean =>
         !reason || !qualityAnnotationCopy(reason);
       let m03WesternHalfPromise: ReturnType<typeof collectM03ParallelWesternHalf> | undefined;
+      let initialM04CandidateReported = false;
       /**
        * 「同一条确定性合同拒绝码只修一次」的账本。
        *
@@ -3076,6 +3082,17 @@ async function callPrimaryTextModelStream(
         } else if (opts.structuredStage === "prescribe") {
           for (const frame of newM04ModuleDraftFrames(partial, emittedM04DraftKeys)) {
             enqueueModuleDraft(frame);
+          }
+          if (opts.onInitialM04Candidate && !initialM04CandidateReported && structuredRetryCount === 0) {
+            const candidate = completedM04ProposalCandidate(partial);
+            if (candidate) {
+              initialM04CandidateReported = true;
+              try {
+                opts.onInitialM04Candidate(candidate);
+              } catch {
+                // 预热是纯增益。
+              }
+            }
           }
         }
       };

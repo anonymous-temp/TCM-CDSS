@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
       "src/data/tcm-modern-case-eval-corpus.json",
       "src/data/tcm-classic-case-eval-corpus.json",
       "src/data/tcm-classic-formula-evidence.json",
+      // 古籍原始语料（合计约 390MB，其中 tcmoc 347MB）：运行期只读构建期派生的
+      // tcm-classic-evidence-formula-index.json（scripts/build-classic-evidence-index.mjs），原始语料不进镜像。
+      "src/data/tcm-classic-text-evidence.jsonl",
+      "src/data/tcm-classic-text-evidence-tcmoc.jsonl",
+      "src/data/tcm-classic-text-evidence-books.jsonl",
     ],
   },
   deploymentId: process.env.NEXT_DEPLOYMENT_ID || process.env.CDSS_RELEASE_ID,

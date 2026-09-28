@@ -36,12 +36,14 @@ const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-type
 const signatures = await jiti.import("../src/lib/reasoning-contract-signature.ts");
 const { maybeAttachClinicalFactsBackstop } = await jiti.import("../src/lib/clinical-facts-runtime.ts");
 const { buildAcceptedPrescriptionMarkdown } = await jiti.import("../src/lib/followup-display-state.ts");
-const { diagnoseReasoningFromState, mergeReasoningStages, stripDiagnosisJSON } = await jiti.import("../src/lib/diagnosis-parse.ts");
+const { diagnoseReasoningFromState, extractDiagnosisJSON, mergeReasoningStages, stripDiagnosisJSON } = await jiti.import("../src/lib/diagnosis-parse.ts");
+const { applyDeterministicFollowUpNode } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const diagnosisSafety = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { deriveSafetyLocked, withSafetyGate } = diagnosisSafety;
 const localChecks = await jiti.import("../src/lib/local-prescription-checks.ts");
 const { resetAuthoredFollowupCache } = await jiti.import("../src/lib/m05-followup-authoring.server.ts");
-const { prefetchAssessFollowupFromSignedPrescribe } = await jiti.import("../src/lib/stage-prefetch.server.ts");
+const { prefetchAssessFollowupFromDraftCandidate, prefetchAssessFollowupFromSignedPrescribe } = await jiti.import("../src/lib/stage-prefetch.server.ts");
+const { completedM04ProposalCandidate } = await jiti.import("../src/lib/diagnosis-stream-module-drafts.ts");
 const { POST: assess } = await jiti.import("../src/app/api/diagnosis/assess/route.ts");
 
 const AUTHORED_LIFESTYLE = "饮食宜清淡易消化，忌生冷油腻；作息规律，避免劳累，保持情志舒畅，适度散步以助运化。";
@@ -67,7 +69,10 @@ async function signedM04Case(herbs = PLAIN_HERBS) {
   const m03 = { ...structuredClone(state.reasoningPrescribe), stage: "diagnose", formula: null, nonPharma: null, clinicalReview: undefined,
     overview: { ...state.reasoningPrescribe.overview, recommendedFormulaNames: [], formulaSelectionMode: "self_devised" } };
   state.reasoningDiagnose = signatures.signDiagnoseReasoning(m03, signatures.buildDiagnoseContractSignatureContext(state));
-  const m04Unsigned = structuredClone(state.reasoningPrescribe);
+  // 首次复诊时间与线上同源：服务端总是用 applyDeterministicFollowUpNode 按剂数重写 followUpNode
+  //（回归夹具原写的「3日后复核」线上不会出现，签名前先按服务端口径归一）。
+  const m04Unsigned = extractDiagnosisJSON(applyDeterministicFollowUpNode(
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(state.reasoningPrescribe)}\n<!-- DIAGNOSIS_JSON_END -->`));
   // M04 请求：客户端只带 M03 交接，不带处方。
   const requestState = await maybeAttachClinicalFactsBackstop(
     { ...state, prescription: "", reasoningPrescribe: undefined, reasoningV2: state.reasoningDiagnose },
@@ -168,6 +173,66 @@ await checkAsync("prefetch is skipped for unsigned/non-dose M04 content and by t
   delete process.env.CDSS_M05_PREFETCH;
   assert.equal(calls.authoring, 0);
 }));
+
+// ── ①b M04 首轮流候选方闭合 → M05 作文预热（2026-09-28）──────────────────────
+// 首轮 JSON 里 candidate 在全文约一半处闭合；那一刻的药味与剂数就是终稿的（未修复时本机 24/26 逐字相同）。
+function draftCandidateFrom(signedM04, overrides = {}) {
+  const candidate = signedM04.formula.candidates[0];
+  return {
+    name: candidate.name,
+    herbs: candidate.herbs.map((herb) => ({ name: herb.name, dose: herb.dose, role: herb.role, function: herb.function })),
+    decoction: { doseCount: candidate.decoction.doseCount, dosesPerDay: candidate.decoction.dosesPerDay, administrationTimesPerDay: candidate.decoction.administrationTimesPerDay },
+    ...overrides,
+  };
+}
+check("the draft extractor returns the candidate only once it has closed in the stream", () => {
+  const candidate = draftCandidateFrom(fixture.signedM04);
+  const full = JSON.stringify({ candidate, patentAndWestern: [], modifications: [], nonPharma: { diet: "清淡" } });
+  const closeAt = full.indexOf(',"patentAndWestern"');
+  assert.equal(completedM04ProposalCandidate(full.slice(0, closeAt - 3)), undefined, "an open candidate is not reported");
+  assert.deepEqual(completedM04ProposalCandidate(full.slice(0, closeAt + 5))?.herbs.map((herb) => herb.name), candidate.herbs.map((herb) => herb.name));
+});
+for (const [fixtureLabel, currentFixture] of [["plain", fixture], ["十八反", incompatibleFixture]]) {
+  for (const [label, shape] of [["frontend", frontendM05State], ["api-caller", apiCallerM05State]]) {
+    await checkAsync(`M04 draft candidate prefetch is consumed by the ${label} M05 request, ${fixtureLabel} (one authoring call in total)`, async () => withCountingModel(async (calls) => {
+      resetAuthoredFollowupCache();
+      await prefetchAssessFollowupFromDraftCandidate(currentFixture.requestState, draftCandidateFrom(currentFixture.signedM04));
+      assert.equal(calls.authoring, 1, "the draft prefetch must author once");
+      await prefetchAssessFollowupFromSignedPrescribe(currentFixture.requestState, currentFixture.finalContent);
+      assert.equal(calls.authoring, 1, "the signed prefetch at M04 end must reuse the draft's authoring (same model input)");
+      const markdown = await assessMarkdown(shape(currentFixture));
+      assert.equal(calls.authoring, 1, `the ${label} M05 request must hit the draft-prefetched authoring`);
+      assert.ok(markdown.includes(AUTHORED_LIFESTYLE));
+    }));
+  }
+}
+await checkAsync("a draft that the final M04 changed is a harmless miss: M05 authors for the final herbs", async () => withCountingModel(async (calls) => {
+  resetAuthoredFollowupCache();
+  const drifted = draftCandidateFrom(fixture.signedM04);
+  drifted.herbs = [...drifted.herbs, { name: "陈皮", dose: "6g", role: "佐", function: "理气健脾" }];
+  await prefetchAssessFollowupFromDraftCandidate(fixture.requestState, drifted);
+  assert.equal(calls.authoring, 1);
+  const markdown = await assessMarkdown(frontendM05State(fixture));
+  assert.equal(calls.authoring, 2, "a different herb list is a different model input, so M05 authors again");
+  assert.ok(markdown.includes(AUTHORED_LIFESTYLE));
+}));
+await checkAsync("the draft prefetch honours both kill switches and needs a signed M03", async () => withCountingModel(async (calls) => {
+  resetAuthoredFollowupCache();
+  process.env.CDSS_M05_DRAFT_PREFETCH = "false";
+  await prefetchAssessFollowupFromDraftCandidate(fixture.requestState, draftCandidateFrom(fixture.signedM04));
+  delete process.env.CDSS_M05_DRAFT_PREFETCH;
+  process.env.CDSS_M05_PREFETCH = "false";
+  await prefetchAssessFollowupFromDraftCandidate(fixture.requestState, draftCandidateFrom(fixture.signedM04));
+  delete process.env.CDSS_M05_PREFETCH;
+  await prefetchAssessFollowupFromDraftCandidate({ ...fixture.requestState, reasoningDiagnose: undefined, reasoningV2: undefined }, draftCandidateFrom(fixture.signedM04));
+  assert.equal(calls.authoring, 0);
+}));
+check("the prescribe route wires the draft callback and the stream fires it once, on the first pass only", () => {
+  const prescribe = readFileSync(new URL("../src/app/api/diagnosis/prescribe/route.ts", import.meta.url), "utf8");
+  assert.match(prescribe, /onInitialM04Candidate: \(candidate\) => \{\s*void prefetchAssessFollowupFromDraftCandidate\(parsed\.caseState, candidate\);/);
+  const api = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+  assert.match(api, /opts\.onInitialM04Candidate && !initialM04CandidateReported && structuredRetryCount === 0/);
+});
 
 // ── ② 请求体压缩 ─────────────────────────────────────────────────────────────
 const { readJsonBodyWithLimit } = await jiti.import("../src/lib/http-guard.ts");

@@ -1,4 +1,4 @@
-import { prefetchAssessFollowupFromSignedPrescribe, tapFinalStageContent } from "@/lib/stage-prefetch.server";
+import { prefetchAssessFollowupFromDraftCandidate, prefetchAssessFollowupFromSignedPrescribe, tapFinalStageContent } from "@/lib/stage-prefetch.server";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
@@ -326,6 +326,10 @@ export async function POST(req: Request) {
     structuredCaseState: safeState,
     structuredMedicineCandidates: medicinePlan.candidates,
     structuredPriorReasoning: signedPriorReasoning,
+    // 首轮流里候选方一闭合就预热 M05 随访作文（只写按模型输入逐字命中的缓存；见 stage-prefetch.server.ts）。
+    onInitialM04Candidate: (candidate) => {
+      void prefetchAssessFollowupFromDraftCandidate(parsed.caseState, candidate);
+    },
     prescribeSignatureContext: buildPrescribeContractSignatureContext(trustedGated),
     // 医生点「重新生成候选方药」时前端原样重发同一份 caseState 与同一份已签名 M03，
     // 服务端据此认出这是同一次尝试的第 N 轮（见 m04-retry-policy 的生产实证：不认它时，
