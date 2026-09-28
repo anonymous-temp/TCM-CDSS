@@ -40,7 +40,13 @@ export async function buildCdssEvidenceContext(
     externalSoftDeadlineMs?: number;
   },
 ): Promise<string> {
-  const localContext = buildTcmKnowledgeContext(caseState, stage);
+  // 本地饮片规则段（十八反、特殊人群禁忌、剂量、HIS 药名归一）是处方层资料。M03 只辨病辨证不开方，
+  // 这段在中医半提示词里占约 7.8k 字（23%），全是按病例文本碰出来的单味药规则（大皂角、丹参、三棱…），
+  // 属「相关但无用」的上下文（2026-09-28 提示词精简）。西医半本就只取指南/诊断依据，不带它。
+  // `CDSS_M03_LOCAL_PHARMACY_CONTEXT=true` 恢复。
+  const localContext = stage === "diagnose" && process.env.CDSS_M03_LOCAL_PHARMACY_CONTEXT !== "true"
+    ? ""
+    : buildTcmKnowledgeContext(caseState, stage);
   const externalPromise = buildExternalEvidenceContext(caseState, stage, signal);
   const softDeadline = options?.externalSoftDeadlineMs;
   const externalEvidenceContext = softDeadline != null && Number.isFinite(softDeadline)
