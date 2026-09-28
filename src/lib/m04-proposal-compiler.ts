@@ -1069,6 +1069,19 @@ function normalizeM04ProposalInput(
   };
 }
 
+/**
+ * 只供 M04 首轮流 → M05 草稿预取用：把模型原文候选按终稿编译的同一段归一（药名规范化与炮制拆分、
+ * 剂数/疗程），让作文缓存键与签名终稿一致。本机 65 例里 21 例预取落空，16 例只差在这一步
+ * （炒白扁豆→白扁豆、黄连片→黄连、山栀→栀子）。不做契约校验，结果不进任何对外内容。
+ */
+export function normalizeM04DraftCandidate(
+  rawCandidate: Record<string, unknown>,
+  prior?: ClinicalReasoningResultV2 | null,
+): Record<string, unknown> | undefined {
+  const normalized = normalizeM04ProposalInput({ candidate: rawCandidate }, prior);
+  return isRecord(normalized) && isRecord(normalized.candidate) ? normalized.candidate : undefined;
+}
+
 function modificationIssue(proposal: M04Proposal, prior: ClinicalReasoningResultV2): string | undefined {
   const nodeIds = new Set(prior.pathogenesis.chain.map((node) => node.nodeId).filter(Boolean));
   const prescribed = new Set(proposal.candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name)));

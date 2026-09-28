@@ -206,6 +206,19 @@ for (const [fixtureLabel, currentFixture] of [["plain", fixture], ["十八反", 
     }));
   }
 }
+// 本机 65 例：预取落空 21 例里 16 例只差药名规范化（炒白扁豆→白扁豆、黄连片→黄连、山栀→栀子），
+// 草稿必须先过终稿编译的同一段归一，否则作文缓存键对不上。
+await checkAsync("a draft written with processed/alias herb names still hits: it is normalized like the final M04", async () => withCountingModel(async (calls) => {
+  resetAuthoredFollowupCache();
+  const spelled = draftCandidateFrom(fixture.signedM04);
+  const variants = { 黄芪: "蜜炙黄芪", 茯苓: "云苓", 白术: "麸炒白术" };
+  spelled.herbs = spelled.herbs.map((herb) => ({ ...herb, name: variants[herb.name] || herb.name }));
+  assert.ok(spelled.herbs.some((herb) => Object.values(variants).includes(herb.name)), "the fixture must actually carry a variant spelling");
+  await prefetchAssessFollowupFromDraftCandidate(fixture.requestState, spelled);
+  assert.equal(calls.authoring, 1);
+  await assessMarkdown(frontendM05State(fixture));
+  assert.equal(calls.authoring, 1, "the M05 request must hit the draft-prefetched authoring despite the raw spelling");
+}));
 await checkAsync("a draft that the final M04 changed is a harmless miss: M05 authors for the final herbs", async () => withCountingModel(async (calls) => {
   resetAuthoredFollowupCache();
   const drifted = draftCandidateFrom(fixture.signedM04);

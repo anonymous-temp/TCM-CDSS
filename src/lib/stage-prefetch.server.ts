@@ -23,6 +23,7 @@ import {
 } from "./local-prescription-checks";
 import { authorFollowupForCase } from "./m05-followup-authoring.server";
 import { applyDeterministicFollowUpNode } from "./diagnosis-visible-summary";
+import { normalizeM04DraftCandidate } from "./m04-proposal-compiler";
 
 /**
  * 阶段间预取（2026-09-27，提速）。
@@ -169,7 +170,8 @@ export function prefetchAssessFollowupFromSignedPrescribe(requestCaseState: Case
  * 前端/调用方 M04 一结束就调 M05 时仍要等 3–4s。而作文的全部 M04 依赖——选中候选的药味与剂数（剂数
  * 决定首次复诊时间）——在首轮流的 `candidate` 对象闭合时（本机 65 例中位约在输出的 49% 处，距 M04 结束
  * 约 6s）就已写定。这里在那一刻按同一条 assess 管线把作文算一遍：
- *  · 药味按模型原文；首次复诊时间由服务端同一个确定性函数（applyDeterministicFollowUpNode）从剂数算出；
+ *  · 药味先过终稿编译的同一段归一（normalizeM04DraftCandidate：药名规范化、剂数/疗程），首次复诊时间
+ *    由服务端同一个确定性函数（applyDeterministicFollowUpNode）从剂数算出；
  *  · 只进作文缓存（键 = 实际下发给模型的用户消息）。终稿与原文不一致（被修复轮改过药、药名被规范化、
  *    处方正文带强提示改写了首次复诊时间）时只是不命中，签名后预取照常再算一次，结果不会拿错。
  * 本机 65 例基线：未修复的 26 例 M04 里 24 例原文药味与终稿逐字相同。
@@ -178,11 +180,14 @@ export function prefetchAssessFollowupFromSignedPrescribe(requestCaseState: Case
 export function prefetchAssessFollowupFromDraftCandidate(requestCaseState: CaseState, rawCandidate: Record<string, unknown>): Promise<void> {
   if (process.env.CDSS_M05_PREFETCH === "false" || process.env.CDSS_M05_DRAFT_PREFETCH === "false") return Promise.resolve();
   return (async () => {
-    if (!diagnoseReasoningFromState(requestCaseState)) return;
+    const prior = diagnoseReasoningFromState(requestCaseState);
+    if (!prior) return;
+    const candidate = normalizeM04DraftCandidate(rawCandidate, prior);
+    if (!candidate) return;
     const draft = {
       schemaVersion: "tcm-cdss-reasoning-v2",
       stage: "prescribe",
-      formula: { candidates: [rawCandidate], patentAndWestern: [], modifications: [] },
+      formula: { candidates: [candidate], patentAndWestern: [], modifications: [] },
     };
     const withFollowUp = extractDiagnosisJSON(applyDeterministicFollowUpNode(
       `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(draft)}\n<!-- DIAGNOSIS_JSON_END -->`,
