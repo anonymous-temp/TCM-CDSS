@@ -922,14 +922,11 @@ function formatHisSupportContext(query: string): string {
     }
   }
 
-  // 途径字典与否定/时态关键词示例是服务端归一与门禁的内部说明，模型不执行归一，放进提示词只占篇幅
-  // （2026-09-28 提示词精简；病例命中的 HIS 药名映射与规格换算照常保留）。`CDSS_PROMPT_HIS_DICTIONARY=true` 恢复。
-  const includeDictionaries = process.env.CDSS_PROMPT_HIS_DICTIONARY === "true";
-  if (includeDictionaries && routeRules.length > 0) {
+  if (routeRules.length > 0) {
     lines.push(`给药途径/频次/煎服法字典示例：${routeRules.map((item) => `${item.hisValue}→${item.normalizedCode}(${item.routeClass})`).join("；")}`);
   }
 
-  if (includeDictionaries && stateRules.length > 0) {
+  if (stateRules.length > 0) {
     lines.push("否定/时态过滤规则：当前患者状态为真才触发禁忌；否认、既往、家族史不得当作当前禁忌。示例：" +
       stateRules.map((item) => `${item.stateName}：阳性[${item.positiveTerms}]，否定[${item.negationTerms}]`).join("；")
     );

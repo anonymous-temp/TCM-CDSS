@@ -1134,16 +1134,6 @@ export function buildTcmFormulaReasoningContext(
   // 展示顺序可按已终审流派取向有限调整；systemLockable 自动锁方读的是
   // retrieveTcmFormulaCandidatesForReasoning 的原始返回序，与此处无关。
   const lineagePresentation = applyLineageAffinityPresentationOrder(candidates, lineagePreference);
-  // M03 已锁定且通过承接核验时，M04 要的只是「承接哪张方」——锁定方的组成、出处与剂量边界已在
-  // 「服务端方剂目录编译基准」段给出；这里再列 5 首备选方（组成＋主治，约 2k 字）只会诱导附会
-  // （2026-09-28 提示词精简）。未锁定（自拟方向）时保留：提示词要求说明「已注入的经典名方候选未覆盖本例哪个维度」。
-  if (lockedCarryLine && process.env.CDSS_M04_LOCKED_FORMULA_ALTERNATIVES !== "true") {
-    return [
-      "【M03后方剂精确检索（T1/T3/T4 → T8；只核对既有选择）】",
-      lockedCarryLine,
-      "承接纪律：M03 已锁定方按上一行承接。M04 不得新增、替换或合并 M03 未锁定的方名。",
-    ].join("\n");
-  }
   return [
     "【M03后方剂精确检索（T1/T3/T4 → T8；只核对既有选择）】",
     ...(lineagePresentation.applied
