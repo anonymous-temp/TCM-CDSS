@@ -54,6 +54,23 @@ export function patentMedicineBaseName(name: string): string {
   return String(name || "").normalize("NFKC").replace(/\s/g, "").replace(PATENT_DOSAGE_FORM_SUFFIX, "");
 }
 
+/** 本地说明书目录（非处方 + 处方）按药名查条目：全名优先，其次去剂型基础名。 */
+export function findLocalPatentMedicineLabel(name: string): LocalPatentMedicineEntry | undefined {
+  const raw = String(name || "").normalize("NFKC").replace(/\s/g, "");
+  if (!raw) return undefined;
+  const base = patentMedicineBaseName(raw);
+  for (const entries of [ENTRIES, LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES]) {
+    const exact = entries.find((entry) => entry.name.normalize("NFKC").replace(/\s/g, "") === raw);
+    if (exact) return exact;
+  }
+  if (base.length < 2) return undefined;
+  for (const entries of [ENTRIES, LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES]) {
+    const sameBase = entries.find((entry) => patentMedicineBaseName(entry.name) === base);
+    if (sameBase) return sameBase;
+  }
+  return undefined;
+}
+
 /** 中成药说明书条目（按全名，再按去剂型基础名回退）；基准比对器据此判定「同类中成药」。 */
 export function findLocalPatentMedicineEntry(name: string): LocalPatentMedicineEntry | undefined {
   const raw = String(name || "").normalize("NFKC").replace(/\s/g, "");
@@ -249,6 +266,12 @@ export function retrieveLocalPatentMedicineCandidates(
     entries?: readonly LocalPatentMedicineEntry[];
     /** 编号起点：规划器追加的候选用 501 起，避免与证据段里 001–010 的病例检索候选撞号。 */
     idOffset?: number;
+    /**
+     * 是否要求说明书适应证与本例阳性事实命中受控临床概念（缺省要求）。规划器核对 AI 提名的具体药品时
+     * 传 false：药名已由模型点名，只需过下面同一套安全排除（体质前提、方剂鉴别反证、寒热对立、
+     * 说明书自排除），适应证是否覆盖本例问题由调用方另行核对。
+     */
+    requireConceptMatch?: boolean;
   } = {},
 ): LocalPatentMedicineCandidate[] {
   const facts = positiveCaseFacts(caseState, assistedNegations);
@@ -304,7 +327,7 @@ export function retrieveLocalPatentMedicineCandidates(
       classicFormula,
     };
   })
-    .filter((entry) => entry.matchedConcepts.length > 0)
+    .filter((entry) => options.requireConceptMatch === false || entry.matchedConcepts.length > 0)
     .filter((entry) => !constitutionPrerequisiteMismatch(entry.indication, constitutionEvidenceText))
     // 方剂鉴别反证排除(2026-08-04,甲方实测 #7:无汗、脉浮紧的风寒**表实**例仍推荐桂枝合剂)。
     //

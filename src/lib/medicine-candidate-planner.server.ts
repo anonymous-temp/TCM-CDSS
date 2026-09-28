@@ -13,6 +13,7 @@ import {
   medicineProblemMatchesCase,
 } from "./evidence-source-validation";
 import {
+  findLocalPatentMedicineLabel,
   formatLocalPatentMedicineRecord,
   LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES,
   patentMedicineBaseName,
@@ -170,7 +171,7 @@ function externalCandidateToProposal(
 export const MEDICINE_PLANNER_MODEL_TIMEOUT_MS = 12_000;
 
 /** 规划器提示词版本，进缓存键：改了提示词，旧缓存不得再命中。 */
-const PLANNER_PROMPT_VERSION = "2026-09-28-inventory-ai-patent";
+const PLANNER_PROMPT_VERSION = "2026-09-28-inventory-ai-patent-v3";
 
 /**
  * 规划结果缓存与并发合流（2026-09-27，提速）。规划器输入是（模型，病例规划文本，本地候选目录）
@@ -254,6 +255,10 @@ async function runPlannerModelUncached(
     controller.abort();
   }, MEDICINE_PLANNER_MODEL_TIMEOUT_MS);
   try {
+    // AI 提名中成药只作最后一档（甲方 2026-09-28 的优先级：院内 → 本地库/EviMed → AI）：本地说明书
+    // 检索对本例有候选时不开放提名。本机 65 例实测：开放时模型几乎每例都另提（82 个里 70 个核对不到
+    // 说明书），规划器中位耗时 +0.6～2.4 秒，而核对到的只多出约每 4 例 1 个候选。
+    const allowPatentProposals = localCandidates.length === 0;
     const localCatalog = localCandidates.map((item) => ({
       evidenceId: item.id,
       name: item.name,
@@ -274,12 +279,18 @@ async function runPlannerModelUncached(
           content: [
             "你是门诊用药候选规划器，只输出JSON，不生成剂量、频次、疗程或处方。",
             "依据当前已确认诊断和阳性事实：从给定本地中成药说明书候选中最多选择2个ID；另提出最多3个应精确检索说明书的西药通用名。",
-            "候选若带「院内」字段（院内有货/缺货/库存外用药），适用程度相当时优先选院内有货的；院内没有但明显更适合本例的照常选，系统会标注为库存外用药。",
-            "只有当本地候选都不适合本例时，才可在 patentMedicines 中提名最多2个中成药（写国家批准上市的完整药名）；系统会核对说明书，核对不到的不会采用。不得提名注射剂。",
+            ...(inventoryLabels.size > 0
+              ? ["候选若带「院内」字段（院内有货/缺货/库存外用药），适用程度相当时优先选院内有货的；院内没有但明显更适合本例的照常选，系统会标注为库存外用药。"]
+              : []),
+            ...(allowPatentProposals
+              ? ["本例本地中成药说明书检索没有候选：可在 patentMedicines 中提名最多2个适合本例的中成药（写国家批准上市的完整药名，不得提名注射剂）；系统会核对说明书，核对不到的不会采用。"]
+              : []),
             "西药仅在当前西医诊断已有足够依据且药物适应证可直接覆盖该诊断/症状时提出；不得为待排诊断、阴性症状、单纯中医证候提出西药。",
             "不得提出抗菌药、激素、抗凝药、抗精神病药或其他高风险药物，除非病例已有明确对应诊断和必要证据。",
             "每个对应问题必须是病例中当前阳性的具体诊断或症状，不得写‘调理’‘改善体质’等泛化词。",
-            "结构固定为：{\"localEvidenceIds\":[],\"patentMedicines\":[{\"name\":\"\",\"correspondingProblem\":\"\"}],\"westernMedicines\":[{\"genericName\":\"\",\"correspondingProblem\":\"\"}]}。",
+            allowPatentProposals
+              ? "结构固定为：{\"localEvidenceIds\":[],\"patentMedicines\":[{\"name\":\"\",\"correspondingProblem\":\"\"}],\"westernMedicines\":[{\"genericName\":\"\",\"correspondingProblem\":\"\"}]}。"
+              : "结构固定为：{\"localEvidenceIds\":[],\"westernMedicines\":[{\"genericName\":\"\",\"correspondingProblem\":\"\"}]}。",
           ].join("\n"),
         },
         {
@@ -339,6 +350,8 @@ async function resolveWesternCandidate(
 const PLANNER_EXTRA_LOCAL_ID_OFFSET = 500;
 /** 院内有货、与本例相关（评分 ≥3，与规划器兜底首选同一门槛）但在病例检索前 10 名之外的中成药：最多补入几个。 */
 const IN_STOCK_EXTRA_LIMIT = 5;
+/** AI 提名中成药查 EviMed 说明书的时限（毫秒）。本地说明书目录核对不耗联网时间，优先走本地。 */
+const AI_PATENT_EVIDENCE_BUDGET_MS = 1_500;
 const IN_STOCK_MIN_SCORE = 3;
 
 type ResolvedPlannerMedicine = { candidate: EvidenceBoundMedicineProposal; record?: string };
@@ -363,6 +376,7 @@ async function resolveProposedPatentMedicine(
   index: number,
   caseText: string,
   localPools: readonly (readonly LocalPatentMedicineCandidate[])[],
+  caseState?: CaseState,
 ): Promise<ResolvedPlannerMedicine | undefined> {
   if (!medicineProblemMatchesCase(proposal.correspondingProblem, caseText)) return undefined;
   if (/注射/.test(proposal.name)) return undefined;
@@ -377,7 +391,32 @@ async function resolveProposedPatentMedicine(
       return { candidate: localCandidateToProposal(candidate), record: formatLocalPatentMedicineRecord(candidate) };
     }
   }
-  const result = await fetchExternalEvidence("instruction", proposal.name, { count: 6 });
+  // 本地说明书目录里有这个药名、但适应证没命中受控临床概念：仍过同一套安全排除，并要求说明书适应证
+  // 覆盖本例问题（与 EviMed 核对同一判据）。本机 65 例实测：AI 提名 82 个里只有 10 个能在病例检索池里
+  // 核对到，EviMed 只补到 2 个——按名查全部 8,807 种本地说明书是零联网耗时的兜底。
+  const label = caseState ? findLocalPatentMedicineLabel(proposal.name) : undefined;
+  if (label && caseState && !/注射/.test(label.name) &&
+      medicineProblemMatchesCase(proposal.correspondingProblem, compact(label.indication, 700))) {
+    const [screened] = retrieveLocalPatentMedicineCandidates(caseState, 1, undefined, {
+      entries: [label],
+      idOffset: PLANNER_EXTRA_LOCAL_ID_OFFSET + 40 + index,
+      requireConceptMatch: false,
+    });
+    if (screened) {
+      return { candidate: localCandidateToProposal(screened), record: formatLocalPatentMedicineRecord(screened) };
+    }
+    // 本地说明书在，但被安全排除拦下：不再去 EviMed 绕过这个结论。
+    return undefined;
+  }
+  // EviMed 兜底有时限：与西药检索并行，最多再等 AI_PATENT_EVIDENCE_BUDGET_MS，超时按核对不到处理，
+  // 不拖长规划器（它在 M04 生成前的关键路径上）。
+  let budgetTimer: ReturnType<typeof setTimeout> | undefined;
+  const result = await Promise.race([
+    fetchExternalEvidence("instruction", proposal.name, { count: 6 }).catch(() => ({ list: [] as ExternalEvidenceItem[] })),
+    new Promise<{ list: ExternalEvidenceItem[] }>((resolveBudget) => {
+      budgetTimer = setTimeout(() => resolveBudget({ list: [] }), AI_PATENT_EVIDENCE_BUDGET_MS);
+    }),
+  ]).finally(() => { if (budgetTimer) clearTimeout(budgetTimer); });
   const item = result.list.find((candidate) => {
     const indication = compact(candidate.indication || candidate.summary, 500);
     return medicineNameMatches(proposal.name, candidate) &&
@@ -417,17 +456,24 @@ export async function planEvidenceBoundMedicineCandidates(
     Boolean(inventory?.inventoryLoaded && inventory.statusOf(name, kind).availability === "in_stock");
 
   // 病例检索前 10 名（编号 001–010，与 M04 证据段同一序列）+ 其后同一排序的非处方候选。
-  const otcPool = retrieveLocalPatentMedicineCandidates(caseState, 60);
+  // 本地检索每次约 0.1 秒 CPU（逐条匹配临床概念），所以前 10 名之外与处方目录只在用得上时才算：
+  // 本院同步了中成药（补入院内有货的药）或模型提名了中成药（核对说明书）。
+  let otcPool = retrieveLocalPatentMedicineCandidates(caseState, patentSynced ? 60 : 10);
+  let rxPool: LocalPatentMedicineCandidate[] | undefined;
+  const extendedPools = (): readonly (readonly LocalPatentMedicineCandidate[])[] => {
+    if (otcPool.length <= 10) otcPool = retrieveLocalPatentMedicineCandidates(caseState, 60);
+    rxPool ||= retrieveLocalPatentMedicineCandidates(caseState, 60, undefined, {
+      entries: LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES,
+      idOffset: PLANNER_EXTRA_LOCAL_ID_OFFSET + 100,
+    });
+    return [otcPool, rxPool];
+  };
   const baseCandidates = otcPool.slice(0, 10);
-  // 处方中成药目录：只用于院内有货补入与 AI 提名核对，不进默认检索范围。
-  const rxPool = retrieveLocalPatentMedicineCandidates(caseState, 60, undefined, {
-    entries: LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES,
-    idOffset: PLANNER_EXTRA_LOCAL_ID_OFFSET + 100,
-  });
   const baseKeys = new Set(baseCandidates.map((item) => patentMedicineBaseName(item.name) || item.name));
   const inStockExtras: LocalPatentMedicineCandidate[] = [];
   if (patentSynced) {
-    for (const item of [...otcPool.slice(10), ...rxPool]) {
+    const [otc, rx] = extendedPools();
+    for (const item of [...otc.slice(10), ...rx]) {
       if (inStockExtras.length >= IN_STOCK_EXTRA_LIMIT) break;
       const key = patentMedicineBaseName(item.name) || item.name;
       if (item.score < IN_STOCK_MIN_SCORE || baseKeys.has(key) || !inStock(item.name, "patent")) continue;
@@ -439,11 +485,15 @@ export async function planEvidenceBoundMedicineCandidates(
     }
   }
   const localCandidates = inStockFirst([...baseCandidates, ...inStockExtras], (item) => inStock(item.name, "patent"));
-  const inventoryLabels = new Map(localCandidates.flatMap((item) => {
+  // 院内状态只在本院同步了中成药时写给规划模型：没同步时每个候选都会显示「库存外用药」，
+  // 本机 65 例实测模型因此几乎每例都另提中成药（46 次核对不到说明书），规划器中位耗时 +1.1 秒。
+  const inventoryLabels = new Map(patentSynced ? localCandidates.flatMap((item) => {
     const label = inventoryLabelOf(inventory, item.name, "patent");
     return label ? [[item.id, label] as const] : [];
-  }));
-  const selection = await runPlannerModel(caseState, localCandidates, requestSignal, inventoryLabels);
+  }) : []);
+  const rawSelection = await runPlannerModel(caseState, localCandidates, requestSignal, inventoryLabels);
+  // 本地有候选时即便模型仍写了 patentMedicines 也不采用（与提示同一规则，确定性兜底）。
+  const selection = rawSelection && localCandidates.length > 0 ? { ...rawSelection, patentMedicines: [] } : rawSelection;
   const selectedLocalIds = selection?.localEvidenceIds.length
     ? selection.localEvidenceIds
     : localCandidates.find((item) => item.score >= IN_STOCK_MIN_SCORE)
@@ -464,14 +514,24 @@ export async function planEvidenceBoundMedicineCandidates(
   const [resolvedWestern, resolvedPatent] = selection
     ? await Promise.all([
         Promise.all(selection.westernMedicines.map((item, index) => resolveWesternCandidate(item, index, caseText))),
-        Promise.all(selection.patentMedicines.map((item, index) =>
-          resolveProposedPatentMedicine(item, index, caseText, [otcPool, rxPool]))),
+        selection.patentMedicines.length > 0
+          ? (() => {
+              const pools = extendedPools();
+              return Promise.all(selection.patentMedicines.map((item, index) =>
+                resolveProposedPatentMedicine(item, index, caseText, pools, caseState)));
+            })()
+          : Promise.resolve([]),
       ])
     : [[], []];
-  const unverifiedPatent = (selection?.patentMedicines.length || 0) - resolvedPatent.filter(Boolean).length;
-  if (unverifiedPatent > 0) {
-    // 不含患者内容：只记 AI 提名的中成药有几个没能核对到说明书（因此未采用）。
-    console.info("[tcm-cdss:medicine-planner] ai_patent_unverified", { proposed: selection?.patentMedicines.length, unverified: unverifiedPatent });
+  if (selection?.patentMedicines.length) {
+    // 不含患者内容：AI 提名的中成药各有多少在本地目录、EviMed 核对到，多少核对不到（因此未采用）。
+    const verified = resolvedPatent.filter((item): item is ResolvedPlannerMedicine => Boolean(item));
+    console.info("[tcm-cdss:medicine-planner] ai_patent_proposals", {
+      proposed: selection.patentMedicines.length,
+      verifiedLocal: verified.filter((item) => item.candidate.evidenceId.startsWith("LOCAL-INST-")).length,
+      verifiedEvimed: verified.filter((item) => item.candidate.evidenceId.startsWith("EVID-INST-")).length,
+      unverified: selection.patentMedicines.length - verified.length,
+    });
   }
   const aiPatent = resolvedPatent.filter((item): item is ResolvedPlannerMedicine => Boolean(item))
     .filter((item) => !selectedLocal.some((local) => local.candidate.name === item.candidate.name));

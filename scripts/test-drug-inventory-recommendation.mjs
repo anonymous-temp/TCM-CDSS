@@ -285,21 +285,39 @@ await check("AI-01 本地说明书目录（含处方中成药）里能核对到�
   const relevant = [...otcPool.slice(10), ...rxPool][0];
   assert.ok(relevant, "fixture 需要至少一个前 10 名之外的相关候选");
   const resolved = await planner.medicinePlannerTestHooks.resolveProposedPatentMedicine(
-    { name: relevant.name, correspondingProblem: "心悸" }, 0, "失眠多梦伴心悸半年；心悸；多梦", [otcPool, rxPool]);
+    { name: relevant.name, correspondingProblem: "心悸" }, 0, "失眠多梦伴心悸半年；心悸；多梦", [otcPool, rxPool], plannerCase);
   assert.ok(resolved, "本地目录能核对到的提名应被采用");
   assert.match(resolved.candidate.evidenceId, /^LOCAL-INST-5\d\d$/, "规划器追加候选用 5xx 编号，避免与证据段 001–010 撞号");
   assert.match(resolved.record, new RegExp(resolved.candidate.evidenceId));
   assert.match(resolved.record, /条目指纹：sha256:/);
   const injection = await planner.medicinePlannerTestHooks.resolveProposedPatentMedicine(
-    { name: "参麦注射液", correspondingProblem: "心悸" }, 1, "失眠多梦伴心悸半年；心悸", [otcPool, rxPool]);
+    { name: "参麦注射液", correspondingProblem: "心悸" }, 1, "失眠多梦伴心悸半年；心悸", [otcPool, rxPool], plannerCase);
   assert.equal(injection, undefined, "不得提名注射剂");
   const unrelated = await planner.medicinePlannerTestHooks.resolveProposedPatentMedicine(
-    { name: relevant.name, correspondingProblem: "膝关节疼痛" }, 1, "失眠多梦伴心悸半年；心悸", [otcPool, rxPool]);
+    { name: relevant.name, correspondingProblem: "膝关节疼痛" }, 1, "失眠多梦伴心悸半年；心悸", [otcPool, rxPool], plannerCase);
   assert.equal(unrelated, undefined, "对应问题不是本例阳性问题的提名不采用");
   // 本地没有、EviMed 也查不到（测试环境无 EviMed 密钥）：不采用，不编药名。
   const fabricated = await planner.medicinePlannerTestHooks.resolveProposedPatentMedicine(
-    { name: "安神补脑宁心颗粒甲", correspondingProblem: "心悸" }, 1, "失眠多梦伴心悸半年；心悸", [otcPool, rxPool]);
+    { name: "安神补脑宁心颗粒甲", correspondingProblem: "心悸" }, 1, "失眠多梦伴心悸半年；心悸", [otcPool, rxPool], plannerCase);
   assert.equal(fabricated, undefined, "核对不到说明书的提名不得出现");
+});
+
+await check("AI-03 不在病例检索池里的提名：按药名查全部本地说明书，适应证覆盖本例问题才采用", async () => {
+  const { findLocalPatentMedicineLabel } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
+  const [otcPool, rxPool] = planner.medicinePlannerTestHooks.retrieveCandidatePools(plannerCase);
+  const pooled = new Set([...otcPool, ...rxPool].map((item) => item.name));
+  const all = [...LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES];
+  const fits = all.find((entry) => !pooled.has(entry.name) && /心悸/.test(entry.indication) && !/注射/.test(entry.name));
+  const unrelated = all.find((entry) => !pooled.has(entry.name) && /骨折|跌打/.test(entry.indication) && !/心悸|失眠/.test(entry.indication));
+  assert.ok(fits && unrelated, "fixture 需要一个适应证含心悸、一个骨伤科的处方中成药");
+  assert.equal(findLocalPatentMedicineLabel(fits.name)?.name, fits.name);
+  const accepted = await planner.medicinePlannerTestHooks.resolveProposedPatentMedicine(
+    { name: fits.name, correspondingProblem: "心悸" }, 0, "失眠多梦伴心悸半年；心悸", [otcPool, rxPool], plannerCase);
+  assert.ok(accepted, "本地说明书里有、适应证覆盖心悸、且过安全排除的提名应被采用");
+  assert.match(accepted.candidate.evidenceId, /^LOCAL-INST-54\d$/);
+  const rejected = await planner.medicinePlannerTestHooks.resolveProposedPatentMedicine(
+    { name: unrelated.name, correspondingProblem: "心悸" }, 1, "失眠多梦伴心悸半年；心悸", [otcPool, rxPool], plannerCase);
+  assert.equal(rejected, undefined, "说明书适应证不覆盖本例问题的提名不采用（本地有说明书时也不再去 EviMed 绕过）");
 });
 
 await check("AI-02 院内有货的处方中成药可进入候选（排在院内缺货/库存外之前）", async () => {
