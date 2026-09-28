@@ -1329,4 +1329,58 @@ ok("prompt: 提取提示含发热分诊 ≥40℃/受损 原则线", (() => {
     clinicalEventTemporalScopeAt(gateText, gateText.indexOf("最高"), "最高38.5℃，伴畏寒".length, { groundingQuote: true }) === "current");
 }
 
+// 「半月/半个月前…出现」与「周」同档（CMB-Clin「约半月前劳累后出现发热不适，自测体温最高39.5℃」）。
+{
+  const finding = (quote, category = "sepsis") => ({ category, subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote });
+  const keeps = (source, quote, category) => groundClinicalFacts({ redFlags: [finding(quote, category)] }, source).redFlags.length === 1;
+  ok("原文落地: 「约半月前…出现发热」后的最高体温按当前事件保留",
+    keeps("自诉约半月前劳累后出现发热不适，自测体温最高39.5℃，伴随咽痒、咳嗽。", "自测体温最高39.5℃"));
+  ok("原文落地: 「半个月前出现」同样按近期起病", keeps("半个月前受凉后出现高热，最高40.1℃，伴寒战。", "最高40.1℃，伴寒战"));
+  ok("原文落地反例: 「半年前出现便血」仍不按当前事件保留", !keeps("半年前出现便血，量多，色鲜红。", "便血，量多", "gi_bleed"));
+  const { clinicalEventTemporalScopeAt } = await import("../src/lib/clinical-polarity.ts");
+  const gateText = "自诉约半月前劳累后出现发热不适，自测体温最高39.5℃。";
+  ok("安全门时间判定不变: 不带 groundingQuote 时「半月前出现」仍按既往",
+    clinicalEventTemporalScopeAt(gateText, gateText.indexOf("自测"), 0) === "historical");
+}
+
+// —— 否定列表的分配式引用（2026-09-28）——
+// 原文「否认A、B、C」，模型写 quote「否认C」：语义对但非逐字，此前判未落地、多一轮 5–6s 修复
+// （上线后生产 4 次事实层修复全是这一类）。只改写 negative 条目的引用为原文逐字片段，不影响安全门。
+{
+  const negative = (quote, category = "cardiac") => ({ category, subject: "patient", status: "negative", urgency: "routine", triageBasis: "routine_care", quote });
+  const anchored = (source, quote, category) => groundClinicalFacts({ redFlags: [negative(quote, category)] }, source).redFlags[0]?.quote;
+  const htn = "近1周因家事操劳头晕加重。否认视物旋转、肢体麻木无力、言语不清、胸痛、黑蒙晕厥。";
+  ok("否定列表: 「否认黑蒙晕厥」改写为原文逐字的整段否定列表",
+    anchored(htn, "否认黑蒙晕厥", "syncope") === "否认视物旋转、肢体麻木无力、言语不清、胸痛、黑蒙晕厥");
+  ok("否定列表: 「否认胸痛」改写到该项为止", anchored(htn, "否认胸痛") === "否认视物旋转、肢体麻木无力、言语不清、胸痛");
+  const smoke = "劳累后加重，伴神疲乏力、心悸失眠、面色少华。否认突发最剧烈头痛、胸痛、呼吸困难、晕厥及意识障碍。";
+  ok("否定列表: 「及」连接的末项、换了否定词（无意识障碍）同样落地",
+    anchored(smoke, "无意识障碍", "neuro") === "否认突发最剧烈头痛、胸痛、呼吸困难、晕厥及意识障碍");
+  ok("否定列表: 列表头前的闭集主语/时间词（患者、病程中）不妨碍落地，改写从否定词开始",
+    anchored("患者否认高血压、糖尿病、冠心病病史。", "否认冠心病病史") === "否认高血压、糖尿病、冠心病病史" &&
+    anchored("病程中无腹泻、呕吐。", "无呕吐", "gi_alarm") === "无腹泻、呕吐");
+  ok("否定列表: 「不伴」「没有」作列表头时不被自身的「伴/有」误拦",
+    anchored("咳嗽3天，不伴恶心、呕吐。", "不伴呕吐", "gi_alarm") === "不伴恶心、呕吐" &&
+    anchored("近日没有咳嗽、发热。", "没有发热", "sepsis") === "没有咳嗽、发热");
+  // 反例：不在同一否定列表里的项、被「但/伴/有」或逗号打断的、只是长词前缀的、原文没有的，一律不改写（照旧未落地）。
+  for (const [source, quote] of [
+    ["否认头晕，胸痛2小时。", "否认胸痛"],
+    ["无发热、咳嗽但有胸痛。", "无胸痛"],
+    ["无发热、伴咳嗽、胸痛。", "无胸痛"],
+    ["否认头晕、胸痛彻背。", "否认胸痛"],
+    ["否认头晕、心悸。", "否认胸痛"],
+    // 「无力」不是列表头：肯定句里的「肢体麻木无力、言语不清、胸痛」不能被读成否定列表。
+    ["突发肢体麻木无力、言语不清、胸痛。", "无胸痛"],
+  ]) {
+    ok(`否定列表反例: 「${source}」里的「${quote}」不改写`, anchored(source, quote) === undefined);
+  }
+  ok("否定列表: 只对 negative 生效——positive 的非逐字引用照旧丢弃",
+    groundClinicalFacts({ redFlags: [{ ...negative("否认胸痛"), status: "positive", urgency: "urgent", triageBasis: "urgent_review" }] }, htn).redFlags.length === 0);
+  let calls = 0;
+  const distributed = JSON.stringify({ redFlags: [negative("否认黑蒙晕厥", "syncope"), negative("否认胸痛")] });
+  const extracted = await extractClinicalFacts(htn, async () => { calls += 1; return distributed; });
+  ok("否定列表: 抽取不再触发引用修复轮（一次模型调用），两条阴性都保留且引用逐字可复核",
+    calls === 1 && extracted?.redFlags.length === 2 && extracted.redFlags.every((item) => htn.includes(item.quote)));
+}
+
 console.log(`\n${pass} passed`);

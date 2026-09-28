@@ -755,6 +755,37 @@ const ENCOUNTER_TEMPORAL_HISTORICAL_MARKER = /(?:既往|曾经|此前|过去|\d+
 const ENCOUNTER_STABILITY_MARKER = /目前稳定|当前稳定|稳定期/;
 const ENCOUNTER_DISEASE_CONTROL_FRAME = /控制|达标|平稳|规律服药|规律用药|服药|用药|治疗方案|血压|血糖|血脂/;
 
+// 否定列表的分配式引用（构词式词法守卫，2026-09-28）：原文「否认视物旋转、肢体麻木无力、言语不清、
+// 胸痛、黑蒙晕厥」，模型把列表开头的否定词分配到后面的项上，写成 quote「否认黑蒙晕厥」——语义对，
+// 但不是逐字原文，于是判未落地、多跑一轮 5–6s 的引用修复（上线后生产 4 次事实层修复全是这一类；
+// 提示词示例「否认黑便」「无胸痛」本身就是这种写法）。只对 status=negative 生效：阴性条目从不进入
+// 安全门的风险类目（groundedPatientTriageCategories 只取 positive/possible）。改写为原文里
+// 「否定词 … 该项」的逐字片段，下游再次落地核验照常通过；该项不在同一否定词引导、只以「、及和或与」
+// 分隔的列表里（中间有逗号、句号或「但/伴/有」）时不改写，照旧交给修复轮。
+const DISTRIBUTED_NEGATION_QUOTE = /^(?:否认|无|未见|未诉|没有|不伴)(.{2,40})$/;
+// 列表头前只认闭集的主语/时间/连接词（「患者否认…」「病程中无…」）；任意前缀会把「肢体麻木无力、言语不清」
+// 里的「无力」读成以「无」开头的否定列表。
+const NEGATION_LIST_SEGMENT = /^((?:患者|病人|患儿|自诉|近日|近期|目前|现|平素|病程中|发病以来|并|亦|也|均|且){0,3})(?:否认|无|未见|未诉|没有|不伴)((?:[^、，,。！？!?；;：:\n及和或与]{1,16}(?:、|及|和|或|与))*)$/;
+const NEGATION_LIST_BREAK = /但|却|伴|有|而|出现/;
+const NEGATION_LIST_ITEM_END = /^(?:$|[、，,。！？!?；;\n及和或与等])/;
+
+function reanchorDistributedNegationQuote(sourceText: string, quote: string): string | undefined {
+  const item = quote.match(DISTRIBUTED_NEGATION_QUOTE)?.[1];
+  if (!item) return undefined;
+  let offset = sourceText.indexOf(item);
+  while (offset >= 0) {
+    const itemEnd = offset + item.length;
+    if (NEGATION_LIST_ITEM_END.test(sourceText.slice(itemEnd, itemEnd + 1))) {
+      let segmentStart = offset;
+      while (segmentStart > 0 && !/[，,。！？!?；;：:\n]/.test(sourceText[segmentStart - 1])) segmentStart -= 1;
+      const list = sourceText.slice(segmentStart, offset).match(NEGATION_LIST_SEGMENT);
+      if (list && !NEGATION_LIST_BREAK.test(list[2])) return sourceText.slice(segmentStart + list[1].length, itemEnd);
+    }
+    offset = sourceText.indexOf(item, offset + 1);
+  }
+  return undefined;
+}
+
 /** 护栏 2:原文 grounding + positive 本地极性复核。 */
 export function groundClinicalFacts(facts: ClinicalFacts, sourceText: string): ClinicalFacts {
   const scopeQuote = facts.encounterScope?.quote || "";
@@ -765,7 +796,11 @@ export function groundClinicalFacts(facts: ClinicalFacts, sourceText: string): C
   )
     ? facts.encounterScope
     : undefined;
-  const groundedRedFlags = facts.redFlags.filter((f) => {
+  const groundedRedFlags = facts.redFlags.map((f) => {
+    if (f.status !== "negative" || sourceText.includes(f.quote)) return f;
+    const quote = reanchorDistributedNegationQuote(sourceText, f.quote);
+    return quote ? { ...f, quote } : f;
+  }).filter((f) => {
     if (f.quote.length < 2 || !sourceText.includes(f.quote)) return false;
     if (f.status !== "positive" && f.status !== "possible") return true;
     return hasCurrentQuoteOccurrence(sourceText, f.quote, f.status === "possible");
