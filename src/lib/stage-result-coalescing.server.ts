@@ -123,7 +123,8 @@ function evictExpired(now: number): void {
   }
 }
 
-function subscriberResponse(entry: Entry, replayOnly: boolean): Response {
+function subscriberResponse(entry: Entry, role: "origin" | "joined" | "reused"): Response {
+  const replayOnly = role === "reused";
   const encoder = new TextEncoder();
   let registered: ReadableStreamDefaultController<Uint8Array> | undefined;
   const body = new ReadableStream<Uint8Array>({
@@ -146,7 +147,8 @@ function subscriberResponse(entry: Entry, replayOnly: boolean): Response {
     },
   });
   const headers = new Headers(entry.headers);
-  headers.set("x-cdss-stage-result", replayOnly ? "reused" : "joined");
+  // 发起计算的那次请求不带此头；只有并入进行中的计算、或回放已完成结果的请求才标注。
+  if (role !== "origin") headers.set("x-cdss-stage-result", role);
   return new Response(body, { status: entry.status || 200, headers });
 }
 
@@ -174,7 +176,7 @@ export async function coalesceStageResponse(input: {
         mode: existing.done ? "reused" : "joined",
         ageMs: now - existing.createdAt,
       });
-      return subscriberResponse(existing, existing.done);
+      return subscriberResponse(existing, existing.done ? "reused" : "joined");
     }
   }
   const controller = new AbortController();
@@ -252,7 +254,7 @@ export async function coalesceStageResponse(input: {
       finish();
     }
   })();
-  return subscriberResponse(entry, false);
+  return subscriberResponse(entry, "origin");
 }
 
 /** 测试用：清空进程内缓存。 */

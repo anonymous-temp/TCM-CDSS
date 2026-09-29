@@ -515,6 +515,8 @@ await check("11.1 同一病历并发两次只计算一次：后到者并入同�
   assert.equal(calls.count, 1, "只应计算一次");
   assert.equal(a, b, "两个调用方读到同一份完整流");
   assert.ok(a.includes("[END]"));
+  assert.equal(first.headers.get("x-cdss-stage-result"), null, "发起计算的请求不带复用标记");
+  assert.equal(second.headers.get("x-cdss-stage-result"), "joined", "并入进行中计算的请求标 joined");
 });
 
 await check("11.2 调用方中途断开不中止计算：结果入缓存，下一次重试直接拿到（不再「暂未生成」）", async () => {
