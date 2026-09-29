@@ -289,6 +289,35 @@ await check("8.1 强制工具调用的终态 tool_calls 视同 stop（否则被�
   assert.match(source("src/lib/diagnosis-api.ts"), /finishReason: strictToolFinishReason\(result\.choices\?\.\[0\]\?\.finish_reason \?\? null\)/, "工具重试的返回值必须过这道归一");
 });
 
+// ── 9 DeepSeek 括号种类写错（数组该以 ] 闭合却写成 }）——生产 0059 M04 47–85 秒的原因 ───────────────
+const format = jiti("../src/lib/model-response-format.ts");
+await check("9.1 真实样本（生产 0059 同款、本机 1/9 复现）：数组末尾的 ] 被写成 }，修补后零违规——不再走 34 秒的 Qwen 严格兜底", () => {
+  const sample = readFileSync(new URL("./fixtures/eval924/m04-mismatched-closer-sample.json.txt", import.meta.url), "utf8");
+  assert.throws(() => JSON.parse(sample), "样本本身必须是非法 JSON");
+  assert.equal(format.removePrematureRootClosers(sample), undefined, "此前的两种修补都救不了它");
+  const result = format.checkNonStrictStructuredContent("m04_proposal", sample);
+  assert.deepEqual(result.violations, []);
+  assert.deepEqual(result.repairs, ["mismatched_closer"]);
+  const repaired = format.repairMismatchedClosers(sample);
+  assert.ok(Array.isArray(JSON.parse(repaired).nonPharma.precautions), "修补后 precautions 仍在 nonPharma 里、仍是数组（没有错位）");
+});
+
+await check("9.2 语法级修补的边界：只换括号种类，字符串里的括号不动；多出的闭合符、超过 3 处、串内截断一律不修（照旧走严格兜底）", () => {
+  assert.equal(format.repairMismatchedClosers('{"a":{"b":["x","y"}},"c":{"d":1}}'), '{"a":{"b":["x","y"]},"c":{"d":1}}');
+  assert.equal(format.repairMismatchedClosers('{"a":"x}]y"}'), undefined, "字符串里的括号不是闭合符");
+  assert.equal(format.repairMismatchedClosers('{"a":1}}'), undefined, "多出的闭合符不在此修补");
+  assert.equal(format.repairMismatchedClosers('{"a":[[[[1}}}}}'), undefined, "换 3 处以上不修");
+  assert.equal(format.repairMismatchedClosers('{"a":"未闭合字符串'), undefined);
+  const repaired = format.repairMismatchedClosers('{"a":{"b":["x","y"}},"c":{"d":1}}');
+  assert.deepEqual(JSON.parse(repaired), { a: { b: ["x", "y"] }, c: { d: 1 } });
+});
+
+await check("9.3 修补后仍过严格 schema：括号修好但结构错位（键落到别的层级）照旧报违规", () => {
+  const misplaced = '{"candidate":{"name":"x","herbs":[}},"nonPharma":{}}';
+  const result = format.checkNonStrictStructuredContent("m04_proposal", misplaced);
+  assert.ok(result.violations.length > 0, "语法合法不等于结构合法");
+});
+
 if (failures.length > 0) console.error(JSON.stringify({ failures }, null, 2));
 assert.equal(failures.length, 0, `甲方测评整改第二轮回归失败 ${failures.length} 项`);
 console.log(JSON.stringify({ checks, failures: 0 }));

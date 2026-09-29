@@ -651,6 +651,54 @@ function completeTrailingJsonClosers(text: string): string | undefined {
  * 删的若其实是更里层该闭合的位置（模型把某层提前闭合），键会落到根上，由后面的严格 schema 校验
  * 报 additionalProperties/required 违规、照走兜底，不会静默接受错位结构。
  */
+/**
+ * 括号种类写错的闭合符（DeepSeek json_object 的另一种语法错，2026-09-29 生产 0059 M04 实测）：
+ * 数组末尾该写 `]` 却写成 `}`——`"precautions":["…","…"}},"referenceCaseUse":{…}}`，
+ * 于是整份合法内容因「不是合法 JSON」被判违规，同模型重抽也常犯同一个错，最后落到 Qwen 严格兜底
+ * （34 秒，M04 总时长 47–85 秒，超出 HIS 30 秒等待）。
+ *
+ * 只做**语法**修补：遇到与栈顶不符的闭合符时，按栈顶换成它该有的那一个（`}`→`]` 或 `]`→`}`），
+ * 其余字节原样；栈里剩下的未闭合括号照旧补齐。**最多换 3 个**，多出的闭合符（栈已空）、
+ * 字符串内的括号一律不动；换完之后仍要过严格 schema 校验，结构错位（键落到别的层级）由校验报 required/
+ * additionalProperties 违规、照走兜底，不会被这里放过。
+ */
+export function repairMismatchedClosers(text: string): string | undefined {
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  let replaced = 0;
+  let out = "";
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      out += char;
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === "\"") inString = false;
+      continue;
+    }
+    if (char === "\"") {
+      inString = true;
+    } else if (char === "{") {
+      stack.push("}");
+    } else if (char === "[") {
+      stack.push("]");
+    } else if (char === "}" || char === "]") {
+      const expected = stack.pop();
+      if (expected === undefined) return undefined;
+      if (expected !== char) {
+        replaced += 1;
+        if (replaced > 3) return undefined;
+        out += expected;
+        continue;
+      }
+    }
+    out += char;
+  }
+  if (inString || replaced === 0) return undefined;
+  return out + stack.reverse().join("");
+}
+
 export function removePrematureRootClosers(text: string): string | undefined {
   const stack: string[] = [];
   let inString = false;
@@ -739,10 +787,11 @@ export function checkNonStrictStructuredContent(task: StructuredOutputTask, cont
   } catch {
     const completed = completeTrailingJsonClosers(text);
     const merged = completed ? undefined : removePrematureRootClosers(text);
+    const mismatched = completed || merged ? undefined : repairMismatchedClosers(text);
     try {
-      if (!completed && !merged) throw new Error("unrecoverable");
-      value = JSON.parse((completed || merged) as string);
-      repairs.push(completed ? "trailing_closers" : "premature_root_close");
+      if (!completed && !merged && !mismatched) throw new Error("unrecoverable");
+      value = JSON.parse((completed || merged || mismatched) as string);
+      repairs.push(completed ? "trailing_closers" : merged ? "premature_root_close" : "mismatched_closer");
     } catch {
       return { content, violations: [{ path: "/", keyword: "json" }], repairs };
     }
