@@ -47,14 +47,19 @@ const check = (name, ok, detail) => {
   return ok;
 };
 
-/** 调用一个阶段路由,返回 { status, markdown, structured }。NDJSON 契约见接口文档 §3。 */
-async function callStage(path, caseState) {
+/**
+ * 调用一个阶段路由,返回 { status, markdown, structured }。NDJSON 契约见接口文档 §3。
+ * M03/M04 自 V2.28 起对同一病例只算一次（30 分钟内回放）：样本时延必须来自真实模型编排，
+ * 所以采样调用默认带 `x-cdss-regenerate: 1`；只有显式 `regenerate:false` 的调用才走复用路径。
+ */
+async function callStage(path, caseState, { regenerate = true } = {}) {
   const startedAt = Date.now();
   const response = await fetch(`${BASE_URL}/api/diagnosis/${path}`, {
     method: "POST",
-    headers: HEADERS,
+    headers: regenerate ? { ...HEADERS, "x-cdss-regenerate": "1" } : HEADERS,
     body: JSON.stringify({ caseState }),
   });
+  const stageResult = response.headers.get("x-cdss-stage-result");
   const responseHeaderMs = Date.now() - startedAt;
   let raw = "";
   let firstContentMs = null;
@@ -109,7 +114,7 @@ async function callStage(path, caseState) {
   const match = markdown.match(/<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/);
   let structured = null;
   if (match) { try { structured = JSON.parse(match[1].trim()); } catch { /* 保持 null,由断言报告 */ } }
-  return { status: 200, markdown, structured, responseHeaderMs, firstContentMs, modelFirstContentMs, durationMs, heartbeatPhases: [...heartbeatPhases] };
+  return { status: 200, markdown, structured, stageResult, responseHeaderMs, firstContentMs, modelFirstContentMs, durationMs, heartbeatPhases: [...heartbeatPhases] };
 }
 
 async function callSafetyPreflight(caseState) {
@@ -158,6 +163,7 @@ function latencyLabel(values, budgetMs) {
 const samples = [];
 let signedM03Count = 0;
 let signedM03WithNonEmptyPrescription = 0;
+let lastM03Sample = null;
 for (let sampleIndex = 0; sampleIndex < PROD_SMOKE_SAMPLES; sampleIndex += 1) {
   const caseId = `prod-smoke-${randomUUID()}`;
   const label = `样本${sampleIndex + 1}`;
@@ -236,6 +242,7 @@ for (let sampleIndex = 0; sampleIndex < PROD_SMOKE_SAMPLES; sampleIndex += 1) {
   }));
   check(`${label} 治法非空`, therapyText.replace("｜", "").trim().length > 0, therapyText);
   if (r3?.contractSignature) signedM03Count += 1;
+  lastM03Sample = { preparedCase, signature: r3?.contractSignature ?? null };
 
   const m04 = await callStage("prescribe", { ...preparedCase, reasoningDiagnose: r3 });
   check(`${label} M04 返回 200（签名链走通）`, m04.status === 200, m04.error);
@@ -285,6 +292,18 @@ for (let sampleIndex = 0; sampleIndex < PROD_SMOKE_SAMPLES; sampleIndex += 1) {
       herbs: (candidate.herbs || []).map((herb) => herb.name),
     } : { timing: { modelFirstContentMs: m04.modelFirstContentMs, durationMs: m04.durationMs } },
   });
+}
+
+// 同一病例只算一次（V2.28，接口文档 §3.9）：不带重新生成头重放最后一个样本的 M03 请求，
+// 必须回放刚算完的结果——标 reused、签名一致、几乎不耗时。生产默认开启；关闭复用的环境设 PROD_SMOKE_EXPECT_REUSE=false。
+if (process.env.PROD_SMOKE_EXPECT_REUSE !== "false" && lastM03Sample) {
+  const replay = await callStage("diagnose", lastM03Sample.preparedCase, { regenerate: false });
+  check("同病例重复 M03 请求回放已算完的结果", replay.status === 200 && replay.stageResult === "reused",
+    `status=${replay.status} stageResult=${replay.stageResult}`);
+  check("回放结果与原结果同一份（合同签名一致）",
+    Boolean(lastM03Sample.signature) && replay.structured?.contractSignature === lastM03Sample.signature,
+    `${replay.structured?.contractSignature ?? "none"}`);
+  check("回放不再等模型（< 5 秒）", Number.isFinite(replay.durationMs) && replay.durationMs < 5000, `${replay.durationMs}ms`);
 }
 
 const m03ModelFirst = samples.flatMap((sample) => Number.isFinite(sample.m03?.timing?.modelFirstContentMs)
