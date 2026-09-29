@@ -12,6 +12,7 @@
 // 页面/HIS 的库存标签（院内有货 / 缺货 / 库存外用药）是甲方定名，与对外接口文档同名。
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { createJiti } from "jiti";
@@ -31,8 +32,9 @@ const names = await jiti.import("../src/lib/drug-inventory-names.ts");
 const route = await jiti.import("../src/app/api/drug-inventory/route.ts");
 const availabilityRoute = await jiti.import("../src/app/api/drug-inventory/availability/route.ts");
 const planner = await jiti.import("../src/lib/medicine-candidate-planner.server.ts");
-const { retrieveLocalPatentMedicineCandidates, LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES } =
+const { retrieveLocalPatentMedicineCandidates, localPrescriptionPatentMedicineEntries } =
   await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
+const LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES = localPrescriptionPatentMedicineEntries();
 
 const failures = [];
 let checks = 0;
@@ -278,6 +280,15 @@ const plannerCase = {
     westernDiagnosis: { primary: { name: "失眠障碍", supportingFacts: ["多梦"] } },
   },
 };
+await check("RX-00 处方中成药目录运行时按 process.cwd()/src/data 读取，不打进代码包，也不被排除出镜像", () => {
+  const source = readFileSync(new URL("../src/lib/local-patent-medicine-candidates.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /import\s+\w+\s+from\s+"\.\.\/data\/local-patent-medicine-rx-index\.json"/,
+    "静态导入会把 4.4MB 打进包，webpack 生产构建需要 3GB 以上的堆");
+  assert.match(source, /readFileSync\(\s*path\.join\(process\.cwd\(\), "src", "data", LOCAL_PRESCRIPTION_PATENT_MEDICINE_INDEX_FILE\)/);
+  const nextConfig = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
+  assert.ok(!nextConfig.includes("local-patent-medicine-rx-index.json"), "目录本身必须随镜像发布");
+});
+
 await check("AI-01 本地说明书目录（含处方中成药）里能核对到、且通过同一套相关性与安全排除的提名才采用", async () => {
   const [otcPool, rxPool] = planner.medicinePlannerTestHooks.retrieveCandidatePools(plannerCase);
   assert.ok(LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES.length > 4000, "处方中成药目录应已随包生成");

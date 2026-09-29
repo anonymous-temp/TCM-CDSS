@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import localMedicineIndex from "../data/local-patent-medicine-index.json" with { type: "json" };
-import localPrescriptionMedicineIndex from "../data/local-patent-medicine-rx-index.json" with { type: "json" };
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
 import { affirmativeNegationFormsIn, governedSyndromeLabelAxes } from "./clinical-vocabulary";
@@ -43,9 +44,29 @@ const ENTRIES = (localMedicineIndex as { entries?: LocalPatentMedicineEntry[] })
 /**
  * 处方类中成药说明书目录（2026-09-28，4,899 种，不含注射剂）。不参与病例检索的默认范围，
  * 只供规划器用于：院内有货的处方中成药进入候选；AI 提名的中成药核对说明书。
+ *
+ * 运行时按 process.cwd()/src/data 懒加载，不打进代码包：4.4MB 的 JSON 静态导入后，webpack 生产构建
+ * 需要 3GB 以上的堆（3GB 实测堆溢出），本机与共享生产机都给不起。读法与原典出处索引相同，
+ * standalone 产物的文件追踪会把它带进镜像。读不到就当没有（只影响院内有货的处方中成药补入与 AI 提名核对），并留一行日志。
  */
-export const LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES: readonly LocalPatentMedicineEntry[] =
-  (localPrescriptionMedicineIndex as { entries?: LocalPatentMedicineEntry[] }).entries || [];
+export const LOCAL_PRESCRIPTION_PATENT_MEDICINE_INDEX_FILE = "local-patent-medicine-rx-index.json";
+let prescriptionPatentEntries: readonly LocalPatentMedicineEntry[] | undefined;
+
+export function localPrescriptionPatentMedicineEntries(): readonly LocalPatentMedicineEntry[] {
+  if (prescriptionPatentEntries) return prescriptionPatentEntries;
+  try {
+    const parsed = JSON.parse(
+      readFileSync(path.join(process.cwd(), "src", "data", LOCAL_PRESCRIPTION_PATENT_MEDICINE_INDEX_FILE), "utf8"),
+    ) as { entries?: LocalPatentMedicineEntry[] };
+    prescriptionPatentEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
+  } catch (error) {
+    console.warn("[tcm-cdss:knowledge] prescription patent medicine index unavailable", {
+      reason: error instanceof Error ? error.message.slice(0, 120) : "unknown",
+    });
+    prescriptionPatentEntries = [];
+  }
+  return prescriptionPatentEntries;
+}
 
 /** 中成药名去掉剂型后缀后的基础方名，用作同方多剂型的去重键。 */
 const PATENT_DOSAGE_FORM_SUFFIX = /(?:缓释|控释|肠溶)?(?:片|胶囊|颗粒|丸|口服液|合剂|液|冲剂|糖浆|散|膏|丹|栓|贴|酊|露|饮)$/;
@@ -59,12 +80,12 @@ export function findLocalPatentMedicineLabel(name: string): LocalPatentMedicineE
   const raw = String(name || "").normalize("NFKC").replace(/\s/g, "");
   if (!raw) return undefined;
   const base = patentMedicineBaseName(raw);
-  for (const entries of [ENTRIES, LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES]) {
+  for (const entries of [ENTRIES, localPrescriptionPatentMedicineEntries()]) {
     const exact = entries.find((entry) => entry.name.normalize("NFKC").replace(/\s/g, "") === raw);
     if (exact) return exact;
   }
   if (base.length < 2) return undefined;
-  for (const entries of [ENTRIES, LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES]) {
+  for (const entries of [ENTRIES, localPrescriptionPatentMedicineEntries()]) {
     const sameBase = entries.find((entry) => patentMedicineBaseName(entry.name) === base);
     if (sameBase) return sameBase;
   }

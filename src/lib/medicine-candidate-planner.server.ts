@@ -15,7 +15,7 @@ import {
 import {
   findLocalPatentMedicineLabel,
   formatLocalPatentMedicineRecord,
-  LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES,
+  localPrescriptionPatentMedicineEntries,
   patentMedicineBaseName,
   retrieveLocalPatentMedicineCandidates,
   type LocalPatentMedicineCandidate,
@@ -463,7 +463,7 @@ export async function planEvidenceBoundMedicineCandidates(
   const extendedPools = (): readonly (readonly LocalPatentMedicineCandidate[])[] => {
     if (otcPool.length <= 10) otcPool = retrieveLocalPatentMedicineCandidates(caseState, 60);
     rxPool ||= retrieveLocalPatentMedicineCandidates(caseState, 60, undefined, {
-      entries: LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES,
+      entries: localPrescriptionPatentMedicineEntries(),
       idOffset: PLANNER_EXTRA_LOCAL_ID_OFFSET + 100,
     });
     return [otcPool, rxPool];
@@ -585,7 +585,7 @@ export const medicinePlannerTestHooks = {
     return [
       retrieveLocalPatentMedicineCandidates(caseState, 60),
       retrieveLocalPatentMedicineCandidates(caseState, 60, undefined, {
-        entries: LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES,
+        entries: localPrescriptionPatentMedicineEntries(),
         idOffset: PLANNER_EXTRA_LOCAL_ID_OFFSET + 100,
       }),
     ] as const;
