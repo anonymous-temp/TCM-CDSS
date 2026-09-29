@@ -1,5 +1,6 @@
 import { prefetchDiagnoseInputs, prefetchPrescribeInputsFromSignedDiagnose, tapFinalStageContent } from "@/lib/stage-prefetch.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
+import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
 import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars } from "@/lib/prompt-budget";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
@@ -15,9 +16,31 @@ import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03Share
 import { cdssReasonCodeMarker } from "@/lib/cdss-reason-codes";
 import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothesis-rerank.server";
 
+type ParsedStageRequest = Extract<Awaited<ReturnType<typeof readCustomerBoundCaseStateRequest>>, { ok: true }>;
+
+/** 只复用正常形成的辨病辨证；有限结果、上游故障页下次照常重算。 */
+function diagnoseResultReusable(content: string): boolean {
+  return content.includes("<!-- DIAGNOSIS_JSON_START -->") &&
+    !/"primarySyndrome"\s*:\s*"症状级工作判断"/.test(content) &&
+    !content.includes("CDSS_REASON_CODE:upstream_model_unavailable");
+}
+
 export async function POST(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
+  // 同一租户、同一病例内容的请求只算一次：进行中并入、已完成复用；调用方断开不中止计算
+  // （stage-result-coalescing.server.ts）。显式重新生成：x-cdss-regenerate: 1 或 ?regenerate=1。
+  const regenerate = req.headers.get("x-cdss-regenerate") === "1" || new URL(req.url).searchParams.get("regenerate") === "1";
+  return coalesceStageResponse({
+    stage: "diagnose",
+    key: stageRequestFingerprint("diagnose", parsed.customer, parsed.caseState),
+    bypass: regenerate,
+    compute: (signal) => computeDiagnose(parsed, signal),
+    cacheable: diagnoseResultReusable,
+  });
+}
+
+async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal): Promise<Response> {
   // 浏览器给整个请求 210s。服务端 180s 的 M03 编排时钟必须起在**临床事实准备之前**，
   // 否则 maybeAttachClinicalFactsBackstop 的模型调用不计入预算，总耗时会变成
   // 「事实准备 + 180s」而冲出浏览器余量，流被切成 HTTP 0 而不是送出 fail-closed 兜底。
@@ -35,7 +58,7 @@ export async function POST(req: Request) {
   const deterministicGate = withSafetyGate(parsed.caseState);
   const caseState = deterministicGate.safetyGate?.status === "red_flag"
     ? parsed.caseState
-    : await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal);
+    : await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, signal);
   const gated = withSafetyGate(caseState);
   const redFlagAnalysis = gated.safetyGate?.status === "red_flag";
   const limitedInformation = gated.completeness.level !== "C" || gated.safetyGate?.status !== "ready";
@@ -94,19 +117,19 @@ export async function POST(req: Request) {
   const preModelTimings: Record<string, number> = {};
   const preModelMark = (name: string) => { preModelTimings[name] = Date.now() - orchestrationStartedAt; };
   preModelMark("facts");
-  const evidenceContextPromise = buildCdssEvidenceContext(safeState, "diagnose", undefined, req.signal)
+  const evidenceContextPromise = buildCdssEvidenceContext(safeState, "diagnose", undefined, signal)
     .then((value) => { preModelMark("evidence"); return value; })
     .catch(() => "");
   // 两个增补层互不依赖，并发跑；任一不可用都静默退回确定性行为。
   const [formulaRecallHint, assistedNegations] = await Promise.all([
-    normalizeCaseTextForFormulaRecall(safeState, req.signal),
-    assistedPolarityDecisions(safeState, req.signal),
+    normalizeCaseTextForFormulaRecall(safeState, signal),
+    assistedPolarityDecisions(safeState, signal),
   ]);
   // L1b 只在 L1a 的受控证候 ID 闭集内做最多 +20% 的召回重排；失败、超时或非法输出均返回空集，
   // 下游严格保持 L1a 原顺序。它不写病历、不做诊断、不绕过方名身份锁。
   preModelMark("recallAndPolarity");
   const [syndromeHypothesisRerank, evidenceContext] = await Promise.all([
-    rerankSyndromeHypothesesForFormulaRecall(safeState, assistedNegations, req.signal)
+    rerankSyndromeHypothesesForFormulaRecall(safeState, assistedNegations, signal)
       .then((value) => { preModelMark("syndromeRerank"); return value; }),
     evidenceContextPromise,
   ]);
@@ -189,7 +212,7 @@ export async function POST(req: Request) {
   preModelMark("promptReady");
   console.info("[tcm-cdss:timing] m03_pre_model", preModelTimings);
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
-    requestSignal: req.signal,
+    requestSignal: signal,
     structuredLimitedInformation: limitedInformation,
     initialVisiblePrefix: initialSafetyBanner || undefined,
     upstreamUnavailableFallback: `${cdssReasonCodeMarker("upstream_model_unavailable")}\n${signedLimitedDiagnosis(upstreamGate, "not_attempted_upstream_down")}`,

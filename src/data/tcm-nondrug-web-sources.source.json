@@ -1,0 +1,2459 @@
+{
+ "schemaVersion": "tcm-nondrug-web-sources-v1",
+ "note": "非药物治疗联网核对快照（2026-09-29，人工整理的受控输入，来源逐条带 URL 与分级；引文已逐字核对）。用途：①食疗方配料只许出自国家「既是食品又是中药材」目录或普通食物（药食同源）；②八段锦动作名称与功效以国家体育总局健身气功管理中心/中华中医药学会团体标准为准；③各项外治技术的禁忌（艾灸/拔罐/刮痧/耳穴/推拿）取自国家中医药管理局护理方案与技术规范。修改本文件即改变运行时行为，须同时更新来源与引文。",
+ "sources": [
+  {
+   "id": "W-G0-01",
+   "title": "卫生部关于进一步规范保健食品原料管理的通知（卫法监发〔2002〕51号）",
+   "publisher": "卫生部（转载：国家市场监督管理总局食品审评中心 cfe-samr.org.cn）",
+   "date": "2002-02-28",
+   "url": "http://www.cfe-samr.org.cn/zcfg/bjsp_134/qt_bjsp/202208/t20220802_4458.html",
+   "tier": "A",
+   "authorityNote": "原卫生部文件全文（含附件1既是食品又是药品的物品名单87种），由市场监管总局直属食品审评中心官网转载",
+   "cached": true
+  },
+  {
+   "id": "W-G0-04",
+   "title": "关于当归等6种新增按照传统既是食品又是中药材的物质公告（2019年第8号）",
+   "publisher": "国家卫生健康委 国家市场监管总局（国家卫健委政务服务平台 zwfw.nhc.gov.cn）",
+   "date": "2019-11-25",
+   "url": "https://zwfw.nhc.gov.cn/kzx/tzgg/qt_235/202001/t20200106_1452.html",
+   "tier": "A",
+   "authorityNote": "国家卫健委自有政务服务平台发布的公告全文及附件表（名称/植物名/拉丁学名/科名/部位/备注）",
+   "cached": true
+  },
+  {
+   "id": "W-G0-08",
+   "title": "关于党参等9种新增按照传统既是食品又是中药材的物质公告（FAOLEX 存档的国家卫健委网页打印件）",
+   "publisher": "国家卫生健康委员会 国家市场监督管理总局（FAO FAOLEX 存档）",
+   "date": "2023-11-09",
+   "url": "https://faolex.fao.org/docs/pdf/chn226650.pdf",
+   "tier": "B",
+   "authorityNote": "nhc.gov.cn 原页（s7892/202311/f0d6ef30…）的PDF打印存档；正文完整，附件表未随页打印",
+   "cached": true
+  },
+  {
+   "id": "W-G0-12",
+   "title": "关于党参等9种新增按照传统既是食品又是中药材的物质公告（2023年 第9号）",
+   "publisher": "食品伙伴网转载国家卫生健康委员会",
+   "date": "2023-11-17",
+   "url": "https://news.foodmate.net/2023/11/674821.html",
+   "tier": "B",
+   "authorityNote": "公告正文＋附件目录表（名称/植物名/拉丁学名/科名/部位/安全限量值），nhc.gov.cn 对 curl 返回412，采用该转载",
+   "cached": true
+  },
+  {
+   "id": "W-G0-17",
+   "title": "关于对党参等9种物质开展按照传统既是食品又是中药材的物质管理试点工作的通知（国卫食品函〔2019〕311号）",
+   "publisher": "上海市食品添加剂和配料行业协会转载国家卫生健康委 国家市场监管总局",
+   "date": "2019-11-25",
+   "url": "https://www.sfata.com/page202.html?article_id=308",
+   "tier": "B",
+   "authorityNote": "试点通知全文＋附件名单（含部位）的行业协会转载",
+   "cached": true
+  },
+  {
+   "id": "W-G0-22",
+   "title": "关于地黄等4种按照传统既是食品又是中药材的物质的公告（2024年第4号）及其解读",
+   "publisher": "中国食品添加剂和配料协会转载国家卫生健康委食品安全标准与监测评估司",
+   "date": "2024-08-12",
+   "url": "https://cfaa.cn/lxweb/showSecondryPage.action?chapter.id=3750&subLanmuVo.paramRoot=UTI_LAWS_STANDARD&type=",
+   "tier": "B",
+   "authorityNote": "公告正文＋官方解读全文（含各物质药典来源与部位）；附件目录表未转载",
+   "cached": true
+  },
+  {
+   "id": "W-G0-24",
+   "title": "解读《关于对党参等9种物质开展按照传统既是食品又是中药材的物质管理试点工作的通知》",
+   "publisher": "新疆维吾尔自治区卫生健康委员会（转载国家卫健委解读）",
+   "date": "2020-02-07",
+   "url": "http://wjw.xinjiang.gov.cn/hfpc/fgfzl/202006/77676d952b46455b989900eee099a8da.shtml",
+   "tier": "B",
+   "authorityNote": "国家卫健委对9种试点物质的官方解读（食用方式、配伍禁忌、特殊人群提示），省级卫健委转载",
+   "cached": true
+  },
+  {
+   "id": "W-G0-26",
+   "title": "关于印发《按照传统既是食品又是中药材的物质目录管理规定》的通知（国卫食品发〔2021〕36号）",
+   "publisher": "国家卫生健康委（新疆维吾尔自治区卫生健康委员会转载）",
+   "date": "2021-11-10",
+   "url": "https://wjw.xinjiang.gov.cn/hfpc/spaq/202111/c0b040f489ba497391aa47efb39d4f9f.shtml",
+   "tier": "B",
+   "authorityNote": "部门规范性文件全文，省级卫健委官网转载",
+   "cached": true
+  },
+  {
+   "id": "W-G0-30",
+   "title": "我国食药物质名单梳理、修订与展望（孙欣缘、郑雅萍、孙康萌、何春年、肖培根）",
+   "publisher": "中国医学科学院药用植物研究所等（学术论文，转载于 zyczzyzw.com）",
+   "date": "",
+   "url": "http://zyczzyzw.com/m/sczh/scyj/15081.html",
+   "tier": "B",
+   "authorityNote": "同行评议综述的全文转载（原刊名未在页面载明，ResearchGate 有英文题录）；用于名称沿革说明，非官方目录",
+   "cached": true
+  },
+  {
+   "id": "W-G0-31",
+   "title": "按照传统既是食品又是中药材物质目录管理办法（征求意见稿）及附件目录（征求意见稿）",
+   "publisher": "国家卫生计生委办公厅（国卫办食品函〔2014〕975号附件）",
+   "date": "2014-11",
+   "url": "https://www.nhc.gov.cn/wjw/yjzj/201411/2d5b6eec573e4d51b8d6d1c33a75ff52/files/1732844430549_44330.doc",
+   "tier": "A",
+   "authorityNote": "官方征求意见稿原件（.doc，curl 直取；txt 由 LibreOffice 从 cache/W-G0-31.raw 转换）。未正式实施，仅用于说明为何市面清单与官方目录不一致",
+   "cached": true
+  },
+  {
+   "id": "W-G0-33",
+   "title": "健身气功•八段锦的中医解读",
+   "publisher": "国家体育总局健身气功管理中心（作者：黄健）",
+   "date": "2017-12-21",
+   "url": "https://www.sport.gov.cn/qgzx/n5407/c840284/content.html",
+   "tier": "A",
+   "authorityNote": "健身气功管理中心官网“功法知识”栏目署名文章，逐式解读八段锦中医作用（非教材“功理与作用”原文）",
+   "cached": true
+  },
+  {
+   "id": "W-G0-38",
+   "title": "T/CACM 1676—2026/T/CHQA 0001—2026 八段锦 Baduanjin（团体标准）",
+   "publisher": "中华中医药学会 中国健身气功协会",
+   "date": "2026-05-28",
+   "url": "https://www.cacm.org.cn/wp-content/uploads/2026/06/%E5%85%AB%E6%AE%B5%E9%94%A6-TCACM1676%E2%80%942026%EF%BC%8CTCHQA0001%E2%80%942026.pdf",
+   "tier": "A",
+   "authorityNote": "正式发布的团体标准全文PDF：各式动作说明、功理与作用、学练频次、适用人群、安全提示、附录C常见疾病人群习练推荐。PDF 文本夹杂水印字母(A/Q/CH/CM/CA)，引文已避开",
+   "cached": true
+  },
+  {
+   "id": "W-G0-50",
+   "title": "健身气功降压方正式推出",
+   "publisher": "中国健身气功协会",
+   "date": "2021-11-18",
+   "url": "https://www.chqa.org.cn/html/108768-63420.html",
+   "tier": "B",
+   "authorityNote": "协会官网“运动处方”栏目：体育总局气功中心与协会委托编创的运动处方介绍（动作组成仅在视频中，文字未列）",
+   "cached": true
+  },
+  {
+   "id": "W-G0-51",
+   "title": "打造具有中国特色的健身气功运动处方体系",
+   "publisher": "中国健身气功协会（转自《中国体育报》）",
+   "date": "2021-11-18",
+   "url": "https://www.chqa.org.cn/html/108768-63419.html",
+   "tier": "B",
+   "authorityNote": "列出体育总局气功中心推出的功法与运动处方名称",
+   "cached": true
+  },
+  {
+   "id": "W-G0-52",
+   "title": "健身气功推出帕友方",
+   "publisher": "中国健身气功协会",
+   "date": "2021-10-21",
+   "url": "https://www.chqa.org.cn/html/108768-63418.html",
+   "tier": "B",
+   "authorityNote": "协会官网运动处方介绍",
+   "cached": true
+  },
+  {
+   "id": "W-G0-54",
+   "title": "健身气功隆重推出脊椎平衡方",
+   "publisher": "中国健身气功协会",
+   "date": "2021-09-09",
+   "url": "https://www.chqa.org.cn/html/108768-63416.html",
+   "tier": "B",
+   "authorityNote": "协会官网运动处方介绍",
+   "cached": true
+  },
+  {
+   "id": "W-G0-55",
+   "title": "要下功夫熟记健身气功动作名称",
+   "publisher": "中国健身气功协会（功理功用栏目）",
+   "date": "2026-02-26",
+   "url": "https://www.chqa.org.cn/html/108767-95364.html",
+   "tier": "B",
+   "authorityNote": "协会官网文章，说明六字诀字序与脏腑对应",
+   "cached": true
+  },
+  {
+   "id": "W-G0-61",
+   "title": "呼吸吐纳功法“六字诀”，提高免疫力的健身气功",
+   "publisher": "广东省中医药局（来源：国家体育总局官网、中国中医药报、健康时报）",
+   "date": "2024-09-15",
+   "url": "http://szyyj.gd.gov.cn/zyyfw/ysbj/content/post_4495822.html",
+   "tier": "B",
+   "authorityNote": "前半部分为健身气功·六字诀课题组《功法源流》原文（体育总局官网 c781291 同文，WebFetch 核对标题一致），后半部分“常念六个字”为科普汇编(C)",
+   "cached": true
+  },
+  {
+   "id": "W-G0-62",
+   "title": "五禽戏功法讲解",
+   "publisher": "莱州市驿道中心卫生院（烟台市政府信息公开平台）",
+   "date": "2025-05-22",
+   "url": "https://www.yantai.gov.cn/art/2025/5/22/art_85636_3113476.html",
+   "tier": "C",
+   "authorityNote": "基层卫生院科普，仅用于可 curl 核验的五禽戏动作名称；官方来源见 W-G0-75（未缓存）",
+   "cached": true
+  },
+  {
+   "id": "W-G0-64",
+   "title": "关于印发新型冠状病毒肺炎恢复期中医康复指导建议（试行）的通知",
+   "publisher": "国家卫生健康委员会办公厅 国家中医药管理局办公室（中国政府网）",
+   "date": "2020-02-22",
+   "url": "https://www.gov.cn/zhengce/zhengceku/2020-02/24/content_5482544.htm",
+   "tier": "A",
+   "authorityNote": "肺炎机制医疗发〔2020〕108号，中国政府网国务院政策文件库全文",
+   "cached": true
+  },
+  {
+   "id": "W-G0-66",
+   "title": "新冠病毒感染者居家中医药干预指引",
+   "publisher": "国家中医药管理局（医政司）",
+   "date": "2022-12-10",
+   "url": "http://www.natcm.gov.cn/yizhengsi/gongzuodongtai/2022-12-10/28466.html",
+   "tier": "A",
+   "authorityNote": "国家中医药管理局官网原文（含拔罐注意事项）",
+   "cached": true
+  },
+  {
+   "id": "W-G0-67",
+   "title": "关于印发儿童等5个重点人群和慢病患者中医健康管理技术规范（试行）的通知（国中医药医政基层便函〔2011〕147号）",
+   "publisher": "国家中医药管理局医政司（北京市中医管理局官网转载附件 .doc）",
+   "date": "2011",
+   "url": "https://zyj.beijing.gov.cn/sy/tzgg/201912/P020191219585317148815.doc",
+   "tier": "B",
+   "authorityNote": "国家局技术规范全文（老年人体质运动保健、高血压、2型糖尿病、儿童推拿），省级中医管理局转载；txt 由 LibreOffice 从 cache/W-G0-67.raw 转换",
+   "cached": true
+  },
+  {
+   "id": "W-G0-69",
+   "title": "健身气功•六字诀如何调整脏腑功能",
+   "publisher": "国家体育总局健身气功管理中心（作者：江奔）",
+   "date": "2017-12-01",
+   "url": "https://www.sport.gov.cn/qgzx/n5407/c837434/content.html",
+   "tier": "A",
+   "authorityNote": "健身气功管理中心官网文章。sport.gov.cn 在 G0 抓取时对 curl 返回403，缓存逐字复制自 G1 用 fetch.py 抓取的 W-G1-25（同URL），已记入 index.tsv",
+   "cached": true
+  },
+  {
+   "id": "W-G0-70",
+   "title": "专家详解不同人群习练气功健身养生功法之道",
+   "publisher": "国家体育总局官网（转自《中国体育报》，受访：中国中医科学院望京医院 金哲峰）",
+   "date": "2026-02-04",
+   "url": "https://www.sport.gov.cn/n20001280/n20001265/n20066978/c29401704/content.html",
+   "tier": "C",
+   "authorityNote": "报纸专家访谈，非规范文本；缓存逐字复制自 W-G5-14（同URL，fetch.py 抓取），已记入 index.tsv",
+   "cached": true
+  },
+  {
+   "id": "W-G0-71",
+   "title": "易筋经",
+   "publisher": "中国中医科学院中医基础理论研究所（调摄养生栏目）",
+   "date": "2023-03-14",
+   "url": "https://www.ibtcm.ac.cn/detail.thtml?contentId=8396",
+   "tier": "C",
+   "authorityNote": "传统《卫生要术》“韦驮劲十二势”版本，势名与健身气功·易筋经不同，仅用于名称差异说明",
+   "cached": true
+  },
+  {
+   "id": "W-G0-73",
+   "title": "19个病种中医护理方案（试行）（含特色技术使用注意事项）",
+   "publisher": "国家中医药管理局",
+   "date": "",
+   "url": "http://www.natcm.gov.cn/d/file/8a793be22b3cbc7acde4390e92007e45.doc",
+   "tier": "A",
+   "authorityNote": "国家中医药管理局官网附件原件 .doc（curl 直取，LibreOffice 转 txt）；第二部分列耳穴贴压/艾灸/拔火罐/刮痧/穴位按摩等注意事项",
+   "cached": true
+  },
+  {
+   "id": "W-G0-74",
+   "title": "25个基层常见病针灸推拿刮痧技术推广目录（附件3，含推拿禁忌症、刮痧禁忌证）",
+   "publisher": "国家中医药管理局",
+   "date": "2008-08-28",
+   "url": "http://www.natcm.gov.cn/file2008/20080828100629.doc",
+   "tier": "A",
+   "authorityNote": "国家中医药管理局官网附件原件 .doc（curl 直取，LibreOffice 转 txt）",
+   "cached": true
+  },
+  {
+   "id": "W-G0-75",
+   "title": "健身气功•五禽戏中医学理论诠释",
+   "publisher": "国家体育总局健身气功管理中心官网（作者：中国健身气功协会）",
+   "date": "2013-03-28",
+   "url": "https://www.sport.gov.cn/qgzx/n5407/c670077/content.html",
+   "tier": "A",
+   "authorityNote": "官方功法解读；sport.gov.cn 对 curl 返回403，仅经 WebFetch（摘要模型）读取，引文未机器核验",
+   "cached": false
+  },
+  {
+   "id": "W-G0-76",
+   "title": "居家健身教学视频—易筋经",
+   "publisher": "国家体育总局",
+   "date": "2020-03-03",
+   "url": "https://www.sport.gov.cn/n4/n15204/n15207/c944065/content.html",
+   "tier": "A",
+   "authorityNote": "健身气功·易筋经势名与作用；sport.gov.cn 对 curl 返回403，仅经 WebFetch 读取，引文未机器核验",
+   "cached": false
+  }
+ ],
+ "foodMedicineHomology": {
+  "authority": "国家卫健委/市场监管总局《按照传统既是食品又是中药材的物质目录》（2002年87种＋2019年6种＋2023年9种＋2024年4种，共106种）",
+  "totalCount": 106,
+  "items": [
+   {
+    "name": "丁香",
+    "listedAs": "丁香",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "八角茴香",
+    "listedAs": "八角茴香",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "刀豆",
+    "listedAs": "刀豆",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "小茴香",
+    "listedAs": "小茴香",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "小蓟",
+    "listedAs": "小蓟",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "山药",
+    "listedAs": "山药",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "山楂",
+    "listedAs": "山楂",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "马齿苋",
+    "listedAs": "马齿苋",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "乌梢蛇",
+    "listedAs": "乌梢蛇",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "乌梅",
+    "listedAs": "乌梅",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "木瓜",
+    "listedAs": "木瓜",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "火麻仁",
+    "listedAs": "火麻仁",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "代代花",
+    "listedAs": "代代花",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "玉竹",
+    "listedAs": "玉竹",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "甘草",
+    "listedAs": "甘草",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "白芷",
+    "listedAs": "白芷",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "白果",
+    "listedAs": "白果",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "白扁豆",
+    "listedAs": "白扁豆",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "白扁豆花",
+    "listedAs": "白扁豆花",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "龙眼肉（桂圆）",
+    "listedAs": "龙眼肉（桂圆）",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": [
+     "龙眼肉",
+     "桂圆"
+    ]
+   },
+   {
+    "name": "决明子",
+    "listedAs": "决明子",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "百合",
+    "listedAs": "百合",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "肉豆蔻",
+    "listedAs": "肉豆蔻",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "肉桂",
+    "listedAs": "肉桂",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "余甘子",
+    "listedAs": "余甘子",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "佛手",
+    "listedAs": "佛手",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "杏仁（甜、苦）",
+    "listedAs": "杏仁（甜、苦）",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": [
+     "杏仁",
+     "甜杏仁",
+     "苦杏仁"
+    ]
+   },
+   {
+    "name": "沙棘",
+    "listedAs": "沙棘",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "牡蛎",
+    "listedAs": "牡蛎",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "芡实",
+    "listedAs": "芡实",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "花椒",
+    "listedAs": "花椒",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "赤小豆",
+    "listedAs": "赤小豆",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "阿胶",
+    "listedAs": "阿胶",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "鸡内金",
+    "listedAs": "鸡内金",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "麦芽",
+    "listedAs": "麦芽",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "昆布",
+    "listedAs": "昆布",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "枣（大枣、酸枣、黑枣）",
+    "listedAs": "枣（大枣、酸枣、黑枣）",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": [
+     "大枣",
+     "红枣",
+     "酸枣",
+     "黑枣"
+    ]
+   },
+   {
+    "name": "罗汉果",
+    "listedAs": "罗汉果",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "郁李仁",
+    "listedAs": "郁李仁",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "金银花",
+    "listedAs": "金银花",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "青果",
+    "listedAs": "青果",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "鱼腥草",
+    "listedAs": "鱼腥草",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "姜（生姜、干姜）",
+    "listedAs": "姜（生姜、干姜）",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": [
+     "生姜",
+     "干姜",
+     "姜"
+    ]
+   },
+   {
+    "name": "枳椇子",
+    "listedAs": "枳椇子",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "枸杞子",
+    "listedAs": "枸杞子",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "栀子",
+    "listedAs": "栀子",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "砂仁",
+    "listedAs": "砂仁",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "胖大海",
+    "listedAs": "胖大海",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "茯苓",
+    "listedAs": "茯苓",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "香橼",
+    "listedAs": "香橼",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "香薷",
+    "listedAs": "香薷",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "桃仁",
+    "listedAs": "桃仁",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "桑叶",
+    "listedAs": "桑叶",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "桑椹",
+    "listedAs": "桑椹",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "桔红",
+    "listedAs": "桔红",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": [
+     "橘红"
+    ]
+   },
+   {
+    "name": "桔梗",
+    "listedAs": "桔梗",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "益智仁",
+    "listedAs": "益智仁",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": [
+     "益智"
+    ]
+   },
+   {
+    "name": "荷叶",
+    "listedAs": "荷叶",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "莱菔子",
+    "listedAs": "莱菔子",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "莲子",
+    "listedAs": "莲子",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "高良姜",
+    "listedAs": "高良姜",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "淡竹叶",
+    "listedAs": "淡竹叶",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "淡豆豉",
+    "listedAs": "淡豆豉",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "菊花",
+    "listedAs": "菊花",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "菊苣",
+    "listedAs": "菊苣",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "黄芥子",
+    "listedAs": "黄芥子",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "黄精",
+    "listedAs": "黄精",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "紫苏",
+    "listedAs": "紫苏",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": [
+     "紫苏叶"
+    ]
+   },
+   {
+    "name": "紫苏籽",
+    "listedAs": "紫苏籽",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": [
+     "紫苏子"
+    ]
+   },
+   {
+    "name": "葛根",
+    "listedAs": "葛根",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "黑芝麻",
+    "listedAs": "黑芝麻",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "黑胡椒",
+    "listedAs": "黑胡椒",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "槐米",
+    "listedAs": "槐米",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": []
+   },
+   {
+    "name": "槐花",
+    "listedAs": "槐花",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "蒲公英",
+    "listedAs": "蒲公英",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "蜂蜜",
+    "listedAs": "蜂蜜",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "榧子",
+    "listedAs": "榧子",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "酸枣仁",
+    "listedAs": "酸枣仁",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "鲜白茅根",
+    "listedAs": "鲜白茅根",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": [
+     "白茅根"
+    ]
+   },
+   {
+    "name": "鲜芦根",
+    "listedAs": "鲜芦根",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": [
+     "芦根"
+    ]
+   },
+   {
+    "name": "蝮蛇",
+    "listedAs": "蝮蛇",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "橘皮",
+    "listedAs": "橘皮",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": [
+     "陈皮"
+    ]
+   },
+   {
+    "name": "薄荷",
+    "listedAs": "薄荷",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "薏苡仁",
+    "listedAs": "薏苡仁",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "薤白",
+    "listedAs": "薤白",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "覆盆子",
+    "listedAs": "覆盆子",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01"
+   },
+   {
+    "name": "藿香",
+    "listedAs": "藿香",
+    "batch": "2002",
+    "restriction": "",
+    "sourceId": "W-G0-01",
+    "matchAliases": [
+     "广藿香"
+    ]
+   },
+   {
+    "name": "当归",
+    "listedAs": "当归",
+    "batch": "2019",
+    "restriction": "部位：根；仅作为香辛料和调味品（2019年第8号公告正式纳入，非试点）",
+    "sourceId": "W-G0-04"
+   },
+   {
+    "name": "山柰",
+    "listedAs": "山柰",
+    "batch": "2019",
+    "restriction": "部位：根茎；仅作为香辛料和调味品（2019年第8号公告正式纳入，非试点）",
+    "sourceId": "W-G0-04",
+    "matchAliases": [
+     "山奈"
+    ]
+   },
+   {
+    "name": "西红花",
+    "listedAs": "西红花",
+    "batch": "2019",
+    "restriction": "部位：柱头；仅作为香辛料和调味品，在香辛料和调味品中又称“藏红花”（2019年第8号公告正式纳入，非试点）",
+    "sourceId": "W-G0-04",
+    "matchAliases": [
+     "藏红花",
+     "番红花"
+    ]
+   },
+   {
+    "name": "草果",
+    "listedAs": "草果",
+    "batch": "2019",
+    "restriction": "部位：果实；仅作为香辛料和调味品（2019年第8号公告正式纳入，非试点）",
+    "sourceId": "W-G0-04"
+   },
+   {
+    "name": "姜黄",
+    "listedAs": "姜黄",
+    "batch": "2019",
+    "restriction": "部位：根茎；仅作为香辛料和调味品（2019年第8号公告正式纳入，非试点）",
+    "sourceId": "W-G0-04"
+   },
+   {
+    "name": "荜茇",
+    "listedAs": "荜茇",
+    "batch": "2019",
+    "restriction": "部位：果穗；仅作为香辛料和调味品（2019年第8号公告正式纳入，非试点）",
+    "sourceId": "W-G0-04"
+   },
+   {
+    "name": "党参",
+    "listedAs": "党参",
+    "batch": "2023",
+    "restriction": "部位：根（党参/素花党参/川党参）；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（试点解读 W-G0-24）；党参不宜与藜芦同用（试点解读）；2019-11起试点（国卫食品函〔2019〕311号），2023年第9号公告正式纳入；公告附件无每日食用量限值，只列重金属/SO2安全限量",
+    "sourceId": "W-G0-12"
+   },
+   {
+    "name": "肉苁蓉",
+    "listedAs": "肉苁蓉（荒漠）",
+    "batch": "2023",
+    "restriction": "部位：肉质茎；仅荒漠肉苁蓉 Cistanche deserticola；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（试点解读 W-G0-24）；2019-11起试点（国卫食品函〔2019〕311号），2023年第9号公告正式纳入；公告附件无每日食用量限值，只列重金属/SO2安全限量",
+    "sourceId": "W-G0-12"
+   },
+   {
+    "name": "铁皮石斛",
+    "listedAs": "铁皮石斛",
+    "batch": "2023",
+    "restriction": "部位：茎；仅铁皮石斛 Dendrobium officinale（非其他石斛）；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（试点解读 W-G0-24）；2019-11起试点（国卫食品函〔2019〕311号），2023年第9号公告正式纳入；公告附件无每日食用量限值，只列重金属/SO2安全限量",
+    "sourceId": "W-G0-12"
+   },
+   {
+    "name": "西洋参",
+    "listedAs": "西洋参",
+    "batch": "2023",
+    "restriction": "部位：根；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（试点解读 W-G0-24）；西洋参不宜与藜芦同用（试点解读）；2019-11起试点（国卫食品函〔2019〕311号），2023年第9号公告正式纳入；公告附件无每日食用量限值，只列重金属/SO2安全限量",
+    "sourceId": "W-G0-12"
+   },
+   {
+    "name": "黄芪",
+    "listedAs": "黄芪",
+    "batch": "2023",
+    "restriction": "部位：根（蒙古黄芪/膜荚黄芪）；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（试点解读 W-G0-24）；2019-11起试点（国卫食品函〔2019〕311号），2023年第9号公告正式纳入；公告附件无每日食用量限值，只列重金属/SO2安全限量",
+    "sourceId": "W-G0-12"
+   },
+   {
+    "name": "灵芝",
+    "listedAs": "灵芝",
+    "batch": "2023",
+    "restriction": "部位：子实体（赤芝/紫芝）；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（试点解读 W-G0-24）；2019-11起试点（国卫食品函〔2019〕311号），2023年第9号公告正式纳入；公告附件无每日食用量限值，只列重金属/SO2安全限量",
+    "sourceId": "W-G0-12"
+   },
+   {
+    "name": "山茱萸",
+    "listedAs": "山茱萸",
+    "batch": "2023",
+    "restriction": "部位：果实（2019试点名单写“果肉”）；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（试点解读 W-G0-24）；2019-11起试点（国卫食品函〔2019〕311号），2023年第9号公告正式纳入；公告附件无每日食用量限值，只列重金属/SO2安全限量",
+    "sourceId": "W-G0-12"
+   },
+   {
+    "name": "天麻",
+    "listedAs": "天麻",
+    "batch": "2023",
+    "restriction": "部位：块茎；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（试点解读 W-G0-24）；过敏体质人群不宜食用（试点解读）；2019-11起试点（国卫食品函〔2019〕311号），2023年第9号公告正式纳入；公告附件无每日食用量限值，只列重金属/SO2安全限量",
+    "sourceId": "W-G0-12"
+   },
+   {
+    "name": "杜仲叶",
+    "listedAs": "杜仲叶",
+    "batch": "2023",
+    "restriction": "部位：叶（仅杜仲叶，杜仲树皮不在目录）；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（试点解读 W-G0-24）；2019-11起试点（国卫食品函〔2019〕311号），2023年第9号公告正式纳入；公告附件无每日食用量限值，只列重金属/SO2安全限量",
+    "sourceId": "W-G0-12",
+    "matchAliases": []
+   },
+   {
+    "name": "地黄",
+    "listedAs": "地黄",
+    "batch": "2024",
+    "restriction": "部位：新鲜或干燥块根；熟地黄作为地黄的炮制加工品可作为食药物质使用（官方解读）；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（2024年第4号解读）",
+    "sourceId": "W-G0-22",
+    "matchAliases": [
+     "生地黄",
+     "熟地黄",
+     "鲜地黄"
+    ]
+   },
+   {
+    "name": "麦冬",
+    "listedAs": "麦冬",
+    "batch": "2024",
+    "restriction": "部位：干燥块根；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（2024年第4号解读）",
+    "sourceId": "W-G0-22",
+    "matchAliases": [
+     "麦门冬"
+    ]
+   },
+   {
+    "name": "天冬",
+    "listedAs": "天冬",
+    "batch": "2024",
+    "restriction": "部位：干燥块根；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（2024年第4号解读）",
+    "sourceId": "W-G0-22",
+    "matchAliases": [
+     "天门冬"
+    ]
+   },
+   {
+    "name": "化橘红",
+    "listedAs": "化橘红",
+    "batch": "2024",
+    "restriction": "部位：化州柚或柚的未成熟或近成熟的干燥外层果皮（非2002年的“桔红”）；建议按照传统方式适量食用，孕妇、哺乳期妇女及婴幼儿等特殊人群不推荐食用（2024年第4号解读）",
+    "sourceId": "W-G0-22"
+   }
+  ],
+  "restrictedUse": [
+   {
+    "name": "当归",
+    "restriction": "仅作为香辛料和调味品（2019年第8号公告）；不得作主料炖汤"
+   },
+   {
+    "name": "山柰",
+    "restriction": "仅作为香辛料和调味品"
+   },
+   {
+    "name": "西红花",
+    "restriction": "仅作为香辛料和调味品"
+   },
+   {
+    "name": "草果",
+    "restriction": "仅作为香辛料和调味品"
+   },
+   {
+    "name": "姜黄",
+    "restriction": "仅作为香辛料和调味品"
+   },
+   {
+    "name": "荜茇",
+    "restriction": "仅作为香辛料和调味品"
+   }
+  ],
+  "notes": "官方目录=106种：2002年卫法监发〔2002〕51号附件1《既是食品又是药品的物品名单》87种（逐字核对计数=87，W-G0-01，市场监管总局食品审评中心官网全文）+2019年第8号公告6种（当归、山柰、西红花、草果、姜黄、荜茇，2019-11-25，W-G0-04 卫健委政务服务平台原文，均“仅作为香辛料和调味品”，附件无用量）+2023年第9号公告9种（2023-11-09，W-G0-12 附件表；W-G0-08 FAOLEX 存档正文）+2024年第4号公告4种（2024-08-12，W-G0-22 正文+解读；附件表未见，部位取自官方解读）。更正任务描述：2019-11 的“试点”是党参等9种（国卫食品函〔2019〕311号，W-G0-17/W-G0-24），当归等6种是同日第8号公告直接正式纳入、仅限香辛料和调味品，并非试点。9种试点物质已于2023年第9号公告转正，现无在试点状态的物质。食用量：官方现行目录对任何物质都没有每日食用量限值；2023附件“安全限量值”是铅镉砷汞/SO2污染物限量，不是食用量。黄芪/党参“食用限量”、当归“≤3克/天”、人参“≤3克/天”等数字出自2014年征求意见稿（W-G0-31，国卫办食品函〔2014〕975号附件），该稿未实施——市面“101/110种”清单多由此混入人参、山银花、芫荽、玫瑰花、松花粉、粉葛、布渣叶、夏枯草，本表"
+ },
+ "commonFoodAllowlist": [
+  "粳米",
+  "大米",
+  "糯米",
+  "小米",
+  "红糖",
+  "冰糖",
+  "白糖",
+  "蜂蜜",
+  "黄酒",
+  "米酒",
+  "葱白",
+  "大葱",
+  "葱须",
+  "葱",
+  "大蒜",
+  "蒜",
+  "白萝卜",
+  "萝卜",
+  "梨",
+  "甘蔗",
+  "鸭梨",
+  "苹果",
+  "香蕉",
+  "橙",
+  "柑",
+  "橘",
+  "猕猴桃",
+  "西瓜",
+  "西瓜翠衣",
+  "冬瓜",
+  "黄瓜",
+  "丝瓜",
+  "苦瓜",
+  "南瓜",
+  "番茄",
+  "白菜",
+  "菠菜",
+  "芹菜",
+  "韭菜",
+  "香菇",
+  "木耳",
+  "银耳",
+  "豆腐",
+  "豆浆",
+  "绿豆",
+  "黑豆",
+  "黄豆",
+  "红豆",
+  "赤小豆",
+  "鸡蛋",
+  "鸭蛋",
+  "牛奶",
+  "鲫鱼",
+  "鲤鱼",
+  "鸡肉",
+  "鸭肉",
+  "猪肉",
+  "猪瘦肉",
+  "牛肉",
+  "羊肉",
+  "猪肺",
+  "猪肚",
+  "猪骨",
+  "猪脊骨",
+  "茶叶",
+  "绿茶",
+  "红茶",
+  "盐",
+  "食盐",
+  "食用油",
+  "香油",
+  "酱油",
+  "醋",
+  "姜",
+  "生姜",
+  "干姜",
+  "花椒",
+  "胡椒",
+  "白胡椒",
+  "黑胡椒",
+  "核桃",
+  "花生",
+  "栗子",
+  "板栗",
+  "莲藕",
+  "藕",
+  "荸荠",
+  "马蹄",
+  "胡萝卜",
+  "土豆",
+  "山芋",
+  "红薯",
+  "芋头",
+  "薏米",
+  "燕麦",
+  "荞麦",
+  "玉米",
+  "面粉",
+  "面条",
+  "馒头"
+ ],
+ "daoyinRoutines": [
+  {
+   "routine": "健身气功·八段锦",
+   "issuer": "国家体育总局健身气功管理中心（技术规范：T/CACM 1676—2026/T/CHQA 0001—2026，中华中医药学会、中国健身气功协会2026-05-28发布）",
+   "movements": [
+    "预备势",
+    "两手托天理三焦",
+    "左右开弓似射雕",
+    "调理脾胃须单举",
+    "五劳七伤往后瞧",
+    "摇头摆尾去心火",
+    "两手攀足固肾腰",
+    "攒拳怒目增气力",
+    "背后七颠百病消",
+    "收势"
+   ],
+   "movementEffects": [
+    {
+     "movement": "预备势",
+     "effect": "端正身型、调匀呼吸、宁神静气、启动气机",
+     "sourceId": "W-G0-38",
+     "quote": "端正身型，调匀呼吸，宁神静气，启动气机，培育元气",
+     "verified": true
+    },
+    {
+     "movement": "两手托天理三焦",
+     "effect": "推动上中下三焦气机；舒展筋骨，防治肩部疾患、预防颈椎病",
+     "sourceId": "W-G0-38",
+     "quote": "可推动上焦肺气宣发、中焦脾胃运化、下焦水液代谢，使三焦气机升降有序",
+     "verified": true
+    },
+    {
+     "movement": "两手托天理三焦",
+     "effect": "防治肩部疾患、预防颈椎病",
+     "sourceId": "W-G0-38",
+     "quote": "对防治肩部疾患，预防颈椎病具有良好作用",
+     "verified": true
+    },
+    {
+     "movement": "左右开弓似射雕",
+     "effect": "调节肝升肺降、扩胸增加肺通气；防治颈椎病、肩周炎",
+     "sourceId": "W-G0-38",
+     "quote": "本式“左右开弓”可对左（主升之肝气）、右（主降之肺气）进行调节，使肝肺二者相互协调、气机条畅。",
+     "verified": true
+    },
+    {
+     "movement": "调理脾胃须单举",
+     "effect": "助脾升清、胃降浊，改善消化吸收",
+     "sourceId": "W-G0-38",
+     "quote": "两手上托下按的过程中，利于脾的升清功能和胃的降浊功能，改善人体消化、吸收能力。",
+     "verified": true
+    },
+    {
+     "movement": "五劳七伤往后瞧",
+     "effect": "改善脑部供血、缓解视疲劳、防治颈椎疾病",
+     "sourceId": "W-G0-38",
+     "quote": "转头后瞧时，可刺激颈部大椎穴，牵拉两侧颈动脉，改善脑部供血，提升心肺通气，活动颈肩胸廓，增强颈、项、背部肌肉力量，有助于缓解视疲劳和防治老年痴呆、颈椎疾病等。",
+     "verified": true
+    },
+    {
+     "movement": "摇头摆尾去心火",
+     "effect": "通经泄热、滋阴补肾、心肾相交",
+     "sourceId": "W-G0-38",
+     "quote": "摇头摆尾可提升阳气、通经泄热、平衡阴阳、畅通任督二脉、调理脏腑、滋阴补肾，使肾水上济，促进心肾相交。",
+     "verified": true
+    },
+    {
+     "movement": "两手攀足固肾腰",
+     "effect": "牵拉膀胱经与肾经，固肾壮腰；防治颈腰椎疾病",
+     "sourceId": "W-G0-38",
+     "quote": "两掌摩运与俯身攀足，可循经按摩、牵拉膀胱经，刺激督脉和命门、肾俞等穴，加之起身时能有效牵拉足少阴肾经，可取得充盈经气、固肾壮腰的效果。",
+     "verified": true
+    },
+    {
+     "movement": "攒拳怒目增气力",
+     "effect": "加强肝藏血疏泄，强筋壮骨、增强气力",
+     "sourceId": "W-G0-38",
+     "quote": "加强了肝的藏血、疏泄功能，具有强筋壮骨、增强气力的作用。",
+     "verified": true
+    },
+    {
+     "movement": "背后七颠百病消",
+     "effect": "震动脊柱与内脏，解除全身紧张、畅通气血、提升平衡",
+     "sourceId": "W-G0-38",
+     "quote": "具有促使内脏、关节复位，改善脏腑功能状态，解除全身关节、肌肉紧张，畅通全身气血运行，调节人体阴阳平衡的作用。",
+     "verified": true
+    },
+    {
+     "movement": "收势",
+     "effect": "引气归元，巩固习练效果",
+     "sourceId": "W-G0-38",
+     "quote": "引气归元，收敛气机，固本培元，调和脏腑，平衡阴阳，进一步巩固习练效果",
+     "verified": true
+    },
+    {
+     "movement": "两手托天理三焦",
+     "effect": "（中心解读）调全身，平衡阴阳",
+     "sourceId": "W-G0-33",
+     "quote": "两手托天理三焦：调全身，平衡阴阳",
+     "verified": true
+    },
+    {
+     "movement": "左右开弓似射雕",
+     "effect": "（中心解读）调左右，平衡金木（肝肺）",
+     "sourceId": "W-G0-33",
+     "quote": "左右开弓似射雕：调左右，平衡金木",
+     "verified": true
+    },
+    {
+     "movement": "调理脾胃须单举",
+     "effect": "（中心解读）调中焦，平衡升降",
+     "sourceId": "W-G0-33",
+     "quote": "调理脾胃须单举：调中焦，平衡升降",
+     "verified": true
+    },
+    {
+     "movement": "五劳七伤往后瞧",
+     "effect": "（中心解读）治疗性功法，调劳伤",
+     "sourceId": "W-G0-33",
+     "quote": "五劳七伤往后瞧：调劳伤，平衡标本",
+     "verified": true
+    },
+    {
+     "movement": "摇头摆尾去心火",
+     "effect": "（中心解读）调上下，平衡水火；颈椎病、高血压、年老体弱者应适可而止",
+     "sourceId": "W-G0-33",
+     "quote": "颈椎病、高血压等患者，及年老体弱者，应适可而止，不必过分强求动作的标准和幅度",
+     "verified": true
+    },
+    {
+     "movement": "两手攀足固肾腰",
+     "effect": "（中心解读）调命门，平衡任督；年老体弱及心脑血管疾病者不必强求幅度",
+     "sourceId": "W-G0-33",
+     "quote": "由于本式对腰部的柔软性有较高的要求，年老体弱及心脑血管疾病者，不必刻意强求动作的幅度 ，意到即可。",
+     "verified": true
+    },
+    {
+     "movement": "背后七颠百病消",
+     "effect": "（中心解读）调松紧，平衡张弛",
+     "sourceId": "W-G0-33",
+     "quote": "背后七颠百病消：调松紧，平衡张弛",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "routine": "健身气功·六字诀",
+   "issuer": "国家体育总局健身气功管理中心",
+   "movements": [
+    "嘘字诀",
+    "呵字诀",
+    "呼字诀",
+    "呬字诀",
+    "吹字诀",
+    "嘻字诀"
+   ],
+   "movementEffects": [
+    {
+     "movement": "嘘字诀",
+     "effect": "嘘—肝：疏通肝经，泄肝之浊气",
+     "sourceId": "W-G0-69",
+     "quote": "“嘘”字诀——疏通肝经，泄出肝之浊气，调理肝脏功能",
+     "verified": true
+    },
+    {
+     "movement": "呵字诀",
+     "effect": "呵—心：疏通心经，泄心之浊气",
+     "sourceId": "W-G0-69",
+     "quote": "“呵”字诀——疏通心经，泄出心之浊气，调理心脏功能",
+     "verified": true
+    },
+    {
+     "movement": "呼字诀",
+     "effect": "呼—脾：疏通脾经，泄脾胃浊气",
+     "sourceId": "W-G0-69",
+     "quote": "“呼”字诀——疏通脾经，泄出脾胃浊气，调理脾胃功能",
+     "verified": true
+    },
+    {
+     "movement": "呬字诀",
+     "effect": "呬—肺：疏通肺经，泄肺之浊气；兼防治颈椎病、肩周炎",
+     "sourceId": "W-G0-69",
+     "quote": "“呬”字诀——疏通肺经，泄出肺之浊气，调理肺脏功能",
+     "verified": true
+    },
+    {
+     "movement": "吹字诀",
+     "effect": "吹—肾：疏通肾经，泄肾之浊气；壮腰健肾",
+     "sourceId": "W-G0-69",
+     "quote": "“吹”字诀——疏通肾经，泄出肾之浊气，调理肾脏功能",
+     "verified": true
+    },
+    {
+     "movement": "嘻字诀",
+     "effect": "嘻—三焦：疏通少阳经脉，调畅全身气机",
+     "sourceId": "W-G0-69",
+     "quote": "“嘻”字诀——疏通少阳经脉，调理上、中、下三焦，调畅全身气机",
+     "verified": true
+    },
+    {
+     "movement": "（全套）",
+     "effect": "规范对应：呵心、呬肺、嘘肝、呼脾、吹肾、嘻三焦",
+     "sourceId": "W-G0-61",
+     "quote": "“呵——心，呬——肺，嘘——肝，呼——脾，吹——肾，嘻——三焦”是合理而规范的。",
+     "verified": true
+    },
+    {
+     "movement": "（全套）",
+     "effect": "健身气功·六字诀采用五行相生顺序 嘘→呵→呼→呬→吹→嘻",
+     "sourceId": "W-G0-61",
+     "quote": "若以养生为主要目的长期习练，则应按五行相生的顺序：嘘——呵——呼—呬——吹——嘻。“健身气功\"六字诀”用后者。",
+     "verified": true
+    },
+    {
+     "movement": "（全套）",
+     "effect": "字序按肝心脾肺肾三焦排列",
+     "sourceId": "W-G0-55",
+     "quote": "六字诀是把嘘呵呼呬吹嘻六个字按对应脏腑肝心脾肺肾三焦的顺序排列的。",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "routine": "健身气功·五禽戏",
+   "issuer": "国家体育总局健身气功管理中心",
+   "movements": [
+    "起势调息",
+    "虎举",
+    "虎扑",
+    "鹿抵",
+    "鹿奔",
+    "熊运",
+    "熊晃",
+    "猿提",
+    "猿摘",
+    "鸟伸",
+    "鸟飞",
+    "引气归元"
+   ],
+   "movementEffects": [
+    {
+     "movement": "虎举",
+     "effect": "调节肝系统与十二经筋，疏通三焦气机",
+     "sourceId": "W-G0-75",
+     "quote": "加强了对肝系统、十二经筋和十二经脉的调节锻炼",
+     "verified": false
+    },
+    {
+     "movement": "虎扑",
+     "effect": "壮腰强肾，调任督二脉",
+     "sourceId": "W-G0-75",
+     "quote": "可以起到壮腰强肾，激发调节任督二脉经气和命门之气的作用",
+     "verified": false
+    },
+    {
+     "movement": "鹿抵",
+     "effect": "腰部锻炼以强肾",
+     "sourceId": "W-G0-75",
+     "quote": "可以达到强肾之目的",
+     "verified": false
+    },
+    {
+     "movement": "鹿奔",
+     "effect": "振奋、调节全身阳气",
+     "sourceId": "W-G0-75",
+     "quote": "具有振奋、调节全身阳气的作用",
+     "verified": false
+    },
+    {
+     "movement": "熊运",
+     "effect": "加强脾胃运化",
+     "sourceId": "W-G0-75",
+     "quote": "加强了脾胃的运化功能",
+     "verified": false
+    },
+    {
+     "movement": "熊晃",
+     "effect": "调畅肝气、按摩脾胃、滋养肝肾",
+     "sourceId": "W-G0-75",
+     "quote": "具有调畅肝气，按摩脾胃，滋养肝肾之功",
+     "verified": false
+    },
+    {
+     "movement": "猿提",
+     "effect": "增强心主血脉和肺主呼吸",
+     "sourceId": "W-G0-75",
+     "quote": "按摩心脏，增强心主血脉和肺主呼吸的功能",
+     "verified": false
+    },
+    {
+     "movement": "猿摘",
+     "effect": "调摄心神，防治神经紧张、精神抑郁",
+     "sourceId": "W-G0-75",
+     "quote": "对神经紧张、精神抑郁等症有防治作用",
+     "verified": false
+    },
+    {
+     "movement": "鸟伸",
+     "effect": "强化肺主呼吸，改善慢性支气管炎、肺气肿、哮喘症状",
+     "sourceId": "W-G0-75",
+     "quote": "可增强肺活量，改善慢性支气管炎、肺气肿、哮喘等病的症状",
+     "verified": false
+    },
+    {
+     "movement": "鸟飞",
+     "effect": "提高心肺功能与下肢力量、平衡",
+     "sourceId": "W-G0-75",
+     "quote": "可显著提高心肺功能",
+     "verified": false
+    },
+    {
+     "movement": "（动作组成，可核验）",
+     "effect": "五戏各两动",
+     "sourceId": "W-G0-62",
+     "quote": "虎戏由虎举和虎扑两个动作组成",
+     "verified": true
+    },
+    {
+     "movement": "（动作组成，可核验）",
+     "effect": "熊戏两动",
+     "sourceId": "W-G0-62",
+     "quote": "熊戏由熊运和熊晃两个动作组成",
+     "verified": true
+    },
+    {
+     "movement": "（动作组成，可核验）",
+     "effect": "猿戏两动",
+     "sourceId": "W-G0-62",
+     "quote": "猿戏由猿提和猿摘两个动作组成",
+     "verified": true
+    },
+    {
+     "movement": "（动作组成，可核验）",
+     "effect": "鸟戏两动",
+     "sourceId": "W-G0-62",
+     "quote": "鸟戏有鸟伸和鸟飞两个动作组成。",
+     "verified": true
+    },
+    {
+     "movement": "引气归元",
+     "effect": "收功动作，调和气息",
+     "sourceId": "W-G0-62",
+     "quote": "引气归元：引气归元，是收功动作，可以调和气息。",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "routine": "健身气功·易筋经",
+   "issuer": "国家体育总局健身气功管理中心",
+   "movements": [
+    "预备势",
+    "韦驮献杵第一势",
+    "韦驮献杵第二势",
+    "韦驮献杵第三势",
+    "摘星换斗势",
+    "倒拽九牛尾势",
+    "出爪亮翅势",
+    "九鬼拔马刀势",
+    "三盘落地势",
+    "青龙探爪势",
+    "卧虎扑食势",
+    "打躬势",
+    "掉尾势",
+    "收势"
+   ],
+   "movementEffects": [
+    {
+     "movement": "（全套）",
+     "effect": "官方页面所列十二势顺序（WebFetch 读得第11势写作“打弓势”）",
+     "sourceId": "W-G0-76",
+     "quote": "预备式、韦驮献杵第一势、韦驮献杵第二势、韦驮献杵第三势、摘星换斗势、倒拽九牛尾势、出爪亮翅势、九鬼拔马刀势、三盘落地势、青龙探爪势、卧虎扑食势、打弓势、掉尾势、收势",
+     "verified": false
+    },
+    {
+     "movement": "（全套）",
+     "effect": "改善心血管/呼吸/消化机能及平衡、柔韧、肌力；辅助骨关节病及尿频、头晕、失眠等",
+     "sourceId": "W-G0-76",
+     "quote": "长期习练对改善心血管系统、呼吸系统、消化系统的机能，提高平衡能力、柔韧性和肌肉力量均有良好的影响",
+     "verified": false
+    },
+    {
+     "movement": "（名称差异）",
+     "effect": "传统《卫生要术》“韦驮劲十二势”势名与健身气功版不同（掌托天门势、九鬼拔刀势、饿虎扑食势、折躬势）",
+     "sourceId": "W-G0-71",
+     "quote": "又将潘氏书中所载12图改称为“韦驮劲十二势”",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "routine": "其他健身气功功法（仅核到名称）",
+   "issuer": "国家体育总局健身气功管理中心",
+   "movements": [],
+   "movementEffects": [
+    {
+     "movement": "（功法名录）",
+     "effect": "气功中心编创推出的系列功法",
+     "sourceId": "W-G0-51",
+     "quote": "先后编创推出了健身气功•易筋经、五禽戏、六字诀、八段锦、太极养生杖、导引养生功十二法、十二段锦、马王堆导引术、大舞等系列功法",
+     "verified": true
+    }
+   ]
+  }
+ ],
+ "conditionDaoyin": [
+  {
+   "condition": "原发性高血压",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天30～60 min，每周不少于5天（3个月可降收缩压/舒张压）",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 30 min～60 min，每周锻炼不少于 5 天。研究表明，3 个月习练可降低原发性高",
+     "supports": "原发性高血压人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "冠心病",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天30 min，每周不少于5天",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 30 min，每周不少于 5 天。研究表明，3 个月习练可提高冠心病患者的心脏功能、",
+     "supports": "冠心病人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "2型糖尿病",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天30～60 min，每周不少于3天（6个月）",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 30 min～60 min，每周锻炼不少于 3 天。研究表明，6 个月习练可降低 2 型糖尿",
+     "supports": "2型糖尿病人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "血脂异常",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天60 min左右，每周5～6天（3个月）",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 60min 左右，每周锻炼 5 天～6 天。",
+     "supports": "血脂异常人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "肥胖/超重",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天30～60 min，每周不少于3天（3个月）",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 30 min～60 min，每周不少于 3 天。研究表明，3 个月习练可降低肥胖或超重人",
+     "supports": "肥胖/超重人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "失眠",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天30～60 min，每周3～5天（3个月）",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 30 min～60 min，每周锻炼 3 天～5 天。研究表明，3 个月习练可改善失眠患者的",
+     "supports": "失眠人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "抑郁与焦虑状态",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天60 min左右，每周不少于5天（3个月）",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 60 min 左右，每周不少于 5 天。研究表明，3 个月习练可改善抑郁和焦虑症状，",
+     "supports": "抑郁与焦虑状态人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "骨质疏松症",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天60 min左右，每周不少于3天（6个月）",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 60 min 左右，每周不少于 3 天。研究表明，6 个月习练可提升骨质疏松症患者腰",
+     "supports": "骨质疏松症人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "膝骨关节炎",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天30～60 min，每周3～5天（6个月）",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 30 min～60 min，每周 3 天～5 天。研究表明，6 个月习练可改善膝骨关节炎患者",
+     "supports": "膝骨关节炎人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "肌少症",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天30～40 min，每周不少于3天（3个月）",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 30 min～40 min，每周不少于 3 天。研究表明，3 个月习练可改善肌少症患者步",
+     "supports": "肌少症人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "纤维肌痛",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天30～60 min，每周不少于3天（3个月）",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 30 min～60 min，每周不少于 3 天。研究表明，3 个月习练可改善纤维肌痛患者",
+     "supports": "纤维肌痛人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "慢性阻塞性肺疾病稳定期",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天30～60 min，每周不少于3天（3个月）",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 30 min～60 min，每周不少于 3 天。研究表明，3 个月习练可改善用力肺活量（FVC）、",
+     "supports": "慢性阻塞性肺疾病稳定期人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "帕金森病",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "每天30～60 min，每周3～5天（1个月起效）",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "每天宜锻炼 30 min～60 min，每周练习 3 天～5 天。研究表明，1 个月习练可改善帕金森病患",
+     "supports": "帕金森病人群习练推荐（附录C，资料性）",
+     "verified": true
+    }
+   ],
+   "notes": "团体标准附录C（资料性）；7.1.2 要求慢病稳定期人群经专科医生评估许可，在专业人员指导下低强度习练"
+  },
+  {
+   "condition": "慢性病稳定期（通则）",
+   "method": "八段锦（整套）",
+   "movement": "",
+   "frequency": "宜每周不少于3天，每天不少于2遍、约30 min；需专科医生评估许可、低强度",
+   "sourceIds": [
+    "W-G0-38"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-38",
+     "text": "6.3.3 持之以恒。宜每周练习不少于 3 天，每天练习不少于 2 遍、时间约 30 min。",
+     "supports": "通用学练频次",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-38",
+     "text": "可作为心脑血管疾病、代谢性疾病、呼吸系统疾病、骨关节疾病、睡眠",
+     "supports": "慢病稳定期适用范围",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "condition": "新冠肺炎恢复期",
+   "method": "八段锦",
+   "movement": "",
+   "frequency": "每次10～15分钟，每天1～2次，以能承受为宜",
+   "sourceIds": [
+    "W-G0-64"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-64",
+     "text": "练习时间10～15 分钟左右，建议每天1~2次，按照个人体质状况，以能承受为宜。",
+     "supports": "八段锦剂量",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "condition": "新冠肺炎恢复期",
+   "method": "太极拳",
+   "movement": "",
+   "frequency": "每日1次，每次30～50分钟",
+   "sourceIds": [
+    "W-G0-64"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-64",
+     "text": "推荐每日1次，每次30～50分钟为宜。",
+     "supports": "太极拳剂量",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "condition": "新冠肺炎恢复期",
+   "method": "呼吸六字诀",
+   "movement": "嘘、呵、呼、呬、吹、嘻",
+   "frequency": "每字6秒，反复6遍，腹式呼吸，每天1～2组",
+   "sourceIds": [
+    "W-G0-64"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-64",
+     "text": "“嘘(xu)、呵(he)、呼(hu)、呬(si)、吹(chui)、嘻(xi)”，依次每个字6秒，反复6遍，腹式呼吸方式，建议每天1~2组",
+     "supports": "六字诀剂量",
+     "verified": true
+    }
+   ],
+   "notes": "重型或危重型患者出院后根据自身恢复情况选择适当功法"
+  },
+  {
+   "condition": "新冠病毒感染（居家干预/康复）",
+   "method": "太极拳、八段锦等",
+   "movement": "",
+   "frequency": "未给剂量",
+   "sourceIds": [
+    "W-G0-66"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-66",
+     "text": "1.功法锻炼：太极拳、八段锦等。",
+     "supports": "居家干预的功法类别",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "condition": "老年人气虚质",
+   "method": "八段锦",
+   "movement": "两手攀足固肾腰；攒拳怒目增力气（原文写法）",
+   "frequency": "加做1～3遍；避免剧烈运动",
+   "sourceIds": [
+    "W-G0-67"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-67",
+     "text": "八段锦的“两手攀足固肾腰”和“攒拳怒目增力气”加做1-3遍。",
+     "supports": "老年人气虚质运动保健",
+     "verified": true
+    }
+   ],
+   "notes": "国家中医药管理局《老年人中医健康管理技术规范》体质运动保健（2011试行）"
+  },
+  {
+   "condition": "老年人阳虚质",
+   "method": "八段锦",
+   "movement": "背后七颠百病消；两手攀足固肾腰",
+   "frequency": "加做1～3遍；避风寒、不宜大汗",
+   "sourceIds": [
+    "W-G0-67"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-67",
+     "text": "八段锦的“背后七颠百病消”和“两手攀足固肾腰”加做1—3遍。",
+     "supports": "老年人阳虚质运动保健",
+     "verified": true
+    }
+   ],
+   "notes": "国家中医药管理局《老年人中医健康管理技术规范》体质运动保健（2011试行）"
+  },
+  {
+   "condition": "老年人阴虚质",
+   "method": "八段锦",
+   "movement": "五劳七伤往后瞧；两手攀足固肾腰",
+   "frequency": "加做1～3遍；每天半小时至1小时有氧运动",
+   "sourceIds": [
+    "W-G0-67"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-67",
+     "text": "八段锦的“五劳七伤往后瞧”和“两手攀足固肾腰”加做1—3遍。",
+     "supports": "老年人阴虚质运动保健",
+     "verified": true
+    }
+   ],
+   "notes": "国家中医药管理局《老年人中医健康管理技术规范》体质运动保健（2011试行）"
+  },
+  {
+   "condition": "老年人痰湿质",
+   "method": "八段锦",
+   "movement": "双手托天理三焦（=两手托天理三焦）；调理脾胃须单举",
+   "frequency": "加做1～3遍",
+   "sourceIds": [
+    "W-G0-67"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-67",
+     "text": "八段锦的“双手托天理三焦”和“调理脾胃须单举”加做1-3遍。",
+     "supports": "老年人痰湿质运动保健",
+     "verified": true
+    }
+   ],
+   "notes": "国家中医药管理局《老年人中医健康管理技术规范》体质运动保健（2011试行）"
+  },
+  {
+   "condition": "老年人湿热质",
+   "method": "八段锦",
+   "movement": "摇头摆尾去心火；调理脾胃须单举",
+   "frequency": "加做1～3遍",
+   "sourceIds": [
+    "W-G0-67"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-67",
+     "text": "八段锦的“摇头摆尾去心火”和“调理脾胃须单举”加做1—3遍。",
+     "supports": "老年人湿热质运动保健",
+     "verified": true
+    }
+   ],
+   "notes": "国家中医药管理局《老年人中医健康管理技术规范》体质运动保健（2011试行）"
+  },
+  {
+   "condition": "老年人血瘀质",
+   "method": "八段锦",
+   "movement": "左右开弓似射雕；双手托天理三焦",
+   "frequency": "加做1～3遍；避免剧烈及过量运动",
+   "sourceIds": [
+    "W-G0-67"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-67",
+     "text": "对于血瘀体质的老年人每天应有规律的有氧运动，避免剧烈以及过量的体育运动。",
+     "supports": "老年人血瘀质运动保健",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-67",
+     "text": "八段锦的“左右开弓似射雕”和“双手托天理三焦”加做1—3遍。",
+     "supports": "老年人血瘀质八段锦单式",
+     "verified": true
+    }
+   ],
+   "notes": "国家中医药管理局《老年人中医健康管理技术规范》体质运动保健（2011试行）"
+  },
+  {
+   "condition": "老年人气郁质",
+   "method": "八段锦",
+   "movement": "左右开弓似射雕；双手托天理三焦",
+   "frequency": "加做1～3遍；每天半小时至1小时有氧运动",
+   "sourceIds": [
+    "W-G0-67"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-67",
+     "text": "建议气郁体质的老年人每天有半小时至1小时的有氧运动。",
+     "supports": "老年人气郁质运动保健",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-67",
+     "text": "八段锦的“左右开弓似射雕”和“双手托天理三焦”加做1—3遍。",
+     "supports": "老年人气郁质八段锦单式",
+     "verified": true
+    }
+   ],
+   "notes": "国家中医药管理局《老年人中医健康管理技术规范》体质运动保健（2011试行）"
+  },
+  {
+   "condition": "老年人平和质",
+   "method": "八段锦、太极剑、太极拳",
+   "movement": "",
+   "frequency": "每日半小时至1小时有氧运动",
+   "sourceIds": [
+    "W-G0-67"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-67",
+     "text": "建议平和质的老年人形成良好的运动习惯，每日进行半小时至1小时的有氧运动。推荐保健运动为八段锦、太极剑以及太极拳。",
+     "supports": "老年人平和质运动保健",
+     "verified": true
+    }
+   ],
+   "notes": "国家中医药管理局《老年人中医健康管理技术规范》体质运动保健（2011试行）"
+  },
+  {
+   "condition": "老年人腰腿痛（腰酸腿软、遇寒加重）",
+   "method": "八段锦；太极拳；五禽戏",
+   "movement": "双手托天理三焦；左右开弓似射雕",
+   "frequency": "未给剂量；体力较差者练简化太极拳",
+   "sourceIds": [
+    "W-G0-67"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-67",
+     "text": "八段锦的双手托天理三焦和左右开弓似射雕",
+     "supports": "腰腿痛体育康复法",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-67",
+     "text": "太极拳、五禽戏均可使腰腿的筋骨得到缓和而充分的活动。体力较差者可练简化太极拳，如体力条件较好可练四十八式太极拳、五禽戏。",
+     "supports": "腰腿痛太极拳/五禽戏",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "condition": "高血压（季节更替运动调治）",
+   "method": "太极拳、气功锻炼、散步、慢跑",
+   "movement": "",
+   "frequency": "以活动后不觉疲倦为度；不宜过度低头弯腰",
+   "sourceIds": [
+    "W-G0-67"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-67",
+     "text": "坚持户外锻炼，以户外散步、慢跑、太极拳、气功锻炼等节律慢、运动量小、竞争不激烈，且不需要过度低头弯腰的项目为宜，并以自己活动后不觉疲倦为度。",
+     "supports": "高血压运动原则",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "condition": "中老年原发性轻、中度高血压",
+   "method": "健身气功降压方（气功中心委托编创的运动处方）",
+   "movement": "（文字未列动作组成，仅视频）",
+   "frequency": "坚持3个月",
+   "sourceIds": [
+    "W-G0-50"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-50",
+     "text": "主要针对中老年原发性轻、中度高血压人群进行健身气功干预",
+     "supports": "适用人群",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-50",
+     "text": "中老年原发性高血压人群坚持3个月的降压方锻炼，不仅血压水平包括收缩压和舒张压可明显降低",
+     "supports": "疗程",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "condition": "轻中度帕金森病（能独立行走）",
+   "method": "健身气功帕友方",
+   "movement": "选自六字诀、五禽戏、易筋经、马王堆导引术的数个动作（文字未列具体动作）",
+   "frequency": "坚持12周",
+   "sourceIds": [
+    "W-G0-52"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-52",
+     "text": "主要适用于患有轻中度帕金森病，且能够独立走路、躯干和四肢可自主活动的人群进行运动干预调节。",
+     "supports": "适用人群",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-52",
+     "text": "坚持12周的帕友方锻炼，对改善帕金森人群的运动功能、缓解抑郁情绪、提高生活质量等具有明显效果。",
+     "supports": "疗程",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "condition": "久坐所致颈、肩、腰脊椎不适",
+   "method": "健身气功脊椎平衡方（1个主方+颈/胸/腰/骶4个平衡方）",
+   "movement": "（文字未列动作组成）",
+   "frequency": "未给剂量",
+   "sourceIds": [
+    "W-G0-54"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-54",
+     "text": "主要针对长期久坐少动引起的颈、肩、腰等脊椎不良症状进行干预改善和调节防治。",
+     "supports": "适用人群",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "condition": "阳虚体质（专家访谈）",
+   "method": "八段锦",
+   "movement": "两手托天理三焦；背后七颠百病消",
+   "frequency": "未给剂量",
+   "sourceIds": [
+    "W-G0-70"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-70",
+     "text": "他推荐练习健身气功·八段锦中的“两手托天理三焦”和“背后七颠百病消”。",
+     "supports": "阳虚体质单式",
+     "verified": true
+    }
+   ],
+   "notes": "C级：报纸专家访谈；与2011国家局规范（阳虚：背后七颠百病消+两手攀足固肾腰）不完全一致，优先规范"
+  },
+  {
+   "condition": "湿热体质（专家访谈）",
+   "method": "八段锦",
+   "movement": "调理脾胃须单举；摇头摆尾去心火",
+   "frequency": "以练习后稍微出汗为宜",
+   "sourceIds": [
+    "W-G0-70"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-70",
+     "text": "金哲峰建议应重点习练健身气功·八段锦中的“调理脾胃须单举”和“摇头摆尾去心火”。",
+     "supports": "湿热体质单式",
+     "verified": true
+    }
+   ],
+   "notes": "C级；与2011规范湿热质一致"
+  },
+  {
+   "condition": "肝郁气滞体质（专家访谈）",
+   "method": "八段锦",
+   "movement": "两手攀足固肾腰；攒拳怒目增气力",
+   "frequency": "未给剂量",
+   "sourceIds": [
+    "W-G0-70"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-70",
+     "text": "这种情况可以尝试习练健身气功·八段锦中的‘两手攀足固肾腰’和‘攒拳怒目增气力’两式，重在疏肝解郁，条达气机。",
+     "supports": "肝郁单式",
+     "verified": true
+    }
+   ],
+   "notes": "C级；2011规范气郁质推荐的是左右开弓似射雕+双手托天理三焦，两者不一致，优先规范"
+  }
+ ],
+ "techniqueSafety": [
+  {
+   "technique": "艾灸",
+   "contraindications": "颜面部、大血管部位、孕妇腹部及腰骶部不宜施灸；不在饭前空腹或饭后立即施灸；初次小剂量短时间；防烫伤，大水疱报告医师；糖尿病患者不宜化脓灸",
+   "sourceIds": [
+    "W-G0-73",
+    "W-G0-67"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-73",
+     "text": "（3）颜面部、大血管部位、孕妇腹部及腰骶部不宜施灸。",
+     "supports": "艾灸禁忌部位",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-73",
+     "text": "7.注意施灸的时间，如失眠症要在临睡前施灸，不要在饭前空腹或饭后立即施灸。",
+     "supports": "施灸时机",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-73",
+     "text": "10.初次使用灸法时，以小剂量、短时间为宜，待患者耐受后，逐渐增加剂量。",
+     "supports": "初次剂量",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-67",
+     "text": "3.注意事项：防止烫伤。糖尿病患者不适宜于化脓灸。",
+     "supports": "糖尿病",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "technique": "拔罐",
+   "contraindications": "皮肤溃疡、水肿、毛发较多处及大血管处不宜；高热抽搐及凝血机制障碍者忌拔罐；妊娠期腰骶部禁用；防烫伤；出现四肢发冷、恶心呕吐、心悸、面色苍白、冷汗、头晕立即停止平卧",
+   "sourceIds": [
+    "W-G0-73",
+    "W-G0-66"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-73",
+     "text": "（1）拔罐部位的皮肤情况，有皮肤溃疡、水肿、毛发较多处及大血管处不宜拔罐。",
+     "supports": "部位禁忌",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-73",
+     "text": "（3）高热抽搐及凝血机制障碍者忌拔罐。",
+     "supports": "人群禁忌",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-73",
+     "text": "（4）女性患者妊娠期腰骶部禁用。",
+     "supports": "妊娠",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-66",
+     "text": "拔火罐应注意防止烫伤及引燃易燃物，留罐时间不宜太长，拔罐时如出现四肢发冷、恶心呕吐、心悸、面色苍白、冷汗、头晕等应立即停止，并让患者平卧休息。",
+     "supports": "晕罐处理",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "technique": "刮痧",
+   "contraindications": "严重心脑血管病、肝肾功能不全、全身浮肿禁用；孕妇腹部腰骶部禁用（护理方案：月经期或妊娠期禁用）；体表疖肿破溃疮痈斑疹及不明包块处禁刮；急性扭伤创伤骨折部位禁刮；出血倾向者不可；过饥过饱疲劳醉酒不可重刮；五官乳头肚脐禁刮；精神病患者禁用；体型消瘦慎用；晕痧即停；刮后3小时内避免洗浴",
+   "sourceIds": [
+    "W-G0-74",
+    "W-G0-73"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-74",
+     "text": "1.有严重心脑血管疾病、肝肾功能不全、全身浮肿者禁用刮痧疗法；",
+     "supports": "系统性禁忌",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-74",
+     "text": "6.有出血倾向者，如糖尿病晚期、严重贫血、白血病、再生障碍性贫血和血小板减少患者不可行刮痧疗法；",
+     "supports": "出血倾向",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-73",
+     "text": "（1）评估患者体质和皮肤情况，体型消瘦者慎用，局部皮肤瘀斑、水泡、疤痕、炎症、破溃、有出血倾向等情况者禁止刮痧。",
+     "supports": "局部禁忌",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-73",
+     "text": "（4）女性患者月经期或妊娠期禁用。",
+     "supports": "月经期/妊娠期（刮痧条下）",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "technique": "耳穴",
+   "contraindications": "耳部炎症、破溃、冻伤部位禁用；妊娠期禁用；单耳为宜，留置3～7天，两耳交替",
+   "sourceIds": [
+    "W-G0-73"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-73",
+     "text": "（1）耳部皮肤情况，有炎症、破溃、冻伤的部位禁用。",
+     "supports": "局部禁忌",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-73",
+     "text": "6.常规操作以单耳为宜，一般可留置3～7天，两耳交替使用。指导患者正确按压。",
+     "supports": "留置时间",
+     "verified": true
+    }
+   ],
+   "notes": "护理方案耳穴条下“（3）女性患者妊娠期禁用”与拔罐条下同句异义，已在拔罐条引用，此处未重复引用以免歧义"
+  },
+  {
+   "technique": "推拿",
+   "contraindications": "诊断不明的急性脊柱损伤或伴脊髓症状；各种骨折、骨结核、骨髓炎、骨肿瘤、严重老年性骨质疏松；严重心脑肺疾病或体质过虚；各种传染病；出血倾向或血液病；治疗部位严重皮损或皮肤病；孕妇腰骶及腹部；精神病不能配合者。穴位按摩：月经期或妊娠期禁用。小儿推拿：局部皮肤破损、骨折早期不宜",
+   "sourceIds": [
+    "W-G0-74",
+    "W-G0-73",
+    "W-G0-67"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-74",
+     "text": "（1）诊断不明确的急性脊柱损伤或伴有脊髓症状者；",
+     "supports": "推拿禁忌1",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-74",
+     "text": "（2）各种骨折、骨结核、骨髓炎、骨肿瘤、严重的老年性骨质疏松症；",
+     "supports": "推拿禁忌2",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-74",
+     "text": "（7）孕妇腰骶及腹部；",
+     "supports": "推拿禁忌7",
+     "verified": true
+    },
+    {
+     "sourceId": "W-G0-67",
+     "text": "（五）局部皮肤破损、骨折早期不宜推拿。",
+     "supports": "小儿推拿",
+     "verified": true
+    }
+   ]
+  },
+  {
+   "technique": "针刺（附）",
+   "contraindications": "膏肓、肺俞、膈俞等穴局部肌肉薄，须规范操作避免气胸",
+   "sourceIds": [
+    "W-G0-64"
+   ],
+   "quotes": [
+    {
+     "sourceId": "W-G0-64",
+     "text": "膏肓、肺俞、膈俞等穴局部肌肉薄，注意规范操作，避免引起气胸。",
+     "supports": "针刺安全",
+     "verified": true
+    }
+   ]
+  }
+ ]
+}

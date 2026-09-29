@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "western-diagnosis-abbreviations-v1",
+  "note": "临床常用西医病名简称 → 全称（2026-09-29）。只用于把误写进「中医病名鉴别」栏的西医病名先还原成全称，再按 tcm-western-disease-crosswalk.json（教材原句）归一到中医病名；不参与西医诊断本身。均为国内临床与教材通行简称，全称取《内科学》（人民卫生出版社）章节名写法。",
+  "entries": [
+    {
+      "abbreviation": "流感",
+      "fullName": "流行性感冒"
+    },
+    {
+      "abbreviation": "上感",
+      "fullName": "上呼吸道感染"
+    },
+    {
+      "abbreviation": "急性上感",
+      "fullName": "急性上呼吸道感染"
+    },
+    {
+      "abbreviation": "慢支",
+      "fullName": "慢性支气管炎"
+    },
+    {
+      "abbreviation": "慢阻肺",
+      "fullName": "慢性阻塞性肺疾病"
+    },
+    {
+      "abbreviation": "冠心病",
+      "fullName": "冠状动脉粥样硬化性心脏病"
+    },
+    {
+      "abbreviation": "甲亢",
+      "fullName": "甲状腺功能亢进"
+    },
+    {
+      "abbreviation": "甲减",
+      "fullName": "甲状腺功能减退"
+    },
+    {
+      "abbreviation": "前列腺增生症",
+      "fullName": "前列腺增生"
+    }
+  ]
+}

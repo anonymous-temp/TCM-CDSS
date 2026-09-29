@@ -1,3 +1,5 @@
+import { herbFunctionClauseFitsContext, isHarmonizingOrGuidingFunction } from "./herb-function-context";
+
 export const FORMULA_STRUCTURE_TARGETS = {
   middle_jiao_support: "顾护中焦，防补药滋腻",
   harmonize: "调和诸药，协调药性",
@@ -44,6 +46,8 @@ export type FormulaAnalysisHerb = {
   role?: unknown;
   function?: unknown;
   targetPathogenesis?: unknown;
+  /** 该药所引用病机节点的治法方向（M03 签名链 therapyDirection）；兜底方解优先用它讲「这味药干什么」。 */
+  therapyDirection?: unknown;
 };
 
 const ANALYSIS_ROLE_ORDER = ["君", "臣", "佐", "使"] as const;
@@ -178,8 +182,15 @@ function cleanTherapyMatchText(value: string): string {
  * 从药典/知识库的多项通用功效里只取与本方病机和治法最贴近的一项。
  * 评分只比较受控文本自身的汉字重合与二字术语重合，不生成新的医学结论。
  */
-function formulaRelevantFunctionText(value: string, clinicalContext: string): string {
-  const parts = cleanHerbFunctionText(value).split(/[，,]/).map((item) => item.trim()).filter(Boolean);
+function formulaRelevantFunctionText(value: string, clinicalContext: string, role = "", gateContext = ""): string {
+  const allParts = cleanHerbFunctionText(value).split(/[，,]/).map((item) => item.trim()).filter(Boolean);
+  // 使药先取调和/引经类功效；症状专指型功效须本例上下文里有对应症状（见 herb-function-context.ts）。
+  // 必须在**清洗前**的全量功效里找：cleanHerbFunctionText 只留前两项，甘草的「调和诸药」排在第五位，清洗后已经没了。
+  const harmonizing = role === "使"
+    ? value.split(/[，,；;]/).map((item) => item.trim()).filter((item) => item && isHarmonizingOrGuidingFunction(item))
+    : [];
+  if (harmonizing.length > 0) return harmonizing[0];
+  const parts = gateContext ? allParts.filter((part) => herbFunctionClauseFitsContext(part, `${gateContext}；${clinicalContext}`)) : allParts;
   if (parts.length <= 1) return parts[0] || "";
   const context = clinicalContext.replace(/[\s，,。；;：:、（）()[\]「」“”]/g, "");
   const score = (part: string): number => {
@@ -258,7 +269,7 @@ export function formulaAnalysisCharBudget(herbCount: number): number {
  * 甲方 2026-08-05 第 7.1 条要求分析药物在本方中的作用，而不是罗列全部功效，
  * 并给出了麻黄汤连续自然段示例。因此这里不再生成 Markdown 病机标题或逐味列表。
  */
-export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], therapyMatch = ""): string {
+export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], therapyMatch = "", caseContext = ""): string {
   const cleanedTherapyMatch = cleanTherapyMatchText(analysisText(therapyMatch));
   const rows = herbs
     .map((herb) => ({
@@ -267,9 +278,14 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
       fn: formulaRelevantFunctionText(
         analysisText(herb.function),
         `${analysisText(herb.targetPathogenesis)}；${cleanedTherapyMatch}`,
+        analysisText(herb.role),
+        caseContext,
       ),
       target: analysisText(herb.targetPathogenesis),
-      quote: cleanTargetQuoteText(analysisText(herb.targetPathogenesis)),
+      // 讲「这味药在本方干什么」优先用该节点的治法方向（短、且是动作）；病机原文常以生理或病因
+      // 描述开头（「肺主皮毛，开窍于鼻」「淋雨感寒」），接在动词后面读不通（甲方 9.24 测评 2.1）。
+      quote: cleanTherapyMatchText(analysisText(herb.therapyDirection)) || cleanTargetQuoteText(analysisText(herb.targetPathogenesis)),
+      viaTherapy: Boolean(cleanTherapyMatchText(analysisText(herb.therapyDirection))),
     }))
     .filter((row) => row.name);
   if (rows.length === 0) return "";
@@ -306,12 +322,20 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
     return fresh.join("，兼顾");
   };
   const roleTargetClause = (role: string, items: typeof ordered): string => {
+    if (role === "使") return "";
     const target = targetText(items);
     if (!target) return "";
-    if (role === "君") return `，直治${target}`;
-    if (role === "臣") return `，助君药并兼治${target}`;
-    if (role === "佐") return `，佐助主治并兼顾${target}`;
-    if (role === "使") return "";
+    const viaTherapy = items.some((row) => row.viaTherapy && row.quote === target) ||
+      items.every((row) => row.viaTherapy);
+    if (viaTherapy) {
+      if (role === "君") return `，以${target}`;
+      if (role === "臣") return `，助君药${target}`;
+      if (role === "佐") return `，兼以${target}`;
+      return `，共同${target}`;
+    }
+    if (role === "君") return `，针对${target}`;
+    if (role === "臣") return `，助君药并兼顾${target}`;
+    if (role === "佐") return `，兼顾${target}`;
     return `，共同作用于${target}`;
   };
   const roleSentence = (role: string, items: typeof ordered, first: boolean): string => {
@@ -321,15 +345,13 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
     const rolePhrase = items.length === 1 ? `为${role}` : `共为${role}药`;
     const actions = items.flatMap((row) => {
       const action = row.fn || governedFormulaActionFallback(row.name, row.target);
-      if (action) return [`${items.length === 1 ? "" : row.name}取其${action}之长`];
+      if (action) return [`${items.length === 1 ? "" : row.name}取其${action}之功`];
+      // 功用证据暂缺时不编造药典功效，只说明这味药针对哪条已锁定病机；同一条病机已经说过就不再重复，
+      // 也不写「配合方中药味承接该病机」这类零信息套话（甲方 9.24/9.27 测评：杜仲）。
       if (!row.quote) return [];
-      // 功用证据暂缺时只说明这味药承接哪条已锁定病机，不编造药典功效；同时登记病机，
-      // 避免 roleTargetClause 在同一句末尾再重复一遍。
       const firstForTarget = !shownTargets.has(row.quote);
       shownTargets.add(row.quote);
-      return [firstForTarget
-        ? `${items.length === 1 ? "" : row.name}用以承接${row.quote}`
-        : `${items.length === 1 ? "" : row.name}配合方中药味承接该病机`];
+      return firstForTarget ? [`${items.length === 1 ? "" : row.name}针对${row.quote}`] : [];
     });
     const actionText = actions.length === 0 ? "" : items.length === 1 ? actions[0] : `其中${actions.join("；")}`;
     return `${subject}${rolePhrase}${actionText ? `，${actionText}` : ""}${roleTargetClause(role, items)}。`;

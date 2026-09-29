@@ -1,14 +1,16 @@
 import { prefetchAssessFollowupFromDraftCandidate, prefetchAssessFollowupFromSignedPrescribe, tapFinalStageContent } from "@/lib/stage-prefetch.server";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
+import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
 import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
 import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-parse";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
+import { reconcileRecordedHistoryClaimsInPrescribeContent, recordedHistoryFields } from "@/lib/record-history-consistency";
 import { applyTcmTreatmentCapabilityPriority } from "@/lib/tcm-treatment-capabilities.server";
 import { m03SafetyContractIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
 import { isM04FinalizerDeferredLabelIssue, isSafetyRejection } from "@/lib/diagnosis-rejection-tiers";
@@ -35,6 +37,18 @@ function rejectedHerbName(issue: string, reasoning: ReturnType<typeof parseReaso
   return name || undefined;
 }
 
+type ParsedStageRequest = Extract<Awaited<ReturnType<typeof readCustomerBoundCaseStateRequest>>, { ok: true }>;
+
+/**
+ * 只复用正常形成的候选方药：签名剂量页，或独立硬边界收回剂量的非剂量页（由病例内容决定，
+ * 同输入同结果）。超时、中断、上游故障、合同驳回的非剂量页下次照常重算。
+ */
+function prescribeResultReusable(content: string): boolean {
+  if (!content.includes("<!-- DIAGNOSIS_JSON_START -->") && !content.includes(NON_DOSE_PRESCRIPTION_MARKER)) return false;
+  if (!content.includes(NON_DOSE_PRESCRIPTION_MARKER)) return true;
+  return content.includes("CDSS_REASON_CODE:dose_authorization_withheld");
+}
+
 export async function POST(req: Request) {
   // The browser gives the complete request 210s. Start the server's 180s M04 orchestration clock
   // before clinical-fact/evidence preparation so the stream can still deliver its fail-closed
@@ -42,6 +56,19 @@ export async function POST(req: Request) {
   const orchestrationStartedAt = Date.now();
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
+  // 同一租户、同一病例内容（含已签名 M03）的请求只算一次：进行中并入、已完成复用；调用方断开
+  // 不中止计算（stage-result-coalescing.server.ts）。显式重新生成：x-cdss-regenerate: 1 或 ?regenerate=1。
+  const regenerate = req.headers.get("x-cdss-regenerate") === "1" || new URL(req.url).searchParams.get("regenerate") === "1";
+  return coalesceStageResponse({
+    stage: "prescribe",
+    key: stageRequestFingerprint("prescribe", parsed.customer, parsed.caseState),
+    bypass: regenerate,
+    compute: (signal) => computePrescribe(parsed, signal, orchestrationStartedAt),
+    cacheable: prescribeResultReusable,
+  });
+}
+
+async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal, orchestrationStartedAt: number): Promise<Response> {
   const signedPriorReasoning = diagnoseReasoningFromState(parsed.caseState);
   if (!signedPriorReasoning || !verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)) {
     return Response.json({ error: "辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。" }, { status: 409 });
@@ -84,7 +111,7 @@ export async function POST(req: Request) {
     // The M03 signature above binds this exact record. Reusing its signed semantic pre-check for
     // the bounded M03→M04 chain avoids turning an unchanged 150s-old empty result into two fresh
     // model calls just because M03 itself legitimately consumed the 180s orchestration budget.
-    : await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal, {
+    : await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, signal, {
         cacheTtlOverrideMs: CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS,
       });
   const gated = withSafetyGate(caseState);
@@ -170,21 +197,21 @@ export async function POST(req: Request) {
     safeState.patient.sex ? `患者性别：${safeState.patient.sex}` : "",
     safeState.patient.age != null ? `患者年龄：${safeState.patient.age}岁` : "",
   ].filter(Boolean).join("\n");
-  // 口语否定增补：**必须传 req.signal**。此前漏传，医生中断请求后它仍会空转满 6s
+  // 口语否定增补：**必须传 signal**。此前漏传，医生中断请求后它仍会空转满 6s
   // 才自己超时——diagnose 路由（:83）一直是传的，两条路径写法不同源。
   //
   // 并行结构与 diagnose 对齐：assistedNegations 只被 buildLocalPatentMedicineContext 消费，
   // 而 EviMed 那条慢腿不依赖它。原写法把两者串成一条 then 链，等于让 EviMed 白等 6s。
-  const assistedNegationsPromise = assistedPolarityDecisions(safeState, req.signal);
+  const assistedNegationsPromise = assistedPolarityDecisions(safeState, signal);
   // 前置各段计时（2026-09-27）：规划器链（模型 + 西药说明书精确检索）与证据链（EviMed）各自耗时，
   // 此前只能从「规划器结束到提示词压缩日志」之间的 3.5s 空白推断。只记毫秒数。
   const preModelTimings: Record<string, number> = { prepared: Date.now() - orchestrationStartedAt };
   const [medicinePlan, baseEvidenceContext, inventoryContext] = await Promise.all([
-    planEvidenceBoundMedicineCandidates(safeState, parsed.customer.customerId, req.signal)
+    planEvidenceBoundMedicineCandidates(safeState, parsed.customer.customerId, signal)
       .then((value) => { preModelTimings.planner = Date.now() - orchestrationStartedAt; return value; }),
     assistedNegationsPromise.then((assistedNegations) => {
       const softDeadline = m04ExternalEvidenceSoftDeadlineMs();
-      return buildCdssEvidenceContext(safeState, "prescribe", assistedNegations, req.signal, {
+      return buildCdssEvidenceContext(safeState, "prescribe", assistedNegations, signal, {
         externalSoftDeadlineMs: softDeadline == null
           ? undefined
           : Math.max(0, softDeadline - (Date.now() - orchestrationStartedAt)),
@@ -303,7 +330,7 @@ export async function POST(req: Request) {
   preModelTimings.promptReady = Date.now() - orchestrationStartedAt;
   console.info("[tcm-cdss:timing] m04_pre_model", preModelTimings);
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
-    requestSignal: req.signal,
+    requestSignal: signal,
     upstreamUnavailableFallback: buildSafetyLimitedPrescription(
       upstreamUnavailableGate,
       "upstream_model_unavailable",
@@ -421,8 +448,13 @@ export async function POST(req: Request) {
         signedPriorReasoning,
         { preserveServerDeclassification: true },
       );
-      const synchronized = synchronizeVisibleClinicalSummary(
+      // 病历已记录的过敏史/现用药/既往史不得在注意事项里说成「未提及」（2026-09-29 甲方测评）。
+      const historyReconciled = reconcileRecordedHistoryClaimsInPrescribeContent(
         identityRestored,
+        recordedHistoryFields(safeState),
+      );
+      const synchronized = synchronizeVisibleClinicalSummary(
+        historyReconciled,
         "prescribe",
         clinicalGroundingText(safeState),
         safeState,

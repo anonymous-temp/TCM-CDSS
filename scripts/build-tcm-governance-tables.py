@@ -136,6 +136,19 @@ FORMULA_STANDARD_OVERRIDES: dict[str, dict[str, Any]] = {
     },
 }
 
+# 出处订正批次(2026-09-29,甲方 9.24/9.27 测评 2.6「方剂出处错误」):深圳标准表把这几首方的出处录成了别的书。
+# 逐首联网核对(国家《古代经典名方目录》、中华医典/维基文库原文与《方剂学》第4版对照，引文逐字核过，
+# 见 ~/runlogs/eval924/research/formula-web-verification.json)，只订正**已证实写错**的出处，
+# 组成、功用、主治一概不动；出处仍有争议的（归脾汤、柴胡疏肝散、清胃散…）不在此列。
+# 单独成表、在两处取用点最后合并：FORMULA_STANDARD_OVERRIDES 里同名条目可能整条覆盖（dict.update 不递归合并）。
+FORMULA_STANDARD_SOURCE_CORRECTIONS: dict[str, dict[str, Any]] = {
+    "龙胆泻肝汤": {"source": "《医方集解》"},
+    "血府逐瘀汤": {"source": "《医林改错》"},
+    "清营汤": {"source": "《温病条辨》"},
+    "三子养亲汤": {"source": "《韩氏医通》"},
+    "回阳救急汤": {"source": "《伤寒六书》"},
+}
+
 # OCR 拆字修复批次(2026-07-25):源表把双字药名拆成两条(如 炙甘+草→炙甘草),全部确定性合并修复
 FORMULA_STANDARD_OVERRIDES.update({
     "再造散": {
@@ -1706,7 +1719,7 @@ def build_formula_catalog(
         identity_key = formula_identity_key(name)
         if name in governed or identity_key in governed_identity_keys:
             continue
-        item = {**standard_item, **FORMULA_STANDARD_OVERRIDES.get(source_name, {})}
+        item = {**standard_item, **FORMULA_STANDARD_OVERRIDES.get(source_name, {}), **FORMULA_STANDARD_SOURCE_CORRECTIONS.get(source_name, {})}
         aliases = []
         alias_resolution = None
         if source_name == "麻黄杏仁甘草石膏汤":
@@ -2246,7 +2259,7 @@ def build_formula_catalog(
     all_formulas = source.get("formulas", {})
     for name in HIGH_FREQUENCY_REVIEW_QUEUE:
         variants = all_formulas.get(name, [])
-        baseline = {**standard_by_name[name], **FORMULA_STANDARD_OVERRIDES.get(name, {})}
+        baseline = {**standard_by_name[name], **FORMULA_STANDARD_OVERRIDES.get(name, {}), **FORMULA_STANDARD_SOURCE_CORRECTIONS.get(name, {})}
         baseline_source = compact(baseline["source"]).strip("《》。")
         disposed_variants = []
         for item in variants:

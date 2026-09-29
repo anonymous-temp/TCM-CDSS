@@ -8,6 +8,7 @@ import type { CaseState, ClinicalReasoningResultV2, EvidenceRef } from "./diagno
 import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { lockedFormulaNamesIncludeModelTrustedOnly } from "./tcm-formula-indications";
+import { formulaInCommonTier, formulaLockTierEnabled } from "./tcm-formula-tier";
 import {
   compositionLogicForFormulaNames,
   formulaDiscriminationPaths,
@@ -548,6 +549,18 @@ function knownFormulaMatches(normalized: string): Array<{ name: string; start: n
     .sort((a, b) => a.start - b.start);
 }
 
+/**
+ * 这段文字本身是不是一个已收录方名（与 knownFormulaMatches 同一口径：两字名只认官方/核验目录）。
+ * 方解扫描外来药名时用它跳过方名片段——「玉屏风散」里的「屏风」是防风的别名，
+ * 不跳过就会把本方方名当成外来药（2026-09-29 甲方测评 0068）。
+ */
+export function isKnownFormulaNameFragment(fragment: string): boolean {
+  const normalized = normalizeFormulaName(fragment);
+  if (normalized.length < 2) return false;
+  return normalizedOfficialClassics.has(normalized) || normalizedVerifiedSupplements.has(normalized) ||
+    (normalized.length >= 3 && normalizedCatalog.has(normalized));
+}
+
 function canonicalFormulaDisplayName(normalizedName: string): string {
   return cleanFormulaDisplayName(normalizedOfficialClassics.get(normalizedName)?.name ||
     normalizedVerifiedSupplements.get(normalizedName)?.name ||
@@ -904,6 +917,11 @@ export function identifyGovernedFormulaByComposition(
   const exact: CompositionIdentifiedFormula[] = [];
   const relaxed: CompositionIdentifiedFormula[] = [];
   for (const row of governedFormulaCompilationRows) {
+    // 按组成**反查命名**只用常用层（官方标准方、古代经典名方目录、≥3 个现代医案；2026-09-29 甲方测评 2.5）。
+    // 冷僻条目组成常录入不全（益气培元饮原书 12 味、目录只录 6 味），被整包含后顶着「某方加味」出去，
+    // 方名一换，出处与主治就跟着错（阴虚腰痛例被冠以主治肾虚遗浊的方名）。与 M03 锁定同一个分层谓词；
+    // CDSS_FORMULA_LOCK_TIER=false 时一并回退。M04 编译与方名核验仍读全目录，不受影响。
+    if (formulaLockTierEnabled() && !formulaInCommonTier(row)) continue;
     const rawIngredients = compilationIngredients(row).map(normalizeHerbName).filter(Boolean);
     const literalMatchCount = rawIngredients.filter((name) => rawActualSet.has(name)).length;
     const ingredients = [...new Set(compilationIngredients(row).map(compositionIdentityName).filter(Boolean))];
@@ -2071,13 +2089,50 @@ function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: For
   return resolved.length === baseNames.length ? resolved : [];
 }
 
+/**
+ * 自拟方的「组方参考」（2026-09-29，甲方 9.24/9.27 测评 2.6「方剂出处未展示」：自拟方的出处栏写的是
+ * 「本例证候、病机、治法与药味功效的结构化匹配（病例内推理，需医生复核）」这句工程话术）。
+ *
+ * 按组成相似度列出最接近的至多 2 首**常用层**成方（官方标准方、古代经典名方目录、≥3 个现代医案），
+ * 医生一眼能看出这张自拟方脱胎于哪首成方；找不到时如实写「自拟方」。判据只读受治理目录：
+ * 成方的组成有 ≥60% 出现在本方里、且至少 3 味（药味先归一到去炮制正名），不是名字相似。
+ * 不授予身份——方名、出处栏仍是自拟方，参考只是说明「参照」。
+ */
+export function selfDevisedFormulaReferences(herbNames: readonly string[]): Array<{ name: string; source: string; coverage: number }> {
+  const actual = new Set(herbNames.map((name) => compositionIdentityName(normalizeHerbName(name))).filter(Boolean));
+  if (actual.size < 3) return [];
+  const found: Array<{ name: string; source: string; coverage: number; jaccard: number }> = [];
+  for (const row of governedFormulaCompilationRows) {
+    if (formulaLockTierEnabled() && !formulaInCommonTier(row)) continue;
+    if (NON_FORMULA_CATALOG_NAME.test(normalizeFormulaName(row.name))) continue;
+    const ingredients = [...new Set(compilationIngredients(row).map(compositionIdentityName).filter(Boolean))];
+    if (ingredients.length < 3) continue;
+    const matched = ingredients.filter((name) => actual.has(name)).length;
+    const coverage = matched / ingredients.length;
+    if (matched < 3 || coverage < 0.6) continue;
+    const jaccard = matched / (ingredients.length + actual.size - matched);
+    found.push({ name: cleanFormulaDisplayName(row.name), source: row.source, coverage, jaccard });
+  }
+  found.sort((left, right) => right.coverage - left.coverage || right.jaccard - left.jaccard || left.name.localeCompare(right.name));
+  const seen = new Set<string>();
+  return found.filter((item) => (seen.has(item.name) ? false : (seen.add(item.name), true)))
+    .slice(0, 2)
+    .map(({ name, source, coverage }) => ({ name, source, coverage }));
+}
+
+function selfDevisedReferenceSource(herbNames: readonly string[]): string | undefined {
+  const references = selfDevisedFormulaReferences(herbNames);
+  if (references.length === 0) return undefined;
+  return `自拟方，组方参考：${references.map((item) => `${item.name}${item.source ? `（${item.source}）` : ""}`).join("、")}加减；其余药味按本例证候、病机与药味功效配伍，需医生复核`;
+}
+
 function professionalModelInferenceEvidence(source: string | undefined): EvidenceRef {
   if (source && !/证据不足|待检索|待核验|内部证据缺口/.test(source)) {
     return { evidenceLevel: "model_inference", source, confidence: "中" };
   }
   return {
     evidenceLevel: "model_inference",
-    source: "本例证候、病机、治法与药味功效的结构化匹配（病例内推理，需医生复核）",
+    source: "自拟方，按本例证候、病机、治法与药味功效配伍，无对应的常用成方，需医生复核",
     confidence: "中",
   };
 }
@@ -2185,7 +2240,7 @@ export function enrichReasoning(
               ? "高" as const
               : "中" as const,
           }
-        : professionalModelInferenceEvidence(undefined),
+        : professionalModelInferenceEvidence(selfDevisedReferenceSource(candidate.herbs.map((herb) => herb.name))),
       herbs: governedHerbs.map((herb, herbIndex) => ({
         ...herb,
         isToxic: herbSafetyProfiles[herbIndex]?.isToxic === true,

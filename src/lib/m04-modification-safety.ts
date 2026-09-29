@@ -56,6 +56,10 @@ export function dropUnsupportedM04ModificationDirections(
     const formula = recordValue(reasoning.formula);
     const modifications = formula?.modifications;
     if (!formula || !Array.isArray(modifications) || modifications.length === 0) return content;
+    const firstCandidate = Array.isArray(formula.candidates) ? recordValue(formula.candidates[0]) : undefined;
+    const candidateHerbIdentities = new Set((Array.isArray(firstCandidate?.herbs) ? firstCandidate.herbs : [])
+      .map((herb) => canonicalTcmHerbIdentity(recordValue(herb)?.name))
+      .filter(Boolean));
     const retained = modifications.filter((value) => {
       const modification = recordValue(value);
       if (!modification) return true;
@@ -68,6 +72,14 @@ export function dropUnsupportedM04ModificationDirections(
       const trigger = typeof modification.trigger === "string" ? modification.trigger.trim() : "";
       if (!trigger || !finalModificationTriggerGrounded(trigger, prior)) return false;
       const fields = normalizedFormulaModificationFields(modification);
+      // 最终出口再核一次「加的药已在方中 / 减的药不在方中」（2026-09-29 甲方测评 2.2：腰痛例建议加熟地黄，
+      // 而熟地黄已在原方）。编译期 normalizeModifications 按**当时**的药味核过，但 candidate 定向修复会
+      // 改写药味、却把加减从上一版原样拼回——那一版核对就过期了。这里按最终药味删行，只删不增。
+      if (fields && candidateHerbIdentities.size > 0) {
+        const identity = canonicalTcmHerbIdentity(fields.herbName);
+        if (fields.action === "加" && candidateHerbIdentities.has(identity)) return false;
+        if (fields.action !== "加" && identity && !candidateHerbIdentities.has(identity)) return false;
+      }
       if (!fields || fields.action !== "加") return true;
       const declaredDirection = [modification.reason, modification.targetPathogenesis]
         .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))

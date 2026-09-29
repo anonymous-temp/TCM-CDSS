@@ -5,14 +5,15 @@ import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnow
 import { formulaSyndromeConflictNotice, formulaSyndromeConflicts } from "./formula-syndrome-consistency";
 import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesisCells, normalizeFormulaStructureRole } from "./herb-target-contract";
 // 剂量写法判据复用 M04 那条已导出的，不写第二份。
-import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
+import { reviewAuthoredFormulaAnalysis } from "./formula-analysis-review";
+import { namedFormulaDecoctionProfile } from "./formula-decoction-profile";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
 import { SERVER_LABELED_GROUNDING_LINE, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
-import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, governedTcmLocationsInText, resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
+import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, governedTcmLocationsInText, governedTreatmentPrinciplesInText, resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
 import { clinicalAxisAttributionFromFacts } from "./tcm-syndrome-hypothesis";
 import {
   classifyWesternDiagnosticEvidence,
@@ -1258,6 +1259,16 @@ function decoctionProfileFromSignedTherapy(
     typeof therapy?.overallPrinciple === "string" ? therapy.overallPrinciple : "",
     typeof candidate.therapyMatch === "string" ? candidate.therapyMatch : "",
   ].join("；");
+  // 分档只看**主治法**（2026-09-29，甲方 9.24/9.27 测评 2.7）：清胃散治法是「清胃泻火，兼以生津通腑」，
+  // 「通腑」只是兼治，此前它抢走整档，清热方被写成「空腹温服、得利即停」；银翘散、麻黄汤一律「啜热粥、覆被」也是同一处
+  // 关键词分档的产物——那是桂枝汤将息法。主治法 = 分治方向里 priority 为「主要」的那条；没有分治方向时取总治法里
+  // 「兼以/佐以」之前的部分；都没有才退回全文。
+  const subTherapies = Array.isArray(therapy?.subTherapies) ? therapy.subTherapies.map(recordValue).filter((item) => item !== null) : [];
+  const mainSubTherapies = subTherapies.filter((item) => item && item.priority === "主要");
+  const primaryFromSub = (mainSubTherapies.length > 0 ? mainSubTherapies : subTherapies.slice(0, 1))
+    .map((item) => (typeof item?.therapy === "string" ? item.therapy : "")).filter(Boolean).join("；");
+  const overallMethod = typeof therapy?.overallMethod === "string" ? therapy.overallMethod : "";
+  const primary = (primaryFromSub || overallMethod.split(/(?:兼以|佐以|并以|兼顾|兼)/)[0] || "").trim() || signed;
   const REGULAR = {
     id: "regular",
     soakMinutes: 30,
@@ -1267,17 +1278,52 @@ function decoctionProfileFromSignedTherapy(
     administration: "饭后温服；服药与进餐间隔按患者胃肠耐受及院内规范执行",
   };
   if (!signed.trim()) return REGULAR;
-  if (/(?:解表|发汗|疏风|透疹|宣肺|辛凉|辛温|疏散外邪|解肌)/.test(signed)) {
+  // 命名方有教材原文用法时以教材为准（formula-decoction-profile.ts）：银翘散「勿过煮」、麻黄汤「不须啜粥」。
+  const formulaNames = Array.isArray(candidate.formulaNames) ? candidate.formulaNames : [];
+  const named = candidate.constructionType === "self_devised" ? undefined
+    : namedFormulaDecoctionProfile(formulaNames.length === 1 ? formulaNames[0] : undefined);
+  const exteriorBase = { soakMinutes: 20, firstMinutes: 15, secondMinutes: 10 };
+  const sweatingAdministration = (kind: string): string => kind === "porridge_and_cover"
+    ? "温服，服后可少进热粥、加衣覆被以助微汗；以遍身微汗为度，得汗即停后服，不必尽剂"
+    : kind === "cover_light_sweat_no_porridge"
+      ? "温服，服后覆被取微汗，不须啜热粥；以遍身微汗为度，得汗即停后服，不必尽剂"
+      : "温服；不须啜热粥、覆被，微汗出、热退即停后服，病不解者再服";
+  if (named && named.sweating !== "none") {
     return {
-      id: "exterior_releasing",
-      soakMinutes: 20,
-      firstMinutes: 15,
-      secondMinutes: 10,
-      heat: "武火急煎，沸后即计时，不宜久煎",
-      administration: "温服，服后可少进热粥、加衣覆被以助微汗；以遍身微汗为度，得汗即停后服，不必尽剂",
+      id: `exterior_${named.sweating}`,
+      ...exteriorBase,
+      heat: named.notes.some((note) => note.includes("勿过煮")) ? "武火急煎，香气大出即取服，勿过煮" : "武火急煎，沸后即计时，不宜久煎",
+      administration: sweatingAdministration(named.sweating),
     };
   }
-  if (/(?:补益|补气|补血|补虚|滋阴|滋补|温阳|益气|养血|填精|健脾益气|培元|扶正)/.test(signed)) {
+  const isExterior = /(?:解表|发汗|疏风|透疹|辛凉|辛温|疏散外邪|疏散风热|解肌)/.test(primary);
+  if (isExterior && !named) {
+    // 解表按主治法再分三型：桂枝汤类（解肌、调和营卫）才啜粥；辛温发汗（麻黄汤类）温覆不啜粥；辛凉/疏风止痒不取汗。
+    const kind = /(?:解肌|调和营卫)/.test(primary)
+      ? "porridge_and_cover"
+      : /(?:辛凉|疏散风热|疏风清热|透疹|止痒)/.test(primary)
+        ? "no_sweat_induction"
+        : /(?:辛温|发汗|散寒)/.test(primary)
+          ? "cover_light_sweat_no_porridge"
+          : "no_sweat_induction";
+    return {
+      id: `exterior_${kind}`,
+      ...exteriorBase,
+      heat: "武火急煎，沸后即计时，不宜久煎",
+      administration: sweatingAdministration(kind),
+    };
+  }
+  if (/(?:攻下|泻下|通腑|荡涤|峻下)/.test(primary)) {
+    return {
+      id: "purgative",
+      soakMinutes: 30,
+      firstMinutes: 20,
+      secondMinutes: 15,
+      heat: "武火煮沸后转文火",
+      administration: "空腹温服；以大便通畅为度，得利即停后服，不可连服久服",
+    };
+  }
+  if (/(?:补益|补气|补血|补虚|滋阴|滋补|温阳|益气|养血|填精|健脾益气|培元|扶正)/.test(primary)) {
     return {
       id: "tonifying",
       soakMinutes: 60,
@@ -1287,14 +1333,14 @@ function decoctionProfileFromSignedTherapy(
       administration: "饭前空腹温服，以利吸收；虚不受补或胃脘不适者改为饭后服",
     };
   }
-  if (/(?:攻下|泻下|通腑|荡涤|峻下)/.test(signed)) {
+  if (/(?:清热|泻火|清胃|解毒|凉血|清泄|清利)/.test(primary)) {
     return {
-      id: "purgative",
+      id: "heat_clearing",
       soakMinutes: 30,
       firstMinutes: 20,
       secondMinutes: 15,
       heat: "武火煮沸后转文火",
-      administration: "空腹温服；以大便通畅为度，得利即停后服，不可连服久服",
+      administration: "饭后温服，以减少苦寒药对胃肠的刺激；中病即止，不宜久服",
     };
   }
   return REGULAR;
@@ -1424,6 +1470,62 @@ function diseaseRationaleIsCircular(value: unknown, diseaseName: string): boolea
   return stripped.length < 8;
 }
 
+/**
+ * 治则里只有总纲（治病求本、标本兼治、三因制宜、治未病、缓则治本、同病异治、正/反治法类目）时为真。
+ * 具体治则（虚则补之、实则泻之、寒者热之、热者寒之、扶正祛邪、攻补兼施、急则治标、反治四法…）
+ * 任一在场即为假。判据只读受治理 GB/T 16751.3 治则词表的命中项。
+ */
+function treatmentPrincipleIsGenericOnly(value: string): boolean {
+  const GENERIC = new Set(["治未病", "瘥后防复", "未病先防", "已病防变", "缓则治本", "标本兼治", "因时制宜", "因地制宜", "因人制宜", "正治法", "反治法", "三因制宜", "治病求本", "同病异治"]);
+  const hits = governedTreatmentPrinciplesInText(value);
+  return hits.length > 0 && hits.every((entry) => GENERIC.has(entry.canonical));
+}
+
+/**
+ * 按**已签名**病性推导具体治则（正治四法 / 扶正祛邪），括号里绑定 overallMethod 的首个治法分句。
+ * 取材：natureDifferentiation 的 items / rootDeficiency / branchExcess 与主证、兼证名。推不出时返回空串。
+ */
+function concreteTreatmentPrincipleFromSignedNature(reasoning: Record<string, unknown>): string {
+  const pathogenesis = recordValue(reasoning.pathogenesis);
+  const overview = recordValue(reasoning.overview);
+  const therapy = recordValue(reasoning.therapy);
+  const nature = recordValue(pathogenesis?.natureDifferentiation);
+  const list = (value: unknown): string[] => (Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+    : []);
+  const root = list(nature?.rootDeficiency);
+  const branch = list(nature?.branchExcess);
+  const segments = [
+    ...list(nature?.items),
+    markdownCell(overview?.primarySyndrome),
+    ...list(overview?.secondarySyndromes),
+  ].flatMap((item) => item.split(/[，,；;、]/)).map((item) => item.trim()).filter(Boolean);
+  const DEFICIENCY = /(?:气虚|血虚|阴虚|阳虚|精亏|不足|亏虚|虚弱|虚损|两虚|不固|虚寒)/;
+  const EXCESS = /(?:实|热|火|寒|湿|痰|饮|瘀|滞|郁|积|毒|风|燥|水停|犯|束|蕴|阻|结)/;
+  const deficient = root.length > 0 || segments.some((item) => DEFICIENCY.test(item));
+  const excessSegments = [...branch, ...segments.filter((item) => EXCESS.test(item) && !DEFICIENCY.test(item))];
+  const excess = excessSegments.length > 0;
+  const heat = excessSegments.some((item) => /热|火/.test(item));
+  const cold = excessSegments.some((item) => /寒/.test(item));
+  const principle = deficient && excess
+    ? "扶正祛邪"
+    : deficient
+      ? "虚则补之"
+      : heat && !cold
+        ? "热者寒之"
+        : cold && !heat
+          ? "寒者热之"
+          : excess
+            ? "实则泻之"
+            : "";
+  if (!principle) return "";
+  const method = markdownCell(therapy?.overallMethod) || markdownCell(overview?.overallTherapy);
+  const methodCore = method.split(/[，,；;。]/)[0]?.replace(/^(?:以|治以|宜)/, "").trim() || "";
+  return methodCore && methodCore.length <= 12 && !isUnstableM03CoreText(methodCore)
+    ? `${principle}（${methodCore}）`
+    : principle;
+}
+
 export function applyDeterministicTreatmentPrinciple(content: string): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -1507,11 +1609,19 @@ export function applyDeterministicTreatmentPrinciple(content: string): string {
       }
     }
     const current = typeof therapy.overallPrinciple === "string" ? therapy.overallPrinciple.trim() : "";
+    const concrete = concreteTreatmentPrincipleFromSignedNature(reasoning);
     // 只接管占位串、空值与无本例信息的泛化类别；模型自己写出的实质治则原样保留。
     if (current && !/^(?:暂不锁定剂量级治法|暂不锁定|待定|由服务端生成|正治法?|反治法?|治疗本病)$/.test(current)) {
+      // 只写了总纲（治病求本、标本兼治、三因制宜…）时，按已签名病性在前面补上具体治则（2026-09-29
+      // 甲方测评 1.3：腰痛肾阴虚、蛇串疮、瘾疹三例治则都是「治病求本」，重放 18 次里 10 次）。
+      // 原有总纲保留在后；括号内只用 overallMethod 已有的治法词，不引入新方向。
+      if (concrete && treatmentPrincipleIsGenericOnly(current)) {
+        const generic = governedTreatmentPrinciplesInText(current).map((entry) => entry.canonical).filter(Boolean);
+        therapy.overallPrinciple = [concrete, ...new Set(generic)].join("，");
+        console.info("[tcm-cdss:telemetry] treatment_principle_bound", { from: "generic_only", generic: generic.join(",") || "none" });
+      }
       return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
     }
-
     const nature = recordValue(pathogenesis?.natureDifferentiation);
     const list = (value: unknown): string[] => (Array.isArray(value)
       ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
@@ -1537,7 +1647,7 @@ export function applyDeterministicTreatmentPrinciple(content: string): string {
         : hasExcess
           ? "祛邪治标，邪去正安"
           : "";
-    therapy.overallPrinciple = principle || "病性尚未分明，治则待补充四诊后确定";
+    therapy.overallPrinciple = principle || concrete || "病性尚未分明，治则待补充四诊后确定";
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {
     return content;
@@ -1799,32 +1909,17 @@ export function applyDeterministicHerbPrescriptionRoles(content: string): string
 }
 
 /**
- * 方解是不是在讲**本方**。三条都是可机检的形态判据，不猜临床对错——
- * 「这段方解写得好不好」是模型与独立复核的活，这里只挡三件事：
- * 讲的不是本方、提到本方没有的药、把剂量写进方解。
+ * 病机节点编号 → 短标签（模型方解里偶有「直入P1」「以助P3之夜寐不安」这类内部编号）。
+ * 取该节点病机的第一个分句，去掉「故见…」症状复述，限 12 字；取不到就不给标签（编号直接删掉）。
  */
-function formulaAnalysisIsGroundedInCandidate(text: string, candidateHerbs: readonly string[]): boolean {
-  if (text.length < 24 || text.length > 1200) return false;
-  if (PRECAUTION_DOSE_LIKE.test(text)) return false;
-  if (/(?:具体配伍作用|具体作用).*(?:结合方义|复核)|同上述|参见前文/.test(text)) return false;
-  if (/\*\*|(?:^|\s)[#*-]\s/.test(text)) return false;
-  if (!/(?:(?:为|作)[君臣佐使]|君药|臣药|佐药|使药)/.test(text)) return false;
-  if (!/(?:助|协同|相伍|相须|相使|一宣一降|调和|缓[^。；]{0,8}峻|佐制|反佐)/.test(text)) return false;
-  const own = new Set(candidateHerbs.map((name) => name.replace(/\s+/g, "")));
-  let mentioned = 0;
-  for (const name of own) if (name && text.includes(name)) mentioned += 1;
-  const requiredCoverage = Math.max(2, Math.ceil(own.size * 0.8));
-  if (mentioned < Math.min(requiredCoverage, own.size)) return false;
-  // 扫出文中所有受治理药名，必须全部属于本方。窗口 2–4 字覆盖绝大多数饮片名。
-  for (let index = 0; index < text.length; index += 1) {
-    for (let width = 4; width >= 2; width -= 1) {
-      const token = text.slice(index, index + width);
-      if (token.length < width) continue;
-      if (own.has(token)) break;
-      if (isKnownTcmHerbName(token)) return false;
-    }
+function pathogenesisNodeShortLabels(reasoning: Record<string, unknown>): Record<string, string> {
+  const labels: Record<string, string> = {};
+  for (const node of recordList(recordValue(reasoning.pathogenesis)?.chain)) {
+    const id = markdownCell(node.nodeId);
+    const first = markdownCell(node.pathogenesis).split(/[，,；;。]/)[0]?.replace(/^(?:故|则|以致|遂).*/, "").trim() || "";
+    if (/^P\d+$/.test(id) && first.length >= 2 && first.length <= 12) labels[id] = first;
   }
-  return true;
+  return labels;
 }
 
 export function applyDeterministicFormulaAnalysis(content: string): string {
@@ -1835,6 +1930,13 @@ export function applyDeterministicFormulaAnalysis(content: string): string {
     const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
     if (reasoning.stage !== "prescribe") return content;
     const formula = recordValue(reasoning.formula);
+    const nodeLabels = pathogenesisNodeShortLabels(reasoning);
+    const chainNodes = new Map(recordList(recordValue(reasoning.pathogenesis)?.chain)
+      .map((node) => [markdownCell(node.nodeId), node] as const));
+    const caseContext = [
+      ...recordList(recordValue(reasoning.pathogenesis)?.chain).flatMap((node) => [markdownCell(node.patientFact), markdownCell(node.pathogenesis)]),
+      markdownCell(recordValue(reasoning.overview)?.overallPathogenesis),
+    ].filter(Boolean).join("；");
     for (const candidate of recordList(formula?.candidates)) {
       const herbs = recordList(candidate.herbs);
       // 逐味成句，见 buildFormulaAnalysis 的注释：原实现按角色分组 + 每角色一句固定模板，
@@ -1846,8 +1948,10 @@ export function applyDeterministicFormulaAnalysis(content: string): string {
           role: markdownCell(herb.role),
           function: markdownCell(herb.function),
           targetPathogenesis: markdownCell(herb.targetPathogenesis),
+          therapyDirection: markdownCell(chainNodes.get(markdownCell(herb.targetRef))?.therapyDirection),
         })),
         markdownCell(candidate.therapyMatch),
+        caseContext,
       );
       // 方解交给模型写，服务端连续自然段只作**兜底**。
       //
@@ -1864,10 +1968,21 @@ export function applyDeterministicFormulaAnalysis(content: string): string {
       //   · 不得提到本方没有的药（防止把别的方的方解套过来）；
       //   · 不得写剂量（剂量在药味表里，方解里出现即越权）；
       //   · 必须是连续自然段，不接受 Markdown 标题或列表。
-      const authored = markdownCell(candidate.formulaAnalysis);
+      const authored = typeof candidate.formulaAnalysis === "string" ? candidate.formulaAnalysis : "";
       const authoredHerbs = herbs.map((herb) => markdownCell(herb.name)).filter(Boolean);
-      if (authored && formulaAnalysisIsGroundedInCandidate(authored, authoredHerbs)) {
-        candidate.formulaAnalysis = authored;
+      // 2026-09-29 起不再整段丢弃模型方解（见 formula-analysis-review.ts 头注释）：
+      // 误判的外来药名已修正；真正的外来药只删那一个分句，其余原文保留。
+      const review = reviewAuthoredFormulaAnalysis(authored, authoredHerbs, { nodeLabels });
+      if (authored) {
+        console.info("[tcm-cdss:telemetry] formula_analysis_review", {
+          outcome: review.usable ? (review.adjustments.length > 0 ? "model_cleaned" : "model_kept") : "server_fallback",
+          adjustments: review.adjustments.join(",") || "none",
+          foreignHerbCount: review.foreignHerbs.length,
+          ownMentioned: review.ownMentioned,
+        });
+      }
+      if (review.usable) {
+        candidate.formulaAnalysis = review.text;
       } else if (analysis) {
         candidate.formulaAnalysis = analysis;
       } else {
@@ -2440,8 +2555,24 @@ function splitWesternDifferentialRow(raw: Record<string, unknown>): Record<strin
   const names = bracket
     ? [bracket.head, ...bracket.alternatives]
     : splitAlternativeParts(name.replace(/^[^：:]*(?:待查|待排|待鉴别)[：:]/, ""));
-  const usable = names.filter((item) => !isAmbiguousM03WesternPrimaryLabel(item));
+  const usable = completeSharedDiagnosisTail(names).filter((item) => !isAmbiguousM03WesternPrimaryLabel(item));
   return usable.length > 0 ? usable.map((item) => ({ ...raw, name: item })) : [raw];
+}
+
+/**
+ * 「房性/室性早搏」这类共用词尾的并列写法，拆开后前一段只剩修饰语（房性、泌尿系、其他物理性、
+ * 「上呼吸道感染合并下呼吸道」）。2026-09-29 甲方测评重放 18 次里 5 次出现这类碎片。
+ * 以修饰语收尾的段（…性/系/部/道/型/侧）借用兄弟项的词尾补全：房性 + 早搏、下呼吸道 + 感染；
+ * 找不到可借的词尾时这一段不单独成条（宁缺，不出碎片）。只做结构补全，不新增诊断名。
+ */
+function completeSharedDiagnosisTail(parts: readonly string[]): string[] {
+  const modifierEnd = /[性系部道型侧]$/;
+  return parts.flatMap((part, index) => {
+    if (!modifierEnd.test(part)) return [part];
+    const donor = [...parts.slice(index + 1), ...parts.slice(0, index)].find((other) => !modifierEnd.test(other));
+    const tail = donor?.match(/[性系部道型侧]([^性系部道型侧]{2,6})$/)?.[1];
+    return tail ? [`${part}${tail}`] : [];
+  });
 }
 
 type FormalWesternCriteriaGuard = {

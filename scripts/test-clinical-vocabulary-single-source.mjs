@@ -71,6 +71,17 @@ const ALLOWLIST = new Map([
   ["src/lib/diagnosis-client-guards.ts", "占位符与未生成态判据,呈现层结构判据不是临床词表。"],
   ["src/lib/clinical-output-authority.ts", "AMBIGUOUS_PLAIN_TERMS 是**工程术语**黑名单(前端/后端/权重/槽位),防止内部词汇泄漏到医生正文;与临床词表无关。"],
   ["src/lib/m04-modification-safety.ts", "加减动作句式(加入/加用/新增),语言学层。"],
+  ["src/lib/formula-analysis-review.ts",
+    "方解审查（2026-09-29）：识别方解里「去某药/以某药易某药/原方/慎/忌」这类说明加减与对照的句式虚词、占位话术与剂量字样。" +
+    "药名本身不在这里判——药名识别读受治理药名库（isKnownTcmHerbName）与身份归一（compositionIdentityName），" +
+    "剩下的正则只是汉语功能词/动作词，与 m04-modification-safety、tcm-therapy-phrasing 同属语言学层。待建 tcm-linguistic-lexicon.source.json 后与上列 TODO-迁移 项一并迁出。"],
+  ["src/lib/record-history-consistency.ts",
+    "病历完整性句式（2026-09-29）：「未提及/不详/未提供/未记录」与三类病史（过敏史/用药史/既往史）的主语写法。" +
+    "属语言学层，与 clinical-polarity.ts、local-prescription-checks.ts 同类；只做删改、不新增临床内容，" +
+    "已记录与否由病历字段本身判定（recordedHistoryFields）。待建语言学词表来源后迁移。"],
+  ["src/lib/tcm-disease-differential-normalization.ts",
+    "中医病名鉴别归一（2026-09-29）：仅有病名后缀修饰（可能/待排/待鉴别）的词形判据；病名归属读受治理 GB/T 15657 词表" +
+    "（resolveTcmDiseaseName）与教材原句对照表（tcm-western-disease-crosswalk.json，逐条带书名行号），不在代码里写病名清单。"],
   ["src/lib/tcm-therapy-phrasing.ts",
     "治法表述归一层。命中的是**语气虚词**（兼以/佐以/为主/为法）与繁简字对——汉语功能词，" +
     "GB/T 16751.3 里本来就没有也不该有，与 clinical-polarity.ts 同属语言学层。" +

@@ -4972,7 +4972,10 @@ export function buildSafetyLimitedDiagnosisReasoning(
         : limitedCopy.reason,
       secondarySyndromes: [],
       overallPathogenesis: "当前不形成可采纳的中医病机链",
-      overallTherapy: redFlag ? "立即急诊或专科评估，不进入中药处方" : limitedCopy.nextAction,
+      // 治法栏只写临床状态，不写操作指引（2026-09-29 甲方测评 1.2：HIS 按字段展示，医生在「治法」栏
+      // 读到「重新运行辨病辨证分析；已录入病历无需修改」）。下一步操作仍在 management.followupSafetyNet
+      // 与 primarySyndromeResolutionReason 里。
+      overallTherapy: redFlag ? "立即急诊或专科评估，不进入中药处方" : "辨病辨证尚未完成，暂不确定治法",
       recommendedFormulaDirection: "",
       recommendedFormulaNames: [],
       formulaSelectionMode: "none",

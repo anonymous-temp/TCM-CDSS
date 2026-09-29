@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 
 const {
   TCM_TREATMENT_PROJECTS,
+  tcmTreatmentProjectIsPointFree,
 } = await import("../src/lib/tcm-treatment-projects.ts");
 const {
   compileTcmTreatmentRecommendations,
@@ -170,6 +171,13 @@ check("卡片标注的适应证必须与产出方案的模板同源（A：标注
   for (const [prior, caseState] of priorsUnderTest) {
     for (const item of compileTcmTreatmentRecommendations([], prior, caseState)) {
       if (!["governed_patient_specific_plan", "governed_class_template_not_syndrome_tailored"].includes(item.protocolStatus)) continue;
+      // 无穴项目（食疗/导引/意疗）没有穴位组可反查：它们的方案要点写在正文里，且 suggestedSitesOrPoints 必须为空
+      // （食疗说「取穴」是 2026-09-29 甲方测评点名的错误）；来源与内容由 test:nondrug-textbook-plan 逐条钉住。
+      if (tcmTreatmentProjectIsPointFree(item.projectCode)) {
+        assert.deepEqual(item.suggestedSitesOrPoints, [], `${item.projectCode} 是无穴项目，suggestedSitesOrPoints 必须为空`);
+        assert.ok(String(item.treatmentContent || "").length > 20, `${item.projectCode} 的方案正文不得为空`);
+        continue;
+      }
       const template = templateForSites(item.projectCode, item.suggestedSitesOrPoints);
       assert.ok(template, `穴位组必须能反查到目录模板：${item.projectCode} → ${item.suggestedSitesOrPoints.join("、")}`);
       // 卡片正文引用的适应证名称，必须正是这个模板的适应证；用「模板匹配词出现在正文语境」反证，

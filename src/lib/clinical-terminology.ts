@@ -81,6 +81,11 @@ function parentCode(code: string): string {
   return segments.length > 1 ? segments.slice(0, -1).join(".") : "";
 }
 
+/** 受治理中医病名的 GB/T 15657 编码（取不到返回空串）。用于判断两个病名的上下位关系。 */
+export function governedTcmDiseaseCode(value: unknown): string {
+  return diseaseLexiconEntry(value)?.code || "";
+}
+
 /** 该病名是否是受治理病名（GB/T 正名、别名或已登记的临床扩展）。 */
 export function isGovernedTcmDiseaseName(value: unknown): boolean {
   const resolved = resolveTcmDiseaseName(value);

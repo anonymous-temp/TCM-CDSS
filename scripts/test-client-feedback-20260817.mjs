@@ -49,7 +49,7 @@ const { buildFormulaAnalysis } = await jiti.import("../src/lib/herb-target-contr
 const prescribeRouteSource = readFileSync(path.join(repoRoot, "src/app/api/diagnosis/prescribe/route.ts"), "utf8");
 assert.match(
   prescribeRouteSource,
-  /synchronizeVisibleClinicalSummary\(\s*identityRestored,\s*"prescribe",\s*clinicalGroundingText\(safeState\),\s*safeState,/,
+  /synchronizeVisibleClinicalSummary\(\s*historyReconciled,\s*"prescribe",\s*clinicalGroundingText\(safeState\),\s*safeState,/,
   "M04 最终可见正文必须携带病例状态，否则老年/绝经等人群过滤只在 React 卡片生效，下载与 API 会重新泄漏妊娠条款",
 );
 
@@ -242,7 +242,7 @@ const mahuangHerbs = [
     { name: "茯苓", role: "臣", function: "健脾渗湿", targetPathogenesis: "脾虚失运，水谷不化" },
     { name: "陈皮", role: "臣", function: "理气和胃", targetPathogenesis: "脾虚失运，水谷不化" },
   ], "健脾益气，和胃降逆");
-  assert.match(swappedTargetAnalysis, /党参、白术.*直治脾虚失运，水谷不化/s,
+  assert.match(swappedTargetAnalysis, /党参、白术.*针对脾虚失运，水谷不化/s,
     "方义应按药味功用重新选择最相关病机，不能照抄错位的逐味 targetPathogenesis");
   assert.match(swappedTargetAnalysis, /陈皮.*胃失和降，气机上逆/s,
     "理气和胃药应承接胃失和降方向，而不是被整组写成只治脾虚");
@@ -256,7 +256,7 @@ const mahuangHerbs = [
   ], "辛温解表，宣肺平喘");
   assert.match(sparseMahuangAnalysis, /苦杏仁.*降肺气/s,
     "知识库功用缺失时也必须写出受治理的本方作用，不能退回角色套话");
-  assert.match(sparseMahuangAnalysis, /旋覆花.*承接胃气上逆/s,
+  assert.match(sparseMahuangAnalysis, /旋覆花.*针对胃气上逆/s,
     "无受治理功用兜底的药味必须改用已锁定病机说明方中作用，不能只列药名");
   assert.doesNotMatch(sparseMahuangAnalysis, /承担本方的核心治疗作用|协同君药|兼顾兼夹病机|参与本方配伍/,
     "君臣佐使通用角色说明不是方解，任何药味都不得用它占位");

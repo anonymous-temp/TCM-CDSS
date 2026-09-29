@@ -7,6 +7,7 @@ import controlledToxicPolicyJson from "../data/tcm-controlled-toxic-herb-policy.
 import functionSupplementsJson from "../data/tcm-herb-function-supplements.source.json";
 import clinicalSubstitutionJson from "../data/tcm-herb-clinical-substitution-adjudications.source.json";
 import type { CaseState } from "./diagnosis-types";
+import { herbFunctionClauseFitsContext, isHarmonizingOrGuidingFunction } from "./herb-function-context";
 import {
   isIdentityIndeterminateHerbName,
   isVarietyForkedHerbIdentity,
@@ -1924,8 +1925,9 @@ export function getTcmHerbFunctionDisplayText(
     .split(/[；;，,、]/)
     .map((item) => item.trim())
     .filter(Boolean)
-    // 药类分类标签（补气药/解表药/利水渗湿药…）不是方义。
-    .filter((item) => !/药$/.test(item));
+    // 药类分类标签（补气药/解表药/利水渗湿药…）不是方义。「调和诸药」也以「药」结尾，是真功效，不得当分类标签滤掉
+    // （甲方 9.24 测评：炙甘草作使药，功用栏印的是「需医生结合方义复核」，而库里明明有「调和诸药」）。
+    .filter((item) => !/药$/.test(item) || isHarmonizingOrGuidingFunction(item));
   // 给药途径/调剂语义(冲服、研末、另煎、烊化、外用、不入汤剂…)**永不参与筛选**:
   // 它们不是方义而是安全信息,滤掉会让「朱砂不可入汤剂」这类边界从出参里消失。
   // 实测:收紧筛选后 test:stage-contract 的 route_not_decoction 判据当场失守,
@@ -1933,8 +1935,13 @@ export function getTcmHerbFunctionDisplayText(
   const ROUTE_SEMANTICS = /(?:冲服|调服|研粉|研末|吞服|丸散|另煎|烊化|包煎|先煎|后下|外用|不入汤剂|禁止同煎|入丸散)/;
   const routeClauses = clauses.filter((item) => ROUTE_SEMANTICS.test(item));
   const alignmentText = `${therapy}${target}`.replace(/\s+/g, "");
+  // 症状专指型功效（调经、利咽、止咳…）要本例上下文里真有对应症状才可选（2026-09-29 甲方测评：
+  // 头痛方里的当归因一个「痛」字选中「调经止痛」）。只排除，不新增文字。
+  const fitting = clauses.filter((item) => herbFunctionClauseFitsContext(item, alignmentText));
+  // 使药先取调和/引经类功效（甲方测评：麻黄汤里作使药的炙甘草被写成「祛痰止咳」）。
+  const harmonizing = /^使$/.test(role.trim()) ? clauses.filter(isHarmonizingOrGuidingFunction) : [];
   const aligned = alignmentText
-    ? clauses.filter((item) => {
+    ? fitting.filter((item) => {
       // 逐字相关即可：功效条目里任意 2 字连续出现在本方治法或该药绑定的病机节点里。
       for (let index = 0; index + 2 <= item.length; index += 1) {
         if (alignmentText.includes(item.slice(index, index + 2))) return true;
@@ -1956,7 +1963,7 @@ export function getTcmHerbFunctionDisplayText(
   // 不需要靠牺牲 7.1 来换安全边际。改这一行前先看那两处。
   const chosen = [...new Set([
     ...routeClauses,
-    ...(aligned.length > 0 ? aligned : (alignmentText ? [] : clauses)),
+    ...(harmonizing.length > 0 ? harmonizing : aligned.length > 0 ? aligned : (alignmentText ? [] : fitting)),
   ])];
   if (chosen.length > 0) return chosen.slice(0, 3).join("，");
   if (!rolePlaceholderWhenUnaligned) return "";

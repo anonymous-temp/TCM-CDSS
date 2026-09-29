@@ -7135,12 +7135,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-59A632EFD94B",
+      "id": "TCM-FORMULA-801608386081",
       "name": "三子养亲汤",
       "aliases": [],
       "sourceName": "三子养亲汤",
-      "source": "《金匮要略》",
-      "sourceOriginal": "《金匮要略》",
+      "source": "《韩氏医通》",
+      "sourceOriginal": "《韩氏医通》",
       "prescriptionOriginal": null,
       "ingredients": [
         "紫苏子",
@@ -74611,12 +74611,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-5141D491BB24",
+      "id": "TCM-FORMULA-B0B4124092A6",
       "name": "回阳救急汤",
       "aliases": [],
       "sourceName": "回阳救急汤",
-      "source": "《伤寒论》",
-      "sourceOriginal": "《伤寒论》",
+      "source": "《伤寒六书》",
+      "sourceOriginal": "《伤寒六书》",
       "prescriptionOriginal": null,
       "ingredients": [
         "附子",
@@ -195179,12 +195179,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-FDF4A7C4E6D1",
+      "id": "TCM-FORMULA-F5C45CEB8242",
       "name": "清营汤",
       "aliases": [],
       "sourceName": "清营汤",
-      "source": "《金匮要略》",
-      "sourceOriginal": "《金匮要略》",
+      "source": "《温病条辨》",
+      "sourceOriginal": "《温病条辨》",
       "prescriptionOriginal": null,
       "ingredients": [
         "水牛角",
@@ -277318,12 +277318,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-D61CF1F54C86",
+      "id": "TCM-FORMULA-2908718CB32D",
       "name": "血府逐瘀汤",
       "aliases": [],
       "sourceName": "血府逐瘀汤",
-      "source": "《伤寒论》",
-      "sourceOriginal": "《伤寒论》",
+      "source": "《医林改错》",
+      "sourceOriginal": "《医林改错》",
       "prescriptionOriginal": null,
       "ingredients": [
         "燀桃仁",
@@ -336145,12 +336145,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-95D957EB9039",
+      "id": "TCM-FORMULA-323702DE01FA",
       "name": "龙胆泻肝汤",
       "aliases": [],
       "sourceName": "龙胆泻肝汤",
-      "source": "《小儿药证直诀》",
-      "sourceOriginal": "《小儿药证直诀》",
+      "source": "《医方集解》",
+      "sourceOriginal": "《医方集解》",
       "prescriptionOriginal": null,
       "ingredients": [
         "龙胆",
@@ -337156,7 +337156,7 @@
       "adjudicationMethod": "official_local_standard_baseline_plus_full_same_name_variant_disposition",
       "standardBaseline": {
         "standardCode": "0600440022",
-        "source": "《小儿药证直诀》",
+        "source": "《医方集解》",
         "ingredients": [
           "龙胆",
           "酒黄芩",
@@ -337560,9 +337560,9 @@
               "autoResolvable": true
             }
           ],
-          "disposition": "historical_same_name_variant_not_baseline",
+          "disposition": "source_aligned_supporting_variant",
           "runtimeEligible": false,
-          "reason": "同名不等于同方；保留供考证但不参与运行时锁方"
+          "reason": "与治理基线来源相符但仍以标准组成优先"
         },
         {
           "source": "《麻症集成》卷四。",

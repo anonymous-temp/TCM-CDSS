@@ -3892,7 +3892,11 @@ function crossStageReasoningIssue(
   const candidate = reasoning.formula?.candidates?.[0];
   const workbenchEdited = trustedWorkbenchEdit && candidate?.constructionType === "self_devised" && candidate?.modificationStatus === "modified" && /医生编辑版/.test(String(candidate?.name || ""));
   const governedPriorNames = governedFormulaNames(prior.overview?.recommendedFormulaNames);
-  if (governedPriorNames?.length) {
+  // 已剥离身份的自拟候选不再核 M03 锁定方的正向充分性（2026-09-29）：这条核的是「本方能不能沿用
+  // 该方名」，候选已不沿用任何方名时它无从成立。此前核验排在剥离判定之前，于是透明降级路径拿到
+  // 的永远是同一个码，整方作废——9/28 同一病例 12 分钟内 4 次开方全部 0 味（柴胡疏肝散），
+  // 每次都先白跑一轮修复（M04 模型改不了 M03 的锁定）。药味、剂量、配伍等硬门照常执行。
+  if (governedPriorNames?.length && !isDeclassifiedSelfDevisedCandidate(candidate)) {
     const sufficiencyIssue = namedFormulaPositiveSufficiencyIssue(prior, governedPriorNames);
     if (sufficiencyIssue) return sufficiencyIssue;
   }

@@ -379,7 +379,7 @@ ${COMPACT_JSON_OUTPUT_RULE}
     {"type":"中成药","name":"只能逐字选择EVID-INST或LOCAL-INST候选中的药名","specification":"只能复制同一条目的规格；未返回则为null","singleDose":null,"frequency":null,"route":null,"administrationTiming":null,"usageBoundary":"只能复制同一说明书条目的用法边界","course":null,"positioning":"替代方案","correspondingProblem":"本例当前诊断、证候或症状","evidenceId":"LOCAL-INST-001","evidenceFingerprint":"sha256:逐字复制同一条目指纹","relationship":"与饮片方案不默认联用，由医生择一或评估联用","riskNote":"来自该条目的禁忌、相互作用与特殊人群复核点"}
   ],
   "modifications": [
-    {"trigger":"逐字引用本次病历已记录的当前伴随症状","targetRef":"P1","actionType":"add","herbName":"知识库已收载药味","reason":"与该病机节点对应的加减理由"}
+    {"trigger":"逐字引用本次病历已记录的当前伴随症状","targetRef":"P1","symptomPathogenesis":"该症状本身的病机，一句话（≤30字），如“肾气不固，膀胱失约”","actionType":"add","herbName":"知识库已收载药味","reason":"与该病机节点对应的加减理由"}
   ],
   "nonPharma": {
     "diet":"饮食调护",
@@ -398,7 +398,9 @@ ${herbCountPreferenceInstruction(caseState)}- candidate.herbs 只包含本次真
   臣药如何助君或治兼证、佐药为何在此（佐助/佐制/反佐）、使药如何调和或引经，
   实际存在且有依据时再说明药对之间的相须、相使、相畏或相恶关系，不得为了凑栏目强行添加。
   必须覆盖本方绝大多数实际药味及全部君臣佐使层级，
-  不得提到本方没有的药，不得写剂量（剂量在药味表里）。
+  只讨论 candidate.herbs 里的药味：药名与药味表写法一致（药味表写「酒黄芩」就写酒黄芩）；
+  相对原方去掉的药只能以「去某药」「以某药易某药」的方式提及，不得写成方中有该药；
+  不得写剂量（剂量在药味表里），不得出现 P1/P2 等节点编号或 M03/M04 等系统代号，用病机原话代替。
   反例（线上实测，不要这样写）：把每味药的通用功效抄一遍拼成一段；
   或写「君药，本方中的具体配伍作用需医生结合方义复核」这类占位话术。
   必须写成1个连续自然段；同作用药组可合写一个配伍分句，逐味功用已在 function 中说明，
@@ -421,7 +423,7 @@ ${herbCountPreferenceInstruction(caseState)}- candidate.herbs 只包含本次真
 - modifications 是给接诊医生的**随证加减建议**：针对本次病历已记录、但主方未直接针对的兼症，提示可以加哪味药或减哪味药。它是决策支持，不是让医生自己去改方——因此**只要存在合格兼症就必须给出建议，不要图省事输出空数组**。
 - 判断合格兼症的方法：逐条读 primarySyndromeBasis、pathogenesis.chain.patientFact 与 westernDiagnosis.primary.supportingFacts 中已记录的当前表现，找出主方君臣佐使未直接针对的那些（例如主方主攻心脾两虚，而病历还记录了脘腹胀满、大便偏干或咽干）。每条这样的兼症都值得一条加减建议。通常能给出1–3条；确实每条已记录表现都已被主方药味直接覆盖时，才输出空数组。
 - trigger 必须逐字引用上述来源中的**已记录当前表现**，不得写“若出现、复诊时出现、接诊时核实、症状变化时”等假设句，也不得为了凑加减而编造病历没有的症状。加减针对的是已经存在但主方覆盖不足的兼症，不是预设未来可能出现的新症状。
-- 每条必须包含动作（actionType=add/remove/adjust 加 herbName）、理由（reason 写清这味药如何处理该兼症所对应的病机）和有效 targetRef；风险说明由服务端统一附加，模型不得自行输出。add 只能加入知识库已收载且当前处方没有的药味，remove/adjust 只能针对当前处方已有的药味。加减行本身不得写具体克数——剂量由药味工作台与审方链路负责。
+- 每条必须包含动作（actionType=add/remove/adjust 加 herbName）、理由（reason 写清这味药如何处理该兼症所对应的病机）、有效 targetRef 和 symptomPathogenesis：symptomPathogenesis 用一句话（≤30字）写**这个症状本身**的病机（如小便清长写“肾气不固，膀胱失约”，睡眠欠佳写“胃不和则卧不安”），不得照抄 targetRef 节点的整段病机；兼症不在任何病机节点里时，targetRef 挂最相关的节点，但 symptomPathogenesis 仍须如实写该症状的病机；风险说明由服务端统一附加，模型不得自行输出。add 只能加入知识库已收载且当前处方没有的药味，remove/adjust 只能针对当前处方已有的药味。加减行本身不得写具体克数——剂量由药味工作台与审方链路负责。
 - nonPharma 必须输出：以患者现有信息给出饮食、起居、运动、情志四段调护和注意事项，不要求其他病历字段齐全。exercise（运动保健）写本例适合的运动方式、强度、每次时长与每周次数和要避免的运动，只写散步、快走、太极拳、八段锦等普通健身或传统功法；急性期、发热、胸痛气促或其他需要先休息的情况写明暂以休息为主、好转后再逐步恢复活动；lifestyle 只写起居与睡眠，不再重复运动。四段调护每段 1–3 句，必须写成专业可执行的建议 —— 说明与本例证候/病机的对应关系、具体怎么做、要避免什么；不得只写“注意饮食、规律作息、保持心情舒畅”这类无信息量套话。diet 至少包含一项明确饮食行为和一项具体的普通食物或餐食示例；示例只用于说明怎么吃，不宣称治疗功效，并须避开病历已知的过敏、代谢、肾功能和药食相互作用限制。acupointCare（穴位保健）由服务端从受治理清单确定性生成，模型不输出这一字段，也不要在其他字段里写穴位与操作。tcmTreatments 只能填写后附候选中的 projectCode 与现有病机 targetRef，最多3项，优先本机构可开展项目；没有适合项目时输出空数组。
 - nonPharma.diet 只能给出普通、低风险的规律饮食和生活方式建议；不得把山楂、黑木耳、药膳等具体食物写成“活血化瘀、安神、补气、滋阴”等治疗手段，不得暗示食疗可替代诊疗或药物。患者过敏史、当前用药或基础病未知时，不得推荐可能影响凝血、血糖、血压或药物作用的功能性食物。
 `;
@@ -436,9 +438,9 @@ overview.tcmDiseaseName、overview.primarySyndrome、overview.overallPathogenesi
 westernDiagnosis.primary.name 必须是纯现代医学诊断或症状级工作诊断，不得夹带“痰湿型、肝火型、气虚证”等中医证型后缀。supportingFacts 负责逐项列事实；clinicalRationale 不得逐项串联或复制 supportingFacts，也不得整句复述现病史。它必须用1–2句完成“已记录事实中的病程/表现模式 → 当前工作诊断 → 还需排除或核实什么”的推理链。病历中的影像、病理、内镜、特征性检验或已明确的既往诊断足以确立具体疾病时，primary.name 直接写该疾病名，推理链点明确立它的客观依据及仍需排除的情况，不写“病因待查”；依据确实不足时，可采用“已记录的〔症状概念〕及〔病程/模式〕支持将〔primary.name〕作为当前工作判断；但尚未取得〔具体判别信息〕，因此暂不采用更具体病因标签”的结构；方括号内容只能来自本例已记录事实、limitations 或 differentials，没有具体病因候选时写“具体病因”而不得臆造疾病。westernDiagnosis.differentials 每项必须写真正的鉴别理由和能区分主诊断的要点，不能只罗列病史；每项 name 只能写一个疾病/症状方向，多个候选必须拆成多项，不得用“或/斜杠/顿号/可能”合并命名。
 诊断分三段呈现，各自给出自己的推理过程，都不得复述病历：西医诊断（westernDiagnosis.primary，服务端另行关联 ICD-10 编码）、中医辨病（overview.tcmDiseaseName + tcmDiseaseRationale）、中医辨证（overview.primarySyndrome + tcmDiagnosticRationale）。
 overview.tcmDiseaseRationale 只写**辨病**：这组表现为什么归入该中医病名范畴，而不是相邻病名。依据是主症特征、病程形态与病位层次——例如以入睡困难与睡眠维持障碍为主、病程逾月且非情志抑郁为主导，故归入不寐而非郁病或心悸。用1–2句写成“主症与病程形态 → 病名归属 → 与哪个相邻病名区分”，不要在这里写证型、病机或治法。资料稀疏到只能形成症状层工作病名时，写明是按主诉直接对应的症状层病名，并说明尚缺哪类信息才能升级为传统病名。
-overview.tcmDiseaseDifferentials 是**病名级鉴别诊断**（与 tcmDifferentials 的证型鉴别是两层）：在已有可比较相邻病名时给出1–3项，每项写候选中医病名（如不寐需与郁病、心悸鉴别；头痛需与眩晕、真头痛鉴别）、为何需要鉴别、本例主症/病程形态上的区分要点、必要的下一步核实项。区分依据是主症与病程形态，不是证型；真头痛、中风等急重病名进入鉴别时，nextCheck 必须写明相应急症排查。资料稀疏无法形成有意义病名鉴别时可为空数组。
+overview.tcmDiseaseDifferentials 是**病名级鉴别诊断**（与 tcmDifferentials 的证型鉴别是两层），diseaseName 只能写 GB/T 15657 中医病名，不得写西医病名或简称（流行性感冒写“时行感冒”，带状疱疹写“蛇串疮”，荨麻疹写“瘾疹”）：在已有可比较相邻病名时给出1–3项，每项写候选中医病名（如不寐需与郁病、心悸鉴别；头痛需与眩晕、真头痛鉴别）、为何需要鉴别、本例主症/病程形态上的区分要点、必要的下一步核实项。区分依据是主症与病程形态，不是证型；真头痛、中风等急重病名进入鉴别时，nextCheck 必须写明相应急症排查。资料稀疏无法形成有意义病名鉴别时可为空数组。
 overview.tcmDiagnosticRationale 只写**辨证**：在已确定的中医病名之下，四诊合参如何得出该证型。必须基于望闻问切已获得的症状、舌脉、病程与体征，写成“四诊要点 → 病机 → 证型归属”的推理链；不得把缺少CT、MRI、化验、量表等现代检查写成中医辨证不能成立的理由，也不要重复辨病段已经写过的病名归属理由。**每一条病位、病性都必须点名是本例哪一条四诊要点支持它**（如“心悸、失眠故病位在心；神疲乏力、面色少华故病性属气血亏虚”），不得把四诊要点原文与病位病性并排罗列却不建立对应关系——那是字段拼接，不是推理；也不得逐字复述主诉与现病史全文，同一事实只写一次。overview.tcmDifferentials 在已有可比较证候时给出1–3项，每项写候选证候、为何需要鉴别、与本例主证的区分点以及必要的下一步四诊核实；稀疏到无法形成有意义鉴别时可为空，但不得输出套话。若因资料稀疏而把 tcmDifferentials 留空，必须在 primarySyndromeResolutionReason 中明确写出为何暂不能形成鉴别——须包含“不足以/无法/不能……鉴别/区分”这类表述（例如“现有四诊与病史尚不足以与相邻证候鉴别”），不得只留空而不说明。
-therapy.overallPrinciple 必须写治则层原则（如正治、反治、治病求本、急则治标、缓则治本、扶正祛邪、标本缓急或三因制宜），overallMethod 才写疏肝、清热、健脾、化痰、安神等具体治法；不得把具体治法冒充治则，也不得两栏同句复写。subTherapies 必须逐项对应病机节点：只有一个病机节点时，唯一子治法可以与完整的 overallMethod 相同；有多个子病机时至少形成两个可区分的分治方向，各 therapy 与 targetPathogenesis 不得整行复制组合后的 overallMethod，也不得在多行中重复。
+therapy.overallPrinciple 必须写治则层原则，先写与本例病性对应的具体治则（如虚则补之、实则泻之、寒者热之、热者寒之、扶正祛邪、攻补兼施、急则治标，括号内点明补泻温清的对象），治病求本、标本兼治、三因制宜等总纲只能作补充、不得单独成为治则；overallMethod 才写疏肝、清热、健脾、化痰、安神等具体治法；不得把具体治法冒充治则，也不得两栏同句复写。subTherapies 必须逐项对应病机节点：只有一个病机节点时，唯一子治法可以与完整的 overallMethod 相同；有多个子病机时至少形成两个可区分的分治方向，各 therapy 与 targetPathogenesis 不得整行复制组合后的 overallMethod，也不得在多行中重复。
 **主症优先**：主诉主症是全案锚点，兼症不得反客为主。承接主诉主症的那个病机节点，其治法方向必须写在 overallMethod / overview.overallTherapy 的**最前面**，并作为 subTherapies 的首条、priority 写“主要”；兼症（伴随症状）对应的方向保留在其后，可用“兼以/佐以”表明主次。选方同样以主症为准：recommendedFormulaDirection 与 recommendedFormulaNames 应优先选用**主治该主症**的方，不得因兼症齐全就滑向以兼症为主治的方——例如主诉为头痛、兼见心悸失眠时，治法须以针对头痛的方向居首、安神次之，选方不得默认落到以心悸健忘失眠为主治的方。
 **选方须与证候一致**：所选之方主治证候的寒热虚实必须与本例主证一致，且不得与兼证或关键舌脉相抵触——本例有湿热、阴虚，或见舌红少苔、苔黄腻时，不选以附子、肉桂、鹿茸等温燥药为主体的温补方；本例有阳虚寒象时，不选以苦寒清泄为主体的方。有兼证时，优先选针对主证、又便于加减照顾兼证的方。
 
@@ -908,6 +910,9 @@ export function buildPrescribePrompt(caseState: CaseState, extras: M04PromptExtr
     caseState.medicationHistory ? `现用药：${caseState.medicationHistory}` : "现用药：未提及；未提及时不作为通用必填，仅当候选药物存在明确相互作用风险时提示医生确认",
     caseState.allergyHistory ? `过敏史：${caseState.allergyHistory}` : "过敏史：未提及；未提及时不作为通用必填，仅当候选药物存在明确过敏禁忌或交叉过敏风险时提示医生确认",
     caseState.pastHistory ? `既往史：${caseState.pastHistory}` : null,
+    // 已记录（含「否认…」「无」）与未记录分开说（2026-09-29 甲方测评：病历否认药物过敏，
+    // 注意事项却写「当前用药与过敏史未提及」）。
+    "上面已写明的过敏史、现用药、既往史（包括“否认…”“无”）都是已记录信息，注意事项与说明里不得说成未提及或不详；只对确实写着“未提及”的项目提示医生核实，且不要把已记录项与未记录项并成一句。",
     tcmLineageInstruction(caseState),
   ].filter(Boolean).join("\n");
   const safePatientContext = promptDataText(patientContext);

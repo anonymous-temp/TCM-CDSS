@@ -870,10 +870,17 @@ try {
       [{ projectCode: "acupuncture", targetRef: "P1" }],
       priors.influenza,
     )[0];
+    // 「没有受治理来源就只说评估边界、不展示穴位」这条底线在教材方案关闭时逐字成立；教材方案开启后，
+    // 病名在教材里有节的病例（本夹具的湿疹）改由 test:nondrug-textbook-plan 钉住其来源与内容，
+    // 教材没有的病名仍走评估态（同一套件里有专门断言）。
+    const textbookSwitch = process.env.CDSS_NONDRUG_TEXTBOOK_PLANS;
+    process.env.CDSS_NONDRUG_TEXTBOOK_PLANS = "false";
     const dermatology = compileTcmTreatmentRecommendations(
       [{ projectCode: "acupuncture", targetRef: "P1" }],
       priors.dermatology,
     )[0];
+    if (textbookSwitch === undefined) delete process.env.CDSS_NONDRUG_TEXTBOOK_PLANS;
+    else process.env.CDSS_NONDRUG_TEXTBOOK_PLANS = textbookSwitch;
     for (const recommendation of [digestive, sleep, influenza, dermatology]) {
       assert.ok(recommendation.treatmentContent.length > 20);
       // 操作边界只在**有治理模板**时才有内容可写。评估态原先塞的是 parameterPolicy——

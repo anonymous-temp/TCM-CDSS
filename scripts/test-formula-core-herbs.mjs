@@ -23,6 +23,8 @@ const { identifyGovernedFormulaByComposition, compositionIdentityName, isCoreSaf
 const coreHerbs = (await import("../src/data/tcm-formula-core-herbs.json", { with: { type: "json" } })).default;
 const catalog = (await import("../src/data/tcm-formula-governed-catalog.json", { with: { type: "json" } })).default;
 
+const { formulaInCommonTier } = await jiti.import("../src/lib/tcm-formula-tier.ts");
+
 const failures = [];
 function check(name, fn) {
   try {
@@ -201,8 +203,10 @@ check("FCH-08 兜底层的产出必须标为「加减」，不得冒充原方", 
 
 check("FCH-09 召回下限：兜底层必须真的在工作", () => {
   // 防止有人把兜底层悄悄关掉又不改测试。判据是全目录行为，不是某几例。
+  // 反查命名只用常用层（2026-09-29，见 identifyGovernedFormulaByComposition）：冷僻条目不参与命名，
+  // 所以样本也只取常用层——用全目录当分母，等于要求「不该被命名的方也得被命名」。
   const lockable = catalog.entries.filter((entry) =>
-    entry.identityLockEligible && Array.isArray(entry.ingredients) && entry.ingredients.length >= 5);
+    entry.identityLockEligible && formulaInCommonTier(entry) && Array.isArray(entry.ingredients) && entry.ingredients.length >= 5);
   let recognized = 0;
   let tried = 0;
   for (const entry of lockable) {

@@ -23,7 +23,7 @@ import { tcmTreatmentProtocolGapCopy, westernDiagnosisLabelForDisplay } from "./
 import { prioritizeTcmEvidenceForDisplay, prioritizeWesternEvidenceForDisplay } from "./clinical-evidence-display";
 import { normalizedFormulaModificationFields } from "./formula-modification";
 import { clinicalDeliveryAdvisorySection, isSafetyClinicalDeliveryAdvisory, type ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
-import { ordinaryHistoricalDoseDeviation } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, ordinaryHistoricalDoseDeviation } from "./diagnosis-stage-contract";
 
 type SchemeStatus = "ready" | "pending" | "limited";
 
@@ -825,15 +825,26 @@ function projectFormulaRationale(
 }
 
 function projectModifications(
-  candidateSource: { modifications?: unknown } | null | undefined,
+  candidateSource: { modifications?: unknown; candidates?: unknown } | null | undefined,
 ): HisAiSchemePayload["prescriptions"]["modifications"] {
   const rows = Array.isArray(candidateSource?.modifications) ? candidateSource.modifications : [];
+  // 与 M04 终审同一条（m04-modification-safety.ts）：加的药已在方中、减的药不在方中，这一行删掉。
+  // HIS 出口再核一次，是因为药味工作台改方之后加减行不会跟着重算。
+  const firstCandidate = Array.isArray(candidateSource?.candidates) ? candidateSource.candidates[0] as { herbs?: unknown } | undefined : undefined;
+  const candidateHerbIdentities = new Set((Array.isArray(firstCandidate?.herbs) ? firstCandidate.herbs : [])
+    .map((herb) => canonicalTcmHerbIdentity((herb as { name?: unknown } | null)?.name))
+    .filter(Boolean));
   return rows.flatMap((raw) => {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
     const entry = raw as Record<string, unknown>;
     const trigger = clean(typeof entry.trigger === "string" ? entry.trigger : "");
     const modification = normalizedFormulaModificationFields(entry);
     if (!trigger || !modification) return [];
+    if (candidateHerbIdentities.size > 0) {
+      const identity = canonicalTcmHerbIdentity(modification.herbName);
+      if (modification.action === "加" && candidateHerbIdentities.has(identity)) return [];
+      if (modification.action !== "加" && identity && !candidateHerbIdentities.has(identity)) return [];
+    }
     const substitutions = Array.isArray(entry.substitutions) ? entry.substitutions : [];
     const rawTriggerSource = entry.triggerSource && typeof entry.triggerSource === "object" && !Array.isArray(entry.triggerSource)
       ? entry.triggerSource as Record<string, unknown>

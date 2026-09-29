@@ -12,6 +12,7 @@ import {
   tcmRefinementAdjudication,
   tcmTreatmentPointProvenance,
   tcmTreatmentTemplatePointsAreGoverned,
+  tcmTreatmentProjectIsPointFree,
   governedTcmTreatmentPrecisePlanTemplate,
   governedTcmTreatmentConditionalPoints,
   type TcmTreatmentPlanTemplate,
@@ -21,6 +22,7 @@ import {
 import { affirmedClinicalText } from "./clinical-polarity";
 import { assessPregnancyState } from "./clinical-state";
 import { pregnancyScreenRequired } from "./diagnosis-safety";
+import { textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
 
 type DeliveryMode = "onsite" | "referral";
 type DeploymentCapability = {
@@ -259,6 +261,8 @@ function controlledTreatmentPlan(
   signedSyndromeConclusion = "",
   /** 本例年龄（岁）。带年龄下限的模板取不到年龄一律不启用。 */
   patientAgeYears?: number,
+  /** 教材方案（tcm-nondrug-textbook-plan.server.ts）的取材：已签名病名、西医主诊断、主证+兼证结论。 */
+  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string },
 ): Pick<TreatmentRecommendation,
   "treatmentContent" | "suggestedSitesOrPoints" | "scheduleSuggestion" | "techniqueBoundary" |
   "protocolSource" | "protocolStatus" | "protocolGap" | "tailoringStatus" |
@@ -266,6 +270,16 @@ function controlledTreatmentPlan(
   "deferredGovernedTemplate"
 > {
   const definition = getTcmTreatmentProjectDefinition(projectCode);
+  const textbookPlan = textbookContext
+    ? textbookTreatmentPlan({
+        projectCode,
+        diseaseNames: textbookContext.diseaseNames,
+        westernNames: textbookContext.westernNames,
+        signedSyndromeText: textbookContext.signedSyndromeText,
+        currentFacts,
+        signedNarrative: signedSyndromeText,
+      })
+    : undefined;
   // ── 精确证型模板优先（中医师 2026-08-11 裁定的落库方式）────────────────────────
   //
   // 裁定明确**不许**调整全局 upper_airway / respiratory 优先级：那会影响所有病例。
@@ -281,6 +295,46 @@ function controlledTreatmentPlan(
     signedSyndromeConclusion,
     patientAgeYears,
   );
+
+  /** 教材方案 → 卡片字段（tcm-nondrug-textbook-plan.server.ts）。证型相符 = 已按本例证型选穴/选方，配穴仍待本机构中医师终审。 */
+  const fromTextbook = (plan: TextbookPlan) => {
+    const caseTerms = acupointCaseTerms(clinicalText, caseFacts, targetPathogenesis);
+    const bodySystem = projectCode !== "auricular";
+    const points = plan.kind === "acupoint"
+      ? plan.points.map((point) => (bodySystem
+        ? annotateGovernedTemplatePoint(
+            projectCode, point.name, caseTerms,
+            point.role === "syndrome_refinement" ? point.syndromeLabel : undefined,
+            point.role === "conditional_point" ? point.note : undefined,
+          )
+        : point.name))
+      : [];
+    const provenance = plan.kind === "acupoint"
+      ? plan.points.map((point) => ({
+          point: point.name,
+          role: point.role,
+          sourceRefs: plan.sourceRefs,
+          authorityTier: "project_governed_source",
+          adjudicationStatus: point.role === "base_point" ? "approved" as const : "pending_clinician_review" as const,
+          conflictNote: point.role === "base_point" ? null : "教材按证型/症状配穴，本机构中医师尚未逐条终审。",
+        }))
+      : [];
+    return {
+      treatmentContent: plan.treatmentContent,
+      suggestedSitesOrPoints: points,
+      scheduleSuggestion: plan.scheduleSuggestion,
+      techniqueBoundary: plan.techniqueBoundary,
+      protocolSource: plan.protocolSource,
+      pointProvenance: provenance,
+      sourceAuthorityTier: "project_governed_source",
+      protocolStatus: plan.syndromeTailored
+        ? "governed_patient_specific_plan" as const
+        : "governed_class_template_not_syndrome_tailored" as const,
+      tailoringStatus: plan.syndromeTailored ? "syndrome_tailored" as const : "class_template_only" as const,
+      protocolGap: plan.syndromeTailored ? undefined : "syndrome_refinement_not_matched",
+      ...(plan.syndromeTailored && plan.kind === "acupoint" ? { adjudicationStatus: "pending_clinician_review" as const } : {}),
+    };
+  };
   const { tag, template: taggedTemplate } = resolveTreatmentIndication(projectCode, tags, clinicalText);
   // 闸门只在**本节点自己的适应证**里生效。此前它无条件压过按病机节点解析出的模板，
   // 于是「咳嗽 + 颈项痹阻」两节点的病例里，打在颈痛节点上的针刺卡发出的是肺系取穴——
@@ -374,6 +428,21 @@ function controlledTreatmentPlan(
     const syndromeGatedTemplate = preciseFitsNode && Boolean(precise.template?.preciseSyndromeGate);
     const gateLabel = (preciseFitsNode ? precise.template?.preciseSyndromeGate?.indicationLabel : "") || "";
     const syndromeTailored = Boolean(refinement) || syndromeGatedTemplate;
+    // 目录里只有病种类目模板、没按本例证型加减时，教材方案（按证型配穴/选方）更贴本例：
+    // 证型相符 → 用教材；穴位型项目教材也未按证型时保持目录原状（有已治理来源的频次）。
+    // 食疗/导引/意疗目录模板本身没有任何具体内容，教材方案有就用。
+    // 目录穴位是「按查体确定/按疼痛部位选择」这类延期说明、真实穴位不足 3 个时（骨骼肌肉痛模板只有
+    // 「局部阿是穴（查体确认）」「循经远端穴」），教材的具体取穴更能执行——同样用教材。
+    const catalogSpecificPoints = governedTemplate.sitesOrPoints.filter((site) => {
+      const bare = site.replace(/（[^）]*）\s*$/, "").trim();
+      return projectCode === "auricular" ? bare.length > 0 && !/或/.test(bare) : Boolean(resolveAcupoint(bare));
+    }).length;
+    if (!syndromeTailored && textbookPlan &&
+      (tcmTreatmentProjectIsPointFree(projectCode) || !pointsGoverned || catalogSpecificPoints < 3)) {
+      return { ...fromTextbook(textbookPlan), ...deferredGovernedTemplate };
+    }
+    // 「取穴」只对取穴类项目成立；食疗/导引/意疗说「取穴」是甲方 9.24/9.27 测评点名的错误（食疗还需要取穴针刺吗）。
+    const templateNoun = projectCode === "diet_therapy" ? "食疗" : projectCode === "qigong_daoyin" ? "功法" : projectCode === "mind_therapy" ? "情志调摄" : "取穴";
     const evidenceTerms = indicationEvidenceTerms(governedTemplate.indicationTag, caseFacts);
     const matchedTemplateTerms = governedTemplate.matchAny
       .filter((term) => clinicalText.normalize("NFKC").includes(term))
@@ -385,12 +454,12 @@ function controlledTreatmentPlan(
       // 同一个对象已经带 targetPathogenesis 字段，渲染层单独成行；内嵌等于每个项目块把同一句病机
       // 印两遍，N 个项目就是 2N 遍。病机归病机字段，治疗内容只写这个项目本身的边界。
       treatmentContent: refinement
-        ? `本例适用标准项目方案，${[focus, `按已签名证候「${refinement.syndromeLabel}」加减取穴`].filter(Boolean).join("并")}，由现场医师复核后实施。`
+        ? `本例适用标准项目方案，${[focus, `按已签名证候「${refinement.syndromeLabel}」加减${templateNoun === "取穴" ? "取穴" : ""}`].filter(Boolean).join("并")}，由现场医师复核后实施。`
         : syndromeGatedTemplate
           ? `本例命中「${gateLabel}」的标准取穴${focus ? `（${focus}）` : ""}——该模板以本例**当前病种事实**与**已签名证型**双重条件准入${conditionalPoints.length > 0 ? `，并按本例症状加用${conditionalPoints.map((item) => item.point).join("、")}` : ""}；补泻、深度、留针与禁忌由现场医师复核后确定。`
         : matchedRefinement
-          ? `本例命中该病种标准取穴模板${focus ? `（${focus}）` : ""}，也命中了「${matchedRefinement.syndromeLabel}」的证型配穴，但该条配穴尚未完成中医师终审，本轮**不予应用**，仅呈现病种标准取穴，请按本例寒热虚实自行增减。`
-          : `本例命中该病种标准取穴模板${focus ? `（${focus}）` : ""}，由现场医师复核后实施；本轮尚未按本例证型加减，请按本例寒热虚实增减。`,
+          ? `本例命中该病种标准${templateNoun}模板${focus ? `（${focus}）` : ""}，也命中了「${matchedRefinement.syndromeLabel}」的证型配穴，但该条配穴尚未完成中医师终审，本轮**不予应用**，仅呈现病种标准${templateNoun}，请按本例寒热虚实自行增减。`
+          : `本例命中该病种标准${templateNoun}模板${focus ? `（${focus}）` : ""}，由现场医师复核后实施；本轮尚未按本例证型加减，请按本例寒热虚实增减。`,
       suggestedSitesOrPoints: points,
       scheduleSuggestion: governedTemplate.scheduleSuggestion,
       techniqueBoundary: pointsGoverned
@@ -442,6 +511,8 @@ function controlledTreatmentPlan(
     };
   }
 
+  // 没有目录模板可用时：教材有该病证的方案就给方案，而不是「本轮仅评估」（甲方 9.24/9.27 测评 2.4）。
+  if (textbookPlan) return { ...fromTextbook(textbookPlan), ...deferredGovernedTemplate };
   const sourceRefs = definition?.protocolSourceRefs.filter(Boolean) || [];
   // protocolGap 只作为**内部状态**保留（呈现层据 protocolStatus 决定怎么说），
   // 不再写成给医生看的句子。原文两句讲的都是「系统目录里有没有模板」，
@@ -746,7 +817,13 @@ function rankedTreatmentCandidates(
     if (tcmTreatmentProjectExclusionReason(projectCode, prior, caseState)) return;
     const node = nodeById.get(targetRef);
     if (!node) return;
-    const score = clinicalAffinity(projectCode, nodeIndicationTags(prior, node, currentFactFallback));
+    const nodeTags = nodeIndicationTags(prior, node, currentFactFallback);
+    let score = clinicalAffinity(projectCode, nodeTags);
+    // 适应证标签是词袋，没有收「蛇串疮/水疱」「心悸」这类病名：**该节点一个标签都没认出来**，而教材里有该病证的
+    // 该项目方案时，病名本身就是适应证（亲和度取 55，低于任何标签命中）。节点认出了别的标签（睡眠节点上的推拿）
+    // 说明它是另一个适应证的节点，不得凭病名改绑——「不得静默改绑到别的节点」的底线不变。
+    if (score <= 0 && nodeTags.size === 0 &&
+      textbookPlanExistsForDisease(projectCode, prior.overview?.tcmDiseaseName, prior.westernDiagnosis?.primary?.name)) score = 55;
     if (score <= 0) return;
     const key = `${projectCode}:${targetRef}`;
     const current = scoredByKey.get(key);
@@ -1034,6 +1111,13 @@ export function compileTcmTreatmentRecommendations(
       // 闸门的第二把钥匙只认**结论性**证候名，不认病机链/辨证依据/治法方向这些叙述文本。
       prior.overview.primarySyndrome || "",
       treatmentPatientAgeYears(caseState),
+      // 教材方案取材：已签名的中医病名、西医主诊断，以及主证+兼证结论（证型配穴/选方只读它）。
+      {
+        diseaseNames: [prior.overview.tcmDiseaseName || ""].filter(Boolean),
+        westernNames: [prior.westernDiagnosis?.primary?.name || ""].filter(Boolean),
+        signedSyndromeText: [prior.overview.primarySyndrome, ...(Array.isArray(prior.overview.secondarySyndromes) ? prior.overview.secondarySyndromes : [])]
+          .filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；"),
+      },
     );
     return [{
       projectCode: definition.code,

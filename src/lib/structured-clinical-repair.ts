@@ -186,7 +186,9 @@ export function stabilizeM04DoseOnlyRepair(
   }
 }
 
-const M04_KB_SHORTLIST_START = "【本例治法方向的知识库覆盖药味短名单";
+// 带全角括号才是真正的标题行：M04 提示词里「君药知识库覆盖」一条更靠前处也引用了「【本例治法方向的知识库覆盖药味短名单】」，
+// 不带括号时 indexOf 命中的是那条引用，取出的 6000 字截不到方向行（2026-09-29 提示词加长后暴露，测试抓到）。
+const M04_KB_SHORTLIST_START = "【本例治法方向的知识库覆盖药味短名单（";
 const M04_KB_SHORTLIST_END = "【M04药味可引用病机节点】";
 
 /** Preserve the governed, case-specific herb shortlist when the full M04 prompt is reduced to a

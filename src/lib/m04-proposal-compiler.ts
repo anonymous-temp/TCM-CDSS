@@ -340,6 +340,10 @@ export const M04ProposalSchema = z.object({
   modifications: z.array(z.object({
     trigger: z.string().min(2).max(500),
     targetRef: z.string().regex(/^P\d{1,2}$/),
+    // 本症病机：触发症状自身的病机，一句话（2026-09-29 甲方测评 2.2）。此前「对应病机」一律由服务端
+    // 把 targetRef 节点的整段原文贴进来，兼症不在任何节点里时只能挤进最近的节点——
+    // 「益智（小便清长）→ 脾气虚弱…便溏」。可选：缺省或不合格时服务端退回节点主干。
+    symptomPathogenesis: z.preprocess(unwrapSingleText, z.string().min(2).max(80).optional()),
     actionType: z.enum(["add", "remove", "adjust"]),
     herbName: z.string().min(1).max(120),
     reason: z.string().min(2).max(800),
@@ -672,6 +676,11 @@ function normalizeModifications(
     const targetRef = unwrapSingleText(item.targetRef ?? item["病机引用"]);
     const herbName = unwrapSingleText(item.herbName ?? item.herb ?? item["药味"] ?? item["药名"]);
     const reason = unwrapSingleText(item.reason ?? item["理由"]);
+    // 可选说明字段越界只丢这一个字段，不连累整条加减、更不连累整份提案（schema 是 2–80 字）。
+    const rawSymptomPathogenesis = unwrapSingleText(item.symptomPathogenesis ?? item["本症病机"]);
+    const symptomPathogenesis = rawSymptomPathogenesis && rawSymptomPathogenesis.length >= 2 && rawSymptomPathogenesis.length <= 80
+      ? rawSymptomPathogenesis
+      : undefined;
     // Conditional modifications are optional decision support. A malformed optional row must not
     // invalidate an otherwise complete core prescription, but no missing field may be invented.
     const doseBearingText = [trigger, herbName, reason].filter(Boolean).join("；");
@@ -688,7 +697,15 @@ function normalizeModifications(
     const herbIdentity = canonicalTcmHerbIdentity(normalizedHerbName);
     if (["remove", "adjust"].includes(actionType) && !prescribedHerbNames.has(herbIdentity)) return drop("action_conflicts_with_candidate");
     if (actionType === "add" && prescribedHerbNames.has(herbIdentity)) return drop("action_conflicts_with_candidate");
-    return [{ ...item, trigger, targetRef, actionType, herbName: normalizedHerbName, reason }];
+    return [{
+      ...item,
+      trigger,
+      targetRef,
+      actionType,
+      herbName: normalizedHerbName,
+      reason,
+      ...(symptomPathogenesis ? { symptomPathogenesis } : { symptomPathogenesis: undefined }),
+    }];
   });
   if (normalizedItems.length > 4) {
     droppedReasons.push(...Array.from(
@@ -1112,6 +1129,57 @@ export function normalizeM04DraftCandidate(
   return isRecord(normalized) && isRecord(normalized.candidate) ? normalized.candidate : undefined;
 }
 
+/**
+ * 随证加减「对应病机」一栏（2026-09-29 甲方测评 2.2）。
+ *
+ * 优先用模型写的本症病机（symptomPathogenesis）：须短（≤40 字）、不含剂量、且与触发症状或所挂节点
+ * 在字面上有交集（至少一个二字片段），防止写成与本症无关的套话。不合格时退回：
+ *   · 节点病机里本就讲到了这个症状 → 用节点病机的主干分句（不再整段粘贴）；
+ *   · 讲不到 → 写「兼见某症」，如实说明它是兼症而非该节点的表现（此前整段贴节点原文，
+ *     医生读到的是一条与本症无关的病机）。
+ */
+export function modificationTargetPathogenesis(
+  item: { trigger: string; targetRef: string; reason: string; symptomPathogenesis?: string },
+  node: { pathogenesis?: string; syndromeEvidence?: string; therapyDirection?: string; patientFact?: string } | undefined,
+  cleanNarrative: (value: string | undefined, fallback: string) => string,
+): string {
+  const bigrams = (value: string): Set<string> => {
+    const compact = value.replace(/[^\u4e00-\u9fff]/g, "");
+    const out = new Set<string>();
+    for (let index = 0; index + 2 <= compact.length; index += 1) out.add(compact.slice(index, index + 2));
+    return out;
+  };
+  const compactNarrative = (value: string): string => value.replace(/[^\u4e00-\u9fff]/g, "");
+  const overlaps = (left: string, right: string): boolean => {
+    const rightSet = bigrams(right);
+    for (const gram of bigrams(left)) if (rightSet.has(gram)) return true;
+    return false;
+  };
+  const authored = (item.symptomPathogenesis || "").trim();
+  // 模型写的本症病机常用不同的词解释同一症状（小便清长 → 肾气不固，膀胱失约），字面不必与触发症状重合；
+  // 只要求：够短、不含剂量、不是把节点整段照抄回来。
+  if (
+    authored.length >= 4 && authored.length <= 40 &&
+    !/\d+(?:\.\d+)?\s*(?:g|克|mg|毫克)/i.test(authored) &&
+    compactNarrative(authored) !== compactNarrative(node?.pathogenesis || "")
+  ) {
+    const cleaned = cleanNarrative(authored, "");
+    if (cleaned) return cleaned;
+  }
+  const trunk = (node?.pathogenesis || node?.syndromeEvidence || "")
+    .split(/[；;]/)[0]
+    .replace(/[，,]\s*(?:故|则|以致|遂)[^，,]*$/, "")
+    .trim();
+  // 症状写在该节点的患者事实/辨证依据里，就是这个节点自己的表现——用节点病机主干；
+  // 与节点毫无交集（兼症被强行挂到最近的节点）才写「兼见某症」。
+  const nodeOwnText = [node?.pathogenesis, node?.syndromeEvidence, node?.patientFact].filter(Boolean).join("；");
+  if (trunk && overlaps(item.trigger, nodeOwnText)) {
+    return trunk.length <= 40 ? trunk : trunk.split(/[，,]/)[0];
+  }
+  const trigger = item.trigger.replace(/^[^：:]{1,8}[：:]/, "").trim().slice(0, 20);
+  return trigger ? `兼见${trigger}` : (trunk || item.targetRef);
+}
+
 function modificationIssue(proposal: M04Proposal, prior: ClinicalReasoningResultV2): string | undefined {
   const nodeIds = new Set(prior.pathogenesis.chain.map((node) => node.nodeId).filter(Boolean));
   const prescribed = new Set(proposal.candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name)));
@@ -1310,7 +1378,7 @@ export function compileM04Proposal(
     return [{
       trigger: item.trigger,
       triggerSource,
-      targetPathogenesis: node?.pathogenesis || node?.syndromeEvidence || item.targetRef,
+      targetPathogenesis: modificationTargetPathogenesis(item, node, cleanNarrative),
       action: actionVerb,
       herbName: item.herbName.trim(),
       doseOrHandling: null,

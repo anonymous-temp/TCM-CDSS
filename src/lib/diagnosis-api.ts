@@ -18,6 +18,7 @@ import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnota
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
 import { unsupportedHighImpactHerbFindings, affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03PreservedParallelHalfIssue, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
 import { parseStreamModuleDraftFrame, stageProgressHeartbeatStatus, STREAM_REPLACE_MARKER, type StageProgressPhase, type StreamModuleDraftFrame } from "@/lib/diagnosis-stream-protocol";
+import { normalizeM03TcmDiseaseDifferentialNames } from "@/lib/tcm-disease-differential-normalization";
 import { groundDifferentialNegativeAssertions, alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyGovernedM03DiseaseDifferentialBoundary, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { modelUsageSnapshot, parseOpenAICompatCompletionPayload, type CompatUsage } from "@/lib/openai-compatible-response";
@@ -521,7 +522,9 @@ export async function prepareDiagnoseStructuredContent(
   const formalCriteriaBound = phase("formal_criteria", declassifyUnmetFormalM03WesternPrimary(evidenceBound, clinicalContext));
   const singlePrimary = phase("single_primary", declassifyAmbiguousM03WesternPrimary(formalCriteriaBound, clinicalContext));
   const westernProjection = phase("western_differentials", normalizeM03WesternDifferentials(singlePrimary, clinicalContext, patientAgeYears));
-  const westernRationaleAligned = phase("western_rationale", alignNormalizedM03WesternClinicalRationale(westernProjection));
+  // 中医病名鉴别栏只收中医病名：西医病名按教材对照归一（流行性感冒→时行感冒），归一不了的丢弃。
+  const tcmDifferentialNamed = phase("tcm_disease_differentials", normalizeM03TcmDiseaseDifferentialNames(westernProjection));
+  const westernRationaleAligned = phase("western_rationale", alignNormalizedM03WesternClinicalRationale(tcmDifferentialNamed));
   const tcmRationaleAligned = phase("tcm_rationale", alignNormalizedM03TcmDiagnosticRationale(westernRationaleAligned));
   const principleBound = phase("treatment_principle", applyDeterministicTreatmentPrinciple(tcmRationaleAligned));
   const qualityBounded = phase("quality_boundaries", applyM03AdvisoryQualityBoundaries(principleBound, clinicalContext));
@@ -1750,6 +1753,9 @@ async function retryCompletePrimaryResponse(
     // candidate 的煎服法与药味规则：整份重写和只重写 candidate 的定向修复共用。
     const m04CandidateRules = structuredStage === "prescribe"
       ? [
+          // 方解纠偏随每一轮修复一起给（2026-09-29）：服务端不再整段丢弃模型方解，
+          // 修复轮是模型自己把方解与最终药味对齐的机会。
+          "candidate.formulaAnalysis 必须与本次输出的 candidate.herbs 逐味对应：只讨论其中的药味，药名写法与药味表一致；相对原方去掉的药只能写成「去某药」，不得写成方中有该药；不写剂量、不写 P1/P2 节点编号。",
           "candidate.decoction 必须是单个对象，并同时包含 doseCount（格式严格为1–30整数加“剂”的纯字符串，如\"5剂\"）、dosesPerDay（1–3整数）和 administrationTimesPerDay（1–6整数且不得小于 dosesPerDay）；三者都不得省略、输出 null、数组或包装对象，doseCount 必须能被 dosesPerDay 整除，course 和复诊节点由服务端统一生成。",
           "经典方/合方服从服务端基础方组成；自拟复方在有依据的前提下应给出完整君臣佐使层次，常见规模8–14味（不少于4味，明确单味方案可为1味），每增加一味都必须同时绑定真实 targetRef 或受控 structureRole、在服务端药味知识库有功能收载、且其收载方向与本例某条已锁定治法方向一致，不得为凑数量增药，也不得加入与任何锁定治法方向无关的药味。每味药 name 必须是纯字符串，dose 必须是带单位的字符串（如10g），role 只能填君/臣/佐/使中的一个字；整个 candidate.herbs 必须恰有 1–2 味君药，且每味君药都必须 targetKind=pathogenesis_node、targetRef=P1。targetKind=pathogenesis_node 时 structureRole 必须为 null；只有 targetKind=formula_structure 时才可填写受控 structureRole。",
         ]
@@ -1758,7 +1764,7 @@ async function retryCompletePrimaryResponse(
       ? [
           "M04 修复结果始终必须是最小提案对象，不要输出 schemaVersion、candidate.therapyMatch、candidate.decoction.course、modificationReview 或 nonPharma.acupointCare；这些由服务端补齐。即使待修复内容是完整 reasoning-v2 也只提取其中的单个候选方：candidate 必须是单个对象，candidate.herbs 必须是数组且只含本次实际采用药味。",
           ...m04CandidateRules,
-          "顶层还必须包含 patentAndWestern 数组、modifications 数组以及完整 nonPharma 对象；patentAndWestern 只能选择已注入的 EVID-INST 或 LOCAL-INST 说明书条目并逐字回填 evidenceId/evidenceFingerprint，西药一律不填剂量，中成药在条目没有完整用法字段时也不猜剂量。modifications 仅允许0-4条无剂量条件性加减，包含 trigger/targetRef/actionType/herbName/reason。",
+          "顶层还必须包含 patentAndWestern 数组、modifications 数组以及完整 nonPharma 对象；patentAndWestern 只能选择已注入的 EVID-INST 或 LOCAL-INST 说明书条目并逐字回填 evidenceId/evidenceFingerprint，西药一律不填剂量，中成药在条目没有完整用法字段时也不猜剂量。modifications 仅允许0-4条无剂量条件性加减，包含 trigger/targetRef/symptomPathogenesis/actionType/herbName/reason（symptomPathogenesis 一句话写该症状本身的病机，不照抄节点）。",
           "nonPharma 的 diet、lifestyle、emotion 必须是非空字符串；diet 必须同时包含明确饮食行为和至少一项具体普通食物或餐食示例，示例不宣称治疗功效并避开病历已知限制；穴位建议由受控项目目录承接，tcmTreatments 只能包含受控 projectCode 和有效 targetRef 且最多3项，precautions 是0–6条纯字符串注意事项，允许为空数组。不要保留或输出 reasoning-v2 的 overview、pathogenesis、therapy、formula 等字段，也不要重写 M03 字段。",
         ].join("\n")
       : "";
@@ -3949,6 +3955,15 @@ async function callPrimaryTextModelStream(
           ? structuredRejectionReason(authoritativeContent, opts.structuredStage, finishReason, opts.structuredClinicalContext, opts.structuredPriorReasoning)
           : undefined;
         const pendingRepairIsFixpoint = isRepeatedContractRepair(pendingRejectionReason);
+        // 驳回针对的是**已签名 M03 的方名身份**（正向充分性），M04 模型怎么重写候选都改变不了它：
+        // 不再白跑修复轮，直接走下方的透明降级（剥离方名、按自拟方保留已通过药味级校验的候选）。
+        if (opts.structuredStage === "prescribe" && pendingRejectionReason &&
+          /named_formula_positive_sufficiency_missing/.test(pendingRejectionReason)) {
+          m04RepairLoopEarlyExit = true;
+          console.warn("[tcm-cdss:model] M04 rejection targets the signed M03 formula identity; skipping model repair", {
+            reason: pendingRejectionReason,
+          });
+        }
         const pendingQualityRepairUnavailable = !qualityRepairAvailable(pendingRejectionReason);
         // This disposition belongs to these completed bytes. It authorizes deterministic identity
         // removal only; it cannot waive a hard failure.

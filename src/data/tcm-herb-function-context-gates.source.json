@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "tcm-herb-function-context-gates-v1",
+  "note": "药味功效条目的「本例适用门」（2026-09-29，甲方 9.24/9.27 医学测评 2.1）。\n\n【解决什么】药味库的功效是该药**全部**功效（当归：补血活血，调经止痛，润肠通便；甘草：补脾益气，清热解毒，祛痰止咳，缓急止痛，调和诸药）。服务端给「药味功用」栏与兜底方解挑功效时，原判据是「功效词与本方治法/病机逐字重合」，于是头痛方里的当归因为一个「痛」字选中「调经止痛」，止咳方里作使药的甘草选中「祛痰止咳」，瘾疹方里的薄荷、蝉蜕都选中「利咽」。\n\n【规则】功效条目含 functionTerms 中任一词时，只有本例上下文（签名病机、患者事实、治法）含 contextTerms 中任一词才可选用；不满足时该条目不参与挑选（该药其余功效照常可选）。只做**排除**，不新增任何功效文字——被排除的条目仍在药味库里，医生查看药味资料时不受影响。\n\n【来源】词义依据《中药学》（钟赣生主编，十三五规划教材）各药功效术语的通行释义：调经/安胎/下乳/止带属妇科专用功效，利咽/明目/止咳/平喘/止泻/通便/止血/安神/杀虫等均指向具体症状；词表只收这类「症状专指型」功效词，补气、清热、活血这类病机层功效不设门。",
+  "entries": [
+    { "id": "menstrual", "functionTerms": ["调经", "通经", "经闭"], "contextTerms": ["经", "月事", "胞宫", "崩漏", "带下", "产后", "妊娠"] },
+    { "id": "pregnancy", "functionTerms": ["安胎", "胎动"], "contextTerms": ["胎", "妊娠", "孕"] },
+    { "id": "lactation", "functionTerms": ["下乳", "通乳", "催乳", "回乳"], "contextTerms": ["乳"] },
+    { "id": "leukorrhea", "functionTerms": ["止带"], "contextTerms": ["带下"] },
+    { "id": "throat", "functionTerms": ["利咽", "开音", "喉痹"], "contextTerms": ["咽", "喉", "音哑", "声嘶", "失音"] },
+    { "id": "eye", "functionTerms": ["明目", "退翳", "目赤"], "contextTerms": ["目", "眼", "视"] },
+    { "id": "cough", "functionTerms": ["止咳", "镇咳"], "contextTerms": ["咳"] },
+    { "id": "dyspnea", "functionTerms": ["平喘", "定喘", "纳气"], "contextTerms": ["喘", "哮", "气短", "气促"] },
+    { "id": "phlegm", "functionTerms": ["祛痰", "化痰", "消痰", "涤痰"], "contextTerms": ["痰", "咳", "眩", "瘰", "痞", "结节"] },
+    { "id": "pus", "functionTerms": ["排脓", "托毒", "生肌", "敛疮"], "contextTerms": ["脓", "痈", "疮", "疡", "溃"] },
+    { "id": "diarrhea", "functionTerms": ["止泻", "涩肠", "止痢"], "contextTerms": ["泻", "便溏", "泄", "痢", "大便稀", "滑脱"] },
+    { "id": "constipation", "functionTerms": ["通便", "润肠", "泻下", "攻下"], "contextTerms": ["便秘", "便干", "便结", "大便干", "腑", "燥屎", "大便难", "大便偏干"] },
+    { "id": "bleeding", "functionTerms": ["止血"], "contextTerms": ["血证", "出血", "衄", "咯血", "吐血", "便血", "尿血", "崩漏", "紫癜", "瘀斑"] },
+    { "id": "mind", "functionTerms": ["安神", "宁心", "镇惊", "定志"], "contextTerms": ["神", "眠", "寐", "悸", "惊", "烦", "怔忡"] },
+    { "id": "parasite", "functionTerms": ["杀虫", "驱虫"], "contextTerms": ["虫"] },
+    { "id": "alcohol", "functionTerms": ["解酒"], "contextTerms": ["酒"] },
+    { "id": "sweating", "functionTerms": ["止汗", "敛汗", "固表止汗"], "contextTerms": ["汗"] },
+    { "id": "essence", "functionTerms": ["固精", "缩尿", "止遗", "涩精"], "contextTerms": ["遗", "精", "尿频", "夜尿", "小便清长", "滑精"] },
+    { "id": "rash", "functionTerms": ["透疹"], "contextTerms": ["疹", "麻疹"] },
+    { "id": "malaria", "functionTerms": ["截疟"], "contextTerms": ["疟"] },
+    { "id": "vomiting", "functionTerms": ["止呕", "降逆止呕"], "contextTerms": ["呕", "恶心", "哕", "反胃"] },
+    { "id": "digestion", "functionTerms": ["消食", "化积", "消积"], "contextTerms": ["食", "积", "纳", "脘痞", "嗳腐"] }
+  ]
+}

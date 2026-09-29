@@ -248,6 +248,7 @@
     "test:customer-jit-registration": "jiti scripts/test-customer-jit-registration.mjs",
     "test:customer-registry-scale": "jiti scripts/test-customer-registry-scale.mjs",
     "test:drug-inventory-recommendation": "jiti scripts/test-drug-inventory-recommendation.mjs",
+    "test:eval924-remediation": "node scripts/test-eval924-remediation.mjs",
     "test:nonpharmacopoeia-dose": "jiti scripts/test-nonpharmacopoeia-dose.mjs",
     "test:multitenant-drug-inventory": "jiti scripts/test-multitenant-drug-inventory.mjs",
     "test:drug-inventory-concurrency": "jiti scripts/test-drug-inventory-concurrency.mjs",
