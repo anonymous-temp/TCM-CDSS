@@ -145,10 +145,11 @@ check("⑤ 模型没写方义时，契约前不得被角色占位句顶上", () 
   assert.equal(herbFunctionMatchesKnowledge("黄芪", before, "臣", "心脾两虚"), false);
 });
 
-check("⑤ finalize（修复耗尽）才补角色占位句，医生不会看到空栏", () => {
+check("⑤ finalize（修复耗尽）才补，医生不会看到空栏；2026-09-29 起补的是核对词典里该药入方的通常作用，不再是占位套话", () => {
   const after = readSentinel(applyDeterministicHerbFunctions(wrap(HERB_PAYLOAD("")), { fillRolePlaceholder: true }))
     .formula.candidates[0].herbs[0].function;
-  assert.match(after, /需医生结合方义复核/);
+  assert.doesNotMatch(after, /需医生结合方义复核/);
+  assert.match(after, /补气升阳|固表止汗/);
   assert.equal(herbFunctionMatchesKnowledge("黄芪", after, "臣", "心脾两虚"), true);
 });
 

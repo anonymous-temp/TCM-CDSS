@@ -1865,7 +1865,12 @@ export function applyDeterministicHerbFunctions(
         }
         // KB 对不上本方治法：**契约前保持原样**。空 → candidate_*_herb_*_function，
         // 有文但不接地 → _function_ungrounded，两者都是 T2 码，先走一轮修复让模型把
-        // 「这味药在本方里做什么」写清楚；修不出来才由 finalize 补角色兜底句。
+        // 「这味药在本方里做什么」写清楚；修不出来才由 finalize 补写。
+        // finalize 时优先保留模型写的方义（宽松档：安全判据一条不减，只放宽「概念词与库文本重叠」），
+        // 其次才是核对词典里的角色/主要作用，最后才是占位句（2026-09-29）。
+        if (opts?.fillRolePlaceholder && modelFunction && herbFunctionMatchesKnowledge(
+          name, modelFunction, markdownCell(herb.role), markdownCell(herb.targetPathogenesis), true,
+        )) continue;
         if (opts?.fillRolePlaceholder) {
           herb.function = getTcmHerbFunctionDisplayText(
             name,
@@ -4153,7 +4158,27 @@ function scrubVisibleMarkdownHead(head: string): string {
  */
 const CDSS_MACHINE_MARKER = /<!--\s*CDSS_[A-Z0-9_]+(?::[A-Za-z0-9_]+)?\s*-->/g;
 
-export function scrubInternalVocabularyFromVisibleText(content: string): string {
+/**
+ * 非剂量页的结构化副本（m04-delivery-checkpoint 的 CDSS_NON_DOSE_CANDIDATE_JSON 注释）是机器可读区块，
+ * 键名是 camelCase 字段名——擦洗器的「内部记号」规则会把它们当成泄漏擦掉（实测键名全被抹空）。
+ * 与 CDSS_* 标记同理，整块逐字保留；区块本身已由生成方过非剂量掩码。
+ */
+const NON_DOSE_CANDIDATE_BLOCK = /<!-- CDSS_NON_DOSE_CANDIDATE_JSON:[\s\S]*?-->/g;
+
+export function scrubInternalVocabularyFromVisibleText(rawContent: string): string {
+  const blocks: string[] = [];
+  const content = rawContent.replace(NON_DOSE_CANDIDATE_BLOCK, (block) => {
+    blocks.push(block);
+    return `\u0000CDSSBLOCK${blocks.length - 1}\u0000`;
+  });
+  const restoreBlocks = (text: string) => text.replace(
+    /\u0000CDSSBLOCK(\d+)\u0000/g,
+    (_match, index: string) => blocks[Number(index)] ?? "",
+  );
+  return restoreBlocks(scrubVisibleTextWithoutBlocks(content));
+}
+
+function scrubVisibleTextWithoutBlocks(content: string): string {
   const markers: string[] = [];
   const masked = content.replace(CDSS_MACHINE_MARKER, (marker) => {
     markers.push(marker);

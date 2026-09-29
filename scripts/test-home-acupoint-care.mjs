@@ -101,18 +101,36 @@ check("mapping: signed M03 nature → constitution; deficiency before excess; ex
   assert.equal(homeAcupointConstitution(unresolved), undefined);
 });
 
-check("review gate: pending entries are not applied by default; include_pending enables them; off disables everything", () => {
+check("review gate: entries are evidence-approved (web-verified 2026-09-29) and apply by default; off disables everything", () => {
   const m03 = prior("脾胃气虚证");
-  assert.ok(Object.values(source.constitutions).every((entry) => entry.adjudicationStatus === "pending_clinician_review"),
-    "the first batch awaits clinician sign-off; flip entries to approved only with a signed review");
-  withMode(null, () => assert.equal(compileFor(m03, caseState()), null));
+  assert.ok(Object.values(source.constitutions).every((entry) => entry.adjudicationStatus === "approved" && /联网权威来源逐条核对/.test(entry.adjudicationBasis || "")),
+    "every constitution entry carries the verification basis (no clinician is available to sign; owner decision 2026-09-29)");
+  assert.equal(source.children.adjudicationStatus, "approved");
+  assert.equal(source.natureToConstitution.adjudicationStatus, "approved");
+  const byDefault = withMode(null, () => compileFor(m03, caseState()));
+  assert.match(byDefault, /按揉气海（肚脐正下方约两横指处）、关元（肚脐正下方约四横指处）：用掌根/);
   withMode("off", () => assert.equal(compileFor(m03, caseState()), null));
   const text = withMode("include_pending", () => compileFor(m03, caseState()));
-  assert.match(text, /按揉气海（肚脐正下方约两横指处）、关元（肚脐正下方约四横指处）：用掌根/);
+  assert.equal(text, byDefault, "include_pending is now identical to the default: nothing is pending");
   assert.match(text, /每个穴位2～3分钟，每天1～2次/);
   assert.match(text, /也可以艾灸气海、关元：[^。]*2～3厘米[^。]*每次10分钟，每周1次/);
-  assert.match(text, /饭后1小时内不宜按揉/);
+  assert.match(text, /宜在饭后1～2小时再按揉/);
+  assert.doesNotMatch(text, /饭后1小时内不宜按揉/, "the corrected caution replaces the old wording");
   assert.equal(withMode(null, () => homeAcupointCareStatus()).mode, "approved_only");
+});
+
+check("verified corrections landed: 期门 is not located by the nipple for women; 命门 is not located only by the navel; 阴陵泉 uses the standard wording", () => {
+  const points = (key) => [...(source.constitutions[key].acupressure?.points || []), ...(source.constitutions[key].extraPoints || [])];
+  const qimen = points("blood_stasis").find((point) => point.name === "期门");
+  assert.match(qimen.standardLocation, /女性在锁骨中线与第6肋间隙交点处/);
+  assert.match(qimen.patientLocation, /女性不以乳房位置为准/);
+  const mingmen = points("yang_deficiency").find((point) => point.name === "命门");
+  assert.match(mingmen.patientLocation, /髂骨最高点/);
+  assert.match(mingmen.patientLocation, /请家人帮忙/);
+  const yinlingquan = points("damp_heat").find((point) => point.name === "阴陵泉");
+  assert.equal(yinlingquan.standardLocation, "小腿内侧，胫骨内侧髁下缘与胫骨内侧缘之间的凹陷中");
+  assert.match(source.cautions.moxibustion, /有出血倾向者不宜艾灸/);
+  assert.match(source.cautions.moxibustion, /空腹或饭后一小时左右不宜艾灸/);
 });
 
 check("safety: red flag, non-dose, missing gate and acute inflammation give nothing", () => withMode("include_pending", () => {
@@ -138,7 +156,7 @@ check("pregnancy: positive/possible give nothing; unrecorded status drops contra
   // 线上 26 岁痛经例的形状：寒凝血瘀 → 血瘀质，妊娠未写明、参考剂量待复核；期门（胸部）与血海（下肢）不在禁用之列。
   const stasis = compileFor(prior("寒凝血瘀证", ["寒", "血瘀"]), caseState({ patient: { sex: "女", age: 26 }, chiefComplaint: "经行腹痛2年",
     safetyGate: { ...readyGate, status: "needs_information", candidateMode: "limited_dose", allowDosePrescription: false } }));
-  assert.match(stasis, /^按揉期门（[^）]+）、血海（/);
+  assert.match(stasis, /^按揉期门（.+?（第6）肋间隙处）、血海（/);
   const qiStagnation = compileFor(prior("肝气郁结证"), woman("胁胀易怒2月"));
   assert.match(qiStagnation, /^按揉太冲（/);
   assert.doesNotMatch(qiStagnation, /合谷/);
@@ -188,8 +206,8 @@ check("moxibustion: dropped for fever, diabetes/reduced sensation and heat signs
 
 check("integration: the prescribe transform discards model acupoint text and writes the governed text only when allowed", () => {
   const m03 = prior("肝肾阴虚证", ["阴虚"]);
-  const off = withMode(null, () => nonPharmaFor(m03, caseState()));
-  assert.equal(off.acupointCare, null, "pending list must not leak model text either");
+  const off = withMode("off", () => nonPharmaFor(m03, caseState()));
+  assert.equal(off.acupointCare, null, "the off switch must not leak model text either");
   assert.equal(off.exercise, "每天散步30分钟", "exercise is model-authored and passes through");
   const on = withMode("include_pending", () => nonPharmaFor(m03, caseState()));
   assert.match(on.acupointCare, /^按揉太溪（[^）]+）、三阴交（[^）]+）：用拇指或中指指腹/);

@@ -19,8 +19,9 @@ import type { TcmTreatmentProjectCode } from "./tcm-treatment-projects";
  * 组装成卡片各字段。**不改写任何临床文字**：穴名、药名、剂量、做法都是教材原句。
  *
  * 安全边界（与治理目录同口径）：
- *  · 结果永远 executable=false、clinicianReviewRequired=true，教材来源标注「项目治理教材来源」，
- *    证型配穴标 pending_clinician_review——教材权威，但本机构中医师尚未逐条终审；
+ *  · 结果永远 executable=false、clinicianReviewRequired=true（针刺、推拿等须由接诊医师现场操作），教材来源标注「项目治理教材来源」；
+ *    证型配穴的依据是教材原句 + 联网权威来源核对，状态记 approved（2026-09-29 owner 决定：没有可签字的中医师，
+ *    不再把教材配穴挂成待终审）；
  *  · 食疗方配料必须全部出自国家「既是食品又是中药材」目录或普通食物；含其他药材（麻黄附子粥、川芎白芷类）的整方不出，
  *    目录里仅作香辛料的（当归等）也不得作主料；
  *  · 只在病种命中且证型/症状相符时才加穴，命不中就只给病种主穴并如实写「未按本例证型加减」。

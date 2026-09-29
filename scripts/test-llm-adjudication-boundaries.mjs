@@ -146,7 +146,12 @@ ok("模型写的、能接地的方义被保留", functionAfter("健脾渗湿，�
 // 于是 candidate_*_herb_*_function(_ungrounded) 永不触发、那轮修复指导语成了死代码，
 // 医生看到的就是「臣药，本方中的具体配伍作用需医生结合方义复核」这句零内容套话。
 ok("契约前留空不被兜底句顶上（否则修复轮永远不会被唤起）", functionAfter("") === "");
-ok("finalize（修复耗尽）才补兜底句，医生不会看到空栏", BOILERPLATE.test(functionAfter("", { fillRolePlaceholder: true })));
+// 2026-09-29：兜底不再是零内容套话——核对词典有该药入方的通常作用就写它（茯苓：利水渗湿、健脾），
+// 只有词典里也没有的药才落到角色占位句。医生依旧不会看到空栏。
+ok("finalize（修复耗尽）才补，医生不会看到空栏，且不是占位套话（核对词典有该药的入方作用）", (() => {
+  const finalized = functionAfter("", { fillRolePlaceholder: true });
+  return finalized.length >= 2 && !BOILERPLATE.test(finalized) && /健脾|渗湿/.test(finalized);
+})());
 // 高影响方向必须有该药 KB 佐证——茯苓不收载清热活血。契约前保留原文以便修复轮定位，
 // 但它绝不能活到医生面前：finalize 一定把它换成 KB 对齐串或兜底句。
 ok("编造高影响方向不得活过 finalize", (() => {

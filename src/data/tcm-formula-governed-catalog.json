@@ -55,7 +55,7 @@
       "理气化痰汤@《惠直堂经验方》"
     ],
     "nameCompositionRestored": [
-      "加味乌药汤@《济阴纲目》:6味",
+      "加味乌药汤@《奇效良方》:6味",
       "增补伤科圣药七厘散@《验方新编》:8味",
       "打板夹棍仙传膏@《验方新编》:10味",
       "春泽汤@《医宗金鉴》:6味",
@@ -112,7 +112,55 @@
       "痰饮@《时方妙用》"
     ],
     "collationRewritten": [
-      "槐角地榆汤@《外科大成》 → 《证治准绳·类方》痔门（四库本总卷三十二）:8味"
+      "槐角地榆汤@《外科大成》 → 《证治准绳·类方》痔门（四库本总卷三十二）:8味",
+      "右归饮@《景岳全书》 → 《景岳全书》:8味",
+      "防风通圣散@《宣明论方》 → 《黄帝素问宣明论方》:17味",
+      "清瘟败毒饮@《疫疹一得》 → 《疫疹一得》:14味",
+      "小金丹@《外科全生集》 → 《外科证治全生集》:10味",
+      "柴胡加龙骨牡蛎汤@《绛雪园古方选注》 → 《伤寒论》:11味",
+      "葛花解酲汤@《内外伤辨》 → 《内外伤辨惑论》:13味",
+      "枳实消痞丸@东垣 → 《兰室秘藏》:10味",
+      "射干麻黄汤@《金匮要略》 → 《金匮要略》:9味",
+      "木香顺气散@《沈氏尊生书》 → 《沈氏尊生书》:10味",
+      "不换金正气散@《太平惠民和剂局方》 → 《太平惠民和剂局方》:8味",
+      "木香槟榔丸@《赤水玄珠》 → 《儒门事亲》:10味",
+      "清心莲子饮@《医方考》 → 《太平惠民和剂局方》:9味",
+      "理中安蛔汤@《类证治裁》 → 《类证治裁》:6味",
+      "三仁汤@《温病条辨》 → 《温病条辨》:8味",
+      "三妙丸@《医学正传》 → 《医学正传》:3味",
+      "五淋散@《太平惠民和剂局方》 → 《太平惠民和剂局方》:5味",
+      "加减葳蕤汤@《重订通俗伤寒论》 → 《重订通俗伤寒论》:8味",
+      "参附汤@《正体类要》 → 《正体类要》:2味",
+      "四妙丸@《成方便读》 → 《成方便读》:4味",
+      "定痫丸@《医学心悟》 → 《医学心悟》:15味",
+      "少腹逐瘀汤@《医林改错》 → 《医林改错》:10味",
+      "海藻玉壶汤@《外科正宗》 → 《外科正宗》:12味",
+      "牵正散@《杨氏家藏方》 → 《杨氏家藏方》:3味",
+      "独活寄生汤@《备急千金要方》 → 《备急千金要方》:15味",
+      "玉液汤@《医学衷中参西录》 → 《医学衷中参西录》:7味",
+      "疏凿饮子@《济生方》 → 《济生方》:10味",
+      "秦艽鳖甲散@《卫生宝鉴》 → 《卫生宝鉴》:6味",
+      "逍遥散@《局方》卷九。 → 《太平惠民和剂局方》卷九:6味",
+      "玉屏风散@《医方类聚》 → 《究原方》:3味",
+      "甘露消毒丹@《温热经纬》 → 《医效秘传》:11味",
+      "六君子汤@《太平惠民和剂局方》 → 《医学正传》:6味",
+      "苏合香丸@《太民惠民和剂局方》 → 《太平惠民和剂局方》:15味",
+      "七宝美髯丹@《医方集解》引邵应节方 → 《本草纲目》:7味",
+      "当归龙荟丸@《医方集解》 → 《黄帝素问宣明论方》:11味",
+      "养心汤@《证治准绳》 → 《仁斋直指方论》:13味",
+      "加味乌药汤@《济阴纲目》 → 《奇效良方》:6味",
+      "救急稀涎散@《圣济总录》 → 《经史证类备急本草》:2味",
+      "消瘰丸@《时方妙用》 → 《医学心悟》:3味",
+      "滚痰丸@《医方考》 → 《泰定养生主论》:4味",
+      "石韦散@《证治汇补》 → 《外台秘要》:5味",
+      "碧玉散@《伤寒直格》 → 《黄帝素问宣明论方》:3味",
+      "肾气丸@《绛雪园古方选注》 → 《金匮要略》:8味",
+      "都气丸@《医宗金鉴》 → 《症因脉治》:7味",
+      "黛蛤散@验方 → 《医说》:2味",
+      "六一散@《黄帝素问宣明方论》 → 《黄帝素问宣明论方》:2味",
+      "左归饮@景岳 → 《景岳全书》:6味",
+      "茯苓丸@《指迷方》 → 《全生指迷方》:4味",
+      "枳术丸@《证治准绳》 → 《脾胃论》:2味"
     ],
     "collationAdded": [
       "乌雌鸡汤〔《外台秘要》卷三十三·妊娠一月〕",
@@ -129,7 +177,11 @@
       "槐根洗方〔《外台秘要》卷二十六引《集验》·原书无专名〕",
       "槐皮膏〔《外台秘要》卷二十六〕",
       "槐赤鸡散〔《外台秘要》卷二十六·原书无专名〕",
+      "橘皮竹茹汤〔《济生方》·胃虚有热呃逆〕",
       "洗痔方〔《证类本草》卷十一〕",
+      "润肠丸〔《脾胃论》·肠燥便秘〕",
+      "温经汤〔《金匮要略》·冲任虚寒兼瘀热〕",
+      "温脾汤〔《备急千金要方》卷十三·冷积腹痛〕",
       "猪肾汤〔《外台秘要》卷三十三·妊娠九月〕",
       "猬皮丸〔《外台秘要》卷二十六〕",
       "玩月砂乳香散〔《证类本草》卷十七·原书无专名〕",
@@ -147,6 +199,8 @@
       "补胎汤〔《外台秘要》卷三十三·妊娠一月〕",
       "调中汤〔《外台秘要》卷三十三·妊娠四月〕",
       "野葛末方〔《外台秘要》卷二十六引《集验》·原书无专名〕",
+      "金沸草散〔《博济方》·风寒咳嗽痰多〕",
+      "钩藤饮〔《医宗金鉴》·天钓〕",
       "阿胶汤〔《外台秘要》卷三十三·妊娠五月〕",
       "雄鸡汤〔《外台秘要》卷三十三·妊娠三月〕",
       "麦冬汤〔《外台秘要》卷三十三·妊娠六月〕",
@@ -154,14 +208,14 @@
     ],
     "varietyFlexibleFormulaCount": 117,
     "varietyUndeterminedFormulaCount": 95,
-    "governedFormulaCount": 2969,
-    "prescriptionLockEligibleCount": 2910,
-    "identityLockEligibleCount": 2910,
-    "doseCompilationEligibleCount": 2480,
-    "symptomTaggedFormulaCount": 1110,
+    "governedFormulaCount": 2975,
+    "prescriptionLockEligibleCount": 2916,
+    "identityLockEligibleCount": 2916,
+    "doseCompilationEligibleCount": 2484,
+    "symptomTaggedFormulaCount": 1114,
     "diseaseTaggedFormulaCount": 369,
-    "syndromeTaggedFormulaCount": 2302,
-    "locationTaggedFormulaCount": 575,
+    "syndromeTaggedFormulaCount": 2305,
+    "locationTaggedFormulaCount": 576,
     "natureTaggedFormulaCount": 617,
     "candidateFormulaCount": 0,
     "candidateVariantCount": 0,
@@ -3410,12 +3464,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-B244B5275A6B",
+      "id": "TCM-FORMULA-1A766E498FA3",
       "name": "七宝美髯丹",
       "aliases": [],
       "sourceName": "七宝美髯丹",
-      "source": "《医方集解》引邵应节方",
-      "sourceOriginal": "《医方集解》引邵应节方",
+      "source": "《本草纲目》",
+      "sourceOriginal": "《本草纲目》",
       "prescriptionOriginal": null,
       "ingredients": [
         "制何首乌",
@@ -3443,8 +3497,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 50
+        },
+        {
+          "title": "目录校勘组成重录：《本草纲目》何首乌条引《积善堂方》（邵应节进献方）为出处；《医方集解》为后出普及本。",
+          "url": "https://zh.wikisource.org/wiki/醫方集解",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "七宝美髯丹",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "制何首乌",
@@ -3509,7 +3573,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "七宝美髯丹",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -5969,7 +6032,8 @@
         "豆蔻",
         "淡竹叶",
         "姜厚朴",
-        "薏苡仁"
+        "薏苡仁",
+        "半夏"
       ],
       "dosageForm": "汤剂",
       "sourceClass": "official_local_formula_standard",
@@ -5988,8 +6052,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 73
+        },
+        {
+          "title": "目录校勘组成重录：《温病条辨》原文八味含半夏五钱；目录七味缺半夏。",
+          "url": "https://zh.wikisource.org/wiki/溫病條辨/卷一",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "三仁汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "燀苦杏仁",
@@ -6034,6 +6108,12 @@
           "canonicalName": "薏苡仁",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
+        },
+        {
+          "rawName": "半夏",
+          "canonicalName": "半夏",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -6058,7 +6138,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "三仁汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -7054,7 +7133,7 @@
       "ingredients": [
         "盐黄柏",
         "炒苍术",
-        "牛膝"
+        "川牛膝"
       ],
       "dosageForm": "丸剂",
       "sourceClass": "official_local_formula_standard",
@@ -7073,8 +7152,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 74
+        },
+        {
+          "title": "目录校勘组成重录：原文与教材均为川牛膝；牛膝与川牛膝是《中国药典》两个不同药材，不得互换。",
+          "url": "https://zh.wikisource.org/wiki/醫學正傳",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "三妙丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "盐黄柏",
@@ -7091,8 +7180,8 @@
           "preparation": "炒"
         },
         {
-          "rawName": "牛膝",
-          "canonicalName": "牛膝",
+          "rawName": "川牛膝",
+          "canonicalName": "川牛膝",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         }
@@ -7113,7 +7202,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "三妙丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -10813,8 +10901,7 @@
         "漂苍术",
         "陈皮",
         "生姜",
-        "大枣",
-        "茯苓"
+        "大枣"
       ],
       "dosageForm": "散剂",
       "sourceClass": "official_local_formula_standard",
@@ -10833,8 +10920,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 76
+        },
+        {
+          "title": "目录校勘组成重录：《局方》原文六味（厚朴、藿香、陈皮、半夏、苍术、甘草），无茯苓；生姜、大枣属煎服辅料。",
+          "url": "https://zh.wikisource.org/wiki/太平惠民和劑局方_(四庫全書本)/卷2",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "不换金正气散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "姜厚朴",
@@ -10884,12 +10981,6 @@
           "canonicalName": "大枣",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
-        },
-        {
-          "rawName": "茯苓",
-          "canonicalName": "茯苓",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
         }
       ],
       "indications": [
@@ -10915,7 +11006,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "不换金正气散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -21249,8 +21339,7 @@
         "当归",
         "甘草",
         "赤芍",
-        "栀子",
-        "灯心草"
+        "栀子"
       ],
       "dosageForm": "散剂",
       "sourceClass": "official_local_formula_standard",
@@ -21269,8 +21358,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 73
+        },
+        {
+          "title": "目录校勘组成重录：《局方》宝庆新增方两个版本原文均无灯心草。",
+          "url": "https://zh.wikisource.org/wiki/太平惠民和劑局方",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "五淋散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "茯苓",
@@ -21301,12 +21400,6 @@
           "canonicalName": "栀子",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
-        },
-        {
-          "rawName": "灯心草",
-          "canonicalName": "灯心草",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
         }
       ],
       "indications": [
@@ -21328,7 +21421,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "五淋散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -36526,12 +36618,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-7C1E77514FE2",
+      "id": "TCM-FORMULA-1E1E2476A477",
       "name": "六一散",
       "aliases": [],
       "sourceName": "六一散",
-      "source": "《黄帝素问宣明方论》",
-      "sourceOriginal": "《黄帝素问宣明方论》",
+      "source": "《黄帝素问宣明论方》",
+      "sourceOriginal": "《黄帝素问宣明论方》",
       "prescriptionOriginal": null,
       "ingredients": [
         "滑石",
@@ -36553,8 +36645,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 30
+        },
+        {
+          "title": "目录校勘组成重录：书名写法订正（《黄帝素问宣明论方》）。",
+          "url": "http://www.a-hospital.com/w/六一散",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "六一散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "滑石",
@@ -36593,7 +36695,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "六一散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -36727,12 +36828,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-310661CEBCC2",
+      "id": "TCM-FORMULA-23C5A1E9D7F6",
       "name": "六君子汤",
       "aliases": [],
       "sourceName": "六君子汤",
-      "source": "《太平惠民和剂局方》",
-      "sourceOriginal": "《太平惠民和剂局方》",
+      "source": "《医学正传》",
+      "sourceOriginal": "《医学正传》",
       "prescriptionOriginal": null,
       "ingredients": [
         "人参",
@@ -36759,8 +36860,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 34
+        },
+        {
+          "title": "目录校勘组成重录：《医学正传》原文收录六君子汤（方名后自注「局方」）；所查《局方》文本只有四君子汤，未检出六君子汤。",
+          "url": "http://www.a-hospital.com/w/六君子汤",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "六君子汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "人参",
@@ -36863,7 +36974,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "六君子汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -39437,12 +39547,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-0B6545501F59",
+      "id": "TCM-FORMULA-4266E9CEC52F",
       "name": "养心汤",
       "aliases": [],
       "sourceName": "养心汤",
-      "source": "《证治准绳》",
-      "sourceOriginal": "《证治准绳》",
+      "source": "《仁斋直指方论》",
+      "sourceOriginal": "《仁斋直指方论》",
       "prescriptionOriginal": null,
       "ingredients": [
         "黄芪",
@@ -39476,8 +39586,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 53
+        },
+        {
+          "title": "目录校勘组成重录：《仁斋直指方论》原文即十三味含远志；《证治准绳》为后世转载。",
+          "url": "https://zh.wikisource.org/wiki/仁齋直指_(四庫全書本)/全覽1",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "养心汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "黄芪",
@@ -39580,7 +39700,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "养心汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -46987,7 +47106,8 @@
         "淡豆豉",
         "薄荷",
         "大枣",
-        "炙甘草"
+        "炙甘草",
+        "桔梗"
       ],
       "dosageForm": "汤剂",
       "sourceClass": "official_local_formula_standard",
@@ -47005,8 +47125,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 14
+        },
+        {
+          "title": "目录校勘组成重录：原书八味含桔梗（一钱至钱半）；目录缺桔梗。",
+          "url": "https://zh.wikisource.org/wiki/通俗傷寒論",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "加减葳蕤汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "玉竹",
@@ -47049,6 +47179,12 @@
           "canonicalName": "炙甘草",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
+        },
+        {
+          "rawName": "桔梗",
+          "canonicalName": "桔梗",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -47078,7 +47214,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "加减葳蕤汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -47607,12 +47742,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-E6889F81A19B",
+      "id": "TCM-FORMULA-6DFACB9895F7",
       "name": "加味乌药汤",
       "aliases": [],
       "sourceName": "加味乌药汤",
-      "source": "《济阴纲目》",
-      "sourceOriginal": "《济阴纲目》",
+      "source": "《奇效良方》",
+      "sourceOriginal": "《奇效良方》",
       "prescriptionOriginal": null,
       "ingredients": [
         "乌药",
@@ -47638,8 +47773,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 57
+        },
+        {
+          "title": "目录校勘组成重录：同组成同剂量条目见于《奇效良方》卷六十三，早于《济阴纲目》约170年。",
+          "url": "https://zh.wikisource.org/wiki/奇效良方/35",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "加味乌药汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "乌药",
@@ -47704,7 +47849,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "加味乌药汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -62247,9 +62391,7 @@
       "prescriptionOriginal": null,
       "ingredients": [
         "人参",
-        "附片",
-        "五味子",
-        "麦冬"
+        "附片"
       ],
       "dosageForm": "汤剂",
       "sourceClass": "official_local_formula_standard",
@@ -62268,8 +62410,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 32
+        },
+        {
+          "title": "目录校勘组成重录：《正体类要》原文只有人参、附子（炮）二味；目录多出五味子、麦冬。",
+          "url": "https://zh.wikisource.org/wiki/正體類要",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "参附汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "人参",
@@ -62281,18 +62433,6 @@
           "rawName": "附片",
           "canonicalName": "附子",
           "linkageStatus": "unique_source_backed",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "五味子",
-          "canonicalName": "五味子",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "麦冬",
-          "canonicalName": "麦冬",
-          "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         }
       ],
@@ -62314,7 +62454,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "参附汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -65542,10 +65681,12 @@
       "ingredients": [
         "熟地黄",
         "山药",
-        "枸杞子",
         "山萸肉",
+        "枸杞子",
         "炙甘草",
-        "茯苓"
+        "杜仲",
+        "肉桂",
+        "炮附片"
       ],
       "dosageForm": null,
       "sourceClass": "official_local_formula_standard",
@@ -65563,8 +65704,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 48
+        },
+        {
+          "title": "目录校勘组成重录：《景岳全书》右归饮原方八味：熟地、山药、山茱萸、枸杞、炙甘草、杜仲（姜制）、肉桂、制附子（教材一致）；目录的六味（含茯苓，缺杜仲、肉桂、附子）实为同书左归饮。",
+          "url": "https://zh.wikisource.org/wiki/新方八陣",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "右归饮",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "熟地黄",
@@ -65579,15 +65730,15 @@
           "autoResolvable": true
         },
         {
-          "rawName": "枸杞子",
-          "canonicalName": "枸杞子",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
           "rawName": "山萸肉",
           "canonicalName": "山茱萸",
           "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "枸杞子",
+          "canonicalName": "枸杞子",
+          "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
@@ -65597,10 +65748,23 @@
           "autoResolvable": true
         },
         {
-          "rawName": "茯苓",
-          "canonicalName": "茯苓",
+          "rawName": "杜仲",
+          "canonicalName": "杜仲",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
+        },
+        {
+          "rawName": "肉桂",
+          "canonicalName": "肉桂",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "炮附片",
+          "canonicalName": "附子",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "炮制"
         }
       ],
       "indications": [
@@ -65631,7 +65795,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "右归饮",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -70504,7 +70667,7 @@
       "sourceOriginal": "《成方便读》",
       "prescriptionOriginal": null,
       "ingredients": [
-        "知母",
+        "苍术",
         "盐黄柏",
         "牛膝",
         "薏苡仁"
@@ -70526,12 +70689,22 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 74
+        },
+        {
+          "title": "目录校勘组成重录：四妙丸四味：苍术、黄柏、牛膝、薏苡仁（教材、方源转录、药品标准一致）；目录写成知母而缺苍术。",
+          "url": "https://www.a-hospital.com/w/%E5%9B%9B%E5%A6%99%E4%B8%B8",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "四妙丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "知母",
-          "canonicalName": "知母",
+          "rawName": "苍术",
+          "canonicalName": "苍术",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
@@ -70573,7 +70746,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "四妙丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -98692,7 +98864,8 @@
         "酒丹参",
         "麦冬",
         "朱砂粉",
-        "琥珀"
+        "琥珀",
+        "茯苓"
       ],
       "dosageForm": "丸剂",
       "sourceClass": "official_local_formula_standard",
@@ -98711,8 +98884,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 82
+        },
+        {
+          "title": "目录校勘组成重录：原书茯苓与茯神并列两味；目录缺茯苓。",
+          "url": "https://zh.wikisource.org/wiki/醫學心悟",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "定痫丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "天麻",
@@ -98801,6 +98984,12 @@
           "canonicalName": "琥珀",
           "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
+        },
+        {
+          "rawName": "茯苓",
+          "canonicalName": "茯苓",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -98820,7 +99009,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "定痫丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -102980,7 +103168,7 @@
       "name": "射干麻黄汤",
       "aliases": [],
       "source": "《金匮要略》",
-      "sourceOriginal": "《金匮要略》（汉•张仲景）“咳而上气，喉中水鸡声，射干麻黄汤主之。”",
+      "sourceOriginal": "《金匮要略》",
       "prescriptionOriginal": "射干十三枚、一云三两，麻黄四两，生姜四两，细辛三两，紫菀三两，款冬花三两，五味子半升，大枣七枚，半夏大者八枚（洗）、一法半升。",
       "ingredients": [
         "射干",
@@ -102991,8 +103179,7 @@
         "款冬花",
         "五味子",
         "大枣",
-        "半夏",
-        "一法"
+        "半夏"
       ],
       "dosageForm": "汤剂",
       "sourceClass": "official_classic_catalog",
@@ -103001,8 +103188,18 @@
         {
           "title": "国家古代经典名方目录本地构建记录",
           "url": "urn:tcm-cdss:official-classic-formula:射干麻黄汤"
+        },
+        {
+          "title": "目录校勘组成重录：「一法」是国家目录处方文字里异本剂量注被解析成了药名，不是药物；实为九味。",
+          "url": "http://www.sxhhy.com/uploadfile/file/20230905/67eafbba0.pdf",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "射干麻黄汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "射干",
@@ -103057,15 +103254,10 @@
           "canonicalName": "半夏",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
-        },
-        {
-          "rawName": "一法",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
         }
       ],
       "indications": [
-        "咳而上气，喉中水鸡声，射干麻黄汤主之。"
+        "《金匮要略》"
       ],
       "syndromeTags": [
         "TCM-SYNDROME-47A7BD4BACD7"
@@ -103076,14 +103268,11 @@
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
-      "symptomTags": [
-        "cough"
-      ],
+      "symptomTags": [],
       "diseaseTags": [],
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "regulatory_source_verified",
-      "displayName": "射干麻黄汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -103099,9 +103288,7 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [
-        "一法"
-      ],
+      "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": [],
@@ -106232,23 +106419,24 @@
       }
     },
     {
-      "id": "TCM-FORMULA-860B1317EDFD",
+      "id": "TCM-FORMULA-C6B4AEEF634D",
       "name": "小金丹",
       "aliases": [],
       "sourceName": "小金丹",
-      "source": "《外科全生集》",
-      "sourceOriginal": "《外科全生集》",
+      "source": "《外科证治全生集》",
+      "sourceOriginal": "《外科证治全生集》",
       "prescriptionOriginal": null,
       "ingredients": [
         "枫香脂",
         "制草乌",
         "五灵脂",
         "地龙",
-        "制马钱子",
+        "木鳖子",
         "没药",
         "乳香",
         "麝香",
-        "墨炭"
+        "墨炭",
+        "当归"
       ],
       "dosageForm": null,
       "sourceClass": "official_local_formula_standard",
@@ -106267,8 +106455,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 33
+        },
+        {
+          "title": "目录校勘组成重录：原文十味：白胶香、草乌、五灵脂、地龙、木鳖、乳香、没药、归身、麝香、墨炭；目录缺归身，且把「木鳖」写成制马钱子（原书番木鳖与木鳖分列）。",
+          "url": "https://jicheng.tw/tcm/book/%E5%A4%96%E7%A7%91%E5%85%A8%E7%94%9F%E9%9B%86/index.html",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "小金丹",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "枫香脂",
@@ -106295,9 +106493,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "制马钱子",
-          "canonicalName": "马钱子",
-          "linkageStatus": "unique_high_confidence",
+          "rawName": "木鳖子",
+          "canonicalName": "木鳖子",
+          "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
@@ -106322,6 +106520,12 @@
           "rawName": "墨炭",
           "canonicalName": null,
           "linkageStatus": "unmapped"
+        },
+        {
+          "rawName": "当归",
+          "canonicalName": "当归",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -106337,7 +106541,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "小金丹",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -106349,8 +106552,7 @@
         "ingredient_endangered_or_banned_requires_legal_eligibility"
       ],
       "controlledToxicIngredientNames": [
-        "制草乌",
-        "制马钱子"
+        "制草乌"
       ],
       "endangeredOrBannedIngredientNames": [
         "麝香"
@@ -106359,12 +106561,10 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [
-        "制马钱子",
         "麝香"
       ],
       "manualDoseIngredientNames": [
         "制草乌",
-        "制马钱子",
         "麝香"
       ],
       "clinicianDoseIngredientNames": [
@@ -107269,7 +107469,6 @@
         "醋延胡索",
         "醋没药",
         "当归",
-        "麸炒苍术",
         "川芎",
         "肉桂",
         "生蒲黄",
@@ -107293,8 +107492,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 60
+        },
+        {
+          "title": "目录校勘组成重录：原书十味（小茴香、干姜、延胡索、没药、当归、川芎、官桂、赤芍、蒲黄、五灵脂），无苍术。",
+          "url": "https://zh.wikisource.org/wiki/醫林改錯/卷下",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "少腹逐瘀汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "盐小茴香",
@@ -107330,13 +107539,6 @@
           "canonicalName": "当归",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
-        },
-        {
-          "rawName": "麸炒苍术",
-          "canonicalName": "苍术",
-          "linkageStatus": "source_backed_preparation_form",
-          "autoResolvable": true,
-          "preparation": "麸炒"
         },
         {
           "rawName": "川芎",
@@ -107392,7 +107594,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "少腹逐瘀汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -108737,8 +108938,8 @@
       "id": "TCM-FORMULA-6A70810BEDB9",
       "name": "左归饮",
       "aliases": [],
-      "source": "景岳",
-      "sourceOriginal": null,
+      "source": "《景岳全书》",
+      "sourceOriginal": "《景岳全书》",
       "prescriptionOriginal": null,
       "ingredients": [
         "熟地黄",
@@ -108755,9 +108956,19 @@
         {
           "title": "《成方切用》·左归饮（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
           "url": "urn:tcm-cdss:tcmoc-books:成方切用:左归饮"
+        },
+        {
+          "title": "目录校勘组成重录：「景岳」是作者简称，规范为书名《景岳全书》（卷五十·新方八阵·补阵）。",
+          "url": "https://zh.wikisource.org/wiki/新方八陣",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
       "curatedSyndromeTags": [],
+      "adjudicatedIndications": [],
+      "displayName": "左归饮",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "熟地黄",
@@ -108819,7 +109030,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "project_reference_verified",
-      "displayName": "左归饮",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -117847,12 +118057,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-CB7C19B2DC7B",
+      "id": "TCM-FORMULA-83CAD2430980",
       "name": "当归龙荟丸",
       "aliases": [],
       "sourceName": "当归龙荟丸",
-      "source": "《医方集解》",
-      "sourceOriginal": "《医方集解》",
+      "source": "《黄帝素问宣明论方》",
+      "sourceOriginal": "《黄帝素问宣明论方》",
       "prescriptionOriginal": null,
       "ingredients": [
         "酒当归",
@@ -117883,8 +118093,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 27
+        },
+        {
+          "title": "目录校勘组成重录：《宣明论方》卷四热门原名「当归龙胆丸」；《医方集解》为后出转载。",
+          "url": "https://zh.wikisource.org/wiki/黃帝素問宣明論方",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "当归龙荟丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "酒当归",
@@ -117981,7 +118201,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "当归龙荟丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -127780,12 +127999,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-B13F98224862",
+      "id": "TCM-FORMULA-4747734F292C",
       "name": "救急稀涎散",
       "aliases": [],
       "sourceName": "救急稀涎散",
-      "source": "《圣济总录》",
-      "sourceOriginal": "《圣济总录》",
+      "source": "《经史证类备急本草》",
+      "sourceOriginal": "《经史证类备急本草》",
       "prescriptionOriginal": null,
       "ingredients": [
         "猪牙皂",
@@ -127807,8 +128026,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 84
+        },
+        {
+          "title": "目录校勘组成重录：《证类本草》明确标「孙尚药」为来源；《圣济总录》相同方文未署来源。",
+          "url": "https://zh.wikisource.org/wiki/證類本草_(四庫全書本)/卷14",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "救急稀涎散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "猪牙皂",
@@ -127842,7 +128071,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "救急稀涎散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -135379,21 +135607,19 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-A28EC1C6A369",
+      "id": "TCM-FORMULA-97F8FDDB0F2C",
       "name": "木香槟榔丸",
       "aliases": [],
       "sourceName": "木香槟榔丸",
-      "source": "《赤水玄珠》",
-      "sourceOriginal": "《赤水玄珠》",
+      "source": "《儒门事亲》",
+      "sourceOriginal": "《儒门事亲》",
       "prescriptionOriginal": null,
       "ingredients": [
         "木香",
         "槟榔",
-        "麸炒枳壳",
         "陈皮",
         "醋青皮",
         "醋香附",
-        "醋三棱",
         "醋莪术",
         "黄连片",
         "酒黄柏",
@@ -135417,8 +135643,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 83
+        },
+        {
+          "title": "目录校勘组成重录：《儒门事亲》卷十二原方十味（木香、槟榔、青皮、陈皮、莪术、黄连、黄柏、大黄、香附子、牵牛）；枳壳、三棱是《医方集解》十二味扩充版所加。",
+          "url": "https://zh.wikisource.org/wiki/儒門事親_(四庫全書本)/卷12",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "木香槟榔丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "木香",
@@ -135431,13 +135667,6 @@
           "canonicalName": "槟榔",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
-        },
-        {
-          "rawName": "麸炒枳壳",
-          "canonicalName": "枳壳",
-          "linkageStatus": "source_backed_preparation_form",
-          "autoResolvable": true,
-          "preparation": "麸炒"
         },
         {
           "rawName": "陈皮",
@@ -135455,13 +135684,6 @@
         {
           "rawName": "醋香附",
           "canonicalName": "香附",
-          "linkageStatus": "source_backed_preparation_form",
-          "autoResolvable": true,
-          "preparation": "醋"
-        },
-        {
-          "rawName": "醋三棱",
-          "canonicalName": "三棱",
           "linkageStatus": "source_backed_preparation_form",
           "autoResolvable": true,
           "preparation": "醋"
@@ -135520,7 +135742,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "木香槟榔丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -135911,17 +136132,15 @@
       "prescriptionOriginal": null,
       "ingredients": [
         "木香",
-        "砂仁",
-        "麸炒苍术",
-        "厚朴",
-        "枳壳",
-        "炙甘草",
-        "乌药",
-        "生姜",
         "香附",
+        "槟榔",
         "青皮",
-        "肉桂",
-        "川芎"
+        "陈皮",
+        "厚朴",
+        "苍术",
+        "枳壳",
+        "砂仁",
+        "炙甘草"
       ],
       "dosageForm": "散剂",
       "sourceClass": "official_local_formula_standard",
@@ -135940,55 +136159,22 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 55
+        },
+        {
+          "title": "目录校勘组成重录：《沈氏尊生书》〔气痛〕条木香顺气散原文十味：木香、香附、槟榔、青皮、陈皮、厚朴、苍术、枳壳、砂仁、炙草；目录十二味（含乌药、川芎、肉桂、生姜）与该书任何一首同名方都不吻合。",
+          "url": "https://yibian.hopto.org/db/?wno=1223&lc=tw",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "木香顺气散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "木香",
           "canonicalName": "木香",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "砂仁",
-          "canonicalName": "砂仁",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "麸炒苍术",
-          "canonicalName": "苍术",
-          "linkageStatus": "source_backed_preparation_form",
-          "autoResolvable": true,
-          "preparation": "麸炒"
-        },
-        {
-          "rawName": "厚朴",
-          "canonicalName": "厚朴",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "枳壳",
-          "canonicalName": "枳壳",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "炙甘草",
-          "canonicalName": "炙甘草",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "乌药",
-          "canonicalName": "乌药",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "生姜",
-          "canonicalName": "生姜",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
@@ -135999,20 +136185,50 @@
           "autoResolvable": true
         },
         {
+          "rawName": "槟榔",
+          "canonicalName": "槟榔",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
           "rawName": "青皮",
           "canonicalName": "青皮",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
-          "rawName": "肉桂",
-          "canonicalName": "肉桂",
+          "rawName": "陈皮",
+          "canonicalName": "陈皮",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
-          "rawName": "川芎",
-          "canonicalName": "川芎",
+          "rawName": "厚朴",
+          "canonicalName": "厚朴",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "苍术",
+          "canonicalName": "苍术",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "枳壳",
+          "canonicalName": "枳壳",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "砂仁",
+          "canonicalName": "砂仁",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "炙甘草",
+          "canonicalName": "炙甘草",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         }
@@ -136035,7 +136251,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "木香顺气散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -139519,8 +139734,8 @@
       "id": "TCM-FORMULA-44146DCED547",
       "name": "枳实消痞丸",
       "aliases": [],
-      "source": "东垣",
-      "sourceOriginal": null,
+      "source": "《兰室秘藏》",
+      "sourceOriginal": "《兰室秘藏》",
       "prescriptionOriginal": null,
       "ingredients": [
         "枳实",
@@ -139529,7 +139744,10 @@
         "半夏曲",
         "麦芽",
         "人参",
-        "白术"
+        "白术",
+        "干姜",
+        "炙甘草",
+        "茯苓"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -139543,9 +139761,19 @@
           "title": "OCR 缺字修复(白→白术;回源段/通行组成/物料归一,联网抽查核验)",
           "url": "urn:tcm-cdss:corrupt-herb-repair:20260725:枳实消痞丸",
           "sourceRef": "CORRUPT-HERB-REPAIR-20260725"
+        },
+        {
+          "title": "目录校勘组成重录：原书十味（干生姜、炙甘草、麦蘖面、白茯苓、白术、半夏曲、人参、厚朴、枳实、黄连），目录七味缺干姜、甘草、茯苓；出处为书名。",
+          "url": "https://zh.wikisource.org/wiki/蘭室秘藏_(四庫全書本)/卷上",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
       "curatedSyndromeTags": [],
+      "adjudicatedIndications": [],
+      "displayName": "枳实消痞丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "枳实",
@@ -139588,6 +139816,24 @@
           "canonicalName": "白术",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
+        },
+        {
+          "rawName": "干姜",
+          "canonicalName": "干姜",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "炙甘草",
+          "canonicalName": "炙甘草",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "茯苓",
+          "canonicalName": "茯苓",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -139608,7 +139854,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "project_reference_verified",
-      "displayName": "枳实消痞丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -139638,7 +139883,7 @@
         "work": "《方剂学》规划教材",
         "textbookSource": "《兰室秘藏》",
         "textbookKind": "main",
-        "match": "composition_overlap"
+        "match": "source_book"
       }
     },
     {
@@ -140155,12 +140400,12 @@
       ]
     },
     {
-      "id": "TCM-FORMULA-85B48E1FD8ED",
+      "id": "TCM-FORMULA-E907AA043C3F",
       "name": "枳术丸",
       "aliases": [],
       "sourceName": "枳术丸",
-      "source": "《证治准绳》",
-      "sourceOriginal": "《证治准绳》",
+      "source": "《脾胃论》",
+      "sourceOriginal": "《脾胃论》",
       "prescriptionOriginal": null,
       "ingredients": [
         "白术",
@@ -140182,8 +140427,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 84
+        },
+        {
+          "title": "目录校勘组成重录：《脾胃论》为易水张元素方、李杲载；《证治准绳》为后出转载。",
+          "url": "https://zh.wikisource.org/wiki/脾胃論/卷下",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "枳术丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "白术",
@@ -140216,7 +140471,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "枳术丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -141796,8 +142050,8 @@
       "id": "TCM-FORMULA-69D9A9DB22A8",
       "name": "柴胡加龙骨牡蛎汤",
       "aliases": [],
-      "source": "《绛雪园古方选注》",
-      "sourceOriginal": null,
+      "source": "《伤寒论》",
+      "sourceOriginal": "《伤寒论》",
       "prescriptionOriginal": null,
       "ingredients": [
         "柴胡",
@@ -141807,7 +142061,10 @@
         "生姜",
         "大枣",
         "龙骨",
-        "茯苓"
+        "茯苓",
+        "桂枝",
+        "牡蛎",
+        "黄芩"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -141816,11 +142073,21 @@
         {
           "title": "《绛雪园古方选注》·柴胡加龙骨牡蛎汤（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
           "url": "urn:tcm-cdss:tcmoc-books:绛雪园古方选注:柴胡加龙骨牡蛎汤"
+        },
+        {
+          "title": "目录校勘组成重录：《伤寒论》原文十二味：柴胡、龙骨、黄芩、生姜、铅丹、人参、桂枝、茯苓、半夏、大黄、牡蛎、大枣；目录八味缺桂枝、牡蛎、黄芩。铅丹有毒，现代临床通行去之，本条不收（按国家药品监管口径不作为可开具饮片）。",
+          "url": "https://zh.wikisource.org/wiki/傷寒論",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
       "curatedSyndromeTags": [
         "TCM-SYNDROME-FD63E5B6A305"
       ],
+      "adjudicatedIndications": [],
+      "displayName": "柴胡加龙骨牡蛎汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "柴胡",
@@ -141869,6 +142136,24 @@
           "canonicalName": "茯苓",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
+        },
+        {
+          "rawName": "桂枝",
+          "canonicalName": "桂枝",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "牡蛎",
+          "canonicalName": "牡蛎",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "黄芩",
+          "canonicalName": "黄芩",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -141889,7 +142174,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
-      "displayName": "柴胡加龙骨牡蛎汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -141920,7 +142204,7 @@
         "work": "《方剂学》规划教材",
         "textbookSource": "《伤寒论》",
         "textbookKind": "appended",
-        "match": "composition_overlap"
+        "match": "source_book"
       }
     },
     {
@@ -155278,6 +155562,129 @@
         "textbookKind": "main",
         "match": "source_book"
       }
+    },
+    {
+      "id": "TCM-FORMULA-5DD29D7728D5",
+      "name": "橘皮竹茹汤〔《济生方》·胃虚有热呃逆〕",
+      "aliases": [],
+      "source": "《济生方》",
+      "sourceOriginal": "《济生方》",
+      "prescriptionOriginal": "赤茯苓、橘皮、枇杷叶、麦冬、竹茹、半夏、人参、甘草",
+      "ingredients": [
+        "赤茯苓",
+        "橘皮",
+        "枇杷叶",
+        "麦冬",
+        "竹茹",
+        "半夏",
+        "人参",
+        "甘草"
+      ],
+      "dosageForm": "汤剂",
+      "sourceClass": "verified_reference_catalog",
+      "sourceCatalog": "adjudicated_catalog_collation",
+      "adjudicatedIndications": [
+        "胃热多渴，呕哕不食（《重订严氏济生方》）。"
+      ],
+      "displayName": "橘皮竹茹汤〔《济生方》·胃虚有热呃逆〕",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
+      "verification": [
+        {
+          "title": "目录校勘新增：《济生方》·橘皮竹茹汤｜教材《方剂学》附方；目录现有「橘皮竹茹汤」是《金匮要略》六味版（同名异方）。组成只记药名，不记古方原量。",
+          "url": "https://zh.wikisource.org/wiki/濟生方",
+          "sourceRef": "ADJ-COLLATION-20260809"
+        }
+      ],
+      "curatedSyndromeTags": [],
+      "ingredientLinks": [
+        {
+          "rawName": "赤茯苓",
+          "canonicalName": "茯苓",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "赤色部位"
+        },
+        {
+          "rawName": "橘皮",
+          "canonicalName": "陈皮",
+          "linkageStatus": "unique_high_confidence",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "枇杷叶",
+          "canonicalName": "枇杷叶",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "麦冬",
+          "canonicalName": "麦冬",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "竹茹",
+          "canonicalName": "竹茹",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "半夏",
+          "canonicalName": "半夏",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "人参",
+          "canonicalName": "人参",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "甘草",
+          "canonicalName": "甘草",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        }
+      ],
+      "indications": [
+        "胃热多渴，呕哕不食（《重订严氏济生方》）。"
+      ],
+      "syndromeTags": [
+        "TCM-SYNDROME-9963232F899F",
+        "TCM-SYNDROME-F49BC34B0739"
+      ],
+      "curatedSyndromeRelations": [],
+      "natureTags": [],
+      "locationTags": [],
+      "symptomTags": [
+        "symptom_axis_1242d74039"
+      ],
+      "diseaseTags": [],
+      "syndromeTagRejection": "",
+      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "governanceStatus": "project_reference_verified",
+      "retrievalEligible": true,
+      "identityLockEligible": true,
+      "prescriptionLockEligible": true,
+      "doseCompilationEligible": true,
+      "requiresPatientSpecificDoseCompilation": true,
+      "requiresPostPrescriptionAudit": true,
+      "identityBlockingReasons": [],
+      "doseBlockingReasons": [],
+      "controlledToxicIngredientNames": [],
+      "endangeredOrBannedIngredientNames": [],
+      "controlledToxicNotice": "",
+      "unresolvedDoseIngredientNames": [],
+      "corruptIngredientNames": [],
+      "missingDoseBoundaryIngredientNames": [],
+      "manualDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
+      "blockingReasons": []
     },
     {
       "id": "TCM-FORMULA-F51991540765",
@@ -185211,7 +185618,8 @@
         "连翘",
         "法半夏",
         "甘草",
-        "独活"
+        "独活",
+        "海带"
       ],
       "dosageForm": "汤剂",
       "sourceClass": "official_local_formula_standard",
@@ -185231,8 +185639,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 58
+        },
+        {
+          "title": "目录校勘组成重录：原书十二味含海带（五分，《医宗金鉴》同）；目录缺海带。",
+          "url": "https://zh.wikisource.org/wiki/外科正宗",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "海藻玉壶汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "海藻",
@@ -185302,6 +185720,11 @@
           "canonicalName": "独活",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
+        },
+        {
+          "rawName": "海带",
+          "canonicalName": null,
+          "linkageStatus": "unmapped"
         }
       ],
       "indications": [
@@ -185321,19 +185744,22 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "海藻玉壶汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution"
+      ],
       "controlledToxicIngredientNames": [],
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "海带"
+      ],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
@@ -186900,8 +187326,8 @@
       "id": "TCM-FORMULA-ECE711AE928D",
       "name": "消瘰丸",
       "aliases": [],
-      "source": "《时方妙用》",
-      "sourceOriginal": null,
+      "source": "《医学心悟》",
+      "sourceOriginal": "《医学心悟》",
       "prescriptionOriginal": null,
       "ingredients": [
         "玄参",
@@ -186915,9 +187341,19 @@
         {
           "title": "《时方妙用》·瘰（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
           "url": "urn:tcm-cdss:tcmoc-books:时方妙用:瘰"
+        },
+        {
+          "title": "目录校勘组成重录：《医学心悟》原文三味（玄参、牡蛎、贝母），国家《古代经典名方目录》第二批亦标此书。",
+          "url": "http://www.sxhhy.com/uploadfile/file/20230905/67eafbba0.pdf",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
       "curatedSyndromeTags": [],
+      "adjudicatedIndications": [],
+      "displayName": "消瘰丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "玄参",
@@ -186958,7 +187394,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "project_reference_verified",
-      "displayName": "消瘰丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -186988,7 +187423,7 @@
         "work": "《方剂学》规划教材",
         "textbookSource": "《医学心悟》",
         "textbookKind": "main",
-        "match": "composition_overlap"
+        "match": "source_book"
       }
     },
     {
@@ -188812,6 +189247,104 @@
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
       "displayName": "润肠丸",
+      "retrievalEligible": true,
+      "identityLockEligible": true,
+      "prescriptionLockEligible": true,
+      "doseCompilationEligible": true,
+      "requiresPatientSpecificDoseCompilation": true,
+      "requiresPostPrescriptionAudit": true,
+      "identityBlockingReasons": [],
+      "doseBlockingReasons": [],
+      "controlledToxicIngredientNames": [],
+      "endangeredOrBannedIngredientNames": [],
+      "controlledToxicNotice": "",
+      "unresolvedDoseIngredientNames": [],
+      "corruptIngredientNames": [],
+      "missingDoseBoundaryIngredientNames": [],
+      "manualDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
+      "blockingReasons": []
+    },
+    {
+      "id": "TCM-FORMULA-54EED35851CB",
+      "name": "润肠丸〔《脾胃论》·肠燥便秘〕",
+      "aliases": [],
+      "source": "《脾胃论》",
+      "sourceOriginal": "《脾胃论》",
+      "prescriptionOriginal": "大黄、当归、羌活、桃仁、火麻仁",
+      "ingredients": [
+        "大黄",
+        "当归",
+        "羌活",
+        "桃仁",
+        "火麻仁"
+      ],
+      "dosageForm": "汤剂",
+      "sourceClass": "verified_reference_catalog",
+      "sourceCatalog": "adjudicated_catalog_collation",
+      "adjudicatedIndications": [
+        "饮食劳倦，大便秘涩，或干燥闭塞不通（《脾胃论》）。"
+      ],
+      "displayName": "润肠丸〔《脾胃论》·肠燥便秘〕",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
+      "verification": [
+        {
+          "title": "目录校勘新增：《脾胃论》·润肠丸｜教材《方剂学》所载润肠丸；目录现有「润肠丸」是《沈氏尊生书》五味版（同名异方）。组成只记药名，不记古方原量。",
+          "url": "https://www.theqi.com/simplified/cmed/oldbook/shen/shen9.html",
+          "sourceRef": "ADJ-COLLATION-20260809"
+        }
+      ],
+      "curatedSyndromeTags": [],
+      "ingredientLinks": [
+        {
+          "rawName": "大黄",
+          "canonicalName": "大黄",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "当归",
+          "canonicalName": "当归",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "羌活",
+          "canonicalName": "羌活",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "桃仁",
+          "canonicalName": "桃仁",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "火麻仁",
+          "canonicalName": "火麻仁",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        }
+      ],
+      "indications": [
+        "饮食劳倦，大便秘涩，或干燥闭塞不通（《脾胃论》）。"
+      ],
+      "syndromeTags": [],
+      "curatedSyndromeRelations": [],
+      "natureTags": [],
+      "locationTags": [],
+      "symptomTags": [
+        "constipation"
+      ],
+      "diseaseTags": [],
+      "syndromeTagRejection": "",
+      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -191067,8 +191600,8 @@
       "id": "TCM-FORMULA-C6B294FED285",
       "name": "清心莲子饮",
       "aliases": [],
-      "source": "《医方考》",
-      "sourceOriginal": null,
+      "source": "《太平惠民和剂局方》",
+      "sourceOriginal": "《太平惠民和剂局方》",
       "prescriptionOriginal": null,
       "ingredients": [
         "黄芪",
@@ -191078,7 +191611,8 @@
         "炙甘草",
         "地骨皮",
         "黄芩",
-        "车前子"
+        "车前子",
+        "麦冬"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -191087,9 +191621,19 @@
         {
           "title": "《医方考》·清心莲子饮（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
           "url": "urn:tcm-cdss:tcmoc-books:医方考:清心莲子饮"
+        },
+        {
+          "title": "目录校勘组成重录：《局方》原文九味含麦门冬（国家《古代经典名方目录》亦同）；目录八味缺麦冬。",
+          "url": "http://www.sxhhy.com/uploadfile/file/20230905/67eafbba0.pdf",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
       "curatedSyndromeTags": [],
+      "adjudicatedIndications": [],
+      "displayName": "清心莲子饮",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "黄芪",
@@ -191139,6 +191683,12 @@
           "canonicalName": "车前子",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
+        },
+        {
+          "rawName": "麦冬",
+          "canonicalName": "麦冬",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -191160,7 +191710,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "project_reference_verified",
-      "displayName": "清心莲子饮",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -191189,7 +191738,7 @@
         "work": "《方剂学》规划教材",
         "textbookSource": "《太平惠民和剂局方》",
         "textbookKind": "appended",
-        "match": "composition_overlap"
+        "match": "source_book"
       }
     },
     {
@@ -192667,8 +193216,11 @@
         },
         {
           "rawName": "胡麻仁",
-          "canonicalName": "亚麻子",
-          "linkageStatus": "unique_source_backed",
+          "adjudicatedIngredient": "黑芝麻",
+          "adjudicationEvidence": "十三五《中药学》黑芝麻条「处方用名」含胡麻仁；《医门法律》清燥救肺汤用胡麻仁（润燥养阴），不是亚麻子。",
+          "adjudicationBasis": "联网/教材核对ADJ-WEB-20260929（F2-E清燥救肺汤）",
+          "canonicalName": "黑芝麻",
+          "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
@@ -192785,7 +193337,9 @@
         "连翘",
         "淡竹叶",
         "甘草",
-        "牡丹皮"
+        "牡丹皮",
+        "地黄",
+        "黄连"
       ],
       "dosageForm": null,
       "sourceClass": "official_local_formula_standard",
@@ -192804,8 +193358,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 26
+        },
+        {
+          "title": "目录校勘组成重录：原书十四味含小生地、真川连；目录十二味缺此二味（犀角以水牛角代、竹叶、丹皮为命名差异）。",
+          "url": "https://zh.wikisource.org/wiki/疫疹一得",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "清瘟败毒饮",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "石膏",
@@ -192880,6 +193444,18 @@
           "canonicalName": "牡丹皮",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
+        },
+        {
+          "rawName": "地黄",
+          "canonicalName": "地黄",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "黄连",
+          "canonicalName": "黄连",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -192900,7 +193476,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "清瘟败毒饮",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -197018,6 +197593,157 @@
       }
     },
     {
+      "id": "TCM-FORMULA-2195BD99CBE8",
+      "name": "温经汤〔《金匮要略》·冲任虚寒兼瘀热〕",
+      "aliases": [],
+      "source": "《金匮要略》",
+      "sourceOriginal": "《金匮要略》",
+      "prescriptionOriginal": "吴茱萸、当归、川芎、白芍、人参、桂枝、阿胶、生姜、牡丹皮、甘草、半夏、麦冬",
+      "ingredients": [
+        "吴茱萸",
+        "当归",
+        "川芎",
+        "白芍",
+        "人参",
+        "桂枝",
+        "阿胶",
+        "生姜",
+        "牡丹皮",
+        "甘草",
+        "半夏",
+        "麦冬"
+      ],
+      "dosageForm": "汤剂",
+      "sourceClass": "verified_reference_catalog",
+      "sourceCatalog": "adjudicated_catalog_collation",
+      "adjudicatedIndications": [
+        "妇人少腹寒、久不受胎，崩中去血，月水来过多及至期不来（《金匮要略·妇人杂病》）。"
+      ],
+      "displayName": "温经汤〔《金匮要略》·冲任虚寒兼瘀热〕",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
+      "verification": [
+        {
+          "title": "目录校勘新增：《金匮要略》·温经汤｜教材《方剂学》所载十二味温经汤；目录现有「温经汤」是《妇人大全良方》九味版（同名异方）。组成只记药名，不记古方原量。",
+          "url": "http://www.a-hospital.com/w/温经汤",
+          "sourceRef": "ADJ-COLLATION-20260809"
+        }
+      ],
+      "curatedSyndromeTags": [],
+      "ingredientLinks": [
+        {
+          "rawName": "吴茱萸",
+          "canonicalName": "吴茱萸",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "当归",
+          "canonicalName": "当归",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "川芎",
+          "canonicalName": "川芎",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "白芍",
+          "canonicalName": "白芍",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "人参",
+          "canonicalName": "人参",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "桂枝",
+          "canonicalName": "桂枝",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "阿胶",
+          "canonicalName": "阿胶",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "生姜",
+          "canonicalName": "生姜",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "牡丹皮",
+          "canonicalName": "牡丹皮",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "甘草",
+          "canonicalName": "甘草",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "半夏",
+          "canonicalName": "半夏",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "麦冬",
+          "canonicalName": "麦冬",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        }
+      ],
+      "indications": [
+        "妇人少腹寒、久不受胎，崩中去血，月水来过多及至期不来（《金匮要略·妇人杂病》）。"
+      ],
+      "syndromeTags": [
+        "TCM-SYNDROME-332B5ADA10BE",
+        "TCM-SYNDROME-6DCB625C93B0",
+        "TCM-SYNDROME-C48D88CEC267"
+      ],
+      "curatedSyndromeRelations": [],
+      "natureTags": [],
+      "locationTags": [
+        "chong_ren"
+      ],
+      "symptomTags": [],
+      "diseaseTags": [],
+      "syndromeTagRejection": "",
+      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "governanceStatus": "project_reference_verified",
+      "retrievalEligible": true,
+      "identityLockEligible": true,
+      "prescriptionLockEligible": true,
+      "doseCompilationEligible": true,
+      "requiresPatientSpecificDoseCompilation": true,
+      "requiresPostPrescriptionAudit": true,
+      "identityBlockingReasons": [],
+      "doseBlockingReasons": [],
+      "controlledToxicIngredientNames": [],
+      "endangeredOrBannedIngredientNames": [],
+      "controlledToxicNotice": "",
+      "unresolvedDoseIngredientNames": [],
+      "corruptIngredientNames": [],
+      "missingDoseBoundaryIngredientNames": [],
+      "manualDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
+      "blockingReasons": []
+    },
+    {
       "id": "TCM-FORMULA-91E68068A398",
       "name": "温肺止流丹",
       "aliases": [],
@@ -198234,6 +198960,118 @@
         "textbookKind": "main",
         "match": "source_book"
       }
+    },
+    {
+      "id": "TCM-FORMULA-DE5DF8AB1B3E",
+      "name": "温脾汤〔《备急千金要方》卷十三·冷积腹痛〕",
+      "aliases": [],
+      "source": "《备急千金要方》卷十三",
+      "sourceOriginal": "《备急千金要方》卷十三",
+      "prescriptionOriginal": "甘草、附子、人参、芒硝、当归、干姜、大黄",
+      "ingredients": [
+        "甘草",
+        "附子",
+        "人参",
+        "芒硝",
+        "当归",
+        "干姜",
+        "大黄"
+      ],
+      "dosageForm": "汤剂",
+      "sourceClass": "verified_reference_catalog",
+      "sourceCatalog": "adjudicated_catalog_collation",
+      "adjudicatedIndications": [
+        "腹痛，脐下绞结，绕脐不止（《备急千金要方》卷十三）。"
+      ],
+      "displayName": "温脾汤〔《备急千金要方》卷十三·冷积腹痛〕",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
+      "verification": [
+        {
+          "title": "目录校勘新增：《备急千金要方》卷十三·温脾汤｜教材《方剂学》所载七味温脾汤；目录现有「温脾汤」是卷十五五味版（同名异方）。组成只记药名，不记古方原量。",
+          "url": "http://www.sxhhy.com/uploadfile/file/20230905/67eafbba0.pdf",
+          "sourceRef": "ADJ-COLLATION-20260809"
+        }
+      ],
+      "curatedSyndromeTags": [],
+      "ingredientLinks": [
+        {
+          "rawName": "甘草",
+          "canonicalName": "甘草",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "附子",
+          "canonicalName": "附子",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "人参",
+          "canonicalName": "人参",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "芒硝",
+          "canonicalName": "芒硝",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "当归",
+          "canonicalName": "当归",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "干姜",
+          "canonicalName": "干姜",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "大黄",
+          "canonicalName": "大黄",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        }
+      ],
+      "indications": [
+        "腹痛，脐下绞结，绕脐不止（《备急千金要方》卷十三）。"
+      ],
+      "syndromeTags": [],
+      "curatedSyndromeRelations": [],
+      "natureTags": [],
+      "locationTags": [],
+      "symptomTags": [
+        "abdominal_pain"
+      ],
+      "diseaseTags": [],
+      "syndromeTagRejection": "",
+      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "governanceStatus": "project_reference_verified",
+      "retrievalEligible": true,
+      "identityLockEligible": true,
+      "prescriptionLockEligible": true,
+      "doseCompilationEligible": true,
+      "requiresPatientSpecificDoseCompilation": true,
+      "requiresPostPrescriptionAudit": true,
+      "identityBlockingReasons": [],
+      "doseBlockingReasons": [],
+      "controlledToxicIngredientNames": [],
+      "endangeredOrBannedIngredientNames": [],
+      "controlledToxicNotice": "",
+      "unresolvedDoseIngredientNames": [],
+      "corruptIngredientNames": [],
+      "missingDoseBoundaryIngredientNames": [],
+      "manualDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
+      "blockingReasons": []
     },
     {
       "id": "TCM-FORMULA-AFDAF75B630E",
@@ -200404,8 +201242,8 @@
       "id": "TCM-FORMULA-4A459F0956EE",
       "name": "滚痰丸",
       "aliases": [],
-      "source": "《医方考》",
-      "sourceOriginal": null,
+      "source": "《泰定养生主论》",
+      "sourceOriginal": "《泰定养生主论》",
       "prescriptionOriginal": null,
       "ingredients": [
         "大黄",
@@ -200420,9 +201258,19 @@
         {
           "title": "《医方考》·滚痰丸（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
           "url": "urn:tcm-cdss:tcmoc-books:医方考:滚痰丸"
+        },
+        {
+          "title": "目录校勘组成重录：《泰定养生主论》（王隐君）为礞石滚痰丸首载。",
+          "url": "https://zh.wikisource.org/wiki/本草綱目/金石之四",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
       "curatedSyndromeTags": [],
+      "adjudicatedIndications": [],
+      "displayName": "滚痰丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "大黄",
@@ -200468,7 +201316,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "project_reference_verified",
-      "displayName": "滚痰丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -200515,7 +201362,7 @@
         "work": "《方剂学》规划教材",
         "textbookSource": "《泰定养生主论》",
         "textbookKind": "main",
-        "match": "composition_overlap"
+        "match": "source_book"
       }
     },
     {
@@ -205181,13 +206028,12 @@
       "name": "牵正散",
       "aliases": [],
       "source": "《杨氏家藏方》",
-      "sourceOriginal": "《杨氏家藏方》（宋•杨倓）“治口眼㖞斜。”",
+      "sourceOriginal": "《杨氏家藏方》",
       "prescriptionOriginal": "白附子、白僵蚕、全蝎（去毒）各等分，并生用。",
       "ingredients": [
         "白附子",
         "白僵蚕",
-        "全蝎",
-        "并生用"
+        "全蝎"
       ],
       "dosageForm": "散剂",
       "sourceClass": "official_classic_catalog",
@@ -205196,8 +206042,18 @@
         {
           "title": "国家古代经典名方目录本地构建记录",
           "url": "urn:tcm-cdss:official-classic-formula:牵正散"
+        },
+        {
+          "title": "目录校勘组成重录：「并生用」是原文对三味药的炮制备注，被误拆成第四味药；原方三味：白附子、白僵蚕、全蝎。",
+          "url": "http://www.sxhhy.com/uploadfile/file/20230905/67eafbba0.pdf",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "牵正散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "白附子",
@@ -205216,11 +206072,6 @@
           "canonicalName": "全蝎",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
-        },
-        {
-          "rawName": "并生用",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
         }
       ],
       "indications": [
@@ -205242,7 +206093,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "regulatory_source_verified",
-      "displayName": "牵正散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -205258,9 +206108,7 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [
-        "并生用"
-      ],
+      "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": [],
@@ -206414,7 +207262,7 @@
         "盐杜仲",
         "细辛",
         "秦艽",
-        "川牛膝",
+        "牛膝",
         "茯苓",
         "肉桂",
         "防风",
@@ -206444,8 +207292,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 77
+        },
+        {
+          "title": "目录校勘组成重录：原文与教材均为牛膝；川牛膝是另一味药。",
+          "url": "https://zh.wikisource.org/wiki/備急千金要方/第八",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "独活寄生汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "独活",
@@ -206479,8 +207337,8 @@
           "autoResolvable": true
         },
         {
-          "rawName": "川牛膝",
-          "canonicalName": "川牛膝",
+          "rawName": "牛膝",
+          "canonicalName": "牛膝",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
@@ -206558,7 +207416,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "独活寄生汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -208991,12 +209848,12 @@
       }
     },
     {
-      "id": "TCM-FORMULA-FF7B928656A5",
+      "id": "TCM-FORMULA-E45436EF6329",
       "name": "玉屏风散",
       "aliases": [],
       "sourceName": "玉屏风散",
-      "source": "《医方类聚》",
-      "sourceOriginal": "《医方类聚》",
+      "source": "《究原方》",
+      "sourceOriginal": "《究原方》",
       "prescriptionOriginal": null,
       "ingredients": [
         "黄芪",
@@ -209019,8 +209876,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 34
+        },
+        {
+          "title": "目录校勘组成重录：《方剂学》与原文核对：出《究原方》，录自《医方类聚》。",
+          "url": "https://tcmculture.bucm.edu.cn/zyywhkp/yxsbj/76719.htm",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "玉屏风散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "黄芪",
@@ -209099,7 +209966,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "玉屏风散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -209837,7 +210703,8 @@
         "鸡内金",
         "葛根",
         "五味子",
-        "天花粉"
+        "天花粉",
+        "山药"
       ],
       "dosageForm": "汤剂",
       "sourceClass": "official_local_formula_standard",
@@ -209855,8 +210722,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 47
+        },
+        {
+          "title": "目录校勘组成重录：原书七味，山药一两列第一位；目录六味漏山药。",
+          "url": "https://zh.wikisource.org/wiki/醫學衷中參西錄",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "玉液汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "黄芪",
@@ -209893,6 +210770,12 @@
           "canonicalName": "天花粉",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
+        },
+        {
+          "rawName": "山药",
+          "canonicalName": "山药",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -209916,7 +210799,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "玉液汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -211292,7 +212174,7 @@
         "人参",
         "白术",
         "茯苓",
-        "雷丸",
+        "干姜",
         "花椒",
         "乌梅"
       ],
@@ -211312,8 +212194,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 84
+        },
+        {
+          "title": "目录校勘组成重录：《类证治裁》与《万病回春》原文均为人参、白术、茯苓、干姜、川椒、乌梅六味；目录以雷丸代干姜，两书均无雷丸。",
+          "url": "https://zh.wikisource.org/wiki/萬病回春",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "理中安蛔汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "人参",
@@ -211334,8 +212226,8 @@
           "autoResolvable": true
         },
         {
-          "rawName": "雷丸",
-          "canonicalName": "雷丸",
+          "rawName": "干姜",
+          "canonicalName": "干姜",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
@@ -211373,7 +212265,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "理中安蛔汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -214297,12 +215188,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-F8EB784DBF11",
+      "id": "TCM-FORMULA-FD657881F277",
       "name": "甘露消毒丹",
       "aliases": [],
       "sourceName": "甘露消毒丹",
-      "source": "《温热经纬》",
-      "sourceOriginal": "《温热经纬》",
+      "source": "《医效秘传》",
+      "sourceOriginal": "《医效秘传》",
       "prescriptionOriginal": null,
       "ingredients": [
         "滑石粉",
@@ -214334,8 +215225,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 74
+        },
+        {
+          "title": "目录校勘组成重录：《方剂学》出处《医效秘传》；《温热经纬》为后出转载。",
+          "url": "https://zh.wikisource.org/wiki/溫熱經緯/卷五",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "甘露消毒丹",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "滑石粉",
@@ -214425,7 +215326,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "甘露消毒丹",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -217266,7 +218166,6 @@
         "茯苓皮",
         "川木通",
         "泽泻",
-        "姜皮",
         "椒目",
         "赤小豆",
         "醋商陆",
@@ -217289,8 +218188,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 18
+        },
+        {
+          "title": "目录校勘组成重录：原书十味等分，「生姜五片」是煎服引药，不是姜皮，也不是方中药味。",
+          "url": "https://zh.wikisource.org/wiki/濟生方",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "疏凿饮子",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "羌活",
@@ -217327,11 +218236,6 @@
           "canonicalName": "泽泻",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
-        },
-        {
-          "rawName": "姜皮",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
         },
         {
           "rawName": "椒目",
@@ -217380,7 +218284,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "疏凿饮子",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -217396,9 +218299,7 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [
-        "姜皮"
-      ],
+      "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -232507,12 +233408,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-DBFCF8C1C9B6",
+      "id": "TCM-FORMULA-90BA377372F2",
       "name": "石韦散",
       "aliases": [],
       "sourceName": "石韦散",
-      "source": "《证治汇补》",
-      "sourceOriginal": "《证治汇补》",
+      "source": "《外台秘要》",
+      "sourceOriginal": "《外台秘要》",
       "prescriptionOriginal": null,
       "ingredients": [
         "石韦",
@@ -232538,8 +233439,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 74
+        },
+        {
+          "title": "目录校勘组成重录：《外台秘要》卷二十七引《集验方》石韦散五味逐味一致。",
+          "url": "https://zh.wikisource.org/wiki/外臺秘要方_(四庫全書本)/卷27",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "石韦散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "石韦",
@@ -232592,7 +233503,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "石韦散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -234120,12 +235030,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-9C19787F923C",
+      "id": "TCM-FORMULA-FADDEA9BC77C",
       "name": "碧玉散",
       "aliases": [],
       "sourceName": "碧玉散",
-      "source": "《伤寒直格》",
-      "sourceOriginal": "《伤寒直格》",
+      "source": "《黄帝素问宣明论方》",
+      "sourceOriginal": "《黄帝素问宣明论方》",
       "prescriptionOriginal": null,
       "ingredients": [
         "滑石",
@@ -234148,8 +235058,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 30
+        },
+        {
+          "title": "目录校勘组成重录：《宣明论方》原文已有「加青黛……名碧玉散」。",
+          "url": "https://zh.wikisource.org/wiki/黃帝素問宣明論方",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "碧玉散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "滑石",
@@ -234186,7 +235106,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "碧玉散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -240948,9 +241867,7 @@
         "醋鳖甲",
         "秦艽",
         "知母",
-        "当归",
-        "青蒿",
-        "乌梅"
+        "当归"
       ],
       "dosageForm": "散剂",
       "sourceClass": "official_local_formula_standard",
@@ -240969,8 +241886,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 29
+        },
+        {
+          "title": "目录校勘组成重录：原书方后写明「上六味为粗末」；青蒿五叶、乌梅一个是煎服时加的引。",
+          "url": "https://zh.wikisource.org/wiki/衛生寶鑒",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "秦艽鳖甲散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "地骨皮",
@@ -241008,18 +241935,6 @@
           "canonicalName": "当归",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
-        },
-        {
-          "rawName": "青蒿",
-          "canonicalName": "青蒿",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "乌梅",
-          "canonicalName": "乌梅",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
         }
       ],
       "indications": [
@@ -241043,7 +241958,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "秦艽鳖甲散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -252041,8 +252955,8 @@
       "id": "TCM-FORMULA-C86DCB997BD6",
       "name": "肾气丸",
       "aliases": [],
-      "source": "《绛雪园古方选注》",
-      "sourceOriginal": null,
+      "source": "《金匮要略》",
+      "sourceOriginal": "《金匮要略》",
       "prescriptionOriginal": null,
       "ingredients": [
         "熟地黄",
@@ -252061,11 +252975,21 @@
         {
           "title": "《绛雪园古方选注》·肾气丸（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
           "url": "urn:tcm-cdss:tcmoc-books:绛雪园古方选注:肾气丸"
+        },
+        {
+          "title": "目录校勘组成重录：肾气丸方在《金匮要略》虚劳篇；《绛雪园古方选注》为后世转录（熟地黄替干地黄、肉桂替桂枝是后世改动）。",
+          "url": "https://zh.wikisource.org/wiki/金匱要略",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
       "curatedSyndromeTags": [
         "TCM-SYNDROME-C5192FE0A72D"
       ],
+      "adjudicatedIndications": [],
+      "displayName": "肾气丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "熟地黄",
@@ -252130,7 +253054,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
-      "displayName": "肾气丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -252158,7 +253081,7 @@
         "work": "《方剂学》规划教材",
         "textbookSource": "《金匮要略》",
         "textbookKind": "main",
-        "match": "composition_overlap"
+        "match": "source_book"
       }
     },
     {
@@ -261295,12 +262218,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-6EECE1D56972",
+      "id": "TCM-FORMULA-9C1C3AD0E242",
       "name": "苏合香丸",
       "aliases": [],
       "sourceName": "苏合香丸",
-      "source": "《太民惠民和剂局方》",
-      "sourceOriginal": "《太民惠民和剂局方》",
+      "source": "《太平惠民和剂局方》",
+      "sourceOriginal": "《太平惠民和剂局方》",
       "prescriptionOriginal": null,
       "ingredients": [
         "白术",
@@ -261336,8 +262259,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 54
+        },
+        {
+          "title": "目录校勘组成重录：出处字符串错字（「太民」→「太平」）；《局方》载苏合香丸原文已核对（更早为《外台秘要》引《广济方》吃力伽丸）。",
+          "url": "https://zh.wikisource.org/wiki/太平惠民和劑局方",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "苏合香丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "白术",
@@ -261451,7 +262384,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "苏合香丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -263166,8 +264098,8 @@
       "id": "TCM-FORMULA-B9FEA14E2105",
       "name": "茯苓丸",
       "aliases": [],
-      "source": "《指迷方》",
-      "sourceOriginal": null,
+      "source": "《全生指迷方》",
+      "sourceOriginal": "《全生指迷方》",
       "prescriptionOriginal": null,
       "ingredients": [
         "半夏曲",
@@ -263182,11 +264114,21 @@
         {
           "title": "《医方集解》·茯苓丸（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
           "url": "urn:tcm-cdss:tcmoc-books:087-医方集解.txt:茯苓丸"
+        },
+        {
+          "title": "目录校勘组成重录：《指迷方》是《全生指迷方》的简称，写全书名。",
+          "url": "https://zh.wikisource.org/wiki/醫方集解",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
       "curatedSyndromeTags": [
         "TCM-SYNDROME-AB5B1F1D8E94"
       ],
+      "adjudicatedIndications": [],
+      "displayName": "茯苓丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "半夏曲",
@@ -263236,7 +264178,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
-      "displayName": "茯苓丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -270632,12 +271573,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-C0646D00CC1D",
+      "id": "TCM-FORMULA-E49219908006",
       "name": "葛花解酲汤",
       "aliases": [],
       "sourceName": "葛花解酲汤",
-      "source": "《内外伤辨》",
-      "sourceOriginal": "《内外伤辨》",
+      "source": "《内外伤辨惑论》",
+      "sourceOriginal": "《内外伤辨惑论》",
       "prescriptionOriginal": null,
       "ingredients": [
         "木香",
@@ -270650,7 +271591,9 @@
         "青皮",
         "砂仁",
         "豆蔻",
-        "葛花"
+        "葛花",
+        "人参",
+        "猪苓"
       ],
       "dosageForm": "汤剂",
       "sourceClass": "official_local_formula_standard",
@@ -270669,8 +271612,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 83
+        },
+        {
+          "title": "目录校勘组成重录：原书十三味，目录缺人参、猪苓；出处书名截断为《内外伤辨》。",
+          "url": "https://zh.wikisource.org/wiki/內外傷辨惑論/卷下",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "葛花解酲汤",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "木香",
@@ -270735,6 +271688,18 @@
           "rawName": "葛花",
           "canonicalName": null,
           "linkageStatus": "unmapped"
+        },
+        {
+          "rawName": "人参",
+          "canonicalName": "人参",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "猪苓",
+          "canonicalName": "猪苓",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -270755,7 +271720,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "葛花解酲汤",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -296131,8 +297095,8 @@
       "id": "TCM-FORMULA-66D60D34583A",
       "name": "逍遥散",
       "aliases": [],
-      "source": "《局方》卷九。",
-      "sourceOriginal": null,
+      "source": "《太平惠民和剂局方》卷九",
+      "sourceOriginal": "《太平惠民和剂局方》卷九",
       "prescriptionOriginal": null,
       "ingredients": [
         "甘草",
@@ -296149,6 +297113,11 @@
         {
           "title": "本地方剂库《局方》卷九逍遥散组成记录",
           "url": "urn:tcm-cdss:formula-catalog:逍遥散:局方卷九"
+        },
+        {
+          "title": "目录校勘组成重录：出处书名写全，保留卷次（原「《局方》卷九。」）。",
+          "url": "http://www.a-hospital.com/w/逍遥散",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
       "curatedSyndromeTags": [
@@ -296156,6 +297125,11 @@
         "liver_depression_spleen_deficiency",
         "TCM-SYNDROME-9AA952D43A89"
       ],
+      "adjudicatedIndications": [],
+      "displayName": "逍遥散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "甘草",
@@ -296285,7 +297259,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
-      "displayName": "逍遥散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -296313,7 +297286,7 @@
         "work": "《方剂学》规划教材",
         "textbookSource": "《太平惠民和剂局方》",
         "textbookKind": "main",
-        "match": "composition_overlap"
+        "match": "source_book"
       }
     },
     {
@@ -300226,12 +301199,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-36866D06C3E9",
+      "id": "TCM-FORMULA-AE23D5C48893",
       "name": "都气丸",
       "aliases": [],
       "sourceName": "都气丸",
-      "source": "《医宗金鉴》",
-      "sourceOriginal": "《医宗金鉴》",
+      "source": "《症因脉治》",
+      "sourceOriginal": "《症因脉治》",
       "prescriptionOriginal": null,
       "ingredients": [
         "熟地黄",
@@ -300258,8 +301231,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 37
+        },
+        {
+          "title": "目录校勘组成重录：《医宗金鉴》该处写的是「都气汤」；都气丸出《症因脉治》。",
+          "url": "https://zh.wikisource.org/wiki/症因脈治",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "都气丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "熟地黄",
@@ -300323,7 +301306,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "都气丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -302078,6 +303060,122 @@
       "blockingReasons": []
     },
     {
+      "id": "TCM-FORMULA-B7DEB1F9DC3E",
+      "name": "金沸草散〔《博济方》·风寒咳嗽痰多〕",
+      "aliases": [],
+      "source": "《博济方》",
+      "sourceOriginal": "《博济方》",
+      "prescriptionOriginal": "荆芥穗、旋覆花、前胡、半夏、赤芍、麻黄、甘草",
+      "ingredients": [
+        "荆芥穗",
+        "旋覆花",
+        "前胡",
+        "半夏",
+        "赤芍",
+        "麻黄",
+        "甘草"
+      ],
+      "dosageForm": "汤剂",
+      "sourceClass": "verified_reference_catalog",
+      "sourceCatalog": "adjudicated_catalog_collation",
+      "adjudicatedIndications": [
+        "肺经受风，头目昏痛，咳嗽多痰（《博济方》）。"
+      ],
+      "displayName": "金沸草散〔《博济方》·风寒咳嗽痰多〕",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
+      "verification": [
+        {
+          "title": "目录校勘新增：《博济方》·金沸草散｜教材《方剂学》所载金沸草散；目录现有「金沸草散」是《类证活人书》含细辛版（同名异方）。组成只记药名，不记古方原量。",
+          "url": "https://zh.wikisource.org/wiki/博濟方",
+          "sourceRef": "ADJ-COLLATION-20260809"
+        }
+      ],
+      "curatedSyndromeTags": [],
+      "ingredientLinks": [
+        {
+          "rawName": "荆芥穗",
+          "canonicalName": "荆芥穗",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "旋覆花",
+          "canonicalName": "旋覆花",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "前胡",
+          "canonicalName": "前胡",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "半夏",
+          "canonicalName": "半夏",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "赤芍",
+          "canonicalName": "赤芍",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "麻黄",
+          "canonicalName": "麻黄",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "甘草",
+          "canonicalName": "甘草",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        }
+      ],
+      "indications": [
+        "肺经受风，头目昏痛，咳嗽多痰（《博济方》）。"
+      ],
+      "syndromeTags": [
+        "TCM-SYNDROME-035A12FE96D3",
+        "TCM-SYNDROME-C776A77DE12C"
+      ],
+      "curatedSyndromeRelations": [],
+      "natureTags": [],
+      "locationTags": [],
+      "symptomTags": [
+        "cough",
+        "symptom_axis_8a8b9ad96d"
+      ],
+      "diseaseTags": [],
+      "syndromeTagRejection": "",
+      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "governanceStatus": "project_reference_verified",
+      "retrievalEligible": true,
+      "identityLockEligible": true,
+      "prescriptionLockEligible": true,
+      "doseCompilationEligible": true,
+      "requiresPatientSpecificDoseCompilation": true,
+      "requiresPostPrescriptionAudit": true,
+      "identityBlockingReasons": [],
+      "doseBlockingReasons": [],
+      "controlledToxicIngredientNames": [],
+      "endangeredOrBannedIngredientNames": [],
+      "controlledToxicNotice": "",
+      "unresolvedDoseIngredientNames": [],
+      "corruptIngredientNames": [],
+      "missingDoseBoundaryIngredientNames": [],
+      "manualDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
+      "blockingReasons": []
+    },
+    {
       "id": "TCM-FORMULA-8866A9BC2271",
       "name": "金疮方",
       "aliases": [],
@@ -303409,6 +304507,115 @@
       "clinicianDoseIngredientNames": [
         "蝎尾"
       ],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
+      "blockingReasons": []
+    },
+    {
+      "id": "TCM-FORMULA-9BE0B8E13EAE",
+      "name": "钩藤饮〔《医宗金鉴》·天钓〕",
+      "aliases": [],
+      "source": "《医宗金鉴》",
+      "sourceOriginal": "《医宗金鉴》",
+      "prescriptionOriginal": "人参、全蝎、羚羊角、天麻、甘草、钩藤",
+      "ingredients": [
+        "人参",
+        "全蝎",
+        "羚羊角",
+        "天麻",
+        "甘草",
+        "钩藤"
+      ],
+      "dosageForm": "汤剂",
+      "sourceClass": "verified_reference_catalog",
+      "sourceCatalog": "adjudicated_catalog_collation",
+      "adjudicatedIndications": [
+        "小儿天钓，牙关紧闭，手足抽搐，惊悸壮热（《医宗金鉴·幼科心法要诀》）。"
+      ],
+      "displayName": "钩藤饮〔《医宗金鉴》·天钓〕",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
+      "verification": [
+        {
+          "title": "目录校勘新增：《医宗金鉴》·钩藤饮｜教材《方剂学》所载钩藤饮；目录现有「钩藤饮」是《医学正传》十味版（同名异方）。组成只记药名，不记古方原量。",
+          "url": "https://zh.wikisource.org/wiki/醫學正傳",
+          "sourceRef": "ADJ-COLLATION-20260809"
+        }
+      ],
+      "curatedSyndromeTags": [],
+      "ingredientLinks": [
+        {
+          "rawName": "人参",
+          "canonicalName": "人参",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "全蝎",
+          "canonicalName": "全蝎",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "羚羊角",
+          "canonicalName": "羚羊角",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "天麻",
+          "canonicalName": "天麻",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "甘草",
+          "canonicalName": "甘草",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "钩藤",
+          "canonicalName": "钩藤",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        }
+      ],
+      "indications": [
+        "小儿天钓，牙关紧闭，手足抽搐，惊悸壮热（《医宗金鉴·幼科心法要诀》）。"
+      ],
+      "syndromeTags": [],
+      "curatedSyndromeRelations": [],
+      "natureTags": [],
+      "locationTags": [],
+      "symptomTags": [
+        "palpitation"
+      ],
+      "diseaseTags": [],
+      "syndromeTagRejection": "",
+      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "governanceStatus": "project_reference_verified",
+      "retrievalEligible": true,
+      "identityLockEligible": true,
+      "prescriptionLockEligible": true,
+      "doseCompilationEligible": false,
+      "requiresPatientSpecificDoseCompilation": true,
+      "requiresPostPrescriptionAudit": true,
+      "identityBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_endangered_or_banned_requires_legal_eligibility"
+      ],
+      "controlledToxicIngredientNames": [],
+      "endangeredOrBannedIngredientNames": [
+        "羚羊角"
+      ],
+      "controlledToxicNotice": "",
+      "unresolvedDoseIngredientNames": [],
+      "corruptIngredientNames": [],
+      "missingDoseBoundaryIngredientNames": [],
+      "manualDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -308453,12 +309660,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-4477C61D3E73",
+      "id": "TCM-FORMULA-CC254D6ED85D",
       "name": "防风通圣散",
       "aliases": [],
       "sourceName": "防风通圣散",
-      "source": "《宣明论方》",
-      "sourceOriginal": "《宣明论方》",
+      "source": "《黄帝素问宣明论方》",
+      "sourceOriginal": "《黄帝素问宣明论方》",
       "prescriptionOriginal": null,
       "ingredients": [
         "防风",
@@ -308476,8 +309683,8 @@
         "甘草",
         "荆芥",
         "栀子",
-        "黄芪",
-        "党参"
+        "大黄",
+        "芒硝"
       ],
       "dosageForm": "散剂",
       "sourceClass": "official_local_formula_standard",
@@ -308496,8 +309703,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 15
+        },
+        {
+          "title": "目录校勘组成重录：原书十七味（防风、川芎、当归、芍药、大黄、薄荷叶、麻黄、连翘、芒硝、石膏、黄芩、桔梗、滑石、甘草、荆芥、白术、栀子）；目录缺大黄、芒硝并多出原书没有的党参、黄芪。",
+          "url": "https://zh.wikisource.org/wiki/黃帝素問宣明論方",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "防风通圣散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "防风",
@@ -308592,14 +309809,14 @@
           "autoResolvable": true
         },
         {
-          "rawName": "黄芪",
-          "canonicalName": "黄芪",
+          "rawName": "大黄",
+          "canonicalName": "大黄",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
-          "rawName": "党参",
-          "canonicalName": "党参",
+          "rawName": "芒硝",
+          "canonicalName": "芒硝",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         }
@@ -308629,7 +309846,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "防风通圣散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -335143,12 +336359,12 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-E6FF1DF7E529",
+      "id": "TCM-FORMULA-9E221DC9A79C",
       "name": "黛蛤散",
       "aliases": [],
       "sourceName": "黛蛤散",
-      "source": "验方",
-      "sourceOriginal": "验方",
+      "source": "《医说》",
+      "sourceOriginal": "《医说》",
       "prescriptionOriginal": null,
       "ingredients": [
         "青黛",
@@ -335171,8 +336387,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 80
+        },
+        {
+          "title": "目录校勘组成重录：《医说》引《类编》可核；原「验方」不是出处。",
+          "url": "https://zh.wikisource.org/wiki/醫說",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "黛蛤散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "青黛",
@@ -335210,7 +336436,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "黛蛤散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,

@@ -34,7 +34,7 @@ function check(name, fn) {
   }
 }
 
-const VALID_STATUSES = new Set(["pending_clinician_review", "clinician_approved", "clinician_rejected"]);
+const VALID_STATUSES = new Set(["pending_clinician_review", "clinician_approved", "clinician_rejected", "evidence_approved", "evidence_rejected"]);
 const SCHOOL_CODES = new Set(["classical-formula", "warm-disease", "nourish-yin-danxi", "warm-tonify", "support-yang"]);
 
 // ─── 1. 数据形状与引用完整性 ─────────────────────────────────────────────

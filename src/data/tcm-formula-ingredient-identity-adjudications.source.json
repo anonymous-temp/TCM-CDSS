@@ -1520,6 +1520,14 @@
    "confidence": "high",
    "evidenceTier": "parallel_edition_explicit",
    "batch": "ADJ-20260809-SHAOYAO-B2"
+  },
+  {
+   "formulaName": "清燥救肺汤",
+   "rawIngredient": "胡麻仁",
+   "resolvedIngredient": "黑芝麻",
+   "evidence": "十三五《中药学》黑芝麻条「处方用名」含胡麻仁；《医门法律》清燥救肺汤用胡麻仁（润燥养阴），不是亚麻子。",
+   "basis": "联网/教材核对 ADJ-WEB-20260929（F2-E 清燥救肺汤）",
+   "confidence": "high"
   }
  ],
  "varietyBranches": [

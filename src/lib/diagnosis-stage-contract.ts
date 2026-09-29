@@ -3620,9 +3620,25 @@ export function m04GenerationSpecialPopulationIssue(
  * 担心兜底句被判 function_ungrounded 拖垮整个候选，转而放宽 7.1 去照印全部功效——
  * 那条放行其实一直都在。test:customer-review 现在两头都钉：7.1 的输出形态 + 兜底句可接地。
  */
-export function herbFunctionMatchesKnowledge(name: string, claimedFunction: string, role = "", target = ""): boolean {
+/**
+ * @param lenient 只在 **finalize（修复机会已用尽）** 传 true：模型写了一句合理的方义，就用模型的，不再因为
+ *   「没有任何概念组与库里功效文本重叠」而整句作废、退回占位句（甲方 9.24/9.27：6/68 味药显示「需医生结合方义复核」，
+ *   例如使药泽泻写「引药下行、导浊阴下泄」——没有任何功效概念词，被判无依据）。
+ *   宽松档**保留全部安全判据**：营销/疗效吹嘘词、高影响方向（清热/活血/温阳/攻下）必须有库内佐证、
+ *   毒性药必须提毒性/慎用、泻下类药不得只写补益；放宽的只有「至少一个概念组与库文本重叠」这一条。
+ */
+export function herbFunctionMatchesKnowledge(name: string, claimedFunction: string, role = "", target = "", lenient = false): boolean {
   const knowledgeText = herbKnowledgeFunctionText(name);
   if (/(?:美容|养颜|改善视力|减肥|抗癌|延年益寿|包治|根治)/.test(claimedFunction)) return false;
+  if (lenient && !/^(?:君|臣|佐|使|配伍)药，.*需医生结合方义复核$/.test(claimedFunction.trim()) &&
+      /[\u4e00-\u9fa5]{4,}/.test(claimedFunction)) {
+    const highImpact = [/清热|泻火|凉血/, /活血|化瘀|行瘀|破血/, /温阳|扶阳|回阳|散寒/, /攻下|泻下|通便/];
+    if (!highImpact.filter((group) => group.test(claimedFunction)).every((group) => group.test(knowledgeText))) return false;
+    const risk = getTcmHerbRiskProfile(name);
+    if (/PURGATIVE_ATTACK|攻下|泻下药/.test(risk) && !/(?:攻下|泻下|通便|清热|泻火|活血|化瘀)/.test(claimedFunction)) return false;
+    if (/毒性|有毒|大毒/.test(risk) && !/(?:有毒|毒性|峻烈|慎用)/.test(claimedFunction)) return false;
+    return true;
+  }
   const canonicalDisplay = getTcmHerbFunctionDisplayText(name, role, target);
   if (claimedFunction.trim() === canonicalDisplay.trim()) return true;
   // 方义按本方治法筛选后(甲方 7.1),写入的是知识库功效串的**子集**而不是整串
@@ -4167,7 +4183,10 @@ export function m04SemanticIssue(
       if (typeof herb.prescriptionRole !== "string" || !herb.prescriptionRole.trim() || GENERATED_PLACEHOLDER_MARKER.test(herb.prescriptionRole.trim())) return `candidate_${candidateIndex}_herb_${herbIndex}_prescription_role`;
       if (typeof herb.targetPathogenesis !== "string" || !herb.targetPathogenesis.trim() || GENERATED_PLACEHOLDER_MARKER.test(herb.targetPathogenesis.trim())) return `candidate_${candidateIndex}_herb_${herbIndex}_target`;
       if (typeof herb.function !== "string" || !herb.function.trim()) return `candidate_${candidateIndex}_herb_${herbIndex}_function`;
-      if (!herbFunctionMatchesKnowledge(herb.name.trim(), herb.function.trim(), String(herb.role || ""), String(herb.targetPathogenesis || ""))) return `candidate_${candidateIndex}_herb_${herbIndex}_function_ungrounded`;
+      // 生成侧（trustedWorkbenchEdit=false）用严格档，是为了让「方义对不上库」触发修复轮；修复用尽后 finalize 会用宽松档
+      // 保留模型写的方义（herbFunctionMatchesKnowledge 的 lenient 说明）。HIS 写回校验走 trustedWorkbenchEdit=true 路径，
+      // 必须与 finalize 同口径，否则 finalize 受理的方义会在 HIS 导出时被同一个谓词的严格档驳回。
+      if (!herbFunctionMatchesKnowledge(herb.name.trim(), herb.function.trim(), String(herb.role || ""), String(herb.targetPathogenesis || ""), trustedWorkbenchEdit)) return `candidate_${candidateIndex}_herb_${herbIndex}_function_ungrounded`;
       const declaredMethod = String(herb.decoctionRequirement || "");
       if (!decoctionRuleSatisfied(herb.name, declaredMethod)) {
         return `candidate_${candidateIndex}_herb_${herbIndex}_decoction_missing_required`;

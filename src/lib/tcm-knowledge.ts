@@ -5,6 +5,7 @@ import nonPharmacopoeiaDoseJson from "../data/tcm-herb-nonpharmacopoeia-dose.sou
 import clinicianDosePolicyJson from "../data/tcm-herb-dose-clinician-policy.source.json";
 import controlledToxicPolicyJson from "../data/tcm-controlled-toxic-herb-policy.source.json";
 import functionSupplementsJson from "../data/tcm-herb-function-supplements.source.json";
+import verifiedHerbFunctionsJson from "../data/tcm-herb-verified-functions.json";
 import clinicalSubstitutionJson from "../data/tcm-herb-clinical-substitution-adjudications.source.json";
 import type { CaseState } from "./diagnosis-types";
 import { herbFunctionClauseFitsContext, isHarmonizingOrGuidingFunction } from "./herb-function-context";
@@ -1609,7 +1610,55 @@ function hasRealFunctionText(value: string): boolean {
  */
 const HERB_PROCESSING_PREFIX = /^(?:蜜炙|麸炒|土炒|盐炒|酒炒|醋炒|姜炒|清炒|炒|焦|煅|炙|制|法|生|鲜|煨|烫|酒|醋|盐|姜)/;
 
+/**
+ * 联网/教材核对过的药味功用词典（scripts/build-herb-verified-functions.py，2026-09-29）。
+ * 只读三件事：追加功用 / 剔除已核对为无依据的条目 / 方义栏找不到对得上的功效时的替代文字。
+ */
+type VerifiedHerbFunction = {
+  kind?: string;
+  canonicalName?: string;
+  functions: string[];
+  primary: string[];
+  roles: Partial<Record<"君" | "臣" | "佐" | "使", string>>;
+  unsupported: string[];
+};
+const VERIFIED_HERB_FUNCTIONS = new Map<string, VerifiedHerbFunction>(
+  Object.entries((verifiedHerbFunctionsJson as { herbs?: Record<string, VerifiedHerbFunction> }).herbs || {}),
+);
+
+/** 按原名先查（炮制规格是独立身份，如炙甘草与甘草功效不同），再按知识库规范名查。 */
+export function verifiedHerbFunctionEntry(herb: string): VerifiedHerbFunction | undefined {
+  const rawName = String(herb || "").trim();
+  return VERIFIED_HERB_FUNCTIONS.get(rawName) || VERIFIED_HERB_FUNCTIONS.get(canonicalKnowledgeHerbName(rawName));
+}
+
+/**
+ * 功用文本 = 知识库原文 − 已核对为无依据的条目。**只剔除，不追加**：
+ * 追加的核对功用（如丹参的「凉血消痈」）会同时改变「君药/配伍面准入」判据（高影响方向必须在本例治法里成立），
+ * 让丹参在纯活血病例里当不了君药（test:herb-breadth-surface 实测）——真实功效变成了过度收紧。
+ * 追加只用于方义栏的展示与选词（见 verifiedHerbFunctionAdditions），不进任何准入/接地判据。
+ */
 export function getTcmHerbFunctionText(herb: string): string {
+  const base = baseTcmHerbFunctionText(herb);
+  const verified = verifiedHerbFunctionEntry(herb);
+  if (!verified || verified.unsupported.length === 0) return base;
+  // 剔除已核对为「药典/中药学都不给该药」的条目（炙甘草名下的「清热解毒」属生甘草）。只动功效正文条目：
+  // 分类标签、给药途径（先煎/包煎/冲服…）不在 unsupported 里，本来也不会被生成器写进去。
+  const dropped = new Set(verified.unsupported);
+  return base.split(/[；;]/).map((segment) => segment.trim()).filter(Boolean).map((segment) =>
+    segment.split(/[，,]/).map((item) => item.trim()).filter((item) => item && !dropped.has(item)).join("，"))
+    .filter(Boolean).join("；");
+}
+
+/** 核对词典里、知识库功用文本还没有的功用（只供方义栏展示与选词）。 */
+function verifiedHerbFunctionAdditions(herb: string, current: string): string[] {
+  const verified = verifiedHerbFunctionEntry(herb);
+  if (!verified) return [];
+  const existing = new Set(current.split(/[；;，,、]/).map((item) => item.trim()).filter(Boolean));
+  return verified.functions.filter((item) => !existing.has(item));
+}
+
+function baseTcmHerbFunctionText(herb: string): string {
   // 炮制规格必须先按**原名**查一次补充表，再谈归一。
   //
   // 中医师终审 2026-08-16 第 3 条：生/炒/焦为同一基原下的独立规格身份，
@@ -1920,7 +1969,8 @@ export function getTcmHerbFunctionDisplayText(
   therapy = "",
   rolePlaceholderWhenUnaligned = true,
 ): string {
-  const raw = getTcmHerbFunctionText(herb).trim();
+  const rawBase = getTcmHerbFunctionText(herb).trim();
+  const raw = [rawBase, ...verifiedHerbFunctionAdditions(herb, rawBase)].filter(Boolean).join("；");
   const clauses = raw
     .split(/[；;，,、]/)
     .map((item) => item.trim())
@@ -1939,7 +1989,15 @@ export function getTcmHerbFunctionDisplayText(
   // 头痛方里的当归因一个「痛」字选中「调经止痛」）。只排除，不新增文字。
   const fitting = clauses.filter((item) => herbFunctionClauseFitsContext(item, alignmentText));
   // 使药先取调和/引经类功效（甲方测评：麻黄汤里作使药的炙甘草被写成「祛痰止咳」）。
-  const harmonizing = /^使$/.test(role.trim()) ? clauses.filter(isHarmonizingOrGuidingFunction) : [];
+  // 核对词典里方剂学明确写出的该药佐/使角色（桔梗使：载药上行；牛膝使：引血下行）同样算数。
+  const verified = verifiedHerbFunctionEntry(herb);
+  const roleKey = role.trim() as "君" | "臣" | "佐" | "使";
+  // 只取「使」角色的说法：使药（调和诸药、载药上行、引血下行）是跨方通用的引导/调和作用；
+  // 佐药的说法在核对词典里是某一首方剂里的具体配伍（如栀子在某方里佐制），套到别的方里会写反方义。
+  const verifiedRolePhrase = roleKey === "使" ? verified?.roles?.[roleKey] : undefined;
+  const harmonizing = /^使$/.test(role.trim())
+    ? [...new Set([...(verifiedRolePhrase ? verifiedRolePhrase.split("，") : []), ...clauses.filter(isHarmonizingOrGuidingFunction)])]
+    : [];
   const aligned = alignmentText
     ? fitting.filter((item) => {
       // 逐字相关即可：功效条目里任意 2 字连续出现在本方治法或该药绑定的病机节点里。
@@ -1967,6 +2025,10 @@ export function getTcmHerbFunctionDisplayText(
   ])];
   if (chosen.length > 0) return chosen.slice(0, 3).join("，");
   if (!rolePlaceholderWhenUnaligned) return "";
+  // 对不上本方治法、又没有模型可写的文字时：先取核对词典里的角色说法，再取该药入方时通常承担的作用，
+  // 不再让医生看到内容为零的占位句（甲方 9.24/9.27：6/68 味药显示「需医生结合方义复核」）。
+  if (verifiedRolePhrase) return verifiedRolePhrase;
+  if (verified && verified.primary.length > 0) return verified.primary.slice(0, 2).join("，");
   // 兜底句**不得嵌入病机原文**:病机在药味表里另有独立一列,嵌进来会让同一句病机
   // 在一节里被印 7 遍(实测触发 test:visible-output-hygiene 的重复病机判据),
   // 而这恰恰是甲方 1.1.1 抱怨的同一类冗余。角色 + 需复核声明已足够表达不确定性。

@@ -2295,7 +2295,7 @@ qiStagnationM04.formula.candidates[0].formulaNames = [];
 qiStagnationM04.formula.candidates[0].constructionType = "self_devised";
 qiStagnationM04.formula.candidates[0].therapyMatch = "行气除满";
 qiStagnationM04.formula.candidates[0].herbs = [
-  { name: "厚朴", dose: "9g", role: "君", prescriptionRole: "下气除满", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "脾胃气滞", function: "下气，温中", decoctionRequirement: "" },
+  { name: "厚朴", dose: "9g", role: "君", prescriptionRole: "下气除满", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "脾胃气滞", function: "消痰下气", decoctionRequirement: "" },
   { name: "陈皮", dose: "6g", role: "臣", prescriptionRole: "理气健脾", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "脾胃气滞", function: "理气健脾", decoctionRequirement: "" },
 ];
 assert.equal(
@@ -2529,7 +2529,7 @@ spleenQiM04.formula.candidates[0].herbs = [
   { name: "茯苓", dose: "15g", role: "臣", prescriptionRole: "利水渗湿，健脾", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "脾胃虚弱", function: "利水渗湿，健脾，宁心安神；利水消肿药；利水渗湿药", decoctionRequirement: "" },
   { name: "陈皮", dose: "6g", role: "臣", prescriptionRole: "理气健脾", targetKind: "pathogenesis_node", targetRef: "P2", structureRole: null, targetPathogenesis: "中焦气机不畅", function: "理气健脾，燥湿化痰，解鱼腥毒，调中，消痰；理气药", decoctionRequirement: "" },
   { name: "木香", dose: "6g", role: "佐", prescriptionRole: "行气止痛", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", targetPathogenesis: "调和诸药，协调药性", function: "行气止痛，健脾消食；理气药", decoctionRequirement: "后下" },
-  { name: "炙甘草", dose: "3g", role: "使", prescriptionRole: "调和诸药", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", targetPathogenesis: "调和诸药，协调药性", function: "补脾益气，清热解毒，祛痰止咳，缓急止痛，调和诸药；补气药；补虚药", decoctionRequirement: "" },
+  { name: "甘草", dose: "3g", role: "使", prescriptionRole: "调和诸药", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", targetPathogenesis: "调和诸药，协调药性", function: "补脾益气，清热解毒，祛痰止咳，缓急止痛，调和诸药；补气药；补虚药", decoctionRequirement: "" },
 ];
 assert.equal(
   m04SemanticIssue(spleenQiM04, "", spleenQiPrior),
@@ -2562,7 +2562,7 @@ coldDampM04.formula.candidates[0].constructionType = "self_devised";
 coldDampM04.formula.candidates[0].therapyMatch = "温化寒湿，健脾止泻";
 coldDampM04.formula.candidates[0].herbs = [
   { name: "苍术", dose: "9g", role: "君", prescriptionRole: "温化寒湿", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "寒湿困脾", function: "化湿药", decoctionRequirement: "" },
-  { name: "厚朴", dose: "6g", role: "臣", prescriptionRole: "下气除满", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "寒湿困脾", function: "消痰下气，温中，止痛，温胃，益气；化湿药", decoctionRequirement: "" },
+  { name: "厚朴", dose: "6g", role: "臣", prescriptionRole: "下气除满", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "寒湿困脾", function: "消痰下气；化湿药", decoctionRequirement: "" },
 ];
 assert.equal(
   m04SemanticIssue(coldDampM04, "", coldDampPrior),

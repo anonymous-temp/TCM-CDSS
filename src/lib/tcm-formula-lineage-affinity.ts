@@ -2,8 +2,10 @@
  * 方剂 → 流派取向的受治理映射（甲方基线 §10.2：流派必须实质影响候选方来源与排序）。
  *
  * 数据源 tcm-formula-lineage-affinity.source.json 由「受治理目录 source 书名 ×
- * 流派卡 representativeWorks」推导，逐条带 adjudicationStatus；中医师终审前
- * （pending_clinician_review）一切条目零影响——不加分、不标注、不出现在任何输出。
+ * 流派卡 representativeWorks」推导，逐条带 adjudicationStatus；未通过核对的条目
+ * （pending_clinician_review / evidence_rejected）一切条目零影响——不加分、不标注、不出现在任何输出。
+ * 2026-09-29 起没有可签字的中医师：书规则与逐首取向由联网权威来源（《中医各家学说》十三五教材、
+ * 《四库全书总目》、各方原文功用）逐条核对，通过的记 evidence_approved（与 clinician_approved 同效）。
  *
  * 三条硬边界（与数据文件 boundaries、医师工作包任务三的承诺逐字一致）：
  *  1) 加分只作用于**候选展示顺序**（提示词候选块）。retrieveTcmFormulaCandidatesForReasoning
@@ -67,7 +69,8 @@ function sanitizedData(input: unknown): AffinityData {
 
 const DATA = sanitizedData(affinitySource);
 
-const APPROVED = "clinician_approved";
+// clinician_approved：中医师签字；evidence_approved：联网权威来源逐条核对通过（2026-09-29，owner 决定无中医师可签字）。
+const APPROVED_STATUSES = new Set(["clinician_approved", "evidence_approved"]);
 
 export interface FormulaLineageAffinity {
   lineageCode: string;
@@ -85,12 +88,12 @@ export function lineageAffinityForFormula(
   if (!formulaName || !source) return null;
   const rule = data.bookRules.find((item) => source.includes(item.book));
   if (!rule) return null;
-  const ruleApproved = rule.adjudicationStatus === APPROVED;
+  const ruleApproved = APPROVED_STATUSES.has(rule.adjudicationStatus);
   const formulaRow = rule.confirmationMode === "per_formula"
     ? data.formulaAdjudications.find((item) => item.formulaName === formulaName && item.lineageCode === rule.lineageCode)
     : undefined;
   const adjudicated = ruleApproved &&
-    (rule.confirmationMode === "rule" || formulaRow?.status === APPROVED);
+    (rule.confirmationMode === "rule" || (formulaRow !== undefined && APPROVED_STATUSES.has(formulaRow.status)));
   return {
     lineageCode: rule.lineageCode,
     lineageLabelText: lineageLabel(rule.lineageCode),

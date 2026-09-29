@@ -296,7 +296,7 @@ function controlledTreatmentPlan(
     patientAgeYears,
   );
 
-  /** 教材方案 → 卡片字段（tcm-nondrug-textbook-plan.server.ts）。证型相符 = 已按本例证型选穴/选方，配穴仍待本机构中医师终审。 */
+  /** 教材方案 → 卡片字段（tcm-nondrug-textbook-plan.server.ts）。证型相符 = 已按本例证型选穴/选方；配穴出自十三五规划教材，并经联网权威来源核对（2026-09-29）。 */
   const fromTextbook = (plan: TextbookPlan) => {
     const caseTerms = acupointCaseTerms(clinicalText, caseFacts, targetPathogenesis);
     const bodySystem = projectCode !== "auricular";
@@ -315,8 +315,10 @@ function controlledTreatmentPlan(
           role: point.role,
           sourceRefs: plan.sourceRefs,
           authorityTier: "project_governed_source",
-          adjudicationStatus: point.role === "base_point" ? "approved" as const : "pending_clinician_review" as const,
-          conflictNote: point.role === "base_point" ? null : "教材按证型/症状配穴，本机构中医师尚未逐条终审。",
+          // 教材原句 + 联网权威来源核对（~/runlogs/eval924/research、tcm-nondrug-web-sources.source.json）即为依据；
+          // 无中医师可签字，不再把教材配穴挂成「待终审」（2026-09-29 owner 决定）。
+          adjudicationStatus: "approved" as const,
+          conflictNote: null,
         }))
       : [];
     return {

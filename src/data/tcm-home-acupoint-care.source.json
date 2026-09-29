@@ -1,6 +1,6 @@
 {
  "schemaVersion": "tcm-home-acupoint-care-v1",
- "note": "居家穴位保健的受治理清单（2026-09-28 建，甲方反馈：M04 调护「穴位保健」从未出现）。\n\n【它解决什么】nonPharma.acupointCare 此前被服务端固定置空：系统只有需要医师操作的针刺、耳穴等项目目录，没有患者或家属可以居家完成的穴位保健来源，又不能让模型自由书写穴位（会绕过妊娠等禁忌核对）。\n\n【来源】首批只收《老年人中医药健康管理服务技术规范》与《0～36个月儿童中医药健康管理服务技术规范》（国家基本公共卫生服务规范配套，2013）原文：九种体质各自的保健穴、定位、手法、时长与次数（含其中给出的艾条温和灸），以及儿童按月龄的摩腹、捏脊与穴位按揉。甲方 2026-09-28 确认：首批来源采用该技术规范；艾灸纳入居家保健；运动保健单列（由 M04 按本例撰写，不在本表）。\n\n【怎么用】选穴全程确定性：已签名 M03 的病性（受控病性词表 tcm-nature-lexicon）经本表 natureToConstitution 对应到体质，取该体质的保健穴；禁忌复用 tcm-treatment-capabilities 的项目级禁忌（居家按揉按「推拿」、艾灸按「艾灸」判定，妊娠阳性/可疑、急性感染、热象等一律排除）。红旗、非全剂量方案不输出。\n\n【终审】adjudicationStatus 只有两个值：approved 可用；pending_clinician_review 运行时不应用（与 tcm-acupoint-syndrome-refinement-adjudications 同一口径）。患者可读定位由技术规范的标准定位按同身寸换算（3寸≈四横指，1.5寸≈两横指），待中医师按 GB/T 12346-2021 逐条核对签字。运维可用 CDSS_HOME_ACUPOINT_CARE=include_pending 在签字前临时启用、=off 整体关闭。",
+ "note": "居家穴位保健的受治理清单（2026-09-28 建，甲方反馈：M04 调护「穴位保健」从未出现）。\n\n【它解决什么】nonPharma.acupointCare 此前被服务端固定置空：系统只有需要医师操作的针刺、耳穴等项目目录，没有患者或家属可以居家完成的穴位保健来源，又不能让模型自由书写穴位（会绕过妊娠等禁忌核对）。\n\n【来源】首批只收《老年人中医药健康管理服务技术规范》与《0～36个月儿童中医药健康管理服务技术规范》（国家基本公共卫生服务规范配套，2013）原文：九种体质各自的保健穴、定位、手法、时长与次数（含其中给出的艾条温和灸），以及儿童按月龄的摩腹、捏脊与穴位按揉。甲方 2026-09-28 确认：首批来源采用该技术规范；艾灸纳入居家保健；运动保健单列（由 M04 按本例撰写，不在本表）。\n\n【怎么用】选穴全程确定性：已签名 M03 的病性（受控病性词表 tcm-nature-lexicon）经本表 natureToConstitution 对应到体质，取该体质的保健穴；禁忌复用 tcm-treatment-capabilities 的项目级禁忌（居家按揉按「推拿」、艾灸按「艾灸」判定，妊娠阳性/可疑、急性感染、热象等一律排除）。红旗、非全剂量方案不输出。\n\n【终审】adjudicationStatus 只有两个值：approved 可用；pending_clinician_review 运行时不应用（与 tcm-acupoint-syndrome-refinement-adjudications 同一口径）。患者可读定位由技术规范的标准定位按同身寸换算（3寸≈四横指，1.5寸≈两横指），已按十三五《经络腧穴学》《针灸学》（依 GB/T 12346-2006）与技术规范转载原文联网核对（2026-09-29）；GB/T 12346-2021 全文未取得，2021 版措辞未核。运维可用 CDSS_HOME_ACUPOINT_CARE=include_pending 在签字前临时启用、=off 整体关闭。",
  "sourceRefs": [
   {
    "id": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
@@ -50,8 +50,8 @@
   }
  ],
  "natureToConstitution": {
-  "note": "病性 id 取自 tcm-nature-lexicon。只收体质学上对应明确的病性；外感病邪（风、暑、毒）与急性状态不对应体质，命中即不输出。先看本虚（rootDeficiency），再看标实。平和质、特禀质不对应任何病性，不收。痰与热同见（痰热）不对应痰湿质。",
-  "adjudicationStatus": "pending_clinician_review",
+  "note": "病性 id 取自 tcm-nature-lexicon。只收体质学上对应明确的病性；外感病邪（风、暑、毒）与急性状态不对应体质，命中即不输出。先看本虚（rootDeficiency），再看标实。平和质、特禀质不对应任何病性，不收。痰与热同见（痰热）不对应痰湿质。\n对照标准为《中医体质分类与判定》（ZYYXH/T157-2009；2026-04-01 起升级为推荐性国家标准，9种基本类型不变，特征表述与发病倾向有更新，新版全文未核）。",
+  "adjudicationStatus": "approved",
   "deficiencyPriority": [
    {
     "natures": [
@@ -122,22 +122,22 @@
    {
     "term": "心脾两虚",
     "nature": "qi_deficiency",
-    "basis": "心脾两虚为心脾气血不足，以气虚一侧对应气虚质（技术规范无血虚质）"
+    "basis": "气血两虚=气虚+血虚（《中医诊断学》）；《中医体质分类与判定》9型中无血虚质，只有气虚一侧有对应体质，取气虚质是产品规则（技术规范允许兼夹体质参照执行），血虚一侧不产生穴位"
    },
    {
     "term": "气血两虚",
     "nature": "qi_deficiency",
-    "basis": "同上：技术规范无血虚质，气血两虚以气虚一侧对应"
+    "basis": "气血两虚=气虚+血虚（《中医诊断学》）；《中医体质分类与判定》9型中无血虚质，只有气虚一侧有对应体质，取气虚质是产品规则（技术规范允许兼夹体质参照执行），血虚一侧不产生穴位"
    },
    {
     "term": "气血亏虚",
     "nature": "qi_deficiency",
-    "basis": "同气血两虚"
+    "basis": "气血两虚=气虚+血虚（《中医诊断学》）；《中医体质分类与判定》9型中无血虚质，只有气虚一侧有对应体质，取气虚质是产品规则（技术规范允许兼夹体质参照执行），血虚一侧不产生穴位"
    },
    {
     "term": "气血不足",
     "nature": "qi_deficiency",
-    "basis": "同气血两虚"
+    "basis": "气血两虚=气虚+血虚（《中医诊断学》）；《中医体质分类与判定》9型中无血虚质，只有气虚一侧有对应体质，取气虚质是产品规则（技术规范允许兼夹体质参照执行），血虚一侧不产生穴位"
    },
    {
     "term": "肾气不足",
@@ -180,12 +180,13 @@
     "alsoNature": "heat",
     "basis": "湿热作为一个复合病性出现时同时计湿与热"
    }
-  ]
+  ],
+  "adjudicationBasis": "联网权威来源逐条核对（2026-09-29，L1）：sourceText 与《老年人/0～36个月儿童中医药健康管理服务技术规范》转载原文逐字一致；穴位定位与十三五《经络腧穴学》《针灸学》一致；同身寸换算已核；禁忌措辞对齐国家中医药管理局《护理人员中医技术使用手册》与十三五《推拿学》。owner 决定：无中医师可签字，以核对结论为准。"
  },
  "constitutions": {
   "qi_deficiency": {
    "label": "气虚质",
-   "adjudicationStatus": "pending_clinician_review",
+   "adjudicationStatus": "approved",
    "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
    "acupressure": {
     "points": [
@@ -214,11 +215,12 @@
     "method": "点燃艾条（或用温灸盒）对着穴位温灸，艾条燃着的一端与皮肤保持2～3厘米，以温热不烫为度",
     "dose": "每次10分钟，每周1次",
     "sourceText": "还可以采用艾条温和灸，增加温阳益气的作用。点燃艾条或借助温灸盒，对穴位进行温灸，每次10分钟。艾条温和灸点燃端要与皮肤保持2～3厘米的距离，不要烫伤皮肤。温和灸可每周操作1次。"
-   }
+   },
+   "adjudicationBasis": "联网权威来源逐条核对（2026-09-29，L1）：sourceText 与《老年人/0～36个月儿童中医药健康管理服务技术规范》转载原文逐字一致；穴位定位与十三五《经络腧穴学》《针灸学》一致；同身寸换算已核；禁忌措辞对齐国家中医药管理局《护理人员中医技术使用手册》与十三五《推拿学》。owner 决定：无中医师可签字，以核对结论为准。"
   },
   "yang_deficiency": {
    "label": "阳虚质",
-   "adjudicationStatus": "pending_clinician_review",
+   "adjudicationStatus": "approved",
    "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
    "acupressure": {
     "points": [
@@ -247,13 +249,14 @@
      "name": "命门",
      "region": "lumbosacral",
      "standardLocation": "腰部，当后正中线上，第2腰椎棘突下凹陷中",
-     "patientLocation": "后腰正中，约与肚脐相对的脊柱凹陷处"
+     "patientLocation": "后腰正中的脊柱上，摸到腰带（两侧髂骨最高点）水平的那节脊椎，再向上数两节，其上方的凹陷处（大致与肚脐相对，最好请家人帮忙触摸确认）"
     }
-   ]
+   ],
+   "adjudicationBasis": "联网权威来源逐条核对（2026-09-29，L1）：sourceText 与《老年人/0～36个月儿童中医药健康管理服务技术规范》转载原文逐字一致；穴位定位与十三五《经络腧穴学》《针灸学》一致；同身寸换算已核；禁忌措辞对齐国家中医药管理局《护理人员中医技术使用手册》与十三五《推拿学》。owner 决定：无中医师可签字，以核对结论为准。"
   },
   "yin_deficiency": {
    "label": "阴虚质",
-   "adjudicationStatus": "pending_clinician_review",
+   "adjudicationStatus": "approved",
    "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
    "acupressure": {
     "points": [
@@ -273,11 +276,12 @@
     "method": "用拇指或中指指腹按住穴位，轻柔缓和地打圈按揉，以感到酸胀为度",
     "dose": "每个穴位2～3分钟，每天1～2次",
     "sourceText": "采用指揉的方法（见平和质），每个穴位按揉2～3分钟，每天操作1～2次。"
-   }
+   },
+   "adjudicationBasis": "联网权威来源逐条核对（2026-09-29，L1）：sourceText 与《老年人/0～36个月儿童中医药健康管理服务技术规范》转载原文逐字一致；穴位定位与十三五《经络腧穴学》《针灸学》一致；同身寸换算已核；禁忌措辞对齐国家中医药管理局《护理人员中医技术使用手册》与十三五《推拿学》。owner 决定：无中医师可签字，以核对结论为准。"
   },
   "phlegm_dampness": {
    "label": "痰湿质",
-   "adjudicationStatus": "pending_clinician_review",
+   "adjudicationStatus": "approved",
    "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
    "acupressure": {
     "points": [
@@ -297,11 +301,12 @@
     "method": "用拇指或中指指腹按住穴位，轻柔缓和地打圈按揉，以感到酸胀为度",
     "dose": "每个穴位2～3分钟，每天1～2次",
     "sourceText": "采用指揉法（见平和质）。（平和质：用大拇指或中指指腹按压穴位，做轻柔缓和的环旋活动，以穴位感到酸胀为度，按揉2～3分钟。每天操作1～2次。）"
-   }
+   },
+   "adjudicationBasis": "联网权威来源逐条核对（2026-09-29，L1）：sourceText 与《老年人/0～36个月儿童中医药健康管理服务技术规范》转载原文逐字一致；穴位定位与十三五《经络腧穴学》《针灸学》一致；同身寸换算已核；禁忌措辞对齐国家中医药管理局《护理人员中医技术使用手册》与十三五《推拿学》。owner 决定：无中医师可签字，以核对结论为准。"
   },
   "damp_heat": {
    "label": "湿热质",
-   "adjudicationStatus": "pending_clinician_review",
+   "adjudicationStatus": "approved",
    "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
    "acupressure": {
     "points": [
@@ -314,26 +319,27 @@
      {
       "name": "阴陵泉",
       "region": "limb",
-      "standardLocation": "小腿内侧，当胫骨内侧髁后下方凹陷处",
+      "standardLocation": "小腿内侧，胫骨内侧髁下缘与胫骨内侧缘之间的凹陷中",
       "patientLocation": "小腿内侧，膝盖下方小腿骨内侧突起下缘的凹陷处"
      }
     ],
     "method": "用拇指或中指指腹按住穴位，轻柔缓和地打圈按揉，以感到酸胀为度",
     "dose": "每个穴位2～3分钟，每天1～2次",
     "sourceText": "采用指揉法（见平和质）。（刮痧为技术规范可选方法，居家患者不收）"
-   }
+   },
+   "adjudicationBasis": "联网权威来源逐条核对（2026-09-29，L1）：sourceText 与《老年人/0～36个月儿童中医药健康管理服务技术规范》转载原文逐字一致；穴位定位与十三五《经络腧穴学》《针灸学》一致；同身寸换算已核；禁忌措辞对齐国家中医药管理局《护理人员中医技术使用手册》与十三五《推拿学》。owner 决定：无中医师可签字，以核对结论为准。"
   },
   "blood_stasis": {
    "label": "血瘀质",
-   "adjudicationStatus": "pending_clinician_review",
+   "adjudicationStatus": "approved",
    "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
    "acupressure": {
     "points": [
      {
       "name": "期门",
       "region": "chest",
-      "standardLocation": "胸部，当乳头直下，第6肋间隙，前正中线旁开4寸",
-      "patientLocation": "胸部，乳头正下方、往下数第2个肋骨间隙处"
+      "standardLocation": "胸部，第6肋间隙，前正中线旁开4寸（男性乳头直下；女性在锁骨中线与第6肋间隙交点处）",
+      "patientLocation": "胸部：男性在乳头正下方、从乳头所在的肋间隙再往下数两个肋间隙处；女性不以乳房位置为准，从锁骨中点垂直向下，数到同一个（第6）肋间隙处"
      },
      {
       "name": "血海",
@@ -345,11 +351,12 @@
     "method": "用拇指或中指指腹按住穴位，轻柔缓和地打圈按揉，以感到酸胀为度",
     "dose": "每个穴位2～3分钟，每天1～2次",
     "sourceText": "采用指揉法（见平和质）。"
-   }
+   },
+   "adjudicationBasis": "联网权威来源逐条核对（2026-09-29，L1）：sourceText 与《老年人/0～36个月儿童中医药健康管理服务技术规范》转载原文逐字一致；穴位定位与十三五《经络腧穴学》《针灸学》一致；同身寸换算已核；禁忌措辞对齐国家中医药管理局《护理人员中医技术使用手册》与十三五《推拿学》。owner 决定：无中医师可签字，以核对结论为准。"
   },
   "qi_stagnation": {
    "label": "气郁质",
-   "adjudicationStatus": "pending_clinician_review",
+   "adjudicationStatus": "approved",
    "sourceRef": "SRC-NHC-ELDERLY-TCM-HEALTH-MGMT-TECH-2013",
    "acupressure": {
     "points": [
@@ -369,11 +376,12 @@
     "method": "用拇指或中指指腹按住穴位，轻柔缓和地打圈按揉，以感到酸胀为度",
     "dose": "每个穴位2～3分钟，每天1～2次",
     "sourceText": "采用指揉的方法（见平和质）。"
-   }
+   },
+   "adjudicationBasis": "联网权威来源逐条核对（2026-09-29，L1）：sourceText 与《老年人/0～36个月儿童中医药健康管理服务技术规范》转载原文逐字一致；穴位定位与十三五《经络腧穴学》《针灸学》一致；同身寸换算已核；禁忌措辞对齐国家中医药管理局《护理人员中医技术使用手册》与十三五《推拿学》。owner 决定：无中医师可签字，以核对结论为准。"
   }
  },
  "children": {
-  "adjudicationStatus": "pending_clinician_review",
+  "adjudicationStatus": "approved",
   "sourceRef": "SRC-NHC-CHILD-TCM-HEALTH-MGMT-TECH-2013",
   "bands": [
    {
@@ -420,11 +428,12 @@
     ]
    }
   ],
-  "cautions": "手法要柔和，操作前洗手、修剪指甲，天冷先把手搓热；局部皮肤破损或骨折处不要按揉。居家保健只作辅助，不能代替治疗。"
+  "cautions": "手法要柔和，操作前洗手、修剪指甲，天冷先把手搓热；局部皮肤破损或骨折处不要按揉。居家保健只作辅助，不能代替治疗。",
+  "adjudicationBasis": "联网权威来源逐条核对（2026-09-29，L1）：sourceText 与《老年人/0～36个月儿童中医药健康管理服务技术规范》转载原文逐字一致；穴位定位与十三五《经络腧穴学》《针灸学》一致；同身寸换算已核；禁忌措辞对齐国家中医药管理局《护理人员中医技术使用手册》与十三五《推拿学》。owner 决定：无中医师可签字，以核对结论为准。"
  },
  "cautions": {
-  "acupressure": "饭后1小时内不宜按揉；局部皮肤破损、红肿或感染处不要按揉；有出血倾向或正在服用抗凝、抗血小板药物者请先咨询医生。居家保健只作辅助，不能代替治疗；按揉后如有不适请停止。",
-  "moxibustion": "艾灸时注意防火防烫伤，灸后局部皮肤微红属正常；如起小水疱不要挑破，较大水疱请到医院处理。发热、皮肤破损处不要灸；糖尿病、手脚感觉减退或有出血倾向者，灸前请先咨询医生。"
+  "acupressure": "宜在饭后1～2小时再按揉，过饥、过饱或过度劳累时不宜按揉；局部皮肤破损、红肿或感染处不要按揉；有出血倾向的血液病患者不宜自行按揉，正在服用抗凝、抗血小板药物者请先咨询医生。居家保健只作辅助，不能代替治疗；按揉后如有不适请停止。",
+  "moxibustion": "艾灸时注意防火防烫伤，灸后局部皮肤微红属正常；如起小水疱不要挑破，较大水疱请到医院处理。发热、皮肤破损处不要灸；有出血倾向者不宜艾灸；糖尿病、手脚感觉减退者灸时要特别注意防烫伤，灸前请先咨询医生。空腹或饭后一小时左右不宜艾灸。"
  },
  "pregnancyUnresolved": {
   "excludedPoints": [

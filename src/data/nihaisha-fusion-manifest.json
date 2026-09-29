@@ -32,8 +32,8 @@
     },
     {
       "path": "src/data/tcm-formula-governed-catalog.json",
-      "sha256": "e2b92dde1c6f609fef84357d8171212898c2843e8816608e50304b8fc342cde8",
-      "records": 2969
+      "sha256": "4756d9643c530e2762f16d6ae8272fd7827baf47122936b07d9e80488ca56a8d",
+      "records": 2975
     }
   ],
   "evidence": {
@@ -155,8 +155,8 @@
       "bytes": 310434
     },
     "tcm-formula-composition-rules.json": {
-      "sha256": "5b06a6b4f26ee65de192b630cd013fd218a8773077fb0051669792d14245f7b0",
-      "bytes": 116952
+      "sha256": "8220bec6d638d60fe38a98d4f3f37f4f0e9615425152175dfddd30ebe422ea4d",
+      "bytes": 117606
     },
     "tcm-textual-modification-rules.json": {
       "sha256": "bb1cb07c69fcb704a5479fbb3ce3dd6516ad0fa3fb70e8ed665eed4dfb01b31b",

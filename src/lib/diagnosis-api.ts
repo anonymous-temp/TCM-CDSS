@@ -124,6 +124,23 @@ export const M04_ORCHESTRATION_DEADLINE_MS = (() => {
   return Number.isFinite(value) && value >= 60_000 && value <= 180_000 ? Math.round(value) : 180_000;
 })();
 
+/**
+ * 甲方 HIS 对单次调用的等待是 30 秒（9/24 0059：第 30.2 秒断开）。首轮生成约 11 秒，一轮定向修复 4–9 秒，
+ * 所以**开始**新一轮修复的时刻晚于此值就必然压线。过了这个点不再开新的修复轮，按「修复机会用尽」交付：
+ * 质量类问题带批注受理，T1 类问题走非剂量投影（药味与方义照常可见）——与修复耗尽后的既有出口完全相同，
+ * 只是不再为一次不确定的修复搭上「HIS 已断开」的风险。65 例实测尾部：p95 19–22s，最长 27.8s（首轮 + 同模型重抽）。
+ * `M04_REPAIR_START_CUTOFF_MS` 可调（8–180 秒），设为 180000 即等同关闭。
+ */
+export const M04_REPAIR_START_CUTOFF_MS = (() => {
+  const value = Number(process.env.M04_REPAIR_START_CUTOFF_MS || 20_000);
+  return Number.isFinite(value) && value >= 8_000 && value <= 180_000 ? Math.round(value) : 20_000;
+})();
+
+/** Pure predicate, exported for unit tests. */
+export function m04RepairStartCutoffReached(requestStartedAt: number, now: number): boolean {
+  return now - requestStartedAt >= M04_REPAIR_START_CUTOFF_MS;
+}
+
 /** Pure predicate, exported for unit tests. */
 export function m04OrchestrationDeadlineExpired(requestStartedAt: number, now: number): boolean {
   return now - requestStartedAt >= M04_ORCHESTRATION_DEADLINE_MS;
@@ -2850,6 +2867,20 @@ async function callPrimaryTextModelStream(
       };
       let m04LastRepairTriggerReason: string | undefined;
       let m04RepairLoopEarlyExit = false;
+      // 开新修复轮之前的「等得起」判据（见 M04_REPAIR_START_CUTOFF_MS）。只管**修复轮**，
+      // 首轮失败后的严格兜底/同模型重抽是拿不到任何输出时的唯一出路，不受它限制。
+      const m04RepairStartCutoffGate = (): boolean => {
+        if (opts.structuredStage !== "prescribe") return false;
+        if (!m04RepairStartCutoffReached(effectiveOrchestrationStartedAt, Date.now())) return false;
+        if (!m04RepairLoopEarlyExit) {
+          m04RepairLoopEarlyExit = true;
+          console.warn("[tcm-cdss:model] M04 repair start cutoff reached; delivering without another repair round", {
+            elapsedMs: Date.now() - effectiveOrchestrationStartedAt,
+            cutoffMs: M04_REPAIR_START_CUTOFF_MS,
+          });
+        }
+        return true;
+      };
       const noteM04RepairLoopFixpoint = (rejectionReason: string) => {
         m04RepairLoopEarlyExit = true;
         console.warn("[tcm-cdss:model] M04 repair reached identical-guidance fixpoint; exiting repair loop early", {
@@ -4021,7 +4052,8 @@ async function callPrimaryTextModelStream(
           !pendingQualityRepairUnavailable &&
           !m04RepairLoopEarlyExit &&
           !m03OrchestrationDeadlineGate() &&
-          !m04OrchestrationDeadlineGate()
+          !m04OrchestrationDeadlineGate() &&
+          !m04RepairStartCutoffGate()
         ) {
           const rejectionReason = pendingRejectionReason as string;
           noteContractRepair(rejectionReason);
@@ -4215,7 +4247,7 @@ async function callPrimaryTextModelStream(
                 targetedM04Retry = false;
                 noteM04RepairLoopFixpoint(retryRejectionReason);
               }
-              if (targetedM04Retry && m04OrchestrationDeadlineGate()) targetedM04Retry = false;
+              if (targetedM04Retry && (m04OrchestrationDeadlineGate() || m04RepairStartCutoffGate())) targetedM04Retry = false;
               let targetedM03Retry = opts.structuredStage === "diagnose" && shouldRunTargetedStructuredRetry("diagnose", retryRejectionReason);
               if (!qualityRepairAvailable(retryRejectionReason)) {
                 targetedM04Retry = false;

@@ -209,6 +209,58 @@ function text(value: unknown): string {
   return factText(typeof value === "string" ? sanitizeGeneratedSuggestionPreviewText(value) : value);
 }
 
+/**
+ * 非剂量页的结构化副本（2026-09-29，甲方 9.24/9.27：「饮片暂未生成」）。
+ *
+ * 红旗未解除、儿童、妊娠/哺乳阳性时 M04 按独立硬边界只给**非剂量**页：药味与方义在正文里，但没有
+ * DIAGNOSIS_JSON 区块，HIS 只认那个区块，于是页面上明明有候选方，HIS 里却是「暂未生成」，
+ * 而且没有任何结构化字段说明为什么。这里另加一个**独立的**区块（不同的哨兵，现有解析方不认识、不受影响）：
+ *   · 只含药味、君臣佐使、功用、方义、适用/不适用，不含剂量、煎服法、疗程；
+ *   · `adoptable:false`，不签名，不能写回处方；
+ *   · `reasonCode` 与 `doseWithheldReasons` 说明为什么没有剂量。
+ * 字符串统一过「非剂量掩码」，并转义尖括号，保证不会提前闭合 HTML 注释。
+ */
+// 整个区块是**一条** HTML 注释（`<!-- CDSS_NON_DOSE_CANDIDATE_JSON:{…} -->`）：DIAGNOSIS_JSON 那种「两条注释夹一段文本」的形态
+// 靠前端专门剥离，新区块前端不认识，夹在中间的 JSON 会当正文显示给医生。JSON 里的「-」「<」「>」全部转成 \\uXXXX，
+// 保证注释不会被提前闭合（HTML 注释里不能出现「--」「-->」）。
+export const NON_DOSE_CANDIDATE_JSON_PREFIX = "<!-- CDSS_NON_DOSE_CANDIDATE_JSON:";
+export const NON_DOSE_CANDIDATE_JSON_SUFFIX = " -->";
+
+function nonDoseCandidateJsonBlock(
+  candidates: ReadonlyArray<{
+    name?: unknown; formulaAnalysis?: unknown; applicable?: unknown; notApplicable?: unknown;
+    herbs?: ReadonlyArray<{ name?: unknown; role?: unknown; function?: unknown; targetPathogenesis?: unknown }>;
+  }>,
+  reasonCode: string,
+  doseWithheldReasons: readonly string[],
+): string {
+  const clean = (value: unknown): string => typeof value === "string"
+    ? sanitizeGeneratedSuggestionPreviewText(value).replace(/\s+/g, " ").trim()
+    : "";
+  const payload = {
+    schemaVersion: "tcm-cdss-non-dose-candidate-v1",
+    adoptable: false,
+    reasonCode,
+    doseWithheldReasons: doseWithheldReasons.map(clean).filter(Boolean),
+    candidates: candidates.map((candidate) => ({
+      name: clean(candidate.name),
+      herbs: (candidate.herbs || []).map((herb) => ({
+        name: clean(herb.name),
+        role: clean(herb.role),
+        function: clean(herb.function),
+        targetPathogenesis: clean(herb.targetPathogenesis),
+      })).filter((herb) => herb.name),
+      formulaAnalysis: clean(candidate.formulaAnalysis),
+      applicable: clean(candidate.applicable),
+      notApplicable: clean(candidate.notApplicable),
+    })).filter((candidate) => candidate.name && candidate.herbs.length > 0),
+  };
+  if (payload.candidates.length === 0) return "";
+  const json = JSON.stringify(payload)
+    .replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/-/g, "\\u002d");
+  return `${NON_DOSE_CANDIDATE_JSON_PREFIX}${json}${NON_DOSE_CANDIDATE_JSON_SUFFIX}`;
+}
+
 /** A read-only non-dose projection, or the exact already-signed completed candidate. */
 export function renderM04DeliveryCheckpoint(
   checkpoint: M04DeliveryCheckpoint | undefined,
@@ -282,5 +334,11 @@ export function renderM04DeliveryCheckpoint(
   if (findingsSection) lines.push("", findingsSection);
   const care = checkpoint.reasoning.nonPharma;
   if (care) lines.push("", "## 已生成的健康调护建议", ...[care.diet, care.lifestyle, care.exercise, care.emotion, care.acupointCare, ...care.precautions].filter(Boolean).map(text));
+  const structuredCopy = nonDoseCandidateJsonBlock(
+    checkpoint.reasoning.formula?.candidates || [],
+    reason === "dose_withheld" ? "dose_authorization_withheld" : "m04_candidate_retained_non_dose",
+    doseWithheldReasons,
+  );
+  if (structuredCopy) lines.push("", structuredCopy);
   return lines.filter((line) => line !== "").join("\n\n");
 }

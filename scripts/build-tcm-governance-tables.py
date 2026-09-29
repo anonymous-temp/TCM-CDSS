@@ -62,7 +62,7 @@ SYNDROME_TAG_ADJUDICATION_FLOOR = 488  # 233(B1) + 255(B2)
 # 不能全局归一：同一个「芍药」在桂枝汤里是白芍、在排脓散里是赤芍，猜错等于开错方向相反的药。
 # 因此这张表是 (方名, 原文药名) → 品种，而不是药名→药名。
 INGREDIENT_IDENTITY_ADJUDICATIONS = DATA_ROOT / "tcm-formula-ingredient-identity-adjudications.source.json"
-INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 172  # 76(B1) + 78(B2) + 18(B2-芍药 20260809)
+INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 173  # 76(B1) + 78(B2) + 18(B2-芍药 20260809) + 1(清燥救肺汤胡麻仁 20260929)
 # 同名异方变体表(ADJ-HOMONYM-20260725):历史并存的不同方两版并存为不同身份(加味逍遥散模式)。
 HOMONYM_VARIANTS = DATA_ROOT / "tcm-formula-homonym-variants.source.json"
 # 目录条目级校勘通道(ADJ-COLLATION-20260809):新增 / 组成重录 / 章节伪方删除。
