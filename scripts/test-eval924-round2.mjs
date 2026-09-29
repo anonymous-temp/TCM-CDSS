@@ -280,6 +280,15 @@ await check("7.4 M03 真实输出里的同类误伤（宗筋失于充养、和�
   }
 });
 
+await check("8.1 强制工具调用的终态 tool_calls 视同 stop（否则被接受的工具重试结果在终态门口被拒，M03 落成「症状级工作判断」）；非权威终态原样保留", () => {
+  assert.equal(api.strictToolFinishReason("tool_calls"), "stop");
+  assert.equal(api.strictToolFinishReason("stop"), "stop");
+  for (const raw of ["length", "content_filter", "function_call", null, undefined]) {
+    assert.equal(api.strictToolFinishReason(raw), raw ?? null, `${raw} 不得被改写`);
+  }
+  assert.match(source("src/lib/diagnosis-api.ts"), /finishReason: strictToolFinishReason\(result\.choices\?\.\[0\]\?\.finish_reason \?\? null\)/, "工具重试的返回值必须过这道归一");
+});
+
 if (failures.length > 0) console.error(JSON.stringify({ failures }, null, 2));
 assert.equal(failures.length, 0, `甲方测评整改第二轮回归失败 ${failures.length} 项`);
 console.log(JSON.stringify({ checks, failures: 0 }));

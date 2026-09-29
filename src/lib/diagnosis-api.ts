@@ -2139,6 +2139,11 @@ async function firstAcceptedStructuredCompletion(
  * Qwen 严格兜底之前（依据与边界见 model-response-format 的 STRICT_TOOL_RETRY_TASKS 说明）。
  * 返回的 content 是回映射到严格供应商 schema 形状的 JSON 文本，调用方照常走同一套解析与校验。
  */
+/** 强制工具调用的正常终态 tool_calls 视同 stop；length / content_filter / null 等仍是非权威终态，原样返回。 */
+export function strictToolFinishReason(raw: string | null | undefined): string | null {
+  return raw === "tool_calls" ? "stop" : raw ?? null;
+}
+
 async function requestStructuredToolCompletion(args: {
   model: string;
   prompt: string;
@@ -2214,7 +2219,10 @@ async function requestStructuredToolCompletion(args: {
     if (mapped.repairs.length > 0) {
       console.info("[tcm-cdss:model] strict tool arguments normalized", { stage, task, model, repairs: mapped.repairs.join("; ") });
     }
-    return { ok: true, content: JSON.stringify(mapped.value), finishReason: result.choices?.[0]?.finish_reason ?? null, model };
+    // 强制工具调用的正常终态就是 finish_reason=tool_calls（不是 stop）。调用方之后的终态门只认 stop/length，
+    // 不归一会让**已被接受**的工具重试结果在门口被当成非权威终态：M03 落成「症状级工作判断」的有限结果，
+    // M04 拿不到可用辨证（2026-09-29 本机 65 例 D 臂 tcm16：M03 28 秒后 finish_tool_calls 被拒，整例无饮片）。
+    return { ok: true, content: JSON.stringify(mapped.value), finishReason: strictToolFinishReason(result.choices?.[0]?.finish_reason ?? null), model };
   } catch (error) {
     return {
       ok: false,
