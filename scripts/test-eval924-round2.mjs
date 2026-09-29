@@ -233,6 +233,53 @@ await check("6.4 没有候选（deadline/上游不可用）时不产生副本—
   assert.equal(readBlock(page), null);
 });
 
+// ── 7 PHI 脱敏不得吃掉临床词形（M04 无饮片的又一个根因） ─────────────────────────────
+// 2026-09-29 本机复现：M03 病机写「患者高龄，受凉后…」，送 M04 时关系前缀规则把「高龄」当成姓「高」+名「龄」抹成
+// 「患者[姓名已脱敏]，」，M04 抄回被改写的病机，与已签名 M03 逐字不符 → pathogenesis_drift（T1）→ 整份候选收回，HIS 无饮片
+// （tcm31 同病例 4 次里 3 次；生产 A 臂同样 0 味）。层归属：确定性脱敏层的词形误伤（不是模型、不是合同）。
+const phi = jiti("../src/lib/phi-sanitizer.ts");
+await check("7.1 关系/主语前缀 + 姓氏字开头的临床词形不再被当姓名抹掉（高龄、高血压…）；此前 3 处都被抹", () => {
+  for (const text of ["患者高龄，受凉后风寒湿邪外袭，留着于双手近端指间关节", "本例高龄患者，舌淡红苔薄白", "患者高血压，服药规律", "家属诉患者老年起病"]) {
+    assert.equal(phi.scrubSubjectPrefixedName(phi.scrubRelationPrefixedName(text)), text, `不应改写：${text}`);
+  }
+});
+
+await check("7.2 反证（隐私）：真姓名照旧被抹——姓氏 × 常见名 × 既有叙述句式，一个都不能漏", () => {
+  const surnames = ["高", "王", "张", "李", "刘", "陈", "杨", "赵"];
+  const givens = ["伟", "强", "明", "峰", "丽", "敏", "勇", "静", "军", "磊"];
+  const lexemes = new Set(JSON.parse(readFileSync(new URL("../src/data/phi-clinical-lexemes.json", import.meta.url), "utf8")).terms);
+  let checked = 0;
+  for (const surname of surnames) for (const given of givens) {
+    const name = `${surname}${given}`;
+    assert.ok(!lexemes.has(name), `${name} 不应在临床词形闭集里（否则会豁免真姓名）`);
+    for (const [template, scrub] of [
+      [`家属${name}代述病情`, phi.scrubRelationPrefixedName],
+      [`患者${name}，男，45岁`, phi.scrubRelationPrefixedName],
+      [`本例${name}既往有高血压`, phi.scrubSubjectPrefixedName],
+    ]) {
+      assert.doesNotMatch(scrub(template), new RegExp(name), `姓名泄漏：${template}`);
+      checked += 1;
+    }
+  }
+  assert.ok(checked >= 240);
+});
+
+await check("7.3 端到端：M03→M04 的病机文字经脱敏后逐字不变，pathogenesis_drift 不再被自己触发", () => {
+  const pathogenesis = "患者高龄，受凉后风寒湿邪外袭，留着于双手近端指间关节筋骨，湿性重着黏滞，故关节肿胀晨僵";
+  const scrubbed = phi.scrubSubjectPrefixedName(phi.scrubRelationPrefixedName(pathogenesis));
+  assert.equal(scrubbed, pathogenesis);
+});
+
+const safetyModule = jiti("../src/lib/diagnosis-safety.ts");
+await check("7.4 M03 真实输出里的同类误伤（宗筋失于充养、和络止头痛）不再被抹；同姓真姓名照旧被抹（反证）", () => {
+  for (const text of ["宗筋失于充养，故见阴茎勃起不坚", "次要:和络止头痛，并进一步明确", "宗气不足，卫表失和"]) {
+    assert.equal(safetyModule.sanitizeFreeTextForModel(text), text, `不应改写：${text}`);
+  }
+  for (const text of ["本例宗强诉头痛3天", "患者和平，男，45岁，头痛"]) {
+    assert.doesNotMatch(safetyModule.sanitizeFreeTextForModel(text), /宗强|和平/, `姓名泄漏：${text}`);
+  }
+});
+
 if (failures.length > 0) console.error(JSON.stringify({ failures }, null, 2));
 assert.equal(failures.length, 0, `甲方测评整改第二轮回归失败 ${failures.length} 项`);
 console.log(JSON.stringify({ checks, failures: 0 }));

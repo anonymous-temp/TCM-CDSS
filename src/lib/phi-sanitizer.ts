@@ -110,7 +110,8 @@ export function shouldRedactNarrativeNameCandidate(candidate: string, precedingC
 
 export function scrubSubjectPrefixedName(text: string, marker = "[姓名已脱敏]"): string {
   return String(text || "").replace(SUBJECT_PREFIXED_NAME, (match, prefix: string, candidate: string) =>
-    isClinicalTemporalPhrase(candidate) ? match : `${prefix}${marker}`);
+    // 已知临床词形（高龄、高血压…）不是姓名：主语前缀 + 姓氏字开头的临床词曾被整段抹掉（2026-09-29）
+    isClinicalTemporalPhrase(candidate) || CLINICAL_NAME_COLLISIONS.has(candidate) ? match : `${prefix}${marker}`);
 }
 
 /**
@@ -125,14 +126,18 @@ export function scrubSubjectPrefixedName(text: string, marker = "[姓名已脱�
  */
 const RELATION_PREFIXED_NAME = new RegExp(
   "(患者|家属|联系人|陪同者|监护人|医生|医师)\\s*[:：]?\\s*"
-  + `(?:${CHINESE_COMPOUND_SURNAME.source}|${CHINESE_SURNAME.source})`
-  + "[\\u4e00-\\u9fa5]{1,2}"
+  + `((?:${CHINESE_COMPOUND_SURNAME.source}|${CHINESE_SURNAME.source})`
+  + "[\\u4e00-\\u9fa5]{1,2})"
   + "(?=[，,；。\\s]|男|女|\\d{1,3}\\s*岁|反映|诉|称|表示|告知|建议|记录|代述|转述|追述|复述|补充|陪同|签字|提供|同意|拒绝)",
   "g",
 );
 
 export function scrubRelationPrefixedName(text: string, marker = "[姓名已脱敏]"): string {
-  return String(text || "").replace(RELATION_PREFIXED_NAME, `$1${marker}`);
+  // 关系前缀 + 姓氏字开头的**已知临床词形**（患者高龄，/患者高血压，）不是姓名。此前这条规则没有临床词形豁免，
+  // 「患者高龄，受凉后…」被抹成「患者[姓名已脱敏]，…」，M04 抄回被改写的病机与已签名 M03 对不上（pathogenesis_drift）。
+  // 姓名候选仍是「姓氏 ∩ 上下文」，只对闭集临床词形（phi-clinical-lexemes）让路；姓氏×常见名的反证见 test:eval924-round2。
+  return String(text || "").replace(RELATION_PREFIXED_NAME, (match, prefix: string, candidate: string) =>
+    CLINICAL_NAME_COLLISIONS.has(candidate) ? match : `${prefix}${marker}`);
 }
 
 /**
