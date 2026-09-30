@@ -37,9 +37,13 @@ function check(name, fn) {
 }
 
 /** 目录里实测出现过的 45 个残片，全部来自真实构建产物，不是手写样例。 */
-const OBSERVED_FRAGMENTS = [...new Set(
-  catalog.entries.flatMap((entry) => entry.corruptIngredientNames || []),
-)].sort();
+// 2026-09-30：59 条含残片的条目经联网原文核对已修复，目录里现存的残片只剩十余个（多为原书本就写单字的真药味）。
+// 样本不能随目录变干净而缩水——把当时观察到的 43 个残片固定成常量并集进来，判据仍要对整批历史残片成立。
+const HISTORICAL_FRAGMENTS = ["桂", "硝", "米", "黄", "砂", "砒", "粉", "曲", "鸡", "蒴", "水", "叶", "梨", "绢", "生", "身", "茶", "白", "汤", "用", "坯", "蝎", "连", "铁", "豉", "草", "马", "银", "粟", "椒", "灰", "皮", "腊", "麦", "芎", "盐", "荠", "蟹", "酒", "铅", "锡", "鸭", "葱"];
+const OBSERVED_FRAGMENTS = [...new Set([
+  ...HISTORICAL_FRAGMENTS,
+  ...catalog.entries.flatMap((entry) => entry.corruptIngredientNames || []),
+])].sort();
 
 /** 正常饮片名：这条规则不得误伤它们，尤其是那 4 个曾被残片错误命中的目标药。 */
 const LEGITIMATE_HERBS = [

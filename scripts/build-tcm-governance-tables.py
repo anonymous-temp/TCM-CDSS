@@ -62,7 +62,7 @@ SYNDROME_TAG_ADJUDICATION_FLOOR = 488  # 233(B1) + 255(B2)
 # 不能全局归一：同一个「芍药」在桂枝汤里是白芍、在排脓散里是赤芍，猜错等于开错方向相反的药。
 # 因此这张表是 (方名, 原文药名) → 品种，而不是药名→药名。
 INGREDIENT_IDENTITY_ADJUDICATIONS = DATA_ROOT / "tcm-formula-ingredient-identity-adjudications.source.json"
-INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 173  # 76(B1) + 78(B2) + 18(B2-芍药 20260809) + 1(清燥救肺汤胡麻仁 20260929)
+INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 237  # 76(B1) + 78(B2) + 18(B2-芍药 20260809) + 1(清燥救肺汤胡麻仁 20260929) + 64(ADJ-WEB-20260930-IDENTITY 裸药名联网回源)
 # 同名异方变体表(ADJ-HOMONYM-20260725):历史并存的不同方两版并存为不同身份(加味逍遥散模式)。
 HOMONYM_VARIANTS = DATA_ROOT / "tcm-formula-homonym-variants.source.json"
 # 目录条目级校勘通道(ADJ-COLLATION-20260809):新增 / 组成重录 / 章节伪方删除。
@@ -892,6 +892,11 @@ def resolve_catalog_removals(
 # 但一个 32 味的章节合抄组成绝不能拿去命名或编译剂量——实测其中 10 条此前可剂量编译。
 FORMULA_DOSAGE_FORM_SUFFIX = re.compile(r"(?:汤|丸|散|膏|丹|饮|煎|酒|片|胶囊|颗粒|锭|饼|栓|露|浆|油|汁|茶|锭子)$")
 COLLATED_CHAPTER_ENUMERATION = re.compile(r"[及并、]|诸")
+# 章节标题式名称（「治牙齿病方」「治众蛇螫人方」）：原书用它给一节几十条单方起标题，不是任何一首方的专名。
+# 只靠枚举词（及/并/、/诸）认章节会漏掉这类——2026-09-30 联网核对 59 条含解析残片的条目，12 条是这种合抄，
+# 其中 9 条名字里没有枚举词、组成 5–25 味且仍具方名锁定与检索资格（治牙齿病方 25 味 = 十余个牙痛方并成一份）。
+# 与枚举词是「或」的关系：命中任一即按章节处理，仍要满足下面的最小味数（小于它的更可能是真单方）。
+COLLATED_CHAPTER_HEADING_NAME = re.compile(r"^(?:治|主治|疗|疗治|论治)[^〔（(]{2,30}方$")
 COLLATED_CHAPTER_MIN_INGREDIENTS = 8
 
 
@@ -932,7 +937,7 @@ def is_collated_chapter_entry(name: str, ingredients: list[object]) -> bool:
         return False
     if not (name or "").endswith("方"):
         return False
-    if not COLLATED_CHAPTER_ENUMERATION.search(name):
+    if not (COLLATED_CHAPTER_ENUMERATION.search(name) or COLLATED_CHAPTER_HEADING_NAME.match(name)):
         return False
     return len(ingredients or []) >= COLLATED_CHAPTER_MIN_INGREDIENTS
 
@@ -1971,7 +1976,11 @@ def build_formula_catalog(
         unresolved_ingredients = [
             link["rawName"] for link in ingredient_links
             if not link.get("autoResolvable")
-            and not is_variety_forked_link(link)
+            # 身份分叉且至少两个候选 → 走「品种待指定」通道；没有候选的「封闭」身份（关木通/广防己/雷公藤/
+            # 莽草/蜘蛛…被明令不可自动落药的药）不是「品种待选」而是「这一味不能由系统落药」，
+            # 必须像 unmapped 一样阻断剂量编译。2026-09-30 之前它们既不进这里、也进不了 variety_undetermined，
+            # 含它们的方悄悄保持 doseCompilationEligible=true，与运行时闸门不一致。
+            and (not is_variety_forked_link(link) or len(variety_candidate_names(link.get("rawName"), resolution_index)) < 2)
             and not is_dose_exempt_link(link, clinician_dose_names)
         ]
         # 单字药名不是「解析不出剂量」，是**数据缺陷**：源书为 GB18030，古籍生僻字（如黄芪的「耆」）
@@ -2577,10 +2586,12 @@ def main() -> None:
     }
     write_json(MANIFEST_OUTPUT, manifest)
     dropped_mismatch = formula_catalog["summary"].get("nameCompositionMismatchDropped") or []
+    # 章节合抄伪方（collatedChapterDropped）同理：标签是按「一个方」打的，方本身其实是一节多首单方，标签随之失效。
+    dropped_chapter = formula_catalog["summary"].get("collatedChapterDropped") or []
     # 被剔除的方带走的人工证候标签裁定。这些是真人逐条做过的工作，随方失效是正确的
-    # （方本身组成错配/截断），但必须看得见——本仓库最怕的就是「人工判断静默失效」。
-    if dropped_mismatch:
-        dropped_names = {key.split("@")[0] for key in dropped_mismatch}
+    # （方本身组成错配/截断/是章节标题），但必须看得见——本仓库最怕的就是「人工判断静默失效」。
+    if dropped_mismatch or dropped_chapter:
+        dropped_names = {key.split("@")[0] for key in [*dropped_mismatch, *dropped_chapter]}
         orphaned = sorted({
             compact(row.get("name"))
             for row in read_json(SYNDROME_TAG_ADJUDICATIONS).get("entries", [])
@@ -2591,9 +2602,9 @@ def main() -> None:
                 "warning": "curated_syndrome_tags_orphaned_by_drop",
                 "count": len(orphaned),
                 "entries": orphaned,
-                "note": "这些方因名实核定被整条剔除，其人工证候标签裁定随之失效。"
+                "note": "这些方因名实核定或章节合抄核定被整条剔除，其人工证候标签裁定随之失效。"
                         "源表里的行仍在（是人工判断的记录），但不再生效。"
-                        "若日后经药师终审恢复该方，这些标签会自动重新生效。",
+                        "若日后回源核对后恢复该方，这些标签会自动重新生效。",
             }, ensure_ascii=False))
     if dropped_mismatch:
         print(json.dumps({
@@ -2619,7 +2630,7 @@ def main() -> None:
             "info": "entries_dropped_collated_chapter_split",
             "count": len(collated_dropped),
             "entries": collated_dropped,
-            "note": "章节题被抽取程序压成单方，已按中医师校勘结论删除并拆为具名子方。"
+            "note": "章节题被抽取程序压成单方，已按原文级校勘结论删除（能拆的另立具名子方，不能拆的不收）。"
                     "见 tcm-formula-catalog-collation.source.json 的 removals。",
         }, ensure_ascii=False))
     quarantined = formula_catalog["summary"].get("collatedChapterQuarantined") or []
@@ -2630,7 +2641,7 @@ def main() -> None:
             "entries": quarantined,
             "note": "结构上与已核定的章节伪方同类（方名带枚举标记的「…方」且组成≥8味），"
                     "但未逐条回源核过，因此**只取消方名与剂量资格、不删除**。"
-                    "待中医师按章节边界拆分后回填；在此之前它们不会命名处方、不会编译剂量、"
+                    "待回源按章节边界拆分后回填；在此之前它们不会命名处方、不会编译剂量、"
                     "也不会作为证据进入 M03/M04 上下文。",
         }, ensure_ascii=False))
     renamed = formula_catalog["summary"].get("nameCompositionRenamed") or []

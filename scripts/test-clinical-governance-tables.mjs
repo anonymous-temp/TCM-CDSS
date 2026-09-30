@@ -494,7 +494,8 @@ let routeRejectedAdjudications = 0;
 // 见 tcm-formula-name-composition-adjudications.source.json 与构建告警
 // entries_dropped_name_composition_mismatch / curated_syndrome_tags_orphaned_by_drop。
 const droppedByNameComposition = new Set(
-  (formulas.summary?.nameCompositionMismatchDropped || []).map((key) => String(key).split("@")[0]),
+  [...(formulas.summary?.nameCompositionMismatchDropped || []), ...(formulas.summary?.collatedChapterDropped || [])]
+    .map((key) => String(key).split("@")[0]),
 );
 let orphanedByDropAdjudications = 0;
 for (const row of syndromeTagAdjudications.entries) {
@@ -605,7 +606,13 @@ assert.equal(
 assert.equal(formulas.entries.find((item) => item.name === "延龄丹")?.ingredients.includes("藁本"), true);
 assert.equal(formulas.entries.find((item) => item.name === "真应散")?.ingredients.includes("大枣"), true);
 assert.equal(formulas.entries.find((item) => item.name === "碧雪丹")?.ingredients.includes("西黄"), true);
-assert.equal(formulas.entries.find((item) => item.name === "治服石虚热水肿方")?.ingredients.includes("巴豆"), true);
+// 「治服石虚热水肿方」（《外台》卷二十）2026-09-30 联网核对：一节三个外洗/外敷方并成一份，属章节合抄伪方，已删除（原断言钉的是其中的巴豆补回）。
+assert.equal(formulas.entries.some((item) => item.name === "治服石虚热水肿方"), false, "章节合抄伪方不得留在受控目录");
+// 解析残片修复（2026-09-30）：大补元煎原带「人参少则用」「多则用」「熟地少则用」三个非药名；原书八味补齐、残片清除。
+const dabuyuanjian = formulas.entries.find((item) => item.name === "大补元煎");
+assert.ok(dabuyuanjian, "大补元煎必须在受控目录");
+assert.deepEqual([...dabuyuanjian.ingredients].sort(), ["人参", "山药", "山茱萸", "当归", "枸杞子", "杜仲", "炙甘草", "熟地黄"].sort(), "大补元煎按《景岳全书》原方八味");
+assert.equal(dabuyuanjian.ingredients.some((name) => /少则用|多则用/.test(name)), false);
 const huapiFormula = formulas.entries.find((item) => item.name === "化痞消积膏");
 assert.ok(huapiFormula, "化痞消积膏必须保留在受控目录");
 assert.equal(huapiFormula.ingredients.includes("穿山甲"), true, "OCR 断行后遗漏的山甲必须回补");

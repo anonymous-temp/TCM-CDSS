@@ -3044,6 +3044,537 @@
       "autoResolvable": true,
       "batch": "2026-09-28-nonchp-identity",
       "basis": "《中国药典》2020 年版一部正名「土鳖虫（䗪虫）」的另一写法。"
+    },
+    {
+      "inputName": "枯矾",
+      "canonicalName": "白矾",
+      "doseCanonicalName": "白矾",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：枯矾即白矾经明煅（煅至枯干）所得的炮制品；药典白矾条下并列收载其功能",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "煅制，枯矾"
+    },
+    {
+      "inputName": "黑牵牛",
+      "canonicalName": "牵牛子",
+      "doseCanonicalName": "牵牛子",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：黑牵牛=黑丑，为牵牛子(黑丑、白丑二色种子)中种皮灰黑色者；药典牵牛子不分黑白色统一收载，中药学教材称黑丑、白丑泻下作用无区别",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "栀子炭",
+      "canonicalName": "栀子",
+      "doseCanonicalName": "栀子",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：栀子炒至黑褐色存性者称栀子炭；炮制学教材列'栀子炭'为栀子炮制品(处方用名栀子、山栀、焦栀子、栀子炭)",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "炒炭"
+    },
+    {
+      "inputName": "棕榈炭",
+      "canonicalName": "棕榈",
+      "doseCanonicalName": "棕榈",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：药典棕榈条饮片项下'棕榈炭:取净棕榈，照煅炭法制炭'；药典称棕榈'一般炮制后用'，生棕榈不入药",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "煅炭"
+    },
+    {
+      "inputName": "蒲黄炭",
+      "canonicalName": "蒲黄",
+      "doseCanonicalName": "蒲黄",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：药典蒲黄条饮片项下'蒲黄炭:取净蒲黄，照炒炭法炒至棕褐色'",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "炒炭"
+    },
+    {
+      "inputName": "荷叶炭",
+      "canonicalName": "荷叶",
+      "doseCanonicalName": "荷叶",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：药典荷叶条：'荷叶炭收涩化瘀止血'，为荷叶炮制品",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "煅炭"
+    },
+    {
+      "inputName": "茅根炭",
+      "canonicalName": "白茅根",
+      "doseCanonicalName": "白茅根",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：炮制学教材：白茅根处方用名含'茅根炭'，为白茅根炒炭品",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "炒炭"
+    },
+    {
+      "inputName": "薯蓣",
+      "canonicalName": "山药",
+      "doseCanonicalName": "山药",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：薯蓣为山药的本名(因唐代宗李豫、宋英宗赵曙避讳先后改称薯药、山药)；药典与教材山药基源即薯蓣科植物薯蓣Dioscorea opposita的干燥根茎",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "白花蛇",
+      "canonicalName": "蕲蛇",
+      "doseCanonicalName": "蕲蛇",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：《本草纲目》白花蛇条释名'蕲蛇'；蕲蛇最早见于《雷公炮炙论》称白花蛇；与银环蛇幼蛇'金钱白花蛇'不是同一味",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "姜皮",
+      "canonicalName": "生姜皮",
+      "doseCanonicalName": "生姜皮",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：姜皮即生姜皮(姜科植物姜根茎的外表皮)，中药学教材生姜条附药收载生姜皮",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "黄蜡",
+      "canonicalName": "蜂蜡",
+      "doseCanonicalName": "蜂蜡",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：黄蜡为蜂蜡(蜜蜂科昆虫分泌的蜡)的别名/处方名；药典收载蜂蜡",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "风化硝",
+      "canonicalName": "玄明粉",
+      "doseCanonicalName": "玄明粉",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：炮制学教材'附:玄明粉'处方用名玄明粉、风化硝，'现今视风化硝与玄明粉为一物'(古代二者制法有别)；药典玄明粉=芒硝经风化干燥制得",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "蝎尾",
+      "canonicalName": "全蝎",
+      "doseCanonicalName": "全蝎",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：蝎尾即蝎梢，为全蝎的尾部入药(《本草纲目》：入药有全用者谓之全蝎，有用尾者谓之蝎梢)",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "蒸茯神",
+      "canonicalName": "茯神",
+      "doseCanonicalName": "茯神",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：医学心悟定痫丸原方'茯神(去木蒸)'，即茯神蒸制；茯神为茯苓菌核中间抱有松根的部分",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "蒸"
+    },
+    {
+      "inputName": "麦芽曲",
+      "canonicalName": "麦芽",
+      "doseCanonicalName": "麦芽",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：方剂学枳实消痞丸(兰室秘藏)方解写作'麦蘖面（麦芽曲）'，即麦芽(麦蘖)，非神曲",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "栀皮",
+      "canonicalName": "栀子",
+      "doseCanonicalName": "栀子",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：桑杏汤(温病条辨)原方'栀皮'，方剂学方解写作'栀子皮质轻而寒，入上焦清泄肺热'，即栀子的果皮",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "楱皮",
+      "canonicalName": "椿皮",
+      "doseCanonicalName": "椿皮",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：固经丸(《医学入门》)同一方位的药物在医学入门原文写作'椿根皮七钱'，方剂学固经丸(《丹溪心法》)写作'椿树根皮七钱半'；'楱皮'应为椿/樗根皮的异写",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "小蓟根",
+      "canonicalName": "小蓟",
+      "doseCanonicalName": "小蓟",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：小蓟饮子(《济生方》)原方用'小蓟根'，方剂学教材同方写作'小蓟'并以其为君药；药典小蓟为菊科刺儿菜地上部分",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "酒洗地黄",
+      "canonicalName": "生地黄",
+      "doseCanonicalName": "生地黄",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：月华丸(《医学心悟》)原文'生地(酒洗)'与'熟地(九蒸晒)'并列，故酒洗地黄=生地黄酒洗；不是熟地黄",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "酒洗"
+    },
+    {
+      "inputName": "酒浸菟丝子",
+      "canonicalName": "菟丝子",
+      "doseCanonicalName": "菟丝子",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：菟丝子酒浸为古法炮制(唐代《千金》有酒浸法)，现用酒菟丝子饼",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "酒浸/酒制"
+    },
+    {
+      "inputName": "黑枣",
+      "canonicalName": "大枣",
+      "doseCanonicalName": "大枣",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：a-hospital大枣条：大枣因加工不同有红枣、黑枣之分；外科正宗先天大造丸(补气血)用'黑枣肉'作丸剂配料，取大枣补脾益气之用；'黑枣'同名异物君迁子(柿科)功效为清热止渴，不属补益方用途",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "光杏仁",
+      "canonicalName": "苦杏仁",
+      "doseCanonicalName": "苦杏仁",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：苦杏仁的处方别名列表含光杏仁(北杏、光北杏、光中杏、杏核仁、北杏仁、光杏仁、炒杏仁、燀杏仁)",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "煨姜",
+      "canonicalName": "生姜",
+      "doseCanonicalName": "生姜",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HA)：煨姜为鲜生姜用湿草纸包裹煨熟者(a-hospital煨姜条)",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "煨制"
+    },
+    {
+      "inputName": "广皮",
+      "canonicalName": "陈皮",
+      "doseCanonicalName": "陈皮",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：十三五《方剂学》蒿芩清胆汤【组成】写「陈广皮」，同方【方解】写「陈皮」；a-hospital 陈皮条载药材分「陈皮」与「广陈皮」。广皮=广陈皮，属陈皮。",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "草乌头",
+      "canonicalName": "草乌",
+      "doseCanonicalName": "草乌",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：本草纲目乌头条【释名】列「草乌头（《纲目》）」；a-hospital 草乌别名含乌头；药典2020以「草乌」收载。",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "蝎梢",
+      "canonicalName": "全蝎",
+      "doseCanonicalName": "全蝎",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：本草纲目蝎条：「有用尾者，谓之蝎梢」；本草从新：「全用谓之全蝎……名蝎梢」。蝎梢是全蝎的尾部入药。",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "炙厚朴",
+      "canonicalName": "厚朴",
+      "doseCanonicalName": "厚朴",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：「炙厚朴」在唐宋方（外台秘要）中原为火炙/姜汁炙，药典2020对应「姜厚朴」（姜汁炙）；基原同厚朴。",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "姜汁炙"
+    },
+    {
+      "inputName": "冬瓜仁",
+      "canonicalName": "冬瓜子",
+      "doseCanonicalName": "冬瓜子",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：a-hospital 冬瓜子别名列「冬瓜仁」；十三五《炮制学》处方用名「冬瓜子、冬瓜仁」。",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "艾叶炭",
+      "canonicalName": "艾叶",
+      "doseCanonicalName": "艾叶",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：艾叶炭即艾叶炒炭（药典2020收载醋艾炭，炒炭法）。",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "炒炭"
+    },
+    {
+      "inputName": "酒浸枸杞子",
+      "canonicalName": "枸杞子",
+      "doseCanonicalName": "枸杞子",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：「酒浸枸杞子」=枸杞子用酒浸泡后入药（七宝美髯丹）。",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "酒浸"
+    },
+    {
+      "inputName": "漂白术",
+      "canonicalName": "白术",
+      "doseCanonicalName": "白术",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：幼幼集成方中「漂白术（取净干片…拌炒极黄）」「漂白术（土炒）」均指经漂洗的白术片，基原白术。",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "漂洗后炒制"
+    },
+    {
+      "inputName": "小蓟炭",
+      "canonicalName": "小蓟",
+      "doseCanonicalName": "小蓟",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：小蓟炭=小蓟炒炭（药典2020小蓟条【炮制】）。",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "炒炭"
+    },
+    {
+      "inputName": "茜草炭",
+      "canonicalName": "茜草",
+      "doseCanonicalName": "茜草",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：茜草炭=茜草炒炭（药典2020茜草条【炮制】）。",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "炒炭"
+    },
+    {
+      "inputName": "火单苦杏仁",
+      "canonicalName": "苦杏仁",
+      "doseCanonicalName": "苦杏仁",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：「火单」是生僻字「燀」(dàn)被拆开：燀苦杏仁=沸水略煮去皮的苦杏仁（大青龙汤「杏仁去皮尖」）；十三五《炮制学》该条「燀」字缺失，仅见制法。",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "燀，去皮"
+    },
+    {
+      "inputName": "蒸天冬",
+      "canonicalName": "天冬",
+      "doseCanonicalName": "天冬",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：月华丸原文写作「天冬（去心蒸）」——蒸制天冬；基原天冬。",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "蒸"
+    },
+    {
+      "inputName": "海带",
+      "canonicalName": "昆布",
+      "doseCanonicalName": "昆布",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：药典2020「昆布」的基原之一即海带科海带（Laminaria japonica）；海带=昆布。",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "黛麦冬",
+      "canonicalName": "麦冬",
+      "doseCanonicalName": "麦冬",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：滋生青阳汤（医醇賸义）原文「麦冬（一钱五分青黛拌）」，「黛麦冬」是其简写。",
+      "batch": "ADJ-WEB-20260930-HERB",
+      "preparation": "青黛拌"
+    },
+    {
+      "inputName": "青子芩",
+      "canonicalName": "黄芩",
+      "doseCanonicalName": "黄芩",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30，HB)：十三五《方剂学》蒿芩清胆汤【组成】写「青子芩」，同方【方解】写「黄芩」——青子芩即黄芩（子芩，青者）。",
+      "batch": "ADJ-WEB-20260930-HERB"
+    },
+    {
+      "inputName": "茵陈蒿",
+      "canonicalName": "茵陈",
+      "doseCanonicalName": "茵陈",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30)：中文维基「茵陈蒿」：茵陈蒿(Artemisia capillaris)与滨蒿共称「茵陈」，「茵陈蒿」即「茵陈」；青蒿是另一种植物(Artemisia annua)。旧目录把「茵陈蒿」归成青蒿，茵陈蒿汤/茵陈五苓散的君药被换成青蒿(2026-09-30 新生儿黄疸回放暴露)。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "大附子",
+      "canonicalName": "附子",
+      "doseCanonicalName": "附子",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30)：附子=毛茛科乌头(Aconitum carmichaelii)的子根，「大附子」指个大的附子；与狼毒(大戟科/瑞香科有毒植物)无关。旧目录把大附子归成狼毒，剂量与毒性口径全错。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "汉防己",
+      "canonicalName": "防己",
+      "doseCanonicalName": "防己",
+      "autoResolvable": true,
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：药典「防己」基原即防己科粉防己(Stephania tetrandra)，「汉防己」是它的传统名(与广防己相对)；旧目录归成北豆根。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "葵子",
+      "canonicalName": "冬葵子",
+      "doseCanonicalName": "冬葵子",
+      "autoResolvable": true,
+      "note": "联网核对(2026-09-30)：「葵子」是冬葵(Malva verticillata)的种子，与天葵子(毛茛科紫背天葵)不同科不同属；旧目录归成天葵子(葵子汤等 8 方)。冬葵子已是独立历史药名实体(见本文件「冬葵子」条)。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "沙参",
+      "canonicalName": null,
+      "candidates": [
+        "南沙参",
+        "北沙参"
+      ],
+      "autoResolvable": false,
+      "ambiguityGroup": "沙参组",
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：「沙参」古方不分南北(桔梗科沙参属南沙参 / 伞形科北沙参)，两者基原、功效侧重不同，不得自动落一种；旧目录归成银柴胡，属错链。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "大茴香",
+      "canonicalName": null,
+      "candidates": [
+        "八角茴香",
+        "小茴香"
+      ],
+      "autoResolvable": false,
+      "ambiguityGroup": "茴香组",
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：「大茴香」在本草中指八角茴香，但明清方书也把大茴香写作茴香(小茴香)的大粒者；两药基原与剂量口径不同，须按方义选定，不自动落小茴香。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "南木香",
+      "canonicalName": null,
+      "candidates": [
+        "木香",
+        "土木香"
+      ],
+      "autoResolvable": false,
+      "ambiguityGroup": "木香组",
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：「南木香」是木香(广木香/云木香)的别称，但旧目录归成土木香(菊科旋覆花属，功效与木香不同)；两候选须按方义选定。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "胡麻子",
+      "canonicalName": null,
+      "candidates": [
+        "黑芝麻",
+        "亚麻子"
+      ],
+      "autoResolvable": false,
+      "ambiguityGroup": "胡麻组",
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：「胡麻」古指黑芝麻(脂麻)，今《中药大辞典》又把「胡麻子」列为亚麻子别名；醉仙散等古方的胡麻子取黑芝麻义，但不自动落一种。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "紫金皮",
+      "canonicalName": "紫荆皮",
+      "doseCanonicalName": "紫荆皮",
+      "autoResolvable": true,
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：「紫金皮」是紫荆皮(豆科紫荆 Cercis chinensis 树皮)的别称；旧目录归成土木香。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "紫荆皮",
+      "canonicalName": "紫荆皮",
+      "autoResolvable": true,
+      "doseCatalogStatus": "local_review_required",
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：紫荆皮(紫荆树皮，活血通淋、消肿解毒，多外用)；旧目录归成南五味子(果实，药用部位与功效均不同)。药典未收载，剂量由医师确定。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "刘寄奴",
+      "canonicalName": "刘寄奴",
+      "autoResolvable": true,
+      "doseCatalogStatus": "local_review_required",
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：刘寄奴=菊科奇蒿(Artemisia anomala)地上部分；北刘寄奴(阴行草)是另一味；旧目录归成金龙胆草。药典2020未收载，剂量由医师确定。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "透骨草",
+      "canonicalName": "透骨草",
+      "autoResolvable": true,
+      "doseCatalogStatus": "local_review_required",
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：透骨草在各地基原不一(凤仙透骨草、珍珠透骨草、毛茛科等)，功效侧重外洗祛风湿；旧目录归成急性子(凤仙花种子，破血软坚，有孕妇禁忌)，药用部位与功效不同。药典未收载，剂量由医师确定。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "海桐皮",
+      "canonicalName": "海桐皮",
+      "autoResolvable": true,
+      "doseCatalogStatus": "local_review_required",
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：海桐皮=豆科刺桐(Erythrina variegata)树皮(祛风湿、通络止痛)；旧目录归成刺五加。药典2020未收载，剂量由医师确定。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "凤仙花",
+      "canonicalName": "凤仙花",
+      "autoResolvable": true,
+      "doseCatalogStatus": "local_review_required",
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：凤仙花是花(活血通经、祛风止痛)，不是急性子(种子)；药用部位不同不得互换。药典未收载，剂量由医师确定。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "寒水石",
+      "canonicalName": "寒水石",
+      "autoResolvable": true,
+      "doseCatalogStatus": "local_review_required",
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：寒水石(红石膏或方解石，药典有独立条目)与石膏(生石膏，用量15-60g)是不同的药，旧目录归成石膏会把石膏的大剂量边界套到寒水石上。本库暂无其药典剂量数据，剂量由医师确定。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "大豆",
+      "canonicalName": "大豆",
+      "autoResolvable": true,
+      "doseCatalogStatus": "food_medicine_local_review_required",
+      "note": "大豆(黄大豆)与黑豆(药典：大豆的黑色种子)不是同一味；旧目录归成黑豆。作食物性药味，剂量由医师确定。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "黄豆",
+      "canonicalName": "大豆",
+      "doseCanonicalName": "大豆",
+      "autoResolvable": true,
+      "note": "「黄豆」=大豆(黄大豆)；旧目录归成淡豆豉(发酵加工品，不是原豆)。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "关木通",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "note": "联网核对(2026-09-30)：含马兜铃酸(肾毒性)，国家药监部门 2004-04-01 取消关木通药用标准；现行药典「木通」是木通科三叶木通/白木通，两者不是同一味。旧目录把关木通归成木通，等于让已取消标准的药以「木通」之名过审。改为不可自动落药。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "广防己",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "note": "联网核对(2026-09-30)：含马兜铃酸(肾毒性)，国家药监部门 2004-08-05 取消广防己药用标准；旧目录归成穿山龙(完全不同的药)，让禁用药以穿山龙的常规剂量过审。改为不可自动落药。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "雷公藤",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "note": "联网核对(2026-09-30)：雷公藤有大毒(肝、肾、血液、生殖系统损害)，药典未收载；旧目录归成杠板归(无毒草本)。改为不可自动落药。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "雪上一枝蒿",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：雪上一枝蒿是毛茛科乌头属剧毒药(与草乌、附子同属但不同种)，药典未收载；旧目录归成草乌，会套用草乌的炮制与剂量口径。改为不可自动落药。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "鬼臼",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：鬼臼(八角莲/桃儿七的根茎，含鬼臼毒素)有毒；旧目录归成小叶莲(桃儿七的果实，药用部位不同)。改为不可自动落药。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "莽草",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：莽草=木兰科(八角属)有毒植物，多外用；旧目录归成黄藤(完全不同的药)。改为不可自动落药。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "虾蟆",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：虾蟆(蟾蜍/蛤蟆)为动物药，蟾类含蟾毒；旧目录归成核桃仁(植物)。改为不可自动落药。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
+    },
+    {
+      "inputName": "蜘蛛",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "note": "据《中药学》教材与本草考订(未逐条联网复核)：蜘蛛(蜘蛛科动物，有毒，蜘蛛散用于阴狐疝)是动物药；旧目录归成大叶紫珠(植物)。改为不可自动落药。",
+      "batch": "ADJ-WEB-20260930-ALIAS"
     }
   ]
 }

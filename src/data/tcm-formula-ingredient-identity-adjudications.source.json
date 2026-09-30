@@ -27,6 +27,13 @@
     "石南散"
    ],
    "deferredReason": "4 条为多方合抄/抽取残片（其中 2 条已由 ADJ-COLLATION-20260809 拆分删除），1 条同名方组成错配（杏子汤），1 条底本尚有校异（石南散「芍药一作甘草」）。在这些条目上做任何品种判断都只会固化错误记录。"
+  },
+  {
+   "id": "ADJ-WEB-20260930-IDENTITY",
+   "date": "2026-09-30",
+   "method": "裸药名（芍药/贝母/菖蒲/乌头/青木香/皂角…）逐首联网回源：原书直书 → 同方异本 → 同书平行方 → 权威考证；方义推断一律不采，判不出的保持歧义（不可编译剂量是保守行为）",
+   "reviewed": 113,
+   "adopted": 64
   }
  ],
  "entries": [
@@ -1528,6 +1535,582 @@
    "evidence": "十三五《中药学》黑芝麻条「处方用名」含胡麻仁；《医门法律》清燥救肺汤用胡麻仁（润燥养阴），不是亚麻子。",
    "basis": "联网/教材核对 ADJ-WEB-20260929（F2-E 清燥救肺汤）",
    "confidence": "high"
+  },
+  {
+   "formulaName": "乌连汤",
+   "rawIngredient": "乌头",
+   "resolvedIngredient": "川乌",
+   "evidence": "三因方(宋1174)裸写「烏頭(炮去皮尖)」;宋代乌头指附子之母(川乌),该书另明写草烏頭/川烏頭,故裸乌头取川乌;无同方异本可对照。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "大乌头桂枝汤",
+   "rawIngredient": "乌头",
+   "resolvedIngredient": "川乌",
+   "evidence": "三因方原文「大烏頭(五枚,實者…蜜煎)」且注「一法,用附子一個,不使烏頭」——乌头与附子对置,即母根;取川乌。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "大豆汤",
+   "rawIngredient": "乌头",
+   "resolvedIngredient": "川乌",
+   "evidence": "三因方大豆汤「烏頭(炮,各三兩)」与千金翼同名方同样裸写乌头,无异本可辨;宋代乌头=附子之母,取川乌。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "小黄酒",
+   "rawIngredient": "乌头",
+   "resolvedIngredient": "川乌",
+   "evidence": "三因方小黄酒即《千金》小黄耆酒,两书均裸写「烏頭」(注「《集驗》用山藥」),并与附子并列;宋代口径取川乌。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "建脾散",
+   "rawIngredient": "乌头",
+   "resolvedIngredient": "川乌",
+   "evidence": "三因方建脾散裸写「烏頭(炮去皮尖,三分)」,无同方异本可对照;宋代口径取川乌(母根)。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "芎辛汤",
+   "rawIngredient": "乌头",
+   "resolvedIngredient": "川乌",
+   "evidence": "施沛《祖剂》(1640)转载同一芎辛汤(附子、乌头、南星、干姜…)时明写「川乌」;三因方裸写「烏頭(生去皮尖)」并与生附子并列。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L2）",
+   "confidence": "medium",
+   "evidenceTier": "parallel_edition_explicit"
+  },
+  {
+   "formulaName": "顺元散",
+   "rawIngredient": "乌头",
+   "resolvedIngredient": "川乌",
+   "evidence": "同一顺元散(乌头二两、附子一两、天南星一两)《博济方》(1047)明写「川乌头」;《苏沈良方》与三因方同样裸写乌头,说明三因方之「乌头」即川乌头。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L2）",
+   "confidence": "high",
+   "evidenceTier": "parallel_edition_explicit"
+  },
+  {
+   "formulaName": "正元散",
+   "rawIngredient": "乌头",
+   "resolvedIngredient": "川乌",
+   "evidence": "《太平惠民和剂局方》同一正元散(红豆、干姜、陈皮、人参…)写作「川烏(炮,去皮,各半兩)」,与三因方「乌头(炮去皮尖,各半两)」药味、量、炮制完全对应。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L2）",
+   "confidence": "high",
+   "evidenceTier": "parallel_edition_explicit"
+  },
+  {
+   "formulaName": "正元散",
+   "rawIngredient": "红豆",
+   "resolvedIngredient": "红豆蔻",
+   "evidence": "同一正元散见于局方,局方另有多方明写「赤小豆」,而「红豆」只出现在良姜/草豆蔻/干姜类温中散寒方里;红豆蔻(大高良姜果实)别名红豆,方性(助阳消阴、温脾胃)相合。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "人参养血丸",
+   "rawIngredient": "菖蒲",
+   "resolvedIngredient": "石菖蒲",
+   "evidence": "三因方(宋1174)裸写「菖蒲(炒)」;宋《图经》已明言医方所用菖蒲皆石菖蒲,水菖蒲不堪入药;药典亦只收石菖蒲。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "寒狂方",
+   "rawIngredient": "菖蒲",
+   "resolvedIngredient": "石菖蒲",
+   "evidence": "《大小诸证方论》(清)裸写「菖蒲(三分)」,为开窍安神用量;本草考证:入药之菖蒲为石菖蒲。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "打死无气方",
+   "rawIngredient": "菖蒲",
+   "resolvedIngredient": "石菖蒲",
+   "evidence": "《验方新编》(1846)裸写「菖蒲(五分)」;同书另有大量明写石菖蒲的方(40处),内服/外用入药之菖蒲按本草考证取石菖蒲。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "清源汤",
+   "rawIngredient": "菖蒲",
+   "resolvedIngredient": "石菖蒲",
+   "evidence": "三因方(宋1174)裸写「菖蒲(五两)」;宋《图经》:医方所用皆石菖蒲。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "菖蒲益智丸",
+   "rawIngredient": "菖蒲",
+   "resolvedIngredient": "石菖蒲",
+   "evidence": "三因方(宋1174)裸写「菖蒲(炒)」,方名「益智」、主喜忘恍惚安神定志,为开窍益智之用;宋《图经》:医方所用皆石菖蒲。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "经验方",
+   "rawIngredient": "象贝母",
+   "resolvedIngredient": "浙贝母",
+   "evidence": "「象贝母」即浙贝母(出宁波象山):《本草纲目拾遗》引《百花镜》「浙贝出象山,俗呼象贝母」;教材称与现今所用浙贝一致。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "三黄宝蜡丸",
+   "rawIngredient": "红芽大戟",
+   "resolvedIngredient": "红大戟",
+   "evidence": "十三五《中药学》红大戟条:「又名红芽大戟、广大戟」;药典2020红大戟(茜草科Knoxia valerianoides)即此;时珍称杭州「紫大戟」为上品(=红大戟)。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "中满分消汤",
+   "rawIngredient": "草蔻仁",
+   "resolvedIngredient": "草豆蔻",
+   "evidence": "东垣《兰室秘藏》中满分消汤原文写作「草豆蔻仁(五分)」;「草蔻仁」是其简称,非草果。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L1）",
+   "confidence": "high",
+   "evidenceTier": "source_text_explicit"
+  },
+  {
+   "formulaName": "五香麻黄汤",
+   "rawIngredient": "青木香",
+   "resolvedIngredient": "木香",
+   "evidence": "本方即《千金要方》五香麻黄汤(唐):五香=麝香、薰陆、鸡舌、青木香、沉香——吴昆《医方考》释「用五香以开气窍」;十三五《中药学》木香条:《别录》称木香为蜜香、青木香,时珍:昔人谓之青木香,后人误以马兜铃根为青木香。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "冲和膏",
+   "rawIngredient": "龙脑",
+   "resolvedIngredient": "冰片",
+   "evidence": "龙脑即冰片(本草纲目:俗呼冰片脑、梅花脑;十三五教材方解「冰片(龙脑)」);本方外敷,取冰片。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "辛夷膏",
+   "rawIngredient": "龙脑",
+   "resolvedIngredient": "冰片",
+   "evidence": "龙脑即冰片(同上);《医方集宜》同书龙脑、脑子、片脑、冰片混用,均指同一物。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "滚痰丸",
+   "rawIngredient": "礞石",
+   "resolvedIngredient": "青礞石",
+   "evidence": "汪昂《医方集解》转载王隐君同一礞石滚痰丸,明写「青礞石(一两)…硝煅如金色」;十三五《中药炮制学》青礞石条「处方用名:礞石、青礞石」,并把元代王隐君硝煅法列于其下。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L2）",
+   "confidence": "medium",
+   "evidenceTier": "parallel_edition_explicit"
+  },
+  {
+   "formulaName": "猪肤汤",
+   "rawIngredient": "白蜜",
+   "resolvedIngredient": "蜂蜜",
+   "evidence": "猪肤汤(伤寒论)「白蜜一升」即蜂蜜(熬香和白粉);本草纲目:白蜜=蜂蜜。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "琼玉膏",
+   "rawIngredient": "白蜜",
+   "resolvedIngredient": "蜂蜜",
+   "evidence": "琼玉膏「白蜜(二斤)…入蜜炼稠」;同方在丹溪心法系教材里写作「白沙蜜」——蜂蜜。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "瞑眩膏",
+   "rawIngredient": "白蜜",
+   "resolvedIngredient": "蜂蜜",
+   "evidence": "三因方瞑眩膏原文「好白蜜淹少时…蘸蜜,取尽二两蜜」,下文直接称「蜜」——蜂蜜(炙萝卜蘸蜜)。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L1）",
+   "confidence": "high",
+   "evidenceTier": "source_text_explicit"
+  },
+  {
+   "formulaName": "葱蜜散",
+   "rawIngredient": "白蜜",
+   "resolvedIngredient": "蜂蜜",
+   "evidence": "验方新编葱蜜散「蔥搗成涎，和白蜜塗之」;同书另一方(蔥蜜膏)同样以「白蜜」与葱头调敷,外用赋形,即蜂蜜。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "桑白皮等汁十味煎",
+   "rawIngredient": "白蜜",
+   "resolvedIngredient": "蜂蜜",
+   "evidence": "《外台》引许仁则方:药单写「白蜜(一升)」,制法里同一物写作「纳酥、蜜、枣膏」——即蜂蜜。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L1）",
+   "confidence": "high",
+   "evidenceTier": "source_text_explicit"
+  },
+  {
+   "formulaName": "通神膏",
+   "rawIngredient": "沙蜜",
+   "resolvedIngredient": "蜂蜜",
+   "evidence": "三因方通神膏药单写「沙蜜(四两)」,制法「同蜜入青竹筒内…煮半日」——沙蜜即蜜(白沙蜜=蜂蜜),点眼用膏。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L1）",
+   "confidence": "high",
+   "evidenceTier": "source_text_explicit"
+  },
+  {
+   "formulaName": "二母散",
+   "rawIngredient": "贝母",
+   "resolvedIngredient": "川贝母",
+   "evidence": "汪昂既著《医方集解》(1682)又著《本草备要》(1694):其贝母条只写「川产开瓣者良,独颗无瓣者不堪用」,全书无浙贝/象贝之称;且二母散治「肺劳有热…虚劳咳嗽」,教材鉴别用药:川贝母偏润宜虚劳咳嗽。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "贯众汤",
+   "rawIngredient": "贯众",
+   "resolvedIngredient": "绵马贯众",
+   "evidence": "《外科集验方》(宋1196)贯众汤(淋渫外用)裸写「贯众」;十三五教材:《证类本草》(宋)附图似鳞毛蕨属(Dryopteris)=绵马贯众所属属;药典以绵马贯众为贯众正品。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "紫参丸〔《外台秘要》卷二十六〕",
+   "rawIngredient": "贯众",
+   "resolvedIngredient": "绵马贯众",
+   "evidence": "《外台》紫参丸(《集验》《备急》《千金》同)写「贯众(三两去毛)」;陶弘景描述贯众「根形色毛芒,全似老鸱头」与「去毛」相合(叶柄残基被毛,绵马贯众特征),教材称古代品种以鳞毛蕨属为代表。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IA，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "乌雌鸡汤〔《外台秘要》卷三十三·妊娠一月〕",
+   "rawIngredient": "芍药",
+   "resolvedIngredient": "白芍",
+   "evidence": "外台(引《千金》)原文只写「芍药」；同一方的宋代传本《卫生家宝产科备要》乌雌鸡汤明写「芍药（白者）」，故取白芍。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L2）",
+   "confidence": "high",
+   "evidenceTier": "parallel_edition_explicit"
+  },
+  {
+   "formulaName": "调中汤〔《外台秘要》卷三十三·妊娠四月〕",
+   "rawIngredient": "芍药",
+   "resolvedIngredient": "白芍",
+   "evidence": "外台原文只写「芍藥（四兩）」；宋代传本《卫生家宝产科备要》同方(曾伤四月胎者预服调中汤)明写「白芍药（雪白者）」，故取白芍。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L2）",
+   "confidence": "high",
+   "evidenceTier": "parallel_edition_explicit"
+  },
+  {
+   "formulaName": "安中汤〔《外台秘要》卷三十三·妊娠五月〕",
+   "rawIngredient": "芍药",
+   "resolvedIngredient": "白芍",
+   "evidence": "外台原文只写「芍藥（各三兩）」；宋代传本《卫生家宝产科备要》同方(曾伤五月胎者预服安中汤)明写「芍药（雪白者）」，故取白芍。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L2）",
+   "confidence": "high",
+   "evidenceTier": "parallel_edition_explicit"
+  },
+  {
+   "formulaName": "芍药汤〔《外台秘要》卷三十三·妊娠八月〕",
+   "rawIngredient": "芍药",
+   "resolvedIngredient": "白芍",
+   "evidence": "外台原文只写「芍藥（四分）」；宋代传本《卫生家宝产科备要》同方(妊娠八月芍药汤)明写「芍药（白者，锉）」，故取白芍。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L2）",
+   "confidence": "high",
+   "evidenceTier": "parallel_edition_explicit"
+  },
+  {
+   "formulaName": "乌头赤石脂丸",
+   "rawIngredient": "乌头",
+   "resolvedIngredient": "川乌",
+   "evidence": "方出《金匮要略》，乌头与附子并列（母根与旁生子根），十三五《中药学》：乌头即“今人谓之川乌头”，古今用药一致；药典2020川乌=乌头Aconitum carmichaelii的干燥母根，草乌是北乌头，二者不同物。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "川膝煎",
+   "rawIngredient": "乌头",
+   "resolvedIngredient": "川乌",
+   "evidence": "《三因方》同书在指野生草乌处一律写“草乌/草乌头”，方中“大乌头（十个，端正者）”为栽培乌头块根，按教材“乌头=川乌头，古今用药一致”取川乌；同书木瓜牛膝丸（同治法、同配木瓜牛膝）直接写“川乌”。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "铁弹丸",
+   "rawIngredient": "乌头",
+   "resolvedIngredient": "川乌",
+   "evidence": "同《三因方》体例：野生草乌处写“草乌”，方中“乌头（炮去皮尖）”按教材“乌头=川乌头，古今用药一致”取川乌；药典川乌=乌头母根。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "开心散",
+   "rawIngredient": "菖蒲",
+   "resolvedIngredient": "石菖蒲",
+   "evidence": "药典2020只有石菖蒲(3～10g)，教材引李时珍“服食入药须用石菖蒲，余皆不堪”；《千金》同书明写“石上菖蒲一寸九节者”，且《集验方》同名同组成的开心散与“石上菖蒲”方并列于健忘门。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "二丹丸",
+   "rawIngredient": "菖蒲",
+   "resolvedIngredient": "石菖蒲",
+   "evidence": "药典2020只有石菖蒲(3～10g)，教材引李时珍“服食入药须用石菖蒲，余皆不堪”；方为安神益智（治风邪健忘），与《成方切用》同书“远志 石菖蒲”安神益智方同用法；各传本(医方集解、医门法律、成方切用)均写“菖蒲”，无一处指水菖蒲。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "内伤猝倒方",
+   "rawIngredient": "菖蒲",
+   "resolvedIngredient": "石菖蒲",
+   "evidence": "药典2020只有石菖蒲(3～10g)，教材引李时珍“服食入药须用石菖蒲，余皆不堪”；《大小诸证方论》同书补气化痰方直接写“石菖蒲”。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "小丹",
+   "rawIngredient": "菖蒲",
+   "resolvedIngredient": "石菖蒲",
+   "evidence": "药典2020只有石菖蒲(3～10g)，教材引李时珍“服食入药须用石菖蒲，余皆不堪”；《三因方》同书补益方（与本方同类的补肾益智丸）明写“石菖蒲”。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "五香连翘散",
+   "rawIngredient": "青木香",
+   "resolvedIngredient": "木香",
+   "evidence": "此方即《千金》《外台》五香连翘汤(青木香 沉香 鸡舌香 熏陆香 麝香五香+连翘等)的传本；《本草纲目》木香条明说“古方治痈疽有五香连翘汤，内用青木香”，“昔人谓之青木香”即木香，后人才把马兜铃根叫青木香。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "葳蕤汤",
+   "rawIngredient": "青木香",
+   "resolvedIngredient": "木香",
+   "evidence": "《三因方》同一方的用法句自己写“木香冬用一两，春用半两”，即方中青木香就是木香；宋代“青木香”也是木香（《本草纲目》：昔人谓之青木香）。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L1）",
+   "confidence": "high",
+   "evidenceTier": "source_text_explicit"
+  },
+  {
+   "formulaName": "木香豆蔻丸",
+   "rawIngredient": "青木香",
+   "resolvedIngredient": "木香",
+   "evidence": "方出《稽神录》(崔万安脾泄梦授方；《证类本草》已引该书，故成方不晚于宋；明《医方考》转引；《续名医类案》亦引作青木香、肉豆蔻等分枣肉丸)，宋以前“青木香”即木香（《本草纲目》：昔人谓之青木香，后人才转指马兜铃根）；吴崑释义“青木香能伐肝”，与木香行气疏肝同义。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "跌打活命丹",
+   "rawIngredient": "青木香",
+   "resolvedIngredient": "木香",
+   "evidence": "《验方新编》(清)同书“气滞痛”条把“青木香”与“广木香”并列为可互换的药(“米醋磨青木香…或用…磨广木香”)，跌打伤方中青木香与乌药、槟榔、乳香等行气药同用，按行气止痛的木香读；不能读作含马兜铃酸的马兜铃根。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "礞石化痰丸",
+   "rawIngredient": "礞石",
+   "resolvedIngredient": "青礞石",
+   "evidence": "教材：礞石=青礞石（处方用名 礞石、青礞石），“古本草很少有金礞石的记载”；本方是礞石滚痰丸(大黄 礞石 沉香 黄芩)加半夏陈皮，滚痰丸方歌“用青礞石”；《惠直堂》同书另方直写“青礞石”。药典2020青礞石与金礞石用量相同(3～6g)，即使读成金礞石剂量亦不变。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "石决明散",
+   "rawIngredient": "草决明",
+   "resolvedIngredient": "决明子",
+   "evidence": "教材：决明子的处方用名有“草决明”（与石决明[鲍壳]相对）；本方在《圣济总录》里草决明与青葙子并列于同一方（如石决明散另一方“石决明 草决明 青葙子…”），说明该书草决明是决明子而非青葙子；千里光不是“草决明”。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "大陷胸丸",
+   "rawIngredient": "白蜜",
+   "resolvedIngredient": "蜂蜜",
+   "evidence": "“白蜜”是蜂蜜的古称/别名（陈蜜白而沙，故称白沙蜜、白蜜），药典2020蜂蜜=蜜蜂所酿的蜜；无第二种药可指。本方(仲景)以白蜜二合煮服，医方集解释“白蜜取其润滑而甘缓”。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "扶桑丸",
+   "rawIngredient": "白蜜",
+   "resolvedIngredient": "蜂蜜",
+   "evidence": "“白蜜”是蜂蜜的古称/别名（陈蜜白而沙，故称白沙蜜、白蜜），药典2020蜂蜜=蜜蜂所酿的蜜；无第二种药可指。方内“白蜜（一斤）…和蜜炼至滴水成珠”，即炼蜜作丸。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "治久嗽方",
+   "rawIngredient": "白蜜",
+   "resolvedIngredient": "蜂蜜",
+   "evidence": "“白蜜”是蜂蜜的古称/别名（陈蜜白而沙，故称白沙蜜、白蜜），药典2020蜂蜜=蜜蜂所酿的蜜；无第二种药可指。《千金》蜜姜煎（蜜一斤+姜汁熬至姜汁尽，含化）。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "治胃反方",
+   "rawIngredient": "白蜜",
+   "resolvedIngredient": "蜂蜜",
+   "evidence": "“白蜜”是蜂蜜的古称/别名（陈蜜白而沙，故称白沙蜜、白蜜），药典2020蜂蜜=蜜蜂所酿的蜜；无第二种药可指。本方即大半夏汤(《集验》/《外台》卷八)，“以水五升和蜜，扬之二三百下”，仲景大半夏汤同样用白蜜。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "灵宝膏",
+   "rawIngredient": "白蜜",
+   "resolvedIngredient": "蜂蜜",
+   "evidence": "“白蜜”是蜂蜜的古称/别名（陈蜜白而沙，故称白沙蜜、白蜜），药典2020蜂蜜=蜜蜂所酿的蜜；无第二种药可指。本方白蜜一斤与栝蒌、乳香、胡桃熬膏(收膏基质)。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "紫菀汤",
+   "rawIngredient": "白蜜",
+   "resolvedIngredient": "蜂蜜",
+   "evidence": "“白蜜”是蜂蜜的古称/别名（陈蜜白而沙，故称白沙蜜、白蜜），药典2020蜂蜜=蜜蜂所酿的蜜；无第二种药可指。《医方集解》引《良方》紫菀汤（治子嗽）：入蜜；方解“杏仁、白蜜之泽以润之”。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "high",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "大活络丹",
+   "rawIngredient": "贯众",
+   "resolvedIngredient": "绵马贯众",
+   "evidence": "药典2020唯一的贯众类饮片是绵马贯众，“狗脊”候选实为《本草纲目》贯众别名“黑狗脊”/商品“狗脊贯众”，与药典狗脊(金毛狗脊，补肝肾强腰膝)不是一物；教材说明古代贯众本为多种蕨类，故不能进一步区分是绵马、紫萁还是狗脊蕨贯众。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "玉屑无忧散",
+   "rawIngredient": "贯众",
+   "resolvedIngredient": "绵马贯众",
+   "evidence": "药典2020唯一的贯众类饮片是绵马贯众，“狗脊”候选实为《本草纲目》贯众别名“黑狗脊”/商品“狗脊贯众”，与药典狗脊(金毛狗脊，补肝肾强腰膝)不是一物；教材说明古代贯众本为多种蕨类，故不能进一步区分是绵马、紫萁还是狗脊蕨贯众。本方(缠喉风咽喉肿痛)用“贯众、山豆根解毒”，取清热解毒之贯众而非补肾强腰的狗脊。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "类聚祛风散",
+   "rawIngredient": "贯众",
+   "resolvedIngredient": "绵马贯众",
+   "evidence": "药典2020唯一的贯众类饮片是绵马贯众，“狗脊”候选实为《本草纲目》贯众别名“黑狗脊”/商品“狗脊贯众”，与药典狗脊(金毛狗脊，补肝肾强腰膝)不是一物；教材说明古代贯众本为多种蕨类，故不能进一步区分是绵马、紫萁还是狗脊蕨贯众。方为治大麻风的外用膏(猪油调)，贯众取杀虫解毒，狗脊不作此用。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "解毒丸",
+   "rawIngredient": "贯众",
+   "resolvedIngredient": "绵马贯众",
+   "evidence": "药典2020唯一的贯众类饮片是绵马贯众，“狗脊”候选实为《本草纲目》贯众别名“黑狗脊”/商品“狗脊贯众”，与药典狗脊(金毛狗脊，补肝肾强腰膝)不是一物；教材说明古代贯众本为多种蕨类，故不能进一步区分是绵马、紫萁还是狗脊蕨贯众。本方（板蓝根 贯众 青黛 甘草）为解毒方，用“贯众（锉，去土）”。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "追风散",
+   "rawIngredient": "贯众",
+   "resolvedIngredient": "绵马贯众",
+   "evidence": "药典2020唯一的贯众类饮片是绵马贯众，“狗脊”候选实为《本草纲目》贯众别名“黑狗脊”/商品“狗脊贯众”，与药典狗脊(金毛狗脊，补肝肾强腰膝)不是一物；教材说明古代贯众本为多种蕨类，故不能进一步区分是绵马、紫萁还是狗脊蕨贯众。本方(治牙疼)贯众鹤虱荆芥穗煎汤含漱吐去，取其杀虫解毒。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "治诸虫方",
+   "rawIngredient": "贯众",
+   "resolvedIngredient": "绵马贯众",
+   "evidence": "药典2020唯一的贯众类饮片是绵马贯众，“狗脊”候选实为《本草纲目》贯众别名“黑狗脊”/商品“狗脊贯众”，与药典狗脊(金毛狗脊，补肝肾强腰膝)不是一物；教材说明古代贯众本为多种蕨类，故不能进一步区分是绵马、紫萁还是狗脊蕨贯众。本方实为该章第一首“贯众丸”（贯众 石蚕 野狼牙 芦荟[目录写法；《外台》传本作“雚蘆”] 蜀漆 僵蚕 雷丸，蜜丸）——目录用章节名“治诸虫方”命名；贯众取杀虫解毒之义。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "十香丸",
+   "rawIngredient": "皂角",
+   "resolvedIngredient": "猪牙皂",
+   "evidence": "本方原出《景岳全书》新方(和阵十五)，“皂角（微火烧烟尽）”；同书同一作者的牙皂散(新因二七)用“牙皂角，以微火烧烟甫尽取起为末”治胸膈胃脘大痛(气滞)，且同书胃脘痛验方是“荔枝核烧微焦+木香”——十香丸正好是荔核煨焦+木香+皂角微火烧烟尽，工艺与主治相同，故此处皂角=牙皂。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L1）",
+   "confidence": "medium",
+   "evidenceTier": "source_text_explicit"
+  },
+  {
+   "formulaName": "桔梗丸",
+   "rawIngredient": "贝母",
+   "resolvedIngredient": "川贝母",
+   "evidence": "本方=《金匮》附方《外台》桔梗白散/《伤寒论》三物白散(桔梗 贝母 巴豆，主肺痈)的丸剂，主治文字与金匮桔梗白散一致；同一方的后世传本/注家(《退思集类方歌注》《临证指南医案》《重订通俗伤寒论》)均写“川贝母”；且宋元时尚无浙贝母之名(L3)。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L2）",
+   "confidence": "medium",
+   "evidenceTier": "parallel_edition_explicit"
+  },
+  {
+   "formulaName": "二母汤",
+   "rawIngredient": "贝母",
+   "resolvedIngredient": "川贝母",
+   "evidence": "明·丁毅《医方集宜》全书42处“贝母”、无一处川/浙/象/土之分；教材：川/浙之分晚至清代《本草纲目拾遗》，此前所指是贝母属药材，“自古以川贝母为佳品”；明末《景岳全书》另立“土贝母”，把普通贝母与川贝母对应，故明代裸“贝母”取川贝母。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
+  },
+  {
+   "formulaName": "桑白皮汤",
+   "rawIngredient": "贝母",
+   "resolvedIngredient": "川贝母",
+   "evidence": "本方载于《景岳全书》(录自《医林》)，同书《本草正》单列“贝母（十八）”和“土贝母（十九）”两味，并说土贝母“较之川贝母，清降之功不啻数倍”，同书清热方里并称“桑白皮、川贝母、土贝母”，可见景岳体例中裸“贝母”即川贝母，土贝母另写。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L1）",
+   "confidence": "medium",
+   "evidenceTier": "source_text_explicit"
+  },
+  {
+   "formulaName": "疟疾不二饮",
+   "rawIngredient": "贝母",
+   "resolvedIngredient": "川贝母",
+   "evidence": "本方逐字取自明明·龚信《古今医鉴》“不二饮（秘方）”(常山 槟榔 知母 贝母，勿令女人煎药)，该书60处“贝母”无一处分川浙；教材：川/浙之分晚至清《本草纲目拾遗》，此前“自古以川贝母为佳品”。",
+   "basis": "联网原文核对 ADJ-WEB-20260930（IB，L3）",
+   "confidence": "medium",
+   "evidenceTier": "same_book_parallel"
   }
  ],
  "varietyBranches": [

@@ -3721,6 +3721,41 @@
         "name": "鹤草芽",
         "blockedFormulaCount": 0,
         "basis": "《中药学》第十版功效归类表收载并给出功效分类，本地剂量知识库无对应条目；按缺法定数值边界处理，用量由医师确定并经审方复核。"
+      },
+      {
+        "name": "刘寄奴",
+        "blockedFormulaCount": 5,
+        "basis": "刘寄奴（菊科奇蒿）药典2020未收载；改判前旧目录把它错归金龙胆草（2026-09-30 别名错链整改，见 tcm-herb-identity-supplements 批次 ADJ-WEB-20260930-ALIAS）"
+      },
+      {
+        "name": "透骨草",
+        "blockedFormulaCount": 3,
+        "basis": "透骨草各地基原不一（凤仙透骨草/珍珠透骨草等），药典2020未收载；旧目录错归急性子（2026-09-30 别名错链整改）"
+      },
+      {
+        "name": "海桐皮",
+        "blockedFormulaCount": 4,
+        "basis": "海桐皮（豆科刺桐树皮）药典2020未收载；旧目录错归刺五加（2026-09-30 别名错链整改）"
+      },
+      {
+        "name": "紫荆皮",
+        "blockedFormulaCount": 3,
+        "basis": "紫荆皮（豆科紫荆树皮，多外用）药典2020未收载；旧目录错归南五味子（2026-09-30 别名错链整改）"
+      },
+      {
+        "name": "凤仙花",
+        "blockedFormulaCount": 1,
+        "basis": "凤仙花（花，非急性子种子）药典2020未收载；旧目录错归急性子（2026-09-30 别名错链整改）"
+      },
+      {
+        "name": "寒水石",
+        "blockedFormulaCount": 20,
+        "basis": "寒水石药典2020有独立条目，但本库尚无其数值边界；旧目录把它并入石膏会套用石膏 15–60g 的边界（2026-09-30 别名错链整改），改为医师定量"
+      },
+      {
+        "name": "葵子",
+        "blockedFormulaCount": 8,
+        "basis": "「葵子」经 2026-09-30 别名错链整改后归入「冬葵子」（药典未收载/本库无数值边界），剂量由医师确定；见 tcm-herb-identity-supplements 批次 ADJ-WEB-20260930-ALIAS"
       }
     ],
     "controlled_or_toxic": [
@@ -4251,6 +4286,16 @@
       {
         "name": "盐梅",
         "blockedFormulaCount": 1
+      },
+      {
+        "name": "大豆",
+        "blockedFormulaCount": 11,
+        "basis": "大豆（黄大豆）与药典黑豆不是同一味；旧目录把大豆并入黑豆（2026-09-30 别名错链整改），作食物性药味由医师定量"
+      },
+      {
+        "name": "黄豆",
+        "blockedFormulaCount": 1,
+        "basis": "「黄豆」经 2026-09-30 别名错链整改后归入「大豆」（药典未收载/本库无数值边界），剂量由医师确定；见 tcm-herb-identity-supplements 批次 ADJ-WEB-20260930-ALIAS"
       }
     ],
     "pill_powder_only": [
@@ -4333,6 +4378,16 @@
       {
         "name": "西牛黄",
         "blockedFormulaCount": 1
+      },
+      {
+        "name": "大蓟炭",
+        "blockedFormulaCount": 1,
+        "basis": "《中国药典》2020年版一部大蓟炭【用法与用量】：5～10g，多入丸散服（药典只给丸散途径，汤剂不自动配量）；十灰散等含炭药方因其它炭药并入受治理药名后新可编译，须在此留痕"
+      },
+      {
+        "name": "红大戟",
+        "blockedFormulaCount": 1,
+        "basis": "《中国药典》2020年版一部红大戟【用法与用量】：1.5～3g，入丸散服，每次1g（药典只给丸散途径，汤剂不自动配量）；三黄宝蜡丸（《古方汇精》）经原文核对补入红芽大戟（=红大戟）后新可编译，须在此留痕"
       }
     ]
   },

@@ -1,6 +1,6 @@
 {
  "schemaVersion": "tcm-formula-name-composition-adjudications-v1",
- "note": "方名与自身记录组成是否自洽的逐条裁定。\n入选口径：目录中 ≤8 味、且是另一条更大条目真子集的条目（共 277 条）——这类小条目会在命名层\n以「完整包含」压过它所属的更大真方（实测：归脾汤类处方被命名为「理气化痰汤加减」，\n因为归脾汤缺远志/龙眼肉共 2 味、超过减味兜底层「最多缺 1 味」上限，结构上够不着）。\n注意「遮蔽」本身不是缺陷——四君子汤 4 味遮蔽 57 张大方是正常的，它本来就是许多方的底子；\n要裁的是这一条记录的组成与该方名在文献中的通行组成是否一致。\n裁定方式：DeepSeek V4 Flash 逐条判定（temperature 0，不确定一律 unknown，禁止编造组成），\nmismatched 项另经联网检索复核。\nverdict=mismatched 的条目在构建期取消命名/检索资格（identityBlockingReasons 增加\nname_composition_mismatch）；unknown 为人工复核待办，不改变任何行为。\n\n【2026-08-09 医生核定并入】109 条 unknown 已由中医师逐条核定，结果记在 doctorVerdict/doctorVerdictText。\n判否 9 条按与机器裁定同一口径整条剔除。\n**doctorCorrectedComposition 只登记、不自动生效**：核定方明确声明本次是古籍文本与字段核对、\n未核定剂量与炮制安全性，把它直接写进可剂量编译的受治理条目会超出该次核定的授权范围。\n要启用需另经有资质中医师/中药师按现行药典与炮制规范终审。",
+ "note": "方名与自身记录组成是否自洽的逐条裁定。\n入选口径：目录中 ≤8 味、且是另一条更大条目真子集的条目（共 277 条）——这类小条目会在命名层\n以「完整包含」压过它所属的更大真方（实测：归脾汤类处方被命名为「理气化痰汤加减」，\n因为归脾汤缺远志/龙眼肉共 2 味、超过减味兜底层「最多缺 1 味」上限，结构上够不着）。\n注意「遮蔽」本身不是缺陷——四君子汤 4 味遮蔽 57 张大方是正常的，它本来就是许多方的底子；\n要裁的是这一条记录的组成与该方名在文献中的通行组成是否一致。\n裁定方式：DeepSeek V4 Flash 逐条判定（temperature 0，不确定一律 unknown，禁止编造组成），\nmismatched 项另经联网检索复核。\nverdict=mismatched 的条目在构建期取消命名/检索资格（identityBlockingReasons 增加\nname_composition_mismatch）；unknown 为人工复核待办，不改变任何行为。\n\n【2026-08-09 医生核定并入】109 条 unknown 已由中医师逐条核定，结果记在 doctorVerdict/doctorVerdictText。\n判否 9 条按与机器裁定同一口径整条剔除。\n**doctorCorrectedComposition 只登记、不自动生效**：核定方明确声明本次是古籍文本与字段核对、\n未核定剂量与炮制安全性，把它直接写进可剂量编译的受治理条目会超出该次核定的授权范围。\n2026-09-30 起改由联网原文核对代替终审：其中 5 条（蟾酥丸、蟾酥解毒丸、加味小建中汤、三柴胡饮、小竹沥汤）已逐条核对原文并经目录校勘通道（ADJ-WEB-20260930）落地，其余仍只登记。",
  "sourceRefs": [
   {
    "name": "DeepSeek V4 Flash 逐条裁定",
@@ -421,7 +421,7 @@
   },
   {
    "formulaName": "柴陈煎",
-   "source": "景岳",
+   "source": "《景岳全书》",
    "recordedIngredients": [
     "柴胡",
     "陈皮",
@@ -495,7 +495,8 @@
    "doctorBasis": "《惠直堂经验方》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E6%83%A0%E7%9B%B4%E5%A0%82%E7%B6%93%E9%A9%97%E6%96%B9",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "webVerified": "2026-09-30 联网原文逐条核对（parts/U1），组成订正已经目录校勘通道（ADJ-WEB-20260930）落地"
   },
   {
    "formulaName": "蟾酥丸",
@@ -517,7 +518,8 @@
    "doctorBasis": "《惠直堂经验方》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E6%83%A0%E7%9B%B4%E5%A0%82%E7%B6%93%E9%A9%97%E6%96%B9",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "webVerified": "2026-09-30 联网原文逐条核对（parts/U1），组成订正已经目录校勘通道（ADJ-WEB-20260930）落地"
   },
   {
    "formulaName": "喘嗽方",
@@ -787,7 +789,7 @@
   },
   {
    "formulaName": "当归散",
-   "source": "《金匮》",
+   "source": "《金匮要略》",
    "recordedIngredients": [
     "当归",
     "川芎",
@@ -803,7 +805,7 @@
   },
   {
    "formulaName": "当归芍药汤",
-   "source": "《千金要方》",
+   "source": "《备急千金要方》",
    "recordedIngredients": [
     "当归",
     "白芍",
@@ -1062,7 +1064,7 @@
   },
   {
    "formulaName": "防己黄汤",
-   "source": "《金匮》",
+   "source": "《金匮要略》",
    "recordedIngredients": [
     "防己",
     "黄芪",
@@ -1146,7 +1148,7 @@
   },
   {
    "formulaName": "茯苓甘草汤",
-   "source": "仲景",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "茯苓",
     "桂枝",
@@ -1431,7 +1433,7 @@
   },
   {
    "formulaName": "干姜人参半夏丸",
-   "source": "金匮",
+   "source": "《金匮要略》",
    "recordedIngredients": [
     "干姜",
     "人参",
@@ -1445,7 +1447,7 @@
   },
   {
    "formulaName": "葛根黄连黄芩汤",
-   "source": "仲景",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "葛根",
     "甘草",
@@ -1475,7 +1477,7 @@
   },
   {
    "formulaName": "归柴饮",
-   "source": "景岳",
+   "source": "《景岳全书》",
    "recordedIngredients": [
     "当归",
     "柴胡",
@@ -1489,7 +1491,7 @@
   },
   {
    "formulaName": "桂苓甘术汤",
-   "source": "《金匮》",
+   "source": "《金匮要略》",
    "recordedIngredients": [
     "茯苓",
     "桂枝",
@@ -1526,7 +1528,7 @@
   },
   {
    "formulaName": "桂枝加大黄汤",
-   "source": "仲景",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "桂枝",
     "芍药",
@@ -1611,7 +1613,7 @@
   },
   {
    "formulaName": "桂枝羌活汤",
-   "source": "《机要》",
+   "source": "《素问病机气宜保命集》",
    "recordedIngredients": [
     "桂枝",
     "羌活",
@@ -1790,7 +1792,7 @@
   },
   {
    "formulaName": "黄连阿胶丸",
-   "source": "《局方》",
+   "source": "《太平惠民和剂局方》",
    "recordedIngredients": [
     "黄连",
     "茯苓",
@@ -2098,7 +2100,8 @@
    "doctorBasis": "《三因极一病证方论》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://www.ishibashikomorebi.com/book-558-sanyinjiyibingzhengfanglun.pdf",
    "doctorEvidenceGrade": "A（古籍全文/PDF定位）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "webVerified": "2026-09-30 联网原文逐条核对（parts/U1），组成订正已经目录校勘通道（ADJ-WEB-20260930）落地"
   },
   {
    "formulaName": "桔梗甘草防风汤",
@@ -2185,7 +2188,7 @@
   },
   {
    "formulaName": "荆防四物汤",
-   "source": "《医宗金鉴》",
+   "source": "《张皆春眼科证治》",
    "recordedIngredients": [
     "荆芥",
     "防风",
@@ -2594,7 +2597,7 @@
   },
   {
    "formulaName": "麻桂饮",
-   "source": "景岳",
+   "source": "《景岳全书》",
    "recordedIngredients": [
     "肉桂",
     "当归",
@@ -3173,7 +3176,7 @@
   },
   {
    "formulaName": "三柴胡饮",
-   "source": "景岳",
+   "source": "《景岳全书》",
    "recordedIngredients": [
     "柴胡",
     "芍药",
@@ -3193,7 +3196,8 @@
    "doctorBasis": "景岳对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E6%99%AF%E5%B2%B3%E5%85%A8%E6%9B%B8",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "webVerified": "2026-09-30 联网原文逐条核对（parts/U1），组成订正已经目录校勘通道（ADJ-WEB-20260930）落地"
   },
   {
    "formulaName": "三化汤",
@@ -3466,7 +3470,7 @@
   },
   {
    "formulaName": "神造汤",
-   "source": "《千金》",
+   "source": "《备急千金要方》",
    "recordedIngredients": [
     "蟹爪",
     "阿胶",
@@ -3512,7 +3516,7 @@
   },
   {
    "formulaName": "肾着汤",
-   "source": "《金匮》",
+   "source": "《金匮要略》",
    "recordedIngredients": [
     "干姜",
     "茯苓",
@@ -4227,7 +4231,7 @@
   },
   {
    "formulaName": "洗肝散",
-   "source": "《局方》",
+   "source": "《太平惠民和剂局方》",
    "recordedIngredients": [
     "薄荷",
     "羌活",
@@ -4273,7 +4277,7 @@
   },
   {
    "formulaName": "香薷饮",
-   "source": "《局方》",
+   "source": "《太平惠民和剂局方》",
    "recordedIngredients": [
     "香薷",
     "厚朴",
@@ -4383,7 +4387,7 @@
   },
   {
    "formulaName": "小半夏加茯苓汤",
-   "source": "《金匮》",
+   "source": "《金匮要略》",
    "recordedIngredients": [
     "半夏",
     "生姜",
@@ -4430,7 +4434,8 @@
    "doctorBasis": "《三因极一病证方论》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://www.ishibashikomorebi.com/book-558-sanyinjiyibingzhengfanglun.pdf",
    "doctorEvidenceGrade": "A（古籍全文/PDF定位）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "webVerified": "2026-09-30 联网原文逐条核对（parts/U1），组成订正已经目录校勘通道（ADJ-WEB-20260930）落地"
   },
   {
    "formulaName": "泻白散",
@@ -4712,7 +4717,7 @@
   },
   {
    "formulaName": "元参升麻汤",
-   "source": "《活人》",
+   "source": "《类证活人书》",
    "recordedIngredients": [
     "元参",
     "升麻",
@@ -4917,7 +4922,7 @@
   },
   {
    "formulaName": "治伤寒中风方",
-   "source": "《外台》卷二",
+   "source": "《外台秘要》卷二",
    "recordedIngredients": [
     "桂枝",
     "芍药",
