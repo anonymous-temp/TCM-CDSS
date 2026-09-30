@@ -13,6 +13,7 @@ import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName, westernDifferent
 import { canonicalTcmSyndromeTerm, governedTcmLocationsInText, governedTreatmentMethodsInText, governedTreatmentPrinciplesInText, tcmDiagnosticDependencyContexts, treatmentMethodCoveredBy, treatmentPrinciplesInText, westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
 import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy, locationItemsCoverChiefComplaintAnchor, textCarriesChiefComplaintSymptom } from "./tcm-chief-complaint-anchor";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
+import { isPediatricGroundingText, pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
 import { missedLockableFormulaCandidates, namedFormulaPositiveSufficiencyIssue } from "./tcm-formula-indications";
 import { formulaModificationHerbName, normalizeFormulaModificationAction } from "./formula-modification";
@@ -3518,7 +3519,11 @@ export function dosePassesSafetySanityCeiling(name: string, dose: string): boole
   return grams <= grossCeiling;
 }
 
-export function doseWithinConservativeModelLimit(name: string, dose: string, decoctionMethod: string): boolean {
+/**
+ * @param pediatric 儿童折算档位（pediatric-dose-rule）。有值时区间变成 (0, 成人上限 × 分数]——儿童低于成人下限是常态，
+ *   只有超过折算上限才算越界；不传则是成人口径，与此前逐字节相同。
+ */
+export function doseWithinConservativeModelLimit(name: string, dose: string, decoctionMethod: string, pediatric?: PediatricDoseRule): boolean {
   const grams = doseInGrams(dose);
   const regulatoryClass = clinicianDoseHerbClass(name);
   if (regulatoryClass === "controlled_or_toxic" || regulatoryClass === "endangered_or_banned") return false;
@@ -3536,6 +3541,7 @@ export function doseWithinConservativeModelLimit(name: string, dose: string, dec
     /煎|汤|剂/.test(decoctionMethod)
   );
   const governedRanges = [{ min: limit.min, max: limit.max }, ...routeMatchedAlternatives];
+  if (pediatric) return grams > 0 && governedRanges.some((range) => grams <= pediatricDoseCeilingG(range.max, pediatric, name));
   return governedRanges.some((range) => grams >= range.min && grams <= range.max);
 }
 
@@ -3545,6 +3551,10 @@ export type OrdinaryHistoricalDoseDeviation = {
   max: number;
   basis: string;
   direction: "below_reference" | "above_reference";
+  /** 儿童折算口径：此时 max 是折算后的儿童上限，成人区间在 adultMin/adultMax，direction 恒为 above_reference。 */
+  pediatric?: PediatricDoseRule;
+  adultMin?: number;
+  adultMax?: number;
 };
 
 /**
@@ -3556,6 +3566,7 @@ export type OrdinaryHistoricalDoseDeviation = {
 export function ordinaryHistoricalDoseDeviation(
   herb: { name?: unknown; dose?: unknown; isToxic?: unknown },
   decoctionMethod: string,
+  pediatric?: PediatricDoseRule,
 ): OrdinaryHistoricalDoseDeviation | undefined {
   if (typeof herb.name !== "string" || typeof herb.dose !== "string" || herb.isToxic === true) return undefined;
   const name = herb.name.trim();
@@ -3568,18 +3579,25 @@ export function ordinaryHistoricalDoseDeviation(
   const { min, max, basis } = limit;
   if (typeof min !== "number" || typeof max !== "number" || !Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || min > max) return undefined;
   const grams = doseInGrams(herb.dose);
-  if (grams == null || doseWithinConservativeModelLimit(name, herb.dose, decoctionMethod)) return undefined;
+  if (grams == null || doseWithinConservativeModelLimit(name, herb.dose, decoctionMethod, pediatric)) return undefined;
+  if (pediatric) {
+    return { dose: herb.dose, min: 0, max: pediatricDoseCeilingG(max, pediatric, name), basis, direction: "above_reference", pediatric, adultMin: min, adultMax: max };
+  }
   return { dose: herb.dose, min, max, basis, direction: grams < min ? "below_reference" : "above_reference" };
 }
 
 const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
   population: RegExp;
   patient: RegExp;
+  /** 有它时以它为准（数值年龄要按小数年龄算，正则写不对）；patient 正则仍并联生效，保持原有的词面触发。 */
+  isPatient?: (context: string) => boolean;
   code: string;
 }> = [
   { population: /孕期|妊娠/, patient: /妊娠|怀孕|孕妇|孕期|备孕|计划妊娠/, code: "pregnancy" },
   { population: /哺乳期/, patient: /哺乳|乳母|产后喂养/, code: "lactation" },
-  { population: /儿童|婴幼儿/, patient: /儿童|婴儿|幼儿|小儿|未成年|(?:年龄|患者年龄)\s*[:：]?\s*(?:[0-9]|1[0-7])\s*岁/, code: "pediatric" },
+  // 儿童臂不再自带一份正则：数值年龄按小数年龄判（「患者年龄：0.5岁」「6.0833岁」旧正则匹配不上，月龄婴儿与带月数的儿童整段漏判），
+  // 定性词沿用分句开头口径。与安全门、剂量折算读同一份 pediatric-dose-rule。
+  { population: /儿童|婴幼儿/, patient: /儿童|婴儿|幼儿|小儿|未成年/, isPatient: isPediatricGroundingText, code: "pediatric" },
   { population: /出血倾向|月经期|抗凝状态/, patient: /出血倾向|月经期|经期|抗凝|抗血小板|华法林|利伐沙班|阿哌沙班|达比加群|肝素|阿司匹林|氯吡格雷/, code: "bleeding_anticoagulation" },
   { population: /老年人/, patient: /老年|高龄|(?:年龄|患者年龄)\s*[:：]?\s*(?:6[5-9]|[7-9]\d|1\d{2})\s*岁/, code: "older_adult" },
   { population: /肝功能不全/, patient: /肝功能不全|肝衰竭|失代偿期肝硬化|Child-Pugh\s*[BC]/i, code: "hepatic_impairment" },
@@ -3596,6 +3614,17 @@ export function m04GenerationSpecialPopulationIssue(
   clinicalContext: string,
 ): string | undefined {
   if (!clinicalContext.trim()) return undefined;
+  // 儿童禁用药味（药典 2020、十三五教材、国家药监部门通告；数据 tcm-pediatric-dose-rule.source.json）：与知识库里
+  // 按人群登记的 HIGH 规则同一出口——修复轮删掉该味，不再靠「模型自觉」。慎用级只在编译器里批注，不驱动修复。
+  const pediatricRule = pediatricDoseRuleFromGroundingText(clinicalContext);
+  if (pediatricRule) {
+    for (const [herbIndex, herb] of herbs.entries()) {
+      const name = typeof herb.name === "string" ? herb.name.trim() : "";
+      if (name && pediatricHerbRestriction(name, pediatricRule)?.level === "prohibited") {
+        return `herb_${herbIndex}_special_population_high_risk_pediatric`;
+      }
+    }
+  }
   for (const [herbIndex, herb] of herbs.entries()) {
     const name = typeof herb.name === "string" ? herb.name.trim() : "";
     if (!name) continue;
@@ -3603,7 +3632,7 @@ export function m04GenerationSpecialPopulationIssue(
     for (const rule of profile.populationRules) {
       if (rule.severity !== "HIGH") continue;
       const matcher = M04_SPECIAL_POPULATION_MATCHERS.find((item) => item.population.test(rule.population));
-      if (matcher && contextAffirmsTerm(clinicalContext, matcher.patient)) {
+      if (matcher && (contextAffirmsTerm(clinicalContext, matcher.patient) || matcher.isPatient?.(clinicalContext))) {
         return `herb_${herbIndex}_special_population_high_risk_${matcher.code}`;
       }
     }
@@ -4025,6 +4054,7 @@ export function m04SemanticIssue(
 ): string | undefined {
   const candidates = reasoning?.formula?.candidates;
   if (reasoning?.stage !== "prescribe") return "stage";
+  const pediatricDose = pediatricDoseRuleFromGroundingText(clinicalContext);
   const nonPharma = reasoning.nonPharma;
   // 语义收窄：只要求饮食/起居/情志三段调护非空。注意事项（precautions）刻意不在这里校验——
   // 它是零驳回码字段，专业度由提示词在生成侧要求，内容兜底由编译层确定性提供。
@@ -4175,8 +4205,8 @@ export function m04SemanticIssue(
       const decoctionRule = decoctionRuleForHerb(herb.name);
       if (decoctionRule?.prohibited.includes("同煎")) return `candidate_${candidateIndex}_herb_${herbIndex}_route_not_decoction`;
       if (!dosePassesSafetySanityCeiling(herb.name.trim(), herb.dose)) return `candidate_${candidateIndex}_herb_${herbIndex}_dose_sanity_ceiling`;
-      if (!trustedWorkbenchEdit && !doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || ""))) {
-        const deviation = ordinaryHistoricalDoseDeviation(herb, String(candidate.decoction?.method || ""));
+      if (!trustedWorkbenchEdit && !doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || ""), pediatricDose)) {
+        const deviation = ordinaryHistoricalDoseDeviation(herb, String(candidate.decoction?.method || ""), pediatricDose);
         return `candidate_${candidateIndex}_herb_${herbIndex}_${deviation ? "dose_reference_deviation" : "dose_outside_conservative_range"}`;
       }
       if (typeof herb.role !== "string" || !herb.role.trim()) return `candidate_${candidateIndex}_herb_${herbIndex}_role`;
@@ -4416,6 +4446,7 @@ export function m04SafetyContractIssue(
     waiveTherapyCoverageAnnotated,
   } = options;
   if (reasoning?.stage !== "prescribe") return "stage";
+  const pediatricDose = pediatricDoseRuleFromGroundingText(clinicalContext || "");
   // 锁定字段漂移与君药绑定：绝对否决。
   const stageIssue = crossStageReasoningIssue(reasoning, priorReasoning, "", trustedWorkbenchEdit, waiveTherapyCoverageAnnotated);
   if (stageIssue) return stageIssue;
@@ -4501,8 +4532,8 @@ export function m04SafetyContractIssue(
       const decoctionRule = decoctionRuleForHerb(herb.name);
       if (decoctionRule?.prohibited.includes("同煎")) return `candidate_${candidateIndex}_herb_${herbIndex}_route_not_decoction`;
       if (!dosePassesSafetySanityCeiling(herb.name.trim(), herb.dose)) return `candidate_${candidateIndex}_herb_${herbIndex}_dose_sanity_ceiling`;
-      if (!doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || "")) &&
-          !ordinaryHistoricalDoseDeviation(herb, String(candidate.decoction?.method || ""))) {
+      if (!doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || ""), pediatricDose) &&
+          !ordinaryHistoricalDoseDeviation(herb, String(candidate.decoction?.method || ""), pediatricDose)) {
         return `candidate_${candidateIndex}_herb_${herbIndex}_dose_outside_conservative_range`;
       }
       // 特殊煎法是毒性与刺激性药味安全控制的一部分，不是叙述性字段。

@@ -1,4 +1,5 @@
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
+import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { dosePassesSafetySanityCeiling, doseWithinConservativeModelLimit, m04GenerationSpecialPopulationIssue, normalizeComparableDose, ordinaryHistoricalDoseDeviation, unsupportedHighImpactHerbFindings } from "./diagnosis-stage-contract";
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, isKnownTcmHerbName } from "./tcm-knowledge";
@@ -49,6 +50,7 @@ export function clinicalDeliveryAdvisoryFromIssue(
   issue: string,
   candidate: Candidate,
   candidateIndex = 0,
+  pediatric?: PediatricDoseRule,
 ): ClinicalDeliveryAdvisory {
   // Modification indexes refer to conditional suggestions, not the candidate's actual herbs.
   const indexedHerb = issue.startsWith("modification_") ? null : issue.match(/(?:^|_)herb_(\d+)(?:_|$)/);
@@ -59,7 +61,9 @@ export function clinicalDeliveryAdvisoryFromIssue(
     ? findTcmHerbPairIncompatibilities(candidate.herbs.map((herb) => herb.name))
     : [];
   const doseLimit = herbName && /dose/.test(issue) ? getTcmHerbDoseLimit(herbName) : undefined;
-  const doseDetail = doseLimit?.min != null && doseLimit.max != null
+  const doseDetail = doseLimit?.min != null && doseLimit.max != null && pediatric
+    ? `当前药量 ${displayText(candidate.herbs[herbIndex!].dose || "未提供")}；儿童折算上限 ${pediatricDoseCeilingG(doseLimit.max, pediatric, herbName)}g（成人历史参考 ${doseLimit.min}–${doseLimit.max}g × ${pediatric.fractionText}）。`
+    : doseLimit?.min != null && doseLimit.max != null
     ? `当前药量 ${displayText(candidate.herbs[herbIndex!].dose || "未提供")}；历史参考 ${doseLimit.min}–${doseLimit.max}g。${/dose_reference_deviation/.test(issue) && doseLimit.basis ? `来源：${displayText(doseLimit.basis)}。` : ""}`
     : "";
   return {
@@ -84,6 +88,7 @@ export function collectClinicalDeliveryAdvisories(
   candidateIndex = 0,
 ): ClinicalDeliveryAdvisory[] {
   const issues = new Set(extraIssues.filter((issue): issue is string => Boolean(issue)));
+  const pediatricDose = pediatricDoseRuleFromGroundingText(clinicalContext);
   for (const [index, herb] of candidate.herbs.entries()) {
     const prefix = `candidate_0_herb_${index}_`;
     const dose = herb.dose || "";
@@ -91,8 +96,8 @@ export function collectClinicalDeliveryAdvisories(
     if (!isKnownTcmHerbName(herb.name)) issues.add(`${prefix}unknown`);
     if (!normalizeComparableDose(dose)) issues.add(`${prefix}dose`);
     if (!dosePassesSafetySanityCeiling(herb.name, dose)) issues.add(`${prefix}dose_sanity_ceiling`);
-    if (!doseWithinConservativeModelLimit(herb.name, dose, candidate.decoction.method)) {
-      issues.add(`${prefix}${ordinaryHistoricalDoseDeviation(herb, candidate.decoction.method) ? "dose_reference_deviation" : "dose_outside_conservative_range"}`);
+    if (!doseWithinConservativeModelLimit(herb.name, dose, candidate.decoction.method, pediatricDose)) {
+      issues.add(`${prefix}${ordinaryHistoricalDoseDeviation(herb, candidate.decoction.method, pediatricDose) ? "dose_reference_deviation" : "dose_outside_conservative_range"}`);
     }
     if (decoctionRuleForHerb(herb.name)?.prohibited.includes("同煎")) issues.add(`${prefix}route_not_decoction`);
     if (!decoctionRuleSatisfied(herb.name, herb.decoctionRequirement || "")) issues.add(`${prefix}decoction_missing_required`);
@@ -114,7 +119,7 @@ export function collectClinicalDeliveryAdvisories(
     for (const concept of vocabularyOnly) issues.add(`candidate_0_herb_${finding.index}_therapy_vocabulary_unverified_${concept}`);
   }
   return deduplicateClinicalDeliveryAdvisories([...issues].map((issue) =>
-    clinicalDeliveryAdvisoryFromIssue(issue, candidate, candidateIndex)));
+    clinicalDeliveryAdvisoryFromIssue(issue, candidate, candidateIndex, pediatricDose)));
 }
 
 export function deduplicateClinicalDeliveryAdvisories(advisories: readonly ClinicalDeliveryAdvisory[]): ClinicalDeliveryAdvisory[] {

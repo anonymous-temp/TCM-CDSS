@@ -215,8 +215,8 @@
       "allergyHistory": "",
       "medicationHistory": "",
       "labs": "",
-      "expectation": "should_downgrade_incomplete",
-      "robustnessNote": "儿童、妊娠、哺乳或备孕等特殊人群存在剂量硬边界，应稳定降级为非剂量分析"
+      "expectation": "should_prescribe",
+      "robustnessNote": "公开门诊病案；验证完整流程、结构化合同、药名/剂量/方义与审方出口"
     },
     {
       "id": "public-090",
@@ -234,8 +234,8 @@
       "allergyHistory": "",
       "medicationHistory": "",
       "labs": "",
-      "expectation": "should_downgrade_incomplete",
-      "robustnessNote": "儿童、妊娠、哺乳或备孕等特殊人群存在剂量硬边界，应稳定降级为非剂量分析"
+      "expectation": "should_prescribe",
+      "robustnessNote": "公开门诊病案；验证完整流程、结构化合同、药名/剂量/方义与审方出口"
     },
     {
       "id": "public-091",
@@ -291,8 +291,8 @@
       "allergyHistory": "",
       "medicationHistory": "",
       "labs": "",
-      "expectation": "should_downgrade_incomplete",
-      "robustnessNote": "儿童、妊娠、哺乳或备孕等特殊人群存在剂量硬边界，应稳定降级为非剂量分析"
+      "expectation": "should_prescribe",
+      "robustnessNote": "公开门诊病案；验证完整流程、结构化合同、药名/剂量/方义与审方出口"
     },
     {
       "id": "public-094",
@@ -646,7 +646,7 @@
       "allergyHistory": "",
       "medicationHistory": "",
       "labs": "鼻内血管破裂",
-      "expectation": "should_downgrade_incomplete",
+      "expectation": "should_prescribe",
       "robustnessNote": "受治理现代医案回放；输入仅含患者事实，不下发原方、证候金标准或治疗原则"
     },
     {

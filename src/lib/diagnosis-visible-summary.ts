@@ -1,4 +1,5 @@
 import { discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
+import { pediatricDoseRuleForAgeYears } from "./pediatric-dose-rule";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
@@ -1681,7 +1682,11 @@ export function applyDeterministicDecoctionMethod(content: string, clinicalConte
     const age = typeof patientAgeYears === "number" && Number.isFinite(patientAgeYears) && patientAgeYears >= 0 && patientAgeYears <= 120
       ? patientAgeYears
       : contextAge;
-    const finalVolume = typeof age === "number" && Number.isFinite(age) && age >= 0 && age < 18 ? 200 : 500;
+    // 药液量按年龄档（pediatric-dose-rule 数据：新生儿约50、婴儿100、幼儿150、学龄前200、学龄期250 mL，12 岁及以上与成人同）；
+    // 此前未满 18 岁一律 200mL。年龄判不出时取成人值，与此前一致。
+    const finalVolume = typeof age === "number" && Number.isFinite(age) && age >= 0
+      ? (pediatricDoseRuleForAgeYears(age)?.decoctionVolumeMl ?? 500)
+      : 500;
     for (const rawCandidate of candidates) {
       if (!rawCandidate || typeof rawCandidate !== "object" || Array.isArray(rawCandidate)) continue;
       const candidate = rawCandidate as Record<string, unknown>;

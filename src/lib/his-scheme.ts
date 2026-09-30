@@ -1091,7 +1091,7 @@ export function buildHisAiSchemePayload(
   // Retain the actual AI proposal for physician review without promoting an unverified historical
   // reference deviation to an executable HIS item. Other clinical items retain their own policy.
   const historicalDoseReferenceOnly = structuredHerbs(caseState).some((herb) =>
-    ordinaryHistoricalDoseDeviation(herb, structuredCandidate(caseState)?.decoction?.method || ""));
+    ordinaryHistoricalDoseDeviation(herb, structuredCandidate(caseState)?.decoction?.method || "", permission.pediatricDose));
   const blockedReason = adoptionRestricted
       ? "当前候选存在安全合同问题或已标记为不可执行，不可采纳或写回医嘱；已有诊疗内容可继续查看和编辑"
     : contentMismatch || unauditedConcreteMedicine || invalidStructuredDose

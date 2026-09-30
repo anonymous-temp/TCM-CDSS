@@ -3457,7 +3457,8 @@ assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.method, /�
 }
 const pediatricDecoctionContent = applyDeterministicDecoctionMethod(serverOwnedContent, "病程3个月；年龄：8岁");
 const pediatricDecoction = JSON.parse(pediatricDecoctionContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
-assert.match(pediatricDecoction.formula.candidates[0].decoction.method, /约200mL/);
+// 药液量按年龄档（2026-09-30，pediatric-dose-rule）：8 岁属学龄期 250mL（原「未满 18 岁一律 200mL」）。
+assert.match(pediatricDecoction.formula.candidates[0].decoction.method, /约250mL/);
 assert.equal(isCompleteM04Reasoning(finalizedServerOwnedM04, finalizedServerOwnedVisible, spleenDeficiencyPrior), true, m04SemanticIssue(finalizedServerOwnedM04, finalizedServerOwnedVisible, spleenDeficiencyPrior));
 const validConditionalModification = {
   ...finalizedServerOwnedM04,

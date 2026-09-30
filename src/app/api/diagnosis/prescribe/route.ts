@@ -6,6 +6,7 @@ import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server
 import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
 import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-parse";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
+import { pediatricDoseRuleGuidance, pediatricDoseRuleSummary, pediatricRestrictedHerbNames } from "@/lib/pediatric-dose-rule";
 import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
@@ -192,10 +193,13 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
 
   const trustedGated = { ...gated, reasoningDiagnose: signedPriorReasoning };
   const safeState = sanitizeCaseStateForModel(trustedGated);
+  const groundingText = clinicalGroundingText(safeState);
   const structuredClinicalContext = [
-    clinicalGroundingText(safeState),
+    groundingText,
     safeState.patient.sex ? `患者性别：${safeState.patient.sex}` : "",
-    safeState.patient.age != null ? `患者年龄：${safeState.patient.age}岁` : "",
+    // 接地语料已带服务端标签化的权威年龄（含月龄小数年）时不再补第二行：patient.age 可能是「8个月」，
+    // 拼成「8个月岁」既难看，又会让两处年龄各说各的（儿童折算档位读的是第一处）。
+    safeState.patient.age != null && !/患者年龄\s*[:：]/.test(groundingText) ? `患者年龄：${safeState.patient.age}岁` : "",
   ].filter(Boolean).join("\n");
   // 口语否定增补：**必须传 signal**。此前漏传，医生中断请求后它仍会空转满 6s
   // 才自己超时——diagnose 路由（:83）一直是传的，两条路径写法不同源。
@@ -238,6 +242,16 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
         `本候选方药仅依据已经提供的信息生成；正式采纳前需确认：${reviewItemsText}。这些未知项不影响医生审阅候选方案，但不会被视为已核实事实。`,
       ].join("\n")
     : "";
+  const pediatricDose = permission.pediatricDose;
+  const pediatricNotice = pediatricDose
+    ? ["## 儿童用药说明", ...[pediatricDoseRuleSummary(pediatricDose), ...pediatricDoseRuleGuidance(pediatricDose)].map((line) => `- ${line}`)].join("\n")
+    : "";
+  if (pediatricDose) {
+    // 儿童剂量走年龄分数法（pediatric-dose-rule）：提示词里各药的 [min-max g] 是成人药典区间，模型必须自己折算；
+    // 服务端在合同（成人区间不再适用）与编译（超出折算上限按上限截取并注明）两处按同一档位核对。
+    const restricted = pediatricRestrictedHerbNames(pediatricDose);
+    promptSuffixes.push(`【儿童剂量】${pediatricDoseRuleSummary(pediatricDose)}。前文各药的 [min-max g] 与「服务端方剂目录编译基准」里的克数都是**成人**用量：请把每味药折算为成人一般用量×${pediatricDose.fractionText}（可低于成人下限；绝不得超过该药成人上限×${pediatricDose.fractionText}），药味多的处方保持主药用量、精简或减少辅助药；麻黄、附子、细辛、乌头、大黄、巴豆、芒硝等辛热苦寒峻烈药无论年龄档一律不超过成人上限的 2/3 并尽量从低；每味药仍必须写出可解析的克数，并在适用边界中写明本例按年龄分数法折算。本例禁用药味（不得入方）：${restricted.prohibited.join("、")}；慎用药味（非必需不用，用则从低并写明理由）：${restricted.caution.join("、")}。`);
+  }
   if (limitedInformation) {
     promptSuffixes.push(`【有限信息候选】当前待复核：${reviewItemsText}。请基于已知证候、病机和治法生成医生审阅用候选方案，并把相关未知项或阳性风险写入适用边界；不得臆造患者事实，也不得仅因缺项或风险提示拒绝生成。`);
   }
@@ -482,6 +496,7 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
       //（CDSS_SAFETY_ADVISORY）与信息提示（informationNotice）是医生需要行动的内容。
       return [
         advisoryBanner && !synchronized.includes("CDSS_SAFETY_ADVISORY") ? advisoryBanner.trimEnd() : "",
+        pediatricNotice,
         informationNotice,
         synchronized,
       ].filter(Boolean).join("\n\n");

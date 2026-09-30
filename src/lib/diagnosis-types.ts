@@ -115,6 +115,7 @@ export type SafetyMissingItemCode =
   | "tongue_unknown"
   | "pulse_unknown"
   | "pediatric_weight_unknown"
+  | "pediatric_age_unknown"
   | "pediatric_dose_rules_unavailable"
   | "pregnancy_unknown"
   | "lactation_unknown"
@@ -1803,7 +1804,7 @@ const SafetyGateInputSchema = z.object({
     "chief_complaint", "age_invalid", "age_conflict", "sex_unknown", "allergy_unknown", "allergy_details",
     "medication_unknown", "medication_details", "blood_pressure_invalid", "vitals_invalid", "vitals_source_conflict",
     "semantic_screen_unavailable", "priority_evaluation_required", "high_risk_missing_vitals", "tongue_unknown", "pulse_unknown",
-    "pediatric_weight_unknown", "pediatric_dose_rules_unavailable", "pregnancy_unknown", "lactation_unknown",
+    "pediatric_weight_unknown", "pediatric_age_unknown", "pediatric_dose_rules_unavailable", "pregnancy_unknown", "lactation_unknown",
     "conception_unknown", "behavioral_crisis_screening", "osa_screening", "thyroid_screening",
   ])).default([]),
   redFlags: z.array(z.string()).default([]),

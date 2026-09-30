@@ -663,22 +663,23 @@ const adultDecoctionJson = JSON.parse(adultDecoction.split(startMarker)[1].split
 assert.match(adultDecoctionJson.formula.candidates[0].decoction.method, /约500mL/);
 const childDecoction = applyDeterministicDecoctionMethod(driftedPrescription, "年龄：8岁");
 const childDecoctionJson = JSON.parse(childDecoction.split(startMarker)[1].split(endMarker)[0].trim());
-assert.match(childDecoctionJson.formula.candidates[0].decoction.method, /约200mL/);
+// 药液量按年龄档（2026-09-30）：8 岁学龄期 250mL；12 岁及以上接近成人用量，与成人同 500mL。
+assert.match(childDecoctionJson.formula.candidates[0].decoction.method, /约250mL/);
 const adolescentDecoction = applyDeterministicDecoctionMethod(driftedPrescription, "年龄：17岁");
 const adolescentDecoctionJson = JSON.parse(adolescentDecoction.split(startMarker)[1].split(endMarker)[0].trim());
-assert.match(adolescentDecoctionJson.formula.candidates[0].decoction.method, /约200mL/);
+assert.match(adolescentDecoctionJson.formula.candidates[0].decoction.method, /约500mL/);
 const structuredAgeDecoction = applyDeterministicDecoctionMethod(driftedPrescription, "主诉：咳嗽3天", 8);
 const structuredAgeDecoctionJson = JSON.parse(structuredAgeDecoction.split(startMarker)[1].split(endMarker)[0].trim());
-assert.match(structuredAgeDecoctionJson.formula.candidates[0].decoction.method, /约200mL/, "structured age owns pediatric volume without relying on prose formatting");
-for (const [label, clinicalContext, structuredAge] of [
-  ["newborn zero age", "主诉：出生后黄疸", 0],
-  ["month age", "患者6月龄，反复湿疹", undefined],
-  ["combined year-month age", "患者1岁6个月，反复咳嗽", undefined],
-  ["decimal year age", "年龄：1.5岁", undefined],
+assert.match(structuredAgeDecoctionJson.formula.candidates[0].decoction.method, /约250mL/, "structured age owns pediatric volume without relying on prose formatting");
+for (const [label, clinicalContext, structuredAge, volume] of [
+  ["newborn zero age", "主诉：出生后黄疸", 0, 50],
+  ["month age", "患者6月龄，反复湿疹", undefined, 100],
+  ["combined year-month age", "患者1岁6个月，反复咳嗽", undefined, 150],
+  ["decimal year age", "年龄：1.5岁", undefined, 150],
 ]) {
   const pediatricContent = applyDeterministicDecoctionMethod(driftedPrescription, clinicalContext, structuredAge);
   const pediatricJson = JSON.parse(pediatricContent.split(startMarker)[1].split(endMarker)[0].trim());
-  assert.match(pediatricJson.formula.candidates[0].decoction.method, /约200mL/, `${label} keeps the pediatric decoction boundary`);
+  assert.match(pediatricJson.formula.candidates[0].decoction.method, new RegExp(`约${volume}mL`), `${label} takes the pediatric decoction volume of its age stage`);
 }
 const caregiverContextDecoction = applyDeterministicDecoctionMethod(driftedPrescription, "患者为成年人，近期照顾5岁患儿，自己入睡困难");
 const caregiverContextJson = JSON.parse(caregiverContextDecoction.split(startMarker)[1].split(endMarker)[0].trim());

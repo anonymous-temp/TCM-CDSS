@@ -6,6 +6,7 @@ import {
 } from "./clinical-state";
 import { populationScopeForms } from "./clinical-vocabulary";
 import { ageValue, type CaseState } from "./diagnosis-types";
+import { stripInfantFeedingPhrases } from "./pediatric-dose-rule";
 import { isRecordCompletenessStatement } from "./diagnosis-safety";
 
 type MedicationRiskCaseContext = Partial<Pick<
@@ -68,18 +69,21 @@ export function reproductiveMedicationRiskApplies(
   state?: MedicationRiskCaseContext | null,
 ): boolean {
   if (!state) return true;
-  const text = contextText(state);
+  const age = ageValue(state.hisRecord?.fields?.age) ?? ageValue(state.patient?.age);
+  // 婴幼儿病历里的「母乳喂养」是患儿的喂养方式，不是母亲的哺乳期（与安全门的孕哺判据同界：<10 岁）。
+  const childUnderMenarche = age != null && age < 10;
+  const text = childUnderMenarche ? stripInfantFeedingPhrases(contextText(state)) : contextText(state);
   if (
     isPositiveOrPossibleClinicalState(assessPregnancyState(text)) ||
     isPositiveOrPossibleClinicalState(assessLactationState(text)) ||
     isPositiveOrPossibleClinicalState(assessConceptionState(text))
   ) return true;
 
+  if (childUnderMenarche) return false;
   const sex = String(state.patient?.sex || state.hisRecord?.fields?.sex || "").trim();
   if (/男/.test(sex) && !/女/.test(sex)) return false;
   if (!/女/.test(sex)) return true;
 
-  const age = ageValue(state.hisRecord?.fields?.age) ?? ageValue(state.patient?.age);
   return !((age != null && age >= 60) || includesAny(text, REPRODUCTIVE_EXCLUSION_FORMS));
 }
 

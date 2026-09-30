@@ -38,6 +38,16 @@ import { activeEmergencyClearanceFindingsFromGate, emergencyClearanceContractIss
 import { sixHealthFollowupTable } from "./tcm-followup-dimensions";
 import redflagTriageLexicon from "../data/redflag-triage-lexicon.json" with { type: "json" };
 import physicalExamClaimLexicon from "../data/physical-exam-claim-lexicon.source.json" with { type: "json" };
+import {
+  PEDIATRIC_CLAUSE_SUBJECT_PATTERN,
+  PEDIATRIC_STRUCTURED_WORD_PATTERN,
+  pediatricDoseRuleForAgeYears,
+  pediatricDoseRuleForStageWords,
+  pediatricStageOldestAgeYears,
+  stripInfantFeedingPhrases,
+  type PediatricDoseRule,
+} from "./pediatric-dose-rule";
+import { pediatricVitalReferenceForAgeYears, type PediatricVitalReference } from "./pediatric-vital-reference";
 
 type GovernedRedFlagCategory = {
   id: string;
@@ -375,7 +385,7 @@ export function clinicalGroundingText(state: CaseState): string {
   // 补一行标签化事实（真实患者事实，additive-only），全部年龄敏感判据从此同源。
   const authoritativeAge = authoritativePatientAgeYears(state);
   const ageLine = authoritativeAge != null && !/年龄\s*[:：]/.test(authoritative)
-    ? `患者年龄：${authoritativeAge}岁`
+    ? `患者年龄：${Number(authoritativeAge.toFixed(4))}岁`
     : "";
   const groundingBase = [ageLine, authoritative].filter(Boolean).join("\n");
   const symptomEntries = flattenClinicalInput(state.symptoms)
@@ -1093,10 +1103,28 @@ function normalizedAgeLiteral(value: unknown): string {
   return String(value ?? "").trim().replace(/\s*岁$/, "");
 }
 
+/** 两处年龄相差不到约 18 天（0.05 岁）算同一个年龄：「8个月」与 0.6667 岁、「12天」与 0.033 岁都是一致的记录。 */
+const AGE_AGREEMENT_TOLERANCE_YEARS = 0.05;
+
+/**
+ * 顶层 patient.age 与 HIS 年龄栏是否冲突。以前逐字比较字面量：调用方给数值年龄 0.6667、HIS 栏写「8个月」
+ * （儿童剂量放开后婴儿是常态）就报「年龄记录冲突需复核」，剂量被降为有限信息。两边都能解析成年龄时比数值，
+ * 解析不了的才回落到字面量比较。
+ */
+function agesConflict(left: unknown, right: unknown): boolean {
+  const first = normalizedAgeLiteral(left);
+  const second = normalizedAgeLiteral(right);
+  if (!first || !second || first === second) return false;
+  const firstYears = numberFromClinicalText(first);
+  const secondYears = numberFromClinicalText(second);
+  if (firstYears != null && secondYears != null) return Math.abs(firstYears - secondYears) > AGE_AGREEMENT_TOLERANCE_YEARS;
+  return true;
+}
+
 function sanitizeAgeClaimText(value: string, state: CaseState): string {
   const patientAge = normalizedAgeLiteral(state.patient.age);
   const hisAge = normalizedAgeLiteral(state.hisRecord?.fields?.age);
-  const conflict = Boolean(patientAge && hisAge && patientAge !== hisAge);
+  const conflict = agesConflict(state.patient.age, state.hisRecord?.fields?.age);
   const authoritativeAge = hisAge || patientAge;
   if (!authoritativeAge && !conflict) return value;
   return value.replace(
@@ -1504,8 +1532,16 @@ function criticalInvertedBloodPressure(text: string): { first: number; second: n
   return null;
 }
 
-function bloodPressureIsCritical(bp: { systolic: number; diastolic: number } | null): boolean {
-  return Boolean(bp && (bp.systolic >= 180 || bp.diastolic >= 120 || bp.systolic <= 80 || bp.diastolic <= 45));
+function bloodPressureIsCritical(
+  bp: { systolic: number; diastolic: number } | null,
+  pediatric?: PediatricVitalReference,
+): boolean {
+  if (!bp) return false;
+  if (bp.systolic >= 180 || bp.diastolic >= 120) return true;
+  // 未满 10 岁按 PALS 年龄低血压线（新生儿<60、婴儿<70、1～10 岁<70+2×岁）；成人的收缩压≤80/舒张压≤45
+  // 会把健康婴幼儿（收缩压 80～100、舒张压 40～55）判成休克风险。
+  if (pediatric?.systolicHypotensionBelow != null) return bp.systolic < pediatric.systolicHypotensionBelow;
+  return bp.systolic <= 80 || bp.diastolic <= 45;
 }
 
 /**
@@ -1825,7 +1861,25 @@ function bloodPressureReviewPriority(value: { systolic: number; diastolic: numbe
  * rules as structured vitals, so a subcritical abnormal value cannot disappear merely because it
  * was entered in the narrative field.
  */
+/**
+ * 儿童生命体征参考线（未满 12 岁且年龄可判）。有数值年龄按数值；只写了档位词（「幼儿」）时取该档最大年龄，
+ * 两头都落在更保守的一侧。年龄未知、12 岁及以上返回 undefined，调用方沿用成人线。
+ */
+export function pediatricVitalReferenceForCase(input: CaseState): PediatricVitalReference | undefined {
+  const state = withPatientObject(input);
+  const age = numberFromClinicalText(patientAgeText(state));
+  if (age != null) return pediatricVitalReferenceForAgeYears(age);
+  const rule = pediatricDoseRuleForCase(state);
+  return pediatricVitalReferenceForAgeYears(rule ? pediatricStageOldestAgeYears(rule) : undefined);
+}
+
+/** 部分构造的病例（只带主诉/事实的探针与旧快照）没有 patient 对象：按「年龄、性别都未知」处理，不抛错。 */
+function withPatientObject(state: CaseState): CaseState {
+  return state.patient ? state : { ...state, patient: {} as CaseState["patient"] };
+}
+
 export function currentVitalMeasurements(state: CaseState): CurrentVitalMeasurements {
+  const pediatricVitals = pediatricVitalReferenceForCase(state);
   const structuredText = vitalsText(state);
   const narrativeText = trustedInputText(state);
   const structuredBloodPressure = parseContextualBloodPressure(structuredText);
@@ -1842,12 +1896,12 @@ export function currentVitalMeasurements(state: CaseState): CurrentVitalMeasurem
     pulse: preferAbnormalNumber(
       parseContextualPulse(structuredText),
       parseContextualPulse(narrativeText),
-      (value) => value >= 120 || value < 50,
+      (value) => value >= (pediatricVitals?.pulseAdvisoryFrom ?? 120) || value < 50,
     ),
     respiration: preferAbnormalNumber(
       parseContextualRespiration(structuredText),
       parseContextualRespiration(narrativeText),
-      (value) => value >= 25 || value <= 8,
+      (value) => value >= (pediatricVitals?.respirationAdvisoryFrom ?? 25) || value <= 8,
     ),
     spo2: preferAbnormalNumber(
       parseContextualSpo2(structuredText),
@@ -3562,7 +3616,8 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   if (obstetricSevereHypertension && bp) {
     redFlags.push(`妊娠/产褥期血压 ${bp.systolic}/${bp.diastolic}mmHg 达重度高血压标准（≥160/110），需立即按子痫前期/子痫风险急诊评估，尤其伴头痛、视物异常或上腹痛时`);
   }
-  const criticalBp = bp && bloodPressureIsCritical(bp) ? bp : null;
+  const pediatricVitals = pediatricVitalReferenceForCase(state);
+  const criticalBp = bp && bloodPressureIsCritical(bp, pediatricVitals) ? bp : null;
   if (criticalBp && !obstetricSevereHypertension) {
     redFlags.push(criticalBp.systolic >= 180 || criticalBp.diastolic >= 120
       ? `血压 ${criticalBp.systolic}/${criticalBp.diastolic}mmHg 达重度高血压警戒值，需立即规范复测并评估急性靶器官损害；如伴胸痛、神经功能异常或呼吸困难应急诊处理`
@@ -3574,10 +3629,10 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   if (temp != null && temp < 35) {
     redFlags.push(`体温 ${temp}℃，达到低体温风险警戒阈值，需先评估循环、感染或暴露相关风险`);
   }
-  if (pulse != null && (pulse >= 150 || pulse < 40)) {
+  if (pulse != null && (pulse >= (pediatricVitals?.pulseRedFlagFrom ?? 150) || pulse < 40)) {
     redFlags.push(`心率/脉搏 ${pulse}次/分异常，需先评估心血管风险`);
   }
-  if (respiration != null && (respiration >= 35 || respiration <= 8)) {
+  if (respiration != null && (respiration >= (pediatricVitals?.respirationRedFlagFrom ?? 35) || respiration <= 8)) {
     redFlags.push(`呼吸 ${respiration}次/分异常，需先评估呼吸循环风险`);
   }
   if (spo2 != null && spo2 <= 89) {
@@ -3809,8 +3864,11 @@ export function measuredVitalAdvisories(state: CaseState): string[] {
     spo2,
   } = currentVitalMeasurements(state);
   const advisories: string[] = [];
-  if (bp && !bloodPressureIsCritical(bp) &&
-      (bp.systolic >= 180 || bp.diastolic >= 120 || bp.systolic <= 90 || bp.diastolic <= 50)) {
+  const pediatricVitals = pediatricVitalReferenceForCase(state);
+  const pediatricBloodPressure = pediatricVitals?.systolicHypotensionBelow != null;
+  if (bp && !bloodPressureIsCritical(bp, pediatricVitals) &&
+      (bp.systolic >= 180 || bp.diastolic >= 120 ||
+        (!pediatricBloodPressure && (bp.systolic <= 90 || bp.diastolic <= 50)))) {
     advisories.push(`血压 ${bp.systolic}/${bp.diastolic}mmHg 需立即规范复测，并结合胸痛、气促、神经症状及急性靶器官损害判断处置级别`);
   }
   if (temperature != null && temperature < 40 && temperature >= 39) {
@@ -3818,12 +3876,12 @@ export function measuredVitalAdvisories(state: CaseState): string[] {
   } else if (temperature != null && temperature >= 35 && temperature < 36) {
     advisories.push(`体温 ${temperature}℃ 偏低，需尽快复测并结合暴露、感染和循环状态评估`);
   }
-  if (pulse != null && pulse < 150 && pulse >= 120) {
+  if (pulse != null && pulse < (pediatricVitals?.pulseRedFlagFrom ?? 150) && pulse >= (pediatricVitals?.pulseAdvisoryFrom ?? 120)) {
     advisories.push(`心率/脉搏 ${pulse}次/分需尽快复测，并结合节律、症状及基础心率评估`);
   } else if (pulse != null && pulse >= 40 && pulse < 50) {
     advisories.push(`心率/脉搏 ${pulse}次/分需尽快复测，并结合节律、症状及基础心率评估`);
   }
-  if (respiration != null && respiration < 35 && respiration >= 25) {
+  if (respiration != null && respiration < (pediatricVitals?.respirationRedFlagFrom ?? 35) && respiration >= (pediatricVitals?.respirationAdvisoryFrom ?? 25)) {
     advisories.push(`呼吸 ${respiration}次/分需尽快复测，并结合呼吸困难、血氧及基础状态评估`);
   }
   if (spo2 != null && spo2 > 89 && spo2 <= 91) {
@@ -3881,6 +3939,18 @@ function numberFromClinicalText(value: string): number | null {
     const years = months / 12;
     return Number.isFinite(years) && months >= 0 && years <= 120 ? years : null;
   }
+  // 新生儿的年龄只按天/周龄记录（HIS 年龄栏「12天」「3周龄」）。只接受**整栏就是一个天/周数**：
+  // 叙述里的「发热3天」不是年龄——叙述来源由 patientBoundNarrativeAge 先按岁/月字面筛过，走不到这里。
+  const dayMatch = text.match(/^(?:出生(?:后)?\s*)?(\d+(?:\.\d+)?)\s*(?:天|日)(?:龄)?$/);
+  if (dayMatch) {
+    const days = Number(dayMatch[1]);
+    return Number.isFinite(days) && days >= 0 && days <= 365 * 120 ? days / 365 : null;
+  }
+  const weekMatch = text.match(/^(?:出生(?:后)?\s*)?(\d+(?:\.\d+)?)\s*周龄$/);
+  if (weekMatch) {
+    const weeks = Number(weekMatch[1]);
+    return Number.isFinite(weeks) && weeks >= 0 && weeks <= 52 * 120 ? (weeks * 7) / 365 : null;
+  }
   if (!/^-?\d+(?:\.\d+)?$/.test(text)) return null;
   const years = Number(text);
   return Number.isFinite(years) && years >= 0 && years <= 120 ? years : null;
@@ -3924,7 +3994,7 @@ function patientAgeText(state: CaseState): string {
     // relative's age as the patient's age.
     return patientBoundNarrativeAge(normalizeClinicalText(trustedInputText(state)));
   }
-  const structured = state.patient.age != null ? String(state.patient.age).trim() : "";
+  const structured = state.patient?.age != null ? String(state.patient.age).trim() : "";
   if (isKnownClinicalText(structured)) return structured;
   return patientBoundNarrativeAge(normalizeClinicalText(trustedInputText(state)));
 }
@@ -3978,20 +4048,23 @@ function hasNumericPediatricWeight(text: string): boolean {
 }
 
 // 儿科病例可能只用定性词标注(患儿/婴儿/男童/月龄…)而无数字年龄。这类同样必须命中儿童剂量门：
-// 本地知识库只有成人剂量区间，任何候选方一律 fail-closed 到儿科医师/药师个体化复核，绝不退化为成人剂量。
-function hasQualitativePediatricContext(state: CaseState): boolean {
+// 本地知识库只有成人剂量区间，绝不退化为成人剂量——能从定性词判出年龄段的按年龄分数法折算，判不出的（只写「患儿」）收回剂量。
+// 词表与分句开头正则都来自 pediatric-dose-rule（一份数据，判「是不是儿童」与判「哪一档」不会各写各的）。
+function pediatricQualitativeText(state: CaseState): string | undefined {
   const structuredDemographics = normalizeClinicalText([
     state.hisRecord?.fields?.sex,
     state.hisRecord?.fields?.age,
     state.patient.sex,
   ].filter(Boolean).join("；"));
-  if (/(患儿|儿童|未成年人|新生儿|婴儿|婴幼儿|乳儿|幼儿|宝宝|男童|女童|月龄)/.test(structuredDemographics)) {
-    return true;
-  }
+  if (PEDIATRIC_STRUCTURED_WORD_PATTERN.test(structuredDemographics)) return structuredDemographics;
   return normalizeClinicalText(trustedInputText(state))
     .split(/[。；;\n]+/)
     .map((clause) => clause.trim().replace(/^(?:主诉|现病史|患者信息|一般资料)\s*[:：]\s*/, ""))
-    .some((clause) => /^(?:(?:患者|病人)\s*(?:为|系|是)?\s*)?(?:一名|一位|该名|这个)?\s*(?:患儿|儿童患者|儿童|未成年人|新生儿|婴儿|婴幼儿|乳儿|幼儿|宝宝|小孩|孩子|少年|学龄前儿童|小学生|中学生|男童|女童)/.test(clause));
+    .find((clause) => PEDIATRIC_CLAUSE_SUBJECT_PATTERN.test(clause));
+}
+
+function hasQualitativePediatricContext(state: CaseState): boolean {
+  return pediatricQualitativeText(state) !== undefined;
 }
 
 /**
@@ -4018,6 +4091,22 @@ export function isPediatricPatient(state: CaseState): boolean {
   return hasQualitativePediatricContext(state);
 }
 
+/**
+ * 儿童剂量档位（年龄分数法）。**不是儿童 → undefined；是儿童但年龄段判不出（无数值年龄、定性词也只写「患儿」）→ undefined**，
+ * 两种情形靠 isPediatricPatient 区分：后者继续收回剂量并追问年龄。数值年龄优先于定性词（与 isPediatricPatient 同序）。
+ */
+export function pediatricDoseRuleForCase(input: CaseState): PediatricDoseRule | undefined {
+  const state = withPatientObject(input);
+  if (!isPediatricPatient(state)) return undefined;
+  const age = numberFromClinicalText(patientAgeText(state));
+  if (age != null) return pediatricDoseRuleForAgeYears(age);
+  const qualitative = pediatricQualitativeText(state);
+  return qualitative ? pediatricDoseRuleForStageWords(qualitative) : undefined;
+}
+
+/** 儿童且年龄段可判：剂量走年龄分数法，不再是独立硬边界。 */
+const PEDIATRIC_AGE_STAGE_UNKNOWN_REASON = "儿童年龄段无法判定（需要数值年龄或月龄），暂不能按年龄分数法折算剂量";
+
 function hasExplicitPregnancyStatus(text: string): boolean {
   return isKnownClinicalState(assessPregnancyState(text));
 }
@@ -4028,6 +4117,23 @@ function hasExplicitLactationStatus(text: string): boolean {
 
 function hasExplicitConceptionStatus(text: string): boolean {
   return isKnownClinicalState(assessConceptionState(text));
+}
+
+/**
+ * 婴幼儿语境：数值年龄 <10 岁（与 pregnancyScreenRequired 同界），或没有数值年龄但档位词落在新生儿/乳婴儿/幼儿/学龄前。
+ * 这类患者不会有自己的哺乳期，病历里的「母乳喂养」是患儿的喂养方式。
+ */
+function isInfantFeedingContext(state: CaseState): boolean {
+  const rule = pediatricDoseRuleForCase(state);
+  if (!rule) return false;
+  const age = numberFromClinicalText(patientAgeText(state));
+  if (age != null) return age < 10;
+  return rule.stage === "neonate" || rule.stage === "infant" || rule.stage === "toddler" || rule.stage === "preschool";
+}
+
+/** 孕哺备孕阳性判据读的文本：婴幼儿语境先去掉喂养方式词，其余原样。 */
+function maternalStateText(state: CaseState, text: string): string {
+  return isInfantFeedingContext(state) ? stripInfantFeedingPhrases(text) : text;
 }
 
 function hasPositivePregnancyOrLactationRisk(text: string): boolean {
@@ -4168,6 +4274,8 @@ const SYNDROME_AXIS_NON_BLOCKING_CODES: ReadonlySet<SafetyMissingItemCode> = new
   "lactation_unknown",
   "conception_unknown",
   "pediatric_weight_unknown",
+  "pediatric_age_unknown",
+  // 旧快照可能带着它（2026-09-30 起不再产生：儿童剂量改按年龄分数法折算）。
   "pediatric_dose_rules_unavailable",
   // 安全评估/处置轴
   "semantic_screen_unavailable",
@@ -4238,10 +4346,11 @@ export function hardDoseSafetyBoundaryReasons(state: CaseState): string[] {
   if (gate.status === "red_flag") return gate.redFlags.length > 0 ? gate.redFlags : ["命中急危重红旗"];
   const text = structuredCaseText(state);
   const reasons: string[] = [];
-  if (isPediatricPatient(state)) {
-    reasons.push("儿童病例当前未配置可验证的个体化剂量规则");
+  // 儿童只有「年龄段判不出」才是硬边界；判得出的按年龄分数法折算（pediatric-dose-rule），不再一律收回剂量。
+  if (isPediatricPatient(state) && !pediatricDoseRuleForCase(state)) {
+    reasons.push(PEDIATRIC_AGE_STAGE_UNKNOWN_REASON);
   }
-  if (hasPositivePregnancyOrLactationRisk(text)) {
+  if (hasPositivePregnancyOrLactationRisk(maternalStateText(state, text))) {
     reasons.push("已记录妊娠、哺乳或备孕阳性/可疑状态");
   }
   reasons.push(...highRiskDoseBoundaryReasons(state));
@@ -4256,6 +4365,8 @@ export type PrescriptionPermission = {
   candidateMode: "full_dose" | "limited_dose" | "non_dose_only" | "blocked";
   formalAdoption: "eligible_after_doctor_confirmation" | "blocked";
   reasons: string[];
+  /** 儿童且年龄段可判时给出的折算档位；下游（提示词、合同、编译器、HIS）只读这一个结果。 */
+  pediatricDose?: PediatricDoseRule;
 };
 
 function hasNonNegatedClinicalPattern(text: string, pattern: RegExp): boolean {
@@ -4367,6 +4478,21 @@ export function buildSafetyAdvisoryBanner(
  * authority consumed by M04, the workbench and the HIS integration payload.
  */
 export function derivePrescriptionPermission(state: CaseState): PrescriptionPermission {
+  const permission = deriveBasePrescriptionPermission(state);
+  // 儿童且年龄段可判、且本例仍允许出剂量：把折算档位并入结果（有限信息/满信息两条出口都带上）。
+  // 说明文字**不进 reasons**：reasons 是「正式采纳前需确认/待复核」清单，折算口径不是待确认项
+  // （2026-09-30 回放：它曾以「需确认：儿童（乳婴儿…）剂量按年龄分数法折算…」出现在信息完整性边界里）。
+  // 口径由 pediatricDose 携带，页面「儿童用药说明」与各药核对语读它。收回剂量的出口不带——那里没有剂量可折算。
+  if (permission.candidateMode !== "limited_dose" && permission.candidateMode !== "full_dose") return permission;
+  const pediatricDose = pediatricDoseRuleForCase(state);
+  if (!pediatricDose) return permission;
+  return {
+    ...permission,
+    pediatricDose,
+  };
+}
+
+function deriveBasePrescriptionPermission(state: CaseState): PrescriptionPermission {
   const gate = evaluateSafetyGate(state);
   const chiefComplaint = (state.chiefComplaint || fieldText(state, "zhushu")).trim();
   if (!chiefComplaint) {
@@ -4400,10 +4526,11 @@ export function derivePrescriptionPermission(state: CaseState): PrescriptionPerm
 
   const text = structuredCaseText(state);
   const pediatric = isPediatricPatient(state);
-  const positivePregnancyOrLactation = hasPositivePregnancyOrLactationRisk(text);
+  const pediatricDose = pediatricDoseRuleForCase(state);
+  const positivePregnancyOrLactation = hasPositivePregnancyOrLactationRisk(maternalStateText(state, text));
   const highRiskReasons = highRiskDoseBoundaryReasons(state);
   const nonDoseReasons = [
-    pediatric ? "儿童病例当前未配置可验证的个体化剂量规则" : "",
+    pediatric && !pediatricDose ? PEDIATRIC_AGE_STAGE_UNKNOWN_REASON : "",
     positivePregnancyOrLactation ? "已记录妊娠、哺乳或备孕阳性/可疑状态" : "",
     ...highRiskReasons,
   ].filter(Boolean);
@@ -4515,9 +4642,7 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   const age = numberFromClinicalText(ageRaw);
   const ageWasEntered = isKnownClinicalText(ageRaw);
   const hasInvalidAge = ageWasEntered && age == null && hasInvalidAgeText(ageRaw);
-  const topLevelAge = normalizedAgeLiteral(state.patient.age);
-  const hisAge = normalizedAgeLiteral(state.hisRecord?.fields?.age);
-  const hasAgeConflict = Boolean(topLevelAge && hisAge && topLevelAge !== hisAge);
+  const hasAgeConflict = agesConflict(state.patient.age, state.hisRecord?.fields?.age);
   const structuredBloodPressure = structuredBloodPressureAssessment(state);
   const hasInvalidBp = hasInvalidBloodPressureOrder(vitalsText(state)) ||
     (structuredBloodPressure.status === "invalid" && structuredBloodPressure.reason === "order");
@@ -4565,9 +4690,10 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   if (!hasObtainedPulseFinding(state)) addMissing("pulse_unknown", "脉象");
   if (isPediatricPatient(state)) {
     if (!hasNumericPediatricWeight(text)) addMissing("pediatric_weight_unknown", "儿童体重数值");
-    // The current deterministic knowledge base has adult per-herb ranges only. Recording weight is
-    // necessary clinical context but cannot be treated as a pediatric dose algorithm.
-    addMissing("pediatric_dose_rules_unavailable", "未配置儿童剂量级处方规则（需儿科中医师/药师个体化复核）");
+    // 剂量按年龄分数法折算（pediatric-dose-rule）：只缺「年龄段」时才无法折算；体重是核对项，不参与折算。
+    if (!pediatricDoseRuleForCase(state)) {
+      addMissing("pediatric_age_unknown", "儿童年龄或月龄（用于年龄分数法折算剂量）");
+    }
   }
   if (reproductiveScreenRequired) {
     const reproductiveLabel = clinicalRequiredFieldLabel("reproductive_status", "妊娠/哺乳/备孕状态");
@@ -4668,7 +4794,7 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   // 医生显式继续可查看安全锁定候选，儿科/急性高危/明确孕哺等硬边界仍不能绕过。
   // An explicit positive pregnancy/lactation/conception statement is itself sufficient to lock the
   // dose path, even if a stale or contradictory demographic field says male/outside childbearing age.
-  const pregnancyPositive = hasPositivePregnancyOrLactationRisk(text);
+  const pregnancyPositive = hasPositivePregnancyOrLactationRisk(maternalStateText(state, text));
   if (missingItems.length > 0 || pregnancyPositive) {
     const prescriptionMissing = pregnancyPositive
       ? [...missingItems, "特殊人群用药复核（妊娠/哺乳/备孕阳性）"]

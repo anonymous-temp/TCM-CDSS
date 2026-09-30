@@ -148,8 +148,17 @@ for (const pastHistory of [
   );
 }
 
+// 儿童（2026-09-30 起）：年龄段可判 → 按年龄分数法折算，剂量不再收回；年龄段判不出 → 仍收回剂量。
 const pediatric = { ...base, patient: { sex: "男", age: 8 } };
-assert.equal(permission(pediatric).candidateMode, "non_dose_only");
+assert.notEqual(permission(pediatric).candidateMode, "non_dose_only", "8 岁儿童按年龄分数法出剂量，不再一律收回");
+assert.equal(permission(pediatric).pediatricDose?.stage, "school", "8 岁 → 学龄期档");
+assert.equal(permission(pediatric).pediatricDose?.fractionText, "2/3");
+assert.match(permission(pediatric).pediatricDose?.fractionText ?? "", /2\/3/, "折算口径由 pediatricDose 携带（页面「儿童用药说明」与各药核对语读它）");
+assert.doesNotMatch(permission(pediatric).reasons.join("；"), /年龄分数法/, "折算口径不是待确认项，不得混进「正式采纳前需确认」的原因清单（2026-09-30 回放曾出现）");
+assert.equal(permission({ ...base, patient: { sex: "男", age: 42 } }).pediatricDose, undefined, "反证：成人没有儿童折算档位");
+const pediatricUnknownStage = { ...base, patient: { sex: "男" }, chiefComplaint: "患儿咳嗽痰多3天" };
+assert.equal(permission(pediatricUnknownStage).candidateMode, "non_dose_only", "反证：只写「患儿」、无数值年龄 → 无法折算，仍收回剂量（绝不退化为成人剂量）");
+assert.match(permission(pediatricUnknownStage).reasons.join("；"), /儿童年龄段无法判定/);
 
 for (const [label, patch] of [
   ["CKD4期", { pastHistory: "慢性肾脏病4期，近期eGFR 24mL/min" }],
@@ -520,9 +529,23 @@ const finalSegment = (ndjson) => ndjson.split("\n").filter(Boolean)
   assert.match(controlFinal, DOSE_AMOUNT, "对照组：桩模型的候选必须带剂量并被交付，否则下面的「无剂量」断言没有意义");
   assert.doesNotMatch(controlFinal, /CDSS_NON_DOSE_PRESCRIPTION/, "对照组不得走非剂量投影");
 
+  // 儿童（2026-09-30）：年龄段可判 → 剂量不再收回。提示词带折算指令，最终页带「儿童用药说明」并交付剂量；
+  // 对照：年龄段判不出的儿童（下面循环的 pediatric-unknown-stage）仍走非剂量投影。
+  {
+    const { state, canned } = await signedDoseAxisState("pediatric-8", { patient: { sex: "男", age: 8 } });
+    assert.notEqual(permission(state).candidateMode, "non_dose_only", "前提：8 岁儿童剂量授权未收回");
+    const { text, prompts } = await prescribeWithStubModel(state, canned);
+    const final = finalSegment(text);
+    assert.ok(prompts.some((prompt) => prompt.includes("【儿童剂量】") && prompt.includes("学龄期儿童") && prompt.includes("2/3")), "提示词必须带儿童折算指令与档位");
+    assert.match(final, DOSE_AMOUNT, "年龄段可判的儿童交付剂量");
+    assert.doesNotMatch(final, /CDSS_NON_DOSE_PRESCRIPTION/, "不得走非剂量投影");
+    assert.match(final, /## 儿童用药说明/, "最终页必须带儿童用药说明");
+    assert.match(final, /每味药取成人一般用量的 2\/3 以内/);
+    assert.doesNotMatch(controlFinal, /儿童用药说明/, "反证：成人对照组没有儿童说明");
+  }
   for (const [id, patch, reasonPattern] of [
     ["red-flag", { chiefComplaint: "当前持续压榨性胸痛30分钟未缓解，伴大汗" }, /红旗提示：胸痛/],
-    ["pediatric", { patient: { sex: "男", age: 8 } }, /儿童病例当前未配置可验证的个体化剂量规则/],
+    ["pediatric-unknown-stage", { patient: { sex: "男" }, chiefComplaint: "患儿咳嗽痰多3天，黄芪汤证" }, /儿童年龄段无法判定/],
   ]) {
     const { state, canned } = await signedDoseAxisState(id, patch);
     assert.equal(permission(state).candidateMode, "non_dose_only", `${id}: 前提——剂量授权被收回`);

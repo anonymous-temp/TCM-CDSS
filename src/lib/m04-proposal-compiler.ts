@@ -21,6 +21,8 @@ import {
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
+import { clinicalGroundingText } from "./diagnosis-safety";
+import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 
@@ -30,7 +32,7 @@ const evidence = {
   confidence: "中" as const,
 };
 
-function compileHerbVerification(name: string, dose: string, method: string, modelIsToxic = false): {
+function compileHerbVerification(name: string, dose: string, method: string, modelIsToxic = false, pediatric?: PediatricDoseRule): {
   verificationTier: "verified" | "unverified_dose" | "identity_pending" | "toxic_regulated";
   doseSource: "governed_boundary" | "classical_source" | "none";
   verificationReasons: string[];
@@ -85,11 +87,15 @@ function compileHerbVerification(name: string, dose: string, method: string, mod
   if (isClinicianDoseHerb(name)) {
     const grams = doseInGrams(dose);
     const basisLabel = doseLimit.basis || "参考用量";
-    if (grams != null && grams >= doseLimit.min && grams <= doseLimit.max) {
+    // 儿童：区间是 (0, 成人上限 × 分数]，低于成人下限是常态。
+    const childCeiling = pediatric ? pediatricDoseCeilingG(doseLimit.max, pediatric, name) : undefined;
+    if (grams != null && (childCeiling != null ? grams > 0 && grams <= childCeiling : grams >= doseLimit.min && grams <= doseLimit.max)) {
       return {
         verificationTier: "verified",
         doseSource: "governed_boundary",
-        verificationReasons: [`剂量在 ${doseLimit.min}-${doseLimit.max}g 参考区间内；来源：${basisLabel}。`],
+        verificationReasons: [childCeiling != null
+          ? `剂量在儿童折算上限 ${childCeiling}g 内（成人参考 ${doseLimit.min}-${doseLimit.max}g × ${pediatric!.fractionText}）；来源：${basisLabel}。`
+          : `剂量在 ${doseLimit.min}-${doseLimit.max}g 参考区间内；来源：${basisLabel}。`],
         isToxic: false,
       };
     }
@@ -97,20 +103,24 @@ function compileHerbVerification(name: string, dose: string, method: string, mod
       verificationTier: "unverified_dose",
       doseSource: "governed_boundary",
       verificationReasons: [
-        `本次候选剂量 ${dose}，参考区间 ${doseLimit.min}–${doseLimit.max}g；来源：${basisLabel}。`,
+        childCeiling != null
+          ? `本次候选剂量 ${dose}，儿童折算上限 ${childCeiling}g（成人参考 ${doseLimit.min}–${doseLimit.max}g × ${pediatric!.fractionText}）；来源：${basisLabel}。`
+          : `本次候选剂量 ${dose}，参考区间 ${doseLimit.min}–${doseLimit.max}g；来源：${basisLabel}。`,
         "剂量尚未经医生确认，保留供审阅；AI结果签名不代表医嘱或用量批准。",
       ],
       isToxic: false,
     };
   }
 
-  if (!doseWithinConservativeModelLimit(name, dose, method)) {
-    const deviation = ordinaryHistoricalDoseDeviation({ name, dose }, method);
+  if (!doseWithinConservativeModelLimit(name, dose, method, pediatric)) {
+    const deviation = ordinaryHistoricalDoseDeviation({ name, dose }, method, pediatric);
     return {
       verificationTier: "unverified_dose",
       doseSource: "governed_boundary",
       verificationReasons: [
-        deviation
+        deviation?.pediatric
+          ? `本次候选剂量 ${dose}，儿童折算上限 ${deviation.max}g（成人 ${deviation.adultMin}–${deviation.adultMax}g × ${deviation.pediatric.fractionText}）；来源：${deviation.basis}。`
+          : deviation
           ? `本次候选剂量 ${dose}，历史参考范围 ${deviation.min}–${deviation.max}g；来源：${deviation.basis}。`
           : `本次候选剂量 ${dose} 未与适用剂量资料核对一致。`,
         "剂量尚未经医生确认，保留供审阅；AI结果签名不代表医嘱或用量批准。",
@@ -123,7 +133,9 @@ function compileHerbVerification(name: string, dose: string, method: string, mod
     verificationTier: "verified",
     doseSource: "governed_boundary",
     // 医生看得到这一条，不能写内部口径词（甲方 2026-08-12）。
-    verificationReasons: [`剂量已按 ${doseLimit.min}-${doseLimit.max}g 的标准区间完成规则校验`],
+    verificationReasons: [pediatric
+      ? `剂量已按儿童折算上限 ${pediatricDoseCeilingG(doseLimit.max, pediatric, name)}g（成人 ${doseLimit.min}-${doseLimit.max}g × ${pediatric.fractionText}）完成规则校验`
+      : `剂量已按 ${doseLimit.min}-${doseLimit.max}g 的标准区间完成规则校验`],
     isToxic: false,
   };
 }
@@ -812,6 +824,11 @@ function normalizeHerb(
         if (processingPrefix) {
           const existing = unwrapSingleText(herb.processing ?? herb["炮制"] ?? herb["规格"]);
           herb.processing = [...new Set([existing, processingPrefix].filter((item): item is string => Boolean(item)))].join("、");
+        } else if (!unwrapSingleText(herb.processing ?? herb["炮制"] ?? herb["规格"])) {
+          // 后缀式炮制名（艾叶炭、栀子炭、蒲黄炭……）经受治理药名补充归一到基原药后，「炭」不能随名字一起消失：
+          // 没有前缀可取时，用药名身份表登记的炮制说明（preparation）补上。
+          const preparation = resolveGovernedTcmHerbIdentity(normalizedCurrentName).preparation;
+          if (preparation) herb.processing = preparation;
         }
       }
       herb.name = canonicalName;
@@ -1312,6 +1329,8 @@ export function compileM04Proposal(
   if (modificationIssue(proposal, prior)) return undefined;
   const cleanNarrative = (value: string | undefined, fallback: string) =>
     sanitizeUnverifiedClinicalNarrative(value || "") || fallback;
+  // 儿童折算档位：与 M04 合同同源（同一份接地语料里的「患者年龄」），成人病例为 undefined、行为不变。
+  const pediatric = caseState ? pediatricDoseRuleFromGroundingText(clinicalGroundingText(caseState)) : undefined;
   const compiledHerbs = proposal.candidate.herbs.map((herb) => {
     const node = herb.targetKind === "pathogenesis_node"
       ? prior.pathogenesis.chain.find((candidate) => candidate.nodeId === herb.targetRef)
@@ -1323,15 +1342,29 @@ export function compileM04Proposal(
     // 按上限给出并在该味写明原值（2026-09-26）。原先原值照出、只在页面批注「偏离参考」：实测
     // 海螵蛸 12g（药典 5–10g）进了候选方。低于下限不改——儿童、老人和体弱者的用量本就可低于
     // 成人常用量下限，仍按原批注提示医生核对。毒性、医师定量与来源冲突的药味一律不在此列。
-    const ceilingDeviation = ordinaryHistoricalDoseDeviation(herb, proposal.candidate.decoction.method || "");
+    const ceilingDeviation = ordinaryHistoricalDoseDeviation(herb, proposal.candidate.decoction.method || "", pediatric);
     const cappedDose = ceilingDeviation?.direction === "above_reference" ? `${ceilingDeviation.max}g` : undefined;
     const dose = cappedDose || herb.dose;
-    const verification = compileHerbVerification(herb.name, dose, proposal.candidate.decoction.method || "", herb.isToxic === true);
+    const verification = compileHerbVerification(herb.name, dose, proposal.candidate.decoction.method || "", herb.isToxic === true, pediatric);
     if (ceilingDeviation && cappedDose) {
       verification.verificationReasons = [
-        `候选剂量原为 ${ceilingDeviation.dose}，高于《中国药典》2020年版一部规定的 ${ceilingDeviation.min}–${ceilingDeviation.max}g，已按上限 ${cappedDose} 给出；如需超常规用量，请医生注明理由并签名确认。`,
+        ceilingDeviation.pediatric
+          ? `候选剂量原为 ${ceilingDeviation.dose}，高于儿童折算上限（《中国药典》2020年版一部成人 ${ceilingDeviation.adultMin}–${ceilingDeviation.adultMax}g × ${ceilingDeviation.pediatric.fractionText}），已按上限 ${cappedDose} 给出；病情急重需超过时，请医生按体重个体化确定并注明理由。`
+          : `候选剂量原为 ${ceilingDeviation.dose}，高于《中国药典》2020年版一部规定的 ${ceilingDeviation.min}–${ceilingDeviation.max}g，已按上限 ${cappedDose} 给出；如需超常规用量，请医生注明理由并签名确认。`,
         ...verification.verificationReasons,
       ].slice(0, 8);
+    }
+    // 儿童慎用药味：① 本规则数据里的禁用/慎用清单（药典、教材、药监通告，带依据）；② 知识库特殊人群规则里儿童/婴幼儿中等及以上风险
+    // （细辛、苍耳子……）。禁用由合同修复轮拦下，MEDIUM 此前没有任何出口——儿童改按折算剂量出方后必须在这一味上写明。
+    if (pediatric) {
+      const restriction = pediatricHerbRestriction(herb.name, pediatric);
+      const kbCaution = getTcmHerbGenerationSafetyProfile(herb.name).populationRules.some(
+        (rule) => /儿童|婴幼儿/.test(rule.population) && rule.severity !== "LOW");
+      const notes = [
+        ...(restriction ? [`${herb.name}${restriction.level === "prohibited" ? "儿童禁用" : "儿童慎用"}：${restriction.reason}（${restriction.basis}）。`] : []),
+        ...(!restriction && kbCaution ? [`${herb.name}属儿童/婴幼儿慎用药味：剂量已按年龄分数法控制（${pediatric.tableLabel}档，成人上限×${pediatric.fractionText}），用药期间请密切观察反应。`] : []),
+      ];
+      if (notes.length > 0) verification.verificationReasons = [...notes, ...verification.verificationReasons].slice(0, 8);
     }
     return {
       ...herb,

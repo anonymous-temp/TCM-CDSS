@@ -1983,7 +1983,8 @@ const pediatricCases = [
   expected("pediatric-age-year-month-missing-weight", baseCase("pediatric-age-year-month-missing-weight", { age: undefined, fields: { age: "8岁6月" } }), "needs_information", "需关注", { expectedMissing: "儿童体重数值", ...PRESCRIPTION_ONLY_GATE }),
   expected("pediatric-age-teen-month-missing-weight", baseCase("pediatric-age-teen-month-missing-weight", { age: undefined, fields: { age: "12岁5月" } }), "needs_information", "需关注", { expectedMissing: "儿童体重数值", ...PRESCRIPTION_ONLY_GATE }),
   expected("pediatric-age-month-missing-weight", baseCase("pediatric-age-month-missing-weight", { age: undefined, fields: { age: "6个月" } }), "needs_information", "需关注", { expectedMissing: "儿童体重数值", ...PRESCRIPTION_ONLY_GATE }),
-  expected("pediatric-weight-recorded-dose-unsupported", baseCase("pediatric-weight-recorded-dose-unsupported", { age: 8, fields: { age: "8岁" }, rawText: "体重 24kg，否认胸痛大汗。" }), "needs_information", "需关注", { expectedMissing: "未配置儿童剂量级处方规则", ...PRESCRIPTION_ONLY_GATE }),
+  // 2026-09-30：儿童剂量改按年龄分数法折算——年龄与体重都记录了就没有缺项，门禁放行（原「未配置儿童剂量级处方规则」缺项已删）。
+  expected("pediatric-weight-recorded-age-fraction", baseCase("pediatric-weight-recorded-age-fraction", { age: 8, fields: { age: "8岁" }, rawText: "体重 24kg，否认胸痛大汗。" }), "ready", "低风险"),
   expected("infant-missing-weight", baseCase("infant-missing-weight", { age: 1, fields: { age: "1岁" } }), "needs_information", "需关注", PRESCRIPTION_ONLY_GATE),
   expected("teen-female-pregnancy-missing", baseCase("teen-female-pregnancy-missing", { sex: "女", age: 16, fields: { sex: "女", age: "16岁" }, rawText: "体重 50kg。" }), "needs_information", "需关注", PRESCRIPTION_ONLY_GATE),
   ...["儿童", "小孩", "宝宝", "孩子", "少年", "未成年人", "小学生"].map((label, index) =>

@@ -6,6 +6,7 @@ import { isKnownTcmHerbName } from "./tcm-knowledge";
 import { sanitizeGeneratedSuggestionPreviewText } from "./diagnosis-stream-safety";
 import { NON_DOSE_PRESCRIPTION_MARKER } from "./diagnosis-safety";
 import { cdssReasonCodeMarker } from "./cdss-reason-codes";
+import { pediatricDoseRuleFromGroundingText } from "./pediatric-dose-rule";
 import { clinicalDeliveryAdvisoryFromIssue, clinicalDeliveryAdvisorySection, collectClinicalDeliveryAdvisories, deduplicateClinicalDeliveryAdvisories, isSafetyClinicalDeliveryAdvisory, type ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
 
 export type M04DeliveryCheckpoint = Readonly<{
@@ -145,7 +146,7 @@ export function retainM04DeliveryCheckpoint(
   const findings = candidate
     ? deduplicateClinicalDeliveryAdvisories([
         ...collectClinicalDeliveryAdvisories(candidate, input.priorReasoning, input.clinicalContext || "", contractIssues, 0),
-        ...contractIssues.map((issue) => clinicalDeliveryAdvisoryFromIssue(issue, candidate, 0)),
+        ...contractIssues.map((issue) => clinicalDeliveryAdvisoryFromIssue(issue, candidate, 0, pediatricDoseRuleFromGroundingText(input.clinicalContext || ""))),
       ])
     : [];
   return immutable(structuredClone({ content: input.content, reasoning, payloadHash,

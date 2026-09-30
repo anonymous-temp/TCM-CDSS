@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { authoritativePatientAgeYears, canForceProceedPastSafetyGate, evaluateSafetyGate } from "../src/lib/diagnosis-safety.ts";
 
-// 儿科病例即便只用定性词标注(患儿/婴儿/男童/月龄…)、无数字年龄，也必须命中"儿童剂量级处方规则"门，
-// fail-closed 到儿科医师/药师个体化复核，绝不退化为成人剂量。成人则不得误伤。
+// 儿科病例即便只用定性词标注(患儿/婴儿/男童/月龄…)、无数字年龄，也必须命中儿童门（缺项「儿童体重数值」标识），
+// 绝不退化为成人剂量；成人则不得误伤。
+// 2026-09-30：儿童剂量改按年龄分数法折算——不再有「未配置儿童剂量级处方规则」缺项；年龄段判不出（只写「患儿」）才多一条
+// 「儿童年龄或月龄」缺项并收回剂量（见 test:pediatric-dose-rule）。
 const base = { conversation: [], patient: {}, completeness: { level: "C" } };
 const gate = (cs) => evaluateSafetyGate({ ...base, ...cs });
-const hasPedRule = (g) => g.missingItems.some((x) => x.includes("儿童剂量级处方规则"));
+const hasPedRule = (g) => g.missingItems.some((x) => x.includes("儿童体重数值"));
 
 const cases = [
   ["患儿(无年龄)命中", { chiefComplaint: "患儿，发热3天伴咳嗽，纳差" }, true],
@@ -95,6 +97,10 @@ for (const [name, cs, expected] of cases) {
     assert.equal(g.allowDosePrescription, false, `${name}: 命中儿童门时应禁止剂量级处方`);
     assert.equal(canForceProceedPastSafetyGate(g), true, `${name}: 追问可跳过，但后续权限仍必须保持非剂量儿科边界`);
   }
+  // 只写「患儿/男童」无年龄段可判的才追问年龄；带年龄或年龄段词的不追问（反证）
+  const ageUnknownExpected = ["患儿(无年龄)命中"].includes(name);
+  assert.equal(g.missingItemCodes.includes("pediatric_age_unknown"), ageUnknownExpected, `${name}: 年龄段缺项码`);
+  assert.equal(g.missingItemCodes.includes("pediatric_dose_rules_unavailable"), false, `${name}: 旧「未配置儿童剂量规则」码不再产生`);
   console.log(`PASS  ${name}  -> pedGate=${hasPedRule(g)}`);
   pass++;
 }

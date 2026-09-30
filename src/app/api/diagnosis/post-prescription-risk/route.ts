@@ -14,6 +14,7 @@ import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
 import { m04SafetyContractIssue } from "@/lib/diagnosis-stage-contract";
 import { editedPrescriptionSemanticIssue } from "@/lib/prescription-revision";
+import { pediatricDoseRuleFromGroundingText } from "@/lib/pediatric-dose-rule";
 import { clinicalDeliveryAdvisoryFromIssue, clinicalDeliveryAdvisorySection, collectClinicalDeliveryAdvisories, deduplicateClinicalDeliveryAdvisories } from "@/lib/clinical-delivery-advisory";
 import { issuePrescriptionRevisionAttestation, verifyPrescriptionRevisionAttestation } from "@/lib/prescription-revision-attestation.server";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
@@ -112,12 +113,12 @@ export async function POST(req: Request) {
       waiveTherapyCoverageAnnotated: true,
     });
     if (floorIssue && !clinicalAdvisories.some((advisory) => advisory.code === floorIssue)) {
-      clinicalAdvisories.push(clinicalDeliveryAdvisoryFromIssue(floorIssue, selectedCandidate, candidateIndex));
+      clinicalAdvisories.push(clinicalDeliveryAdvisoryFromIssue(floorIssue, selectedCandidate, candidateIndex, pediatricDoseRuleFromGroundingText(clinicalGroundingText(caseState))));
     }
   }
   const submissionIssue = prescriptionSubmissionIssue(caseState, resolvedCandidateIndex);
   if (submissionIssue && selectedCandidate) {
-    clinicalAdvisories.push(clinicalDeliveryAdvisoryFromIssue(submissionIssue, selectedCandidate, candidateIndex));
+    clinicalAdvisories.push(clinicalDeliveryAdvisoryFromIssue(submissionIssue, selectedCandidate, candidateIndex, pediatricDoseRuleFromGroundingText(clinicalGroundingText(caseState))));
   }
   clinicalAdvisories = deduplicateClinicalDeliveryAdvisories(clinicalAdvisories);
   const inputAdvisories = buildPrescriptionInputAdvisories(caseState, resolvedCandidateIndex);

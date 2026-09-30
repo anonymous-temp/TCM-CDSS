@@ -24,8 +24,9 @@ assert.equal(modernCases.length, 57);
 assert.equal(new Set(modernCases.map((item) => item.category)).size, 57,
   "现代病案应按病种轮转，不能被单一高频病种占满");
 assert.equal(corpus.cases.filter((item) => item.expectation === "should_not_prescribe_redflag").length, 7);
-assert.equal(corpus.cases.filter((item) => item.expectation === "should_prescribe").length, 65);
-assert.equal(corpus.cases.filter((item) => item.expectation === "should_downgrade_incomplete").length, 5);
+// 2026-09-30：儿童按年龄分数法出剂量（不再一律收回），5/6/7/12 岁四例由「降级」转「应出方」；剩余的降级例是妊娠等独立硬边界。
+assert.equal(corpus.cases.filter((item) => item.expectation === "should_prescribe").length, 69);
+assert.equal(corpus.cases.filter((item) => item.expectation === "should_downgrade_incomplete").length, 1);
 
 const forbiddenLeakageKeys = ["formula", "expectedFormula", "expectedFormulaNames", "syndrome", "treatmentPrinciple"];
 const dob = /出生日期|出生于\s*\d{4}|\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*出生/;
@@ -119,5 +120,5 @@ console.log(JSON.stringify({
   publicCases: publicCases.length,
   governedModernCases: modernCases.length,
   redFlagCases: 7,
-  incompleteCases: 5,
+  incompleteCases: corpus.cases.filter((item) => item.expectation === "should_downgrade_incomplete").length,
 }));

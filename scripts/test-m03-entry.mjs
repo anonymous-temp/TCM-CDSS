@@ -65,9 +65,12 @@ assert.equal(
   "unknown optional safety fields must not turn a sparse ordinary adult case into a hard dose boundary",
 );
 
+// 儿童（2026-09-30 起）：年龄段可判的按年龄分数法折算剂量，不再是硬边界；只有年龄段判不出才收回。
 const pediatric = state({ sex: "男", age: "8岁", weight: "25kg" });
-assert.equal(hasHardDoseSafetyBoundary(pediatric), true, "a pediatric case must not enter the ordinary adult dose chain");
-assert.match(hardDoseSafetyBoundaryReasons(pediatric).join("；"), /儿童/);
+assert.equal(hasHardDoseSafetyBoundary(pediatric), false, "a pediatric case with a known age stage takes the age-fraction dose rule, not a withheld dose");
+const pediatricUnknownAge = state({ sex: "男", age: "", zhushu: "患儿咳嗽3天，痰多", weight: "25kg" });
+assert.equal(hasHardDoseSafetyBoundary(pediatricUnknownAge), true, "a child with no determinable age stage still cannot be dosed (counter-proof: never falls back to the adult dose)");
+assert.match(hardDoseSafetyBoundaryReasons(pediatricUnknownAge).join("；"), /儿童年龄段无法判定/);
 
 const pregnant = state({ sex: "女", age: "32岁", xianbingshi: "已确认妊娠12周，近期入睡困难" });
 assert.equal(hasHardDoseSafetyBoundary(pregnant), true, "explicit pregnancy must not enter the ordinary adult dose chain");

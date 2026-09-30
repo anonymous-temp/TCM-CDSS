@@ -1,4 +1,4 @@
-import { NON_DOSE_PRESCRIPTION_MARKER } from "./diagnosis-safety";
+import { isPediatricPatient, NON_DOSE_PRESCRIPTION_MARKER, pediatricDoseRuleForCase } from "./diagnosis-safety";
 import type { CaseState } from "./diagnosis-types";
 import { cdssReasonCodeMarker } from "./cdss-reason-codes";
 import { executableFormulaCompilationReferences, formulaManualDoseIngredients } from "./tcm-formula-provenance";
@@ -42,8 +42,11 @@ function specialPopulationNotice(state: CaseState): string | undefined {
   if (/妊娠|怀孕|孕\d|停经.{0,12}(?:恶心|呕吐|妊娠试验阳性)|产后|哺乳/.test(text)) {
     return "**特殊人群提醒**：本例涉及妊娠/产褥/哺乳背景。上表为方剂通用基准，其中药味须逐味核对妊娠禁忌与慎用（如半夏、枳实类须炮制并由医师权衡），采纳前必须完成产科评估并经药师复核。";
   }
-  if (Number.isFinite(age) && age < 15) {
-    return "**特殊人群提醒**：本例为儿童。上表剂量区间为成人药典边界，儿童用量须由医师按体重/年龄折算并经药师复核，不得直接套用。";
+  if (isPediatricPatient(state)) {
+    const rule = pediatricDoseRuleForCase(state);
+    return rule
+      ? `**特殊人群提醒**：本例为儿童（${rule.label}）。上表剂量区间为成人药典边界，儿童每味药取成人一般用量的 ${rule.fractionText} 以内（《中药学》《中医儿科学》年龄分数法），并结合体重个体化确定，不得直接套用成人剂量。`
+      : "**特殊人群提醒**：本例为儿童，但年龄段未能判定。上表剂量区间为成人药典边界，儿童用量须按年龄分数法折算后个体化确定，不得直接套用。";
   }
   if (Number.isFinite(age) && age >= 75) {
     return "**特殊人群提醒**：本例为高龄患者。用量宜从药典区间低值起步，结合肝肾功能与合并用药由医师确定并经药师复核。";

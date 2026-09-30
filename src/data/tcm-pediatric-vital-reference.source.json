@@ -1,0 +1,171 @@
+{
+ "version": 1,
+ "purpose": "儿童生命体征的年龄分档判定线：成人固定线（心率≥150 红旗/≥120 复测、呼吸≥35 红旗/≥25 复测、收缩压≤80 或舒张压≤45 危急）把健康新生儿（呼吸 40～45、心率 120～160）判成红旗，剂量被收回。本表只在已知年龄且未满 12 岁时替换这几条线；12 岁及以上、年龄未知一律沿用成人线。只放宽「正常儿童被误报」的方向，低端（心率<40、呼吸≤8）与体温、血氧、高血压线不动。",
+ "rules": {
+  "pulseAdvisoryFrom": "心率≥此值且<红旗线：提示尽快复测（取各年龄段心动过速界值+1）",
+  "pulseRedFlagFrom": "心率≥此值：红旗（婴儿 220、儿童 180 为窦性心动过速上限，再高按室上速风险）",
+  "respirationAdvisoryFrom": "呼吸≥此值且<红旗线：提示尽快复测（取各年龄段正常上限+1，5 岁以上取 WHO 快速呼吸线 30+1）",
+  "respirationRedFlagFrom": "呼吸≥此值：红旗（WHO 快速呼吸线：<2月≥60、2～12月≥50、1～5岁≥40；5 岁以上成人线 35 已高于 WHO 线，不动）",
+  "systolicHypotensionBelow": "收缩压<base+perYear×年龄（岁）：低血压危急（PALS：新生儿<60、1～12月<70、1～10岁<70+2×岁）；该字段存在时不再用成人的收缩压≤80/舒张压≤45"
+ },
+ "sourceRefs": [
+  {
+   "id": "vital-ranges",
+   "claim": "各年龄心率、呼吸正常范围",
+   "quote": "Newborn HR 100–160, RR 30–50; 0–5 months HR 90–150, RR 25–40; 6–12 months HR 80–140, RR 20–30; 1–3 years HR 80–130, RR 20–30; 3–5 years HR 80–120, RR 20–30; 6–10 years HR 70–110, RR 15–30",
+   "basis": "Wikipedia「Vital signs」儿科参考范围表，引 Emergency Care 教材 p.214–215；联网核对 2026-09-30"
+  },
+  {
+   "id": "tachycardia-cutoffs",
+   "claim": "各年龄心动过速界值",
+   "quote": "1–2 days >159; 3–6 days >166; 1–3 weeks >182; 1–2 months >179; 3–5 months >186; 6–11 months >169; 1–2 years >151; 3–4 years >137; 5–7 years >133; 8–11 years >130; 12–15 years >119; 15 years–adult >100",
+   "basis": "Wikipedia「Tachycardia」，引其文献 7、8；联网核对 2026-09-30"
+  },
+  {
+   "id": "who-fast-breathing",
+   "claim": "WHO 快速呼吸线",
+   "quote": "0-2 months >60; 2-12 months >50; 1-5 years >40; 5-12 years >30; >12 years >20 breaths/minute",
+   "basis": "Wikipedia「Tachypnea」；WHO 儿童肺炎分类以 ≥60/≥50/≥40 为快速呼吸；联网核对 2026-09-30"
+  },
+  {
+   "id": "pals-sinus-vs-svt",
+   "claim": "窦性心动过速与室上速的分界",
+   "quote": "heart rate usually < 220 bpm in infants and < 180 bpm in kids (sinus tachycardia); SVT usually > 220 in infants and > 180 in kids",
+   "basis": "Wikipedia「Pediatric advanced life support」（AHA PALS 心动过速流程）；联网核对 2026-09-30"
+  },
+  {
+   "id": "pediatric-hypotension",
+   "claim": "儿童低血压定义",
+   "quote": "0-1 month <60 mmHg; 1–12 months <70 mmHg; 1–10 years <70 + (age in years × 2) mmHg; >10 years <90 mmHg",
+   "basis": "Wikipedia「Hypotension」「Pediatric advanced life support」，引 University of Iowa Stead Family Children's Hospital；联网核对 2026-09-30"
+  }
+ ],
+ "bands": [
+  {
+   "minDays": 0,
+   "maxDays": 7,
+   "label": "出生 1 周内",
+   "pulseAdvisoryFrom": 167,
+   "pulseRedFlagFrom": 220,
+   "respirationAdvisoryFrom": 51,
+   "respirationRedFlagFrom": 60,
+   "systolicHypotensionBelow": {
+    "base": 60,
+    "perYear": 0
+   }
+  },
+  {
+   "minDays": 7,
+   "maxDays": 28,
+   "label": "出生 1～4 周",
+   "pulseAdvisoryFrom": 183,
+   "pulseRedFlagFrom": 220,
+   "respirationAdvisoryFrom": 51,
+   "respirationRedFlagFrom": 60,
+   "systolicHypotensionBelow": {
+    "base": 60,
+    "perYear": 0
+   }
+  },
+  {
+   "minDays": 28,
+   "maxDays": 61,
+   "label": "1～2 月龄",
+   "pulseAdvisoryFrom": 180,
+   "pulseRedFlagFrom": 220,
+   "respirationAdvisoryFrom": 41,
+   "respirationRedFlagFrom": 60,
+   "systolicHypotensionBelow": {
+    "base": 70,
+    "perYear": 0
+   }
+  },
+  {
+   "minDays": 61,
+   "maxDays": 183,
+   "label": "2～6 月龄",
+   "pulseAdvisoryFrom": 187,
+   "pulseRedFlagFrom": 220,
+   "respirationAdvisoryFrom": 41,
+   "respirationRedFlagFrom": 50,
+   "systolicHypotensionBelow": {
+    "base": 70,
+    "perYear": 0
+   }
+  },
+  {
+   "minDays": 183,
+   "maxDays": 365,
+   "label": "6～12 月龄",
+   "pulseAdvisoryFrom": 170,
+   "pulseRedFlagFrom": 220,
+   "respirationAdvisoryFrom": 31,
+   "respirationRedFlagFrom": 50,
+   "systolicHypotensionBelow": {
+    "base": 70,
+    "perYear": 0
+   }
+  },
+  {
+   "minDays": 365,
+   "maxDays": 1095,
+   "label": "1～3 岁",
+   "pulseAdvisoryFrom": 152,
+   "pulseRedFlagFrom": 180,
+   "respirationAdvisoryFrom": 31,
+   "respirationRedFlagFrom": 40,
+   "systolicHypotensionBelow": {
+    "base": 70,
+    "perYear": 2
+   }
+  },
+  {
+   "minDays": 1095,
+   "maxDays": 1825,
+   "label": "3～5 岁",
+   "pulseAdvisoryFrom": 138,
+   "pulseRedFlagFrom": 180,
+   "respirationAdvisoryFrom": 31,
+   "respirationRedFlagFrom": 40,
+   "systolicHypotensionBelow": {
+    "base": 70,
+    "perYear": 2
+   }
+  },
+  {
+   "minDays": 1825,
+   "maxDays": 2920,
+   "label": "5～8 岁",
+   "pulseAdvisoryFrom": 134,
+   "pulseRedFlagFrom": 180,
+   "respirationAdvisoryFrom": 31,
+   "respirationRedFlagFrom": 35,
+   "systolicHypotensionBelow": {
+    "base": 70,
+    "perYear": 2
+   }
+  },
+  {
+   "minDays": 2920,
+   "maxDays": 3650,
+   "label": "8～10 岁",
+   "pulseAdvisoryFrom": 131,
+   "pulseRedFlagFrom": 180,
+   "respirationAdvisoryFrom": 31,
+   "respirationRedFlagFrom": 35,
+   "systolicHypotensionBelow": {
+    "base": 70,
+    "perYear": 2
+   }
+  },
+  {
+   "minDays": 3650,
+   "maxDays": 4380,
+   "label": "10～12 岁",
+   "pulseAdvisoryFrom": 131,
+   "pulseRedFlagFrom": 180,
+   "respirationAdvisoryFrom": 31,
+   "respirationRedFlagFrom": 35
+  }
+ ]
+}

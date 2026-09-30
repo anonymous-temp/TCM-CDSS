@@ -91,7 +91,13 @@ withAuthorization("allow", () => {
 });
 
 // ── 3. 独立硬边界不受开关影响（本次审查抓到的真实漏洞） ─────────────────────
-const PEDIATRIC = caseOf({ patient: { sex: "男", age: 6 }, vitals: "T36.7℃ P100次/分 R22次/分 BP100/64mmHg" });
+// 儿童（2026-09-30 起）：年龄段可判的按年龄分数法出剂量，不再是独立硬边界；**年龄段判不出**（只写「患儿」）才是——
+// 独立硬边界的代表换成它，「红旗开关不得绕过独立硬边界」这条原则照旧两头钉。
+const PEDIATRIC = caseOf({
+  patient: { sex: "男" }, chiefComplaint: `患儿${REDFLAG_TEXT}`, symptoms: { general: `患儿${REDFLAG_TEXT}`, tcmFourExams: "" },
+  vitals: "T36.7℃ P100次/分 R22次/分 BP100/64mmHg",
+});
+const PEDIATRIC_KNOWN_AGE = caseOf({ patient: { sex: "男", age: 6 }, vitals: "T36.7℃ P100次/分 R22次/分 BP100/64mmHg" });
 const PREGNANT = caseOf({
   patient: { sex: "女", age: 29 },
   // 措辞刻意用无歧义的「妊娠12周」：本套件的被测对象是开关，不是妊娠识别词表。
@@ -102,7 +108,7 @@ for (const value of [undefined, "withhold", "allow"]) {
   withAuthorization(value, () => {
     assert.equal(
       modeOf(PEDIATRIC), "non_dose_only",
-      `儿童病例的剂量边界不得被红旗剂量开关绕过（档位=${value ?? "默认"}）：` +
+      `年龄段判不出的儿童病例，剂量边界不得被红旗剂量开关绕过（档位=${value ?? "默认"}）：` +
       "旧版 advise 档实测给出 full_dose，儿科硬边界被红旗分支的提前返回整条跳过",
     );
     assert.equal(
@@ -111,6 +117,18 @@ for (const value of [undefined, "withhold", "allow"]) {
     );
   });
 }
+
+// 年龄段可判的儿童：只有红旗轴管它——默认/withhold 收回，allow 回退档放行并带折算档位（不再有独立的儿科硬边界）。
+for (const value of [undefined, "withhold"]) {
+  withAuthorization(value, () => {
+    assert.equal(modeOf(PEDIATRIC_KNOWN_AGE), "non_dose_only", `红旗未解除：6 岁儿童同样收回剂量（档位=${value ?? "默认"}）`);
+  });
+}
+withAuthorization("allow", () => {
+  const permission = derivePrescriptionPermission(withSafetyGate(PEDIATRIC_KNOWN_AGE));
+  assert.notEqual(permission.candidateMode, "non_dose_only", "allow 回退档：年龄段可判的儿童不再有独立硬边界");
+  assert.equal(permission.pediatricDose?.stage, "preschool", "放行时带年龄分数法档位（6 岁 → 学龄前 1/2）");
+});
 
 // ── 4. 非红旗病例不受本开关影响 ────────────────────────────────────────────
 const BENIGN_TEXT = "胃脘隐痛伴口干3月，饥不欲食，口干咽燥，大便干结";
