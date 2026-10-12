@@ -37,6 +37,9 @@ rsync -a \
   --exclude='*.log' --exclude='*.trace.zip' --exclude='*.har' --exclude='.DS_Store' --exclude='npm-debug.log*' \
   "${CDSS_DEPLOY_SYNC_PATHS[@]}" \
   "$BUILD/"
+# node_modules 必须是真实目录。符号链接会被 cp -al 原样带进构建目录，standalone 产物里于是只剩一条指向本机
+# 绝对路径的链接，镜像里解析不到任何依赖——2026-10-12 实测：MODULE_NOT_FOUND，生产容器重启循环约 14 分钟后回滚。
+[ -d "$SRC/node_modules" ] && [ ! -L "$SRC/node_modules" ] || { echo "!! $SRC/node_modules 不是真实目录（符号链接或缺失），拒绝预编译；用 cp -al 硬链接复制" >&2; exit 1; }
 cp -al "$SRC/node_modules" "$BUILD/node_modules"
 cd "$BUILD"
 env -i PATH="$PATH" HOME="$HOME" NEXT_TELEMETRY_DISABLED=1 \
@@ -44,5 +47,8 @@ env -i PATH="$PATH" HOME="$HOME" NEXT_TELEMETRY_DISABLED=1 \
   CDSS_BUILD_COMMIT="$COMMIT" CDSS_BUILD_SOURCE_DIGEST="$DIGEST" CDSS_BUILD_TIMESTAMP="$STAMP" \
   CDSS_BUILD_NODE_OPTIONS=--max-old-space-size=4096 npm run build
 # 部署脚本逐项核对这三项：旧产物贴新标签照样能过 verify:deployed-image（它只比对标签），必须在这里拦住。
+# 产物自检：standalone 的 node_modules 必须是真实目录且能解析 next，否则镜像一启动就 MODULE_NOT_FOUND。
+[ -d "$BUILD/.next/standalone/node_modules" ] && [ ! -L "$BUILD/.next/standalone/node_modules" ] || { echo "!! standalone/node_modules 不是真实目录，产物无法在镜像中运行" >&2; exit 1; }
+( cd "$BUILD/.next/standalone" && node -e "require.resolve('next')" ) || { echo "!! standalone 产物解析不到 next，拒绝产出" >&2; exit 1; }
 printf 'COMMIT=%s\nDIGEST=%s\nSTAMP=%s\n' "$COMMIT" "$DIGEST" "$STAMP" > "$BUILD/.prebuilt-meta"
 echo "PREBUILD_OK $BUILD"
