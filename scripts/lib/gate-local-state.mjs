@@ -46,6 +46,7 @@ export const RUNTIME_STATE_PATHS = Object.freeze({
   "src/lib/drug-inventory.server.ts": { env: "CDSS_DRUG_INVENTORY_PATH", name: "drug-inventory" },
   "src/lib/customer-registry.server.ts": { env: "CDSS_CUSTOMER_REGISTRY_PATH", name: "customer-registry.json" },
   "src/lib/tenant-audit.server.ts": { env: "CDSS_TENANT_AUDIT_PATH", name: "tenant-audit.ndjson" },
+  "src/lib/request-archive.server.ts": { env: "CDSS_REQUEST_ARCHIVE_PATH", name: "request-archive" },
 });
 
 /** 某个套件专用的运行态环境变量（目录由调用方保证每个套件唯一；不必预先存在，各模块自行 mkdir -p）。 */

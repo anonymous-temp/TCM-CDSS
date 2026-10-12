@@ -79,6 +79,11 @@ services:
       CDSS_TENANT_AUDIT_PATH: /app/runtime-data/tenant-audit.ndjson
       CDSS_TENANT_AUDIT_MAX_BYTES: ${CDSS_TENANT_AUDIT_MAX_BYTES:-8000000}
       CDSS_TENANT_AUDIT_ARCHIVE_FILES: ${CDSS_TENANT_AUDIT_ARCHIVE_FILES:-4}
+      # 临床请求内容留存（owner 2026-10-12：合规已确认、先不限时）。加密落在同一持久卷，重启与重新部署都不丢；
+      # 超过上限停写不删。读取用 scripts/request-archive-export.mjs。
+      CDSS_REQUEST_ARCHIVE: ${CDSS_REQUEST_ARCHIVE:-true}
+      CDSS_REQUEST_ARCHIVE_PATH: /app/runtime-data/request-archive
+      CDSS_REQUEST_ARCHIVE_MAX_BYTES: ${CDSS_REQUEST_ARCHIVE_MAX_BYTES:-4294967296}
       PRIMARY_TEXT_MAX_TOKENS: ${PRIMARY_TEXT_MAX_TOKENS:-14000}
       # M03/M04 编排总时限门禁（代码钳制 60–180s）。富上下文（证据/检索注入）下首诊被合同拒绝后
       # 需要预留一次完整修复轮次的时间，默认 120s 容易在修复中途触顶降级。

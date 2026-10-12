@@ -1,6 +1,7 @@
 import { normalizeCaseStateInput, type CaseState } from "./diagnosis-types";
 import { stripInvalidEmergencyClearance } from "./emergency-clearance.server";
 import { readJsonBodyWithLimit } from "./http-guard";
+import { archiveClinicalRequest } from "./request-archive.server";
 import { requireCustomerContext, type CustomerContext } from "./customer-context";
 import { clinicalFactsTenantBindingMatches } from "./clinical-facts-runtime";
 
@@ -14,7 +15,10 @@ export async function readJsonRequest(
   req: Request,
   opts?: { maxBytes?: number },
 ): Promise<{ ok: true; body: unknown } | { ok: false; response: Response }> {
-  return readJsonBodyWithLimit(req, opts?.maxBytes ?? 1_000_000);
+  const parsed = await readJsonBodyWithLimit(req, opts?.maxBytes ?? 1_000_000);
+  // 临床请求内容留存（owner 2026-10-12）：所有临床路由的请求体都从这里进来。不 await，不影响时延与结果。
+  if (parsed.ok) void archiveClinicalRequest(req, parsed.body);
+  return parsed;
 }
 
 export async function readCaseStateRequest(req: Request): Promise<CaseStateRequestResult> {
