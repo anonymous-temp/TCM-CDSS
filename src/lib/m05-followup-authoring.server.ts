@@ -221,18 +221,45 @@ function authoredPhraseList(value: unknown, min: number, max: number, limit: num
     .filter(Boolean))].slice(0, limit);
 }
 
-function validAuthoredText(value: unknown, min = 10, max = 200): string {
-  const text = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-  if (text.length < min || text.length > max) return "";
+type AuthoredTextRejection = "missing" | "length" | "dose_or_citation" | "record_status" | "prohibited_instruction";
+
+function authoredTextRejection(text: string, min: number, max: number): AuthoredTextRejection | undefined {
+  if (!text) return "missing";
+  if (text.length < min || text.length > max) return "length";
   // 剂量写法复用 M04 那条已导出的判据，不写第二份。
-  if (PRECAUTION_DOSE_LIKE.test(text) || CITATION_LIKE.test(text)) return "";
+  if (PRECAUTION_DOSE_LIKE.test(text) || CITATION_LIKE.test(text)) return "dose_or_citation";
   // 随访写进病历、交给患者（2026-09-28 甲方）：病历记录状态句与诊断阶段同一判据拦截；
   // 医生/系统内部流程用语（候选方案、审方、复评……）归在下面的受治理禁述表里。
-  if (isRecordCompletenessStatement(text)) return "";
+  if (isRecordCompletenessStatement(text)) return "record_status";
   // 处方级动作与疗效承诺走**受治理禁述表**，不在代码里手写：
   // 这一层漏收一个词等于放行「可自行减量」，失败方向不安全，必须可审核可回归。
-  if (patientInstructionProhibitionsIn(text).length > 0) return "";
-  return text;
+  if (patientInstructionProhibitionsIn(text).length > 0) return "prohibited_instruction";
+  return undefined;
+}
+
+function normalizedAuthoredText(value: unknown): string {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
+
+function validAuthoredText(value: unknown, min = 10, max = 200): string {
+  const text = normalizedAuthoredText(value);
+  return authoredTextRejection(text, min, max) ? "" : text;
+}
+
+/**
+ * 回落模板时留一条原因码（2026-10-12）：线上 M05 时有整段回落模板，却分不清是没配置、超时、
+ * 解析失败还是哪一段被禁述表拒收。只记原因码与字段名，不记模型原文，不带病历内容。
+ */
+type AuthoringFallbackReason =
+  | "disabled" | "aborted" | "model_not_configured" | "no_syndrome"
+  | "empty_response" | "invalid_json" | "section_rejected" | "timeout" | "upstream_error";
+
+function authoringFallback(
+  reason: AuthoringFallbackReason,
+  detail: Record<string, unknown> = {},
+): null {
+  console.info("[tcm-cdss:telemetry] m05_followup_authoring_fallback", { reason, ...detail });
+  return null;
 }
 
 /**
@@ -294,13 +321,14 @@ export async function authorFollowupClinicalContent(
   },
   signal?: AbortSignal,
 ): Promise<AuthoredFollowupContent | null> {
-  if (process.env.M05_FOLLOWUP_AUTHORING === "false" || signal?.aborted) return null;
+  if (process.env.M05_FOLLOWUP_AUTHORING === "false") return authoringFallback("disabled");
+  if (signal?.aborted) return null;
   const config = getControlledTerminologyModelConfig();
-  if (!config.configured) return null;
+  if (!config.configured) return authoringFallback("model_not_configured", { model: config.model });
   const syndrome = String(input.syndrome || "").trim();
   // 证候是本层唯一的立足点：没有签名过的证候就写不出「针对这一例」的调护，
   // 那就没有比模板更好的输出，直接回落。
-  if (!syndrome) return null;
+  if (!syndrome) return authoringFallback("no_syndrome");
 
   // 先把实际下发的用户消息算出来当键——它就是模型的全部输入，输出是它的纯函数。
   const userContent = clinicalContextForAuthoring(
@@ -316,7 +344,9 @@ export async function authorFollowupClinicalContent(
   if (joined && !joined.controller.signal.aborted) return consumeFollowupWork(joined, signal);
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AUTHORING_TIMEOUT_MS);
+  // 共享请求也会因全部出口放弃等待而中止；只有计时器触发的才记作超时。
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, AUTHORING_TIMEOUT_MS);
   const work: FollowupSharedWork<AuthoredFollowupContent> = {
     controller, consumers: 0, promise: Promise.resolve(null),
   };
@@ -341,8 +371,18 @@ export async function authorFollowupClinicalContent(
         ],
       }, { signal: controller.signal }));
       const raw = response.choices?.[0]?.message?.content;
-      if (typeof raw !== "string" || !raw.trim()) return null;
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof raw !== "string" || !raw.trim()) {
+        return authoringFallback("empty_response", { model: config.model, finishReason: response.choices?.[0]?.finish_reason ?? null });
+      }
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        return authoringFallback("invalid_json", { model: config.model, finishReason: response.choices?.[0]?.finish_reason ?? null, chars: raw.length });
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return authoringFallback("invalid_json", { model: config.model, chars: raw.length });
+      }
 
       const reviewFocus = validAuthoredText(parsed.reviewFocus, 12, 200);
       const efficacyCriteria = validAuthoredText(parsed.efficacyCriteria, 12, 200);
@@ -394,7 +434,17 @@ export async function authorFollowupClinicalContent(
 
       // 三段临床内容缺任何一段都不采纳：半份模型内容 + 半份模板会读起来自相矛盾
       // （模板那半句「按本例非药物建议安排饮食作息」与模型那半段具体调护并列）。
-      if (!reviewFocus || !efficacyCriteria || !lifestyle) return null;
+      if (!reviewFocus || !efficacyCriteria || !lifestyle) {
+        const rejected = ([
+          ["reviewFocus", parsed.reviewFocus, 12, 200],
+          ["efficacyCriteria", parsed.efficacyCriteria, 12, 200],
+          ["lifestyle", parsed.lifestyle, 12, 240],
+        ] as const).flatMap(([field, value, min, max]) => {
+          const why = authoredTextRejection(normalizedAuthoredText(value), min, max);
+          return why ? [{ field, why }] : [];
+        });
+        return authoringFallback("section_rejected", { model: config.model, rejected });
+      }
       const authored: AuthoredFollowupContent = {
         reviewFocus,
         efficacyCriteria,
@@ -407,11 +457,23 @@ export async function authorFollowupClinicalContent(
         timeline: usableTimeline,
       };
       // 只有通过全部校验（含受治理禁语表）的结果才进缓存。
-      if (controller.signal.aborted) return null;
+      if (controller.signal.aborted) return authoringFallback(timedOut ? "timeout" : "aborted", { model: config.model, timeoutMs: AUTHORING_TIMEOUT_MS });
+      // 三段采纳、个别栏目回落模板时同样留痕：「时间轴还是模板」是最常被问到的一种。
+      const partial = [
+        usableTimeline.length === 0 ? "timeline" : "",
+        authored.monitoringIndicators.length === 0 ? "monitoringIndicators" : "",
+        authored.urgentSigns.length === 0 ? "urgentSigns" : "",
+        dimensions.length < 2 ? "dimensions" : "",
+      ].filter(Boolean);
+      if (partial.length > 0) {
+        console.info("[tcm-cdss:telemetry] m05_followup_authoring_partial", { model: config.model, templateSections: partial });
+      }
       writeAuthoredFollowupCache(cacheKey, authored);
       return authored;
-    } catch {
-      return null;
+    } catch (error) {
+      if (controller.signal.aborted) return authoringFallback(timedOut ? "timeout" : "aborted", { model: config.model, timeoutMs: AUTHORING_TIMEOUT_MS });
+      const status = typeof (error as { status?: unknown })?.status === "number" ? (error as { status: number }).status : null;
+      return authoringFallback("upstream_error", { model: config.model, status, error: error instanceof Error ? error.name : typeof error });
     } finally {
       clearTimeout(timer);
       // An abandoned request may already have been replaced by a fresh consumer. Its finally

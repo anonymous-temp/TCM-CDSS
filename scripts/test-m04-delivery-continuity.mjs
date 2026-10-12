@@ -166,6 +166,24 @@ test("first T2 cannot mask a later T1: automatic repair retains its bounded oppo
   assert.doesNotMatch(result.content, /501g/);
 });
 
+test("a T1 contract rejection that repair cannot fix still delivers the candidate as non-dose with findings (production 10/8–10/9: 3 blank pages)", async () => {
+  // 线上 10/8 14:54、10/9 10:03、10:32：首轮候选触发 T1（温阳药无依据 / 麻黄配自汗禁忌），
+  // 修复一轮仍未消除，交付连续性没有任何检查点可给，医生拿到「尚未形成个体化候选」空页。
+  // 主循环的合同语义驳回此前不保留候选（只有终审投影抛错的那一路保留，owner 2026-09-13）。
+  const unsafe = structuredClone(proposal);
+  unsafe.candidate.herbs[0].dose = "501g";
+  for (const repairReply of [unsafe, notAProposal]) {
+    const result = await runWire({ first: unsafe, remainingMs: 50000, repairReply });
+    assert.match(result.content, /党参/, "候选药味照常交付");
+    assert.match(result.content, /白术/);
+    assertNonDose(result.content.replace(/<<<CDSS_STREAM_FINAL>>>/, ""));
+    assert.doesNotMatch(result.content, /501g/, "被驳回的剂量绝不显示");
+    assert.doesNotMatch(result.content, /尚未.*个体化|未.*个体化/, "不得退回空页");
+    assert.match(result.telemetry?.reasonCode || "", /preserved_non_dose_candidate/);
+    assert.match(result.content, /自动修复未能消除下方问题/, "如实写明为什么没有剂量页");
+  }
+});
+
 test("a candidate-scoped defect repairs only candidate; every other proposal section stays byte-identical", async () => {
   // 2026-09-20 owner 裁定：修复轮只重写处方主体。此前每轮都让 max 模型把整份提案重写一遍（线上 p50 约 28s），
   // 哪怕问题只是一味药超量；中成药/西药、加减、非药物调护与药味缺陷无关，重写它们只多花时间还可能改坏。
@@ -416,7 +434,10 @@ test("a failed automatic provider repair preserves upstream attribution in norma
   assert.ok(result.requests.length >= 2 && result.requests.length <= 3);
   assertNonDose(result.content);
   assert.match(result.content, /模型服务暂时不可用/);
-  assert.match(result.content, /尚未形成.*个体化/);
+  // 2026-10-12 起首轮被驳回的候选也保留（线上 3 例空页的修复）：修复轮死于上游故障时，
+  // 候选照常以非剂量交付、上游归因仍如实写出，而不是退回「尚未形成个体化候选」空页。
+  assert.match(result.content, /党参/);
+  assert.doesNotMatch(result.content, /尚未形成.*个体化/);
   assert.equal(result.telemetry.reasonCode, "upstream_model_unavailable");
   assert.equal(result.telemetry.outcome, "fallback");
   assert.equal(result.frames.filter((frame) => frame.content === "[END]").length, 1);

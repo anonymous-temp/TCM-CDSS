@@ -250,7 +250,7 @@ const triggerBlock = readFileSync(new URL("../src/lib/diagnosis-stage-contract.t
 assert.ok(triggerBlock, "无法提取 HIGH_IMPACT_HERB_TRIGGER_OVERRIDES —— 结构变了，请更新本检查");
 const parsedTriggers = new Map([...triggerBlock.matchAll(/\["([a-z_]+)",\s*(\/(?:[^/\\\n]|\\.)+\/)\]/g)]
   .map(([, name, source]) => [name, new RegExp(source.slice(1, -1))]));
-assert.ok(parsedTriggers.has("purge") && parsedTriggers.has("blood_move"), "触发收窄表缺 purge/blood_move 条目");
+assert.ok(parsedTriggers.has("purge") && parsedTriggers.has("blood_move") && parsedTriggers.has("yang_warm"), "触发收窄表缺 purge/blood_move/yang_warm 条目");
 const TRIGGER_EXPECTATIONS = [
   // [药材知识文本片段, 概念, 是否触发]
   ["补血活血，调经止痛，润肠通便", "purge", false],   // 当归：润下兼功不是攻下身份
@@ -261,6 +261,14 @@ const TRIGGER_EXPECTATIONS = [
   ["活血祛瘀，止痛，润肠通便", "blood_move", true],   // 桃仁：独立「活血」仍触发
   ["活血行气，祛风止痛", "blood_move", true],         // 川芎
   ["养血活血，调经", "blood_move", false],            // 和血类
+  // yang_warm 收窄（2026-10-12）：化痰类的「温化」与解表的「祛风散寒」不构成温里身份
+  ["燥湿化痰，降逆止呕，消痞散结；化痰止咳平喘药；温化寒痰药", "yang_warm", false], // 姜半夏
+  ["清热化痰，息风定惊；化痰止咳平喘药；温化寒痰药", "yang_warm", false],          // 胆南星
+  ["化湿药；燥湿健脾，祛风散寒，明目；化湿药", "yang_warm", false],                // 苍术
+  ["温中散寒，回阳通脉，温肺化饮", "yang_warm", true],                            // 干姜
+  ["回阳救逆，补火助阳，散寒止痛", "yang_warm", true],                            // 附子
+  ["补火助阳，散寒止痛，温通经脉，引火归元", "yang_warm", true],                    // 肉桂
+  ["散寒止痛，降逆止呕，助阳止泻", "yang_warm", true],                            // 吴茱萸
 ];
 const triggerFailures = [];
 for (const [text, concept, expected] of TRIGGER_EXPECTATIONS) {

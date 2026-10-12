@@ -5038,6 +5038,28 @@ console.log(JSON.stringify({ cases: 382, failures: 0 }));
   assert.equal(unstable(restated.overview.overallPathogenesis), false);
 }
 
+// ── 证候名不挂把握度后缀（2026-10-12 线上术语缓存实测）──────────────────────────────────
+// 线上 M03 写出「风寒袭肺证症状层工作判断」「……证倾向」，原样进了病历正文、HIS 方案与术语映射。
+// 把握度另有其位（primarySyndromeResolution/Reason）；只剥「X证」之后的闭集后缀，服务端占位名不动。
+{
+  const { applyDeterministicTreatmentPrinciple: applyPrinciple, withoutSyndromeHedgeSuffix: strip } = await import("../src/lib/diagnosis-visible-summary.ts");
+  const S = "<!-- DIAGNOSIS_JSON_START -->", E = "<!-- DIAGNOSIS_JSON_END -->";
+  const value = structuredClone(stable);
+  value.overview.primarySyndrome = "风寒袭肺证症状层工作判断";
+  value.overview.secondarySyndromes = ["肝郁脾虚证倾向", "痰热扰心证（可能）", "脾胃虚弱证"];
+  const out = JSON.parse(applyPrinciple(`${S}\n${JSON.stringify(value)}\n${E}`).split(S)[1].split(E)[0]);
+  assert.equal(out.overview.primarySyndrome, "风寒袭肺证", "主证去掉「症状层工作判断」");
+  assert.deepEqual(out.overview.secondarySyndromes, ["肝郁脾虚证", "痰热扰心证", "脾胃虚弱证"], "兼证逐个去后缀，规范名原样");
+  for (const [input, expected] of [
+    ["湿热下注证待排除", "湿热下注证"],
+    ["气滞血瘀证之可能", "气滞血瘀证"],
+    ["症状级工作判断", "症状级工作判断"],
+    ["气滞血瘀证候", "气滞血瘀证候"],
+    ["倾向性证", "倾向性证"],
+    ["肝阳上亢证", "肝阳上亢证"],
+  ]) assert.equal(strip(input), expected, `闭集后缀才剥：${input}`);
+}
+
 // ── 症状里的「不清/不明/不定期」不是对冲（2026-09-26）──────────────────────────────────
 // 胰岛素瘤病例「…甚则神志不清」两次复现 2/2 被判 overall_pathogenesis_unstable（T1），整份 M03 退回占位。
 {

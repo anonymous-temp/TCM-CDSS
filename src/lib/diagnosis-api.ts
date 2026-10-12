@@ -3994,6 +3994,14 @@ async function callPrimaryTextModelStream(
           ? structuredRejectionReason(authoritativeContent, opts.structuredStage, finishReason, opts.structuredClinicalContext, opts.structuredPriorReasoning)
           : undefined;
         const pendingRepairIsFixpoint = isRepeatedContractRepair(pendingRejectionReason);
+        // 合同语义驳回**不再等于丢弃候选**（与终审投影驳回同一口径，owner 2026-09-13）。
+        // 线上 10/8 14:54、10/9 10:03、10:32：首轮候选触发 T1（温阳药无依据、麻黄配自汗禁忌），
+        // 修复一轮仍未消除，交付连续性此前没有任何检查点可给，医生拿到 0 味空页。
+        // 留进交付快照：只作非剂量呈现、永不签名，T1 问题随结果作为问题条目交付；
+        // 修复成功时已签名候选按择优规则（signed > clean > 少 T1）自动顶替它。
+        if (opts.structuredStage === "prescribe" && pendingRejectionReason) {
+          rememberRejectedM04Candidate(authoritativeContent, pendingRejectionReason.replace(/^m04_/, ""));
+        }
         // 驳回针对的是**已签名 M03 的方名身份**（正向充分性），M04 模型怎么重写候选都改变不了它：
         // 不再白跑修复轮，直接走下方的透明降级（剥离方名、按自拟方保留已通过药味级校验的候选）。
         if (opts.structuredStage === "prescribe" && pendingRejectionReason &&
@@ -4217,6 +4225,10 @@ async function callPrimaryTextModelStream(
               opts.structuredClinicalContext,
               opts.structuredPriorReasoning,
             );
+            // 修复轮的被驳回候选同样留档择优（T1 更少者优先），而不是只剩首轮那一版。
+            if (opts.structuredStage === "prescribe" && resolvedRetryContent && retryRejectionReason) {
+              rememberRejectedM04Candidate(resolvedRetryContent, retryRejectionReason.replace(/^m04_/, ""));
+            }
             console.warn("[tcm-cdss:model] structured retry contract rejected", {
               stage: opts.structuredStage,
               reason: retryRejectionReason,
@@ -4772,6 +4784,23 @@ async function callPrimaryTextModelStream(
             authoritativeContent = applyDeterministicTreatmentPrinciple(authoritativeContent);
           }
           authoritativeContent = synchronizeVisibleClinicalSummary(authoritativeContent, opts.structuredStage, opts.structuredClinicalContext || "", opts.structuredCaseState);
+          // 终审只剩已登记的质量类（T2/T3）发现、且按安全底线口径完整复验通过时，按「带质量注释受理」
+          // 交付剂量页，而不是扣成非剂量页（owner：质量类只做注释，m04-repair-policy 为唯一权威）。
+          // 线上 10/10 12:38：候选首轮经「方名已降级」路径受理、未进修复轮，故没有记下质量受理标志；
+          // 终审改用全口径，又被 T2 的 function_ungrounded 判死，合同问题为空的候选只得到非剂量页。
+          const acceptFinalizeQualityTierFinding = (): boolean => {
+            if (opts.structuredStage !== "prescribe") return false;
+            const declassificationPermission = m04FinalizeDeclassificationPermission(transparentFormulaDeclassificationAccepted, authoritativeContent);
+            const reason = structuredRejectionReason(authoritativeContent, "prescribe", finishReason,
+              opts.structuredClinicalContext, opts.structuredPriorReasoning, declassificationPermission);
+            if (!reason || !qualityAnnotationCopy(reason)) return false;
+            const floorAccepted = validatedStructuredReasoning(authoritativeContent, "prescribe", opts.structuredClinicalContext,
+              opts.structuredPriorReasoning, true, declassificationPermission, advisoryM04RiskAccepted, true);
+            if (!floorAccepted) return false;
+            noteM04QualityTierAcceptance(reason);
+            console.warn("[tcm-cdss:model] M04 quality-tier finding accepted at finalize", { reason });
+            return true;
+          };
           if (opts.structuredStage === "prescribe" && !validatedStructuredReasoning(
             authoritativeContent,
             opts.structuredStage,
@@ -4798,7 +4827,7 @@ async function callPrimaryTextModelStream(
                 m04TransparentQualityAnnotation !== undefined,
                 m04QualityTierAcceptedAfterRepair,
               ),
-            )) {
+            ) && !acceptFinalizeQualityTierFinding()) {
             console.warn("[tcm-cdss:model] finalized structured response rejected", {
               stage: opts.structuredStage,
               reason: structuredRejectionReason(

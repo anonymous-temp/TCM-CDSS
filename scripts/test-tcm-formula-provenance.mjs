@@ -640,6 +640,23 @@ assert.equal(inferredModifiedGuipiJson.formula.candidates[0].modificationStatus,
 assert.deepEqual(inferredModifiedGuipiJson.formula.candidates[0].formulaNames, ["归脾汤"]);
 const guipiPrior = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaNames: ["归脾汤"], formulaSelectionMode: "single" } };
 assert.equal(formulaCompilationContractIssue(inferredModifiedGuipiJson, guipiPrior), undefined, "the final formula must match the exact governed compilation baseline");
+// 2026-10-12 线上：旋覆代赭汤加减 7/7 核验通过，因 M03 备选里有小半夏汤（法半夏、生姜——本就是
+// 旋覆代赭汤组成的子集）3 次判 composition_drift、剥成自拟方。子集备选不算改换方剂；
+// 真正凑成另一张未选方（加丁香、柿蒂凑成丁香柿蒂汤）仍判漂移。
+{
+  const altPrior = (names) => ({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { primarySyndrome: "胃虚痰阻证", recommendedFormulaNames: names, formulaSelectionMode: "alternatives" },
+    pathogenesis: { chain: [{ nodeId: "P1", patientFact: "嗳气频作", syndromeEvidence: "嗳气", pathogenesis: "胃虚痰阻", therapyDirection: "降逆化痰" }] },
+    therapy: { overallPrinciple: "降逆化痰", overallMethod: "降逆化痰，益气和胃" } });
+  const xfdz = (extra) => ({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{ name: "旋覆代赭汤加减", formulaNames: ["旋覆代赭汤"],
+      herbs: ["旋覆花", "代赭石", "人参", "生姜", "法半夏", "炙甘草", "大枣", ...extra]
+        .map((name) => ({ name, dose: "10g", role: "臣", targetKind: "pathogenesis_node", targetRef: "P1", prescriptionRole: "降逆化痰" })) }] } });
+  assert.equal(formulaCompilationContractIssue(xfdz(["陈皮"]), altPrior(["旋覆代赭汤", "小半夏汤"])), undefined,
+    "备选小半夏汤是已选旋覆代赭汤组成的子集：候选完整包含它不是改换方剂");
+  assert.equal(formulaCompilationContractIssue(xfdz(["丁香", "柿蒂"]), altPrior(["旋覆代赭汤", "丁香柿蒂汤"])), "formula_compilation_composition_drift",
+    "阴性对照：加味凑成另一张未被覆盖的备选方仍判漂移");
+}
 const preparedGuipi = resolveFormulaSources("归脾汤加减", [
   ...["白术", "当归", "茯苓", "黄芪", "龙眼肉", "人参", "木香", "远志"].map((name) => ({ name })),
   { name: "酸枣仁", processing: "捣碎" },

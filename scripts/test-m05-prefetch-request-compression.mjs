@@ -327,5 +327,55 @@ await checkAsync("M05 authoring rejects record-status / clinician-workflow wordi
   }
 });
 
+// 2026-10-12：线上 M05 时有整段回落模板却分不清原因。每种回落都要留一条原因码，且只有原因码与字段名，
+// 不得带模型原文或病历内容。
+await checkAsync("M05 authoring fallback leaves a reason code (no clinical text) for every fallback path", async () => {
+  const { authorFollowupClinicalContent } = await jiti.import("../src/lib/m05-followup-authoring.server.ts");
+  const originalFetch = globalThis.fetch;
+  const originalInfo = console.info;
+  const logged = [];
+  console.info = (tag, detail) => { if (String(tag).includes("m05_followup_authoring_")) logged.push({ tag: String(tag), detail }); };
+  const replyRaw = (content) => async () => new Response(JSON.stringify({ id: "x", object: "chat.completion", created: 0, model: "deepseek-flash",
+    choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content } }],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }), { headers: { "content-type": "application/json" } });
+  const state = normalizeCaseStateInput({ id: "m05-fallback-telemetry", chiefComplaint: "咳嗽5天", patient: { sex: "男", age: 30 } });
+  const input = { syndrome: "风寒束肺证", herbs: ["麻黄", "杏仁"] };
+  const last = () => logged.at(-1);
+  try {
+    resetAuthoredFollowupCache(); logged.length = 0;
+    assert.equal(await authorFollowupClinicalContent(state, { ...input, syndrome: "" }), null);
+    assert.equal(last()?.detail?.reason, "no_syndrome");
+
+    resetAuthoredFollowupCache(); logged.length = 0;
+    globalThis.fetch = replyRaw("{ 不是 JSON");
+    assert.equal(await authorFollowupClinicalContent(state, input), null);
+    assert.equal(last()?.detail?.reason, "invalid_json");
+
+    resetAuthoredFollowupCache(); logged.length = 0;
+    globalThis.fetch = replyRaw(JSON.stringify({ ...authoredReply, lifestyle: "短", reviewFocus: "重点复评咳嗽的消长与舌脉变化，据此决定是否调整候选方案。" }));
+    assert.equal(await authorFollowupClinicalContent(state, input), null);
+    assert.equal(last()?.detail?.reason, "section_rejected");
+    assert.deepEqual(last()?.detail?.rejected, [{ field: "reviewFocus", why: "prohibited_instruction" }, { field: "lifestyle", why: "length" }]);
+
+    resetAuthoredFollowupCache(); logged.length = 0;
+    globalThis.fetch = async () => { const error = new Error("upstream"); error.status = 503; throw error; };
+    assert.equal(await authorFollowupClinicalContent(state, input), null);
+    assert.equal(last()?.detail?.reason, "upstream_error");
+
+    resetAuthoredFollowupCache(); logged.length = 0;
+    globalThis.fetch = replyRaw(JSON.stringify({ ...authoredReply, timeline: [] }));
+    assert.ok(await authorFollowupClinicalContent(state, input), "三段齐全仍采纳");
+    assert.equal(last()?.tag, "[tcm-cdss:telemetry] m05_followup_authoring_partial");
+    assert.ok(last()?.detail?.templateSections.includes("timeline"), "时间轴回落模板也要留痕");
+
+    const serialized = JSON.stringify(logged);
+    assert.doesNotMatch(serialized, /咳嗽|麻黄|风寒|候选方案/, "遥测只带原因码，不带病历或模型原文");
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.info = originalInfo;
+    resetAuthoredFollowupCache();
+  }
+});
+
 console.log(JSON.stringify({ suite: "m05-prefetch-request-compression", failures }, null, 1));
 if (failures.length) process.exit(1);

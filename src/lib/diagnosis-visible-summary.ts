@@ -1527,6 +1527,14 @@ function concreteTreatmentPrincipleFromSignedNature(reasoning: Record<string, un
     : principle;
 }
 
+const SYNDROME_HEDGE_SUFFIX = /^(.+?证)\s*(?:[（(]\s*(?:倾向|可能|待排除?|待定|待查)\s*[）)]|之?(?:倾向|可能|待排除?|待定|待查)|(?:症状)?[层级]?工作判断)$/;
+
+/** 「X证倾向」「X证（可能）」「X证症状层工作判断」→「X证」；其余原样返回。 */
+export function withoutSyndromeHedgeSuffix(name: string): string {
+  const trimmed = name.trim();
+  return trimmed.match(SYNDROME_HEDGE_SUFFIX)?.[1] ?? name;
+}
+
 export function applyDeterministicTreatmentPrinciple(content: string): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -1540,6 +1548,15 @@ export function applyDeterministicTreatmentPrinciple(content: string): string {
     // 总体病机被写成病历事实复述时改写成待补充说明（甲方 3.2）。与治则补齐同一道归一，
     // 两者都是「医生看到的每一句都应该是临床语言」的同一件事。
     const overview = recordValue(reasoning.overview);
+    // 证候名只写规范名本身（2026-10-12 线上术语缓存实测：「风寒袭肺证症状层工作判断」「……证倾向」）。
+    // 把握度另有其位（primarySyndromeResolution / ResolutionReason），挂在证候名后面会原样进病历与 HIS。
+    // 有限闭集的构词式守卫：只剥「X证」之后的把握度后缀；服务端占位名「症状级工作判断」前面没有「证」，不受影响。
+    if (overview) {
+      if (typeof overview.primarySyndrome === "string") overview.primarySyndrome = withoutSyndromeHedgeSuffix(overview.primarySyndrome);
+      if (Array.isArray(overview.secondarySyndromes)) {
+        overview.secondarySyndromes = overview.secondarySyndromes.map((item) => typeof item === "string" ? withoutSyndromeHedgeSuffix(item) : item);
+      }
+    }
     // 甲方 2.1:病名并列与循环套话。两条都只改形式,不替模型编造辨病依据。
     if (overview) {
       const single = singleGovernedDiseaseName(overview.tcmDiseaseName);

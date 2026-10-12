@@ -1078,8 +1078,16 @@ export function formulaCompilationContractIssue(
       ...herbNames.map(normalizeHerbName).filter(Boolean),
       ...baseAliases.values(),
     ]);
+    // 未选中的备选方若组成本就被已选方覆盖（小半夏汤「法半夏、生姜」⊂ 旋覆代赭汤），候选「完整包含」它
+    // 是选用已选方的必然结果，不是改换方剂。线上 10/9–10/10：旋覆代赭汤加减 7/7 核验通过，仍因含
+    // 小半夏汤 3 次判 composition_drift，修复两轮不收敛，方名被剥成自拟方。炮制品按组成身份归一比对
+    // （法半夏/姜半夏 → 半夏），与正向核验同一谓词。未被覆盖的备选方（加丁香、柿蒂凑成丁香柿蒂汤）照常判漂移。
+    const selectedIdentity = new Set(selectedReferences.flatMap((reference) =>
+      reference.ingredients.map((ingredient) => compositionIdentityName(normalizeHerbName(ingredient)))));
     const containsCompleteUnselectedBaseline = references
       .filter((reference) => !candidateNames.includes(reference.formulaName))
+      .filter((reference) => !reference.ingredients.every((ingredient) =>
+        selectedIdentity.has(compositionIdentityName(normalizeHerbName(ingredient)))))
       .some((reference) => reference.ingredients.every((ingredient) => actualHerbs.has(normalizeHerbName(ingredient))));
     if (containsCompleteUnselectedBaseline) return "formula_compilation_composition_drift";
   }
