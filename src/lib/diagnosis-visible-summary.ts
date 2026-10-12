@@ -1619,9 +1619,11 @@ export function applyDeterministicTreatmentPrinciple(content: string): string {
           ? chainMechanisms.join("；").slice(0, 600)
           : PATHOGENESIS_NOT_ESTABLISHED;
       } else if (disposition === "annotate") {
-        const text = String(overview.overallPathogenesis || "").trim();
-        // 幂等：批注只加一次。
-        if (text && !text.endsWith(PATHOGENESIS_NO_MECHANISM_NOTE)) {
+        // 幂等：批注只加一次。之前追加过、又被后续净化截掉后半截的提示先剥掉再统一追加——
+        // 实测（2026-10-12 本机）出现过「…寐差（服务端提示：（服务端提示：本栏未见…）」。
+        const text = String(overview.overallPathogenesis || "").trim()
+          .replace(/（服务端提示：(?:本栏未见病机要素[^）]*)?$/u, "").trim();
+        if (text && !text.includes(PATHOGENESIS_NO_MECHANISM_NOTE)) {
           overview.overallPathogenesis = `${text}${PATHOGENESIS_NO_MECHANISM_NOTE}`;
         }
       }

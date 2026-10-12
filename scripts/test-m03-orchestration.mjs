@@ -688,7 +688,9 @@ const clinicalProjection = (signed) => JSON.stringify({ overview: signed.overvie
   const fallbackLog = replaced.logs.find(([name]) => name === "[tcm-cdss:timing] structured_strict_fallback")?.[1];
   assert.equal(fallbackLog?.outcome, "replaced");
   const violationLog = replaced.logs.find(([name]) => name === "[tcm-cdss:model] non-strict structured output violates provider schema")?.[1];
-  assert.match(violationLog?.violations || "", /priority enum/, "遥测只记路径与关键字");
+  // 2026-10-12 起 subTherapies 不再下发（服务端按病机链投影），夹具里 priority 枚举越界不再算违规；
+  // 其余违规照报。断言的是遥测形状：「路径 关键字」，不带内容。
+  assert.match(violationLog?.violations || "", /^(?:\/[A-Za-z]+(?:\/[A-Za-z0-9]+)* (?:minItems|enum|required:[A-Za-z]+|type)(?:; |$))+$/, "遥测只记路径与关键字");
   assert.doesNotMatch(JSON.stringify(violationLog), /心悸|纳差/, "违规遥测不得回显病历内容");
 
   const western = await runDeepseekFirstParallelM03({

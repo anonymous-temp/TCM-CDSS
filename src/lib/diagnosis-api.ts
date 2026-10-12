@@ -28,6 +28,7 @@ import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdenti
 import { clinicalReviewNotPerformedAttestation } from "@/lib/clinical-review-binding";
 import { applyDiagnoseContractSignature, applyPrescribeContractSignature, clinicalReviewPayloadHash, type DiagnoseContractSignatureContext, type PrescribeContractSignatureContext } from "@/lib/reasoning-contract-signature";
 import { compileM04JsonObjectContent, m04ProposalIssueCode, m04ProposalRegimenShape, type EvidenceBoundMedicineProposal } from "@/lib/m04-proposal-compiler";
+import { instructionRecordPoolFromText, type InstructionRecordPool } from "@/lib/instruction-record-pool";
 import { applyDeterministicIcd10Coding } from "@/lib/icd10-diagnosis-coding.server";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { newModuleNotices } from "@/lib/diagnosis-stream-modules";
@@ -442,6 +443,12 @@ type StreamSafetyOptions = {
   structuredPatientAge?: number;
   structuredCaseState?: CaseState;
   structuredMedicineCandidates?: readonly EvidenceBoundMedicineProposal[];
+  /**
+   * M04 提示词里注入的说明书条目（evidenceId → 完整行）。模型每行只写 evidenceId 等四个键，
+   * 编译前按 ID 从同一条记录补齐说明书字段（instruction-record-pool）。缺省时由 callDiagnosisStream
+   * 从本次提示词解析。
+   */
+  structuredInstructionRecords?: InstructionRecordPool;
   structuredPriorReasoning?: ReturnType<typeof normalizeReasoningV2>;
   diagnoseSignatureContext?: DiagnoseContractSignatureContext;
   prescribeSignatureContext?: PrescribeContractSignatureContext;
@@ -1026,13 +1033,14 @@ function wrapPrescribeJsonObject(
   prior?: ReturnType<typeof normalizeReasoningV2>,
   caseState?: CaseState,
   trustedMedicineCandidates: readonly EvidenceBoundMedicineProposal[] = [],
+  instructionRecords?: InstructionRecordPool,
 ): string {
   if (stage !== "prescribe" || content.includes("<!-- DIAGNOSIS_JSON_START -->")) return content;
   const trimmed = content.trim();
   try {
     const parsed = JSON.parse(trimmed);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return content;
-    const compiled = compileM04JsonObjectContent(trimmed, prior, caseState, trustedMedicineCandidates);
+    const compiled = compileM04JsonObjectContent(trimmed, prior, caseState, trustedMedicineCandidates, instructionRecords);
     if (!compiled) {
       console.warn("[tcm-cdss:model] M04 proposal compilation rejected", {
         reason: m04ProposalIssueCode(parsed, prior) || "proposal_prior_missing",
@@ -1065,10 +1073,11 @@ function wrapStructuredJsonObject(
   prior?: ReturnType<typeof normalizeReasoningV2>,
   caseState?: CaseState,
   trustedMedicineCandidates: readonly EvidenceBoundMedicineProposal[] = [],
+  instructionRecords?: InstructionRecordPool,
 ): string {
   const wrapped = stage === "diagnose"
     ? wrapDiagnoseJsonObject(content, stage)
-    : wrapPrescribeJsonObject(content, stage, prior, caseState, trustedMedicineCandidates);
+    : wrapPrescribeJsonObject(content, stage, prior, caseState, trustedMedicineCandidates, instructionRecords);
   const providerOwned = stage === "prescribe"
     ? stripUntrustedM04IdentityMetadata(wrapped)
     : wrapped;
@@ -1781,12 +1790,12 @@ async function retryCompletePrimaryResponse(
       ? [
           "M04 修复结果始终必须是最小提案对象，不要输出 schemaVersion、candidate.therapyMatch、candidate.decoction.course、modificationReview 或 nonPharma.acupointCare；这些由服务端补齐。即使待修复内容是完整 reasoning-v2 也只提取其中的单个候选方：candidate 必须是单个对象，candidate.herbs 必须是数组且只含本次实际采用药味。",
           ...m04CandidateRules,
-          "顶层还必须包含 patentAndWestern 数组、modifications 数组以及完整 nonPharma 对象；patentAndWestern 只能选择已注入的 EVID-INST 或 LOCAL-INST 说明书条目并逐字回填 evidenceId/evidenceFingerprint，西药一律不填剂量，中成药在条目没有完整用法字段时也不猜剂量。modifications 仅允许0-4条无剂量条件性加减，包含 trigger/targetRef/symptomPathogenesis/actionType/herbName/reason（symptomPathogenesis 一句话写该症状本身的病机，不照抄节点）。",
-          "nonPharma 的 diet、lifestyle、emotion 必须是非空字符串；diet 必须同时包含明确饮食行为和至少一项具体普通食物或餐食示例，示例不宣称治疗功效并避开病历已知限制；穴位建议由受控项目目录承接，tcmTreatments 只能包含受控 projectCode 和有效 targetRef 且最多3项，precautions 是0–6条纯字符串注意事项，允许为空数组。不要保留或输出 reasoning-v2 的 overview、pathogenesis、therapy、formula 等字段，也不要重写 M03 字段。",
+          "顶层还必须包含 patentAndWestern 数组、modifications 数组以及完整 nonPharma 对象；patentAndWestern 只能选择已注入的 EVID-INST 或 LOCAL-INST 说明书条目，每行只写 type、evidenceId（逐字复制）、correspondingProblem 与 positioning，药名、规格、用法与风险由服务端按 evidenceId 从同一条目补齐。modifications 仅允许0-4条无剂量条件性加减，包含 trigger/targetRef/symptomPathogenesis/actionType/herbName/reason（symptomPathogenesis 一句话写该症状本身的病机，不照抄节点）。",
+          "nonPharma 的 diet、lifestyle、emotion 必须是非空字符串；diet 必须同时包含明确饮食行为和至少一项具体普通食物或餐食示例，示例不宣称治疗功效并避开病历已知限制；穴位建议由受控项目目录承接，tcmTreatments 只能包含受控 projectCode 和有效 targetRef 且最多3项，precautions 是0–5条纯字符串注意事项（每条≤50字），允许为空数组。不要保留或输出 reasoning-v2 的 overview、pathogenesis、therapy、formula 等字段，也不要重写 M03 字段。",
         ].join("\n")
       : "";
     const repairFieldRule = structuredStage === "prescribe"
-      ? "不要照搬待修复 JSON 的外层结构；保留本次实际采用的候选药味及其剂量、角色、病机引用、煎服疗程、已绑定 EVID-INST 或 LOCAL-INST 条目ID与指纹的中成药/西药候选和非药物调护，并严格重组为最小提案。不得新增患者事实；未绑定真实说明书条目的中成药或西药直接从 patentAndWestern 删除，不得写待检索占位。"
+      ? "不要照搬待修复 JSON 的外层结构；保留本次实际采用的候选药味及其剂量、角色、病机引用、煎服疗程、已绑定 EVID-INST 或 LOCAL-INST 条目ID的中成药/西药候选和非药物调护，并严格重组为最小提案。不得新增患者事实；未绑定真实说明书条目的中成药或西药直接从 patentAndWestern 删除，不得写待检索占位。"
       : "必须保留全部合法字段，仅修正原因代码涉及的字段；不得新增患者事实。";
     const m04ExecutionRepairRule = structuredStage === "prescribe"
       ? "M04 每味药 dose 只能是单一数值加单位（如10g）；每味药必须用 targetKind=pathogenesis_node + targetRef=P1/P2... 引用 M03 节点，或仅在佐/使药使用 targetKind=formula_structure + targetRef=FORMULA_STRUCTURE + 受控 structureRole。每个候选必须恰有 1–2 味君药，且每味君药都必须直接引用 P1；不得按药名、药味顺序或跨病例固定模板指定君药。targetPathogenesis 由服务端生成；overview 与 therapy 锁定字段不得改写。若原因涉及 formula_reference 或 formula_direction_drift，必须依据 M03 recommendedFormulaNames 与 formulaSelectionMode 重新构建 candidate.name 与 herbs[]，不得仅改方名、不得增加未列命名方。"
@@ -3817,7 +3826,7 @@ async function callPrimaryTextModelStream(
         };
         const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
         const endMarker = "<!-- DIAGNOSIS_JSON_END -->";
-        let authoritativeContent = wrapStructuredJsonObject(accumulatedContent, opts.structuredStage, opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates);
+        let authoritativeContent = wrapStructuredJsonObject(accumulatedContent, opts.structuredStage, opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates, opts.structuredInstructionRecords);
         let resolvedStructuredContent: string | undefined;
         if (opts.truncateFallback && opts.structuredStage) {
           const rawResolvedStructuredContent = resolveCompletedStructuredResponse(
@@ -4152,7 +4161,7 @@ async function callPrimaryTextModelStream(
           }
           if (clientStreamClosed) return;
           const wrappedRetryContent = retry.ok
-            ? wrapStructuredJsonObject(retry.content, opts.structuredStage, opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates)
+            ? wrapStructuredJsonObject(retry.content, opts.structuredStage, opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates, opts.structuredInstructionRecords)
             : "";
           const rawResolvedRetryContent = retry.ok
             ? resolveCompletedStructuredResponse(wrappedRetryContent, opts.structuredStage, retry.finishReason)
@@ -4329,7 +4338,7 @@ async function callPrimaryTextModelStream(
               }
               if (clientStreamClosed) return;
               const secondWrapped = secondRetry.ok
-                ? wrapStructuredJsonObject(secondRetry.content, opts.structuredStage, opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates)
+                ? wrapStructuredJsonObject(secondRetry.content, opts.structuredStage, opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates, opts.structuredInstructionRecords)
                 : "";
               const secondRawResolved = secondRetry.ok
                 ? resolveCompletedStructuredResponse(secondWrapped, opts.structuredStage, secondRetry.finishReason)
@@ -4441,7 +4450,7 @@ async function callPrimaryTextModelStream(
                   noteRepairOutcome(thirdRetry);
                   if (clientStreamClosed) return;
                   const thirdWrapped = thirdRetry.ok
-                    ? wrapStructuredJsonObject(thirdRetry.content, "diagnose", opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates)
+                    ? wrapStructuredJsonObject(thirdRetry.content, "diagnose", opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates, opts.structuredInstructionRecords)
                     : "";
                   const thirdRawResolved = thirdRetry.ok
                     ? resolveCompletedStructuredResponse(thirdWrapped, "diagnose", thirdRetry.finishReason)
@@ -5021,7 +5030,7 @@ async function callPrimaryTextModelStream(
               noteRepairOutcome(finalizedRetry);
               if (clientStreamClosed) return;
               const finalizedRetryWrapped = finalizedRetry.ok
-                ? wrapStructuredJsonObject(finalizedRetry.content, "diagnose", opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates)
+                ? wrapStructuredJsonObject(finalizedRetry.content, "diagnose", opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates, opts.structuredInstructionRecords)
                 : "";
               const finalizedRetryResolved = finalizedRetry.ok
                 ? resolveCompletedStructuredResponse(finalizedRetryWrapped, "diagnose", finalizedRetry.finishReason)
@@ -5664,6 +5673,9 @@ export async function callDiagnosisStream(
     // the fail-closed M03 path. Any other stage must never bypass presentation transforms or
     // truncation labelling, so reject the call instead of silently downgrading the contract.
     throw new Error("authoritativeTruncateFallback requires structuredStage \"diagnose\"");
+  }
+  if (opts.structuredStage === "prescribe" && !opts.structuredInstructionRecords) {
+    opts = { ...opts, structuredInstructionRecords: instructionRecordPoolFromText(prompt) };
   }
   if (backend === "deepseek" || backend === "openai") return callPrimaryTextModelStream(prompt, kind, opts);
   return callGlmStream(prompt, images, opts.requestSignal);

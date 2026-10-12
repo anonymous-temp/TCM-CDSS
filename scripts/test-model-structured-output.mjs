@@ -38,7 +38,7 @@ const M03_NON_EMPTY_PATHS = [
   ["pathogenesis", "locationDifferentiation", "details"],
   ["pathogenesis", "natureDifferentiation", "items"],
   ["pathogenesis", "uncertainties"],
-  ["therapy", "subTherapies"],
+  // therapy.subTherapies 自 2026-10-12 起由服务端按病机链投影，不再下发（见 test:output-slimming）。
 ];
 const schemaNodeAt = (schema, path) => path.reduce((node, key) => node?.properties?.[key], schema);
 for (const model of ["qwen3.7-plus", "qwen3.7-max", "qwen3.8-flash", "qwen3.8-max"]) {
@@ -225,11 +225,13 @@ console.log(JSON.stringify({ suite: "model-structured-output", tasks: 6, models:
   assert.ok(checkNonStrictStructuredValue("m03_western", misnamedRequired).violations.some((item) => item.keyword === "required:suggestedChecks"),
     "拼错必填键：多余键不剔除，必填缺失照报");
   const emptyOptional = structuredClone(western);
-  emptyOptional.westernDiagnosis.primary.coding = "";
+  // coding 自 2026-10-12 起不再下发（ICD-10 由服务端写定），换一个仍在 schema 里的可空字段。
+  emptyOptional.westernDiagnosis.primary.clinicalRationale = "";
   assert.deepEqual(providerSchemaViolations("m03_western", emptyOptional), [], "可空字段写空串与省略同义");
 
-  const tcmValue = { pathogenesis: { chain: [{ pathogenesisType: "不存在的类型" }] } };
-  assert.ok(providerSchemaViolations("m03_tcm", tcmValue).some((item) => item.path === "/pathogenesis/chain/0/pathogenesisType" && item.keyword === "enum"),
+  // pathogenesisType 自 2026-10-12 起不再下发；用仍在 schema 里的枚举字段钉同一条判据。
+  const tcmValue = { pathogenesis: { locationDifferentiation: { resolution: "不存在的取值" } } };
+  assert.ok(providerSchemaViolations("m03_tcm", tcmValue).some((item) => item.path === "/pathogenesis/locationDifferentiation/resolution" && item.keyword === "enum"),
     "枚举外取值（中医半重放 6/18）必须判违规");
 
   const complete = JSON.stringify(western);

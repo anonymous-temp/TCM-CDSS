@@ -254,6 +254,7 @@
     "test:pediatric-vitals": "jiti scripts/test-pediatric-vitals.mjs",
     "test:kb-gap-ratchets": "jiti scripts/test-kb-gap-ratchets.mjs",
     "test:request-archive": "jiti scripts/test-request-archive.mjs",
+    "test:output-slimming": "node --test scripts/test-output-slimming.mjs",
     "test:nonpharmacopoeia-dose": "jiti scripts/test-nonpharmacopoeia-dose.mjs",
     "test:multitenant-drug-inventory": "jiti scripts/test-multitenant-drug-inventory.mjs",
     "test:drug-inventory-concurrency": "jiti scripts/test-drug-inventory-concurrency.mjs",

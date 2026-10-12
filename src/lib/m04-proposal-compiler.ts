@@ -25,6 +25,7 @@ import { clinicalGroundingText } from "./diagnosis-safety";
 import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
+import { fillMedicineRowFromInstructionRecord, type InstructionRecordPool } from "./instruction-record-pool";
 
 const evidence = {
   evidenceLevel: "model_inference" as const,
@@ -838,6 +839,8 @@ function normalizeHerb(
 
   const processing = unwrapSingleText(herb.processing ?? herb["炮制"] ?? herb["规格"]);
   if (processing) herb.processing = processing;
+  // 2026-10-12 起提示词让模型在无炮制时省略 processing；契约是「字符串或 null」，缺省即 null。
+  else if (herb.processing === undefined) herb.processing = null;
   const role = unwrapSingleText(herb.role ?? herb["君臣佐使"]);
   if (role) {
     const canonical = normalizePrescriptionRole(role);
@@ -868,6 +871,15 @@ function normalizeHerb(
   }
   const targetRef = unwrapSingleText(herb.targetRef ?? herb["靶点引用"]);
   if (targetRef) herb.targetRef = targetRef;
+  // targetKind 由 targetRef 推出（2026-10-12 输出瘦身：模型不再逐味写这个冗余键）。只在模型没写时推断；
+  // 写了且与引用矛盾的（formula_structure + P1）照旧交给语义校验驱动修复，不在这里改写临床关系。
+  if (!rawTargetKind && herb.targetKind == null && typeof herb.targetRef === "string") {
+    if (/^P\d{1,2}$/.test(herb.targetRef)) herb.targetKind = "pathogenesis_node";
+    else if (/^formula_structure$/i.test(herb.targetRef)) {
+      herb.targetKind = "formula_structure";
+      herb.targetRef = "FORMULA_STRUCTURE";
+    }
+  }
   if (herb.targetKind === "pathogenesis_node") {
     // structureRole only describes controlled formula-structure support. It is inapplicable to a
     // pathogenesis-node herb, so explanatory provider text must not invalidate an otherwise safe row.
@@ -919,6 +931,7 @@ function normalizeEmperorCardinality(value: unknown): unknown {
 function normalizeM04ProposalInput(
   value: unknown,
   prior?: ClinicalReasoningResultV2 | null,
+  instructionRecords?: InstructionRecordPool,
 ): unknown {
   if (!isRecord(value)) return value;
   if (value.schemaVersion != null && value.schemaVersion !== "tcm-cdss-m04-proposal-v1") {
@@ -1068,8 +1081,10 @@ function normalizeM04ProposalInput(
   const rawModifications = value.modifications ?? candidate.modifications;
   const rawNonPharmaValue = value.nonPharma ?? candidate.nonPharma;
   const patentAndWestern = Array.isArray(rawPatentAndWestern)
-    ? rawPatentAndWestern.flatMap((raw) => {
-        if (!isRecord(raw)) return [];
+    ? rawPatentAndWestern.flatMap((rawRow) => {
+        if (!isRecord(rawRow)) return [];
+        // 说明书字段由服务端按 evidenceId 从模型看到的同一条记录补齐（instruction-record-pool）。
+        const raw = fillMedicineRowFromInstructionRecord(rawRow, instructionRecords);
         if (![raw.name, raw.evidenceId, raw.evidenceFingerprint, raw.correspondingProblem]
           .every(concreteMedicationValue)) return [];
         const normalizedRaw = { ...raw };
@@ -1305,9 +1320,10 @@ export function compileM04Proposal(
   prior: ClinicalReasoningResultV2 | null | undefined,
   caseState?: CaseState,
   trustedMedicineCandidates: readonly EvidenceBoundMedicineProposal[] = [],
+  instructionRecords?: InstructionRecordPool,
 ): ClinicalReasoningResultV2 | undefined {
   if (!prior || prior.stage !== "diagnose") return undefined;
-  const parsed = M04ProposalSchema.safeParse(normalizeM04ProposalInput(value, prior));
+  const parsed = M04ProposalSchema.safeParse(normalizeM04ProposalInput(value, prior, instructionRecords));
   if (!parsed.success) return undefined;
   // Preserve the exact model proposal through compilation. Dose normalization may canonicalize
   // representation; the only clinical value the server changes is an ordinary herb above its
@@ -1525,6 +1541,7 @@ export function compileM04JsonObjectContent(
   prior: ClinicalReasoningResultV2 | null | undefined,
   caseState?: CaseState,
   trustedMedicineCandidates: readonly EvidenceBoundMedicineProposal[] = [],
+  instructionRecords?: InstructionRecordPool,
 ): ClinicalReasoningResultV2 | undefined {
   try {
     const parsed = JSON.parse(content.trim()) as { schemaVersion?: unknown };
@@ -1532,7 +1549,7 @@ export function compileM04JsonObjectContent(
     // M04 is intentionally an untrusted, minimal proposal. Accepting a complete V2 object here
     // would let the provider replace M03-owned overview/pathogenesis/therapy fields and bypass the
     // server compiler. Legacy full-V2 responses must be regenerated through the proposal contract.
-    return compileM04Proposal(parsed, prior, caseState, trustedMedicineCandidates);
+    return compileM04Proposal(parsed, prior, caseState, trustedMedicineCandidates, instructionRecords);
   } catch {
     return undefined;
   }

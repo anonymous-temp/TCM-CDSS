@@ -166,7 +166,8 @@ ok("营销词不得活过 finalize", (() => {
 {
   const prompts = await import("node:fs").then((fs) =>
     fs.readFileSync(path.join(repoRoot, "src/lib/diagnosis-prompts.ts"), "utf8"));
-  ok("M04 JSON 模板含 function 字段", /"function":"该药在本方中承担的具体作用"/.test(prompts));
+  // 2026-10-12 输出瘦身：示例改为短语（「本方中的作用（4–12字短语）」），字段本身仍在模板里。
+  ok("M04 JSON 模板含 function 字段", /"function":"本方中的作用/.test(prompts));
   ok("提示词说明 function 写本方作用而非罗列全部功效", /不是罗列它的全部功效/.test(prompts));
 }
 

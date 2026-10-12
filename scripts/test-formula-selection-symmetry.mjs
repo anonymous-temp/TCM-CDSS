@@ -110,8 +110,11 @@ assert.ok(!windColdMissed.includes("归脾汤"),
 // ── the rejection must be repairable ─────────────────────────────────────────
 const hint = structuredClinicalRepairHint("diagnose", "m03_formula_selection_missed_lockable");
 assert.ok(hint.length > 0, "every rejection code must carry repair guidance");
-assert.match(hint, /recommendedFormulaNames/, "guidance must name the field to correct");
-assert.match(hint, /formulaSelectionMode/, "guidance must name the mode field");
+// 2026-10-12 起方名由服务端从 recommendedFormulaDirection 识别，修复提示点名的是这个字段。
+assert.match(hint, /recommendedFormulaDirection/, "guidance must name the field to correct");
+// 选方方式也从这句话里识别：提示必须说清单方、合方、并列各怎么写。
+assert.match(hint, /X合Y加减/, "guidance must say how to express a combined selection");
+assert.match(hint, /X或Y/, "guidance must say how to express alternatives");
 assert.match(hint, /逐字/, "guidance must forbid rewriting the retrieved formula name");
 assert.match(hint, /才可保持留空|确认短名单中每一条都与本例方证不符/,
   "guidance must leave a legitimate route to keep self-devising — the server does not pick the formula");

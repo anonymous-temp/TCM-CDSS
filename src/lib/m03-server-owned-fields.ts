@@ -11,6 +11,9 @@
  *                                         (95.5%) 是这个值，「指南/文献依据」一栏自诞生起产出 0 条
  *                                         （见 diagnosis-visible-summary 里那段注释）；
  *  · `lineageAdaptation` 的常量子字段  —— 提示词把服务端卡值喂进去、再让模型原样抄回来。
+ *  · `overview.overallTherapy`         —— 与 therapy.overallMethod 同义（2026-10-12 输出瘦身；
+ *                                         其余不再下发的字段见 model-response-format 的
+ *                                         M03_OVERVIEW_SERVER_DERIVED 注释，各由既有服务端步骤补齐）。
  *
  * 做法与 M04 已经验证过的模式一致（M04 提示词开篇即写「模型只提交需要临床生成的最小提案」）：
  * **模型不再输出这些字段，服务端在校验与签名之前确定性补齐**。因此下游合同、签名载荷、
@@ -106,6 +109,12 @@ export function applyServerOwnedM03Fields(content: string, lineagePreference?: s
 
   const overview = record(reasoning.overview);
   fillEvidence(overview, MODEL_INFERENCE_EVIDENCE);
+  // 总治法与 therapy.overallMethod 同义（2026-10-12 起模型只写后者）。缺失时复制，不改写已有值。
+  const overallMethod = record(reasoning.therapy)?.overallMethod;
+  if (overview && (typeof overview.overallTherapy !== "string" || !overview.overallTherapy.trim()) &&
+    typeof overallMethod === "string" && overallMethod.trim()) {
+    overview.overallTherapy = overallMethod.trim();
+  }
 
   const western = record(reasoning.westernDiagnosis);
   fillEvidence(record(western?.primary), MODEL_INFERENCE_EVIDENCE);

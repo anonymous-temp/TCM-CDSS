@@ -236,6 +236,13 @@ export function mergeParallelM03Halves(tcmRaw: string, westernRaw: string | unde
   for (const field of TCM_HALF_FIELDS) {
     if (tcm[field] !== undefined) merged[field] = tcm[field];
   }
+  // deferredFormulaSelection 只能由服务端写（锁定检索的留痕，tcm-formula-indications）。模型自己
+  // 写一个，锁定那一步会以为已处置而跳过系统锁定（2026-10-12 输出审计发现）。下发 schema 已不含它，
+  // 这里再按字段归属剥一次，不依赖模型听话。
+  const overview = merged.overview;
+  if (overview && typeof overview === "object" && !Array.isArray(overview)) {
+    delete (overview as Record<string, unknown>).deferredFormulaSelection;
+  }
   // M03 合同恒为 formula: null / nonPharma: null；半区偶发漏写时补上确定性常量，
   // 不把"漏写常量"放大成一轮契约修复。
   merged.formula = null;

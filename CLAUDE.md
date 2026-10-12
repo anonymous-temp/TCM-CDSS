@@ -237,6 +237,63 @@ Owner requirement 2026-09-28: inventory is only a reference; never error when a 
 
 **Catalog gap classes (2026-09-30, `test:kb-gap-ratchets`).** "One problem → one class": parse debris in herb names (剂量/用法文字、单字残片), chapter headings posing as formulas (`治…方`, ≥8 味 → quarantined: no name lock, no dose, not evidence), 出处 field holding an author/abbreviation/typo instead of a book, suffix-form 炮制 names losing their preparation after canonicalisation, and **alias chains that map herb A to herb B**. The last one is the dangerous one: `tcm-herb-identity-catalog.json` is generated from a local alias dataset and auto-resolved medium-confidence "同名异物" as `unique_source_backed` — 茵陈蒿→青蒿 (茵陈蒿汤's 君药 became another herb), 大附子→狼毒, 汉防己→北豆根, 沙参→银柴胡, 葵子→天葵子, and 关木通→木通 / 广防己→穿山龙 / 雷公藤→杠板归 (banned or very toxic herbs passing as ordinary ones). Fix is a row in `tcm-herb-identity-supplements.json` (it overrides the generated index; batch `ADJ-WEB-20260930-ALIAS`): correct target, or several candidates (`ambiguityGroup`, not auto-resolvable), or `canonicalName: null` + `autoResolvable:false` for banned/toxic names. A herb that becomes its own entity with no numeric dose must be registered in `tcm-herb-dose-clinician-policy.source.json` **by the raw name used in formulas** (the policy is keyed by raw ingredient name, not canonical), or every formula containing it silently loses `doseCompilationEligible`. Ratchets 6.x: hazard names never resolve to a herb without a `herbRisk` entry; a dose-bearing KB name is never remapped; formula links whose raw name contains another standard name but resolves elsewhere must be on a reviewed list.
 
+### Output slimming — what the models no longer write (2026-10-12)
+
+Latency is decode-bound: DeepSeek writes ~150–175 tok/s, while reading a 20k-token prompt costs 0.3–0.8 s. Each stage's time is therefore its output length, not its step count. (The question that started this was whether 锁定方 and 候选方案 duplicate each other. They do not: the formula lock is ~2% of the M03 TCM half.)
+
+A field-by-field audit of 15 cases took everything the server already overwrites, derives or never shows out of the model's output, and capped the visible prose. The audit used the DeepSeek tokenizer and traced every field's consumers. The pin is `test:output-slimming`; the measurement harness is in `~/runlogs/fieldtok-20261012`.
+
+**What changed in the provider schemas (`model-response-format.ts`).**
+- M03 no longer asks for:
+  - `recommendedFormulaNames` / `formulaSelectionMode` — `withDeterministicFormulaReferences` re-derives them from `recommendedFormulaDirection`, so that sentence is now the only lock input;
+  - `deferredFormulaSelection`;
+  - the citation lists, Western `coding`, and citation/url;
+  - `overallTherapy` — copied from `overallMethod`;
+  - chain `nodeId` / `pathogenesisType` / `biaoBen`, and `caseRelationship`;
+  - axis `resolutionReason` — written by the server;
+  - `subTherapies` — projected from the chain in `applyM03AdvisoryQualityBoundaries`;
+  - `alternativeDirection`.
+- **Habitual writes are tolerated.** The dropped names are in `SERVER_OWNED_FIELD_NAMES`, so a model that still writes them by habit does not push the half onto the 24 s strict fallback.
+- **The one exception is `deferredFormulaSelection`.** It is stripped, and `mergeParallelM03Halves` drops it too. A model-written one made the system lock believe it had already acted.
+
+**M04 envelope drift is now repaired before validation.** DeepSeek sometimes puts `patentAndWestern` / `modifications` / `nonPharma` inside `candidate`, or closes `nonPharma` early and leaves the care fields at the root. `checkNonStrictStructuredValue` now moves them back: the key names fix their place, and the compiler already did the same lift. It also drops only the offending `tcmTreatments` row on an out-of-range code. Before this, each such slip sent the whole proposal to the 10–30 s Qwen regeneration. In 113 local M04 first passes, 7 were one of these slips and 1 was unparseable JSON.
+
+**What changed in M04.**
+- **Herbs.** `targetKind` is inferred from `targetRef` in `normalizeHerb`, and null/false defaults are omitted.
+- **Medicine rows.** They carry only `type`, `evidenceId`, `correspondingProblem` and `positioning`.
+  - The label fields are completed from the record the model actually saw: `instruction-record-pool.ts` parses it from the M04 prompt in `callDiagnosisStream`.
+  - Completed rows still pass `medicineEvidenceBindingValid` and the chart check.
+- **Compiler-generated fields.** `applicable` and `notApplicable` are written by the compiler.
+- **`referenceCaseUse`.** It keeps only `adoptedCaseIds`.
+
+**What changed in the prompts.**
+- The "不得删短" rule is gone.
+- New caps:
+  - differentials: 1–3 TCM disease, 1–3 TCM syndrome, ≤8 Western, must-not-miss directions first;
+  - Western limitations ≤5, suggested checks and must-collect ≤6, candidate evidence ≤3 per side; the follow-up safety net is one or two sentences naming emergency signs;
+  - uncertainties ≤3; symptom clusters ≤2; overall pathogenesis ≤100 字;
+  - herb `function` 4–12 字; 方解 120–150 字 (it must still name most herbs);
+  - precautions ≤5, unverified pregnancy/lactation, medication overlap and emergency signs first; one or two sentences per care section.
+- **Precaution wording has to survive two existing server filters.** Emergency lines must be written as 「若出现……，须……」, because without the conditional word the ungrounded-negation sanitizer rewrites them into 「病历尚未确认…是否存在」. They must also avoid workflow words such as 「采纳」, because the patient-instruction prohibition table drops the whole line. Under the shorter caps the model wrote 「出现…须立即急诊」 and 「再决定是否采纳」; the pregnancy and emergency lines then disappeared in 2–3 of 15 cases.
+- **Do not tighten the safety-bearing lists again without a blind comparison.** The first version capped them at 3–4 items. A blind judge then scored completeness 4.20 → 3.27: 10 of 15 cases were worse and none better. What went missing was red-flag differentials (spinal tumour, tuberculosis), pregnancy checks, emergency signs and medication overlap. Relaxing those lists cost ~200 tokens on the Western half, which is not on the critical path.
+- `lineageAdaptation` is null when no school is chosen.
+- M04 now receives `westernDiagnosis.primary.supportingFacts`. Its modification rule always told the model to read them, but they were never in its M03 block.
+- **Enumerate enum values in the prompt.** The first draft described `positioning` as 「联用或替代定位」. The model wrote free text, and the non-strict check dropped 13/38 medicine rows. With the four values listed, it was back to 6/35 (before the change: 6/40).
+
+**Measured (local, same environment, 15 cases, medians before → after).**
+
+| | Output tokens | Model time |
+|---|---|---|
+| M03 TCM half | 2,303 → 1,160 | 15.1 → 6.9 s |
+| M03 Western half | 1,558 → 947 | 10.4 → 6.3 s |
+| M04 first pass | 2,310 → 1,027 | 13.9 → 6.3 s |
+
+Herb-function grounding misses were unchanged (~2.1–2.2 per case), and 方义 was never replaced by the server fallback.
+
+**Blind comparison of the final version against before** (15 cases, judged by a clinician-persona agent, arms randomized as X/Y): overall 3.53 → 3.73, completeness 3.87 → 3.80, concision 3.00 → 3.67, prescription 3.53 → 3.60, diagnosis 3.80 → 3.60. Preference: after 6, before 2, tie 7. The same unchanged outputs drifted ±0.15 between judging rounds, so treat any single-dimension difference under ~0.2 as noise. The judge material and scripts are in `~/runlogs/fieldtok-20261012` (`render.py`, `judge-scores-r*.json`; the X/Y keys are kept outside the judge directory).
+
+M04 raw JSON now more often closes the root early: 0/48 syntax errors before the change, 9/34 in the last two arms. The existing closer repairs fix almost all of them, and a replay of the final prompts gave 0/30 regenerations, so this costs no time. Watch `non-strict structured output violates provider schema` for `m04_proposal` after deploy.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).

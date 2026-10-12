@@ -235,7 +235,7 @@ export function buildSimilarModernCaseContext(caseState: CaseState, stage: "diag
   const rule = mode === "guided"
     ? "使用纪律：可参考上列医案的选方与随证加减思路；只采用与本例已锁定证候、治法相符且本例病历有对应事实的药味，不得照搬剂量。"
     : mode === "mandatory"
-      ? "使用纪律（必须执行）：必须从上列医案中至少采纳一例的选方或随证加减思路，并在输出 JSON 顶层增加 referenceCaseUse 字段，写明编号与借鉴了什么，形如 {\"adoptedCaseIds\":[\"MC-1\"],\"note\":\"借鉴其随证加减思路\"}；所采药味仍须与本例已锁定证候、治法相符，不得照搬剂量。"
-      : "使用纪律：逐例判断上列医案与本例是否对证。对证的，可借鉴其选方或随证加减药味（仍须符合本例已锁定证候与治法，不得照搬剂量）；不对证的不要采用。无论是否采用，都必须在输出 JSON 顶层增加 referenceCaseUse 字段交代：adoptedCaseIds 列出实际借鉴的编号（都不适用则为 []），note 用一句话写明借鉴了哪一点或为何都不适用，形如 {\"adoptedCaseIds\":[],\"note\":\"三例均为湿热证，与本例寒湿不符\"}。";
+      ? "使用纪律（必须执行）：必须从上列医案中至少采纳一例的选方或随证加减思路，并在输出 JSON 顶层增加 referenceCaseUse 字段写明采纳的编号，形如 {\"adoptedCaseIds\":[\"MC-1\"]}；所采药味仍须与本例已锁定证候、治法相符，不得照搬剂量。"
+      : "使用纪律：逐例判断上列医案与本例是否对证。对证的，可借鉴其选方或随证加减药味（仍须符合本例已锁定证候与治法，不得照搬剂量）；不对证的不要采用。无论是否采用，都必须在输出 JSON 顶层增加 referenceCaseUse 字段交代：adoptedCaseIds 列出实际借鉴的编号（都不适用则为 []），形如 {\"adoptedCaseIds\":[]}。";
   return { cases, context: [header, ...cases.map((item) => renderCaseLine(item, true)), rule].join("\n") };
 }

@@ -197,7 +197,7 @@ const M03_GENERATED_NON_EMPTY_ARRAYS: readonly (readonly string[])[] = [
   ["pathogenesis", "locationDifferentiation", "details"],
   ["pathogenesis", "natureDifferentiation", "items"],
   ["pathogenesis", "uncertainties"],
-  ["therapy", "subTherapies"],
+  // therapy.subTherapies 自 2026-10-12 起不再由模型生成（见 M03_SERVER_DERIVED_FIELDS）。
 ];
 
 function requireGeneratedM03Content(schema: JsonSchema): JsonSchema {
@@ -260,12 +260,33 @@ function hasAllProperties(node: unknown, keys: readonly string[]): boolean {
   return Boolean(properties) && keys.every((key) => key in properties!);
 }
 
+/** 从 required 中移除：strictProviderSchema 会把它们投影成「必填 + 可空」，非严格校验时可以省略。 */
+function makeSchemaPropertiesOptional(node: unknown, keys: readonly string[]): void {
+  const record = node && typeof node === "object" ? node as JsonSchema & { required?: unknown } : undefined;
+  if (!record || !Array.isArray(record.required)) return;
+  record.required = (record.required as unknown[]).filter((entry) => !keys.includes(entry as string));
+}
+
+/**
+ * M04 中成药/西药行里由服务端按 evidenceId 从同一说明书条目补齐的字段（2026-10-12 输出瘦身）。
+ * 模型只写选哪条（evidenceId）、类别、对应本例什么问题、定位；其余逐字抄说明书的字段
+ * 原先占 M04 写出量的 29%，而规划器选中的行本来就会被服务端整行覆盖。
+ * 补齐在 m04-proposal-compiler 的 normalizeM04ProposalInput（instruction-record-pool）。
+ */
+export const M04_MEDICINE_ROW_SERVER_FILLED_FIELDS = [
+  "name", "specification", "singleDose", "frequency", "route", "administrationTiming",
+  "usageBoundary", "course", "evidenceFingerprint", "evidenceSource", "relationship", "riskNote",
+] as const;
+
 /**
  * Only the provider projection is reduced; M04ProposalSchema remains the full legacy parser.
  * normalizeM04ProposalInput owns the version, modification accounting and acupointCare=null.
  * Required doseCount/dosesPerDay determine course; compilation owns therapyMatch via the M03 lock.
  * Keep isToxic: the compiler preserves a model's conservative true flag in addition to KB flags.
  * Keep individualized prose (including method/followUpNode), which the compiler can preserve.
+ *
+ * 2026-10-12：药味的 targetKind（由 targetRef 推出）、processing/structureRole/decoctionRequirement
+ * （无值时省略）与中成药行的说明书字段改为可省略；服务端在编译前补齐。属性本身保留，模型照写也合规。
  */
 function stripServerOwnedM04Fields(schema: JsonSchema): JsonSchema {
   const clone = structuredClone(schema);
@@ -281,8 +302,33 @@ function stripServerOwnedM04Fields(schema: JsonSchema): JsonSchema {
   removeSchemaProperty(candidate, "therapyMatch");
   removeSchemaProperty(resolve(schemaProperties(candidate)?.decoction), "course");
   removeSchemaProperty(resolve(properties?.nonPharma), "acupointCare");
+  // 数组节点本身也可能是 $ref（带 default 的数组会被 zod 提成定义），先解析数组再解析 items。
+  const itemsOf = (node: JsonSchema | undefined) => resolve(resolve(node)?.items as JsonSchema | undefined);
+  makeSchemaPropertiesOptional(itemsOf(schemaProperties(candidate)?.herbs), ["targetKind", "processing", "structureRole", "isToxic", "decoctionRequirement"]);
+  makeSchemaPropertiesOptional(itemsOf(properties?.patentAndWestern), M04_MEDICINE_ROW_SERVER_FILLED_FIELDS);
   return clone;
 }
+
+/**
+ * M03 里由服务端推出或覆盖、不再让模型写的字段（2026-10-12 输出瘦身，逐字段核过去向）：
+ *  · recommendedFormulaNames / formulaSelectionMode —— withDeterministicFormulaReferences 从
+ *    recommendedFormulaDirection 重新识别，模型写的值一律作废；
+ *  · deferredFormulaSelection —— 服务端锁定检索的留痕。模型写了它，系统锁定那一步会以为已处置而跳过，
+ *    所以既不下发、也不容忍（见 SERVER_OWNED_FIELD_NAMES 注释与 m03-parallel-merge）；
+ *  · tcmDiseaseReferences / tcmSyndromeReferences / coding / 鉴别项 guidelineReferences ——
+ *    服务端按检索记录与 ICD-10 目录无条件重写；
+ *  · overallTherapy —— 与 therapy.overallMethod 同义，服务端复制；
+ *  · chain[].nodeId —— grounding 重排为 P1..Pn；pathogenesisType / biaoBen / caseRelationship ——
+ *    无确定性消费方（页面小标签与「病机联系」随之取消）；
+ *  · 病位/病性 resolutionReason —— 服务端按依据条数写定；
+ *  · therapy.subTherapies —— 服务端按病机链逐节点投影（applyM03AdvisoryQualityBoundaries）；
+ *  · lineageAdaptation.alternativeDirection —— 只在「不适用」时展示，而服务端从不判不适用；
+ *  · 指南引用的 citation / url —— 服务端按 evidenceId 反查真条目重写，模型只写 evidenceId + appliesTo。
+ */
+const M03_OVERVIEW_SERVER_DERIVED = [
+  "recommendedFormulaNames", "formulaSelectionMode", "deferredFormulaSelection",
+  "tcmDiseaseReferences", "tcmSyndromeReferences", "overallTherapy",
+] as const;
 
 function stripServerOwnedM03Fields(schema: JsonSchema): JsonSchema {
   const clone = structuredClone(schema);
@@ -312,7 +358,30 @@ function stripServerOwnedM03Fields(schema: JsonSchema): JsonSchema {
       || hasAllProperties(definition, ["therapy", "targetPathogenesis", "priority"])) {
       removeSchemaProperty(definition, "evidence");
     }
+    if (hasAllProperties(definition, ["patientFact", "syndromeEvidence", "therapyDirection"])) {
+      for (const key of ["nodeId", "pathogenesisType", "biaoBen"]) removeSchemaProperty(definition, key);
+    }
+    // 西医鉴别项（name/reason/distinguishingPoints/nextCheck）的引用由服务端逐项重写。
+    if (hasAllProperties(definition, ["name", "reason", "distinguishingPoints", "nextCheck"])) {
+      removeSchemaProperty(definition, "guidelineReferences");
+    }
+    // 西医主诊断的指南引用：模型只写 evidenceId 与 appliesTo。
+    if (hasAllProperties(definition, ["evidenceId", "citation", "appliesTo"])) {
+      for (const key of ["citation", "url"]) removeSchemaProperty(definition, key);
+    }
   }
+  for (const key of M03_OVERVIEW_SERVER_DERIVED) removeSchemaProperty(properties.overview, key);
+  const primary = schemaProperties(properties.westernDiagnosis)?.primary;
+  removeSchemaProperty(primary, "coding");
+  const primaryReferenceItems = (schemaProperties(primary)?.guidelineReferences as JsonSchema | undefined)?.items;
+  if (primaryReferenceItems && typeof primaryReferenceItems === "object" && !("$ref" in primaryReferenceItems)) {
+    for (const key of ["citation", "url"]) removeSchemaProperty(primaryReferenceItems, key);
+  }
+  removeSchemaProperty(pathogenesis, "caseRelationship");
+  removeSchemaProperty(pathogenesisProperties.locationDifferentiation, "resolutionReason");
+  removeSchemaProperty(pathogenesisProperties.natureDifferentiation, "resolutionReason");
+  removeSchemaProperty(properties.therapy, "subTherapies");
+  for (const variant of lineageVariants) removeSchemaProperty(variant, "alternativeDirection");
   return clone;
 }
 
@@ -444,7 +513,9 @@ function omittableOptionalProjection(value: unknown): unknown {
   const source = value as JsonSchema;
   const projected = Object.fromEntries(
     Object.entries(source)
-      .filter(([key]) => key !== "$schema")
+      // default 只是 zod 兜底值的注解，对输出没有约束；写进系统消息反而把服务端占位串
+      // （「尚未形成稳定证型」）和已改由服务端推出的键名摆在模型眼前。
+      .filter(([key]) => key !== "$schema" && key !== "default")
       .map(([key, child]) => [key, key === "properties" && child && typeof child === "object"
         ? Object.fromEntries(Object.entries(child as JsonSchema).map(([name, node]) => [name, omittableOptionalProjection(node)]))
         : omittableOptionalProjection(child)]),
@@ -533,6 +604,13 @@ const SERVER_OWNED_FIELD_NAMES: ReadonlySet<string> = new Set([
   // M04 相似医案问责说明（2026-09-27，modern-case-exemplars.server）：不进 schema、不进签名载荷，
   // 服务端只读取做遥测；模型写了它不应触发严格兜底。
   "referenceCaseUse",
+  // 2026-10-12 输出瘦身：从下发 schema 里拿掉、由服务端推出或覆盖的 M03 字段。模型按旧习惯照写时
+  // 不算违规（否则一份写了 3 个节点编号 + 3 个节点类型的中医半就会超过 12 条违规、整份走 24s 的严格兜底），
+  // 服务端照常覆盖。**deferredFormulaSelection 故意不在此列**：它是服务端锁定检索的留痕，模型写了
+  // 会让锁定那一步以为已处置而跳过——必须当 schema 外键剥掉。
+  "recommendedFormulaNames", "formulaSelectionMode", "tcmDiseaseReferences", "tcmSyndromeReferences",
+  "overallTherapy", "coding", "citation", "url", "guidelineReferences", "caseRelationship",
+  "resolutionReason", "nodeId", "pathogenesisType", "biaoBen", "subTherapies", "alternativeDirection",
 ]);
 
 function collectSchemaViolations(
@@ -800,6 +878,51 @@ export function checkNonStrictStructuredContent(task: StructuredOutputTask, cont
 }
 
 /** 已解析的值（如西医半经过错位归位之后）走同一套截断与校验。 */
+const M04_PROPOSAL_LEVEL_FIELDS = ["patentAndWestern", "modifications", "nonPharma"] as const;
+const M04_NON_PHARMA_FIELDS = ["diet", "lifestyle", "exercise", "emotion", "tcmTreatments", "precautions"] as const;
+
+/**
+ * M04 提案的确定性归位（2026-10-12）：DeepSeek json_object 偶发把提案级字段写进 candidate 里，或让
+ * nonPharma 提前闭合、把其余调护字段落到根上。两种都是**位置**错误，键名本身唯一确定归属：
+ *  · patentAndWestern / modifications / nonPharma 只能在根上——编译器 normalizeM04ProposalInput 早就按
+ *    「envelope canonicalization」把 candidate 里的这三个键提上来；
+ *  · diet / lifestyle / exercise / emotion / tcmTreatments / precautions 只能在 nonPharma 里。
+ * 此前入口校验先判违规，整份交给 qwen 严格兜底重生成（10–30s）；本机 113 次 M04 首轮里 7 次是这两种。
+ * 只搬家、不改值；目标位置已有同名键时不动（交给校验照报）。
+ */
+function canonicalizeM04ProposalEnvelope(value: unknown, repairs: string[]): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const root = { ...(value as Record<string, unknown>) };
+  const candidate = root.candidate && typeof root.candidate === "object" && !Array.isArray(root.candidate)
+    ? { ...(root.candidate as Record<string, unknown>) }
+    : undefined;
+  if (candidate) {
+    for (const key of M04_PROPOSAL_LEVEL_FIELDS) {
+      if (!(key in root) && key in candidate) {
+        root[key] = candidate[key];
+        delete candidate[key];
+        repairs.push(`lifted_m04_proposal_field:${key}`);
+      }
+    }
+    root.candidate = candidate;
+  }
+  const strayNonPharma = M04_NON_PHARMA_FIELDS.some((key) => key in root);
+  const nonPharma = root.nonPharma && typeof root.nonPharma === "object" && !Array.isArray(root.nonPharma)
+    ? { ...(root.nonPharma as Record<string, unknown>) }
+    : root.nonPharma === undefined && strayNonPharma ? {} : undefined;
+  if (nonPharma) {
+    for (const key of M04_NON_PHARMA_FIELDS) {
+      if (key in root && !(key in nonPharma)) {
+        nonPharma[key] = root[key];
+        delete root[key];
+        repairs.push(`lifted_m04_non_pharma_field:${key}`);
+      }
+    }
+    root.nonPharma = nonPharma;
+  }
+  return root;
+}
+
 export function checkNonStrictStructuredValue(
   task: StructuredOutputTask,
   value: unknown,
@@ -808,8 +931,10 @@ export function checkNonStrictStructuredValue(
 ): NonStrictStructuredCheck {
   const schema = providerJsonSchemaForTask(task);
   const clamped: string[] = [];
-  const normalized = clampArraysToSchemaMaxItems(schema, schema, value, clamped);
-  const repairs = [...priorRepairs, ...clamped.map((path) => `max_items:${path}`)];
+  const envelopeRepairs: string[] = [];
+  const canonical = task === "m04_proposal" ? canonicalizeM04ProposalEnvelope(value, envelopeRepairs) : value;
+  const normalized = clampArraysToSchemaMaxItems(schema, schema, canonical, clamped);
+  const repairs = [...priorRepairs, ...envelopeRepairs, ...clamped.map((path) => `max_items:${path}`)];
   let current = normalized;
   let violations: ProviderSchemaViolation[] = [];
   collectSchemaViolations(schema, schema, current, "", violations, 12, SERVER_OWNED_FIELD_NAMES);
@@ -825,14 +950,20 @@ export function checkNonStrictStructuredValue(
     const displacedToRoot = priorRepairs.includes("premature_root_close");
     const repairable = violations.every((violation) =>
       (violation.keyword.startsWith("additionalProperties:") && !(displacedToRoot && (violation.path === "" || violation.path === "/"))) ||
-      (task === "m04_proposal" && /^\/patentAndWestern\/\d+(?:\/|$)/.test(violation.path)));
+      (task === "m04_proposal" && /^\/(?:patentAndWestern|nonPharma\/tcmTreatments)\/\d+(?:\/|$)/.test(violation.path)));
     if (repairable) {
       const cleaned = JSON.parse(JSON.stringify(current)) as Record<string, unknown>;
       const droppedItems = new Set<number>();
+      const droppedTreatments = new Set<number>();
       for (const violation of violations) {
         const segments = violation.path.split("/").filter(Boolean);
         if (task === "m04_proposal" && segments[0] === "patentAndWestern" && /^\d+$/.test(segments[1] || "")) {
           droppedItems.add(Number(segments[1]));
+          continue;
+        }
+        // 中医特色治疗项目是服务端受控目录里的可选推荐，编译器本就逐条丢弃不合格行；越界的一条只删它自己。
+        if (task === "m04_proposal" && segments[0] === "nonPharma" && segments[1] === "tcmTreatments" && /^\d+$/.test(segments[2] || "")) {
+          droppedTreatments.add(Number(segments[2]));
           continue;
         }
         const key = violation.keyword.slice("additionalProperties:".length);
@@ -843,12 +974,16 @@ export function checkNonStrictStructuredValue(
       if (droppedItems.size > 0 && Array.isArray(cleaned.patentAndWestern)) {
         cleaned.patentAndWestern = cleaned.patentAndWestern.filter((_, index) => !droppedItems.has(index));
       }
+      const cleanedNonPharma = cleaned.nonPharma as { tcmTreatments?: unknown } | undefined;
+      if (droppedTreatments.size > 0 && cleanedNonPharma && Array.isArray(cleanedNonPharma.tcmTreatments)) {
+        cleanedNonPharma.tcmTreatments = cleanedNonPharma.tcmTreatments.filter((_, index) => !droppedTreatments.has(index));
+      }
       const recheck: ProviderSchemaViolation[] = [];
       collectSchemaViolations(schema, schema, cleaned, "", recheck, 12, SERVER_OWNED_FIELD_NAMES);
       if (recheck.length === 0) {
         repairs.push(...violations.map((violation) => violation.keyword.startsWith("additionalProperties:")
           ? `stripped_unknown_key:${violation.path.replace(/\/\d+/g, "/N")}/${violation.keyword.slice("additionalProperties:".length)}`
-          : `dropped_patent_western_item:${violation.path.replace(/\/\d+/g, "/N")}`));
+          : `dropped_${violation.path.startsWith("/nonPharma/") ? "tcm_treatment" : "patent_western"}_item:${violation.path.replace(/\/\d+/g, "/N")}`));
         current = cleaned;
         violations = [];
       }

@@ -56,7 +56,7 @@ test("Western context excludes formula catalog and unrelated evidence sections",
 
 test("Western task retains differential, candidate, management and evidence constraints without conflicting output examples", () => {
   const result = packets(fixture(), "", "SERVER_CASE_ADVISORY");
-  for (const value of ["differentials", "distinguishingPoints", "candidates", "againstEvidence", "clinicalRationale", "suggestedChecks", "guidelineRefs", "redFlagLoop", "mustCollect", "followupSafetyNet"]) assert.ok(result.western.includes(value), value);
+  for (const value of ["differentials", "distinguishingPoints", "candidates", "againstEvidence", "clinicalRationale", "suggestedChecks", "guidelineReferences", "redFlagLoop", "mustCollect", "followupSafetyNet"]) assert.ok(result.western.includes(value), value);
   for (const prompt of [result.western, result.tcm]) assert.ok(prompt.includes("SERVER_CASE_ADVISORY"));
   assert.ok(result.western.endsWith(buildM03ParallelHalfSuffix("western")));
   assert.ok(result.tcm.endsWith(buildM03ParallelHalfSuffix("tcm")));

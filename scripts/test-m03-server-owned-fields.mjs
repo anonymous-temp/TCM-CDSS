@@ -78,12 +78,13 @@ check("生成侧不再要求 pathogenesis.summary 与各处 evidence", () => {
   assert.ok(!("evidence" in properties.pathogenesis.properties.locationDifferentiation.properties), "病位仍在要求 evidence");
   assert.ok(!("evidence" in properties.pathogenesis.properties.natureDifferentiation.properties), "病性仍在要求 evidence");
   const defs = Object.values(schema.$defs || {});
-  const chainNode = defs.find((d) => d.properties && "nodeId" in d.properties && "patientFact" in d.properties);
+  // 2026-10-12 输出瘦身：节点编号由服务端写定（不再下发 nodeId），分治方向按病机链投影（不再下发 subTherapies）。
+  const chainNode = defs.find((d) => d.properties && "patientFact" in d.properties && "therapyDirection" in d.properties);
   assert.ok(chainNode, "找不到病机节点定义，断言会空转");
   assert.ok(!("evidence" in chainNode.properties), "病机节点仍在要求 evidence");
-  const subTherapy = defs.find((d) => d.properties && "therapy" in d.properties && "priority" in d.properties);
-  assert.ok(subTherapy, "找不到子治法定义，断言会空转");
-  assert.ok(!("evidence" in subTherapy.properties), "子治法仍在要求 evidence");
+  assert.ok(!("nodeId" in chainNode.properties), "病机节点仍在要求 nodeId");
+  assert.ok(!("subTherapies" in properties.therapy.properties), "仍在要求模型写分治方向");
+  assert.ok(!defs.some((d) => d.properties && "therapy" in d.properties && "priority" in d.properties), "子治法定义仍可达");
 });
 check("西医半也不再要求服务端自有字段", () => {
   const top = Object.keys(generationSchema("m03_western").properties || {});

@@ -1001,7 +1001,9 @@ assert.ok(lockedGuipiPrompt.includes("M04 只能承接 M03 已锁定"), "the can
 for (const [label, needle] of [
   ["M03 formula identity boundary", "经典方身份在 M03 完成"],
   ["server-owned provenance citation", "方剂出处一律由服务端按目录"],
-  ["self-devised justification channel", "candidate.applicable 必须用一句话说明受控目录候选未覆盖"],
+  // 2026-10-12 输出瘦身：适用/暂停边界（含自拟方「经典方未形成完整匹配」的说明）改由编译器确定性生成，
+  // 页面与 HIS 均不展示模型原文；提示词改为明确不让模型写这两个字段。
+  ["server-owned applicability boundary", "candidate.applicable、candidate.notApplicable"],
   ["jun-herb de-bias rule", "山药、党参、黄芪、甘草等通用补益或调和药只有在 P1 病机本身就是其主治的虚损证型"],
   ["jun-herb rationale template ban", "不得把同一条君药理由模板复用到不同病例"],
   ["role-differentiated fangyi rule", "臣药必须引用与君药不同的次级病机节点"],

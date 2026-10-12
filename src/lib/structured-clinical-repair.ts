@@ -569,7 +569,7 @@ export function structuredClinicalRepairHint(
     return [
       "M03 只负责辨病辨证、病机与治法方向，不得提前输出方剂对象、药味、剂量、剂数或服法。",
       "保持诊断、证候、病机链、治则治法和患者事实不变；将 formula 设为 null，并从所有 M03 文本字段删除具体药名剂量、剂数和煎服指令。",
-      "可保留无剂量的 recommendedFormulaNames/recommendedFormulaDirection 作为 M04 锁定方向，但不得在任何字段形成可执行处方。",
+      "可保留无剂量的 recommendedFormulaDirection（只写方名，如“X加减”）作为 M04 锁定方向，但不得在任何字段形成可执行处方。",
     ].join("\n");
   }
   if (/^m03_(?:western_primary_tcm_pollution|western_differential_duplicate)$/.test(reason)) {
@@ -589,11 +589,11 @@ export function structuredClinicalRepairHint(
       named.length > 0
         // 逐字给出方名。上一版写的是「上方短名单中就有」——而生成前短名单是按症状召回的，
         // 常常并不含这几个方，模型照着找不到，只能再自拟一次，白烧一轮修复。
-        ? `你把 overview.recommendedFormulaNames 留空、formulaSelectionMode 填成 self_devised，但按你自己签名的证候与病机反查受控目录，以下经典方与本例方证匹配、可锁定且已通过正向充分性核验：${named.join("、")}。留空只允许出现在确实没有匹配条目时。`
-        : "你把 overview.recommendedFormulaNames 留空、formulaSelectionMode 填成 self_devised，但按你自己签名的证候与病机反查受控目录，存在方证匹配、可锁定且已通过正向充分性核验的经典方。留空只允许出现在确实没有匹配条目时。",
+        ? `你的 overview.recommendedFormulaDirection 没有写出方名（按自拟处理），但按你自己签名的证候与病机反查受控目录，以下经典方与本例方证匹配、可锁定且已通过正向充分性核验：${named.join("、")}。自拟只允许出现在确实没有匹配条目时。`
+        : "你的 overview.recommendedFormulaDirection 没有写出方名（按自拟处理），但按你自己签名的证候与病机反查受控目录，存在方证匹配、可锁定且已通过正向充分性核验的经典方。自拟只允许出现在确实没有匹配条目时。",
       named.length > 0
-        ? `只修正 overview 的三个方名字段，其余诊断、证候、病机链、治则治法和患者事实一律保持不变：从上面列出的方名中逐字抄写 1–3 个最匹配的写入 recommendedFormulaNames（不得改写方名、不得自造、不得加书名号），formulaSelectionMode 相应填 single（主方明确）、combined（明确合方）或 alternatives（多候选并列待医生选择），recommendedFormulaDirection 直接写出方名（如“${named[0]}加减”）。`
-        : "只修正 overview 的三个方名字段，其余诊断、证候、病机链、治则治法和患者事实一律保持不变：逐字抄写 1–3 个最匹配的方名写入 recommendedFormulaNames（不得改写方名、不得自造、不得加书名号），formulaSelectionMode 相应填 single/combined/alternatives，recommendedFormulaDirection 直接写出方名。",
+        ? `只修正 overview.recommendedFormulaDirection，其余诊断、证候、病机链、治则治法和患者事实一律保持不变：从上面列出的方名中逐字抄写最匹配的方名（不得改写方名、不得自造、不得加书名号）——主方明确写「${named[0]}加减」这种形态，明确合方写「X合Y加减」，多首并列待医生选择写「X或Y」。方名与选方方式由服务端从这句话里识别。`
+        : "只修正 overview.recommendedFormulaDirection，其余诊断、证候、病机链、治则治法和患者事实一律保持不变：逐字抄写最匹配的方名（不得改写方名、不得自造、不得加书名号），主方明确写「X加减」，明确合方写「X合Y加减」，多首并列待医生选择写「X或Y」。",
       "若你确认每一条都与本例方证不符，才可保持留空，此时必须在 overview.primarySyndromeResolutionReason 中写明是哪一条方证眼目不满足；不得因为“想更稳妥”“怕不够贴合”而默认自拟。自拟方没有出处可考，临床上比承接经典方更难辩护，也会让 M04 失去可编译基准方。",
     ].join("\n");
   }
@@ -649,8 +649,8 @@ export function structuredClinicalRepairHint(
   }
   if (reason === "m03_therapy_method_direction_unbound") {
     return [
-      "therapy.overallMethod 里出现了**没有任何病机节点支撑**的治法方向：它既不在 therapy.subTherapies 的任何一条里，也不在 pathogenesis.chain 各节点的 therapyDirection 里。受治理治法词表对这类术语的策略就是「必须绑定本例才成立」。",
-      "二选一，不要两个都做：(a) 若该方向确有本例患者事实支撑，为它补一个病机节点（patientFact 必须是病历原文逐字摘录）并在 subTherapies 中给出对应分治方向；(b) 若它其实没有本例依据，直接从 overallMethod 中删掉。",
+      "therapy.overallMethod 里出现了**没有任何病机节点支撑**的治法方向：它不在 pathogenesis.chain 任何节点的 therapyDirection 里（分治方向由服务端按节点生成）。受治理治法词表对这类术语的策略就是「必须绑定本例才成立」。",
+      "二选一，不要两个都做：(a) 若该方向确有本例患者事实支撑，为它补一个病机节点（patientFact 必须是病历原文逐字摘录，therapyDirection 写这一方向）；(b) 若它其实没有本例依据，直接从 overallMethod 中删掉。",
       "默认选 (b)：治法多写一个方向会直接把选方拉偏（例如主症为头痛时多写「养心安神」，选方就会滑向以心悸失眠为主治的方）。总治法只应是各病机节点治法方向的合并，不得追加第三方向。",
       "保持西医诊断、证型、病名、病机链既有节点与患者事实不变。",
     ].join("\n");
@@ -670,8 +670,8 @@ export function structuredClinicalRepairHint(
         ? `按本例病机链，承接主诉主症的节点给出的治法方向是：${contextualCandidates.join("、")}。请把这一方向（或其同义归纳）改写到 overallMethod 的**最前面**。`
         : "请把承接主诉主症的那个病机节点的治法方向改写到 overallMethod 的最前面。",
       "兼症方向**保留**，只是移到主症方向之后，可用「兼以…」「佐以…」表明主次；不要删除任何有患者事实支撑的方向，也不要新增方向。",
-      "overview.overallTherapy 与 therapy.subTherapies 的次序须与 overallMethod 一致：承接主症的那条 subTherapy 排在首位且 priority 写“主要”。",
-      "recommendedFormulaDirection / recommendedFormulaNames 必须随之以主症为准重新判断：应优先选用主治该主症的方，不得沿用以兼症为主治的方（例如主症为头痛时，不应停留在以心悸健忘失眠为主治的方上）。若检索短名单中确无主治主症的方，保留原方但在 primarySyndromeResolutionReason 写明这一点。",
+      "承接主症的那个病机节点须是 pathogenesis.chain 的首个节点（P1）；分治方向与总治法由服务端按节点顺序生成。",
+      "recommendedFormulaDirection 必须随之以主症为准重新判断：应优先选用主治该主症的方，不得沿用以兼症为主治的方（例如主症为头痛时，不应停留在以心悸健忘失眠为主治的方上）。若检索短名单中确无主治主症的方，保留原方但在 primarySyndromeResolutionReason 写明这一点。",
       "西医诊断、证型、病名、病机链节点与患者事实保持不变——本轮只调次序与随之而来的选方判断。",
     ].join("\n");
   }
@@ -686,7 +686,7 @@ export function structuredClinicalRepairHint(
     return [
       "therapy.overallPrinciple 必须是受控上位治则，且不能与 overallMethod 完全相同；治则回答“扶正祛邪、标本缓急”等原则，治法回答本例具体如何处理病机。",
       "保持诊断、证候、患者事实和病机链不变：从已注入的受控治则中选择与本例一致的一项或组合写入 overallPrinciple，再用不同且更具体的治法写 overallMethod。",
-      "不得用方名、药名、剂量或患者未成立的寒热虚实补齐字段；多个病机节点仍须由 subTherapies 分别承接。",
+      "不得用方名、药名、剂量或患者未成立的寒热虚实补齐字段；多个病机节点仍须各有不同的 therapyDirection。",
     ].join("\n");
   }
   if (/^m03_(?:sub_therapy_primary_missing|treatment_principle_target_mismatch)$/.test(reason)) {
@@ -735,8 +735,8 @@ export function structuredClinicalRepairHint(
     const target = reason.startsWith("m03_primary_syndrome")
       ? "overview.primarySyndrome / primarySyndromeResolution / primarySyndromeBasis / primarySyndromeResolutionReason"
       : reason.startsWith("m03_location")
-        ? "pathogenesis.locationDifferentiation（resolution / items / details[].basis / resolutionReason）"
-        : "pathogenesis.natureDifferentiation（resolution / items / rootDeficiency / branchExcess / basis / resolutionReason）";
+        ? "pathogenesis.locationDifferentiation（resolution / items / details[].basis）"
+        : "pathogenesis.natureDifferentiation（resolution / items / rootDeficiency / branchExcess / basis）";
     const specific =
       /_basis_ungrounded$/.test(reason)
         ? "当前依据无法在患者事实边界中逐字定位。请把依据改写为病历原文的连续片段（可截取，不可改写、缩写或合并未同时出现的表现）；确实没有原文可引用时，把 resolution 降级并说明缺口。"
@@ -793,8 +793,8 @@ export function structuredClinicalRepairHint(
   if (/^m03_(?:overall_pathogenesis_restates_facts|pathogenesis_nodes_duplicated|pathogenesis_therapy_directions_duplicated|sub_therapies_missing|sub_therapies_insufficient|sub_therapy_incomplete|sub_therapy_duplicated|sub_therapy_target_duplicated|sub_therapy_repeats_overall_method|therapy_method_missing)$/.test(reason)) {
     return [
       "病机—治则—治法结构未形成分层闭环：总体病机不得复述主诉；多个子病机及其对应治法不得重复；治则是上位原则，总治法是整体策略，分治方向逐项对应不同病机节点。",
-      "保持患者事实、西医诊断、中医病名和已获支持的证候不变，仅重写 overview.overallPathogenesis、pathogenesis.chain、therapy.overallPrinciple/overallMethod/subTherapies 中发生重复或缺失的字段。",
-      "每个子病机写清由哪一组阳性事实提示何种功能/气血津液变化；subTherapies 的 therapy 与 targetPathogenesis 一一对应，多节点时至少给出两个可区分方向；不得新增未出现的寒热虚实、痰湿瘀血或脏腑归属。",
+      "保持患者事实、西医诊断、中医病名和已获支持的证候不变，仅重写 overview.overallPathogenesis、pathogenesis.chain、therapy.overallPrinciple/overallMethod 中发生重复或缺失的字段（分治方向由服务端按病机节点逐条生成）。",
+      "每个子病机写清由哪一组阳性事实提示何种功能/气血津液变化；各节点的 therapyDirection 与 pathogenesis 一一对应，多节点时至少给出两个可区分方向；不得新增未出现的寒热虚实、痰湿瘀血或脏腑归属。",
     ].join("\n");
   }
   if (/^m03_pathogenesis_summary_[a-z_]+_drift$/.test(reason)) {
@@ -932,7 +932,7 @@ export function structuredClinicalRepairHint(
   };
   return [
     `本例病历没有足以支持“${labels[decision]}”结论的阳性锚点。`,
-    "请从 overview.primarySyndrome/secondarySyndromes/overallPathogenesis/overallTherapy/recommendedFormulaDirection、pathogenesis.summary/locationDifferentiation/natureDifferentiation/chain、therapy.overallPrinciple/subTherapies 中移除这条无依据的证候极性及相应治法。",
+    "请从 overview.primarySyndrome/secondarySyndromes/overallPathogenesis/recommendedFormulaDirection、pathogenesis.summary/locationDifferentiation/natureDifferentiation/chain、therapy.overallPrinciple/overallMethod 中移除这条无依据的证候极性及相应治法。",
     "只保留可由病历原文支持的症状层和脏腑功能失调判断；资料有限时可用低置信度的中性病机与治法（如失养、失和、失司、升降失常、调畅气机），但不得在核心字段写占位词，也不得把未知项改写为阴性或阳性事实。",
     "这是硬性删词修复：被指出的寒/热/痰湿/血瘀/阴虚方向及其对应治法不得在任何核心字段中残留；它们只能作为 uncertainties 中的待鉴别方向。不得为了维持原证型而换同义词。",
   ].join("\n");

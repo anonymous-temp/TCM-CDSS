@@ -225,7 +225,7 @@ check("wiring: HIS guidance, visible report, page, delivery checkpoint and M04 p
   assert.match(page, /label="穴位保健" value=\{reasoning\.nonPharma\.acupointCare\}/);
   assert.doesNotMatch(page, /穴位\/外治/);
   const prompts = readFileSync(new URL("../src/lib/diagnosis-prompts.ts", import.meta.url), "utf8");
-  assert.match(prompts, /"exercise":"运动保健"/);
+  assert.match(prompts, /"exercise":"运动保健/);
   assert.match(prompts, /饮食、起居、运动、情志四段调护/);
   assert.doesNotMatch(prompts, /acupointCare 由服务端固定为 null/);
 });
