@@ -417,7 +417,7 @@ async function runFrontendContractChecks() {
 
   // 22f5d000 起 prescribe 路由复检必须带 isSafetyRejection 分级谓词（第7处受理/复检分叉的修复）；
   // 钉住带谓词的调用形态，防止有人把复检退回无谓词的全量拒绝口径。
-  assert(source.includes("hasExecutableM03Diagnosis") && !prescribeRoute.includes("hasActionableM03Diagnosis") && prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && codeIncludes(prescribeRoute, "m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)") && limitedOutputHelpers.includes("isLimitedDiagnosisText"), "stage contract: current cases use signed structured M03 truth, while text detection is legacy-only", `${limitedOutputHelpers}\n${prescribeRoute.slice(0, 5000)}`);
+  assert(source.includes("hasExecutableM03Diagnosis") && !prescribeRoute.includes("hasActionableM03Diagnosis") && (prescribeRoute.includes("verifyDiagnoseReasoningSignature(submittedPriorReasoning, parsed.caseState)") && prescribeRoute.includes('recordContractProvenance("prescribe"')) && codeIncludes(prescribeRoute, "m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)") && limitedOutputHelpers.includes("isLimitedDiagnosisText"), "stage contract: current cases use signed structured M03 truth, while text detection is legacy-only", `${limitedOutputHelpers}\n${prescribeRoute.slice(0, 5000)}`);
   assert(["建议", "补充", "补齐", "完善", "再", "处方", "证候锚点", "病机链"].every((token) => limitedOutputHelpers.includes(token)), "shared: limited M03 helper covers non-fixed information-insufficient phrasing variants", limitedOutputHelpers);
   const completeConclusionIndex = limitedOutputHelpers.indexOf("完整候选方案");
   const broadLimitedPhraseIndex = limitedOutputHelpers.indexOf("建议(?:先)?(?:补充|补齐|完善)");
@@ -562,7 +562,7 @@ async function runFrontendContractChecks() {
     "model prompt: M03 and M04 each emit one JSON object while M04 remains an actionable minimal proposal for server compilation",
     `${m03ReasoningInstruction}\n${m04ProposalInstruction}`,
   );
-  assert(prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && codeIncludes(prescribeRoute, "m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)") && !prescribeRoute.includes("hasActionableM03Diagnosis"), "M04 route: verifies the server-signed, patient-grounded structured M03 contract before dose-level prescribing", prescribeRoute.slice(0, 5600));
+  assert((prescribeRoute.includes("verifyDiagnoseReasoningSignature(submittedPriorReasoning, parsed.caseState)") && prescribeRoute.includes('recordContractProvenance("prescribe"')) && codeIncludes(prescribeRoute, "m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)") && !prescribeRoute.includes("hasActionableM03Diagnosis"), "M04 route: verifies the server-signed, patient-grounded structured M03 contract before dose-level prescribing", prescribeRoute.slice(0, 5600));
   assert(
     reasoningContractSignatureSource.includes('DIAGNOSE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m03-signature-v5"') &&
       reasoningContractSignatureSource.includes("clinicalInputHash") &&
@@ -582,11 +582,11 @@ async function runFrontendContractChecks() {
       // 只锚定「第二实参名含 M03Attestation」，不再钉某一版完整实参名。
       /attachClinicalReviewAttestation\(\s*\w+,\s*\w*[mM]03Attestation\w*\s*\)/.test(diagnosisApiSource) &&
       diagnosisApiSource.includes("applyDiagnoseContractSignature(signedContent, signatureContext)") &&
-      prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") &&
+      (prescribeRoute.includes("verifyDiagnoseReasoningSignature(submittedPriorReasoning, parsed.caseState)") && prescribeRoute.includes('recordContractProvenance("prescribe"')) &&
       // c714c22 把 post-risk 的 M03 验签前移到解析原始请求处并改名局部变量；按语义钉
       // 「该路由对当前 caseState 重验 M03 签名」，不钉某一版实参名。
       /verifyDiagnoseReasoningSignature\((?:initialDiagnoseReasoning|diagnoseReasoning), (?:parsed\.caseState|caseState)\)/.test(postPrescriptionRiskRoute) &&
-      hisPrescriptionValidationSource.includes("verifyDiagnoseReasoningSignature(diagnoseReasoning, caseState)"),
+      (hisSchemeRoute.includes("verifyDiagnoseReasoningSignature(initialDiagnose, preflightCaseState)") && hisSchemeRoute.includes('recordContractProvenance("his-scheme"')),
     "M03 signature: final M03 output receives current context and every downstream trust boundary re-computes against the current case",
     `${diagnoseRoute}\n${diagnosisApiSource.slice(-3600)}\n${prescribeRoute.slice(0, 1800)}\n${postPrescriptionRiskRoute.slice(0, 1200)}\n${hisPrescriptionValidationSource.slice(0, 2200)}`,
   );
@@ -596,7 +596,7 @@ async function runFrontendContractChecks() {
       reasoningContractSignatureSource.includes("bindClinicalReviewAttestation") &&
       prescribeRoute.includes("buildPrescribeContractSignatureContext(trustedGated)") &&
       diagnosisApiSource.includes("applyPrescribeContractSignature(signedContent, signatureContext)") &&
-      hisPrescriptionValidationSource.includes("verifyPrescribeReasoningSignature(prescribed, caseState)"),
+      hisSchemeRoute.includes("verifyPrescribeReasoningSignature(initialPrescribed, preflightCaseState)"),
     "M04 signature: final prescription, clinical review, current case, and signed M03 share one downstream-verified HMAC envelope",
     `${reasoningContractSignatureSource}\n${prescribeRoute}\n${diagnosisApiSource.slice(-4200)}\n${hisPrescriptionValidationSource.slice(0, 3000)}`,
   );
@@ -704,18 +704,19 @@ async function runFrontendContractChecks() {
   assert(
     postPrescriptionRiskRoute.includes("verifyDiagnoseReasoningSignature") &&
       postPrescriptionRiskRoute.includes("verifyPrescribeReasoningSignature") &&
-      postPrescriptionRiskRoute.includes("stale_workbench_contract_metadata") &&
+      postPrescriptionRiskRoute.includes("stripPreEditContractMetadata(parsed.caseState)") &&
+      postPrescriptionRiskRoute.includes("workbench_pre_edit_metadata_removed") &&
       postPrescriptionRiskRoute.includes("hasHisWorkbenchEditShape(caseState, prescribed)") &&
       postPrescriptionRiskRoute.includes("invalid_candidate_index") &&
       postPrescriptionRiskRoute.includes("editedPrescriptionSemanticIssue") &&
       postPrescriptionRiskRoute.includes("collectClinicalDeliveryAdvisories") &&
       postPrescriptionRiskRoute.includes("prescriptionSubmissionIssue(caseState, resolvedCandidateIndex)") &&
-      postPrescriptionRiskRoute.indexOf("stale_workbench_contract_metadata") > 0 &&
-      postPrescriptionRiskRoute.indexOf("stale_workbench_contract_metadata") < postPrescriptionRiskRoute.indexOf("buildPrescriptionInputAdvisories(caseState, resolvedCandidateIndex") &&
+      postPrescriptionRiskRoute.indexOf("stripPreEditContractMetadata(parsed.caseState)") > 0 &&
+      postPrescriptionRiskRoute.indexOf("stripPreEditContractMetadata(parsed.caseState)") < postPrescriptionRiskRoute.indexOf("buildPrescriptionInputAdvisories(caseState, resolvedCandidateIndex") &&
       postPrescriptionRiskRoute.indexOf("invalid_candidate_index") < postPrescriptionRiskRoute.indexOf("buildPrescriptionInputAdvisories(caseState, resolvedCandidateIndex") &&
       localChecksSource.includes('return "herb_dose_incomplete"') &&
       localChecksSource.includes('return "regimen_incomplete"'),
-    "risk: forged/stale contracts and invalid edited-candidate envelopes are rejected before the local checks issue a receipt; clinical findings remain advisory and the submission guard retains dose/regimen requirements",
+    "risk: stale pre-edit contract metadata is stripped (signatures never block, owner 2026-10-12) before the local checks issue a receipt; invalid edited-candidate envelopes are still rejected; clinical findings remain advisory and the submission guard retains dose/regimen requirements",
     postPrescriptionRiskRoute,
   );
   assert(safetySource.includes("patientSexText") && safetySource.includes("patientAgeText") && safetySource.includes("trustedInputText(state)"), "safety: raw HIS demographics and prescription-safety clues participate in deterministic gating", sourceBetween(safetySource, "function numberFromClinicalText", "function missingVitalsForHighRiskPresentation"));
@@ -787,7 +788,8 @@ async function runFrontendContractChecks() {
   assert(!hisSchemeRoute.includes("runBoundedRxAudit") && hisSchemeRoute.includes("the findings are advisory") && hisSchemeRoute.includes("deriveSafetyLocked") && hisSchemeRoute.includes("buildLocalHighRiskHerbPairSection(auditCaseState, candidateIndex)"), "HIS: the server re-runs the local deterministic checks without turning their findings into adoption locks", hisSchemeRoute);
   assert(
     hisSchemeRoute.includes("validateHisPrescriptionForWriteBack") &&
-      hisPrescriptionValidationSource.includes("verifyDiagnoseReasoningSignature") &&
+      hisSchemeRoute.includes("verifyDiagnoseReasoningSignature") &&
+      hisSchemeRoute.includes("contractProvenanceAdvisory(issue") &&
       hisPrescriptionValidationSource.includes("editedPrescriptionSemanticIssue") &&
       // 主张不变（HIS 写回前复用 M04 安全底线合同）；符号已随重构改名 m04SafetyContractIssue。
       hisPrescriptionValidationSource.includes("m04SafetyContractIssue") &&
@@ -796,7 +798,7 @@ async function runFrontendContractChecks() {
       hisPrescriptionValidationSource.includes("collectClinicalDeliveryAdvisories(candidate, diagnoseReasoning") &&
       hisPrescriptionValidationSource.includes("invalid_candidate_index") &&
       hisPrescriptionValidationSource.includes("invalid_m03_signature"),
-    "HIS: server write-back boundary verifies signed M03 and selected candidates, runs herb/regimen/formula checks, and preserves their clinical findings as advisories",
+    "HIS: server write-back boundary re-verifies M03/M04 provenance (flag, never block — owner 2026-10-12), checks selected candidates, runs herb/regimen/formula checks, and preserves their clinical findings as advisories",
     `${hisSchemeRoute}\n${hisPrescriptionValidationSource}`,
   );
   assert(localChecksSource.includes("`${processing}${baseName}`") && hisSchemeSource.includes("炮制："), "prescription identity: processing instructions survive local checks and HIS rendering", `${sourceBetween(localChecksSource, "function structuredHerbDoseRows", "function extractSection")}\n${sourceBetween(hisSchemeSource, "function structuredHerbalSection", "function normalizedHerbName")}`);
@@ -1403,7 +1405,7 @@ function buildHisProjectionRegressionCases() {
     { name: "extra unsubmitted medical order", state: extraOrder, quality: true, medicine: true, restricted: true },
     { name: "extra inline colon medical order", state: extraInlineOrder, quality: true, medicine: true, restricted: true },
     { name: "unsubmitted punctuation separated medical order", state: punctuationOrder, quality: true, medicine: false, restricted: true },
-    { name: "post acceptance edit", state: edited, httpStatus: 409 },
+    { name: "post acceptance edit", state: edited, provenance: "m04_unverified" },
   ];
 }
 
@@ -1411,9 +1413,10 @@ async function runHisProjectionCases() {
   for (const fixture of buildHisProjectionRegressionCases()) {
     const response = await request("POST", "/api/diagnosis/his-scheme", { caseState: fixture.state });
     const body = response.json;
-    assert(response.status === (fixture.httpStatus || 200), `HIS projection ${fixture.name}: HTTP contract`, body);
-    if (fixture.httpStatus) {
-      assert(body?.code === "invalid_m04_signature", `HIS projection ${fixture.name}: edits invalidate acceptance`, body);
+    assert(response.status === 200, `HIS projection ${fixture.name}: HTTP contract`, body);
+    if (fixture.provenance) {
+      // 签名只标注、不拦截（owner 2026-10-12）：受理后被改动的处方照常生成方案，并附来源提示。
+      assert(body?.warnings?.some((warning) => warning.code === `contract_provenance_${fixture.provenance}`), `HIS projection ${fixture.name}: edits are flagged as unverified provenance`, body?.warnings);
       continue;
     }
     const expectedAdoption = !fixture.restricted && !fixture.medicine;
@@ -2978,17 +2981,14 @@ async function runKnowledgeCalls() {
   for (const item of postRiskCases) {
     const res = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: item.caseState });
     if (item.expectSignatureRejection) {
-      assert(res.status === 409 && res.json?.code === "invalid_m04_signature", `${item.name}: unsigned markdown cannot cross the M04 trust boundary`, res.json);
+      // 签名只标注、不拦截（owner 2026-10-12）：未签名的处方 Markdown 不再 409/422，
+      // 但要钉的性质不变——文本不进入核对与评估（剥掉后附 unstructured_prescription_ignored 提示）。
+      assert(res.status === 200 && res.json?.warnings?.some((warning) => warning.code === "contract_provenance_unstructured_prescription_ignored"),
+        `${item.name}: unsigned markdown is not reviewed and is flagged`, res.json);
+      assert(!/姜半夏|酸枣仁/.test(res.json?.section || ""), `${item.name}: stripped markdown never reaches the review section`, res.json?.section);
       const m05 = await request("POST", "/api/diagnosis/assess", { caseState: item.caseState });
-      // baseCase 总会补一份签名 M03，所以这里走的是 2026-09-14 diagnose-only M05 的
-      // 「签名 M03 + 手写处方 Markdown」分支：422 missing_structured_prescription（与 HIS 同码）。
-      // 没有签名 M03 的形态仍在 M03 边界 409。要钉的性质不变：未签名处方文本不进入 M05 评估。
-      assert(
-        (m05.status === 409 && ["invalid_m03_signature", "invalid_m04_signature"].includes(m05.json?.code)) ||
-          (m05.status === 422 && m05.json?.code === "missing_structured_prescription"),
-        `${item.name}: M05 rejects the same unsigned markdown fixture`,
-        m05.json,
-      );
+      assert(m05.status === 200 && /未经本系统生成的处方文本/.test(m05.text) && !/姜半夏/.test(m05.text),
+        `${item.name}: M05 evaluates diagnose-only and the unsigned markdown never enters it`, m05.text.slice(0, 600));
       continue;
     }
     if (item.expectedSubmissionIssue) {
@@ -3187,8 +3187,8 @@ async function runKnowledgeCalls() {
   };
   const invalidM03SignatureHis = await request("POST", "/api/diagnosis/his-scheme", { caseState: invalidM03SignatureCase });
   assert(
-    invalidM03SignatureHis.status === 409 && invalidM03SignatureHis.json?.code === "invalid_m03_signature" && !invalidM03SignatureHis.json?.prescriptions,
-    "HIS: forged or stale M03 contract cannot reach write-back payload",
+    invalidM03SignatureHis.status === 200 && invalidM03SignatureHis.json?.warnings?.some((warning) => warning.code === "contract_provenance_m03_unverified"),
+    "HIS: a forged or stale M03 contract no longer blocks (owner 2026-10-12) and is flagged as unverified provenance",
     invalidM03SignatureHis.json,
   );
 
@@ -3340,11 +3340,12 @@ async function runKnowledgeCalls() {
   // c714c22 起越界索引在更早的边界被拦：审方口的规范编辑形态门要求所选候选存在
   // （invalid_workbench_edit_shape），assess 的修订凭据绑定精确候选与版本、索引被改即凭据失效
   // （409 invalid_workbench_revision_attestation）。两处都不回退到其他候选——意图不变，码前移。
-  assert(invalidIndexPostRisk.status === 422 && invalidIndexPostRisk.json?.audit?.reason === "invalid_workbench_edit_shape", "post-risk: invalid explicit candidate index is rejected without fallback", invalidIndexPostRisk.json);
-  assert(invalidIndexAssess.status === 409 && invalidIndexAssess.json?.code === "invalid_workbench_revision_attestation", "M05: invalid explicit candidate index is rejected and never audits another candidate", invalidIndexAssess.json);
+  // 2026-10-12 起签名/凭据不拦截，越界索引停在内容检查（候选方不存在），仍不回退到其他候选。
+  assert(invalidIndexPostRisk.status === 422 && invalidIndexPostRisk.json?.code === "invalid_candidate_index", "post-risk: invalid explicit candidate index is rejected without fallback", invalidIndexPostRisk.json);
+  assert(invalidIndexAssess.status === 422 && invalidIndexAssess.json?.code === "invalid_candidate_index", "M05: invalid explicit candidate index is rejected and never audits another candidate", invalidIndexAssess.json);
   // 被篡改的候选索引使受信编辑链失效（版本 hash 对不上凭据），于是落到 M04 签名门——
   // 编辑工件按合同不携签名 ⇒ 409。没有任何候选被回退返回，「无回退」意图不变。
-  assert(invalidIndexHis.status === 409 && invalidIndexHis.json?.code === "invalid_m04_signature" && !invalidIndexHis.json?.prescriptions, "HIS: invalid explicit candidate index is rejected without returning another prescription", invalidIndexHis.json);
+  assert(invalidIndexHis.status === 422 && invalidIndexHis.json?.code === "invalid_candidate_index" && !invalidIndexHis.json?.prescriptions, "HIS: invalid explicit candidate index is rejected without returning another prescription", invalidIndexHis.json);
 
   const impossibleDoseHis = await request("POST", "/api/diagnosis/his-scheme", { caseState: invalidWorkbench });
   assertDeliveryReport(impossibleDoseHis, /dose_sanity_ceiling/, "HIS impossible herbal magnitude", { his: true });

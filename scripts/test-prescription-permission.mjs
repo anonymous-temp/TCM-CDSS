@@ -570,8 +570,11 @@ assert.ok(unconfirmedHisPayload.prescriptions.herbal.every((section) => !section
   "未确认 unclear 的 HIS 药味卡必须为空且不可采纳");
 const confirmedHisResponse = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", confirmedScopeState));
 const confirmedHisPayload = await confirmedHisResponse.json();
-assert.equal(confirmedHisResponse.status, 409, "确认后 unclear 门放行，本夹具停在 M04 签名门");
-assert.equal(confirmedHisPayload.code, "invalid_m04_signature");
+// 签名只标注、不拦截（owner 2026-10-12）：本夹具 M04 未签名，过去停在签名门；现在按回传内容生成
+// 并附来源提示，正好直接验证「确认后 unclear 门放行」——结构化药味确实输出了。
+assert.equal(confirmedHisResponse.status, 200, "确认后 unclear 门放行");
+assert.ok(confirmedHisPayload.prescriptions.structuredHerbs.length > 0, "确认后可输出结构化药味");
+assert.ok(confirmedHisPayload.warnings.some((warning) => /^contract_provenance_/.test(warning.code)), "未签名 M04 必须附来源提示");
 
 // 回归: 单次抽取给出的「仅既往/稳定背景」只作语义上下文。它是**下调型**判断，单模型结论不被采信：
 // 病例照常按活动性就诊处理（保守方向），也不得误触 unclear 确认门。此前「抽取与复核两次一致

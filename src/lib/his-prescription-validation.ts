@@ -9,7 +9,6 @@ import {
   editedPrescriptionSemanticIssue,
 } from "./prescription-revision";
 import { verifyPrescriptionRevisionAttestation } from "./prescription-revision-attestation.server";
-import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } from "./reasoning-contract-signature";
 import { formulaCompilationContractIssue } from "./tcm-formula-provenance";
 import { isKnownTcmHerbName } from "./tcm-knowledge";
 import { prescriptionRegimenContractIssue } from "./prescription-regimen-contract";
@@ -86,12 +85,14 @@ export function validateHisPrescriptionForWriteBack(
   }
 
   const diagnoseReasoning = diagnoseReasoningFromState(caseState);
-  if (!verifyDiagnoseReasoningSignature(diagnoseReasoning, caseState)) {
+  // 签名核验只标注、不拦截（owner 2026-10-12）：来源提示由路由按 contract-provenance.ts 附加，
+  // 这里只做对实际药味的确定性核对。没有 M03 是内容缺失，仍拒绝。
+  if (!diagnoseReasoning) {
     return {
       ok: false,
       status: 409,
       code: "invalid_m03_signature",
-      message: "当前辨病辨证结果已失效，请重新生成后再生成 HIS 方案。",
+      message: "缺少辨病辨证结果，请先完成辨病辨证后再生成 HIS 方案。",
     };
   }
 
@@ -121,14 +122,6 @@ export function validateHisPrescriptionForWriteBack(
   }
 
   const trustedWorkbenchEdit = isTrustedHisWorkbenchEdit(caseState, prescribed, workbenchTrustContext);
-  if (!trustedWorkbenchEdit && !verifyPrescribeReasoningSignature(prescribed, caseState)) {
-    return {
-      ok: false,
-      status: 409,
-      code: "invalid_m04_signature",
-      message: "当前候选处方缺少与本病例及辨证结果绑定的有效签名，请重新生成候选方药。",
-    };
-  }
 
   const regimenIssue = prescriptionRegimenContractIssue(candidate.decoction);
 

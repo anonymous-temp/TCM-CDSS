@@ -16,6 +16,12 @@ import { STREAM_REPLACE_MARKER } from "./diagnosis-stream-protocol";
  *   · 同指纹的结果**已完成且可复用**（30 分钟内、不是降级/中断/上游故障页）→ 直接回放；
  *   · 计算与任何一个调用方的连接**解耦**：调用方断开不中止计算，算完照样入缓存，下一次重试直接拿到。
  * 请求头 `x-cdss-regenerate: 1`（或 `?regenerate=1`）显式要求重新生成时绕过复用。
+ *
+ * **换绑（2026-10-12 线上实测）**：指纹有意不含病例编号（HIS 同一病历重推常换编号），但 M03/M04
+ * 的合同签名绑定病例编号与就诊编号。原实现把旧编号的签名原样回放给新编号，下游 M05 验签必然
+ * 失败——甲方 9/30、10/9 的 4 次 `invalid_m04_signature` 全部是这一形状（诊断、开方都是复用，
+ * 1 秒内返回）。现在回放给**不同绑定**的请求时，先把最终正文按本次请求重新签名（`rebindFinalContent`），
+ * 换绑不了就照常重算；进行中的计算对不同绑定的请求不实时转发，等它算完再换绑回放。
  * `CDSS_STAGE_RESULT_REUSE=false` 整体关闭（回滚开关）；生产（NODE_ENV=production）默认开启。
  */
 
@@ -24,6 +30,8 @@ export type CoalescedStage = "diagnose" | "prescribe";
 type Entry = {
   key: string;
   stage: CoalescedStage;
+  /** 发起计算那次请求的签名绑定身份（病例编号 + 就诊编号）。 */
+  bindingId: string;
   createdAt: number;
   finishedAt?: number;
   status?: number;
@@ -36,6 +44,8 @@ type Entry = {
   cacheable: boolean;
   subscribers: Set<ReadableStreamDefaultController<Uint8Array>>;
   ready: Promise<void>;
+  /** 计算结束（无论可否复用）。换绑回放要等最终正文。 */
+  finished: Promise<void>;
 };
 
 const RESULT_TTL_MS = 30 * 60_000;
@@ -82,6 +92,16 @@ export function stageRequestFingerprint(
     ? { ...(caseState as Record<string, unknown>) }
     : {};
   for (const key of OUTPUT_KEYS[stage]) delete state[key];
+  // 上游阶段产物里只与绑定有关的字段（合同签名）不进指纹：同一 M03 换绑到新编号后签名必然不同，
+  // 带进指纹会让 M04 永远复用不上；回放时按本次请求重新签名（见 rebindFinalContent）。
+  for (const key of ["reasoningDiagnose", "reasoningV2"]) {
+    const reasoning = state[key];
+    if (reasoning && typeof reasoning === "object" && !Array.isArray(reasoning)) {
+      const unsigned = { ...(reasoning as Record<string, unknown>) };
+      delete unsigned.contractSignature;
+      state[key] = unsigned;
+    }
+  }
   return createHash("sha256")
     .update(`${stage}\n${tenant.clientId || ""}\n${tenant.customerId || ""}\n${canonicalJson(state)}`)
     .digest("hex");
@@ -121,6 +141,23 @@ function evictExpired(now: number): void {
     if (!oldest) break;
     entries.delete(oldest.key);
   }
+}
+
+/** 换绑回放：保留带 type 的事件帧，正文换成按本次请求重新签名的最终正文。 */
+function reboundResponse(entry: Entry, content: string): Response {
+  const encoder = new TextEncoder();
+  const lines = entry.lines.filter((line) => {
+    try {
+      const frame = JSON.parse(line) as { type?: unknown };
+      return typeof frame.type === "string";
+    } catch {
+      return false;
+    }
+  });
+  const body = [...lines, JSON.stringify({ content }), JSON.stringify({ content: "[END]" })].map((line) => `${line}\n`).join("");
+  const headers = new Headers(entry.headers);
+  headers.set("x-cdss-stage-result", "reused");
+  return new Response(encoder.encode(body), { status: 200, headers });
 }
 
 function subscriberResponse(entry: Entry, role: "origin" | "joined" | "reused"): Response {
@@ -163,28 +200,57 @@ export async function coalesceStageResponse(input: {
   compute: (signal: AbortSignal) => Promise<Response>;
   cacheable: (finalContent: string) => boolean;
   hardLimitMs?: number;
+  /** 本次请求的签名绑定身份；与发起计算的请求不同则不能原样回放。 */
+  bindingId?: string;
+  /** 把可复用的最终正文按本次请求重新签名；返回 undefined 表示换绑不了，本次照常重算。 */
+  rebindFinalContent?: (finalContent: string) => string | undefined;
 }): Promise<Response> {
   if (!stageResultReuseEnabled()) return input.compute(new AbortController().signal);
   const now = Date.now();
   evictExpired(now);
   const existing = input.bypass ? undefined : entries.get(input.key);
+  const bindingId = input.bindingId ?? "";
   if (existing) {
     await existing.ready;
     if (existing.status === 200 && (!existing.done || existing.cacheable)) {
-      console.info("[tcm-cdss:telemetry] stage_result_reuse", {
-        stage: input.stage,
-        mode: existing.done ? "reused" : "joined",
-        ageMs: now - existing.createdAt,
-      });
-      return subscriberResponse(existing, existing.done ? "reused" : "joined");
+      if (existing.bindingId === bindingId) {
+        console.info("[tcm-cdss:telemetry] stage_result_reuse", {
+          stage: input.stage,
+          mode: existing.done ? "reused" : "joined",
+          ageMs: now - existing.createdAt,
+        });
+        return subscriberResponse(existing, existing.done ? "reused" : "joined");
+      }
+      if (input.rebindFinalContent) {
+        await existing.finished;
+        if (existing.cacheable) {
+          let rebound: string | undefined;
+          try {
+            rebound = input.rebindFinalContent(finalContentFromLines(existing.lines).content);
+          } catch {
+            rebound = undefined;
+          }
+          if (rebound !== undefined) {
+            console.info("[tcm-cdss:telemetry] stage_result_reuse", {
+              stage: input.stage,
+              mode: "rebound",
+              ageMs: Date.now() - existing.createdAt,
+            });
+            return reboundResponse(existing, rebound);
+          }
+        }
+      }
+      // 绑定不同且换绑不了：不回放别的病例编号的签名，本次照常重算。
     }
   }
   const controller = new AbortController();
   const hardLimit = setTimeout(() => controller.abort(), input.hardLimitMs ?? 240_000);
   let markReady: () => void = () => {};
+  let markFinished: () => void = () => {};
   const entry: Entry = {
     key: input.key,
     stage: input.stage,
+    bindingId,
     createdAt: now,
     lines: [],
     rawChunks: [],
@@ -192,6 +258,7 @@ export async function coalesceStageResponse(input: {
     cacheable: false,
     subscribers: new Set(),
     ready: new Promise<void>((resolve) => { markReady = resolve; }),
+    finished: new Promise<void>((resolve) => { markFinished = resolve; }),
   };
   entries.set(input.key, entry);
   let response: Response;
@@ -201,6 +268,7 @@ export async function coalesceStageResponse(input: {
     clearTimeout(hardLimit);
     entries.delete(input.key);
     markReady();
+    markFinished();
     throw error;
   }
   entry.status = response.status;
@@ -209,6 +277,7 @@ export async function coalesceStageResponse(input: {
   if (response.status !== 200 || !response.body) {
     clearTimeout(hardLimit);
     entries.delete(input.key);
+    markFinished();
     return response;
   }
   const reader = response.body.getReader();
@@ -226,6 +295,7 @@ export async function coalesceStageResponse(input: {
       try { subscriber.close(); } catch { /* subscriber already gone */ }
     }
     entry.subscribers.clear();
+    markFinished();
   };
   // 后台泵：把计算结果读完，逐块转发给当前订阅者并留档；与任何调用方连接无关。
   void (async () => {

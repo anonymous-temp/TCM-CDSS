@@ -109,6 +109,16 @@ function clinicalInputSnapshot(caseState: CaseState): unknown {
   };
 }
 
+/**
+ * 合同签名绑定的病例身份（病例编号 + 就诊编号），口径与 buildDiagnoseContractSignatureContext 相同。
+ * 阶段结果复用（stage-result-coalescing.server.ts）用它判断能否原样回放旧签名。
+ */
+export function contractBindingIdentity(caseState: Pick<CaseState, "id" | "hisRecord">): string {
+  const caseId = String(caseState.id || "").trim();
+  const encounterId = String(caseState.hisRecord?.caseId || caseId).trim();
+  return `${caseId}\u0000${encounterId}`;
+}
+
 export function buildDiagnoseContractSignatureContext(caseState: CaseState): DiagnoseContractSignatureContext {
   if (!caseState.id?.trim()) throw new Error("Cannot sign M03 without a current case ID");
   const normalized = normalizeCaseStateInput(caseState);

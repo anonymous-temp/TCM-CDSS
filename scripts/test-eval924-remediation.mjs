@@ -557,6 +557,55 @@ await check("11.3 反证：显式重新生成绕过复用；不可复用的结�
   assert.notEqual(otherTenant, key, "不同租户绝不共用结果");
 });
 
+await check("11.4 复用给另一病例编号时按本次请求换绑签名，不回放旧编号的签名（2026-10-12 线上 4 次 M05 409）", async () => {
+  coalesce.resetStageResultCacheForTests();
+  const tenant = { clientId: "c", customerId: "t" };
+  const key = coalesce.stageRequestFingerprint("diagnose", tenant, { id: "case-A", chiefComplaint: "咳嗽" });
+  assert.equal(coalesce.stageRequestFingerprint("diagnose", tenant, { id: "case-B", chiefComplaint: "咳嗽" }), key, "前提：换编号仍命中同一指纹");
+  const final = `${START}\n{"stage":"diagnose","contractSignature":"bound-to-A"}\n${END}`;
+  const rebind = (binding) => (content) => content.replace(/bound-to-[A-Z]/, `bound-to-${binding}`);
+  const calls = { count: 0 };
+  const compute = stagedResponse(calls, 10, final);
+  const request = (bindingId, rebindFinalContent) => coalesce.coalesceStageResponse({
+    stage: "diagnose", key, compute, cacheable: () => true, bindingId, rebindFinalContent,
+  });
+  assert.match(await readAll(await request("A", rebind("A"))), /bound-to-A/);
+  const same = await request("A", rebind("A"));
+  assert.equal(same.headers.get("x-cdss-stage-result"), "reused", "同一编号原样复用");
+  assert.match(await readAll(same), /bound-to-A/);
+  const other = await request("B", rebind("B"));
+  const otherText = await readAll(other);
+  assert.equal(other.headers.get("x-cdss-stage-result"), "reused");
+  assert.match(otherText, /bound-to-B/, "另一编号拿到按本次请求换绑后的签名");
+  assert.doesNotMatch(otherText, /bound-to-A/, "绝不回放别的编号的签名");
+  assert.ok(otherText.includes("[END]"));
+  assert.equal(calls.count, 1, "换绑不重算");
+  await readAll(await request("C", () => undefined));
+  assert.equal(calls.count, 2, "换绑不了就照常重算");
+  await readAll(await request("D", undefined));
+  assert.equal(calls.count, 3, "没有换绑能力的调用方遇到别的编号也照常重算");
+
+  coalesce.resetStageResultCacheForTests();
+  const slow = { count: 0 };
+  const slowCompute = stagedResponse(slow, 80, final);
+  const [a, b] = await Promise.all([
+    coalesce.coalesceStageResponse({ stage: "diagnose", key, compute: slowCompute, cacheable: () => true, bindingId: "A", rebindFinalContent: rebind("A") }),
+    coalesce.coalesceStageResponse({ stage: "diagnose", key, compute: slowCompute, cacheable: () => true, bindingId: "B", rebindFinalContent: rebind("B") }),
+  ]);
+  const [textA, textB] = await Promise.all([readAll(a), readAll(b)]);
+  assert.match(textA, /bound-to-A/);
+  assert.match(textB, /bound-to-B/, "进行中的计算对另一编号等算完后换绑回放");
+  assert.doesNotMatch(textB, /bound-to-A/);
+  assert.equal(slow.count, 1);
+
+  const m03 = (signature, overview) => ({ stage: "diagnose", overview, contractSignature: signature });
+  const p1 = coalesce.stageRequestFingerprint("prescribe", tenant, { id: "A", chiefComplaint: "咳嗽", reasoningDiagnose: m03("sig-A", { s: 1 }) });
+  const p2 = coalesce.stageRequestFingerprint("prescribe", tenant, { id: "B", chiefComplaint: "咳嗽", reasoningDiagnose: m03("sig-B", { s: 1 }) });
+  const p3 = coalesce.stageRequestFingerprint("prescribe", tenant, { id: "B", chiefComplaint: "咳嗽", reasoningDiagnose: m03("sig-B", { s: 2 }) });
+  assert.equal(p1, p2, "M03 只差绑定签名时，M04 指纹相同（换绑后照样复用，同一病历结果稳定）");
+  assert.notEqual(p2, p3, "M03 内容变了 M04 指纹必须变");
+});
+
 if (failures.length > 0) console.error(JSON.stringify({ failures }, null, 2));
 assert.equal(failures.length, 0, `甲方 9.24/9.27 测评整改回归失败 ${failures.length} 项`);
 console.log(JSON.stringify({ checks, failures: 0 }));

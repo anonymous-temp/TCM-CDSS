@@ -337,7 +337,12 @@ test("workbench skip issues an honest receipt that survives normalization and do
   assert.equal((await his.json()).auditStatus, "not_submitted");
   const forged = structuredClone(normalized);
   forged.prescriptionRevision.attestation = `hmac-sha256:${"0".repeat(64)}`;
-  assert.equal((await assess(request("/api/diagnosis/assess", forged))).status, 409);
+  // 凭据只标注、不拦截（owner 2026-10-12；contract-provenance.ts）：伪造的凭据不再 409，
+  // 照常评估并提示「没有与本病例及当前药味版本绑定的审方凭据」；它也不会让收据被当成有效凭据。
+  const forgedAssess = await assess(request("/api/diagnosis/assess", forged));
+  assert.equal(forgedAssess.status, 200);
+  assert.match(await forgedAssess.text(), /没有与本病例及当前药味版本绑定的审方凭据/);
+  assert.equal(verifyPrescriptionRevisionAttestation(forged, customer, body.audit.herbHash), false, "伪造凭据验签不过");
   // 外部审方已删除，没有能让「未送审」收据失效的开关；收据只随病例、租户与精确处方版本失效。
   assert.equal(verifyPrescriptionRevisionAttestation(normalized, customer, body.audit.herbHash), true);
   assert.equal(verifyPrescriptionRevisionAttestation({ ...normalized, customerId: "other-hospital" }, { ...customer, customerId: "other-hospital" }, body.audit.herbHash), false);

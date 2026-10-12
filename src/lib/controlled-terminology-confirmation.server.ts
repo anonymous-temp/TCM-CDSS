@@ -1,5 +1,8 @@
 import "server-only";
 
+import type { ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
+import { contractProvenanceAdvisory, recordContractProvenance } from "./contract-provenance";
+
 import {
   normalizeReasoningV2,
   type CaseState,
@@ -19,7 +22,7 @@ export type ConfirmableTerminologyMapping = Pick<
 >;
 
 export type ControlledTerminologyConfirmationResult =
-  | { ok: true; reasoning: ClinicalReasoningResultV2; restoredFormulaNames: string[] }
+  | { ok: true; reasoning: ClinicalReasoningResultV2; restoredFormulaNames: string[]; warnings: ClinicalDeliveryAdvisory[] }
   | { ok: false; status: 400 | 409; code: string; error: string };
 
 function confirmationTargetAllowed(mapping: ConfirmableTerminologyMapping): boolean {
@@ -48,14 +51,20 @@ export function confirmControlledTerminologyMapping(
     caseState.reasoningDiagnose ||
     (caseState.reasoningV2?.stage === "diagnose" ? caseState.reasoningV2 : undefined),
   );
-  if (!current || !verifyDiagnoseReasoningSignature(current, caseState)) {
+  if (!current) {
     return {
       ok: false,
       status: 409,
       code: "invalid_m03_signature",
-      error: "The current M03 contract is missing, stale, or invalid.",
+      error: "The current M03 contract is missing.",
     };
   }
+  // 签名只标注、不拦截（owner 2026-10-12；contract-provenance.ts）：回传的 M03 与签发版本不一致时，
+  // 医生的确认照常生效，响应附来源提示。
+  const warnings = verifyDiagnoseReasoningSignature(current, caseState)
+    ? []
+    : [contractProvenanceAdvisory("m03_unverified")];
+  recordContractProvenance("terminology-confirm", warnings.length > 0 ? ["m03_unverified"] : []);
   const selected = (current.terminologyMappings || []).find((item) =>
     item.namespace === requested.namespace &&
     item.fieldPath === requested.fieldPath &&
@@ -138,5 +147,6 @@ export function confirmControlledTerminologyMapping(
     ok: true,
     reasoning: signDiagnoseReasoning(next, buildDiagnoseContractSignatureContext(caseState)),
     restoredFormulaNames,
+    warnings,
   };
 }

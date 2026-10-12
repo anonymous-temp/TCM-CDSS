@@ -29,6 +29,7 @@ import {
   type HisSchemeContractVersion,
 } from "@/lib/his-scheme-contract-version";
 import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
+import { contractProvenanceAdvisory, recordContractProvenance, withoutUnverifiedPrescribeReview, type ContractProvenanceIssue } from "@/lib/contract-provenance";
 import {
   verifyDiagnoseReasoningSignature,
   verifyPrescribeReasoningSignature,
@@ -83,25 +84,20 @@ export async function POST(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   const contractVersion = hisSchemeContractVersionFromRequest(req, parsed.body);
-  // A supplied prescription must at least carry a current tenant-bound M03 chain. Validate that
-  // root immediately, before clinical-fact extraction or evidence retrieval can make an
-  // upstream call. A present M04 signature is also checked here; an unsigned draft may still be
-  // projected as diagnose-only for unresolved encounters, but an invalid/cross-tenant signed M04
-  // is an explicit replay signal and must be rejected before any upstream work.
+  // 签名/凭据核验只标注、不拦截（owner 2026-10-12；contract-provenance.ts）。核验不通过时按回传内容
+  // 生成方案，`warnings[]` 附来源提示；处方的剂量边界、配伍禁忌、特殊人群核对对回传药味照常重跑。
   let preflightCaseState = parsed.caseState;
+  const provenanceIssues: ContractProvenanceIssue[] = [];
   const initialPrescribed = prescribeReasoningFromState(preflightCaseState);
   const initialDiagnose = diagnoseReasoningFromState(preflightCaseState);
   if (initialDiagnose && !verifyDiagnoseReasoningSignature(initialDiagnose, preflightCaseState)) {
-    return Response.json({
-      error: "当前辨病辨证结果已失效，请重新生成后再生成 HIS 方案。",
-      code: "invalid_m03_signature",
-    }, { status: 409 });
+    provenanceIssues.push("m03_unverified");
   }
   if (initialPrescribed) {
-    // 有 M03 时上面已验过签名（同一输入、确定性 HMAC）；这里只剩「带处方却没有 M03」这一种情形。
+    // 带处方却没有 M03：没有可写回的诊断结论（内容缺失，不是签名问题），仍拒绝。
     if (!initialDiagnose) {
       return Response.json({
-        error: "当前辨病辨证结果已失效，请重新生成后再生成 HIS 方案。",
+        error: "缺少辨病辨证结果（reasoningDiagnose），请先完成辨病辨证后再生成 HIS 方案。",
         code: "invalid_m03_signature",
       }, { status: 409 });
     }
@@ -121,35 +117,23 @@ export async function POST(req: Request) {
       herbHash: preflightWorkbenchHash,
     });
     if (!trustedWorkbenchEdit && !verifyPrescribeReasoningSignature(initialPrescribed, preflightCaseState)) {
-      // An unsigned draft may only survive as diagnose-only output when a deterministic gate has
-      // already disabled dosing. Strip every prescription projection before evidence/facts work;
-      // signed-but-invalid material is always an explicit integrity/replay failure.
-      const permission = derivePrescriptionPermission(withSafetyGate(preflightCaseState));
-      const doseAlreadySuppressed = permission.candidateMode === "non_dose_only" ||
-        permission.candidateMode === "blocked" || hasUnconfirmedUnclearEncounterScope(preflightCaseState);
-      if (initialPrescribed.contractSignature || !doseAlreadySuppressed) {
-        return Response.json({
-          error: "当前候选处方签名已失效，请重新生成后再生成 HIS 方案。",
-          code: "invalid_m04_signature",
-        }, { status: 409 });
-      }
-      preflightCaseState = {
-        ...preflightCaseState,
-        prescription: "",
-        reasoningPrescribe: undefined,
-        reasoningV2: initialDiagnose,
-        prescriptionRevision: undefined,
-      };
+      provenanceIssues.push(preflightCaseState.prescriptionRevision?.source === "herb_workbench"
+        ? "workbench_revision_unattested"
+        : "m04_unverified");
     }
   }
   const hasLegacyPrescription = typeof preflightCaseState.prescription === "string" &&
     preflightCaseState.prescription.trim().length > 0;
   if (!initialPrescribed && (hasLegacyPrescription || preflightCaseState.prescriptionRevision)) {
-    return Response.json({
-      error: "缺少有效的结构化候选处方，已拒绝生成可写回 HIS 的方案。",
-      code: "missing_structured_prescription",
-    }, { status: 422 });
+    // 没有结构化药味的处方文本无法逐味核对，不进入写回方案：剥掉后按诊断生成方案并提示（原先 422）。
+    provenanceIssues.push("unstructured_prescription_ignored");
+    preflightCaseState = { ...preflightCaseState, prescription: "", prescriptionRevision: undefined };
   }
+  if (provenanceIssues.includes("m04_unverified") || provenanceIssues.includes("workbench_revision_unattested")) {
+    preflightCaseState = withoutUnverifiedPrescribeReview(preflightCaseState);
+  }
+  recordContractProvenance("his-scheme", provenanceIssues);
+  const provenanceAdvisories = provenanceIssues.map((issue) => contractProvenanceAdvisory(issue, preflightCaseState.prescriptionRevision?.candidateIndex ?? 0));
   // Evidence retrieval is independent of the semantic red-flag projection. Run it concurrently so
   // the HIS boundary cannot serially consume the full clinical-facts budget and then the full
   // EviMed budget, which previously exceeded the endpoint's 30s integration SLO under a long batch.
@@ -170,11 +154,11 @@ export async function POST(req: Request) {
       reasoningV2: diagnoseOnlyReasoning,
       prescriptionRevision: undefined,
     };
-    return Response.json(await withDrugAvailability(buildHisAiSchemePayload(doseSuppressedState, await evidenceScopePromise), contractVersion, parsed.customer.customerId));
+    return Response.json(await withDrugAvailability(buildHisAiSchemePayload(doseSuppressedState, await evidenceScopePromise, provenanceAdvisories), contractVersion, parsed.customer.customerId));
   }
 
   if (!prescribed && !caseState.prescriptionRevision && !caseState.prescription?.trim()) {
-    return Response.json(await withDrugAvailability(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopePromise), contractVersion, parsed.customer.customerId));
+    return Response.json(await withDrugAvailability(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopePromise, provenanceAdvisories), contractVersion, parsed.customer.customerId));
   }
 
   const requestedCandidateIndex = caseState.prescriptionRevision?.candidateIndex ?? 0;
@@ -240,7 +224,7 @@ export async function POST(req: Request) {
     riskAssessment: riskProjection.markdown,
   };
   return Response.json({
-    ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise, validation.advisories, { riskAssessment: riskProjection, auditSkipped: true }), contractVersion, parsed.customer.customerId)),
+    ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise, [...validation.advisories, ...provenanceAdvisories], { riskAssessment: riskProjection, auditSkipped: true }), contractVersion, parsed.customer.customerId)),
     auditCorrelation: skippedRxAuditCorrelation({ candidateIndex, prescriptionHash: herbHash, auditedAt }),
   });
 }

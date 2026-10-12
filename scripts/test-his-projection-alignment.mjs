@@ -196,8 +196,9 @@ test("post-acceptance edit loses signature and review binding", () => {
   assert.equal(edited.contractSignature, undefined);
   assert.equal(edited.clinicalReview, undefined);
   const checked = validateHisPrescriptionForWriteBack({ ...state, reasoningV2: edited, reasoningPrescribe: edited });
-  assert.equal(checked.ok, false);
-  assert.equal(checked.code, "invalid_m04_signature");
+  // 签名只标注、不拦截（owner 2026-10-12）：写回校验只核对药味内容，来源提示由路由按
+  // contract-provenance.ts 附加（test:reasoning-signature 钉住路由侧）。
+  assert.equal(checked.ok, true, JSON.stringify(checked));
 });
 
 test("structured medicine candidates are never reviewed, so neither they nor the herbal item become adoptable", () => {
@@ -335,9 +336,9 @@ test("all nine live regression fixtures deterministically reach their intended p
   assert.equal(cases.length, 9);
   for (const fixture of cases) {
     const checked = validateHisPrescriptionForWriteBack(fixture.state);
-    if (fixture.httpStatus) {
-      assert.equal(checked.ok, false);
-      assert.equal(checked.code, "invalid_m04_signature");
+    if (fixture.provenance) {
+      // 原为签名拒绝；签名不再拦截后写回校验照常通过，来源提示由路由附加。
+      assert.equal(checked.ok, true, `${fixture.name}: ${JSON.stringify(checked)}`);
       continue;
     }
     assert.equal(checked.ok, true, `${fixture.name}: ${JSON.stringify(checked)}`);

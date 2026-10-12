@@ -189,6 +189,10 @@ const T2_M04_PATTERNS: readonly RegExp[] = [
 
 /** T3 —— 展示层与权威 JSON 的同步问题。权威是结构化 JSON，正文由服务端同步生成。 */
 const T3_M04_PATTERNS: readonly RegExp[] = [
+  // 签名/凭据核验结果（contract-provenance.ts，2026-10-12 owner：签名不拦截）。它只说明回传内容
+  // 是否与本系统签发的版本一致，不是临床问题；按 T1 默认值处理会把每一次 HIS 改动病历都升级成
+  // 安全事件并收回采纳。临床安全仍由各出口对实际内容重跑的确定性核对负责。
+  /^contract_provenance_[a-z_]+$/,
   /^visible_extra_herb_rows$/,
   /^visible_method_incomplete(?:_[a-z_]+)?$/,
   /^candidate_\d+_herb_\d+_visible_pair$/,

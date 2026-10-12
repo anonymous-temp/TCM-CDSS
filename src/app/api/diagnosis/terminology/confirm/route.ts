@@ -47,5 +47,6 @@ export async function POST(req: Request) {
     reasoning: result.reasoning,
     restoredFormulaNames: result.restoredFormulaNames,
     prescriptionMustBeRegenerated: true,
+    ...(result.warnings.length > 0 ? { warnings: result.warnings } : {}),
   });
 }

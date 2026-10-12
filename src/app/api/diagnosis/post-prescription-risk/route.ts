@@ -1,4 +1,5 @@
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
+import type { CaseState } from "@/lib/diagnosis-types";
 import {
   buildLocalHighRiskHerbPairSection,
   buildPrescriptionInputAdvisories,
@@ -8,7 +9,7 @@ import {
   resolvePrescriptionCandidateIndex,
 } from "@/lib/local-prescription-checks";
 import { RXAUDIT_DISABLED_REASON, skippedRxAuditCorrelation } from "@/lib/rxaudit-status";
-import { buildDeterministicRiskFollowupPayload, clinicalGroundingText, deriveSafetyLocked, withSafetyGate } from "@/lib/diagnosis-safety";
+import { buildDeterministicRiskFollowupPayload, clinicalGroundingText, deriveSafetyLocked, isNonDosePrescriptionText, withSafetyGate } from "@/lib/diagnosis-safety";
 import { withPostPrescriptionWarningObservation } from "@/lib/warning-display-receipt.server";
 import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
@@ -22,43 +23,58 @@ import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } f
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { hasHisWorkbenchEditShape } from "@/lib/his-prescription-validation";
+import { contractProvenanceAdvisory, recordContractProvenance, type ContractProvenanceIssue } from "@/lib/contract-provenance";
+
+/** 编辑前的合同签名与复核标记只对应编辑前的版本；医生编辑版审方前移除。 */
+function stripPreEditContractMetadata(caseState: CaseState): CaseState {
+  const strip = (reasoning: CaseState["reasoningPrescribe"]) => {
+    if (!reasoning || reasoning.stage !== "prescribe") return reasoning;
+    const rest = { ...reasoning };
+    delete rest.clinicalReview;
+    delete rest.contractSignature;
+    delete rest.contractSignatureVersion;
+    return rest;
+  };
+  return {
+    ...caseState,
+    reasoningPrescribe: strip(caseState.reasoningPrescribe),
+    reasoningV2: caseState.reasoningV2?.stage === "prescribe" ? strip(caseState.reasoningV2) : caseState.reasoningV2,
+  };
+}
 
 export async function POST(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
-  // Reject stale/cross-tenant contracts before the semantic backstop can make an upstream
-  // request. The additive facts layer does not participate in the clinical contract signature.
+  // 签名/凭据核验只标注、不拦截（owner 2026-10-12；contract-provenance.ts）。核验不通过时照常
+  // 对回传的药味做本地确定性核对并给出来源提示；只有未核验内容不会因此获得新的服务端凭据。
   const initialDiagnoseReasoning = diagnoseReasoningFromState(parsed.caseState);
   const initialPrescribed = prescribeReasoningFromState(parsed.caseState);
   const workbenchRevision = parsed.caseState.prescriptionRevision?.source === "herb_workbench";
+  const provenanceIssues: ContractProvenanceIssue[] = [];
   if (workbenchRevision && !verifyDiagnoseReasoningSignature(initialDiagnoseReasoning, parsed.caseState)) {
-    return Response.json({
-      error: "辨病辨证结果签名已失效，请重新生成辨证后再调整药味。",
-      code: "invalid_m03_signature",
-    }, { status: 409 });
+    provenanceIssues.push("m03_unverified");
   }
-  if (!workbenchRevision && !verifyPrescribeReasoningSignature(initialPrescribed, parsed.caseState)) {
-    return Response.json({
-      error: "当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。",
-      code: "invalid_m04_signature",
-    }, { status: 409 });
+  if (!workbenchRevision && initialPrescribed && !verifyPrescribeReasoningSignature(initialPrescribed, parsed.caseState)) {
+    provenanceIssues.push("m04_unverified");
   }
-  // A workbench edit is a new artifact. The pre-edit M04 review/signature is neither proof for the
-  // edited herbs nor trusted client input. Reject it at the sole revision-attestation issuer so a
-  // caller cannot forge a public reviewedPayloadHash and have this route HMAC-sign that provenance.
+  // 医生编辑版是新的产物，编辑前的 M04 复核标记与合同签名对它既不是证明、也不能被本路由的 HMAC
+  // 沿用成「已复核」来源。原先整份 422；现在剥掉这些旧字段后照常审方。
+  let reviewState = parsed.caseState;
   if (workbenchRevision && (
     initialPrescribed?.clinicalReview != null ||
     initialPrescribed?.contractSignature != null ||
     initialPrescribed?.contractSignatureVersion != null
   )) {
-    return Response.json({
-      error: "医生编辑后的处方仍携带编辑前的合同签名，请从当前药味表重新生成待审版本。",
-      code: "stale_workbench_contract_metadata",
-      section: "## 合理用药审方\n**提交前校验**：编辑前的合同签名不适用于当前药味版本。\n**处置建议**：请从药味工作台重新提交，系统将对当前精确版本重新执行安全校验与审方。",
-      risks: [],
-    }, { status: 422 });
+    reviewState = stripPreEditContractMetadata(parsed.caseState);
+    provenanceIssues.push("workbench_pre_edit_metadata_removed");
   }
-  const caseState = withSafetyGate(await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal));
+  // 没有结构化药味、只有处方文本：与 assess / his-scheme 同一口径，文本不进入核对（原先 409）。
+  const legacyPrescription = typeof parsed.caseState.prescription === "string" ? parsed.caseState.prescription.trim() : "";
+  if (!workbenchRevision && !initialPrescribed && legacyPrescription && !isNonDosePrescriptionText(legacyPrescription)) {
+    reviewState = { ...reviewState, prescription: "" };
+    provenanceIssues.push("unstructured_prescription_ignored");
+  }
+  const caseState = withSafetyGate(await maybeAttachClinicalFactsBackstop(reviewState, undefined, req.signal));
   const diagnoseReasoning = diagnoseReasoningFromState(caseState);
   const prescribed = prescribeReasoningFromState(caseState);
   const explicitCandidateIndex = caseState.prescriptionRevision?.candidateIndex;
@@ -69,23 +85,9 @@ export async function POST(req: Request) {
   const semanticIssue = caseState.prescriptionRevision?.source === "herb_workbench"
     ? editedPrescriptionSemanticIssue(prescribed, candidateIndex, diagnoseReasoning, clinicalGroundingText(caseState))
     : undefined;
-  if (caseState.prescriptionRevision?.source === "herb_workbench" && !hasHisWorkbenchEditShape(caseState, prescribed)) {
-    return Response.json({
-      error: "当前内容不是由药味工作台形成的规范医生编辑版，未建立可写回版本。",
-      code: "invalid_workbench_edit_shape",
-      section: "## 合理用药审方\n**提交前校验**：当前内容不是规范医生编辑版。\n**处置建议**：请从药味工作台重新编辑并审方。",
-      risks: [],
-      audit: {
-        source: "local_input_validation",
-        safetyLocked: deriveSafetyLocked(caseState),
-        degraded: false,
-        reason: "invalid_workbench_edit_shape",
-        needManualReview: true,
-        herbHash,
-        auditedAt: new Date().toISOString(),
-      },
-    }, { status: 422 });
-  }
+  // 形态不是规范医生编辑版：照常完成安全核对与随访，但不签发可写回版本的审方凭据（原先整份 422）。
+  const editShapeUnattested = caseState.prescriptionRevision?.source === "herb_workbench" && !hasHisWorkbenchEditShape(caseState, prescribed);
+  if (editShapeUnattested) provenanceIssues.push("workbench_edit_shape_unattested");
   if (caseState.prescriptionRevision?.source === "herb_workbench" && (!selectedCandidate || selectedCandidate.herbs.length === 0 || !herbHash)) {
     return Response.json({
       error: "所选候选方不存在或没有结构化药味，未提交自动审方。",
@@ -120,6 +122,10 @@ export async function POST(req: Request) {
   if (submissionIssue && selectedCandidate) {
     clinicalAdvisories.push(clinicalDeliveryAdvisoryFromIssue(submissionIssue, selectedCandidate, candidateIndex, pediatricDoseRuleFromGroundingText(clinicalGroundingText(caseState))));
   }
+  if (provenanceIssues.length > 0) {
+    recordContractProvenance("post-prescription-risk", provenanceIssues);
+    clinicalAdvisories.push(...provenanceIssues.map((issue) => contractProvenanceAdvisory(issue, candidateIndex)));
+  }
   clinicalAdvisories = deduplicateClinicalDeliveryAdvisories(clinicalAdvisories);
   const inputAdvisories = buildPrescriptionInputAdvisories(caseState, resolvedCandidateIndex);
   const auditedAt = new Date().toISOString();
@@ -148,9 +154,9 @@ export async function POST(req: Request) {
     auditResult: "NOT_SUBMITTED", auditAvailable: false, degraded: false,
     auditReason: RXAUDIT_DISABLED_REASON, needManualReview: inputAdvisories.length > 0 || clinicalAdvisories.length > 0 || Boolean(localHighRiskSection),
   };
-  const attestation = retainedPrior || !workbenchRevision ? undefined
+  const attestation = retainedPrior || !workbenchRevision || editShapeUnattested ? undefined
     : issuePrescriptionRevisionAttestation(caseState, parsed.customer, revision);
-  if (workbenchRevision && !retainedPrior && !attestation) {
+  if (workbenchRevision && !retainedPrior && !editShapeUnattested && !attestation) {
     return Response.json({ error: "工作台处方版本签发不可用，未建立可写回凭据，请稍后重试。", code: "workbench_revision_attestation_unavailable" }, { status: 503 });
   }
   return Response.json(await withPostPrescriptionWarningObservation({

@@ -18,7 +18,8 @@ import { isM04FinalizerDeferredLabelIssue, isSafetyRejection } from "@/lib/diagn
 import { isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { enforceReviewedPrescriptionOutput } from "@/lib/prescription-output-safety";
 import type { SafetyGate } from "@/lib/diagnosis-types";
-import { buildPrescribeContractSignatureContext, verifyDiagnoseReasoningSignature } from "@/lib/reasoning-contract-signature";
+import { applyPrescribeContractSignature, buildDiagnoseContractSignatureContext, buildPrescribeContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning, verifyDiagnoseReasoningSignature } from "@/lib/reasoning-contract-signature";
+import { contractProvenanceAdvisory, recordContractProvenance } from "@/lib/contract-provenance";
 import { CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS, hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { isLimitedM03NotPrescribable } from "@/lib/his-prescription-validation";
 import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-planner.server";
@@ -66,13 +67,31 @@ export async function POST(req: Request) {
     bypass: regenerate,
     compute: (signal) => computePrescribe(parsed, signal, orchestrationStartedAt),
     cacheable: prescribeResultReusable,
+    // 复用给另一病例编号时按本次请求重新签名（本次 M03 核验不过则照常重算）；非剂量页没有签名。
+    bindingId: contractBindingIdentity(parsed.caseState),
+    rebindFinalContent: (content) => content.includes("<!-- DIAGNOSIS_JSON_START -->")
+      ? applyPrescribeContractSignature(content, buildPrescribeContractSignatureContext(parsed.caseState))
+      : content,
   });
 }
 
 async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal, orchestrationStartedAt: number): Promise<Response> {
-  const signedPriorReasoning = diagnoseReasoningFromState(parsed.caseState);
-  if (!signedPriorReasoning || !verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)) {
-    return Response.json({ error: "辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。" }, { status: 409 });
+  const submittedPriorReasoning = diagnoseReasoningFromState(parsed.caseState);
+  if (!submittedPriorReasoning) {
+    return Response.json({ error: "缺少辨病辨证结果，请重新生成辨病辨证后再进入候选方药。" }, { status: 409 });
+  }
+  // 签名只标注、不拦截（owner 2026-10-12；contract-provenance.ts）。回传的 M03 与本系统签发版本
+  // 不一致时（HIS 改过、未原样回传、换了病例编号），按回传内容继续：在本次请求内把它换绑到当前
+  // 病例，后续编排与 M04 签名照常进行；结果开头附来源提示。内容本身不合法（不是一份 M03）才拒绝。
+  const priorVerified = verifyDiagnoseReasoningSignature(submittedPriorReasoning, parsed.caseState);
+  let signedPriorReasoning = submittedPriorReasoning;
+  if (!priorVerified) {
+    try {
+      signedPriorReasoning = signDiagnoseReasoning(submittedPriorReasoning, buildDiagnoseContractSignatureContext(parsed.caseState));
+    } catch {
+      return Response.json({ error: "辨病辨证结果内容不完整，无法据此生成候选方药，请重新生成辨病辨证后再进入候选方药。" }, { status: 409 });
+    }
+    recordContractProvenance("prescribe", ["m03_unverified"]);
   }
   // A deterministic hard red flag already imposes the strongest prescription boundary. Avoid an
   // unnecessary semantic-model round trip before signature verification and the non-dose response.
@@ -333,11 +352,13 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
         ? [`本次候选药味与方义照常呈现，但按独立硬边界暂不显示具体用量：${doseWithheldReasons.join("；")}。`] : []),
     ],
   );
+  // 来源说明不是安全警示，单独成行，不放进「安全警示（未解除）」横幅。
+  const provenanceNote = priorVerified ? "" : `> **来源说明**：${contractProvenanceAdvisory("m03_unverified").message}\n\n`;
   const evidenceOutputTransform = buildEvidenceOutputTransform(
     boundedEvidence.text,
     (content) => {
       const sanitized = sanitizeUngroundedRedFlagNegations(enforceReviewedPrescriptionOutput(content), safeState);
-      return advisoryBanner ? `${advisoryBanner}${sanitized}` : sanitized;
+      return `${provenanceNote}${advisoryBanner}${sanitized}`;
     },
     safeState,
   );

@@ -290,6 +290,57 @@ try {
   assert.equal(withSafetyGate(stripInvalidEmergencyClearance(tamperedClearanceCase)).safetyGate?.status, "red_flag");
   caseCount += 12;
 
+  // ── 2026-10-12 线上：甲方 10/8 急症解除 18 次调用 13 次失败（按 nginx 响应字节数还原：
+  //    1×409 无红旗、9×400 attestations_missing、1×count_mismatch、1×finding_unmatched）──────
+  // 证据判据（逐条一一对应 + 客观依据）一条不放宽；改的是「对不上时怎么说」与受控别名。
+  const clearanceSummary = "已完成急诊影像及神经系统评估，排除急性神经血管事件";
+  const nonEmergencyCase = normalizeCaseStateInput({
+    id: "case_clearance_not_required", chiefComplaint: "咳嗽三天", patient: { sex: "男", age: 30 },
+    symptoms: { presentHistory: "三天前受凉后咳嗽，咽痒，无发热" }, conversation: [],
+  });
+  assert.notEqual(withSafetyGate(nonEmergencyCase).safetyGate?.status, "red_flag");
+  const notRequired = issueEmergencyClearance(nonEmergencyCase, clearanceSummary, validAttestations);
+  assert.equal(notRequired.ok, true, "无红旗病例不再 409：无需排查确认");
+  assert.equal(notRequired.ok && notRequired.clearance, null);
+  assert.equal(notRequired.ok && notRequired.notRequired, true);
+
+  const byChineseLabel = issueEmergencyClearance(emergencyCase, clearanceSummary,
+    validAttestations.map((item) => ({ ...item, disposition: "已完成客观检查并排除" })));
+  assert.equal(byChineseLabel.ok, true, "处置方式写中文标签（受控表内）应受理");
+  assert.equal(byChineseLabel.ok && byChineseLabel.clearance.findings[0].disposition, "excluded_by_objective_workup", "签发内容一律落受控英文取值");
+
+  const ruleIds = activeFindings.map((finding) => finding.ruleId);
+  if (new Set(ruleIds).size === ruleIds.length) {
+    const ruleIdOnly = issueEmergencyClearance(emergencyCase, clearanceSummary,
+      validAttestations.map(({ ruleId, disposition, basis }) => ({ ruleId, disposition, basis })));
+    assert.equal(ruleIdOnly.ok, true, "只填 ruleId 且唯一对应当前红旗时，用安全门原文补齐 message");
+  }
+  const messageOnly = issueEmergencyClearance(emergencyCase, clearanceSummary,
+    validAttestations.map(({ message, disposition, basis }) => ({ message, disposition, basis })));
+  assert.equal(messageOnly.ok, true, "只填 message 且唯一对应当前红旗时，用安全门原文补齐 ruleId");
+
+  const malformed = issueEmergencyClearance(emergencyCase, clearanceSummary,
+    validAttestations.map((item) => ({ ...item, disposition: "已经排除了" })));
+  assert.equal(malformed.ok, false, "自由文本处置方式仍不受理");
+  assert.equal(malformed.ok === false && malformed.code, "emergency_clearance_attestations_missing");
+  assert.match(malformed.ok === false ? malformed.error : "", /第 1 条 disposition/, "逐处指出哪条哪个字段，而不是笼统地说未提交");
+  assert.equal(malformed.ok === false && malformed.details?.activeFindings.length, activeFindings.length, "400 附当前要逐条处置的红旗清单");
+  assert.equal(malformed.ok === false && malformed.details?.allowedDispositions.length, 4);
+  assert.equal(malformed.ok === false && malformed.details?.problems[0].field, "disposition");
+
+  const absent = issueEmergencyClearance(emergencyCase, clearanceSummary, undefined);
+  assert.equal(absent.ok === false && absent.code, "emergency_clearance_attestations_missing");
+  assert.match(absent.ok === false ? absent.error : "", /请对当前每一条急危重线索/, "真没提交时沿用原文案");
+
+  const labelWithoutEvidence = issueEmergencyClearance(emergencyCase, clearanceSummary,
+    validAttestations.map((item) => ({ ...item, disposition: "已完成客观检查并排除", basis: "今天天气不错今天天气不错今天天气不错" })));
+  assert.equal(labelWithoutEvidence.ok === false && labelWithoutEvidence.code, "emergency_clearance_attestation_basis_not_objective",
+    "接受中文标签不放宽客观依据判据");
+  const forgedMessageOnly = issueEmergencyClearance(emergencyCase, clearanceSummary,
+    validAttestations.map(({ message, disposition, basis }) => ({ message: `${message}（伪造）`, disposition, basis })));
+  assert.equal(forgedMessageOnly.ok, false, "补齐只认安全门原文，对不上的 message 照旧不受理");
+  caseCount += 10;
+
   const reasoning = normalizeReasoningV2({
     schemaVersion: "tcm-cdss-reasoning-v2",
     stage: "diagnose",
@@ -902,25 +953,40 @@ try {
     headers: { "content-type": "application/json", "x-cdss-customer-id": customerId },
     body: JSON.stringify({ caseState: routeCaseState }),
   });
+  // 签名/凭据只标注、不拦截（owner 2026-10-12；contract-provenance.ts）：路由照常往下走，
+  // 来源问题经 contract_provenance 遥测与 warnings/正文提示可见。
+  const provenanceDuring = async (run) => {
+    const issues = [];
+    const previousInfo = console.info;
+    console.info = (label, payload, ...rest) => {
+      if (label === "[tcm-cdss:telemetry] contract_provenance") issues.push(...(payload?.issues || []));
+      return previousInfo.call(console, label, payload, ...rest);
+    };
+    try {
+      return { result: await run(), issues };
+    } finally {
+      console.info = previousInfo;
+    }
+  };
+  const streamText = async (response) => (await response.text()).split("\n").filter(Boolean)
+    .map((line) => { try { return JSON.parse(line).content || ""; } catch { return ""; } }).join("");
 
-  await checkAsync("prescribe route rejects cross-customer M03 before any upstream call", async () => {
+  await checkAsync("prescribe route proceeds on a cross-customer M03 and records it as unverified (signatures never block)", async () => {
     const replayed = clone(routeBaseCase);
     replayed.customerId = "other-hospital";
     replayed.reasoningDiagnose = clone(signed);
-    let upstreamCalls = 0;
     const previousFetch = globalThis.fetch;
     globalThis.fetch = async () => {
-      upstreamCalls += 1;
       throw new Error("cross-customer replay reached upstream");
     };
     try {
-      const response = await prescribePost(routeRequest(
+      const { result: response, issues } = await provenanceDuring(() => prescribePost(routeRequest(
         "/api/diagnosis/prescribe",
         replayed,
         "other-hospital",
-      ));
-      assert.equal(response.status, 409);
-      assert.equal(upstreamCalls, 0);
+      )));
+      assert.notEqual(response.status, 409, "签名不一致不再拒绝");
+      assert.deepEqual(issues, ["m03_unverified"]);
     } finally {
       globalThis.fetch = previousFetch;
     }
@@ -1066,9 +1132,11 @@ try {
 
       const markdownOnly = clone(diagnoseOnly);
       markdownOnly.prescription = "## 中药饮片处方\n| 甘草 | 6g |\n| 海藻 | 10g |";
-      const rejected = await assessPost(routeRequest("/api/diagnosis/assess", markdownOnly));
-      assert.equal(rejected.status, 422, "手写处方 Markdown 不得跨界");
-      assert.equal((await rejected.json()).code, "missing_structured_prescription");
+      const ignored = await assessPost(routeRequest("/api/diagnosis/assess", markdownOnly));
+      assert.equal(ignored.status, 200, "手写处方 Markdown 不再 422：剥掉后按 diagnose-only 评估");
+      const ignoredBody = await readBody(ignored);
+      assert.doesNotMatch(ignoredBody, /海藻/, "被剥掉的处方文本不得进入任何消费方");
+      assert.match(ignoredBody, /未经本系统生成的处方文本/, "必须提示处方文本未纳入评估");
 
       const noM03 = clone(diagnoseOnly);
       noM03.reasoningDiagnose = undefined;
@@ -1082,19 +1150,43 @@ try {
   });
 
   for (const [name, mutate] of [
-    ["prescribe route rejects cross-case replay", (value) => { value.id = "case_signature_route_replay"; }],
-    ["prescribe route rejects complete M03 field tampering", (value) => { value.reasoningDiagnose.management.redFlagLoop = "被修改的闭环"; }],
-    ["prescribe route rejects legacy signature snapshot", (value) => { delete value.reasoningDiagnose.contractSignatureVersion; }],
+    ["prescribe route proceeds on a cross-case replayed M03 (unverified, not rejected)", (value) => { value.id = "case_signature_route_replay"; }],
+    ["prescribe route proceeds on a field-tampered M03 (unverified, not rejected)", (value) => { value.reasoningDiagnose.management.redFlagLoop = "被修改的闭环"; }],
+    ["prescribe route proceeds on a legacy-version M03 snapshot (unverified, not rejected)", (value) => { delete value.reasoningDiagnose.contractSignatureVersion; }],
   ]) {
     await checkAsync(name, async () => {
       const routeCase = clone(routeBaseCase);
       routeCase.reasoningDiagnose = clone(signed);
       mutate(routeCase);
-      const response = await prescribePost(routeRequest("/api/diagnosis/prescribe", routeCase));
-      assert.equal(response.status, 409);
-      assert.match((await response.json()).error, /重新生成辨病辨证/);
+      const { result: response, issues } = await provenanceDuring(() => prescribePost(routeRequest("/api/diagnosis/prescribe", routeCase)));
+      assert.notEqual(response.status, 409);
+      assert.deepEqual(issues, ["m03_unverified"]);
     });
   }
+
+  await checkAsync("stage-result reuse rebinding re-signs a replayed M03/M04 for the new case id (2026-10-12 线上 4 次 M05 409 的根因)", async () => {
+    const sentinel = (reasoningValue) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoningValue)}\n<!-- DIAGNOSIS_JSON_END -->`;
+    const fromSentinel = (content) => JSON.parse(content.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+    const newCase = clone(routeBaseCase);
+    newCase.id = "case_reuse_new_case_id";
+    assert.equal(verifyDiagnoseReasoningSignature(signed, newCase), false, "原样回放旧编号的 M03 签名必然验签失败");
+    const reboundM03 = fromSentinel(applyDiagnoseContractSignature(sentinel(signed), buildDiagnoseContractSignatureContext(newCase)));
+    assert.equal(verifyDiagnoseReasoningSignature(reboundM03, newCase), true, "换绑后新编号验签通过");
+    newCase.reasoningDiagnose = reboundM03;
+    assert.equal(verifyPrescribeReasoningSignature(signedPrescribe, newCase), false, "原样回放旧编号的 M04 签名必然验签失败");
+    const reboundM04 = fromSentinel(applyPrescribeContractSignature(sentinel(signedPrescribe), buildPrescribeContractSignatureContext(newCase)));
+    assert.equal(verifyPrescribeReasoningSignature(reboundM04, newCase), true, "换绑后的 M04 在 M05 验签通过");
+    assert.deepEqual(reboundM04.formula, normalizeReasoningV2(signedPrescribe).formula, "换绑只换签名，临床内容逐字不变");
+  });
+
+  await checkAsync("prescribe route still rejects a request that carries no M03 at all (missing content, not a signature)", async () => {
+    const routeCase = clone(routeBaseCase);
+    routeCase.reasoningDiagnose = undefined;
+    routeCase.reasoningV2 = undefined;
+    const response = await prescribePost(routeRequest("/api/diagnosis/prescribe", routeCase));
+    assert.equal(response.status, 409);
+    assert.match((await response.json()).error, /缺少辨病辨证结果/);
+  });
 
   const signatureProtectedRoutes = [
     { name: "post-risk", path: "/api/diagnosis/post-prescription-risk", post: postPrescriptionRisk },
@@ -1148,13 +1240,11 @@ try {
     assert.match(visible, /薄荷/);
   });
 
-  await checkAsync("M04 trust-boundary routes reject cross-customer replay before any upstream call", async () => {
+  await checkAsync("M04 routes proceed on a cross-customer replay and flag it as unverified", async () => {
     const replayed = buildSignedNormalRouteCase();
     replayed.customerId = "other-hospital";
-    let upstreamCalls = 0;
     const previousFetch = globalThis.fetch;
     globalThis.fetch = async () => {
-      upstreamCalls += 1;
       throw new Error("cross-customer replay reached upstream");
     };
     try {
@@ -1163,16 +1253,16 @@ try {
         { path: "/api/diagnosis/assess", post: assessPost },
         { path: "/api/diagnosis/his-scheme", post: hisSchemePost },
       ]) {
-        const response = await route.post(routeRequest(route.path, replayed, "other-hospital"));
-        assert.equal(response.status, 409, `${route.path} must reject replay`);
+        const { result: response, issues } = await provenanceDuring(() => route.post(routeRequest(route.path, replayed, "other-hospital")));
+        assert.equal(response.status, 200, `${route.path} must not reject on signature`);
+        assert.ok(issues.includes("m04_unverified"), `${route.path} must record the replayed M04 as unverified`);
       }
-      assert.equal(upstreamCalls, 0);
     } finally {
       globalThis.fetch = previousFetch;
     }
   });
 
-  await checkAsync("HIS rejects a foreign signed M03-only projection before any upstream call", async () => {
+  await checkAsync("HIS proceeds on a foreign signed M03-only projection and flags it", async () => {
     const foreignCase = clone(routeBaseCase);
     foreignCase.customerId = "other-hospital";
     const foreignM03 = signDiagnoseReasoning(
@@ -1181,44 +1271,40 @@ try {
     );
     const currentCase = clone(routeBaseCase);
     currentCase.reasoningDiagnose = foreignM03;
-    let upstreamCalls = 0;
     const previousFetch = globalThis.fetch;
     globalThis.fetch = async () => {
-      upstreamCalls += 1;
       throw new Error("foreign M03-only projection reached upstream");
     };
     try {
-      const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", currentCase));
-      assert.equal(response.status, 409);
-      assert.equal((await response.json()).code, "invalid_m03_signature");
-      assert.equal(upstreamCalls, 0);
+      const { result: response, issues } = await provenanceDuring(() => hisSchemePost(routeRequest("/api/diagnosis/his-scheme", currentCase)));
+      assert.equal(response.status, 200);
+      assert.deepEqual(issues, ["m03_unverified"]);
+      assert.ok((await response.json()).warnings.some((warning) => warning.code === "contract_provenance_m03_unverified"));
     } finally {
       globalThis.fetch = previousFetch;
     }
   });
 
-  await checkAsync("HIS rejects an unsigned M03-only projection before any upstream call", async () => {
+  await checkAsync("HIS proceeds on an unsigned M03-only projection and flags it", async () => {
     const currentCase = clone(routeBaseCase);
     currentCase.reasoningDiagnose = clone(signed);
     delete currentCase.reasoningDiagnose.contractSignature;
     delete currentCase.reasoningDiagnose.contractSignatureVersion;
-    let upstreamCalls = 0;
     const previousFetch = globalThis.fetch;
     globalThis.fetch = async () => {
-      upstreamCalls += 1;
       throw new Error("unsigned M03-only projection reached upstream");
     };
     try {
-      const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", currentCase));
-      assert.equal(response.status, 409);
-      assert.equal((await response.json()).code, "invalid_m03_signature");
-      assert.equal(upstreamCalls, 0);
+      const { result: response, issues } = await provenanceDuring(() => hisSchemePost(routeRequest("/api/diagnosis/his-scheme", currentCase)));
+      assert.equal(response.status, 200);
+      assert.deepEqual(issues, ["m03_unverified"]);
+      assert.ok((await response.json()).warnings.some((warning) => warning.code === "contract_provenance_m03_unverified"));
     } finally {
       globalThis.fetch = previousFetch;
     }
   });
 
-  await checkAsync("HIS rejects a foreign signed M04 mixed with a valid local M03 before upstream", async () => {
+  await checkAsync("HIS proceeds on a foreign signed M04 mixed with a valid local M03 and flags it", async () => {
     const foreignCase = clone(routeBaseCase);
     foreignCase.customerId = "other-hospital";
     foreignCase.reasoningDiagnose = signDiagnoseReasoning(
@@ -1232,44 +1318,42 @@ try {
     const mixedCase = buildSignedNormalRouteCase();
     mixedCase.reasoningPrescribe = foreignM04;
     mixedCase.reasoningV2 = clone(foreignM04);
-    let upstreamCalls = 0;
     const previousFetch = globalThis.fetch;
     globalThis.fetch = async () => {
-      upstreamCalls += 1;
       throw new Error("foreign M04 projection reached upstream");
     };
     try {
-      const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", mixedCase));
-      assert.equal(response.status, 409);
-      assert.equal((await response.json()).code, "invalid_m04_signature");
-      assert.equal(upstreamCalls, 0);
+      const { result: response, issues } = await provenanceDuring(() => hisSchemePost(routeRequest("/api/diagnosis/his-scheme", mixedCase)));
+      assert.equal(response.status, 200);
+      assert.deepEqual(issues, ["m04_unverified"]);
+      const body = await response.json();
+      assert.ok(body.warnings.some((warning) => warning.code === "contract_provenance_m04_unverified"));
+      assert.ok(body.prescriptions.structuredHerbs.length > 0, "按回传处方生成方案，不清空");
     } finally {
       globalThis.fetch = previousFetch;
     }
   });
 
-  await checkAsync("HIS rejects an unsigned dose-capable M04 before any upstream call", async () => {
+  await checkAsync("HIS proceeds on an unsigned dose-capable M04 and flags it", async () => {
     const unsignedCase = buildSignedNormalRouteCase();
     delete unsignedCase.reasoningPrescribe.contractSignature;
     delete unsignedCase.reasoningPrescribe.contractSignatureVersion;
     unsignedCase.reasoningV2 = clone(unsignedCase.reasoningPrescribe);
-    let upstreamCalls = 0;
     const previousFetch = globalThis.fetch;
     globalThis.fetch = async () => {
-      upstreamCalls += 1;
       throw new Error("unsigned M04 projection reached upstream");
     };
     try {
-      const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", unsignedCase));
-      assert.equal(response.status, 409);
-      assert.equal((await response.json()).code, "invalid_m04_signature");
-      assert.equal(upstreamCalls, 0);
+      const { result: response, issues } = await provenanceDuring(() => hisSchemePost(routeRequest("/api/diagnosis/his-scheme", unsignedCase)));
+      assert.equal(response.status, 200);
+      assert.deepEqual(issues, ["m04_unverified"]);
+      assert.ok((await response.json()).warnings.some((warning) => warning.code === "contract_provenance_m04_unverified"));
     } finally {
       globalThis.fetch = previousFetch;
     }
   });
 
-  await checkAsync("HIS rejects a signed M04 whose M03 is missing or invalid as invalid_m03_signature before upstream", async () => {
+  await checkAsync("HIS: M04 without any M03 is still rejected (missing content); an M04 with a tampered M03 proceeds flagged", async () => {
     // D7（2026-09-25）：his-scheme 此前对同一份 M03 连验两次签名（有 M03 时第二次必然同判）。
     // 收敛后第二处只剩「带处方却没有 M03」这一种情形——两种形态的响应必须与此前逐字相同。
     let upstreamCalls = 0;
@@ -1279,29 +1363,26 @@ try {
       throw new Error("M04 without a valid M03 reached upstream");
     };
     try {
-      const expected = { error: "当前辨病辨证结果已失效，请重新生成后再生成 HIS 方案。", code: "invalid_m03_signature" };
       const withoutM03 = buildSignedNormalRouteCase();
       delete withoutM03.reasoningDiagnose;
       withoutM03.reasoningV2 = clone(withoutM03.reasoningPrescribe);
       const missing = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", withoutM03));
       assert.equal(missing.status, 409);
-      assert.deepEqual(await missing.json(), expected, "缺 M03 的带处方请求");
+      assert.equal((await missing.json()).code, "invalid_m03_signature", "缺 M03 的带处方请求：没有可写回的诊断结论");
+      assert.equal(upstreamCalls, 0, "缺 M03 时在任何上游调用之前返回");
       const tampered = buildSignedNormalRouteCase();
       tampered.reasoningDiagnose.overview.primarySyndrome = `${tampered.reasoningDiagnose.overview.primarySyndrome}（篡改）`;
-      const invalid = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", tampered));
-      assert.equal(invalid.status, 409);
-      assert.deepEqual(await invalid.json(), expected, "M03 签名不符的带处方请求");
-      assert.equal(upstreamCalls, 0);
+      const { result: invalid, issues } = await provenanceDuring(() => hisSchemePost(routeRequest("/api/diagnosis/his-scheme", tampered)));
+      assert.equal(invalid.status, 200, "M03 签名不符的带处方请求照常生成方案");
+      assert.ok(issues.includes("m03_unverified"));
     } finally {
       globalThis.fetch = previousFetch;
     }
   });
 
-  await checkAsync("HIS rejects legacy or orphaned prescription material before any upstream call", async () => {
+  await checkAsync("HIS strips legacy or orphaned prescription material and returns a diagnose-only scheme", async () => {
     const previousFetch = globalThis.fetch;
-    let upstreamCalls = 0;
     globalThis.fetch = async () => {
-      upstreamCalls += 1;
       throw new Error("unstructured prescription material reached upstream");
     };
     try {
@@ -1325,17 +1406,19 @@ try {
         },
       ];
       for (const probe of probes) {
-        const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", probe));
-        assert.equal(response.status, 422);
-        assert.equal((await response.json()).code, "missing_structured_prescription");
+        const { result: response, issues } = await provenanceDuring(() => hisSchemePost(routeRequest("/api/diagnosis/his-scheme", probe)));
+        assert.equal(response.status, 200);
+        assert.ok(issues.includes("unstructured_prescription_ignored"));
+        const raw = await response.text();
+        assert.doesNotMatch(raw, /旧版处方文本|orphaned-revision/, "被剥掉的处方材料不得进入方案");
+        assert.ok(JSON.parse(raw).warnings.some((warning) => warning.code === "contract_provenance_unstructured_prescription_ignored"));
       }
-      assert.equal(upstreamCalls, 0);
     } finally {
       globalThis.fetch = previousFetch;
     }
   });
 
-  await checkAsync("HIS rejects an untrusted workbench claim before any upstream call", async () => {
+  await checkAsync("HIS proceeds on an untrusted workbench claim, flags it and ignores its claimed PASS", async () => {
     const routeCase = buildSignedNormalRouteCase();
     delete routeCase.reasoningPrescribe.contractSignature;
     delete routeCase.reasoningPrescribe.contractSignatureVersion;
@@ -1349,44 +1432,43 @@ try {
       highestRiskLevel: "INFO",
     };
     const previousFetch = globalThis.fetch;
-    let upstreamCalls = 0;
     globalThis.fetch = async () => {
-      upstreamCalls += 1;
       throw new Error("untrusted workbench claim reached upstream");
     };
     try {
-      const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", routeCase));
-      assert.equal(response.status, 409);
-      assert.equal((await response.json()).code, "invalid_m04_signature");
-      assert.equal(upstreamCalls, 0);
+      const { result: response, issues } = await provenanceDuring(() => hisSchemePost(routeRequest("/api/diagnosis/his-scheme", routeCase)));
+      assert.equal(response.status, 200);
+      assert.deepEqual(issues, ["workbench_revision_unattested"]);
+      const body = await response.json();
+      assert.ok(body.warnings.some((warning) => warning.code === "contract_provenance_workbench_revision_unattested"));
+      assert.equal(body.writeBackPolicy.autoWritePrescription, false);
     } finally {
       globalThis.fetch = previousFetch;
     }
   });
 
   for (const route of signatureProtectedRoutes) {
-    await checkAsync(`${route.name} route rejects unsigned normal M04`, async () => {
-      const routeCase = buildSignedNormalRouteCase();
-      delete routeCase.reasoningPrescribe.contractSignature;
-      delete routeCase.reasoningPrescribe.contractSignatureVersion;
-      routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
-      const response = await route.post(routeRequest(route.path, routeCase));
-      const body = await response.json();
-      assert.equal(response.status, 409);
-      assert.equal(body.code, "invalid_m04_signature");
-      assert.match(body.error, /有效签名|重新生成候选方药/);
-    });
-
-    await checkAsync(`${route.name} route rejects tampered normal M04`, async () => {
-      const routeCase = buildSignedNormalRouteCase();
-      routeCase.reasoningPrescribe.formula.candidates[0].herbs[0].dose = "30g";
-      routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
-      const response = await route.post(routeRequest(route.path, routeCase));
-      const body = await response.json();
-      assert.equal(response.status, 409);
-      assert.equal(body.code, "invalid_m04_signature");
-      assert.match(body.error, /内容已变更|重新生成候选方药/);
-    });
+    for (const [label, mutate] of [
+      ["unsigned", (routeCase) => {
+        delete routeCase.reasoningPrescribe.contractSignature;
+        delete routeCase.reasoningPrescribe.contractSignatureVersion;
+      }],
+      ["tampered", (routeCase) => { routeCase.reasoningPrescribe.formula.candidates[0].herbs[0].dose = "30g"; }],
+    ]) {
+      await checkAsync(`${route.name} route proceeds on a ${label} normal M04 and flags it`, async () => {
+        const routeCase = buildSignedNormalRouteCase();
+        mutate(routeCase);
+        routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
+        const { result: response, issues } = await provenanceDuring(() => route.post(routeRequest(route.path, routeCase)));
+        assert.equal(response.status, 200);
+        assert.deepEqual(issues, ["m04_unverified"]);
+        if (route.name === "assess") {
+          assert.match(await streamText(response), /回传的候选处方与本系统签发的版本不一致/);
+        } else {
+          assert.ok((await response.json()).warnings.some((warning) => warning.code === "contract_provenance_m04_unverified"));
+        }
+      });
+    }
 
     await checkAsync(`${route.name} route accepts valid signed normal M04`, async () => {
       const routeCase = buildSignedNormalRouteCase();
@@ -1458,7 +1540,7 @@ try {
     assert.equal(payload.writeBackPolicy.autoWritePrescription, false);
   });
 
-  await checkAsync("post-risk issuer rejects forged pre-attestation M04 review metadata", async () => {
+  await checkAsync("post-risk strips forged pre-attestation M04 review metadata instead of rejecting, and never carries it into the attestation", async () => {
     const routeCase = buildLegalWorkbenchRouteCase();
     routeCase.reasoningPrescribe.clinicalReview = {
       status: "accepted",
@@ -1474,9 +1556,14 @@ try {
       routeCase.reasoningPrescribe,
     );
     routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
-    const response = await postPrescriptionRisk(routeRequest("/api/diagnosis/post-prescription-risk", routeCase));
-    assert.equal(response.status, 422);
-    assert.equal((await response.json()).code, "stale_workbench_contract_metadata");
+    const { result: response, issues } = await provenanceDuring(() => postPrescriptionRisk(routeRequest("/api/diagnosis/post-prescription-risk", routeCase)));
+    assert.equal(response.status, 200);
+    assert.ok(issues.includes("workbench_pre_edit_metadata_removed"));
+    const raw = await response.text();
+    assert.doesNotMatch(raw, /forged-review-provider|forged_scope/, "编辑前的复核标记不得进入本路由签发的任何内容");
+    const body = JSON.parse(raw);
+    assert.ok(body.warnings.some((warning) => warning.code === "contract_provenance_workbench_pre_edit_metadata_removed"));
+    assert.match(body.audit.attestation || "", /^hmac-sha256:[a-f0-9]{64}$/, "剥掉旧标记后照常为当前药味版本签发审方凭据");
   });
 
   for (const [name, modification, expectedIssue] of [
@@ -1549,23 +1636,25 @@ try {
       assert.equal(response.status, 200);
     });
 
-    await checkAsync(`${route.name} route rejects an invalid or post-attestation-tampered workbench edit`, async () => {
+    await checkAsync(`${route.name} route reviews an invalid or post-attestation-tampered workbench edit and flags it`, async () => {
       const routeCase = buildLegalWorkbenchRouteCase();
       if (route.path !== "/api/diagnosis/post-prescription-risk") await attestWorkbenchRouteCase(routeCase);
       routeCase.reasoningPrescribe.formula.candidates[0].herbs.push(
         clone(routeCase.reasoningPrescribe.formula.candidates[0].herbs[0]),
       );
       routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
-      const response = await route.post(routeRequest(route.path, routeCase));
-      const body = await response.json();
+      const { result: response, issues } = await provenanceDuring(() => route.post(routeRequest(route.path, routeCase)));
+      assert.equal(response.status, 200);
       if (route.path === "/api/diagnosis/post-prescription-risk") {
-        assert.equal(response.status, 200);
+        const body = await response.json();
         assert.ok(body.warnings.some((warning) => /duplicate/.test(warning.code)));
         assert.match(body.section, /重复药味/);
         assert.equal(new Set(body.warnings.map((warning) => `${warning.message}\0${warning.suggestedAction}`)).size, body.warnings.length);
       } else {
-        assert.equal(response.status, 409);
-        assert.equal(body.code, "invalid_workbench_revision_attestation");
+        assert.deepEqual(issues, ["workbench_revision_unattested"]);
+        const text = await streamText(response);
+        assert.match(text, /没有与本病例及当前药味版本绑定的审方凭据/);
+        assert.match(text, /重复药味/, "安全核对按回传药味照常重跑");
       }
     });
   }
@@ -1578,6 +1667,9 @@ try {
       status: "accepted",
       provider: "forged-review-provider",
       model: "forged-review-model",
+      // 伪造必须是「完整」的：hasBoundClinicalReviewAttestation 对 accepted 还要求 source。
+      // 2026-10-12 反证发现原夹具缺这一项，伪造本身就不成立，断言从未真正设防。
+      source: "preferred",
       acceptanceScope: {
         waivedIssueCodes: ["dose_rationale_concern"],
         qualityAnnotationCodes: ["forged_scope"],
@@ -1587,12 +1679,15 @@ try {
       routeCase.reasoningPrescribe,
     );
     routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
-    const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", routeCase));
-    assert.equal(response.status, 409);
-    assert.equal((await response.json()).code, "invalid_m04_signature");
+    const { result: response, issues } = await provenanceDuring(() => hisSchemePost(routeRequest("/api/diagnosis/his-scheme", routeCase)));
+    assert.equal(response.status, 200);
+    assert.deepEqual(issues, ["workbench_revision_unattested"]);
+    const raw = await response.text();
+    assert.doesNotMatch(raw, /生成侧受理裁决|生成侧已按质量批注受理/, "未核验版本不得呈现伪造的受理裁决");
+    assert.ok(JSON.parse(raw).warnings.some((warning) => warning.code === "contract_provenance_workbench_revision_unattested"));
   });
 
-  await checkAsync("post-risk route rejects workbench cross-encounter replay", async () => {
+  await checkAsync("post-risk route no longer rejects a workbench cross-encounter replay on signature", async () => {
     const routeCase = clone(routeBaseCase);
     routeCase.reasoningDiagnose = clone(signed);
     routeCase.hisRecord.caseId = "encounter_signature_route_replay";
@@ -1604,11 +1699,11 @@ try {
       auditResult: "PASS",
       highestRiskLevel: "INFO",
     };
-    const response = await postPrescriptionRisk(routeRequest("/api/diagnosis/post-prescription-risk", routeCase));
-    assert.equal(response.status, 409);
-    const body = await response.json();
-    assert.equal(body.code, "invalid_m03_signature");
-    assert.match(body.error, /重新生成辨证/);
+    const { result: response, issues } = await provenanceDuring(() => postPrescriptionRisk(routeRequest("/api/diagnosis/post-prescription-risk", routeCase)));
+    // 签名不再拦截；本夹具没有结构化药味，路由如实报告「候选方不存在」（内容问题，不是签名问题）。
+    assert.equal(response.status, 422);
+    assert.equal((await response.json()).code, "invalid_candidate_index", "越过了签名检查，停在内容检查");
+    assert.deepEqual(issues, [], "内容不成立时提前返回，不进入来源提示");
   });
 
   console.log(`reasoning contract signature: ${caseCount} cases, 0 failures`);

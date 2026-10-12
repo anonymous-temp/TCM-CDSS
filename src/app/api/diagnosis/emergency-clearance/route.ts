@@ -27,7 +27,12 @@ export async function POST(req: Request) {
     body.findings,
   );
   if (!result.ok) {
-    return Response.json({ error: result.error, code: result.code }, { status: result.status });
+    // details：当前要逐条处置的红旗、处置方式取值、逐处问题——调用方据此一次改对。
+    return Response.json({ error: result.error, code: result.code, ...(result.details || {}) }, { status: result.status });
+  }
+  if (result.clearance === null) {
+    // 当前没有需要解除的红旗：200 + emergencyClearance:null，流程照常继续（原先 409）。
+    return Response.json({ emergencyClearance: null, notRequired: true, message: result.message });
   }
   return Response.json({ emergencyClearance: result.clearance });
 }

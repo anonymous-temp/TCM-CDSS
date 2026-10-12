@@ -8,9 +8,12 @@ import {
 } from "./diagnosis-safety";
 import {
   activeEmergencyClearanceFindingsFromGate,
+  EMERGENCY_CLEARANCE_DISPOSITIONS,
   emergencyClearanceContractIssue,
   emergencyClearanceIssueMessage,
-  normalizeEmergencyClearanceAttestations,
+  inspectEmergencyClearanceAttestations,
+  type EmergencyClearanceActiveFinding,
+  type EmergencyClearanceAttestationProblem,
   type EmergencyClearanceFindingAttestation,
 } from "./emergency-clearance-contract";
 
@@ -98,21 +101,31 @@ export function activeEmergencyClearanceFindings(caseState: CaseState) {
   return gate.status === "red_flag" ? activeEmergencyClearanceFindingsFromGate(gate) : [];
 }
 
+/** 400 时一并下发：调用方据此一次改对，而不是逐条试错（2026-10-12 线上 13 次失败的教训）。 */
+export type EmergencyClearanceRejectionDetails = {
+  activeFindings: EmergencyClearanceActiveFinding[];
+  allowedDispositions: Array<{ value: string; label: string; basisHint: string }>;
+  problems: EmergencyClearanceAttestationProblem[];
+};
+
 export function issueEmergencyClearance(
   caseState: CaseState,
   assessmentSummary: string,
   findings: unknown,
 ):
   | { ok: true; clearance: NonNullable<CaseState["emergencyClearance"]> }
-  | { ok: false; status: number; code: string; error: string } {
+  | { ok: true; clearance: null; notRequired: true; message: string }
+  | { ok: false; status: number; code: string; error: string; details?: EmergencyClearanceRejectionDetails } {
   const unsignedState = { ...caseState, emergencyClearance: undefined };
   const gate = evaluateSafetyGate(unsignedState);
   if (gate.status !== "red_flag") {
+    // 当前病历本就没有需要解除的红旗：无需排查确认，流程照常继续。原先返回 409，
+    // 甲方 10/8 第一次调用就撞上（对一个没有红旗的病例调了本接口）。
     return {
-      ok: false,
-      status: 409,
-      code: "no_active_emergency_finding",
-      error: "当前病历没有可绑定的急危重症红旗，未生成排查确认。",
+      ok: true,
+      clearance: null,
+      notRequired: true,
+      message: "当前病历没有需要解除的急危重症红旗，无需排查确认，可直接继续后续流程。",
     };
   }
   const explicitNames = [caseState.patient.name, caseState.hisRecord?.fields.patientName]
@@ -121,22 +134,32 @@ export function issueEmergencyClearance(
     .trim()
     .slice(0, 1_000);
   // 逐条留痕同样要过 PHI 脱敏：它会进病例留痕、可见正文与 HIS 方案。
-  const normalizedFindings = normalizeEmergencyClearanceAttestations(findings)?.map((item) => ({
+  const activeFindings = activeEmergencyClearanceFindings(caseState);
+  const inspected = inspectEmergencyClearanceAttestations(findings, activeFindings);
+  const normalizedFindings = inspected.attestations?.map((item) => ({
     ...item,
     basis: sanitizeFreeTextForExternalClinicalService(item.basis, explicitNames).trim().slice(0, 500),
   }));
-  const activeFindings = activeEmergencyClearanceFindings(caseState);
   const contractIssue = emergencyClearanceContractIssue({
     activeFindings,
     attestations: normalizedFindings,
     assessmentSummary: sanitizedSummary,
   });
   if (contractIssue) {
+    const problems = contractIssue === "attestations_missing" ? inspected.problems : [];
     return {
       ok: false,
       status: 400,
       code: `emergency_clearance_${contractIssue}`,
-      error: emergencyClearanceIssueMessage(contractIssue),
+      // 提交了 findings 但有条目不合规时，不再笼统地说「未提交」，而是逐处指出。
+      error: problems.length > 0 && problems[0].index >= 0
+        ? `处置记录有 ${problems.length} 处不合规：${problems.slice(0, 4).map((item) => `第 ${item.index + 1} 条 ${item.field}：${item.reason}`).join("；")}`
+        : emergencyClearanceIssueMessage(contractIssue),
+      details: {
+        activeFindings: activeFindings.map((finding) => ({ ruleId: finding.ruleId, message: finding.message })),
+        allowedDispositions: EMERGENCY_CLEARANCE_DISPOSITIONS.map((item) => ({ value: item.value, label: item.label, basisHint: item.basisHint })),
+        problems,
+      },
     };
   }
   const unsignedClearance = {

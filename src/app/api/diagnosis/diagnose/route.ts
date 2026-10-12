@@ -8,7 +8,7 @@ import { normalizeCaseTextForFormulaRecall } from "@/lib/formula-recall-normaliz
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
 import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
-import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
+import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
@@ -37,6 +37,9 @@ export async function POST(req: Request) {
     bypass: regenerate,
     compute: (signal) => computeDiagnose(parsed, signal),
     cacheable: diagnoseResultReusable,
+    // 复用给另一病例编号时按本次请求重新签名，否则下游验签必然失败（甲方 9/30、10/9 实测）。
+    bindingId: contractBindingIdentity(parsed.caseState),
+    rebindFinalContent: (content) => applyDiagnoseContractSignature(content, buildDiagnoseContractSignatureContext(parsed.caseState)),
   });
 }
 
