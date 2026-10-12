@@ -101,7 +101,7 @@ for (const card of LINEAGE_CARDS) {
 }
 
 assert.equal(getLineageCard("classical-formula").cardNature, "source_preference", "经方 must be disclosed as a source preference, not a single school");
-assert.deepEqual(getLineageCard("warm-tonify").provenance.representativePhysicians, ["薛己", "孙一奎", "赵献可", "张景岳"]);
+assert.deepEqual(getLineageCard("warm-tonify").provenance.representativePhysicians, ["薛己", "孙一奎", "赵献可", "张景岳", "李中梓"]);
 assert.deepEqual(getLineageCard("support-yang").provenance.representativeWorks, ["《医理真传》", "《医法圆通》", "《伤寒恒论》"]);
 assert.equal(resolveLineageCode("warm-tonify-yang"), "warm-tonify", "旧合并 code 只作输入兼容并迁移到温补，不得继续成为公开卡片");
 assert.equal(resolveLineageCode("温补/扶阳思路"), "warm-tonify", "旧合并中文名按同一兼容策略迁移");
@@ -142,5 +142,55 @@ assert.deepEqual(
   [],
   "LINEAGE_QUESTION_STRATEGIES 里有卡片表中已不存在的流派",
 );
+
+// ── 2026-10-12：卡面逐字段有出处，审核信息如实 ────────────────────────────────────────
+// 卡片曾写着「中医临床安全审核角色 / 药事安全审核角色于 2026-07-12 审核」，但从未有人以这两个角色审过；
+// 扶阳卡四个代表方全是仲景/宋代方，丹溪卡四个代表方只有大补阴丸是丹溪方。现在五张学派卡逐字段按原典与
+// 教材核对，出处存在 tcm-lineage-card-evidence.source.json；这里钉住卡面与出处记录逐字一致，改卡面必须同时改出处。
+{
+  const { readFileSync } = await import("node:fs");
+  const evidence = JSON.parse(readFileSync(new URL("../src/data/tcm-lineage-card-evidence.source.json", import.meta.url), "utf8"));
+  const catalog = JSON.parse(readFileSync(new URL("../src/data/tcm-formula-governed-catalog.json", import.meta.url), "utf8")).entries;
+  const catalogNames = new Set(catalog.flatMap((entry) => [entry.name, entry.displayName].filter(Boolean)));
+  const FIELDS = ["representativePhysicians", "representativeWorks", "lineageSummary", "coreTheory", "dxEmphasis", "formulaStyle",
+    "representativeFormulas", "herbTendency", "modificationStyle", "applicability", "cautions"];
+  const fieldValue = (card, field) => (field in card.provenance ? card.provenance[field] : card[field]);
+  const schoolCards = LINEAGE_CARDS.filter((card) => card.code !== "unrestricted");
+  assert.deepEqual(Object.keys(evidence.lineages).sort(), schoolCards.map((card) => card.code).sort(), "每张学派卡都要有出处记录");
+  for (const card of schoolCards) {
+    const record = evidence.lineages[card.code];
+    for (const field of FIELDS) {
+      const entry = record.fields[field];
+      assert.ok(entry, `${card.code}.${field} 缺出处记录`);
+      assert.deepEqual(fieldValue(card, field), entry.value, `${card.code}.${field} 卡面与出处记录不一致（改卡面必须同时改出处）`);
+      assert.ok(entry.sources.length > 0, `${card.code}.${field} 没有出处`);
+      for (const source of entry.sources) {
+        assert.ok(typeof source.quote === "string" && source.quote.length >= 4, `${card.code}.${field} 出处缺逐字引文`);
+        assert.ok(source.url || (source.localFile && Number.isInteger(source.line)), `${card.code}.${field} 出处缺 url 或 原典文件+行号`);
+      }
+    }
+    const strategy = getLineageQuestionStrategy(card.code);
+    for (const key of ["inquiryFocus", "syndromeAnchors", "contraindicationBoundaries"]) {
+      assert.deepEqual(strategy[key], record.questionStrategy[key].value, `${card.code} 问诊策略 ${key} 与出处记录不一致`);
+      assert.ok(record.questionStrategy[key].sources.length > 0, `${card.code} 问诊策略 ${key} 没有出处`);
+    }
+    // 代表方会进 M03/M04 提示词：必须是目录里真实存在的单方名，不能写「A合B」这类合方写法。
+    for (const formula of card.representativeFormulas) {
+      assert.ok(!/合/.test(formula.replace(/[合][欢]/g, "")), `${card.code} 代表方写成了合方：${formula}`);
+      assert.ok(catalogNames.has(formula), `${card.code} 代表方不在受治理目录：${formula}`);
+    }
+  }
+  // 丹溪卡曾把非丹溪方当代表方（知柏地黄丸出《医方考》/《医宗金鉴》，滋阴降火汤是同名异方，均非丹溪方）。
+  for (const wrong of ["知柏地黄丸", "滋阴降火汤", "二陈汤合越鞠丸"]) {
+    assert.ok(!getLineageCard("nourish-yin-danxi").representativeFormulas.includes(wrong), `丹溪卡代表方不得含 ${wrong}`);
+  }
+  assert.ok(getLineageCard("support-yang").representativeFormulas.includes("潜阳丹"), "扶阳卡代表方必须含郑钦安自制方");
+  for (const card of LINEAGE_CARDS) {
+    for (const reviewer of card.governance.reviewedBy) {
+      assert.ok(!["tcm-clinical-safety-review", "medication-safety-review"].includes(reviewer.id), `${card.code} 仍声称由从未存在的审核角色审核`);
+      assert.match(reviewer.displayName, /无执业医师签字/, `${card.code} 审核信息必须如实写明没有执业医师签字`);
+    }
+  }
+}
 
 console.log(JSON.stringify({ cards: LINEAGE_CARDS.length, legacyAliases: Object.values(LEGACY_ALIASES).flat().length, failures: 0 }));

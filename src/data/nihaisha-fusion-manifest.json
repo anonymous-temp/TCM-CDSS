@@ -1,6 +1,6 @@
 {
   "schemaVersion": "nihaisha-fusion-manifest-v1",
-  "generatedAt": "2026-09-30",
+  "generatedAt": "2026-10-12",
   "sources": [
     {
       "path": "参考/nihaisha-nishi-tcm-main/references/pdf-evidence/evidence-cards.jsonl",
@@ -32,8 +32,8 @@
     },
     {
       "path": "src/data/tcm-formula-governed-catalog.json",
-      "sha256": "b4bdedf6328ba1fb55a75c1efda1256231cf21df4df3893aeb7288fe78f89af3",
-      "records": 2962
+      "sha256": "923e096d394f3907ed13794590111abbb955a84cc71a43afde6201693e8ccda4",
+      "records": 3017
     }
   ],
   "evidence": {
@@ -46,7 +46,7 @@
     "shanghanUniqueClauseAnchors": 333,
     "shanghanCoverageOf398": 0.8367,
     "jinguiAnchorPolicy": "chapter_paragraph_only",
-    "runtimeFormulaCount": 588,
+    "runtimeFormulaCount": 626,
     "runtimeRetrievalPolicy": "full_record_scan_no_prebuilt_index",
     "runtimeScannableRecords": 55127
   },
@@ -118,7 +118,7 @@
       "passed": true
     },
     "formulaCompositionRules": {
-      "actual": 164,
+      "actual": 165,
       "minimum": 35,
       "passed": true
     },
@@ -155,8 +155,8 @@
       "bytes": 310434
     },
     "tcm-formula-composition-rules.json": {
-      "sha256": "eca31bcedc1d71e20c6a61cb5ba1d5a61a0f2357cb06ec9dc461d996bd928e73",
-      "bytes": 117916
+      "sha256": "f50c3b18653b439123ebfc32a93dff7f4023e67c6985df0447f41a2fa86a3dde",
+      "bytes": 119147
     },
     "tcm-textual-modification-rules.json": {
       "sha256": "bb1cb07c69fcb704a5479fbb3ce3dd6516ad0fa3fb70e8ed665eed4dfb01b31b",
@@ -167,20 +167,20 @@
       "bytes": 5866
     },
     "tcm-classic-case-eval-corpus.json": {
-      "sha256": "f4b0ac780900ffa8cdcd95746435ae52ac15387d5bdb22349022fac79406ba80",
-      "bytes": 212167
+      "sha256": "fa502fd0f8f4efea682380f0ded5dfa21f2dd3136a5df940b936209acbbf85db",
+      "bytes": 212236
     },
     "tcm-classic-text-evidence.jsonl": {
-      "sha256": "aa7cfcfaac63bfffa42ac8d5b1cd94cbf28be0346e7007eff749b891910fb6d9",
-      "bytes": 44405613
+      "sha256": "48c9139ba1e538103683a585a37fd35171d9aabbf48d1ab2479425ea9bdc66c7",
+      "bytes": 44414496
     },
     "tcm-classic-text-evidence-quarantine.jsonl": {
-      "sha256": "2e0022103331b6a8c82f9937461db1f41f255dae5304e0f218798da8bb37a386",
-      "bytes": 409353
+      "sha256": "c7ab1ad86091ae0b47db8a00146dea907bf5fbb8be8270c853668a15dcb3ed5b",
+      "bytes": 409391
     },
     "tcm-classic-formula-evidence.json": {
-      "sha256": "698d5709863c1349098e15f839f95ecf6efeb5af489cab7861b73e86d575a754",
-      "bytes": 1060630
+      "sha256": "a115fe3718f3dd4a6e989343e32017bc5cda298f9223243a3c12416804d6cc82",
+      "bytes": 1149858
     }
   }
 }

@@ -1,7 +1,7 @@
 {
  "schemaVersion": "tcm-formula-core-herbs-v1",
  "generatedFrom": "src/data/tcm-formula-governed-catalog.json",
- "formulaCount": 2884,
+ "formulaCount": 2939,
  "formulas": {
   "《千金》内补散": {
    "core": [],
@@ -142,6 +142,15 @@
    ],
    "reasons": {
     "雄黄": "safety_defining"
+   }
+  },
+  "一物瓜蒂汤": {
+   "core": [
+    "瓜蒂"
+   ],
+   "optional": [],
+   "reasons": {
+    "瓜蒂": "name_bearing"
    }
   },
   "一笑丸": {
@@ -1367,6 +1376,18 @@
     "通草"
    ],
    "reasons": {}
+  },
+  "下瘀血汤": {
+   "core": [
+    "大黄"
+   ],
+   "optional": [
+    "土鳖虫䗪虫",
+    "桃仁"
+   ],
+   "reasons": {
+    "大黄": "safety_defining"
+   }
   },
   "不换金正气散": {
    "core": [
@@ -7263,17 +7284,16 @@
   },
   "升阳除湿防风汤": {
    "core": [
-    "苍术",
     "防风"
    ],
    "optional": [
     "白术",
     "芍药",
+    "苍术",
     "茯苓"
    ],
    "reasons": {
-    "防风": "name_bearing",
-    "苍术": "collapses_into:桂枝汤去桂加茯苓白术汤"
+    "防风": "name_bearing"
    }
   },
   "升降散": {
@@ -7472,6 +7492,17 @@
     "细辛": "safety_defining"
    }
   },
+  "半夏干姜散": {
+   "core": [
+    "半夏",
+    "干姜"
+   ],
+   "optional": [],
+   "reasons": {
+    "半夏": "name_bearing",
+    "干姜": "name_bearing"
+   }
+  },
   "半夏散及汤": {
    "core": [
     "半夏"
@@ -7573,6 +7604,17 @@
    "reasons": {
     "半夏": "name_bearing",
     "细辛": "safety_defining"
+   }
+  },
+  "半夏麻黄丸": {
+   "core": [
+    "半夏",
+    "麻黄"
+   ],
+   "optional": [],
+   "reasons": {
+    "半夏": "name_bearing",
+    "麻黄": "name_bearing"
    }
   },
   "半桃丸": {
@@ -7708,6 +7750,19 @@
    "reasons": {
     "厚朴": "name_bearing",
     "大黄": "safety_defining"
+   }
+  },
+  "厚朴大黄汤": {
+   "core": [
+    "厚朴",
+    "大黄"
+   ],
+   "optional": [
+    "枳实"
+   ],
+   "reasons": {
+    "厚朴": "name_bearing",
+    "大黄": "name_bearing"
    }
   },
   "厚朴温中汤": {
@@ -8991,6 +9046,23 @@
    ],
    "reasons": {}
   },
+  "四时加减柴胡饮子": {
+   "core": [
+    "柴胡"
+   ],
+   "optional": [
+    "枳实",
+    "桔梗",
+    "槟榔",
+    "甘草",
+    "生姜",
+    "白术",
+    "陈皮"
+   ],
+   "reasons": {
+    "柴胡": "name_bearing"
+   }
+  },
   "四柴胡饮": {
    "core": [
     "人参",
@@ -9257,6 +9329,20 @@
     "黄芪"
    ],
    "reasons": {}
+  },
+  "四逆加人参汤": {
+   "core": [
+    "人参",
+    "附子"
+   ],
+   "optional": [
+    "干姜",
+    "甘草"
+   ],
+   "reasons": {
+    "附子": "safety_defining",
+    "人参": "name_bearing"
+   }
   },
   "四逆散": {
    "core": [],
@@ -9612,6 +9698,19 @@
    ],
    "reasons": {
     "麻黄": "safety_defining"
+   }
+  },
+  "土瓜根散": {
+   "core": [
+    "土瓜根"
+   ],
+   "optional": [
+    "土鳖虫䗪虫",
+    "桂枝",
+    "芍药"
+   ],
+   "reasons": {
+    "土瓜根": "name_bearing"
    }
   },
   "土茯苓汤": {
@@ -10071,6 +10170,24 @@
     "朱砂": "safety_defining"
    }
   },
+  "壮原汤": {
+   "core": [
+    "附子"
+   ],
+   "optional": [
+    "人参",
+    "干姜",
+    "白术",
+    "砂仁",
+    "肉桂",
+    "茯苓",
+    "补骨脂",
+    "陈皮"
+   ],
+   "reasons": {
+    "附子": "safety_defining"
+   }
+  },
   "壮筋养血汤": {
    "core": [],
    "optional": [
@@ -10358,6 +10475,15 @@
     "肉桂",
     "芍药"
    ],
+   "reasons": {
+    "乌头": "name_bearing"
+   }
+  },
+  "大乌头煎": {
+   "core": [
+    "乌头"
+   ],
+   "optional": [],
    "reasons": {
     "乌头": "name_bearing"
    }
@@ -11319,6 +11445,17 @@
     "大黄": "name_bearing"
    }
   },
+  "大黄甘草汤": {
+   "core": [
+    "大黄",
+    "甘草"
+   ],
+   "optional": [],
+   "reasons": {
+    "大黄": "name_bearing",
+    "甘草": "name_bearing"
+   }
+  },
   "大黄甘草饮子": {
    "core": [
     "大黄",
@@ -11343,6 +11480,20 @@
    "reasons": {
     "大黄": "name_bearing",
     "甘遂": "name_bearing"
+   }
+  },
+  "大黄硝石汤": {
+   "core": [
+    "大黄",
+    "硝石"
+   ],
+   "optional": [
+    "栀子",
+    "黄柏"
+   ],
+   "reasons": {
+    "大黄": "name_bearing",
+    "硝石": "name_bearing"
    }
   },
   "大黄茯苓丸": {
@@ -11600,6 +11751,19 @@
    ],
    "reasons": {
     "大黄": "safety_defining"
+   }
+  },
+  "天雄散": {
+   "core": [
+    "天雄"
+   ],
+   "optional": [
+    "桂枝",
+    "白术",
+    "龙骨"
+   ],
+   "reasons": {
+    "天雄": "name_bearing"
    }
   },
   "天麻二陈汤": {
@@ -11874,6 +12038,7 @@
     "当归",
     "甘李根皮",
     "甘草",
+    "生姜",
     "白芍",
     "葛根",
     "黄芩"
@@ -12054,6 +12219,14 @@
     "朱砂": "safety_defining"
    }
   },
+  "姜桂汤〔《医理真传》·扶上阳方〕": {
+   "core": [],
+   "optional": [
+    "桂枝",
+    "生姜"
+   ],
+   "reasons": {}
+  },
   "姜粉散": {
    "core": [],
    "optional": [
@@ -12082,6 +12255,20 @@
    "reasons": {
     "附子": "safety_defining",
     "猪胆粉": "collapses_into:白通汤"
+   }
+  },
+  "姜附茯半汤": {
+   "core": [
+    "半夏",
+    "附子"
+   ],
+   "optional": [
+    "生姜",
+    "茯苓"
+   ],
+   "reasons": {
+    "附子": "safety_defining",
+    "半夏": "safety_defining"
    }
   },
   "威喜丸": {
@@ -16435,6 +16622,31 @@
     "半夏": "safety_defining"
    }
   },
+  "文蛤散": {
+   "core": [],
+   "optional": [
+    "蛤壳"
+   ],
+   "reasons": {}
+  },
+  "文蛤汤": {
+   "core": [
+    "苦杏仁",
+    "蛤壳",
+    "麻黄"
+   ],
+   "optional": [
+    "大枣",
+    "甘草",
+    "生姜",
+    "石膏"
+   ],
+   "reasons": {
+    "麻黄": "safety_defining",
+    "蛤壳": "collapses_into:越婢汤",
+    "苦杏仁": "collapses_into:越婢汤"
+   }
+  },
   "斑龙丸": {
    "core": [],
    "optional": [
@@ -16527,18 +16739,18 @@
   },
   "旋复代赭汤": {
    "core": [
-    "旋覆花",
-    "赭石"
+    "半夏"
    ],
    "optional": [
     "人参",
     "大枣",
+    "旋覆花",
     "甘草",
-    "生姜"
+    "生姜",
+    "赭石"
    ],
    "reasons": {
-    "旋覆花": "collapses_into:生姜甘草汤",
-    "赭石": "collapses_into:生姜甘草汤"
+    "半夏": "safety_defining"
    }
   },
   "旋复代赭石汤": {
@@ -17013,6 +17225,35 @@
    ],
    "reasons": {}
   },
+  "木防己去石膏加茯苓芒硝汤": {
+   "core": [
+    "芒硝",
+    "茯苓",
+    "防己"
+   ],
+   "optional": [
+    "人参",
+    "桂枝"
+   ],
+   "reasons": {
+    "防己": "name_bearing",
+    "芒硝": "name_bearing",
+    "茯苓": "name_bearing"
+   }
+  },
+  "木防己汤": {
+   "core": [
+    "防己"
+   ],
+   "optional": [
+    "人参",
+    "桂枝",
+    "石膏"
+   ],
+   "reasons": {
+    "防己": "name_bearing"
+   }
+  },
   "木香丸": {
    "core": [
     "木香"
@@ -17377,21 +17618,23 @@
    "core": [
     "半夏",
     "大黄",
-    "细辛"
+    "细辛",
+    "肉桂",
+    "芍药"
    ],
    "optional": [
     "五味子",
     "干姜",
     "甘草",
-    "肉桂",
-    "芍药",
     "苦杏仁",
     "茯苓"
    ],
    "reasons": {
     "半夏": "safety_defining",
     "细辛": "safety_defining",
-    "大黄": "safety_defining"
+    "大黄": "safety_defining",
+    "芍药": "collapses_into:苓甘五味加姜辛半杏大黄汤",
+    "肉桂": "collapses_into:苓甘五味加姜辛半杏大黄汤"
    }
   },
   "杏苏散": {
@@ -18614,6 +18857,32 @@
     "芍药": "collapses_into:桂枝去芍药汤"
    }
   },
+  "栝蒌牡蛎散": {
+   "core": [
+    "牡蛎"
+   ],
+   "optional": [
+    "天花粉"
+   ],
+   "reasons": {
+    "牡蛎": "name_bearing"
+   }
+  },
+  "栝蒌瞿麦丸": {
+   "core": [
+    "瞿麦",
+    "附子"
+   ],
+   "optional": [
+    "天花粉",
+    "山药",
+    "茯苓"
+   ],
+   "reasons": {
+    "附子": "safety_defining",
+    "瞿麦": "name_bearing"
+   }
+  },
   "栝蒌薤白白酒汤": {
    "core": [
     "白酒",
@@ -18653,6 +18922,25 @@
    ],
    "reasons": {}
   },
+  "桂枝二越婢一汤": {
+   "core": [
+    "桂枝",
+    "石膏",
+    "芍药",
+    "麻黄"
+   ],
+   "optional": [
+    "大枣",
+    "甘草",
+    "生姜"
+   ],
+   "reasons": {
+    "桂枝": "name_bearing",
+    "麻黄": "safety_defining",
+    "芍药": "collapses_into:越婢汤",
+    "石膏": "collapses_into:桂枝二越脾一汤"
+   }
+  },
   "桂枝二越脾一汤": {
    "core": [
     "桂枝",
@@ -18673,12 +18961,19 @@
   "桂枝二麻黄一汤": {
    "core": [
     "桂枝",
+    "苦杏仁",
     "麻黄"
    ],
-   "optional": [],
+   "optional": [
+    "大枣",
+    "甘草",
+    "生姜",
+    "芍药"
+   ],
    "reasons": {
     "桂枝": "name_bearing",
-    "麻黄": "name_bearing"
+    "麻黄": "name_bearing",
+    "苦杏仁": "collapses_into:桂枝二越脾一汤"
    }
   },
   "桂枝人参汤": {
@@ -18843,15 +19138,16 @@
   },
   "桂枝加黄五两汤": {
    "core": [
-    "桂枝"
+    "桂枝",
+    "甘草"
    ],
    "optional": [
-    "甘草",
     "芍药",
     "黄芪"
    ],
    "reasons": {
-    "桂枝": "name_bearing"
+    "桂枝": "name_bearing",
+    "甘草": "collapses_into:黄芪芍桂苦酒汤"
    }
   },
   "桂枝加黄汤": {
@@ -18871,6 +19167,43 @@
     "甘草": "collapses_into:黄芪桂枝五物汤",
     "黄芪": "collapses_into:桂枝加芍药汤",
     "大枣": "collapses_into:桂枝加黄五两汤"
+   }
+  },
+  "桂枝加黄芪汤": {
+   "core": [
+    "大枣",
+    "桂枝",
+    "甘草",
+    "生姜",
+    "芍药",
+    "黄芪"
+   ],
+   "optional": [],
+   "reasons": {
+    "桂枝": "name_bearing",
+    "黄芪": "name_bearing",
+    "芍药": "collapses_into:桂枝去芍药汤",
+    "甘草": "collapses_into:黄芪桂枝五物汤",
+    "生姜": "collapses_into:桂枝加黄五两汤",
+    "大枣": "collapses_into:桂枝加黄五两汤"
+   }
+  },
+  "桂枝加龙骨牡蛎汤": {
+   "core": [
+    "桂枝",
+    "牡蛎",
+    "龙骨"
+   ],
+   "optional": [
+    "大枣",
+    "甘草",
+    "生姜",
+    "芍药"
+   ],
+   "reasons": {
+    "桂枝": "name_bearing",
+    "龙骨": "name_bearing",
+    "牡蛎": "name_bearing"
    }
   },
   "桂枝去桂加茯苓白术汤": {
@@ -18922,6 +19255,25 @@
     "附子": "name_bearing"
    }
   },
+  "桂枝去芍药加麻黄细辛附子汤": {
+   "core": [
+    "桂枝",
+    "细辛",
+    "附子",
+    "麻黄"
+   ],
+   "optional": [
+    "大枣",
+    "甘草",
+    "生姜"
+   ],
+   "reasons": {
+    "桂枝": "name_bearing",
+    "麻黄": "name_bearing",
+    "细辛": "name_bearing",
+    "附子": "name_bearing"
+   }
+  },
   "桂枝去芍药汤": {
    "core": [
     "桂枝"
@@ -18967,11 +19319,14 @@
     "茯苓"
    ],
    "optional": [
+    "大枣",
+    "甘草",
+    "生姜",
     "芍药"
    ],
    "reasons": {
-    "白术": "name_bearing",
-    "茯苓": "name_bearing"
+    "茯苓": "name_bearing",
+    "白术": "name_bearing"
    }
   },
   "桂枝甘草汤": {
@@ -18998,6 +19353,19 @@
     "甘草": "name_bearing",
     "龙骨": "name_bearing",
     "牡蛎": "name_bearing"
+   }
+  },
+  "桂枝生姜枳实汤": {
+   "core": [
+    "枳实",
+    "桂枝",
+    "生姜"
+   ],
+   "optional": [],
+   "reasons": {
+    "桂枝": "name_bearing",
+    "生姜": "name_bearing",
+    "枳实": "name_bearing"
    }
   },
   "桂枝白虎汤": {
@@ -19133,6 +19501,37 @@
     "肉桂": "collapses_into:甘姜苓术汤",
     "乌梅": "collapses_into:茯苓白术汤",
     "干姜": "collapses_into:茯苓汤"
+   }
+  },
+  "桂苓五味甘草去桂加干姜细辛半夏汤": {
+   "core": [
+    "半夏",
+    "干姜",
+    "甘草",
+    "细辛"
+   ],
+   "optional": [
+    "五味子",
+    "茯苓"
+   ],
+   "reasons": {
+    "甘草": "name_bearing",
+    "细辛": "name_bearing",
+    "干姜": "name_bearing",
+    "半夏": "name_bearing"
+   }
+  },
+  "桂苓五味甘草汤": {
+   "core": [
+    "甘草"
+   ],
+   "optional": [
+    "五味子",
+    "桂枝",
+    "茯苓"
+   ],
+   "reasons": {
+    "甘草": "name_bearing"
    }
   },
   "桂苓甘术汤": {
@@ -19657,6 +20056,15 @@
     "苍术",
     "黄丹",
     "黄柏"
+   ],
+   "reasons": {}
+  },
+  "橘枳姜汤": {
+   "core": [],
+   "optional": [
+    "枳实",
+    "生姜",
+    "陈皮"
    ],
    "reasons": {}
   },
@@ -24400,6 +24808,19 @@
    ],
    "reasons": {}
   },
+  "滑石白鱼散": {
+   "core": [
+    "滑石",
+    "白鱼"
+   ],
+   "optional": [
+    "血余炭"
+   ],
+   "reasons": {
+    "滑石": "name_bearing",
+    "白鱼": "name_bearing"
+   }
+  },
   "滑石石膏散": {
    "core": [
     "滑石",
@@ -24469,6 +24890,19 @@
     "漏芦": "name_bearing",
     "麻黄": "safety_defining",
     "大黄": "safety_defining"
+   }
+  },
+  "潜阳丹": {
+   "core": [
+    "附子"
+   ],
+   "optional": [
+    "甘草",
+    "砂仁",
+    "龟甲"
+   ],
+   "reasons": {
+    "附子": "safety_defining"
    }
   },
   "潜阳和阴汤": {
@@ -25008,6 +25442,23 @@
    ],
    "reasons": {
     "牡蛎": "name_bearing"
+   }
+  },
+  "牡蛎泽泻散": {
+   "core": [
+    "泽泻",
+    "牡蛎"
+   ],
+   "optional": [
+    "商陆根",
+    "天花粉",
+    "常山",
+    "海藻",
+    "葶苈子"
+   ],
+   "reasons": {
+    "牡蛎": "name_bearing",
+    "泽泻": "name_bearing"
    }
   },
   "牵正散": {
@@ -25652,6 +26103,24 @@
    ],
    "reasons": {}
   },
+  "王不留行散": {
+   "core": [
+    "王不留行"
+   ],
+   "optional": [
+    "厚朴",
+    "干姜",
+    "桑东南根白皮",
+    "甘草",
+    "芍药",
+    "花椒",
+    "蒴藋细叶",
+    "黄芩"
+   ],
+   "reasons": {
+    "王不留行": "name_bearing"
+   }
+  },
   "王荆公妙香散": {
    "core": [],
    "optional": [
@@ -26082,6 +26551,15 @@
     "黑豆": "name_bearing"
    }
   },
+  "甘草汤": {
+   "core": [
+    "甘草"
+   ],
+   "optional": [],
+   "reasons": {
+    "甘草": "name_bearing"
+   }
+  },
   "甘草泻心汤": {
    "core": [
     "半夏",
@@ -26111,6 +26589,17 @@
     "甘草": "name_bearing",
     "附子": "name_bearing",
     "桂枝": "collapses_into:白术附子汤"
+   }
+  },
+  "甘草麻黄汤": {
+   "core": [
+    "甘草",
+    "麻黄"
+   ],
+   "optional": [],
+   "reasons": {
+    "甘草": "name_bearing",
+    "麻黄": "name_bearing"
    }
   },
   "甘草黑豆汤": {
@@ -26255,20 +26744,34 @@
     "地黄": "name_bearing"
    }
   },
+  "生姜半夏汤": {
+   "core": [
+    "半夏"
+   ],
+   "optional": [
+    "生姜汁"
+   ],
+   "reasons": {
+    "半夏": "name_bearing"
+   }
+  },
   "生姜泻心汤": {
    "core": [
+    "人参",
     "半夏",
     "生姜"
    ],
    "optional": [
-    "人参",
+    "大枣",
+    "干姜",
     "甘草",
     "黄芩",
     "黄连"
    ],
    "reasons": {
     "生姜": "name_bearing",
-    "半夏": "safety_defining"
+    "半夏": "safety_defining",
+    "人参": "collapses_into:甘草泻心汤"
    }
   },
   "生姜甘草汤": {
@@ -27020,6 +27523,23 @@
     "附子": "safety_defining"
    }
   },
+  "白头翁加甘草阿胶汤": {
+   "core": [
+    "甘草",
+    "白头翁",
+    "阿胶"
+   ],
+   "optional": [
+    "秦皮",
+    "黄柏",
+    "黄连"
+   ],
+   "reasons": {
+    "白头翁": "name_bearing",
+    "甘草": "name_bearing",
+    "阿胶": "name_bearing"
+   }
+  },
   "白头翁汤": {
    "core": [
     "白头翁"
@@ -27565,6 +28085,17 @@
     "地黄": "name_bearing"
    }
   },
+  "百合滑石散": {
+   "core": [
+    "滑石",
+    "百合"
+   ],
+   "optional": [],
+   "reasons": {
+    "百合": "name_bearing",
+    "滑石": "name_bearing"
+   }
+  },
   "百合知母汤": {
    "core": [
     "百合",
@@ -27574,6 +28105,17 @@
    "reasons": {
     "百合": "name_bearing",
     "知母": "name_bearing"
+   }
+  },
+  "百合鸡子汤": {
+   "core": [
+    "百合"
+   ],
+   "optional": [
+    "鸡子黄"
+   ],
+   "reasons": {
+    "百合": "name_bearing"
    }
   },
   "百子附归丸": {
@@ -27645,6 +28187,15 @@
     "蟾酥"
    ],
    "reasons": {}
+  },
+  "皂荚丸": {
+   "core": [
+    "皂荚"
+   ],
+   "optional": [],
+   "reasons": {
+    "皂荚": "name_bearing"
+   }
   },
   "皱肺丸": {
    "core": [],
@@ -28109,17 +28660,16 @@
   },
   "真武汤": {
    "core": [
-    "生姜",
     "附子"
    ],
    "optional": [
+    "生姜",
     "白术",
     "芍药",
     "茯苓"
    ],
    "reasons": {
-    "附子": "safety_defining",
-    "生姜": "collapses_into:桂枝汤去桂加茯苓白术汤"
+    "附子": "safety_defining"
    }
   },
   "眼珠灌脓方": {
@@ -29694,6 +30244,17 @@
     "竹沥": "name_bearing"
    }
   },
+  "竹皮大丸": {
+   "core": [],
+   "optional": [
+    "桂枝",
+    "甘草",
+    "白薇",
+    "石膏",
+    "竹茹"
+   ],
+   "reasons": {}
+  },
   "竹茹汤": {
    "core": [
     "半夏"
@@ -29882,6 +30443,14 @@
     "蟅虫",
     "贯众",
     "雷丸"
+   ],
+   "reasons": {}
+  },
+  "紫参汤": {
+   "core": [],
+   "optional": [
+    "拳参",
+    "甘草"
    ],
    "reasons": {}
   },
@@ -30139,6 +30708,13 @@
    "reasons": {
     "天南星": "safety_defining"
    }
+  },
+  "红蓝花酒": {
+   "core": [],
+   "optional": [
+    "红花"
+   ],
+   "reasons": {}
   },
   "约营煎": {
    "core": [],
@@ -32135,6 +32711,44 @@
    ],
    "reasons": {}
   },
+  "苓甘五味加姜辛半夏杏仁汤": {
+   "core": [
+    "半夏",
+    "细辛",
+    "苦杏仁"
+   ],
+   "optional": [
+    "五味子",
+    "干姜",
+    "甘草",
+    "茯苓"
+   ],
+   "reasons": {
+    "细辛": "safety_defining",
+    "半夏": "name_bearing",
+    "苦杏仁": "collapses_into:桂苓五味甘草去桂加干姜细辛半夏汤"
+   }
+  },
+  "苓甘五味加姜辛半杏大黄汤": {
+   "core": [
+    "半夏",
+    "大黄",
+    "细辛",
+    "苦杏仁"
+   ],
+   "optional": [
+    "五味子",
+    "干姜",
+    "甘草",
+    "茯苓"
+   ],
+   "reasons": {
+    "细辛": "safety_defining",
+    "半夏": "safety_defining",
+    "大黄": "name_bearing",
+    "苦杏仁": "collapses_into:桂苓五味甘草去桂加干姜细辛半夏汤"
+   }
+  },
   "苓甘五味姜辛汤": {
    "core": [
     "细辛"
@@ -32369,6 +32983,31 @@
     "茯苓": "name_bearing",
     "附子": "safety_defining",
     "人参": "collapses_into:四逆汤"
+   }
+  },
+  "茯苓戎盐汤": {
+   "core": [
+    "茯苓"
+   ],
+   "optional": [
+    "大青盐",
+    "白术"
+   ],
+   "reasons": {
+    "茯苓": "name_bearing"
+   }
+  },
+  "茯苓杏仁甘草汤": {
+   "core": [
+    "甘草",
+    "茯苓"
+   ],
+   "optional": [
+    "苦杏仁"
+   ],
+   "reasons": {
+    "茯苓": "name_bearing",
+    "甘草": "name_bearing"
    }
   },
   "茯苓桂枝甘草大枣汤": {
@@ -33158,8 +33797,10 @@
     "麻黄"
    ],
    "optional": [
+    "大枣",
     "桂枝",
     "甘草",
+    "生姜",
     "芍药"
    ],
    "reasons": {
@@ -33421,6 +34062,17 @@
    ],
    "reasons": {}
   },
+  "葵子茯苓散": {
+   "core": [
+    "茯苓"
+   ],
+   "optional": [
+    "冬葵子"
+   ],
+   "reasons": {
+    "茯苓": "name_bearing"
+   }
+  },
   "葶苈大丸": {
    "core": [],
    "optional": [
@@ -33457,6 +34109,17 @@
    ],
    "reasons": {
     "蒲公英": "name_bearing"
+   }
+  },
+  "蒲灰散": {
+   "core": [
+    "蒲灰"
+   ],
+   "optional": [
+    "滑石"
+   ],
+   "reasons": {
+    "蒲灰": "name_bearing"
    }
   },
   "蒲黄散": {
@@ -33575,6 +34238,17 @@
     "附子": "name_bearing"
    }
   },
+  "薏苡附子散": {
+   "core": [
+    "附子"
+   ],
+   "optional": [
+    "薏苡仁"
+   ],
+   "reasons": {
+    "附子": "name_bearing"
+   }
+  },
   "薏苡附子败酱散": {
    "core": [
     "附子"
@@ -33586,6 +34260,33 @@
    "reasons": {
     "附子": "name_bearing"
    }
+  },
+  "薯蓣丸": {
+   "core": [],
+   "optional": [
+    "人参",
+    "六神曲",
+    "地黄",
+    "大枣",
+    "大豆黄卷",
+    "山药",
+    "川芎",
+    "干姜",
+    "当归",
+    "柴胡",
+    "桂枝",
+    "桔梗",
+    "甘草",
+    "白术",
+    "白蔹",
+    "芍药",
+    "苦杏仁",
+    "茯苓",
+    "防风",
+    "阿胶",
+    "麦冬"
+   ],
+   "reasons": {}
   },
   "薯蓣汤": {
    "core": [
@@ -34290,6 +34991,20 @@
     "补骨脂"
    ],
    "reasons": {}
+  },
+  "补坎益离丹": {
+   "core": [
+    "附子"
+   ],
+   "optional": [
+    "甘草",
+    "生姜",
+    "肉桂",
+    "蛤壳"
+   ],
+   "reasons": {
+    "附子": "safety_defining"
+   }
   },
   "补天丸": {
    "core": [],
@@ -39512,6 +40227,27 @@
     "天南星": "safety_defining"
    }
   },
+  "风引汤": {
+   "core": [
+    "大黄"
+   ],
+   "optional": [
+    "寒水石",
+    "干姜",
+    "桂枝",
+    "滑石",
+    "牡蛎",
+    "甘草",
+    "白石脂",
+    "石膏",
+    "紫石英",
+    "赤石脂",
+    "龙骨"
+   ],
+   "reasons": {
+    "大黄": "safety_defining"
+   }
+  },
   "风火眼点药方": {
    "core": [],
    "optional": [
@@ -40813,6 +41549,19 @@
     "赤小豆": "name_bearing"
    }
   },
+  "麻黄附子汤": {
+   "core": [
+    "附子",
+    "麻黄"
+   ],
+   "optional": [
+    "甘草"
+   ],
+   "reasons": {
+    "麻黄": "name_bearing",
+    "附子": "name_bearing"
+   }
+  },
   "麻黄附子甘草汤": {
    "core": [
     "甘草",
@@ -41043,17 +41792,19 @@
   },
   "黄芪桂枝五物汤": {
    "core": [
+    "大枣",
     "桂枝",
+    "生姜",
     "黄芪"
    ],
    "optional": [
-    "大枣",
-    "生姜",
     "芍药"
    ],
    "reasons": {
     "黄芪": "name_bearing",
-    "桂枝": "name_bearing"
+    "桂枝": "name_bearing",
+    "生姜": "collapses_into:黄芪芍桂苦酒汤",
+    "大枣": "collapses_into:黄芪芍桂苦酒汤"
    }
   },
   "黄芪汤": {
@@ -41062,6 +41813,18 @@
    ],
    "optional": [
     "陈皮"
+   ],
+   "reasons": {
+    "黄芪": "name_bearing"
+   }
+  },
+  "黄芪芍桂苦酒汤": {
+   "core": [
+    "黄芪"
+   ],
+   "optional": [
+    "桂枝",
+    "芍药"
    ],
    "reasons": {
     "黄芪": "name_bearing"

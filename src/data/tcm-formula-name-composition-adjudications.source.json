@@ -178,7 +178,7 @@
   },
   {
    "formulaName": "白通汤",
-   "source": "《医方考》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "葱白",
     "干姜",
@@ -208,7 +208,7 @@
   },
   {
    "formulaName": "半夏散及汤",
-   "source": "《绛雪园古方选注》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "半夏",
     "桂枝",
@@ -275,7 +275,7 @@
   },
   {
    "formulaName": "备急丸",
-   "source": "《医方考》",
+   "source": "《金匮要略》",
    "recordedIngredients": [
     "大黄",
     "巴豆",
@@ -929,7 +929,7 @@
   },
   {
    "formulaName": "抵当丸",
-   "source": "《医方考》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "水蛭",
     "虻虫",
@@ -1094,7 +1094,7 @@
   },
   {
    "formulaName": "封髓丹",
-   "source": "《古今名医方论》",
+   "source": "《御药院方》",
    "recordedIngredients": [
     "黄柏",
     "砂仁",
@@ -1163,7 +1163,7 @@
   },
   {
    "formulaName": "茯苓桂枝甘草大枣汤",
-   "source": "《医方考》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "茯苓",
     "桂枝",
@@ -1178,7 +1178,7 @@
   },
   {
    "formulaName": "茯苓四逆汤",
-   "source": "《绛雪园古方选注》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "茯苓",
     "干姜",
@@ -1418,7 +1418,7 @@
   },
   {
    "formulaName": "干姜黄连黄芩人参汤",
-   "source": "《医方考》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "干姜",
     "黄连",
@@ -1542,7 +1542,7 @@
   },
   {
    "formulaName": "桂枝加桂汤",
-   "source": "《绛雪园古方选注》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "桂枝",
     "白芍",
@@ -1580,7 +1580,7 @@
   },
   {
    "formulaName": "桂枝加芍药生姜人参新加汤",
-   "source": "《绛雪园古方选注》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "桂枝",
     "芍药",
@@ -1597,7 +1597,7 @@
   },
   {
    "formulaName": "桂枝加芍药汤",
-   "source": "《医方考》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "桂枝",
     "芍药",
@@ -1628,7 +1628,7 @@
   },
   {
    "formulaName": "桂枝去桂加茯苓白术汤",
-   "source": "《绛雪园古方选注》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "芍药",
     "甘草",
@@ -1645,7 +1645,7 @@
   },
   {
    "formulaName": "桂枝去芍药汤",
-   "source": "《绛雪园古方选注》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "桂枝",
     "甘草",
@@ -1692,7 +1692,7 @@
   },
   {
    "formulaName": "桂枝汤去桂加茯苓白术汤",
-   "source": "《古今名医方论》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "芍药",
     "白术",
@@ -1849,7 +1849,7 @@
   },
   {
    "formulaName": "黄芩加半夏生姜汤",
-   "source": "《绛雪园古方选注》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "黄芩",
     "芍药",
@@ -2382,7 +2382,7 @@
   },
   {
    "formulaName": "理阴煎",
-   "source": "《成方切用》",
+   "source": "《景岳全书》",
    "recordedIngredients": [
     "熟地黄",
     "当归",
@@ -2613,7 +2613,7 @@
   },
   {
    "formulaName": "麻黄附子细辛汤",
-   "source": "《医方集解》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "麻黄",
     "细辛",
@@ -2671,7 +2671,7 @@
   },
   {
    "formulaName": "麻黄杏子甘草石膏汤",
-   "source": "《医方考》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "麻黄",
     "杏仁",
@@ -2750,7 +2750,7 @@
   },
   {
    "formulaName": "浓朴生姜半夏甘草人参汤",
-   "source": "《绛雪园古方选注》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "厚朴",
     "生姜",
@@ -2815,7 +2815,7 @@
   },
   {
    "formulaName": "排脓散",
-   "source": "《绛雪园古方选注》",
+   "source": "《金匮要略》",
    "recordedIngredients": [
     "枳实",
     "芍药",
@@ -2829,7 +2829,7 @@
   },
   {
    "formulaName": "排脓汤",
-   "source": "《绛雪园古方选注》",
+   "source": "《金匮要略》",
    "recordedIngredients": [
     "甘草",
     "桔梗",
@@ -3252,7 +3252,7 @@
   },
   {
    "formulaName": "三黄泻心汤",
-   "source": "《医方考》",
+   "source": "《金匮要略》",
    "recordedIngredients": [
     "黄芩",
     "黄连",
@@ -3392,7 +3392,7 @@
   },
   {
    "formulaName": "芍药甘草附子汤",
-   "source": "《古今名医方论》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "芍药",
     "甘草",
@@ -3607,7 +3607,7 @@
   },
   {
    "formulaName": "生姜泻心汤",
-   "source": "《医方考》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "生姜",
     "甘草",
@@ -3935,7 +3935,7 @@
   },
   {
    "formulaName": "通脉四逆汤",
-   "source": "《古今名医方论》",
+   "source": "《伤寒论》",
    "recordedIngredients": [
     "干姜",
     "甘草",
@@ -4136,7 +4136,7 @@
   },
   {
    "formulaName": "五福饮",
-   "source": "《成方切用》",
+   "source": "《景岳全书》",
    "recordedIngredients": [
     "人参",
     "熟地黄",

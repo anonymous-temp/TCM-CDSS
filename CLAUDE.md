@@ -208,6 +208,23 @@ The 48k-line JSON is a **generated build artifact** — do not hand-edit it. `sc
 
 **Dose layers (2026-09-28).** `getTcmHerbDoseLimit` order: 药典 dose entry → 药典 decoction route entry → `tcm-herb-nonpharmacopoeia-dose.source.json` (`sourceType: "reference"`, 17 non-ChP herbs, ≥2 web-verified sources each, 煎服 only, ChP always wins). The upstream 「高置信中药饮片剂量校准层」 rows (hand-typed `_CURATED_LIMITS`, no per-row sources; powder doses written as decoction doses) are **stripped at load in `tcm-knowledge.ts`** — the generator cannot be rerun because its `tcm_curated_llm_candidates_20260626.json` input is gone. Clinician-dose herbs are still exempt from contract repairs, but `compileHerbVerification` now compares them with the reference range: inside → "参考区间内（来源）", outside → annotated. Before, any dose showed 「已按标准区间完成规则校验」 (败酱草 45g). Identity: the index is NFKC-keyed like the input, so the 8 ChP names with full-width brackets (延胡索（元胡）, 土鳖虫（䗪虫）…) resolve to themselves; 败酱 → 败酱草 (was 小蓟).
 
+### Lineage (流派) — `tcm-lineages.ts`, `tcm-formula-lineage-affinity.ts` (2026-10-12)
+
+Six cards (`unrestricted` + five schools). A lineage reaches the output through four channels:
+- card text in the M03/M04 prompts — weak; the 9/27 measurement showed passive prompt knowledge is barely used;
+- three M02 strategy lists (`inquiryFocus` / `syndromeAnchors` / `contraindicationBoundaries`). The strategy `templates` have **no runtime consumer**;
+- the model-written `lineageAdaptation`;
+- a capped **+2 display-order bonus** inside one positive-sufficiency × dose-compilable stratum. This never takes part in admission, locking or dose.
+
+**What changed on 10/12, and the ratchets that hold it:**
+- **Cards.** The school cards were rewritten field by field from local originals (`中医补充数据/TCM-Ancient-Books-master`, byte-identical to github.com/xiaopangxia/TCM-Ancient-Books) and web textbooks. Before, the 扶阳 card's four representative formulas were all 仲景/宋 formulas, and only one of 丹溪's four was a 丹溪 formula. `src/data/tcm-lineage-card-evidence.source.json` holds every field's value and sources. `test:lineage-governance` pins card text == evidence value, representative formulas in the catalog and never a 「A合B」 form, and reviewer metadata saying 「无执业医师签字」. The old fictitious 2026-07-12 reviewer roles are gone.
+- **Two attribution paths.**
+  - The **source-book rule** (`bookRules` × `formulaAdjudications`) can give a formula only one lineage, so 扶阳 had **0** rankable formulas.
+  - **`schoolUsage`** rows bind a catalog (name, source) pair to a lineage, with a quote from that school's original text. A formula can therefore belong to several lineages; 四逆汤 is both 经方 and 扶阳.
+  - `test:lineage-affinity` has a coverage floor per lineage: 经方 120 / 温病 37 / 丹溪 8 / 温补 29 / 扶阳 5 common-tier formulas.
+- **Catalog source class.** 68 仲景 formulas plus 景岳 新方 and 封髓丹 had a later anthology as their source (《绛雪园古方选注》《医方考》《古今名医方论》…). That emptied the 经方/扶阳 attribution and put wrong 出处 into HIS. They were restored through the collation channel (`ADJ-WEB-20261012-JINGFANG`), and keyed side tables were re-keyed. 50 missing internal-use 伤寒/金匮 formulas and 5 school-own formulas (潜阳丹…, 壮原汤) were added.
+- **Catalog ratchets.** `tcm-jingfang-canonical.source.json` (113 + 184 formulas) backs `test:kb-gap-ratchets` 7.x: same name + same composition ⇒ the source must be the original book, and no original internal-use formula may go missing except a listed set. Rewrite `indications` **replace** the existing ones (build line ~1944), so keep the old ones when adding a school's documented uses.
+
 ### Customer inventory & medicine sources — `drug-inventory.server.ts`, `medicine-candidate-planner.server.ts`
 
 Owner requirement 2026-09-28: inventory is only a reference; never error when a clinic has no herbs; recommend in-stock drugs first, then our own KB / EviMed / model-proposed. Production then had 105 inventories, 100 of them herb-only.

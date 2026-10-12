@@ -4819,7 +4819,9 @@
         "肺癌"
       ],
       "sixChannels": [],
-      "expectedFormulaNames": [],
+      "expectedFormulaNames": [
+        "甘草汤"
+      ],
       "containsQuarantinedContent": true,
       "replaySanitizedFromQuarantinedSource": false,
       "replayInput": "",
@@ -4893,6 +4895,7 @@
       "expectedFormulaNames": [
         "射干麻黄汤",
         "黄连阿胶汤",
+        "紫参汤",
         "麻黄汤"
       ],
       "containsQuarantinedContent": true,
@@ -6890,7 +6893,8 @@
         "甘麦大枣汤",
         "小建中汤",
         "四逆汤",
-        "控涎丹"
+        "控涎丹",
+        "甘草汤"
       ],
       "containsQuarantinedContent": true,
       "replaySanitizedFromQuarantinedSource": true,

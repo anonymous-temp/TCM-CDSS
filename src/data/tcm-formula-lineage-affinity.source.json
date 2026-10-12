@@ -1,697 +1,1817 @@
 {
-  "schemaVersion": "tcm-formula-lineage-affinity-v2",
-  "generatedAt": "2026-08-28",
-  "derivation": "受治理方剂目录 source 书名 × tcm-lineages 流派卡 representativeWorks 机械推导；经方/温病四书按规则级终审，景岳全书/丹溪心法按逐首终审（治疗取向不等于著作归属，实例：保阴煎、玉女煎、柴胡疏肝散均出《景岳全书》）；温补学派与扶阳学派按独立人物、著作和学术传承拆分，景岳全书归温补，医理真传/医法圆通归扶阳",
-  "boundaries": [
-    "未通过核对（pending_clinician_review / evidence_rejected）的条目零影响：不加分、不标注、不出现在任何输出",
-    "加分只作用于候选展示顺序（提示词候选块），不参与准入判定、不参与 systemLockable 自动锁方、不改变剂量/禁忌/审方任何校验",
-    "同一正向充分性×剂量可编译层内才可重排，加分不得使候选跨层上移"
-  ],
-  "bookRules": [
-    {
-      "book": "伤寒论",
-      "lineageCode": "classical-formula",
-      "confirmationMode": "rule",
-      "adjudicationStatus": "evidence_approved",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
-      "researchRecommendation": "adopt",
-      "researchCoveredFormulas": 57,
-      "recommendationBasis": "出处为《伤寒论》或《金匮要略》，按狭义经方口径归入经方思路。",
-      "evidenceLevel": "A-规则级：著作归属",
-      "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（他的著作《伤寒杂病论》被奉为医经，书中所载处方则被尊称为经方…）"
-    },
-    {
-      "book": "金匮要略",
-      "lineageCode": "classical-formula",
-      "confirmationMode": "rule",
-      "adjudicationStatus": "evidence_approved",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
-      "researchRecommendation": "adopt",
-      "researchCoveredFormulas": 53,
-      "recommendationBasis": "出处为《伤寒论》或《金匮要略》，按狭义经方口径归入经方思路。",
-      "evidenceLevel": "A-规则级：著作归属",
-      "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（他的著作《伤寒杂病论》被奉为医经，书中所载处方则被尊称为经方…）"
-    },
-    {
-      "book": "温热论",
-      "lineageCode": "warm-disease",
-      "confirmationMode": "rule",
-      "adjudicationStatus": "evidence_approved",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
-      "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（此书基本确立了温病学的理论体系，反映了叶桂辨治温病的独特见解，被后世推崇为温病学…）"
-    },
-    {
-      "book": "湿热病篇",
-      "lineageCode": "warm-disease",
-      "confirmationMode": "rule",
-      "adjudicationStatus": "evidence_approved",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
-      "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（卷四选辑陈平伯的《外感温病篇》、薛雪的《湿热病篇》、余霖的《疫病篇》…）"
-    },
-    {
-      "book": "温病条辨",
-      "lineageCode": "warm-disease",
-      "confirmationMode": "rule",
-      "adjudicationStatus": "evidence_approved",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
-      "researchRecommendation": "adopt",
-      "researchCoveredFormulas": 24,
-      "recommendationBasis": "出处为温病学派核心著作，归入温病思路。",
-      "evidenceLevel": "A-规则级：著作归属",
-      "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（吴瑭著《温病条辨》，创立三焦辨证论治体系，强调以上中下三焦为纲统论温热、湿热与瘟…）"
-    },
-    {
-      "book": "温热经纬",
-      "lineageCode": "warm-disease",
-      "confirmationMode": "rule",
-      "adjudicationStatus": "evidence_approved",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
-      "researchRecommendation": "adopt",
-      "researchCoveredFormulas": 3,
-      "recommendationBasis": "出处为温病学派核心著作，归入温病思路。",
-      "evidenceLevel": "A-规则级：著作归属",
-      "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（可谓集清代及以前温病学说之大成者…）"
-    },
-    {
-      "book": "格致余论",
-      "lineageCode": "nourish-yin-danxi",
-      "confirmationMode": "per_formula",
-      "adjudicationStatus": "evidence_approved",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
-      "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（朱震亨着力阐发相火为病，易耗阴精，倡言“阳有余阴不足论”，论治疾病多以补阴降火为…）"
-    },
-    {
-      "book": "丹溪心法",
-      "lineageCode": "nourish-yin-danxi",
-      "confirmationMode": "per_formula",
-      "adjudicationStatus": "evidence_approved",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
-      "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（朱震亨着力阐发相火为病，易耗阴精，倡言“阳有余阴不足论”，论治疾病多以补阴降火为…）"
-    },
-    {
-      "book": "景岳全书",
-      "lineageCode": "warm-tonify",
-      "confirmationMode": "per_formula",
-      "adjudicationStatus": "evidence_approved",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
-      "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（因專以溫補爲宗，頗足以糾鹵莽滅裂之弊於醫術…）"
-    },
-    {
-      "book": "医理真传",
-      "lineageCode": "support-yang",
-      "confirmationMode": "per_formula",
-      "adjudicationStatus": "evidence_approved",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
-      "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（每以大剂量姜、桂、附等热药治愈众多群医束手的危重疾病患者，故有“郑火神”之誉…）"
-    },
-    {
-      "book": "医法圆通",
-      "lineageCode": "support-yang",
-      "confirmationMode": "per_formula",
-      "adjudicationStatus": "evidence_approved",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
-      "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（每以大剂量姜、桂、附等热药治愈众多群医束手的危重疾病患者，故有“郑火神”之誉…）"
-    }
-  ],
-  "formulaAdjudications": [
-    {
-      "formulaName": "丹溪治湿痰方",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：豁痰除湿、活血调经、痰湿阻滞，月经不调",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "取向＝治痰（丹溪「杂病责之气血痰郁」）。注意：该「方」在原书是一句经验治法（「宜苍术、半夏……」），方名是后世所立，组成与深圳标准/教材一致；仅影响展示顺序，可放行。"
-    },
-    {
-      "formulaName": "二妙丸",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：燥湿清热、用于湿热下注，足膝红肿热痛，下肢丹毒，白带，阴囊湿痒",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "二妙丸即二妙散（苍术、黄柏）制丸，取向＝湿热，属丹溪「湿热内蕴」。批准。"
-    },
-    {
-      "formulaName": "二妙散",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：清热燥湿、湿热下注，筋骨疼痛，脚膝无力，或足膝红肿热痛或下部湿疮，以及湿热带下，淋浊等症",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "原书与教材一致，取向＝湿热。批准。"
-    },
-    {
-      "formulaName": "保和丸",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：消食和胃、食积停滞，胸脘痞满，腹胀时痛，嗳腐吞酸，恶食或呕吐泄泻，脉滑，舌苔厚腻或黄",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "出处属实（丹溪方），但取向是消食导滞（食积），不在「滋阴降火／湿热痰火／郁证」范围内；丹溪的食郁已由越鞠丸代表。同意上一轮 reject 建议，保持待定（不加权）。"
-    },
-    {
-      "formulaName": "加味二妙散",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：清热燥湿、通利筋脉、湿热浸淫证",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "取向＝湿热（二妙散加当归牛膝防己萆薢龟板）。提示：中医笈成《丹溪心法》四库本全文只有「二妙散」，未见「加味二妙散」这个名字，出处依十三五教材与深圳标准（两者一致）；若要求严格以原书为准，可降为 keep_pending，但取向判断不受影响。"
-    },
-    {
-      "formulaName": "咳血方",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：清肝宁肺、凉血止血、肝火犯肺之咳血证",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "取向＝清肝火、化痰止血（肝火犯肺之咳血，属丹溪「火／痰」）；不是滋阴方，但符合本系统对丹溪取向的定义（滋阴降火／湿热痰火／郁证）。原书无「咳血方」这个名称，方名为后世所立，组成一致。批准。"
-    },
-    {
-      "formulaName": "大安丸",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：消食和胃健脾、食积。脾虚食滞不化",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "出处属实，取向是消导（食积、脾虚食滞），非滋阴降火／湿热痰火／郁证。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "大补阴丸",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：滋阴降火、肝肾阴虚，由虚生热，骨蒸潮热，盗汗，足膝疼热舌红少苔，尺脉数而有力",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "丹溪滋阴降火的代表方，批准。原书方名「大补丸」（仅黄柏），教材以此方加知母、熟地、龟板者为「大补阴丸（原名大补丸）」，出处仍署《丹溪心法》。"
-    },
-    {
-      "formulaName": "左金丸",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：清泻肝火、降逆止呕、肝火犯胃，胁肋及脘腹胀痛，呕吐口苦，吞酸嘈杂嗳气，口干，舌红苔黄，脉弦数",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "取向＝清泻肝火（实火），属丹溪「相火／郁火」一脉，原书即写「治肝火」。批准；注意它是清泻不是滋阴，仅按本系统对丹溪取向的定义放行。"
-    },
-    {
-      "formulaName": "痛泻要方",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：补脾柔肝、祛湿止泻、肝旺脾虚，肠鸣腹痛，大便泄泻，泻必腹痛，舌苔薄白，脉两关不调，弦而缓",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "取向是抑木扶土、调和肝脾（肝旺脾虚），不在「滋阴降火／湿热痰火／郁证」范围；且出处有分歧（方剂学署《丹溪心法》，内科教材署《景岳全书》），原书泄泻篇只有组成、无此方名。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "礞石滚痰丸",
-      "source": "《丹溪心法附余》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：泻火逐痰、实热老痰证",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "两点：①教材署出处《泰定养生主论》（王珪），不是《丹溪心法附余》（深圳标准署后者）；《丹溪心法》正文仅在耳聋等篇附录提到「滚痰丸」及组成；②取向是攻下逐痰（大黄、黄芩，治实热老痰），属攻邪，非滋阴。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "紫金锭",
-      "source": "《丹溪心法附余》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：化痰开窍、辟秽解毒、消肿止痛、中暑时疫；外敷疔疮肿毒，虫咬损伤，无名肿毒，以及痄腮、丹毒、喉风等",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "取向是辟秽解毒、化痰开窍，与滋阴降火、湿热痰火、郁证无关；出处《丹溪心法附余》也不是《丹溪心法》。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "胃苓汤",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：祛湿和胃、行气利水、夏秋之间，脾胃伤冷，水谷不分，泄泻如水，以及水肿、腹胀、小便不利者",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "出处属实，取向是温化寒湿（伤冷、水谷不分，方含桂枝），不是湿热；祛湿健脾利水，不在滋阴降火／湿热痰火／郁证范围。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "萆薢分清散",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：温肾缩尿、分清化浊、下焦虚寒之膏淋、白浊",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "取向是温肾（下焦虚寒之膏淋白浊），与滋阴降火相反；方剂学署出处《杨氏家藏方》，《丹溪心法》只是转录。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "虎潜丸",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：滋阴降火、强筋壮骨、精血不足，虚火亢盛，筋骨痿弱，腿足消瘦，步履乏力，精元不固，尺脉虚浮洪数，久不生育",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "丹溪滋阴降火法的直接体现（黄柏、知母、龟板、熟地），批准。另注（unsupportedHypothesis，未核实）：组成含虎骨，落地时应确认配方生成层对该药的处理；本条只涉及展示顺序。"
-    },
-    {
-      "formulaName": "越鞠丸",
-      "source": "《丹溪心法》",
-      "lineageCode": "nourish-yin-danxi",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：行气解郁、气、血、痰、火、湿、食等郁，胸膈痞闷，脘腹胀痛，吞酸呕吐，饮食不化",
-      "evidenceLevel": "B-学术史资料+逐方功效主治",
-      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "丹溪「六郁」学说的代表方，取向＝郁证，批准。"
-    },
-    {
-      "formulaName": "七福饮",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：收复神气、安神魂、敛心气、气血俱虚而心脾为甚者",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自归补阵；主治「气血俱虚而心脾为甚」，取向＝补益气血，符合温补。批准。"
-    },
-    {
-      "formulaName": "举元煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补气摄血、升阳举陷、气虚下陷，血崩血脱，亡阳垂危等证",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自归补阵，补气升阳，符合温补。批准。"
-    },
-    {
-      "formulaName": "人参健脾丸（汤）",
-      "source": "《景岳全书》《证治准绳·类方》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：健脾益气、和胃止泻、脾胃虚弱引起的饮食不化，倒饱嘈杂，恶心呕吐，腹痛便溏，不思饮食，体弱倦怠",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "《景岳全书》文渊阁本全文检索无「人参健脾丸／汤」，出处无法证实（人参健脾丸源自《证治准绳》一系，景岳古方八阵另有「大健脾丸（和八五）」「参苓白术散（补五四）」）；功用是健脾消食止泻，即使出处成立，也是脾虚泄泻方，与温补的关联很弱。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "人参归脾丸",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气补血、健脾养心、用于气血不足，心悸，失眠，食少乏力，面色萎黄，月经量少，色淡",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "《景岳全书》没有「人参归脾丸」，古方八阵补阵收的是归脾汤（补三二，转录古方）；人参归脾丸是后世成药。取向＝补气血、健脾养心，本身符合补虚，问题只在出处不成立。若你们接受「归脾汤（景岳古方补三二）＝人参归脾丸」的等同，可转 approved；否则保持待定。"
-    },
-    {
-      "formulaName": "何人饮",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气养血、扶正截疟、疟疾久发不止，气血两虚，寒热时作，稍劳即发，面色萎黄，倦怠乏力，食少自汗，形体消瘦，舌淡，脉缓大而虚者",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳把它归在因阵（截疟专方），并非补阵；但主治「气血俱虚，久疟不止」，用药为何首乌、人参、当归、陈皮，功用＝益气养血扶正，取向仍是补虚。按功用批准；标注：属因阵专病方。"
-    },
-    {
-      "formulaName": "保阴煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：养阴清热、凉血止血、阴虚血热之带下淋浊，血崩便血，月经提前",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自己把它放进寒阵（新寒一），治阴虚内热动血，功用养阴清热、凉血止血，不是温补取向。同意 reject，保持待定（不加权）。"
-    },
-    {
-      "formulaName": "八珍益母汤",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补气血、调月经、月经量少，色淡，经期错后",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "《景岳全书》妇人规古方收录的是「八珍益母丸」（徐思鹤《医统》方，妇一三八），并非「八珍益母汤」；深圳标准把丸写成汤。功用＝补气血调经，取向符合补虚。批准，但方名建议核对：汤／丸是否同一剂型条目由你们的方剂目录决定，展示顺序加权不受影响。"
-    },
-    {
-      "formulaName": "六味回阳饮",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气回阳、养血救脱、阴阳将脱",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自归热阵，回阳救脱，温补取向明确。批准。"
-    },
-    {
-      "formulaName": "加减一阴煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：滋阴养血清热、阴血不足之虚热",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自归补阵，但功用是滋阴清虚热（知母、地骨皮、麦冬），主治「阴虚火盛」，与温补（温阳补虚）取向有一段距离；和小营煎（纯补血、判批准）不同，本方的清热成分是主要功用。作为最接近的边界案例保持待定，由你们决定温补口径是否包含「补阴清虚热」；若把补阴一路整体放行，则可改为 approved。不影响安全，仅影响是否加权。"
-    },
-    {
-      "formulaName": "化阴煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：滋肾养阴、水亏阴涸，阳火有余，小便癃闭，淋浊疼痛",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自己归寒阵（新寒七），治水亏阴涸、阳火有余的癃闭淋浊，方含猪苓、泽泻、生黄柏、生知母、龙胆草、车前子（清利），不是温补取向。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "右归丸",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温补肾阳、填精益髓、肾阳不足，命门火衰，神疲气怯，畏寒肢冷，阳痿遗精，不能生育，腰膝酸软，小便自遗，肢节痹痛，周身浮肿，或火不能生土，脾胃虚寒，饮食少进，或呕恶膨胀，或翻胃噎膈，或",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "补阵，温补肾阳，温补学派核心方。批准。"
-    },
-    {
-      "formulaName": "右归饮",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温补肾阳、肾阳不足，阳衰阴胜，腰膝酸痛，神疲乏力，畏寒肢冷，咳喘，泄泻，脉弱，以及产妇虚火不归元而发热者",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "补阵，益火之剂，温补肾阳。批准。"
-    },
-    {
-      "formulaName": "四味回阳饮",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补气、回阳、救脱、元阳虚脱，危在顷刻者",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自归热阵，回阳救脱。批准。"
-    },
-    {
-      "formulaName": "固阴煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补益肝肾、固涩滑脱、肝肾亏虚之遗泄，崩带，经多，胎动，产后恶露不止，妇人阴挺",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自归固阵，补益肝肾、固涩，「固」属补虚固摄，符合温补口径。批准。"
-    },
-    {
-      "formulaName": "大营煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温经扶阳、养血填精、真阴精血亏损，以及妇人经迟血少，腰膝筋骨疼痛，阳痿",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "补阵，温经扶阳、养血填精，符合温补。批准。"
-    },
-    {
-      "formulaName": "大补元煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：救本培元、大补气血、气血大亏，精神失守之危剧病证",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "补阵之首，景岳自称「回天赞化，救本培元第一要方」。批准。"
-    },
-    {
-      "formulaName": "小营煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：养血、活血、调经、阴虚血少，头晕心悸，面色萎黄，脉象细弱，妇女月经后期，量少色淡，小腹虚痛",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自归补阵；原文「治血少阴虚，此性味平和之方也」，组成当归、熟地、白芍、山药、枸杞、甘草，纯补血无清热。上一轮以「单纯养血、需医生定口径」建议 reject，但景岳自己的分阵与教材所述的景岳补方原则（精虚补下、熟地枸杞之类）都支持归入补，故改判批准。若坚持「温补＝温阳」的窄口径，则应连同左归丸、归肾丸一起降级——口径需与它们一致。"
-    },
-    {
-      "formulaName": "左归丸",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：滋阴补肾、填精益髓、真阴肾水不足，不能滋养营卫，渐至衰弱，或虚热往来，自汗盗汗，或遗淋不禁，或眼花耳聋，或口燥舌干，或腰酸腿软",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "补阵，纯补真阴，含鹿角胶、菟丝子「阳中求阴」，是景岳温补体系（阴阳互济）的代表方。批准；注意它是补阴而非温阳。"
-    },
-    {
-      "formulaName": "归肾丸",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：滋阴养血、填精益髓、肾水不足，腰酸脚软，精亏血少，头晕耳鸣；肾阴不足，精衰血少，腰酸脚软，形容憔悴，阳痿遗精",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "位于新方八阵补阵（全书版式：在左归丸、右归丸之后，自称「左归右归二丸之次者」），补肾填精，与左归丸同一口径。批准。"
-    },
-    {
-      "formulaName": "暖肝煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温补肝肾、行气止痛、肝肾阴寒，小腹疼痛，疝气",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自归热阵，温补肝肾（治肝肾阴寒）。批准。"
-    },
-    {
-      "formulaName": "柴胡疏肝散",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：疏肝行气、活血止痛、胁肋疼痛，寒热往来",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "在景岳全书里是古方八阵的散阵（散百十），是转录古方而非景岳自创，方剂学教材署出处为《证治准绳》；功用疏肝解郁，与温补无关。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "栀子金花丸",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：清热泻火、凉血解毒、肺胃热盛，口舌生疮，牙龈肿痛，目赤眩晕，咽喉肿痛，大便秘结",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "在景岳全书里只是攻阵「大金花丸」条下的一句「去大黄、倍栀子名栀子金花丸」，是转录古方；功用清热泻火，取向与温补相反。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "桑白皮汤",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：清火涤痰、止咳平喘、痰热壅肺，顿咳痉咳期",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "古方八阵寒阵转录（《医林》方），清肺化痰，与温补无关。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "桔梗杏仁煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：润肺止咳、咳嗽吐脓，痰中带血，或胸膈隐痛，将成肺痈者",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "因阵肺痈专方，含金银花、连翘、夏枯草、贝母（清热排脓），不是补虚取向。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "正柴胡饮",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：解表散寒、解热止痛、外感风寒，发热恶寒，头疼身痛，痎疟初起",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自归散阵（新散六），解表剂，不是温补取向。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "毓麟珠",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补益气血、温养肝肾、强固冲任、调经助孕、妇人气血不足，肝肾两虚，月经不调，或后错色淡，或量少腹痛，或淋沥不断，腰膝酸软，小腹冷痛，性欲减退，身体瘦弱，久不受孕等",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳归因阵（种子专方），但主治「气血俱虚、经脉不调、瘦弱不孕」，组成为八珍汤加菟丝子、杜仲、鹿角霜、川椒，功用＝补气血、温养冲任，取向符合温补。按功用批准；标注：属因阵专病方。"
-    },
-    {
-      "formulaName": "泰山磐石散",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气健脾、养血安胎、气血虚弱，胎动不安，堕胎，滑胎",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "取向本身符合补虚（益气健脾、养血安胎，景岳也推荐它），但出处有冲突：方剂学教材署《古今医统大全》，《景岳全书》文渊阁本只在妇人规里提到方名、没有方条；妇科教材署《景岳全书》。归入景岳温补的依据不够硬，保持待定。若你们认可「景岳推荐＝景岳派」，可改为 approved；建议把出处改注为《古今医统大全》，景岳全书仅作引用。"
-    },
-    {
-      "formulaName": "济川煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温肾益精、润肠通便、老年肾虚，大便秘结，小便清长，腰酸足软，背冷畏寒",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自归补阵，「此用通于补之剂」；温肾益精、润肠通便，取向符合温补。批准。"
-    },
-    {
-      "formulaName": "独参汤",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：大补元气、诸虚气弱危急者",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "《景岳全书》古方八阵补阵收录，并在多处（伤寒、汗证、厥逆论列方等）作为气脱亡阳的急救用药，取向＝大补元气、回阳固脱，符合温补。提示：它是古方（教材署《十药神书》），非景岳自创；本表「出处景岳全书」是收录出处，作显示顺序加权无碍。批准。"
-    },
-    {
-      "formulaName": "玉女煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：清胃热、滋肾阴、水亏火盛，六脉浮洪滑大，少阴不足，阳明有余，烦热干渴，头痛牙疼，失血",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自归寒阵（新寒十二），石膏、知母为主的清胃热方，不是温补取向；教材归入清热剂（清脏腑热）。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "胎元饮",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_approved",
-      "researchRecommendation": "adopt",
-      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补肾固胎、妇人冲任不足，胎元不安不固",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "位于新方八阵因阵（安胎专方，原文「治妇人冲任失守，胎元不安不固者」；景岳并言妊娠胎动「皆不离于血气之虚，皆当以胎元饮为主」）。补气血、固冲任，取向符合温补。按功用批准；标注：属因阵专病方。"
-    },
-    {
-      "formulaName": "脱花煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：祛瘀下胎、胎漏、胎动不安、堕胎等辨证属瘀血阻滞者",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "因阵催生下胎方（当归、川芎、红花、牛膝、车前子，少佐肉桂），功用祛瘀下胎，不是补虚。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "茜根散",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：滋阴降火、宁络止血、阴虚火旺证，症见鼻衄不止，心神烦闷",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "古方八阵寒阵转录（教材署《济生方》），凉血止血，不是温补取向。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "解肝煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：疏肝理气、化湿畅中、暴怒伤肝，气逆胀满者",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "景岳自归和阵（新和十一），疏肝理气，不是温补取向。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "通瘀煎",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：活血祛瘀、行气止痛、妇人气滞血瘀，经脉不利，痛极拒按",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "因阵妇科活血方，功用活血祛瘀、行气止痛，不是补虚。保持待定（不加权）。"
-    },
-    {
-      "formulaName": "黎峒丸",
-      "source": "《景岳全书》",
-      "lineageCode": "warm-tonify",
-      "status": "evidence_rejected",
-      "researchRecommendation": "reject",
-      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：续筋接骨、疏风活络、金疮跌仆伤，痈疽疮痛，疯犬咬伤，蜂蛇蝎毒",
-      "evidenceLevel": "B-学派课程+逐方功效主治",
-      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
-      "evidenceNote": "两点：①《景岳全书》文渊阁本全文检索无「黎峒丸／黎洞丸」，出处无法证实（教材另有「黎洞丸」写法，亦未署出处）；②功用是续筋接骨、疏风活络（伤科用药），与温补取向无关。保持待定（不加权）；建议该条出处在数据里改为「未核实」。"
-    }
-  ],
-  "researchPackage": {
-    "file": "中医师核定全网资料包-20260813.xlsx",
-    "sheet": "流派204",
-    "boundary": "本工作簿自述为医生签字前的研究建议；researchRecommendation 只是建议，adjudicationStatus/status 仍为 pending_clinician_review，运行时零影响。",
-    "perFormulaAdopt": 30,
-    "perFormulaReject": 22
+ "schemaVersion": "tcm-formula-lineage-affinity-v2",
+ "generatedAt": "2026-08-28",
+ "derivation": "受治理方剂目录 source 书名 × tcm-lineages 流派卡 representativeWorks 机械推导；经方/温病四书按规则级终审，景岳全书/丹溪心法按逐首终审（治疗取向不等于著作归属，实例：保阴煎、玉女煎、柴胡疏肝散均出《景岳全书》）；温补学派与扶阳学派按独立人物、著作和学术传承拆分，景岳全书归温补，医理真传/医法圆通归扶阳",
+ "boundaries": [
+  "未通过核对（pending_clinician_review / evidence_rejected）的条目零影响：不加分、不标注、不出现在任何输出",
+  "加分只作用于候选展示顺序（提示词候选块），不参与准入判定、不参与 systemLockable 自动锁方、不改变剂量/禁忌/审方任何校验",
+  "同一正向充分性×剂量可编译层内才可重排，加分不得使候选跨层上移",
+  "标志性运用（schoolUsage）行绑定目录里的（方名, 出处）这一条，必须带该流派原典的逐字引文；与出处书规则一样只影响展示顺序，同样受上面三条约束。"
+ ],
+ "bookRules": [
+  {
+   "book": "伤寒论",
+   "lineageCode": "classical-formula",
+   "confirmationMode": "rule",
+   "adjudicationStatus": "evidence_approved",
+   "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+   "researchRecommendation": "adopt",
+   "researchCoveredFormulas": 57,
+   "recommendationBasis": "出处为《伤寒论》或《金匮要略》，按狭义经方口径归入经方思路。",
+   "evidenceLevel": "A-规则级：著作归属",
+   "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（他的著作《伤寒杂病论》被奉为医经，书中所载处方则被尊称为经方…）"
+  },
+  {
+   "book": "金匮要略",
+   "lineageCode": "classical-formula",
+   "confirmationMode": "rule",
+   "adjudicationStatus": "evidence_approved",
+   "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+   "researchRecommendation": "adopt",
+   "researchCoveredFormulas": 53,
+   "recommendationBasis": "出处为《伤寒论》或《金匮要略》，按狭义经方口径归入经方思路。",
+   "evidenceLevel": "A-规则级：著作归属",
+   "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（他的著作《伤寒杂病论》被奉为医经，书中所载处方则被尊称为经方…）"
+  },
+  {
+   "book": "温热论",
+   "lineageCode": "warm-disease",
+   "confirmationMode": "rule",
+   "adjudicationStatus": "evidence_approved",
+   "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+   "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（此书基本确立了温病学的理论体系，反映了叶桂辨治温病的独特见解，被后世推崇为温病学…）"
+  },
+  {
+   "book": "湿热病篇",
+   "lineageCode": "warm-disease",
+   "confirmationMode": "rule",
+   "adjudicationStatus": "evidence_approved",
+   "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+   "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（卷四选辑陈平伯的《外感温病篇》、薛雪的《湿热病篇》、余霖的《疫病篇》…）"
+  },
+  {
+   "book": "温病条辨",
+   "lineageCode": "warm-disease",
+   "confirmationMode": "rule",
+   "adjudicationStatus": "evidence_approved",
+   "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+   "researchRecommendation": "adopt",
+   "researchCoveredFormulas": 24,
+   "recommendationBasis": "出处为温病学派核心著作，归入温病思路。",
+   "evidenceLevel": "A-规则级：著作归属",
+   "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（吴瑭著《温病条辨》，创立三焦辨证论治体系，强调以上中下三焦为纲统论温热、湿热与瘟…）"
+  },
+  {
+   "book": "温热经纬",
+   "lineageCode": "warm-disease",
+   "confirmationMode": "rule",
+   "adjudicationStatus": "evidence_approved",
+   "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+   "researchRecommendation": "adopt",
+   "researchCoveredFormulas": 3,
+   "recommendationBasis": "出处为温病学派核心著作，归入温病思路。",
+   "evidenceLevel": "A-规则级：著作归属",
+   "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（可谓集清代及以前温病学说之大成者…）"
+  },
+  {
+   "book": "格致余论",
+   "lineageCode": "nourish-yin-danxi",
+   "confirmationMode": "per_formula",
+   "adjudicationStatus": "evidence_approved",
+   "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+   "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（朱震亨着力阐发相火为病，易耗阴精，倡言“阳有余阴不足论”，论治疾病多以补阴降火为…）"
+  },
+  {
+   "book": "丹溪心法",
+   "lineageCode": "nourish-yin-danxi",
+   "confirmationMode": "per_formula",
+   "adjudicationStatus": "evidence_approved",
+   "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+   "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（朱震亨着力阐发相火为病，易耗阴精，倡言“阳有余阴不足论”，论治疾病多以补阴降火为…）"
+  },
+  {
+   "book": "景岳全书",
+   "lineageCode": "warm-tonify",
+   "confirmationMode": "per_formula",
+   "adjudicationStatus": "evidence_approved",
+   "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+   "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（因專以溫補爲宗，頗足以糾鹵莽滅裂之弊於醫術…）"
+  },
+  {
+   "book": "医理真传",
+   "lineageCode": "support-yang",
+   "confirmationMode": "per_formula",
+   "adjudicationStatus": "evidence_approved",
+   "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+   "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（每以大剂量姜、桂、附等热药治愈众多群医束手的危重疾病患者，故有“郑火神”之誉…）"
+  },
+  {
+   "book": "医法圆通",
+   "lineageCode": "support-yang",
+   "confirmationMode": "per_formula",
+   "adjudicationStatus": "evidence_approved",
+   "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+   "adjudicationBasis": "联网权威来源核对（2026-09-29）：书目归属有十三五《中医各家学说》原句支撑（每以大剂量姜、桂、附等热药治愈众多群医束手的危重疾病患者，故有“郑火神”之誉…）"
   }
+ ],
+ "formulaAdjudications": [
+  {
+   "formulaName": "丹溪治湿痰方",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：豁痰除湿、活血调经、痰湿阻滞，月经不调",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "取向＝治痰（丹溪「杂病责之气血痰郁」）。注意：该「方」在原书是一句经验治法（「宜苍术、半夏……」），方名是后世所立，组成与深圳标准/教材一致；仅影响展示顺序，可放行。"
+  },
+  {
+   "formulaName": "二妙丸",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：燥湿清热、用于湿热下注，足膝红肿热痛，下肢丹毒，白带，阴囊湿痒",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "二妙丸即二妙散（苍术、黄柏）制丸，取向＝湿热，属丹溪「湿热内蕴」。批准。"
+  },
+  {
+   "formulaName": "二妙散",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：清热燥湿、湿热下注，筋骨疼痛，脚膝无力，或足膝红肿热痛或下部湿疮，以及湿热带下，淋浊等症",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "原书与教材一致，取向＝湿热。批准。"
+  },
+  {
+   "formulaName": "保和丸",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：消食和胃、食积停滞，胸脘痞满，腹胀时痛，嗳腐吞酸，恶食或呕吐泄泻，脉滑，舌苔厚腻或黄",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "出处属实（丹溪方），但取向是消食导滞（食积），不在「滋阴降火／湿热痰火／郁证」范围内；丹溪的食郁已由越鞠丸代表。同意上一轮 reject 建议，保持待定（不加权）。"
+  },
+  {
+   "formulaName": "加味二妙散",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：清热燥湿、通利筋脉、湿热浸淫证",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "取向＝湿热（二妙散加当归牛膝防己萆薢龟板）。提示：中医笈成《丹溪心法》四库本全文只有「二妙散」，未见「加味二妙散」这个名字，出处依十三五教材与深圳标准（两者一致）；若要求严格以原书为准，可降为 keep_pending，但取向判断不受影响。"
+  },
+  {
+   "formulaName": "咳血方",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：清肝宁肺、凉血止血、肝火犯肺之咳血证",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "取向＝清肝火、化痰止血（肝火犯肺之咳血，属丹溪「火／痰」）；不是滋阴方，但符合本系统对丹溪取向的定义（滋阴降火／湿热痰火／郁证）。原书无「咳血方」这个名称，方名为后世所立，组成一致。批准。"
+  },
+  {
+   "formulaName": "大安丸",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：消食和胃健脾、食积。脾虚食滞不化",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "出处属实，取向是消导（食积、脾虚食滞），非滋阴降火／湿热痰火／郁证。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "大补阴丸",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：滋阴降火、肝肾阴虚，由虚生热，骨蒸潮热，盗汗，足膝疼热舌红少苔，尺脉数而有力",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "丹溪滋阴降火的代表方，批准。原书方名「大补丸」（仅黄柏），教材以此方加知母、熟地、龟板者为「大补阴丸（原名大补丸）」，出处仍署《丹溪心法》。"
+  },
+  {
+   "formulaName": "左金丸",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：清泻肝火、降逆止呕、肝火犯胃，胁肋及脘腹胀痛，呕吐口苦，吞酸嘈杂嗳气，口干，舌红苔黄，脉弦数",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "取向＝清泻肝火（实火），属丹溪「相火／郁火」一脉，原书即写「治肝火」。批准；注意它是清泻不是滋阴，仅按本系统对丹溪取向的定义放行。"
+  },
+  {
+   "formulaName": "痛泻要方",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：补脾柔肝、祛湿止泻、肝旺脾虚，肠鸣腹痛，大便泄泻，泻必腹痛，舌苔薄白，脉两关不调，弦而缓",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "取向是抑木扶土、调和肝脾（肝旺脾虚），不在「滋阴降火／湿热痰火／郁证」范围；且出处有分歧（方剂学署《丹溪心法》，内科教材署《景岳全书》），原书泄泻篇只有组成、无此方名。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "礞石滚痰丸",
+   "source": "《丹溪心法附余》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：泻火逐痰、实热老痰证",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "两点：①教材署出处《泰定养生主论》（王珪），不是《丹溪心法附余》（深圳标准署后者）；《丹溪心法》正文仅在耳聋等篇附录提到「滚痰丸」及组成；②取向是攻下逐痰（大黄、黄芩，治实热老痰），属攻邪，非滋阴。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "紫金锭",
+   "source": "《丹溪心法附余》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：化痰开窍、辟秽解毒、消肿止痛、中暑时疫；外敷疔疮肿毒，虫咬损伤，无名肿毒，以及痄腮、丹毒、喉风等",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "取向是辟秽解毒、化痰开窍，与滋阴降火、湿热痰火、郁证无关；出处《丹溪心法附余》也不是《丹溪心法》。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "胃苓汤",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：祛湿和胃、行气利水、夏秋之间，脾胃伤冷，水谷不分，泄泻如水，以及水肿、腹胀、小便不利者",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "出处属实，取向是温化寒湿（伤冷、水谷不分，方含桂枝），不是湿热；祛湿健脾利水，不在滋阴降火／湿热痰火／郁证范围。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "萆薢分清散",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：温肾缩尿、分清化浊、下焦虚寒之膏淋、白浊",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "取向是温肾（下焦虚寒之膏淋白浊），与滋阴降火相反；方剂学署出处《杨氏家藏方》，《丹溪心法》只是转录。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "虎潜丸",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：滋阴降火、强筋壮骨、精血不足，虚火亢盛，筋骨痿弱，腿足消瘦，步履乏力，精元不固，尺脉虚浮洪数，久不生育",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "丹溪滋阴降火法的直接体现（黄柏、知母、龟板、熟地），批准。另注（unsupportedHypothesis，未核实）：组成含虎骨，落地时应确认配方生成层对该药的处理；本条只涉及展示顺序。"
+  },
+  {
+   "formulaName": "越鞠丸",
+   "source": "《丹溪心法》",
+   "lineageCode": "nourish-yin-danxi",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：行气解郁、气、血、痰、火、湿、食等郁，胸膈痞闷，脘腹胀痛，吞酸呕吐，饮食不化",
+   "evidenceLevel": "B-学术史资料+逐方功效主治",
+   "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "丹溪「六郁」学说的代表方，取向＝郁证，批准。"
+  },
+  {
+   "formulaName": "七福饮",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：收复神气、安神魂、敛心气、气血俱虚而心脾为甚者",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自归补阵；主治「气血俱虚而心脾为甚」，取向＝补益气血，符合温补。批准。"
+  },
+  {
+   "formulaName": "举元煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补气摄血、升阳举陷、气虚下陷，血崩血脱，亡阳垂危等证",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自归补阵，补气升阳，符合温补。批准。"
+  },
+  {
+   "formulaName": "人参健脾丸（汤）",
+   "source": "《景岳全书》《证治准绳·类方》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：健脾益气、和胃止泻、脾胃虚弱引起的饮食不化，倒饱嘈杂，恶心呕吐，腹痛便溏，不思饮食，体弱倦怠",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "《景岳全书》文渊阁本全文检索无「人参健脾丸／汤」，出处无法证实（人参健脾丸源自《证治准绳》一系，景岳古方八阵另有「大健脾丸（和八五）」「参苓白术散（补五四）」）；功用是健脾消食止泻，即使出处成立，也是脾虚泄泻方，与温补的关联很弱。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "人参归脾丸",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气补血、健脾养心、用于气血不足，心悸，失眠，食少乏力，面色萎黄，月经量少，色淡",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "《景岳全书》没有「人参归脾丸」，古方八阵补阵收的是归脾汤（补三二，转录古方）；人参归脾丸是后世成药。取向＝补气血、健脾养心，本身符合补虚，问题只在出处不成立。若你们接受「归脾汤（景岳古方补三二）＝人参归脾丸」的等同，可转 approved；否则保持待定。"
+  },
+  {
+   "formulaName": "何人饮",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气养血、扶正截疟、疟疾久发不止，气血两虚，寒热时作，稍劳即发，面色萎黄，倦怠乏力，食少自汗，形体消瘦，舌淡，脉缓大而虚者",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳把它归在因阵（截疟专方），并非补阵；但主治「气血俱虚，久疟不止」，用药为何首乌、人参、当归、陈皮，功用＝益气养血扶正，取向仍是补虚。按功用批准；标注：属因阵专病方。"
+  },
+  {
+   "formulaName": "保阴煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：养阴清热、凉血止血、阴虚血热之带下淋浊，血崩便血，月经提前",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自己把它放进寒阵（新寒一），治阴虚内热动血，功用养阴清热、凉血止血，不是温补取向。同意 reject，保持待定（不加权）。"
+  },
+  {
+   "formulaName": "八珍益母汤",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补气血、调月经、月经量少，色淡，经期错后",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "《景岳全书》妇人规古方收录的是「八珍益母丸」（徐思鹤《医统》方，妇一三八），并非「八珍益母汤」；深圳标准把丸写成汤。功用＝补气血调经，取向符合补虚。批准，但方名建议核对：汤／丸是否同一剂型条目由你们的方剂目录决定，展示顺序加权不受影响。"
+  },
+  {
+   "formulaName": "六味回阳饮",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气回阳、养血救脱、阴阳将脱",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自归热阵，回阳救脱，温补取向明确。批准。"
+  },
+  {
+   "formulaName": "加减一阴煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：滋阴养血清热、阴血不足之虚热",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自归补阵，但功用是滋阴清虚热（知母、地骨皮、麦冬），主治「阴虚火盛」，与温补（温阳补虚）取向有一段距离；和小营煎（纯补血、判批准）不同，本方的清热成分是主要功用。作为最接近的边界案例保持待定，由你们决定温补口径是否包含「补阴清虚热」；若把补阴一路整体放行，则可改为 approved。不影响安全，仅影响是否加权。"
+  },
+  {
+   "formulaName": "化阴煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：滋肾养阴、水亏阴涸，阳火有余，小便癃闭，淋浊疼痛",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自己归寒阵（新寒七），治水亏阴涸、阳火有余的癃闭淋浊，方含猪苓、泽泻、生黄柏、生知母、龙胆草、车前子（清利），不是温补取向。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "右归丸",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温补肾阳、填精益髓、肾阳不足，命门火衰，神疲气怯，畏寒肢冷，阳痿遗精，不能生育，腰膝酸软，小便自遗，肢节痹痛，周身浮肿，或火不能生土，脾胃虚寒，饮食少进，或呕恶膨胀，或翻胃噎膈，或",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "补阵，温补肾阳，温补学派核心方。批准。"
+  },
+  {
+   "formulaName": "右归饮",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温补肾阳、肾阳不足，阳衰阴胜，腰膝酸痛，神疲乏力，畏寒肢冷，咳喘，泄泻，脉弱，以及产妇虚火不归元而发热者",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "补阵，益火之剂，温补肾阳。批准。"
+  },
+  {
+   "formulaName": "四味回阳饮",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补气、回阳、救脱、元阳虚脱，危在顷刻者",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自归热阵，回阳救脱。批准。"
+  },
+  {
+   "formulaName": "固阴煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补益肝肾、固涩滑脱、肝肾亏虚之遗泄，崩带，经多，胎动，产后恶露不止，妇人阴挺",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自归固阵，补益肝肾、固涩，「固」属补虚固摄，符合温补口径。批准。"
+  },
+  {
+   "formulaName": "大营煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温经扶阳、养血填精、真阴精血亏损，以及妇人经迟血少，腰膝筋骨疼痛，阳痿",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "补阵，温经扶阳、养血填精，符合温补。批准。"
+  },
+  {
+   "formulaName": "大补元煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：救本培元、大补气血、气血大亏，精神失守之危剧病证",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "补阵之首，景岳自称「回天赞化，救本培元第一要方」。批准。"
+  },
+  {
+   "formulaName": "小营煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：养血、活血、调经、阴虚血少，头晕心悸，面色萎黄，脉象细弱，妇女月经后期，量少色淡，小腹虚痛",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自归补阵；原文「治血少阴虚，此性味平和之方也」，组成当归、熟地、白芍、山药、枸杞、甘草，纯补血无清热。上一轮以「单纯养血、需医生定口径」建议 reject，但景岳自己的分阵与教材所述的景岳补方原则（精虚补下、熟地枸杞之类）都支持归入补，故改判批准。若坚持「温补＝温阳」的窄口径，则应连同左归丸、归肾丸一起降级——口径需与它们一致。"
+  },
+  {
+   "formulaName": "左归丸",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：滋阴补肾、填精益髓、真阴肾水不足，不能滋养营卫，渐至衰弱，或虚热往来，自汗盗汗，或遗淋不禁，或眼花耳聋，或口燥舌干，或腰酸腿软",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "补阵，纯补真阴，含鹿角胶、菟丝子「阳中求阴」，是景岳温补体系（阴阳互济）的代表方。批准；注意它是补阴而非温阳。"
+  },
+  {
+   "formulaName": "归肾丸",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：滋阴养血、填精益髓、肾水不足，腰酸脚软，精亏血少，头晕耳鸣；肾阴不足，精衰血少，腰酸脚软，形容憔悴，阳痿遗精",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "位于新方八阵补阵（全书版式：在左归丸、右归丸之后，自称「左归右归二丸之次者」），补肾填精，与左归丸同一口径。批准。"
+  },
+  {
+   "formulaName": "暖肝煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温补肝肾、行气止痛、肝肾阴寒，小腹疼痛，疝气",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自归热阵，温补肝肾（治肝肾阴寒）。批准。"
+  },
+  {
+   "formulaName": "柴胡疏肝散",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：疏肝行气、活血止痛、胁肋疼痛，寒热往来",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "在景岳全书里是古方八阵的散阵（散百十），是转录古方而非景岳自创，方剂学教材署出处为《证治准绳》；功用疏肝解郁，与温补无关。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "栀子金花丸",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：清热泻火、凉血解毒、肺胃热盛，口舌生疮，牙龈肿痛，目赤眩晕，咽喉肿痛，大便秘结",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "在景岳全书里只是攻阵「大金花丸」条下的一句「去大黄、倍栀子名栀子金花丸」，是转录古方；功用清热泻火，取向与温补相反。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "桑白皮汤",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：清火涤痰、止咳平喘、痰热壅肺，顿咳痉咳期",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "古方八阵寒阵转录（《医林》方），清肺化痰，与温补无关。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "桔梗杏仁煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：润肺止咳、咳嗽吐脓，痰中带血，或胸膈隐痛，将成肺痈者",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "因阵肺痈专方，含金银花、连翘、夏枯草、贝母（清热排脓），不是补虚取向。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "正柴胡饮",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：解表散寒、解热止痛、外感风寒，发热恶寒，头疼身痛，痎疟初起",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自归散阵（新散六），解表剂，不是温补取向。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "毓麟珠",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补益气血、温养肝肾、强固冲任、调经助孕、妇人气血不足，肝肾两虚，月经不调，或后错色淡，或量少腹痛，或淋沥不断，腰膝酸软，小腹冷痛，性欲减退，身体瘦弱，久不受孕等",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳归因阵（种子专方），但主治「气血俱虚、经脉不调、瘦弱不孕」，组成为八珍汤加菟丝子、杜仲、鹿角霜、川椒，功用＝补气血、温养冲任，取向符合温补。按功用批准；标注：属因阵专病方。"
+  },
+  {
+   "formulaName": "泰山磐石散",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气健脾、养血安胎、气血虚弱，胎动不安，堕胎，滑胎",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "取向本身符合补虚（益气健脾、养血安胎，景岳也推荐它），但出处有冲突：方剂学教材署《古今医统大全》，《景岳全书》文渊阁本只在妇人规里提到方名、没有方条；妇科教材署《景岳全书》。归入景岳温补的依据不够硬，保持待定。若你们认可「景岳推荐＝景岳派」，可改为 approved；建议把出处改注为《古今医统大全》，景岳全书仅作引用。"
+  },
+  {
+   "formulaName": "济川煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温肾益精、润肠通便、老年肾虚，大便秘结，小便清长，腰酸足软，背冷畏寒",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自归补阵，「此用通于补之剂」；温肾益精、润肠通便，取向符合温补。批准。"
+  },
+  {
+   "formulaName": "独参汤",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：大补元气、诸虚气弱危急者",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "《景岳全书》古方八阵补阵收录，并在多处（伤寒、汗证、厥逆论列方等）作为气脱亡阳的急救用药，取向＝大补元气、回阳固脱，符合温补。提示：它是古方（教材署《十药神书》），非景岳自创；本表「出处景岳全书」是收录出处，作显示顺序加权无碍。批准。"
+  },
+  {
+   "formulaName": "玉女煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：清胃热、滋肾阴、水亏火盛，六脉浮洪滑大，少阴不足，阳明有余，烦热干渴，头痛牙疼，失血",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自归寒阵（新寒十二），石膏、知母为主的清胃热方，不是温补取向；教材归入清热剂（清脏腑热）。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "胎元饮",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补肾固胎、妇人冲任不足，胎元不安不固",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "位于新方八阵因阵（安胎专方，原文「治妇人冲任失守，胎元不安不固者」；景岳并言妊娠胎动「皆不离于血气之虚，皆当以胎元饮为主」）。补气血、固冲任，取向符合温补。按功用批准；标注：属因阵专病方。"
+  },
+  {
+   "formulaName": "脱花煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：祛瘀下胎、胎漏、胎动不安、堕胎等辨证属瘀血阻滞者",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "因阵催生下胎方（当归、川芎、红花、牛膝、车前子，少佐肉桂），功用祛瘀下胎，不是补虚。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "茜根散",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：滋阴降火、宁络止血、阴虚火旺证，症见鼻衄不止，心神烦闷",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "古方八阵寒阵转录（教材署《济生方》），凉血止血，不是温补取向。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "解肝煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：疏肝理气、化湿畅中、暴怒伤肝，气逆胀满者",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "景岳自归和阵（新和十一），疏肝理气，不是温补取向。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "通瘀煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：活血祛瘀、行气止痛、妇人气滞血瘀，经脉不利，痛极拒按",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "因阵妇科活血方，功用活血祛瘀、行气止痛，不是补虚。保持待定（不加权）。"
+  },
+  {
+   "formulaName": "黎峒丸",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_rejected",
+   "researchRecommendation": "reject",
+   "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：续筋接骨、疏风活络、金疮跌仆伤，痈疽疮痛，疯犬咬伤，蜂蛇蝎毒",
+   "evidenceLevel": "B-学派课程+逐方功效主治",
+   "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+   "evidenceNote": "两点：①《景岳全书》文渊阁本全文检索无「黎峒丸／黎洞丸」，出处无法证实（教材另有「黎洞丸」写法，亦未署出处）；②功用是续筋接骨、疏风活络（伤科用药），与温补取向无关。保持待定（不加权）；建议该条出处在数据里改为「未核实」。"
+  },
+  {
+   "formulaName": "左归饮",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "补阵（新补二），纯补真阴之「壮水之剂」，与左归丸同为景岳阴阳互济体系的补肾方；原文「凡命门之阴衰阳胜者，宜此方加减主之」。批准。",
+   "evidenceLevel": "A-原典自归八阵+功用",
+   "evidenceUrl": "https://github.com/xiaopangxia/TCM-Ancient-Books/blob/master/637-%E6%99%AF%E5%B2%B3%E5%85%A8%E4%B9%A6.txt",
+   "evidenceNote": "2026-10-12 本地《景岳全书》新方八阵原文核对（与 github.com/xiaopangxia/TCM-Ancient-Books 逐字节一致）；目录出处已由后世转录书回归《景岳全书》（ADJ-WEB-20261012-JINGFANG）。",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE"
+  },
+  {
+   "formulaName": "金水六君煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "和阵（新和一），二陈汤加当归、熟地，原文「治肺肾虚寒，水泛为痰，或年迈阴虚，血气不足」——补肾养阴兼化痰，补虚为本。按功用批准；标注：属和阵。",
+   "evidenceLevel": "A-原典自归八阵+功用",
+   "evidenceUrl": "https://github.com/xiaopangxia/TCM-Ancient-Books/blob/master/637-%E6%99%AF%E5%B2%B3%E5%85%A8%E4%B9%A6.txt",
+   "evidenceNote": "2026-10-12 本地《景岳全书》新方八阵原文核对（与 github.com/xiaopangxia/TCM-Ancient-Books 逐字节一致）；目录出处已由后世转录书回归《景岳全书》（ADJ-WEB-20261012-JINGFANG）。",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE"
+  },
+  {
+   "formulaName": "理阴煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "热阵（新热三），原文「此理中汤之变方也……宜温润者，当用理阴、大营之类」，温补阴分、托散寒邪。批准。",
+   "evidenceLevel": "A-原典自归八阵+功用",
+   "evidenceUrl": "https://github.com/xiaopangxia/TCM-Ancient-Books/blob/master/637-%E6%99%AF%E5%B2%B3%E5%85%A8%E4%B9%A6.txt",
+   "evidenceNote": "2026-10-12 本地《景岳全书》新方八阵原文核对（与 github.com/xiaopangxia/TCM-Ancient-Books 逐字节一致）；目录出处已由后世转录书回归《景岳全书》（ADJ-WEB-20261012-JINGFANG）。",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE"
+  },
+  {
+   "formulaName": "五福饮",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-tonify",
+   "status": "evidence_approved",
+   "researchRecommendation": "adopt",
+   "recommendationBasis": "补阵（新补六），原文「凡五脏气血亏损者，此能兼治之，足称王道之最」，平补五脏气血。批准。",
+   "evidenceLevel": "A-原典自归八阵+功用",
+   "evidenceUrl": "https://github.com/xiaopangxia/TCM-Ancient-Books/blob/master/637-%E6%99%AF%E5%B2%B3%E5%85%A8%E4%B9%A6.txt",
+   "evidenceNote": "2026-10-12 本地《景岳全书》新方八阵原文核对（与 github.com/xiaopangxia/TCM-Ancient-Books 逐字节一致）；目录出处已由后世转录书回归《景岳全书》（ADJ-WEB-20261012-JINGFANG）。",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE"
+  }
+ ],
+ "researchPackage": {
+  "file": "中医师核定全网资料包-20260813.xlsx",
+  "sheet": "流派204",
+  "boundary": "本工作簿自述为医生签字前的研究建议；researchRecommendation 只是建议，adjudicationStatus/status 仍为 pending_clinician_review，运行时零影响。",
+  "perFormulaAdopt": 30,
+  "perFormulaReject": 22
+ },
+ "schoolUsage": [
+  {
+   "formulaName": "潜阳丹",
+   "source": "《医理真传》",
+   "lineageCode": "support-yang",
+   "relation": "created",
+   "schoolBook": "《医理真传》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "641-医理真传.txt",
+     "line": 365,
+     "quote": "况龟板一物，坚硬，得水之精气而生，有通阴助阳之力，世人以利水滋阴目之，悖其功也。佐以甘草补中，有伏火互根之妙，故曰潜阳。"
+    },
+    {
+     "url": "https://www.cntcm.com.cn/m/content/202603/12/c501215.html",
+     "title": "潜阳封髓丹加减治疗抽动秽语综合征 - 中国中医药报",
+     "quote": "潜阳封髓丹乃清代郑钦安所创，由潜阳丹（砂仁、附子、龟甲、炙甘草）与封髓丹（黄柏、砂仁、炙甘草）化裁而成"
+    },
+    {
+     "url": "https://www.sohu.com/a/151943084_488272",
+     "title": "潜阳封髓丹的精妙之处 - 搜狐",
+     "quote": "前者“潜阳丹”由砂仁、附子、龟板、炙甘草组成，有纳气归肾的作用"
+    }
+   ],
+   "note": "郑氏自制方。组成（见本地文件第359行，仅列药名）：砂仁（原书作「西砂」）、附子（姜汁炒）、龟板（龟甲）、炙甘草。原书第355行：头面浮肿色青白、身重欲寐、闭目觉身飘扬无依者，「法宜潜阳，方用潜阳丹」；第363行说明砂仁、附子的作用。在本地25部古籍（含明清多部方书）中只见于郑氏二书，未检得更早同名方（非穷尽）。后世与封髓丹合用称潜阳封髓丹（合方，不单列）。"
+  },
+  {
+   "formulaName": "补坎益离丹",
+   "source": "《医法圆通》",
+   "lineageCode": "support-yang",
+   "relation": "created",
+   "schoolBook": "《医法圆通》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "631-医法圆通.txt",
+     "line": 58,
+     "quote": "附、桂补坎中之阳。阳，气也。蛤粉补坎中之阴。阴，血也。气行血随，血行气附，阴阳合一，升降不乖，何心病之能治乎。"
+    }
+   ],
+   "note": "郑氏自制方，治心阳不足、心不安宁。组成（本地文件第45行，仅列药名）：附子、桂心（肉桂）、蛤粉、炙甘草、生姜。第43行郑氏自述「姑酌一治心阳虚方，以补市习之漏」；《伤寒恒论》唐步祺阐释称「鄭氏所訂之補坎益離丹」（120-伤寒恒论.txt 第279行）。在本地25部古籍中只见于《医法圆通》。未找到可核对的网页出处，见 openIssues。"
+  },
+  {
+   "formulaName": "姜附茯半汤",
+   "source": "《医理真传》",
+   "lineageCode": "support-yang",
+   "relation": "created",
+   "schoolBook": "《医理真传》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "641-医理真传.txt",
+     "line": 509,
+     "quote": "附子性烈纯阳，可救先天之火种，真火复盛，阴寒之气立消；佐茯苓健脾行水，水者痰之本也，水去而痰自不作；况又得半夏之降逆化痰"
+    }
+   ],
+   "note": "郑氏自制方，治阳虚痰涎壅塞之中痰（原文「中痰者，可与姜附茯半汤治之」）。组成（本地文件第505行，仅列药名）：生姜（取汁）、附子、茯苓、半夏。原书称其「回阳降逆，行水化痰」。在本地25部古籍中只见于《医理真传》；未检得网页出处，见 openIssues。"
+  },
+  {
+   "formulaName": "姜桂汤〔《医理真传》·扶上阳方〕",
+   "source": "《医理真传》",
+   "lineageCode": "support-yang",
+   "relation": "created",
+   "schoolBook": "《医理真传》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "641-医理真传.txt",
+     "line": 459,
+     "quote": "按姜桂汤一方，乃扶上阳之方也。夫上焦之阳，原属心肺所主，今因一元之气不足于上，而上焦之阴气即旺，阴气过盛，阳气力薄，即不能收束津液。"
+    }
+   ],
+   "note": "治阳虚不能摄津之清涕、嚏不休。组成（本地文件第455行，仅列药名）：生姜、桂枝，《医法圆通》中「姜桂汤」「姜桂饮」并见，常与白通汤、潜阳丹并列。郑氏称「阳虚篇内所备……姜桂诸方，皆从仲景四逆汤一方搜出」。同名异方：《万病回春》姜桂汤（干姜、良姜、官桂等多味，治胃脘寒痛）、《绛雪园古方选注》姜桂汤（姜汁、肉桂、人参、当归、大枣）组成均与此不同，故仍按郑氏二味方标 created，但把握低于前三首。"
+  },
+  {
+   "formulaName": "四逆汤",
+   "source": "《伤寒论》",
+   "lineageCode": "support-yang",
+   "relation": "signature_use",
+   "schoolBook": "《医理真传》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "641-医理真传.txt",
+     "line": 417,
+     "quote": "仲景深通造化之微，知附子之力能补先天欲绝之火种，用之以为君。又虑群阴阻塞，不能直入根蒂，故佐以干姜之辛温而散，以为前驱。"
+    },
+    {
+     "url": "https://baike.baidu.hk/item/%E7%81%AB%E7%A5%9E%E6%B4%BE/7940940",
+     "title": "火神派_百度百科",
+     "quote": "用方则多为四逆汤、白通汤、麻黄附子细辛汤等,这是火神派最鲜明的特点"
+    }
+   ],
+   "note": "郑氏学说的祖方：附子、干姜、炙甘草。《医法圆通》专设「麻黄附子细辛汤四逆汤圆通应用法」，称「一方可治数百种病」（631-医法圆通.txt 第2034行）；《医理真传》称阳虚篇诸方「皆从仲景四逆汤一方搜出」（第651行）。使用前提是「阴阳实据」。"
+  },
+  {
+   "formulaName": "白通汤",
+   "source": "《伤寒论》",
+   "lineageCode": "support-yang",
+   "relation": "signature_use",
+   "schoolBook": "《医理真传》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "641-医理真传.txt",
+     "line": 435,
+     "quote": "夫生附子大热纯阳，补先天之火种，佐干姜以温中焦之土气，而调和上下。葱白一物，能引离中之阴，下交于肾，生附子又能启水中之阳，上交于心。"
+    },
+    {
+     "url": "https://baike.baidu.hk/item/%E7%81%AB%E7%A5%9E%E6%B4%BE/7940940",
+     "title": "火神派_百度百科",
+     "quote": "用方则多为四逆汤、白通汤、麻黄附子细辛汤等,这是火神派最鲜明的特点"
+    }
+   ],
+   "note": "附子、干姜、葱白；用于元阳外越、阴盛格阳（如耳前后肿痛、两颧色赤而唇舌青白，脉浮大而空）。《伤寒恒论》鄭論：「按下利而用白通，直救其陽也」（120-伤寒恒论.txt 第3036行）。《医法圆通》将其与潜阳丹、姜桂饮并列为扶阳抑阴常用方。"
+  },
+  {
+   "formulaName": "通脉四逆汤",
+   "source": "《伤寒论》",
+   "lineageCode": "support-yang",
+   "relation": "signature_use",
+   "schoolBook": "《伤寒恒论》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "120-伤寒恒论.txt",
+     "line": 3622,
+     "quote": "鄭論：按下利清穀，裏寒外熱，汗出而厥，此陰盛逼陽於外之候，主以通脈四逆，誠不易之法也。"
+    }
+   ],
+   "note": "四逆汤同族，治阴盛格阳于外的真寒假热（甘草、附子、干姜，干姜加重）。《伤寒恒论》第3058行以下郑氏对少阴篇通脉四逆汤证有专论。属仲景方，非郑氏创制。"
+  },
+  {
+   "formulaName": "附子理中汤",
+   "source": "《三因极一病证方论》",
+   "lineageCode": "support-yang",
+   "relation": "signature_use",
+   "schoolBook": "《医理真传》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "641-医理真传.txt",
+     "line": 481,
+     "quote": "本方原无附子，后人增入附子，而曰附子理中，觉偏重下焦，不可以理中名。余谓先后并补之方，因附子之功在先天，理中之功在后天也。"
+    }
+   ],
+   "note": "附子、白术、干姜、人参、炙甘草；郑氏用于脾胃之阳竭于上（唇肿紫红、日泄、午后畏寒等），《医理真传》《医法圆通》反复使用，常加砂仁、半夏。郑氏自述「本方原无附子，后人增入」，故非其创制。"
+  },
+  {
+   "formulaName": "封髓丹",
+   "source": "《御药院方》",
+   "lineageCode": "support-yang",
+   "relation": "signature_use",
+   "schoolBook": "《医理真传》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "641-医理真传.txt",
+     "line": 393,
+     "quote": "此一方不可轻视，余常亲身阅历，能治一切虚火上冲，牙疼，咳嗽，喘促，面肿，喉痹，耳肿，目赤，鼻塞，遗尿，滑精诸症，屡获奇效"
+    },
+    {
+     "url": "https://www.a-hospital.com/w/%E5%B0%81%E9%AB%93%E4%B8%B9",
+     "title": "封髓丹 - A+医学百科（《御药院方》卷六）",
+     "quote": "【功效与作用】 降火止遗。主治肾阴不足，相火妄动，夜梦遗精。"
+    }
+   ],
+   "note": "黄柏、砂仁、炙甘草。非郑氏创制：《御药院方》卷六已载，《医宗金鉴》亦载（575-医宗金鉴.txt 第28114行「恐苦寒伤胃, 故宜封髓丹, 即黄柏, 甘草, 缩砂仁也.」）。郑氏用以治虚火上冲（牙痛、咽痛、面肿等），并与潜阳丹并用；其适应证以「阴阳实据」为前提。"
+  },
+  {
+   "formulaName": "麻黄附子细辛汤",
+   "source": "《伤寒论》",
+   "lineageCode": "support-yang",
+   "relation": "signature_use",
+   "schoolBook": "《医理真传》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "641-医理真传.txt",
+     "line": 633,
+     "quote": "按麻黄附子细辛汤一方，乃交阴阳之方，亦温经散寒之方也。夫附子辛热，能助太阳之阳，而内交于少阴。"
+    },
+    {
+     "url": "https://baike.baidu.hk/item/%E7%81%AB%E7%A5%9E%E6%B4%BE/7940940",
+     "title": "火神派_百度百科",
+     "quote": "用方则多为四逆汤、白通汤、麻黄附子细辛汤等,这是火神派最鲜明的特点"
+    }
+   ],
+   "note": "麻黄、附子、细辛；郑氏认为其义在「交阴阳」而非单纯发汗，用于太少两感、阳虚外感及多种阳虚夹表之证。《医法圆通》专设「麻黄附子细辛汤四逆汤圆通应用法」。仲景方。"
+  },
+  {
+   "formulaName": "麻黄细辛附子汤",
+   "source": "《伤寒论》",
+   "lineageCode": "support-yang",
+   "relation": "signature_use",
+   "schoolBook": "《医理真传》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "641-医理真传.txt",
+     "line": 633,
+     "quote": "按麻黄附子细辛汤一方，乃交阴阳之方，亦温经散寒之方也。夫附子辛热，能助太阳之阳，而内交于少阴。"
+    },
+    {
+     "url": "https://baike.baidu.hk/item/%E7%81%AB%E7%A5%9E%E6%B4%BE/7940940",
+     "title": "火神派_百度百科",
+     "quote": "用方则多为四逆汤、白通汤、麻黄附子细辛汤等,这是火神派最鲜明的特点"
+    }
+   ],
+   "note": "麻黄、附子、细辛；郑氏认为其义在「交阴阳」而非单纯发汗，用于太少两感、阳虚外感及多种阳虚夹表之证。《医法圆通》专设「麻黄附子细辛汤四逆汤圆通应用法」。仲景方。"
+  },
+  {
+   "formulaName": "真武汤",
+   "source": "《伤寒论》",
+   "lineageCode": "support-yang",
+   "relation": "signature_use",
+   "schoolBook": "《伤寒恒论》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "120-伤寒恒论.txt",
+     "line": 339,
+     "quote": "夫先天之真陽，喜藏而不喜露，藏則命根永固，露則危亡立生，主以真武湯，是重藏陽之意也。"
+    }
+   ],
+   "note": "茯苓、芍药、白术、生姜、附子（本地文件第3052行校补，仅列药名）。郑氏在太阳篇发汗亡阳条与少阴篇水气条两处论及，少阴篇鄭論谓「原文主真武湯，是重寒水阻滯而設，學者不可固執，總在扶陽驅陰為要」（第3048行）。仲景方；使用频次低于四逆汤族。"
+  },
+  {
+   "formulaName": "甘草干姜汤",
+   "source": "《伤寒论》",
+   "lineageCode": "support-yang",
+   "relation": "signature_use",
+   "schoolBook": "《医理真传》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "641-医理真传.txt",
+     "line": 773,
+     "quote": "夫干姜辛温，辛与甘合则从阳化，干姜炮黑，其味即苦，苦与甘合则从阴化。仲景以此方治误吐逆烦躁而厥者，取大甘以化热、守中而复阳也。"
+    }
+   ],
+   "note": "炙甘草、干姜（炮）；郑氏称其「辛甘化阳」，亦可配当归补血汤等化阴，在《医理真传》《医法圆通》中多次作为吐血、虚寒证首选。仲景方。"
+  },
+  {
+   "formulaName": "桂枝加龙骨牡蛎汤",
+   "source": "《金匮要略》",
+   "lineageCode": "support-yang",
+   "relation": "signature_use",
+   "schoolBook": "《医理真传》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "641-医理真传.txt",
+     "line": 1101,
+     "quote": "取龙、牡有情之物，龙禀阳之灵，牡禀阴之灵，二物合而为一，取阴、阳互根之意，加附子者，取其助真火以壮君火也。"
+    }
+   ],
+   "note": "郑氏用于心阳不足怔忡，原文「方用桂枝龙骨牡蛎汤，再重加附子」。组成（本地文件第1089行，仅列药名）：桂枝、白芍、龙骨、牡蛎、甘草、生姜、大枣、附子。底方是《金匮要略》桂枝加龙骨牡蛎汤（499-金匮要略方论.txt 第340行），郑氏加附子，故不标 created。"
+  },
+  {
+   "formulaName": "补中益气汤",
+   "source": "《内外伤辨惑论》",
+   "lineageCode": "warm-tonify",
+   "relation": "signature_use",
+   "schoolBook": "《内科摘要》（薛己）；另见《医贯》补中益气汤论（赵献可）、《孙文垣医案》（孙一奎）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 104,
+     "quote": "因饮食失宜，日晡发热，口干体倦，小便赤涩，两腿酸痛，余用补中益气汤治之"
+    },
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 20,
+     "quote": "加茯苓、半夏以补脾土，用八味地黄以补土母而愈。后惑于《乾坤生意方》云∶凡人手指麻"
+    },
+    {
+     "localFile": "364-医贯.txt",
+     "line": 1783,
+     "quote": "垣深痛其害。创立此方。以为邪之所凑。其气必虚。内伤者多。外感者间有之。纵有外邪。亦是乘虚而入。"
+    },
+    {
+     "localFile": "396-孙文垣医案.txt",
+     "line": 233,
+     "quote": "乃用补中益气汤，加阿胶、地榆、侧柏叶，服八剂，血"
+    },
+    {
+     "url": "https://www.med66.com/new/42a205a2009/20091019liuhon144746.shtml",
+     "title": "温补学派_医学教育网",
+     "quote": "发挥了东垣“脾胃内伤，百病由生”的理论，更强调了脾胃内伤与虚证的关系。在治疗上统治以东垣补中益气汤，或出入于四君、六君之间。"
+    },
+    {
+     "url": "https://www.med66.com/new/42a205a2009/20091019liuhon144746.shtml",
+     "title": "温补学派_医学教育网",
+     "quote": "对虚损诸证，多从下元不足论治，自制壮元汤，配合东垣补中益气汤作为三焦元气不足之主方。"
+    },
+    {
+     "url": "http://www.a-hospital.com/w/%E8%A1%A5%E4%B8%AD%E7%9B%8A%E6%B0%94%E6%B1%A4",
+     "title": "",
+     "quote": "【来源】出自金代名医李东垣《脾胃论》卷中，"
+    }
+   ],
+   "note": "signature_use：此方为李东垣所创（《内外伤辨惑论》），不是温补学派自创；但薛己「统治以东垣补中益气汤」，《内科摘要》全书出现106次（医贯42次、孙文垣医案17次），赵献可《医贯》专设《补中益气汤论》，孙一奎以壮原汤配补中益气汤为三焦元气不足主方，故为薛己一系公认的标志性用方。"
+  },
+  {
+   "formulaName": "六味地黄丸",
+   "source": "《小儿药证直诀》",
+   "lineageCode": "warm-tonify",
+   "relation": "signature_use",
+   "schoolBook": "《内科摘要》（薛己）；《医贯》（赵献可）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 613,
+     "quote": "治肾经不足，发热作渴，小便淋秘，气壅痰嗽，头目眩晕，眼"
+    },
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 66,
+     "quote": "遂用逍遥散、补中益气汤、六味地黄丸调治。喜其谨疾，年余悉愈，形体康健。"
+    },
+    {
+     "localFile": "364-医贯.txt",
+     "line": 1023,
+     "quote": "肾虚不能制火者。此方主之。肾中非独水也。命门之火并焉。肾不虚。则水足以制火。虚则火无所制。而热"
+    },
+    {
+     "localFile": "364-医贯.txt",
+     "line": 968,
+     "quote": "钱氏减桂附。名曰六味地黄丸。以治小儿。以小儿纯阳。故减桂附。"
+    },
+    {
+     "url": "https://www.med66.com/new/42a205a2009/20091019liuhon144746.shtml",
+     "title": "温补学派_医学教育网",
+     "quote": "又主张若补脾不应，即求之于肾和命门之水火阴阳不足，若肾阴不足，用六味丸，壮水之主以制阳光；若命门相火不足，用八味丸，益火之源以消阴翳。"
+    },
+    {
+     "url": "https://www.med66.com/html/2008/9/li11724740361629800213865.html",
+     "title": "赵献可《医贯》医学理论特色辨析_中医助理医师-正保医学教育网",
+     "quote": "赵氏认为：“肾中非独水也，命门之火并焉，肾不虚则水足以制火，虚则无水以制，而热症生矣，名之曰阴虚火动。”"
+    }
+   ],
+   "note": "signature_use：方源为宋代钱乙（《医贯》原文「钱氏减桂附，名曰六味地黄丸」）。薛己「肾阴不足用六味丸」、赵献可以六味丸为「肾虚不能制火」专方，《内科摘要》六味54次、《医贯》六味61次。张景岳则认为补阴不宜渗利，另立去三泻的左归丸/左归饮，见 misconceptions。"
+  },
+  {
+   "formulaName": "八味丸",
+   "source": "《三因极一病证方论》",
+   "lineageCode": "warm-tonify",
+   "relation": "signature_use",
+   "schoolBook": "《医贯》（赵献可，称八味丸）；《内科摘要》（薛己，称八味丸）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "364-医贯.txt",
+     "line": 958,
+     "quote": "治命门火衰。不能生土。以致脾胃虚寒。饮食少思。大便不实。或下元衰惫。脐"
+    },
+    {
+     "localFile": "364-医贯.txt",
+     "line": 990,
+     "quote": "余所以谆谆于此方者。盖深知仲景为立方之祖。的认此方为治肾之要。毫不敢私意增减。今人或以脾胃"
+    },
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 618,
+     "quote": "八味丸 治命门火衰，不能生土，以致脾胃虚寒，饮食少思，大便不实，脐腹疼痛，夜多漩 "
+    },
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 234,
+     "quote": "∶此非脾胃病，乃命门火衰不能生土，土虚寒使之然也，若专主脾胃，误矣，可服八味丸则愈。"
+    },
+    {
+     "url": "https://www.med66.com/html/2008/9/li11724740361629800213865.html",
+     "title": "赵献可《医贯》医学理论特色辨析_中医助理医师-正保医学教育网",
+     "quote": "八味丸以地黄为君，余药佐之，非止为补血之剂，而取其养五脏、益气力，有补虚损五劳之功。"
+    },
+    {
+     "url": "https://www.med66.com/new/42a205a2011/2011422yuziji105415.shtml",
+     "title": "命门学说大家赵献可_医学教育网",
+     "quote": "不仅从其一般辨证规律进行施治，而且均注意到从肾命水火亏虚方面进行分析，广泛使用六味、八味诸方，为治疗以上疾病提供了有益经验。"
+    },
+    {
+     "url": "https://www.med66.com/html/2007/10/wa89001113271320170022871.html",
+     "title": "补益方_中医执业医师-正保医学教育网",
+     "quote": "方解：方中以附子、肉桂温补肾阳为主药，以六味地黄丸滋补肾阴，为辅助药，二者合用，使阴阳协调，肾气充足，肾阳虚证自然消除。"
+    }
+   ],
+   "note": "signature_use：方源《金匮要略》肾气丸。薛己、赵献可原文称「八味丸」「八味地黄丸」，组成即六味丸加肉桂、附子（现称桂附地黄丸/金匮肾气丸，桂枝与肉桂之别见 openIssues）。赵献可称其「治肾之要，毫不敢私意增减」，全书八味80次；薛己用于「命门火衰不能生土」。卡面建议用通行规范名「肾气丸」，别名八味丸。"
+  },
+  {
+   "formulaName": "肾气丸",
+   "source": "《金匮要略》",
+   "lineageCode": "warm-tonify",
+   "relation": "signature_use",
+   "schoolBook": "《医贯》（赵献可，称八味丸）；《内科摘要》（薛己，称八味丸）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "364-医贯.txt",
+     "line": 958,
+     "quote": "治命门火衰。不能生土。以致脾胃虚寒。饮食少思。大便不实。或下元衰惫。脐"
+    },
+    {
+     "localFile": "364-医贯.txt",
+     "line": 990,
+     "quote": "余所以谆谆于此方者。盖深知仲景为立方之祖。的认此方为治肾之要。毫不敢私意增减。今人或以脾胃"
+    },
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 618,
+     "quote": "八味丸 治命门火衰，不能生土，以致脾胃虚寒，饮食少思，大便不实，脐腹疼痛，夜多漩 "
+    },
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 234,
+     "quote": "∶此非脾胃病，乃命门火衰不能生土，土虚寒使之然也，若专主脾胃，误矣，可服八味丸则愈。"
+    },
+    {
+     "url": "https://www.med66.com/html/2008/9/li11724740361629800213865.html",
+     "title": "赵献可《医贯》医学理论特色辨析_中医助理医师-正保医学教育网",
+     "quote": "八味丸以地黄为君，余药佐之，非止为补血之剂，而取其养五脏、益气力，有补虚损五劳之功。"
+    },
+    {
+     "url": "https://www.med66.com/new/42a205a2011/2011422yuziji105415.shtml",
+     "title": "命门学说大家赵献可_医学教育网",
+     "quote": "不仅从其一般辨证规律进行施治，而且均注意到从肾命水火亏虚方面进行分析，广泛使用六味、八味诸方，为治疗以上疾病提供了有益经验。"
+    },
+    {
+     "url": "https://www.med66.com/html/2007/10/wa89001113271320170022871.html",
+     "title": "补益方_中医执业医师-正保医学教育网",
+     "quote": "方解：方中以附子、肉桂温补肾阳为主药，以六味地黄丸滋补肾阴，为辅助药，二者合用，使阴阳协调，肾气充足，肾阳虚证自然消除。"
+    }
+   ],
+   "note": "signature_use：方源《金匮要略》肾气丸。薛己、赵献可原文称「八味丸」「八味地黄丸」，组成即六味丸加肉桂、附子（现称桂附地黄丸/金匮肾气丸，桂枝与肉桂之别见 openIssues）。赵献可称其「治肾之要，毫不敢私意增减」，全书八味80次；薛己用于「命门火衰不能生土」。卡面建议用通行规范名「肾气丸」，别名八味丸。"
+  },
+  {
+   "formulaName": "金匮肾气丸",
+   "source": "《金匮要略》",
+   "lineageCode": "warm-tonify",
+   "relation": "signature_use",
+   "schoolBook": "《医贯》（赵献可，称八味丸）；《内科摘要》（薛己，称八味丸）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "364-医贯.txt",
+     "line": 958,
+     "quote": "治命门火衰。不能生土。以致脾胃虚寒。饮食少思。大便不实。或下元衰惫。脐"
+    },
+    {
+     "localFile": "364-医贯.txt",
+     "line": 990,
+     "quote": "余所以谆谆于此方者。盖深知仲景为立方之祖。的认此方为治肾之要。毫不敢私意增减。今人或以脾胃"
+    },
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 618,
+     "quote": "八味丸 治命门火衰，不能生土，以致脾胃虚寒，饮食少思，大便不实，脐腹疼痛，夜多漩 "
+    },
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 234,
+     "quote": "∶此非脾胃病，乃命门火衰不能生土，土虚寒使之然也，若专主脾胃，误矣，可服八味丸则愈。"
+    },
+    {
+     "url": "https://www.med66.com/html/2008/9/li11724740361629800213865.html",
+     "title": "赵献可《医贯》医学理论特色辨析_中医助理医师-正保医学教育网",
+     "quote": "八味丸以地黄为君，余药佐之，非止为补血之剂，而取其养五脏、益气力，有补虚损五劳之功。"
+    },
+    {
+     "url": "https://www.med66.com/new/42a205a2011/2011422yuziji105415.shtml",
+     "title": "命门学说大家赵献可_医学教育网",
+     "quote": "不仅从其一般辨证规律进行施治，而且均注意到从肾命水火亏虚方面进行分析，广泛使用六味、八味诸方，为治疗以上疾病提供了有益经验。"
+    },
+    {
+     "url": "https://www.med66.com/html/2007/10/wa89001113271320170022871.html",
+     "title": "补益方_中医执业医师-正保医学教育网",
+     "quote": "方解：方中以附子、肉桂温补肾阳为主药，以六味地黄丸滋补肾阴，为辅助药，二者合用，使阴阳协调，肾气充足，肾阳虚证自然消除。"
+    }
+   ],
+   "note": "signature_use：方源《金匮要略》肾气丸。薛己、赵献可原文称「八味丸」「八味地黄丸」，组成即六味丸加肉桂、附子（现称桂附地黄丸/金匮肾气丸，桂枝与肉桂之别见 openIssues）。赵献可称其「治肾之要，毫不敢私意增减」，全书八味80次；薛己用于「命门火衰不能生土」。卡面建议用通行规范名「肾气丸」，别名八味丸。"
+  },
+  {
+   "formulaName": "六君子汤",
+   "source": "《医学正传》",
+   "lineageCode": "warm-tonify",
+   "relation": "signature_use",
+   "schoolBook": "《内科摘要》（薛己）；《孙文垣医案》（孙一奎）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 573,
+     "quote": "六君子汤 即四君子加半夏、陈皮。治脾胃虚弱，饮食少思，或久患疟、痢。若见内热，或饮"
+    },
+    {
+     "localFile": "396-孙文垣医案.txt",
+     "line": 400,
+     "quote": "因思一治法，先用六君子汤，加木香、砂仁"
+    },
+    {
+     "url": "https://www.med66.com/new/42a205a2009/20091019liuhon144746.shtml",
+     "title": "温补学派_医学教育网",
+     "quote": "发挥了东垣“脾胃内伤，百病由生”的理论，更强调了脾胃内伤与虚证的关系。在治疗上统治以东垣补中益气汤，或出入于四君、六君之间。"
+    }
+   ],
+   "note": "signature_use（频次依据）：六君子汤并非温补学派所创，但教材明言薛己「出入于四君、六君之间」；《内科摘要》出现40次，《孙文垣医案》出现35次（同书理中22次、补中益气17次）。用于体现该学派「温补不等于扶阳，脾胃为本」的一面，不建议进卡面。"
+  },
+  {
+   "formulaName": "十全大补汤",
+   "source": "《太平惠民和剂局方》",
+   "lineageCode": "warm-tonify",
+   "relation": "signature_use",
+   "schoolBook": "《内科摘要》（薛己）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 585,
+     "quote": "十全大补汤 即八珍加黄 、肉桂，治症同前。又治遗精，白浊，自汗，盗汗；或内热、晡热、"
+    },
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 99,
+     "quote": "皆是无根虚火，但服前汤固其根本，诸症自息，若攻其风热则误矣。"
+    }
+   ],
+   "note": "signature_use（频次依据）：方源《太平惠民和剂局方》。《内科摘要》出现23次，薛己将内热、晡热、遗精白浊等「无根虚火」归于气血亏损，以此汤「固其根本」，是其「治虚心得」的代表。本机未取得教材网页逐句佐证，仅有原典频次与原文，证据级别低于补中益气汤/六味/八味。"
+  },
+  {
+   "formulaName": "归脾汤",
+   "source": "《校注妇人良方》（通行十味方；初出《济生方》卷四为八味，薛己补当归、远志）。",
+   "lineageCode": "warm-tonify",
+   "relation": "created",
+   "schoolBook": "《内科摘要》（薛己）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 609,
+     "quote": "加味归脾汤 即前方加柴胡、山栀。"
+    },
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 70,
+     "quote": "涎愈甚，内热晡热，食少体倦，余以为郁火伤脾血燥生风所致，用加味归脾汤二十余剂，形"
+    },
+    {
+     "url": "http://www.a-hospital.com/w/%E5%8A%A0%E5%91%B3%E5%BD%92%E8%84%BE%E6%B1%A4",
+     "title": "",
+     "quote": "8 《医部全录》卷三九九引《薛氏医案》:加味归脾汤"
+    }
+   ],
+   "note": "created（证据中等）：归脾汤本出严用和《济生方》，《内科摘要》并载归脾汤与「加味归脾汤 即前方加柴胡、山栀」；日本汉方资料（东京女子医科大学东洋医学研究所森永明倫，日经广播《汉方今日》2018-05-09讲稿 https://www.radionikkei.jp/kampotoday/docs/kampo-180509.pdf，PDF 无法做网页逐字比对，故未列入 webSources）称加味归脾汤出典为《薛氏医案》，现行加味归脾汤主要为归脾汤加柴胡、山栀。方向偏养心脾兼清肝热，非辛热温阳，不建议进卡面。"
+  },
+  {
+   "formulaName": "逍遥散",
+   "source": "《太平惠民和剂局方》卷九",
+   "lineageCode": "warm-tonify",
+   "relation": "signature_use",
+   "schoolBook": "《医贯》郁病论（赵献可）；《内科摘要》（薛己，用加味逍遥散）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "364-医贯.txt",
+     "line": 618,
+     "quote": "郁皆因而愈。一方者何。逍遥散是也。方中唯柴胡薄荷二味最妙。盖人身之胆木。乃甲木少阳之气。气尚柔"
+    },
+    {
+     "localFile": "364-医贯.txt",
+     "line": 624,
+     "quote": "巧者。然犹未也。一服之后。继用六味地黄加柴胡芍药服之。以滋肾水。俾水能生木。逍遥散者。风以散"
+    },
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 1168,
+     "quote": "加味逍遥散 治肝脾血虚发热，或潮热，晡热，或自汗盗汗，或头痛，目涩，或怔忡不宁，或颊"
+    },
+    {
+     "url": "https://www.med66.com/new/42a205a2011/2011422yuziji105415.shtml",
+     "title": "命门学说大家赵献可_医学教育网",
+     "quote": "逍遥散是赵氏治疗木郁的主剂，并常结合左金丸和六味地黄丸同用。"
+    },
+    {
+     "url": "http://www.a-hospital.com/w/%E9%80%8D%E9%81%A5%E6%95%A3",
+     "title": "",
+     "quote": "【出处】 《太平惠民和剂局方》"
+    }
+   ],
+   "note": "signature_use：逍遥散出《太平惠民和剂局方》。赵献可《郁病论》「以一法代五法」，称一方治木郁而诸郁皆愈，一服后继以六味地黄加柴胡芍药滋水涵木；薛己《内科摘要》则常用加味逍遥散（逍遥散加牡丹皮、山栀，本机未查到教材页逐字确认该加味方的首创归属，故不标 created）。此方疏肝解郁，不是温补药，纳入是为避免把赵献可误读成只补不疏；不建议进卡面。"
+  },
+  {
+   "formulaName": "济生肾气丸",
+   "source": "《金匮要略》",
+   "lineageCode": "warm-tonify",
+   "relation": "signature_use",
+   "schoolBook": "《内科摘要》（薛己，称加减济生肾气丸/金匮加减肾气丸）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 1224,
+     "quote": "加减济生肾气丸 治脾肾虚，腰重脚肿，小便不利；或肚腹肿胀，四肢浮肿；或喘急痰盛，"
+    },
+    {
+     "localFile": "233-内科摘要.txt",
+     "line": 223,
+     "quote": "此症若不用前丸，多变腹胀喘促，腿足浮肿，小便淋沥等症，急用济生加减肾气丸"
+    },
+    {
+     "url": "https://www.med66.com/html/2007/10/wa89001113271320170022871.html",
+     "title": "补益方_中医执业医师-正保医学教育网",
+     "quote": "本方加牛膝、车前子，名济生肾气丸。其利尿消肿之力更强，可用于肾阳不足，腰重脚肿、水肿、小便不利等证。"
+    }
+   ],
+   "note": "signature_use：方源严用和《济生方》（肾气丸加牛膝、车前子）。薛己用于脾肾虚水肿、小便不利，并称其「效如神」。次要标志性用方，不入卡面。"
+  },
+  {
+   "formulaName": "附子理中汤",
+   "source": "《三因极一病证方论》",
+   "lineageCode": "warm-tonify",
+   "relation": "signature_use",
+   "schoolBook": "《孙文垣医案》（孙一奎）；亦见《医贯》（赵献可）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "396-孙文垣医案.txt",
+     "line": 279,
+     "quote": "附子理中汤正所以温中补下者。《内经》又云∶实者，邪气实也。"
+    },
+    {
+     "localFile": "396-孙文垣医案.txt",
+     "line": 5427,
+     "quote": "不变色，犹原物，予思之，此脾经为寒湿所伤，脾不裹血故也。非附子理中汤加肉桂、肉果"
+    }
+   ],
+   "note": "signature_use（频次依据，证据级别低）：附子理中汤本出《太平惠民和剂局方》。孙文垣医案中出现11次，用于中下焦虚寒、虚阳外越（「温中补下」），同书也有反例（疫症不可用，见 cautions）。教材未把它单列为孙一奎的标志方，故仅作亲和度参考，不进卡面。"
+  },
+  {
+   "formulaName": "壮原汤",
+   "source": "《赤水玄珠》",
+   "lineageCode": "warm-tonify",
+   "relation": "created",
+   "schoolBook": "《赤水玄珠》卷五胀满门（孙一奎；教材作「壮元汤」）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "url": "https://zh.wikisource.org/zh-hans/%E8%B5%A4%E6%B0%B4%E5%85%83%E7%8F%A0_(%E5%9B%9B%E5%BA%93%E5%85%A8%E4%B9%A6%E6%9C%AC)/%E5%8D%B705",
+     "title": "赤水元珠 (四库全书本)/卷05 - 维基文库，自由的图书馆",
+     "quote": "治下焦虚寒中满肿胀小水不利上气喘急阴两腿皆肿或面有浮气",
+     "originalText": true
+    },
+    {
+     "url": "https://zh.wikisource.org/zh-hans/%E8%B5%A4%E6%B0%B4%E5%85%83%E7%8F%A0_(%E5%9B%9B%E5%BA%93%E5%85%A8%E4%B9%A6%E6%9C%AC)/%E5%8D%B705",
+     "title": "赤水元珠 (四库全书本)/卷05 - 维基文库，自由的图书馆",
+     "quote": "故治胀满者先宜温补下元使火气盛而湿气蒸发胃中温暖谷食易化则满可宽矣",
+     "originalText": true
+    },
+    {
+     "url": "https://www.med66.com/new/42a205a2009/20091019liuhon144746.shtml",
+     "title": "温补学派_医学教育网",
+     "quote": "对虚损诸证，多从下元不足论治，自制壮元汤，配合东垣补中益气汤作为三焦元气不足之主方。"
+    }
+   ],
+   "note": "created：教材明言孙一奎「自制壮元汤」，原文在《赤水玄珠》卷五胀满门「鼓胀说」之后「补下元之剂」，方名作「壮原汤」，主治下焦虚寒中满肿胀、小水不利、上气喘急。组成（人参、白术、茯苓、破故纸、桂心、大附子、干姜、砂仁、陈皮）与本仓方剂目录「壮原汤 《赤水玄珠》卷五」一致。「壮元汤」是教材写法，同方异写；规范名建议用原文「壮原汤」并保留壮元汤为别名。"
+  },
+  {
+   "formulaName": "达原饮",
+   "source": "《瘟疫论》",
+   "lineageCode": "warm-disease",
+   "relation": "created",
+   "schoolBook": "《温疫论》（吴又可）；《温病条辨》上焦篇4条方论评述",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "526-温病条辨.txt",
+     "line": 299,
+     "quote": "至若吴又可开首立一达原饮，其意以为直透膜原，使邪速溃，其方施于藜"
+    },
+    {
+     "url": "https://qqhrdyyy.com.cn/Html/News/Articles/3850.html",
+     "title": "第五章 古代名医 第九节 温病学派医家（《中国古代医药卫生》）",
+     "quote": "治之当将膜原之邪分消而解，为此，吴有性创制了“达原饮”等诸方，成为常用方。"
+    },
+    {
+     "url": "https://www.a-hospital.com/w/%E8%BE%BE%E5%8E%9F%E9%A5%AE",
+     "title": "达原饮 - A+医学百科",
+     "quote": "本方是为温疫秽浊毒邪伏于膜原而设。"
+    }
+   ],
+   "note": "【温疫分支】吴又可创，疏利透达膜原；吴鞠通批评其「施于藜藿壮实人之温疫病，容有愈者」，薛氏《湿热病篇》8条「仿又可达原饮之例」治湿热阻遏膜原。适用面限于湿浊秽邪伏膜原，苔白厚如积粉者，不作一般温病代表方。"
+  },
+  {
+   "formulaName": "清瘟败毒饮",
+   "source": "《疫疹一得》",
+   "lineageCode": "warm-disease",
+   "relation": "created",
+   "schoolBook": "《疫疹一得》（余霖）；《温热经纬》余师愚疫病篇",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "543-温热经纬.txt",
+     "line": 2511,
+     "quote": "故笔之于书，名曰清瘟败毒饮。"
+    },
+    {
+     "url": "https://www.med66.com/new/42a205a2009/20091019liuhon145148.shtml",
+     "title": "温病学派（医学教育网，中医各家学说式综述）",
+     "quote": "因而倡用石膏重剂泻诸经表里之热，实为补充了吴有性论温疫之未逮。并制定名方清瘟败毒饮，为人所称道。"
+    },
+    {
+     "url": "https://www.a-hospital.com/w/%E6%B8%85%E7%98%9F%E8%B4%A5%E6%AF%92%E9%A5%AE",
+     "title": "清瘟败毒饮 - A+医学百科",
+     "quote": "本方为大寒解毒、气血两清之剂，能损人阳气，故素体阳虚，或脾胃虚弱者忌用。"
+    }
+   ],
+   "note": "【温疫分支】余师愚创，疫疹气血两燔；含犀角、重用石膏，素体阳虚、脾胃虚弱者忌用，不作一般温病代表方。"
+  },
+  {
+   "formulaName": "白虎汤",
+   "source": "《伤寒论》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《温病条辨》上焦篇7条（另见中焦篇1、13条，暑温22、26条）",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "526-温病条辨.txt",
+     "line": 335,
+     "quote": "七、太阴温病，脉浮洪，舌黄，渴甚，大汗，面赤，恶热者，辛凉重剂白虎汤主之。"
+    },
+    {
+     "url": "https://zh.wikisource.org/wiki/%E6%BA%AB%E7%97%85%E6%A2%9D%E8%BE%A8/%E5%8D%B7%E4%B8%80",
+     "title": "溫病條辨/卷一（上焦篇）- 维基文库",
+     "quote": "七、太陰溫病，脈浮洪，舌黃，渴甚，大汗，面赤，惡熱者，辛涼重劑白虎湯主之。"
+    },
+    {
+     "url": "https://zh.wikisource.org/wiki/%E6%BA%AB%E7%97%85%E6%A2%9D%E8%BE%A8/%E5%8D%B7%E4%B8%80",
+     "title": "溫病條辨/卷一（上焦篇）- 维基文库",
+     "quote": "九、白虎本為達熱出表。若其人脈浮、弦而細者，不可與也；脈沉者，不可與也；不渴者，不可與也；汗不出者，不可與也。"
+    }
+   ],
+   "note": "【代表方】原方出《伤寒论》176条（本地457文本）；《温病条辨》列为「辛凉重剂」，治气分大热，并专立「白虎之禁」（脉浮弦细、脉沉、不渴、汗不出者不可与）；另有加人参、加苍术、加桂枝等温病化裁。"
+  },
+  {
+   "formulaName": "白虎加人参汤",
+   "source": "《伤寒论》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《温病条辨》上焦篇8条",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "526-温病条辨.txt",
+     "line": 342,
+     "quote": "八、太阴温病，脉浮大而芤，汗大出，微喘，甚至鼻孔扇者，白虎加人参汤主之；脉若散"
+    },
+    {
+     "url": "https://zh.wikisource.org/wiki/%E6%BA%AB%E7%97%85%E6%A2%9D%E8%BE%A8/%E5%8D%B7%E4%B8%80",
+     "title": "溫病條辨/卷一（上焦篇）- 维基文库",
+     "quote": "八、太陰溫病，脈浮大而芤，汗大出，微喘，甚至鼻孔扇者，白虎加人參湯主之"
+    }
+   ],
+   "note": "原方出《伤寒论》；温病里气阴两伤、脉芤者用，吴氏称「白虎退邪阳，人参固正阳」。"
+  },
+  {
+   "formulaName": "白虎加苍术汤",
+   "source": "《医方考》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《湿热病篇》37条；《温病条辨》上焦篇暑温26条",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "509-湿热病篇.txt",
+     "line": 82,
+     "quote": "（三七）热证壮热口渴自汗，身重胸痞，脉洪大而长者，此太阴之湿与阳明之热相合，宜白虎加苍术汤。"
+    },
+    {
+     "url": "https://zh.wikisource.org/wiki/%E6%BA%AB%E7%97%85%E6%A2%9D%E8%BE%A8/%E5%8D%B7%E4%B8%80",
+     "title": "溫病條辨/卷一（上焦篇）- 维基文库",
+     "quote": "脈洪大而芤者，白虎加人參湯主之。身重者，濕也，白虎加蒼朮湯主之。"
+    }
+   ],
+   "note": "原方出《类证活人书》（a-hospital 记）；薛氏用于太阴湿与阳明热相合、热多湿少，吴氏暑温篇同用。"
+  },
+  {
+   "formulaName": "犀角地黄汤",
+   "source": "《备急千金要方》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《温病条辨》下焦篇20条；上焦篇11条",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "526-温病条辨.txt",
+     "line": 2186,
+     "quote": "二十、时欲漱口不欲咽，大便黑而易者，有瘀血也，犀角地黄汤主之。"
+    },
+    {
+     "url": "https://zh.wikisource.org/wiki/%E6%BA%AB%E7%97%85%E6%A2%9D%E8%BE%A8/%E5%8D%B7%E4%B8%89",
+     "title": "溫病條辨/卷三（下焦篇）- 维基文库",
+     "quote": "二十、時欲漱口，不欲咽，大便黑而易者，有瘀血也，犀角地黃湯主之。"
+    },
+    {
+     "url": "https://www.a-hospital.com/w/%E7%8A%80%E8%A7%92%E5%9C%B0%E9%BB%84%E6%B1%A4",
+     "title": "犀角地黄汤 - A+医学百科",
+     "quote": "《外台秘要》卷2录《小品方》：“伤寒及温病应发汗而不汗之，内蓄血者，及鼻衄，吐血不尽，内余瘀血，面黄，大便黑，消瘀血方。”"
+    }
+   ],
+   "note": "原方出《小品方》/《外台秘要》，温病血分「凉血散血」的标志用方；上焦篇11条「犀角地黄汤合银翘散」治血从上溢。含犀角（需水牛角代），阳虚失血、脾胃虚弱者忌用。"
+  },
+  {
+   "formulaName": "紫雪",
+   "source": "《外台秘要》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《温病条辨》上焦篇17条",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "526-温病条辨.txt",
+     "line": 487,
+     "quote": "十七、邪入心包，舌蹇肢厥，牛黄丸主之，紫雪丹亦主之。"
+    },
+    {
+     "url": "https://www.a-hospital.com/w/%E7%B4%AB%E9%9B%AA%E4%B8%B9",
+     "title": "紫雪丹 - A+医学百科",
+     "quote": "本方见于《太平惠民和剂局方》卷六，又称紫雪，紫雪散，源于《千金翼方》的‘紫雪’，为凉开法的常用方之一。"
+    },
+    {
+     "url": "https://www.nbd.com.cn/articles/2021-12-07/2027928.html",
+     "title": "一粒860元！这种“救命药”涨价10%？…| 每经网",
+     "quote": "中医把安宫牛黄丸和紫雪丹、至宝丹并称为“温病三宝”，而安宫牛黄丸更是被奉为“温病三宝”之首。"
+    }
+   ],
+   "note": "「温病三宝」之一；吴氏标「从本事方去黄金」，是用古方。治热入心包、热盛动风；含犀角、羚羊角、麝香、朱砂，孕妇忌服，急症用方。"
+  },
+  {
+   "formulaName": "紫雪丹",
+   "source": "《外台秘要》引《苏恭方》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《温病条辨》上焦篇17条",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "526-温病条辨.txt",
+     "line": 487,
+     "quote": "十七、邪入心包，舌蹇肢厥，牛黄丸主之，紫雪丹亦主之。"
+    },
+    {
+     "url": "https://www.a-hospital.com/w/%E7%B4%AB%E9%9B%AA%E4%B8%B9",
+     "title": "紫雪丹 - A+医学百科",
+     "quote": "本方见于《太平惠民和剂局方》卷六，又称紫雪，紫雪散，源于《千金翼方》的‘紫雪’，为凉开法的常用方之一。"
+    },
+    {
+     "url": "https://www.nbd.com.cn/articles/2021-12-07/2027928.html",
+     "title": "一粒860元！这种“救命药”涨价10%？…| 每经网",
+     "quote": "中医把安宫牛黄丸和紫雪丹、至宝丹并称为“温病三宝”，而安宫牛黄丸更是被奉为“温病三宝”之首。"
+    }
+   ],
+   "note": "「温病三宝」之一；吴氏标「从本事方去黄金」，是用古方。治热入心包、热盛动风；含犀角、羚羊角、麝香、朱砂，孕妇忌服，急症用方。"
+  },
+  {
+   "formulaName": "至宝丹",
+   "source": "《灵苑方》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《温病条辨》上焦篇16、17条",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "526-温病条辨.txt",
+     "line": 485,
+     "quote": "〔方论〕此方会萃各种灵异，皆能补心体，通心用，除邪秽，解热结，共成拨乱反正之功。大抵安宫牛黄丸最凉，"
+    },
+    {
+     "url": "https://www.a-hospital.com/w/%E8%87%B3%E5%AE%9D%E4%B8%B9",
+     "title": "至宝丹 - A+医学百科",
+     "quote": "至宝丹亦是凉开方剂的常用代表方。以神昏谵语，身热烦躁，痰盛气粗为证治要点。"
+    },
+    {
+     "url": "https://www.nbd.com.cn/articles/2021-12-07/2027928.html",
+     "title": "一粒860元！这种“救命药”涨价10%？…| 每经网",
+     "quote": "中医把安宫牛黄丸和紫雪丹、至宝丹并称为“温病三宝”，而安宫牛黄丸更是被奉为“温病三宝”之首。"
+    }
+   ],
+   "note": "「温病三宝」之一；吴氏标「局方至宝丹」；叶氏《温热论》舌绛「须用牛黄丸、至宝丹之类以开其闭」。痰热内闭心包用，含犀角、朱砂、雄黄、麝香，孕妇慎服，急症用方。"
+  },
+  {
+   "formulaName": "玉女煎",
+   "source": "《景岳全书》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《温病条辨》上焦篇10条（去牛膝熟地加细生地元参方）；《温热论》",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "526-温病条辨.txt",
+     "line": 355,
+     "quote": "气血两燔，不可专治一边，故选用张景岳气血两治之玉女煎。去牛膝者，牛膝趋下，不合"
+    },
+    {
+     "url": "https://zh.wikisource.org/wiki/%E6%BA%AB%E7%86%B1%E8%AB%96",
+     "title": "溫熱論 - 维基文库",
+     "quote": "若斑出熱不解者，胃津亡也，主以甘寒重則如玉女煎，輕則如梨皮、蔗漿之類"
+    },
+    {
+     "url": "https://www.a-hospital.com/w/%E7%8E%89%E5%A5%B3%E7%85%8E",
+     "title": "玉女煎 - A+医学百科",
+     "quote": "玉女煎一方出自《景岳全书》，具有清胃泻火，滋阴增液之功。"
+    }
+   ],
+   "note": "原方出《景岳全书》（温补卡按著作归属，见 openIssues）；叶氏在斑出热不解、验齿两处用，吴氏上焦10条取其「气血两治」，并改为去牛膝、熟地易细生地加元参的辛凉合甘寒法。"
+  },
+  {
+   "formulaName": "炙甘草汤",
+   "source": "《伤寒论》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《温热论》淡红舌；《温病条辨》下焦篇复脉汤系",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "544-温热论.txt",
+     "line": 174,
+     "quote": "舌若淡红无色，或干而色不荣者，乃是胃津伤而气无化液也。当用炙甘草汤，不可用寒凉药。"
+    },
+    {
+     "url": "https://zh.wikisource.org/wiki/%E6%BA%AB%E7%86%B1%E8%AB%96",
+     "title": "溫熱論 - 维基文库",
+     "quote": "舌若淡红无色，或干而色不荣者，乃是胃津伤而气无化液也。当用炙甘草汤，不可用寒凉药。"
+    }
+   ],
+   "note": "原方出《伤寒论》，一名复脉汤；吴氏化裁为加减复脉汤系，叶氏用于胃津伤、气无化液之淡红舌。"
+  },
+  {
+   "formulaName": "小陷胸汤",
+   "source": "《伤寒论》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《温热论》里结阳明；《温病条辨》中焦篇",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "544-温热论.txt",
+     "line": 78,
+     "quote": "黄或浊，可与小陷胸汤或泻心汤，随证治之。若白不燥；或黄白相兼；或灰"
+    },
+    {
+     "url": "https://zh.wikisource.org/wiki/%E6%BA%AB%E7%86%B1%E8%AB%96",
+     "title": "溫熱論 - 维基文库",
+     "quote": "當用苦泄，以其入腹近也，必驗之於舌，或黃或濁，可與小陷胸湯或瀉心湯，隨證治之"
+    }
+   ],
+   "note": "原方出《伤寒论》；叶氏以舌苔黄浊为凭用之，吴氏有小陷胸加枳实汤、承气合小陷胸汤等变方。舌白不燥、黄白相兼、灰白不渴者「慎不可乱投苦泄」。"
+  },
+  {
+   "formulaName": "凉膈散",
+   "source": "《太平惠民和剂局方》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《温热论》绛舌；《湿热病篇》6条",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "544-温热论.txt",
+     "line": 151,
+     "quote": "若烦渴烦热，舌心干，四边色红，中心或黄或白者，此非血分也，乃上焦气热烁津，急用凉膈散散其无形"
+    },
+    {
+     "url": "https://zh.wikisource.org/wiki/%E6%BA%AB%E7%86%B1%E8%AB%96",
+     "title": "溫熱論 - 维基文库",
+     "quote": "若煩渴煩熱，舌心乾，四邊色紅，中心或黃或白者，此非血分也，乃上焦氣熱爍津，急用涼膈散，散其無形之熱"
+    }
+   ],
+   "note": "原方出《太平惠民和剂局方》；叶氏用于上焦气热烁津（非血分），薛氏「湿热蕴结胸膈，宜仿凉膈散」；吴氏银翘散亦取东垣清心凉膈散意。"
+  },
+  {
+   "formulaName": "普济消毒饮",
+   "source": "《东垣试效方》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《温病条辨》上焦篇18条",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "526-温病条辨.txt",
+     "line": 497,
+     "quote": "正赤，或喉不痛，但外肿，甚则耳聋，俗名大头温、虾蟆温者，普济消毒饮去柴胡、升麻主之，初"
+    },
+    {
+     "url": "https://zh.wikisource.org/wiki/%E6%BA%AB%E7%97%85%E6%A2%9D%E8%BE%A8/%E5%8D%B7%E4%B8%80",
+     "title": "溫病條辨/卷一（上焦篇）- 维基文库",
+     "quote": "十八、溫毒，咽痛，喉腫，耳前、耳後腫，頰腫，面正赤，或喉不痛，但外腫，甚則耳聾，俗名「大頭溫」、「蝦蟆溫」者，普濟消毒飲去柴胡、升麻主之"
+    }
+   ],
+   "note": "原方出李东垣《东垣试效方》；吴氏治温毒（大头瘟）用，初起去柴胡、升麻，一二日再去芩连，「初起…必去芩、连，畏其入里而犯中下焦」。"
+  },
+  {
+   "formulaName": "甘露消毒丹",
+   "source": "《医效秘传》",
+   "lineageCode": "warm-disease",
+   "relation": "signature_use",
+   "schoolBook": "《温热经纬》薛生白湿热病篇",
+   "status": "evidence_approved",
+   "adjudicationRef": "ADJ-WEB-20261012-LINEAGE",
+   "evidence": [
+    {
+     "localFile": "543-温热经纬.txt",
+     "line": 3430,
+     "quote": "此治湿温时疫之主方也。六元正纪，五运分步，每年春分后十三日交二运。"
+    },
+    {
+     "url": "https://www.a-hospital.com/w/%E7%94%98%E9%9C%B2%E6%B6%88%E6%AF%92%E4%B8%B9",
+     "title": "甘露消毒丹 - A+医学百科",
+     "quote": "湿温时疫，邪在气分。症见发热困倦，胸闷腹胀，肢酸，咽肿，颐肿口渴，身黄，小便短赤，淋浊，吐泻，舌苔淡白或腻或干黄者。"
+    },
+    {
+     "url": "https://www.a-hospital.com/w/%E7%94%98%E9%9C%B2%E6%B6%88%E6%AF%92%E4%B8%B9",
+     "title": "甘露消毒丹 - A+医学百科",
+     "quote": "【异名】普济解毒丹(《温热经纬》卷五)、甘露消毒丸(《中药制剂手册》)。"
+    }
+   ],
+   "note": "王孟英在《温热经纬》中推为「湿温时疫之主方」，并在湿热提纲条下批「甘露消毒丹最妙」；原始出处不确（a-hospital 记《医效秘传》），故按 signature_use 处理。"
+  }
+ ]
 }

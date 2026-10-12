@@ -1050,9 +1050,10 @@ function renderFormulaCandidates(
       ...((candidate.axisScoreBreakdown?.population.conflicts.length || 0) > 0
         ? [`  人群轴提示：${candidate.axisScoreBreakdown!.population.conflicts.join("；")}（已在排序中降权，保留供鉴别核对）`]
         : []),
-      // 流派取向标注只出现在「医师已终审 + 命中本例流派偏好」的候选上；未终审条目零痕迹。
+      // 流派取向标注只出现在「已核对通过 + 命中本例流派偏好」的候选上；未核对条目零痕迹。
+      // 2026-10-12 前这里写「医师已终审」，但 9/29 起这些归属是按原典与教材核对的，从无医师签字。
       ...(lineageAffinity
-        ? [`  流派取向：${lineageAffinity.lineageLabelText}（出自${lineageAffinity.book}，医师已终审；仅影响展示顺序，不影响准入与锁定）`]
+        ? [`  流派取向：${lineageAffinity.lineageLabelText}（${lineageAffinity.basis === "school_usage" ? `见${lineageAffinity.book}标志性运用` : `出自${lineageAffinity.book}`}，已按原典与教材核对；仅影响展示顺序，不影响准入与锁定）`]
         : []),
       // identityLockEligible 只说明「治理层允许锁定」，不代表本方真能锁上：身份锁要求主证候直接
       // 关联（positiveSufficiency 需 directPrimarySyndromeMatch），而无 syndromeTags 的方剂在任何
@@ -1085,7 +1086,7 @@ export function buildTcmFormulaIndicationContext(
   if (candidates.length === 0) {
     return "【M03经典方检索】本例当前阳性事实未命中受控经典方主治索引；可按已锁定病机与治法形成自拟方向，但必须说明未采用经典方是因受控目录无匹配结果。";
   }
-  // 流派偏好只重排展示顺序（同一正向充分性×可编译层内、医师已终审条目才生效）；
+  // 流派偏好只重排展示顺序（同一正向充分性×可编译层内、已核对通过的条目才生效）；
   // 召回集合、准入分与后续锁定判据均不读该偏好。
   const lineagePresentation = applyLineageAffinityPresentationOrder(candidates, caseState.tcmLineagePreference);
   // 选择规则前置。原实现把它放在 5 条候选之后，模型要先读完 5 遍「仅作检索关联」「候选不是自动
@@ -1095,7 +1096,7 @@ export function buildTcmFormulaIndicationContext(
     "【M03经典方检索（受控目录）】",
     "选择规则：以下候选已按本例阳性事实召回并排序。逐条核对方证眼目后，从“治理状态=可锁定”的条目中选出 1–3 个方证整体匹配的方名，逐字写入 overview.recommendedFormulaNames（不得改写、不得加书名号），formulaSelectionMode 相应填 single/combined/alternatives，recommendedFormulaDirection 直接写出方名。确有匹配却留空改自拟会被服务端确定性驳回并要求重做：自拟方没有出处可考，临床上比承接经典方更难辩护。只有当每一条都与本例方证不符时才写“按已锁定病机与治法辨证组方”，并说明是哪条方证眼目不满足。标记为仅检索参考的条目只能用于鉴别，不得锁定；也不得使用候选以外的未受控命名方。方名锁定不等于剂量已定——剂量由 M04 独立编译并经处方后审方。",
     ...(lineagePresentation.applied
-      ? ["流派偏好排序说明：带「流派取向」标注的候选按医师已终审的流派归属做了有限的展示顺序调整；方证核对、正向充分性与锁定纪律不因此放宽。"]
+      ? ["流派偏好排序说明：带「流派取向」标注的候选按已核对的流派归属做了有限的展示顺序调整；方证核对、正向充分性与锁定纪律不因此放宽。"]
       : []),
     ...renderFormulaCandidates(lineagePresentation.ordered, "M03病例事实", lineagePresentation.affinityByName),
   ].join("\n");
@@ -1131,13 +1132,13 @@ export function buildTcmFormulaReasoningContext(
       ? `【M03后方剂精确检索（T1/T3/T4 → T8；只核对既有选择）】\n${lockedCarryLine}`
       : "【M03后方剂精确检索】已签名证候/病机未命中 T8 受控关系；M04 只能承接 M03 的自拟方向，不得临时附会命名方。";
   }
-  // 展示顺序可按已终审流派取向有限调整；systemLockable 自动锁方读的是
+  // 展示顺序可按已核对通过的流派取向有限调整；systemLockable 自动锁方读的是
   // retrieveTcmFormulaCandidatesForReasoning 的原始返回序，与此处无关。
   const lineagePresentation = applyLineageAffinityPresentationOrder(candidates, lineagePreference);
   return [
     "【M03后方剂精确检索（T1/T3/T4 → T8；只核对既有选择）】",
     ...(lineagePresentation.applied
-      ? ["流派偏好排序说明：带「流派取向」标注的候选按医师已终审的流派归属做了有限的展示顺序调整；承接纪律与正向充分性判据不因此放宽。"]
+      ? ["流派偏好排序说明：带「流派取向」标注的候选按已核对的流派归属做了有限的展示顺序调整；承接纪律与正向充分性判据不因此放宽。"]
       : []),
     ...renderFormulaCandidates(lineagePresentation.ordered, "M03签名证候/病机", lineagePresentation.affinityByName),
     ...(lockedCarryLine ? [lockedCarryLine] : []),

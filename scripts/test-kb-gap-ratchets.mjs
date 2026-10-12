@@ -6,6 +6,7 @@
 //   ③ 出处栏写的不是书：作者名/简称/错字（景岳、金匮、东垣、《外台》、《三因极—…》），不得再出现
 //   ④ 受治理药名补充里的后缀式炮制名（栀子炭、艾叶炭…）归一到基原药后，炮制说明不能丢
 //   ⑤ 儿童剂量档位表与依据的教材原文一致（另有 test:pediatric-dose-rule 逐档钉死）
+//   ⑦ 伤寒/金匮方出处记成后世转引书（2026-10-12：68 首，含四逆辈、桂枝汤类方），以及原书方在目录里整首缺失
 //
 // 每条断言都带反证：先在合成输入上证明判据抓得到，再对真实目录断言为零，最后钉住「已核对后仍保留」的名单。
 import assert from "node:assert/strict";
@@ -277,6 +278,71 @@ check("6.7 身份被明令封闭（不可自动落药，且没有候选品种）
   assert.deepEqual(closed.filter((row) => row.eligible), [], "含封闭身份药味的方仍拿着 doseCompilationEligible=true");
   const herbs = new Set(closed.map((row) => row.herb));
   for (const herb of ["莽草", "虾蟆", "蜘蛛"]) assert.ok(herbs.has(herb), `${herb} 应是封闭身份`);
+});
+
+// ── ⑦ 伤寒/金匮方出处与缺失（2026-10-12）────────────────────────────────────────
+// 目录里有 68 首仲景方组成与原文一致（或残缺），出处却记成转引它的后世书（《绛雪园古方选注》《医方考》《古今名医方论》
+// 《三因方》《医方集解》…），于是「出处=伤寒论/金匮」的流派归属全落空（扶阳学派的四逆辈因此一首都归不上），
+// HIS 里的出处也是错的；另有 50 首原书内服方整首缺失（桂枝加龙骨牡蛎汤、薯蓣丸、四逆加人参汤…）。
+// 原书方目与组成见 tcm-jingfang-canonical.source.json（宋本原文 + 维基文库交叉核对）。
+const jingfang = read("src/data/tcm-jingfang-canonical.source.json").books;
+const JINGFANG_HERB_EQ = { 炙甘草: "甘草", 白芍: "芍药", 赤芍: "芍药", 白芍药: "芍药", 炮附子: "附子", 制附子: "附子", 熟附子: "附子", 附片: "附子", 生附子: "附子", 大附子: "附子",
+  山药: "薯蓣", 干地黄: "地黄", 生地黄: "地黄", 熟地黄: "地黄", 生地黄汁: "地黄", 法半夏: "半夏", 姜半夏: "半夏", 清半夏: "半夏", 苦杏仁: "杏仁", 燀苦杏仁: "杏仁",
+  香豉: "豉", 淡豆豉: "豉", 淡豉: "豉", 豆豉: "豉", 栝楼根: "栝蒌根", 天花粉: "栝蒌根", 瓜蒌根: "栝蒌根", 瓜蒌: "栝蒌实", 栝楼实: "栝蒌实", 全瓜蒌: "栝蒌实", 葶苈子: "葶苈",
+  桂心: "桂枝", 肉桂: "桂枝", 浓朴: "厚朴", 姜厚朴: "厚朴", 旋复花: "旋覆花", 丹皮: "牡丹皮", 饴糖: "胶饴", 麦冬: "麦门冬", 天冬: "天门冬", 茵陈蒿: "茵陈",
+  代赭石: "代赭", 赭石: "代赭", 党参: "人参", 炒枳实: "枳实", 麸炒枳实: "枳实", 土鳖虫: "䗪虫", 炮姜: "干姜", 火麻仁: "麻子仁", 麻仁: "麻子仁", 陈皮: "橘皮",
+  葱: "葱白", 生葛: "葛根", 甘李根白皮: "甘李根皮", 酒萸肉: "山茱萸", 白茯苓: "茯苓", 生巴豆: "巴豆", 神曲: "曲" };
+const jingfangByName = new Map();
+for (const [book, list] of Object.entries(jingfang)) {
+  for (const formula of list) {
+    const herbs = new Set(formula.ingredients.map((name) => JINGFANG_HERB_EQ[name] || name));
+    for (const name of [formula.name, ...(formula.variants || [])]) {
+      if (!jingfangByName.has(name)) jingfangByName.set(name, []);
+      jingfangByName.get(name).push({ book, herbs });
+    }
+  }
+}
+const isOriginalBook = (source) => /伤寒|金匮|金匱/.test(source || "");
+// 国家《古代经典名方目录》与 SZJG 标准方的出处栏是外部标准原文，按 9/29 口径不改（见 tcm-formula-catalog-collation 的说明）。
+const isExternalStandard = (entry) => /SZJG|古代经典名方目录/.test(entry.sourceCatalog || "");
+function misattributedJingfang(rows) {
+  return rows.filter((entry) => {
+    if (isOriginalBook(entry.source) || isExternalStandard(entry)) return false;
+    const herbs = new Set((entry.ingredients || []).map((name) => JINGFANG_HERB_EQ[name] || name));
+    return (jingfangByName.get(entry.name) || []).some((original) =>
+      original.herbs.size === herbs.size && [...herbs].every((name) => original.herbs.has(name)));
+  }).map((entry) => `${entry.name}@${entry.source}`);
+}
+
+check("7.1 判据能抓到：与原书同名同组成、出处却是后世书的条目（合成输入）", () => {
+  const synthetic = [
+    { name: "白通汤", source: "《医方考》", ingredients: ["葱白", "干姜", "附子"], sourceCatalog: "project_verified_supplement" },
+    { name: "桂枝加附子汤", source: "《医方考》", ingredients: ["桂枝", "白芍", "炙甘草", "生姜", "大枣", "附子"], sourceCatalog: "project_verified_supplement" },
+    { name: "猪苓散", source: "《银海精微》", ingredients: ["猪苓", "木通", "大黄"], sourceCatalog: "project_verified_supplement" },
+  ];
+  assert.deepEqual(misattributedJingfang(synthetic), ["白通汤@《医方考》", "桂枝加附子汤@《医方考》"], "同名异方（组成不同）不得被当成转引");
+});
+
+check("7.2 真实目录：仲景方不得再记成后世转引书（同名异方与外部标准条目除外）", () => {
+  assert.deepEqual(misattributedJingfang(entries), []);
+});
+
+check("7.3 原书内服方不得整首缺失（外用、历史方、含十八反药对的赤丸等逐条列明不收）", () => {
+  const names = new Set(entries.flatMap((entry) => [entry.name, entry.displayName].filter(Boolean)));
+  const NOT_COLLECTED = new Set([
+    "蜜煎导方", "猪胆汁方", "百合洗方", "雄黄熏方", "头风摩散", "矾石汤", "矾石丸", "蛇床子散", "狼牙汤", "小儿疳虫蚀齿方", // 外用
+    "烧裈散", "鸡屎白散", "紫石寒食散", "还魂汤", "甘草粉蜜汤", // 历史方 / 「粉」所指不明 / 民间急救
+    "赤丸", // 乌头、半夏同方（十八反）且以真朱为色
+    "长服诃黎勒丸", // 原书自注「疑非仲景方」
+    "治马坠及一切筋骨损方", // 无专名
+    "升麻鳖甲汤去雄黄蜀椒", // 方名不成方形，基方升麻鳖甲汤在册
+    "桂枝救逆汤", // 即伤寒论桂枝去芍药加蜀漆牡蛎龙骨救逆汤，目录已有
+  ]);
+  const missing = Object.values(jingfang).flat()
+    .filter((formula) => ![formula.name, ...(formula.variants || [])].some((name) => names.has(name)))
+    .map((formula) => formula.name)
+    .filter((name) => !NOT_COLLECTED.has(name));
+  assert.deepEqual([...new Set(missing)], []);
 });
 
 // check 4.2 是同步的（jiti 同步导入），这里不需要 await；保留 async 只为读起来对称

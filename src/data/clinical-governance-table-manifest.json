@@ -54,8 +54,8 @@
       "id": "T8",
       "file": "tcm-formula-governed-catalog.json",
       "schemaVersion": "tcm-formula-governed-catalog-v2",
-      "sha256": "b4bdedf6328ba1fb55a75c1efda1256231cf21df4df3893aeb7288fe78f89af3",
-      "recordCount": 2962
+      "sha256": "923e096d394f3907ed13794590111abbb955a84cc71a43afde6201693e8ccda4",
+      "recordCount": 3017
     },
     {
       "id": "T9",
@@ -96,14 +96,14 @@
       "governanceTable": "T8",
       "file": "tcm-formula-retrieval-index.json",
       "schemaVersion": "tcm-formula-retrieval-index-v2",
-      "sha256": "a4a0063f929fcdf6413197a6271b5c511d889140d19c3a59b348af70f68839bd",
-      "recordCount": 2896
+      "sha256": "e3d1bbe2fead13fad3393a9b37754ad4c046327b70ed51aac52c8e0ec3b2d3d3",
+      "recordCount": 2951
     }
   ],
   "buildSummary": {
-    "formulaGoverned": 2962,
-    "formulaEligible": 2884,
-    "formulaDoseCompilationEligible": 2484,
+    "formulaGoverned": 3017,
+    "formulaEligible": 2939,
+    "formulaDoseCompilationEligible": 2529,
     "formulaCandidatesAwaitingReview": 0,
     "formulaEvidenceAdjudicated": 8,
     "herbStandardNames": 651,

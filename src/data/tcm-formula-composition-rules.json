@@ -111,7 +111,7 @@
     },
     {
       "formulaName": "桂枝加附子汤",
-      "summary": "受控目录组成：桂枝、芍药、生姜、大枣、甘草、附子。目录来源为《医方考》；方证定位为“发汗太过、汗漏不止，阳虚不能固表”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：桂枝、芍药、生姜、大枣、甘草、附子。目录来源为《伤寒论》；方证定位为“发汗太过、汗漏不止，阳虚不能固表”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "桂枝",
         "芍药",
@@ -120,26 +120,28 @@
         "甘草",
         "附子"
       ],
-      "source": "《医方考》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:医方考:桂枝加附子汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:19"
       ]
     },
     {
       "formulaName": "桂枝去芍药汤",
-      "summary": "受控目录组成：桂枝、甘草、生姜、大枣。目录来源为《绛雪园古方选注》；方证定位为“胸满、心脏负担，课程强调胸满去芍药”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：桂枝、甘草、生姜、大枣。目录来源为《伤寒论》；方证定位为“胸满、心脏负担，课程强调胸满去芍药”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "桂枝",
         "甘草",
         "生姜",
         "大枣"
       ],
-      "source": "《绛雪园古方选注》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:绛雪园古方选注:桂枝去芍药汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:20"
       ]
     },
@@ -238,51 +240,54 @@
     },
     {
       "formulaName": "干姜附子汤",
-      "summary": "受控目录组成：干姜、附子。目录来源为《三因极一病证方论》；方证定位为“发汗太过，昼日烦躁不得眠，阳气伤”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：干姜、附子。目录来源为《伤寒论》；方证定位为“发汗太过，昼日烦躁不得眠，阳气伤”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "干姜",
         "附子"
       ],
-      "source": "《三因极一病证方论》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:三因极一病证方论:干姜附子汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:27"
       ]
     },
     {
       "formulaName": "桂枝甘草汤",
-      "summary": "受控目录组成：桂枝、甘草。目录来源为《古今名医方论》；方证定位为“发汗伤心阳，心下悸”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：桂枝、甘草。目录来源为《伤寒论》；方证定位为“发汗伤心阳，心下悸”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "桂枝",
         "甘草"
       ],
-      "source": "《古今名医方论》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:古今名医方论:桂枝甘草汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:28"
       ]
     },
     {
       "formulaName": "茯苓桂枝甘草大枣汤",
-      "summary": "受控目录组成：茯苓、桂枝、甘草、大枣。目录来源为《医方考》；方证定位为“发汗后脐下悸、欲作奔豚”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：茯苓、桂枝、甘草、大枣。目录来源为《伤寒论》；方证定位为“发汗后脐下悸、欲作奔豚”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "茯苓",
         "桂枝",
         "甘草",
         "大枣"
       ],
-      "source": "《医方考》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:医方考:茯苓桂枝甘草大枣汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:32"
       ]
     },
     {
       "formulaName": "茯苓四逆汤",
-      "summary": "受控目录组成：茯苓、干姜、附子、甘草、人参。目录来源为《绛雪园古方选注》；方证定位为“汗下后阳虚、烦躁，里寒重”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：茯苓、干姜、附子、甘草、人参。目录来源为《伤寒论》；方证定位为“汗下后阳虚、烦躁，里寒重”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "茯苓",
         "干姜",
@@ -290,24 +295,26 @@
         "甘草",
         "人参"
       ],
-      "source": "《绛雪园古方选注》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:绛雪园古方选注:茯苓四逆汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:33"
       ]
     },
     {
       "formulaName": "栀子豉汤",
-      "summary": "受控目录组成：栀子、淡豉。目录来源为《医方集解》引仲景；方证定位为“汗吐下后虚烦不得眠、心中懊憹”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：栀子、淡豉。目录来源为《伤寒论》；方证定位为“汗吐下后虚烦不得眠、心中懊憹”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "栀子",
         "淡豉"
       ],
-      "source": "《医方集解》引仲景",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:087-医方集解.txt:栀子豉汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:35"
       ]
     },
@@ -346,7 +353,7 @@
     },
     {
       "formulaName": "柴胡桂枝汤",
-      "summary": "受控目录组成：柴胡、黄芩、人参、生姜、芍药、桂枝、甘草、半夏、大枣。目录来源为《古今名医方论》；方证定位为“一半太阳一半少阳”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：柴胡、黄芩、人参、生姜、芍药、桂枝、甘草、半夏、大枣。目录来源为《伤寒论》；方证定位为“一半太阳一半少阳”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "柴胡",
         "黄芩",
@@ -358,16 +365,17 @@
         "半夏",
         "大枣"
       ],
-      "source": "《古今名医方论》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:古今名医方论:柴胡桂枝汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:45"
       ]
     },
     {
       "formulaName": "柴胡加芒硝汤",
-      "summary": "受控目录组成：柴胡、黄芩、人参、甘草、生姜、半夏、大枣、芒硝。目录来源为《绛雪园古方选注》；方证定位为“少阳兼阳明实热”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：柴胡、黄芩、人参、甘草、生姜、半夏、大枣、芒硝。目录来源为《伤寒论》；方证定位为“少阳兼阳明实热”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "柴胡",
         "黄芩",
@@ -378,10 +386,11 @@
         "大枣",
         "芒硝"
       ],
-      "source": "《绛雪园古方选注》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:绛雪园古方选注:柴胡加芒硝汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:46"
       ]
     },
@@ -464,17 +473,18 @@
     },
     {
       "formulaName": "抵当丸",
-      "summary": "受控目录组成：水蛭、虻虫、桃仁、大黄。目录来源为《医方考》；方证定位为“蓄血重症，少腹硬满、小便自利、善忘、黑便”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：水蛭、虻虫、桃仁、大黄。目录来源为《伤寒论》；方证定位为“蓄血重症，少腹硬满、小便自利、善忘、黑便”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "水蛭",
         "虻虫",
         "桃仁",
         "大黄"
       ],
-      "source": "《医方考》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:医方考:抵当丸",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:50"
       ]
     },
@@ -679,7 +689,7 @@
     },
     {
       "formulaName": "桂枝加芍药汤",
-      "summary": "受控目录组成：桂枝、芍药、甘草、生姜、大枣。目录来源为《医方考》；方证定位为“太阴病腹满时痛”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：桂枝、芍药、甘草、生姜、大枣。目录来源为《伤寒论》；方证定位为“太阴病腹满时痛”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "桂枝",
         "芍药",
@@ -687,10 +697,11 @@
         "生姜",
         "大枣"
       ],
-      "source": "《医方考》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:医方考:桂枝加芍药汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:75"
       ]
     },
@@ -712,16 +723,17 @@
     },
     {
       "formulaName": "麻黄附子细辛汤",
-      "summary": "受控目录组成：麻黄、细辛、附子。目录来源为《医方集解》；方证定位为“少阴病初得兼表，脉沉微细”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：麻黄、细辛、附子。目录来源为《伤寒论》；方证定位为“少阴病初得兼表，脉沉微细”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "麻黄",
         "细辛",
         "附子"
       ],
-      "source": "《医方集解》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:087-医方集解.txt:麻黄附子细辛汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:78"
       ]
     },
@@ -757,66 +769,83 @@
     },
     {
       "formulaName": "猪肤汤",
-      "summary": "受控目录组成：猪肤、白蜜、白粉。目录来源为《绛雪园古方选注》；方证定位为“少阴下利咽痛、胸满心烦”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：猪肤、白蜜、白粉。目录来源为《伤寒论》；方证定位为“少阴下利咽痛、胸满心烦”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "猪肤",
         "白蜜",
         "白粉"
       ],
-      "source": "《绛雪园古方选注》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:绛雪园古方选注:猪肤汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:82"
       ]
     },
     {
+      "formulaName": "甘草汤",
+      "summary": "受控目录组成：甘草。目录来源为《伤寒论》；方证定位为“少阴咽痛”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "ingredients": [
+        "甘草"
+      ],
+      "source": "《伤寒论》",
+      "tier": "common",
+      "sourceRefs": [
+        "https://zh.wikisource.org/wiki/傷寒論",
+        "formula-patterns.md:83"
+      ]
+    },
+    {
       "formulaName": "桔梗汤",
-      "summary": "受控目录组成：桔梗、甘草。目录来源为《绛雪园古方选注》；方证定位为“少阴咽痛”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：桔梗、甘草。目录来源为《伤寒论》；方证定位为“少阴咽痛”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "桔梗",
         "甘草"
       ],
-      "source": "《绛雪园古方选注》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:绛雪园古方选注:桔梗汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:83"
       ]
     },
     {
       "formulaName": "半夏散及汤",
-      "summary": "受控目录组成：半夏、桂枝、甘草。目录来源为《绛雪园古方选注》；方证定位为“少阴咽中痛、声不出方向”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：半夏、桂枝、甘草。目录来源为《伤寒论》；方证定位为“少阴咽中痛、声不出方向”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "半夏",
         "桂枝",
         "甘草"
       ],
-      "source": "《绛雪园古方选注》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:绛雪园古方选注:半夏散及汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:84"
       ]
     },
     {
       "formulaName": "白通汤",
-      "summary": "受控目录组成：葱白、干姜、附子。目录来源为《医方考》；方证定位为“少阴下利，阴寒格阳方向”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：葱白、干姜、附子。目录来源为《伤寒论》；方证定位为“少阴下利，阴寒格阳方向”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "葱白",
         "干姜",
         "附子"
       ],
-      "source": "《医方考》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:医方考:白通汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:85"
       ]
     },
     {
       "formulaName": "白通加猪胆汁汤",
-      "summary": "受控目录组成：人尿、猪胆汁、葱白、干姜、附子。目录来源为《绛雪园古方选注》；方证定位为“少阴危候，下利脉微、阴盛格阳，引阳入阴”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：人尿、猪胆汁、葱白、干姜、附子。目录来源为《伤寒论》；方证定位为“少阴危候，下利脉微、阴盛格阳，引阳入阴”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "人尿",
         "猪胆汁",
@@ -824,25 +853,27 @@
         "干姜",
         "附子"
       ],
-      "source": "《绛雪园古方选注》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:绛雪园古方选注:白通加猪胆汁汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:86"
       ]
     },
     {
       "formulaName": "通脉四逆汤",
-      "summary": "受控目录组成：干姜、甘草、附子。目录来源为《古今名医方论》；方证定位为“里寒外热、手足厥逆、脉微欲绝”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：干姜、甘草、附子。目录来源为《伤寒论》；方证定位为“里寒外热、手足厥逆、脉微欲绝”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "干姜",
         "甘草",
         "附子"
       ],
-      "source": "《古今名医方论》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:古今名医方论:通脉四逆汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "formula-patterns.md:87"
       ]
     },
@@ -1323,19 +1354,22 @@
     },
     {
       "formulaName": "生姜泻心汤",
-      "summary": "受控目录组成：生姜、甘草、人参、黄芩、半夏、黄连。目录来源为《医方考》；方证定位为“水热互结痞证：心下痞硬，干噫食臭，腹中雷鸣，下利。”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+      "summary": "受控目录组成：生姜、甘草、人参、干姜、黄芩、半夏、黄连、大枣。目录来源为《伤寒论》；方证定位为“水热互结痞证：心下痞硬，干噫食臭，腹中雷鸣，下利。”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
       "ingredients": [
         "生姜",
         "甘草",
         "人参",
+        "干姜",
         "黄芩",
         "半夏",
-        "黄连"
+        "黄连",
+        "大枣"
       ],
-      "source": "《医方考》",
+      "source": "《伤寒论》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:tcmoc-books:医方考:生姜泻心汤",
+        "https://zh.wikisource.org/wiki/傷寒論",
         "ADJ-20260727-T14-GRAPH-EXPANSION"
       ]
     },
