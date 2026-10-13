@@ -162,6 +162,9 @@ await check("3.2 治则与证名、治法一致：实证不写补、没有虚象
   // 独立评审实测（2026-10-13）：脾胃虚寒证、治法「温中健脾，和胃降逆」被推成「实则泻之」——「健脾」「温中」没算作补法。
   assert.equal(principleOf("实则泻之", { items: ["虚寒"], rootDeficiency: ["脾胃虚寒"], branchExcess: [] }, "脾胃虚寒证", "温中健脾，和胃降逆"), "虚则补之");
   assert.equal(principleOf("", { items: [], rootDeficiency: [], branchExcess: [] }, "肾阳虚证", "温肾助阳"), "虚则补之");
+  // 「温中散寒」是温散寒邪，不是补法：实寒证不得写成扶正祛邪（回放实测：寒邪内阻证、腹部中寒证）。
+  assert.equal(principleOf("", { items: ["寒"], rootDeficiency: [], branchExcess: ["寒"] }, "寒邪内阻证", "温中散寒，理气止痛"), "寒者热之");
+  assert.equal(principleOf("", { items: ["寒"], rootDeficiency: [], branchExcess: ["寒"] }, "腹部中寒证", "温中散寒，理气止痛"), "寒者热之");
   // 证名、治法都推不出虚实寒热、模型也没写国标术语时，用最中性的国标治则，不保留「治病求本」（它不是国标治则条目）。
   assert.equal(principleOf("治病求本", { items: [], rootDeficiency: [], branchExcess: [] }, "", ""), "调理阴阳");
 });

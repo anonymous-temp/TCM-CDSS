@@ -407,14 +407,14 @@ The prescribe route restores supporting facts from the record's affirmed clauses
 - **治则.** 健脾 / 温中 / 温肾 count as tonifying verbs (脾胃虚寒证 with 温中健脾 was 实则泻之). **煎服.** 鹿角胶 and 龟甲胶 are 烊化 (pharmacopoeia), so 左归丸 / 右归丸 name them.
 - **Not fixed: 西医诊断 (86%).** Three sampled cases named a disease the recorded tests do not support (gout with normal uric acid, vaginitis with a clean smear, POI on one low AMH). A prompt line was added; the three reran unchanged. This is the Western half's judgement and needs its own work.
 
-**Measured on the final build (direct route harness, fresh generation every time).**
+**Measured on the final build (direct route harness, fresh generation every time; `~/runlogs/fix1012/out/final2-*`).**
 
 | Set | Result |
 |---|---|
-| 190 synthetic cases, by customer block | 西医诊断 100, 中医诊断 98.4, 证候 98.9, 治则治法 96.8, 中医鉴别诊断 99.5, 辅助中药饮片 92.9 (all twelve checks of the block), 中医治疗 100, 复诊计划 100, 注意事项 100, 追问 97.4, 红旗与剂量边界 100, 工程用语 99.5, 链路 99.5 |
+| 190 synthetic cases, by customer block | 西医诊断 100, 中医诊断 97.9, 证候 98.9, 治则治法 95.8, 中医鉴别诊断 100, 辅助中药饮片 92.4 (all twelve checks of the block), 中医治疗 100, 复诊计划 100, 注意事项 100, 追问 96.3, 红旗与剂量边界 100, 工程用语 100, 链路 100 |
 | Same set before this round's second half (`out/synth2`) | 证候 83.7, 治则治法 86.3, 中医鉴别诊断 89.5, 辅助中药饮片 69.6, 追问 87.4, 工程用语 77.9 (after removing scorer false positives) |
-| 52 customer-history cases | every block ≥ 97.4 |
-| Customer's 10 standard cases × 3 generations | disease, syndrome and formula right in 27/30; the three misses were case 5 on 感冒, and after the habitual-cold fix case 5 reran 3/3 as 虚劳·补肺汤 (syndrome 肺气虚证; the customer's answer says 肺脾两虚证). Disease, syndrome, formula, 治则 and 治法 identical across the three generations in 10/10; herb overlap 0.95 (10/13 production: formula name identical in about half, overlap 0.83) |
+| 52 customer-history cases | every block ≥ 95 |
+| Customer's 10 standard cases × 3 generations | disease 30/30, textbook formula 30/30, syndrome 27/30 (case 5 is 虚劳·肺气虚证 three times; the customer's answer says 肺脾两虚证, the textbook's 虚劳 rows are single-organ). Disease, syndrome, formula, 治则 and 治法 identical across the three generations in 10/10; herb overlap 0.94 (10/13 production: formula name identical in about half, overlap 0.83) |
 | 16 archived real cases | every chain completes; 3 red flags, all from the customer's own vital signs |
 | Stage medians | question 5.4 s, diagnose 8.4 s, prescribe 9.9 s, assess 1.8 s |
 
