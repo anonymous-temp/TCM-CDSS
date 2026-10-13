@@ -1125,7 +1125,9 @@ function sanitizeUngroundedNegationText(
   }
   if (!recordedInspection.pulse && !sourceHasKnownPulse(source)) {
     sanitized = sanitized
-      .replace(new RegExp(`脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?`, "g"), "脉象待核实")
+      // 「生脉散」的「脉散」不是脉象（散脉）：方名前缀「生」作词形守卫（2026-10-13 第二轮独立评审：未录脉象的病例里
+      // 方名被改成「生脉象待核实合参附龙牡救逆汤」，辨证结果、处方页、方义里共 12 处）。
+      .replace(new RegExp(`(?<!生)脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?`, "g"), "脉象待核实")
       .replace(new RegExp(inspectionLexiconPattern("pulse").source, "g"), "脉象待核实");
   }
   return sanitized.replace(/__TCM_CDSS_PROSPECTIVE_(\d+)__/g, (_, index: string) => prospectiveSentences[Number(index)] ?? "");

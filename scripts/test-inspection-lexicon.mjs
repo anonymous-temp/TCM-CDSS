@@ -114,6 +114,13 @@ for (const [fabricated, expected] of [
   );
   assert.ok(sanitized.includes(expected), `「${fabricated}」应被改写为${expected}，实得 ${JSON.stringify(sanitized)}`);
 }
+// 方名「生脉散」里的「脉散」不是脉象（2026-10-13 第二轮独立评审：未录脉象的病例里方名被改成
+// 「生脉象待核实合参附龙牡救逆汤」，辨证结果、处方页、方义里共 12 处）。真的脉象描述照旧净化。
+for (const text of ["推荐方向：生脉散合参附龙牡救逆汤加减", "本方以生脉散为基础加减。", "生脉饮口服液"]) {
+  assert.equal(sanitizeUngroundedRedFlagNegations(text, noInspection), text, `方名不得被当成脉象改写：${text}`);
+}
+assert.match(sanitizeUngroundedRedFlagNegations("脉细数无力，属气阴两虚", noInspection), /^脉象待核实/);
+assert.match(sanitizeUngroundedRedFlagNegations("脉散乱无根", noInspection), /脉象待核实/, "散脉本身仍是脉象");
 // 反向：病历里确有该舌象时不得被改写。
 const withInspection = { ...noInspection, tongue: "舌体颤动，苔薄白" };
 assert.equal(

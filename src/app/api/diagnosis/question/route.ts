@@ -9,7 +9,7 @@ import {
 } from "@/lib/m02-question-contract";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import type { CaseState } from "@/lib/diagnosis-types";
-import { deriveOperationalCompleteness, markdownNdjsonResponse, sanitizeCaseStateForModel, trustedInputText } from "@/lib/diagnosis-safety";
+import { deriveOperationalCompleteness, markdownNdjsonResponse, sanitizeCaseStateForModel, trustedInputText, evaluateSafetyGate } from "@/lib/diagnosis-safety";
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { reviewM02QuestionPlan } from "@/lib/m02-question-review.server";
 import { prefetchDiagnoseInputs } from "@/lib/stage-prefetch.server";
@@ -70,7 +70,11 @@ async function questionStageResponse(caseState: CaseState, signal: AbortSignal):
   const fallbackQuestions = buildCaseAwareQuestionFallback(caseState);
   // 模型判断「不需要再问」时用的那道题：先问病历没写到的基本问诊项（见 buildCaseAwareQuestionFallback 的 settled）。
   // 模型输出不可用（解析失败、上游失败）时仍用上面的安全兜底。
-  const settledQuestions = buildCaseAwareQuestionFallback(caseState, { settled: true });
+  // 确定性安全闸门已判急症时不问基本问诊项（失血性休克的病例问「怕冷还是怕热」不合时宜——2026-10-13 第二轮独立评审）：
+  // 仍用安全兜底题。
+  const settledQuestions = evaluateSafetyGate(caseState).status === "red_flag"
+    ? fallbackQuestions
+    : buildCaseAwareQuestionFallback(caseState, { settled: true });
   const safeCaseState = sanitizeCaseStateForModel(caseState);
   const sourceText = trustedInputText(safeCaseState);
   // 对外信封里的 completeness 由服务端按当前病历确定性写入（与各阶段路由 withSafetyGate 同一口径），
