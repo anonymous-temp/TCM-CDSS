@@ -612,14 +612,20 @@ function verifiedFormulaReference(caseState: CaseState): string | undefined {
     : undefined;
 }
 
-function compact(value: unknown): string | undefined {
+/**
+ * 病历页的生命体征文字。接口调用方传的是 `{T, P, R, BP, SpO2}` 对象（没有 HIS 表单字段），此前直接 JSON.stringify，
+ * 写回病历的是「{"T":"37.5℃","P":"80次/分"}」，没填时是「{}」（2026-10-13 全面回归：经接口走的 119 例无一例外）。
+ * 按键名原样列出，空值与空对象不出。
+ */
+function vitalsText(value: unknown): string | undefined {
   if (value == null || value === "") return undefined;
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
+  if (typeof value === "string") return value.trim() || undefined;
+  if (typeof value !== "object" || Array.isArray(value)) return undefined;
+  const parts = Object.entries(value as Record<string, unknown>).flatMap(([key, item]) => {
+    const text = typeof item === "string" ? item.trim() : typeof item === "number" && Number.isFinite(item) ? String(item) : "";
+    return text ? [`${key} ${text}`] : [];
+  });
+  return parts.length > 0 ? parts.join("；") : undefined;
 }
 
 function structuredCandidate(caseState: CaseState) {
@@ -1183,7 +1189,7 @@ export function buildHisAiSchemePayload(
         caseState.hisRecord?.fields?.vitalsR,
         caseState.hisRecord?.fields?.vitalsBP,
         caseState.hisRecord?.fields?.vitalsDetail,
-      ].filter(Boolean).join("；") || compact(caseState.vitals),
+      ].filter(Boolean).join("；") || vitalsText(caseState.vitals),
     },
     diagnoses: {
       // 诊断名走 westernDiagnosisLabelForDisplay——它自述是「医生可见标签的唯一权威

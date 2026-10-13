@@ -95,10 +95,14 @@ check("lineageAdaptation 的常量子字段已从生成侧移除（否则与提�
   const variants = lineage.anyOf || [lineage];
   for (const variant of variants) {
     if (!variant.properties) continue;
-    for (const key of ["schemaVersion", "lineageCode", "label", "applicable", "unaffectedBySafety", "safetyDeference"]) {
+    for (const key of ["schemaVersion", "lineageCode", "label", "unaffectedBySafety", "safetyDeference"]) {
       assert.ok(!(key in variant.properties), `lineageAdaptation 仍在要求模型抄回 ${key}`);
     }
     assert.ok("applicabilityReason" in variant.properties, "applicabilityReason 是模型真正要判断的内容，不得一并裁掉");
+    // 2026-10-13：是否相符同样是临床判断。此前服务端恒写 applicable，20 例里 13 例与模型写的理由自相矛盾。
+    // 严格 schema 把可缺省字段投影成「可为 null」；null 与漏写一样由服务端落到 partial。
+    assert.deepEqual((variant.properties.applicable?.enum || []).filter((value) => value !== null),
+      ["applicable", "partial", "not-applicable"], "applicable 归模型判断，三值闭集");
   }
 });
 check("不可达 $defs 已裁剪（两个半区各带一份、每个修复轮再带一份）", () => {
@@ -158,6 +162,21 @@ check("lineageAdaptation 常量由服务端写定，模型判断项原样保留"
   assert.equal(out.lineageAdaptation.safetyDeference, SAFETY_DEFERENCE_TEXT);
   assert.deepEqual(out.lineageAdaptation.unaffectedBySafety, ["红旗排查", "剂量安全", "配伍禁忌", "特殊人群", "相互作用"]);
   assert.equal(out.lineageAdaptation.applicabilityReason, "本例证候与该流派偏好一致", "模型判断项不得被覆盖");
+});
+
+check("流派是否相符由模型判断：服务端不再替它写「适用」，缺失或越界时落到中性的 partial（2026-10-13）", () => {
+  const withJudgement = (applicable) => {
+    const output = modelOutput();
+    output.lineageAdaptation = { ...output.lineageAdaptation, applicabilityReason: "温病思路与本例内伤虚寒方证不符，仅作鉴别参考", ...(applicable === undefined ? {} : { applicable }) };
+    return unwrap(applyServerOwnedM03Fields(wrap(output), "warm-disease")).lineageAdaptation;
+  };
+  for (const value of ["applicable", "partial", "not-applicable"]) {
+    assert.equal(withJudgement(value).applicable, value, `模型判为 ${value} 时原样保留`);
+  }
+  // 改前：这三种情形一律被写成 "applicable"，页面显示「本例适用性：适用」。
+  assert.equal(withJudgement(undefined).applicable, "partial", "模型没写时不替它说「适用」");
+  assert.equal(withJudgement("适用").applicable, "partial", "越界取值同样落到中性默认");
+  assert.equal(withJudgement("not-applicable").lineageCode, "warm-disease", "卡面常量照旧由服务端写定");
 });
 
 check("只补不改：模型给出的真实外部证据必须原样保留", () => {

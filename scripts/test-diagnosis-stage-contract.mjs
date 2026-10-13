@@ -1164,6 +1164,41 @@ assert.deepEqual(
   ],
   "dose diagnostics expose only schema paths and violation kinds while preserving the patientFact exception",
 );
+// 病历原文里逐字出现的「药名 + 数量」是引述，不是剂量级内容（2026-10-13 全面回归）。
+// 实测：病历「患者每日饮白酒 3 两」被模型引进西医支持依据，酒是收载药名 ⇒ dose_level_content(T1)
+// ⇒ 3 轮 qwen3.8-max 修复 144 秒后仍退回占位结论。
+{
+  const drinkingRecord = "主诉：急性支气管炎,患者饮酒。现病史：咳嗽咳痰 5 天,患者每日饮白酒 3 两。既往史：饮酒 10 年";
+  const quoted = { westernDiagnosis: { primary: { supportingFacts: ["咳嗽咳痰5天", "每日饮白酒3两"] } }, overview: { primarySyndromeBasis: ["每日饮白酒 3 两，酒湿内生"] } };
+  assert.deepEqual(m03DoseLevelInstructionFindings(quoted, "", "$", drinkingRecord), [],
+    "逐字引述病历里的饮酒量不是剂量级内容");
+  assert.equal(m03DoseLevelInstructionFindings(quoted).length, 2,
+    "反证：不给病历原文时照旧判剂量级内容（判据落在「是否为原文引述」，不是放过「酒」这个词）");
+  assert.deepEqual(
+    m03DoseLevelInstructionFindings({ therapy: { overallMethod: "嘱每日饮白酒5两以通络" } }, "", "$", drinkingRecord)
+      .map((item) => item.kind),
+    ["herb_dose"],
+    "反证：数量与病历不同（3 两 → 5 两）不是引述，照旧拦",
+  );
+  assert.deepEqual(
+    m03DoseLevelInstructionFindings({ therapy: { overallMethod: "养血安神，酸枣仁15g" } }, "", "$", drinkingRecord)
+      .map((item) => item.kind),
+    ["herb_dose"],
+    "反证：病历里没有的药量照旧拦",
+  );
+  assert.deepEqual(
+    m03DoseLevelInstructionFindings({ therapy: { overallMethod: "每日饮白酒3两，每日1剂，水煎服" } }, "", "$", drinkingRecord)
+      .map((item) => item.kind),
+    ["regimen"],
+    "反证：引述豁免只管「药名+数量」，煎服法指令照旧拦",
+  );
+  const drinkingReasoning = {
+    ...stable,
+    westernDiagnosis: { ...stable.westernDiagnosis, primary: { ...stable.westernDiagnosis?.primary, clinicalRationale: "患者每日饮白酒3两，为咳嗽迁延的诱因之一" } },
+  };
+  assert.notEqual(m03SemanticIssue(drinkingReasoning, drinkingRecord), "dose_level_content", "合同判定同样不把引述当剂量级内容");
+  assert.equal(m03SemanticIssue(drinkingReasoning, ""), "dose_level_content", "反证：没有病历原文时照旧判");
+}
 for (const instruction of ["养血安神，酸枣仁十五克", "养血安神，酸枣仁（炒）15g", "养血安神，酸枣仁15～20g"]) {
   assert.equal(isStableM03Reasoning({ ...stable, therapy: { overallPrinciple: instruction } }), false, `M03 must reject normalized dose instruction: ${instruction}`);
 }
@@ -2122,7 +2157,22 @@ toxicMetadataM04.formula.candidates[0].herbs[0] = {
 };
 const enrichedToxicMetadata = enrichReasoning(toxicMetadataM04).reasoning.formula.candidates[0];
 assert.equal(enrichedToxicMetadata.herbs[0].isToxic, true);
-assert.match(enrichedToxicMetadata.notApplicable, /逐味生成前安全边界.*半夏.*毒性/);
+assert.match(enrichedToxicMetadata.notApplicable, /各药毒性与特殊人群提示：.*半夏（毒性：/);
+assert.doesNotMatch(enrichedToxicMetadata.notApplicable, /HIGH|MEDIUM|LOW|:[A-Z]+\//, "内部等级枚举不得进入对外文字");
+// 重复富化不得累积：候选每重新编译一次（修复轮、终审）都会再过一遍这里。
+// 改前实测 185 例里约四分之一的 notApplicable 带「；；；；。命中相应人群或状态时…复核。」残段。
+{
+  const once = enrichedToxicMetadata.notApplicable;
+  const reenriched = structuredClone(toxicMetadataM04);
+  reenriched.formula.candidates[0].notApplicable = once;
+  assert.equal(enrichReasoning(reenriched).reasoning.formula.candidates[0].notApplicable, once, "对已富化的结果再富化一次必须逐字不变");
+  // 旧版尾段（含它被叙述净化削剩的残段）来自已签名的历史载荷，同样要被剥掉而不是越积越长。
+  const legacy = structuredClone(toxicMetadataM04);
+  legacy.formula.candidates[0].notApplicable = "证候变化时不适用。；；；；；；。命中相应人群或状态时按规则停用、替换或由医生/药师复核。 逐味生成前安全边界：半夏（毒性:有毒；孕期/妊娠:HIGH/半夏）。命中相应人群或状态时按规则停用、替换或由医生/药师复核。";
+  assert.equal(enrichReasoning(legacy).reasoning.formula.candidates[0].notApplicable, once, "旧写法与残段剥掉后与新写法一致");
+  const { stripHerbBoundaryTail } = await import("../src/lib/candidate-boundary-text.ts");
+  assert.equal(stripHerbBoundaryTail("脾胃虚寒者不宜；孕妇慎用。"), "脾胃虚寒者不宜；孕妇慎用。", "反证：模型写的正文（含单个分号）不被动到");
+}
 const generationSafetyPrompt = buildPrescribePrompt({
   patient: { sex: "女", age: 46 },
   chiefComplaint: "入睡困难",

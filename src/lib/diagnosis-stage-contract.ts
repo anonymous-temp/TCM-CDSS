@@ -903,18 +903,33 @@ function visibleLabeledValue(content: string, label: string): string {
   return match?.[1]?.trim() || "";
 }
 
-function containsKnownHerbDose(value: string): boolean {
+/**
+ * 病历原文里逐字出现的「药名 + 数量」是患者事实的引述，不是系统给出的剂量（2026-10-13）。
+ * 「每日饮白酒3两」「自服甘草10g」被模型引进支持依据时，原实现一律按剂量级内容判 T1：酒、醋、蜂蜜、姜、
+ * 葱这些生活里的东西都是收载药名。实测一例饮酒史触发 3 轮 qwen3.8-max 修复、144 秒后仍退回占位。
+ * patientFact 一栏早有同样的豁免，这里把判据落到内容上：别的栏引述同一句原文也一样。
+ */
+function containsKnownHerbDose(value: string, sourceText = ""): boolean {
   const normalizedValue = value.normalize("NFKC");
+  const compactSource = sourceText ? sourceText.normalize("NFKC").replace(/\s+/g, "") : "";
   const chineseNumber = String.raw`[零〇一二两三四五六七八九十百半]+(?:点[零〇一二两三四五六七八九十]+)?`;
   const numericDose = String.raw`(?:\d+(?:\.\d+)?|${chineseNumber})(?:余|多)?`;
   const dosePattern = new RegExp(`${numericDose}(?:\\s*(?:[-—~～至到±]|\\.{2,})\\s*${numericDose})?\\s*(?:mg|g|毫克|克|钱|两)(?!\\s*[\\/／]\\s*(?:L|升))`, "gi");
   for (const match of normalizedValue.matchAll(dosePattern)) {
-    const before = normalizedValue.slice(Math.max(0, (match.index ?? 0) - 24), match.index ?? 0)
+    const doseStart = match.index ?? 0;
+    const windowStart = Math.max(0, doseStart - 24);
+    const before = normalizedValue.slice(windowStart, doseStart)
       .replace(/(?:(?:各|约|用量|剂量(?:为)?|每味|取|使用)\s*)+$/g, "")
       .replace(/[（(【\[][^）)】\]]{0,16}[）)】\]]\s*$/g, "")
       .replace(/[\s，,。；;：:、（）()【】\[\]]+$/g, "");
     for (let length = 1; length <= Math.min(8, before.length); length += 1) {
-      if (isKnownTcmHerbName(before.slice(-length))) return true;
+      if (!isKnownTcmHerbName(before.slice(-length))) continue;
+      // before 只在尾部被裁剪，所以药名在原串里的起点可以直接算出来。
+      const quotedSpan = normalizedValue
+        .slice(windowStart + before.length - length, doseStart + match[0].length)
+        .replace(/\s+/g, "");
+      if (compactSource && compactSource.includes(quotedSpan)) break;
+      return true;
     }
   }
   return false;
@@ -927,25 +942,27 @@ export function m03DoseLevelInstructionFindings(
   value: unknown,
   key = "",
   path = "$",
+  /** 本次病历原文；其中逐字出现的「药名 + 数量」按引述处理，不算剂量级内容。 */
+  sourceText = "",
 ): Array<{ path: string; kind: "herb_dose" | "regimen" }> {
   if (key === "patientFact" || key === "source" || key === "contractSignature") return [];
   if (typeof value === "string") {
     const findings: Array<{ path: string; kind: "herb_dose" | "regimen" }> = [];
-    if (containsKnownHerbDose(value)) findings.push({ path, kind: "herb_dose" });
+    if (containsKnownHerbDose(value, sourceText)) findings.push({ path, kind: "herb_dose" });
     if (M03_REGIMEN_INSTRUCTION.test(value.normalize("NFKC"))) findings.push({ path, kind: "regimen" });
     return findings;
   }
   if (Array.isArray(value)) {
     return value.flatMap((item, index) =>
-      m03DoseLevelInstructionFindings(item, key, `${path}[${index}]`));
+      m03DoseLevelInstructionFindings(item, key, `${path}[${index}]`, sourceText));
   }
   if (!value || typeof value !== "object") return [];
   return Object.entries(value).flatMap(([childKey, child]) =>
-    m03DoseLevelInstructionFindings(child, childKey, `${path}.${childKey}`));
+    m03DoseLevelInstructionFindings(child, childKey, `${path}.${childKey}`, sourceText));
 }
 
-function m03ContainsDoseLevelInstruction(value: unknown): boolean {
-  return m03DoseLevelInstructionFindings(value).length > 0;
+function m03ContainsDoseLevelInstruction(value: unknown, sourceText = ""): boolean {
+  return m03DoseLevelInstructionFindings(value, "", "$", sourceText).length > 0;
 }
 
 type ClinicalResolutionValue = "resolved" | "bounded" | "unresolved";
@@ -2075,7 +2092,7 @@ export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined,
     return "explanation_placeholder";
   }
   if (reasoning.formula != null) return "formula_not_null";
-  if (m03ContainsDoseLevelInstruction(reasoning)) return "dose_level_content";
+  if (m03ContainsDoseLevelInstruction(reasoning, clinicalContext)) return "dose_level_content";
   // The pathogenesis chain is the load-bearing M03 inference structure. Report its absence before
   // secondary prose-quality findings so the repair loop restores the missing structure first.
   if (!chain.length) return "chain_empty";
@@ -2339,7 +2356,7 @@ function m03HardContractIssue(
   if (!reasoning || reasoning.stage !== "diagnose") return "stage";
   const chain = reasoning.pathogenesis?.chain || [];
   if (reasoning.formula != null) { const e = emit("formula_not_null"); if (e) return e; }
-  if (m03ContainsDoseLevelInstruction(reasoning)) { const e = emit("dose_level_content"); if (e) return e; }
+  if (m03ContainsDoseLevelInstruction(reasoning, clinicalContext)) { const e = emit("dose_level_content"); if (e) return e; }
   if (!chain.length) { const e = emit("chain_empty"); if (e) return e; }
 
   // Hard M03 safety is deliberately narrower than the full documentation-quality contract.

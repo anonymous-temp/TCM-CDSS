@@ -130,14 +130,19 @@ export function applyServerOwnedM03Fields(content: string, lineagePreference?: s
 
   const adaptation = record(reasoning.lineageAdaptation);
   if (adaptation) {
-    // 这六项此前是「提示词把服务端卡值喂进去、模型原样抄回来」。改由服务端直接写定，
-    // 模型抄错或漏抄都不再可能。applicabilityReason 与 influencedDecisions 是模型
-    // 真正需要判断的内容，不在此列、原样保留。
+    // 这五项此前是「提示词把服务端卡值喂进去、模型原样抄回来」。改由服务端直接写定，
+    // 模型抄错或漏抄都不再可能。applicable、applicabilityReason 与 influencedDecisions 是模型
+    // 真正需要判断的内容，原样保留。
+    // applicable 2026-10-13 起归还模型：此前这里对任何选定流派恒写 "applicable"，与模型自己写的
+    // 「方证不符，仅作鉴别参考」同屏。模型没给出合法取值时落到中性的 partial（部分适用），不替它说「适用」。
     const card = getLineageCard(lineagePreference);
     adaptation.schemaVersion = "tcm-cdss-reasoning-v2";
     adaptation.lineageCode = card.code;
     adaptation.label = card.label;
-    adaptation.applicable = card.code === "unrestricted" ? "partial" : "applicable";
+    if (card.code === "unrestricted"
+      || (adaptation.applicable !== "applicable" && adaptation.applicable !== "partial" && adaptation.applicable !== "not-applicable")) {
+      adaptation.applicable = "partial";
+    }
     adaptation.safetyDeference = SAFETY_DEFERENCE_TEXT;
     adaptation.unaffectedBySafety = [...LINEAGE_UNAFFECTED_BY_SAFETY];
   }

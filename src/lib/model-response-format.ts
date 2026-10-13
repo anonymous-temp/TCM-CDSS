@@ -348,9 +348,13 @@ function stripServerOwnedM03Fields(schema: JsonSchema): JsonSchema {
     ? ((properties.lineageAdaptation as { anyOf: JsonSchema[] }).anyOf)
     : [];
   for (const variant of lineageVariants) {
-    for (const key of ["schemaVersion", "lineageCode", "label", "applicable", "unaffectedBySafety", "safetyDeference"]) {
+    // applicable 不在其中（2026-10-13）：流派与本例是否相符是临床判断，此前由服务端恒写 "applicable"，
+    // 页面于是出现「本例适用性：适用」配「温病思路与本例方证不符」这样自相矛盾的一栏（实测 20 例里 13 例）。
+    for (const key of ["schemaVersion", "lineageCode", "label", "unaffectedBySafety", "safetyDeference"]) {
       removeSchemaProperty(variant, key);
     }
+    // 可缺省：非严格首轮漏写这一个枚举时由服务端落到 partial，不为它触发一次整份严格重生成。
+    makeSchemaPropertiesOptional(variant, ["applicable"]);
   }
   // 病机节点与子治法各自只有一个引用方（已核），因此在克隆里删属性不会波及别处。
   for (const definition of Object.values((clone.$defs || {}) as Record<string, JsonSchema>)) {
@@ -599,7 +603,7 @@ function schemaPattern(source: string): RegExp | null {
  */
 const SERVER_OWNED_FIELD_NAMES: ReadonlySet<string> = new Set([
   ...M03_SERVER_OWNED_TOP_LEVEL, "evidence", "summary",
-  "lineageCode", "label", "applicable", "unaffectedBySafety", "safetyDeference",
+  "lineageCode", "label", "unaffectedBySafety", "safetyDeference",
   "modificationReview", "therapyMatch", "course", "acupointCare",
   // M04 相似医案问责说明（2026-09-27，modern-case-exemplars.server）：不进 schema、不进签名载荷，
   // 服务端只读取做遥测；模型写了它不应触发严格兜底。

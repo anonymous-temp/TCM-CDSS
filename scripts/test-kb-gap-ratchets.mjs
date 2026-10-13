@@ -7,6 +7,7 @@
 //   ④ 受治理药名补充里的后缀式炮制名（栀子炭、艾叶炭…）归一到基原药后，炮制说明不能丢
 //   ⑤ 儿童剂量档位表与依据的教材原文一致（另有 test:pediatric-dose-rule 逐档钉死）
 //   ⑦ 伤寒/金匮方出处记成后世转引书（2026-10-12：68 首，含四逆辈、桂枝汤类方），以及原书方在目录里整首缺失
+//   ⑧ 常用方的主治栏是占位句（2026-10-13：六味地黄丸、补中益气汤、丹栀逍遥散），按表现召回不到
 //
 // 每条断言都带反证：先在合成输入上证明判据抓得到，再对真实目录断言为零，最后钉住「已核对后仍保留」的名单。
 import assert from "node:assert/strict";
@@ -343,6 +344,39 @@ check("7.3 原书内服方不得整首缺失（外用、历史方、含十八反
     .map((formula) => formula.name)
     .filter((name) => !NOT_COLLECTED.has(name));
   assert.deepEqual([...new Set(missing)], []);
+});
+
+// ── ⑧ 主治栏是占位句的常用方（2026-10-13）────────────────────────────────────
+// 六味地黄丸、补中益气汤、丹栀逍遥散三首的主治原是生成器里手写的占位句（「肝肾阴虚相关表现；丸剂身份不得…」），
+// 龙胆泻肝汤只有两个证名。M03 按患者表现召回候选方读的就是主治原文，里面没有任何表现，这几首最常用的方
+// 因此进不了候选：甲方腰痛·肾阴虚例的短名单里没有六味地黄丸，六次都锁了主治里逐字写着「腰膝酸软、口燥咽干」的七味都气丸。
+// 现取《方剂学》教材【主治】原文。
+const PLACEHOLDER_INDICATION = /相关表现|须结合患者事实确认|须按病历事实|不得自动等同于同名/;
+check("8.1 判据能抓到占位主治（合成输入），真实目录全量为零", () => {
+  assert.ok(PLACEHOLDER_INDICATION.test("肝肾阴虚相关表现；丸剂身份不得自动等同于同名汤剂或加味变方"));
+  assert.ok(PLACEHOLDER_INDICATION.test("脾胃气虚或气虚下陷相关表现；须结合患者事实确认"));
+  assert.ok(!PLACEHOLDER_INDICATION.test("肾阴精不足证。腰膝酸软，头晕目眩，舌红少苔，脉沉细数"), "反证：真主治不被判成占位");
+  const placeholders = entries.filter((entry) => (entry.indications || []).some((text) => PLACEHOLDER_INDICATION.test(text)));
+  assert.deepEqual(placeholders.map((entry) => entry.name), []);
+});
+check("8.2 端到端：教材典型表现能把教材主方召回到候选前三（改前四例一例都召不回）", () => {
+  const { retrieveTcmFormulaIndicationCandidates } = jiti("../src/lib/tcm-formula-indications.ts");
+  const recall = (caseState) => retrieveTcmFormulaIndicationCandidates({ id: "kb-gap-recall", conversation: [], ...caseState }, 8).map((item) => item.name);
+  const cases = [
+    ["六味地黄丸", { patient: { sex: "男", age: 68 }, chiefComplaint: "腰痛半年", symptoms: { presentHistory: "患者半年前无明显诱因出现腰部隐隐作痛,酸软无力,缠绵不愈,口燥咽干" }, tongue: "舌红少苔", pulse: "脉细数" }],
+    ["补中益气汤", { patient: { sex: "女", age: 48 }, chiefComplaint: "内脏下垂伴乏力气短半年", symptoms: { presentHistory: "子宫脱垂 II 度,久站加重,乏力少气,纳少便溏" }, tongue: "舌淡苔薄白", pulse: "细弱" }],
+    ["丹栀逍遥散", { patient: { sex: "女", age: 42 }, chiefComplaint: "烦躁易怒、月经不调3月", symptoms: { presentHistory: "烦躁易怒，颊赤口干，头痛目涩，月经不调，少腹胀痛，自汗盗汗" }, tongue: "舌红苔薄黄", pulse: "脉弦虚数" }],
+    ["龙胆泻肝汤", { patient: { sex: "男", age: 40 }, chiefComplaint: "头痛目赤、胁痛口苦3天", symptoms: { presentHistory: "头痛目赤，胁痛，口苦，耳肿" }, tongue: "舌红苔黄", pulse: "脉弦数有力" }],
+  ];
+  for (const [formula, caseState] of cases) {
+    const names = recall(caseState);
+    assert.ok(names.slice(0, 3).includes(formula), `${formula} 应在候选前三，实得：${names.join(" > ")}`);
+  }
+  // 反证：与这些方无关的表现不会把它们带出来（修的是主治缺失，不是给这四首方加权）。
+  const unrelated = recall({ patient: { sex: "男", age: 30 }, chiefComplaint: "恶寒发热1天", symptoms: { presentHistory: "恶寒发热，无汗，头痛身痛，鼻塞流清涕" }, tongue: "舌淡红苔薄白", pulse: "脉浮紧" });
+  for (const formula of ["六味地黄丸", "补中益气汤", "丹栀逍遥散", "龙胆泻肝汤"]) {
+    assert.ok(!unrelated.includes(formula), `风寒表实不应召回 ${formula}：${unrelated.join(" > ")}`);
+  }
 });
 
 // check 4.2 是同步的（jiti 同步导入），这里不需要 await；保留 async 只为读起来对称

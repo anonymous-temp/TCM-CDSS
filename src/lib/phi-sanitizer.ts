@@ -93,12 +93,17 @@ export function isClinicalTemporalPhrase(value: unknown): boolean {
 }
 
 /** Refine an already surname-matched narrative candidate, not a general-purpose name detector. */
-export function shouldRedactNarrativeNameCandidate(candidate: string, precedingContext: string): boolean {
+export function shouldRedactNarrativeNameCandidate(candidate: string): boolean {
   if (isClinicalTemporalPhrase(candidate)) return false;
-  if (/(?:患者|家属|联系人|陪同者|监护人|医生|医师|本例|病例|病人|患儿)\s*[:：]?\s*$/.test(precedingContext)) return true;
   // Exempt known clinical lexemes, not every unlabelled two-character name. Generated from the
   // governed disease/location/inspection dictionaries plus finite lexical compositions; the large
   // source dictionaries do not enter browser bundles. Explicit identities are replaced separately.
+  //
+  // 人员标签（患者/病人/家属…）之后同样豁免（2026-10-13）。此前这里先判标签、命中即脱敏，受治理词形的
+  // 豁免轮不到：门诊现病史最常见的起句「患者全身发热3天」「患者左侧头痛1周」「患者劳累后出现胸闷」
+  // 「患者干咳已有2月」「患者黄疸出现3天」在送模型之前就丢了侧别、诱因乃至主症本身。
+  // scrubSubjectPrefixedName / scrubRelationPrefixedName 9/29 起已按同一词形集合豁免，三处判据在此对齐。
+  // 「患者张三失眠」不受影响：张三不是词形。姓 × 常见名字 × 带标签句式的泄漏反证见 test:phi-clinical-collision。
   if (CLINICAL_NAME_COLLISIONS.has(candidate)) return false;
   // Morphological guard: the caller's surname+{1,2} capture is greedy, so a clinical lexeme followed
   // by one function or locative morpheme (全身伴有, 劳累后出现, 干咳已有, 左腹部) arrives as a

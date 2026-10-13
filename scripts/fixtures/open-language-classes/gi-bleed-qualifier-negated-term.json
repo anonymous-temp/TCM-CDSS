@@ -1,0 +1,130 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "gi-bleed-qualifier-negated-term",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-13",
+ "trigger": "全面回归时把甲方 8/18 反流病例（78 岁，「反酸、嗳气反复1年余」）补上消化科最常规的一句阴性「无吞咽困难，无呕血黑便，无消瘦」，整例被判 red_flag「活动性消化道出血」，剂量收回。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "diagnosis-safety 的消化道出血硬门里有一条「限定语 + 16 字窗 + 出血词」规则（大量/反复/多次/再次/再发/复发/喷射/不止）。它走 hasPatternWithoutNegation，否定只在**匹配起点**（限定语）判，而限定语修饰的未必是出血词：「反复上腹痛1年，无呕血黑便」里「反复」说的是腹痛，出血词被「无」否认，窗口却跨过逗号和否定词把两者接上了。「反复」是慢性病主诉的常用词，「无呕血黑便」是消化科阴性症状的标准写法，两者同句极常见。",
+  "exception": "冻结令允许的确定性例外：构词式词法守卫。没有新增任何症状词；只把同一条规则的否定判定补到出血词自身的位置（isNegatedAt + hasCommaSeparatedPositiveEvidence，与同函数里 bleedSeverityAffirmed 的判法一致）。限定语位置的否定判定保留。",
+  "whyDeterministic": "误报出在承重层自己的规则上。语义事实层只能追加风险、不能取消确定性红旗，模型判对也抹不掉。",
+  "residual": "「反复上腹痛1年，近2天黑便」这类限定语修饰别的症状、但出血词为阳性的句子仍按红旗处理（保守方向，未改）。"
+ },
+ "contexts": [
+  "outpatient_record",
+  "sparse"
+ ],
+ "parity": {
+  "note": "兄弟句法：去掉限定语后的同一句话。兄弟句自身必须零红旗；被测句必须与它得到完全相同的门禁结果。",
+  "pairs": [
+   {
+    "subject": "反复上腹痛1年，无呕血黑便",
+    "sibling": "上腹痛1年，无呕血黑便",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "反复胃脘胀痛2年，加重1周，无呕血、黑便",
+    "sibling": "胃脘胀痛2年，加重1周，无呕血、黑便",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "上腹痛反复发作2年，否认呕血、黑便",
+    "sibling": "上腹痛2年，否认呕血、黑便",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "反酸、嗳气反复1年余，餐后加重，无吞咽困难，无呕血黑便，无消瘦",
+    "sibling": "反酸、嗳气1年余，餐后加重，无吞咽困难，无呕血黑便，无消瘦",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "反复便秘1年，无便血",
+    "sibling": "便秘1年，无便血",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "反复腹泻半年，无黏液脓血便，无便血",
+    "sibling": "腹泻半年，无黏液脓血便，无便血",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "胃痛反复发作，未见黑便",
+    "sibling": "胃痛发作，未见黑便",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "多次胃镜提示慢性胃炎，无黑便",
+    "sibling": "胃镜提示慢性胃炎，无黑便",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "大量饮酒后上腹不适，无呕血",
+    "sibling": "饮酒后上腹不适，无呕血",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "呃逆不止3天，否认黑便",
+    "sibling": "呃逆3天，否认黑便",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "controls": {
+  "note": "限定语确实修饰出血词、或出血词为阳性的句子必须照旧报警；否认带限定语的出血（「否认反复呕血」）照旧不报。",
+  "mustStillFlag": [
+   {
+    "text": "反复呕血2天",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "反复黑便3天",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "大量呕血1次",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "今晨再次解黑便",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "多次便血",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "呕血不止",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "反复上腹痛1年，近2天反复黑便",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "否认腹痛，反复黑便3天",
+    "flag": "消化道出血"
+   }
+  ],
+  "mustStayReady": [
+   "否认反复呕血",
+   "无反复黑便",
+   "无大量呕血",
+   "上腹痛1年，无呕血黑便"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-13",
+   "what": "现代医案评测语料 17,247 例 × 2 病历形状整案过安全门（改前树 1fca8ea 对改后）",
+   "result": "34,494 次判定 0 条改变（医案叙述几乎不写「无呕血黑便」这类阴性症状，这份语料量的是没有变严）"
+  },
+  {
+   "date": "2026-10-13",
+   "what": "本轮全面回归的 197 份门诊病历形状病例 × 追问轮次 0/1",
+   "before": "甲方反流病例（78 岁）补上「无呕血黑便」后 red_flag、收回剂量",
+   "after": "ready / full_dose；其余病例的红旗条数无一改变"
+  }
+ ]
+}

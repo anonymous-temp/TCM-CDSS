@@ -1,3 +1,4 @@
+import { herbBoundaryTail, stripHerbBoundaryTail } from "./candidate-boundary-text";
 import formulaCatalogJson from "../data/tcm-formula-sources.json" with { type: "json" };
 import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.json" with { type: "json" };
 import governedFormulaCatalogJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
@@ -1555,6 +1556,14 @@ type FormulaSourceCandidate = {
   origin: ResolvedFormulaSource["origin"];
 };
 
+/** 两个出处是否指同一部书：只比书名号里的书名，卷次、句号与「引《…》」不算差异。 */
+function sameFormulaSourceBook(source: string, governedSource: string | undefined): boolean {
+  if (!governedSource) return false;
+  const book = (value: string) => value.match(/《([^》]+)》/)?.[1]?.trim() || value.replace(/[。；;，,\s]+$/g, "").trim();
+  const left = book(source);
+  return left.length > 0 && left === book(governedSource);
+}
+
 function bestFormulaSourceCandidate(
   candidates: FormulaSourceCandidate[],
   herbs: string[],
@@ -1646,6 +1655,12 @@ function bestFormulaSourceCandidate(
     .sort((a, b) =>
       Number(Boolean(sourceHint && b.candidate.variant.source.includes(sourceHint))) - Number(Boolean(sourceHint && a.candidate.variant.source.includes(sourceHint))) ||
       b.f1 - a.f1 || b.overlap - a.overlap ||
+      // 组成同样贴近时：国家经典名方目录条目最先（升降散《伤寒瘟疫条辨》），其次是受治理目录里这首方的出处，
+      // 然后才是名录里的同名异书（2026-10-13）。「最贴近的组成优先」不变（温胆汤带茯苓时仍归《三因》）；
+      // 改的只是并列时谁署名：此前名录转载条目排在核验补充目录之前，逍遥散于是署成《局方》卷九。
+      Number(b.candidate.origin === "official_classic_catalog") - Number(a.candidate.origin === "official_classic_catalog") ||
+      Number(sameFormulaSourceBook(b.candidate.variant.source, governedSourceIdentity?.source)) -
+        Number(sameFormulaSourceBook(a.candidate.variant.source, governedSourceIdentity?.source)) ||
       // Compilation baseline precedence: official sources (classic catalog, then the SZJG local
       // standard) outrank project-curated verified references. Dual-sourced formulas (a name that
       // exists both in the SZJG standard and in project supplements) anchor composition to the
@@ -2033,6 +2048,23 @@ function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: For
       variant,
       origin: "local_formula_catalog",
     }));
+    // 受治理目录自己的这一条也是候选（2026-10-13）。补中益气汤、八珍汤这些地方标准方，名录里的十几条同名记录
+    // 全是后世转载，受治理条目（《内外伤辨惑论》《瑞竹堂经验方》…）此前只在名录一条都不匹配时才兜底，
+    // 于是处方与受治理组成逐味相同，署名却落在某条转载上（补中益气汤《幼科金针》卷下、八珍汤《元戎》；
+    // 263 个候选里约 20 个，甲方 9.24 提过出处不稳）。并入候选后仍按组成贴近度排名，并列时由它署名。
+    const [governedReference] = governedRow ? formulaCompilationReferences([governedRow.name]) : [];
+    if (governedReference && !candidates.some((item) => item.variant.source === governedReference.source)) {
+      candidates.push({
+        formulaName: governedReference.formulaName,
+        variant: {
+          source: governedReference.source,
+          ingredients: governedReference.ingredients,
+          requiredIngredients: governedReference.requiredIngredients,
+          minimumPreservedIngredientCount: governedReference.minimumPreservedIngredientCount,
+        },
+        origin: governedReference.origin,
+      });
+    }
     const governedSourceIdentity = governedRow
       ? { source: governedRow.source, aliases: formulaAliases }
       : undefined;
@@ -2163,14 +2195,7 @@ export function enrichReasoning(
   const sourceLabels: string[] = [];
   const candidates = reasoning.formula.candidates.map((candidate) => {
     const herbSafetyProfiles = candidate.herbs.map((herb) => getTcmHerbGenerationSafetyProfile(herb.name));
-    const generationSafetyBoundaries = herbSafetyProfiles.flatMap((profile) => {
-      const actionableRules = profile.populationRules.filter((rule) => rule.severity !== "LOW");
-      if (!profile.isToxic && actionableRules.length === 0) return [];
-      return [`${profile.herb}（${[
-        ...(profile.isToxic ? [`毒性:${profile.toxicity.join("、")}`] : []),
-        ...actionableRules.map((rule) => `${rule.population}:${rule.severity}/${rule.rule}`),
-      ].join("；")}）`];
-    });
+    const herbBoundaryText = herbBoundaryTail(herbSafetyProfiles);
     const sources = resolveFormulaSources(candidate.name, candidate.herbs);
     const sourceLabel = sources.map((item) => `${item.formulaName}：${item.source}`).join("；");
     sourceLabels.push(sourceLabel);
@@ -2208,12 +2233,10 @@ export function enrichReasoning(
       ),
       notApplicable: [
         professionalCandidateBoundary(
-          candidate.notApplicable.split("逐味生成前安全边界：")[0].trim(),
+          stripHerbBoundaryTail(candidate.notApplicable),
           "证候、病机、舌脉或安全边界发生变化时暂停采用，并重新辨证。",
         ),
-        ...(generationSafetyBoundaries.length > 0
-          ? [`逐味生成前安全边界：${generationSafetyBoundaries.join("；")}。命中相应人群或状态时按规则停用、替换或由医生/药师复核。`]
-          : []),
+        ...(herbBoundaryText ? [herbBoundaryText] : []),
       ].join(" "),
       baseFormulas: sources.map((item) => ({
         name: item.formulaName,

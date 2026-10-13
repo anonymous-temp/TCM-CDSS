@@ -434,6 +434,50 @@ check("⑲ 前瞻/条件句整类不被接地净化改写；对当前病历的�
   assert.ok(mixedOut.endsWith("如出现上述情况请立即就医。"), `条件部分被改写：${mixedOut}`);
 });
 
+check("⑲b 没有「若/如」的前瞻句：「服药N天…须复诊」「出现X请停药就医」同样不被改写（2026-10-13 全面回归 4/87 例）", () => {
+  const state = {
+    ...doseCase(),
+    patient: { sex: "女", age: 35 },
+    chiefComplaint: "失眠健忘伴心悸食少半年",
+    symptoms: { presentHistory: "失眠多梦，健忘，心悸，食少便溏，乏力，头痛时作。无发热。" },
+  };
+  // 四句都是本机实测被改坏的模型原文；改坏后分别成了「病历已记录心悸、失眠阳性，须复诊调整方案」
+  // 「病历已记录头痛阳性，请复诊…」「病历已记录否认发热；病历尚未确认呕吐是否存在，须复诊重新评估」「…；病历尚未确认恶心是否存在」。
+  const observed = [
+    "服药2周失眠心悸无改善或加重，须复诊调整方案。",
+    "服药5剂后头痛无缓解或性质改变，请复诊由医生评估是否调整方案。",
+    "服药3天症状无改善或出现发热、呕吐加重，须复诊重新评估。",
+    "白果有小毒，须按医嘱剂量服用，不可自行加量或长期连服，出现恶心、腹痛等不适请停药就医。",
+    // 「出现…」与指令之间隔着逗号：曾被改成「胃痛持续不缓解或加重，病历尚未确认呕吐是否存在，须立即急诊就诊」。
+    "胃痛持续不缓解或加重，或出现板状腹、反跳痛、黑便、呕吐、停止排气排便，须立即急诊就诊。",
+  ];
+  // 同类的其他写法（疗程单位、时间后缀、指令动词各换一种）。
+  const siblings = [
+    "服药一周后心悸未见好转，请及时就诊。",
+    "用药7天失眠无缓解，应复诊评估。",
+    "服药3～5天症状无改善，须告知医生。",
+    "出现皮疹瘙痒须立即停药并就医。",
+    "发生心慌、出冷汗应及时就诊。",
+  ];
+  for (const text of [...observed, ...siblings]) {
+    assert.equal(sanitizeUngroundedRedFlagNegations(text, state), text, `前瞻句被改写：${text}`);
+    const block = `<!-- DIAGNOSIS_JSON_START -->${JSON.stringify({ stage: "prescribe", nonPharma: { precautions: [text] } })}<!-- DIAGNOSIS_JSON_END -->`;
+    const out = sanitizeUngroundedRedFlagNegations(block, state);
+    const precaution = JSON.parse(out.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).nonPharma.precautions[0];
+    assert.equal(precaution, text, `M04 注意事项里的前瞻句被改写：${text}`);
+  }
+  // 阴性对照：没有就医/复诊指令的句子是在陈述病历，照旧受净化约束——判据是「疗程或出现 + 同句有处置指令」，
+  // 不是见到「服药N天」「出现」就放行。
+  for (const claim of ["患者服药3天后否认便血、黑便。", "患者出现胸痛、呼吸困难。", "患者否认胸痛、呼吸困难，须及时复诊。", "病历已记录无黑便，请及时复诊。"]) {
+    assert.notEqual(sanitizeUngroundedRedFlagNegations(claim, state), claim, `对当前病历的无依据断言被放行：${claim}`);
+  }
+  // 同句混合：指令之前对病历的否认照旧纠正，只有「服药N天」起到句末保留。
+  const mixed = "患者否认便血、黑便，服药3天无改善须复诊。";
+  const mixedOut = sanitizeUngroundedRedFlagNegations(mixed, state);
+  assert.notEqual(mixedOut, mixed, "疗程词之前的无依据否认被整句放行");
+  assert.ok(mixedOut.endsWith("服药3天无改善须复诊。"), `前瞻部分被改写：${mixedOut}`);
+});
+
 check("⑳ assess 与 HIS、处方后审同源：接地净化只作用于处方后审文本，不作用于随访", () => {
   const source = readFileSync(fileURLToPath(new URL("../src/app/api/diagnosis/assess/route.ts", import.meta.url)), "utf8");
   assert.match(source, /mapWarningText\(postRiskProjection, \(text\) => sanitizeUngroundedRedFlagNegations\(text, gated\)\)/);

@@ -249,6 +249,26 @@ await check("6.4 西医鉴别名共用词尾补全：房性/室性早搏 不再�
   assert.ok(names.some((name) => name.includes("房性早搏")) && names.some((name) => name.includes("室性早搏")), `共用词尾应补全：${names}`);
 });
 
+await check("6.4b 西医鉴别名共用部位补全：颅内占位/肿瘤 不再出现「肿瘤」「增生」这类没有部位的碎片（2026-10-13）", () => {
+  const split = (name, context = "患者头痛2月") => unwrap(summary.normalizeM03WesternDifferentials(wrap({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    westernDiagnosis: {
+      primary: { name: "头痛，病因待查", status: "证据有限", confidence: "低", supportingFacts: [], evidence: {} },
+      differentials: [{ name, reason: "r", distinguishingPoints: "d", nextCheck: "n" }],
+    },
+  }), context, 40)).westernDiagnosis.differentials.map((row) => row.name);
+  // 改前实测：三例分别拆出「肿瘤」「增生」「原发肿瘤」。
+  assert.deepEqual(split("颅内占位/肿瘤"), ["颅内占位", "颅内肿瘤"]);
+  assert.deepEqual(split("子宫内膜病变/增生", "月经量多半年"), ["子宫内膜病变", "子宫内膜增生"]);
+  assert.deepEqual(split("腰椎转移瘤/原发肿瘤", "腰痛半年"), ["腰椎转移瘤", "腰椎原发肿瘤"]);
+  // 反证：自身已带部位、或不是泛指病理词的并列项原样拆开，不被改名。
+  assert.deepEqual(split("肺炎/肺结核", "咳嗽2周"), ["肺炎", "肺结核"]);
+  assert.deepEqual(split("颅内占位/脑膜炎"), ["颅内占位", "脑膜炎"]);
+  assert.deepEqual(split("缺铁性贫血/其他贫血", "乏力3月"), ["缺铁性贫血", "其他贫血"]);
+  // 借不到部位（兄弟项不以泛指病理词收尾）时保持原样，不臆造病名。
+  assert.deepEqual(split("胃癌/息肉", "胃痛3月"), ["胃癌", "息肉"]);
+});
+
 await check("6.5 接线：M03 后处理链里必须真的调用病名鉴别归一，且其输出喂给下一步（源码级，反证由变异钉住）", () => {
   const source = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
   assert.match(source, /const tcmDifferentialNamed = phase\("tcm_disease_differentials", normalizeM03TcmDiseaseDifferentialNames\(westernProjection\)\);/);

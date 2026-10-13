@@ -606,6 +606,32 @@ check("HIS applying an unsafe option re-evaluates actual herbs despite hidden me
   assert.deepEqual(full.warningProfile, visible.warningProfile);
 });
 
+check("病历页生命体征是可读文字：接口调用方传对象时不得把 JSON 串写回病历（2026-10-13）", () => {
+  // 改前：aiMedicalRecord.vitals === '{"T":"37.5℃","P":"80次/分","R":"18次/分","BP":"110/78mmHg"}'，没填时是 '{}'。
+  const filled = buildScheme({ vitals: { T: "37.5℃", P: "80次/分", R: "18次/分", BP: "110/78mmHg" } }).aiMedicalRecord.vitals;
+  assert.equal(filled, "T 37.5℃；P 80次/分；R 18次/分；BP 110/78mmHg");
+  assert.doesNotMatch(String(filled), /[{}"]/, "不得带 JSON 记号");
+  assert.equal(buildScheme({ vitals: {} }).aiMedicalRecord.vitals, undefined, "没填生命体征时不出该栏，不写「{}」");
+  assert.equal(buildScheme({ vitals: { T: "", BP: "120/80mmHg" } }).aiMedicalRecord.vitals, "BP 120/80mmHg", "空值不出");
+  // HIS 表单字段在时照旧用表单字段（原路径不变）。
+  const withForm = normalizeCaseStateInput({ chiefComplaint: "头痛", patient: { sex: "女", age: 30 }, vitals: { T: "39℃" } });
+  withForm.hisRecord = { ...(withForm.hisRecord || {}), fields: { ...(withForm.hisRecord?.fields || {}), vitalsT: "36.6℃", vitalsBP: "118/76mmHg" } };
+  assert.equal(buildHisAiSchemePayload(withForm).aiMedicalRecord.vitals, "36.6℃；118/76mmHg");
+});
+
+check("接口调用方原样回传 M04 正文（含结构化段，3.5–4.5 万字符）时不得被裁掉并判成「已截断」（2026-10-13）", () => {
+  const structuredBlock = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ padding: "方".repeat(42000) })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const verbatim = `## 中药饮片处方\n黄芪20g 当归10g\n\n${structuredBlock}\n`;
+  assert.ok(verbatim.length > 40000, "夹具前提：正文超过旧的 30000 上限");
+  const echoed = buildScheme({ prescription: verbatim });
+  assert.doesNotMatch(JSON.stringify(echoed), /内容已按接口预算截断|生成被截断/, "原样回传的正文不得被判为截断");
+  // 反证：真正超出上限的正文仍然被裁并如实标记（上限还在，只是抬到了正文实际大小之上）。
+  const kept = normalizeCaseStateInput({ chiefComplaint: "头痛", prescription: verbatim }).prescription;
+  assert.ok(kept.includes("<!-- DIAGNOSIS_JSON_END -->") && !kept.includes("内容已按接口预算截断"), "规范化后结构化段完整保留、无截断标记");
+  const oversized = normalizeCaseStateInput({ chiefComplaint: "头痛", prescription: "长".repeat(130000) }).prescription;
+  assert.ok(oversized.length < 130000 && oversized.endsWith("[内容已按接口预算截断]"), "超出上限的正文仍被裁并标记");
+});
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "his-structured-projection", failures }, null, 2));
   process.exit(1);

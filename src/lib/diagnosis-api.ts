@@ -1214,7 +1214,7 @@ function structuredRejectionDiagnostic(content: string, reason: string, clinical
     if (start >= 0 && end > start) {
       try {
         const parsed = JSON.parse(content.slice(start + startMarker.length, end).trim());
-        const findings = m03DoseLevelInstructionFindings(parsed).slice(0, 6);
+        const findings = m03DoseLevelInstructionFindings(parsed, "", "$", clinicalContext).slice(0, 6);
         return {
           doseInstructionPaths: findings.map((item) => item.path).join(","),
           doseInstructionKinds: findings.map((item) => item.kind).join(","),

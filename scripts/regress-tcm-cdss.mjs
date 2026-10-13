@@ -1329,6 +1329,9 @@ function asEditedWorkbenchArtifact(caseState, candidateIndex = 0) {
  * 任何字段与签发时不一致都会让下游 assess / his-scheme 的凭据校验失败。
  */
 function adoptAttestedRevision(caseState, audit) {
+  // 上一步的断言已经记了「没拿到 audit」；这里不能再对空对象取值把整轮 harness 带崩
+  // （2026-10-13：本机 dev 上新旧版本都在第一个工作台用例崩掉，后面几百条断言一条没跑）。
+  if (!audit) return caseState;
   // Use the installed client adapter rather than another enum/availability copy:
   // rewriting NOT_SUBMITTED to MANUAL_REVIEW changes issuer-bound HMAC fields.
   caseState.prescriptionRevision = revisionFromAudit(audit, audit?.candidateIndex ?? 0, audit?.herbHash || "", true);

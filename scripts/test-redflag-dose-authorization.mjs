@@ -38,7 +38,7 @@ const jiti = createJiti(import.meta.url, {
     "server-only": path.join(repoRoot, "node_modules/next/dist/compiled/server-only/empty.js"),
   },
 });
-const { withSafetyGate, derivePrescriptionPermission, redFlagDoseAuthorizationAllowed } =
+const { withSafetyGate, derivePrescriptionPermission, redFlagDoseAuthorizationAllowed, hardDoseSafetyBoundaryReasons } =
   await jiti.import("../src/lib/diagnosis-safety.ts");
 
 const BASE = {
@@ -177,8 +177,66 @@ assert.equal((redFlagsRouteSource.match(/operationalCompleteness:/g) || []).leng
 assert.equal((redFlagsRouteSource.match(/prescriptionPermission:/g) || []).length, 2,
   "red-flags 的两条返回路径都必须回传处方权限档位");
 
+// ── 6. 独立硬边界不受「病历不完整 + 尚未追问」影响（2026-10-13 全面回归实测） ─────────────
+// 本套件此前的夹具全部是 questionRounds: 1，所以没走到这条路径：完整度不到 C 且一轮追问都没答时，
+// derivePrescriptionPermission 先返回 limited_dose，妊娠阳性/可疑、哺乳、抗凝、患儿年龄不明这几道
+// 独立硬边界根本轮不到评估——同一份病历写得越少，反而越能拿到剂量。本机实测 5 例全部给出带剂量方
+// （妊娠 12 周给姜半夏 9g、华法林给乳香没药、哺乳期给王不留行，HIS 还是 ready/valid），
+// 而 M05 用的 hardDoseSafetyBoundaryReasons 同时在说「已记录妊娠…不得采纳」：两处各判各的。
+// HIS 直连接口不答追问就是 questionRounds=0，这是甲方的主路径。
+const SPARSE = {
+  id: "hard-boundary-sparse", phase: "prescribe", conversation: [],
+  diagnosis: "", prescription: "", riskAssessment: "", maxQuestionRounds: 1,
+};
+const HARD_BOUNDARY_CASES = {
+  妊娠阳性: { patient: { sex: "女", age: 28 }, chiefComplaint: "停经12周，恶心呕吐2周", symptoms: { presentHistory: "停经12周，B超提示宫内早孕。近2周恶心呕吐。" } },
+  可能怀孕: { patient: { sex: "女", age: 30 }, chiefComplaint: "胃脘胀痛1周", symptoms: { presentHistory: "胃脘胀痛，嗳气。月经推迟10天，自述可能怀孕。" } },
+  哺乳期: { patient: { sex: "女", age: 29 }, chiefComplaint: "右乳胀痛3天", symptoms: { presentHistory: "产后3月，哺乳期，右乳胀痛。" } },
+  抗凝治疗: { patient: { sex: "男", age: 66 }, chiefComplaint: "右膝关节刺痛半年", symptoms: { presentHistory: "右膝刺痛，痛处固定。" }, medicationHistory: "长期服用华法林。" },
+  患儿年龄不明: { patient: { sex: "男" }, chiefComplaint: "患儿咳嗽流涕2天", symptoms: { presentHistory: "患儿2天前受凉后咳嗽，流清涕，无发热，纳可。" }, tongue: "舌淡红苔薄白", pulse: "脉浮" },
+};
+// 同一批病历去掉硬边界那一句：信息有限仍然只是「有限信息候选」，不得被本次修复顺带收回剂量。
+const SPARSE_CONTROLS = {
+  普通胃痛: { patient: { sex: "女", age: 30 }, chiefComplaint: "胃脘胀痛1周", symptoms: { presentHistory: "胃脘胀痛，嗳气。现否认妊娠，未哺乳，无备孕计划。" } },
+  普通膝痛: { patient: { sex: "男", age: 66 }, chiefComplaint: "右膝关节刺痛半年", symptoms: { presentHistory: "右膝刺痛，痛处固定。" }, medicationHistory: "近期未服药。" },
+  年龄已知儿童: { patient: { sex: "男", age: 6 }, chiefComplaint: "咳嗽流涕2天", symptoms: { presentHistory: "2天前受凉后咳嗽，流清涕，无发热，纳可。" }, tongue: "舌淡红苔薄白", pulse: "脉浮" },
+  只有主诉: { patient: {}, chiefComplaint: "胃痛3天", symptoms: {} },
+};
+const COMPLETE_FIELDS = {
+  tongue: "舌淡红苔薄白", pulse: "脉滑",
+  vitals: { T: "36.6℃", P: "76次/分", R: "18次/分", BP: "122/78mmHg" },
+  pastHistory: "既往体健。", allergyHistory: "否认药物过敏。",
+};
+let hardBoundaryCells = 0;
+for (const [label, patch] of Object.entries(HARD_BOUNDARY_CASES)) {
+  for (const questionRounds of [0, 1]) {
+    for (const [shape, extra] of [["不完整", {}], ["补全四诊与既往", COMPLETE_FIELDS]]) {
+      const state = withSafetyGate({ ...SPARSE, ...extra, ...patch, questionRounds });
+      const permission = derivePrescriptionPermission(state);
+      const where = `${label}·${shape}·questionRounds=${questionRounds}（完整度 ${state.completeness?.level}）`;
+      assert.notEqual(state.safetyGate.status, "red_flag", `夹具前提：${where} 不得命中红旗，否则测的是红旗轴`);
+      assert.ok(hardDoseSafetyBoundaryReasons(state).length > 0, `夹具前提：${where} 必须被 hardDoseSafetyBoundaryReasons 认作独立硬边界`);
+      assert.equal(permission.candidateMode, "non_dose_only",
+        `${where}：独立硬边界必须收回剂量，不得因「病历不完整且尚未追问」先拿到 limited_dose`);
+      assert.equal(permission.formalAdoption, "blocked", `${where}：不得可采纳`);
+      assert.ok(!permission.reasons.some((reason) => /关键信息覆盖有限/.test(reason)),
+        `${where}：理由必须是硬边界本身，不是「信息覆盖有限」`);
+      hardBoundaryCells += 1;
+    }
+  }
+}
+assert.equal(hardBoundaryCells, 20, "5 类硬边界 × 2 种完整度 × 2 种追问轮次");
+for (const [label, patch] of Object.entries(SPARSE_CONTROLS)) {
+  const state = withSafetyGate({ ...SPARSE, ...patch, questionRounds: 0 });
+  assert.notEqual(state.completeness?.level, "C", `对照前提：${label} 必须是不完整病历`);
+  assert.deepEqual(hardDoseSafetyBoundaryReasons(state), [], `对照前提：${label} 没有独立硬边界`);
+  assert.equal(derivePrescriptionPermission(state).candidateMode, "limited_dose",
+    `${label}：没有硬边界的不完整病历仍按有限信息出候选（追问是增强手段，不是门槛）`);
+}
+
 console.log("test-redflag-dose-authorization: OK", {
   switchValues: 3,
   independentBoundaries: ["pediatric", "pregnancy"],
+  hardBoundaryCells,
   prodSmokeFullDosePreflight: true,
 });

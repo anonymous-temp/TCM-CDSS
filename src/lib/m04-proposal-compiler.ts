@@ -5,6 +5,7 @@ import {
   type ClinicalReasoningResultV2,
 } from "./diagnosis-types";
 import { sanitizeUnverifiedClinicalNarrative } from "./customer-evidence";
+import { stripHerbBoundaryTail } from "./candidate-boundary-text";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
 import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName } from "./tcm-knowledge";
@@ -1468,7 +1469,8 @@ export function compileM04Proposal(
             ? "经典方主治与本例当前阳性事实及核心病机未形成完整匹配，故按已锁定病机与治法辨证组方。"
             : `适用于与本例锁定证候“${prior.overview.primarySyndrome}”及病机链一致的情况。`,
         ),
-        notApplicable: cleanNarrative(proposal.candidate.notApplicable, "证候、病机、舌脉或安全边界变化时暂停采用，并重新辨证。"),
+        // 上一轮编译追加的逐味提示先剥掉再做叙述净化：净化会把它削成「；；；；。…复核。」的残段并逐轮累积。
+        notApplicable: cleanNarrative(stripHerbBoundaryTail(proposal.candidate.notApplicable || ""), "证候、病机、舌脉或安全边界变化时暂停采用，并重新辨证。"),
         herbs: compiledHerbs,
         formulaAnalysis: cleanNarrative(proposal.candidate.formulaAnalysis, "依据最终药味、君臣佐使与对应病机生成。"),
         decoction: {

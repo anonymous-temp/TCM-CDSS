@@ -2584,8 +2584,34 @@ function splitWesternDifferentialRow(raw: Record<string, unknown>): Record<strin
   const names = bracket
     ? [bracket.head, ...bracket.alternatives]
     : splitAlternativeParts(name.replace(/^[^：:]*(?:待查|待排|待鉴别)[：:]/, ""));
-  const usable = completeSharedDiagnosisTail(names).filter((item) => !isAmbiguousM03WesternPrimaryLabel(item));
+  const usable = completeSharedDiagnosisHead(completeSharedDiagnosisTail(names))
+    .filter((item) => !isAmbiguousM03WesternPrimaryLabel(item));
   return usable.length > 0 ? usable.map((item) => ({ ...raw, name: item })) : [raw];
+}
+
+/**
+ * 泛指病理词（闭集）：单独成条时不指明部位，不是一个诊断名。
+ * 只收「部位 + 本词」才成病名的词；肺炎、结核、贫血、感染这类单独成立的病名不在其中。
+ */
+const GENERIC_PATHOLOGY_NOUN = /^(?:原发|继发|转移性?)?(?:肿瘤|转移瘤|占位|增生|息肉|囊肿|病变|狭窄|梗阻|结石)$/;
+const GENERIC_PATHOLOGY_TAIL = /(?:原发|继发|转移性?)?(?:肿瘤|转移瘤|占位|增生|息肉|囊肿|病变|狭窄|梗阻|结石)$/;
+
+/**
+ * 「颅内占位/肿瘤」这类共用**部位**的并列写法，拆开后后一段只剩泛指病理词（肿瘤、增生、原发肿瘤）。
+ * 与 completeSharedDiagnosisTail 是同一缺陷的镜像：那里借词尾，这里借部位。2026-10-13 全面回归
+ * 185 例里 6 例（输出压短后模型更常用斜杠把两个方向并进一条）。
+ * 兄弟项以泛指病理词收尾时，去掉该词即得共用部位（颅内占位 → 颅内）；借不到时原样保留，不臆造病名。
+ */
+function completeSharedDiagnosisHead(parts: readonly string[]): string[] {
+  return parts.map((part, index) => {
+    if (!GENERIC_PATHOLOGY_NOUN.test(part)) return part;
+    for (const donor of [...parts.slice(0, index).reverse(), ...parts.slice(index + 1)]) {
+      if (GENERIC_PATHOLOGY_NOUN.test(donor)) continue;
+      const head = donor.replace(GENERIC_PATHOLOGY_TAIL, "");
+      if (head.length >= 2 && head.length < donor.length) return `${head}${part}`;
+    }
+    return part;
+  });
 }
 
 /**

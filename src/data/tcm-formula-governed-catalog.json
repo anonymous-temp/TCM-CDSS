@@ -631,10 +631,10 @@
     "prescriptionLockEligibleCount": 2939,
     "identityLockEligibleCount": 2939,
     "doseCompilationEligibleCount": 2529,
-    "symptomTaggedFormulaCount": 1141,
-    "diseaseTaggedFormulaCount": 376,
+    "symptomTaggedFormulaCount": 1145,
+    "diseaseTaggedFormulaCount": 377,
     "syndromeTaggedFormulaCount": 2310,
-    "locationTaggedFormulaCount": 581,
+    "locationTaggedFormulaCount": 582,
     "natureTaggedFormulaCount": 632,
     "candidateFormulaCount": 0,
     "candidateVariantCount": 0,
@@ -13754,7 +13754,7 @@
         "疏肝清热"
       ],
       "standardIndications": [
-        "肝脾血虚兼热相关表现；具体患者适用性须按病历事实和医生辨证复核"
+        "肝郁血虚内热证。症见烦躁易怒，或自汗盗汗，或头痛目涩，或颊赤口干，或月经不调，少腹胀痛，或经期吐衄，舌红苔薄黄，脉弦虚数"
       ],
       "verification": [
         {
@@ -13815,11 +13815,14 @@
         }
       ],
       "indications": [
-        "肝脾血虚兼热相关表现；具体患者适用性须按病历事实和医生辨证复核"
+        "肝郁血虚内热证。症见烦躁易怒，或自汗盗汗，或头痛目涩，或颊赤口干，或月经不调，少腹胀痛，或经期吐衄，舌红苔薄黄，脉弦虚数"
       ],
       "syndromeTags": [
         "TCM-SYNDROME-EXT-LIVER-FIRE-DISTURBING-HEART",
         "liver_depression_transforming_fire",
+        "TCM-SYNDROME-0A9C2CB4C96B",
+        "TCM-SYNDROME-5A6226E3BDDA",
+        "TCM-SYNDROME-7236D74509A3",
         "TCM-SYNDROME-7A199C7CFD1A"
       ],
       "curatedSyndromeTags": [
@@ -13866,7 +13869,17 @@
         "blood_deficiency"
       ],
       "locationTags": [],
-      "symptomTags": [],
+      "symptomTags": [
+        "dry_mouth_throat",
+        "epigastric_fullness",
+        "headache",
+        "menstrual_abnormality",
+        "mood_distress",
+        "red_tongue",
+        "sleep_disorder",
+        "sweating",
+        "wiry_pulse"
+      ],
       "diseaseTags": [],
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
@@ -38061,7 +38074,8 @@
         "滋阴补肾"
       ],
       "standardIndications": [
-        "肝肾阴虚相关表现；丸剂身份不得自动等同于同名汤剂或加味变方"
+        "肾阴精不足证。腰膝酸软，头晕目眩，视物昏花，耳鸣耳聋，盗汗，遗精，消渴，骨蒸潮热，手足心热，舌燥咽痛，牙齿动摇，足跟作痛，以及小儿囟门不合，舌红少苔，脉沉细数",
+        "肝肾阴虚，头晕目眩、腰酸耳鸣"
       ],
       "verification": [
         {
@@ -38110,10 +38124,13 @@
         }
       ],
       "indications": [
-        "肝肾阴虚相关表现；丸剂身份不得自动等同于同名汤剂或加味变方"
+        "肾阴精不足证。腰膝酸软，头晕目眩，视物昏花，耳鸣耳聋，盗汗，遗精，消渴，骨蒸潮热，手足心热，舌燥咽痛，牙齿动摇，足跟作痛，以及小儿囟门不合，舌红少苔，脉沉细数",
+        "肝肾阴虚，头晕目眩、腰酸耳鸣"
       ],
       "syndromeTags": [
         "kidney_yin_deficiency",
+        "TCM-SYNDROME-1DD5334C50FB",
+        "TCM-SYNDROME-E1E796C992DE",
         "TCM-SYNDROME-E62409E9BC62",
         "TCM-SYNDROME-F381FDF393D6"
       ],
@@ -38139,11 +38156,25 @@
         }
       ],
       "natureTags": [
+        "deficiency",
         "yin_deficiency"
       ],
       "locationTags": [],
-      "symptomTags": [],
-      "diseaseTags": [],
+      "symptomTags": [
+        "dizziness",
+        "fever_chills",
+        "mood_distress",
+        "red_tongue",
+        "sweating",
+        "symptom_axis_686af51820",
+        "symptom_axis_aca4e2f0ce",
+        "symptom_axis_b534d72954",
+        "symptom_axis_eaab4ba0c9",
+        "thready_pulse"
+      ],
+      "diseaseTags": [
+        "disease_hypertension"
+      ],
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
@@ -285721,7 +285752,9 @@
         "升阳举陷"
       ],
       "standardIndications": [
-        "脾胃气虚或气虚下陷相关表现；须结合患者事实确认"
+        "脾胃气虚证。饮食减少，体倦肢软，少气懒言，面色萎黄，大便稀薄，脉虚软",
+        "气虚下陷证。脱肛，子宫脱垂，久泻，久痢，崩漏等，伴气短乏力，舌淡，脉虚",
+        "气虚发热证。身热自汗，渴喜热饮，气短乏力，舌淡，脉虚大无力"
       ],
       "verification": [
         {
@@ -285782,13 +285815,16 @@
         }
       ],
       "indications": [
-        "脾胃气虚或气虚下陷相关表现；须结合患者事实确认"
+        "脾胃气虚证。饮食减少，体倦肢软，少气懒言，面色萎黄，大便稀薄，脉虚软",
+        "气虚下陷证。脱肛，子宫脱垂，久泻，久痢，崩漏等，伴气短乏力，舌淡，脉虚",
+        "气虚发热证。身热自汗，渴喜热饮，气短乏力，舌淡，脉虚大无力"
       ],
       "syndromeTags": [
         "TCM-SYNDROME-593D354C4690",
         "TCM-SYNDROME-0F4FF7849863",
         "TCM-SYNDROME-359B6446B174",
         "TCM-SYNDROME-6C733A6875EB",
+        "TCM-SYNDROME-7595298FF860",
         "TCM-SYNDROME-A132B90612C7"
       ],
       "curatedSyndromeTags": [
@@ -285818,8 +285854,20 @@
         "qi_deficiency",
         "qi_sinking"
       ],
-      "locationTags": [],
-      "symptomTags": [],
+      "locationTags": [
+        "uterus"
+      ],
+      "symptomTags": [
+        "dyspnea_wheeze",
+        "fatigue",
+        "fever_chills",
+        "loose_stool_diarrhea",
+        "pale_tongue",
+        "sweating",
+        "symptom_axis_3637fac072",
+        "symptom_axis_a06534d623",
+        "weak_pulse"
+      ],
       "diseaseTags": [],
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
@@ -345367,6 +345415,8 @@
         "泻下焦湿热"
       ],
       "standardIndications": [
+        "肝胆实火上炎证。头痛目赤，胁痛，口苦，耳聋，耳肿，舌红苔黄，脉弦数有力",
+        "肝经湿热下注证。阴肿，阴痒，筋痿，阴汗，小便淋浊，或妇女带下黄臭，舌红苔黄腻，脉弦数有力",
         "肝胆实火上炎证或肝胆湿热下注证"
       ],
       "verification": [
@@ -345443,16 +345493,20 @@
         }
       ],
       "indications": [
+        "肝胆实火上炎证。头痛目赤，胁痛，口苦，耳聋，耳肿，舌红苔黄，脉弦数有力",
+        "肝经湿热下注证。阴肿，阴痒，筋痿，阴汗，小便淋浊，或妇女带下黄臭，舌红苔黄腻，脉弦数有力",
         "肝胆实火上炎证或肝胆湿热下注证"
       ],
       "syndromeTags": [
         "TCM-SYNDROME-EXT-LIVER-FIRE-DISTURBING-HEART",
         "TCM-SYNDROME-D458E1730BE6",
+        "TCM-SYNDROME-2E0F584ADC26",
         "TCM-SYNDROME-83DDAFC3F5FC",
         "TCM-SYNDROME-C94E52ED40D3",
         "TCM-SYNDROME-CC983EFF9F01",
         "TCM-SYNDROME-CFEFA693692E",
-        "TCM-SYNDROME-D068CEBE9733"
+        "TCM-SYNDROME-D068CEBE9733",
+        "TCM-SYNDROME-D3B79DE1BB4C"
       ],
       "curatedSyndromeTags": [
         "TCM-SYNDROME-EXT-LIVER-FIRE-DISTURBING-HEART",
@@ -345495,7 +345549,15 @@
       ],
       "natureTags": [],
       "locationTags": [],
-      "symptomTags": [],
+      "symptomTags": [
+        "bitter_taste",
+        "chest_hypochondrium_pain",
+        "headache",
+        "red_tongue",
+        "symptom_axis_655bf9886a",
+        "wiry_pulse",
+        "yellow_greasy_coating"
+      ],
       "diseaseTags": [],
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
@@ -346377,6 +346439,8 @@
           "泻下焦湿热"
         ],
         "indications": [
+          "肝胆实火上炎证。头痛目赤，胁痛，口苦，耳聋，耳肿，舌红苔黄，脉弦数有力",
+          "肝经湿热下注证。阴肿，阴痒，筋痿，阴汗，小便淋浊，或妇女带下黄臭，舌红苔黄腻，脉弦数有力",
           "肝胆实火上炎证或肝胆湿热下注证"
         ],
         "sourceRef": "SRC-SZJG-TCM-FORMULA-2011"
@@ -348451,7 +348515,7 @@
           "疏肝清热"
         ],
         "indications": [
-          "肝脾血虚兼热相关表现；具体患者适用性须按病历事实和医生辨证复核"
+          "肝郁血虚内热证。症见烦躁易怒，或自汗盗汗，或头痛目涩，或颊赤口干，或月经不调，少腹胀痛，或经期吐衄，舌红苔薄黄，脉弦虚数"
         ],
         "sourceRef": "SRC-SZJG-TCM-FORMULA-2011"
       },
@@ -351768,7 +351832,8 @@
           "滋阴补肾"
         ],
         "indications": [
-          "肝肾阴虚相关表现；丸剂身份不得自动等同于同名汤剂或加味变方"
+          "肾阴精不足证。腰膝酸软，头晕目眩，视物昏花，耳鸣耳聋，盗汗，遗精，消渴，骨蒸潮热，手足心热，舌燥咽痛，牙齿动摇，足跟作痛，以及小儿囟门不合，舌红少苔，脉沉细数",
+          "肝肾阴虚，头晕目眩、腰酸耳鸣"
         ],
         "sourceRef": "SRC-SZJG-TCM-FORMULA-2011"
       },
@@ -353585,7 +353650,9 @@
           "升阳举陷"
         ],
         "indications": [
-          "脾胃气虚或气虚下陷相关表现；须结合患者事实确认"
+          "脾胃气虚证。饮食减少，体倦肢软，少气懒言，面色萎黄，大便稀薄，脉虚软",
+          "气虚下陷证。脱肛，子宫脱垂，久泻，久痢，崩漏等，伴气短乏力，舌淡，脉虚",
+          "气虚发热证。身热自汗，渴喜热饮，气短乏力，舌淡，脉虚大无力"
         ],
         "sourceRef": "SRC-SZJG-TCM-FORMULA-2011"
       },

@@ -494,6 +494,20 @@ const combined = resolveFormulaSources(
 );
 assert.equal(combined.length, 2, "a combined formula must verify every named base formula");
 assert.deepEqual(combined.map((item) => item.source), ["《伤寒论》", "《三因》卷九。"], "combined-formula provenance follows the closest composition, not catalog prestige alone");
+
+// 同名方的署名：受治理目录里这首方自己也是候选，组成同样贴近时由它署名（2026-10-13 全面回归）。
+// 改前实测：处方与受治理组成逐味相同，出处却是名录里的后世转载——263 个候选里 20 个。
+for (const [name, herbList, expected, before] of [
+  ["补中益气汤加减", ["黄芪", "白术", "防风", "人参", "当归", "陈皮", "升麻", "柴胡", "炙甘草"], "《内外伤辨惑论》", "《幼科金针》卷下。"],
+  ["八珍汤加减", ["人参", "白术", "茯苓", "熟地黄", "当归", "白芍", "川芎", "炙甘草"], "《瑞竹堂经验方》", "《元戎》。"],
+  ["逍遥散加减", ["柴胡", "白芍", "当归", "白术", "茯苓", "香附", "甘草"], "《太平惠民和剂局方》卷九", "《局方》卷九。"],
+  ["五苓散加味", ["附子", "茯苓", "白术", "猪苓", "桂枝", "泽泻", "大腹皮", "生姜", "炙甘草"], "《伤寒论》", "《履霜集》。"],
+]) {
+  const resolved = resolveFormulaSources(name, herbs(...herbList));
+  assert.equal(resolved[0]?.source, expected, `${name} 的出处应是受治理目录里的原书（改前：${before}）`);
+}
+// 反证：「最贴近的组成优先」没有被改掉——上面的温胆汤带茯苓仍归《三因》卷九，不因为受治理条目是《备急千金要方》就改署它；
+// 国家经典名方目录条目在并列时仍排最前（见上文 升降散《伤寒瘟疫条辨》）。
 assert.ok(
   combined.every((item) =>
     item.verificationStatus === "verified_individually" &&

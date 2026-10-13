@@ -491,7 +491,7 @@ JSON要求：
 - primarySyndromeBasis 已选入会直接改变表实/表虚或卫表固摄判断的“无汗/自汗”时，至少一个 pathogenesis.chain 节点的 patientFact 或 syndromeEvidence 必须逐字绑定该鉴别点；不得只在总览列出、却让下游病机和治法完全看不见它。盗汗等伴随表现是否进入主链由全案病机决定，不得一律强制占用主链节点。
 - westernDiagnosis.primary.suggestedChecks 必须分层：先列与主诉直接相关的补充问诊、生命体征和查体；只有病例已有红旗、神经系统异常或明确鉴别指征时，才列具体 CT/MRI/增强扫描、经颅多普勒或成套实验室检查。资料稀疏且未见红旗时不得输出无差别的高级检查清单，只能写明出现何种阳性事实后再评估相应检查。
 - 不得编造文献、DOI 或指南。guidelineReferences 只能逐字引用上方已注入的 EVID-GUIDE 条目 id；服务端会按 id 反查真检索到的条目后重写该字段，编造的 id 一律落空。
-- lineageAdaptation 只在医生选定了具体流派时填写（applicabilityReason ≤40字，influencedDecisions 最多 2 条、detail ≤30字）；诊疗思路偏好为“不限定”时输出 null。influencedDecisions.aspect 不得出现剂量、配伍禁忌、特殊人群、红旗或相互作用。
+- lineageAdaptation 只在医生选定了具体流派时填写（applicable 只填 applicable / partial / not-applicable 三者之一，分别表示该流派思路与本例证据相符 / 部分相符 / 不相符，须与 applicabilityReason 的说法一致，不相符时如实写 not-applicable、不硬套该流派的方；applicabilityReason ≤40字，influencedDecisions 最多 2 条、detail ≤30字）；诊疗思路偏好为“不限定”时输出 null。influencedDecisions.aspect 不得出现剂量、配伍禁忌、特殊人群、红旗或相互作用。
 - management 只写临床管理闭环，不写系统按钮、接口、阶段名或工程化状态。
 - JSON 右花括号必须是回复最后一个非空内容；其后禁止追加解释、免责声明、尾注或第二份结果。
 
@@ -529,6 +529,7 @@ JSON要求：
     "overallMethod": "总治法"
   },
   "lineageAdaptation": {
+    "applicable": "applicable",
     "applicabilityReason": "仅在选定具体流派时填写：该流派偏好与本例证据是否匹配；不限定流派时整个 lineageAdaptation 写 null",
     "influencedDecisions": [{"aspect":"辨证视角","detail":"流派影响的辨证/方源/组方/加减风格（≤30字）"}]
   },
@@ -734,7 +735,7 @@ ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
 
 ${reasoningV2Instruction("diagnose", caseState)}
 
-以下字段由服务端确定性生成或覆盖，**不要输出**：schemaVersion、stage、formula、nonPharma、pathogenesis.summary、各处 evidence 对象，overview 的 overallTherapy/recommendedFormulaNames/formulaSelectionMode/deferredFormulaSelection/tcmDiseaseReferences/tcmSyndromeReferences，病位与病性的 resolutionReason，病机节点的 nodeId/pathogenesisType/biaoBen，pathogenesis.caseRelationship，therapy.subTherapies，westernDiagnosis.primary.coding，以及 lineageAdaptation 的 schemaVersion/lineageCode/label/applicable/unaffectedBySafety/safetyDeference/alternativeDirection。只提交需要临床判断的内容。
+以下字段由服务端确定性生成或覆盖，**不要输出**：schemaVersion、stage、formula、nonPharma、pathogenesis.summary、各处 evidence 对象，overview 的 overallTherapy/recommendedFormulaNames/formulaSelectionMode/deferredFormulaSelection/tcmDiseaseReferences/tcmSyndromeReferences，病位与病性的 resolutionReason，病机节点的 nodeId/pathogenesisType/biaoBen，pathogenesis.caseRelationship，therapy.subTherapies，westernDiagnosis.primary.coding，以及 lineageAdaptation 的 schemaVersion/lineageCode/label/unaffectedBySafety/safetyDeference/alternativeDirection。只提交需要临床判断的内容。
 
 以上为固定规范。以下是本例患者资料与检索上下文，请据此按上述规范输出一份结构化临床结论。`;
   return buildPromptWithPublicPrefix("m03-diagnose", publicPrefix, `

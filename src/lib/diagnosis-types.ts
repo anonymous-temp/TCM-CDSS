@@ -856,7 +856,11 @@ export const CompletenessSchema = z.object({
 const PhaseSchema = z.enum(["idle", "collect", "question", "diagnose", "prescribe", "assess", "done", "error"]);
 const MAX_TEXT_FIELD_CHARS = 6000;
 const MAX_RAW_TEXT_CHARS = 12000;
-const MAX_MODEL_OUTPUT_CHARS = 30000;
+// 阶段正文（diagnosis / prescription / riskAssessment）回传上限。原为 30000：M04 正文连同内嵌的结构化段实测
+// 3.5–4.5 万字符，接口调用方按文档「原样回传」后被裁掉，HIS 导出随即判「候选方案生成被截断，不允许写回采纳」
+// （2026-10-13 全面回归：经接口走的 97 例里 8 例）。页面在存入前会剥掉结构化段，所以只有接口调用方受影响。
+// 整个请求体另有 1MB 上限（readJsonRequest），这里只需高于正文的实际大小。
+const MAX_MODEL_OUTPUT_CHARS = 120000;
 const MAX_CONVERSATION_ITEMS = 10;
 const MAX_CONVERSATION_CHARS = 2000;
 

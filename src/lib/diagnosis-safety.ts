@@ -924,7 +924,22 @@ function reconcileSyntheticPolarityContradictions(value: string, source: string)
  * 所以「患者否认X」这类对当前病历的断言仍受约束。
  * 「是否」不在其中：「X是否存在尚未确认」本身就是净化器要纠正的记录完整性断言。
  */
-const PROSPECTIVE_CLINICAL_SENTENCE = /(?:若(?!干)|如果|假如|倘若|万一|一旦|要是|如(?:出现|有|发现|伴|仍|再|症状|病情|服药|用药|感到|觉得|遇)|有无|(?:服药|用药|治疗|疗程)期间|(?:出现|发生)[^，,。；;]{1,24}时)/;
+// 后两支是没有「若/如」的前瞻句（2026-10-13：87 例里 4 例注意事项被改坏）：
+//   「服药2周失眠心悸无改善或加重，须复诊调整方案」→ 被改成「病历已记录心悸、失眠阳性，须复诊调整方案」
+//   「…出现恶心、腹痛等不适请停药就医」           → 被改成「病历尚未确认恶心是否存在」
+// 疗程起头（服药/用药 + N天/剂/周）或「出现/发生X」起头，且**同句后面带处置指令**（复诊/就医/停药…）才算；
+// 没有指令的「患者服药3天后否认便血」「患者出现胸痛」仍是对病历的陈述，照旧净化。
+const PROSPECTIVE_CARE_DIRECTIVE = "(?:请|须|应|需|要|立即|及时|尽快)[^。；;！!？?\\n|]*(?:复诊|就医|就诊|急诊|停药|告知|评估)";
+const PROSPECTIVE_CLINICAL_SENTENCE = new RegExp(
+  "(?:若(?!干)|如果|假如|倘若|万一|一旦|要是|如(?:出现|有|发现|伴|仍|再|症状|病情|服药|用药|感到|觉得|遇)|有无|(?:服药|用药|治疗|疗程)期间|(?:出现|发生)[^，,。；;]{1,24}时"
+  + `|(?:服药|用药|服用|治疗)\\s*(?:\\d+(?:\\s*[-–~～至]\\s*\\d+)?|[一二两三四五六七八九十半]+)\\s*(?:天|日|剂|周|个?月)(?:后|内|以上)?(?=[^。；;！!？?\\n|]*${PROSPECTIVE_CARE_DIRECTIVE})`
+  + `|(?:出现|发生)(?=[^，,。；;！!？?\\n|]{1,24}${PROSPECTIVE_CARE_DIRECTIVE}))`,
+);
+
+/** 以「须/请/应…就医、急诊、复诊、停药」收尾的句子（闭集的处置指令）。 */
+const PROSPECTIVE_INSTRUCTION_SENTENCE = new RegExp(`${PROSPECTIVE_CARE_DIRECTIVE}[^。；;！!？?\\n|]{0,24}[。；;！!]?\\s*$`);
+/** 句中出现这些词，说明它（至少前半）是在陈述当前病历，不能整句当作嘱咐放行。 */
+const CHART_ASSERTION_MARKER = /患者|病人|患儿|本例|否认|病历|已记录|既往|查体|检查示/;
 
 export function isProspectiveClinicalSentence(value: string): boolean {
   return PROSPECTIVE_CLINICAL_SENTENCE.test(String(value || ""));
@@ -1067,7 +1082,12 @@ function sanitizeUngroundedNegationText(
   // 不能因为同句后半有「如出现」就整句放行（本函数也作用于 M03/M04 可见正文）。
   const prospectiveSentences: string[] = [];
   const shielded = value.replace(/[^。；;！!？?\n|]+[。；;！!？?]?/g, (sentence) => {
-    const marker = sentence.search(PROSPECTIVE_CLINICAL_SENTENCE);
+    // 以处置指令收尾、且句中没有对病历的陈述标记的句子，整句都是给患者的前瞻嘱咐：
+    // 「胃痛持续不缓解或加重，或出现板状腹、黑便、呕吐，须立即急诊就诊」里既没有「若/如」，
+    // 「出现…」与指令之间还隔着逗号，按虚词起点屏蔽会漏掉中间一段（实测被改成「病历尚未确认呕吐是否存在」）。
+    // 有陈述标记（患者/否认/病历…）的句子不走这一支，仍按虚词起点屏蔽，标记之前的断言照旧净化。
+    const wholeSentenceInstruction = PROSPECTIVE_INSTRUCTION_SENTENCE.test(sentence) && !CHART_ASSERTION_MARKER.test(sentence);
+    const marker = wholeSentenceInstruction ? sentence.search(/\S/) : sentence.search(PROSPECTIVE_CLINICAL_SENTENCE);
     if (marker < 0) return sentence;
     return `${sentence.slice(0, marker)}__TCM_CDSS_PROSPECTIVE_${prospectiveSentences.push(sentence.slice(marker)) - 1}__`;
   });
@@ -3514,13 +3534,36 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
     }
     return false;
   })();
+  // 「大量/反复/喷射…」是修饰出血词本身的限定语，仍走原口径——但否定必须在**出血词**的位置也判一次。
+  // 原实现只在匹配起点（限定语）判否定，而限定语修饰的未必是出血词：「反复上腹痛1年，无呕血黑便」
+  // 里「反复」说的是腹痛，16 字窗却跨过逗号和「无」把它接到「呕血」上，消化科最常规的一句阴性症状
+  // 就成了活动性出血红旗（2026-10-13 甲方反流病例实测）。判法与上面 bleedSeverityAffirmed 一致。
+  const qualifiedGiBleedingSignal = (() => {
+    const qualifier = /大量|反复|多次|再次|再发|复发|喷射|不止|持续出血/g;
+    const bleedHere = new RegExp(`^(?:${bleedTerms})`);
+    for (const head of text.matchAll(qualifier)) {
+      const start = head.index ?? -1;
+      if (start < 0) continue;
+      if (isExcludedClinicalAssertionAt(text, start)) continue;
+      const windowStart = start + head[0].length;
+      // 窗口内的每个出血词都看一遍：「反复上腹痛，无呕血，近2天黑便」第一个出血词被否认、第二个是阳性。
+      for (let offset = 0; offset <= 16; offset += 1) {
+        const bleedAt = windowStart + offset;
+        if (bleedAt >= text.length || /[。；;\n]/.test(text[bleedAt])) break;
+        const found = text.slice(bleedAt).match(bleedHere);
+        if (!found) continue;
+        const span = text.slice(start, bleedAt + found[0].length);
+        if (isNegatedAt(text, start) && !hasCommaSeparatedPositiveEvidence(text, start, span)) break;
+        if (isNegatedAt(text, bleedAt) && !hasCommaSeparatedPositiveEvidence(text, bleedAt, found[0])) continue;
+        if (isHistoricalOrResolvedAt(text, start, span.length)) continue;
+        return true;
+      }
+    }
+    return false;
+  })();
   const activeGiBleedingSignal =
     recurrentGiBleedingSignal || combinedUpperAndLowerGiBleedingSignal ||
-    hasCoffeeGroundEmesis(text) || bleedSeverityAffirmed ||
-    // 「大量/反复/喷射…」是修饰出血词本身的限定语，仍走原口径。
-    hasPatternWithoutNegation(text, new RegExp(
-      `(?:大量|反复|多次|再次|再发|复发|喷射|不止|持续出血)[^。；;\\n]{0,16}(?:${bleedTerms})`,
-    ));
+    hasCoffeeGroundEmesis(text) || bleedSeverityAffirmed || qualifiedGiBleedingSignal;
   const activeObstetricHemorrhageSignal =
     hasPatternWithoutNegation(text, /(?:孕|妊娠|怀孕)[^。；;\n]{0,40}(?:大量|大出血|持续|反复|鲜红色|血块|浸湿)[^。；;\n]{0,12}(?:阴道)?(?:出血|流血)/) ||
     hasPatternWithoutNegation(text, /(?:阴道)?(?:出血|流血)[^。；;\n]{0,30}(?:大量|大出血|持续|反复|鲜红色|血块|浸湿)[^。；;\n]{0,30}(?:孕|妊娠|怀孕)/);
@@ -4514,16 +4557,10 @@ function deriveBasePrescriptionPermission(state: CaseState): PrescriptionPermiss
     };
   }
 
-  const operationalCompleteness = deriveOperationalCompleteness(state);
-  if (operationalCompleteness.level !== "C" && state.questionRounds < 1) {
-    // 信息覆盖有限降级为「有限信息候选」而不是拒绝——追问是增强手段，不是门槛。
-    return {
-      candidateMode: "limited_dose",
-      formalAdoption: "eligible_after_doctor_confirmation",
-      reasons: ["当前病历关键信息覆盖有限，候选按有限信息生成；建议补充一轮追问以提高信心"],
-    };
-  }
-
+  // 独立硬边界先于「信息覆盖有限」判定（2026-10-13）。此前顺序反过来：完整度不到 C 且一轮追问都没答时
+  // 先返回 limited_dose，妊娠阳性/可疑、哺乳、抗凝、患儿年龄不明、语义筛查未完成这几道边界轮不到评估——
+  // 同一份病历写得越少反而越能拿到剂量（实测妊娠 12 周给出带剂量方），而 M05 读的
+  // hardDoseSafetyBoundaryReasons 同时在说「不得采纳」。与上面红旗分支当年的提前返回是同一个排序缺陷。
   const text = structuredCaseText(state);
   const pediatric = isPediatricPatient(state);
   const pediatricDose = pediatricDoseRuleForCase(state);
@@ -4547,6 +4584,16 @@ function deriveBasePrescriptionPermission(state: CaseState): PrescriptionPermiss
         "本次临床风险复核未完成，当前仅生成非剂量临床分析",
         ...(gate.missingItems || []),
       ])),
+    };
+  }
+
+  const operationalCompleteness = deriveOperationalCompleteness(state);
+  if (operationalCompleteness.level !== "C" && state.questionRounds < 1) {
+    // 信息覆盖有限降级为「有限信息候选」而不是拒绝——追问是增强手段，不是门槛。
+    return {
+      candidateMode: "limited_dose",
+      formalAdoption: "eligible_after_doctor_confirmation",
+      reasons: ["当前病历关键信息覆盖有限，候选按有限信息生成；建议补充一轮追问以提高信心"],
     };
   }
 
@@ -6165,8 +6212,11 @@ function scrubPhi(text: string, patientName = ""): string {
     // 当前疾病词表已经收载黄疸、干呕，不能再以“没有词表”为由把所有无标签双字姓名放过。
     // 高置信形态一条未动:显式姓名标签、某字名、姓氏+人口学邻接(，男/女/NN岁)、电话/证件/地址。
     // 真实姓名的叙述形态(「张三昨夜失眠」)不带临床标签前缀,仍然照常脱敏(见 test:clinical-grounding)。
-    .replace(/(^|[，,。\s]|[；;](?!\s*$)|(?<!(?:主诉|现病史|既往史|个人史|家族史|婚育史|月经史|过敏史|用药史|四诊|望诊|闻诊|问诊|切诊|症见|刻下|查体|体格检查|舌象|脉象|舌|脉|辅助检查|检查|诊断|治法|治则)\s*)[:：]|患者|家属|联系人|陪同者|监护人)((?:欧阳|司马|上官|诸葛|[赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹姚邵湛汪祁毛禹狄米贝明臧计伏成戴谈宋茅庞熊纪舒屈项祝董梁杜阮蓝闵席季麻强贾路娄危江童颜郭梅盛林刁钟徐邱骆高夏蔡田樊胡凌霍虞万支柯昝管卢莫经房裘缪干解应宗丁宣贲邓郁单杭洪包左石崔吉龚程邢裴陆荣翁荀羊惠甄曲封芮储靳汲邴糜松井段富巫乌焦巴弓牧隗山谷车侯宓蓬全郗班仰秋仲伊宫宁仇栾暴甘厉戎祖武符刘景詹束龙叶幸司韶黎乔苍双闻莘党翟谭贡劳姬申扶堵冉宰郦雍却璩桑桂濮牛寿通边扈燕冀郏浦尚农温别庄晏柴瞿阎充慕连茹习宦艾鱼容向古易慎戈廖庾终暨居衡步都耿满弘匡国文寇广禄阙东欧沃利蔚越夔隆师巩厍聂晁勾敖融冷辛阚那简饶空曾沙乜养鞠须丰巢关蒯相查后荆红游竺权逯盖益桓公肖付闫覃岳兰涂蒙牟卓佟苟隋商丛佘池苑邝官胥栗楚鄢谌粟冼蔺楼仝郜帅屠练漆卿索晋邸敬朴])[\u4e00-\u9fa5]{1,2})(?=(?:近|昨|今|因|诉|称|反映|表示|出现|发生|患|有|于|睡|入睡|失眠|头痛|头晕|胸痛|腹痛|发热|咳嗽|心悸|就诊|来诊))/g, (match, prefix: string, candidate: string, offset: number, source: string) =>
-      shouldRedactNarrativeNameCandidate(candidate, source.slice(0, offset) + prefix)
+    // 前缀组里的「病人/患儿/本例/病例」（2026-10-13）：这四个标签此前只走 scrubSubjectPrefixedName，而它用的是
+    // phi-sanitizer 那张较短的姓氏表——「病人经伟有高血压」「病人平芳…」「病人充磊…」三个姓原样留存。
+    // 让它们与「患者」一样落到本分支，用同一张姓氏表判；受治理词形照常豁免（病人经常头痛）。
+    .replace(/(^|[，,。\s]|[；;](?!\s*$)|(?<!(?:主诉|现病史|既往史|个人史|家族史|婚育史|月经史|过敏史|用药史|四诊|望诊|闻诊|问诊|切诊|症见|刻下|查体|体格检查|舌象|脉象|舌|脉|辅助检查|检查|诊断|治法|治则)\s*)[:：]|患者|病人|患儿|本例|病例|家属|联系人|陪同者|监护人)((?:欧阳|司马|上官|诸葛|[赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹姚邵湛汪祁毛禹狄米贝明臧计伏成戴谈宋茅庞熊纪舒屈项祝董梁杜阮蓝闵席季麻强贾路娄危江童颜郭梅盛林刁钟徐邱骆高夏蔡田樊胡凌霍虞万支柯昝管卢莫经房裘缪干解应宗丁宣贲邓郁单杭洪包左石崔吉龚程邢裴陆荣翁荀羊惠甄曲封芮储靳汲邴糜松井段富巫乌焦巴弓牧隗山谷车侯宓蓬全郗班仰秋仲伊宫宁仇栾暴甘厉戎祖武符刘景詹束龙叶幸司韶黎乔苍双闻莘党翟谭贡劳姬申扶堵冉宰郦雍却璩桑桂濮牛寿通边扈燕冀郏浦尚农温别庄晏柴瞿阎充慕连茹习宦艾鱼容向古易慎戈廖庾终暨居衡步都耿满弘匡国文寇广禄阙东欧沃利蔚越夔隆师巩厍聂晁勾敖融冷辛阚那简饶空曾沙乜养鞠须丰巢关蒯相查后荆红游竺权逯盖益桓公肖付闫覃岳兰涂蒙牟卓佟苟隋商丛佘池苑邝官胥栗楚鄢谌粟冼蔺楼仝郜帅屠练漆卿索晋邸敬朴])[\u4e00-\u9fa5]{1,2})(?=(?:近|昨|今|因|诉|称|反映|表示|出现|发生|患|有|于|睡|入睡|失眠|头痛|头晕|胸痛|腹痛|发热|咳嗽|心悸|就诊|来诊))/g, (match, prefix: string, candidate: string) =>
+      shouldRedactNarrativeNameCandidate(candidate)
         ? `${prefix}[已脱敏]` : match)
     // 病历抬头姓名改走**共享**判据（phi-sanitizer.scrubRecordHeaderName）。
     // 原先只有「句首 2-4 字 + 性别/年龄」一个上下文条件，靠一份「不该脱敏的词」黑名单兜底
