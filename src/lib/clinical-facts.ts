@@ -1042,6 +1042,23 @@ export function structuredRedFlagEvidenceFromFacts(
  * 且类目尚未被确定性红旗覆盖的 finding 才生成消息。绝不移除 existingRedFlags 中的任何一条。
  * facts 缺省(默认关闭)时返回空数组 → no-op。
  */
+/**
+ * 语义层只为**病历明确写出的现症**提示和限制给药（2026-10-13，owner 决定；甲方 10.12 测评 10 例里 4 例
+ * 「不该出红旗」，生产当天一例 29 岁「反复胸闷心悸半月」被提示「心血管相关表现需优先复核」）。
+ *
+ * 打开时（默认）：status=possible 的线索、「分不清是本人还是他人」的线索、开方前处置去向里「还差一个信息」
+ * 一档，以及「宜先专科评估」一档里仅仅「不能排除」（plausibility=possible）的情况，都不再产生提示，也不再进入
+ *「正式采纳前需优先完成临床评估」而限制给药——它们交给追问环节的一道急症澄清题处理。病历依据已经指向的情况
+ *（plausibility=likely，如影像已提示占位）照旧要求先做专科评估。
+ * 不变的部分：确定性层全部照旧（危急体征、病历明写的出血/卒中/胸痛伴大汗等）；语义层 status=positive 的
+ * 发现照旧（emergency 是红旗，urgent / clarify 提示并要求优先评估——「晕倒后被家人扶起」是病历明写的事件，
+ * 不是推测）；处置去向为立即急诊仍是红旗。
+ * `CDSS_REDFLAG_EXPLICIT_ONLY=false` 恢复此前口径，无需重新构建。
+ */
+export function redFlagExplicitOnly(): boolean {
+  return process.env.CDSS_REDFLAG_EXPLICIT_ONLY !== "false";
+}
+
 export function additiveRedFlagsFromFacts(
   facts: ClinicalFacts | undefined,
   sourceText: string,
@@ -1084,12 +1101,14 @@ export function semanticTriageAdvisoriesFromFacts(
   for (const finding of grounded) {
     if (finding.subject === "other") continue;
     if (finding.subject === "uncertain") {
+      if (redFlagExplicitOnly()) continue;
       if (coveredCategories.has(finding.category)) continue;
       coveredCategories.add(finding.category);
       advisories.push(`请确认“${finding.quote}”描述的是患者本人还是他人；确认前不据此改变患者分诊。`);
       continue;
     }
     if (finding.status !== "positive" && finding.status !== "possible") continue;
+    if (redFlagExplicitOnly() && finding.status !== "positive") continue;
     // 被消费层判别为劳力性慢性基线的 emergency finding 降级为可见的优先复核提示：
     // 保持 additive-only 的可追溯性，但不形成急性红旗。
     const demotedBaselineEmergency = finding.urgency === "emergency" && chronicBaselineFramedFinding(finding, sourceText);
@@ -1124,6 +1143,7 @@ export function priorityEvaluationItemsFromFacts(
     if (finding.subject !== "patient" ||
         (finding.status !== "positive" && finding.status !== "possible") ||
         (finding.urgency !== "emergency" && finding.urgency !== "urgent" && finding.urgency !== "clarify")) continue;
+    if (redFlagExplicitOnly() && finding.status !== "positive") continue;
     if (coveredCategories.has(finding.category)) continue;
     coveredCategories.add(finding.category);
     const action = finding.urgency === "emergency"
@@ -1148,10 +1168,11 @@ type GroundedDisposition = {
  * 否则该条不参与升级；一条都接不上地，整段不参与。疑似本身就是这一层要处理的对象
  * （「考虑胰腺癌」），所以当前性核验允许不确定措辞。
  */
-function groundedDisposition(facts: ClinicalFacts | undefined, sourceText: string): GroundedDisposition | undefined {
+function groundedDisposition(facts: ClinicalFacts | undefined, sourceText: string, likelyOnly = false): GroundedDisposition | undefined {
   const disposition = facts?.disposition;
   if (!disposition || disposition.setting === "outpatient_ok") return undefined;
   const grounded = disposition.mustNotMiss.flatMap((item) => {
+    if (likelyOnly && item.plausibility !== "likely") return [];
     const quotes = item.evidenceQuotes.filter((quote) =>
       sourceText.includes(quote) && hasCurrentQuoteOccurrence(sourceText, quote, true));
     return quotes.length > 0 ? [{ ...item, evidenceQuotes: quotes }] : [];
@@ -1175,7 +1196,10 @@ export function dispositionPriorityItemsFromFacts(
   sourceText: string,
   existingItems: readonly string[] = [],
 ): string[] {
-  const disposition = groundedDisposition(facts, sourceText);
+  // 只认明确现症时（redFlagExplicitOnly），「宜先专科评估」一档只在病历依据已经指向该情况（plausibility=likely，
+  // 如影像已提示占位）时才扣剂量；仅仅「不能排除」（possible）的不再扣。立即急诊一档不受影响。
+  const requested = facts?.disposition?.setting;
+  const disposition = groundedDisposition(facts, sourceText, redFlagExplicitOnly() && requested === "urgent_specialist");
   // 「还差一个信息」交给追问环节（dispositionAdvisoriesFromFacts），不在这里扣剂量：9/26 配对实测，
   // 把它算作开方前评估项时，120 例真实儿科问诊里 101 例被拦——信息少本来就是问诊的常态。
   if (!disposition || disposition.setting === "insufficient_info") return [];
@@ -1195,7 +1219,7 @@ export function dispositionAdvisoriesFromFacts(
   sourceText: string,
 ): string[] {
   const disposition = groundedDisposition(facts, sourceText);
-  if (!disposition || disposition.setting !== "insufficient_info") return [];
+  if (!disposition || disposition.setting !== "insufficient_info" || redFlagExplicitOnly()) return [];
   return [`建议补问${disposition.missingInfo ? `「${disposition.missingInfo}」` : "关键信息"}，以排除${disposition.conditions.join("、")}。原文依据：“${disposition.quote}”`];
 }
 

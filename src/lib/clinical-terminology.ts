@@ -1,3 +1,4 @@
+import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm } from "./clinical-governance-tables";
 import tcmDiseaseLexiconJson from "../data/tcm-disease-lexicon.json" with { type: "json" };
 
@@ -254,10 +255,24 @@ export function westernDifferentialIdentity(value: unknown): string {
   return compactTerm(canonicalWesternDifferentialName(value));
 }
 
+const TEXTBOOK_DISEASE_NAMES = new Set<string>((textbookDiseaseNamesJson as { names: string[] }).names);
+
+/**
+ * 教材病名是可以直接交付的规范写法（2026-10-13，甲方 10.12 测评）。国标 GB/T 15657 把「头痛」归到「头风病」、
+ * 「虚劳」归到「虚劳类病」（后者是分类名）；甲方医生按规划教材对照，标准答案写的是「头痛」「虚劳」。
+ * 模型写的病名就是教材的节名（或教材节名加「类病」）时原样保留教材写法，不再归一到国标条目。
+ */
+function textbookTcmDiseaseName(value: unknown): string | undefined {
+  const name = typeof value === "string" ? value.trim().replace(/类病$/u, "") : "";
+  return name && TEXTBOOK_DISEASE_NAMES.has(name) ? name : undefined;
+}
+
 export function canonicalTcmDiseaseName(
   value: unknown,
   context: TerminologyReasoning,
 ): string | undefined {
+  const textbook = textbookTcmDiseaseName(value);
+  if (textbook) return textbook;
   const resolved = resolveTcmDiseaseName(value);
   if (resolved && resolved.status !== "unverified") return resolved.canonical;
   // Do not turn a Western diagnosis or a short-lived symptom into a TCM disease automatically.

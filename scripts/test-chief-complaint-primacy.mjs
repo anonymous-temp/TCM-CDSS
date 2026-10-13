@@ -30,7 +30,7 @@ const {
 } = await import("../src/lib/clinical-governance-tables.ts");
 const { chiefComplaintAnchor, chiefComplaintTherapyPrimacy } =
   await import("../src/lib/tcm-chief-complaint-anchor.ts");
-const { m03SemanticIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
+const { isCurrentPositiveTcmAnchor, m03SemanticIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
 const { rejectionTier } = await import("../src/lib/diagnosis-rejection-tiers.ts");
 const { structuredClinicalRepairHint } = await import("../src/lib/structured-clinical-repair.ts");
 
@@ -265,6 +265,38 @@ check(() => {
 check(() => {
   const bare = structuredClinicalRepairHint("diagnose", "m03_therapy_chief_complaint_not_leading", []);
   assert.ok(bare.length > 60, "无候选时也必须给出可执行的通用引导");
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⑤ 慢性病程的主诉与整句引述也是「当前事实」（2026-10-13）
+// ─────────────────────────────────────────────────────────────────────────────
+// 实测：合成集 S170（不寐，主诉「入睡困难、易醒1年」）稳定退回占位结果，原因码 tcm_syndrome_current_fact_missing。
+// 模型给的两条依据是主诉原文与现病史整句，旧判据把前者按「N 年病程 = 背景病史」判既往，
+// 把后者因句中一个「面色没有光泽」整句判否定。
+check(() => {
+  for (const anchor of [
+    "入睡困难、易醒1年",
+    "患者1年来入睡困难，睡着后梦多、容易醒，醒后难再入睡，伴心慌，健忘，精神疲倦，吃得少，头晕，面色没有光泽，四肢乏力，腹胀，大便偏稀",
+    "大便干结难解3年",
+    "反复胃脘隐痛5年余",
+    "腰膝酸软、夜尿频多2年",
+    "咳嗽、咯白痰3天，无发热",
+    "既往体健。近半年神疲乏力，气短懒言",
+  ]) assert.equal(isCurrentPositiveTcmAnchor(anchor), true, `慢性病程的现症/整句引述必须算当前事实：${anchor}`);
+  // 对照：否定、既往、疾病名标签仍不算——这条底线没有被放空。
+  for (const anchor of [
+    "无胸闷、心悸", "否认发热、咳嗽", "未见浮肿",
+    "既往高血压病史，曾有头晕", "胃癌术后3年", "脑梗死后遗症",
+    "2型糖尿病10年", "高血压5年余", "冠心病", "慢性胃炎病史",
+  ]) assert.equal(isCurrentPositiveTcmAnchor(anchor), false, `否定/既往/疾病名不得算当前事实：${anchor}`);
+});
+check(() => {
+  // 接线对照：依据全部是否定句时，合同仍然报这个码。
+  const allNegated = mutate((r) => {
+    r.overview.primarySyndromeBasis = ["无胸闷、心悸"];
+    for (const node of r.pathogenesis.chain) { node.patientFact = "否认发热"; node.syndromeEvidence = "未见浮肿"; }
+  });
+  assert.notEqual(m03SemanticIssue(allNegated, customerContext), undefined, "依据全是否定句的 M03 不得通过");
 });
 
 console.log(`chief-complaint-primacy: ${checks} checks passed`);

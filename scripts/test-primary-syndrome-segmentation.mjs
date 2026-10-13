@@ -128,17 +128,28 @@ for (const value of ["", "   ", null, undefined, 42]) {
   }
 }
 
-// ── 7. 提示词与模板不得再锚定空数组 ────────────────────────────────────────
+// ── 7. 兼证的口径（2026-10-13 起：默认不写，有必要才写）──────────────────────────────
+// 8 月这里钉的是「模板不得把 secondarySyndromes 硬写成空数组」：当时 82.6% 的病例把多个证候挤在主证里。
+// 甲方 10.12 测评给出了反方向的意见（「心脾两虚依据不足，考虑为兼证有些牵强」），owner 定为
+// 「兼证可以不输出，有必要就输出」。现在钉两件事：主证仍只写一个证候（没有回到串写）；
+// 兼证默认空、只有另成一组的表现才写一个，并且写了就要在辨证依据里单独交代。
 {
   const prompts = readFileSync(path.join(repoRoot, "src/lib/diagnosis-prompts.ts"), "utf8");
   assert.ok(
-    !/"secondarySyndromes":\s*\[\],/.test(prompts),
-    "JSON 模板不得把 secondarySyndromes 硬写成空数组——那是模板锚定，"
-    + "与 resolution 三槽位硬写 bounded 同一种毛病（实测 94.8% 的病例照抄了它）",
-  );
-  assert.ok(
     /primarySyndrome 只写一个证候/.test(prompts),
     "提示词必须明确要求 primarySyndrome 只写一个证候",
+  );
+  assert.ok(
+    /secondarySyndromes 默认输出空数组/.test(prompts) && /最多 1 个/.test(prompts),
+    "兼证默认不写、最多一个",
+  );
+  assert.ok(
+    /写了兼证，就必须在 tcmDiagnosticRationale 里单独用一句讲清它的依据/.test(prompts),
+    "写了兼证必须在辨证依据里单独交代",
+  );
+  assert.ok(
+    !/有就填，不要习惯性留空/.test(prompts) && !/有几个写几个/.test(prompts) && !/每一条都要有着落/.test(prompts),
+    "不得保留「有几个写几个」「每条阳性信息都要有着落」这类促使牵强立证的旧规则",
   );
 }
 

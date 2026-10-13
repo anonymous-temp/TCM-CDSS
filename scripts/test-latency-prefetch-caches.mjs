@@ -46,9 +46,19 @@ check("footprint equality implies identical prompt and fallback", () => {
     }
   }
   // 有意义的事实必须让指纹不同（否则先发结果会漏掉它）。
-  for (const redFlags of [[flag("positive", "emergency")], [flag("possible", "routine")], [flag("negative", "urgent")], [flag("historical", "clarify")]]) {
+  for (const redFlags of [[flag("positive", "emergency")], [flag("possible", "routine")], [flag("negative", "urgent")]]) {
     assert.notEqual(m02ClinicalFactsFootprint({ ...baseCase, clinicalFacts: { redFlags } }), m02ClinicalFactsFootprint(factFree),
       `facts that M02 reads must change the footprint: ${JSON.stringify(redFlags)}`);
+  }
+  // 2026-10-13「只认明确现症」：急症筛查题只为 urgent 的线索而出，既往 + clarify 的事实 M02 不再读，指纹随之不变
+  //（上面的循环已证明此时提示词与兜底题逐字相同）。旧口径下 M02 仍读它，指纹必须不同。
+  const historicalClarify = { ...baseCase, clinicalFacts: { redFlags: [flag("historical", "clarify")] } };
+  assert.equal(m02ClinicalFactsFootprint(historicalClarify), m02ClinicalFactsFootprint(factFree));
+  process.env.CDSS_REDFLAG_EXPLICIT_ONLY = "false";
+  try {
+    assert.notEqual(m02ClinicalFactsFootprint(historicalClarify), m02ClinicalFactsFootprint(factFree), "legacy mode: clarify facts are read by M02");
+  } finally {
+    delete process.env.CDSS_REDFLAG_EXPLICIT_ONLY;
   }
   // 纯阴性/既往常规事实不改变 M02 的任何输入：先发结果必须可用（这是提速的来源）。
   assert.equal(m02ClinicalFactsFootprint({ ...baseCase, clinicalFacts: { redFlags: [flag("negative", "routine")] } }), m02ClinicalFactsFootprint(factFree));

@@ -349,6 +349,19 @@ test("dose withheld keeps the candidate visible and never emits the signed dose 
   assert.match(withheld, /儿童病例当前未配置可验证的个体化剂量规则/, "必须说明为什么不显示用量");
   const none = renderM04DeliveryCheckpoint(undefined, prior, "dose_withheld", ["已记录妊娠、哺乳或备孕阳性/可疑状态"]);
   assert.match(none, /已记录妊娠、哺乳或备孕阳性/, "无候选时同样要说明剂量轴原因");
+  // 非剂量页与带剂量页同一份交付面投影（2026-10-13）：此前这一页直接渲染未投影的结果，
+  // 方名「本例辨证组方」、方义「本方以本方案为基础加减」、适用栏的每例相同模板句都原样出现（合成集 S134 实测）。
+  const raw = structuredClone(reviewed);
+  const candidate = raw.reasoning.formula.candidates[0];
+  candidate.name = "本例辨证组方";
+  candidate.formulaAnalysis = `本方以本方案为基础加减。${candidate.formulaAnalysis || "党参益气健脾为君。"}`;
+  candidate.applicable = "适用于与本例锁定证候“脾气虚证”及病机链一致的情况。";
+  candidate.notApplicable = "证候、病机、舌脉或安全边界变化时暂停采用，并重新辨证。";
+  const projected = renderM04DeliveryCheckpoint(raw, prior, "dose_withheld", ["已记录妊娠、哺乳或备孕阳性/可疑状态"]);
+  assertNonDose(projected);
+  assert.doesNotMatch(projected, /本例辨证组方|本方案|锁定证候|病机链一致|安全边界变化时暂停采用/, "非剂量页不得带系统内部措辞");
+  assert.match(projected, /候选方：自拟方/);
+  assert.match(projected, /党参/);
 });
 test("only an exact completed attestation and signed payload can restore dose-level output", () => {
   const input = checkpointInput();

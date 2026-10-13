@@ -1,5 +1,6 @@
+import { conditionalModificationWithoutTextbook, textbookModificationMatch } from "./tcm-textbook-syndromes";
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
-import { PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
+import { assessConceptionState, assessLactationState, assessPregnancyState, isPositiveOrPossibleClinicalState, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
 import tcmKnowledgeIdentitySource from "../data/tcm-knowledge.json";
 import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { formulaStructureTarget } from "./herb-target-contract";
@@ -1323,6 +1324,10 @@ export function projectM03KeySyndromeDiscriminators<T extends M03ReasoningLike>(
   clinicalContext: string,
 ): T {
   if (!reasoning || !clinicalContext) return reasoning;
+  // 主证依据里写了无汗/自汗、病机链里却没有（任何证型都查的那一支）：把依据里的那一条原样补进病机链的证据
+  //（2026-10-13）。此前这一支没有确定性投影，只能靠模型修复——合成集 S005（阳虚感冒，病历「身上无汗」）
+  // 三轮修复 99 秒仍漏填，整份辨证退回占位结果。补的是模型自己写进依据的那句话，不新增事实。
+  reasoning = projectBasisSweatingIntoChain(reasoning);
   const syndrome = String(reasoning.overview?.primarySyndrome || "");
   if (!/(?:风寒(?:束表|犯表|袭表)|太阳伤寒)/.test(syndrome)) return reasoning;
 
@@ -1384,6 +1389,29 @@ export function projectM03KeySyndromeDiscriminators<T extends M03ReasoningLike>(
       ...sourceQuotes.filter((quote) => !evidence.includes(quote)),
     ].filter(Boolean).join("；");
   }
+  return projected;
+}
+
+function projectBasisSweatingIntoChain<T extends M03ReasoningLike>(reasoning: T): T {
+  const basisItems = nonEmptyStringList(reasoning.overview?.primarySyndromeBasis);
+  const chain = reasoning.pathogenesis?.chain || [];
+  if (chain.length === 0) return reasoning;
+  const inChain = (term: string) => chain.some((item) =>
+    [item.patientFact, item.syndromeEvidence].some((value) => typeof value === "string" && value.includes(term)));
+  const missing = [...new Set(basisItems.flatMap((item) => item.match(/无汗|自汗/g) || []))].filter((term) => !inChain(term));
+  if (missing.length === 0) return reasoning;
+  const projected = structuredClone(reasoning) as T;
+  const projectedChain = projected.pathogenesis?.chain || [];
+  const target = projectedChain.find((item) =>
+    /表|卫|营|腠理|汗/.test(`${String(item.pathogenesis || "")}；${String(item.therapyDirection || "")}`)) || projectedChain[0];
+  if (!target) return reasoning;
+  const evidence = typeof target.syndromeEvidence === "string" ? target.syndromeEvidence.trim() : "";
+  // 依据条目过长时（整句现病史）只取含该词的那个分句。
+  const quotes = missing.map((term) => {
+    const item = basisItems.find((value) => value.includes(term)) || term;
+    return item.length <= 24 ? item : (item.split(/[，,。；;、]+/).find((clause) => clause.includes(term)) || term).trim();
+  });
+  target.syndromeEvidence = [evidence, ...quotes.filter((quote) => !evidence.includes(quote))].filter(Boolean).join("；");
   return projected;
 }
 
@@ -1672,10 +1700,25 @@ function m03UncertaintyStateIssue(reasoning: M03ReasoningLike, clinicalContext: 
 
 const DIAGNOSIS_LABEL_ONLY = /^(?:[\p{Script=Han}A-Za-z0-9+\-]+(?:病|炎|癌|瘤|综合征|衰竭|不全)|高血压|糖尿病|房颤|心房颤动|湿疹|类风湿(?:关节炎)?|系统性红斑狼疮|SLE|RA)(?:病史)?(?:(?:已)?\d+(?:\.\d+)?年(?:余)?)?$/iu;
 
-function isCurrentPositiveTcmAnchor(value: string): boolean {
-  const normalized = value.normalize("NFKC").replace(/[\s，,。；;：:、（）()【】\[\]]+/g, "");
-  if (!normalized || isNegatedClinicalClause(value) || isHistoricalWesternSupportFact(value)) return false;
-  return !DIAGNOSIS_LABEL_ONLY.test(normalized);
+/**
+ * 证候依据里有没有「当前、肯定」的患者事实。**逐句判既往、逐分句判否定**（2026-10-13）。
+ *
+ * 此前对整条依据只判一次，两处都判过头：
+ *  ① 模型把现病史整句引作依据时，句中任何一个否定词（「面色没有光泽」）让整句算否定；
+ *  ② 借用了西医支持事实的「N 年病程且无本次线索 = 背景病史」规则，于是主诉「入睡困难、易醒1年」算既往。
+ *     那条规则针对的是「2型糖尿病10年」这类疾病名；症状带病程是慢性病的现症，疾病名另由 DIAGNOSIS_LABEL_ONLY 把关。
+ * 两处叠加，慢性病程的病例（不寐、便秘、虚劳……）整份辨证被判成「没有当前事实」而退回占位结果
+ *（合成集 S170 稳定复现、S022 偶发）。本判据只是「至少有一条现症」的底线，逐条事实的接地另有专门校验。
+ */
+export function isCurrentPositiveTcmAnchor(value: string): boolean {
+  return value.normalize("NFKC").split(/[。；;\n]+/).some((sentence) => {
+    if (!sentence.trim() || HISTORICAL_SUPPORT.test(sentence)) return false;
+    return splitIntoClinicalClauses(sentence).some((clause) => {
+      const normalized = clause.replace(/[\s，,。；;：:、（）()【】\[\]]+/g, "");
+      if (!normalized || isNegatedClinicalClause(clause)) return false;
+      return !DIAGNOSIS_LABEL_ONLY.test(normalized);
+    });
+  });
 }
 
 function hasCurrentPositiveTcmAnchor(reasoning: M03ReasoningLike): boolean {
@@ -2439,8 +2482,42 @@ function normalizedModificationTrigger(value: string): string {
     .trim();
 }
 
+/**
+ * 加减行的剂量栏（2026-10-13 起允许带剂量）。此前一律不许带——自由文本会变成绕过审方的剂量通道。
+ * 现在只接受一种形态：「加」某味药、单一数值加 g、且落在该药的药典内服范围内（服务端编译时写入）。
+ * 其余形态（范围、片/枚、文字说明、减/调整行带剂量、药典无范围的药带剂量）仍按未经审方的剂量驳回；
+ * trigger / reason / riskNote 等文字里出现克数同样驳回，那条检查不变。
+ */
+export function modificationDoseWithinPharmacopoeia(doseOrHandling: unknown, herbName: string, action: string): boolean {
+  if (doseOrHandling == null) return true;
+  if (typeof doseOrHandling !== "string") return false;
+  const text = doseOrHandling.trim();
+  if (!text) return true;
+  if (action !== "加") return false;
+  const match = /^(\d{1,3}(?:\.\d)?)g$/.exec(text);
+  if (!match) return false;
+  const limit = getTcmHerbDoseLimit(herbName);
+  const min = typeof limit?.min === "number" ? limit.min : undefined;
+  const max = typeof limit?.max === "number" ? limit.max : undefined;
+  if (max == null || !(max > 0)) return false;
+  const dose = Number(match[1]);
+  // 儿童折算后的剂量低于成人下限是正常的，所以只卡上限。
+  return dose > 0 && dose <= max && (min == null || dose >= 0.5);
+}
+
+/** 加减的触发条件是已定证型在教材里的一条加减，且所加的药在该条里。 */
+function isTextbookConditionalModification(trigger: unknown, herbName: string, prior: M03ReasoningLike): boolean {
+  return Boolean(textbookModificationMatch(
+    String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""), String(trigger || ""), herbName,
+  ));
+}
+
 export function finalModificationTriggerGrounded(trigger: string, prior?: M03ReasoningLike | null): boolean {
   if (!prior) return false;
+  // 已定证型在教材里的一条加减（「若恶寒甚」）是合格的条件句触发，不要求病历里已经出现。
+  if (textbookModificationMatch(String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""), trigger)) return true;
+  // 教材没有给这一证列加减时，模型按本证常见兼症写的条件式加减（与编译器同一判据）。
+  if (conditionalModificationWithoutTextbook(String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""), trigger)) return true;
   if (/(?:^|[，,；;])\s*(?:若|如|当|一旦)|复诊时|接诊时核实|症状变化时|出现时|加重时|未缓解时|以后出现/.test(trigger)) return false;
   const normalizedTrigger = normalizedModificationTrigger(trigger);
   if (normalizedTrigger.length < 2) return false;
@@ -3586,6 +3663,16 @@ export type OrdinaryHistoricalDoseDeviation = {
  * curated or conflicting sources and unknown provenance keep the existing conservative contract.
  * A broad sanity ceiling is only an exclusion guard; passing it is not evidence of a safe dose.
  */
+const ORDINARY_PROCESSING_PREFIX = /^(?:麸炒|土炒|米炒|蜜炙|炒焦|炒|焦|煅|蜜|炙|酒|醋|盐)/;
+
+/** 「普通炮制前缀 + 药典标准名」的原药名；不是这种构词时返回 undefined。 */
+function ordinaryProcessedBaseHerbName(name: string): string | undefined {
+  const base = name.replace(ORDINARY_PROCESSING_PREFIX, "");
+  if (base === name || base.length < 2) return undefined;
+  const identity = resolveGovernedTcmHerbIdentity(base);
+  return identity.status === "exact_standard_name" && identity.candidates.length === 0 ? base : undefined;
+}
+
 export function ordinaryHistoricalDoseDeviation(
   herb: { name?: unknown; dose?: unknown; isToxic?: unknown },
   decoctionMethod: string,
@@ -3594,8 +3681,16 @@ export function ordinaryHistoricalDoseDeviation(
   if (typeof herb.name !== "string" || typeof herb.dose !== "string" || herb.isToxic === true) return undefined;
   const name = herb.name.trim();
   const identity = resolveGovernedTcmHerbIdentity(name);
-  if (!identity.canonicalName || identity.candidates.length > 0 || !isKnownTcmHerbName(name)) return undefined;
+  // 身份目录没有收的常用炮制品（煅海螵蛸、炒谷芽、炒鸡内金）：去掉闭集内的普通炮制前缀后是药典标准名、且非毒性，
+  // 按原药算普通药味（2026-10-13）。剂量层本来就把它们对到原药的药典范围，只是这里的身份判据把它们挡在
+  // 「普通药味超量按上限处理」之外——合成集 190 例里 2 例因一味消食药、一味制酸药的用量整方退成非剂量页。
+  // 制/炮这类减毒炮制不在前缀里；毒性药照旧不走本路径。
+  const ordinaryBase = !identity.canonicalName && identity.candidates.length === 0
+    ? ordinaryProcessedBaseHerbName(name)
+    : undefined;
+  if ((!identity.canonicalName && !ordinaryBase) || identity.candidates.length > 0 || !isKnownTcmHerbName(name)) return undefined;
   if (clinicianDoseHerbClass(name) || getTcmHerbGenerationSafetyProfile(name).isToxic) return undefined;
+  if (ordinaryBase && (clinicianDoseHerbClass(ordinaryBase) || getTcmHerbGenerationSafetyProfile(ordinaryBase).isToxic)) return undefined;
   if (!dosePassesSafetySanityCeiling(name, herb.dose)) return undefined;
   const limit = getTcmHerbDoseLimit(name);
   if (limit?.sourceType !== "dose" || limit.basis !== "中华人民共和国药典：2020年版．一部" || limit.sourceConflict) return undefined;
@@ -3614,10 +3709,20 @@ const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
   patient: RegExp;
   /** 有它时以它为准（数值年龄要按小数年龄算，正则写不对）；patient 正则仍并联生效，保持原有的词面触发。 */
   isPatient?: (context: string) => boolean;
+  /**
+   * 病历明确否认了这一人群状态时返回 true，此时词面命中不算（2026-10-13）。
+   * 词面判据按分句看否定，但「未哺乳」这种「未＋动词」不在分句否定词表里：病历写「现否认妊娠，未哺乳」的普通女性，
+   * 方中一味苦杏仁被判「哺乳期高风险」，三轮修复后整方退成非剂量页（甲方既往病例回放实测）。
+   * 否认与否交给孕哺状态的受治理判据（clinical-state，与安全闸门同源，「最后一次当前陈述为准」）。
+   */
+  denied?: (context: string) => boolean;
   code: string;
 }> = [
-  { population: /孕期|妊娠/, patient: /妊娠|怀孕|孕妇|孕期|备孕|计划妊娠/, code: "pregnancy" },
-  { population: /哺乳期/, patient: /哺乳|乳母|产后喂养/, code: "lactation" },
+  {
+    population: /孕期|妊娠/, patient: /妊娠|怀孕|孕妇|孕期|备孕|计划妊娠/, code: "pregnancy",
+    denied: (context) => assessPregnancyState(context).status === "negative" && !isPositiveOrPossibleClinicalState(assessConceptionState(context)),
+  },
+  { population: /哺乳期/, patient: /哺乳|乳母|产后喂养/, code: "lactation", denied: (context) => assessLactationState(context).status === "negative" },
   // 儿童臂不再自带一份正则：数值年龄按小数年龄判（「患者年龄：0.5岁」「6.0833岁」旧正则匹配不上，月龄婴儿与带月数的儿童整段漏判），
   // 定性词沿用分句开头口径。与安全门、剂量折算读同一份 pediatric-dose-rule。
   { population: /儿童|婴幼儿/, patient: /儿童|婴儿|幼儿|小儿|未成年/, isPatient: isPediatricGroundingText, code: "pediatric" },
@@ -3655,7 +3760,7 @@ export function m04GenerationSpecialPopulationIssue(
     for (const rule of profile.populationRules) {
       if (rule.severity !== "HIGH") continue;
       const matcher = M04_SPECIAL_POPULATION_MATCHERS.find((item) => item.population.test(rule.population));
-      if (matcher && (contextAffirmsTerm(clinicalContext, matcher.patient) || matcher.isPatient?.(clinicalContext))) {
+      if (matcher && !matcher.denied?.(clinicalContext) && (contextAffirmsTerm(clinicalContext, matcher.patient) || matcher.isPatient?.(clinicalContext))) {
         return `herb_${herbIndex}_special_population_high_risk_${matcher.code}`;
       }
     }
@@ -4274,10 +4379,10 @@ export function m04SemanticIssue(
     if (!finalModificationTriggerGrounded(String(modification.trigger), priorReasoning)) {
       return `modification_${modificationIndex}_trigger_ungrounded`;
     }
-    if (typeof modification.doseOrHandling === "string" && modification.doseOrHandling.trim()) {
+    if (!modificationDoseWithinPharmacopoeia(modification.doseOrHandling, herbName, action)) {
       return `modification_${modificationIndex}_unaudited_dose`;
     }
-    const fields = [modification.trigger, modification.targetPathogenesis, action, herbName, modification.doseOrHandling, modification.reason, modification.riskNote]
+    const fields = [modification.trigger, modification.targetPathogenesis, action, herbName, modification.reason, modification.riskNote]
       .filter((value): value is string => typeof value === "string")
       .join("；")
       .replace(/\s/g, "");
@@ -4290,7 +4395,8 @@ export function m04SemanticIssue(
     if (action === "加" && isKnownHerbName && !isKnownHerbName(herbName)) {
       return `modification_${modificationIndex}_unknown_herb`;
     }
-    if (action === "加" && priorReasoning) {
+    // 教材条件式加减（药味在该条教材加减里）不拿当前主证的方向去核——条件说的就是证候起了变化；与编译器同一口径。
+    if (action === "加" && priorReasoning && !isTextbookConditionalModification(modification.trigger, herbName, priorReasoning)) {
       const highImpactIssue = unsupportedHighImpactHerbIssue([{
         name: herbName,
         function: [modification.reason, modification.targetPathogenesis]
@@ -4569,14 +4675,14 @@ export function m04SafetyContractIssue(
   // 随症加减里只有三类属安全承重：夹带未经审方的剂量（自由文本变成绕过审方的剂量通道）、
   // 加入知识库未收载的药味、以及加入方向未成立的高影响药味。措辞与接地问题属建议层。
   for (const [modificationIndex, modification] of (reasoning.formula?.modifications || []).entries()) {
-    if (typeof modification.doseOrHandling === "string" && modification.doseOrHandling.trim()) {
-      return `modification_${modificationIndex}_unaudited_dose`;
-    }
     const action = normalizeFormulaModificationAction(modification.action);
     const herbName = formulaModificationHerbName(modification);
     if (!action || !herbName) return `modification_${modificationIndex}_incomplete`;
+    if (!modificationDoseWithinPharmacopoeia(modification.doseOrHandling, herbName, action)) {
+      return `modification_${modificationIndex}_unaudited_dose`;
+    }
     const fields = [modification.trigger, modification.targetPathogenesis, action, herbName,
-      modification.doseOrHandling, modification.reason, modification.riskNote]
+      modification.reason, modification.riskNote]
       .filter((value): value is string => typeof value === "string")
       .join("；")
       .replace(/\s/g, "");
@@ -4584,7 +4690,8 @@ export function m04SafetyContractIssue(
       return `modification_${modificationIndex}_unaudited_dose`;
     }
     if (action === "加" && isKnownHerbName && !isKnownHerbName(herbName)) return `modification_${modificationIndex}_unknown_herb`;
-    if (action === "加" && priorReasoning) {
+    // 教材条件式加减（药味在该条教材加减里）不拿当前主证的方向去核——条件说的就是证候起了变化；与编译器同一口径。
+    if (action === "加" && priorReasoning && !isTextbookConditionalModification(modification.trigger, herbName, priorReasoning)) {
       const highImpactIssue = unsupportedHighImpactHerbIssue([{
         name: herbName,
         function: [modification.reason, modification.targetPathogenesis]

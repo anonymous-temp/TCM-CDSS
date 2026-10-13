@@ -169,6 +169,15 @@ assert.equal(
   "herb_0_special_population_high_risk_hepatic_impairment",
 );
 assert.equal(m04GenerationSpecialPopulationIssue([{ name: "朱砂" }], "既往史：否认肝功能不全"), undefined);
+// 2026-10-13：病历明确否认哺乳 / 妊娠时，词面命中不算。「未哺乳」这种「未＋动词」不在分句否定词表里，
+// 病历写「现否认妊娠，未哺乳」的普通女性，方中苦杏仁被判哺乳期高风险 → 三轮修复 → 整方退成非剂量页（甲方既往病例回放）。
+for (const context of ["用药史：未用药。现否认妊娠，未哺乳。", "未哺乳", "哺乳期已结束，已断奶", "否认哺乳。月经规律"]) {
+  assert.equal(m04GenerationSpecialPopulationIssue([{ name: "桑叶" }, { name: "苦杏仁" }], context), undefined, `否认哺乳不得判哺乳期高风险：${context}`);
+}
+// 对照：真在哺乳的仍然命中；「未停止哺乳」是阳性。
+for (const context of ["产后3个月，哺乳期", "婚育史：已婚，育有1子，现哺乳中", "产后半年，未停止哺乳"]) {
+  assert.equal(m04GenerationSpecialPopulationIssue([{ name: "桑叶" }, { name: "苦杏仁" }], context), "herb_1_special_population_high_risk_lactation", context);
+}
 const prescribePrompt = buildPrescribePrompt({ patient: {}, chiefComplaint: "失眠", conversation: [] });
 assert.match(prescribePrompt, /"modifications"/, "M04 proposal must expose the bounded IF-THEN modification channel");
 assert.match(prescribePrompt, /targetRef.*P1/, "every modification must reference an M03 pathogenesis node");
@@ -3666,8 +3675,12 @@ assert.equal(compiledProposal?.formula?.modifications[0].targetPathogenesis, "�
 assert.equal(compiledProposal?.formula?.modifications[0].action, "加");
 assert.equal(compiledProposal?.formula?.modifications[0].herbName, "茯神");
 assert.equal(compiledProposal?.formula?.modifications[0].triggerSource?.sourceQuote, "入睡困难");
-assert.match(compiledProposal?.formula?.modifications[0].evidence.source || "", /患者事实.*入睡困难.*P1/);
-assert.match(compiledProposal?.formula?.modifications[0].riskNote || "", /药味工作台.+重新审方/, "conditional modifications must explain how to operationalize and re-audit an actual change");
+// 2026-10-13：依据只写患者原文，不再带 JSON 路径与病机节点号（甲方面板原样显示这一栏）。
+assert.equal(compiledProposal?.formula?.modifications[0].evidence.source || "", "患者原文：入睡困难");
+// 2026-10-13（甲方 10.12 测评）：加味带药典范围内的建议剂量，不再附「请在药味工作台确定剂量，并重新审方」
+// 这句页面流程话——甲方面板没有药味工作台。剂量只能是单一数值加 g 且在药典范围内，合同照旧拦其它形态。
+assert.equal(compiledProposal?.formula?.modifications[0].riskNote, "", "加减行不再携带页面流程话");
+assert.match(compiledProposal?.formula?.modifications[0].doseOrHandling || "", /^\d+(?:\.\d)?g$/, "加味带建议剂量");
 // 注意事项(precautions)取代了随访监测三元组，隔离策略不变且必须可验证：逐条丢行、绝不驳回整份。
 // 这是「非承重字段不得拥有整份输出的一票否决权」在编译层的落点。
 const dirtyPrecautionsProposalInput = structuredClone(compiledProposalInput);

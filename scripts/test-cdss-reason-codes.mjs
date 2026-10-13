@@ -182,7 +182,7 @@ check("machine markers survive the visible-text scrubber byte-exact", () => {
   const banner = buildSafetyAdvisoryBanner(
     { status: "red_flag", allowDiagnosis: true, allowDosePrescription: false, action: "refer_or_emergency",
       missingItems: [], redFlags: ["胸痛伴大汗，需排除急性心血管事件"], reasons: [] },
-    ["本次候选药味与方义照常呈现，但按独立硬边界暂不显示具体用量。"],
+    ["本例暂不给出具体用量。药味与方义照常列出，供参考。"],
   );
   for (const [reason, expected] of [
     ["dose_withheld", "dose_authorization_withheld"],

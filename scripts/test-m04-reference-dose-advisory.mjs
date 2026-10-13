@@ -80,6 +80,16 @@ test("toxic, controlled, ambiguous, missing/curated ranges and invalid magnitude
     { name: "党参", dose: "-1g" }, { name: "党参", dose: "2片" },
   ]) assert.equal(ordinaryHistoricalDoseDeviation(herb, "煎服"), undefined, JSON.stringify(herb));
   assert.equal(ordinaryHistoricalDoseDeviation({ name: "党参", dose: "12g" }, "煎服"), undefined);
+  // 身份目录没有收的常用炮制品（2026-10-13）：「普通炮制前缀 + 药典标准名」按原药算普通药味。
+  // 合成集实测：煅海螵蛸 15g、5 岁患儿的炒谷芽超量各让一张普通处方整方退成非剂量页。
+  for (const [name, dose] of [["煅海螵蛸", "15g"], ["炒鸡内金", "30g"]]) {
+    const deviation = ordinaryHistoricalDoseDeviation({ name, dose, isToxic: false }, "煎服");
+    assert.equal(deviation?.direction, "above_reference", `${name} ${dose} 应按普通药味超量处理`);
+  }
+  // 减毒炮制、毒性药、构不成「前缀+标准名」的名字不走这条路。
+  for (const herb of [{ name: "制附子", dose: "30g" }, { name: "炮附片", dose: "30g" }, { name: "炒苍耳子", dose: "20g" }, { name: "煅某药", dose: "20g" }]) {
+    assert.equal(ordinaryHistoricalDoseDeviation(herb, "煎服"), undefined, JSON.stringify(herb));
+  }
 });
 
 test("generation emits advice while full safety rerun retains every other safety check", () => {

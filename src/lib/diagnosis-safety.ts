@@ -1,3 +1,4 @@
+import { confirmedRiskScreeningCategories, followupConversationView, isFollowupSkipMessage } from "./followup-conversation";
 import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation, Completeness, HisRecordSnapshot, SafetyGate, SafetyMissingItemCode, StructuredFollowupTimelineItem } from "./diagnosis-types";
 import { cdssReasonCodeMarker, type CdssDegradeReasonCode } from "./cdss-reason-codes";
 import type { WarningDisplayReceipt } from "./warning-display-binding";
@@ -243,9 +244,18 @@ function fieldText(state: CaseState, key: keyof HisRecordSnapshot["fields"]): st
 
 function allUserMessages(state: CaseState): string {
   return (state.conversation || [])
-    .filter((item) => item.role === "user" && item.content.trim())
+    .filter((item) => item.role === "user" && item.content.trim() && !isFollowupSkipMessage(item.content))
     .map((item) => item.content.trim())
     .join("\n");
+}
+
+/**
+ * 对话里口述的主叙述：不跟在追问题干后面的 user 消息（followup-conversation.ts 是唯一口径）。
+ * 「conversation 里有 user 消息」不等于「病历在对话里」：追问的回答只是对病历的补充。只有主叙述存在时，
+ * symptoms 与顶层字段才可能是模型从对话里整理出来的二手内容，需要回到对话原文核对。
+ */
+function primaryNarrativeMessages(state: CaseState): string {
+  return followupConversationView(state.conversation).primaryNarrative.join("\n");
 }
 
 function authoritativeFieldOrFallback(
@@ -255,7 +265,7 @@ function authoritativeFieldOrFallback(
 ): string {
   const field = fieldText(state, key);
   if (state.hisRecord) return field;
-  const userEnteredText = allUserMessages(state);
+  const userEnteredText = primaryNarrativeMessages(state);
   if (userEnteredText) {
     const candidate = stringifyClinicalValue(fallback).trim();
     return candidate && normalizeClinicalText(userEnteredText).includes(normalizeClinicalText(candidate)) ? candidate : "";
@@ -331,7 +341,9 @@ export function trustedInputText(state: CaseState): string {
     state.medicationHistory ? `用药史：${stringifyClinicalValue(state.medicationHistory)}` : "",
     state.allergyHistory ? `过敏史：${stringifyClinicalValue(state.allergyHistory)}` : "",
   ].filter(Boolean);
-  const compatibilitySymptoms = currentHis.trim() || userConversationText.trim()
+  // 只有 HIS 快照或对话里的主叙述才会顶替 symptoms。追问的回答（紧跟题干的 user 消息）是对病历的补充：
+  // 接口调用方的病历正文就在 symptoms 里，一条回答把它挤出去，现病史写明的出血、孕周、抗凝药就全读不到了。
+  const compatibilitySymptoms = currentHis.trim() || primaryNarrativeMessages(state).trim()
     ? []
     : flattenClinicalInput(state.symptoms);
   const authoritativeInput = [currentHis, ...compatibilitySymptoms, ...clinicianEnteredFields, userConversationText].filter(Boolean).join("\n");
@@ -2658,10 +2670,14 @@ function hasAcuteAbdominalSignal(text: string): boolean {
     )) ||
     hasPatternWithoutNegation(text, /(?:松手|放手|抬手|松开)(?:时|后)?[^，,。；;\n不无未]{0,4}(?:更|最|特别)?(?:疼|痛)/) ||
     hasPatternWithoutNegation(text, new RegExp(
-      `(?:${severe})[^。；;\\n]{0,12}(?:${symptoms}|全腹[^。；;\\n]{0,4}痛)|` +
+      // 程度词后面紧跟逗号，说明它是在收束前一个症状（「瘙痒剧烈，同时胃脘、腹部疼痛」里剧烈的是瘙痒），
+      // 不向后修饰腹痛（2026-10-13，句法守卫；「腹痛剧烈，…」由下一行的「症状在前」方向承接）。
+      `(?:${severe})(?![，,])[^。；;\\n]{0,12}(?:${symptoms}|全腹[^。；;\\n]{0,4}痛)|` +
       `(?:${symptoms}|全腹[^。；;\\n]{0,4}痛)[^。；;\\n无未不否没]{0,12}(?:${severe})`,
     ));
 }
+
+const SIGNIFICANT_WEIGHT_LOSS_KG = 3;
 
 /**
  * 上消化道警示征象的**单一判据**。四条分支，分别对应不同的临床成立方式：
@@ -2716,10 +2732,23 @@ function hasUpperGiAlarmFeatureSignal(text: string): boolean {
   // D
   const weightLossCue = governedTermAlternation(GI_ALARM_DETECTION.unexplainedWeightLossCues);
   const weightLoss = governedTermAlternation(GI_ALARM_DETECTION.weightLossTerms);
-  if (hasPatternWithoutNegation(text, new RegExp(
-    `(?:${weightLossCue})[^。；;\\n]{0,8}(?:${weightLoss})`
-    + `|(?:${weightLoss})[^。；;\\n]{0,10}\\d+\\s*(?:kg|公斤|斤|千克)`,
-  ))) return true;
+  if (hasPatternWithoutNegation(text, new RegExp(`(?:${weightLossCue})[^。；;\\n]{0,8}(?:${weightLoss})`))) return true;
+  // 带数值的体重下降要够得上「有临床意义」才算警示（2026-10-13，数值阈值）。此前任何数字都算：
+  // 「干咳3月，近3个月体重下降约2kg」被报成上消化道警示征象并收回剂量。通行定义是 6–12 个月内
+  // 非刻意下降超过体重的 5%；病历通常不写体重，按 60kg 折算取 3kg（6 斤）。达不到的仍留在病历里供医生判断。
+  // 「8-10斤」「4～5kg」这类区间取上限。
+  const measuredLoss = new RegExp(
+    `(?:${weightLoss})[^。；;\\n\\d]{0,10}(?:\\d+(?:\\.\\d+)?\\s*[-~～—–至到]\\s*)?(\\d+(?:\\.\\d+)?)\\s*(kg|公斤|斤|千克)`,
+    "gi",
+  );
+  for (const match of text.matchAll(measuredLoss)) {
+    const kilograms = Number(match[1]) * (match[2] === "斤" ? 0.5 : 1);
+    if (kilograms < SIGNIFICANT_WEIGHT_LOSS_KG) continue;
+    const index = match.index ?? -1;
+    if (index < 0 || isExcludedClinicalAssertionAt(text, index)) continue;
+    if ((!isNegatedAt(text, index) || hasCommaSeparatedPositiveEvidence(text, index, match[0])) &&
+        !isHistoricalOrResolvedAt(text, index, match[0].length)) return true;
+  }
   return false;
 }
 
@@ -3412,6 +3441,10 @@ function hasCurrentThyroidAssessment(text: string): boolean {
 export function detectProgrammaticRedFlags(state: CaseState): string[] {
   const text = trustedInputText(state);
   const redFlags: string[] = [];
+  // 医生对急症筛查题选了阳性选项：选项本身是泛指句，必须连同题干才知道确认了什么。
+  for (const confirmed of confirmedRiskScreeningCategories(state.conversation)) {
+    redFlags.push(`追问已由医生确认存在下列急症表现之一（${confirmed.question.replace(/[？?]\s*$/, "")}），请立即完成急诊或转诊评估`);
+  }
   // The semantic ensemble owns broad natural-language triage. These few catastrophic narrative
   // checks are an always-on lower bound: a signed empty model result can never erase an already
   // explicit time-sensitive emergency. This layer only adds; same-episode clearance remains handled
@@ -4069,6 +4102,23 @@ export function authoritativePatientAgeYears(state: CaseState): number | undefin
 }
 
 /** 育龄女性、未写明已绝经/无子宫：安全门据此追问妊娠状态；居家穴位保健据此按妊娠禁忌从严（同一判据）。 */
+/**
+ * 给患者的「如已怀孕、备孕或哺乳请告知医生」这类提示对本例是否有意义（2026-10-13）。
+ * 只管**提示语**，不参与任何安全判定：安全闸门的孕哺筛查仍用 pregnancyScreenRequired（10–59 岁女性一律追问）。
+ * 独立评审实测：64 岁已绝经 14 年、52 岁月经已停 1 年的女性，以及 11 岁女童，注意事项里都写着「如已怀孕或备孕请先告知医生」。
+ * 不适用：非女性；不足 12 岁；pregnancyScreenRequired 已判为生理上无妊娠可能（60 岁及以上、绝经满一年、子宫或双侧卵巢切除）；
+ * 45 岁及以上且病历写明月经已停一年以上。年龄不详的女性按适用处理。
+ */
+export function reproductiveAdviceRelevant(state: CaseState): boolean {
+  if (!/女/.test(patientSexText(state))) return false;
+  if (!pregnancyScreenRequired(state)) return false;
+  const age = authoritativePatientAgeYears(state);
+  if (age == null) return true;
+  if (age < 12) return false;
+  if (age >= 45 && /(?:月经|经水)(?:已)?(?:停|断|绝)[^，,。；;\n]{0,6}[1-9]\d*\s*年|(?:停经|绝经|经断)[^，,。；;\n]{0,6}[1-9]\d*\s*年/.test(normalizeClinicalText(trustedInputText(state)))) return false;
+  return true;
+}
+
 export function pregnancyScreenRequired(state: CaseState): boolean {
   const sex = patientSexText(state);
   if (!/女/.test(sex)) return false;
@@ -4511,7 +4561,8 @@ export function buildSafetyAdvisoryBanner(
   if (redFlags.length > 0) lines.push(`> - 红旗提示：${redFlags.join("；")}`);
   for (const reason of reasons) lines.push(`> - ${reason}`);
   for (const note of notes) lines.push(`> - ${note}`);
-  lines.push("> - 以下分析与候选方药仅供医生在完成上述风险处置判断的前提下参考，采纳前须经院内审方复核。");
+  // 2026-10-13：横幅是给接诊医生看的，不写「候选/采纳/审方」这类系统流程词。
+  lines.push("> - 以下分析与方药供医生在处置上述风险之后参考，用药前请再次核对。");
   return `${lines.join("\n")}\n\n`;
 }
 
@@ -5045,8 +5096,8 @@ export function limitedDiagnosisReasonCopy(
   switch (reviewUnavailableReason) {
     case "not_attempted_no_valid_draft":
       return {
-        reason: "本次结构化辨证结果未通过服务端完整性校验",
-        limitation: "本次未形成可复核的结构化辨证结果",
+        reason: "本次辨病辨证结果不完整，未能形成可用的证候结论",
+        limitation: "本次未形成完整的辨病辨证结果",
         nextAction: "重新运行辨病辨证分析；已录入病历无需修改",
       };
     case "not_attempted_upstream_down":

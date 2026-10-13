@@ -882,7 +882,8 @@ try {
     if (textbookSwitch === undefined) delete process.env.CDSS_NONDRUG_TEXTBOOK_PLANS;
     else process.env.CDSS_NONDRUG_TEXTBOOK_PLANS = textbookSwitch;
     for (const recommendation of [digestive, sleep, influenza, dermatology]) {
-      assert.ok(recommendation.treatmentContent.length > 20);
+      // 治疗内容只写医生要读的东西（2026-10-13）：「按风寒袭肺取穴，针对本例咳嗽。」这样一句就够，不再凑长度。
+      assert.ok(recommendation.treatmentContent.length >= 6);
       // 操作边界只在**有治理模板**时才有内容可写。评估态原先塞的是 parameterPolicy——
       // 目录里每个项目一字不差的「仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时
       // 可显示治理过的穴位/部位与频次」，讲的是系统显示规则，不是这位病人的操作边界。

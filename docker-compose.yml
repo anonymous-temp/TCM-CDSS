@@ -84,6 +84,15 @@ services:
       CDSS_REQUEST_ARCHIVE: ${CDSS_REQUEST_ARCHIVE:-true}
       CDSS_REQUEST_ARCHIVE_PATH: /app/runtime-data/request-archive
       CDSS_REQUEST_ARCHIVE_MAX_BYTES: ${CDSS_REQUEST_ARCHIVE_MAX_BYTES:-4294967296}
+      # 同一份病历的辨证/开方结果加密落盘留存（缺省 30 天；指纹含代码版本与模型名，发版后旧结果不再回放）。
+      CDSS_STAGE_RESULT_STORE_PATH: /app/runtime-data/stage-results
+      CDSS_STAGE_RESULT_PERSIST_DAYS: ${CDSS_STAGE_RESULT_PERSIST_DAYS:-30}
+      # 追问：没有值得问的题时是否如实返回 decision=proceed（调用方确认能处理后再开）；出题时是否按「不回答」预先计算。
+      CDSS_M02_PROCEED_WHEN_SETTLED: ${CDSS_M02_PROCEED_WHEN_SETTLED:-false}
+      CDSS_M02_PRECOMPUTE_NO_ANSWER: ${CDSS_M02_PRECOMPUTE_NO_ANSWER:-true}
+      # 语义层只为病历明确写出的现症提示与限制给药；false 恢复 2026-10-13 之前的口径。
+      CDSS_REDFLAG_EXPLICIT_ONLY: ${CDSS_REDFLAG_EXPLICIT_ONLY:-true}
+      CDSS_TEXTBOOK_DISEASE_PICK: ${CDSS_TEXTBOOK_DISEASE_PICK:-true}
       PRIMARY_TEXT_MAX_TOKENS: ${PRIMARY_TEXT_MAX_TOKENS:-14000}
       # M03/M04 编排总时限门禁（代码钳制 60–180s）。富上下文（证据/检索注入）下首诊被合同拒绝后
       # 需要预留一次完整修复轮次的时间，默认 120s 容易在修复中途触顶降级。

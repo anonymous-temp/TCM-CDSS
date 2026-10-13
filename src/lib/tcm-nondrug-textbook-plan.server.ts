@@ -161,6 +161,19 @@ function syndromeEvidencePresent(keySymptoms: string | undefined, currentFacts: 
 }
 
 /** 取相符度最高的一个证型，再补一个与它病性概念不相交的（本例兼有两类证候时，如「湿热蕴结，气滞血瘀」）。 */
+/**
+ * 教材证型名与本例已定证名是否是同一个证：去掉「证/型」后相等，或一方完整包含另一方（「心虚胆怯」与「心虚胆怯证」，
+ * 「肝气犯胃」与「肝气犯胃证」）。只共享一个病性词（都有「气」「虚」）不算——那是 pickSyndromes 的宽口径，
+ * 适合挑配穴，不适合决定给患者吃什么。
+ */
+function syndromeLabelMatchesSigned(label: string, signedSyndromeText: string): boolean {
+  const core = (value: string) => value.normalize("NFKC").replace(/[\s（()）]/g, "").replace(/(?:证候|证型|证|型)$/u, "");
+  const target = core(label);
+  if (target.length < 2) return false;
+  return signedSyndromeText.split(/[，,；;、\n]/).map(core).filter((item) => item.length >= 2)
+    .some((item) => item === target || item.includes(target) || target.includes(item));
+}
+
 function pickSyndromes<T extends { label: string; keySymptoms?: string }>(
   candidates: readonly T[],
   caseSyndromeText: string,
@@ -287,6 +300,25 @@ export type TextbookPlan = {
 };
 
 const POINT_LIMIT = 12;
+/** 禁针穴（闭集）：针刺项目的取穴里不列。 */
+const NO_NEEDLE_POINTS: ReadonlySet<string> = new Set(["神阙", "乳中"]);
+
+/**
+ * 教材把主穴按疼痛部位分组的病（《针灸治疗学》痹病，教材原文「主穴 肩部：阿是穴 肩髃 肩髎 肩贞 臑俞 / 肘部：… / 腕部：… /
+ * 脊背：… / 髀部：… / 膝部：… / 踝部：…」）。生成物把七组拍平成一列，取前 12 个就全是肩、肘、腕的穴——
+ * 2026-10-13 独立评审：右膝、右踝红肿热痛的病例，针刺取穴全在上肢。分组照教材原文，部位词是闭集。
+ */
+const REGIONAL_MAIN_POINT_GROUPS: Readonly<Record<string, ReadonlyArray<{ region: string; cue: RegExp; points: readonly string[] }>>> = {
+  痹病: [
+    { region: "肩部", cue: /肩/, points: ["肩髃", "肩髎", "肩贞", "臑俞"] },
+    { region: "肘部", cue: /肘/, points: ["曲池", "天井", "尺泽", "少海"] },
+    { region: "腕部", cue: /腕|手指|指关节|掌指/, points: ["阳池", "外关", "阳溪", "腕骨"] },
+    { region: "脊背", cue: /脊|背|腰|颈/, points: ["大杼", "身柱", "腰阳关", "夹脊"] },
+    { region: "髀部", cue: /髋|髀|臀|胯/, points: ["环跳", "居髎", "秩边", "髀关"] },
+    { region: "膝部", cue: /膝/, points: ["血海", "梁丘", "膝眼", "阳陵泉"] },
+    { region: "踝部", cue: /踝|足跟|足背|跖趾|足趾|脚趾/, points: ["申脉", "照海", "昆仑", "丘墟"] },
+  ],
+};
 
 // ─── 联网核对的频次（A/B 级来源）─────────────────────────────────────────────
 
@@ -317,11 +349,6 @@ function webScheduleFor(modality: string, diseaseNames: readonly string[]): { sc
 
 function uniq<T>(values: readonly T[]): T[] {
   return [...new Set(values)];
-}
-
-function syndromeOptionsText(syndromes: readonly AcupunctureSyndrome[]): string {
-  return syndromes.filter((item) => item.addPoints.length > 0)
-    .map((item) => `${item.label}配${item.addPoints.join("、")}`).join("；");
 }
 
 /** 把条目并进正文，总长不超过卡片字段上限；放不下的条目整条舍去，不截断。 */
@@ -385,7 +412,18 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
   }
   if (!base || base.points.length === 0) return undefined;
 
-  const points: TextbookPlanPoint[] = base.points.map((name) => ({ name, role: "base_point" as const }));
+  // 主穴按部位分组的病（痹病）：只取本例疼痛部位那几组，对不上部位时只留阿是穴。
+  const regionalGroups = code === "acupuncture" ? REGIONAL_MAIN_POINT_GROUPS[base.entry.disease] : undefined;
+  const regionalBase = regionalGroups
+    ? (() => {
+        const facts = input.currentFacts.normalize("NFKC");
+        const matched = regionalGroups.filter((group) => group.cue.test(facts));
+        const grouped = new Set(regionalGroups.flatMap((group) => group.points));
+        const keep = new Set(matched.flatMap((group) => group.points));
+        return base.points.filter((name) => !grouped.has(name) || keep.has(name));
+      })()
+    : base.points;
+  const points: TextbookPlanPoint[] = regionalBase.map((name) => ({ name, role: "base_point" as const }));
   const syndromeLabels: string[] = [];
   let tailored = false;
   let syndromeClause = "";
@@ -404,13 +442,9 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
           if (!points.some((existing) => existing.name === point)) points.push({ name: point, role: "syndrome_refinement", syndromeLabel: syndrome.label, note: `${syndrome.label}配穴` });
         }
       }
-      syndromeClause = `本例已签名证候与教材「${picked.map((item) => item.label).join("」「")}」相符，在主穴基础上加${picked.flatMap((item) => item.addPoints).join("、")}；`;
-    } else {
-      const options = syndromeOptionsText(primary.syndromes);
-      syndromeClause = options
-        ? `本例证候未与教材证型逐一对应，教材按证型配穴为：${options}；按本例证型选用；`
-        : "";
+      syndromeClause = `本例属${picked.map((item) => item.label).join("、")}，在主穴基础上加${picked.flatMap((item) => item.addPoints).join("、")}。`;
     }
+    // 证型对不上教材的配穴表时只给主穴，不把各证型的配穴整张表列给医生自己挑（2026-10-13，甲方 10.12 测评 5.1/5.2）。
     const facts = compact(input.currentFacts);
     const symptomParts: string[] = [];
     for (const item of [...primary.symptomAddPoints, ...(secondary?.symptomAddPoints || [])]) {
@@ -423,16 +457,18 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
       for (const point of fresh) points.push({ name: point, role: "conditional_point", note: `本例有「${item.symptom}」加用` });
       symptomParts.push(`${item.symptom}加${fresh.join("、")}`);
     }
-    if (symptomParts.length > 0) syndromeClause += `按本例症状加用：${symptomParts.join("；")}；`;
+    if (symptomParts.length > 0) syndromeClause += `随症配穴：${symptomParts.join("；")}。`;
   }
 
-  const finalPoints = points.slice(0, POINT_LIMIT);
+  // 神阙、乳中禁针（神阙只灸）：教材在针灸方案里把神阙列为灸穴，拍平后混进了针刺取穴（2026-10-13 独立评审）。
+  const needleable = code === "acupuncture" ? points.filter((point) => !NO_NEEDLE_POINTS.has(point.name)) : points;
+  const finalPoints = needleable.slice(0, POINT_LIMIT);
   const citation = cite(base.entry);
   if (secondary && code === "acupuncture") cite(secondary);
   const projectName = code === "acupuncture" ? "针刺" : "";
   const contentHead = code === "acupuncture"
-    ? `按教材，${primary.disease}的针刺治法为「${cutText(base.content.replace(/[。]+$/, ""), 80)}」。`
-    : `按教材，${primary.disease}可选用的${projectName}${cutText(base.content, 240)}`;
+    ? `治法：${cutText(base.content.replace(/[。]+$/, ""), 80)}。`
+    : `${projectName}${cutText(base.content, 240)}`;
   const operation = code === "acupuncture" ? primary.operation : base.content;
   const frequency = frequencySentence(operation) || frequencySentence(primary.operation);
   const defaultKey = code === "acupuncture" ? "acupuncture" : code === "cupping" ? "cupping" : code === "moxibustion" ? "moxibustion" : "";
@@ -444,15 +480,15 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     : web
       ? `${web.schedule}。${defaultClause}`
       : defaultClause
-        ? `${defaultClause}该病证节未另列频次与疗程，具体间隔按病情与耐受确定。`
-        : "该病证节未单列频次与疗程，按操作时长与耐受确定间隔。";
+        ? `${defaultClause}间隔与疗程按病情和耐受确定。`
+        : "间隔与疗程按病情和耐受确定。";
   const technique = code === "acupuncture"
     ? cutText(primary.operation || "毫针常规针刺。", 420)
     : cutText(`${base.content}`, 420);
 
   return {
     kind: "acupoint",
-    treatmentContent: cutText(`${contentHead}${syndromeClause}穴位见下。${tailored ? "" : "未按本例证型加减的部分请按寒热虚实增减。"}`, 1150),
+    treatmentContent: cutText(`${contentHead}${syndromeClause}`, 1150),
     points: finalPoints,
     items: [],
     scheduleSuggestion: cutText(schedule, 560),
@@ -476,7 +512,7 @@ function tuinaPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan |
   return {
     kind: "acupoint",
     treatmentContent: cutText(
-      `按教材，${entry.disease}的推拿治则为「${(entry.principle.split("。")[0] || entry.principle).trim()}」，手法：${uniq(entry.manipulations).slice(0, 8).join("、") || "见操作"}。${modification ? `本例证候与教材「${modification.label}」相符：${cutText(modification.content, 200)}` : ""}`,
+      `治则：${(entry.principle.split("。")[0] || entry.principle).trim().replace(/[“”"]/g, "")}。手法：${uniq(entry.manipulations).slice(0, 8).join("、") || "见操作"}。${modification ? `本例证候与教材「${modification.label}」相符：${cutText(modification.content, 200)}` : ""}`,
       1150,
     ),
     points: sites.slice(0, POINT_LIMIT).map((name) => ({ name, role: "base_point" as const })),
@@ -499,27 +535,17 @@ function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | 
   // 教材里有些食疗方只写「见‘血证’节」这类互见，没有配料与做法，不能当方案给出。
   const safeRecipes = (syndrome: DietSyndrome) => syndrome.recipes.filter((recipe) =>
     recipe.text.length >= 20 && !recipe.text.startsWith("见") && recipeUsesOnlyFoodSafeIngredients(recipe.text));
-  const principleSentence = cutText((entry.principle.split("。")[0] || "").trim(), 110);
-  const picked = pickSyndromes(entry.syndromes, input.signedSyndromeText, input.currentFacts).filter((syndrome) => safeRecipes(syndrome).length > 0);
   const format = (syndrome: DietSyndrome, recipe: DietRecipe) =>
     cutText(`${syndrome.label}：${recipe.name}${recipe.classicSource ? `（${recipe.classicSource}）` : ""}：${recipe.text}`, 200);
-  let items: string[];
-  let tailored = false;
-  let head: string;
-  if (picked.length > 0) {
-    tailored = true;
-    items = picked.flatMap((syndrome) => safeRecipes(syndrome).slice(0, 2).map((recipe) => format(syndrome, recipe)));
-    head = `本例已签名证候与教材食疗「${picked.map((item) => item.label).join("」「")}」相符，食疗原则：${picked.map((item) => item.method).filter(Boolean).join("；")}。`;
-  } else {
-    // 本例证候没有对应的教材证型时只给「证型—食疗方法—代表方」的框架，不把某一型的具体食谱当成本例方案。
-    items = entry.syndromes.filter((syndrome) => safeRecipes(syndrome).length > 0).slice(0, 6)
-      .map((syndrome) => cutText(`${syndrome.label}：${syndrome.method || "见教材"}（代表方：${safeRecipes(syndrome)[0].name}）`, 200));
-    head = "教材按证型分型给出食疗方，本例证候未与其逐一对应，下列为各型的食疗方法与代表方，具体食谱按本例证型选用。";
-  }
-  if (items.length === 0) return undefined;
-  const first = picked[0] ? safeRecipes(picked[0])[0] : undefined;
-  const usage = first ? frequencySentence(first.text) || first.text.split("。").find((part) => part.includes("每日") || part.includes("每天")) || "" : "";
-  const dietHead = `按教材，${entry.disease}${tailored && principleSentence ? `：${principleSentence}。` : "的食疗："}${head}`;
+  // 证型对不上教材的食疗分型就不出食疗（2026-10-13，甲方 10.12 测评 5.1：心虚胆怯证给出了「气阴两虚」的食疗方，
+  // 对不上时又把各证型的方子整张列出来）。对得上时只给一个方子：方名、配料与做法都是教材原文。
+  const matched = entry.syndromes.filter((syndrome) => safeRecipes(syndrome).length > 0)
+    .find((syndrome) => syndromeLabelMatchesSigned(syndrome.label, input.signedSyndromeText));
+  if (!matched) return undefined;
+  const first = safeRecipes(matched)[0];
+  const items = [format(matched, first)];
+  const usage = frequencySentence(first.text) || first.text.split("。").find((part) => part.includes("每日") || part.includes("每天")) || "";
+  const dietHead = matched.method ? `食疗原则：${matched.method.replace(/[。]+$/, "")}。` : "";
   return {
     kind: "diet",
     // 食疗方进 treatmentContent（无穴项目的 suggestedSitesOrPoints 保持为空，与目录口径一致；
@@ -527,11 +553,11 @@ function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | 
     treatmentContent: contentWithItems(dietHead, items),
     points: [],
     items,
-    scheduleSuggestion: cutText(usage ? `${usage.replace(/[。]+$/, "")}（各方以其原文用法为准）。` : "各方以其原文用法为准，随三餐日常执行，复诊时按症状变化复评。", 560),
-    techniqueBoundary: "配料已限定为国家「既是食品又是中药材」目录物质与普通食物，仅作饮食调养，不替代药物治疗；对方中食材过敏、正在服用抗凝/降糖/降压药、孕期哺乳期、慢性肾病或吞咽障碍者须先核对，孕妇哺乳期与婴幼儿不推荐食药物质。",
+    scheduleSuggestion: cutText(usage ? `${usage.replace(/[。]+$/, "")}。` : "随三餐食用，复诊时按症状变化调整。", 560),
+    techniqueBoundary: "仅作饮食调养，不替代药物治疗；对方中食材过敏者不用，糖尿病、慢性肾病、孕期哺乳期及正在服用抗凝药者请先咨询医生。",
     protocolSource: cutText(bookCitation(data, "shiliao", entry.disease, entry.line), 980),
-    syndromeLabels: picked.map((item) => item.label),
-    syndromeTailored: tailored,
+    syndromeLabels: [matched.label],
+    syndromeTailored: true,
     sourceRefs: [`《${data.sources.shiliao?.title}》(${data.sources.shiliao?.year})`],
   };
 }

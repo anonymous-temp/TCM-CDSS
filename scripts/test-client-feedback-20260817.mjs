@@ -366,6 +366,28 @@ const mahuangHerbs = [
   assert.doesNotMatch(projectedContent.overview.tcmDiagnosticRationale, /病历已记录|阳性|。。/);
   assert.equal(m03KeySyndromeDiscriminatorIssue(projectedContent, clinicalContext), undefined);
 
+  // 2026-10-13：另一支——主证依据写了无汗/自汗、病机链里没有——对任何证型都查，此前没有确定性投影。
+  // 合成集 S005（教材证名「阳虚感冒」，病历「身上无汗」）三轮模型修复 99 秒仍漏填，整份辨证退回占位结果。
+  const yangDeficiencyCold = {
+    overview: {
+      primarySyndrome: "阳虚感冒",
+      primarySyndromeBasis: ["怕冷加重，加盖两床棉被仍觉身上发凉", "头痛，周身骨节酸痛，身上无汗", "面色发白，手脚不温"],
+      tcmDiagnosticRationale: "素体阳虚，复感风寒，恶寒重、身痛无汗而神疲肢冷，故辨为阳虚感冒。",
+    },
+    pathogenesis: {
+      chain: [{ nodeId: "P1", patientFact: "怕冷加重，周身骨节酸痛", syndromeEvidence: "面色发白，手脚不温", pathogenesis: "阳气不足，风寒束表", therapyDirection: "助阳解表" }],
+    },
+  };
+  assert.equal(m03KeySyndromeDiscriminatorIssue(yangDeficiencyCold, "主诉：恶寒、周身酸痛3天\n现病史：头痛，周身骨节酸痛，身上无汗。"), "chain_key_discriminator_missing", "夹具：投影前确实命中");
+  const yangProjected = projectM03KeySyndromeDiscriminators(yangDeficiencyCold, "主诉：恶寒、周身酸痛3天\n现病史：头痛，周身骨节酸痛，身上无汗。");
+  assert.equal(m03KeySyndromeDiscriminatorIssue(yangProjected, "主诉：恶寒、周身酸痛3天\n现病史：头痛，周身骨节酸痛，身上无汗。"), undefined, "投影后通过同一道合同");
+  assert.match(yangProjected.pathogenesis.chain[0].syndromeEvidence, /面色发白，手脚不温；.*无汗/, "补的是依据里原有的那一条，原证据保留");
+  assert.equal(yangProjected.overview.primarySyndrome, "阳虚感冒", "证名不动");
+  assert.deepEqual(yangProjected.overview.primarySyndromeBasis, yangDeficiencyCold.overview.primarySyndromeBasis, "依据不动");
+  // 依据里没写无汗/自汗的，不追加任何内容。
+  const untouched = { overview: { primarySyndrome: "脾气虚证", primarySyndromeBasis: ["神疲乏力"] }, pathogenesis: { chain: [{ patientFact: "神疲乏力", syndromeEvidence: "舌淡" }] } };
+  assert.equal(projectM03KeySyndromeDiscriminators(untouched, "主诉：乏力"), untouched);
+
   const diagnosisApi = readFileSync(path.join(repoRoot, "src/lib/diagnosis-api.ts"), "utf8");
   assert.match(
     diagnosisApi,

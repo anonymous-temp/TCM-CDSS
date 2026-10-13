@@ -1,3 +1,4 @@
+import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import governedFormulaJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
 import modernCaseFormulaIndexJson from "../data/tcm-modern-case-formula-index.json" with { type: "json" };
 import retrievalConceptJson from "../data/tcm-formula-retrieval-concepts.json" with { type: "json" };
@@ -1297,7 +1298,30 @@ export function trustModelFormulaSelectionEnabled(): boolean {
  * 曾试过按国标二级治法类判相容，会把导赤散对阳黄重新放行，且没有评测证据支持，已撤回。
  * `CDSS_FORMULA_TRUST_MODEL=false` 回退到只认正向充分性（回滚开关，也是 A/B 基线臂）。
  */
+/**
+ * 教材的「病—证—代表方」本身就是证候与方剂的正向依据（2026-10-13）：已定的病名、证名对上教材的一行时，
+ * 该行的代表方可以承接，不需要再经受控关系表或功效词对齐来证明它对证。受控关系表只有 77 个证，
+ * 功效对齐按受控治法词逐字比对——蛇串疮·肝经郁热证的教材治法「清泄肝火，解毒止痛」与龙胆泻肝汤的目录功效
+ *「清泻肝胆实火」对不上词，于是教材代表方被判成「缺少正向充分性」，开方阶段整方退成非剂量页（本机实测）。
+ */
+export function textbookRelationFormulaIdentityNames(reasoning: unknown, names: readonly string[]): Set<string> {
+  const overview = (reasoning as { overview?: { tcmDiseaseName?: unknown; primarySyndrome?: unknown; primarySyndromeResolution?: unknown } } | null | undefined)?.overview;
+  if (names.length === 0 || typeof overview?.primarySyndrome !== "string" || overview.primarySyndromeResolution === "unresolved") return new Set();
+  const row = textbookRowForSyndrome(typeof overview.tcmDiseaseName === "string" ? overview.tcmDiseaseName : "", overview.primarySyndrome);
+  if (!row) return new Set();
+  const wanted = new Set(names.map(normalizedFormulaIdentity));
+  return new Set(row.formulas.map(normalizedFormulaIdentity).filter((identity) => wanted.has(identity)));
+}
+
 export function trustedModelFormulaIdentityNames(reasoning: unknown, names: readonly string[]): Set<string> {
+  const textbookTrusted = textbookRelationFormulaIdentityNames(reasoning, names);
+  if (textbookTrusted.size === names.length && names.length > 0) return textbookTrusted;
+  const modelTrusted = modelTrustedFormulaIdentityNames(reasoning, names);
+  for (const identity of textbookTrusted) modelTrusted.add(identity);
+  return modelTrusted;
+}
+
+function modelTrustedFormulaIdentityNames(reasoning: unknown, names: readonly string[]): Set<string> {
   if (!trustModelFormulaSelectionEnabled() || names.length === 0) return new Set();
   // 信任的前提是「有可核对的对象」：主证候已形成（不是 unresolved）且签名治法抽得出受控治法词。
   // 两者缺一，就没有任何东西可以证明这个方对证——退回原判据（只认正向充分性），

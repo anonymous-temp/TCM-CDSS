@@ -1,3 +1,4 @@
+import { conditionalModificationWithoutTextbook, textbookModificationMatch, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { z } from "zod";
 import {
   normalizeModelNullableText,
@@ -8,7 +9,7 @@ import { sanitizeUnverifiedClinicalNarrative } from "./customer-evidence";
 import { stripHerbBoundaryTail } from "./candidate-boundary-text";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
-import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName } from "./tcm-knowledge";
+import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
@@ -22,7 +23,7 @@ import {
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
-import { clinicalGroundingText } from "./diagnosis-safety";
+import { clinicalGroundingText, reproductiveAdviceRelevant } from "./diagnosis-safety";
 import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
@@ -198,6 +199,9 @@ function normalizedPrecautionKey(value: string): string {
 }
 
 /** 逐条清洗模型提交的注意事项：只丢行、绝不驳回。 */
+/** 注意事项里面向孕哺人群的提示句（「如已怀孕或备孕请先告知医生」「孕期慎用」「哺乳期…」）。 */
+const REPRODUCTIVE_ADVICE_LINE = /怀孕|备孕|妊娠|孕期|孕妇|哺乳/;
+
 function normalizeSubmittedPrecautions(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
@@ -360,6 +364,9 @@ export const M04ProposalSchema = z.object({
     symptomPathogenesis: z.preprocess(unwrapSingleText, z.string().min(2).max(80).optional()),
     actionType: z.enum(["add", "remove", "adjust"]),
     herbName: z.string().min(1).max(120),
+    // 加味的建议剂量（2026-10-13，甲方 10.12 测评：加减没有剂量，还带一句「请在药味工作台确定剂量」）。
+    // 模型写单一数值加 g；服务端按药典范围核对（越界夹到边界，儿童再按年龄分数折算），不合格式则按范围取常用量。
+    dose: z.string().max(20).optional(),
     reason: z.string().min(2).max(800),
   })).max(4).default([]),
   modificationReview: z.object({
@@ -592,7 +599,30 @@ export function modificationTriggerGroundedInM03(
   trigger: string,
   prior?: ClinicalReasoningResultV2 | null,
 ): boolean {
-  return Boolean(resolveModificationTriggerSource(trigger, prior));
+  return Boolean(resolveModificationTriggerSource(trigger, prior)) || Boolean(textbookModificationForPrior(trigger, prior))
+    || modelConditionalModificationForPrior(trigger, prior);
+}
+
+/** 拟加的药与方中某一味相反（十八反，含类别展开：附子属乌头类）。只看「新加的这味」参与的配对，方内原有的配对另有核对。 */
+export function modificationHerbIncompatibleWithCandidate(herbName: string, candidateHerbNames: readonly string[]): boolean {
+  const before = findTcmHerbPairIncompatibilities(candidateHerbNames).length;
+  return findTcmHerbPairIncompatibilities([...candidateHerbNames, herbName]).length > before;
+}
+
+/** 教材没有给已定证型列加减时，模型写的条件式加减（tcm-textbook-syndromes.conditionalModificationWithoutTextbook）。 */
+export function modelConditionalModificationForPrior(trigger: string, prior?: ClinicalReasoningResultV2 | null): boolean {
+  if (!prior || prior.stage !== "diagnose") return false;
+  return conditionalModificationWithoutTextbook(prior.overview.tcmDiseaseName || "", prior.overview.primarySyndrome || "", trigger);
+}
+
+/** 触发条件是已定证型在教材里的一条加减（tcm-textbook-syndromes.textbookModificationMatch）。 */
+export function textbookModificationForPrior(
+  trigger: string,
+  prior?: ClinicalReasoningResultV2 | null,
+  herbName?: string,
+) {
+  if (!prior || prior.stage !== "diagnose") return undefined;
+  return textbookModificationMatch(prior.overview.tcmDiseaseName || "", prior.overview.primarySyndrome || "", trigger, herbName);
 }
 
 export type ModificationTriggerSource = {
@@ -697,6 +727,8 @@ function normalizeModifications(
       : undefined;
     // Conditional modifications are optional decision support. A malformed optional row must not
     // invalidate an otherwise complete core prescription, but no missing field may be invented.
+    const rawDose = unwrapSingleText(item.dose ?? item["剂量"]);
+    const dose = rawDose && /^\d{1,3}(?:\.\d)?\s*(?:g|克)$/i.test(rawDose.trim()) ? `${parseFloat(rawDose)}g` : undefined;
     const doseBearingText = [trigger, herbName, reason].filter(Boolean).join("；");
     if (!actionType || !trigger || !targetRef || !herbName || !reason) return drop("malformed");
     if (/(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百半]+)\s*(?:mg|g|毫克|克)(?!\s*\/\s*(?:L|升))/i.test(doseBearingText)) {
@@ -717,6 +749,7 @@ function normalizeModifications(
       targetRef,
       actionType,
       herbName: normalizedHerbName,
+      dose,
       reason,
       ...(symptomPathogenesis ? { symptomPathogenesis } : { symptomPathogenesis: undefined }),
     }];
@@ -761,6 +794,12 @@ function trustedCandidateName(
 ): string | undefined {
   if (!prior || prior.stage !== "diagnose") return undefined;
   if (["self_devised", "none"].includes(prior.overview.formulaSelectionMode || "none")) {
+    // 辨证阶段定的是教材代表方、只是目录里没有可逐味核对的基准：方名沿用辨证阶段写下的教材方名。
+    const direction = prior.overview.recommendedFormulaDirection?.trim() || "";
+    const row = textbookRowForSyndrome(prior.overview.tcmDiseaseName || "", prior.overview.primarySyndrome || "");
+    if (row && direction && row.formulas.some((name) => direction.includes(name))) {
+      return /加减$/.test(direction) ? direction : `${direction}加减`;
+    }
     return "本例辨证组方";
   }
   const names = Array.from(new Set((prior.overview.recommendedFormulaNames || [])
@@ -1163,6 +1202,24 @@ export function normalizeM04DraftCandidate(
 }
 
 /**
+ * 加味药的建议剂量：模型给的数值在药典范围内就用它，越界夹到边界；没给或不合格式时取范围内最接近 10g 的值
+ *（常用量）。儿童按年龄分数法的逐味上限再封顶。药典没有内服剂量范围的药味不给剂量（由医生定）。
+ */
+function modificationAddDose(herbName: string, modelDose: string | undefined, pediatric?: PediatricDoseRule): string | null {
+  const limit = getTcmHerbDoseLimit(herbName);
+  const min = typeof limit?.min === "number" && Number.isFinite(limit.min) ? limit.min : undefined;
+  const max = typeof limit?.max === "number" && Number.isFinite(limit.max) ? limit.max : undefined;
+  if (min == null || max == null || max <= 0) return null;
+  const ceiling = pediatric ? pediatricDoseCeilingG(max, pediatric, herbName) : max;
+  if (typeof ceiling !== "number" || !(ceiling > 0)) return null;
+  const floor = Math.min(min, ceiling);
+  const requested = modelDose ? parseFloat(modelDose) : NaN;
+  const base = Number.isFinite(requested) && requested > 0 ? requested : 10;
+  const dose = Math.min(ceiling, Math.max(floor, base));
+  return `${Number(dose.toFixed(1))}g`;
+}
+
+/**
  * 随证加减「对应病机」一栏（2026-09-29 甲方测评 2.2）。
  *
  * 优先用模型写的本症病机（symptomPathogenesis）：须短（≤40 字）、不含剂量、且与触发症状或所挂节点
@@ -1409,13 +1466,24 @@ export function compileM04Proposal(
     // A conditional add/remove row is optional decision support, not the current prescription.
     // Omit a row that conflicts with M03 instead of discarding the audited core prescription or
     // passing an unaudited hypothetical medicine downstream.
-    if (item.actionType === "add" && highImpactHerbDirectionIssue(item.herbName, declaredDirection, prior)) {
+    // 两种合格触发：已定证型在教材里的一条加减（条件句），或病历已记录的当前表现。教材加减还要求药味在该条里。
+    const textbookSource = textbookModificationForPrior(item.trigger, prior, item.herbName);
+    // 方向核对只管「针对本例现有表现」的加减。教材加减是条件式的（「若见口苦、苔黄腻，加黄连、竹茹」）：
+    // 条件说的正是证候起了变化，药的方向随条件走，不该拿当前主证去核——此前痰浊头痛的这条教材加减
+    // 因「清热与主证方向不符」被整条丢掉（2026-10-13，合成集加减为空 12 例里的一类）。
+    if (!textbookSource && item.actionType === "add" && highImpactHerbDirectionIssue(item.herbName, declaredDirection, prior)) {
       directionDropReasons.push("direction_conflict");
       return [];
     }
-    const triggerSource = resolveModificationTriggerSource(item.trigger, prior);
-    if (!triggerSource) {
+    const triggerSource = textbookSource ? undefined : resolveModificationTriggerSource(item.trigger, prior);
+    const modelConditional = !textbookSource && !triggerSource && modelConditionalModificationForPrior(item.trigger, prior);
+    if (!textbookSource && !triggerSource && !modelConditional) {
       directionDropReasons.push("trigger_not_current_fact");
+      return [];
+    }
+    // 拟加的药不得与方中任何一味相反（十八反）。此前只有「可替换药味」做了这项排除，加味本身没有。
+    if (item.actionType === "add" && modificationHerbIncompatibleWithCandidate(item.herbName, candidateHerbNames)) {
+      directionDropReasons.push("action_conflicts_with_candidate");
       return [];
     }
     const actionVerb = item.actionType === "add" ? "加" : item.actionType === "remove" ? "减" : "调整";
@@ -1427,17 +1495,21 @@ export function compileM04Proposal(
       : [];
     return [{
       trigger: item.trigger,
-      triggerSource,
+      ...(triggerSource ? { triggerSource } : {}),
       targetPathogenesis: modificationTargetPathogenesis(item, node, cleanNarrative),
       action: actionVerb,
       herbName: item.herbName.trim(),
-      doseOrHandling: null,
+      doseOrHandling: item.actionType === "add" ? modificationAddDose(item.herbName, item.dose, pediatric) : null,
       reason: cleanNarrative(item.reason, "随证调整治疗重点"),
-      riskNote: "实际采用时请在药味工作台确定剂量，并按调整后的完整处方重新审方。",
+      riskNote: "",
       ...(substitutions.length > 0 ? { substitutions } : {}),
       evidence: {
         evidenceLevel: "model_inference" as const,
-        source: `患者事实（${triggerSource.sourceRef}）：${triggerSource.sourceQuote}；对应病机节点：${item.targetRef}`,
+        source: textbookSource
+          ? `《${textbookSource.book}》${textbookSource.disease}·${textbookSource.syndromeName}加减：${textbookSource.raw}`
+          : triggerSource
+            ? `患者原文：${triggerSource.sourceQuote}`
+            : "按本证常见兼症变化拟定的备用加减",
         confidence: "中" as const,
       },
     }];
@@ -1530,6 +1602,11 @@ export function compileM04Proposal(
     },
     nonPharma: {
       ...proposal.nonPharma,
+      // 「如已怀孕、备孕或哺乳请告知医生」只写给有此可能的患者：男性、儿童、已绝经者不写（见 reproductiveAdviceRelevant）。
+      // 病历确有妊娠/哺乳记录的不会走到带剂量处方；没有病例信息（直接调编译器）时不过滤。
+      precautions: caseState && !reproductiveAdviceRelevant(caseState)
+        ? proposal.nonPharma.precautions.filter((item) => !REPRODUCTIVE_ADVICE_LINE.test(item))
+        : proposal.nonPharma.precautions,
       acupointCare: null,
       tcmTreatments: compileTcmTreatmentRecommendations(proposal.nonPharma.tcmTreatments, prior, caseState),
     },

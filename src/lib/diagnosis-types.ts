@@ -8,6 +8,7 @@ import { parseClinicalFacts, type ClinicalFacts } from "./clinical-facts";
 import { parseTcmTreatmentCapabilities, TCM_TREATMENT_PROJECT_CODES, type TcmTreatmentProjectCode } from "./tcm-treatment-projects";
 import { normalizeEmergencyClearanceAttestations, type EmergencyClearanceFindingAttestation } from "./emergency-clearance-contract";
 import { parseCustomerId } from "./customer-id";
+import { RECORD_SYMPTOM_KEY_SLOTS, followupConversationView, stripFollowupSkipMessages } from "./followup-conversation";
 
 export type Phase =
   | "idle"
@@ -934,7 +935,7 @@ const DEFAULT_OVERVIEW: ClinicalReasoningResultV2["overview"] = {
   primarySyndrome: "尚未形成稳定证型",
   primarySyndromeResolution: "unresolved",
   primarySyndromeBasis: [],
-  primarySyndromeResolutionReason: "结构化结果中没有可供判断的证型名称与可回溯依据",
+  primarySyndromeResolutionReason: "病历里没有可以支持证型判断的依据",
   tcmDiseaseRationale: "",
   tcmDiagnosticRationale: "",
   tcmDifferentials: [],
@@ -949,8 +950,8 @@ const DEFAULT_OVERVIEW: ClinicalReasoningResultV2["overview"] = {
 
 const DEFAULT_PATHOGENESIS: ClinicalReasoningResultV2["pathogenesis"] = {
   summary: "病机链尚未稳定，需补充关键四诊与安全边界后复核。",
-  locationDifferentiation: { items: [], details: [], resolution: "unresolved", resolutionReason: "结构化结果中没有病位分类及可回溯依据", evidence: INSUFFICIENT_EVIDENCE_REF },
-  natureDifferentiation: { items: [], rootDeficiency: [], branchExcess: [], basis: "", resolution: "unresolved", resolutionReason: "结构化结果中没有病性分类及可回溯依据", evidence: INSUFFICIENT_EVIDENCE_REF },
+  locationDifferentiation: { items: [], details: [], resolution: "unresolved", resolutionReason: "病历里没有可以支持病位判断的依据", evidence: INSUFFICIENT_EVIDENCE_REF },
+  natureDifferentiation: { items: [], rootDeficiency: [], branchExcess: [], basis: "", resolution: "unresolved", resolutionReason: "病历里没有可以支持病性判断的依据", evidence: INSUFFICIENT_EVIDENCE_REF },
   symptomClusters: [],
   caseRelationship: undefined,
   chain: [],
@@ -2132,7 +2133,7 @@ export function normalizeReasoningV2(value: unknown): ClinicalReasoningResultV2 
       primarySyndromeResolutionReason: normalized.overview.primarySyndromeResolutionReason
         || (syndromeResolution === "resolved"
           ? undefined
-          : `证型“${normalized.overview.primarySyndrome || "未定"}”只有${syndromeBasis.length}条结构化可回溯依据`),
+          : `证型“${normalized.overview.primarySyndrome || "未定"}”目前只有${syndromeBasis.length}条病历依据支持`),
     },
     pathogenesis: {
       ...normalized.pathogenesis,
@@ -2143,8 +2144,8 @@ export function normalizeReasoningV2(value: unknown): ClinicalReasoningResultV2 
           || (locationResolution === "resolved"
             ? undefined
             : locationResolution === "bounded"
-              ? `病位“${location.items.join("、")}”只有${location.details?.length || 0}条结构化可回溯依据`
-              : "结构化结果中没有病位分类及可回溯依据"),
+              ? `病位“${location.items.join("、")}”目前只有${location.details?.length || 0}条病历依据支持`
+              : "病历里没有可以支持病位判断的依据"),
       },
       natureDifferentiation: {
         ...nature,
@@ -2153,8 +2154,8 @@ export function normalizeReasoningV2(value: unknown): ClinicalReasoningResultV2 
           || (natureResolution === "resolved"
             ? undefined
             : natureResolution === "bounded"
-              ? `病性“${[...nature.items, ...(nature.rootDeficiency || []), ...(nature.branchExcess || [])].join("、")}”缺少结构化可回溯依据`
-              : "结构化结果中没有病性分类及可回溯依据"),
+              ? `病性“${[...nature.items, ...(nature.rootDeficiency || []), ...(nature.branchExcess || [])].join("、")}”缺少可回溯的病历依据`
+              : "病历里没有可以支持病性判断的依据"),
       },
     },
     therapy: {
@@ -2313,6 +2314,45 @@ function mergeHisSymptoms(inputSymptoms: unknown, fields: HisRecordSnapshot["fie
   return symptoms;
 }
 
+/**
+ * 接口调用方（无 hisRecord）把病历放在 symptoms 的中文键下时，归到系统读取的规范槽位
+ *（见 followup-conversation.ts 的 RECORD_SYMPTOM_KEY_SLOTS）。顶层已有值时不覆盖：两处写法不同就都保留。
+ */
+function liftRecordStyleSymptoms(symptoms: Record<string, unknown>): {
+  symptoms: Record<string, unknown>;
+  lifted: Partial<Record<"pastHistory" | "allergyHistory" | "medicationHistory" | "tongue" | "pulse" | "chiefComplaint", string>>;
+} {
+  const next: Record<string, unknown> = {};
+  const lifted: Partial<Record<"pastHistory" | "allergyHistory" | "medicationHistory" | "tongue" | "pulse" | "chiefComplaint", string>> = {};
+  for (const [key, value] of Object.entries(symptoms)) {
+    const slot = RECORD_SYMPTOM_KEY_SLOTS[key.trim()];
+    const text = typeof value === "string" ? value.trim() : "";
+    if (!slot || !text) {
+      next[key] = value;
+      continue;
+    }
+    if (slot === "presentHistory" || slot === "exams") {
+      if (next[slot] == null && symptoms[slot] == null) next[slot] = text;
+      else next[key] = value;
+      continue;
+    }
+    if (lifted[slot] == null) lifted[slot] = text;
+    else next[key] = value;
+  }
+  return { symptoms: next, lifted };
+}
+
+/** 生命体征只认字符串与数值；序列化残留（如 .NET 的 {"ValueKind":3}）按未提供处理，不让它变成一个裸数字进入闸门。 */
+function scrubNonScalarVitals(vitals: Record<string, unknown>): Record<string, unknown> {
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(vitals)) {
+    if (value == null) continue;
+    if (typeof value === "string" || typeof value === "number") next[key] = value;
+    else if (key === "sourceConflicts" && Array.isArray(value)) next[key] = value;
+  }
+  return next;
+}
+
 export function normalizeCaseStateInput(value: unknown): CaseState | null {
   const parsed = CaseStateInputSchema.safeParse(value);
   if (!parsed.success) return null;
@@ -2360,6 +2400,27 @@ export function normalizeCaseStateInput(value: unknown): CaseState | null {
     ((numberValue(rawTongueQuality.score) ?? 1) < 0.6) ||
     rawTongueIssues.some((item) => /not_a_tongue|tongue_not_fully_extended|blurry|too_dark|too_bright|missing_tongue|模糊|过暗|过曝|未完整/.test(item));
   const manualTongueFromHis = firstText(fields.tcmTongue);
+  const mergedSymptoms = mergeHisSymptoms(input.symptoms, fields);
+  // 病历式中文键只在没有 HIS 快照时归位：有快照时 fields 就是病历，symptoms 不是病历来源。
+  const recordStyle = hisRecord ? { symptoms: mergedSymptoms, lifted: {} } : liftRecordStyleSymptoms(mergedSymptoms);
+  // 顶层已有不同写法时，把 symptoms 里那一份原样留在 symptoms（不丢信息，也不覆盖顶层）。
+  for (const [slot, top] of [
+    ["pastHistory", stringValue(input.pastHistory)],
+    ["allergyHistory", stringValue(input.allergyHistory)],
+    ["medicationHistory", stringValue(input.medicationHistory)],
+    ["tongue", stringValue(input.tongue)],
+    ["pulse", stringValue(input.pulse)],
+    ["chiefComplaint", rawChiefComplaint],
+  ] as const) {
+    const liftedValue = (recordStyle.lifted as Record<string, string | undefined>)[slot];
+    if (top && liftedValue && top.trim() !== liftedValue) {
+      const label = Object.entries(RECORD_SYMPTOM_KEY_SLOTS).find(([, value]) => value === slot)?.[0] || slot;
+      recordStyle.symptoms[label] = liftedValue;
+    }
+  }
+  const followup = stripFollowupSkipMessages(normalizeConversation(input.conversation));
+  const followupView = followupConversationView(followup.conversation);
+  const inferredQuestionOutcome = followupView.answers.length > 0 ? "answered" as const : followup.skipped ? "skipped" as const : undefined;
 
   return {
     ...base,
@@ -2372,18 +2433,18 @@ export function normalizeCaseStateInput(value: unknown): CaseState | null {
       age: ageValue(fields.age) ?? ageValue(patient.age),
       occupation: stringValue(patient.occupation),
     },
-    chiefComplaint,
-    symptoms: mergeHisSymptoms(input.symptoms, fields),
-    tongue: tongueImageRejected ? manualTongueFromHis : firstText(fields.tcmTongue, input.tongue),
-    pulse: firstText(fields.tcmPulse, input.pulse),
+    chiefComplaint: chiefComplaint || recordStyle.lifted.chiefComplaint || "",
+    symptoms: recordStyle.symptoms,
+    tongue: tongueImageRejected ? manualTongueFromHis : firstText(fields.tcmTongue, input.tongue, recordStyle.lifted.tongue),
+    pulse: firstText(fields.tcmPulse, input.pulse, recordStyle.lifted.pulse),
     faceNote: firstText(fields.tcmFace, input.faceNote),
     tongueImageDesc: tongueImageRejected ? undefined : stringValue(input.tongueImageDesc),
     tongueDx: tongueImageRejected ? undefined : normalizedTongueDx,
     faceCapture: normalizeFaceCapture(input.faceCapture),
-    vitals: mergeHisVitals(input.vitals, fields),
-    pastHistory: firstText(fields.jiwangshi, input.pastHistory),
-    medicationHistory: firstText(fields.yongyaoshi, input.medicationHistory),
-    allergyHistory: firstText(fields.guomin, input.allergyHistory),
+    vitals: scrubNonScalarVitals(mergeHisVitals(input.vitals, fields)),
+    pastHistory: firstText(fields.jiwangshi, input.pastHistory, recordStyle.lifted.pastHistory),
+    medicationHistory: firstText(fields.yongyaoshi, input.medicationHistory, recordStyle.lifted.medicationHistory),
+    allergyHistory: firstText(fields.guomin, input.allergyHistory, recordStyle.lifted.allergyHistory),
     tcmLineagePreference: resolveLineageCode(firstText(fields.tcmLineagePreference, input.tcmLineagePreference)),
     herbCountPreference: normalizeHerbCountPreference(input.herbCountPreference),
     clinicTreatmentCapabilities,
@@ -2395,12 +2456,13 @@ export function normalizeCaseStateInput(value: unknown): CaseState | null {
     emergencyClearance: normalizeEmergencyClearance(input.emergencyClearance),
     warningAcknowledgement: normalizeWarningAcknowledgement(input.warningAcknowledgement),
     completeness: normalizeCompleteness(input.completeness),
-    questionRounds: Math.min(Math.max(numberValue(input.questionRounds) ?? 0, 0), maxQuestionRounds),
+    // 调用方没有回传追问轮次时，从 conversation 里的作答/跳过推断：追问已经发生过，不再提示「建议补充一轮追问」。
+    questionRounds: Math.min(Math.max(numberValue(input.questionRounds) ?? (inferredQuestionOutcome ? 1 : 0), 0), maxQuestionRounds),
     maxQuestionRounds,
     questionOutcome: input.questionOutcome === "answered" || input.questionOutcome === "skipped" || input.questionOutcome === "not_needed"
       ? input.questionOutcome
-      : undefined,
-    conversation: normalizeConversation(input.conversation),
+      : inferredQuestionOutcome,
+    conversation: followup.conversation,
     diagnosis: stringValue(input.diagnosis, MAX_MODEL_OUTPUT_CHARS),
     prescription: stringValue(input.prescription, MAX_MODEL_OUTPUT_CHARS),
     riskAssessment: stringValue(input.riskAssessment, MAX_MODEL_OUTPUT_CHARS),

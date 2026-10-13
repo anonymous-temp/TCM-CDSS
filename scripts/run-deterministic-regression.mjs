@@ -624,6 +624,19 @@ const scripts = [
   "test:m02-nonblocking",
   "test:m02-answer-interpreter",
   "test:prescription-permission",
+  // 甲方真实传参形状（2026-10-13 生产留存核对）：病历在 symptoms 中文键、追问作答/跳过在 conversation。
+  // 追问有一条回答或一次跳过后，闸门曾读不到病历正文：呕血黑便不报红旗、孕周与华法林照常给剂量。
+  // 每个风险 × 无追问/跳过/一题/两题 四种传参必须同一结论；急症筛查题的阳性选项连同题干才算阳性。
+  "test:customer-request-shape",
+  // 语义层只为病历明确写出的现症提示与限制给药（owner 2026-10-13）：possible / 主体不明 / 仅「不能排除」的专科评估
+  // 不再提示也不扣剂量；positive 的发现、依据已指向的专科评估、立即急诊照旧。回退档逐项恢复。
+  "test:redflag-explicit-only",
+  // 交付面投影（甲方 10.12 测评）：症状依据/待查依据/检查建议不带内容、诊断名不带括号与「病因待查」、
+  // 服务端句式换成临床写法、「本例辨证组方」→自拟方；字段名与结构逐一不变、幂等、有限结论保留红旗事实。
+  "test:delivered-surface",
+  // 教材「病—证—治法—代表方—加减」对照：候选检索确定性、病名/治法/方名随教材行、教材配对计入方剂正向依据、
+  // 追问题与加减触发由教材行给出（测评原例：心虚胆怯证不用酸枣仁汤、龙胆泻肝汤不得退成非剂量页）。
+  "test:textbook-syndromes",
   "test:primary-care-50-contracts",
   "test:diagnosis-display",
   // 甲方 2026-08-12：页面把内部口径词（知识库/受治理）印给了医生。

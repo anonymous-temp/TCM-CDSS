@@ -90,7 +90,12 @@ assert.equal(R("发热")?.temporary ?? R("高热")?.temporary, true);
 // canonicalTcmDiseaseName 兼容语义:未命中走原样;正名命中走正形
 const ctx = (tcmDiseaseName, primarySyndrome = "") => ({ overview: { tcmDiseaseName, primarySyndrome }, westernDiagnosis: { primary: { name: "" } } });
 assert.equal(canonicalTcmDiseaseName("失眠", ctx("失眠")), "不寐病");
-assert.equal(canonicalTcmDiseaseName("不寐", ctx("不寐")), "不寐病");
+// 2026-10-13：教材的节名本身就是可交付的规范病名（甲方按规划教材对照，标准答案写「不寐」「头痛」「虚劳」），
+// 不再归一到国标条目（不寐病 / 头风病 / 虚劳类病）；口语与非教材写法照旧归一。
+assert.equal(canonicalTcmDiseaseName("不寐", ctx("不寐")), "不寐");
+assert.equal(canonicalTcmDiseaseName("头痛", ctx("头痛")), "头痛");
+assert.equal(canonicalTcmDiseaseName("虚劳", ctx("虚劳")), "虚劳");
+assert.equal(canonicalTcmDiseaseName("虚劳类病", ctx("虚劳类病")), "虚劳", "「类病」是国标的分类名，不是病名");
 assert.equal(canonicalTcmDiseaseName("夜间翻来覆去", ctx("夜间翻来覆去")), "夜间翻来覆去");
 // 兼容回退:病名字段为空但证型字段里混了病名
 assert.equal(canonicalTcmDiseaseName("", ctx("", "不寐（心脾两虚证）")), "不寐病");

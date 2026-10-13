@@ -435,7 +435,12 @@ try {
   assert.equal(settledNonStreamCalls, 0, "模型复核环节已删除：M03 编排不得再发任何非流式（复核/裁决）请求");
   const signed = parseSentinelReasoning(output);
   settledSigned = signed;
-  assert.equal(m03ClinicalDecisionHash(signed), "sha256:e65b691a013a531b473c38bf7fef9bf45fc40c77b0913b4b26cf786cdf70fce4", "the settled projection must preserve the pre-fix final clinical payload");
+  // 2026-10-13 更新指纹：交付面投影（delivered-surface.ts）在签名前清空西医诊断下的症状依据/待查依据/检查建议，
+  // 治则改为国标治则术语（按证名与治法推出）。指纹仍然钉住「同一份合成输入 ⇒ 同一份最终临床载荷」。
+  assert.equal(m03ClinicalDecisionHash(signed), "sha256:e347a4a436adfdf4448306c4d14d04932ef76d5e89cf46fa23eed839a23a2b85", "the settled projection must preserve the final clinical payload");
+  assert.deepEqual(signed.westernDiagnosis.primary.supportingFacts, [], "交付的辨证结果不带症状依据");
+  assert.deepEqual(signed.westernDiagnosis.primary.limitations, [], "交付的辨证结果不带待查依据");
+  assert.deepEqual(signed.westernDiagnosis.primary.suggestedChecks, [], "交付的辨证结果不带检查建议");
   assert.ok(signed.contractSignature, "the settled output must still be signed");
   assert.equal(signed.clinicalReview.status, "unavailable");
   assert.equal(signed.clinicalReview.unavailableReason, "not_configured");
@@ -536,8 +541,9 @@ assert.ok(settledSigned?.westernDiagnosis?.primary?.name, "单发基线必须先
   assert.equal(run.signed.westernDiagnosis.primary.name, settledSigned.westernDiagnosis.primary.name,
     "错位 JSON 修复后，签名里的西医诊断必须与单发路径一致，而不是默认占位");
   assert.notEqual(westernDiagnosisLabelForDisplay(run.signed.westernDiagnosis.primary.name), "当前未形成可复核的西医工作诊断");
-  assert.ok(run.signed.westernDiagnosis.primary.suggestedChecks.includes("睡眠日记（连续1-2周）"),
-    "写到顶层的 suggestedChecks 必须归位到 westernDiagnosis.primary");
+  // 2026-10-13：交付的辨证结果不再带检查建议（甲方红框），所以归位不能再从 suggestedChecks 的内容看出来；
+  // 「错位的西医半确实被救回」由上面的诊断名一致与下面的 westernHalfParse=recovered 作证。
+  assert.deepEqual(run.signed.westernDiagnosis.primary.suggestedChecks, [], "交付的辨证结果不带检查建议");
   assert.equal(run.signed.management.followupSafetyNet, settledSigned.management.followupSafetyNet);
   assert.equal(run.halves?.westernHalfOk, true);
   assert.equal(run.halves?.westernHalfParse, "recovered", "遥测必须如实记下这次是修复后才可用");

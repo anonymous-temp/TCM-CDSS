@@ -1,3 +1,4 @@
+import { textbookNearestRow, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { herbBoundaryTail, stripHerbBoundaryTail } from "./candidate-boundary-text";
 import formulaCatalogJson from "../data/tcm-formula-sources.json" with { type: "json" };
 import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.json" with { type: "json" };
@@ -1147,25 +1148,93 @@ function formulaSelectionMode(value: string, names: string[]): NonNullable<Clini
   return "alternatives";
 }
 
-export function withDeterministicFormulaReferences(reasoning: ClinicalReasoningResultV2): ClinicalReasoningResultV2 {
+/**
+ * 推荐方跟着已定的教材证型走（2026-10-13，甲方 10.12 测评 4.1「心胆气虚用酸枣仁汤」「方名前后不一致」）。
+ *
+ * 模型定下的病名、证名能对上教材的一行，而且该行的代表方目录里都能唯一锁定时，推荐方就是该行的代表方
+ *（教材写两方合用的按合方）。模型写的方向里已经包含这些方名时原样保留它的写法。
+ * 对不上教材、或代表方目录锁不住时，不改模型写的方向——那时仍按原有口径处理。
+ * 这一步只决定方名；药味、剂量、十八反、妊娠等核对一条不少，照旧在开方阶段进行。
+ */
+function textbookAnchoredFormulaDirection(reasoning: ClinicalReasoningResultV2): string {
+  const direction = String(reasoning.overview?.recommendedFormulaDirection || "");
+  const row = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
+  if (!row || row.formulas.length === 0 || row.formulas.length > 2) return direction;
+  const wanted = row.formulaJoin === "alternative" ? row.formulas.slice(0, 1) : row.formulas;
+  const written = identifyKnownFormulaNames(direction);
+  if (wanted.every((name) => written.includes(name)) && written.length === wanted.length) return direction;
+  return `${wanted.join("合")}加减`;
+}
+
+/**
+ * 证名用教材的写法：病名对上教材、证名不是教材写法时，按 textbookNearestRow 找到最接近的教材证型并改用它的名字
+ *（辨证依据里出现的旧证名一并替换）。找不准就原样返回。
+ */
+function withTextbookSyndromeName(reasoning: ClinicalReasoningResultV2): ClinicalReasoningResultV2 {
+  const overview = reasoning.overview;
+  const disease = String(overview?.tcmDiseaseName || "");
+  const syndrome = String(overview?.primarySyndrome || "");
+  if (!disease || !syndrome || overview?.primarySyndromeResolution === "unresolved") return reasoning;
+  if (textbookRowForSyndrome(disease, syndrome)) return reasoning;
+  const evidence = [
+    ...(Array.isArray(overview.primarySyndromeBasis) ? overview.primarySyndromeBasis : []),
+    ...(reasoning.pathogenesis?.chain || []).flatMap((node) => [node.patientFact, node.syndromeEvidence]),
+  ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("，");
+  const row = textbookNearestRow(disease, syndrome, String(reasoning.therapy?.overallMethod || overview.overallTherapy || ""), evidence);
+  if (!row || row.syndromeName === syndrome) return reasoning;
+  const rename = (value: unknown) => typeof value === "string" ? value.split(syndrome).join(row.syndromeName) : value;
+  return {
+    ...reasoning,
+    overview: {
+      ...overview,
+      primarySyndrome: row.syndromeName,
+      tcmDiagnosticRationale: rename(overview.tcmDiagnosticRationale) as typeof overview.tcmDiagnosticRationale,
+      tcmDiseaseRationale: rename(overview.tcmDiseaseRationale) as typeof overview.tcmDiseaseRationale,
+    },
+  };
+}
+
+export function withDeterministicFormulaReferences(input: ClinicalReasoningResultV2): ClinicalReasoningResultV2 {
+  const reasoning = input.stage === "diagnose" ? withTextbookSyndromeName(input) : input;
   if (reasoning.stage === "diagnose") {
-    const direction = String(reasoning.overview?.recommendedFormulaDirection || "");
+    const direction = textbookAnchoredFormulaDirection(reasoning);
     const identifiedNames = identifyKnownFormulaNames(direction);
     const identifiedMode = formulaSelectionMode(direction, identifiedNames);
     const identityGovernedNames = identifiedNames.filter((name) => formulaCompilationReferences([name]).length === 1);
     const incompleteCombined = identifiedMode === "combined" && identityGovernedNames.length !== identifiedNames.length;
     const recommendedFormulaNames = incompleteCombined ? [] : identityGovernedNames;
-    const governedDirection = identifiedNames.length > 0 && recommendedFormulaNames.length === 0
+    // 教材代表方在目录里锁不住（同名方多个出处、或目录未收）时，方向仍写教材方名：开方阶段按教材组成与本例病机
+    // 组方并沿用这个方名，只是没有目录基准可以逐味核对。其余锁不住的方名照旧改写为辨证组方。
+    const textbookRowForDirection = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
+    const textbookNamed = Boolean(textbookRowForDirection) && identifiedNames.length > 0 &&
+      identifiedNames.every((name) => textbookRowForDirection!.formulas.includes(name));
+    const governedDirection = identifiedNames.length > 0 && recommendedFormulaNames.length === 0 && !textbookNamed
       ? "按已锁定病机与治法辨证组方"
       : direction;
+    // 治法同样跟着已定的教材证型走：对上教材的一行时用该行的治法原文（甲方按教材对照；同一病例重新生成 3 次，
+    // 治法的写法 10 例里 0 例完全一致）。没对上时保留模型写的治法。
+    const textbookRow = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
+    const secondary = Array.isArray(reasoning.overview?.secondarySyndromes) ? reasoning.overview.secondarySyndromes.filter(Boolean) : [];
+    const anchoredMethod = textbookRow && secondary.length === 0 ? textbookRow.therapy.replace(/[。；;]+$/g, "") : "";
     return {
       ...reasoning,
       overview: {
         ...reasoning.overview,
+        // 证名对上教材的一行而病名写法不同（「头风病」对「头痛」）时，病名用教材的节名。
+        ...(textbookRow && reasoning.overview?.tcmDiseaseName && reasoning.overview.tcmDiseaseName !== textbookRow.disease
+          ? {
+              tcmDiseaseName: textbookRow.disease,
+              ...(typeof reasoning.overview.tcmDiseaseRationale === "string"
+                ? { tcmDiseaseRationale: reasoning.overview.tcmDiseaseRationale.split(reasoning.overview.tcmDiseaseName).join(textbookRow.disease) }
+                : {}),
+            }
+          : {}),
+        ...(anchoredMethod ? { overallTherapy: anchoredMethod } : {}),
         recommendedFormulaDirection: governedDirection,
         recommendedFormulaNames,
         formulaSelectionMode: formulaSelectionMode(governedDirection, recommendedFormulaNames),
       },
+      ...(anchoredMethod && reasoning.therapy ? { therapy: { ...reasoning.therapy, overallMethod: anchoredMethod } } : {}),
     };
   }
   if (reasoning.stage === "prescribe" && reasoning.formula) {

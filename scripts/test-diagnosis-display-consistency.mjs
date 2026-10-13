@@ -571,7 +571,8 @@ assert.equal(parsedPlainQuestion[0].options.length, 3);
 assert.deepEqual(parsedPlainQuestion[0].fields, ["问诊补充"], "the per-question autofill target must survive parsing for free-text answers");
 const normalizedRounds = normalizeCaseStateInput({ questionRounds: 9, maxQuestionRounds: 9 });
 assert.equal(normalizedRounds.questionRounds, 1, "restored state must never exceed the single M02 round contract");
-const sparseFallback = buildCaseAwareQuestionFallback({ chiefComplaint: "夜间盗汗、睡不好一个月", symptoms: {} });
+// 2026-10-13：缺省先出教材辨证题；这里钉的是主诉类别兜底（教材对不上时才用），显式关掉教材题。
+const sparseFallback = buildCaseAwareQuestionFallback({ chiefComplaint: "夜间盗汗、睡不好一个月", symptoms: {} }, { textbookQuestion: false });
 const sparseQuestionState = { chiefComplaint: "夜间盗汗、睡不好一个月", symptoms: {} };
 const repairedSingleQuestion = ensureSingleRoundQuestionContract("**问题1：** 这次不适持续多久？\n（追问理由：病程影响鉴别。）\n补录字段：现病史\n可选项：\nA. 一周内\nB. 一月以上\nC. 本次未取得该信息", sparseFallback, sparseQuestionState);
 assert.equal(parseQuestionItems(repairedSingleQuestion).length, 1, "one valid model question remains one; the contract must not invent filler");
@@ -705,8 +706,11 @@ assert.match(sparseDiagnosePrompt, /不得逐项串联或复制 supportingFacts/
 assert.match(sparseDiagnosePrompt, /病程\/表现模式 → 当前工作诊断 → 还需排除或核实什么/, "M03 prompt gives a concrete non-restatement reasoning sequence");
 // 2026-09-26：有确诊依据时直接写病名。原推理链末段固定为「尚缺哪类病因判别信息」，实测把已由影像/病理确立的
 // 诊断也推成「病因待查」（65 例里 45 例主诊断带「病因待查」）。
-assert.match(sparseDiagnosePrompt, /足以确立具体疾病时，primary\.name 直接写该疾病名[^。]*不写“病因待查”/, "M03 prompt commits to the disease name when the chart already establishes it");
-assert.match(sparseDiagnosePrompt, /没有具体病因候选时写“具体病因”而不得臆造疾病/, "M03 prompt keeps the rationale repair from inventing an etiologic diagnosis");
+assert.match(sparseDiagnosePrompt, /足以确立具体疾病时，primary\.name 直接写该疾病名/, "M03 prompt commits to the disease name when the chart already establishes it");
+// 2026-10-13（甲方 10.12 测评 1.1/1.2）：诊断名写最可能的规范病名，不带括号说明与「，病因待查」；只有停在症状层面才写「症状名＋待查」。
+assert.match(sparseDiagnosePrompt, /门诊常见病表现典型时直接下病名/, "M03 prompt asks for the most likely specific diagnosis");
+assert.match(sparseDiagnosePrompt, /名称里不带任何括号说明/, "M03 prompt forbids parenthetical qualifiers in the diagnosis name");
+assert.match(sparseDiagnosePrompt, /功能性消化不良，病因待查[^。]*自相矛盾/, "M03 prompt carries the customer's own counter-example");
 
 const stableM03 = {
   schemaVersion: "tcm-cdss-reasoning-v2",

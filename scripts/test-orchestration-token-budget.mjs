@@ -69,7 +69,7 @@ check("M02 出题提示把逐例病历放在固定规范之后（供应商前缀
   const template = prompts.slice(start, end);
   const recordAt = template.indexOf("病历：${record}");
   const contractAt = template.indexOf("${compactJsonContract}");
-  const rulesAt = template.indexOf("输出1到2题。");
+  const rulesAt = template.indexOf("最多出 1 题");
   assert.ok(recordAt > 0 && contractAt > 0 && rulesAt > 0, "三个锚点都必须存在");
   assert.ok(rulesAt < recordAt, "固定出题规则必须排在逐例病历之前");
   assert.ok(contractAt < recordAt, "固定 JSON 合同必须排在逐例病历之前");

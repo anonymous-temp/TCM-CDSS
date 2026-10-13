@@ -187,6 +187,40 @@ for (const code of INVASIVE_OR_THERMAL) {
     `明确未孕不得被误拦：${code}`);
 }
 
+// ─── 词形与字段边界（2026-10-13）───
+// 实测缺陷：assessState 先去掉全部空白，「工具避孕\n13岁初潮」连成「孕13」读成妊娠 13 周；
+// 「不孕3年」「工具避孕3年」「备孕3个月」「上环避孕10年」里的「孕N」同样读成孕周。
+// 合成集 190 例里 5 份妇科常规病历因此被整份收回剂量，17k 医案里 64 段不孕症叙述被读成当前妊娠。
+const NOT_CURRENT_PREGNANCY = [
+  "已婚，孕1产1，顺产1女，工具避孕\n13岁初潮，周期28天",
+  "已婚，工具避孕\n2024年体检正常",
+  "不孕3年", "原发不孕2年", "结婚8年，继发不孕5年", "工具避孕3年", "上环避孕10年", "人流后避孕2年",
+  "备孕3个月", "怀孕3次，顺产1次", "首孕人流后再孕2次均为过期流产",
+];
+for (const text of NOT_CURRENT_PREGNANCY) {
+  const status = statusOf(assessPregnancyState(text));
+  assert.ok(status !== "positive" && status !== "possible", `不是当前妊娠，不得判 ${status}：${text}`);
+}
+// 反向：真正的孕周写法不受词形守卫影响（含同一份文本里换行之后的孕周）。
+for (const text of ["孕13周", "孕 13 周", "孕12+3周", "现孕8周，无腹痛", "宫内孕8周", "怀孕3个月", "试管婴儿移植后孕5周", "已婚，工具避孕失败\n孕6周，恶心"]) {
+  assert.equal(statusOf(assessPregnancyState(text)), "positive", `孕周写法必须仍判当前妊娠：${text}`);
+}
+// 误读修掉以后，备孕类必须由备孕判据自己接住（此前「备孕3个月」是靠「孕3」的误读才被拦的）。
+for (const text of ["备孕3个月", "备孕半年未孕", "已婚，备孕", "结婚5年，解除避孕1年未孕", "停止避孕2年未孕", "不避孕1年多未能怀孕"]) {
+  const status = statusOf(assessConceptionState(text));
+  assert.ok(status === "positive" || status === "possible", `备孕/已停止避孕必须落闸，实际 ${status}：${text}`);
+}
+for (const text of ["无备孕计划", "否认备孕", "工具避孕3年", "口服避孕药1年", "孕前检查正常"]) {
+  const status = statusOf(assessConceptionState(text));
+  assert.ok(status !== "positive" && status !== "possible", `不是备孕，不得判 ${status}：${text}`);
+}
+// 「未哺乳 / 已断奶」是明确的否定（此前判 unknown，哺乳状态仍被列为待核实项）；「未停止哺乳」仍是阳性。
+for (const text of ["现否认妊娠，未哺乳", "未哺乳", "产后1年，已断奶"]) assert.equal(statusOf(assessLactationState(text)), "negative", text);
+assert.equal(statusOf(assessLactationState("产后半年，未停止哺乳")), "positive");
+// 换行是字段边界：跨字段不得拼出阳性，同一行内的原有判据不变。
+assert.equal(statusOf(assessLactationState("否认哺乳\n产后3个月，母乳喂养")), "positive", "换行后的哺乳阳性仍须识别");
+assert.equal(statusOf(assessPregnancyState("停经50天\n验孕棒两条杠")), "possible", "换行后的验孕阳性仍须识别");
+
 console.log(JSON.stringify({
   pregnancyPositive: MUST_BE_POSITIVE.length,
   cases: MUST_BE_POSITIVE.length + 3 + 5 + 5 + 5 + 21 + 2 + 7,

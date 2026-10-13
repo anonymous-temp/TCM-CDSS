@@ -1904,7 +1904,7 @@ function RiskSummaryPanel({
  */
 // 前两个备选是**存量浏览器状态**里的旧文案（模型复核环节 2026-09-16 删除、相关措辞 2026-09-25 改写），
 // 保留只为让旧快照照样升级为「从 M03 重跑」——多匹配一条的方向是安全的。
-const M03_LEVEL_PRESCRIBE_BLOCK_PATTERN = /尚未形成通过临床复核的稳定证候|辨证语义复核未完成|尚未形成稳定的证候结果|本次辨病辨证结果完整性|未形成可执行|辨证信息完整度不足/;
+const M03_LEVEL_PRESCRIBE_BLOCK_PATTERN = /尚未形成通过临床复核的稳定证候|辨证语义复核未完成|尚未形成稳定的证候结果|本次辨病辨证结果完整性|未能形成可用的证候结论|未形成可执行|辨证信息完整度不足/;
 
 export function prescribeRetryRequiresM03Rerun(
   caseState: Pick<CaseState, "lastError" | "prescription">,

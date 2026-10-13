@@ -166,7 +166,9 @@ console.log("test-clinical-review-unavailable-reason: OK", { contractRoundTrip: 
   const codes = ["not_attempted_no_valid_draft", "not_attempted_upstream_down", "deadline", undefined];
   const reasons = codes.map((code) => limitedDiagnosisReasonCopy(code).reason);
   assert.equal(new Set(reasons).size, reasons.length, "每个原因码必须有各自的可见理由");
-  assert.match(limitedDiagnosisReasonCopy("not_attempted_no_valid_draft").reason, /完整性校验/);
+  // 2026-10-13：文案不再提「结构化」「服务端完整性校验」（甲方面板原样显示这句话）；语义不变——说的是结果不完整，不是病历不足。
+  assert.match(limitedDiagnosisReasonCopy("not_attempted_no_valid_draft").reason, /辨病辨证结果不完整/);
+  assert.doesNotMatch(Object.values(limitedDiagnosisReasonCopy("not_attempted_no_valid_draft")).join("；"), /结构化|服务端/);
   assert.doesNotMatch(limitedDiagnosisReasonCopy("not_attempted_no_valid_draft").reason, /通过临床复核/,
     "结构化交付问题不得说成复核否决");
   assert.doesNotMatch(limitedDiagnosisReasonCopy("not_attempted_upstream_down").reason, /通过临床复核|信息不足/,

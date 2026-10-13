@@ -474,8 +474,10 @@ console.log(`diagnosis-presentation-contract: ${checks} checks passed`);
   const repairSrc = fs.readFileSync(new URL("../src/lib/structured-clinical-repair.ts", import.meta.url), "utf8");
   check(() => {
     assert.ok(
-      /病因待查[^。]*只能[^。]*症状级或症候群级/.test(promptSrc),
-      "primary.name 规范里缺少「该后缀只能用于症状级/症候群级名称」这条限定",
+      // 2026-10-13（甲方 10.12 测评 1.2）：诊断名不再带「，病因待查」；只有停在症状层面时才写「症状名＋待查」，
+      // 已点名具体病种不得再挂「待查」。
+      /只能停在症状层面时，才写“症状名＋待查”/.test(promptSrc) && /已经点名具体病种就不得再挂“待查”/.test(promptSrc),
+      "primary.name 规范里缺少「待查只能用于症状层面名称」这条限定",
     );
     assert.ok(promptSrc.includes("急性痛风性关节炎，病因待查"), "缺少甲方实测原串作为反例");
   });
@@ -487,6 +489,6 @@ console.log(`diagnosis-presentation-contract: ${checks} checks passed`);
       "修复引导仍在**教**括注形态——提示词明令禁止，两处判据分叉",
     );
     assert.ok(/不得[^。]*写成“腹泻（病因待查）”/.test(repairSrc), "修复引导必须显式禁止括注形态");
-    assert.ok(/“腹泻，病因待查”/.test(repairSrc), "修复引导应给出与提示词一致的逗号形态");
+    assert.ok(/“腹泻待查”/.test(repairSrc) && !/“腹泻，病因待查”/.test(repairSrc), "修复引导应给出与提示词一致的「症状名＋待查」形态");
   });
 }

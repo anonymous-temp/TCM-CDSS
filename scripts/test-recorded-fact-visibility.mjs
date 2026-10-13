@@ -76,15 +76,26 @@ assert.match(
   "被否认的症状被写成阳性时，净化器仍须拦下",
 );
 
-// ── 3) 红旗语料与接地语料必须分开：失效方向相反 ──────────────────────────────
-// trustedInputText 是安全判定用的保守语料，不得因为本次放宽而把模型衍生字段吸进去。
+// ── 3) 红旗语料与接地语料仍是两份，但追问的回答不再把病历挤出安全语料 ────────
+// 2026-10-13 之前这里钉的是「追问后安全语料排除 symptoms，这是红旗侧的保守性」。生产留存的甲方请求证明
+// 它不保守：接口调用方的病历正文就在 symptoms 里，追问有一条回答后现病史写明的呕血黑便不报红旗、
+// 孕周与华法林照常给剂量（见 test:customer-request-shape）。追问的回答是对病历的补充，不是病历的替身。
 assert.ok(
-  !trustedInputText(afterFollowup).includes("入睡困难"),
-  "安全语料仍然排除模型衍生的 symptoms——这条是红旗侧的保守性，未被放宽",
+  trustedInputText(afterFollowup).includes("入睡困难"),
+  "医生答完一条追问，之前录入的症状仍在安全语料里",
+);
+assert.ok(
+  !trustedInputText(afterFollowup).includes("睡眠情况持续多久"),
+  "追问的题干不是病历内容，不进安全语料",
+);
+// 仍然排除的只有一种：主叙述在对话里（不跟在题干后面的 user 消息）时，symptoms 可能是模型整理的二手内容。
+assert.ok(
+  !trustedInputText(polarityInverted).split("\n").includes("胸痛"),
+  "主叙述在对话里时，安全语料仍然排除模型衍生的 symptoms（极性反转防线未放宽）",
 );
 assert.notEqual(
-  trustedInputText(afterFollowup),
-  clinicalGroundingText(afterFollowup),
+  trustedInputText(polarityInverted),
+  clinicalGroundingText({ ...polarityInverted, symptoms: { sleep: "夜间易醒" } }),
   "两份语料必须真的不同；若被人合并回一份，本不变量就失去意义",
 );
 

@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V2.34 |
+| 文档版本 | V2.35 |
 | 发布日期 | 2026-10-13 |
 | 服务版本 | `tcm-cdss-20260828-lineage-modification-contract-r1` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
@@ -628,7 +628,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/collect" \
 | `m02Plan.schemaVersion` | 结构版本 | string | 固定 `tcm-cdss-m02-plan-v1` |
 | `m02Plan.decision` | 追问决策 | string | `ask`（需追问）/ `proceed`（无需追问） |
 | `m02Plan.rationale` | 决策理由 | string | 决策理由 |
-| `m02Plan.questions` | 追问列表 | array | 追问列表，`decision=proceed` 时为空数组 |
+| `m02Plan.questions` | 追问列表 | array | 追问列表，`decision=proceed` 时为空数组。**V2.35 起一轮只有 1 题**（事实层判为 urgent 的急症线索需要澄清时另有 1 题急症筛查题，排在第一）；选项是能直接写进病历的事实句 |
 | `m02Plan.questions[].id` | 问题标识 | string | 问题标识 |
 | `m02Plan.questions[].question` | 问题文本 | string | 问题文本 |
 | `completeness` | 病历完整度 | object | `{level, redFlag, infoGain, managementImpact, answerability}`，`level` 取 A/B/C。**V2.18 起由服务端按病历字段计算**，与各阶段门控使用同一口径；此前由模型自评，而系统门控另按病历重算，两者可能不一致 |
@@ -759,9 +759,9 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
 | `name` | 西医诊断倾向 | string | 症状级工作诊断统一写成「规范症状名，病因待查」形态。**取值可能为空串**，表示本次未形成西医工作诊断，请按缺失处理 |
 | `status` | 诊断程度 | string | `考虑` / `需排除` / `证据有限` |
 | `confidence` | 置信度 | string | `高` / `中` / `低` |
-| `supportingFacts` | 支持依据 | array | 只收与该诊断直接相关的当前患者事实；舌脉、证候、病机不进此栏 |
-| `limitations` | 待查依据·资料限制 | array | 当前证据不足在哪、缺哪一条判定条件 |
-| `suggestedChecks` | 待查依据·建议检查 | array | 补什么能推进诊断。分层给出——先补充问诊/生命体征/查体，仅在已有红旗或明确鉴别指征时才列影像与成套化验 |
+| `supportingFacts` | 支持依据 | array | **V2.35 起恒为空数组**（字段保留）。服务端的有限结论（红旗收口、证候未形成）除外：那时这里放红旗发现 |
+| `limitations` | 待查依据·资料限制 | array | **V2.35 起恒为空数组**（字段保留） |
+| `suggestedChecks` | 待查依据·建议检查 | array | **V2.35 起恒为空数组**（字段保留） |
 | `clinicalRationale` | 推理说明 | string | 事实到诊断倾向的推理，不复述病史 |
 | `coding` | ICD-10 编码 | object | `{system, code, display, source}`，服务端确定性编码。可选：仅当匹配到受控医保码时输出 |
 
@@ -793,8 +793,8 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
 
 | 字段 | 中文名 | 类型 | 说明 |
 |---|---|---|---|
-| `overallPrinciple` | 治则 | string | — |
-| `overallMethod` | 总治法 | string | — |
+| `overallPrinciple` | 治则 | string | **V2.35 起只写国家标准治则术语**（GB/T 16751.3 治则类：虚则补之、实则泻之、寒者热之、热者寒之、扶正祛邪、攻补兼施、急则治标…），一条为主、至多两条，不带括号 |
+| `overallMethod` | 总治法 | string | 一行治法。病名、证名对上教材的一行时用教材该证的治法原文（V2.35） |
 | `subTherapies` | 分治法 | array | `{therapy, targetPathogenesis, priority, evidence}`，`priority` 为 `主要` / `次要` |
 
 **特殊说明**
@@ -913,8 +913,8 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 | `constructionType` | 组方类型 | string | `single_base` 单方加减 / `combined` 合方 / `self_devised` 自拟 / `single_herb` 单味 |
 | `modificationStatus` | 加减状态 | string | `canonical` 原方 / `modified` 加减 |
 | `therapyMatch` | 方证契合说明 | string | 该方与本例治法的对应关系 |
-| `applicable` | 适用情形 | string | V2.33 起由服务端按 M03 结论生成（自拟方写明经典方未形成完整匹配） |
-| `notApplicable` | 不适用情形 | string | V2.33 起由服务端生成；末尾附「各药毒性与特殊人群提示：麻黄（孕期/妊娠、心血管病、老年人慎用）；…」（V2.34 起为可读文字，不再含内部等级码，重复生成不累积） |
+| `applicable` | 适用情形 | string | V2.35 起为空串（此前是每例相同的模板句） |
+| `notApplicable` | 不适用情形 | string | V2.35 起只有逐味的特殊人群提示，如「知母（哺乳期、孕期/妊娠慎用）；川芎（出血倾向/月经期/抗凝状态慎用）」；方中没有这类药味时为空串 |
 | `formulaAnalysis` | 方义分析 | string | 写**该药在本方发挥的作用**，不罗列全部功效 |
 | `baseFormulas` | 基础方与出处 | array | 含组成匹配味数、核心药味匹配数 |
 | `herbs` | 药味清单 | array | 见下 |
@@ -1000,18 +1000,18 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 
 **随证加减 `formula.modifications[]`**
 
-加减针对的是**病历已记录、但主方覆盖不足的兼症**，不是预设的未来症状；加减行本身不携带克数——剂量由药味工作台与审方链路负责。
+加减是给接诊医生的随证加减建议，通常 2–3 条，触发条件有三种（V2.35）：① 已定证型在规划教材里的加减条件（「若恶寒甚」），药味取自该条教材加减；② 病历已记录、主方未直接针对的伴随症状（逐字引用）；③ 教材该证没有列加减时，按本证常见兼症写的「若＋具体症状」。「加」的行带药典范围内的建议剂量；所加药味不与方中药味相反（十八反）。
 
 | 字段 | 中文名 | 类型 | 说明 |
 |---|---|---|---|
-| `trigger` | 触发事实 | string | 病历已记录的患者事实，逐字引用 |
-| `triggerSource` | 事实出处 | object | `{kind, sourceRef, sourceQuote}` |
+| `trigger` | 触发条件 | string | 条件句（「若……」）或病历已记录的患者事实（逐字引用） |
+| `triggerSource` | 事实出处 | object | `{kind, sourceRef, sourceQuote}`；只在 `trigger` 是病历已记录事实时出现，条件句没有本字段 |
 | `targetPathogenesis` | 对应病机 | string | — |
 | `action` | 加减动作 | enum string | `加` / `减` / `调整`，如 `加`；**不得再把药味拼入本字段** |
 | `herbName` | 药味 | string | 如 `川芎` |
-| `doseOrHandling` | 剂量或处理 | string / null | 恒为 `null`，加减不下发剂量 |
+| `doseOrHandling` | 剂量或处理 | string / null | **V2.35 起「加」的行带建议剂量**（单一数值加 g，如 `"10g"`，在药典内服范围内，儿童按年龄分数折算）；「减 / 调整」的行与药典无剂量范围的药味为 `null` |
 | `reason` | 加减理由 | string | — |
-| `riskNote` | 风险提示 | string | 含「调整后须重新审方」 |
+| `riskNote` | 风险提示 | string | V2.35 起为空串（此前是每条相同的页面流程话） |
 | `substitutions` | 可替换药味 | array | 可选，见下。**仅出现在 `action="加"` 的加减上**，且需推得出合规替代药 |
 
 `formula.modifications[].substitutions[]` 可替换药味
@@ -1042,7 +1042,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 | `frequency` | 用药频次 | string / null | 同 `singleDose`：说明书未给全即为 `null` |
 | `route` | 给药途径 | string / null | 同 `singleDose`：说明书未给全即为 `null` |
 | `administrationTiming` | 服药时机 | string / null | 仅从说明书用法用量原文解析；原文未载时不展示 |
-| `usageBoundary` | 适用边界 | string | 适用范围与服药注意（V2.33 起由服务端按同一说明书条目写定） |
+| `usageBoundary` | 适用边界 | string | V2.35 起为空串（此前是系统说明，不是用药信息） |
 | `course` | 疗程 | string / null | 仅从说明书原文解析；原文未载时字段为空且页面省略，不再输出“本候选不形成疗程医嘱”等占位文案 |
 | `positioning` | 定位 | string | `联合治疗` / `替代方案` / `短期对症` / `需医生评估` |
 | `correspondingProblem` | 对应本例问题 | string | — |
@@ -2461,6 +2461,7 @@ V2.25 起响应包含 `classicEvidence`：经典条文语料逐项的 `name`（�
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.35 | 2026-10-13 | **按 10.12 医学测评整改：接口路径、字段名、结构与调用顺序都不变，集成方不需要改任何东西；变化只有「某些字段不再带内容」和「内容写得更准」。** ① **追问作答 / 跳过后不再读不到病历**：整份病历放在 `symptoms`（含「现病史 / 既往史 / 过敏史 / 用药史 / 辅助检查」等中文键）、追问问答放在 `conversation` 的传参方式下，此前只要有一条回答或一次跳过，安全闸门就只看对话、不看病历正文——现病史写明的呕血黑便不报红旗，孕周与抗凝药照常给剂量，性别 / 舌脉 / 过敏史被判成未提供。现在追问的回答是对病历的补充；跳过句（`本次未能确认，请继续现场评估`）不是病历内容，不进入任何判断；对急症筛查题选了阳性选项即按已确认的急症表现处理；`symptoms` 的中文键与规范键等价；生命体征只认字符串与数值（`{"ValueKind":3}` 这类序列化残留按未提供）。② **西医诊断**：`supportingFacts` / `limitations` / `suggestedChecks` 恒为空数组；`name` 写最可能的规范病名，不带括号说明，不带「，病因待查」（只能停在症状层面时写「症状名＋待查」）。③ **中医诊断与证候**：病名、证名用规划教材的写法（「头痛」不写「头风病」，「虚劳」不写「虚劳类病」）；`secondarySyndromes` 默认空数组，只有另成一组的表现才写一个；`tcmDiseaseDifferentials` 每例 1–2 条。④ **治则治法**：`overallPrinciple` 只写国家标准治则术语，不带括号；`overallMethod` 一行，证型对上教材时用教材治法。⑤ **方药**：辨证阶段定的方名（教材该证的代表方优先）开方阶段不再改名，不再出现「本例辨证组方」（确无成方写「自拟方」）；`decoction.method` 写成一行用法并点名先煎 / 后下 / 包煎 / 另煎的药味；`modifications[]` 优先取教材该证的加减（`trigger` 可以是「若…」的条件句，此时没有 `triggerSource`；教材该证没有列加减时可以是按本证常见兼症写的条件句），「加」的行带剂量，`evidence.source` 写教材出处或「患者原文：…」；`applicable`、`modifications[].riskNote`、`patentAndWestern[].usageBoundary` / `relationship` 为空串。⑥ **中医治疗与调护**：给不出具体内容的项目不再下发；食疗只在教材食疗分型与本例证型对得上时给一个方子；`precautions` 写给患者，不含天数、体温等数字阈值。⑦ **复诊计划**（`management.followupSafetyNet`）写给患者。⑧ **追问一轮一题**，优先问能把教材候选证型分开的那条事实；急症筛查题只为事实层判为 urgent 的线索而出。没有值得问的题时是否返回 `decision=proceed` 由服务端开关控制，缺省仍返回一题。⑨ **红旗**：语义层只为病历明确写出的现症提示与限制给药（「可能」「仅不能排除」的不再提示）；确定性红旗与危急生命体征不变。⑩ **同一份病历结果一致**：结果按病历内容留存（缺省 30 天，换病例编号、只差标点空格都算同一份），请求头 `x-cdss-regenerate: 1` 显式重新生成；出题的同时服务端已按「不回答」开始计算，跳过追问后的辨证、开方直接取现成结果。 |
 | V2.34 | 2026-10-13 | **全面回归后的修正，接口路径与字段名不变。** ① **独立剂量边界不再受病历完整度与追问轮次影响**：已记录妊娠阳性/可疑、哺乳、抗凝或抗血小板治疗、只写「患儿」而无年龄时，无论病历是否完整、是否答过追问，M04 一律只给非剂量页（此前「病历不完整且未答追问」的请求会先按有限信息给出带剂量方）。② 红旗筛查：「反复上腹痛1年，无呕血黑便」这类「反复/多次/大量…＋被否认的出血词」不再判为活动性消化道出血。③ 西医候选诊断（西医诊断下的 `candidates`）恢复为 2–3 条（首项即主诊断，其后为最需区分的备选）；V2.33 后多数病例只剩 1 条。④ 流派适配的 `applicable` 改由模型按本例判断（`applicable`/`partial`/`not-applicable`），不再对任何已选流派恒为 `applicable`；HIS `tcmLineageAdaptation.applicability` 随之如实显示「适用/部分适用/不适用」。⑤ HIS `aiMedicalRecord.vitals`：调用方传对象时由 JSON 串改为可读文字（`T 37.5℃；P 80次/分；BP 110/78mmHg`），未填时不出该栏。⑥ `caseState.diagnosis` / `prescription` / `riskAssessment` 单字段上限由 30000 提到 120000 字符：原样回传的 M04 正文（含结构化段约 3.5–4.5 万字符）此前会被裁掉，并使 his-scheme 报「候选方案生成被截断，不允许写回采纳」。⑦ `candidates[].notApplicable` 末尾的逐味提示改为可读文字（见字段表）。⑧ 送模型前的姓名脱敏不再误抹「患者全身发热」「经色暗有血块」「劳力性胸痛」等临床用语；「病人＋姓名」的三个姓氏漏脱敏已补。⑨ 六味地黄丸、补中益气汤、丹栀逍遥散、龙胆泻肝汤的目录主治改为教材原文，可按患者表现进入候选。 | **否。** 字段名、类型与路径均不变。按①，此前在「不完整病历＋未答追问」下能拿到剂量方的妊娠/哺乳/抗凝/年龄不明患儿请求，现在得到非剂量页（`CDSS_NON_DOSE_CANDIDATE_JSON`，带 `doseWithheldReasons`）；按⑤，若集成方曾对 `aiMedicalRecord.vitals` 做 `JSON.parse`，需改为按文字显示 |
 | V2.33 | 2026-10-12 | **生成提速：模型只写需要临床判断的内容，字段不变。** 实测耗时几乎全在模型逐字写出，因此把服务端本来就会覆盖、推出或不展示的内容从模型输出中拿掉，并给可见文字加了字数上限。**① M03：**分治法 `therapy.subTherapies` 由病机链逐节点生成（首节点为「主要」，其余「次要」）；`overview.overallTherapy` 与 `therapy.overallMethod` 一致；病机节点不再带 `pathogenesisType`，`pathogenesis.caseRelationship` 不再生成（本证与主要表现的关系见 `overallPathogenesis`）；病名鉴别与证候鉴别各 1–3 项、西医鉴别至多 8 项（先列必须排除的严重方向），各项文字更短；未选择流派时 `lineageAdaptation` 为 `null`。**② M04：**中成药/西药行的药名、规格、用法、`usageBoundary`、`relationship`、`riskNote` 由服务端按 `evidenceId` 从同一说明书条目填写；候选方 `applicable` / `notApplicable` 由服务端生成；逐味 `function` 为短语，方义解析约 120–150 字，注意事项至多 5 条（优先未核实的妊娠/哺乳状态、与现用药的重叠、需要立即就医的表现），饮食、起居、运动、情志各一两句。**③** M04 的随证加减现在能读到 M03 的西医支持事实。**④ 实测（本机 15 例，同一环境前后对照）：**模型写出量约减半，M03 中医部分模型耗时中位数 15.1 秒 → 6.9 秒，M04 13.9 秒 → 6.3 秒。 |
 | V2.32 | 2026-10-12 | **流派与经方目录核对。** **① 五张学派卡逐字段按原典与教材核对重写：**扶阳卡代表方改为郑钦安自制的潜阳丹、补坎益离丹及其常用的四逆汤、白通汤、附子理中汤、封髓丹（原先四首全是仲景/宋代方）；丹溪卡去掉知柏地黄丸、滋阴降火汤等非丹溪方与「二陈汤合越鞠丸」合方写法；温补卡补入李中梓及薛己、赵献可、孙一奎的常用方；经方卡补阳明、少阴代表方；温病卡把注意事项拆成可逐条核对的四条。卡片的审核信息如实写明「无执业医师签字」。**② 流派对候选方的排序：**新增「标志性运用」归属，一首方可同时属于多个流派（如四逆汤既属经方、也属扶阳）；此前扶阳学派可参与排序的方剂为 0 首，选了不起作用。仍只在同一证据层内调整展示顺序，不参与准入、方名锁定、剂量与审方。**③ 方剂目录：**72 首方的出处由转引它的后世书回归原书（白通汤《医方考》→《伤寒论》、通脉四逆汤《古今名医方论》→《伤寒论》、理阴煎《成方切用》→《景岳全书》、封髓丹→《御药院方》等），其中 6 首组成残缺按原文补足（桂枝二麻黄一汤原只记两味等）；补收《伤寒论》《金匮要略》此前缺失的内服方 50 首（桂枝加龙骨牡蛎汤、薯蓣丸、四逆加人参汤等；外用方、历史方与含十八反药对的赤丸不收）与郑钦安、孙一奎自制方 5 首。 | 无字段增删；HIS 与正文中上述方剂的「出处」取值变化；`lineageAdaptation` 结构不变。 |

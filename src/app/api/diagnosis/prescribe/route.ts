@@ -1,3 +1,5 @@
+import { restoreDiagnoseSupportingFacts } from "@/lib/delivered-surface";
+import { affirmedClinicalSourceClauses } from "@/lib/clinical-polarity";
 import { prefetchAssessFollowupFromDraftCandidate, prefetchAssessFollowupFromSignedPrescribe, tapFinalStageContent } from "@/lib/stage-prefetch.server";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
 import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
@@ -102,6 +104,17 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   // 急症收口（isEmergencyLimitedDiagnosis，构造器常量），不再对服务端自己写的占位文案
   // （「急危重|急症」「呼叫120|转急诊」）做正则反推（2026-09-25）。两者在黄金红旗矩阵上逐例同判；
   // 取「或」是因为签名记下的红旗只可追加、不可降级（语义事实未随请求带回时安全门会变成非红旗）。
+  // 交付的辨证结果不带症状依据（delivered-surface.ts）；开方阶段核对随证加减的触发症状时仍需要它。
+  // 签名已按回传内容核验完毕，这里才按病历现病史的肯定分句补回（仅本次请求内存，交付前再次清空）。
+  // 服务端的有限结论自带红旗发现，不补。
+  // 签名上下文仍用回传的那份（未补回事实）：补回只改内存里的工作副本，不能让 M04 的签名绑到一份调用方手里没有的 M03。
+  const deliveredSignedPriorReasoning = signedPriorReasoning;
+  if (!isLimitedM03NotPrescribable(signedPriorReasoning)) {
+    signedPriorReasoning = restoreDiagnoseSupportingFacts(signedPriorReasoning, affirmedClinicalSourceClauses(
+      [parsed.caseState.hisRecord?.fields?.xianbingshi, parsed.caseState.symptoms?.presentHistory]
+        .find((value): value is string => typeof value === "string" && Boolean(value.trim())),
+    ));
+  }
   if (isLimitedM03NotPrescribable(signedPriorReasoning)) {
     const signedEmergency = isEmergencyLimitedDiagnosis(signedPriorReasoning);
     const emergencyLimited = signedEmergency || deterministicGate.safetyGate?.status === "red_flag";
@@ -349,7 +362,7 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
       ...(noExecutableFormulaPath
         ? [`推荐方 ${unavailableFormulaNames.join("、")} 暂无可执行剂量基准，本次候选为辨证自拟组方，方名方向供参考。`] : []),
       ...(doseWithheldReasons.length > 0
-        ? [`本次候选药味与方义照常呈现，但按独立硬边界暂不显示具体用量：${doseWithheldReasons.join("；")}。`] : []),
+        ? [`本例暂不给出具体用量：${doseWithheldReasons.join("；")}。药味与方义照常列出，供参考。`] : []),
     ],
   );
   // 来源说明不是安全警示，单独成行，不放进「安全警示（未解除）」横幅。
@@ -392,7 +405,7 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     onInitialM04Candidate: (candidate) => {
       void prefetchAssessFollowupFromDraftCandidate(parsed.caseState, candidate);
     },
-    prescribeSignatureContext: buildPrescribeContractSignatureContext(trustedGated),
+    prescribeSignatureContext: buildPrescribeContractSignatureContext({ ...gated, reasoningDiagnose: deliveredSignedPriorReasoning }),
     // 医生点「重新生成候选方药」时前端原样重发同一份 caseState 与同一份已签名 M03，
     // 服务端据此认出这是同一次尝试的第 N 轮（见 m04-retry-policy 的生产实证：不认它时，
     // 第二次返回与第一次逐字节相同的失败页，恢复动作形同虚设）。

@@ -15,6 +15,7 @@ import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03SharedPatientContext } from "@/lib/m03-context-packets";
 import { cdssReasonCodeMarker } from "@/lib/cdss-reason-codes";
 import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothesis-rerank.server";
+import { pickTextbookDiseasesForCase } from "@/lib/textbook-disease-pick.server";
 
 type ParsedStageRequest = Extract<Awaited<ReturnType<typeof readCustomerBoundCaseStateRequest>>, { ok: true }>;
 
@@ -124,9 +125,11 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
     .then((value) => { preModelMark("evidence"); return value; })
     .catch(() => "");
   // 两个增补层互不依赖，并发跑；任一不可用都静默退回确定性行为。
-  const [formulaRecallHint, assistedNegations] = await Promise.all([
+  // 教材病名闭集选择与它们并发（约 1s，M02 已预取时命中缓存）；不可用时返回空数组，候选退回主诉词表。
+  const [formulaRecallHint, assistedNegations, textbookDiseasePicks] = await Promise.all([
     normalizeCaseTextForFormulaRecall(safeState, signal),
     assistedPolarityDecisions(safeState, signal),
+    pickTextbookDiseasesForCase(safeState, signal),
   ]);
   // L1b 只在 L1a 的受控证候 ID 闭集内做最多 +20% 的召回重排；失败、超时或非法输出均返回空集，
   // 下游严格保持 L1a 原顺序。它不写病历、不做诊断、不绕过方名身份锁。
@@ -143,7 +146,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   }
   const originalDiagnoseBasePrompt = buildDiagnosePrompt(
     safeState,
-    { formulaRecallHint, assistedNegations, syndromeHypothesisRerank, similarCasesContext: similarCases.context },
+    { formulaRecallHint, assistedNegations, syndromeHypothesisRerank, similarCasesContext: similarCases.context, textbookDiseasePicks },
   );
   // Only add facts absent from the legacy template; its coherent TCM chain stays intact.
   const diagnoseBasePrompt = originalDiagnoseBasePrompt + buildM03AdditionalPatientContext(safeState, originalDiagnoseBasePrompt);

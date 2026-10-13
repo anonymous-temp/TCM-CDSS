@@ -26,6 +26,7 @@ import { recordModelTaskTelemetry } from "./cdss-model-task-telemetry";
 import { applyServerOwnedM03Fields } from "./m03-server-owned-fields";
 import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, stripUntrustedM04IdentityMetadata, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
 import { clinicalReviewNotPerformedAttestation } from "@/lib/clinical-review-binding";
+import { applyDeliveredSurfaceToContent } from "./delivered-surface";
 import { applyDiagnoseContractSignature, applyPrescribeContractSignature, clinicalReviewPayloadHash, type DiagnoseContractSignatureContext, type PrescribeContractSignatureContext } from "@/lib/reasoning-contract-signature";
 import { compileM04JsonObjectContent, m04ProposalIssueCode, m04ProposalRegimenShape, type EvidenceBoundMedicineProposal } from "@/lib/m04-proposal-compiler";
 import { instructionRecordPoolFromText, type InstructionRecordPool } from "@/lib/instruction-record-pool";
@@ -5239,10 +5240,45 @@ async function callPrimaryTextModelStream(
               }
             }
           }
+          // 交付面投影（2026-10-13）：全部校验做完、签名之前，把调用方不要的整块清空、把服务端句式换成临床写法
+          //（delivered-surface.ts 是唯一口径）。可见正文随之重渲染，常量 attestation 重新绑定到最终载荷。
+          let emissionM04Attestation = m04AttestationWithScope;
+          if (!truncated && transformed.ok && (opts.structuredStage === "diagnose" || opts.structuredStage === "prescribe")) {
+            const surfaced = applyDeliveredSurfaceToContent(emissionContent);
+            if (surfaced !== emissionContent) {
+              // 辨证结果随载荷重渲染可见正文（与上面的特异性投影同一做法），正文之前的服务端前置区（安全警示横幅、
+              // 质量批注）原样带回。开方结果只换结构化载荷：它的可见正文里有渲染之后才并入的内容（儿童用药说明等），
+              // 重渲染会把它们丢掉；调用方与页面读的都是结构化载荷。
+              let synchronized = surfaced;
+              if (opts.structuredStage === "diagnose") {
+                const resynchronized = synchronizeVisibleClinicalSummary(
+                  surfaced,
+                  opts.structuredStage,
+                  opts.structuredClinicalContext || "",
+                  opts.structuredCaseState,
+                );
+                const firstHeading = emissionContent.search(/^##\s/m);
+                const leadRegion = firstHeading > 0 ? emissionContent.slice(0, firstHeading) : "";
+                synchronized = leadRegion.trim() && !resynchronized.includes(leadRegion.trim())
+                  ? `${leadRegion}${resynchronized}`
+                  : resynchronized;
+              }
+              const surfacedReasoning = structuredReasoningFromContent(synchronized);
+              const current = opts.structuredStage === "diagnose" ? emissionM03Attestation : emissionM04Attestation;
+              const rebound = surfacedReasoning && current ? rebindClinicalReviewAttestation(current, surfacedReasoning) : current;
+              // 投影后解析不回来或哈希绑不上时放弃投影，交付投影前的那份（内容更多，但结构与签名完整）。
+              if (surfacedReasoning && (!current || rebound)) {
+                emissionContent = synchronized;
+                if (opts.structuredStage === "diagnose") emissionM03Attestation = rebound;
+                else emissionM04Attestation = rebound;
+                if (current) clinicalReviewRebindCount += 1;
+              }
+            }
+          }
           let signedContent = opts.structuredStage === "diagnose"
             ? attachClinicalReviewAttestation(emissionContent, emissionM03Attestation)
             : opts.structuredStage === "prescribe"
-              ? attachClinicalReviewAttestation(identityRestored, m04AttestationWithScope)
+              ? attachClinicalReviewAttestation(emissionContent, emissionM04Attestation)
               : identityRestored;
           if (!truncated && transformed.ok && opts.structuredStage === "diagnose") {
             const signatureContext = opts.diagnoseSignatureContext;

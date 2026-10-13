@@ -1,3 +1,6 @@
+import { redFlagExplicitOnly } from "./clinical-facts";
+import { textbookDiscriminatingQuestion } from "./tcm-textbook-syndromes";
+import { FOLLOWUP_SKIP_SENTENCE, POSSIBLE_RISK_QUESTIONS } from "./followup-conversation";
 import { affirmedClinicalText } from "./clinical-polarity";
 import type { Completeness } from "./diagnosis-types";
 
@@ -309,27 +312,16 @@ export function parseM02PlanFromContent(content: string): M02Plan | null {
 
 // These phrases are used only after the semantic red-flag model has emitted a
 // grounded category. They are a safety fallback, not a symptom classifier.
-const POSSIBLE_RISK_QUESTIONS: Record<string, Omit<PossibleRiskQuestion, "category">> = {
-  cardiac: { question: "目前是否正在出现胸痛、胸口压迫感，并伴冷汗、气促、恶心或向肩臂放射？", positive: "存在上述任一情况，请补充具体表现", negative: "经询问目前未见上述胸部不适和伴随表现" },
-  syncope: { question: "本次是否确实发生过完全失去意识、跌倒，或呼叫后短时间不能回应？", positive: "确实发生过上述任一情况，请补充具体表现", negative: "经询问未发生意识丧失或跌倒" },
-  neuro: { question: "目前是否出现突然说话不清、口角歪斜、单侧肢体无力、意识改变或突发剧烈头痛？", positive: "存在上述任一情况，请补充具体表现", negative: "经询问未见上述急性神经功能异常" },
-  gi_bleed: { question: "本次是否确实出现柏油样黑便、鲜血便或呕血？", positive: "存在上述任一情况，请补充具体表现", negative: "经询问未见黑便、鲜血便或呕血" },
-  bleeding: { question: "目前是否仍有咯血、阴道大量流血、外伤出血或其他出血不止？", positive: "存在上述任一情况，请补充具体表现", negative: "经询问未见正在发生或难以止住的出血" },
-  acute_abdomen: { question: "腹痛是否突然加重或剧烈，并伴反跳痛、腹部僵硬、持续呕吐或停止排气排便？", positive: "存在上述任一情况，请补充具体表现", negative: "经询问未见急剧加重、剧痛或腹膜刺激征" },
-  respiratory: { question: "目前是否静息也喘、不能平卧、说话受限、口唇发紫或呼吸迅速加重？", positive: "存在上述任一情况，请补充具体表现", negative: "经询问未见上述呼吸困难或缺氧表现" },
-  sepsis: { question: "目前是否高热或低体温伴寒战、意识变差、呼吸急促或血压下降？", positive: "存在上述任一情况，请补充具体表现", negative: "经询问未见体温异常伴全身状态恶化" },
-  mental_crisis: { question: "患者目前是否有明确自伤、轻生或伤害他人的想法、计划或已实施行为？", positive: "存在上述任一情况，请补充具体表现", negative: "经直接询问未见上述想法、计划或行为" },
-  shock: { question: "目前是否出现四肢湿冷、意识变差、站立不稳、尿量显著减少或血压明显下降？", positive: "存在上述任一情况，请补充具体表现", negative: "经询问未见上述循环灌注不足表现" },
-  anaphylaxis: { question: "接触可疑食物或药物后，是否出现喉头或舌唇肿胀、声音嘶哑、喘憋、全身风团或头晕？", positive: "存在上述任一情况，请补充具体表现", negative: "经询问未见气道、呼吸或循环受累表现" },
-  obstetric: { question: "妊娠期或可能妊娠时，是否出现一侧剧烈腹痛、大量阴道流血、晕厥、抽搐或胎动异常？", positive: "存在上述任一情况，请补充具体表现", negative: "经询问未见上述妊娠相关急症表现" },
-  pediatric_critical: { question: "患儿是否出现精神反应明显变差、抽搐、发绀、呼吸费力、拒绝饮水或尿量显著减少？", positive: "存在上述任一情况，请补充具体表现", negative: "经询问未见上述儿童全身危重表现" },
-  poisoning: { question: "请核实可能接触或摄入的物质、时间和大致剂量；目前是否有意识、呼吸、抽搐或持续呕吐异常？", positive: "存在可疑暴露或上述任一异常，请补充具体表现", negative: "经核实无可疑暴露，且未见意识、呼吸或抽搐异常" },
-  metabolic: { question: "目前是否有血糖明显异常，并伴意识改变、抽搐、深大呼吸或持续呕吐？", positive: "存在上述任一情况，请补充具体表现", negative: "经测量未见严重血糖异常或相应全身表现" },
-  other_critical: { question: "请复核该异常是否正在发生，并补充起病时间、严重程度、生命体征和意识呼吸状态。", positive: "异常仍在发生，请补充具体表现", negative: "经复核异常未在发生，且无生命体征、意识或呼吸改变" },
-};
 
 /** possibleRiskQuestion 读取的那部分事实层红旗（唯一口径，m02ClinicalFactsFootprint 同源复用）。 */
 function groundedRiskFactCandidates(state?: QuestionFallbackCase) {
+  // 只认明确现症时（clinical-facts.redFlagExplicitOnly，默认）：急症筛查题只为事实层判为 urgent 的线索而出。
+  // 此前 status=possible 或 urgency=clarify 就出题——生产留存里 3 例普通感冒（头痛、头晕）第一题都是
+  //「是否出现突然说话不清、口角歪斜、单侧肢体无力…」，医生直接跳过。
+  if (redFlagExplicitOnly()) {
+    return (state?.clinicalFacts?.redFlags || [])
+      .filter((item) => typeof item.category === "string" && item.urgency === "urgent");
+  }
   return (state?.clinicalFacts?.redFlags || [])
     .filter((item) => typeof item.category === "string" && (item.status === "possible" || item.urgency === "clarify" || item.urgency === "urgent"));
 }
@@ -373,6 +365,43 @@ function questionBlock(index: number, question: string, reason: string, field: s
     `B. ${options[1]}`,
     `C. ${options[2]}`,
   ].join("\n");
+}
+
+/**
+ * 没有可问的教材辨证题时，问一条病历里还没写到的基本问诊项（寒热 / 口渴 / 大便 / 汗）。
+ *
+ * 2026-10-13：模型判断「不需要再问」而调用方的流程仍要一道题时，以前给的是「总体在加重、缓解还是反复波动」
+ *（合成集 190 例里 12 例），对辨证没有用。这四项是区分寒热虚实的基本依据；每项只在病历完全没有提到时才问，
+ * 四项都写了就返回 undefined，由后面的兜底接手。记录判据是闭集词形，只用来决定「问不问」，不参与任何安全判断。
+ */
+const BASIC_INQUIRY_AXES: ReadonlyArray<{ recorded: RegExp; question: string; options: [string, string] }> = [
+  {
+    recorded: /怕冷|畏寒|恶寒|畏冷|形寒|怕热|恶热|发热|身热|烘热|潮热|烦热|手足心热|肢冷|不温|(?:手|脚|足)[^，,。；;]{0,3}(?:冰|凉)|喜暖|喜温|得温|得热|遇寒|遇冷|受凉|喜凉|喜冷|恶风|怕风|寒热/,
+    question: "平时或这次发病以来，是怕冷还是怕热？",
+    options: ["怕冷，喜暖，手脚偏凉", "怕热，喜凉，或手足心发热"],
+  },
+  {
+    recorded: /口渴|口干|咽干|不渴|喜饮|欲饮|饮水|饮冷|饮热|热饮|冷饮|口淡|口苦|口黏|口腻/,
+    question: "口渴吗？想喝凉的还是热的？",
+    options: ["口干口渴，想喝凉的", "口不渴，或只想喝少量热水"],
+  },
+  {
+    recorded: /大便|便秘|便溏|便干|便稀|腹泻|泄泻|下利|二便/,
+    question: "平时大便情况怎样？",
+    options: ["大便干结，排便费力", "大便稀溏或黏滞不爽"],
+  },
+  {
+    recorded: /汗/,
+    question: "平时出汗情况怎样？",
+    options: ["白天稍一活动就出汗", "夜间睡着后出汗，醒来汗止"],
+  },
+];
+
+export function basicInquiryFallback(recordText: string): string | undefined {
+  const axis = BASIC_INQUIRY_AXES.find((item) => !item.recorded.test(recordText));
+  return axis
+    ? questionBlock(1, axis.question, "这一项有助于区分寒热虚实，目前病历里没有写到。", "现病史", [...axis.options, "本次未取得该信息"])
+    : undefined;
 }
 
 function genericModelFailureFallback(state: QuestionFallbackCase): string {
@@ -526,9 +555,43 @@ function complaintFamilyFallback(currentComplaint: string): string | undefined {
 }
 
 /** Used only when the provider fails or omits a grounded semantic safety concern. */
-export function buildCaseAwareQuestionFallback(state: QuestionFallbackCase): string {
+export function buildCaseAwareQuestionFallback(
+  state: QuestionFallbackCase,
+  /**
+   * settled：模型已经判断「不需要再问」、只是调用方的流程仍要一道题时用。此时先问病历没写到的基本问诊项，
+   * 而不是主诉类别预置的危险征象筛查题——后者是模型输出不可用时的安全兜底，普通病例上医生直接跳过
+   *（2026-10-13 独立评审：心悸、咳嗽病例的追问是「是否出现静息也喘、口唇发紫、咯血…」）。
+   */
+  options: { textbookQuestion?: boolean; settled?: boolean } = {},
+): string {
   const risk = possibleRiskQuestion(state);
   if (!risk) {
+    // 服务端自有的题优先是一道辨证题（2026-10-13）：教材里与本例最相近的两个证型，问能把它们分开的那条事实。
+    // 此前这里是按主诉类别预置的西医鉴别方向题或「总体在加重还是缓解」，医生多半直接跳过。
+    const discriminating = options.textbookQuestion === false ? undefined : textbookDiscriminatingQuestion({
+      chiefComplaint: state.chiefComplaint || state.hisRecord?.fields?.zhushu,
+      presentHistory: [state.hisRecord?.fields?.xianbingshi, state.symptoms?.presentHistory]
+        .find((value): value is string => typeof value === "string" && Boolean(value.trim())),
+      tongue: state.hisRecord?.fields?.tcmTongue || state.tongue,
+      pulse: state.hisRecord?.fields?.tcmPulse || state.pulse,
+      ageYears: Number.isFinite(Number(state.patient?.age)) && state.patient?.age !== "" && state.patient?.age != null ? Number(state.patient.age) : undefined,
+    });
+    // 只用「舌脉缺失时问舌脉」这一种教材题。另一种（「除病历已记录的表现外，还伴有哪一组」）靠字面重合判断
+    // 「病历有没有写过」，病历用口语写（头晕眼花、记性变差）而教材用术语（头晕目眩、健忘）时判不出来，
+    // 选项就成了病历已写明的症状——独立评审 29 例里 7 例如此（2026-10-13）。
+    if (discriminating && discriminating.field === "舌象") {
+      return questionBlock(1, discriminating.question, discriminating.reason, discriminating.field,
+        [discriminating.optionA, discriminating.optionB, "本次未取得该信息"]);
+    }
+    const recordText = [
+      state.chiefComplaint,
+      ...Object.values(state.hisRecord?.fields || {}),
+      ...Object.values(state.symptoms || {}),
+    ].filter((value): value is string => typeof value === "string").join("；");
+    if (options.settled && options.textbookQuestion !== false) {
+      const basic = basicInquiryFallback(recordText);
+      if (basic) return basic;
+    }
     const currentComplaint = [
       state.chiefComplaint,
       state.hisRecord?.fields?.zhushu,
@@ -562,6 +625,11 @@ export function buildCaseAwareQuestionFallback(state: QuestionFallbackCase): str
     }
     const familyFallback = complaintFamilyFallback(currentComplaint);
     if (familyFallback) return familyFallback;
+    // 主诉类别没有预置题时，先问病历里没写到的基本问诊项；四项都写了才退到病情变化题。
+    if (options.textbookQuestion !== false) {
+      const basic = basicInquiryFallback(recordText);
+      if (basic) return basic;
+    }
     return genericModelFailureFallback(state);
   }
   return questionBlock(
@@ -569,7 +637,7 @@ export function buildCaseAwareQuestionFallback(state: QuestionFallbackCase): str
     risk.question,
     "该已识别线索可能改变即时处置路径，需要先由医生核实其是否发生及发生时的具体情况。",
     "现病史",
-    [risk.positive, risk.negative, "本次未能确认，请继续现场评估"],
+    [risk.positive, risk.negative, FOLLOWUP_SKIP_SENTENCE],
   );
 }
 
@@ -709,6 +777,17 @@ export function renderStructuredM02Plan(plan: M02Plan): string {
  * concrete answers is already present verbatim in the trusted clinical source. It then renders the
  * same structured plan back to visible text so the card and the signed payload cannot diverge.
  */
+/**
+ * 没有值得问的题时，是否如实返回 decision=proceed（接口文档 §4.3 一直有这个取值）。
+ *
+ * 默认关闭：生产留存里调用方收到的 26 次追问结果全部是 ask，它们处理 proceed 的那条路从未走过，
+ * 贸然返回空题目可能让对方面板停在一个空的追问页。关闭时仍然一轮只问一题，且该题由服务端保证存在。
+ * 调用方确认能处理后，`CDSS_M02_PROCEED_WHEN_SETTLED=true` 打开，无需重新构建。
+ */
+export function m02ProceedWhenSettled(): boolean {
+  return process.env.CDSS_M02_PROCEED_WHEN_SETTLED === "true";
+}
+
 export function enforceM02UnansweredAxes(
   content: string,
   sourceText: string,
@@ -742,8 +821,22 @@ export function enforceM02UnansweredAxes(
     const riskQuestion = { ...fallback.plan.questions[0], id: "q1" };
     questions = [riskQuestion, ...questions.filter((question) => !questionCoversGroundedRisk(question, groundedRisk))];
   }
-  if (questions.length === 0 && source.plan.decision === "ask" && fallback && source !== fallback) {
-    questions = fallback.plan.questions.filter((question) => !questionAlreadyAnswered(question, sourceText));
+  // 一轮只问一题（2026-10-13，甲方 10.12 测评「追问是必选项吗」；生产 26 轮追问被跳过 21 轮）：急症澄清题之外
+  // 只留一题，优先留能区分证型的那一题，西医鉴别方向的题排在最后。
+  const BRANCH_RANK: Record<string, number> = { syndrome: 0, treatment_safety: 1, triage: 2, differential: 3 };
+  const riskLead = groundedRisk && fallback?.plan.questions[0] ? questions.slice(0, 1) : [];
+  // 模型出的题按分支排序取一题；服务端自有的题（主诉类别兜底）保持它自己的先后——第一题是该类主诉的安全轴。
+  const others = source === fallback || !fallbackContent
+    ? questions.slice(riskLead.length)
+    : questions.slice(riskLead.length)
+      .map((question, index) => ({ question, index }))
+      .sort((left, right) =>
+        (BRANCH_RANK[left.question.decisionBranch] ?? 9) - (BRANCH_RANK[right.question.decisionBranch] ?? 9) || left.index - right.index)
+      .map((entry) => entry.question);
+  questions = [...riskLead, ...others.slice(0, 1)];
+  // 没有合格的题：允许如实返回「无需追问」时就返回 proceed；否则给一条服务端自有的题，保持调用方现有的一问一答流程。
+  if (questions.length === 0 && fallback && source !== fallback && !m02ProceedWhenSettled()) {
+    questions = fallback.plan.questions.filter((question) => !questionAlreadyAnswered(question, sourceText)).slice(0, 1);
   }
   const normalizedQuestions = questions.slice(0, 2).map((question, index) => ({ ...question, id: `q${index + 1}` }));
   const plan: M02Plan = normalizedQuestions.length > 0

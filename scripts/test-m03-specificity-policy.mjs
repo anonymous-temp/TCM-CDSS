@@ -321,4 +321,21 @@ const prescribePayload = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stag
 assert.equal(annotateM03DecisionSpecificityBoundary(prescribePayload, { reason: "r", mustCollect: "m", activeRedFlag: false }),
   prescribePayload, "非 diagnose 载荷不得被标注");
 
+// 急症未排除时本次不给带剂量处方：模型写的「服完本次的药后请来复诊」拿掉，其余就医指引保留在急诊提示后面
+//（2026-10-13 独立评审：产后大出血一例，急诊指引之后还跟着「服完本次的药后请来复诊」）。
+{
+  const payload = (followupSafetyNet) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", overview: { primarySyndrome: "气不摄血证", primarySyndromeResolution: "resolved" }, management: { followupSafetyNet } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const net = (content) => JSON.parse(content.match(/DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END/)[1]).management.followupSafetyNet;
+  const redFlag = net(annotateM03DecisionSpecificityBoundary(
+    payload("请立即前往急诊处理本次大量出血。服完本次的药后请来复诊；若再次出现阴道大量出血、头晕心慌，须立即急诊。"),
+    { reason: "r", mustCollect: "m", activeRedFlag: true }));
+  assert.match(redFlag, /^当前应优先完成急危重风险评估/);
+  assert.doesNotMatch(redFlag, /服完本次的药后请来复诊/);
+  assert.match(redFlag, /请立即前往急诊处理本次大量出血/, "模型写的急诊指引保留");
+  assert.match(redFlag, /若再次出现阴道大量出血/, "提前就医的征象保留");
+  // 对照：没有红旗时一字不动。
+  const ordinary = "服完7剂药后请来复诊；若咳嗽加重或出现发热，须提前就诊。";
+  assert.equal(net(annotateM03DecisionSpecificityBoundary(payload(ordinary), { reason: "r", mustCollect: "m", activeRedFlag: false })), ordinary);
+}
+
 console.log(JSON.stringify({ suite: "m03-specificity-policy", failures: 0 }));

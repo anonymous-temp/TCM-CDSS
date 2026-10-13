@@ -8,6 +8,7 @@ const jiti = createJiti(import.meta.url, {
   },
 });
 const {
+  basicInquiryFallback,
   buildCaseAwareQuestionFallback,
   enforceM02UnansweredAxes,
   ensureQuestionStructuredEnvelope,
@@ -58,12 +59,47 @@ assert.equal((deduplicated.match(/\*\*问题\d+[：:]/g) || []).length, 2);
 assert.equal((deduplicated.match(/最影响日常活动/g) || []).length, 1, "duplicate questions occupy only one slot");
 
 const malformed = ensureSingleRoundQuestionContract("模型未输出可解析问题", buildCaseAwareQuestionFallback(novelCase), novelCase);
-assert.match(malformed, /目前总体在加重、缓解还是反复波动/);
+// 2026-10-13：没有教材辨证题、主诉类别也没有预置题时，服务端自有的题先问病历里没写到的基本问诊项（寒热→口渴→大便→汗），
+// 四项都写了才退到「总体在加重、缓解还是反复波动」。此前一律是后者（合成集 190 例里 12 例），对辨证没有用。
+assert.match(malformed, /怕冷还是怕热/, "病历未写寒热时，兜底题问寒热");
 assert.equal((malformed.match(/\*\*问题\d+[：:]/g) || []).length, 1);
+{
+  assert.match(basicInquiryFallback("胃脘隐痛半年") || "", /怕冷还是怕热/);
+  assert.match(basicInquiryFallback("平时怕冷，手脚凉。") || "", /口渴吗/, "寒热已写 → 问口渴");
+  assert.match(basicInquiryFallback("平时怕冷，口不渴。") || "", /大便情况/, "寒热、口渴已写 → 问大便");
+  assert.match(basicInquiryFallback("平时怕冷，口不渴，大便稀溏。") || "", /出汗情况/, "前三项已写 → 问汗");
+  assert.equal(basicInquiryFallback("平时怕冷，口不渴，大便稀溏，容易出汗。"), undefined, "四项都写了就不再出基本问诊题");
+  // 病历写在任何字段里都算已记录（甲方把病历放在 symptoms 的各个键下）。
+  assert.doesNotMatch(
+    buildCaseAwareQuestionFallback({ chiefComplaint: novelCase.chiefComplaint, symptoms: { personalHistory: "平素怕热，喜冷饮" } }),
+    /怕冷还是怕热|口渴吗/,
+  );
+  // settled：模型判断「不需要再问」时，先问基本问诊项；模型输出不可用时（缺省）仍是主诉类别的安全兜底题。
+  // 独立评审实测：心悸、咳嗽病例在模型无题可问时拿到的是「是否出现静息也喘、口唇发紫、咯血…」。
+  const coughCase = { chiefComplaint: "咳嗽3天", symptoms: { presentHistory: "咳嗽，咳白痰，舌淡红苔薄白，脉浮。" }, tongue: "舌淡红苔薄白", pulse: "脉浮" };
+  assert.match(buildCaseAwareQuestionFallback(coughCase, { settled: true }), /怕冷还是怕热/);
+  assert.doesNotMatch(buildCaseAwareQuestionFallback(coughCase, { settled: true }), /口唇发紫|咯血/);
+  assert.match(buildCaseAwareQuestionFallback(coughCase), /口唇发紫|咯血|静息/, "模型输出不可用时的兜底不变");
+  // 有接地的急症线索时，两种情形第一题都是急症澄清题。
+  const urgentCase = { ...coughCase, clinicalFacts: { redFlags: [{ category: "poisoning", status: "possible", urgency: "urgent", quote: "怀疑被下药" }] } };
+  assert.match(buildCaseAwareQuestionFallback(urgentCase, { settled: true }), /接触或摄入的物质、时间和大致剂量/);
+  // 旧口径开关：不要教材题时也不出基本问诊题（既有调用方的行为不变）。
+  assert.match(buildCaseAwareQuestionFallback({ chiefComplaint: novelCase.chiefComplaint }, { textbookQuestion: false }), /目前总体在加重、缓解还是反复波动/);
+}
 
-const possiblePoisoning = {
+// 2026-10-13「只认明确现症」：急症筛查题只为事实层判为 urgent 的线索而出；possible / clarify 不再出题
+//（生产留存里 3 例普通感冒第一题都是卒中筛查题）。CDSS_REDFLAG_EXPLICIT_ONLY=false 回到旧口径。
+const clarifyOnlyPoisoning = {
   chiefComplaint: "喝了别人递来的饮料后整个人不对劲，怀疑被下药",
   clinicalFacts: { redFlags: [{ category: "poisoning", status: "possible", urgency: "clarify", quote: "怀疑被下药" }] },
+};
+assert.doesNotMatch(buildCaseAwareQuestionFallback(clarifyOnlyPoisoning), /接触或摄入的物质、时间和大致剂量/, "possible+clarify 不再出急症筛查题");
+process.env.CDSS_REDFLAG_EXPLICIT_ONLY = "false";
+assert.match(buildCaseAwareQuestionFallback(clarifyOnlyPoisoning), /接触或摄入的物质、时间和大致剂量/, "旧口径下 possible+clarify 仍出题");
+delete process.env.CDSS_REDFLAG_EXPLICIT_ONLY;
+const possiblePoisoning = {
+  chiefComplaint: "喝了别人递来的饮料后整个人不对劲，怀疑被下药",
+  clinicalFacts: { redFlags: [{ category: "poisoning", status: "possible", urgency: "urgent", quote: "怀疑被下药" }] },
 };
 const poisoningFallback = buildCaseAwareQuestionFallback(possiblePoisoning);
 assert.match(poisoningFallback, /接触或摄入的物质、时间和大致剂量/);
@@ -88,7 +124,7 @@ assert.match(compoundPositive, /A\. .*请补充具体表现/, "grouped positives
 
 const lowValueOnly = ensureSingleRoundQuestionContract(block(1, "请问患者喜欢什么颜色？"), buildCaseAwareQuestionFallback(novelCase), novelCase);
 assert.doesNotMatch(lowValueOnly, /喜欢什么颜色/);
-assert.match(lowValueOnly, /加重、缓解还是反复波动/);
+assert.match(lowValueOnly, /怕冷还是怕热/, "低价值题被换成服务端自有的基本问诊题");
 
 const envelope = ensureQuestionStructuredEnvelope(oneHighValue);
 assert.match(envelope, /DIAGNOSIS_JSON_START -->\n\{"m02Plan":[\s\S]*DIAGNOSIS_JSON_END/);
@@ -296,7 +332,8 @@ for (const source of [
   "症状一直时好时坏。",
 ]) {
   const fallbackOnly = enforceM02UnansweredAxes(
-    ensureQuestionStructuredEnvelope(buildCaseAwareQuestionFallback({ chiefComplaint: "本次主要不适" }), source),
+    // textbookQuestion:false 取到的是病情变化题本身（缺省时先出基本问诊题，见上）。
+    ensureQuestionStructuredEnvelope(buildCaseAwareQuestionFallback({ chiefComplaint: "本次主要不适" }, { textbookQuestion: false }), source),
     source,
   );
   assert.equal(parseM02PlanFromContent(fallbackOnly)?.decision, "proceed", `known trajectory must not re-enter through the generic fallback: ${source}`);
@@ -400,11 +437,20 @@ assert.equal(parseM02PlanFromContent(dryCoughReviewed)?.decision, "proceed", "a 
 const dryCoughReviewedWithFallback = reviewM02QuestionPlan(
   dryCoughContent,
   "感冒好了还一直干咳，嗓子痒",
-  buildCaseAwareQuestionFallback({ chiefComplaint: "感冒好了还一直干咳，嗓子痒" }),
+  // 2026-10-13：服务端自有的题优先是教材辨证题；这里钉的是主诉类别兜底（教材对不上时才用），显式关掉教材题。
+  buildCaseAwareQuestionFallback({ chiefComplaint: "感冒好了还一直干咳，嗓子痒" }, { textbookQuestion: false }),
 );
 assert.equal(parseM02PlanFromContent(dryCoughReviewedWithFallback)?.decision, "ask", "route-level deterministic rejection retains one bounded M02 opportunity");
+{
+  // 缺省：教材里与本例最相近的两个证型，问能把它们分开的那条事实（舌脉缺失时问舌脉）；理由不点证名。
+  const textbookFallback = buildCaseAwareQuestionFallback({ chiefComplaint: "咳嗽3天，咳痰色白" });
+  assert.match(textbookFallback, /舌象、脉象更接近下面哪一种/, "舌脉缺失时服务端自有的题问舌脉");
+  assert.doesNotMatch(textbookFallback, /证(?:与|，|。)/, "追问理由不预设证名");
+  assert.match(textbookFallback, /C\. 本次未取得该信息/);
+}
 assert.match(dryCoughReviewedWithFallback, /静息也喘|咯血|持续高热/, "a rejected respiratory question falls back to the server-owned respiratory safety axis");
-assert.match(dryCoughReviewedWithFallback, /夜间、运动、过敏暴露|某种药物/, "the same respiratory fallback retains a discriminating trigger axis");
+// 2026-10-13：一轮只问一题——主诉类别兜底只留它的第一题（该类主诉的安全轴）。
+assert.equal(parseM02PlanFromContent(dryCoughReviewedWithFallback)?.questions.length, 1, "a server-owned fallback delivers exactly one question");
 assert.doesNotMatch(dryCoughReviewedWithFallback, /加重、缓解还是反复波动/, "complaint-aware continuity no longer collapses to one generic trajectory question");
 assert.doesNotMatch(dryCoughReviewedWithFallback, /有没有痰|痰是什么颜色/, "the rejected known-answer axis cannot reappear in the continuity fallback");
 
@@ -516,11 +562,11 @@ const headachePriorityGuarded = enforceM02UnansweredAxes(
 );
 assert.deepEqual(
   parseM02PlanFromContent(headachePriorityGuarded)?.questions.map((question) => question.question),
+  // 2026-10-13：一轮只问一题——服务端自有的题只留第一题（该类主诉的安全轴）。
   [
     "目前或本次头痛发作时，是否出现突发最剧烈头痛、发热伴颈强、说话不清或单侧肢体无力？",
-    "头痛发作时是否伴有恶心、呕吐、畏光或畏声？",
   ],
-  "a headache-quality question already answered by the chief complaint yields to red-flag and associated-symptom axes",
+  "a headache-quality question already answered by the chief complaint yields to the server-owned red-flag axis",
 );
 
 const episodicTemporalPlan = structuredClone(typedPlan);
@@ -594,7 +640,8 @@ const diarrheaFallbackVariants = [
   "饭后大便稀，反复十天",
 ];
 for (const chiefComplaint of diarrheaFallbackVariants) {
-  const visibleFallback = buildCaseAwareQuestionFallback({ chiefComplaint });
+  // 钉的是主诉类别兜底本身的内容（教材对不上时才用），显式关掉教材辨证题；下发时一轮只留其中一题。
+  const visibleFallback = buildCaseAwareQuestionFallback({ chiefComplaint }, { textbookQuestion: false });
   const structuredFallback = ensureQuestionStructuredEnvelope(visibleFallback, chiefComplaint);
   const plan = parseM02PlanFromContent(structuredFallback);
   assert.equal(plan?.decision, "ask");

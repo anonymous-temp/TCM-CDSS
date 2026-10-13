@@ -11,11 +11,12 @@ function foodExampleAfterMarker(value: string): string {
       markerLength = length;
     }
   };
-  keepFirst(value.indexOf("可适当食用"), 5);
-  keepFirst(value.indexOf("可适量食用"), 5);
-  keepFirst(value.indexOf("可用"), 2);
-  keepFirst(value.indexOf("例如"), 2);
-  keepFirst(value.indexOf("比如"), 2);
+  // 引出食物示例的说法是有限闭集。2026-10-13 补齐常见写法：此前只认「可用/例如/比如」等五种，
+  // 模型写「可选小米粥、山药粥等易消化餐食」不算有示例，于是每例都被追加一句通用的「三餐定时…」，
+  // 同一栏里出现两遍（甲方 10.12 测评）。
+  for (const marker of ["可适当食用", "可适量食用", "可用", "例如", "比如", "可选用", "可选", "宜选用", "宜选", "宜食用", "宜食", "宜吃", "可食用", "可食", "可吃", "可多食", "多食", "多吃", "推荐", "建议食用", "适合食用"]) {
+    keepFirst(value.indexOf(marker), marker.length);
+  }
   if (markerAt < 0) return "";
   return value.slice(markerAt + markerLength).split(/[，,。；;]/, 1)[0] || "";
 }
@@ -29,7 +30,7 @@ function hasConcreteDietAction(value: string): boolean {
   const hasQuantityOrTiming = /\d+\s*[\p{Script=Han}]{1,3}/u.test(value) ||
     value.includes("少量多餐") || value.includes("少食多餐");
   const hasDirective = value.includes("不") || value.includes("避免") ||
-    value.includes("限制") || value.includes("减少");
+    value.includes("限制") || value.includes("减少") || value.includes("忌") || value.includes("少食") || value.includes("少吃");
   return value.length >= 16 && hasDirective && (hasQuantityOrTiming || hasConcreteFoodExample(value));
 }
 

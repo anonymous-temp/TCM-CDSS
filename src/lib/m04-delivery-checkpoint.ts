@@ -5,6 +5,7 @@ import { enrichReasoning, formulaCompilationContractIssue } from "./tcm-formula-
 import { isKnownTcmHerbName } from "./tcm-knowledge";
 import { sanitizeGeneratedSuggestionPreviewText } from "./diagnosis-stream-safety";
 import { NON_DOSE_PRESCRIPTION_MARKER } from "./diagnosis-safety";
+import { projectDeliveredReasoning } from "./delivered-surface";
 import { cdssReasonCodeMarker } from "./cdss-reason-codes";
 import { pediatricDoseRuleFromGroundingText } from "./pediatric-dose-rule";
 import { clinicalDeliveryAdvisoryFromIssue, clinicalDeliveryAdvisorySection, collectClinicalDeliveryAdvisories, deduplicateClinicalDeliveryAdvisories, isSafetyClinicalDeliveryAdvisory, type ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
@@ -274,7 +275,10 @@ export function renderM04DeliveryCheckpoint(
   if (reason !== "dose_withheld" && checkpoint?.signedContent && checkpoint.attestation) {
     return checkpoint.signedContent;
   }
-  const prior = priorReasoning;
+  // 非剂量页与带剂量页走同一份交付面投影（2026-10-13）：此前这一页直接渲染未投影的结果，方名显示
+  //「本例辨证组方」、方义写「本方以本方案为基础加减」、适用栏是「适用于与本例锁定证候…及病机链一致的情况」。
+  const prior = priorReasoning ? projectDeliveredReasoning(priorReasoning) : priorReasoning;
+  if (checkpoint) checkpoint = { ...checkpoint, reasoning: projectDeliveredReasoning(checkpoint.reasoning) };
   // 机器码随页交付（2026-09-13）：此前这一整类非剂量页**不带任何 reasonCode**，前端只能靠
   // 文案正则分流，服务端改一句措辞前端就瞎。三种处置各有各的恢复动作，必须分开。
   const reasonMarker = cdssReasonCodeMarker(
@@ -303,13 +307,13 @@ export function renderM04DeliveryCheckpoint(
       : reason === "upstream_unavailable"
         ? `模型服务暂时不可用，尚未形成可保留的个体化方药候选。${retainedState}暂不提供药味、剂量或用法。`
       : reason === "dose_withheld"
-        ? `本例剂量由独立硬边界暂缓（${doseWithheldReasons.join("；") || "需先完成相关核实"}），且本轮尚未形成可保留的个体化方药候选。${retainedState}暂不提供药味、剂量或用法。`
+        ? `本例暂不给出具体用量（${doseWithheldReasons.join("；") || "需先完成相关核实"}），且本轮尚未形成可保留的个体化方药候选。${retainedState}暂不提供药味、剂量或用法。`
       : `本轮尚未形成可保留的个体化方药候选（模型未产出结构完整的候选）。${retainedState}暂不提供药味、剂量或用法。`);
     return lines.join("\n\n");
   }
   const clean = m04DeliveryCheckpointIsClean(checkpoint);
   const status = reason === "dose_withheld"
-    ? `本次已生成候选方药；按独立硬边界本例暂不显示具体用量（${doseWithheldReasons.join("；") || "需先完成相关核实"}）。`
+    ? `本例暂不给出具体用量（${doseWithheldReasons.join("；") || "需先完成相关核实"}）；药味与方义照常列出。`
     : reason === "deadline"
       ? "本次已生成候选，本阶段超过时限。"
       // 保留候选之后，修复没完成的原因仍要如实写出来（2026-10-12）：此前保留候选只发生在终审投影
@@ -328,7 +332,7 @@ export function renderM04DeliveryCheckpoint(
   for (const candidate of checkpoint.reasoning.formula?.candidates || []) {
     lines.push(`候选方：${text(candidate.name)}`);
     for (const herb of candidate.herbs) lines.push(`- ${text(herb.name)}（${text(herb.role)}）：${text(herb.function)}`);
-    lines.push(text(candidate.formulaAnalysis), text(candidate.applicable), text(candidate.notApplicable));
+    lines.push(...[candidate.formulaAnalysis, candidate.applicable, candidate.notApplicable].map(text).filter(Boolean));
   }
   // 问题提示同样走非剂量掩码：本页的全部意义就是不给具体用量，提示文案里的
   // 「当前药量 500g」会把模型提出的剂量从后门放出去。掩码与药味功用共用同一支

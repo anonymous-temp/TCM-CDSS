@@ -262,7 +262,7 @@ function controlledTreatmentPlan(
   /** 本例年龄（岁）。带年龄下限的模板取不到年龄一律不启用。 */
   patientAgeYears?: number,
   /** 教材方案（tcm-nondrug-textbook-plan.server.ts）的取材：已签名病名、西医主诊断、主证+兼证结论。 */
-  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string },
+  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string; chiefComplaint?: string },
 ): Pick<TreatmentRecommendation,
   "treatmentContent" | "suggestedSitesOrPoints" | "scheduleSuggestion" | "techniqueBoundary" |
   "protocolSource" | "protocolStatus" | "protocolGap" | "tailoringStatus" |
@@ -439,8 +439,19 @@ function controlledTreatmentPlan(
       const bare = site.replace(/（[^）]*）\s*$/, "").trim();
       return projectCode === "auricular" ? bare.length > 0 && !/或/.test(bare) : Boolean(resolveAcupoint(bare));
     }).length;
+    // 目录模板是按伴随症状对上的（眩晕病例因「多梦」对上失眠取穴、咳嗽病例因「胃脘」对上胃肠耳穴），而教材里有本病自己的方案：
+    // 用教材的。判据：模板在本例命中的词没有一个出现在主诉里，模板的匹配词也没有一个与已定病名相合
+    //（2026-10-13 独立评审：眩晕·肾精不足给的是安眠、神门、内关、心俞）。没有主诉可对照时不改变原有选择。
+    const chiefComplaint = (textbookContext?.chiefComplaint || "").normalize("NFKC");
+    const templateMatchedOn = [
+      ...indicationEvidenceTerms(governedTemplate.indicationTag, caseFacts),
+      ...governedTemplate.matchAny.filter((term) => clinicalText.normalize("NFKC").includes(term)),
+    ];
+    const templateOffDisease = chiefComplaint.length > 0 && templateMatchedOn.length > 0 &&
+      !templateMatchedOn.some((term) => chiefComplaint.includes(term)) &&
+      !governedTemplate.matchAny.some((term) => (textbookContext?.diseaseNames || []).some((name) => name.includes(term) || term.includes(name)));
     if (!syndromeTailored && textbookPlan &&
-      (tcmTreatmentProjectIsPointFree(projectCode) || !pointsGoverned || catalogSpecificPoints < 3)) {
+      (tcmTreatmentProjectIsPointFree(projectCode) || !pointsGoverned || catalogSpecificPoints < 3 || templateOffDisease)) {
       return { ...fromTextbook(textbookPlan), ...deferredGovernedTemplate };
     }
     // 「取穴」只对取穴类项目成立；食疗/导引/意疗说「取穴」是甲方 9.24/9.27 测评点名的错误（食疗还需要取穴针刺吗）。
@@ -450,18 +461,21 @@ function controlledTreatmentPlan(
       .filter((term) => clinicalText.normalize("NFKC").includes(term))
       .slice(0, 3);
     const groundedTerms = evidenceTerms.length > 0 ? evidenceTerms : matchedTemplateTerms;
-    const focus = groundedTerms.length > 0 ? `围绕本例的「${groundedTerms.join("、")}」` : "";
     return {
       // 甲方评测(2026-08-04) 第 3 条：治疗内容不再内嵌病机原文。
       // 同一个对象已经带 targetPathogenesis 字段，渲染层单独成行；内嵌等于每个项目块把同一句病机
       // 印两遍，N 个项目就是 2N 遍。病机归病机字段，治疗内容只写这个项目本身的边界。
-      treatmentContent: refinement
-        ? `本例适用标准项目方案，${[focus, `按已签名证候「${refinement.syndromeLabel}」加减${templateNoun === "取穴" ? "取穴" : ""}`].filter(Boolean).join("并")}，由现场医师复核后实施。`
-        : syndromeGatedTemplate
-          ? `本例命中「${gateLabel}」的标准取穴${focus ? `（${focus}）` : ""}——该模板以本例**当前病种事实**与**已签名证型**双重条件准入${conditionalPoints.length > 0 ? `，并按本例症状加用${conditionalPoints.map((item) => item.point).join("、")}` : ""}；补泻、深度、留针与禁忌由现场医师复核后确定。`
-        : matchedRefinement
-          ? `本例命中该病种标准${templateNoun}模板${focus ? `（${focus}）` : ""}，也命中了「${matchedRefinement.syndromeLabel}」的证型配穴，但该条配穴尚未完成中医师终审，本轮**不予应用**，仅呈现病种标准${templateNoun}，请按本例寒热虚实自行增减。`
-          : `本例命中该病种标准${templateNoun}模板${focus ? `（${focus}）` : ""}，由现场医师复核后实施；本轮尚未按本例证型加减，请按本例寒热虚实增减。`,
+      // 治疗内容只写医生要读的东西（2026-10-13，甲方 10.12 测评）：按什么证取穴、针对本例哪些表现、随症加了哪些穴。
+      // 「本例命中该病种标准取穴模板」「双重条件准入」「本轮不予应用」是系统在讲自己怎么选的，不是治疗内容。
+      treatmentContent: [
+        refinement
+          ? `按${refinement.syndromeLabel}${templateNoun === "取穴" ? "取穴" : `选用${templateNoun}`}`
+          : syndromeGatedTemplate
+            ? `按${gateLabel}${templateNoun === "取穴" ? "取穴" : `选用${templateNoun}`}`
+            : `按本病常规${templateNoun === "取穴" ? "取穴" : `选用${templateNoun}`}`,
+        groundedTerms.length > 0 ? `针对本例${groundedTerms.join("、")}` : "",
+        conditionalPoints.length > 0 ? `随症加${conditionalPoints.map((item) => item.point).join("、")}` : "",
+      ].filter(Boolean).join("，") + "。",
       suggestedSitesOrPoints: points,
       scheduleSuggestion: governedTemplate.scheduleSuggestion,
       techniqueBoundary: pointsGoverned
@@ -1119,6 +1133,7 @@ export function compileTcmTreatmentRecommendations(
         westernNames: [prior.westernDiagnosis?.primary?.name || ""].filter(Boolean),
         signedSyndromeText: [prior.overview.primarySyndrome, ...(Array.isArray(prior.overview.secondarySyndromes) ? prior.overview.secondarySyndromes : [])]
           .filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；"),
+        chiefComplaint: typeof caseState?.chiefComplaint === "string" ? caseState.chiefComplaint : "",
       },
     );
     return [{
@@ -1131,6 +1146,11 @@ export function compileTcmTreatmentRecommendations(
       targetPathogenesis: node.pathogenesis || node.syndromeEvidence || prior.overview.overallPathogenesis,
       ...(assessmentPositioning ? { assessmentPositioning } : {}),
       ...treatmentPlan,
+      // 小儿针刺的通行要求（《针灸学》刺法注意事项：小儿不能配合，不宜留针；囟门未闭者头顶部腧穴不宜针刺）。
+      // 取穴方案出自成人教材，写法是「毫针常规刺，留针」——2026-10-13 独立评审：2 岁、7 岁、11 岁病例照搬成人写法。
+      ...(patientAgeYears != null && patientAgeYears < 12 && definition.code === "acupuncture" && typeof treatmentPlan.techniqueBoundary === "string"
+        ? { techniqueBoundary: `小儿针刺宜浅刺、快出针，一般不留针，手法宜轻；${patientAgeYears < 2 ? "囟门未闭者头顶部腧穴不针；" : ""}不能配合者改用小儿推拿或穴位贴敷。${treatmentPlan.techniqueBoundary}` }
+        : {}),
       operatorRequirement: definition.operatorRequirement,
       requiredChecks: [
         definition.safetyFocus,

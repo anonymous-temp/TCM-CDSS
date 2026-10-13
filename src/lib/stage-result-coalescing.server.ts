@@ -1,4 +1,7 @@
-import { createHash } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
+import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { STREAM_REPLACE_MARKER } from "./diagnosis-stream-protocol";
 
 /**
@@ -72,6 +75,8 @@ const OUTPUT_KEYS: Record<CoalescedStage, readonly string[]> = {
     "auditAdvisory", "reasoningPrescribe", "prescriptionRevision", "warningAcknowledgement"],
 };
 
+const WORKFLOW_KEYS = ["questionRounds", "questionOutcome", "maxQuestionRounds", "completeness", "safetyGate", "clinicalFacts", "lastError"] as const;
+
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (value && typeof value === "object") {
@@ -80,7 +85,30 @@ function canonicalJson(value: unknown): string {
       .filter((key) => record[key] !== undefined)
       .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
   }
-  return JSON.stringify(value ?? null);
+  return JSON.stringify(typeof value === "string" ? fingerprintText(value) : value ?? null);
+}
+
+/**
+ * 指纹里的文本只抹掉不改变意思的差异（2026-10-13，「相同病例要输出一致」）：全半角、空白、标点的中英文写法、
+ * 连续重复的标点和句末标点。标点本身保留——「无胸痛，发热」与「无，胸痛发热」不是同一句话。
+ */
+function fingerprintText(value: string): string {
+  return value.normalize("NFKC")
+    .replace(/\s+/g, "")
+    .replace(/[，,]/g, ",").replace(/[；;]/g, ";").replace(/[。．]/g, ".").replace(/[：:]/g, ":").replace(/[、]/g, ",")
+    .replace(/([,;.:])\1+/g, "$1")
+    .replace(/[,;.:]+$/g, "");
+}
+
+/** 结果只在同一版代码、同一组模型下复用：换了版本或换了模型，旧结果不再回放。 */
+function generationIdentity(): string {
+  return [
+    process.env.CDSS_BUILD_SOURCE_DIGEST || "",
+    process.env.PRIMARY_DIAGNOSE_MODEL || "",
+    process.env.PRIMARY_PRESCRIBE_MODEL || "",
+    process.env.CDSS_HOME_ACUPOINT_CARE || "",
+    process.env.CDSS_REDFLAG_EXPLICIT_ONLY || "",
+  ].join("|");
 }
 
 export function stageRequestFingerprint(
@@ -92,6 +120,9 @@ export function stageRequestFingerprint(
     ? { ...(caseState as Record<string, unknown>) }
     : {};
   for (const key of OUTPUT_KEYS[stage]) delete state[key];
+  // 流程字段不进指纹（2026-10-13）：追问轮次与结果、完整度、闸门结果、事实层快照都由同一份病历派生，
+  // 不是生成输入。带进指纹时，同一份病历「未追问」「跳过追问」「页面带着快照重推」会各算一次、各不相同。
+  for (const key of WORKFLOW_KEYS) delete state[key];
   // 上游阶段产物里只与绑定有关的字段（合同签名）不进指纹：同一 M03 换绑到新编号后签名必然不同，
   // 带进指纹会让 M04 永远复用不上；回放时按本次请求重新签名（见 rebindFinalContent）。
   for (const key of ["reasoningDiagnose", "reasoningV2"]) {
@@ -103,7 +134,7 @@ export function stageRequestFingerprint(
     }
   }
   return createHash("sha256")
-    .update(`${stage}\n${tenant.clientId || ""}\n${tenant.customerId || ""}\n${canonicalJson(state)}`)
+    .update(`${stage}\n${generationIdentity()}\n${tenant.clientId || ""}\n${tenant.customerId || ""}\n${canonicalJson(state)}`)
     .digest("hex");
 }
 
@@ -130,6 +161,118 @@ function finalContentFromLines(lines: readonly string[]): { content: string; end
     accumulated = markerIndex >= 0 ? combined.slice(markerIndex + STREAM_REPLACE_MARKER.length) : combined;
   }
   return { content: accumulated, ended, errored };
+}
+
+// ─── 落盘留存（2026-10-13，甲方「相同病例要输出一致」「两次输出结果不一致」）────────────────────
+//
+// 进程内缓存 30 分钟、重启即空：同一份病历隔天再测、或发版之后再测，就是一次全新的生成，证型叫法、
+// 方名、药味都可能不同（生产实测同一病例重新生成 3 次，方名只有一半病例完全一致）。温度设 0 也不保证
+// 逐字相同；能保证的只有把结果留下来。这里把可复用的最终结果按指纹加密落盘，缺省保留 30 天：
+//   · 目录由 CDSS_STAGE_RESULT_STORE_PATH 指定（未设置即不落盘，行为与此前完全相同）；
+//   · 加密与请求留存同一做法：AES-256-GCM，密钥由 CASE_SNAPSHOT_ENCRYPTION_KEY 派生（轮换后旧文件读不出，按未命中处理）；
+//   · 指纹含代码版本与模型名（generationIdentity），发版后旧结果不会被回放；
+//   · 显式重新生成（x-cdss-regenerate: 1）不读留存，算完覆盖写入。
+const PERSIST_KEY_CONTEXT = "tcm-cdss-stage-result-v1";
+
+function persistDir(): string | undefined {
+  const dir = process.env.CDSS_STAGE_RESULT_STORE_PATH?.trim();
+  return dir || undefined;
+}
+
+function persistTtlMs(): number {
+  const days = Number(process.env.CDSS_STAGE_RESULT_PERSIST_DAYS);
+  return (Number.isFinite(days) && days > 0 && days <= 365 ? days : 30) * 86_400_000;
+}
+
+function persistKey(): Buffer | undefined {
+  const secret = process.env.CASE_SNAPSHOT_ENCRYPTION_KEY || "";
+  if (secret.length < 16) return undefined;
+  return createHmac("sha256", createHash("sha256").update(secret).digest()).update(PERSIST_KEY_CONTEXT).digest();
+}
+
+function persistPath(dir: string, stage: CoalescedStage, key: string): string {
+  return join(dir, stage, key.slice(0, 2), `${key}.bin`);
+}
+
+async function writePersisted(entry: Entry): Promise<void> {
+  const dir = persistDir();
+  const key = persistKey();
+  if (!dir || !key || !entry.cacheable || entry.status !== 200) return;
+  try {
+    const path = persistPath(dir, entry.stage, entry.key);
+    await mkdir(join(dir, entry.stage, entry.key.slice(0, 2)), { recursive: true, mode: 0o700 });
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", key, iv);
+    cipher.setAAD(Buffer.from(`${entry.stage}|${entry.key}`, "utf8"));
+    const plain = gzipSync(Buffer.from(JSON.stringify({
+      bindingId: entry.bindingId,
+      finishedAt: entry.finishedAt || Date.now(),
+      contentType: entry.headers?.get("content-type") || "",
+      lines: entry.lines,
+    }), "utf8"));
+    const data = Buffer.concat([cipher.update(plain), cipher.final()]);
+    const temporary = `${path}.${process.pid}.${Date.now()}.tmp`;
+    await writeFile(temporary, Buffer.concat([iv, cipher.getAuthTag(), data]), { mode: 0o600 });
+    await rename(temporary, path);
+    // 顺手清一个分片里过期的文件：不设常驻清理任务，写入时摊还。
+    void prunePersistedShard(join(dir, entry.stage, entry.key.slice(0, 2)));
+  } catch (error) {
+    console.warn("[tcm-cdss:telemetry] stage_result_persist", { ok: false, reason: error instanceof Error ? error.name : "unknown" });
+  }
+}
+
+async function prunePersistedShard(shard: string): Promise<void> {
+  try {
+    const cutoff = Date.now() - persistTtlMs();
+    for (const name of await readdir(shard)) {
+      const path = join(shard, name);
+      const info = await stat(path);
+      if (info.mtimeMs < cutoff || (name.endsWith(".tmp") && info.mtimeMs < Date.now() - 3_600_000)) await unlink(path);
+    }
+  } catch {
+    // 清理失败不影响任何请求。
+  }
+}
+
+async function readPersisted(stage: CoalescedStage, cacheKey: string): Promise<Entry | undefined> {
+  const dir = persistDir();
+  const key = persistKey();
+  if (!dir || !key) return undefined;
+  try {
+    const path = persistPath(dir, stage, cacheKey);
+    const info = await stat(path);
+    if (Date.now() - info.mtimeMs > persistTtlMs()) return undefined;
+    const raw = await readFile(path);
+    const decipher = createDecipheriv("aes-256-gcm", key, raw.subarray(0, 12));
+    decipher.setAAD(Buffer.from(`${stage}|${cacheKey}`, "utf8"));
+    decipher.setAuthTag(raw.subarray(12, 28));
+    const stored = JSON.parse(gunzipSync(Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()])).toString("utf8")) as {
+      bindingId?: unknown; finishedAt?: unknown; contentType?: unknown; lines?: unknown;
+    };
+    if (!Array.isArray(stored.lines) || !stored.lines.every((line) => typeof line === "string")) return undefined;
+    const now = Date.now();
+    const headers = new Headers();
+    if (typeof stored.contentType === "string" && stored.contentType) headers.set("content-type", stored.contentType);
+    return {
+      key: cacheKey,
+      stage,
+      bindingId: typeof stored.bindingId === "string" ? stored.bindingId : "",
+      // 载入内存后按进程内缓存的口径计时：30 分钟后从内存淘汰，需要时再从盘上读。
+      createdAt: now,
+      finishedAt: now,
+      status: 200,
+      headers,
+      lines: stored.lines as string[],
+      rawChunks: [],
+      done: true,
+      cacheable: true,
+      subscribers: new Set(),
+      ready: Promise.resolve(),
+      finished: Promise.resolve(),
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function evictExpired(now: number): void {
@@ -208,7 +351,16 @@ export async function coalesceStageResponse(input: {
   if (!stageResultReuseEnabled()) return input.compute(new AbortController().signal);
   const now = Date.now();
   evictExpired(now);
-  const existing = input.bypass ? undefined : entries.get(input.key);
+  let existing = input.bypass ? undefined : entries.get(input.key);
+  if (!existing && !input.bypass) {
+    const persisted = await readPersisted(input.stage, input.key);
+    // 读盘期间同一指纹的请求可能已经开始计算：以内存里的为准。
+    existing = entries.get(input.key) || persisted;
+    if (persisted && existing === persisted) {
+      entries.set(input.key, persisted);
+      console.info("[tcm-cdss:telemetry] stage_result_reuse", { stage: input.stage, mode: "persisted" });
+    }
+  }
   const bindingId = input.bindingId ?? "";
   if (existing) {
     await existing.ready;
@@ -290,6 +442,7 @@ export async function coalesceStageResponse(input: {
     const final = finalContentFromLines(entry.lines);
     entry.cacheable = final.ended && !final.errored && input.cacheable(final.content);
     if (!entry.cacheable) entries.delete(input.key);
+    else void writePersisted(entry);
     entry.rawChunks = [];
     for (const subscriber of entry.subscribers) {
       try { subscriber.close(); } catch { /* subscriber already gone */ }

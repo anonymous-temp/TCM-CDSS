@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isInternalPrecomputeRequest } from "@/lib/internal-precompute";
 import {
   bearerToken,
   CDSS_RATE_LIMIT_COOKIE,
@@ -121,6 +122,8 @@ async function modelRateLimitResponse(
   req: NextRequest,
 ): Promise<NextResponse | null> {
   if (!isModelInvocationRequest(req)) return null;
+  // 服务端自己发起的预先计算（internal-precompute.ts）不占调用方的模型调用额度；鉴权照常。
+  if (await isInternalPrecomputeRequest(req.headers)) return null;
   const now = Date.now();
   if (modelUsage.size > 5_000) {
     for (const [key, bucket] of modelUsage) if (bucket.resetAt <= now) modelUsage.delete(key);

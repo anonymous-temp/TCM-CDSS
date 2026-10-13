@@ -13,6 +13,7 @@ import { deriveOperationalCompleteness, markdownNdjsonResponse, sanitizeCaseStat
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { reviewM02QuestionPlan } from "@/lib/m02-question-review.server";
 import { prefetchDiagnoseInputs } from "@/lib/stage-prefetch.server";
+import { precomputeNoAnswerPath } from "@/lib/no-answer-precompute.server";
 
 export async function POST(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
@@ -30,6 +31,8 @@ export async function POST(req: Request) {
   // stage-prefetch.server.ts）。它们只取病例字段；外部接口直调时 M03 的病例通常与此刻相同，
   // 命中缓存即省掉 M03 前置的串行等待（线上约 3.8s）。病例随后被改写只是未命中；失败静默。
   prefetchDiagnoseInputs(parsed.caseState);
+  // 出题的同时按「不回答」把辨证、开方先算出来：医生跳过追问时后两步直接取现成结果（no-answer-precompute.server.ts）。
+  precomputeNoAnswerPath(req, parsed.caseState);
   // 事实抽取与出题并行（2026-09-27）。外部接口按 collect → question 直调时，事实层抽取
   // （qwen3.8-max，冷启动实测 6.6s）此前必须先做完才开始出题（3.4s），M02 整段约 10s。
   // M02 只经 m02ClinicalFactsFootprint 读取事实层；先用「无事实」病例发出题，事实回来后
@@ -65,6 +68,9 @@ export async function POST(req: Request) {
 
 async function questionStageResponse(caseState: CaseState, signal: AbortSignal): Promise<Response> {
   const fallbackQuestions = buildCaseAwareQuestionFallback(caseState);
+  // 模型判断「不需要再问」时用的那道题：先问病历没写到的基本问诊项（见 buildCaseAwareQuestionFallback 的 settled）。
+  // 模型输出不可用（解析失败、上游失败）时仍用上面的安全兜底。
+  const settledQuestions = buildCaseAwareQuestionFallback(caseState, { settled: true });
   const safeCaseState = sanitizeCaseStateForModel(caseState);
   const sourceText = trustedInputText(safeCaseState);
   // 对外信封里的 completeness 由服务端按当前病历确定性写入（与各阶段路由 withSafetyGate 同一口径），
@@ -82,10 +88,10 @@ async function questionStageResponse(caseState: CaseState, signal: AbortSignal):
     outputTransform: (content) => withCompleteness(enforceM02UnansweredAxes(
       ensureQuestionStructuredEnvelope(content, sourceText, fallbackQuestions),
       sourceText,
-      fallbackQuestions,
+      settledQuestions,
       caseState,
     )),
-    finalOutputTransform: async (content) => withCompleteness(reviewM02QuestionPlan(content, sourceText, fallbackQuestions)),
+    finalOutputTransform: async (content) => withCompleteness(reviewM02QuestionPlan(content, sourceText, settledQuestions)),
   });
   if (response.ok || signal.aborted) return response;
   await response.body?.cancel().catch(() => undefined);

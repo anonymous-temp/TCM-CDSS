@@ -213,7 +213,11 @@ await check("覆盖完整：闭集里每个路由都经留存入口读请求体�
     assert.match(source, /readJsonRequest\(|readCustomerBoundCaseStateRequest\(/, `${route} 没有经过 readJsonRequest，请求体不会留存`);
   }
   assert.doesNotMatch(readFileSync("src/app/api/auth/access/route.ts", "utf8"), /readJsonRequest\(|readCustomerBoundCaseStateRequest\(/);
-  assert.match(readFileSync("src/lib/diagnosis-request.ts", "utf8"), /if \(parsed\.ok\) void archiveClinicalRequest\(req, parsed\.body\);/, "不得 await：留存不能拖慢请求");
+  // 2026-10-13：服务端自己发起的预先计算请求（带内部标记头且标记值核对通过）不进留存，其余请求照旧同步发起、不 await。
+  const requestSource = readFileSync("src/lib/diagnosis-request.ts", "utf8");
+  assert.match(requestSource, /if \(!req\.headers\.has\(INTERNAL_PRECOMPUTE_HEADER\)\) \{\s*void archiveClinicalRequest\(req, parsed\.body\);/, "不得 await：留存不能拖慢请求");
+  assert.doesNotMatch(requestSource, /await archiveClinicalRequest\(/, "不得 await：留存不能拖慢请求");
+  assert.match(requestSource, /if \(!internal\) void archiveClinicalRequest\(req, parsed\.body\);/, "带了标记头但标记值对不上的请求照常留存");
 });
 
 await check("compose 打开留存并落在持久卷；.env.example 有说明", async () => {

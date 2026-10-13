@@ -2,6 +2,7 @@ import { normalizeCaseStateInput, type CaseState } from "./diagnosis-types";
 import { stripInvalidEmergencyClearance } from "./emergency-clearance.server";
 import { readJsonBodyWithLimit } from "./http-guard";
 import { archiveClinicalRequest } from "./request-archive.server";
+import { INTERNAL_PRECOMPUTE_HEADER, isInternalPrecomputeRequest } from "./internal-precompute";
 import { requireCustomerContext, type CustomerContext } from "./customer-context";
 import { clinicalFactsTenantBindingMatches } from "./clinical-facts-runtime";
 
@@ -17,7 +18,17 @@ export async function readJsonRequest(
 ): Promise<{ ok: true; body: unknown } | { ok: false; response: Response }> {
   const parsed = await readJsonBodyWithLimit(req, opts?.maxBytes ?? 1_000_000);
   // 临床请求内容留存（owner 2026-10-12）：所有临床路由的请求体都从这里进来。不 await，不影响时延与结果。
-  if (parsed.ok) void archiveClinicalRequest(req, parsed.body);
+  // 服务端自己发起的预先计算请求不是调用方发的，不进留存。
+  if (parsed.ok) {
+    if (!req.headers.has(INTERNAL_PRECOMPUTE_HEADER)) {
+      void archiveClinicalRequest(req, parsed.body);
+    } else {
+      // 带了标记头的请求核对标记值：对不上的不是服务端自己发的，照常留存。
+      void isInternalPrecomputeRequest(req.headers).then((internal) => {
+        if (!internal) void archiveClinicalRequest(req, parsed.body);
+      });
+    }
+  }
   return parsed;
 }
 

@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "tcm-textbook-syndrome-supplement-v1",
+  "note": "教材合集（中医补充数据/灵丹GitHub/TCM Educational Materials.txt）里没有方药的门诊常见病的补充行。证型与主症取自同一合集里《针灸治疗学》该病证节的原文（给出行号），方药经联网核对（给出链接与访问日期）。结构与 tcm-textbook-syndrome-formula-table.json 的 rows/diseases 相同；手工维护，改动后无需重新生成。",
+  "diseases": [
+    {
+      "bookKey": "supplement",
+      "book": "针灸治疗学",
+      "department": "耳鼻喉口齿",
+      "disease": "牙痛",
+      "line": 12208,
+      "diseaseAliases": ["齿痛"],
+      "westernEquivalents": ["龋齿", "牙髓炎", "牙周炎", "冠周炎"],
+      "tcmEquivalents": [],
+      "differentials": [{ "name": "面痛", "text": "《针灸治疗学》牙痛节按语：注意与三叉神经痛相鉴别。" }]
+    }
+  ],
+  "rows": [
+    {
+      "id": "supplement|牙痛|风火牙痛",
+      "book": "针灸治疗学", "bookKey": "supplement", "line": 12214, "department": "耳鼻喉口齿", "disease": "牙痛",
+      "syndrome": "风火牙痛", "syndromeName": "风火牙痛", "syndromeKind": "type",
+      "manifestations": "发作急骤，牙痛剧烈，牙龈红肿，喜凉恶热，伴发热。舌红，苔薄黄，脉浮数。",
+      "tongue": "舌红，苔薄黄", "pulse": "脉浮数",
+      "therapy": "疏风清热，解毒止痛",
+      "formulaText": "银翘散加减。", "formulas": ["银翘散"], "formulaJoin": "single", "modified": true,
+      "composition": ["金银花", "连翘", "薄荷", "牛蒡子", "荆芥穗", "淡豆豉", "桔梗", "甘草", "竹叶", "芦根"],
+      "modifications": [],
+      "sources": ["https://www.edh.tw/article/30929", "https://health.tvbs.com.tw/encyclopedia/340564"], "accessedAt": "2026-10-13"
+    },
+    {
+      "id": "supplement|牙痛|胃火牙痛",
+      "book": "针灸治疗学", "bookKey": "supplement", "line": 12215, "department": "耳鼻喉口齿", "disease": "牙痛",
+      "syndrome": "胃火牙痛", "syndromeName": "胃火上炎证", "syndromeKind": "syndrome",
+      "manifestations": "牙痛剧烈，牙龈红肿甚至出血，遇热加剧，伴口渴，口臭，便秘，尿赤。舌红，苔黄，脉洪数。",
+      "tongue": "舌红，苔黄", "pulse": "脉洪数",
+      "therapy": "清胃泻火，凉血止痛",
+      "formulaText": "清胃散加减。", "formulas": ["清胃散"], "formulaJoin": "single", "modified": true,
+      "composition": ["黄连", "升麻", "生地黄", "当归", "牡丹皮"],
+      "modifications": [
+        { "condition": "大便秘结", "herbs": ["大黄"], "remove": [], "raw": "若大便秘结，加大黄" },
+        { "condition": "口渴饮冷", "herbs": ["石膏", "知母"], "remove": [], "raw": "若口渴饮冷，加石膏、知母" }
+      ],
+      "sources": ["https://www.edh.tw/article/30929", "https://health.tvbs.com.tw/encyclopedia/340564"], "accessedAt": "2026-10-13"
+    },
+    {
+      "id": "supplement|牙痛|虚火牙痛",
+      "book": "针灸治疗学", "bookKey": "supplement", "line": 12216, "department": "耳鼻喉口齿", "disease": "牙痛",
+      "syndrome": "虚火牙痛", "syndromeName": "虚火上炎证", "syndromeKind": "syndrome",
+      "manifestations": "牙齿隐隐作痛，时作时止，午后或夜晚加重，日久不愈，可见齿龈萎缩，甚则牙齿浮动，伴腰膝酸软，手足心热，头晕眼花。舌红，少苔或无苔，脉细数。",
+      "tongue": "舌红，少苔或无苔", "pulse": "脉细数",
+      "therapy": "滋阴益肾，降火止痛",
+      "formulaText": "知柏地黄丸加减。", "formulas": ["知柏地黄丸"], "formulaJoin": "single", "modified": true,
+      "composition": ["熟地黄", "山茱萸", "山药", "泽泻", "茯苓", "牡丹皮", "知母", "黄柏"],
+      "modifications": [],
+      "sources": ["https://www.edh.tw/article/30929", "https://health.tvbs.com.tw/encyclopedia/340564"], "accessedAt": "2026-10-13"
+    }
+  ]
+}

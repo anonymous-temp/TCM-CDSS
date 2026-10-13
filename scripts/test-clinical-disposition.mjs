@@ -13,6 +13,10 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
+// 本套件验证「可能 / 需排除」线索的接地与分档**机制**。2026-10-13 起默认口径只认病历明确写出的现症
+//（clinical-facts.redFlagExplicitOnly；默认口径由 test:redflag-explicit-only 钉住），这里显式切回机制全开的档位。
+process.env.CDSS_REDFLAG_EXPLICIT_ONLY = "false";
+
 
 delete process.env.CDSS_CLINICAL_FACTS_BACKSTOP;
 process.env.CLINICAL_FACTS_ATTESTATION_KEY = "clinical-disposition-test-key-2026";

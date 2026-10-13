@@ -847,6 +847,8 @@ console.log(JSON.stringify({ cases: 72, failures: 0 }));
   );
   assert.ok(banner.startsWith(SAFETY_ADVISORY_MARKER), "横幅必须以稳定标记开头，供集成方识别");
   assert.ok(/胸痛伴大汗/.test(banner) && /附加提示/.test(banner), "红旗与附加提示都必须原样呈现");
-  assert.ok(/审方复核/.test(banner), "横幅必须包含审方复核提示");
+  // 2026-10-13：横幅写给接诊医生，不再出现「候选/采纳/审方」这类系统流程词；用药前核对的提示仍在。
+  assert.ok(/用药前请再次核对/.test(banner), "横幅必须提示用药前核对");
+  assert.ok(!/候选|采纳|审方/.test(banner.replace(/红旗提示：[^\n]*/, "")), "横幅自身的措辞不带系统流程词");
   assert.equal(buildSafetyAdvisoryBanner(undefined, []), "", "无任何提示时不产生横幅");
 }

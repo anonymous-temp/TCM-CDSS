@@ -409,6 +409,16 @@ export function buildM04ClinicalRepairHint(
       "不得用声明一个知识库没有的方向来为该药在方中的存在辩护；若该药确实需要发挥某个方向而知识库不支持，换一味该方向有收载的药。",
     ].join("\n");
   }
+  // 不入煎的药（芒硝溶服、朱砂不入汤剂）写进了汤剂药味表：只有删掉这一味才能通过，改煎法没有用。
+  // 此前它与「煎法未填」共用一条提示（「把 decoctionRequirement 原样填成…」），模型照做三轮仍被驳回，
+  // 整方退成非剂量页（2026-10-13 合成集 S128，防风通圣散的芒硝，两次回归都如此）。
+  if (/^m04_candidate_\d+_herb_\d+_route_not_decoction$/.test(reason)) {
+    return [
+      "方中有一味药不与群药同煎（如芒硝须溶入药汁服、朱砂不入汤剂），本阶段的汤剂饮片方不收这类药。",
+      "从 candidate.herbs 中删去这一味，其余药味、剂量与方名保持不变；formulaAnalysis 里提到它的分句一并删去。",
+      "不得靠改写 decoctionRequirement（冲服、溶服、后下等）把它留在药味表里——服务端按药味身份判定，改煎法无效；是否另行使用由医师决定。",
+    ].join("\n");
+  }
   if (/^m04_candidate_\d+_herb_\d+_(?:decoction_missing_required|route_not_decoction)$/.test(reason)) {
     return [
       "某味药有强制煎服要求（先煎、后下、包煎、烊化、另煎、冲服等）未写入，或被写成了非汤剂给药途径。",
@@ -862,7 +872,7 @@ export function structuredClinicalRepairHint(
   if (reason === "m03_western_primary_duration_mismatch") {
     return [
       "westernDiagnosis.primary 的时程标签与病历明确记录的当前病程冲突：不足4周的当前腹泻不能写成慢性腹泻或功能性腹泻。",
-      "只修正西医诊断标签：primary 改为与当前症状和病程一致的症状性工作诊断（如“腹泻，病因待查”——与 diagnosis-prompts 的 primary.name 规范同一形态：用逗号连接，**不得**写成“腹泻（病因待查）”这种括注形态，那正是该规范明令禁止的写法；两处此前各写各的，是同一判据的第二实现），status/confidence 保持保守；尚未满足时程和排除条件的慢性/功能性疾病只能移入 differentials 并写明待随访条件。不得使用“待因”等非规范缩写。",
+      "只修正西医诊断标签：primary 改为与当前症状和病程一致的症状性工作诊断（如“腹泻待查”——与 diagnosis-prompts 的 primary.name 规范同一形态：症状名后直接加“待查”，不带逗号与“病因”二字，**不得**写成“腹泻（病因待查）”这种括注形态，那正是该规范明令禁止的写法；两处此前各写各的，是同一判据的第二实现），status/confidence 保持保守；尚未满足时程和排除条件的慢性/功能性疾病只能移入 differentials 并写明待随访条件。不得使用“待因”等非规范缩写。",
       "保持已通过校验的患者事实、中医证候、病机链和治法不变；不得延长病程、补造检查结果或把阴性事实改写成阳性。",
     ].join("\n");
   }

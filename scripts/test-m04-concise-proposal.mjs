@@ -149,3 +149,29 @@ test("non-divisible dose count in a compact proposal yields a guided regimen rep
   one.candidate.decoction.dosesPerDay = 1;
   assert.equal(compileM04JsonObjectContent(JSON.stringify(one), prior)?.formula.candidates[0].decoction.course, "7日");
 });
+
+test("pregnancy and lactation advice is delivered only to patients it can apply to", () => {
+  // 独立评审实测（2026-10-13）：64 岁已绝经 14 年、52 岁月经已停 1 年的女性和 11 岁女童，注意事项里都写着「如已怀孕或备孕请先告知医生」。
+  const withAdvice = structuredClone(compact);
+  withAdvice.nonPharma.precautions = ["饭后温服，忌食生冷油腻。", "方中有孕期慎用的药，如已怀孕或备孕请先告知医生。", "若便溏加重或出现腹痛，须及时复诊。"];
+  const state = (patient, extra = {}) => ({ id: "adv", patient, chiefComplaint: "食少倦怠1月", symptoms: { presentHistory: "食少倦怠，大便溏薄。", ...extra }, conversation: [] });
+  const precautions = (caseState) => compileM04Proposal(withAdvice, prior, caseState).nonPharma.precautions;
+  const hasAdvice = (list) => list.some((item) => /怀孕|备孕|哺乳/.test(item));
+  assert.equal(hasAdvice(precautions(state({ sex: "女", age: 32 }))), true, "育龄女性保留");
+  assert.equal(hasAdvice(precautions(state({ sex: "女" }))), true, "年龄不详的女性保留");
+  for (const [label, caseState] of [
+    ["男性", state({ sex: "男", age: 40 })],
+    ["11 岁女童", state({ sex: "女", age: 11 })],
+    ["64 岁女性", state({ sex: "女", age: 64 })],
+    ["52 岁、月经已停 1 年", state({ sex: "女", age: 52 }, { 月经史: "月经已停1年。" })],
+    ["48 岁、绝经 2 年", state({ sex: "女", age: 48 }, { 月经史: "绝经2年。" })],
+  ]) {
+    const list = precautions(caseState);
+    assert.equal(hasAdvice(list), false, `${label}不写孕哺提示`);
+    assert.equal(list.length, 2, `${label}：其余注意事项保留`);
+  }
+  // 30 岁闭经 1 年不是绝经：保留。
+  assert.equal(hasAdvice(precautions(state({ sex: "女", age: 30 }, { 月经史: "月经已停1年。" }))), true);
+  // 没有病例信息（直接调编译器）时不过滤。
+  assert.equal(hasAdvice(compileM04Proposal(withAdvice, prior).nonPharma.precautions), true);
+});

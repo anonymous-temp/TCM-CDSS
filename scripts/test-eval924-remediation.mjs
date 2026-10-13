@@ -135,15 +135,46 @@ const principleOf = (principle, nature, syndrome = "肾阴不足证", method = "
   return out.therapy.overallPrinciple;
 };
 
-await check("3.1 只写总纲「治病求本」时按已签名病性补具体治则（腰痛肾阴虚 → 虚则补之）", () => {
+// 2026-10-13 改口径（甲方 10.12 测评 3.1）：9/29 这里钉的是「虚则补之（滋补肾阴），治病求本」——括号里是治法内容、
+// 总纲每例都一样，下一轮测评正是批它。现在治则只写国标治则术语（GB/T 16751.3 治则类 33 条），由已定证名与治法推出，
+// 不带括号、不带「治病求本」；虚实只看证名与治法，不看 natureDifferentiation.items（模型在实证里顺手列的「脾虚」）。
+await check("3.1 治则只写国标治则术语：腰痛肾阴虚 → 虚则补之，不带括号与「治病求本」", () => {
   const result = principleOf("治病求本", { items: ["肾阴虚"], rootDeficiency: ["肾阴不足"], branchExcess: [] });
-  assert.match(result, /^虚则补之（滋补肾阴）/);
-  assert.match(result, /治病求本/, "原总纲保留在后");
+  assert.equal(result, "虚则补之");
 });
 
-await check("3.2 反证：模型已写具体治则时原样保留；总纲+病性未定时不编造", () => {
-  assert.equal(principleOf("寒者热之，温散祛邪", { items: ["寒"], rootDeficiency: [], branchExcess: ["寒"] }), "寒者热之，温散祛邪");
-  assert.equal(principleOf("治病求本", { items: [], rootDeficiency: [], branchExcess: [] }, "", ""), "治病求本");
+await check("3.2 治则与证名、治法一致：实证不写补、没有虚象不写扶正祛邪；两次同证同法结果相同", () => {
+  // 肝气犯胃证：模型写了「实则泻之（…），兼以虚则补之（补益中气），标本兼治」，病性里还列了脾虚——测评原话「病历中并无虚象」。
+  const liver = principleOf("实则泻之（疏泄郁滞之肝气、调畅胃腑气机），兼以虚则补之（补益中气），标本兼治",
+    { items: ["气滞", "脾虚"], rootDeficiency: ["脾虚"], branchExcess: ["气滞"] }, "肝气犯胃证", "疏肝理气，和胃止痛");
+  assert.equal(liver, "实则泻之");
+  assert.equal(principleOf("实则泻之（疏肝理气、和胃止痛），治病求本", { items: ["气滞"], rootDeficiency: [], branchExcess: ["气滞"] }, "肝气犯胃证", "疏肝理气，和胃止痛"), "实则泻之",
+    "同一证型、同一治法，治则与上一次相同");
+  // 月经先期血热证：「热者寒之（…），兼以扶正祛邪（…）」——测评原话「并无明显虚象，治则考虑扶正祛邪欠妥」。
+  assert.equal(principleOf("热者寒之（清冲任血分之热），兼以扶正祛邪（养阴生津、化瘀）", { items: ["血热"], rootDeficiency: [], branchExcess: ["血热"] }, "阳盛血热证", "清热凉血调经"), "热者寒之");
+  // 牙痛胃火：「实则泻之（清泻胃火） 兼以通腑导热」——「通腑导热」是治法内容，不进治则。
+  assert.equal(principleOf("实则泻之（清泻胃火） 兼以通腑导热", { items: ["胃火"], rootDeficiency: [], branchExcess: ["胃火"] }, "胃火上炎证", "清胃泻火，凉血止痛"), "热者寒之");
+  assert.equal(principleOf("寒者热之，温散祛邪", { items: ["寒"], rootDeficiency: [], branchExcess: ["寒"] }, "风寒束表证", "辛温解表，宣肺散寒"), "寒者热之");
+  // 确属虚实夹杂（治法里补与祛并见、证名里有实邪）才是扶正祛邪。
+  assert.equal(principleOf("扶正祛邪", { items: ["脾虚", "湿"], rootDeficiency: ["脾虚"], branchExcess: ["湿"] }, "脾虚湿盛证", "健脾益气，化湿和中"), "扶正祛邪");
+  // 模型另写的「急则治标」这类与虚实无关的国标治则保留为第二条。
+  assert.equal(principleOf("急则治标，实则泻之", { items: ["痰热"], rootDeficiency: [], branchExcess: ["痰热"] }, "痰热壅肺证", "清热化痰，宣肺平喘"), "热者寒之，急则治标");
+  // 独立评审实测（2026-10-13）：脾胃虚寒证、治法「温中健脾，和胃降逆」被推成「实则泻之」——「健脾」「温中」没算作补法。
+  assert.equal(principleOf("实则泻之", { items: ["虚寒"], rootDeficiency: ["脾胃虚寒"], branchExcess: [] }, "脾胃虚寒证", "温中健脾，和胃降逆"), "虚则补之");
+  assert.equal(principleOf("", { items: [], rootDeficiency: [], branchExcess: [] }, "肾阳虚证", "温肾助阳"), "虚则补之");
+  // 证名、治法都推不出虚实寒热、模型也没写国标术语时，用最中性的国标治则，不保留「治病求本」（它不是国标治则条目）。
+  assert.equal(principleOf("治病求本", { items: [], rootDeficiency: [], branchExcess: [] }, "", ""), "调理阴阳");
+});
+
+await check("3.3 辨病/辨证依据里病历没记录过的「无X」写成「未诉X」（2026-10-13 独立评审）", () => {
+  const record = "主诉：腹泻3天\n现病史：3天前进食不洁后腹泻，日5次，泻下急迫，肛门灼热，无发热，无明显诱因加重。";
+  const fix = (text) => summary.unrecordedNegativesAsNotReported(text, record);
+  assert.equal(fix("泻下急迫、肛门灼热，无里急后重、无脓血，与痢疾相区分。"), "泻下急迫、肛门灼热，未诉里急后重、脓血，与痢疾相区分。");
+  assert.equal(fix("无肢体困重、小便不利等湿困之象"), "未诉肢体困重、小便不利等湿困之象");
+  // 病历里写过的否定、固定搭配（无汗、无力、无明显…）、「有无/并无」一字不动。
+  for (const text of ["无发热，无汗，神疲无力，无明显诱因。", "有无发热尚待核实；并无腹痛", "无法确定，无需复查"]) assert.equal(fix(text), text);
+  // 没有病历可对照时不改。
+  assert.equal(summary.unrecordedNegativesAsNotReported("无里急后重", ""), "无里急后重");
 });
 
 // ── 4 随证加减 ────────────────────────────────────────────────────────────
@@ -490,6 +521,22 @@ await check("10.10 频次：教材该病证节没写频次时用联网核对的 
   const headachePlan = plans.textbookTreatmentPlan({ projectCode: "acupuncture", diseaseNames: ["头痛"], westernNames: [], signedSyndromeText: "气血亏虚", currentFacts: "头痛 头晕 神疲乏力" });
   assert.match(headachePlan.scheduleSuggestion, /^头痛急性发作时每日治疗1-2次/, "教材有明确频次时以教材为准");
   assert.ok(!/频次来源/.test(headachePlan.protocolSource), "教材已有频次时不再引网络来源");
+  // 痹病的主穴教材按部位分组（肩/肘/腕/脊背/髀/膝/踝）：只取本例疼痛部位的那几组（2026-10-13 独立评审：
+  // 右膝、右踝红肿热痛的病例取到的全是肩髃、曲池、阳池这些上肢穴）。
+  const names = (plan) => plan.points.map((point) => point.name);
+  const kneeAnkle = plans.textbookTreatmentPlan({ projectCode: "acupuncture", diseaseNames: ["痹证"], westernNames: [], signedSyndromeText: "风湿热痹", currentFacts: "右膝、右踝关节红肿热痛 发热 口渴" });
+  assert.ok(["膝眼", "梁丘", "阳陵泉", "昆仑", "申脉"].every((name) => names(kneeAnkle).includes(name)), names(kneeAnkle).join("、"));
+  assert.ok(!["肩髃", "曲池", "阳池", "环跳", "大杼"].some((name) => names(kneeAnkle).includes(name)), "不取无关部位的穴");
+  assert.ok(names(kneeAnkle).includes("阿是穴") && names(kneeAnkle).includes("大椎"), "阿是穴与热痹配穴保留");
+  const shoulder = plans.textbookTreatmentPlan({ projectCode: "acupuncture", diseaseNames: ["痹证"], westernNames: [], signedSyndromeText: "风寒湿痹", currentFacts: "右肩关节疼痛 活动受限" });
+  assert.ok(names(shoulder).includes("肩髃") && !names(shoulder).includes("膝眼"));
+  const unlocated = plans.textbookTreatmentPlan({ projectCode: "acupuncture", diseaseNames: ["痹证"], westernNames: [], signedSyndromeText: "风寒湿痹", currentFacts: "多处关节游走性疼痛" });
+  assert.ok(names(unlocated).includes("阿是穴") && !names(unlocated).includes("肩髃") && !names(unlocated).includes("膝眼"), "部位对不上时只留阿是穴");
+  // 禁针穴不进针刺取穴。
+  for (const disease of ["腹痛", "泄泻", "脱肛", "遗尿", "虚劳"]) {
+    const plan = plans.textbookTreatmentPlan({ projectCode: "acupuncture", diseaseNames: [disease], westernNames: [], signedSyndromeText: "", currentFacts: disease });
+    if (plan) assert.ok(!names(plan).includes("神阙") && !names(plan).includes("乳中"), `${disease}：针刺取穴不得含禁针穴`);
+  }
   const data = JSON.parse(readFileSync(new URL("../src/data/tcm-nondrug-web-schedules.source.json", import.meta.url), "utf8"));
   assert.ok(data.entries.length >= 80 && data.entries.every((entry) => ["A", "B"].includes(entry.tier) && entry.url && entry.quote && entry.sourceTitle), "只收带 URL 与引文的 A/B 级来源");
 });

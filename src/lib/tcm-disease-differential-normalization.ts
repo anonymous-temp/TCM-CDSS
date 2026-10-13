@@ -1,5 +1,6 @@
 import crosswalkJson from "../data/tcm-western-disease-crosswalk.json" with { type: "json" };
 import abbreviationsJson from "../data/western-diagnosis-abbreviations.source.json" with { type: "json" };
+import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import { governedTcmDiseaseCode, resolveTcmDiseaseName } from "./clinical-terminology";
 
 /**
@@ -12,6 +13,8 @@ import { governedTcmDiseaseCode, resolveTcmDiseaseName } from "./clinical-termin
  *     归一到中医病名：流行性感冒 → 时行感冒。多个候选时取与当前病名不同、且更具体（编码更深）的那个；
  *   · 归一不了 → 这一条丢掉（不能让西医病名冒充中医病名鉴别）。
  */
+
+const TEXTBOOK_DISEASE_NAMES = new Set<string>((textbookDiseaseNamesJson as { names: string[] }).names);
 
 type CrosswalkRow = { westernName: string; tcmDisease: string };
 
@@ -37,6 +40,14 @@ export type TcmDiseaseDifferentialNameResolution =
 export function resolveTcmDiseaseDifferentialName(rawName: string, currentDisease = ""): TcmDiseaseDifferentialNameResolution {
   const name = rawName.trim();
   if (!name) return { action: "drop", from: rawName };
+  // 教材的节名是可交付的规范病名（clinical-terminology.canonicalTcmDiseaseName 同一口径）：原样保留，
+  // 不归一到国标条目（「头痛」→「头风病」），也不因国标没有收录而丢掉（教材的鉴别病名如「奔豚」「热疮」）。
+  const textbookName = name.replace(/类病$/u, "");
+  if (TEXTBOOK_DISEASE_NAMES.has(textbookName)) {
+    return textbookName === currentDisease.trim().replace(/类病$/u, "")
+      ? { action: "drop", from: name }
+      : textbookName === name ? { action: "keep", name } : { action: "rename", name: textbookName, from: name };
+  }
   const currentCanonical = governedCanonical(currentDisease);
   const direct = governedCanonical(name);
   if (direct) {

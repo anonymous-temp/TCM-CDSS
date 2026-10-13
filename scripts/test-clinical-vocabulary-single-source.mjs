@@ -39,6 +39,19 @@ const ALLOWLIST = new Map([
   ["src/lib/clinical-facts.ts", "语义事实回补的 schema 字段与文案。"],
   ["src/lib/m02-question-contract.ts", "追问模板文案。"],
   ["src/lib/m04-proposal-compiler.ts", "M04 编译期的结构校验文案。"],
+  ["src/lib/followup-conversation.ts",
+    "2026-10-13 新增。三张有限闭集，都不是临床语义判断：① 追问跳过句（调用方跳过按钮发来的固定句，整句匹配）；" +
+    "② 急症筛查题表（原样从 m02-question-contract.ts 迁出，题干与阳性/阴性选项是追问模板文案，按「题干+所选选项」逐字成对识别）；" +
+    "③ 病历式 symptoms 的中文键名 → 规范槽位（现病史/既往史/过敏史…，以及记经带胎产的键名，是接口字段名不是词表）。"],
+  ["src/lib/delivered-surface.ts",
+    "2026-10-13 新增。交付面投影：把服务端自己生成的系统句式（净化器与鉴别归一写出的「病历尚未确认X是否存在」等有限闭集）换成临床写法，" +
+    "以及诊断名末尾的「病因待查/（症状性）」形态族。匹配对象是本系统自己的输出句式，不对病历或模型自由文本做临床语义判断。"],
+  ["src/lib/tcm-textbook-syndromes.ts",
+    "2026-10-13 新增。教材对照表的检索与渲染。表本身在 src/data（生成物 + 补充 source.json）；代码里只有主诉常见说法 → 教材节名的" +
+    "对照（COMPLAINT_DISEASE_BRIDGE，约 40 个病，只决定取哪几节教材给模型看，不产生诊断）与药名炮制前缀。" +
+    "迁移计划：对照表移到 src/data/tcm-textbook-complaint-bridge.source.json 并带教材出处，下一轮做。"],
+  ["src/lib/tcm-nondrug-textbook-plan.server.ts",
+    "证名末尾「证/型/证候/证型」的构词式守卫（比较教材证型名与已定证名是否同一个证），不是临床词表。"],
   ["src/lib/local-prescription-checks.ts",
     "原 rxaudit.ts 本地核对部分逐字迁入（2026-09-25 灵犀审方删除）。用药否定/局部范围/不详的**语言学**判据与" +
     "字段标签形态（与 clinical-polarity 同类），以及受控具体药名兜底闭集（16 个西药名、3 个日常类别说法）。" +
