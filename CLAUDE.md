@@ -540,6 +540,23 @@ The second independent review of the 10.12 work (`~/runlogs/fix1012/out/judge2`)
 - **Class fixture:** `scripts/fixtures/open-language-classes/hypothermia-with-consciousness-change.json` (sibling parity against 34.x ℃, plus controls).
 - **Replay:** the corpus did not change. In the evaluation set only rf-lowtemp and S188 changed, both expected red flags.
 
+**In production (244ab82, deployed 2026-10-14 14:47 Beijing; tag `20261014-244ab82-prebuilt`, same release directory and `20260927-dsrepair` override).**
+- **Deploys:** 60e0f12 (third-review fixes) went out first at 13:40, then 244ab82 (conception dosing + hypothermia floor).
+- **Switch:** the override now also sets `CDSS_M02_PROCEED_WHEN_SETTLED: "true"` (user decision: `decision=proceed` was always in the documented interface, §4.3).
+- **When `proceed` is returned:**
+  - when nothing is worth asking: no basic-inquiry or agenda question is added;
+  - on a red-flag case: no disposition question.
+- **Verification:** both deploys passed `verify:deployed-image` (commit + digest + strictReady + both model families) and `regress:prod-smoke` (0 failures).
+- **Live check on hospital-b:**
+  - rf-lowtemp → `proceed` + red flag + no dose;
+  - S102 (未避孕) → dosed, with 制天南星/枳壳 annotated as 孕妇慎用;
+  - two standard cases → one question each + dose.
+- **API doc:** V2.36 records the three behaviour changes.
+- **Rollback:**
+  - image `tcm-cdss:20261014-60e0f12-prebuilt` or `…8188017…` with `docker-compose.yml.pre-244ab82` / `.pre-60e0f12`;
+  - the override backup is `production.override.yml.pre-proceed-20261014`;
+  - the proceed switch alone: set it to `"false"` and run compose up.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
