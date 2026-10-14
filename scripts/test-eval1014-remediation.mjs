@@ -561,7 +561,7 @@ const checkAsync = async (name, run) => {
     assert.equal(specialDecoctionPhrase("大黄"), "大黄后下", "几选一没有标注时取所列的第一种");
     assert.equal(specialDecoctionPhrase("砂仁"), "砂仁后下");
     assert.equal(specialDecoctionPhrase("姜半夏"), "", "普通药不写");
-    assert.match(compilerSource, /riskNote: item\.actionType === "add" \? specialDecoctionPhrase\(item\.herbName\.trim\(\)\) : ""/,
+    assert.match(compilerSource, /riskNote: item\.actionType === "add"\s*\?\s*\[specialDecoctionPhrase\(item\.herbName\.trim\(\)\)/,
       "加减条目编译时按同一张表写煎法");
   });
   check("5.2 制川乌同样单列；没有这类药的处方写法不变（对照）", () => {

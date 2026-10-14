@@ -374,7 +374,7 @@ The prescribe route restores supporting facts from the record's affirmed clauses
 **Red flags.** `redFlagExplicitOnly()` (default on; `CDSS_REDFLAG_EXPLICIT_ONLY=false` restores): semantic findings with status `possible`, uncertain subject, disposition `insufficient_info`, and `urgent_specialist` backed only by `plausibility: possible` no longer prompt or withhold dose. Positive findings at every urgency, `likely` dispositions, emergencies and the whole deterministic layer are unchanged. The first cut also silenced positive + `clarify` findings and would have dosed 「晕倒后被家人扶起」; the open-language class fixtures caught it. `test:clinical-facts` and `test:clinical-disposition` run the legacy switch because they test that mechanism; `test:redflag-explicit-only` pins the default.
 
 **Defects the synthetic evaluation set found (each has a test and a counter-proof).**
-- **Obstetric history read as pregnancy.** `assessState` removed all whitespace before matching, so the `[^。；\n]` windows never saw a field boundary: 「工具避孕\n13岁初潮」 became 「孕13」 (13 weeks pregnant), and 「不孕3年」「避孕3年」「备孕3个月」 matched `孕\d+` too. Five ordinary gynaecology records in 190 lost their dose. Newlines are now sentence boundaries, `孕N` needs a non-避/不/备/未 prefix and no 岁/年/次/胎 after it, and 备孕 / 解除避孕 / 停止避孕 are caught by the conception assessor itself (before, 「备孕3个月」 was held only through that misreading). Corpus replay, 69,615 texts: 64 no longer held (all 不孕N年 / 避孕N年 / cross-field), 24 newly held (all 解除/停止避孕). 「不孕」 was **not** added as trying-to-conceive: it would newly withhold 227 corpus texts and is an owner decision. 「未避孕」 still withholds dose.
+- **Obstetric history read as pregnancy.** `assessState` removed all whitespace before matching, so the `[^。；\n]` windows never saw a field boundary: 「工具避孕\n13岁初潮」 became 「孕13」 (13 weeks pregnant), and 「不孕3年」「避孕3年」「备孕3个月」 matched `孕\d+` too. Five ordinary gynaecology records in 190 lost their dose. Newlines are now sentence boundaries, `孕N` needs a non-避/不/备/未 prefix and no 岁/年/次/胎 after it, and 备孕 / 解除避孕 / 停止避孕 are caught by the conception assessor itself (before, 「备孕3个月」 was held only through that misreading). Corpus replay, 69,615 texts: 64 no longer held (all 不孕N年 / 避孕N年 / cross-field), 24 newly held (all 解除/停止避孕). 「不孕」 was **not** added as trying-to-conceive: it would newly withhold 227 corpus texts and is an owner decision. (Since 2026-10-14 trying to conceive no longer withholds dose at all; see the conception paragraph in the 10/14 follow-up section.)
 - **Chronic complaints had "no current fact".** `isCurrentPositiveTcmAnchor` judged a whole anchor at once: one negation anywhere (「面色没有光泽」) negated a quoted 现病史 sentence, and the Western rule "N years without a current cue = background history" made the chief complaint 「入睡困难、易醒1年」 historical. Both anchors failed → `tcm_syndrome_current_fact_missing` → placeholder M03. It now judges history per sentence and negation per clause; disease-name labels are still excluded by `DIAGNOSIS_LABEL_ONLY`.
 - **A recorded 无汗 could cost the whole M03.** `chain_key_discriminator_missing` (T1 on purpose) has two branches; only the 风寒束表 one had a deterministic projection. With textbook names (阳虚感冒) the other branch — 无汗/自汗 in the basis but not in the chain — went to three repair rounds, 99 s, and the placeholder. `projectM03KeySyndromeDiscriminators` now copies the model's own basis item into the chain evidence.
 - **Two deterministic red-flag false alarms.** Measured weight loss needs ≥3 kg (6 斤; ranges take the upper bound; `Kg` is now recognised) — 「体重下降约2kg」 in a cough case was an upper-GI alarm. A degree word followed directly by a comma closes the previous symptom and does not modify a later abdominal pain (「瘙痒剧烈，同时胃脘、腹部疼痛」). Gate replay over 17,505 corpus cases: 8 changed, all read.
@@ -434,7 +434,7 @@ Remaining misses are judgement calls (喘证·表寒肺热 read as 咳嗽·风�
 **Left as is.**
 - Sparse records still vary between fresh generations (a two-line record can flip between 风寒 and 风热); persisted reuse makes repeats identical, it does not make the judgement itself stable.
 - About 15% of textbook formulas have no lockable catalog entry, so their composition is not checked against a baseline.
-- 「未避孕」 and 备孕 withhold dose (the standing pregnancy/lactation/conception boundary). An infertility consultation written as 「未避孕1年未孕」 gets a non-dose page; whether that is wanted is an owner decision.
+- (Superseded 2026-10-14: 「未避孕」 and 备孕 no longer withhold dose; see the conception paragraph in the 10/14 follow-up section.)
 - The deterministic chest-tightness rule still raises a red flag for 「半年来反复胸闷，每次持续数分钟至十余分钟」 with an explicit 「近期无加重」.
 - `COMPLAINT_DISEASE_BRIDGE` lives in code; with the closed-set pick it is only the fallback and M02's source.
 
@@ -506,9 +506,7 @@ The second independent review of the 10.12 work (`~/runlogs/fix1012/out/judge2`)
 - Regenerating the identity catalog also requires `build:nihaisha-fusion`: its manifest records the catalog hash, and `test:nihaisha-fusion` fails otherwise. Core herbs and the classic index did not change.
 
 **Left as is after the third review.**
-- **rf-lowtemp is model variance, not a regression.** The case is a 76-year-old with T 35.5 ℃, drowsiness, slowed responses and hypothyroid medication stopped. Only the facts layer raises it. In 6 fresh extractions on this code, 1 graded the metabolic finding `urgent` instead of `emergency`, so the gate stayed `needs_information` and dose was released; the e4 run hit the same draw. Its inputs and prompt did not change this round.
-  - A deterministic floor would fit the numeric-threshold exception: T ≤ 35.5 ℃ plus a recorded consciousness change (嗜睡/反应迟钝/意识模糊).
-  - It needs a class fixture and a gate corpus replay, and it is a safety-gate change, so it is left for the owner.
+- **rf-lowtemp was model variance, not a regression; closed later the same day.** The case is a 76-year-old with T 35.5 ℃, drowsiness, slowed responses and hypothyroid medication stopped, and only the facts layer raised it. In 6 fresh extractions 1 graded the metabolic finding `urgent` instead of `emergency`, so dose was released; the e4 run hit the same draw. The owner then approved a deterministic floor (see the hypothermia paragraph below).
 - **Mixed polarity in the negation sanitizer.** A record with both 「手心脚心发热」 or 「发热感」 and 「无发热」 gets 「有发热；否认发热」 in a differential. This is the frozen open-language polarity class: it needs a class fixture and a corpus replay in both directions.
 - **Western names more specific than the record:**
   - 缺铁性贫血 without iron studies;
@@ -523,7 +521,24 @@ The second independent review of the 10.12 work (`~/runlogs/fix1012/out/judge2`)
   - 加减 adding sedatives for incidental insomnia;
   - no antibiotic advice for 丹毒 with leukocytosis.
 
-**Left for decision.** Women trying to conceive still get a non-dose page. Research (`D-tcm-rules.md` §5): the textbook and the 2023 infertility guideline prescribe dosed decoctions to them, including pregnancy-caution herbs; the recommended rule would keep the dose, exclude the 37 pregnancy-prohibited herbs and annotate the 60 caution herbs. This is a dose-authorization boundary, so it waits for the owner.
+**Trying to conceive: dose given, pharmacopoeia pregnancy labels applied (owner decision 2026-10-14).** Before this, 备孕/未避孕 (positive or possible) sat in the same independent hard boundary as pregnancy and lactation, so an infertility consultation written as 「未避孕1年未孕」 got a non-dose page. Research (`D-tcm-rules.md` §5): the 药典 wording is about 孕妇; the 《中医妇科学》 不孕症 chapter and the 2023 《女性不孕症中西医结合诊疗指南》 prescribe dosed decoctions to these women, including 孕妇慎用 herbs (桂枝, 牡丹皮, 桃仁, 红花, 附子, 肉桂).
+- **One predicate:** `conceptionWithoutPregnancyOrLactation` in `clinical-state.ts`, true when conception is positive or possible and neither pregnancy nor lactation is. The gate (`hasPositivePregnancyOrLactationRisk` now covers pregnancy and lactation only), the M04 contract, the compiler and the M04 prompt all read it. 停经 / 月经逾期 are still judged possible pregnancy by the pregnancy assessor, so they keep the hard boundary.
+- **Herb data:** `src/data/tcm-chp-pregnancy-herb-labels.source.json` lists 药典 2020 一部 孕妇禁用/忌用 37 and 孕妇慎用 60, with each monograph's 【注意】 wording. The 37 match the 2023 医药导报 tabulation exactly. Read through `conception-herb-policy.ts`: exact name and aliases first, then identity-preserving prefixes, never 制/煅/炭 (制川乌 is 慎用, 川乌 is 禁用), then governed identity.
+- **What changes for these patients:**
+  - a 禁用 herb in the candidate is a special-population T1 (`..._high_risk_pregnancy`, repair removes it);
+  - a 禁用 herb added as a modification is dropped (`special_population_conflict`);
+  - a 慎用 herb is kept and annotated in its `verificationReasons` («药典2020「孕妇慎用。」本例备孕/未避孕，使用前请确认未妊娠，月经逾期者先验孕。»), and an added one in the modification's `riskNote`;
+  - the knowledge base's own pregnancy rules do **not** apply to this tier: they mark 红花, 桃仁, 益母草, 附子 and 牛黄 HIGH, so applying them would delete the very herbs the 药典 only marks 慎用.
+- **Reason text unchanged:** 「已记录妊娠、哺乳或备孕阳性/可疑状态」 is kept for pregnancy and lactation cases, because integrators read it.
+- **Measured:** gate and permission replay over the 242 evaluation cases × 3 shapes — the two conception cases (S102 「未避孕1年未孕」, S134 「未避孕」) went from non_dose_only to limited_dose, and their expectations were corrected 【10/14 订正】. The modern-case corpus (604 cases × 2 shapes) did not change.
+- **Pinned by** `test:conception-dose-policy`. No assertion had pinned the old rule: every suite stayed green when it was changed.
+- **Known gap, not changed:** the M04 special-population matcher recognises pregnancy by literal words (妊娠/怀孕/孕妇/孕期), so 「停经8周，宫内早孕」 does not trigger the knowledge-base pregnancy herb rules in the non-dose candidate. Those cases get no dose either way.
+
+**Hypothermia with a recorded consciousness change is a deterministic red flag (owner decision 2026-10-14).**
+- **What changed:** the gate already flags T < 35 ℃. Now 35.0–35.5 ℃ plus a current, non-negated 嗜睡 / 昏睡 / 谵妄 / 昏迷 / 呼之不应 / 意识模糊 / 意识障碍 / 神志不清 / 神志模糊 / 神志恍惚, or 「反应（较平时/较前）迟钝」, also raises one (`currentConsciousnessChangeTerm` in `detectProgrammaticRedFlags`).
+- **Why:** rf-lowtemp (76 y, 35.5 ℃, drowsy, slowed responses) depended on the facts layer alone, which graded it `urgent` in 1 of 6 extractions and released dose.
+- **Class fixture:** `scripts/fixtures/open-language-classes/hypothermia-with-consciousness-change.json` (sibling parity against 34.x ℃, plus controls).
+- **Replay:** the corpus did not change. In the evaluation set only rf-lowtemp and S188 changed, both expected red flags.
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 

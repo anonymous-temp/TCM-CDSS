@@ -2883,6 +2883,28 @@ const FOCAL_NEUROLOGIC_PATTERN = new RegExp(
 );
 const CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN = /(?:昏迷|呼之不应|抽搐|惊厥|癫痫持续状态)/;
 const ACUTE_CONSCIOUSNESS_CHANGE_TERMS = ["昏睡", "嗜睡", "谵妄"];
+/**
+ * 意识改变：急性意识改变那组词、灾难性神经事件里的昏迷/呼之不应，加上同义的书面写法；「反应（较平时）迟钝/变慢」按构词式认。
+ * 只用于低体温合并意识改变这一条（不要求「突发」这类急性词：低体温本身就是这条规则的另一半证据）。
+ */
+const CONSCIOUSNESS_CHANGE_TERMS = [...ACUTE_CONSCIOUSNESS_CHANGE_TERMS, "昏迷", "呼之不应", "意识模糊", "意识障碍", "神志不清", "神志模糊", "神志恍惚"];
+const SLOWED_RESPONSE_PATTERN = /反应(?:较平时|比平时|较前|比以前|明显)?(?:迟钝|变慢|迟缓)/;
+
+/** 病历当前、肯定地记录了意识改变时返回那个说法（否定、既往、已缓解的不算）。 */
+function currentConsciousnessChangeTerm(text: string): string | undefined {
+  const normalized = normalizeClinicalText(text);
+  for (const term of CONSCIOUSNESS_CHANGE_TERMS) {
+    let index = normalized.indexOf(term);
+    while (index !== -1) {
+      if (!isExcludedClinicalAssertionAt(normalized, index) &&
+          (!isNegatedAt(normalized, index) || hasCommaSeparatedPositiveEvidence(normalized, index, term)) &&
+          !isHistoricalOrResolvedAt(normalized, index, term.length)) return term;
+      index = normalized.indexOf(term, index + term.length);
+    }
+  }
+  const slowed = firstPatternMatchWithoutNegation(normalized, SLOWED_RESPONSE_PATTERN);
+  return slowed ? "反应迟钝" : undefined;
+}
 
 /**
  * 「急性线索**跟在体征后面**」的写法。
@@ -3760,6 +3782,15 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   if (temp != null && temp < 35) {
     redFlags.push(`体温 ${temp}℃，达到低体温风险警戒阈值，需先评估循环、感染或暴露相关风险`);
   }
+  // 体温 35～35.5℃ 合并病历记录的意识改变（owner 2026-10-14）：单看体温只是「偏低需复测」，合并嗜睡、反应迟钝、意识模糊时
+  // 判红旗。此前只有语义事实层兜：76 岁、35.5℃、嗜睡、反应较平时迟钝的病例，6 次抽取有 1 次被评成 urgent 而放出剂量。
+  // 数值阈值 + 有限闭集（意识改变的词与闸门其余各处同一组），属开放语言冻结的允许例外。
+  if (temp != null && temp >= 35 && temp <= 35.5) {
+    const consciousness = currentConsciousnessChangeTerm(text);
+    if (consciousness) {
+      redFlags.push(`体温 ${temp}℃ 偏低并伴${consciousness}，需立即评估低体温相关的循环、感染与代谢原因`);
+    }
+  }
   if (pulse != null && (pulse >= (pediatricVitals?.pulseRedFlagFrom ?? 150) || pulse < 40)) {
     redFlags.push(`心率/脉搏 ${pulse}次/分异常，需先评估心血管风险`);
   }
@@ -4284,11 +4315,16 @@ function maternalStateText(state: CaseState, text: string): string {
   return isInfantFeedingContext(state) ? stripInfantFeedingPhrases(text) : text;
 }
 
+/**
+ * 妊娠或哺乳阳性/可疑：独立硬边界，不给剂量。
+ * 备孕/未避孕自 2026-10-14 起不在其中（owner 决定）：照常给剂量，药典孕妇禁用饮片不进方、慎用的逐味标注，
+ * 判据是 clinical-state 的 conceptionWithoutPregnancyOrLactation。理由文案「已记录妊娠、哺乳或备孕阳性/可疑状态」不改——
+ * 对接方与签名载荷读它，妊娠、哺乳病例照旧给出这句。
+ */
 function hasPositivePregnancyOrLactationRisk(text: string): boolean {
   return [
     assessPregnancyState(text),
     assessLactationState(text),
-    assessConceptionState(text),
   ].some(isPositiveOrPossibleClinicalState);
 }
 

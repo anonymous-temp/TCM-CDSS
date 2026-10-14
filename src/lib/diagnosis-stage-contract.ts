@@ -1,6 +1,7 @@
 import { conditionalModificationWithoutTextbook, textbookModificationMatch } from "./tcm-textbook-syndromes";
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
-import { assessConceptionState, assessLactationState, assessPregnancyState, isPositiveOrPossibleClinicalState, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
+import { chpPregnancyLabel } from "./conception-herb-policy";
+import { assessConceptionState, assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, isPositiveOrPossibleClinicalState, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
 import tcmKnowledgeIdentitySource from "../data/tcm-knowledge.json";
 import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { formulaStructureTarget } from "./herb-target-contract";
@@ -3727,7 +3728,10 @@ const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
 }> = [
   {
     population: /孕期|妊娠/, patient: /妊娠|怀孕|孕妇|孕期|备孕|计划妊娠/, code: "pregnancy",
-    denied: (context) => assessPregnancyState(context).status === "negative" && !isPositiveOrPossibleClinicalState(assessConceptionState(context)),
+    // 备孕/未避孕这一档（妊娠、哺乳都不是阳性或可疑）不按知识库的孕期规则拦：知识库把红花、桃仁、附子这些药典只列为
+    //「孕妇慎用」的也记成 HIGH，照它拦就把慎用药一并删了。这一档只拦药典孕妇禁用的（见函数开头），慎用的在编译器里逐味标注。
+    denied: (context) => (assessPregnancyState(context).status === "negative" && !isPositiveOrPossibleClinicalState(assessConceptionState(context))) ||
+      conceptionWithoutPregnancyOrLactation(context),
   },
   { population: /哺乳期/, patient: /哺乳|乳母|产后喂养/, code: "lactation", denied: (context) => assessLactationState(context).status === "negative" },
   // 儿童臂不再自带一份正则：数值年龄按小数年龄判（「患者年龄：0.5岁」「6.0833岁」旧正则匹配不上，月龄婴儿与带月数的儿童整段漏判），
@@ -3758,6 +3762,13 @@ export function m04GenerationSpecialPopulationIssue(
       if (name && pediatricHerbRestriction(name, pediatricRule)?.level === "prohibited") {
         return `herb_${herbIndex}_special_population_high_risk_pediatric`;
       }
+    }
+  }
+  // 备孕/未避孕（owner 2026-10-14）：照常给剂量，药典 2020 孕妇禁用/忌用的饮片不进方——与知识库按人群登记的 HIGH 规则同一出口，
+  // 修复轮删掉该味。码沿用 pregnancy：修复提示与人群口径相同。
+  if (conceptionWithoutPregnancyOrLactation(clinicalContext)) {
+    for (const [herbIndex, herb] of herbs.entries()) {
+      if (chpPregnancyLabel(herb.name)?.level === "prohibited") return `herb_${herbIndex}_special_population_high_risk_pregnancy`;
     }
   }
   for (const [herbIndex, herb] of herbs.entries()) {

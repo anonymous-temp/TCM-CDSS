@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "cdss-open-language-class-v1",
+  "id": "hypothermia-with-consciousness-change",
+  "mode": "deterministic",
+  "paritySchema": "sibling-phrasing",
+  "addedAt": "2026-10-14",
+  "trigger": "甲方既往病例 rf-lowtemp（76 岁女，乏力怕冷 1 周，嗜睡，反应较平时迟钝，甲减停药 1 月，体温 35.5℃、脉 56）与合成集 S188（体温 35.2℃、脉 42、血压 82/48、嗜睡）。确定性层只对 <35℃ 报低体温，35～36℃ 只是「偏低需复测」；两例的红旗全靠语义事实层。10/14 全量复测 rf-lowtemp 漏判一次，另抽 6 次事实层有 1 次把代谢类判成 urgent 而不是 emergency，闸门停在 needs_information，剂量放出。",
+  "layerAttribution": {
+    "layer": "deterministic_red_flag_rules",
+    "mechanism": "diagnosis-safety.detectProgrammaticRedFlags 的体温规则只有 temp < 35 一档；意识改变的判据（hasAcutePositiveTerm）要求「突发、急性」等急性词，慢性起病的「近1周嗜睡」不进神经急症（这一点是对的）。两者各自都不触发，合在一起的低体温合并意识改变没有确定性出口。",
+    "exception": "冻结令允许的确定性例外：数值阈值（35.0～35.5℃）+ 有限闭集（意识改变：嗜睡、昏睡、谵妄、昏迷、呼之不应、意识模糊、意识障碍、神志不清、神志模糊、神志恍惚；「反应（较平时/较前/明显）迟钝/变慢/迟缓」按构词式）。否定、既往、已缓解的写法按闸门同一套极性与时序判据排除。owner 2026-10-14 授权（安全闸门改动）。",
+    "sources": "低体温的临床界线是核心体温 <35℃（本闸门已有）；35～35.5℃ 合并意识改变按高风险处理是工程上的保守取值，理由是意识改变本身提示低体温已影响中枢或另有感染、代谢（甲减危象等）原因，不应只给复测提示。"
+  },
+  "contexts": ["sparse"],
+  "parity": {
+    "note": "兄弟句法：同一份叙述把体温从 35.x℃ 换成 34.x℃（已有的 <35℃ 红旗），门禁结果必须完全相同；兄弟句自身必须带红旗。",
+    "pairs": [
+      { "subject": "近1周乏力怕冷，嗜睡，反应较平时迟钝，体温35.5℃。", "sibling": "近1周乏力怕冷，嗜睡，反应较平时迟钝，体温34.8℃。", "siblingExpect": "flagged" },
+      { "subject": "老人反应较前迟钝2天，体温35.0℃。", "sibling": "老人反应较前迟钝2天，体温34.9℃。", "siblingExpect": "flagged" },
+      { "subject": "怕冷乏力2天，昏睡，体温35.3℃。", "sibling": "怕冷乏力2天，昏睡，体温34.7℃。", "siblingExpect": "flagged" },
+      { "subject": "畏寒少动3天，神志模糊，体温35.2℃。", "sibling": "畏寒少动3天，神志模糊，体温34.6℃。", "siblingExpect": "flagged" }
+    ]
+  },
+  "controls": {
+    "note": "没有意识改变、意识改变被否认或属既往、体温在 35.5℃ 以上的，都不得因这条规则报警；<35℃ 的照旧报警。",
+    "mustStillFlag": [
+      { "text": "体温34.5℃，乏力怕冷。", "flag": "体温" },
+      { "text": "近1周乏力怕冷，嗜睡，反应较平时迟钝，体温35.5℃。", "flag": "偏低并伴嗜睡" }
+    ],
+    "mustStayReady": [
+      "乏力怕冷1周，体温35.5℃，神志清，反应可。",
+      "体温35.4℃，否认嗜睡，无意识模糊。",
+      "既往曾嗜睡，现神志清楚，体温35.5℃。",
+      "嗜睡，体温35.8℃。",
+      "白天嗜睡1月，体温36.2℃。"
+    ]
+  },
+  "measurements": [
+    {
+      "date": "2026-10-14",
+      "what": "改前（60e0f12）/改后同一份代码树整案过安全门，两边结果逐条比对。",
+      "corpus": "现代医案语料里含体温、意识、妊娠相关字样的 604 例 × 两种形态 = 1,208 次判定：0 次改变。",
+      "evalset": "甲方传参形状 242 例（合成 190 + 既往 52）× 无追问/跳过/作答 = 726 行：6 行改变，全是预期为红旗的 rf-lowtemp、S188 由 needs_information/ready 变为 red_flag（rf-lowtemp 改前确定性层给 full_dose）。",
+      "factsLayer": "rf-lowtemp 当前代码的事实层 6 次抽取：5 次 emergency、1 次 urgent（那 1 次闸门不判红旗）。"
+    }
+  ]
+}

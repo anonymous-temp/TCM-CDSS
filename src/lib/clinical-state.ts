@@ -479,3 +479,15 @@ export function isKnownClinicalState(state: ClinicalStateResult): boolean {
 export function isPositiveOrPossibleClinicalState(state: ClinicalStateResult): boolean {
   return state.status === "positive" || state.status === "possible";
 }
+
+/**
+ * 备孕/未避孕这一档（owner 2026-10-14 决定）：病历记录了备孕或未避孕（阳性或可疑），而妊娠、哺乳都不是阳性或可疑。
+ * 这一档照常给剂量，只是药典孕妇禁用的饮片不进方、孕妇慎用的逐味标注（conception-herb-policy）。
+ * 妊娠或哺乳阳性/可疑时不属于这一档，仍按独立硬边界不给剂量；停经、月经逾期由妊娠判据判为可疑，同样不属于这一档。
+ * 安全闸门、M04 合同与编译器读的都是这一个判据。
+ */
+export function conceptionWithoutPregnancyOrLactation(text: string): boolean {
+  return isPositiveOrPossibleClinicalState(assessConceptionState(text)) &&
+    !isPositiveOrPossibleClinicalState(assessPregnancyState(text)) &&
+    !isPositiveOrPossibleClinicalState(assessLactationState(text));
+}

@@ -9,6 +9,8 @@ import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
 import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-parse";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { pediatricDoseRuleGuidance, pediatricDoseRuleSummary, pediatricRestrictedHerbNames } from "@/lib/pediatric-dose-rule";
+import { conceptionWithoutPregnancyOrLactation } from "@/lib/clinical-state";
+import { chpPregnancyProhibitedHerbNames } from "@/lib/conception-herb-policy";
 import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
@@ -283,6 +285,11 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     // 服务端在合同（成人区间不再适用）与编译（超出折算上限按上限截取并注明）两处按同一档位核对。
     const restricted = pediatricRestrictedHerbNames(pediatricDose);
     promptSuffixes.push(`【儿童剂量】${pediatricDoseRuleSummary(pediatricDose)}。前文各药的 [min-max g] 与「服务端方剂目录编译基准」里的克数都是**成人**用量：请把每味药折算为成人一般用量×${pediatricDose.fractionText}（可低于成人下限；绝不得超过该药成人上限×${pediatricDose.fractionText}），药味多的处方保持主药用量、精简或减少辅助药；麻黄、附子、细辛、乌头、大黄、巴豆、芒硝等辛热苦寒峻烈药无论年龄档一律不超过成人上限的 2/3 并尽量从低；每味药仍必须写出可解析的克数，并在适用边界中写明本例按年龄分数法折算。本例禁用药味（不得入方）：${restricted.prohibited.join("、")}；慎用药味（非必需不用，用则从低并写明理由）：${restricted.caution.join("、")}。`);
+  }
+  // 备孕/未避孕（owner 2026-10-14）：照常给剂量；药典孕妇禁用的饮片不得入方（合同按特殊人群驱动修复），慎用的用则写明。
+  // 合同与编译器读同一个判据（conceptionWithoutPregnancyOrLactation）与同一份接地文本。
+  if (conceptionWithoutPregnancyOrLactation(groundingText)) {
+    promptSuffixes.push(`【备孕/未避孕】本例记录了备孕或未避孕，未见妊娠、哺乳记录：照常给出剂量。不得使用《中国药典》2020年版孕妇禁用/忌用的饮片（${chpPregnancyProhibitedHerbNames().join("、")}）；孕妇慎用的饮片（如桃仁、红花、牛膝、附子、肉桂、大黄、枳实）非必需不用，用则在注意事项写明使用前确认未妊娠、月经逾期者先验孕。`);
   }
   if (limitedInformation) {
     promptSuffixes.push(`【有限信息候选】当前待复核：${reviewItemsText}。请基于已知证候、病机和治法生成医生审阅用候选方案，并把相关未知项或阳性风险写入适用边界；不得臆造患者事实，也不得仅因缺项或风险提示拒绝生成。`);
