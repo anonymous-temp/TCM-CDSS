@@ -576,6 +576,17 @@ The second independent review of the 10.12 work (`~/runlogs/fix1012/out/judge2`)
   - A composition-only entry is not used as the 方义 fallback.
 - **Tests:** `test:eval1014-remediation` §13.
 
+**In production (5c85a55, deployed 2026-10-14 19:08 Beijing; tag `20261014-5c85a55-prebuilt`, same release directory and `20260927-dsrepair` override).**
+- **Verification:** `verify:deployed-image` (commit + digest + strictReady) and `regress:prod-smoke` both passed, with 0 failures.
+- **Live check on hospital-b:**
+  - 「胃痛3天」 → 胃气不和证, 理气和胃, a mild self-devised formula; the follow-up asks how the pain relates to cold and warmth;
+  - the 寒邪客胃 control is unchanged;
+  - 胃痛半月 without tongue/pulse is unchanged, and now carries the new `compositionLogic` wording.
+- **Rollback:** image `tcm-cdss:20261014-244ab82-prebuilt` with `docker-compose.yml.pre-5c85a55`.
+- **Build resources:** the local prebuild peaks at about 5.8 GB RSS and needs about 3 GB free on `/home`.
+  - With other sessions' jobs running, it was OOM-killed nine times.
+  - It succeeded once they stopped. It was built from the main checkout with its untracked files moved aside: the script refuses a dirty tree, and a separate worktree costs about 580 MB more disk.
+
 **In production (244ab82, deployed 2026-10-14 14:47 Beijing; tag `20261014-244ab82-prebuilt`, same release directory and `20260927-dsrepair` override).**
 - **Deploys:** 60e0f12 (third-review fixes) went out first at 13:40, then 244ab82 (conception dosing + hypothermia floor).
 - **Switch:** the override now also sets `CDSS_M02_PROCEED_WHEN_SETTLED: "true"` (user decision: `decision=proceed` was always in the documented interface, §4.3).
