@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { CaseState } from "./diagnosis-types";
+import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 import {
   fetchExternalEvidence,
@@ -92,11 +93,18 @@ function casePlanningText(caseState: CaseState): string {
     caseState.chiefComplaint,
     caseState.hisRecord?.fields.zhushu,
     caseState.hisRecord?.fields.xianbingshi,
+    // 接口调用方的病历在规范槽位里（现病史、既往史、用药史、辅助检查），没有 hisRecord：此前规划模型看不到它们，
+    // 也就不知道患者正在用什么药、做过的检查是什么结果（2026-10-14 独立评审：既往史写着在服二甲双胍，仍推荐二甲双胍）。
+    typeof caseState.symptoms?.presentHistory === "string" ? caseState.symptoms.presentHistory : "",
+    caseState.pastHistory ? `既往史：${caseState.pastHistory}` : "",
+    caseState.medicationHistory ? `用药史：${caseState.medicationHistory}` : "",
+    typeof caseState.symptoms?.exams === "string" ? `辅助检查：${caseState.symptoms.exams}` : "",
   ].filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
     .map((value) => compact(value, 240))
     .join("；")
-    .slice(0, 2200);
+    .slice(0, 2600);
 }
+
 
 function localCandidateToProposal(candidate: LocalPatentMedicineCandidate): EvidenceBoundMedicineProposal {
   const problem = candidate.matchedConcepts.join("、") || compact(candidate.indication, 100);
@@ -285,6 +293,10 @@ async function runPlannerModelUncached(
             ...(allowPatentProposals
               ? ["本例本地中成药说明书检索没有候选：可在 patentMedicines 中提名最多2个适合本例的中成药（写国家批准上市的完整药名，不得提名注射剂）；系统会核对说明书，核对不到的不会采用。"]
               : []),
+            // 中成药辨证用药（《中成药临床应用指导原则》）：按西医病名对药是最常见的不合理用药——独立评审里，无表证的慢性痰湿咳嗽配了参苏丸，
+            // 气虚低热配了藿香正气丸，白带常规阴性的脾虚带下配了治阴道炎的凝胶。
+            "中成药要按证候选（辨证用药）：候选说明书功能主治所针对的证型，要与病例事实里的中医证候相符；寒热、虚实、表里相反或不相干的不选（没有表证不选解表剂，虚证不选只祛邪的药，寒证不选清热药）。没有相符的候选就一个也不选，localEvidenceIds 返回空数组——宁缺毋滥。",
+            "病例已写明患者正在使用的药不再提出；病历已记录的检查结果不支持的病（如病原学检查阴性的感染），不为它选药；不提注射剂和生物制剂。",
             "西药仅在当前西医诊断已有足够依据且药物适应证可直接覆盖该诊断/症状时提出；不得为待排诊断、阴性症状、单纯中医证候提出西药。",
             "不得提出抗菌药、激素、抗凝药、抗精神病药或其他高风险药物，除非病例已有明确对应诊断和必要证据。",
             "每个对应问题必须是病例中当前阳性的具体诊断或症状，不得写‘调理’‘改善体质’等泛化词。",
@@ -494,7 +506,9 @@ export async function planEvidenceBoundMedicineCandidates(
   const rawSelection = await runPlannerModel(caseState, localCandidates, requestSignal, inventoryLabels);
   // 本地有候选时即便模型仍写了 patentMedicines 也不采用（与提示同一规则，确定性兜底）。
   const selection = rawSelection && localCandidates.length > 0 ? { ...rawSelection, patentMedicines: [] } : rawSelection;
-  const selectedLocalIds = selection?.localEvidenceIds.length
+  // 规划模型看过候选后一个也没选，是它的判断（没有与本例证候相符的中成药）：照此不出中成药。此前这种情况服务端仍把检索第一名补上，
+  // 模型按证候筛掉的药又回来了。只有规划模型不可用时才退到检索第一名。
+  const selectedLocalIds = selection
     ? selection.localEvidenceIds
     : localCandidates.find((item) => item.score >= IN_STOCK_MIN_SCORE)
       ? [localCandidates.find((item) => item.score >= IN_STOCK_MIN_SCORE)!.id]
@@ -539,7 +553,10 @@ export async function planEvidenceBoundMedicineCandidates(
     resolvedWestern.filter((item): item is NonNullable<typeof item> => Boolean(item)),
     (item) => inStock(item.candidate.name, "western"),
   );
-  const planned: ResolvedPlannerMedicine[] = [...selectedLocal, ...aiPatent, ...western].slice(0, 6);
+  const exclusionText = `${caseText}；${caseState.pastHistory || ""}；${caseState.medicationHistory || ""}`;
+  const planned: ResolvedPlannerMedicine[] = [...selectedLocal, ...aiPatent, ...western]
+    .filter((item) => !medicineCandidateExcludedForCase(item.candidate.name, exclusionText))
+    .slice(0, 6);
   const candidates = planned.map((item) => item.candidate);
   const localRecords = planned.filter((item) => item.candidate.type === "中成药" && item.record && item.candidate.evidenceId.startsWith("LOCAL-INST-"))
     .map((item) => item.record as string);

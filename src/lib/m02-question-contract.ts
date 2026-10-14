@@ -1,6 +1,6 @@
 import { redFlagExplicitOnly } from "./clinical-facts";
 import { textbookDiscriminatingQuestion } from "./tcm-textbook-syndromes";
-import { FOLLOWUP_SKIP_SENTENCE, POSSIBLE_RISK_QUESTIONS } from "./followup-conversation";
+import { FOLLOWUP_SKIP_SENTENCE, POSSIBLE_RISK_QUESTIONS, riskQuestionQuotePrefix } from "./followup-conversation";
 import { affirmedClinicalText } from "./clinical-polarity";
 import type { Completeness } from "./diagnosis-types";
 
@@ -11,6 +11,9 @@ type QuestionFallbackCase = {
   tongue?: string;
   pulse?: string;
   clinicalFacts?: { redFlags?: Array<{ category?: string; status?: string; urgency?: string; quote?: string }> };
+  /** 病历已经回答了其急症筛查题的类目（路由按 m02-risk-question-answerability 的核对结果写入），这些类目不再出筛查题。 */
+  m02SuppressedRiskCategories?: readonly string[];
+  vitals?: Record<string, unknown>;
   hisRecord?: { fields?: { age?: string; zhushu?: string; xianbingshi?: string; tcmDetail?: string; tcmTongue?: string; tcmPulse?: string } };
 };
 
@@ -318,12 +321,10 @@ function groundedRiskFactCandidates(state?: QuestionFallbackCase) {
   // 只认明确现症时（clinical-facts.redFlagExplicitOnly，默认）：急症筛查题只为事实层判为 urgent 的线索而出。
   // 此前 status=possible 或 urgency=clarify 就出题——生产留存里 3 例普通感冒（头痛、头晕）第一题都是
   //「是否出现突然说话不清、口角歪斜、单侧肢体无力…」，医生直接跳过。
-  if (redFlagExplicitOnly()) {
-    return (state?.clinicalFacts?.redFlags || [])
-      .filter((item) => typeof item.category === "string" && item.urgency === "urgent");
-  }
-  return (state?.clinicalFacts?.redFlags || [])
-    .filter((item) => typeof item.category === "string" && (item.status === "possible" || item.urgency === "clarify" || item.urgency === "urgent"));
+  const suppressed = new Set(state?.m02SuppressedRiskCategories || []);
+  const flags = (state?.clinicalFacts?.redFlags || []).filter((item) => typeof item.category === "string" && !suppressed.has(item.category));
+  if (redFlagExplicitOnly()) return flags.filter((item) => item.urgency === "urgent");
+  return flags.filter((item) => item.status === "possible" || item.urgency === "clarify" || item.urgency === "urgent");
 }
 
 /**
@@ -352,7 +353,37 @@ function possibleRiskQuestion(state?: QuestionFallbackCase): PossibleRiskQuestio
     });
   const category = candidates[0]?.category;
   const question = category ? POSSIBLE_RISK_QUESTIONS[category] : undefined;
-  return category && question ? { category, ...question } : undefined;
+  if (!category || !question) return undefined;
+  // 「其他急危重线索」没有类目自己的筛查内容，题干只有「请复核该异常是否正在发生」——脱离上下文读不出「该异常」是什么
+  //（2026-10-14 独立评审）。把事实层给的病历原话放在题干前面，指代才有着落；闸门识别作答时会先去掉这段引文。
+  const quote = category === "other_critical" ? riskQuestionQuote(candidates[0]?.quote) : "";
+  return { category, ...question, question: quote ? `${riskQuestionQuotePrefix(quote)}${question.question}` : question.question };
+}
+
+/**
+ * 结构化生命体征四项（体温、脉搏、呼吸、血压）都已录入。此时问「生命体征」的题（targetField=vitalsDetail）问的是病历已有的内容。
+ * 实测（2026-10-14）：病历文本里体征只有数值没有指标名（「生命体征：90」），模型问出「生命体征栏记录的 90 指的是哪一项」；
+ * 文本保持原样（改它会让语义层的安全判断漂移，见 diagnosis-safety.trustedInputText），这里按结构化字段判。
+ */
+function structuredVitalsComplete(state?: QuestionFallbackCase): boolean {
+  const vitals = state?.vitals;
+  if (!vitals || typeof vitals !== "object") return false;
+  const has = (keys: readonly string[]) => keys.some((key) => {
+    const value = (vitals as Record<string, unknown>)[key];
+    return (typeof value === "string" && value.trim().length > 0) || (typeof value === "number" && Number.isFinite(value));
+  });
+  return has(["T", "temperature", "temp"]) && has(["P", "pulse", "HR", "heartRate"]) &&
+    has(["R", "respiration", "RR", "respiratoryRate"]) && has(["BP", "bp", "bloodPressure"]);
+}
+
+/** 路由用：本例此刻会出的急症筛查题（没有则 undefined）。 */
+export function m02PossibleRiskQuestion(state?: QuestionFallbackCase): { category: string; question: string } | undefined {
+  const risk = possibleRiskQuestion(state);
+  return risk ? { category: risk.category, question: risk.question } : undefined;
+}
+
+function riskQuestionQuote(value: unknown): string {
+  return typeof value === "string" ? value.replace(/[“”"\s]+/g, "").slice(0, 60) : "";
 }
 
 function questionBlock(index: number, question: string, reason: string, field: string, options: [string, string, string]): string {
@@ -402,6 +433,24 @@ export function basicInquiryFallback(recordText: string): string | undefined {
   return axis
     ? questionBlock(1, axis.question, "这一项有助于区分寒热虚实，目前病历里没有写到。", "现病史", [...axis.options, "本次未取得该信息"])
     : undefined;
+}
+
+/**
+ * 病历已经把寒热、口渴、大便、汗出都写到、模型也没有要问的题时的最后一道题（2026-10-14）。
+ *
+ * 此前这种情况退到主诉类别预置的题——那是模型输出不可用时的安全兜底，问的往往正是病历已经写明的内容
+ *（关节红肿热痛、发热 37.9℃ 的病例被问「是否伴明确外伤、发热或局部红肿热」；急性咳喘 3 天被问「是否与夜间、运动、过敏暴露有关」）。
+ * 病历确已足够时，如实的做法是不追问（decision=proceed，见 m02ProceedWhenSettled）；调用方的流程仍要一道题时，
+ * 问一句不预设内容的开放题——「除了上面这些，还有没有别的不舒服」。门诊交流研究里，这样问能让患者说出原本没提的问题。
+ */
+export function agendaQuestionFallback(): string {
+  return questionBlock(
+    1,
+    "除病历已记录的情况外，患者还有没有其他不适需要一并处理？",
+    "病历已写明主要症状与寒热、饮食二便等情况；确认没有遗漏的不适后即可辨证。",
+    "现病史",
+    ["还有其他不适，请补充具体表现", "没有其他不适", "本次未取得该信息"],
+  );
 }
 
 function genericModelFailureFallback(state: QuestionFallbackCase): string {
@@ -554,6 +603,33 @@ function complaintFamilyFallback(currentComplaint: string): string | undefined {
   )).join("\n\n");
 }
 
+/**
+ * 安全闸门已判急危重时的那一道题（2026-10-14）。
+ *
+ * 急症已经由病历本身成立，再问什么都不改变处置——此前这类病例问的是另一个类目的筛查题（疑似脑膜炎问「口角歪斜、单侧肢体无力」，
+ * 主动脉夹层问卒中表现）、辨证题（重度脱水休克问「大便性状与气味」）或基本问诊（失血性休克问「怕冷还是怕热」）。
+ * 调用方的流程仍要一道题，就问对急症处置有用的那一件事：是否已经安排急诊评估或转诊。题干先说明是哪一条急危重情况
+ *（取闸门第一条红旗的前半句），医生不必翻到后面的安全提示才知道在说什么。选项只记录处置状态，不构成任何临床事实，
+ * 也不是解除红旗的通道（解除仍只走 emergency-clearance）。CDSS_M02_PROCEED_WHEN_SETTLED=true 时这类病例直接不追问。
+ */
+export function redFlagDispositionQuestion(redFlags: readonly string[]): string {
+  const first = (redFlags.find((item) => typeof item === "string" && item.trim()) || "").trim();
+  const headline = first.split(/，(?:需|请|即使|原文依据)|；|。/)[0].trim().slice(0, 80);
+  return questionBlock(
+    1,
+    `${headline ? `${headline}。` : "病历所述情况属急危重表现。"}请先按急症处置；目前是否已安排急诊评估或转诊？`,
+    "急危重情况应先处置，其余诊疗建议在风险解除后再用。",
+    "现病史",
+    ["已安排急诊评估或转诊", "尚未安排，正在现场评估", FOLLOWUP_SKIP_SENTENCE],
+  );
+}
+
+/** 「本轮无需追问」的信封（decision=proceed、题目为空）；只在 m02ProceedWhenSettled() 打开时由路由使用。 */
+export function m02ProceedPlanContent(rationale: string): string {
+  const plan: M02Plan = { schemaVersion: "tcm-cdss-m02-plan-v1", decision: "proceed", rationale, questions: [] };
+  return JSON.stringify({ m02Plan: plan });
+}
+
 /** Used only when the provider fails or omits a grounded semantic safety concern. */
 export function buildCaseAwareQuestionFallback(
   state: QuestionFallbackCase,
@@ -589,8 +665,7 @@ export function buildCaseAwareQuestionFallback(
       ...Object.values(state.symptoms || {}),
     ].filter((value): value is string => typeof value === "string").join("；");
     if (options.settled && options.textbookQuestion !== false) {
-      const basic = basicInquiryFallback(recordText);
-      if (basic) return basic;
+      return basicInquiryFallback(recordText) || agendaQuestionFallback();
     }
     const currentComplaint = [
       state.chiefComplaint,
@@ -813,18 +888,28 @@ export function enforceM02UnansweredAxes(
   const fallback = fallbackContent ? normalizeEnvelope(ensureQuestionStructuredEnvelope(fallbackContent, sourceText)) : null;
   const source = primary || fallback;
   if (!source) return content;
-  let questions = source.plan.questions.filter((question) => !questionAlreadyAnswered(question, sourceText));
+  let questions = source.plan.questions.filter((question) =>
+    !questionAlreadyAnswered(question, sourceText) && !(question.targetField === "vitalsDetail" && structuredVitalsComplete(state)));
   const groundedRisk = possibleRiskQuestion(state);
-  if (groundedRisk && fallback?.plan.questions[0]) {
+  // 模型自己写的澄清题已经覆盖「其他急危重线索」时用模型那一道，不再前置笼统的复核题。
+  const modelCoversOpenRisk = groundedRisk?.category === "other_critical" && source !== fallback &&
+    questions.some((question) => questionCoversGroundedRisk(question, groundedRisk));
+  const prependRisk = Boolean(groundedRisk && fallback?.plan.questions[0] && !modelCoversOpenRisk);
+  if (groundedRisk && prependRisk && fallback?.plan.questions[0]) {
     // A grounded risk owns one canonical, exhaustive triage axis. Replace every provider variant
     // on that axis instead of prepending a second wording of the same urgent decision branch.
     const riskQuestion = { ...fallback.plan.questions[0], id: "q1" };
     questions = [riskQuestion, ...questions.filter((question) => !questionCoversGroundedRisk(question, groundedRisk))];
+  } else if (groundedRisk && modelCoversOpenRisk) {
+    questions = [
+      ...questions.filter((question) => questionCoversGroundedRisk(question, groundedRisk)),
+      ...questions.filter((question) => !questionCoversGroundedRisk(question, groundedRisk)),
+    ];
   }
   // 一轮只问一题（2026-10-13，甲方 10.12 测评「追问是必选项吗」；生产 26 轮追问被跳过 21 轮）：急症澄清题之外
   // 只留一题，优先留能区分证型的那一题，西医鉴别方向的题排在最后。
   const BRANCH_RANK: Record<string, number> = { syndrome: 0, treatment_safety: 1, triage: 2, differential: 3 };
-  const riskLead = groundedRisk && fallback?.plan.questions[0] ? questions.slice(0, 1) : [];
+  const riskLead = prependRisk || modelCoversOpenRisk ? questions.slice(0, 1) : [];
   // 模型出的题按分支排序取一题；服务端自有的题（主诉类别兜底）保持它自己的先后——第一题是该类主诉的安全轴。
   const others = source === fallback || !fallbackContent
     ? questions.slice(riskLead.length)
@@ -833,12 +918,14 @@ export function enforceM02UnansweredAxes(
       .sort((left, right) =>
         (BRANCH_RANK[left.question.decisionBranch] ?? 9) - (BRANCH_RANK[right.question.decisionBranch] ?? 9) || left.index - right.index)
       .map((entry) => entry.question);
-  questions = [...riskLead, ...others.slice(0, 1)];
+  // 一轮只有一题（2026-10-14）：此前急症澄清题之外还带一题，一轮两题（242 例里 5 例），独立评审记为「数量不克制」。
+  // 有急症澄清题时只问它；没有时问模型排在最前的那一题。
+  questions = riskLead.length > 0 ? riskLead : others.slice(0, 1);
   // 没有合格的题：允许如实返回「无需追问」时就返回 proceed；否则给一条服务端自有的题，保持调用方现有的一问一答流程。
   if (questions.length === 0 && fallback && source !== fallback && !m02ProceedWhenSettled()) {
     questions = fallback.plan.questions.filter((question) => !questionAlreadyAnswered(question, sourceText)).slice(0, 1);
   }
-  const normalizedQuestions = questions.slice(0, 2).map((question, index) => ({ ...question, id: `q${index + 1}` }));
+  const normalizedQuestions = questions.slice(0, 1).map((question, index) => ({ ...question, id: `q${index + 1}` }));
   const plan: M02Plan = normalizedQuestions.length > 0
     ? { ...source.plan, decision: "ask", questions: normalizedQuestions }
     : { ...source.plan, decision: "proceed", rationale: "当前候选追问的答案已在病历中明确记录，无需重复询问。", questions: [] };
@@ -1059,6 +1146,9 @@ const RISK_AXIS_PATTERNS: Record<string, RegExp> = {
 };
 
 function questionCoversGroundedRisk(question: M02PlanQuestion, risk: PossibleRiskQuestion): boolean {
+  // 「其他急危重线索」没有固定的筛查内容：模型按该线索写的澄清题（triage / treatment_safety 分支）就是这道题本身，
+  // 比「请复核该异常是否正在发生」具体（抗凝中的深静脉血栓病史 → 「原血栓侧有无新发肿胀、疼痛」）。
+  if (risk.category === "other_critical" && (question.decisionBranch === "triage" || question.decisionBranch === "treatment_safety")) return true;
   const text = `${question.question}；${question.reason}；${question.expectedDecisionImpact}`;
   return asksGroundedRisk(question.question, risk.question) || Boolean(RISK_AXIS_PATTERNS[risk.category]?.test(text));
 }

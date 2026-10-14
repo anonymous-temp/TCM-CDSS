@@ -27,19 +27,21 @@ export function isSafetyClinicalDeliveryAdvisory(advisory: ClinicalDeliveryAdvis
   });
 }
 
+// 每条是「哪里需要核对」+「请医生做什么」，写给医生看（2026-10-14 改写：此前是「药味作用、病机归属或治法说明存在需要补充的地方」
+//「候选组成与所标方名或当前方剂资料不完全对应」「尚未在当前资料中完整对应」这类说系统自己的话，独立评审记为工程用语）。
 const COPY: ReadonlyArray<readonly [RegExp, string, string]> = [
-  [/therapy_vocabulary_unverified/, "药味的多种功用尚未全部对应到本例治法，需要核对其在本方中的实际作用。", "请医生结合已确认的病机和本方用药目的复核；此项是功用说明的待核对提示。"],
-  [/dose_reference_deviation/, "本次候选剂量偏离本地历史参考范围，尚未经医生确认。", "请医生核对本次用量；如决定采用超常规用量，应注明理由并由医生签名确认。AI结果签名不代表医嘱或用量批准。"],
-  [/emperor_(?:not_primary|therapy_mismatch)/, "君药的角色标注或功效与主要病机的对应仍需确认。", "请结合主症与治法核对君药选择、君臣佐使分工和病机归属，再决定是否调整相关药味。"],
-  [/high_risk_pair|incompatib/, "处方中有需注意的药味配伍组合。", "请结合配伍提示与本次用药目的决定是否调整相关药味。"],
-  [/unsupported_high_impact|direction/, "药味功用方向与本例治法的对应存在疑问，可能涉及方向不一致。", "请结合主症、四诊及该药在本方中的实际作用决定是否保留或调整。"],
-  [/special_population|contraindication|pregnan|liver|renal/, "患者背景与相关药味的适用范围存在需要注意的情况。", "请结合患者实际情况、药品资料和替代方案判断本次用药。"],
-  [/dose|course|administration|daily|regimen/, "药量或服法与当前资料中的参考范围不一致。", "请确认具体药量、剂数、每日服用次数与疗程，并在处方中修改需要调整的部分。"],
-  [/duplicate/, "当前处方存在重复药味。", "请合并重复项并确认本次总药量。"],
-  [/unknown|identity/, "部分药味或方剂信息尚未在当前资料中完整对应。", "请对照药名、炮制品或原始出处补充确认。"],
-  [/function|therapy|pathogenesis|target|structure/, "药味作用、病机归属或治法说明存在需要补充的地方。", "请结合本例主症调整相关药味说明，其他诊疗内容可以继续查看和编辑。"],
-  [/decoction|route|processing/, "炮制或煎服方式有需要注意的差异。", "请对照具体药味要求确认本次处理方式。"],
-  [/formula|composition|reference/, "候选组成与所标方名或当前方剂资料不完全对应。", "请结合实际组成确认原方、加减方或辨证组方的表述。"],
+  [/therapy_vocabulary_unverified/, "该药有多种功用，本方取哪一种来配合本例治法尚不明确。", "请结合本例病机确认其用意。"],
+  [/dose_reference_deviation/, "本次用量超出常用参考范围。", "请核对用量；确需超常规用量时请注明理由并由医生签名确认。"],
+  [/emperor_(?:not_primary|therapy_mismatch)/, "君药的选择或其功效与主要病机的对应需要确认。", "请结合主症与治法核对君药及君臣佐使分工。"],
+  [/high_risk_pair|incompatib/, "处方中有需注意的配伍组合。", "请结合配伍禁忌决定是否调整相关药味。"],
+  [/unsupported_high_impact|direction/, "该药的作用方向与本例治法不一致。", "请结合主症、舌脉及其在方中的用意决定去留。"],
+  [/special_population|contraindication|pregnan|liver|renal/, "该药对本例患者的情况（年龄、妊娠哺乳、基础病等）有慎用或禁用提示。", "请结合患者实际情况决定是否使用或更换。"],
+  [/dose|course|administration|daily|regimen/, "用量或服法与常用参考不一致。", "请确认用量、剂数、每日服药次数与疗程。"],
+  [/duplicate/, "处方中有重复药味。", "请合并重复项并确认总量。"],
+  [/unknown|identity/, "该药名或方名未能与药典及常用名对应。", "请核对药名、炮制品写法或出处。"],
+  [/function|therapy|pathogenesis|target|structure/, "该药的功效说明与本例病机的对应不够清楚。", "请核对该药在本方中的用意，其余内容不受影响。"],
+  [/decoction|route|processing/, "该药的炮制或煎服要求需要注意。", "请对照该药的特殊煎法确认。"],
+  [/formula|composition|reference/, "所标方名与实际药味组成不完全一致。", "请确认是原方、加减方还是自拟方。"],
 ];
 
 function displayText(value: string): string {
@@ -71,11 +73,11 @@ export function clinicalDeliveryAdvisoryFromIssue(
     candidateIndex,
     ...(herbName ? { herbIndex, herbName: displayText(herbName) } : {}),
     message: pairFindings.length > 0
-      ? pairFindings.map((finding) => `${displayText(finding.leftDrug)}—${displayText(finding.rightDrug)}：命中${displayText(finding.category)}；依据：${displayText(finding.basis)}。`).join(" ")
-      : `${herbName ? `${displayText(herbName)}：` : ""}${copy?.[1] || "本次处方有一项需要医生结合病例确认的内容。"}${doseDetail}`,
+      ? pairFindings.map((finding) => `${displayText(finding.leftDrug)}—${displayText(finding.rightDrug)}：属${displayText(finding.category)}；依据：${displayText(finding.basis)}。`).join(" ")
+      : `${herbName ? `${displayText(herbName)}：` : ""}${copy?.[1] || "本方有一处需要医生结合病例确认。"}${doseDetail}`,
     suggestedAction: pairFindings.length > 0
-      ? "当前候选不可采纳或写回医嘱，请调整相关药味后重新审方；已有诊疗内容可继续查看和编辑。"
-      : copy?.[2] || "请结合候选药味与患者资料进行判断，已有诊疗内容可继续查看和编辑。",
+      ? "本方含配伍禁忌，调整相关药味之前不得采纳或开出；其余诊疗内容不受影响。"
+      : copy?.[2] || "请结合药味与患者情况判断。",
   };
 }
 

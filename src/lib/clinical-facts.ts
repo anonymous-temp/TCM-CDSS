@@ -49,25 +49,27 @@ export const BACKSTOP_RED_FLAG_CATEGORIES = {
 
 export type BackstopRedFlagCategory = keyof typeof BACKSTOP_RED_FLAG_CATEGORIES;
 
+// 这些句子随红旗一起显示给医生（红旗接口的 redFlags、各阶段的安全提示）。2026-10-14 去掉「AI语义分诊提示：当前信息支持…红旗」
+// 的写法——那是在说系统自己（独立评审记为工程用语），医生要读到的是「提示什么、现在做什么」。
 const RED_FLAG_MESSAGE: Record<BackstopRedFlagCategory, string> = {
-  cardiac: "AI语义分诊提示：当前信息支持急性心血管红旗，需立即完成急诊评估",
-  syncope: "AI语义分诊提示：当前信息支持意识丧失相关红旗，需立即评估循环及神经系统急症",
-  neuro: "AI语义分诊提示：当前信息支持急性神经功能异常红旗，需立即完成卒中等急症评估",
-  gi_bleed: "AI语义分诊提示：当前信息支持消化道出血红旗，需立即评估出血严重度",
-  gi_alarm: "AI语义分诊提示：当前信息支持上消化道警示征象，需优先安排内镜或专科评估以排除恶性梗阻",
-  bleeding: "AI语义分诊提示：当前信息支持急性出血红旗，需立即评估出血与循环状态",
-  acute_abdomen: "AI语义分诊提示：当前信息支持急腹症红旗，需立即完成腹部急症评估",
-  respiratory: "AI语义分诊提示：当前信息支持急性呼吸受损红旗，需立即评估呼吸与循环",
-  sepsis: "AI语义分诊提示：当前信息支持严重感染红旗，需立即评估感染及循环状态",
-  mental_crisis: "AI语义分诊提示：当前信息支持行为危机红旗，需立即进行现场安全评估并联系精神专科或急诊",
-  shock: "AI语义分诊提示：当前信息支持循环灌注不足红旗，需立即完成生命体征与循环评估",
-  anaphylaxis: "AI语义分诊提示：当前信息支持严重过敏或气道受累红旗，需立即评估气道、呼吸和循环",
-  obstetric: "AI语义分诊提示：当前信息支持妊娠相关急症红旗，需立即完成产科急症评估",
-  pediatric_critical: "AI语义分诊提示：当前信息支持儿童危重表现，需立即完成急诊评估",
-  poisoning: "AI语义分诊提示：当前信息支持急性中毒或药物过量红旗，需立即核实暴露并急诊处置",
-  metabolic: "AI语义分诊提示：当前信息支持严重代谢紊乱红旗，需立即床旁评估",
-  vital_instability: "AI语义分诊提示：当前生命体征与临床表现共同支持急危重风险，需立即现场评估",
-  other_critical: "AI语义分诊提示：当前信息支持可能立即改变处置路径的急危重红旗，需接诊医生立即复核",
+  cardiac: "现有表现提示急性心血管事件可能，请立即完成急诊评估",
+  syncope: "现有表现提示意识丧失相关急症可能，请立即评估循环及神经系统",
+  neuro: "现有表现提示急性神经功能异常，请立即完成卒中等急症评估",
+  gi_bleed: "现有表现提示消化道出血，请立即评估出血严重度",
+  gi_alarm: "现有表现属上消化道警示征象，请优先安排内镜或专科评估以排除恶性梗阻",
+  bleeding: "现有表现提示急性出血，请立即评估出血与循环状态",
+  acute_abdomen: "现有表现提示急腹症可能，请立即完成腹部急症评估",
+  respiratory: "现有表现提示急性呼吸受损，请立即评估呼吸与循环",
+  sepsis: "现有表现提示严重感染可能，请立即评估感染及循环状态",
+  mental_crisis: "现有表现提示行为危机，请立即进行现场安全评估并联系精神专科或急诊",
+  shock: "现有表现提示循环灌注不足，请立即完成生命体征与循环评估",
+  anaphylaxis: "现有表现提示严重过敏或气道受累，请立即评估气道、呼吸和循环",
+  obstetric: "现有表现提示妊娠相关急症可能，请立即完成产科急症评估",
+  pediatric_critical: "现有表现提示儿童危重情况，请立即完成急诊评估",
+  poisoning: "现有表现提示急性中毒或药物过量可能，请立即核实暴露并急诊处置",
+  metabolic: "现有表现提示严重代谢紊乱可能，请立即床旁评估",
+  vital_instability: "生命体征与临床表现共同提示急危重风险，请立即现场评估",
+  other_critical: "现有表现可能需要立即改变处置路径，请接诊医生立即复核",
 };
 
 const TRIAGE_ADVISORY_MESSAGE: Record<BackstopRedFlagCategory, string> = {
@@ -1230,7 +1232,7 @@ export function dispositionEmergencyRedFlagsFromFacts(
 ): string[] {
   const disposition = groundedDisposition(facts, sourceText);
   if (!disposition || disposition.setting !== "emergency") return [];
-  return [`AI语义分诊提示：现有资料提示需立即急诊评估（需排除：${disposition.conditions.join("、")}），原文依据：“${disposition.quote}”`];
+  return [`现有资料提示需立即急诊评估（需排除：${disposition.conditions.join("、")}），原文依据：“${disposition.quote}”`];
 }
 
 const CATEGORY_DEDUP_KEYWORDS: Record<BackstopRedFlagCategory, RegExp> = {

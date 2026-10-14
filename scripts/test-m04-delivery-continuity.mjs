@@ -180,7 +180,7 @@ test("a T1 contract rejection that repair cannot fix still delivers the candidat
     assert.doesNotMatch(result.content, /501g/, "被驳回的剂量绝不显示");
     assert.doesNotMatch(result.content, /尚未.*个体化|未.*个体化/, "不得退回空页");
     assert.match(result.telemetry?.reasonCode || "", /preserved_non_dose_candidate/);
-    assert.match(result.content, /自动修复未能消除下方问题/, "如实写明为什么没有剂量页");
+    assert.match(result.content, /仍有未解决的问题（见「处方补充提示」），因此不给出剂量/, "如实写明为什么没有剂量页");
   }
 });
 
@@ -262,7 +262,8 @@ test("a candidate that fails a deterministic contract is retained with findings,
     const rendered = renderM04DeliveryCheckpoint(checkpoint, prior, "contract_rejected");
     assert.match(rendered, /党参/, `${label}: 药味必须对医生可见`);
     assert.match(rendered, /## 处方补充提示/, `${label}: 问题提示必须随结果交付`);
-    assert.match(rendered, /尚未通过全部确定性校验/, `${label}: 不得冒充已通过校验`);
+    assert.match(rendered, /有需要医生核对之处/, `${label}: 不得冒充已核对无误`);
+    assert.doesNotMatch(rendered, /确定性校验|候选方|自动修复|本次已生成候选/, `${label}: 这一页写给医生，不说系统自己的流程`);
     assertNonDose(rendered);
     // 签名/attestation 通道对脏候选必须关闭——保留内容不等于「已通过校验」。
     const attestation = clinicalReviewNotPerformedAttestation(input.reasoning);
@@ -360,7 +361,7 @@ test("dose withheld keeps the candidate visible and never emits the signed dose 
   const projected = renderM04DeliveryCheckpoint(raw, prior, "dose_withheld", ["已记录妊娠、哺乳或备孕阳性/可疑状态"]);
   assertNonDose(projected);
   assert.doesNotMatch(projected, /本例辨证组方|本方案|锁定证候|病机链一致|安全边界变化时暂停采用/, "非剂量页不得带系统内部措辞");
-  assert.match(projected, /候选方：自拟方/);
+  assert.match(projected, /方名：自拟方/);
   assert.match(projected, /党参/);
 });
 test("only an exact completed attestation and signed payload can restore dose-level output", () => {

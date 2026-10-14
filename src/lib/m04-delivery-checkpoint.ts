@@ -287,13 +287,17 @@ export function renderM04DeliveryCheckpoint(
       : checkpoint ? "m04_candidate_retained_non_dose"
       : "m04_truncated_no_candidate",
   );
-  const lines = [NON_DOSE_PRESCRIPTION_MARKER, reasonMarker, ...(prior ? ["## 已完成的辨病辨证"] : []), ...[
-    prior?.westernDiagnosis?.primary?.name,
-    prior?.overview?.primarySyndrome,
-    prior?.overview?.overallPathogenesis,
-    prior?.therapy?.overallPrinciple,
-    prior?.therapy?.overallMethod,
-  ].filter(Boolean).map(text)];
+  // 每行带上它是什么（2026-10-14）：此前这五项是没有标签的五行裸文本，读的人要自己猜哪一行是证候、哪一行是治则。
+  const labelled = (label: string, ...values: unknown[]) => {
+    const body = values.map(text).filter(Boolean).join("；");
+    return body ? [`${label}：${body}`] : [];
+  };
+  const lines = [NON_DOSE_PRESCRIPTION_MARKER, reasonMarker, ...(prior ? ["## 已完成的辨病辨证"] : []),
+    ...labelled("西医诊断", prior?.westernDiagnosis?.primary?.name),
+    ...labelled("证候", prior?.overview?.primarySyndrome),
+    ...labelled("病机", prior?.overview?.overallPathogenesis),
+    ...labelled("治则治法", prior?.therapy?.overallPrinciple, prior?.therapy?.overallMethod),
+  ];
   for (const node of prior?.pathogenesis?.chain || []) {
     lines.push(`- ${factText(node.patientFact)}；${text(node.pathogenesis)}；${text(node.therapyDirection)}`);
   }
@@ -312,27 +316,28 @@ export function renderM04DeliveryCheckpoint(
     return lines.join("\n\n");
   }
   const clean = m04DeliveryCheckpointIsClean(checkpoint);
+  // 这一页的说明写给医生看（2026-10-14）：此前写的是「本次已生成候选；自动修复未能消除下方问题」
+  //「尚未通过全部确定性校验」「候选方：」——说的是系统自己的流程（第二轮独立评审 5 个不给剂量页全部记为工程用语）。
+  // 意思不变：为什么没有剂量、这一页有什么没有什么、有没有需要医生核对的地方。
   const status = reason === "dose_withheld"
     ? `本例暂不给出具体用量（${doseWithheldReasons.join("；") || "需先完成相关核实"}）；药味与方义照常列出。`
     : reason === "deadline"
-      ? "本次已生成候选，本阶段超过时限。"
-      // 保留候选之后，修复没完成的原因仍要如实写出来（2026-10-12）：此前保留候选只发生在终审投影
-      // 抛错一路，这两种原因落不到这里；合同驳回的候选也保留以后，医生需要知道为什么没有剂量页。
+      ? "本次生成超过时限，下面是已得到的药味与方义。"
+      // 修复没完成的原因仍要如实写出来（2026-10-12）：医生需要知道为什么没有剂量页。
       : reason === "upstream_unavailable"
-        ? "本次已生成候选；自动修复时模型服务暂时不可用，未能完成修复。"
+        ? "模型服务暂时不可用，下面的药味与方义未能完成核对。"
       : reason === "contract_rejected"
-        ? "本次已生成候选；自动修复未能消除下方问题。"
-      : "本次已生成候选。";
-  // 「已通过确定性校验」这句话只有在候选确实干净时才成立。带合同码的候选照常展示，
-  // 但必须如实写明它没有通过哪些校验——保留内容不等于冒充已复核通过（owner 2026-09-13）。
+        ? "下面的药味与方义仍有未解决的问题（见「处方补充提示」），因此不给出剂量。"
+      : "下面是本次已得到的药味与方义。";
+  // 带问题的方药照常列出，但必须如实写明其中有需要核对的地方——保留内容不等于已核对无误（owner 2026-09-13）。
   const scopeLine = clean
-    ? "以下为本次已通过确定性校验的药味与方义，不代表处方已获批准；本页不提供剂量、给药方法或疗程。"
-    : "以下为本次生成的药味与方义，**尚未通过全部确定性校验**，不代表处方已获批准；本页不提供剂量、给药方法或疗程。请结合下方问题提示判断。";
-  lines.push("", "## 本次候选方药（非剂量，供医生审阅）", status, scopeLine);
+    ? "本页只列药味与方义，不含剂量、煎服法和疗程，用量由医生评估后确定。"
+    : "本页只列药味与方义，不含剂量、煎服法和疗程；其中**有需要医生核对之处**，见下方「处方补充提示」。";
+  lines.push("", "## 参考方药（未给剂量）", status, scopeLine);
   for (const candidate of checkpoint.reasoning.formula?.candidates || []) {
-    lines.push(`候选方：${text(candidate.name)}`);
+    lines.push(`方名：${text(candidate.name)}`);
     for (const herb of candidate.herbs) lines.push(`- ${text(herb.name)}（${text(herb.role)}）：${text(herb.function)}`);
-    lines.push(...[candidate.formulaAnalysis, candidate.applicable, candidate.notApplicable].map(text).filter(Boolean));
+    lines.push(...labelled("方义", candidate.formulaAnalysis), ...labelled("适用", candidate.applicable), ...labelled("慎用与不适用", candidate.notApplicable));
   }
   // 问题提示同样走非剂量掩码：本页的全部意义就是不给具体用量，提示文案里的
   // 「当前药量 500g」会把模型提出的剂量从后门放出去。掩码与药味功用共用同一支
@@ -344,7 +349,9 @@ export function renderM04DeliveryCheckpoint(
   })));
   if (findingsSection) lines.push("", findingsSection);
   const care = checkpoint.reasoning.nonPharma;
-  if (care) lines.push("", "## 已生成的健康调护建议", ...[care.diet, care.lifestyle, care.exercise, care.emotion, care.acupointCare, ...care.precautions].filter(Boolean).map(text));
+  // 这一页不给剂量：注意事项里带用量、剂数、疗程的条目经掩码后只剩半句（「不可在家自行用法与疗程以审定处方为准」），整条不列。
+  const precautions = (care?.precautions || []).filter((item) => typeof item === "string" && sanitizeGeneratedSuggestionPreviewText(item) === item);
+  if (care) lines.push("", "## 调护建议", ...[care.diet, care.lifestyle, care.exercise, care.emotion, care.acupointCare, ...precautions].filter(Boolean).map(text));
   const structuredCopy = nonDoseCandidateJsonBlock(
     checkpoint.reasoning.formula?.candidates || [],
     reason === "dose_withheld" ? "dose_authorization_withheld" : "m04_candidate_retained_non_dose",

@@ -36,6 +36,8 @@ type AcupunctureEntry = {
   mainPoints: string[]; syndromes: AcupunctureSyndrome[];
   symptomAddPoints: Array<{ symptom: string; points: string[] }>;
   operation: string; cautions: string[]; projects: Record<string, ProjectItem[]>;
+  /** 教材把基本治疗分成几套写的病（眩晕「实证 / 虚证」、中风「中经络 / 中脏腑」…）：每套各自的治法、主穴、操作。 */
+  variants?: Array<{ label: string; therapy: string; mainPoints: string[]; operation: string }>;
 };
 type TuinaEntry = {
   disease: string; aliases: string[]; line: number; principle: string; sites: string[]; points: string[];
@@ -274,6 +276,10 @@ export type TextbookPlanInput = {
   currentFacts: string;
   /** 本例证候的病位/病机/治法叙述，仅供功法动作选择。 */
   signedNarrative?: string;
+  /** 患者年龄（岁）。老年人不列刺络放血、不套用长时间留针的疗程。 */
+  patientAgeYears?: number;
+  /** 主诉（教材分套的基本治疗按字面对套时用）。 */
+  chiefComplaint?: string;
 };
 
 export type TextbookPlanPoint = {
@@ -320,11 +326,68 @@ const REGIONAL_MAIN_POINT_GROUPS: Readonly<Record<string, ReadonlyArray<{ region
   ],
 };
 
+/**
+ * 教材把基本治疗分成几套写时，本例该用哪一套（2026-10-14）。
+ *
+ * 此前各套的治法、主穴、操作被合并成一条：眩晕·肾精不足（虚证）的病例，治法写「实证：平肝潜阳，和胃化痰… | 虚证：补益气血，益精填髓…」，
+ * 取穴把实证的太冲、内关、丰隆和虚证的肝俞、肾俞、足三里混在一起（独立评审：两套并列未取舍，混入泻实穴）。
+ *  · 「实证 / 虚证」两套：按已签名证候的名称定——只有虚损字样（虚、亏、不足、失养…）取虚证，只有实邪字样取实证；
+ *    两类字样都有（气虚血瘀）或都没有时不取舍，沿用合并写法；
+ *  · 其他分法（中经络 / 中脏腑、发作期 / 间歇期、月经先期 / 后期…）：套名逐字出现在已签名病名、证候或主诉里，且只对上一套时取它。
+ * 判不出时返回 undefined，行为与此前相同。
+ */
+const DEFICIENCY_SYNDROME_WORDS = /虚|亏|不足|失养|衰少|不固|不摄/;
+const EXCESS_SYNDROME_WORDS = /实|热|火|痰|湿|瘀|滞|郁|风|寒|毒|积|闭|亢|逆|扰|饮|浊/;
+function pickBasicTreatmentVariant(entry: AcupunctureEntry, input: TextbookPlanInput) {
+  const variants = (entry.variants || []).filter((item) => item.label && item.mainPoints.length > 0);
+  if (variants.length < 2) return undefined;
+  const byLabel = (label: string) => variants.find((item) => item.label === label);
+  const deficiencyVariant = byLabel("虚证");
+  const excessVariant = byLabel("实证");
+  if (deficiencyVariant && excessVariant) {
+    const syndrome = input.signedSyndromeText.replace(/虚热|虚火|虚风|虚寒|虚阳/g, "虚");
+    const deficiency = DEFICIENCY_SYNDROME_WORDS.test(syndrome);
+    const excess = EXCESS_SYNDROME_WORDS.test(syndrome.replace(/虚火|虚热/g, ""));
+    if (deficiency && !excess) return deficiencyVariant;
+    if (excess && !deficiency) return excessVariant;
+    return undefined;
+  }
+  const haystack = compact([...input.diseaseNames, input.signedSyndromeText, input.chiefComplaint || ""].join("；"));
+  const literal = variants.filter((item) => {
+    const label = compact(item.label.replace(/（[^）]*）|\([^)]*\)/g, ""));
+    return label.length >= 2 && haystack.includes(label);
+  });
+  return literal.length === 1 ? literal[0] : undefined;
+}
+
+/** 刺络放血类操作（刺络拔罐、点刺出血、三棱针）。 */
+const BLOODLETTING_SENTENCE = /刺络|放血|点刺出血|三棱针|刺血/;
+/** 病历写到的皮肤破损（抓破、结痂、破溃、糜烂、渗液）：这些部位不宜拔罐、刺络。 */
+const BROKEN_SKIN_FACT = /抓痕|血痂|结痂|破溃|溃烂|糜烂|溃疡|渗液|渗出|皲裂/;
+const ELDERLY_AGE_YEARS = 65;
+
+/**
+ * 刺络放血不作为常规写法的三种情形：老年人、已签名证候属虚证、病历写到皮肤破损（2026-10-14 独立评审：85 岁、皮肤干燥有抓痕血痂、
+ * 血虚肝旺的瘙痒病例，操作栏写「背部穴、局部阿是穴均可刺络拔罐」）。依据：《刺法灸法学》三棱针法「体质虚弱者…慎用」、拔罐法
+ *「皮肤有溃疡、破裂处不宜拔罐」；中华中医药学会 T/CACM 1560.3—2023「年老、虚弱、严重消瘦者，拔罐时间宜短」。只删提到这类操作的那一句。
+ */
+function withoutBloodlettingWhenUnsuitable(text: string, input: TextbookPlanInput): string {
+  if (!BLOODLETTING_SENTENCE.test(text)) return text;
+  const elderly = input.patientAgeYears != null && input.patientAgeYears >= ELDERLY_AGE_YEARS;
+  const syndrome = input.signedSyndromeText.replace(/虚热|虚火|虚风|虚寒|虚阳/g, "虚");
+  const deficiency = DEFICIENCY_SYNDROME_WORDS.test(syndrome) && !EXCESS_SYNDROME_WORDS.test(syndrome.replace(/虚火|虚热/g, ""));
+  const brokenSkin = BROKEN_SKIN_FACT.test(input.currentFacts);
+  if (!elderly && !deficiency && !brokenSkin) return text;
+  return text.split(/(?<=[。；])/).filter((sentence) => !BLOODLETTING_SENTENCE.test(sentence)).join("").trim();
+}
+
 // ─── 联网核对的频次（A/B 级来源）─────────────────────────────────────────────
 
 type WebScheduleEntry = {
   disease: string; aliases: string[]; modality: string; schedule: string; techniqueNote: string;
   sourceId: string; sourceTitle: string; publisher: string; tier: string; url: string;
+  /** 该频次出自某个西医病种的专篇时，本例须确有该病（西医诊断或病历里出现其中一个词）才引用。 */
+  requiresWesternContext?: string[];
 };
 const WEB_SCHEDULES = (webSchedulesJson as unknown as { entries: WebScheduleEntry[] }).entries;
 
@@ -332,12 +395,21 @@ const WEB_SCHEDULES = (webSchedulesJson as unknown as { entries: WebScheduleEntr
  * 教材该病证节没有单列频次时，用联网核对的 A/B 级来源补：国家/省级中医药管理局诊疗方案优先（A 级先于 B 级）。
  * 病名按名称与别名整词相等匹配；来源与等级写进卡片来源栏，医生看得到这条频次是谁说的。
  */
-function webScheduleFor(modality: string, diseaseNames: readonly string[]): { schedule: string; citation: string } | undefined {
+function webScheduleFor(
+  modality: string,
+  diseaseNames: readonly string[],
+  context?: Pick<TextbookPlanInput, "westernNames" | "currentFacts" | "patientAgeYears">,
+): { schedule: string; citation: string } | undefined {
   const wanted = new Set(diseaseNames.map(diseaseKey).filter(Boolean));
   if (wanted.size === 0) return undefined;
+  const westernContext = context ? `${context.westernNames.join("；")}；${context.currentFacts}` : "";
   const hits = WEB_SCHEDULES.filter((entry) => entry.modality === modality &&
     [entry.disease, ...entry.aliases].flatMap((name) => name.split(/[\/、]/)).map((name) => diseaseKey(name.replace(/（[^）]*）/g, "")))
       .some((key) => key && wanted.has(key)))
+    // 来源是某个西医病种专篇的频次（眩晕条目的出处是《高血压病》），只用于确有该病的病例：血压正常的眩晕不套高血压的疗程。
+    .filter((entry) => !context || !entry.requiresWesternContext || entry.requiresWesternContext.some((term) => westernContext.includes(term)))
+    // 老年人不套用留针超过 30 分钟的疗程（针刺量宜小、留针宜短，见 ELDERLY 说明）。
+    .filter((entry) => !(context?.patientAgeYears != null && context.patientAgeYears >= ELDERLY_AGE_YEARS && /留针[^。；]{0,12}(?:小时|[4-9]\d\s*分钟|3[1-9]\s*分钟)/.test(entry.schedule)))
     .sort((left, right) => left.tier.localeCompare(right.tier));
   const best = hits[0];
   if (!best) return undefined;
@@ -393,8 +465,10 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
 
   // 项目专属条目：针刺用主穴；灸/罐/刮痧/耳穴/推拿/埋线等取该病证节「其他治疗」里的对应条目。
   let base: { points: string[]; content: string; system: string; line: number; entry: AcupunctureEntry } | undefined;
+  // 教材分套写基本治疗的病：按本例证候只取对应的一套（见 pickBasicTreatmentVariant）。
+  const variant = code === "acupuncture" ? pickBasicTreatmentVariant(primary, input) : undefined;
   if (code === "acupuncture") {
-    base = { points: primary.mainPoints, content: primary.therapy, system: "body", line: primary.line, entry: primary };
+    base = { points: variant?.mainPoints || primary.mainPoints, content: variant?.therapy || primary.therapy, system: "body", line: primary.line, entry: primary };
   } else {
     for (const entry of [primary, ...entries.filter((item) => item !== primary)]) {
       const items = entry.projects[code] || [];
@@ -466,15 +540,22 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
   const citation = cite(base.entry);
   if (secondary && code === "acupuncture") cite(secondary);
   const projectName = code === "acupuncture" ? "针刺" : "";
+  // 没有按本例证型配穴时，教材写在基本处方前面的那句治法是按病、不是按本例证候定的（血虚肝旺的瘙痒写「疏风清热，润燥止痒」），
+  // 与辨证结论对不上：只保留「取某经穴为主」的取穴说明，并写明是按病取的基本穴。
+  const acupunctureTherapy = base.content.replace(/[。]+$/, "");
+  const meridianSentence = acupunctureTherapy.split("。").map((part) => part.trim()).filter((part) => /^取/.test(part)).join("。");
   const contentHead = code === "acupuncture"
-    ? `治法：${cutText(base.content.replace(/[。]+$/, ""), 80)}。`
+    ? tailored || variant || !meridianSentence
+      ? `治法：${cutText(acupunctureTherapy, 80)}。`
+      : `按病取基本穴（本例证型在教材中没有对应的配穴）：${cutText(meridianSentence, 70)}。`
     : `${projectName}${cutText(base.content, 240)}`;
-  const operation = code === "acupuncture" ? primary.operation : base.content;
+  const variantOperation = variant?.operation || primary.operation;
+  const operation = code === "acupuncture" ? variantOperation : base.content;
   const frequency = frequencySentence(operation) || frequencySentence(primary.operation);
   const defaultKey = code === "acupuncture" ? "acupuncture" : code === "cupping" ? "cupping" : code === "moxibustion" ? "moxibustion" : "";
   const defaultText = defaultKey ? data.modalityDefaults[defaultKey]?.text || "" : "";
   const defaultClause = defaultText ? `${defaultText.replace(/[。]+$/, "")}（《刺法灸法学》总论）。` : "";
-  const web = frequency ? undefined : webScheduleFor(code, input.diseaseNames);
+  const web = frequency ? undefined : webScheduleFor(code, input.diseaseNames, input);
   const schedule = frequency
     ? `${frequency}${defaultClause ? ` ${defaultClause}` : ""}`
     : web
@@ -482,9 +563,9 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
       : defaultClause
         ? `${defaultClause}间隔与疗程按病情和耐受确定。`
         : "间隔与疗程按病情和耐受确定。";
-  const technique = code === "acupuncture"
-    ? cutText(primary.operation || "毫针常规针刺。", 420)
-    : cutText(`${base.content}`, 420);
+  const technique = withoutBloodlettingWhenUnsuitable(code === "acupuncture"
+    ? cutText(variantOperation || "毫针常规针刺。", 420)
+    : cutText(`${base.content}`, 420), input) || "穴位常规刺。";
 
   return {
     kind: "acupoint",

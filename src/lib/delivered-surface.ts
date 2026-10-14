@@ -160,7 +160,9 @@ function deliveredDiagnose(reasoning: Json): void {
   // 用教材【鉴别诊断】对该病列出的病证补齐，要点是教材原文。有限结论（证候未形成）不补。
   if (overview && !isLimitedDiagnose(reasoning) && typeof overview.tcmDiseaseName === "string" &&
     (!Array.isArray(overview.tcmDiseaseDifferentials) || overview.tcmDiseaseDifferentials.length === 0)) {
-    const textbookDifferentials = textbookDifferentialsForDisease(overview.tcmDiseaseName);
+    // 教材一句话列几个病（「本病应与甲、乙、丙相鉴别」）时，这几个病取到的是同一句：同一句只用一次。
+    const textbookDifferentials = textbookDifferentialsForDisease(overview.tcmDiseaseName)
+      .filter((item, index, list) => list.findIndex((other) => other.text === item.text) === index);
     if (textbookDifferentials.length > 0) {
       overview.tcmDiseaseDifferentials = textbookDifferentials.map((item) => ({
         diseaseName: item.name,
@@ -177,6 +179,13 @@ function deliveredDiagnose(reasoning: Json): void {
   }
   for (const item of records(overview?.tcmDiseaseDifferentials)) {
     if (typeof item.diseaseName === "string") item.diseaseName = item.diseaseName.replace(/类病$/u, "");
+  }
+  // 中医鉴别的理由写病证本身为何相近，不写「以免漏诊」「避免误诊」这类处置口吻（甲方 10.12 测评；提示词已要求，模型仍偶有，
+  // 2026-10-14 评测 28 例里 3 例）。只删这半句；删完为空时保留原句。
+  for (const item of [...records(overview?.tcmDiseaseDifferentials), ...records(overview?.tcmDifferentials)]) {
+    if (typeof item.reason !== "string") continue;
+    const trimmed = item.reason.replace(/[，,；;]?\s*(?:以免|避免|防止)(?:漏诊|误诊)[^，,。；;]*/gu, "").trim();
+    if (trimmed.length >= 2) item.reason = trimmed;
   }
   for (const item of records(western?.candidates)) {
     item.name = records(western?.candidates).indexOf(item) === 0 && primary ? primary.name : deliveredDifferentialName(item.name);

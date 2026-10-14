@@ -336,6 +336,9 @@ export function trustedInputText(state: CaseState): string {
     state.tongueImageDesc ? `舌象图像复核：${stringifyClinicalValue(state.tongueImageDesc)}` : "",
     state.pulse ? `脉象：${stringifyClinicalValue(state.pulse)}` : "",
     state.faceNote ? `面象：${stringifyClinicalValue(state.faceNote)}` : "",
+    // 只取值、不带指标名，是有意保留的现状（2026-10-14 实测）：改成「生命体征：体温 35.5℃」后，语义事实层对低体温病例
+    //（76 岁、甲减停药、35.5℃、嗜睡、反应迟钝）判急症的比例从 5/5 降到 2/5——语义层的输入文本一改，安全判断就会漂。
+    // 要改这里，先按 regress:facts-class-parity 的办法整类量过再动。体征问题由追问层按结构化 vitals 判断（m02 vitalsDetail）。
     ...flattenClinicalInput(state.vitals).map((value) => `生命体征：${value}`),
     state.pastHistory ? `既往史：${stringifyClinicalValue(state.pastHistory)}` : "",
     state.medicationHistory ? `用药史：${stringifyClinicalValue(state.medicationHistory)}` : "",
@@ -3126,6 +3129,49 @@ function cardiacAcuteChangeAttachedAt(text: string, index: number, matchText: st
 }
 
 /**
+ * 「每次胸闷持续数分钟至十余分钟」说的是**每次发作多长**，不是「持续不缓解」（2026-10-14）。
+ *
+ * 下面的小句线索把「持续」「N分钟」都当作急性线索，于是「半年来反复胸闷…每次胸闷持续数分钟至十余分钟，可自行缓解，近期无加重。
+ * 无胸痛放射，无大汗，无夜间憋醒」报了「急性或加重胸闷」红旗、收回剂量（合成评测 S020，教材胸痹·痰浊闭阻的典型病历）。
+ * 这正是稳定型心绞痛的定义写法：卫生行业标准 WS 319-2010「1 个月～3 个月内相对稳定」；《稳定性冠心病诊断与治疗指南》（2018）
+ * 描述发作「持续数分钟至10余分钟」。不稳定型心绞痛与急诊转诊的界线是单次持续超过 20 分钟（ESC、WS 319）、静息或夜间发作、
+ * 新发或近期加重（见 ~/runlogs/fix1014/research/C-western-criteria-chestpain.md）。
+ *
+ * 守卫只在三件事同时成立时把这段发作时长从小句里拿掉，其余线索照旧判：
+ *  · 写法是「每次 / 发作时 + 时长」，且时长上限不到 20 分钟（「十余分钟」按 15 分钟计，「数分钟」按 5 分钟计）；
+ *  · 病历写了一个月以上的反复发作病程；
+ *  · 病历没有写（未被否认的）静息、夜间憋醒、痛醒。
+ * 冻结令允许的确定性例外：数值阈值 + 构词式词法守卫。类目样例：scripts/fixtures/open-language-classes/chronic-stable-chest-tightness-episode-duration.json。
+ */
+const EPISODE_DURATION_PHRASE = /(?:每次|每回|每次发作|发作时)[^，,。；;]{0,8}?(?:持续|历时|约)?[^，,。；;\d一二两三四五六七八九十数几半]{0,3}?((?:\d+(?:\.\d+)?|[一二两三四五六七八九十]+|数|几|十余|十几|半)\s*(?:分钟|分)?(?:\s*(?:至|到|~|～|—|-)\s*(?:\d+(?:\.\d+)?|[一二两三四五六七八九十]+|数|几|十余|十几))?\s*(?:分钟|分))/;
+const CHRONIC_RECURRENT_COURSE = /(?:(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:个)?(?:月|年)(?:来|余|以来|多)?|半年|多年|数年)[^。；;]{0,12}?(?:反复|发作|阵发)|(?:反复|阵发)[^。；;]{0,12}?(?:(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:个)?(?:月|年)|半年|多年|数年)/;
+const CHINESE_DIGIT: Readonly<Record<string, number>> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+
+function episodeDurationUpperMinutes(span: string): number | undefined {
+  const values = [...span.matchAll(/\d+(?:\.\d+)?|十余|十几|[一二两三四五六七八九十]+|数|几|半/g)].map(([token]) => {
+    if (/^\d/.test(token)) return Number(token);
+    if (token === "十余" || token === "十几") return 15;
+    if (token === "数" || token === "几") return 5;
+    if (token === "半") return 0.5;
+    if (token.length === 1) return CHINESE_DIGIT[token];
+    if (token.startsWith("十")) return 10 + (CHINESE_DIGIT[token.slice(1)] || 0);
+    if (token.endsWith("十")) return (CHINESE_DIGIT[token[0]] || 0) * 10;
+    return (CHINESE_DIGIT[token[0]] || 0) * 10 + (CHINESE_DIGIT[token[2]] || 0);
+  }).filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  return values.length > 0 ? Math.max(...values) : undefined;
+}
+
+function withoutStableEpisodeDuration(subClause: string, wholeText: string): string {
+  const phrase = subClause.match(EPISODE_DURATION_PHRASE);
+  if (!phrase) return subClause;
+  const upper = episodeDurationUpperMinutes(phrase[1]);
+  if (upper == null || upper >= 20) return subClause;
+  if (!CHRONIC_RECURRENT_COURSE.test(wholeText)) return subClause;
+  if (hasPatternWithoutNegation(wholeText, /静息|夜间憋醒|憋醒|痛醒/)) return subClause;
+  return subClause.replace(phrase[0], "");
+}
+
+/**
  * Chest tightness is common in respiratory, digestive and anxiety presentations. Unlike current
  * chest pain, an isolated current mention is not by itself a high-specificity ACS floor. Acute
  * authority therefore requires an onset/change cue attached to the chest-tightness subclause.
@@ -3148,7 +3194,8 @@ function hasScopedAcuteChestTightnessSignal(text: string): boolean {
     ) {
       if (cardiacAcuteChangeAttachedAt(normalized, index, term)) return true;
       const { start, end } = clinicalSubClauseBoundsAt(normalized, index, term.length);
-      if (scopedCue.test(normalized.slice(start, end).replace(NON_NEGATING_PHRASES, ""))) return true;
+      const scoped = withoutStableEpisodeDuration(normalized.slice(start, end).replace(NON_NEGATING_PHRASES, ""), normalized);
+      if (scopedCue.test(scoped)) return true;
     }
     index = normalized.indexOf(term, index + term.length);
   }

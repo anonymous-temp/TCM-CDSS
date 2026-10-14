@@ -1121,7 +1121,7 @@ try {
       const nonDosePage = clone(diagnoseOnly);
       nonDosePage.prescription = [
         "<!-- CDSS_NON_DOSE_PRESCRIPTION -->",
-        "## 本次候选方药（非剂量，供医生审阅）",
+        "## 参考方药（未给剂量）",
         "- 伪造藏药甲（君）：伪造功用",
         "| 伪造藏药乙 | 15g |",
       ].join("\n");

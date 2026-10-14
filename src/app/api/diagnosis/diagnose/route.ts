@@ -8,8 +8,10 @@ import { normalizeCaseTextForFormulaRecall } from "@/lib/formula-recall-normaliz
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
 import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
+import { alignWesternNameWithRecord } from "@/lib/western-name-evidence-check.server";
+import { completeTcmDiseaseDifferentials } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03SharedPatientContext } from "@/lib/m03-context-packets";
@@ -234,6 +236,18 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
             evidenceBudgetChars: diagnoseEvidenceBudget,
             stageInstructions,
           }),
+          // 中医半没有可保留的病名级鉴别、而教材对该病列有鉴别病证时，只补写这一项（其余病例不发请求）。
+          m03TcmHalfTransform: (tcmContent: string, transformSignal: AbortSignal) => completeTcmDiseaseDifferentials(
+            tcmContent,
+            { recordText: trustedInputText(safeState) },
+            transformSignal,
+          ),
+          // 西医半一返回就核对病名与病历已记录内容是否矛盾（约 0.8 秒，与中医半并行）；采信则只改病名这一项。
+          m03WesternHalfTransform: (westernContent: string, transformSignal: AbortSignal) => alignWesternNameWithRecord(
+            westernContent,
+            { recordText: trustedInputText(safeState), patient: { sex: safeState.patient?.sex, age: safeState.patient?.age } },
+            transformSignal,
+          ),
         }
       : {}),
     // 合同修复耗尽后的兜底：生成方合同始终不合法（attestation 原因码 not_attempted_no_valid_draft）。

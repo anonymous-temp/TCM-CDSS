@@ -383,8 +383,8 @@ async function runFrontendContractChecks() {
       !questionContractSource.includes("complaintConcepts") &&
       questionContractSource.includes("isCompoundAffirmativeQuestionOption") &&
       questionContractSource.includes("selected.slice(0, 2)") &&
-      questionRouteSource.includes("const safeCaseState = sanitizeCaseStateForModel(caseState)") &&
-      questionRouteSource.includes("buildQuestionPrompt(safeCaseState)") &&
+      questionRouteSource.includes("const safeCaseState = sanitizeCaseStateForModel(inputCaseState)") &&
+      questionRouteSource.includes("buildQuestionPrompt(safeCaseState, answeredRiskCategories)") &&
       !questionRouteSource.includes("buildQuestionPrompt(safeCaseState, fallbackQuestions)"),
     "M02: the LLM owns information-gain planning; deterministic code is only an interaction and grounded-risk fallback contract",
     `${questionContractSource.slice(0, 9000)}\n${questionRouteSource}`,
@@ -396,8 +396,8 @@ async function runFrontendContractChecks() {
   assert(["classical-formula", "warm-disease", "warm-tonify", "support-yang", "nourish-yin-danxi"].every((code) => lineageSource.includes(code)), "lineage: every published school is covered by the question strategy map", lineageSource);
   assert(questionPrompt.includes("tcmLineageQuestionInstruction") && questionPrompt.includes("流派化侧重") && promptSource.includes("流派只在信息增益相近时作为排序因素") && !promptSource.includes("至少保留1个与当前流派直接相关的临床问题"), "M02: model prompt receives lineage-specific strategy without forcing a low-value lineage quota", questionPrompt.slice(0, 4200));
   assert(promptSource.includes("card.governance.cardVersion") && promptSource.includes("card.provenance.representativeWorks") && !source.includes("card.provenance.representativeWorks") && !source.slice(source.indexOf('testId=\"tcm-lineage\"'), source.indexOf('testId=\"tcm-lineage\"') + 2600).includes("卡片v"), "lineage governance remains in the model contract while customer UI omits internal card versions", `${promptSource.slice(1200, 3600)}\n${source.slice(source.indexOf('testId=\"tcm-lineage\"'), source.indexOf('testId=\"tcm-lineage\"') + 2600)}`);
-  assert(lineageFollowup === "" && questionPrompt.includes("tcmLineageQuestionInstruction") && questionPrompt.includes("最多出 1 题"), "frontend: lineage-aware questions are model-planned in the same one-round single-question contract", questionPrompt.slice(0, 4200));
-  assert(questionPrompt.includes("只进行一轮追问") && questionPrompt.includes("最多出 1 题") && questionPrompt.includes("教材病证候选") && questionPrompt.includes("信息增益"), "M02: the model asks at most one syndrome-discriminating question per round", questionPrompt.slice(0, 4200));
+  assert(lineageFollowup === "" && questionPrompt.includes("tcmLineageQuestionInstruction") && questionPrompt.includes("只出 1 题"), "frontend: lineage-aware questions are model-planned in the same one-round single-question contract", questionPrompt.slice(0, 4200));
+  assert(questionPrompt.includes("只进行一轮追问") && questionPrompt.includes("只出 1 题") && questionPrompt.includes("教材病证候选") && questionPrompt.includes("信息增益"), "M02: the model asks at most one syndrome-discriminating question per round", questionPrompt.slice(0, 4200));
   assert(!source.includes("信息不足，暂未生成完整诊断/处方"), "frontend: information-insufficient state avoids blunt diagnosis/prescription failure wording");
   assert(!prescriptionSection.includes("PrescriptionAdoptionBanner") && !prescriptionSection.includes("候选方药状态") && !prescriptionSection.includes("审方提示") && resultV2.includes("<AuditReviewSection"), "frontend: candidate formula stays clinically focused and audit advisories live only in the unified audit section", prescriptionSection.slice(0, 3200));
   // 病机区标题**刻意**不再写死：页面曾硬编码「病机分析」，而登记表与服务端可见正文渲染的是

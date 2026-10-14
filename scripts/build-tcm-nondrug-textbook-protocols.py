@@ -144,6 +144,14 @@ def main() -> None:
             } for syndrome in entry.get("syndromes", [])],
             "symptomAddPoints": [{"symptom": item["symptom"], "points": item["points"]} for item in entry.get("symptomAddPoints", [])],
             "operation": entry.get("operation", ""),
+            # 教材把基本治疗分成几套写的病（眩晕分「实证 / 虚证」，中风分「中经络 / 中脏腑」…）：每套的治法、主穴、操作各自保留，
+            # 运行时按本例证候只取对应的一套。上面的 therapy / mainPoints / operation 仍是各套合并后的写法（没有分套的病只有它们）。
+            **({"variants": [{
+                "label": variant.get("label", ""),
+                "therapy": variant.get("therapy", ""),
+                "mainPoints": variant.get("mainPoints", []),
+                "operation": variant.get("operation", ""),
+            } for variant in entry["basicTreatmentVariants"]]} if len(entry.get("basicTreatmentVariants", [])) > 1 else {}),
             "cautions": [item["text"] for item in entry.get("cautions", [])][:4],
             "projects": projects,
         })

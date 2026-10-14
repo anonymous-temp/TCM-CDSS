@@ -241,7 +241,7 @@ test("医生可见文案：有限结果页、非剂量候选页与进度行都�
   });
   for (const reason of ["deadline", "contract_rejected", "interrupted", "upstream_unavailable"]) {
     const page = renderM04DeliveryCheckpoint(checkpoint, prior, reason);
-    assert.match(page, /本次已生成候选/, reason);
+    assert.match(page, /药味与方义/, reason);
     assert.doesNotMatch(page, /复核未完成|复核提出|已完成临床复核|独立复核/, `${reason}: ${page.slice(0, 200)}`);
   }
   for (const structuredStage of ["prescribe", "diagnose", undefined]) {

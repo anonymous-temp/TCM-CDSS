@@ -34,10 +34,22 @@ function hasConcreteDietAction(value: string): boolean {
   return value.length >= 16 && hasDirective && (hasQuantityOrTiming || hasConcreteFoodExample(value));
 }
 
+/**
+ * 模型按本例写出的一段饮食建议：够长（≥24 字）且带宜忌指令。只看篇幅与有无指令，不看用了哪个引出词。
+ *
+ * 2026-10-14 之前只有下面那条「引出词闭集 + 例子」的判据：模型写「如米粥、藕粉、蒸蛋羹」「可常食小米红枣粥、山药炖排骨」
+ * 「主食可加燕麦、红薯」都不在引出词表里，于是 157 个带剂量的处方里 90 个的饮食栏被追加同一句
+ *「三餐定时、每餐七八分饱；例如米饭或面食…」——连「暂禁食，由医生评估后少量多次喂服补液盐」的脱水患儿也被追加。
+ * 引出食物的说法是开放的，词表补不完；补全只应该落在「饮食清淡，避免辛辣油腻。」这种一句话的空泛建议上。
+ */
+function isCaseAuthoredDietParagraph(diet: string): boolean {
+  return diet.length >= 24 && /(?:不|避免|限制|减少|忌|少食|少吃|宜|可|多)/.test(diet);
+}
+
 /** 医生端食疗卡与 M04 生成校验共用的最小完整性合同。 */
 export function isConcreteClinicianDietPlan(value: unknown): boolean {
   const diet = cleanText(value);
-  return hasConcreteDietAction(diet) && hasConcreteFoodExample(diet);
+  return isCaseAuthoredDietParagraph(diet) || (hasConcreteDietAction(diet) && hasConcreteFoodExample(diet));
 }
 
 const DETERMINISTIC_ORDINARY_MEAL_EXAMPLE =

@@ -1705,8 +1705,14 @@ export function applyDeterministicTreatmentPrinciple(content: string): string {
   }
 }
 
-/** 需要在煎服用法里点名的特殊煎法，按煎药的先后顺序排列。「捣碎」「久煎」之类不改变下药顺序的不在此列。 */
+/**
+ * 需要在煎服用法里点名的特殊煎法，按煎药的先后顺序排列。「捣碎」之类不改变下药顺序的不在此列。
+ * 先煎且久煎的毒性药（药典：附子、制川乌、制草乌「先煎，久煎」）单列在最前：此前它们与龙骨、牡蛎并在一起写「先煎20–30分钟」，
+ * 而药味表里标的是「先煎、久煎」，两处不一致，时间也不够（2026-10-14 独立评审，7 岁患儿方中有附子）。
+ * 时长取《中药学》总论：「附子、川乌、草乌等毒性大的药物，宜先煎45～60分钟后再下它药」；附子条：「先煎，久煎，口尝至无麻辣感为度」。
+ */
 const SPECIAL_DECOCTION_ORDER: ReadonlyArray<{ pattern: RegExp; phrase: (herbs: string) => string }> = [
+  { pattern: /久煎/, phrase: (herbs) => `${herbs}先煎45–60分钟（至口尝无麻辣感）` },
   { pattern: /先煎/, phrase: (herbs) => `${herbs}先煎20–30分钟` },
   { pattern: /后下/, phrase: (herbs) => `${herbs}后下` },
   { pattern: /包煎/, phrase: (herbs) => `${herbs}包煎` },
@@ -2325,7 +2331,9 @@ export function alignNormalizedM03TcmDiagnosticRationale(content: string): strin
       ...recordList(pathogenesis?.symptomClusters).flatMap((cluster) => semanticItems(cluster.symptoms)),
       ...semanticItems(recordValue(recordValue(reasoning.westernDiagnosis)?.primary)?.supportingFacts),
     ]);
-    const attribution = clinicalAxisAttributionFromFacts(attributionFacts);
+    // 归属只读肯定分句（2026-10-14）：症状—轴表按字面匹配，整句送进去时「白天排尿正常，无尿频、尿急、尿痛」
+    // 会归出「肾（据尿频）」——把病历否认的症状写成了依据。
+    const attribution = clinicalAxisAttributionFromFacts(attributionFacts.flatMap((fact) => affirmedClinicalSourceClauses(fact)));
     const withBasis = (item: string, axisIds: readonly string[], table: Map<string, string[]>): string => {
       const basis = [...new Set(axisIds.flatMap((id) => table.get(id) || []))];
       return basis.length > 0 ? `${item}（据${joinClinicalClauses(basis.slice(0, 2), "、")}）` : item;

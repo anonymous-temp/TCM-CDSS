@@ -5,8 +5,12 @@ import {
   enforceM02UnansweredAxes,
   ensureQuestionStructuredEnvelope,
   m02ClinicalFactsFootprint,
+  m02ProceedPlanContent,
+  m02ProceedWhenSettled,
+  redFlagDispositionQuestion,
   withM02Completeness,
 } from "@/lib/m02-question-contract";
+import { riskCategoriesAnsweredByRecord } from "@/lib/m02-risk-question-answerability.server";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import type { CaseState } from "@/lib/diagnosis-types";
 import { deriveOperationalCompleteness, markdownNdjsonResponse, sanitizeCaseStateForModel, trustedInputText, evaluateSafetyGate } from "@/lib/diagnosis-safety";
@@ -61,31 +65,51 @@ export async function POST(req: Request) {
     discardSpeculative();
     throw error;
   }
-  if (m02ClinicalFactsFootprint(caseState) === m02ClinicalFactsFootprint(factFreeState)) return speculative;
+  // 先发结果可用的条件：M02 从事实层读到的内容相同，且「闸门是否已判急危重」相同——后者决定这一轮是出追问还是出
+  // 急症处置确认题，而处置去向判断（disposition）不在 redFlags 清单里，指纹看不到它。
+  const redFlagState = (state: CaseState) => evaluateSafetyGate(state).status === "red_flag";
+  if (m02ClinicalFactsFootprint(caseState) === m02ClinicalFactsFootprint(factFreeState) &&
+    redFlagState(caseState) === redFlagState(factFreeState)) return speculative;
   discardSpeculative();
   return questionStageResponse(caseState, req.signal);
 }
 
-async function questionStageResponse(caseState: CaseState, signal: AbortSignal): Promise<Response> {
-  const fallbackQuestions = buildCaseAwareQuestionFallback(caseState);
-  // 模型判断「不需要再问」时用的那道题：先问病历没写到的基本问诊项（见 buildCaseAwareQuestionFallback 的 settled）。
-  // 模型输出不可用（解析失败、上游失败）时仍用上面的安全兜底。
-  // 确定性安全闸门已判急症时不问基本问诊项（失血性休克的病例问「怕冷还是怕热」不合时宜——2026-10-13 第二轮独立评审）：
-  // 仍用安全兜底题。
-  const settledQuestions = evaluateSafetyGate(caseState).status === "red_flag"
-    ? fallbackQuestions
-    : buildCaseAwareQuestionFallback(caseState, { settled: true });
-  const safeCaseState = sanitizeCaseStateForModel(caseState);
+type QuestionCaseState = CaseState & { m02SuppressedRiskCategories?: readonly string[] };
+
+async function questionStageResponse(inputCaseState: CaseState, signal: AbortSignal): Promise<Response> {
+  const safeCaseState = sanitizeCaseStateForModel(inputCaseState);
   const sourceText = trustedInputText(safeCaseState);
   // 对外信封里的 completeness 由服务端按当前病历确定性写入（与各阶段路由 withSafetyGate 同一口径），
   // 模型不打分。每个出口（成功、上游失败兜底、非 2xx 兜底）都经这一步。
-  const completeness = deriveOperationalCompleteness(caseState);
+  const completeness = deriveOperationalCompleteness(inputCaseState);
   const withCompleteness = (content: string) => withM02Completeness(content, completeness);
+  // 安全闸门已判急危重：不再生成追问。急症已由病历本身成立，问别的类目的筛查题、辨证题或基本问诊都不合时宜
+  //（2026-10-13/14 独立评审：疑似脑膜炎问卒中表现、脱水休克问大便性状、失血性休克问怕冷怕热）。
+  // 调用方的流程仍要一道题时，问是否已安排急诊评估或转诊（redFlagDispositionQuestion）；允许如实返回「无需追问」时直接 proceed。
+  const gate = evaluateSafetyGate(inputCaseState);
+  if (gate.status === "red_flag") {
+    const envelope = ensureQuestionStructuredEnvelope(
+      m02ProceedWhenSettled()
+        ? m02ProceedPlanContent("已识别急危重情况，应先按急症处置，本轮不再追问。")
+        : redFlagDispositionQuestion(gate.redFlags || []),
+      sourceText,
+    );
+    return markdownNdjsonResponse(withCompleteness(envelope));
+  }
+  // 事实层判为需要澄清的急症线索，出筛查题之前先核对病历是否已经回答；已回答的类目不再出题。
+  const answeredRiskCategories = await riskCategoriesAnsweredByRecord(inputCaseState, sourceText, signal);
+  const caseState: QuestionCaseState = answeredRiskCategories.length > 0
+    ? { ...inputCaseState, m02SuppressedRiskCategories: answeredRiskCategories }
+    : inputCaseState;
+  const fallbackQuestions = buildCaseAwareQuestionFallback(caseState);
+  // 模型判断「不需要再问」时用的那道题：先问病历没写到的基本问诊项（见 buildCaseAwareQuestionFallback 的 settled）。
+  // 模型输出不可用（解析失败、上游失败）时仍用上面的安全兜底。
+  const settledQuestions = buildCaseAwareQuestionFallback(caseState, { settled: true });
   const fallback = withCompleteness(enforceM02UnansweredAxes(
     ensureQuestionStructuredEnvelope(fallbackQuestions, sourceText),
     sourceText,
   ));
-  const prompt = buildQuestionPrompt(safeCaseState);
+  const prompt = buildQuestionPrompt(safeCaseState, answeredRiskCategories);
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "question", {
     requestSignal: signal,
     streamErrorFallback: fallbackQuestions,

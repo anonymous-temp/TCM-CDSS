@@ -162,13 +162,6 @@ const TCM_PATHOGENESIS_ANCHOR = /(?:气虚|气滞|气逆|气陷|气脱|气闭|�
 const TCM_THERAPY_ANCHOR = /(?:益气|补气|养血|活血|化瘀|滋阴|育阴|养阴|温阳|扶阳|清热|泻火|疏肝|解郁|理气|行气|降逆|化痰|祛痰|燥湿|利湿|祛湿|健脾|和胃|温中|散寒|通络|止痛|宁心|安神|镇惊|平肝|潜阳|熄风|息风|凉血|解毒|消食|导滞|攻下|通腑|润肠|固涩|敛汗|止血|止咳|平喘|宣肺|肃肺|开窍|醒神|扶正|培本|调和营卫|解表|和解|利水|通淋|升阳|补肾|温肾|健运|温经|散结|软坚|养心|清心|清肝|清肺|清胃|清胆|温补|补益|调经|回阳救逆|透邪外达|升清降浊|调畅气机|交通心肾|固冲|固经|固摄|摄血|止带|止崩|润燥|润肺|濡润|清燥|生津|增液)/;
 const TCM_DISEASE_LABEL = /(?:眩晕病?|不寐|胸痹|心悸|头痛|胃脘痛|腹痛|咳嗽|喘证|泄泻|便秘|郁证|汗证|痹证|痿证|水肿|淋证|消渴|癃闭|胁痛|黄疸|中风|痫病|痴呆|颤证|耳鸣|鼻鼽)(?!待)/;
 const CLINICAL_REASONING_CONNECTOR = /(?:提示|支持|符合|更符合|结合|考虑|因此|尚不支持|不足以|倾向于|病程|鉴别|排除)/;
-// The TCM rationale is a derivation from 四诊 to 证候; its natural connectors extend beyond the
-// Western set. Requiring only the 13 Western connectors rejected textbook-valid rationales such as
-// "四诊合参…辨为心脾两虚证" / "综合舌脉…病机为脾虚失运" — which then forced repair loops and, on
-// retry, degraded a correct 归脾汤 case to self_devised. Anti-restatement stays enforced by the
-// downstream fact-reference + novel-concept + not-a-copy checks (tcm_diagnostic_rationale_restatement),
-// so widening this pre-filter cannot let a pure syndrome-name restatement through.
-const TCM_REASONING_CONNECTOR = /(?:提示|支持|符合|更符合|结合|考虑|因此|尚不支持|不足以|倾向于|病程|鉴别|排除|辨为|辨证|辨属|合参|归纳|综合|可见|均为|病机|所致|导致|引起|系因|乃)/;
 const WESTERN_EXCLUSION_REASONING = /(?:但|尚不支持|不足以|不支持|排除|鉴别|未见|否认|缺乏|尚未|有待|仍需|需[^。；;\n]{0,12}(?:核实|检查|确认))/;
 /**
  * 病机谓词：中医描述「功能失常」的那一类动词短语，是一个**封闭的语法类**，不是症状词表。
@@ -411,6 +404,20 @@ export function isStructurallyEmptyM03CoreText(value: unknown): boolean {
   // 只剩对冲词（「待定」「资料不足」）本身也是结构性缺失：先剥掉对冲词再数临床锚点。
   // 这里用对冲词表只为「剥掉占位」，不再据它判「模型没下结论」。
   return concreteClinicalAnchor(withoutServerNote.replace(UNSTABLE_REASONING_MARKER_GLOBAL, "")).length < 2;
+}
+
+/**
+ * 辨病 / 辨证推理这一栏「没有写」——只判结构性缺失：空、过短，或剥掉对冲词后连两个临床锚点都凑不出。
+ *
+ * 2026-10-14 之前这里另有一张连接词闭集（提示/支持/符合/辨为/辨证/合参/可见/病机/所致/乃…），不含表内词就判
+ * 「推理缺失」，服务端随即用「四诊要点：…据此辨病位在X（据Y）、病性属Z，病机为…，故辨为…」的拼接句顶掉模型原文。
+ * 中医推理最常用的写法恰恰不在表里：「…肾精亏虚、冲任血海不充，故为肾虚证；无潮热汗出，故不属肾阴虚火旺」
+ * 「…为痰湿内蕴、肺失宣降，故属痰湿蕴肺证」「…均示肝经郁热内盛」。实测 242 例里 135 例的辨证依据是拼接句，
+ * 独立评审判不通过的三例（气虚（据疲乏）、肾（据尿频）而病历写无尿频、肌肤络脉（据头痛）而病历写无头痛）全部出自它。
+ * 「有没有实质推理」不是词表判得了的；逐字复述病历与不引本例事实仍由 restatement 两条可机检判据接住。
+ */
+function tcmRationaleStructurallyMissing(value: string): boolean {
+  return value.length < 8 || isStructurallyEmptyM03CoreText(value);
 }
 
 /** Customer-facing cards and exports share this check so placeholders cannot reappear on fallback paths. */
@@ -2157,7 +2164,7 @@ export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined,
   const tcmRationale = typeof reasoning.overview?.tcmDiagnosticRationale === "string"
     ? reasoning.overview.tcmDiagnosticRationale.trim()
     : "";
-  if (tcmRationale.length < 8 || !TCM_REASONING_CONNECTOR.test(tcmRationale)) return "tcm_diagnostic_rationale_missing";
+  if (tcmRationaleStructurallyMissing(tcmRationale)) return "tcm_diagnostic_rationale_missing";
   if (tcmDiagnosticDependencyContexts(tcmRationale).length > 0) return "tcm_reasoning_diagnostic_dependency";
   const syndromeFacts = nonEmptyStringList(reasoning.overview?.primarySyndromeBasis);
   const chainPatientFacts = chain
@@ -2294,7 +2301,7 @@ export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined,
     const diseaseRationale = typeof reasoning.overview?.tcmDiseaseRationale === "string"
       ? reasoning.overview.tcmDiseaseRationale.trim()
       : "";
-    if (diseaseRationale.length < 8 || !TCM_REASONING_CONNECTOR.test(diseaseRationale)) {
+    if (tcmRationaleStructurallyMissing(diseaseRationale)) {
       return "tcm_disease_rationale_missing";
     }
     const diseaseDifferentialIssue = m03TcmDiseaseDifferentialIssue(reasoning, tcmDiseaseName);

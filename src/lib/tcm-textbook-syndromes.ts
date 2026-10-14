@@ -336,7 +336,12 @@ export function textbookCandidatesForCase(
       existing.score = item.score;
     }
   }
-  return [...byDisease.values()]
+  // 闭集选择点了名、且点到的病在本科别的教材里时，候选只给这几个病（2026-10-14）。此前其后还跟着按字面重合取来的病：
+  // 右膝右踝红肿热痛的病例，选择给的是痹证、痛风，候选里还有因「红肿、灼热」对上的热疮、接触性皮炎——模型把它们当成了
+  // 鉴别对象，中医鉴别诊断写的是两种皮肤病（独立评审）。选择落空（超时、未配置、点到的病不在本科别）时仍用字面候选。
+  const all = [...byDisease.values()];
+  const picked = all.filter((item) => preferred.includes(item.disease));
+  return (picked.length > 0 ? picked : all)
     .sort((left, right) => right.score - left.score || left.disease.localeCompare(right.disease))
     .map(({ bookKey, ...item }) => { void bookKey; return item; })
     .slice(0, options.maxDiseases ?? 3)
@@ -587,7 +592,8 @@ export function textbookDifferentialsForDisease(diseaseName: string): Array<{ na
     .sort((left, right) => (CANDIDATE_BOOK_PRIORITY[left.bookKey] || 0) - (CANDIDATE_BOOK_PRIORITY[right.bookKey] || 0))[0];
   if (!disease) return [];
   return disease.differentials.flatMap((name) => {
-    const raw = (disease.differentialTexts[name] || "").replace(new RegExp(`^${name}\\s*`), "").trim();
+    // 病名里可能带正则元字符（「β受体…」、括注），按字面去掉段首的病名。
+    const raw = (disease.differentialTexts[name] || "").replace(new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`), "").trim();
     const sentences = raw.split(/(?<=。)/).slice(0, 2).join("").trim();
     const textValue = sentences.length > 110 ? `${sentences.slice(0, 108)}…` : sentences;
     return textValue.length >= 8 ? [{ name, text: textValue, book: disease.book }] : [];

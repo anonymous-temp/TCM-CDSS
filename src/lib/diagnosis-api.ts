@@ -485,6 +485,16 @@ type StreamSafetyOptions = {
    */
   m03ParallelHalfPrompts?: { western: string; tcm: string };
   /**
+   * 西医半返回后、合并之前的收口（辨证路由注入病名与病历已记录内容的一致性核对，见 western-name-evidence-check.server.ts）。
+   * 与中医半并行；抛错或超时由注入方自行兜住，这里只在它成功返回字符串时采用。
+   */
+  m03WesternHalfTransform?: (westernContent: string, signal: AbortSignal) => Promise<string>;
+  /**
+   * 中医半流结束后、合并之前的收口（辨证路由注入「病名级鉴别缺失时只补写这一项」，见 tcm-disease-differential-authoring.server.ts）。
+   * 绝大多数病例原样返回、不发请求；抛错由注入方兜住，这里只在它成功返回字符串时采用。
+   */
+  m03TcmHalfTransform?: (tcmContent: string, signal: AbortSignal) => Promise<string>;
+  /**
    * M04 首轮流里 `candidate` 对象闭合时回调一次（2026-09-28）。只用于服务端预热 M05 随访作文缓存
    * （缓存按实际模型输入逐字命中，原文与终稿不一致只是不命中）；回调异常被吞掉，不影响本阶段。
    */
@@ -3378,6 +3388,15 @@ async function callPrimaryTextModelStream(
         // overload through their supposedly parallel helper.
         m03WesternHalfPromise = m03ParallelHalves
           ? collectM03ParallelWesternHalf(m03ParallelHalves.western, kind, upstreamController.signal, absoluteRunDeadline)
+            .then(async (westernHalf) => {
+              if (!westernHalf.ok || !opts.m03WesternHalfTransform) return westernHalf;
+              try {
+                const transformed = await opts.m03WesternHalfTransform(westernHalf.content, upstreamController.signal);
+                return typeof transformed === "string" && transformed.trim() ? { ...westernHalf, content: transformed } : westernHalf;
+              } catch {
+                return westernHalf;
+              }
+            })
           : undefined;
         void m03WesternHalfPromise?.then((westernHalf) => {
           if (!westernHalf.ok || clientStreamClosed || upstreamController.signal.aborted) return;
@@ -3792,6 +3811,14 @@ async function callPrimaryTextModelStream(
         // 兜底没发（预算不够）或也失败了：按原来的错误走原来的分类与降级页。
         if (nonStrictStreamFailure) throw nonStrictStreamFailure;
         if (m03ParallelHalves) {
+          if (opts.m03TcmHalfTransform) {
+            try {
+              const transformed = await opts.m03TcmHalfTransform(accumulatedContent, upstreamController.signal);
+              if (typeof transformed === "string" && transformed.trim()) accumulatedContent = transformed;
+            } catch {
+              // 收口失败不影响本阶段：沿用模型原输出。
+            }
+          }
           const westernHalf = m03WesternHalfPromise ? await m03WesternHalfPromise : undefined;
           const mergedParallel = mergeParallelM03Halves(
             accumulatedContent,

@@ -28,6 +28,8 @@ import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHer
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { fillMedicineRowFromInstructionRecord, type InstructionRecordPool } from "./instruction-record-pool";
+import { formulaAnalysisHerbMentions } from "./formula-analysis-review";
+import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
 
 const evidence = {
   evidenceLevel: "model_inference" as const,
@@ -201,6 +203,33 @@ function normalizedPrecautionKey(value: string): string {
 /** 逐条清洗模型提交的注意事项：只丢行、绝不驳回。 */
 /** 注意事项里面向孕哺人群的提示句（「如已怀孕或备孕请先告知医生」「孕期慎用」「哺乳期…」）。 */
 const REPRODUCTIVE_ADVICE_LINE = /怀孕|备孕|妊娠|孕期|孕妇|哺乳/;
+
+/**
+ * 注意事项写「方中有某药」而该药不在本方药味里（2026-10-14 独立评审：处方已去白芥子，注意事项仍写
+ *「方中法半夏、白芥子偏温燥」）。只看「方中 / 本方含 / 本方有…」引出的那一小句——那是在说本方的组成；
+ *「不宜同服藜芦、五灵脂」「忌萝卜」这类配伍与忌口提示说的是方外之物，不在此列。命中则整条丢掉（只删不改）。
+ */
+const PRECAUTION_FORMULA_CONTENT_LEAD = /(?:方中|本方(?:含|有|中|所含|所用)|处方中|药中含)/;
+// 「方中人参不宜与藜芦、五灵脂同服」：跟在禁忌词后面的药（及其顿号并列）是方外之物，不算本方组成。
+const PRECAUTION_AVOID_LEAD = /(?:不宜|不可|不得|忌|勿|避免|慎)[^，。；,;]{0,3}$/;
+export function precautionNamesHerbOutsideFormula(line: string, prescribedIdentities: ReadonlySet<string>): boolean {
+  if (prescribedIdentities.size === 0) return false;
+  return line.split(/[，,；;。！？!?]/).some((clause) => {
+    const lead = clause.match(PRECAUTION_FORMULA_CONTENT_LEAD);
+    if (!lead || lead.index == null) return false;
+    const tail = clause.slice(lead.index + lead[0].length);
+    let previousEnd = -1;
+    let previousAvoided = false;
+    for (const mention of formulaAnalysisHerbMentions(tail)) {
+      const avoided: boolean = PRECAUTION_AVOID_LEAD.test(tail.slice(0, mention.start)) ||
+        (previousAvoided && /^[、和及或与]$/.test(tail.slice(previousEnd, mention.start)));
+      previousEnd = mention.end;
+      previousAvoided = avoided;
+      if (!avoided && !prescribedIdentities.has(canonicalTcmHerbIdentity(mention.token))) return true;
+    }
+    return false;
+  });
+}
 
 function normalizeSubmittedPrecautions(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -1393,10 +1422,13 @@ export function compileM04Proposal(
   // Medicine discovery is a server-owned evidence plan. The generative M04 proposal may still
   // echo valid rows, but it cannot erase the independently retrieved plan or inject a different
   // drug. Merge by exact evidence identity before independent clinical review.
+  // 注射剂、生物制剂与病历写着正在用的药不作为门诊候选（与规划器同一判据 medicineCandidateExcludedForCase）。
+  const medicineExclusionText = caseState ? clinicalGroundingText(caseState) : "";
   const proposal = {
     ...parsed.data,
     patentAndWestern: [...new Map(
       [...parsed.data.patentAndWestern, ...trustedMedicines]
+        .filter((item) => !medicineCandidateExcludedForCase(String(item.name || ""), medicineExclusionText))
         .map((item) => [`${item.evidenceId}:${item.evidenceFingerprint}`, item] as const),
     ).values()].slice(0, 6),
   };
@@ -1405,6 +1437,11 @@ export function compileM04Proposal(
     sanitizeUnverifiedClinicalNarrative(value || "") || fallback;
   // 儿童折算档位：与 M04 合同同源（同一份接地语料里的「患者年龄」），成人病例为 undefined、行为不变。
   const pediatric = caseState ? pediatricDoseRuleFromGroundingText(clinicalGroundingText(caseState)) : undefined;
+  // 注意事项里「方中有某药」只能说本方与随证加减里确有的药（见 precautionNamesHerbOutsideFormula）。
+  const prescribedPrecautionIdentities = new Set([
+    ...proposal.candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name)),
+    ...proposal.modifications.map((item) => canonicalTcmHerbIdentity(item.herbName)),
+  ]);
   const compiledHerbs = proposal.candidate.herbs.map((herb) => {
     const node = herb.targetKind === "pathogenesis_node"
       ? prior.pathogenesis.chain.find((candidate) => candidate.nodeId === herb.targetRef)
@@ -1604,9 +1641,10 @@ export function compileM04Proposal(
       ...proposal.nonPharma,
       // 「如已怀孕、备孕或哺乳请告知医生」只写给有此可能的患者：男性、儿童、已绝经者不写（见 reproductiveAdviceRelevant）。
       // 病历确有妊娠/哺乳记录的不会走到带剂量处方；没有病例信息（直接调编译器）时不过滤。
-      precautions: caseState && !reproductiveAdviceRelevant(caseState)
+      precautions: (caseState && !reproductiveAdviceRelevant(caseState)
         ? proposal.nonPharma.precautions.filter((item) => !REPRODUCTIVE_ADVICE_LINE.test(item))
-        : proposal.nonPharma.precautions,
+        : proposal.nonPharma.precautions)
+        .filter((item) => !precautionNamesHerbOutsideFormula(item, prescribedPrecautionIdentities)),
       acupointCare: null,
       tcmTreatments: compileTcmTreatmentRecommendations(proposal.nonPharma.tcmTreatments, prior, caseState),
     },

@@ -409,7 +409,7 @@ ${herbCountPreferenceInstruction(caseState)}- candidate.herbs 只包含本次真
   此处只补充药组如何协同及其本例依据，不复述完整 M03 病机链。像临床方解一样自然衔接药味与配伍关系；不要使用 Markdown 标题、
   星号加粗、短横线列表或“配伍关系：/相使：/佐制：”式栏目堆砌。没有实际关系就不写，
   不要输出“未识别到/不强行判定”等系统自述。写不出来就留空——服务端会生成连续方解兜底。
-- nonPharma.precautions 是 3–5 条**写给患者**的注意事项，每条一句完整的中文（≤45字）。构成：第 1 条写本方的服法与忌口（如“饭后温服，服药期间忌食生冷油腻、辛辣之品”）；其后写与本方药味直接相关的服药注意（如方中含解表药时“服后避风、可进热粥助汗，汗出即止”；方中有孕期慎用药、而患者为育龄女性且病历未写明是否怀孕时，写“方中有孕期慎用的药，如已怀孕或备孕请先告知医生”）、所选中医治疗项目的注意、以及与本病相关的起居调摄；患者为 75 岁以上高龄或 6 岁以下幼儿时，其中一条写与年龄相关的服药注意（如“高龄者起身宜缓、防跌倒”“幼儿少量多次喂服”）。**不要写**：复诊时机和需要立即就医的表现（这些在复诊计划里说，这里不重复）；“若X天不缓解”“体温≥39℃”这类天数、体温等数字阈值；“请告知医生过敏史/用药史”“须由医生评估后再决定是否使用本方”这类不是给患者执行的话；克数、片数、毫升等剂量；英文单词；“采纳”“候选”“审方”“复评”“辨证”“阳性”等流程用语。不得自行声称某不适是正常反应，不得让患者自行减量、加药、换药；不得编造病历没有的症状。
+- nonPharma.precautions 是 3–5 条**写给患者**的注意事项，每条一句完整的中文（≤45字）。构成：第 1 条按本方与本证写服法和忌口——服药时间随方而定（补益药宜饭前，对胃有刺激的药宜饭后，安神药宜睡前，解表药宜温服后避风），忌口随证而定（寒证忌生冷，热证忌辛辣温燥，痰湿证忌肥甘黏腻，食积忌过饱），不要每例都写成同一句；其后写与本方药味直接相关的服药注意（如方中含解表药时“服后避风、可进热粥助汗，汗出即止”；方中有孕期慎用药、而患者为育龄女性且病历未写明是否怀孕时，写“方中有孕期慎用的药，如已怀孕或备孕请先告知医生”）、所选中医治疗项目的注意、以及与本病相关的起居调摄；注意事项里提到的药名必须是本方药味表里有的药，提到的治疗项目必须是本次确实给出的项目；患者为 75 岁以上高龄或 6 岁以下幼儿时，其中一条写与年龄相关的服药注意（如“高龄者起身宜缓、防跌倒”“幼儿少量多次喂服”）。**不要写**：复诊时机和需要立即就医的表现（这些在复诊计划里说，这里不重复）；“若X天不缓解”“体温≥39℃”这类天数、体温等数字阈值；“请告知医生过敏史/用药史”“须由医生评估后再决定是否使用本方”这类不是给患者执行的话；克数、片数、毫升等剂量；英文单词；“采纳”“候选”“审方”“复评”“辨证”“阳性”等流程用语。不得自行声称某不适是正常反应，不得让患者自行减量、加药、换药；不得编造病历没有的症状。
 - candidate.decoction 必须是单个对象，并同时包含：doseCount（总剂数，1–30整数加“剂”）、dosesPerDay（每日剂数，1–3整数）、administrationTimesPerDay（每日分服次数，1–6整数且不得小于每日剂数）。三者不得省略、写成自由文本或由服务端猜测；总剂数必须能被每日剂数整除，疗程和复诊节点由服务端按这三项统一生成。
 - role 只能是君/臣/佐/使中的一个值；processing 和 decoctionRequirement 有值时写字符串，没有就省略。
 - 君臣药只能以 targetRef 引用有效病机节点 P1/P2...；佐使药若只承担方内结构作用，可写 targetRef=FORMULA_STRUCTURE，并给出 structureRole（限于 middle_jiao_support/harmonize/guide/temper）。
@@ -420,7 +420,7 @@ ${herbCountPreferenceInstruction(caseState)}- candidate.herbs 只包含本次真
 - 证候一致与兼证照顾：候选方整体的寒热补泻必须与 M03 主证一致；M03 列出的每个兼证（secondarySyndromes 及承接它的病机节点）都要由臣佐药或 modifications 照顾到，不得只治主证。以命名方为基础时按本例加减化裁并在方名写“加减”：原方中与本例寒热虚实相悖的个别药味（如本例有湿热、阴虚或舌红少苔，而原方含附子、肉桂、鹿茸等温燥药）应去掉；若相悖药味多到原方主体不成立，说明该方不适合本例，改按锁定治法辨证组方。
 - 治法→药味映射：每味药必须经 targetRef/structureRole 绑定到它实际落实的治法方向，候选药味集合必须覆盖 M03 therapy.subTherapies 中每个“主要”治法方向（至少一味药的功能与之对应）；不得出现治法要求活血化瘀而方中无活血药、治法要求解表而方中无解表药这类治法与药味漂移。
 - 不得在提案中重写 M03 证候、病机、治法、流派信息、方剂出处或饮片证据字段；这些由服务端复制或生成。药味 function 与本例 formulaAnalysis 按各自用途简洁说明，并保持与已锁定 M03 一致。
-- patentAndWestern 只能从证据上下文中【EviMed 说明书检索】或【本地中成药说明书检索】实际返回的 EVID-INST / LOCAL-INST 条目中选择，evidenceId 逐字复制条目方括号里的 ID，集外或错配的 ID 会被服务端删除。每行只写 type、evidenceId、correspondingProblem（本例当前诊断/证候/阳性症状里与该条目适应证对得上的那一点，≤20字）与 positioning（只能取 联合治疗、替代方案、短期对症、需医生评估 之一，不写其他文字）；药名、规格、用法、禁忌、相互作用与特殊人群边界由服务端从同一条目逐字补齐。没有合格条目时输出空数组，服务端会显示具体缺失原因。
+- patentAndWestern 只能从证据上下文中【EviMed 说明书检索】或【本地中成药说明书检索】实际返回的 EVID-INST / LOCAL-INST 条目中选择，evidenceId 逐字复制条目方括号里的 ID，集外或错配的 ID 会被服务端删除。每行只写 type、evidenceId、correspondingProblem（本例当前诊断/证候/阳性症状里与该条目适应证对得上的那一点，≤20字）与 positioning（只能取 联合治疗、替代方案、短期对症、需医生评估 之一，不写其他文字）；药名、规格、用法、禁忌、相互作用与特殊人群边界由服务端从同一条目逐字补齐。没有合格条目时输出空数组，服务端会显示具体缺失原因。中成药要按本例证候选（辨证用药）：说明书功能主治针对的证型与本例证候寒热、虚实、表里相反或不相干的不选（没有表证不选解表剂，虚证不选只祛邪的药）；病历已写明患者正在使用的药不再列；病历记录的检查结果不支持的病不为它列药；宁缺毋滥。
 - 西药只作无剂量讨论候选，中成药为待医生评估候选；说明书用法只取同一条目原文，由服务端补齐，模型不写也不猜。
 - **主方只治主证**：candidate.herbs 的每味药都要对应 M03 主证（及写明的兼证）的病机；病历里顺带提到、主证解释不了的伴随症状（如睡眠欠佳、纳差、大便偏干）不得为它在主方里加药（例如不要因为一句“睡眠欠佳”就加酸枣仁、夜交藤），一律写进 modifications。
 - modifications 是给接诊医生的**随证加减建议**，写 2–3 条。上文给出【教材加减】时**优先从中选**与本例最相关的几条：trigger 照教材的条件写成“若……”（本例可能出现或已经出现的变化，如“若恶寒甚”“若大便秘结”），herbName 取该条教材加减里的药（**药名照教材写，不换成相近的药**；一条里有两味药就写成两行、trigger 相同；已在主方里的药不重复加）。**有【教材加减】时 modifications 不得为空**：本例眼下没有出现的变化也照教材写成备用加减，至少 2 条。没有【教材加减】时，先针对本次病历已记录、主方未直接针对的伴随症状给建议，再按本证常见的兼症变化补条件式加减（trigger 写成“若＋具体症状”，如“若咳嗽较甚，痰稀色白”），合计 2–3 条。**由主病直接引起的伴随症状不另加药**（因疼痛或瘙痒而睡眠差、因发热而纳差等，主病缓解自然随之缓解）——不要见“睡眠差”就加酸枣仁、见“乏力”就加党参；加的药必须与主证治法同向。
@@ -590,7 +590,11 @@ function textbookCaseInput(caseState: CaseState): TextbookCaseInput {
   };
 }
 
-export function buildQuestionPrompt(caseState: CaseState): string {
+/**
+ * @param settledRiskCategories 病历已经回答了其急症筛查题的类目（出题路由核对所得）。这些类目里「需要澄清」的线索不再写进
+ *   提示词——否则模型会照「有 urgent 线索就问它」的规则，再问一遍病历已经写明的内容（2 岁患儿被问「呼吸 28 次/分是在什么状态下测得的」）。
+ */
+export function buildQuestionPrompt(caseState: CaseState, settledRiskCategories: readonly string[] = []): string {
   const record = promptDataText(JSON.stringify({
     patient: { sex: caseState.patient.sex || null, age: caseState.patient.age ?? null },
     chiefComplaint: caseState.chiefComplaint,
@@ -604,6 +608,7 @@ export function buildQuestionPrompt(caseState: CaseState): string {
     allergyHistory: caseState.allergyHistory || null,
     redFlagSemanticFacts: caseState.clinicalFacts?.redFlags
       .filter((item) => item.status === "positive" || item.status === "possible")
+      .filter((item) => !(item.urgency === "urgent" && settledRiskCategories.includes(item.category)))
       .map((item) => ({ category: item.category, subject: item.subject, status: item.status, urgency: item.urgency, quote: item.quote })) || [],
   }));
   const history = caseState.conversation
@@ -616,7 +621,7 @@ export function buildQuestionPrompt(caseState: CaseState): string {
   const classicDiscriminationContext = buildM02ClassicDiscriminationContext(caseState);
   const compactJsonContract = `只输出一个合法 JSON 对象，不要输出 Markdown、sentinel、代码围栏、说明文字或第二份结果。页面问题卡与病历回填都由此对象确定性渲染，不存在另一份可见问题文本：
 {"m02Plan":{"schemaVersion":"tcm-cdss-m02-plan-v1","decision":"ask","rationale":"为什么仍值得追问","questions":[{"id":"q1","question":"与起病时相比，主要不适目前总体是否明显加重？","reason":"会改变哪项临床判断","targetField":"xianbingshi","decisionBranch":"differential","expectedDecisionImpact":"不同回答将如何改变下一步","informationGain":0.85,"sourceEvidence":["病历中的逐字短句"],"options":[{"id":"a","label":"明显加重","answer":"主要不适较起病时明显加重","kind":"clinical_fact","recordValue":"主要不适较起病时明显加重"},{"id":"b","label":"未明显加重","answer":"主要不适较起病时未明显加重","kind":"clinical_fact","recordValue":"主要不适较起病时未明显加重"},{"id":"unknown","label":"本次未取得","answer":"本次未取得该信息","kind":"unknown"}]}]}}
-informationGain 取0到1并按本例判断，不得机械照抄示例。targetField 只能取 xianbingshi/jiwangshi/allergyHistory/medicationHistory/vitalsDetail/tcmFace/tcmTongue/tcmPulse/tcmDetail/fuzhuJiancha；decisionBranch 只能取 triage/differential/syndrome/treatment_safety。decision=ask 时出1题（有急症线索需澄清时至多2题）；decision=proceed 时 questions 必须为空。每题必须有且只有一个 kind=unknown；clinical_fact 必须提供 recordValue 或 requiresDetail=true。sourceEvidence 只能逐字引用本次病历，问题基于尚未获得的信息时可为空。未获得的资料保持未知，不得补写患者事实。`;
+informationGain 取0到1并按本例判断，不得机械照抄示例。targetField 只能取 xianbingshi/jiwangshi/allergyHistory/medicationHistory/vitalsDetail/tcmFace/tcmTongue/tcmPulse/tcmDetail/fuzhuJiancha；decisionBranch 只能取 triage/differential/syndrome/treatment_safety。decision=ask 时只出1题；decision=proceed 时 questions 必须为空。每题必须有且只有一个 kind=unknown；clinical_fact 必须提供 recordValue 或 requiresDetail=true。sourceEvidence 只能逐字引用本次病历，问题基于尚未获得的信息时可为空。未获得的资料保持未知，不得补写患者事实。`;
 
   if (reassessment) {
     return `你是中医CDSS信息充分度评估模块。单轮追问已经结束，不得再提问题。普通缺项只降低置信度，不阻断后续；输出 decision=proceed、questions=[]，并在 rationale 中简述已补充信息、仍存不确定项及下一步。
@@ -639,7 +644,7 @@ ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
 
 先判断要不要问：后文【教材病证候选】列出了与本例主诉相近的教材证型（证名—主症—舌脉—治法—代表方）。看其中最像本例的两个证型：病历里已有的寒热、汗出、口渴、饮食二便、舌脉等事实若已经能把它们分开，就不必追问（decision=proceed）；分不开时，只问**那一条能把它们分开的事实**。
 
-最多出 1 题（只有 redFlagSemanticFacts 里存在 urgency=urgent 的急症线索需要澄清时，才可以另出 1 题澄清它）。这道题必须同时满足以下四条，这是对成品的要求（不要在输出里写审计过程或候选轴，页面只渲染这个 JSON）：
+只出 1 题。redFlagSemanticFacts 里有 urgency=urgent 的急症线索、而病历还没有写明它是否正在发生时，这一题就问它（decisionBranch 填 triage，针对该线索问具体表现，如“原血栓侧有无新发肿胀、疼痛”；这种情况下下面第 2–4 条不适用）；病历已经写明的（已记录的生命体征、已逐项否认的伴随表现）不再问。没有这种线索时，这道题必须同时满足以下四条，这是对成品的要求（不要在输出里写审计过程或候选轴，页面只渲染这个 JSON）：
 1. 指向病历尚未回答的信息。任一选项的答案若已能从病历直接读到（含同义改写），该题信息增益为0，换一个方向；换不出就 decision=proceed。
 2. 两个临床选项各自对应一个不同的候选证型（或不同的用方方向），选了哪个，证型或代表方就会不同；写成能直接写进病历的事实句（如“恶寒重、发热轻、无汗”对“发热重、微恶风、有汗、咽痛”），decisionBranch 填 syndrome。
 3. reason 与 expectedDecisionImpact 写明两个选项分别指向哪个证型、会改变哪首方，不写“有助于全面了解病情”这类空话。
@@ -649,7 +654,7 @@ sourceEvidence 只说明为什么要问，不能是问题的答案；只逐字�
 
 约束：
 - 仅当病历已有胸痛、晕厥、呼吸困难、高热、意识异常、行为危机等触发线索时，追问对应急症；普通慢性失眠、汗出、疲乏不得例行罗列心血管急症。
-- redFlagSemanticFacts 中 urgency=urgent 的原文线索用一个具体问题澄清；只有 urgency=emergency 才是急诊级提示。urgency=clarify 或 routine 的普通症状（感冒时的头痛、头晕等）按常规诊疗处理，不为它出急症筛查题，也不得升级成红旗。
+- redFlagSemanticFacts 中 urgency=urgent 的原文线索，病历尚未写明时用一个具体问题澄清；只有 urgency=emergency 才是急诊级提示。urgency=clarify 或 routine 的普通症状（感冒时的头痛、头晕等）按常规诊疗处理，不为它出急症筛查题，也不得升级成红旗。
 - 优先询问能区分候选证型的四诊信息：寒热喜恶、汗出、口渴口味、疼痛性质与喜按拒按、饮食二便、舌象、脉象。
 - 问题组合按“即时处置分支、首要鉴别分支、证候/病机分支、用药或实施边界”去重排序；不要用多个问题反复确认同一轴，也不要重复询问病历已明确记录的事实。
 - 逐项拆解问题标题和A/B选项里的每个并列子条件；任一子条件已由病历明确回答时，必须从问题及选项中删除该已知子条件，只询问仍未知的部分。不得把已知与未知子条件用“或/和”捆绑后继续追问；无法形成互斥选项时换用下一候选轴。

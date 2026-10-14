@@ -326,6 +326,30 @@ assert.notEqual(m03SemanticIssue(tcmNativeConnectorRationale), "tcm_diagnostic_r
 const bareSyndromeNameRationale = structuredClone(stable);
 bareSyndromeNameRationale.overview.tcmDiagnosticRationale = "辨为心脾两虚证。";
 assert.equal(m03SemanticIssue(bareSyndromeNameRationale), "tcm_diagnostic_rationale_restatement", "a bare syndrome-name rationale with a connector is still caught as restatement downstream");
+// 2026-10-14：「推理缺失」只判结构性缺失，不再看连接词表。中医推理最常用的收束写法（故为 / 故属 / 均示）
+// 不在旧表里，于是模型写好的逐证推理被判缺失、整段换成服务端的「四诊要点：…据此辨病位在X（据Y）」拼接句
+//（实测 242 例里 135 例；独立评审判不通过的辨证依据全部出自拼接句）。
+for (const rationale of [
+  "入睡困难、多梦易醒，兼舌淡脉细，心肝血虚、神失所养，故为心肝血虚证；无口苦急躁，故不属肝郁化火。",
+  "入睡困难而舌淡脉细，为心血不足、肝血亏虚，故属心肝血虚证。",
+  "主诉入睡困难，舌淡、脉细均示营血不足，心神失养。",
+]) {
+  const written = structuredClone(stable);
+  written.overview.tcmDiagnosticRationale = rationale;
+  assert.equal(m03SemanticIssue(written), undefined, `模型按本例写的辨证推理不得判缺失：${rationale}`);
+  const wrapped = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(written)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  assert.equal(alignNormalizedM03TcmDiagnosticRationale(wrapped), wrapped, "模型写的辨证推理逐字保留，服务端不换成拼接句");
+}
+for (const placeholder of ["", "待补充。", "资料不足，辨证待定。"]) {
+  const empty = structuredClone(stable);
+  empty.overview.tcmDiagnosticRationale = placeholder;
+  assert.equal(m03SemanticIssue(empty), "tcm_diagnostic_rationale_missing", `空白或只剩占位的辨证推理仍判缺失：「${placeholder}」`);
+}
+{
+  const written = structuredClone(stable);
+  written.overview.tcmDiseaseRationale = "以入睡困难、睡眠难以维持为主症，病程逾月，故属不寐；非以情志抑郁为主，故不属郁病。";
+  assert.equal(m03SemanticIssue(written), undefined, "辨病推理同样只判结构性缺失");
+}
 // 需求3：诊断分三段，各自给出推理——西医诊断（含 ICD-10 关联）、中医辨病、中医辨证。
 // 辨病与辨证此前共用 tcmDiagnosticRationale 一个字段，病名归属的理由被证型推理挤掉：
 // 医生看到「不寐」却读不到为什么把这组表现归入不寐而不是郁病或心悸。
@@ -2019,6 +2043,21 @@ assert.match(
   "重建的辨证推理必须织入四诊要点/病位线索，不得退回『结合其表现模式』式空话",
 );
 assert.doesNotMatch(alignedTcmRationale.overview.tcmDiagnosticRationale, /结合其表现模式/);
+// 拼接句只在模型确实没写时出现；它的「据X」只能取病历肯定的症状（2026-10-14 独立评审：病历写「无尿频、尿急、尿痛」，
+// 依据却是「病位在肾（据怕冷、尿频）」——症状—轴表按字面匹配，整句送进去不看否定）。
+{
+  const denied = structuredClone(tcmRationaleMismatch);
+  denied.overview.tcmDiagnosticRationale = "";
+  denied.overview.primarySyndromeBasis = ["夜间尿床", "怕冷"];
+  denied.pathogenesis.locationDifferentiation = { ...denied.pathogenesis.locationDifferentiation, items: ["肾", "膀胱"] };
+  denied.pathogenesis.symptomClusters = [{ name: "小便", symptoms: ["白天排尿正常，无尿频、尿急、尿痛", "腰膝酸软"] }];
+  const rebuilt = JSON.parse(alignNormalizedM03TcmDiagnosticRationale(
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(denied)}\n<!-- DIAGNOSIS_JSON_END -->`,
+  ).split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).overview.tcmDiagnosticRationale;
+  assert.match(rebuilt, /四诊要点/, "模型没写时才由服务端补一句");
+  assert.doesNotMatch(rebuilt, /据[^）]*尿频/, "病历否认的症状不得写成病位依据");
+  assert.match(rebuilt, /肾（据[^）]*腰膝酸软/, "肯定的症状照常作为依据（对照）");
+}
 assert.equal(
   m03SemanticIssue(alignedTcmRationale, stableSupportContext),
   undefined,
@@ -3662,6 +3701,18 @@ assert.match(
   /米饭|面食|蔬菜/,
   "the deterministic completion gives the clinician at least one concrete ordinary meal example",
 );
+// 模型按本例写好的饮食建议原样保留，不再追加通用餐食句（2026-10-14：157 个处方里 90 个被追加同一句，
+// 因为「如…」「可常食…」「主食可加…」不在引出词闭集里；「暂禁食」的脱水患儿也被追加「三餐定时」）。
+for (const diet of [
+  "饮食宜清淡易消化，如米粥、藕粉、蒸蛋羹，少量多次温服，忌辛辣油腻及生冷之品。",
+  "饮食宜温热易消化，可常食小米红枣粥、山药炖排骨，忌生冷冰饮及辛辣油腻。",
+  "定时进餐，晨起空腹饮温水200毫升，主食可加燕麦、红薯等粗粮，忌生冷冰饮及辛辣油腻。",
+  "暂禁食，由医生评估后逐步少量多次喂服口服补液盐或温米汤，忌生冷油腻。",
+]) {
+  const input = structuredClone(compiledProposalInput);
+  input.nonPharma.diet = diet;
+  assert.equal(compileM04Proposal(input, stable)?.nonPharma?.diet, diet, `模型写的饮食建议逐字保留：${diet}`);
+}
 assert.equal(compiledProposal?.formula?.candidates[0].herbs[0].processing, "炒");
 assert.equal(compiledProposal?.formula?.candidates[0].herbs[0].role, "君");
 assert.equal(compiledProposal?.formula?.candidates[0].herbs[0].decoctionRequirement, "捣碎、同煎");

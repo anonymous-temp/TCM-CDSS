@@ -151,6 +151,18 @@ export const POSSIBLE_RISK_QUESTIONS: Readonly<Record<string, RiskScreeningQuest
   other_critical: { question: "请复核该异常是否正在发生，并补充起病时间、严重程度、生命体征和意识呼吸状态。", positive: "异常仍在发生，请补充具体表现", negative: "经复核异常未在发生，且无生命体征、意识或呼吸改变" },
 };
 
+/**
+ * 「其他急危重线索」的筛查题在题干前带一段病历原话（「病历记录“…”。请复核该异常是否正在发生…」），让「该异常」有所指。
+ * 识别作答时先去掉这段引文，剩下的才是与类目一一对应的固定题干。
+ */
+export function riskQuestionQuotePrefix(quote: string): string {
+  return `病历记录“${quote}”。`;
+}
+const RISK_QUESTION_QUOTE_PREFIX = /^病历记录“[^”]{1,80}”。/;
+export function stripRiskQuestionQuotePrefix(question: string): string {
+  return question.replace(RISK_QUESTION_QUOTE_PREFIX, "");
+}
+
 const RISK_QUESTION_BY_TEXT = new Map(
   Object.entries(POSSIBLE_RISK_QUESTIONS).map(([category, item]) => [compactFollowupText(item.question), { category, ...item }]),
 );
@@ -159,7 +171,7 @@ const RISK_QUESTION_BY_TEXT = new Map(
 export function confirmedRiskScreeningCategories(conversation: readonly ConversationMessageLike[] | undefined): Array<{ category: string; question: string }> {
   const confirmed: Array<{ category: string; question: string }> = [];
   for (const item of followupConversationView(conversation).answers) {
-    const risk = RISK_QUESTION_BY_TEXT.get(compactFollowupText(item.question));
+    const risk = RISK_QUESTION_BY_TEXT.get(compactFollowupText(stripRiskQuestionQuotePrefix(item.question.trim())));
     if (!risk) continue;
     if (compactFollowupText(item.answer) !== compactFollowupText(risk.positive)) continue;
     if (!confirmed.some((entry) => entry.category === risk.category)) confirmed.push({ category: risk.category, question: risk.question });

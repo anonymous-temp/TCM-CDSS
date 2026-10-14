@@ -23,6 +23,11 @@
 每行另带两个任务书之外的字段：syndromeKind（syndrome/type/stage：标题是证名、病类名还是分期名）、
 tcmEquivalents（西医病名章节里教材写的「属中医学“…”范畴」）；compositionByFormula 记组成归属哪张方。
 
+diseases[] 里每个病另带 differentials：教材【鉴别诊断】（【病证鉴别】【类证鉴别】、【诊断与鉴别诊断】下的
+「（二）鉴别诊断」、【诊断】下的「2.鉴别诊断」）里要鉴别的病证，每条 {name, text}——name 是条目里写出的病名，
+text 是该条的教材原文（连续片段，至多 400 字）。各书写法与识别口径见下文「鉴别诊断」一节；每条是按哪种写法
+认出来的、出自哪一行，写在 --stats 的 differentialTrace / differentialRules 里（不进对照表）。
+
 用法：python3 scripts/build-tcm-textbook-syndrome-table.py [教材合集路径] [输出路径] [--stats 统计输出路径]
 同一份来源重复运行输出逐字节相同（无时间戳、无随机）。
 """
@@ -875,6 +880,161 @@ def extract_tcm_equivalents(intro: str) -> list[str]:
 
 
 # --------------------------------------------------------------------------------------
+# 鉴别诊断：栏目标题、条目里的病名
+# --------------------------------------------------------------------------------------
+# 各书【鉴别诊断】的写法不同（2026-10-14 逐书核对，各种写法的条数与样例见 --stats 的 differentialRules）。
+# 原先只认「N.病名␠要点」和首段一句「与…鉴别」：运行时可取到的 331 个教材病名里 173 个取不到鉴别病名。
+# 其中 59 个教材确实没有这一栏（内科各【附】篇、眼科大半），其余是下面几种写法没认出来（改后剩 65 个取不到）：
+#   ① 「N.病名要点」病名与要点之间的空格在扫描时丢了（外科、儿科、骨伤）：依次试——括注之前、要点开头重复病名、
+#      合集自己的病名词表的最长前缀、「多见于/好发于/初起…」这类起述词之前（断出来的名字须以病名常见的末字收尾）；
+#   ② 栏目下只有一段、不编号的「病名␠要点」（内科：痢疾—泄泻、黄疸—萎黄、痹证—痿证…）；
+#   ③ 「本病应与甲、乙、丙相鉴别（表6-1）」一句话，表不在合集里（妇科、眼科）：病名逐个拆开；
+#   ④ 「甲与乙␠要点」，其中一边是本病自己的类型（内科：血证、痰饮、郁证；外科：癣、梅毒、疣）：取另一边；
+#   ⑤ 「甲、乙␠要点」一条里并列几个病（内科：水肿—鼓胀、饮证）：逐个拆开。
+# 口径：条目文字一律是教材原文的连续片段，不改写（以指向合集里没有的图表收尾的，到引用之前为止）；病名是条目里
+# 逐字写出的名字（只订正 DIFF_NAME_OCR_FIXES 里的扫描错字、去掉括注）；认不准的病名留空（条目仍在），不猜。
+# 原口径已经认出的病名照留，改动的只有这几类：几个病名并在一起的拆开；带括注的去掉括注；扫描错字订正；
+# 不是病名的（被旧正则截断的半句、以「鉴别诊断」收尾的小标题）换成同一段里的真病名，取不出就留空。
+
+# ---- 栏目与句式 ----
+RE_DIFF_TITLE = re.compile(r"^(?:鉴别诊断|类证鉴别|病证鉴别|鉴别)(?:[（(]表[^（）()]{1,8}[)）])?$")
+# 栏目名与第一段写在同一行（「2.鉴别诊断␠颅骨凹陷性骨折：本病好发于…」）：栏目名之后还有不少于 6 个字的正文。
+RE_DIFF_TITLE_INLINE = re.compile(r"^(?:鉴别诊断|类证鉴别|病证鉴别)[\s　]*(?=[^\s　（(].{5})")
+# 原口径的首段句式（保留，用来判断「原先在这一段认到了什么」）。它把「疾病/病」当作可省的后缀，会把「克山病」截成「克山」。
+RE_DIFF_LEGACY_LIST = re.compile(r"与([^。，；]{2,30}?)(?:等)?(?:疾病|病证|病)?(?:相|进行|作|加以)?鉴别")
+# 「（本病/某某）应与甲、乙、丙（等疾病）（相）鉴别」。「与甲鉴别的有乙、丙」里甲是本病的类型，不收；「发作相鉴别」的「作」不是助词。
+RE_DIFF_SENTENCE = re.compile(
+    r"与(?P<list>[^。；;，,：:]{2,90}?)"
+    r"(?:等(?:[^、。；，]{0,10}?(?:疾病|病证|病症|病变|疾患|病|证|症))?|(?:[几多各]种|其他|其它|以下|下列)(?:疾病|病证|病症|病变))?"
+    r"(?:进行|加以|相互|互相|相|(?<!发)作|做)?(?:的)?鉴别(?!的(?:有|疾病|病证|病种))"
+)
+# 「与」之前只能是主语加这类助动词、副词（「痛经应与…」「本病主要与…」「尚应与…」）；「甲与乙相鉴别」的甲不算。
+RE_DIFF_SENTENCE_LEAD = re.compile(r"(?:应当|应该|必须|需要|应|需|须|当|宜|要|可|易|还|尚|亦|也|均|则|常|多|主要|首先|注意|于|并)$")
+# 「除此之外，泌尿系结石、肿瘤、糖尿病、尿崩症等也可导致尿频，临床可结合相关检查进行鉴别」
+RE_DIFF_SENTENCE_ALSO = re.compile(r"(?:^|[，,。；])(?P<list>[^，,。；：:]{4,60}?)等(?:疾病)?(?:也|亦|均|都)?可(?:导致|引起)[^。；]{0,40}?鉴别")
+
+# 「本病须与其他原因所致的…内障眼病相鉴别。若晶珠混浊为与生俱来，称为胎患内障；外伤致晶珠混浊，称为惊震内障…」：
+# 首句只说了一类病，具体的病名在后面的「称为某某」里。
+RE_DIFF_CALLED = re.compile(rf"称为([{CJK}]{{2,8}}?)(?=[（(，,；;。])")
+# 成对的限定语：「生理性啼哭…」「病理性啼哭…」两条并列时，限定语之后相同的那几个字就是病名的后半。
+DIFF_QUALIFIER_PAIRS = [("生理性", "病理性"), ("原发性", "继发性"), ("真性", "假性"), ("良性", "恶性"), ("先天性", "后天性")]
+
+# ---- 指向合集里没有的图表 ----
+# 括注：「（表6-1）」「(见表9-4)」「（彩图8-13）」；整半句是指引：「，详见表11-2」「其鉴别要点见表10-1」。
+RE_DIFF_TABLE_PAREN = re.compile(r"[（(]\s*(?:详见|参见|见)?\s*(?:表|彩图|图)\s*\d+\s*[-－–—]\s*\d+\s*[a-zA-Z]?\s*[)）]?")
+RE_DIFF_TABLE_POINTER = re.compile(r"(?:详见|参见|见)\s*(?:表|彩图|图)\s*\d+\s*[-－–—]\s*\d+\s*[a-zA-Z]?")
+RE_DIFF_TABLE_REF = re.compile(rf"{RE_DIFF_TABLE_PAREN.pattern}|{RE_DIFF_TABLE_POINTER.pattern}")
+# 扫描版里表格被认成一行行碎字，表头是这几个词。
+RE_DIFF_TABLE_DEBRIS = re.compile(r"^(?:鉴别点|整别点|续表)")
+
+# ---- 病名的形状 ----
+RE_DIFF_NAME = re.compile(rf"^[{CJK}A-Za-zα-ωⅠ-Ⅻ0-9·\-－]{{2,14}}$")
+# 带这些字眼的是说明性的短语，不是病名（「其他原因所致的…」「以下疾病」「部分肥胖症」）。
+RE_DIFF_NOT_NAME = re.compile(
+    r"的|之|如|所致|所引起|引起|导致|其他|其它|某些|各种|多种|一些|(?:有关|相关)(?:疾病|病证|病变)|本病|本证|本症|该病|鉴别|诊断|以及|原因|"
+    r"以下|下列|下述|上述|如下|发生在|发生于|等|是|[与和及或]|^(?:部分|少数|多数|个别|有些|有的|大多|所有|极少数|绝大多数)"
+)
+DIFF_NOT_NAMES = {
+    "疾病", "病证", "病症", "病变", "症状", "两者", "二者", "三者", "后者", "前者", "患者", "患儿", "临床", "中医", "西医",
+    "关键", "首先", "其次", "再次", "最后", "主要", "重点", "特点", "目的", "方法", "一般", "通常", "此外", "另外", "同时",
+}
+# 列举里承前省略剩下的部位词、病原体（「鼻腔、口腔及咽喉出血」「气管、支气管异物」「金黄色葡萄球菌、…败血症」）不是病名。
+RE_DIFF_ORGAN = re.compile(r"(?:腔|管|肠|胃|腺|椎|膜|肤|脏|房|巢|宫|道|部|处|侧|菌|病毒|原体)$")
+# 病名常见的收尾：只收疾病分类用字，不收「痛、血、热」这类症状字（「右侧输尿管结石腹痛」不能断成病名）。
+RE_DIFF_NAME_SUFFIX = re.compile(
+    r"(?:病|症|证|炎|癌|瘤|疮|痈|疽|疔|疖|疹|癣|痔|疝|瘿|岩|痨|疬|疣|疳|痫|痢|淋|疸|痹|痿|痘|厥|斑|风|毒|"
+    r"翳|障|综合征|结核|囊肿|息肉|溃疡|脓肿|疖肿|血肿|肿瘤|梗阻|结石|贫血|紫癜|紫瘢|狭窄|畸形|坏疽|水肿|穿孔|积水|咬伤|螫伤|损伤|中毒|发作|失禁|早发育)$"
+)
+# 断出来的名字以这些字收尾的，是把要点的头一个字带进来了。
+RE_DIFF_BAD_TAIL = re.compile(r"[这那此该其均都也亦乃即就并而但则不才又还仍只既便常多少更最很较甚极已曾将正者时后前仅可能会要需须应]$")
+
+# ---- 病名与要点粘连时的断点 ----
+# 病名之后不会紧跟这些：跟了就说明词表里的名字只是一个更长病名的前半截（「脂瘤染毒」「梅毒性溃疡」「卵巢囊肿扭转」）。
+RE_DIFF_NAME_CONTINUES = re.compile(
+    r"^(?:性|型|期|样|状|[、及和与或的之]|所致|所引起|引起|导致|合并|并发|继发|伴发|恶变|癌变|溃破|破溃|破裂|穿孔|扭转|嵌顿|脱出|染毒|感染|时|后|前|"
+    r"病(?!变|在|程|灶|人|史|情|势|位|因|初|久|后|前|时|发|损|多|起))"
+)
+# 要点的起述词：病名到这里为止。
+RE_DIFF_ONSET = re.compile(
+    r"^(?:绝大多数|大多数|大多|多发生于|多发生在|多发生|多发于|多见于|多发|多见|多数|多为|多有|多由|多从|多在|多伴|多无|多因|"
+    r"常发生于|常发生在|常见于|常发于|常有|常为|常在|常位于|常伴|常由|常因|常以|通常|好发于|好发|发生于|发生在|发于|生于|见于|位于|"
+    r"发病|起病|初起|早期|典型|主要表现|主要由|主要|表现为|临床表现|一般|具有|持续|突发|是一种|是由|是指|是|的主症|系|为|有|无|可|虽|亦|也|由|因|以|除|"
+    r"患处|患部|患者|患儿|病人|病变|病在|病程|病灶|皮损|皮疹|肿块|肿物|疼痛|分布|该病|本病|此病|这是|两者|二者|中医称|西医学|"
+    r"[0-9０-９①-⑳]|X线|B超|CT)"
+)
+# 下定义的起述（「肌阵挛是癫痫发作的一个类型」「小便生成障碍的主症为…」）：其前的名字不要求以病名末字收尾。
+RE_DIFF_DEFINING_ONSET = re.compile(r"^(?:是一种|是由|是指|是|的主症)")
+# 病名之前的限定语：「男性乳岩」「新生儿水肿」——限定语加词表里的病名，仍是一个病名。
+RE_DIFF_QUALIFIER = re.compile(r"^(?:男性|女性|小儿|儿童|成人|老年|新生儿|婴儿|婴幼儿|急性|慢性|亚急性|原发性|继发性|先天性|后天性|单纯性|复发性|早期|晚期)")
+
+# ---- 病名里的扫描错字 ----
+# 与 TITLE_OCR_FIXES 同一口径：只改病名这一处，条目文字不动。左为合集里的字形，右为教材的写法；每一条都能在同一本书
+# 别处的正确写法或已有的节名订正里得到印证（「白尼」→「白疕」、「紫瘢风」→「紫癜风」已在节名订正里）。
+DIFF_NAME_OCR_FIXES = [
+    ("紫白瘢风", "紫白癜风"), ("白瘢风", "白癜风"), ("紫瘢", "紫癜"), ("座疮", "痤疮"), ("苔薛", "苔藓"),
+    ("酒髓鼻", "酒齄鼻"), ("酒独鼻", "酒齄鼻"), ("白定", "白疕"), ("骶骼", "骶髂"), ("螟蚣", "蜈蚣"),
+]
+
+
+def fix_differential_name(name: str) -> str:
+    for scanned, printed in DIFF_NAME_OCR_FIXES:
+        name = name.replace(scanned, printed)
+    return name
+
+
+def diff_name_ok(name: str) -> bool:
+    """像不像一个病名（只看形状）：2–14 个字，至少有一个汉字，不含「的、所致、其他、鉴别…」这类说明性的字眼。"""
+    if not RE_DIFF_NAME.match(name) or not re.search(rf"[{CJK}]", name):
+        return False
+    return not RE_DIFF_NOT_NAME.search(name) and name not in DIFF_NOT_NAMES
+
+
+def drop_parenthetical(name: str) -> str:
+    """「乳岩(乳腺癌)」「粟疮（彩图8-13）」「原发性脑干损伤（primary」→ 括注之前的病名。"""
+    return re.split(r"[（(]", name, maxsplit=1)[0].strip()
+
+
+def split_listed_names(text: str, known: set[str] | None = None) -> list[str]:
+    """「甲、乙及丙等疾病」→ [甲, 乙, 丙]。顿号隔开的某一项不像病名（承前省略、带说明字眼）就整体作废，返回 []。
+    用「和、及、或」连起来的两项常共用后半截（「骶前囊肿和囊性畸胎瘤感染」「肾上腺皮质增生或肿瘤」「心源性及肾性腹水」）：
+    这样拆出来的每一项都要以病名常见的末字收尾、或在合集的病名词表（known）里，否则这一组不收（其余各项照收）。"""
+    body = nospace(text).strip("。：:")
+    body = re.sub(r"等(?:[^、，。]{0,10}?(?:疾病|病证|病症|病变|疾患|病|证|症))?$", "", body)
+    names: list[str] = []
+    for chunk in split_outside_parens(body, "、"):
+        pieces = [drop_parenthetical(part) for part in re.split(r"以及|及其|[及和或]", chunk)]
+        pieces = [part for part in pieces if part]
+        shaped = all(diff_name_ok(part) and not RE_DIFF_ORGAN.search(part) and not part.endswith("性") for part in pieces)
+        if len(pieces) > 1:
+            if not shaped or not all(RE_DIFF_NAME_SUFFIX.search(part) or (known and part in known) for part in pieces):
+                continue
+        elif not shaped:
+            return []
+        for part in pieces:
+            if part not in names:
+                names.append(part)
+    return names
+
+
+def cut_table_reference(text: str) -> str:
+    """条目文字以图表引用收尾时，到引用之前为止（合集里没有这些表）；引用之后还有正文的原样保留。
+    括注只去掉括注（「…相鉴别（表6-1）。」→「…相鉴别」）；「某某见表13-1」整半句都是指引，退到上一个句读
+    （「…等。其鉴别要点见表10-1。」→「…等。」；「本病须与湿翳及凝脂翳相鉴别，详见表11-2。」→「…相鉴别」）。"""
+    match = RE_DIFF_TABLE_REF.search(text)
+    if not match:
+        return text
+    rest = text[match.end():].lstrip("。.o 　")
+    if rest and not RE_DIFF_TABLE_DEBRIS.match(rest):
+        return text
+    if match.group(0)[0] in "（(":
+        return text[: match.start()]
+    cut = max(text.rfind(mark, 0, match.start()) for mark in "，,。；; 　")
+    if cut < 0:
+        return ""
+    return text[: cut + 1] if text[cut] in "。；;" else text[:cut]
+
+
+# --------------------------------------------------------------------------------------
 # 单本书的抽取
 # --------------------------------------------------------------------------------------
 class BookParser:
@@ -888,6 +1048,7 @@ class BookParser:
         self.skips: list[dict] = []
         self.disease_spans: list[dict] = []
         self.unresolved_herbs = 0
+        self.differential_trace: list[dict] = []   # 每条鉴别条目是按哪种写法认出来的（只进 --stats，不进对照表）
 
     # ---- 段落（硬换行书把续行接回去） ----
     def paragraph(self, index: int, limit: int = 40):
@@ -1370,7 +1531,8 @@ class BookParser:
             span["end"] = min(breaks) if breaks else count
 
     # ---- 病的定义、别名、鉴别、诊断要点 ----
-    def disease_info(self, span: dict) -> dict:
+    def disease_info(self, span: dict, known: set[str] | None = None) -> dict:
+        """known：合集自己的病名词表（build_disease_name_lexicon）；不给时鉴别条目只认写得清楚的病名。"""
         vl = self.vl
         start, end = span["index"] + 1, span["end"]
         name = span["name"]
@@ -1408,6 +1570,7 @@ class BookParser:
             "diagnosisPoints": [],
         }
         # 鉴别诊断 / 诊断要点
+        context = self.differential_context(span, info, known)
         index = start
         while index < end:
             text = vl[index].text
@@ -1415,44 +1578,444 @@ class BookParser:
             numbered = numbering(text)
             title = bracket.group(1) if bracket else (nospace(numbered[1]) if numbered and len(nospace(numbered[1])) <= 10 else "")
             level = 0 if bracket else (numbered[0] if numbered else None)
-            if title and re.fullmatch(r"(?:鉴别诊断|类证鉴别|病证鉴别|鉴别)", title) and not info["differentials"]:
-                info["differentials"] = self.collect_differentials(index + 1, end, level)
+            # 「（三）鉴别诊断（表7-1）」比 10 个字长，鉴别栏目的标题另取，不走上面的长度上限。
+            differential_title = bracket.group(1) if bracket else (nospace(numbered[1]) if numbered else "")
+            inline = RE_DIFF_TITLE_INLINE.match(numbered[1]) if numbered else None
+            if differential_title and RE_DIFF_TITLE.match(differential_title) and not info["differentials"]:
+                info["differentials"] = self.collect_differentials(index + 1, end, level, context)
+            elif inline and not info["differentials"]:
+                # 「2.鉴别诊断␠甲状腺癌应与…鉴别。」「2. 鉴别诊断应判断不育的原因…」：栏目名与第一段写在同一行。
+                body, following = self.paragraph(index)
+                opening = RE_DIFF_TITLE_INLINE.sub("", numbering(body)[1], count=1)
+                info["differentials"] = self.collect_differentials(following, end, level, context, opening=(vl[index].no, opening))
             elif title and re.fullmatch(r"(?:诊断要点|诊断依据|诊断|临床诊断|诊查要点)", title) and not info["diagnosisPoints"]:
                 info["diagnosisPoints"] = self.collect_points(index + 1, end, level)
             index += 1
         return info
 
-    def collect_differentials(self, start: int, end: int, level: int):
+    # ---- 鉴别诊断 ----
+    def differential_context(self, span: dict, info: dict, known: set[str] | None) -> dict:
+        """一个病的鉴别栏目解析时要用到的东西。
+        own  ：本病自己的名字——病名及其各部分、别名与西医对应名、教材在本病下分的小类（血证的鼻衄、齿衄…）。
+        same ：只含与本病同名的那一层（病名及其各部分、别名）。「本病应与甲、乙鉴别」里列出来的病只去掉这一层：
+               教材明说要鉴别的，即使又写了「可参照本病辨证」（痛经与盆腔炎性疾病）也照收。
+        known：合集自己的病名词表；建词表的那一遍为 None，只走写得清楚的几种写法。"""
+        name = span["name"]
+        same = {name, "本病", "本证", "本症"}
+        same.update(part for part in re.split(r"[、与和及（）()]", name) if len(part) >= 2)
+        same.update(info["diseaseAliases"])
+        own = set(same)
+        own.update(info["westernEquivalents"])
+        own.update(info["tcmEquivalents"])
+        for row in self.rows:
+            if row["_disease"]["index"] != span["index"]:
+                continue
+            own.update(part for part in row["group"].split("／") if part)
+            kind, type_name = syndrome_kind_and_name(row["syndrome"])
+            if kind == "type":
+                own.add(type_name)
+        return {"disease": name, "own": own, "same": same, "known": known, "wrapped": bool(self.book["wrapped"])}
+
+    @staticmethod
+    def own_side(part: str, context: dict) -> bool:
+        """并列标题的这一边说的是不是本病（「郁证梅核气」「慢性湿疮」「未破损期输卵管妊娠」「跖疣」）。"""
+        own = context["own"]
+        if part in own:
+            return True
+        disease = context["disease"]
+        if len(disease) == 1:
+            return part.endswith(disease) and len(part) <= 3
+        return any(len(name) >= 2 and name in part for name in own)
+
+    def collect_differentials(self, start: int, end: int, level: int, context: dict, opening: tuple[int, str] | None = None):
+        """opening：栏目名与第一段写在同一行时的那一段（行号, 文字）。原口径认不到这种栏目，所以这一段不走原口径的首段句式。"""
         vl = self.vl
-        items: list[dict] = []
+        paragraphs: list[tuple[int, str]] = [opening] if opening else []
         index = start
-        while index < end and len(items) < 12:
+        while index < end and len(paragraphs) < 80:
             text = vl[index].text
             if RE_BRACKET.match(text):
                 break
             numbered = numbering(text)
             if numbered and level and numbered[0] <= level:
                 break
+            line = vl[index].no
             body, index = self.paragraph(index)
+            paragraphs.append((line, body))
+        # 栏目下有编号条目时，不编号的段落只是引语或补充说明，不当作一条「病名␠要点」。
+        itemized = any(numbering(body) and len(numbering(body)[1]) > 12 for _line, body in paragraphs)
+        items: list[dict] = []
+        position: dict[str, int] = {}
+        counted = 0     # 原口径下已有的条目数：首段「与…鉴别」只在此前没有条目时才认，条目满 12 条为止
+
+        def extend(found: list[dict], line: int):
+            for item in found:
+                item["line"] = line
+                name = item["name"]
+                if name and name in position:
+                    at = position[name]
+                    if items[at].get("listed") and not item.get("listed"):
+                        # 一句话里点到的病，后面另有专条的，用专条的文字。
+                        items[at] = item
+                    continue
+                if name:
+                    position[name] = len(items)
+                items.append(item)
+
+        for line, body in paragraphs:
+            if counted >= 12:
+                break
             numbered = numbering(body)
-            if not numbered:
-                if not items:
-                    match = re.search(r"与([^。，；]{2,30}?)(?:等)?(?:疾病|病证|病)?(?:相|进行|作|加以)?鉴别", body)
-                    if match and len(body) > 20:
-                        items.append({"name": match.group(1), "text": body[:400]})
+            if numbered:
+                rest = numbered[1]
+                if len(rest) > 12:
+                    extend(self.differential_entry(rest, context), line)
+                    counted += 1
                 continue
-            rest = numbered[1]
-            head = re.split(r"[\s　]+", rest, maxsplit=1)
-            name = ""
-            if len(head) == 2 and 1 < len(head[0]) <= 16 and not re.search(r"[，。；]", head[0]):
-                name = head[0].rstrip("：:")
-            else:
-                colon = re.match(rf"^([{CJK}A-Za-z、·\-]{{2,16}})[:：]", rest)
-                if colon:
-                    name = colon.group(1)
-            if len(rest) > 12:
-                items.append({"name": name, "text": rest[:400]})
-        return items
+            if RE_DIFF_TABLE_DEBRIS.match(nospace(body)):
+                break
+            legacy = None
+            if counted == 0 and not opening:
+                match = RE_DIFF_LEGACY_LIST.search(body)
+                if match and len(body) > 20:
+                    legacy = {"name": match.group(1), "text": body[:400], "rule": "首段与…鉴别（原有）"}
+                    if re.match(r"疾病|病证|病", body[match.end(1):]):
+                        # 原正则把「疾病/病」当作可省的后缀吞掉了，留下的是半截（「与引起水肿的多种疾病相鉴别」→「引起水肿的多种」，
+                        # 「与扩张型心肌病鉴别的有…」→「扩张型心肌」）。完整的写法下面会再认一次，认不出病名时这半截不当病名用。
+                        legacy = {"name": "", "text": body[:400], "rule": "首段与…鉴别：原病名是被截断的半句，留空"}
+                    counted += 1
+            extend(self.differential_paragraph(body, context, legacy=legacy, single=not itemized), line)
+            if self.book["wrapped"] and RE_DIFF_TABLE_REF.search(body):
+                # 扫描版的书里，引用的表格被认成一行行碎字，到此为止。
+                break
+        self.name_by_siblings(items, context)
+        out: list[dict] = []
+        for item in items:
+            name, text = fix_differential_name(item["name"]), cut_table_reference(item["text"])
+            first_stop = text.find("。")
+            if item.get("listed") and 0 < first_stop < len(text) - 1 and RE_DIFF_TABLE_REF.search(text[:first_stop]):
+                # 「本病应与粟疮（彩图8-13）相鉴别。二者症状相似…」：列举的那一句里夹着图表引用、后面另有要点时，从要点起。
+                text = cut_table_reference(text[first_stop + 1:])
+            if name != item["name"] and text.startswith(item["name"]):
+                # 病名订正了扫描错字的条目，文字从病名之后起（开头那个错字形的病名不再重复）。
+                text = text[len(item["name"]):].lstrip()
+            out.append({"name": name, "text": text})
+            if context["known"] is not None:
+                self.differential_trace.append({
+                    "book": self.book["key"], "disease": context["disease"], "line": item["line"], "rule": item.get("rule", ""),
+                    "name": name, "scanned": item["name"] if name != item["name"] else "", "text": text[:60],
+                })
+        return out
+
+    def name_by_siblings(self, items: list[dict], context: dict):
+        """同一栏目里几条病名的末两字相同（「生理性黄疸…」「病理性黄疸…」；「梅毒性溃疡」与「结核性溃疡溃疡的形状…」），
+        或与本病病名的末两字相同（缺铁性贫血的「地中海贫血…」）：没断开的那几条就在这两个字之后断开。"""
+        if context["known"] is None:
+            # 建词表的那一遍不走这一步（这样断出来的名字不进词表）。
+            return
+        disease = context["disease"]
+        support: dict[str, int] = {}
+        for item in items:
+            if item["name"] and len(item["name"]) >= 3 and not item.get("listed"):
+                support[item["name"][-2:]] = support.get(item["name"][-2:], 0) + 1
+        if len(disease) >= 4:
+            support[disease[-2:]] = support.get(disease[-2:], 0) + 1
+        candidates: dict[str, list[tuple[dict, str]]] = {}
+        for item in items:
+            if item["name"] or item.get("listed"):
+                continue
+            text = item["text"]
+            tried: set[str] = set()
+            for size in range(3, min(len(text), 13)):
+                head, tail = text[:size], text[size - 2:size]
+                if tail in tried:
+                    continue
+                tried.add(tail)
+                if not diff_name_ok(head) or not RE_DIFF_NAME_SUFFIX.search(head) or RE_DIFF_NAME_CONTINUES.match(text[size:]):
+                    continue
+                if head in context["own"] or (len(disease) >= 2 and disease in head):
+                    # 「乳晕部疖粉刺性乳痈在急性期…」：断点落在本病病名之后，不是病名的结尾。
+                    continue
+                straddles = False
+                for begin in range(max(2, size - 3), size):
+                    onset = RE_DIFF_ONSET.match(text[begin:])
+                    if onset and begin + len(onset.group(0)) >= size and len(onset.group(0)) >= 2:
+                        # 「手发背病变部位…」「颈痈发病在…」：这个「病」是「病变」「发病」里的字。
+                        straddles = True
+                if not straddles:
+                    candidates.setdefault(tail, []).append((item, head))
+        for tail, found in candidates.items():
+            if len(found) + support.get(tail, 0) < 2:
+                continue
+            for item, head in found:
+                if not item["name"]:
+                    item["name"] = head
+                    item["rule"] = "同栏末两字相同"
+        # 「生理性啼哭小儿哭时…」「病理性啼哭因疾病引起…」：成对的限定语之后相同的那几个字，到两条分岔处为止。
+        unnamed = [item for item in items if not item["name"] and not item.get("listed")]
+        for first, second in DIFF_QUALIFIER_PAIRS:
+            for left in unnamed:
+                for right in unnamed:
+                    if left["name"] or right["name"] or not left["text"].startswith(first) or not right["text"].startswith(second):
+                        continue
+                    left_rest, right_rest = left["text"][len(first):], right["text"][len(second):]
+                    shared = 0
+                    while shared < min(len(left_rest), len(right_rest), 6) and left_rest[shared] == right_rest[shared]:
+                        shared += 1
+                    for cut in range(1, shared):
+                        if RE_DIFF_ONSET.match(left_rest[cut:]):
+                            shared = cut
+                            break
+                    if shared >= 2 and diff_name_ok(first + left_rest[:shared]) and diff_name_ok(second + right_rest[:shared]):
+                        left["name"], right["name"] = first + left_rest[:shared], second + right_rest[:shared]
+                        left["rule"] = right["rule"] = "同栏成对限定语"
+
+    def differential_entry(self, rest: str, context: dict) -> list[dict]:
+        """一条编号的鉴别条目 → [{name, text, rule}]。先按原口径取（空格或冒号之前是病名），取不到、或取到的是并列标题时再细分。"""
+        head = re.split(r"[\s　]+", rest, maxsplit=1)
+        name, description = "", ""
+        if len(head) == 2 and 1 < len(head[0]) <= 16 and not re.search(r"[，。；]", head[0]):
+            name, description = head[0].rstrip("：:"), head[1]
+        else:
+            colon = re.match(rf"^([{CJK}A-Za-z、·\-]{{2,16}})[:：]", rest)
+            if colon:
+                name, description = colon.group(1), rest[colon.end():]
+        whole = {"name": name, "text": rest[:400], "rule": "编号：病名␠要点（原有）" if name else ""}
+        if name:
+            plain = re.sub(r"[（(][^（）()]*[)）]?", "", name)
+            if not re.search(r"[与和及、]|鉴别", plain):
+                if plain != name and diff_name_ok(plain):
+                    return [{"name": plain, "text": rest[:400], "rule": "编号：病名（括注）␠要点"}]
+                return [whole]
+            names = self.resolve_heading(name, description, context)
+            if names:
+                return [{"name": item, "text": description[:400], "rule": "编号：并列标题␠要点"} for item in names]
+            if "鉴别" in plain:
+                # 「2.已破损期输卵管妊娠的鉴别诊断　已破损期输卵管妊娠需与流产、…相鉴别」：标题是栏目，病名在下一句。
+                listed = self.listed_in_sentences(description, context)
+                if listed:
+                    return [{"name": item, "text": description[at:][:400], "listed": True, "rule": "编号：小标题下一句话列举"} for item, at in listed]
+                examples = re.match(r"^如([^，。；：]{2,80}?)等", description)
+                if examples:
+                    # 「与其他原因引起的肝肿大鉴别␠如慢性肝炎、原发性肝癌、…等。」
+                    names = [item for item in split_listed_names(examples.group(1), context["known"]) if item not in context["own"]]
+                    if names:
+                        return [{"name": item, "text": description[:400], "listed": True, "rule": "编号：小标题下举例"} for item in names]
+                if re.search(r"鉴别(?:诊断|要点)?$", plain):
+                    # 「闭经的鉴别诊断」「出血的鉴别」是小标题，不是病名：条目照留，病名留空。
+                    return [{"name": "", "text": rest[:400], "rule": "编号：小标题不是病名，留空"}]
+            whole["rule"] = "编号：并列标题（未拆，原有）"
+            return [whole]
+        found = self.glued_items(rest, context, "编号")
+        if found:
+            return found
+        examples = re.match(r"^[^，。；：\s]{2,14}?如([^，。；：\s]{2,40}?)等", rest)
+        if examples:
+            # 「发疹性皮肤病及传染病如麻疹、猩红热等␣药毒起疹前有明确的用药史…」：一类病，教材举了例。
+            names = [item for item in split_listed_names(examples.group(1), context["known"]) if item not in context["own"]]
+            if names:
+                return [{"name": item, "text": rest[:400], "listed": True, "rule": "编号：某类病如甲、乙等"} for item in names]
+        # 整条就是一句「某某应与甲、乙相鉴别」：「与」在句首不远处，或「与」之前说的是本病
+        #（「主动脉粥样硬化引起的…，应与…」）。条目讲的是另一个病、末尾才说「可与…相鉴别」的不算
+        #（「神经源性膀胱…应与前列腺增生症鉴别」里后者正是本病）。
+        first_sentence = re.match(r"^[^。]*。?", rest).group(0)
+        opening = RE_DIFF_SENTENCE.search(first_sentence)
+        if opening and (opening.start() <= 16 or any(len(item) >= 2 and item in first_sentence[: opening.start()] for item in context["same"])):
+            listed = self.listed_in_sentences(first_sentence, context)
+            if listed:
+                return [{"name": item, "text": rest[:400], "listed": True, "rule": "编号：整条一句话列举"} for item, _at in listed]
+        return [whole]
+
+    def differential_paragraph(self, body: str, context: dict, legacy: dict | None, single: bool) -> list[dict]:
+        """栏目下不编号的一段 → [{name, text, rule}]；不是「与…鉴别」的句子、也不是一条「病名␠要点」时返回 []。
+        legacy：原口径在这一段取到的条目（首段第一处「与…鉴别」，病名未拆开）；新写法拆不出病名时照旧保留它。"""
+        listed = self.listed_in_sentences(body, context, lenient=legacy is not None)
+        if listed:
+            return [{"name": item, "text": body[at:][:400], "listed": True, "rule": "不编号：一句话列举"} for item, at in listed]
+        if RE_DIFF_SENTENCE.search(body):
+            called = [item for item in RE_DIFF_CALLED.findall(body) if diff_name_ok(item) and RE_DIFF_NAME_SUFFIX.search(item) and item not in context["own"]]
+            if called:
+                return [{"name": item, "text": body[:400], "listed": True, "rule": "不编号：与某类病鉴别，称为某某"} for item in dict.fromkeys(called)]
+        if legacy:
+            return [legacy]
+        if not single:
+            return []
+        pair = re.match(rf"^([{CJK}]{{2,10}})与([{CJK}]{{2,10}}?)(?=两者|二者|均|都|皆|虽)", body)
+        if pair and self.own_side(pair.group(1), context) and diff_name_ok(pair.group(2)) and pair.group(2) not in context["own"]:
+            # 「产后血晕与产后子痫两者都发生于新产之际…」
+            return [{"name": pair.group(2), "text": body[:400], "rule": "不编号：本病与某病两者…"}]
+        head = re.split(r"[\s　]+", body, maxsplit=1)
+        if len(head) == 2 and len(head[1]) >= 8 and not re.search(r"[，。；]", head[0]):
+            name = head[0].rstrip("：:")
+            plain = re.sub(r"[（(][^（）()]*[)）]?", "", name)
+            if re.search(r"[与和及、]|鉴别", plain):
+                names = self.resolve_heading(name, head[1], context)
+                if names:
+                    return [{"name": item, "text": head[1][:400], "rule": "不编号：并列标题␠要点"} for item in names]
+            elif diff_name_ok(plain) and plain not in context["own"]:
+                return [{"name": plain, "text": body[:400], "rule": "不编号：病名␠要点"}]
+        colon = re.match(rf"^([{CJK}A-Za-z·\-]{{2,16}})[:：]", body)
+        if colon and diff_name_ok(colon.group(1)) and colon.group(1) not in context["own"]:
+            # 「颅骨凹陷性骨折：本病好发于额骨及顶骨…」
+            return [{"name": colon.group(1), "text": body[:400], "rule": "不编号：病名：要点"}]
+        found = self.glued_items(body, context, "不编号")
+        if found:
+            return found
+        comma = re.match(rf"^([{CJK}]{{2,10}})，(?:中医称|又称|亦称)", body)
+        if comma and diff_name_ok(comma.group(1)) and RE_DIFF_NAME_SUFFIX.search(comma.group(1)) and comma.group(1) not in context["own"]:
+            # 「过敏性鼻炎，中医称“鼻鼽”。临床以…」：文字从逗号之后起（病名已在 name 里）。
+            return [{"name": comma.group(1), "text": body[len(comma.group(1)) + 1:][:400], "rule": "不编号：病名，中医称…"}]
+        return []
+
+    def glued_items(self, text: str, context: dict, where: str) -> list[dict]:
+        """病名与要点粘在一起的一条 → [{name, text, rule}]；断不开、或断出来的是本病自己时返回 []。"""
+        heading, description, rule = self.glued_heading(text, context)
+        if not heading:
+            return []
+        if re.search(r"[与和及或、]|鉴别", heading):
+            names = self.resolve_heading(heading, description, context)
+            return [{"name": item, "text": description[:400], "rule": f"{where}：并列标题粘连（{rule}）"} for item in names]
+        if heading in context["own"]:
+            return []
+        if description.startswith("，"):
+            # 「过敏性鼻炎，中医称“鼻鼽”。临床以…」：病名之后是逗号，文字从逗号之后起（病名已在 name 里）。
+            return [{"name": heading, "text": description[1:][:400], "rule": f"{where}：病名粘连（{rule}）"}]
+        return [{"name": heading, "text": text[:400], "rule": f"{where}：病名粘连（{rule}）"}]
+
+    def listed_in_sentences(self, text: str, context: dict, lenient: bool = False) -> list[tuple[str, int]]:
+        """「本病应与甲、乙、丙等相鉴别」→ [(甲, 句首位置), (乙, …), (丙, …)]（去掉本病自己的名字）。
+        句首位置：点到这个病名的那一句在 text 里从哪里开始——条目文字从这一句起，而不是从段首起。
+        lenient：原口径认首段第一处时不看「与」之前是什么。"""
+        found: list[tuple[str, int]] = []
+
+        def add(listed: str, at: int):
+            sentence_start = text.rfind("。", 0, at) + 1
+            for name in split_listed_names(listed, context["known"]):
+                if name not in context["same"] and all(name != seen for seen, _start in found):
+                    found.append((name, sentence_start))
+
+        for position, match in enumerate(RE_DIFF_SENTENCE.finditer(text)):
+            clause_start = max(text.rfind(mark, 0, match.start()) for mark in "，,；;。：:") + 1
+            lead = nospace(text[clause_start:match.start()])
+            if not (lenient and position == 0) and lead and lead not in context["own"] and not RE_DIFF_SENTENCE_LEAD.search(lead):
+                continue
+            add(match.group("list"), match.start())
+        for match in RE_DIFF_SENTENCE_ALSO.finditer(text):
+            add(re.sub(r"^(?:除此之外|此外|另外)[，,]?", "", match.group("list")), match.start("list"))
+        return found
+
+    def resolve_heading(self, heading: str, description: str, context: dict) -> list[str]:
+        """「甲与乙」「甲、乙」「与甲鉴别」一类条目标题 → 要鉴别的病名。分不清哪一边是本病时返回 []（条目保持原样）。"""
+        own, known = context["own"], context["known"]
+        text = nospace(heading).rstrip("。：:")
+        topic = bool(re.search(r"的鉴别(?:诊断|要点)?$", text))
+        text = re.sub(r"(?:的)?(?:相|进行)?鉴别(?:诊断|要点)?$", "", text)
+        lead = re.match(r"^(?:需|应|须|当|宜|要)?与(.+)$", text)
+        if lead:
+            return [name for name in split_listed_names(lead.group(1), known) if name not in own]
+        if "与" not in text:
+            if topic:
+                # 「脾大和脾功能亢进的鉴别」「腹水的鉴别」是小标题：说的是要分辨的表现，不是要鉴别的病。
+                return []
+            names = split_listed_names(text, known)
+            return [name for name in names if name not in own] if len(names) >= 2 else []
+        left, right = text.split("与", 1)
+        left_names, right_names = split_listed_names(left, known), split_listed_names(right, known)
+        if not left_names or not right_names:
+            return []
+        left_own = [self.own_side(name, context) for name in left_names]
+        right_own = [self.own_side(name, context) for name in right_names]
+        opening = nospace(description)
+        if any(left_own) and not all(right_own) and (all(left_own) or not any(right_own)):
+            chosen = [name for name, mine in zip(right_names, right_own) if not mine]
+        elif any(right_own) and not all(left_own) and (all(right_own) or not any(left_own)):
+            chosen = [name for name, mine in zip(left_names, left_own) if not mine]
+        elif any(left_own) or any(right_own):
+            return []
+        elif opening.startswith("后者"):
+            chosen = right_names
+        elif context["wrapped"] and opening.startswith(nospace(drop_parenthetical(left))):
+            # 外科、儿科的写法：标题之后先讲要鉴别的那个病（「白屑风与白秃疮␠白屑风多见于青年人…」）。
+            chosen = left_names
+        elif context["wrapped"] and opening.startswith(nospace(drop_parenthetical(right))):
+            chosen = right_names
+        else:
+            return []
+        return [name for name in chosen if name not in own]
+
+    def glued_heading(self, text: str, context: dict) -> tuple[str, str, str]:
+        """病名与要点粘在一起的条目 → (病名或并列标题, 其后的要点, 用的是哪一条判据)；断不开返回 ("", "", "")。"""
+        known = context["known"]
+        head = re.split(r"[\s　]+", text, maxsplit=1)
+        if len(head) == 2 and 16 < len(head[0]) <= 30 and "、" in head[0] and not re.search(r"[，。；]", head[0]):
+            return head[0], head[1], "较长的并列标题"
+        # ① 病名后紧跟括注：「乳岩(乳腺癌)粉刺性乳痈在…」「水疥（丘疹样荨麻疹）多见春夏之交…」
+        paren = re.match(rf"^([{CJK}A-Za-z0-9·\-]{{2,14}})[（(]([^（）()]{{1,60}})[)）]", text)
+        if paren and diff_name_ok(paren.group(1)):
+            name, note = paren.group(1), nospace(paren.group(2))
+            note_is_name = bool(re.fullmatch(r"[A-Za-z，,.\- ]+", paren.group(2))) or (diff_name_ok(note) and bool(RE_DIFF_NAME_SUFFIX.search(note)))
+            if RE_DIFF_NAME_SUFFIX.search(name) or (known and name in known) or note_is_name:
+                return name, text[paren.end():], "括注之前"
+        # ② 「硬下疳与软下疳后者病原菌为…」「扁平苔薛与扁瘊相鉴别。该病多发于…」
+        latter = re.match(r"^([^，。；：\s]{2,14}与[^，。；：\s]{2,18}?)(?=后者)", text)
+        if latter:
+            return latter.group(1), text[latter.end():], "「后者」之前"
+        versus = re.match(r"^([^，。；：\s]{2,14}与[^，。；：\s]{2,18}?(?:相)?鉴别)。", text)
+        if versus:
+            return versus.group(1), text[versus.end():], "「甲与乙相鉴别。」"
+        # ③ 要点开头重复病名：「精囊炎精囊炎和慢性前列腺炎多同时发生…」「白屑风与白秃疮白屑风多见于青年人…」
+        for size in range(2, 17):
+            width = 3 if size >= 3 else 2
+            if len(text) >= size + width and text[size:size + width] == text[:width]:
+                candidate = text[:size]
+                if candidate[-1] in "被把因由为是在" and diff_name_ok(candidate[:-1]) and RE_DIFF_NAME_SUFFIX.search(candidate[:-1]):
+                    # 「毒虫咬伤被毒虫咬伤后…」：重复之前夹着一个虚字。
+                    return candidate[:-1], text[size - 1:], "要点重复病名"
+                if re.fullmatch(rf"[{CJK}A-Za-z、与和及·\-]+", candidate) and not RE_DIFF_BAD_TAIL.search(candidate) and candidate[-1] not in "被把因由为是在":
+                    if re.search(r"[与和及、]", candidate) or diff_name_ok(candidate):
+                        return candidate, text[size:], "要点重复病名"
+                break
+        # ④ 合集自己的病名词表里最长的前缀；「男性乳岩」这样限定语加词表里的病名也算
+        if known:
+            for size in range(min(14, len(text) - 2), 1, -1):
+                candidate = text[:size]
+                qualifier = RE_DIFF_QUALIFIER.match(candidate)
+                if candidate in known or (qualifier and candidate[qualifier.end():] in known and diff_name_ok(candidate)):
+                    if not RE_DIFF_NAME_CONTINUES.match(text[size:]):
+                        return candidate, text[size:], "合集病名词表" if candidate in known else "限定语加词表病名"
+                    break
+        # ④′ 要点的第一个字与病名的第一个字相同（「腋疽␣腋部肿块初起…」「脐风␣脐部不痛不肿…」）：只在扫描版的书里用，
+        # 建词表的那一遍不走这一步。
+        if context["wrapped"] and known is not None:
+            for size in range(2, min(len(text) - 1, 7)):
+                candidate = text[:size]
+                if text[size] == text[0] and diff_name_ok(candidate) and RE_DIFF_NAME_SUFFIX.search(candidate) and not RE_DIFF_NAME_CONTINUES.match(text[size:]):
+                    return candidate, text[size:], "要点首字与病名首字相同"
+        # ⑤ 在起述词之前断开，断出来的名字须以病名常见的末字收尾（或在词表里）。建词表的那一遍不走这一步。
+        disease = context["disease"]
+        for size in range(2, min(len(text), 16) if known is not None else 0):
+            onset = RE_DIFF_ONSET.match(text[size:])
+            if onset and text[size] == "因" and text[size - 1] == "病":
+                # 「…一组病因不明的…」：「病因」不是「病」加起述词。
+                continue
+            candidate = text[:size]
+            if not onset:
+                # 要点以本病病名开头（「乳晕部疖␣粉刺性乳痈在急性期…」）也算断点；断出来不像病名时接着往后找
+                #（「血栓性外痔大多…」里的「外痔」是病名的后半截）。
+                if len(disease) >= 2 and text.startswith(disease, size) and diff_name_ok(candidate) and RE_DIFF_NAME_SUFFIX.search(candidate):
+                    return candidate, text[size:], "要点以本病病名开头"
+                continue
+            if re.search(r"[、或和及]", candidate):
+                # 「支气管炎、肺炎␣无鸡鸣样吸气性吼声…」「风疹或荨麻疹␣亦可见皮肤红疹…」
+                parts = split_listed_names(candidate, known)
+                if len(parts) >= 2 and all(RE_DIFF_NAME_SUFFIX.search(part) or (known and part in known) for part in parts):
+                    return candidate, text[size:], "起述词之前"
+            elif diff_name_ok(candidate) and not RE_DIFF_BAD_TAIL.search(candidate):
+                defining = bool(RE_DIFF_DEFINING_ONSET.match(text[size:])) and len(candidate) <= 8 and bool(re.fullmatch(rf"[{CJK}]+", candidate))
+                if RE_DIFF_NAME_SUFFIX.search(candidate) or (known and candidate in known) or defining:
+                    return candidate, text[size:], "起述词之前"
+            break
+        return "", "", ""
 
     def collect_points(self, start: int, end: int, level: int):
         vl = self.vl
@@ -1535,6 +2098,32 @@ def build_herb_lexicon(lines: list[str], ranges, parsers: list[BookParser]) -> s
     return lexicon
 
 
+def build_disease_name_lexicon(parsers: list[BookParser]) -> set[str]:
+    """合集自己的病名词表，只用来给「病名要点」粘连的鉴别条目断开病名：各书的病名节标题、别名与西医对应名，
+    以及各书【鉴别诊断】里写得清楚（空格、括注、逐个列举）的病名。不引入合集之外的任何名单。"""
+    names: set[str] = set()
+
+    def add(name: str, title: bool = False):
+        name = drop_parenthetical(nospace(name))
+        if not diff_name_ok(name) or RE_DIFF_ORGAN.search(name) or name.endswith("性"):
+            return
+        if title and GENERIC_TITLE.search(name):
+            return
+        names.add(name)
+
+    for parser in parsers:
+        for span in parser.disease_spans:
+            add(span["name"], title=True)
+            for part in re.split(r"[、（）()]", span["name"]):
+                add(part, title=True)
+            info = parser.disease_info(span)
+            for name in info["diseaseAliases"] + info["westernEquivalents"] + info["tcmEquivalents"]:
+                add(name)
+            for item in info["differentials"]:
+                add(item["name"])
+    return names
+
+
 def syndrome_kind_and_name(raw: str):
     """证型标题 → (syndromeKind, syndromeName)。只在确是证名时补「证」。"""
     name = raw
@@ -1557,7 +2146,7 @@ def syndrome_kind_and_name(raw: str):
     return "syndrome", name + "证"
 
 
-def finalize_rows(parsers: list[BookParser], lexicon: set[str], stats: dict):
+def finalize_rows(parsers: list[BookParser], lexicon: set[str], stats: dict, known_names: set[str] | None = None):
     rows: list[dict] = []
     diseases: list[dict] = []
     used_ids: dict[str, int] = {}
@@ -1570,7 +2159,7 @@ def finalize_rows(parsers: list[BookParser], lexicon: set[str], stats: dict):
             span = raw["_disease"]
             key = span["index"]
             if key not in info_cache:
-                info_cache[key] = parser.disease_info(span)
+                info_cache[key] = parser.disease_info(span, known_names)
             info = info_cache[key]
             notes = list(raw["_notes"])
             formula_field = raw["_formula_field"].strip()
@@ -1760,7 +2349,19 @@ def main() -> int:
         parsers.append(parser)
     lexicon = build_herb_lexicon(lines, ranges, parsers)
     stats = {"unresolvedModificationHerbs": 0, "diseaseSectionsWithoutRows": [], "skipped": [], "herbLexiconSize": len(lexicon)}
-    rows, diseases = finalize_rows(parsers, lexicon, stats)
+    known_names = build_disease_name_lexicon(parsers)
+    stats["differentialNameLexiconSize"] = len(known_names)
+    rows, diseases = finalize_rows(parsers, lexicon, stats, known_names)
+    # 鉴别条目各是按哪种写法认出来的（供核对；只在 --stats 里）。
+    stats["differentialRules"] = {}
+    stats["differentialTrace"] = []
+    for parser in parsers:
+        for entry in parser.differential_trace:
+            bucket = stats["differentialRules"].setdefault(entry["rule"] or "病名未认出（条目保留，病名留空）", {"count": 0, "examples": []})
+            bucket["count"] += 1
+            if len(bucket["examples"]) < 3:
+                bucket["examples"].append(entry)
+            stats["differentialTrace"].append(entry)
     for parser in parsers:
         stats["skipped"].extend(parser.skips)
         book = parser.book

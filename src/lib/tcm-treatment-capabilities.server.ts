@@ -278,6 +278,8 @@ function controlledTreatmentPlan(
         signedSyndromeText: textbookContext.signedSyndromeText,
         currentFacts,
         signedNarrative: signedSyndromeText,
+        patientAgeYears,
+        chiefComplaint: textbookContext.chiefComplaint,
       })
     : undefined;
   // ── 精确证型模板优先（中医师 2026-08-11 裁定的落库方式）────────────────────────
@@ -1151,6 +1153,12 @@ export function compileTcmTreatmentRecommendations(
       ...(patientAgeYears != null && patientAgeYears < 12 && definition.code === "acupuncture" && typeof treatmentPlan.techniqueBoundary === "string"
         ? { techniqueBoundary: `小儿针刺宜浅刺、快出针，一般不留针，手法宜轻；${patientAgeYears < 2 ? "囟门未闭者头顶部腧穴不针；" : ""}不能配合者改用小儿推拿或穴位贴敷。${treatmentPlan.techniqueBoundary}` }
         : {}),
+      // 老年人针刺量宜小（《针灸学》：「久病、体质虚弱者和老人、儿童，针灸治疗量宜小，宜选用卧位」「年老体弱、气血虚衰…均不宜深刺」
+      //「体质较弱的患者可少留针」；《刺法灸法学》晕针预防：「取穴宜精，手法宜轻」）。教材没有年龄界值，这里取国家老年人健康管理的 65 岁。
+      // 取穴方案出自成人教材——2026-10-13/14 独立评审：74 岁、85 岁病例照搬成人写法，未按高龄调整。
+      ...(patientAgeYears != null && patientAgeYears >= ELDERLY_ACUPUNCTURE_AGE_YEARS && definition.code === "acupuncture" && typeof treatmentPlan.techniqueBoundary === "string"
+        ? { techniqueBoundary: `${ELDERLY_ACUPUNCTURE_NOTE}${treatmentPlan.techniqueBoundary}` }
+        : {}),
       operatorRequirement: definition.operatorRequirement,
       requiredChecks: [
         definition.safetyFocus,
@@ -1228,6 +1236,29 @@ function homeAcupointCareForCase(
   });
 }
 
+export const ELDERLY_ACUPUNCTURE_AGE_YEARS = 65;
+export const ELDERLY_ACUPUNCTURE_NOTE = "老年人针刺量宜小：取穴少而精、浅刺、手法宜轻、留针时间宜短，取卧位，留针期间注意观察以防晕针。";
+
+/** 注意事项里的治疗项目称呼 → 项目编码（项目目录是有限闭集；只收指向单一项目的说法）。 */
+const PRECAUTION_TREATMENT_MENTIONS: ReadonlyArray<readonly [RegExp, readonly TcmTreatmentProjectCode[]]> = [
+  [/针刺|扎针|毫针|电针/, ["acupuncture"]],
+  [/针灸/, ["acupuncture", "moxibustion"]],
+  [/艾灸|温灸|灸法|隔姜灸/, ["moxibustion"]],
+  [/拔罐/, ["cupping", "bloodletting"]],
+  [/刮痧/, ["guasha"]],
+  [/耳穴|耳豆|压豆/, ["auricular"]],
+  [/推拿/, ["tuina"]],
+  [/穴位贴敷|敷贴/, ["acupoint_application"]],
+  [/熏洗|坐浴/, ["fumigation_wash"]],
+  [/药浴/, ["medicated_bath"]],
+  [/埋线/, ["thread_embedding"]],
+];
+
+export function precautionMentionsUndeliveredTreatment(line: unknown, delivered: ReadonlySet<string>): boolean {
+  if (typeof line !== "string") return false;
+  return PRECAUTION_TREATMENT_MENTIONS.some(([pattern, codes]) => pattern.test(line) && !codes.some((code) => delivered.has(code)));
+}
+
 export function applyTcmTreatmentCapabilityPriority(
   content: string,
   caseState?: Partial<TreatmentCaseContext>,
@@ -1261,6 +1292,19 @@ export function applyTcmTreatmentCapabilityPriority(
     // 穴位保健不收模型文字（会绕过禁忌核对），只由服务端从受治理清单确定性编译；
     // 清单未经中医师终审、红旗或非全剂量方案时为 null（见 home-acupoint-care.server.ts）。
     reasoning.nonPharma.acupointCare = prior ? homeAcupointCareForCase(prior, caseState, recommendations) : null;
+    // 注意事项提到的治疗项目必须是本次确实给出的（2026-10-14 独立评审：写「耳穴及针刺治疗须由专业医师操作」，本例并没有针刺）。
+    // 模型写注意事项时看到的是自己提名的项目，随后服务端按机构能力与禁忌重排、增删；提到已不在清单里的项目的那一条整条丢掉。
+    // 居家穴位保健里的艾灸、按揉也算给出了（「艾灸时注意防烫」说的是它）。
+    if (Array.isArray(reasoning.nonPharma.precautions)) {
+      const care = typeof reasoning.nonPharma.acupointCare === "string" ? reasoning.nonPharma.acupointCare : "";
+      const delivered = new Set<string>([
+        ...recommendations.map((item) => item.projectCode),
+        ...(/灸/.test(care) ? ["moxibustion"] : []),
+        ...(/按揉|按压|按摩/.test(care) ? ["tuina"] : []),
+      ]);
+      reasoning.nonPharma.precautions = reasoning.nonPharma.precautions
+        .filter((line) => !precautionMentionsUndeliveredTreatment(line, delivered));
+    }
     return `${content.slice(0, start + startMarker.length)}\n${JSON.stringify(reasoning)}\n${content.slice(end)}`;
   } catch {
     return content;

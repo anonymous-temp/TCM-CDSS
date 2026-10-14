@@ -1962,6 +1962,8 @@ export function governedHerbSubstitutes(
  * （甲方 2026-08-10 ⑤ 黄芪：模型没写方义时，医生看到的就是这句套话，而修复轮从未被唤起）。
  * 兜底句只应该在**修复机会用尽之后**的 finalize 补写，保证输出不空白。
  */
+const EXTERNAL_USE_EFFICACY = /^(?:外用|外治|外敷)[^，,；;]*(?:生肌|敛疮|解毒|杀虫|止痒|消肿|止痛|止血|燥湿|拔毒|化腐|蚀疮)/;
+
 export function getTcmHerbFunctionDisplayText(
   herb: string,
   role = "",
@@ -1977,7 +1979,11 @@ export function getTcmHerbFunctionDisplayText(
     .filter(Boolean)
     // 药类分类标签（补气药/解表药/利水渗湿药…）不是方义。「调和诸药」也以「药」结尾，是真功效，不得当分类标签滤掉
     // （甲方 9.24 测评：炙甘草作使药，功用栏印的是「需医生结合方义复核」，而库里明明有「调和诸药」）。
-    .filter((item) => !/药$/.test(item) || isHarmonizingOrGuidingFunction(item));
+    .filter((item) => !/药$/.test(item) || isHarmonizingOrGuidingFunction(item))
+    // 「外用＋功效」是该药**外用时**的功效（蜂蜜「外用生肌敛疮」、白矾「外用解毒杀虫」），不是它在内服汤剂里的作用，
+    // 也不是给药途径限制。此前它被下面的途径语义整条保留并排在最前：润肠通便方里作使药的蜂蜜，功效栏印的是「外用生肌敛疮」
+    //（2026-10-14 独立评审）。只说途径的条目（「外用」「只供外用」「不入汤剂」）不在此列，照旧保留。
+    .filter((item) => !EXTERNAL_USE_EFFICACY.test(item));
   // 给药途径/调剂语义(冲服、研末、另煎、烊化、外用、不入汤剂…)**永不参与筛选**:
   // 它们不是方义而是安全信息,滤掉会让「朱砂不可入汤剂」这类边界从出参里消失。
   // 实测:收紧筛选后 test:stage-contract 的 route_not_decoction 判据当场失守,
