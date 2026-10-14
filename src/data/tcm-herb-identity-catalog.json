@@ -7,8 +7,8 @@
   },
   "supplementSource": {
     "file": "tcm-herb-identity-supplements.json",
-    "sha256": "88fab0de8609a3ab681d83b0425615bf9d34f386fa0a5fbd524c11f8e454a3af",
-    "rowCount": 470
+    "sha256": "dd4b7a48bebe879753779e26e67658e78bcf08051ea73f636590855be6dc9d04",
+    "rowCount": 471
   },
   "governance": {
     "status": "generated_mapping_plus_source_backed_clinical_extensions",
@@ -18,14 +18,14 @@
   },
   "summary": {
     "standardNameCount": 651,
-    "ambiguousInputCount": 511,
+    "ambiguousInputCount": 512,
     "resolutionStatusCounts": {
-      "ambiguous": 511,
+      "ambiguous": 512,
       "exact_standard_name": 616,
       "source_backed_clinical_extension": 455,
       "source_backed_preparation_form": 127,
       "unique_high_confidence": 74,
-      "unique_source_backed": 4677
+      "unique_source_backed": 4676
     }
   },
   "entries": [
@@ -87361,9 +87361,13 @@
       "autoResolvable": false
     },
     "芳香": {
-      "canonicalName": "白芷",
-      "status": "unique_source_backed",
-      "autoResolvable": true
+      "canonicalName": null,
+      "status": "ambiguous",
+      "autoResolvable": false,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
     },
     "芸皮": {
       "canonicalName": "橘红",
@@ -112711,6 +112715,21 @@
         "千里光",
         "金钱草"
       ],
+      "serviceLevel": {
+        "triageBusinessDays": 1,
+        "adjudicationBusinessDays": 5
+      },
+      "requiredEvidence": [
+        "authoritative_source_locator",
+        "HIS_local_code_or_dispensing_identity_when_available"
+      ],
+      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
+    },
+    {
+      "id": "TCM-HERB-IDENTITY-REVIEW-FE713B48DCD8",
+      "inputName": "芳香",
+      "status": "awaiting_evidence_adjudication",
+      "candidates": [],
       "serviceLevel": {
         "triageBusinessDays": 1,
         "adjudicationBusinessDays": 5

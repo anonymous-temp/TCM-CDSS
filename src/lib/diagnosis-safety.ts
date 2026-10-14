@@ -981,6 +981,9 @@ function sanitizeUngroundedNegationText(
       // post-stroke fact into the synthetic sentence “病历已记录肢体无力阳性”.
       .replace(/肢体无力/g, "肢体乏力");
     const prefix = clause.match(/^(\s*(?:[-*]>?\s*|>\s*|#{1,6}\s*)?(?:[^：:|]{1,24}[：:]\s*)?)/)?.[1] || "";
+    // 正文里鉴别一行的「常见：」是 differentialLine（diagnosis-visible-summary）给 typicalManifestation 加的标签：
+    // 写的是鉴别对象那个病的表现，不是对本例的断言，与 JSON 里同一字段一样不净化（见下方 typicalManifestation 豁免）。
+    if (/^常见[：:]/.test(clause.slice(prefix.length))) return clause;
     // Preserve a qualified denial only when every denied phrase is literally present under a
     // negation cue in the chart. This keeps “否认突发雷击样头痛” distinct from “否认头痛” when the
     // same record also affirms ordinary headache; collapsing the qualifier creates an impossible
@@ -1341,6 +1344,9 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
           // running negation prose replacement over them can turn a valid diagnosis name into a
           // sentence such as "病历已记录头痛阳性" and break the signed result after validation.
           if (typeof value === "string" && key === "name") return value;
+          // 鉴别对象的「典型表现」写的是那个病自己的表现，不是对本例的断言（查体净化也把它当非本例字段，见 PHYSICAL_EXAM_ASSERTION_FIELDS）。
+          // 2026-10-14 独立评审：肠结一条的典型表现「腹痛、呕吐、无排气排便」被改写成「否认腹痛；未诉呕吐」——本例的阴性填进了别的病的典型表现栏。
+          if (typeof value === "string" && key === "typicalManifestation") return value;
           // 已删除 nonPharma.monitoring 的净化豁免。该豁免不是安全控制，而是对本净化器的**豁免**：
           // 它存在的唯一理由是重写 trigger 的条件/动作措辞会破坏 monitoring 的语义合同，让 M04
           // 合同拒掉服务端自己净化过的输出。语义合同（5 个 monitoring_* 驳回码）已随字段一并删除，

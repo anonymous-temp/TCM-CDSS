@@ -5614,7 +5614,7 @@ function ResultTabsV2({
                   <p className="mt-1"><span className="font-medium text-gray-900">穴位/部位：</span>{joinClinicalClauses(item.sitesOrPoints, "；")}</p>
                 )}
                 {item.schedule && (
-                  <p className="mt-1"><span className="font-medium text-gray-900">频次/复评：</span>{item.schedule}</p>
+                  <p className="mt-1"><span className="font-medium text-gray-900">频次/疗程：</span>{item.schedule}</p>
                 )}
               </div>
             ))}

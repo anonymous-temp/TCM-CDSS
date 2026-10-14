@@ -211,6 +211,14 @@ function text(value: unknown): string {
   return factText(typeof value === "string" ? sanitizeGeneratedSuggestionPreviewText(value) : value);
 }
 
+/** 调护的一条：去掉经掩码会改写的小句（逗号、分号、句号分隔），其余原样；全部被掩码时返回空串。 */
+function withoutMaskedClauses(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return "";
+  const kept = value.split(/(?<=[，,；;。])/).filter((clause) => sanitizeGeneratedSuggestionPreviewText(clause) === clause);
+  const joined = kept.join("").replace(/[，,；;]+$/, "").trim();
+  return joined && !/[。！？!?]$/.test(joined) ? `${joined}。` : joined;
+}
+
 /**
  * 非剂量页的结构化副本（2026-09-29，甲方 9.24/9.27：「饮片暂未生成」）。
  *
@@ -348,10 +356,12 @@ export function renderM04DeliveryCheckpoint(
     suggestedAction: sanitizeGeneratedSuggestionPreviewText(finding.suggestedAction),
   })));
   if (findingsSection) lines.push("", findingsSection);
+  // 这一页不给剂量：带用量、剂数、疗程的小句经掩码后读不通（「不可在家自行用法与疗程以审定处方为准」「每日食盐控制在（剂量以审定处方为准）以下」，
+  // 2026-10-14 独立评审），只去掉被掩码的那一小句，其余照列；整条都被掩码时整条不列。
   const care = checkpoint.reasoning.nonPharma;
-  // 这一页不给剂量：注意事项里带用量、剂数、疗程的条目经掩码后只剩半句（「不可在家自行用法与疗程以审定处方为准」），整条不列。
-  const precautions = (care?.precautions || []).filter((item) => typeof item === "string" && sanitizeGeneratedSuggestionPreviewText(item) === item);
-  if (care) lines.push("", "## 调护建议", ...[care.diet, care.lifestyle, care.exercise, care.emotion, care.acupointCare, ...precautions].filter(Boolean).map(text));
+  const careLines = care ? [care.diet, care.lifestyle, care.exercise, care.emotion, care.acupointCare, ...(care.precautions || [])]
+    .map(withoutMaskedClauses).map(text).filter(Boolean) : [];
+  if (care) lines.push("", "## 调护建议", ...careLines);
   const structuredCopy = nonDoseCandidateJsonBlock(
     checkpoint.reasoning.formula?.candidates || [],
     reason === "dose_withheld" ? "dose_authorization_withheld" : "m04_candidate_retained_non_dose",

@@ -11,7 +11,13 @@
 //   6 药味功效：外用功效不作为内服汤剂里该药的功效
 //   7 中医鉴别：闭集选择点了名时候选只给这几个病；病名级鉴别缺失时只补写这一项（区分要点说本例，不贴教材定义）
 //   4 针刺方案：教材分「实证 / 虚证」写的只取本例那一套；未按证型配穴时不写按病的治法；老年人、虚证、皮肤破损不列刺络拔罐；
-//     老年人针刺量宜小；高血压专篇的疗程不套到没有高血压的眩晕上
+//     老年人针刺量宜小；高血压专篇的疗程不套到没有高血压的眩晕上；外感/内伤写在一句里的只留本例那半句，别的项目不借针刺的疗程；
+//     补泻手法与证候相反的泛指句改成相符的（点名到穴位的定法不动）；「进针深度」只写在用针的项目上
+//   8 交付面：针刺卡里说流程的模板半句（复评、课程索引）；西医鉴别里模型自己写明「不适用」的项
+//   9 不给剂量页的调护：只去掉被掩码改写的那一小句
+//  10 注意事项按本例收口：已确认妊娠不写「如已怀孕」的假设小句；红旗未解除不写怎么服这张方
+//  11 鉴别对象的「典型表现」不按本例阴性净化（JSON 字段与正文「常见：」一句同一口径）
+//  12 方义核对：「芳香」不是药名（旧目录把它归成白芷）；分句里同时有本方药和外来药时只删外来药名
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
@@ -354,6 +360,7 @@ const checkAsync = async (name, run) => {
 {
   process.env.TCM_CLINIC_TREATMENT_CAPABILITIES = "acupuncture,moxibustion,cupping,guasha,auricular,tuina,diet_therapy,qigong_daoyin,mind_therapy";
   const treatments = await jiti.import("../src/lib/tcm-treatment-capabilities.server.ts");
+  const textbookPlan = await jiti.import("../src/lib/tcm-nondrug-textbook-plan.server.ts");
   const evidence = { evidenceLevel: "model_inference", source: "本例资料", confidence: "中" };
   const signedPrior = ({ disease, syndrome, method, western = "症状性问题", patientFact, pathogenesis }) => ({
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
@@ -418,11 +425,96 @@ const checkAsync = async (name, run) => {
       assert.doesNotMatch(acupuncture(prior, state).techniqueBoundary, /刺络|放血/, label);
     }
   });
+  const cough = (syndrome, method, pathogenesis, patientFact) => signedPrior({ disease: "咳嗽", syndrome, method, pathogenesis, western: "慢性咳嗽", patientFact });
+  const cards = (prior, state, codes) => treatments.compileTcmTreatmentRecommendations(codes.map((projectCode) => ({ projectCode, targetRef: "P1" })), prior, state);
+  check("4.5 内伤咳嗽：教材「外感…；内伤…」一句里只留内伤那半句；耳穴、拔罐卡不借针刺的操作句当疗程", () => {
+    const prior = cough("痰湿蕴肺证", "燥湿化痰，理气止咳", "脾湿生痰，上渍于肺", "咳嗽反复3月，痰多色白黏腻，晨起为甚");
+    const state = caseOf("咳嗽反复3月", "咳嗽反复3月，痰多色白黏腻，晨起咳甚，胸闷脘痞，纳差，舌苔白腻，脉濡滑", 45);
+    const out = cards(prior, state, ["acupuncture", "auricular", "cupping"]);
+    const needle = out.find((card) => card.projectCode === "acupuncture");
+    assert.ok(needle && /咳嗽」节/.test(needle.protocolSource), "夹具前提：走教材咳嗽节");
+    assert.match(needle.techniqueBoundary, /内伤咳嗽针用平补平泻或补法/);
+    for (const card of out) {
+      assert.doesNotMatch(`${card.techniqueBoundary}${card.scheduleSuggestion}`, /外感咳嗽|闪罐/, `${card.projectCode}：${card.scheduleSuggestion}`);
+    }
+    for (const card of out.filter((item) => item.projectCode !== "acupuncture")) {
+      assert.doesNotMatch(card.scheduleSuggestion, /针用|针刺/, `${card.projectCode} 的疗程不得是针刺的操作句：${card.scheduleSuggestion}`);
+    }
+    // 对照：外感（风热犯肺，院内咳嗽共识模板不收风热）留外感那半句、不留内伤那半句。
+    const exterior = acupuncture(cough("风热犯肺证", "疏风清热，宣肺止咳", "风热犯肺，肺失清肃", "咳嗽3天，痰黄黏稠，咽痛，发热恶风"),
+      caseOf("咳嗽3天", "咳嗽3天，痰黄黏稠，咽喉肿痛，发热恶风，口干，苔薄黄，脉浮数", 30));
+    assert.match(`${exterior.techniqueBoundary}${exterior.scheduleSuggestion}`, /外感咳嗽针用泻法/, exterior.techniqueBoundary);
+    assert.doesNotMatch(exterior.techniqueBoundary, /内伤咳嗽/, exterior.techniqueBoundary);
+  });
+  const insomnia = (syndrome, method, pathogenesis) => signedPrior({ disease: "不寐", syndrome, method, pathogenesis, western: "失眠障碍", patientFact: "入睡困难，多梦易醒" });
+  check("4.6 补泻手法与证候相符：实热证不写「留针用补法」（院内失眠模板），虚证照旧写补法（对照）", () => {
+    const excess = acupuncture(insomnia("痰热扰心证", "清化痰热，和中安神", "痰热内扰，心神不安"),
+      caseOf("失眠2月", "入睡困难，多梦易醒，心烦，口苦，痰多，舌红苔黄腻，脉滑数", 40));
+    assert.ok(/SRC-BEIJING-TCM-DOUBLE-HEART/.test(excess.protocolSource), `夹具前提：走院内失眠模板（${excess.protocolSource}）`);
+    assert.doesNotMatch(excess.techniqueBoundary.replace(/平补平泻/g, ""), /补法/, excess.techniqueBoundary);
+    assert.match(excess.techniqueBoundary, /针用泻法/);
+    const deficiency = acupuncture(insomnia("心脾两虚证", "补益心脾，养血安神", "心脾两虚，心神失养"),
+      caseOf("失眠半年", "入睡困难，多梦易醒，心悸健忘，神疲食少，面色少华，舌淡，脉细弱", 40));
+    assert.match(deficiency.techniqueBoundary, /留针用补法/);
+  });
+  check("4.7 补泻改写的边界：点名到穴位的定法、平补平泻、「按虚补实泻」、虚实判不出时都不动", () => {
+    const { manipulationMatchedToSyndrome: matched } = textbookPlan;
+    assert.equal(matched("中经络：水沟用雀啄法；三阴交用提插补法。", "风痰阻络证"), "中经络：水沟用雀啄法；三阴交用提插补法。");
+    assert.equal(matched("配穴按虚补实泻法操作。", "肾精不足证"), "配穴按虚补实泻法操作。");
+    assert.equal(matched("毫针泻法或平补平泻法。", "肝肾阴虚证"), "毫针泻法或平补平泻法。");
+    assert.equal(matched("毫针补法，可灸。", "气虚血瘀证"), "毫针补法，可灸。", "虚实夹杂不改");
+    assert.equal(matched("毫针常规刺，泻法。", "肾精不足证"), "针用补法。");
+    assert.equal(matched("留针用补法；毫针补法。", "肝火扰心证"), "针用泻法；", "同一段里只写一次");
+  });
+  check("4.9 出卡处的疗程栏、操作栏不写「复评」「课程索引」：胃脘痛针刺卡、食疗卡、失眠意疗卡（JSON、正文、页面同一份）", () => {
+    const stomach = signedPrior({ disease: "胃痛", syndrome: "饮食伤胃证", method: "消食导滞，和胃止痛", pathogenesis: "饮食停滞，胃气失和", western: "功能性消化不良", patientFact: "胃脘胀痛，嗳腐吞酸" });
+    const out = cards(stomach, caseOf("胃脘胀痛3天", "暴饮暴食后胃脘胀痛3天，嗳腐吞酸，大便不爽，舌苔厚腻，脉滑", 40), ["acupuncture", "diet_therapy", "auricular"]);
+    assert.ok(out.length >= 2, `夹具前提：出卡（${out.map((card) => card.projectCode).join("、")}）`);
+    for (const card of out) {
+      assert.doesNotMatch(`${card.scheduleSuggestion}${card.techniqueBoundary}`, /复评|课程索引/, `${card.projectCode}：${card.scheduleSuggestion}｜${card.techniqueBoundary}`);
+    }
+    const mind = cards(insomnia("心脾两虚证", "补益心脾，养血安神", "心脾两虚，心神失养"),
+      caseOf("失眠半年", "入睡困难，多梦易醒，心悸健忘，神疲食少，舌淡，脉细弱", 40), ["mind_therapy"])[0];
+    assert.ok(mind, "夹具前提：有意疗卡");
+    assert.doesNotMatch(mind.scheduleSuggestion, /复评/, mind.scheduleSuggestion);
+    assert.match(mind.scheduleSuggestion, /复诊时按情绪与睡眠变化调整/, "只改措辞，复诊时按什么调整照写");
+  });
+  check("4.10 证型配穴：肾阴亏虚证不配「阴阳两虚」（关元、命门）；教材证型名不带病性时按辨证要点末尾的「为X」比对（消渴·下消）", () => {
+    const xiaoke = (syndrome, method, fact) => signedPrior({ disease: "消渴", syndrome, method, pathogenesis: "肾虚固摄无权", western: "2型糖尿病", patientFact: fact });
+    const yinxu = acupuncture(xiaoke("肾阴亏虚证", "滋阴固肾", "尿频量多，腰膝酸软，口干"),
+      caseOf("口干多尿10年", "口干多饮，尿频量多，混浊如脂膏，腰膝酸软，乏力，头晕耳鸣，皮肤干燥，舌红少苔，脉细数", 63));
+    assert.match(yinxu.treatmentContent, /本例属下消，在主穴基础上加复溜、太冲/, yinxu.treatmentContent);
+    assert.doesNotMatch(yinxu.treatmentContent, /阴阳两虚/);
+    const yinyang = acupuncture(xiaoke("阴阳两虚证", "滋阴温阳，补肾固涩", "小便频数，混浊如膏，畏寒肢冷"),
+      caseOf("多尿10年", "小便频数，混浊如膏，面容憔悴，腰膝酸软，四肢欠温，畏寒怕冷，舌淡苔白而干，脉沉细无力", 60));
+    assert.match(yinyang.treatmentContent, /本例属阴阳两虚，在主穴基础上加关元、命门/, "阴阳两虚证照配（对照）");
+    // 「阴阳两虚」此前只拆出泛概念「虚」，任何虚证都能配上它：高血压病一节里「肝肾不足证」被配成阴阳两虚、加关元。
+    const hypertension = acupuncture(signedPrior({ disease: "高血压病", syndrome: "肝肾不足证", method: "补益肝肾", pathogenesis: "肝肾不足，髓海失养", western: "原发性高血压", patientFact: "头晕耳鸣，腰膝酸软" }),
+      caseOf("头晕耳鸣2年", "头晕耳鸣，腰膝酸软，畏寒怕冷，夜尿频多，舌淡，脉沉细", 60, { BP: "156/96" }));
+    assert.ok(hypertension, "夹具前提：有针刺方案");
+    assert.doesNotMatch(hypertension.treatmentContent, /阴阳两虚/, hypertension.treatmentContent);
+  });
+  check("4.11 目录模板对的是别的病（遗尿患儿因证名「肺脾气虚」命中感染后呼吸康复模板）：按证型加减过也让位给本病的教材方案", () => {
+    const card = acupuncture(signedPrior({ disease: "遗尿", syndrome: "肺脾气虚证", method: "补肺益脾，固涩膀胱", pathogenesis: "肺脾气虚，膀胱失约", western: "遗尿症", patientFact: "夜间尿床，易感冒，神疲乏力" }),
+      caseOf("夜间尿床2年", "患儿夜间尿床，每周3～4次，平素容易感冒，神疲乏力，食欲不振，大便溏薄，自汗，舌淡苔薄白，脉细弱", 7));
+    assert.match(card.protocolSource, /「遗尿」节/, card.protocolSource);
+    assert.doesNotMatch(`${card.treatmentContent}${card.suggestedSitesOrPoints.join("、")}`, /感冒|证型配穴由医师复核|二选一/, card.treatmentContent);
+    for (const point of ["关元", "中极", "膀胱俞"]) assert.ok(pointNames(card).includes(point), pointNames(card).join("、"));
+  });
+  check("4.8 「补泻手法、进针深度」只写在用针的项目上，拔罐卡不写", () => {
+    const prior = cough("痰湿蕴肺证", "燥湿化痰，理气止咳", "脾湿生痰，上渍于肺", "咳嗽反复3月，痰多色白黏腻，晨起为甚");
+    const state = caseOf("咳嗽反复3月", "咳嗽反复3月，痰多色白黏腻，晨起咳甚，胸闷脘痞，纳差，舌苔白腻，脉濡滑", 45);
+    const out = cards(prior, state, ["acupuncture", "cupping"]);
+    assert.doesNotMatch(out.find((card) => card.projectCode === "cupping").techniqueBoundary, /进针/);
+    assert.match(out.find((card) => card.projectCode === "acupuncture").techniqueBoundary, /进针深度/, "针刺卡照写（对照）");
+  });
 }
 
 // ───── 5 煎服用法 ─────
 {
   const summary = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const herbDecoction = await jiti.import("../src/lib/herb-decoction-rules.ts");
+  const compilerSource = (await import("node:fs")).readFileSync(new URL("../src/lib/m04-proposal-compiler.ts", import.meta.url), "utf8");
   const START = "<!-- DIAGNOSIS_JSON_START -->";
   const END = "<!-- DIAGNOSIS_JSON_END -->";
   const methodOf = (herbNames) => {
@@ -441,6 +533,36 @@ const checkAsync = async (name, run) => {
     assert.match(method, /龙骨、牡蛎先煎20–30分钟/, method);
     assert.doesNotMatch(method, /附子[^，]*先煎20–30分钟|龙骨[^，]*45–60/, method);
     assert.ok(method.indexOf("附子先煎") < method.indexOf("龙骨、牡蛎先煎"), "久煎的毒性药排在最前");
+  });
+  check("5.3 大黄（药典几选一：后下 / 先煎 / 冲服）：按这味药实际标注的写，没有标注取后下；不得写成先煎", () => {
+    const withDeclared = (name, decoctionRequirement) => {
+      const content = `${START}\n${JSON.stringify({
+        schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+        therapy: { overallMethod: "清热泻火，通腑", overallPrinciple: "", subTherapies: [{ therapy: "清热泻火", priority: "主要" }] },
+        formula: { candidates: [{ name: "自拟方", therapyMatch: "清热泻火", constructionType: "self_devised", formulaNames: [],
+          herbs: [{ name: "石膏", dose: "30g" }, { name, dose: "6g", ...(decoctionRequirement ? { decoctionRequirement } : {}) }, { name: "甘草", dose: "6g" }],
+          decoction: { doseCount: "3剂", dosesPerDay: 1, administrationTimesPerDay: 2 } }] },
+      })}\n${END}`;
+      const out = summary.applyDeterministicDecoctionMethod(content, "患者，男，30岁", 30);
+      return JSON.parse(out.slice(out.indexOf(START) + START.length, out.indexOf(END))).formula.candidates[0].decoction.method;
+    };
+    for (const declared of ["后下", "后下，禁止久煎", "后下或先煎或冲服、禁止久煎", undefined]) {
+      const method = withDeclared("大黄", declared);
+      assert.match(method, /大黄后下/, `${declared}: ${method}`);
+      assert.doesNotMatch(method, /大黄[^，]*先煎|石膏、大黄先煎/, method);
+      assert.match(method, /石膏先煎20–30分钟/, "石膏照旧先煎（对照）");
+    }
+    assert.match(withDeclared("大黄", "冲服"), /大黄冲服/, "标了冲服就写冲服");
+    assert.match(withDeclared("大黄", "先煎"), /大黄先煎/, "只标了先煎就写先煎（对照：确有选择时照选择）");
+  });
+  check("5.4 加减加入有特殊煎法的药：煎法写在这一条的说明里（附子先煎45–60分钟），普通药不写（对照）", () => {
+    const { specialDecoctionPhrase } = herbDecoction;
+    assert.equal(specialDecoctionPhrase("附子"), "附子先煎45–60分钟（至口尝无麻辣感）");
+    assert.equal(specialDecoctionPhrase("大黄"), "大黄后下", "几选一没有标注时取所列的第一种");
+    assert.equal(specialDecoctionPhrase("砂仁"), "砂仁后下");
+    assert.equal(specialDecoctionPhrase("姜半夏"), "", "普通药不写");
+    assert.match(compilerSource, /riskNote: item\.actionType === "add" \? specialDecoctionPhrase\(item\.herbName\.trim\(\)\) : ""/,
+      "加减条目编译时按同一张表写煎法");
   });
   check("5.2 制川乌同样单列；没有这类药的处方写法不变（对照）", () => {
     assert.match(methodOf(["制川乌", "桂枝", "甘草"]), /制川乌先煎45–60分钟（至口尝无麻辣感）/);
@@ -550,6 +672,167 @@ const checkAsync = async (name, run) => {
     assert.equal(out.overview.tcmDiseaseDifferentials[0].reason, "咳嗽需与肺痨鉴别");
     assert.equal(out.overview.tcmDiseaseDifferentials[1].reason, "同见咳嗽胸闷", "没有这半句的不动");
     assert.equal(out.overview.tcmDifferentials[0].reason, "避免误诊", "删完为空时保留原句");
+  });
+}
+
+// ───── 8 交付面 ─────
+{
+  const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
+  check("8.1 针刺卡里说流程的模板半句：「须根据症状变化复评」写成按症状变化调整，「课程索引」那句不列，其余不动", () => {
+    const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", nonPharma: { tcmTreatments: [{
+      projectCode: "acupuncture",
+      scheduleSuggestion: "门诊项目频次参考为每日1次，每次选穴和疗程须根据症状变化复评。",
+      techniqueBoundary: "毫针常规刺，中脘、足三里平补平泻；穴位仅为课程索引与门诊病种频次的组合参考。",
+    }] } };
+    const card = projectDeliveredReasoning(structuredClone(reasoning)).nonPharma.tcmTreatments[0];
+    assert.equal(card.scheduleSuggestion, "门诊项目频次参考为每日1次，每次选穴和疗程须根据症状变化调整。");
+    assert.equal(card.techniqueBoundary, "毫针常规刺，中脘、足三里平补平泻。");
+    assert.doesNotMatch(`${card.scheduleSuggestion}${card.techniqueBoundary}`, /复评|课程索引/);
+  });
+  check("8.3 中医鉴别的教材兜底：理由不写「教材列为本病的鉴别病证」，要点去掉「本病与X相鉴别。」开场句，教材描述照列", () => {
+    const out = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+      overview: { tcmDiseaseName: "妊娠咳嗽", primarySyndrome: "阴虚肺燥证", tcmDiseaseDifferentials: [] }, westernDiagnosis: { primary: { name: "妊娠合并急性支气管炎" }, differentials: [] } });
+    const rows = out.overview.tcmDiseaseDifferentials;
+    assert.ok(rows.length > 0, "夹具前提：教材对妊娠咳嗽列有鉴别病");
+    for (const row of rows) {
+      assert.doesNotMatch(`${row.reason}${row.distinguishingPoints}`, /教材列为|^本病与/, JSON.stringify(row));
+      assert.ok(row.distinguishingPoints.length > 10, "教材描述照列");
+    }
+  });
+  check("8.2 西医鉴别：模型自己写明「不适用」的项不列（女性列前列腺增生、男性列异位妊娠），其余不动", () => {
+    const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", westernDiagnosis: {
+      primary: { name: "右输尿管下段结石", supportingFacts: [], limitations: [], suggestedChecks: [] },
+      differentials: [
+        { name: "急性阑尾炎", reason: "右下腹痛需鉴别", distinguishingPoints: "本例疼痛向会阴放射，彩超见结石", nextCheck: "血常规" },
+        { name: "异位妊娠破裂", reason: "下腹痛需鉴别（本例为男性患者，不适用）", distinguishingPoints: "不适用", nextCheck: null },
+      ],
+    } };
+    const out = projectDeliveredReasoning(structuredClone(reasoning)).westernDiagnosis.differentials.map((item) => item.name);
+    assert.deepEqual(out, ["急性阑尾炎"]);
+  });
+}
+
+// ───── 9 不给剂量页的调护 ─────
+{
+  const { renderM04DeliveryCheckpoint, retainM04DeliveryCheckpoint } = await jiti.import("../src/lib/m04-delivery-checkpoint.ts");
+  const { compileM04Proposal } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
+  const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
+  const prior = ReasoningV2Schema.parse({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { primarySyndrome: "肝阳上亢证", overallPathogenesis: "肝阳上亢，上扰清窍", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+    pathogenesis: { chain: [{ nodeId: "P1", patientFact: "头晕头胀", syndromeEvidence: "头晕头胀", pathogenesis: "肝阳上亢，上扰清窍", therapyDirection: "平肝潜阳" }] },
+    therapy: { overallPrinciple: "实则泻之", overallMethod: "平肝潜阳", subTherapies: [{ therapy: "平肝潜阳", targetPathogenesis: "肝阳上亢", priority: "主要" }] },
+    formula: { candidates: [], patentAndWestern: [], modifications: [] },
+  });
+  const pageWith = (nonPharma) => {
+    const reasoning = compileM04Proposal({
+      candidate: {
+        name: "自拟方", applicable: "头晕头胀。", notApplicable: "出现神志改变时急诊。",
+        herbs: [
+          { name: "天麻", dose: "10g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "平肝息风" },
+          { name: "钩藤", dose: "12g", role: "臣", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "清热平肝" },
+          { name: "甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", function: "调和诸药" },
+        ].map((herb) => ({ ...herb, processing: null, isToxic: false, decoctionRequirement: herb.name === "钩藤" ? "后下" : null })),
+        formulaAnalysis: "天麻平肝息风为君，钩藤清热平肝为臣，甘草调和诸药。",
+        decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "5日复诊" },
+      },
+      patentAndWestern: [], modifications: [], nonPharma: { tcmTreatments: [], ...nonPharma },
+    }, prior);
+    const checkpoint = retainM04DeliveryCheckpoint(undefined, {
+      reasoning, content: `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`,
+      priorReasoning: prior, clinicalContext: "头晕头胀", generatorModel: "synthetic",
+    });
+    const page = renderM04DeliveryCheckpoint(checkpoint, prior, "dose_withheld", ["血压 216/132mmHg 达重度高血压警戒值"]);
+    return page.slice(page.indexOf("## 调护建议"), page.indexOf("<!-- CDSS_NON_DOSE_CANDIDATE_JSON"));
+  };
+  check("9.1 食盐用量被当作药量掩码时，只去掉那一小句，饮食栏其余照列；整条都被掩码时整条不列", () => {
+    const care = pageWith({
+      diet: "饮食清淡，每日食盐控制在5克以下，忌辛辣肥甘；可食芹菜、冬瓜等新鲜蔬菜。",
+      lifestyle: "起居规律，避免熬夜。", emotion: "保持情绪平稳。",
+      precautions: ["每次10克，每日3次。", "避免情绪激动。"],
+    });
+    assert.doesNotMatch(care, /审定处方|5克/, care);
+    assert.match(care, /忌辛辣肥甘/, care);
+    assert.match(care, /可食芹菜、冬瓜等新鲜蔬菜/, care);
+    assert.match(care, /避免情绪激动/);
+    assert.doesNotMatch(care, /每日3次/, "整条都被掩码的不列");
+  });
+}
+
+// ───── 10 注意事项按本例收口 ─────
+{
+  const { m04CompilerTestHooks } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
+  const filter = (precautions, state) => m04CompilerTestHooks.casePrecautions(precautions, state);
+  const woman = (present, extra = {}) => ({
+    patient: { sex: "女", age: 29 }, chiefComplaint: "咳嗽2周", symptoms: { presentHistory: present }, conversation: [],
+    safetyGate: { status: "ready", allowDosePrescription: true, redFlags: [], missingItems: [] }, ...extra,
+  });
+  const pregnancyLine = "方中川贝母、玄参、桔梗等孕期需慎用，如已怀孕或备孕请先告知医生。";
+  check("10.1 已确认妊娠：去掉「如已怀孕或备孕请先告知医生」这一小句，「孕期需慎用」照列；妊娠状态未知时整句照列（对照）", () => {
+    assert.deepEqual(filter([pregnancyLine, "服药宜饭后温服。"], woman("孕24周，干咳2周，痰少而黏，咽干")),
+      ["方中川贝母、玄参、桔梗等孕期需慎用。", "服药宜饭后温服。"]);
+    assert.deepEqual(filter([pregnancyLine], woman("干咳2周，痰少而黏，咽干")), [pregnancyLine]);
+    assert.deepEqual(filter(["如已怀孕请先告知医生。"], woman("孕24周，干咳2周")), [], "整条都是假设句时整条不列");
+  });
+  check("10.2 红旗未解除：不写怎么服这张方（温服、服药后观察、先煎），其余照列；没有红旗时照列（对照）", () => {
+    const lines = ["本方宜温服，服药期间忌辛辣。", "方中含水牛角，须先煎，服药后注意观察神志。", "继续服用硝苯地平控释片，不要自行停药。", "注意休息，避免受凉。"];
+    const redFlag = woman("高热、头痛3天，神志改变半天", { safetyGate: { status: "red_flag", allowDosePrescription: false, redFlags: ["神志改变"], missingItems: [] } });
+    assert.deepEqual(filter(lines, redFlag), ["继续服用硝苯地平控释片，不要自行停药。", "注意休息，避免受凉。"]);
+    assert.deepEqual(filter(lines, woman("干咳2周")), lines);
+  });
+}
+
+// ───── 11 鉴别对象的典型表现 ─────
+{
+  const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
+  const state = normalizeCaseStateInput({ patient: { sex: "女", age: 60 }, chiefComplaint: "排便困难1年", conversation: [],
+    symptoms: { "现病史": "患者1年来有便意却排不出来，每次蹲厕要用很大力气，大便本身并不干硬，3～4日一行。无腹痛，无便血，无消瘦。" } });
+  const typical = "腹痛、呕吐、无排气排便";
+  check("11.1 JSON：肠结的「典型表现」原样保留，不被改成本例的「否认腹痛；未诉呕吐」；同一行的区分要点照常净化（对照）", () => {
+    const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseName: "便秘", tcmDiseaseDifferentials: [
+      { diseaseName: "肠结", reason: "均以便秘不通为主症", typicalManifestation: typical, distinguishingPoints: "无呕吐，3～4日仍能排便", nextCheck: null },
+    ] } };
+    const out = safety.sanitizeUngroundedRedFlagNegations(`<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`, state);
+    const row = JSON.parse(out.slice(out.indexOf("-->") + 3, out.lastIndexOf("<!--"))).overview.tcmDiseaseDifferentials[0];
+    assert.equal(row.typicalManifestation, typical);
+    assert.notEqual(row.distinguishingPoints, "无呕吐，3～4日仍能排便", "病历没写「无呕吐」，区分要点照常改写");
+  });
+  check("11.2 正文：鉴别一行「常见：」后的典型表现原样保留；不带这个标签的同样文字照常净化（对照）", () => {
+    const line = (body) => `### 中医辨病鉴别\n- **肠结**：${body}；均以便秘不通为主症。\n`;
+    assert.equal(safety.sanitizeUngroundedRedFlagNegations(line(`常见：${typical}`), state), line(`常见：${typical}`));
+    assert.notEqual(safety.sanitizeUngroundedRedFlagNegations(line(typical), state), line(typical));
+  });
+}
+
+// ───── 12 方义核对 ─────
+{
+  const { reviewAuthoredFormulaAnalysis } = await jiti.import("../src/lib/formula-analysis-review.ts");
+  const { resolveGovernedTcmHerbIdentity } = await jiti.import("../src/lib/tcm-herb-identity.ts");
+  check("12.1 「香薷辛温芳香」里的「芳香」是描述词：不当成外来药（白芷），君药香薷那一句保留", () => {
+    assert.ok(!resolveGovernedTcmHerbIdentity("芳香").canonicalName, JSON.stringify(resolveGovernedTcmHerbIdentity("芳香")));
+    assert.equal(resolveGovernedTcmHerbIdentity("白芷").canonicalName, "白芷", "白芷本身照常解析（对照）");
+    const text = "本方以新加香薷饮为基础加减。香薷辛温芳香，解表祛暑，为君；金银花、连翘清热解毒，为臣；厚朴、广藿香化湿和中，为佐；甘草调和诸药，为使。";
+    const out = reviewAuthoredFormulaAnalysis(text, ["香薷", "金银花", "连翘", "厚朴", "广藿香", "甘草"]);
+    assert.deepEqual(out.foreignHerbs, []);
+    assert.equal(out.text, text);
+  });
+  const herbs = ["黄柏", "薏苡仁", "防己", "滑石", "赤小豆", "甘草"];
+  check("12.3 方义里的系统说法（次级病机、已锁定治法方向）改成病机原话", () => {
+    const text = "本方以真武汤为基础加减。附子温肾助阳为君；白术、茯苓健脾利水为臣，分治脾肾两层次级病机；白芍敛阴为佐，与本例已锁定治法方向一致；甘草调和诸药为使。";
+    const out = reviewAuthoredFormulaAnalysis(text, ["附子", "白术", "茯苓", "白芍", "甘草"]);
+    assert.match(out.text, /分治脾肾两层病机/);
+    assert.match(out.text, /与本例治法方向一致/);
+    assert.doesNotMatch(out.text, /次级病机|已锁定/);
+  });
+  check("12.2 分句里同时点了本方药和外来药：只删外来药名，本方药名与「二药」「三臣」按剩下的味数改写；只有外来药的分句仍整句删（对照）", () => {
+    const text = "本方以宣痹汤为基础加减。黄柏、苍术二药共为君，直清下注足部之湿热；防己、薏苡仁、蚕沙三臣分消湿热；鲜扁豆花清暑化湿，滑石、赤小豆清利湿热，为佐；甘草调和诸药，为使。";
+    const out = reviewAuthoredFormulaAnalysis(text, herbs);
+    assert.deepEqual(out.foreignHerbs.sort(), ["苍术", "蚕沙", "鲜扁豆花"].sort());
+    assert.match(out.text, /黄柏为君，直清下注足部之湿热/);
+    assert.match(out.text, /防己、薏苡仁二臣分消湿热/);
+    assert.doesNotMatch(out.text, /苍术|蚕沙|鲜扁豆花|清暑化湿/);
+    assert.match(out.text, /滑石、赤小豆清利湿热/);
   });
 }
 

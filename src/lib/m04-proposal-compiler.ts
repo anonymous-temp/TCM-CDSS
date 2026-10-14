@@ -30,6 +30,8 @@ import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { fillMedicineRowFromInstructionRecord, type InstructionRecordPool } from "./instruction-record-pool";
 import { formulaAnalysisHerbMentions } from "./formula-analysis-review";
 import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
+import { assessPregnancyState } from "./clinical-state";
+import { specialDecoctionPhrase } from "./herb-decoction-rules";
 
 const evidence = {
   evidenceLevel: "model_inference" as const,
@@ -203,6 +205,36 @@ function normalizedPrecautionKey(value: string): string {
 /** 逐条清洗模型提交的注意事项：只丢行、绝不驳回。 */
 /** 注意事项里面向孕哺人群的提示句（「如已怀孕或备孕请先告知医生」「孕期慎用」「哺乳期…」）。 */
 const REPRODUCTIVE_ADVICE_LINE = /怀孕|备孕|妊娠|孕期|孕妇|哺乳/;
+/** 「如已怀孕或备孕请先告知医生」这类假设小句。 */
+const PREGNANCY_CONDITIONAL_CLAUSE = /如(?:已|已经|有|果|在)?(?:怀孕|妊娠)|如(?:正在)?备孕|或备孕/;
+/** 讲怎么服这张方的条目（温服、饭后服、先煎、服药后观察…）。只说「继续服用原有药物」的不算。 */
+const PRESCRIPTION_ADMINISTRATION_LINE = /温服|冷服|顿服|煎服|先煎|后下|包煎|烊化|本方|汤药|服药(?:后|期间|时)|饭[前后]服|空腹服|每剂/;
+
+/**
+ * 注意事项按本例收口（只删，不改写）：
+ *  · 生殖相关的条目只写给有此可能的患者：男性、儿童、已绝经者不写（见 reproductiveAdviceRelevant）；
+ *  · 已确认妊娠的，不写「如已怀孕或备孕请先告知医生」这个假设小句，同一条里其余内容（「方中川贝母、桔梗孕期慎用」）照列
+ *   （2026-10-14 独立评审：孕 24 周仍写「如已怀孕」）；
+ *  · 红旗未解除（安全闸门 red_flag）时不写怎么服这张方——此刻要做的是急诊评估，这一页也不给剂量
+ *   （2026-10-14 独立评审：嗜睡、答非所问的急症仍嘱「本方宜温服」「服药后注意观察神志」）。
+ * 没有病例信息（直接调编译器）时不过滤。
+ */
+function casePrecautions(precautions: readonly string[], caseState: CaseState | undefined): string[] {
+  if (!caseState) return [...precautions];
+  if (!reproductiveAdviceRelevant(caseState)) precautions = precautions.filter((item) => !REPRODUCTIVE_ADVICE_LINE.test(item));
+  else if (assessPregnancyState(clinicalGroundingText(caseState)).status === "positive") {
+    precautions = precautions.map((item) => withoutClauses(item, PREGNANCY_CONDITIONAL_CLAUSE)).filter(Boolean);
+  }
+  if (caseState.safetyGate?.status === "red_flag") precautions = precautions.filter((item) => !PRESCRIPTION_ADMINISTRATION_LINE.test(item));
+  return [...precautions];
+}
+
+/** 去掉命中的小句（逗号、分号、句号分隔），其余原样；全部命中时返回空串。 */
+function withoutClauses(line: string, pattern: RegExp): string {
+  if (!pattern.test(line)) return line;
+  const joined = line.split(/(?<=[，,；;。])/).filter((clause) => !pattern.test(clause)).join("").replace(/[，,；;]+$/, "").trim();
+  return joined && !/[。！？!?]$/.test(joined) ? `${joined}。` : joined;
+}
 
 /**
  * 注意事项写「方中有某药」而该药不在本方药味里（2026-10-14 独立评审：处方已去白芥子，注意事项仍写
@@ -1538,7 +1570,9 @@ export function compileM04Proposal(
       herbName: item.herbName.trim(),
       doseOrHandling: item.actionType === "add" ? modificationAddDose(item.herbName, item.dose, pediatric) : null,
       reason: cleanNarrative(item.reason, "随证调整治疗重点"),
-      riskNote: "",
+      // 加入的药有特殊煎法时写在这一条里（附子「先煎45–60分钟，至口尝无麻辣感」）：用量栏只收「数字g」，
+      // 煎服行只列方中原有的药——此前 11 岁患儿「寒痛甚加附子3g」一条没有任何煎法说明（2026-10-14 独立评审）。
+      riskNote: item.actionType === "add" ? specialDecoctionPhrase(item.herbName.trim()) : "",
       ...(substitutions.length > 0 ? { substitutions } : {}),
       evidence: {
         evidenceLevel: "model_inference" as const,
@@ -1639,11 +1673,7 @@ export function compileM04Proposal(
     },
     nonPharma: {
       ...proposal.nonPharma,
-      // 「如已怀孕、备孕或哺乳请告知医生」只写给有此可能的患者：男性、儿童、已绝经者不写（见 reproductiveAdviceRelevant）。
-      // 病历确有妊娠/哺乳记录的不会走到带剂量处方；没有病例信息（直接调编译器）时不过滤。
-      precautions: (caseState && !reproductiveAdviceRelevant(caseState)
-        ? proposal.nonPharma.precautions.filter((item) => !REPRODUCTIVE_ADVICE_LINE.test(item))
-        : proposal.nonPharma.precautions)
+      precautions: casePrecautions(proposal.nonPharma.precautions, caseState)
         .filter((item) => !precautionNamesHerbOutsideFormula(item, prescribedPrecautionIdentities)),
       acupointCare: null,
       tcmTreatments: compileTcmTreatmentRecommendations(proposal.nonPharma.tcmTreatments, prior, caseState),
@@ -1673,4 +1703,4 @@ export function compileM04JsonObjectContent(
 }
 
 /** 测试用：单味药的核验级别与理由（医生在页面上看到的那一行）。 */
-export const m04CompilerTestHooks = { compileHerbVerification };
+export const m04CompilerTestHooks = { compileHerbVerification, casePrecautions };

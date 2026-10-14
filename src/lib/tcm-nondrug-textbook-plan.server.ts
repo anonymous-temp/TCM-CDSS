@@ -5,6 +5,7 @@ import webSchedulesJson from "../data/tcm-nondrug-web-schedules.source.json" wit
 import syndromeConceptsJson from "../data/tcm-syndrome-label-concepts.source.json" with { type: "json" };
 import { resolveTcmDiseaseName } from "./clinical-terminology";
 import { formulaAnalysisHerbMentions } from "./formula-analysis-review";
+import { TCM_ACUPOINTS } from "./tcm-acupoints";
 import type { TcmTreatmentProjectCode } from "./tcm-treatment-projects";
 
 /**
@@ -176,13 +177,23 @@ function syndromeLabelMatchesSigned(label: string, signedSyndromeText: string): 
     .some((item) => item === target || item.includes(target) || target.includes(item));
 }
 
+/**
+ * 拿来比对的证型名。教材有的证型名本身不带病性（《针灸学》消渴「上消 / 中消 / 下消」），而辨证要点末尾写明了它是哪个证
+ *（「…脉细数，为肾阴亏虚」）：这时用「为」后那个证名比对。此前下消对不上任何已签名证候，肾阴亏虚证反而对上了只含泛概念
+ *「虚」的「阴阳两虚」，针刺卡写「本例属阴阳两虚，加关元、命门」（2026-10-14 独立评审）。
+ */
+function scoringLabel(item: { label: string; keySymptoms?: string }): string {
+  if (syndromeConcepts(item.label).natures.size > 0) return item.label;
+  return String(item.keySymptoms || "").match(/为([一-龥]{2,8})[。]?$/)?.[1] || item.label;
+}
+
 function pickSyndromes<T extends { label: string; keySymptoms?: string }>(
   candidates: readonly T[],
   caseSyndromeText: string,
   currentFacts: string,
 ): T[] {
   const scored = candidates
-    .map((item, index) => ({ item, index, ...syndromeMatchScore(item.label, caseSyndromeText) }))
+    .map((item, index) => ({ item, index, ...syndromeMatchScore(scoringLabel(item), caseSyndromeText) }))
     .filter((entry) => entry.score > 0 && syndromeEvidencePresent(entry.item.keySymptoms, currentFacts))
     .sort((left, right) => right.score - left.score || left.index - right.index);
   if (scored.length === 0) return [];
@@ -345,12 +356,8 @@ function pickBasicTreatmentVariant(entry: AcupunctureEntry, input: TextbookPlanI
   const deficiencyVariant = byLabel("虚证");
   const excessVariant = byLabel("实证");
   if (deficiencyVariant && excessVariant) {
-    const syndrome = input.signedSyndromeText.replace(/虚热|虚火|虚风|虚寒|虚阳/g, "虚");
-    const deficiency = DEFICIENCY_SYNDROME_WORDS.test(syndrome);
-    const excess = EXCESS_SYNDROME_WORDS.test(syndrome.replace(/虚火|虚热/g, ""));
-    if (deficiency && !excess) return deficiencyVariant;
-    if (excess && !deficiency) return excessVariant;
-    return undefined;
+    const nature = signedSyndromeDeficiencyExcess(input.signedSyndromeText);
+    return nature === "deficiency" ? deficiencyVariant : nature === "excess" ? excessVariant : undefined;
   }
   const haystack = compact([...input.diseaseNames, input.signedSyndromeText, input.chiefComplaint || ""].join("；"));
   const literal = variants.filter((item) => {
@@ -358,6 +365,67 @@ function pickBasicTreatmentVariant(entry: AcupunctureEntry, input: TextbookPlanI
     return label.length >= 2 && haystack.includes(label);
   });
   return literal.length === 1 ? literal[0] : undefined;
+}
+
+/**
+ * 已签名证候是纯虚、纯实，还是判不出（虚实夹杂或没有字样）。教材「实证 / 虚证」两套取哪一套、刺络放血列不列、补泻手法与证候
+ * 是否相反，都用这一个判据。虚热、虚火、虚风、虚寒、虚阳算虚，不因其中的热、火、风、寒算实。
+ */
+export function signedSyndromeDeficiencyExcess(signedSyndromeText: string): "deficiency" | "excess" | undefined {
+  const syndrome = signedSyndromeText.replace(/虚热|虚火|虚风|虚寒|虚阳/g, "虚");
+  const deficiency = DEFICIENCY_SYNDROME_WORDS.test(syndrome);
+  const excess = EXCESS_SYNDROME_WORDS.test(syndrome);
+  return deficiency && !excess ? "deficiency" : excess && !deficiency ? "excess" : undefined;
+}
+
+/**
+ * 教材把外感、内伤（或实证、虚证）的操作写在同一句里（「外感咳嗽针用泻法，肺俞可配闪罐，每日治疗1~2次；内伤咳嗽针用平补平泻或补法…」），
+ * 只留与本例证候相符的那一小句（2026-10-14 独立评审：内伤痰湿咳嗽的卡片写着外感咳嗽的泻法与闪罐）。判不出时原样保留。
+ */
+const EXTERIOR_SYNDROME_WORDS = /风寒|风热|风燥|风温|暑湿|外感|表|犯表|袭表|束表/;
+function withSyndromeMatchedClauses(text: string, input: TextbookPlanInput): string {
+  if (!/外感/.test(text) && !/内伤/.test(text) && !/实证/.test(text) && !/虚证/.test(text)) return text;
+  const exterior = EXTERIOR_SYNDROME_WORDS.test(input.signedSyndromeText);
+  const nature = signedSyndromeDeficiencyExcess(input.signedSyndromeText);
+  return text.split(/(?<=[。；;])/).filter((clause) => {
+    if (/^\s*外感/.test(clause) && !exterior) return false;
+    if (/^\s*内伤/.test(clause) && exterior) return false;
+    if (/^\s*实证/.test(clause) && nature === "deficiency") return false;
+    if (/^\s*虚证/.test(clause) && nature === "excess") return false;
+    return true;
+  }).join("").trim() || text;
+}
+
+/**
+ * 补泻手法与已签名证候相反的泛指句，改成与证候相符的一句（2026-10-14 独立评审：痰火扰心的实热证，针刺卡写「留针用补法」，
+ * 出自院内目录的失眠模板）。依据是针灸治疗原则「补虚泻实」（《针灸学》各节：实证毫针泻法、虚证毫针补法；不寐等节「其他按虚补实泻操作」）。
+ * 不动的句子：点名到具体穴位的（醒脑开窍法「三阴交用提插补法」、牙痛「配穴太溪用补法」是该穴的定法，不随证候改）、
+ * 含平补平泻或「按虚补实泻」的；虚实判不出时整段不动。教材卡与目录卡在卡片汇总处（tcm-treatment-capabilities）都过这一道。
+ */
+export function manipulationMatchedToSyndrome(text: string, signedSyndromeText: string): string {
+  const nature = signedSyndromeDeficiencyExcess(signedSyndromeText);
+  if (!nature) return text;
+  const wrong = nature === "excess" ? /补法/ : /泻法/;
+  const right = nature === "excess" ? /泻法|平补平泻|虚补实泻|补虚泻实/ : /补法|平补平泻|虚补实泻|补虚泻实/;
+  let replaced = false;
+  return text.split(/(?<=[。；;])/).map((clause) => {
+    if (!wrong.test(clause) || right.test(clause) || namesAcupoint(clause)) return clause;
+    if (replaced) return "";
+    replaced = true;
+    return `针用${nature === "excess" ? "泻法" : "补法"}${clause.trim().match(/[。；;]$/)?.[0] || "。"}`;
+  }).join("").trim() || text;
+}
+
+let acupointNamePattern: RegExp | undefined;
+/** 句子里点名了某个穴位（按穴位目录的穴名，长名优先）。 */
+function namesAcupoint(clause: string): boolean {
+  if (!acupointNamePattern) {
+    const names = [...new Set(TCM_ACUPOINTS.map((entry) => entry.name).filter((name) => typeof name === "string" && name.length >= 2))]
+      .sort((left, right) => right.length - left.length)
+      .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    acupointNamePattern = new RegExp(names.join("|"));
+  }
+  return acupointNamePattern.test(clause);
 }
 
 /** 刺络放血类操作（刺络拔罐、点刺出血、三棱针）。 */
@@ -374,8 +442,7 @@ const ELDERLY_AGE_YEARS = 65;
 function withoutBloodlettingWhenUnsuitable(text: string, input: TextbookPlanInput): string {
   if (!BLOODLETTING_SENTENCE.test(text)) return text;
   const elderly = input.patientAgeYears != null && input.patientAgeYears >= ELDERLY_AGE_YEARS;
-  const syndrome = input.signedSyndromeText.replace(/虚热|虚火|虚风|虚寒|虚阳/g, "虚");
-  const deficiency = DEFICIENCY_SYNDROME_WORDS.test(syndrome) && !EXCESS_SYNDROME_WORDS.test(syndrome.replace(/虚火|虚热/g, ""));
+  const deficiency = signedSyndromeDeficiencyExcess(input.signedSyndromeText) === "deficiency";
   const brokenSkin = BROKEN_SKIN_FACT.test(input.currentFacts);
   if (!elderly && !deficiency && !brokenSkin) return text;
   return text.split(/(?<=[。；])/).filter((sentence) => !BLOODLETTING_SENTENCE.test(sentence)).join("").trim();
@@ -551,7 +618,9 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     : `${projectName}${cutText(base.content, 240)}`;
   const variantOperation = variant?.operation || primary.operation;
   const operation = code === "acupuncture" ? variantOperation : base.content;
-  const frequency = frequencySentence(operation) || frequencySentence(primary.operation);
+  // 其他疗法不借针刺的操作句：此前耳穴、拔罐卡的疗程栏里出现「外感咳嗽针用泻法，肺俞可配闪罐」（2026-10-14 独立评审）。
+  const frequency = frequencySentence(withSyndromeMatchedClauses(operation, input)) ||
+    (code === "acupuncture" ? frequencySentence(withSyndromeMatchedClauses(primary.operation, input)) : "");
   const defaultKey = code === "acupuncture" ? "acupuncture" : code === "cupping" ? "cupping" : code === "moxibustion" ? "moxibustion" : "";
   const defaultText = defaultKey ? data.modalityDefaults[defaultKey]?.text || "" : "";
   const defaultClause = defaultText ? `${defaultText.replace(/[。]+$/, "")}（《刺法灸法学》总论）。` : "";
@@ -563,9 +632,9 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
       : defaultClause
         ? `${defaultClause}间隔与疗程按病情和耐受确定。`
         : "间隔与疗程按病情和耐受确定。";
-  const technique = withoutBloodlettingWhenUnsuitable(code === "acupuncture"
+  const technique = withoutBloodlettingWhenUnsuitable(withSyndromeMatchedClauses(code === "acupuncture"
     ? cutText(variantOperation || "毫针常规针刺。", 420)
-    : cutText(`${base.content}`, 420), input) || "穴位常规刺。";
+    : cutText(`${base.content}`, 420), input), input) || "穴位常规刺。";
 
   return {
     kind: "acupoint",
@@ -573,7 +642,8 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     points: finalPoints,
     items: [],
     scheduleSuggestion: cutText(schedule, 560),
-    techniqueBoundary: cutText(`${technique} ${techniqueContraindications(code)}补泻手法、进针深度以现场查体为准。`, 980),
+    // 「补泻手法、进针深度」只对用针的项目成立（拔罐、灸法卡上也挂着这句——2026-10-14 复核时发现）。
+    techniqueBoundary: cutText(`${technique} ${techniqueContraindications(code)}${code === "acupuncture" || code === "auricular" ? "补泻手法、进针深度以现场查体为准。" : ""}`.trim(), 980),
     protocolSource: cutText(`${citation}${secondary && code === "acupuncture" ? `；《${data.sources[secondary.book]?.title}》同名节（教材原文第${secondary.line}行）` : ""}${web ? `；${web.citation}` : ""}`, 980),
     syndromeLabels,
     syndromeTailored: tailored,

@@ -461,6 +461,68 @@ The second independent review of the 10.12 work (`~/runlogs/fix1012/out/judge2`)
 
 **Other fixes.** Non-dose pages and red-flag reasons are written in clinical language (no 「候选方」「确定性校验」「AI语义分诊提示」); the 十八反 receipt still says 不得采纳. Precautions that say 「方中有X」 for a herb not in the formula, or mention a treatment not delivered, are dropped. Toxic herbs that need long decoction (附子, 制川乌, 制草乌) are listed first in the usage line: 先煎45–60分钟（至口尝无麻辣感）. 「外用＋功效」 is no longer shown as an oral herb's function (蜂蜜). Acupuncture plans: textbook 实证/虚证 variants are chosen by the signed syndrome (`variants` in the protocol data); without syndrome-specific points the disease-level 治法 is not printed; no bloodletting for patients 65+, deficiency syndromes or broken skin; patients 65+ get a smaller-dose note; schedules from a hypertension-specific source need hypertension in the case. Medicine planner: patent medicines are chosen by syndrome, an empty choice is respected, injections and drugs already in use are excluded (also in the compiler). Chest tightness: an episode duration under 20 minutes in a recurrent course of a month or more no longer counts as an acute cue unless rest or nocturnal symptoms are recorded (class fixture `chronic-stable-chest-tightness-episode-duration.json`; 252 cases × 3 shapes changed only S020; 4,400 corpus evaluations unchanged). A guard against reading 「反复发作」 as 「复发」 was tried and reverted: it also dropped cases whose worsening was written in another clause.
 
+**Third independent review and what followed (same day; `~/runlogs/fix1014/out/judge3a` = the original 32 cases, `judge3b` = 32 held-out cases).** Most of what the reviewer failed on the held-out set was again the server damaging the model's output:
+- **Decoction line contradicting the herb table** (5 of 32): 大黄's pharmacopoeia rule is one-of 后下/先煎/冲服, and the line matched the whole alternative string, hitting 先煎 first. One table (`SPECIAL_DECOCTION_ORDER` + `specialDecoctionOrderIndex` in `herb-decoction-rules.ts`) drives both the decoction line and the note on an added herb: a modification that adds 附子 says 「附子先煎45–60分钟（至口尝无麻辣感）」 in its `riskNote`, because `doseOrHandling` only accepts `Ng`.
+- **Acupuncture cards.** One seam in `tcm-treatment-capabilities` now covers textbook and catalog cards:
+  - `manipulationMatchedToSyndrome` turns a general 补/泻 clause that contradicts a pure excess or deficiency syndrome into 「针用泻法/补法」. Clauses naming a point, 平补平泻 and 「按虚补实泻」 are left alone (醒脑开窍's 「三阴交用提插补法」 is a fixed method).
+  - `clinicalTreatmentScheduleWording` rewrites 复评 and drops the 课程索引 sentence. The delivery projection uses the same function and still drops 「实际取穴…由现场医师复核」.
+  - The textbook's 「外感…；内伤…」 sentence keeps only the half that matches the syndrome. Other projects no longer borrow the acupuncture operation as their schedule (an auricular card said 「外感咳嗽针用泻法，肺俞可配闪罐」).
+  - `signedSyndromeDeficiencyExcess` is the single deficiency/excess predicate (variant choice, bloodletting, manipulation; there were three copies).
+- **Syndrome matching for add-points.** 「阴阳两虚」 parsed as the generic 虚 only, so any deficiency syndrome (肾阴亏虚, 肝肾不足) got 关元/命门. It is now listed under both 阴虚 and 阳虚 in `tcm-syndrome-label-concepts.source.json`, like 气血两虚. A textbook label with no nature concept (消渴 上消/中消/下消) is compared through the 「为X」 at the end of its key symptoms.
+- **A catalog template matched through an incidental symptom now yields to the disease's own textbook plan even when the template is syndrome-tailored.** 甲流 used to get the headache template, and a 遗尿 child got the post-infection respiratory template through the shared syndrome name 肺脾气虚. `test:customer-review-20260810` ⑪ has a textbook-card branch for this.
+- **The negation sanitizer rewrote a differential's typical manifestation** (肠结 「腹痛、呕吐、无排气排便」 → 「否认腹痛；未诉呕吐」). `typicalManifestation` describes the other disease, so it is exempt in JSON, and its rendered 「常见：」 clause is exempt in prose.
+- **方义 losing herb names.**
+  - 「芳香」 was an unreviewed medium-confidence alias of 白芷 in the identity catalog (`unique_source_backed`). 「香薷辛温芳香」 counted as a foreign herb and the 君药 clause was deleted. Fixed with supplement row `ADJ-WEB-20261014-DESCRIPTOR`, regenerated with `build-tcm-governance-tables.py`; the diff was that row plus hashes.
+  - A clause that names own herbs and a foreign one now loses only the foreign name, and 「二药/三臣」 are recounted (「黄柏、苍术二药共为君」 with 苍术 pruned had become 「直清下注足部之湿热」).
+- **Precautions, care and the non-dose page.**
+  - `casePrecautions` in the compiler:
+    - no 「如已怀孕或备孕」 clause for a recorded pregnancy (the rest of the line stays);
+    - no administration lines (温服, 服药后…) while the gate says red flag.
+  - The non-dose page drops only the clause the dose mask rewrote (「每日食盐控制在（剂量以审定处方为准）以下」), not the whole line.
+  - Western differentials that the model itself marks 「不适用」 are dropped.
+  - The textbook differential fallback no longer says 「教材列为本病的鉴别病证」 or 「本病与X相鉴别。」.
+  - The label 「频次/复评」 is now 「频次/疗程」 (page and Markdown).
+
+**Measured after these fixes (`~/runlogs/fix1014/out/e4-*`, fresh generation; scanner `~/runlogs/fix1014/scripts/scan-defects.py`).**
+- Defect counts on the 190 synthetic cases, before (e1) → after (e4):
+
+  | Defect | e1 | e4 |
+  |---|---|---|
+  | 复评/课程索引 on cards | 29 | 0 |
+  | 教材 fallback meta wording | 16 | 1 (model-written) |
+  | acupuncture operation as another project's schedule | 13 | 0 |
+  | 进针深度 on cupping | 12 | 0 |
+  | 大黄 先煎 | 10 | 3 (copied one-of string; fixed after the run) |
+  | 外感 operation on an internal syndrome | 4 | 0 |
+  | typical manifestation as the patient's negatives | 4 | 0 |
+  | 「不适用」 Western differentials | 2 | 0 |
+  | masked care lines | 2 | 0 |
+  | 「有X；否认X」 | 5 | 5 (left, see below) |
+
+- Synthetic blocks moved: 中医鉴别 97.9 → 100, 辅助中药饮片 92.4 → 94.9, 注意事项 96.8 → 98.1. 追问 98.9 → 98.4 (screening questions; M02 untouched). 工程用语 100 → 99.5 (「次级病机」 in 方义, rewritten since). The other blocks did not move.
+- History cases: every block ≥ 94%. 红旗 51/52: rf-lowtemp, see below.
+- Customer's ten standard cases × 3: disease 30/30, syndrome 27/30, formula 30/30.
+- Medians: question 5.8 s, diagnose 9.8 s, prescribe 10.7 s.
+- Regenerating the identity catalog also requires `build:nihaisha-fusion`: its manifest records the catalog hash, and `test:nihaisha-fusion` fails otherwise. Core herbs and the classic index did not change.
+
+**Left as is after the third review.**
+- **rf-lowtemp is model variance, not a regression.** The case is a 76-year-old with T 35.5 ℃, drowsiness, slowed responses and hypothyroid medication stopped. Only the facts layer raises it. In 6 fresh extractions on this code, 1 graded the metabolic finding `urgent` instead of `emergency`, so the gate stayed `needs_information` and dose was released; the e4 run hit the same draw. Its inputs and prompt did not change this round.
+  - A deterministic floor would fit the numeric-threshold exception: T ≤ 35.5 ℃ plus a recorded consciousness change (嗜睡/反应迟钝/意识模糊).
+  - It needs a class fixture and a gate corpus replay, and it is a safety-gate change, so it is left for the owner.
+- **Mixed polarity in the negation sanitizer.** A record with both 「手心脚心发热」 or 「发热感」 and 「无发热」 gets 「有发热；否认发热」 in a differential. This is the frozen open-language polarity class: it needs a class fixture and a corpus replay in both directions.
+- **Western names more specific than the record:**
+  - 缺铁性贫血 without iron studies;
+  - PCOS with a normal ultrasound and normal hormones;
+  - functional dyspepsia after two weeks.
+
+  The narrow check says consistent. A criteria-count variant of rule B was measured on 252 saved cases and rejected: it still passed PCOS and brought back the 冠心病/T 波 false positive.
+- **A suspected OCR typo.** 遗尿·肺脾气虚 in 《针灸治疗学》 reads 「配肝腧、脾俞」 in the scanned text. It is probably 肺俞 (the other textbook gives 肺俞、气海、足三里), but it was not changed without the original page; web search found no copy.
+- **Dropped textbook differential names.** A name that normalization drops (抱儿痨, 脱汗) still falls back to textbook text. Keeping every textbook-listed name would also let Western names through (an ICD-10 filter missed 胰腺炎 and 尖锐湿疣), against the 9.24 rule that TCM differentials list TCM names only.
+- **Model judgement:**
+  - follow-up questions that repeat recorded items;
+  - 加减 adding sedatives for incidental insomnia;
+  - no antibiotic advice for 丹毒 with leukocytosis.
+
 **Left for decision.** Women trying to conceive still get a non-dose page. Research (`D-tcm-rules.md` §5): the textbook and the 2023 infertility guideline prescribe dosed decoctions to them, including pregnancy-caution herbs; the recommended rule would keep the dose, exclude the 37 pregnancy-prohibited herbs and annotate the 60 caution herbs. This is a dose-authorization boundary, so it waits for the owner.
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)

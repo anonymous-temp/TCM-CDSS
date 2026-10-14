@@ -22,7 +22,8 @@ import {
 import { affirmedClinicalText } from "./clinical-polarity";
 import { assessPregnancyState } from "./clinical-state";
 import { pregnancyScreenRequired } from "./diagnosis-safety";
-import { textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
+import { manipulationMatchedToSyndrome, textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
+import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
 type DeliveryMode = "onsite" | "referral";
 type DeploymentCapability = {
@@ -452,8 +453,10 @@ function controlledTreatmentPlan(
     const templateOffDisease = chiefComplaint.length > 0 && templateMatchedOn.length > 0 &&
       !templateMatchedOn.some((term) => chiefComplaint.includes(term)) &&
       !governedTemplate.matchAny.some((term) => (textbookContext?.diseaseNames || []).some((name) => name.includes(term) || term.includes(name)));
-    if (!syndromeTailored && textbookPlan &&
-      (tcmTreatmentProjectIsPointFree(projectCode) || !pointsGoverned || catalogSpecificPoints < 3 || templateOffDisease)) {
+    // 对的是别的病的模板，按证型加减过也不用（2026-10-14 独立评审：遗尿·肺脾气虚的患儿，因证名与「感染后呼吸康复」模板的匹配词
+    // 「肺脾气虚」相同，针刺卡写成「按肺脾气虚取穴，针对本例感冒」，取的是反复感冒的穴）。
+    if (textbookPlan && (templateOffDisease || (!syndromeTailored &&
+      (tcmTreatmentProjectIsPointFree(projectCode) || !pointsGoverned || catalogSpecificPoints < 3)))) {
       return { ...fromTextbook(textbookPlan), ...deferredGovernedTemplate };
     }
     // 「取穴」只对取穴类项目成立；食疗/导引/意疗说「取穴」是甲方 9.24/9.27 测评点名的错误（食疗还需要取穴针刺吗）。
@@ -1106,7 +1109,9 @@ export function compileTcmTreatmentRecommendations(
         ? "当前仅作转介或现场评估方向，不代表本机构可开展。"
         : undefined);
     const matchedIndicationTags = nodeIndicationTags(prior, node, currentFactFallback);
-    const treatmentPlan = controlledTreatmentPlan(
+    const signedSyndromeText = [prior.overview.primarySyndrome, ...(Array.isArray(prior.overview.secondarySyndromes) ? prior.overview.secondarySyndromes : [])]
+      .filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；");
+    const plannedTreatment = controlledTreatmentPlan(
       definition.code,
       matchedIndicationTags,
       node.pathogenesis || node.syndromeEvidence || prior.overview.overallPathogenesis,
@@ -1133,11 +1138,19 @@ export function compileTcmTreatmentRecommendations(
       {
         diseaseNames: [prior.overview.tcmDiseaseName || ""].filter(Boolean),
         westernNames: [prior.westernDiagnosis?.primary?.name || ""].filter(Boolean),
-        signedSyndromeText: [prior.overview.primarySyndrome, ...(Array.isArray(prior.overview.secondarySyndromes) ? prior.overview.secondarySyndromes : [])]
-          .filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；"),
+        signedSyndromeText,
         chiefComplaint: typeof caseState?.chiefComplaint === "string" ? caseState.chiefComplaint : "",
       },
     );
+    // 教材卡与院内目录卡在这里过同一道：针刺的补泻手法与已签名证候相符（失眠模板写的是「留针用补法」），
+    // 疗程栏与操作栏不写流程用语（「复评」「课程索引」「由现场医师复核」）。
+    const cardText = (value: string) => clinicalTreatmentScheduleWording(
+      definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText) : value);
+    const treatmentPlan = {
+      ...plannedTreatment,
+      ...(typeof plannedTreatment.techniqueBoundary === "string" ? { techniqueBoundary: cardText(plannedTreatment.techniqueBoundary) } : {}),
+      ...(typeof plannedTreatment.scheduleSuggestion === "string" ? { scheduleSuggestion: cardText(plannedTreatment.scheduleSuggestion) } : {}),
+    };
     return [{
       projectCode: definition.code,
       projectName: definition.name,

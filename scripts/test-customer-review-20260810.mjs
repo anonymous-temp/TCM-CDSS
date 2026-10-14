@@ -190,6 +190,15 @@ for (const [label, left, right, chief, present] of SYNDROME_PAIRS) {
     assert.notDeepEqual(a.suggestedSitesOrPoints, b.suggestedSitesOrPoints,
       `${label} 两个证型的穴位逐字相同：${a.suggestedSitesOrPoints.join("、")}`);
     for (const item of [a, b]) {
+      // 2026-10-14：目录模板只是按伴随症状对上的（甲流病例因「头痛」对上头痛门诊模板），而本病在教材里有自己的方案时，
+      // 用教材方案（感冒节：风寒加风门、肺俞，风热加曲池、尺泽），即使该模板已按证型加减过。教材卡的配穴出自教材原文、
+      // 逐条核对过，标为按证型加减；它不走下面那套目录终审台账，单独核它真的按本例证型加了穴。
+      if (/「[^」]+」节/.test(item.protocolSource || "")) {
+        assert.equal(item.protocolStatus, "governed_patient_specific_plan", `${label} 教材方案按证型配穴`);
+        assert.ok(item.suggestedSitesOrPoints.some((site) => /加减）|加减；/.test(site)),
+          `${label} 教材方案至少一个穴位应带证型加减的入选依据：${item.suggestedSitesOrPoints.join("、")}`);
+        continue;
+      }
       // 2026-08-11 收紧：命中证型加减**不再等于**可以标「按证型加减」。
       // 该条配穴还要通过逐条终审台账（tcm-acupoint-syndrome-refinement-adjudications）。
       // 未终审时正确行为是降级为病种模板态、不应用加穴、并把未采用的加减如实下发——

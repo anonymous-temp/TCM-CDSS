@@ -18,6 +18,7 @@
 
 import { compositionIdentityName, formulaCompilationReferences } from "./tcm-formula-provenance";
 import { textbookDifferentialsForDisease, textbookFormulaLabel, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
 type Json = Record<string, unknown>;
 
@@ -153,6 +154,11 @@ function deliveredDiagnose(reasoning: Json): void {
     primary.suggestedChecks = [];
   }
   for (const item of records(western?.differentials)) item.name = deliveredDifferentialName(item.name);
+  // 模型自己写明「不适用」的鉴别项（女性病例列前列腺增生、男性病例列异位妊娠，理由写「本例为男性患者，不适用」）不列（2026-10-14 独立评审）。
+  if (western && Array.isArray(western.differentials)) {
+    western.differentials = records(western.differentials).filter((item) =>
+      !/不适用/.test(`${typeof item.reason === "string" ? item.reason : ""}${typeof item.distinguishingPoints === "string" ? item.distinguishingPoints : ""}`));
+  }
   // 「某某类病」是国标里的分类名，不是病名（测评截图里的「痹证类病」「虚劳类病」）。
   const overview = record(reasoning.overview);
   if (overview && typeof overview.tcmDiseaseName === "string") overview.tcmDiseaseName = overview.tcmDiseaseName.replace(/类病$/u, "");
@@ -163,11 +169,16 @@ function deliveredDiagnose(reasoning: Json): void {
     // 教材一句话列几个病（「本病应与甲、乙、丙相鉴别」）时，这几个病取到的是同一句：同一句只用一次。
     const textbookDifferentials = textbookDifferentialsForDisease(overview.tcmDiseaseName)
       .filter((item, index, list) => list.findIndex((other) => other.text === item.text) === index);
+    // 理由不写来源口吻（「教材列为本病的鉴别病证」），要点去掉「本病与X相鉴别。」这类开场句（2026-10-14 独立评审：元话语）。
+    // 教材对鉴别病的描述照列；按本例写区分要点的是辨证阶段的补写（tcm-disease-differential-authoring），这里只是它没写出时的兜底。
     if (textbookDifferentials.length > 0) {
       overview.tcmDiseaseDifferentials = textbookDifferentials.map((item) => ({
         diseaseName: item.name,
-        reason: "主症相近，教材列为本病的鉴别病证",
-        distinguishingPoints: item.text,
+        reason: "主症相近",
+        distinguishingPoints: item.text
+          .replace(/^(?:本病|本证)?(?:应|需|须)?与[^。；;]{1,40}(?:相)?鉴别[。；;]\s*/u, "")
+          .replace(/。[；;]/g, "。")
+          .trim() || item.text,
         typicalManifestation: "",
         nextCheck: null,
       }));
@@ -282,11 +293,12 @@ function deliveredPrescribe(reasoning: Json): void {
   }
   for (const treatment of records(nonPharma?.tcmTreatments)) {
     for (const key of ["scheduleSuggestion", "techniqueBoundary"]) {
+      // 先去掉「实际取穴由现场医师复核」「实际间隔与疗程由面诊医生…确定 / 调整」这类操作人员要求，
+      // 再按出卡处同一个函数改写流程用语（此前已签名、仍在回放的结果也按同一口径）。
       if (typeof treatment[key] === "string") {
-        treatment[key] = String(treatment[key])
-          .replace(/疗程由复评决定。?/g, "")
-          .replace(/[；;，,]?\s*实际(?:取穴|间隔与疗程)[^。；;]*?(?:复核|确定)。?/g, "。")
-          .replace(/。{2,}/g, "。").replace(/^[。；;，,\s]+/, "").trim() || String(treatment[key]);
+        const original = String(treatment[key]);
+        treatment[key] = clinicalTreatmentScheduleWording(original
+          .replace(/[；;，,]?\s*实际(?:取穴|间隔与疗程)[^。；;]*?(?:复核|确定|调整)。?/g, "。")) || original;
       }
     }
     if (Array.isArray(treatment.suggestedSitesOrPoints)) {

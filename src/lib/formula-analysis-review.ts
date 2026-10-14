@@ -120,6 +120,30 @@ function clauseBounds(text: string, index: number): { start: number; end: number
   return { start, end };
 }
 
+const CHINESE_NUMERAL = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+
+/**
+ * 提到外来药的分句怎么改（2026-10-14 独立评审）：分句里没有本方药时整句删（原行为）；分句里也点了本方药时，
+ * 只删外来药名和它旁边的一个顿号/连词，本方药名留下，同句的「二药」「三味」按剩下的本方药味数改写——
+ * 此前整句删，「黄柏、苍术二药共为君」（苍术已被剔出本方）删成了没有君药名的「直清下注足部之湿热」。
+ */
+function withoutForeignHerbNames(clause: string, foreignSpans: readonly Span[], ownCount: number): string {
+  if (ownCount === 0) return "";
+  let out = clause;
+  for (const span of [...foreignSpans].sort((left, right) => right.start - left.start)) {
+    let start = span.start;
+    let end = span.end;
+    if (/[、和及与]/.test(out[start - 1] || "")) start -= 1;
+    else if (out[end] === "、") end += 1;
+    out = `${out.slice(0, start)}${out.slice(end)}`;
+  }
+  return out
+    .replace(/([一二两三四五六七八九])(药|味)(共)?/g, (_match, _numeral: string, unit: string, together: string | undefined) =>
+      ownCount >= 2 ? `${CHINESE_NUMERAL[ownCount] || ""}${unit}${together || ""}` : "")
+    .replace(/([二两三四五六七八九])(臣|佐)/g, (match: string, _numeral: string, unit: string) =>
+      ownCount >= 2 ? `${CHINESE_NUMERAL[ownCount] || ""}${unit}` : match);
+}
+
 function tidyPunctuation(text: string): string {
   return text
     .replace(/([，,；;、])\s*(?=[，,；;。])/g, "")
@@ -135,6 +159,15 @@ function replaceInternalReferences(text: string, nodeLabels: Readonly<Record<str
   let next = text.replace(/(?:与)?M0[1-5](?:已)?(?:锁定|签名)?(?:的|之)?/g, (match) => {
     changed = true;
     return match.startsWith("与") ? "与本例" : "本例";
+  });
+  // 提示词里的系统说法被模型写进方义：「分治脾肾两层次级病机」（2026-10-14 全量复测 190 例中 1 例）、
+  //「与本例已锁定治法方向不符」（同日独立评审）。改成病机、本例的原话说法。
+  next = next.replace(/次级病机(?:节点)?|病机节点/g, () => {
+    changed = true;
+    return "病机";
+  }).replace(/(?:本例)?已锁定(?:的|之)?(?=治法|证候|方向|病机)/g, () => {
+    changed = true;
+    return "本例";
   });
   next = next.replace(/[（(]\s*P\d+\s*[）)]/g, () => {
     changed = true;
@@ -210,12 +243,20 @@ export function reviewAuthoredFormulaAnalysis(
   }
   const foreignHerbs = [...new Set(foreign.map((item) => item.token))];
   if (foreign.length > 0) {
-    // 从后往前删，下标不漂移；同一分句多味外来药只删一次。
-    const removals = [...new Map(foreign.map((item) => {
+    // 从后往前改，下标不漂移；同一分句多味外来药一并处理。
+    const clauses = [...new Map(foreign.map((item) => {
       const bounds = clauseBounds(text, item.start);
       return [`${bounds.start}:${bounds.end}`, bounds] as const;
     })).values()].sort((left, right) => right.start - left.start);
-    for (const bounds of removals) text = `${text.slice(0, bounds.start)}${text.slice(bounds.end)}`;
+    for (const bounds of clauses) {
+      const inside = (span: Span) => span.start >= bounds.start && span.end <= bounds.end;
+      const kept = withoutForeignHerbNames(
+        text.slice(bounds.start, bounds.end),
+        foreign.filter(inside).map((span) => ({ ...span, start: span.start - bounds.start, end: span.end - bounds.start })),
+        new Set(mentions.filter(inside).map((span) => identityOf(span.token)).filter((identity) => ownIdentities.has(identity))).size,
+      );
+      text = `${text.slice(0, bounds.start)}${kept}${text.slice(bounds.end)}`;
+    }
     adjustments.push("foreign_clause_removed");
   }
   text = tidyPunctuation(text);

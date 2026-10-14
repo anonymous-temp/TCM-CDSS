@@ -1,7 +1,7 @@
 import { discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
 import { pediatricDoseRuleForAgeYears } from "./pediatric-dose-rule";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
-import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement } from "./herb-decoction-rules";
+import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement, SPECIAL_DECOCTION_ORDER, specialDecoctionOrderIndex } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
 import { formulaSyndromeConflictNotice, formulaSyndromeConflicts } from "./formula-syndrome-consistency";
 import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesisCells, normalizeFormulaStructureRole } from "./herb-target-contract";
@@ -1705,22 +1705,7 @@ export function applyDeterministicTreatmentPrinciple(content: string): string {
   }
 }
 
-/**
- * 需要在煎服用法里点名的特殊煎法，按煎药的先后顺序排列。「捣碎」之类不改变下药顺序的不在此列。
- * 先煎且久煎的毒性药（药典：附子、制川乌、制草乌「先煎，久煎」）单列在最前：此前它们与龙骨、牡蛎并在一起写「先煎20–30分钟」，
- * 而药味表里标的是「先煎、久煎」，两处不一致，时间也不够（2026-10-14 独立评审，7 岁患儿方中有附子）。
- * 时长取《中药学》总论：「附子、川乌、草乌等毒性大的药物，宜先煎45～60分钟后再下它药」；附子条：「先煎，久煎，口尝至无麻辣感为度」。
- */
-const SPECIAL_DECOCTION_ORDER: ReadonlyArray<{ pattern: RegExp; phrase: (herbs: string) => string }> = [
-  { pattern: /久煎/, phrase: (herbs) => `${herbs}先煎45–60分钟（至口尝无麻辣感）` },
-  { pattern: /先煎/, phrase: (herbs) => `${herbs}先煎20–30分钟` },
-  { pattern: /后下/, phrase: (herbs) => `${herbs}后下` },
-  { pattern: /包煎/, phrase: (herbs) => `${herbs}包煎` },
-  { pattern: /另煎|另炖/, phrase: (herbs) => `${herbs}另煎兑入` },
-  { pattern: /烊化/, phrase: (herbs) => `${herbs}烊化兑服` },
-  { pattern: /冲服|冲入|兑服/, phrase: (herbs) => `${herbs}冲服（不入煎）` },
-];
-
+/** 需要在煎服用法里点名的特殊煎法：按煎药的先后顺序分组，同组的药并在一句里写（见 herb-decoction-rules 的 SPECIAL_DECOCTION_ORDER）。 */
 function specialDecoctionClauses(herbs: readonly unknown[]): string[] {
   const groups = SPECIAL_DECOCTION_ORDER.map(() => [] as string[]);
   for (const rawHerb of herbs) {
@@ -1728,9 +1713,7 @@ function specialDecoctionClauses(herbs: readonly unknown[]): string[] {
     const name = typeof herb?.name === "string" ? herb.name.trim() : "";
     if (!name) continue;
     const declared = typeof herb?.decoctionRequirement === "string" ? herb.decoctionRequirement : "";
-    // 药典数据要求的煎法优先；模型自己标了而药典没有要求的（如钩藤后下）同样点名。
-    const requirement = `${requiredDecoctionRequirement(name) || ""}、${declared}`.replace(/(?:禁止|不宜|不可|不得)[^、；;，,]*/g, "");
-    const index = SPECIAL_DECOCTION_ORDER.findIndex((item) => item.pattern.test(requirement));
+    const index = specialDecoctionOrderIndex(name, declared);
     if (index >= 0 && !groups[index].includes(name)) groups[index].push(name);
   }
   return groups.flatMap((names, index) => names.length > 0 ? [SPECIAL_DECOCTION_ORDER[index].phrase(names.join("、"))] : []);
@@ -4007,7 +3990,7 @@ function renderPrescribeWarningProjection(
           ...(item.sitesOrPoints && item.sitesOrPoints.length > 0
             ? [`- **穴位/部位**：${joinClinicalClauses(item.sitesOrPoints.map(markdownCell), "；")}`]
             : []),
-          ...(item.schedule ? [`- **频次/复评**：${markdownCell(item.schedule)}`] : []),
+          ...(item.schedule ? [`- **频次/疗程**：${markdownCell(item.schedule)}`] : []),
         );
       }
     }

@@ -213,3 +213,46 @@ export function decoctionRuleSatisfied(value: string, declaration: string): bool
   })) return false;
   return true;
 }
+
+/**
+ * 需要在煎服用法里点名的特殊煎法，按煎药的先后顺序排列。「捣碎」之类不改变下药顺序的不在此列。
+ * 先煎且久煎的毒性药（药典：附子、制川乌、制草乌「先煎，久煎」）单列在最前：此前它们与龙骨、牡蛎并在一起写「先煎20–30分钟」，
+ * 而药味表里标的是「先煎、久煎」，两处不一致，时间也不够（2026-10-14 独立评审，7 岁患儿方中有附子）。
+ * 时长取《中药学》总论：「附子、川乌、草乌等毒性大的药物，宜先煎45～60分钟后再下它药」；附子条：「先煎，久煎，口尝至无麻辣感为度」。
+ * 煎服行（diagnosis-visible-summary）与随证加减的处理说明（m04-proposal-compiler）用这同一张表。
+ */
+export const SPECIAL_DECOCTION_ORDER: ReadonlyArray<{ pattern: RegExp; phrase: (herbs: string) => string }> = [
+  { pattern: /久煎/, phrase: (herbs) => `${herbs}先煎45–60分钟（至口尝无麻辣感）` },
+  { pattern: /先煎/, phrase: (herbs) => `${herbs}先煎20–30分钟` },
+  { pattern: /后下/, phrase: (herbs) => `${herbs}后下` },
+  { pattern: /包煎/, phrase: (herbs) => `${herbs}包煎` },
+  { pattern: /另煎|另炖/, phrase: (herbs) => `${herbs}另煎兑入` },
+  { pattern: /烊化/, phrase: (herbs) => `${herbs}烊化兑服` },
+  { pattern: /冲服|冲入|兑服/, phrase: (herbs) => `${herbs}冲服（不入煎）` },
+];
+
+/**
+ * 这味药在 SPECIAL_DECOCTION_ORDER 里归哪一组（-1 表示不必点名）。药典数据要求的煎法优先；模型自己标了而药典没有要求的
+ *（如钩藤后下）同样点名。药典给的是几选一时（大黄「后下或先煎或冲服」），以这味药实际标注的那一种为准，没有标注取所列的第一种——
+ * 此前把几选一整串拿来按字面匹配，先碰到「先煎」：药味表写「大黄（后下）」，煎服行却写「大黄先煎20–30分钟」
+ *（2026-10-14 独立评审留出样本，含大黄的 5 例全中）。
+ */
+export function specialDecoctionOrderIndex(name: string, declared = ""): number {
+  const rule = decoctionRuleForHerb(name);
+  let rest = declared;
+  const chosenAlternatives = (rule?.oneOf || []).map((alternatives) => {
+    const named = alternatives.filter((alternative) => declared.includes(alternative));
+    // 只点了其中一种才算选定。把几选一整串照抄（药味表写「大黄（后下或先煎或冲服、禁止久煎）」）不是选择，取所列第一种；
+    // 这几个字也不再参与下面的匹配——此前整串留在声明里，先碰到「先煎」（2026-10-14 全量复测 190 例中 3 例）。
+    for (const alternative of alternatives) rest = rest.split(alternative).join("");
+    return named.length === 1 ? named[0] : alternatives[0];
+  });
+  const requirement = [...(rule?.required || []), ...chosenAlternatives, rest].join("、").replace(/(?:禁止|不宜|不可|不得)[^、；;，,]*/g, "");
+  return SPECIAL_DECOCTION_ORDER.findIndex((item) => item.pattern.test(requirement));
+}
+
+/** 单味药的特殊煎法说明（「附子先煎45–60分钟（至口尝无麻辣感）」）；不必点名时为空串。 */
+export function specialDecoctionPhrase(name: string, declared = ""): string {
+  const index = specialDecoctionOrderIndex(name, declared);
+  return index >= 0 ? SPECIAL_DECOCTION_ORDER[index].phrase(name) : "";
+}
