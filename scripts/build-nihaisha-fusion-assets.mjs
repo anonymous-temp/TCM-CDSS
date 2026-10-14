@@ -323,19 +323,19 @@ const formulaCompositionRulesSeed = {
   entries: [
     {
       formulaName: "桂枝汤",
-      summary: "桂枝与芍药一散一收，配合生姜、大枣、炙甘草调和营卫并顾护中焦；是否适用仍取决于汗出、恶风和脉象等患者事实。",
+      summary: "桂枝与芍药一散一收，配合生姜、大枣、炙甘草调和营卫并顾护中焦；适用于汗出、恶风、脉浮缓的表虚证。",
       tier: "common",
       sourceRefs: ["formula-patterns.md#太阳病方证", "pdf-evidence:58423f817a06"],
     },
     {
       formulaName: "麻黄汤",
-      summary: "麻黄、桂枝协同解表，杏仁宣降肺气，炙甘草调和；发汗方向必须先核实津液、汗出与禁汗线索。",
+      summary: "麻黄、桂枝协同解表，杏仁宣降肺气，炙甘草调和；适用于恶寒无汗而喘的表实证；汗出、津液已伤者不宜。",
       tier: "common",
       sourceRefs: ["formula-patterns.md#太阳病方证", "six-channel.md#太阳病"],
     },
     {
       formulaName: "小柴胡汤",
-      summary: "柴胡疏解少阳，黄芩清少阳郁热，半夏、生姜和胃降逆，人参、大枣、甘草顾护中气；不得由单个“寒热”词机械锁方。",
+      summary: "柴胡疏解少阳，黄芩清少阳郁热，半夏、生姜和胃降逆，人参、大枣、甘草顾护中气；须见往来寒热、胸胁苦满、口苦咽干等少阳证候。",
       tier: "common",
       sourceRefs: ["formula-patterns.md#少阳与变证方证", "six-channel.md#少阳病"],
     },
@@ -353,31 +353,31 @@ const formulaCompositionRulesSeed = {
     },
     {
       formulaName: "猪苓汤",
-      summary: "猪苓、茯苓、泽泻利水，滑石通淋，阿胶兼顾阴血；须核对血尿、阴伤与热象，不得仅凭小便不利锁方。",
+      summary: "猪苓、茯苓、泽泻利水，滑石通淋，阿胶兼顾阴血；须见小便不利兼阴伤、热象或尿血。",
       tier: "common",
       sourceRefs: ["formula-patterns.md#阳明病方证", "symptom-index.md#小便不利、尿频、尿血、结石"],
     },
     {
       formulaName: "四逆汤",
-      summary: "附子、干姜温复阳气，炙甘草益气和中并调和峻烈药性；属于高风险回阳方向，只能在现代急症处置和药师审方边界内讨论。",
+      summary: "附子、干姜温复阳气，炙甘草益气和中并调和峻烈药性；为回阳救逆峻剂，附子有毒，须先煎久煎。",
       tier: "common",
       sourceRefs: ["formula-patterns.md#三阴病方证", "six-channel.md#少阴病"],
     },
     {
       formulaName: "黄连阿胶汤",
-      summary: "黄连、黄芩清热，阿胶、芍药与鸡子黄养阴和血；用于阴虚火扰方向的辨证讨论，须与阳虚烦躁方向相鉴别。",
+      summary: "黄连、黄芩清热，阿胶、芍药与鸡子黄养阴和血；用于阴虚火旺、心烦不寐，须与阳虚烦躁相鉴别。",
       tier: "common",
       sourceRefs: ["formula-patterns.md#三阴病方证", "symptom-index.md#睡眠、烦躁、心悸"],
     },
     {
       formulaName: "半夏泻心汤",
-      summary: "辛开、苦降与甘补并用以调和寒热、和胃消痞；必须由心下痞、呕吐、肠鸣下利等症状组合支持，不能由单一胃部不适套方。",
+      summary: "辛开、苦降与甘补并用以调和寒热、和胃消痞；适用于心下痞满、呕吐、肠鸣下利同见者。",
       tier: "common",
       sourceRefs: ["参考/nihaixia-StableV2026.5.23/SKILL.md#方剂辨证"],
     },
     {
       formulaName: "乌梅丸",
-      summary: "酸收、辛温、苦降与益气药同用以处理寒热错杂；含多味高风险药，必须以受控目录、患者事实和处方后审方为准。",
+      summary: "酸收、辛温、苦降与益气药同用以处理寒热错杂；方中附子、细辛有毒，须按药典用量。",
       tier: "common",
       sourceRefs: ["formula-patterns.md#三阴病方证", "six-channel.md#厥阴病"],
     },
@@ -398,10 +398,9 @@ const formulaCompositionRules = {
       if (!governed || !Array.isArray(governed.ingredients) || governed.ingredients.length === 0) return [];
       return [{
         formulaName: node.formulaName,
-        summary:
-          `受控目录组成：${governed.ingredients.join("、")}。` +
-          `目录来源为${governed.source || governed.sourceCatalog || "本地受控方剂目录"}；` +
-          `方证定位为“${node.pattern}”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。`,
+        // 这句会随处方 JSON（formula.candidates[].compositionLogic）和 HIS 方案交给对接方，按临床写法只写组成与出处。
+        // 方证图谱节点的 pattern 是课程笔记的提法（「…方向」「课程强调…」），不进这句（2026-10-14）。
+        summary: `组成：${governed.ingredients.join("、")}。出处：${governed.source || governed.sourceCatalog || "本地方剂目录"}。`,
         ingredients: governed.ingredients,
         source: governed.source || governed.sourceCatalog || "本地受控方剂目录",
         tier: "common",

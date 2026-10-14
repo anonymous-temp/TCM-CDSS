@@ -540,6 +540,42 @@ The second independent review of the 10.12 work (`~/runlogs/fix1012/out/judge2`)
 - **Class fixture:** `scripts/fixtures/open-language-classes/hypothermia-with-consciousness-change.json` (sibling parity against 34.x ℃, plus controls).
 - **Replay:** the corpus did not change. In the evaluation set only rf-lowtemp and S188 changed, both expected red flags.
 
+**Records without tongue/pulse, and records with only the chief complaint (2026-10-14).** The customer asked in the 10.12 evaluation (item 3) whether tongue, face and pulse are required for reasoning. They are not.
+- **Customer's own case:** their 胃痛半月 case was run in production with and without tongue/pulse. Both gave the same disease, syndrome and formula (胃痛 / 肝气犯胃证 / 柴胡疏肝散). Without tongue/pulse:
+  - the syndrome is `bounded`;
+  - tongue and pulse go to uncertainties and `mustCollect`;
+  - M02 asks for them once.
+- **Evaluation set:** across the 101 cases without tongue/pulse, syndrome accuracy equals the cases that have them (84/85 each). No tongue or pulse sign is invented in the patient's basis, rationale or pathogenesis.
+- **What was wrong:** a record that holds only the main symptom (「胃痛3天」「腰部疼痛2周」「腹泻」) got a specific cold/heat/deficiency syndrome and a dosed formula; 12 such records went 22/24 that way. Two causes:
+  - the model took the first textbook row, because the candidate list is in textbook order;
+  - when the model itself wrote a neutral method, `withTextbookSyndromeName` / `textbookNearestRow` could still rename the syndrome onto a row. The anchoring then copied that row's 治法 and 代表方 (温胃散寒, 香苏散合良附丸; 清热利湿, 四妙丸).
+- **Prompt change** (the candidate header plus rule 7 of the M03 prompt):
+  - 「贴合」 needs a recorded feature that separates the row from the disease's other rows. The main symptom and the course length do not count, and the list order is not a likelihood.
+  - With no such feature the model writes:
+    - a neutral functional syndrome name (location + qi disorder, e.g. 胃气不和证, 肺气失宣证);
+    - a regulating method and a mild formula, or a self-devised one;
+    - a rationale that says which separating features are missing, in clinical words.
+  - The level words (工作判断, 有边界, 症状层, 中性) stay out of doctor-facing text. Before the change they appeared in 12 of 32 sparse rationales.
+- **Server change:** `textbookNearestRow` will not rename onto a row whose name adds nature characters the model did not write. This applies when the model's name and method contain none, or when no row's manifestations match the record. Only the winning row is vetoed. Filtering rows before ranking was tried and turned 心神不宁证 into 心肾不交证, because removing competitors widened the margin.
+- **Measured** (local, customer request shape, M03+M04; material in `~/runlogs/tonguepulse-20261014`):
+
+  | Set | Before | After |
+  |---|---|---|
+  | Development (12 records) — clear unsupported commits | about 9 of 12 | 2–3 of 12 |
+  | Held-out 1 | 11 of 12 | 5 of 12 |
+  | Held-out 2 (written after the wording was frozen) | barely moved | barely moved |
+  | Cue-bearing controls (6) | correct | unchanged |
+  | 14 gold cases without tongue/pulse | correct | unchanged (14/14 textbook syndrome) |
+  | 胃痛半月 | correct | unchanged |
+
+  Held-out 2's complaints mostly imply a pattern by themselves (盗汗 → 阴虚, 咽部异物感 → 痰气郁结, 月经量少 → 血虚); that is treated as a cue and is defensible.
+- **Still left:** 头晕 / 耳鸣 / 健忘 → a deficiency syndrome, neck or knee pain → 痹 with 湿, and 瘙痒 → 风热血热 in about a quarter of sparse records.
+- **`compositionLogic` (组成逻辑):** the generator (`build-nihaisha-fusion-assets.mjs`) now writes 「组成：…。出处：…。」.
+  - Before, 155 entries ended with 「仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译」, and 7 quoted course notes (「课程强调…」「糖尿病足课程案例」).
+  - This field goes to HIS (`formulaRationale.compositionLogic`) and the prescription JSON. The page already hid it.
+  - A composition-only entry is not used as the 方义 fallback.
+- **Tests:** `test:eval1014-remediation` §13.
+
 **In production (244ab82, deployed 2026-10-14 14:47 Beijing; tag `20261014-244ab82-prebuilt`, same release directory and `20260927-dsrepair` override).**
 - **Deploys:** 60e0f12 (third-review fixes) went out first at 13:40, then 244ab82 (conception dosing + hypothermia floor).
 - **Switch:** the override now also sets `CDSS_M02_PROCEED_WHEN_SETTLED: "true"` (user decision: `decision=proceed` was always in the documented interface, §4.3).

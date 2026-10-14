@@ -370,7 +370,7 @@ export function buildTextbookCandidateContext(input: TextbookCaseInput): string 
       `  - ${row.syndromeName}｜主症：${cut(row.manifestations, 90)}｜治法：${row.therapy}｜代表方：${formulaLabel(row)}`),
   ]);
   return [
-    "【教材病证候选】（按与本例主诉、症状的相近程度从规划教材中取出；病名、证名、治法、代表方均为教材原文。其中有贴合本例的一行时，病名与证名逐字采用、治法以该行为准、推荐方用该行代表方；都不贴合时再自行辨证）",
+    "【教材病证候选】（按与本例主诉、症状的相近程度从规划教材中取出；病名、证名、治法、代表方均为教材原文。其中有贴合本例的一行时，病名与证名逐字采用、治法以该行为准、推荐方用该行代表方；都不贴合时再自行辨证。同一病下各证型按教材顺序排列，先后不表示可能性大小。「贴合」指该行主症里能把它与同病其他证型分开的表现——寒热、虚实、诱因、伴随症状或舌脉——至少有一项已见于本例记录；本例只记录了本病主症本身时，没有哪一行贴合）",
     ...lines,
   ].join("\n");
 }
@@ -615,6 +615,9 @@ function charJaccard(left: string, right: string): number {
  * 第一名要够高、且明显高于第二名才认——认不准就不改，保留模型写的证名。
  * 合成测试集实测：病名对而证名不是教材写法的约占一成，多数是这种近义写法。
  */
+/** 证名里表示病性的字（有限闭集）：寒热、痰湿瘀、燥毒、虚实所在的阴阳气血、食积水饮。 */
+const TEXTBOOK_NATURE_WORDS = /寒|热|火|湿|痰|瘀|燥|毒|虚|亏|不足|衰|阴|阳|血|食|饮|风/g;
+
 export function textbookNearestRow(
   diseaseName: string,
   syndromeName: string,
@@ -629,6 +632,14 @@ export function textbookNearestRow(
   const tonguePulse = rawEvidence.replace(/舌苔/g, "苔");
   const scored = section.rows.map((row) => ({ row, score: rowScore(row, affirmedEvidence, rawEvidence, tonguePulse) }));
   const top = Math.max(...scored.map((item) => item.score), 0);
+  // 改名只做同义写法的归一，不替模型新下病性（2026-10-14）。两种情形不得改成带有模型自己没写的病性字的一行：
+  //  · 模型的证名与治法里一个病性字都没有——它有意写了中性证名（只记录「腰部疼痛2周」，写「经络不通证」、通络止痛），
+  //    教材「湿热腰痛」的主症「腰部疼痛…」只是复述了主诉，不能据此改成湿热再带出清热利湿与四妙丸；
+  //  · 病历与哪一行的主症都对不上，改名只凭字面相近。
+  const modelWords = `${syndromeName}${method}`;
+  const modelNatureWords = modelWords.match(TEXTBOOK_NATURE_WORDS) || [];
+  const addsNature = (row: TextbookSyndromeRow) => (top === 0 || modelNatureWords.length === 0) &&
+    (row.syndromeName.match(TEXTBOOK_NATURE_WORDS) || []).some((word) => !modelWords.includes(word));
   const ranked = scored
     .map(({ row, score }) => ({
       row,
@@ -638,5 +649,7 @@ export function textbookNearestRow(
   const [first, second] = ranked;
   if (!first || first.combined < 1.3) return undefined;
   if (second && first.combined - second.combined < 0.2) return undefined;
+  // 只否决胜出的那一行，不先把行剔掉再排：剔掉竞争者会让原本「认不准」的近似行变成明显第一。
+  if (addsNature(first.row)) return undefined;
   return first.row;
 }

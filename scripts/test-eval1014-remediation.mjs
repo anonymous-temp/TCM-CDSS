@@ -18,6 +18,8 @@
 //  10 注意事项按本例收口：已确认妊娠不写「如已怀孕」的假设小句；红旗未解除不写怎么服这张方
 //  11 鉴别对象的「典型表现」不按本例阴性净化（JSON 字段与正文「常见：」一句同一口径）
 //  12 方义核对：「芳香」不是药名（旧目录把它归成白芷）；分句里同时有本方药和外来药时只删外来药名
+//  13 只记录主症、没有能分证型的表现时不套教材证型：提示词说明「贴合」的含义与中性写法；服务端改名不替模型新下病性；
+//     组成逻辑按临床写法只写组成与出处，且这种条目不顶替方义
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
@@ -833,6 +835,68 @@ const checkAsync = async (name, run) => {
     assert.match(out.text, /防己、薏苡仁二臣分消湿热/);
     assert.doesNotMatch(out.text, /苍术|蚕沙|鲜扁豆花|清暑化湿/);
     assert.match(out.text, /滑石、赤小豆清利湿热/);
+  });
+}
+
+// ───── 13 稀疏病历不套教材证型 ─────
+// 只记录「胃痛3天」「腰部疼痛2周」这类主症本身时，模型照教材候选的先后套第一条（寒邪客胃证、风寒头痛），服务端再按这一行
+// 换上温胃散寒、香苏散合良附丸并给剂量；12 个只有主症的病例改前 24/24 次都这样（~/runlogs/tonguepulse-20261014）。
+{
+  const fs = await import("node:fs");
+  const { textbookNearestRow, buildTextbookCandidateContext } = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
+  const { withDeterministicFormulaReferences } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+  const { applyDeterministicFormulaAnalysis } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  check("13.1 模型写了不带病性的中性证名：改名不把它改成带寒热湿热的教材证型；同义写法照常归一（对照）", () => {
+    assert.equal(textbookNearestRow("腰痛", "经络不通证", "通络止痛", "腰痛2周，腰部疼痛2周"), undefined);
+    assert.equal(textbookNearestRow("胃痛", "胃气不和证", "理气和胃，通络止痛", "胃痛3天"), undefined);
+    assert.equal(textbookNearestRow("不寐", "心神不宁证", "宁心安神", "入睡困难，多梦易醒"), undefined, "否决只针对胜出行，不先剔行再排（剔掉竞争者曾把它改成心肾不交证）");
+    assert.equal(textbookNearestRow("阳痿", "肾阳不足证", "温肾壮阳", "阳事不举，腰膝酸软，畏寒肢冷")?.syndromeName, "命门火衰证");
+    assert.equal(textbookNearestRow("胃痛", "瘀血停胃证", "化瘀通络，理气和胃", "胃脘刺痛，痛有定处，按之痛甚")?.syndromeName, "瘀血停滞证");
+    assert.equal(textbookNearestRow("胃痛", "胃寒证", "温胃散寒止痛", "胃痛3天")?.syndromeName, "寒邪客胃证", "模型自己写了寒，改成教材写法照旧");
+  });
+  const neutral = (syndrome, method) => withDeterministicFormulaReferences({
+    stage: "diagnose",
+    overview: {
+      tcmDiseaseName: "腰痛", primarySyndrome: syndrome, primarySyndromeResolution: "bounded",
+      primarySyndromeBasis: ["腰痛2周", "腰部疼痛2周"], recommendedFormulaDirection: "按已锁定病机与治法辨证组方",
+      tcmDiagnosticRationale: `腰部疼痛2周，寒热喜恶、舌脉均未记录，暂按${syndrome}考虑。`,
+    },
+    therapy: { overallPrinciple: "实则泻之", overallMethod: method },
+    pathogenesis: { chain: [{ patientFact: "腰部疼痛2周", syndromeEvidence: "腰部疼痛2周", pathogenesis: "经络气血不畅，不通则痛", therapyDirection: method }] },
+  });
+  check("13.2 中性证名不被教材一行的治法与代表方覆盖；证名对上教材一行时照旧用该行（对照）", () => {
+    const kept = neutral("经络不通证", "通络止痛");
+    assert.equal(kept.overview.primarySyndrome, "经络不通证");
+    assert.equal(kept.therapy.overallMethod, "通络止痛");
+    assert.doesNotMatch(String(kept.overview.recommendedFormulaDirection), /四妙丸/);
+    const anchored = neutral("湿热腰痛", "通络止痛");
+    assert.match(anchored.therapy.overallMethod, /清热利湿/);
+    assert.match(String(anchored.overview.recommendedFormulaDirection), /四妙丸/);
+  });
+  check("13.3 提示词：候选先后不表示可能性，「贴合」要有能分证型的已记录表现；没有时写中性证名与调理方向；档位用语不进医生读的文字", () => {
+    const header = buildTextbookCandidateContext({ chiefComplaint: "胃痛3天" });
+    assert.match(header, /先后不表示可能性大小/);
+    assert.match(header, /只记录了本病主症本身时，没有哪一行贴合/);
+    const prompts = fs.readFileSync("src/lib/diagnosis-prompts.ts", "utf8");
+    assert.match(prompts, /不得从候选里挑一个证型套用/);
+    assert.match(prompts, /不写温、清、补、泻、化湿、活血等需要寒热虚实或病理产物依据的治法/);
+    assert.match(prompts, /医生要读的文字里不写这些词/);
+    assert.doesNotMatch(prompts, /写明是按主诉直接对应的症状层病名/);
+  });
+  check("13.4 组成逻辑只写组成与出处：不带流程用语与课程笔记（旧数据 155 条以「受控目录组成…进入处方编译」结尾）", () => {
+    const rules = JSON.parse(fs.readFileSync("src/data/tcm-formula-composition-rules.json", "utf8")).entries;
+    const bad = rules.filter((entry) => /受控目录|进入处方编译|方证定位|课程|锁方|审方|患者事实/.test(entry.summary));
+    assert.deepEqual(bad.map((entry) => entry.formulaName), []);
+    assert.ok(rules.filter((entry) => /^组成：.+。出处：.+。$/.test(entry.summary)).length >= 150);
+  });
+  check("13.5 只有组成与出处的条目不顶替方义；写了配伍的条目照旧可作兜底（对照）", () => {
+    const wrap = (summary) => `<!-- DIAGNOSIS_JSON_START -->${JSON.stringify({ stage: "prescribe", formula: { candidates: [{ name: "桂枝汤", herbs: [], compositionLogic: [{ formulaName: "桂枝汤", summary }] }] } })}<!-- DIAGNOSIS_JSON_END -->`;
+    const analysis = (summary) => {
+      const out = applyDeterministicFormulaAnalysis(wrap(summary));
+      return JSON.parse(out.slice(out.indexOf("-->") + 3, out.lastIndexOf("<!--"))).formula.candidates[0].formulaAnalysis;
+    };
+    assert.equal(analysis("组成：桂枝、芍药、生姜、大枣、甘草。出处：《伤寒论》。"), undefined);
+    assert.match(String(analysis("桂枝与芍药一散一收，配合生姜、大枣、炙甘草调和营卫并顾护中焦。")), /一散一收/);
   });
 }
 

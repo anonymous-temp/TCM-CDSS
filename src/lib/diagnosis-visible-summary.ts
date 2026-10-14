@@ -2074,7 +2074,8 @@ export function applyDeterministicFormulaAnalysis(content: string): string {
         const compositionAnalysis = recordList(candidate.compositionLogic)
           .map((item) => markdownCell(item.summary))
           .filter(isDisplayableClinicalText)
-          .filter((value) => !/(?:受控目录组成|目录来源|方证定位|进入处方编译|逐项核对患者事实)/.test(value));
+          // 只列组成与出处的条目（生成器 10/14 起写「组成：…。出处：…。」）不是方义，不拿来顶替。
+          .filter((value) => !/(?:受控目录组成|目录来源|方证定位|进入处方编译|逐项核对患者事实|^组成：)/.test(value));
         if (compositionAnalysis.length > 0) candidate.formulaAnalysis = compositionAnalysis.join("；");
       }
     }
