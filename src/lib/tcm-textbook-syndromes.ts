@@ -621,12 +621,16 @@ function charJaccard(left: string, right: string): number {
  */
 /** 证名里表示病性的字（有限闭集）：寒热、痰湿瘀、燥毒、虚实所在的阴阳气血、食积水饮。 */
 const TEXTBOOK_NATURE_WORDS = /寒|热|火|湿|痰|瘀|燥|毒|虚|亏|不足|衰|阴|阳|血|食|饮|风/g;
+/** 证名里表示病位的脏腑字（有限闭集）。 */
+const TEXTBOOK_ORGAN_WORDS = /心|肝|脾|肺|肾|胃|胆|肠|膀胱/g;
 
 export function textbookNearestRow(
   diseaseName: string,
   syndromeName: string,
   method: string,
   evidenceText: string,
+  /** 模型自己写的病位（locationDifferentiation.items）。给了时，只有其中也写到的脏腑才算「模型写的病位」。 */
+  modelLocations: readonly string[] = [],
 ): TextbookSyndromeRow | undefined {
   if (compact(syndromeName).length < 2) return undefined;
   const section = diseasesNamed(diseaseName)[0];
@@ -644,6 +648,18 @@ export function textbookNearestRow(
   const modelNatureWords = modelWords.match(TEXTBOOK_NATURE_WORDS) || [];
   const addsNature = (row: TextbookSyndromeRow) => (top === 0 || modelNatureWords.length === 0) &&
     (row.syndromeName.match(TEXTBOOK_NATURE_WORDS) || []).some((word) => !modelWords.includes(word));
+  // 也不得丢掉模型写的病位（2026-10-17，甲方标准病历 5）：模型写「肺脾两虚证」，教材虚劳只有单脏的「肺气虚证」
+  //「脾气虚证」，按字面相近改成「肺气虚证」后，辨证依据成了「两脏各有成组表现，故为肺气虚证」，治法也跟着锚成「补益肺气」。
+  // 两脏合称不是单脏证型的同义写法。只在教材这一行自己写了脏腑、却缺模型写的某一脏时否决；
+  // 不写脏腑的行（「气血亏虚证」）照旧可以认。模型的病位栏只写了其中一脏时（证名「肝肾阴虚」、病位只有「肾」），
+  // 多写的那一脏没有它自己的定位，改成单脏写法照旧。
+  const locatedOrgans = new Set(modelLocations.flatMap((item) => compact(item).match(TEXTBOOK_ORGAN_WORDS) || []));
+  const modelOrgans = new Set((compact(syndromeName).match(TEXTBOOK_ORGAN_WORDS) || [])
+    .filter((organ) => modelLocations.length === 0 || locatedOrgans.has(organ)));
+  const dropsOrgan = (row: TextbookSyndromeRow) => {
+    const rowOrgans = new Set(compact(row.syndromeName).match(TEXTBOOK_ORGAN_WORDS) || []);
+    return rowOrgans.size > 0 && [...modelOrgans].some((organ) => !rowOrgans.has(organ));
+  };
   const ranked = scored
     .map(({ row, score }) => ({
       row,
@@ -654,6 +670,6 @@ export function textbookNearestRow(
   if (!first || first.combined < 1.3) return undefined;
   if (second && first.combined - second.combined < 0.2) return undefined;
   // 只否决胜出的那一行，不先把行剔掉再排：剔掉竞争者会让原本「认不准」的近似行变成明显第一。
-  if (addsNature(first.row)) return undefined;
+  if (addsNature(first.row) || dropsOrgan(first.row)) return undefined;
   return first.row;
 }

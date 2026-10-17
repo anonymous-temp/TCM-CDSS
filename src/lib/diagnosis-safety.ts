@@ -974,6 +974,22 @@ const PROSPECTIVE_INSTRUCTION_SENTENCE = new RegExp(`${PROSPECTIVE_CARE_DIRECTIV
 /** 句中出现这些词，说明它（至少前半）是在陈述当前病历，不能整句当作嘱咐放行。 */
 const CHART_ASSERTION_MARKER = /患者|病人|患儿|本例|否认|病历|已记录|既往|查体|检查示/;
 
+/**
+ * 一个小句里否认词管得到的那一段（构词式守卫，闭集）。前置否认词（无/否认/未见…）管它后面的部分；
+ * 否认词前面紧挨着「均/皆/俱/都/亦/也」，或否认词后面已经没有汉字时，是后置否认，管整句。
+ * `probe` 是与 `clause` 等长、已抹掉固定说法的探针。
+ */
+function clauseNegationScope(clause: string, probe: string): string {
+  const cue = new RegExp(CLINICAL_NEGATION_CUE.source, "g");
+  const matches = [...probe.matchAll(cue)];
+  if (matches.length === 0 || probe.length !== clause.length) return clause;
+  const postposed = matches.some((match) => {
+    const start = match.index ?? 0;
+    return /[均皆俱都亦也]$/u.test(probe.slice(0, start)) || !/[\u4e00-\u9fa5]/u.test(probe.slice(start + match[0].length));
+  });
+  return postposed ? clause : clause.slice(matches[0].index ?? 0);
+}
+
 export function isProspectiveClinicalSentence(value: string): boolean {
   return PROSPECTIVE_CLINICAL_SENTENCE.test(String(value || ""));
 }
@@ -992,8 +1008,9 @@ function sanitizeUngroundedNegationText(
   recordedInspection: { tongue: boolean; pulse: boolean } = { tongue: false, pulse: false },
 ): string {
   const sanitizeClause = (clause: string): string => {
+    // 抹掉的部分用等长占位，探针里的位置与原句一一对应（下面按否认线索的位置定否认作用域）。
     const negationProbe = clause
-      .replace(/无明显(?:诱因|原因|缓解|好转|改善)/g, "")
+      .replace(/无明显(?:诱因|原因|缓解|好转|改善)/g, (masked) => "＿".repeat(masked.length))
       // “肢体无力” is a positive neurologic symptom. The lexical “无” is part of the symptom name,
       // not a negation cue; masking it here prevents the output scrubber from rewriting a grounded
       // post-stroke fact into the synthetic sentence “病历已记录肢体无力阳性”.
@@ -1001,7 +1018,7 @@ function sanitizeUngroundedNegationText(
       // 「发无定处、痛无定处、行无定时、无常、无度、无端、无故」是固定说法，不是对某个症状的否认（2026-10-17：
       //「以皮肤瘙痒、风团时消时现、发无定处为主症」被当成否认句，整句改成「病历已记录瘙痒阳性」，甲方标准病历 9 三次生成都是这样）。
       // 与 unrecordedNegativesAsNotReported 排除的固定搭配同一组。
-      .replace(/无(?=定处|定时|定所|常|度|端|故)/g, "");
+      .replace(/无(?=定处|定时|定所|常|度|端|故)/g, "＿");
     const prefix = clause.match(/^(\s*(?:[-*]>?\s*|>\s*|#{1,6}\s*)?(?:[^：:|]{1,24}[：:]\s*)?)/)?.[1] || "";
     // 正文里鉴别一行的「常见：」是 differentialLine（diagnosis-visible-summary）给 typicalManifestation 加的标签：
     // 写的是鉴别对象那个病的表现，不是对本例的断言，与 JSON 里同一字段一样不净化（见下方 typicalManifestation 豁免）。
@@ -1075,11 +1092,16 @@ function sanitizeUngroundedNegationText(
       }
     }
     if (CLINICAL_NEGATION_CUE.test(negationProbe)) {
+      // 前置的否认词只否认它后面的词（2026-10-17）：「恶寒重、发热轻、无汗」里的「无」否认的是汗，不是前面的发热；
+      // 此前整句都算否认范围，病历记录了发热，整句被改成「病历已记录发热阳性」，再被风寒鉴别投影补回一遍
+      //（甲方标准病历 1 两次生成的辨证依据都是「发热，为寒邪束表…之征；恶寒重、发热轻、无汗，为…之征」）。
+      // 后置的「均无」「均否认」、以及句末才出现的否认词（「发热、头痛均否认」）否认的是前面列举的词，照旧整句算。
+      const negatedSpan = clauseNegationScope(clause, negationProbe);
       const contradictedPositive = CLINICAL_NEGATION_FACT_TERMS.filter(
-        (term) => clause.includes(term) && sourceDocumentsAffirmation(source, term),
+        (term) => negatedSpan.includes(term) && sourceDocumentsAffirmation(source, term),
       );
       const unknown = CLINICAL_NEGATION_FACT_TERMS.filter(
-        (term) => clause.includes(term) &&
+        (term) => negatedSpan.includes(term) &&
           !sourceDocumentsNegation(source, term) &&
           !sourceDocumentsAffirmation(source, term),
       );
@@ -1155,7 +1177,8 @@ function sanitizeUngroundedNegationText(
     sanitized = sanitized
       // 「生脉散」的「脉散」不是脉象（散脉）：方名前缀「生」作词形守卫（2026-10-13 第二轮独立评审：未录脉象的病例里
       // 方名被改成「生脉象待核实合参附龙牡救逆汤」，辨证结果、处方页、方义里共 12 处）。
-      .replace(new RegExp(`(?<!生)脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?`, "g"), "脉象待核实")
+      // 「脉微欲绝」「脉细如丝」：后面的「欲绝/欲脱/如丝」属于同一个脉象，一并换掉，不留「脉象待核实欲绝」（2026-10-17 留出例 S074）。
+      .replace(new RegExp(`(?<!生)脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?(?:欲绝|欲脱|如丝)?`, "g"), "脉象待核实")
       .replace(new RegExp(inspectionLexiconPattern("pulse").source, "g"), "脉象待核实");
   }
   return sanitized.replace(/__TCM_CDSS_PROSPECTIVE_(\d+)__/g, (_, index: string) => prospectiveSentences[Number(index)] ?? "");
@@ -1222,6 +1245,21 @@ function sourceDocumentsPhysicalExam(source: string, group: PhysicalExamClaimGro
   return source.split(/[。；;\n]+/).some((clause) => groupPattern.test(clause) && PHYSICAL_EXAM_CLAIM_CUE.test(clause));
 }
 
+/**
+ * 腹部查体组里「压痛、反跳痛、肌紧张」本身不带部位。前面写了别的部位（「颞动脉无压痛」「局部压痛」「鼻窦区压痛」）时
+ * 说的不是腹部查体（2026-10-17：巨细胞动脉炎的鉴别要点被改成「本次病历未记录腹部查体结果」，甲方标准病历 3）。
+ * 构词式守卫：去掉否认/语气词后，这几个词前面若还有字、且不含腹/脐/剑突/麦氏，就不算这一组。
+ */
+const SITE_FREE_ABDOMINAL_EXAM_TERM = /压痛|反跳痛|肌紧张/;
+function siteQualifiedOutsideGroup(group: PhysicalExamClaimGroup, part: string): boolean {
+  if (group.label !== "腹部查体") return false;
+  if (group.terms.some((term) => !SITE_FREE_ABDOMINAL_EXAM_TERM.test(term) && part.includes(term))) return false;
+  const match = part.match(SITE_FREE_ABDOMINAL_EXAM_TERM);
+  if (!match || match.index == null) return false;
+  const before = part.slice(0, match.index).replace(new RegExp(PHYSICAL_EXAM_CLAIM_CUE.source, "g"), "").replace(/[\s、及和伴且并]/g, "");
+  return /[\u4e00-\u9fa5]/.test(before) && !/腹|脐|剑突|麦氏/.test(before);
+}
+
 function sanitizeUngroundedPhysicalExamClaims(
   value: string,
   source: string,
@@ -1235,6 +1273,7 @@ function sanitizeUngroundedPhysicalExamClaims(
     const claimText = part.replace(/有无|是否/g, "");
     const unsupported = PHYSICAL_EXAM_CLAIM_GROUPS.filter((group) =>
       physicalExamGroupPattern(group).test(part)
+      && !siteQualifiedOutsideGroup(group, claimText)
       && PHYSICAL_EXAM_CLAIM_CUE.test(claimText)
       && !sourceDocumentsPhysicalExam(source, group));
     if (unsupported.length === 0) return part;

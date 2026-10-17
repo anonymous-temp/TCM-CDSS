@@ -1,3 +1,4 @@
+import { requiredPrecautionsForCase, requiredPrecautionsPromptSection } from "@/lib/required-precautions.server";
 import { restoreDiagnoseSupportingFacts } from "@/lib/delivered-surface";
 import { affirmedClinicalSourceClauses } from "@/lib/clinical-polarity";
 import { prefetchAssessFollowupFromDraftCandidate, prefetchAssessFollowupFromSignedPrescribe, tapFinalStageContent } from "@/lib/stage-prefetch.server";
@@ -268,6 +269,9 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   }
   const basePrompt = buildPrescribePrompt(safeState, { similarCasesContext: similarCases.context });
   const promptSuffixes = inventoryContext ? [inventoryContext] : [];
+  // 本例注意事项必须写到的项目（自服药与本方的重叠、产后哺乳、丹毒抗感染）：逐项告诉模型，交付面再逐项核对、漏写的补上。
+  const requiredPrecautions = requiredPrecautionsForCase(gated, signedPriorReasoning);
+  if (requiredPrecautions.length > 0) promptSuffixes.push(requiredPrecautionsPromptSection(requiredPrecautions));
   const reviewItems = mergePrescriptionReviewItems(permission.reasons, gated.safetyGate?.missingItems);
   const reviewItemsText = reviewItems.join("、") || "部分病历信息";
   const informationNotice = limitedInformation
@@ -406,6 +410,7 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     structuredClinicalContext,
     structuredPatientAge: authoritativePatientAgeYears(gated),
     structuredHerbBoundaryAudience: { reproductive: reproductiveAdviceRelevant(gated), ageYears: authoritativePatientAgeYears(gated) ?? null },
+    structuredRequiredPrecautions: requiredPrecautions,
     structuredCaseState: safeState,
     structuredMedicineCandidates: medicinePlan.candidates,
     structuredPriorReasoning: signedPriorReasoning,

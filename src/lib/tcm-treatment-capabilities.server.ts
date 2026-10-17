@@ -22,7 +22,7 @@ import {
 import { affirmedClinicalText } from "./clinical-polarity";
 import { assessPregnancyState } from "./clinical-state";
 import { pregnancyScreenRequired } from "./diagnosis-safety";
-import { cardSentencesMatchedToSyndrome, manipulationMatchedToSyndrome, textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
+import { cardSentencesMatchedToSyndrome, cardSentencesNamingListedPoints, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
 type DeliveryMode = "onsite" | "referral";
@@ -1111,6 +1111,9 @@ export function compileTcmTreatmentRecommendations(
     const matchedIndicationTags = nodeIndicationTags(prior, node, currentFactFallback);
     const signedSyndromeText = [prior.overview.primarySyndrome, ...(Array.isArray(prior.overview.secondarySyndromes) ? prior.overview.secondarySyndromes : [])]
       .filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；");
+    // 灸法卡与证候相反时整张不出（2026-10-17 留出例 S067：湿热石淋拿到「常规灸法，多用于膏淋、劳淋」）。此前只去卡里说灸的句子，
+    // 整张灸法卡每句都说灸，去完为空又退回原文。
+    if (definition.code === "moxibustion" && moxibustionUnsuitableForSyndrome(signedSyndromeText)) return [];
     const plannedTreatment = controlledTreatmentPlan(
       definition.code,
       matchedIndicationTags,
@@ -1147,8 +1150,12 @@ export function compileTcmTreatmentRecommendations(
     // 写给别的证型的句子、阴虚热证里建议用灸的句子也在这里去掉（cardSentencesMatchedToSyndrome），治疗内容栏同样过这一道。
     const diseaseNamesForCard = [prior.overview.tcmDiseaseName || ""].filter(Boolean);
     const cardSentences = (value: string) => cardSentencesMatchedToSyndrome(value, diseaseNamesForCard, signedSyndromeText);
-    const cardText = (value: string) => clinicalTreatmentScheduleWording(cardSentences(
-      definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText) : value));
+    // 只用于针刺卡：穴位栏就是本例的取穴处方。推拿卡的操作是一整套教材手法，穴位栏只列主穴，不能按它删步骤。
+    const cardPoints = definition.code === "acupuncture" && Array.isArray(plannedTreatment.suggestedSitesOrPoints)
+      ? plannedTreatment.suggestedSitesOrPoints.filter((point): point is string => typeof point === "string")
+      : [];
+    const cardText = (value: string) => clinicalTreatmentScheduleWording(cardSentencesNamingListedPoints(cardSentences(
+      definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText) : value), cardPoints));
     const treatmentPlan = {
       ...plannedTreatment,
       ...(typeof plannedTreatment.treatmentContent === "string" ? { treatmentContent: cardSentences(plannedTreatment.treatmentContent) } : {}),

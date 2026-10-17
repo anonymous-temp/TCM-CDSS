@@ -250,12 +250,17 @@ export function reviewAuthoredFormulaAnalysis(
     })).values()].sort((left, right) => right.start - left.start);
     for (const bounds of clauses) {
       const inside = (span: Span) => span.start >= bounds.start && span.end <= bounds.end;
+      const ownCount = new Set(mentions.filter(inside).map((span) => identityOf(span.token)).filter((identity) => ownIdentities.has(identity))).size;
       const kept = withoutForeignHerbNames(
         text.slice(bounds.start, bounds.end),
         foreign.filter(inside).map((span) => ({ ...span, start: span.start - bounds.start, end: span.end - bounds.start })),
-        new Set(mentions.filter(inside).map((span) => identityOf(span.token)).filter((identity) => ownIdentities.has(identity))).size,
+        ownCount,
       );
-      text = `${text.slice(0, bounds.start)}${kept}${text.slice(bounds.end)}`;
+      // 「黄柏、苍术苦寒清下焦湿热，二药合为君」：「二药」在下一个分句里，同样按剩下的本方药味数改写（2026-10-17 留出例 S145，
+      // 苍术剔出本方后剩「黄柏苦寒清下焦湿热，二药合为君」）。剩一味时去掉数量词，留「为君」。
+      const following = text.slice(bounds.end).replace(/^([，,]?\s*)([二两三四五六七八九])(药|味)(合|共)?/, (match, lead: string, _numeral: string, unit: string, together: string | undefined) =>
+        ownCount >= 2 ? `${lead}${CHINESE_NUMERAL[ownCount] || ""}${unit}${together || ""}` : ownCount === 1 ? lead : match);
+      text = `${text.slice(0, bounds.start)}${kept}${following}`;
     }
     adjustments.push("foreign_clause_removed");
   }

@@ -435,6 +435,26 @@ export function assessLactationState(text: string): ClinicalStateResult {
   });
 }
 
+/**
+ * 病历记录了一年内的分娩（2026-10-17，甲方标准病历 3「2+月前…剖宫产术，术后产下1女」）。
+ * 只认同一句里的分娩字样 + 不超过 12 个月的时间（N天/周/月前、产后N天/周/月）；写了几年前的、
+ * 没有时间的都不算——哺乳提示只给刚生产的人。
+ */
+const CHILDBIRTH_WORD = /产后|剖宫产|顺产|分娩|生产后|产下|生下|坐月子|产褥/;
+const CHINESE_SMALL_NUMBER: Record<string, number> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 半: 0.5 };
+export function recentChildbirthMentioned(text: string): boolean {
+  return String(text || "").normalize("NFKC").split(/[。；;\n]+/).some((sentence) => {
+    if (!CHILDBIRTH_WORD.test(sentence)) return false;
+    for (const match of sentence.matchAll(/(\d+(?:\.\d+)?|[一二两三四五六七八九十半])\s*(?:个)?\s*(?:\+|余|多)?\s*(?:个)?\s*(天|日|周|星期|月|年)(?:余|多)?(?:前|后|来)?/g)) {
+      const amount = /\d/.test(match[1]) ? Number(match[1]) : CHINESE_SMALL_NUMBER[match[1]] ?? NaN;
+      if (!Number.isFinite(amount)) continue;
+      const months = match[2] === "年" ? amount * 12 : match[2] === "月" ? amount : amount / 30;
+      if (months <= 12) return true;
+    }
+    return false;
+  });
+}
+
 export function assessConceptionState(text: string): ClinicalStateResult {
   return assessState(text, {
     positive: [

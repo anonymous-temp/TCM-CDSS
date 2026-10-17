@@ -234,9 +234,16 @@ export function parseM02Plan(value: unknown, sourceText = ""): M02Plan | null {
     ids.add(id);
     normalizedQuestions.add(normalizedQuestion);
 
-    if (!Array.isArray(item.sourceEvidence) || item.sourceEvidence.length > 4) return null;
-    const sourceEvidence = item.sourceEvidence.map((entry) => groundedM02Evidence(entry, sourceText));
-    if (sourceEvidence.some((entry) => !entry)) return null;
+    // 依据条目逐条隔离（2026-10-17）：依据只说明为什么要问，不是答案。此前多写一条（5 条）或有一条不是逐字原文
+    //（病历「头痛，呈隐痛」写成「头痛呈隐痛」），整道题作废、退到主诉类别的兜底题——本地复测甲方 10 例 × 3 里 9 次、
+    // 留出 32 例里 4 次是这样（离线复现病历 3：4 次生成 4 次作废，全是依据条目的问题）。现在只丢掉不能逐字核对的那条，最多留 4 条。
+    // 一条都核对不上（给了依据却没有一条在病历里）仍按编造处理，整题作废。
+    if (!Array.isArray(item.sourceEvidence)) return null;
+    const groundedEvidence = item.sourceEvidence
+      .map((entry) => groundedM02Evidence(entry, sourceText))
+      .filter((entry): entry is string => Boolean(entry));
+    if (item.sourceEvidence.length > 0 && groundedEvidence.length === 0) return null;
+    const sourceEvidence = groundedEvidence.slice(0, 4);
 
     // 模型给 3 个（两个互斥临床分支 + 本次未取得）；服务端在下方确定性追加「其他（请补充）」，
     // 因此经历「结构化 → Markdown → 反解析」往返后会带 4 个回来。两种长度都必须接受，
@@ -453,11 +460,21 @@ export function agendaQuestionFallback(): string {
   );
 }
 
+/** 病历已经写了病情变化（反复、时消时现、加重、缓解…）——再问「总体在加重还是缓解」就是复述病历。 */
+const COURSE_TREND_RECORDED = /反复|时消时现|时作时止|时发时止|时轻时重|时好时坏|逐渐加重|加重|减轻|缓解|好转|如故|波动/;
+
 function genericModelFailureFallback(state: QuestionFallbackCase): string {
-  const chief = (state.chiefComplaint || state.hisRecord?.fields?.zhushu || "本次主要不适").trim();
+  // 2026-10-17（甲方标准病历 9）：病历写着「时消时现…药效过后仍反复出现」，这道题照样问「总体在加重、缓解还是反复波动」，
+  // 题干还原样嵌着主诉「皮肤瘙痒伴风团2+天」。病历已写病情变化时改问开放的「还有没有其他不适」；题干不再抄主诉。
+  const recordText = [
+    state.chiefComplaint,
+    ...Object.values(state.hisRecord?.fields || {}),
+    ...Object.values(state.symptoms || {}),
+  ].filter((value): value is string => typeof value === "string").join("；");
+  if (COURSE_TREND_RECORDED.test(recordText)) return agendaQuestionFallback();
   return questionBlock(
     1,
-    `与刚出现时相比，“${chief.slice(0, 36)}”目前总体在加重、缓解还是反复波动？`,
+    "与刚出现时相比，目前主要不适总体在加重、缓解还是反复波动？",
     "症状变化趋势通常会改变当前处置优先级和下一步鉴别方向。",
     "现病史",
     [

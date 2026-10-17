@@ -23,9 +23,56 @@ import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { getTcmHerbGenerationSafetyProfile } from "./tcm-knowledge";
 import { deliveredTreatmentCodes, precautionMentionsUndeliveredTreatment } from "./tcm-treatment-capabilities.server";
+import type { RequiredPrecaution } from "./required-precautions";
 
-/** 投影时可选的本例信息：只用来决定逐味人群提示列哪些人群（见 herbBoundaryPopulationRelevant）。 */
-export type DeliveredSurfaceOptions = { herbBoundaryAudience?: HerbBoundaryAudience };
+/**
+ * 投影时可选的本例信息：herbBoundaryAudience 决定逐味人群提示列哪些人群（见 herbBoundaryPopulationRelevant）；
+ * requiredPrecautions 是本例注意事项必须写到的项目（required-precautions.server.ts 由病历算出）。
+ */
+export type DeliveredSurfaceOptions = {
+  herbBoundaryAudience?: HerbBoundaryAudience;
+  requiredPrecautions?: readonly RequiredPrecaution[];
+};
+
+/** 注意事项里已经写到这一项了吗（说到药名 / 哺乳 / 抗菌治疗即算，不管模型怎么措辞）。 */
+function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly string[]): boolean {
+  if (item.kind === "self_medication") return lines.some((line) => line.includes(item.base) || line.includes(item.name));
+  if (item.kind === "postpartum_lactation") return lines.some((line) => /哺乳|喂奶|母乳|授乳|乳汁/.test(line));
+  return lines.some((line) => /抗生素|抗菌|抗感染|青霉素|头孢/.test(line));
+}
+
+/**
+ * 模型写的自服药那一条里说「与本方同有/重叠」的药，只留本方处方里真有的（2026-10-17 本地复测：病历 7 的处方是清胃散加减，
+ * 模型把提示里给的黄连上清丸组成整串抄成「与本方黄连、大黄、黄芩、黄柏、栀子、连翘等重叠」，后四味本方没有）。
+ * 一味真有的都不剩、却仍说重叠时，换成规则那一句。药名本身（黄连上清丸含「黄连」）先保护起来再删。
+ */
+function withOnlyPrescribedOverlap(line: string, item: Extract<RequiredPrecaution, { kind: "self_medication" }>, herbIdentities: ReadonlySet<string>): string | undefined {
+  if (item.composition.length === 0 || !(line.includes(item.base) || line.includes(item.name))) return line;
+  const shielded = line.split(item.name).join("\u0000").split(item.base).join("\u0001");
+  let pruned = shielded;
+  for (const herb of item.composition.filter((name) => !herbIdentities.has(name))) {
+    pruned = pruned.split(`${herb}、`).join("").split(`、${herb}`).join("").split(herb).join("");
+  }
+  const restored = pruned.split("\u0000").join(item.name).split("\u0001").join(item.base);
+  const claimsOverlap = /重叠|同含|同有|都含|均含|共有/.test(restored);
+  const remaining = item.composition.filter((name) => herbIdentities.has(name) && restored.includes(name));
+  return claimsOverlap && remaining.length === 0 ? undefined : restored;
+}
+
+/** 模型漏写时由规则补的那一句。只说病历记录的事实、方剂目录与说明书写着的内容。 */
+function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: ReadonlySet<string>, lactationHerbs: readonly string[]): string {
+  if (item.kind === "self_medication") {
+    const overlap = item.composition.filter((herb) => herbIdentities.has(herb));
+    const head = overlap.length > 0
+      ? `已自服的${item.name}与本方同含${overlap.slice(0, 4).join("、")}，服本方期间不宜再同时服用，以免药力叠加；如需继续请先告知医生`
+      : `已自服的${item.name}是否继续服用，请服本方前告知医生，由医生决定`;
+    return `${head}${item.alcoholWarning ? `；服用${item.base}期间须戒酒，饮酒可引起双硫仑样反应` : ""}。`;
+  }
+  if (item.kind === "postpartum_lactation") {
+    return `产后如正在哺乳，请服药前告知医生${lactationHerbs.length > 0 ? `（方中${lactationHerbs.slice(0, 4).join("、")}哺乳期须慎用）` : ""}，由医生评估后再服。`;
+  }
+  return `${item.disease}是细菌感染，除服本方外请到医院就诊，由医生决定抗菌药物治疗；如出现寒战高热、红肿迅速扩大、皮肤发紫或起水疱，请立即就医。`;
+}
 
 type Json = Record<string, unknown>;
 
@@ -44,7 +91,8 @@ const SYNTHETIC_PHRASES: ReadonlyArray<[RegExp, string]> = [
   [new RegExp(`病历尚未确认${OBJECT}是否已排除[；;，,]\\s*病历已记录该表现存在[，,]\\s*请医生核对后再采纳`, "g"), "有$1"],
   [new RegExp(`病历已记录否认${OBJECT}[，,]\\s*[^，,。；;\\n]{1,30}?的一般情况需医生核实`, "g"), "否认$1"],
   [new RegExp(`病历已记录本次${OBJECT}未见明显异常[；;，,]\\s*是否复查由医生结合病情判断`, "g"), "本次$1未见明显异常"],
-  [new RegExp(`病历未记录${OBJECT}(?:记录)?[（(]需问诊核实后方可用于排除[）)]`, "g"), "未诉$1"],
+  // 对象里可以自带括注（「口腔专科检查（牙髓活力、叩诊等）」），这一式的结尾是固定句，按到它为止取对象。
+  [/病历未记录([^，,。；;：:\n]{1,60}?)(?:记录)?[（(]需问诊核实后方可用于排除[）)]/g, "未诉$1"],
   [new RegExp(`病历(?:中)?尚未确认${OBJECT}是否存在`, "g"), "未诉$1"],
   [new RegExp(`${OBJECT}是否存在尚未(?:确认|核实)`, "g"), "未诉$1"],
   [new RegExp(`病历已记录否认${OBJECT}(?=[，,。；;）)\\n]|$)`, "g"), "否认$1"],
@@ -141,6 +189,15 @@ function isLimitedDiagnose(reasoning: Json): boolean {
 }
 
 function deliveredDiagnose(reasoning: Json): void {
+  // 鉴别的「建议核实」模型写成字符串 null 的，按空值交付（2026-10-17 留出例 S132「建议核实：null」）。
+  const overviewForNulls = record(reasoning.overview);
+  for (const row of [
+    ...records(overviewForNulls?.tcmDiseaseDifferentials),
+    ...records(overviewForNulls?.tcmDifferentials),
+    ...records(record(reasoning.westernDiagnosis)?.differentials),
+  ]) {
+    if (typeof row.nextCheck === "string" && /^(?:null|undefined)$/i.test(row.nextCheck.trim())) row.nextCheck = null;
+  }
   // 只有那句统一标注、没有别的内容的不确定项整条去掉（留一条空原因的条目没有意义）。
   const pathogenesis = record(reasoning.pathogenesis);
   if (pathogenesis && Array.isArray(pathogenesis.uncertainties)) {
@@ -277,6 +334,13 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         candidate.formulaAnalysis = withoutRemovalClaims(candidate.formulaAnalysis);
       }
     }
+    // 开头一句说「加X」而X本来就在原方组成里（含生用写法：消风散原方有地黄，方义写「加生地黄」「以生地黄易原方地黄并加用」，
+    // 2026-10-17 甲方标准病历 9 两次生成）：去掉这个不实的加药说法，其余照留。原方组成查不到时不动。
+    if (typeof candidate.formulaAnalysis === "string" && typeof candidate.name === "string" && /加|易/.test(candidate.formulaAnalysis)) {
+      const reference = formulaCompilationReferences([candidate.name.trim().replace(/(?:加减|化裁|加味)$/u, "")])[0];
+      const catalogIds = new Set((reference?.ingredients || []).map((name) => rawFormHerbIdentity(name.replace(/[（(][^）)]*[）)]/g, ""))).filter(Boolean));
+      if (catalogIds.size > 0) candidate.formulaAnalysis = withoutFalseAdditionClaims(candidate.formulaAnalysis, catalogIds);
+    }
     // 方义里夹着模型的自问自答（「去原方中…的川芎？不，川芎保留。」，2026-10-17 甲方标准病历 4）：带问号的小句与同句里紧跟的自我更正不留。
     if (typeof candidate.formulaAnalysis === "string" && /[？?]/.test(candidate.formulaAnalysis)) {
       candidate.formulaAnalysis = withoutQuestionChatter(candidate.formulaAnalysis);
@@ -342,7 +406,11 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     //（甲方标准病历 2 两次生成都是「汤剂宜饭前温服」对「饭后温服」）。
     const method = String(record(records(formula?.candidates)[0]?.decoction)?.method || "");
     const methodTiming = /饭后|餐后/.test(method) ? "after" : /饭前|餐前|空腹/.test(method) ? "before" : "";
-    const conflicting = methodTiming === "after" ? /饭前|餐前|空腹/ : methodTiming === "before" ? /饭后|餐后/ : undefined;
+    // 「若胃脘不适可改为饭后温服」而煎服法本来就是饭后（甲方标准病历 2）：说「改为」煎服法已定的时间，同样前后矛盾；
+    // 煎服法是饭前时，「若胃脘不适可改为饭后」是有条件的改法，不算矛盾，照留。
+    const conflicting = methodTiming === "after"
+      ? /(?<!改(?:为|在|到))(?:饭前|餐前|空腹)|改(?:为|在|到)(?:饭|餐)后/
+      : methodTiming === "before" ? /(?<!改(?:为|在|到))(?:饭后|餐后)|改(?:为|在|到)(?:(?:饭|餐)前|空腹)/ : undefined;
     if (conflicting) {
       precautions = precautions
         .map((line) => typeof line === "string" ? withoutTimingClauses(line, conflicting) : line)
@@ -354,6 +422,41 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     if (recommended.length > 0) {
       precautions = precautions.filter((line) => typeof line !== "string" ||
         !recommended.some((name) => line.includes(name) && /不宜|不要|勿|避免|停服|忌/.test(line)));
+    }
+    // 针刺卡在皮损局部取穴（阿是穴、围刺）时，注意事项里「皮损局部暂不施针」那一小句与之矛盾，不留（2026-10-17 本地复测：
+    // 蛇串疮卡按教材「皮损局部阿是穴用围刺法」，注意事项写「皮损局部暂不施针」；丹毒卡列阿是穴，注意事项写「红肿处不宜针刺」）。
+    const localNeedling = records(nonPharma.tcmTreatments).some((item) => item.projectCode === "acupuncture" &&
+      (JSON.stringify(item.suggestedSitesOrPoints || []).includes("阿是穴") || /围刺/.test(`${String(item.techniqueBoundary || "")}${String(item.treatmentContent || "")}`)));
+    if (localNeedling) {
+      precautions = precautions
+        .map((line) => typeof line === "string" ? withoutTimingClauses(line, LOCAL_NEEDLING_FORBIDDEN) : line)
+        .filter((line) => typeof line !== "string" || /[\u4e00-\u9fff]{4,}/u.test(line));
+    }
+    // 本例必须写到的项目（自服药、产后哺乳、丹毒抗感染）逐项核对，模型漏写的用规则那句补在最前（2026-10-17）。
+    // 已写到的不动；补上之后再投影一次就都算写到了，幂等。
+    const required = options?.requiredPrecautions || [];
+    if (required.length > 0) {
+      const herbIdentities = new Set(records(records(formula?.candidates)[0]?.herbs)
+        .map((herb) => compositionIdentityName(String(herb.name || ""))).filter(Boolean));
+      // 模型写到的自服药那一条：说重叠的药只留本方真有的；一味不剩又说重叠的，删掉这条，下面按漏写补规则那句。
+      for (const item of required) {
+        if (item.kind !== "self_medication") continue;
+        precautions = precautions.flatMap((line) => typeof line === "string" ? [withOnlyPrescribedOverlap(line, item, herbIdentities)].filter((value): value is string => Boolean(value)) : [line]);
+      }
+      // 哺乳期慎用的药按逐味人群提示同一份知识库、同一档（中、高）列；模型写「方中暂无哺乳期慎用药」而知识库列了的，换成规则那一句
+      //（2026-10-17 本地复测病历 3：同一页的逐味提示写着川芎哺乳期慎用）。
+      const lactationHerbs = records(records(formula?.candidates)[0]?.herbs)
+        .map((herb) => String(herb.name || "").trim())
+        .filter((name) => name && getTcmHerbGenerationSafetyProfile(name).populationRules
+          .some((rule) => rule.population.includes("哺乳") && (rule.severity === "HIGH" || rule.severity === "MEDIUM")));
+      if (lactationHerbs.length > 0 && required.some((item) => item.kind === "postpartum_lactation")) {
+        precautions = precautions.filter((line) => typeof line !== "string" ||
+          !/(?:暂无|并无|无|没有|不含|未见)[^，,。；;]{0,8}(?:哺乳期慎用|回乳)/.test(line));
+      }
+      const current = precautions.filter((line): line is string => typeof line === "string");
+      const added = required.filter((item) => !requiredPrecautionCovered(item, current))
+        .map((item) => requiredPrecautionLine(item, herbIdentities, lactationHerbs));
+      if (added.length > 0) precautions = [...added, ...precautions];
     }
     nonPharma.precautions = precautions;
   }
@@ -407,6 +510,38 @@ function withoutQuestionChatter(analysis: string): string {
 }
 
 /** 方义里「去原方中…之品」这类说删了原方药味的小句。 */
+/** 注意事项里叫患者别在皮损/患处针刺的小句。 */
+const LOCAL_NEEDLING_FORBIDDEN = /(?:皮损|局部|患处|红肿处|疱疹|皮疹)[^，,。；;]{0,6}(?:暂不|不宜|勿|避免|禁止|不可|不要)[^，,。；;]{0,4}(?:施针|针刺|针)/u;
+
+/** 组成身份，生用写法算同一味（生地黄 = 地黄）：与开方编译里判断加减是否重复同一口径。 */
+function rawFormHerbIdentity(name: string): string {
+  const trimmed = name.trim();
+  return compositionIdentityName(trimmed.length >= 3 ? trimmed.replace(/^生/u, "") : trimmed);
+}
+
+/**
+ * 方义开头一句（「本方以X为基础加减，去A，加B。」）里不实的加药说法：「加B」的B已在原方组成里，去掉B（都去掉时整小句不留）；
+ *「以B易原方B'」两边是同一味，整小句不留。只看第一句，后面讲配伍的话不动。
+ */
+function withoutFalseAdditionClaims(analysis: string, catalogIds: ReadonlySet<string>): string {
+  const end = analysis.indexOf("。");
+  const first = end >= 0 ? analysis.slice(0, end) : analysis;
+  const rest = end >= 0 ? analysis.slice(end) : "";
+  const clauses = first.split(/[，,；;]/);
+  const kept = clauses.flatMap((clause) => {
+    const swap = clause.match(/^\s*(?:并|且)?以([^，,；;易]{2,6})易(?:原方(?:中)?)?([^，,；;并]{2,6})/u);
+    if (swap && rawFormHerbIdentity(swap[1]) === rawFormHerbIdentity(swap[2])) return [];
+    const addition = clause.match(/^(\s*(?:并|再|另)?(?:加用|加入|加))([^，,；;]+)$/u);
+    if (!addition) return [clause];
+    const names = addition[2].split(/[、和及与]/u).map((item) => item.trim()).filter(Boolean);
+    const remaining = names.filter((item) => !catalogIds.has(rawFormHerbIdentity(item)));
+    if (remaining.length === names.length) return [clause];
+    return remaining.length > 0 ? [`${addition[1]}${remaining.join("、")}`] : [];
+  });
+  if (kept.length === clauses.length && kept.every((clause, index) => clause === clauses[index])) return analysis;
+  return `${kept.join("，")}${rest}`;
+}
+
 const REMOVAL_CLAIM_CLAUSE = /(?:^|[，,。；;])\s*(?:并|且)?(?:去|删去|减去|去掉)(?:原方|其)?[^，,。；;]{0,20}(?:之品|之药|药味|诸药|之味)/u;
 function withoutRemovalClaims(analysis: string): string {
   return analysis.split(/(?<=。)/).map((sentence) => {

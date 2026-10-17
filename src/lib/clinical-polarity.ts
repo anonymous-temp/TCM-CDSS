@@ -523,6 +523,32 @@ function sameMedicationIdentity(left: string, right: string): boolean {
   return left === right;
 }
 
+/**
+ * 病历里患者自己服用（或外用）过的药名（2026-10-17，甲方标准病历 7「自服“黄连上清丸”及“甲硝唑片”后疼痛略有缓解」）。
+ * 只认「服药动作 + 药名」：动作前有否认（未服、否认服用）的小句不算；带引号的取引号里的名字，没有引号的取动作之后到
+ *「后/等/治疗」或逗号为止、按「及/和/与/、/或」切开的各段。这里只抽字面上的名字，是不是药由调用方对着说明书目录核。
+ */
+const SELF_MEDICATION_VERB = /(?:自行|自己|自购|在家)?(?:自服|服用|口服|吃|含服|外用|涂抹|服)/;
+const SELF_MEDICATION_NEGATION = /(?:未|否认|没有|无|不曾|从未|未曾)[^，,。；;\n]{0,4}$/;
+export function selfTakenMedicationMentions(text: string | null | undefined): string[] {
+  const names: string[] = [];
+  for (const clause of String(text || "").normalize("NFKC").split(/[，,。；;\n]+/)) {
+    const verb = clause.match(SELF_MEDICATION_VERB);
+    if (!verb || verb.index == null) continue;
+    if (SELF_MEDICATION_NEGATION.test(clause.slice(0, verb.index))) continue;
+    const rest = clause.slice(verb.index + verb[0].length);
+    const quoted = [...rest.matchAll(/[“"「《]([^”"」》]{2,20})[”"」》]/g)].map((match) => match[1]);
+    const parts = quoted.length > 0
+      ? quoted
+      : (rest.split(/(?:后|等|治疗|以后|之后|无效|效果)/)[0] || "").split(/及|和|与|、|或|以及/);
+    for (const part of parts) {
+      const name = part.replace(/^(?:了|过|用|药物|中成药|西药)/, "").replace(/\s+/g, "").replace(/\d.*$/, "").trim();
+      if (name.length >= 2 && name.length <= 20 && !names.includes(name)) names.push(name);
+    }
+  }
+  return names;
+}
+
 export function affirmedCurrentMedicationText(value: string | null | undefined): string | undefined {
   const normalized = value
     ? normalizedClinicalText(value).replace(new RegExp(`后\\s*(?=${MEDICATION_RESTART_CUE.source})`, "g"), "，")

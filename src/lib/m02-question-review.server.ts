@@ -95,6 +95,8 @@ export function reviewM02QuestionPlan(
   content: string,
   clinicalSource: string,
   fallbackContent = "",
+  /** 路由另行判定要删的题（m02-question-redundancy：病历已写明的模型题），与确定性删题走同一条收口。 */
+  additionalRemovalIds: readonly string[] = [],
 ): string {
   const initialPlan = parseM02PlanFromContent(content);
   if (!initialPlan || initialPlan.decision !== "ask" || initialPlan.questions.length === 0) return content;
@@ -103,6 +105,7 @@ export function reviewM02QuestionPlan(
       .filter((question) => deterministicallyRemovable(question, clinicalSource))
       .map((question) => question.id),
     ...redundantAcuteAbdomenQuestionIds(initialPlan.questions),
+    ...additionalRemovalIds,
   ];
   const guardedContent = removalIds.length > 0
     ? removeM02PlanQuestions(content, removalIds, DETERMINISTIC_REMOVAL_RATIONALE)

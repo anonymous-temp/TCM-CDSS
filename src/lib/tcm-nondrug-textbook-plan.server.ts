@@ -432,6 +432,10 @@ export function manipulationMatchedToSyndrome(text: string, signedSyndromeText: 
 const SYNDROME_DESCRIPTOR_CHARS = /^[寒湿热风暑燥火瘀血气虚实阴阳肾肝脾肺心胃胆痰郁滞亏损食积水饮]{2}$/u;
 // 火字证名（火旺、肝火、胃火、痰火扰心…）都算，命门火衰是阳虚，不算。
 const MOXIBUSTION_UNSUITABLE_SYNDROME = /阴虚|阴亏|阴液|实热|热盛|热毒|肺热|湿热|血热|痰热|郁热|火(?!衰)/u;
+/** 已签名证候不宜用灸（阴虚、实热、湿热、火）：卡片里说灸的句子去掉，整张灸法卡也不出（见 tcm-treatment-capabilities）。 */
+export function moxibustionUnsuitableForSyndrome(signedSyndromeText: string): boolean {
+  return MOXIBUSTION_UNSUITABLE_SYNDROME.test(String(signedSyndromeText || ""));
+}
 export function cardSentencesMatchedToSyndrome(text: string, diseaseNames: readonly string[], signedSyndromeText: string): string {
   const syndrome = String(signedSyndromeText || "");
   if (!text || !syndrome.trim()) return text;
@@ -461,6 +465,21 @@ function namesAcupoint(clause: string): boolean {
     acupointNamePattern = new RegExp(names.join("|"));
   }
   return acupointNamePattern.test(clause);
+}
+
+/**
+ * 卡片操作栏里点名的穴位一个都不在本卡穴位里的句子不留（2026-10-17 本地复测甲方标准病历 1：风寒感冒的针刺卡穴位是列缺、合谷、风池…，
+ * 操作栏仍写着教材风热那一支的「少商、商阳用点刺放血法」）。说禁忌、慎用的句子照留——那是安全提示，不是操作。
+ */
+export function cardSentencesNamingListedPoints(text: string, points: readonly string[]): string {
+  if (!text || points.length === 0) return text;
+  namesAcupoint("");
+  const kept = text.split(/(?<=[。；;])/).filter((sentence) => {
+    if (/禁|慎|勿|避免|不宜|不可|以免/.test(sentence)) return true;
+    const named = [...sentence.matchAll(new RegExp(acupointNamePattern!.source, "g"))].map((match) => match[0]);
+    return named.length === 0 || named.some((name) => points.some((point) => point.includes(name)));
+  }).join("").replace(/[；;](\s*)(?=禁忌[：:]|$)/g, "。$1").trim();
+  return kept || text;
 }
 
 /** 刺络放血类操作（刺络拔罐、点刺出血、三棱针）。 */
@@ -576,7 +595,10 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     for (const entry of [primary, ...entries.filter((item) => item !== primary)]) {
       const items = entry.projects[code] || [];
       if (items.length === 0) continue;
-      const merged = uniq(items.flatMap((item) => item.points));
+      // 教材抽取把「皮疹所在部位相应耳穴」的「穴」当成穴名后缀剥掉了，只剩「…相应耳」（2026-10-17 第四轮复测评审）；
+      // 原文里紧跟着「穴」的耳穴名补回来。
+      const merged = uniq(items.flatMap((item) => item.points.map((point) =>
+        item.pointSystem === "ear" && point.endsWith("耳") && item.content.includes(`${point}穴`) ? `${point}穴` : point)));
       base = {
         points: merged,
         content: items.map((item) => item.content).join(" "),

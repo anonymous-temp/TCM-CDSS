@@ -222,6 +222,31 @@ function compilationIngredients(row: GovernedFormulaCompilationRow): string[] {
   return kept.map((name) => adjudicated.get(name) || name);
 }
 
+/**
+ * 方名目录里同名各版本都有的药味（组成身份名）。用于中成药：病历写患者自服「黄连上清丸」时，与本方重叠的药只按
+ * 各版本共有的那几味算，不挑某一个版本（目录收了抚顺方、西安方、北京方等多个版本，组成各不相同）。
+ * 片、胶囊、颗粒等剂型名先换成丸、散再查；目录没有这个方时返回空。
+ */
+export function catalogSharedComposition(name: string): string[] {
+  const raw = normalizeFormulaName(String(name || ""));
+  if (!raw) return [];
+  const base = raw.replace(/(?:缓释|控释|肠溶)?(?:片|胶囊|颗粒|口服液|合剂|冲剂|糖浆|丸|散|膏|丹|汤)$/u, "");
+  const names = [raw, `${base}丸`, `${base}散`, `${base}汤`, `${base}丹`];
+  // 受治理的编译行（常用方，组成已逐味核过）优先；没有时只在目录收了两个以上版本时取共有药味——
+  // 只有一个版本的，常是同名的另一张方（「六味地黄丸」单版本里有香附、艾叶），不据此说组成。
+  const governed = names.map((candidate) => governedFormulaCompilationRow(candidate)).find(Boolean);
+  if (governed) return [...new Set(compilationIngredients(governed).map((item) => compositionIdentityName(item)).filter(Boolean))];
+  const variants = names
+    .map((candidate) => catalog.formulas[candidate])
+    .find((rows) => Array.isArray(rows) && rows.length > 0);
+  if (!variants || variants.length < 2) return [];
+  const sets = variants
+    .map((row) => new Set((row.ingredients || []).map((item) => compositionIdentityName(String(item))).filter(Boolean)))
+    .filter((set) => set.size > 0);
+  if (sets.length === 0) return [];
+  return [...sets[0]].filter((herb) => sets.every((set) => set.has(herb)));
+}
+
 /** 该方中系统不编制用量、需医师单独开具并经审方复核的味（可为空）。 */
 export function formulaManualDoseIngredients(name: string): string[] {
   return [...(governedFormulaCompilationRow(name)?.manualDoseIngredientNames || [])];
@@ -1180,7 +1205,9 @@ function withTextbookSyndromeName(reasoning: ClinicalReasoningResultV2): Clinica
     ...(Array.isArray(overview.primarySyndromeBasis) ? overview.primarySyndromeBasis : []),
     ...(reasoning.pathogenesis?.chain || []).flatMap((node) => [node.patientFact, node.syndromeEvidence]),
   ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("，");
-  const row = textbookNearestRow(disease, syndrome, String(reasoning.therapy?.overallMethod || overview.overallTherapy || ""), evidence);
+  const locations = (reasoning.pathogenesis?.locationDifferentiation?.items || [])
+    .filter((value): value is string => typeof value === "string");
+  const row = textbookNearestRow(disease, syndrome, String(reasoning.therapy?.overallMethod || overview.overallTherapy || ""), evidence, locations);
   if (!row || row.syndromeName === syndrome) return reasoning;
   const rename = (value: unknown) => typeof value === "string" ? value.split(syndrome).join(row.syndromeName) : value;
   return {

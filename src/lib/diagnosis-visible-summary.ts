@@ -2666,7 +2666,9 @@ const GENERIC_PATHOLOGY_TAIL = /(?:原发|继发|转移性?)?(?:肿瘤|转移瘤
  */
 function completeSharedDiagnosisHead(parts: readonly string[]): string[] {
   return parts.map((part, index) => {
-    if (!GENERIC_PATHOLOGY_NOUN.test(part)) return part;
+    // 「泌尿系结石/感染」拆开后的「感染」：感染能单独成病名，但兄弟项带着部位时借来（泌尿系感染），否则与兄弟项重复成一条空泛的鉴别
+    //（2026-10-17 甲方标准病历 6）。兄弟项借不出部位时原样（「感染/肿瘤」）。
+    if (!GENERIC_PATHOLOGY_NOUN.test(part) && !/^(?:感染|炎症)$/.test(part)) return part;
     for (const donor of [...parts.slice(0, index).reverse(), ...parts.slice(index + 1)]) {
       if (GENERIC_PATHOLOGY_NOUN.test(donor)) continue;
       const head = donor.replace(GENERIC_PATHOLOGY_TAIL, "");
@@ -3393,7 +3395,8 @@ function differentialLine(name: string, item: Record<string, unknown>): string {
     typical ? `常见：${typical}` : "",
     markdownCell(item.reason),
     markdownCell(item.distinguishingPoints) ? `本例区分要点：${markdownCell(item.distinguishingPoints)}` : "",
-    markdownCell(item.nextCheck) ? `建议核实：${markdownCell(item.nextCheck)}` : "",
+    // 模型把空值写成字符串「null」（2026-10-17 留出例 S132：「建议核实：null」）。
+    markdownCell(item.nextCheck) && !/^(?:null|undefined|无)$/i.test(markdownCell(item.nextCheck)) ? `建议核实：${markdownCell(item.nextCheck)}` : "",
     source ? `依据：${source}` : "",
   ], "；")}`;
 }

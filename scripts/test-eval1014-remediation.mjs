@@ -1131,7 +1131,11 @@ const checkAsync = async (name, run) => {
   check("11.2 正文：鉴别一行「常见：」后的典型表现原样保留；不带这个标签的同样文字照常净化（对照）", () => {
     const line = (body) => `### 中医辨病鉴别\n- **肠结**：${body}；均以便秘不通为主症。\n`;
     assert.equal(safety.sanitizeUngroundedRedFlagNegations(line(`常见：${typical}`), state), line(`常见：${typical}`));
-    assert.notEqual(safety.sanitizeUngroundedRedFlagNegations(line(typical), state), line(typical));
+    // 对照句的否认词要在症状词前面：10/17 起前置否认词只管它后面的词，「腹痛、呕吐、无排气排便」不带标签也不再被改写
+    //（此前把排在「无」前面的腹痛、呕吐也当成否认，见 preposed-negation-scope-forward）。
+    const denied = "无排气排便、呕吐";
+    assert.equal(safety.sanitizeUngroundedRedFlagNegations(line(`常见：${denied}`), state), line(`常见：${denied}`));
+    assert.notEqual(safety.sanitizeUngroundedRedFlagNegations(line(denied), state), line(denied));
   });
 }
 
@@ -1225,6 +1229,261 @@ const checkAsync = async (name, run) => {
     };
     assert.equal(analysis("组成：桂枝、芍药、生姜、大枣、甘草。出处：《伤寒论》。"), undefined);
     assert.match(String(analysis("桂枝与芍药一散一收，配合生姜、大枣、炙甘草调和营卫并顾护中焦。")), /一散一收/);
+  });
+}
+
+// ───── 14 10.12 交付轮余项（2026-10-17 第二批） ─────
+// 甲方 10 例 × 3 次本地复测后独立评审仍不通过的几项里，又有几处是服务端改坏的（~/runlogs/deliver1017/judge/local2-c10-r*）。
+{
+  const { textbookNearestRow } = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
+  const { withDeterministicFormulaReferences } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+  const feipiEvidence = "反复感冒1+年，易疲乏、短气自汗、声音低怯，食欲下降，进食稍多或滋腻则胃胀不适，大便稀溏";
+  check("14.1 两脏合称不被改成教材的单脏证型（甲方病历5 肺脾两虚证 → 肺气虚证）；病位栏只写一脏时、单脏同义写法照旧归一（对照）", () => {
+    assert.equal(textbookNearestRow("虚劳", "肺脾两虚证", "补肺健脾，益气固表", feipiEvidence, ["肺", "脾"]), undefined);
+    assert.equal(textbookNearestRow("虚劳", "肺脾气虚证", "补益肺脾", feipiEvidence), undefined);
+    assert.equal(textbookNearestRow("虚劳", "肺气亏虚证", "补益肺气", feipiEvidence, ["肺"])?.syndromeName, "肺气虚证");
+    assert.equal(textbookNearestRow("腰痛", "肝肾阴虚证", "滋补肝肾", "腰部酸痛，五心烦热", ["肾", "腰府"])?.syndromeName, "肾阴虚证",
+      "病位栏只写了肾，证名多写的肝没有定位，照旧改成教材单脏写法");
+    assert.equal(textbookNearestRow("胃痛", "肝胃不和证", "疏肝和胃", "胃脘胀痛，嗳气，情志不遂加重", ["肝", "胃"])?.syndromeName, "肝气犯胃证",
+      "教材这一行本身写了两脏，不算丢病位");
+    const anchored = withDeterministicFormulaReferences({
+      stage: "diagnose",
+      overview: {
+        tcmDiseaseName: "虚劳", primarySyndrome: "肺脾两虚证", primarySyndromeResolution: "bounded",
+        primarySyndromeBasis: [feipiEvidence], recommendedFormulaDirection: "补肺汤合四君子汤加减",
+        tcmDiagnosticRationale: "短气自汗、声音低怯为肺气虚；食少、便溏为脾气虚。两脏各有成组表现，故为肺脾两虚证。",
+      },
+      therapy: { overallPrinciple: "虚则补之", overallMethod: "补肺健脾，益气固表" },
+      pathogenesis: { locationDifferentiation: { items: ["肺", "脾"] }, chain: [{ patientFact: "反复感冒1+年", syndromeEvidence: feipiEvidence, pathogenesis: "肺脾气虚，卫外不固", therapyDirection: "补肺健脾" }] },
+    });
+    assert.equal(anchored.overview.primarySyndrome, "肺脾两虚证");
+    assert.match(anchored.overview.tcmDiagnosticRationale, /故为肺脾两虚证/);
+    assert.equal(anchored.therapy.overallMethod, "补肺健脾，益气固表", "没有对上教材一行，治法不被锚成「补益肺气」");
+  });
+}
+
+// ───── 14b 注意事项必须写到的项目（2026-10-17 第二批） ─────
+// 病历 7 三次都没写自服的黄连上清丸、甲硝唑；病历 3 一次漏写产后哺乳；S143 丹毒没写抗菌治疗。规则算出项目 → 提示词逐项列出 →
+// 交付面逐项核对，漏了用规则那句补上（~/runlogs/deliver1017/research/C-llm-methods.md：漏项靠模型自查查不出来）。
+{
+  const { selfTakenMedicationMentions } = await jiti.import("../src/lib/clinical-polarity.ts");
+  const { recentChildbirthMentioned } = await jiti.import("../src/lib/clinical-state.ts");
+  const { catalogSharedComposition } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+  const { requiredPrecautionsForCase, requiredPrecautionsPromptSection } = await jiti.import("../src/lib/required-precautions.server.ts");
+  const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
+  const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
+  const stateOf = (presentHistory, extra = {}) => normalizeCaseStateInput({
+    id: `rp-${Math.random()}`, chiefComplaint: extra.chiefComplaint || "", patient: extra.patient || { sex: "女", age: 42 },
+    symptoms: { 现病史: presentHistory, ...(extra.symptoms || {}) }, conversation: [],
+  });
+  const tooth = "患者三天前因进食大量火锅及饮用白酒后，次日晨起出现右侧下牙持续性胀痛，咀嚼时加剧。自服“黄连上清丸”及“甲硝唑片”后疼痛略有缓解，但药效过后疼痛如故。";
+  check("14.2 病历里的自服药名：带引号与不带引号、多药并列都取出；未服、否认服用、「服药后」不取（对照）", () => {
+    assert.deepEqual(selfTakenMedicationMentions(tooth), ["黄连上清丸", "甲硝唑片"]);
+    assert.deepEqual(selfTakenMedicationMentions("头痛2天，自服布洛芬后缓解。"), ["布洛芬"]);
+    assert.deepEqual(selfTakenMedicationMentions("曾口服阿莫西林胶囊3天无效"), ["阿莫西林胶囊"]);
+    assert.deepEqual(selfTakenMedicationMentions("发病后未服药，否认服用抗凝药，服药后症状加重"), []);
+  });
+  check("14.3 一年内分娩才算（2+月前剖宫产、两个多月前生产后、产后半年）；3 年前顺产、只写孕产次的不算（对照）", () => {
+    assert.equal(recentChildbirthMentioned("2+月前患者于当地医院行“剖宫产术”，术后产下1女，余无特殊。"), true);
+    assert.equal(recentChildbirthMentioned("两个多月前患者生产后出现头痛"), true);
+    assert.equal(recentChildbirthMentioned("产后半年，月经未复潮"), true);
+    assert.equal(recentChildbirthMentioned("3年前顺产1子"), false);
+    assert.equal(recentChildbirthMentioned("适龄婚育，孕1产1"), false);
+  });
+  check("14.4 中成药组成：受治理的常用方用核过的组成；目录多版本取共有药味；只有一个版本的不据此说组成（对照）", () => {
+    assert.deepEqual(catalogSharedComposition("黄连上清丸"), ["黄连", "大黄", "黄柏", "黄芩", "栀子", "连翘"]);
+    assert.deepEqual(catalogSharedComposition("黄连上清片"), catalogSharedComposition("黄连上清丸"));
+    assert.deepEqual(catalogSharedComposition("六味地黄丸").sort(), ["山茱萸", "山药", "地黄", "泽泻", "牡丹皮", "茯苓"].sort());
+    assert.deepEqual(catalogSharedComposition("板蓝根颗粒"), [], "目录只有一个同名「板蓝根丸」，组成与药典的板蓝根颗粒不同");
+    assert.deepEqual(catalogSharedComposition("甲硝唑片"), []);
+  });
+  const prior = (western, tcm) => ({ westernDiagnosis: { primary: { name: western } }, overview: { tcmDiseaseName: tcm } });
+  check("14.5 必写项目：自服中成药带组成、西药带说明书的戒酒；产后哺乳未记录；丹毒；男性、哺乳已记录、无自服药时不出（对照）", () => {
+    const toothItems = requiredPrecautionsForCase(stateOf(tooth), prior("急性牙髓炎", "牙痛"));
+    assert.deepEqual(toothItems.map((item) => item.kind), ["self_medication", "self_medication"]);
+    assert.equal(toothItems[0].name, "黄连上清丸");
+    assert.ok(toothItems[0].composition.includes("大黄"));
+    assert.equal(toothItems[1].base, "甲硝唑");
+    assert.equal(toothItems[1].alcoholWarning, true, "含酒精制剂的说明书写明与甲硝唑同用可出现双硫仑样反应");
+    assert.match(requiredPrecautionsPromptSection(toothItems), /黄连上清丸[\s\S]*甲硝唑片[\s\S]*戒酒/);
+    const postpartum = stateOf("两个多月前患者生产后出现头痛，呈隐痛。", { symptoms: { 既往史: "2+月前行“剖宫产术”，术后产下1女。" } });
+    assert.deepEqual(requiredPrecautionsForCase(postpartum, prior("产后头痛", "头痛")).map((item) => item.kind), ["postpartum_lactation"]);
+    const recordedLactation = stateOf("两个多月前患者生产后出现头痛，呈隐痛，现母乳喂养。");
+    assert.deepEqual(requiredPrecautionsForCase(recordedLactation, prior("产后头痛", "头痛")), [], "哺乳已记录时由妊娠哺乳的硬边界处理，不在这里重复");
+    const male = stateOf("两个多月前妻子生产后，患者熬夜后出现头痛。", { patient: { sex: "男", age: 35 } });
+    assert.deepEqual(requiredPrecautionsForCase(male, prior("紧张型头痛", "头痛")), []);
+    assert.deepEqual(requiredPrecautionsForCase(stateOf("左小腿红肿热痛2天。", { patient: { sex: "男", age: 57 } }), prior("下肢丹毒", "丹毒")).map((item) => item.kind), ["skin_infection_antibiotic"]);
+    assert.deepEqual(requiredPrecautionsForCase(stateOf("发病后未服药。"), prior("急性上呼吸道感染", "感冒")), []);
+    assert.deepEqual(requiredPrecautionsForCase(stateOf("前日吃山楂后胃脘胀满。"), prior("消化不良", "胃痞")), [], "食物名只靠去剂型的基础名对上山楂丸，不算自服药");
+  });
+  const prescription = (precautions, herbs = ["黄连", "生地黄", "牡丹皮", "升麻", "当归", "大黄"]) => ({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{ name: "清胃散加减", herbs: herbs.map((name) => ({ name })) }], patentAndWestern: [] },
+    nonPharma: { precautions, tcmTreatments: [] },
+  });
+  check("14.6 交付面逐项核对：漏写的用规则那句补在最前（重叠药按本方实有的药味说），已写到的不动，再投影一次不变，辨证结果不加（对照）", () => {
+    const items = requiredPrecautionsForCase(stateOf(tooth), prior("牙痛", "牙痛"));
+    const out = projectDeliveredReasoning(prescription(["服药宜饭后温服，忌辛辣醇酒。"]), { requiredPrecautions: items });
+    assert.equal(out.nonPharma.precautions.length, 3);
+    assert.match(out.nonPharma.precautions[0], /^已自服的黄连上清丸与本方同含黄连、大黄，/);
+    assert.match(out.nonPharma.precautions[1], /甲硝唑片[\s\S]*须戒酒，饮酒可引起双硫仑样反应/);
+    assert.equal(out.nonPharma.precautions[2], "服药宜饭后温服，忌辛辣醇酒。");
+    const again = projectDeliveredReasoning(structuredClone(out), { requiredPrecautions: items });
+    assert.deepEqual(again.nonPharma.precautions, out.nonPharma.precautions);
+    const covered = projectDeliveredReasoning(prescription(["黄连上清丸与本方都含黄连、大黄，服本方期间请停服。", "甲硝唑服药期间及停药后3天内不要饮酒。"]), { requiredPrecautions: items });
+    assert.equal(covered.nonPharma.precautions.length, 2, "模型已写到的不再补");
+    // 模型把提示里给的整串组成抄成「重叠」：本方没有的药删掉，只留本方真有的（本地复测病历 7：处方没有黄芩、黄柏、栀子、连翘）。
+    const copied = projectDeliveredReasoning(prescription(["病历记录已自服黄连上清丸，与本方黄连、大黄、黄芩、黄柏、栀子、连翘等重叠，服本方期间应停服黄连上清丸。", "甲硝唑服药期间不要饮酒。"]), { requiredPrecautions: items });
+    assert.equal(copied.nonPharma.precautions[0], "病历记录已自服黄连上清丸，与本方黄连、大黄等重叠，服本方期间应停服黄连上清丸。");
+    // 一味真有的都不剩还说重叠：换成规则那一句（按本方实有药味说）。
+    const none = projectDeliveredReasoning(prescription(["已自服黄连上清丸，与本方黄芩、栀子重叠，请停服。", "甲硝唑服药期间不要饮酒。"], ["升麻", "生地黄", "牡丹皮", "当归", "石膏"]), { requiredPrecautions: items });
+    assert.match(none.nonPharma.precautions[0], /^已自服的黄连上清丸是否继续服用/);
+    assert.ok(!none.nonPharma.precautions.some((line) => /黄芩、栀子重叠/.test(line)));
+    const postpartumOut = projectDeliveredReasoning(prescription(["补益药宜饭前温服。"], ["当归", "川芎", "熟地黄", "白芍", "麦芽"]), { requiredPrecautions: [{ kind: "postpartum_lactation" }] });
+    // 哺乳期慎用的药与逐味人群提示同一份知识库、同一档（中、高）：川芎、麦芽列，当归、白芍（低）不列。
+    assert.equal(postpartumOut.nonPharma.precautions[0], "产后如正在哺乳，请服药前告知医生（方中川芎、麦芽哺乳期须慎用），由医生评估后再服。");
+    // 模型写「方中暂无哺乳期慎用药」而知识库列了：换成规则那一句（本地复测病历 3）。
+    const denied = projectDeliveredReasoning(prescription(["患者一年内分娩，如正在哺乳请先告知医生，方中暂无回乳或哺乳期慎用药。", "补益药宜饭前温服。"], ["当归", "川芎", "白芍"]), { requiredPrecautions: [{ kind: "postpartum_lactation" }] });
+    assert.deepEqual(denied.nonPharma.precautions, ["产后如正在哺乳，请服药前告知医生（方中川芎哺乳期须慎用），由医生评估后再服。", "补益药宜饭前温服。"]);
+    const diagnose = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", nonPharma: { precautions: [] } }, { requiredPrecautions: items });
+    assert.deepEqual(diagnose.nonPharma.precautions, []);
+  });
+}
+
+// ───── 14c 病历 7 西医病名、方义加药说法、服药时间、运动保健（2026-10-17 第二批） ─────
+{
+  const fs = await import("node:fs");
+  const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
+  check("14.7 西医病名核对 D：牙病分型须口腔检查，没有时只写「牙痛」（病历 7「急性牙髓炎」离线 3/3 → 牙痛）；运动保健按行动能力写", () => {
+    const check = fs.readFileSync("src/lib/western-name-evidence-check.server.ts", "utf8");
+    assert.match(check, /牙病的分型名称（急性牙髓炎、慢性牙髓炎、急性根尖周炎、牙周脓肿、智齿冠周炎等）需要口腔专科检查/);
+    assert.match(check, /“关节炎”“牙痛”/);
+    // 放在 D 段末尾：插在病程门槛那句前面时，功能性便秘 3 个月（S161）两次都漏判（~/runlogs/deliver1017/west/v4*-synth）。
+    assert.ok(check.indexOf("肠易激综合征还必须有腹痛") < check.indexOf("牙病的分型名称"));
+    const prompts = fs.readFileSync("src/lib/diagnosis-prompts.ts", "utf8");
+    assert.match(prompts, /病历记录了行动受限（拄拐、助行器、骨折或关节术后、卧床、肢体无力）或高龄体弱时，只写与之相称的坐位或床旁活动/);
+  });
+  const xiaofeng = (analysis) => projectDeliveredReasoning({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{ name: "消风散加减", formulaAnalysis: analysis,
+      herbs: ["荆芥", "防风", "蝉蜕", "炒牛蒡子", "苦参", "麸炒苍术", "川木通", "当归", "知母", "生地黄", "炒黑芝麻", "甘草", "白鲜皮"].map((name) => ({ name })) }] },
+    nonPharma: { precautions: [] },
+  }).formula.candidates[0].formulaAnalysis;
+  check("14.8 方义开头「加X」而X本在原方（消风散有地黄：加生地黄、以生地黄易原方地黄）：去掉不实说法；真加的药、后文配伍照留（对照）", () => {
+    assert.equal(xiaofeng("本方以消风散为基础加减，去煅石膏，加生地黄。荆芥、防风为君。"), "本方以消风散为基础加减，去煅石膏。荆芥、防风为君。");
+    assert.equal(xiaofeng("本方以消风散为基础加减，去煅石膏，以生地黄易原方地黄并加用。荆芥、防风辛散。"), "本方以消风散为基础加减，去煅石膏。荆芥、防风辛散。");
+    assert.equal(xiaofeng("本方以消风散为基础加减，去煅石膏，加生地黄、白鲜皮。荆芥为君。"), "本方以消风散为基础加减，去煅石膏，加白鲜皮。荆芥为君。");
+    assert.equal(xiaofeng("本方以消风散为基础加减，加白鲜皮以止痒。生地黄清热凉血，加强养血之力。"), "本方以消风散为基础加减，加白鲜皮以止痒。生地黄清热凉血，加强养血之力。");
+  });
+  check("14.9 注意事项「若胃脘不适可改为饭后温服」而煎服法已是饭后：去掉这一小句，同条其余照留；煎服法是饭前时照留（对照）", () => {
+    const run = (method) => projectDeliveredReasoning({
+      schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+      formula: { candidates: [{ name: "安神定志丸加减", herbs: [], decoction: { method } }] },
+      nonPharma: { precautions: ["忌生冷油腻及浓茶，服后若胃脘不适可改为饭后温服。"], tcmTreatments: [] },
+    }).nonPharma.precautions;
+    assert.deepEqual(run("水煎服，每日1剂，分2次饭后温服"), ["忌生冷油腻及浓茶。"]);
+    assert.deepEqual(run("水煎服，每日1剂，分2次饭前温服"), ["忌生冷油腻及浓茶，服后若胃脘不适可改为饭后温服。"]);
+  });
+}
+
+// ───── 14d 第三轮复测评审又找到的服务端文字（2026-10-17） ─────
+{
+  const { applyWesternNameCorrection } = await jiti.import("../src/lib/western-name-evidence-check.server.ts");
+  const { normalizeM03WesternDifferentials } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
+  const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
+  check("14.10 情形 D 把原病名放进鉴别：理由开头的「无/未记录…检查」换成「尚缺」，不被当成对患者的否认；交付面带括注的对象也能改写", () => {
+    const western = JSON.stringify({ westernDiagnosis: { primary: { name: "急性牙髓炎" }, candidates: [], differentials: [] } });
+    const out = JSON.parse(applyWesternNameCorrection(western, { type: "D", supportedName: "牙痛", quote: "右侧下牙持续性胀痛", reason: "无口腔专科检查（牙髓活力、叩诊等）分型依据" }));
+    assert.equal(out.westernDiagnosis.differentials[0].distinguishingPoints, "尚缺口腔专科检查（牙髓活力、叩诊等）分型依据");
+    const delivered = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", westernDiagnosis: { primary: { name: "牙痛" }, differentials: [
+      { name: "急性牙髓炎", distinguishingPoints: "病历未记录冷热刺激痛（遇冷加重）（需问诊核实后方可用于排除）" },
+    ] } });
+    assert.equal(delivered.westernDiagnosis.differentials[0].distinguishingPoints, "未诉冷热刺激痛（遇冷加重）");
+  });
+  check("14.11 「颞动脉无压痛」「鼻窦区压痛」不是腹部查体；「腹软，无压痛」「无压痛」照常按腹部查体核（对照）", () => {
+    const state = normalizeCaseStateInput({ id: "exam-site", chiefComplaint: "头痛2月", symptoms: { 现病史: "头痛2月，呈隐痛。" }, conversation: [], patient: { sex: "女", age: 32 } });
+    const run = (text) => {
+      const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", westernDiagnosis: { differentials: [{ name: "巨细胞动脉炎", distinguishingPoints: text }] } };
+      const out = safety.sanitizeUngroundedRedFlagNegations(`<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`, state);
+      return JSON.parse(out.slice(out.indexOf("-->") + 3, out.lastIndexOf("<!--"))).westernDiagnosis.differentials[0].distinguishingPoints;
+    };
+    assert.doesNotMatch(run("颞动脉无压痛、无怒张"), /腹部查体/);
+    assert.doesNotMatch(run("查鼻窦区压痛"), /腹部查体/);
+    assert.match(run("腹软，无压痛"), /腹部查体/);
+    assert.match(run("全腹无压痛及反跳痛"), /腹部查体/);
+  });
+  check("14.12 「泌尿系结石/感染」拆开后「感染」借兄弟项的部位成「泌尿系感染」；「感染/肿瘤」借不到，原样（对照）", () => {
+    const run = (name) => {
+      const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", westernDiagnosis: { primary: { name: "腰痛" }, differentials: [{ name, reason: "需排除", distinguishingPoints: "大小便正常", nextCheck: "尿常规" }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+      const out = normalizeM03WesternDifferentials(content, "腰痛半年，大小便正常。", 70);
+      return JSON.parse(out.slice(out.indexOf("-->") + 3, out.lastIndexOf("<!--"))).westernDiagnosis.differentials.map((item) => item.name);
+    };
+    assert.deepEqual(run("泌尿系结石/感染"), ["泌尿系结石", "泌尿系感染"]);
+    const unborrowed = run("感染/肿瘤");
+    assert.ok(unborrowed.includes("感染") && !unborrowed.some((name) => name.length > 2 && name.endsWith("感染")), JSON.stringify(unborrowed));
+  });
+}
+
+// ───── 14e 治疗卡与注意事项（2026-10-17 第三轮复测评审） ─────
+{
+  const { cardSentencesNamingListedPoints } = await jiti.import("../src/lib/tcm-nondrug-textbook-plan.server.ts");
+  const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
+  check("14.13 针刺卡操作栏点名的穴位一个都不在本卡穴位里的句子不留（风寒感冒卡里的「少商、商阳用点刺放血法」）；说禁忌、不宜的句子照留；点名的穴有在卡上的照留（对照）", () => {
+    const points = ["列缺（LU7·手太阴肺经）", "合谷（LI4·手阳明大肠经）", "风池（GB20）", "大椎（DU14）", "肺俞（BL13）"];
+    const text = "诸穴均宜浅刺。风寒证可加灸法；少商、商阳用点刺放血法。 禁忌：膏肓、肺俞、膈俞等穴局部肌肉薄，须规范操作避免气胸。";
+    assert.equal(cardSentencesNamingListedPoints(text, points), "诸穴均宜浅刺。风寒证可加灸法。 禁忌：膏肓、肺俞、膈俞等穴局部肌肉薄，须规范操作避免气胸。");
+    assert.equal(cardSentencesNamingListedPoints("毫针常规刺，膻中不宜直刺、深刺，以免伤及内脏；阴水可加灸。", points), "毫针常规刺，膻中不宜直刺、深刺，以免伤及内脏；阴水可加灸。");
+    assert.equal(cardSentencesNamingListedPoints("大椎、少商可点刺出血。", points), "大椎、少商可点刺出血。");
+  });
+  check("14.14 针刺卡在皮损局部取穴（阿是穴/围刺）时，注意事项里「皮损局部暂不施针」那一小句不留，同条其余照留；卡上没有局部取穴时照留（对照）", () => {
+    const run = (card) => projectDeliveredReasoning({
+      schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+      formula: { candidates: [{ name: "龙胆泻肝汤加减", herbs: [] }] },
+      nonPharma: { precautions: ["针刺治疗需在正规医疗机构由专业人员操作，皮损局部暂不施针。"], tcmTreatments: [card] },
+    }).nonPharma.precautions;
+    assert.deepEqual(run({ projectCode: "acupuncture", suggestedSitesOrPoints: ["阿是穴", "夹脊（EX-B2）"], treatmentContent: "取局部穴位及相应夹脊穴为主。", techniqueBoundary: "皮损局部阿是穴用围刺法。" }),
+      ["针刺治疗需在正规医疗机构由专业人员操作。"]);
+    assert.deepEqual(run({ projectCode: "acupuncture", suggestedSitesOrPoints: ["夹脊（EX-B2）", "行间（LR2）"], treatmentContent: "取夹脊穴。", techniqueBoundary: "毫针刺，用泻法。" }),
+      ["针刺治疗需在正规医疗机构由专业人员操作，皮损局部暂不施针。"]);
+  });
+}
+
+// ───── 14f 第四轮复测评审：留出集的服务端文字（2026-10-17） ─────
+{
+  const { reviewAuthoredFormulaAnalysis } = await jiti.import("../src/lib/formula-analysis-review.ts");
+  const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
+  const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
+  const { moxibustionUnsuitableForSyndrome } = await jiti.import("../src/lib/tcm-nondrug-textbook-plan.server.ts");
+  const fs = await import("node:fs");
+  check("14.15 剔掉外来药后，下一个分句里的「二药合为君」同样按剩下的本方药味数改写（S145）；两味都在时不动（对照）", () => {
+    const herbs = ["黄柏", "薏苡仁", "防己", "牛膝", "滑石", "栀子", "甘草"];
+    const out = reviewAuthoredFormulaAnalysis("本方以宣痹汤为基础加减。黄柏、苍术苦寒清下焦湿热，二药合为君，直解湿热下注之核心；薏苡仁、防己利湿除痹。", herbs);
+    assert.match(out.text, /黄柏苦寒清下焦湿热，合为君|黄柏苦寒清下焦湿热，为君/);
+    assert.doesNotMatch(out.text, /二药/);
+    const kept = reviewAuthoredFormulaAnalysis("本方以宣痹汤为基础加减。黄柏、栀子苦寒清下焦湿热，二药合为君，直解湿热下注之核心；薏苡仁、防己利湿除痹。", herbs);
+    assert.match(kept.text, /黄柏、栀子苦寒清下焦湿热，二药合为君/);
+  });
+  check("14.16 未录脉象时「脉微欲绝」整个换成「脉象待核实」，不留「欲绝」（S074）", () => {
+    const state = normalizeCaseStateInput({ id: "pulse-tail", chiefComplaint: "汗出黏腻1月", symptoms: { 现病史: "汗出黏腻，口苦。" }, conversation: [], patient: { sex: "男", age: 40 } });
+    const out = safety.sanitizeUngroundedRedFlagNegations("脱汗典型者脉微欲绝。", state);
+    assert.doesNotMatch(out, /欲绝/);
+    assert.match(out, /脉象待核实/);
+  });
+  check("14.17 鉴别的「建议核实」写成字符串 null 时按空值交付（S132）", () => {
+    const out = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseDifferentials: [{ diseaseName: "风瘙痒", nextCheck: "null" }, { diseaseName: "牛皮癣", nextCheck: "皮肤科视诊" }] } });
+    assert.equal(out.overview.tcmDiseaseDifferentials[0].nextCheck, null);
+    assert.equal(out.overview.tcmDiseaseDifferentials[1].nextCheck, "皮肤科视诊");
+  });
+  check("14.18 湿热、阴虚、实热、火类证候整张灸法卡不出（S067 湿热石淋）；虚寒、阳虚照出（对照）", () => {
+    assert.equal(moxibustionUnsuitableForSyndrome("下焦湿热证"), true);
+    assert.equal(moxibustionUnsuitableForSyndrome("肾阴虚证"), true);
+    assert.equal(moxibustionUnsuitableForSyndrome("命门火衰证"), false);
+    assert.equal(moxibustionUnsuitableForSyndrome("脾胃虚寒证"), false);
+    const src = fs.readFileSync("src/lib/tcm-treatment-capabilities.server.ts", "utf8");
+    assert.match(src, /definition\.code === "moxibustion" && moxibustionUnsuitableForSyndrome\(signedSyndromeText\)\) return \[\]/);
   });
 }
 

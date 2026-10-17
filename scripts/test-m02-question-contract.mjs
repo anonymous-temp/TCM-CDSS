@@ -84,7 +84,11 @@ assert.equal((malformed.match(/\*\*问题\d+[：:]/g) || []).length, 1);
   const urgentCase = { ...coughCase, clinicalFacts: { redFlags: [{ category: "poisoning", status: "possible", urgency: "urgent", quote: "怀疑被下药" }] } };
   assert.match(buildCaseAwareQuestionFallback(urgentCase, { settled: true }), /接触或摄入的物质、时间和大致剂量/);
   // 旧口径开关：不要教材题时也不出基本问诊题（既有调用方的行为不变）。
-  assert.match(buildCaseAwareQuestionFallback({ chiefComplaint: novelCase.chiefComplaint }, { textbookQuestion: false }), /目前总体在加重、缓解还是反复波动/);
+  assert.match(buildCaseAwareQuestionFallback({ chiefComplaint: novelCase.chiefComplaint }, { textbookQuestion: false }), /目前主要不适总体在加重、缓解还是反复波动/);
+  // 2026-10-17（甲方标准病历 9）：病历已写病情变化（时消时现、反复）时，病情变化题就是复述病历，改问开放题；题干不再嵌主诉原文（「2+天」）。
+  const recurring = { chiefComplaint: "皮肤瘙痒伴风团2+天", symptoms: { presentHistory: "风团时消时现，服氯雷他定后好转，药效过后仍反复出现。" } };
+  assert.match(buildCaseAwareQuestionFallback(recurring, { textbookQuestion: false }), /还有没有其他不适/);
+  assert.doesNotMatch(buildCaseAwareQuestionFallback(recurring, { textbookQuestion: false }), /2\+天|总体在加重/);
 }
 
 // 2026-10-13「只认明确现症」：急症筛查题只为事实层判为 urgent 的线索而出；possible / clarify 不再出题
@@ -633,6 +637,14 @@ const invalidOptionEnvelope = ensureQuestionStructuredEnvelope(`${oneHighValue}\
 assert.notEqual(parseM02PlanFromContent(invalidOptionEnvelope)?.questions[0]?.question, typedPlan.questions[0].question, "a single clinical branch plus unknown is not a valid single-choice plan");
 const ungroundedTyped = ensureQuestionStructuredEnvelope(typedContent, "完全不同的病历文本");
 assert.notEqual(parseM02PlanFromContent(ungroundedTyped)?.questions[0]?.question, typedPlan.questions[0].question, "fabricated source evidence rejects the provider plan and uses a bounded fallback");
+// 2026-10-17：依据逐条隔离。多写一条（5 条）或其中一条不逐字（「头痛呈隐痛」对病历「头痛，呈隐痛」），只丢那条、留下的最多 4 条，题照出；
+// 此前整题作废，甲方 10 例 × 3 里 9 次退到主诉类别兜底题。
+const evidenceSource = "嘴里发黏，口淡，头痛，呈隐痛，纳差，便溏，舌淡苔白腻，脉濡";
+const extraEvidencePlan = structuredClone(typedPlan);
+extraEvidencePlan.questions[0].sourceEvidence = ["嘴里发黏", "头痛呈隐痛", "纳差", "便溏", "舌淡苔白腻", "脉濡"];
+const extraEvidence = parseM02PlanFromContent(ensureQuestionStructuredEnvelope(JSON.stringify({ m02Plan: extraEvidencePlan }), evidenceSource));
+assert.equal(extraEvidence?.questions[0]?.question, typedPlan.questions[0].question, "one non-verbatim or one extra evidence entry no longer discards the question");
+assert.deepEqual(extraEvidence?.questions[0]?.sourceEvidence, ["嘴里发黏", "纳差", "便溏", "舌淡苔白腻"]);
 const explicitGenericFallback = ensureQuestionStructuredEnvelope("not-json", "入睡困难");
 const diarrheaFallbackVariants = [
   "最近吃点东西就想跑厕所，稀稀的有半个月",
@@ -719,10 +731,20 @@ assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be 
   };
   let providerContent = "";
   let providerStatus = 200;
+  let redundancyVerdict = { verdict: "not_answered", quotes: [], reason: "" };
   const upstreamBodies = [];
+  const redundancyBodies = [];
   const savedFetch = globalThis.fetch;
   globalThis.fetch = async (_url, init) => {
     const body = JSON.parse(init.body);
+    // 2026-10-17 起出题后有一次窄核对（m02-question-redundancy：模型题是不是复述病历），只问这一件事、必须逐字引病历；
+    // 9/25 删掉的是同模型的通用复核，这里仍不许有别的非流式调用。
+    if (!body.stream && /追问题与病历的重复核对器/.test(body.messages?.[0]?.content || "")) {
+      redundancyBodies.push(body);
+      return new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content: JSON.stringify(redundancyVerdict) }, finish_reason: "stop" }] }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     upstreamBodies.push(body);
     if (!body.stream) throw new Error("M02 makes no non-streamed (review) call");
     if (providerStatus !== 200) return new Response("upstream down", { status: providerStatus });
@@ -747,6 +769,7 @@ assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be 
     assert.deepEqual(envelopeJson(unscored).completeness, expectedObject, "success path: completeness is the deterministic operational completeness");
     assert.equal(envelopeJson(unscored).m02Plan.questions[0].question, routePlan.questions[0].question, "the unscored provider plan is delivered, not replaced by the fallback");
     assert.equal(upstreamBodies.length, 1, "one streamed generation call, no review call");
+    assert.ok(redundancyBodies.length <= 1, "at most one narrow redundancy check on the model-written question");
     const sentPrompt = upstreamBodies[0].messages.map((message) => message.content).join("\n");
     assert.doesNotMatch(sentPrompt, /completeness|"redFlag"|infoGain"|answerability|managementImpact|level 只能取/, "the M02 prompt no longer asks the model to score completeness");
     assert.match(sentPrompt, /"m02Plan":\{"schemaVersion":"tcm-cdss-m02-plan-v1"/, "the M02 prompt still carries the plan contract");
@@ -759,6 +782,23 @@ assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be 
     assert.doesNotMatch(finalized, /阴虚火旺|知柏地黄丸/, "fixture: the deterministic finalizer rewrote this plan");
     assert.match(envelopeJson(finalized).m02Plan.questions[0].reason, /未确认前保持未知/);
     assert.deepEqual(envelopeJson(finalized).completeness, expectedObject, "a model-authored completeness never reaches the external envelope, including after the finalizer rewrites it");
+
+    // 窄核对判「病历已写明」且引文逐字在病历里：模型题删掉，按「不需要再问」处理（本测试未开 proceed 开关，出服务端的基本问诊题）。
+    // 每种判定用不同的题干：小任务结果按「病历+题+选项」缓存，同一道题第二次拿到的是第一次的判定。
+    const repeatedPlan = structuredClone(routePlan);
+    repeatedPlan.questions[0].question = "入睡困难时是否伴有心烦或夜间盗汗？";
+    providerContent = JSON.stringify({ m02Plan: repeatedPlan });
+    redundancyVerdict = { verdict: "partly", quotes: ["心烦"], reason: "心烦已写明" };
+    const repeated = await runRoute();
+    assert.notEqual(envelopeJson(repeated).m02Plan.questions[0]?.question, repeatedPlan.questions[0].question, "a question the record already answers is removed");
+    // 引文不在病历里：不删（模型编的引文不作数）。
+    const ungroundedPlan = structuredClone(routePlan);
+    ungroundedPlan.questions[0].question = "入睡困难是否伴有夜间盗汗？";
+    providerContent = JSON.stringify({ m02Plan: ungroundedPlan });
+    redundancyVerdict = { verdict: "answered", quotes: ["夜间盗汗明显"], reason: "病历已写明" };
+    const ungrounded = await runRoute();
+    assert.equal(envelopeJson(ungrounded).m02Plan.questions[0].question, ungroundedPlan.questions[0].question, "an ungrounded redundancy verdict is ignored");
+    redundancyVerdict = { verdict: "not_answered", quotes: [], reason: "" };
 
     providerStatus = 500;
     const upstreamFailure = await runRoute();
@@ -774,4 +814,4 @@ assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be 
   }
 }
 
-console.log(JSON.stringify({ cases: 35, failures: 0 }));
+console.log(JSON.stringify({ cases: 38, failures: 0 }));
