@@ -507,7 +507,9 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
     const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
     if (reasoning.stage !== "diagnose") return content;
     let changed = false;
-    const NEGATIVE_CLAUSE = /^(?:本例|该患者|患者)?(?:均?(?:无|没有)|未见|未闻及|未出现|不伴|无明显)(.+)$/u;
+    // 「无法、无论、无需、无定处…」是固定说法，不是否认（UNRECORDED_NEGATIVE 排除组里的固定说法部分；无汗、无痰这类症状词照常核）：2026-10-17 生产复测，
+    // 情形 D 的鉴别要点「…，无法分型」被改成「病历未记录法分型（需问诊核实…）」，交付成「未诉法分型」。
+    const NEGATIVE_CLAUSE = /^(?:本例|该患者|患者)?(?:均?(?:无(?![法论需妨效碍以所可非常度端故]|定[处时所]|关(?!节)|形之)|没有)|未见|未闻及|未出现|不伴|无明显)(.+)$/u;
     const SEASON_CLAUSE = /^发病(?:于|在)非?[^，。；]*(?:季节?|时令)/u;
     const groundClause = (clause: string): string => {
       const trimmed = clause.trim();

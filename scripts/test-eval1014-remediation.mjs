@@ -1489,4 +1489,23 @@ const checkAsync = async (name, run) => {
   });
 }
 
+// ───── 14g 生产复测（d2bbe09）评审又找到的服务端文字 ─────
+{
+  const { groundDifferentialNegativeAssertions } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  check("14.19 鉴别要点里的「无法分型」不是否认，不改成「病历未记录法分型」；真正的「无X」未记录照常改（对照）", () => {
+    const run = (text) => {
+      const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", westernDiagnosis: { differentials: [{ name: "急性牙髓炎", distinguishingPoints: text }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+      const out = groundDifferentialNegativeAssertions(content, "右侧下牙持续性胀痛，咀嚼时加剧。");
+      return JSON.parse(out.slice(out.indexOf("-->") + 3, out.lastIndexOf("<!--"))).westernDiagnosis.differentials[0].distinguishingPoints;
+    };
+    assert.equal(run("尚缺口腔专科检查（牙髓活力、叩诊等），无法分型"), "尚缺口腔专科检查（牙髓活力、叩诊等），无法分型");
+    assert.match(run("无冷热刺激痛"), /病历未记录冷热刺激痛/);
+    assert.match(run("无汗出"), /病历未记录汗出/, "无汗、无痰这类症状词照常按病历核");
+    // 已存输出里「未诉法判断」100 余处、「未诉定处拒按」20 处；「无形寒肢冷」「无关节变形」是真正的否认，照常核。
+    assert.equal(run("无法判断"), "无法判断");
+    assert.match(run("无形寒肢冷"), /病历未记录形寒肢冷/);
+    assert.match(run("无关节变形"), /病历未记录关节变形/);
+  });
+}
+
 console.log(JSON.stringify({ cases, failures: process.exitCode ? "see above" : 0 }));
