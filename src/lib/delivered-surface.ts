@@ -527,7 +527,8 @@ function withoutFalseAdditionClaims(analysis: string, catalogIds: ReadonlySet<st
   const end = analysis.indexOf("。");
   const first = end >= 0 ? analysis.slice(0, end) : analysis;
   const rest = end >= 0 ? analysis.slice(end) : "";
-  const clauses = first.split(/[，,；;]/);
+  // 「去石膏、加生地黄」：加药说法也会跟在顿号后面（2026-10-17 生产复测病历 9），顿号后紧跟「加」的地方同样切开。
+  const clauses = first.split(/[，,；;]|、(?=(?:并|再|另)?加)/);
   const kept = clauses.flatMap((clause) => {
     const swap = clause.match(/^\s*(?:并|且)?以([^，,；;易]{2,6})易(?:原方(?:中)?)?([^，,；;并]{2,6})/u);
     if (swap && rawFormHerbIdentity(swap[1]) === rawFormHerbIdentity(swap[2])) return [];
