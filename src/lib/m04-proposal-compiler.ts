@@ -9,7 +9,8 @@ import { sanitizeUnverifiedClinicalNarrative } from "./customer-evidence";
 import { stripHerbBoundaryTail } from "./candidate-boundary-text";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
-import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
+import { getTcmHerbDoseLimit, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
+import { compositionIdentityName, formulaCompilationReferences } from "./tcm-formula-provenance";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
@@ -773,6 +774,27 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   special_population_conflict: "拟加药味为药典孕妇禁用，本例备孕/未避孕不宜加入",
 };
 
+/**
+ * 主证不涉心神时，为病历顺带提到的睡眠差加进主方的安神药不留（2026-10-17）。
+ * 甲方 10.12 测评 4.1 点名「酸枣仁-睡眠差似乎是固定模板，但本病依旧不适合使用酸枣仁」；提示词早已写明顺带的伴随症状只进随证加减，
+ * 本地复测仍有血虚头痛加首乌藤「兼顾眠差」、血热月经先期加酸枣仁「应热扰心神之寐差」。判据全部来自已有数据，不另立词表：
+ * 该味在知识库里归安神药类、是佐或使、不在所称方剂的目录组成里，且已签名的证名与病名都不涉心、神、寐、悸、郁。
+ * 去掉后方义里讲这味药的小句由方义核对按「方外之药」删去；剩不到三味时原样保留。
+ */
+const SEDATIVE_CATEGORY = /(?:^|；)(?:养心|重镇)?安神药(?:；|$)/u;
+function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2): M04Proposal["candidate"]["herbs"] {
+  const mindScope = `${prior.overview?.primarySyndrome || ""}${(prior.overview?.secondarySyndromes || []).join("")}${prior.overview?.tcmDiseaseName || ""}`;
+  if (/心|神|寐|眠|悸|郁/.test(mindScope)) return candidate.herbs;
+  const baseName = String(candidate.name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
+  const base = new Set((formulaCompilationReferences([baseName])[0]?.ingredients || []).map((name) => compositionIdentityName(name.replace(/[（(][^）)]*[）)]/g, ""))));
+  const kept = candidate.herbs.filter((herb) => !(
+    (herb.role === "佐" || herb.role === "使") &&
+    SEDATIVE_CATEGORY.test(getTcmHerbFunctionText(herb.name)) &&
+    !base.has(compositionIdentityName(herb.name))
+  ));
+  return kept.length >= 3 ? kept : candidate.herbs;
+}
+
 /** 与 diagnosis-types.ts modificationReview.submittedCount 的 `.max(30)` 同源（该字段无 catch，超限即整份拒收）。 */
 const MODIFICATION_REVIEW_COUNT_LIMIT = 30;
 
@@ -1470,8 +1492,9 @@ export function compileM04Proposal(
   const parsed = M04ProposalSchema.safeParse(normalizeM04ProposalInput(value, prior, instructionRecords));
   if (!parsed.success) return undefined;
   // Preserve the exact model proposal through compilation. Dose normalization may canonicalize
-  // representation; the only clinical value the server changes is an ordinary herb above its
-  // pharmacopoeia ceiling (see compiledHerbs below), and it says so on that herb's row.
+  // representation; the clinical values the server changes are an ordinary herb above its
+  // pharmacopoeia ceiling (see compiledHerbs below, stated on that herb's row) and an added sedative
+  // for an incidental sleep complaint (withoutIncidentalSedatives).
   const trustedMedicines = trustedMedicineCandidates.flatMap((item) => {
     const checked = PatentAndWesternProposalSchema.safeParse(item);
     return checked.success ? [checked.data] : [];
@@ -1483,6 +1506,7 @@ export function compileM04Proposal(
   const medicineExclusionText = caseState ? clinicalGroundingText(caseState) : "";
   const proposal = {
     ...parsed.data,
+    candidate: { ...parsed.data.candidate, herbs: withoutIncidentalSedatives(parsed.data.candidate, prior) },
     patentAndWestern: [...new Map(
       [...parsed.data.patentAndWestern, ...trustedMedicines]
         .filter((item) => !medicineCandidateExcludedForCase(String(item.name || ""), medicineExclusionText))
@@ -1740,4 +1764,4 @@ export function compileM04JsonObjectContent(
 }
 
 /** 测试用：单味药的核验级别与理由（医生在页面上看到的那一行）。 */
-export const m04CompilerTestHooks = { compileHerbVerification, casePrecautions };
+export const m04CompilerTestHooks = { compileHerbVerification, casePrecautions, withoutIncidentalSedatives };

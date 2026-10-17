@@ -904,6 +904,50 @@ const checkAsync = async (name, run) => {
   });
 }
 
+// ───── 7k 手工核对的功用剔除项（10/17：黑芝麻被标成「清热解毒」）─────
+{
+  const knowledge = await jiti.import("../src/lib/tcm-knowledge.ts");
+  const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+  check("7.25 黑芝麻（炒黑芝麻）的功用文本不含清热解毒、补中益气；「清热解毒」的标注不再接地；补益肝肾照常（对照）", () => {
+    for (const name of ["黑芝麻", "炒黑芝麻"]) {
+      const text = knowledge.getTcmHerbFunctionText(name);
+      assert.doesNotMatch(text, /清热解毒|补中益气/, text);
+      assert.match(text, /补益肝肾/, text);
+    }
+    assert.equal(contract.herbFunctionMatchesKnowledge("黑芝麻", "清热解毒", "佐", "", true), false);
+    assert.equal(contract.herbFunctionMatchesKnowledge("黑芝麻", "补益肝肾", "佐", "", false), true);
+  });
+}
+
+// ───── 7l 几选一的煎法在药味表里只写一种（10/17 甲方标准病历 7：大黄「后下或先煎或冲服、禁止久煎」）─────
+{
+  const rules = await jiti.import("../src/lib/herb-decoction-rules.ts");
+  check("7.26 药味表照抄的几选一整串换成所列第一种；只点了一种的照留（对照）", () => {
+    assert.equal(rules.withOneOfDecoctionResolved("大黄", "后下或先煎或冲服、禁止久煎"), "后下、禁止久煎");
+    assert.equal(rules.withOneOfDecoctionResolved("大黄", "冲服"), "冲服");
+    assert.equal(rules.requiredDecoctionRequirement("大黄"), "后下、禁止久煎");
+    assert.equal(rules.specialDecoctionPhrase("大黄", rules.withOneOfDecoctionResolved("大黄", "后下或先煎或冲服、禁止久煎")), "大黄后下");
+  });
+}
+
+// ───── 7m 顺带的睡眠差不在主方里加安神药（10/17 甲方标准病历 3、10；甲方 10.12 测评 4.1）─────
+{
+  const { m04CompilerTestHooks } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
+  const prior = (primarySyndrome, tcmDiseaseName) => ({ stage: "diagnose", overview: { primarySyndrome, tcmDiseaseName, secondarySyndromes: [] } });
+  const herb = (name, role) => ({ name, role, dose: "10g" });
+  const qingjing = { name: "清经散加减", herbs: [herb("牡丹皮", "君"), herb("地骨皮", "臣"), herb("白芍", "臣"), herb("熟地黄", "佐"), herb("青蒿", "佐"), herb("黄柏", "佐"), herb("茯苓", "使"), herb("酸枣仁", "佐")] };
+  check("7.27 血热月经先期方里为顺带的寐差加的酸枣仁不留；心悸·心虚胆怯、不寐照留；原方自带的安神药照留；君臣药不动（对照）", () => {
+    const names = (herbs) => herbs.map((item) => item.name);
+    assert.deepEqual(names(m04CompilerTestHooks.withoutIncidentalSedatives(qingjing, prior("阳盛血热证", "月经先期"))), names(qingjing.herbs).filter((name) => name !== "酸枣仁"));
+    assert.deepEqual(names(m04CompilerTestHooks.withoutIncidentalSedatives(qingjing, prior("心虚胆怯证", "心悸"))), names(qingjing.herbs));
+    assert.deepEqual(names(m04CompilerTestHooks.withoutIncidentalSedatives(qingjing, prior("肝郁化火证", "不寐"))), names(qingjing.herbs));
+    const guipi = { name: "归脾汤加减", herbs: ["白术", "茯神", "黄芪", "龙眼肉", "酸枣仁", "人参", "木香", "甘草", "当归", "远志"].map((name, index) => herb(name, index < 2 ? "君" : "佐")) };
+    assert.equal(m04CompilerTestHooks.withoutIncidentalSedatives(guipi, prior("气血亏虚证", "眩晕")).length, guipi.herbs.length, "归脾汤原方的酸枣仁、远志照留");
+    const chief = { name: "自拟方", herbs: [herb("酸枣仁", "君"), herb("当归", "臣"), herb("川芎", "佐"), herb("白芍", "佐")] };
+    assert.equal(m04CompilerTestHooks.withoutIncidentalSedatives(chief, prior("血虚头痛证", "头痛")).length, 4, "君药不动");
+  });
+}
+
 // ───── 7b 中医鉴别理由不写处置口吻 ─────
 {
   const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");

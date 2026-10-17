@@ -23,7 +23,9 @@ const { rejectionTier } = await import("../src/lib/diagnosis-rejection-tiers.ts"
 // 否定式约束「禁止久煎」，出方时一个字都标不出来，只能等审方回头提——M05「可预防问题」的最后一条。
 // oneOf 保留了用途相关性（取泻下须后下、欲缓下可同煎），不替医师做单值选择；
 // 「禁止久煎」这条否定约束一字未动，仍然独立生效。
-assert.equal(requiredDecoctionRequirement("大黄"), "后下或先煎或冲服、禁止久煎");
+// 2026-10-17：要求文本只写一种（所列第一种「后下」），与煎服行的取法一致（10/14 起煎服行没有标注时取第一种）；
+// 此前药味表照抄「后下或先煎或冲服、禁止久煎」而煎服行写后下，独立评审判医生看不出怎么煎。明确标了其他一种的仍照标注（下面三条）。
+assert.equal(requiredDecoctionRequirement("大黄"), "后下、禁止久煎");
 assert.equal(decoctionRuleSatisfied("大黄", "久煎"), false);
 assert.equal(decoctionRuleSatisfied("大黄", "后下"), true);
 assert.equal(decoctionRuleSatisfied("大黄", "冲服"), true);
@@ -3525,7 +3527,8 @@ const finalizedServerOwnedContent = synchronizeVisibleClinicalSummary(
 );
 const finalizedServerOwnedM04 = JSON.parse(finalizedServerOwnedContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0].trim());
 const finalizedServerOwnedVisible = finalizedServerOwnedContent.split("<!-- DIAGNOSIS_JSON_START -->")[0];
-assert.equal(finalizedServerOwnedM04.formula.candidates[0].herbs[0].decoctionRequirement, "另煎或另炖");
+// 2026-10-17：几选一的煎法写所列第一种（与煎服行一致），不再整串「另煎或另炖」。
+assert.equal(finalizedServerOwnedM04.formula.candidates[0].herbs[0].decoctionRequirement, "另煎");
 assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.followUpNode, /完成5剂（5日）后复诊/);
 assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.method, /约500mL/, "disease duration must not be misread as pediatric age");
 // 需求7：方义保持**逐味**粒度（每味药都要读得出它在这张方里干了什么）。

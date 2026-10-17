@@ -191,14 +191,30 @@ export function decoctionRuleForHerb(value: string): DecoctionRule | undefined {
     : undefined;
 }
 
+/**
+ * 药典要求的煎法写成一种：几选一（大黄「后下或先煎或冲服」）取所列第一种，与煎服行的取法同一（specialDecoctionOrderIndex）。
+ * 2026-10-17：此前整串写给模型与药味表，模型照抄成「大黄（后下或先煎或冲服、禁止久煎）」，煎服行却已定为后下，医生看不出到底怎么煎
+ *（甲方标准病历 7，独立评审）。
+ */
 export function requiredDecoctionRequirement(value: string): string | undefined {
   const rule = decoctionRuleForHerb(value);
   if (!rule) return undefined;
   return [
     ...rule.required,
-    ...rule.oneOf.map((alternatives) => alternatives.join("或")),
+    ...rule.oneOf.map((alternatives) => alternatives[0]),
     ...rule.prohibited.map((method) => `禁止${method}`),
   ].join("、") || undefined;
+}
+
+/** 药味表里照抄的几选一整串换成选定的那一种（声明里只点了其中一种的不动）。 */
+export function withOneOfDecoctionResolved(value: string, declared: string): string {
+  const rule = decoctionRuleForHerb(value);
+  let out = declared;
+  for (const alternatives of rule?.oneOf || []) {
+    const joined = alternatives.join("或");
+    if (out.includes(joined)) out = out.split(joined).join(alternatives[0]);
+  }
+  return out;
 }
 
 export function decoctionRuleSatisfied(value: string, declaration: string): boolean {

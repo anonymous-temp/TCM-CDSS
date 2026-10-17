@@ -1,0 +1,31 @@
+{
+ "schemaVersion": "tcm-herb-function-corrections-v1",
+ "note": "手工核对的药味功用剔除项：知识库功用文本里有、而教材与药典都不给该药的条目。与 tcm-herb-verified-functions.json 的 unsupported 同一用法（只剔除，不追加）。该生成器的输入材料已不在本机（2026-10-17），新发现的错条写在这里，逐条附教材原文与行号。",
+ "herbs": {
+  "黑芝麻": {
+   "aliases": [
+    "炒黑芝麻"
+   ],
+   "unsupported": [
+    "清热解毒",
+    "补中益气",
+    "益气力"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 14737,
+     "text": "【炮制作用】 黑芝麻味甘，性平。归肝、肾、大肠经。具有补肝肾，益精血，润肠燥的功能。生品现已少用。古代医家认为生用滑痰，凉血解毒。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 14738,
+     "text": "炒黑芝麻香气浓，具有补益肝肾、填精补血、润肠通便的功效。"
+    }
+   ],
+   "trigger": "2026-10-17 甲方标准病历 9（消风散）三次生成都把黑芝麻标成「佐·清热解毒」，独立评审判功效写错；知识库功用文本是「补中益气，益气力，润肠通便，补益肝肾，清热解毒」。"
+  }
+ }
+}

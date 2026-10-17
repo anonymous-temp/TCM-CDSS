@@ -1,7 +1,7 @@
 import { discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
 import { pediatricDoseRuleForAgeYears } from "./pediatric-dose-rule";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
-import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement, SPECIAL_DECOCTION_ORDER, specialDecoctionOrderIndex } from "./herb-decoction-rules";
+import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement, SPECIAL_DECOCTION_ORDER, specialDecoctionOrderIndex, withOneOfDecoctionResolved } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
 import { formulaSyndromeConflictNotice, formulaSyndromeConflicts } from "./formula-syndrome-consistency";
 import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesisCells, normalizeFormulaStructureRole } from "./herb-target-contract";
@@ -1866,7 +1866,9 @@ export function applyDeterministicHerbDecoctionRequirements(content: string): st
         const name = typeof herb.name === "string" ? herb.name : "";
         const rule = decoctionRuleForHerb(name);
         if (!rule) continue;
-        const current = typeof herb.decoctionRequirement === "string" ? herb.decoctionRequirement.trim() : "";
+        const declared = typeof herb.decoctionRequirement === "string" ? herb.decoctionRequirement.trim() : "";
+        const current = withOneOfDecoctionResolved(name, declared);
+        if (current !== declared) herb.decoctionRequirement = current;
         if (decoctionRuleSatisfied(name, current)) continue;
         herb.decoctionRequirement = requiredDecoctionRequirement(name);
       }

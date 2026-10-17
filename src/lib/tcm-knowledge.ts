@@ -6,6 +6,7 @@ import clinicianDosePolicyJson from "../data/tcm-herb-dose-clinician-policy.sour
 import controlledToxicPolicyJson from "../data/tcm-controlled-toxic-herb-policy.source.json";
 import functionSupplementsJson from "../data/tcm-herb-function-supplements.source.json";
 import verifiedHerbFunctionsJson from "../data/tcm-herb-verified-functions.json";
+import herbFunctionCorrectionsJson from "../data/tcm-herb-function-corrections.source.json";
 import clinicalSubstitutionJson from "../data/tcm-herb-clinical-substitution-adjudications.source.json";
 import type { CaseState } from "./diagnosis-types";
 import { herbFunctionClauseFitsContext, isHarmonizingOrGuidingFunction } from "./herb-function-context";
@@ -1626,10 +1627,22 @@ const VERIFIED_HERB_FUNCTIONS = new Map<string, VerifiedHerbFunction>(
   Object.entries((verifiedHerbFunctionsJson as { herbs?: Record<string, VerifiedHerbFunction> }).herbs || {}),
 );
 
-/** 按原名先查（炮制规格是独立身份，如炙甘草与甘草功效不同），再按知识库规范名查。 */
+/** 手工核对的剔除项（tcm-herb-function-corrections.source.json，逐条附教材原文）：词典生成器的输入已不在本机，新错条记在这里。 */
+const HERB_FUNCTION_CORRECTIONS = new Map<string, string[]>(
+  Object.entries((herbFunctionCorrectionsJson as { herbs?: Record<string, { aliases?: string[]; unsupported?: string[] }> }).herbs || {})
+    .flatMap(([name, entry]) => [name, ...(entry.aliases || [])].map((key) => [key, entry.unsupported || []] as [string, string[]])),
+);
+
+/** 按原名先查（炮制规格是独立身份，如炙甘草与甘草功效不同），再按知识库规范名查；手工剔除项并进 unsupported。 */
 export function verifiedHerbFunctionEntry(herb: string): VerifiedHerbFunction | undefined {
   const rawName = String(herb || "").trim();
-  return VERIFIED_HERB_FUNCTIONS.get(rawName) || VERIFIED_HERB_FUNCTIONS.get(canonicalKnowledgeHerbName(rawName));
+  const verified = VERIFIED_HERB_FUNCTIONS.get(rawName) || VERIFIED_HERB_FUNCTIONS.get(canonicalKnowledgeHerbName(rawName));
+  const corrections = HERB_FUNCTION_CORRECTIONS.get(rawName) || HERB_FUNCTION_CORRECTIONS.get(canonicalKnowledgeHerbName(rawName));
+  if (!corrections || corrections.length === 0) return verified;
+  return {
+    ...(verified || { functions: [], primary: [], roles: {}, unsupported: [] }),
+    unsupported: [...new Set([...(verified?.unsupported || []), ...corrections])],
+  };
 }
 
 /**
