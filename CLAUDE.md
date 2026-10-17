@@ -613,7 +613,7 @@ The owner set the bar for "done": the customer re-runs their 10 standard cases a
 - the same record gives the same output;
 - skip-to-prescription p90 ≤ 15 s.
 
-**Status: committed locally (b4bf7b5, e729981, 9092bee; `verify:release` green), not pushed and not deployed — the owner chose not to go live on 2026-10-17. Production stays on 5c85a55.** The build needs about 6.5 GB of memory plus swap; `~/runlogs/deliver1017/deploy/prebuild-when-free.sh` waits for that, moves the three untracked files aside and always restores them.
+**Status: committed locally (b4bf7b5, e729981, 9092bee; `verify:release` green), not pushed. The owner asked to fix the remaining items first and deploy last (see "Second pass" below).** The build needs about 6.5 GB of memory plus swap; `~/runlogs/deliver1017/deploy/prebuild-when-free.sh` waits for that, moves the three untracked files aside and always restores them.
 
 The interface stays frozen. Material: `~/runlogs/deliver1017` (cases, paced runner, outputs, review briefs and verdicts).
 
@@ -689,12 +689,8 @@ The interface stays frozen. Material: `~/runlogs/deliver1017` (cases, paced runn
 - Production's held-out run lost two chains to a client-side failure; the rates above count them as failures.
 - 病历5 alone costs one failure per generation in 中医诊断, 治则 and 饮片 (see below). Without it, 中医诊断 and 治则 are at most 1 per generation.
 
-**Left as is.**
-- **病历5 (反复感冒1+年).** The answer key is 虚劳·肺脾两虚证. Our textbook's 虚劳 rows are single-organ, and the model names 肺气虚证 in 6 of 6 generations even with the two-organ line, while writing in the rationale that the spleen is involved. It keeps 熟地黄 from 补肺汤 although the record says 滋腻则胃胀. No textbook row was invented to force it.
-- **病历7 急性牙髓炎.** The record (持续性胀痛、咀嚼痛、牙龈肿胀) fits a periapical or periodontal source better. Case D does not flag it, since pulpitis is diagnosed clinically.
-- **Precautions still miss the most important line in some cases:** a self-taken medicine that overlaps the formula (病历7), lactation after childbirth (病历3), antibiotics for 丹毒 (S143). These are model judgement; the prompt asks for them.
-- **Follow-up questions that repeat recorded content:** about 3 of 32 held-out cases, 1–2 of 10 customer cases.
-- **Model-written 方义 slips:** a role named but not explained, 「加生地黄」 when the formula already holds 地黄.
+**Left as is.** (病历5, 病历7, the missing precautions and the repeated follow-up questions were fixed later the same day; see the next subsection.)
+- **Model-written 方义 slips:** a role named but not explained.
 - **Catalog 出处 for 补肺汤** (《妇人大全良方》 vs 《永类钤方》) and the textbook note used as the 出处 of 加味四物汤.
 - **`formula_direction_drift`** rejections are frequent on production (55 in this round's traffic) and cost a full regeneration each. They predate this round and were not investigated.
 - **The adolescent 145/95 probe still says 高血压.** Case D's quote check needs the record wording, and vitals are not in narrative form.
@@ -704,6 +700,106 @@ The interface stays frozen. Material: `~/runlogs/deliver1017` (cases, paced runn
 - Two held-out chains once failed client-side, with no nginx entry, while this machine was out of memory. Check status codes before counting a case.
 - Never wait on `pgrep -f "<pattern>"` from a shell whose own command line contains the pattern: it matches itself and never exits. Wait on a completion marker in the log instead.
 - `test:clinical-vocabulary` refuses new inline word lists (≥3 CJK alternatives, or ≥4 CJK strings) outside allowlisted files. Keep such tables in an allowlisted module or match the knowledge base's own labels.
+
+### 10.12 delivery round, second pass: the four residuals (2026-10-17)
+
+The owner asked to research the four remaining items online, fix them, commit, and deploy last. Research notes are in `~/runlogs/deliver1017/research/`: A = sources for 肺脾两虚, B = dental diagnosis and precautions, C = LLM methods. Most causes were again the server's. Tests: `test:eval1014-remediation` §14 (14.1–14.18), `test:m02-contract`, and class fixture `preposed-negation-scope-forward`. Every assertion has a counter-proof.
+
+**病历5 (虚劳·肺脾两虚证): the server renamed it.**
+- **Cause.** The model wrote the two-organ name. `textbookNearestRow` renamed it to the closest single-organ row (肺气虚证, sharing 肺/气/虚), rewrote the rationale to 「两脏各有成组表现，故为肺气虚证」, and anchoring then copied 补益肺气.
+- **Fix.** A rename may not drop an organ that the model wrote both in the name and in its 病位 column.
+  - A row that names no organ (气血亏虚证) can still be chosen.
+  - 肝肾阴虚 with only 肾 in the 病位 column still becomes 肾阴虚证.
+- **Sources.**
+  - 国中医药医政发〔2020〕3号 证候 5.6.3.2.2 脾肺气虚证: 「疲乏无力，语声低怯，自汗、畏风，反复感冒，腹胀，食少、便溏…」.
+  - 《中医内科学》 虚劳: 「临证常采取复合证辨治…数脏均损，须分清主次，兼顾治疗」.
+- **Result, 3 of 3 runs.**
+  - 肺脾两虚证, with 治法 补益肺气、健脾益气、固表止汗.
+  - 补中益气汤合玉屏风散; both are on the customer's accepted list.
+  - No 熟地黄. 《中药学》: 熟地黄 「食少便溏者忌服」.
+
+**病历1: the negation sanitizer's scope.**
+- **Cause.** In 「恶寒重、发热轻、无汗」 the 无 was taken to deny 发热. The clause became 「病历已记录发热阳性」, and the 风寒 projection then added the clause a second time.
+- **Fix.** A preposed cue (无/否认/未见…) governs only what follows it. Postposed cues (均无, 均否认, a cue at the end of the clause) still govern the whole clause.
+- **Replay.** Of 40,544 corpus record sentences, 56 changed, all record self-quotes that used to be rewritten (咳嗽无痰, 发热无汗, 面色苍白无华…). Of 101,447 output strings, 56 changed, in the same direction.
+
+**病历7 急性牙髓炎 → 牙痛.**
+- **Fix.** Case D now says that dental subtypes need an oral exam (pulp or thermal tests, percussion, probing, X-ray). AAE and MSD both say these diagnoses need exam findings. The supported name is 牙痛 (K08.8).
+- **Where the sentence sits matters.** Placed before the six-month threshold sentence, 功能性便秘 at three months (S161) was missed in 2 of 2 runs. At the end of D it is caught.
+- **Offline replay.**
+  - 病历7 is flagged in 3 of 3.
+  - The stable new synthetic flags are three dental cases plus BPPV without a positional test.
+  - The old prompt alone varies by up to 7 cases between runs.
+- **D's differential wording.** The model's reason (「无口腔专科检查…」) was read as a patient negative. Its opening is now written 「尚缺」.
+
+**Precautions: rule-computed items (`required-precautions.server.ts`).**
+- **Self-taken medicine in 现病史.**
+  - The name must carry a dosage form or match a label name exactly (「吃山楂后」 does not count).
+  - Composition comes from the governed formula row, or from the herbs shared by ≥2 catalog versions.
+  - The alcohol warning comes from any label sentence that names the drug together with 双硫仑/戒酒.
+- **Childbirth within 12 months with lactation unrecorded.**
+- **丹毒 / 蜂窝织炎.** 《中西医结合外科学》 「全身应用抗生素」; IDSA 2014.
+- **How it is applied.**
+  - Items are listed in the M04 prompt and checked per item on the delivered surface. A missing item gets the rule's sentence.
+  - Overlap herbs named by the model are pruned to the herbs actually in the prescription; the model had copied the whole 黄连上清丸 composition.
+  - Lactation herbs use the same KB tier as the per-herb notes, and a model line saying there are none is replaced.
+- **Why rules.** Research C: LLM judges detect omissions at near chance (0.50–0.63). A deterministic must-list with per-item checks is the documented fix.
+
+**Follow-up questions.**
+- **Fallback questions.** Most server fallback questions came from `sourceEvidence`. More than 4 entries, or one entry that was not verbatim, discarded the whole model question. Round 3 had 9 such fallbacks in 30 customer runs and 4 in 32 held-out cases; offline, 病历3 failed 4 of 4.
+  - Entries are now isolated one by one. If none of them grounds, the question is still rejected.
+  - Round 4 had 0 fallbacks.
+- **Narrow redundancy check on model-written questions** (`m02-question-redundancy.server.ts`).
+  - A question judged answered or partly answered, with verbatim quotes, is removed through the same path as deterministic removal.
+  - Character overlap did not separate the cases: the reviewer-confirmed repeats scored 0–0.4.
+  - Offline, of 289 questions, 20 were answered and 24 partly answered.
+  - v2 also flags questions asking which recorded group predominates, and questions about a feature already recorded.
+  - It costs about 0.85 s. Switch: `CDSS_M02_QUESTION_REDUNDANCY_CHECK`.
+  - The route test now allows exactly this one narrow call; the general reviewer removed on 9/25 stays removed.
+- **Trend fallback.** When the record already describes the course, the 「总体在加重还是缓解」 fallback becomes the open agenda question. The stem no longer embeds the chief complaint.
+
+**Other server text found by the round-3 and round-4 reviews.**
+- Differentials and inspection text:
+  - 「病历未记录X（需问诊核实…）」 now also matches when X contains its own parentheses;
+  - 「颞动脉无压痛」 is no longer read as an abdominal exam (2 changes in 142k replayed strings, both right);
+  - 「泌尿系结石/感染」 becomes 泌尿系感染;
+  - 「脉微欲绝」 is replaced as a whole;
+  - a literal 「null」 in 建议核实 is emptied.
+- 方义:
+  - false 「加X」 claims are removed when X is in the catalog composition;
+  - 「二药」 is recounted when it sits in the next clause.
+- Precautions:
+  - 「可改为饭后」 is dropped when the usage line already says 饭后;
+  - the conditional form under a 饭前 usage line is kept.
+- Treatment cards:
+  - on acupuncture cards, a sentence that names only points not on the card is dropped (少商/商阳 on 风寒); caution sentences stay;
+  - a precaution that forbids lesion needling is dropped when the card does 围刺 or uses 阿是穴;
+  - moxibustion cards are not delivered for yin-deficiency, excess-heat, damp-heat or 火 syndromes;
+  - the ear point 「…相应耳穴」 is restored.
+- The exercise prompt now follows recorded mobility limits.
+
+**Measured.** Local route harness in the customer request shape, independent clinician-persona review with the same briefs. Failures per column out of 30:
+
+| | 中医诊断 | 西医诊断 | 治则治法 | 中医鉴别 | 辅助中药饮片 | 中医治疗 | 复诊计划 | 注意事项 |
+|---|---|---|---|---|---|---|---|---|
+| production 5c85a55 | 10 | 8 | 4 | 8 | 10 | 8 | 4 | 15 |
+| first pass | 5 | 4 | 4 | 1 | 7 | 2 | 0 | 4 |
+| second pass (round 4) | 2 | 0 | 1 | 0 | 3 | 1 | 0 | 0 |
+
+- Every column is at most 1 per run in all three runs, which is the acceptance line.
+- Held-out 32, round 4 (two of the four fixes in the last group came after it): 中医诊断 93.1, 证候 96.6, 西医 93.1, 追问 96.6, 中医鉴别 89.7, 中医治疗 88.5, 复诊与注意事项 87.5, 辅助中药饮片 82.8.
+  - The 87.5 is four children without a child-specific line, a judgement call.
+  - The five 饮片 failures:
+    - S078 is a judgement (虚劳·肝血虚 read as 眩晕·气血亏虚);
+    - S046 is a catalog 出处;
+    - S132 and S158 add sedatives in 加减 for itch or night crying;
+    - S145 was the 「二药」 defect, fixed afterwards.
+
+**Left as is.**
+- Sedatives added in 加减 for secondary sleep loss (the 10/17 filter covers the candidate, not modifications).
+- Model-written herb functions that pass the overlap-based grounding check (鹿角胶 「补血滋阴，润燥生津」). Tightening that check changes herb admission (`test:herb-breadth-surface`).
+- 病历3's 治法 is 「滋阴养血」. That is our local 《中医内科学》 verbatim; the reviewer expects 「和络止痛」 from another edition.
+- Questions that ask two things at once; diet text that contradicts itself (忌鱼虾 next to 清蒸鱼).
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
