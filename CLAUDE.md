@@ -604,6 +604,107 @@ The second independent review of the 10.12 work (`~/runlogs/fix1012/out/judge2`)
   - the override backup is `production.override.yml.pre-proceed-20261014`;
   - the proceed switch alone: set it to `"false"` and run compose up.
 
+### 10.12 delivery round (2026-10-17)
+
+The owner set the bar for "done": the customer re-runs their 10 standard cases and fills the same 8-column table as in 10.12 (中医诊断、西医诊断、治则治法、中医鉴别诊断、辅助中药饮片、中医治疗、复诊计划、注意事项). Acceptance:
+- each column fails at most 1 of 10 under an independent clinician-persona review;
+- the held-out set reaches ≥90% per block;
+- no red flag on cases 1, 2, 7 and 9;
+- the same record gives the same output;
+- skip-to-prescription p90 ≤ 15 s.
+
+**Status: committed locally (b4bf7b5, e729981, 9092bee; `verify:release` green), not pushed and not deployed — the owner chose not to go live on 2026-10-17. Production stays on 5c85a55.** The build needs about 6.5 GB of memory plus swap; `~/runlogs/deliver1017/deploy/prebuild-when-free.sh` waits for that, moves the three untracked files aside and always restores them.
+
+The interface stays frozen. Material: `~/runlogs/deliver1017` (cases, paced runner, outputs, review briefs and verdicts).
+
+**Measure the way the customer judges.**
+- The deterministic scorer (`~/runlogs/fix1012/scripts/score.py`) said ≥94% on every block, including 西医诊断 100%, but it checks form only. The independent review of the held-out set on the same code had 西医诊断 72% and 辅助中药饮片 66%, and the customer judges like the reviewer.
+- The customer's 10 cases had never been reviewed on all 8 columns before this round.
+- Briefs:
+  - customer cases: `judge/brief-c10.md` (rubric + the customer's 10.12 comments, 8 columns);
+  - held-out set: `~/runlogs/fix1014/notes/judge-brief.md`. Its 口径 1 predates `decision=proceed`; one reviewer counted proceed as a failure, another did not, so 追问 numbers are not comparable across reviewers.
+- The review renderer must show every field the customer's panel shows. The old one omitted `faceNote`, and the reviewer called a recorded 面色萎黄 fabricated (`deliver1017/scripts/panel.py`).
+
+**Production baseline (5c85a55, before this round).** Customer cases × 3 fresh generations, customer request shape. Failures per column out of 30:
+
+| 中医诊断 | 西医诊断 | 治则治法 | 中医鉴别 | 辅助中药饮片 | 中医治疗 | 复诊计划 | 注意事项 |
+|---|---|---|---|---|---|---|---|
+| 10 | 8 | 4 | 8 | 10 | 8/28 | 4 | 15 |
+
+- Disease, syndrome and formula were identical across the three generations, and cases 1/2/7/9 raised no red flag.
+- Speed on the 32 held-out cases, real path (question, a 20 s pause, skip): red-flags + diagnose + prescribe median 1.3 s, p90 3.0 s. A full chain without precompute is about 26 s.
+- Safety probes all held: bleeding, pregnancy, warfarin and lactation with an answered follow-up; hypothermia with drowsiness; an infant with HR 55.
+
+**Most failures were the server's.** Each of these has a test in `test:eval1014-remediation` §3.5–3.6, 4.4b, 7.6–7.27, 10.3, 10b, a counter-proof, and, for sanitizer classes, a class fixture.
+
+- **Western names more specific than the record.** `western-name-evidence-check.server.ts` gains case D: a name needs a test or course threshold the record lacks (缺铁性贫血 without iron studies, 功能性消化不良/肠易激/功能性便秘 under six months, PCOS, 甲减 without thyroid tests, 慢性胃炎 without endoscopy). The supported broader name is used instead, and the old name stays in the differentials as "尚未取得确诊所需的检查或病程依据".
+  - D is not applied on red-flag records (an emergency name is not softened to 待查).
+  - Clinically diagnosable diseases and causes already named in the record are listed as consistent in the prompt.
+  - Offline over 272 saved diagnoses, two runs: synthetic 29–30/190, history 16–17/52, customer 5–6/30 flagged; the runs differ by one case per set.
+- **TCM differential names had two predicates.**
+  - The authoring task took only names `resolveTcmDiseaseDifferentialName` keeps, but the delivery fallback pasted every textbook-listed name with its definition: 腰痛 got 背痛/尻痛 definitions, 瘾疹 got the 丘疹性荨麻疹 definition.
+  - The national-standard alias renamed 真头痛 to 厥头痛 while keeping 真头痛's description.
+  - Now one predicate serves all three uses: a textbook-listed name for this disease with a TCM form (≤4 chars ending in 痛/疮/痹/汗/衄/证/痨, not a Western mapping key) is kept; when nothing survives, the authoring task proposes TCM names through the same predicate.
+  - Over all 460 textbook pairs only 18 changed, all TCM names (including the 10/14 residuals 脱汗/战汗/抱儿痨). The first, broader version also admitted 肠梗阻, 尖锐湿疣 and 血友病, and stopped renaming 荨麻疹 to 瘾疹.
+- **Textbook rows borrowed across diseases.** `textbookRowForSyndrome` fell back to another disease's row even when the settled disease had its own section: 虚劳·肺脾两虚证 found 肺胀's row, and anchoring would have copied 降气化痰 and renamed the disease. The fallback is now only for a disease name that matches no section.
+- **Precautions.**
+  - Undelivered treatments are rechecked after the delivery surface drops empty cards (导引 added).
+  - Timing follows the decoction line (饭前 vs 饭后).
+  - Age-specific lines appear only for that age.
+  - A line telling the patient not to take a medicine that `patentAndWestern` recommends is dropped. The new "already-taken medicines" prompt line had produced 「不宜再服人参口服液」 next to a 人参口服液 recommendation.
+  - Home acupressure (按揉) no longer counts as a delivered 推拿 project.
+- **Per-herb population cautions** (`notApplicable`) list only populations the patient can belong to. Before, 96% of prescriptions for men, children and patients over 60 carried 孕期/哺乳 cautions. `candidate-boundary-text.ts` takes an audience; the prescribe route passes `structuredHerbBoundaryAudience`.
+- **Treatment cards.**
+  - Card text goes through `cardSentencesMatchedToSyndrome`: a sentence qualified by another syndrome is dropped (「瘀血腰痛和寒湿腰痛可行刺络拔罐」, 「风热证大椎可行刺络拔罐」 on 风寒), and so is moxibustion advice for yin-deficiency, heat or 火 syndromes.
+  - Pure excess-heat syndromes get 泻法 instead of 「平补平泻或补法」. Mixed patterns keep 平补平泻, the 10/14 rule.
+  - 「皮肤针重叩出血」 counts as bloodletting.
+  - Class templates whose content is only a 治则 paragraph are not delivered, and neither are diet cards with rich food (猪排, 猪肺) when the diet field says 清淡/避免滋腻.
+  - The COVID home-care schedule needs COVID context.
+  - Home acupoint care no longer starts with 「也可以」.
+- **Server text that damaged correct model output.**
+  - The 风寒 discriminator projection pasted the whole record segment (「辨证采用病历原文中的关键鉴别事实：…二便调。」). Now it adds one clinical clause for the missing 恶寒重发热轻/无汗/脉浮紧.
+  - 方义 loses false removal claims (「去原方中…之品」 when every catalog herb is present) and model self-talk (「…川芎？不，川芎保留。」).
+  - Modification targets no longer read 「兼见若兼见…」.
+  - An added herb that is the raw form of a formula herb (生地黄 vs 地黄) is a duplicate.
+  - A one-of decoction rule is written as its first option, the same choice the decoction line makes (大黄「后下、禁止久煎」, not the whole one-of string).
+  - 黑芝麻's knowledge-base function wrongly includes 清热解毒/补中益气. The verified-function generator's input is gone, so new corrections go in `src/data/tcm-herb-function-corrections.source.json`, each with a textbook quote and line number.
+- **Negation sanitizer.** These are deterministic morphological guards on closed sets; the class fixtures use the new `mode: "sanitizer"` in `test:open-language-classes`.
+  - Local heat (手心/关节/局部发热, 发热感) is not fever, and 低烧 joins the fever synonyms. Fixture `local-heat-not-fever`; corpus replay of 1,076 cases changed 67, all local heat.
+  - Fixed 无-expressions (发无定处, 无故, 无度…) are not denials. Fixture `fixed-wu-collocation-not-negation`. This one surfaced only after the rationale prompt asked for every accompanying finding: 病历9's rationale became 「有瘙痒，与丘疹性荨麻疹相区分」 in 3 of 3 runs.
+  - 有无/是否 in a check item is not an exam claim (a 鼻渊 check became 「未记录腹部查体结果」).
+- **Incidental sleep.** A 佐/使 herb in the 安神药 category that is not in the named formula's catalog composition is removed when neither syndrome nor disease involves 心/神/寐/悸/郁. The prompt already forbade it; the model still added 首乌藤 and 酸枣仁.
+- **Prompts.**
+  - The syndrome rationale (≤200字) explains each recorded accompanying finding and keeps the recorded trigger.
+  - The follow-up plan opens with 「请服完本次的药后复诊」.
+  - Precautions cover medicines the record says the patient already takes (not the recommended ones) and unrecorded lactation after childbirth.
+  - The candidate header allows a two-organ name when both organs have their own group of findings.
+
+**Measured after.** Local route harness on the final code, same customer cases × 3 fresh generations, same review brief. Failures per column out of 30, production baseline → after:
+
+| 中医诊断 | 西医诊断 | 治则治法 | 中医鉴别 | 辅助中药饮片 | 中医治疗 | 复诊计划 | 注意事项 |
+|---|---|---|---|---|---|---|---|
+| 10 → 5 | 8 → 4 | 4 → 4 | 8 → 1 | 10 → 7 | 8/28 → 2/29 | 4 → 0 | 15 → 4 |
+
+- Held-out 32, merged blocks, production → after: 中医诊断 79 → 86%, 证候 90 → 97%, 辅助中药饮片 55 → 90%. 中医治疗 66 → 85%, 西医 83 → 90%.
+- Production's held-out run lost two chains to a client-side failure; the rates above count them as failures.
+- 病历5 alone costs one failure per generation in 中医诊断, 治则 and 饮片 (see below). Without it, 中医诊断 and 治则 are at most 1 per generation.
+
+**Left as is.**
+- **病历5 (反复感冒1+年).** The answer key is 虚劳·肺脾两虚证. Our textbook's 虚劳 rows are single-organ, and the model names 肺气虚证 in 6 of 6 generations even with the two-organ line, while writing in the rationale that the spleen is involved. It keeps 熟地黄 from 补肺汤 although the record says 滋腻则胃胀. No textbook row was invented to force it.
+- **病历7 急性牙髓炎.** The record (持续性胀痛、咀嚼痛、牙龈肿胀) fits a periapical or periodontal source better. Case D does not flag it, since pulpitis is diagnosed clinically.
+- **Precautions still miss the most important line in some cases:** a self-taken medicine that overlaps the formula (病历7), lactation after childbirth (病历3), antibiotics for 丹毒 (S143). These are model judgement; the prompt asks for them.
+- **Follow-up questions that repeat recorded content:** about 3 of 32 held-out cases, 1–2 of 10 customer cases.
+- **Model-written 方义 slips:** a role named but not explained, 「加生地黄」 when the formula already holds 地黄.
+- **Catalog 出处 for 补肺汤** (《妇人大全良方》 vs 《永类钤方》) and the textbook note used as the 出处 of 加味四物汤.
+- **`formula_direction_drift`** rejections are frequent on production (55 in this round's traffic) and cost a full regeneration each. They predate this round and were not investigated.
+- **The adolescent 145/95 probe still says 高血压.** Case D's quote check needs the record wording, and vitals are not in narrative form.
+
+**Running this again.**
+- Production allows 60 POSTs per 10 min per token + tenant. `deliver1017/scripts/paced.py` runs ≤11 chains per batch and alternates hospital-a/b with 640 s between batches on one tenant.
+- Two held-out chains once failed client-side, with no nginx entry, while this machine was out of memory. Check status codes before counting a case.
+- Never wait on `pgrep -f "<pattern>"` from a shell whose own command line contains the pattern: it matches itself and never exits. Wait on a completion marker in the log instead.
+- `test:clinical-vocabulary` refuses new inline word lists (≥3 CJK alternatives, or ≥4 CJK strings) outside allowlisted files. Keep such tables in an allowlisted module or match the knowledge base's own labels.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
