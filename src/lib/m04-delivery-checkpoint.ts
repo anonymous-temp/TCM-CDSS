@@ -5,7 +5,7 @@ import { enrichReasoning, formulaCompilationContractIssue } from "./tcm-formula-
 import { isKnownTcmHerbName } from "./tcm-knowledge";
 import { sanitizeGeneratedSuggestionPreviewText } from "./diagnosis-stream-safety";
 import { NON_DOSE_PRESCRIPTION_MARKER } from "./diagnosis-safety";
-import { projectDeliveredReasoning } from "./delivered-surface";
+import { projectDeliveredReasoning, type DeliveredSurfaceOptions } from "./delivered-surface";
 import { cdssReasonCodeMarker } from "./cdss-reason-codes";
 import { pediatricDoseRuleFromGroundingText } from "./pediatric-dose-rule";
 import { clinicalDeliveryAdvisoryFromIssue, clinicalDeliveryAdvisorySection, collectClinicalDeliveryAdvisories, deduplicateClinicalDeliveryAdvisories, isSafetyClinicalDeliveryAdvisory, type ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
@@ -278,6 +278,8 @@ export function renderM04DeliveryCheckpoint(
   reason: "deadline" | "interrupted" | "upstream_unavailable" | "contract_rejected" | "dose_withheld",
   /** 剂量被独立硬边界收回时的确定性理由（儿科体重缺失、妊娠阳性、红旗未解除…）。 */
   doseWithheldReasons: readonly string[] = [],
+  /** 交付面投影的本例信息（逐味人群提示只列本例可能属于的人群）。 */
+  surfaceOptions?: DeliveredSurfaceOptions,
 ): string {
   // 剂量授权轴收回时**永远不返回已签名的剂量页**：那一页带完整用量。候选、方义、调护照常呈现。
   if (reason !== "dose_withheld" && checkpoint?.signedContent && checkpoint.attestation) {
@@ -285,8 +287,8 @@ export function renderM04DeliveryCheckpoint(
   }
   // 非剂量页与带剂量页走同一份交付面投影（2026-10-13）：此前这一页直接渲染未投影的结果，方名显示
   //「本例辨证组方」、方义写「本方以本方案为基础加减」、适用栏是「适用于与本例锁定证候…及病机链一致的情况」。
-  const prior = priorReasoning ? projectDeliveredReasoning(priorReasoning) : priorReasoning;
-  if (checkpoint) checkpoint = { ...checkpoint, reasoning: projectDeliveredReasoning(checkpoint.reasoning) };
+  const prior = priorReasoning ? projectDeliveredReasoning(priorReasoning, surfaceOptions) : priorReasoning;
+  if (checkpoint) checkpoint = { ...checkpoint, reasoning: projectDeliveredReasoning(checkpoint.reasoning, surfaceOptions) };
   // 机器码随页交付（2026-09-13）：此前这一整类非剂量页**不带任何 reasonCode**，前端只能靠
   // 文案正则分流，服务端改一句措辞前端就瞎。三种处置各有各的恢复动作，必须分开。
   const reasonMarker = cdssReasonCodeMarker(

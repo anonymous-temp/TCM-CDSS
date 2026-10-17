@@ -351,6 +351,14 @@ const mahuangHerbs = [
   }, clinicalContext);
   assert.match(projected.overview.primarySyndromeBasis.slice(2).join("；"), /无汗.*脉浮紧/s);
   assert.match(projected.overview.tcmDiagnosticRationale, /无汗.*脉浮紧/s);
+  // 2026-10-17：只补缺的项并交代意义，不再把病历原句整段贴在辨证依据后面（甲方标准病历 1 两次生成都是这样）。
+  assert.equal(projected.overview.tcmDiagnosticRationale, "恶寒重发热轻、鼻塞流清涕，故辨为风寒束表证；无汗、脉浮紧，为寒邪束表、腠理闭塞之征。");
+  // 病历写了「恶寒重、发热轻」而辨证依据只写「发热、咳嗽」（甲方标准病历 1 三次生成都是这样）：同一处补上，交代意义。
+  const onlyFever = projectM03KeySyndromeDiscriminators({
+    overview: { primarySyndrome: "风寒束表证", primarySyndromeBasis: [], tcmDiagnosticRationale: "淋雨后起病，发热、咳嗽，为风寒外束，故属风寒束表证。" },
+    pathogenesis: { chain: [] },
+  }, "现病史：2天前淋雨后出现恶寒发热，恶寒重、发热轻，自测体温37.5℃，伴鼻塞、流清涕，稍有咳嗽。");
+  assert.equal(onlyFever.overview.tcmDiagnosticRationale, "淋雨后起病，发热、咳嗽，为风寒外束，故属风寒束表证；恶寒重、发热轻，为寒邪束表、卫阳被遏、腠理闭塞之征。");
   assert.match(projected.pathogenesis.chain[0].syndromeEvidence, /无汗.*脉浮紧/s);
   assert.equal(m03KeySyndromeDiscriminatorIssue(projected, clinicalContext), undefined);
   const projectedContent = unwrap(applyM03KeySyndromeDiscriminatorsToContent(wrap({

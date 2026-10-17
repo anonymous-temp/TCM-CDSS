@@ -18,7 +18,14 @@
 
 import { compositionIdentityName, formulaCompilationReferences } from "./tcm-formula-provenance";
 import { textbookDifferentialsForDisease, textbookFormulaLabel, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
+import { hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
+import { getTcmHerbGenerationSafetyProfile } from "./tcm-knowledge";
+import { deliveredTreatmentCodes, precautionMentionsUndeliveredTreatment } from "./tcm-treatment-capabilities.server";
+
+/** 投影时可选的本例信息：只用来决定逐味人群提示列哪些人群（见 herbBoundaryPopulationRelevant）。 */
+export type DeliveredSurfaceOptions = { herbBoundaryAudience?: HerbBoundaryAudience };
 
 type Json = Record<string, unknown>;
 
@@ -167,7 +174,13 @@ function deliveredDiagnose(reasoning: Json): void {
   if (overview && !isLimitedDiagnose(reasoning) && typeof overview.tcmDiseaseName === "string" &&
     (!Array.isArray(overview.tcmDiseaseDifferentials) || overview.tcmDiseaseDifferentials.length === 0)) {
     // 教材一句话列几个病（「本病应与甲、乙、丙相鉴别」）时，这几个病取到的是同一句：同一句只用一次。
-    const textbookDifferentials = textbookDifferentialsForDisease(overview.tcmDiseaseName)
+    // 名字与补写小任务、辨证阶段归一走同一个判据（resolveTcmDiseaseDifferentialName）：西医病名（瘾疹节的丘疹性荨麻疹）不贴。
+    const diseaseName = overview.tcmDiseaseName;
+    const textbookDifferentials = textbookDifferentialsForDisease(diseaseName)
+      .flatMap((item) => {
+        const resolved = resolveTcmDiseaseDifferentialName(item.name, diseaseName);
+        return resolved.action === "drop" ? [] : [{ ...item, name: resolved.name }];
+      })
       .filter((item, index, list) => list.findIndex((other) => other.text === item.text) === index);
     // 理由不写来源口吻（「教材列为本病的鉴别病证」），要点去掉「本病与X相鉴别。」这类开场句（2026-10-14 独立评审：元话语）。
     // 教材对鉴别病的描述照列；按本例写区分要点的是辨证阶段的补写（tcm-disease-differential-authoring），这里只是它没写出时的兜底。
@@ -203,7 +216,7 @@ function deliveredDiagnose(reasoning: Json): void {
   }
 }
 
-function deliveredPrescribe(reasoning: Json): void {
+function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions): void {
   // 开方结果里带着辨证阶段的副本：同一口径再投影一次（调用方回传的是已投影的那份，幂等）。
   deliveredDiagnose(reasoning);
   const formula = record(reasoning.formula);
@@ -253,9 +266,32 @@ function deliveredPrescribe(reasoning: Json): void {
       candidate.formulaAnalysis = `${opening ? (selfComposed ? "本方为自拟方。" : `本方以${label}为基础加减${opening[2]}`) : ""}${rest}`
         .replace(/本方案/g, "本方");
     }
+    // 方义说「去原方中…之品」而处方其实保留了原方全部药味（2026-10-17：甲方标准病历 1、4、10，三次生成里 4 次，独立评审判陈述失实）。
+    // 方名能在方剂目录里查到组成、且组成逐味都在处方里时，去掉这句「去…」以及紧跟的「保留…/留其主体」；查不到组成时不动。
+    if (typeof candidate.formulaAnalysis === "string" && REMOVAL_CLAIM_CLAUSE.test(candidate.formulaAnalysis) && typeof candidate.name === "string") {
+      const baseName = candidate.name.trim().replace(/(?:加减|化裁|加味)$/u, "");
+      const reference = formulaCompilationReferences([baseName])[0];
+      const present = new Set(records(candidate.herbs).map((herb) => compositionIdentityName(String(herb.name || ""))).filter(Boolean));
+      const ingredients = (reference?.ingredients || []).map((name) => compositionIdentityName(name.replace(/[（(][^）)]*[）)]/g, ""))).filter(Boolean);
+      if (ingredients.length > 0 && ingredients.every((id) => present.has(id))) {
+        candidate.formulaAnalysis = withoutRemovalClaims(candidate.formulaAnalysis);
+      }
+    }
+    // 方义里夹着模型的自问自答（「去原方中…的川芎？不，川芎保留。」，2026-10-17 甲方标准病历 4）：带问号的小句与同句里紧跟的自我更正不留。
+    if (typeof candidate.formulaAnalysis === "string" && /[？?]/.test(candidate.formulaAnalysis)) {
+      candidate.formulaAnalysis = withoutQuestionChatter(candidate.formulaAnalysis);
+    }
     if (typeof candidate.name === "string" && SELF_COMPOSED_NAME.test(candidate.name.trim())) candidate.name = "自拟方";
     // 「适用于与本例锁定证候…及病机链一致的情况」是每例相同的模板句，不带内容。
     if (typeof candidate.applicable === "string") candidate.applicable = "";
+    // 逐味人群提示只列本例可能属于的人群：按候选药味从同一份知识库重写尾段（尾段的写法只在 candidate-boundary-text 一处）。
+    // 投影后尾段的标记已去掉，再投影一次不会重写，幂等。
+    if (options?.herbBoundaryAudience && typeof candidate.notApplicable === "string" && hasHerbBoundaryTail(candidate.notApplicable)) {
+      const herbNames = records(candidate.herbs).map((herb) => typeof herb.name === "string" ? herb.name.trim() : "").filter(Boolean);
+      const tail = herbBoundaryTail(herbNames.map((name) => getTcmHerbGenerationSafetyProfile(name)), options.herbBoundaryAudience);
+      // 交付面本来只留尾段（尾段前的模板句由下面同一处去掉）；一味都不剩时整栏为空。
+      candidate.notApplicable = tail ? [stripHerbBoundaryTail(candidate.notApplicable), tail].filter(Boolean).join(" ") : "";
+    }
     if (typeof candidate.notApplicable === "string") {
       const text = candidate.notApplicable;
       if (/各药毒性与特殊人群提示[:：]/.test(text)) {
@@ -288,8 +324,38 @@ function deliveredPrescribe(reasoning: Json): void {
       if (item.protocolStatus === "assessment_only_no_patient_specific_protocol" || item.tailoringStatus === "assessment_only") return false;
       const points = Array.isArray(item.suggestedSitesOrPoints) ? item.suggestedSitesOrPoints.length : 0;
       const pointFree = item.projectCode === "diet_therapy" || item.projectCode === "qigong_daoyin" || item.projectCode === "mind_therapy";
-      return !(pointFree && points === 0 && item.tailoringStatus === "class_template_only");
+      if (pointFree && points === 0 && item.tailoringStatus === "class_template_only") return false;
+      // 病种模板的治疗内容只是一段治则（「治则：虚劳以本虚为主…」），没有本例的操作（2026-10-17，甲方标准病历 5 的推拿卡）。
+      if (item.tailoringStatus === "class_template_only" && /^治则[:：]/.test(String(item.treatmentContent || "").trim())) return false;
+      // 食疗方与本例饮食宜忌相反：饮食栏写清淡、忌油腻或避免滋腻，食疗卡却是猪排、猪肺这类肥甘之品
+      //（2026-10-17，甲方标准病历 9「芋头炖猪排」对「饮食清淡易消化」，病历 5「猪肺粥」对「避免滋腻碍脾」）。
+      if (item.projectCode === "diet_therapy" && DIET_AVOIDS_RICH_FOOD.test(String(nonPharma.diet || "")) &&
+        RICH_RECIPE_INGREDIENT.test(String(item.treatmentContent || ""))) return false;
+      return true;
     });
+  }
+  if (nonPharma && Array.isArray(nonPharma.precautions)) {
+    // 去掉卡之后再按最终给出的项目核一遍注意事项（出卡处按出卡时的集合核过，交付面去掉的卡它不知道）。
+    const delivered = deliveredTreatmentCodes(records(nonPharma.tcmTreatments), nonPharma.acupointCare);
+    let precautions: unknown[] = nonPharma.precautions.filter((line) => !precautionMentionsUndeliveredTreatment(line, delivered));
+    // 服药时间以本方的煎服法为准：煎服法写饭后、注意事项写饭前（或反过来）时，去掉注意事项里说时间的那一小句
+    //（甲方标准病历 2 两次生成都是「汤剂宜饭前温服」对「饭后温服」）。
+    const method = String(record(records(formula?.candidates)[0]?.decoction)?.method || "");
+    const methodTiming = /饭后|餐后/.test(method) ? "after" : /饭前|餐前|空腹/.test(method) ? "before" : "";
+    const conflicting = methodTiming === "after" ? /饭前|餐前|空腹/ : methodTiming === "before" ? /饭后|餐后/ : undefined;
+    if (conflicting) {
+      precautions = precautions
+        .map((line) => typeof line === "string" ? withoutTimingClauses(line, conflicting) : line)
+        .filter((line) => typeof line === "string" && /[\u4e00-\u9fff]{4,}/u.test(line));
+    }
+    // 注意事项叫患者别再服的药，正是本次推荐西成药里的药（2026-10-17：「不宜再服人参口服液」与推荐人参口服液同出一页）。
+    // 推荐是医生评估后的选项，注意事项那一条不留。
+    const recommended = records(formula?.patentAndWestern).map((item) => String(item.name || "").trim()).filter((name) => name.length >= 2);
+    if (recommended.length > 0) {
+      precautions = precautions.filter((line) => typeof line !== "string" ||
+        !recommended.some((name) => line.includes(name) && /不宜|不要|勿|避免|停服|忌/.test(line)));
+    }
+    nonPharma.precautions = precautions;
   }
   for (const treatment of records(nonPharma?.tcmTreatments)) {
     for (const key of ["scheduleSuggestion", "techniqueBoundary"]) {
@@ -329,13 +395,65 @@ function textbookFormulasCoveredByPrescription(row: { formulas: string[]; compos
   return share(row.composition) >= 0.5 ? [...row.formulas] : [];
 }
 
+function withoutQuestionChatter(analysis: string): string {
+  return analysis.split(/(?<=[。！!])/).map((sentence) => {
+    const clauses = sentence.split(/(?<=[，,；;？?])/);
+    const at = clauses.findIndex((clause) => /[？?]/.test(clause));
+    if (at < 0) return sentence;
+    // 问号小句及其后的同句内容（「不，川芎保留。」）都是自我更正的过程，只留问号之前的部分。
+    const kept = clauses.slice(0, at).join("").replace(/[，,；;]$/, "");
+    return kept ? `${kept}。` : "";
+  }).join("");
+}
+
+/** 方义里「去原方中…之品」这类说删了原方药味的小句。 */
+const REMOVAL_CLAIM_CLAUSE = /(?:^|[，,。；;])\s*(?:并|且)?(?:去|删去|减去|去掉)(?:原方|其)?[^，,。；;]{0,20}(?:之品|之药|药味|诸药|之味)/u;
+function withoutRemovalClaims(analysis: string): string {
+  return analysis.split(/(?<=。)/).map((sentence) => {
+    const clauses = sentence.split(/(?<=[，,；;])/);
+    const kept: string[] = [];
+    let dropping = false;
+    for (const clause of clauses) {
+      const body = clause.replace(/^\s*(?:并|且)?/u, "");
+      const claim = body.match(/^(?:去|删去|减去|去掉)(?:原方|其)?[^，,。；;]{0,20}?(?:之品|之药|药味|诸药|之味)(?:后|而)?/u);
+      if (claim) {
+        // 同一小句里「去…之品后以附子、肉桂为君」：只去掉说删药的部分，后面的话留下。
+        const rest = body.slice(claim[0].length);
+        dropping = true;
+        if (/^[，,；;。]?$/.test(rest.trim()) || /^(?:而)?(?:留|保留)/u.test(rest)) continue;
+        kept.push(rest);
+        dropping = false;
+        continue;
+      }
+      if (dropping && /^(?:而)?(?:留|保留)/u.test(body)) continue;
+      dropping = false;
+      kept.push(clause);
+    }
+    const joined = kept.join("");
+    // 去掉的是句末小句时，前一小句收尾的逗号换成句号。
+    return /[，,；;]$/.test(joined) && /。$/.test(sentence) ? `${joined.replace(/[，,；;]$/, "")}。` : joined;
+  }).join("");
+}
+
+/** 饮食栏要求清淡、忌油腻或避免滋腻。 */
+const DIET_AVOIDS_RICH_FOOD = /清淡|忌(?:食)?[^。；，,]{0,6}油腻|少(?:食|吃)[^。；，,]{0,4}油腻|避免[^。；，,]{0,4}滋腻|忌[^。；，,]{0,4}肥甘|少(?:食|吃)肥甘|不宜油腻/u;
+/** 食疗方里的肥甘之品（猪苓、鸡内金是药，不算）。 */
+const RICH_RECIPE_INGREDIENT = /猪(?!苓)|羊肉|牛肉|排骨|肥肉|蹄|鸭肉|老鸭|鹅|鸡汤|鸡肉|乌鸡|母鸡/u;
+
+/** 去掉命中的小句（逗号、分号、句号分隔），其余原样；全部命中时返回空串。 */
+function withoutTimingClauses(line: string, pattern: RegExp): string {
+  if (!pattern.test(line)) return line;
+  const joined = line.split(/(?<=[，,；;。])/).filter((clause) => !pattern.test(clause)).join("").replace(/[，,；;]+$/, "").trim();
+  return joined && !/[。！？!?]$/.test(joined) ? `${joined}。` : joined;
+}
+
 /** 就地投影一份已解析的结构化结果。非 V2 结果原样返回。 */
-export function projectDeliveredReasoning<T>(reasoning: T): T {
+export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSurfaceOptions): T {
   const object = record(reasoning);
   if (!object || object.schemaVersion !== "tcm-cdss-reasoning-v2") return reasoning;
   const projected = structuredClone(object);
   if (projected.stage === "diagnose") deliveredDiagnose(projected);
-  else if (projected.stage === "prescribe") deliveredPrescribe(projected);
+  else if (projected.stage === "prescribe") deliveredPrescribe(projected, options);
   else return reasoning;
   rewordDeep(projected);
   return projected as T;
@@ -345,13 +463,13 @@ const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
 
 /** 对 sentinel 内的结构化结果应用交付面投影；没有变化时逐字节返回原文。 */
-export function applyDeliveredSurfaceToContent(content: string): string {
+export function applyDeliveredSurfaceToContent(content: string, options?: DeliveredSurfaceOptions): string {
   const start = content.lastIndexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
   try {
     const parsed = JSON.parse(content.slice(start + START_MARKER.length, end).trim());
-    const projected = projectDeliveredReasoning(parsed);
+    const projected = projectDeliveredReasoning(parsed, options);
     if (JSON.stringify(projected) === JSON.stringify(parsed)) return content;
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(projected, null, 2)}\n${content.slice(end)}`;
   } catch {

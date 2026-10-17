@@ -2,6 +2,7 @@ import crosswalkJson from "../data/tcm-western-disease-crosswalk.json" with { ty
 import abbreviationsJson from "../data/western-diagnosis-abbreviations.source.json" with { type: "json" };
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import { governedTcmDiseaseCode, resolveTcmDiseaseName } from "./clinical-terminology";
+import { textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
 
 /**
  * 中医病名鉴别栏只收中医病名（2026-09-29，甲方 9.24/9.27 测评 1.1：风寒感冒例的中医鉴别写了「流感」）。
@@ -32,6 +33,31 @@ function governedCanonical(value: string): string {
   return resolved && resolved.status !== "unverified" && !resolved.temporary ? resolved.canonical : "";
 }
 
+/**
+ * 教材对当前病列出的鉴别病名，按教材原样保留（2026-10-17）。
+ *
+ * 此前只认教材节名与国标条目：「腰痛应与背痛、尻痛相鉴别」里的背痛、尻痛两样都不是，整条丢掉；国标把真头痛收为厥头痛的别名，
+ * 于是头痛例的「真头痛：突发剧烈头痛…神昏」被改名成「厥头痛」，描述还是真头痛的（甲方标准病历 3，独立评审）。补写鉴别的小任务
+ * 与交付面兜底又各用各的判据：补写只取这里判得过的名字（腰痛、瘾疹一个都没有，于是不补写），兜底却把教材原文整段贴出来
+ *（「背痛是指由于身体某组织受伤或怀孕…」）。现在三处都只认这一个函数。
+ * 教材外科、妇科各节也列西医病名（瘾疹节的丘疹性荨麻疹、蛇串疮节的肋间神经痛），所以西医写法（对照表或缩写表里有、或带西医构词）
+ * 仍走下面的对照归一或丢弃。
+ */
+const WESTERN_DISEASE_FORM = /性|炎|综合征|症$|瘤|癌|感染|溃疡|结石|梗[死塞]|增生|硬化|障碍|紊乱|病毒|细菌|神经|血管|细胞|淋巴|[A-Za-z]/u;
+/**
+ * 只收中医病证名的构词：二到四个字、以痛/疮/痹/汗/衄/证/痨收尾（背痛、尻痛、真头痛、胃脘痛、脱汗、战汗、舌衄、抱儿痨、脓窝疮）。
+ * 教材全表 460 对鉴别里，放宽到「教材列了就收」会新收进肠梗阻、直肠息肉、尖锐湿疣、血友病这类西医病名，并让荨麻疹不再归一成瘾疹，
+ * 所以只开这一个有限的口子；其余仍走国标与对照表。
+ */
+const TCM_DIFFERENTIAL_NAME_FORM = /^[\u4e00-\u9fff]{1,3}[痛疮痹汗衄证痨]$/u;
+/** 教材句子里的描述性短语（「与内科其他疾病中的虚证鉴别」），不是病名。 */
+const DESCRIPTIVE_PHRASE = /其他|疾病|各种|一般|之/u;
+function textbookListedTcmDifferential(name: string, currentDisease: string): boolean {
+  if (!currentDisease || CROSSWALK.has(name) || ABBREVIATIONS.has(name) || WESTERN_DISEASE_FORM.test(name) || DESCRIPTIVE_PHRASE.test(name)) return false;
+  if (!TCM_DIFFERENTIAL_NAME_FORM.test(name)) return false;
+  return textbookDifferentialsForDisease(currentDisease).some((item) => item.name === name);
+}
+
 export type TcmDiseaseDifferentialNameResolution =
   | { action: "keep"; name: string }
   | { action: "rename"; name: string; from: string }
@@ -48,6 +74,7 @@ export function resolveTcmDiseaseDifferentialName(rawName: string, currentDiseas
       ? { action: "drop", from: name }
       : textbookName === name ? { action: "keep", name } : { action: "rename", name: textbookName, from: name };
   }
+  if (textbookListedTcmDifferential(name, currentDisease.trim().replace(/类病$/u, ""))) return { action: "keep", name };
   const currentCanonical = governedCanonical(currentDisease);
   const direct = governedCanonical(name);
   if (direct) {

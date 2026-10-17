@@ -406,7 +406,12 @@ export function manipulationMatchedToSyndrome(text: string, signedSyndromeText: 
   const nature = signedSyndromeDeficiencyExcess(signedSyndromeText);
   if (!nature) return text;
   const wrong = nature === "excess" ? /补法/ : /泻法/;
-  const right = nature === "excess" ? /泻法|平补平泻|虚补实泻|补虚泻实/ : /补法|平补平泻|虚补实泻|补虚泻实/;
+  // 带「平补平泻」的句子照旧不动（本虚标实的痰湿蕴肺用平补平泻是教材原法）；只有证名是纯实热（带热/火、不带虚）而句子又把补法列为
+  // 可选时算写错（2026-10-17 留出集：痰热郁肺、痰火扰心沿用「内伤咳嗽针用平补平泻或补法」）。
+  const heatExcess = nature === "excess" && /热|火/.test(signedSyndromeText) && !/虚/.test(signedSyndromeText);
+  const right = nature === "excess"
+    ? (heatExcess ? /泻法|虚补实泻|补虚泻实/ : /泻法|平补平泻|虚补实泻|补虚泻实/)
+    : /补法|平补平泻|虚补实泻|补虚泻实/;
   let replaced = false;
   return text.split(/(?<=[。；;])/).map((clause) => {
     if (!wrong.test(clause) || right.test(clause) || namesAcupoint(clause)) return clause;
@@ -414,6 +419,36 @@ export function manipulationMatchedToSyndrome(text: string, signedSyndromeText: 
     replaced = true;
     return `针用${nature === "excess" ? "泻法" : "补法"}${clause.trim().match(/[。；;]$/)?.[0] || "。"}`;
   }).join("").trim() || text;
+}
+
+/**
+ * 卡片里写给别的证型的句子不留（2026-10-17，甲方标准病历 6，独立评审两次判不通过）：
+ * 肾阴虚腰痛的拔罐卡写「瘀血腰痛和寒湿腰痛可行刺络拔罐」，针刺卡写「寒湿腰痛、肾虚腰痛者，可加用灸法」。
+ *  · 句中用证型修饰本病名（「寒湿腰痛」「瘀血腰痛」）或直接写「风热证」「寒湿者」，而没有一个与已签名证候相符时，整句不留。相符 = 修饰语的每个字都在证候名里
+ *    （肾虚 ⊂ 肾阴虚证）。修饰语只认由证候用字组成的两字词（寒湿、瘀血、肾虚、湿热…），「急性腰痛」「慢性头痛」不算证型。
+ *  · 证候属阴虚或热证时，建议用灸的句子不留（《刺法灸法学》：阴虚阳亢、邪热内炽者慎用灸法）；写「禁灸」「不宜灸」的句子照留。
+ * 只删句，不改写；删完为空时原样返回。教材卡与目录卡在卡片汇总处都过这一道。
+ */
+const SYNDROME_DESCRIPTOR_CHARS = /^[寒湿热风暑燥火瘀血气虚实阴阳肾肝脾肺心胃胆痰郁滞亏损食积水饮]{2}$/u;
+// 火字证名（火旺、肝火、胃火、痰火扰心…）都算，命门火衰是阳虚，不算。
+const MOXIBUSTION_UNSUITABLE_SYNDROME = /阴虚|阴亏|阴液|实热|热盛|热毒|肺热|湿热|血热|痰热|郁热|火(?!衰)/u;
+export function cardSentencesMatchedToSyndrome(text: string, diseaseNames: readonly string[], signedSyndromeText: string): string {
+  const syndrome = String(signedSyndromeText || "");
+  if (!text || !syndrome.trim()) return text;
+  const diseases = diseaseNames.map((name) => name.trim()).filter((name) => name.length >= 2);
+  const fits = (descriptor: string) => [...descriptor].every((char) => syndrome.includes(char));
+  const noMoxibustion = MOXIBUSTION_UNSUITABLE_SYNDROME.test(syndrome);
+  const kept = text.split(/(?<=[。；;])/).filter((sentence) => {
+    if (noMoxibustion && /灸/.test(sentence) && !/禁灸|不宜灸|慎灸|忌灸|不灸/.test(sentence)) return false;
+    const descriptors = [
+      ...diseases.flatMap((disease) => [...sentence.matchAll(new RegExp(`([\\u4e00-\\u9fff]{2})${disease.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "gu"))]
+        .map((match) => match[1])),
+      // 「风热证大椎可行刺络拔罐」「寒湿者加灸」：证型修饰语后面直接跟证/者/型，不带病名（2026-10-17 甲方标准病历 1，风寒感冒卡里的风热刺络）。
+      ...[...sentence.matchAll(/([\u4e00-\u9fff]{2})(?:证|者|型)/gu)].map((match) => match[1]),
+    ].filter((descriptor) => SYNDROME_DESCRIPTOR_CHARS.test(descriptor));
+    return descriptors.length === 0 || descriptors.some(fits);
+  }).join("").trim();
+  return kept || text;
 }
 
 let acupointNamePattern: RegExp | undefined;
@@ -429,7 +464,8 @@ function namesAcupoint(clause: string): boolean {
 }
 
 /** 刺络放血类操作（刺络拔罐、点刺出血、三棱针）。 */
-const BLOODLETTING_SENTENCE = /刺络|放血|点刺出血|三棱针|刺血/;
+// 「皮肤针重叩出血后加拔火罐」也是出血类操作（2026-10-17 留出集：脾虚湿蕴、糜烂渗出的湿疮仍写这一句）。
+const BLOODLETTING_SENTENCE = /刺络|放血|点刺出血|三棱针|刺血|叩(?:刺|至)?出血|重叩出血|出血后加拔/;
 /** 病历写到的皮肤破损（抓破、结痂、破溃、糜烂、渗液）：这些部位不宜拔罐、刺络。 */
 const BROKEN_SKIN_FACT = /抓痕|血痂|结痂|破溃|溃烂|糜烂|溃疡|渗液|渗出|皲裂/;
 const ELDERLY_AGE_YEARS = 65;

@@ -21,13 +21,35 @@ const SEVERITY_WORDING = [
   ["MEDIUM", "慎用"],
 ] as const;
 
-/** 单味药的提示；没有毒性也没有中高等级人群规则时返回 undefined。 */
-export function herbBoundaryNote(profile: HerbBoundaryProfile): string | undefined {
+/**
+ * 本例可能属于哪些人群（2026-10-17）。逐味提示原先对每位患者都列全部人群：30 岁男性的处方写着「石菖蒲（孕期/妊娠禁用）」，
+ * 合成集里男性、儿童与 60 岁以上患者的处方 96% 都带孕期或哺乳期提示——甲方 10.12 测评「内容冗余」一类。
+ * 只按人群本身能否适用过滤（性别与年龄）；病情类人群（心血管病、肝肾功能不全、出血倾向/月经期/抗凝状态、运动员…）
+ * 病历未必写全，一律保留。孕哺是否适用用 reproductiveAdviceRelevant 的同一判据（育龄女性；年龄不详按适用）。
+ */
+export type HerbBoundaryAudience = { reproductive: boolean; ageYears: number | null };
+
+export function herbBoundaryPopulationRelevant(population: string, audience?: HerbBoundaryAudience): boolean {
+  if (!audience) return true;
+  // 知识库的人群标签是一个小闭集（孕期/妊娠、哺乳期、儿童/婴幼儿、老年人…），按标签里的字判断即可，不另立词表。
+  if (population.includes("孕") || population.includes("哺乳")) return audience.reproductive;
+  if (population.includes("儿童") || population.includes("婴幼儿")) return audience.ageYears == null || audience.ageYears < 18;
+  if (population.includes("老年")) return audience.ageYears == null || audience.ageYears >= 60;
+  return true;
+}
+
+/** 文本里有本文件写出的尾段（新写法）。 */
+export function hasHerbBoundaryTail(text: string): boolean {
+  return String(text || "").includes(HERB_BOUNDARY_MARKER);
+}
+
+/** 单味药的提示；没有毒性也没有中高等级人群规则时返回 undefined。给了 audience 时只列本例可能属于的人群。 */
+export function herbBoundaryNote(profile: HerbBoundaryProfile, audience?: HerbBoundaryAudience): string | undefined {
   const parts = [
     ...(profile.isToxic && profile.toxicity.length > 0 ? [`毒性：${profile.toxicity.join("、")}`] : []),
     ...SEVERITY_WORDING.flatMap(([severity, wording]) => {
       const populations = [...new Set(profile.populationRules
-        .filter((rule) => rule.severity === severity)
+        .filter((rule) => rule.severity === severity && herbBoundaryPopulationRelevant(rule.population.trim(), audience))
         .map((rule) => rule.population.trim())
         .filter(Boolean))];
       return populations.length > 0 ? [`${populations.join("、")}${wording}`] : [];
@@ -37,8 +59,8 @@ export function herbBoundaryNote(profile: HerbBoundaryProfile): string | undefin
 }
 
 /** 整段尾注；没有任何一味需要提示时返回空串。 */
-export function herbBoundaryTail(profiles: readonly HerbBoundaryProfile[]): string {
-  const notes = profiles.flatMap((profile) => herbBoundaryNote(profile) ?? []);
+export function herbBoundaryTail(profiles: readonly HerbBoundaryProfile[], audience?: HerbBoundaryAudience): string {
+  const notes = profiles.flatMap((profile) => herbBoundaryNote(profile, audience) ?? []);
   return notes.length > 0 ? `${HERB_BOUNDARY_MARKER}${notes.join("；")}。${HERB_BOUNDARY_TRAILER}` : "";
 }
 

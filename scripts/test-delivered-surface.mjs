@@ -174,6 +174,37 @@ for (const [source, expected] of [
   assert.equal(out.nonPharma.tcmTreatments[0].scheduleSuggestion, "每日1次。");
   assert.deepEqual(out.westernDiagnosis.primary.supportingFacts, [], "开方结果里的辨证副本同一口径");
   assert.deepEqual(projectDeliveredReasoning(out), out, "幂等");
+  // 逐味人群提示只列本例可能属于的人群（2026-10-17）：男性、儿童与 60 岁以上患者的处方此前 96% 带孕期或哺乳期提示。
+  {
+    const { herbBoundaryTail } = await jiti.import("../src/lib/candidate-boundary-text.ts");
+    const { getTcmHerbGenerationSafetyProfile } = await jiti.import("../src/lib/tcm-knowledge.ts");
+    const herbs = ["麻黄", "知母", "石菖蒲", "川芎"];
+    const fullTail = herbBoundaryTail(herbs.map((name) => getTcmHerbGenerationSafetyProfile(name)));
+    assert.match(fullTail, /孕期\/妊娠/, "夹具前提：这几味在知识库里带孕期提示");
+    assert.match(fullTail, /老年人|儿童/, "夹具前提：至少一味带年龄类人群提示");
+    const withTail = structuredClone(prescribe);
+    withTail.formula.candidates[0] = { ...withTail.formula.candidates[0], herbs: herbs.map((name) => ({ name, dose: "6g" })),
+      notApplicable: `证候、病机、舌脉或安全边界发生变化时暂停采用，并重新辨证。 ${fullTail}` };
+    const project = (audience) => projectDeliveredReasoning(withTail, audience ? { herbBoundaryAudience: audience } : undefined).formula.candidates[0].notApplicable;
+    const unfiltered = project(undefined);
+    assert.equal(project({ reproductive: true, ageYears: null }), unfiltered, "育龄女性、年龄不详：与不过滤相同");
+    const man = project({ reproductive: false, ageYears: 30 });
+    assert.doesNotMatch(man, /孕|妊娠|哺乳/, `30 岁男性不列孕哺：${man}`);
+    assert.doesNotMatch(man, /老年人|儿童/, `30 岁不列老年人、儿童：${man}`);
+    assert.match(man, /出血倾向\/月经期\/抗凝状态|心血管/, `病情类人群照常保留：${man}`);
+    assert.match(man, /^[^（]+（[^）]+）(；[^（]+（[^）]+）)*$/, `格式与不过滤时同一写法：${man}`);
+    const elderly = project({ reproductive: false, ageYears: 70 });
+    if (/老年人/.test(unfiltered)) assert.match(elderly, /老年人/, "70 岁照常列老年人");
+    assert.doesNotMatch(elderly, /孕|妊娠|哺乳/);
+    const onlyPregnancy = structuredClone(withTail);
+    onlyPregnancy.formula.candidates[0].herbs = [{ name: "石菖蒲", dose: "6g" }];
+    onlyPregnancy.formula.candidates[0].notApplicable = `证候、病机、舌脉或安全边界发生变化时暂停采用，并重新辨证。 ${herbBoundaryTail([getTcmHerbGenerationSafetyProfile("石菖蒲")])}`;
+    assert.equal(projectDeliveredReasoning(onlyPregnancy, { herbBoundaryAudience: { reproductive: false, ageYears: 30 } }).formula.candidates[0].notApplicable, "", "一味都不剩时整栏为空，不留模板句");
+    const once = projectDeliveredReasoning(withTail, { herbBoundaryAudience: { reproductive: false, ageYears: 30 } });
+    assert.deepEqual(projectDeliveredReasoning(once, { herbBoundaryAudience: { reproductive: false, ageYears: 30 } }), once, "带本例信息时同样幂等");
+    const content = `正文\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(withTail)}\n<!-- DIAGNOSIS_JSON_END -->`;
+    assert.doesNotMatch(applyDeliveredSurfaceToContent(content, { herbBoundaryAudience: { reproductive: false, ageYears: 30 } }), /孕期/, "按内容投影的入口同一口径");
+  }
   // 两个阶段方名一致，但只在处方确以该方为主体时：药名按组成身份比（龙胆草=龙胆），基准取教材行组成与目录组成中高的；
   // 合方只有一张的组成在处方里时，方名只写那一张。合成集实测 6 例辨证阶段定了教材代表方、处方也是那张方，方名却是「自拟方」。
   {

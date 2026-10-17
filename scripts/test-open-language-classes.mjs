@@ -18,6 +18,9 @@
  * 反例只在实机回归里量：反例上的语义判断归模型，确定性层对部分反例本就保守
  * （见 fixture 的 knownDeterministicFindings）。
  *
+ * mode = "sanitizer" 的类目（2026-10-17 起）：缺陷在可见文本的阴性净化器上，同一句探针对主体病历与兄弟病历必须得出相同结果，
+ *   反例里真正记录了该症状的病历仍须被改正（local-heat-not-fever：手心发热、关节局部发热不是体温升高的发热）。
+ *
  * mode = "deterministic" 的类目（缺陷在确定性层自己，与模型无关）整类都在这里量，不走实机回归：
  *   兄弟句法 parity——「背景句，当前急症」的门禁结果（状态、剂量、红旗条数）必须与单说
  *   「当前急症」相同，且单说时本身不是 ready（否则两边都 ready 也算相同，断言空转）；
@@ -45,7 +48,8 @@ const { BACKSTOP_RED_FLAG_CATEGORIES, buildClinicalFactsExtractionPrompt } =
   await jiti.import("../src/lib/clinical-facts.ts");
 const { clinicalClausePolarity } = await jiti.import("../src/lib/clinical-polarity.ts");
 const { maybeAttachClinicalFactsBackstop } = await jiti.import("../src/lib/clinical-facts-runtime.ts");
-const { evaluateSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const { evaluateSafetyGate, sanitizeUngroundedRedFlagNegations } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
 
 const TRIAGE_BASIS_FOR_URGENCY = { urgent: "urgent_review", clarify: "clarification_needed", routine: "routine_care" };
 const fixtureDir = path.join(here, "fixtures/open-language-classes");
@@ -171,6 +175,57 @@ for (const file of fixtureFiles) {
     }
     assert.ok(entry.promptAnchor && prompt.includes(entry.promptAnchor), `${label}: 事实抽取提示词里找不到「${entry.promptAnchor}」`);
     cases += 2;
+    continue;
+  }
+  if (entry.mode === "sanitizer" && entry.varies === "text") {
+    // 变的是模型写的句子：主体句（含固定说法）与兄弟句过净化器都必须原样不动；反例里真正与病历矛盾的否认照样改正。
+    assert.equal(entry.schemaVersion, "cdss-open-language-class-v1", `${label}: schemaVersion`);
+    assert.ok(entry.layerAttribution?.layer && entry.layerAttribution?.exception, `${label}: 缺归因记录`);
+    assert.ok(entry.sets?.development?.pairs?.length && entry.sets?.heldOut?.pairs?.length, `${label}: 开发集与留出集都不能为空`);
+    const stateFor = (record, id) => normalizeCaseStateInput({ id, chiefComplaint: "", symptoms: { presentHistory: record }, conversation: [], patient: {} });
+    const sanitizeText = (text, record, id) => {
+      const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseRationale: text } };
+      const out = sanitizeUngroundedRedFlagNegations(`<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`, stateFor(record, id));
+      return JSON.parse(out.slice(out.indexOf("-->") + 3, out.lastIndexOf("<!--"))).overview.tcmDiseaseRationale;
+    };
+    for (const [setName, set] of Object.entries(entry.sets)) {
+      for (const [index, pair] of set.pairs.entries()) {
+        assert.equal(sanitizeText(pair.sibling, pair.record, `${label}-${setName}-${index}-b`), pair.sibling, `${label}/${setName}: 兄弟句自身被改写，断言空转`);
+        assert.equal(sanitizeText(pair.subject, pair.record, `${label}-${setName}-${index}-s`), pair.subject, `${label}/${setName}: 「${pair.subject}」被当成否认句改写`);
+        cases += 1;
+      }
+    }
+    for (const [index, control] of entry.controls.mustStillRewrite.entries()) {
+      assert.match(sanitizeText(control.text, control.record, `${label}-control-${index}`), /阳性/, `${label}: 反例「${control.text}」没有被改正`);
+      cases += 1;
+    }
+    continue;
+  }
+  if (entry.mode === "sanitizer") {
+    // 可见文本净化器的类目（缺陷在净化器自己的接地判断上，不碰安全闸门）：同一句探针过净化器，
+    // 主体病历与去掉该说法的兄弟病历结果必须逐字相同，且兄弟结果本身是对的（否则两边都错也算相同）；
+    // 反例里真正记录了该症状的病历，探针仍须被改正。
+    assert.equal(entry.schemaVersion, "cdss-open-language-class-v1", `${label}: schemaVersion`);
+    assert.ok(entry.layerAttribution?.layer && entry.layerAttribution?.mechanism && entry.layerAttribution?.exception, `${label}: 缺归因记录`);
+    assert.ok(entry.probe && entry.sets?.development?.pairs?.length && entry.sets?.heldOut?.pairs?.length, `${label}: 探针、开发集与留出集都不能为空`);
+    const stateFor = (record, id) => normalizeCaseStateInput({ id, chiefComplaint: "", symptoms: { presentHistory: record }, conversation: [], patient: {} });
+    const seen = new Set();
+    for (const [setName, set] of Object.entries(entry.sets)) {
+      for (const [index, pair] of set.pairs.entries()) {
+        assert.ok(!seen.has(pair.subject), `${label}: 「${pair.subject}」重复出现`);
+        seen.add(pair.subject);
+        const subject = sanitizeUngroundedRedFlagNegations(entry.probe, stateFor(pair.subject, `${label}-${setName}-${index}-s`));
+        const sibling = sanitizeUngroundedRedFlagNegations(entry.probe, stateFor(pair.sibling, `${label}-${setName}-${index}-b`));
+        assert.ok(!/阳性/.test(sibling), `${label}/${setName}: 兄弟句「${pair.sibling}」自身就被改成阳性，断言空转：${sibling}`);
+        assert.equal(subject, sibling, `${label}/${setName}: 「${pair.subject}」与兄弟句净化结果不同`);
+        cases += 1;
+      }
+    }
+    for (const [index, record] of entry.controls.mustStillAffirm.entries()) {
+      const out = sanitizeUngroundedRedFlagNegations(entry.probe, stateFor(record, `${label}-control-${index}`));
+      assert.ok(/阳性/.test(out), `${label}: 反例「${record}」里真正记录的症状没有被认出：${out}`);
+      cases += 1;
+    }
     continue;
   }
   if (entry.mode === "deterministic") {

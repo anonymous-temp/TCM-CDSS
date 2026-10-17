@@ -23,7 +23,7 @@ import {
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
-import { clinicalGroundingText, reproductiveAdviceRelevant } from "./diagnosis-safety";
+import { authoritativePatientAgeYears, clinicalGroundingText, reproductiveAdviceRelevant } from "./diagnosis-safety";
 import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
@@ -227,8 +227,17 @@ function casePrecautions(precautions: readonly string[], caseState: CaseState | 
     precautions = precautions.map((item) => withoutClauses(item, PREGNANCY_CONDITIONAL_CLAUSE)).filter(Boolean);
   }
   if (caseState.safetyGate?.status === "red_flag") precautions = precautions.filter((item) => !PRESCRIPTION_ADMINISTRATION_LINE.test(item));
+  // 写给某一年龄段的条目只写给这个年龄段（2026-10-17：24 岁体健的感冒患者注意事项里写「高龄或体弱者起身宜缓，防跌倒」，独立评审判套话）。
+  const age = authoritativePatientAgeYears(caseState);
+  if (age != null && age < 60) precautions = precautions.filter((item) => !ELDERLY_ADVICE_LINE.test(item));
+  if (age != null && age >= 18) precautions = precautions.filter((item) => !CHILD_ADVICE_LINE.test(item));
   return [...precautions];
 }
+
+/** 写给老年人的条目（「高龄或体弱者起身宜缓」「老年人服药后…」）。 */
+const ELDERLY_ADVICE_LINE = /高龄|老年|老人/;
+/** 写给儿童的条目（「小儿服药宜少量多次」「患儿…」）。 */
+const CHILD_ADVICE_LINE = /小儿|儿童|婴幼儿|患儿|婴儿/;
 
 /** 去掉命中的小句（逗号、分号、句号分隔），其余原样；全部命中时返回空串。 */
 function withoutClauses(line: string, pattern: RegExp): string {
@@ -729,6 +738,18 @@ export function resolveModificationTriggerSource(
       concept.test(trigger) && concept.test(anchor.sourceQuote)));
 }
 
+/**
+ * 加减与方中药味比对用的身份：「生」字头的生品与不带「生」字的同一味视为同一味（生地黄 = 地黄、生石膏 = 石膏、生白芍 = 白芍）。
+ * 2026-10-17：消风散方中已有「地黄12g」，加减又写「若风团颜色鲜红：加生地黄12g」（甲方标准病历 9，独立评审两次判不通过）——
+ * canonicalTcmHerbIdentity 按药典把地黄与熟地黄分开，也就把生地黄当成了另一味。只去掉至少还剩两个字的「生」：生姜、生地不受影响；
+ * 熟地黄、炙甘草这类炮制品仍是另一味（生熟地同用是成法）。
+ */
+export function modificationHerbIdentity(name: string): string {
+  const stripRaw = (value: string) => value.length >= 3 && value.startsWith("生") ? value.slice(1) : value;
+  // 先按原写法去「生」，再在规范名上去一次（「生地」规范成「生地黄」之后才够三个字）。
+  return canonicalTcmHerbIdentity(stripRaw(canonicalTcmHerbIdentity(stripRaw(name.trim()))));
+}
+
 type ModificationDropCode =
   | "malformed"
   | "contains_unaudited_dose"
@@ -804,7 +825,7 @@ function normalizeModifications(
     // 已通过核心契约的候选处方。服务端只保留知识库可识别且与当前上下文一致的行。
     if (!isKnownTcmHerbName(normalizedHerbName)) return drop("unknown_herb");
     if (governedNodeIds.size > 0 && !governedNodeIds.has(targetRef)) return drop("invalid_target");
-    const herbIdentity = canonicalTcmHerbIdentity(normalizedHerbName);
+    const herbIdentity = modificationHerbIdentity(normalizedHerbName);
     if (["remove", "adjust"].includes(actionType) && !prescribedHerbNames.has(herbIdentity)) return drop("action_conflicts_with_candidate");
     if (actionType === "add" && prescribedHerbNames.has(herbIdentity)) return drop("action_conflicts_with_candidate");
     return [{
@@ -1199,7 +1220,7 @@ function normalizeM04ProposalInput(
     : [];
   const prescribedHerbNames = new Set(
     Array.isArray(candidate.herbs)
-      ? candidate.herbs.flatMap((herb) => isRecord(herb) && typeof herb.name === "string" ? [canonicalTcmHerbIdentity(herb.name)] : [])
+      ? candidate.herbs.flatMap((herb) => isRecord(herb) && typeof herb.name === "string" ? [modificationHerbIdentity(herb.name)] : [])
       : [],
   );
   const modificationNormalization = normalizeModifications(rawModifications, prior, prescribedHerbNames);
@@ -1330,7 +1351,8 @@ export function modificationTargetPathogenesis(
   if (trunk && overlaps(item.trigger, nodeOwnText)) {
     return trunk.length <= 40 ? trunk : trunk.split(/[，,]/)[0];
   }
-  const trigger = item.trigger.replace(/^[^：:]{1,8}[：:]/, "").trim().slice(0, 20);
+  // 触发条件本身以「若」「兼见」「如」开头时先去掉，否则写成「兼见若兼见心悸怔忡」（2026-10-17 留出集独立评审，教材加减条件原样带「若」）。
+  const trigger = item.trigger.replace(/^[^：:]{1,8}[：:]/, "").trim().replace(/^(?:若|如|兼见|伴见|兼|伴)+/u, "").trim().slice(0, 20);
   return trigger ? `兼见${trigger}` : (trunk || item.targetRef);
 }
 

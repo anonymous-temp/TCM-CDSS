@@ -876,7 +876,8 @@ const NONDIAGNOSTIC_WESTERN_SUPPORT = /^(?:不限定|未限定|既往体健|无�
  * 治法或患者事实。真正的硬安全边界仍由 m03SafetyContractIssue 独立执行。
  */
 // 「无」后面是固定搭配或虚词的不算（无汗、无力、无明显诱因、无法、无需…）；前面是「有无、并无、尚无」的也不算。
-const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明])([\u4e00-\u9fff]{2,10}?)(?=[、，,。；;：:）)]|等|及|和|或|与|$)/gu;
+// 2026-10-17 补：无定处、无常、无度、无端、无故（甲方标准病历 9 瘾疹「发无定处」被改成「发未诉定处」）。
+const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故])([\u4e00-\u9fff]{2,10}?)(?=[、，,。；;：:）)]|等|及|和|或|与|$)/gu;
 
 /** 把病历没有记录过的「无X」写成「未诉X」。病历为空时原样返回（无从判断）。 */
 export function unrecordedNegativesAsNotReported(text: string, clinicalContext: string): string {

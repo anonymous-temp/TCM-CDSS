@@ -18,6 +18,7 @@ import { textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
  *
  * 边界：
  *  · 只在中医半没有任何可保留的病名级鉴别时调用（实测约 6% 的病例），其余病例不多一次调用；
+ *  · 教材所列的鉴别病证一个都留不下时（2026-10-17 起）由模型提出中医病名，名字仍过同一个归一函数；
  *  · 只写 overview.tcmDiseaseDifferentials 这一项，不动病名、证候与其余字段；之后照常走既有的归一、接地与签名；
  *  · 超时、未配置、输出非法都原样返回——交付面的教材原文兜底仍在，保证这一栏不为空。
  * 开关：CDSS_TCM_DIFFERENTIAL_AUTHORING=false 关闭。
@@ -44,23 +45,27 @@ export type AuthoredTcmDiseaseDifferential = {
 const text = (value: unknown) => typeof value === "string" ? value.trim().replace(/\s+/g, "") : "";
 
 /** 模型输出 → 可用的鉴别条目：病名逐字在闭集里，区分要点以「本例」起头、确实在说本例，各栏长度合规。 */
-export function parseAuthoredTcmDiseaseDifferentials(content: unknown, allowedNames: readonly string[]): AuthoredTcmDiseaseDifferential[] {
+export function parseAuthoredTcmDiseaseDifferentials(
+  content: unknown,
+  allowedNames: readonly string[] | ((name: string) => string | undefined),
+): AuthoredTcmDiseaseDifferential[] {
   if (typeof content !== "string" || !content.trim()) return [];
   let parsed: unknown;
   try { parsed = JSON.parse(content); } catch { return []; }
   const list = parsed && typeof parsed === "object" ? (parsed as { differentials?: unknown }).differentials : undefined;
   if (!Array.isArray(list)) return [];
-  const allowed = new Set(allowedNames);
+  const allowed = typeof allowedNames === "function" ? undefined : new Set(allowedNames);
+  const accept = (name: string) => allowed ? (allowed.has(name) ? name : undefined) : (allowedNames as (name: string) => string | undefined)(name);
   const out: AuthoredTcmDiseaseDifferential[] = [];
   for (const raw of list) {
     if (!raw || typeof raw !== "object") continue;
     const item = raw as Record<string, unknown>;
-    const diseaseName = text(item.diseaseName);
+    const diseaseName = accept(text(item.diseaseName)) || "";
     const distinguishingPoints = text(item.distinguishingPoints);
     const typicalManifestation = text(item.typicalManifestation);
     const reason = text(item.reason);
     const nextCheck = text(item.nextCheck);
-    if (!allowed.has(diseaseName) || out.some((entry) => entry.diseaseName === diseaseName)) continue;
+    if (!diseaseName || out.some((entry) => entry.diseaseName === diseaseName)) continue;
     if (!/^本例/.test(distinguishingPoints) || distinguishingPoints.length < 8 || distinguishingPoints.length > 70) continue;
     if (typicalManifestation.length < 4 || typicalManifestation.length > 60) continue;
     if (reason.length < 2 || reason.length > 30) continue;
@@ -87,13 +92,42 @@ export async function authorTcmDiseaseDifferentials(
   input: { recordText: string; diseaseName: string; syndrome: string; candidates: ReadonlyArray<{ name: string; text: string }> },
   signal?: AbortSignal,
 ): Promise<AuthoredTcmDiseaseDifferential[]> {
-  if (!enabled() || signal?.aborted || input.candidates.length === 0) return [];
+  if (!enabled() || signal?.aborted) return [];
+  // 教材对该病列出的鉴别病证一个都不是中医病名（瘾疹节只列丘疹性荨麻疹）时，由模型提出 1–2 个中医病名，名字同样要过
+  // resolveTcmDiseaseDifferentialName（只收国标、教材节名与教材所列的中医病证名，西医病名丢掉）。此前这类病例不补写，
+  // 交付面把教材对西医病的整段定义贴出来（甲方标准病历 9，2026-10-17 独立评审两次都判不通过）。
+  const open = input.candidates.length === 0;
   const config = getControlledTerminologyModelConfig();
   if (!config.configured) return [];
   const recordText = input.recordText.slice(0, MAX_RECORD_CHARS);
   if (!recordText.trim()) return [];
   const names = input.candidates.map((item) => item.name);
-  const messages = [
+  const acceptName = open
+    ? (name: string) => {
+      const resolved = resolveTcmDiseaseDifferentialName(name, input.diseaseName);
+      return resolved.action === "drop" ? undefined : resolved.name;
+    }
+    : names;
+  const messages = open ? [
+    {
+      role: "system" as const,
+      content: [
+        "你是中医鉴别诊断的整理者，不负责诊断，也不改变已定的病名和证候。",
+        "任务：本例已定中医病名，教材没有列出可用的中医鉴别病名。请写出 1–2 个临床上最需要与本病鉴别的中医病名，并对着本例病历写出据以区分的要点。",
+        "规则：",
+        "1. diseaseName 必须是中医病名（如湿疮、风瘙痒、猫眼疮、药毒、肾着、淋证），不得写西医病名、证型或症状堆砌，不得与本病同名。",
+        "2. typicalManifestation：该鉴别病的典型表现，不超过30字。",
+        "3. distinguishingPoints：本例与它的区别，必须以“本例”开头，只引用病历已记录的表现；病历没有提到的表现写“未诉…”，不要写“无…”；不超过40字。",
+        "4. reason：为什么需要与它鉴别（两者相近之处），不超过15字。",
+        "5. nextCheck：必要时需要核实的一项问诊、查体或检查，不超过15字；没有就写空字符串。",
+        "只输出 JSON：{\"differentials\":[{\"diseaseName\":\"…\",\"reason\":\"…\",\"typicalManifestation\":\"…\",\"distinguishingPoints\":\"本例…\",\"nextCheck\":\"…\"}]}",
+      ].join("\n"),
+    },
+    {
+      role: "user" as const,
+      content: JSON.stringify({ tcmDisease: input.diseaseName, syndrome: input.syndrome || null, record: recordText }),
+    },
+  ] : [
     {
       role: "system" as const,
       content: [
@@ -132,7 +166,7 @@ export async function authorTcmDiseaseDifferentials(
         messages,
       }, { signal: controller.signal }));
       const content = response.choices[0]?.message?.content;
-      const value = parseAuthoredTcmDiseaseDifferentials(content, names);
+      const value = parseAuthoredTcmDiseaseDifferentials(content, acceptName);
       return { value, cacheable: value.length > 0 };
     } catch {
       return { value: [], cacheable: false };
@@ -161,14 +195,13 @@ export async function completeTcmDiseaseDifferentials(
   const candidates = textbookDifferentialsForDisease(diseaseName)
     .filter((item) => resolveTcmDiseaseDifferentialName(item.name, diseaseName).action === "keep")
     .slice(0, MAX_ENTRIES);
-  if (candidates.length === 0) return tcmContent;
   const authored = await authorTcmDiseaseDifferentials({
     recordText: context.recordText,
     diseaseName,
     syndrome: text(overview.primarySyndrome),
     candidates,
   }, signal);
-  console.info("[tcm-cdss:telemetry] tcm_disease_differential_authoring", { candidates: candidates.length, authored: authored.length });
+  console.info("[tcm-cdss:telemetry] tcm_disease_differential_authoring", { candidates: candidates.length, open: candidates.length === 0, authored: authored.length });
   if (authored.length === 0) return tcmContent;
   overview.tcmDiseaseDifferentials = authored;
   return JSON.stringify(root);

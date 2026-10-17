@@ -1344,7 +1344,12 @@ export function projectM03KeySyndromeDiscriminators<T extends M03ReasoningLike>(
   else if (contextAffirmsTerm(clinicalContext, /自汗/)) required.push("自汗");
   else if (contextAffirmsTerm(clinicalContext, /汗出/)) required.push("汗出");
   if (contextAffirmsTerm(clinicalContext, /脉(?:象[:：]?)?浮紧|脉浮而紧/)) required.push("脉浮紧");
-  if (required.length === 0 || !reasoning.overview) return reasoning;
+  // 「恶寒重、发热轻」是风寒与风热最主要的分界，病历写了而辨证依据没讲时同样补上（2026-10-17：甲方标准病历 1 三次生成的辨证依据都只写「发热、咳嗽」）。
+  // 只在投影里补，不进 T1 判据（不因此多一轮修复）。
+  // 这是一个固定的阳性描述，跨了顿号（「恶寒重、发热轻」），按小句切开就对不上，所以直接在病历原文里找。
+  const chillsOverFever = /恶寒重[，,、\s]*发热轻/.test(clinicalContext) && !/恶寒重/.test(String(reasoning.overview?.tcmDiagnosticRationale || ""));
+  if (required.length === 0 && !chillsOverFever) return reasoning;
+  if (!reasoning.overview) return reasoning;
 
   const sourceSegments = clinicalContext
     .split(/[；;\n]+/)
@@ -1375,16 +1380,21 @@ export function projectM03KeySyndromeDiscriminators<T extends M03ReasoningLike>(
       .replace(/。{2,}/g, "。")
     : "";
   overview.tcmDiagnosticRationale = rationale;
-  const rationaleMissing = required.filter((term) => !rationale.includes(term));
+  const rationaleMissing = [
+    ...(chillsOverFever && !rationale.includes("恶寒重") ? ["恶寒重、发热轻"] : []),
+    ...required.filter((term) => !rationale.includes(term)),
+  ];
   if (rationaleMissing.length > 0) {
-    const sourceWording = sourceQuotes
-      .map((quote) => quote.replace(/[。；;，,\s]+$/g, ""))
-      .filter(Boolean)
-      .join("；");
-    overview.tcmDiagnosticRationale = [
-      rationale,
-      `辨证采用病历原文中的关键鉴别事实：${sourceWording}。`,
-    ].filter(Boolean).join("");
+    // 只补缺的那几项，用一句临床话交代它们对本证的意义（2026-10-17）。此前把病历原句整段贴在后面
+    //（「辨证采用病历原文中的关键鉴别事实：患者2天前淋雨后出现恶寒发热……睡眠欠佳，二便调。」），
+    // 连「精神、饮食尚可，二便调」一起粘上；甲方标准病历 1 两次生成都是这样，独立评审判拼接、工程化。原句仍进证据栏（上下两处）。
+    const exterior = rationaleMissing.filter((term) => term === "恶寒重、发热轻" || term === "无汗" || term === "脉浮紧");
+    const sweating = rationaleMissing.filter((term) => term === "自汗" || term === "汗出");
+    const clauses = [
+      exterior.length > 0 ? `${exterior.join("、")}，为寒邪束表、${exterior.includes("恶寒重、发热轻") ? "卫阳被遏、" : ""}腠理闭塞之征` : "",
+      sweating.length > 0 ? `${sweating.join("、")}，提示卫表不固，须与风寒表虚相辨` : "",
+    ].filter(Boolean);
+    overview.tcmDiagnosticRationale = `${rationale.replace(/[。；;，,\s]+$/u, "")}${rationale ? "；" : ""}${clauses.join("；")}。`;
   }
 
   const chain = projected.pathogenesis?.chain || [];

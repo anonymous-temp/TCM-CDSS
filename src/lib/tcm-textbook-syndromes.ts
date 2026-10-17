@@ -422,10 +422,14 @@ export function textbookRowForSyndrome(diseaseName: string, syndromeName: string
     }
     return undefined;
   }
-  for (const disease of diseasesNamed(diseaseName, input.ageYears)) {
+  const named = diseasesNamed(diseaseName, input.ageYears);
+  for (const disease of named) {
     const exact = disease.rows.find((row) => syndromeCore(row.syndromeName) === target || syndromeCore(row.syndrome) === target);
     if (exact) return exact;
   }
+  // 病名对上了教材的节、只是该节没有这个证名时，到此为止：不到别的病里找同名证（2026-10-17：虚劳·肺脾两虚证
+  // 找到了肺胀的「肺脾两虚证」，锚定把治法换成「补肺健脾，降气化痰」、方换成六君子汤合玉屏风散，病名还会被改成肺胀）。
+  if (named.length > 0) return undefined;
   // 病名没对上（模型写了「头风病」而教材的节是「头痛」）时，证名在全表只属于一个病的，按证名找回那一行。
   const owners = DISEASES.filter((disease) => CANDIDATE_BOOK_PRIORITY[disease.bookKey] <= 1)
     .flatMap((disease) => disease.rows.filter((row) => syndromeCore(row.syndromeName) === target || syndromeCore(row.syndrome) === target));

@@ -459,7 +459,8 @@ const FOCAL_NEUROLOGIC_CONCEPT_GROUPS: readonly (readonly string[])[] = [
 const FOCAL_NEUROLOGIC_TERMS = [...new Set(FOCAL_NEUROLOGIC_CONCEPT_GROUPS.flat())];
 
 const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
-  ["发热", "发烧", "高热", "低热", "体温升高"],
+  // 「低烧」与「低热」同义（2026-10-17 局部发热守卫回放时发现：「每天低烧、下午掌心发热」原先只靠掌心发热被认成发热）。
+  ["发热", "发烧", "高热", "低热", "低烧", "体温升高"],
   ["头痛", "头疼", "脑袋疼", "脑袋痛", "头部疼痛", "偏头痛"],
   // High-risk bleeding concepts must be grounded across ordinary patient phrasing. In particular,
   // Chinese aspect markers split the canonical surface ("没吐过血" does not literally contain
@@ -515,7 +516,7 @@ const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
  */
 const NARROWER_THAN_GROUP_CANONICAL: ReadonlySet<string> = new Set([
   // 程度限定
-  "高热", "低热", "壮热", "中等度热", "大出血", "大量出血",
+  "高热", "低热", "低烧", "壮热", "中等度热", "大出血", "大量出血",
   // 具体病名/性状限定
   "偏头痛", "干咳", "有痰咳嗽", "咳痰", "水样便",
   "心前区痛", "胸骨后压榨感", "心跳快", "心跳加速", "心跳乱", "漏跳感",
@@ -815,6 +816,22 @@ function sourceDocumentsCurrentNormality(source: string, term: string): boolean 
   });
 }
 
+/**
+ * 「发热」接在身体部位之后（手心脚心发热、关节局部发热、面部发热）或后面跟「感」（发热感）时，说的是局部或自觉的热，
+ * 不是体温升高的「发热」。2026-10-17：病历同时写「手心脚心发热」与「无发热」时，净化器把模型的「否认发热」改成
+ *「病历已记录发热阳性；病历已记录否认发热」，交付面再译成「有发热；否认发热」——10/14 合成集 5 例、独立评审留出集
+ * 西医鉴别不通过 8 例里的 2 例。冻结令允许的构词式词法守卫：「发热」紧前一个字是身体部位的词尾（心、足、手、掌、底、背、腰、面、颊、
+ * 肢、节、处、肤、部，以及胸中、心中）——有限闭集，按字而不按整词，所以「足底发热」「手掌发热」这类没见过的组合也认得；
+ *「恶心发热」的心不算。只作用于本净化器判「病历记录了该症状」这一处，安全闸门的发热判定不走这里。
+ *「身体/全身/午后/自觉发热」仍按发热处理；「身体热度不退」这类不含「发热」字样的说法本来就认不出（语料回放 1 例，残留）。
+ * 类夹具 scripts/fixtures/open-language-classes/local-heat-not-fever.json。
+ */
+const LOCAL_HEAT_SITE_BEFORE_FEVER = /(?:(?<!恶)心|[手足掌底背腰面颊肢节处肤部]|胸中|心中)$/;
+function isLocalHeatNotFeverAt(sentence: string, index: number, equivalent: string): boolean {
+  if (equivalent !== "发热") return false;
+  return sentence[index + equivalent.length] === "感" || LOCAL_HEAT_SITE_BEFORE_FEVER.test(sentence.slice(Math.max(0, index - 4), index));
+}
+
 function sourceDocumentsAffirmation(source: string, term: string): boolean {
   const normalized = normalizeClinicalText(source);
   const equivalents = POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes(term)) || [term];
@@ -824,6 +841,7 @@ function sourceDocumentsAffirmation(source: string, term: string): boolean {
       let index = sentence.indexOf(equivalent);
       while (index >= 0) {
         if (
+          !isLocalHeatNotFeverAt(sentence, index, equivalent) &&
           !isExcludedClinicalAssertionAt(sentence, index) &&
           !hasImmediateBareNegator(sentence, index) &&
           !isNegatedAt(sentence, index) &&
@@ -979,7 +997,11 @@ function sanitizeUngroundedNegationText(
       // “肢体无力” is a positive neurologic symptom. The lexical “无” is part of the symptom name,
       // not a negation cue; masking it here prevents the output scrubber from rewriting a grounded
       // post-stroke fact into the synthetic sentence “病历已记录肢体无力阳性”.
-      .replace(/肢体无力/g, "肢体乏力");
+      .replace(/肢体无力/g, "肢体乏力")
+      // 「发无定处、痛无定处、行无定时、无常、无度、无端、无故」是固定说法，不是对某个症状的否认（2026-10-17：
+      //「以皮肤瘙痒、风团时消时现、发无定处为主症」被当成否认句，整句改成「病历已记录瘙痒阳性」，甲方标准病历 9 三次生成都是这样）。
+      // 与 unrecordedNegativesAsNotReported 排除的固定搭配同一组。
+      .replace(/无(?=定处|定时|定所|常|度|端|故)/g, "");
     const prefix = clause.match(/^(\s*(?:[-*]>?\s*|>\s*|#{1,6}\s*)?(?:[^：:|]{1,24}[：:]\s*)?)/)?.[1] || "";
     // 正文里鉴别一行的「常见：」是 differentialLine（diagnosis-visible-summary）给 typicalManifestation 加的标签：
     // 写的是鉴别对象那个病的表现，不是对本例的断言，与 JSON 里同一字段一样不净化（见下方 typicalManifestation 豁免）。
@@ -1208,9 +1230,12 @@ function sanitizeUngroundedPhysicalExamClaims(
   const parts = value.split(/([。；;，,])/);
   const sanitized = parts.map((part) => {
     if (!part || /^[。；;，,]$/.test(part)) return part;
+    // 「有无压痛」「是否…」是在问要查什么，不是在说查到了什么（2026-10-17：鼻渊鉴别的核实项「查鼻窦区有无压痛」被当成
+    // 腹部查体断言，改成「本次病历未记录腹部查体结果，需现场补充」，甲方标准病历 1）。构词式守卫：只去掉这两个疑问词再判断语气线索。
+    const claimText = part.replace(/有无|是否/g, "");
     const unsupported = PHYSICAL_EXAM_CLAIM_GROUPS.filter((group) =>
       physicalExamGroupPattern(group).test(part)
-      && PHYSICAL_EXAM_CLAIM_CUE.test(part)
+      && PHYSICAL_EXAM_CLAIM_CUE.test(claimText)
       && !sourceDocumentsPhysicalExam(source, group));
     if (unsupported.length === 0) return part;
     for (const group of unsupported) missingLabels.add(group.label);

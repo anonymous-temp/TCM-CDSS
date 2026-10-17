@@ -22,7 +22,7 @@ import {
 import { affirmedClinicalText } from "./clinical-polarity";
 import { assessPregnancyState } from "./clinical-state";
 import { pregnancyScreenRequired } from "./diagnosis-safety";
-import { manipulationMatchedToSyndrome, textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
+import { cardSentencesMatchedToSyndrome, manipulationMatchedToSyndrome, textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
 type DeliveryMode = "onsite" | "referral";
@@ -1144,10 +1144,14 @@ export function compileTcmTreatmentRecommendations(
     );
     // 教材卡与院内目录卡在这里过同一道：针刺的补泻手法与已签名证候相符（失眠模板写的是「留针用补法」），
     // 疗程栏与操作栏不写流程用语（「复评」「课程索引」「由现场医师复核」）。
-    const cardText = (value: string) => clinicalTreatmentScheduleWording(
-      definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText) : value);
+    // 写给别的证型的句子、阴虚热证里建议用灸的句子也在这里去掉（cardSentencesMatchedToSyndrome），治疗内容栏同样过这一道。
+    const diseaseNamesForCard = [prior.overview.tcmDiseaseName || ""].filter(Boolean);
+    const cardSentences = (value: string) => cardSentencesMatchedToSyndrome(value, diseaseNamesForCard, signedSyndromeText);
+    const cardText = (value: string) => clinicalTreatmentScheduleWording(cardSentences(
+      definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText) : value));
     const treatmentPlan = {
       ...plannedTreatment,
+      ...(typeof plannedTreatment.treatmentContent === "string" ? { treatmentContent: cardSentences(plannedTreatment.treatmentContent) } : {}),
       ...(typeof plannedTreatment.techniqueBoundary === "string" ? { techniqueBoundary: cardText(plannedTreatment.techniqueBoundary) } : {}),
       ...(typeof plannedTreatment.scheduleSuggestion === "string" ? { scheduleSuggestion: cardText(plannedTreatment.scheduleSuggestion) } : {}),
     };
@@ -1252,6 +1256,13 @@ function homeAcupointCareForCase(
 export const ELDERLY_ACUPUNCTURE_AGE_YEARS = 65;
 export const ELDERLY_ACUPUNCTURE_NOTE = "老年人针刺量宜小：取穴少而精、浅刺、手法宜轻、留针时间宜短，取卧位，留针期间注意观察以防晕针。";
 
+/**
+ * 注意事项里点名的治疗项目必须是本例实际给出的项目（2026-10-14 起在出卡处过滤；2026-10-17 起交付面再按最终卡片过一遍）。
+ * 出卡之后交付面还会去掉给不出具体内容的卡（仅评估、无穴的类目模板），而注意事项是按出卡时的集合过滤的，
+ * 于是「耳穴及导引治疗请按医护人员指导进行」「刮痧、针刺后注意保暖」留在了没有这些卡的病例上（甲方标准病历 2、9、10，独立评审）。
+ * 判据只在这一处，出卡处与交付面共用。
+ */
+
 /** 注意事项里的治疗项目称呼 → 项目编码（项目目录是有限闭集；只收指向单一项目的说法）。 */
 const PRECAUTION_TREATMENT_MENTIONS: ReadonlyArray<readonly [RegExp, readonly TcmTreatmentProjectCode[]]> = [
   [/针刺|扎针|毫针|电针/, ["acupuncture"]],
@@ -1265,11 +1276,24 @@ const PRECAUTION_TREATMENT_MENTIONS: ReadonlyArray<readonly [RegExp, readonly Tc
   [/熏洗|坐浴/, ["fumigation_wash"]],
   [/药浴/, ["medicated_bath"]],
   [/埋线/, ["thread_embedding"]],
+  // 「导引治疗」是项目；运动保健栏里的「可练八段锦」不是注意事项点名的治疗，不在此列。
+  [/导引/, ["qigong_daoyin"]],
 ];
 
 export function precautionMentionsUndeliveredTreatment(line: unknown, delivered: ReadonlySet<string>): boolean {
   if (typeof line !== "string") return false;
   return PRECAUTION_TREATMENT_MENTIONS.some(([pattern, codes]) => pattern.test(line) && !codes.some((code) => delivered.has(code)));
+}
+
+/** 本例实际给出的项目：治疗卡的项目编码，加上居家穴位保健里的艾灸（「艾灸时注意防烫」说的是它）与按揉。 */
+export function deliveredTreatmentCodes(treatments: ReadonlyArray<{ projectCode?: unknown }>, acupointCare: unknown): Set<string> {
+  const care = typeof acupointCare === "string" ? acupointCare : "";
+  return new Set<string>([
+    ...treatments.flatMap((item) => typeof item.projectCode === "string" ? [item.projectCode] : []),
+    ...(/灸/.test(care) ? ["moxibustion"] : []),
+    // 居家按揉是患者自己做的穴位保健，不等于医师的推拿项目：「推拿后注意保暖」不因它成立（2026-10-17 甲方标准病历 4、6）。
+    ...(/按揉|按压|按摩/.test(care) ? ["home_acupressure"] : []),
+  ]);
 }
 
 export function applyTcmTreatmentCapabilityPriority(
@@ -1309,12 +1333,7 @@ export function applyTcmTreatmentCapabilityPriority(
     // 模型写注意事项时看到的是自己提名的项目，随后服务端按机构能力与禁忌重排、增删；提到已不在清单里的项目的那一条整条丢掉。
     // 居家穴位保健里的艾灸、按揉也算给出了（「艾灸时注意防烫」说的是它）。
     if (Array.isArray(reasoning.nonPharma.precautions)) {
-      const care = typeof reasoning.nonPharma.acupointCare === "string" ? reasoning.nonPharma.acupointCare : "";
-      const delivered = new Set<string>([
-        ...recommendations.map((item) => item.projectCode),
-        ...(/灸/.test(care) ? ["moxibustion"] : []),
-        ...(/按揉|按压|按摩/.test(care) ? ["tuina"] : []),
-      ]);
+      const delivered = deliveredTreatmentCodes(recommendations, reasoning.nonPharma.acupointCare);
       reasoning.nonPharma.precautions = reasoning.nonPharma.precautions
         .filter((line) => !precautionMentionsUndeliveredTreatment(line, delivered));
     }

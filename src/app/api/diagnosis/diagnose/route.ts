@@ -242,10 +242,10 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
             { recordText: trustedInputText(safeState) },
             transformSignal,
           ),
-          // 西医半一返回就核对病名与病历已记录内容是否矛盾（约 0.8 秒，与中医半并行）；采信则只改病名这一项。
+          // 西医半一返回就核对病名与病历已记录内容是否矛盾或说得过细（约 0.8 秒，与中医半并行）；采信则只改病名这一项。红旗病例不用「过细」一类。
           m03WesternHalfTransform: (westernContent: string, transformSignal: AbortSignal) => alignWesternNameWithRecord(
             westernContent,
-            { recordText: trustedInputText(safeState), patient: { sex: safeState.patient?.sex, age: safeState.patient?.age } },
+            { recordText: trustedInputText(safeState), patient: { sex: safeState.patient?.sex, age: safeState.patient?.age }, redFlag: redFlagAnalysis },
             transformSignal,
           ),
         }

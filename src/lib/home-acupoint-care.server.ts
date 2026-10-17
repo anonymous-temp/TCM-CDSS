@@ -186,9 +186,11 @@ export function compileHomeAcupointCare(context: HomeAcupointCareContext): strin
   if (moxibustion) {
     const described = new Set(pressPoints.map((point) => point.name));
     const names = moxibustion.points.map((name) => (described.has(name) ? name : located(name))).join("、");
-    parts.push(`也可以艾灸${names}：${moxibustion.method}，${moxibustion.dose}。`);
+    // 按揉的穴位都已在医师的治疗卡里时只剩艾灸一段：不写「也可以」，也不附按揉的注意事项
+    //（2026-10-17：甲方标准病历 5 的穴位保健以「也可以艾灸气海…」起头，后面还写「宜在饭后再按揉」，独立评审判语句残缺）。
+    parts.push(`${pressPoints.length > 0 ? "也可以" : ""}艾灸${names}：${moxibustion.method}，${moxibustion.dose}。`);
   }
-  parts.push(SOURCE.cautions.acupressure);
+  if (pressPoints.length > 0) parts.push(SOURCE.cautions.acupressure);
   if (moxibustion) parts.push(SOURCE.cautions.moxibustion);
   return parts.join("");
 }
