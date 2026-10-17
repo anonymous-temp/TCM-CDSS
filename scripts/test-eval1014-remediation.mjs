@@ -863,6 +863,11 @@ const checkAsync = async (name, run) => {
     const out = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {},
       formula: { candidates: [{ name: "右归丸", herbs: youGui.map((name) => ({ name, dose: "9g" })), formulaAnalysis: "本方以右归丸为基础加减，去原方温燥之品后以附子、肉桂为君，温补肾阳。" }] }, nonPharma: null }).formula.candidates[0].formulaAnalysis;
     assert.equal(out, "本方以右归丸为基础加减，以附子、肉桂为君，温补肾阳。");
+    // 药味取自甲方标准病历 8 的实际处方（龙胆泻肝汤全方 + 牡丹皮）。
+    const longdan = ["龙胆", "黄芩", "栀子", "泽泻", "川木通", "车前子", "地黄", "牡丹皮", "当归", "柴胡", "甘草"];
+    const tail = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {},
+      formula: { candidates: [{ name: "龙胆泻肝汤加减", herbs: longdan.map((name) => ({ name, dose: "9g" })), formulaAnalysis: "本方以龙胆泻肝汤为基础加减，去原方苦寒之药以免过峻之弊，加牡丹皮以增凉血之力。龙胆为君。" }] }, nonPharma: null }).formula.candidates[0].formulaAnalysis;
+    assert.equal(tail, "本方以龙胆泻肝汤为基础加减，加牡丹皮以增凉血之力。龙胆为君。", "说删药理由的残段不留");
   });
 }
 

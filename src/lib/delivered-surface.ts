@@ -420,7 +420,9 @@ function withoutRemovalClaims(analysis: string): string {
         // 同一小句里「去…之品后以附子、肉桂为君」：只去掉说删药的部分，后面的话留下。
         const rest = body.slice(claim[0].length);
         dropping = true;
-        if (/^[，,；;。]?$/.test(rest.trim()) || /^(?:而)?(?:留|保留)/u.test(rest)) continue;
+        // 只留「以附子、肉桂为君」这种自成一句的后半；「以免过峻之弊」「以防…」这类说删药理由的残段一并不留
+        //（2026-10-17 本地复测：「本方以龙胆泻肝汤为基础加减，过峻之弊，加牡丹皮…」）。
+        if (!/^(?:以|用)[^，,。；;]*为/u.test(rest.trim())) continue;
         kept.push(rest);
         dropping = false;
         continue;
