@@ -734,9 +734,9 @@ export function modificationHerbIncompatibleWithCandidate(herbName: string, cand
 }
 
 /** 教材没有给已定证型列加减时，模型写的条件式加减（tcm-textbook-syndromes.conditionalModificationWithoutTextbook）。 */
-export function modelConditionalModificationForPrior(trigger: string, prior?: ClinicalReasoningResultV2 | null): boolean {
+export function modelConditionalModificationForPrior(trigger: string, prior?: ClinicalReasoningResultV2 | null, candidateHerbNames: readonly string[] = []): boolean {
   if (!prior || prior.stage !== "diagnose") return false;
-  return conditionalModificationWithoutTextbook(prior.overview.tcmDiseaseName || "", prior.overview.primarySyndrome || "", trigger);
+  return conditionalModificationWithoutTextbook(prior.overview.tcmDiseaseName || "", prior.overview.primarySyndrome || "", trigger, candidateHerbNames);
 }
 
 /** 触发条件是已定证型在教材里的一条加减（tcm-textbook-syndromes.textbookModificationMatch）。 */
@@ -1943,7 +1943,7 @@ export function compileM04Proposal(
       return [];
     }
     const triggerSource = textbookSource ? undefined : resolveModificationTriggerSource(item.trigger, prior);
-    const modelConditional = !textbookSource && !triggerSource && modelConditionalModificationForPrior(item.trigger, prior);
+    const modelConditional = !textbookSource && !triggerSource && modelConditionalModificationForPrior(item.trigger, prior, candidateHerbNames);
     if (!textbookSource && !triggerSource && !modelConditional) {
       directionDropReasons.push("trigger_not_current_fact");
       return [];

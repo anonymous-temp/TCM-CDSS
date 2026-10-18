@@ -1,6 +1,6 @@
 import { formallyAdministeredMedicationMentions, medicationStoppedInNextSentence, recordedMedicationMentions, recordedMobilityLimitation, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
-import { clinicalGroundingText, currentVitalMeasurements, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
+import { clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import {
   findLocalPatentMedicineLabel,
@@ -86,8 +86,10 @@ export function requiredPrecautionsForCase(
 ): RequiredPrecaution[] {
   const items: RequiredPrecaution[] = [];
   // 红旗未解除或不给剂量的页面只有药味与方义：不写怎么服（年龄相关的服药方法、与中药间隔服用）。
+  // 给不给剂量按开方阶段同一个判据（derivePrescriptionPermission）：安全门的 allowDosePrescription 在信息待补的病例里也是 false，
+  // 而这些病例照常按有限剂量出方——此前按它判，留出集 S158/S160 两个患儿没有儿童服药一条，多数病例也没有服法一条（2026-10-19）。
   const redFlag = state.safetyGate?.status === "red_flag";
-  const doseAllowed = state.safetyGate ? !redFlag && state.safetyGate.allowDosePrescription !== false : true;
+  const doseAllowed = !redFlag && ["full_dose", "limited_dose"].includes(derivePrescriptionPermission(state).candidateMode);
   // 重度高血压而无急性靶器官表现（2017 ACC/AHA、ACEP：尽快门诊复测并调整降压，不是急诊）：安全门只给医生看的提示，
   // 写给患者的那句在这里（2026-10-19）。伴靶器官表现的是红旗，处置另有横幅。
   const bp = currentVitalMeasurements(state).bloodPressure;

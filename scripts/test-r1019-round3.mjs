@@ -37,6 +37,7 @@ const hygiene = await jiti.import("../src/lib/internal-tag-hygiene.ts");
 const polarity = await jiti.import("../src/lib/clinical-polarity.ts");
 const precautions = await jiti.import("../src/lib/required-precautions.server.ts");
 const surface = await jiti.import("../src/lib/delivered-surface.ts");
+const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 
 // safetyGate 是服务端写的字段，归一化时丢弃；路由在 withSafetyGate 之后才有，这里同样在归一化之后挂上。
 const stateOf = (presentHistory, { safetyGate, ...extra } = {}) => {
@@ -138,6 +139,12 @@ await check("5.4 红旗页：在用药物写带药就医、去掉「与中药间
   const calm = precautions.requiredPrecautionsForCase(stateOf("头晕2天。", { patient: { sex: "男", age: 79 }, pastHistory: "长期口服“酒石酸美托洛尔片”25mg每日2次" }), null);
   assert.ok(calm.some((entry) => entry.kind === "elderly_administration"));
   assert.ok(!calm.find((entry) => entry.kind === "current_medications")?.urgent);
+});
+await check("5.4b 信息待补的病例（安全门 allowDosePrescription=false，但开方阶段照常给有限剂量）：患儿仍有儿童服药一条（留出集 S158/S160 漏了）", async () => {
+  const safetyModule = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const gated = safetyModule.withSafetyGate(stateOf("腹胀、便秘3天，夜间烦躁哭闹。", { patient: { sex: "女", age: 6 } }));
+  assert.equal(gated.safetyGate?.allowDosePrescription, false);
+  assert.ok(precautions.requiredPrecautionsForCase(gated, null).some((entry) => entry.kind === "pediatric_administration"));
 });
 await check("5.5 行动受限：拄拐的患者运动保健改坐式并写陪同扶物；已按受限写的不动；没有受限不出这一项（对照）", () => {
   const items = precautions.requiredPrecautionsForCase(stateOf("反复感冒1年。", { patient: { sex: "女", age: 78 }, pastHistory: "股骨骨折术后，现可拄拐缓慢行走" }), null);
@@ -272,6 +279,15 @@ await check("8.1 M03 推荐方向是教材代表方而目录锁不住（加味�
   const signedPrior = { stage: "diagnose", overview: { ...prior.overview, formulaSelectionMode: "none" } };
   assert.notEqual(provenance.formulaCompilationContractIssue(reasoning, signedPrior), "formula_direction_drift");
   assert.equal(provenance.formulaCompilationContractIssue(reasoning, { stage: "diagnose", overview: { ...signedPrior.overview, recommendedFormulaDirection: "养血和络" } }), "formula_direction_drift");
+});
+
+await check("8.2 教材这一证的加减药都已并入主方时（呃逆·胃火上逆证的柿蒂、大黄、厚朴），模型写的「若＋具体表现」条件式加减算合格触发；还有没用上的教材加减时照旧不算（对照）", async () => {
+  const tb = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
+  const absorbed = ["竹叶", "石膏", "麦冬", "半夏", "柿蒂", "大黄", "厚朴", "甘草"];
+  assert.equal(tb.conditionalModificationWithoutTextbook("呃逆", "胃火上逆证", "若口干口渴较甚", absorbed), true);
+  assert.equal(tb.conditionalModificationWithoutTextbook("呃逆", "胃火上逆证", "若口干口渴较甚"), false);
+  assert.equal(tb.conditionalModificationWithoutTextbook("呃逆", "胃火上逆证", "若口干口渴较甚", absorbed.filter((name) => name !== "厚朴")), false);
+  assert.equal(contract.finalModificationTriggerGrounded("若口干口渴较甚", { overview: { tcmDiseaseName: "呃逆", primarySyndrome: "胃火上逆证" } }, absorbed), true);
 });
 
 console.log(JSON.stringify({ suite: "r1019-round3", cases, failures: process.exitCode ? "see above" : 0 }));

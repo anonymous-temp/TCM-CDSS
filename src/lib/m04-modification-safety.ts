@@ -71,7 +71,9 @@ export function dropUnsupportedM04ModificationDirections(
       // Dose-bearing/unknown-herb/high-impact additions remain governed by the existing hard
       // contract below and are never made acceptable by this deletion-only transform.
       const trigger = typeof modification.trigger === "string" ? modification.trigger.trim() : "";
-      if (!trigger || !finalModificationTriggerGrounded(trigger, prior)) return false;
+      const candidateHerbNames = (Array.isArray(firstCandidate?.herbs) ? firstCandidate.herbs : [])
+        .map((herb) => String(recordValue(herb)?.name || "").trim()).filter(Boolean);
+      if (!trigger || !finalModificationTriggerGrounded(trigger, prior, candidateHerbNames)) return false;
       const fields = normalizedFormulaModificationFields(modification);
       // 最终出口再核一次「加的药已在方中 / 减的药不在方中」（2026-09-29 甲方测评 2.2：腰痛例建议加熟地黄，
       // 而熟地黄已在原方）。编译期 normalizeModifications 按**当时**的药味核过，但 candidate 定向修复会

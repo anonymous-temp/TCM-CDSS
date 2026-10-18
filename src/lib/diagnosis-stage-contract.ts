@@ -2546,12 +2546,12 @@ function isTextbookConditionalModification(trigger: unknown, herbName: string, p
   ));
 }
 
-export function finalModificationTriggerGrounded(trigger: string, prior?: M03ReasoningLike | null): boolean {
+export function finalModificationTriggerGrounded(trigger: string, prior?: M03ReasoningLike | null, candidateHerbNames: readonly string[] = []): boolean {
   if (!prior) return false;
   // 已定证型在教材里的一条加减（「若恶寒甚」）是合格的条件句触发，不要求病历里已经出现。
   if (textbookModificationMatch(String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""), trigger)) return true;
-  // 教材没有给这一证列加减时，模型按本证常见兼症写的条件式加减（与编译器同一判据）。
-  if (conditionalModificationWithoutTextbook(String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""), trigger)) return true;
+  // 教材没有给这一证列加减（或列的加减药都已在方中）时，模型按本证常见兼症写的条件式加减（与编译器同一判据）。
+  if (conditionalModificationWithoutTextbook(String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""), trigger, candidateHerbNames)) return true;
   if (/(?:^|[，,；;])\s*(?:若|如|当|一旦)|复诊时|接诊时核实|症状变化时|出现时|加重时|未缓解时|以后出现/.test(trigger)) return false;
   const normalizedTrigger = normalizedModificationTrigger(trigger);
   if (normalizedTrigger.length < 2) return false;
@@ -4499,7 +4499,7 @@ export function m04SemanticIssue(
     if (!action) return `modification_${modificationIndex}_action`;
     const herbName = formulaModificationHerbName(modification);
     if (!herbName) return `modification_${modificationIndex}_herb`;
-    if (!finalModificationTriggerGrounded(String(modification.trigger), priorReasoning)) {
+    if (!finalModificationTriggerGrounded(String(modification.trigger), priorReasoning, [...prescribedHerbs])) {
       return `modification_${modificationIndex}_trigger_ungrounded`;
     }
     if (!modificationDoseWithinPharmacopoeia(modification.doseOrHandling, herbName, action)) {

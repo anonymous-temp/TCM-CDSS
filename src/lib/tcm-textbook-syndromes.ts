@@ -477,9 +477,18 @@ export function textbookTableStats(): { diseases: number; rows: number } {
  * 仍不接受的写法：不以「若」开头；说的是流程或泛指而不是具体症状（复诊时、症状变化时、必要时、效果不佳、需要时…）。
  * 教材该证有加减时不走这条路——那时只认教材条件与已记录表现。
  */
-export function conditionalModificationWithoutTextbook(diseaseName: string, syndromeName: string, trigger: string): boolean {
+export function conditionalModificationWithoutTextbook(
+  diseaseName: string,
+  syndromeName: string,
+  trigger: string,
+  /** 处方药味。教材这一证的加减药都已在方中（教材加减已并入主方）时，按「教材没有可用加减」处理（2026-10-19 留出例 S067 石淋、S046 呃逆：
+   *  模型照提示改写本证常见变化的条件式加减，被判「触发条件不能回溯」，随证加减一栏是空的）。不给时照旧。 */
+  candidateHerbNames: readonly string[] = [],
+): boolean {
   const row = textbookRowForSyndrome(diseaseName, syndromeName);
-  if (row && row.modifications.length > 0) return false;
+  const inCandidate = (herb: string) => candidateHerbNames.some((name) => name.includes(herb) || herb.includes(name));
+  const textbookUsable = Boolean(row && row.modifications.some((item) => item.herbs.length === 0 || item.herbs.some((herb) => !inCandidate(herb))));
+  if (row && row.modifications.length > 0 && (candidateHerbNames.length === 0 || textbookUsable)) return false;
   const text = (typeof trigger === "string" ? trigger : "").normalize("NFKC").trim().replace(/[。；;，,\s]+$/u, "");
   if (!/^若/u.test(text)) return false;
   const condition = text.replace(/^若(?:兼见|兼有|见|兼|伴有?|出现)?/u, "");
