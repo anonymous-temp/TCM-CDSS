@@ -292,9 +292,11 @@ async function runFrontendContractChecks() {
     prescription: "已生成饮片正文", riskAssessment: "## 随访建议\n既有随访内容",
   }));
   if (!displayState) throw new Error("Synthetic frontend contract fixture must normalize");
+  // 2026-10-19 起无靶器官表现的重度高血压（220/130）按指南只给提示、不是红旗；这里要的是「恢复的旧快照按当前规则重算」，
+  // 换用仍无条件属危急值的低血压读数。
   const restoreInput = { ...displayState, skipDifferentiationGate: true, safetyLocked: false,
-    vitals: { ...displayState.vitals, BP: "220/130mmHg" },
-    hisRecord: { ...displayState.hisRecord, fields: { ...displayState.hisRecord.fields, vitalsBP: "220/130mmHg" } },
+    vitals: { ...displayState.vitals, BP: "78/46mmHg" },
+    hisRecord: { ...displayState.hisRecord, fields: { ...displayState.hisRecord.fields, vitalsBP: "78/46mmHg" } },
     safetyGate: { status: "ready", allowDiagnosis: true, allowDosePrescription: true, redFlags: [], missingItems: [] } };
   const restoredDisplay = restoreWarningDisplayCase(restoreInput);
   const sanitizedDisplay = sanitizeCaseStateForBrowserPersistence(restoreInput);
@@ -384,7 +386,7 @@ async function runFrontendContractChecks() {
       questionContractSource.includes("isCompoundAffirmativeQuestionOption") &&
       questionContractSource.includes("selected.slice(0, 2)") &&
       questionRouteSource.includes("const safeCaseState = sanitizeCaseStateForModel(inputCaseState)") &&
-      questionRouteSource.includes("buildQuestionPrompt(safeCaseState, answeredRiskCategories)") &&
+      questionRouteSource.includes("buildQuestionPrompt(safeCaseState, answeredRiskCategories") &&
       !questionRouteSource.includes("buildQuestionPrompt(safeCaseState, fallbackQuestions)"),
     "M02: the LLM owns information-gain planning; deterministic code is only an interaction and grounded-risk fallback contract",
     `${questionContractSource.slice(0, 9000)}\n${questionRouteSource}`,

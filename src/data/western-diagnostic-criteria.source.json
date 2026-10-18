@@ -1233,10 +1233,9 @@
    "name": "类风湿关节炎",
    "clinicallyDiagnosable": false,
    "requiredTests": [
-    "RF或抗CCP血清学",
-    "CRP或血沉"
+    "RF或抗CCP、CRP或血沉（满足1987年ACR标准7项中4项——晨僵≥1小时、≥3个关节区同时肿胀、腕/掌指/近端指间关节受累、对称性关节炎——或受累关节＞10个且含小关节并病程≥6周时，不依赖这些检查即可分类）"
    ],
-   "durationThreshold": "症状持续≥6周计1分",
+   "durationThreshold": "关节症状持续≥6周",
    "definingFeatures": [
     "关节受累评分（大关节/小关节数目）",
     "血清学RF或抗CCP滴度评分",
@@ -1249,7 +1248,17 @@
    "siteName": "Sundhed.dk",
    "title": "Reumatoid artritis",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-19",
+   "reviewCorrection": {
+    "basis": "1987年ACR修订标准（Arnett 等，PubMed 3358796）7项满足4项即可分类，不要求血清学；2010 ACR/EULAR 评分中受累关节＞10个（含≥1个小关节）计5分、病程≥6周计1分，合计已达6分。验收集 X-D-3306（双腕、掌指、近端指间关节对称肿胀12个关节，晨僵1小时，病程3年）曾因「没有RF/抗CCP」被改成「类风湿关节炎待查」。",
+    "before": {
+     "requiredTests": [
+      "RF或抗CCP血清学",
+      "CRP或血沉"
+     ],
+     "durationThreshold": "症状持续≥6周计1分"
+    }
+   }
   },
   {
    "name": "良性前列腺增生",
@@ -2839,6 +2848,48 @@
     }
    },
    "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "链球菌感染后肾小球肾炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "链球菌先行感染的证据（抗链球菌溶血素O或抗DNA酶B升高，咽拭子培养或快速抗原阳性）",
+    "血清补体C3（急性期降低）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "血尿或蛋白尿等急性肾炎表现",
+    "低补体血症（C3降低）",
+    "链球菌先行感染的证据",
+    "排除狼疮肾炎、膜增生性肾小球肾炎等其他肾病"
+   ],
+   "quote": "本症は血尿（5以上／HPF）もしくは蛋白尿，低補体血症，溶連菌先行感染の証明〔迅速検査陽性，培養検査陽性，抗ストレプトリジンO（anti-streptolysin O：ASO）高値など〕",
+   "url": "https://www.jmedj.co.jp/journal/paper/detail.php?id=13887",
+   "siteName": "日本医事新報社",
+   "title": "溶連菌感染後の尿検査の必要性について",
+   "retrievedAt": "2026-10-19",
+   "reviewNote": "2026-10-19 人工新增（未经 build 脚本的检索抽取）：验收集 X-D-3397 只有前驱扁桃体炎、没有抗O与补体，却写成「急性链球菌感染后肾小球肾炎」。没有链球菌感染证据和补体时，有依据的上一级是「急性肾小球肾炎」。原文经网页核对（前半句逐字）。",
+   "reviewedAt": "2026-10-19"
+  },
+  {
+   "name": "糖皮质激素性青光眼",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "眼底视盘检查或视野检查（证实青光眼性视神经损害）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "用糖皮质激素后眼压升高",
+    "青光眼性视神经损害（视盘凹陷扩大）或相应视野缺损",
+    "只有眼压升高而视盘、视野正常时为糖皮质激素性高眼压症，不是青光眼"
+   ],
+   "quote": "青光眼是一组以视神经进行性损害为特征的眼病，其重要的因素之一是眼压（IOP）的相对升高，可导致不可逆转的视力丧失。",
+   "url": "https://www.msdmanuals.cn/professional/eye-disorders/glaucoma/overview-of-glaucoma",
+   "siteName": "默沙东诊疗手册",
+   "title": "青光眼的概述 - 眼科学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-19",
+   "reviewNote": "2026-10-19 人工新增：验收集 X-D-1522 眼压45mmHg、视盘色红边界清，写成「糖皮质激素性青光眼」。青光眼以视神经损害为特征，只有眼压升高是高眼压症（情形 C：较重一层的名称）。",
+   "reviewedAt": "2026-10-19"
   }
  ]
 }

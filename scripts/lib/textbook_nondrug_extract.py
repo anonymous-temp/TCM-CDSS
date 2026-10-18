@@ -438,9 +438,12 @@ def parse_western_scope(intro_lines):
     return None, None, None
 
 
-SYN_COLON_RE = re.compile(r"^([" + CJK + r"→、]{2,14})[：:]\s*(.+)$")
+# 证型名后可带括注的又名：「行痹（风痹）：疼痛游走…」（《针灸治疗学》痹病第 9498 行）、「…为行痹（风痹）」（《针灸学》痹证第 115255 行）。
+# 此前括注挡住了整行，痹病只认出「热痹」一个证型，配穴行里「行痹配膈俞、血海；痛痹配肾俞、关元；着痹配阴陵泉、足三里」整句丢失（2026-10-19）。
+SYN_ALIAS = r"(?:[（(](?P<alias>[" + CJK + r"、]{1,8})[）)])?"
+SYN_COLON_RE = re.compile(r"^(?P<label>[" + CJK + r"→、]{2,14})" + SYN_ALIAS + r"[：:]\s*(?P<body>.+)$")
 WEI_LABEL_RE = re.compile(
-    r"^(?P<desc>.+?)[，,]?\s*(?:者)?(?:多|即|则)?(?:为|属于|属)(?P<label>[" + CJK + r"]{2,10})$")
+    r"^(?P<desc>.+?)[，,]?\s*(?:者)?(?:多|即|则)?(?:为|属于|属)(?P<label>[" + CJK + r"]{2,10})" + SYN_ALIAS + r"$")
 LABEL_STOP = {"主", "宜", "佳", "度", "主症", "常见", "多见", "本病", "实", "虚", "明显", "最常见", "危急之候"}
 LABEL_STOP_PREFIX = ("主", "何", "最", "辨", "本")
 
@@ -479,10 +482,13 @@ def parse_syndromes(sec_lines):
             paragraph = body
         else:
             m = SYN_COLON_RE.match(t)
-            if m and not m.group(1).startswith("主症"):
-                label = m.group(1).replace("→", "、")
-                syndromes.append({"label": label, "keySymptoms": clean(m.group(2)),
-                                  "group": group, "line": ln, "form": "label_colon"})
+            if m and not m.group("label").startswith("主症"):
+                label = m.group("label").replace("→", "、")
+                item = {"label": label, "keySymptoms": clean(m.group("body")),
+                        "group": group, "line": ln, "form": "label_colon"}
+                if m.group("alias"):
+                    item["alias"] = m.group("alias")
+                syndromes.append(item)
                 continue
             paragraph = t
         for seg in re.split(r"[；;。]", paragraph):
@@ -500,8 +506,11 @@ def parse_syndromes(sec_lines):
             desc = re.sub(r"^兼见", "", m.group("desc")).strip("，, ")
             if label in LABEL_STOP or label.startswith(LABEL_STOP_PREFIX) or len(desc) < 4:
                 continue
-            syndromes.append({"label": label, "keySymptoms": desc, "group": group,
-                              "line": ln, "form": "wei_label"})
+            item = {"label": label, "keySymptoms": desc, "group": group,
+                    "line": ln, "form": "wei_label"}
+            if m.group("alias"):
+                item["alias"] = m.group("alias")
+            syndromes.append(item)
     dedup, seen = [], set()
     for s in syndromes:
         if s["label"] in seen:

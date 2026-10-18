@@ -20,7 +20,10 @@ import { observeModelTask } from "./cdss-model-task-telemetry";
  *
  * 边界：
  *  · 只决定「这道筛查题还要不要问」。事实层的线索本身、安全闸门的结论、剂量授权都不读这里的结果；
- *  · 只有「已写明没有」或「前提不成立」且引文全部逐字核对通过才算已回答；病历写明其中一项存在、没提到、含糊，一律照常出题；
+ *  · 只有「已写明没有」或「前提不成立」且引文全部逐字核对通过才算已回答；没提到、含糊照常出题；
+ *  · 2026-10-19 起另有两种去向（riskCategoryRecordStatus）：病历写明其中一项正在发生（affirmed）时不再问「是否确实出现」，
+ *    改由模型问病历没写的严重度一项（验收集 B：「本次是否确实出现柏油样黑便、鲜血便或呕血？」对着「最近都有黑便」，6 次判不合格 4 次）；
+ *    病历已逐项否认其中几项（partly）时由模型只问没否认的那几项（留出例 S128），模型没写时仍出固定筛查题；
  *  · 超时、未配置、输出非法都按「没有回答」处理（照常出题），失败结果不缓存。
  * 开关：CDSS_M02_RISK_QUESTION_ANSWERABILITY=false 关闭（一律照常出题）。
  */
@@ -55,15 +58,46 @@ export function recordAnswersRiskQuestion(content: unknown, recordText: string):
   });
 }
 
+/**
+ * 核对结论的四种去向（2026-10-19）。answered：已写明没有或前提不成立（不出题，同前）；affirmed：病历已写明其中一项正在发生
+ *（不再问「是否确实出现」，交模型问严重度）；partly：已逐项否认其中几项、其余没提、没有一项写为存在（只问没否认的那几项）；
+ * open：其余（照常出固定筛查题）。每条引文都要逐字在病历里，否则一律 open。
+ */
+export type RiskQuestionRecordVerdict = "answered" | "affirmed" | "partly" | "open";
+export function riskQuestionRecordVerdict(content: unknown, recordText: string): RiskQuestionRecordVerdict {
+  if (recordAnswersRiskQuestion(content, recordText)) return "answered";
+  if (typeof content !== "string" || !content.trim()) return "open";
+  let parsed: unknown;
+  try { parsed = JSON.parse(content); } catch { return "open"; }
+  if (!parsed || typeof parsed !== "object") return "open";
+  const { verdict, quotes } = parsed as { verdict?: unknown; quotes?: unknown };
+  if (verdict !== "answered_positive" && verdict !== "partly_answered") return "open";
+  if (!Array.isArray(quotes) || quotes.length === 0 || quotes.length > 6) return "open";
+  const record = compact(recordText);
+  const grounded = quotes.every((quote) => {
+    const text = typeof quote === "string" ? compact(quote) : "";
+    return text.length >= 2 && text.length <= 60 && record.includes(text);
+  });
+  if (!grounded) return "open";
+  return verdict === "answered_positive" ? "affirmed" : "partly";
+}
+
 export async function riskQuestionAnsweredByRecord(
   input: { recordText: string; question: string; patient?: { sex?: unknown; age?: unknown } },
   signal?: AbortSignal,
 ): Promise<boolean> {
-  if (!enabled() || signal?.aborted) return false;
+  return (await riskQuestionVerdictByRecord(input, signal)) === "answered";
+}
+
+async function riskQuestionVerdictByRecord(
+  input: { recordText: string; question: string; patient?: { sex?: unknown; age?: unknown } },
+  signal?: AbortSignal,
+): Promise<RiskQuestionRecordVerdict> {
+  if (!enabled() || signal?.aborted) return "open";
   const config = getControlledTerminologyModelConfig();
-  if (!config.configured) return false;
+  if (!config.configured) return "open";
   const recordText = input.recordText.slice(0, MAX_RECORD_CHARS);
-  if (!recordText.trim() || !input.question.trim()) return false;
+  if (!recordText.trim() || !input.question.trim()) return "open";
   const messages = [
     {
       role: "system" as const,
@@ -76,10 +110,12 @@ export async function riskQuestionAnsweredByRecord(
         // 2026-10-18 留出例 S128：瘾疹患者的过敏筛查题列着「全身风团」，那正是本次主诉；喉头肿胀、声嘶、喘憋、头晕病历都已否认，
         // 第一版因风团「存在」判 answered_positive，题照出，独立评审判问了病历已写明的内容。
         "- 题目列举的表现里，正是本次主诉或就诊原因本身的那一项（如风团患者题中的“全身风团”、腹痛患者题中的“腹痛”）不计入判断：其余各项都已否认时选 answered_negative；其余各项中有一项被写为存在时才选 answered_positive。",
-        "- answered_positive：病历写明其中至少一项（主诉本身那一项除外）正在发生。",
-        "- not_answered：其余情况——病历没有提到、只提到一小部分、或写法含糊。拿不准时选它。",
+        "- answered_positive：病历写明其中至少一项（主诉本身那一项除外）正在发生（如题目问是否出现黑便、鲜血便或呕血，病历写着“带有黑便”“血为鲜红色”；题目问是否高热伴寒战，病历写着“39.6℃”“烧的发抖”；题目问接触物质，病历写着“误服高锰酸钾半片”）。",
+        // 2026-10-19 r1019：留出例 S128（喉头梗阻、声音嘶哑、头晕都已否认，只有舌唇肿胀没提）与验收集 B（问「持续呕吐」，病历写着「恶心呕吐没有」）。
+        "- partly_answered：题目列举的表现里，主诉本身之外有一项或几项病历已写明没有，其余没有提到，且没有任何一项被写为存在。",
+        "- not_answered：其余情况——病历一项都没有提到、或写法含糊。拿不准时选它。",
         "quotes：给出 1–4 条支持你判断的病历原文片段，必须逐字复制病历里的连续文字（每条不超过 30 字），不要改写、不要拼接。",
-        "只输出 JSON：{\"verdict\":\"answered_negative|not_applicable|answered_positive|not_answered\",\"quotes\":[\"…\"]}，不要解释。",
+        "只输出 JSON：{\"verdict\":\"answered_negative|not_applicable|answered_positive|partly_answered|not_answered\",\"quotes\":[\"…\"]}，不要解释。",
       ].join("\n"),
     },
     {
@@ -91,7 +127,7 @@ export async function riskQuestionAnsweredByRecord(
       }),
     },
   ];
-  return memoizedSmallTask<boolean>("m02_risk_question_answerability", smallTaskMemoKey([config.model, messages]), async () => {
+  return memoizedSmallTask<RiskQuestionRecordVerdict>("m02_risk_question_answerability", smallTaskMemoKey([config.model, messages]), async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
@@ -105,13 +141,13 @@ export async function riskQuestionAnsweredByRecord(
         messages,
       }, { signal: controller.signal }));
       const content = response.choices[0]?.message?.content;
-      return { value: recordAnswersRiskQuestion(content, recordText), cacheable: typeof content === "string" && content.trim().length > 0 };
+      return { value: riskQuestionRecordVerdict(content, recordText), cacheable: typeof content === "string" && content.trim().length > 0 };
     } catch {
-      return { value: false, cacheable: false };
+      return { value: "open" as const, cacheable: false };
     } finally {
       clearTimeout(timer);
     }
-  }, false, signal);
+  }, "open", signal);
 }
 
 type RiskQuestionCase = Parameters<typeof m02PossibleRiskQuestion>[0] & { patient?: { sex?: unknown; age?: unknown } };
@@ -126,17 +162,35 @@ export async function riskCategoriesAnsweredByRecord(
   recordText: string,
   signal?: AbortSignal,
 ): Promise<string[]> {
+  return (await riskCategoryRecordStatus(caseState, recordText, signal)).answered;
+}
+
+/**
+ * 每个将要出筛查题的类目在病历里的着落（最多核对两个类目）。answered 与 affirmed 的类目不再出固定筛查题，
+ * 继续看下一个类目；partly 的类目交模型只问没否认的几项（模型没写时仍出固定题兜底），核对到此为止。
+ */
+export async function riskCategoryRecordStatus(
+  caseState: RiskQuestionCase,
+  recordText: string,
+  signal?: AbortSignal,
+): Promise<{ answered: string[]; affirmed: string[]; partly: string[] }> {
   const answered: string[] = [];
+  const affirmed: string[] = [];
+  const partly: string[] = [];
   for (let round = 0; round < 2; round += 1) {
-    const risk = m02PossibleRiskQuestion({ ...caseState, m02SuppressedRiskCategories: answered });
+    const risk = m02PossibleRiskQuestion({ ...caseState, m02SuppressedRiskCategories: [...answered, ...affirmed] });
     if (!risk || risk.category === "other_critical") break;
-    const isAnswered = await riskQuestionAnsweredByRecord({
+    const verdict = await riskQuestionVerdictByRecord({
       recordText,
       question: stripRiskQuestionQuotePrefix(risk.question),
       patient: { sex: caseState?.patient?.sex, age: caseState?.patient?.age },
     }, signal);
-    if (!isAnswered) break;
-    answered.push(risk.category);
+    if (verdict === "answered") answered.push(risk.category);
+    else if (verdict === "affirmed") affirmed.push(risk.category);
+    else {
+      if (verdict === "partly") partly.push(risk.category);
+      break;
+    }
   }
-  return answered;
+  return { answered, affirmed, partly };
 }

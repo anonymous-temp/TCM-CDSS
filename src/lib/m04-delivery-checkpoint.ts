@@ -272,6 +272,8 @@ function nonDoseCandidateJsonBlock(
 }
 
 /** A read-only non-dose projection, or the exact already-signed completed candidate. */
+const NON_DOSE_PAGE_SAFETY_FINDING = /high_risk_pair|incompatib|special_population|contraindication|pregnan|lactation|liver|renal|unsupported_high_impact|route_not_decoction|unknown|identity|duplicate/;
+
 export function renderM04DeliveryCheckpoint(
   checkpoint: M04DeliveryCheckpoint | undefined,
   priorReasoning: ClinicalReasoningResultV2 | undefined,
@@ -325,7 +327,14 @@ export function renderM04DeliveryCheckpoint(
       : `本轮尚未形成可保留的个体化方药候选（模型未产出结构完整的候选）。${retainedState}暂不提供药味、剂量或用法。`);
     return lines.join("\n\n");
   }
-  const clean = m04DeliveryCheckpointIsClean(checkpoint);
+  // 因红旗、特殊人群等不给剂量的页（2026-10-19，留出集 S178）：这一页本来就不给用量，只列安全类提示（配伍禁忌、特殊人群禁忌等）；
+  // 「功效与病机对应不够清楚」这类质量提示不外露——那一例点名的牛膝「引血下行」恰是对的，评审记为系统自检结论外露。
+  // 分级表对未知代码按 T1 保守处理（功效对应、君药分工也是 T1 修复触发），这里要的是更窄的「与患者安全直接相关」：
+  // 配伍禁忌、特殊人群禁忌、作用方向与证相反、不可同煎、药名对不上、重复药味。用量与煎服本页不给，也不列。
+  const shownFindings = reason === "dose_withheld"
+    ? (checkpoint.findings || []).filter((finding) => [finding.code, ...(finding.relatedCodes || [])].some((code) => NON_DOSE_PAGE_SAFETY_FINDING.test(code)))
+    : (checkpoint.findings || []);
+  const clean = reason === "dose_withheld" ? shownFindings.length === 0 : m04DeliveryCheckpointIsClean(checkpoint);
   // 这一页的说明写给医生看（2026-10-14）：此前写的是「本次已生成候选；自动修复未能消除下方问题」
   //「尚未通过全部确定性校验」「候选方：」——说的是系统自己的流程（第二轮独立评审 5 个不给剂量页全部记为工程用语）。
   // 意思不变：为什么没有剂量、这一页有什么没有什么、有没有需要医生核对的地方。
@@ -365,7 +374,7 @@ export function renderM04DeliveryCheckpoint(
   // 问题提示同样走非剂量掩码：本页的全部意义就是不给具体用量，提示文案里的
   // 「当前药量 500g」会把模型提出的剂量从后门放出去。掩码与药味功用共用同一支
   // sanitizeGeneratedSuggestionPreviewText，不另写一套判据。
-  const findingsSection = clinicalDeliveryAdvisorySection((checkpoint.findings || []).map((finding) => ({
+  const findingsSection = clinicalDeliveryAdvisorySection(shownFindings.map((finding) => ({
     ...finding,
     message: sanitizeGeneratedSuggestionPreviewText(finding.message),
     suggestedAction: sanitizeGeneratedSuggestionPreviewText(finding.suggestedAction),

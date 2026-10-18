@@ -1,0 +1,61 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "superseded-prior-blood-pressure",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "r1019 红旗验收 M-MTCMB-50/90：「急诊时测血压190/101mmHg，予…后好转」「自测血压180/107…予硝酸甘油泵后症状缓解」，入院查体 172/96、164/97，仍按院外/急诊那次报重度高血压。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "parseContextualBloodPressure 返回全文第一个危急读数，不看它是不是已被本次测量取代。",
+  "exception": "冻结令允许的构词式守卫（闭集）：早先读数前 12 字内有院外/当时测量语（自测、时测、当时、急诊、就诊时、发病时、入院前、在家、外院、院外、当地），读数之后写了处置（予、给予、经、服、含服、静滴、泵入、治疗、处理、降压、对症），且后面还有一次本次测量（生命体征、体格检查、查体、入院时、现/目前/刻下/今日…测、今测、复测或「血压：」）——以本次测量为准。",
+  "sources": "病历书写惯例：诊断与急症判断用本次测量值。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：被测写法与早已判对的兄弟写法门禁结果必须相同；兄弟句自身方向先钉住。set=heldOut 的配对是判据写定之后才写的说法。",
+  "pairs": [
+   {
+    "subject": "自测血压180/107mmHg，遂就诊于我院急诊，予硝酸甘油泵后症状缓解。生命体征：血压164/97mmHg。",
+    "sibling": "生命体征：血压164/97mmHg。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "10小时前突发头晕，于本院急诊就诊，时测血压190/101mmHg，予倍他司汀后好转。体格检查：血压：172/96mmHg。",
+    "sibling": "10小时前头晕，于本院急诊就诊，予倍他司汀后好转。体格检查：血压：172/96mmHg。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "在家自测血压200/110mmHg，含服硝苯地平后复测150/90mmHg。",
+    "sibling": "复测血压150/90mmHg。",
+    "siblingExpect": "clean",
+    "set": "heldOut"
+   }
+  ]
+ },
+ "controls": {
+  "note": "必须照旧报警的写法与必须保持无红旗的写法。",
+  "mustStillFlag": [
+   {
+    "text": "自测血压190/110mmHg。生命体征：血压150/90mmHg，伴胸痛。",
+    "flag": "血压"
+   },
+   {
+    "text": "自测血压200/110mmHg，今日门诊血压190/110mmHg，伴胸闷。",
+    "flag": "血压"
+   }
+  ],
+  "mustStayReady": [
+   "自测血压180/107mmHg，遂就诊于我院急诊，予硝酸甘油泵后症状缓解。生命体征：血压164/97mmHg。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-19",
+   "what": "现代医案语料（tcm-modern-case-exemplars + eval-corpus）+ 逐模块验收集 M/X/D/H/A/B + 10/13 合成与既往评测集，两种病历形状，改前 HEAD（zz-safety-head-agentb.ts）对改后，~/runlogs/r1018/work/r1019/agentB/replay-all.mjs",
+   "result": "重度高血压红旗因读数被取代而消失：M-MTCMB-50、M-MTCMB-90 两种形状各 2 次；均为入院查体血压 172/96、164/97。"
+  }
+ ]
+}

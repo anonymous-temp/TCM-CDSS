@@ -1264,10 +1264,60 @@ function formulaSelectionMode(value: string, names: string[]): NonNullable<Clini
  * 对不上教材、或代表方目录锁不住时，不改模型写的方向——那时仍按原有口径处理。
  * 这一步只决定方名；药味、剂量、十八反、妊娠等核对一条不少，照旧在开方阶段进行。
  */
+type TextbookConditionalBranch = { condition: string; method: string; formula?: string };
+
+/**
+ * 教材按阴阳/气血偏颇分列治法与代表方的一行（「偏肾阴虚者，宜滋阴益肾；偏阳虚者，宜温肾固摄」「偏肾阴虚者，用知柏地黄丸；
+ * 偏肾阳虚者，用鹿茸补涩丸」，《中医内科学》尿浊·肾虚不固证）。治法句的每一段都是「偏…者…」时才算；方名按段对上。
+ */
+function textbookConditionalBranches(row: { therapy: string; formulaText?: string; formulas: string[] }): TextbookConditionalBranch[] | undefined {
+  const parse = (text: string, lead: RegExp) => String(text || "").split(/[；;。]/u).map((part) => part.trim()).filter(Boolean)
+    .map((part) => {
+      const matched = part.match(lead);
+      return matched ? { condition: matched[1].trim(), rest: matched[2].trim() } : undefined;
+    });
+  const therapies = parse(row.therapy, /^偏(?:于)?([^者，,]{1,8})者[，,]?\s*(?:治宜|宜|当|治以)?(.+)$/u);
+  if (therapies.length < 2 || therapies.some((item) => !item)) return undefined;
+  const formulaParts = parse(row.formulaText || "", /^偏(?:于)?([^者，,]{1,8})者[，,]?\s*(?:宜用|选用|方用|可用|用)?(.+)$/u);
+  return therapies.map((item, index) => {
+    const formulaPart = formulaParts.find((part) => part && part.condition === item!.condition) || formulaParts[index];
+    // 运行时的教材行不带方剂原句（formulaText）时，按教材原句的先后对应：生成器按原文顺序抽方名，段数与方名数相同才对。
+    const formula = formulaPart
+      ? row.formulas.find((name) => formulaPart.rest.includes(name))
+      : row.formulas.length === therapies.length ? row.formulas[index] : undefined;
+    return { condition: item!.condition, method: item!.rest.replace(/[。；;]+$/u, ""), ...(formula ? { formula } : {}) };
+  });
+}
+
+/**
+ * 按已签名的病性（病机病性分析的条目与证名）选「偏…者」的那一段：条件末两字（阴虚/阳虚/气虚/血虚）在病性条目或证名里出现、
+ * 且只有一段对得上时才选（2026-10-19；RobustSDT-single_0280 病性「阳虚」、形寒肢冷、晨起腹泻，锚定却照抄两段治法并取了
+ * 偏阴虚的知柏地黄丸）。对不上或两段都对得上时返回 undefined——不替医生在两种偏颇之间做选择。
+ */
+function signedConditionalBranch(reasoning: ClinicalReasoningResultV2, branches: readonly TextbookConditionalBranch[]): TextbookConditionalBranch | undefined {
+  const pathogenesis = reasoning.pathogenesis as { natureDifferentiation?: { items?: unknown } } | undefined;
+  const natureItems = Array.isArray(pathogenesis?.natureDifferentiation?.items)
+    ? (pathogenesis!.natureDifferentiation!.items as unknown[]).filter((item): item is string => typeof item === "string")
+    : [];
+  const signed = [...natureItems, String(reasoning.overview?.primarySyndrome || "")];
+  const matching = branches.filter((branch) => {
+    const core = branch.condition.slice(-2);
+    return core.length === 2 && signed.some((item) => item.includes(core));
+  });
+  return matching.length === 1 ? matching[0] : undefined;
+}
+
 function textbookAnchoredFormulaDirection(reasoning: ClinicalReasoningResultV2): string {
   const direction = String(reasoning.overview?.recommendedFormulaDirection || "");
   const row = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
   if (!row || row.formulas.length === 0 || row.formulas.length > 2) return direction;
+  const branches = textbookConditionalBranches(row);
+  const branch = branches ? signedConditionalBranch(reasoning, branches) : undefined;
+  if (branch?.formula) {
+    const writtenNames = identifyKnownFormulaNames(direction);
+    if (writtenNames.length === 1 && writtenNames[0] === branch.formula) return direction;
+    return `${branch.formula}加减`;
+  }
   const wanted = row.formulaJoin === "alternative" ? row.formulas.slice(0, 1) : row.formulas;
   const written = identifyKnownFormulaNames(direction);
   if (wanted.every((name) => written.includes(name)) && written.length === wanted.length) return direction;
@@ -1344,8 +1394,14 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     // 治法的写法 10 例里 0 例完全一致）。没对上时保留模型写的治法。
     const textbookRow = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
     const secondary = Array.isArray(reasoning.overview?.secondarySyndromes) ? reasoning.overview.secondarySyndromes.filter(Boolean) : [];
-    const anchoredMethod = textbookRow && secondary.length === 0
-      ? withSymptomDirectedClause(textbookRow.therapy.replace(/[。；;]+$/g, ""), String(reasoning.therapy?.overallMethod || ""))
+    // 教材按偏颇分两段写治法的（「偏肾阴虚者…；偏阳虚者…」），只用与已签名病性对得上的那一段；对不上时不锚定，保留模型写的治法——
+    // 此前两段照抄进治法栏，医生读到的是一道选择题（2026-10-19，尿浊·肾虚不固证 3 例）。
+    const conditionalBranches = textbookRow ? textbookConditionalBranches(textbookRow) : undefined;
+    const rowMethod = conditionalBranches
+      ? signedConditionalBranch(reasoning, conditionalBranches)?.method || ""
+      : textbookRow?.therapy.replace(/[。；;]+$/g, "") || "";
+    const anchoredMethod = textbookRow && secondary.length === 0 && rowMethod
+      ? withSymptomDirectedClause(rowMethod, String(reasoning.therapy?.overallMethod || ""))
       : "";
     return {
       ...reasoning,

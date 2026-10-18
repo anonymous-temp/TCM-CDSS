@@ -1,0 +1,129 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "tcm-speech-limb-deficit-terms",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "r1019 红旗验收追加（协调方 10/19）：现代医案「语言不利1天」（T16-MR-13410）只因同时写了血压 220/130 才有红旗，不写血压时零红旗；「言语不利」「语言不利」「四肢活动不利」「双下肢活动不利」与异写「言语蹇涩」「语言蹇涩」都不在局灶缺损词表里，只在重度高血压的靶器官判据里认得。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "FOCAL_NEUROLOGIC_CONCEPT_GROUPS 只收西医写法和部分中医写法；hasNeurologicEmergencySignal 读不到中医病历最常见的言语障碍写法（言语不利/语言不利，语料 245 次）和四肢、双下肢的活动不利。",
+  "exception": "冻结令允许的确定性例外：有限闭集（同一概念的中医写法与「蹇/謇」异写，补进既有概念组，不新增概念）。慢性病程与后遗症守卫（focalDeficitHasChronicCourseAt、neuroResidualFramingAt）原样适用；单侧「左/右下肢活动不利」不收（腰椎间盘突出、膝骨关节病的运动受限）。",
+  "sources": "中医内科学「中风」：主症半身不遂、口舌歪斜、言语謇涩或不语；双下肢急性无力需排除脊髓压迫、马尾综合征、吉兰-巴雷（NICE NG234 / QS56 脊髓压迫即刻影像）。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：新写法与早已判对的西医/旧写法门禁结果必须相同；兄弟句自身方向先钉住。set=heldOut 的配对是判据写定之后才写的说法。",
+  "pairs": [
+   {
+    "subject": "今晨突发言语不利。",
+    "sibling": "今晨突发言语不清。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "语言不利1天。",
+    "sibling": "言语不清1天。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "双下肢活动不利2天，伴小便困难。",
+    "sibling": "双下肢无力2天，伴小便困难。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "四肢活动不利3天。",
+    "sibling": "肢体活动不利3天。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "今晨突发言语蹇涩。",
+    "sibling": "今晨突发言语謇涩。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "中风后遗症，言语不利3年。",
+    "sibling": "中风后遗症，言语不清3年。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "四肢活动不利10余年。",
+    "sibling": "肢体活动不利10余年。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "脑梗死后2年，遗留言语不利。",
+    "sibling": "脑梗死后2年，遗留言语不清。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "昨晚起语言不利，右手持物不稳。",
+    "sibling": "昨晚起言语不清，右手持物不稳。",
+    "siblingExpect": "flagged",
+    "set": "heldOut"
+   },
+   {
+    "subject": "双下肢活动不利伴麻木5天。",
+    "sibling": "双下肢无力伴麻木5天。",
+    "siblingExpect": "flagged",
+    "set": "heldOut"
+   },
+   {
+    "subject": "患者2小时前突然出现语言不利，口角流涎。",
+    "sibling": "患者2小时前突然出现言语不清，口角流涎。",
+    "siblingExpect": "flagged",
+    "set": "heldOut"
+   },
+   {
+    "subject": "四肢活动不利4天，伴饮水呛咳。",
+    "sibling": "肢体活动不利4天，伴饮水呛咳。",
+    "siblingExpect": "flagged",
+    "set": "heldOut"
+   },
+   {
+    "subject": "语言蹇涩2年，行走不稳。",
+    "sibling": "言语不清2年，行走不稳。",
+    "siblingExpect": "clean",
+    "set": "heldOut"
+   },
+   {
+    "subject": "语言不利、口角歪斜1年余，查体：语言不利，伸舌右偏。",
+    "sibling": "言语不清、口角歪斜1年余，查体：言语不清，伸舌右偏。",
+    "siblingExpect": "clean",
+    "set": "heldOut"
+   }
+  ]
+ },
+ "controls": {
+  "note": "必须照旧报警的写法与必须保持无红旗的写法。",
+  "mustStillFlag": [
+   {
+    "text": "语言不利1天，血压220/130mmHg。",
+    "flag": "神经"
+   },
+   {
+    "text": "言语不利2年，加重3天。",
+    "flag": "神经"
+   },
+   {
+    "text": "双下肢活动不利半年，近3天逐渐加重。",
+    "flag": "神经"
+   }
+  ],
+  "mustStayReady": [
+   "否认言语不利及肢体活动不利。",
+   "腰痛伴左下肢活动不利1周。",
+   "四肢关节肿痛，活动不利。",
+   "双膝关节疼痛，活动不利2年。",
+   "言语不利、右侧肢体活动不利1年余。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-19",
+   "what": "现代医案语料（tcm-modern-case-exemplars + eval-corpus）+ 逐模块验收集 M/X/D/H/A/B + 10/13 合成与既往评测集，两种病历形状，改前（zz-safety-before-r2-agentb.ts，即 10/19 第一轮之后）对改后，~/runlogs/r1018/work/r1019/agentB/r2/replay.mjs；变化逐例读过（r2/removed.txt、added.txt）",
+   "result": "66,908 次判定里 197 次变化。新报神经急症 32 份病历（91 次判定）：一个月内的言语/肢体缺损 15 份（语言不利1天/2天/3天/10天/13天/20余天、半月、23天、突发言语不利3小时再发、四肢渐进性无力半个月伴饮水呛咳、近一周加重）、舌体肿胀伴言语不利四天、肝硬化黄疸伴言语不利、脑瘤术后复发伴语言蹇涩、未写起病时间的缺损（腔隙性脑梗死现症见言语不利、言语不利加重未写时间）按起病不明＝当前；只有现病史没有主诉的形状下丢了主诉病程的 6 份（主诉形状下不报）。仍然过报、留给医生判断的 7 份：缺损在主诉与查体里写法不同（主诉「失语…7个月余」查体「言语不利」、主诉「双下肢感觉和运动功能丧失3个月余」查体「双下肢活动不利」、主诉「外伤后肢体活动不利已有1年」查体「语言不利」、主诉「舌肌萎缩1年」查体「言语不利」、头部外伤十余年查体「语言蹇涩」）、主诉逗号并列「言语不利，右侧肢体瘫痪1个多月」、格林-巴利 35 天伴双侧面瘫与四肢活动不利。A/M 验收集无变化。"
+  }
+ ]
+}

@@ -1,0 +1,64 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "tcm-consciousness-terms",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "r1019 红旗验收 M：BEST4SDT-16「神志昏沉闭目蜷卧」、BEST4SDT-6「神志昏沉、言语混乱」零红旗。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "意识改变词组只收西医写法与「神志不清/模糊/昏蒙」，中医病历的「神志昏沉」「神识昏蒙」「神昏谵语」没有。",
+  "exception": "冻结令允许的有限闭集：只加带「神志/神识」前缀的写法与「神昏谵语」整词（「头昏沉」「精神昏沉」是头部或精神不振的描述，不收）。否定、既往照常由同一判据排除。",
+  "sources": "GB/T 16751.2 中医临床诊疗术语：神昏。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：被测写法与早已判对的兄弟写法门禁结果必须相同；兄弟句自身方向先钉住。set=heldOut 的配对是判据写定之后才写的说法。",
+  "pairs": [
+   {
+    "subject": "神志昏沉，闭目蜷卧。",
+    "sibling": "意识模糊，闭目蜷卧。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "伴神志昏沉、言语混乱。",
+    "sibling": "伴意识模糊、言语混乱。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "神昏谵语。",
+    "sibling": "神志不清。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "高热，神识昏蒙。",
+    "sibling": "高热，意识模糊。",
+    "siblingExpect": "flagged",
+    "set": "heldOut"
+   }
+  ]
+ },
+ "controls": {
+  "note": "必须照旧报警的写法与必须保持无红旗的写法。",
+  "mustStillFlag": [
+   {
+    "text": "神志昏沉3天。",
+    "flag": "意识"
+   }
+  ],
+  "mustStayReady": [
+   "头昏沉。",
+   "精神昏沉，乏力。",
+   "无神志昏沉。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-19",
+   "what": "现代医案语料（tcm-modern-case-exemplars + eval-corpus）+ 逐模块验收集 M/X/D/H/A/B + 10/13 合成与既往评测集，两种病历形状，改前 HEAD（zz-safety-head-agentb.ts）对改后，~/runlogs/r1018/work/r1019/agentB/replay-all.mjs",
+   "result": "神经红旗新增 10 次（5 份病历：BEST4SDT-16、BEST4SDT-6、X-E-0299 崩漏神志昏沉四肢湿冷、T16-MR-04365 鼓胀神志昏沉），逐例读过，都是当前意识改变。"
+  }
+ ]
+}

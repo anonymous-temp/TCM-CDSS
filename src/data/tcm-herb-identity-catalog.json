@@ -7,8 +7,8 @@
   },
   "supplementSource": {
     "file": "tcm-herb-identity-supplements.json",
-    "sha256": "dd4b7a48bebe879753779e26e67658e78bcf08051ea73f636590855be6dc9d04",
-    "rowCount": 471
+    "sha256": "ba6731e4b6dad7917f10a3c056ff1b8de1baec9f2b9eb8537fe4eea9a62b8c78",
+    "rowCount": 473
   },
   "governance": {
     "status": "generated_mapping_plus_source_backed_clinical_extensions",
@@ -17,15 +17,15 @@
     "scopeNote": "联网检索可用于收集权威来源和完成知识治理，但不能替代真实处方依法依规的审核职责；多目标别名保持 fail-closed。"
   },
   "summary": {
-    "standardNameCount": 651,
-    "ambiguousInputCount": 512,
+    "standardNameCount": 652,
+    "ambiguousInputCount": 513,
     "resolutionStatusCounts": {
-      "ambiguous": 512,
+      "ambiguous": 513,
       "exact_standard_name": 616,
-      "source_backed_clinical_extension": 455,
+      "source_backed_clinical_extension": 456,
       "source_backed_preparation_form": 127,
       "unique_high_confidence": 74,
-      "unique_source_backed": 4676
+      "unique_source_backed": 4674
     }
   },
   "entries": [
@@ -25193,6 +25193,18 @@
           "mappingAction": "归一到standard_name",
           "note": ""
         }
+      ]
+    },
+    {
+      "standardName": "椒目",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
     {
@@ -77714,9 +77726,13 @@
       "autoResolvable": true
     },
     "椒目": {
-      "canonicalName": "花椒",
-      "status": "unique_source_backed",
-      "autoResolvable": true
+      "canonicalName": "椒目",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
     },
     "椹圣": {
       "canonicalName": "荜茇",
@@ -78301,9 +78317,13 @@
       "autoResolvable": true
     },
     "水半夏": {
-      "canonicalName": "半夏",
-      "status": "unique_source_backed",
-      "autoResolvable": true
+      "canonicalName": null,
+      "status": "ambiguous",
+      "autoResolvable": false,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
     },
     "水参": {
       "canonicalName": "知母",
@@ -109944,6 +109964,21 @@
         "委陵菜",
         "翻白草"
       ],
+      "serviceLevel": {
+        "triageBusinessDays": 1,
+        "adjudicationBusinessDays": 5
+      },
+      "requiredEvidence": [
+        "authoritative_source_locator",
+        "HIS_local_code_or_dispensing_identity_when_available"
+      ],
+      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
+    },
+    {
+      "id": "TCM-HERB-IDENTITY-REVIEW-257A54D45A74",
+      "inputName": "水半夏",
+      "status": "awaiting_evidence_adjudication",
+      "candidates": [],
       "serviceLevel": {
         "triageBusinessDays": 1,
         "adjudicationBusinessDays": 5

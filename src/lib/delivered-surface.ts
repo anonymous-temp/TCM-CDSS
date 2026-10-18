@@ -24,8 +24,9 @@ import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { getTcmHerbFunctionDisplayText, getTcmHerbGenerationSafetyProfile, herbFunctionKnowledgeForDisplay, isExternalUseEfficacyClause } from "./tcm-knowledge";
 import { herbFunctionClaimUnsupportedPhrases, herbFunctionPhraseRecognized } from "./diagnosis-stage-contract";
-import { deliveredTreatmentCodes, precautionMentionsUndeliveredTreatment } from "./tcm-treatment-capabilities.server";
+import { deliveredTreatmentCodes, precautionMentionsUndeliveredTreatment, treatmentCardUndeliverable } from "./tcm-treatment-capabilities.server";
 import type { RequiredPrecaution } from "./required-precautions";
+import { chpPregnancyLabel } from "./conception-herb-policy";
 
 /**
  * 投影时可选的本例信息：herbBoundaryAudience 决定逐味人群提示列哪些人群（见 herbBoundaryPopulationRelevant）；
@@ -39,6 +40,11 @@ export type DeliveredSurfaceOptions = {
 /** 外用剂型（只用于注意事项措辞：外用药不说「服用」、不套口服间隔）。 */
 const TOPICAL_MEDICATION_FORM = /(?:乳膏|软膏|凝胶|搽剂|洗剂|贴剂|贴膏|膏药|栓|滴眼液|滴耳液|滴鼻液|喷雾剂|气雾剂|酊)$/u;
 
+const ADMINISTRATION_WORDS = /温服|凉服|饭前|饭后|空腹|睡前|餐前|餐后|分[次两二三]服|频服|顿服/u;
+const DIET_WORDS = /忌|少食|少吃|少饮|避免[^，,。；;]{0,6}(?:食|饮|吃)|清淡|饮食有节|不宜过饱/u;
+const administrationCovered = (lines: readonly string[]) => lines.some((line) => ADMINISTRATION_WORDS.test(line));
+const dietCovered = (lines: readonly string[]) => lines.some((line) => DIET_WORDS.test(line));
+
 /** 注意事项里已经写到这一项了吗（说到药名 / 哺乳 / 抗菌治疗即算，不管模型怎么措辞）。 */
 function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly string[]): boolean {
   if (item.kind === "self_medication") return lines.some((line) => line.includes(item.base) || line.includes(item.name));
@@ -48,6 +54,13 @@ function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly str
   if (item.kind === "elderly_administration") return lines.some((line) => /高龄|老年|老人|年老|年长|跌倒|摔倒/.test(line));
   if (item.kind === "current_medications") return lines.some((line) => item.names.some((name) => line.includes(name.replace(/(?:片|胶囊|颗粒|丸|口服液|注射液|缓释片|肠溶片|分散片)$/u, ""))) ||
     /(?:正在|现|长期|规律|平时|已)(?:在)?(?:服用|口服|用)的?[^，,。；;]{0,6}(?:西药|药物|药)|其他(?:药物|西药)/u.test(line));
+  if (item.kind === "unnamed_medication") return lines.some((line) => /(?:正在|自行|已|在)(?:服|用|吃)[^，,。；;]{0,8}药|用药情况|药名/u.test(line) && /告知|告诉|说明/u.test(line));
+  if (item.kind === "herpes_zoster_antiviral") return lines.some((line) => /抗病毒/u.test(line));
+  if (item.kind === "severe_hypertension_followup") return lines.some((line) => /血压/u.test(line) && /复测|测量|监测/u.test(line) && /就诊|就医|调整/u.test(line));
+  if (item.kind === "administration_and_diet") return administrationCovered(lines) && dietCovered(lines);
+  if (item.kind === "reproductive_status_unknown") return lines.some((line) => /孕|哺乳/u.test(line));
+  if (item.kind === "toxic_self_preparation") return lines.some((line) => item.herbs.some((herb) => line.includes(herb)) && /停用|停服|停止|不要再|勿再|不可再/u.test(line));
+  if (item.kind === "conception_pregnancy_check") return lines.some((line) => /验孕|妊娠试验|早孕试纸|月经(?:逾期|推迟|延后)/u.test(line));
   return lines.some((line) => /抗生素|抗菌|抗感染|青霉素|头孢/.test(line));
 }
 
@@ -70,7 +83,7 @@ function withOnlyPrescribedOverlap(line: string, item: Extract<RequiredPrecautio
 }
 
 /** 模型漏写时由规则补的那一句。只说病历记录的事实、方剂目录与说明书写着的内容。 */
-function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: ReadonlySet<string>, lactationHerbs: readonly string[]): string {
+function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: ReadonlySet<string>, lactationHerbs: readonly string[], pregnancyLabelledHerbs: readonly string[] = [], decoctionMethod = "", currentLines: readonly string[] = []): string {
   if (item.kind === "self_medication") {
     const overlap = item.composition.filter((herb) => herbIdentities.has(herb));
     const head = overlap.length > 0
@@ -83,6 +96,7 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
   }
   if (item.kind === "pediatric_administration") {
     // 《中医儿科学》服药法：小儿服药宜少量多次频服，不可捏鼻强灌。不写「剂量已按年龄折算」——非剂量页也会走到这里。
+    if (item.ageYears >= 12) return "孩子服药请家长看护，按医生给的量和次数服用，不要自行加量或停药；服药后如有明显不适请及时就医。";
     return "孩子服药宜少量多次、分次喂服，不要捏鼻强灌；请按医生给的量服，不要自行加量。";
   }
   if (item.kind === "elderly_administration") {
@@ -91,14 +105,62 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
   if (item.kind === "current_medications") {
     // 是否继续由医生定，不写「不要自行停用」：红旗病例里那句会变成让心率 42、血压 82/48 的患者继续服美托洛尔（2026-10-18 留出集 S188）。
     // 外用药（乳膏、贴剂、栓剂…）不说「服用」，也不套口服药的间隔时间（甲方病历 8：阿昔洛韦乳膏）。
-    const topical = item.names.filter((name) => TOPICAL_MEDICATION_FORM.test(name));
-    const oral = item.names.filter((name) => !TOPICAL_MEDICATION_FORM.test(name));
+    // 「予/给予」写的药（医生给过、可能已停）不说「正在」：请患者说明现在是否还在用（2026-10-19）。
+    const given = new Set(item.given || []);
+    const topical = item.names.filter((name) => TOPICAL_MEDICATION_FORM.test(name) && !given.has(name));
+    const oral = item.names.filter((name) => !TOPICAL_MEDICATION_FORM.test(name) && !given.has(name));
+    const recorded = item.names.filter((name) => given.has(name));
     return [
       oral.length > 0 ? `正在服用的${oral.join("、")}请告知医生，是否继续服用由医生决定；中药与西药同服时最好间隔1小时左右` : "",
       topical.length > 0 ? `正在外用的${topical.join("、")}请告知医生，是否继续使用由医生决定` : "",
+      recorded.length > 0 ? `病历记录用过的${recorded.join("、")}，请告知医生现在是否还在用，能否与本方同用由医生决定` : "",
     ].filter(Boolean).join("；") + "。";
   }
+  if (item.kind === "unnamed_medication") return "病历记录您自行用过药，请把正在用的药（药名和用法）告诉医生，避免与本方重复或相互影响。";
+  if (item.kind === "herpes_zoster_antiviral") {
+    // 《中国带状疱疹诊疗专家共识（2022 版）》：发疹 72 小时内尽早系统抗病毒；仍有新水疱、50 岁以上、累及眼耳者也应尽早。不写药名与剂量。
+    return "带状疱疹请尽早到医院由医生评估是否需要口服抗病毒药（发疹3天内、仍有新水疱出现或年龄50岁以上尤应尽早），疼痛明显请一并告知医生；如皮疹累及眼周、耳部，或出现视物模糊、听力改变、剧烈头痛，请立即就医。";
+  }
+  if (item.kind === "severe_hypertension_followup") {
+    return `本次血压${item.reading}明显偏高，请今天复测血压，并在当日或数日内到心内科或全科就诊调整降压药；如出现胸痛、气短、剧烈头痛、视物模糊、肢体无力或言语不清，请立即就医。`;
+  }
+  if (item.kind === "administration_and_diet") {
+    // 服法照本方煎服法里的那一句（饭前/饭后/空腹/睡前 + 温服），没有就写温服；忌口来自已定证候。只补缺的那一半。
+    const timing = decoctionMethod.match(/(?:饭前|饭后|餐前|餐后|空腹|睡前)[^，,。；;]{0,6}(?:温服|服)/u)?.[0] || (/温服/u.test(decoctionMethod) ? "温服" : "宜温服");
+    const parts = [
+      administrationCovered(currentLines) ? "" : `本方汤药${timing.startsWith("宜") ? timing : `宜${timing}`}`,
+      dietCovered(currentLines) ? "" : `服药期间${item.diet}`,
+    ].filter(Boolean);
+    return parts.length > 0 ? `${parts.join("；")}。` : "";
+  }
+  if (item.kind === "reproductive_status_unknown") {
+    return `如已怀孕、可能怀孕或正在哺乳，请服药前告知医生${pregnancyLabelledHerbs.length > 0 ? `（方中${pregnancyLabelledHerbs.slice(0, 4).join("、")}为孕妇慎用或禁用之品）` : ""}。`;
+  }
+  if (item.kind === "toxic_self_preparation") {
+    return `自行配制的含${item.herbs.join("、")}的药请立即停用，以后不要再自行配制服用（这些药药典标注有毒）；如出现口唇舌或四肢发麻、心慌、心跳不齐、呼吸困难，请立即就医。`;
+  }
+  if (item.kind === "conception_pregnancy_check") {
+    return `备孕期间服药，如月经逾期请先验孕，确认怀孕请立即停药并告知医生${pregnancyLabelledHerbs.length > 0 ? `（方中${pregnancyLabelledHerbs.slice(0, 4).join("、")}为药典「孕妇慎用」或「孕妇禁用」之品）` : ""}。`;
+  }
   return `${item.disease}是细菌感染，除服本方外请到医院就诊，由医生决定抗菌药物治疗；如出现寒战高热、红肿迅速扩大、皮肤发紫或起水疱，请立即就医。`;
+}
+
+/** 用法缩写（有限闭集）→ 中文；「1#」→「1片」。80 岁以下的「高龄」改「年长」。 */
+const DOSING_ABBREVIATIONS: ReadonlyArray<[RegExp, string]> = [
+  [/(?<![A-Za-z])q\.?o\.?d\.?(?![A-Za-z])/giu, "隔日1次"],
+  [/(?<![A-Za-z])q\.?d\.?(?![A-Za-z])/giu, "每日1次"],
+  [/(?<![A-Za-z])b\.?i\.?d\.?(?![A-Za-z])/giu, "每日2次"],
+  [/(?<![A-Za-z])t\.?i\.?d\.?(?![A-Za-z])/giu, "每日3次"],
+  [/(?<![A-Za-z])q\.?i\.?d\.?(?![A-Za-z])/giu, "每日4次"],
+  [/(?<![A-Za-z])q\.?n\.?(?![A-Za-z])/giu, "每晚1次"],
+  [/(?<![A-Za-z])p\.?r\.?n\.?(?![A-Za-z])/giu, "必要时"],
+  [/(\d+(?:\.\d+)?)\s*#/gu, "$1片"],
+];
+function withPatientFacingDosingWords(line: string, ageYears: number | null | undefined): string {
+  let out = line;
+  for (const [pattern, replacement] of DOSING_ABBREVIATIONS) out = out.replace(pattern, replacement);
+  if (typeof ageYears === "number" && ageYears < 80) out = out.replace(/高龄(?:患者|者|老人)?/gu, (match) => match === "高龄" ? "年长" : "年长者");
+  return out;
 }
 
 type Json = Record<string, unknown>;
@@ -338,6 +400,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       const seen = new Set<string>();
       // 剩下的半句要是知识库里某一项本身或它的开头才算（石菖蒲「开窍」是「开窍豁痰」的开头，算；「肝肾」只是「补肝肾」的后半，不算）。
       const knowledgeItems = new Set(knowledge.split(/[，,；;、]/u).map((item) => item.trim()).filter(Boolean));
+      const originalClauses = herb.function.split(/[，,；;、]/u).map((clause) => clause.trim()).filter(Boolean);
       const clauses = herb.function.split(/[，,；;、]/u).map((clause) => clause.trim()).flatMap((clause) => {
         // 讲配伍分工的小句（「制约温补」「防疏风伤阴」「使祛风不伤正」）说的是与别的药的关系，不是这味药的功效，不动。
         if (/^(?:制约|防|使|配|协调|佐制|监制|以防)/u.test(clause)) {
@@ -358,6 +421,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         rest = rest.trim();
         if (unsupported.some((phrase) => rest.includes(phrase))) return [];
         if (!/[\u4e00-\u9fff]{2,}/u.test(rest)) return [];
+        // 去掉无依据的词后剩下的半句已被同栏另一句包含（「滋阴清热」去「滋阴」剩「清热」，同栏已有「清热燥湿」）时不重复留。
+        if (rest !== clause && originalClauses.some((other) => other !== clause && other.length > rest.length && other.includes(rest))) return [];
         if (rest !== clause && (/^[以而并及与和兼助]|[以而并及与和兼助]$/u.test(rest) ||
           (!herbFunctionPhraseRecognized(rest) && ![...knowledgeItems].some((item) => item.startsWith(rest))))) return [];
         const fingerprint = [...rest].sort().join("");
@@ -494,12 +559,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 给不出具体内容的项目不下发（甲方 10.12 测评 5.2「中医治疗具体内容未展示」）：「仅评估」的项目只有项目名和一句
     //「本轮仅进行现场评估，不形成操作计划」；食疗、导引、情志这类无穴项目在目录里只有类目模板、没有任何做法。
     nonPharma.tcmTreatments = records(nonPharma.tcmTreatments).filter((item) => {
-      if (item.protocolStatus === "assessment_only_no_patient_specific_protocol" || item.tailoringStatus === "assessment_only") return false;
-      const points = Array.isArray(item.suggestedSitesOrPoints) ? item.suggestedSitesOrPoints.length : 0;
-      const pointFree = item.projectCode === "diet_therapy" || item.projectCode === "qigong_daoyin" || item.projectCode === "mind_therapy";
-      if (pointFree && points === 0 && item.tailoringStatus === "class_template_only") return false;
-      // 病种模板的治疗内容只是一段治则（「治则：虚劳以本虚为主…」），没有本例的操作（2026-10-17，甲方标准病历 5 的推拿卡）。
-      if (item.tailoringStatus === "class_template_only" && /^治则[:：]/.test(String(item.treatmentContent || "").trim())) return false;
+      // 仅评估、无穴项目只有类目模板、病种模板只是一段治则（甲方标准病历 5 的推拿卡）：与出卡处选三张卡时同一个判据
+      //（tcm-treatment-capabilities treatmentCardUndeliverable，2026-10-19 起共用，此前两处各写一份，选卡占了名额、交付时又删掉）。
+      if (treatmentCardUndeliverable(item)) return false;
       // 食疗方与本例饮食宜忌相反：饮食栏写清淡、忌油腻或避免滋腻，食疗卡却是猪排、猪肺这类肥甘之品
       //（2026-10-17，甲方标准病历 9「芋头炖猪排」对「饮食清淡易消化」，病历 5「猪肺粥」对「避免滋腻碍脾」）。
       if (item.projectCode === "diet_therapy" && DIET_AVOIDS_RICH_FOOD.test(String(nonPharma.diet || "")) &&
@@ -585,8 +647,13 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
           !/(?:暂无|并无|无|没有|不含|未见)[^，,。；;]{0,8}(?:哺乳期慎用|回乳)/.test(line));
       }
       const current = precautions.filter((line): line is string => typeof line === "string");
+      const pregnancyLabelledHerbs = records(records(formula?.candidates)[0]?.herbs)
+        .map((herb) => String(herb.name || "").trim())
+        .filter((name) => name && chpPregnancyLabel(name));
       const added = required.filter((item) => !requiredPrecautionCovered(item, current))
-        .map((item) => requiredPrecautionLine(item, herbIdentities, lactationHerbs));
+        .map((item) => requiredPrecautionLine(item, herbIdentities, lactationHerbs, pregnancyLabelledHerbs,
+          String(record(records(formula?.candidates)[0]?.decoction)?.method || ""), current))
+        .filter(Boolean);
       if (added.length > 0) precautions = [...added, ...precautions];
     }
     // 方中有药典标注有毒（含「有小毒」）的药而注意事项一句没提（2026-10-18 验收主集：附子、半夏、苦杏仁）：补一句。只看最终处方。
@@ -600,6 +667,19 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         precautions = [...precautions, `方中${[...new Set(toxicHerbs)].slice(0, 3).join("、")}在药典中标注有毒，须按医生开的剂量和煎法服用，不可自行加量或久服；如出现口唇或手足发麻、心慌、恶心呕吐，请停药并就医。`];
       }
     }
+    // 煎服法按教材写了「不须啜热粥」（荆防败毒散、麻黄汤一类），注意事项里「可进热粥助汗」那一小句去掉（甲方标准病历 1，
+    // 2026-10-18 复评：两处说法相抵，患者无所适从）。只删劝进热粥的小句，其余照留。
+    const decoctionMethod = String(record(records(formula?.candidates)[0]?.decoction)?.method || "");
+    if (/不须啜(?:热)?粥|不必啜(?:热)?粥|不啜(?:热)?粥/u.test(decoctionMethod)) {
+      precautions = precautions
+        .map((line) => typeof line === "string" ? withoutTimingClauses(line, PORRIDGE_TO_SWEAT) : line)
+        .filter((line) => typeof line !== "string" || line.trim().length > 0);
+    }
+    // 模型把提示词里的条目标题抄进写给患者的话（2026-10-19 本地复测病历 10「育龄女性，妊娠与哺乳情况未记录：如已怀孕…」）：去掉这类标题。
+    precautions = precautions.map((line) => typeof line !== "string" ? line : line.replace(PROMPT_ITEM_HEADING, ""));
+    // 写给患者的话里不留英文用法缩写（验收主集 J：模型照抄病历「倍博特1# QD」）与「1#」；不到 80 岁不称「高龄」（留出集 S190：62 岁写成高龄者）。
+    const ageYears = options?.herbBoundaryAudience?.ageYears;
+    precautions = precautions.map((line) => typeof line !== "string" ? line : withPatientFacingDosingWords(line, ageYears));
     nonPharma.precautions = precautions;
   }
   for (const treatment of records(nonPharma?.tcmTreatments)) {
@@ -711,6 +791,10 @@ function withoutQuestionChatter(analysis: string): string {
 /** 注意事项里叫患者别在皮损/患处针刺的小句。 */
 // 2026-10-18：「皮肤红肿灼热处不宜针刺」（留出例 S143 丹毒）——「红肿」与「处」之间可隔几个字，病灶同理。
 // 2026-10-18：「皮损局部不作针刺」（甲方标准病历 8 三次生成之一）——否定词还有「不作/不做/不施」。
+/** 规则注意事项提示词条目的标题式开头（有限闭集：育龄女性/备孕/服法与忌口这几项的标题）。 */
+const PROMPT_ITEM_HEADING = /^(?:育龄女性[，,]?妊娠与哺乳情况(?:均)?未记录|患者备孕或未避孕|服法与忌口)[：:]\s*/u;
+/** 劝进热粥助汗的小句（「可进热粥助汗」「服后喝碗热稀粥」）；「忌热粥」这类否定说法不算。 */
+const PORRIDGE_TO_SWEAT = /(?<![忌勿不禁])(?:啜|喝|进|食|吃|饮)[^，,。；;]{0,4}热(?:稀)?粥/u;
 const LOCAL_NEEDLING_FORBIDDEN = /(?:皮损|局部|患处|病灶|红肿[^，,。；;]{0,4}处|疱疹|皮疹)[^，,。；;]{0,6}(?:暂不|不宜|勿|避免|禁止|不可|不要|不作|不做|不施)[^，,。；;]{0,4}(?:施针|针刺|针)/u;
 
 /** 组成身份，生用写法算同一味（生地黄 = 地黄）：与开方编译里判断加减是否重复同一口径。 */

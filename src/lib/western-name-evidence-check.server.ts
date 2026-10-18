@@ -4,7 +4,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
-import { westernCriteriaEntry, westernCriteriaPromptValue, westernCriteriaReference } from "./western-diagnostic-criteria.server";
+import { westernCriteriaEntry, westernCriteriaPromptValue, westernCriteriaReference, westernNameWithoutCourseOrSideQualifier } from "./western-diagnostic-criteria.server";
 
 /**
  * 参考西医诊断名与病历已记录内容的一致性核对（2026-10-14）。
@@ -49,20 +49,57 @@ function enabled(): boolean {
 
 const compact = (value: string) => value.normalize("NFKC").replace(/\s+/g, "");
 
-export type WesternNameCorrection = { supportedName: string; quote: string; reason: string; type: "A" | "B" | "C" | "D" };
+export type WesternNameCorrection = {
+  supportedName: string;
+  quote: string;
+  reason: string;
+  type: "A" | "B" | "C" | "D";
+  /** 核对模型判断原诊断名属急危重症（只在为真时出现）。红旗病例上据此不把急危重病名改成别的写法（见 alignWesternNameWithRecord）。 */
+  currentIsEmergency?: true;
+  /** 改成的名称是西医半自己列在候选或鉴别里的病（只在为真时出现）。 */
+  adoptedFromList?: true;
+};
 
 // 核对给出的名称只能是一个干净的病名：不带括号、并列与推测语气（标点与语气词是写法检查）；中医证候字样由合同的同一判据
 // westernLabelContainsTcmSyndrome（西医主诊断不得带证候）判定，不在这里另写一张词表。
 // 「主要症状＋待查」是提示词旧版里的格式说明，模型曾逐字照抄成病名（验收集 X-D-4595、X-D-4660）：带格式词的名称不采信。
 const INVALID_SUPPORTED_NAME_FORM = /[（）()\/、，,；;：:？?＋+]|或|可能|疑似|待排|主要症状/;
 
+/** 名称是不是一个干净的病名（不带括号、并列、推测语气、证候字样）。西医主诊断的闭集重选（western-primary-reselect）用同一判据。 */
+export function isCleanWesternDiagnosisName(name: string): boolean {
+  const value = name.trim();
+  return value.replace(/待查$/u, "").length >= 2 && value.length <= 30 && !INVALID_SUPPORTED_NAME_FORM.test(value) &&
+    !westernLabelContainsTcmSyndrome(value) && !/证$/.test(value) && /[一-龥]/.test(value);
+}
+
+/** 西医半自己列出的候选与鉴别病名（不含主诊断本身），给核对与闭集重选当名单。 */
+export function listedWesternDiagnosisNames(western: unknown): string[] {
+  const root = record(western);
+  const primaryName = typeof record(root?.primary)?.name === "string" ? String(record(root?.primary)?.name).trim() : "";
+  const names = [...(Array.isArray(root?.candidates) ? root.candidates : []), ...(Array.isArray(root?.differentials) ? root.differentials : [])]
+    .map((item) => (typeof record(item)?.name === "string" ? String(record(item)?.name).trim() : ""))
+    .filter((item) => item && compact(item) !== compact(primaryName));
+  return [...new Set(names)].slice(0, 12);
+}
+
+/** 原名去掉核对给出的上一级之后仍包含它（「神经源性休克」⊃「休克」、「大量心包积液」⊃「心包积液」）：说的还是同一类病。 */
+function namesSameDiseaseFamily(broader: string, current: string): boolean {
+  const core = compact(broader.replace(/待查$/u, ""));
+  return core.length >= 2 && core !== compact(current) && compact(current).includes(core);
+}
+
 /** 模型输出 → 可采信的改名（否则 undefined）。引文必须逐字在病历里；名称必须合规且与原名不同。 */
-export function parseWesternNameCorrection(content: unknown, recordText: string, currentName: string): WesternNameCorrection | undefined {
+export function parseWesternNameCorrection(
+  content: unknown,
+  recordText: string,
+  currentName: string,
+  options: { listedNames?: readonly string[] } = {},
+): WesternNameCorrection | undefined {
   if (typeof content !== "string" || !content.trim()) return undefined;
   let parsed: unknown;
   try { parsed = JSON.parse(content); } catch { return undefined; }
   if (!parsed || typeof parsed !== "object") return undefined;
-  const { verdict, type, quote, reason, supportedName } = parsed as Record<string, unknown>;
+  const { verdict, type, quote, reason, supportedName, emergencyName } = parsed as Record<string, unknown>;
   if (verdict !== "inconsistent" || (type !== "A" && type !== "B" && type !== "C" && type !== "D")) return undefined;
   const name = typeof supportedName === "string" ? supportedName.trim() : "";
   const quoted = typeof quote === "string" ? quote.trim() : "";
@@ -76,12 +113,27 @@ export function parseWesternNameCorrection(content: unknown, recordText: string,
   // 靠病程门槛定义的病（功能性消化不良要 6 个月）没到病程时，「原病名待查」仍是越级：甲方病历 4 半个月写成「功能性消化不良待查」，
   // 复核判越过罗马 IV（2026-10-18）。这类沿用核对给的上一级或症状名，只给「缺确诊检查」的病留住首要考虑。
   const courseDefined = Boolean(westernCriteriaEntry(current)?.durationThreshold) || /病程|个月|周|时长|持续时间/u.test(why);
+  // A、B 类：病历记录的检查所见本身指向西医半自己列出的另一个病（活检见钉突→膜性肾病、超声「落雪状」→葡萄胎、扩容后中心静脉压高→
+  // 心源性休克）时，直接改成那个病（2026-10-19）。此前只许写「症状待查」，验收集 11 次 A–C 改名 11 次评审不通过，多数是核对
+  // 指出了原名不对、却交出「肾病综合征待查」「妊娠待查」这种更差的名称。只认名单里逐字有的病名：不产生西医半没有提出过的诊断。
+  const adoptedFromList = (type === "A" || type === "B") && !/待查$/u.test(name) &&
+    (options.listedNames || []).some((item) => compact(item) === compact(name));
+  // D 类核对给的是原名的上一级（「大量心包积液」→「心包积液待查」、「低钾性周期性麻痹」→「周期性麻痹待查」）时用它，不再换回
+  //「原病名待查」——那会把说过头的那部分又带回来（验收集 X-D-1053、X-D-4969，2026-10-19）。
   const keepHypothesis = type === "D" && /待查$/u.test(name) && !/待查$/u.test(current) && !courseDefined &&
+    !namesSameDiseaseFamily(name, current) &&
     current.length >= 2 && current.length <= 24 && !INVALID_SUPPORTED_NAME_FORM.test(current);
-  const supported = keepHypothesis ? `${current}待查` : name;
+  // A、B 类给的上一级只是去掉了病程限定或侧别（「急性尿潴留」→「尿潴留待查」）时，上一级本身有依据，不再挂「待查」（验收集 X-D-0204）。
+  const qualifierOnly = (type === "A" || type === "B") && /待查$/u.test(name) &&
+    westernNameWithoutCourseOrSideQualifier(current) === name.replace(/待查$/u, "");
+  const supported = keepHypothesis ? `${current}待查` : qualifierOnly ? name.replace(/待查$/u, "") : name;
   if (compact(quoted).length < 4 || compact(quoted).length > 60 || !compact(recordText).includes(compact(quoted))) return undefined;
   if (why.length < 4 || why.length > 60) return undefined;
-  return { supportedName: supported, quote: quoted, reason: why, type };
+  return {
+    supportedName: supported, quote: quoted, reason: why, type,
+    ...(emergencyName === true ? { currentIsEmergency: true as const } : {}),
+    ...(adoptedFromList ? { adoptedFromList: true as const } : {}),
+  };
 }
 
 type Json = Record<string, unknown>;
@@ -106,8 +158,10 @@ export function applyWesternNameCorrection(westernContent: string, correction: W
   if (candidates.length > 0) {
     const others = candidates.filter((item) => item.name !== previous && item.name !== correction.supportedName);
     const lead = candidates.find((item) => item.name === previous) || candidates[0];
+    // 改成西医半自己列过的病时，首位用它自己那一条（带它自己的支持与反对依据），不把原病名的依据挪给它。
+    const adopted = correction.adoptedFromList ? candidates.find((item) => item.name === correction.supportedName) : undefined;
     western.candidates = hypothesisKept ? [{ ...lead, name: correction.supportedName }, ...others].slice(0, 3) : [
-      { ...lead, name: correction.supportedName },
+      adopted ? { ...adopted } : { ...lead, name: correction.supportedName },
       // D 类没有与原病名相反的记录，只是还没有确诊它的检查或病程：不把引文（支撑上一级病名的那句）写成反对依据。
       correction.type === "D"
         ? { name: previous, likelihood: "中", keyEvidence: [], againstEvidence: [] }
@@ -125,12 +179,15 @@ export function applyWesternNameCorrection(westernContent: string, correction: W
         : { name: previous, reason: "与病历记录不符", distinguishingPoints: correction.reason, nextCheck: "必要时完善相关检查" },
       ...differentials.filter((item) => item.name !== correction.supportedName),
     ].slice(0, 8);
+  } else if (correction.adoptedFromList) {
+    // 原病名已在鉴别里：只把升为主诊断的那个病从鉴别里拿掉。
+    western.differentials = differentials.filter((item) => item.name !== correction.supportedName);
   }
   return JSON.stringify(root);
 }
 
 export async function westernNameCorrectionForRecord(
-  input: { recordText: string; diagnosisName: string; patient?: { sex?: unknown; age?: unknown } },
+  input: { recordText: string; diagnosisName: string; patient?: { sex?: unknown; age?: unknown }; listedNames?: readonly string[] },
   signal?: AbortSignal,
 ): Promise<WesternNameCorrection | undefined> {
   if (!enabled() || signal?.aborted) return undefined;
@@ -151,12 +208,16 @@ export async function westernNameCorrectionForRecord(
         "A. 该病成立时本应阳性的检验/检查，病历已经做了并记录为阴性、正常或未见（如诊断为某种感染，病历记录的病原学检查未见病原体）；或病历记录的检查所见明确指向另一个病。",
         "B. 该诊断名有定义性的必备条件，而病历已记录的事实与之相反（如诊断要求闭经或月经稀发，病历写月经周期规律；诊断的核心表现病历明确写了没有）；或该病的诊断标准要求同时满足几项中的若干项，而病历已把其余各项记录为阴性或正常，满足的项数不够。",
         "C. 诊断名说的是较重的一层（“功能不全”“衰竭”“剧吐”“重度”等需要特定指标或程度才成立的名称），而病历记录的指标、程度只够得上较轻的一层。",
-        "D. 诊断名比病历能支撑的更具体：按公认诊断标准，这个名称必须依赖某项检查结果才能成立，或必须满足病程门槛，而病历里既没有记录这项检查的结果，已记录的病程也够不上门槛。典型的如：缺铁性贫血、巨幼细胞贫血等指明贫血类型的名称需要相应检查（只有血红蛋白只能说贫血）；多囊卵巢综合征需要鹿特丹标准三项中至少两项；甲状腺功能减退症、糖尿病等以化验定义的病需要相应化验结果；慢性胃炎、消化性溃疡需要胃镜；骨质疏松症需要骨密度或影像；某种特定病原体感染需要病原学结果；功能性消化不良、肠易激综合征、功能性便秘的时间门槛是起病至今满6个月——病程写满6个月（半年、1年、2年都算）就满足，不要求病历另写“持续3个月”，也不要求做过胃镜；肠易激综合征还必须有腹痛；牙病的分型名称（急性牙髓炎、慢性牙髓炎、急性根尖周炎、牙周脓肿、智齿冠周炎等）需要口腔专科检查（牙髓活力或冷热测试、叩诊、牙周探诊、X线）才能分型，病历没有口腔检查记录时只能写“牙痛”。",
+        "D. 诊断名比病历能支撑的更具体：按公认诊断标准，这个名称必须依赖某项检查结果才能成立，或必须满足病程门槛，而病历里既没有记录这项检查的结果，已记录的病程也够不上门槛。典型的如：缺铁性贫血、巨幼细胞贫血等指明贫血类型的名称需要相应检查（只有血红蛋白只能说贫血）；多囊卵巢综合征需要鹿特丹标准三项中至少两项；甲状腺功能减退症、糖尿病等以化验定义的病需要相应化验结果；慢性胃炎、消化性溃疡需要胃镜；骨质疏松症需要骨密度或影像；某种特定病原体感染需要病原学结果；功能性消化不良、肠易激综合征、功能性便秘的时间门槛是起病至今满6个月——病程写满6个月（半年、1年、2年都算）就满足，不要求病历另写“持续3个月”，也不要求做过胃镜；没满6个月时 supportedName 写“消化不良待查”“便秘待查”这类上一级名称（不写成单个症状）；肠易激综合征还必须有腹痛；牙病的分型名称（急性牙髓炎、慢性牙髓炎、急性根尖周炎、牙周脓肿、智齿冠周炎等）需要口腔专科检查（牙髓活力或冷热测试、叩诊、牙周探诊、X线）才能分型，病历没有口腔检查记录时只能写“牙痛”。",
         "以下情况一律判 consistent：门诊常见病按典型临床表现即可诊断、诊断标准本来不要求某项检查（如上呼吸道感染、急性支气管炎、急性胃肠炎、带状疱疹、荨麻疹、湿疹、偏头痛、紧张型头痛、失眠障碍、腰肌劳损、原发性痛经；有烧心或反酸、反流症状的胃食管反流病；有典型发作性胸痛的心绞痛或冠心病；有长期饮酒史并有肝脏影像或肝功能异常的酒精性肝病），这时没做检查不算问题；贫血按病历已记录的原因命名（产后贫血、失血性贫血、月经过多所致贫血）不算过度具体；名称是急危重症（如蛛网膜下腔出血、急性心肌梗死、主动脉夹层、异位妊娠、脑卒中、休克）时不适用 D；检查只有非特异性改变、不能确诊也不能排除；结果正常但该病在此阶段结果本来就可以正常（如痛风急性发作期血尿酸可以正常、冠心病静息心电图可以正常）；病历里写明的既往确诊（如“高血压病史10年”“胃镜示慢性胃炎”）；你只是觉得另一个诊断更可能。拿不准时判 consistent。",
         "判 inconsistent 时给出：quote（A、B、C 写病历里与之矛盾的那句原文；D 写病历里支撑上一级病名的那句原文；逐字复制，不超过40字）、reason（一句话说明为什么不符或缺什么，≤30字）和 supportedName。supportedName 只能是下面两种之一：① 比原诊断更宽一层或更轻一层、现有记录已经够得上的规范病名（如“贫血”“月经稀发”“消化不良”“妊娠呕吐”“关节炎”“牙痛”）；② 指不出这样的病名时：D 类写原诊断名加“待查”（如“多发性骨髓瘤待查”，表示首要考虑不变、尚未确诊）；A、B、C 类写病历里最主要的症状加“待查”（如“关节痛待查”“血尿待查”）。不得换成病历同样没有证实的另一个具体病种，不得写比原诊断更重的名称，不带括号和解释。",
+        // 2026-10-19：A、B 类允许改成西医半自己列出的、病历检查所见已经指向的那个病（服务端只认名单里逐字有的名称）；
+        // 「上一级」本身有依据时不挂「待查」；另报原名是否急危重症，红旗病例据此不把急危重病名改掉。
+        "例外：A、B 类里，病历记录的检查所见本身就是另一个病的确诊依据或特征性表现（如活检、典型影像征象、确诊性化验），而这个病就在输入的 listedDiagnoses 里时，supportedName 直接写这个病（逐字照抄名单里的写法），quote 写那句检查所见。上一级病名本身已有记录支持时（如“急性尿潴留”的上一级“尿潴留”）不要再加“待查”。",
+        "另给出 emergencyName：原诊断名属于需要立即处理的急危重症（如急性心肌梗死、急性胰腺炎、消化道穿孔、休克、异位妊娠、脑卒中、主动脉夹层、颅内血肿）时为 true，否则为 false。",
         // 2026-10-18：诊断标准要点来自受治理要点表或权威页面的检索摘要（western-diagnostic-criteria.server.ts），让情形 D 不再只靠上面手写的十几个病。
         "如果输入里给了 criteria（该诊断名的诊断标准要点，摘自诊疗手册、指南等权威来源）：clinicallyDiagnosable 为 true 的病按典型临床表现即可诊断，不适用 D；requiredTests 不为空时，病历里没有其中任何一项检查的结果、也不是病历写明的既往确诊，才符合 D；durationThreshold 写了病程门槛时按它判断病程够不够；definingFeatures 是定义性表现，病历已记录与之相反时属 B。criteria 里是检索摘录（searchExcerpts）时，只把摘录里明确写出的必需检查或病程门槛当依据。criteria 与上面的通则冲突时以上面的通则为准（急危重症不用 D、病历写明的既往确诊不算）。没有 criteria 时按上面的通则判断。",
-        "只输出 JSON：{\"verdict\":\"consistent|inconsistent\",\"type\":\"A|B|C|D|\",\"quote\":\"…\",\"reason\":\"…\",\"supportedName\":\"…\"}",
+        "只输出 JSON：{\"verdict\":\"consistent|inconsistent\",\"type\":\"A|B|C|D|\",\"quote\":\"…\",\"reason\":\"…\",\"supportedName\":\"…\",\"emergencyName\":true|false}",
       ].join("\n"),
     },
     {
@@ -166,6 +227,7 @@ export async function westernNameCorrectionForRecord(
         record: recordText,
         diagnosisName,
         ...(criteria ? { criteria } : {}),
+        ...(input.listedNames && input.listedNames.length > 0 ? { listedDiagnoses: [...input.listedNames] } : {}),
       }),
     },
   ];
@@ -183,7 +245,7 @@ export async function westernNameCorrectionForRecord(
         messages,
       }, { signal: controller.signal }));
       const content = response.choices[0]?.message?.content;
-      return { value: parseWesternNameCorrection(content, recordText, diagnosisName), cacheable: typeof content === "string" && content.trim().length > 0 };
+      return { value: parseWesternNameCorrection(content, recordText, diagnosisName, { listedNames: input.listedNames }), cacheable: typeof content === "string" && content.trim().length > 0 };
     } catch {
       return { value: undefined, cacheable: false };
     } finally {
@@ -195,7 +257,7 @@ export async function westernNameCorrectionForRecord(
 /**
  * 西医半返回后的收口：核对病名，采信则改写西医半的输出；任何失败都原样返回。
  * redFlag：确定性闸门判了红旗时不用情形 D——急危重的病名（蛛网膜下腔出血、异位妊娠）在检查出来之前本来就该先按它处置，
- * 改成「待查」会把医生的注意力从必须排除的病上移开。A–C（病历已记录的内容与病名相反）照常。过滤放在缓存之外，
+ * 改成「待查」会把医生的注意力从必须排除的病上移开。A–C（病历已记录的内容与病名相反）照常，但原名属急危重症时见 heldOnRedFlag。过滤放在缓存之外，
  * 同一份病历的核对结果在红旗与非红旗请求之间共用缓存也不会串。
  */
 export async function alignWesternNameWithRecord(
@@ -205,14 +267,36 @@ export async function alignWesternNameWithRecord(
 ): Promise<string> {
   if (!enabled()) return westernContent;
   let name = "";
+  let listedNames: string[] = [];
   try {
-    name = String(record(record(record(JSON.parse(westernContent))?.westernDiagnosis)?.primary)?.name || "").trim();
+    const western = record(JSON.parse(westernContent))?.westernDiagnosis;
+    name = String(record(record(western)?.primary)?.name || "").trim();
+    listedNames = listedWesternDiagnosisNames(western);
   } catch {
     return westernContent;
   }
   if (!name) return westernContent;
-  const found = await westernNameCorrectionForRecord({ recordText: context.recordText, diagnosisName: name, patient: context.patient }, signal);
-  const correction = found && !(context.redFlag && found.type === "D") ? found : undefined;
-  console.info("[tcm-cdss:telemetry] western_name_evidence_check", { applied: Boolean(correction), type: found?.type, heldForRedFlag: Boolean(found && !correction) });
+  const found = await westernNameCorrectionForRecord({ recordText: context.recordText, diagnosisName: name, patient: context.patient, listedNames }, signal);
+  const correction = found && !(context.redFlag && heldOnRedFlag(found, name)) ? found : undefined;
+  console.info("[tcm-cdss:telemetry] western_name_evidence_check", {
+    applied: Boolean(correction),
+    type: found?.type,
+    heldForRedFlag: Boolean(found && !correction),
+    adoptedFromList: Boolean(found?.adoptedFromList),
+    currentIsEmergency: Boolean(found?.currentIsEmergency),
+    // 病名不是患者信息；记下来是为了能把改名归到病例上（10/19 分析验收集时只有类型码，归不了因）。
+    currentName: name.slice(0, 30),
+    supportedName: found ? found.supportedName.slice(0, 30) : undefined,
+  });
   return correction ? applyWesternNameCorrection(westernContent, correction) : westernContent;
+}
+
+/**
+ * 红旗病例上不采信的改名：D 类一律不采信（见上）；A–C 类在原名属急危重症时，只允许改成西医半自己列过的病，或同一类病的上一级
+ *（「神经源性休克」→「休克待查」）——不把急危重病名换成症状（2026-10-19，验收集 X-D-0529 急性胰腺炎凭「血淀粉酶<500」被改成「腹痛」，
+ * 淀粉酶不高本来就排除不了胰腺炎）。
+ */
+function heldOnRedFlag(found: WesternNameCorrection, currentName: string): boolean {
+  if (found.type === "D") return true;
+  return Boolean(found.currentIsEmergency) && !found.adoptedFromList && !namesSameDiseaseFamily(found.supportedName, currentName);
 }

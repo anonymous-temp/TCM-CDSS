@@ -212,7 +212,11 @@ export function clinicalClausePolarity(value: string): ClinicalClausePolarity {
   }
   // 总括量词否定（均无/皆无/都没有…）：整句、前缀、后缀三种形态，词表只在 clinical-vocabulary 一处。
   if (classifyBlanketAnswer(clause) === "negation" || endsWithBlanketQuantifiedNegation(clause)) return "negative";
-  const quantifierStripped = stripBlanketQuantifierPrefix(clause);
+  // 「也没有急躁易怒」「亦无发热」：句首的「也/亦/还/且」不挡否认词（2026-10-19：否认改为不跨逗号继承后，「否认口苦目赤，也没有急躁易怒」
+  // 的后半句要靠它自己的否认词判阴性）。
+  const quantifierStripped = stripBlanketQuantifierPrefix(clause).replace(/^(?:也|亦|还|且)\s*(?=(?:没有|没|无|未|不|否认))/u, "");
+  // 「不发热」「不吸烟」「不咳」：句首「不」接这一小组症状或嗜好时是否认（有限闭集）。「不寐」「不思饮食」「不耐寒」「不适」是阳性症状名，不在其列。
+  if (/^不(?:发热|发烧|恶寒|畏寒|怕冷|咳|喘|痛|疼|痒|肿|渴|吸烟|抽烟|饮酒|喝酒|出汗|汗出|头痛|头晕|呕|吐|腹泻|泄泻|便血|黑便)/u.test(quantifierStripped)) return "negative";
   if (NEGATIVE_PREFIX.test(quantifierStripped) || COLLOQUIAL_PAST_EVENT_NEGATION.test(quantifierStripped) || BARE_NO_HISTORY.test(quantifierStripped) || NEGATIVE_SUFFIX.test(clause) || POSTFIX_NEGATIVE.test(clause) || POSTFIX_EVENT_NEGATION.test(clause)) return "negative";
   if (classifyBlanketAnswer(clause) === "unknown") return "uncertain";
   if (UNCERTAIN_CUE.test(clause)) return "uncertain";
@@ -232,12 +236,16 @@ export function affirmedClinicalSourceClauses(value: string | null | undefined):
   const parts = source.split(/([，,、。；;\n]+)/);
   const clauses: string[] = [];
   let inheritedPolarity: ClinicalClausePolarity | undefined;
+  let inheritedFromDenial = false;
   let previousWasAffirmed = false;
 
   for (let index = 0; index < parts.length; index += 2) {
     const separator = index === 0 ? "" : parts[index - 1];
     const hardBoundary = index === 0 || /[。；;\n]/.test(separator);
-    if (hardBoundary) inheritedPolarity = undefined;
+    // 「无…」开头的否认只在顿号列举里继承（「无恶心、呕吐」），逗号处重置（2026-10-19）。此前「无胸闷、心慌，偶咳嗽，腰痛、腿疼，
+    // 纳可，小便热」里逗号后的阳性项全被当成否认丢掉，「无异常气味，舌淡苔白，脉弦滑」连舌脉也丢了：教材改名的证据、加减触发、
+    // 兼证核对都读不到。「否认…」开头的仍可延续到逗号后光秃的症状（「否认胸痛，腹痛」是同一串否认）；有独立谓词的照常算阳性。
+    if (hardBoundary || (/[，,]/.test(separator) && !inheritedFromDenial)) inheritedPolarity = undefined;
 
     const rawClause = parts[index].trim();
     if (!rawClause) {
@@ -263,6 +271,8 @@ export function affirmedClinicalSourceClauses(value: string | null | undefined):
       }
     }
     inheritedPolarity = polarity;
+    if (explicitPolarity === "negative") inheritedFromDenial = /^否认/u.test(clause);
+    else if (polarity !== "negative") inheritedFromDenial = false;
     previousWasAffirmed = polarity === "affirmed";
   }
 
@@ -375,12 +385,16 @@ export function affirmedClinicalText(
   const parts = normalized.split(/([，,、。；;\n]+)/);
   const clauses: string[] = [];
   let inheritedPolarity: ClinicalClausePolarity | undefined;
+  let inheritedFromDenial = false;
   let previousWasAffirmed = false;
 
   for (let index = 0; index < parts.length; index += 2) {
     const separator = index === 0 ? "" : parts[index - 1];
     const hardBoundary = index === 0 || /[。；;\n]/.test(separator);
-    if (hardBoundary) inheritedPolarity = undefined;
+    // 「无…」开头的否认只在顿号列举里继承（「无恶心、呕吐」），逗号处重置（2026-10-19）。此前「无胸闷、心慌，偶咳嗽，腰痛、腿疼，
+    // 纳可，小便热」里逗号后的阳性项全被当成否认丢掉，「无异常气味，舌淡苔白，脉弦滑」连舌脉也丢了：教材改名的证据、加减触发、
+    // 兼证核对都读不到。「否认…」开头的仍可延续到逗号后光秃的症状（「否认胸痛，腹痛」是同一串否认）；有独立谓词的照常算阳性。
+    if (hardBoundary || (/[，,]/.test(separator) && !inheritedFromDenial)) inheritedPolarity = undefined;
 
     const rawClause = parts[index].trim();
     if (!rawClause) {
@@ -417,6 +431,8 @@ export function affirmedClinicalText(
       }
     }
     inheritedPolarity = polarity;
+    if (explicitPolarity === "negative") inheritedFromDenial = /^否认/u.test(clause);
+    else if (polarity !== "negative") inheritedFromDenial = false;
     previousWasAffirmed = polarityInScope(polarity, scope);
   }
 
@@ -547,6 +563,66 @@ export function selfTakenMedicationMentions(text: string | null | undefined): st
     }
   }
   return names;
+}
+
+/**
+ * 病历里写到的用药（2026-10-19，≥300 条验收注意事项一栏最大的一类：卡托普利、倍博特、拜新同、舒利迭、替米沙坦、
+ * 左西替利嗪、「自用药物」……评审判「已自服药物没有相应一条」）。药名是开放的，给药动词是有限闭集：
+ * 自服/现服/服用/口服/含服/吸入/外用/外涂/予(以)/给予/使用/应用/注射。动词后到「后/等/治疗/对症…」之前按顿号、及、和拆名。
+ * 不收：否认/未用之后的（「未予重视」「未予治疗」）；同一句写了停用的；不像药名的（治疗方式、药物类别、「具体不详」）。
+ * 只写了「自服药物」「自行服药」、没写药名的，单独标出（注意事项要提醒把在用的药告诉医生）。
+ */
+const RECORDED_MEDICATION_VERB = /(?:自行|自己|自购|在家|长期|规律|平素|平时|目前|现在?)?(?:自服|现服|服用|口服|含服|吸入|外用|外涂|涂抹|予以|给予|予|静滴|注射)/u;
+const RECORDED_MEDICATION_NEGATION = /(?:未|否认|没有|无|不曾|从未|未曾|拒绝)[^，,。；;\n]{0,3}$/u;
+const RECORDED_MEDICATION_CUT = /(?:后|等|治疗|对症|以后|之后|无效|效果|控制|处理|缓解|改善|好转|口服|外用|静滴|输液|服用|至今|未见|现在|疼痛|一天|加量|减量|可达|达到|数剂(?=$)|[早晚](?=\d|$)|[（(?？:：]|\d|每[日天晚次]|qd|bid|tid|qn)/iu;
+/** 截断词里表示「列举到此为止」的那些（用量数字、括注只截当前药名，后面的顿号项照收）。 */
+const RECORDED_MEDICATION_LIST_END = /(?:后|等|治疗|对症|以后|之后|无效|效果|控制|处理|缓解|改善|好转|至今|未见|现在|疼痛|可达|达到)/u;
+const NOT_A_MEDICATION_NAME = /治|疗|重视|特殊|系统|处理|休息|观察|手术|术$|理疗|针灸|推拿|输液|输血|营养|对症|消炎|止痛|化痰|止咳|止喘|平喘|降压|降糖|降脂|调脂|抗感染|抗凝|抗聚|溶栓|补液|具体|不详|不清|相关|上述|以上|药物|西药|中成药|中药|汤剂|汤药|膏方|验方|饮食|运动|检查|保守|^药$|^等$|查|示|诊断|就诊|收入|入院|监护|置入|放置|引流|切除|介入|支架|热敷|超声|常规|心电图|核磁|CT|静脉|症状|发作|破溃|帮助|剂量|热水器|中西|^液|^[抗调扩降抑护输]|^补[钾钙铁液]|引导|^(?:促进|增强|升高|保肾|利尿|改善|活血|清热|扶正)|法$/u;
+const UNNAMED_SELF_MEDICATION = /(?:自服|自用|自行服用|自行服|自购)(?:了|过)?[^，,。；;\n]{0,6}药(?:物|品)?|(?:自行|自己)(?:服药|用药|吃药|买药)|服药(?:控制|治疗)/u;
+
+export function recordedMedicationMentions(text: string | null | undefined): { names: string[]; given: string[]; unnamed: boolean } {
+  const names: string[] = [];
+  const given: string[] = [];
+  let unnamed = false;
+  const source = String(text || "").normalize("NFKC");
+  for (const sentence of source.split(/[。；;\n]+/u)) {
+    // 同一句里写了停用（「其后因不能耐受自行停用该药」），这一句里的药都不算在用。
+    if (STOPPED_OR_PAST_MEDICATION.test(sentence) && /停/u.test(sentence)) continue;
+    for (const clause of sentence.split(/[，,]+/u)) {
+      if (UNNAMED_SELF_MEDICATION.test(clause) && !/(?:未|否认|没有|无|不曾)[^，,。；;\n]{0,3}(?:自服|自用|自行|服药)/u.test(clause)) unnamed = true;
+      const verb = clause.match(RECORDED_MEDICATION_VERB);
+      if (!verb || verb.index == null) continue;
+      if (RECORDED_MEDICATION_NEGATION.test(clause.slice(0, verb.index))) continue;
+      const rest = clause.slice(verb.index + verb[0].length);
+      // 动词后置（「盐酸左西替利嗪片口服」「强力湿痒膏外用」）：动词在句末时，药名在它前面。
+      const before = !rest.trim() && /(?:口服|外用|外涂|吸入|含服)$/u.test(verb[0]) ? clause.slice(0, verb.index) : "";
+      const quoted = [...rest.matchAll(/[“"「《]([^”"」》]{2,60})[”"」》]/gu)].map((match) => match[1]);
+      const parts = (quoted.length > 0 ? quoted.join("、") : before || rest).split(/及|和|与|、|或|以及|\/|\+|＋/u);
+      for (const part of parts) {
+        // 列举到截断词（「后」「治疗」「（」…）为止：截断词之后的顿号项是别的内容（「予抗感染治疗后尿频、尿急」）。
+        const cut = part.search(RECORDED_MEDICATION_CUT);
+        const name = (cut >= 0 ? part.slice(0, cut) : part)
+          .replace(/^.*(?:给予|予以)/u, "")
+          .replace(/^(?:长期|规律|平素|平时|自行|使用|应用|了|过|用|以|口服|服用|改用|换用|外擦|外搽|取|舌下含服|含)+/u, "")
+          .replace(/[“”"「」《》)）]/gu, "").replace(/泵$/u, "").replace(/[可以的]$/u, "").replace(/\s+/gu, "").trim();
+        if (name.length >= 2 && name.length <= 14 && !NOT_A_MEDICATION_NAME.test(name) &&
+            /[\u4e00-\u9fff]{2,}|[A-Za-z]{3,}/u.test(name) && !names.includes(name)) {
+          names.push(name);
+          // 「予/给予」写的是医生给过的药，可能已经用完或停了：注意事项只请患者说明现在是否还在用。
+          if (/予/u.test(verb[0])) given.push(name);
+        }
+        if (cut >= 0 && RECORDED_MEDICATION_LIST_END.test(part.slice(cut, cut + 3))) break;
+      }
+    }
+  }
+  return { names, given, unnamed: unnamed && names.length === 0 };
+}
+
+/** 病历里写自行配制、泡酒、偏方土方服药的那一句（有限闭集的动作词）；否认、未曾的不算（2026-10-19 留出集 S190）。 */
+const SELF_PREPARATION = /(?:自行|自己|自制|自配|自采|偏方|土方|民间)[^。；;\n]{0,16}(?:泡酒|泡服|煎服|煎水|研末|冲服|服用|饮用|外敷)|药酒/u;
+const SELF_PREPARATION_DENIED = /(?:否认|未|没有|无)[^，,。；;]{0,4}(?:自行|自制|服用|饮用)/u;
+export function selfPreparedMedicationSentence(sentence: string): boolean {
+  return SELF_PREPARATION.test(sentence) && !SELF_PREPARATION_DENIED.test(sentence);
 }
 
 const FORMAL_ADMINISTRATION_VERB = /(?:服用|口服|皮下注射|静脉注射|肌内注射|注射|吸入|含服)/u;

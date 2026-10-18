@@ -77,6 +77,440 @@
     }
    ],
    "trigger": "2026-10-18 甲方标准病历 10 药味表把青蒿标成「疏风清热」，独立评审判功效写错；知识库功用文本是「清热解暑，解毒，祛风除湿，除湿止痛」（另一处本草辑录还有补中、益气、疏风清热），教材与药典都不给祛风、除湿、补中、益气。"
+  },
+  "黄连": {
+   "aliases": [
+    "川黄连",
+    "黄连片"
+   ],
+   "unsupported": [
+    "舒肝和胃"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 153795,
+     "text": "【功效】 清热燥湿，泻火解毒。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 153804,
+     "text": "黄连生用功能清热燥湿，泻火解毒；酒黄连善清上焦火热，多用于目赤肿痛、口舌生疮；姜黄连善清胃和胃止呕，多用治寒热互结，湿热中阻，痞满呕吐；萸黄连功善舒肝和胃止呕，多用治肝胃不和之呕吐吞酸。"
+    }
+   ],
+   "trigger": "验收集 M（BEST4SDT-91、RobustSDT-single_0631/0634）黄连标「舒肝和胃」，独立评审三次判功效写错；「舒肝和胃止呕」是萸黄连（吴茱萸制）的功效，《中药学》写明生品只「清热燥湿，泻火解毒」。"
+  },
+  "黄柏": {
+   "aliases": [
+    "川黄柏",
+    "关黄柏",
+    "黄柏片"
+   ],
+   "unsupported": [
+    "滋阴清热"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 153813,
+     "text": "【功效】 清热燥湿，泻火解毒，除骨蒸。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 153818,
+     "text": "【用法用量】 煎服，3～12g。外用适量。清热燥湿、泻火解毒宜生用，滋阴降火宜盐炙用，止血多炒炭用。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 48424,
+     "text": "知母、黄柏相须为用，知母滋阴清热，黄柏虽无滋阴之功，确属“坚阴”之品，二者善能清降阴虚之火，用以为臣。"
+    }
+   ],
+   "trigger": "验收集 M（TCM-SD-485525）、X（G-0950）与甲方标准病历 10（三次中两次）药味表黄柏标「清热燥湿，滋阴清热，清热解毒」；保存的 714 例里含黄柏的 43 例有 18 例如此。《方剂学》大补阴丸方解明言「黄柏虽无滋阴之功」；滋阴降火是盐炙品的用法，盐黄柏另列于下、保留。"
+  },
+  "盐黄柏": {
+   "aliases": [
+    "盐炒黄柏"
+   ],
+   "unsupported": [],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 153818,
+     "text": "【用法用量】 煎服，3～12g。外用适量。清热燥湿、泻火解毒宜生用，滋阴降火宜盐炙用，止血多炒炭用。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 17060,
+     "text": "盐黄柏可引药入肾，缓和苦燥之性，增强滋肾阴、泻相火、退虚热的作用。多用于阴虚发热，骨蒸劳热，盗汗，遗精，足膝痿软，咳嗽咯血等。如治婴童肾经火盛，阴硬不软的泄肾丸（《婴童百问》）；治阴虚骨蒸，盗汗，遗精的大补阴丸（《中国药典》）。"
+    }
+   ],
+   "trigger": "盐炙黄柏「滋阴降火宜盐炙用」：不剔除「滋阴清热」，只为挡住按规范名回落到黄柏的剔除。"
+  },
+  "佩兰": {
+   "aliases": [],
+   "unsupported": [
+    "理气活血",
+    "生津止渴"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 155283,
+     "text": "【功效】 芳香化湿，醒脾开胃，发表解暑。"
+    }
+   ],
+   "trigger": "验收集 M（MTCMB-97）、X（G-2929）佩兰标「化湿和中，理气活血，解暑化湿」，评审判功效写错。理气活血是泽兰（山佩兰）一类的功效，佩兰为芳香化湿药。"
+  },
+  "商陆": {
+   "aliases": [
+    "醋商陆"
+   ],
+   "unsupported": [
+    "理气止痛",
+    "清热凉血",
+    "散风热"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 154735,
+     "text": "【功效】 逐水消肿，通利二便；外用解毒散结。"
+    }
+   ],
+   "trigger": "验收集 M（RobustSDT-single_0550）商陆标「清热凉血」，评审判功效写错。"
+  },
+  "鹿角胶": {
+   "aliases": [
+    "鹿胶珠"
+   ],
+   "unsupported": [
+    "补中益气",
+    "安胎"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158540,
+     "text": "2.鹿角胶　 本品为鹿角经水煎煮、浓缩制成的固体胶。"
+    }
+   ],
+   "trigger": "知识库功用文本是「补中益气，益精养血，温补肝肾，补益精血，安胎」；重放 X-C-0335 药味表落成「补中益气，益精养血，温补肝肾」。"
+  },
+  "鹿角": {
+   "aliases": [],
+   "unsupported": [
+    "补肾益气"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158539,
+     "text": "1.鹿角　 本品为鹿科动物马鹿Cervus elaphus Linnaeus或梅花鹿Cervus nippon Temminck已骨化的角或锯茸后翌年春季脱落的角基，分别习称“马鹿角”“梅花鹿角”“鹿角脱盘”。性味咸、温；归肾、肝经。功能温肾阳，强筋骨，行血消肿。适用于肾阳不足，阳痿遗精，腰脊冷痛，阴疽疮疡，乳痈初起，瘀血肿痛。煎服，6～15g。阴虚火旺者忌服。"
+    }
+   ],
+   "trigger": "知识库功用文本「…补肾益气…」，《中药学》附药鹿角为温肾阳、强筋骨、行血消肿。"
+  },
+  "鹿角霜": {
+   "aliases": [],
+   "unsupported": [
+    "补肾益气"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158541,
+     "text": "3.鹿角霜 　本品为鹿角去胶质的角块。味咸、涩，性温；归肝、肾经。功能温肾助阳，收敛止血。适用于脾肾阳虚，白带过多，遗尿尿频，崩漏下血，疮疡不敛。煎服，9～15g，先煎。阴虚火旺者忌服。"
+    }
+   ],
+   "trigger": "同鹿角：鹿角霜为温肾助阳、收敛止血，不益气。"
+  },
+  "鹿茸": {
+   "aliases": [],
+   "unsupported": [
+    "补气血",
+    "益气"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158527,
+     "text": "【功效】 补肾壮阳，益精血，强筋骨，调冲任，托疮毒。"
+    }
+   ],
+   "trigger": "知识库功用文本「补气血，益气，益精髓…」；鹿茸为补肾壮阳、益精血。"
+  },
+  "何首乌": {
+   "aliases": [
+    "首乌"
+   ],
+   "unsupported": [
+    "大补元气",
+    "益气力",
+    "补气"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158920,
+     "text": "【功效】 制何首乌：补肝肾，益精血，乌须发，强筋骨，化浊降脂。生何首乌：解毒，消痈，截疟，润肠通便。"
+    }
+   ],
+   "trigger": "知识库功用文本是「大补元气，益气力，养血，益血，补气」；何首乌（制）为补肝肾、益精血，不补气。"
+  },
+  "白茅根": {
+   "aliases": [],
+   "unsupported": [
+    "补中益气",
+    "清热生津"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 156548,
+     "text": "【功效】 凉血止血，清热利尿。"
+    }
+   ],
+   "trigger": "知识库功用文本含《本经》的「补中益气」与「清热生津」，现行教材为凉血止血、清热利尿。"
+  },
+  "百合": {
+   "aliases": [],
+   "unsupported": [
+    "补中益气"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158979,
+     "text": "【功效】 养阴润肺，清心安神。"
+    }
+   ],
+   "trigger": "同益智「益气」：古籍条目「补中益气」，现行教材不给。"
+  },
+  "天冬": {
+   "aliases": [
+    "天门冬"
+   ],
+   "unsupported": [
+    "益气力"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 159005,
+     "text": "【功效】 养阴润燥，清肺生津。"
+    }
+   ],
+   "trigger": "古籍条目「益气力」，现行教材不给。"
+  },
+  "石斛": {
+   "aliases": [],
+   "unsupported": [
+    "益气"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 159020,
+     "text": "【功效】 益胃生津，滋阴清热。"
+    }
+   ],
+   "trigger": "古籍条目「益气」，现行教材不给。"
+  },
+  "肉苁蓉": {
+   "aliases": [],
+   "unsupported": [
+    "补中"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158647,
+     "text": "【功效】 补肾阳，益精血，润肠通便。"
+    }
+   ],
+   "trigger": "古籍条目「补中」，现行教材不给。"
+  },
+  "巴戟天": {
+   "aliases": [],
+   "unsupported": [
+    "益气"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158576,
+     "text": "【功效】 补肾阳，强筋骨，祛风湿。"
+    }
+   ],
+   "trigger": "古籍条目「益气」，现行教材不给。"
+  },
+  "淫羊藿": {
+   "aliases": [],
+   "unsupported": [
+    "益气力"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158563,
+     "text": "【功效】 补肾壮阳，强筋骨，祛风湿。"
+    }
+   ],
+   "trigger": "古籍条目「益气力」，现行教材不给。"
+  },
+  "高良姜": {
+   "aliases": [],
+   "unsupported": [
+    "镇咳祛痰",
+    "活血调经",
+    "祛风止痛"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 155898,
+     "text": "【功效】 温中止呕，散寒止痛。"
+    }
+   ],
+   "trigger": "知识库功用文本含「镇咳祛痰，活血调经，祛风止痛」，高良姜为温中止呕、散寒止痛。"
+  },
+  "银柴胡": {
+   "aliases": [],
+   "unsupported": [
+    "清热利湿",
+    "解毒消肿",
+    "理气止痛",
+    "散风热"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 154543,
+     "text": "【功效】 清虚热，除疳热。"
+    }
+   ],
+   "trigger": "知识库功用文本含「清热利湿，解毒消肿，理气止痛，散风热」，银柴胡为清虚热、除疳热。"
+  },
+  "茜草": {
+   "aliases": [
+    "茜草炭"
+   ],
+   "unsupported": [
+    "祛风利湿"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 156609,
+     "text": "【功效】 凉血，祛瘀，止血，通经。"
+    }
+   ],
+   "trigger": "知识库功用文本含「祛风利湿」。"
+  },
+  "侧柏叶": {
+   "aliases": [
+    "侧柏炭"
+   ],
+   "unsupported": [
+    "泻心",
+    "行气",
+    "散血",
+    "散瘀"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 156535,
+     "text": "【功效】 凉血止血，化痰止咳，生发乌发。"
+    }
+   ],
+   "trigger": "知识库功用文本是「凉血止血，泻心，行气，散血，散瘀」。"
+  },
+  "皂角刺": {
+   "aliases": [
+    "皂刺",
+    "皂角针"
+   ],
+   "unsupported": [
+    "祛痰开窍",
+    "化痰",
+    "活血祛瘀"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 157330,
+     "text": "附药：皂角刺"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 157331,
+     "text": "本品为豆科植物皂荚Gleditsia sinensis Lam.的干燥棘刺，又名皂角针。性味辛、温；归肝、胃经。功能消肿托毒，排脓，杀虫。适用于痈疽初起或脓成不溃，外治疥癣麻风。煎服3～10克。外用适量，醋蒸取汁涂患处。"
+    }
+   ],
+   "trigger": "知识库功用文本是「祛痰开窍，化痰，活血祛瘀，消肿，排脓」，前三条是皂荚的功效；皂角刺为消肿托毒、排脓、杀虫。"
+  },
+  "白前": {
+   "aliases": [],
+   "unsupported": [
+    "散瘀止痛"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 157352,
+     "text": "【功效】 降气，祛痰，止咳。"
+    }
+   ],
+   "trigger": "知识库功用文本含「散瘀止痛」。"
+  },
+  "决明子": {
+   "aliases": [
+    "炒决明子"
+   ],
+   "unsupported": [
+    "清热凉血",
+    "利水通便",
+    "健脾利湿"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 153737,
+     "text": "【功效】 清肝明目，润肠通便。"
+    }
+   ],
+   "trigger": "知识库功用文本是「清热凉血，利水通便，清肝明目，润肠通便，健脾利湿」。"
   }
  }
 }

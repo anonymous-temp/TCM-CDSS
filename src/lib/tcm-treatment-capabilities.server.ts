@@ -21,8 +21,8 @@ import {
 } from "./tcm-treatment-projects";
 import { affirmedClinicalText } from "./clinical-polarity";
 import { assessPregnancyState } from "./clinical-state";
-import { pregnancyScreenRequired, reproductiveAdviceRelevant } from "./diagnosis-safety";
-import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
+import { narrativePediatricAgeConflict, pregnancyScreenRequired, reproductiveAdviceRelevant } from "./diagnosis-safety";
+import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
 type DeliveryMode = "onsite" | "referral";
@@ -184,12 +184,23 @@ function resolveTreatmentIndication(
  * 适应证标签的症状域显示名——显示名覆盖面窄于标签本身的匹配面，
  * 于是"产后"匹配上 gynecology 之后被显示成"经带与下腹症状"，写出了病历里没有的症状。
  */
-function indicationEvidenceTerms(tag: TcmTreatmentIndicationTag, caseFacts: string): string[] {
+export function indicationEvidenceTerms(tag: TcmTreatmentIndicationTag, caseFacts: string): string[] {
   const pattern = INDICATION_PATTERNS.find(([candidate]) => candidate === tag)?.[1];
   if (!pattern || !caseFacts) return [];
   const scan = new RegExp(pattern.source, `${pattern.flags.replace(/g/g, "")}g`);
-  return [...new Set([...caseFacts.matchAll(scan)].map((match) => match[0]).filter(Boolean))].slice(0, 3);
+  // 只是部位的词（颈部、关节）要和不适写在同一小句里才算本例的表现（2026-10-19，验收集 M-TCM-SD-433630/439348：
+  // 查体模板「颈部对称，无青筋暴露」「右膝及踝关节X线示…」被写成「针对本例颈部」「针对本例关节、颈部」）。
+  const clauses = caseFacts.split(/[，,。；;\n]/);
+  const bodyPartOnly = (term: string) => BODY_PART_ONLY_TERMS.test(term);
+  const complained = (term: string) => clauses.some((clause) => clause.includes(term) && BODY_COMPLAINT_WORDS.test(clause.replace(term, "")));
+  return [...new Set([...caseFacts.matchAll(scan)].map((match) => match[0]).filter(Boolean))]
+    .filter((term) => !bodyPartOnly(term) || complained(term))
+    .slice(0, 3);
 }
+/** 适应证词里只是部位、本身不说不适的词（闭集，取自 INDICATION_PATTERNS 的骨骼肌肉项）。 */
+const BODY_PART_ONLY_TERMS = /^(?:颈肩|颈项|颈部|颈椎|颈肌|脖子|关节|骨关节|肌筋膜|经筋|筋骨)$/;
+/** 部位所在小句里说不适的字（痛、酸、麻、僵、肿、活动受限、屈伸不利…）。 */
+const BODY_COMPLAINT_WORDS = /痛|酸|麻|僵|肿|胀|受限|不利|屈伸|无力|活动障碍|弹响|畸形/;
 
 /**
  * 选穴用的本例主症词。只取**已签名结论与病历原文**里出现的症状级词，不引入任何新断言：
@@ -450,7 +461,18 @@ function controlledTreatmentPlan(
       ...indicationEvidenceTerms(governedTemplate.indicationTag, caseFacts),
       ...governedTemplate.matchAny.filter((term) => clinicalText.normalize("NFKC").includes(term)),
     ];
-    const templateOffDisease = chiefComplaint.length > 0 && templateMatchedOn.length > 0 &&
+    // 教材有本病自己的针刺节时，没按证型加减、匹配词又与病名无关的目录模板一律算对的是伴随症状（2026-10-19，r1019 验收集）：
+    // 主诉常把伴随症状一并写进去（「产后小便不畅…小腹胀急」「瘿病…失眠烦躁」），上面「命中词不在主诉里」那一条因此拦不住，
+    // 癃闭、瘿病、颤证拿到的都是腹胀、失眠模板，耳穴卡拿到头痛模板。教材没有本病节时仍按主诉判（胃痞配腹胀模板照旧）。
+    const diseaseHasTextbookSection = Boolean(textbookContext &&
+      textbookPlanExistsForDisease("acupuncture", textbookContext.diseaseNames[0], textbookContext.westernNames[0]));
+    // 「与病名相合」看本例中医病名、西医病名和对上的教材节名与又名（头风病之于头痛模板、时行感冒/流行性感冒之于流感模板都算本病）。
+    const diseaseNameForms = diseaseHasTextbookSection && textbookContext
+      ? [...textbookContext.diseaseNames, ...textbookContext.westernNames, ...textbookSectionNames(textbookContext.diseaseNames, textbookContext.westernNames)]
+      : [];
+    const templateNamesDisease = governedTemplate.matchAny.some((term) => diseaseNameForms.some((name) => name && (name.includes(term) || term.includes(name))));
+    const templateOffDisease = (diseaseHasTextbookSection && !syndromeTailored && templateMatchedOn.length > 0 && !templateNamesDisease) ||
+      chiefComplaint.length > 0 && templateMatchedOn.length > 0 &&
       !templateMatchedOn.some((term) => chiefComplaint.includes(term)) &&
       !governedTemplate.matchAny.some((term) => (textbookContext?.diseaseNames || []).some((name) => name.includes(term) || term.includes(name)));
     // 对的是别的病的模板，按证型加减过也不用（2026-10-14 独立评审：遗尿·肺脾气虚的患儿，因证名与「感染后呼吸康复」模板的匹配词
@@ -704,6 +726,10 @@ function treatmentCurrentFacts(caseState?: Partial<TreatmentCaseContext>): strin
 }
 
 function treatmentPatientAgeYears(caseState?: Partial<TreatmentCaseContext>): number | undefined {
+  // 病历写明患儿年龄、登记年龄却是成人时，按病历的儿童年龄出卡（与剂量层同一判据 narrativePediatricAgeConflict，2026-10-18 起剂量层已按它
+  // 先核实年龄；治疗卡此前仍按登记的成人年龄出，婴儿拿到成人的艾灸与针刺写法）。
+  const narrativeChildAge = caseState?.patient ? narrativePediatricAgeConflict(caseState as CaseState) : undefined;
+  if (narrativeChildAge != null) return narrativeChildAge;
   const raw = caseState?.patient?.age ?? caseState?.hisRecord?.fields?.age;
   if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0 && raw <= 130) return raw;
   if (typeof raw !== "string") return undefined;
@@ -745,6 +771,28 @@ function treatmentPregnancyStatus(caseState: Partial<TreatmentCaseContext> | und
   return raw === "positive" || raw === "possible" ? raw : assessPregnancyState(facts).status;
 }
 
+/**
+ * 热象的写法（2026-10-19，r1019 验收集：苔薄黄、苔微黄、舌尖微红、心口烦热、烘热、胸腔灼热都没被认作热象，
+ * 居家保健照样给艾灸，郁证卡照样给直接灸）。闭集：舌、苔颜色的修饰写法（「舌淡红」是正常舌色，不算），
+ * 自觉发热的说法，以及辨证结论里的郁热、化热、某脏热、某脏火。依据《刺法灸法学》灸法禁忌「阴虚阳亢、邪热内炽者慎用」。
+ */
+const MOXIBUSTION_HEAT_SIGNS = /舌(?:尖|边|边尖|质)?(?:微|偏|稍|略)?红(?!润)|苔(?:薄|微|稍|略)?黄|烦热|烘热|潮热|手足心热|灼热|郁热|化热|内热|里热|[胃肝心肺]热|[心肝胃]火/;
+/**
+ * 出血倾向（2026-10-19，验收集 M-TCMChat-test-418 血小板 28×10⁹/L、M-TCM-RobustSDT-single_0516 原发免疫性血小板减少症）：
+ * 居家保健照样给按揉、艾灸，同一段话里却写着「有出血倾向的血液病患者不宜自行按揉」「有出血倾向者不宜艾灸」。
+ * 判据：血小板减少的写法、紫癜、血友病、凝血功能障碍、出血倾向，或血小板计数低于 50×10⁹/L（只读本例肯定句）。
+ */
+const BLEEDING_TENDENCY_TERMS = /血小板[^。；，,]{0,4}(?:减少|降低|下降|低下)|血小板减少|紫癜|血友病|凝血(?:功能|机制)(?:障碍|异常)|出血倾向|弥散性血管内凝血/;
+const PLATELET_COUNT = /(?:血小板(?:计数)?|PLT)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(?:[×*xX]\s*)?10/i;
+export function bleedingTendencyRecorded(affirmedFacts: string): boolean {
+  if (BLEEDING_TENDENCY_TERMS.test(affirmedFacts)) return true;
+  const count = Number(affirmedFacts.match(PLATELET_COUNT)?.[1] ?? NaN);
+  return Number.isFinite(count) && count < 50;
+}
+const BLEEDING_EXCLUDED_PROJECTS = new Set<TcmTreatmentProjectCode>([
+  "tuina", "moxibustion", "cupping", "guasha", "bloodletting", "needle_knife", "fire_cautery", "hook_cutting", "thread_embedding",
+]);
+
 export function tcmTreatmentProjectExclusionReason(
   projectCode: TcmTreatmentProjectCode,
   prior: ClinicalReasoningResultV2,
@@ -783,7 +831,7 @@ export function tcmTreatmentProjectExclusionReason(
   }
   if (
     projectCode === "moxibustion" &&
-    /热证|实热|湿热|痰热|血热|虚热|阴虚火旺|火热|火旺|舌红|苔黄|发热/.test(facts) &&
+    (/热证|实热|湿热|痰热|血热|虚热|阴虚火旺|火热|火旺|舌红|苔黄|发热/.test(facts) || MOXIBUSTION_HEAT_SIGNS.test(facts)) &&
     !/寒热错杂|上热下寒/.test(facts)
   ) {
     return "当前热象或热证方向与灸法温热属性冲突，不推荐进入候选项目";
@@ -811,6 +859,10 @@ export function tcmTreatmentProjectExclusionReason(
   // 取 positive 与 possible 两档：可疑妊娠同样不能扎。既往妊娠（historical）不拦。
   // 系统不建模具体穴位与部位，因此对侵入性/热疗/腹腰骶相关项目一律转人工按禁忌穴位评估——
   // 这是 fail-closed：宁可让医师多确认一次，不可默认放行。
+  if (BLEEDING_EXCLUDED_PROJECTS.has(projectCode) && bleedingTendencyRecorded(caseFacts)) {
+    return "出血倾向或血小板明显减少：不推荐按揉、灸、罐、刮痧及侵入性外治项目";
+  }
+
   const pregnancyStatus = treatmentPregnancyStatus(caseState, facts);
   if (pregnancyStatus === "positive" || pregnancyStatus === "possible") {
     if (new Set<TcmTreatmentProjectCode>([
@@ -1189,9 +1241,12 @@ export function compileTcmTreatmentRecommendations(
       // 小儿针刺的通行要求（《针灸学》刺法注意事项：小儿不能配合，不宜留针；囟门未闭者头顶部腧穴不宜针刺）。
       // 取穴方案出自成人教材，写法是「毫针常规刺，留针」——2026-10-13 独立评审：2 岁、7 岁、11 岁病例照搬成人写法。
       // 小儿、老年与妊娠未写明的人群提示：所有项目卡同一处（populationCardNote）。此前只有针刺卡有小儿、老年两句。
-      ...(typeof treatmentPlan.techniqueBoundary === "string" && populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) : false, treatmentPlan.suggestedSitesOrPoints)
-        ? { techniqueBoundary: `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) : false, treatmentPlan.suggestedSitesOrPoints)}${treatmentPlan.techniqueBoundary}` }
-        : {}),
+      ...(() => {
+        const note = `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) : false, treatmentPlan.suggestedSitesOrPoints)}${localSiteCardNote(definition.code, currentFacts, [prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""])}`;
+        return typeof treatmentPlan.techniqueBoundary === "string" && note
+          ? { techniqueBoundary: `${note}${treatmentPlan.techniqueBoundary}` }
+          : {};
+      })(),
       operatorRequirement: definition.operatorRequirement,
       requiredChecks: [
         cardTextForPopulation(definition.safetyFocus, reproductiveRelevant),
@@ -1226,15 +1281,30 @@ export function compileTcmTreatmentRecommendations(
     governed_class_template_not_syndrome_tailored: 1,
   };
   const maturityOf = (status: unknown) => PROTOCOL_MATURITY[String(status || "")] ?? 2;
+  // 交付面会去掉的卡（仅评估、无穴的类目模板、只有一段治则的模板）不先占名额（2026-10-19：此前推拿「治则：…」卡占了第三个名额、
+  // 交付时又被去掉，腰痛病例的教材耳穴卡因此消失；郁证病例的灸法卡也是这样「意外」出不来）。判据见 treatmentCardUndeliverable。
   const selected = new Set(
     compiled
       .map((item, index) => ({ item, index }))
       .sort((left, right) =>
+        Number(treatmentCardUndeliverable(left.item)) - Number(treatmentCardUndeliverable(right.item)) ||
         maturityOf(left.item.protocolStatus) - maturityOf(right.item.protocolStatus) || left.index - right.index)
       .slice(0, 3)
       .map((entry) => entry.index),
   );
   return compiled.filter((_, index) => selected.has(index));
+}
+
+/**
+ * 交付面（delivered-surface.ts）不下发的项目卡：仅评估态；食疗、导引、情志这类无穴项目只有类目模板而无内容；
+ * 病种模板的内容只是一段「治则：…」。出卡处排名额用同一判据（交付面那边是这三条的原样副本，2026-10-19 起应改为调用本函数）。
+ */
+export function treatmentCardUndeliverable(item: { projectCode?: unknown; protocolStatus?: unknown; tailoringStatus?: unknown; suggestedSitesOrPoints?: unknown; treatmentContent?: unknown }): boolean {
+  if (item.protocolStatus === "assessment_only_no_patient_specific_protocol" || item.tailoringStatus === "assessment_only") return true;
+  const points = Array.isArray(item.suggestedSitesOrPoints) ? item.suggestedSitesOrPoints.length : 0;
+  const pointFree = item.projectCode === "diet_therapy" || item.projectCode === "qigong_daoyin" || item.projectCode === "mind_therapy";
+  if (pointFree && points === 0 && item.tailoringStatus === "class_template_only") return true;
+  return item.tailoringStatus === "class_template_only" && /^治则[:：]/.test(String(item.treatmentContent || "").trim());
 }
 
 // 艾灸的烫伤风险另算：糖尿病与感觉减退者对热不敏感，体温升高时不宜温灸（《护理人员中医技术使用手册》悬灸禁忌）。
@@ -1255,10 +1325,16 @@ function homeAcupointCareForCase(
 ): string | null {
   if (!caseState) return null;
   const temperature = Number.parseFloat(String(caseState.vitals?.T ?? "").replace(/[^\d.]/g, ""));
+  const ageYears = treatmentPatientAgeYears(caseState);
+  // 0～36 月龄的居家按揉是《0～36个月儿童中医药健康管理服务技术规范》给健康儿童的保健（按月龄取迎香、足三里、四神聪…），
+  // 不是本次疾病的治疗：急性发热期不给（2026-10-19，验收集 H-tri-597：3 岁肺炎喘嗽高热，唯一的治疗内容是「按揉四神聪」）。
+  if (ageYears != null && ageYears <= 3 && ((Number.isFinite(temperature) && temperature >= 37.3) || /发热|高热|壮热|身热/.test(
+    // 手足心热、五心烦热这类局部或自觉的热不是发热（2026-10-19：3 岁厌食「手足心发热」被当作发热）。
+    treatmentCurrentFacts(caseState).replace(/(?:手足心|五心|手心|足心|心口|胸口|局部|关节)[^，,。；;]{0,2}热/g, "")))) return null;
   return compileHomeAcupointCare({
     prior,
     safetyGate: caseState.safetyGate,
-    ageYears: treatmentPatientAgeYears(caseState),
+    ageYears,
     acupressureExclusion: tcmTreatmentProjectExclusionReason("tuina", prior, caseState),
     moxibustionExclusion: tcmTreatmentProjectExclusionReason("moxibustion", prior, caseState),
     moxibustionBurnRisk: MOXIBUSTION_BURN_RISK.test(treatmentCaseFacts(caseState)) ||
@@ -1293,6 +1369,22 @@ const ELDERLY_CARD_NOTE: Partial<Record<string, string>> = {
   moxibustion: "老年人对热的感觉较迟钝，施灸时注意温度，防止烫伤。",
   guasha: "老年人刮痧手法宜轻、时间宜短，以皮肤微红为度。",
 };
+/**
+ * 病历写到局部皮肤破损、流脓或骨折时，针、灸、罐卡上写明避开这些部位（2026-10-19，验收集 H-tri-4189：颜面多处流脓结痂、
+ * 形成窦道的痤疮病例，针刺卡取阳白、四白而无一句提示；M-TCM-SD-439348：胫骨骨折伴小腿擦伤，局部阿是穴无提示）。
+ * 依据《刺法灸法学》针刺注意事项「皮肤有感染、溃疡、瘢痕或肿瘤的部位不宜针刺」与拔罐、施灸的同类禁忌。只读本例肯定句。
+ */
+const BROKEN_SKIN_RECORDED = /流脓|窦道|破溃|溃烂|擦伤|渗液|皮损破/;
+const LOCAL_SITE_NOTE_PROJECTS = new Set(["acupuncture", "moxibustion", "cupping", "guasha"]);
+export function localSiteCardNote(code: string, currentFacts: string, diagnosisNames: readonly string[] = []): string {
+  if (!LOCAL_SITE_NOTE_PROJECTS.has(code)) return "";
+  const notes: string[] = [];
+  if (BROKEN_SKIN_RECORDED.test(currentFacts)) notes.push("局部皮肤破损、流脓或擦伤处不施术，取穴避开皮损。");
+  // 骨折只认已签名的诊断名（「X线排除骨折」「2个月前颅骨骨折」不是本次的骨折部位）。
+  if (diagnosisNames.some((name) => /骨折/.test(name))) notes.push("骨折及其周围肿胀处不施术。");
+  return notes.join("");
+}
+
 export function populationCardNote(
   code: string,
   ageYears: number | undefined,

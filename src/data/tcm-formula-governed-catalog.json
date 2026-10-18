@@ -31,7 +31,7 @@
     },
     {
       "file": "tcm-herb-identity-catalog.json",
-      "sha256": "ca92d4750fb6f9d6f29aee215801b3cc3b3e34e9713585b3ef6cb4119ef47cc5"
+      "sha256": "45dbe038463adbeb5de73fd2ce266d75558be5d3d2e6ce7f02bb60af37550dbf"
     },
     {
       "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
@@ -111711,8 +111711,8 @@
         },
         {
           "rawName": "椒目",
-          "canonicalName": "花椒",
-          "linkageStatus": "unique_source_backed",
+          "canonicalName": "椒目",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -111766,7 +111766,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "椒目"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -180458,8 +180460,8 @@
         },
         {
           "rawName": "椒目",
-          "canonicalName": "花椒",
-          "linkageStatus": "unique_source_backed",
+          "canonicalName": "椒目",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -180610,6 +180612,7 @@
       ],
       "clinicianDoseIngredientNames": [
         "大豆",
+        "椒目",
         "泽漆叶",
         "猪肾",
         "葱叶",
@@ -223085,8 +223088,8 @@
         },
         {
           "rawName": "椒目",
-          "canonicalName": "花椒",
-          "linkageStatus": "unique_source_backed",
+          "canonicalName": "椒目",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -223145,7 +223148,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "椒目"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -315473,8 +315478,8 @@
         },
         {
           "rawName": "椒目",
-          "canonicalName": "花椒",
-          "linkageStatus": "unique_source_backed",
+          "canonicalName": "椒目",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -315525,7 +315530,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "椒目"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []

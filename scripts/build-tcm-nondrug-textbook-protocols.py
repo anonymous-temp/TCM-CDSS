@@ -16,7 +16,9 @@
 本脚本只做**整形**，不改写任何临床文字：药名、穴名、剂量、做法都是教材原句。
 用法：python3 scripts/build-tcm-nondrug-textbook-protocols.py [教材合集路径] [输出路径]
 """
+import importlib.util
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -78,6 +80,43 @@ EXTRA_ALIASES = {
     "膝骨关节炎": ["膝痹"],
 }
 
+# 只加在针刺（acupuncture）教材节上的等价病名（2026-10-19，r1019 验收集 H/M：病名对不上教材节时，卡片落到按伴随症状对上的
+# 院内目录模板——「产后小便不通」给腹胀取穴、「月经后期」给腹胀取穴、「经行风疹块」给便秘取穴）。每条都是教材该节自己写明的
+# 范围或分型，不是相近病：
+#   · 月经不调：《针灸治疗学》本节分「月经先期 / 月经后期 / 月经先后无定期」三套基本治疗（运行时按病名字面取对应一套）；
+#   · 隐疹：经行风疹块是月经期发作的瘾疹（《中医妇科学》经行风疹块：「每值临经时或经行期间，周身皮肤突起红疹…」）；
+#   · 疝气：本节证型即寒疝、湿热疝、狐疝，西医范围含睾丸鞘膜积液（水疝）；
+#   · 癃闭 / 尿失禁：本节定义不分是否产后（产后小便不通即产后癃闭，产后小便频数、失禁即产后尿失禁）；
+#   · 视神经萎缩：中医「青盲」；目赤肿痛：「风热赤眼」「暴风客热」（《中医眼科学》同病异名）；
+#   · 踝关节扭伤：西医写法「踝关节外侧韧带扭伤」；面瘫：西医写法「面神经麻痹」「周围性面瘫」「贝尔面瘫」；
+#   · 慢性前列腺炎 / 良性前列腺增生：中医「精浊」「精癃」；哮喘：「哮病」；淋证：「石淋」等五淋之一。
+# 只用于把本例病名对到针刺教材节，不改食疗、推拿的取节（那两类教材有各自的同名节）。
+EXTRA_ACUPUNCTURE_ALIASES = {
+    "月经不调": ["月经先期", "月经后期", "月经先后无定期"],
+    "隐疹": ["经行风疹块"],
+    "疝气": ["水疝", "狐疝", "寒疝"],
+    "癃闭": ["产后小便不通"],
+    "尿失禁": ["产后小便频数", "产后小便失禁", "小便失禁"],
+    "视神经萎缩": ["青盲"],
+    "目赤肿痛": ["风热赤眼", "暴风客热"],
+    "急性踝关节扭伤": ["踝关节扭伤", "踝关节外侧韧带扭伤"],
+    "踝关节扭伤": ["踝关节外侧韧带扭伤"],
+    "面瘫": ["面神经麻痹", "周围性面瘫", "周围性面神经麻痹", "贝尔面瘫"],
+    "慢性前列腺炎": ["精浊"],
+    "良性前列腺增生": ["精癃"],
+    "哮喘": ["哮病"],
+    "淋证": ["石淋", "热淋", "血淋", "膏淋", "劳淋"],
+}
+
+# 扫描件识读错字（只改配穴里的穴名，逐条带书名、行号与核对依据；生成物里不写错字，教材原文件不改）。
+# 《针灸治疗学》遗尿第 11191 行「肺脾气虚配肝腧→脾俞」：
+#   · 同书尿失禁节第 10429 行「脾肺气虚配肺俞→脾俞」；《针灸学》遗尿节第 116178 行「脾肺气虚配肺俞、气海、足三里」；
+#   · 「腧」字在本书配穴行里只此一处，其余一律作「俞」；肝俞补肝，与肺脾气虚无涉，肺俞、脾俞为本证两脏的背俞穴；
+#   · 执业医师题同题干（睡中遗尿、少气懒言、便溏、自汗）的配穴选项为「气海、肺俞、足三里」。
+OCR_POINT_FIXES = [
+    {"book": "zhenjiu_zhiliao", "disease": "遗尿", "syndrome": "肺脾气虚", "wrong": "肝俞", "right": "肺俞", "line": 11191},
+]
+
 # 《刺法灸法学》总论里的通用时长（运行时只在该病证节没写频次时作缺省，并标明出处）。
 MODALITY_DEFAULT_PATTERNS = {
     "acupuncture": "一般病症只要针下得气而施以适当的补泻手法后，即可出针或留针10～30分钟",
@@ -96,6 +135,45 @@ def first_sentence_containing(lines, needle, lo, hi):
     return None
 
 
+def _extractor_module():
+    spec = importlib.util.spec_from_file_location("textbook_nondrug_extract", EXTRACTOR)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _core(label: str) -> str:
+    return re.sub(r"(?:证候|证型|证|型)$", "", label.replace(" ", ""))
+
+
+def syndrome_add_points_by_label(entry) -> dict:
+    """配穴行的证型条件 → 辨证要点里的证型名。
+
+    此前按条件原文与证型名逐字相等归并，写法稍有不同的整条丢失（2026-10-19 统计 25 节 76 条）：
+    「肺热津伤」对「肺热伤津」、「实热证」对「实热」、「热秘」对辨证要点的「热邪壅盛（热秘）」、「血热、血瘀」一条写两个证型。
+    归并顺序：逐字相等 → 括注又名相等 → 去掉末尾「证/型」后相等 → 抽取器的 label_match。都对不上的保留原条件名，作为只在配穴行出现的证型。
+    """
+    extractor = _extractor_module()
+    syndromes = entry.get("syndromes", [])
+    labels = [syndrome["label"] for syndrome in syndromes]
+    by_label = {}
+
+    def add(label, points):
+        bucket = by_label.setdefault(label, [])
+        bucket.extend(point for point in points if point not in bucket)
+
+    for item in entry.get("syndromeAddPoints", []):
+        condition = item["syndrome"]
+        parts = [part for part in re.split(r"[、，,]", condition) if part] if "、" in condition else [condition]
+        for part in parts:
+            target = next((s["label"] for s in syndromes if s["label"] == part), None) \
+                or next((s["label"] for s in syndromes if s.get("alias") == part), None) \
+                or next((s["label"] for s in syndromes if _core(s["label"]) == _core(part)), None) \
+                or next((label for label in labels if extractor.label_match(part, [label])), None)
+            add(target or part, item["points"])
+    return by_label
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         extracted_path = Path(tmp) / "nondrug.json"
@@ -112,9 +190,13 @@ def main() -> None:
 
     acupuncture = []
     for entry in data["acupuncture"]:
-        add_by_label = {}
-        for item in entry.get("syndromeAddPoints", []):
-            add_by_label.setdefault(item["syndrome"], []).extend(p for p in item["points"] if p not in add_by_label.get(item["syndrome"], []))
+        for fix in OCR_POINT_FIXES:
+            if fix["book"] != entry["sourceBook"] or fix["disease"] != entry["disease"]:
+                continue
+            for item in entry.get("syndromeAddPoints", []):
+                if item["syndrome"] == fix["syndrome"] and fix["wrong"] in item["points"]:
+                    item["points"] = [fix["right"] if point == fix["wrong"] else point for point in item["points"]]
+        add_by_label = syndrome_add_points_by_label(entry)
         projects = {}
         for other in entry.get("otherTreatments", []):
             code = METHOD_PROJECT.get(other.get("method", ""))
@@ -130,7 +212,7 @@ def main() -> None:
             })
         acupuncture.append({
             "disease": entry["disease"],
-            "aliases": sorted(set(entry.get("aliases", []) + EXTRA_ALIASES.get(entry["disease"], []))),
+            "aliases": sorted(set(entry.get("aliases", []) + EXTRA_ALIASES.get(entry["disease"], []) + EXTRA_ACUPUNCTURE_ALIASES.get(entry["disease"], []))),
             "westernScope": entry.get("westernScope", ""),
             "book": entry["sourceBook"],
             "line": entry["line"],
@@ -138,10 +220,18 @@ def main() -> None:
             "mainPoints": entry.get("mainPoints", []),
             "syndromes": [{
                 "label": syndrome["label"],
+                **({"alias": syndrome["alias"]} if syndrome.get("alias") else {}),
                 "keySymptoms": syndrome.get("keySymptoms", ""),
                 "addPoints": add_by_label.get(syndrome["label"], []),
                 "line": syndrome.get("line"),
-            } for syndrome in entry.get("syndromes", [])],
+            } for syndrome in entry.get("syndromes", [])] + [{
+                # 配穴行写了、辨证要点里没有对应条目的证型（《针灸学》高血压、肿瘤等节只在配穴行里分证）：照配穴行原文给出，
+                # 没有辨证要点可核，运行时只按证名相符取用。
+                "label": label,
+                "keySymptoms": "",
+                "addPoints": points,
+                "line": None,
+            } for label, points in add_by_label.items() if label not in {syndrome["label"] for syndrome in entry.get("syndromes", [])}],
             "symptomAddPoints": [{"symptom": item["symptom"], "points": item["points"]} for item in entry.get("symptomAddPoints", [])],
             "operation": entry.get("operation", ""),
             # 教材把基本治疗分成几套写的病（眩晕分「实证 / 虚证」，中风分「中经络 / 中脏腑」…）：每套的治法、主穴、操作各自保留，

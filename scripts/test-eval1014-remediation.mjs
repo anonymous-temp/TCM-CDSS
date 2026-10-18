@@ -424,7 +424,8 @@ const checkAsync = async (name, run) => {
   });
   check("4.2 眩晕·肝阳上亢（实证）取实证那一套；虚实夹杂的证名不取舍（对照）", () => {
     const excess = acupuncture(dizzy("肝阳上亢证", "平肝潜阳", "肝阳上亢，上扰清窍"), caseOf("头晕头胀1周", "头晕头胀，面红目赤，急躁易怒，口苦", 50));
-    assert.match(excess.treatmentContent, /^治法：平肝潜阳，和胃化痰/);
+    // 2026-10-19 起分套治法只留与本例证候相符的小句：纯肝阳上亢不印痰湿那一半的「和胃化痰」（实证那一套照取，见下一行的穴位）。
+    assert.match(excess.treatmentContent, /^治法：平肝潜阳(?!，和胃化痰)/);
     assert.ok(pointNames(excess).includes("太冲") && !pointNames(excess).includes("肾俞"), pointNames(excess).join("、"));
     const mixed = acupuncture(dizzy("气虚血瘀证", "益气活血", "气虚血瘀，清窍失养"), caseOf("头晕反复2年", dizzyFacts, 50));
     assert.match(mixed.treatmentContent, /实证：[\s\S]*虚证：/, "判不出虚实时沿用教材两套并列的写法");
@@ -1280,7 +1281,12 @@ const checkAsync = async (name, run) => {
   const { selfTakenMedicationMentions } = await jiti.import("../src/lib/clinical-polarity.ts");
   const { recentChildbirthMentioned } = await jiti.import("../src/lib/clinical-state.ts");
   const { catalogSharedComposition } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
-  const { requiredPrecautionsForCase, requiredPrecautionsPromptSection } = await jiti.import("../src/lib/required-precautions.server.ts");
+  const precautionModule = await jiti.import("../src/lib/required-precautions.server.ts");
+  const { requiredPrecautionsPromptSection } = precautionModule;
+  // 2026-10-19 起另有两类通用项（服法与忌口、育龄女性妊娠哺乳状态未记录），见 test-r1019-remediation 6.x。
+  // 本节断言的是 10/17 这几类专项「哪些情况出、哪些不出」，比对时把通用项滤掉。
+  const GENERAL_PRECAUTION_KINDS = new Set(["administration_and_diet", "reproductive_status_unknown"]);
+  const requiredPrecautionsForCase = (...args) => precautionModule.requiredPrecautionsForCase(...args).filter((item) => !GENERAL_PRECAUTION_KINDS.has(item.kind));
   const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
   const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
   const stateOf = (presentHistory, extra = {}) => normalizeCaseStateInput({
@@ -1900,11 +1906,15 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
   const record = "主诉：腹痛腹泻间作两年，又作七天\n现病史：入院时患者：腹痛偶作，无肩背部放射痛，腹泻，大便日行1-2次，色黄欠成形，无粘液脓血，反酸偶作，无明显嗳气及胸骨后烧灼感，无头晕，无畏寒发热，无胸闷气喘，食纳欠佳，夜寐安，小便尚调。\n体格检查：颈部对称，无青筋暴露，无瘿瘤瘰疬，胸部对称，腹部平坦，无癥瘕痞块，舌淡苔白，脉细。";
   const chain = (nodes) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", pathogenesis: { chain: nodes.map(([patientFact, syndromeEvidence]) => ({ patientFact, syndromeEvidence, pathogenesis: "脾虚湿盛", therapyDirection: "健脾化湿" })) } })}\n<!-- DIAGNOSIS_JSON_END -->`;
   const kept = (content) => JSON.parse(visible.groundStructuredPatientFacts(content, record).split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).pathogenesis.chain.length;
-  check("16.5 逐项写否认的句子里，否认不跨逗号继承：「无牵扯痛，反酸偶作，无头晕…食纳欠佳」里没写「无」的是阳性，引这些原文的病机链节点照常接地（M-TCM-SD-422604 整条链被丢、M03 退回占位；语料 52,207 句 1,062 句改判、读过的全部是阳性被误读成「无…」：舌脉、纳眠、乏力、口干口苦…）；只有一个否认词的句子、顿号列举照旧继承（对照）", () => {
+  check("16.5 逐项写否认的句子里，否认不跨逗号继承：「无牵扯痛，反酸偶作，无头晕…食纳欠佳」里没写「无」的是阳性，引这些原文的病机链节点照常接地（M-TCM-SD-422604 整条链被丢、M03 退回占位；语料 52,207 句 1,062 句改判、读过的全部是阳性被误读成「无…」：舌脉、纳眠、乏力、口干口苦…）；只写一个否认词的句子同样不跨逗号（10/19，M-MTCMB-20），顿号列举照旧继承（对照）", () => {
     assert.equal(kept(chain([["反酸偶作", "食纳欠佳"], ["食纳欠佳", "舌淡苔白，脉细"]])), 2);
-    const single = "主诉：咳嗽\n现病史：否认高血压，糖尿病病史。";
-    const singleKept = JSON.parse(visible.groundStructuredPatientFacts(chain([["糖尿病病史", "咳嗽"]]), single).split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).pathogenesis.chain.length;
-    assert.equal(singleKept, 0, "只有一个否认词时，逗号后的「糖尿病病史」仍按否认处理");
+    // 2026-10-19 起只写一个否认词的句子同样不跨逗号继承（验收集 M-MTCMB-20「无胸闷、心慌，偶咳嗽，腰痛、腿疼…」整条链被丢）；
+    // 「否认高血压，糖尿病病史」这种跨逗号写法也不再例外——回放里保留它会把「否认输血史，既往青霉素过敏史」读成否认过敏。
+    const single = "主诉：头晕\n现病史：发作性头晕，头痛，偶胸痛，无胸闷、心慌，偶咳嗽，腰痛、腿疼，纳可。";
+    const singleKept = JSON.parse(visible.groundStructuredPatientFacts(chain([["腰痛、腿疼", "发作性头晕"]]), single).split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).pathogenesis.chain.length;
+    assert.equal(singleKept, 1, "只有一个否认词时，逗号后的「腰痛、腿疼」是阳性");
+    const singleNegated = JSON.parse(visible.groundStructuredPatientFacts(chain([["心慌", "发作性头晕"]]), single).split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).pathogenesis.chain.length;
+    assert.equal(singleNegated, 0, "同一逗号小句里顿号列举的「心慌」仍是否认");
     const enumerated = "主诉：胃痛\n现病史：胃痛3天，无恶心、呕吐，无发热。";
     const enumeratedKept = JSON.parse(visible.groundStructuredPatientFacts(chain([["呕吐", "胃痛3天"]]), enumerated).split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).pathogenesis.chain.length;
     assert.equal(enumeratedKept, 0, "顿号列举「无恶心、呕吐」里的呕吐仍是否认");

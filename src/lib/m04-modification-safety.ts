@@ -2,6 +2,7 @@ import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04HerbOppo
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
+import { formulaAnalysisAfterHerbRemoval } from "./formula-analysis-review";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -281,6 +282,14 @@ export function dropUnsupportedM04CandidateHerbs(
     if (!baselineStillSatisfied) return content;
 
     candidate.herbs = retained;
+    // 方义随删掉的药一起改：按剩下的药味再审一遍，讲被删药味的分句随之删去（2026-10-19；X-G-1785 删了薤白、半夏、天南星、橘红，
+    // X-G-2919 删了皂角刺，方义却还在讲它们）。
+    if (typeof candidate.formulaAnalysis === "string") {
+      candidate.formulaAnalysis = formulaAnalysisAfterHerbRemoval(
+        candidate.formulaAnalysis,
+        retained.map((value) => recordValue(value)?.name).filter((name): name is string => typeof name === "string" && Boolean(name.trim())),
+      );
+    }
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {
     return content;

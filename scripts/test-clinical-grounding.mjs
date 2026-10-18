@@ -474,11 +474,15 @@ const severeHypertensionWithoutTargetOrganSymptoms = stateFromRecord("当前收�
   vitalsDetail: "当前收缩压190mmHg，舒张压122mmHg",
 });
 const severeHypertensionFlags = detectProgrammaticRedFlags(severeHypertensionWithoutTargetOrganSymptoms).join("\n");
-assert.match(severeHypertensionFlags, /血压 190\/122mmHg.*规范复测.*评估急性靶器官损害/);
-assert.doesNotMatch(severeHypertensionFlags, /已发生(?:卒中|心肌梗死|高血压脑病)|确诊.*靶器官损害/,
-  "重度血压必须进入安全路径，但无症状时不得臆造已经发生具体靶器官事件");
-assert.doesNotMatch(measuredVitalAdvisories(severeHypertensionWithoutTargetOrganSymptoms).join("\n"), /190\/122/,
-  "已进入确定性红旗的同一血压不得再重复成第二条普通 advisory");
+// 2026-10-19 用户决定（2017 ACC/AHA、ACEP）：无急性靶器官表现的重度高血压不是急症——不进红旗，改成一条醒目提示。
+assert.doesNotMatch(severeHypertensionFlags, /190\/122/, "无靶器官表现的重度高血压不得成为红旗");
+const severeHypertensionAdvisories = measuredVitalAdvisories(severeHypertensionWithoutTargetOrganSymptoms).join("\n");
+assert.match(severeHypertensionAdvisories, /【重度高血压】血压 190\/122mmHg.*今日规范复测.*调整降压治疗/);
+assert.doesNotMatch(severeHypertensionAdvisories, /已发生(?:卒中|心肌梗死|高血压脑病)|确诊.*靶器官损害/,
+  "无症状时不得臆造已经发生具体靶器官事件");
+assert.equal((severeHypertensionAdvisories.match(/190\/122/g) || []).length, 1, "同一血压只出一条提示");
+const severeHypertensionWithChestPain = stateFromRecord("当前收缩压190mmHg，舒张压122mmHg，伴胸痛。", { zhushu: "复诊", vitalsDetail: "当前收缩压190mmHg，舒张压122mmHg" });
+assert.match(detectProgrammaticRedFlags(severeHypertensionWithChestPain).join("\n"), /血压 190\/122mmHg.*伴胸痛或胸闷.*急性靶器官损害/);
 assert.match(detectProgrammaticRedFlags(stateFromRecord("指脉氧89%。", {
   zhushu: "复诊",
   vitalsDetail: "指脉氧89%",

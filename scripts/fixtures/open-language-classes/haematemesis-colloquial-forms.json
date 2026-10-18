@@ -1,0 +1,96 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "haematemesis-colloquial-forms",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "r1019 红旗验收追加（协调方 10/19）：现代医案 T16-MR-06603「反复呕红便血已有3个月」（血吸虫病肝硬化、食管胃底静脉曲张）只靠「便血」进了下消化道出血，「呕红」本身不认；同批语料还有「呕吐物含血块」「呕吐物中有鲜红血块」「呕吐鲜血」。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "呕血概念组（POSITIVE_FACT_EQUIVALENT_GROUPS）只收「呕血/吐血/呕出鲜血」几个完整词；以「呕吐物」为主语、或「呕红」「呕吐鲜血」这类写法全部失配，上消化道出血的复发、合并黑便便血、严重度伴随症三条判据都读不到。",
+  "exception": "冻结令允许的确定性例外：有限闭集（clinical-facts.ts 的 HAEMATEMESIS_COLLOQUIAL_FORMS，确定性层与事实层的显性/上消化道出血语言同源）。只收以「呕」或「呕吐物」开头的写法：单个「吐」既是呕也是咯、唾（「咳吐红痰」「吐出带血丝的唾液」「咯吐血块」），所以「吐红」「吐鲜血」「吐出血」不收。",
+  "sources": "语料：现代医案（灵丹 Medical Records 18k）、ChatMed/CMtMedQA/wudao 问诊语料里的呕血写法统计（~/runlogs/r1018/work/r1019/agentB/r2）；NICE CG141 急性上消化道出血。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：口语写法与「呕血」门禁结果必须相同；兄弟句自身方向先钉住。set=heldOut 的配对是判据写定之后才写的说法。",
+  "pairs": [
+   {
+    "subject": "反复呕红便血已有3个月。",
+    "sibling": "反复呕血便血已有3个月。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "今晨呕红2次，头晕心慌。",
+    "sibling": "今晨呕血2次，头晕心慌。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "恶心呕吐，呕吐物含血块，伴头晕乏力。",
+    "sibling": "恶心呕吐，呕血，伴头晕乏力。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "饮酒后呕吐鲜血，量约200ml，面色苍白。",
+    "sibling": "饮酒后呕血，量约200ml，面色苍白。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "昨晚起呕出血块两次，黑便。",
+    "sibling": "昨晚起呕血两次，黑便。",
+    "siblingExpect": "flagged",
+    "set": "heldOut"
+   },
+   {
+    "subject": "呕吐物中有血，伴心慌出冷汗。",
+    "sibling": "呕血，伴心慌出冷汗。",
+    "siblingExpect": "flagged",
+    "set": "heldOut"
+   },
+   {
+    "subject": "呕吐物为血性，伴晕厥一次。",
+    "sibling": "呕血，伴晕厥一次。",
+    "siblingExpect": "flagged",
+    "set": "heldOut"
+   },
+   {
+    "subject": "胃溃疡病史，今晨呕吐鲜血约100ml，头晕。",
+    "sibling": "胃溃疡病史，今晨呕血约100ml，头晕。",
+    "siblingExpect": "flagged",
+    "set": "heldOut"
+   },
+   {
+    "subject": "呕吐物中带血丝2次，伴上腹痛，乏力。",
+    "sibling": "呕血2次，伴上腹痛，乏力。",
+    "siblingExpect": "flagged",
+    "set": "heldOut"
+   }
+  ]
+ },
+ "controls": {
+  "note": "必须照旧报警的写法与必须保持无红旗的写法（否认、咯吐、无血的呕吐物）。",
+  "mustStillFlag": [
+   {
+    "text": "反复呕红便血已有3个月，夜间睡眠不安。",
+    "flag": "消化道出血"
+   }
+  ],
+  "mustStayReady": [
+   "无呕红。",
+   "否认呕吐物带血。",
+   "咳嗽，咳吐红痰。",
+   "呕吐物无血，为胃内容物。",
+   "孕吐明显，呕吐物为胃内容物，无血。",
+   "否认呕血、呕吐鲜血。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-19",
+   "what": "现代医案语料（tcm-modern-case-exemplars + eval-corpus）+ 逐模块验收集 M/X/D/H/A/B + 10/13 合成与既往评测集，两种病历形状，改前（zz-safety-before-r2-agentb.ts，即 10/19 第一轮之后）对改后，~/runlogs/r1018/work/r1019/agentB/r2/replay.mjs；变化逐例读过（r2/removed.txt、added.txt）；口语写法统计：现代医案、ChatMed/CMtMedQA/wudao 问诊语料（r2 会话记录）",
+   "result": "语料里以「呕」开头的写法只在 T16-MR-06603 一份病历里改变门禁结果：「反复呕红便血已有3个月」由只有神经红旗（下肢抽搐）变为加上活动性消化道出血（上消化道出血的「反复」算活动性）。阴性净化器回放 291,278 条字符串 0 处变化。事实层：伴头晕乏力或 2 次以上时口语呕血与「呕血」同样升急诊。「咯吐血块」含「吐血」、早已进优先评估档，是既有行为，未改。"
+  }
+ ]
+}

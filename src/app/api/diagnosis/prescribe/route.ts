@@ -34,6 +34,7 @@ import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
 import { compactEvidenceContextForPrompt, m04EvidencePromptBudgetChars, m04ExternalEvidenceSoftDeadlineMs } from "@/lib/prompt-budget";
 import { declassifyAndDropOpposingM04CandidateHerbs } from "@/lib/m04-modification-safety";
+import { checkFormulaAnalysisClaimsInContent } from "@/lib/m04-formula-analysis-claim-check.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
 
 /** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
@@ -428,6 +429,8 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     onInitialM04Candidate: (candidate) => {
       void prefetchAssessFollowupFromDraftCandidate(parsed.caseState, candidate);
     },
+    // 方义药物功效核对（小模型报疑、确定性核实后只删那一小段；见 m04-formula-analysis-claim-check.server.ts）。签名与合同核对之前执行。
+    m04CandidateTransform: (content, transformSignal) => checkFormulaAnalysisClaimsInContent(content, transformSignal),
     prescribeSignatureContext: buildPrescribeContractSignatureContext({ ...gated, reasoningDiagnose: deliveredSignedPriorReasoning }),
     // 医生点「重新生成候选方药」时前端原样重发同一份 caseState 与同一份已签名 M03，
     // 服务端据此认出这是同一次尝试的第 N 轮（见 m04-retry-policy 的生产实证：不认它时，

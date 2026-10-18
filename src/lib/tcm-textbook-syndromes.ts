@@ -554,6 +554,59 @@ export function tongueOptionsMutuallyExclusive(a: string, b: string): boolean {
   return left.some((value, index) => value !== undefined && right[index] !== undefined && value !== right[index]);
 }
 
+/**
+ * 脉象选项的互斥判据（2026-10-19，r1019 验收集 B）；与上面的舌象判据并列，教材脉象题与 M02 舌脉拆题共用。
+ *
+ * 单选题的两个选项要能各自直接写进病历、且不能同时成立。舌象早有这条判据（
+ * tongueOptionsMutuallyExclusive：舌色、苔色、苔质三个维度上至少一处两边都写到且不同）；脉象一直只比「字面不同」，
+ * 于是教材脉象题出过「脉细数，指纹紫滞」对「脉数，指纹紫滞」（一个是另一个的子集）、「脉浮或浮紧」对「脉濡数或滑」
+ *（选项里用「或」并列两种脉象，选了也写不进病历），独立评审三次判不合格。
+ *
+ * 判法（有限闭集，冻结令允许的确定性例外）：先去掉小儿指纹那一小句（指纹是另一项诊察，不与脉象同题）；
+ * 任一选项里有「或」就不算；然后按四对相反的脉象类别比——位置（浮类 / 沉类）、至数（数类 / 迟缓类）、
+ * 力度（有力类 / 无力类）、脉形（洪大 / 细微）、流利度（滑 / 涩）——两边各落在一对的不同端时互斥。
+ * 「弦」「紧」这类可与多数脉并见的不参与判定：「脉弦紧」对「脉弦」不互斥。
+ */
+const PULSE_OPPOSITES: ReadonlyArray<readonly [RegExp, RegExp]> = [
+  [/浮|濡|芤|革|散/u, /沉|伏|牢|弱/u],
+  [/数|疾|促/u, /迟|缓|结/u],
+  [/有力|实|洪|滑|紧/u, /无力|虚|弱|微|细|濡/u],
+  [/洪|大/u, /细|微/u],
+  [/滑/u, /涩/u],
+];
+
+/** 去掉小儿指纹那一小句（「脉细数，指纹紫滞」→「脉细数」）。 */
+export function withoutFingerVeinClause(text: string): string {
+  return text
+    .split(/[，,；;、]/u)
+    .filter((part) => !/指纹/u.test(part))
+    .join("，")
+    .replace(/[，,；;、\s]+$/u, "")
+    .trim();
+}
+
+function pulseQualities(text: string): string {
+  const at = text.indexOf("脉");
+  return at >= 0 ? text.slice(at + 1).replace(/象|[，,；;、。\s]/gu, "") : "";
+}
+
+export function pulseOptionsMutuallyExclusive(a: string, b: string): boolean {
+  const left = withoutFingerVeinClause(a);
+  const right = withoutFingerVeinClause(b);
+  if (!left || !right || /或/u.test(left) || /或/u.test(right)) return false;
+  const leftQualities = pulseQualities(left);
+  const rightQualities = pulseQualities(right);
+  if (!leftQualities || !rightQualities || leftQualities === rightQualities) return false;
+  return PULSE_OPPOSITES.some(([one, other]) => {
+    const leftOne = one.test(leftQualities);
+    const leftOther = other.test(leftQualities);
+    const rightOne = one.test(rightQualities);
+    const rightOther = other.test(rightQualities);
+    // 一边只落在一端、另一边只落在另一端才算相反；同一边两端都有（「濡」既浮又无力）时不据这一对判。
+    return (leftOne && !leftOther && rightOther && !rightOne) || (leftOther && !leftOne && rightOne && !rightOther);
+  });
+}
+
 export function textbookDiscriminatingQuestion(input: TextbookCaseInput): TextbookDiscriminatingQuestion | undefined {
   const disease = textbookCandidatesForCase(input, { maxDiseases: 1, maxRowsPerDisease: 8 })[0];
   if (!disease || disease.rows.length < 2) return undefined;
@@ -573,9 +626,11 @@ export function textbookDiscriminatingQuestion(input: TextbookCaseInput): Textbo
     }
   }
   if (!compact(input.pulse || "")) {
-    const a = clean(first.pulse);
-    const b = clean(second.pulse);
-    if (a && b && compact(a) !== compact(b)) {
+    // 脉象选项同样要互斥、能直接写进病历（2026-10-19，r1019 验收集 B：「脉细数，指纹紫滞」对「脉数，指纹紫滞」、
+    // 「脉浮或浮紧」对「脉濡数或滑」评审判不合格）：去掉小儿指纹那一小句，带「或」的不出，相反脉类判互斥（pulseOptionsMutuallyExclusive）。
+    const a = withoutFingerVeinClause(clean(first.pulse));
+    const b = withoutFingerVeinClause(clean(second.pulse));
+    if (a && b && pulseOptionsMutuallyExclusive(a, b)) {
       return { question: "本例的脉象更接近下面哪一种？", reason, field: "脉象", optionA: a, optionB: b, syndromeA: first.syndromeName, syndromeB: second.syndromeName };
     }
   }
@@ -703,6 +758,16 @@ export function textbookNearestRow(
     const rowOrgans = new Set(compact(row.syndromeName).match(TEXTBOOK_ORGAN_WORDS) || []);
     return rowOrgans.size > 0 && [...modelOrgans].some((organ) => !rowOrgans.has(organ));
   };
+  // 病性因素同理（2026-10-19）：模型写「气虚血瘀证」「阴虚阳亢证」，改成教材单因素的「血瘀…」「肝阳上亢证」就丢了一个因素，
+  // 不是同义写法——≥300 条验收里评审最常判的就是「遗漏气虚/阴虚」。虚/亏/不足/衰、火/热各算一类，不因写法不同否决。
+  // 「命门火衰」即肾阳衰，按「阳 + 虚」算（肾阳不足证 → 命门火衰证 是同义归一）。
+  const natureClass = (word: string) => /^(?:虚|亏|不足|衰)$/u.test(word) ? "虚" : word === "火" ? "热" : word;
+  const natureClassesOf = (name: string) => new Set((compact(name).replace(/火衰/gu, "阳衰").match(TEXTBOOK_NATURE_WORDS) || []).map(natureClass));
+  const modelNatureClasses = natureClassesOf(syndromeName);
+  const dropsNature = (row: TextbookSyndromeRow) => {
+    const rowClasses = natureClassesOf(row.syndromeName);
+    return [...modelNatureClasses].some((word) => !rowClasses.has(word));
+  };
   const ranked = scored
     .map(({ row, score }) => ({
       row,
@@ -713,6 +778,6 @@ export function textbookNearestRow(
   if (!first || first.combined < 1.3) return undefined;
   if (second && first.combined - second.combined < 0.2) return undefined;
   // 只否决胜出的那一行，不先把行剔掉再排：剔掉竞争者会让原本「认不准」的近似行变成明显第一。
-  if (addsNature(first.row) || dropsOrgan(first.row)) return undefined;
+  if (addsNature(first.row) || dropsOrgan(first.row) || dropsNature(first.row)) return undefined;
   return first.row;
 }

@@ -1,0 +1,65 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "gi-alarm-site-and-dated-history",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "r1019 红旗验收 M：TCM-SD 438290 乳腺癌术后「双乳超声示：左乳包块」被当成消化道包块；BEST4SDT-158 小细胞肺癌「2017年10月…伴乏力、体重下降」确诊当年的经过被当成当前消瘦。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "hasUpperGiAlarmFeatureSignal 的伴随表现（包块、消瘦、体重下降）不看部位与时间。",
+  "exception": "冻结令允许的构词式守卫（闭集）：包块/肿块前 6 字内是消化道以外的部位（乳、颈、腋、甲状腺、皮下、腹股沟、锁骨、淋巴结、子宫、卵巢、附件、阴道、阴囊、睾丸、四肢、背、头皮、肺）时不算；以公历年份开头的句子在病历另有刻下/现症/目前/入院时/就诊时段落时视为既往经过。肿瘤史本身照旧按本人既往事实读。上消化道警示征象这一政策本身不变。",
+  "sources": "—"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：被测写法与早已判对的兄弟写法门禁结果必须相同；兄弟句自身方向先钉住。set=heldOut 的配对是判据写定之后才写的说法。",
+  "pairs": [
+   {
+    "subject": "左乳浸润性导管癌术后化疗后。双乳超声示：左乳包块。食纳欠佳。",
+    "sibling": "左乳浸润性导管癌术后化疗后。食纳欠佳。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "2017年10月患者出现胸闷气短，伴乏力、体重下降，考虑恶性肿瘤。刻下：纳呆。",
+    "sibling": "2017年10月患者出现胸闷气短，伴乏力，考虑恶性肿瘤。刻下：纳呆。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "甲状腺癌术后，颈部可及肿块，纳差。",
+    "sibling": "甲状腺癌术后，纳差。",
+    "siblingExpect": "clean",
+    "set": "heldOut"
+   }
+  ]
+ },
+ "controls": {
+  "note": "必须照旧报警的写法与必须保持无红旗的写法。",
+  "mustStillFlag": [
+   {
+    "text": "胃癌术后，上腹可及包块。",
+    "flag": "上消化道"
+   },
+   {
+    "text": "肺癌化疗后，近1月体重下降5kg。",
+    "flag": "上消化道"
+   },
+   {
+    "text": "食管癌术后，进食梗阻。",
+    "flag": "上消化道"
+   }
+  ],
+  "mustStayReady": [
+   "乳腺癌术后，左乳肿块。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-19",
+   "what": "现代医案语料（tcm-modern-case-exemplars + eval-corpus）+ 逐模块验收集 M/X/D/H/A/B + 10/13 合成与既往评测集，两种病历形状，改前 HEAD（zz-safety-head-agentb.ts）对改后，~/runlogs/r1018/work/r1019/agentB/replay-all.mjs",
+   "result": "上消化道警示征象红旗消失 4 次（2 份病历：BEST4SDT-158、TCM-SD 438290），其余警示征象病例不变。"
+  }
+ ]
+}

@@ -8,7 +8,8 @@ import { normalizeCaseTextForFormulaRecall } from "@/lib/formula-recall-normaliz
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
 import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
-import { alignWesternNameWithRecord } from "@/lib/western-name-evidence-check.server";
+import { alignWesternPrimaryAndName } from "@/lib/western-primary-reselect.server";
+import { reconcileSecondarySyndromes } from "@/lib/m03-secondary-syndrome-consistency.server";
 import { completeTcmDiseaseDifferentials } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText } from "@/lib/diagnosis-safety";
@@ -78,6 +79,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   const signedLimitedDiagnosis = (
     gate: NonNullable<typeof gated.safetyGate>,
     reviewUnavailableReason?: Parameters<typeof buildSafetyLimitedDiagnosisReasoning>[2],
+    carriedWesternHalf?: string,
   ) => {
     // 四类预渲染 fallback 只描述「本轮为什么没有完成」，不是新的患者
     // 安全事实。签名前必须与当前病例的权威门合并，避免真实 red_flag
@@ -87,7 +89,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
       gated,
       limitedGate,
       signDiagnoseReasoning(
-        buildSafetyLimitedDiagnosisReasoning(gated, limitedGate, reviewUnavailableReason),
+        buildSafetyLimitedDiagnosisReasoning(gated, limitedGate, reviewUnavailableReason, carriedWesternHalf ? { westernHalfContent: carriedWesternHalf } : undefined),
         buildDiagnoseContractSignatureContext(gated),
       ),
     );
@@ -237,13 +239,15 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
             stageInstructions,
           }),
           // 中医半没有可保留的病名级鉴别、而教材对该病列有鉴别病证时，只补写这一项（其余病例不发请求）。
-          m03TcmHalfTransform: (tcmContent: string, transformSignal: AbortSignal) => completeTcmDiseaseDifferentials(
-            tcmContent,
+          // 辨证依据或病机写了兼夹病机、兼证栏却为空时，补成兼证或删掉那几个分句（其余病例不发请求）。
+          m03TcmHalfTransform: async (tcmContent: string, transformSignal: AbortSignal) => reconcileSecondarySyndromes(
+            await completeTcmDiseaseDifferentials(tcmContent, { recordText: trustedInputText(safeState) }, transformSignal),
             { recordText: trustedInputText(safeState) },
             transformSignal,
           ),
           // 西医半一返回就核对病名与病历已记录内容是否矛盾或说得过细（约 0.8 秒，与中医半并行）；采信则只改病名这一项。红旗病例不用「过细」一类。
-          m03WesternHalfTransform: (westernContent: string, transformSignal: AbortSignal) => alignWesternNameWithRecord(
+          // 同时在西医半自己列出的候选与鉴别里重选主诊断（2026-10-19，western-primary-reselect）：两者并行；换名时对新名称再核对一次。
+          m03WesternHalfTransform: (westernContent: string, transformSignal: AbortSignal) => alignWesternPrimaryAndName(
             westernContent,
             { recordText: trustedInputText(safeState), patient: { sex: safeState.patient?.sex, age: safeState.patient?.age }, redFlag: redFlagAnalysis },
             transformSignal,
@@ -252,6 +256,9 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
       : {}),
     // 合同修复耗尽后的兜底：生成方合同始终不合法（attestation 原因码 not_attempted_no_valid_draft）。
     truncateFallback: signedLimitedDiagnosis(truncatedGateFor("not_attempted_no_valid_draft"), "not_attempted_no_valid_draft"),
+    // 同一兜底，但并行西医半解析干净时用它作西医诊断（2026-10-19）。时限与上游不可用两条兜底不走这里。
+    truncateFallbackWithWestern: (westernHalfContent: string) =>
+      signedLimitedDiagnosis(truncatedGateFor("not_attempted_no_valid_draft"), "not_attempted_no_valid_draft", westernHalfContent),
     // 时限触发是另一回事，标 deadline 而不是「没有合法草稿」：两者的处置（重试 vs 修合同）不同，
     // 焊死在一个预渲染字符串上会让这两类共用一个原因码。
     deadlineFallback: signedLimitedDiagnosis(truncatedGateFor("deadline"), "deadline"),

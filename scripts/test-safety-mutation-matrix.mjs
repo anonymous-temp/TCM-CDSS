@@ -61,13 +61,13 @@ const positiveScenarios = [
   "突发言语不清，右侧肢体无力。",
   "反复想到自杀，且已有具体计划。",
   "既往血氧85%，本次复测仍为88%。",
-  "既往血压200/120mmHg，本次复测225/135mmHg。",
+  "既往血压200/120mmHg，本次复测225/135mmHg，伴胸痛。",
   "上周心电图正常、肌钙蛋白阴性；胸痛30分钟。",
   "上周心电图正常、肌钙蛋白阴性；今天突发胸痛并持续30分钟。",
   "今天突发胸痛并持续30分钟；上周心电图正常、肌钙蛋白阴性。",
   "既往胸痛已缓解、当前再发胸痛。",
   "既往胸痛已缓解，当前再发。",
-  "当前收缩压225mmHg，舒张压135mmHg。",
+  "当前收缩压225mmHg，舒张压135mmHg，伴剧烈头痛、呕吐。",
   "指脉氧89%。",
   "健康宣教：若出现胸痛应立即急诊；患者当前突发胸痛。",
   "我爸爸三年前胸痛住过院，我现在胸痛持续20分钟并大汗。",
@@ -421,9 +421,8 @@ for (const scenario of [
   }
 }
 
+// 2026-10-19 用户决定：≥180/120 而无急性靶器官表现时不报红旗（2017 ACC/AHA、ACEP），改为醒目提示；这两组结构化血压挪到下面的提示断言里。
 const criticalStructuredBloodPressures = [
-  { vitals: { systolicBP: "220", diastolicBP: "130" }, expected: "220/130" },
-  { vitals: { SBP: 225, DBP: 80 }, expected: "225/80" },
   { vitals: { sbp: "118mmHg", dbp: "40 mmHg" }, expected: "118/40" },
   { vitals: { systolic: 78, diastolic: 55 }, expected: "78/55" },
 ];
@@ -455,9 +454,22 @@ for (const { vitals, expected } of [
   const normalizedState = normalizeCaseStateInput(state);
   assert.ok(normalizedState, `${expected}: severe structured BP must normalize`);
   const gate = evaluateSafetyGate(normalizedState);
-  assert.equal(gate.status, "red_flag", `${expected}: BP >=180/120 must enter the deterministic safety path`);
-  assert.equal(hasDeterministicCriticalVitalRedFlag(normalizedState), true, `${expected}: severe BP must be eligible for the deterministic fast path`);
-  assert.match(gate.redFlags.join("、"), new RegExp(expected.replace("/", "\\/")), `${expected}: red flag must retain the measured pair`);
+  // 2026-10-19：无急性靶器官表现的重度高血压不进急症通道，但必须有醒目提示、保留测得的读数。
+  assert.notEqual(gate.status, "red_flag", `${expected}: asymptomatic BP >=180/120 is not an emergency (2017 ACC/AHA, ACEP)`);
+  assert.equal(hasDeterministicCriticalVitalRedFlag(normalizedState), false, `${expected}: asymptomatic severe BP must not take the deterministic emergency fast path`);
+  assert.match((gate.advisories || []).join("、"), new RegExp(`【重度高血压】血压 ${expected.replace("/", "\\/")}`), `${expected}: advisory must retain the measured pair`);
+  cases += 1;
+}
+for (const { vitals, expected } of [
+  { vitals: { systolicBP: "220", diastolicBP: "130" }, expected: "220/130" },
+  { vitals: { SBP: 225, DBP: 80 }, expected: "225/80" },
+]) {
+  const asymptomatic = evaluateSafetyGate(normalizeCaseStateInput({ ...semanticReadyBase, vitals, clinicalFacts: checkedEmptyFacts }));
+  assert.notEqual(asymptomatic.status, "red_flag", `${expected}: asymptomatic split BP is advisory only`);
+  assert.match((asymptomatic.advisories || []).join("、"), new RegExp(expected.replace("/", "\\/")));
+  const symptomatic = evaluateSafetyGate(normalizeCaseStateInput({ ...semanticReadyBase, chiefComplaint: "突发剧烈头痛2小时，伴呕吐", vitals, clinicalFacts: checkedEmptyFacts }));
+  assert.equal(symptomatic.status, "red_flag", `${expected}: split BP with an acute target-organ symptom is an emergency`);
+  assert.match(symptomatic.redFlags.join("、"), new RegExp(expected.replace("/", "\\/")));
   cases += 1;
 }
 
@@ -612,7 +624,7 @@ for (const semanticFinding of [
   const gate = evaluateSafetyGate({
     ...semanticReadyBase,
     chiefComplaint: semanticFinding.text,
-    vitals: { systolicBP: "225", diastolicBP: "135" },
+    vitals: { systolicBP: "75", diastolicBP: "40" },
     clinicalFacts: {
       redFlags: [{ category: "cardiac", status: semanticFinding.status, quote: semanticFinding.quote }],
       semanticStatus: "checked",
@@ -622,7 +634,7 @@ for (const semanticFinding of [
     },
   });
   assert.equal(gate.status, "red_flag", `${semanticFinding.status}: semantic scope must not cancel an independent critical vital sign`);
-  assert.match(gate.redFlags.join("、"), /血压 225\/135mmHg/);
+  assert.match(gate.redFlags.join("、"), /血压 75\/40mmHg/);
   cases += 1;
 }
 
@@ -1121,10 +1133,13 @@ console.log(JSON.stringify({ cases, failures: 0 }));
   const pregnantCritical = mk("孕32周，头痛。血压185/118mmHg", { bloodPressure: "185/118mmHg" }).safetyGate;
   assert.equal(pregnantCritical?.status, "red_flag", "孕妇 185/118 必须触发重度高血压红旗");
   assert.ok((pregnantCritical?.redFlags || []).some((flag) => /妊娠\/产褥期血压 185\/118/.test(flag)));
-  const generalCritical = mk("头痛3天。血压185/118mmHg", { bloodPressure: "185/118mmHg" }).safetyGate;
-  assert.equal(generalCritical?.status, "red_flag", "非妊娠 185/118 必须触发通用重度高血压红旗");
+  const generalCritical = mk("剧烈头痛3天。血压185/118mmHg", { bloodPressure: "185/118mmHg" }).safetyGate;
+  assert.equal(generalCritical?.status, "red_flag", "非妊娠 185/118 伴剧烈头痛必须触发通用重度高血压红旗");
+  const asymptomaticCritical = mk("头痛3天。血压185/118mmHg", { bloodPressure: "185/118mmHg" }).safetyGate;
+  assert.notEqual(asymptomaticCritical?.status, "red_flag", "185/118 只伴普通头痛：按 2017 ACC/AHA、ACEP 不是急症（2026-10-19 用户决定）");
+  assert.ok((asymptomaticCritical?.advisories || []).some((item) => /【重度高血压】血压 185\/118/.test(item)), "无靶器官表现的重度高血压必须有醒目提示");
   const repeatedCritical = mk("先测血压120/80mmHg，复测185/118mmHg").safetyGate;
-  assert.ok((repeatedCritical?.redFlags || []).some((flag) => /185\/118/.test(flag)), "复测重度高血压不得被首个正常值遮蔽");
+  assert.ok([...(repeatedCritical?.redFlags || []), ...(repeatedCritical?.advisories || [])].some((flag) => /185\/118/.test(flag)), "复测重度高血压不得被首个正常值遮蔽（无靶器官表现时在醒目提示里）");
   const repeatedMeasurements = currentVitalMeasurements(mk("先测血压120/80mmHg，复测185/118mmHg"));
   assert.deepEqual(repeatedMeasurements.bloodPressure, { systolic: 185, diastolic: 118 }, "生命体征投影本身必须选择后续异常值，不只是在红旗文案里碰巧命中");
   const respiratoryDepression = mk("嗜睡，呼吸8次/分", { R: "8次/分" }).safetyGate;

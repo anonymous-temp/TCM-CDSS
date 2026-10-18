@@ -1,0 +1,71 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "negated-abdominal-change-cue",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "r1019 红旗验收 A-out-0625：「刻下症见偶有上腹胀满，无明显加重及缓解因素」被报急腹症。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "hasAcuteAbdominalSignal 「症状在前、加重线索在后」一支只在症状处判否定，「无明显加重」里的「无」修饰的是线索，没被看到。",
+  "exception": "冻结令允许的构词式守卫：线索前 4 字内有否定词（无、未、没有、未见、并无、否认、不再、并未）时这一处不算；与 10/13 消化道出血「否定也要在出血词处判」同一形状。",
+  "sources": "—"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：被测写法与早已判对的兄弟写法门禁结果必须相同；兄弟句自身方向先钉住。set=heldOut 的配对是判据写定之后才写的说法。",
+  "pairs": [
+   {
+    "subject": "偶有上腹胀满，无明显加重及缓解因素。",
+    "sibling": "偶有上腹胀满。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "腹痛，无明显加重。",
+    "sibling": "腹痛。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "上腹痛半年，未见明显加重。",
+    "sibling": "上腹痛半年。",
+    "siblingExpect": "clean",
+    "set": "heldOut"
+   },
+   {
+    "subject": "腹胀，没有明显加重。",
+    "sibling": "腹胀。",
+    "siblingExpect": "clean",
+    "set": "heldOut"
+   }
+  ]
+ },
+ "controls": {
+  "note": "必须照旧报警的写法与必须保持无红旗的写法。",
+  "mustStillFlag": [
+   {
+    "text": "腹痛明显加重2天。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "上腹痛，近日明显加重。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "腹痛越来越重。",
+    "flag": "腹痛"
+   }
+  ],
+  "mustStayReady": [
+   "腹痛，无明显加重。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-19",
+   "what": "现代医案语料（tcm-modern-case-exemplars + eval-corpus）+ 逐模块验收集 M/X/D/H/A/B + 10/13 合成与既往评测集，两种病历形状，改前 HEAD（zz-safety-head-agentb.ts）对改后，~/runlogs/r1018/work/r1019/agentB/replay-all.mjs",
+   "result": "A-out-0625 一例（两种形状）；同一否定守卫补到 hasAbdominalPrioritySignal（「无明显加重」此前也会触发优先评估、收回剂量）。"
+  }
+ ]
+}

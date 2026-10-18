@@ -847,11 +847,12 @@ const checkedExerciseWheezeIsNotEmergency = {
 ok("混合架构: 运动诱发喘鸣与当前稳定状态不会被确定性下限误报急诊",
   !detectProgrammaticRedFlags(checkedExerciseWheezeIsNotEmergency).some((item) => /呼吸循环急症|心血管事件/.test(item)));
 
+// 2026-10-19：无急性靶器官表现的重度高血压不再是确定性红旗（2017 ACC/AHA、ACEP），这里改用低血压这一确定性危急值。
 const semanticNegativeWithCriticalVital = {
   ...semanticNegative,
-  vitals: { bloodPressure: "225/135" },
+  vitals: { bloodPressure: "75/40" },
 };
-ok("混合架构: LLM阴性不影响确定性危急生命体征", detectProgrammaticRedFlags(semanticNegativeWithCriticalVital).some((item) => item.includes("225/135")));
+ok("混合架构: LLM阴性不影响确定性危急生命体征", detectProgrammaticRedFlags(semanticNegativeWithCriticalVital).some((item) => item.includes("75/40")));
 
 const unchangedCalls = { count: 0 };
 const cachedPossibleState = await maybeAttachClinicalFactsBackstop(possibleState, async () => {

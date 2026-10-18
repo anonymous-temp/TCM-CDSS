@@ -162,8 +162,6 @@ const GENERIC_CORE_LABELS = /(?:当前|本例|该例|总体|整体|主要|核心
 const TCM_PATHOGENESIS_ANCHOR = /(?:气虚|气滞|气逆|气陷|气脱|气闭|气机不畅|血虚|血瘀|瘀血|血热|血寒|血脱|血燥|血不养|心血不足|肝血不足|阴虚|阳虚|心阴虚|肝阴虚|肺阴虚|肾阴虚|心阳虚|脾阳虚|肾阳虚|脾气虚|心气虚|肺气虚|肾气虚|阴盛|阳亢|阴阳两虚|阴不敛阳|阳不入阴|津亏|液亏|津伤|津液不足|精亏|神扰|神失所养|心神不宁|心火|肝郁|肝气郁结|肝火|肝阳|脾虚|肺虚|肾虚|脾湿|痰湿|痰热|痰浊|湿热|寒湿|风寒|风热|风湿|燥热|实热|虚热|虚寒|实寒|郁火|食积|水饮|饮停|水湿|热毒|寒凝|湿困|湿阻|湿滞|困阻|困遏|阻遏|蒙蔽清窍|清窍被蒙|清阳不升|清窍不利|经络不通|络阻|营卫不和|营卫失调|卫外不固|脾不统血|肾不纳气|肺失宣降|心肾不交|少阳枢机不利|脏腑失和|升降失常|气血失和|不荣则痛|不通则痛|化火|上扰|内阻|阻滞|亏虚|失养|失和|失司|(?:胃|肺|胆|肾|脾|大肠|小肠|膀胱|三焦)[火热]|冲任|胞宫|血海|天癸|带脉|督脉|任脉|精室|迫血|动血|血不循经|血溢|伏热|邪热|热邪|火邪|热灼|燔灼|热入营血|热入血分|上攻|上炎|上冲|扰心|扰神|扰动|内扰|伤津|伤阴|伤液|耗津|耗液|耗阴|耗气|灼津|灼阴|劫阴|化燥|风邪|寒邪|暑邪|湿邪|燥邪|疫毒|秽浊|下陷|升举无力|统摄无权|固摄无力|失濡|失煦|失润|失充|失荣)/;
 const TCM_THERAPY_ANCHOR = /(?:益气|补气|养血|活血|化瘀|滋阴|育阴|养阴|温阳|扶阳|清热|泻火|疏肝|解郁|理气|行气|降逆|化痰|祛痰|燥湿|利湿|祛湿|健脾|和胃|温中|散寒|通络|止痛|宁心|安神|镇惊|平肝|潜阳|熄风|息风|凉血|解毒|消食|导滞|攻下|通腑|润肠|固涩|敛汗|止血|止咳|平喘|宣肺|肃肺|开窍|醒神|扶正|培本|调和营卫|解表|和解|利水|通淋|升阳|补肾|温肾|健运|温经|散结|软坚|养心|清心|清肝|清肺|清胃|清胆|温补|补益|调经|回阳救逆|透邪外达|升清降浊|调畅气机|交通心肾|固冲|固经|固摄|摄血|止带|止崩|润燥|润肺|濡润|清燥|生津|增液)/;
 const TCM_DISEASE_LABEL = /(?:眩晕病?|不寐|胸痹|心悸|头痛|胃脘痛|腹痛|咳嗽|喘证|泄泻|便秘|郁证|汗证|痹证|痿证|水肿|淋证|消渴|癃闭|胁痛|黄疸|中风|痫病|痴呆|颤证|耳鸣|鼻鼽)(?!待)/;
-const CLINICAL_REASONING_CONNECTOR = /(?:提示|支持|符合|更符合|结合|考虑|因此|尚不支持|不足以|倾向于|病程|鉴别|排除)/;
-const WESTERN_EXCLUSION_REASONING = /(?:但|尚不支持|不足以|不支持|排除|鉴别|未见|否认|缺乏|尚未|有待|仍需|需[^。；;\n]{0,12}(?:核实|检查|确认))/;
 /**
  * 病机谓词：中医描述「功能失常」的那一类动词短语，是一个**封闭的语法类**，不是症状词表。
  * 2026-08-10 补齐临床常用而原表漏收的几个——漏收的代价实测是把规范病机判成症状复述：
@@ -259,13 +257,15 @@ function splitIntoClinicalClauses(normalized: string): string[] {
       // 作者是在每个阴性项前都写了「无」，没写的就是阳性，否认不跨逗号继承；顿号列举（「无恶心、呕吐」）照旧继承。
       // 此前「反酸偶作」「食纳欠佳」「夜寐安」被读成「无反酸偶作」…，模型引的病历原文全判极性冲突，病机链整条丢掉、M03 退回占位
       //（验收集 M-TCM-SD-422604 等）。只出现一个否认词的句子（「否认高血压，糖尿病病史」）不变。
+      // 只写了一个否认词的句子同理（2026-10-19）：「无胸闷、心慌，偶咳嗽，腰痛、腿疼，纳可…」里逗号后的各项都是阳性，
+      // 跨逗号继承把它们全读成「无偶咳嗽」「无腰痛」，病机链整条判极性冲突、M03 退回占位（验收集 M-MTCMB-20 等）。
+      // 否认词只管到逗号为止。试过保留「否认高血压，糖尿病病史」这一种跨逗号形式，回放里它把「否认输血史，既往青霉素过敏史」读成否认过敏，
+      // 方向更危险，故不留例外；顿号列举（「无恶心、呕吐」）照旧继承。
       const commaClauses = clinicalSentence.split(/[，,]+/);
-      const perClauseNegation = commaClauses.filter((part) =>
-        /^(?:(?:当前|目前|现阶段|现有|本例|患者|临床|病历已记录)?)(?:绝无|全无|尚无|暂无|没有|否认|未见|未出现|不伴|并无|无)/.test(part.trim())).length >= 2;
       let previousCommaIndex = 0;
       return commaClauses.flatMap((commaClause, commaIndex) => commaClause.split(/[、]+/).map((rawClause) => ({ rawClause, commaIndex })))
         .map(({ rawClause, commaIndex }) => {
-        if (perClauseNegation && commaIndex !== previousCommaIndex) inheritedNegation = "";
+        if (commaIndex !== previousCommaIndex) inheritedNegation = "";
         previousCommaIndex = commaIndex;
         let clause = rawClause.trim();
         if (!clause) return "";
@@ -949,6 +949,12 @@ function containsKnownHerbDose(value: string, sourceText = ""): boolean {
         .slice(windowStart + before.length - length, doseStart + match[0].length)
         .replace(/\s+/g, "");
       if (compactSource && compactSource.includes(quotedSpan)) break;
+      // 转述而非逐字引述（2026-10-19）：病历「以饮用白酒为主，平均5两／日」被写成「每日饮白酒约5两」，
+      // 逐字比对不成立，「酒 + 5两」被当成剂量级内容，三轮修复后 M03 退回占位（验收集 M-MTCMB-21，160 秒）。
+      // 病历同一句里同时写着这味药名和这个数量，就是在转述病历事实。
+      const herbName = before.slice(-length);
+      const doseLiteral = match[0].replace(/\s+/g, "");
+      if (compactSource && compactSource.split(/[。；;\n]+/).some((sentence) => sentence.includes(herbName) && sentence.includes(doseLiteral))) break;
       return true;
     }
   }
@@ -1856,18 +1862,16 @@ export function m03WesternClinicalRationaleIssue(
   const westernRationale = typeof westernPrimary?.clinicalRationale === "string"
     ? westernPrimary.clinicalRationale.trim()
     : "";
-  if (westernRationale.length < 8 || !CLINICAL_REASONING_CONNECTOR.test(westernRationale)) {
+  // 2026-10-19 与中医辨证依据同一口径（tcmRationaleStructurallyMissing，10/14）：只有结构上空才算缺失，逐字照抄支持事实才算复述。
+  // 此前另有三条词表判据——连接词闭集（提示/支持/符合…）、「必须引到某条 supportingFacts」、「必须写出但/尚未/需核实…」——
+  // 任何一条不中都由 alignNormalizedM03WesternClinicalRationale 用「首条事实支持“X”的诊断；仍需结合鉴别诊断…」顶掉模型原文。
+  // 验收集 D 320 份里 241 份西医推理句是这句回落句（首条事实常是「患儿，6岁」「男性，30岁，…」）；10/19 的本机回放里
+  // 回落原因绝大多数是 restatement 且并非照抄（copiesFacts=false），即模型写了推理、只是没用上表里的词。
+  if (tcmRationaleStructurallyMissing(westernRationale)) {
     return "western_clinical_rationale_missing";
   }
   const westernFacts = nonEmptyStringList(westernPrimary?.supportingFacts);
-  if (
-    narrativeMostlyCopies(westernRationale, westernFacts) ||
-    !rationaleReferencesSupportingFact(westernRationale, westernFacts) ||
-    // 同一张 34 词清单在这里也做过判据，一并删除（见中医侧注释）。
-    // 这一侧另有 WESTERN_EXCLUSION_REASONING 要求写出「为何暂不采用更具体标签」，
-    // 那是对推理**结构**的要求，不是对用词的枚举。
-    !WESTERN_EXCLUSION_REASONING.test(westernRationale)
-  ) {
+  if (narrativeMostlyCopies(westernRationale, westernFacts)) {
     return "western_clinical_rationale_restatement";
   }
   return undefined;
@@ -3853,13 +3857,13 @@ export function herbFunctionPhraseRecognized(phrase: string): boolean {
 // 同义写法补进比对：柴胡「升举阳气」即升阳，砂仁「温脾」即温中，鹿角胶「温补肝肾」、知识库分类「补阳药」即温阳，白芍「敛阴」即养阴；
 // 泛称「补益」「扶正」不算补气（杜仲「补益肝肾」曾因此被去成「肝肾」）。生津算养阴一类（鹿角胶被写成「润燥生津」，2026-10-18 甲方病历 6）。
 const DISPLAY_DIRECTION_GROUPS: readonly RegExp[] = [
-  /补(?:中|脾|肺|肾)?气|益(?:中|脾|肺|肾)?气|补中|升阳|升举阳气|举陷|固表/,
+  /补(?:中|脾|肺|肾|心|元)?气|益(?:中|脾|肺|肾|心|元)?气|补中|升阳|升举阳气|举陷|固表/,
   /养(?:心|肝)?血|补(?:心|肝)?血|益血/,
   /活血|化瘀|行瘀|和血/,
   /安神|宁心|宁神|养心|定志|镇惊|安魂|定魄/,
-  /理气|行气|疏肝|舒肝|解郁|开郁/, /清热|泻火|凉血/,
+  /理气|行气|疏肝|舒肝|解郁|开郁/, /清热|泻火|凉血|清(?:郁|湿)热/,
   /温阳|扶阳|散寒|温中|温肾|温脾|温补|补肾阳|补阳|助阳|壮阳/, /滋阴|养阴|育阴|敛阴|补阴|生津/, /解表|祛风|疏风|散风/,
-  /通便|泻下|攻下/,
+  /通便|泻下|攻下|通利肠腑|通肠腑/,
 ];
 
 export function herbFunctionClaimUnsupportedPhrases(claimedFunction: string, knowledgeText: string): string[] {

@@ -409,6 +409,11 @@ type StreamSafetyOptions = {
    */
   deadlineFallback?: string;
   /**
+   * M03 合同修复耗尽、落到有限结果时，若并行西医半解析干净，用它渲染有限结果（西医诊断取西医半，中医部分仍是有限口径）。
+   * 返回 undefined 时照用 truncateFallback。时限（deadlineFallback）与上游不可用（upstreamUnavailableFallback）不走这里。
+   */
+  truncateFallbackWithWestern?: (westernHalfContent: string) => string | undefined;
+  /**
    * The truncate fallback is a complete, server-owned contract that has already been signed.
    * It must bypass presentation transforms and must not be labelled as a truncated model draft.
    * This is intentionally limited to fail-closed M03 responses that cannot authorize dosing.
@@ -500,6 +505,11 @@ type StreamSafetyOptions = {
    * 绝大多数病例原样返回、不发请求；抛错由注入方兜住，这里只在它成功返回字符串时采用。
    */
   m03TcmHalfTransform?: (tcmContent: string, signal: AbortSignal) => Promise<string>;
+  /**
+   * M04 已编译候选（带 DIAGNOSIS_JSON 哨兵）在合同核对与签名之前的收口（开方路由注入方义药物功效核对，
+   * 见 m04-formula-analysis-claim-check.server.ts）。首轮与两处修复轮各调一次；抛错、超时或返回空串时沿用原内容。
+   */
+  m04CandidateTransform?: (content: string, signal: AbortSignal) => Promise<string>;
   /**
    * M04 首轮流里 `candidate` 对象闭合时回调一次（2026-09-28）。只用于服务端预热 M05 随访作文缓存
    * （缓存按实际模型输入逐字命中，原文与终稿不一致只是不命中）；回调异常被吞掉，不影响本阶段。
@@ -2645,6 +2655,8 @@ async function callPrimaryTextModelStream(
       const qualityRepairAvailable = (reason: string | undefined): boolean =>
         !reason || !qualityAnnotationCopy(reason);
       let m03WesternHalfPromise: ReturnType<typeof collectM03ParallelWesternHalf> | undefined;
+      /** 解析干净（status=clean）的并行西医半；有限结果兜底时用（truncateFallbackWithWestern）。 */
+      let m03CleanWesternHalf: string | undefined;
       let initialM04CandidateReported = false;
       /**
        * 「同一条确定性合同拒绝码只修一次」的账本。
@@ -2783,6 +2795,16 @@ async function callPrimaryTextModelStream(
       // route's output transform (evidence governance rewrites modification/patent rows inside the
       // sentinel JSON) run before attestation and signing. If the route transform rejects the
       // candidate, the pre-transform content stands and the same fallback fires downstream.
+      // 与 m03TcmHalfTransform 同样的失败隔离：注入的收口抛错、超时或返回空串时，候选内容原样不动。
+      const transformM04Candidate = async (content: string): Promise<string> => {
+        if (opts.structuredStage !== "prescribe" || !opts.m04CandidateTransform) return content;
+        try {
+          const transformed = await opts.m04CandidateTransform(content, upstreamController.signal);
+          return typeof transformed === "string" && transformed.trim() ? transformed : content;
+        } catch {
+          return content;
+        }
+      };
       const finalizeM04CandidateContent = (content: string): string => {
         if (opts.structuredStage !== "prescribe") return content;
         let finalized = applyDeterministicDecoctionMethod(
@@ -3835,6 +3857,7 @@ async function callPrimaryTextModelStream(
           // 西医半有没有真正进入载荷要看这一项（9/11 换 DeepSeek 后实测 9/9 次采样都是 merged:true
           // 却整段丢了西医诊断，日志上没有任何异常）。
           const westernHalfParse = parseM03WesternHalf(westernHalf?.ok ? westernHalf.content : undefined);
+          if (westernHalf?.ok && westernHalfParse.status === "clean") m03CleanWesternHalf = westernHalf.content;
           console.info("[tcm-cdss:timing] m03_parallel_halves", {
             tcmHalfChars: accumulatedContent.length,
             westernHalfOk: Boolean(westernHalf?.ok),
@@ -3883,6 +3906,7 @@ async function callPrimaryTextModelStream(
             authoritativeContent = applyDeterministicHerbPrescriptionRoles(authoritativeContent);
             authoritativeContent = applyDeterministicFormulaAnalysis(authoritativeContent);
             authoritativeContent = finalizeM04CandidateContent(authoritativeContent);
+            authoritativeContent = await transformM04Candidate(authoritativeContent);
           }
         }
         m03LadderCheckpoint("prepared");
@@ -4211,6 +4235,7 @@ async function callPrimaryTextModelStream(
               : referencedRetryContent;
           if (resolvedRetryContent && opts.structuredStage === "prescribe") {
             resolvedRetryContent = finalizeM04CandidateContent(resolvedRetryContent);
+            resolvedRetryContent = await transformM04Candidate(resolvedRetryContent);
           }
           const retriedStrictRejectionReason = resolvedRetryContent && opts.structuredStage === "prescribe"
             ? structuredRejectionReason(
@@ -4388,6 +4413,7 @@ async function callPrimaryTextModelStream(
                   : secondReferenced;
               if (secondResolved && opts.structuredStage === "prescribe") {
                 secondResolved = finalizeM04CandidateContent(secondResolved);
+                secondResolved = await transformM04Candidate(secondResolved);
               }
               const secondStrictRejectionReason = secondResolved && opts.structuredStage === "prescribe"
                 ? structuredRejectionReason(
@@ -4934,11 +4960,20 @@ async function callPrimaryTextModelStream(
           }
         };
         // 兜底页按**为什么兜底**选：传输类失败 ⇒ 上游不可用页；其余（合同始终不合法）⇒ 默认页。
+        /** 合同修复耗尽（不是上游不可用）且并行西医半干净时，有限结果带上西医半的诊断。 */
+        const westernAwareTruncateFallback = (): string | undefined => {
+          const upstreamDown = initialGenerationFailedOnTransport || repairFailedOnTransport;
+          if (!upstreamDown && opts.structuredStage === "diagnose" && m03CleanWesternHalf && opts.truncateFallbackWithWestern) {
+            const page = opts.truncateFallbackWithWestern(m03CleanWesternHalf);
+            if (page) return page;
+          }
+          return upstreamAwareTruncateFallback();
+        };
         const transformTruncateFallback = (): { content: string; ok: boolean } => (
           opts.structuredStage === "prescribe"
             ? { content: m04ContinuityFallback(m04ContinuityReason()), ok: true }
             : opts.authoritativeTruncateFallback
-            ? { content: upstreamAwareTruncateFallback() || "", ok: true }
+            ? { content: westernAwareTruncateFallback() || "", ok: true }
             : transformOutput(upstreamAwareTruncateFallback() || "")
         );
         const visibleIncompleteContent = (fallbackContent: string): string => {

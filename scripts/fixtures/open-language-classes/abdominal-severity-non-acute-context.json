@@ -1,0 +1,109 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "abdominal-severity-non-acute-context",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "r1019 红旗验收：A-out-0369「腹泻3日…排便不爽伴腹部绞痛」、BEST4SDT-100「便时腹部疼痛，有时轻微有时剧烈，持续已一年有余」被报急腹症；语料 163 次腹痛红旗里约 36 次是痛经（「经行腹痛剧烈」「痛经，经期小腹绞痛」）。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "hasAcuteAbdominalSignal 的程度词分支（剧烈、难忍、绞痛…）不看语境：月经期腹痛、慢性规律里的间歇剧痛、肠炎的痉挛痛都被当成此刻的急腹痛。",
+  "exception": "冻结令允许的确定性例外：有限闭集（经期线索、间歇标记、腹泻语境）+ 数值阈值（小句病程 ≥30 天）+ 构词式守卫（只遮程度词，腹膜刺激征、肠梗阻征、阑尾体征照读原文；妊娠阳性/可疑时不遮经期；腹泻句有便血、脓血、停止排气时不遮绞痛；全文有起病线索或两周内加重时不遮慢性程度词；经期遮蔽只作用于带经期线索或下腹痛、且不带上腹部位的小句）。",
+  "sources": "急腹症指急性起病的腹痛（《外科学》急腹症章）；原发性痛经为周期性下腹痛（《中医妇科学》痛经）。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：被测写法与早已判对的兄弟写法门禁结果必须相同；兄弟句自身方向先钉住。set=heldOut 的配对是判据写定之后才写的说法。",
+  "pairs": [
+   {
+    "subject": "经行腹痛剧烈。",
+    "sibling": "经行腹痛。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "痛经，经期小腹绞痛。",
+    "sibling": "痛经，经期小腹疼痛。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "腹泻3日，伴腹部绞痛。",
+    "sibling": "腹泻3日，伴腹部疼痛。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "便时腹部疼痛，有时轻微有时剧烈，持续已一年有余。",
+    "sibling": "便时腹部疼痛，持续已一年有余。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "胃脘胀痛难忍2年。",
+    "sibling": "胃脘胀痛2年。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "经期第一天小腹痛剧，需卧床。",
+    "sibling": "经期第一天小腹痛，需卧床。",
+    "siblingExpect": "clean",
+    "set": "heldOut"
+   },
+   {
+    "subject": "泄泻1周，日行五六次，脐周绞痛，泻后痛减。",
+    "sibling": "泄泻1周，日行五六次，脐周疼痛，泻后痛减。",
+    "siblingExpect": "clean",
+    "set": "heldOut"
+   },
+   {
+    "subject": "胃痛隐隐3年，偶尔剧痛。",
+    "sibling": "胃痛隐隐3年。",
+    "siblingExpect": "clean",
+    "set": "heldOut"
+   }
+  ]
+ },
+ "controls": {
+  "note": "必须照旧报警的写法与必须保持无红旗的写法。",
+  "mustStillFlag": [
+   {
+    "text": "停经50天，下腹剧痛。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "反复胃痛3年，腹痛剧烈，按之痛甚，伴发热。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "胃痛2年，今日腹痛剧烈难忍，伴呕吐。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "腹部绞痛3小时。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "腹泻3日，伴腹部绞痛，便中带血。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "胃脘隐痛8年，近3天加重，疼痛难忍。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "胃痛剧烈，伴嗳气，经前腹痛。",
+    "flag": "腹痛"
+   }
+  ],
+  "mustStayReady": [
+   "痛经3年，经期小腹剧痛。",
+   "腹泻2天，腹部绞痛，无便血。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-19",
+   "what": "现代医案语料（tcm-modern-case-exemplars + eval-corpus）+ 逐模块验收集 M/X/D/H/A/B + 10/13 合成与既往评测集，两种病历形状，改前 HEAD（zz-safety-head-agentb.ts）对改后，~/runlogs/r1018/work/r1019/agentB/replay-all.mjs",
+   "result": "急腹症红旗消失 84 次（46 份病历，本类与 negated-abdominal-change-cue 合计），逐例读过：痛经 30 余例、慢性胃痛/腹痛的间歇剧痛、慢性规律里的「难忍」、结肠癌术后慢性绞痛、A-out-0369 腹泻绞痛；第一版的经期句级遮蔽误伤「胃痛剧烈，伴…经前腹痛」（T16-MR-05890），已改为小句级。"
+  }
+ ]
+}

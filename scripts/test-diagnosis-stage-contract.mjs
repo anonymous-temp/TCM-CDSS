@@ -2001,15 +2001,22 @@ assert.equal(m03SemanticIssue(westernSupportOf(["2型糖尿病10年", "高血压
 
 // Post-grounding rationale alignment repairs the whole transform-induced mismatch class without
 // restoring filtered padding or inventing a more specific diagnosis.
+// 2026-10-19：只有逐字照抄支持事实才算复述（与中医辨证依据同一口径）；没引到某条支持事实的推理句不再被回落句顶掉。
+const keptRationale = structuredClone(stable);
+keptRationale.westernDiagnosis.primary.name = "失眠症状";
+keptRationale.westernDiagnosis.primary.supportingFacts = ["入睡困难"];
+keptRationale.westernDiagnosis.primary.clinicalRationale = "生命体征平稳支持当前工作诊断，但具体病因仍需鉴别。";
+assert.equal(m03WesternClinicalRationaleIssue(keptRationale), undefined, "a reasoning sentence that does not quote a supporting fact is kept");
+const keptRationaleContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(keptRationale)}\n<!-- DIAGNOSIS_JSON_END -->`;
+assert.equal(alignNormalizedM03WesternClinicalRationale(keptRationaleContent), keptRationaleContent, "the model's own rationale is byte-preserved");
 const rationaleMismatch = structuredClone(stable);
 rationaleMismatch.westernDiagnosis.primary.name = "失眠症状";
-rationaleMismatch.westernDiagnosis.primary.supportingFacts = ["入睡困难"];
-rationaleMismatch.westernDiagnosis.primary.clinicalRationale =
-  "生命体征平稳支持当前工作诊断，但具体病因仍需鉴别。";
+rationaleMismatch.westernDiagnosis.primary.supportingFacts = ["入睡困难，夜间易醒多梦"];
+rationaleMismatch.westernDiagnosis.primary.clinicalRationale = "入睡困难，夜间易醒多梦。";
 assert.equal(
   m03WesternClinicalRationaleIssue(rationaleMismatch),
   "western_clinical_rationale_restatement",
-  "a rationale tied to a filtered fact is rejected against the surviving support",
+  "a rationale that only copies the supporting fact is a restatement",
 );
 const rationaleMismatchContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(rationaleMismatch)}\n<!-- DIAGNOSIS_JSON_END -->`;
 const alignedRationaleContent = alignNormalizedM03WesternClinicalRationale(rationaleMismatchContent);
@@ -2017,7 +2024,6 @@ const alignedRationale = JSON.parse(
   alignedRationaleContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0],
 );
 assert.match(alignedRationale.westernDiagnosis.primary.clinicalRationale, /入睡困难.*失眠症状.*具体病因/, "the replacement uses only the retained fact, selected label, and bounded uncertainty");
-assert.doesNotMatch(alignedRationale.westernDiagnosis.primary.clinicalRationale, /生命体征/, "filtered normal-vital padding cannot re-enter through the rationale");
 assert.equal(m03WesternClinicalRationaleIssue(alignedRationale), undefined, "the bounded rationale passes the same focused validator used by finalization");
 assert.equal(m03SemanticIssue(alignedRationale, stableSupportContext), undefined, "the aligned candidate passes the complete M03 contract");
 

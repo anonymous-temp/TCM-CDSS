@@ -1,5 +1,5 @@
 import { redFlagExplicitOnly } from "./clinical-facts";
-import { textbookDiscriminatingQuestion } from "./tcm-textbook-syndromes";
+import { pulseOptionsMutuallyExclusive, textbookDiscriminatingQuestion, tongueOptionsMutuallyExclusive, withoutFingerVeinClause } from "./tcm-textbook-syndromes";
 import { FOLLOWUP_SKIP_SENTENCE, POSSIBLE_RISK_QUESTIONS, riskQuestionQuotePrefix } from "./followup-conversation";
 import { affirmedClinicalText } from "./clinical-polarity";
 import type { Completeness } from "./diagnosis-types";
@@ -13,6 +13,16 @@ type QuestionFallbackCase = {
   clinicalFacts?: { redFlags?: Array<{ category?: string; status?: string; urgency?: string; quote?: string }> };
   /** 病历已经回答了其急症筛查题的类目（路由按 m02-risk-question-answerability 的核对结果写入），这些类目不再出筛查题。 */
   m02SuppressedRiskCategories?: readonly string[];
+  /**
+   * 病历已写明该类急症表现正在发生的类目（核对结果 affirmed，2026-10-19）：固定筛查题「是否确实出现…」问的正是病历已写的事，
+   * 不再强制出它；事实层线索仍进出题提示词，由模型问病历没写的严重度/处置一项。闸门与剂量不读这里。
+   */
+  m02AffirmedRiskCategories?: readonly string[];
+  /**
+   * 病历已逐项否认其中几项、其余未提的类目（核对结果 partly）：模型针对该线索写的澄清题（triage / treatment_safety）就用它，
+   * 不再前置整张固定清单；模型没写时仍出固定筛查题兜底。
+   */
+  m02ModelOwnedRiskCategories?: readonly string[];
   vitals?: Record<string, unknown>;
   hisRecord?: { fields?: { age?: string; zhushu?: string; xianbingshi?: string; tcmDetail?: string; tcmTongue?: string; tcmPulse?: string } };
 };
@@ -328,7 +338,7 @@ function groundedRiskFactCandidates(state?: QuestionFallbackCase) {
   // 只认明确现症时（clinical-facts.redFlagExplicitOnly，默认）：急症筛查题只为事实层判为 urgent 的线索而出。
   // 此前 status=possible 或 urgency=clarify 就出题——生产留存里 3 例普通感冒（头痛、头晕）第一题都是
   //「是否出现突然说话不清、口角歪斜、单侧肢体无力…」，医生直接跳过。
-  const suppressed = new Set(state?.m02SuppressedRiskCategories || []);
+  const suppressed = new Set([...(state?.m02SuppressedRiskCategories || []), ...(state?.m02AffirmedRiskCategories || [])]);
   const flags = (state?.clinicalFacts?.redFlags || []).filter((item) => typeof item.category === "string" && !suppressed.has(item.category));
   if (redFlagExplicitOnly()) return flags.filter((item) => item.urgency === "urgent");
   return flags.filter((item) => item.status === "possible" || item.urgency === "clarify" || item.urgency === "urgent");
@@ -412,15 +422,18 @@ function questionBlock(index: number, question: string, reason: string, field: s
  *（合成集 190 例里 12 例），对辨证没有用。这四项是区分寒热虚实的基本依据；每项只在病历完全没有提到时才问，
  * 四项都写了就返回 undefined，由后面的兜底接手。记录判据是闭集词形，只用来决定「问不问」，不参与任何安全判断。
  */
+const BASIC_INQUIRY_COLD_HEAT_QUESTION = "平时或这次发病以来，是怕冷还是怕热？";
+const BASIC_INQUIRY_THIRST_QUESTION = "口渴吗？想喝凉的还是热的？";
 const BASIC_INQUIRY_AXES: ReadonlyArray<{ recorded: RegExp; question: string; options: [string, string] }> = [
   {
-    recorded: /怕冷|畏寒|恶寒|畏冷|形寒|怕热|恶热|发热|身热|烘热|潮热|烦热|手足心热|肢冷|不温|(?:手|脚|足)[^，,。；;]{0,3}(?:冰|凉)|喜暖|喜温|得温|得热|遇寒|遇冷|受凉|喜凉|喜冷|恶风|怕风|寒热/,
-    question: "平时或这次发病以来，是怕冷还是怕热？",
+    // 发烧、高烧、低烧与发热同义；寒战、发抖是怕冷的表现（2026-10-19，r1019：「发高烧39.6…烧的发抖」被问「怕冷还是怕热」，评审判重复）。
+    recorded: /怕冷|畏寒|恶寒|畏冷|形寒|怕热|恶热|发热|发烧|高烧|低烧|身热|烘热|潮热|烦热|手足心热|肢冷|不温|(?:手|脚|足)[^，,。；;]{0,3}(?:冰|凉)|喜暖|喜温|得温|得热|遇寒|遇冷|受凉|喜凉|喜冷|恶风|怕风|寒热|寒战|冷战|发抖/,
+    question: BASIC_INQUIRY_COLD_HEAT_QUESTION,
     options: ["怕冷，喜暖，手脚偏凉", "怕热，喜凉，或手足心发热"],
   },
   {
     recorded: /口渴|口干|咽干|不渴|喜饮|欲饮|饮水|饮冷|饮热|热饮|冷饮|口淡|口苦|口黏|口腻/,
-    question: "口渴吗？想喝凉的还是热的？",
+    question: BASIC_INQUIRY_THIRST_QUESTION,
     options: ["口干口渴，想喝凉的", "口不渴，或只想喝少量热水"],
   },
   {
@@ -435,8 +448,34 @@ const BASIC_INQUIRY_AXES: ReadonlyArray<{ recorded: RegExp; question: string; op
   },
 ];
 
-export function basicInquiryFallback(recordText: string): string | undefined {
-  const axis = BASIC_INQUIRY_AXES.find((item) => !item.recorded.test(recordText));
+/**
+ * 患者年龄（天）。只认「N天/周/个月/岁」与病历里的「出生/生后 N 天」「新生儿」；给不出返回 undefined。
+ * 用途只有一个：未满 28 天的新生儿不问「怕冷还是怕热」（2026-10-19，r1019 验收集 B：黄疸蓝光中、化验单咨询的新生儿
+ * 被问寒热喜恶，评审判与主诉无关、新生儿无法自述）。
+ */
+export function m02PatientAgeDays(age: unknown, recordText = ""): number | undefined {
+  const fromText = (text: string): number | undefined => {
+    const match = /(\d+(?:\.\d+)?)\s*(天|日|周|个月|月|岁)/u.exec(text);
+    if (!match) return undefined;
+    const value = Number(match[1]);
+    return match[2] === "岁" ? value * 365 : match[2] === "周" ? value * 7 : /月/u.test(match[2]) ? value * 30 : value;
+  };
+  if (typeof age === "number" && Number.isFinite(age)) return age * 365;
+  if (typeof age === "string" && age.trim()) {
+    if (/^\d+(?:\.\d+)?$/u.test(age.trim())) return Number(age.trim()) * 365;
+    const parsed = fromText(age);
+    if (parsed != null) return parsed;
+  }
+  if (/新生儿/u.test(recordText)) return 14;
+  const born = /(?:出生|生后|出生后)\s*(?:第)?\s*(\d{1,2})\s*(?:天|日)/u.exec(recordText);
+  return born ? Number(born[1]) : undefined;
+}
+
+export function basicInquiryFallback(recordText: string, options: { ageDays?: number } = {}): string | undefined {
+  const neonate = options.ageDays != null && options.ageDays < 28;
+  // 新生儿说不出怕冷怕热、口渴喜冷喜热（r1019：10 天新生儿的化验单咨询先后被问这两项，评审判对新生儿不适用）。
+  const axis = BASIC_INQUIRY_AXES.find((item) => !item.recorded.test(recordText) &&
+    !(neonate && (item.question === BASIC_INQUIRY_COLD_HEAT_QUESTION || item.question === BASIC_INQUIRY_THIRST_QUESTION)));
   return axis
     ? questionBlock(1, axis.question, "这一项有助于区分寒热虚实，目前病历里没有写到。", "现病史", [...axis.options, "本次未取得该信息"])
     : undefined;
@@ -682,7 +721,7 @@ export function buildCaseAwareQuestionFallback(
       ...Object.values(state.symptoms || {}),
     ].filter((value): value is string => typeof value === "string").join("；");
     if (options.settled && options.textbookQuestion !== false) {
-      return basicInquiryFallback(recordText) || agendaQuestionFallback();
+      return basicInquiryFallback(recordText, { ageDays: m02PatientAgeDays(state.patient?.age ?? state.hisRecord?.fields?.age, recordText) }) || agendaQuestionFallback();
     }
     const currentComplaint = [
       state.chiefComplaint,
@@ -719,7 +758,7 @@ export function buildCaseAwareQuestionFallback(
     if (familyFallback) return familyFallback;
     // 主诉类别没有预置题时，先问病历里没写到的基本问诊项；四项都写了才退到病情变化题。
     if (options.textbookQuestion !== false) {
-      const basic = basicInquiryFallback(recordText);
+      const basic = basicInquiryFallback(recordText, { ageDays: m02PatientAgeDays(state.patient?.age ?? state.hisRecord?.fields?.age, recordText) });
       if (basic) return basic;
     }
     return genericModelFailureFallback(state);
@@ -924,18 +963,20 @@ export function enforceM02UnansweredAxes(
     !questionAlreadyAnswered(question, sourceText) && !(question.targetField === "vitalsDetail" && structuredVitalsComplete(state)));
   const groundedRisk = possibleRiskQuestion(state);
   // 模型自己写的澄清题已经覆盖「其他急危重线索」时用模型那一道，不再前置笼统的复核题。
-  const modelCoversOpenRisk = groundedRisk?.category === "other_critical" && source !== fallback &&
-    questions.some((question) => questionCoversGroundedRisk(question, groundedRisk));
+  const modelOwnedRisk = groundedRisk?.category === "other_critical" ||
+    Boolean(groundedRisk && state?.m02ModelOwnedRiskCategories?.includes(groundedRisk.category));
+  const modelCoversOpenRisk = Boolean(groundedRisk) && modelOwnedRisk && source !== fallback &&
+    questions.some((question) => questionCoversGroundedRisk(question, groundedRisk as PossibleRiskQuestion, state));
   const prependRisk = Boolean(groundedRisk && fallback?.plan.questions[0] && !modelCoversOpenRisk);
   if (groundedRisk && prependRisk && fallback?.plan.questions[0]) {
     // A grounded risk owns one canonical, exhaustive triage axis. Replace every provider variant
     // on that axis instead of prepending a second wording of the same urgent decision branch.
     const riskQuestion = { ...fallback.plan.questions[0], id: "q1" };
-    questions = [riskQuestion, ...questions.filter((question) => !questionCoversGroundedRisk(question, groundedRisk))];
+    questions = [riskQuestion, ...questions.filter((question) => !questionCoversGroundedRisk(question, groundedRisk, state))];
   } else if (groundedRisk && modelCoversOpenRisk) {
     questions = [
-      ...questions.filter((question) => questionCoversGroundedRisk(question, groundedRisk)),
-      ...questions.filter((question) => !questionCoversGroundedRisk(question, groundedRisk)),
+      ...questions.filter((question) => questionCoversGroundedRisk(question, groundedRisk, state)),
+      ...questions.filter((question) => !questionCoversGroundedRisk(question, groundedRisk, state)),
     ];
   }
   // 一轮只问一题（2026-10-13，甲方 10.12 测评「追问是必选项吗」；生产 26 轮追问被跳过 21 轮）：急症澄清题之外
@@ -989,6 +1030,78 @@ export function withM02Completeness(content: string, completeness: Completeness)
     JSON.stringify({ completeness: { level, redFlag, infoGain, managementImpact, answerability }, m02Plan: envelope.m02Plan }),
     content.slice(end),
   ].join("\n");
+}
+
+/**
+ * 题干把舌象与脉象并在一问（「舌象与脉象更接近下列哪一组？」，选项「舌红苔黄腻，脉弦滑数」）：改成只问一项（2026-10-19）。
+ * r1019 验收集 B 里这类题 3/3 被评审判「两件事并问」，单问点核对对同一题干时判时不判（选项不同结论不同）。
+ * 拆法（构词式，舌、脉是有限的两个诊察项）：每个选项在「脉」字处切成舌、脉两半；病历没写舌象且两半舌象互斥
+ *（tongueOptionsMutuallyExclusive）就只问舌象，否则病历没写脉象且两半脉象互斥（pulseOptionsMutuallyExclusive）就只问脉象，
+ * 都不行就删题（走与确定性删题同一条收口）。返回改写后的内容与要删的题号。
+ */
+const TONGUE_RECORDED = /舌(?:质|体|象)?\s*[:：]?\s*(?:淡|红|暗|黯|紫|胖|瘦|嫩|绛|青)|苔(?:薄|厚|白|黄|腻|少|剥|滑|燥|润)/u;
+const PULSE_RECORDED = /脉(?:象)?\s*[:：]?\s*(?:浮|沉|迟|数|细|弦|滑|涩|虚|实|缓|紧|濡|弱|洪|微|结|代|促|芤|伏|弦)/u;
+function splitTongueAndPulse(text: string): { tongue: string; pulse: string } | undefined {
+  const match = /(^|[，,、；;\s])脉/u.exec(text);
+  if (!match) return undefined;
+  const at = match.index + match[1].length;
+  const tongue = text.slice(0, at).replace(/[，,、；;\s]+$/u, "").trim();
+  const pulse = text.slice(at).replace(/[。；;，,\s]+$/u, "").trim();
+  return /[舌苔]/u.test(tongue) && pulse ? { tongue, pulse } : undefined;
+}
+export function splitTonguePulseQuestions(
+  content: string,
+  sourceText: string,
+  state?: { tongue?: string; pulse?: string; hisRecord?: { fields?: { tcmTongue?: string; tcmPulse?: string } } },
+): { content: string; removeIds: string[] } {
+  const plan = parseM02PlanFromContent(content);
+  if (!plan || plan.decision !== "ask") return { content, removeIds: [] };
+  const tongueRecorded = Boolean((state?.tongue || state?.hisRecord?.fields?.tcmTongue || "").trim()) || TONGUE_RECORDED.test(sourceText);
+  const pulseRecorded = Boolean((state?.pulse || state?.hisRecord?.fields?.tcmPulse || "").trim()) || PULSE_RECORDED.test(sourceText);
+  const removeIds: string[] = [];
+  let changed = false;
+  const questions = plan.questions.map((question) => {
+    if (!/舌/u.test(question.question) || !/脉/u.test(question.question)) return question;
+    const clinical = question.options.filter((option) => option.kind === "clinical_fact");
+    const halves = clinical.map((option) => splitTongueAndPulse(option.recordValue || option.answer));
+    if (clinical.length !== 2 || halves.some((half) => !half)) {
+      removeIds.push(question.id);
+      return question;
+    }
+    const [first, second] = halves as { tongue: string; pulse: string }[];
+    const field = !tongueRecorded && tongueOptionsMutuallyExclusive(first.tongue, second.tongue)
+      ? "tongue"
+      : !pulseRecorded && pulseOptionsMutuallyExclusive(first.pulse, second.pulse) ? "pulse" : undefined;
+    if (!field) {
+      removeIds.push(question.id);
+      return question;
+    }
+    changed = true;
+    const values = field === "tongue" ? [first.tongue, second.tongue] : [withoutFingerVeinClause(first.pulse), withoutFingerVeinClause(second.pulse)];
+    let index = 0;
+    return {
+      ...question,
+      question: field === "tongue" ? "本例的舌象更接近下面哪一种？" : "本例的脉象更接近下面哪一种？",
+      targetField: field === "tongue" ? "tcmTongue" as const : "tcmPulse" as const,
+      options: question.options.map((option) => {
+        if (option.kind !== "clinical_fact") return option;
+        const value = values[index++];
+        return { ...option, label: value, answer: value, ...(option.recordValue ? { recordValue: value } : {}) };
+      }),
+    };
+  });
+  if (!changed) return { content, removeIds };
+  const nextPlan: M02Plan = { ...plan, questions };
+  return {
+    content: [
+      renderStructuredM02Plan(nextPlan),
+      "",
+      QUESTION_SENTINEL_START,
+      JSON.stringify({ m02Plan: nextPlan }),
+      QUESTION_SENTINEL_END,
+    ].join("\n"),
+    removeIds,
+  };
 }
 
 export function removeM02PlanQuestions(content: string, questionIds: string[], rationale: string): string {
@@ -1177,10 +1290,12 @@ const RISK_AXIS_PATTERNS: Record<string, RegExp> = {
   other_critical: /生命体征|意识|呼吸状态|异常.{0,4}发生/,
 };
 
-function questionCoversGroundedRisk(question: M02PlanQuestion, risk: PossibleRiskQuestion): boolean {
+function questionCoversGroundedRisk(question: M02PlanQuestion, risk: PossibleRiskQuestion, state?: QuestionFallbackCase): boolean {
   // 「其他急危重线索」没有固定的筛查内容：模型按该线索写的澄清题（triage / treatment_safety 分支）就是这道题本身，
   // 比「请复核该异常是否正在发生」具体（抗凝中的深静脉血栓病史 → 「原血栓侧有无新发肿胀、疼痛」）。
-  if (risk.category === "other_critical" && (question.decisionBranch === "triage" || question.decisionBranch === "treatment_safety")) return true;
+  // 病历已逐项否认其中几项的类目同理（2026-10-19）：模型只问未否认的那几项，比整张清单准。
+  const modelOwned = risk.category === "other_critical" || Boolean(state?.m02ModelOwnedRiskCategories?.includes(risk.category));
+  if (modelOwned && (question.decisionBranch === "triage" || question.decisionBranch === "treatment_safety")) return true;
   const text = `${question.question}；${question.reason}；${question.expectedDecisionImpact}`;
   return asksGroundedRisk(question.question, risk.question) || Boolean(RISK_AXIS_PATTERNS[risk.category]?.test(text));
 }

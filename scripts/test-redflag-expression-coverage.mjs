@@ -65,12 +65,12 @@ ok(
   hasFlagMatching("孕32周，头痛", "妊娠/产褥期血压 185/118mmHg", { vitals: { bloodPressure: "185/118" } }),
 );
 ok(
-  "非妊娠 185/118 必须进入通用重度高血压红旗",
-  hasFlagMatching("头痛3天", "血压 185/118mmHg", { vitals: { bloodPressure: "185/118" } }),
+  "非妊娠 185/118 伴剧烈头痛必须进入通用重度高血压红旗（无靶器官表现的见 asymptomatic-severe-hypertension）",
+  hasFlagMatching("剧烈头痛3天", "血压 185/118mmHg", { vitals: { bloodPressure: "185/118" } }),
 );
 ok(
   "同次记录先正常后重度高血压必须取异常值",
-  hasFlagMatching("先测120/80，复测185/118mmHg", "185/118mmHg"),
+  hasFlagMatching("先测120/80，复测185/118mmHg，伴胸闷", "185/118mmHg"),
 );
 ok(
   "呼吸 8次/分必须进入呼吸抑制红旗",

@@ -1,0 +1,70 @@
+{
+ "schemaVersion": "tcm-formula-doctrine-phrases-v1",
+ "note": "方义里讲「阴阳互求」的固定说法与教材是否相反（2026-10-19；甲方标准病历 6 左归丸，三次生成里两次写「全方补而不泻、阴中求阳」，独立评审判「阴阳求法写反」）。只收《方剂学》在该方【配伍特点】或【方解】里明写了这对说法之一的方剂；方义点到的是表中一首方、写成了相反的那一种时，换成教材原词。方名里含表中方名的按该方判（济生肾气丸即肾气丸加牛膝、车前子，同为阴中求阳）；方义点到表中两首以上方剂时不判；表外的方（左归饮、右归饮等）不判。",
+ "opposites": {
+  "阳中求阴": "阴中求阳",
+  "阴中求阳": "阳中求阴"
+ },
+ "formulas": [
+  {
+   "name": "左归丸",
+   "aliases": [],
+   "phrase": "阳中求阴",
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "book": "方剂学（全国中医药行业高等教育“十三五”规划教材）",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 48410,
+     "text": "【配伍特点】 纯甘补阴，纯补无泻，阳中求阴。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "book": "方剂学（全国中医药行业高等教育“十三五”规划教材）",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 48408,
+     "text": "用山茱萸补养肝肾，固秘精气；山药补脾益阴，滋肾固精；龟板胶滋阴补髓；鹿角胶补益精血，温壮肾阳，配入补阴方中，而有“阳中求阴”之义，皆为臣药。"
+    }
+   ]
+  },
+  {
+   "name": "右归丸",
+   "aliases": [],
+   "phrase": "阴中求阳",
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "book": "方剂学（全国中医药行业高等教育“十三五”规划教材）",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 48487,
+     "text": "【配伍特点】 补阳补阴相配，阴中求阳，纯补无泻。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "book": "方剂学（全国中医药行业高等教育“十三五”规划教材）",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 48486,
+     "text": "熟地黄、山茱萸、枸杞子、山药滋阴益肾，填精补髓，并养肝补脾，即所谓“善补阳者，必于阴中求阳，则阳得阴助，而生化无穷”（《类经》），共为臣药。"
+    }
+   ]
+  },
+  {
+   "name": "肾气丸",
+   "aliases": [
+    "金匮肾气丸",
+    "崔氏八味丸",
+    "八味肾气丸"
+   ],
+   "phrase": "阴中求阳",
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "book": "方剂学（全国中医药行业高等教育“十三五”规划教材）",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 48466,
+     "text": "诸药相合，非峻补元阳，乃阴中求阳，微微生火，鼓舞肾气，即“少火生气”之意。"
+    }
+   ]
+  }
+ ]
+}

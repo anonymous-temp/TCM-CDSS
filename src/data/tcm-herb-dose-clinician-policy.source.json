@@ -3756,6 +3756,11 @@
         "name": "葵子",
         "blockedFormulaCount": 8,
         "basis": "「葵子」经 2026-09-30 别名错链整改后归入「冬葵子」（药典未收载/本库无数值边界），剂量由医师确定；见 tcm-herb-identity-supplements 批次 ADJ-WEB-20260930-ALIAS"
+      },
+      {
+        "name": "椒目",
+        "blockedFormulaCount": 4,
+        "basis": "椒目（花椒的种子，苦寒，利水消肿、降气平喘）药典2020未收载、本库无法定数值边界；旧目录把它归成花椒（果皮）会套用花椒 3–6g 的药典边界（2026-10-19 别名错链整改，见 tcm-herb-identity-supplements 批次 ADJ-WEB-20261019-ALIAS）。《中药学》附药写「煎服，3～10g」，另一来源（神农α 条目）写「煎汤，2-5g」，两源不一，暂不收进药典外参考用量表，由医师定量。受影响：己椒苈黄丸、防己椒目葶苈大黄丸、疏凿饮子、治诸水肿方。"
       }
     ],
     "controlled_or_toxic": [

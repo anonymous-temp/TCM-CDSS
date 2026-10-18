@@ -386,7 +386,9 @@ const CONTROLLED_EXACT_HERB_DOSE_LIMITS: Record<string, TcmHerbDoseLimit> = {
   // explicit pharmacopoeia preparation boundary instead of inheriting the first range in that row.
   生地黄: { min: 10, max: 15, basis: "中华人民共和国药典：2020年版．一部（地黄条目：生地黄）", sourceType: "routeDose" },
 };
-const CONTROLLED_STANDALONE_HERBS = new Set(["茯神", "生地黄"]);
+// 椒目（2026-10-19）：花椒的种子，教材列为花椒的附药、功效与花椒不同（苦寒，利水消肿、降气平喘）。身份目录此前把它归成花椒，
+// 现由 tcm-herb-identity-supplements（批次 ADJ-WEB-20261019-ALIAS）归为独立的一味；知识库无它的条目，在这里登记为已收录。
+const CONTROLLED_STANDALONE_HERBS = new Set(["茯神", "生地黄", "椒目"]);
 const CONTROLLED_HERB_FUNCTION_TEXT: Record<string, string> = {
   人参: "大补元气，复脉固脱，补脾益肺，生津养血，安神益智",
   黄芪: "补气升阳，固表止汗，利水消肿，生津养血，托毒排脓，敛疮生肌",
@@ -423,6 +425,8 @@ const CONTROLLED_HERB_FUNCTION_TEXT: Record<string, string> = {
   // 命中即短路，排在整套启发式选句之前，三个出口（配伍意义列、可替换药味差异说明、
   // herb-function 接口）一次修好。文本为《中国药典》2020 年版一部【功能与主治】原文。
   石决明: "平肝潜阳，清肝明目",
+  // 椒目：《中药学》（钟赣生主编）花椒条附药「功能利水消肿，降气平喘」（本地教材语料 L155923）。药典未收载，用量由医师定（见剂量政策表）。
+  椒目: "利水消肿，降气平喘",
   牛膝: "逐瘀通经，补肝肾，强筋骨，利尿通淋，引血下行",
   川牛膝: "逐瘀通经，通利关节，利尿通淋",
   // The compiled workbook row for 玉竹 is polluted with unrelated 补气/活血 labels.
@@ -489,6 +493,9 @@ const CONTROLLED_HERB_FUNCTION_TEXT: Record<string, string> = {
 // polluted source label cannot continue to drive safety decisions through the risk-profile tail.
 const CONTROLLED_HERB_FUNCTION_CATEGORY_REPLACEMENTS: Record<string, string[]> = {
   桔梗: ["化痰止咳平喘药"],
+  // 椒目在分类表里跟着花椒记成「温里药」（教材把它列为花椒条的附药），而它苦寒、利水消肿：留着温里药会让
+  // 湿热水肿方（疏凿饮子）里的椒目被方向门禁当成温阳药剔除。按功效归利水消肿药，与泽泻同类（2026-10-19）。
+  椒目: ["利水消肿药", "利水渗湿药"],
 };
 const CONTROLLED_HERB_FUNCTION_CATEGORIES: Record<string, string[]> = {
   麦冬: ["补虚药", "补阴药"],

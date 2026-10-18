@@ -45,6 +45,9 @@ const SYSTEM = [
   // 2026-10-17 第四轮复测：病历 5「平时最困扰的是气短自汗，还是食少胃胀」（两组都是病历原话）、病历 9「风团颜色偏鲜红还是淡白」
   //（病历写着红色风团）独立评审判重复，第一版判 not_answered。离线 329 题新增 4 处判 partly，均合理（~/runlogs/deliver1017/qred/v2.json）。
   "以下也算 partly：各选项列的表现病历里都已经写了、题干只问哪一组更突出或以哪一组为主；题干同时问的几项特征里，有一项病历已经写明（如问风团颜色，病历写着红色风团）。",
+  // 2026-10-19 r1019：留出例 S158 问「按压胃脘腹部是拒按还是喜按」，病历写着「无腹痛拒按」；验收集 B 选项「大便酸臭，夹有乳凝块或颗粒」，
+  // 病历写着「大便黄色，有颗粒状物」。两题评审都判重复，第一版核对判 not_answered。
+  "以下也算 partly：某个选项的表现病历已写明没有（如问“拒按还是喜按”，病历写着“无腹痛拒按”）；某个选项里有一项表现就是病历已写的那件事换了说法（如选项“夹有乳凝块或颗粒”，病历写着“有颗粒状物”）。",
   "拿不准时判 not_answered。",
   "answered 或 partly 时给出 quotes：病历里写明该内容的原文片段（逐字复制，每条不超过40字，1–3条）和 reason（≤30字）。",
   "只输出 JSON：{\"verdict\":\"answered|partly|not_answered\",\"quotes\":[\"…\"],\"reason\":\"…\"}",
@@ -139,10 +142,16 @@ export async function questionIdsRepeatingRecord(
  * 同一症状的几个特征、在几组表现里选一组、危险信号筛查题都算一个问点。超时、未配置、输出非法都当一个问点（照常出题）。
  * 开关：CDSS_M02_QUESTION_SINGLE_POINT_CHECK=false 关闭。
  */
+// 2026-10-19 r1019：去掉了 single 一侧的「更接近下面哪一种？」示例——它与 compound 一侧的「舌象与脉象更接近哪一组」互相矛盾，
+// 同一题干「舌象与脉象更接近下列哪一组？」8 次里判 compound 3 次、single 5 次（结论随选项变）。核对现在只看题干（不再给选项）。
+// 判据是「几个对象」，不是「几个词」：同一个症状或排出物的几项特征（大便的气味和性状、排便时的感觉）是一个问点。
+// 离线探针（~/runlogs/r1018/work/r1019/agentB/qprobe）：只给题干、未写这条时，「大便的气味和性状更接近哪一种」7 次被判 compound；
+// 题干自己列两组证候表现让选一组的（「胃脘怕冷喜温，还是口苦胸胁胀满」、甲方病例 5「气短自汗易感冒，还是食少胃胀便溏」）也算一个问点（项目负责人口径）。
 const SINGLE_POINT_SYSTEM = [
-  "你是追问题题干的核对器，不负责评价这道题问得好不好。只判断一件事：这道题是不是要患者分别回答两件不同的事。",
-  "- compound：题干要患者分别描述两样不同的东西，一个答案说不清（如“精神反应和吃奶情况如何”“鼻涕和痰是什么性状”“舌象与脉象更接近哪一组”“口渴和大便情况怎样”“黄疸的色泽与伴随表现”“痰的性状与寒热表现”“误服的物质和现在有没有不适”“大便气味与喂养方式”）。",
-  "- single：题干只有一个问点，一个回答就能答完。包括：问有没有几项表现中的任一项或这一组表现（如“是否伴有气短、自汗”“有无发热、怕风等外感表现”“是否加重并伴发热或出血”）；同一个症状的几个特征（如“痰的颜色和性状”“疼痛的部位和性质”“疼痛对冷热和按压的反应”“发热的最高温度和持续时间”）；同一个诊察项目的几个部分（如“舌质与舌苔”“口渴和饮水情况”）；在几组表现里选一组（如“发热时是恶寒重、无汗，还是发热重、有汗？”“更接近下面哪一种？”）。",
+  "你是追问题题干的核对器，不负责评价这道题问得好不好。只判断一件事：这道题的题干是不是要患者分别回答两个不同对象的情况。",
+  "对象指一个症状、一种排出物、一处病变、一项诊察（舌象、脉象、指纹）或全身状况（寒热、精神、饮食、喂养、体质）。",
+  "- compound：题干里有两个不同的对象要分别描述，一个答案说不清（如“精神反应和吃奶情况如何”“鼻涕和痰是什么性状”“舌象与脉象更接近哪一组”“涕液性状与全身寒热表现更接近哪一种”“口渴和大便情况怎样”“黄疸的色泽与伴随表现”“痰的性状与寒热表现”“误服的物质和现在有没有不适”“大便气味与喂养方式”“平时是否怕冷、吃凉的东西后胃痛会不会加重”）。",
+  "- single：题干只有一个对象，一个回答就能答完。包括：同一个对象的几项特征（如“痰的颜色和性状”“大便的气味和性状更接近哪一种”“大便的性状和排便时的感觉”“疼痛的部位和性质”“疼痛对冷热和按压的反应”“发热的最高温度和持续时间”“白点的形态和分布”）；同一项诊察的几个部分（如“舌质与舌苔”“口渴和饮水情况”）；问有没有几项表现中的任一项或这一组表现（如“是否伴有气短、自汗”“有无发热、怕风等外感表现”“是否加重并伴发热或出血”）；同一个对象的两种情况选一种（如“发热时是恶寒重、无汗，还是发热重、有汗？”“风团遇热加重还是遇冷加重？”）；题干自己列出两组表现、问更接近哪一组或以哪一组为主——每组是同一证型的几项表现，即使涉及不同部位也算一个问点（如“胃脘部怕冷、喜温喜按，还是口苦、胸胁胀满？”“最困扰的是气短自汗、易感冒，还是食少胃胀、便溏？”）。",
   "拿不准时判 single。",
   "compound 时给出 points：题干里那两样东西各自的原文片段（逐字复制题干，各不超过12字）。",
   "只输出 JSON：{\"verdict\":\"compound|single\",\"points\":[\"…\",\"…\"]}",
@@ -168,14 +177,15 @@ export function questionAsksTwoThings(content: unknown, stem: string): boolean {
 }
 
 async function questionStemAsksTwoThings(
-  input: { question: string; options: string[] },
+  input: { question: string },
   signal?: AbortSignal,
 ): Promise<boolean> {
   const config = getControlledTerminologyModelConfig();
   if (!config.configured || !input.question.trim()) return false;
+  // 只给题干：问点数是题干的事，给了选项，同一题干的结论会随选项变（见 SINGLE_POINT_SYSTEM 上方说明）。
   const messages = [
     { role: "system" as const, content: SINGLE_POINT_SYSTEM },
-    { role: "user" as const, content: JSON.stringify({ question: input.question, options: input.options }) },
+    { role: "user" as const, content: JSON.stringify({ question: input.question }) },
   ];
   return memoizedSmallTask<boolean>("m02_question_single_point", smallTaskMemoKey([config.model, messages]), async () => {
     const controller = new AbortController();
@@ -218,8 +228,7 @@ export async function questionIdsFailingNarrowChecks(
     ? Promise.all(plan.questions.slice(0, 2).map(async (question) => {
       const stem = compact(question.question);
       if (!stem || owned.includes(stem)) return undefined;
-      const options = question.options.filter((option) => option.kind === "clinical_fact").map((option) => option.answer);
-      return await questionStemAsksTwoThings({ question: question.question, options }, signal) ? question.id : undefined;
+      return await questionStemAsksTwoThings({ question: question.question }, signal) ? question.id : undefined;
     }))
     : Promise.resolve([]);
   const [repeated, compound] = await Promise.all([

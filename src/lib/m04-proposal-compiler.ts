@@ -24,7 +24,8 @@ import {
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
-import { authoritativePatientAgeYears, clinicalGroundingText, reproductiveAdviceRelevant } from "./diagnosis-safety";
+import { authoritativePatientAgeYears, clinicalGroundingText, reproductiveAdviceRelevant, sourceDocumentsNegation } from "./diagnosis-safety";
+import modificationRelevanceJson from "../data/tcm-modification-relevance.source.json";
 import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
@@ -761,7 +762,9 @@ type ModificationDropCode =
   | "bounded_limit"
   | "direction_conflict"
   | "special_population_conflict"
-  | "incidental_sedative";
+  | "incidental_sedative"
+  | "trigger_contradicts_record"
+  | "trigger_outside_population";
 
 const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>> = {
   malformed: "条目缺少触发事实、病机引用、动作、药名或理由",
@@ -774,7 +777,100 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   direction_conflict: "拟加药味与已锁定病机或治法方向冲突",
   special_population_conflict: "拟加药味为药典孕妇禁用，本例备孕/未避孕不宜加入",
   incidental_sedative: "睡眠差随主病而来，治主病即可，不另加安神药",
+  trigger_contradicts_record: "触发条件里的症状病历已明确否认",
+  trigger_outside_population: "触发条件是本例患者的性别或生育期不会出现的症状",
 };
+
+type ModificationRelevanceTable = {
+  conditionLeadPattern: string;
+  conditionSplitPattern: string;
+  qualifierSuffixes: string[];
+  termLeadPrefixes: string[];
+  patternTermEndings: string[];
+  patternTermMarkers: string[];
+  equivalents: Record<string, string[]>;
+  maleOnlyTerms: string[];
+  femaleReproductiveTerms: string[];
+};
+const MODIFICATION_RELEVANCE = modificationRelevanceJson as unknown as ModificationRelevanceTable;
+const CONDITION_LEAD = new RegExp(MODIFICATION_RELEVANCE.conditionLeadPattern, "u");
+const CONDITION_SPLIT = new RegExp(MODIFICATION_RELEVANCE.conditionSplitPattern, "u");
+
+/**
+ * 随证加减触发条件里的症状词（tcm-modification-relevance.source.json）：去掉「若/兼见」引导词，按顿号、连词切开，
+ * 去掉「甚/明显/较多」这类程度词；「肾阴亏虚」「热偏重」这类病机说法不算症状词。单字只认同义表里有的（痒）。
+ */
+export function modificationConditionSymptomTerms(trigger: string): string[] {
+  const text = String(trigger || "").normalize("NFKC").trim().replace(CONDITION_LEAD, "").replace(/[。；;，,\s]+$/u, "");
+  const terms = new Set<string>();
+  for (const rawPart of text.split(CONDITION_SPLIT)) {
+    let part = rawPart.trim();
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const suffix of MODIFICATION_RELEVANCE.qualifierSuffixes) {
+        if (part.length > suffix.length && part.endsWith(suffix)) { part = part.slice(0, -suffix.length); changed = true; }
+      }
+      for (const prefix of MODIFICATION_RELEVANCE.termLeadPrefixes) {
+        if (part.length > prefix.length && part.startsWith(prefix)) { part = part.slice(prefix.length); changed = true; }
+      }
+    }
+    if (!part || part.length > 6) continue;
+    if (part.length < 2 && !MODIFICATION_RELEVANCE.equivalents[part]) continue;
+    if (MODIFICATION_RELEVANCE.patternTermEndings.some((ending) => part.endsWith(ending))) continue;
+    if (MODIFICATION_RELEVANCE.patternTermMarkers.some((marker) => part.includes(marker))) continue;
+    terms.add(part);
+  }
+  return [...terms];
+}
+
+/** 病历里有没有一句**肯定地**写到这个词（同一个否定谓词逐句判）。 */
+function recordAffirmsTerm(recordText: string, term: string): boolean {
+  return recordText.split(/[。；;\n]+/u).some((sentence) => sentence.includes(term) && !sourceDocumentsNegation(sentence, term));
+}
+
+/**
+ * 加减的触发条件与病历相抵：条件里的每个症状词，病历里都只以否认的形式出现（2026-10-19；RobustSDT-single_0608「若泛酸」对
+ *「无反酸烧心」、BEST4SDT-284「若痒甚」对「无痛痒感」）。病历别处肯定写到的（「无恶心呕吐」之外又有「食后烧心、恶心」）不算；
+ * 条件里只要有一个症状词病历没否认（「若心悸、气短、乏力明显」而病历有气短乏力），照留。病历根本没提的词不在此列——
+ * 教材加减本来就是「可预见的变化」。
+ */
+export function modificationConditionContradictsRecord(trigger: string, recordText: string): boolean {
+  if (!recordText) return false;
+  const terms = modificationConditionSymptomTerms(trigger);
+  if (terms.length === 0) return false;
+  return terms.every((term) => {
+    const forms = MODIFICATION_RELEVANCE.equivalents[term] || [term];
+    const present = forms.filter((form) => recordText.includes(form));
+    return present.length > 0 && present.every((form) => sourceDocumentsNegation(recordText, form) && !recordAffirmsTerm(recordText, form));
+  });
+}
+
+function structuredPatientSex(caseState: CaseState): "女" | "男" | undefined {
+  const raw = String(caseState.patient?.sex ?? "").normalize("NFKC").trim();
+  if (/女/u.test(raw) || /^(?:f|female|woman)$/iu.test(raw)) return "女";
+  if (/男/u.test(raw) || /^(?:m|male|man)$/iu.test(raw)) return "男";
+  return undefined;
+}
+
+/**
+ * 加减的触发条件是本例患者不可能出现的症状（2026-10-19；MTCMB-82 81 岁女性「若…遗精腰酸」、TCM-SD-438453 绝经 4 年「若经行量多」）。
+ * 男性专属词给女性或 12 岁以下儿童不写；月经/带下类给男性、或 reproductiveAdviceRelevant 判为无此可能的女性（12 岁以下、60 岁及以上、
+ * 已绝经）不写——12 岁以下女童病历自己写着月经的除外。性别不明时不判。
+ */
+export function modificationConditionOutsidePopulation(trigger: string, caseState: CaseState): boolean {
+  const text = String(trigger || "");
+  const sex = structuredPatientSex(caseState);
+  const age = authoritativePatientAgeYears(caseState);
+  if (MODIFICATION_RELEVANCE.maleOnlyTerms.some((term) => text.includes(term)) && (sex === "女" || (age != null && age < 12))) return true;
+  if (MODIFICATION_RELEVANCE.femaleReproductiveTerms.some((term) => text.includes(term))) {
+    if (sex === "男") return true;
+    if (sex === "女" && !reproductiveAdviceRelevant(caseState)) {
+      const childRecordsMenses = age != null && age < 12 && clinicalGroundingText(caseState).includes("月经");
+      return !childRecordsMenses;
+    }
+  }
+  return false;
+}
 
 /**
  * 主证不涉心神时，为病历顺带提到的睡眠差加进主方的安神药不留（2026-10-17）。
@@ -1598,6 +1694,7 @@ export function compileM04Proposal(
     };
   });
   const directionDropReasons: ModificationDropCode[] = [];
+  const modificationRecordText = caseState ? clinicalGroundingText(caseState) : "";
   // 替代药的排除基准是**本候选方的全部药味**：不得建议方里已有的药，也不得与方内任何一味相反相畏。
   const candidateHerbNames = compiledHerbs
     .map((herb) => (typeof herb.name === "string" ? herb.name.trim() : ""))
@@ -1627,6 +1724,15 @@ export function compileM04Proposal(
     const modelConditional = !textbookSource && !triggerSource && modelConditionalModificationForPrior(item.trigger, prior);
     if (!textbookSource && !triggerSource && !modelConditional) {
       directionDropReasons.push("trigger_not_current_fact");
+      return [];
+    }
+    // 条件与本例相抵或本例不可能出现（教材加减同样适用：教材条件是「可预见的变化」，不是病历已否认的、或这个人不会有的症状）。
+    if (modificationRecordText && modificationConditionContradictsRecord(item.trigger, modificationRecordText)) {
+      directionDropReasons.push("trigger_contradicts_record");
+      return [];
+    }
+    if (caseState && modificationConditionOutsidePopulation(item.trigger, caseState)) {
+      directionDropReasons.push("trigger_outside_population");
       return [];
     }
     // 拟加的药不得与方中任何一味相反（十八反）。此前只有「可替换药味」做了这项排除，加味本身没有。

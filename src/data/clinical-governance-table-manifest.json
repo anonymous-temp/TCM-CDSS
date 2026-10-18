@@ -40,7 +40,7 @@
       "id": "T6",
       "file": "redflag-triage-lexicon.json",
       "schemaVersion": "redflag-triage-lexicon-v2",
-      "sha256": "08660d8b5c89da3c755dacbb880909eae7042534e80b03e723163207cb883a8b",
+      "sha256": "3c66d205444ea9a93afb4970bfca72ccd639a6896c9c082f499e673460d44202",
       "recordCount": 18
     },
     {
@@ -54,15 +54,15 @@
       "id": "T8",
       "file": "tcm-formula-governed-catalog.json",
       "schemaVersion": "tcm-formula-governed-catalog-v2",
-      "sha256": "d1bc475d83904fcf5f088c365d61213f2cf64ea83628b01ce8d3f1e6bc261f75",
+      "sha256": "a0063245d5a040e3b07bdb36106d3e6dbb68d0b8521bf6c438bd6e5b1e7acefe",
       "recordCount": 3017
     },
     {
       "id": "T9",
       "file": "tcm-herb-identity-catalog.json",
       "schemaVersion": "tcm-herb-identity-catalog-v2",
-      "sha256": "ca92d4750fb6f9d6f29aee215801b3cc3b3e34e9713585b3ef6cb4119ef47cc5",
-      "recordCount": 651
+      "sha256": "45dbe038463adbeb5de73fd2ce266d75558be5d3d2e6ce7f02bb60af37550dbf",
+      "recordCount": 652
     },
     {
       "id": "T10",
@@ -96,7 +96,7 @@
       "governanceTable": "T8",
       "file": "tcm-formula-retrieval-index.json",
       "schemaVersion": "tcm-formula-retrieval-index-v2",
-      "sha256": "feec1bae31d5b7a74340a7e78fee49d9411f94d686ef61e4f9f60f12a3c176a4",
+      "sha256": "f77fe67c52f3cdaeec97f85a13334f43293cc6baa6ecd6d77c415538e7282fe8",
       "recordCount": 2951
     }
   ],
@@ -106,7 +106,7 @@
     "formulaDoseCompilationEligible": 2529,
     "formulaCandidatesAwaitingReview": 0,
     "formulaEvidenceAdjudicated": 8,
-    "herbStandardNames": 651,
-    "herbAmbiguousInputs": 512
+    "herbStandardNames": 652,
+    "herbAmbiguousInputs": 513
   }
 }

@@ -60,6 +60,22 @@ const AUDIT_VERIFIED_METHOD_SUPPLEMENTS: Record<string, string[]> = {
 const AUDIT_VERIFIED_ONE_OF_SUPPLEMENTS: Record<string, string[][]> = {
   大黄: [["后下", "先煎", "冲服"]],
 };
+/**
+ * 鲜汁、乳类不入煎，取汁兑入煎好的药液服（2026-10-19，验收集 X-G-1104：消渴方加减里的藕汁、牛乳，煎服行一字未提，
+ * 评审判「藕汁、牛乳不宜同煎」）。这几味在知识库里有名无煎法条目，上面的规则表查不到。
+ * 依据：《丹溪心法》消渴方「黄连末 天花粉末 生地黄汁 藕汁 人乳汁 姜汁 蜂蜜」（本地教材语料 L140097）为和汁调服；
+ *《中药学》生姜汁「本品系用生姜捣汁入药」（L153199）。只收汁、乳本身，不收同名饮片（生姜、藕节、生地黄照旧按饮片煎）。
+ */
+const LIQUID_ADJUNCT_METHODS: Record<string, string[]> = {
+  藕汁: ["兑服"],
+  梨汁: ["兑服"],
+  生地黄汁: ["兑服"],
+  生姜汁: ["兑服"],
+  姜汁: ["兑服"],
+  牛乳: ["兑服"],
+  人乳: ["兑服"],
+  人乳汁: ["兑服"],
+};
 export type DecoctionRule = {
   required: string[];
   oneOf: string[][];
@@ -119,6 +135,9 @@ function hasSpecificDecoctionTiming(required: ReadonlySet<string>, oneOf: readon
 }
 
 export function decoctionRuleForHerb(value: string): DecoctionRule | undefined {
+  const liquid = LIQUID_ADJUNCT_METHODS[normalizedName(String(value || ""))];
+  // 不写 prohibited「同煎」：合同把它读成「不入汤剂、须从方中删除」（route_not_decoction），而汁、乳是要随汤服的。
+  if (liquid) return { required: [...liquid], oneOf: [], prohibited: [] };
   const herb = resolveHerb(value);
   if (!herb) return undefined;
   const required = new Set<string>();
@@ -259,7 +278,9 @@ export const SPECIAL_DECOCTION_ORDER: ReadonlyArray<{ pattern: RegExp; phrase: (
   { pattern: /包煎/, phrase: (herbs) => `${herbs}包煎` },
   { pattern: /另煎|另炖/, phrase: (herbs) => `${herbs}另煎兑入` },
   { pattern: /烊化/, phrase: (herbs) => `${herbs}烊化兑服` },
-  { pattern: /冲服|冲入|兑服/, phrase: (herbs) => `${herbs}冲服（不入煎）` },
+  { pattern: /冲服|冲入/, phrase: (herbs) => `${herbs}冲服（不入煎）` },
+  // 鲜汁、乳类（LIQUID_ADJUNCT_METHODS）兑入煎好的药液服，不说「冲服」。排在冲服之后：既有声明里写「冲服」的仍归冲服一组。
+  { pattern: /兑服/, phrase: (herbs) => `${herbs}兑入药液服（不入煎）` },
 ];
 
 /**

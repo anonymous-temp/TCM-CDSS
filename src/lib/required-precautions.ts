@@ -26,4 +26,18 @@ export type RequiredPrecaution =
   /** 65 岁及以上：起身宜缓、防跌倒（2026-10-18 起与项目卡的老年提示同一界值；验收主集 68 岁例评审判缺）。 */
   | { kind: "elderly_administration"; ageYears: number }
   /** 病历写着正在服用的药（既往史里的长期用药也算；现病史里为这次病自服的另见 self_medication）。 */
-  | { kind: "current_medications"; names: string[] };
+  | { kind: "current_medications"; names: string[]; given?: string[] }
+  /** 病历写了自行用药、却没写药名（「自用药物后未见缓解」「自行服药」）。2026-10-19 验收主集 J 模块。 */
+  | { kind: "unnamed_medication" }
+  /** 带状疱疹（蛇串疮）：尽早由医生评估系统抗病毒治疗（发疹 72 小时内、仍有新水疱、50 岁以上）与疼痛。甲方标准病历 8。 */
+  | { kind: "herpes_zoster_antiviral" }
+  /** 备孕/未避孕而未妊娠：服药期间月经逾期先验孕，确认怀孕即停药告知医生（2026-10-19 留出集 S102）。 */
+  | { kind: "conception_pregnancy_check" }
+  /** 病历写着自行配制、泡酒服用的药里有药典标注有毒的药（留出集 S190：自泡生草乌、生川乌药酒）：立即停用，不再自制。 */
+  | { kind: "toxic_self_preparation"; herbs: string[] }
+  /** 服法与忌口（2026-10-19 验收主集 J：几例注意事项只写调护、没写怎么服或忌什么）。忌口按已定证候的寒热湿积推出。 */
+  | { kind: "administration_and_diet"; diet: string }
+  /** 育龄女性、妊娠与哺乳状态都没记录（验收主集 J 3 例判缺）：服药前告知医生，方中孕妇慎用药点名。 */
+  | { kind: "reproductive_status_unknown" }
+  /** 重度高血压（≥180/120）而无急性靶器官表现（2026-10-19 起不按急症收回剂量）：写给患者的复测与就诊提示。 */
+  | { kind: "severe_hypertension_followup"; reading: string };

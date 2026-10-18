@@ -127,3 +127,16 @@ export function resolveTherapyPhrase<T>(
   }
   return { form: base, matches: [], normalized: false };
 }
+
+/**
+ * 忌口随证（2026-10-19，注意事项规则项「服法与忌口」）：与 M04 提示词第 1 条同一口径——寒证忌生冷，热证忌辛辣温燥，
+ * 痰湿证忌肥甘黏腻，食积忌过饱。只读已签名的证名、兼证与治法拼成的一段文字。
+ */
+export function dietRestrictionForSyndromeText(syndromeText: string): string {
+  const parts: string[] = [];
+  if (/寒|阳虚|阳衰|火衰/u.test(syndromeText)) parts.push("忌食生冷寒凉");
+  if (/热|火(?!衰)|阴虚/u.test(syndromeText)) parts.push("忌食辛辣温燥、少饮酒");
+  if (/湿|痰|饮/u.test(syndromeText)) parts.push("少食肥甘厚腻与甜黏之品");
+  if (/食积|食滞|积滞|伤食/u.test(syndromeText)) parts.push("饮食有节、不宜过饱");
+  return parts.length > 0 ? parts.join("，") : "饮食宜清淡、易消化，少食辛辣油腻";
+}

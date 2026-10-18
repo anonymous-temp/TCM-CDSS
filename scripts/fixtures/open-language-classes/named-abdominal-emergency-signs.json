@@ -1,0 +1,77 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "named-abdominal-emergency-signs",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "r1019 红旗验收 A：阑尾炎「麦氏点有压痛，腰大肌征阳性」、小肠梗阻「腹膨隆，见肠型，有气过水声，平片阶梯状液平」、76 岁「无排便7天，腹痛、呕吐2天」零红旗。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "hasObjectiveAbdominalEmergencySign 只收腹膜刺激征与「停止排气排便」；命名的阑尾/胆囊体征、肠梗阻的查体与影像征没有读。",
+  "exception": "冻结令允许的确定性例外：有限闭集（T6 acute_abdomen.detection.appendicealCholecystSigns / obstructionExamSigns / obstructionImagingSigns）+ 数值阈值（未排便 ≥5 天）+ 构词式守卫（阳性写法后紧跟（-）/阴性/－ 不算；影像气液平要与腹/肠/立位平片同句且同句无胸/肺；未排便要与当前腹痛或腹胀、呕吐同在）。",
+  "sources": "《外科学》急性阑尾炎、急性胆囊炎、肠梗阻章节。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：被测写法与早已判对的兄弟写法门禁结果必须相同；兄弟句自身方向先钉住。set=heldOut 的配对是判据写定之后才写的说法。",
+  "pairs": [
+   {
+    "subject": "麦氏点有压痛，腰大肌征阳性。",
+    "sibling": "右下腹剧痛，伴反跳痛。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "腹膨隆，见肠型，有气过水声。",
+    "sibling": "腹痛，停止排气排便2天。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "无排便7天，腹痛、呕吐2天。",
+    "sibling": "腹痛、呕吐2天，停止排气排便。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "立位腹平片见多个气液平面，腹痛。",
+    "sibling": "腹痛，停止排气排便1天。",
+    "siblingExpect": "flagged",
+    "set": "heldOut"
+   },
+   {
+    "subject": "Murphy征阳性。",
+    "sibling": "右上腹剧痛。",
+    "siblingExpect": "flagged",
+    "set": "heldOut"
+   }
+  ]
+ },
+ "controls": {
+  "note": "必须照旧报警的写法与必须保持无红旗的写法。",
+  "mustStillFlag": [
+   {
+    "text": "转移性右下腹痛1天。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "5天未解大便，腹痛，伴呕吐。",
+    "flag": "腹痛"
+   }
+  ],
+  "mustStayReady": [
+   "麦氏点无压痛及反跳痛，Murphy's征－。",
+   "麦氏点压痛（-），腰大肌征阴性。",
+   "胸部CT：右肺脓肿伴气液平。",
+   "无排便3天，腹胀，无呕吐。",
+   "大便三四日一行，腹胀。",
+   "腹部平坦，无胃肠型和蠕动波。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-19",
+   "what": "现代医案语料（tcm-modern-case-exemplars + eval-corpus）+ 逐模块验收集 M/X/D/H/A/B + 10/13 合成与既往评测集，两种病历形状，改前 HEAD（zz-safety-head-agentb.ts）对改后，~/runlogs/r1018/work/r1019/agentB/replay-all.mjs",
+   "result": "急腹症红旗新增 8 次（4 份病历：A-eme-0042 肠型/气过水声/阶梯状液平、A-eme-0241 无排便7天+腹痛呕吐、A-eme-0383 与 X-D-0248 麦氏点压痛/腰大肌征阳性），全为考试急腹症病例；未排便阈值第一版取 3 天时还新增外感高热「4天未解大便，恶心，呕吐两次，腹胀」两例，改为 5 天后消失。"
+  }
+ ]
+}

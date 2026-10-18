@@ -217,11 +217,16 @@ export function resolveTcmDiseaseName(value: unknown): TcmDiseaseResolution | un
   return original ? { canonical: original, status: "unverified", temporary: false } : undefined;
 }
 
+// 高血压、2型糖尿病两条按**整个名称**归一（2026-10-19）。此前是子串匹配，名字里带「高血压」就整条改成「高血压」：
+// 高血压急症、继发性高血压、高血压脑病、高血压性脑出血、高血压肾损害都成了「高血压」，鉴别去重又把几行并成一行
+//（验收集 D 319 份输出里 24 处；X-D-0154 主诊断「高血压急症」交付成「高血压」）。同理「2型糖尿病酮症酸中毒」会成
+//「2型糖尿病」。失眠、睡眠呼吸暂停、不宁腿保留子串写法：带把握度尾巴（「慢性-失眠障碍倾向」）与包在鉴别句子里的
+//（「…需排除阻塞性睡眠呼吸暂停」）要归到同一身份，含这几个词的名称说的就是这个病。
 const WESTERN_DIAGNOSIS_RULES: readonly TerminologyRule[] = [
   { pattern: /(?:慢性|非器质性).*失眠|失眠.*(?:慢性|非器质性)/, canonical: "慢性失眠障碍" },
   { pattern: /失眠(?:障碍|综合征|症)?/, canonical: "失眠障碍" },
-  { pattern: /(?:原发性)?高血压(?:病)?/, canonical: "高血压" },
-  { pattern: /2型糖尿病|二型糖尿病/, canonical: "2型糖尿病" },
+  { pattern: /^(?:原发性)?高血压(?:病)?$/, canonical: "高血压" },
+  { pattern: /^(?:2型|二型)糖尿病$/, canonical: "2型糖尿病" },
   { pattern: /阻塞性睡眠呼吸暂停(?:低通气)?(?:综合征)?|OSA/, canonical: "阻塞性睡眠呼吸暂停" },
   { pattern: /不宁腿(?:综合征)?|RLS/, canonical: "不宁腿综合征" },
 ] as const;

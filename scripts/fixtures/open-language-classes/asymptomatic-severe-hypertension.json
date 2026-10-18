@@ -1,0 +1,91 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "asymptomatic-severe-hypertension",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "用户决定（2026-10-19）：重度高血压（≥180/120）而无任何急性靶器官表现时，按 2017 ACC/AHA 高血压指南与 ACEP 临床政策处理——尽快门诊复测、调整降压，不是急症；不报红旗、不收回剂量，但给醒目提示。伴急性靶器官表现的照旧报红旗。r1019 验收 M-MTCMB-21/47、A-non-0081 等。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "detectProgrammaticRedFlags 原先只看数值（≥180 或 ≥120 即报）。",
+  "exception": "冻结令允许的确定性例外：有限闭集（靶器官表现：胸痛胸闷、呼吸困难、意识改变、视物异常、剧烈/突发/加重或伴恶心呕吐的头痛、抽搐、少尿，及当前非陈旧的神经功能缺损——clinical-facts.HYPERTENSIVE_TARGET_ORGAN_SIGNS 与 diagnosis-safety.severeHypertensionTargetOrganSign）+ 数值阈值。未满 18 岁照旧按急症（AAP 2017：青少年 >180/120 即刻转急诊）；妊娠/产褥期由 ≥160/110 的产科规则处理。",
+  "sources": "2017 ACC/AHA 高血压指南 §11.2；ACEP 无症状血压升高临床政策；AAP 2017 儿童高血压指南。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：被测写法与早已判对的兄弟写法门禁结果必须相同；兄弟句自身方向先钉住。set=heldOut 的配对是判据写定之后才写的说法。",
+  "pairs": [
+   {
+    "subject": "血压200/120mmHg，头晕。",
+    "sibling": "头晕。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "血压190/120mmHg，无胸闷胸痛，无头痛。",
+    "sibling": "无胸闷胸痛，无头痛。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "血压185/100mmHg，头胀，心慌。",
+    "sibling": "头胀，心慌。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "门诊血压213/122mmHg，阵发性头晕头胀伴心慌，无胸闷胸痛。",
+    "sibling": "阵发性头晕头胀伴心慌，无胸闷胸痛。",
+    "siblingExpect": "clean",
+    "set": "heldOut"
+   }
+  ]
+ },
+ "controls": {
+  "note": "必须照旧报警的写法与必须保持无红旗的写法。（妊娠/产褥期的产科阈值在本夹具语境（男性）里测不到，由 scripts/test-r1019-safety-m02.mjs 用女性病例钉住。）",
+  "mustStillFlag": [
+   {
+    "text": "血压190/120mmHg，伴剧烈头痛、呕吐。",
+    "flag": "血压"
+   },
+   {
+    "text": "自测血压200/120mmHg，伴胸痛。",
+    "flag": "血压"
+   },
+   {
+    "text": "血压200/110mmHg，偶有胸闷。",
+    "flag": "血压"
+   },
+   {
+    "text": "血压190/110mmHg，视物模糊。",
+    "flag": "血压"
+   },
+   {
+    "text": "语言不利1天，血压220/130mmHg。",
+    "flag": "血压"
+   },
+   {
+    "text": "阵发性头痛，加重1天，血压238/147mmHg。",
+    "flag": "血压"
+   },
+   {
+    "text": "患者头晕，无头痛，心慌，偶有胸闷，无胸痛。血压197/133mmHg。",
+    "flag": "血压"
+   },
+   {
+    "text": "血压70/40mmHg。",
+    "flag": "血压"
+   }
+  ],
+  "mustStayReady": [
+   "血压200/120mmHg，头晕。",
+   "左侧肢体活动不利3年，血压190/110mmHg。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-19",
+   "what": "现代医案语料（tcm-modern-case-exemplars + eval-corpus）+ 逐模块验收集 M/X/D/H/A/B + 10/13 合成与既往评测集，两种病历形状，改前 HEAD（zz-safety-head-agentb.ts）对改后，~/runlogs/r1018/work/r1019/agentB/replay-all.mjs",
+   "result": "重度高血压红旗消失 30 次（15 份病历，含上面 2 份被取代的读数），其余 13 份逐例读过：均无胸痛胸闷、呼吸困难、神经缺损、意识改变、视物异常、剧烈/加重头痛、抽搐、少尿，改为醒目提示（病例：A-non-0081 慢性肾炎 180/110、M-MTCMB-21/47、X-D-3616 原醛、X-D-4664 嗜铬细胞瘤 180/110、T16-MR-03629 84 岁 280/90、T16-MR-11286 肾劳 190/120、T16-MR-11980 230/140、T16-MR-16267 195/105）。另有 58 次判定仍为红旗、只是文案改成「并伴X」。第一版漏认「偶有胸闷」（否定沿逗号串入）、「前胸剧痛」「语言不利1天」「恶心呕吐，头痛」「1天前…头痛加重」，都已补上后复跑。"
+  }
+ ]
+}

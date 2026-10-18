@@ -419,7 +419,20 @@ const VALID_SUBJECTS: ReadonlySet<string> = new Set(["patient", "other", "uncert
 // 口语化显性消化道出血 + 循环灌注不足组合是急诊处置的确定性严重度下限。LLM 仍负责
 // 主体、极性和事件识别；一旦它已落地为患者当前阳性 gi_bleed，不能再因“像柏油一样”或
 // “站起来眼前发黑”不是标准术语而把这一整类组合降成普通追问。
-const OVERT_GI_BLEED_LANGUAGE = /(?:呕血|吐血|咖啡(?:色|样)(?:呕吐物|胃内容物|液体|黏液|粘液|物)|黑便|黑色便|柏油样便|便血|(?:拉|排|解|大便|粪便)[^，,。；;\n]{0,12}(?:像|如同|跟)?[^，,。；;\n]{0,4}柏油|(?:又黑又亮|黑得发亮|黑亮便))/;
+/**
+ * 呕血的口语与病历写法（2026-10-19，r1019 红旗验收：现代医案「反复呕红便血已有3个月」（血吸虫病肝硬化、食管胃底静脉曲张）
+ * 只靠「便血」进了消化道出血，「呕红」本身一个字都不认；同批语料还有「呕吐物含血块」「呕吐物中有鲜红血块」「呕吐鲜血」）。
+ * 冻结令允许的确定性例外：有限闭集。只收以「呕」或「呕吐物」开头的写法——单个「吐」既是呕也是咯、唾（「咳吐红痰」
+ *「吐出带血丝的唾液」「咯吐血块」），所以「吐红」「吐鲜血」「吐出血」不收。确定性层的呕血概念组展开这张表，
+ * 本文件的显性/上消化道出血语言也从它派生，两层同源。类夹具 haematemesis-colloquial-forms。
+ */
+export const HAEMATEMESIS_COLLOQUIAL_FORMS: readonly string[] = [
+  "呕红", "呕鲜血", "呕吐鲜血", "呕出血", "呕吐出血",
+  "呕吐物带血", "呕吐物中带血", "呕吐物带有血", "呕吐物中带有血", "呕吐物含血", "呕吐物中含血", "呕吐物中含有血",
+  "呕吐物有血", "呕吐物中有血", "呕吐物里有血", "呕吐物中有鲜红血", "呕吐物中可见鲜血", "呕吐物为血性", "呕吐物呈血性",
+];
+const HAEMATEMESIS_COLLOQUIAL_SOURCE = HAEMATEMESIS_COLLOQUIAL_FORMS.join("|");
+const OVERT_GI_BLEED_LANGUAGE = new RegExp(`(?:呕血|吐血|${HAEMATEMESIS_COLLOQUIAL_SOURCE}|咖啡(?:色|样)(?:呕吐物|胃内容物|液体|黏液|粘液|物)|黑便|黑色便|柏油样便|便血|(?:拉|排|解|大便|粪便)[^，,。；;\\n]{0,12}(?:像|如同|跟)?[^，,。；;\\n]{0,4}柏油|(?:又黑又亮|黑得发亮|黑亮便))`);
 const BLEEDING_HYPOPERFUSION_LANGUAGE = /(?:(?:站起|站立|起身|坐起|体位改变)[^，,。；;\n]{0,12})?(?:眼前发黑|黑矇|差点晕|要晕倒|晕厥|意识(?:不清|模糊|异常)|冷汗|心悸|面色苍白|头晕乏力|头晕|乏力)/;
 const REPEATED_OR_MULTI_DAY_BLEEDING_LANGUAGE = /(?:大量|反复|多次|不止|持续出血|喷射|[2-9]\s*次|两次|三次|(?:这|近)?(?:两|三|[2-9])\s*(?:天|日))/;
 const EXPLICIT_MILD_ABDOMINAL_PAIN_LANGUAGE = /(?:(?:腹|肚子|上腹|下腹|左下腹|右下腹)[^，,。；;\n]{0,6}(?:痛|疼)[^，,。；;\n]{0,8}(?:不是很重|不太重|不重|较轻|轻微|轻度|隐痛)|(?:轻微|轻度|较轻)[^，,。；;\n]{0,4}(?:腹痛|肚子痛|肚子疼))/;
@@ -468,6 +481,63 @@ function isExplicitlyStableNonExtremeFeverFinding(finding: RedFlagFinding, sourc
     !hasCurrentAffirmedPattern(sourceText, FEVER_EMERGENCY_LANGUAGE);
 }
 
+/**
+ * 重度高血压的急性靶器官表现（2017 ACC/AHA 高血压指南 §11.2；ACEP 无症状血压升高临床政策）。确定性门禁
+ *（diagnosis-safety.severeHypertensionTargetOrganSign）与本层的语义下调共用这一张表。有限闭集，冻结令允许的确定性例外。
+ */
+export const HYPERTENSIVE_TARGET_ORGAN_SIGNS: ReadonlyArray<readonly [string, RegExp]> = [
+  ["胸痛或胸闷", /胸[^，,。；;\n无未]{0,3}(?:痛|疼|闷|压迫|憋)|心前区(?:痛|疼|压迫|闷|不适)|胸背部?[^，,。；;\n]{0,2}撕裂样/u],
+  ["呼吸困难", /呼吸困难|气促|气急|喘憋|憋气|喘不上气|端坐呼吸|不能平卧|无法平卧|粉红色泡沫痰/u],
+  ["意识改变", /意识(?:模糊|障碍|不清|改变)|神志(?:不清|模糊|恍惚|昏沉)|嗜睡|昏睡|谵妄|昏迷|反应(?:较平时|比平时|较前)?迟钝|烦躁不安/u],
+  ["视物异常", /视物(?:模糊|不清|重影|发黑)|视力(?:下降|模糊|骤降)|复视|黑矇|黑蒙|眼前发黑|失明/u],
+  // 头痛只在剧烈、突发、近期加重或伴恶心呕吐（高血压脑病的表现）时算；普通头痛、头晕、头胀不算。
+  ["剧烈、突发或加重的头痛", /(?:剧烈|突发|突然|爆炸样|爆裂样|雷击样)[^，,。；;\n]{0,4}头痛|头痛[^，,。；;\n]{0,4}(?:剧烈|欲裂|难忍)|头痛[^。；;\n]{0,6}(?:明显|进行性)?(?:加重|加剧)|头痛[^。；;\n]{0,12}(?:恶心|呕吐)|(?:恶心|呕吐)[^。；;\n]{0,12}头痛/u],
+  ["抽搐", /抽搐|惊厥|癫痫发作/u],
+  ["少尿", /少尿|无尿|尿量(?:明显)?减少|尿少/u],
+];
+const HYPERTENSIVE_FOCAL_DEFICIT_LANGUAGE = /肢体(?:无力|麻木|活动不利)|偏瘫|半身不遂|言语不清|言语不利|口角歪斜|口眼歪斜|失语/u;
+
+function isAsymptomaticSevereHypertensionFinding(finding: RedFlagFinding, sourceText: string): boolean {
+  if (finding.urgency !== "emergency" || finding.subject !== "patient") return false;
+  if (finding.category !== "vital_instability" && finding.category !== "cardiac") return false;
+  const readings = [...finding.quote.matchAll(/(\d{2,3})\s*\/\s*(\d{2,3})/gu)].map((match) => [Number(match[1]), Number(match[2])]);
+  if (readings.length === 0 || !readings.every(([systolic, diastolic]) => systolic >= 180 || diastolic >= 120)) return false;
+  // 引文里除了血压只剩标签与数字（「血压215/119mmHg」），不夹着别的表现。
+  if (/[\u4e00-\u9fff]/u.test(finding.quote.replace(/血压|BP|收缩压|舒张压|mmHg|测|为|达|约|左右|门诊|自测|今|日|时|次|：|:/giu, ""))) return false;
+  if (HYPERTENSIVE_TARGET_ORGAN_SIGNS.some(([, pattern]) => hasCurrentAffirmedPattern(sourceText, pattern))) return false;
+  return !hasCurrentAffirmedPattern(sourceText, HYPERTENSIVE_FOCAL_DEFICIT_LANGUAGE);
+}
+
+/**
+ * 明确少量、鲜红、肛门直肠来源的便血（2026-10-19，r1019 验收集 M：痔、肛裂病例的「便血，色鲜红，量少」被语义层标成 emergency）。
+ * 构词式守卫（闭集）：引文所在句是下消化道出血、没有上消化道出血词；句中写了少量（量少、少量、点滴、滴血、血丝、手纸）或
+ * 病历写了肛门直肠来源（痔、肛裂、肛门疼痛/坠胀/灼热、肛内肿物、肛缘）；句中没有大量、量多、喷射、不止、血块；
+ * 病历没有灌注不足表现（头晕、乏力、晕厥、冷汗、心悸、面色苍白…）。依据 BSG 2019 下消化道出血指南。
+ * 类夹具 minor-rectal-bleeding-not-emergency。
+ */
+const LOWER_GI_BLEED_LANGUAGE = /便血|血便|大便带血|便后滴血|便后出血|便中带血|下血|手纸带血/u;
+const UPPER_GI_BLEED_LANGUAGE = new RegExp(`呕血|吐血|${HAEMATEMESIS_COLLOQUIAL_SOURCE}|黑便|黑色便|柏油|咖啡(?:色|样)`, "u");
+const MINOR_BLEED_VOLUME = /量少|少量|点滴|滴血|血丝|手纸|纸上/u;
+const ANORECTAL_SOURCE = /痔|肛裂|肛门(?:疼痛|坠胀|灼热|肿痛)|肛内肿物|肛缘/u;
+const MAJOR_BLEED_VOLUME = /大量|量多|喷射|不止|血块|持续出血/u;
+function isExplicitlyMinorRectalBleedingFinding(finding: RedFlagFinding, sourceText: string): boolean {
+  if (finding.category !== "gi_bleed" || finding.subject !== "patient" || finding.status !== "positive") return false;
+  if (hasCurrentAffirmedPattern(sourceText, BLEEDING_HYPOPERFUSION_LANGUAGE)) return false;
+  let offset = sourceText.indexOf(finding.quote);
+  if (offset < 0) return false;
+  while (offset >= 0) {
+    let sentenceStart = offset;
+    while (sentenceStart > 0 && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceStart - 1])) sentenceStart -= 1;
+    let sentenceEnd = offset + finding.quote.length;
+    while (sentenceEnd < sourceText.length && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceEnd])) sentenceEnd += 1;
+    const sentence = sourceText.slice(sentenceStart, sentenceEnd);
+    if (!LOWER_GI_BLEED_LANGUAGE.test(sentence) || UPPER_GI_BLEED_LANGUAGE.test(sentence) || MAJOR_BLEED_VOLUME.test(sentence)) return false;
+    if (!MINOR_BLEED_VOLUME.test(sentence) && !ANORECTAL_SOURCE.test(sourceText)) return false;
+    offset = sourceText.indexOf(finding.quote, offset + finding.quote.length);
+  }
+  return true;
+}
+
 function emergencyEvidenceFloorSatisfied(
   category: BackstopRedFlagCategory,
   triageBasis: TriageBasis,
@@ -486,6 +556,12 @@ function emergencyEvidenceFloorSatisfied(
       (respiration && (Number(respiration[1]) >= 35 || Number(respiration[1]) <= 8)) ||
       (spo2 && Number(spo2[1]) <= 89)
     );
+  }
+  // 消化道出血按「其他即时威胁」升急诊时，证据下限与「活动性大出血」相同（2026-10-19，r1019 验收集 M：「便血，色鲜红，量少」
+  // 「伴少量便血，色鲜红」以 other_immediate_threat 标 emergency，此前这一组合不过任何下限，直接成了红旗）。
+  if (category === "gi_bleed" && triageBasis === "other_immediate_threat") {
+    return emergencyEvidenceFloorSatisfied(category, "major_active_bleeding", quote) ||
+      hasCurrentAffirmedPattern(quote, BLEEDING_HYPOPERFUSION_LANGUAGE);
   }
   if (triageBasis === "major_active_bleeding") {
     return hasMajorActiveGiBleedingLanguage(quote) ||
@@ -844,8 +920,18 @@ export function groundClinicalFacts(facts: ClinicalFacts, sourceText: string): C
     if (isExplicitlyStableNonExtremeFeverFinding(finding, sourceText)) {
       return { ...finding, urgency: "urgent" as const, triageBasis: "urgent_review" as const };
     }
+    // 重度高血压只凭血压读数、病历没有急性靶器官表现：最多 urgent（2017 ACC/AHA、ACEP；与确定性门禁 severeHypertensionTargetOrganSign 同一张表）。
+    if (isAsymptomaticSevereHypertensionFinding(finding, sourceText)) {
+      return { ...finding, urgency: "urgent" as const, triageBasis: "urgent_review" as const };
+    }
     if (finding.category !== "gi_bleed" || finding.subject !== "patient" || finding.status !== "positive") {
       return finding;
+    }
+    // 明确少量、鲜红、肛门直肠来源的便血：最多 urgent，也不走下面「多日/反复即升急诊」的上调（BSG 2019：Oakland ≤8 可门诊处理）。
+    if (isExplicitlyMinorRectalBleedingFinding(finding, sourceText)) {
+      return finding.urgency === "emergency"
+        ? { ...finding, urgency: "urgent" as const, triageBasis: "urgent_review" as const }
+        : finding;
     }
     let offset = sourceText.indexOf(finding.quote);
     while (offset >= 0) {

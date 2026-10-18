@@ -8,9 +8,10 @@ import {
   m02ProceedPlanContent,
   m02ProceedWhenSettled,
   redFlagDispositionQuestion,
+  splitTonguePulseQuestions,
   withM02Completeness,
 } from "@/lib/m02-question-contract";
-import { riskCategoriesAnsweredByRecord } from "@/lib/m02-risk-question-answerability.server";
+import { riskCategoryRecordStatus } from "@/lib/m02-risk-question-answerability.server";
 import { questionIdsFailingNarrowChecks } from "@/lib/m02-question-redundancy.server";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import type { CaseState } from "@/lib/diagnosis-types";
@@ -75,7 +76,11 @@ export async function POST(req: Request) {
   return questionStageResponse(caseState, req.signal);
 }
 
-type QuestionCaseState = CaseState & { m02SuppressedRiskCategories?: readonly string[] };
+type QuestionCaseState = CaseState & {
+  m02SuppressedRiskCategories?: readonly string[];
+  m02AffirmedRiskCategories?: readonly string[];
+  m02ModelOwnedRiskCategories?: readonly string[];
+};
 
 async function questionStageResponse(inputCaseState: CaseState, signal: AbortSignal): Promise<Response> {
   const safeCaseState = sanitizeCaseStateForModel(inputCaseState);
@@ -97,10 +102,17 @@ async function questionStageResponse(inputCaseState: CaseState, signal: AbortSig
     );
     return markdownNdjsonResponse(withCompleteness(envelope));
   }
-  // 事实层判为需要澄清的急症线索，出筛查题之前先核对病历是否已经回答；已回答的类目不再出题。
-  const answeredRiskCategories = await riskCategoriesAnsweredByRecord(inputCaseState, sourceText, signal);
-  const caseState: QuestionCaseState = answeredRiskCategories.length > 0
-    ? { ...inputCaseState, m02SuppressedRiskCategories: answeredRiskCategories }
+  // 事实层判为需要澄清的急症线索，出筛查题之前先核对病历是否已经回答：已回答的类目不再出题；病历已写明正在发生的
+  // 不再问「是否确实出现」（交模型问严重度）；已逐项否认其中几项的由模型只问其余几项（m02-risk-question-answerability）。
+  const riskStatus = await riskCategoryRecordStatus(inputCaseState, sourceText, signal);
+  const answeredRiskCategories = riskStatus.answered;
+  const caseState: QuestionCaseState = riskStatus.answered.length + riskStatus.affirmed.length + riskStatus.partly.length > 0
+    ? {
+        ...inputCaseState,
+        m02SuppressedRiskCategories: riskStatus.answered,
+        m02AffirmedRiskCategories: riskStatus.affirmed,
+        m02ModelOwnedRiskCategories: riskStatus.partly,
+      }
     : inputCaseState;
   const fallbackQuestions = buildCaseAwareQuestionFallback(caseState);
   // 模型判断「不需要再问」时用的那道题：先问病历没写到的基本问诊项（见 buildCaseAwareQuestionFallback 的 settled）。
@@ -110,7 +122,7 @@ async function questionStageResponse(inputCaseState: CaseState, signal: AbortSig
     ensureQuestionStructuredEnvelope(fallbackQuestions, sourceText),
     sourceText,
   ));
-  const prompt = buildQuestionPrompt(safeCaseState, answeredRiskCategories);
+  const prompt = buildQuestionPrompt(safeCaseState, answeredRiskCategories, { affirmed: riskStatus.affirmed, partly: riskStatus.partly });
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "question", {
     requestSignal: signal,
     streamErrorFallback: fallbackQuestions,
@@ -121,9 +133,11 @@ async function questionStageResponse(inputCaseState: CaseState, signal: AbortSig
       caseState,
     )),
     finalOutputTransform: async (content) => {
+      // 舌象与脉象并在一问的题先拆成只问一项（拆不开的删掉），再做窄核对（splitTonguePulseQuestions）。
+      const split = splitTonguePulseQuestions(content, sourceText, caseState);
       // 模型写的题若病历已经写明（全部或其中一件），或题干并问两件事，与确定性删题同一条路删掉（m02-question-redundancy.server.ts）。
-      const repeated = await questionIdsFailingNarrowChecks(content, sourceText, `${fallbackQuestions}\n${settledQuestions}`, signal);
-      return withCompleteness(reviewM02QuestionPlan(content, sourceText, settledQuestions, repeated));
+      const repeated = await questionIdsFailingNarrowChecks(split.content, sourceText, `${fallbackQuestions}\n${settledQuestions}`, signal);
+      return withCompleteness(reviewM02QuestionPlan(split.content, sourceText, settledQuestions, [...split.removeIds, ...repeated]));
     },
   });
   if (response.ok || signal.aborted) return response;

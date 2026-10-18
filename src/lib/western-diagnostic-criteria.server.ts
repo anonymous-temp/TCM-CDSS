@@ -65,6 +65,20 @@ export function westernCriteriaEntry(name: string): WesternCriteriaEntry | undef
     entries.get(withoutLeadingQualifier(trimmed, qualifiers.side));
 }
 
+/**
+ * 去掉一个病程限定或侧别前缀后的病名（「急性尿潴留」→「尿潴留」）；没有这类前缀时返回 undefined。
+ * 前缀词表与查表同一份（数据文件 nameLookupQualifiers）。病名一致性核对用它判断「核对给出的名称只是去掉了病程限定」。
+ */
+export function westernNameWithoutCourseOrSideQualifier(name: string): string | undefined {
+  const { qualifiers } = criteriaTable();
+  const trimmed = name.trim();
+  for (const words of [qualifiers.course, qualifiers.side]) {
+    const stripped = withoutLeadingQualifier(trimmed, words);
+    if (stripped !== trimmed) return stripped;
+  }
+  return undefined;
+}
+
 export async function westernCriteriaReference(name: string, signal?: AbortSignal): Promise<WesternCriteriaReference | undefined> {
   const entry = westernCriteriaEntry(name);
   if (entry) return { kind: "table", entry };

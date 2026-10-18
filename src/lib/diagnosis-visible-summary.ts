@@ -980,7 +980,8 @@ export function applyM03AdvisoryQualityBoundaries(content: string, clinicalConte
       if (
         !isDisplayableClinicalText(currentName) ||
         isAmbiguousM03WesternPrimaryLabel(currentName) ||
-        /(?:风寒|风热|痰湿|湿热|气虚|血虚|阴虚|阳虚|血瘀|证$)/.test(currentName)
+        // 「风湿热」是西医病名（急性风湿热），其中的「湿热」不是证候（验收集 X-D-5901 急性风湿热被换成「心悸」，2026-10-19）。
+        /(?:风寒|风热|痰湿|(?<!风)湿热|气虚|血虚|阴虚|阳虚|血瘀|证$)/.test(currentName)
       ) {
         primary.name = symptomLevelWesternName(fallbackFact, fallback.name);
         primary.status = "证据有限";
@@ -2249,11 +2250,18 @@ export function alignNormalizedM03WesternClinicalRationale(content: string): str
     if (reasoning.stage !== "diagnose") return content;
     const western = recordValue(reasoning.westernDiagnosis);
     const primary = recordValue(western?.primary);
-    if (!primary || !m03WesternClinicalRationaleIssue(reasoning)) return content;
+    const issue = primary ? m03WesternClinicalRationaleIssue(reasoning) : undefined;
+    if (!primary || !issue) return content;
 
     const name = markdownCell(primary.name);
     const firstGroundedFact = semanticItems(primary.supportingFacts)[0];
     if (!isDisplayableClinicalText(name) || !isDisplayableClinicalText(firstGroundedFact)) return content;
+    // 只记原因码（2026-10-19）：验收集 D 320 份里 241 份西医推理句是下面的回落句，要看是哪条判据顶掉了模型原文。
+    console.info("[tcm-cdss:telemetry] western_rationale_template", {
+      issue,
+      copiesFacts: narrativeMostlyCopies(primary.clinicalRationale, semanticItems(primary.supportingFacts)),
+      rationaleChars: typeof primary.clinicalRationale === "string" ? primary.clinicalRationale.trim().length : 0,
+    });
 
     // 模型已按客观依据确立具体疾病（status=考虑、名称不是症状级工作诊断）时，回落句不能反过来
     // 说「尚不足以确定具体病因」——那等于替模型撤回一个成立的诊断。只有工作诊断才写待查口径。
@@ -2846,11 +2854,31 @@ function chronicBronchitisCourseMet(context: string): boolean {
     .filter((value) => Number.isFinite(value));
   const longestCourse = Math.max(0, ...sentences.flatMap(courseYears));
   return sentences.some((sentence) => {
+    const course = Math.max(longestCourse, ...courseYears(sentence));
+    // 「近3年每当秋冬发病，天气变暖后减轻」：按整个寒冷季节反复发作写的病程（2026-10-19，验收集 X-D-0020「反复咳嗽、咳痰10年，
+    // 近3年每当秋冬发病」）。季节词是闭集，只收覆盖整季的写法（秋冬/冬春/冬季/寒冷季节），「受凉后」「感冒后」不算。
+    if (SEASONAL_COUGH_RECURRENCE.test(sentence) && course >= 2) return true;
     const match = sentence.match(yearly);
     if (!match) return false;
     const months = Math.max(clinicalCount(match[1]), clinicalCount(match[2]) || 0);
-    return months >= 3 && Math.max(longestCourse, ...courseYears(sentence)) >= 2;
+    return months >= 3 && course >= 2;
   });
+}
+const SEASONAL_COUGH_RECURRENCE = /(?:每(?:当|逢|年|至|到)|入)[^。；;\n]{0,6}?(?:秋冬|冬春|冬季|冬天|寒冷季节)(?:季)?[^。；;\n]{0,8}?(?:发病|发作|加重|复发)/u;
+
+/**
+ * 肺功能报告直接写数值时按数值读（2026-10-19）：「FEV₁/FVC%为55%」「一秒率 0.62」低于 0.70 即持续气流受限（GOLD：支气管
+ * 舒张后 FEV1/FVC<0.70）。原判据只认「<0.7」「低于70%」这类写法，验收集 X-D-2796 写了 55% 仍被降成「咳嗽」。只读紧跟在
+ * FEV1/FVC 或「一秒率」之后的第一个数：≤1 的按比值、带 % 或 >1 的按百分数。
+ */
+function spirometryRatioBelowThreshold(context: string): boolean {
+  for (const match of context.normalize("NFKC").matchAll(/(?:FEV1\s*\/\s*FVC|一秒率)\s*%?\s*(?:[为是:=]|约|仅)?\s*(\d+(?:\.\d+)?)\s*(%)?/giu)) {
+    const value = Number(match[1]);
+    if (!Number.isFinite(value) || value <= 0) continue;
+    const ratio = match[2] || value > 1 ? value / 100 : value;
+    if (ratio < 0.7) return true;
+  }
+  return false;
 }
 
 // Closed, high-certainty respiratory criteria only. These labels repeatedly appear in sparse
@@ -2864,7 +2892,7 @@ const FORMAL_WESTERN_CRITERIA_GUARDS: FormalWesternCriteriaGuard[] = [
   },
   {
     label: /(?:慢性阻塞性肺疾病|慢阻肺|\bCOPD\b)/i,
-    criteria: (context) => /(?:(?:FEV1\s*\/\s*FVC|一秒率)[^。；\n]{0,20}(?:<|＜|低于)\s*(?:0?\.7|70\s*%)|肺功能[^。；\n]{0,40}(?:持续气流受限|阻塞性通气功能障碍|支持慢阻肺|符合慢阻肺))/i.test(context),
+    criteria: (context) => spirometryRatioBelowThreshold(context) || /(?:(?:FEV1\s*\/\s*FVC|一秒率)[^。；\n]{0,20}(?:<|＜|低于)\s*(?:0?\.7|70\s*%)|肺功能[^。；\n]{0,40}(?:持续气流受限|阻塞性通气功能障碍|支持慢阻肺|符合慢阻肺))/i.test(context),
   },
   {
     label: /(?:阻塞性睡眠呼吸暂停(?:低通气)?(?:综合征)?|\bOSA(?:HS)?\b)/i,

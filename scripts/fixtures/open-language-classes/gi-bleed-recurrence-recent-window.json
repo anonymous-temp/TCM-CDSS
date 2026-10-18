@@ -1,0 +1,96 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "gi-bleed-recurrence-recent-window",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "r1019 红旗验收：A-out-0110「近1月反复出现便血色红」、痔疮「反复便血」被报活动性消化道出血；语料 81 次消化道出血红旗里约 25 次是多年、多月的反复便血或炎症性肠病。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "反复/多次/再次/再发/复发被当成活动性出血的严重度证据，不看是不是近期、是不是上消化道出血。",
+  "exception": "冻结令允许的确定性例外：数值阈值（7 天时间窗）+ 有限闭集（复发词、上消化道出血概念组）。复发词只在出血是呕血、黑便/柏油样便、咖啡样物，或同一句有 7 天内时间窗（今日、昨日、刚刚、近日、这几天、近 N 天、N 天、1 周、N 小时）时才算；量的修饰（大量、喷射、不止）与灌注不足伴随症不受影响。",
+  "sources": "BSG 2019 下消化道出血指南（Oakland 评分 ≤8 可门诊处理）。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：被测写法与早已判对的兄弟写法门禁结果必须相同；兄弟句自身方向先钉住。set=heldOut 的配对是判据写定之后才写的说法。",
+  "pairs": [
+   {
+    "subject": "近1月反复出现便血色红。",
+    "sibling": "近1月出现便血色红。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "痔疮反复便血。",
+    "sibling": "痔疮便血。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "反复便血2年，色鲜红，量少。",
+    "sibling": "便血2年，色鲜红，量少。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "便血反复发作半年余。",
+    "sibling": "便血半年余。",
+    "siblingExpect": "clean",
+    "set": "heldOut"
+   },
+   {
+    "subject": "反复大便带血已有6个月。",
+    "sibling": "大便带血已有6个月。",
+    "siblingExpect": "clean",
+    "set": "heldOut"
+   }
+  ]
+ },
+ "controls": {
+  "note": "必须照旧报警的写法与必须保持无红旗的写法。",
+  "mustStillFlag": [
+   {
+    "text": "反复黑便3天。",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "便血反复3天。",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "反复便血2年，近3天再次便血。",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "多年来反复便血，最近几天又出现了复发。",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "反复便血20余年，加重1周。",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "我患吐血症状已超过两年，但多次复发。",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "便血3次，伴头晕。",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "大量便血1天。",
+    "flag": "消化道出血"
+   }
+  ],
+  "mustStayReady": [
+   "近1周反复便后滴血。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-19",
+   "what": "现代医案语料（tcm-modern-case-exemplars + eval-corpus）+ 逐模块验收集 M/X/D/H/A/B + 10/13 合成与既往评测集，两种病历形状，改前 HEAD（zz-safety-head-agentb.ts）对改后，~/runlogs/r1018/work/r1019/agentB/replay-all.mjs",
+   "result": "活动性出血红旗消失 37 次（25 份病历），逐例读过：多年/多月反复便血、炎症性肠病脓血便、痔；「多年来反复便血，最近几天又出现了复发」「反复便血20余年，加重1周」在第一版被放掉，已把「最近几天、近日、1周」补进时间窗。仍被放掉的边缘例：T16-MR-06603「反复呕红便血已有3个月」（「呕红」不在呕血概念组里）。"
+  }
+ ]
+}
