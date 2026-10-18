@@ -431,7 +431,9 @@ export function manipulationMatchedToSyndrome(text: string, signedSyndromeText: 
  */
 const SYNDROME_DESCRIPTOR_CHARS = /^[寒湿热风暑燥火瘀血气虚实阴阳肾肝脾肺心胃胆痰郁滞亏损食积水饮]{2}$/u;
 // 火字证名（火旺、肝火、胃火、痰火扰心…）都算，命门火衰是阳虚，不算。
-const MOXIBUSTION_UNSUITABLE_SYNDROME = /阴虚|阴亏|阴液|实热|热盛|热毒|肺热|湿热|血热|痰热|郁热|火(?!衰)/u;
+// 2026-10-18：外感风热、燥热、胃热、热秘等也不宜灸（留出例 S002 风热感冒的针刺卡疗程写「留针15分钟，灸5分钟」，
+// 该频次来源原文是「风寒者，取针后在大椎穴施雀啄灸」）。寒热错杂不在此列。
+const MOXIBUSTION_UNSUITABLE_SYNDROME = /阴虚|阴亏|阴液|实热|热盛|热毒|[风燥暑胃肝肺心湿血痰郁里]热|热(?:秘|证|结|壅|蕴|郁)|火(?!衰)/u;
 /** 已签名证候不宜用灸（阴虚、实热、湿热、火）：卡片里说灸的句子去掉，整张灸法卡也不出（见 tcm-treatment-capabilities）。 */
 export function moxibustionUnsuitableForSyndrome(signedSyndromeText: string, signedMethodText = ""): boolean {
   if (MOXIBUSTION_UNSUITABLE_SYNDROME.test(String(signedSyndromeText || ""))) return true;

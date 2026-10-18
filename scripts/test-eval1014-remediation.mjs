@@ -1928,6 +1928,17 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
     const kept = read(visible.groundDifferentialNegativeAssertions(wrap("无体重下降、无夜间痛，生命体征平稳"), "腰痛2年，否认体重下降，无夜间痛。"));
     assert.equal(kept, "无体重下降、无夜间痛，生命体征平稳");
   });
+  check("16.22 风热、燥热、热秘等热证的项目卡不写灸（留出例 S002 风热感冒卡「留针15分钟，灸5分钟」）；风寒、寒热错杂照写（对照）；结肠慢传输型、便秘型肠易激的专篇频次只给有该西医诊断的病例（S055 急性热秘、S161 9 岁患儿拿到「10次为一个疗程，治疗两个疗程」）", () => {
+    for (const syndrome of ["风热犯表证", "燥热便秘", "热秘", "胃热炽盛证"]) {
+      assert.equal(plan.moxibustionUnsuitableForSyndrome(syndrome), true, syndrome);
+      assert.doesNotMatch(plan.cardSentencesMatchedToSyndrome("留针15分钟，灸5分钟。每日1次。", ["感冒"], syndrome), /灸/, syndrome);
+    }
+    for (const syndrome of ["风寒束表证", "寒热错杂证", "脾肾阳虚证"]) assert.equal(plan.moxibustionUnsuitableForSyndrome(syndrome), false, syndrome);
+    const schedules = JSON.parse(readFileSync("src/data/tcm-nondrug-web-schedules.source.json", "utf8")).entries;
+    for (const entry of schedules.filter((item) => item.sourceId === "W-G4-57" || item.sourceId === "W-G4-58")) {
+      assert.ok(Array.isArray(entry.requiresWesternContext) && entry.requiresWesternContext.length > 0, `${entry.sourceId} ${entry.modality}`);
+    }
+  });
   check("16.18 两字阴性项在病历里隔着修饰写到过（「腹中冷痛」对「无腹痛」）不改成「未诉腹痛」（留出例 S058）；中间隔标点的不算写到过（对照）", () => {
     assert.equal(visible.unrecordedNegativesAsNotReported("否认呕吐；无腹痛，与肠结相区分", "排便困难2年，腹中冷痛、热敷后舒服。"), "否认呕吐；无腹痛，与肠结相区分");
     assert.equal(visible.unrecordedNegativesAsNotReported("无腹痛，与肠结相区分", "排便困难2年，腹胀，偶有头痛。"), "未诉腹痛，与肠结相区分");
