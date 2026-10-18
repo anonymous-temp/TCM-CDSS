@@ -21,7 +21,8 @@ import { textbookDifferentialsForDisease, textbookFormulaLabel, textbookRowForSy
 import { resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
-import { getTcmHerbGenerationSafetyProfile, isExternalUseEfficacyClause } from "./tcm-knowledge";
+import { getTcmHerbFunctionDisplayText, getTcmHerbGenerationSafetyProfile, herbFunctionKnowledgeForDisplay, isExternalUseEfficacyClause } from "./tcm-knowledge";
+import { herbFunctionClaimUnsupportedPhrases } from "./diagnosis-stage-contract";
 import { deliveredTreatmentCodes, precautionMentionsUndeliveredTreatment } from "./tcm-treatment-capabilities.server";
 import type { RequiredPrecaution } from "./required-precautions";
 
@@ -305,6 +306,20 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         const kept = clauses.filter((clause) => !isExternalUseEfficacyClause(clause));
         if (kept.length > 0 && kept.length < clauses.length) herb.function = kept.join("，");
       }
+    }
+    // 药味功效栏里知识库与核对词典都不给这味药的说法去掉（黄柏「滋阴清热」→「清热」、黄连「舒肝和胃」、益智「益气」、
+    // 桔梗「载药下行」）；整栏都没依据时换成知识库的功效短语。知识库里没有这味药时不动。
+    for (const herb of records(candidate.herbs)) {
+      if (typeof herb.function !== "string" || !herb.function.trim()) continue;
+      const knowledge = herbFunctionKnowledgeForDisplay(String(herb.name || ""));
+      const unsupported = herbFunctionClaimUnsupportedPhrases(herb.function, knowledge);
+      if (unsupported.length === 0) continue;
+      let text = herb.function;
+      for (const phrase of unsupported) text = text.split(phrase).join("");
+      const clauses = text.split(/[，,；;、]/u).map((clause) => clause.trim()).filter((clause) => /[\u4e00-\u9fff]{2,}/u.test(clause));
+      herb.function = clauses.length > 0
+        ? clauses.join("，")
+        : getTcmHerbFunctionDisplayText(String(herb.name || ""), String(herb.role || ""), "") || herb.function;
     }
     // 两个阶段方名一致（甲方 10.12 测评「方剂名称前后不一致」）：辨证阶段定的是教材代表方、处方确实以该方组成为主体
     //（教材组成过半在方中），而方名在开方阶段被改成了别的名字或「本例辨证组方」时，方名用辨证阶段定下的那个。

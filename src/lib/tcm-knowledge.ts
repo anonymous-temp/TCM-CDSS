@@ -1986,6 +1986,14 @@ export function isExternalUseEfficacyClause(clause: string): boolean {
   return EXTERNAL_USE_EFFICACY.test(clause.trim());
 }
 
+/** 交付面核对模型写的药味功效时用的知识文本：知识库原文（已剔除核对为无依据的条目）＋核对词典的功效与追加项。 */
+export function herbFunctionKnowledgeForDisplay(herb: string): string {
+  const base = getTcmHerbFunctionText(herb).trim();
+  const verified = verifiedHerbFunctionEntry(herb);
+  return [base, ...verifiedHerbFunctionAdditions(herb, base), ...(verified?.functions || []), ...Object.values(verified?.roles || {})]
+    .filter(Boolean).join("；");
+}
+
 export function getTcmHerbFunctionDisplayText(
   herb: string,
   role = "",

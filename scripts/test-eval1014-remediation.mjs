@@ -1896,4 +1896,22 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
   });
 }
 
+{
+  const surface = await jiti.import("../src/lib/delivered-surface.ts");
+  check("16.6 药味功效栏里知识库与核对词典都不给的说法去掉（桔梗「载药下行」、益智「益气」；益智的知识库功用经教材核对剔除益气、安神），有依据的照留；整栏没依据时换成知识库功效短语（对照：当归「补血活血」不动）", () => {
+    const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [{ name: "缩泉丸加减", decoction: { method: "水煎服" }, herbs: [
+      { name: "桔梗", role: "使", function: "宣肺利咽，载药下行", dose: "6g" },
+      { name: "益智仁", role: "君", function: "温脾止泻，益气", dose: "10g" },
+      { name: "当归", role: "臣", function: "补血活血", dose: "10g" },
+      { name: "益智", role: "佐", function: "益气", dose: "10g" },
+    ] }] } };
+    const out = surface.projectDeliveredReasoning(structuredClone(reasoning));
+    const fn = Object.fromEntries(out.formula.candidates[0].herbs.map((herb) => [herb.name, herb.function]));
+    assert.equal(fn["桔梗"], "宣肺利咽");
+    assert.equal(fn["益智仁"], "温脾止泻");
+    assert.equal(fn["当归"], "补血活血");
+    assert.ok(fn["益智"] && !/益气/.test(fn["益智"]), fn["益智"]);
+  });
+}
+
 console.log(JSON.stringify({ cases, failures: process.exitCode ? "see above" : 0 }));

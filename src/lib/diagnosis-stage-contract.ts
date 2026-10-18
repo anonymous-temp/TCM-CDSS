@@ -3823,6 +3823,39 @@ export function m04GenerationSpecialPopulationIssue(
  *   宽松档**保留全部安全判据**：营销/疗效吹嘘词、高影响方向（清热/活血/温阳/攻下）必须有库内佐证、
  *   毒性药必须提毒性/慎用、泻下类药不得只写补益；放宽的只有「至少一个概念组与库文本重叠」这一条。
  */
+/** 药味功效说法的概念组（接地判据与交付面去伪共用这一张）。 */
+const HERB_FUNCTION_CONCEPT_GROUPS: readonly RegExp[] = [
+  /补(?:中|脾|肺|肾)?气|益(?:中|脾|肺|肾)?气|扶正|补中|补益|升阳|举陷|固表|托毒|生肌/,
+  /养(?:心|肝)?血|补(?:心|肝)?血|益血/,
+  /活血|化瘀|行瘀|和血/,
+  /安神|宁心|宁神|养心|定志|镇惊|安魂|定魄/,
+  /健脾|补脾|益脾|补益心脾|益心脾|健运/,
+  /理气|行气|疏肝|舒肝|解郁|开郁/, /清热|泻火|凉血/, /化痰|祛痰/, /利湿|渗湿|利水|祛湿/,
+  /温阳|扶阳|散寒|温中|温肾/, /滋阴|养阴|育阴|生津/, /解表|祛风/, /止痛/, /止咳|平喘/,
+  /消食|导滞/, /收涩|敛汗|固涩/, /止血/, /通便|泻下|攻下/,
+];
+/** 引经方向说法只认原词（桔梗「载药上行」写成「载药下行」是错的，不能按概念组放过）。 */
+const HERB_GUIDING_DIRECTION = /(?:载|引)(?:药|血|火)?(?:上|下)行|引火归[元原]/gu;
+
+/**
+ * 模型写的药味功效里，知识库与核对词典都不给这味药的说法（2026-10-18，验收集 G：黄柏「滋阴清热」、黄连「舒肝和胃」、
+ * 益智「益气」、桔梗「载药下行」）。只返回需要去掉的词，不改准入判据（herbFunctionMatchesKnowledge 不变：收紧它会改变
+ * 君药与配伍面准入，见 test:herb-breadth-surface）。knowledgeText 由调用方给（交付面用知识库原文＋核对词典的展示文本）。
+ */
+export function herbFunctionClaimUnsupportedPhrases(claimedFunction: string, knowledgeText: string): string[] {
+  if (!claimedFunction || !knowledgeText) return [];
+  const unsupported: string[] = [];
+  for (const group of HERB_FUNCTION_CONCEPT_GROUPS) {
+    const global = new RegExp(group.source, "gu");
+    const matches = [...claimedFunction.matchAll(global)].map((match) => match[0]);
+    if (matches.length > 0 && !group.test(knowledgeText)) unsupported.push(...matches);
+  }
+  for (const match of claimedFunction.matchAll(HERB_GUIDING_DIRECTION)) {
+    if (!knowledgeText.includes(match[0])) unsupported.push(match[0]);
+  }
+  return [...new Set(unsupported)];
+}
+
 export function herbFunctionMatchesKnowledge(name: string, claimedFunction: string, role = "", target = "", lenient = false): boolean {
   const knowledgeText = herbKnowledgeFunctionText(name);
   if (/(?:美容|养颜|改善视力|减肥|抗癌|延年益寿|包治|根治)/.test(claimedFunction)) return false;
@@ -3852,17 +3885,7 @@ export function herbFunctionMatchesKnowledge(name: string, claimedFunction: stri
   // label outside the heuristic concept groups below. Non-canonical workbench edits still require
   // semantic overlap and all downstream dose/decoction/risk checks remain active.
   if (claimedFunction.trim() === knowledgeText.trim()) return true;
-  const functionConceptGroups = [
-    /补(?:中|脾|肺|肾)?气|益(?:中|脾|肺|肾)?气|扶正|补中|补益|升阳|举陷|固表|托毒|生肌/,
-    /养(?:心|肝)?血|补(?:心|肝)?血|益血/,
-    /活血|化瘀|行瘀|和血/,
-    /安神|宁心|宁神|养心|定志|镇惊|安魂|定魄/,
-    /健脾|补脾|益脾|补益心脾|益心脾|健运/,
-    /理气|行气|疏肝|解郁|开郁/, /清热|泻火|凉血/, /化痰|祛痰/, /利湿|渗湿|利水|祛湿/,
-    /温阳|扶阳|散寒|温中|温肾/, /滋阴|养阴|育阴|生津/, /解表|祛风/, /止痛/, /止咳|平喘/,
-    /消食|导滞/, /收涩|敛汗|固涩/, /止血/, /通便|泻下|攻下/,
-  ];
-  const claimedGroups = functionConceptGroups.filter((group) => group.test(claimedFunction));
+  const claimedGroups = HERB_FUNCTION_CONCEPT_GROUPS.filter((group) => group.test(claimedFunction));
   const highImpactGroups = [
     /清热|泻火|凉血/, /活血|化瘀|行瘀|破血/, /温阳|扶阳|回阳|散寒/, /攻下|泻下|通便/,
   ];
