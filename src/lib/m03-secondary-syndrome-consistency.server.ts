@@ -4,6 +4,7 @@ import { affirmedClinicalSourceClauses } from "./clinical-polarity";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
+import { claimsSecondaryPattern, declaresSecondaryMechanism, mechanismClaimsUncoveredBy } from "./tcm-therapy-phrasing";
 
 /**
  * 辨证依据与兼证栏一致（2026-10-19）。
@@ -22,6 +23,11 @@ const TIMEOUT_MS = (() => {
 })();
 const MAX_RECORD_CHARS = 1_800;
 
+function broadTrigger(): "markers" | "all" | "off" {
+  const value = process.env.CDSS_M03_SECONDARY_BROAD_TRIGGER;
+  return value === "false" ? "off" : value === "all" ? "all" : "markers";
+}
+
 function enabled(): boolean {
   return process.env.CDSS_M03_SECONDARY_CONSISTENCY !== "false";
 }
@@ -31,16 +37,17 @@ const record = (value: unknown): Json | undefined => value && typeof value === "
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const compact = (value: string) => value.normalize("NFKC").replace(/[\s，,。．.；;：:、（）()“”"'‘’！!？?]/gu, "");
 
-/** 「兼/夹」后 8 字内出现病性字：兼脾虚之象、夹瘀、兼有湿浊内蕴、虚中夹瘀。兼顾/兼治/兼以 与否定（无兼、不夹）不算。 */
-const SECONDARY_PATTERN_CLAIM = /(?<![无未不非没])[兼夹](?![顾治以备职])[有见杂]?[一-鿿]{0,8}?[虚亏湿痰瘀热寒郁滞风燥火饮浊积]/u;
+// 「兼/夹」后 8 字内出现病性字（兼脾虚之象、夹瘀、兼有湿浊内蕴、兼有肺气不足）见 tcm-therapy-phrasing 的 claimsSecondaryPattern；
+// 兼顾/兼治/兼以 与否定（无兼、不夹）不算。
 const DEFICIENCY_EXCESS_MIX = /本虚标实|虚实夹杂/u;
+
 const DEFICIENT_HOST_EXCESS_EVIL = /正虚邪实/u;
 
 /** 辨证依据与病机里指向主证以外另一证候的说法（逐个分句）。 */
 export function secondaryPatternClaims(...values: string[]): string[] {
   const clauses = values.flatMap((value) => value.split(/[，,。；;]/u)).map((clause) => clause.trim()).filter(Boolean);
   return clauses.filter((clause) =>
-    SECONDARY_PATTERN_CLAIM.test(clause) || DEFICIENCY_EXCESS_MIX.test(clause) || DEFICIENT_HOST_EXCESS_EVIL.test(clause));
+    claimsSecondaryPattern(clause) || DEFICIENCY_EXCESS_MIX.test(clause) || DEFICIENT_HOST_EXCESS_EVIL.test(clause));
 }
 
 export type SecondaryConsistencyDecision =
@@ -96,7 +103,10 @@ export function parseSecondaryConsistencyDecision(
     // 只删兼夹说法本身（2026-10-19 甲方标准病历 1 两次：小任务让删「恶寒重、发热轻、无汗、鼻塞流清涕」这类主症分句，
     // 辨证依据只剩「咳嗽，…」，风寒鉴别投影又把主症补在句末）。要删的分句自己必须是一条兼夹说法。
     const clauses = Array.isArray(parsed.clauses)
-      ? parsed.clauses.map((item) => text(item)).filter((item) => item.length >= 2 && editable.includes(item) && secondaryPatternClaims(item).length > 0)
+      ? parsed.clauses.map((item) => text(item)).filter((item) => item.length >= 2 && editable.includes(item) &&
+        // 能删的只有自称兼夹的分句（兼夹说法，或「之兼象」「兼见」「同病」这类标记）。只用病机词解释某个表现的分句
+        //（「易疲劳为气血不足」）可以据此补兼证，不删——删了等于把这个表现的解释拿掉。
+        (secondaryPatternClaims(item).length > 0 || declaresSecondaryMechanism(item)))
       : [];
     return clauses.length > 0 ? { decision: "remove", clauses } : undefined;
   }
@@ -225,7 +235,15 @@ export async function reconcileSecondarySyndromes(
   const rationale = text(overview.tcmDiagnosticRationale);
   const pathogenesis = text(overview.overallPathogenesis);
   if (!primarySyndrome) return tcmContent;
-  const claims = secondaryPatternClaims(rationale, pathogenesis);
+  // 自称兼夹的分句（「为X之兼象」「心脾同病」）也算；只用病机词解释某个伴随表现的分句（「纳差便溏为脾运不健」）默认不算——
+  // 2026-10-19 离线量：宽判据在验收主集新触发 157 例、52 例补了兼证，其中有甲方标准病历 4（肝气犯胃证补成兼肝郁脾虚证，
+  // 甲方标准答案无兼证，10/13 起的口径是伴随症状进加减、不进主方）。CDSS_M03_SECONDARY_BROAD_TRIGGER=all 打开宽判据，=false 只留兼/夹说法。
+  const trigger = broadTrigger();
+  const claims = [...new Set([
+    ...secondaryPatternClaims(rationale, pathogenesis),
+    ...(trigger === "off" ? [] : mechanismClaimsUncoveredBy(primarySyndrome, rationale, pathogenesis)
+      .filter((clause) => trigger === "all" || declaresSecondaryMechanism(clause))),
+  ])].slice(0, 6);
   if (claims.length === 0) return tcmContent;
   const decision = await decideSecondaryConsistency({
     recordText: context.recordText,

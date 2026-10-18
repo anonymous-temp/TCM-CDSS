@@ -1877,7 +1877,8 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
   });
   check("16.3 提示词格式词照抄成的病名不采信（「主要症状＋待查」）；A–C 类症状待查照常（对照）；D 类有更宽病名时照常用它（对照）", () => {
     assert.equal(westernCheck.parseWesternNameCorrection(verdict({ type: "B", supportedName: "主要症状＋待查" }), record, "多发性骨髓瘤"), undefined);
-    assert.equal(westernCheck.parseWesternNameCorrection(verdict({ type: "B", supportedName: "腰痛待查" }), record, "多发性骨髓瘤")?.supportedName, "腰痛待查");
+    // B 类的理由要说已记录的相反所见（10/19 第三轮起理由只说缺什么的 A–C 不采信，见 test-r1019-western-r3 §6）。
+    assert.equal(westernCheck.parseWesternNameCorrection(verdict({ type: "B", reason: "血清M蛋白阴性，不支持多发性骨髓瘤", supportedName: "腰痛待查" }), record, "多发性骨髓瘤")?.supportedName, "腰痛待查");
     assert.equal(westernCheck.parseWesternNameCorrection(verdict({ supportedName: "贫血" }), record, "缺铁性贫血")?.supportedName, "贫血");
   });
 }

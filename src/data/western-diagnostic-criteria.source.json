@@ -111,7 +111,12 @@
    "siteName": "Bệnh viện Bạch Mai",
    "title": "Bài 4: Rối loạn cương dương: Chẩn đoán và phương pháp điều trị - Hướng đi đến cuộc sống khỏe mạnh",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 180,
+    "under18": 180
+   },
+   "courseNextCheck": "国际勃起功能指数（IIEF-5）评估"
   },
   {
    "name": "不孕症",
@@ -166,7 +171,12 @@
    "siteName": "默沙东诊疗手册",
    "title": "产后抑郁症 - 妇产科学 - MSD诊疗手册专业版 - 产后抑郁症",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 14,
+    "under18": 14
+   },
+   "courseNextCheck": "爱丁堡产后抑郁量表（EPDS）评估"
   },
   {
    "name": "肠易激综合征",
@@ -200,7 +210,12 @@
      }
     }
    },
-   "reviewedAt": "2026-10-19"
+   "reviewedAt": "2026-10-19",
+   "courseThresholdDays": {
+    "adult": 180,
+    "under18": 60
+   },
+   "courseNextCheck": "排便日记，记录腹痛与排便的关系"
   },
   {
    "name": "痤疮",
@@ -596,7 +611,12 @@
      "durationThreshold": "诊断前症状出现至少6个月，近3个月符合诊断标准"
     }
    },
-   "reviewedAt": "2026-10-19"
+   "reviewedAt": "2026-10-19",
+   "courseThresholdDays": {
+    "adult": 180,
+    "under18": 30
+   },
+   "courseNextCheck": "排便日记，有报警征象时结肠镜"
   },
   {
    "name": "功能性消化不良",
@@ -626,7 +646,13 @@
      }
     }
    },
-   "reviewedAt": "2026-10-19"
+   "reviewedAt": "2026-10-19",
+   "courseThresholdDays": {
+    "adult": 180,
+    "under18": 60
+   },
+   "courseNextCheck": "胃镜",
+   "courseNextCheckUnder18": "症状日记，有报警征象时胃镜"
   },
   {
    "name": "骨关节炎",
@@ -1087,7 +1113,12 @@
    "siteName": "Scswyy",
    "title": "【健康科普】 肩痛之殇一针解忧",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 30,
+    "under18": 30
+   },
+   "courseNextCheck": "肩关节X线或超声"
   },
   {
    "name": "焦虑障碍",
@@ -1106,7 +1137,12 @@
    "siteName": "BMJ Best Practice",
    "title": "Generalized anxiety disorder",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 180,
+    "under18": 180
+   },
+   "courseNextCheck": "广泛性焦虑量表（GAD-7）评估"
   },
   {
    "name": "紧张型头痛",
@@ -1114,10 +1150,9 @@
    "requiredTests": [],
    "durationThreshold": "",
    "definingFeatures": [
-    "轻至中度、紧箍样头痛",
-    "起源于双侧枕部或额部，可扩散至全头",
-    "不伴恶心、呕吐",
-    "不因体力活动、光、声、气味加重",
+    "四项特征至少两项：双侧；压迫或紧箍样（非搏动性）；轻至中度；日常体力活动（如步行、上楼）不加重",
+    "不伴恶心或呕吐；畏光与畏声至多一项",
+    "不能用其他头痛诊断更好地解释",
     "体格检查（含神经科检查）无异常"
    ],
    "quote": "紧张型头痛可根据其特征性的临床表现，而体格检查（包括神经科检查）无异常而诊断。",
@@ -1125,7 +1160,32 @@
    "siteName": "默沙东诊疗手册",
    "title": "紧张型头痛 - 神经病学 - MSD诊疗手册专业版",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-19",
+   "featureRule": "国际头痛分类第3版（ICHD-3）：双侧、压迫或紧箍样（非搏动性）、轻至中度、日常体力活动不加重，这四项特征病历至少记录到两项，并且不伴恶心呕吐；只记录到一项或没有记录头痛性质与部位的，名称说得比记录具体",
+   "featureRuleQuote": [
+    "At least two of the following four characteristics:",
+    "bilateral location",
+    "pressing or tightening (non-pulsating) quality",
+    "mild or moderate intensity",
+    "not aggravated by routine physical activity such as walking or climbing stairs",
+    "no nausea or vomiting",
+    "no more than one of photophobia or phonophobia"
+   ],
+   "featureRuleUrl": "https://ichd-3.org/2-tension-type-headache/2-1-infrequent-episodic-tension-type-headache/",
+   "featureRuleSiteName": "International Headache Society（ICHD-3）",
+   "reviewCorrection": {
+    "basis": "ICHD-3 2.1 偶发性发作性紧张型头痛诊断标准 C（四项特征至少两项）与 D（不伴恶心呕吐、畏光畏声至多一项）；原条目只写「按特征性临床表现诊断」，提示词又把紧张型头痛列为「按典型表现即可诊断、一律判一致」，核对从不检查记录到的特征够不够。甲方标准病历 3（产后两月余头痛「隐痛，时发时止，遇疲劳、受风后加重」，伴头晕心悸、面色少华，未查血常规）第 1 次生成交付「紧张型头痛」，复核不通过（2026-10-19）。",
+    "before": {
+     "definingFeatures": [
+      "轻至中度、紧箍样头痛",
+      "起源于双侧枕部或额部，可扩散至全头",
+      "不伴恶心、呕吐",
+      "不因体力活动、光、声、气味加重",
+      "体格检查（含神经科检查）无异常"
+     ]
+    }
+   },
+   "clinicalNextCheck": "头痛日记，记录部位、性质、程度与伴随症状"
   },
   {
    "name": "经前期综合征",
@@ -1282,7 +1342,12 @@
      ],
      "durationThreshold": "症状持续≥6周计1分"
     }
-   }
+   },
+   "courseThresholdDays": {
+    "adult": 42,
+    "under18": 42
+   },
+   "courseNextCheck": "类风湿因子与抗CCP抗体"
   },
   {
    "name": "良性前列腺增生",
@@ -1365,7 +1430,12 @@
    "siteName": "BMJ Best Practice",
    "title": "Rinossinusite crônica sem pólipos nasais - Última revisão das evidências: 8 Sep 2026",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 84,
+    "under18": 84
+   },
+   "courseNextCheck": "鼻内镜或鼻窦CT"
   },
   {
    "name": "慢性腹泻",
@@ -1398,7 +1468,12 @@
      ]
     }
    },
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 28,
+    "under18": 28
+   },
+   "courseNextCheck": "粪便常规与病原学检查"
   },
   {
    "name": "慢性疲劳综合征",
@@ -1420,7 +1495,12 @@
      "durationThreshold": ""
     }
    },
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 180,
+    "under18": 180
+   },
+   "courseNextCheck": "血常规、甲状腺功能等排除性化验"
   },
   {
    "name": "慢性前列腺炎",
@@ -1441,7 +1521,12 @@
    "siteName": "",
    "title": "中国中西医结合学会团体标准",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 90,
+    "under18": 90
+   },
+   "courseNextCheck": "前列腺液常规"
   },
   {
    "name": "慢性前列腺炎/慢性盆腔疼痛综合征",
@@ -1459,7 +1544,12 @@
    "siteName": "Uptodate",
    "title": "慢性前列腺炎和慢性盆腔疼痛综合征",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 90,
+    "under18": 90
+   },
+   "courseNextCheck": "前列腺液常规"
   },
   {
    "name": "慢性肾小球肾炎",
@@ -1511,7 +1601,12 @@
    "siteName": "BMJ Best Practice",
    "title": "Chronic kidney disease - Evidence last reviewed: 9 Sep 2026",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 90,
+    "under18": 90
+   },
+   "courseNextCheck": "估算肾小球滤过率与尿白蛋白肌酐比"
   },
   {
    "name": "慢性失眠障碍",
@@ -1534,7 +1629,12 @@
      "durationThreshold": ""
     }
    },
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 90,
+    "under18": 90
+   },
+   "courseNextCheck": "睡眠日记"
   },
   {
    "name": "慢性萎缩性胃炎",
@@ -1601,7 +1701,12 @@
    "siteName": "Wolters Kluwer",
    "title": "慢性自发性荨麻疹的临床表现、诊断、发病机制和自然病程",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 42,
+    "under18": 42
+   },
+   "courseNextCheck": "血常规与C反应蛋白"
   },
   {
    "name": "慢性牙髓炎",
@@ -1641,7 +1746,12 @@
    "siteName": "丁香医生",
    "title": "慢性咽炎症状_病因_治疗方法_鉴别_专家咨询|丁香医生 - 慢性咽炎",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 21,
+    "under18": 21
+   },
+   "courseNextCheck": "咽喉部检查"
   },
   {
    "name": "慢性支气管炎",
@@ -1816,13 +1926,33 @@
    "siteName": "國立臺灣大學醫學院附設醫院",
    "title": "是不是只有痛一邊才叫偏頭痛",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-19",
+   "featureRule": "国际头痛分类第3版（ICHD-3）：单侧、搏动性、中重度、日常体力活动加重或因此回避活动，这四项特征病历至少记录到两项，并且发作时至少有恶心和/或呕吐、或畏光与畏声两者之一；不够数的，名称说得比记录具体",
+   "featureRuleQuote": [
+    "Headache has at least two of the following four characteristics:",
+    "unilateral location",
+    "pulsating quality",
+    "moderate or severe pain intensity",
+    "aggravation by or causing avoidance of routine physical activity (eg, walking or climbing stairs)",
+    "During headache at least one of the following:",
+    "nausea and/or vomiting",
+    "photophobia and phonophobia"
+   ],
+   "featureRuleUrl": "https://ichd-3.org/1-migraine/1-1-migraine-without-aura/",
+   "featureRuleSiteName": "International Headache Society（ICHD-3）",
+   "reviewCorrection": {
+    "basis": "ICHD-3 1.1 无先兆偏头痛诊断标准 C（四项特征至少两项）与 D（恶心呕吐、或畏光与畏声至少一项）。与紧张型头痛同一类：原条目无特征计数口径，提示词把偏头痛列为「一律判一致」（2026-10-19）。",
+    "before": {
+     "featureRule": null
+    }
+   },
+   "clinicalNextCheck": "头痛日记，记录部位、性质、程度与伴随症状"
   },
   {
    "name": "强直性脊柱炎",
    "clinicallyDiagnosable": false,
    "requiredTests": [
-    "骶髂关节X线（3～4级单侧或2～4级双侧）"
+    "骶髂关节X线（单侧3～4级或双侧2～4级；2级为局限性侵蚀或硬化、关节间隙无改变，3级为侵蚀、硬化、间隙增宽或狭窄、部分强直，4级为完全强直，报告写「间隙消失」即属4级）"
    ],
    "durationThreshold": "下腰痛持续至少3个月",
    "definingFeatures": [
@@ -1837,7 +1967,20 @@
    "siteName": "人卫临床助手",
    "title": "临床路径详情-人卫临床助手-人民卫生出版社",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-19",
+   "courseThresholdDays": {
+    "adult": 90,
+    "under18": 90
+   },
+   "courseNextCheck": "骶髂关节X线或MRI",
+   "reviewCorrection": {
+    "basis": "修订纽约标准（1984）骶髂关节X线分级：0级正常，1级可疑（骨缘模糊），2级轻度异常（局限性侵蚀、硬化，关节间隙无改变），3级明确异常（侵蚀、硬化、间隙增宽或狭窄、部分强直），4级完全强直；双侧≥2级或单侧3～4级为影像学标准。病历多写影像所见而不写分级，核对曾把「X线片见骶髂关节模糊，间隙消失」（4级）判成「缺骶髂关节X线分级结果」（2026-10-19 离线回放验收集 X-D-2600）。",
+    "before": {
+     "requiredTests": [
+      "骶髂关节X线（3～4级单侧或2～4级双侧）"
+     ]
+    }
+   }
   },
   {
    "name": "桥本甲状腺炎",
@@ -2374,7 +2517,12 @@
    "siteName": "默沙东诊疗手册",
    "title": "纤维肌痛综合征 - 风湿病学与骨科学 - MSD诊疗手册专业版",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 90,
+    "under18": 90
+   },
+   "courseNextCheck": "广泛疼痛指数与症状严重程度评估"
   },
   {
    "name": "消化性溃疡",
@@ -2415,7 +2563,12 @@
    "siteName": "National Institutes of Health (NIH) | (.gov)",
    "title": "Functional Abdominal Pain in Children",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 60,
+    "under18": 60
+   },
+   "courseNextCheck": "腹痛日记"
   },
   {
    "name": "小儿急性上呼吸道感染",
@@ -2602,7 +2755,12 @@
    "siteName": "",
    "title": "- verminderte Konzentration und Aufmerksamkeit",
    "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-18",
+   "courseThresholdDays": {
+    "adult": 14,
+    "under18": 14
+   },
+   "courseNextCheck": "患者健康问卷（PHQ-9）评估"
   },
   {
    "name": "银屑病",
@@ -2914,6 +3072,30 @@
    "retrievedAt": "2026-10-19",
    "reviewNote": "2026-10-19 人工新增：验收集 X-D-1522 眼压45mmHg、视盘色红边界清，写成「糖皮质激素性青光眼」。青光眼以视神经损害为特征，只有眼压升高是高眼压症（情形 C：较重一层的名称）。",
    "reviewedAt": "2026-10-19"
+  },
+  {
+   "name": "反应性关节炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "典型的外周关节炎：通常不对称、少关节，主要累及脚趾和下肢大关节",
+    "关节炎之前有消化道或泌尿生殖道感染的前驱症状（腹泻、尿道炎或排尿困难），或有特征性的关节外表现",
+    "非感染性尿道炎常在性接触后（或偶尔在痢疾后）7～14天发生，此后数周出现关节炎"
+   ],
+   "requiredHistory": "关节炎起病前数周内有腹泻等消化道感染、或尿道炎与排尿困难等泌尿生殖道感染的前驱症状，或有结膜炎、溢脓性皮肤角化病、环状龟头炎等特征性关节外表现；病历两样都没有记录时，名称说得比记录具体",
+   "quote": "诊断主要基于临床表现，需要有典型的外周关节炎，以及前驱的消化道或泌尿道感染症状，或特征性的关节外表现。",
+   "url": "https://www.msdmanuals.cn/professional/musculoskeletal-and-connective-tissue-disorders/joint-disorders/reactive-arthritis",
+   "siteName": "默沙东诊疗手册",
+   "title": "反应性关节炎 - 风湿病学与骨科学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-19",
+   "reviewNote": "同页「症状和体征」：「关节受累通常不对称且少关节，主要发生在脚趾和下肢大关节，可能包括大量膝关节积液，且通常出人意料地轻微疼痛。」第4届国际反应性关节炎研讨会（柏林，1999）的分类建议同样以前驱症状性感染（腹泻或尿道炎，起病前数日至数周）为必备项，并标明为未经验证的初步标准。留出例 S079（39岁，搬入潮湿住房、吹风受凉后双肩双肘双膝腕关节游走性疼痛2周，无腹泻与尿道症状记录）交付「反应性关节炎待查」，复核不通过（2026-10-19）。",
+   "reviewedAt": "2026-10-19",
+   "clinicalNextCheck": "追问起病前数周有无腹泻、尿道炎或结膜炎"
   }
- ]
+ ],
+ "courseFields": {
+  "basis": "courseThresholdDays：durationThreshold 里「起病至今满多久」那一项折成天数（月按30天、周按7天；adult 为成人，under18 为未满18岁，罗马IV儿童标准不同于成人的已分开写）。只收起病至今的病程门槛；按年发作次数、单次发作时长、近期窗口定义的（慢性支气管炎、偏头痛、闭经、不孕症、稳定型心绞痛、脑梗死等）不收。courseNextCheck（未满18岁另有 courseNextCheckUnder18 的用它；儿童功能性消化不良无报警征象时不需要胃镜）：病程未满门槛时，原病名那条鉴别的「建议核实」写这一项可以开出的检查、量表或记录（不写「随访至病程满N个月」这类等待病程的说法；2026-10-19 独立评审：甲方病历4、留出例 S055 的鉴别写「随访至病程满6个月」，不是可执行的临床动作）。 clinicalNextCheck：按特征计数或前驱病史成立的病（featureRule / requiredHistory）判为说得过细时，原病名那条鉴别的「建议核实」写这一项（头痛日记、追问前驱感染），不写「完善确诊所需检查」。",
+  "sourceRef": "src/lib/western-name-evidence-check.server.ts recordCourseDays / courseThresholdForPatient；2026-10-19"
+ }
 }

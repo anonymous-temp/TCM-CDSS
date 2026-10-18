@@ -10,7 +10,7 @@ import { reviewAuthoredFormulaAnalysis } from "./formula-analysis-review";
 import { namedFormulaDecoctionProfile } from "./formula-decoction-profile";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { SERVER_LABELED_GROUNDING_LINE, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
+import { NARROWER_THAN_GROUP_CANONICAL, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
@@ -538,7 +538,10 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
         changed = true;
         return `${entryName}${trimmed}`;
       }
-      const allDocumented = terms.every((term) => sourceDocumentsNegation(clinicalContext, term));
+      // 病历写到过这一项（原词或同义写法，与 unrecordedNegativesAsNotReported 同一判据）却没有否认它时，不改成「病历未记录X」：
+      // 那是假话（2026-10-19 留出例 S055：病历「大便干结5天」，「药物性便秘」一行交付成「未诉便秘」）。分句原样留给净化器按病历肯定处理。
+      const compactRecord = clinicalContext.normalize("NFKC").replace(/\s+/g, "");
+      const allDocumented = terms.every((term) => sourceDocumentsNegation(clinicalContext, term) || recordMentionsNegatedTerm(compactRecord, term));
       if (allDocumented) return clause;
       changed = true;
       return `病历未记录${object}（需问诊核实后方可用于排除）`;
@@ -904,7 +907,8 @@ const NONDIAGNOSTIC_WESTERN_SUPPORT = /^(?:不限定|未限定|既往体健|无�
 // 2026-10-18：「示无里热」「提示里无湿热积滞」「里和无损」是辨证推断，不是患者没提到的症状（甲方标准病历 1/3/9 三次生成都出现
 //「示未诉里热」「里未诉湿热积滞」「里和未诉损」）。「无」前面是 示/里/内 的、「无损」，都不改。
 const UNRECORDED_NEGATIVE_FEATURE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故损])([\u4e00-\u9fff]{2,12}?)(?=之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状))/gu;
-const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故损])([\u4e00-\u9fff]{2,16}?)(?=[、，,。；;：:）)]|等|及|和|或|与|$)/gu;
+// 对象里不能再有「无」：「无脓无屑」曾整段当成一个对象改成「未诉脓无屑」（2026-10-19 验收集 X-C-0192）。
+const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故损])((?:(?!无)[\u4e00-\u9fff]){2,16}?)(?=[、，,。；;：:）)]|等|及|和|或|与|$)/gu;
 
 /**
  * 病历是否写到过这个阴性项的对象（无论肯定还是否定）。2–3 字的词要原词出现；4 字以上的长短语换个说法很常见
@@ -915,13 +919,17 @@ const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽示里内])无(?
  * 米粒大小水疱」，肋间神经痛一行的「无皮疹」被改成「未诉皮疹」）。闭集，只认皮疹这一组总称与形态。
  */
 const RASH_GENERIC_TERM = /^(?:皮疹|皮损|疹子)$/u;
-const RASH_SPECIFIC_FORM = /(?:水疱|水泡|疱疹|红斑|丘疹|风团|皮损|斑疹|疱疮)/u;
 function recordShowsRashForm(record: string, term: string): boolean {
-  return RASH_GENERIC_TERM.test(term) && RASH_SPECIFIC_FORM.test(record);
+  return RASH_GENERIC_TERM.test(term) && (SKIN_LESION_FORM.test(record) || record.includes("皮损"));
 }
 
 function recordMentionsNegatedTerm(record: string, term: string): boolean {
   if (record.includes(term) || recordShowsRashForm(record, term)) return true;
+  // 同一概念的别的写法也算写到过（受治理的同义词组 POSITIVE_FACT_EQUIVALENT_GROUPS，与净化器同一份）：病历「大便干结5天」「5天未解大便」，
+  // 鉴别里的「无便秘」不能改成「未诉便秘」（2026-10-19 留出例 S055）；不寐/眠差之于失眠、眩晕之于头晕同理。
+  // 只从总称往下展开：「无高热」「无下腹痛」说的是下位词，病历写了发热、腹痛不等于写到过高热、下腹痛（同表的 NARROWER_THAN_GROUP_CANONICAL）。
+  if (!NARROWER_THAN_GROUP_CANONICAL.has(term) &&
+    POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes(term))?.some((form) => record.includes(form))) return true;
   // 两字词中间隔着修饰也算写到过：病历「腹中冷痛」，输出「无腹痛」不能改成「未诉腹痛」（2026-10-18 留出例 S058）。
   if (term.length === 2) {
     for (let at = record.indexOf(term[0]); at >= 0; at = record.indexOf(term[0], at + 1)) {
@@ -958,10 +966,20 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
   // 「无…结果/报告/记录」说的是缺这份资料，不是否认症状，照原样留。
   // 查病历时去掉「之…表现/特征/症状/象」：「无善惊易恐之表现」查的是善惊易恐（病历写着它就不改）。
   const core = (term: string) => term.replace(/之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状|象)$/u, "");
-  const out = text.replace(UNRECORDED_NEGATIVE, (match, term: string) =>
-    recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) ? match : `未诉${term}`)
+  // 同一分句里「无」之前已有「示/提示/表明/说明/可知」时，「无X」是从记录推出的判断（「二便调示里和无热结」），不是对症状的否认，照原样留
+  //（2026-10-19 甲方标准病历 1 复测：曾改成「示里和未诉热结」）。紧挨着的「示无」已由正则的后顾排除，这里管隔了几个字的。
+  const inferred = (offset: number, whole: string) => /(?:示|表明|说明|可知)[^，,。；;]*$/u.test(whole.slice(0, offset));
+  const out = text.replace(UNRECORDED_NEGATIVE, (match, term: string, offset: number, whole: string) =>
+    inferred(offset, whole) || recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) ? match : `未诉${term}`)
     // 「无气从少腹上冲胸咽之奔豚特征」：对象后面接「之…特征/表现/症状」时上面那条够不着（2026-10-19 甲方标准病历 2 第 3 次生成）。
-    .replace(UNRECORDED_NEGATIVE_FEATURE, (match, term: string) => recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`);
+    .replace(UNRECORDED_NEGATIVE_FEATURE, (match, term: string, offset: number, whole: string) =>
+      inferred(offset, whole) || recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`)
+    // 「口不渴」「口不干」「口不苦」是同一类阴性写法（2026-10-19 甲方标准病历 1：风温鉴别写「本例…口不渴」，病历没记录口渴与否）。
+    .replace(/口不(渴|干|苦)|(?<=^|[，,、；;。：:\s])不(渴)(?=[，,、；;。]|$)/gu, (match, mouth: string | undefined, bare: string | undefined, offset: number, whole: string) => {
+      const what = mouth || bare || "";
+      const term = `口${what}`;
+      return inferred(offset, whole) || recordMentionsNegatedTerm(record, term) || (what === "渴" && /渴|欲饮/u.test(record)) ? match : `未诉${term}`;
+    });
   // 「未诉A、未诉B」并成「未诉A、B」：只并相邻的未诉项。中间隔着一个仍是「无X」的项时不并——并过去会读成
   //「无X、B」，把 B 又写回否认（2026-10-18 回放：「未诉头晕、无恶心呕吐、未诉胸脘痞闷」曾并成「…无恶心呕吐、胸脘痞闷」）。
   return out.split(/([，,。；;])/u).map((segment) => {

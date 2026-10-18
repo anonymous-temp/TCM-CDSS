@@ -25,6 +25,21 @@ export type WesternCriteriaEntry = {
   siteName: string;
   title: string;
   retrievedAt: string;
+  /**
+   * 起病至今的病程门槛（天；adult 成人，under18 未满18岁）。只收「起病至今满多久」这一类门槛；按年发作次数、单次发作时长定义的不收
+   *（数据文件 courseFields.basis）。病名一致性核对据此判断核对给的「病程不够」是不是与病历记录的病程相反（2026-10-19）。
+   */
+  courseThresholdDays?: { adult?: number; under18?: number };
+  /** 病程未满门槛时，原病名那条鉴别的「建议核实」：可以开出的检查、量表或记录（不是「随访至病程满N个月」）。 */
+  courseNextCheck?: string;
+  /** 未满18岁用的那一项（儿童功能性消化不良无报警征象时不需要胃镜）；没有时用 courseNextCheck。 */
+  courseNextCheckUnder18?: string;
+  /** 需要数够若干项特征才成立的病（ICHD-3 紧张型头痛、偏头痛）：给核对模型的计数口径。 */
+  featureRule?: string;
+  /** 诊断必需的前驱病史（反应性关节炎的前驱肠道或泌尿生殖道感染）：病历没有记录时名称说得比记录具体。 */
+  requiredHistory?: string;
+  /** featureRule / requiredHistory 不满足时原病名那条鉴别的「建议核实」（头痛日记、追问前驱感染），不是检查时也是可执行的临床动作。 */
+  clinicalNextCheck?: string;
 };
 
 export type WesternCriteriaReference =
@@ -111,6 +126,8 @@ export function westernCriteriaPromptValue(reference: WesternCriteriaReference |
       requiredTests: entry.requiredTests,
       durationThreshold: entry.durationThreshold,
       definingFeatures: entry.definingFeatures,
+      ...(entry.featureRule ? { featureRule: entry.featureRule } : {}),
+      ...(entry.requiredHistory ? { requiredHistory: entry.requiredHistory } : {}),
     };
   }
   return { searchExcerpts: reference.excerpts.map((item) => `${item.siteName || item.title}：${item.summary}`) };

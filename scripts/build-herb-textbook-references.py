@@ -57,15 +57,21 @@ def parse_herbs(lines: list[str]) -> dict[str, dict]:
                     if name and text:
                         herbs.setdefault(name, {"function": text, "line": index + offset + 1})
                     break
-            # 【使用注意】在同一味正文里、下一味【药性】之前（2026-10-19：饮片使用注意与病历对照，herb-record-caution.ts）。
-            if name in herbs and "caution" not in herbs[name]:
+            # 【用法用量】与【使用注意】在同一味正文里、下一味【药性】之前（2026-10-19：饮片使用注意与病历对照 herb-record-caution.ts；
+            # 特殊煎法标注的依据 herb-decoction-rules.ts）。
+            if name in herbs:
                 for offset in range(1, 80):
                     if index + offset >= len(lines):
                         break
                     candidate = lines[index + offset]
                     if candidate.startswith("【药性】"):
                         break
-                    if candidate.startswith("【使用注意】"):
+                    if candidate.startswith("【用法用量】") and "usage" not in herbs[name]:
+                        text = candidate.replace("【用法用量】", "").strip(" 　")
+                        if text:
+                            herbs[name]["usage"] = text
+                            herbs[name]["usageLine"] = index + offset + 1
+                    if candidate.startswith("【使用注意】") and "caution" not in herbs[name]:
                         text = candidate.replace("【使用注意】", "").strip(" 　")
                         if text:
                             herbs[name]["caution"] = text
@@ -73,16 +79,22 @@ def parse_herbs(lines: list[str]) -> dict[str, dict]:
                         break
             continue
         # 附药：「附药：椒目」下一行「本品为…功能利水消肿，降气平喘。」；多味附药各起一段「2.鹿角胶　本品为…功能…」。
+        # 附药段落里功能之后的用法（「…煎服，15～30g，先煎。」）记作 usage，供特殊煎法标注核对。
+        usage_of = lambda paragraph: (re.search(r"(?:煎服|入煎|用量)[^。]*。?", paragraph.split("功能", 1)[-1]) or [None])[0]
         numbered = re.match(r"^(?:\d\.)?([一-鿿]{2,5})[　 ]+本品为.*?功能(.*?)。", line)
         if numbered:
-            herbs.setdefault(numbered.group(1), {"function": numbered.group(2), "line": index + 1, **({"parent": parent} if parent else {})})
+            usage = usage_of(line)
+            herbs.setdefault(numbered.group(1), {"function": numbered.group(2), "line": index + 1, **({"parent": parent} if parent else {}),
+                                                 **({"usage": usage, "usageLine": index + 1} if usage else {})})
             continue
         if line.startswith("附药：") and "、" not in line:
             name = compact(line.replace("附药：", ""))
             following = lines[index + 1] if index + 1 < len(lines) else ""
             matched = re.search(r"功能(.*?)。", following)
             if name and matched:
-                herbs.setdefault(name, {"function": matched.group(1), "line": index + 2, **({"parent": parent} if parent else {})})
+                usage = usage_of(following)
+                herbs.setdefault(name, {"function": matched.group(1), "line": index + 2, **({"parent": parent} if parent else {}),
+                                        **({"usage": usage, "usageLine": index + 2} if usage else {})})
     return herbs
 
 
@@ -130,12 +142,12 @@ def main() -> int:
             "file": CORPUS_REF,
             "sha256": hashlib.sha256(raw).hexdigest(),
             "books": {
-                "herbs": "《中药学》钟赣生主编，全国中医药行业高等教育“十三五”规划教材，各药【功效】与附药「功能」句；正药另取【使用注意】",
+                "herbs": "《中药学》钟赣生主编，全国中医药行业高等教育“十三五”规划教材，各药【功效】与附药「功能」句；正药另取【用法用量】【使用注意】，附药取功能之后的用法句",
                 "formulaCommentaries": "《方剂学》全国中医药行业高等教育“十三五”规划教材，各方【方解】与【配伍特点】",
             },
             "generator": "scripts/build-herb-textbook-references.py",
         },
-        "note": "function 与 formulaCommentaries 只供 M04 方义药物功效核对的第二道确定性判据挡住删除：某味药被说成有某种功效时，药的功效行或任何一首方的方解里这味药紧跟着就有这种功效，就不删。caution（【使用注意】）供饮片使用注意与病历对照（herb-record-caution.ts）。都不参与准入、剂量门禁。",
+        "note": "function 与 formulaCommentaries 只供 M04 方义药物功效核对的第二道确定性判据挡住删除：某味药被说成有某种功效时，药的功效行或任何一首方的方解里这味药紧跟着就有这种功效，就不删。caution（【使用注意】）供饮片使用注意与病历对照（herb-record-caution.ts）；usage（【用法用量】）供特殊煎法标注核对（herb-decoction-rules.ts）。都不参与准入、剂量门禁。",
         "herbs": dict(sorted(herbs.items())),
         "formulaCommentaries": dict(sorted(formulas.items())),
     }

@@ -453,6 +453,8 @@ type StreamSafetyOptions = {
   structuredHerbBoundaryAudience?: HerbBoundaryAudience;
   /** 本例注意事项必须写到的项目（required-precautions.server.ts）；交付面逐项核对，漏写的补上。 */
   structuredRequiredPrecautions?: readonly RequiredPrecaution[];
+  /** 辨证阶段：本例不给剂量的原因（见 DeliveredSurfaceOptions.doseWithheld）。由辨证路由按安全门写。 */
+  structuredDoseWithheld?: "red_flag" | "withheld";
   structuredCaseState?: CaseState;
   structuredMedicineCandidates?: readonly EvidenceBoundMedicineProposal[];
   /**
@@ -5313,7 +5315,7 @@ async function callPrimaryTextModelStream(
           //（delivered-surface.ts 是唯一口径）。可见正文随之重渲染，常量 attestation 重新绑定到最终载荷。
           let emissionM04Attestation = m04AttestationWithScope;
           if (!truncated && transformed.ok && (opts.structuredStage === "diagnose" || opts.structuredStage === "prescribe")) {
-            const surfaced = applyDeliveredSurfaceToContent(emissionContent, { herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions });
+            const surfaced = applyDeliveredSurfaceToContent(emissionContent, { herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld });
             if (surfaced !== emissionContent) {
               // 辨证结果随载荷重渲染可见正文（与上面的特异性投影同一做法），正文之前的服务端前置区（安全警示横幅、
               // 质量批注）原样带回。开方结果只换结构化载荷：它的可见正文里有渲染之后才并入的内容（儿童用药说明等），

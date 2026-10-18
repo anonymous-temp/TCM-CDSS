@@ -213,6 +213,14 @@ function isInternalTagHit(id: string, text: string, hit: string, index: number):
   // camelCase 规则会命中真实缩写的大小写混排（HbA1c、SpO2、mmHg），上面的 guard 已放行；
   // 其余混排（targetPathogenesis…）保留为命中。三字符以内不足以判定为字段名。
   if (id === "camel_case_field" && bare.length <= 3) return false;
+  // 小写前缀接全大写或单字母驼峰的是检验缩写（dsDNA、hsCRP、cTnI、aPTT、mRNA、sIgE、proBNP），不是字段名（2026-10-19 留出例 S079：
+  //「查抗核抗体、抗dsDNA及尿常规」被擦成「抗及」）。字段名的驼峰段是英文单词：至少一段大写后跟两个以上小写（targetPathogenesis），
+  // 或前缀三字母以上且驼峰段带小写（evidenceId）。
+  if (id === "camel_case_field") {
+    const prefix = bare.match(/^[a-z0-9]+/)?.[0] || "";
+    const humps = bare.slice(prefix.length);
+    if (!/[A-Z][a-z]{2,}/.test(humps) && !(prefix.length >= 3 && /[A-Z][a-z]/.test(humps))) return false;
+  }
   return true;
 }
 

@@ -2465,6 +2465,36 @@ function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: For
 }
 
 /**
+ * 方剂名录里这个方名下各版本组成的并集（含国家经典名方目录），原样写法。判「方义说去掉的药原方根本没有」时用：
+ * 只要哪个版本有这味药就不算没有（天王补心丹有一版列朱砂、仙方活命饮各版写「炙山甲」）。查不到方名时为空。
+ */
+export function formulaNameVariantIngredients(formulaName: string): string[] {
+  const normalized = normalizeFormulaName(String(formulaName || ""));
+  if (!normalized) return [];
+  const official = normalizedOfficialClassics.get(normalized);
+  return [...new Set([
+    ...(official ? official.variant.ingredients : []),
+    ...(normalizedCatalog.get(normalized)?.variants || []).flatMap((variant) => variant.ingredients),
+  ])];
+}
+
+/**
+ * 这首方原书的组成（2026-10-19）：国家古代经典名方目录有就用它；否则取名录里与受治理编译条目同一本书的那一条（只有一条时）。
+ * 方义说「去X」「加X」时对的是原书：消风散的受治理条目取自深圳地方标准，写的是煅石膏，《外科正宗》原方是石膏
+ *（甲方标准病历 9，评审：「原方用的是石膏，不是煅石膏」）。查不到原书条目时为空。
+ */
+export function originalBookFormulaIngredients(formulaName: string): string[] {
+  const normalized = normalizeFormulaName(String(formulaName || ""));
+  if (!normalized) return [];
+  const official = normalizedOfficialClassics.get(normalized);
+  if (official) return [...official.variant.ingredients];
+  const reference = formulaCompilationReferences([formulaName])[0];
+  if (!reference) return [];
+  const rows = (normalizedCatalog.get(normalized)?.variants || []).filter((variant) => sameFormulaSourceBook(variant.source, reference.source));
+  return rows.length === 1 ? [...rows[0].ingredients] : [];
+}
+
+/**
  * 方名在方剂名录里、组成与给定组成（教材该证代表方的组成）逐味相同的那一条的出处（2026-10-19）。
  *
  * 交付面在「方名随辨证阶段改回教材代表方」时写出处：受治理编译目录有这首方就用它的出处，没有时此前直接写

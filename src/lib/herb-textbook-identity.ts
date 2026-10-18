@@ -6,11 +6,15 @@ import textbookReferencesJson from "../data/tcm-herb-textbook-references.json";
  * 《中药学》（十三五规划教材）各味正文按药名找（2026-10-19）。两处要用：
  *  · 判「是不是同一味药」：组成身份名把炮制品并到原药（炙黄芪＝黄芪、法半夏＝半夏），但教材分立成两味的不能并——
  *    生地黄在清热凉血药、熟地黄在补血药（patent-medicine-duplication 判中成药与汤剂重复、herb-record-caution 判是否原方药味）；
- *  · 取这味药的【使用注意】（herb-record-caution）。
+ *  · 取这味药的【使用注意】（herb-record-caution）与【用法用量】（herb-decoction-rules 核对特殊煎法标注）；
+ *  · 方义里的药名与药味表写法不一（鹿胶珠／鹿角胶）时判是不是同一味（formula-analysis-review）。
  * 数据 tcm-herb-textbook-references.json 由 scripts/build-herb-textbook-references.py 从本地教材语料生成。
  */
 
-type TextbookHerbEntry = { function?: string; line?: number; parent?: string | null; caution?: string; cautionLine?: number };
+type TextbookHerbEntry = {
+  function?: string; line?: number; parent?: string | null;
+  caution?: string; cautionLine?: number; usage?: string; usageLine?: number;
+};
 
 const HERBS = ((textbookReferencesJson as { herbs?: Record<string, TextbookHerbEntry> }).herbs || {});
 
@@ -83,4 +87,29 @@ export function textbookHerbCaution(name: string): { herb: string; text: string;
 /** 教材里写了【使用注意】的正文药名。 */
 export function textbookHerbsWithCaution(): string[] {
   return Object.entries(HERBS).filter(([, entry]) => !entry?.parent && Boolean(entry?.caution)).map(([name]) => name);
+}
+
+/**
+ * 这味药在教材里单列的那一条（正文或附药）：本名就有条目的取本名（茯神是茯苓的附药，单列），否则取药典正名的条目
+ *（鹿胶珠→鹿角胶，附药），再否则取正文（熟地→熟地黄）。都没有时为 undefined。
+ */
+export function textbookEntryName(name: string): string | undefined {
+  const value = clean(name);
+  if (!value) return undefined;
+  if (HERBS[value]) return value;
+  const resolved = resolveGovernedTcmHerbIdentity(value);
+  for (const candidate of [resolved.canonicalName, resolved.doseCanonicalName]) {
+    if (candidate && HERBS[candidate]) return candidate;
+  }
+  return textbookMonographName(value);
+}
+
+/**
+ * 教材【用法用量】（附药取功能之后的用法句，龙齿「煎服，15～30g，先煎」）。教材没有这味药、或附药没有自己的用法句时为 undefined
+ *（不借所附正药的：鹿角胶附在鹿茸下，鹿茸是「研末冲服」）。
+ */
+export function textbookHerbUsage(name: string): { herb: string; text: string; line?: number } | undefined {
+  const entryName = textbookEntryName(name);
+  const entry = entryName ? HERBS[entryName] : undefined;
+  return entryName && entry?.usage ? { herb: entryName, text: entry.usage, line: entry.usageLine } : undefined;
 }

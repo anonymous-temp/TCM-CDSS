@@ -1,5 +1,6 @@
 import knowledge from "../data/tcm-knowledge.json" with { type: "json" };
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
+import { textbookHerbUsage } from "./herb-textbook-identity";
 
 type HerbEntry = Record<string, unknown>;
 type HerbRecord = { name: string; aliases?: string[]; entries?: HerbEntry[] };
@@ -291,7 +292,7 @@ export const SPECIAL_DECOCTION_ORDER: ReadonlyArray<{ pattern: RegExp; phrase: (
  */
 export function specialDecoctionOrderIndex(name: string, declared = ""): number {
   const rule = decoctionRuleForHerb(name);
-  let rest = declared;
+  let rest = withoutUnsupportedDecoctionLabels(name, declared);
   const chosenAlternatives = (rule?.oneOf || []).map((alternatives) => {
     const named = alternatives.filter((alternative) => declared.includes(alternative));
     // 只点了其中一种才算选定。把几选一整串照抄（药味表写「大黄（后下或先煎或冲服、禁止久煎）」）不是选择，取所列第一种；
@@ -307,4 +308,48 @@ export function specialDecoctionOrderIndex(name: string, declared = ""): number 
 export function specialDecoctionPhrase(name: string, declared = ""): string {
   const index = specialDecoctionOrderIndex(name, declared);
   return index >= 0 ? SPECIAL_DECOCTION_ORDER[index].phrase(name) : "";
+}
+
+/** 特殊煎法标注（改变下药时机或方式的那几种）。「捣碎」「打碎」是准备，不在此列。 */
+const SPECIAL_DECOCTION_LABEL = /先煎|久煎|后下|包煎|另煎|另炖|烊化|冲服|兑服/gu;
+
+/**
+ * 这味药的特殊煎法标注有没有出处：受治理煎法规则（药典煎法条目与本文件的补充表）或《中药学》【用法用量】写到的才算
+ *（2026-10-19 留出例 S054：模型给肉豆蔻标「后下」——药典与教材都是「煎服，3～10g。内服须煨制去油用」，后下是豆蔻的用法，
+ * 模型把两味弄混了，药味表与煎服行都写成「肉豆蔻后下」）。两处都查不到这味药时返回 undefined：判不了，不删。
+ * 回放 759 个特殊煎法标注（M/X 验收集与甲方 10 例、留出集），无出处的只有 2 个：肉豆蔻后下、半夏先煎。
+ */
+export function supportedSpecialDecoctionLabels(value: string): Set<string> | undefined {
+  const rule = decoctionRuleForHerb(value);
+  const usage = textbookHerbUsage(value);
+  if (!rule && !usage) return undefined;
+  const supported = new Set<string>();
+  for (const method of [...(rule?.required || []), ...(rule?.oneOf || []).flat(), usage?.text || ""]) {
+    for (const match of String(method).matchAll(SPECIAL_DECOCTION_LABEL)) supported.add(match[0]);
+  }
+  if (supported.has("另煎")) supported.add("另炖");
+  if (supported.has("另炖")) supported.add("另煎");
+  return supported;
+}
+
+/**
+ * 去掉没有出处的特殊煎法标注（见 supportedSpecialDecoctionLabels），其余照留：「禁止久煎」这类禁止语、「捣碎」这类准备不动。
+ * 编译器写药味表、煎服行按药味取特殊煎法（specialDecoctionOrderIndex）都过这一道，两处说法一致。
+ */
+export function withoutUnsupportedDecoctionLabels(value: string, declared: string): string {
+  const text = String(declared || "");
+  if (!text.trim()) return text;
+  const supported = supportedSpecialDecoctionLabels(value);
+  if (!supported) return text;
+  const pieces = text.split(/([、，,；;\s]+)/u);
+  const kept: string[] = [];
+  let dropped = false;
+  for (let index = 0; index < pieces.length; index += 2) {
+    const piece = pieces[index];
+    const labels = [...piece.matchAll(SPECIAL_DECOCTION_LABEL)].map((match) => match[0]);
+    const prohibition = /^(?:禁止|不宜|不可|不得|避免|勿)/u.test(piece.trim());
+    if (prohibition || labels.length === 0 || labels.every((label) => supported.has(label))) kept.push(piece);
+    else dropped = true;
+  }
+  return dropped ? kept.filter((piece) => piece.trim()).join("、") : text;
 }

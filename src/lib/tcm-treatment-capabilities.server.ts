@@ -20,9 +20,10 @@ import {
   type TcmTreatmentIndicationTag,
 } from "./tcm-treatment-projects";
 import { affirmedClinicalText } from "./clinical-polarity";
+import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
 import { narrativePediatricAgeConflict, pregnancyScreenRequired, reproductiveAdviceRelevant } from "./diagnosis-safety";
-import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
+import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, dietAdviceAvoidsRichFood, syndromeHasHeatNature, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
 import governanceSourceRegistryJson from "../data/clinical-governance-source-registry.json" with { type: "json" };
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
@@ -289,7 +290,7 @@ function controlledTreatmentPlan(
   /** 本例年龄（岁）。带年龄下限的模板取不到年龄一律不启用。 */
   patientAgeYears?: number,
   /** 教材方案（tcm-nondrug-textbook-plan.server.ts）的取材：已签名病名、西医主诊断、主证+兼证结论。 */
-  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string; chiefComplaint?: string },
+  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string; chiefComplaint?: string; avoidRichFood?: boolean; herbAlreadyPrescribed?: (herb: string) => boolean },
 ): Pick<TreatmentRecommendation,
   "treatmentContent" | "suggestedSitesOrPoints" | "scheduleSuggestion" | "techniqueBoundary" |
   "protocolSource" | "protocolStatus" | "protocolGap" | "tailoringStatus" |
@@ -310,6 +311,8 @@ function controlledTreatmentPlan(
         signedNarrative: signedSyndromeText,
         patientAgeYears,
         chiefComplaint: textbookContext.chiefComplaint,
+        avoidRichFood: textbookContext.avoidRichFood,
+        herbAlreadyPrescribed: textbookContext.herbAlreadyPrescribed,
       }
     : undefined;
   const textbookPlan = textbookInput ? textbookTreatmentPlan(textbookInput) : undefined;
@@ -879,8 +882,10 @@ export function tcmTreatmentProjectExclusionReason(
   }
   if (
     projectCode === "moxibustion" &&
-    (/热证|实热|湿热|痰热|血热|虚热|阴虚火旺|火热|火旺|舌红|苔黄|发热/.test(facts) || MOXIBUSTION_HEAT_SIGNS.test(facts)) &&
-    !/寒热错杂|上热下寒/.test(facts)
+    // 已签名证候病性属热（含暑，受治理病性词表，与卡片去灸同一判据 syndromeHasHeatNature）同样不灸：居家保健的艾灸也走这里
+    //（2026-10-19 终评 M-TCM-RobustSDT-single_0102 暑湿伤表证）。
+    ((/热证|实热|湿热|痰热|血热|虚热|阴虚火旺|火热|火旺|舌红|苔黄|发热/.test(facts) || MOXIBUSTION_HEAT_SIGNS.test(facts)) &&
+      !/寒热错杂|上热下寒/.test(facts) || syndromeHasHeatNature(prior.overview?.primarySyndrome || ""))
   ) {
     return "当前热象或热证方向与灸法温热属性冲突，不推荐进入候选项目";
   }
@@ -1130,10 +1135,15 @@ export function compileTcmTreatmentRecommendations(
   proposals: readonly ModelTreatmentProposal[],
   prior: ClinicalReasoningResultV2 | null | undefined,
   caseState?: Partial<TreatmentCaseContext>,
+  /** 本次 M04 的饮食调护原文（要求清淡、避免滋腻时食疗卡不选肥甘之品）。 */
+  dietAdvice = "",
+  /** 本次处方的药味名（食疗卡不选含同一味药的方子）。 */
+  prescribedHerbNames: readonly string[] = [],
 ): TreatmentRecommendation[] {
   if (!isTrustedM03(prior) || caseState?.safetyGate?.status === "red_flag") return [];
   const scope = effectiveCapabilityScope(caseState);
   if (!scope.valid) return [];
+  const prescribedIdentities = new Set(prescribedHerbNames.map((name) => canonicalTcmHerbIdentity(name)).filter(Boolean));
 
   const capabilityByCode = new Map(scope.items.map((item) => [item.projectCode, item]));
   const chain = Array.isArray(prior.pathogenesis?.chain) ? prior.pathogenesis.chain : [];
@@ -1253,6 +1263,8 @@ export function compileTcmTreatmentRecommendations(
         westernNames: [prior.westernDiagnosis?.primary?.name || ""].filter(Boolean),
         signedSyndromeText,
         chiefComplaint: typeof caseState?.chiefComplaint === "string" ? caseState.chiefComplaint : "",
+        avoidRichFood: dietAdviceAvoidsRichFood(dietAdvice),
+        herbAlreadyPrescribed: prescribedIdentities.size > 0 ? (herb: string) => prescribedIdentities.has(canonicalTcmHerbIdentity(herb)) : undefined,
       },
     );
     // 教材卡与院内目录卡在这里过同一道：针刺的补泻手法与已签名证候相符（失眠模板写的是「留针用补法」），
@@ -1270,10 +1282,26 @@ export function compileTcmTreatmentRecommendations(
     // 卡片写明只适用于本病另几个类型、本例的证不在其中时整张不出（cardApplicabilityExcludesSyndrome）。
     if ([plannedTreatment.treatmentContent, plannedTreatment.techniqueBoundary]
       .some((value) => typeof value === "string" && cardApplicabilityExcludesSyndrome(value, diseaseNamesForCard, prior.overview.primarySyndrome || ""))) return [];
+    // 病历写到皮肤破损时卡上会写「局部皮肤破损…处不施术，取穴避开皮损」（localSiteCardNote），同一张卡就不能再取「阿是穴」（2026-10-19
+    // 留出例 S143 丹毒：针刺卡列着阿是穴）。围刺（蛇串疮「皮损局部阿是穴围刺」）本来就是在皮损周围下针，不在此列。
+    const lesionPointAvoided = LOCAL_SITE_NOTE_PROJECTS.has(definition.code) && BROKEN_SKIN_RECORDED.test(currentFacts) &&
+      !/围刺/.test(`${plannedTreatment.treatmentContent || ""}${plannedTreatment.techniqueBoundary || ""}`);
+    const sitesWithoutLesion = lesionPointAvoided && Array.isArray(plannedTreatment.suggestedSitesOrPoints)
+      ? plannedTreatment.suggestedSitesOrPoints.filter((site) => !LESION_POINT.test(String(site).replace(/（[^）]*）\s*$/, "").trim()))
+      : plannedTreatment.suggestedSitesOrPoints;
+    if (lesionPointAvoided && Array.isArray(plannedTreatment.suggestedSitesOrPoints) && plannedTreatment.suggestedSitesOrPoints.length > 0 &&
+      (sitesWithoutLesion || []).length === 0) return [];
+    const lesionText = (value: string) => lesionPointAvoided ? withoutLesionPointMention(value) : value;
     const treatmentPlan = {
       ...plannedTreatment,
-      ...(typeof plannedTreatment.treatmentContent === "string" ? { treatmentContent: cardSentences(plannedTreatment.treatmentContent) } : {}),
-      ...(typeof plannedTreatment.techniqueBoundary === "string" ? { techniqueBoundary: cardText(plannedTreatment.techniqueBoundary) } : {}),
+      ...(lesionPointAvoided ? {
+        suggestedSitesOrPoints: sitesWithoutLesion,
+        ...(Array.isArray(plannedTreatment.pointProvenance)
+          ? { pointProvenance: plannedTreatment.pointProvenance.filter((record) => !LESION_POINT.test(String(record.point || ""))) }
+          : {}),
+      } : {}),
+      ...(typeof plannedTreatment.treatmentContent === "string" ? { treatmentContent: lesionText(cardSentences(plannedTreatment.treatmentContent)) } : {}),
+      ...(typeof plannedTreatment.techniqueBoundary === "string" ? { techniqueBoundary: lesionText(cardText(plannedTreatment.techniqueBoundary)) } : {}),
       ...(typeof plannedTreatment.scheduleSuggestion === "string" ? { scheduleSuggestion: cardText(plannedTreatment.scheduleSuggestion) } : {}),
     };
     // 卡片的「对应病机」跟着方案实际治的那个节点走（2026-10-19 甲方病历 10：月经先期·阳盛血热，耳穴卡写「热扰心神，神不守舍」、
@@ -1443,6 +1471,12 @@ const ELDERLY_CARD_NOTE: Partial<Record<string, string>> = {
  * 依据《刺法灸法学》针刺注意事项「皮肤有感染、溃疡、瘢痕或肿瘤的部位不宜针刺」与拔罐、施灸的同类禁忌。只读本例肯定句。
  */
 const BROKEN_SKIN_RECORDED = /流脓|窦道|破溃|溃烂|擦伤|渗液|皮损破/;
+/** 「阿是穴」「局部阿是穴」：取的就是病痛（皮损）所在处。 */
+const LESION_POINT = /^(?:局部)?阿是穴$/;
+/** 卡片文字里列举的「阿是穴」去掉（「取肾俞、大肠俞、阿是穴」「阿是穴、委中可用三棱针点刺出血」），不动其他穴名。 */
+function withoutLesionPointMention(text: string): string {
+  return text.replace(/、(?:局部)?阿是穴(?=[、，,。；;\s]|$)/gu, "").replace(/(?:局部)?阿是穴、/gu, "");
+}
 const LOCAL_SITE_NOTE_PROJECTS = new Set(["acupuncture", "moxibustion", "cupping", "guasha"]);
 export function localSiteCardNote(code: string, currentFacts: string, diagnosisNames: readonly string[] = []): string {
   if (!LOCAL_SITE_NOTE_PROJECTS.has(code)) return "";
@@ -1536,7 +1570,10 @@ export function applyTcmTreatmentCapabilityPriority(
         ? [{ projectCode: item.projectCode, targetRef: item.targetRef }]
         : []
     );
-    const recommendations = compileTcmTreatmentRecommendations(proposals, prior, caseState);
+    // 食疗卡要看本次的饮食调护与处方药味（2026-10-19 甲方病历 5：饮食栏「忌生冷肥甘」、处方有黄芪 20g）。
+    const prescribedHerbNames = (reasoning.formula?.candidates?.[0]?.herbs || [])
+      .map((herb) => String(herb?.name || "")).filter(Boolean);
+    const recommendations = compileTcmTreatmentRecommendations(proposals, prior, caseState, String(existingNonPharma?.diet || ""), prescribedHerbNames);
     if (!existingNonPharma && recommendations.length === 0) return content;
     reasoning.nonPharma = existingNonPharma || {
       diet: "",
@@ -1547,14 +1584,18 @@ export function applyTcmTreatmentCapabilityPriority(
       precautions: [],
     };
     reasoning.nonPharma.tcmTreatments = recommendations;
+    // 交付面会去掉的卡（仅评估、只有治则、无内容的类目模板）不算给出了（2026-10-19 甲方病历 5：78 岁虚劳，模型提名导引、灸法、推拿三项，
+    // 编出来是两张仅评估卡和一张只有治则的推拿卡，交付时全被去掉；居家穴位保健却按这三张卡算「医师已在灸、已在按」，于是也是 null，
+    // 三次生成中医治疗一栏全空）。居家保健去重与注意事项核对都只看会交付的卡。
+    const deliverable = recommendations.filter((item) => !treatmentCardUndeliverable(item));
     // 穴位保健不收模型文字（会绕过禁忌核对），只由服务端从受治理清单确定性编译；
     // 清单未经中医师终审、红旗或非全剂量方案时为 null（见 home-acupoint-care.server.ts）。
-    reasoning.nonPharma.acupointCare = prior ? homeAcupointCareForCase(prior, caseState, recommendations) : null;
+    reasoning.nonPharma.acupointCare = prior ? homeAcupointCareForCase(prior, caseState, deliverable) : null;
     // 注意事项提到的治疗项目必须是本次确实给出的（2026-10-14 独立评审：写「耳穴及针刺治疗须由专业医师操作」，本例并没有针刺）。
     // 模型写注意事项时看到的是自己提名的项目，随后服务端按机构能力与禁忌重排、增删；提到已不在清单里的项目的那一条整条丢掉。
     // 居家穴位保健里的艾灸、按揉也算给出了（「艾灸时注意防烫」说的是它）。
     if (Array.isArray(reasoning.nonPharma.precautions)) {
-      const delivered = deliveredTreatmentCodes(recommendations, reasoning.nonPharma.acupointCare);
+      const delivered = deliveredTreatmentCodes(deliverable, reasoning.nonPharma.acupointCare);
       reasoning.nonPharma.precautions = reasoning.nonPharma.precautions
         .filter((line) => !precautionMentionsUndeliveredTreatment(line, delivered));
     }

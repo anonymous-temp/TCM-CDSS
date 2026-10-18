@@ -26,7 +26,34 @@ export type ClinicalEventTemporalScope = "current" | "historical" | "historical_
 // 这一份被 diagnosis-safety.ts 的 NEGATION_PATTERN 共用——同一判据只写一处。
 export const CLINICAL_EXAM_NEGATION_VERB_SOURCE = String.raw`未(?:触及|扪及|查及|叩及|闻及|触得|扪得|测及|引出)|不存在`;
 
-const NEGATIVE_PREFIX = new RegExp(String.raw`^(?:(?:患者|病人|本人|既往|目前|当前|现阶段|本次|近期|近日|入院以来|就诊以来|发病以来|病程中|病程以来|随访以来|既往史|过敏史|用药史)\s*[：:]?\s*)?(?:${CLINICAL_EXAM_NEGATION_VERB_SOURCE}|否认|不是(?!很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|并非(?!很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|不曾|没有|并无|未见|未发现|未提示|未诊断|未患|未(?:服用|使用|口服|应用)|暂(?:不|未)(?:服用|使用|口服|应用|吃)|没(?:有)?(?:服用|使用|吃)|从未|无(?!菌性|痛性|症状性|创性|脉性|意识性)|暂无(?:明确)?|已排除|已除外)`);
+/**
+ * 「病历缺这一项」与「这一项要鉴别、要排除」的说法（2026-10-19，M03 本例说法核对）：未诉、未记录、未提及、未查、尚缺、待查、
+ * 需核实、需排除、需与…鉴别、不详……这类话是在说病历里没有什么或下一步要查什么，不是在说患者有什么——核对「本例说法有无病历依据」时，
+ * 片段所在分句里带这类字的，一律不当作没有依据的本例说法删掉（m03-patient-claim-check.server.ts）。封闭的语法类（缺失/待核实/鉴别意图标记），不是临床词表。
+ */
+export const RECORD_GAP_MARKER = /未(?:诉|述|记录|记|提及|提到|写明?|查|行|做|见|明确?)|尚(?:未|缺|待|需|不明)|待(?:查|核实?|排|补)|需(?:要)?(?:先)?(?:与|核实|排除|警惕|结合|进一步|鉴别|考虑)|不详|不明确/u;
+
+/** RECORD_GAP_MARKER 里「这一项要鉴别、要排除、要核实」那一半：写在句末时管整个分句（「乏力、抽筋、月经紊乱需排除甲减」）。 */
+export const RECORD_CONSIDERATION_MARKER = /需(?:要)?(?:先)?(?:与|核实|排除|警惕|结合|进一步|鉴别|考虑)|待(?:查|核实?|排)/u;
+
+/** 紧跟时间、次数、年龄单位的中文数字（「五天」「十二个月」「三次」）；M03 本例说法核对比较「五天」与「5天」时用。封闭的计量构词。 */
+export const CHINESE_NUMERAL_BEFORE_UNIT = /([一二两三四五六七八九十]{1,3})(?=个?(?:天|日|周|月|年|次|小时|岁|分钟))/gu;
+
+/** 句首的「有/伴/伴有/见/可见/出现」：说法本身只是「有某表现」（「有胸痛」）。封闭的存在动词类。 */
+export const EXISTENCE_LEAD_IN = /^(?:伴有|伴|有|可见|见|出现)/u;
+
+/** 项末接上半句的连接词（并、且、伴、而、及、和、与），可带一个程度词（明显、较、稍、偶有…）。封闭的连词类。 */
+export const CLAUSE_LINKER_TAIL = /[并且伴而及和与](?:明显|较为|较|稍|偶有|时有|有)?$/u;
+
+/**
+ * 指本例患者的主语（本例、患者、患儿、该患者、此例、该例）。M03 本例说法核对用它分开「别的病的表现，本例……」这种对照句的两半：
+ * 主语出现在片段之后、片段之前没有时，片段写的是对照的那个病（m03-patient-claim-check.server.ts）。封闭的指称语法类，不是临床词表。
+ */
+export const PATIENT_SELF_REFERENCE = /本例|该例|此例|该患者|患者|患儿/u;
+
+// 「当时/此时/发病时/起病时」开头的否认（「当时无腹痛、水肿、发热及关节痛」）同样是否认：此前前缀不认「当时」，
+// 关节痛被读成阳性，治疗卡写「针对本例关节」（2026-10-19 验收主集 RobustSDT-single_0532）。
+const NEGATIVE_PREFIX = new RegExp(String.raw`^(?:(?:患者|病人|本人|既往|目前|当前|现阶段|本次|近期|近日|入院以来|就诊以来|发病以来|病程中|病程以来|随访以来|既往史|过敏史|用药史|当时|此时|彼时|发病时|起病时|就诊时|入院时)\s*[：:]?\s*)?(?:${CLINICAL_EXAM_NEGATION_VERB_SOURCE}|否认|不是(?!很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|并非(?!很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|不曾|没有|并无|未见|未发现|未提示|未诊断|未患|未(?:服用|使用|口服|应用)|暂(?:不|未)(?:服用|使用|口服|应用|吃)|没(?:有)?(?:服用|使用|吃)|从未|无(?!菌性|痛性|症状性|创性|脉性|意识性)|暂无(?:明确)?|已排除|已除外)`);
 // Colloquial history commonly uses the aspect marker “过” instead of a formal “否认/未见”,
 // for example “没吐过血” or “没有晕厥过”. Requiring the aspect marker keeps this boundary
 // narrow enough that affirmative negative-form symptoms such as “没精神/没力气/没胃口” remain
@@ -572,28 +599,48 @@ export function selfTakenMedicationMentions(text: string | null | undefined): st
  * 不收：否认/未用之后的（「未予重视」「未予治疗」）；同一句写了停用的；不像药名的（治疗方式、药物类别、「具体不详」）。
  * 只写了「自服药物」「自行服药」、没写药名的，单独标出（注意事项要提醒把在用的药告诉医生）。
  */
-const RECORDED_MEDICATION_VERB = /(?:自行|自己|自购|在家|长期|规律|平素|平时|目前|现在?)?(?:自服|现服|服用|口服|含服|吸入|外用|外涂|涂抹|予以|给予|予|静滴|注射)/u;
+const RECORDED_MEDICATION_VERB = /(?:自行|自己|自购|在家|长期|规律|平素|平时|目前|现在?)?(?:自服|自用|现服|服用|口服|含服|吸入|外用|外涂|涂抹|予以|给予|予|静滴|注射)/u;
+/** 动词后面跟的是检查（「给予头部CT示：…未见脑挫裂伤」）：不是在用药，这一小句不取药名（2026-10-19 验收主集 M-TCM-SD-439348）。 */
+const RECORDED_EXAM_AFTER_VERB = /^[^，,。；;]{0,8}?(?:CT|MRI|X线|DR|彩超|超声|B超|造影|心电图|胃镜|肠镜|平扫|检查|化验|示[:：]?)/u;
+const STOP_VERB = /停(?:用|服|药|止|掉|了)|已停|自停/u;
+/** 下一句指回前一句的药说停了（「其后因不能耐受自行停用该药」）。 */
+const STOPPED_PREVIOUS_MEDICATION = /(?:停用|停服|停)(?:该|此|上述)(?:药|药物)|(?:该|此|上述)(?:药|药物)[^，,。；;]{0,4}(?:已停|停用|停服)/u;
 const RECORDED_MEDICATION_NEGATION = /(?:未|否认|没有|无|不曾|从未|未曾|拒绝)[^，,。；;\n]{0,3}$/u;
 const RECORDED_MEDICATION_CUT = /(?:后|等|治疗|对症|以后|之后|无效|效果|控制|处理|缓解|改善|好转|口服|外用|静滴|输液|服用|至今|未见|现在|疼痛|一天|加量|减量|可达|达到|数剂(?=$)|[早晚](?=\d|$)|[（(?？:：]|\d|每[日天晚次]|qd|bid|tid|qn)/iu;
 /** 截断词里表示「列举到此为止」的那些（用量数字、括注只截当前药名，后面的顿号项照收）。 */
 const RECORDED_MEDICATION_LIST_END = /(?:后|等|治疗|对症|以后|之后|无效|效果|控制|处理|缓解|改善|好转|至今|未见|现在|疼痛|可达|达到)/u;
 const NOT_A_MEDICATION_NAME = /治|疗|重视|特殊|系统|处理|休息|观察|手术|术$|理疗|针灸|推拿|输液|输血|营养|对症|消炎|止痛|化痰|止咳|止喘|平喘|降压|降糖|降脂|调脂|抗感染|抗凝|抗聚|溶栓|补液|具体|不详|不清|相关|上述|以上|药物|西药|中成药|中药|汤剂|汤药|膏方|验方|饮食|运动|检查|保守|^药$|^等$|查|示|诊断|就诊|收入|入院|监护|置入|放置|引流|切除|介入|支架|热敷|超声|常规|心电图|核磁|CT|静脉|症状|发作|破溃|帮助|剂量|热水器|中西|^液|^[抗调扩降抑护输]|^补[钾钙铁液]|引导|^(?:促进|增强|升高|保肾|利尿|改善|活血|清热|扶正)|法$/u;
 const UNNAMED_SELF_MEDICATION = /(?:自服|自用|自行服用|自行服|自购)(?:了|过)?[^，,。；;\n]{0,6}药(?:物|品)?|(?:自行|自己)(?:服药|用药|吃药|买药)|服药(?:控制|治疗)/u;
+/** 病历写着一直在服中药（「后患者一直口服中药治疗」）而没写方名：注意事项请患者把方子带给医生（验收主集 M-TCM-SD-486942）。 */
+const ONGOING_UNNAMED_HERBAL = /(?:一直|长期|持续|规律|坚持|间断)(?:口服|服用|服)(?:中药|汤药|中草药)/u;
 
-export function recordedMedicationMentions(text: string | null | undefined): { names: string[]; given: string[]; unnamed: boolean } {
+export function recordedMedicationMentions(text: string | null | undefined): { names: string[]; given: string[]; unnamed: boolean; herbal: boolean } {
   const names: string[] = [];
   const given: string[] = [];
   let unnamed = false;
+  let herbal = false;
+  let previousSentenceNames: string[] = [];
   const source = String(text || "").normalize("NFKC");
   for (const sentence of source.split(/[。；;\n]+/u)) {
+    // 下一句说「停用该药」：前一句取到的药都不算在用（2026-10-19 验收主集 M-TCM-SD-484941，吉非替尼）。
+    if (STOPPED_PREVIOUS_MEDICATION.test(sentence)) {
+      for (const name of previousSentenceNames) {
+        names.splice(names.indexOf(name), 1);
+        if (given.includes(name)) given.splice(given.indexOf(name), 1);
+      }
+    }
+    const before = names.length;
+    if (ONGOING_UNNAMED_HERBAL.test(sentence) && !/(?:未|否认|没有|无|不曾)[^，,。；;\n]{0,3}(?:一直|长期|口服|服用)/u.test(sentence)) herbal = true;
     // 同一句里写了停用（「其后因不能耐受自行停用该药」），这一句里的药都不算在用。
-    if (STOPPED_OR_PAST_MEDICATION.test(sentence) && /停/u.test(sentence)) continue;
+    // 停要是动词：药名里的「停」（易蒙停）不算（验收主集 RobustSDT-single_0598，「外院曾予蒙脱石散、易蒙停」整句被当成已停）。
+    if (STOPPED_OR_PAST_MEDICATION.test(sentence) && STOP_VERB.test(sentence)) { previousSentenceNames = []; continue; }
     for (const clause of sentence.split(/[，,]+/u)) {
       if (UNNAMED_SELF_MEDICATION.test(clause) && !/(?:未|否认|没有|无|不曾)[^，,。；;\n]{0,3}(?:自服|自用|自行|服药)/u.test(clause)) unnamed = true;
       const verb = clause.match(RECORDED_MEDICATION_VERB);
       if (!verb || verb.index == null) continue;
       if (RECORDED_MEDICATION_NEGATION.test(clause.slice(0, verb.index))) continue;
       const rest = clause.slice(verb.index + verb[0].length);
+      if (RECORDED_EXAM_AFTER_VERB.test(rest)) continue;
       // 动词后置（「盐酸左西替利嗪片口服」「强力湿痒膏外用」）：动词在句末时，药名在它前面。
       const before = !rest.trim() && /(?:口服|外用|外涂|吸入|含服)$/u.test(verb[0]) ? clause.slice(0, verb.index) : "";
       const quoted = [...rest.matchAll(/[“"「《]([^”"」》]{2,60})[”"」》]/gu)].map((match) => match[1]);
@@ -614,8 +661,19 @@ export function recordedMedicationMentions(text: string | null | undefined): { n
         if (cut >= 0 && RECORDED_MEDICATION_LIST_END.test(part.slice(cut, cut + 3))) break;
       }
     }
+    previousSentenceNames = names.slice(before);
   }
-  return { names, given, unnamed: unnamed && names.length === 0 };
+  return { names, given, unnamed: unnamed && names.length === 0, herbal: herbal && names.length === 0 };
+}
+
+/**
+ * 病历里写了之后又停掉的药（「…口服吉非替尼治疗。其后因不能耐受自行停用该药。」）：药名所在句的下一句指回它说停了。
+ * 注意事项「正在使用的药」一项按它排除——别的取名办法（正式给药词、剂型）各自看一句，看不到下一句。
+ */
+export function medicationStoppedInNextSentence(text: string, name: string): boolean {
+  const sentences = String(text || "").normalize("NFKC").split(/[。；;\n]+/u);
+  return sentences.some((sentence, index) => sentence.includes(name) && index + 1 < sentences.length &&
+    STOPPED_PREVIOUS_MEDICATION.test(sentences[index + 1]) && !sentences.slice(index + 1).some((later) => later.includes(name)));
 }
 
 /** 病历肯定写着饮酒（「饮酒30年」「嗜酒」「每日饮白酒」）；「无烟酒嗜好」「否认饮酒」「已戒酒」不算。 */
@@ -629,6 +687,41 @@ const SELF_PREPARATION = /(?:自行|自己|自制|自配|自采|偏方|土方|�
 const SELF_PREPARATION_DENIED = /(?:否认|未|没有|无)[^，,。；;]{0,4}(?:自行|自制|服用|饮用)/u;
 export function selfPreparedMedicationSentence(sentence: string): boolean {
   return SELF_PREPARATION.test(sentence) && !SELF_PREPARATION_DENIED.test(sentence);
+}
+
+/**
+ * 病历写着患者自己停了长期用药（「高血压病史8年，1个月前自行停药」「自行停服降糖药」）：返回同一句里的慢性病名与药名。
+ * 否认、遵医嘱停药的不算（2026-10-19 留出集 S178：高血压急症患者一个月前自行停降压药，复诊计划与调护都没提规律服药）。
+ */
+const SELF_DISCONTINUED = /(?:自行|擅自|自己)(?:停(?:用|服|药)|减(?:量|药))|自停(?:药|服)?|(?:未|没有|不)(?:规律|按时|坚持)(?:服药|用药|服用)/u;
+const SELF_DISCONTINUED_CONDITION = /高血压|糖尿病|冠心病|心房颤动|房颤|心力衰竭|心衰|甲状腺功能减退|甲减|甲状腺功能亢进|甲亢|癫痫|哮喘|慢阻肺|抑郁|精神分裂|高脂血症|痛风/u;
+export function selfDiscontinuedMedication(text: string): { condition?: string; names: string[] } | undefined {
+  for (const sentence of String(text || "").normalize("NFKC").split(/[。；;\n]+/u)) {
+    const hit = sentence.match(SELF_DISCONTINUED);
+    // 因不能耐受、不良反应、过敏或无效而停的不在此列：那是该由医生换药的情形，不能写「规律服用」（验收主集吉非替尼一例）。
+    if (!hit || hit.index == null || /否认|遵医嘱|医生(?:嘱|建议)|在医生指导下|耐受|副作用|不良反应|过敏|无效/u.test(sentence)) continue;
+    const names = [...sentence.matchAll(/[“"「]([^”"」]{2,20})[”"」]/gu)].map((match) => match[1])
+      .filter((name) => !NOT_A_MEDICATION_NAME.test(name));
+    const generic = sentence.match(/降压药|降糖药|胰岛素|抗凝药|抗癫痫药|抗抑郁药/u)?.[0];
+    const condition = sentence.match(SELF_DISCONTINUED_CONDITION)?.[0];
+    // 只认能说清停的是治什么慢性病的药：同一句写了慢性病、药名或药类。
+    if (!condition && !generic && names.length === 0) continue;
+    return { condition, names: generic && names.length === 0 ? [generic] : names.slice(0, 3) };
+  }
+  return undefined;
+}
+
+/**
+ * 病历写着的行动受限（拄拐、助行器、轮椅、卧床、行走困难、偏瘫…，闭集）：返回病历里的那个说法。运动保健要按它写
+ *（2026-10-19 甲方标准病历 5：78 岁股骨骨折术后「现可拄拐缓慢行走」，运动写「以散步、八段锦为主」）。否认的不算。
+ */
+const MOBILITY_LIMITATION = /拄拐|扶拐|助行器|轮椅|卧床|长期卧床|行走不便|行动不便|行走困难|步行困难|跛行|偏瘫|截瘫|不能行走|不能下床|下肢无力/u;
+export function recordedMobilityLimitation(text: string): string | undefined {
+  for (const clause of affirmedClinicalSourceClauses(String(text || ""))) {
+    const hit = clause.match(MOBILITY_LIMITATION);
+    if (hit && hit.index != null && !/(?:否认|无|没有|未)[^，,。；;]{0,3}$/u.test(clause.slice(0, hit.index))) return hit[0];
+  }
+  return undefined;
 }
 
 const FORMAL_ADMINISTRATION_VERB = /(?:服用|口服|皮下注射|静脉注射|肌内注射|注射|吸入|含服)/u;

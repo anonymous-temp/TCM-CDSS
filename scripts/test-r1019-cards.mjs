@@ -21,6 +21,11 @@
 //     备孕者的孕期慎用穴注明「施术前请确认未妊娠，月经逾期者先验孕」；小儿耳穴只写压丸法；
 //     目录模板主穴只是「局部阿是穴（查体确认）」「循经远端穴（按疼痛部位选择）」时用教材主穴（+目录已终审的证型配穴）；
 //     网络来源写成「发布者《篇名》」，不带网页标题后缀与网址
+//  11 第三轮（2026-10-19 local12 终评：甲方病历 5，留出例 S046、S067、S143，M-r19b 0088、0102）：
+//     居家穴位保健与注意事项只按会交付的卡去重（三张都被交付面去掉的卡曾把居家保健算成 null）；肺脾两虚即脾肺气虚，按概念对上教材食疗分型；
+//     食疗方与本卡食疗原则方向相反（清胃泻火配白扁豆）不出；去孕哺字样时谓语留下，不留「糖尿病、慢性肾病。」；皮肤破损时不取阿是穴；
+//     证名不带病性字的教材分型（石淋）按字面对上；「（本例证型在教材中没有对应的配穴）」不印；病性属热（含暑，受治理病性词表）不灸；
+//     食疗卡按本次饮食调护与处方选方：要求清淡时不选肥甘之品，方中已有的药不再进食疗（汤药与食疗叠加用量）
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
@@ -385,7 +390,7 @@ check("10.3 S102 痰湿月经后期：分套治法「温经散寒，补血调经
   assert.match(plan.therapyClausesForSyndrome(therapy, "血寒证"), /^温经散寒/);
   assert.match(plan.therapyClausesForSyndrome(therapy, "血虚证"), /补血调经/);
   const damp = acupuncture({ diseaseNames: ["月经后期"], signedSyndromeText: "痰湿证", currentFacts: "1年来月经45～60天一行，经量少，白带量多" });
-  assert.match(damp?.treatmentContent || "", /^按病取基本穴（本例证型在教材中没有对应的配穴）：取任脉及足阳明、太阴经穴为主/, damp?.treatmentContent);
+  assert.match(damp?.treatmentContent || "", /^按病取基本穴：取任脉及足阳明、太阴经穴为主/, damp?.treatmentContent);
   assert.doesNotMatch(damp.treatmentContent, /温经散寒|补血/);
   const cold = acupuncture({ diseaseNames: ["月经后期"], signedSyndromeText: "血寒证", currentFacts: "月经推后，小腹冷痛，得热痛减" });
   assert.match(cold?.treatmentContent || "", /温经散寒/, "血寒照印（对照）");
@@ -465,6 +470,147 @@ check("10.7 病历 7：网络来源写成「发布者《篇名》」——不带
   assert.match(text, /中国针灸学会（科普之窗·科普知识）《牙痛》/, text);
   assert.doesNotMatch(text, /caam|官网|https?:|--/, text);
   assert.match(ear.protocolSource, /频次来源：.*《牙痛》（B级）/);
+});
+
+// ── 11 第三轮 ─────────────────────────────────────────────────────────────────
+const wrapRx = (reasoning) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
+const readRx = (content) => JSON.parse(content.slice(content.indexOf("-->") + 3, content.lastIndexOf("<!--")).trim());
+const elderlyLungSpleen = () => {
+  const prior = signedPrior("虚劳", "肺脾两虚证", "肺气亏虚，卫外不固，腠理疏松易感外邪", "反复上呼吸道感染");
+  prior.therapy = { overallPrinciple: "虚则补之", overallMethod: "补益肺气，健脾益气，固表止汗", subTherapies: [] };
+  prior.pathogenesis.chain = [
+    { nodeId: "P1", patientFact: "反复感冒1+年", syndromeEvidence: "平素伴易疲乏、短气自汗、声音低怯", pathogenesis: "肺气亏虚，卫外不固，腠理疏松易感外邪", therapyDirection: "补益肺气，固表止汗" },
+    { nodeId: "P2", patientFact: "食欲下降，大便稀溏", syndromeEvidence: "反复感冒1+年", pathogenesis: "脾气亏虚，运化失司，气机不畅", therapyDirection: "健脾益气，和胃助运" },
+  ];
+  prior.pathogenesis.natureDifferentiation = { items: ["气虚"], rootDeficiency: ["肺气虚", "脾气虚"], branchExcess: [], basis: "脉象：脉虚弱", resolution: "resolved" };
+  return prior;
+};
+const elderlyState = {
+  chiefComplaint: "反复感冒1+年", patient: { sex: "女", age: 78 },
+  symptoms: { 现病史: "近一年感冒约九次，每次持续约十天。平素伴易疲乏、短气自汗、声音低怯，食欲下降，进食稍多或滋腻则胃胀不适，小便清长，大便稀溏。" },
+  safetyGate: { status: "needs_information", redFlags: [], candidateMode: "limited_dose", allowDosePrescription: false },
+};
+
+check("11.1 病历 5：模型提名的导引、灸法、推拿编出来是两张仅评估卡和一张只有治则的推拿卡（交付面都会去掉），居家穴位保健仍要给（此前按这三张卡去重成 null）", () => {
+  const prescribe = { stage: "prescribe", nonPharma: { diet: "", lifestyle: "", emotion: "", acupointCare: null, precautions: ["推拿后注意保暖，避免受凉。", "饭后温服。"],
+    tcmTreatments: [{ projectCode: "qigong_daoyin", targetRef: "P1" }, { projectCode: "moxibustion", targetRef: "P1" }, { projectCode: "tuina", targetRef: "P1" }] } };
+  const out = readRx(cap.applyTcmTreatmentCapabilityPriority(wrapRx(prescribe), elderlyState, elderlyLungSpleen())).nonPharma;
+  assert.ok(out.tcmTreatments.some((item) => cap.treatmentCardUndeliverable(item)), "夹具前提：有交付面会去掉的卡");
+  assert.match(out.acupointCare || "", /按揉气海/, out.acupointCare);
+  assert.match(out.acupointCare || "", /艾灸气海/, "仅评估的灸法卡不算医师已在灸");
+  assert.deepEqual(out.precautions, ["饭后温服。"], "只有治则的推拿卡交付时会被去掉，注意事项里的「推拿后…」一并不留");
+  // 对照：会交付的卡上已有的穴，居家保健照旧不重复（遗尿的教材针刺卡取关元，居家按揉只剩气海）。
+  const enuresis = elderlyLungSpleen();
+  enuresis.overview.tcmDiseaseName = "遗尿";
+  const enuresisState = { ...elderlyState, chiefComplaint: "夜间遗尿半年", symptoms: { 现病史: "夜间遗尿半年，平素易疲乏、短气自汗，食欲下降，大便稀溏" } };
+  const withNeedle = { ...prescribe, nonPharma: { ...prescribe.nonPharma, tcmTreatments: [{ projectCode: "acupuncture", targetRef: "P1" }] } };
+  const delivered = readRx(cap.applyTcmTreatmentCapabilityPriority(wrapRx(withNeedle), enuresisState, enuresis)).nonPharma;
+  const needle = delivered.tcmTreatments.find((item) => item.projectCode === "acupuncture");
+  assert.ok(needle && !cap.treatmentCardUndeliverable(needle) && needle.suggestedSitesOrPoints.some((site) => site.startsWith("关元")), "夹具前提：会交付的针刺卡取关元");
+  assert.match(delivered.acupointCare || "", /按揉气海/, delivered.acupointCare);
+  assert.doesNotMatch(delivered.acupointCare || "", /^按揉[^：]*关元/, `会交付的卡上已有关元时居家不再按揉（对照）：${delivered.acupointCare}`);
+});
+
+check("11.2 肺脾两虚证按概念对上教材虚劳节的肺气虚、脾气虚食疗（即《中医诊断学》脾肺气虚证）；字面对上的分型没有可给的方子时不换型（黄疸·热重于湿不落到「湿热留恋」）；心虚胆怯不对上只有泛称虚的分型（对照）", () => {
+  const diet = (disease, syndrome, facts) => plan.textbookTreatmentPlan({ projectCode: "diet_therapy", diseaseNames: [disease], westernNames: [], signedSyndromeText: syndrome, currentFacts: facts });
+  const lungSpleen = diet("虚劳", "肺脾两虚证", elderlyState.symptoms.现病史);
+  assert.ok(lungSpleen, "应有虚劳食疗卡");
+  assert.match(lungSpleen.treatmentContent, /^食疗原则：补益肺气。肺气虚：/, lungSpleen.treatmentContent);
+  assert.equal(diet("黄疸", "热重于湿证", "身目俱黄，黄色鲜明，发热口渴，小便短少黄赤，大便秘结"), undefined);
+  assert.equal(diet("心悸", "心虚胆怯证", "心悸不宁，善惊易恐，坐卧不安，少寐多梦"), undefined);
+  const cards = cap.compileTcmTreatmentRecommendations([{ projectCode: "qigong_daoyin", targetRef: "P1" }, { projectCode: "moxibustion", targetRef: "P1" }, { projectCode: "tuina", targetRef: "P1" }],
+    elderlyLungSpleen(), elderlyState);
+  const dietCard = cards.find((item) => item.projectCode === "diet_therapy");
+  assert.ok(dietCard && !cap.treatmentCardUndeliverable(dietCard), JSON.stringify(cards.map((item) => [item.projectCode, item.tailoringStatus])));
+});
+
+check("11.3 S046：胃火上逆「食疗原则：清胃泻火」不给白扁豆粥（白扁豆归补气药），给同型的白糖番茄；健脾益气的原则照给白扁豆（对照）", () => {
+  assert.equal(plan.recipeContradictsDietPrinciple("白扁豆60g洗净，粳米100g洗净，放入锅内，加水适量", "清胃泻火，降逆止呃"), true);
+  assert.equal(plan.recipeContradictsDietPrinciple("番茄120g，白糖适量。番茄用沸水浸烫后", "清胃泻火，降逆止呃"), false);
+  assert.equal(plan.recipeContradictsDietPrinciple("白扁豆60g洗净，粳米100g洗净", "健脾益气"), false);
+  assert.equal(plan.recipeContradictsDietPrinciple("马齿苋150g，粳米100g", "温中散寒"), true, "温中原则不给清热药（马齿苋）");
+  const hiccup = plan.textbookTreatmentPlan({ projectCode: "diet_therapy", diseaseNames: ["呃逆"], westernNames: [], signedSyndromeText: "胃火上逆证", currentFacts: "呃声洪亮，口臭烦渴，喜冷饮，大便秘结" });
+  assert.match(hiccup?.treatmentContent || "", /胃火上逆：白糖番茄/, hiccup?.treatmentContent);
+  assert.doesNotMatch(hiccup.treatmentContent, /白扁豆/);
+});
+
+check("11.4 卡片去孕哺字样时谓语留下：「糖尿病、慢性肾病、孕期哺乳期及正在服用抗凝药者请先咨询医生」不剩「糖尿病、慢性肾病。」；「孕妇腹部及腰骶部不宜施灸」去掉后谓语接回；没有连词的整项去掉（对照）", () => {
+  assert.equal(cap.populationCardNote === undefined, false);
+  assert.equal(plan.cardTextForPopulation("仅作饮食调养，不替代药物治疗；对方中食材过敏者不用，糖尿病、慢性肾病、孕期哺乳期及正在服用抗凝药者请先咨询医生。", false),
+    "仅作饮食调养，不替代药物治疗；对方中食材过敏者不用，糖尿病、慢性肾病、正在服用抗凝药者请先咨询医生。");
+  assert.equal(plan.cardTextForPopulation("禁忌：颜面部、大血管部位、孕妇腹部及腰骶部不宜施灸；不在饭前空腹或饭后立即施灸。", false),
+    "禁忌：颜面部、大血管部位不宜施灸；不在饭前空腹或饭后立即施灸。");
+  assert.equal(plan.cardTextForPopulation("禁忌：耳部炎症、破溃、冻伤部位禁用；妊娠期禁用；单耳为宜。", false), "禁忌：耳部炎症、破溃、冻伤部位禁用；单耳为宜。");
+  assert.equal(plan.cardTextForPopulation("出血倾向、抗凝用药、妊娠相关穴位、局部感染和晕针史", false), "出血倾向、抗凝用药、局部感染和晕针史");
+  const text = "仅作饮食调养，不替代药物治疗；对方中食材过敏者不用，糖尿病、慢性肾病、孕期哺乳期及正在服用抗凝药者请先咨询医生。";
+  assert.equal(plan.cardTextForPopulation(text, true), text, "育龄女性照写（对照）");
+});
+
+check("11.5 S143 丹毒：病历写到破溃时卡上写「取穴避开皮损」，同一张卡不再列阿是穴；病历没有破损时照列（对照）", () => {
+  const prior = signedPrior("丹毒", "湿热毒蕴证", "湿热毒邪蕴结下肢肌肤，气血壅滞", "下肢丹毒");
+  const present = (skin) => `2天前左足趾缝搔抓${skin}后，左小腿前内侧出现一片红斑，边界清楚，局部肿胀、灼热、疼痛，伴发热，体温最高38.3℃`;
+  const needle = (skin) => compile(prior, "左小腿红肿热痛2天", present(skin), [{ projectCode: "acupuncture", targetRef: "P1" }], { sex: "男", age: 57 })
+    .find((item) => item.projectCode === "acupuncture");
+  const broken = needle("破溃");
+  assert.match(broken?.techniqueBoundary || "", /取穴避开皮损/);
+  assert.ok(!broken.suggestedSitesOrPoints.some((site) => /阿是穴/.test(site)), broken.suggestedSitesOrPoints.join("、"));
+  assert.ok(!broken.pointProvenance.some((record) => /阿是穴/.test(record.point)));
+  const intact = needle("瘙痒");
+  assert.ok(intact.suggestedSitesOrPoints.some((site) => /阿是穴/.test(site)), "没有破损时照列（对照）");
+  // 蛇串疮水疱破溃：教材「皮损局部阿是穴用围刺法」是在皮损周围下针，阿是穴照列；同句的「阿是穴散刺出血后加拔火罐」去掉、围刺留下。
+  const zoster = compile(signedPrior("蛇串疮", "肝经郁热证", "肝经郁热，外发肌肤", "带状疱疹"), "右胁肋部疱疹疼痛3天",
+    "右胁肋部簇集水疱，灼热刺痛，部分水疱破溃", [{ projectCode: "acupuncture", targetRef: "P1" }], { sex: "男", age: 52 })
+    .find((item) => item.projectCode === "acupuncture");
+  assert.match(zoster?.techniqueBoundary || "", /围刺/, zoster?.techniqueBoundary);
+  assert.doesNotMatch(zoster.techniqueBoundary, /散刺出血|点刺出血/);
+  assert.ok(zoster.suggestedSitesOrPoints.some((site) => /阿是穴/.test(site)), "围刺时阿是穴照列");
+});
+
+check("11.6 S067 石淋：教材淋证节的「石淋」证名不带病性字，按字面对上，加秩边、水道、委阳；没对上证型时只写「按病取基本穴：…」，不写「（本例证型在教材中没有对应的配穴）」", () => {
+  const stone = acupuncture({ diseaseNames: ["淋证"], westernNames: ["输尿管结石"], signedSyndromeText: "石淋", currentFacts: "排尿时尿道涩痛，有时尿到一半突然中断，小腹拘急，尿中见细小砂粒样物，尿色淡红" });
+  assert.ok(["秩边", "水道", "委阳"].every((point) => names(stone).includes(point)), names(stone).join("、"));
+  assert.match(stone.treatmentContent, /本例属石淋/);
+  const none = acupuncture({ diseaseNames: ["淋证"], westernNames: [], signedSyndromeText: "肾阴亏虚证", currentFacts: "小便频急，腰酸" });
+  assert.equal(none?.treatmentContent, "按病取基本穴：取膀胱的背俞穴、募穴为主。", none?.treatmentContent);
+  // 字面规则只给证名不带病性字的分型：已签名「气虚证」不因字面包含而对上中风的「气虚络瘀」「气虚血瘀」（缺「瘀」，对照）。
+  const stroke = acupuncture({ diseaseNames: ["中风"], westernNames: [], signedSyndromeText: "气虚证", currentFacts: "右侧半身不遂，肢体软弱，偏身麻木，气短乏力，面色淡白" });
+  assert.ok(!(stroke?.points || []).some((point) => /瘀/.test(point.syndromeLabel || "")), (stroke?.points || []).map((point) => `${point.name}:${point.syndromeLabel || ""}`).join("、"));
+  // 证名里有病性字的照旧按概念对（对照）：热淋不因字面规则多出别的证型。
+  const heat = acupuncture({ diseaseNames: ["淋证"], westernNames: [], signedSyndromeText: "热淋", currentFacts: "小便短数，灼热刺痛，尿色黄赤" });
+  assert.ok(names(heat).includes("委中") && !names(heat).includes("委阳"), names(heat).join("、"));
+});
+
+check("11.7 病性属热（受治理病性词表，含暑）不灸：暑湿伤表证的感冒卡疗程去掉「灸5分钟」、灸法项目不进候选；风寒、寒热错杂、命门火衰照常（对照）", () => {
+  const schedule = "留针15分钟，灸5分钟。上述方法均为每日1次（中国针灸学会《普通感冒》）。";
+  assert.equal(plan.cardSentencesMatchedToSyndrome(schedule, ["感冒"], "暑湿伤表证"), "留针15分钟。上述方法均为每日1次（中国针灸学会《普通感冒》）。");
+  assert.equal(plan.cardSentencesMatchedToSyndrome(schedule, ["感冒"], "风寒束表证"), schedule);
+  assert.equal(plan.moxibustionUnsuitableForSyndrome("热重于湿证"), true);
+  assert.equal(plan.moxibustionUnsuitableForSyndrome("寒热错杂证"), false);
+  assert.equal(plan.moxibustionUnsuitableForSyndrome("命门火衰证"), false);
+  const summer = signedPrior("感冒", "暑湿伤表证", "暑湿外束卫表，湿困清阳不展", "急性上呼吸道感染");
+  // 病历里不写热象字样（发热、舌红、苔黄…）时也不灸：判据是已签名证候的病性。
+  assert.ok(cap.tcmTreatmentProjectExclusionReason("moxibustion", summer, { chiefComplaint: "头身困重2天", symptoms: { 现病史: "头身困重，胸闷，汗出不畅，鼻塞" }, patient: { sex: "男", age: 30 } }));
+  const cold = signedPrior("感冒", "风寒束表证", "风寒束表，卫阳被遏", "急性上呼吸道感染");
+  assert.equal(cap.tcmTreatmentProjectExclusionReason("moxibustion", cold, { chiefComplaint: "恶寒2天", symptoms: { 现病史: "恶寒重，鼻塞流清涕" }, patient: { sex: "男", age: 30 } }), undefined);
+});
+
+check("11.8 病历 5 的食疗卡看本次饮食调护与处方：饮食栏「忌生冷肥甘」时不选猪肺粥，处方已有黄芪时不选黄芪黑豆汤，落到脾气虚的薯蓣拨粥（薯蓣即山药）；不限制时照教材第一方（对照）", () => {
+  const herbs = ["黄芪", "人参", "白术", "防风", "当归", "陈皮", "升麻", "柴胡", "炙甘草"].map((name) => ({ name, dose: "10g", role: "臣" }));
+  const prescribe = (diet, herbList) => ({ stage: "prescribe", formula: { candidates: [{ name: "补中益气汤合玉屏风散加减", herbs: herbList }] },
+    nonPharma: { diet, lifestyle: "", emotion: "", acupointCare: null, precautions: [], tcmTreatments: [{ projectCode: "diet_therapy", targetRef: "P1" }] } });
+  const dietCard = (diet, herbList) => readRx(cap.applyTcmTreatmentCapabilityPriority(wrapRx(prescribe(diet, herbList)), elderlyState, elderlyLungSpleen()))
+    .nonPharma.tcmTreatments.find((item) => item.projectCode === "diet_therapy")?.treatmentContent || "";
+  assert.match(dietCard("饮食宜清淡易消化，忌生冷肥甘。", herbs), /脾气虚：薯蓣拨粥/, dietCard("饮食宜清淡易消化，忌生冷肥甘。", herbs));
+  assert.match(dietCard("饮食宜清淡易消化，忌生冷肥甘。", herbs.filter((herb) => herb.name !== "黄芪")), /肺气虚：黄芪黑豆汤/, "处方没有黄芪时照给（对照）");
+  assert.match(dietCard("可适当进食富有营养的食物。", herbs.filter((herb) => herb.name !== "黄芪")), /肺气虚：猪肺粥/, "饮食栏不要求清淡时照教材第一方（对照）");
+  // 生姜、干姜这类作调料的普通食物与处方重了不算（呕吐·脾胃虚寒的姜茶饮照给）；真正的药味重了才换（对照）。
+  const vomit = (prescribed) => plan.textbookTreatmentPlan({ projectCode: "diet_therapy", diseaseNames: ["呕吐"], westernNames: [], signedSyndromeText: "脾胃虚寒证",
+    currentFacts: "饮食稍多即吐，时作时止，面色㿠白，倦怠乏力，喜暖恶寒，四肢不温，大便溏薄", herbAlreadyPrescribed: (herb) => prescribed.includes(herb) })?.treatmentContent || "";
+  assert.match(vomit(["干姜", "生姜", "人参"]), /姜茶饮/, vomit(["干姜", "生姜", "人参"]));
+  assert.equal(plan.recipeUsesOnlyFoodSafeIngredients("生薯蓣（山药）150g，白面粉80g，葱、生姜、红糖各适量。"), true);
+  assert.equal(plan.dietAdviceAvoidsRichFood("饮食宜清淡易消化"), true);
+  assert.equal(plan.recipeHasRichIngredient("猪肺500g洗净"), true);
+  assert.equal(plan.recipeHasRichIngredient("猪苓10g"), false);
 });
 
 console.log(JSON.stringify({ suite: "test-r1019-cards", cases, failed: failures.length, failures }, null, 2));

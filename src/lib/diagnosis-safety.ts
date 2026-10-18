@@ -482,7 +482,12 @@ const FOCAL_NEUROLOGIC_CONCEPT_GROUPS: readonly (readonly string[])[] = [
 ];
 const FOCAL_NEUROLOGIC_TERMS = [...new Set(FOCAL_NEUROLOGIC_CONCEPT_GROUPS.flat())];
 
-const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
+/**
+ * 同一临床概念的各种写法（阳性方向展开、否定方向只认真同义——见下面 NARROWER_THAN_GROUP_CANONICAL）。
+ * 导出给医生可见正文的「无X→未诉X」改写（diagnosis-visible-summary recordMentionsNegatedTerm）共用：病历写「大便干结5天」时，
+ * 鉴别里的「无便秘」不能改成「未诉便秘」（2026-10-19 留出例 S055），那张改写此前只认原词，不认同义写法。
+ */
+export const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
   // 「低烧」与「低热」同义（2026-10-17 局部发热守卫回放时发现：「每天低烧、下午掌心发热」原先只靠掌心发热被认成发热）。
   ["发热", "发烧", "高热", "低热", "低烧", "体温升高"],
   ["头痛", "头疼", "脑袋疼", "脑袋痛", "头部疼痛", "偏头痛"],
@@ -511,8 +516,13 @@ const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
   ["胸闷", "胸口发闷", "胸口憋闷", "胸口堵", "胸部压迫感"],
   ["恶心", "反胃", "想吐"],
   ["呕吐", "吐了", "呕出", "吐出"],
-  ["便秘", "大便难解", "排便困难", "解不出大便", "排便次数减少"],
-  ["失眠", "入睡困难", "难以入睡", "睡眠差", "睡眠障碍"],
+  // 中医病历的便秘写法（2026-10-19）：大便秘结、大便难与便秘同义；大便干结/干燥是粪质、「N天未解大便」是一次未排，记作下位词
+  //（阳性方向算写到过便秘，否定方向「否认大便干结」不等于否认便秘）。
+  ["便秘", "大便难解", "排便困难", "解不出大便", "排便次数减少", "大便秘结", "大便难", "大便干结", "大便干燥", "未解大便"],
+  // 中医病历的失眠写法（2026-10-19）：不寐是中医病名，眠差、寐差、睡眠欠佳与睡眠差同义。
+  ["失眠", "入睡困难", "难以入睡", "睡眠差", "睡眠障碍", "不寐", "眠差", "寐差", "睡眠欠佳"],
+  // 头晕与眩晕（2026-10-19）：病历两种写法混用；眩晕（旋转感）记作头晕的下位词，否定方向不展开。
+  ["头晕", "眩晕"],
   ["早醒", "易醒", "多梦易醒", "醒后再睡困难"],
   ["盗汗", "夜间出汗", "夜里出汗", "夜里总出汗", "睡后出汗", "睡着后出汗", "睡眠后出汗", "睡醒后才发现汗湿"],
   ["腹泻", "泄泻", "拉肚子", "稀便", "大便稀", "便稀", "稀稀的", "水样便", "便溏"],
@@ -539,7 +549,7 @@ const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
  * 【口径】宁可多标。误标成下位词只会让措辞更保守（多一句「需医生核实」），
  * 漏标才会把「只否认了一个亚型」说成「整类已排除」。
  */
-const NARROWER_THAN_GROUP_CANONICAL: ReadonlySet<string> = new Set([
+export const NARROWER_THAN_GROUP_CANONICAL: ReadonlySet<string> = new Set([
   // 程度限定
   "高热", "低热", "低烧", "壮热", "中等度热", "大出血", "大量出血",
   // 颜色限定：「否认呕鲜血」不等于否认咖啡样呕吐物
@@ -554,6 +564,8 @@ const NARROWER_THAN_GROUP_CANONICAL: ReadonlySet<string> = new Set([
   "鼻痒", "鼻子痒", "眼痒", "眼睛痒", "鼻眼痒", "鼻子眼睛都痒", "皮肤痒", "皮肤瘙痒",
   // 时相限定
   "入睡困难", "难以入睡", "多梦易醒", "醒后再睡困难", "排便次数减少",
+  // 粪质、单次未排与旋转性头晕（2026-10-19，见上表）
+  "大便干结", "大便干燥", "未解大便", "眩晕",
 ]);
 
 /** 否定方向可替换的等价说法：只含真同义，绝不含下位词。 */
@@ -572,6 +584,12 @@ function groupHyponymsOf(term: string): readonly string[] {
   return group.filter((item) => NARROWER_THAN_GROUP_CANONICAL.has(item));
 }
 
+/**
+ * 皮肤上的具体皮损形态（闭集）。疱疹/水疱前面同一分句里写的是口咽黏膜部位时不算（「咽峡及软腭部可见疱疹」是疱疹性咽峡炎，
+ * 不是皮疹；2026-10-19 回放验收集 D）。
+ */
+export const SKIN_LESION_FORM = /(?<![咽峡腭口舌唇颊龈][^，,。；;]{0,16})(?:水疱|水泡|疱疹)|红斑|丘疹|风团|斑疹|疱疮/u;
+
 const POSITIVE_FACT_EQUIVALENT_PATTERNS: readonly {
   terms: readonly string[];
   patterns: readonly RegExp[];
@@ -588,6 +606,13 @@ const POSITIVE_FACT_EQUIVALENT_PATTERNS: readonly {
       // associated symptoms remain separate attributes and may legitimately stay unknown.
       /(?:头上|头部|脑袋)[^。；;\n]{0,12}(?:紧箍|箍紧|勒紧|绷紧|紧胀)/,
     ],
+  },
+  {
+    // 病历写了具体皮损形态就算写到了「皮疹」这个总称（单向：写了皮疹不等于写了风团）。2026-10-19 甲方标准病历 9：病历「搔抓后迅速
+    // 出现红色风团」，鉴别行「风瘙痒无原发皮疹」被当成本例未记录皮疹改成「病历尚未确认皮疹是否存在」，交付成「未诉皮疹」。
+    // diagnosis-visible-summary 的「无皮疹→未诉皮疹」改写读同一个式子（SKIN_LESION_FORM）。
+    terms: ["皮疹"],
+    patterns: [SKIN_LESION_FORM],
   },
   {
     terms: POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes("咳嗽")) || ["咳嗽"],
@@ -1073,8 +1098,31 @@ function clauseNegationScope(clause: string, probe: string): string {
     const start = match.index ?? 0;
     return /[均皆俱都亦也]$/u.test(probe.slice(0, start)) || !/[\u4e00-\u9fa5]/u.test(probe.slice(start + match[0].length));
   });
-  return postposed ? clause : clause.slice(matches[0].index ?? 0);
+  if (postposed) return clause;
+  // 前置否认词管到顿号列举的哪一项为止（2026-10-19）。两种情形到此为止：
+  //  · 本项是「无汗」「无痰」这类独立成词的体征——「恶寒重、发热轻、无汗、鼻塞流清涕、稍有咳嗽」里的「无」只否认汗；
+  //  · 后面某项自带「有」「伴」「见」一类肯定词（「稍有咳嗽」「伴腹胀」）——它自己说了存在，不在否认之下。
+  // 此前整段都算否认范围，病历记录了咳嗽，整句被改成「病历已记录咳嗽阳性」，风寒投影再把主症补在句末
+  //（甲方标准病历 1 本地复测三次中两次）。「无恶心、呕吐」这类普通列举照旧一并否认。
+  const scope = clause.slice(matches[0].index ?? 0);
+  const items = scope.split("、");
+  if (/^无[汗痰]$/u.test(items[0].trim())) return items[0];
+  const affirmedAt = items.findIndex((item, index) => index > 0 && NEGATION_SCOPE_AFFIRMED_ITEM.test(item.trim()));
+  return affirmedAt > 0 ? items.slice(0, affirmedAt).join("、") : scope;
 }
+
+/** 鉴别列表（中医病名/证候、西医）的字段名：其中每一项的 distinguishingPoints/reason 里，以该项病证名为主语的否认说的是那个病。 */
+const DIFFERENTIAL_LIST_KEYS = new Set(["tcmDiseaseDifferentials", "tcmDifferentials", "differentials"]);
+
+/** 分句以被鉴别的病证名开头（可隔「则/多/常/一般/通常」），紧接着是否认词：「风瘙痒无原发皮疹」「肋间神经痛多无皮疹」。 */
+function differentialSubjectNegation(clause: string, entryName: string): boolean {
+  const at = clause.indexOf(entryName);
+  if (at < 0 || /本例|患者|该患/u.test(clause.slice(0, at))) return false;
+  return /^(?:则|多|常|一般|通常|往往|本身)?(?:无|没有|不伴|未见|并无|多无|常无)/u.test(clause.slice(at + entryName.length));
+}
+
+/** 顿号列举里自带肯定说法的一项：「稍有咳嗽」「伴腹胀」「可见黄痰」。前面的否认词管不到它。 */
+const NEGATION_SCOPE_AFFIRMED_ITEM = /^(?:(?:稍|略|微|偶|时|常|仍|又|并|另|尚|还|均)?有(?!无)|伴有?|兼(?:有|见)|并见|可见|见|出现)/u;
 
 export function isProspectiveClinicalSentence(value: string): boolean {
   return PROSPECTIVE_CLINICAL_SENTENCE.test(String(value || ""));
@@ -1501,7 +1549,7 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
       let sanitizedBlock = match;
       try {
         const missingExamLabels = new Set<string>();
-        const visit = (value: unknown, key = "", parentKey = ""): unknown => {
+        const visit = (value: unknown, key = "", parentKey = "", entryName = ""): unknown => {
           // Identity labels are not patient assertions. They have already passed the stage contract;
           // running negation prose replacement over them can turn a valid diagnosis name into a
           // sentence such as "病历已记录头痛阳性" and break the signed result after validation.
@@ -1537,7 +1585,16 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
             ) {
               return groundedValue;
             }
-            const sanitized = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(groundedValue, source, extractorAffirmedTerms, recordedInspection), state), state);
+            // 鉴别行里以被鉴别病证自己为主语的否认（「风瘙痒无原发皮疹」「肋间神经痛无皮疹」）说的是那个病，不是本例，
+            // 与 typicalManifestation 同理不净化；只护住这一分句，同一字段里写本例的分句照常核对（2026-10-19 甲方标准病历 9）。
+            const kept: string[] = [];
+            const shielded = entryName && (key === "distinguishingPoints" || key === "reason")
+              ? groundedValue.replace(/[^，,；;。]+/gu, (clause) => differentialSubjectNegation(clause, entryName)
+                ? `__CDSS_KEEP_${kept.push(clause) - 1}__`
+                : clause)
+              : groundedValue;
+            const sanitized = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(shielded, source, extractorAffirmedTerms, recordedInspection), state), state)
+              .replace(/__CDSS_KEEP_(\d+)__/gu, (_, index: string) => kept[Number(index)] ?? "");
             if (key === "followupSafetyNet") return ensureActionableFollowupSafetyNet(sanitized);
             const documentedPositive = sanitized.match(/病历已记录(.+?)阳性/);
             const exactDocumentedPositive = sanitized.match(/^\s*病历已记录(.+?)阳性[。；;]?\s*$/);
@@ -1565,15 +1622,19 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
             return sanitized;
           }
           if (Array.isArray(value)) {
-            const visited = value.map((item) => visit(item, key, key));
+            const visited = value.map((item) => visit(item, key, key, entryName));
             if (key === "uncertainties") return visited.filter((item) => item !== undefined);
             return DEDUPLICATED_CLINICAL_LIST_FIELDS.has(key)
               ? deduplicateClinicalListItems(visited.filter((item) => typeof item !== "string" || Boolean(item.trim())))
               : visited;
           }
           if (!value || typeof value !== "object") return value;
+          const ownName = DIFFERENTIAL_LIST_KEYS.has(parentKey)
+            ? ["diseaseName", "name", "syndrome"].map((field) => (value as Record<string, unknown>)[field])
+              .find((field): field is string => typeof field === "string" && field.trim().length >= 2)?.trim().replace(/[（(][^（）()]*[）)]/gu, "") || ""
+            : "";
           const visited = Object.fromEntries(
-            Object.entries(value as Record<string, unknown>).map(([childKey, raw]) => [childKey, visit(raw, childKey, key)]),
+            Object.entries(value as Record<string, unknown>).map(([childKey, raw]) => [childKey, visit(raw, childKey, key, ownName)]),
           );
           if (key === "uncertainties") {
             const row = visited as { item?: unknown; reason?: unknown; affects?: unknown };
@@ -5418,7 +5479,10 @@ export function buildSafetyAdvisoryBanner(
   gate: SafetyGate | null | undefined,
   extraNotes: readonly string[] = [],
 ): string {
-  const redFlags = (gate?.redFlags || []).filter(Boolean);
+  // 每一条不同的红旗都列出（2026-10-19）：去重；语义层红旗末尾的「原文依据：“…”」不进横幅（横幅只说要处置什么，原文在红旗详情里）。
+  const redFlags = [...new Set((gate?.redFlags || [])
+    .map((flag) => String(flag || "").replace(/[，,；;]?\s*原文依据[：:][\s\S]*$/u, "").trim())
+    .filter(Boolean))];
   const reasons = (gate?.reasons || []).filter(Boolean);
   const notes = extraNotes.filter(Boolean);
   if (redFlags.length === 0 && reasons.length === 0 && notes.length === 0) return "";

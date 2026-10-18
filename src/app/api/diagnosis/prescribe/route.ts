@@ -29,6 +29,7 @@ import type { SafetyGate } from "@/lib/diagnosis-types";
 import { applyPrescribeContractSignature, buildDiagnoseContractSignatureContext, buildPrescribeContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning, verifyDiagnoseReasoningSignature } from "@/lib/reasoning-contract-signature";
 import { contractProvenanceAdvisory, recordContractProvenance } from "@/lib/contract-provenance";
 import { CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS, hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
+import { semanticRedFlagsForBanner } from "@/lib/banner-semantic-red-flags.server";
 import { isLimitedM03NotPrescribable } from "@/lib/his-prescription-validation";
 import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-planner.server";
 import { buildDrugInventoryPromptContext } from "@/lib/drug-inventory.server";
@@ -155,6 +156,11 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
         cacheTtlOverrideMs: CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS,
       });
   const gated = withSafetyGate(caseState);
+  // 确定性红旗时跳过了语义事实层，横幅另取一次语义红旗并进去（与辨证路由同一做法，banner-semantic-red-flags.server.ts）：
+  // 只进横幅，不改安全门与任何判定。与下面的生成前准备并行，最多等 1.5 秒。
+  const bannerSemanticRedFlags = deterministicGate.safetyGate?.status === "red_flag"
+    ? semanticRedFlagsForBanner(parsed.caseState)
+    : Promise.resolve([] as string[]);
   const permission = derivePrescriptionPermission(gated);
   const limitedInformation = gated.completeness.level !== "C" || gated.safetyGate?.status !== "ready" ||
     permission.candidateMode === "limited_dose" || permission.candidateMode === "non_dose_only";
@@ -391,8 +397,11 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     redFlags: [],
     reasons: ["候选方药生成与修复未在本阶段安全时限内完成，本轮不采纳任何未完成验证的药味与剂量。已录入病历与辨病辨证结论仍保留，可直接重新生成候选方药。"],
   };
+  const semanticBannerFlags = await bannerSemanticRedFlags;
   const advisoryBanner = buildSafetyAdvisoryBanner(
-    advisorySafetyNotes.length > 0 ? gated.safetyGate : undefined,
+    advisorySafetyNotes.length > 0 && gated.safetyGate
+      ? { ...gated.safetyGate, redFlags: [...gated.safetyGate.redFlags, ...semanticBannerFlags] }
+      : undefined,
     [
       ...(advisorySafetyNotes.length > 0 && !(gated.safetyGate?.redFlags || []).length ? advisorySafetyNotes : []),
       ...(hasUnconfirmedUnclearEncounterScope(gated)

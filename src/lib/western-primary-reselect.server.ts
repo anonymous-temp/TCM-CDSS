@@ -3,7 +3,7 @@ import "server-only";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
-import { alignWesternNameWithRecord, isCleanWesternDiagnosisName, listedWesternDiagnosisNames } from "./western-name-evidence-check.server";
+import { alignWesternNameWithRecord, isCleanWesternDiagnosisName, listedWesternDiagnosisNames, withoutSexIncompatibleWesternNames } from "./western-name-evidence-check.server";
 
 /**
  * 西医主诊断的闭集重选（2026-10-19）。
@@ -222,7 +222,10 @@ export async function reselectWesternPrimaryFromListed(westernContent: string, c
  *  · 追加并发症：病名核对针对的是原诊断名，它没改原名时交付「原名伴X」；它改了原名（说过头、与记录不符）时交付核对结果、不再追加
  *   （离线回放里「慢性肾脏病伴肾性贫血」被整条核成「贫血」，追加后的组合名不再交给核对）。
  */
-export async function alignWesternPrimaryAndName(westernContent: string, context: WesternHalfContext, signal?: AbortSignal): Promise<string> {
+export async function alignWesternPrimaryAndName(rawWesternContent: string, context: WesternHalfContext, signal?: AbortSignal): Promise<string> {
+  // 候选与鉴别里先去掉患者性别不可能有的病名（男性的妇产科病名、女性的前列腺类病名；2026-10-19）：重选与核对都只看剩下的名单，
+  // 不会把这类病选成主诊断或在改名时采用它。
+  const westernContent = withoutSexIncompatibleWesternNames(rawWesternContent, context.patient?.sex);
   const [selection, aligned] = await Promise.all([
     westernPrimaryReselectionForContent(westernContent, context, signal),
     alignWesternNameWithRecord(westernContent, context, signal),

@@ -10,9 +10,11 @@ import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { alignWesternPrimaryAndName } from "@/lib/western-primary-reselect.server";
 import { reconcileSecondarySyndromes } from "@/lib/m03-secondary-syndrome-consistency.server";
+import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals, patientClaimRecordText } from "@/lib/m03-patient-claim-check.server";
 import { completeTcmDiseaseDifferentials } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText } from "@/lib/diagnosis-safety";
+import { semanticRedFlagsForBanner } from "@/lib/banner-semantic-red-flags.server";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, derivePrescriptionPermission, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03SharedPatientContext } from "@/lib/m03-context-packets";
@@ -68,6 +70,12 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
     : await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, signal);
   const gated = withSafetyGate(caseState);
   const redFlagAnalysis = gated.safetyGate?.status === "red_flag";
+  // 确定性红旗已成立时上面跳过了语义事实层，横幅于是只列确定性那几条（2026-10-19 独立评审 S190：乌头碱药酒中毒，横幅只有
+  //「胸痛/胸闷伴大汗…」，中毒与循环灌注不足没上横幅）。横幅另取一次语义事实层的红旗（缓存里有就是现成的；没有时最多等 1.5 秒，
+  // 与下面的生成前准备重叠），只并进横幅，不改安全门与任何判定。
+  const bannerSemanticRedFlags = deterministicGate.safetyGate?.status === "red_flag"
+    ? semanticRedFlagsForBanner(parsed.caseState)
+    : Promise.resolve([] as string[]);
   const limitedInformation = gated.completeness.level !== "C" || gated.safetyGate?.status !== "ready";
   const hasChiefComplaint = Boolean((gated.chiefComplaint || gated.hisRecord?.fields?.zhushu || "").trim());
   if (!hasChiefComplaint) {
@@ -189,7 +197,10 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
     stageInstructions += "\n\n【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请在本半负责的 limitations、uncertainties 或 management.mustCollect 中显式记录“本次就诊目标需医生确认”，不得据此臆造当前治疗目标或直接给出剂量级结论。";
   }
   prompt += stageInstructions;
-  const initialSafetyBanner = buildSafetyAdvisoryBanner(redFlagAnalysis ? gated.safetyGate : undefined);
+  const semanticBannerFlags = await bannerSemanticRedFlags;
+  const initialSafetyBanner = buildSafetyAdvisoryBanner(redFlagAnalysis && gated.safetyGate
+    ? { ...gated.safetyGate, redFlags: [...gated.safetyGate.redFlags, ...semanticBannerFlags] }
+    : undefined);
   // 兜底页的**可见理由按真实原因分支**（2026-09-13）。此前三类兜底共用一句「未通过完整性与
   // 临床一致性复核」，把结构化交付问题说成了复核否决。文案与 attestation 的 unavailableReason
   // 同源（limitedDiagnosisReasonCopy），避免两处各写各的。
@@ -221,6 +232,8 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   };
   preModelMark("promptReady");
   console.info("[tcm-cdss:timing] m03_pre_model", preModelTimings);
+  // 本例说法核对用的病历：正文前补性别、年龄、带名称的生命体征（同一份脱敏 DTO）。
+  const patientClaimRecord = patientClaimRecordText(trustedInputText(safeState), safeState.patient, safeState.vitals);
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: signal,
     structuredLimitedInformation: limitedInformation,
@@ -240,18 +253,30 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
           }),
           // 中医半没有可保留的病名级鉴别、而教材对该病列有鉴别病证时，只补写这一项（其余病例不发请求）。
           // 辨证依据或病机写了兼夹病机、兼证栏却为空时，补成兼证或删掉那几个分句（其余病例不发请求）。
-          m03TcmHalfTransform: async (tcmContent: string, transformSignal: AbortSignal) => reconcileSecondarySyndromes(
-            await completeTcmDiseaseDifferentials(tcmContent, { recordText: trustedInputText(safeState) }, transformSignal),
-            { recordText: trustedInputText(safeState) },
-            transformSignal,
-          ),
+          // 同一份输入上并行核对「关于本例的说法有无病历依据」（m03-patient-claim-check.server.ts）：先落兼证一致的结果，再删无据片段
+          //（已不在文中的跳过）。
+          m03TcmHalfTransform: async (tcmContent: string, transformSignal: AbortSignal) => {
+            const completed = await completeTcmDiseaseDifferentials(tcmContent, { recordText: trustedInputText(safeState) }, transformSignal);
+            const [reconciled, claimRemovals] = await Promise.all([
+              reconcileSecondarySyndromes(completed, { recordText: trustedInputText(safeState) }, transformSignal),
+              decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),
+            ]);
+            return applyPatientClaimRemovalsToContent(reconciled, "tcm", claimRemovals);
+          },
           // 西医半一返回就核对病名与病历已记录内容是否矛盾或说得过细（约 0.8 秒，与中医半并行）；采信则只改病名这一项。红旗病例不用「过细」一类。
           // 同时在西医半自己列出的候选与鉴别里重选主诊断（2026-10-19，western-primary-reselect）：两者并行；换名时对新名称再核对一次。
-          m03WesternHalfTransform: (westernContent: string, transformSignal: AbortSignal) => alignWesternPrimaryAndName(
-            westernContent,
-            { recordText: trustedInputText(safeState), patient: { sex: safeState.patient?.sex, age: safeState.patient?.age }, redFlag: redFlagAnalysis },
-            transformSignal,
-          ),
+          // 本例说法核对与上面两件并行，落在它们的结果上（改名后已不在文中的片段跳过）。
+          m03WesternHalfTransform: async (westernContent: string, transformSignal: AbortSignal) => {
+            const [aligned, claimRemovals] = await Promise.all([
+              alignWesternPrimaryAndName(
+                westernContent,
+                { recordText: trustedInputText(safeState), patient: { sex: safeState.patient?.sex, age: safeState.patient?.age }, redFlag: redFlagAnalysis },
+                transformSignal,
+              ),
+              decidePatientClaimRemovals(westernContent, { recordText: patientClaimRecord }, "western", transformSignal),
+            ]);
+            return applyPatientClaimRemovalsToContent(aligned, "western", claimRemovals);
+          },
         }
       : {}),
     // 合同修复耗尽后的兜底：生成方合同始终不合法（attestation 原因码 not_attempted_no_valid_draft）。
@@ -264,6 +289,11 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
     deadlineFallback: signedLimitedDiagnosis(truncatedGateFor("deadline"), "deadline"),
     authoritativeTruncateFallback: true,
     structuredStage: "diagnose",
+    // 不给剂量的病例（红旗未解除，或待优先评估、妊娠哺乳等独立边界）：复诊提示不写「请服完本次的药后复诊」（交付面按它改写，
+    // 2026-10-19 验收主集 I 模块）。与开方阶段同一个判据 derivePrescriptionPermission。
+    structuredDoseWithheld: gated.safetyGate?.status === "red_flag"
+      ? "red_flag"
+      : ["non_dose_only", "blocked"].includes(derivePrescriptionPermission(gated).candidateMode) ? "withheld" : undefined,
     structuredQueueKey: parsed.customer.customerHash,
     // 与 M04 同口径：时钟起在临床事实准备之前，否则那段模型调用不计入 180s 预算。
     structuredOrchestrationStartedAt: orchestrationStartedAt,

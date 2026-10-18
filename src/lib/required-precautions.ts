@@ -26,9 +26,23 @@ export type RequiredPrecaution =
   /** 65 岁及以上：起身宜缓、防跌倒（2026-10-18 起与项目卡的老年提示同一界值；验收主集 68 岁例评审判缺）。 */
   | { kind: "elderly_administration"; ageYears: number }
   /** 病历写着正在服用的药（既往史里的长期用药也算；现病史里为这次病自服的另见 self_medication）。 */
-  | { kind: "current_medications"; names: string[]; given?: string[] }
+  | {
+      kind: "current_medications";
+      names: string[];
+      given?: string[];
+      /** 红旗未解除（先急诊处置）：不写与中药间隔服用，写带药就医、告诉医生最近一次用药时间（2026-10-19 留出集 S188：心率 42、血压 82/48 仍写「间隔1小时服用」）。 */
+      urgent?: boolean;
+    }
+  /** 病历写着自行停了长期用药（留出集 S178：高血压急症、一个月前自行停降压药）：由医生评估后规律服用，不要再自行停药。 */
+  | { kind: "self_discontinued_medication"; names: string[]; condition?: string }
+  /** 病历写着行动受限（拄拐、轮椅、卧床…）：运动保健按坐位、扶物、家人陪同写（甲方标准病历 5）。只核运动保健一栏，不进注意事项。 */
+  | { kind: "mobility_limited_exercise"; limitation: string }
   /** 病历写了自行用药、却没写药名（「自用药物后未见缓解」「自行服药」）。2026-10-19 验收主集 J 模块。 */
-  | { kind: "unnamed_medication" }
+  | {
+      kind: "unnamed_medication";
+      /** 病历写的是「一直口服中药治疗」这类在服的中药汤剂（没写方名）：请患者把方子带给医生，避免与本方重复（验收主集 M-TCM-SD-486942）。 */
+      herbal?: boolean;
+    }
   /** 带状疱疹（蛇串疮）：尽早由医生评估系统抗病毒治疗（发疹 72 小时内、仍有新水疱、50 岁以上）与疼痛。甲方标准病历 8。 */
   | { kind: "herpes_zoster_antiviral" }
   /** 备孕/未避孕而未妊娠：服药期间月经逾期先验孕，确认怀孕即停药告知医生（2026-10-19 留出集 S102）。 */
@@ -45,3 +59,11 @@ export type RequiredPrecaution =
   | { kind: "trigger_foods"; foods: string[] }
   /** 痛风：低嘌呤饮食、限酒（尤其啤酒）、多饮水（《中国高尿酸血症与痛风诊疗指南》2019）。留出集 S145。 */
   | { kind: "gout_diet" };
+
+/** 自行停用的那类药在给患者的话里怎么称呼。 */
+export function discontinuedMedicationLabel(item: Extract<RequiredPrecaution, { kind: "self_discontinued_medication" }>): string {
+  if (item.names.length > 0) return item.names.join("、");
+  if (item.condition === "高血压") return "降压药";
+  if (item.condition === "糖尿病") return "降糖药";
+  return item.condition ? `治疗${item.condition}的药` : "原来长期服用的药";
+}

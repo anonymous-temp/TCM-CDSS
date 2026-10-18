@@ -687,7 +687,7 @@ check("13.1 触发条件没写睡眠、理由写明「助眠」「安眠」的�
   assert.equal(compiler.incidentalSleepSedativeModification({ trigger: "若烦躁", herbName: "蝉蜕", reason: "疏风止痉" }, prior), false);
   assert.equal(compiler.incidentalSleepSedativeModification({ trigger: "若瘙痒甚", herbName: "珍珠母", reason: "重镇安神助眠" }, priorFor("不寐", "心脾两虚证")), false);
 });
-check("13.2 留出例 S132、S158 的两条是教材本证加减原文，照列（编译器的教材加减豁免；本机有语料时原文逐字核对）", () => {
+check("13.2 留出例 S132、S158 的两条是教材本证加减原文（本机有语料时原文逐字核对）；第三轮起编译器对这类「只说睡不好」的教材加减也不列，见 test:r1019-herbs-r3 第 6 节", () => {
   const tbSyndromes = textbookSyndromes;
   assert.ok(tbSyndromes.textbookModificationMatch("湿疮", "血虚风燥证", "若瘙痒不能入眠", "珍珠母"));
   assert.ok(tbSyndromes.textbookModificationMatch("积滞", "食积化热证", "若烦躁、夜啼难眠", "蝉蜕"));

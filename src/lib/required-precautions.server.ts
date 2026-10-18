@@ -1,4 +1,4 @@
-import { formallyAdministeredMedicationMentions, recordedMedicationMentions, recordsAlcoholUse, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
+import { formallyAdministeredMedicationMentions, medicationStoppedInNextSentence, recordedMedicationMentions, recordedMobilityLimitation, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
 import { clinicalGroundingText, currentVitalMeasurements, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
@@ -12,7 +12,7 @@ import localMedicineIndex from "../data/local-patent-medicine-index.json" with {
 import { catalogSharedComposition } from "./tcm-formula-provenance";
 import { getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
 import { dietRestrictionForSyndromeText, recordedTriggerFoods } from "./tcm-therapy-phrasing";
-import type { RequiredPrecaution } from "./required-precautions";
+import { discontinuedMedicationLabel, type RequiredPrecaution } from "./required-precautions";
 
 export type { RequiredPrecaution } from "./required-precautions";
 
@@ -85,6 +85,9 @@ export function requiredPrecautionsForCase(
   prior?: ClinicalReasoningResultV2 | null,
 ): RequiredPrecaution[] {
   const items: RequiredPrecaution[] = [];
+  // 红旗未解除或不给剂量的页面只有药味与方义：不写怎么服（年龄相关的服药方法、与中药间隔服用）。
+  const redFlag = state.safetyGate?.status === "red_flag";
+  const doseAllowed = state.safetyGate ? !redFlag && state.safetyGate.allowDosePrescription !== false : true;
   // 重度高血压而无急性靶器官表现（2017 ACC/AHA、ACEP：尽快门诊复测并调整降压，不是急诊）：安全门只给医生看的提示，
   // 写给患者的那句在这里（2026-10-19）。伴靶器官表现的是红旗，处置另有横幅。
   const bp = currentVitalMeasurements(state).bloodPressure;
@@ -137,8 +140,11 @@ export function requiredPrecautionsForCase(
   // 儿童取未满 12 岁——儿科剂量按年龄折算的年龄段（pediatric-dose-rule），这些孩子的家长都需要这一句。
   const age = patientAgeYears(state);
   // 12–13 岁仍属儿科（《中医儿科学》0–14 岁）：同一项，规则句按年龄换成适合大孩子的说法（验收主集 13 岁例评审判缺）。
-  if (age != null && age < 14) items.push({ kind: "pediatric_administration", ageYears: age });
-  else if (age != null && age >= 65) items.push({ kind: "elderly_administration", ageYears: age });
+  if (doseAllowed && age != null && age < 14) items.push({ kind: "pediatric_administration", ageYears: age });
+  else if (doseAllowed && age != null && age >= 65) items.push({ kind: "elderly_administration", ageYears: age });
+  // 自行停了长期用药（降压药最常见）：写一条由医生评估后规律服用，红旗页也写——停药常是这次急症的诱因（留出集 S178）。
+  const discontinued = selfDiscontinuedMedication(clinicalGroundingText(state));
+  if (discontinued) items.push({ kind: "self_discontinued_medication", names: discontinued.names, ...(discontinued.condition ? { condition: discontinued.condition } : {}) });
   // 正在服用的药（2026-10-18 验收主集：泼尼松、酮替芬、氨氯地平、抗生素等病历写明在服，注意事项一句没提，评审判缺）。
   // 与自服药同一套认药名的办法（带剂型或说明书目录一字不差），整份病历都看；已列为自服药的不重复。
   const selfTaken = new Set(items.flatMap((item) => item.kind === "self_medication" ? [item.base] : []));
@@ -164,10 +170,12 @@ export function requiredPrecautionsForCase(
     if (selfTaken.has(patentMedicineBaseName(name)) || current.some((known) => sameDrug(known, name))) continue;
     current.push(name);
   }
-  const listed = current.slice(0, 3);
+  const listed = current.filter((name) => !medicationStoppedInNextSentence(grounded, name)).slice(0, 3);
   const given = listed.filter((name) => recorded.given.includes(name) && !formallyTaken.has(name));
-  if (listed.length > 0) items.push({ kind: "current_medications", names: listed, ...(given.length > 0 ? { given } : {}) });
-  else if (recorded.unnamed && !items.some((item) => item.kind === "self_medication")) items.push({ kind: "unnamed_medication" });
+  if (listed.length > 0) items.push({ kind: "current_medications", names: listed, ...(given.length > 0 ? { given } : {}), ...(redFlag ? { urgent: true } : {}) });
+  else if ((recorded.unnamed || recorded.herbal) && !items.some((item) => item.kind === "self_medication")) {
+    items.push({ kind: "unnamed_medication", ...(recorded.herbal && !recorded.unnamed ? { herbal: true } : {}) });
+  }
   if (prior) {
     const overview = prior.overview;
     const syndromeText = [overview?.primarySyndrome, ...(Array.isArray(overview?.secondarySyndromes) ? overview.secondarySyndromes : []), prior.therapy?.overallMethod]
@@ -175,16 +183,22 @@ export function requiredPrecautionsForCase(
     // 病历写了饮酒（个人史「饮酒30年」「嗜酒」）才写戒酒，与饮食栏「忌酒」一致；红旗未解除或不给剂量时只写忌口、不写怎么服
     //（2026-10-14 起红旗页不写服法；10/19 留出集 S178/S188/S190 红旗页仍出现「本方汤药宜饭后温服」，是这条规则补的）。
     const drinking = recordsAlcoholUse(grounding);
-    const doseAllowed = state.safetyGate ? state.safetyGate.status !== "red_flag" && state.safetyGate.allowDosePrescription !== false : true;
     items.push({ kind: "administration_and_diet", diet: `${dietRestrictionForSyndromeText(syndromeText)}${drinking ? "，戒酒" : ""}`, administration: doseAllowed });
   }
+  const limitation = recordedMobilityLimitation(grounding);
+  if (limitation) items.push({ kind: "mobility_limited_exercise", limitation });
   return items;
 }
 
 /** 给 M04 模型的一段话：逐项列出本例必须写到的注意事项，模型按本例写，服务端事后逐项核对。 */
 export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaution[]): string {
-  if (items.length === 0) return "";
-  const lines = items.map((item, index) => {
+  const mobility = items.find((item) => item.kind === "mobility_limited_exercise");
+  const listed = items.filter((item) => item.kind !== "mobility_limited_exercise");
+  const exerciseNote = mobility?.kind === "mobility_limited_exercise"
+    ? `\n运动保健：病历记录患者「${mobility.limitation}」，运动保健一栏按行动受限写（坐位或床旁活动、扶物、家人陪同，量与时长减半），不写需要站立屈膝或长时间行走的功法。`
+    : "";
+  if (listed.length === 0) return exerciseNote.trim();
+  const lines = listed.map((item, index) => {
     const order = `${index + 1}.`;
     if (item.kind === "self_medication") {
       const parts = [`病历记录患者已自服${item.name}`];
@@ -198,7 +212,10 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     }
     if (item.kind === "pediatric_administration") return `${order}患儿${item.ageYears < 1 ? `${Math.max(1, Math.round(item.ageYears * 12))}个月` : `${Math.floor(item.ageYears)}岁`}：写一条给家长的服药方法（少量多次、分次喂服，不要强灌，不自行加量）。`;
     if (item.kind === "elderly_administration") return `${order}患者${Math.floor(item.ageYears)}岁：写一条与年龄相关的服药注意（如起身宜缓、防跌倒）。`;
+    if (item.kind === "current_medications" && item.urgent) return `${order}病历记录患者正在使用${item.names.join("、")}，本例须先就医处置：写一条请把这些药连同药盒带去就医，告诉医生最近一次用药的时间，是否继续由医生决定；不写与中药间隔服用。`;
+    if (item.kind === "self_discontinued_medication") return `${order}病历记录患者自行停用了${discontinuedMedicationLabel(item)}${item.condition ? `（${item.condition}）` : ""}：写一条请尽快由医生评估后调整用药并规律服用，不要再自行停药或减量。`;
     if (item.kind === "current_medications") return `${order}病历记录患者${item.given?.length ? "用过或正在使用" : "正在使用"}${item.names.join("、")}：写一条它与本方一起用时要注意的事（告知医生${item.given?.length ? "现在是否还在用" : ""}、是否继续由医生决定；口服药写「与中药间隔约1小时服用」；乳膏、贴剂等外用药只写「正在外用的某药请告知医生」，不写服用、不写间隔；与本方有明确相互作用的写出来）。`;
+    if (item.kind === "unnamed_medication" && item.herbal) return `${order}病历记录患者一直在服中药但没写方名：写一条请把正在服的中药方子带给医生看，由医生决定是否与本方同服，避免药味重复。`;
     if (item.kind === "unnamed_medication") return `${order}病历记录患者自行用过药但没写药名：写一条请把正在用的药（药名、用法）告诉医生，避免与本方重复或相互影响。`;
     if (item.kind === "herpes_zoster_antiviral") return `${order}带状疱疹：写明须尽早到医院由医生评估是否口服抗病毒药（发疹3天内、仍有新水疱或年龄50岁以上尤应尽早），疼痛明显时一并告知医生；皮疹累及眼周、耳部或出现视物模糊、听力改变、剧烈头痛须立即就医。`;
     if (item.kind === "administration_and_diet") return item.administration
@@ -212,5 +229,5 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "conception_pregnancy_check") return `${order}写一条（患者备孕或未避孕）：服药期间如月经逾期须先验孕，确认怀孕立即停药并告知医生；不用逐味点名哪些药慎用（药表里已逐味标注）。`;
     return `${order}${item.disease}是细菌感染：写明须到医院由医生决定抗菌药物治疗，以及寒战高热、红肿迅速扩大等须立即就医的表现。`;
   });
-  return `【本例注意事项必须写到】以下各项在 nonPharma.precautions 里各写一条，排在最前，不计入条数上限：\n${lines.join("\n")}`;
+  return `【本例注意事项必须写到】以下各项在 nonPharma.precautions 里各写一条，排在最前，不计入条数上限：\n${lines.join("\n")}${exerciseNote}`;
 }

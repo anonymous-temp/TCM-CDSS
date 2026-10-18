@@ -10,7 +10,7 @@ import { stripHerbBoundaryTail } from "./candidate-boundary-text";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
 import { getTcmHerbDoseLimit, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
-import { compositionIdentityName, formulaCompilationReferences } from "./tcm-formula-provenance";
+import { compositionIdentityName, formulaCompilationReferences, formulaManualDoseIngredients, formulaNameVariantIngredients, originalBookFormulaIngredients } from "./tcm-formula-provenance";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
@@ -30,12 +30,12 @@ import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHer
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { fillMedicineRowFromInstructionRecord, type InstructionRecordPool } from "./instruction-record-pool";
-import { formulaAnalysisHerbMentions } from "./formula-analysis-review";
+import { formulaAnalysisHerbMentions, formulaAnalysisRoleAssignments, withoutFalseBaseFormulaEdits } from "./formula-analysis-review";
 import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
 import { patentMedicineDuplication, selfTakenMedicationCompositions } from "./patent-medicine-duplication.server";
-import { herbRecordCautionConflicts, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
+import { herbRecordCautionConflict, herbRecordCautionConflicts, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
-import { specialDecoctionPhrase } from "./herb-decoction-rules";
+import { specialDecoctionPhrase, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
 import { chpPregnancyLabel, conceptionHerbNote } from "./conception-herb-policy";
 
 const evidence = {
@@ -815,7 +815,8 @@ type ModificationDropCode =
   | "special_population_conflict"
   | "incidental_sedative"
   | "trigger_contradicts_record"
-  | "trigger_outside_population";
+  | "trigger_outside_population"
+  | "record_caution_conflict";
 
 const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>> = {
   malformed: "条目缺少触发事实、病机引用、动作、药名或理由",
@@ -830,6 +831,7 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   incidental_sedative: "睡眠差随主病而来，治主病即可，不另加安神药",
   trigger_contradicts_record: "触发条件里的症状病历已明确否认",
   trigger_outside_population: "触发条件是本例患者的性别或生育期不会出现的症状",
+  record_caution_conflict: "拟加药味的教材【使用注意】与本例已记录的情况相抵",
 };
 
 type ModificationRelevanceTable = {
@@ -931,10 +933,15 @@ export function modificationConditionOutsidePopulation(trigger: string, caseStat
  * 去掉后方义里讲这味药的小句由方义核对按「方外之药」删去；剩不到三味时原样保留。
  */
 const SEDATIVE_CATEGORY = /(?:^|；)(?:养心|重镇)?安神药(?:；|$)/u;
-/** 已签名的证名与病名涉及心、神、寐（含夜啼）、悸、郁：睡眠本身就在病机里，安神药不算顺带。 */
+/**
+ * 已签名的证名与病名涉及心、神、寐（含夜啼）、悸、郁：睡眠本身就在病机里，安神药不算顺带。
+ * 病名本身是神志病的（注意力缺陷多动障碍、抽动障碍、痴呆、癫狂、痫病）同样算：教材这几病的证型就是心肝火旺、心脾两虚、痰火扰神，
+ * 只是阴虚、髓海不足这几证的证名里不带「心」「神」（2026-10-19；回放例 X-E-0950 多动障碍·肝肾阴虚「若夜寐不安：加酸枣仁」，
+ * 《中医儿科学》本证原文加减 L168782「夜寐不安者，加酸枣仁、五味子」）。
+ */
 function signedScopeInvolvesMind(prior: ClinicalReasoningResultV2): boolean {
   const mindScope = `${prior.overview?.primarySyndrome || ""}${(prior.overview?.secondarySyndromes || []).join("")}${prior.overview?.tcmDiseaseName || ""}`;
-  return /心|神|寐|眠|悸|郁|啼/.test(mindScope);
+  return /心|神|寐|眠|悸|郁|啼|多动|抽动|痴呆|癫|狂|痫/.test(mindScope);
 }
 /**
  * 随证加减里为顺带的睡眠差加安神药（2026-10-18；留出例 S132 瘾疹「若瘙痒不能入眠：加珍珠母（平肝潜阳安神）」、
@@ -948,7 +955,7 @@ const SEDATIVE_REASON = /安神|宁神|宁心|镇静|助眠/u;
  * 理由里明写是为了睡眠（「助眠」「安眠」）：触发条件没写睡眠时同样算（2026-10-19 起，按用意判）。
  * 「止啼」不收：回放 1,437 条加减里唯一新命中的是五迟·脾虚肝旺「若惊惕不安较甚、夜啼频作：加天麻（平肝息风、镇惊止啼）」，
  * 天麻治的是肝旺本身。留出例 S132（珍珠母）、S158（蝉蜕）两条是教材本证的加减原文（《中医外科学》湿疮·血虚风燥证
- *「瘙痒不能入眠者，加珍珠母、夜交藤、酸枣仁」；《中医儿科学》积滞·食积化热「烦躁、夜啼难眠者，加蝉蜕、钩藤」），按教材加减照列。
+ *「瘙痒不能入眠者，加珍珠母、夜交藤、酸枣仁」；《中医儿科学》积滞·食积化热「烦躁、夜啼难眠者，加蝉蜕、钩藤」），此前按教材加减照列；2026-10-19 起由下面 incidentalSleepTriggerModification 不列。
  */
 const SLEEP_PURPOSE_REASON = /助眠|安眠/u;
 export function incidentalSleepSedativeModification(
@@ -958,6 +965,34 @@ export function incidentalSleepSedativeModification(
   if (signedScopeInvolvesMind(prior)) return false;
   if (!SLEEP_TRIGGER.test(item.trigger) && !SLEEP_PURPOSE_REASON.test(item.reason || "")) return false;
   return SEDATIVE_CATEGORY.test(getTcmHerbFunctionText(item.herbName)) || SEDATIVE_REASON.test(item.reason || "");
+}
+/**
+ * 加减条件只说睡不好（「若瘙痒不能入眠」「若烦躁、夜啼难眠」「若失眠多梦明显」），证名、病名不涉心神，加的又是安神药或理由写明安神
+ *（incidentalSleepSedativeModification）：教材本证列明的这类加减同样不列（2026-10-19）。
+ * 留出例 S132「若瘙痒不能入眠：加珍珠母（重镇安神止痒）」、S158「若烦躁、夜啼难眠：加蝉蜕（清心除烦，安神定惊）」七轮独立评审判
+ * incidental-sleep（另四轮按教材加减判通过）；两条都是教材本证加减原文（《中医外科学》湿疮·血虚风燥证 L207559、《中医儿科学》积滞·食积化热 L167648），
+ * 此前按教材加减照列。睡眠差随主病而来，治主病即可（与主方去掉顺带的安神药同一口径）。
+ * 「只说睡不好」按条目判：条件按顿号逗号拆开，每一条都是睡眠或随之的烦躁。条件里另有成组表现的不算——
+ *「若头晕耳鸣、虚烦少寐、腰膝酸软：加熟地黄、五味子、山茱萸」（《中医内科学》血虚头痛）治的是肝肾，「若兼见心悸怔忡，少寐健忘：加柏子仁」
+ * 是心血不足（评审判过通过），「若阴虚火旺，兼见五心烦热、躁动失眠：加知母」治的是火旺。
+ * 不收「寐深难以唤醒」「因寐不醒」——那是遗尿的睡得太沉，石菖蒲醒神正对。
+ */
+const SLEEP_LOSS_TRIGGER = /难眠|不能入眠|不眠|失眠|少寐|不寐|多梦|夜啼|入睡困难|难以入睡|影响入睡|夜寐不安|寐不安|睡眠不实|睡不安|易醒|早醒|眠差|寐差/u;
+const SLEEP_COMPANION_ITEM = /^(?:烦躁|心烦|虚烦|烦热|躁扰|哭闹)$/u;
+const TRIGGER_ITEM_FILLER = /^(?:若|如|兼见|症见|伴有|伴|或)+|(?:者|明显|加重|较甚|尤甚|甚|等)+$/gu;
+function sleepOnlyTrigger(trigger: string): boolean {
+  const items = String(trigger || "")
+    .split(/[、，,；;。]/u)
+    .map((item) => item.replace(TRIGGER_ITEM_FILLER, "").trim())
+    .filter(Boolean);
+  return items.some((item) => SLEEP_LOSS_TRIGGER.test(item)) &&
+    items.every((item) => SLEEP_LOSS_TRIGGER.test(item) || SLEEP_COMPANION_ITEM.test(item));
+}
+export function incidentalSleepTriggerModification(
+  item: { trigger: string; herbName: string; reason?: string },
+  prior: ClinicalReasoningResultV2,
+): boolean {
+  return sleepOnlyTrigger(item.trigger) && incidentalSleepSedativeModification(item, prior);
 }
 function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2): M04Proposal["candidate"]["herbs"] {
   if (signedScopeInvolvesMind(prior)) return candidate.herbs;
@@ -1657,6 +1692,94 @@ function chartGroundedCorrespondingProblem(
   return kept.length > 0 ? kept.join("、") : (signed[0] || value);
 }
 
+/**
+ * 原方里系统不编制用量的味（毒性、管制或没有数值边界：乌头汤的制川乌、朱砂安神丸与天王补心丹的朱砂、真人养脏汤的罂粟壳、
+ * 甘遂半夏汤的甘遂），M04 提示词要求不写进药味表、由医师单独定（formulaManualDoseIngredients）。处方因此照原方名
+ *「乌头汤加减」，药味表与方义却都不提川乌，读的人只看到「乌头汤没有乌头、麻黄为君」（2026-10-19 验收集 RobustSDT-single_0443、
+ * X-G-1718，评审判方名与药味不符）。方义里没有提到这味时，在开头一句后补一句说明它没有列入、由医师定；
+ * 方名、药味表、剂量都不动，只在方义里补这一句。处方里有同一味的别种写法（煅石膏↔石膏，沙参↔北沙参）不算没列。回放 748 份处方：20 份补这句
+ *（乌头汤 5、消风散 4〔方中无石膏〕、天王补心丹与朱砂安神丸 3〔朱砂〕、通窍活血汤 2〔麝香〕、真人养脏汤 2〔罂粟壳〕、
+ * 沙参麦冬汤 2〔方中南北沙参都没有〕、甘遂半夏汤 1、定痫丸 1）；方义已说了这味（「去朱砂」）、同味别种写法在方中
+ *（沙参麦冬汤的北沙参、病历 9 消风散的石膏）、或可编制组成不过半的（十枣汤只剩大枣）都不补。
+ */
+function withWithheldBaseIngredientNote(analysis: string, formulaNames: readonly string[], herbNames: readonly string[]): string {
+  if (!analysis) return analysis;
+  const present = herbNames.map((name) => name.replace(/[（(][^）)]*[）)]/g, "").replace(/\s+/g, "").trim()).filter(Boolean);
+  const presentIds = new Set(present.map((name) => compositionIdentityName(name)));
+  // 只说处方确以它为主体的那张方（可编制的组成过半在方中）：「椒目瓜蒌汤合十枣汤」而方中只有大枣（X-G-2312），不说十枣汤的甘遂。
+  const substantial = (name: string) => {
+    const ids = [...new Set((formulaCompilationReferences([name])[0]?.ingredients || []).map((item) => compositionIdentityName(item)).filter(Boolean))];
+    return ids.length > 0 && ids.filter((id) => presentIds.has(id)).length / ids.length >= 0.5;
+  };
+  // 方名里的字不算方义提到了这味（「以朱砂安神丸为基础」不等于说了朱砂）。
+  const names = [...new Set(formulaNames.map((name) => name.trim()).filter(Boolean))];
+  const prose = names.slice().sort((left, right) => right.length - left.length).reduce((text, name) => text.split(name).join("　"), analysis);
+  const withheld = [...new Set(names.filter(substantial).flatMap((name) => formulaManualDoseIngredients(name)))]
+    .filter((name) => {
+      const id = compositionIdentityName(name);
+      if (!id || presentIds.has(id) || present.some((herb) => herb.endsWith(id))) return false;
+      return !prose.includes(id);
+    });
+  if (withheld.length === 0) return analysis;
+  const note = `原方中的${withheld.join("、")}本次未列入药味表，是否使用及用量由医师单独确定。`;
+  const opening = analysis.match(/^[^。]*(?:为基础|加减|化裁)[^。]*。/u);
+  return opening ? `${opening[0]}${note}${analysis.slice(opening[0].length)}` : `${analysis}${/[。！!]$/u.test(analysis) ? "" : "。"}${note}`;
+}
+
+/**
+ * 药味表与方义对齐（2026-10-19 甲方标准病历的独立评审）：
+ *  · 角色：方义给某味药定的角色与药味表不一，且只是臣、佐、使之间不一（君药两边一致）时，药味表随方义（病历 2：药味表「酸枣仁…佐」
+ *   「茯苓…臣」，方义「茯神、制远志、酸枣仁三药为臣」「茯苓…佐助中焦运化」）。牵涉君药的不改，记一条遥测；
+ *    方内结构类（调和、引经）的药不改成臣。角色读法见 formulaAnalysisRoleAssignments。
+ *  · 特殊煎法：没有出处的标注去掉（肉豆蔻「后下」，见 withoutUnsupportedDecoctionLabels），煎服行按药味表取，两处一致。
+ *  · 方义开头一句对原方的增删说法不实的改掉（「去煅石膏，加知母以清热生津」，见 withoutFalseBaseFormulaEdits）。
+ * 然后照旧去掉顺带的安神药（withoutIncidentalSedatives）。
+ */
+function withAnalysisConsistentCandidate(
+  candidate: M04Proposal["candidate"],
+  prior: ClinicalReasoningResultV2,
+): M04Proposal["candidate"] {
+  const analysis = candidate.formulaAnalysis || "";
+  const roles = analysis
+    ? formulaAnalysisRoleAssignments(analysis, candidate.herbs.map((herb) => herb.name))
+    : new Map<string, "君" | "臣" | "佐" | "使">();
+  let realigned = 0;
+  let emperorConflicts = 0;
+  const herbs = candidate.herbs.map((herb) => {
+    const tableName = herb.name.replace(/[（(][^）)]*[）)]/g, "").replace(/\s+/g, "").trim();
+    const declared = typeof herb.decoctionRequirement === "string" && herb.decoctionRequirement.trim()
+      ? withoutUnsupportedDecoctionLabels(herb.name, herb.decoctionRequirement)
+      : herb.decoctionRequirement;
+    const withDecoction = declared === herb.decoctionRequirement ? herb : { ...herb, decoctionRequirement: declared || undefined };
+    const role = roles.get(tableName);
+    if (!role || role === herb.role) return withDecoction;
+    if (role === "君" || herb.role === "君") {
+      emperorConflicts += 1;
+      return withDecoction;
+    }
+    if (role === "臣" && herb.targetKind === "formula_structure") return withDecoction;
+    realigned += 1;
+    return { ...withDecoction, role };
+  });
+  if (realigned > 0 || emperorConflicts > 0) {
+    console.info("[tcm-cdss:telemetry] formula_analysis_role_alignment", { realigned, emperorConflicts });
+  }
+  const baseName = analysis.match(/以([^，,。；;合]{2,14}?)为基础/u)?.[1] || String(candidate.name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
+  const baseIngredients = [
+    ...originalBookFormulaIngredients(baseName),
+    ...(formulaCompilationReferences([baseName])[0]?.ingredients || []),
+  ];
+  const editedAnalysis = analysis
+    ? withWithheldBaseIngredientNote(
+      withoutFalseBaseFormulaEdits(analysis, baseIngredients, herbs.map((herb) => herb.name), formulaNameVariantIngredients(baseName)).text,
+      [baseName, ...String(candidate.name || "").trim().replace(/(?:加减|化裁|加味)$/u, "").split("合")],
+      herbs.map((herb) => herb.name),
+    )
+    : candidate.formulaAnalysis;
+  const aligned = { ...candidate, herbs, ...(analysis ? { formulaAnalysis: editedAnalysis } : {}) };
+  return { ...aligned, herbs: withoutIncidentalSedatives(aligned, prior) };
+}
+
 export function compileM04Proposal(
   value: unknown,
   prior: ClinicalReasoningResultV2 | null | undefined,
@@ -1682,7 +1805,7 @@ export function compileM04Proposal(
   const medicineExclusionText = caseState ? clinicalGroundingText(caseState) : "";
   const proposal = {
     ...parsed.data,
-    candidate: { ...parsed.data.candidate, herbs: withoutIncidentalSedatives(parsed.data.candidate, prior) },
+    candidate: withAnalysisConsistentCandidate(parsed.data.candidate, prior),
     patentAndWestern: [...new Map(
       [...parsed.data.patentAndWestern, ...trustedMedicines]
         .filter((item) => !medicineCandidateExcludedForCase(String(item.name || ""), medicineExclusionText))
@@ -1782,6 +1905,7 @@ export function compileM04Proposal(
   });
   const directionDropReasons: ModificationDropCode[] = [];
   const modificationRecordText = caseState ? clinicalGroundingText(caseState) : "";
+  const modificationSyndromeText = [prior.overview?.primarySyndrome, ...(prior.overview?.secondarySyndromes || [])].filter(Boolean).join("；");
   // 替代药的排除基准是**本候选方的全部药味**：不得建议方里已有的药，也不得与方内任何一味相反相畏。
   const candidateHerbNames = compiledHerbs
     .map((herb) => (typeof herb.name === "string" ? herb.name.trim() : ""))
@@ -1803,8 +1927,16 @@ export function compileM04Proposal(
       directionDropReasons.push("direction_conflict");
       return [];
     }
-    if (!textbookSource && item.actionType === "add" && incidentalSleepSedativeModification(item, prior)) {
+    if (item.actionType === "add" && (incidentalSleepTriggerModification(item, prior) ||
+      (!textbookSource && incidentalSleepSedativeModification(item, prior)))) {
       directionDropReasons.push("incidental_sedative");
+      return [];
+    }
+    // 拟加的药，教材【使用注意】写明与本例已记录的情况相抵（甲方病历 3：「若头晕耳鸣、虚烦少寐：加熟地黄」，病历食欲下降、大便稀溏，
+    //《中药学》熟地黄「食少便溏者忌服」）。教材加减同样不列：教材的条件是证候变化，没有替这位患者的脾胃作主。
+    if (item.actionType === "add" && modificationRecordText &&
+      herbRecordCautionConflict(item.herbName, modificationRecordText, modificationSyndromeText)) {
+      directionDropReasons.push("record_caution_conflict");
       return [];
     }
     const triggerSource = textbookSource ? undefined : resolveModificationTriggerSource(item.trigger, prior);
@@ -1985,4 +2117,4 @@ export function compileM04JsonObjectContent(
 }
 
 /** 测试用：单味药的核验级别与理由（医生在页面上看到的那一行）。 */
-export const m04CompilerTestHooks = { compileHerbVerification, casePrecautions, withoutIncidentalSedatives };
+export const m04CompilerTestHooks = { compileHerbVerification, casePrecautions, withoutIncidentalSedatives, withWithheldBaseIngredientNote, withAnalysisConsistentCandidate };

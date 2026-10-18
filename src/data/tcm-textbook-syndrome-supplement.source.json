@@ -12,7 +12,8 @@
       "westernEquivalents": ["龋齿", "牙髓炎", "牙周炎", "冠周炎"],
       "tcmEquivalents": [],
       "differentials": [{ "name": "面痛", "text": "《针灸治疗学》牙痛节按语：注意与三叉神经痛相鉴别。" }]
-    }
+    },
+    {"bookKey": "supplement", "book": "中医骨伤科学", "department": "骨伤", "disease": "骨折", "line": 187196, "definition": "骨的完整性或连续性遭到破坏者，称为骨折。", "diseaseAliases": ["骨折病"], "westernEquivalents": ["骨折"], "tcmEquivalents": [], "differentials": [{"name": "伤筋", "text": "《中医骨伤科学》骨折概论：畸形、骨擦音和异常活动是骨折的特征，这三种特征只要其中一种出现，即可初步诊断为骨折；伤筋无此特征，影像学检查可资鉴别。"}], "note": "教材按损伤三期（初、中、后期）辨证用药，不分证型；这里按教材原文把三期各列一行（后期按补益肝肾、补气养血分两行）。2026-10-19 验收主集两例肋骨骨折被命名为胸部屏挫伤，原因是教材表里没有骨折这一病。"}
   ],
   "rows": [
     {
@@ -53,6 +54,10 @@
       "composition": ["熟地黄", "山茱萸", "山药", "泽泻", "茯苓", "牡丹皮", "知母", "黄柏"],
       "modifications": [],
       "sources": ["https://www.edh.tw/article/30929", "https://health.tvbs.com.tw/encyclopedia/340564"], "accessedAt": "2026-10-13"
-    }
+    },
+    {"id": "supplement|骨折|初期", "book": "中医骨伤科学", "bookKey": "supplement", "line": 187655, "department": "骨伤", "disease": "骨折", "syndrome": "气滞血瘀证", "syndromeName": "气滞血瘀证", "syndromeKind": "syndrome", "manifestations": "伤后1～2周内。筋骨脉络损伤，血离经脉，瘀积不散，气血凝滞，经络受阻：局部瘀肿疼痛，活动受限。", "tongue": "", "pulse": "", "therapy": "活血化瘀，消肿止痛", "formulaText": "桃红四物汤加减。", "formulas": ["桃红四物汤"], "formulaJoin": "single", "modified": true, "composition": ["生地", "当归", "白芍", "川芎", "桃仁", "红花"], "modifications": [], "sources": ["《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第六章骨折·骨折概论·药物治疗·内服药；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。", "https://pmc.ncbi.nlm.nih.gov/articles/PMC6186335/"], "accessedAt": "2026-10-19", "stage": "初期"},
+    {"id": "supplement|骨折|中期", "book": "中医骨伤科学", "bookKey": "supplement", "line": 187660, "department": "骨伤", "disease": "骨折", "syndrome": "瘀血阻络证", "syndromeName": "瘀血阻络证", "syndromeKind": "syndrome", "manifestations": "一般在伤后3～6周。肿胀逐渐消退，疼痛明显减轻，但瘀肿虽消而未尽，骨尚未连接。", "tongue": "", "pulse": "", "therapy": "和营生新，接骨续筋", "formulaText": "新伤续断汤加减。", "formulas": ["新伤续断汤"], "formulaJoin": "single", "modified": true, "composition": ["当归", "土鳖虫", "醋乳香", "醋没药", "丹参", "煅自然铜", "烫骨碎补", "泽兰", "醋延胡索", "苏木", "续断", "桑枝", "燀桃仁"], "modifications": [], "sources": ["《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第六章骨折·骨折概论·药物治疗·内服药；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。", "https://pmc.ncbi.nlm.nih.gov/articles/PMC6186335/"], "accessedAt": "2026-10-19", "stage": "中期"},
+    {"id": "supplement|骨折|后期·肝肾", "book": "中医骨伤科学", "bookKey": "supplement", "line": 187663, "department": "骨伤", "disease": "骨折", "syndrome": "肝肾亏虚证", "syndromeName": "肝肾亏虚证", "syndromeKind": "syndrome", "manifestations": "一般在伤后7～8周以后，已有骨痂生长，瘀肿已消，但筋骨尚未坚实，功能尚未恢复；年老体虚、筋骨痿弱、骨折迟缓愈合者。", "tongue": "", "pulse": "", "therapy": "补益肝肾，强壮筋骨", "formulaText": "壮筋养血汤加减。", "formulas": ["壮筋养血汤"], "formulaJoin": "single", "modified": true, "composition": ["当归", "川芎", "白芍", "续断", "红花", "地黄", "牡丹皮", "盐杜仲", "川牛膝"], "modifications": [], "sources": ["《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第六章骨折·骨折概论·药物治疗·内服药；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。", "https://pmc.ncbi.nlm.nih.gov/articles/PMC6186335/"], "accessedAt": "2026-10-19", "stage": "后期·肝肾"},
+    {"id": "supplement|骨折|后期·气血", "book": "中医骨伤科学", "bookKey": "supplement", "line": 187663, "department": "骨伤", "disease": "骨折", "syndrome": "气血两虚证", "syndromeName": "气血两虚证", "syndromeKind": "syndrome", "manifestations": "骨折后期，外伤筋骨、内伤气血，或长期卧床，出现气血亏损、筋骨痿弱：神疲乏力，面色少华。", "tongue": "", "pulse": "", "therapy": "补气养血，强壮筋骨", "formulaText": "八珍汤加减。", "formulas": ["八珍汤"], "formulaJoin": "single", "modified": true, "composition": ["人参", "白术", "茯苓", "当归", "川芎", "白芍", "熟地黄", "炙甘草"], "modifications": [], "sources": ["《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第六章骨折·骨折概论·药物治疗·内服药；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。", "https://pmc.ncbi.nlm.nih.gov/articles/PMC6186335/"], "accessedAt": "2026-10-19", "stage": "后期·气血"}
   ]
 }

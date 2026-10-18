@@ -166,3 +166,36 @@ export function recordedTriggerFoods(text: string): string[] {
   }
   return foods.slice(0, 4);
 }
+
+/**
+ * 辨证依据或总病机里，用主证没有覆盖的病机解释某组表现的分句（2026-10-19 验收主集 C 模块：74 例不合格里 29 例是
+ * 「辨证依据自述兼有X / 为X之兼象 / 化热 / 气阴两伤，兼证栏却写无」）。只认肯定说法：否认、鉴别、暂不支持的分句不算。
+ * 闭集：病机词（不足/亏虚/两伤/化热/湿热/气滞/瘀阻…）与兼夹标记词；是否被主证覆盖按病性字比对（气血阴阳、寒热湿痰瘀滞郁饮）。
+ */
+const MECHANISM_PHRASE = /(?:心|肝|脾|肺|肾|胃|胆|肠|膀胱|胞宫|冲任)?(?:气阴|气血|阴液|阴血|精血|气|血|阴|阳|津|精)(?:不足|亏虚|亏损|两伤|两虚|耗伤|不固)|化热|化火|湿热|痰热|痰湿|湿浊|寒湿|水湿|水饮|痰饮|血瘀|瘀血|瘀阻|瘀滞|气滞|气郁|肝郁|肝气不舒|兼象|之兼|兼见|兼及|同病|夹杂|夹有/u;
+const SECONDARY_MECHANISM_MARKER = /兼象|之兼|兼见|兼及|同病|夹杂|夹有/u;
+const MECHANISM_MARKER_ONLY = new RegExp(`^(?:${SECONDARY_MECHANISM_MARKER.source})$`, "u");
+/** 分句自称兼夹（「为肝气不舒之兼象」「心脾同病」）。 */
+export function declaresSecondaryMechanism(clause: string): boolean {
+  return SECONDARY_MECHANISM_MARKER.test(clause);
+}
+const MECHANISM_NOT_ASSERTED = /非|无|未|不另|不作|不立|不支持|不归|不属|不取|暂不|尚不|待定|待查|孰|排除|鉴别|相别|相区分|而非|不足以|尚欠/u;
+const NATURE_KEY: Readonly<Record<string, string>> = { 气: "气", 血: "血", 阴: "阴", 阳: "阳", 津: "阴", 精: "精", 热: "热", 火: "热", 湿: "湿", 痰: "痰", 寒: "寒", 瘀: "瘀", 滞: "滞", 郁: "郁", 饮: "饮", 水: "湿" };
+const natureKeys = (value: string) => new Set([...value].map((char) => NATURE_KEY[char]).filter(Boolean));
+export function mechanismClaimsUncoveredBy(primarySyndrome: string, ...values: string[]): string[] {
+  const covered = natureKeys(primarySyndrome);
+  return values.flatMap((value) => String(value || "").split(/[，,。；;]/u)).map((clause) => clause.trim()).filter((clause) => {
+    if (!clause || MECHANISM_NOT_ASSERTED.test(clause)) return false;
+    const phrase = clause.match(MECHANISM_PHRASE)?.[0];
+    if (!phrase) return false;
+    if (MECHANISM_MARKER_ONLY.test(phrase)) return true;
+    return [...natureKeys(phrase)].some((key) => !covered.has(key));
+  });
+}
+
+// 「兼/夹 + 病性」的兼夹说法（m03-secondary-syndrome-consistency 的触发判据）。病性收尾也认「不足/不固/失养/不和/上亢」：
+//「兼有肺气不足」此前漏判，辨证依据写了兼夹、兼证栏却是空的（2026-10-19 验收主集 RobustSDT-single_0467/0311）。
+const SECONDARY_PATTERN_CLAIM = /(?<![无未不非没])[兼夹](?![顾治以备职])[有见杂]?[一-鿿]{0,8}?(?:[虚亏湿痰瘀热寒郁滞风燥火饮浊积]|不足|不固|失养|不和|上亢)/u;
+export function claimsSecondaryPattern(clause: string): boolean {
+  return SECONDARY_PATTERN_CLAIM.test(clause);
+}

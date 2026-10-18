@@ -1,6 +1,6 @@
 {
  "generatedBy": "scripts/build-tcm-textbook-disease-names.mjs",
- "count": 332,
+ "count": 333,
  "names": [
   "癌病",
   "艾滋病",
@@ -85,6 +85,7 @@
   "股肿",
   "骨关节结核",
   "骨关节炎",
+  "骨折",
   "骨质疏松症",
   "鼓胀",
   "鹘眼凝睛",

@@ -133,9 +133,11 @@ const completion = (payload) => new Response(JSON.stringify({
   });
   await check("4.2 A/B 类上一级只是去掉了病程限定（急性尿潴留→尿潴留待查）时交付「尿潴留」（X-D-0204）；C 类与症状待查照旧（对照）", () => {
     const quote = "尿频，排尿困难2年，加重2周";
-    assert.equal(check4.parseWesternNameCorrection(verdict({ type: "B", quote, supportedName: "尿潴留待查" }), record, "急性尿潴留")?.supportedName, "尿潴留");
-    assert.equal(check4.parseWesternNameCorrection(verdict({ type: "C", quote, supportedName: "尿潴留待查" }), record, "急性尿潴留")?.supportedName, "尿潴留待查");
-    assert.equal(check4.parseWesternNameCorrection(verdict({ type: "B", quote, supportedName: "排尿困难待查" }), record, "急性尿潴留")?.supportedName, "排尿困难待查");
+    // A–C 的理由要说已记录的相反所见（10/19 第三轮起只说缺什么的 A–C 不采信，见 test-r1019-western-r3 §6）。
+    const reason = "病程2年，与急性起病不符";
+    assert.equal(check4.parseWesternNameCorrection(verdict({ type: "B", quote, reason, supportedName: "尿潴留待查" }), record, "急性尿潴留")?.supportedName, "尿潴留");
+    assert.equal(check4.parseWesternNameCorrection(verdict({ type: "C", quote, reason, supportedName: "尿潴留待查" }), record, "急性尿潴留")?.supportedName, "尿潴留待查");
+    assert.equal(check4.parseWesternNameCorrection(verdict({ type: "B", quote, reason, supportedName: "排尿困难待查" }), record, "急性尿潴留")?.supportedName, "排尿困难待查");
   });
   const listed = ["膜性肾病", "IgA肾病", "糖尿病肾病"];
   const adopt = (extra = {}) => check4.parseWesternNameCorrection(

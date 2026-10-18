@@ -1,5 +1,7 @@
 import { herbFunctionKnowledgeForDisplay, isKnownTcmHerbName } from "./tcm-knowledge";
 import { compositionIdentityName, isKnownFormulaNameFragment } from "./tcm-formula-provenance";
+import { textbookDistinctHerbKey, textbookEntryName } from "./herb-textbook-identity";
+import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import doctrinePhrasesJson from "../data/tcm-formula-doctrine-phrases.source.json";
 import herbClaimConceptsJson from "../data/tcm-herb-claim-concepts.source.json";
 
@@ -277,8 +279,11 @@ export function withShorthandPairsMatchingHerbs(text: string, candidateHerbs: re
   return { text: next, changed };
 }
 
-/** 「二药」「三味」「四味」这类数量词（不含「二者」：它常指两个方面而不是两味药）。 */
-const HERB_COUNT_WORD = /([二两三四五六七八九])(药|味)/gu;
+/**
+ * 「二药」「三味」「四者」这类数量词。「二者」此前不收（它也可以指两个方面）；按作主语的药数来核以后，
+ * 指两个方面的「二者」前面点不出两味作主语的药，不会被改（2026-10-19 甲方病历 7「生地黄、牡丹皮…，当归身…，四者共奏」）。
+ */
+const HERB_COUNT_WORD = /([二两三四五六七八九])(药|味|者)/gu;
 /** 数量词后紧跟方名的（六味地黄丸、五味消毒饮、四味香薷饮）：数量词是方名的一部分。 */
 const COUNT_WORD_IN_FORMULA_NAME = /^[^，,。；;：:、\s]{0,5}?(?:汤|丸|散|饮|丹|膏)/u;
 
@@ -342,6 +347,248 @@ export function withRecountedHerbCountWords(text: string, candidateHerbs: readon
     });
   }).join("");
   return { text: rewritten, changed };
+}
+
+/**
+ * 方义里的药名与药味表写法不一时改成药味表的写法（2026-10-19 甲方病历 6：方义写「鹿胶珠、龟胶珠」，药味表与煎服行是
+ *「鹿角胶、龟甲胶（烊化）」，独立评审判名称不一；胶珠是蛤粉烫制后入煎的另一种饮片规格）。只在能确定是同一味时改：
+ *  · 按组成身份与教材分味（textbookDistinctHerbKey）对上药味表里唯一的一味；
+ *  · 教材里各自单列的两味不改（茯神是茯苓的附药，熟地黄、生地黄各是一味）；
+ *  · 方义写的是药味表名加炮制或部位（「麸炒山药」「当归身」「炒牛蒡子」）时不改——那是同一味的具体写法；
+ *  · 只凭未经复核的中等置信别名对上的不改（「玉屏风」里的「屏风」）。
+ * 改过之后，后面的外来药判断与功效核对按药味表这一味来看（鹿角胶性温补阳，「滋阴…退虚热」由功效核对去掉）。
+ */
+export function withMentionsAlignedToTableNames(text: string, candidateHerbs: readonly string[]): { text: string; changed: boolean } {
+  const tableNames = [...new Set(candidateHerbs.map(stripAnnotation).filter(Boolean))];
+  if (tableNames.length === 0) return { text, changed: false };
+  const replacements: Array<{ start: number; end: number; name: string }> = [];
+  for (const mention of formulaAnalysisHerbMentions(text)) {
+    const token = mention.token;
+    if (tableNames.includes(token) || tableNames.some((name) => token.includes(name))) continue;
+    // 未经复核的中等置信别名不用来改字（「取玉屏风之意」里的「屏风」在别名表里挂到防风）。
+    if (resolveGovernedTcmHerbIdentity(token).status === "unique_source_backed") continue;
+    const key = textbookDistinctHerbKey(token);
+    if (!key) continue;
+    const matches = tableNames.filter((name) => textbookDistinctHerbKey(name) === key);
+    if (matches.length !== 1) continue;
+    const tokenEntry = textbookEntryName(token);
+    const tableEntry = textbookEntryName(matches[0]);
+    if (tokenEntry && tableEntry && tokenEntry !== tableEntry) continue;
+    replacements.push({ start: mention.start, end: mention.end, name: matches[0] });
+  }
+  if (replacements.length === 0) return { text, changed: false };
+  let out = text;
+  for (const item of replacements.sort((left, right) => right.start - left.start)) {
+    out = `${out.slice(0, item.start)}${item.name}${out.slice(item.end)}`;
+  }
+  return { text: out, changed: out !== text };
+}
+
+/**
+ * 拿煎法当「调和药性」的手段（2026-10-19 甲方病历 6：「全方无使药，以胶类烊化、菟丝子包煎调和药性」，评审：用煎法来解释调和药性说不通）。
+ * 闭集构词：「以……（烊化/包煎/先煎/后下/另煎/冲服/兑服/久煎）……调和」。命中的那一段（分号或句号之间）整段去掉；
+ * 去掉后方义不再讲本方时不改。
+ */
+const DECOCTION_METHOD_AS_HARMONIZER = /以[^，,。；;]{0,24}(?:烊化|包煎|先煎|后下|另煎|冲服|兑服|久煎)[^，,。；;]{0,8}调和/u;
+export function withoutDecoctionMethodHarmonizingClaims(text: string): { text: string; changed: boolean } {
+  if (!DECOCTION_METHOD_AS_HARMONIZER.test(text)) return { text, changed: false };
+  const kept: string[] = [];
+  for (const segment of text.split(/(?<=[；;。])/u)) {
+    if (DECOCTION_METHOD_AS_HARMONIZER.test(segment)) {
+      // 去掉的一段以句号收尾时，前一段收尾的分号换成句号。
+      if (/。\s*$/u.test(segment) && kept.length > 0) kept[kept.length - 1] = kept[kept.length - 1].replace(/[；;]\s*$/u, "。");
+      continue;
+    }
+    kept.push(segment);
+  }
+  const out = kept.join("");
+  return { text: out, changed: out !== text };
+}
+
+/** 组成身份，生用写法算同一味（生地黄 = 地黄、生石膏 = 石膏）：与交付面判断加药说法是否属实同一口径。 */
+function rawFormIdentity(name: string): string {
+  const trimmed = stripAnnotation(name);
+  return identityOf(trimmed.length >= 3 ? trimmed.replace(/^生/u, "") : trimmed);
+}
+
+/** 小句开头连着的一串药名（「知母以清热生津」→ 知母；「煅石膏、黄芩」→ 两味），以及其后的部分。 */
+function leadingHerbList(text: string): { names: Span[]; tailStart: number } {
+  const names: Span[] = [];
+  let cursor = 0;
+  for (const mention of formulaAnalysisHerbMentions(text)) {
+    const gap = text.slice(cursor, mention.start);
+    if (names.length === 0 ? gap.trim() !== "" : !/^\s*[、和及与]?\s*$/u.test(gap)) break;
+    names.push(mention);
+    cursor = mention.end;
+  }
+  return { names, tailStart: cursor };
+}
+
+/**
+ * 方义开头一句里对原方的增删说法不实（2026-10-19 甲方病历 9：「本方以消风散为基础加减，去煅石膏，加知母以清热生津」）：
+ *  · 「加X」而X本来就在原方组成里：去掉X；一味不剩时这一小句（连同「以清热生津」这类说用意的尾巴）不留。
+ *    交付面原有的同类判断只认小句里只有药名的写法，「加知母以清热生津」带着用意，于是漏过（同一函数现在两处共用）。
+ *  · 「去X」而X这种写法（炮制）不在原方里、原方有它的原药、处方里两种都没有：改成原方的写法（「去煅石膏」→「去石膏」；
+ *    《外科正宗》消风散用石膏）。原方根本没有X（「消渴方…去葛根」）：去掉X，一味不剩时这一小句不留（原方组成不足三味时不判）。
+ * baseIngredients 取原书组成（originalBookFormulaIngredients）与受治理编译组成的并集；查不到组成时不动。只看第一句。
+ */
+/** 煎服时的引药、药引（清茶调下、苇根汤煎、姜枣煎服）：名录组成常不列，方义说去掉它们不算无中生有。 */
+const DECOCTION_VEHICLES = /^(?:茶|茶叶|清茶|细茶|绿茶|生姜|姜|大枣|红枣|葱白|粳米|蜂蜜|白蜜|黄酒|酒|米酒|芦根|苇根|竹叶|灯心草|灯心)$/u;
+
+export function withoutFalseBaseFormulaEdits(
+  analysis: string,
+  baseIngredients: readonly string[],
+  prescribedHerbs: readonly string[],
+  /** 名录里这个方名下各版本组成的并集（formulaNameVariantIngredients）；空时不判「原方没有」。 */
+  variantIngredients: readonly string[] = [],
+): { text: string; changed: boolean } {
+  const baseByIdentity = new Map<string, string>();
+  for (const ingredient of baseIngredients) {
+    const identity = rawFormIdentity(ingredient);
+    if (identity && !baseByIdentity.has(identity)) baseByIdentity.set(identity, stripAnnotation(ingredient));
+  }
+  if (baseByIdentity.size === 0 || typeof analysis !== "string") return { text: analysis, changed: false };
+  const baseWritten = new Set(baseIngredients.map(stripAnnotation));
+  const prescribed = new Set(prescribedHerbs.map(rawFormIdentity).filter(Boolean));
+  const end = analysis.indexOf("。");
+  const first = end >= 0 ? analysis.slice(0, end) : analysis;
+  const rest = end >= 0 ? analysis.slice(end) : "";
+  const clauses = first.split(/([，,；;]|、(?=(?:并|再|另)?加))/u);
+  const out: string[] = [];
+  for (let index = 0; index < clauses.length; index += 2) {
+    const clause = clauses[index];
+    const separator = clauses[index + 1] || "";
+    const addition = clause.match(/^(\s*(?:并|再|另)?(?:加用|加入|加))(.*)$/u);
+    const removal = clause.match(/^(\s*(?:并|且)?(?:去掉|去|删去|减去)(?:原方中?)?)(.*)$/u);
+    if (addition) {
+      const body = addition[2];
+      const list = leadingHerbList(body);
+      if (list.names.length > 0) {
+        const remaining = list.names.filter((name) => !baseByIdentity.has(rawFormIdentity(name.token)));
+        if (remaining.length === 0) continue;
+        if (remaining.length < list.names.length) {
+          out.push(`${addition[1]}${remaining.map((name) => name.token).join("、")}${body.slice(list.tailStart)}`, separator);
+          continue;
+        }
+      }
+    } else if (removal) {
+      const body = removal[2];
+      const list = leadingHerbList(body);
+      if (list.names.length > 0) {
+        let rewritten = body;
+        let removedAll = true;
+        for (const name of [...list.names].sort((left, right) => right.start - left.start)) {
+          const identity = rawFormIdentity(name.token);
+          const original = baseByIdentity.get(identity);
+          // 原方根本没有这味药（「消渴方…去葛根」，《丹溪心法》消渴方无葛根，验收集 X-G-1104）：去掉这个药名。
+          // 要名录里这个方名的每一个版本都没有（按写法包含或组成身份）、且不是煎服时的引药（清茶、苇根、姜枣），才算没有。
+          const known = [...variantIngredients, ...baseIngredients];
+          const inAnyVariant = known.some((raw) => raw.includes(name.token) || rawFormIdentity(raw) === identity);
+          if (!original && variantIngredients.length > 0 && known.length >= 3 && !inAnyVariant && !DECOCTION_VEHICLES.test(name.token)) {
+            const before = rewritten.slice(0, name.start);
+            const after = rewritten.slice(name.end);
+            rewritten = /[、和及与]$/u.test(before) ? `${before.slice(0, -1)}${after}` : /^[、和及与]/u.test(after) ? `${before}${after.slice(1)}` : `${before}${after}`;
+            continue;
+          }
+          removedAll = false;
+          // 只改炮制写法（煅石膏对原方石膏）；写法不同而是同一味（生地黄对原方「生地」）不改。
+          if (!original || baseWritten.has(name.token) || prescribed.has(identity) || original === name.token ||
+            !(name.token.endsWith(original) && name.token.length > original.length)) continue;
+          rewritten = `${rewritten.slice(0, name.start)}${original}${rewritten.slice(name.end)}`;
+        }
+        if (removedAll) continue;
+        out.push(`${removal[1]}${rewritten}`, separator);
+        continue;
+      }
+    }
+    out.push(clause, separator);
+  }
+  let joined = out.join("").replace(/[，,；;、]+$/u, "");
+  joined = joined.replace(/([，,；;])[，,；;、]+/gu, "$1");
+  const text = `${joined}${rest}`;
+  return { text, changed: text !== analysis };
+}
+
+/** 方义里的角色说法：「为君（药）」「共为臣药」「三药为臣」「佐助…」「佐以X」「以X为君」。 */
+// 「共为臣佐」「为佐使」这种两种角色并说的不算（分不出哪味是哪种）。
+const ROLE_ASSIGNMENT = /(?:共|同|均|并|皆|俱)?(?:为|作)(君|臣|佐|使)(?![君臣佐使])(?:药)?|(佐)助/u;
+const ROLE_LEAD = /^(?:君|臣|佐|使)以/u;
+
+/**
+ * 方义给各味药定的角色（2026-10-19 甲方病历 2：药味表写「酸枣仁…佐」「茯苓…臣」，方义却写「茯神…制远志…酸枣仁…三药为臣」
+ *「茯苓健脾渗湿，石菖蒲化湿开胃，佐助中焦运化」，独立评审判君臣佐使前后不一）。按句读出：
+ *  · 一段（分号之间）里各小段开头作主语的药，遇到「为君/为臣/为佐/为使」「佐助」时归入这个角色；前面有「三药」「二味」时只取最后那几味；
+ *  · 「佐以X、Y」「以X为君」里点名的药直接归入；
+ *  · 「助君药」「助石膏」里的药是宾语，不算；同一味被说成两种角色时不判。
+ * 返回药味表名 → 角色（药名按与药味表对齐同一口径对到唯一一味）。
+ */
+export function formulaAnalysisRoleAssignments(text: string, candidateHerbs: readonly string[]): Map<string, "君" | "臣" | "佐" | "使"> {
+  const tableNames = [...new Set(candidateHerbs.map(stripAnnotation).filter(Boolean))];
+  const tableNameOf = (token: string): string | undefined => {
+    if (tableNames.includes(token)) return token;
+    const contained = tableNames.filter((name) => token.includes(name));
+    if (contained.length === 1) return contained[0];
+    const key = textbookDistinctHerbKey(token);
+    const matches = key ? tableNames.filter((name) => textbookDistinctHerbKey(name) === key) : [];
+    return matches.length === 1 ? matches[0] : undefined;
+  };
+  const headOf = (piece: string): string | undefined => {
+    const body = piece.trim().replace(SUBJECT_LEAD, "");
+    const mention = formulaAnalysisHerbMentions(body).find((item) => item.start === 0);
+    if (mention) return tableNameOf(mention.token);
+    const direct = [...tableNames].sort((left, right) => right.length - left.length).find((name) => body.startsWith(name));
+    return direct;
+  };
+  const assigned = new Map<string, "君" | "臣" | "佐" | "使">();
+  const conflicted = new Set<string>();
+  const assign = (name: string, role: "君" | "臣" | "佐" | "使") => {
+    const previous = assigned.get(name);
+    if (previous && previous !== role) conflicted.add(name);
+    else assigned.set(name, role);
+  };
+  for (const segment of String(text || "").split(/[；;。！!]/u)) {
+    let pending: string[] = [];
+    for (const piece of segment.split(/[，,]/u)) {
+      const lead = piece.trim().match(ROLE_LEAD);
+      if (lead) {
+        const role = lead[0][0] as "君" | "臣" | "佐" | "使";
+        const list = leadingHerbList(piece.trim().slice(lead[0].length));
+        for (const name of list.names) {
+          const table = tableNameOf(name.token);
+          if (table) assign(table, role);
+        }
+        pending = [];
+        continue;
+      }
+      const wrapped = piece.match(/以([^，,]{2,30}?)为(君|臣|佐|使)/u);
+      if (wrapped) {
+        for (const name of leadingHerbList(wrapped[1]).names) {
+          const table = tableNameOf(name.token);
+          if (table) assign(table, wrapped[2] as "君" | "臣" | "佐" | "使");
+        }
+        pending = [];
+        continue;
+      }
+      const heads = piece.split(/、/u).map(headOf).filter((name): name is string => Boolean(name));
+      const marker = piece.match(ROLE_ASSIGNMENT);
+      if (!marker) {
+        for (const name of heads) if (!pending.includes(name)) pending.push(name);
+        continue;
+      }
+      const role = (marker[1] || marker[2]) as "君" | "臣" | "佐" | "使";
+      // 这一小段自己点了药（「甘草调和诸药为使」「熟地黄、白芍同为君药」）：角色只给这几味，前面没定角色的不算在内；
+      // 这一小段只有角色说法（「共为臣」「三药为佐」）：给前面作主语的那几味，有数量词时取最后那几味。
+      const count = piece.slice(0, marker.index ?? 0).match(/([二两三四五六七八九])(?:药|味|者)/u);
+      const stated = count ? (count[1] === "两" ? 2 : CHINESE_NUMERAL.indexOf(count[1])) : 0;
+      const targets = heads.length > 0
+        ? heads
+        : stated > 0 && stated <= pending.length ? pending.slice(pending.length - stated) : pending;
+      for (const name of targets) assign(name, role);
+      pending = [];
+    }
+  }
+  for (const name of conflicted) assigned.delete(name);
+  return assigned;
 }
 
 const GUIDE_PHRASE = /(?:载|引)(?:药|血|火|热)?([上下])行/gu;
@@ -517,7 +764,17 @@ export function removeVerifiedHerbClaims(
     const identity = identityOf(herb);
     if (!ownIdentities.has(identity)) { reject("herb_not_in_candidate"); continue; }
     // 片段里得真的点到这味药（识别得出的药名，身份相同）：模型拿片段里别的写法（「龟胶」）去对本方的药，不算。
-    if (!formulaAnalysisHerbMentions(clause).some((mention) => identityOf(mention.token) === identity)) { reject("herb_not_named_in_clause"); continue; }
+    // 片段本身没点名、但同一段（上一个分号或句号之后）在片段前面用角色说法点了这味药（「鹿角胶、龟甲胶为佐，血肉有情之品滋阴填精，
+    // 兼退虚热」，模型报的片段是后半句）：按这一段来看，下面的归属判断照常决定说法是不是这味药的。2026-10-19 甲方病历 6。
+    // 只认前面是「为君/为臣/为佐/为使」的名单：「鹿胶珠、龟胶珠为血肉有情之品，龟胶偏滋阴退虚热」里片段自有主语（龟胶），不借前面的。
+    if (!formulaAnalysisHerbMentions(clause).some((mention) => identityOf(mention.token) === identity)) {
+      const segmentStart = Math.max(text.lastIndexOf("。", clauseAt - 1), text.lastIndexOf("；", clauseAt - 1), text.lastIndexOf(";", clauseAt - 1)) + 1;
+      const lead = text.slice(segmentStart, clauseAt);
+      if (!ROLE_ASSIGNMENT.test(lead) || !formulaAnalysisHerbMentions(lead).some((mention) => identityOf(mention.token) === identity)) {
+        reject("herb_not_named_in_clause");
+        continue;
+      }
+    }
     const unsupported = unsupportedHerbClaimConcepts(claim, referenceOf(herb));
     if (unsupported.length === 0) {
       reject(CLAIM_CONCEPT_GROUPS.some((group) => group.claim.test(claim)) ? "reference_supports_claim" : "claim_outside_concept_groups");
@@ -657,6 +914,12 @@ export function reviewAuthoredFormulaAnalysis(
   const withoutDose = text.replace(DOSE_TOKEN, "");
   if (withoutDose !== text) adjustments.push("dose_stripped");
   text = withoutDose;
+  const aligned = withMentionsAlignedToTableNames(text, candidateHerbs);
+  if (aligned.changed) adjustments.push("herb_mention_aligned_to_table");
+  text = aligned.text;
+  const decoctionHarmonizer = withoutDecoctionMethodHarmonizingClaims(text);
+  if (decoctionHarmonizer.changed) adjustments.push("decoction_method_harmonizer_removed");
+  text = decoctionHarmonizer.text;
   const internal = replaceInternalReferences(text, opts.nodeLabels || {});
   if (internal.changed) adjustments.push("internal_reference_rewritten");
   text = internal.text;
