@@ -641,6 +641,37 @@
           "quote": "3～8钱，包煎"
         }
       ]
+    },
+    {
+      "herb": "萆薢",
+      "aliases": [],
+      "route": "煎服",
+      "minG": 9,
+      "maxG": 15,
+      "adjudicated": "9–15g",
+      "method": "",
+      "cautions": "肾阴亏虚、遗精滑精者慎用。",
+      "basis": "《中药学》全国规划教材（萆薢条，基原为绵萆薢、粉萆薢）；《中国药典》2020年版一部·粉萆薢；《中国药典》2020年版一部·绵萆薢",
+      "confidence": "high",
+      "disagreement": "无：教材萆薢条与药典两个基原（粉萆薢、绵萆薢）的用量一致，均为9～15g。",
+      "chpHistory": "2020年版一部按基原分列「粉萆薢」「绵萆薢」两条，未单列统称「萆薢」；处方常写统称，身份目录把它判为歧义（粉萆薢、绵萆薢、黄山药），因此拿不到药典区间。2026-10-19 留出例 S086：随证加减「加萆薢」因此没有剂量。",
+      "sources": [
+        {
+          "title": "《中药学》全国规划教材（本地语料：中医补充数据/灵丹GitHub/TCM Educational Materials.txt 第155679–155685行）",
+          "url": "",
+          "quote": "本品为薯蓣科植物绵萆薢 Dioscorea septemloba Thunb.、福州薯蓣Dioscorea futschauensis Uline ex R.Kunth、粉背薯蓣Dioscorea hypoglauca Palibin的干燥根茎。前两种称“绵萆薢”……后一种称“粉萆薢”……【用法用量】 煎服，9～15g。"
+        },
+        {
+          "title": "《中国药典》2020年版一部·粉萆薢（国家药典委员会药典在线）",
+          "url": "https://ydz.chp.org.cn/#/item?bookId=1&entryId=455",
+          "quote": "9～15g。"
+        },
+        {
+          "title": "《中国药典》2020年版一部·绵萆薢（国家药典委员会药典在线）",
+          "url": "https://ydz.chp.org.cn/#/item?bookId=1&entryId=524",
+          "quote": "9～15g。"
+        }
+      ]
     }
   ]
 }

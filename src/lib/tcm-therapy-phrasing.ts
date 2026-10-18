@@ -135,8 +135,34 @@ export function resolveTherapyPhrase<T>(
 export function dietRestrictionForSyndromeText(syndromeText: string): string {
   const parts: string[] = [];
   if (/寒|阳虚|阳衰|火衰/u.test(syndromeText)) parts.push("忌食生冷寒凉");
-  if (/热|火(?!衰)|阴虚/u.test(syndromeText)) parts.push("忌食辛辣温燥、少饮酒");
+  // 不写「少饮酒」（2026-10-19 甲方复评：与「须戒酒」「忌酒」同屏相抵，也写给了不饮酒的人）；饮酒的戒酒由调用方按病历另加。
+  if (/热|火(?!衰)|阴虚/u.test(syndromeText)) parts.push("忌食辛辣温燥");
   if (/湿|痰|饮/u.test(syndromeText)) parts.push("少食肥甘厚腻与甜黏之品");
   if (/食积|食滞|积滞|伤食/u.test(syndromeText)) parts.push("饮食有节、不宜过饱");
   return parts.length > 0 ? parts.join("，") : "饮食宜清淡、易消化，少食辛辣油腻";
+}
+
+/**
+ * 病历写的发病诱因食物（2026-10-19，留出集 S128「进食大量海鲜并饮啤酒后…全身风团」、S145 痛风「进食海鲜、饮啤酒，当夜…剧痛」：
+ * 注意事项都没叫患者避开它）。只认「进食/食用/吃/饮/喝 + 食物（有限闭集） + 后」或「食物 + 后出现/诱发/加重」，否认句不算。
+ */
+const TRIGGER_FOOD = /海鲜|鱼虾|虾蟹|虾|蟹|贝类|啤酒|白酒|烈酒|酒|火锅|烧烤|辛辣|羊肉|牛肉|芒果|花生|牛奶|冷饮|生冷|油腻/gu;
+export function recordedTriggerFoods(text: string): string[] {
+  const foods: string[] = [];
+  const spans: string[] = [];
+  for (const sentence of text.normalize("NFKC").split(/[。；;\n]+/u)) {
+    if (/否认|无[^，,。；;]{0,4}(?:进食|饮)/u.test(sentence)) continue;
+    // 食物要落在「进食…后」或「…后出现/诱发/加重」这一段里：「口干喜冷饮」「饮不解渴」不是诱因。
+    for (const match of sentence.matchAll(/(?:进食|食用|吃了?|饮用?|喝了?|过食|嗜食)([^，,。；;]{0,14}?)后/gu)) spans.push(match[1]);
+    for (const match of sentence.matchAll(/([^，,。；;]{1,12})后[^，,。；;]{0,6}(?:出现|发作|诱发|加重|起病)/gu)) spans.push(match[1]);
+    // 「进食海鲜、饮啤酒，当夜…剧痛」：进食之后紧接着一个时间接续词。
+    for (const match of sentence.matchAll(/((?:进食|食用|吃了?|饮用?|喝了?)[^。；;]{0,16}?)[，,]\s*(?:当夜|当晚|当天|次日|随即|随后|旋即)/gu)) spans.push(match[1]);
+  }
+  for (const span of spans) {
+    for (const match of span.matchAll(TRIGGER_FOOD)) {
+      const food = match[0] === "酒" && foods.some((item) => item.endsWith("酒")) ? "" : match[0];
+      if (food && !foods.includes(food) && !foods.some((item) => item.includes(food))) foods.push(food);
+    }
+  }
+  return foods.slice(0, 4);
 }

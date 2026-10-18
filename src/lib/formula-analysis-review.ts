@@ -232,8 +232,116 @@ function withTextbookDoctrinePhrase(text: string): { text: string; changed: bool
   if (named.length !== 1) return { text, changed: false };
   const right = named[0].phrase;
   const wrong = DOCTRINE.opposites[right];
-  if (!wrong || !text.includes(wrong)) return { text, changed: false };
-  return { text: text.split(wrong).join(right), changed: true };
+  if (!wrong) return { text, changed: false };
+  // 模型两种说法都写了（「阳中求阴、阴中求阳」）时，改过来就成了同一短语连写两遍（2026-10-19 甲方标准病历 6：
+  //「二者相配阳中求阴、阳中求阴」），相邻的重复只留一个；已经改过、留着重复的（交付面再投影）同样收拢。
+  const escaped = right.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const repeated = new RegExp(`${escaped}(?:[、，,和与及又并]?${escaped})+`, "gu");
+  const next = text.split(wrong).join(right).replace(repeated, right);
+  return { text: next, changed: next !== text };
+}
+
+/** 主语药前面的引子（「佐以」「加」…，受治理表 subjectLeads），最长优先。 */
+const SUBJECT_LEAD = new RegExp(`^(?:${[...((herbClaimConceptsJson as unknown as { subjectLeads?: string[] }).subjectLeads || [])]
+  .sort((left, right) => right.length - left.length).map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") || "(?!)"})`, "u");
+
+/** 两味药的合称（「硝黄」「芩连」，受治理表 tcm-herb-claim-concepts.source.json shorthandPairs）。 */
+const SHORTHAND_PAIRS = ((herbClaimConceptsJson as unknown as { shorthandPairs?: Array<{ term: string; herbs: [string, string] }> }).shorthandPairs || [])
+  .filter((item) => typeof item.term === "string" && item.term.length >= 2 && Array.isArray(item.herbs) && item.herbs.length === 2);
+
+/**
+ * 合称里只有一味在方中（2026-10-19 留出例 S046：方中无芒硝，方义「炙甘草为使，调和诸药、缓硝黄之峻」）：改成在方中的那一味。
+ * 两味都在、都不在，或合称是方名的一部分（银翘散、知柏地黄丸）时不动。
+ */
+export function withShorthandPairsMatchingHerbs(text: string, candidateHerbs: readonly string[]): { text: string; changed: boolean } {
+  const own = new Set(candidateHerbs.map(identityOf).filter(Boolean));
+  let changed = false;
+  let next = text;
+  for (const pair of SHORTHAND_PAIRS) {
+    if (!next.includes(pair.term)) continue;
+    const present = pair.herbs.filter((herb) => own.has(identityOf(herb)));
+    if (present.length !== 1) continue;
+    const pieces = next.split(pair.term);
+    let built = pieces[0];
+    for (const piece of pieces.slice(1)) {
+      // 合称后面紧跟方名词尾（银翘散、知柏地黄丸）：是方名，不改。
+      if (COUNT_WORD_IN_FORMULA_NAME.test(piece)) {
+        built += `${pair.term}${piece}`;
+      } else {
+        built += `${present[0]}${piece}`;
+        changed = true;
+      }
+    }
+    next = built;
+  }
+  return { text: next, changed };
+}
+
+/** 「二药」「三味」「四味」这类数量词（不含「二者」：它常指两个方面而不是两味药）。 */
+const HERB_COUNT_WORD = /([二两三四五六七八九])(药|味)/gu;
+/** 数量词后紧跟方名的（六味地黄丸、五味消毒饮、四味香薷饮）：数量词是方名的一部分。 */
+const COUNT_WORD_IN_FORMULA_NAME = /^[^，,。；;：:、\s]{0,5}?(?:汤|丸|散|饮|丹|膏)/u;
+
+/**
+ * 数量词与点到的药味数对不上（2026-10-19 甲方标准病历 9：「蝉蜕、炒牛蒡子助其疏散风热…，当归养血和营以调营卫，四味共解风热犯卫」，
+ * 前面只点了三味）。数的是同一段（上一个分号或句号之后）里、数量词之前**作主语**的本方药：逗号、顿号分开的每一小段开头的那味药
+ *（「知母苦寒质润，助石膏泻火…，麦冬甘寒…，二药为臣」里的石膏是宾语，不数）。数量词说的可以是最后几味
+ *（「丹参助君活经，竹茹、陈皮…，黄芪…，三药分承…」），所以只要等于从后往前数的某个数就不动；
+ * 段里作主语的药不到两味时看整句（「盐黄柏…；苍术…，二药寒温相制」跨分号指前后两味），整句也对不上、且整句不到两味时不动
+ *（「二药」只点一味的那一种由交付面单独处理）。药名经 formulaAnalysisHerbMentions 认（别名、炮制名、鹿胶珠＝鹿角胶）；
+ * 落在药名或方名里的数字（五味子、六味地黄丸）不算数量词。
+ */
+export function withRecountedHerbCountWords(text: string, candidateHerbs: readonly string[]): { text: string; changed: boolean } {
+  const own = new Set(candidateHerbs.map(identityOf).filter(Boolean));
+  if (own.size === 0 || !HERB_COUNT_WORD.test(text)) return { text, changed: false };
+  HERB_COUNT_WORD.lastIndex = 0;
+  // 本方药的写法（原名与组成身份名），最长优先：药名识别会把「没药散瘀」「升麻散火」当方名跳过，这里按本方药名直接认开头。
+  const ownNames = [...new Set(candidateHerbs.flatMap((name) => [stripAnnotation(name), identityOf(name)]).filter((name) => name && name.length >= 2))]
+    .sort((left, right) => right.length - left.length);
+  /** 一小段开头作主语的本方药（去掉「佐以」「加」这类引子之后）。 */
+  const headIdentity = (piece: string): string => {
+    const body = piece.trim().replace(SUBJECT_LEAD, "");
+    const mention = formulaAnalysisHerbMentions(body).find((item) => item.start === 0);
+    const identity = mention ? identityOf(mention.token) : identityOf(ownNames.find((name) => body.startsWith(name)) || "");
+    return identity && own.has(identity) ? identity : "";
+  };
+  /** 一段（分号之间）里各小段开头作主语的本方药，按出现顺序去重。 */
+  const subjectsOf = (segment: string): string[] => {
+    const found: string[] = [];
+    for (const piece of segment.split(/[，,、]/u)) {
+      const identity = headIdentity(piece);
+      if (identity && !found.includes(identity)) found.push(identity);
+    }
+    return found;
+  };
+  let changed = false;
+  const rewritten = text.split(/(?<=[。！!])/u).map((sentence) => {
+    const spans = formulaAnalysisHerbMentions(sentence);
+    return sentence.replace(HERB_COUNT_WORD, (match: string, numeral: string, unit: string, offset: number) => {
+      if (spans.some((span) => offset < span.end && offset + match.length > span.start)) return match;
+      const after = sentence.slice(offset + match.length);
+      if (after.startsWith("子") || COUNT_WORD_IN_FORMULA_NAME.test(after)) return match;
+      const stated = numeral === "两" ? 2 : CHINESE_NUMERAL.indexOf(numeral);
+      // 本句数量词之前按分号分段：当前段里从后往前数的任意几味，或从当前段往前整段整段地加，等于原数就不动
+      //（「白芍、当归…；白术、茯苓…，四味共为臣」跨分号指前后两段四味）。
+      const segments = sentence.slice(0, offset).split(/[；;]/u).map(subjectsOf);
+      const current = segments[segments.length - 1] || [];
+      const accepted = new Set(current.map((_item, index) => current.length - index));
+      // 同一味药在前后两段都作主语（「香薷、金银花为君，香薷辛温…；金银花甘寒…，二药一温一清」）只算一次。
+      const union = new Set(current);
+      for (let index = segments.length - 2; index >= 0; index -= 1) {
+        segments[index].forEach((identity) => union.add(identity));
+        accepted.add(union.size);
+      }
+      const running = union.size;
+      if (accepted.has(stated)) return match;
+      const counted = current.length >= 2 ? current.length : running;
+      if (counted < 2 || counted > 9 || (current.length < 2 && segments.length < 2)) return match;
+      changed = true;
+      return `${CHINESE_NUMERAL[counted]}${unit}`;
+    });
+  }).join("");
+  return { text: rewritten, changed };
 }
 
 const GUIDE_PHRASE = /(?:载|引)(?:药|血|火|热)?([上下])行/gu;
@@ -363,7 +471,8 @@ function predicatePieceAround(text: string, from: number, to: number, index: num
 }
 
 function recountSubjectNumerals(segmentText: string, remaining: number): string {
-  return segmentText.replace(/([二两三四五六七八九])(药|味|者)/gu, (_match, _numeral: string, unit: string) =>
+  // 「五味子」里的「五味」不是数量词（2026-10-19 回放：「五味子、煅牡蛎收敛固涩」被数成「二味子」）。
+  return segmentText.replace(/([二两三四五六七八九])(药|味|者)(?!子)/gu, (_match, _numeral: string, unit: string) =>
     remaining >= 2 ? `${CHINESE_NUMERAL[remaining] || ""}${unit}` : "");
 }
 
@@ -611,7 +720,7 @@ export function reviewAuthoredFormulaAnalysis(
           if (/[；;。]$/.test(next)) break;
         }
       }
-      const following = rest.replace(/^([，,]?\s*)([二两三四五六七八九])(药|味)(合|共)?/, (match, lead: string, _numeral: string, unit: string, together: string | undefined) =>
+      const following = rest.replace(/^([，,]?\s*)([二两三四五六七八九])(药|味)(?!子)(合|共)?/, (match, lead: string, _numeral: string, unit: string, together: string | undefined) =>
         ownCount >= 2 ? `${lead}${CHINESE_NUMERAL[ownCount] || ""}${unit}${together || ""}` : ownCount === 1 ? lead : match);
       text = `${text.slice(0, bounds.start)}${kept}${following}`;
     }
@@ -620,6 +729,12 @@ export function reviewAuthoredFormulaAnalysis(
   const guided = withGuideDirectionMatchingHerb(text, ownIdentities);
   if (guided.changed) adjustments.push("guide_direction_corrected");
   text = guided.text;
+  const shorthand = withShorthandPairsMatchingHerbs(text, candidateHerbs);
+  if (shorthand.changed) adjustments.push("shorthand_pair_matched_to_herbs");
+  text = shorthand.text;
+  const recounted = withRecountedHerbCountWords(text, candidateHerbs);
+  if (recounted.changed) adjustments.push("herb_count_word_recounted");
+  text = recounted.text;
   text = tidyPunctuation(text);
   if (text.length > 1200) {
     const cut = text.slice(0, 1200);

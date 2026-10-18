@@ -57,6 +57,20 @@ def parse_herbs(lines: list[str]) -> dict[str, dict]:
                     if name and text:
                         herbs.setdefault(name, {"function": text, "line": index + offset + 1})
                     break
+            # 【使用注意】在同一味正文里、下一味【药性】之前（2026-10-19：饮片使用注意与病历对照，herb-record-caution.ts）。
+            if name in herbs and "caution" not in herbs[name]:
+                for offset in range(1, 80):
+                    if index + offset >= len(lines):
+                        break
+                    candidate = lines[index + offset]
+                    if candidate.startswith("【药性】"):
+                        break
+                    if candidate.startswith("【使用注意】"):
+                        text = candidate.replace("【使用注意】", "").strip(" 　")
+                        if text:
+                            herbs[name]["caution"] = text
+                            herbs[name]["cautionLine"] = index + offset + 1
+                        break
             continue
         # 附药：「附药：椒目」下一行「本品为…功能利水消肿，降气平喘。」；多味附药各起一段「2.鹿角胶　本品为…功能…」。
         numbered = re.match(r"^(?:\d\.)?([一-鿿]{2,5})[　 ]+本品为.*?功能(.*?)。", line)
@@ -116,12 +130,12 @@ def main() -> int:
             "file": CORPUS_REF,
             "sha256": hashlib.sha256(raw).hexdigest(),
             "books": {
-                "herbs": "《中药学》钟赣生主编，全国中医药行业高等教育“十三五”规划教材，各药【功效】与附药「功能」句",
+                "herbs": "《中药学》钟赣生主编，全国中医药行业高等教育“十三五”规划教材，各药【功效】与附药「功能」句；正药另取【使用注意】",
                 "formulaCommentaries": "《方剂学》全国中医药行业高等教育“十三五”规划教材，各方【方解】与【配伍特点】",
             },
             "generator": "scripts/build-herb-textbook-references.py",
         },
-        "note": "只供 M04 方义药物功效核对的第二道确定性判据挡住删除：某味药被说成有某种功效时，药的功效行或任何一首方的方解里这味药紧跟着就有这种功效，就不删。不参与准入、剂量、方向门禁。",
+        "note": "function 与 formulaCommentaries 只供 M04 方义药物功效核对的第二道确定性判据挡住删除：某味药被说成有某种功效时，药的功效行或任何一首方的方解里这味药紧跟着就有这种功效，就不删。caution（【使用注意】）供饮片使用注意与病历对照（herb-record-caution.ts）。都不参与准入、剂量门禁。",
         "herbs": dict(sorted(herbs.items())),
         "formulaCommentaries": dict(sorted(formulas.items())),
     }

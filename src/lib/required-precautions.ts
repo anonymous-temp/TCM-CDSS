@@ -36,8 +36,12 @@ export type RequiredPrecaution =
   /** 病历写着自行配制、泡酒服用的药里有药典标注有毒的药（留出集 S190：自泡生草乌、生川乌药酒）：立即停用，不再自制。 */
   | { kind: "toxic_self_preparation"; herbs: string[] }
   /** 服法与忌口（2026-10-19 验收主集 J：几例注意事项只写调护、没写怎么服或忌什么）。忌口按已定证候的寒热湿积推出。 */
-  | { kind: "administration_and_diet"; diet: string }
+  | { kind: "administration_and_diet"; diet: string; administration: boolean }
   /** 育龄女性、妊娠与哺乳状态都没记录（验收主集 J 3 例判缺）：服药前告知医生，方中孕妇慎用药点名。 */
   | { kind: "reproductive_status_unknown" }
   /** 重度高血压（≥180/120）而无急性靶器官表现（2026-10-19 起不按急症收回剂量）：写给患者的复测与就诊提示。 */
-  | { kind: "severe_hypertension_followup"; reading: string };
+  | { kind: "severe_hypertension_followup"; reading: string }
+  /** 病历写的发病诱因食物（海鲜、啤酒…）：服药期间及以后避开（留出集 S128）。 */
+  | { kind: "trigger_foods"; foods: string[] }
+  /** 痛风：低嘌呤饮食、限酒（尤其啤酒）、多饮水（《中国高尿酸血症与痛风诊疗指南》2019）。留出集 S145。 */
+  | { kind: "gout_diet" };

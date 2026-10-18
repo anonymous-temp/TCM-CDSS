@@ -31,7 +31,7 @@
     },
     {
       "file": "tcm-herb-identity-catalog.json",
-      "sha256": "45dbe038463adbeb5de73fd2ce266d75558be5d3d2e6ce7f02bb60af37550dbf"
+      "sha256": "46b2ad5604564e947bef2295f06199d0800d0439a4b1ec7796dc885970467c00"
     },
     {
       "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
@@ -98651,7 +98651,7 @@
         {
           "rawName": "仙鹤草",
           "canonicalName": "仙鹤草",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -325531,7 +325531,7 @@
         {
           "rawName": "仙鹤草",
           "canonicalName": "仙鹤草",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -349590,8 +349590,9 @@
             },
             {
               "rawName": "炙草",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "炙甘草",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             },
             {
               "rawName": "山栀",
@@ -350869,8 +350870,9 @@
             },
             {
               "rawName": "炙草",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "炙甘草",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             },
             {
               "rawName": "薄荷7叶",
@@ -352911,8 +352913,9 @@
             },
             {
               "rawName": "炙草",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "炙甘草",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             }
           ],
           "disposition": "historical_same_name_variant_not_baseline",
@@ -353702,8 +353705,9 @@
             },
             {
               "rawName": "炙草",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "炙甘草",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             },
             {
               "rawName": "半夏",
@@ -354136,8 +354140,9 @@
             },
             {
               "rawName": "炙草",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "炙甘草",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             }
           ],
           "disposition": "historical_same_name_variant_not_baseline",
@@ -354678,8 +354683,9 @@
             },
             {
               "rawName": "炙草",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "炙甘草",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             },
             {
               "rawName": "陈皮",
@@ -354926,8 +354932,9 @@
             },
             {
               "rawName": "炙草",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "炙甘草",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             },
             {
               "rawName": "官桂",

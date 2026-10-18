@@ -93,8 +93,10 @@ export function parseSecondaryConsistencyDecision(
   }
   if (decision === "remove") {
     const editable = context.editableText;
+    // 只删兼夹说法本身（2026-10-19 甲方标准病历 1 两次：小任务让删「恶寒重、发热轻、无汗、鼻塞流清涕」这类主症分句，
+    // 辨证依据只剩「咳嗽，…」，风寒鉴别投影又把主症补在句末）。要删的分句自己必须是一条兼夹说法。
     const clauses = Array.isArray(parsed.clauses)
-      ? parsed.clauses.map((item) => text(item)).filter((item) => item.length >= 2 && editable.includes(item))
+      ? parsed.clauses.map((item) => text(item)).filter((item) => item.length >= 2 && editable.includes(item) && secondaryPatternClaims(item).length > 0)
       : [];
     return clauses.length > 0 ? { decision: "remove", clauses } : undefined;
   }

@@ -1,4 +1,5 @@
-import { conditionalModificationWithoutTextbook, textbookModificationMatch } from "./tcm-textbook-syndromes";
+import { conditionalModificationWithoutTextbook, textbookModificationMatch, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { textbookBaseIngredients } from "./herb-record-caution";
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { assessConceptionState, assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, isPositiveOrPossibleClinicalState, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
@@ -3061,9 +3062,15 @@ function unsupportedHighImpactHerbScan(
   // 当归身与当归收敛到同一身份；解析不了的名字保持原样，不会误并。
   const findings: Array<{ index: number; name: string; concepts: string[] }> = [];
   const governedFormulaIngredients = allowGovernedFormulaBaseline
-    ? new Set(executableFormulaCompilationReferences(
-        selectedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim())),
-      ).flatMap((formula) => formula.ingredients).map((name) => canonicalTcmHerbIdentity(name)))
+    ? new Set([
+        ...executableFormulaCompilationReferences(
+          selectedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim())),
+        ).flatMap((formula) => formula.ingredients),
+        // 教材给本证配的代表方（M03 已锁定）的原方药味。按证去掉其中补益之品后组成不足八成、方名身份没有成立时，
+        // 原方药味仍是教材为本证所配：2026-10-19 留出例 S046，呃逆·胃火上逆配竹叶石膏汤，去人参、粳米后 5/7，
+        // 原方的半夏按「温」与清火对立被驳回，两轮修复都没修成，整方退成非剂量页。
+        ...signedTextbookFormulaIngredients(prior),
+      ].map((name) => canonicalTcmHerbIdentity(name)))
     : new Set<string>();
   for (const [index, herb] of herbs.entries()) {
     const herbName = String(herb.name || "").trim();
@@ -3108,6 +3115,17 @@ function unsupportedHighImpactHerbScan(
     if (unsupported.length > 0) findings.push({ index, name: herbName, concepts: unsupported });
   }
   return findings;
+}
+
+/** 已签名 M03 锁定的、又正是教材给本证配的代表方的组成（教材表该证一行；锁定的方不是这一行的方时为空）。 */
+function signedTextbookFormulaIngredients(prior: M03ReasoningLike | null | undefined): string[] {
+  const overview = prior?.overview;
+  const locked = Array.isArray(overview?.recommendedFormulaNames)
+    ? overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+    : [];
+  if (locked.length === 0) return [];
+  const row = textbookRowForSyndrome(String(overview?.tcmDiseaseName || ""), String(overview?.primarySyndrome || ""));
+  return textbookBaseIngredients(row, locked);
 }
 
 export function highImpactHerbDirectionIssue(

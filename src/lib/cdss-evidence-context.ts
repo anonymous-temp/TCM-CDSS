@@ -361,6 +361,7 @@ function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope, medic
           if (formula && typeof formula === "object" && !Array.isArray(formula)) {
             const record = formula as { patentAndWestern?: unknown };
             if (Array.isArray(record.patentAndWestern)) {
+              const medicinesBeforeFilter = record.patentAndWestern.length;
               const filteredMedicines = record.patentAndWestern.filter((item) => {
                 if (!item || typeof item !== "object" || Array.isArray(item)) return false;
                 const medicine = item as {
@@ -392,9 +393,14 @@ function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope, medic
                   (!medicineCaseText || medicineProblemMatchesCase(problem, medicineCaseText));
               });
               record.patentAndWestern = filteredMedicines;
-              (record as { medicineCandidateStatus?: unknown }).medicineCandidateStatus = filteredMedicines.length > 0
-                ? { status: "available", reason: "已形成与本例问题匹配并绑定真实说明书条目的候选。" }
-                : { status: "no_evidence_match", reason: "未检索到与本例诊断或证候匹配、且可核验到具体说明书条目的西药或中成药候选。" };
+              // 这里一条没删时保留编译器写的状态：编译器已因与汤剂组成重复把推荐删光时，原因写的是「组成重复」，
+              // 不要再改成「未检索到…候选」（2026-10-19，甲方病历 7：三黄片、栀子金花丸与自服的黄连上清丸、汤剂里的黄连大黄重复）。
+              const existingStatus = (record as { medicineCandidateStatus?: unknown }).medicineCandidateStatus;
+              if (filteredMedicines.length !== medicinesBeforeFilter || !existingStatus) {
+                (record as { medicineCandidateStatus?: unknown }).medicineCandidateStatus = filteredMedicines.length > 0
+                  ? { status: "available", reason: "已形成与本例问题匹配并绑定真实说明书条目的候选。" }
+                  : { status: "no_evidence_match", reason: "未检索到与本例诊断或证候匹配、且可核验到具体说明书条目的西药或中成药候选。" };
+              }
             }
           }
         }

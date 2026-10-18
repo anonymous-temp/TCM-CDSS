@@ -31,21 +31,25 @@ export type WesternCriteriaReference =
   | { kind: "table"; entry: WesternCriteriaEntry }
   | { kind: "search"; excerpts: Array<{ siteName: string; title: string; summary: string; url: string }> };
 
-type CriteriaTable = { entries: Map<string, WesternCriteriaEntry>; qualifiers: { course: string[]; side: string[] } };
+type CriteriaTable = { entries: Map<string, WesternCriteriaEntry>; qualifiers: { course: string[]; side: string[]; population: string[] } };
 let table: CriteriaTable | undefined;
 function criteriaTable(): CriteriaTable {
   if (table) return table;
-  table = { entries: new Map(), qualifiers: { course: [], side: [] } };
+  table = { entries: new Map(), qualifiers: { course: [], side: [], population: [] } };
   try {
     const file = path.join(process.cwd(), "src/data/western-diagnostic-criteria.source.json");
     const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as {
       entries?: WesternCriteriaEntry[];
-      nameLookupQualifiers?: { course?: unknown; side?: unknown };
+      nameLookupQualifiers?: { course?: unknown; side?: unknown; population?: unknown };
     };
     for (const entry of parsed.entries || []) if (entry?.name) table.entries.set(entry.name, entry);
     const words = (value: unknown) => (Array.isArray(value) ? value : []).filter((item): item is string => typeof item === "string" && item.length > 0)
       .sort((a, b) => b.length - a.length);
-    table.qualifiers = { course: words(parsed.nameLookupQualifiers?.course), side: words(parsed.nameLookupQualifiers?.side) };
+    table.qualifiers = {
+      course: words(parsed.nameLookupQualifiers?.course),
+      side: words(parsed.nameLookupQualifiers?.side),
+      population: words(parsed.nameLookupQualifiers?.population),
+    };
   } catch {
     // 表不在（构建前、或镜像里没带）：只走现场检索。
   }
@@ -57,12 +61,17 @@ function withoutLeadingQualifier(name: string, qualifiers: string[]): string {
   return hit ? name.slice(hit.length) : name;
 }
 
-/** 表里的条目：先按原名，再按去掉病程限定、去掉侧别前缀后的名称（前缀词表在数据文件 nameLookupQualifiers 里）。 */
+/**
+ * 表里的条目：先按原名，再按去掉病程限定、侧别、人群（儿童/小儿）前缀后的名称（前缀词表在数据文件 nameLookupQualifiers 里）。
+ * 人群前缀与病程限定可以叠着写（「儿童慢性功能性便秘」），两层都去掉再查一次。
+ */
 export function westernCriteriaEntry(name: string): WesternCriteriaEntry | undefined {
   const { entries, qualifiers } = criteriaTable();
   const trimmed = name.trim();
+  const withoutPopulation = withoutLeadingQualifier(trimmed, qualifiers.population);
   return entries.get(trimmed) || entries.get(withoutLeadingQualifier(trimmed, qualifiers.course)) ||
-    entries.get(withoutLeadingQualifier(trimmed, qualifiers.side));
+    entries.get(withoutLeadingQualifier(trimmed, qualifiers.side)) || entries.get(withoutPopulation) ||
+    entries.get(withoutLeadingQualifier(withoutPopulation, qualifiers.course));
 }
 
 /**

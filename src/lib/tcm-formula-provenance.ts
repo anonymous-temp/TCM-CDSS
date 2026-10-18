@@ -2465,6 +2465,30 @@ function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: For
 }
 
 /**
+ * 方名在方剂名录里、组成与给定组成（教材该证代表方的组成）逐味相同的那一条的出处（2026-10-19）。
+ *
+ * 交付面在「方名随辨证阶段改回教材代表方」时写出处：受治理编译目录有这首方就用它的出处，没有时此前直接写
+ *「《中医内科学》头痛·血虚头痛代表方」。加味四物汤编译目录里没有（名录里同名 115 条，不可锁定），可名录里《金匮翼》卷五那一条
+ *（生地、当归、蔓荆、黄芩、白芍、炙草、甘菊、川芎）与教材组成逐味相同（甲方标准病历 3 第三次生成，评审判出处不通过：
+ * 目录里有原书时不得写教材）。这里只认**逐味相同**（两边都按组成身份归一：生地＝生地黄、炙草＝甘草、甘菊＝菊花）；
+ * 逐味相同的几条出处不是同一本书时不选（不任挑一条）。国家经典名方目录有这首方时以它为准。
+ */
+export function catalogSourceForExactComposition(formulaName: string, herbs: readonly string[]): string | undefined {
+  const normalized = normalizeFormulaName(String(formulaName || ""));
+  const wanted = new Set(herbs.map((name) => compositionIdentityName(String(name || ""))).filter(Boolean));
+  if (!normalized || wanted.size < 2) return undefined;
+  const sameSet = (ingredients: readonly string[]) => {
+    const identities = new Set(ingredients.map((name) => compositionIdentityName(catalogIngredientWritten(String(name || "")))).filter(Boolean));
+    return identities.size === wanted.size && [...identities].every((identity) => wanted.has(identity));
+  };
+  const official = normalizedOfficialClassics.get(normalized);
+  if (official && sameSet(official.variant.ingredients)) return official.variant.source;
+  const matches = (normalizedCatalog.get(normalized)?.variants || []).filter((variant) => sameSet(variant.ingredients));
+  const books = new Set(matches.map((variant) => variant.source.match(/《([^》]+)》/u)?.[1] || variant.source));
+  return matches.length > 0 && books.size === 1 ? matches[0].source : undefined;
+}
+
+/**
  * 自拟方的「组方参考」（2026-09-29，甲方 9.24/9.27 测评 2.6「方剂出处未展示」：自拟方的出处栏写的是
  * 「本例证候、病机、治法与药味功效的结构化匹配（病例内推理，需医生复核）」这句工程话术）。
  *

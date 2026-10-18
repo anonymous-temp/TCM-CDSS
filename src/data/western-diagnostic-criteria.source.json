@@ -3,7 +3,7 @@
  "generatedBy": "scripts/build-western-diagnostic-criteria.mjs",
  "review": "2026-10-18 逐条人工核对（对照所列诊疗手册/指南页面与公认诊断标准）；改动的条目带 reviewCorrection（改前内容与依据）。用于西医病名一致性核对的情形 D，不用于诊断本身。",
  "nameLookupQualifiers": {
-  "basis": "查表时去掉的病名修饰前缀：病程限定（急性/慢性/复发性/反复）与侧别（左侧/右侧/双侧/左/右/双）不改变诊断标准要点，表里按核心病名收录（如「急性胃炎」按「胃炎」、「右侧坐骨神经痛」按「坐骨神经痛」查）。",
+  "basis": "查表时去掉的病名修饰前缀：病程限定（急性/慢性/复发性/反复）与侧别（左侧/右侧/双侧/左/右/双）不改变诊断标准要点，表里按核心病名收录（如「急性胃炎」按「胃炎」、「右侧坐骨神经痛」按「坐骨神经痛」查）。人群前缀（儿童/小儿）同样不改变查表用的核心病名（「儿童功能性便秘」按「功能性便秘」查，病程门槛里已写明儿童口径；2026-10-19 留出例 S161）。",
   "sourceRef": "src/lib/western-diagnostic-criteria.server.ts westernCriteriaEntry；2026-10-18",
   "course": [
    "急性",
@@ -18,6 +18,10 @@
    "左",
    "右",
    "双"
+  ],
+  "population": [
+   "儿童",
+   "小儿"
   ]
  },
  "entries": [
@@ -166,9 +170,11 @@
   },
   {
    "name": "肠易激综合征",
-   "clinicallyDiagnosable": true,
-   "requiredTests": [],
-   "durationThreshold": "诊断前症状出现至少6个月，近3个月平均每周至少1天反复腹痛",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "50岁及以上起病、或有报警征象（便血、黑便、消瘦、贫血、近期排便习惯改变、结直肠癌家族史）时需结肠镜排除器质性病变；未满50岁且无报警征象者不需要检查"
+   ],
+   "durationThreshold": "成人：诊断前症状出现至少6个月，近3个月平均每周至少1天反复腹痛；未满18岁（罗马IV儿童标准）：病程满2个月",
    "definingFeatures": [
     "腹痛与排便相关",
     "腹痛伴随大便频率改变",
@@ -181,12 +187,20 @@
    "title": "肠易激综合征 (IBS) - 消化道功能障碍 - 《默沙东诊疗手册大众版》",
    "retrievedAt": "2026-10-18",
    "reviewCorrection": {
-    "basis": "罗马IV标准",
+    "basis": "罗马IV儿童与青少年标准：功能性便秘病程满1个月（4岁以上与4岁以下均为1个月），功能性消化不良、肠易激综合征病程满2个月；成人罗马IV为症状出现至少6个月。验收集留出例 S161（9岁、3个月病程）曾被按成人6个月门槛改成「便秘」。功能性诊断是排除性诊断：50岁及以上新发、或有报警征象的便秘与排便习惯改变，须结肠镜排除结直肠肿瘤等器质性病变后才能下功能性诊断（AGA 便秘指南；我国临床上常把40岁以上列为报警因素）。验收集留出例 S058（76岁、未做结肠镜）曾交付「慢性功能性便秘」。",
     "before": {
-     "durationThreshold": "过去3个月中每周至少有1天发生腹痛"
+     "clinicallyDiagnosable": true,
+     "requiredTests": [],
+     "durationThreshold": "诊断前症状出现至少6个月，近3个月平均每周至少1天反复腹痛"
+    },
+    "earlier": {
+     "basis": "罗马IV标准",
+     "before": {
+      "durationThreshold": "过去3个月中每周至少有1天发生腹痛"
+     }
     }
    },
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-19"
   },
   {
    "name": "痤疮",
@@ -557,9 +571,11 @@
   },
   {
    "name": "功能性便秘",
-   "clinicallyDiagnosable": true,
-   "requiredTests": [],
-   "durationThreshold": "诊断前症状出现至少6个月，近3个月符合诊断标准",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "50岁及以上起病、或有报警征象（便血、黑便、消瘦、贫血、近期排便习惯改变、结直肠癌家族史）时需结肠镜排除器质性病变；未满50岁且无报警征象者不需要检查"
+   ],
+   "durationThreshold": "成人：诊断前症状出现至少6个月、近3个月符合诊断标准；未满18岁（罗马IV儿童标准）：病程满1个月",
    "definingFeatures": [
     "超过25%的排便需要很费力",
     "超过25%的排便为硬便",
@@ -573,18 +589,20 @@
    "title": "漫談便秘與痔瘡",
    "retrievedAt": "2026-10-18",
    "reviewCorrection": {
-    "basis": "罗马IV标准",
+    "basis": "罗马IV儿童与青少年标准：功能性便秘病程满1个月（4岁以上与4岁以下均为1个月），功能性消化不良、肠易激综合征病程满2个月；成人罗马IV为症状出现至少6个月。验收集留出例 S161（9岁、3个月病程）曾被按成人6个月门槛改成「便秘」。功能性诊断是排除性诊断：50岁及以上新发、或有报警征象的便秘与排便习惯改变，须结肠镜排除结直肠肿瘤等器质性病变后才能下功能性诊断（AGA 便秘指南；我国临床上常把40岁以上列为报警因素）。验收集留出例 S058（76岁、未做结肠镜）曾交付「慢性功能性便秘」。",
     "before": {
-     "durationThreshold": "症状存在至少三个月"
+     "clinicallyDiagnosable": true,
+     "requiredTests": [],
+     "durationThreshold": "诊断前症状出现至少6个月，近3个月符合诊断标准"
     }
    },
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-19"
   },
   {
    "name": "功能性消化不良",
    "clinicallyDiagnosable": true,
    "requiredTests": [],
-   "durationThreshold": "诊断前症状出现至少6个月，近3个月符合诊断标准",
+   "durationThreshold": "诊断前症状出现至少6个月，近3个月符合诊断标准；未满18岁（罗马IV儿童标准）：病程满2个月",
    "definingFeatures": [
     "存在上腹痛或烧灼感、餐后饱胀、早饱等核心症状",
     "无结构、器质、全身或代谢异常可解释症状",
@@ -597,12 +615,18 @@
    "title": "Second Asian Consensus Report on Functional... : Journal of Gastroenterology & Hepatology - SYSTEMATIC REVIEW",
    "retrievedAt": "2026-10-18",
    "reviewCorrection": {
-    "basis": "罗马IV标准",
+    "basis": "罗马IV儿童与青少年标准：功能性便秘病程满1个月（4岁以上与4岁以下均为1个月），功能性消化不良、肠易激综合征病程满2个月；成人罗马IV为症状出现至少6个月。验收集留出例 S161（9岁、3个月病程）曾被按成人6个月门槛改成「便秘」。",
     "before": {
-     "durationThreshold": ""
+     "durationThreshold": "诊断前症状出现至少6个月，近3个月符合诊断标准"
+    },
+    "earlier": {
+     "basis": "罗马IV标准",
+     "before": {
+      "durationThreshold": ""
+     }
     }
    },
-   "reviewedAt": "2026-10-18"
+   "reviewedAt": "2026-10-19"
   },
   {
    "name": "骨关节炎",

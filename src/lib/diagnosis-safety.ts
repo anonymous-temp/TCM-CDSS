@@ -837,6 +837,20 @@ function freshAbsoluteDateInText(value: string, maxAgeDays = 30): boolean {
   return ageDays >= -1 && ageDays <= maxAgeDays;
 }
 
+/** 检查名的常用简称（只用于在病历里找这项检查的那句记录）。 */
+const EXAM_TERM_SYNONYMS: Readonly<Record<string, readonly string[]>> = { 甲功: ["甲状腺功能"], 甲状腺功能: ["甲功"] };
+/**
+ * 病历里关于这项检查结果的那一句（去掉「辅助检查：」这类字段标签），照录给医生看；病历没写这项检查的结果时说「病历未记录本次X结果」。
+ * 只照录、不判断新旧：新旧由 sourceDocumentsCurrentNormality 判，这里只负责让医生看到原文。
+ */
+function recordedExamResultNotice(source: string, term: string): string {
+  const names = [term, ...(EXAM_TERM_SYNONYMS[term] || [])];
+  const sentence = normalizeClinicalText(source).split(/[。；;\n]+/)
+    .map((item) => item.replace(/^\s*[^：:，,]{1,8}[：:]\s*/u, "").trim())
+    .find((item) => names.some((name) => item.includes(name)) && /(?:正常|异常|升高|降低|阳性|阴性|未见|增高|减低)/.test(item));
+  return sentence && sentence.length <= 60 ? `病历记录${sentence}` : `病历未记录本次${term}结果`;
+}
+
 function sourceDocumentsCurrentNormality(source: string, term: string): boolean {
   const stale = /(既往|曾经|曾有|曾|陈旧|以前|之前|过去|当时|去年|上[周月次年]|前几[天日]|(?:\d+|[一二两三四五六七八九十半数几多])\s*(?:年|个月|月|周|天|日)前)/;
   const normal = /(正常|未见(?:明显)?异常|无(?:明显)?异常|阴性|未升高|参考范围内|功能良好)/;
@@ -887,12 +901,15 @@ function qualifiedFormDocumented(source: string, qualifier: string, term: string
   const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return hasPatternWithoutNegation(normalizeClinicalText(source), new RegExp(`${escape(term)}[^，,。；;\\n无未]{0,4}${escape(qualifier)}`, "u"));
 }
+// 倒装的程度限定（「无头痛剧烈」「未见头痛如劈」，2026-10-19 甲方标准病历 3 第 1 次生成辨病依据成「…故归头痛；有头痛。」）。
+const POSTPOSED_TERM_QUALIFIER = /^(?:较|很|特别|极|甚)?(?:剧烈|如劈|欲裂|如裂|难忍|剧)/u;
 function termOnlyQualifiedIn(span: string, term: string, source: string): boolean {
   const qualifierAtEnd = new RegExp(`(?:${NEGATED_TERM_QUALIFIER_SOURCE})$`, "u");
   let at = span.indexOf(term);
   let seen = false;
   while (at >= 0) {
-    const qualifier = span.slice(Math.max(0, at - 5), at).match(qualifierAtEnd)?.[0];
+    const qualifier = span.slice(Math.max(0, at - 5), at).match(qualifierAtEnd)?.[0] ||
+      span.slice(at + term.length, at + term.length + 4).match(POSTPOSED_TERM_QUALIFIER)?.[0]?.replace(/^(?:较|很|特别|极|甚)/u, "");
     if (!qualifier || qualifiedFormDocumented(source, qualifier, term)) return false;
     seen = true;
     at = span.indexOf(term, at + term.length);
@@ -1201,7 +1218,10 @@ function sanitizeUngroundedNegationText(
         !sourceDocumentsCurrentNormality(source, term),
     );
     if (unsupportedNormality.length > 0) {
-      return `${prefix}相关检查结果以本次病历记录为准`;
+      // 说清是哪项检查、病历里写的是什么（2026-10-19 留出例 S074：病历「肝功能、甲状腺功能正常（1周前本院）」，鉴别要点被改成
+      //「相关检查结果以本次病历记录为准」，医生读不出是哪项、结果是什么）。病历写了这项检查的结果就照录那一句（连同时间），没写就说未记录。
+      const notices = [...new Set(unsupportedNormality.map((term) => recordedExamResultNotice(source, term)))];
+      return `${prefix}${notices.join("；")}`;
     }
     if (/(?:患者|病人|主诉|自诉|症见|表现为|伴有|出现|可见|现有)/.test(clause)) {
       const unsupportedPositive = CLINICAL_POSITIVE_FACT_TERMS.filter(

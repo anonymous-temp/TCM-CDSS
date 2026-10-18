@@ -1285,7 +1285,7 @@ const checkAsync = async (name, run) => {
   const { requiredPrecautionsPromptSection } = precautionModule;
   // 2026-10-19 起另有两类通用项（服法与忌口、育龄女性妊娠哺乳状态未记录），见 test-r1019-remediation 6.x。
   // 本节断言的是 10/17 这几类专项「哪些情况出、哪些不出」，比对时把通用项滤掉。
-  const GENERAL_PRECAUTION_KINDS = new Set(["administration_and_diet", "reproductive_status_unknown"]);
+  const GENERAL_PRECAUTION_KINDS = new Set(["administration_and_diet", "reproductive_status_unknown", "trigger_foods", "gout_diet", "severe_hypertension_followup", "toxic_self_preparation"]);
   const requiredPrecautionsForCase = (...args) => precautionModule.requiredPrecautionsForCase(...args).filter((item) => !GENERAL_PRECAUTION_KINDS.has(item.kind));
   const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
   const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");

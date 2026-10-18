@@ -1,4 +1,4 @@
-import { formallyAdministeredMedicationMentions, recordedMedicationMentions, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
+import { formallyAdministeredMedicationMentions, recordedMedicationMentions, recordsAlcoholUse, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
 import { clinicalGroundingText, currentVitalMeasurements, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
@@ -11,7 +11,7 @@ import {
 import localMedicineIndex from "../data/local-patent-medicine-index.json" with { type: "json" };
 import { catalogSharedComposition } from "./tcm-formula-provenance";
 import { getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
-import { dietRestrictionForSyndromeText } from "./tcm-therapy-phrasing";
+import { dietRestrictionForSyndromeText, recordedTriggerFoods } from "./tcm-therapy-phrasing";
 import type { RequiredPrecaution } from "./required-precautions";
 
 export type { RequiredPrecaution } from "./required-precautions";
@@ -121,6 +121,12 @@ export function requiredPrecautionsForCase(
   if ([prior?.westernDiagnosis?.primary?.name, prior?.overview?.tcmDiseaseName].some((value) => /带状疱疹|蛇串疮/u.test(String(value || "")))) {
     items.push({ kind: "herpes_zoster_antiviral" });
   }
+  // 痛风（《中国高尿酸血症与痛风诊疗指南》2019：限制高嘌呤食物与酒精尤其啤酒、多饮水）。
+  if ([prior?.westernDiagnosis?.primary?.name, prior?.overview?.tcmDiseaseName].some((value) => /痛风/u.test(String(value || "")))) {
+    items.push({ kind: "gout_diet" });
+  }
+  const triggerFoods = recordedTriggerFoods(presentIllnessText(state));
+  if (triggerFoods.length > 0) items.push({ kind: "trigger_foods", foods: triggerFoods });
   // 备孕/未避孕（2026-10-14 起照常给剂量、慎用药逐味标注）：注意事项要写一句服药期间月经逾期先验孕（留出集 S102 评审判缺）。
   if (conceptionWithoutPregnancyOrLactation(grounding)) items.push({ kind: "conception_pregnancy_check" });
   else if (reproductiveAdviceRelevant(state) && assessPregnancyState(grounding).status === "unknown" &&
@@ -166,7 +172,11 @@ export function requiredPrecautionsForCase(
     const overview = prior.overview;
     const syndromeText = [overview?.primarySyndrome, ...(Array.isArray(overview?.secondarySyndromes) ? overview.secondarySyndromes : []), prior.therapy?.overallMethod]
       .map((value) => String(value || "")).join("，");
-    items.push({ kind: "administration_and_diet", diet: dietRestrictionForSyndromeText(syndromeText) });
+    // 病历写了饮酒（个人史「饮酒30年」「嗜酒」）才写戒酒，与饮食栏「忌酒」一致；红旗未解除或不给剂量时只写忌口、不写怎么服
+    //（2026-10-14 起红旗页不写服法；10/19 留出集 S178/S188/S190 红旗页仍出现「本方汤药宜饭后温服」，是这条规则补的）。
+    const drinking = recordsAlcoholUse(grounding);
+    const doseAllowed = state.safetyGate ? state.safetyGate.status !== "red_flag" && state.safetyGate.allowDosePrescription !== false : true;
+    items.push({ kind: "administration_and_diet", diet: `${dietRestrictionForSyndromeText(syndromeText)}${drinking ? "，戒酒" : ""}`, administration: doseAllowed });
   }
   return items;
 }
@@ -188,12 +198,16 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     }
     if (item.kind === "pediatric_administration") return `${order}患儿${item.ageYears < 1 ? `${Math.max(1, Math.round(item.ageYears * 12))}个月` : `${Math.floor(item.ageYears)}岁`}：写一条给家长的服药方法（少量多次、分次喂服，不要强灌，不自行加量）。`;
     if (item.kind === "elderly_administration") return `${order}患者${Math.floor(item.ageYears)}岁：写一条与年龄相关的服药注意（如起身宜缓、防跌倒）。`;
-    if (item.kind === "current_medications") return `${order}病历记录患者${item.given?.length ? "用过或正在使用" : "正在使用"}${item.names.join("、")}：写一条它与本方一起用时要注意的事（告知医生${item.given?.length ? "现在是否还在用" : ""}、是否继续由医生决定，口服的中西药间隔服用；乳膏、贴剂等外用药写「外用」，不写服用；与本方有明确相互作用的写出来）。`;
+    if (item.kind === "current_medications") return `${order}病历记录患者${item.given?.length ? "用过或正在使用" : "正在使用"}${item.names.join("、")}：写一条它与本方一起用时要注意的事（告知医生${item.given?.length ? "现在是否还在用" : ""}、是否继续由医生决定；口服药写「与中药间隔约1小时服用」；乳膏、贴剂等外用药只写「正在外用的某药请告知医生」，不写服用、不写间隔；与本方有明确相互作用的写出来）。`;
     if (item.kind === "unnamed_medication") return `${order}病历记录患者自行用过药但没写药名：写一条请把正在用的药（药名、用法）告诉医生，避免与本方重复或相互影响。`;
     if (item.kind === "herpes_zoster_antiviral") return `${order}带状疱疹：写明须尽早到医院由医生评估是否口服抗病毒药（发疹3天内、仍有新水疱或年龄50岁以上尤应尽早），疼痛明显时一并告知医生；皮疹累及眼周、耳部或出现视物模糊、听力改变、剧烈头痛须立即就医。`;
-    if (item.kind === "administration_and_diet") return `${order}写一条怎么服和忌什么：按本方煎服法写饭前或饭后、温服，忌口随证写（本例${item.diet}）。`;
+    if (item.kind === "administration_and_diet") return item.administration
+      ? `${order}写一条怎么服和忌什么：按本方煎服法写饭前或饭后、温服，忌口随证写（本例${item.diet}）。`
+      : `${order}写一条忌口（本例${item.diet}）；本例暂不给剂量，不写怎么服。`;
     if (item.kind === "reproductive_status_unknown") return `${order}写一条：如已怀孕、可能怀孕或正在哺乳，须服药前告知医生（患者是育龄女性；不要写「未记录」这类话，也不用逐味点名哪些药慎用——药表里已逐味标注）。`;
     if (item.kind === "severe_hypertension_followup") return `${order}本次血压${item.reading}明显偏高：写一条请患者今天复测血压，并当日或数日内到心内科或全科就诊调整降压药；出现胸痛、气短、剧烈头痛、视物模糊、肢体无力或言语不清须立即就医。`;
+    if (item.kind === "gout_diet") return `${order}痛风：写明低嘌呤饮食（少吃海鲜、动物内脏、浓肉汤），戒酒尤其啤酒，多饮水。`;
+    if (item.kind === "trigger_foods") return `${order}本次发病与进食${item.foods.join("、")}有关：写明服药期间及以后避免${item.foods.join("、")}。`;
     if (item.kind === "toxic_self_preparation") return `${order}病历记录患者自行配制并服用含${item.herbs.join("、")}的药（药典标注有毒）：写明立即停用、不要再自行配制服用，并写出须立即就医的中毒表现（口唇舌及四肢发麻、心慌、心跳不齐、呼吸困难）。`;
     if (item.kind === "conception_pregnancy_check") return `${order}写一条（患者备孕或未避孕）：服药期间如月经逾期须先验孕，确认怀孕立即停药并告知医生；不用逐味点名哪些药慎用（药表里已逐味标注）。`;
     return `${order}${item.disease}是细菌感染：写明须到医院由医生决定抗菌药物治疗，以及寒战高热、红肿迅速扩大等须立即就医的表现。`;

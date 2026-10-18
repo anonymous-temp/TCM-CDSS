@@ -421,6 +421,7 @@ function questionBlock(index: number, question: string, reason: string, field: s
  * 2026-10-13：模型判断「不需要再问」而调用方的流程仍要一道题时，以前给的是「总体在加重、缓解还是反复波动」
  *（合成集 190 例里 12 例），对辨证没有用。这四项是区分寒热虚实的基本依据；每项只在病历完全没有提到时才问，
  * 四项都写了就返回 undefined，由后面的兜底接手。记录判据是闭集词形，只用来决定「问不问」，不参与任何安全判断。
+ * 选项不带「或」（2026-10-19 r1019 复测：「口不渴，或只想喝少量热水」两次被评审判「选项含或、不能直接写进病历」）。
  */
 const BASIC_INQUIRY_COLD_HEAT_QUESTION = "平时或这次发病以来，是怕冷还是怕热？";
 const BASIC_INQUIRY_THIRST_QUESTION = "口渴吗？想喝凉的还是热的？";
@@ -429,17 +430,17 @@ const BASIC_INQUIRY_AXES: ReadonlyArray<{ recorded: RegExp; question: string; op
     // 发烧、高烧、低烧与发热同义；寒战、发抖是怕冷的表现（2026-10-19，r1019：「发高烧39.6…烧的发抖」被问「怕冷还是怕热」，评审判重复）。
     recorded: /怕冷|畏寒|恶寒|畏冷|形寒|怕热|恶热|发热|发烧|高烧|低烧|身热|烘热|潮热|烦热|手足心热|肢冷|不温|(?:手|脚|足)[^，,。；;]{0,3}(?:冰|凉)|喜暖|喜温|得温|得热|遇寒|遇冷|受凉|喜凉|喜冷|恶风|怕风|寒热|寒战|冷战|发抖/,
     question: BASIC_INQUIRY_COLD_HEAT_QUESTION,
-    options: ["怕冷，喜暖，手脚偏凉", "怕热，喜凉，或手足心发热"],
+    options: ["怕冷，喜暖，手脚偏凉", "怕热，喜凉"],
   },
   {
     recorded: /口渴|口干|咽干|不渴|喜饮|欲饮|饮水|饮冷|饮热|热饮|冷饮|口淡|口苦|口黏|口腻/,
     question: BASIC_INQUIRY_THIRST_QUESTION,
-    options: ["口干口渴，想喝凉的", "口不渴，或只想喝少量热水"],
+    options: ["口干口渴，想喝凉的", "口不渴，想喝热的"],
   },
   {
     recorded: /大便|便秘|便溏|便干|便稀|腹泻|泄泻|下利|二便/,
     question: "平时大便情况怎样？",
-    options: ["大便干结，排便费力", "大便稀溏或黏滞不爽"],
+    options: ["大便干结，排便费力", "大便稀溏，不成形"],
   },
   {
     recorded: /汗/,
@@ -1049,6 +1050,58 @@ function splitTongueAndPulse(text: string): { tongue: string; pulse: string } | 
   const pulse = text.slice(at).replace(/[。；;，,\s]+$/u, "").trim();
   return /[舌苔]/u.test(tongue) && pulse ? { tongue, pulse } : undefined;
 }
+/**
+ * 只问舌象或只问脉象的题（模型写的、服务端教材题都一样）：选项两两互斥才出（2026-10-19，甲方病历 7 第 1 次生成：
+ * 「舌苔更接近下列哪一种？」选项「舌红，苔黄」对「舌红，苔薄黄」——苔黄包含薄黄，两个选项还都预设了舌红，独立评审判不合格）。
+ * 判据与教材题同一份（tongueOptionsMutuallyExclusive / pulseOptionsMutuallyExclusive）：不互斥就删题，走与确定性删题同一条收口
+ *（病历够辨证时 proceed，否则出服务端的单问点题）。互斥时，各选项都写着的同一小句（「舌红」）去掉——那是题目替医生预设的、
+ * 并没有问；题干按剩下的内容改成问舌苔、舌质或舌象。返回 "remove"、改写后的题，或原题。
+ */
+const TONGUE_BODY_CLAUSE = /舌(?:质|体)?(?:尖|边)?(?:淡红|淡白|淡|红绛|绛|红|紫暗|青紫|紫|暗|黯)/u;
+function tongueAspectOf(clauses: readonly string[]): "coating" | "body" | "mixed" {
+  const coating = clauses.some((clause) => /苔/u.test(clause));
+  const body = clauses.some((clause) => TONGUE_BODY_CLAUSE.test(clause) && !/苔/u.test(clause));
+  return coating && !body ? "coating" : body && !coating ? "body" : "mixed";
+}
+const optionClauses = (value: string) => value.split(/[，,、；;\s]+/u).map((clause) => clause.trim()).filter(Boolean);
+function singleTongueOrPulseQuestion(question: M02PlanQuestion): M02PlanQuestion | "remove" {
+  const clinical = question.options.filter((option) => option.kind === "clinical_fact");
+  const values = clinical.map((option) => (option.recordValue || option.answer || option.label || "").trim());
+  if (values.length < 2) return question;
+  const pairwise = (list: readonly string[], exclusive: (a: string, b: string) => boolean) =>
+    list.every((value, index) => list.slice(index + 1).every((other) => exclusive(value, other)));
+  if (values.every((value) => /脉/u.test(value) && !/[舌苔]/u.test(value))) {
+    return pairwise(values.map(withoutFingerVeinClause), pulseOptionsMutuallyExclusive) ? question : "remove";
+  }
+  if (!values.every((value) => /[舌苔]/u.test(value) && !/脉/u.test(value))) return question;
+  if (!pairwise(values, tongueOptionsMutuallyExclusive)) return "remove";
+  const clauseLists = values.map(optionClauses);
+  const shared = clauseLists[0].filter((clause) => clauseLists.every((list) => list.includes(clause)));
+  const remaining = clauseLists.map((list) => list.filter((clause) => !shared.includes(clause)));
+  const strip = shared.length > 0 && remaining.every((list) => list.length > 0);
+  const aspect = tongueAspectOf((strip ? remaining : clauseLists).flat());
+  const stemAspect = /舌质|舌色|舌体/u.test(question.question) && !/苔|舌象/u.test(question.question) ? "body"
+    : /苔/u.test(question.question) && !/舌象|舌质|舌色|舌体/u.test(question.question) ? "coating" : "mixed";
+  if (!strip && (stemAspect === "mixed" || stemAspect === aspect)) return question;
+  const stem = aspect === "coating" ? "本例的舌苔更接近下面哪一种？" : aspect === "body" ? "本例的舌质更接近下面哪一种？" : "本例的舌象更接近下面哪一种？";
+  const rewrite = (value: string | undefined) => {
+    if (!value || !strip) return value;
+    const kept = optionClauses(value).filter((clause) => !shared.includes(clause));
+    return kept.length > 0 ? kept.join("，") : value;
+  };
+  return {
+    ...question,
+    question: stem,
+    targetField: "tcmTongue" as const,
+    options: question.options.map((option) => option.kind !== "clinical_fact" ? option : {
+      ...option,
+      label: rewrite(option.label) || option.label,
+      answer: rewrite(option.answer) || option.answer,
+      ...(option.recordValue ? { recordValue: rewrite(option.recordValue) } : {}),
+    }),
+  };
+}
+
 export function splitTonguePulseQuestions(
   content: string,
   sourceText: string,
@@ -1061,7 +1114,15 @@ export function splitTonguePulseQuestions(
   const removeIds: string[] = [];
   let changed = false;
   const questions = plan.questions.map((question) => {
-    if (!/舌/u.test(question.question) || !/脉/u.test(question.question)) return question;
+    if (!/舌/u.test(question.question) || !/脉/u.test(question.question)) {
+      const single = singleTongueOrPulseQuestion(question);
+      if (single === "remove") removeIds.push(question.id);
+      else if (single !== question) {
+        changed = true;
+        return single;
+      }
+      return question;
+    }
     const clinical = question.options.filter((option) => option.kind === "clinical_fact");
     const halves = clinical.map((option) => splitTongueAndPulse(option.recordValue || option.answer));
     if (clinical.length !== 2 || halves.some((half) => !half)) {

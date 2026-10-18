@@ -538,20 +538,39 @@ const SYMPTOM_PREDICATE = /[痛疼胀满闷痞热寒冷凉烦渴干苦黏腻汗�
 // 舌象题的两个选项必须互斥，单选才能写进病历（2026-10-18 验收集 B：「舌质淡，苔白」对「苔薄白」、
 // 「舌质红」对「舌苔厚腻」可以同时成立）。按舌色、苔色、苔质三个维度各取一个值，至少一个维度两边都写到且不同才算互斥；
 // 否则这道题改问脉象。
-const TONGUE_DIMENSIONS: readonly RegExp[] = [
-  /舌(?:质|体)?(?:尖|边)?(淡红|淡白|淡|红绛|绛|红|紫暗|青紫|紫|暗|黯)/u,
-  /苔[薄厚]?(白|黄|灰|黑)/u,
-  /(?:苔|舌)(少|剥|光|无苔|厚腻|腻|薄)/u,
-];
+const TONGUE_BODY = /舌(?:质|体)?(?:尖|边)?(淡红|淡白|淡|红绛|绛|红|紫暗|青紫|紫|暗|黯)/u;
+const TONGUE_COATING_COLOR = /苔[薄厚少]?(白|黄|灰|黑)|(白|黄|灰|黑)[腻厚滑燥]?苔/u;
+
+/**
+ * 苔质：先取紧跟「苔/舌」的那个字（少、剥、光、无苔、厚腻＝厚、腻、薄），没有时再看整段苔象里有没有「厚」（「苔黄厚或黄腻」）
+ * 或「少苔/无苔」（「舌红少苔」）（2026-10-19：此前只认紧跟「苔」字的那个字，「苔黄厚或黄腻」与「苔薄黄」判成不互斥，
+ * 模型写的舌象题也要过这条判据后，甲方病历 7 评审判合格的这道题会被误删）。
+ */
+const TONGUE_COATING_TEXTURE = /(?:苔|舌)(少|剥|光|无苔|厚腻|腻|薄)/u;
+function tongueCoatingTexture(text: string): string | undefined {
+  const direct = TONGUE_COATING_TEXTURE.exec(text)?.[1];
+  if (direct) return direct === "厚腻" ? "厚" : direct;
+  const coating = [...text.matchAll(/([^，,。；;、]{0,3})苔([^，,。；;、]{0,8})/gu)]
+    .map((match) => `${match[1].replace(/^.*舌/u, "")}苔${match[2]}`)
+    .join(" ");
+  if (/少苔|无苔/u.test(coating)) return "少";
+  return /苔[^ ]*厚/u.test(coating) ? "厚" : undefined;
+}
 
 function tongueDimensionValues(text: string): (string | undefined)[] {
-  return TONGUE_DIMENSIONS.map((pattern) => pattern.exec(text)?.[1]);
+  const color = TONGUE_COATING_COLOR.exec(text);
+  return [TONGUE_BODY.exec(text)?.[1], color?.[1] ?? color?.[2], tongueCoatingTexture(text)];
 }
 
 export function tongueOptionsMutuallyExclusive(a: string, b: string): boolean {
   const left = tongueDimensionValues(a);
   const right = tongueDimensionValues(b);
-  return left.some((value, index) => value !== undefined && right[index] !== undefined && value !== right[index]);
+  return left.some((value, index) => {
+    const other = right[index];
+    if (value === undefined || other === undefined || value === other) return false;
+    // 厚腻与腻都是腻苔，不算相反。
+    return !(index === 2 && new Set([value, other]).has("厚") && new Set([value, other]).has("腻"));
+  });
 }
 
 /**

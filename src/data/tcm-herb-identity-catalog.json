@@ -7,8 +7,8 @@
   },
   "supplementSource": {
     "file": "tcm-herb-identity-supplements.json",
-    "sha256": "ba6731e4b6dad7917f10a3c056ff1b8de1baec9f2b9eb8537fe4eea9a62b8c78",
-    "rowCount": 473
+    "sha256": "6611e38eebf1402c86cfd3b01261c09b8e5203c5b9353b46316e8543a2c4c5c1",
+    "rowCount": 477
   },
   "governance": {
     "status": "generated_mapping_plus_source_backed_clinical_extensions",
@@ -21,11 +21,11 @@
     "ambiguousInputCount": 513,
     "resolutionStatusCounts": {
       "ambiguous": 513,
-      "exact_standard_name": 616,
-      "source_backed_clinical_extension": 456,
+      "exact_standard_name": 615,
+      "source_backed_clinical_extension": 460,
       "source_backed_preparation_form": 127,
       "unique_high_confidence": 74,
-      "unique_source_backed": 4674
+      "unique_source_backed": 4672
     }
   },
   "entries": [
@@ -67396,8 +67396,12 @@
     },
     "仙鹤草": {
       "canonicalName": "仙鹤草",
-      "status": "exact_standard_name",
-      "autoResolvable": true
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
     },
     "代赭": {
       "canonicalName": "赭石",
@@ -96171,9 +96175,13 @@
       "autoResolvable": true
     },
     "鹤草": {
-      "canonicalName": "银柴胡",
-      "status": "unique_source_backed",
-      "autoResolvable": true
+      "canonicalName": "仙鹤草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
     },
     "鹤虱": {
       "canonicalName": "鹤虱",
@@ -97447,9 +97455,13 @@
       "autoResolvable": true
     },
     "龙芽草": {
-      "canonicalName": "马鞭草",
-      "status": "unique_source_backed",
-      "autoResolvable": true
+      "canonicalName": "仙鹤草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
     },
     "龙苗": {
       "canonicalName": "斑蝥",
@@ -101752,6 +101764,15 @@
         "SRC-NMPA-CHP-2025-INDEX"
       ],
       "doseCanonicalName": "黄芩"
+    },
+    "炙草": {
+      "canonicalName": "炙甘草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
     },
     "制南星": {
       "canonicalName": "天南星",

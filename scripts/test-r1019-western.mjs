@@ -369,6 +369,132 @@ const completion = (payload) => new Response(JSON.stringify({
   });
 }
 
+// ═══ 第二轮（10/19 终审复评，提交 a609be4 之后）═══
+// ── 9 ── 鉴别拆分：只说病变走向的词（恶变/癌变）借兄弟项的部位或病名，借不到不单独成条（甲方标准病历 10 第 3 次生成）。
+//        反证：去掉 PROCESS_ONLY_PATHOLOGY 分支 ⇒ 9.1 变红。
+{
+  const visible = await lib("diagnosis-visible-summary.ts");
+  const split = (name) => unwrap(visible.groundStructuredPatientFacts(wrap({
+    stage: "diagnose",
+    westernDiagnosis: { primary: { name: "异常子宫出血", supportingFacts: [] }, differentials: [{ name, reason: "异常子宫出血需排除内膜病变", distinguishingPoints: "周期缩短经量增多，需内膜评估", nextCheck: "内膜厚度评估，必要时活检" }] },
+    pathogenesis: { chain: [] },
+  }), "主诉：月经量多3个月")).westernDiagnosis.differentials.map((item) => item.name);
+  await check("9.1 「子宫内膜增生/恶变」→ 子宫内膜增生、子宫内膜恶变；「胃溃疡/恶变」→ 胃溃疡、胃溃疡恶变；不留孤零零的「恶变」", () => {
+    assert.deepEqual(split("子宫内膜增生/恶变"), ["子宫内膜增生", "子宫内膜恶变"]);
+    assert.deepEqual(split("胃溃疡/癌变"), ["胃溃疡", "胃溃疡癌变"]);
+  });
+  await check("9.2 对照：借部位的旧拆法不变（泌尿系结石/感染、颅内占位/肿瘤）；两个独立病名照常拆", () => {
+    assert.deepEqual(split("泌尿系结石/感染"), ["泌尿系结石", "泌尿系感染"]);
+    assert.deepEqual(split("颅内占位/肿瘤"), ["颅内占位", "颅内肿瘤"]);
+    assert.deepEqual(split("子宫肌瘤/子宫腺肌病"), ["子宫肌瘤", "子宫腺肌病"]);
+  });
+}
+
+// ── 10 ── 「皮疹」与具体皮损形态：病历写了红斑、水疱时，鉴别行里不带主语的「无皮疹」说的是被鉴别的病（甲方标准病历 8）。
+//         反证：RASH_SPECIFIC_FORM 换成不匹配任何字 ⇒ 10.1 变红。
+{
+  const visible = await lib("diagnosis-visible-summary.ts");
+  const herpes = "主诉：左侧胁肋部疼痛5天\n现病史：三天前发现左侧胁肋部及腰背部出现片状红斑，其上可见米粒大小水疱，疼痛剧烈。";
+  const plain = "主诉：左侧胁肋部疼痛5天\n现病史：左侧胁肋部针刺样疼痛，夜间加重。";
+  const points = (record, text = "本例已出现皮节分布水疱，无皮疹") => unwrap(visible.groundDifferentialNegativeAssertions(wrap({
+    stage: "diagnose", westernDiagnosis: { differentials: [{ name: "肋间神经痛", reason: "需排除其他原因神经痛", distinguishingPoints: text }] },
+  }), record)).westernDiagnosis.differentials[0].distinguishingPoints;
+  await check("10.1 病历有红斑、水疱：「无皮疹」补上被鉴别的病名（肋间神经痛无皮疹），不改成「病历未记录皮疹」；句中「、无皮疹」也不改成「未诉皮疹」", () => {
+    assert.equal(points(herpes), "本例已出现皮节分布水疱，肋间神经痛无皮疹");
+    assert.equal(visible.unrecordedNegativesAsNotReported("仅有神经痛，无皮疹、无发热", herpes), "仅有神经痛，无皮疹、未诉发热");
+    assert.equal(points(herpes, "本例已出现皮节分布水疱，肋间神经痛无皮疹"), "本例已出现皮节分布水疱，肋间神经痛无皮疹", "幂等");
+  });
+  await check("10.2 对照：病历没有任何皮损时照旧（「病历未记录皮疹…」/「未诉皮疹」）；写了主语「本例无皮疹」时不补病名", () => {
+    assert.match(points(plain), /病历未记录皮疹/);
+    assert.equal(visible.unrecordedNegativesAsNotReported("仅有神经痛，无皮疹、无发热", plain), "仅有神经痛，未诉皮疹、发热");
+    assert.doesNotMatch(points(herpes, "本例无皮疹"), /肋间神经痛无皮疹/);
+  });
+}
+
+// ── 11 ── 功能性肠病的儿童病程门槛与报警征象（留出例 S161、S058）。反证：功能性便秘条目改回成人 6 个月、可按临床诊断 ⇒ 11.1 变红；
+//         核对提示词删掉儿童标准与结肠镜一句 ⇒ 11.2 变红。
+{
+  const criteria = await lib("western-diagnostic-criteria.server.ts");
+  const check11 = await lib("western-name-evidence-check.server.ts");
+  await check("11.1 要点表：功能性便秘写明儿童病程满1个月、50岁及以上或有报警征象需结肠镜；「儿童功能性便秘」「慢性功能性便秘」都查得到", () => {
+    for (const name of ["儿童功能性便秘", "慢性功能性便秘", "小儿功能性便秘"]) {
+      const entry = criteria.westernCriteriaEntry(name);
+      assert.equal(entry?.name, "功能性便秘", name);
+    }
+    const entry = criteria.westernCriteriaEntry("功能性便秘");
+    assert.match(entry.durationThreshold, /未满18岁[^；]*病程满1个月/);
+    assert.equal(entry.clinicallyDiagnosable, false);
+    assert.match(entry.requiredTests.join(""), /50岁及以上起病[^；]*结肠镜/);
+    assert.match(criteria.westernCriteriaEntry("肠易激综合征").durationThreshold, /未满18岁[^；]*满2个月/);
+    assert.match(criteria.westernCriteriaEntry("功能性消化不良").durationThreshold, /未满18岁[^；]*满2个月/);
+    assert.equal(criteria.westernCriteriaEntry("小儿功能性腹痛")?.name, "小儿功能性腹痛", "对照：表里本来就有的儿童病名按原名查");
+  });
+  const savedFetch = globalThis.fetch;
+  try {
+    await check("11.2 核对提示词：儿童按罗马IV儿童门槛、不得套成人6个月；功能性便秘与肠易激综合征50岁及以上或报警征象需结肠镜；条件式必需检查只在符合条件时要求", async () => {
+      let body = "";
+      globalThis.fetch = async (url, init) => { body = String(init?.body || ""); return completion({ verdict: "consistent", type: "", quote: "", reason: "", supportedName: "" }); };
+      await check11.westernNameCorrectionForRecord({ recordText: "主诉：大便干结3个月\n现病史：患儿9岁，3个月来大便干结如羊粪，4～5日一行。", diagnosisName: "儿童功能性便秘", patient: { sex: "男", age: 9 } });
+      const messages = JSON.parse(body).messages;
+      assert.match(messages[0].content, /未满18岁的患者按罗马IV儿童标准，功能性便秘满1个月/);
+      assert.match(messages[0].content, /50岁及以上起病、或有报警征象[^；]*没有结肠镜结果就属 D/);
+      assert.match(messages[0].content, /只在本例符合该条件时才要求这项检查/);
+      assert.match(messages[1].content, /未满18岁（罗马IV儿童标准）：病程满1个月/, "儿童病名查到的要点表进了核对输入");
+    });
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+}
+
+// ── 11b ── D 类理由自相矛盾（说门槛已满足）时不采信；病历写明外院已做相关检查且未见异常时按已有结果对待（甲方标准病历 2）。
+//          反证：去掉自相矛盾判据 ⇒ 11.3 变红；删掉提示词「…即使没有逐项列出…不适用 D」⇒ 11.4 变红。
+{
+  const check11b = await lib("western-name-evidence-check.server.ts");
+  const record = "主诉：大便干结3个月\n现病史：患儿9岁，3个月来大便干结如羊粪，4～5日一行，无便血。";
+  const d = (reason) => check11b.parseWesternNameCorrection(JSON.stringify({ verdict: "inconsistent", type: "D", quote: "3个月来大便干结如羊粪", reason, supportedName: "便秘待查" }), record, "儿童功能性便秘");
+  await check("11.3 D 类理由说门槛已满足时不采信；说未满、尚缺时照常（对照）", () => {
+    assert.equal(d("儿童需病程满1个月，病历3个月已满足；无便血，符合"), undefined);
+    assert.equal(d("病程未满1个月，不足以诊断")?.type, "D");
+    assert.equal(d("尚缺结肠镜结果，虽符合症状标准")?.type, "D");
+  });
+  const savedFetch = globalThis.fetch;
+  try {
+    await check("11.4 核对提示词：病历写明外院已完善相关检查、未见异常的，按已有检查结果对待，不适用 D", async () => {
+      let body = "";
+      globalThis.fetch = async (url, init) => { body = String(init?.body || ""); return completion({ verdict: "consistent", type: "", quote: "", reason: "", supportedName: "" }); };
+      await check11b.westernNameCorrectionForRecord({ recordText: "主诉：心悸1月\n现病史：曾于心内科完善相关检查后未见明显异常。", diagnosisName: "心脏神经症" });
+      assert.match(JSON.parse(body).messages[0].content, /即使没有逐项列出、未见报告原件，也按已有检查结果对待，不适用 D/);
+    });
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+}
+
+// ── 12 ── D 类原病名那条鉴别的「建议核实」写具体检查（留出集 8 例「完善确诊所需检查」）。
+//         反证：westernDifferentialNextCheck 改回恒返回通用句 ⇒ 12.1 变红。
+{
+  const check12 = await lib("western-name-evidence-check.server.ts");
+  const record = "主诉：上腹隐痛半年\n现病史：上腹隐痛半年，伴嗳气。";
+  const d = (extra) => check12.parseWesternNameCorrection(JSON.stringify({ verdict: "inconsistent", type: "D", quote: "上腹隐痛半年", reason: "未行胃镜检查", supportedName: "消化不良", ...extra }), record, "慢性胃炎");
+  const nextCheckOf = (correction, previous = "慢性胃炎") => JSON.parse(check12.applyWesternNameCorrection(JSON.stringify({ westernDiagnosis: { primary: { name: previous }, differentials: [], candidates: [{ name: previous, likelihood: "中" }] } }), correction)).westernDiagnosis.differentials[0].nextCheck;
+  await check("12.1 核对给了缺的检查就写它（结肠镜）；没给时要点表里只有一项必需检查就用它（慢性胃炎→胃镜）", () => {
+    assert.equal(nextCheckOf(d({ missingTest: "结肠镜" })), "结肠镜");
+    assert.equal(nextCheckOf(d({})), "胃镜");
+  });
+  await check("12.3 区分要点里说缺哪项检查的「无…结果」改成「尚缺…」，不留给鉴别净化当否认（留出例 S058「未诉结肠镜结果」）", () => {
+    const c = check12.parseWesternNameCorrection(JSON.stringify({ verdict: "inconsistent", type: "D", quote: "上腹隐痛半年", reason: "76岁起病，无结肠镜结果，需排除器质性病变", supportedName: "便秘待查", missingTest: "结肠镜" }), record, "慢性功能性便秘");
+    const row = JSON.parse(check12.applyWesternNameCorrection(JSON.stringify({ westernDiagnosis: { primary: { name: "慢性功能性便秘" }, differentials: [], candidates: [] } }), c)).westernDiagnosis.differentials[0];
+    assert.equal(row.distinguishingPoints, "76岁起病，尚缺结肠镜结果，需排除器质性病变");
+    assert.equal(row.nextCheck, "结肠镜");
+  });
+  await check("12.2 对照：表里列了好几项必需检查时不替核对挑（缺铁性贫血）；缺失项不合规（带括号、过长）时不采用", () => {
+    assert.equal(nextCheckOf(check12.parseWesternNameCorrection(JSON.stringify({ verdict: "inconsistent", type: "D", quote: "上腹隐痛半年", reason: "未查铁代谢", supportedName: "贫血" }), record, "缺铁性贫血"), "缺铁性贫血"), "完善确诊所需检查");
+    assert.equal(d({ missingTest: "胃镜（必要时活检）" }).missingTest, undefined);
+    assert.equal(d({ missingTest: "胃镜".repeat(13) }).missingTest, undefined);
+    assert.equal(check12.parseWesternNameCorrection(JSON.stringify({ verdict: "inconsistent", type: "B", quote: "上腹隐痛半年", reason: "记录与诊断不符", supportedName: "腹痛待查", missingTest: "胃镜" }), record, "慢性胃炎")?.missingTest, undefined, "只有 D 类带缺失检查");
+  });
+}
+
 const failed = results.filter((item) => !item.ok);
 console.log(JSON.stringify({ suite: "r1019-western", total: results.length, passed: results.length - failed.length, failed }, null, 1));
 process.exit(failed.length ? 1 : 0);

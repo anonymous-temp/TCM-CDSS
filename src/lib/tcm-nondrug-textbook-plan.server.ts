@@ -349,6 +349,11 @@ export type TextbookPlanInput = {
   patientAgeYears?: number;
   /** 主诉（教材分套的基本治疗按字面对套时用）。 */
   chiefComplaint?: string;
+  /**
+   * 院内目录已按本例证型命中、且已终审的证型配穴（目录模板的主穴只是「局部阿是穴（查体确认）」「循经远端穴（按疼痛部位选择）」
+   * 这类延期说明时，由卡片汇总处传入）。教材本节没有本例证型时，在教材主穴上加这组配穴；教材有本例证型时不用它。
+   */
+  catalogSyndromeRefinement?: { label: string; addPoints: readonly string[]; removePoints?: readonly string[] };
 };
 
 export type TextbookPlanPoint = {
@@ -357,6 +362,8 @@ export type TextbookPlanPoint = {
   /** 配穴来自哪个教材证型（role=syndrome_refinement 时）。 */
   syndromeLabel?: string;
   note?: string;
+  /** 配穴来自院内目录的证型配穴表（catalogSyndromeRefinement），不出自教材本节。 */
+  fromCatalogRefinement?: boolean;
 };
 
 export type TextbookPlan = {
@@ -689,10 +696,30 @@ function webScheduleFor(
     .sort((left, right) => left.tier.localeCompare(right.tier));
   const best = hits[0];
   if (!best) return undefined;
+  const label = webSourceLabel(best.publisher, best.sourceTitle);
   return {
-    schedule: `${best.schedule.replace(/[。]+$/, "")}（${best.publisher}《${best.sourceTitle}》）`,
-    citation: `频次来源：${best.publisher}《${best.sourceTitle}》（${best.tier}级，${best.url}）`,
+    schedule: `${best.schedule.replace(/[。]+$/, "")}（${label}）`,
+    citation: `频次来源：${label}（${best.tier}级）`,
   };
+}
+
+/**
+ * 网络来源在卡片上的写法：发布者 + 《篇名》，不带网址（2026-10-19 甲方病历 7：疗程栏写着
+ * 「中国针灸学会（caam.cn 科普之窗·科普知识）《牙痛--中国针灸学会官网》」——网页标题当篇名、英文域名进了正文）。
+ * 篇名去掉网页标题里的站点后缀（「--站点名」「|关键词|-站点」「_栏目_…」「 - 站点名」）；发布者去掉域名。网址留在来源快照里备查。
+ */
+export function webSourceLabel(publisher: string, sourceTitle: string): string {
+  const title = String(sourceTitle || "")
+    .split(/--|\||_/)[0]
+    .replace(/\s+-\s+.*$/u, "")
+    .trim();
+  const by = String(publisher || "")
+    .replace(/[A-Za-z0-9][A-Za-z0-9.-]*\.(?:cn|com|org|net|gov)(?:\.cn)?\b/g, "")
+    .replace(/[（(]\s*[）)]/g, "")
+    .replace(/[（(]\s+/g, "（")
+    .replace(/\s+[）)]/g, "）")
+    .trim();
+  return title ? `${by}《${title}》` : by;
 }
 
 function uniq<T>(values: readonly T[]): T[] {
@@ -765,6 +792,8 @@ export function therapyClausesForSyndrome(therapy: string, signedSyndromeText: s
   const have = syndromeConcepts(syndrome);
   const nature = signedSyndromeDeficiencyExcess(syndrome);
   const heatish = /热|火|阴虚|阴亏|阴液|津伤|燥/.test(syndrome);
+  // 寒象：证名带寒、阳虚、阳衰、虚冷（2026-10-19 留出例 S102：痰湿月经后期印着同节「月经后期」一套的「温经散寒，补血调经」）。
+  const coldish = /寒|阳虚|阳衰|阳气不足|虚冷/.test(syndrome);
   const conceptOf = (clause: string) => syndromeConcepts(clause.replace(/[潜平]阳/g, ""));
   const fits = (clause: string) => {
     const concept = conceptOf(clause);
@@ -772,8 +801,9 @@ export function therapyClausesForSyndrome(therapy: string, signedSyndromeText: s
   };
   const conflicts = (clause: string) => {
     if (/^取/.test(clause)) return false;
-    if (nature === "excess" && /补益|补肾|温补|益气|滋补|益精|填髓|荣养/.test(clause)) return true;
+    if (nature === "excess" && /补益|补肾|温补|益气|补气|补血|养血|滋补|益精|填髓|荣养/.test(clause)) return true;
     if (nature === "deficiency" && /泻火|泻热|清热泻火/.test(clause)) return true;
+    if (!coldish && /温经|散寒|祛寒|温阳|温中|温肾|温通/.test(clause) && !fits(clause.replace(/温经|散寒|祛寒|温阳|温中|温肾|温通/g, ""))) return true;
     return !heatish && /泻火|清热|解毒|凉血/.test(clause) && !fits(clause.replace(/泻火|清热|解毒|凉血/g, ""));
   };
   const contentful = multiSet ? clauses.filter((clause) => !/^取/.test(clause) && conceptOf(clause).organs.size + conceptOf(clause).natures.size > 0) : [];
@@ -802,6 +832,46 @@ export function operationClausesForAge(text: string, ageYears: number | undefine
     const ending = sentence.match(/[。；;]\s*$/)?.[0]?.trim() || "";
     const kept = sentence.split(/(?<=[，,])/).filter((clause) => !unsuitable(clause)).join("").replace(/[，,；;。\s]+$/u, "");
     return kept.trim() ? `${kept}${ending || "。"}` : "";
+  }).join("").trim();
+}
+
+/**
+ * 小儿（未满 12 岁）耳穴只用压丸（贴压），不写毫针、埋针、电针及其刺激量、留针（2026-10-19 留出例 S151、S160：卡上先写「小儿耳穴宜用贴压，
+ * 不用毫针」，紧接着教材原句「毫针刺法，或压丸法」）。逐小句去掉用针的做法；一句里的做法全是用针时换成「压丸法」，
+ * 「每次选用2~3穴」「耳尖可点刺放血」这类不用针的小句照留。卡片的小儿说明（populationCardNote）本就是「小儿耳穴宜用贴压，不用毫针」；
+ * 《针灸学》耳针法：压丸法「疼痛轻微，无副作用，是目前最常用的方法」，「一般儿童、孕妇、年老体弱、神经衰弱者用轻刺激」（教材原文第114947、114948行）。
+ * 只用在教材耳穴节的原句上（院内目录的耳穴模板本来就只写贴压，其中「不输出侵入性埋针步骤」这类说明不能按做法改写）。
+ */
+const EAR_NEEDLE_METHOD = /(?:或用?|也可用?|亦可用?|、)?(?:毫针(?:浅)?刺(?:法)?|埋针(?:法)?|揿针(?:法)?|电针[^，,。；;、或]*)(?:、|或用?)?/g;
+const EAR_NEEDLE_PARAMETER = /^(?:用)?(?:强|中等|中|轻|弱)?刺激$|留针|行针|运针/;
+export function auricularMethodsForChild(text: string): string {
+  if (!text || !/毫针|埋针|揿针|电针/.test(text)) return text;
+  return text.split(/(?<=[。；;])/).map((sentence) => {
+    if (!/毫针|埋针|揿针|电针/.test(sentence)) return sentence;
+    const ending = sentence.match(/[。；;]\s*$/)?.[0]?.trim() || "";
+    const clauses = sentence.replace(/[。；;]\s*$/, "").split(/[，,]/).map((clause) => clause.trim()).filter(Boolean);
+    let pressInserted = false;
+    const hasPress = /压丸|压籽|贴压|王不留行/.test(sentence);
+    const kept: string[] = [];
+    let removedBefore = false;
+    for (const clause of clauses) {
+      if (!/毫针|埋针|揿针|电针/.test(clause)) {
+        if (EAR_NEEDLE_PARAMETER.test(clause.replace(/^用/, ""))) continue;
+        kept.push(removedBefore ? clause.replace(/^(?:或用?|也可用?|亦可用?)/, "") : clause);
+        continue;
+      }
+      removedBefore = true;
+      const rest = clause.replace(EAR_NEEDLE_METHOD, "").replace(/^(?:或用?|也可用?|亦可用?|可用|、)+/, "").trim();
+      const restIsParameter = !rest || EAR_NEEDLE_PARAMETER.test(rest);
+      if (!restIsParameter) {
+        kept.push(/压丸|压籽|贴压/.test(rest) || hasPress || pressInserted ? rest : `${rest}用压丸法`);
+        pressInserted ||= !/压丸|压籽|贴压/.test(rest) && !hasPress;
+      } else if (!hasPress && !pressInserted) {
+        kept.push("压丸法");
+        pressInserted = true;
+      }
+    }
+    return kept.length > 0 ? `${kept.join("，")}${ending || "。"}` : "";
   }).join("").trim();
 }
 
@@ -882,6 +952,19 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
         }
       }
       syndromeClause = `本例属${picked.map((item) => item.label).join("、")}，在主穴基础上加${picked.flatMap((item) => item.addPoints).join("、")}。`;
+    } else if (input.catalogSyndromeRefinement && input.catalogSyndromeRefinement.addPoints.length > 0) {
+      // 教材本节没有本例证型（腰痛节无湿热腰痛）、院内目录的证型配穴已命中时：教材主穴 + 目录配穴（2026-10-19 留出例 S086：
+      // 目录模板主穴只是「局部阿是穴（查体确认）」「循经远端穴（按疼痛部位选择）」，没有委中、肾俞、大肠俞）。
+      const refinement = input.catalogSyndromeRefinement;
+      const removed = new Set(refinement.removePoints || []);
+      for (let index = points.length - 1; index >= 0; index -= 1) if (removed.has(points[index].name)) points.splice(index, 1);
+      const added = refinement.addPoints.filter((point) => !points.some((existing) => existing.name === point));
+      if (added.length > 0) {
+        tailored = true;
+        syndromeLabels.push(refinement.label);
+        for (const point of added) points.push({ name: point, role: "syndrome_refinement", syndromeLabel: refinement.label, note: `${refinement.label}配穴`, fromCatalogRefinement: true });
+        syndromeClause = `本例属${refinement.label}，在主穴基础上加${added.join("、")}。`;
+      }
     }
     // 证型对不上教材的配穴表时只给主穴，不把各证型的配穴整张表列给医生自己挑（2026-10-13，甲方 10.12 测评 5.1/5.2）。
     const facts = compact(input.currentFacts);
@@ -923,17 +1006,22 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
   // 没有按本例证型配穴时，教材写在基本处方前面的那句治法是按病、不是按本例证候定的（血虚肝旺的瘙痒写「疏风清热，润燥止痒」），
   // 与辨证结论对不上：只保留「取某经穴为主」的取穴说明，并写明是按病取的基本穴。
   const acupunctureTherapy = base.content.replace(/[。]+$/, "");
+  // 小儿耳穴只用压丸（auricularMethodsForChild）。
+  const childEar = code === "auricular" && input.patientAgeYears != null && input.patientAgeYears < 12;
+  const projectContent = childEar ? auricularMethodsForChild(base.content) : base.content;
   const meridianSentence = acupunctureTherapy.split("。").map((part) => part.trim()).filter((part) => /^取/.test(part)).join("。");
   // 分套治法（眩晕实证一套写肝阳上亢、痰湿中阻两证：「平肝潜阳，和胃化痰」）只留与本例证候相符的那几小句（2026-10-19，
   // 验收集纯肝阳上亢或纯痰湿的 4 例照印整句、评审判治法与证不符）。
   const therapyForCase = therapyClausesForSyndrome(acupunctureTherapy, input.signedSyndromeText, Boolean(variant));
+  // 分套治法的小句全与本例证候相反、又没按证型配穴时，与没有分套一样写「按病取基本穴」（留出例 S102 痰湿月经后期）。
+  const variantTherapyFits = Boolean(variant) && !/^取/.test(therapyForCase);
   const contentHead = code === "acupuncture"
-    ? tailored || variant || !meridianSentence
+    ? tailored || variantTherapyFits || !meridianSentence
       ? /^取/.test(therapyForCase) ? `${cutText(therapyForCase, 80)}。` : `治法：${cutText(therapyForCase, 80)}。`
       : `按病取基本穴（本例证型在教材中没有对应的配穴）：${cutText(meridianSentence, 70)}。`
-    : `${projectName}${cutText(withoutFacialPointBloodletting(withoutBloodlettingWhenUnsuitable(base.content, input), base.points), 240)}`;
+    : `${projectName}${cutText(withoutFacialPointBloodletting(withoutBloodlettingWhenUnsuitable(projectContent, input), base.points), 240)}`;
   const variantOperation = variant?.operation || primary.operation;
-  const operation = code === "acupuncture" ? variantOperation : base.content;
+  const operation = code === "acupuncture" ? variantOperation : projectContent;
   // 其他疗法不借针刺的操作句：此前耳穴、拔罐卡的疗程栏里出现「外感咳嗽针用泻法，肺俞可配闪罐」（2026-10-14 独立评审）。
   const ageFit = (text: string) => operationClausesForAge(text, input.patientAgeYears);
   const frequency = ageFit(frequencySentence(withSyndromeMatchedClauses(operation, input)) ||
@@ -954,7 +1042,7 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
         : "间隔与疗程按病情和耐受确定。";
   const technique = ageFit(withoutFacialPointBloodletting(withoutBloodlettingWhenUnsuitable(withSyndromeMatchedClauses(code === "acupuncture"
     ? cutText(variantOperation || "毫针常规针刺。", 420)
-    : cutText(`${base.content}`, 420), input), input), base.points)) || "穴位常规刺。";
+    : cutText(`${projectContent}`, 420), input), input), base.points)) || "穴位常规刺。";
 
   return {
     kind: "acupoint",
@@ -963,7 +1051,7 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     items: [],
     scheduleSuggestion: cutText(schedule, 560),
     // 「补泻手法、进针深度」只对用针的项目成立（拔罐、灸法卡上也挂着这句——2026-10-14 复核时发现）。
-    techniqueBoundary: cutText(`${technique} ${techniqueContraindications(code)}${code === "acupuncture" || code === "auricular" ? "补泻手法、进针深度以现场查体为准。" : ""}`.trim(), 980),
+    techniqueBoundary: cutText(`${technique} ${techniqueContraindications(code)}${code === "acupuncture" || (code === "auricular" && !childEar) ? "补泻手法、进针深度以现场查体为准。" : ""}`.trim(), 980),
     protocolSource: cutText(`${citation}${secondary && code === "acupuncture" ? `；《${data.sources[secondary.book]?.title}》同名节（教材原文第${secondary.line}行）` : ""}${web ? `；${web.citation}` : ""}`, 980),
     syndromeLabels,
     syndromeTailored: tailored,

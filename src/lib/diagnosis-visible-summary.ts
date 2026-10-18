@@ -514,7 +514,7 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
     // 情形 D 的鉴别要点「…，无法分型」被改成「病历未记录法分型（需问诊核实…）」，交付成「未诉法分型」。
     const NEGATIVE_CLAUSE = /^(?:本例|该患者|患者)?(?:均?(?:无(?![法论需妨效碍以所可非常度端故]|定[处时所]|关(?!节)|形之)|没有)|未见|未闻及|未出现|不伴|无明显)(.+)$/u;
     const SEASON_CLAUSE = /^发病(?:于|在)非?[^，。；]*(?:季节?|时令)/u;
-    const groundClause = (clause: string): string => {
+    const groundClause = (clause: string, entryName: string): string => {
       const trimmed = clause.trim();
       if (!trimmed) return clause;
       if (SEASON_CLAUSE.test(trimmed) && !/(季节|时令|长夏|夏|冬|春|秋)/.test(clinicalContext)) {
@@ -532,16 +532,22 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
       if (!object) return clause;
       const terms = object.split(/[及和与、]/u).map((term) => term.trim()).filter((term) => term.length >= 2);
       if (terms.length === 0) return clause;
+      // 病历写了具体皮损（水疱、红斑…）时，鉴别行里不带主语的「无皮疹」说的是被鉴别的那个病，不是本例：补上病名（「肋间神经痛无皮疹」），
+      // 不改成「病历未记录皮疹」——交付面会把那句译成「未诉皮疹」，紧跟在「本例已出现皮节分布水疱」后面（2026-10-19 甲方标准病历 8）。
+      if (entryName && !/^(?:本例|该患者|患者)/u.test(trimmed) && terms.every((term) => recordShowsRashForm(clinicalContext, term))) {
+        changed = true;
+        return `${entryName}${trimmed}`;
+      }
       const allDocumented = terms.every((term) => sourceDocumentsNegation(clinicalContext, term));
       if (allDocumented) return clause;
       changed = true;
       return `病历未记录${object}（需问诊核实后方可用于排除）`;
     };
-    const groundText = (value: unknown): unknown => {
+    const groundText = (value: unknown, entryName: string): unknown => {
       if (typeof value !== "string" || !value.trim()) return value;
       return value
         .split(/([；;。])/u)
-        .map((segment) => /[；;。]/.test(segment) ? segment : segment.split(/([，,])/u).map((part) => /[，,]/.test(part) ? part : groundClause(part)).join(""))
+        .map((segment) => /[；;。]/.test(segment) ? segment : segment.split(/([，,])/u).map((part) => /[，,]/.test(part) ? part : groundClause(part, entryName)).join(""))
         .join("");
     };
     const groundEntries = (list: unknown): void => {
@@ -549,8 +555,11 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
       for (const item of list) {
         if (!item || typeof item !== "object") continue;
         const entry = item as Record<string, unknown>;
+        const entryName = [entry.name, entry.diseaseName, entry.syndrome]
+          .map((value) => (typeof value === "string" ? value.trim().replace(/[（(][^（）()]*[）)]/gu, "") : ""))
+          .find((value) => value.length >= 2) || "";
         for (const key of ["reason", "distinguishingPoints"]) {
-          const clauseGrounded = groundText(entry[key]);
+          const clauseGrounded = groundText(entry[key], entryName);
           // 分句开头的「无X」由上面改成「病历未记录X（需问诊核实…）」；句中的「…、无X」交给同一条判据
           //（unrecordedNegativesAsNotReported，与辨病/辨证依据共用）。
           const grounded = typeof clauseGrounded === "string" ? unrecordedNegativesAsNotReported(clauseGrounded, clinicalContext) : clauseGrounded;
@@ -894,14 +903,25 @@ const NONDIAGNOSTIC_WESTERN_SUPPORT = /^(?:不限定|未限定|既往体健|无�
 // 2026-10-18：X 放宽到 16 字（甲方标准病历 2 辨病依据「无气从少腹上冲胸咽之奔豚特征」13 字，旧上限 10 字漏过）。
 // 2026-10-18：「示无里热」「提示里无湿热积滞」「里和无损」是辨证推断，不是患者没提到的症状（甲方标准病历 1/3/9 三次生成都出现
 //「示未诉里热」「里未诉湿热积滞」「里和未诉损」）。「无」前面是 示/里/内 的、「无损」，都不改。
+const UNRECORDED_NEGATIVE_FEATURE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故损])([\u4e00-\u9fff]{2,12}?)(?=之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状))/gu;
 const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故损])([\u4e00-\u9fff]{2,16}?)(?=[、，,。；;：:）)]|等|及|和|或|与|$)/gu;
 
 /**
  * 病历是否写到过这个阴性项的对象（无论肯定还是否定）。2–3 字的词要原词出现；4 字以上的长短语换个说法很常见
  *（输出「无发热恶寒」，病历「无恶寒发热」），首尾两个字都在病历里出现就算写到过，宁可留着「无」也不错改。
  */
+/**
+ * 病历写了具体皮损形态（水疱、红斑、丘疹、风团…）就算写到过「皮疹」这个总称（2026-10-19 甲方标准病历 8：病历「片状红斑，其上可见
+ * 米粒大小水疱」，肋间神经痛一行的「无皮疹」被改成「未诉皮疹」）。闭集，只认皮疹这一组总称与形态。
+ */
+const RASH_GENERIC_TERM = /^(?:皮疹|皮损|疹子)$/u;
+const RASH_SPECIFIC_FORM = /(?:水疱|水泡|疱疹|红斑|丘疹|风团|皮损|斑疹|疱疮)/u;
+function recordShowsRashForm(record: string, term: string): boolean {
+  return RASH_GENERIC_TERM.test(term) && RASH_SPECIFIC_FORM.test(record);
+}
+
 function recordMentionsNegatedTerm(record: string, term: string): boolean {
-  if (record.includes(term)) return true;
+  if (record.includes(term) || recordShowsRashForm(record, term)) return true;
   // 两字词中间隔着修饰也算写到过：病历「腹中冷痛」，输出「无腹痛」不能改成「未诉腹痛」（2026-10-18 留出例 S058）。
   if (term.length === 2) {
     for (let at = record.indexOf(term[0]); at >= 0; at = record.indexOf(term[0], at + 1)) {
@@ -936,8 +956,12 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
   const record = clinicalContext.normalize("NFKC").replace(/\s+/g, "");
   if (!record) return text;
   // 「无…结果/报告/记录」说的是缺这份资料，不是否认症状，照原样留。
+  // 查病历时去掉「之…表现/特征/症状/象」：「无善惊易恐之表现」查的是善惊易恐（病历写着它就不改）。
+  const core = (term: string) => term.replace(/之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状|象)$/u, "");
   const out = text.replace(UNRECORDED_NEGATIVE, (match, term: string) =>
-    recordMentionsNegatedTerm(record, term) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) ? match : `未诉${term}`);
+    recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) ? match : `未诉${term}`)
+    // 「无气从少腹上冲胸咽之奔豚特征」：对象后面接「之…特征/表现/症状」时上面那条够不着（2026-10-19 甲方标准病历 2 第 3 次生成）。
+    .replace(UNRECORDED_NEGATIVE_FEATURE, (match, term: string) => recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`);
   // 「未诉A、未诉B」并成「未诉A、B」：只并相邻的未诉项。中间隔着一个仍是「无X」的项时不并——并过去会读成
   //「无X、B」，把 B 又写回否认（2026-10-18 回放：「未诉头晕、无恶心呕吐、未诉胸脘痞闷」曾并成「…无恶心呕吐、胸脘痞闷」）。
   return out.split(/([，,。；;])/u).map((segment) => {
@@ -2729,17 +2753,31 @@ const GENERIC_PATHOLOGY_TAIL = /(?:原发|继发|转移性?)?(?:肿瘤|转移瘤
  * 185 例里 6 例（输出压短后模型更常用斜杠把两个方向并进一条）。
  * 兄弟项以泛指病理词收尾时，去掉该词即得共用部位（颅内占位 → 颅内）；借不到时原样保留，不臆造病名。
  */
+/**
+ * 只说病变走向、本身不带部位的词（「子宫内膜增生/恶变」的「恶变」）。拆开后必须借兄弟项的部位或病名，借不到就不单独成条：
+ * 2026-10-19 甲方标准病历 10 第 3 次生成的西医鉴别里出现孤零零的「恶变」一条，理由与「子宫内膜增生」一条逐字相同。
+ */
+const PROCESS_ONLY_PATHOLOGY = /^(?:恶变|癌变)$/;
+
 function completeSharedDiagnosisHead(parts: readonly string[]): string[] {
-  return parts.map((part, index) => {
+  return parts.flatMap((part, index) => {
+    if (PROCESS_ONLY_PATHOLOGY.test(part)) {
+      // 兄弟项以泛指病理词收尾时借部位（子宫内膜增生→子宫内膜恶变）；否则接在整个兄弟病名后（胃溃疡→胃溃疡恶变）。
+      const donor = [...parts.slice(0, index).reverse(), ...parts.slice(index + 1)]
+        .find((other) => other.length >= 2 && !PROCESS_ONLY_PATHOLOGY.test(other) && !GENERIC_PATHOLOGY_NOUN.test(other));
+      if (!donor) return [];
+      const site = donor.replace(GENERIC_PATHOLOGY_TAIL, "");
+      return [site.length >= 2 && site.length < donor.length ? `${site}${part}` : `${donor}${part}`];
+    }
     // 「泌尿系结石/感染」拆开后的「感染」：感染能单独成病名，但兄弟项带着部位时借来（泌尿系感染），否则与兄弟项重复成一条空泛的鉴别
     //（2026-10-17 甲方标准病历 6）。兄弟项借不出部位时原样（「感染/肿瘤」）。
-    if (!GENERIC_PATHOLOGY_NOUN.test(part) && !/^(?:感染|炎症)$/.test(part)) return part;
+    if (!GENERIC_PATHOLOGY_NOUN.test(part) && !/^(?:感染|炎症)$/.test(part)) return [part];
     for (const donor of [...parts.slice(0, index).reverse(), ...parts.slice(index + 1)]) {
       if (GENERIC_PATHOLOGY_NOUN.test(donor)) continue;
       const head = donor.replace(GENERIC_PATHOLOGY_TAIL, "");
-      if (head.length >= 2 && head.length < donor.length) return `${head}${part}`;
+      if (head.length >= 2 && head.length < donor.length) return [`${head}${part}`];
     }
-    return part;
+    return [part];
   });
 }
 

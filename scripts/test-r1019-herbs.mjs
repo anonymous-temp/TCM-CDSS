@@ -11,6 +11,15 @@
 //     服务端删药之后方义按剩下的药再审一遍
 //   5 教材按偏颇分列两段治法（尿浊·肾虚不固证「偏肾阴虚者…；偏阳虚者…」）时按已签名的病性选一段
 //   6 鲜汁、乳类（藕汁、牛乳）兑服、不入煎
+//   7 方义药物功效核对（小模型报疑 + 确定性核实）
+//   ── 第二轮（10/19 终审，甲方 10×3 与留出 32 例） ──
+//   8 推荐的中成药与汤剂、与自服药同组成（人参口服液旁的人参、三黄片旁的黄连上清丸）
+//   9 教材【使用注意】与病历相抵、又不是原方药味的饮片（熟地黄「食少便溏者忌服」对病历「食欲下降、大便稀溏」）
+//  10 方义：阴阳互求换词后连写两遍、数量词与点到的药数不符、合称说到不在方中的药（「缓硝黄之峻」）、「五味子」被数成「二味子」
+//  11 注意事项点名已不在方中的药（「方中黄柏、苍术」）只去药名或那一小句
+//  12 萆薢（统称，药典分粉萆薢、绵萆薢，用量相同）加减没有剂量
+//  13 按用意（「止啼」「助眠」）判顺带睡眠的安神加减
+//  14 教材代表方的出处：名录里与教材组成逐味相同的那一条（加味四物汤《金匮翼》卷五），「炙草」认作炙甘草
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { createJiti } from "jiti";
@@ -42,6 +51,7 @@ const review = await jiti.import("../src/lib/formula-analysis-review.ts");
 const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
 const decoction = await jiti.import("../src/lib/herb-decoction-rules.ts");
 const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
+const textbookSyndromes = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
 
 const TEXTBOOK = "中医补充数据/灵丹GitHub/TCM Educational Materials.txt";
 const textbookLines = existsSync(TEXTBOOK) ? readFileSync(TEXTBOOK, "utf8").split("\n") : undefined;
@@ -405,6 +415,294 @@ check("7.9 参考功效只取《方剂学》方解里这味药自己的作用：
   assert.deepEqual(review.unsupportedHerbClaimConcepts("滋阴", deer), ["yin_nourish"]);
   assert.doesNotMatch(ref("青蒿"), /滋阴清热/);
   assert.deepEqual(review.unsupportedHerbClaimConcepts("利水", ref("白芍")), []);
+});
+
+
+// ───── 8 推荐的中成药与汤剂、自服药同组成 ─────
+const duplication = await jiti.import("../src/lib/patent-medicine-duplication.server.ts");
+const identityKeys = await jiti.import("../src/lib/herb-textbook-identity.ts");
+const decoctionOf = (rows) => rows.map(([name, role]) => ({ name, role }));
+check("8.1 汤剂人参为君时人参口服液不推荐（甲方病历 2）；组成另有其药的五味安神颗粒照推（对照）", () => {
+  const herbs = decoctionOf([["人参", "君"], ["茯神", "君"], ["茯苓", "臣"], ["远志", "臣"], ["石菖蒲", "佐"], ["炙甘草", "使"]]);
+  assert.deepEqual(duplication.patentMedicineCompositionIdentities("人参口服液"), ["人参"], "说明书成份栏为空的那条按同名各批准文号共有的成份");
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "人参口服液", positioning: "需医生评估" }, herbs)?.reason, "decoction_emperor_herb");
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "五味安神颗粒", positioning: "需医生评估" }, herbs), undefined);
+});
+check("8.2 共有两味以上（不计甘草、大枣、生姜）算重复；只共有一味臣药、只共有甘草姜枣的不算（对照）", () => {
+  const herbs = decoctionOf([["党参", "君"], ["白术", "臣"], ["茯苓", "佐"], ["炙甘草", "使"]]);
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "参苓白术散" }, herbs)?.reason, "decoction_shared_herbs");
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "人参口服液" }, herbs), undefined, "人参与党参不是同一味");
+  const onlyMinister = decoctionOf([["熟地黄", "君"], ["白芍", "君"], ["当归", "臣"], ["川芎", "臣"], ["甘草", "使"]]);
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "益中生血片" }, onlyMinister), undefined);
+  const withAdjuncts = decoctionOf([["酸枣仁", "君"], ["知母", "臣"], ["川芎", "佐"], ["甘草", "使"], ["大枣", "使"]]);
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "五味安神颗粒" }, withAdjuncts), undefined, "只共有甘草、大枣");
+});
+check("8.3 替代方案、外用、西药不判；组成查不到的不判（只能判有，不凭名字猜）", () => {
+  const herbs = decoctionOf([["人参", "君"], ["黄芪", "君"], ["白术", "臣"], ["当归", "臣"], ["龙眼肉", "臣"]]);
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "归脾丸", positioning: "联合治疗" }, herbs)?.reason, "decoction_emperor_herb");
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "归脾丸", positioning: "替代方案" }, herbs), undefined);
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "归脾丸", route: "外用" }, herbs), undefined);
+  assert.equal(duplication.patentMedicineDuplication({ type: "西药", name: "归脾丸" }, herbs), undefined);
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "健脾安神合剂" }, herbs), undefined);
+});
+check("8.4 生地黄与熟地黄按教材分作两味：熟地黄为君的汤剂旁，含生地黄的血平片不判重复；炙黄芪＝黄芪、酒大黄＝大黄照并", () => {
+  assert.notEqual(identityKeys.textbookDistinctHerbKey("熟地黄"), identityKeys.textbookDistinctHerbKey("生地黄"));
+  assert.equal(identityKeys.textbookDistinctHerbKey("地黄"), identityKeys.textbookDistinctHerbKey("生地黄"));
+  assert.equal(identityKeys.textbookDistinctHerbKey("炙黄芪"), identityKeys.textbookDistinctHerbKey("黄芪"));
+  assert.equal(identityKeys.textbookDistinctHerbKey("酒大黄"), identityKeys.textbookDistinctHerbKey("大黄"));
+  const herbs = decoctionOf([["熟地黄", "君"], ["牡丹皮", "臣"], ["白芍", "佐"]]);
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "血平片" }, herbs), undefined);
+});
+const selfMedState = { id: "r1019-self", phase: "prescribe", conversation: [], diagnosis: "", prescription: "", riskAssessment: "", maxQuestionRounds: 1,
+  chiefComplaint: "牙痛3天", patient: { sex: "男", age: 40 }, symptoms: { presentHistory: "3天前饮白酒后右下牙痛，自服黄连上清丸2天无效。" } };
+check("8.5 自服黄连上清丸（甲方病历 7）：三黄片与它共有大黄、黄芩，不推荐；丁细牙痛胶囊照推（对照）", () => {
+  const self = duplication.selfTakenMedicationCompositions(selfMedState);
+  assert.equal(self.length, 1);
+  assert.equal(self[0].name, "黄连上清丸");
+  const herbs = decoctionOf([["黄连", "君"], ["升麻", "臣"], ["生地黄", "臣"], ["牡丹皮", "佐"], ["当归", "佐"], ["大黄", "佐"]]);
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "三黄片" }, herbs, self)?.reason, "self_medication");
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "三黄片" }, herbs, []), undefined, "不看自服药时三黄片只共有大黄一味佐药");
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "丁细牙痛胶囊" }, herbs, self), undefined);
+});
+const medicineRow = (name, id) => ({ type: "中成药", name, specification: "1盒", singleDose: "一次1袋", frequency: "一日2次", route: "口服", administrationTiming: null,
+  usageBoundary: "按说明书", course: null, positioning: "需医生评估", correspondingProblem: "胃脘隐痛", evidenceId: id,
+  evidenceFingerprint: `sha256:${"a".repeat(63)}${id.slice(-1)}`, relationship: "医生评估", riskNote: "按说明书" });
+check("8.6 编译器：同组成的中成药从推荐里去掉，删光时状态写明是与汤剂组成重复；不重复的照列（对照）", () => {
+  const compiled = compiler.compileM04Proposal({
+    candidate: { name: "自拟方", applicable: "胃脘隐痛喜温。", notApplicable: "实热证不用。",
+      herbs: [
+        { name: "党参", dose: "12g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "健脾益气" },
+        { name: "白术", dose: "10g", role: "臣", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "健脾燥湿" },
+        { name: "茯苓", dose: "10g", role: "佐", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "健脾渗湿" },
+        { name: "炙甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", function: "调和诸药" },
+      ].map((herb) => ({ ...herb, processing: null, isToxic: false, decoctionRequirement: null })),
+      formulaAnalysis: "党参健脾益气为君，白术健脾燥湿为臣，茯苓健脾渗湿为佐，炙甘草调和诸药为使。",
+      decoction: { doseCount: "7剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "7日复诊" } },
+    patentAndWestern: [], modifications: [],
+    nonPharma: { diet: "宜温热易消化饮食，忌生冷。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: [], tcmTreatments: [] },
+  }, prior, { ...base, patient: { sex: "女", age: 50 }, symptoms: { presentHistory: "胃脘隐痛3年，喜温喜按。" } },
+  [medicineRow("参苓白术散", "LOCAL-INST-001"), medicineRow("人参口服液", "LOCAL-INST-002")]);
+  assert.deepEqual(compiled.formula.patentAndWestern.map((item) => item.name), ["人参口服液"]);
+  const onlyDuplicate = compiler.compileM04Proposal({
+    candidate: { name: "自拟方", applicable: "胃脘隐痛喜温。", notApplicable: "实热证不用。",
+      herbs: compiled.formula.candidates[0].herbs.map((herb) => ({ name: herb.name, dose: herb.dose, role: herb.role, targetKind: herb.targetKind, targetRef: herb.targetRef, structureRole: herb.structureRole ?? null, function: herb.function, processing: null, isToxic: false, decoctionRequirement: null })),
+      formulaAnalysis: "党参健脾益气为君，白术健脾燥湿为臣，茯苓健脾渗湿为佐，炙甘草调和诸药为使。",
+      decoction: { doseCount: "7剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "7日复诊" } },
+    patentAndWestern: [], modifications: [],
+    nonPharma: { diet: "宜温热易消化饮食，忌生冷。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: [], tcmTreatments: [] },
+  }, prior, { ...base, patient: { sex: "女", age: 50 }, symptoms: { presentHistory: "胃脘隐痛3年，喜温喜按。" } }, [medicineRow("参苓白术散", "LOCAL-INST-001")]);
+  assert.deepEqual(onlyDuplicate.formula.patentAndWestern, []);
+  assert.match(onlyDuplicate.formula.medicineCandidateStatus.reason, /组成重复/);
+});
+check("8.7 成份表：两份说明书索引的药名 ≥ 90% 有成份，每条带批准文号与来源（同批准文号或同名共有）", () => {
+  const table = JSON.parse(readFileSync("src/data/local-patent-medicine-composition.json", "utf8"));
+  const indexed = new Set([
+    ...JSON.parse(readFileSync("src/data/local-patent-medicine-index.json", "utf8")).entries.map((entry) => entry.name),
+    ...JSON.parse(readFileSync("src/data/local-patent-medicine-rx-index.json", "utf8")).entries.map((entry) => entry.name),
+  ]);
+  const names = Object.keys(table.entries);
+  assert.ok(names.length >= 0.9 * indexed.size, `${names.length}/${indexed.size}`);
+  assert.ok(names.every((name) => indexed.has(name)));
+  assert.ok(Object.values(table.entries).every((entry) => entry.approvalNumber && /^(?:same_approval|same_name_consensus:\d+)$/.test(entry.basis) && entry.ingredients.length > 0));
+  assert.deepEqual(table.entries["栀子金花丸"].ingredients.includes("天花粉"), true, "「粉」不当制剂词尾切掉（天花粉不是天花）");
+});
+
+// ───── 9 教材使用注意与病历相抵 ─────
+const caution = await jiti.import("../src/lib/herb-record-caution.ts");
+const record3 = "反复头痛半年，劳累后加重。头部隐痛，伴头晕，心悸，面色萎黄，神疲乏力，食欲下降，睡眠差，小便清长，大便稀溏。";
+check("9.1 熟地黄「食少便溏者忌服」对病历「食欲下降…大便稀溏」（甲方病历 3）；只有便溏、没有食少时不判熟地黄（对照）", () => {
+  const conflict = caution.herbRecordCautionConflict("熟地黄", record3, "血虚头痛");
+  assert.equal(conflict?.monograph, "熟地黄");
+  assert.equal(conflict?.verb, "忌服");
+  assert.deepEqual(conflict?.recordFindings, ["食欲下降", "大便稀溏"]);
+  assert.equal(caution.herbRecordCautionConflict("熟地黄", "头痛半年，大便稀溏。", "血虚头痛"), undefined);
+  if (textbookLines && conflict?.cautionLine) assert.match(textbookLines[conflict.cautionLine - 1], /食少便溏者忌服/);
+});
+check("9.2 限定词要证候对上：栀子「脾虚便溏者慎用」——脾虚证判、湿热泄泻不判；病历同时写着「大便尚正常」的不判；否认的不判（对照）", () => {
+  assert.ok(caution.herbRecordCautionConflict("栀子", "腹泻3天，大便稀溏。", "脾虚湿盛证"));
+  assert.equal(caution.herbRecordCautionConflict("栀子", "腹泻3天，大便稀溏。", "大肠湿热证"), undefined);
+  assert.equal(caution.herbRecordCautionConflict("当归", "既往术后便秘、腹泻交替，刻下大便尚正常。", "瘀血阻络证"), undefined);
+  assert.equal(caution.herbRecordCautionConflict("当归", "胃脘隐痛，无腹泻，大便调。", "脾胃虚寒证"), undefined);
+  assert.ok(caution.herbRecordCautionConflict("当归", "胃脘隐痛，大便稀溏。", "脾胃虚寒证"));
+});
+check("9.3 讲不良反应的句子（使君子「…引起呃逆、腹泻」、芥子「以免引起腹泻」）不算条件；何首乌「生用…大便溏泄者忌用」只管生品", () => {
+  assert.deepEqual(caution.looseStoolCautionConditions("大量服用可致呃逆、眩晕、呕吐、腹泻等反应。若与热茶同服，亦能引起呃逆、腹泻，故服用时忌饮浓茶。"), []);
+  assert.deepEqual(caution.looseStoolCautionConditions("用量不宜过大，以免引起腹泻。不宜久煎。"), []);
+  assert.deepEqual(caution.looseStoolCautionConditions("用量不宜过大，多服久服可引起腹痛腹泻及便溏。孕妇慎用。"), [], "月季花：便溏是不良反应，不是忌慎的对象");
+  assert.ok(caution.herbRecordCautionConflict("何首乌", "大便溏泄半月。", ""));
+  assert.equal(caution.herbRecordCautionConflict("制何首乌", "大便溏泄半月。", ""), undefined);
+});
+check("9.4 原方药味不判：加味四物汤（教材组成有当归、生地黄）换成熟地黄判熟地黄、不判当归；原方就有熟地黄的不判", () => {
+  const herbs = ["熟地黄", "白芍", "当归", "川芎", "党参", "白术", "菊花", "蔓荆子", "甘草"].map((name) => ({ name }));
+  const textbookComposition = ["白芍", "当归", "生地黄", "川芎", "菊花", "蔓荆子", "黄芩", "甘草"];
+  const conflicts = caution.herbRecordCautionConflicts(herbs, ["加味四物汤加减"], record3, "血虚头痛", textbookComposition);
+  assert.deepEqual(conflicts.map((item) => item.herb), ["熟地黄"]);
+  assert.deepEqual(caution.herbRecordCautionConflicts(herbs, ["加味四物汤加减"], record3, "血虚头痛", [...textbookComposition, "熟地黄"]), []);
+  assert.deepEqual(caution.textbookBaseIngredients({ formulas: ["加味四物汤"], composition: textbookComposition }, ["加味四物汤加减"]), textbookComposition);
+  assert.deepEqual(caution.textbookBaseIngredients({ formulas: ["加味四物汤"], composition: textbookComposition }, ["芩术四物汤"]), [], "处方不是这首方时不借教材组成");
+});
+check("9.5 编译器在仍写进处方的那一味写明（不删药、不改剂量）；提示词事先列出本例冲突的药，没有便溏类表现时提示词不变（对照）", () => {
+  const compiled = compiler.compileM04Proposal({
+    candidate: { name: "自拟方", applicable: "头痛隐隐。", notApplicable: "实证不用。",
+      herbs: [
+        { name: "熟地黄", dose: "12g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "补血滋阴" },
+        { name: "白术", dose: "10g", role: "臣", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "健脾燥湿" },
+        { name: "茯苓", dose: "10g", role: "佐", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "健脾渗湿" },
+        { name: "炙甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", function: "调和诸药" },
+      ].map((herb) => ({ ...herb, processing: null, isToxic: false, decoctionRequirement: null })),
+      formulaAnalysis: "熟地黄补血滋阴为君，白术健脾燥湿为臣，茯苓健脾渗湿为佐，炙甘草调和诸药为使。",
+      decoction: { doseCount: "7剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "7日复诊" } },
+    patentAndWestern: [], modifications: [],
+    nonPharma: { diet: "宜温热易消化饮食，忌生冷。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: [], tcmTreatments: [] },
+  }, prior, { ...base, patient: { sex: "女", age: 45 }, symptoms: { presentHistory: record3 } });
+  const herb = compiled.formula.candidates[0].herbs.find((item) => item.name === "熟地黄");
+  assert.equal(herb.dose, "12g");
+  assert.match(herb.verificationReasons.join("；"), /《中药学》熟地黄【使用注意】：食少便溏者忌服。本例记有食欲下降、大便稀溏/);
+  const others = compiled.formula.candidates[0].herbs.filter((item) => item.name !== "熟地黄");
+  assert.ok(others.every((item) => !item.verificationReasons.join("；").includes("使用注意")));
+  const section = caution.herbRecordCautionPromptSection(record3, "血虚头痛", ["加味四物汤"], ["白芍", "当归", "生地黄", "川芎", "菊花", "蔓荆子", "黄芩", "甘草"]);
+  assert.match(section, /熟地黄（食少便溏者忌服）/);
+  assert.match(section, /所选代表方原有的当归可以保留/);
+  assert.equal(caution.herbRecordCautionPromptSection("头痛半年，大便调。", "血虚头痛"), "");
+});
+check("9.6 接线：开方路由把这一段放进提示词；编译器按同一判据标注", () => {
+  const route = readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
+  assert.match(route, /herbRecordCautionPromptSection\(/);
+  assert.match(route, /promptSuffixes\.push\(cautionSection\)/);
+  assert.match(readFileSync("src/lib/m04-proposal-compiler.ts", "utf8"), /herbRecordCautionConflicts\(/);
+});
+
+// ───── 10 方义：换词重复、数量词、合称、五味子 ─────
+check("10.1 「二者相配阳中求阴、阳中求阴」（甲方病历 6：原文两种说法都写了，换词后连写）只留一个；已改过的再投影同样收拢", () => {
+  assert.equal(review.reviewAuthoredFormulaAnalysis("本方以左归丸为基础加减，熟地黄为君，山药、山茱萸、枸杞子为臣，鹿角胶、龟甲胶二者相配阳中求阴、阴中求阳，使阴得阳升而源泉不竭，菟丝子、川牛膝补肾强腰。", ["熟地黄", "山药", "山茱萸", "枸杞子", "鹿角胶", "龟甲胶", "菟丝子", "川牛膝"]).text.includes("阳中求阴、阳中求阴"), false);
+  const again = review.reviewAuthoredFormulaAnalysis("本方以左归丸为基础加减，熟地黄为君，山药、山茱萸、枸杞子为臣，鹿角胶、龟甲胶二者相配阳中求阴、阳中求阴，使阴得阳升而源泉不竭，菟丝子、川牛膝补肾强腰。", ["熟地黄", "山药", "山茱萸", "枸杞子", "鹿角胶", "龟甲胶", "菟丝子", "川牛膝"]);
+  assert.match(again.text, /二者相配阳中求阴，使阴得阳升/);
+  assert.ok(again.adjustments.includes("doctrine_phrase_corrected"));
+});
+check("10.2 数量词按作主语的药数改（甲方病历 9：「蝉蜕、炒牛蒡子…，当归…，四味共解」→ 三味；佐药只点两味的「三药为佐」→ 二药）", () => {
+  const nine = review.withRecountedHerbCountWords("荆芥、防风辛散透表，同领疏风清热之任；蝉蜕、炒牛蒡子助其疏散风热、透邪外出，当归养血和营以调营卫，四味共解风热犯卫。", ["荆芥", "防风", "蝉蜕", "炒牛蒡子", "当归", "苦参"]);
+  assert.match(nine.text, /三味共解风热犯卫/);
+  const reviewedNine = review.reviewAuthoredFormulaAnalysis(`本方以消风散为基础加减。${"荆芥、防风辛散透表，同领疏风清热之任；蝉蜕、炒牛蒡子助其疏散风热、透邪外出，当归养血和营以调营卫，四味共解风热犯卫。"}苦参清热止痒，甘草调和诸药。`, ["荆芥", "防风", "蝉蜕", "炒牛蒡子", "当归", "苦参", "甘草"]);
+  assert.match(reviewedNine.text, /三味共解/);
+  assert.ok(reviewedNine.adjustments.includes("herb_count_word_recounted"));
+  assert.match(review.withRecountedHerbCountWords("半夏、天麻为君；橘红理气化痰宽胸，竹茹化痰除烦止呕，三药为佐，分治胸闷。", ["半夏", "天麻", "橘红", "竹茹"]).text, /二药为佐/);
+});
+check("10.3 对照：宾语不数（「助石膏泻火」）、跨分号整段加起来对得上（「白芍、当归…；白术、茯苓…，四味共为臣」）、指最后几味、同一味前后都作主语只数一次、引子后的主语（「佐以野菊花、蒲公英、紫花地丁三味」）、方名识别漏掉的「没药散瘀」、五味子——都不改", () => {
+  const unchanged = (text, herbs) => assert.equal(review.withRecountedHerbCountWords(text, herbs).changed, false, text);
+  unchanged("生石膏为君；知母苦寒质润，助石膏泻火而兼滋化源，麦冬甘寒养胃生津，二药为臣。", ["石膏", "知母", "麦冬"]);
+  unchanged("柴胡疏肝为君；白芍、当归养血柔肝；白术、茯苓健脾渗湿，四味共为臣药。", ["柴胡", "白芍", "当归", "白术", "茯苓"]);
+  unchanged("丹参助君活经，竹茹、陈皮化痰降逆，黄芪补气升阳，三药分承痰浊与气血不足两层。", ["川芎", "丹参", "竹茹", "陈皮", "黄芪"]);
+  unchanged("香薷、金银花为君，香薷辛温芳香，发汗解表；金银花甘寒轻宣，清热解毒，二药一温一清。", ["香薷", "金银花", "连翘"]);
+  unchanged("麻黄宣肺为君。佐以野菊花、蒲公英、紫花地丁三味清热解毒。", ["麻黄", "野菊花", "蒲公英", "紫花地丁"]);
+  unchanged("桃仁、红花为君；川芎行气活血、没药散瘀定痛、五灵脂化瘀通络，三味助君逐瘀。", ["桃仁", "红花", "川芎", "没药", "五灵脂"]);
+  unchanged("山茱萸补益肾气；五味子、煅牡蛎收敛固涩，共助约束膀胱。", ["山茱萸", "五味子", "煅牡蛎"]);
+  unchanged("黄柏苦寒清下焦湿热，二药相合共为君。", ["黄柏", "薏苡仁"]);
+});
+check("10.4 「五味子」不再被数量词改写成「二味子」（外来药分句删除后的续句、按剩下药数改写的那一段）", () => {
+  // 外来药（仙茅）所在分句点了两味本方药，删掉仙茅之后紧跟的「五味子…」曾被当成「二药」那样按剩下的味数改写。
+  const removed = review.reviewAuthoredFormulaAnalysis("肉苁蓉温阳益精为君，补骨脂温肾助阳为臣；山茱萸、枸杞子补益肝肾、仙茅温肾，五味子、煅牡蛎收敛固涩，使膀胱约束有度；茯神宁心安神。", ["肉苁蓉", "补骨脂", "山茱萸", "枸杞子", "五味子", "煅牡蛎", "茯神"]);
+  assert.ok(removed.adjustments.includes("foreign_clause_removed"), JSON.stringify(removed.adjustments));
+  assert.doesNotMatch(removed.text, /[二两三四六七八九]味子|仙茅/);
+  assert.match(removed.text, /五味子、煅牡蛎收敛固涩/);
+});
+check("10.5 合称只有一味在方中（留出例 S046：方中无芒硝，「缓硝黄之峻」）改成在方中那一味；两味都在、合称是方名（银翘散）不动（对照）", () => {
+  assert.equal(review.withShorthandPairsMatchingHerbs("炙甘草为使，调和诸药、缓硝黄之峻。", ["大黄", "厚朴", "炙甘草"]).text, "炙甘草为使，调和诸药、缓大黄之峻。");
+  assert.equal(review.withShorthandPairsMatchingHerbs("炙甘草为使，缓硝黄之峻。", ["大黄", "芒硝", "炙甘草"]).changed, false);
+  assert.equal(review.withShorthandPairsMatchingHerbs("本方以银翘散为基础加减，金银花为君。", ["金银花", "薄荷"]).changed, false);
+  const s046 = review.reviewAuthoredFormulaAnalysis("本方以竹叶石膏汤为基础加减。石膏辛寒为君，直清胃火；生大黄、厚朴为佐，通腑泄热。炙甘草为使，调和诸药、缓硝黄之峻。", ["石膏", "竹叶", "大黄", "厚朴", "炙甘草"]);
+  assert.match(s046.text, /缓大黄之峻/);
+});
+
+// ───── 11 注意事项点名已不在方中的药 ─────
+const ids = (names) => new Set(names.map((name) => contractIdentity(name)));
+const { canonicalTcmHerbIdentity: contractIdentity } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+check("11.1 留出例 S145：「方中黄柏、苍术苦寒燥烈」而苍术已剔出本方，只去掉苍术；「二药」按剩下的改", () => {
+  const formula = ids(["黄柏", "薏苡仁", "防己", "滑石", "连翘"]);
+  assert.equal(compiler.precautionWithoutAbsentHerbs("方中黄柏、苍术苦寒燥烈，胃脘不适者请告知医生调整。", formula), "方中黄柏苦寒燥烈，胃脘不适者请告知医生调整。");
+  assert.equal(compiler.precautionWithoutAbsentHerbs("方中黄柏、苍术二药苦寒燥烈，久服伤胃。", formula), "方中黄柏苦寒燥烈，久服伤胃。");
+});
+check("11.2 只讲不在方中的药的那一小句去掉，同一条别的话照留（「如正在哺乳请先告知医生，方中皂角刺…」）；整条都只讲它时删掉", () => {
+  const formula = ids(["黄芪", "当归", "川芎"]);
+  assert.equal(compiler.precautionWithoutAbsentHerbs("如正在哺乳请先告知医生，方中皂角刺等通乳药需结合哺乳情况评估。", formula), "如正在哺乳请先告知医生。");
+  assert.equal(compiler.precautionWithoutAbsentHerbs("方中皂角刺性锐利。", formula), "");
+});
+check("11.3 对照：方外之物（「不宜同服藜芦」）、药都在方中、没有处方可核时原样", () => {
+  const formula = ids(["人参", "黄芪"]);
+  for (const line of ["方中有人参，服药时不宜同服藜芦、五灵脂制剂。", "方中人参不宜与藜芦、五灵脂同服。", "方中人参、黄芪补气，感冒发热时暂停。"]) {
+    assert.equal(compiler.precautionWithoutAbsentHerbs(line, formula), line);
+  }
+  assert.equal(compiler.precautionWithoutAbsentHerbs("方中苍术温燥。", new Set()), "方中苍术温燥。");
+});
+
+check("11.4 编译器按编译时的处方修剪注意事项（此前整条丢掉）", () => {
+  const compiled = compiler.compileM04Proposal({
+    candidate: { name: "自拟方", applicable: "胃脘隐痛喜温。", notApplicable: "实热证不用。",
+      herbs: [
+        { name: "党参", dose: "12g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "健脾益气" },
+        { name: "白术", dose: "10g", role: "臣", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "健脾燥湿" },
+        { name: "茯苓", dose: "10g", role: "佐", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "健脾渗湿" },
+        { name: "炙甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", function: "调和诸药" },
+      ].map((herb) => ({ ...herb, processing: null, isToxic: false, decoctionRequirement: null })),
+      formulaAnalysis: "党参健脾益气为君，白术健脾燥湿为臣，茯苓健脾渗湿为佐，炙甘草调和诸药为使。",
+      decoction: { doseCount: "7剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "7日复诊" } },
+    patentAndWestern: [], modifications: [],
+    nonPharma: { diet: "宜温热易消化饮食，忌生冷。", lifestyle: "规律作息。", emotion: "调畅情志。",
+      precautions: ["方中党参、黄芪甘温补气，感冒发热时暂停服用。"], tcmTreatments: [] },
+  }, prior, { ...base, patient: { sex: "男", age: 50 }, symptoms: { presentHistory: "胃脘隐痛3年，喜温喜按。" } });
+  assert.ok(compiled.nonPharma.precautions.includes("方中党参甘温补气，感冒发热时暂停服用。"), JSON.stringify(compiled.nonPharma.precautions));
+});
+
+// ───── 12 萆薢 ─────
+check("12.1 萆薢（教材：基原为绵萆薢、粉萆薢，煎服 9～15g；药典两条用量相同）给出参考用量，加减「加萆薢」有剂量；黄山药照旧药典 15–30g（对照）", () => {
+  const limit = kb.getTcmHerbDoseLimit("萆薢");
+  assert.equal(limit?.sourceType, "reference");
+  assert.deepEqual([limit.min, limit.max], [9, 15]);
+  assert.deepEqual([kb.getTcmHerbDoseLimit("粉萆薢")?.min, kb.getTcmHerbDoseLimit("粉萆薢")?.max, kb.getTcmHerbDoseLimit("粉萆薢")?.sourceType], [9, 15, "dose"]);
+  assert.deepEqual([kb.getTcmHerbDoseLimit("黄山药")?.min, kb.getTcmHerbDoseLimit("黄山药")?.max], [15, 30]);
+  const withBixie = compiler.compileM04Proposal({
+    candidate: { name: "自拟方", applicable: "胃脘隐痛喜温。", notApplicable: "实热证不用。",
+      herbs: [
+        { name: "党参", dose: "12g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "健脾益气" },
+        { name: "白术", dose: "10g", role: "臣", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "健脾燥湿" },
+        { name: "茯苓", dose: "10g", role: "佐", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "健脾渗湿" },
+        { name: "炙甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", function: "调和诸药" },
+      ].map((herb) => ({ ...herb, processing: null, isToxic: false, decoctionRequirement: null })),
+      formulaAnalysis: "党参健脾益气为君，白术健脾燥湿为臣，茯苓健脾渗湿为佐，炙甘草调和诸药为使。",
+      decoction: { doseCount: "7剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "7日复诊" } },
+    patentAndWestern: [],
+    modifications: [{ trigger: "若小便浑浊", targetRef: "P1", actionType: "add", herbName: "萆薢", dose: "12g", reason: "分清化浊" }],
+    nonPharma: { diet: "宜温热易消化饮食，忌生冷。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: [], tcmTreatments: [] },
+  }, prior, { ...base, patient: { sex: "男", age: 40 }, symptoms: { presentHistory: "胃脘隐痛3年，喜温喜按。" } });
+  assert.deepEqual(withBixie.formula.modifications.map((item) => [item.herbName, item.doseOrHandling]), [["萆薢", "12g"]], "留出例 S086：加萆薢此前没有剂量");
+  const entry = JSON.parse(readFileSync("src/data/tcm-herb-nonpharmacopoeia-dose.source.json", "utf8")).entries.find((item) => item.herb === "萆薢");
+  assert.ok(entry.sources.length >= 2);
+  if (textbookLines) assert.match(textbookLines[155684], /煎服，9～15g/);
+});
+
+// ───── 13 按用意判顺带睡眠的安神加减 ─────
+check("13.1 触发条件没写睡眠、理由写明「助眠」「安眠」的安神加减同样不列；「止啼」不算（五迟·脾虚肝旺加天麻镇惊止啼治的是肝旺）；证候涉心神时照列（对照）", () => {
+  assert.equal(compiler.incidentalSleepSedativeModification({ trigger: "若瘙痒甚", herbName: "珍珠母", reason: "重镇安神助眠" }, prior), true);
+  assert.equal(compiler.incidentalSleepSedativeModification({ trigger: "若烦躁", herbName: "合欢皮", reason: "解郁安眠" }, prior), true);
+  assert.equal(compiler.incidentalSleepSedativeModification({ trigger: "若惊惕不安较甚", herbName: "天麻", reason: "增平肝息风之力，助镇惊止啼" }, prior), false);
+  assert.equal(compiler.incidentalSleepSedativeModification({ trigger: "若烦躁", herbName: "蝉蜕", reason: "疏风止痉" }, prior), false);
+  assert.equal(compiler.incidentalSleepSedativeModification({ trigger: "若瘙痒甚", herbName: "珍珠母", reason: "重镇安神助眠" }, priorFor("不寐", "心脾两虚证")), false);
+});
+check("13.2 留出例 S132、S158 的两条是教材本证加减原文，照列（编译器的教材加减豁免；本机有语料时原文逐字核对）", () => {
+  const tbSyndromes = textbookSyndromes;
+  assert.ok(tbSyndromes.textbookModificationMatch("湿疮", "血虚风燥证", "若瘙痒不能入眠", "珍珠母"));
+  assert.ok(tbSyndromes.textbookModificationMatch("积滞", "食积化热证", "若烦躁、夜啼难眠", "蝉蜕"));
+  if (textbookLines) {
+    assert.match(textbookLines[207558], /瘙痒不能入眠者，加珍珠母/);
+  }
+});
+
+// ───── 14 教材代表方的出处 ─────
+check("14.1 加味四物汤：名录里《金匮翼》卷五那一条与教材组成逐味相同（炙草＝炙甘草、甘菊＝菊花、生地＝生地黄），出处取它；差一味时不取（对照）", () => {
+  assert.equal(resolveGovernedTcmHerbIdentity("炙草").canonicalName, "炙甘草");
+  const textbook = ["白芍", "当归", "生地黄", "川芎", "菊花", "蔓荆子", "黄芩", "甘草"];
+  assert.match(provenance.catalogSourceForExactComposition("加味四物汤", textbook) || "", /金匮翼/);
+  assert.equal(provenance.catalogSourceForExactComposition("加味四物汤", textbook.filter((name) => name !== "黄芩")), undefined);
+  assert.match(provenance.catalogSourceForExactComposition("葛根芩连汤", ["葛根", "炙甘草", "黄芩", "黄连"]) || "", /伤寒论/);
 });
 
 console.log(JSON.stringify({ suite: "r1019-herbs", cases, failures: process.exitCode ? "see above" : 0 }));

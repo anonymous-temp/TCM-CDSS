@@ -16,6 +16,11 @@
 //   9 禁忌与人群：舌苔颜色与自觉发热的热象写法不灸；出血倾向或血小板低于 50×10⁹/L 不按揉、不灸、不罐；
 //     病历写到皮肤破损、流脓时针灸卡写明避开，骨折只认已签名诊断；病历写明的患儿年龄先于登记的成人年龄；0～36 月龄急性发热期不给健康保健按揉；
 //     部位词（颈部、关节）要与不适写在同一小句才算本例表现
+//  10 第二轮（2026-10-19 终评：甲方病历 7、10，留出例 S086、S102、S151、S160）：
+//     教材方案卡的「对应病机」落在核心病机 P1（不再沿用模型或亲和度挑的旁支节点）；分套治法里与证候相反的「温经散寒」「补血」小句不印，
+//     备孕者的孕期慎用穴注明「施术前请确认未妊娠，月经逾期者先验孕」；小儿耳穴只写压丸法；
+//     目录模板主穴只是「局部阿是穴（查体确认）」「循经远端穴（按疼痛部位选择）」时用教材主穴（+目录已终审的证型配穴）；
+//     网络来源写成「发布者《篇名》」，不带网页标题后缀与网址
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
@@ -324,6 +329,142 @@ check("9.6 0～36 月龄急性发热期不给健康保健按揉；「手足心�
   }, prior)).nonPharma.acupointCare;
   assert.equal(run("不思饮食半月，昨日起发热，体温38.5℃"), null);
   assert.ok(run("不思饮食半月，夜间手足心发热，大便干"), "手足心热不是发热，应照给月龄保健");
+});
+
+// ── 10 第二轮 ─────────────────────────────────────────────────────────────────
+check("10.1 病历 10（月经先期·阳盛血热）：耳穴、针刺卡取的是月经不调节的冲任穴，对应病机落在 P1「热伏冲任」，不是模型挑的「热扰心神」「肝胆热盛」", () => {
+  const prior = signedPrior("月经先期", "阳盛血热证", "热伏冲任，迫血妄行", "月经频发");
+  prior.therapy = { overallPrinciple: "热者寒之", overallMethod: "清热凉血调经", subTherapies: [] };
+  prior.pathogenesis.chain = [
+    { nodeId: "P1", patientFact: "月经周期提前至二十二天", syndromeEvidence: "舌红，苔黄", pathogenesis: "热伏冲任，迫血妄行", therapyDirection: "清热凉血调经" },
+    { nodeId: "P2", patientFact: "晨起口苦", syndromeEvidence: "舌红，苔黄", pathogenesis: "肝胆热盛，灼伤津液", therapyDirection: "清肝泻热生津" },
+    { nodeId: "P3", patientFact: "心烦易怒、夜寐不宁", syndromeEvidence: "舌红，苔黄", pathogenesis: "热扰心神，神不守舍", therapyDirection: "清心安神" },
+  ];
+  const cards = compile(prior, "月经提前1月", "近一个月月经周期提前至二十二天即来潮，经量更多，色紫红，伴心烦易怒、口干、夜寐不宁、晨起口苦",
+    [{ projectCode: "auricular", targetRef: "P3" }, { projectCode: "acupuncture", targetRef: "P2" }], { sex: "女", age: 32 });
+  const needle = cards.find((item) => item.projectCode === "acupuncture");
+  const ear = cards.find((item) => item.projectCode === "auricular");
+  assert.ok(needle?.suggestedSitesOrPoints.some((site) => site.startsWith("关元")), JSON.stringify(needle?.suggestedSitesOrPoints));
+  assert.ok(ear?.suggestedSitesOrPoints.includes("内生殖器"), JSON.stringify(ear?.suggestedSitesOrPoints));
+  for (const card of [needle, ear]) {
+    assert.equal(card.targetRef, "P1", `${card.projectCode} ${card.targetRef}`);
+    assert.equal(card.targetPathogenesis, "热伏冲任，迫血妄行");
+  }
+});
+
+check("10.2 目录模板按节点适应证出的卡仍落在原节点（对照）：教材无本病节时，失眠节点上的耳穴卡对应病机仍是该节点", () => {
+  const prior = signedPrior("项强", "气血不和证", "颈项经筋不利", "颈部劳损");
+  prior.pathogenesis.chain = [
+    { nodeId: "P1", patientFact: "颈项僵硬", syndromeEvidence: "", pathogenesis: "颈项经筋不利，气血不和", therapyDirection: "舒筋活络" },
+    { nodeId: "P2", patientFact: "入睡困难、多梦", syndromeEvidence: "", pathogenesis: "心神不宁，夜寐不安", therapyDirection: "宁心安神" },
+  ];
+  const cards = compile(prior, "颈项僵硬伴入睡困难2周", "颈项僵硬2周，入睡困难、多梦易醒", [{ projectCode: "auricular", targetRef: "P2" }], { sex: "男", age: 40 });
+  const ear = cards.find((item) => item.projectCode === "auricular");
+  assert.ok(ear, "夹具前提：耳穴卡在");
+  assert.ok(!/「[^」]+」节/.test(ear.protocolSource || ""), `夹具前提：走院内目录模板（${ear.protocolSource}）`);
+  assert.equal(ear.targetRef, "P2");
+  assert.equal(ear.targetPathogenesis, "心神不宁，夜寐不安");
+});
+
+check("10.2b 病名写成两病并列（「不寐兼项痹」）时，教材方案只对得上其中一节：卡片仍落在模型所选的颈肩节点（对照，test:tcm-treatments 同一夹具）", () => {
+  const prior = signedPrior("不寐兼项痹", "心神不宁兼经筋痹阻证", "心神失养", "失眠障碍伴颈肩肌筋膜疼痛");
+  prior.pathogenesis.chain = [
+    { nodeId: "P1", patientFact: "入睡困难", syndromeEvidence: "心神不宁", pathogenesis: "心神失养", therapyDirection: "养心安神" },
+    { nodeId: "P2", patientFact: "颈肩疼痛、活动受限", syndromeEvidence: "经筋痹阻", pathogenesis: "颈肩经筋痹阻", therapyDirection: "舒筋通络止痛" },
+  ];
+  const cards = compile(prior, "入睡困难伴颈肩疼痛1月", "入睡困难；颈肩疼痛、活动受限", [{ projectCode: "tuina", targetRef: "P2" }], { sex: "男", age: 40 });
+  const tuina = cards.find((item) => item.projectCode === "tuina");
+  assert.ok(tuina, "夹具前提：推拿卡在");
+  assert.equal(tuina.targetRef, "P2");
+});
+
+check("10.3 S102 痰湿月经后期：分套治法「温经散寒，补血调经」与证候相反，不印，按病取基本穴；血寒、血虚证照印（对照）", () => {
+  const therapy = "温经散寒，补血调经。取任脉及足阳明、太阴经穴为主";
+  assert.equal(plan.therapyClausesForSyndrome(therapy, "痰湿证"), "取任脉及足阳明、太阴经穴为主");
+  assert.equal(plan.therapyClausesForSyndrome(therapy, "气滞证"), "取任脉及足阳明、太阴经穴为主");
+  assert.match(plan.therapyClausesForSyndrome(therapy, "血寒证"), /^温经散寒/);
+  assert.match(plan.therapyClausesForSyndrome(therapy, "血虚证"), /补血调经/);
+  const damp = acupuncture({ diseaseNames: ["月经后期"], signedSyndromeText: "痰湿证", currentFacts: "1年来月经45～60天一行，经量少，白带量多" });
+  assert.match(damp?.treatmentContent || "", /^按病取基本穴（本例证型在教材中没有对应的配穴）：取任脉及足阳明、太阴经穴为主/, damp?.treatmentContent);
+  assert.doesNotMatch(damp.treatmentContent, /温经散寒|补血/);
+  const cold = acupuncture({ diseaseNames: ["月经后期"], signedSyndromeText: "血寒证", currentFacts: "月经推后，小腹冷痛，得热痛减" });
+  assert.match(cold?.treatmentContent || "", /温经散寒/, "血寒照印（对照）");
+});
+
+check("10.4 S102 备孕（未避孕1年未孕、末次月经50天前，尿妊娠试验阴性）：针刺卡的孕期慎用穴注明先确认未妊娠；已避孕、无生育计划不加（对照）", () => {
+  assert.match(cap.populationCardNote("acupuncture", 30, false, ["气海（RN6·任脉）", "三阴交（SP6·足太阴脾经）", "足三里"], true),
+    /^备孕期间：气海、三阴交孕期不宜针灸刺激，施术前请确认未妊娠，月经逾期者先验孕。$/);
+  assert.equal(cap.populationCardNote("acupuncture", 30, false, ["气海", "三阴交"], false), "");
+  const prior = signedPrior("月经后期", "痰湿证", "痰湿阻滞冲任，血海不能按时满溢", "月经稀发");
+  const record = (marriage) => cap.compileTcmTreatmentRecommendations([{ projectCode: "acupuncture", targetRef: "P1" }], prior, {
+    chiefComplaint: "月经推后1年", patient: { sex: "女", age: 30 }, safetyGate: { status: "ready", redFlags: [] },
+    symptoms: { 现病史: "1年来月经45～60天一行，经量少，白带量多", 婚育史: marriage, 月经史: "近1年周期45～60天，末次月经50天前", 辅助检查: "尿妊娠试验阴性" },
+  }).find((item) => item.projectCode === "acupuncture");
+  const trying = record("已婚，孕0产0，未避孕1年未孕");
+  assert.match(trying?.techniqueBoundary || "", /备孕期间：[^。]*三阴交孕期不宜针灸刺激，施术前请确认未妊娠，月经逾期者先验孕/, trying?.techniqueBoundary);
+  const contracepting = record("已婚，孕1产1，工具避孕，暂无生育计划");
+  assert.doesNotMatch(contracepting?.techniqueBoundary || "", /备孕/, contracepting?.techniqueBoundary);
+});
+
+check("10.5 小儿耳穴只写压丸法：教材「毫针刺法，或压丸法」「毫针刺法，或埋针法、压丸法」等写法逐句改；不用针的小句照留", () => {
+  const cases = [
+    ["取肺、脾、肝、气管、神门。每次选用2~3穴，毫针刺法，或压丸法。", "取肺、脾、肝、气管、神门。每次选用2~3穴，压丸法。"],
+    ["取膀胱、肾、皮质下、内分泌、尿道、神门。毫针刺法，或埋针法、压丸法。", "取膀胱、肾、皮质下、内分泌、尿道、神门。压丸法。"],
+    ["毫针刺法或压丸法。", "压丸法。"],
+    ["可用埋针法或压丸法。", "压丸法。"],
+    ["每次选3～5穴，毫针刺，轻刺激。", "每次选3～5穴，压丸法。"],
+    ["每次选用3~4穴，毫针刺法，强刺激，留针30分钟。", "每次选用3~4穴，压丸法。"],
+    ["毫针刺法，耳尖可用三棱针点刺出血。", "压丸法，耳尖可用三棱针点刺出血。"],
+    ["每次选2～4穴，毫针刺用中等刺激，也可用压丸或埋针法。", "每次选2～4穴，压丸。"],
+  ];
+  for (const [input, expected] of cases) assert.equal(plan.auricularMethodsForChild(input), expected, input);
+  const child = plan.textbookTreatmentPlan({ projectCode: "auricular", diseaseNames: ["遗尿"], westernNames: [], signedSyndromeText: "肺脾气虚证", currentFacts: "夜间遗尿", patientAgeYears: 8 });
+  assert.doesNotMatch(`${child?.treatmentContent}${child?.techniqueBoundary}`, /毫针|埋针|进针深度/, `${child?.treatmentContent} ${child?.techniqueBoundary}`);
+  assert.match(child?.treatmentContent || "", /压丸法/);
+  const adult = plan.textbookTreatmentPlan({ projectCode: "auricular", diseaseNames: ["遗尿"], westernNames: [], signedSyndromeText: "肺脾气虚证", currentFacts: "夜间遗尿", patientAgeYears: 30 });
+  assert.match(adult?.treatmentContent || "", /毫针刺法/, "成人照写（对照）");
+  const cards = compile(signedPrior("咳嗽", "痰热咳嗽", "痰热壅肺，肺失宣肃", "急性支气管炎"), "咳嗽1周", "咳嗽、咳黄痰1周",
+    [{ projectCode: "auricular", targetRef: "P1" }], { sex: "男", age: 7 });
+  const ear = cards.find((item) => item.projectCode === "auricular");
+  assert.match(ear?.techniqueBoundary || "", /^小儿耳穴宜用贴压/);
+  assert.doesNotMatch(`${ear?.treatmentContent}${ear?.techniqueBoundary}`.replace(/不用毫针/g, ""), /毫针|埋针/, `${ear?.treatmentContent} ${ear?.techniqueBoundary}`);
+});
+
+check("10.6 S086 湿热腰痛：目录模板主穴只是「局部阿是穴（查体确认）」「循经远端穴」时，用教材腰痛主穴（委中、肾俞、大肠俞）+ 目录湿热痹阻配穴；瘀血腰痛用教材证型配穴", () => {
+  const prior = signedPrior("腰痛", "湿热腰痛", "湿邪留着腰府，郁而化热，经络不畅", "腰肌劳损");
+  prior.therapy = { overallPrinciple: "实则泻之", overallMethod: "清热利湿，舒筋止痛", subTherapies: [] };
+  const present = "患者1个月来腰部疼痛，发沉，并有发热感，闷热潮湿和阴雨天气加重，活动一会儿后反而减轻一些，全身困重，小便短少色黄。舌质红，苔黄腻，脉濡数";
+  const needle = compile(prior, "腰部疼痛、发沉1月", present, [{ projectCode: "acupuncture", targetRef: "P1" }], { sex: "女", age: 50 })
+    .find((item) => item.projectCode === "acupuncture");
+  const points = (needle?.suggestedSitesOrPoints || []).map((site) => site.replace(/（.*$/, ""));
+  for (const point of ["肾俞", "大肠俞", "委中", "阴陵泉"]) assert.ok(points.includes(point), `${point} 不在 ${points.join("、")}`);
+  assert.ok(!points.some((point) => /循经远端穴|查体确认/.test(point)), points.join("、"));
+  assert.match(needle.treatmentContent, /本例属湿热痹阻，在主穴基础上加/);
+  assert.equal(needle.protocolStatus, "governed_patient_specific_plan");
+  assert.equal(needle.adjudicationStatus, "approved", "目录证型配穴已终审：卡片终审状态照写（test:tcm-treatments 终审台账属性）");
+  assert.match(needle.protocolSource, /「腰痛」节.*湿热痹阻配穴：《针灸学》规划教材证型配穴表/, needle.protocolSource);
+  assert.doesNotMatch(needle.protocolSource, /SRC-/);
+  const yinling = needle.pointProvenance.find((record) => record.point === "阴陵泉");
+  assert.deepEqual(yinling?.sourceRefs, ["SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"], JSON.stringify(yinling));
+  const stasis = signedPrior("腰痛", "瘀血腰痛", "闪挫致腰部气血瘀滞，络脉不通", "急性腰扭伤");
+  const stasisNeedle = compile(stasis, "腰痛3天", "3天前搬重物后腰部刺痛，痛处固定不移，俯仰不利。舌质暗，脉涩",
+    [{ projectCode: "acupuncture", targetRef: "P1" }], { sex: "男", age: 45 }).find((item) => item.projectCode === "acupuncture");
+  const stasisPoints = (stasisNeedle?.suggestedSitesOrPoints || []).map((site) => site.replace(/（.*$/, ""));
+  assert.ok(stasisPoints.includes("委中") && stasisPoints.includes("膈俞"), stasisPoints.join("、"));
+  assert.ok(!stasisPoints.some((point) => /循经远端穴/.test(point)), stasisPoints.join("、"));
+});
+
+check("10.7 病历 7：网络来源写成「发布者《篇名》」——不带「--中国针灸学会官网」这类网页标题后缀、不带域名与网址；来源等级照写", () => {
+  assert.equal(plan.webSourceLabel("中国针灸学会（caam.cn 科普之窗·科普知识）", "牙痛--中国针灸学会官网"), "中国针灸学会（科普之窗·科普知识）《牙痛》");
+  assert.equal(plan.webSourceLabel("健康界转载", "偏头痛非药物防治中国专家共识|偏头痛|药物|防治|-健康界"), "健康界转载《偏头痛非药物防治中国专家共识》");
+  assert.equal(plan.webSourceLabel("甘肃中医药大学附属医院北院针灸科（官网·优势病种）", "面瘫（面神经炎）中医诊疗方案_优势病种_北院针灸科"), "甘肃中医药大学附属医院北院针灸科（官网·优势病种）《面瘫（面神经炎）中医诊疗方案》");
+  assert.equal(plan.webSourceLabel("A+医学百科（《中医外科学》教材电子书转载）", "中医外科学/瘾疹 - A+医学百科"), "A+医学百科（《中医外科学》教材电子书转载）《中医外科学/瘾疹》");
+  assert.equal(plan.webSourceLabel("国家中医药管理局", "瘾疹（慢性荨麻疹）中医诊疗方案（试行版）"), "国家中医药管理局《瘾疹（慢性荨麻疹）中医诊疗方案（试行版）》", "正式题名不动（对照）");
+  const ear = plan.textbookTreatmentPlan({ projectCode: "auricular", diseaseNames: ["牙痛"], westernNames: ["牙痛"], signedSyndromeText: "胃火牙痛", currentFacts: "牙痛3天" });
+  const text = `${ear?.scheduleSuggestion}${ear?.protocolSource}`;
+  assert.match(text, /中国针灸学会（科普之窗·科普知识）《牙痛》/, text);
+  assert.doesNotMatch(text, /caam|官网|https?:|--/, text);
+  assert.match(ear.protocolSource, /频次来源：.*《牙痛》（B级）/);
 });
 
 console.log(JSON.stringify({ suite: "test-r1019-cards", cases, failed: failures.length, failures }, null, 2));

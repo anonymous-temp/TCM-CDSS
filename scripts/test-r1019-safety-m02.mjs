@@ -296,6 +296,47 @@ await check("S1.2 病历写了带限定的那一种、或模型否认的就是�
     const tongueOnly = envelope(question("舌苔是什么颜色？", "苔黄腻", "苔薄白"));
     assert.equal(contract.splitTonguePulseQuestions(tongueOnly, "胃痛3天。", {}).content, tongueOnly);
   });
+  await check("Q7.1 模型写的单问舌象题：选项不互斥（「舌红，苔黄」对「舌红，苔薄黄」，甲方病历 7 第 1 次生成）删题；单问脉象题同理", () => {
+    const removed = contract.splitTonguePulseQuestions(envelope(question("舌苔更接近下列哪一种？", "舌红，苔黄", "舌红，苔薄黄")), "右侧下牙胀痛3天。", {});
+    assert.deepEqual(removed.removeIds, ["q1"]);
+    const pulse = contract.splitTonguePulseQuestions(envelope(question("脉象更接近哪一种？", "脉弦数", "脉弦")), "胃痛3天。", {});
+    assert.deepEqual(pulse.removeIds, ["q1"]);
+    assert.equal(textbook.tongueOptionsMutuallyExclusive("舌苔厚腻", "舌淡苔腻"), false, "厚腻与腻都是腻苔");
+  });
+  await check("Q7.2 互斥的单问舌象题：各选项共有的小句（预设的舌红）去掉，题干按剩下的内容改成问舌苔；互斥判据读得出「苔黄厚」", () => {
+    assert.equal(textbook.tongueOptionsMutuallyExclusive("舌红，苔黄厚或黄腻", "舌红，苔薄黄"), true);
+    assert.equal(textbook.tongueOptionsMutuallyExclusive("舌红少苔", "舌苔薄白"), true);
+    const split = contract.splitTonguePulseQuestions(envelope(question("舌象更接近以下哪一种？", "舌红，苔黄厚或黄腻", "舌红，苔薄黄")), "右侧下牙胀痛3天。", {});
+    assert.deepEqual(split.removeIds, []);
+    const plan = planOf(split.content);
+    assert.equal(plan.questions[0].question, "本例的舌苔更接近下面哪一种？");
+    assert.deepEqual(plan.questions[0].options.slice(0, 2).map((item) => [item.label, item.answer, item.recordValue]),
+      [["苔黄厚或黄腻", "苔黄厚或黄腻", "苔黄厚或黄腻"], ["苔薄黄", "苔薄黄", "苔薄黄"]]);
+    const mismatch = planOf(contract.splitTonguePulseQuestions(envelope(question("舌苔更接近哪一种？", "舌红，苔黄", "舌淡，苔白")), "胃痛3天。", {}).content);
+    assert.equal(mismatch.questions[0].question, "本例的舌象更接近下面哪一种？", "题干问舌苔、选项也分舌质时改成问舌象");
+  });
+  await check("Q7.3 互斥、无共有小句、题干与选项一致的舌象题和脉象题不动（对照：甲方病历 8 三次生成评审判合格的题）", () => {
+    for (const content of [
+      envelope(question("舌象更接近下列哪一项？", "舌质红，苔薄黄或黄厚", "舌淡或正常，苔白或白腻")),
+      envelope(question("脉象更接近哪一种？", "脉浮数", "脉沉细")),
+      envelope(question("舌苔是什么颜色？", "苔黄腻", "苔薄白")),
+    ]) {
+      const split = contract.splitTonguePulseQuestions(content, "胃痛3天。", {});
+      assert.deepEqual(split.removeIds, []);
+      assert.equal(split.content, content);
+    }
+  });
+  await check("Q8.1 服务端基本问诊题的选项不带「或」（「口不渴，或只想喝少量热水」评审判不能直接写进病历）", () => {
+    const seen = new Set();
+    for (const record of ["胃痛3天。", "胃痛3天，怕冷。", "胃痛3天，怕冷，口不渴。", "胃痛3天，怕冷，口不渴，大便调。"]) {
+      const content = contract.basicInquiryFallback(record, { ageDays: 40 * 365 }) || "";
+      const options = [...content.matchAll(/^[AB]\. (.+)$/gmu)].map((match) => match[1]);
+      assert.equal(options.length, 2, content);
+      for (const option of options) assert.ok(!/或/u.test(option), `选项「${option}」带或`);
+      seen.add(content.split("\n")[0]);
+    }
+    assert.equal(seen.size, 4, "寒热、口渴、大便、汗四项都核到");
+  });
   const savedFetch = globalThis.fetch;
   const completion = (payload) => new Response(JSON.stringify({
     id: "t", object: "chat.completion", model: "deepseek-flash",
@@ -322,6 +363,30 @@ await check("S1.2 病历写了带限定的那一种、或模型否认的就是�
     assert.ok(singlePoint.messages[0].content.includes("最困扰的是气短自汗、易感冒，还是食少胃胀、便溏"), "题干自列两组证候表现的选择题必须作为单问点示例");
     const repeat = bodies.find((body) => body.messages?.[0]?.content?.includes("追问题与病历的重复核对器"));
     assert.ok(repeat.messages[0].content.includes("病历写着“无腹痛拒按”"), "重复核对提示词缺「选项已被病历否认」一条");
+  });
+  await check("Q9.1 重复核对：「只问哪组为主、各组表现病历都写了」单列一类且优先于 not_answered（甲方病历 5）；判 partly 且引文逐字时删题", async () => {
+    const record = "反复感冒1+年\n平素伴易疲乏、短气自汗、声音低怯，食欲下降，进食稍多或滋腻则胃胀不适，小便清长，大便稀溏。";
+    const content = envelope(question("平素最困扰的主要是气短自汗、易感冒，还是食少胃胀、大便稀溏？", "平素以气短自汗、易感冒为主要困扰", "平素以食少胃胀、大便稀溏为主要困扰"));
+    const bodies = [];
+    let removed;
+    try {
+      globalThis.fetch = async (_url, init) => {
+        const body = JSON.parse(init.body);
+        bodies.push(body);
+        return completion(body.messages[0].content.includes("追问题与病历的重复核对器")
+          ? { verdict: "partly", quotes: ["短气自汗、声音低怯", "进食稍多或滋腻则胃胀不适", "大便稀溏"], reason: "两组表现均已写明" }
+          : { verdict: "single", points: [] });
+      };
+      removed = await redundancy.questionIdsFailingNarrowChecks(content, record, "");
+    } finally {
+      globalThis.fetch = savedFetch;
+    }
+    const repeat = bodies.find((body) => body.messages?.[0]?.content?.includes("追问题与病历的重复核对器"));
+    const system = repeat.messages[0].content;
+    assert.ok(/主次题：题干只问“哪一组\/哪一项为主/u.test(system), "缺主次题一类");
+    assert.ok(system.includes("这条优先于 not_answered"), "主次题须写明优先于 not_answered");
+    assert.ok(!system.includes("各选项列的表现病历里都已经写了、题干只问哪一组更突出或以哪一组为主"), "旧的附带说法应已并入主次题");
+    assert.deepEqual(removed, ["q1"]);
   });
   await check("Q4.1 急症筛查核对：已写明正在发生 → affirmed；已否认其中几项 → partly；引文不逐字 → open", () => {
     const record = "便血3天，血为鲜红色，肚子有点疼。无头晕。";

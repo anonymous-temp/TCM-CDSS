@@ -13,6 +13,8 @@ import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { pediatricDoseRuleGuidance, pediatricDoseRuleSummary, pediatricRestrictedHerbNames } from "@/lib/pediatric-dose-rule";
 import { conceptionWithoutPregnancyOrLactation } from "@/lib/clinical-state";
 import { chpPregnancyProhibitedHerbNames } from "@/lib/conception-herb-policy";
+import { herbRecordCautionPromptSection, textbookBaseIngredients } from "@/lib/herb-record-caution";
+import { textbookRowForSyndrome } from "@/lib/tcm-textbook-syndromes";
 import { authoritativePatientAgeYears, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
@@ -305,6 +307,20 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   // 合同与编译器读同一个判据（conceptionWithoutPregnancyOrLactation）与同一份接地文本。
   if (conceptionWithoutPregnancyOrLactation(groundingText)) {
     promptSuffixes.push(`【备孕/未避孕】本例记录了备孕或未避孕，未见妊娠、哺乳记录：照常给出剂量。不得使用《中国药典》2020年版孕妇禁用/忌用的饮片（${chpPregnancyProhibitedHerbNames().join("、")}）；孕妇慎用的饮片（如桃仁、红花、牛膝、附子、肉桂、大黄、枳实）非必需不用，用则在注意事项写明使用前确认未妊娠、月经逾期者先验孕。`);
+  }
+  // 饮片使用注意与本例（2026-10-19 甲方标准病历 3：熟地黄为君，病历食欲下降、大便稀溏；《中药学》熟地黄「食少便溏者忌服」）：
+  // 事先列给模型，不靠修复轮。编译器对仍写进处方的那一味逐味写明（herb-record-caution）。没有冲突时提示词不变。
+  if (signedPriorReasoning?.stage === "diagnose") {
+    const overview = signedPriorReasoning.overview;
+    const cautionRow = textbookRowForSyndrome(String(overview?.tcmDiseaseName || ""), String(overview?.primarySyndrome || ""));
+    const cautionFormulaNames = [...(overview?.recommendedFormulaNames || []), ...(cautionRow?.formulas || [])];
+    const cautionSection = herbRecordCautionPromptSection(
+      groundingText,
+      [overview?.primarySyndrome, ...(overview?.secondarySyndromes || [])].filter(Boolean).join("；"),
+      cautionFormulaNames,
+      textbookBaseIngredients(cautionRow, cautionFormulaNames),
+    );
+    if (cautionSection) promptSuffixes.push(cautionSection);
   }
   if (limitedInformation) {
     promptSuffixes.push(`【有限信息候选】当前待复核：${reviewItemsText}。请基于已知证候、病机和治法生成医生审阅用候选方案，并把相关未知项或阳性风险写入适用边界；不得臆造患者事实，也不得仅因缺项或风险提示拒绝生成。`);

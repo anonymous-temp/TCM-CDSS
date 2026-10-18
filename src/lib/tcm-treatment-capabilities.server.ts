@@ -20,9 +20,10 @@ import {
   type TcmTreatmentIndicationTag,
 } from "./tcm-treatment-projects";
 import { affirmedClinicalText } from "./clinical-polarity";
-import { assessPregnancyState } from "./clinical-state";
+import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
 import { narrativePediatricAgeConflict, pregnancyScreenRequired, reproductiveAdviceRelevant } from "./diagnosis-safety";
-import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
+import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
+import governanceSourceRegistryJson from "../data/clinical-governance-source-registry.json" with { type: "json" };
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
 type DeliveryMode = "onsite" | "referral";
@@ -251,6 +252,20 @@ function annotateGovernedTemplatePoint(
   return wrap([`${entry.code}${meridian}${trigger}`]);
 }
 
+/** 受治理来源 ID → 卡片上的来源名（来源登记表的题名；题名不带书名号时写「发布者《题名》」）。查不到的 ID 原样保留。 */
+const GOVERNED_SOURCE_BY_ID = new Map(
+  ((governanceSourceRegistryJson as { entries?: Array<{ id?: string; title?: string; publisher?: string }> }).entries || [])
+    .filter((entry) => entry.id && entry.title)
+    .map((entry) => [entry.id!, entry] as const),
+);
+function governedSourceLabels(sourceIds: readonly string[]): string {
+  return [...new Set(sourceIds.map((id) => {
+    const entry = GOVERNED_SOURCE_BY_ID.get(id);
+    if (!entry?.title) return id;
+    return /《/.test(entry.title) ? entry.title : `${entry.publisher ? entry.publisher : ""}《${entry.title}》`;
+  }))].join("、");
+}
+
 function controlledTreatmentPlan(
   projectCode: TcmTreatmentProjectCode,
   tags: ReadonlySet<TcmTreatmentIndicationTag>,
@@ -280,10 +295,13 @@ function controlledTreatmentPlan(
   "protocolSource" | "protocolStatus" | "protocolGap" | "tailoringStatus" |
   "pointProvenance" | "sourceAuthorityTier" | "adjudicationStatus" | "deferredSyndromeRefinement" |
   "deferredGovernedTemplate"
-> {
+> & {
+  /** 方案取自教材本病节（按本病、本例证候，不按某个病机节点）：卡片的对应病机落在 P1。仅供汇总处使用，不进载荷。 */
+  planOrigin?: "textbook";
+} {
   const definition = getTcmTreatmentProjectDefinition(projectCode);
-  const textbookPlan = textbookContext
-    ? textbookTreatmentPlan({
+  const textbookInput: TextbookPlanInput | undefined = textbookContext
+    ? {
         projectCode,
         diseaseNames: textbookContext.diseaseNames,
         westernNames: textbookContext.westernNames,
@@ -292,8 +310,9 @@ function controlledTreatmentPlan(
         signedNarrative: signedSyndromeText,
         patientAgeYears,
         chiefComplaint: textbookContext.chiefComplaint,
-      })
+      }
     : undefined;
+  const textbookPlan = textbookInput ? textbookTreatmentPlan(textbookInput) : undefined;
   // ── 精确证型模板优先（中医师 2026-08-11 裁定的落库方式）────────────────────────
   //
   // 裁定明确**不许**调整全局 upper_airway / respiratory 优先级：那会影响所有病例。
@@ -349,6 +368,7 @@ function controlledTreatmentPlan(
       tailoringStatus: plan.syndromeTailored ? "syndrome_tailored" as const : "class_template_only" as const,
       protocolGap: plan.syndromeTailored ? undefined : "syndrome_refinement_not_matched",
       ...(plan.syndromeTailored && plan.kind === "acupoint" ? { adjudicationStatus: "pending_clinician_review" as const } : {}),
+      planOrigin: "textbook" as const,
     };
   };
   const { tag, template: taggedTemplate } = resolveTreatmentIndication(projectCode, tags, clinicalText);
@@ -480,6 +500,34 @@ function controlledTreatmentPlan(
     // 教材方案按本例证型配了穴、目录只是病类通用模板时，用教材的（2026-10-18 留出集：泄泻、便秘 4 例都给了通用脾胃模板
     //「中脘、天枢、足三里、内关」，教材本病有按证型的配穴）。
     const textbookSyndromeTailored = textbookPlan?.kind === "acupoint" && textbookPlan.points.some((point) => point.role === "syndrome_refinement");
+    // 目录模板按本例证型加减过、主穴却只是「局部阿是穴（查体确认）」「循经远端穴（按疼痛部位选择）」这类延期说明（真实穴位不足 3 个），
+    // 教材又有本病的针灸节时：主穴用教材的（2026-10-19 留出例 S086 湿热腰痛：针刺卡没有委中、肾俞、大肠俞，「循经远端穴」是占位语；
+    // 验收集同类 29 张，瘀血/寒湿腰痛、痹证三型）。教材本节有本例证型就整张用教材；没有时教材主穴 + 目录已终审的证型配穴。
+    if (textbookPlan?.kind === "acupoint" && textbookInput && syndromeTailored && !syndromeGatedTemplate &&
+      projectCode !== "auricular" && catalogSpecificPoints < 3) {
+      // 进这一段的前提是目录证型配穴已命中且已终审（syndromeTailored 且非精确闸门 ⇒ refinement 已 approved），卡片的终审状态照它写。
+      if (textbookSyndromeTailored) return { ...fromTextbook(textbookPlan), adjudicationStatus: "approved" as const, ...deferredGovernedTemplate };
+      if (refinement) {
+        const merged = textbookTreatmentPlan({
+          ...textbookInput,
+          catalogSyndromeRefinement: { label: refinement.syndromeLabel, addPoints: refinement.addPoints, removePoints: refinement.removePoints },
+        });
+        if (merged?.kind === "acupoint" && merged.syndromeTailored) {
+          const card = fromTextbook(merged);
+          const catalogRecords = tcmTreatmentPointProvenance(governedTemplate, refinement)
+            .filter((record) => record.role === "syndrome_refinement");
+          const fromCatalog = new Set(merged.points.filter((point) => point.fromCatalogRefinement).map((point) => point.name));
+          return {
+            ...card,
+            pointProvenance: card.pointProvenance.map((record) =>
+              (fromCatalog.has(record.point) && catalogRecords.find((item) => item.point === record.point)) || record),
+            protocolSource: `${card.protocolSource}；${refinement.syndromeLabel}配穴：${governedSourceLabels(refinement.sourceRefs)}`,
+            adjudicationStatus: "approved" as const,
+            ...deferredGovernedTemplate,
+          };
+        }
+      }
+    }
     if (textbookPlan && (templateOffDisease || (!syndromeTailored &&
       (tcmTreatmentProjectIsPointFree(projectCode) || !pointsGoverned || catalogSpecificPoints < 3 || textbookSyndromeTailored)))) {
       return { ...fromTextbook(textbookPlan), ...deferredGovernedTemplate };
@@ -1176,7 +1224,7 @@ export function compileTcmTreatmentRecommendations(
     // 拔罐、刮痧是以泻为主的操作，纯虚证整张不出（2026-10-18 甲方病历 6：肾阴虚腰痛三次生成都给了拔罐/走罐，教材腰痛节只对寒湿、瘀血腰痛加拔罐）。
     // 虚实夹杂、实证照常。与灸法、刺络用同一个虚实判据。
     if ((definition.code === "cupping" || definition.code === "guasha") && signedSyndromeDeficiencyExcess(signedSyndromeText) === "deficiency") return [];
-    const plannedTreatment = controlledTreatmentPlan(
+    const { planOrigin, ...plannedTreatment } = controlledTreatmentPlan(
       definition.code,
       matchedIndicationTags,
       node.pathogenesis || node.syndromeEvidence || prior.overview.overallPathogenesis,
@@ -1228,21 +1276,31 @@ export function compileTcmTreatmentRecommendations(
       ...(typeof plannedTreatment.techniqueBoundary === "string" ? { techniqueBoundary: cardText(plannedTreatment.techniqueBoundary) } : {}),
       ...(typeof plannedTreatment.scheduleSuggestion === "string" ? { scheduleSuggestion: cardText(plannedTreatment.scheduleSuggestion) } : {}),
     };
+    // 卡片的「对应病机」跟着方案实际治的那个节点走（2026-10-19 甲方病历 10：月经先期·阳盛血热，耳穴卡写「热扰心神，神不守舍」、
+    // 针刺卡写「肝胆热盛，灼伤津液」，取的却都是月经不调节的冲任穴）。教材方案按本病与本例证候取穴，不按节点，治的是核心病机 P1
+    //（首个节点：M03 要求它解释主诉主症，君药同样只能引用它）；目录模板按节点的适应证命中，仍落在原节点上。
+    // 按证名概念重合挑节点试过两种，都未采用（P1 是 M03 合同定义的核心病机）：全节点比重合，76 张卡从 P1 挪走、多数更差
+    //（鼻渊卡落到「风热袭表」、消渴卡落到「脾气不足」）；只在 P1 与证名毫不重合时挪，33 张，消渴「气阴两伤」认不出气阴概念被挪到「脾气不足」。
+    // 病名写成两病并列（「不寐兼项痹」）时，教材方案只对得上其中一个病节，说不清它治的是哪个节点：仍用模型所选节点（test:tcm-treatments 颈肩节点推拿卡）。
+    const singleSignedDisease = !/兼|合并|伴/.test(prior.overview.tcmDiseaseName || "");
+    const primaryNodeId = chain.length > 0 ? (chain[0].nodeId || "P1") : undefined;
+    const cardNodeId = planOrigin === "textbook" && singleSignedDisease && primaryNodeId && nodeById.has(primaryNodeId) ? primaryNodeId : proposal.targetRef;
+    const cardNode = nodeById.get(cardNodeId) || node;
     return [{
       projectCode: definition.code,
       projectName: definition.name,
       availability: clinicAvailable ? "clinic_available" as const : "referral_only" as const,
       riskLevel: definition.risk,
       recommendationMode: specialist ? "specialist_assessment_only" as const : clinicAvailable ? "clinician_assessment" as const : "referral_assessment" as const,
-      targetRef: proposal.targetRef,
-      targetPathogenesis: node.pathogenesis || node.syndromeEvidence || prior.overview.overallPathogenesis,
+      targetRef: cardNodeId,
+      targetPathogenesis: cardNode.pathogenesis || cardNode.syndromeEvidence || prior.overview.overallPathogenesis,
       ...(assessmentPositioning ? { assessmentPositioning } : {}),
       ...treatmentPlan,
       // 小儿针刺的通行要求（《针灸学》刺法注意事项：小儿不能配合，不宜留针；囟门未闭者头顶部腧穴不宜针刺）。
       // 取穴方案出自成人教材，写法是「毫针常规刺，留针」——2026-10-13 独立评审：2 岁、7 岁、11 岁病例照搬成人写法。
       // 小儿、老年与妊娠未写明的人群提示：所有项目卡同一处（populationCardNote）。此前只有针刺卡有小儿、老年两句。
       ...(() => {
-        const note = `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) : false, treatmentPlan.suggestedSitesOrPoints)}${localSiteCardNote(definition.code, currentFacts, [prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""])}`;
+        const note = `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) : false, treatmentPlan.suggestedSitesOrPoints, caseState?.patient ? conceptionCardCaution(caseState) : false)}${localSiteCardNote(definition.code, currentFacts, [prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""])}`;
         return typeof treatmentPlan.techniqueBoundary === "string" && note
           ? { techniqueBoundary: `${note}${treatmentPlan.techniqueBoundary}` }
           : {};
@@ -1318,6 +1376,16 @@ function homeCarePregnancyUnresolved(caseState: Partial<TreatmentCaseContext>): 
   return assessPregnancyState(treatmentPregnancyText(caseState)).status !== "negative";
 }
 
+/**
+ * 备孕（未避孕、计划妊娠）而未妊娠、未哺乳：与开方同一判据 conceptionWithoutPregnancyOrLactation（2026-10-14 owner 决定，
+ * 孕妇慎用药照给、注明「使用前请确认未妊娠，月经逾期者先验孕」）。项目卡上的孕期慎用穴同样注明（2026-10-19 留出例 S102：
+ * 未避孕1年、末次月经50天前，取三阴交、气海、归来无一句提示；就诊时的尿妊娠试验阴性管不到疗程中的妊娠）。
+ */
+function conceptionCardCaution(caseState: Partial<TreatmentCaseContext>): boolean {
+  if (!pregnancyScreenRequired(caseState as CaseState)) return false;
+  return conceptionWithoutPregnancyOrLactation(treatmentPregnancyText(caseState));
+}
+
 function homeAcupointCareForCase(
   prior: ClinicalReasoningResultV2,
   caseState: Partial<TreatmentCaseContext> | undefined,
@@ -1390,15 +1458,22 @@ export function populationCardNote(
   ageYears: number | undefined,
   pregnancyUnresolved: boolean,
   points: unknown,
+  /** 备孕而未妊娠、未哺乳（conceptionCardCaution）。 */
+  tryingToConceive = false,
 ): string {
   const notes: string[] = [];
   if (ageYears != null && ageYears < 12) notes.push(PEDIATRIC_CARD_NOTE[code]?.(ageYears) || "");
   if (ageYears != null && ageYears >= ELDERLY_ACUPUNCTURE_AGE_YEARS) notes.push(ELDERLY_CARD_NOTE[code] || "");
   const pointNames = Array.isArray(points) ? points.filter((point): point is string => typeof point === "string") : [];
-  const sensitive = pregnancyUnresolved
+  const sensitive = pregnancyUnresolved || tryingToConceive
     ? pointNames.map((point) => point.replace(/[（(][^）)]*[）)]/g, "").trim()).filter((point) => acupointPregnancySensitive(point))
     : [];
-  if (sensitive.length > 0) notes.push(`如有怀孕可能请先告知医生：${[...new Set(sensitive)].slice(0, 4).join("、")}孕期不宜针灸刺激。`);
+  const listed = [...new Set(sensitive)].slice(0, 4).join("、");
+  if (sensitive.length > 0) {
+    notes.push(tryingToConceive
+      ? `备孕期间：${listed}孕期不宜针灸刺激，施术前请确认未妊娠，月经逾期者先验孕。`
+      : `如有怀孕可能请先告知医生：${listed}孕期不宜针灸刺激。`);
+  }
   return notes.filter(Boolean).join("");
 }
 

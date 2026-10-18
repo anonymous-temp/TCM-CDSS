@@ -16,7 +16,10 @@
  * 守得对；不对的只是把守的过程原样念给了医生听。
  */
 
-import { compositionIdentityName, formulaCompilationReferences } from "./tcm-formula-provenance";
+import { catalogSourceForExactComposition, compositionIdentityName, formulaCompilationReferences } from "./tcm-formula-provenance";
+import { textbookBaseIngredients } from "./herb-record-caution";
+import { precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
+import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { formulaAnalysisHerbMentions } from "./formula-analysis-review";
 import { textbookDifferentialsForDisease, textbookFormulaLabel, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
@@ -56,8 +59,10 @@ function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly str
     /(?:正在|现|长期|规律|平时|已)(?:在)?(?:服用|口服|用)的?[^，,。；;]{0,6}(?:西药|药物|药)|其他(?:药物|西药)/u.test(line));
   if (item.kind === "unnamed_medication") return lines.some((line) => /(?:正在|自行|已|在)(?:服|用|吃)[^，,。；;]{0,8}药|用药情况|药名/u.test(line) && /告知|告诉|说明/u.test(line));
   if (item.kind === "herpes_zoster_antiviral") return lines.some((line) => /抗病毒/u.test(line));
+  if (item.kind === "gout_diet") return lines.some((line) => /嘌呤/u.test(line));
+  if (item.kind === "trigger_foods") return item.foods.every((food) => lines.some((line) => line.includes(food) && /避免|忌|不要|勿|少/u.test(line)));
   if (item.kind === "severe_hypertension_followup") return lines.some((line) => /血压/u.test(line) && /复测|测量|监测/u.test(line) && /就诊|就医|调整/u.test(line));
-  if (item.kind === "administration_and_diet") return administrationCovered(lines) && dietCovered(lines);
+  if (item.kind === "administration_and_diet") return (!item.administration || administrationCovered(lines)) && dietCovered(lines);
   if (item.kind === "reproductive_status_unknown") return lines.some((line) => /孕|哺乳/u.test(line));
   if (item.kind === "toxic_self_preparation") return lines.some((line) => item.herbs.some((herb) => line.includes(herb)) && /停用|停服|停止|不要再|勿再|不可再/u.test(line));
   if (item.kind === "conception_pregnancy_check") return lines.some((line) => /验孕|妊娠试验|早孕试纸|月经(?:逾期|推迟|延后)/u.test(line));
@@ -121,6 +126,8 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
     // 《中国带状疱疹诊疗专家共识（2022 版）》：发疹 72 小时内尽早系统抗病毒；仍有新水疱、50 岁以上、累及眼耳者也应尽早。不写药名与剂量。
     return "带状疱疹请尽早到医院由医生评估是否需要口服抗病毒药（发疹3天内、仍有新水疱出现或年龄50岁以上尤应尽早），疼痛明显请一并告知医生；如皮疹累及眼周、耳部，或出现视物模糊、听力改变、剧烈头痛，请立即就医。";
   }
+  if (item.kind === "gout_diet") return "痛风需低嘌呤饮食：少吃海鲜、动物内脏和浓肉汤，戒酒（尤其啤酒），每天多饮水。";
+  if (item.kind === "trigger_foods") return `本次发病与进食${item.foods.join("、")}有关，服药期间及以后请避免${item.foods.join("、")}。`;
   if (item.kind === "severe_hypertension_followup") {
     return `本次血压${item.reading}明显偏高，请今天复测血压，并在当日或数日内到心内科或全科就诊调整降压药；如出现胸痛、气短、剧烈头痛、视物模糊、肢体无力或言语不清，请立即就医。`;
   }
@@ -128,7 +135,7 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
     // 服法照本方煎服法里的那一句（饭前/饭后/空腹/睡前 + 温服），没有就写温服；忌口来自已定证候。只补缺的那一半。
     const timing = decoctionMethod.match(/(?:饭前|饭后|餐前|餐后|空腹|睡前)[^，,。；;]{0,6}(?:温服|服)/u)?.[0] || (/温服/u.test(decoctionMethod) ? "温服" : "宜温服");
     const parts = [
-      administrationCovered(currentLines) ? "" : `本方汤药${timing.startsWith("宜") ? timing : `宜${timing}`}`,
+      !item.administration || administrationCovered(currentLines) ? "" : `本方汤药${timing.startsWith("宜") ? timing : `宜${timing}`}`,
       dietCovered(currentLines) ? "" : `服药期间${item.diet}`,
     ].filter(Boolean);
     return parts.length > 0 ? `${parts.join("；")}。` : "";
@@ -187,6 +194,8 @@ const SYNTHETIC_PHRASES: ReadonlyArray<[RegExp, string]> = [
   [new RegExp(`病历已记录否认${OBJECT}(?=[，,。；;）)\\n]|$)`, "g"), "否认$1"],
   [new RegExp(`病历已记录${OBJECT}阳性`, "g"), "有$1"],
   [new RegExp(`病历已记录${OBJECT}阴性`, "g"), "无$1"],
+  // 档位用语「症状层」漏进写给医生的话（2026-10-19 留出集 S074「热郁轻重暂按症状层把握」）：换成临床说法。
+  [/(?:暂)?按症状层(?:面)?(?:把握|考虑|判断|处理)/g, "暂按现有症状判断"],
   // 「病历已记录无胸痛」：后面本来就是一句通顺的否定，去掉前缀即可。
   [/病历已记录(?=无|未见|未诉|不伴|否认)/g, ""],
   // 「病历已记录关节无明显红肿发热」：部位在前、否定在后，同样去掉前缀。
@@ -208,7 +217,7 @@ const SERVER_NOTES: readonly RegExp[] = [
 
 /** 把系统句式换成临床写法；没有命中时原样返回（逐字节不变）。 */
 export function clinicalWordingForSyntheticPhrases(value: string): string {
-  if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|受控目录/.test(value)) return value;
+  if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|受控目录|症状层/.test(value)) return value;
   let text = value.replace(BOUNDED_ADVICE_NOTE, "");
   for (const note of SERVER_NOTES) text = text.replace(note, "");
   text = text.trim();
@@ -459,7 +468,10 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         if (sourceRecord) {
           const textbookNote = `《${textbookRow.book}》${textbookRow.disease}·${textbookRow.syndromeName}代表方`;
           sourceRecord.source = (allCovered ? textbookRow.formulas : covered)
-            .map((name) => `${name}：${formulaCompilationReferences([name])[0]?.source || textbookNote}`)
+            // 编译目录没有这首方时，名录里与教材组成逐味相同的那一条是原书（加味四物汤《金匮翼》卷五，2026-10-19 甲方标准病历 3）；
+            // 都没有时才写教材。
+            .map((name) => `${name}：${formulaCompilationReferences([name])[0]?.source ||
+              catalogSourceForExactComposition(name, textbookBaseIngredients(textbookRow, [name])) || textbookNote}`)
             .join("；");
         }
         // 方义里的方名此前被当作「自拟方不得自称成方」替换成了「本方案」，随方名一起还原。
@@ -468,6 +480,26 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
           candidate.formulaAnalysis = candidate.formulaAnalysis
             .replace(/自拟(?:组方|方剂|一方|方)/g, `以${allCovered ? textbookFormulaLabel(textbookRow) : covered.join("合")}加减`);
         }
+      }
+    }
+    // 方名本来就是辨证阶段定的教材代表方（「竹叶石膏汤加减」），处方以该方组成为主体（教材组成过半在方中）时，出处写这首方的原书，
+    // 与上面改名时同一取法：
+    //  · 按证去掉其中几味（胃火上逆去人参、粳米）不足八成、出处核验没有通过，出处栏写着「当前可核验依据不足」
+    //   （2026-10-19 留出例 S046，评审：竹叶石膏汤出《伤寒论》，知识库目录即有）；
+    //  · 此前写成了教材（「《中医内科学》头痛·血虚头痛代表方」）而名录里有与教材组成逐味相同的原书条目（加味四物汤《金匮翼》卷五，
+    //    甲方标准病历 3）。已是原书的不动，再投影结果不变。
+    if (textbookRow && typeof candidate.name === "string" && textbookRow.formulas.some((name) => String(candidate.name).includes(name))) {
+      const sourceRecord = record(candidate.formulaSource);
+      const covered = textbookFormulasCoveredByPrescription(textbookRow, records(candidate.herbs).map((herb) => String(herb.name || "")))
+        .filter((name) => String(candidate.name).includes(name));
+      if (sourceRecord && covered.length > 0) {
+        const current = typeof sourceRecord.source === "string" ? sourceRecord.source : "";
+        const textbookNote = `《${textbookRow.book}》${textbookRow.disease}·${textbookRow.syndromeName}代表方`;
+        const next = covered.map((name) => `${name}：${formulaCompilationReferences([name])[0]?.source ||
+          catalogSourceForExactComposition(name, textbookBaseIngredients(textbookRow, [name])) || textbookNote}`).join("；");
+        const placeholder = !current.trim() || /证据不足|依据不足|待检索|待核验|内部证据缺口|EVIDENCE_GAP/u.test(current);
+        const upgradesTextbookNote = /代表方/u.test(current) && !/代表方/u.test(next);
+        if (placeholder || upgradesTextbookNote) sourceRecord.source = next;
       }
     }
     // 方义里的方名此前被「自拟方不得自称成方」一律换成了「本方案」（tcm-formula-provenance）。
@@ -583,6 +615,15 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 去掉卡之后再按最终给出的项目核一遍注意事项（出卡处按出卡时的集合核过，交付面去掉的卡它不知道）。
     const delivered = deliveredTreatmentCodes(records(nonPharma.tcmTreatments), nonPharma.acupointCare);
     let precautions: unknown[] = nonPharma.precautions.filter((line) => !precautionMentionsUndeliveredTreatment(line, delivered));
+    // 说「方中有某药」而该药已不在最终处方里（编译之后还会剔药：方向不成立的加味、加减建议）：只去掉这个药名，
+    // 只讲这味药的那一小句去掉，别的小句照留（2026-10-19 留出例 S145「方中黄柏、苍术苦寒燥烈」，苍术已剔出本方）。
+    const prescribedIdentities = new Set([
+      ...records(records(formula?.candidates)[0]?.herbs).map((herb) => canonicalTcmHerbIdentity(String(herb.name || ""))),
+      ...records(formula?.modifications).map((item) => canonicalTcmHerbIdentity(String(item.herbName || ""))),
+    ].filter(Boolean));
+    precautions = precautions
+      .map((line) => typeof line === "string" ? precautionWithoutAbsentHerbs(line, prescribedIdentities) : line)
+      .filter((line) => typeof line !== "string" || line.trim().length > 0);
     // 服药时间以本方的煎服法为准：煎服法写饭后、注意事项写饭前（或反过来）时，去掉注意事项里说时间的那一小句
     //（甲方标准病历 2 两次生成都是「汤剂宜饭前温服」对「饭后温服」）。
     const method = String(record(records(formula?.candidates)[0]?.decoction)?.method || "");

@@ -57,6 +57,24 @@ await check("1.1 「无胸闷、心慌，偶咳嗽，腰痛、腿疼，…小便
   assert.ok(text.includes("腰痛") && text.includes("舌淡苔白") && !text.includes("心慌"), text);
 });
 
+await check("1.2 净化器：倒装的程度限定「无头痛剧烈」「未见头痛如劈」不改成「病历已记录头痛阳性」（甲方病历 3：辨病依据成「…故归头痛；有头痛。」）；病历确有剧烈头痛时照旧改写（对照）", async () => {
+  const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const stateOf = (text) => ({ id: "r1019-san", phase: "done", patient: { sex: "女", age: 32 }, chiefComplaint: "头痛2月", symptoms: { presentHistory: text }, conversation: [] });
+  const mild = stateOf("产后出现头痛，呈隐痛，时发时止。");
+  for (const text of ["故归头痛；无头痛剧烈、呕吐喷射，可与真头痛鉴别。", "故归头痛；未见头痛如劈、呕吐，与真头痛区分。"]) {
+    assert.doesNotMatch(safety.sanitizeUngroundedRedFlagNegations(text, mild), /头痛阳性/, text);
+  }
+  assert.match(safety.sanitizeUngroundedRedFlagNegations("故归头痛；无头痛剧烈，可与真头痛鉴别。", stateOf("突发头痛剧烈2小时。")), /头痛/);
+});
+
+await check("1.3 「无气从少腹上冲胸咽之奔豚特征」病历没写过时改「未诉…」（甲方病历 2）；病历写过的、「示无里热」这类推断照旧（对照）", async () => {
+  const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const record = "心悸1月，善惊易恐，坐卧不安，舌淡红苔薄白，脉细略数。";
+  assert.equal(visible.unrecordedNegativesAsNotReported("故归心悸；无气从少腹上冲胸咽之奔豚特征可资区分。", record), "故归心悸；未诉气从少腹上冲胸咽之奔豚特征可资区分。");
+  assert.equal(visible.unrecordedNegativesAsNotReported("无善惊易恐之表现。", record), "无善惊易恐之表现。");
+  assert.equal(visible.unrecordedNegativesAsNotReported("舌淡红示无里热之象。", record), "舌淡红示无里热之象。");
+});
+
 // ───── 2 剂量级内容 ─────
 await check("2.1 病历「以饮用白酒为主，平均5两／日」被转述成「每日饮白酒约5两」不算剂量级内容；病历里没有这句的照旧算（对照）", () => {
   const record = "饮酒30年，以饮用白酒为主，平均5两／日，未戒酒，已经减量。";
@@ -76,11 +94,23 @@ await check("3.1 「此次妊娠后觉小腹胀痛」「怀孕以来恶心」「
   }
 });
 
+await check("3.2 「孕0产0」「G0P0」「未育」不在哺乳（留出集 S102）；「孕1产0」「育龄」不收（对照）", () => {
+  for (const text of ["已婚，孕0产0，未避孕1年未孕。", "G0P0，月经后期。", "已婚未育。"]) assert.equal(state.assessLactationState(text).status, "negative", text);
+  for (const text of ["孕1产0，人工流产1次。", "育龄女性，月经后期。"]) assert.notEqual(state.assessLactationState(text).status, "negative", text);
+});
+
 // ───── 4 教材改名 ─────
 await check("4.1 模型写「气虚血瘀证」「痰瘀互结证」不改成教材单因素的「心血瘀阻证」；「肾阳不足证」→「命门火衰证」照旧归一（对照）", () => {
   assert.equal(textbook.textbookNearestRow("胸痹", "气虚血瘀证", "益气活血，通脉止痛", "胸闷，乏力，舌暗", []), undefined);
   assert.equal(textbook.textbookNearestRow("胸痹", "痰瘀互结证", "化痰祛瘀", "胸闷，乏力，舌暗", []), undefined);
   assert.equal(textbook.textbookNearestRow("阳痿", "肾阳不足证", "温肾壮阳", "阳事不举，腰膝酸软，畏寒肢冷")?.syndromeName, "命门火衰证");
+});
+
+await check("4.2 「仙鹤草」「鹤草」「龙芽草」的组成身份都是仙鹤草（旧目录把鹤草归成银柴胡、龙芽草归成马鞭草）；银柴胡、马鞭草不受影响（对照）", async () => {
+  const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+  for (const name of ["仙鹤草", "鹤草", "龙芽草"]) assert.equal(provenance.compositionIdentityName(name), "仙鹤草", name);
+  assert.equal(provenance.compositionIdentityName("银柴胡"), "银柴胡");
+  assert.equal(provenance.compositionIdentityName("马鞭草"), "马鞭草");
 });
 
 // ───── 5 兼证一致 ─────
@@ -101,6 +131,9 @@ await check("5.2 补兼证要逐字引病历至少两条肯定表现；引的是
   assert.equal(secondary.parseSecondaryConsistencyDecision(JSON.stringify({ decision: "add", secondarySyndrome: "痰热内蕴证", method: "清热化痰", evidence: ["苔黄腻", "胸闷痰多"] }), tongue), undefined, "「胸闷痰多」病历没有");
   assert.equal(secondary.parseSecondaryConsistencyDecision(JSON.stringify({ decision: "remove", clauses: ["纳差便溏为兼脾虚之象"] }), context)?.decision, "remove");
   assert.equal(secondary.parseSecondaryConsistencyDecision(JSON.stringify({ decision: "remove", clauses: ["原文里没有的句子"] }), context), undefined);
+  const mainSymptoms = { ...context, editableText: "恶寒重、发热轻、无汗、鼻塞流清涕，为风寒束表；咳嗽兼有痰湿之象。" };
+  assert.equal(secondary.parseSecondaryConsistencyDecision(JSON.stringify({ decision: "remove", clauses: ["恶寒重、发热轻、无汗、鼻塞流清涕"] }), mainSymptoms), undefined, "主症分句不是兼夹说法，不删（甲方病历 1）");
+  assert.deepEqual(secondary.parseSecondaryConsistencyDecision(JSON.stringify({ decision: "remove", clauses: ["恶寒重、发热轻、无汗、鼻塞流清涕", "咳嗽兼有痰湿之象"] }), mainSymptoms), { decision: "remove", clauses: ["咳嗽兼有痰湿之象"] });
 });
 await check("5.3 落地：补兼证并列上它的治法；删分句时连带逗号、不留残句", () => {
   const root = { overview: { primarySyndrome: "肝气犯胃证", secondarySyndromes: [], tcmDiagnosticRationale: "胃脘胀痛连及两胁、嗳气为肝气犯胃，纳差便溏为兼脾虚之象。", overallPathogenesis: "肝郁犯胃" }, therapy: { overallMethod: "疏肝理气，和胃止痛" } };
@@ -189,12 +222,20 @@ await check("6.6 服法与忌口：注意事项一句没说怎么服或忌什么
   const prior = { overview: { primarySyndrome: "痰热郁肺证", secondarySyndromes: [] }, therapy: { overallMethod: "清热化痰，宣肺止咳" } };
   const items = precautions.requiredPrecautionsForCase(caseOf("咳嗽痰黄3天。"), prior);
   const diet = items.find((item) => item.kind === "administration_and_diet");
-  assert.equal(diet?.diet, "忌食辛辣温燥、少饮酒，少食肥甘厚腻与甜黏之品");
+  assert.equal(diet?.diet, "忌食辛辣温燥，少食肥甘厚腻与甜黏之品", "不写「少饮酒」（甲方复评：与戒酒相抵、写给了不饮酒的人）");
+  const drinker = precautions.requiredPrecautionsForCase(caseOf("咳嗽痰黄3天，饮酒20年，每日饮白酒2两。"), prior).find((item) => item.kind === "administration_and_diet");
+  assert.match(drinker?.diet || "", /戒酒$/);
+  const sober = precautions.requiredPrecautionsForCase(caseOf("咳嗽痰黄3天，无烟酒嗜好。"), prior).find((item) => item.kind === "administration_and_diet");
+  assert.doesNotMatch(sober?.diet || "", /酒/);
+  const redFlag = precautions.requiredPrecautionsForCase(caseOf("咳嗽痰黄3天。", { safetyGate: { status: "red_flag", allowDiagnosis: true, allowDosePrescription: false, redFlags: ["x"], missingItems: [] } }), prior).find((item) => item.kind === "administration_and_diet");
+  assert.equal(redFlag?.administration, false, "红旗页不写服法（留出集 S178/S188/S190）");
+  const redOut = surface.projectDeliveredReasoning(rx(["注意保暖。"]), { requiredPrecautions: [redFlag] });
+  assert.doesNotMatch(redOut.nonPharma.precautions.join(""), /温服|饭前|饭后/);
   const withMethod = (lines) => ({ ...rx(lines), formula: { candidates: [{ name: "x", formulaAnalysis: "x", herbs: [{ name: "黄芩", role: "君", function: "清热燥湿", dose: "10g" }], decoction: { method: "水煎，每日1剂，分2次饭后温服" } }] } });
   const out = surface.projectDeliveredReasoning(withMethod(["注意保暖，避免受凉。"]), { requiredPrecautions: [diet] });
-  assert.equal(out.nonPharma.precautions[0], "本方汤药宜饭后温服；服药期间忌食辛辣温燥、少饮酒，少食肥甘厚腻与甜黏之品。");
+  assert.equal(out.nonPharma.precautions[0], "本方汤药宜饭后温服；服药期间忌食辛辣温燥，少食肥甘厚腻与甜黏之品。");
   const half = surface.projectDeliveredReasoning(withMethod(["饭后温服，注意保暖。"]), { requiredPrecautions: [diet] });
-  assert.equal(half.nonPharma.precautions[0], "服药期间忌食辛辣温燥、少饮酒，少食肥甘厚腻与甜黏之品。");
+  assert.equal(half.nonPharma.precautions[0], "服药期间忌食辛辣温燥，少食肥甘厚腻与甜黏之品。");
   const both = surface.projectDeliveredReasoning(withMethod(["饭后温服，忌辛辣。"]), { requiredPrecautions: [diet] });
   assert.deepEqual(both.nonPharma.precautions, ["饭后温服，忌辛辣。"]);
 });
@@ -227,6 +268,25 @@ await check("6.9 重度高血压而无靶器官表现：一项给患者的复测
   assert.ok(!precautions.requiredPrecautionsForCase(withBp("头晕1月。", "136/84mmHg"), null).some((entry) => entry.kind === "severe_hypertension_followup"));
   const out = surface.projectDeliveredReasoning(rx(["饮食清淡。"]), { requiredPrecautions: [item] });
   assert.match(out.nonPharma.precautions[0], /^本次血压186\/104mmHg明显偏高，请今天复测血压/);
+});
+
+await check("6.10 档位用语「暂按症状层把握」换成「暂按现有症状判断」（留出集 S074），再投影不变", () => {
+  const dx = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiagnosticRationale: "舌苔脉象未记录，热郁轻重暂按症状层把握。" } };
+  const out = surface.projectDeliveredReasoning(dx);
+  assert.equal(out.overview.tcmDiagnosticRationale, "舌苔脉象未记录，热郁轻重暂按现有症状判断。");
+  assert.deepEqual(surface.projectDeliveredReasoning(out).overview, out.overview);
+});
+
+await check("6.11 发病诱因食物与痛风饮食：「进食大量海鲜并饮啤酒后…风团」一项（S128）、痛风一项（S145）；否认句与无诱因的不出（对照）", async () => {
+  const phrasing = await jiti.import("../src/lib/tcm-therapy-phrasing.ts");
+  assert.deepEqual(phrasing.recordedTriggerFoods("患者昨晚进食大量海鲜并饮啤酒后，夜间全身出现大片红色风团。"), ["海鲜", "啤酒"]);
+  assert.deepEqual(phrasing.recordedTriggerFoods("2天前晚餐进食海鲜、饮啤酒，当夜睡眠中突然被右脚大脚趾根部剧痛痛醒。"), ["海鲜", "啤酒"]);
+  assert.deepEqual(phrasing.recordedTriggerFoods("否认进食海鲜，皮疹3天。"), []);
+  assert.deepEqual(phrasing.recordedTriggerFoods("咳嗽3天，咳白痰。"), []);
+  const gout = precautions.requiredPrecautionsForCase(caseOf("右足第一跖趾关节红肿热痛2天。"), { westernDiagnosis: { primary: { name: "痛风性关节炎" } } });
+  assert.ok(gout.some((item) => item.kind === "gout_diet"));
+  const out = surface.projectDeliveredReasoning(rx(["饮食清淡。"]), { requiredPrecautions: [{ kind: "trigger_foods", foods: ["海鲜", "啤酒"] }, { kind: "gout_diet" }] });
+  assert.match(out.nonPharma.precautions.join("\n"), /避免海鲜、啤酒[\s\S]*低嘌呤/);
 });
 
 // ───── 7 不给剂量页 ─────

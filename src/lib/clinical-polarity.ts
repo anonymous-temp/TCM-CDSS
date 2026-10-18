@@ -618,6 +618,12 @@ export function recordedMedicationMentions(text: string | null | undefined): { n
   return { names, given, unnamed: unnamed && names.length === 0 };
 }
 
+/** 病历肯定写着饮酒（「饮酒30年」「嗜酒」「每日饮白酒」）；「无烟酒嗜好」「否认饮酒」「已戒酒」不算。 */
+const ALCOHOL_USE = /(?:饮|喝|嗜|酗)酒|饮(?:用)?白酒|饮啤酒|白酒[^，,。；;]{0,6}(?:两|斤|ml|毫升|克)/u;
+export function recordsAlcoholUse(text: string): boolean {
+  return affirmedClinicalSourceClauses(text).some((clause) => ALCOHOL_USE.test(clause) && !/戒酒|已戒|不饮|无饮酒|无烟酒|否认/u.test(clause));
+}
+
 /** 病历里写自行配制、泡酒、偏方土方服药的那一句（有限闭集的动作词）；否认、未曾的不算（2026-10-19 留出集 S190）。 */
 const SELF_PREPARATION = /(?:自行|自己|自制|自配|自采|偏方|土方|民间)[^。；;\n]{0,16}(?:泡酒|泡服|煎服|煎水|研末|冲服|服用|饮用|外敷)|药酒/u;
 const SELF_PREPARATION_DENIED = /(?:否认|未|没有|无)[^，,。；;]{0,4}(?:自行|自制|服用|饮用)/u;

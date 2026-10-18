@@ -58,6 +58,8 @@ export type WesternNameCorrection = {
   currentIsEmergency?: true;
   /** 改成的名称是西医半自己列在候选或鉴别里的病（只在为真时出现）。 */
   adoptedFromList?: true;
+  /** D 类：核对给出的缺失检查或病程（只在合规时出现），写进原病名那条鉴别的「建议核实」。 */
+  missingTest?: string;
 };
 
 // 核对给出的名称只能是一个干净的病名：不带括号、并列与推测语气（标点与语气词是写法检查）；中医证候字样由合同的同一判据
@@ -99,7 +101,7 @@ export function parseWesternNameCorrection(
   let parsed: unknown;
   try { parsed = JSON.parse(content); } catch { return undefined; }
   if (!parsed || typeof parsed !== "object") return undefined;
-  const { verdict, type, quote, reason, supportedName, emergencyName } = parsed as Record<string, unknown>;
+  const { verdict, type, quote, reason, supportedName, emergencyName, missingTest } = parsed as Record<string, unknown>;
   if (verdict !== "inconsistent" || (type !== "A" && type !== "B" && type !== "C" && type !== "D")) return undefined;
   const name = typeof supportedName === "string" ? supportedName.trim() : "";
   const quoted = typeof quote === "string" ? quote.trim() : "";
@@ -129,11 +131,45 @@ export function parseWesternNameCorrection(
   const supported = keepHypothesis ? `${current}待查` : qualifierOnly ? name.replace(/待查$/u, "") : name;
   if (compact(quoted).length < 4 || compact(quoted).length > 60 || !compact(recordText).includes(compact(quoted))) return undefined;
   if (why.length < 4 || why.length > 60) return undefined;
+  // D 类的理由必须说缺什么；理由本身说门槛「已满足/符合」而没说缺哪样时，是核对自相矛盾，不采信（2026-10-19 本机探针：9岁患儿
+  // 「儿童功能性便秘需病程满1个月，病历仅3个月已满足；…符合」仍判 D，交付成「便秘待查」）。
+  if (type === "D" && /已满足|已达到?|符合/u.test(why) && !/未满|未达|不足|尚缺|缺|未行|未做|没有|未查|未记录/u.test(why)) return undefined;
   return {
     supportedName: supported, quote: quoted, reason: why, type,
     ...(emergencyName === true ? { currentIsEmergency: true as const } : {}),
     ...(adoptedFromList ? { adoptedFromList: true as const } : {}),
+    ...(type === "D" && typeof missingTest === "string" && isCleanMissingTest(missingTest) ? { missingTest: missingTest.trim() } : {}),
   };
+}
+
+/**
+ * D 类原病名那条鉴别的区分要点：核对理由里说缺哪项检查的「无/未记录/未见…」都换成「尚缺」——说的是缺这份资料，不是否认症状；
+ * 留着「无」会被鉴别净化当成对本例的否认，再改成「未诉…」（2026-10-17 病历 7 只处理了句首；10/19 留出例 S058「76岁起病，无结肠镜结果排除
+ * 器质性病变」交付成「未诉结肠镜结果…」）。只换紧跟着检查类字样的那一处。
+ */
+function missingTestReasonText(reason: string): string {
+  return reason
+    .replace(/^(?:病历)?(?:未记录|未见|无|缺少|缺乏|没有)/u, "尚缺")
+    .replace(/(^|[，,；;、])(?:病历)?(?:未记录|未见|无|缺少|缺乏|没有|未行|未做|未查)(?=[^，,。；;]{0,12}(?:结果|检查|报告|镜|影像|化验|测定|检测|病理|活检|测试|试验))/gu, "$1尚缺");
+}
+
+/** 核对给的缺失检查名：短、不带括号与推测语气、有汉字或字母。 */
+function isCleanMissingTest(value: string): boolean {
+  const text = value.trim();
+  return text.length >= 2 && text.length <= 24 && !INVALID_SUPPORTED_NAME_FORM.test(text.replace(/、/gu, "")) && /[一-龥A-Za-z]/.test(text);
+}
+
+/**
+ * D 类原病名那条鉴别的「建议核实」：写缺的那项检查本身（2026-10-19：留出集 32 例里 8 例、甲方标准病历 30 次里 6 次是「完善确诊所需检查」）。
+ * 先用核对针对本例给出的缺失项；没有时，诊断标准要点表里该病只有一项必需检查（去掉括注；带适用条件的长句不算）就用它——表里列了
+ * 好几项时说不准缺的是哪一项（缺铁性贫血表里第一项是病人已经有的血红蛋白），不替核对挑；都没有才用通用句。
+ */
+export function westernDifferentialNextCheck(previousName: string, correction: WesternNameCorrection): string {
+  if (correction.missingTest) return correction.missingTest;
+  const tableTests = (westernCriteriaEntry(previousName)?.requiredTests || [])
+    .map((item) => item.replace(/[（(][^（）()]*[）)]/gu, "").trim())
+    .filter((item) => item.length >= 2 && item.length <= 24 && !/[时需者；;]/u.test(item));
+  return tableTests.length === 1 ? tableTests[0] : "完善确诊所需检查";
 }
 
 type Json = Record<string, unknown>;
@@ -175,7 +211,7 @@ export function applyWesternNameCorrection(westernContent: string, correction: W
       correction.type === "D"
         // 模型写的理由常以「无/未记录…检查」开头，放进鉴别要点后会被当成对患者的否认、再被改写成「病历未记录…（需问诊核实…）」
         //（2026-10-17 本地复测病历 7）。这里说的是缺哪项检查，开头换成「尚缺」。
-        ? { name: previous, reason: "尚未取得确诊所需的检查或病程依据", distinguishingPoints: correction.reason.replace(/^(?:病历)?(?:未记录|未见|无|缺少|缺乏|没有)/u, "尚缺"), nextCheck: "完善确诊所需检查" }
+        ? { name: previous, reason: "尚未取得确诊所需的检查或病程依据", distinguishingPoints: missingTestReasonText(correction.reason), nextCheck: westernDifferentialNextCheck(previous, correction) }
         : { name: previous, reason: "与病历记录不符", distinguishingPoints: correction.reason, nextCheck: "必要时完善相关检查" },
       ...differentials.filter((item) => item.name !== correction.supportedName),
     ].slice(0, 8);
@@ -208,16 +244,16 @@ export async function westernNameCorrectionForRecord(
         "A. 该病成立时本应阳性的检验/检查，病历已经做了并记录为阴性、正常或未见（如诊断为某种感染，病历记录的病原学检查未见病原体）；或病历记录的检查所见明确指向另一个病。",
         "B. 该诊断名有定义性的必备条件，而病历已记录的事实与之相反（如诊断要求闭经或月经稀发，病历写月经周期规律；诊断的核心表现病历明确写了没有）；或该病的诊断标准要求同时满足几项中的若干项，而病历已把其余各项记录为阴性或正常，满足的项数不够。",
         "C. 诊断名说的是较重的一层（“功能不全”“衰竭”“剧吐”“重度”等需要特定指标或程度才成立的名称），而病历记录的指标、程度只够得上较轻的一层。",
-        "D. 诊断名比病历能支撑的更具体：按公认诊断标准，这个名称必须依赖某项检查结果才能成立，或必须满足病程门槛，而病历里既没有记录这项检查的结果，已记录的病程也够不上门槛。典型的如：缺铁性贫血、巨幼细胞贫血等指明贫血类型的名称需要相应检查（只有血红蛋白只能说贫血）；多囊卵巢综合征需要鹿特丹标准三项中至少两项；甲状腺功能减退症、糖尿病等以化验定义的病需要相应化验结果；慢性胃炎、消化性溃疡需要胃镜；骨质疏松症需要骨密度或影像；某种特定病原体感染需要病原学结果；功能性消化不良、肠易激综合征、功能性便秘的时间门槛是起病至今满6个月——病程写满6个月（半年、1年、2年都算）就满足，不要求病历另写“持续3个月”，也不要求做过胃镜；没满6个月时 supportedName 写“消化不良待查”“便秘待查”这类上一级名称（不写成单个症状）；肠易激综合征还必须有腹痛；牙病的分型名称（急性牙髓炎、慢性牙髓炎、急性根尖周炎、牙周脓肿、智齿冠周炎等）需要口腔专科检查（牙髓活力或冷热测试、叩诊、牙周探诊、X线）才能分型，病历没有口腔检查记录时只能写“牙痛”。",
-        "以下情况一律判 consistent：门诊常见病按典型临床表现即可诊断、诊断标准本来不要求某项检查（如上呼吸道感染、急性支气管炎、急性胃肠炎、带状疱疹、荨麻疹、湿疹、偏头痛、紧张型头痛、失眠障碍、腰肌劳损、原发性痛经；有烧心或反酸、反流症状的胃食管反流病；有典型发作性胸痛的心绞痛或冠心病；有长期饮酒史并有肝脏影像或肝功能异常的酒精性肝病），这时没做检查不算问题；贫血按病历已记录的原因命名（产后贫血、失血性贫血、月经过多所致贫血）不算过度具体；名称是急危重症（如蛛网膜下腔出血、急性心肌梗死、主动脉夹层、异位妊娠、脑卒中、休克）时不适用 D；检查只有非特异性改变、不能确诊也不能排除；结果正常但该病在此阶段结果本来就可以正常（如痛风急性发作期血尿酸可以正常、冠心病静息心电图可以正常）；病历里写明的既往确诊（如“高血压病史10年”“胃镜示慢性胃炎”）；你只是觉得另一个诊断更可能。拿不准时判 consistent。",
-        "判 inconsistent 时给出：quote（A、B、C 写病历里与之矛盾的那句原文；D 写病历里支撑上一级病名的那句原文；逐字复制，不超过40字）、reason（一句话说明为什么不符或缺什么，≤30字）和 supportedName。supportedName 只能是下面两种之一：① 比原诊断更宽一层或更轻一层、现有记录已经够得上的规范病名（如“贫血”“月经稀发”“消化不良”“妊娠呕吐”“关节炎”“牙痛”）；② 指不出这样的病名时：D 类写原诊断名加“待查”（如“多发性骨髓瘤待查”，表示首要考虑不变、尚未确诊）；A、B、C 类写病历里最主要的症状加“待查”（如“关节痛待查”“血尿待查”）。不得换成病历同样没有证实的另一个具体病种，不得写比原诊断更重的名称，不带括号和解释。",
+        "D. 诊断名比病历能支撑的更具体：按公认诊断标准，这个名称必须依赖某项检查结果才能成立，或必须满足病程门槛，而病历里既没有记录这项检查的结果，已记录的病程也够不上门槛。典型的如：缺铁性贫血、巨幼细胞贫血等指明贫血类型的名称需要相应检查（只有血红蛋白只能说贫血）；多囊卵巢综合征需要鹿特丹标准三项中至少两项；甲状腺功能减退症、糖尿病等以化验定义的病需要相应化验结果；慢性胃炎、消化性溃疡需要胃镜；骨质疏松症需要骨密度或影像；某种特定病原体感染需要病原学结果；功能性消化不良、肠易激综合征、功能性便秘的时间门槛：成人是起病至今满6个月——病程写满6个月（半年、1年、2年都算）就满足，不要求病历另写“持续3个月”，也不要求做过胃镜；未满18岁的患者按罗马IV儿童标准，功能性便秘满1个月、功能性消化不良和肠易激综合征满2个月就满足，不得套用成人的6个月；没满门槛时 supportedName 写“消化不良待查”“便秘待查”这类上一级名称（不写成单个症状）；功能性便秘、肠易激综合征是排除性诊断：50岁及以上起病、或有报警征象（便血、黑便、消瘦、贫血、近期排便习惯改变）的，病历没有结肠镜结果就属 D（写“便秘待查”“腹痛待查”这类上一级名称）；肠易激综合征还必须有腹痛；牙病的分型名称（急性牙髓炎、慢性牙髓炎、急性根尖周炎、牙周脓肿、智齿冠周炎等）需要口腔专科检查（牙髓活力或冷热测试、叩诊、牙周探诊、X线）才能分型，病历没有口腔检查记录时只能写“牙痛”。",
+        "以下情况一律判 consistent：门诊常见病按典型临床表现即可诊断、诊断标准本来不要求某项检查（如上呼吸道感染、急性支气管炎、急性胃肠炎、带状疱疹、荨麻疹、湿疹、偏头痛、紧张型头痛、失眠障碍、腰肌劳损、原发性痛经；有烧心或反酸、反流症状的胃食管反流病；有典型发作性胸痛的心绞痛或冠心病；有长期饮酒史并有肝脏影像或肝功能异常的酒精性肝病），这时没做检查不算问题；贫血按病历已记录的原因命名（产后贫血、失血性贫血、月经过多所致贫血）不算过度具体；名称是急危重症（如蛛网膜下腔出血、急性心肌梗死、主动脉夹层、异位妊娠、脑卒中、休克）时不适用 D；检查只有非特异性改变、不能确诊也不能排除；结果正常但该病在此阶段结果本来就可以正常（如痛风急性发作期血尿酸可以正常、冠心病静息心电图可以正常）；病历里写明的既往确诊（如“高血压病史10年”“胃镜示慢性胃炎”）；病历写明已在医院做过相关检查、结果正常或未见异常的（如“心内科完善相关检查后未见明显异常”），即使没有逐项列出、未见报告原件，也按已有检查结果对待，不适用 D；你只是觉得另一个诊断更可能。拿不准时判 consistent。",
+        "判 inconsistent 时给出：missingTest（只用于 D：缺的那一项检查，写检查名称本身，不超过20字，如“血清铁蛋白”“结肠镜”“牙髓活力测试”；缺的是病程时写“随访至病程满6个月”这类），quote（A、B、C 写病历里与之矛盾的那句原文；D 写病历里支撑上一级病名的那句原文；逐字复制，不超过40字）、reason（一句话说明为什么不符或缺什么，≤30字）和 supportedName。supportedName 只能是下面两种之一：① 比原诊断更宽一层或更轻一层、现有记录已经够得上的规范病名（如“贫血”“月经稀发”“消化不良”“妊娠呕吐”“关节炎”“牙痛”）；② 指不出这样的病名时：D 类写原诊断名加“待查”（如“多发性骨髓瘤待查”，表示首要考虑不变、尚未确诊）；A、B、C 类写病历里最主要的症状加“待查”（如“关节痛待查”“血尿待查”）。不得换成病历同样没有证实的另一个具体病种，不得写比原诊断更重的名称，不带括号和解释。",
         // 2026-10-19：A、B 类允许改成西医半自己列出的、病历检查所见已经指向的那个病（服务端只认名单里逐字有的名称）；
         // 「上一级」本身有依据时不挂「待查」；另报原名是否急危重症，红旗病例据此不把急危重病名改掉。
         "例外：A、B 类里，病历记录的检查所见本身就是另一个病的确诊依据或特征性表现（如活检、典型影像征象、确诊性化验），而这个病就在输入的 listedDiagnoses 里时，supportedName 直接写这个病（逐字照抄名单里的写法），quote 写那句检查所见。上一级病名本身已有记录支持时（如“急性尿潴留”的上一级“尿潴留”）不要再加“待查”。",
         "另给出 emergencyName：原诊断名属于需要立即处理的急危重症（如急性心肌梗死、急性胰腺炎、消化道穿孔、休克、异位妊娠、脑卒中、主动脉夹层、颅内血肿）时为 true，否则为 false。",
         // 2026-10-18：诊断标准要点来自受治理要点表或权威页面的检索摘要（western-diagnostic-criteria.server.ts），让情形 D 不再只靠上面手写的十几个病。
-        "如果输入里给了 criteria（该诊断名的诊断标准要点，摘自诊疗手册、指南等权威来源）：clinicallyDiagnosable 为 true 的病按典型临床表现即可诊断，不适用 D；requiredTests 不为空时，病历里没有其中任何一项检查的结果、也不是病历写明的既往确诊，才符合 D；durationThreshold 写了病程门槛时按它判断病程够不够；definingFeatures 是定义性表现，病历已记录与之相反时属 B。criteria 里是检索摘录（searchExcerpts）时，只把摘录里明确写出的必需检查或病程门槛当依据。criteria 与上面的通则冲突时以上面的通则为准（急危重症不用 D、病历写明的既往确诊不算）。没有 criteria 时按上面的通则判断。",
-        "只输出 JSON：{\"verdict\":\"consistent|inconsistent\",\"type\":\"A|B|C|D|\",\"quote\":\"…\",\"reason\":\"…\",\"supportedName\":\"…\",\"emergencyName\":true|false}",
+        "如果输入里给了 criteria（该诊断名的诊断标准要点，摘自诊疗手册、指南等权威来源）：clinicallyDiagnosable 为 true 的病按典型临床表现即可诊断，不适用 D；requiredTests 不为空时，病历里没有其中任何一项检查的结果、也不是病历写明的既往确诊，才符合 D；requiredTests 写了适用条件的（如“50岁及以上起病…时需结肠镜”），只在本例符合该条件时才要求这项检查；durationThreshold 写了病程门槛时按它判断病程够不够；definingFeatures 是定义性表现，病历已记录与之相反时属 B。criteria 里是检索摘录（searchExcerpts）时，只把摘录里明确写出的必需检查或病程门槛当依据。criteria 与上面的通则冲突时以上面的通则为准（急危重症不用 D、病历写明的既往确诊不算）。没有 criteria 时按上面的通则判断。",
+        "只输出 JSON：{\"verdict\":\"consistent|inconsistent\",\"type\":\"A|B|C|D|\",\"quote\":\"…\",\"reason\":\"…\",\"supportedName\":\"…\",\"missingTest\":\"…\",\"emergencyName\":true|false}",
       ].join("\n"),
     },
     {
@@ -238,7 +274,7 @@ export async function westernNameCorrectionForRecord(
       const response = await observeModelTask({ task: "western_name_evidence_check", stage: "diagnose", model: config.model }, () => createTextModelClient(config).chat.completions.create({
         model: config.model,
         temperature: 0,
-        max_tokens: 220,
+        max_tokens: 260,
         stream: false,
         response_format: { type: "json_object" },
         ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),

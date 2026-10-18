@@ -32,6 +32,8 @@ import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { fillMedicineRowFromInstructionRecord, type InstructionRecordPool } from "./instruction-record-pool";
 import { formulaAnalysisHerbMentions } from "./formula-analysis-review";
 import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
+import { patentMedicineDuplication, selfTakenMedicationCompositions } from "./patent-medicine-duplication.server";
+import { herbRecordCautionConflicts, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
 import { specialDecoctionPhrase } from "./herb-decoction-rules";
 import { chpPregnancyLabel, conceptionHerbNote } from "./conception-herb-policy";
@@ -273,6 +275,55 @@ export function precautionNamesHerbOutsideFormula(line: string, prescribedIdenti
     }
     return false;
   });
+}
+
+/**
+ * 注意事项说「方中有某药」而该药已不在最终处方里：只去掉这个药名（连同它旁边的一个顿号或连词），同一条的其余内容照留
+ *（2026-10-19 留出例 S145：「方中黄柏、苍术苦寒燥烈，胃脘不适者请告知医生调整」，苍术在编译之后被剔出本方，
+ * 这一条原样交付）。这一小句里一味本方的药都不剩时，删掉这一小句（它讲的只是不在方中的药），同一条别的小句照留（「如正在哺乳请先告知医生」），什么都不剩时整条删掉。「二药」「三味」按剩下的味数改写，
+ * 剩一味时去掉数量词。方外之物（「不宜同服藜芦」）与 precautionNamesHerbOutsideFormula 同一判法，不动。
+ * 编译器按编译时的处方用；交付面按最终处方再用一次（编译之后还会剔药：方向不成立的加味、加减建议）。幂等。
+ */
+export function precautionWithoutAbsentHerbs(line: string, prescribedIdentities: ReadonlySet<string>): string {
+  if (prescribedIdentities.size === 0 || typeof line !== "string") return line;
+  let touched = false;
+  const pieces = line.split(/(?<=[，,；;。！？!?])/u).map((piece) => {
+    const lead = piece.match(PRECAUTION_FORMULA_CONTENT_LEAD);
+    if (!lead || lead.index == null) return piece;
+    const tailStart = lead.index + lead[0].length;
+    const tail = piece.slice(tailStart);
+    const absent: Array<{ start: number; end: number }> = [];
+    let present = 0;
+    let previousEnd = -1;
+    let previousAvoided = false;
+    for (const mention of formulaAnalysisHerbMentions(tail)) {
+      const avoided: boolean = PRECAUTION_AVOID_LEAD.test(tail.slice(0, mention.start)) ||
+        (previousAvoided && /^[、和及或与]$/.test(tail.slice(previousEnd, mention.start)));
+      previousEnd = mention.end;
+      previousAvoided = avoided;
+      if (avoided) continue;
+      if (prescribedIdentities.has(canonicalTcmHerbIdentity(mention.token))) present += 1;
+      else absent.push(mention);
+    }
+    if (absent.length === 0) return piece;
+    touched = true;
+    // 这一小句只讲不在方中的药：整小句去掉，同一条里别的小句（「如正在哺乳请先告知医生」）照留。
+    if (present === 0) return "";
+    let kept = tail;
+    for (const span of [...absent].sort((left, right) => right.start - left.start)) {
+      const before = kept.slice(0, span.start);
+      const after = kept.slice(span.end);
+      kept = /[、和及与]$/u.test(before) ? `${before.slice(0, -1)}${after}`
+        : /^[、和及与]/u.test(after) ? `${before}${after.slice(1)}`
+          : `${before}${after}`;
+    }
+    kept = kept.replace(/[二两三四五六七八九](药|味)(?!子)/u, (_match, unit: string) => present >= 2 ? `${["", "", "二", "三", "四", "五", "六", "七", "八", "九"][present]}${unit}` : "");
+    return `${piece.slice(0, tailStart)}${kept}`;
+  });
+  if (!touched) return line;
+  const joined = pieces.join("").replace(/^[，,；;。\s]+/u, "").replace(/[，,；;]+(?=。|$)/u, "").trim();
+  if (!/[\u4e00-\u9fff]{4,}/u.test(joined)) return "";
+  return /[。！？!?]$/u.test(joined) ? joined : `${joined}。`;
 }
 
 function normalizeSubmittedPrecautions(value: unknown): string[] {
@@ -893,11 +944,19 @@ function signedScopeInvolvesMind(prior: ClinicalReasoningResultV2): boolean {
  */
 const SLEEP_TRIGGER = /眠|寐|夜啼|夜醒|易醒|早醒|多梦|睡/u;
 const SEDATIVE_REASON = /安神|宁神|宁心|镇静|助眠/u;
+/**
+ * 理由里明写是为了睡眠（「助眠」「安眠」）：触发条件没写睡眠时同样算（2026-10-19 起，按用意判）。
+ * 「止啼」不收：回放 1,437 条加减里唯一新命中的是五迟·脾虚肝旺「若惊惕不安较甚、夜啼频作：加天麻（平肝息风、镇惊止啼）」，
+ * 天麻治的是肝旺本身。留出例 S132（珍珠母）、S158（蝉蜕）两条是教材本证的加减原文（《中医外科学》湿疮·血虚风燥证
+ *「瘙痒不能入眠者，加珍珠母、夜交藤、酸枣仁」；《中医儿科学》积滞·食积化热「烦躁、夜啼难眠者，加蝉蜕、钩藤」），按教材加减照列。
+ */
+const SLEEP_PURPOSE_REASON = /助眠|安眠/u;
 export function incidentalSleepSedativeModification(
   item: { trigger: string; herbName: string; reason?: string },
   prior: ClinicalReasoningResultV2,
 ): boolean {
-  if (signedScopeInvolvesMind(prior) || !SLEEP_TRIGGER.test(item.trigger)) return false;
+  if (signedScopeInvolvesMind(prior)) return false;
+  if (!SLEEP_TRIGGER.test(item.trigger) && !SLEEP_PURPOSE_REASON.test(item.reason || "")) return false;
   return SEDATIVE_CATEGORY.test(getTcmHerbFunctionText(item.herbName)) || SEDATIVE_REASON.test(item.reason || "");
 }
 function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2): M04Proposal["candidate"]["herbs"] {
@@ -1630,6 +1689,13 @@ export function compileM04Proposal(
         .map((item) => [`${item.evidenceId}:${item.evidenceFingerprint}`, item] as const),
     ).values()].slice(0, 6),
   };
+  // 与本方汤剂或患者自服药同组成的中成药不再推荐（同一组药吃两遍；见 patentMedicineDuplication，2026-10-19）。
+  const duplicationHerbs = proposal.candidate.herbs.map((herb) => ({ name: herb.name, role: herb.role }));
+  const selfMedications = selfTakenMedicationCompositions(caseState);
+  const medicinesBeforeDuplication = proposal.patentAndWestern.length;
+  proposal.patentAndWestern = proposal.patentAndWestern
+    .filter((item) => !patentMedicineDuplication(item, duplicationHerbs, selfMedications));
+  const duplicateMedicinesDropped = medicinesBeforeDuplication - proposal.patentAndWestern.length;
   if (modificationIssue(proposal, prior)) return undefined;
   const cleanNarrative = (value: string | undefined, fallback: string) =>
     sanitizeUnverifiedClinicalNarrative(value || "") || fallback;
@@ -1642,7 +1708,21 @@ export function compileM04Proposal(
     ...proposal.candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name)),
     ...proposal.modifications.map((item) => canonicalTcmHerbIdentity(item.herbName)),
   ]);
-  const compiledHerbs = proposal.candidate.herbs.map((herb) => {
+  // 教材【使用注意】写明此类患者忌服、慎用（「食少便溏者忌服」），而病历记着这一情况、又不是所选方原有药味的饮片：
+  // 在这一味写明（2026-10-19 甲方标准病历 3：熟地黄为君，病历食欲下降、大便稀溏）。提示词事先列给模型，这里是兜底的如实标注。
+  const recordCautions = new Map<number, HerbRecordCautionConflict>();
+  if (caseState) {
+    const formulaNamesForCaution = [proposal.candidate.name, ...(prior.overview?.recommendedFormulaNames || [])].filter(Boolean);
+    const cautionRow = textbookRowForSyndrome(String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""));
+    for (const conflict of herbRecordCautionConflicts(
+      proposal.candidate.herbs,
+      formulaNamesForCaution,
+      clinicalGroundingText(caseState),
+      [prior.overview?.primarySyndrome, ...(prior.overview?.secondarySyndromes || [])].filter(Boolean).join("；"),
+      textbookBaseIngredients(cautionRow, formulaNamesForCaution),
+    )) recordCautions.set(conflict.index, conflict);
+  }
+  const compiledHerbs = proposal.candidate.herbs.map((herb, herbIndex) => {
     const node = herb.targetKind === "pathogenesis_node"
       ? prior.pathogenesis.chain.find((candidate) => candidate.nodeId === herb.targetRef)
       : undefined;
@@ -1680,6 +1760,13 @@ export function compileM04Proposal(
     // 备孕/未避孕（owner 2026-10-14）：照常给剂量；药典孕妇慎用的饮片在这一味写明（禁用的由合同修复轮拦下，修复用尽仍留着时同样写明）。
     const conceptionNote = conceptionTier ? conceptionHerbNote(herb.name) : undefined;
     if (conceptionNote) verification.verificationReasons = [conceptionNote, ...verification.verificationReasons].slice(0, 8);
+    const recordCaution = recordCautions.get(herbIndex);
+    if (recordCaution) {
+      verification.verificationReasons = [
+        `《中药学》${recordCaution.monograph}【使用注意】：${recordCaution.condition}者${recordCaution.verb}。本例记有${recordCaution.recordFindings.join("、")}，且该味不是所选方原有药味，请医生核对是否保留。`,
+        ...verification.verificationReasons,
+      ].slice(0, 8);
+    }
     return {
       ...herb,
       dose,
@@ -1851,7 +1938,9 @@ export function compileM04Proposal(
         : [],
       medicineCandidateStatus: proposal.patentAndWestern.length > 0
         ? { status: "available" as const, reason: "已形成与本例问题匹配并绑定真实说明书条目的候选。" }
-        : { status: "no_evidence_match" as const, reason: "未检索到与本例诊断或证候匹配、且可核验到具体说明书条目的西药或中成药候选。" },
+        : duplicateMedicinesDropped > 0
+          ? { status: "no_evidence_match" as const, reason: "与本例相符的中成药和本方汤剂组成重复，不再另列，以免同一组药重复服用。" }
+          : { status: "no_evidence_match" as const, reason: "未检索到与本例诊断或证候匹配、且可核验到具体说明书条目的西药或中成药候选。" },
       modifications: compiledModifications,
       modificationReview: summarizeModificationReview(
         proposal.modificationReview?.submittedCount ?? proposal.modifications.length,
@@ -1866,7 +1955,8 @@ export function compileM04Proposal(
     nonPharma: {
       ...proposal.nonPharma,
       precautions: casePrecautions(proposal.nonPharma.precautions, caseState)
-        .filter((item) => !precautionNamesHerbOutsideFormula(item, prescribedPrecautionIdentities)),
+        .map((item) => precautionWithoutAbsentHerbs(item, prescribedPrecautionIdentities))
+        .filter((item) => Boolean(item)),
       acupointCare: null,
       tcmTreatments: compileTcmTreatmentRecommendations(proposal.nonPharma.tcmTreatments, prior, caseState),
     },
