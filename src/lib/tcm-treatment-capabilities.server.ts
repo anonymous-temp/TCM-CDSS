@@ -22,7 +22,7 @@ import {
 import { affirmedClinicalText } from "./clinical-polarity";
 import { assessPregnancyState } from "./clinical-state";
 import { pregnancyScreenRequired } from "./diagnosis-safety";
-import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, cardSentencesNamingListedPoints, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
+import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, cardSentencesNamingListedPoints, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
 type DeliveryMode = "onsite" | "referral";
@@ -455,8 +455,11 @@ function controlledTreatmentPlan(
       !governedTemplate.matchAny.some((term) => (textbookContext?.diseaseNames || []).some((name) => name.includes(term) || term.includes(name)));
     // 对的是别的病的模板，按证型加减过也不用（2026-10-14 独立评审：遗尿·肺脾气虚的患儿，因证名与「感染后呼吸康复」模板的匹配词
     // 「肺脾气虚」相同，针刺卡写成「按肺脾气虚取穴，针对本例感冒」，取的是反复感冒的穴）。
+    // 教材方案按本例证型配了穴、目录只是病类通用模板时，用教材的（2026-10-18 留出集：泄泻、便秘 4 例都给了通用脾胃模板
+    //「中脘、天枢、足三里、内关」，教材本病有按证型的配穴）。
+    const textbookSyndromeTailored = textbookPlan?.kind === "acupoint" && textbookPlan.points.some((point) => point.role === "syndrome_refinement");
     if (textbookPlan && (templateOffDisease || (!syndromeTailored &&
-      (tcmTreatmentProjectIsPointFree(projectCode) || !pointsGoverned || catalogSpecificPoints < 3)))) {
+      (tcmTreatmentProjectIsPointFree(projectCode) || !pointsGoverned || catalogSpecificPoints < 3 || textbookSyndromeTailored)))) {
       return { ...fromTextbook(textbookPlan), ...deferredGovernedTemplate };
     }
     // 对的是伴随症状的模板、本病又没有教材方案时不给这张模板的穴位，落到下面的评估态（2026-10-18 验收集 H：呃逆给失眠取穴、
@@ -1118,6 +1121,9 @@ export function compileTcmTreatmentRecommendations(
     // 灸法卡与证候相反时整张不出（2026-10-17 留出例 S067：湿热石淋拿到「常规灸法，多用于膏淋、劳淋」）。此前只去卡里说灸的句子，
     // 整张灸法卡每句都说灸，去完为空又退回原文。
     if (definition.code === "moxibustion" && moxibustionUnsuitableForSyndrome(signedSyndromeText, prior.therapy?.overallMethod || "")) return [];
+    // 拔罐、刮痧是以泻为主的操作，纯虚证整张不出（2026-10-18 甲方病历 6：肾阴虚腰痛三次生成都给了拔罐/走罐，教材腰痛节只对寒湿、瘀血腰痛加拔罐）。
+    // 虚实夹杂、实证照常。与灸法、刺络用同一个虚实判据。
+    if ((definition.code === "cupping" || definition.code === "guasha") && signedSyndromeDeficiencyExcess(signedSyndromeText) === "deficiency") return [];
     const plannedTreatment = controlledTreatmentPlan(
       definition.code,
       matchedIndicationTags,

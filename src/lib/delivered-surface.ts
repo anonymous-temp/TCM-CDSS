@@ -17,6 +17,7 @@
  */
 
 import { compositionIdentityName, formulaCompilationReferences } from "./tcm-formula-provenance";
+import { formulaAnalysisHerbMentions } from "./formula-analysis-review";
 import { textbookDifferentialsForDisease, textbookFormulaLabel, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
@@ -35,12 +36,16 @@ export type DeliveredSurfaceOptions = {
   requiredPrecautions?: readonly RequiredPrecaution[];
 };
 
+/** 外用剂型（只用于注意事项措辞：外用药不说「服用」、不套口服间隔）。 */
+const TOPICAL_MEDICATION_FORM = /(?:乳膏|软膏|凝胶|搽剂|洗剂|贴剂|贴膏|膏药|栓|滴眼液|滴耳液|滴鼻液|喷雾剂|气雾剂|酊)$/u;
+
 /** 注意事项里已经写到这一项了吗（说到药名 / 哺乳 / 抗菌治疗即算，不管模型怎么措辞）。 */
 function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly string[]): boolean {
   if (item.kind === "self_medication") return lines.some((line) => line.includes(item.base) || line.includes(item.name));
   if (item.kind === "postpartum_lactation") return lines.some((line) => /哺乳|喂奶|母乳|授乳|乳汁/.test(line));
   if (item.kind === "pediatric_administration") return lines.some((line) => /小儿|患儿|儿童|幼儿|孩子|宝宝/.test(line) && /少量|多次|分次|频服|喂/.test(line));
-  if (item.kind === "elderly_administration") return lines.some((line) => /高龄|老年|老人|年老|年长/.test(line));
+  // 模型常只写「起身宜缓，防止跌倒」不点年龄：说到跌倒就算写到了，不再补一句同义的（2026-10-18 甲方病历 6 两句防跌倒）。
+  if (item.kind === "elderly_administration") return lines.some((line) => /高龄|老年|老人|年老|年长|跌倒|摔倒/.test(line));
   if (item.kind === "current_medications") return lines.some((line) => item.names.some((name) => line.includes(name.replace(/(?:片|胶囊|颗粒|丸|口服液|注射液|缓释片|肠溶片|分散片)$/u, ""))) ||
     /(?:正在|现|长期|规律|平时|已)(?:在)?(?:服用|口服|用)的?[^，,。；;]{0,6}(?:西药|药物|药)|其他(?:药物|西药)/u.test(line));
   return lines.some((line) => /抗生素|抗菌|抗感染|青霉素|头孢/.test(line));
@@ -84,7 +89,14 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
     return "年长者服药后起身宜缓，注意防跌倒；服药期间如有明显不适请及时告知家人和医生。";
   }
   if (item.kind === "current_medications") {
-    return `正在服用的${item.names.join("、")}请告知医生，不要自行停用；中药与西药最好间隔1小时左右服用。`;
+    // 是否继续由医生定，不写「不要自行停用」：红旗病例里那句会变成让心率 42、血压 82/48 的患者继续服美托洛尔（2026-10-18 留出集 S188）。
+    // 外用药（乳膏、贴剂、栓剂…）不说「服用」，也不套口服药的间隔时间（甲方病历 8：阿昔洛韦乳膏）。
+    const topical = item.names.filter((name) => TOPICAL_MEDICATION_FORM.test(name));
+    const oral = item.names.filter((name) => !TOPICAL_MEDICATION_FORM.test(name));
+    return [
+      oral.length > 0 ? `正在服用的${oral.join("、")}请告知医生，是否继续服用由医生决定；中药与西药同服时最好间隔1小时左右` : "",
+      topical.length > 0 ? `正在外用的${topical.join("、")}请告知医生，是否继续使用由医生决定` : "",
+    ].filter(Boolean).join("；") + "。";
   }
   return `${item.disease}是细菌感染，除服本方外请到医院就诊，由医生决定抗菌药物治疗；如出现寒战高热、红肿迅速扩大、皮肤发紫或起水疱，请立即就医。`;
 }
@@ -311,6 +323,13 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 桔梗「载药下行」）；整栏都没依据时换成知识库的功效短语。知识库里没有这味药时不动。
     for (const herb of records(candidate.herbs)) {
       if (typeof herb.function !== "string" || !herb.function.trim()) continue;
+      // 功效栏是兜底占位句（「佐药，本方中的具体配伍作用需医生结合方义复核」）而知识库有该药功效时，交付知识库功效（2026-10-18 留出集 S145
+      // 赤小豆：库里有「利水消肿，解毒排脓」，只因与本方治法对不上被换成了占位句）。库里也没有时照留。
+      if (/需医生结合方义复核/u.test(herb.function)) {
+        const plain = getTcmHerbFunctionDisplayText(String(herb.name || ""), String(herb.role || ""), "", "", false);
+        if (plain && !/需医生结合方义复核/u.test(plain)) herb.function = plain;
+        continue;
+      }
       const knowledge = herbFunctionKnowledgeForDisplay(String(herb.name || ""));
       const unsupported = herbFunctionClaimUnsupportedPhrases(herb.function, knowledge);
       if (unsupported.length === 0) continue;
@@ -382,6 +401,10 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       if (catalogIds.size > 0) candidate.formulaAnalysis = withoutFalseAdditionClaims(candidate.formulaAnalysis, catalogIds);
     }
     // 方义里夹着模型的自问自答（「去原方中…的川芎？不，川芎保留。」，2026-10-17 甲方标准病历 4）：带问号的小句与同句里紧跟的自我更正不留。
+    if (typeof candidate.formulaAnalysis === "string" && /[二两](?:药|味)/u.test(candidate.formulaAnalysis)) {
+      const own = new Set(records(candidate.herbs).map((herb) => compositionIdentityName(String(herb.name || ""))).filter(Boolean));
+      candidate.formulaAnalysis = withRecountedPairWords(candidate.formulaAnalysis, own);
+    }
     if (typeof candidate.formulaAnalysis === "string" && /[？?]/.test(candidate.formulaAnalysis)) {
       candidate.formulaAnalysis = withoutQuestionChatter(candidate.formulaAnalysis);
     }
@@ -539,8 +562,11 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       // 再按出卡处同一个函数改写流程用语（此前已签名、仍在回放的结果也按同一口径）。
       if (typeof treatment[key] === "string") {
         const original = String(treatment[key]);
+        // 目录原文里系统讲自己不输出什么的半句（「不输出进针方向和深度」「深刺、透刺和高风险解剖区域不由系统给出操作参数」，
+        // 2026-10-18 甲方病历 3 与留出集 S086 评审判工程用语）也一并去掉。
         treatment[key] = clinicalTreatmentScheduleWording(original
-          .replace(/[；;，,]?\s*实际(?:取穴|间隔与疗程)[^。；;]*?(?:复核|确定|调整)。?/g, "。")) || original;
+          .replace(/[；;，,]?\s*实际(?:取穴|间隔与疗程)[^。；;]*?(?:复核|确定|调整)。?/g, "。")
+          .replace(/[；;，,]?\s*[^。；;，,]*?(?:不输出|不由系统给出|系统不(?:给出|输出))[^。；;]*。?/g, "。")) || original;
       }
     }
     if (Array.isArray(treatment.suggestedSitesOrPoints)) {
@@ -550,6 +576,18 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
   for (const modification of records(formula?.modifications)) {
     if (typeof modification.riskNote === "string" && /药味工作台|重新审方/.test(modification.riskNote)) modification.riskNote = "";
   }
+}
+
+/**
+ * 「二药/两味」前面同一句里只点到一味本方药时，数量词不成立（2026-10-18 留出集 S145：「黄柏苦寒清下焦湿热，二药相合清利…共为君」，
+ * 另一味已不在方中）。去掉数量词与紧跟的「相合/合用」，其余照留；点到两味及以上的不动。
+ */
+function withRecountedPairWords(text: string, own: ReadonlySet<string>): string {
+  return text.split(/(?<=[。；;])/u).map((sentence) => sentence.replace(/[，,]?\s*[二两](?:药|味)(?:相合|合用|配伍|相配|同用)?/gu, (match, offset: number) => {
+    const before = sentence.slice(0, offset);
+    const named = new Set(formulaAnalysisHerbMentions(before).map((mention) => compositionIdentityName(mention.token)).filter((identity) => own.has(identity)));
+    return named.size === 1 ? (match.startsWith("，") || match.startsWith(",") ? "，" : "") : match;
+  })).join("");
 }
 
 /**

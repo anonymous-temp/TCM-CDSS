@@ -1969,4 +1969,56 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
   });
 }
 
+{
+  const surface = await jiti.import("../src/lib/delivered-surface.ts");
+  const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+  const western = await jiti.import("../src/lib/western-name-evidence-check.server.ts");
+  process.env.TCM_CLINIC_TREATMENT_CAPABILITIES = "acupuncture,moxibustion,cupping,guasha,auricular,tuina,diet_therapy,qigong_daoyin,mind_therapy";
+  const treatments = await jiti.import("../src/lib/tcm-treatment-capabilities.server.ts");
+  const evidence = { evidenceLevel: "model_inference", source: "本例资料", confidence: "中" };
+  const prior = (disease, syndrome, method, fact) => ({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", contractSignatureVersion: "tcm-cdss-m03-signature-v5", contractSignature: `hmac-sha256:${"a".repeat(64)}`,
+    overview: { tcmDiseaseName: disease, primarySyndrome: syndrome, secondarySyndromes: [], overallPathogenesis: method, overallTherapy: method, evidence },
+    westernDiagnosis: { primary: { name: "症状性问题", status: "证据有限", confidence: "低", supportingFacts: [], evidence }, differentials: [] },
+    pathogenesis: { summary: method, locationDifferentiation: { items: [], evidence }, natureDifferentiation: { items: [], evidence }, chain: [{ nodeId: "P1", patientFact: fact, syndromeEvidence: fact, pathogenesis: method, therapyDirection: method, evidence }], uncertainties: [] },
+    therapy: { overallPrinciple: method, overallMethod: method, subTherapies: [{ therapy: method, targetPathogenesis: method, priority: "主要", evidence }] }, formula: null, nonPharma: null, lineageAdaptation: null });
+  const caseOf = (chief, present) => ({ patient: { sex: "女", age: 62 }, chiefComplaint: chief, symptoms: { presentHistory: present }, vitals: {}, conversation: [], safetyGate: { status: "ready", allowDosePrescription: true, redFlags: [], missingItems: [] } });
+  const rx = (candidate, nonPharma = null) => ({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [candidate] }, nonPharma });
+  check("16.11 交付面：「二药」前只点到一味本方药时去掉数量词（留出集 S145）；功效栏占位句换知识库功效（赤小豆）；卡片里系统讲自己不输出什么的半句去掉（甲方病历 3「不输出进针方向和深度」）", () => {
+    const out = surface.projectDeliveredReasoning(rx({ name: "宣痹汤加减", formulaAnalysis: "黄柏苦寒清下焦湿热，二药相合清利湿热，共为君；黄芪补气，当归养血，二药相合气血双补。", herbs: [{ name: "黄柏", role: "君", function: "清热燥湿", dose: "10g" }, { name: "黄芪", role: "臣", function: "补气", dose: "15g" }, { name: "当归", role: "臣", function: "补血活血", dose: "10g" }, { name: "赤小豆", role: "佐", function: "佐药，本方中的具体配伍作用需医生结合方义复核", dose: "15g" }] },
+      { tcmTreatments: [{ projectCode: "acupuncture", techniqueBoundary: "外伤后头痛先行急诊评估；不输出进针方向和深度。", scheduleSuggestion: "每日1次。" }] }));
+    const candidate = out.formula.candidates[0];
+    assert.equal(candidate.formulaAnalysis, "黄柏苦寒清下焦湿热，清利湿热，共为君；黄芪补气，当归养血，二药相合气血双补。");
+    assert.equal(candidate.herbs[3].function, "利水消肿");
+    assert.doesNotMatch(out.nonPharma.tcmTreatments[0].techniqueBoundary, /不输出/);
+  });
+  check("16.12 方义里「木香行气散结」不当成方名「木香行气散」换掉（留出集 S067 曾成「本方结」）；真写方名的照常识别（对照）", () => {
+    assert.deepEqual(provenance.identifyKnownFormulaNames("木香行气散结，缓解腰腹绞痛"), []);
+    assert.deepEqual(provenance.identifyKnownFormulaNames("方用逍遥散加减"), ["逍遥散"]);
+  });
+  check("16.13 纯虚证不出拔罐/刮痧卡（甲方病历 6 肾阴虚腰痛三次都给了走罐）；肾虚腰痛不套《腰椎间盘突出症》方案的频次；寒湿腰痛照常（对照）", () => {
+    const deficient = treatments.compileTcmTreatmentRecommendations([{ projectCode: "cupping", targetRef: "P1" }, { projectCode: "acupuncture", targetRef: "P1" }], prior("腰痛", "肾阴虚证", "滋补肾阴", "腰部酸痛，腰膝酸软"), caseOf("腰痛3月", "腰部酸痛，腰膝酸软"));
+    assert.ok(!deficient.some((card) => card.projectCode === "cupping"));
+    const needle = deficient.find((card) => card.projectCode === "acupuncture");
+    assert.doesNotMatch(`${needle?.scheduleSuggestion || ""}${needle?.protocolSource || ""}`, /腰椎间盘突出症/);
+    const cold = treatments.compileTcmTreatmentRecommendations([{ projectCode: "cupping", targetRef: "P1" }], prior("腰痛", "寒湿腰痛证", "散寒行湿，温经通络", "腰部冷痛重着"), caseOf("腰痛1周", "腰部冷痛重着，遇寒加重"));
+    assert.ok(cold.some((card) => card.projectCode === "cupping"));
+  });
+  check("16.14 注意事项：正在用的药不写「不要自行停用」（红旗病例曾让心率42、血压82/48的患者继续服美托洛尔，留出集 S188），外用药不说服用、不套口服间隔；模型写过防跌倒就不再补一句（甲方病历 6）", () => {
+    const required = [{ kind: "current_medications", names: ["美托洛尔", "阿昔洛韦乳膏"] }, { kind: "elderly_administration", ageYears: 70 }];
+    const out = surface.projectDeliveredReasoning(rx({ name: "x", formulaAnalysis: "x", herbs: [] }, { precautions: ["起身宜缓，防止跌倒。"] }), { requiredPrecautions: required });
+    const lines = out.nonPharma.precautions.join("\n");
+    assert.doesNotMatch(lines, /不要自行停用/);
+    assert.match(lines, /正在服用的美托洛尔请告知医生，是否继续服用由医生决定/);
+    assert.match(lines, /正在外用的阿昔洛韦乳膏请告知医生/);
+    assert.equal((lines.match(/跌倒/g) || []).length, 1);
+  });
+  check("16.15 情形 D：靠病程门槛定义的病（功能性消化不良）不改成「原病名待查」，沿用核对给的名称（甲方病历 4 曾成「功能性消化不良待查」）；缺确诊检查的病照旧留住首要考虑（对照）", () => {
+    const record = "主诉：胃胀半月\n现病史：上腹胀满半月，食后加重。";
+    const payload = (supportedName, reason) => JSON.stringify({ verdict: "inconsistent", type: "D", quote: "上腹胀满半月", reason, supportedName });
+    assert.equal(western.parseWesternNameCorrection(payload("上腹胀满待查", "病程半月，未满6个月"), record, "功能性消化不良")?.supportedName, "上腹胀满待查");
+    const myeloma = "主诉：腰痛2个月\n现病史：腰痛2个月，贫血貌。";
+    assert.equal(western.parseWesternNameCorrection(JSON.stringify({ verdict: "inconsistent", type: "D", quote: "腰痛2个月", reason: "尚未行骨髓穿刺与M蛋白检查", supportedName: "腰痛待查" }), myeloma, "多发性骨髓瘤")?.supportedName, "多发性骨髓瘤待查");
+  });
+}
+
 console.log(JSON.stringify({ cases, failures: process.exitCode ? "see above" : 0 }));

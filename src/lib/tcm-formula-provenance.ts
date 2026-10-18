@@ -279,9 +279,18 @@ function replaceLiteralFormulaClaims(value: string, names: string[], replacement
   return names.reduce((output, name) => output.split(name).join(replacement), value);
 }
 
+/**
+ * 「散」后面接着成词（散结、散寒、散瘀…）时是药名加动词，不是方名：「木香行气散结」被当成方名「木香行气散」换成「本方案」，
+ * 方义成了「本方结」（2026-10-18 留出集 S067）。构词式守卫，只看紧跟的一个字；方名识别与方名替换共用。
+ */
+function formulaNameIsVerbPhrase(name: string, rightContext: string): boolean {
+  return name.endsWith("散") && /^[结寒瘀邪风热湿郁血肿痞滞表火毒]/u.test(rightContext);
+}
+
 function isUnambiguousGovernedFormulaClaim(value: string, start: number, end: number, name: string): boolean {
-  if (!name.endsWith("散") || name.length >= 4) return true;
   const rightContext = value.slice(end);
+  if (formulaNameIsVerbPhrase(name, rightContext)) return false;
+  if (!name.endsWith("散") || name.length >= 4) return true;
   if (end === value.length || /^[\s，,。；;：:、（）()【】\[\]“”"']/.test(rightContext)) return true;
   if (FORMULA_CLAIM_MODIFIER.test(rightContext)) return true;
   return FORMULA_CLAIM_LEFT_CONTEXT.test(value.slice(Math.max(0, start - 4), start));
@@ -683,6 +692,7 @@ export function identifyKnownFormulaNames(value: string): string[] {
     .filter((match) => {
       const localPrefix = normalized.slice(Math.max(0, match.start - 18), match.start);
       const localSuffix = normalized.slice(match.start + match.name.length, match.start + match.name.length + 18);
+      if (formulaNameIsVerbPhrase(match.name, normalized.slice(match.start + match.name.length))) return false;
       const selfDevisedPrefix = /(?:自拟|经验方|协定方|院内方|辨证组方)[^汤散丸饮丹膏]{0,4}$/.test(localPrefix);
       const negativePrefix = /(?:不建议(?:使用|采用)?|不推荐|不宜|不应|不用|不使用|不采用|不予(?:使用|采用|选用)?|不得(?:使用|采用|选用)?|不可(?:使用|采用|选用)?|严禁(?:使用|采用|选用)?|禁忌(?:使用|采用|选用)?|禁用|禁止|忌用|勿用|排除|暂缓|暂停|停用|避免|不选|不考虑|不作为|仅作|仅用于|仅供)[^汤散丸饮丹膏]{0,10}$/.test(localPrefix);
       const negativeSuffix = /^(?![^汤散丸饮丹膏]{0,12}(?:无|没有|未见)(?:明显|使用)?禁忌)[^汤散丸饮丹膏]{0,12}(?:禁忌(?:方|使用)?|禁用|忌用|(?:应|须|需)?避免(?:继续)?(?:使用|采用|选用)?|不予(?:使用|采用|选用)|不应(?:继续)?(?:使用|采用|选用)|暂停(?:使用|采用|选用)?|停用|严禁(?:使用)?|不得(?:使用)?|不可(?:使用)?|禁止|勿用|不宜|不建议|不推荐|不作为|仅作鉴别|仅用于鉴别|仅供鉴别|排除)/.test(localSuffix);

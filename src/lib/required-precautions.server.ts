@@ -127,7 +127,7 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     }
     if (item.kind === "pediatric_administration") return `${order}患儿${item.ageYears < 1 ? `${Math.max(1, Math.round(item.ageYears * 12))}个月` : `${Math.floor(item.ageYears)}岁`}：写一条给家长的服药方法（少量多次、分次喂服，不要强灌，不自行加量）。`;
     if (item.kind === "elderly_administration") return `${order}患者${Math.floor(item.ageYears)}岁：写一条与年龄相关的服药注意（如起身宜缓、防跌倒）。`;
-    if (item.kind === "current_medications") return `${order}病历记录患者正在服用${item.names.join("、")}：写一条它与本方一起服用时要注意的事（告知医生、不要自行停用，中西药间隔服用；与本方有明确相互作用的写出来）。`;
+    if (item.kind === "current_medications") return `${order}病历记录患者正在使用${item.names.join("、")}：写一条它与本方一起用时要注意的事（告知医生、是否继续由医生决定，口服的中西药间隔服用；乳膏、贴剂等外用药写「外用」，不写服用；与本方有明确相互作用的写出来）。`;
     return `${order}${item.disease}是细菌感染：写明须到医院由医生决定抗菌药物治疗，以及寒战高热、红肿迅速扩大等须立即就医的表现。`;
   });
   return `【本例注意事项必须写到】以下各项在 nonPharma.precautions 里各写一条，排在最前，不计入条数上限：\n${lines.join("\n")}`;

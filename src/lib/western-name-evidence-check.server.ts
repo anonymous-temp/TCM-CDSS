@@ -4,7 +4,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
-import { westernCriteriaPromptValue, westernCriteriaReference } from "./western-diagnostic-criteria.server";
+import { westernCriteriaEntry, westernCriteriaPromptValue, westernCriteriaReference } from "./western-diagnostic-criteria.server";
 
 /**
  * 参考西医诊断名与病历已记录内容的一致性核对（2026-10-14）。
@@ -73,7 +73,10 @@ export function parseWesternNameCorrection(content: unknown, recordText: string,
   // 改成症状会把首要考虑挤进鉴别：验收集 X-D-4595 多发性骨髓瘤→「腰痛待查」、X-D-4660 先天性甲减→「便秘待查」、
   // X-D-2054 慢性胰腺炎→「腹胀」。病历里「肺癌待查」「结核待查」本来就是这么写的：点出首要考虑，同时说明未确诊。
   const current = currentName.trim();
-  const keepHypothesis = type === "D" && /待查$/u.test(name) && !/待查$/u.test(current) &&
+  // 靠病程门槛定义的病（功能性消化不良要 6 个月）没到病程时，「原病名待查」仍是越级：甲方病历 4 半个月写成「功能性消化不良待查」，
+  // 复核判越过罗马 IV（2026-10-18）。这类沿用核对给的上一级或症状名，只给「缺确诊检查」的病留住首要考虑。
+  const courseDefined = Boolean(westernCriteriaEntry(current)?.durationThreshold) || /病程|个月|周|时长|持续时间/u.test(why);
+  const keepHypothesis = type === "D" && /待查$/u.test(name) && !/待查$/u.test(current) && !courseDefined &&
     current.length >= 2 && current.length <= 24 && !INVALID_SUPPORTED_NAME_FORM.test(current);
   const supported = keepHypothesis ? `${current}待查` : name;
   if (compact(quoted).length < 4 || compact(quoted).length > 60 || !compact(recordText).includes(compact(quoted))) return undefined;
