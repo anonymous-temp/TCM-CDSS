@@ -1315,9 +1315,11 @@ export function withSymptomDirectedClause(rowMethod: string, modelMethod: string
   const clause = modelMethod.split(/[，,、；;。]/u).map((item) => item.trim())
     .find((item) => /^[\u4e00-\u9fff]{2,8}$/u.test(item) && /止/u.test(item) && !rowMethod.includes(item));
   if (!clause) return rowMethod;
-  // 「养血和络止痛」接在「滋阴养血」后面时，开头与教材治法重复的两字（养血）去掉，只接「和络止痛」。
+  // 「养血和络止痛」接在「滋阴养血」后面时，开头与教材治法重复的两字（养血）去掉，只接「和络止痛」；「调经止血」接在
+  //「清热凉血调经」后面时只接「止血」（2026-10-18 甲方标准病历 10 三次生成里两次写成「清热凉血调经，调经止血」）。
+  // 去掉之后剩下的要仍含「止」。
   let tail = clause;
-  while (tail.length >= 6 && rowMethod.includes(tail.slice(0, 2))) tail = tail.slice(2);
+  while (tail.length >= 4 && rowMethod.includes(tail.slice(0, 2)) && /止/u.test(tail.slice(2))) tail = tail.slice(2);
   return `${rowMethod}，${tail}`;
 }
 

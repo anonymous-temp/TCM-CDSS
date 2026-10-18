@@ -1450,6 +1450,12 @@ const checkAsync = async (name, run) => {
     }).nonPharma.precautions;
     assert.deepEqual(run({ projectCode: "acupuncture", suggestedSitesOrPoints: ["阿是穴", "夹脊（EX-B2）"], treatmentContent: "取局部穴位及相应夹脊穴为主。", techniqueBoundary: "皮损局部阿是穴用围刺法。" }),
       ["针刺治疗需在正规医疗机构由专业人员操作。"]);
+    // 「皮损局部不作针刺」同一类（2026-10-18 甲方病历 8）。
+    assert.deepEqual(projectDeliveredReasoning({
+      schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+      formula: { candidates: [{ name: "龙胆泻肝汤加减", herbs: [] }] },
+      nonPharma: { precautions: ["针刺治疗须由本机构专业人员操作，皮损局部不作针刺。"], tcmTreatments: [{ projectCode: "acupuncture", suggestedSitesOrPoints: ["阿是穴", "夹脊（EX-B2）"], treatmentContent: "取局部穴位及相应夹脊穴为主。", techniqueBoundary: "皮损局部阿是穴用围刺法。" }] },
+    }).nonPharma.precautions, ["针刺治疗须由本机构专业人员操作。"]);
     assert.deepEqual(run({ projectCode: "acupuncture", suggestedSitesOrPoints: ["夹脊（EX-B2）", "行间（LR2）"], treatmentContent: "取夹脊穴。", techniqueBoundary: "毫针刺，用泻法。" }),
       ["针刺治疗需在正规医疗机构由专业人员操作，皮损局部暂不施针。"]);
   });
@@ -1728,6 +1734,7 @@ const checkAsync = async (name, run) => {
     assert.equal(provenance.withSymptomDirectedClause("滋阴养血", "养血和络止痛"), "滋阴养血，和络止痛");
     assert.equal(provenance.withSymptomDirectedClause("疏散风寒止痛", "疏风散寒，通络止痛"), "疏散风寒止痛");
     assert.equal(provenance.withSymptomDirectedClause("滋阴养血", "养血滋阴"), "滋阴养血");
+    assert.equal(provenance.withSymptomDirectedClause("清热凉血调经", "清热凉血，调经止血"), "清热凉血调经，止血", "开头两字与教材治法重复时只接后半（甲方病历 10「调经，调经止血」）");
     const out = provenance.withDeterministicFormulaReferences({ stage: "diagnose", overview: { tcmDiseaseName: "头痛", primarySyndrome: "血虚头痛证", secondarySyndromes: [], recommendedFormulaDirection: "加味四物汤加减" }, therapy: { overallMethod: "养血和络止痛" }, pathogenesis: { chain: [] } });
     assert.equal(out.therapy.overallMethod, "滋阴养血，和络止痛");
   });
@@ -1912,6 +1919,14 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
     assert.doesNotMatch(plan.cardSentencesNamingListedPoints("毫针常规刺。禁忌：膏肓、肺俞、膈俞等穴局部肌肉薄，须规范操作避免气胸。", ["肾俞", "委中", "腰阳关"]), /气胸/);
     assert.match(plan.cardSentencesNamingListedPoints("毫针常规刺。禁忌：肺俞等穴不宜深刺，避免气胸。", ["肺俞", "尺泽"]), /气胸/);
     assert.match(plan.cardSentencesNamingListedPoints("毫针常规刺。注意针刺深度，避免晕针。", ["肾俞"]), /晕针/, "没点穴名的注意句照留");
+  });
+  check("16.21 鉴别要点里每项各写一个「无」（「无体重下降、无夜间痛」）时，交付为「未诉体重下降、夜间痛」，不留第二项的「无」（甲方病历 6 腰椎转移瘤）；病历写明否认的照留（对照）", () => {
+    const wrap = (points) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", westernDiagnosis: { differentials: [{ name: "腰椎转移瘤", reason: "需排除肿瘤", distinguishingPoints: points }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+    const read = (content) => JSON.parse(content.slice(content.indexOf("{"), content.lastIndexOf("}") + 1)).westernDiagnosis.differentials[0].distinguishingPoints;
+    const out = read(visible.groundDifferentialNegativeAssertions(wrap("无体重下降、无夜间痛，生命体征平稳"), "腰痛2年，劳累后加重。"));
+    assert.doesNotMatch(out, /无夜间痛/, out);
+    const kept = read(visible.groundDifferentialNegativeAssertions(wrap("无体重下降、无夜间痛，生命体征平稳"), "腰痛2年，否认体重下降，无夜间痛。"));
+    assert.equal(kept, "无体重下降、无夜间痛，生命体征平稳");
   });
   check("16.18 两字阴性项在病历里隔着修饰写到过（「腹中冷痛」对「无腹痛」）不改成「未诉腹痛」（留出例 S058）；中间隔标点的不算写到过（对照）", () => {
     assert.equal(visible.unrecordedNegativesAsNotReported("否认呕吐；无腹痛，与肠结相区分", "排便困难2年，腹中冷痛、热敷后舒服。"), "否认呕吐；无腹痛，与肠结相区分");

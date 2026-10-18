@@ -1164,7 +1164,7 @@ export function compileTcmTreatmentRecommendations(
     const cardPoints = definition.code === "acupuncture" && Array.isArray(plannedTreatment.suggestedSitesOrPoints)
       ? plannedTreatment.suggestedSitesOrPoints.filter((point): point is string => typeof point === "string")
       : [];
-    const reproductiveRelevant = caseState?.patient ? reproductiveAdviceRelevant(caseState) : true;
+    const reproductiveRelevant = caseState?.patient ? reproductiveAdviceRelevant(caseState as CaseState) : true;
     const cardText = (value: string) => cardTextForPopulation(clinicalTreatmentScheduleWording(cardSentencesNamingListedPoints(cardSentences(
       definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText) : value), cardPoints)), reproductiveRelevant);
     // 卡片写明只适用于本病另几个类型、本例的证不在其中时整张不出（cardApplicabilityExcludesSyndrome）。

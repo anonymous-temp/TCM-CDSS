@@ -523,8 +523,11 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
       }
       const negative = trimmed.match(NEGATIVE_CLAUSE);
       if (!negative) return clause;
+      // 列举里每一项各写一个「无」（「无体重下降、无夜间痛」）时，后面几项的「无」也去掉：否则交付成「未诉体重下降、无夜间痛」，
+      // 第二项仍是病历没有依据的否认（2026-10-18 甲方标准病历 6 腰椎转移瘤一项）。
       const object = negative[1]
         .replace(/(?:等(?:热象|寒象|表现|症状|征象|不适)?|表现|症状)$/u, "")
+        .replace(/([、及和与])(?:无|没有|未见|不伴)(?=[\u4e00-\u9fff]{2})/gu, "$1")
         .trim();
       if (!object) return clause;
       const terms = object.split(/[及和与、]/u).map((term) => term.trim()).filter((term) => term.length >= 2);
