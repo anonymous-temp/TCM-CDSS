@@ -521,8 +521,19 @@ const ELDERLY_AGE_YEARS = 65;
  * 血虚肝旺的瘙痒病例，操作栏写「背部穴、局部阿是穴均可刺络拔罐」）。依据：《刺法灸法学》三棱针法「体质虚弱者…慎用」、拔罐法
  *「皮肤有溃疡、破裂处不宜拔罐」；中华中医药学会 T/CACM 1560.3—2023「年老、虚弱、严重消瘦者，拔罐时间宜短」。只删提到这类操作的那一句。
  */
+/**
+ * 面部（尤其鼻旁、唇周的「危险三角区」）不刺络放血：面部静脉无静脉瓣、与颅内海绵窦相通，局部挤压、针刺出血有感染上行的风险
+ *（2026-10-18 验收集 H-tri-17402：鼻旁皮损局部三棱针散刺出血）。只删同时写到放血与面部部位的那一句；背部大椎、肺俞刺络照常。
+ */
+const FACIAL_SITE = /面部|颜面|面颊|鼻旁|鼻翼|鼻周|鼻唇|唇周|口周|上唇|危险三角/u;
+/** 放血落在皮损/患处本身（「皮损局部用三棱针散刺出血」「阿是穴散刺出血」），部位由病历决定。 */
+const LESION_LOCAL_SITE = /皮损局部|患部|患处|局部阿是穴|阿是穴|疱疹及周围|局部/u;
+
 function withoutBloodlettingWhenUnsuitable(text: string, input: TextbookPlanInput): string {
   if (!BLOODLETTING_SENTENCE.test(text)) return text;
+  const facialLesion = FACIAL_SITE.test(input.currentFacts);
+  text = text.split(/(?<=[。；])/).filter((sentence) => !(BLOODLETTING_SENTENCE.test(sentence) &&
+    (FACIAL_SITE.test(sentence) || (facialLesion && LESION_LOCAL_SITE.test(sentence))))).join("").trim();
   const elderly = input.patientAgeYears != null && input.patientAgeYears >= ELDERLY_AGE_YEARS;
   const deficiency = signedSyndromeDeficiencyExcess(input.signedSyndromeText) === "deficiency";
   const brokenSkin = BROKEN_SKIN_FACT.test(input.currentFacts);

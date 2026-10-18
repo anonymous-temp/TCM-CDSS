@@ -1943,4 +1943,30 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
   });
 }
 
+{
+  process.env.TCM_CLINIC_TREATMENT_CAPABILITIES = "acupuncture,moxibustion,cupping,guasha,auricular,tuina,diet_therapy,qigong_daoyin,mind_therapy";
+  const treatments = await jiti.import("../src/lib/tcm-treatment-capabilities.server.ts");
+  const evidence = { evidenceLevel: "model_inference", source: "本例资料", confidence: "中" };
+  const prior = (disease, syndrome, method, fact) => ({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", contractSignatureVersion: "tcm-cdss-m03-signature-v5", contractSignature: `hmac-sha256:${"a".repeat(64)}`,
+    overview: { tcmDiseaseName: disease, primarySyndrome: syndrome, secondarySyndromes: [], overallPathogenesis: method, overallTherapy: method, evidence },
+    westernDiagnosis: { primary: { name: "症状性问题", status: "证据有限", confidence: "低", supportingFacts: [], evidence }, differentials: [] },
+    pathogenesis: { summary: method, locationDifferentiation: { items: [], evidence }, natureDifferentiation: { items: [], evidence }, chain: [{ nodeId: "P1", patientFact: fact, syndromeEvidence: fact, pathogenesis: method, therapyDirection: method, evidence }], uncertainties: [] },
+    therapy: { overallPrinciple: method, overallMethod: method, subTherapies: [{ therapy: method, targetPathogenesis: method, priority: "主要", evidence }] }, formula: null, nonPharma: null, lineageAdaptation: null });
+  const caseOf = (chief, present) => ({ patient: { sex: "男", age: 50 }, chiefComplaint: chief, symptoms: { presentHistory: present }, vitals: {}, conversation: [], safetyGate: { status: "ready", allowDosePrescription: true, redFlags: [], missingItems: [] } });
+  const card = (code, args, chief) => treatments.compileTcmTreatmentRecommendations([{ projectCode: code, targetRef: "P1" }], prior(...args), caseOf(chief, args[3])).find((item) => item.projectCode === code);
+  check("16.9 本病没有教材方案、目录模板是按顺带症状对上的：不给那张模板的穴位，落到评估态（奔豚伴失眠多梦曾给失眠耳穴；验收集 H：呃逆给失眠取穴、痿证给头痛取穴）；本病有教材方案的照常（对照：噎膈食疗）", () => {
+    const auricular = card("auricular", ["奔豚", "肝郁化热证", "疏肝清热，降逆平冲", "气从少腹上冲胸咽，失眠多梦"], "气上冲感1月");
+    assert.equal(auricular.protocolStatus, "assessment_only_no_patient_specific_protocol");
+    assert.ok(!(auricular.suggestedSitesOrPoints || []).some((point) => /神门|皮质下/.test(String(point))), JSON.stringify(auricular.suggestedSitesOrPoints));
+    const diet = card("diet_therapy", ["噎膈", "痰气交阻证", "开郁化痰，润燥降气", "吞咽梗阻，失眠多梦"], "吞咽不畅3月");
+    assert.equal(diet.protocolStatus, "governed_patient_specific_plan");
+  });
+  check("16.10 皮损在面部（鼻旁、唇周…）时不写「皮损局部三棱针散刺出血」（危险三角区；验收集 H-tri-17402）；皮损在小腿照常（对照）", () => {
+    const face = card("acupuncture", ["丹毒", "风热毒蕴证", "疏风清热解毒", "面部鼻旁皮肤红肿热痛"], "面部红肿2天");
+    assert.doesNotMatch(face.techniqueBoundary, /散刺出血/);
+    const leg = card("acupuncture", ["丹毒", "湿热毒蕴证", "清热利湿解毒", "小腿皮肤红肿热痛"], "小腿红肿2天");
+    assert.match(leg.techniqueBoundary, /皮损局部用三棱针散刺出血/);
+  });
+}
+
 console.log(JSON.stringify({ cases, failures: process.exitCode ? "see above" : 0 }));

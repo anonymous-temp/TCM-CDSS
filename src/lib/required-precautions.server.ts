@@ -1,4 +1,4 @@
-import { selfTakenMedicationMentions } from "./clinical-polarity";
+import { formallyAdministeredMedicationMentions, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, recentChildbirthMentioned } from "./clinical-state";
 import { clinicalGroundingText, reproductiveAdviceRelevant } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
@@ -108,18 +108,6 @@ export function requiredPrecautionsForCase(
     .filter((name) => !selfTaken.has(patentMedicineBaseName(name))))].slice(0, 3);
   if (current.length > 0) items.push({ kind: "current_medications", names: current });
   return items;
-}
-
-const FORMAL_ADMINISTRATION_VERB = /(?:服用|口服|皮下注射|静脉注射|肌内注射|注射|吸入|含服)/u;
-const STOPPED_OR_PAST_MEDICATION = /(?:曾|既往|此前|以前|已停|停用|停药|自行停|未再|不再)/u;
-const GENERIC_MEDICATION_WORD = /^(?:中|西|汤|成|草)?药(?:物|品)?$|^中成药$|^降[压糖脂]药$/u;
-
-/** 跟在正式给药词后面、当前在用的药名（只用于「正在服用的药」这一条注意事项）。 */
-function formallyAdministeredMedicationMentions(text: string): string[] {
-  return String(text || "").normalize("NFKC").split(/[，,。；;\n]+/u).flatMap((clause) => {
-    if (!FORMAL_ADMINISTRATION_VERB.test(clause) || STOPPED_OR_PAST_MEDICATION.test(clause)) return [];
-    return selfTakenMedicationMentions(clause).filter((name) => !GENERIC_MEDICATION_WORD.test(name) && /[\u4e00-\u9fffA-Za-z]{2,}/u.test(name));
-  });
 }
 
 /** 给 M04 模型的一段话：逐项列出本例必须写到的注意事项，模型按本例写，服务端事后逐项核对。 */

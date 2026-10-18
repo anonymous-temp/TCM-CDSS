@@ -459,6 +459,9 @@ function controlledTreatmentPlan(
       (tcmTreatmentProjectIsPointFree(projectCode) || !pointsGoverned || catalogSpecificPoints < 3)))) {
       return { ...fromTextbook(textbookPlan), ...deferredGovernedTemplate };
     }
+    // 对的是伴随症状的模板、本病又没有教材方案时不给这张模板的穴位，落到下面的评估态（2026-10-18 验收集 H：呃逆给失眠取穴、
+    // 产后癃闭给腹胀取穴、痿证给头痛取穴）。按本例证型加减过的模板仍照用——那是按证型选的，不是按顺带症状。
+    if (!(templateOffDisease && !textbookPlan && !syndromeTailored)) {
     // 「取穴」只对取穴类项目成立；食疗/导引/意疗说「取穴」是甲方 9.24/9.27 测评点名的错误（食疗还需要取穴针刺吗）。
     const templateNoun = projectCode === "diet_therapy" ? "食疗" : projectCode === "qigong_daoyin" ? "功法" : projectCode === "mind_therapy" ? "情志调摄" : "取穴";
     const evidenceTerms = indicationEvidenceTerms(governedTemplate.indicationTag, caseFacts);
@@ -530,6 +533,7 @@ function controlledTreatmentPlan(
         },
       }),
     };
+    }
   }
 
   // 没有目录模板可用时：教材有该病证的方案就给方案，而不是「本轮仅评估」（甲方 9.24/9.27 测评 2.4）。

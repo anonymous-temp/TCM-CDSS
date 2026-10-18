@@ -549,6 +549,18 @@ export function selfTakenMedicationMentions(text: string | null | undefined): st
   return names;
 }
 
+const FORMAL_ADMINISTRATION_VERB = /(?:服用|口服|皮下注射|静脉注射|肌内注射|注射|吸入|含服)/u;
+const STOPPED_OR_PAST_MEDICATION = /(?:曾|既往|此前|以前|已停|停用|停药|自行停|未再|不再)/u;
+const GENERIC_MEDICATION_WORD = /^(?:中|西|汤|成|草)?药(?:物|品)?$|^中成药$|^降[压糖脂]药$/u;
+
+/** 跟在正式给药词后面、当前在用的药名（只用于「正在服用的药」这一条注意事项）。 */
+export function formallyAdministeredMedicationMentions(text: string): string[] {
+  return String(text || "").normalize("NFKC").split(/[，,。；;\n]+/u).flatMap((clause) => {
+    if (!FORMAL_ADMINISTRATION_VERB.test(clause) || STOPPED_OR_PAST_MEDICATION.test(clause)) return [];
+    return selfTakenMedicationMentions(clause).filter((name) => !GENERIC_MEDICATION_WORD.test(name) && /[\u4e00-\u9fffA-Za-z]{2,}/u.test(name));
+  });
+}
+
 export function affirmedCurrentMedicationText(value: string | null | undefined): string | undefined {
   const normalized = value
     ? normalizedClinicalText(value).replace(new RegExp(`后\\s*(?=${MEDICATION_RESTART_CUE.source})`, "g"), "，")
