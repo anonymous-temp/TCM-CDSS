@@ -683,8 +683,8 @@ const sanitizedOlderNewConstipationContent = sanitizeUngroundedRedFlagNegations(
   maxQuestionRounds: 1,
   conversation: [],
 });
-assert.match(sanitizedOlderNewConstipationContent, /该年龄与病程组合本身即需尽快完成消化专科评估/);
-assert.equal((sanitizedOlderNewConstipationContent.match(/便血、消瘦等其他报警征象应另行核实/g) || []).length, 1, "the negated-history sanitizer preserves the patient-specific age safety net without duplicating unknown alarm features");
+assert.match(sanitizedOlderNewConstipationContent, /尽快到消化专科就诊/);
+assert.equal((sanitizedOlderNewConstipationContent.match(/如出现便血、黑便或体重明显下降/g) || []).length, 1, "the negated-history sanitizer preserves the patient-specific age safety net without duplicating unknown alarm features");
 for (const [age, context] of [
   [35, olderNewConstipationContext],
   [56, "主诉：便秘十余年，病情稳定，无近期变化"],
