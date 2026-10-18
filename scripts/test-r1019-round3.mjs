@@ -235,4 +235,21 @@ await check("7.1 教材表有骨折（三期各一行，后期分肝肾、气血
   assert.ok(candidates.some((entry) => entry.disease === "骨折"), JSON.stringify(candidates.map((entry) => entry.disease)));
 });
 
+// ───── 8 目录锁不住的教材代表方 ─────
+await check("8.1 M03 推荐方向是教材代表方而目录锁不住（加味四物汤）：M04 照教材命名不判 formula_direction_drift；方向没写它、药味不过半、M03 已锁别的方都不算（对照）", async () => {
+  const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+  const prior = { overview: { tcmDiseaseName: "头痛", primarySyndrome: "血虚头痛", recommendedFormulaDirection: "加味四物汤加减", recommendedFormulaNames: [] } };
+  const herbs = ["白芍", "当归", "生地黄", "川芎", "菊花", "蔓荆子", "黄芩", "甘草"].map((name) => ({ name }));
+  assert.equal(provenance.isSignedTextbookFormulaIdentity({ formulaNames: ["加味四物汤"], herbs }, prior), true);
+  assert.equal(provenance.isSignedTextbookFormulaIdentity({ formulaNames: ["加味四物汤"], herbs }, { overview: { ...prior.overview, recommendedFormulaDirection: "养血和络" } }), false);
+  assert.equal(provenance.isSignedTextbookFormulaIdentity({ formulaNames: ["加味四物汤"], herbs: herbs.slice(5) }, prior), false);
+  assert.equal(provenance.isSignedTextbookFormulaIdentity({ formulaNames: ["加味四物汤"], herbs }, { overview: { ...prior.overview, recommendedFormulaNames: ["四物汤"] } }), false);
+  assert.equal(provenance.isSignedTextbookFormulaIdentity({ formulaNames: ["川芎茶调散"], herbs }, prior), false);
+  // 两个产地都用它：开方编译合同那一处（formulaCompilationContractIssue）也不再判 drift。
+  const reasoning = { stage: "prescribe", formula: { candidates: [{ name: "加味四物汤加减", formulaNames: ["加味四物汤"], herbs }] } };
+  const signedPrior = { stage: "diagnose", overview: { ...prior.overview, formulaSelectionMode: "none" } };
+  assert.notEqual(provenance.formulaCompilationContractIssue(reasoning, signedPrior), "formula_direction_drift");
+  assert.equal(provenance.formulaCompilationContractIssue(reasoning, { stage: "diagnose", overview: { ...signedPrior.overview, recommendedFormulaDirection: "养血和络" } }), "formula_direction_drift");
+});
+
 console.log(JSON.stringify({ suite: "r1019-round3", cases, failures: process.exitCode ? "see above" : 0 }));

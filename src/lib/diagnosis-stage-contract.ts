@@ -7,7 +7,7 @@ import tcmKnowledgeIdentitySource from "../data/tcm-knowledge.json";
 import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { formulaStructureTarget } from "./herb-target-contract";
 import { prescriptionRegimenContractIssue, prescriptionRegimenIssue } from "./prescription-regimen-contract";
-import { executableFormulaCompilationReferences, isCompositionRestoredGovernedIdentity } from "./tcm-formula-provenance";
+import { executableFormulaCompilationReferences, isCompositionRestoredGovernedIdentity, isSignedTextbookFormulaIdentity } from "./tcm-formula-provenance";
 import { TCM_TREATMENT_PROJECT_CODES, tcmTreatmentProjectIsPointFree } from "./tcm-treatment-projects";
 import { isConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
 import { getM03TherapyLock, isExecutableM03TherapyText } from "./m03-therapy-lock";
@@ -3123,8 +3123,14 @@ function signedTextbookFormulaIngredients(prior: M03ReasoningLike | null | undef
   const locked = Array.isArray(overview?.recommendedFormulaNames)
     ? overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
     : [];
-  if (locked.length === 0) return [];
   const row = textbookRowForSyndrome(String(overview?.tcmDiseaseName || ""), String(overview?.primarySyndrome || ""));
+  // 目录锁不住的教材代表方（加味四物汤多版同名方）：M03 推荐方向里写着的该行代表方同样是「教材为本证所配」，
+  // 原方药味同样不按方向驳回（2026-10-19 甲方标准病历 3：黄芩、菊花判清热方向不符，两轮修复后剩 6 味）。
+  if (locked.length === 0) {
+    const direction = String(overview?.recommendedFormulaDirection || "");
+    const directed = (row?.formulas || []).filter((name) => direction.includes(name));
+    return directed.length > 0 ? textbookBaseIngredients(row, directed) : [];
+  }
   return textbookBaseIngredients(row, locked);
 }
 
@@ -4205,6 +4211,8 @@ function crossStageReasoningIssue(
       if (isCompositionRestoredGovernedIdentity(candidate, governedPriorNames, String(governedMode))) {
         return undefined;
       }
+      // M03 推荐方向是教材代表方而目录锁不住时，候选照教材命名不算偏离（isSignedTextbookFormulaIdentity，两个产地共用）。
+      if (isSignedTextbookFormulaIdentity(candidate, prior)) return undefined;
       // 方名不含病人信息：记下锁定方与候选方名，供生产日志统计这一驳回的来源（2026-10-18：生产 13 小时 11 次、本地主集约 50 次整方重生成）。
       console.info("[tcm-cdss:telemetry] formula_direction_drift", { locked: governedPriorNames, mode: governedMode, candidateNames: candidateFormulaNames, candidateName: String(candidate?.name || "").slice(0, 40) });
       return "formula_direction_drift";

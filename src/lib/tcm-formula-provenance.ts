@@ -1137,6 +1137,7 @@ export function formulaCompilationContractIssue(
     // 这是 formula_direction_drift 的**第二个产地**，与 diagnosis-stage-contract 那处共用同一谓词——
     // 同一条判据两处各写各的，正是本仓库反复付代价的形状。
     if (isCompositionRestoredGovernedIdentity(candidate, governedNames, mode)) return undefined;
+    if (isSignedTextbookFormulaIdentity(candidate, prior)) return undefined;
     return "formula_direction_drift";
   }
   const references = formulaCompilationReferences(governedNames);
@@ -1589,6 +1590,37 @@ export function isCompositionRestoredGovernedIdentity(
   if (herbs.length === 0) return false;
   const identified = identifyGovernedFormulaByComposition(herbs);
   return Boolean(identified && identified.formulaName === names[0].trim());
+}
+
+/**
+ * M03 定下的病名、证名对上教材一行，推荐方向写的就是该行的代表方，但目录锁不住它（同名方多版本，或不在可锁定层）时，
+ * recommendedFormulaNames 为空、mode=none。M04 照教材把处方写成这张方（formulaNames=[该方]）是 10/13 起的要求写法，
+ * 不是偏离方向（2026-10-19 甲方标准病历 3：加味四物汤三次生成 10 次判 formula_direction_drift，每次一整轮重生成，
+ * 一次修复轮返回坏 JSON，整页退成非剂量页）。只认：候选方名都是该行的代表方、都写在 M03 推荐方向里、
+ * 候选药味覆盖该方组成过半（教材行的组成，或目录里该名任一版本的组成）。formula_direction_drift 的两个产地共用这一条。
+ */
+export function isSignedTextbookFormulaIdentity(
+  candidate: { formulaNames?: unknown; herbs?: unknown } | null | undefined,
+  prior: { overview?: { tcmDiseaseName?: unknown; primarySyndrome?: unknown; recommendedFormulaDirection?: unknown; recommendedFormulaNames?: unknown } } | null | undefined,
+): boolean {
+  if (!candidate || !prior?.overview) return false;
+  const locked = Array.isArray(prior.overview.recommendedFormulaNames) ? prior.overview.recommendedFormulaNames.filter(Boolean) : [];
+  if (locked.length > 0) return false;
+  const names = Array.isArray(candidate.formulaNames)
+    ? candidate.formulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim())).map((name) => name.trim())
+    : [];
+  if (names.length === 0) return false;
+  const row = textbookRowForSyndrome(String(prior.overview.tcmDiseaseName || ""), String(prior.overview.primarySyndrome || ""));
+  const direction = String(prior.overview.recommendedFormulaDirection || "");
+  if (!row || !names.every((name) => row.formulas.includes(name) && direction.includes(name))) return false;
+  const present = new Set((Array.isArray(candidate.herbs) ? candidate.herbs as Array<{ name?: unknown }> : [])
+    .map((herb) => compositionIdentityName(String(herb?.name || ""))).filter(Boolean));
+  const share = (ingredients: readonly string[]) => {
+    const ids = [...new Set(ingredients.map((name) => compositionIdentityName(name.replace(/[（(][^）)]*[）)]/g, ""))).filter(Boolean))];
+    return ids.length === 0 ? 0 : ids.filter((id) => present.has(id)).length / ids.length;
+  };
+  return names.every((name) => [row.composition, ...formulaCompilationReferences([name]).map((reference) => reference.ingredients)]
+    .some((ingredients) => share(ingredients) >= 0.5));
 }
 
 export function restoreGovernedFormulaIdentity(

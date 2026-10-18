@@ -15,9 +15,17 @@ const herbs046 = JSON.parse(s046.prescribe.content.match(/CDSS_NON_DOSE_CANDIDAT
 check("P1 S046：M03 锁定教材本证代表方竹叶石膏汤，去人参、粳米后原方的半夏不再按温燥对立驳回", () => {
   assert.deepEqual(contract.unsupportedHighImpactHerbFindings(herbs046, s046.diagnose.structured, true, []), []);
 });
-check("P2 对照：M03 没锁这首方时半夏照判；方外加入的温热药（附子）照判", () => {
-  const unlocked = structuredClone(s046.diagnose.structured); unlocked.overview.recommendedFormulaNames = [];
+check("P2 对照：M03 没锁这首方、推荐方向也没写它时半夏照判；方外加入的温热药（附子）照判", () => {
+  // 2026-10-19 第三轮：目录锁不住、但推荐方向写着教材代表方时同样豁免（signedTextbookFormulaIngredients，甲方病历 3 加味四物汤），
+  // 所以「没锁」的对照要连推荐方向一起去掉。
+  const unlocked = structuredClone(s046.diagnose.structured);
+  unlocked.overview.recommendedFormulaNames = [];
+  unlocked.overview.recommendedFormulaDirection = "清胃泻火，降逆止呃";
   assert.deepEqual(contract.unsupportedHighImpactHerbFindings(herbs046, unlocked, true, []).map((x) => x.name), ["半夏"]);
+  const directed = structuredClone(s046.diagnose.structured);
+  directed.overview.recommendedFormulaNames = [];
+  directed.overview.recommendedFormulaDirection = "竹叶石膏汤加减";
+  assert.deepEqual(contract.unsupportedHighImpactHerbFindings(herbs046, directed, true, []).map((x) => x.name), []);
   const withAconite = [...herbs046, { name: "附子", role: "佐", function: "回阳救逆，散寒止痛", targetPathogenesis: "胃火上逆", prescriptionRole: "佐药：胃火上逆" }];
   assert.ok(contract.unsupportedHighImpactHerbFindings(withAconite, s046.diagnose.structured, true, []).some((x) => x.name === "附子"));
 });
