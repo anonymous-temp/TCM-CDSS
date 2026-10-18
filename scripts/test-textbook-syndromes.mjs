@@ -121,6 +121,14 @@ for (const [written, expected] of [["头痛", "头痛"], ["虚劳", "虚劳"], [
 
 // ── 6. 服务端自有的辨证追问 ──────────────────────────────────────────────────────────────
 {
+  // 舌象题两个选项必须互斥（2026-10-18 验收集 B：「舌质淡，苔白」对「苔薄白」可以同时成立）；不互斥就改问脉象。
+  assert.equal(textbook.tongueOptionsMutuallyExclusive("舌质淡，苔白", "苔薄白"), false);
+  assert.equal(textbook.tongueOptionsMutuallyExclusive("舌质红", "舌苔厚腻"), false, "不同维度的两句可以同时成立");
+  assert.equal(textbook.tongueOptionsMutuallyExclusive("舌苔薄白", "舌苔薄黄"), true);
+  assert.equal(textbook.tongueOptionsMutuallyExclusive("舌淡红，苔薄白", "舌红，苔黄"), true);
+  assert.equal(textbook.tongueOptionsMutuallyExclusive("苔白腻", "苔黄腻"), true);
+}
+{
   const noTongue = textbook.textbookDiscriminatingQuestion({ chiefComplaint: "咳嗽3天", presentHistory: "3天来咳嗽，咳痰色白。", ageYears: 40 });
   assert.ok(noTongue, "舌脉缺失、候选不止一个证时应能出题");
   assert.equal(noTongue.field, "舌象");

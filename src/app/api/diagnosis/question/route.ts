@@ -11,7 +11,7 @@ import {
   withM02Completeness,
 } from "@/lib/m02-question-contract";
 import { riskCategoriesAnsweredByRecord } from "@/lib/m02-risk-question-answerability.server";
-import { questionIdsRepeatingRecord } from "@/lib/m02-question-redundancy.server";
+import { questionIdsFailingNarrowChecks } from "@/lib/m02-question-redundancy.server";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import type { CaseState } from "@/lib/diagnosis-types";
 import { deriveOperationalCompleteness, markdownNdjsonResponse, sanitizeCaseStateForModel, trustedInputText, evaluateSafetyGate } from "@/lib/diagnosis-safety";
@@ -121,8 +121,8 @@ async function questionStageResponse(inputCaseState: CaseState, signal: AbortSig
       caseState,
     )),
     finalOutputTransform: async (content) => {
-      // 模型写的题若病历已经写明（全部或其中一件），与确定性删题同一条路删掉（m02-question-redundancy.server.ts）。
-      const repeated = await questionIdsRepeatingRecord(content, sourceText, `${fallbackQuestions}\n${settledQuestions}`, signal);
+      // 模型写的题若病历已经写明（全部或其中一件），或题干并问两件事，与确定性删题同一条路删掉（m02-question-redundancy.server.ts）。
+      const repeated = await questionIdsFailingNarrowChecks(content, sourceText, `${fallbackQuestions}\n${settledQuestions}`, signal);
       return withCompleteness(reviewM02QuestionPlan(content, sourceText, settledQuestions, repeated));
     },
   });

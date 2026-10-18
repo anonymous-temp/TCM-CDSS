@@ -535,6 +535,25 @@ const SYMPTOM_PREDICATE = /[痛疼胀满闷痞热寒冷凉烦渴干苦黏腻汗�
  * 舌脉缺失时问舌脉（两个证型各自的教材舌脉）；舌脉已有时问各自独有、病历未提到的主症。
  * 两个选项都是能直接写进病历的事实句，各自对应一个证型。给不出这样一道题时返回 undefined。
  */
+// 舌象题的两个选项必须互斥，单选才能写进病历（2026-10-18 验收集 B：「舌质淡，苔白」对「苔薄白」、
+// 「舌质红」对「舌苔厚腻」可以同时成立）。按舌色、苔色、苔质三个维度各取一个值，至少一个维度两边都写到且不同才算互斥；
+// 否则这道题改问脉象。
+const TONGUE_DIMENSIONS: readonly RegExp[] = [
+  /舌(?:质|体)?(?:尖|边)?(淡红|淡白|淡|红绛|绛|红|紫暗|青紫|紫|暗|黯)/u,
+  /苔[薄厚]?(白|黄|灰|黑)/u,
+  /(?:苔|舌)(少|剥|光|无苔|厚腻|腻|薄)/u,
+];
+
+function tongueDimensionValues(text: string): (string | undefined)[] {
+  return TONGUE_DIMENSIONS.map((pattern) => pattern.exec(text)?.[1]);
+}
+
+export function tongueOptionsMutuallyExclusive(a: string, b: string): boolean {
+  const left = tongueDimensionValues(a);
+  const right = tongueDimensionValues(b);
+  return left.some((value, index) => value !== undefined && right[index] !== undefined && value !== right[index]);
+}
+
 export function textbookDiscriminatingQuestion(input: TextbookCaseInput): TextbookDiscriminatingQuestion | undefined {
   const disease = textbookCandidatesForCase(input, { maxDiseases: 1, maxRowsPerDisease: 8 })[0];
   if (!disease || disease.rows.length < 2) return undefined;
@@ -549,7 +568,7 @@ export function textbookDiscriminatingQuestion(input: TextbookCaseInput): Textbo
   if (!compact(input.tongue || "")) {
     const a = clean(first.tongue);
     const b = clean(second.tongue);
-    if (a && b && compact(a) !== compact(b)) {
+    if (a && b && tongueOptionsMutuallyExclusive(a, b)) {
       return { question: "本例的舌象更接近下面哪一种？", reason, field: "舌象", optionA: a, optionB: b, syndromeA: first.syndromeName, syndromeB: second.syndromeName };
     }
   }

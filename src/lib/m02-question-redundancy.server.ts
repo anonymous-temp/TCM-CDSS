@@ -124,3 +124,105 @@ export async function questionIdsRepeatingRecord(
   }
   return ids;
 }
+
+/**
+ * 模型写的追问题是不是在一个问句里问了两件事（2026-10-18）。
+ *
+ * 逐模块验收的问诊集（B，335 例）里，独立评审判不合格的 66 道题里 40 道是「题干问了两件事」：「宝宝目前的精神反应和吃奶情况」
+ * 「流的鼻涕和咳出的痰是什么性状」「舌象与脉象更接近哪一组」。提示词早就写了「题干只问一件事」，模型照样并问。
+ * 做法与上面的重复核对相同：小模型只判这一件事，并交出题干里两个问点的原文，服务端逐字核对；判 compound 的题删掉，
+ * 走同一条收口（病历已足以辨证时 proceed，否则出服务端的单问点题）。
+ * 离线（~/runlogs/r1018/qcompound，B 集 323 道模型题）：评审判「两件事」的 40 道里抓到 33 道；评审判合格的题里误判 6 道
+ * （「舌质与舌苔」「口渴和饮水」这类同一问点），下面的提示词把它们列成了 single。
+ * 同一症状的几个特征、在几组表现里选一组、危险信号筛查题都算一个问点。超时、未配置、输出非法都当一个问点（照常出题）。
+ * 开关：CDSS_M02_QUESTION_SINGLE_POINT_CHECK=false 关闭。
+ */
+const SINGLE_POINT_SYSTEM = [
+  "你是追问题题干的核对器，不负责评价这道题问得好不好。只判断一件事：题干是不是用“和、与、及、以及、并、、”等把两个不同的问点连在一个问句里。",
+  "- compound：题干里连着两个不同的症状或体征（如“舌象与脉象”“鼻涕和痰”“口渴和大便”“发热和恶风”“恶心、腹胀与进食的关系”），或两个不同的方面（如“精神反应和吃奶情况”“黄疸的色泽与伴随表现”“痰的性状与寒热表现”“误服的物质和现在有没有不适”“大便气味与喂养方式”）。",
+  "- single：题干只有一个问点。同一个症状的几个特征算一个问点（如“痰的颜色和性状”“疼痛的部位和性质”“发热的最高温度和持续时间”“大便的性状和排便感觉”“疼痛对冷热和按压的反应”）；同一个诊察项目的几个部分算一个问点（如“舌质与舌苔”“口渴和饮水情况”）；问一个问点、让人在几组表现里选一组的（如“发热时是恶寒重、无汗，还是发热重、有汗？”“更接近下面哪一种？”）算一个问点；列出几项危险表现、问是否加重或出现其中任一项的筛查题算一个问点。",
+  "拿不准时判 single。",
+  "compound 时给出 points：题干里那两个问点各自的原文片段（逐字复制题干，各不超过12字）。",
+  "只输出 JSON：{\"verdict\":\"compound|single\",\"points\":[\"…\",\"…\"]}",
+].join("\n");
+
+function singlePointCheckEnabled(): boolean {
+  return process.env.CDSS_M02_QUESTION_SINGLE_POINT_CHECK !== "false";
+}
+
+/** 模型输出 → 题干是否并问两件事。只有 compound、恰好两条 points、各自逐字在题干里且互不包含时为 true。 */
+export function questionAsksTwoThings(content: unknown, stem: string): boolean {
+  if (typeof content !== "string" || !content.trim()) return false;
+  let parsed: unknown;
+  try { parsed = JSON.parse(content); } catch { return false; }
+  if (!parsed || typeof parsed !== "object") return false;
+  const { verdict, points } = parsed as { verdict?: unknown; points?: unknown };
+  if (verdict !== "compound" || !Array.isArray(points) || points.length !== 2) return false;
+  const text = compact(stem);
+  const [first, second] = points.map((point) => typeof point === "string" ? compact(point) : "");
+  if (!first || !second || first.length > 16 || second.length > 16) return false;
+  if (!text.includes(first) || !text.includes(second)) return false;
+  return !first.includes(second) && !second.includes(first);
+}
+
+async function questionStemAsksTwoThings(
+  input: { question: string; options: string[] },
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const config = getControlledTerminologyModelConfig();
+  if (!config.configured || !input.question.trim()) return false;
+  const messages = [
+    { role: "system" as const, content: SINGLE_POINT_SYSTEM },
+    { role: "user" as const, content: JSON.stringify({ question: input.question, options: input.options }) },
+  ];
+  return memoizedSmallTask<boolean>("m02_question_single_point", smallTaskMemoKey([config.model, messages]), async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const response = await observeModelTask({ task: "m02_question_single_point", stage: "question", model: config.model }, () => createTextModelClient(config).chat.completions.create({
+        model: config.model,
+        temperature: 0,
+        max_tokens: 120,
+        stream: false,
+        response_format: { type: "json_object" },
+        ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
+        messages,
+      }, { signal: controller.signal }));
+      const content = response.choices[0]?.message?.content;
+      return { value: questionAsksTwoThings(content, input.question), cacheable: typeof content === "string" && content.trim().length > 0 };
+    } catch {
+      return { value: false, cacheable: false };
+    } finally {
+      clearTimeout(timer);
+    }
+  }, false, signal);
+}
+
+/**
+ * 出题前要删的模型题：复述病历的（上面的重复核对）与并问两件事的，两项核对并行跑。
+ * serverOwnedText 是本轮服务端自有题的全文，题干出现在其中的不核。
+ */
+export async function questionIdsFailingNarrowChecks(
+  content: string,
+  recordText: string,
+  serverOwnedText: string,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  if (signal?.aborted) return [];
+  const plan = parseM02PlanFromContent(content);
+  if (!plan || plan.decision !== "ask") return [];
+  const owned = compact(serverOwnedText);
+  const compoundIds = singlePointCheckEnabled()
+    ? Promise.all(plan.questions.slice(0, 2).map(async (question) => {
+      const stem = compact(question.question);
+      if (!stem || owned.includes(stem)) return undefined;
+      const options = question.options.filter((option) => option.kind === "clinical_fact").map((option) => option.answer);
+      return await questionStemAsksTwoThings({ question: question.question, options }, signal) ? question.id : undefined;
+    }))
+    : Promise.resolve([]);
+  const [repeated, compound] = await Promise.all([
+    questionIdsRepeatingRecord(content, recordText, serverOwnedText, signal),
+    compoundIds,
+  ]);
+  return [...new Set([...repeated, ...compound.filter((id): id is string => typeof id === "string")])];
+}

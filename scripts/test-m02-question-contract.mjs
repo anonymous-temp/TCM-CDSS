@@ -735,6 +735,8 @@ assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be 
   let redundancyVerdict = { verdict: "not_answered", quotes: [], reason: "" };
   const upstreamBodies = [];
   const redundancyBodies = [];
+  let singlePointVerdict = { verdict: "single", points: [] };
+  const singlePointBodies = [];
   const savedFetch = globalThis.fetch;
   globalThis.fetch = async (_url, init) => {
     const body = JSON.parse(init.body);
@@ -743,6 +745,13 @@ assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be 
     if (!body.stream && /追问题与病历的重复核对器/.test(body.messages?.[0]?.content || "")) {
       redundancyBodies.push(body);
       return new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content: JSON.stringify(redundancyVerdict) }, finish_reason: "stop" }] }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    // 2026-10-18 起还有一次并行的窄核对（题干是不是并问两件事），同样只判这一件事、必须逐字引题干。
+    if (!body.stream && /追问题题干的核对器/.test(body.messages?.[0]?.content || "")) {
+      singlePointBodies.push(body);
+      return new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content: JSON.stringify(singlePointVerdict) }, finish_reason: "stop" }] }), {
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -771,6 +780,8 @@ assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be 
     assert.equal(envelopeJson(unscored).m02Plan.questions[0].question, routePlan.questions[0].question, "the unscored provider plan is delivered, not replaced by the fallback");
     assert.equal(upstreamBodies.length, 1, "one streamed generation call, no review call");
     assert.ok(redundancyBodies.length <= 1, "at most one narrow redundancy check on the model-written question");
+    assert.ok(singlePointBodies.length <= 1, "at most one narrow single-point check on the model-written question");
+    assert.doesNotMatch(JSON.stringify(singlePointBodies), /多梦易醒/, "the single-point check sees only the question, not the record");
     const sentPrompt = upstreamBodies[0].messages.map((message) => message.content).join("\n");
     assert.doesNotMatch(sentPrompt, /completeness|"redFlag"|infoGain"|answerability|managementImpact|level 只能取/, "the M02 prompt no longer asks the model to score completeness");
     assert.match(sentPrompt, /"m02Plan":\{"schemaVersion":"tcm-cdss-m02-plan-v1"/, "the M02 prompt still carries the plan contract");
@@ -801,6 +812,22 @@ assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be 
     assert.equal(envelopeJson(ungrounded).m02Plan.questions[0].question, ungroundedPlan.questions[0].question, "an ungrounded redundancy verdict is ignored");
     redundancyVerdict = { verdict: "not_answered", quotes: [], reason: "" };
 
+    // 题干并问两件事、两个问点都逐字在题干里：删掉，出服务端的单问点题。
+    const compoundPlan = structuredClone(routePlan);
+    compoundPlan.questions[0].question = "入睡困难时精神状态和胃口怎么样？";
+    providerContent = JSON.stringify({ m02Plan: compoundPlan });
+    singlePointVerdict = { verdict: "compound", points: ["精神状态", "胃口"] };
+    const compound = await runRoute();
+    assert.notEqual(envelopeJson(compound).m02Plan.questions[0]?.question, compoundPlan.questions[0].question, "a question asking two things is removed");
+    // 反证：问点不在题干里（模型编的）或只给了一个，不删。
+    const compoundUngroundedPlan = structuredClone(routePlan);
+    compoundUngroundedPlan.questions[0].question = "入睡困难时胃口怎么样？";
+    providerContent = JSON.stringify({ m02Plan: compoundUngroundedPlan });
+    singlePointVerdict = { verdict: "compound", points: ["精神状态", "胃口"] };
+    const compoundUngrounded = await runRoute();
+    assert.equal(envelopeJson(compoundUngrounded).m02Plan.questions[0].question, compoundUngroundedPlan.questions[0].question, "an ungrounded compound verdict is ignored");
+    singlePointVerdict = { verdict: "single", points: [] };
+
     providerStatus = 500;
     const upstreamFailure = await runRoute();
     assert.match(upstreamFailure, /m02Plan/);
@@ -815,4 +842,4 @@ assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be 
   }
 }
 
-console.log(JSON.stringify({ cases: 38, failures: 0 }));
+console.log(JSON.stringify({ cases: 40, failures: 0 }));
