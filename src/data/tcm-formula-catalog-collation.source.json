@@ -40,7 +40,8 @@
    "name": "流派自制方入目录（原典逐条核对）",
    "date": "2026-10-12",
    "detail": "扶阳学派郑钦安自制方（潜阳丹、补坎益离丹、姜附茯半汤、姜桂汤〔《医理真传》·扶上阳方〕，据《医理真传》《医法圆通》原文）与温补学派孙一奎自制方壮原汤（据《赤水玄珠》卷五四库本）按原文组成入目录；附子剂量与炮制仍按药典与处方后审方。"
-  }
+  },
+  {"ref": "ADJ-WEB-20261019-XIAOFENG", "name": "消风散石膏生煅订正（教材与原书核对）", "date": "2026-10-19", "detail": "《方剂学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt 第 49612–49614 行）消风散《外科正宗》组成「当归　生地　防风　蝉蜕　知母　苦参　胡麻　荆芥　苍术　牛蒡子　石膏各一钱　甘草　木通各五分」，石膏为生用；目录记作煅石膏（市售颗粒的写法），药典煅石膏只外用，系统因此把它当作不编用量的味，模型照提示不列石膏，甲方标准病历 9（瘾疹·风热犯表，发热口渴）三次复测两次判方中缺石膏。只改这一味的炮制，其余药味记录不动。"}
  ],
  "removals": [
   {
@@ -14688,6 +14689,7 @@
    "peonyCollation": "不涉及",
    "collationNote": "《金匮要略》杂疗方第二十三原文方，目录此前未收（2026-10-12 按《伤寒论》113 方、《金匮要略》正文方全量对照补收）。组成取本地宋本原文并以维基文库交叉核对；古方原量不换算为现代处方剂量，只留作回源。",
    "evidenceUrl": "https://zh.wikisource.org/wiki/金匱要略"
-  }
+  },
+  {"action": "rewrite", "adjudicationRef": "ADJ-WEB-20261019-XIAOFENG", "name": "消风散", "displayName": "消风散", "source": "《外科正宗》", "ingredients": ["当归", "地黄", "防风", "蝉蜕", "知母", "苦参", "炒黑芝麻", "荆芥", "麸炒苍术", "炒牛蒡子", "石膏", "甘草", "川木通"], "recordedComposition": "当归　生地　防风　蝉蜕　知母　苦参　胡麻　荆芥　苍术　牛蒡子　石膏各一钱　甘草　木通各五分", "sectionBoundary": "《外科正宗》卷四·疥疮论·消风散", "dosageForm": "汤剂", "indications": [], "properNameInSource": true, "properNameNote": "是", "administration": "internal", "replacesEntry": "消风散（《外科正宗》，石膏记作煅石膏）", "peonyCollation": "不涉及", "collationNote": "原书与《方剂学》教材均作石膏（生用），水煎内服；目录的煅石膏是市售颗粒剂的写法，药典煅石膏只外用。只订正石膏一味的炮制。", "evidenceUrl": "https://www.suntenglobal.com/_en/News-Datain.php?id=558", "replaceSourceOf": {"name": "消风散", "source": "《外科正宗》"}}
  ]
 }

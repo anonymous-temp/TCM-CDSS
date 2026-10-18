@@ -523,7 +523,8 @@
       "理阴煎@《成方切用》 → 《景岳全书》:4味",
       "五福饮@《成方切用》 → 《景岳全书》:5味",
       "封髓丹@《古今名医方论》 → 《御药院方》:3味",
-      "崔氏八味丸@《医方考》 → 《金匮要略》:8味"
+      "崔氏八味丸@《医方考》 → 《金匮要略》:8味",
+      "消风散@《外科正宗》 → 《外科正宗》:13味"
     ],
     "collationAdded": [
       "一物瓜蒂汤",
@@ -191894,7 +191895,7 @@
       "sourceName": "消风散",
       "source": "《外科正宗》",
       "sourceOriginal": "《外科正宗》",
-      "prescriptionOriginal": null,
+      "prescriptionOriginal": "当归生地防风蝉蜕知母苦参胡麻荆芥苍术牛蒡子石膏各一钱甘草木通各五分",
       "ingredients": [
         "当归",
         "地黄",
@@ -191906,7 +191907,7 @@
         "荆芥",
         "麸炒苍术",
         "炒牛蒡子",
-        "煅石膏",
+        "石膏",
         "甘草",
         "川木通"
       ],
@@ -191927,8 +191928,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 67
+        },
+        {
+          "title": "目录校勘组成重录：原书与《方剂学》教材均作石膏（生用），水煎内服；目录的煅石膏是市售颗粒剂的写法，药典煅石膏只外用。只订正石膏一味的炮制。",
+          "url": "https://www.suntenglobal.com/_en/News-Datain.php?id=558",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "消风散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "当归",
@@ -191994,8 +192005,8 @@
           "preparation": "炒"
         },
         {
-          "rawName": "煅石膏",
-          "canonicalName": "煅石膏",
+          "rawName": "石膏",
+          "canonicalName": "石膏",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
@@ -192032,7 +192043,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "消风散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -192046,12 +192056,8 @@
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
-      "missingDoseBoundaryIngredientNames": [
-        "煅石膏"
-      ],
-      "manualDoseIngredientNames": [
-        "煅石膏"
-      ],
+      "missingDoseBoundaryIngredientNames": [],
+      "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],

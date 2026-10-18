@@ -20,7 +20,7 @@ import { catalogSourceForExactComposition, compositionIdentityName, formulaCompi
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
-import { formulaAnalysisHerbMentions } from "./formula-analysis-review";
+import { formulaAnalysisHerbMentions, withMentionsAlignedToTableNames } from "./formula-analysis-review";
 import { textbookDifferentialsForDisease, textbookFormulaLabel, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
@@ -565,7 +565,15 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
           catalogSourceForExactComposition(name, textbookBaseIngredients(textbookRow, [name])) || textbookNote}`).join("；");
         const placeholder = !current.trim() || /证据不足|依据不足|待检索|待核验|内部证据缺口|EVIDENCE_GAP/u.test(current);
         const upgradesTextbookNote = /代表方/u.test(current) && !/代表方/u.test(next);
-        if (placeholder || upgradesTextbookNote) sourceRecord.source = next;
+        // 编译目录没有这首方、出处是按方名从名录里取的同名异方（加味四物汤《朱氏集验方》卷十，五味），而名录里有与教材组成
+        // 逐味相同的原书（《金匮翼》卷五）：换成后者（2026-10-19 甲方标准病历 3 第三轮复测两次判「同名异方的出处」）。
+        const homonymSource = covered.some((name) => {
+          const exact = formulaCompilationReferences([name]).length === 0
+            ? catalogSourceForExactComposition(name, textbookBaseIngredients(textbookRow, [name]))
+            : undefined;
+          return Boolean(exact) && !current.includes(exact!);
+        });
+        if (placeholder || upgradesTextbookNote || homonymSource) sourceRecord.source = next;
       }
     }
     // 方义里的方名此前被「自拟方不得自称成方」一律换成了「本方案」（tcm-formula-provenance）。
@@ -800,6 +808,12 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 写给患者的话里不留英文用法缩写（验收主集 J：模型照抄病历「倍博特1# QD」）与「1#」；不到 80 岁不称「高龄」（留出集 S190：62 岁写成高龄者）。
     const ageYears = options?.herbBoundaryAudience?.ageYears;
     precautions = precautions.map((line) => typeof line !== "string" ? line : withPatientFacingDosingWords(line, ageYears));
+    // 注意事项里的药名与药味表写法不一（「鹿胶珠、龟胶珠需烊化」而药味表是鹿角胶、龟甲胶）时改成药味表的写法——
+    // 与方义同一个取法（withMentionsAlignedToTableNames，2026-10-19 甲方标准病历 6 第三轮复测）。先改名，下面的煎法核对才对得上药味表。
+    const tableHerbNames = records(records(formula?.candidates)[0]?.herbs).map((herb) => String(herb.name || "")).filter(Boolean);
+    if (tableHerbNames.length > 0) {
+      precautions = precautions.map((line) => typeof line === "string" ? withMentionsAlignedToTableNames(line, tableHerbNames).text : line);
+    }
     // 注意事项里说某味药先煎/后下/包煎…，而药表与煎服法给这味药的是别的煎法或没有特殊煎法：以药表与煎服法为准，去掉那一小句
     //（2026-10-19 验收主集 RobustSDT-single_0595：注意事项「人参须先煎久煎」，药表是另煎）。
     const herbRows = records(records(formula?.candidates)[0]?.herbs);

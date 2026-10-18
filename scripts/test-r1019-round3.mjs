@@ -224,6 +224,28 @@ await check("6.7 删掉的小句后面「并告知医生」不留成无主残句
   assert.equal(out.nonPharma.precautions.find((line) => /胃部不适/.test(line)), "如出现胃部不适，请告知医生。");
 });
 
+await check("6.8 注意事项里的药名按药味表写（「鹿胶珠、龟胶珠需烊化」→「鹿角胶、龟甲胶需烊化」）；药味表名本身不动（对照）", () => {
+  const herbs = [{ name: "鹿角胶", role: "佐", function: "温补精血", dose: "6g", decoctionRequirement: "烊化" }, { name: "龟甲胶", role: "佐", function: "滋阴养血", dose: "6g", decoctionRequirement: "烊化" }];
+  const out = surface.projectDeliveredReasoning(rx(["方中鹿胶珠、龟胶珠需烊化后兑入药液。", "鹿角胶宜烊化。"], herbs));
+  assert.deepEqual(out.nonPharma.precautions.slice(0, 2), ["方中鹿角胶、龟甲胶需烊化后兑入药液。", "鹿角胶宜烊化。"]);
+});
+
+await check("6.9 出处：编译目录没有的教材代表方被按方名取成同名异方（加味四物汤《朱氏集验方》卷十）时，换成与教材组成逐味相同的原书（《金匮翼》卷五）", async () => {
+  const herbs = ["白芍", "当归", "生地黄", "川芎", "菊花", "蔓荆子", "黄芩", "甘草"].map((name, index) => ({ name, role: index === 0 ? "君" : "臣", function: "x", dose: "10g" }));
+  const reasoning = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    overview: { tcmDiseaseName: "头痛", primarySyndrome: "血虚头痛", recommendedFormulaDirection: "加味四物汤加减" },
+    formula: { candidates: [{ name: "加味四物汤加减", formulaNames: ["加味四物汤"], formulaAnalysis: "本方以加味四物汤为基础加减。", herbs, formulaSource: { source: "加味四物汤：《朱氏集验方》卷十。" } }] },
+    nonPharma: { precautions: ["饮食清淡。"] },
+  };
+  assert.match(surface.projectDeliveredReasoning(reasoning).formula.candidates[0].formulaSource.source, /《金匮翼》卷五/);
+});
+await check("6.10 目录消风散《外科正宗》的石膏是生石膏（原书与《方剂学》），不再是只外用的煅石膏、不再列为不编用量的味", async () => {
+  const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+  const ingredients = provenance.formulaCompilationReferences(["消风散"])[0]?.ingredients || [];
+  assert.ok(ingredients.includes("石膏") && !ingredients.includes("煅石膏"), ingredients.join("、"));
+});
+
 // ───── 7 教材表补骨折 ─────
 await check("7.1 教材表有骨折（三期各一行，后期分肝肾、气血）：肋骨骨折按病名找得到行，初期桃红四物汤；口语主诉也进候选", async () => {
   const tb = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");

@@ -9,7 +9,7 @@ import { sanitizeUnverifiedClinicalNarrative } from "./customer-evidence";
 import { stripHerbBoundaryTail } from "./candidate-boundary-text";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
-import { getTcmHerbDoseLimit, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
+import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
 import { compositionIdentityName, formulaCompilationReferences, formulaManualDoseIngredients, formulaNameVariantIngredients, originalBookFormulaIngredients } from "./tcm-formula-provenance";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
@@ -1715,6 +1715,9 @@ function withWithheldBaseIngredientNote(analysis: string, formulaNames: readonly
   const names = [...new Set(formulaNames.map((name) => name.trim()).filter(Boolean))];
   const prose = names.slice().sort((left, right) => right.length - left.length).reduce((text, name) => text.split(name).join("　"), analysis);
   const withheld = [...new Set(names.filter(substantial).flatMap((name) => formulaManualDoseIngredients(name)))]
+    // 只说毒性或管制药（乌头、朱砂、罂粟壳、甘遂、麝香）：没有内服数值边界的普通味（目录把消风散的石膏记成外用的煅石膏、
+    // 身份未定的「沙参」）补这句读起来是流程话，甲方标准病历 9 第三轮复测两位评审都判它不是方义（2026-10-19）。
+    .filter((name) => clinicianDoseHerbClass(name) === "controlled_or_toxic" || getTcmHerbGenerationSafetyProfile(name).toxicity.length > 0)
     .filter((name) => {
       const id = compositionIdentityName(name);
       if (!id || presentIds.has(id) || present.some((herb) => herb.endsWith(id))) return false;
