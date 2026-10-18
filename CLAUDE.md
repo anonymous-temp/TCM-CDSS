@@ -967,6 +967,10 @@ Material is in `~/runlogs/r1018`: `PLAN.md`, `research/`, `sets/`, `out/*-final*
   - A second review on 540fe8f (local8):
     - runs 2 and 3 were at most 1 per column;
     - run 1 had 2 in 西医. One was 「无夜间痛」 left as a denial, fixed in 98d3a93. The other was a model-written false negative.
+  - A third review on 2aa09d6 (local10):
+    - runs 2 and 3 were at most 1 per column;
+    - run 1 had 饮片 3. One was server-caused and fixed in eafd86d: the 方义 kept a subjectless clause after an incidental sedative herb was removed. The other two were model prose (左归丸 「阴中求阳」, 青蒿 「生津」).
+  - Across the nine reviewed runs, the line held in seven. Each of the two misses had one server defect, fixed afterwards.
 - **Held-out 32 (same build).**
 
   | Block | Pass |
@@ -980,7 +984,11 @@ Material is in `~/runlogs/r1018`: `PLAN.md`, `research/`, `sets/`, `out/*-final*
 
   - Every other block scored 93–100.
   - The server-caused items among the failures were fixed afterwards: S058 未诉腹痛, S145 二药, S151 去桑皮, and the herb-label fragments.
-  - The local8 review (540fe8f) put 中医诊断 at 93.1 and 饮片 at 86.2. 中医治疗 was at 80.8, and its server causes were fixed in 3e73fd5: S002 moxibustion on 风热, and S055/S161 slow-transit schedules. Still open:
+  - The local8 review (540fe8f) put 中医诊断 at 93.1 and 饮片 at 86.2. 中医治疗 was at 80.8, and its server causes were fixed in 3e73fd5: S002 moxibustion on 风热, and S055/S161 slow-transit schedules.
+  - **Final review on 2aa09d6 (local10):** every customer block is at or above 90% (中医诊断 93.1, 证候 96.6, 饮片 93.1); 中医治疗 is 85.2.
+    - S002 still showed 「灸5分钟」. The moxibustion filter matched 灸 inside citations (《刺法灸法学》, 针灸), dropped every sentence, and then fell back to the original text. Fixed in 4a6e9cc.
+    - S161 is a child given timed needle retention. Fixed in 4a6e9cc too: timed retention is no longer applied under 12.
+  - Still open:
     - S079 has no knee points;
     - S160 uses 肝俞 (the suspected OCR 肺俞);
     - S078 is a misjudgement (虚劳·肝血虚 read as 眩晕).
@@ -997,6 +1005,20 @@ Material is in `~/runlogs/r1018`: `PLAN.md`, `research/`, `sets/`, `out/*-final*
   - 熟地黄 with 便溏.
 - **蚕沙 has no KB function.**
 - **The effect of web search was not A/B tested;** the criteria table is static.
+
+**In production (4a6e9cc, deployed 2026-10-18 about 18:25 Beijing; tag `20261018-4a6e9cc-prebuilt`, same release directory and `20260927-dsrepair` override).**
+- **Gate and verification.**
+  - `verify:release` was green on 4a6e9cc.
+  - `verify:deployed-image` passed: commit and digest match, strictReady is true, and the qwen and deepseek families are both live.
+  - `regress:prod-smoke` had 0 failures (cold M03 P95 12.9 s, M04 P95 15.1 s).
+- **Probes on hospital-b:**
+  - 呕血, hypothermia with drowsiness, and an infant at HR 55 → `red_flag` / `non_dose_only`;
+  - pregnancy, warfarin and lactation with an answered follow-up → `non_dose_only`;
+  - the iron-deficiency, PCOS and two-week-dyspepsia probes → 贫血 / 月经稀发 / 消化不良待查.
+  - The adolescent 145/95 probe said 高血压 this time (血压升高待查 on 10/17).
+- **Customer's 10 cases on hospital-a,** follow-up skipped after a 20 s pause. Question to prescription took median 1.6 s, p90 2.7 s, max 4.3 s. All 200, no red flag, and disease and syndrome were correct on all ten.
+- **Host disk.** The host was at 6.9 GB free in the afternoon, because another project's delivery work used about 14 GB. After that project's own cleanup, and after we removed our 5c85a55 image (the rollback of the rollback), it was at 12 GB, which is the deploy floor.
+- **Rollback.** Image `tcm-cdss:20261017-d2bbe09-prebuilt` with the compose backup in the release directory. The pre-deploy container log is in `~/telemetry-archive` on the host.
 
 **Running it again.**
 - **Sets:** `scripts/final-run*.sh` (`OUTSET`/`OUT_SUFFIX`), then `judge.mjs <set>`, `rf-judge.mjs <set>` and `summarize.py <judgeDir>`.
