@@ -921,7 +921,7 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
   const record = clinicalContext.normalize("NFKC").replace(/\s+/g, "");
   if (!record) return text;
   // 「无…结果/报告/记录」说的是缺这份资料，不是否认症状，照原样留。
-  let out = text.replace(UNRECORDED_NEGATIVE, (match, term: string) =>
+  const out = text.replace(UNRECORDED_NEGATIVE, (match, term: string) =>
     recordMentionsNegatedTerm(record, term) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) ? match : `未诉${term}`);
   // 「未诉A、未诉B」并成「未诉A、B」：只并相邻的未诉项。中间隔着一个仍是「无X」的项时不并——并过去会读成
   //「无X、B」，把 B 又写回否认（2026-10-18 回放：「未诉头晕、无恶心呕吐、未诉胸脘痞闷」曾并成「…无恶心呕吐、胸脘痞闷」）。
