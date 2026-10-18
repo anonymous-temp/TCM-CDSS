@@ -896,7 +896,18 @@ const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽])无(?![汗力�
  */
 function recordMentionsNegatedTerm(record: string, term: string): boolean {
   if (record.includes(term)) return true;
-  return term.length >= 4 && record.includes(term.slice(0, 2)) && record.includes(term.slice(-2));
+  if (term.length < 4) return false;
+  // 首尾两字要在病历里挨着出现（中间至多隔 2 字，前后颠倒也算）：「言语清晰，小便不利」不算写到过「言语不利」（2026-10-18 验收集 M，
+  // 中医鉴别里「无言语不利」「无口舌歪斜」因此没改成「未诉…」）；「无发热恶寒」对病历「无恶寒发热」仍算写到过。
+  const head = term.slice(0, 2);
+  const tail = term.slice(-2);
+  for (const [first, second] of [[head, tail], [tail, head]]) {
+    for (let at = record.indexOf(first); at >= 0; at = record.indexOf(first, at + 1)) {
+      const after = at + first.length;
+      if (record.slice(after, after + 2 + second.length).includes(second)) return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -906,20 +917,18 @@ function recordMentionsNegatedTerm(record: string, term: string): boolean {
  * reason 与 distinguishingPoints（由 groundDifferentialNegativeAssertions 在分句核对之后再调一次）。此前只有两条依据字段用它，
  * 西医鉴别里句中的「…、无夜间痛；」（甲方标准病历 6 腰椎转移瘤一项）因为不在分句开头而两边都没管。
  */
-/**
- * 「未见X」「不伴X」同一类（2026-10-18，验收集 X：辨病依据「未见手足疱疹」，病历没写手足）：对象病历没写到过时也改成「未诉X」。
- * 「未见异常/未见明显异常」这类泛称不改。
- */
-const UNRECORDED_SEEN_NEGATIVE = /(?:未见|不伴)(?!明显异常|异常|明显)([\u4e00-\u9fff]{2,16}?)(?=[、，,。；;：:）)]|等|及|和|或|与|$)/gu;
-
 export function unrecordedNegativesAsNotReported(text: string, clinicalContext: string): string {
   const record = clinicalContext.normalize("NFKC").replace(/\s+/g, "");
   if (!record) return text;
-  let out = text.replace(UNRECORDED_NEGATIVE, (match, term: string) => recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`);
-  out = out.replace(UNRECORDED_SEEN_NEGATIVE, (match, term: string) => recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`);
-  // 「未诉A、未诉B」并成「未诉A、B」。
-  for (let pass = 0; pass < 4; pass += 1) out = out.replace(/(未诉[^，,。；;]{1,30})、未诉/gu, "$1、");
-  return out;
+  // 「无…结果/报告/记录」说的是缺这份资料，不是否认症状，照原样留。
+  let out = text.replace(UNRECORDED_NEGATIVE, (match, term: string) =>
+    recordMentionsNegatedTerm(record, term) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) ? match : `未诉${term}`);
+  // 「未诉A、未诉B」并成「未诉A、B」：只并相邻的未诉项。中间隔着一个仍是「无X」的项时不并——并过去会读成
+  //「无X、B」，把 B 又写回否认（2026-10-18 回放：「未诉头晕、无恶心呕吐、未诉胸脘痞闷」曾并成「…无恶心呕吐、胸脘痞闷」）。
+  return out.split(/([，,。；;])/u).map((segment) => {
+    const items = segment.split("、");
+    return items.map((item, index) => index > 0 && item.startsWith("未诉") && items[index - 1].startsWith("未诉") ? item.slice(2) : item).join("、");
+  }).join("");
 }
 
 export function applyM03AdvisoryQualityBoundaries(content: string, clinicalContext: string): string {

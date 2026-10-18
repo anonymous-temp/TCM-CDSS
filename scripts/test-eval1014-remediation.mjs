@@ -1932,12 +1932,14 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
 
 {
   const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
-  check("16.8 依据里「未见X」「不伴X」与「无X」同口径：病历没写到过 X 就写成「未诉X」（验收集 X-C-0601「未见手足疱疹」）；「未见明显异常」和病历写过的不动（对照）", () => {
-    const record = "主诉：口腔溃疡3天\n现病史：口腔多处溃疡，疼痛，舌尖红，小便短黄，无发热。";
-    assert.equal(visible.unrecordedNegativesAsNotReported("口腔溃疡疼痛，未见手足疱疹，故诊为口疮。", record), "口腔溃疡疼痛，未诉手足疱疹，故诊为口疮。");
-    assert.equal(visible.unrecordedNegativesAsNotReported("不伴恶寒发热。", record), "未诉恶寒发热。");
-    assert.equal(visible.unrecordedNegativesAsNotReported("未见明显异常。", record), "未见明显异常。");
-    assert.equal(visible.unrecordedNegativesAsNotReported("未见发热。", record), "未见发热。");
+  check("16.8 病历没写到的「无X」改「未诉X」时，「写到过」要首尾两字挨着出现：「言语清晰，小便不利」不算写到过「言语不利」（验收集 M 中医鉴别「无言语不利」「无口舌歪斜」）；「无恶寒发热」对「发热恶寒」两字互换仍算；未诉项只并相邻的，中间隔着「无X」的不并；「无…结果」不改（对照）", () => {
+    const record = "主诉：头晕3天\n现病史：头晕，言语清晰，小便不利，无恶寒发热，无头痛头晕。";
+    assert.equal(visible.unrecordedNegativesAsNotReported("无言语不利，与中风相区分。", record), "未诉言语不利，与中风相区分。");
+    assert.equal(visible.unrecordedNegativesAsNotReported("无发热恶寒。", record), "无发热恶寒。");
+    assert.equal(visible.unrecordedNegativesAsNotReported("无小便不利。", record), "无小便不利。");
+    assert.equal(visible.unrecordedNegativesAsNotReported("未诉口苦、无头痛头晕、无胸脘痞闷。", record), "未诉口苦、无头痛头晕、未诉胸脘痞闷。");
+    assert.equal(visible.unrecordedNegativesAsNotReported("无口苦、无胸脘痞闷。", record), "未诉口苦、胸脘痞闷。");
+    assert.equal(visible.unrecordedNegativesAsNotReported("但无发作时心电图结果。", record), "但无发作时心电图结果。");
   });
 }
 

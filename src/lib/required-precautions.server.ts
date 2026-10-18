@@ -95,14 +95,31 @@ export function requiredPrecautionsForCase(
   // 正在服用的药（2026-10-18 验收主集：泼尼松、酮替芬、氨氯地平、抗生素等病历写明在服，注意事项一句没提，评审判缺）。
   // 与自服药同一套认药名的办法（带剂型或说明书目录一字不差），整份病历都看；已列为自服药的不重复。
   const selfTaken = new Set(items.flatMap((item) => item.kind === "self_medication" ? [item.base] : []));
-  const current = [...new Set(selfTakenMedicationMentions(clinicalGroundingText(state))
+  const grounded = clinicalGroundingText(state);
+  const formallyTaken = new Set(formallyAdministeredMedicationMentions(grounded));
+  const current = [...new Set(selfTakenMedicationMentions(grounded)
     .filter((name) => {
+      // 西药（卡托普利、拜新同、二甲双胍、阿司匹林…）既不带剂型也不在中成药说明书目录里（2026-10-18 验收主集 J 模块 11 例漏写）：
+      // 跟在「服用/口服/注射/吸入/含服」这类正式给药词后面、不是已停或既往的，也算正在用的药。「吃」后面的不算（山楂、水果）。
+      if (formallyTaken.has(name)) return true;
       const label = findLocalPatentMedicineLabel(name);
       return patentMedicineBaseName(name) !== name || label?.name.replace(/\s/g, "") === name;
     })
     .filter((name) => !selfTaken.has(patentMedicineBaseName(name))))].slice(0, 3);
   if (current.length > 0) items.push({ kind: "current_medications", names: current });
   return items;
+}
+
+const FORMAL_ADMINISTRATION_VERB = /(?:服用|口服|皮下注射|静脉注射|肌内注射|注射|吸入|含服)/u;
+const STOPPED_OR_PAST_MEDICATION = /(?:曾|既往|此前|以前|已停|停用|停药|自行停|未再|不再)/u;
+const GENERIC_MEDICATION_WORD = /^(?:中|西|汤|成|草)?药(?:物|品)?$|^中成药$|^降[压糖脂]药$/u;
+
+/** 跟在正式给药词后面、当前在用的药名（只用于「正在服用的药」这一条注意事项）。 */
+function formallyAdministeredMedicationMentions(text: string): string[] {
+  return String(text || "").normalize("NFKC").split(/[，,。；;\n]+/u).flatMap((clause) => {
+    if (!FORMAL_ADMINISTRATION_VERB.test(clause) || STOPPED_OR_PAST_MEDICATION.test(clause)) return [];
+    return selfTakenMedicationMentions(clause).filter((name) => !GENERIC_MEDICATION_WORD.test(name) && /[\u4e00-\u9fffA-Za-z]{2,}/u.test(name));
+  });
 }
 
 /** 给 M04 模型的一段话：逐项列出本例必须写到的注意事项，模型按本例写，服务端事后逐项核对。 */
