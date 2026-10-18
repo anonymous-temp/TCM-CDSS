@@ -158,6 +158,21 @@ function fixTextbookOcr(value: string): string {
   return out;
 }
 
+let textbookFormulaNameSet: Set<string> | undefined;
+/**
+ * 教材证型行里写到的全部方名（候选教材，已做 OCR 订正）。识别方名时用：教材方名整体是一个方，
+ * 不能在它里面再认出一个更短的别的方（「知柏地黄汤」里的「地黄汤」、「栝蒌薤白半夏汤」里的「半夏汤」）。
+ */
+export function textbookFormulaNames(): ReadonlySet<string> {
+  if (textbookFormulaNameSet) return textbookFormulaNameSet;
+  textbookFormulaNameSet = new Set();
+  for (const raw of RAW_ROWS) {
+    if (!(text(raw.bookKey) in CANDIDATE_BOOK_PRIORITY)) continue;
+    for (const name of strings(raw.formulas).map(fixTextbookOcr)) if (name.length >= 3) textbookFormulaNameSet.add(name);
+  }
+  return textbookFormulaNameSet;
+}
+
 function buildDiseases(): TextbookDisease[] {
   const byKey = new Map<string, TextbookDisease>();
   for (const raw of RAW_ROWS) {

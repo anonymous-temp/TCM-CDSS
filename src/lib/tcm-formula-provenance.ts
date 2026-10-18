@@ -1,4 +1,4 @@
-import { textbookNearestRow, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { textbookFormulaNames, textbookNearestRow, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { herbBoundaryTail, stripHerbBoundaryTail } from "./candidate-boundary-text";
 import formulaCatalogJson from "../data/tcm-formula-sources.json" with { type: "json" };
 import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.json" with { type: "json" };
@@ -585,28 +585,68 @@ for (const [name, variant] of Object.entries(verifiedSupplements.entries)) {
   normalizedVerifiedSupplements.set(normalizeFormulaName(name), { name, variant });
 }
 
+function knownFormulaFragment(fragment: string): boolean {
+  // The broad local workbook contains short common nouns (e.g. 补汤/膏药/炒面). They are useful
+  // for composition lookup after a doctor has named a candidate, but unsafe as free-text identity
+  // matches. Two-character names are accepted only from the governed official/verified catalogs.
+  return normalizedOfficialClassics.has(fragment) || normalizedVerifiedSupplements.has(fragment) || (fragment.length >= 3 && normalizedCatalog.has(fragment));
+}
+
+/**
+ * 方名的等价写法（2026-10-18），只在原写法认不出时才换着认，认出的是目录里那条的写法：
+ *  · 瓜蒌的三种写法：教材写「栝蒌薤白半夏汤」，国家经典名方目录写「瓜蒌薤白半夏汤」，名录写「栝楼薤白白酒汤」；
+ *  · 丸散方作汤剂：教材写「知柏地黄汤」「杞菊地黄汤」，目录收的是「知柏地黄丸」「杞菊地黄丸」（同一首方改作汤剂）。
+ */
+function formulaFragmentSpellings(fragment: string): string[] {
+  const spellings = /栝蒌|栝楼|瓜蒌/u.test(fragment)
+    ? [fragment, ...["瓜蒌", "栝楼", "栝蒌"].map((spelling) => fragment.replace(/栝蒌|栝楼|瓜蒌/gu, spelling))]
+    : [fragment];
+  return spellings.flatMap((spelling) => /汤$/u.test(spelling) && spelling.length >= 4
+    ? [spelling, `${spelling.slice(0, -1)}丸`, `${spelling.slice(0, -1)}散`]
+    : [spelling]);
+}
+
 function knownFormulaMatches(normalized: string): Array<{ name: string; start: number }> {
   const matches: Array<{ name: string; start: number }> = [];
   for (let start = 0; start < normalized.length; start += 1) {
-    for (let end = normalized.length; end >= start + 2; end -= 1) {
-      const fragment = normalized.slice(start, end);
-      // The broad local workbook contains short common nouns (e.g. 补汤/膏药/炒面). They are useful
-      // for composition lookup after a doctor has named a candidate, but unsafe as free-text identity
-      // matches. Two-character names are accepted only from the governed official/verified catalogs.
-      if (normalizedOfficialClassics.has(fragment) || normalizedVerifiedSupplements.has(fragment) || (fragment.length >= 3 && normalizedCatalog.has(fragment))) {
-        matches.push({ name: fragment, start });
-        break;
-      }
+    let found = "";
+    for (let end = normalized.length; end >= start + 2 && !found; end -= 1) {
+      found = formulaFragmentSpellings(normalized.slice(start, end)).find(knownFormulaFragment) || "";
     }
+    if (found) matches.push({ name: found, start });
   }
   return matches
     .sort((a, b) => b.name.length - a.name.length || a.start - b.start)
+    .filter((match) => !insideUnlockableTextbookFormula(normalized, match))
     .filter((match, index, all) => !all.slice(0, index).some((chosen) => {
       const chosenEnd = chosen.start + chosen.name.length;
       const matchEnd = match.start + match.name.length;
       return match.start < chosenEnd && matchEnd > chosen.start;
     }))
     .sort((a, b) => a.start - b.start);
+}
+
+let unlockableTextbookFormulaNames: string[] | undefined;
+/**
+ * 教材方名整体是一个方（2026-10-18）。目录里没有这个名字时，不能在它里面认出一个更短的别的方：
+ *「知柏地黄汤」里的「地黄汤」、「二地鳖甲煎」里的「鳖甲煎」、「瓜蒌贝母汤」里的「贝母汤」都是另一首方，锁上之后 M04 按错的组成核对
+ *（验收集 M：「栝蒌薤白半夏汤合涤痰汤加减」锁成「半夏汤」，8 次 named_formula_positive_sufficiency_missing:半夏汤）。
+ * 594 个教材方名里 21 个有这种情况。认不出的教材方不锁，方名照教材写（与「教材方目录锁不上」同一条路）。
+ * 带「合」的是合方，里面的方照常认；只差「汤」字的（龟鹿二仙胶汤）算同一首。
+ */
+function insideUnlockableTextbookFormula(normalized: string, match: { name: string; start: number }): boolean {
+  unlockableTextbookFormulaNames ??= [...textbookFormulaNames()]
+    .map(normalizeFormulaName)
+    .filter((name) => name.length >= 3 && !name.includes("合") && !formulaFragmentSpellings(name).some(knownFormulaFragment))
+    .sort((a, b) => b.length - a.length);
+  const matchEnd = match.start + match.name.length;
+  for (const name of unlockableTextbookFormulaNames) {
+    if (name.length <= match.name.length || name === `${match.name}汤`) continue;
+    for (let at = normalized.indexOf(name); at >= 0; at = normalized.indexOf(name, at + 1)) {
+      if (at <= match.start && at + name.length >= matchEnd) return true;
+    }
+  }
+  return false;
 }
 
 /**

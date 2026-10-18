@@ -1,0 +1,67 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "companion-relative-not-subject",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-18",
+ "trigger": "10.18 逐模块验收 A 集 A-eme-0089：「女，54岁。与丈夫发生争吵时突然出现剧烈头痛，颈项强直，伴恶心,呕吐…脑膜刺激征阳性」零红旗（蛛网膜下腔出血典型表现）。同一句去掉「与丈夫」即报红旗。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "clinicalAssertionContextAt 取小句里最近的主语标记定主体；「与丈夫…」里的「丈夫」被当成头痛的主语，判非患者，红旗被当作他人的事排除。",
+  "exception": "冻结令允许的确定性例外：构词式词法守卫。亲属词紧跟在介词「与/跟/同/和」之后时是同伴，不参与主语判定；亲属词作句首主语（「丈夫突发剧烈头痛」）、家族史前缀、并列主语（「母亲和姐姐均有…」里的母亲）照旧判非患者。",
+  "sources": "同形态的上一次修复：「家属代诉」类报告人不改变主语（REPORTER_RELATIVE_SOURCE）。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "带同伴介词短语的写法与去掉它的写法门禁结果必须相同；兄弟句自身必须报警。",
+  "pairs": [
+   {
+    "subject": "与丈夫发生争吵时突然出现剧烈头痛，伴恶心呕吐。",
+    "sibling": "发生争吵时突然出现剧烈头痛，伴恶心呕吐。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "跟妈妈吵架后突然胸痛，大汗。",
+    "sibling": "吵架后突然胸痛，大汗。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "和儿子搬家时突然剧烈头痛。",
+    "sibling": "搬家时突然剧烈头痛。",
+    "siblingExpect": "flagged"
+   }
+  ]
+ },
+ "controls": {
+  "note": "亲属作主语、家族史、并列主语必须仍判非患者。mustStillFlag 后两句是守卫定稿后另写的留出句。",
+  "mustStillFlag": [
+   {
+    "text": "与丈夫发生争吵时突然出现剧烈头痛，颈项强直，伴恶心,呕吐。",
+    "flag": "神经系统急症"
+   },
+   {
+    "text": "同女儿外出散步时突发剧烈头痛，呕吐两次。",
+    "flag": "神经系统急症"
+   },
+   {
+    "text": "陪老伴买菜，跟老伴争执后突然胸痛伴大汗。",
+    "flag": "心血管"
+   }
+  ],
+  "mustStayReady": [
+   "丈夫突发剧烈头痛，伴呕吐。",
+   "其父亲突发脑出血去世。",
+   "母亲和姐姐均有剧烈头痛史。",
+   "家族史：父亲与母亲均有高血压。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-18",
+   "what": "同上语料中「与/跟/同/和 + 亲属词」的病例 × 两种形状",
+   "result": "22 次判定 4 次改变：A-eme-0089 由零红旗变为神经急症（正确）；M-0164「与家人争吵后出现右胁部剧烈疼痛…伴胸闷腹胀」原已报胸闷红旗，多一条急腹症提示（与既有剧烈腹痛规则一致）"
+  }
+ ]
+}

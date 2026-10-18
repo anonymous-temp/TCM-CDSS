@@ -1,0 +1,55 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-18",
+ "contexts": [
+  "outpatient_record"
+ ],
+ "id": "historical-extreme-blood-pressure",
+ "trigger": "10.18 逐模块验收 M-TCMChat-test-352：病史写「多次测血压高于140/90mmhg，最高血压280/243mmhg，规律服用…」，确定性层把既往最高值当本次血压报重度高血压红旗。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "parseContextualBloodPressure 逐个读数取第一个危急值；病史里的极值（最高、最低、曾达）不是这次测到的血压。",
+  "exception": "冻结令允许的确定性例外：构词式守卫。读数前 10 字内有极值词（最高、最低、峰值、曾达、曾高达）的不作当前血压；同一份病历里本次测到的读数照常判。",
+  "sources": "病历书写惯例：病史中的『血压最高达…』记录既往最高值，诊断与急症判断用本次测量值。"
+ },
+ "parity": {
+  "note": "带既往最高值的写法与只写本次血压的写法门禁结果相同。",
+  "pairs": [
+   {
+    "subject": "血压最高达200/110mmHg，今日测血压150/90mmHg。",
+    "sibling": "今日测血压150/90mmHg。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "多次测血压高于140/90mmHg，最高血压280/243mmHg，规律服药。",
+    "sibling": "多次测血压高于140/90mmHg，规律服药。",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "controls": {
+  "note": "本次测到的危急血压必须照常报警，即使同句另有既往最高值。",
+  "mustStillFlag": [
+   {
+    "text": "今测血压200/120mmHg，最高时210/125。",
+    "flag": "血压"
+   },
+   {
+    "text": "BP 190/120mmHg，头痛。",
+    "flag": "血压"
+   }
+  ],
+  "mustStayReady": [
+   "自测血压最高达180/105mmHg，服药后控制在130/80mmHg。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-18",
+   "what": "同上语料含极值词的病例 × 两种形状",
+   "result": "改动只有 test-352 两种形状（red_flag → needs_information）"
+  }
+ ]
+}

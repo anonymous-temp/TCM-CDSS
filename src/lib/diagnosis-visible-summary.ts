@@ -1,4 +1,4 @@
-import { discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
+import { chineseDurationNumber, discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
 import { pediatricDoseRuleForAgeYears } from "./pediatric-dose-rule";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement, SPECIAL_DECOCTION_ORDER, specialDecoctionOrderIndex, withOneOfDecoctionResolved } from "./herb-decoction-rules";
@@ -2791,6 +2791,37 @@ function hasOsaObjectiveEvidence(context: string): boolean {
   return /(?:多导睡眠监测|PSG|睡眠呼吸监测)[^。；\n]{0,60}(?:提示|支持|符合|诊断)[^。；\n]{0,24}(?:阻塞性睡眠呼吸暂停|OSA(?:HS)?)/i.test(context);
 }
 
+/**
+ * 慢性支气管炎的病程门槛（数字门槛，2026-10-18）：咳嗽、咳痰每年发作持续≥3个月、连续≥2年。原来只认「每年…3个月…连续2年」
+ * 这一种写法，「咳嗽、咳痰5年，近3年每年持续咳嗽、咳痰3~4个月」（区间、不写「连续」）读不出来，主诊断被降成「咳嗽咳痰」
+ *（验收集 X-D-0124、X-D-0020）。同一句里：「每年」后的月数（区间取上限）≥3，且该句或同一咳嗽病程句里的年数≥2。
+ */
+const CLINICAL_COUNT = "(\\d+(?:\\.\\d+)?|[一二两三四五六七八九十]{1,3})";
+function clinicalCount(value: string | undefined): number {
+  if (!value) return Number.NaN;
+  if (/^\d/u.test(value)) return Number(value);
+  // 「三四个月」「两三年」：相邻两个数字是约数区间，取上限。
+  const adjacent = value.match(/^([一二两三四五六七八九])([二三四五六七八九])$/u);
+  if (adjacent) return chineseDurationNumber(adjacent[2]) ?? Number.NaN;
+  return chineseDurationNumber(value) ?? Number.NaN;
+}
+function chronicBronchitisCourseMet(context: string): boolean {
+  const sentences = context.normalize("NFKC").split(/[。；;\n]+/u).filter((sentence) => /咳/u.test(sentence));
+  const yearly = new RegExp(`(?:每年|年均|每逢)[^。；;\\n]{0,24}?${CLINICAL_COUNT}(?:\\s*[~～\\-－至到]\\s*${CLINICAL_COUNT})?\\s*(?:个)?月`, "u");
+  const years = new RegExp(`${CLINICAL_COUNT}\\s*(?:余|多)?\\s*年`, "gu");
+  const courseYears = (sentence: string) => [...sentence.matchAll(years)]
+    .filter((match) => !/每$/u.test(sentence.slice(0, match.index ?? 0)))
+    .map((match) => clinicalCount(match[1]))
+    .filter((value) => Number.isFinite(value));
+  const longestCourse = Math.max(0, ...sentences.flatMap(courseYears));
+  return sentences.some((sentence) => {
+    const match = sentence.match(yearly);
+    if (!match) return false;
+    const months = Math.max(clinicalCount(match[1]), clinicalCount(match[2]) || 0);
+    return months >= 3 && Math.max(longestCourse, ...courseYears(sentence)) >= 2;
+  });
+}
+
 // Closed, high-certainty respiratory criteria only. These labels repeatedly appear in sparse
 // primary-care records and must not become a formal primary diagnosis merely because limitations
 // admit the missing criteria. The independent reviewer remains responsible for every disease not
@@ -2798,7 +2829,7 @@ function hasOsaObjectiveEvidence(context: string): boolean {
 const FORMAL_WESTERN_CRITERIA_GUARDS: FormalWesternCriteriaGuard[] = [
   {
     label: /慢性支气管炎/,
-    criteria: (context) => /(?:(?:每年|年均)[^。；\n]{0,24}(?:3|三)(?:个)?月[^。；\n]{0,32}(?:连续|至少)[^。；\n]{0,12}(?:2|两|二)年|(?:连续|至少)[^。；\n]{0,12}(?:2|两|二)年[^。；\n]{0,32}(?:每年|年均)[^。；\n]{0,24}(?:3|三)(?:个)?月)/.test(context),
+    criteria: (context) => chronicBronchitisCourseMet(context) || /(?:(?:每年|年均)[^。；\n]{0,24}(?:3|三)(?:个)?月[^。；\n]{0,32}(?:连续|至少)[^。；\n]{0,12}(?:2|两|二)年|(?:连续|至少)[^。；\n]{0,12}(?:2|两|二)年[^。；\n]{0,32}(?:每年|年均)[^。；\n]{0,24}(?:3|三)(?:个)?月)/.test(context),
   },
   {
     label: /(?:慢性阻塞性肺疾病|慢阻肺|\bCOPD\b)/i,

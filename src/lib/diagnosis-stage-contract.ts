@@ -255,7 +255,18 @@ function splitIntoClinicalClauses(normalized: string): string[] {
         /^(?:主诉|现病史|既往史|过敏史|用药史|问诊补充|四诊信息|舌象|脉象|面象|生命体征|辅助检查|患者回答|医生补充)\s*[：:]\s*/,
         "",
       );
-      return clinicalSentence.split(/[，,、]+/).map((rawClause) => {
+      // 逐项写否认的句子（2026-10-18）：一句里有两个以上逗号小句各自以否认词起头（「无牵扯痛，反酸偶作，无头晕…」），
+      // 作者是在每个阴性项前都写了「无」，没写的就是阳性，否认不跨逗号继承；顿号列举（「无恶心、呕吐」）照旧继承。
+      // 此前「反酸偶作」「食纳欠佳」「夜寐安」被读成「无反酸偶作」…，模型引的病历原文全判极性冲突，病机链整条丢掉、M03 退回占位
+      //（验收集 M-TCM-SD-422604 等）。只出现一个否认词的句子（「否认高血压，糖尿病病史」）不变。
+      const commaClauses = clinicalSentence.split(/[，,]+/);
+      const perClauseNegation = commaClauses.filter((part) =>
+        /^(?:(?:当前|目前|现阶段|现有|本例|患者|临床|病历已记录)?)(?:绝无|全无|尚无|暂无|没有|否认|未见|未出现|不伴|并无|无)/.test(part.trim())).length >= 2;
+      let previousCommaIndex = 0;
+      return commaClauses.flatMap((commaClause, commaIndex) => commaClause.split(/[、]+/).map((rawClause) => ({ rawClause, commaIndex })))
+        .map(({ rawClause, commaIndex }) => {
+        if (perClauseNegation && commaIndex !== previousCommaIndex) inheritedNegation = "";
+        previousCommaIndex = commaIndex;
         let clause = rawClause.trim();
         if (!clause) return "";
         if (/^(?:但|而|仍|却|同时|另有|随后|继而|突发|新发|出现|伴有)/.test(clause)) {
@@ -1751,7 +1762,7 @@ function hasCurrentPositiveTcmAnchor(reasoning: M03ReasoningLike): boolean {
 const DIARRHEA_DURATION_CLAUSE = /(?:腹泻|腹瀉|拉肚子|稀便|稀水样|大便[^。；;\n]{0,12}稀|稀稀|吃[^。；;\n]{0,12}跑厕所)/i;
 const CHRONIC_OR_FUNCTIONAL_DIARRHEA_LABEL = /(?:慢性[^，,。；;]{0,8}(?:腹泻|腹瀉)|(?:腹泻|腹瀉)[^，,。；;]{0,8}慢性|功能性腹泻)/i;
 
-function chineseDurationNumber(value: string): number | undefined {
+export function chineseDurationNumber(value: string): number | undefined {
   const normalized = value.trim();
   if (/^半$/.test(normalized)) return 0.5;
   const direct: Record<string, number> = {

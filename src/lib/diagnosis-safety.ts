@@ -161,9 +161,13 @@ function governedDetectionNode<T>(id: string): T {
 }
 
 const CARDIAC_DETECTION = governedDetectionNode<{ colloquialPressureVerbs: string[] }>("cardiac");
-const NEURO_DETECTION = governedDetectionNode<{ colloquialFocalSigns: string[] }>("neuro");
+const NEURO_DETECTION = governedDetectionNode<{ colloquialFocalSigns: string[]; meningealSigns: string[] }>("neuro");
+const ACUTE_ABDOMEN_DETECTION = governedDetectionNode<{ peritonealSignForms: string[]; obstructionSigns: string[] }>("acute_abdomen");
+const TRAUMA_DETECTION = governedDetectionNode<{ acuteTraumaCues: string[]; fractureTerms: string[]; settledFractureCues: string[] }>("other_critical");
 const RESPIRATORY_DETECTION = governedDetectionNode<{
   colloquialSymptoms: string[];
+  centralCyanosisSites: string[];
+  centralCyanosisTerms: string[];
   orthopneaColloquial: string[];
   orthopneaBreathingCues: string[];
 }>("respiratory");
@@ -1910,6 +1914,9 @@ function parseContextualBloodPressure(text: string): { systolic: number; diastol
     const { systolic, diastolic } = measurement;
     if (!Number.isFinite(systolic) || !Number.isFinite(diastolic) || systolic <= diastolic) continue;
     if (isExcludedClinicalAssertionAt(normalized, measurement.index) || isHistoricalOrResolvedAt(normalized, measurement.index)) continue;
+    // 病史里的极值（「最高血压280/243mmhg」「自测血压最高达180/105」）是既往测过的最高值，不是这次测到的血压
+    //（2026-10-18 验收集 M-TCMChat-test-352：既往最高值当成当前值报重度高血压红旗）。构词式守卫：读数前 10 字内有极值词。
+    if (/最高|最低|峰值|曾达|曾高达/u.test(normalized.slice(Math.max(0, measurement.index - 10), measurement.index))) continue;
     const bp = { systolic, diastolic };
     if (!fallback) fallback = bp;
     if (bloodPressureIsCritical(bp)) return bp;
@@ -2344,6 +2351,9 @@ function clinicalAssertionContextAt(text: string, index: number): ClinicalAssert
   for (const match of clause.matchAll(CLINICAL_SUBJECT_MARKERS)) {
     const markerStart = match.index ?? 0;
     const markerEnd = markerStart + match[0].length;
+    // 介词「与/跟/同/和」后面的亲属是同伴、不是主语（2026-10-18，构词式守卫）：「与丈夫发生争吵时突然出现剧烈头痛」
+    // 头痛的是患者，此前按最近的亲属词判成「非患者」，蛛网膜下腔出血的典型诱因描述因此零红旗（验收集 A-eme-0089）。
+    if (!PATIENT_SUBJECT_MARKER.test(match[0]) && /[与跟同和]$/u.test(clause.slice(0, markerStart))) continue;
     const distance = markerEnd <= assertionOffset
       ? assertionOffset - markerEnd
       : markerStart >= assertionOffset
@@ -2774,6 +2784,55 @@ function withoutChronicTriggeredSeverity(text: string): string {
   return text.replace(TRIGGERED_SEVERITY, (match) => "＿".repeat(match.length));
 }
 
+/**
+ * 查体与病程里的客观急腹症征象（2026-10-18，验收集 A：外科考试病例「腹壁呈板状僵硬」「右下腹明显压痛，轻度肌紧张」
+ *「腹胀并停止排气排便2天」都是零红旗）。词表在 T6 acute_abdomen.detection（受治理闭集）；这里只有两条构词式：
+ *  · 不带部位的「肌紧张」：前 20 字内写了腹/脐/麦氏点才算腹部查体，「肌紧张性头痛」不算；
+ *  · 肠梗阻征（停止排气排便）要与当前腹痛、腹胀或呕吐同在。
+ * 否定、既往、已缓解一律走 hasPatternWithoutNegation（「无压痛、反跳痛及肌紧张」不报）。
+ */
+function hasObjectiveAbdominalEmergencySign(text: string): boolean {
+  if (hasPatternWithoutNegation(text, new RegExp(governedTermAlternation(ACUTE_ABDOMEN_DETECTION.peritonealSignForms)))) return true;
+  if (hasPatternWithoutNegation(text, /(?<=(?:腹|脐|麦氏点)[^。；;\n]{0,20})(?:轻度|明显|显著)?肌紧张(?!性)/u)) return true;
+  return hasPatternWithoutNegation(text, new RegExp(governedTermAlternation(ACUTE_ABDOMEN_DETECTION.obstructionSigns))) &&
+    hasPatternWithoutNegation(text, new RegExp(`${abdominalSymptomAlternation()}|呕吐`));
+}
+
+/**
+ * 脑膜刺激征阳性（2026-10-18，验收集 A-eme-0082 结核性脑膜炎零红旗）。词表在 T6 neuro.detection.meningealSigns；
+ * 「颈抵抗」后写阴性或（-）的不算，「颈软、无抵抗」本来就不含这个词。
+ */
+function hasMeningealSign(text: string): boolean {
+  return hasPatternWithoutNegation(text, new RegExp(
+    `(?:${governedTermAlternation(NEURO_DETECTION.meningealSigns)})(?!\\s*(?:阴性|[(（]\\s*[-－−]\\s*[)）]))`,
+    "u",
+  ));
+}
+
+/**
+ * 外伤后 3 天内的骨折（2026-10-18）。同一句里要有骨折词、外伤线索和起病时间（N 小时，或 N≤3 天/日，或今日、昨日），
+ * 且这句不是术后、陈旧、已固定的骨折。词表在 T6 other_critical.detection；时间门槛按数字判。
+ */
+function hasAcuteTraumaFracture(text: string): boolean {
+  const fracture = new RegExp(governedTermAlternation(TRAUMA_DETECTION.fractureTerms));
+  const trauma = new RegExp(governedTermAlternation(TRAUMA_DETECTION.acuteTraumaCues));
+  const settled = new RegExp(governedTermAlternation(TRAUMA_DETECTION.settledFractureCues));
+  return text.split(/[。；;\n]+/u).some((sentence) => {
+    if (!trauma.test(sentence) || settled.test(sentence)) return false;
+    // 时间门槛由下面按数字判，所以这里只看否认与主语，不用通用的「N天前＝既往」作用域（它会把「2天前摔倒…骨折」判成既往）。
+    const fractureAt = sentence.search(fracture);
+    if (fractureAt < 0 || isNegatedAt(sentence, fractureAt) || isExcludedClinicalAssertionAt(sentence, fractureAt)) return false;
+    // 句子把外伤锚在「N个月/年/周前」时是旧伤，句中别处的「24小时内…」说的是当时的经过（验收集 H-tri-16191）。
+    if (/(?:\d+|[一二两三四五六七八九十半]+)\s*(?:个)?(?:月|年|周|星期)(?:余|多)?前/u.test(sentence)) return false;
+    if (/(?:今日|今天|今晨|昨日|昨天|昨晚|刚刚|刚才)/u.test(sentence)) return true;
+    return [...sentence.matchAll(/(\d+(?:\.\d+)?|[一二两三半])\s*(?:个)?(小时|天|日)/gu)].some((match) => {
+      if (match[2] === "小时") return true;
+      const value = /^\d/u.test(match[1]) ? Number(match[1]) : ({ 一: 1, 二: 2, 两: 2, 三: 3, 半: 0.5 } as Record<string, number>)[match[1]];
+      return value != null && value <= 3;
+    });
+  });
+}
+
 function hasAcuteAbdominalSignal(rawText: string): boolean {
   // 腹膜刺激征的口语表达（“按下去松手更疼”=反跳痛）与“肚子疼”类口语主诉必须覆盖；
   // 松手后“不疼”的否定式描述不命中（间隔字符排除不/无/未）。
@@ -2781,6 +2840,7 @@ function hasAcuteAbdominalSignal(rawText: string): boolean {
   const symptoms = abdominalSymptomAlternation();
   const text = withoutChronicTriggeredSeverity(rawText);
   return hasAnyTerm(rawText, ["急腹痛", "腹膜刺激征", ...GOVERNED_PERITONEAL_SIGNS]) ||
+    hasObjectiveAbdominalEmergencySign(rawText) ||
     // 症状短语自带重度性质词（上腹剧痛/右下腹剧痛/脘腹剧烈疼痛/少腹急痛/腹部绞痛）
     hasPatternWithoutNegation(text, new RegExp(ABDOMINAL_SEVERE_PAIN_COMPOSITION)) ||
     hasPatternWithoutNegation(text, new RegExp(
@@ -3901,12 +3961,17 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   }
   if (hasSuddenHeadacheSignal(text) || hasNeurologicEmergencySignal(text)) {
     redFlags.push("突发剧烈头痛、意识或神经功能异常，需优先排除神经系统急症");
+  } else if (hasMeningealSign(text)) {
+    redFlags.push("脑膜刺激征阳性（颈抵抗、克氏征或布氏征），需优先排除脑膜炎、蛛网膜下腔出血等神经系统急症");
   }
   if (acuteAbdominalSignal) {
     redFlags.push("急性、突发或剧烈腹痛/腹胀已出现，需先排除急腹症等风险");
   }
   if (anaphylacticAirwaySignal) {
     redFlags.push("急性过敏反应伴喉头或上气道肿胀线索，需立即评估气道、呼吸和循环并急诊处置");
+  }
+  if (hasAcuteTraumaFracture(text)) {
+    redFlags.push("外伤后3天内的骨折，需先急诊或骨科处置（固定、评估出血与神经血管损伤），再评估中药处方");
   }
   if (activeGiBleedingSignal) {
     redFlags.push("当前呕血、咖啡样呕吐物、黑便或便血提示活动性消化道出血风险，需立即评估循环状态并急诊处置");
@@ -3925,6 +3990,10 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   const acuteRespiratorySignal =
     hasAnyTerm(text, ["端坐呼吸", "不能平卧", "无法平卧", "喘不上气", "口唇发紫", "嘴唇发紫",
       ...RESPIRATORY_DETECTION.colloquialSymptoms]) ||
+    // 中心性发绀的查体写法（「口唇发绀」「口唇轻紫绀」「口唇面颊轻度发绀」）：部位与词表都在 T6 respiratory.detection。
+    hasPatternWithoutNegation(text, new RegExp(
+      `(?:${governedTermAlternation(RESPIRATORY_DETECTION.centralCyanosisSites)})[^，,。；;\\n无未不否没]{0,4}(?:${governedTermAlternation(RESPIRATORY_DETECTION.centralCyanosisTerms)})`,
+    )) ||
     hasColloquialOrthopnea(text) ||
     hasPatternWithoutNegation(text, /(?:说|讲)(?:半句|一句|几句话).{0,12}(?:停|歇|喘)|(?:静息|坐着不动).{0,8}(?:呼吸困难|气促|喘憋)/);
   // 胸痛/胸闷伴气促时，心血管红旗文案已经完整承接呼吸循环风险；避免同一事件重复成两条告警。
@@ -4053,11 +4122,12 @@ const RED_FLAG_FINDING_RULES: Array<{
   { id: "critical-vital-sign", message: /^(?:血压|体温|心率\/脉搏|呼吸 \d|血氧饱和度)/, source: /血压|BP|体温|T\s*[:：]?\s*\d|心率|脉搏|P\s*[:：]?\s*\d|呼吸|R\s*[:：]?\s*\d|血氧|SpO2/i, explanation: "已记录生命体征达到确定性危急阈值，需规范复测并现场评估。" },
   { id: "mental-crisis-current", message: /自杀|自伤|伤害他人/, source: /想死|活不下去|寻短见|一了百了|不想醒来|自杀|轻生|自伤|他伤/, explanation: "当前自伤、他伤或自杀意念需要立即现场安全评估。" },
   { id: "acute-cardiac-event", message: /心血管|冠脉|胸痛|胸闷/, source: /胸痛|胸闷|胸口|胸前|胸骨后|心口|心前区/, explanation: "急性或伴危险表现的胸部症状需先排除时间敏感性心血管事件。" },
-  { id: "acute-neurologic-event", message: /神经系统|神经功能|头痛/, source: /头痛|意识障碍|意识不清|神志不清|昏迷|昏睡|嗜睡|谵妄|呼之不应|抽搐|惊厥|无力|偏瘫|说不出话/, explanation: "急性意识、发作性事件或局灶神经异常需优先排除神经急症。" },
-  { id: "acute-abdomen-emergency", message: /急腹症|剧烈腹痛|腹痛\/腹胀/, source: /腹痛|腹胀|胃痛|胃脘痛|肚子疼|右下腹痛|上腹痛|心口窝痛|胃部疼痛|反跳痛|松手更疼|板状腹|腹肌紧张/, explanation: "剧烈腹痛或腹膜刺激征达到急腹症硬门槛；单纯突发、尚无重症表现者进入优先评估而非自动急诊定级。" },
+  { id: "acute-neurologic-event", message: /神经系统|神经功能|头痛/, source: /头痛|意识障碍|意识不清|神志不清|昏迷|昏睡|嗜睡|谵妄|呼之不应|抽搐|惊厥|无力|偏瘫|说不出话|颈抵抗|克氏征|克尼格征|Kernig|布氏征|布鲁津斯基征|Brudzinski|脑膜刺激征/, explanation: "急性意识、发作性事件或局灶神经异常需优先排除神经急症。" },
+  { id: "acute-abdomen-emergency", message: /急腹症|剧烈腹痛|腹痛\/腹胀/, source: /腹痛|腹胀|胃痛|胃脘痛|肚子疼|右下腹痛|上腹痛|心口窝痛|胃部疼痛|反跳痛|松手更疼|板状腹|腹肌紧张|板状|板样|腹壁强直|肌紧张|腹膜刺激征|停止排气|停止排便|停止肛门排气|肛门停止排气/, explanation: "剧烈腹痛或腹膜刺激征达到急腹症硬门槛；单纯突发、尚无重症表现者进入优先评估而非自动急诊定级。" },
   { id: "active-gi-bleeding", message: /消化道出血/, source: /呕血|吐血|黑便|柏油样便|便血|咖啡(?:色|样)/, explanation: "活动性消化道出血表现需立即评估失血量和循环状态。" },
   { id: "active-major-bleeding", message: /活动性大量阴道出血/, source: /阴道(?:出血|流血)|血红蛋白|血色素|HGB|Hb/i, explanation: "活动性大量阴道出血伴持续、重度贫血或循环灌注表现，达到非产科大出血硬门槛。" },
   { id: "acute-respiratory-event", message: /呼吸循环急症|缺氧/, source: /呼吸困难|气促|喘憋|端坐呼吸|不能平卧|无法平卧|喘不上气|发紫/, explanation: "静息或快速加重的呼吸困难及缺氧表现需立即评估。" },
+  { id: "acute-trauma-fracture", message: /外伤后3天内的骨折/, source: /骨折|摔伤|跌伤|跌倒|摔倒|车祸|外伤|撞伤|砸伤|坠落|扭伤|挤压伤/, explanation: "外伤后数日内的骨折需先完成急诊或骨科处置，再评估中药处方。" },
   { id: "tcm-critical-pattern", message: /危重中医证候术语/, source: /戴阳证|阴盛格阳|脉微欲绝/, explanation: "病历明确记录当前危重证候术语；该术语只触发现代急症核实，不直接授权任何课程方药或操作。" },
 ];
 

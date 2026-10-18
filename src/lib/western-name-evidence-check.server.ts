@@ -53,7 +53,8 @@ export type WesternNameCorrection = { supportedName: string; quote: string; reas
 
 // 核对给出的名称只能是一个干净的病名：不带括号、并列与推测语气（标点与语气词是写法检查）；中医证候字样由合同的同一判据
 // westernLabelContainsTcmSyndrome（西医主诊断不得带证候）判定，不在这里另写一张词表。
-const INVALID_SUPPORTED_NAME_FORM = /[（）()\/、，,；;：:？?]|或|可能|疑似|待排/;
+// 「主要症状＋待查」是提示词旧版里的格式说明，模型曾逐字照抄成病名（验收集 X-D-4595、X-D-4660）：带格式词的名称不采信。
+const INVALID_SUPPORTED_NAME_FORM = /[（）()\/、，,；;：:？?＋+]|或|可能|疑似|待排|主要症状/;
 
 /** 模型输出 → 可采信的改名（否则 undefined）。引文必须逐字在病历里；名称必须合规且与原名不同。 */
 export function parseWesternNameCorrection(content: unknown, recordText: string, currentName: string): WesternNameCorrection | undefined {
@@ -66,11 +67,18 @@ export function parseWesternNameCorrection(content: unknown, recordText: string,
   const name = typeof supportedName === "string" ? supportedName.trim() : "";
   const quoted = typeof quote === "string" ? quote.trim() : "";
   const why = typeof reason === "string" ? reason.trim().replace(/[。；;]+$/u, "") : "";
-  if (name.length < 2 || name.length > 20 || INVALID_SUPPORTED_NAME_FORM.test(name) || westernLabelContainsTcmSyndrome(name) || /证$/.test(name) || !/[一-龥]/.test(name)) return undefined;
+  if (name.replace(/待查$/u, "").length < 2 || name.length > 30 || INVALID_SUPPORTED_NAME_FORM.test(name) || westernLabelContainsTcmSyndrome(name) || /证$/.test(name) || !/[一-龥]/.test(name)) return undefined;
   if (compact(name) === compact(currentName)) return undefined;
+  // D 类（缺确诊检查或病程）指不出更宽一层的病名、只能写「症状待查」时，留住原来的首要考虑、写成「原病名待查」（2026-10-18）。
+  // 改成症状会把首要考虑挤进鉴别：验收集 X-D-4595 多发性骨髓瘤→「腰痛待查」、X-D-4660 先天性甲减→「便秘待查」、
+  // X-D-2054 慢性胰腺炎→「腹胀」。病历里「肺癌待查」「结核待查」本来就是这么写的：点出首要考虑，同时说明未确诊。
+  const current = currentName.trim();
+  const keepHypothesis = type === "D" && /待查$/u.test(name) && !/待查$/u.test(current) &&
+    current.length >= 2 && current.length <= 24 && !INVALID_SUPPORTED_NAME_FORM.test(current);
+  const supported = keepHypothesis ? `${current}待查` : name;
   if (compact(quoted).length < 4 || compact(quoted).length > 60 || !compact(recordText).includes(compact(quoted))) return undefined;
   if (why.length < 4 || why.length > 60) return undefined;
-  return { supportedName: name, quote: quoted, reason: why, type };
+  return { supportedName: supported, quote: quoted, reason: why, type };
 }
 
 type Json = Record<string, unknown>;
@@ -89,11 +97,13 @@ export function applyWesternNameCorrection(westernContent: string, correction: W
   const previous = typeof primary?.name === "string" ? primary.name.trim() : "";
   if (!root || !western || !primary || !previous) return westernContent;
   primary.name = correction.supportedName;
+  // 「原病名待查」：首要考虑没有换，只是标明未确诊。候选首位改名即可，不再另列原病名，鉴别里也不重复它。
+  const hypothesisKept = correction.supportedName === `${previous}待查`;
   const candidates = Array.isArray(western.candidates) ? western.candidates.filter((item): item is Json => Boolean(record(item))) : [];
   if (candidates.length > 0) {
     const others = candidates.filter((item) => item.name !== previous && item.name !== correction.supportedName);
     const lead = candidates.find((item) => item.name === previous) || candidates[0];
-    western.candidates = [
+    western.candidates = hypothesisKept ? [{ ...lead, name: correction.supportedName }, ...others].slice(0, 3) : [
       { ...lead, name: correction.supportedName },
       // D 类没有与原病名相反的记录，只是还没有确诊它的检查或病程：不把引文（支撑上一级病名的那句）写成反对依据。
       correction.type === "D"
@@ -103,7 +113,7 @@ export function applyWesternNameCorrection(westernContent: string, correction: W
     ].slice(0, 3);
   }
   const differentials = Array.isArray(western.differentials) ? western.differentials.filter((item): item is Json => Boolean(record(item))) : [];
-  if (!differentials.some((item) => item.name === previous)) {
+  if (!hypothesisKept && !differentials.some((item) => item.name === previous)) {
     western.differentials = [
       correction.type === "D"
         // 模型写的理由常以「无/未记录…检查」开头，放进鉴别要点后会被当成对患者的否认、再被改写成「病历未记录…（需问诊核实…）」
@@ -140,7 +150,7 @@ export async function westernNameCorrectionForRecord(
         "C. 诊断名说的是较重的一层（“功能不全”“衰竭”“剧吐”“重度”等需要特定指标或程度才成立的名称），而病历记录的指标、程度只够得上较轻的一层。",
         "D. 诊断名比病历能支撑的更具体：按公认诊断标准，这个名称必须依赖某项检查结果才能成立，或必须满足病程门槛，而病历里既没有记录这项检查的结果，已记录的病程也够不上门槛。典型的如：缺铁性贫血、巨幼细胞贫血等指明贫血类型的名称需要相应检查（只有血红蛋白只能说贫血）；多囊卵巢综合征需要鹿特丹标准三项中至少两项；甲状腺功能减退症、糖尿病等以化验定义的病需要相应化验结果；慢性胃炎、消化性溃疡需要胃镜；骨质疏松症需要骨密度或影像；某种特定病原体感染需要病原学结果；功能性消化不良、肠易激综合征、功能性便秘的时间门槛是起病至今满6个月——病程写满6个月（半年、1年、2年都算）就满足，不要求病历另写“持续3个月”，也不要求做过胃镜；肠易激综合征还必须有腹痛；牙病的分型名称（急性牙髓炎、慢性牙髓炎、急性根尖周炎、牙周脓肿、智齿冠周炎等）需要口腔专科检查（牙髓活力或冷热测试、叩诊、牙周探诊、X线）才能分型，病历没有口腔检查记录时只能写“牙痛”。",
         "以下情况一律判 consistent：门诊常见病按典型临床表现即可诊断、诊断标准本来不要求某项检查（如上呼吸道感染、急性支气管炎、急性胃肠炎、带状疱疹、荨麻疹、湿疹、偏头痛、紧张型头痛、失眠障碍、腰肌劳损、原发性痛经；有烧心或反酸、反流症状的胃食管反流病；有典型发作性胸痛的心绞痛或冠心病；有长期饮酒史并有肝脏影像或肝功能异常的酒精性肝病），这时没做检查不算问题；贫血按病历已记录的原因命名（产后贫血、失血性贫血、月经过多所致贫血）不算过度具体；名称是急危重症（如蛛网膜下腔出血、急性心肌梗死、主动脉夹层、异位妊娠、脑卒中、休克）时不适用 D；检查只有非特异性改变、不能确诊也不能排除；结果正常但该病在此阶段结果本来就可以正常（如痛风急性发作期血尿酸可以正常、冠心病静息心电图可以正常）；病历里写明的既往确诊（如“高血压病史10年”“胃镜示慢性胃炎”）；你只是觉得另一个诊断更可能。拿不准时判 consistent。",
-        "判 inconsistent 时给出：quote（A、B、C 写病历里与之矛盾的那句原文；D 写病历里支撑上一级病名的那句原文；逐字复制，不超过40字）、reason（一句话说明为什么不符或缺什么，≤30字）和 supportedName。supportedName 只能是下面两种之一：① 比原诊断更宽一层或更轻一层、现有记录已经够得上的规范病名（如“贫血”“月经稀发”“消化不良”“妊娠呕吐”“关节炎”“牙痛”）；② 指不出这样的病名时写“主要症状＋待查”。不得换成病历同样没有证实的另一个具体病种，不得写比原诊断更重的名称，不带括号和解释。",
+        "判 inconsistent 时给出：quote（A、B、C 写病历里与之矛盾的那句原文；D 写病历里支撑上一级病名的那句原文；逐字复制，不超过40字）、reason（一句话说明为什么不符或缺什么，≤30字）和 supportedName。supportedName 只能是下面两种之一：① 比原诊断更宽一层或更轻一层、现有记录已经够得上的规范病名（如“贫血”“月经稀发”“消化不良”“妊娠呕吐”“关节炎”“牙痛”）；② 指不出这样的病名时：D 类写原诊断名加“待查”（如“多发性骨髓瘤待查”，表示首要考虑不变、尚未确诊）；A、B、C 类写病历里最主要的症状加“待查”（如“关节痛待查”“血尿待查”）。不得换成病历同样没有证实的另一个具体病种，不得写比原诊断更重的名称，不带括号和解释。",
         // 2026-10-18：诊断标准要点来自受治理要点表或权威页面的检索摘要（western-diagnostic-criteria.server.ts），让情形 D 不再只靠上面手写的十几个病。
         "如果输入里给了 criteria（该诊断名的诊断标准要点，摘自诊疗手册、指南等权威来源）：clinicallyDiagnosable 为 true 的病按典型临床表现即可诊断，不适用 D；requiredTests 不为空时，病历里没有其中任何一项检查的结果、也不是病历写明的既往确诊，才符合 D；durationThreshold 写了病程门槛时按它判断病程够不够；definingFeatures 是定义性表现，病历已记录与之相反时属 B。criteria 里是检索摘录（searchExcerpts）时，只把摘录里明确写出的必需检查或病程门槛当依据。criteria 与上面的通则冲突时以上面的通则为准（急危重症不用 D、病历写明的既往确诊不算）。没有 criteria 时按上面的通则判断。",
         "只输出 JSON：{\"verdict\":\"consistent|inconsistent\",\"type\":\"A|B|C|D|\",\"quote\":\"…\",\"reason\":\"…\",\"supportedName\":\"…\"}",

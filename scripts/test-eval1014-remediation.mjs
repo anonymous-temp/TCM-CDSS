@@ -1822,4 +1822,78 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
   });
 }
 
+// ───── 16 终版验收（10/18）暴露的西医诊断两类服务端缺陷 ─────
+{
+  const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const wrap = (name) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", westernDiagnosis: { primary: { name, supportingFacts: ["咳嗽、咳痰"], suggestedChecks: [] }, differentials: [] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const primaryName = (content) => JSON.parse(content.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).westernDiagnosis.primary.name;
+  check("16.1 慢性支气管炎的病程门槛按数字读：「5年，近3年每年持续3~4个月」够（X-D-0124）；「每年冬季发作，持续3个月以上，已10余年」够；病程1年余、每年1~2个月不够（对照）", () => {
+    const met = [
+      "主诉：咳嗽、咳痰5年\n现病史：咳嗽、咳痰5年，近3年每年持续咳嗽、咳痰3~4个月。",
+      "主诉：反复咳嗽咳痰10余年\n现病史：反复咳嗽咳痰10余年，每年冬季发作，持续3个月以上。",
+      "主诉：咳嗽咳痰喘息\n现病史：咳嗽、咳痰十年，每年发作持续三四个月不等。",
+    ];
+    for (const context of met) assert.equal(primaryName(visible.declassifyUnmetFormalM03WesternPrimary(wrap("慢性支气管炎"), context)), "慢性支气管炎", context);
+    const unmet = [
+      "主诉：咳嗽咳痰1年余\n现病史：咳嗽咳痰1年余，每年持续3个月。",
+      "主诉：咳嗽咳痰10年\n现病史：咳嗽咳痰10年，每年咳嗽1~2个月。",
+    ];
+    for (const context of unmet) assert.notEqual(primaryName(visible.declassifyUnmetFormalM03WesternPrimary(wrap("慢性支气管炎"), context)), "慢性支气管炎", context);
+  });
+  const westernCheck = await jiti.import("../src/lib/western-name-evidence-check.server.ts");
+  const record = "主诉：腰痛2个月，右下肢活动困难1周\n现病史：男，50岁，腰痛2个月，近1周右下肢活动困难，外院诊断坐骨神经痛。查体：贫血貌。";
+  const verdict = (extra) => JSON.stringify({ verdict: "inconsistent", type: "D", quote: "腰痛2个月", reason: "尚未行骨髓穿刺与M蛋白检查", ...extra });
+  check("16.2 情形 D 指不出更宽的病名时留住首要考虑：「多发性骨髓瘤」→「多发性骨髓瘤待查」，候选首位改名、鉴别不重复列它（X-D-4595 曾成「主要症状＋待查」，X-D-2054 成「腹胀」）", () => {
+    for (const supportedName of ["腰痛待查", "多发性骨髓瘤待查"]) {
+      const correction = westernCheck.parseWesternNameCorrection(verdict({ supportedName }), record, "多发性骨髓瘤");
+      assert.equal(correction?.supportedName, "多发性骨髓瘤待查", supportedName);
+      const western = { westernDiagnosis: { primary: { name: "多发性骨髓瘤" }, differentials: [{ name: "脊柱转移瘤", reason: "需排除" }], candidates: [{ name: "多发性骨髓瘤", likelihood: "中" }, { name: "脊柱转移瘤", likelihood: "低" }] } };
+      const out = JSON.parse(westernCheck.applyWesternNameCorrection(JSON.stringify(western), correction)).westernDiagnosis;
+      assert.equal(out.primary.name, "多发性骨髓瘤待查");
+      assert.deepEqual(out.candidates.map((item) => item.name), ["多发性骨髓瘤待查", "脊柱转移瘤"]);
+      assert.deepEqual(out.differentials.map((item) => item.name), ["脊柱转移瘤"]);
+    }
+  });
+  check("16.3 提示词格式词照抄成的病名不采信（「主要症状＋待查」）；A–C 类症状待查照常（对照）；D 类有更宽病名时照常用它（对照）", () => {
+    assert.equal(westernCheck.parseWesternNameCorrection(verdict({ type: "B", supportedName: "主要症状＋待查" }), record, "多发性骨髓瘤"), undefined);
+    assert.equal(westernCheck.parseWesternNameCorrection(verdict({ type: "B", supportedName: "腰痛待查" }), record, "多发性骨髓瘤")?.supportedName, "腰痛待查");
+    assert.equal(westernCheck.parseWesternNameCorrection(verdict({ supportedName: "贫血" }), record, "缺铁性贫血")?.supportedName, "贫血");
+  });
+}
+
+{
+  const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+  const id = (text) => provenance.identifyKnownFormulaNames(text);
+  check("16.4 教材方名整体是一个方：目录里没有的教材方不在里面认出更短的别的方（栝蒌薤白半夏汤≠半夏汤，验收集 M 8 次锁错）；瓜蒌三种写法、丸散方作汤剂按同一首认；合方、已收录方照常（对照）", () => {
+    assert.deepEqual(id("栝蒌薤白半夏汤合涤痰汤加减"), ["瓜蒌薤白半夏汤", "涤痰汤"]);
+    assert.deepEqual(id("二地鳖甲煎"), []);
+    assert.deepEqual(id("柴枳半夏汤"), []);
+    assert.deepEqual(id("瓜蒌牛蒡汤"), ["栝楼牛蒡汤"]);
+    assert.deepEqual(id("大黄白茅根汤"), []);
+    assert.deepEqual(id("首选知柏地黄汤加减"), ["知柏地黄丸"]);
+    assert.deepEqual(id("杞菊地黄汤"), ["杞菊地黄丸"]);
+    assert.deepEqual(id("瓜蒌薤白白酒汤"), ["栝楼薤白白酒汤"]);
+    assert.deepEqual(id("半夏汤"), ["半夏汤"]);
+    assert.deepEqual(id("鳖甲煎丸"), ["鳖甲煎丸"]);
+    assert.deepEqual(id("温胆汤合半夏泻心汤"), ["温胆汤", "半夏泻心汤"]);
+    assert.deepEqual(id("驱虫粉合参苓白术散"), ["参苓白术散"]);
+  });
+}
+
+{
+  const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const record = "主诉：腹痛腹泻间作两年，又作七天\n现病史：入院时患者：腹痛偶作，无肩背部放射痛，腹泻，大便日行1-2次，色黄欠成形，无粘液脓血，反酸偶作，无明显嗳气及胸骨后烧灼感，无头晕，无畏寒发热，无胸闷气喘，食纳欠佳，夜寐安，小便尚调。\n体格检查：颈部对称，无青筋暴露，无瘿瘤瘰疬，胸部对称，腹部平坦，无癥瘕痞块，舌淡苔白，脉细。";
+  const chain = (nodes) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", pathogenesis: { chain: nodes.map(([patientFact, syndromeEvidence]) => ({ patientFact, syndromeEvidence, pathogenesis: "脾虚湿盛", therapyDirection: "健脾化湿" })) } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const kept = (content) => JSON.parse(visible.groundStructuredPatientFacts(content, record).split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).pathogenesis.chain.length;
+  check("16.5 逐项写否认的句子里，否认不跨逗号继承：「无牵扯痛，反酸偶作，无头晕…食纳欠佳」里没写「无」的是阳性，引这些原文的病机链节点照常接地（M-TCM-SD-422604 整条链被丢、M03 退回占位；语料 52,207 句 1,062 句改判、读过的全部是阳性被误读成「无…」：舌脉、纳眠、乏力、口干口苦…）；只有一个否认词的句子、顿号列举照旧继承（对照）", () => {
+    assert.equal(kept(chain([["反酸偶作", "食纳欠佳"], ["食纳欠佳", "舌淡苔白，脉细"]])), 2);
+    const single = "主诉：咳嗽\n现病史：否认高血压，糖尿病病史。";
+    const singleKept = JSON.parse(visible.groundStructuredPatientFacts(chain([["糖尿病病史", "咳嗽"]]), single).split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).pathogenesis.chain.length;
+    assert.equal(singleKept, 0, "只有一个否认词时，逗号后的「糖尿病病史」仍按否认处理");
+    const enumerated = "主诉：胃痛\n现病史：胃痛3天，无恶心、呕吐，无发热。";
+    const enumeratedKept = JSON.parse(visible.groundStructuredPatientFacts(chain([["呕吐", "胃痛3天"]]), enumerated).split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).pathogenesis.chain.length;
+    assert.equal(enumeratedKept, 0, "顿号列举「无恶心、呕吐」里的呕吐仍是否认");
+  });
+}
+
 console.log(JSON.stringify({ cases, failures: process.exitCode ? "see above" : 0 }));

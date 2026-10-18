@@ -1,0 +1,74 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-18",
+ "contexts": [
+  "outpatient_record"
+ ],
+ "id": "central-cyanosis-written-form",
+ "trigger": "10.18 逐模块验收 M 集 5 例入院病历写「口唇发绀」（伴胸闷憋喘、黑矇、心衰史）零红旗；同一体征写「口唇发紫」早就报红旗。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "acuteRespiratorySignal 只认口语「口唇发紫/嘴唇发紫」，查体书面写法「发绀/紫绀」不在判据里（T6 respiratory 的 dangerCompanions 收了「发绀」但没有判据读它）。",
+  "exception": "冻结令允许的确定性例外：有限闭集 + 构词式。中心部位（口唇、唇周、口周、颜面、面颊、面唇，T6 respiratory.detection.centralCyanosisSites）后 4 字内接发绀/紫绀；窗口里不得有否认字。指端、足趾、四肢的周围性发绀与中医望诊的唇色紫暗、爪甲青紫不收。",
+  "sources": "《诊断学》皮肤黏膜：中心性发绀见于口唇、面颊等处，提示缺氧；周围性发绀见于肢端，多为末梢循环障碍。"
+ },
+ "parity": {
+  "note": "书面写法与口语写法同权；兄弟句必须报警。",
+  "pairs": [
+   {
+    "subject": "胸闷气短，口唇发绀。",
+    "sibling": "胸闷气短，口唇发紫。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "咳喘加重1周，口唇紫绀。",
+    "sibling": "咳喘加重1周，嘴唇发紫。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "口唇面颊轻度发绀，呼吸困难。",
+    "sibling": "嘴唇发紫，呼吸困难。",
+    "siblingExpect": "flagged"
+   }
+  ]
+ },
+ "controls": {
+  "note": "否认、周围性发绀、望诊瘀象必须保持不报。mustStillFlag 后两句是定稿后另写的留出句。",
+  "mustStillFlag": [
+   {
+    "text": "胸闷憋喘，口唇发绀。",
+    "flag": "呼吸循环"
+   },
+   {
+    "text": "口唇轻紫绀，双肺哮鸣音。",
+    "flag": "呼吸循环"
+   },
+   {
+    "text": "心悸气短，口周发绀。",
+    "flag": "呼吸循环"
+   },
+   {
+    "text": "患儿咳嗽气促，唇周紫绀。",
+    "flag": "呼吸循环"
+   }
+  ],
+  "mustStayReady": [
+   "口唇无发绀。",
+   "口唇未见发绀。",
+   "无口唇发绀。",
+   "双手指尖遇冷紫绀6年。",
+   "右足趾发凉、紫绀3个月。",
+   "唇色紫暗，舌有瘀斑。",
+   "爪甲青紫，经行腹痛。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-18",
+   "what": "现代医案语料 + 验收集 + 既往评测集里含发绀/紫绀的病例 × 两种形状（711f49e 对改后）",
+   "result": "首版收裸「发绀/紫绀」：456 次判定改 154 次，雷诺、脱疽、动脉闭塞的指端紫绀 20 余例误报 → 收窄为中心部位；终版改动读过：心衰、慢阻肺加重、心梗、昏迷伴口唇发绀为主，另有 2 例数十年的先心病/慢性肾炎口唇发绀（慢性稳定，报警偏严，留作记录）"
+  }
+ ]
+}
