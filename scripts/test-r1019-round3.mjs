@@ -76,6 +76,11 @@ await check("2.1 「二便调示里和无热结」不改「未诉热结」；没
   assert.equal(visible.unrecordedNegativesAsNotReported("本例恶寒重、发热轻、无汗、口不渴，涕清", CASE1), "本例恶寒重、发热轻、无汗、未诉口渴，涕清");
   assert.equal(visible.unrecordedNegativesAsNotReported("本例口不渴，涕清", `${CASE1}口不渴。`), "本例口不渴，涕清");
   assert.equal(visible.unrecordedNegativesAsNotReported("大便不干，小便调", CASE1), "大便不干，小便调");
+  // 「为无热象之佐」「虚劳无传染性」是判断，不改（「…象」「…性」是推断的性质）；「无恶寒」照改（对照，前面没有判断词）。
+  assert.equal(visible.unrecordedNegativesAsNotReported("小便清长、苔白为无热象之佐。", CASE1), "小便清长、苔白为无热象之佐。");
+  assert.equal(visible.unrecordedNegativesAsNotReported("虚劳无传染性，与肺痨相区分。", CASE1), "虚劳无传染性，与肺痨相区分。");
+  assert.equal(visible.unrecordedNegativesAsNotReported("本例无口苦，与少阳证相区分。", CASE1), "本例未诉口苦，与少阳证相区分。");
+  assert.equal(visible.unrecordedNegativesAsNotReported("便溏为无热结之征。", CASE1), "便溏为无热结之征。");
   // 「无脓无屑」不再整段当一个对象改成「未诉脓无屑」。
   assert.equal(visible.unrecordedNegativesAsNotReported("头皮无脓无屑，", CASE1), "头皮无脓无屑，");
 });
@@ -278,6 +283,14 @@ await check("7.2 教材病证候选给出各病的教材鉴别要点原文（腰
   const context = tb.buildTextbookCandidateContext({ chiefComplaint: "腰痛半年", presentHistory: "腰部酸痛，劳累后加重，伴耳鸣、口燥咽干，舌红少苔，脉细数。", sex: "女", ageYears: 50 });
   assert.match(context, /◆ 腰痛[^\n]*\n  教材鉴别要点：背痛[^\n]*尻痛是尻骶部位的疼痛/);
   assert.match(context, /以各病下「教材鉴别要点」写的区分依据为准/);
+});
+
+await check("8.3 病历声明核对不删并列的第一项、当它的谓语为后面各项共用（「疼痛不在背膂以上、尻骶或胯部」）；普通并列项照删（对照）", async () => {
+  const claim = await jiti.import("../src/lib/m03-patient-claim-check.server.ts");
+  const text = "以腰部隐痛为主症；疼痛不在背膂以上、尻骶或胯部，与背痛、尻痛、胯痛相区分。";
+  assert.equal(claim.withoutClaimSpan(text, "疼痛不在背膂以上"), text);
+  assert.equal(claim.withoutClaimSpan("本例恶寒重、发热轻、口不渴、涕清", "口不渴"), "本例恶寒重、发热轻、涕清");
+  assert.equal(claim.withoutClaimSpan("长期典型劳力相关胸闷胸痛史、明确冠心病诊断，属胸痹", "长期典型劳力相关胸闷胸痛史"), "明确冠心病诊断，属胸痹");
 });
 
 // ───── 8 目录锁不住的教材代表方 ─────

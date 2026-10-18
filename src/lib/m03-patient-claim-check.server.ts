@@ -250,6 +250,9 @@ function longestSharedRun(a: string, b: string): number {
  * 删这一项（「长期典型劳力相关胸闷胸痛史、明确冠心病诊断」只删前一项）；否则删它所在的逗号分句，
  * 连带一个相邻逗号（分句是括号里唯一的内容时连括号一起删）。删后没有汉字了就原样返回（不把字段删空）。片段不在文中时原样返回。
  */
+/** 并列第一项里可能被后面各项共用的谓语：否定词与「在/为/属/见/有」。 */
+const LIST_HEAD_PREDICATE = /不在|不|无|未|没|非|在|为|属|见|有/u;
+
 export function withoutClaimSpan(value: string, span: string): string {
   const at = span ? value.indexOf(span) : -1;
   if (at < 0) return value;
@@ -261,6 +264,14 @@ export function withoutClaimSpan(value: string, span: string): string {
   let itemStop = end;
   while (itemStop < value.length && !CLAUSE_DELIMITERS.includes(value[itemStop]) && value[itemStop] !== "、") itemStop += 1;
   const inList = value[itemStart - 1] === "、" || value[itemStop] === "、";
+  // 片段是并列的第一项、并列的谓语（否定、「在/为/属」）只写在这一项里、后面各项共用它（「疼痛不在背膂以上、尻骶或胯部，与背痛、尻痛相区分」）：
+  // 删这一项会留下没有谓语的「尻骶或胯部」，删整句又丢了区分依据（2026-10-19 甲方标准病历 6 第三轮复测）。这种写法不删。
+  if (inList && value[itemStart - 1] !== "、" && itemStart === at && itemStop === end) {
+    let nextStop = itemStop + 1;
+    while (nextStop < value.length && !CLAUSE_DELIMITERS.includes(value[nextStop]) && value[nextStop] !== "、") nextStop += 1;
+    const nextItem = value.slice(itemStop + 1, nextStop);
+    if (LIST_HEAD_PREDICATE.test(span) && !LIST_HEAD_PREDICATE.test(nextItem)) return value;
+  }
   // 片段是这一项末尾、由「并/且/伴/而…」接上的那半句（「慢性胸闷乏力加重并放射至肩背」「肿物脱出不能还纳伴明显坠胀疼痛」）：
   // 只删连接词（连同紧跟的程度词）和片段。
   const linked = end === itemStop ? CLAUSE_LINKER_TAIL.exec(value.slice(itemStart, at)) : null;

@@ -968,12 +968,14 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
   const core = (term: string) => term.replace(/之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状|象)$/u, "");
   // 同一分句里「无」之前已有「示/提示/表明/说明/可知」时，「无X」是从记录推出的判断（「二便调示里和无热结」），不是对症状的否认，照原样留
   //（2026-10-19 甲方标准病历 1 复测：曾改成「示里和未诉热结」）。紧挨着的「示无」已由正则的后顾排除，这里管隔了几个字的。
-  const inferred = (offset: number, whole: string) => /(?:示|表明|说明|可知)[^，,。；;]*$/u.test(whole.slice(0, offset));
+  // 「…为无热象之佐」「虚劳无传染性」同理：「为无」后接的是判断，「…象」「…性」是推断出的性质，不是病人的症状（2026-10-19 甲方标准病历 3、5 第三轮复测）。
+  const inferred = (offset: number, whole: string, term = "") =>
+    /(?:示|表明|说明|可知)[^，,。；;]*$/u.test(whole.slice(0, offset)) || /为$/u.test(whole.slice(0, offset)) || /^[\u4e00-\u9fff]{1,3}[象性](?:之|$)/u.test(term);
   const out = text.replace(UNRECORDED_NEGATIVE, (match, term: string, offset: number, whole: string) =>
-    inferred(offset, whole) || recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) ? match : `未诉${term}`)
+    inferred(offset, whole, term) || recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) ? match : `未诉${term}`)
     // 「无气从少腹上冲胸咽之奔豚特征」：对象后面接「之…特征/表现/症状」时上面那条够不着（2026-10-19 甲方标准病历 2 第 3 次生成）。
     .replace(UNRECORDED_NEGATIVE_FEATURE, (match, term: string, offset: number, whole: string) =>
-      inferred(offset, whole) || recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`)
+      inferred(offset, whole, term) || recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`)
     // 「口不渴」「口不干」「口不苦」是同一类阴性写法（2026-10-19 甲方标准病历 1：风温鉴别写「本例…口不渴」，病历没记录口渴与否）。
     .replace(/口不(渴|干|苦)|(?<=^|[，,、；;。：:\s])不(渴)(?=[，,、；;。]|$)/gu, (match, mouth: string | undefined, bare: string | undefined, offset: number, whole: string) => {
       const what = mouth || bare || "";
