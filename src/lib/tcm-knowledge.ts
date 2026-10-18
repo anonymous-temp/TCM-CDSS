@@ -1657,10 +1657,20 @@ export function getTcmHerbFunctionText(herb: string): string {
   if (!verified || verified.unsupported.length === 0) return base;
   // 剔除已核对为「药典/中药学都不给该药」的条目（炙甘草名下的「清热解毒」属生甘草）。只动功效正文条目：
   // 分类标签、给药途径（先煎/包煎/冲服…）不在 unsupported 里，本来也不会被生成器写进去。
+  // 条目之间可能是「，」也可能是「、」（青蒿：「…补中、去湿、解暑、益气、清热…；解毒、疏风清热」），两种都按条目剔除，
+  // 留下的条目保持原分隔符。此前只按「，」切，顿号连着的整串当成一条，剔除项永远对不上。
   const dropped = new Set(verified.unsupported);
-  return base.split(/[；;]/).map((segment) => segment.trim()).filter(Boolean).map((segment) =>
-    segment.split(/[，,]/).map((item) => item.trim()).filter((item) => item && !dropped.has(item)).join("，"))
-    .filter(Boolean).join("；");
+  return base.split(/[；;]/).map((segment) => segment.trim()).filter(Boolean).map((segment) => {
+    const kept: string[] = [];
+    for (const [index, token] of segment.split(/([，,、])/u).entries()) {
+      if (index % 2 === 1) continue;
+      const item = token.trim();
+      if (!item || dropped.has(item)) continue;
+      const delimiter = index > 0 ? segment.split(/([，,、])/u)[index - 1] : "";
+      kept.push(kept.length > 0 ? `${delimiter === "、" ? "、" : "，"}${item}` : item);
+    }
+    return kept.join("");
+  }).filter(Boolean).join("；");
 }
 
 /** 核对词典里、知识库功用文本还没有的功用（只供方义栏展示与选词）。 */

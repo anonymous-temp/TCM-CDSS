@@ -3831,7 +3831,7 @@ const HERB_FUNCTION_CONCEPT_GROUPS: readonly RegExp[] = [
   /安神|宁心|宁神|养心|定志|镇惊|安魂|定魄/,
   /健脾|补脾|益脾|补益心脾|益心脾|健运/,
   /理气|行气|疏肝|舒肝|解郁|开郁/, /清热|泻火|凉血/, /化痰|祛痰/, /利湿|渗湿|利水|祛湿/,
-  /温阳|扶阳|散寒|温中|温肾/, /滋阴|养阴|育阴|生津/, /解表|祛风/, /止痛/, /止咳|平喘/,
+  /温阳|扶阳|散寒|温中|温肾/, /滋阴|养阴|育阴|生津/, /解表|祛风|疏风|散风/, /止痛/, /止咳|平喘/,
   /消食|导滞/, /收涩|敛汗|固涩/, /止血/, /通便|泻下|攻下/,
 ];
 /** 引经方向说法只认原词（桔梗「载药上行」写成「载药下行」是错的，不能按概念组放过）。 */
@@ -3842,16 +3842,41 @@ const HERB_GUIDING_DIRECTION = /(?:载|引)(?:药|血|火)?(?:上|下)行|引火
  * 益智「益气」、桔梗「载药下行」）。只返回需要去掉的词，不改准入判据（herbFunctionMatchesKnowledge 不变：收紧它会改变
  * 君药与配伍面准入，见 test:herb-breadth-surface）。knowledgeText 由调用方给（交付面用知识库原文＋核对词典的展示文本）。
  */
+/** 这段文字是不是落在某个功效概念组里（交付面去掉无依据的词之后，判断剩下的半句还算不算一条功效）。 */
+export function herbFunctionPhraseRecognized(phrase: string): boolean {
+  return HERB_FUNCTION_CONCEPT_GROUPS.some((group) => group.test(phrase)) || DISPLAY_DIRECTION_GROUPS.some((group) => group.test(phrase));
+}
+
+// 交付面只去「方向性」的错说法（补益、清热、温阳、活血、安神、攻下、疏肝理气、解表祛风）：把药的性质说反、说偏，医生会被误导。
+// 止痛、止咳、化痰、利湿、消食、收涩、止血、健脾这类随证的作用不去——知识库条目是字面写法（秦艽「止痹痛」、黄芪「补气升阳」），
+// 按字面去会把教材承认的作用也删掉（2026-10-18 回放 1,665 个候选：黄芪「健脾」、秦艽「止痛」、法半夏「止咳」）。
+// 同义写法补进比对：柴胡「升举阳气」即升阳，砂仁「温脾」即温中，鹿角胶「温补肝肾」、知识库分类「补阳药」即温阳，白芍「敛阴」即养阴；
+// 泛称「补益」「扶正」不算补气（杜仲「补益肝肾」曾因此被去成「肝肾」）。
+const DISPLAY_DIRECTION_GROUPS: readonly RegExp[] = [
+  /补(?:中|脾|肺|肾)?气|益(?:中|脾|肺|肾)?气|补中|升阳|升举阳气|举陷|固表/,
+  /养(?:心|肝)?血|补(?:心|肝)?血|益血/,
+  /活血|化瘀|行瘀|和血/,
+  /安神|宁心|宁神|养心|定志|镇惊|安魂|定魄/,
+  /理气|行气|疏肝|舒肝|解郁|开郁/, /清热|泻火|凉血/,
+  /温阳|扶阳|散寒|温中|温肾|温脾|温补|补肾阳|补阳|助阳|壮阳/, /滋阴|养阴|育阴|敛阴|补阴/, /解表|祛风|疏风|散风/,
+  /通便|泻下|攻下/,
+];
+
 export function herbFunctionClaimUnsupportedPhrases(claimedFunction: string, knowledgeText: string): string[] {
   if (!claimedFunction || !knowledgeText) return [];
   const unsupported: string[] = [];
-  for (const group of HERB_FUNCTION_CONCEPT_GROUPS) {
+  for (const group of DISPLAY_DIRECTION_GROUPS) {
     const global = new RegExp(group.source, "gu");
     const matches = [...claimedFunction.matchAll(global)].map((match) => match[0]);
     if (matches.length > 0 && !group.test(knowledgeText)) unsupported.push(...matches);
   }
+  // 引经方向：知识库写了相反方向（桔梗「载药上行」，说成「载药下行」），或完全没有引经的说法时才去；同方向的不同写法
+  //（牛膝库里是「引血下行」，写「引药下行」）照留。
+  const knownDirections = new Set([...knowledgeText.matchAll(HERB_GUIDING_DIRECTION)].map((match) => /上/u.test(match[0]) ? "上" : "下"));
+  const guidesAtAll = knownDirections.size > 0 || /引经/u.test(knowledgeText);
   for (const match of claimedFunction.matchAll(HERB_GUIDING_DIRECTION)) {
-    if (!knowledgeText.includes(match[0])) unsupported.push(match[0]);
+    const direction = /上/u.test(match[0]) ? "上" : "下";
+    if (!guidesAtAll || (knownDirections.size > 0 && !knownDirections.has(direction))) unsupported.push(match[0]);
   }
   return [...new Set(unsupported)];
 }

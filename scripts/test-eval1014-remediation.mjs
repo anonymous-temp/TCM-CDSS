@@ -1895,6 +1895,29 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
     assert.equal(enumeratedKept, 0, "顿号列举「无恶心、呕吐」里的呕吐仍是否认");
   });
 }
+{
+  const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  check("16.17 辨证推断里的「示无里热」「提示里无湿热积滞」「里和无损」不改成「未诉…」（甲方病历 1/3/9 三次生成都出现「示未诉里热」）；与相邻病证区分的「无里急后重」仍改（对照）", () => {
+    const record = "咳嗽3天，恶寒发热，无汗，舌淡红苔薄白，脉浮紧。小便清长。";
+    for (const text of ["饮食二便尚可为里和无损之佐证。", "小便清长示无里热。", "二便尚调提示里无湿热积滞，故不属胃肠湿热。"]) {
+      assert.equal(visible.unrecordedNegativesAsNotReported(text, record), text);
+    }
+    assert.equal(visible.unrecordedNegativesAsNotReported("无里急后重，与痢疾相区分", record), "未诉里急后重，与痢疾相区分");
+  });
+  const plan = await jiti.import("../src/lib/tcm-nondrug-textbook-plan.server.ts");
+  check("16.20 项目卡上的孕哺字样只写给可能属于这些人群的患者（甲方病历 2/4/6/8 男性，耳穴卡「妊娠期慎用」、针刺必查项「妊娠相关穴位」）；点了穴名的注意句所点穴都不在本卡上时不留（病历 6 腰痛卡「膏肓、肺俞、膈俞…避免气胸」）；育龄女性与本卡有该穴的照留（对照）", () => {
+    assert.equal(plan.cardTextForPopulation("耳廓皮肤破溃、冻疮、感染或过敏时禁用，妊娠期慎用", false), "耳廓皮肤破溃、冻疮、感染或过敏时禁用。");
+    assert.equal(plan.cardTextForPopulation("出血倾向、抗凝用药、妊娠相关穴位、局部感染和晕针史", false), "出血倾向、抗凝用药、局部感染和晕针史");
+    assert.equal(plan.cardTextForPopulation("耳廓皮肤破溃时禁用，妊娠期慎用", true), "耳廓皮肤破溃时禁用，妊娠期慎用");
+    assert.doesNotMatch(plan.cardSentencesNamingListedPoints("毫针常规刺。禁忌：膏肓、肺俞、膈俞等穴局部肌肉薄，须规范操作避免气胸。", ["肾俞", "委中", "腰阳关"]), /气胸/);
+    assert.match(plan.cardSentencesNamingListedPoints("毫针常规刺。禁忌：肺俞等穴不宜深刺，避免气胸。", ["肺俞", "尺泽"]), /气胸/);
+    assert.match(plan.cardSentencesNamingListedPoints("毫针常规刺。注意针刺深度，避免晕针。", ["肾俞"]), /晕针/, "没点穴名的注意句照留");
+  });
+  check("16.18 两字阴性项在病历里隔着修饰写到过（「腹中冷痛」对「无腹痛」）不改成「未诉腹痛」（留出例 S058）；中间隔标点的不算写到过（对照）", () => {
+    assert.equal(visible.unrecordedNegativesAsNotReported("否认呕吐；无腹痛，与肠结相区分", "排便困难2年，腹中冷痛、热敷后舒服。"), "否认呕吐；无腹痛，与肠结相区分");
+    assert.equal(visible.unrecordedNegativesAsNotReported("无腹痛，与肠结相区分", "排便困难2年，腹胀，偶有头痛。"), "未诉腹痛，与肠结相区分");
+  });
+}
 
 {
   const surface = await jiti.import("../src/lib/delivered-surface.ts");
@@ -1911,6 +1934,31 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
     assert.equal(fn["益智仁"], "温脾止泻");
     assert.equal(fn["当归"], "补血活血");
     assert.ok(fn["益智"] && !/益气/.test(fn["益智"]), fn["益智"]);
+  });
+  check("16.16 去掉无依据的词后剩下的半句不成功效的整句去掉（甲方病历 6 川牛膝「补益肝肾，强健腰膝」曾成「肝肾，强健腰膝」）；字序不同的重复句只留一句；青蒿不再标「疏风清热」（知识库本草辑录，教材「清虚热，除骨蒸，解暑热，截疟，退黄」）；当归「补血行气」仍留「补血」（对照）", () => {
+    const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [{ name: "独活寄生汤加减", decoction: { method: "水煎服" }, herbs: [
+      { name: "川牛膝", role: "佐", function: "补益肝肾，强健腰膝", dose: "10g" },
+      { name: "熟地黄", role: "臣", function: "滋阴补血，补血滋阴", dose: "12g" },
+      { name: "当归", role: "佐", function: "补血行气", dose: "6g" },
+      { name: "青蒿", role: "佐", function: "疏风清热", dose: "10g" },
+    ] }] } };
+    const out = surface.projectDeliveredReasoning(structuredClone(reasoning));
+    const fn = Object.fromEntries(out.formula.candidates[0].herbs.map((herb) => [herb.name, herb.function]));
+    assert.ok(!/(?:^|，)肝肾/.test(fn["川牛膝"]), fn["川牛膝"]);
+    assert.equal(fn["熟地黄"].split("，").length, 1, fn["熟地黄"]);
+    assert.equal(fn["当归"], "补血");
+    assert.doesNotMatch(fn["青蒿"], /疏风/, fn["青蒿"]);
+  });
+  check("16.19 方义点名去掉的药其实在处方里（「去桑皮之重复而留其泻肺之意」，桑白皮在方中，留出例 S151）去掉这一小句；「二药相合」前一句只点了一味药时也重数（S145）；真去掉的药（方中没有）照留（对照）", () => {
+    const build = (analysis, herbs) => ({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [{ name: "清金化痰汤加减", decoction: { method: "水煎服" }, formulaAnalysis: analysis, herbs: herbs.map((name) => ({ name, role: "臣", function: "清热化痰", dose: "10g" })) }] } });
+    const project = (analysis, herbs) => surface.projectDeliveredReasoning(structuredClone(build(analysis, herbs))).formula.candidates[0].formulaAnalysis;
+    const s151 = project("本方以清金化痰汤为基础加减，去桑皮之重复而留其泻肺之意，以黄芩为君直清肺中痰热。", ["黄芩", "桑白皮", "川贝母", "桔梗"]);
+    assert.doesNotMatch(s151, /去桑皮/, s151);
+    assert.match(s151, /以黄芩为君/);
+    const kept = project("本方以清金化痰汤为基础加减，去知母之滋腻，以黄芩为君直清肺中痰热。", ["黄芩", "桑白皮", "川贝母", "桔梗"]);
+    assert.match(kept, /去知母之滋腻/, kept);
+    const s145 = project("黄柏苦寒沉降，专清下焦湿热；二药相合为本方之核心，直解关节红肿灼痛。", ["黄柏", "薏苡仁", "防己"]);
+    assert.doesNotMatch(s145, /二药/, s145);
   });
 }
 

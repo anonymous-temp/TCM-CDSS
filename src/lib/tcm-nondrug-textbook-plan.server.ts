@@ -502,11 +502,35 @@ export function cardSentencesNamingListedPoints(text: string, points: readonly s
   if (!text || points.length === 0) return text;
   namesAcupoint("");
   const kept = text.split(/(?<=[。；;])/).filter((sentence) => {
-    if (/禁|慎|勿|避免|不宜|不可|以免/.test(sentence)) return true;
+    // 点了穴名的句子，所点的穴至少一个在本卡上才留。注意句（禁、慎、避免…）照留——它常和操作写在同一句里
+    //（「毫针常规刺，膻中不宜直刺、深刺…」）；只有教材单列的「禁忌：」句点的穴都不在本卡上时不留
+    //（2026-10-18 甲方病历 6 腰痛卡上印着「禁忌：膏肓、肺俞、膈俞等穴局部肌肉薄…避免气胸」，本卡取的是腰部穴）。
     const named = [...sentence.matchAll(new RegExp(acupointNamePattern!.source, "g"))].map((match) => match[0]);
-    return named.length === 0 || named.some((name) => points.some((point) => point.includes(name)));
+    const namesCardPoint = named.length === 0 || named.some((name) => points.some((point) => point.includes(name)));
+    if (/^\s*禁忌[：:]/u.test(sentence)) return namesCardPoint;
+    if (/禁|慎|勿|避免|不宜|不可|以免/.test(sentence)) return true;
+    return namesCardPoint;
   }).join("").replace(/[；;](\s*)(?=禁忌[：:]|$)/g, "。$1").trim();
   return kept || text;
+}
+
+/**
+ * 项目卡上写给孕妇、哺乳期的那几句或那几项，只写给可能属于这些人群的患者（2026-10-18 甲方病历 2/4/6/8 男性患者，
+ * 耳穴卡写「妊娠期慎用」，针刺卡的必查项写「妊娠相关穴位」）。判据与注意事项、逐味提示同一个（reproductiveAdviceRelevant，
+ * 由调用方给）。小句按「，；。」切，列举按「、」切，只去含孕哺字样的那一项。
+ */
+const REPRODUCTIVE_CARD_ITEM = /妊娠|孕|哺乳|经期|月经期/u;
+export function cardTextForPopulation(text: string, reproductiveRelevant: boolean): string {
+  if (reproductiveRelevant || !text || !REPRODUCTIVE_CARD_ITEM.test(text)) return text;
+  const out = text.split(/(?<=[，,；;。])/u).flatMap((clause) => {
+    if (!REPRODUCTIVE_CARD_ITEM.test(clause)) return [clause];
+    const ending = clause.match(/[，,；;。]$/u)?.[0] || "";
+    const items = clause.slice(0, clause.length - ending.length).split("、");
+    const keptItems = items.filter((item) => !REPRODUCTIVE_CARD_ITEM.test(item));
+    if (keptItems.length === 0 || keptItems.length === items.length) return [];
+    return [`${keptItems.join("、")}${ending}`];
+  }).join("");
+  return out.replace(/[，,；;]$/u, "。").trim() || text;
 }
 
 /** 刺络放血类操作（刺络拔罐、点刺出血、三棱针）。 */

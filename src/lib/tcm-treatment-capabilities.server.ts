@@ -21,8 +21,8 @@ import {
 } from "./tcm-treatment-projects";
 import { affirmedClinicalText } from "./clinical-polarity";
 import { assessPregnancyState } from "./clinical-state";
-import { pregnancyScreenRequired } from "./diagnosis-safety";
-import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, cardSentencesNamingListedPoints, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
+import { pregnancyScreenRequired, reproductiveAdviceRelevant } from "./diagnosis-safety";
+import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
 type DeliveryMode = "onsite" | "referral";
@@ -1164,8 +1164,9 @@ export function compileTcmTreatmentRecommendations(
     const cardPoints = definition.code === "acupuncture" && Array.isArray(plannedTreatment.suggestedSitesOrPoints)
       ? plannedTreatment.suggestedSitesOrPoints.filter((point): point is string => typeof point === "string")
       : [];
-    const cardText = (value: string) => clinicalTreatmentScheduleWording(cardSentencesNamingListedPoints(cardSentences(
-      definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText) : value), cardPoints));
+    const reproductiveRelevant = caseState?.patient ? reproductiveAdviceRelevant(caseState) : true;
+    const cardText = (value: string) => cardTextForPopulation(clinicalTreatmentScheduleWording(cardSentencesNamingListedPoints(cardSentences(
+      definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText) : value), cardPoints)), reproductiveRelevant);
     // 卡片写明只适用于本病另几个类型、本例的证不在其中时整张不出（cardApplicabilityExcludesSyndrome）。
     if ([plannedTreatment.treatmentContent, plannedTreatment.techniqueBoundary]
       .some((value) => typeof value === "string" && cardApplicabilityExcludesSyndrome(value, diseaseNamesForCard, prior.overview.primarySyndrome || ""))) return [];
@@ -1193,7 +1194,7 @@ export function compileTcmTreatmentRecommendations(
         : {}),
       operatorRequirement: definition.operatorRequirement,
       requiredChecks: [
-        definition.safetyFocus,
+        cardTextForPopulation(definition.safetyFocus, reproductiveRelevant),
         ...(definition.requiresMedicationAudit ? ["含药外治采用前须完成成分、过敏、禁忌、相互作用及重复用药的独立用药审方。"] : []),
       ],
       containsMedication: definition.containsMedication,
