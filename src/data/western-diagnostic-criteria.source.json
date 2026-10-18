@@ -1,0 +1,2844 @@
+{
+ "schemaVersion": 1,
+ "generatedBy": "scripts/build-western-diagnostic-criteria.mjs",
+ "review": "2026-10-18 逐条人工核对（对照所列诊疗手册/指南页面与公认诊断标准）；改动的条目带 reviewCorrection（改前内容与依据）。用于西医病名一致性核对的情形 D，不用于诊断本身。",
+ "nameLookupQualifiers": {
+  "basis": "查表时去掉的病名修饰前缀：病程限定（急性/慢性/复发性/反复）与侧别（左侧/右侧/双侧/左/右/双）不改变诊断标准要点，表里按核心病名收录（如「急性胃炎」按「胃炎」、「右侧坐骨神经痛」按「坐骨神经痛」查）。",
+  "sourceRef": "src/lib/western-diagnostic-criteria.server.ts westernCriteriaEntry；2026-10-18",
+  "course": [
+   "急性",
+   "慢性",
+   "复发性",
+   "反复"
+  ],
+  "side": [
+   "左侧",
+   "右侧",
+   "双侧",
+   "左",
+   "右",
+   "双"
+  ]
+ },
+ "entries": [
+  {
+   "name": "2型糖尿病",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "空腹血糖、OGTT 2小时血糖、随机血糖或糖化血红蛋白（达到诊断切点）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "典型高血糖症状或高血糖危象加随机血糖≥200 mg/dl",
+    "空腹血浆葡萄糖≥126 mg/dl",
+    "OGTT 2小时血浆葡萄糖≥200 mg/dl",
+    "A1C≥6.5%",
+    "无典型症状时需两次异常结果确认"
+   ],
+   "quote": "糖尿病可在各种临床场景中被发现 —— 在看似低风险但碰巧进行葡萄糖检测的个体中、在基于糖尿病风险评估进行筛查的个体中，以及在有症状的个体中。",
+   "url": "https://www.sxcdc.cn/jkfw/jsbz/art/2025/art_a7e714108c0c41e29b632319fefc5d06.html",
+   "siteName": "山西省疾病预防控制中心",
+   "title": "2025ADA标准：糖尿病的诊断与分类（全） - 当前位置： 首页 > 技术标准",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "《中国2型糖尿病防治指南》/WHO：以静脉血浆血糖或HbA1c达到诊断切点确诊",
+    "before": {
+     "clinicallyDiagnosable": true,
+     "requiredTests": []
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "阿尔茨海默病",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "淀粉样蛋白PET",
+    "脑脊液生物标志物",
+    "血浆生物标志物（如p-tau217）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "始于无症状期出现AD神经病理改变",
+    "Core 1生物标志物异常即可确诊AD",
+    "神经病理负荷进展导致临床症状出现",
+    "Core 2生物标志物异常增加AD致症状的把握"
+   ],
+   "quote": "An abnormal Core 1 biomarker result is sufficient to establish a diagnosis of AD and to inform clinical decision making throughout the disease continuum.",
+   "url": "https://www.uptodate.com/contents/care-of-patients-with-advanced-dementia/abstract/9,26-31",
+   "siteName": "Uptodate",
+   "title": "Medline ® Abstracts for References 9,26-31 of 'Care of patients with advanced dementia' - Medline ® Abstracts for References 9,26-31 of 'Care of patients with advanced dementia'",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "闭经",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "既往月经规律者停经≥3个月；既往月经不规律者停经≥6个月",
+   "definingFeatures": [
+    "既往有月经来潮（继发性闭经）",
+    "月经周期规律者停经≥3个月",
+    "月经周期不规律者停经≥6个月",
+    "一年月经次数<9次或周期长度>38天（少经）",
+    "月经模式出现新的持续性变化"
+   ],
+   "quote": "应评估继发性闭经，如果女孩和育龄妇女以前曾有月经来潮，且如果她们之前的月经周期规律，但现在停经≥3个月；或者如果她们之前的月经周期不规律，则停经≥6个月",
+   "url": "https://www.msdmanuals.cn/professional/gynecology-and-obstetrics/abnormal-uterine-bleeding/amenorrhea?media=full?wautoredirectid=18?wautoredirectid=36132",
+   "siteName": "默沙东诊疗手册",
+   "title": "闭经 - 妇产科学 - MSD诊疗手册专业版 - 应评估继发性闭经，如果女孩和育龄妇女以前曾有月经来潮，且",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "勃起功能障碍",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "症状持续至少6个月",
+   "definingFeatures": [
+    "难以达到或维持勃起直至完成性活动",
+    "或性交时阴茎硬度显著下降",
+    "症状在大多数或所有性交中出现（约75%-100%）",
+    "引起显著临床痛苦或沟通困难",
+    "不能用其他精神障碍、疾病或物质作用解释"
+   ],
+   "quote": "Theo ICD-10, RLCD được xác định khi có sự thất bại trong đáp ứng tình dục, khiến người bệnh không thể tham gia quan hệ tình dục như mong muốn, tình trạng này xảy ra thường xuyên (dù có thể không liên tục) trong ít nhất 6 tháng",
+   "url": "https://bachmai.gov.vn/bai-viet/bai-4-roi-loan-cuong-duong-chan-doan-va-phuong-phap-dieu-tri-huong-di-den-cuoc-song-khoe-manh?id=76ee0a82-b65c-40af-9342-316181ea875a",
+   "siteName": "Bệnh viện Bạch Mai",
+   "title": "Bài 4: Rối loạn cương dương: Chẩn đoán và phương pháp điều trị - Hướng đi đến cuộc sống khỏe mạnh",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "不孕症",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "有规律性生活、未采取任何避孕措施至少1年仍未受孕",
+   "definingFeatures": [
+    "有规律性生活、未采取避孕措施至少1年未受孕",
+    "既往无妊娠史者为原发性不孕",
+    "曾有妊娠史而后未避孕至少1年未孕者为继发性不孕"
+   ],
+   "quote": "有规律性生活、未采取任何避孕措施至少1年仍未受孕。既往没有妊娠史者为原发性不孕；若曾有妊娠史，而后未避孕至少1年未孕者为继发性不孕。",
+   "url": "https://ccdas.pmphai.com/appguide/toPcDetail?id=1915564655195979777&knowledgeLibPrefix=guide",
+   "siteName": "人卫临床助手",
+   "title": "指南规范详情-人卫临床助手-人民卫生出版社",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "产后缺乳",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "哺乳期乳汁甚少，不足以喂养婴儿，或乳汁全无",
+    "素体气血不足、脾胃虚弱、素性抑郁或产后情志不遂等病史",
+    "产时、产后失血过多等病史",
+    "乳房柔软不胀不痛，挤出乳汁点滴而下质稀",
+    "或乳房胀满而痛，挤压乳汁难出质稠"
+   ],
+   "quote": "哺乳期乳汁甚少，不足以喂养婴儿，或乳汁全无。",
+   "url": "https://www.dayi.org.cn/disease/1027849.html",
+   "siteName": "中国医药信息查询平台",
+   "title": "产后缺乳",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "产后抑郁",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "症状持续>2周",
+   "definingFeatures": [
+    "符合重度抑郁症标准，≥5种症状",
+    "症状持续>2周",
+    "存在情绪低落和/或兴趣或愉悦感丧失",
+    "症状导致残疾、干扰日常生活活动",
+    "分娩后第一年内出现"
+   ],
+   "quote": "产后抑郁症的诊断标准与重度抑郁症相同，即出现 ≥ 5 种症状，且持续 > 2 周",
+   "url": "http://www.msdmanuals.cn/professional/gynecology-and-obstetrics/postpartum-care-and-associated-disorders/postpartum-depression?media=full?wruleredirectid=3",
+   "siteName": "默沙东诊疗手册",
+   "title": "产后抑郁症 - 妇产科学 - MSD诊疗手册专业版 - 产后抑郁症",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "肠易激综合征",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "诊断前症状出现至少6个月，近3个月平均每周至少1天反复腹痛",
+   "definingFeatures": [
+    "腹痛与排便相关",
+    "腹痛伴随大便频率改变",
+    "腹痛伴随大便粘稠度变化",
+    "症状反复发作，起始于青春期或20多岁"
+   ],
+   "quote": "依据罗马标准，如果患者在过去 3 个月中每周至少有 1 天发生腹痛，并伴随以下两种或多种症状，则医生会诊断为肠易激综合征",
+   "url": "http://www.msdmanuals.cn/home/digestive-disorders/irritable-bowel-syndrome-ibs/irritable-bowel-syndrome-ibs?media=full?wautoredirect=160?wautoredirectid=35341",
+   "siteName": "默沙东诊疗手册",
+   "title": "肠易激综合征 (IBS) - 消化道功能障碍 - 《默沙东诊疗手册大众版》",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "罗马IV标准",
+    "before": {
+     "durationThreshold": "过去3个月中每周至少有1天发生腹痛"
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "痤疮",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "黑头（开放性粉刺）",
+    "白头（闭合性粉刺）",
+    "炎性丘疹、脓疱",
+    "结节、囊肿或脓肿",
+    "根据病变数量和类型分级轻中重度"
+   ],
+   "quote": "医生根据皮肤检查进行痤疮诊断。医生会查看某些症状，如黑头或白头，以确定患者患的是痤疮还是其他皮肤病，如酒渣鼻。",
+   "url": "http://www.msdmanuals.cn/home/skin-disorders/acne-and-related-disorders/acne?media=full?wautoredirectid=35571?autoredirectid=36798",
+   "siteName": "默沙东诊疗手册",
+   "title": "痤疮 - 皮肤病 - 《默沙东诊疗手册大众版》 - 痤疮",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "带状疱疹",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "沿皮节分布的局部疼痛",
+    "同一皮节出现成簇水疱性皮疹",
+    "疼痛常先于皮疹数天出现",
+    "皮疹通常局限于单一皮节"
+   ],
+   "quote": "Diagnosis is primarily based on the typical clinical symptoms, such as dermatomal pain and eruption of grouped vesicles in the same dermatome.",
+   "url": "https://bestpractice.bmj.com/topics/en-gb/23?debug=0",
+   "siteName": "BMJ Best Practice",
+   "title": "Herpes zoster infection - Evidence last reviewed: 8 九月 2026",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "丹毒",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "有光泽、隆起、质硬、触痛且边界清晰的斑块",
+    "累及真皮浅层及淋巴管",
+    "常伴高热、寒战和全身不适",
+    "诊断基于典型临床表现并排除相似病因"
+   ],
+   "quote": "丹毒的诊断基于其典型临床表现，并排除其他可能表现相似的病因。",
+   "url": "http://www.msdmanuals.cn/professional/infectious-diseases/bacterial-skin-infections/erysipelas",
+   "siteName": "默沙东诊疗手册",
+   "title": "丹毒 - 传染病 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "胆囊炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "腹部超声"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "右上腹疼痛",
+    "右上腹压痛",
+    "炎症表现（发热、白细胞升高、CRP升高）",
+    "可触及包块",
+    "存在危险因素"
+   ],
+   "quote": "Ultrasound is the definitive initial test.",
+   "url": "https://bestpractice.bmj.com/topics/en-gb/78?q=Cholecystitis&c=suggested",
+   "siteName": "BMJ Best Practice",
+   "title": "Acute cholecystitis - Evidence last reviewed: 11 九月 2026",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "胆石症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "腹部彩超（首选常规）",
+    "ERCP（胆管结石金标准）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "影像学检测证实胆道系统存在结石",
+    "右上腹压痛、墨菲征阳性",
+    "胆管梗阻时可见腹痛、黄疸、发热寒战",
+    "Charcot三联征：发热寒战、黄疸、腹痛",
+    "Reynold五联征：三联征加休克和意识障碍"
+   ],
+   "quote": "对怀疑有胆石症的患者临床上主要进行影像学检测明确其有无胆道结石。",
+   "url": "http://www.caim.org.cn/content/clientDf.do?id=20969",
+   "siteName": "",
+   "title": "中国中西医结合学会团体标准",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "短暂性脑缺血发作",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "神经影像学未见急性梗死病灶"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "起病突然，迅速出现局灶性神经系统症状和体征",
+    "症状体征多持续十至数十分钟，可反复发作",
+    "除外其他非血管源性因素",
+    "神经影像学未发现任何急性梗死病灶"
+   ],
+   "quote": "起病突然，迅速出现局灶性神经系统症状和体征。",
+   "url": "https://ccdas.pmphai.com/apppath/toPcDetail?sessionId=&knowledgeLibPrefix=path&id=0001AA100000000KKRVB",
+   "siteName": "人卫临床助手",
+   "title": "临床路径详情-人卫临床助手-人民卫生出版社 - 首页 > 临床路径 > 短暂性脑缺血发作临床路径（2016年版）",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "多汗症",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "超出生理需要的过度出汗",
+    "原发性为特发性、原因不明",
+    "按部位分为掌、跖、腋、头面",
+    "常在儿童早期或青春期起病",
+    "可累及多个解剖部位"
+   ],
+   "quote": "A condition of excess sweating, beyond physiologic need, which is frequently disabling for the patient, professionally and socially.",
+   "url": "https://bestpractice.bmj.com/topics/en-us/856",
+   "siteName": "BMJ Best Practice",
+   "title": "Hyperhidrosis - Evidence last reviewed: 6 Sep 2026",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "多囊卵巢综合征",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "血清睾酮等激素检测",
+    "盆腔超声检查"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "稀发排卵和/或无排卵",
+    "雄激素过多症的临床和/或生化证据",
+    "多囊卵巢：每侧卵巢≥12个2–9mm卵泡或卵巢体积>10mL",
+    "以上3项中至少具备2项（鹿特丹标准）"
+   ],
+   "quote": "多内分泌代谢性卵巢综合征的诊断通常基于鹿特丹标准，该标准要求以下3项表现中至少具备2项",
+   "url": "http://www.msdmanuals.cn/professional/gynecology-and-obstetrics/abnormal-uterine-bleeding/polyendocrine-metabolic-ovarian-syndrome-pmos",
+   "siteName": "默沙东诊疗手册",
+   "title": "多内分泌代谢性卵巢综合征(PMOS) - 妇产科学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "儿童遗尿症",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "夜间睡眠期间不自主排尿（遗尿症）",
+    "通常到7岁才被确诊",
+    "分为单一症状型（仅睡眠时发生）和复杂型（合并日间尿失禁或尿路症状）",
+    "原发性：控尿时间从未≥6个月；继发性：停止≥6个月后复发"
+   ],
+   "quote": "夜间尿失禁：遗尿症（或夜间或夜间[仅在睡眠期间]尿床或尿床）",
+   "url": "http://www.msdmanuals.cn/professional/pediatrics/urinary-incontinence-in-children/urinary-incontinence-in-children?media=print?wcnredirectid=5000?wautoredirectid=36589",
+   "siteName": "默沙东诊疗手册",
+   "title": "儿童尿失禁 - 儿科学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "房性期前收缩",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "心电图"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "提早出现的P'波形态与窦性P波不同",
+    "P'-R≥0.12s",
+    "房性P波后可继以正常或变异的QRS波群，也可不继以QRS波群",
+    "多数伴不完全性代偿间歇"
+   ],
+   "quote": "1.提早出现的P'波形态与窦性P波不同。2.P'-R≥0.12s。3.房性P波后可以继以一个正常或变异(差异传导)的QRS波群，也可以不继以QRS波群(房性期前收缩未下传)。4.多数伴不完全性代偿间歇。",
+   "url": "https://ccdas.pmphai.com/appecg/toPcDetail?sessionId=&knowledgeLibPrefix=ecg&id=10270",
+   "siteName": "人卫临床助手",
+   "title": "心电图详情-心电图-人卫临床助手-人民卫生出版社",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "非酒精性脂肪性肝病",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "肝脏脂肪变性证据（影像/活检）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "肝脏脂肪变性（影像学、生物标志物或活检）",
+    "至少1个心脏代谢风险因素",
+    "饮酒史有限（女≤2杯/日，男≤3杯/日）",
+    "血清学排除乙型和丙型肝炎"
+   ],
+   "quote": "MASLD的正式诊断需要肝脏脂肪变性的证据，以及至少1个心脏代谢风险因素",
+   "url": "http://www.msdmanuals.cn/professional/hepatic-and-biliary-disorders/approach-to-the-patient-with-liver-disease/metabolic-dysfunction-associated-liver-disease-masld?media=full?wruleredirectid=3/?wautoredirectid=36132",
+   "siteName": "默沙东诊疗手册",
+   "title": "代谢功能障碍相关性肝病 (MASLD) - 肝病学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "肥胖症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "BMI达到或超过28kg/㎡"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "我国成年人群BMI达到或超过28kg/㎡为肥胖症",
+    "诊断标准包括体质指数、体型特征、体脂比等",
+    "按程度分为轻度、中度、重度、极重度"
+   ],
+   "quote": "在我国成年人群中，BMI（体质指数）达到或超过28kg/㎡（体重除以身高的平方）为肥胖症。",
+   "url": "https://jiankang.cctv.cn/2024/10/21/ARTIh9N6mC295ZP3KkPZQuVx241021.shtml",
+   "siteName": "央视网",
+   "title": "《肥胖症诊疗指南（2024年版）》发布 哪种程度需要医疗干预？",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "蜂窝织炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "局部红斑、皮温升高、肿胀和压痛",
+    "通常单侧，最常见于下肢",
+    "边界常不清楚（丹毒除外）",
+    "可伴发热、淋巴管炎及区域淋巴结肿大",
+    "诊断主要基于临床评估并排除相似疾病"
+   ],
+   "quote": "蜂窝织炎的诊断主要基于临床评估，并需排除可能表现相似的鉴别诊断。",
+   "url": "http://www.msdmanuals.cn/professional/infectious-diseases/bacterial-skin-infections/cellulitis",
+   "siteName": "默沙东诊疗手册",
+   "title": "蜂窝织炎 - 传染病 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "复发性阿弗他溃疡",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "反复发作的圆形或椭圆形溃疡",
+    "溃疡边缘充血发红、基底灰黄色",
+    "无发热",
+    "无生殖器或眼部溃疡",
+    "排除系统性病因（如炎症性肠病、白塞病、HIV）"
+   ],
+   "quote": "Diagnosis is based on the history and clinical examination with exclusion of a systemic aetiology; there are no specific laboratory findings.",
+   "url": "https://bestpractice.bmj.com/topics/en-gb/564",
+   "siteName": "BMJ Best Practice",
+   "title": "Recurrent aphthous stomatitis (episodic mouth ulcers) - Evidence last reviewed: 9 Sep 2026",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "干眼症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "OSDI-6问卷≥4分",
+    "非侵入性泪膜破裂时间<10秒",
+    "泪膜渗透压≥308 mOsm/L",
+    "角膜荧光素染色>5个点",
+    "结膜丽丝胺绿染色>9个点"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "多因素、有症状的疾病",
+    "泪膜和/或眼表稳态失衡",
+    "问卷阳性伴NIBUT<10秒或高渗透压",
+    "眼表染色达相应界值",
+    "始终伴有眼部症状"
+   ],
+   "quote": "问卷筛查结果为阳性并伴有非侵入性泪膜破裂时间 (non-invasive breakup time, NIBUT) <10秒, 或伴有泪膜高渗透压 (任一眼≥ 308 mOsm/L 或眼间差异>8 mOsm/L), 即可诊断为干眼.",
+   "url": "https://www.sciencedirect.com/science/article/pii/S0002939425005549?fr=RR-1&ref=cra_js_challenge",
+   "siteName": "ScienceDirect.com",
+   "title": "TFOS DEWS III 诊断方法学",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "高尿酸血症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "非同日两次空腹血尿酸检测"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "正常嘌呤饮食状态下",
+    "非同日两次空腹血尿酸",
+    "男＞420μmol/L（7mg/dl）",
+    "女＞357μmol/L（6mg/dl）"
+   ],
+   "quote": "正常嘌呤饮食状态下，非同日两次空腹血尿酸水平，男＞420μmol/L（7mg/dl）或女＞357μmol/L（6mg/dl）。",
+   "url": "https://ccdas.pmphai.com/jeesitede/appguide/toPcDetail?sessionId=&knowledgeLibPrefix=guide&id=0001AA100000000EGDAU",
+   "siteName": "人卫临床助手",
+   "title": "指南规范详情-人卫临床助手-人民卫生出版社",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "高血压病",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "诊室血压三次非同日≥140/90mmHg",
+    "24小时动态血压监测",
+    "家庭连续七天血压监测"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "诊室三次非同日血压≥140/90mmHg",
+    "动态血压全天≥130/80mmHg",
+    "动态血压白天≥135/85mmHg",
+    "动态血压夜间≥120/70mmHg",
+    "家庭连续七天血压≥135/85mmHg"
+   ],
+   "quote": "诊室血压：三次非同日血压达到140/90mmHg以上可以诊断为高血压。",
+   "url": "https://cdcp.gd.gov.cn/jkjy/jkts/content/post_4963763.html",
+   "siteName": "广东省疾病预防控制中心",
+   "title": "别以为年轻就没事，你的血压可能已经“越界”了！",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "高脂血症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "血脂检测（TC、TG、LDL-C、HDL-C）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "血浆胆固醇、甘油三酯或两者升高",
+    "或HDL-C降低",
+    "诊断依据血清脂质值测定",
+    "无精确数值阈值，适用于治疗获益的脂质值"
+   ],
+   "quote": "脂質異常症の診断は血清脂質値の測定による。",
+   "url": "https://www.msdmanuals.com/ja-jp/professional/10-%E5%86%85%E5%88%86%E6%B3%8C%E7%96%BE%E6%82%A3%E3%81%A8%E4%BB%A3%E8%AC%9D%E6%80%A7%E7%96%BE%E6%82%A3/%E8%84%82%E8%B3%AA%E9%9A%9C%E5%AE%B3/%E8%84%82%E8%B3%AA%E7%95%B0%E5%B8%B8%E7%97%87?ruleredirectid=465qt=%E7%B3%96%E5%B0%BF%E7%97%85%20&alt=sh",
+   "siteName": "MSD Manuals",
+   "title": "脂質異常症 - 10. 内分泌疾患と代謝性疾患 - MSDマニュアル プロフェッショナル版 - 脂質異常症",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "《中国血脂管理指南》",
+    "before": {
+     "requiredTests": []
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "功能性便秘",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "诊断前症状出现至少6个月，近3个月符合诊断标准",
+   "definingFeatures": [
+    "超过25%的排便需要很费力",
+    "超过25%的排便为硬便",
+    "超过25%的排便感觉排不干净",
+    "超过25%的排便感觉肛门直肠阻塞",
+    "每周少于3次自发性排便"
+   ],
+   "quote": "根據羅馬標準第四版對於功能性便秘的診斷標準，應基於以下情況存在至少三個月",
+   "url": "https://health.ntuh.gov.tw/health/new/6312.html",
+   "siteName": "國立臺灣大學醫學院附設醫院",
+   "title": "漫談便秘與痔瘡",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "罗马IV标准",
+    "before": {
+     "durationThreshold": "症状存在至少三个月"
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "功能性消化不良",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "诊断前症状出现至少6个月，近3个月符合诊断标准",
+   "definingFeatures": [
+    "存在上腹痛或烧灼感、餐后饱胀、早饱等核心症状",
+    "无结构、器质、全身或代谢异常可解释症状",
+    "慢性或反复发作的胃肠道症状",
+    "无可识别的器质性病因"
+   ],
+   "quote": "Functional dyspepsia (FD) is diagnosed in the absence of structural, organic, systemic, or metabolic abnormalities that would explain these symptoms",
+   "url": "https://www.ovid.com/journals/jgahe/fulltext/10.1111/jgh.70222~second-asian-consensus-report-on-functional-dyspepsia-2025",
+   "siteName": "Ovid Technologies",
+   "title": "Second Asian Consensus Report on Functional... : Journal of Gastroenterology & Hepatology - SYSTEMATIC REVIEW",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "罗马IV标准",
+    "before": {
+     "durationThreshold": ""
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "骨关节炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "40岁以上成人，活动相关性膝痛",
+    "晨僵短暂，功能受限",
+    "查体：骨擦音、活动受限、骨性膨大",
+    "无需X线即可作出可靠诊断"
+   ],
+   "quote": "In adults aged >40 years with usage-related knee pain, only short-lived morning stiffness, functional limitation and one or more typical examination findings (crepitus, restricted movement, bony enlargement), a confident diagnosis of knee OA can be made without a radiographic examination.",
+   "url": "https://ard.bmj.com/highwire/markup/183740/expansion?width=1000&height=500&iframe=true&postprocessors=highwire_tables%2Chighwire_reclass%2Chighwire_figures%2Chighwire_math%2Chighwire_inline_linked_media%2Chighwire_embed",
+   "siteName": "Annals of the Rheumatic Diseases",
+   "title": "",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "骨质疏松症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "双能X线骨密度（T值≤-2.5）或脆性骨折"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "T值≤-2.5（骨密度低于年轻成人均值2.5个标准差以上）",
+    "严重骨质疏松：T值≤-2.5并伴一处或多处脆性骨折",
+    "脆性骨折：站立高度或以下跌倒或无外伤时发生",
+    "常见脆性骨折部位：脊柱、髋、腕、肱骨、肋骨、骨盆",
+    "WHO标准不适用于50岁以下男性、儿童、绝经前女性"
+   ],
+   "quote": "Based on the T-scores derived from bone mineral density (BMD) measurements at the lumbar spine or proximal femur, the diagnosis is classified as normal, osteopenia, or osteoporosis.",
+   "url": "https://www.healthbureau.gov.hk/phcc/rfs/english/pdf_viewer.html?rfs=CommonMusculoskeletalProblems&file=ModuleOnOsteoporosis_Chapter1",
+   "siteName": "Health Bureau",
+   "title": "Common Musculoskeletal Problems - Module on Osteoporosis",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "《原发性骨质疏松症诊疗指南》",
+    "before": {
+     "clinicallyDiagnosable": true,
+     "requiredTests": [
+      "腰椎或股骨近端骨密度T值"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "冠状动脉粥样硬化性心脏病",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "存在冠心病危险因素",
+    "典型心绞痛的发作特点和体征",
+    "除外其他原因所致的心绞痛",
+    "胸痛发作时心电图缺血性ST-T动态改变或运动负荷试验阳性",
+    "超声心动图缺血区室壁节段性运动异常或陈旧心梗表现"
+   ],
+   "quote": "胸痛发作时心电图有缺血性ST-T动态改变或心电图运动负荷试验阳性（缺血性ST-T动态改变表现为发作时心电图检查可见以R波为主的导联中，ST段压低，T波平坦或倒置，发作过后数分钟内逐渐恢复）",
+   "url": "https://www.gz.gov.cn/gzybj/gkmlpt/content/5/5495/mpost_5495153.html",
+   "siteName": "广州市人民政府门户网站",
+   "title": "广州市医疗保障局 广州市财政局 广州市卫生健康委员会关于印发广州市社会医疗保险统筹基金支付门诊特定病种费用范围及标准的通知 - （二）若无典型糖尿病症状，重复检查结果仍异常者",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "典型发作性心绞痛可临床诊断（本系统通则）；确诊分型需心电图、负荷试验或冠脉影像",
+    "before": {
+     "clinicallyDiagnosable": false,
+     "requiredTests": [
+      "胸痛发作时心电图缺血性ST-T动态改变",
+      "心电图运动负荷试验阳性",
+      "二维超声心动图节段性室壁运动异常"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "过敏性鼻炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "病史和体格检查符合过敏病因",
+    "有鼻塞、流涕、鼻痒或打喷嚏中至少一项",
+    "体征包括清水样涕、鼻黏膜苍白、眼红流泪"
+   ],
+   "quote": "Clinicians should make the clinical diagnosis of AR when patients present with a history and physical examination consistent with an allergic cause and 1 or more of the following symptoms: nasal congestion, runny nose, itchy nose, or sneezing.",
+   "url": "https://lms.ehc.gov.eg/lms/mod/book/view.php?id=261&chapterid=933&lang=en",
+   "siteName": "Nursing Care for Cancer Patients",
+   "title": "Allergic rhinitis",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "过敏性结膜炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "双眼轻度至重度瘙痒，可伴灼热感",
+    "结膜充血、结膜水肿和分泌物",
+    "常伴鼻炎或其他特应性疾病（湿疹、哮喘）",
+    "上睑结膜细小乳头增生呈天鹅绒样外观",
+    "季节性复发或常年性发作病史"
+   ],
+   "quote": "结膜炎的诊断以及细菌性、病毒性和非感染性结膜炎(见表) 的鉴别诊断通常依靠临床。",
+   "url": "http://www.msdmanuals.cn/professional/eye-disorders/conjunctival-and-scleral-disorders/allergic-conjunctivitis?media=print",
+   "siteName": "默沙东诊疗手册",
+   "title": "过敏性结膜炎 - 眼科学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "后循环缺血",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "神经放射影像学检查"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "包括后循环短暂性脑缺血发作和后循环梗死",
+    "典型表现为眩晕，常伴脑干、小脑症状体征",
+    "诊断依靠病史、查体和神经放射影像学检查"
+   ],
+   "quote": "诊断主要依靠详细的病史、查体和神经放射影像学检查",
+   "url": "https://www.chinastroke.org.cn/CN/abstract/abstract1040.shtml",
+   "siteName": "Chinastroke",
+   "title": "后循环缺血研究进展",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "黄褐斑",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "面部淡褐色至深褐色、界限清楚的斑片，通常对称性分布，无炎症表现及鳞屑",
+    "无明显自觉症状",
+    "女性多发，主要发生在青春期后",
+    "病情可有季节性，常夏重冬轻",
+    "排除其它疾病引起的色素沉着"
+   ],
+   "quote": "面部淡褐色至深褐色、界限清楚的斑片，通常对称性分布，无炎症表现及鳞屑。",
+   "url": "https://www.masszyy.cn/upload/file/2025-02/1738923373379.pdf",
+   "siteName": "",
+   "title": "2. 眩晕：评估眩晕的性质、发作或持续时间，及与体位改变的关系",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "急性膀胱炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "存在下尿路症状（排尿困难、尿频及尿急）的针对性病史",
+    "无阴道分泌物",
+    "无其他全身性尿路感染危险因素"
+   ],
+   "quote": "对于无其他全身性尿路感染危险因素的女性患者，可根据以下标准诊断为膀胱炎：存在关于下尿路症状（排尿困难、尿频及尿急）的针对性病史；无阴道分泌物。",
+   "url": "https://news.medlive.cn/neph/info-progress/show-251852_161.html",
+   "siteName": "医脉通",
+   "title": "2026版欧洲泌尿学会泌尿感染指南更新，这9个更新要点要知道！",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "急性扁桃体炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "吞咽疼痛，可放射至耳部",
+    "扁桃体充血、肿胀，常伴脓性渗出",
+    "颈淋巴结肿大并有压痛",
+    "发热、腭部瘀点",
+    "Centor评分辅助区分细菌性与病毒性病因"
+   ],
+   "quote": "扁桃体咽炎的诊断有赖于临床评估，采用经验证的评分系统并结合实验室检验，以区分细菌性（尤其是GABHS）和病毒性病因",
+   "url": "http://www.msdmanuals.cn/professional/ear-nose-and-throat-disorders/oral-and-pharyngeal-disorders/tonsillopharyngitis?media=full%3Fwautoredirect%3D160%3Fwautoredirectid%3D36132",
+   "siteName": "默沙东诊疗手册",
+   "title": "扁桃体咽炎 - 耳鼻喉科学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "急性根尖周炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "口腔检查（叩诊、牙髓活力测试，必要时X线）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "患牙有牙髓炎或牙髓坏死病史",
+    "持续性自发性疼痛、咬合痛、患牙有伸长感",
+    "根尖部牙周组织充血渗出、中性粒细胞浸润",
+    "脓液积聚至骨膜下或黏膜下出现肿胀、波动感"
+   ],
+   "quote": "急性根尖周炎从浆液期到化脓期的三个阶段是一连续的发展过程，是移行过渡的，不能截然分开，临床上只能相对地识别这些阶段",
+   "url": "https://ccdas.pmphai.com/appdisease/toPcDetail?sessionId=&knowledgeLibPrefix=disease&id=30223",
+   "siteName": "人卫临床助手",
+   "title": "疾病详情-疾病-人卫临床助手-人民卫生出版社 - 首页 > 疾病 > 急性根尖周炎",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "AAE 牙髓与根尖诊断术语",
+    "before": {
+     "clinicallyDiagnosable": true,
+     "requiredTests": []
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "急性乳腺炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "主要依据病史和临床表现诊断",
+    "全身症状（如发热、心动过速）持续超过24小时应就医评估",
+    "支持治疗无效的无全身症状者也应考虑",
+    "一线抗生素治疗48小时无改善需进一步评估"
+   ],
+   "quote": "Lactational mastitis is primarily diagnosed based on history and clinical findings.",
+   "url": "https://www.ncbi.nlm.nih.gov/sites/books/NBK557782/?report=reader",
+   "siteName": "National Institutes of Health (NIH) | (.gov)",
+   "title": "Acute Mastitis - A grading system was developed that correlated the severity of IGM with clinical features and breast mass size",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "急性上呼吸道感染",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "上呼吸道卡他症状、咽干、咽痒，可合并发热、头痛",
+    "鼻腔黏膜、咽部充血水肿有分泌物，颌下淋巴结肿大触痛",
+    "扁桃体肿大充血，表面可有黄色脓性分泌物",
+    "肺部常无异常体征",
+    "根据病史、流行病学、鼻咽部症状体征结合血象可临床诊断"
+   ],
+   "quote": "根据病史、流行病学、鼻咽部的症状体征，结合周围血象可作出临床诊断，一般无需病因诊断。",
+   "url": "http://wsjkw.shandong.gov.cn/ztzl/rdzt/xypx/kjzy/202405/t20240520_4730762.html",
+   "siteName": "山东省卫生健康委员会",
+   "title": "【基层常见疾病诊疗指南】急性上呼吸道感染基层诊疗指南（实践版·2018）",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "急性肾盂肾炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "尿培养及药敏试验"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "典型症状：发热、寒战、腰痛",
+    "可伴或不伴下尿路感染症状",
+    "尿中检出显著量尿路致病菌",
+    "CRP常显著升高"
+   ],
+   "quote": "Urinvejsinfektion defineres som tilstedeværelsen af typiske symptomer og samtidig fund af signifikante mængder af uropatogene bakterier i urinen",
+   "url": "https://www.sundhed.dk/sundhedsfaglig/laegehaandbogen/nyrer-og-urinveje/tilstande-og-sygdomme/infektioner/pyelonefritis/",
+   "siteName": "Sundhed.dk",
+   "title": "Pyelonefritis",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "急性痛风性关节炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "关节液或痛风石中发现尿酸盐结晶即可确诊",
+    "无结晶时需满足至少6条分类标准",
+    "急性关节炎发作>1次",
+    "炎症在24小时内达高峰",
+    "单关节炎发作"
+   ],
+   "quote": "Monosodium urate crystals in synovial fluid or tophus or presence of at least 6 of the following",
+   "url": "https://www.jrheum.org/highwire/markup/16355/expansion?width=1000&height=500&iframe=true&postprocessors=highwire_tables%2Chighwire_reclass%2Chighwire_figures%2Chighwire_math%2Chighwire_inline_linked_media%2Chighwire_embed",
+   "siteName": "The Journal of Rheumatology",
+   "title": "",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "2015 ACR/EULAR 痛风分类标准：无晶体时可按临床、实验室、影像评分；急性期血尿酸可正常",
+    "before": {
+     "clinicallyDiagnosable": false,
+     "requiredTests": [
+      "关节液或痛风石中尿酸盐结晶"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "急性胃肠炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "骤然起病，伴厌食、恶心、呕吐、腹泻",
+    "可有腹鸣、腹痛、腹胀及轻度腹部压痛",
+    "听诊可闻及肠鸣音亢进",
+    "可伴不适和肌痛",
+    "严重者可有低血压、心动过速等脱水表现"
+   ],
+   "quote": "总体而言，症状为骤然起病、伴厌食、恶心、呕吐、腹鸣、腹痛、腹泻（伴或不伴黏液血便）。",
+   "url": "https://www.msdmanuals.cn/professional/gastrointestinal-disorders/gastroenteritis/overview-of-gastroenteritis?media=print",
+   "siteName": "默沙东诊疗手册",
+   "title": "肠胃炎概述 - 消化道疾病 - MSD诊疗手册专业版 - 肠胃炎概述",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "急性荨麻疹",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "急性<6周",
+   "definingFeatures": [
+    "移行性、边界清楚、红斑性皮肤瘙痒斑",
+    "局部真皮水肿引起的隆起红色斑块",
+    "单个皮损通常一过性，就诊时可消失",
+    "诊断主要依赖病史和体格检查"
+   ],
+   "quote": "由于没有针对荨麻疹的确诊试验，诊断疾病很大程度上依赖病史和体格检查。",
+   "url": "https://www.msdmanuals.cn/professional/dermatologic-disorders/approach-to-the-dermatologic-patient/urticaria",
+   "siteName": "默沙东诊疗手册",
+   "title": "荨麻疹 - 皮肤科疾病 - MSD诊疗手册专业版 - 荨麻疹",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "急性牙髓炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "口腔检查（冷热或牙髓活力测试、叩诊）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "不可逆性牙髓炎为自发痛，或刺激去除后疼痛持续数分钟",
+    "可逆性牙髓炎疼痛由冷或甜刺激诱发，去除后1～2秒停止",
+    "牙髓坏死时对冷热刺激无反应，但往往对压力有反应",
+    "诊断基于病史和体格检查，包括热、冷和/或敲击刺激"
+   ],
+   "quote": "诊断基于病史和体格检查，包括刺激（热、冷和/或敲击）。",
+   "url": "https://www.msdmanuals.cn/professional/dental-disorders/common-dental-disorders/pulpitis",
+   "siteName": "默沙东诊疗手册",
+   "title": "牙髓炎 - 口腔疾病 - MSD诊疗手册专业版 - 牙髓炎",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "AAE 牙髓与根尖诊断术语：分型依赖牙髓测试与叩诊",
+    "before": {
+     "clinicallyDiagnosable": true,
+     "requiredTests": []
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "急性支气管炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "通常先有普通感冒症状：流鼻涕、咽喉痛、疲劳",
+    "数天后出现咳嗽，起初多为干咳，可咳少量白色黏液",
+    "痰色变黄绿不代表细菌感染",
+    "通常无高热或发冷",
+    "医生通常根据症状作出诊断"
+   ],
+   "quote": "医生通常会根据症状作出急性支气管炎诊断。",
+   "url": "https://www.msdmanuals.cn/home/lung-and-airway-disorders/acute-bronchitis/acute-bronchitis",
+   "siteName": "默沙东诊疗手册",
+   "title": "急性支气管炎 - 肺及气道疾病 - 《默沙东诊疗手册大众版》",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "继发性痛经",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "由盆腔器质性疾病引起的痛经",
+    "初潮后数年方出现症状",
+    "多有妇科器质性疾病史或宫内节育器放置史",
+    "妇科检查有异常发现"
+   ],
+   "quote": "继发性痛经常在初潮后数年方出现症状，多有妇科器质性疾病史或宫内节育器放置史，妇科检查有异常发现，必要时可行宫腔镜或腹腔镜检查加以鉴别。",
+   "url": "https://www.dx120.org/educate/771/1/",
+   "siteName": "内江市东兴区人民医院",
+   "title": "带你走进“痛经”的世界",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "甲状腺功能减退症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "血清促甲状腺激素(TSH)水平",
+    "游离甲状腺素(T4)水平"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "原发性甲减：TSH升高，游离T4降低",
+    "继发性甲减：TSH和游离T4均降低",
+    "症状包括不耐寒、疲劳、体重增加",
+    "体征可能包括面部浮肿、声音嘶哑、皮肤干燥"
+   ],
+   "quote": "通过检测血清 TSH 和 T4 来诊断原发性或继发性甲状腺功能减退症。原发性甲状腺功能减退症时，TSH 升高，T4 降低；继发性甲状腺功能减退症时，TSH 和 T4 均降低。",
+   "url": "http://www.msdmanuals.cn/professional/endocrine-and-metabolic-disorders/thyroid-disorders/hypothyroidism?media=full?wruleredirectid=3/?wautoredirectid=36132",
+   "siteName": "默沙东诊疗手册",
+   "title": "甲状腺功能减退 - 内分泌学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "甲状腺功能亢进症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "血清TSH测定",
+    "游离T4测定",
+    "游离T3或总T3测定"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "血清游离甲状腺激素水平上升",
+    "TSH降低（垂体性原因除外）",
+    "代谢率增高的症状如心悸、体重减轻、不耐热",
+    "体征可有震颤、心动过速、甲状腺肿"
+   ],
+   "quote": "甲亢诊断基于病史、体格检查和甲状腺功能试验。",
+   "url": "http://www.msdmanuals.cn/professional/endocrine-and-metabolic-disorders/thyroid-disorders/hyperthyroidism?media=full?wruleredirectid=3/?wautoredirectid=36133",
+   "siteName": "默沙东诊疗手册",
+   "title": "甲状腺功能亢进 - 内分泌学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "肩周炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "肩痛及活动受限持续1月以上",
+   "definingFeatures": [
+    "肩痛伴肩关节主动、被动活动受限",
+    "出现两个及以上平面的活动受限",
+    "病情呈渐进性，肩痛及活动受限持续1月以上"
+   ],
+   "quote": "1.肩痛伴肩关节主动、被动活动受限；2.出现两个及以上平面的活动受限；3.病情呈渐进性,肩痛及活动受限持续1月以上。",
+   "url": "http://m.scswyy.com/news_major/2026/46dB32e7.html",
+   "siteName": "Scswyy",
+   "title": "【健康科普】 肩痛之殇一针解忧",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "焦虑障碍",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "至少6个月过度担忧",
+   "definingFeatures": [
+    "对日常事务过度担忧至少6个月，难以控制",
+    "担忧与风险不成比例，引起痛苦或功能损害",
+    "成人需至少3项核心症状（儿童1项）",
+    "核心症状：坐立不安、易疲劳、注意力差、易怒、肌紧张、睡眠障碍",
+    "排除躯体疾病、其他精神障碍及物质所致"
+   ],
+   "quote": "GAD is defined as at least 6 months of excessive worry about everyday issues that is disproportionate to any inherent risk and causes distress or impairment.",
+   "url": "https://bestpractice.bmj.com/topics/en-us/120?debug=1",
+   "siteName": "BMJ Best Practice",
+   "title": "Generalized anxiety disorder",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "紧张型头痛",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "轻至中度、紧箍样头痛",
+    "起源于双侧枕部或额部，可扩散至全头",
+    "不伴恶心、呕吐",
+    "不因体力活动、光、声、气味加重",
+    "体格检查（含神经科检查）无异常"
+   ],
+   "quote": "紧张型头痛可根据其特征性的临床表现，而体格检查（包括神经科检查）无异常而诊断。",
+   "url": "http://www.msdmanuals.cn/professional/neurologic-disorders/headache/tension-type-headache?media=hybrid&client=vin",
+   "siteName": "默沙东诊疗手册",
+   "title": "紧张型头痛 - 神经病学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "经前期综合征",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "症状在月经前5天出现，月经开始后数小时内消失",
+    "症状随月经周期反复出现",
+    "记录至少2个月经周期的每日症状",
+    "症状包括易激惹、焦虑、情绪不稳、抑郁、水肿、乳房胀痛、头痛"
+   ],
+   "quote": "La diagnosi è clinica, spesso basata sulla registrazione prospettica quotidiana dei sintomi della paziente per 2 cicli mestruali.",
+   "url": "https://www.msdmanuals.com/it/professionale/ginecologia-e-ostetricia/sanguinamento-uterino-anomalo/sindrome-premestruale?mredirectid=5404&media=print",
+   "siteName": "MSD Manuals",
+   "title": "Sindrome premestruale - Ginecologia e ostetricia - Manuali MSD Edizione Professionisti",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "颈椎病",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "影像学检查（X线/MRI）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "颈椎间盘退变及继发改变刺激或压迫邻近组织",
+    "引起相应临床症状和体征",
+    "分型不同临床表现不同（颈型/神经根型/脊髓型/椎动脉型）",
+    "神经根型：神经根牵拉试验和椎间孔挤压试验阳性",
+    "脊髓型：锥体束体征、反射异常、屈颈试验阳性"
+   ],
+   "quote": "颈椎病是颈椎间盘退变本身及其继发性改变刺激或压迫邻近组织，并引起相应的临床症状和体征，其主要病理改变在于椎间盘退变。",
+   "url": "https://ccdas.pmphai.com/appzkct/toPcDetail?knowledgeLibPrefix=zkct&id=0001AA100000000UD8AH",
+   "siteName": "人卫临床助手",
+   "title": "专科查体详情-人卫临床助手-人民卫生出版社",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "酒精性肝病",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "肝功能（AST、ALT等）",
+    "肝脏超声"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "长期大量饮酒史",
+    "肝大、黄疸、腹水等肝病表现",
+    "肝功能异常",
+    "影像学提示脂肪肝或肝硬化"
+   ],
+   "quote": "There is no specific laboratory test to identify alcohol as a cause of liver damage.",
+   "url": "https://bestpractice.bmj.com/topics/en-gb/1116",
+   "siteName": "BMJ Best Practice",
+   "title": "Alcohol-related liver disease - Evidence last reviewed: 11 九月 2026",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "巨幼细胞贫血",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "全血细胞计数及红细胞指数",
+    "外周血涂片",
+    "网织红细胞计数",
+    "血清维生素B12水平",
+    "血清叶酸或红细胞叶酸水平"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "大细胞性贫血，MCV>100 fL",
+    "外周血涂片见大卵形红细胞、红细胞大小不均",
+    "Howell-Jolly小体常见",
+    "中性粒细胞核分叶过多",
+    "网织红细胞减少"
+   ],
+   "quote": "当完全显现时，贫血呈大细胞性，在没有缺铁、地中海贫血特征或肾脏疾病的情况下，其平均红细胞体积>100 fL。",
+   "url": "http://www.msdmanuals.cn/professional/hematology/anemias-caused-by-deficient-erythropoiesis/megaloblastic-macrocytic-anemias?media=full?wautoredirectid=7?wautoredirectid=36133?autoredirectid=37988",
+   "siteName": "默沙东诊疗手册",
+   "title": "巨幼细胞性贫血 - 血液学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "绝经后骨质疏松症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "骨密度测量(T评分)"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "骨量低、骨微结构破坏、骨骼脆弱",
+    "骨强度下降和骨折风险增高",
+    "WHO按T评分定义骨质疏松诊断阈值",
+    "骨折前无任何临床表现"
+   ],
+   "quote": "WHO根据相对于年轻成人参考人群的骨密度测量值(T评分)，定义了低骨量和骨质疏松的诊断阈值。",
+   "url": "https://sso.uptodate.com/contents/zh-Hans/clinical-manifestations-diagnosis-and-evaluation-of-osteoporosis-in-postmenopausal-women?search=kidney+transplantation&topicRef=2064&source=see_link",
+   "siteName": "Wolters Kluwer",
+   "title": "绝经后女性骨质疏松的临床表现、诊断和评估",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "溃疡性结肠炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "内視鏡検査（びまん性粘膜変化）",
+    "生検組織学的検査"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "持続性または反復性の粘血・血便、あるいはその既往",
+    "内視鏡で直腸から連続するびまん性粘膜病変、血管透見像消失",
+    "多発性びらん・潰瘍または偽ポリポーシス",
+    "生検でびまん性炎症細胞浸潤、陰窩膿瘍、杯細胞減少"
+   ],
+   "quote": "確診例：[1] AのほかBの①または②，およびCを満たすもの。",
+   "url": "https://www.jstage.jst.go.jp/article/naika/114/1/114_16/_pdf",
+   "siteName": "",
+   "title": "IBD診断へのアプローチ",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "类风湿关节炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "RF或抗CCP血清学",
+    "CRP或血沉"
+   ],
+   "durationThreshold": "症状持续≥6周计1分",
+   "definingFeatures": [
+    "关节受累评分（大关节/小关节数目）",
+    "血清学RF或抗CCP滴度评分",
+    "急性期反应物CRP或血沉升高",
+    "症状持续时间≥6周",
+    "总分≥6分可分类为RA"
+   ],
+   "quote": "Efter de nye klassifikationskriterier har en patient RA, hvis de kan opnå en score 6 point eller mere ud fra nedenstående kategorier",
+   "url": "https://www.sundhed.dk/sundhedsfaglig/laegehaandbogen/reumatologi/tilstande-og-sygdomme/artritter/reumatoid-artritis/",
+   "siteName": "Sundhed.dk",
+   "title": "Reumatoid artritis",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "良性前列腺增生",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "下尿路症状（尿频、尿急、夜尿、踌躇、间歇性等）",
+    "直肠指检前列腺常肥大、无触痛、橡皮样质地、中沟消失",
+    "症状可由国际前列腺症状评分（IPSS）量化",
+    "诊断通常基于与BPH相符的下尿路症状"
+   ],
+   "quote": "通常情况下，如果患者出现与BPH相符的下尿路症状，临床医生会诊断为\"BPH\"。",
+   "url": "http://www.msdmanuals.cn/professional/genitourinary-disorders/benign-prostate-disease/benign-prostatic-hyperplasia?media=full?wautoredirectid=8",
+   "siteName": "默沙东诊疗手册",
+   "title": "良性前列腺增生 - 泌尿外科学 - MSD诊疗手册专业版 - 良性前列腺增生",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "良性阵发性位置性眩晕",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "变位试验（Dix-Hallpike或滚转试验）诱发典型眼震"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "头部运动至特定位置时诱发短暂（<60秒）眩晕发作",
+    "无听力损失和耳鸣",
+    "Dix-Hallpike手法诱发扭转性眼震，有潜伏期和疲劳性",
+    "神经系统检查无其他异常",
+    "可伴恶心、呕吐"
+   ],
+   "quote": "良性阵发性位置性眩晕的诊断基于典型症状、Dix-Hallpike手法（也称为Barany手法）诱发的眼球震颤，以及神经系统检查无其他异常",
+   "url": "http://www.msdmanuals.cn/professional/ear,-nose,-and-throat-disorders/inner-ear-disorders/benign-paroxysmal-positional-vertigo",
+   "siteName": "默沙东诊疗手册",
+   "title": "良性阵发性位置性眩晕 - 耳鼻喉科学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "《良性阵发性位置性眩晕诊断和治疗指南（2017）》",
+    "before": {
+     "clinicallyDiagnosable": true,
+     "requiredTests": []
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "流行性感冒",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "鼻咽样本RT-PCR检测流感病毒核酸"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "冬春季多发，亦可全年发病",
+    "常有发热、肌肉疼痛、头痛、倦怠等全身症状",
+    "咽痛、流涕、鼻塞等局部症状轻微",
+    "鼻咽样本RT-PCR检测流感病毒核酸阳性"
+   ],
+   "quote": "首选上呼吸道鼻咽样本进行ＲT －PCＲ 检测流感病毒核酸。在无法进行核酸检测的情况下，可采用抗原检测作为替代。",
+   "url": "https://m.medlive.cn/cms/research/238585",
+   "siteName": "医脉通",
+   "title": "成人流感的规范诊疗，急诊专家共识更新！",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性鼻窦炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "病程超过12周",
+   "definingFeatures": [
+    "至少两项主要症状：脓性鼻分泌物、鼻塞、面部疼痛/压迫感、嗅觉减退",
+    "同时存在炎症的客观证据",
+    "症状持续超过12周"
+   ],
+   "quote": "O diagnóstico é estabelecido quando pelo menos dois sintomas cardinais (secreção nasal mucopurulenta, bloqueio ou obstrução nasal, dor/pressão/sensação de preenchimento facial e hiposmia) estão presentes, juntamente com evidências objetivas de inflamação, por um período superior a 12 semanas.",
+   "url": "https://bestpractice.bmj.com/topics/pt-br/15?locale=ar",
+   "siteName": "BMJ Best Practice",
+   "title": "Rinossinusite crônica sem pólipos nasais - Última revisão das evidências: 8 Sep 2026",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性腹泻",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "腹泻持续超过4周",
+   "definingFeatures": [
+    "慢性腹泻定义为腹泻持续超过4周",
+    "需详细评估，包括病史和体格检查",
+    "初查包括粪便隐血、脂肪、电解质、贾第虫检测",
+    "需血常规、乳糜泻血清学、甲状腺功能、粪便钙卫蛋白",
+    "后续需内镜活检排除炎症性病因"
+   ],
+   "quote": "Eine chronische Diarrhö (> 4 Wochen) erfordert eine eingehende Evaluation",
+   "url": "https://www.msdmanuals.com/de/profi/gastrointestinale-erkrankungen/symptome-bei-st%C3%B6rungen-des-gastrointestinaltrakts/diarrh%C3%B6",
+   "siteName": "MSD Manuals",
+   "title": "Diarrhö - Gastroenterologie - MSD Manual Profi-Ausgabe - Eine chronische Diarrhö (> 4 Wochen) erfordert eine eingehende Evaluation, ebenso eine kürzere Episode einer Diarrhö (1–3 Wochen...",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "定义：腹泻持续超过4周；列出的化验用于查病因",
+    "before": {
+     "clinicallyDiagnosable": false,
+     "requiredTests": [
+      "粪便隐血",
+      "粪便脂肪或弹性蛋白酶",
+      "粪便电解质计算渗透间隙",
+      "贾第虫抗原或PCR",
+      "血常规",
+      "乳糜泻血清学"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性疲劳综合征",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "持续或反复发作的疲劳6个月以上",
+   "definingFeatures": [
+    "严重疲劳等核心症状，按NAM/IOM标准诊断",
+    "无足够敏感性和特异性的确诊检查"
+   ],
+   "quote": "there are no diagnostic tests of adequate sensitivity and specificity to confirm the diagnosis",
+   "url": "https://www.uptodate.com/contents/myalgic-encephalomyelitis-chronic-fatigue-syndrome-clinical-features-and-diagnosis?search=Date+rape&source=Out+of+date+-+zh-Hans",
+   "siteName": "Uptodate",
+   "title": "Myalgic encephalomyelitis/chronic fatigue syndrome: Clinical features and diagnosis - Page loading",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "IOM 2015/CDC标准",
+    "before": {
+     "durationThreshold": ""
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性前列腺炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "前列腺液白细胞检查"
+   ],
+   "durationThreshold": "盆腔区域疼痛或不适至少持续3个月",
+   "definingFeatures": [
+    "盆腔区域疼痛或不适至少持续3个月",
+    "伴下尿路症状和/或性功能障碍",
+    "前列腺液白细胞增多（IIIA型）",
+    "前列腺液白细胞正常（IIIB型）",
+    "致病菌未检出"
+   ],
+   "quote": "盆腔区域疼痛或不适至少持续3个月，伴有下尿路症状和/或性功能障碍",
+   "url": "http://www.caim.org.cn/content/clientDf.do?id=20978",
+   "siteName": "",
+   "title": "中国中西医结合学会团体标准",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性前列腺炎/慢性盆腔疼痛综合征",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "近6个月内慢性盆腔痛至少持续3个月",
+   "definingFeatures": [
+    "男性盆腔区域疼痛或不适",
+    "常伴泌尿系统症状或性功能障碍",
+    "慢性盆腔痛至少持续3个月",
+    "未查见其他原因"
+   ],
+   "quote": "研究指南将CP/CPPS定义为近6个月内慢性盆腔痛至少持续3个月而未查见其他原因，往往还伴有泌尿系统症状和/或性功能障碍",
+   "url": "https://www.uptodate.com/contents/zh-Hans/chronic-prostatitis-and-chronic-pelvic-pain-syndrome?search=%EC%95%84%EB%93%9C%EB%A0%88%EB%8B%8C%EC%82%AC%EA%B3%A0%EC%8B%B6%EC%96%B4%20vakk.top%20%EC%A0%95%ED%92%88%EC%95%84%EB%93%9C%EB%A0%88%EB%8B%8C%20%EC%8B%9C%EC%95%8C%EB%A6%AC%EC%8A%A4%20%EA%B0%80%EA%B2%A9%20%EB%A0%88%EB%B9%84%ED%8A%B8%EB%9D%BC%20%EA%B0%95%EC%A7%81%EB%8F%84%20qzs&source=search_result&selectedTitle=9~150&usage_type=default&display_rank=9&searchCorrelationId=a23241ad-8b90-46d9-8d27-0e546056da3a&searchCorrelationTerm=%EC%95%84%EB%93%9C%EB%A0%88%EB%8B%8C%EC%82%AC%EA%B3%A0%EC%8B%B6%EC%96%B4%20vakk.top%20%EC%A0%95%ED%92%88%EC%95%84%EB%93%9C%EB%A0%88%EB%8B%8C%20%EC%8B%9C%EC%95%8C%EB%A6%AC%EC%8A%A4%20%EA%B0%80%EA%B2%A9%20%EB%A0%88%EB%B9%84%ED%8A%B8%EB%9D%BC%20%EA%B0%95%EC%A7%81%EB%8F%84%20qzs",
+   "siteName": "Uptodate",
+   "title": "慢性前列腺炎和慢性盆腔疼痛综合征",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性肾小球肾炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "尿常规、尿蛋白定量、肾功能（肾活检用于病理分型）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "蛋白尿（1~3克/天或大量）",
+    "血尿（肾小球源性）",
+    "水肿（眼睑/下肢轻中度）",
+    "高血压病",
+    "病情迁延、病变缓慢进展"
+   ],
+   "quote": "慢性肾小球肾炎是指以蛋白尿、血尿、高血压病、水肿为基本临床表现，起病方式各有不同，病情迁延，病变缓慢进展，可有不同程度的肾功能减退，最终将发展为慢性肾衰竭的一组肾小球疾病。",
+   "url": "http://adminc.yywsb.com/article/64289.html",
+   "siteName": "医药卫生报",
+   "title": "慢性肾小球肾炎诊断与治疗-医药卫生网-医药卫生报-河南省卫生健康委员会主管",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "临床诊断以蛋白尿、血尿、肾功能为据，肾活检用于分型",
+    "before": {
+     "requiredTests": [
+      "肾穿刺活检"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性肾脏病",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "估算肾小球滤过率",
+    "尿白蛋白或尿白蛋白肌酐比",
+    "尿沉渣或尿常规"
+   ],
+   "durationThreshold": "肾脏结构或功能异常持续≥3个月",
+   "definingFeatures": [
+    "GFR<60 mL/min/1.73 m²",
+    "白蛋白尿（ACR≥3 mg/mmol或≥30 mg/g）",
+    "尿沉渣异常或持续性血尿",
+    "影像学或组织学结构异常",
+    "肾移植史"
+   ],
+   "quote": "CKD, also known as chronic renal failure, is defined as abnormalities of kidney structure or function, present for ≥3 months, with implications for health.",
+   "url": "https://bestpractice.bmj.com/topics/en-gb/84?q=Chronic%20kidney%20disease&c=suggested",
+   "siteName": "BMJ Best Practice",
+   "title": "Chronic kidney disease - Evidence last reviewed: 9 Sep 2026",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性失眠障碍",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "每周至少3晚、持续至少3个月",
+   "definingFeatures": [
+    "持续的睡眠困难",
+    "有充足的睡眠机会",
+    "出现相关的日间功能受损"
+   ],
+   "quote": "诊断失眠障碍需满足3个主要条件：持续的睡眠困难、有充足的睡眠机会，以及出现相关的日间功能受损。",
+   "url": "https://sso.uptodate.com/contents/zh-Hans/evaluation-and-diagnosis-of-insomnia-in-adults?sectionName=%E5%B8%B8%E8%A7%81%E5%85%B1%E5%AD%98%E5%9B%A0%E7%B4%A0&search=Macrophage+activation+syndrome&topicRef=97867&anchor=H7&source=see_link",
+   "siteName": "Wolters Kluwer",
+   "title": "成人失眠的评估和诊断",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "《中国成人失眠诊断与治疗指南》/ICSD-3",
+    "before": {
+     "durationThreshold": ""
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性萎缩性胃炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "胃镜及胃黏膜组织病理学检查"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "病理活检显示固有腺体减少",
+    "可伴或不伴肠腺化生和/或假幽门腺化生",
+    "临床表现无特异性，可无明显症状",
+    "上腹部不适、饱胀、疼痛等非特异性消化不良症状"
+   ],
+   "quote": "慢性胃炎病理活检显示固有腺体减少，即可诊断为萎缩性胃炎。",
+   "url": "http://www.caim.org.cn/content/clientDf.do?id=20965",
+   "siteName": "",
+   "title": "中国中西医结合学会团体标准",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性胃炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "胃镜（必要时病理活检）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "病理活检显示固有腺体萎缩即可诊断慢性萎缩性胃炎",
+    "慢性胃炎分为萎缩性和非萎缩性",
+    "按部位分为胃窦为主、胃体为主和全胃炎",
+    "组织学观察Hp感染、炎症、活动性、萎缩、肠化"
+   ],
+   "quote": "只要慢性胃炎病理活检显示固有腺体萎缩，即可诊断为慢性萎缩性胃炎，而不管活检标本的萎缩块数和程度。",
+   "url": "https://www.medjournals.cn/journalContribute/getContributeInfo.do?bizId=7070",
+   "siteName": "中华医学期刊网",
+   "title": "慢性胃炎的病理诊断标准及有关注意事宜10条",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "《中国慢性胃炎诊治指南》：胃镜及病理确诊",
+    "before": {
+     "requiredTests": [
+      "病理活检显示固有腺体萎缩"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性荨麻疹",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "反复出现荨麻疹和/或血管性水肿且持续超过6周",
+   "definingFeatures": [
+    "反复出现荨麻疹(风团)和/或血管性水肿",
+    "持续超过6周",
+    "每周大部分时间反复出现",
+    "排除药物等明确病因及物理性荨麻疹",
+    "不伴荨麻疹的单纯性特发性血管性水肿需先排除其他血管性水肿疾病"
+   ],
+   "quote": "CSU指每周大部分时间反复出现荨麻疹和/或血管性水肿且持续超过6周。",
+   "url": "https://sso.uptodate.com/contents/zh-Hans/chronic-spontaneous-urticaria-clinical-manifestations-diagnosis-pathogenesis-and-natural-history?search=Hemophagocytosis&topicRef=8111&source=see_link",
+   "siteName": "Wolters Kluwer",
+   "title": "慢性自发性荨麻疹的临床表现、诊断、发病机制和自然病程",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性牙髓炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "X线片"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "长期冷、热刺激痛病史和（或）自发痛史",
+    "可查及引起牙髓炎症的牙体硬组织疾患或其他病因",
+    "患牙对温度测试表现异常",
+    "X线片示冠部牙本质近髓或达髓腔密度减低区",
+    "根尖周组织无异常或轻微根尖周膜增宽"
+   ],
+   "quote": "X线片显示患牙冠部牙本质层可有近髓腔或达髓腔的X线密度减低区（深的牙体缺损、磨耗等），根尖周组织无异常改变或有轻微根尖周膜增宽表现。",
+   "url": "https://ccdas.pmphai.com/apppath/toPcDetail?sessionId=&knowledgeLibPrefix=path&id=0001AA100000000KKU9Q",
+   "siteName": "人卫临床助手",
+   "title": "临床路径详情-人卫临床助手-人民卫生出版社",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性咽炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "症状多持续3周以上",
+   "definingFeatures": [
+    "咽部异物感、发痒、灼热、干燥、微痛、干咳",
+    "晨起刺激性咳嗽伴恶心，分泌物不易咳净",
+    "讲话易疲劳，刷牙漱口或讲话多时恶心作呕",
+    "症状多持续3周以上",
+    "需排除咽喉肿瘤、食管癌等咽部异感疾病"
+   ],
+   "quote": "上述症状多持续 3 周以上[1]。",
+   "url": "https://m.dxy.com/disease/1899/detail",
+   "siteName": "丁香医生",
+   "title": "慢性咽炎症状_病因_治疗方法_鉴别_专家咨询|丁香医生 - 慢性咽炎",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性支气管炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "每年发病持续3个月，并连续2年或以上",
+   "definingFeatures": [
+    "慢性或反复咳嗽、咳痰或伴有喘息",
+    "每年发病持续3个月，连续2年或以上",
+    "每年发病不足3个月者需有明确客观检查依据",
+    "排除其他心、肺疾患引起的咳嗽、咳痰或喘息"
+   ],
+   "quote": "慢性或反复咳嗽、咳痰或伴有喘息，每年发病持续3个月，并连续2年或以上者。",
+   "url": "https://ccdas.pmphai.com/jeesitede/apppath/toPcDetail?sessionId=&knowledgeLibPrefix=path&id=0001AA100000000KKTSS",
+   "siteName": "人卫临床助手",
+   "title": "临床路径详情-人卫临床助手-人民卫生出版社",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "慢性阻塞性肺疾病",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "支气管舒张后肺功能检查"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "年龄>35岁且有吸烟等危险因素",
+    "有劳力性呼吸困难、慢性咳嗽、咳痰、喘息等症状",
+    "支气管舒张后FEV1/FVC<0.7",
+    "轻度气流受限者需同时有COPD症状"
+   ],
+   "quote": "Measure post-bronchodilator spirometry to confirm the diagnosis of COPD.",
+   "url": "https://bestpractice.bmj.com/topics/en-gb/7/nice-summary",
+   "siteName": "BMJ Best Practice",
+   "title": "Chronic obstructive pulmonary disease (COPD) - NICE summary",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "梅尼埃病",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "纯音测听记录低中频感音神经性听力损失"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "至少2次自发性眩晕发作，每次持续20分钟至12小时",
+    "听力学证实单耳低中频感音神经性听力损失",
+    "患耳波动性耳部症状（听力、耳鸣或耳闷）",
+    "不能用其他前庭诊断更好解释"
+   ],
+   "quote": "Two or more spontaneous episodes of vertigo, each lasting 20 min to 12 h",
+   "url": "https://link.springer.com/article/10.1007/s00415-025-13291-x/tables/1",
+   "siteName": "Springer",
+   "title": "Table 1 Current definitions of vestibular migraine and Menière’s disease",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "面神经麻痹",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "急性起病，通常3 d左右达到高峰",
+    "单侧周围性面瘫",
+    "可伴耳后疼痛、舌前味觉减退、听觉过敏、泪液或唾液分泌异常",
+    "排除继发原因"
+   ],
+   "quote": "该病的诊断主要依据临床病史和体格检查。详细的病史询问和仔细的体格检查是排除其他继发原因的主要方法",
+   "url": "http://cmab.yiigle.com/uploads/guide_html/%E4%B8%AD%E5%9B%BD%E7%89%B9%E5%8F%91%E6%80%A7%E9%9D%A2%E7%A5%9E%E7%BB%8F%E9%BA%BB%E7%97%B9%E8%AF%8A%E6%B2%BB%E6%8C%87%E5%8D%97.html",
+   "siteName": "中华医学知识库",
+   "title": "中国特发性面神经麻痹诊治指南",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "脑梗死",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "CT或MRI无出血征象"
+   ],
+   "durationThreshold": "症状持续超过24小时",
+   "definingFeatures": [
+    "一个主要或两个次要神经系统症状突然起病",
+    "症状持续超过24小时",
+    "CT或MRI48小时内阴性或非特异且无出血",
+    "主要症状：偏瘫、同向偏盲或失语",
+    "次要症状：复视、眩晕伴步态障碍、构音障碍等"
+   ],
+   "quote": "A probable ischemic stroke is defined as one major or two minor neurologic symptoms of sudden onset lasting more than 24 hours and CT or MRI findings within the first 48 hours were negative or nonspecific, with no sign of hemorrhage",
+   "url": "https://repository.niddk.nih.gov/public/study_document/Look_AHEAD_V9/Documents/MOP/Chapter_15_Adjudication_10.7.2016.pdf",
+   "siteName": "",
+   "title": "2. Two or more potential causes of stroke are identified so that it is impossible to make a definitive diagnosis",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "尿路感染",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "尿试纸检测",
+    "尿显微镜检查",
+    "尿培养及药敏试验"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "排尿困难",
+    "尿频",
+    "血尿",
+    "腰痛或胁腹痛",
+    "肋脊角压痛或发热"
+   ],
+   "quote": "O diagnóstico é obtido por tira reagente, urinálise microscópica (bactérias, leucócitos, eritrócitos) e cultura de urina.",
+   "url": "https://bestpractice.bmj.com/topics/pt-br/77?locale=ar",
+   "siteName": "BMJ Best Practice",
+   "title": "Infecções do trato urinário em mulheres - Última revisão das evidências: 9 Sep 2026",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "帕金森病",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "明确帕金森综合征：运动迟缓，且至少存在静止性震颤或强直之一",
+    "临床确诊需不符合绝对排除标准",
+    "临床确诊需至少两条支持性标准",
+    "临床确诊需没有警示征象",
+    "很可能PD：警示征象需用支持性标准抵消"
+   ],
+   "quote": "诊断的首要核心标准是明确帕金森综合征，定义为：出现运动迟缓，并且至少存在静止性震颤或强直这两项主征的一项。",
+   "url": "http://www.caim.org.cn/content/clientDf.do?id=20977",
+   "siteName": "",
+   "title": "中国中西医结合学会团体标准",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "盆腔炎性疾病",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "性活跃且有盆腔痛",
+    "宫颈举痛",
+    "子宫压痛或附件压痛",
+    "无其他可解释病因"
+   ],
+   "quote": "Antibiotic treatment should be initiated in patients who are sexually active and who have pelvic pain, cervical motion tenderness, or adnexal or uterine tenderness for which no other cause can be found.",
+   "url": "https://bestpractice.bmj.com/topics/en-us/195",
+   "siteName": "BMJ Best Practice",
+   "title": "Pelvic inflammatory disease",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "偏头痛",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "头痛时间持续4-72小时",
+   "definingFeatures": [
+    "头痛持续4-72小时",
+    "至少具备两项：单侧、搏动性、中重度、活动加剧",
+    "头痛时至少一项：恶心呕吐或怕光怕吵",
+    "此类头痛至少发作五次以上"
+   ],
+   "quote": "這類型的頭痛至少發作五次以上，則醫師才會較有把握給予偏頭痛的診斷。",
+   "url": "https://health.ntuh.gov.tw/health/new/6526.html",
+   "siteName": "國立臺灣大學醫學院附設醫院",
+   "title": "是不是只有痛一邊才叫偏頭痛",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "强直性脊柱炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "骶髂关节X线（3～4级单侧或2～4级双侧）"
+   ],
+   "durationThreshold": "下腰痛持续至少3个月",
+   "definingFeatures": [
+    "下腰痛持续至少3个月，活动后缓解",
+    "腰椎垂直和水平面活动受限",
+    "扩胸度较同龄同性别正常人减少",
+    "X线示单侧3～4级或双侧2～4级骶髂关节炎",
+    "确诊需影像学骶髂关节炎加临床标准至少1条"
+   ],
+   "quote": "具备单侧3～4级或双侧2～4级X线骶髂关节炎，加上临床标准3条中至少1条。",
+   "url": "https://ccdas.pmphai.com/apppath/toPcDetail?sessionId=&knowledgeLibPrefix=path&id=0001AA100000000KKS1U",
+   "siteName": "人卫临床助手",
+   "title": "临床路径详情-人卫临床助手-人民卫生出版社",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "桥本甲状腺炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "甲状腺过氧化物酶抗体",
+    "抗甲状腺球蛋白抗体"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "无痛性甲状腺肿大或喉部饱满感",
+    "甲状腺肿大无触痛、质地坚实",
+    "甲状腺过氧化物酶抗体高滴度",
+    "抗甲状腺球蛋白抗体增高（较少见）",
+    "可伴甲状腺功能减退症状"
+   ],
+   "quote": "诊断依据为高滴度的甲状腺过氧化物酶抗体。",
+   "url": "https://www.msdmanuals.cn/professional/endocrine-and-metabolic-disorders/thyroid-disorders/hashimoto-thyroiditis?media=print",
+   "siteName": "默沙东诊疗手册",
+   "title": "桥本甲状腺炎 - 内分泌及代谢紊乱 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "缺铁性贫血",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "血红蛋白和血细胞比容",
+    "MCV、MCH、MCHC",
+    "血清铁蛋白",
+    "转铁蛋白饱和度",
+    "血清铁、总铁结合力"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "小细胞低色素性贫血",
+    "网织红细胞计数低",
+    "血清铁低、总铁结合力升高",
+    "转铁蛋白饱和度<16%",
+    "血清铁蛋白低"
+   ],
+   "quote": "Blood tests reveal microcytic, hypochromic anemia; low reticulocyte count.",
+   "url": "https://bestpractice.bmj.com/topics/en-us/94?debug=0",
+   "siteName": "BMJ Best Practice",
+   "title": "Iron deficiency anemia - Evidence last reviewed: 10 Sep 2026",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "妊娠剧吐",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "尿酮体",
+    "血清电解质",
+    "肾功能检查"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "妊娠期间严重恶心和呕吐",
+    "体重减轻>5%体重",
+    "脱水",
+    "酮症",
+    "电解质紊乱（多数患者）"
+   ],
+   "quote": "妊娠剧吐是指妊娠期间严重的恶心和呕吐，导致脱水、体重减轻和酮症。诊断基于临床表现、尿酮体、血清电解质和肾功能测定。",
+   "url": "https://www.msdmanuals.cn/professional/gynecology-and-obstetrics/antenatal-complications/hyperemesis-gravidarum?media=full?wcnredirectid=5000?wautoredirectid=36134",
+   "siteName": "默沙东诊疗手册",
+   "title": "妊娠剧吐 - 妇产科学 - MSD诊疗手册专业版 - Professional edition active",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "乳腺增生",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "乳腺超声",
+    "乳腺钼靶（X线）",
+    "乳腺MRI",
+    "病理检查"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "乳房周期性疼痛，月经前加重、月经后缓解",
+    "双侧多发、质软、边界不清、活动度好的肿块",
+    "少数出现清亮或淡黄色乳头溢液",
+    "触诊检查肿块大小、质地、边界及活动度"
+   ],
+   "quote": "临床检查：医生通过触诊检查乳房肿块的大小、质地、边界及活动度。",
+   "url": "https://www.dzjkb.org.cn/dazhongkepu/dazhongkepu/7f74ad8741360fd25730ea3d3b9225c6.html",
+   "siteName": "大众健康报",
+   "title": "乳腺增生：是病还是正常现象？如何科学应对",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "三叉神经痛",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "反复发作的单侧面部疼痛，位于三叉神经一支或多支分布区",
+    "疼痛持续数分之一秒至2分钟",
+    "疼痛剧烈，呈电击样、针刺样或锐痛",
+    "由受累区域通常不引起疼痛的刺激触发",
+    "不能用其他诊断更好解释"
+   ],
+   "quote": "Tilbagevendende paroksysmer af unilateral ansigtssmerte i en eller flere af trigeminus-nervens grene uden udstråling udenfor trigeminusnervens territorium",
+   "url": "https://www.sundhed.dk/sundhedsfaglig/laegehaandbogen/neurologi/tilstande-og-sygdomme/neuropatier/trigeminusneuralgi/",
+   "siteName": "Sundhed.dk",
+   "title": "Trigeminusneuralgi",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "瘙痒症",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "瘙痒是引起不适的主要症状",
+    "瘙痒导致搔抓，引起炎症、皮疹恶化",
+    "皮肤可苔藓样变，出现鳞屑、抓痕",
+    "无皮疹的明显瘙痒需考虑系统性疾病及药物",
+    "许多皮肤疾病凭临床特点即可诊断"
+   ],
+   "quote": "瘙痒是引起不适的主要症状，也是大多数患者求医的主要理由。瘙痒导致搔抓，引起炎症、皮疹恶化并可能出现继发感染。",
+   "url": "https://www.msdmanuals.cn/professional/dermatologic-disorders/approach-to-the-dermatologic-patient/itching",
+   "siteName": "默沙东诊疗手册",
+   "title": "瘙痒症 - 皮肤科疾病 - MSD诊疗手册专业版 - 瘙痒症",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "社区获得性肺炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "胸部影像学检查"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "在社区发病",
+    "胸部影像学新出现浸润影、实变影或间质性改变",
+    "满足4项肺炎临床表现中至少1项",
+    "除外肺结核、肺部肿瘤、肺水肿、肺栓塞等疾病"
+   ],
+   "quote": "在社区发病，出现胸部影像学改变，并满足下述4项肺炎相关临床表现（I项，且除外肺结核、肺部肿瘤、非感染性肺疾病、肺水肿、肺不张、肺栓塞、肺嗜酸粒细胞浸润及肺血管炎等其他疾病，可以临床诊断CAP。",
+   "url": "http://www.cem.org.cn/zine/down/id/10886/flag/10886",
+   "siteName": "",
+   "title": "- 300 -    中华急诊医学杂志 2025 年 3 月第 34 卷第 3 期 Chin J Emerg Med, March 2025, Vol",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "肾结石",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "非增强CT"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "结石进入输尿管引起急性梗阻时剧烈疼痛",
+    "常伴恶心、呕吐",
+    "可有肉眼血尿",
+    "肋椎角压痛",
+    "影像学确认结石存在"
+   ],
+   "quote": "疑似结石引起绞痛的患者需行尿液分析和影像学检查；若已确定为结石，则需评估原发病，包括结石成分测定。",
+   "url": "https://www.msdmanuals.cn/professional/genitourinary-disorders/urinary-calculi/urinary-calculi?media=full?wautoredirectid=9",
+   "siteName": "默沙东诊疗手册",
+   "title": "泌尿系结石 - 泌尿生殖系统疾病 - MSD诊疗手册专业版 - 泌尿系结石",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "湿疹",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "表现为湿疹样皮损，伴明显瘙痒",
+    "病程具有慢性化倾向",
+    "缺乏独特病因和/或临床特征，不能归入特应性皮炎、接触性皮炎等",
+    "排除非皮炎湿疹类疾病（如疥疮、浅部真菌病等）"
+   ],
+   "quote": "对于部分表现为湿疹样皮损，但缺乏独特病因和/或临床特征，不能归类为以上三大类的皮炎患者，基于当前我国国情，在排除非皮炎湿疹类疾病后，可暂时保留“湿疹”的诊断",
+   "url": "http://www.ddzxhospital.com/library/up_f/file/20260428/202604281407246728.pdf",
+   "siteName": "",
+   "title": "中国皮炎湿疹类疾病诊疗指南（2026版）",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "室性期前收缩",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "心电图"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "心电图显示宽QRS波群",
+    "QRS波群前无P波",
+    "其后有典型的完全性代偿间歇"
+   ],
+   "quote": "诊断室性早搏的方法是，心电图（ECG）显示宽QRS波群且其前无P波，其后有典型的完全性代偿间歇。",
+   "url": "http://www.msdmanuals.cn/professional/cardiovascular-disorders/specific-cardiac-arrhythmias/ventricular-premature-beats-vpb?media=full?wruleredirectid=3",
+   "siteName": "默沙东诊疗手册",
+   "title": "室性期前收缩（VPB） - 心脏病学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "手足口病",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "手、足、口腔和臀部等部位出现皮疹",
+    "急性起病，发热",
+    "口腔粘膜散在疱疹",
+    "手足臀部斑丘疹、疱疹",
+    "典型皮疹即可做出临床诊断"
+   ],
+   "quote": "典型病例依据手、足、口等部位典型皮疹即可做出 HFMD 临床诊断。",
+   "url": "https://cdcp.gd.gov.cn/gcdcdfiles/dtd/201506/ea6eb7405cbf4faca7837c8cdcfdfd28/files/19e3ad31a1614238b9f3a47f70b77596.pdf",
+   "siteName": "",
+   "title": "手册由国家脊髓灰质炎实验室和国家麻疹实",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "输尿管结石",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "影像学检查（B超、KUB、CT等）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "影像学检查发现输尿管结石",
+    "结石位于输尿管走行区",
+    "可伴肾绞痛、血尿等表现",
+    "影像学是确诊结石的主要方法"
+   ],
+   "quote": "影像学检查是确诊结石的主要方法。目的在于明确结石的位置、数目、大小、可能的成分、可能的原因、肾功能、是否合并肾积水、是否合并感染、是否合并尿路畸形、既往治疗情况等。",
+   "url": "https://ccdas.pmphai.com/appdisease/toPcDetail?sessionId=&knowledgeLibPrefix=disease&id=19734",
+   "siteName": "人卫临床助手",
+   "title": "疾病详情-疾病-人卫临床助手-人民卫生出版社",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "睡眠呼吸暂停低通气综合征",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "多导睡眠监测或便携式睡眠监测"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "有日间或夜间症状（至少1项）",
+    "睡眠监测示AHI≥5/小时且伴症状",
+    "无症状者AHI≥15/小时",
+    "症状如日间嗜睡、疲劳、憋醒、打鼾"
+   ],
+   "quote": "Os critérios para o diagnóstico da apneia obstrutiva do sono consistem em sintomas diurnos, noturnos e resultados do monitoramento do sono que mostram IAH ≥ 5 por hora em pacientes sintomáticos ou ≥ 15 por hora na ausência de sintomas",
+   "url": "https://www.msdmanuals.com/pt/profissional/dist%c3%barbios-pulmonares/apneia-do-sono/apneia-obstrutiva-do-sono-aos?media=fu",
+   "siteName": "MSD Manuals",
+   "title": "Apneia obstrutiva do sono (AOS) - Pneumologia - Manuais MSD edição para profissionais - 1. Epstein LJ, Kristo D, Strollo PJ Jr, et al: Clinical guideline for the evaluation, management and long-term care of obstructi...",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "特应性皮炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "病程>6个月的对称性湿疹",
+    "特应性个人史和/或家族史",
+    "血清总IgE升高或外周血嗜酸性粒细胞升高",
+    "一种以上特异性IgE阳性",
+    "皮肤干燥、慢性湿疹样皮损和明显瘙痒"
+   ],
+   "quote": "实践中可选择方便临床操作的诊断标准，如符合以下1+2或1+3，即可诊断AD",
+   "url": "https://wsjkw.sh.gov.cn/jthl/20230523/884b9844ff4c46daa498a8f8e761593a.html",
+   "siteName": "上海市卫生健康委员会",
+   "title": "有一种慢性瘙痒性皮肤病叫特应性皮炎",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "Williams标准与张氏标准均为临床标准，化验非必需",
+    "before": {
+     "clinicallyDiagnosable": false,
+     "requiredTests": [
+      "血清总IgE",
+      "外周血嗜酸性粒细胞计数",
+      "过敏原特异性IgE"
+     ],
+     "durationThreshold": "病程>6个月"
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "痛风",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "第一跖趾关节迅速剧烈疼痛伴红肿",
+    "痛风石",
+    "其他关节迅速剧烈疼痛红肿或肿胀",
+    "血尿酸水平≥360μmol/L（6mg/dl）"
+   ],
+   "quote": "对于有痛风症状和体征的患者，应测量血尿酸水平以明确临床诊断[血尿酸水平≥360μmol/L（6mg/dl）]。",
+   "url": "https://www.pkuph.cn/meitishijiao_details/22007.html",
+   "siteName": "北京大学人民医院",
+   "title": "北京大学人民医院（北京大学第二临床医学院）",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "2015 ACR/EULAR 痛风分类标准",
+    "before": {
+     "clinicallyDiagnosable": false,
+     "requiredTests": [
+      "血尿酸水平≥360μmol/L"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "突发性聋",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "纯音测听"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "原因不明",
+    "突然发生的感音神经性听力损失"
+   ],
+   "quote": "突聋是指原因不明、突然发生的感音神经性听力损失。",
+   "url": "https://www.sinomed.ac.cn/article.do?ui=2026373482",
+   "siteName": "中国生物医学文献服务系统",
+   "title": "突发性聋诊断和治疗指南(2026解读版)",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "《突发性聋诊断和治疗指南（2015）》：72小时内相邻两个频率听力下降≥20dB",
+    "before": {
+     "clinicallyDiagnosable": true,
+     "requiredTests": []
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "外阴阴道假丝酵母菌病",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "革兰染色涂片显微镜检查"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "外阴瘙痒、分泌物增多等临床表现",
+    "革兰染色涂片见假菌丝及芽生孢子",
+    "白假丝酵母菌为最常见致病原"
+   ],
+   "quote": "诊断VVC推荐使用革兰染色涂片显微镜检查,观察到假菌丝及芽生孢子即可诊断",
+   "url": "https://www.sinomed.ac.cn/article.do?ui=2024408152",
+   "siteName": "中国生物医学文献服务系统",
+   "title": "外阴阴道假丝酵母菌病中国诊治指南(2024版)",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "围绝经期综合征",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "绝经前后性激素波动或减少所致症候群",
+    "月经紊乱甚至闭经",
+    "潮热、出汗、眩晕、心悸等血管舒缩症状",
+    "烦躁易怒、抑郁、失眠等精神神经症状",
+    "妇科检查见外阴阴道萎缩、分泌物减少"
+   ],
+   "quote": "更年期综合征，又称围绝经期综合征，是指女性在绝经前后因性激素波动或减少所导致的一系列以自主神经系统功能紊乱为主，并伴有神经心理症状的症候群。",
+   "url": "https://m.dayi.org.cn/qa/358288.html",
+   "siteName": "中国医药信息查询平台",
+   "title": "更年期综合征的诊断标准",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "《中国绝经管理与绝经激素治疗指南》：依据年龄、月经变化与症状临床诊断，激素测定非必需",
+    "before": {
+     "clinicallyDiagnosable": false,
+     "requiredTests": [
+      "生殖内分泌激素测定（FSH、E2、AMH）"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "胃食管反流病",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "洛杉矶B级食管炎为确诊证据",
+    "有症状且反流监测证实反流相关",
+    "未证实GERD需停药行pH监测",
+    "已证实GERD持续症状需用药中监测"
+   ],
+   "quote": "The Lyon Consensus provides conclusive criteria for and against the diagnosis of gastro-oesophageal reflux disease (GERD)",
+   "url": "https://www.uptodate.com/contents/zh-Hans/clinical-manifestations-and-diagnosis-of-gastroesophageal-reflux-in-adults/abstract/1-3",
+   "siteName": "Uptodate",
+   "title": "Medline ® Abstracts for References 1-3 of '成人胃食管反流的临床表现和诊断' - Medline ® Abstracts for References 1-3 of '成人胃食管反流的临床表现和诊断'",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "《中国胃食管反流病专家共识》：有典型烧心、反流症状可作出初步诊断，PPI试验可辅助",
+    "before": {
+     "clinicallyDiagnosable": false,
+     "requiredTests": [
+      "无线pH监测或导管pH监测",
+      "pH-阻抗监测"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "稳定型心绞痛",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "心绞痛发作次数、诱因、发作性质和部位在1个月～3个月内相对稳定",
+   "definingFeatures": [
+    "典型心绞痛症状：胸骨中上段后方或左胸前区疼痛，手掌或拳头大小",
+    "性质为紧缩感、压迫感、憋闷感、沉重感，持续数分钟，一般不超过10分钟",
+    "发作与劳力、饱餐、寒冷或情绪激动有关，诱因固定",
+    "停止活动或舌下含服硝酸甘油后2～5分钟内迅速缓解",
+    "发作时心电图有缺血性ST-T动态改变或运动负荷试验阳性"
+   ],
+   "quote": "典型心绞痛症状的发作特点，结合患者存在的心血管危险因素，要除外其他原因所致的胸痛。",
+   "url": "http://www.nhc.gov.cn/cms-search/downFiles/ecbd5f139b58418bb6f6197981e773f2.pdf",
+   "siteName": "",
+   "title": "ICS 11.020",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "膝骨关节炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "X线片示关节间隙变窄、骨硬化/囊性变、骨赘"
+   ],
+   "durationThreshold": "近1个月内反复膝关节疼痛",
+   "definingFeatures": [
+    "近1个月内反复的膝关节疼痛",
+    "X线示关节间隙变窄、软骨下骨硬化/囊性变、骨赘",
+    "年龄≥50岁",
+    "晨僵时间≤30min",
+    "活动时有骨摩擦音（感）"
+   ],
+   "quote": "满足上述诊断标准①和②~⑤中的任意2条可诊断为膝关节骨性关节炎。",
+   "url": "https://ccdas.pmphai.com/jeesitede/appguide/toPcDetail?sessionId=&knowledgeLibPrefix=guide&id=1915575789235994625",
+   "siteName": "人卫临床助手",
+   "title": "指南规范详情-人卫临床助手-人民卫生出版社",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "细菌性阴道病",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "阴道pH测定",
+    "盐水湿片镜检线索细胞",
+    "10%氢氧化钾嗅试验",
+    "分子诊断检测（NAAT等）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "均质稀薄白灰色分泌物，均匀附着阴道壁",
+    "阴道液pH>4.5",
+    "氢氧化钾嗅试验有鱼腥味",
+    "线索细胞占阴道上皮细胞>20%",
+    "Amsel标准4项中满足3项即可诊断"
+   ],
+   "quote": "Diagnosis of bacterial vaginosis may be made if 3 of 4 criteria (Amsel criteria) are present",
+   "url": "https://www.merckmanuals.com/professional/gynecology-and-obstetrics/vaginitis-cervicitis-and-pelvic-inflammatory-disease/bacterial-vaginosis-bv?autoredirectid=21575",
+   "siteName": "Merck Manuals",
+   "title": "Bacterial Vaginosis (BV) - Gynecology and Obstetrics - Merck Manual Professional Edition",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "先兆流产",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "妊娠试验、盆腔超声"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "妊娠不足28周，胎儿体重不足1000g",
+    "少量阴道暗红色流血或血性白带",
+    "流血后数小时至数日出现轻微下腹痛或腰骶部胀痛",
+    "妇科检查宫颈口未开，无妊娠物排出",
+    "子宫大小与停经时间相符"
+   ],
+   "quote": "妇科检查宫颈口未开，无妊娠物排出，子宫大小与停经时间相符。",
+   "url": "https://drugs.dxy.cn/pc/clinicalDecision/pYpT3LumqeiAWKg1QSLmTWw?ky=%E5%9C%B0%E5%B1%88%E5%AD%95%E9%85%AE%E7%89%87",
+   "siteName": "丁香园用药助手",
+   "title": "先兆流产",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "妇产科学：妊娠确认与宫内妊娠超声",
+    "before": {
+     "clinicallyDiagnosable": true,
+     "requiredTests": []
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "纤维肌痛综合征",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "广泛性疼痛至少3个月",
+   "definingFeatures": [
+    "全身性疼痛和压痛，与体征不相符",
+    "疼痛分布于左右侧、腰上下部及中轴骨骼",
+    "伴疲劳、睡眠障碍、认知障碍等核心躯体症状",
+    "实验室检查阴性，排除其他疾病",
+    "体格检查无明显异常，仅压痛区压痛"
+   ],
+   "quote": "对于那些持续遭受广泛性疼痛至少 3 个月的患者，应考虑诊断为纤维肌痛症。尤其是当伴有其他核心躯体症状（如疲劳和睡眠障碍）时，更应如此",
+   "url": "http://www.msdmanuals.cn/professional/musculoskeletal-and-connective-tissue-disorders/bursa-muscle-and-tendon-disorders/fibromyalgia?media=print?wautoredirectid=36133",
+   "siteName": "默沙东诊疗手册",
+   "title": "纤维肌痛综合征 - 风湿病学与骨科学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "消化性溃疡",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "胃镜检查",
+    "上消化道钡餐检查"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "中上腹痛、反酸为典型症状",
+    "胃溃疡腹痛多在餐后半小时左右",
+    "十二指肠溃疡腹痛常发生在空腹时",
+    "胃镜或上消化道钡餐检查诊断",
+    "须与克罗恩病、结核、淋巴瘤等鉴别"
+   ],
+   "quote": "胃镜检查及上消化道钡餐检查是诊断消化性溃疡病的主要方法。",
+   "url": "http://ncrcgastro.org:8002/academic/kepu/xw338.html",
+   "siteName": "ncrcgastro.org",
+   "title": "消化性溃疡病规范诊治25条",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "小儿功能性腹痛",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "每月至少4次、持续至少2个月",
+   "definingFeatures": [
+    "每月至少4次腹痛，持续至少2个月",
+    "疼痛不限于进食或月经等生理事件",
+    "经适当评估不能用其他疾病解释",
+    "不符合其他功能性胃肠病诊断标准",
+    "排除器质性病因后按症状诊断"
+   ],
+   "quote": "define functional abdominal pain as episodic or continuous pain occurring at least 4 times per month for 2 months, not limited to physiological events such as eating or menses, and unexplained by another medical condition after an appropriate evaluation.",
+   "url": "https://www.ncbi.nlm.nih.gov/sites/books/NBK537298/",
+   "siteName": "National Institutes of Health (NIH) | (.gov)",
+   "title": "Functional Abdominal Pain in Children",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "小儿急性上呼吸道感染",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "由各种病原体侵犯鼻、咽、扁桃体、喉和会厌部引起的急性感染性炎症",
+    "包括普通感冒（急性鼻炎）、急性咽炎/扁桃体炎、急性喉炎、急性鼻窦炎和急性会厌炎",
+    "URTI多为轻症"
+   ],
+   "quote": "急性上呼吸道感染（URTI）由各种病原体侵犯鼻、咽、扁桃体、喉和会厌部引起的急性感染性炎症，包括普通感冒（急性鼻炎）、急性咽炎/扁桃体炎、急性喉炎、急性鼻窦炎和急性会厌炎。",
+   "url": "http://www.jsma.net.cn/UploadFile/kindeditor/file/20260718/20260718091950_6802.pdf",
+   "siteName": "",
+   "title": "指南·标准·共识DOI:10.19538/jek2026060602",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "小儿厌食症",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "发病时间多为2月以上",
+   "definingFeatures": [
+    "长期食欲不振，见食不贪，甚则拒食",
+    "入量较病前减少1/3~1/2以上",
+    "面色少华，形体偏瘦，但精神尚好，活动如常",
+    "多数有喂养不当史",
+    "排除其它系统疾病的食欲障碍"
+   ],
+   "quote": "长期食欲不振，而无其它疾病。面色少华，形体偏瘦，但精神尚好，活动如常。多数有喂养不当史。",
+   "url": "http://www.scfcms.cn/studio_changke2_xsjl_jxjypx/2026/ELe3W4e6.html",
+   "siteName": "成都中医药大学附属医院",
+   "title": "诊疗方案 — 小儿厌食",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "心力衰竭",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "超声心动图",
+    "利钠肽检测"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "心脏无法满足机体代谢需求",
+    "心排出量下降或心室充盈压升高",
+    "运动性呼吸困难、运动不耐受",
+    "颈静脉怒张、第三心音、心尖搏动移位",
+    "肝颈静脉反流征"
+   ],
+   "quote": "诊断需通过检查、血液检测和影像学检查进行。",
+   "url": "http://www.msdmanuals.cn/professional/cardiovascular-disorders/heart-failure/chronic-heart-failure?media=print?wautoredirectid=9?wautoredirectid=36134?autoredirectid=37994",
+   "siteName": "默沙东诊疗手册",
+   "title": "慢性心力衰竭 - 心脏病学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "心脏神经症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "心电图",
+    "超声心动图",
+    "甲状腺功能",
+    "心肌酶",
+    "血常规",
+    "血生化"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "反复发作的胸闷、胸痛、心慌、气短、呼吸困难等类似心脏疾病症状",
+    "症状多样易变、缺乏内在联系，发作和持续时间不固定",
+    "可伴失眠、多梦、焦虑、多汗、手足发冷等神经功能紊乱表现",
+    "排除可能导致症状的心脏及非心脏疾病后诊断"
+   ],
+   "quote": "在排除可能导致上述不适症状的心脏及非心脏疾病后，即可明确诊断。",
+   "url": "https://m.dayi.org.cn/qa/341637.html",
+   "siteName": "中国医药信息查询平台",
+   "title": "心脏神经官能症是什么病",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "牙周炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "牙周探诊测量牙周袋深度",
+    "口腔X线检查"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "牙周袋深度超过4毫米",
+    "牙槽骨吸收",
+    "牙龈附着丧失",
+    "牙龈发红、肿胀、渗出、易出血"
+   ],
+   "quote": "通常，对牙齿和牙龈的检查，结合牙周袋的探查和深度测量足以诊断。牙周袋深度超过4毫米，提示牙周炎。",
+   "url": "http://www.msdmanuals.cn/professional/dental-disorders/periodontal-disorders/periodontitis?media=print?wautoredirectid=9?autoredirectid=37989",
+   "siteName": "默沙东诊疗手册",
+   "title": "牙周炎 - 口腔科 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "腰肌劳损",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "疼痛与活动明显相关，越累越痛，休息减轻",
+    "无下肢放射性疼痛或感觉异常",
+    "腰部活动范围基本正常，仅某些角度疼痛",
+    "影像学无椎间盘突出、骨折、肿瘤等结构性病变"
+   ],
+   "quote": "判断是不是腰肌劳损，可以抓住几个要点：第一，疼痛与活动明显相关，越累越痛，休息减轻；第二，没有下肢的放射性疼痛或感觉异常",
+   "url": "https://jbk.39.net/yjls/240810/t9rfj8h.html",
+   "siteName": "39健康网",
+   "title": "腰没劲就是腰肌劳损？判断标准看这里",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "腰椎间盘突出症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "腰椎CT和（或）MRI"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "单侧或双侧神经根损伤或马尾神经损伤的症状",
+    "单侧或双侧神经根损伤或马尾神经损伤的阳性体征",
+    "影像学显示椎间盘突出或脱出压迫神经根或马尾神经"
+   ],
+   "quote": "3．影像学检查 有椎间盘突出或脱出压迫神经根或马尾神经的表现。",
+   "url": "https://ccdas.pmphai.com/apppath/toPcDetail?sessionId=&knowledgeLibPrefix=path&id=0001AA100000000KKU68",
+   "siteName": "人卫临床助手",
+   "title": "临床路径详情-人卫临床助手-人民卫生出版社",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "异常子宫出血",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "月经周期长度变化>8天",
+    "出血持续时间>7-9天（依年龄）",
+    "出血量大影响全身状况，通常>80ml/周期",
+    "月经间期出血"
+   ],
+   "quote": "Start med grundig anamnese og transvaginal ultralyd etter IETA-standard (Van Den Bosch T, 2021); følg opp med endometriebiopsi (pipelle) ved indikasjon",
+   "url": "https://www.legeforeningen.no/contentassets/4bf59a8f058d4ad28eaa31970366d329/gynekologiske-blodningsforstyrrelser-2025-til-hoering.pdf",
+   "siteName": "",
+   "title": "Gynekologiske blødningsforstyrrelser (2021)",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "症状层面的诊断名，按出血模式即可成立；超声与内膜活检用于病因分类（PALM-COEIN）",
+    "before": {
+     "clinicallyDiagnosable": false,
+     "requiredTests": [
+      "经阴道超声",
+      "子宫内膜活检（Pipelle）"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "抑郁障碍",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "症状几乎每天出现，持续至少2周",
+   "definingFeatures": [
+    "至少5个症状，其中至少1个来自情感症状群",
+    "症状几乎每天出现，持续至少2周",
+    "症状导致个人、家庭、社会、学业或职业功能受限",
+    "按症状数量和强度及功能受限程度分轻、中、重度"
+   ],
+   "quote": "Gemäß ICD-11 müssen für die Diagnose einer depressiven Episode mindestens 5 Symptome (ICD-10: 4) vorliegen, davon mindestens eines aus dem affektiven Cluster.",
+   "url": "https://www.leitlinien.de/themen/depression/archiv/pdf/depression-vers3-1-lang.pdf",
+   "siteName": "",
+   "title": "- verminderte Konzentration und Aufmerksamkeit",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "银屑病",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "边界清楚的红斑性丘疹和斑块",
+    "表面覆盖银白色鳞屑",
+    "好发于头皮、肘膝伸侧、骶部、臀部及生殖器",
+    "指甲可受累（点状凹陷、油斑、甲剥离等）"
+   ],
+   "quote": "临床诊断主要基于皮损表现及分布。",
+   "url": "https://www.msdmanuals.cn/professional/dermatologic-disorders/psoriasis-and-other-papulosquamous-disorders/psoriasis?media=print?wautoredirectid=35251",
+   "siteName": "默沙东诊疗手册",
+   "title": "银屑病 - 皮肤科疾病 - MSD诊疗手册专业版 - 银屑病",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "原发免疫性血小板减少症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "血小板计数（至少2次低于100×10^9/L）及外周血涂片"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "孤立性血小板减少，其余血常规及外周血涂片正常",
+    "排除其他可逆性血小板减少原因（药物、感染、自身免疫病等）",
+    "脾脏大小正常（无其他基础疾病时）",
+    "皮肤黏膜出血表现如瘀点、紫癜、瘀斑、黏膜出血"
+   ],
+   "quote": "Diagnosis is usually clinical, based on exclusion of other causes of thrombocytopenia (eg, HIV infection, hepatitis C infection).",
+   "url": "https://www.msdmanuals.com/professional/hematology/thrombocytopenia-and-platelet-dysfunction/immune-thrombocytopenia-itp?media=fullwautoredirectid=25",
+   "siteName": "MSD Manuals",
+   "title": "Immune Thrombocytopenia (ITP) - Hematology - MSD Manual Professional Edition - Professional edition active",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "《成人原发免疫性血小板减少症诊断与治疗中国指南》",
+    "before": {
+     "clinicallyDiagnosable": true,
+     "requiredTests": []
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "原发性痛经",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "月经期子宫部位疼痛，可始于经前1～3天",
+    "疼痛多在月经开始24小时后达高峰，2～3天缓解",
+    "常为痉挛性或钝性持续痛，可放射至背部或腿部",
+    "常伴恶心、腹泻、腰痛、头痛等",
+    "初潮后一年内开始，几乎总在排卵周期发生"
+   ],
+   "quote": "临床医生可以根据症状来识别痛经，然后确定痛经是原发性还是继发性。",
+   "url": "https://www.msdmanuals.cn/professional/gynecology-and-obstetrics/menstrual-abnormalities/dysmenorrhea?ruleredirectid=14",
+   "siteName": "默沙东诊疗手册",
+   "title": "痛经 - 妇产科学 - MSD诊疗手册专业版 - 痛经",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "月经稀发",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "月经周期超过35天"
+   ],
+   "quote": "如果月经周期超过35天叫月经稀发，短于21天叫月经频发。",
+   "url": "https://m.dayi.org.cn/qa/48011.html",
+   "siteName": "中国医药信息查询平台",
+   "title": "月经失调什么意思_什么叫月经失调疾病_月经失调疾病是什么_北京协和医院_妇科内分泌与生殖中心_主任医师_郁琦|视频科普|中国医药信息查询平台",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "再生障碍性贫血",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "全血细胞计数及网织红细胞计数",
+    "骨髓活检示骨髓增生低下",
+    "骨髓细胞遗传学检查"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "外周血全血细胞减少",
+    "骨髓活检示骨髓增生低下",
+    "骨髓细胞数量<25%且满足至少2项血细胞减少标准",
+    "中性粒细胞绝对计数<500/microL",
+    "网织红细胞<60,000/microL或血小板<20,000/microL"
+   ],
+   "quote": "诊断需存在外周血全血细胞减少及骨髓活检示骨髓增生低下。",
+   "url": "https://www.msdmanuals.cn/professional/hematology-and-oncology/anemias-caused-by-deficient-erythropoiesis/aplastic-anemia?media=full?wautoredirectid=31",
+   "siteName": "默沙东诊疗手册",
+   "title": "再生障碍性贫血 - 血液病学及肿瘤病学 - MSD诊疗手册专业版 - Professional edition active",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "早发性卵巢功能不全",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "血清FSH升高",
+    "雌二醇降低"
+   ],
+   "durationThreshold": "闭经持续4到6个月，FSH和雌二醇水平间隔1个月获得",
+   "definingFeatures": [
+    "年龄<40岁",
+    "闭经持续4到6个月",
+    "FSH升高（通常>30 mIU/mL）",
+    "雌二醇降低（通常<20 pg/mL）",
+    "激素水平间隔1个月获得"
+   ],
+   "quote": "POI诊断为年龄<40岁的女性，她们的闭经持续4到6个月，同时FSH升高，雌二醇水平降低且这些水平是在相隔一个月的时间里获得的",
+   "url": "http://www.msdmanuals.cn/professional/gynecology-and-obstetrics/abnormal-uterine-bleeding/primary-ovarian-insufficiency?media=print",
+   "siteName": "默沙东诊疗手册",
+   "title": "卵巢早衰 - 妇产科学 - MSD诊疗手册专业版 - 卵巢早衰",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "支气管哮喘",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "支气管舒张试验",
+    "支气管激发试验",
+    "PEF平均每日昼夜变异率"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "典型哮喘症状和体征",
+    "可变气流受限的客观检查阳性",
+    "FEV1≥70%可行支气管激发试验",
+    "FEV1<70%优先支气管舒张试验",
+    "舒张试验阳性：FEV1增加≥12%且≥200ml"
+   ],
+   "quote": "从哮喘的临床症状和体征与可变气流受限的客观检查两个维度进行诊断。",
+   "url": "https://www.huxijie.com/documents/%E5%A4%B4%E6%9D%A1/10162/",
+   "siteName": "呼吸界",
+   "title": "赖克方教授寄语",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "脂溢性皮炎",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "皮脂腺密集区（头皮、面部、胸骨）油腻黄色鳞屑",
+    "头皮干燥片状脱屑或油性弥漫性鳞屑伴瘙痒",
+    "发际线、耳后、眉毛、鼻唇沟黄红色鳞屑丘疹",
+    "诊断主要依靠临床体格检查",
+    "婴儿头皮黄色厚痂（摇篮帽）"
+   ],
+   "quote": "脂溢性皮炎的诊断主要依靠临床体检。",
+   "url": "http://www.msdmanuals.cn/professional/dermatologic-disorders/dermatitis/seborrheic-dermatitis?client=vin",
+   "siteName": "默沙东诊疗手册",
+   "title": "脂溢性皮炎 - 皮肤科 - MSD诊疗手册专业版 - 脂溢性皮炎",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "智齿冠周炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "口腔检查（冠周软组织所见，必要时X线）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "患处局部肿痛，可伴面部肿胀、张口受限、咀嚼吞咽疼痛",
+    "牙齿萌出不全，冠周有盲袋，牙龈红肿触痛",
+    "可有脓液自龈瓣下溢出，或牙冠远中/颊侧形成脓肿",
+    "可伴同侧下颌下淋巴结肿大、压痛",
+    "临床检查除外可引起局部肿痛的其他疾病"
+   ],
+   "quote": "症状 患处局部肿痛，可伴面部肿胀，及不同程度的张口受限和咀嚼吞咽疼痛。可伴有畏寒、发热、头痛和全身不适。",
+   "url": "https://ccdas.pmphai.com/apppath/toPcDetail?sessionId=&knowledgeLibPrefix=path&id=0001AA100000000KKUA5",
+   "siteName": "人卫临床助手",
+   "title": "临床路径详情-人卫临床助手-人民卫生出版社",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "口腔颌面外科学：依据口腔检查所见诊断",
+    "before": {
+     "clinicallyDiagnosable": true,
+     "requiredTests": []
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "主观性耳鸣",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "无声音刺激的情况下感觉到响声",
+    "仅能为患者本人听到",
+    "声音可为嗡嗡声、铃声、轰鸣声等",
+    "安静环境下更明显"
+   ],
+   "quote": "主观性耳鸣是在无声音刺激的情况下感觉到响声，仅能为患者本人听到。",
+   "url": "http://www.msdmanuals.cn/professional/ear-nose-and-throat-disorders/approach-to-the-patient-with-ear-problems/tinnitus?media=print",
+   "siteName": "默沙东诊疗手册",
+   "title": "耳鸣 - 耳鼻喉科学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "子宫内膜异位症",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "妇科检查与盆腔超声（必要时腹腔镜）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "痛经、深部性交痛等周期性及非周期性症状",
+    "盆腔检查可及后穹窿触痛结节、器官活动度下降",
+    "影像学（经阴道超声或MRI）提示卵巢子宫内膜异位囊肿或深部内异症",
+    "腹腔镜见内异症病灶并经组织病理学证实"
+   ],
+   "quote": "Laparoscopic identification of endometriotic lesions should be confirmed by histopathologic examination of the lesions.",
+   "url": "https://lms.ehc.gov.eg/lms/mod/book/view.php?id=665&chapterid=4317&lang=en",
+   "siteName": "Nursing Care for Cancer Patients",
+   "title": "The diagnosis and management of endometriosis",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "《子宫内膜异位症诊治指南（第三版）》：临床诊断可基于症状、妇科检查与影像",
+    "before": {
+     "requiredTests": [
+      "腹腔镜病灶活检组织病理学检查"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  },
+  {
+   "name": "子宫腺肌病",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "经阴道超声或盆腔MRI"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "异位子宫内膜组织浸润子宫肌层",
+    "弥漫性（球状）子宫增大",
+    "月经大量出血、痛经",
+    "慢性盆腔疼痛",
+    "经阴道超声或MRI支持诊断"
+   ],
+   "quote": "在没有子宫内膜异位症或子宫肌瘤的患者中，根据症状和盆腔检查发现的弥漫性子宫增大，可提示子宫腺肌症。经阴道超声 (1) 和 MRI 通常用于诊断，但确诊需要子宫切除术后组织学检查。",
+   "url": "http://www.msdmanuals.cn/professional/gynecology-and-obstetrics/miscellaneous-gynecologic-disorders/uterine-adenomyosis?media=print%3Fwautoredirectid%3D9",
+   "siteName": "默沙东诊疗手册",
+   "title": "子宫腺肌症 - 妇产科学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "《子宫腺肌病诊治中国专家共识》：超声/MRI为主要诊断手段",
+    "before": {
+     "requiredTests": [
+      "子宫切除术后组织学检查"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-18"
+  }
+ ]
+}

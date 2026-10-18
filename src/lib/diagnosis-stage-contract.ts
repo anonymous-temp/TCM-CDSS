@@ -4120,6 +4120,8 @@ function crossStageReasoningIssue(
       if (isCompositionRestoredGovernedIdentity(candidate, governedPriorNames, String(governedMode))) {
         return undefined;
       }
+      // 方名不含病人信息：记下锁定方与候选方名，供生产日志统计这一驳回的来源（2026-10-18：生产 13 小时 11 次、本地主集约 50 次整方重生成）。
+      console.info("[tcm-cdss:telemetry] formula_direction_drift", { locked: governedPriorNames, mode: governedMode, candidateNames: candidateFormulaNames, candidateName: String(candidate?.name || "").slice(0, 40) });
       return "formula_direction_drift";
     }
   } else if (!workbenchEdited) return "formula_reference_contract_missing";

@@ -20,4 +20,10 @@ export type RequiredPrecaution =
       alcoholWarning: boolean;
     }
   | { kind: "postpartum_lactation" }
-  | { kind: "skin_infection_antibiotic"; disease: string };
+  | { kind: "skin_infection_antibiotic"; disease: string }
+  /** 未满 12 岁（儿科剂量按年龄折算的年龄段）：少量多次喂服、不强灌、不自行加量。2026-10-18 留出集 4 例患儿没有这一条。 */
+  | { kind: "pediatric_administration"; ageYears: number }
+  /** 65 岁及以上：起身宜缓、防跌倒（2026-10-18 起与项目卡的老年提示同一界值；验收主集 68 岁例评审判缺）。 */
+  | { kind: "elderly_administration"; ageYears: number }
+  /** 病历写着正在服用的药（既往史里的长期用药也算；现病史里为这次病自服的另见 self_medication）。 */
+  | { kind: "current_medications"; names: string[] };

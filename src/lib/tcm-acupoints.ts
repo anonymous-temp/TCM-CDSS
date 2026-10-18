@@ -125,3 +125,14 @@ export function selectAcupointsForCaseTerms(
       left.entry.code.localeCompare(right.entry.code))
     .slice(0, Math.max(1, limit));
 }
+
+/**
+ * 孕期须回避的穴位（2026-10-18）：教材穴位目录里操作或定位写明孕妇禁用、禁针、慎用的（合谷、三阴交、昆仑、肩井、中极、关元…），
+ * 以及定位在腹部（含脐上下）或腰骶部的穴位——《针灸学》刺法注意：「妇女怀孕3个月以内者，不宜针刺小腹部腧穴；若怀孕3个月以上者，
+ * 腹部、腰骶部腧穴也不宜针刺」；妊娠未写明时不知月份，按后者。判据取自《经络腧穴学》目录原文的定位与操作，不另立穴名表。
+ */
+export function acupointPregnancySensitive(name: string): boolean {
+  const entry = resolveAcupoint(name);
+  if (!entry) return false;
+  return /孕/u.test(`${entry.operation || ""}${entry.location}`) || /腹|脐|腰|骶/u.test(entry.location);
+}

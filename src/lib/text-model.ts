@@ -108,7 +108,7 @@ function getOpenAICompatibleConfig(): TextModelConfig {
 
   const resolvedBaseUrl = cleanBaseUrl(baseUrl.value || "https://api.deepseek.com");
   const transportAllowed = endpointTransportAllowed(resolvedBaseUrl);
-  const resolvedModel = model.value || "deepseek-v4-flash";
+  const resolvedModel = model.value || "deepseek-flash";
   // `openai-compatible` describes the wire protocol, not a vendor identity. Keep model and endpoint
   // paired so a Qwen model can use the approved DashScope endpoint without weakening the host gate,
   // while a DeepSeek model remains confined to its own approved endpoint family.

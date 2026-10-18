@@ -20,7 +20,7 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.deepseek.com}
       CDSS_TEXT_MODEL_ALLOWED_HOSTS: ${CDSS_TEXT_MODEL_ALLOWED_HOSTS:-}
       CDSS_DEEPSEEK_ALLOWED_HOSTS: ${CDSS_DEEPSEEK_ALLOWED_HOSTS:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-deepseek-v4-flash}
+      OPENAI_MODEL: ${OPENAI_MODEL:-deepseek-flash}
       # 首轮生成换 DeepSeek（2026-09-24，提速第三批）：同一批真实提示词，西医半 24→8s、中医半
       # 29→10s、M04 27→11s、M02 出题 15→4s。DeepSeek 只有 json_object，所以服务端按严格 schema
       # 逐项校验，不合规或连不上就由 PRIMARY_STRUCTURED_FALLBACK_MODEL（严格 schema）对同一份

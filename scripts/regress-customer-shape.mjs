@@ -104,7 +104,7 @@ async function runCase(entry, run) {
   if (fs.existsSync(file)) {
     try {
       const previous = JSON.parse(fs.readFileSync(file, "utf8"));
-      if (previous.finishedAt && previous.diagnose?.status === 200 && (!STAGES.has("prescribe") || previous.prescribe?.status === 200)) return;
+      if (previous.finishedAt && (!STAGES.has("diagnose") || previous.diagnose?.status === 200) && (!STAGES.has("prescribe") || previous.prescribe?.status === 200)) return;
     } catch { /* 重跑 */ }
   }
   const out = { key: entry.key, run, gold: entry.gold || null, expect: entry.expect || null, tags: entry.tags || [], input: entry.caseState, followup: FOLLOWUP, startedAt: new Date().toISOString() };
@@ -143,7 +143,8 @@ async function runCase(entry, run) {
       reasons: redFlags.body?.prescriptionPermission?.reasons,
     };
   }
-  const diagnose = stream(await post("diagnose", { caseState }));
+  // STAGES 不含 diagnose 时只跑到追问/红旗（逐模块验收的追问集、红旗集）。
+  const diagnose = STAGES.has("diagnose") ? stream(await post("diagnose", { caseState })) : { status: null, ms: null, structured: null };
   out.diagnose = { status: diagnose.status, ms: diagnose.ms, ended: diagnose.ended, errors: diagnose.errors, reuse: diagnose.reuse, structured: diagnose.structured, content: diagnose.content };
   if (diagnose.structured && STAGES.has("prescribe")) {
     const prescribe = stream(await post("prescribe", { caseState: { ...caseState, reasoningDiagnose: diagnose.structured } }));
@@ -161,7 +162,7 @@ async function runCase(entry, run) {
     `${entry.key}#${run}`,
     `Q ${out.question?.decision ?? "-"}/${out.question?.questions?.length ?? 0}/${out.question?.ms ?? "-"}ms`,
     `RF ${out.redFlags?.gate ?? "-"}/${out.redFlags?.mode ?? "-"}/${out.redFlags?.level ?? "-"}`,
-    `M03 ${out.diagnose.status}/${out.diagnose.ms}ms ${overview ? `${overview.tcmDiseaseName}/${overview.primarySyndrome}→${overview.recommendedFormulaDirection}` : "无结构化"}`,
+    `M03 ${out.diagnose.status ?? "-"}/${out.diagnose.ms ?? "-"}ms ${overview ? `${overview.tcmDiseaseName}/${overview.primarySyndrome}→${overview.recommendedFormulaDirection}` : "无结构化"}`,
     `M04 ${out.prescribe?.status ?? "-"}/${out.prescribe?.ms ?? "-"}ms ${candidate ? `${candidate.name} ${candidate.herbs?.length}味` : (out.prescribe ? "无候选" : "")}`,
     `M05 ${out.assess?.status ?? "-"}/${out.assess?.ms ?? "-"}ms`,
     entry.gold ? `gold=${entry.gold}` : "",

@@ -35,6 +35,12 @@ const AUDIT_VERIFIED_METHOD_SUPPLEMENTS: Record<string, string[]> = {
   // 左归丸、右归丸里的二胶于是没有被点名（2026-10-13 独立评审：眩晕·肾精不足证，煎服法只标了菟丝子包煎）。
   鹿角胶: ["烊化"],
   龟甲胶: ["烊化"],
+  // 《北京市中药饮片调剂规程》（2011 年修订，北京市卫生局、北京市中医管理局）第三章五「调剂时需单包…的品种」3. 包煎品种：
+  //「旋覆花、车前子、葶苈子、六一散、青黛、黛蛤散、生蒲黄、蒲黄炭、滑石粉、儿茶、金礞石、海金沙、辛夷、马勃、益元散」。
+  // 知识库里这三味没有煎法字段（其余已有）。2026-10-18 留出例 S145 的同类缺陷（特殊煎法药未标）后逐条对照补齐。
+  马勃: ["包煎"],
+  青黛: ["包煎"],
+  儿茶: ["包煎"],
 };
 /**
  * 「几选一」的受治理煎法（2026-08-11）。与上表同源——审方已核验、历史来源管线缺失——
@@ -159,8 +165,17 @@ export function decoctionRuleForHerb(value: string): DecoctionRule | undefined {
       }
     }
     if (entryType === "curatedDose" && Array.isArray(entry.methods)) {
+      // curatedDose 是未经复核的模型生成行。药典用法用量先给煎服量、研粉只是另一种用法（川贝母「3～10g；研粉冲服，一次1～2g」）时，
+      // 它写的「冲服」不升格成必选：此前川贝母因此一律标冲服而剂量仍按煎服量给（留出例 S011「冲服 6g」，药典研粉冲服一次 1～2g）。
+      //《北京市中药饮片调剂规程》的冲服品种里也没有川贝母（只有三七粉等「粉」）。
+      const pharmacopoeiaDoseText = (herb.entries || [])
+        .filter((item) => item.type === "dose")
+        .map((item) => typeof item.doseText === "string" ? item.doseText : "")
+        .join("；");
+      const powderIsAlternative = /^\s*\d+(?:\.\d+)?～\d+(?:\.\d+)?g[；;]\s*研(?:粉|末)/u.test(pharmacopoeiaDoseText);
       for (const method of entry.methods) {
         if (typeof method !== "string") continue;
+        if (powderIsAlternative && /冲服|调服|研粉|研末|吞服|丸散/.test(method) && !/先煎|后下|包煎|另煎|另炖|烊化/.test(method)) continue;
         if (/先煎/.test(method)) addCode("DECOCT_FIRST");
         if (/久煎/.test(method)) addCode("DECOCT_LONG");
         if (/后下/.test(method)) addCode("ADD_LATER");

@@ -1,4 +1,5 @@
 import { requiredPrecautionsForCase, requiredPrecautionsPromptSection } from "@/lib/required-precautions.server";
+import { textbookDietPromptSection } from "@/lib/tcm-nondrug-textbook-plan.server";
 import { restoreDiagnoseSupportingFacts } from "@/lib/delivered-surface";
 import { affirmedClinicalSourceClauses } from "@/lib/clinical-polarity";
 import { prefetchAssessFollowupFromDraftCandidate, prefetchAssessFollowupFromSignedPrescribe, tapFinalStageContent } from "@/lib/stage-prefetch.server";
@@ -272,6 +273,15 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   // 本例注意事项必须写到的项目（自服药与本方的重叠、产后哺乳、丹毒抗感染）：逐项告诉模型，交付面再逐项核对、漏写的补上。
   const requiredPrecautions = requiredPrecautionsForCase(gated, signedPriorReasoning);
   if (requiredPrecautions.length > 0) promptSuffixes.push(requiredPrecautionsPromptSection(requiredPrecautions));
+  // 本证饮食参考（《中医食疗学》分证食疗原则与推荐食材；对不上分证时为空，提示词不变）。
+  const dietGuidance = signedPriorReasoning?.stage === "diagnose"
+    ? textbookDietPromptSection({
+      diseaseNames: [signedPriorReasoning.overview?.tcmDiseaseName || ""].filter(Boolean),
+      westernNames: [signedPriorReasoning.westernDiagnosis?.primary?.name || ""].filter(Boolean),
+      signedSyndromeText: [signedPriorReasoning.overview?.primarySyndrome, ...(signedPriorReasoning.overview?.secondarySyndromes || [])].filter(Boolean).join("；"),
+    })
+    : "";
+  if (dietGuidance) promptSuffixes.push(dietGuidance);
   const reviewItems = mergePrescriptionReviewItems(permission.reasons, gated.safetyGate?.missingItems);
   const reviewItemsText = reviewItems.join("、") || "部分病历信息";
   const informationNotice = limitedInformation

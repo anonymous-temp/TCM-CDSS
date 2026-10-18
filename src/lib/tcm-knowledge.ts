@@ -1975,7 +1975,16 @@ export function governedHerbSubstitutes(
  * （甲方 2026-08-10 ⑤ 黄芪：模型没写方义时，医生看到的就是这句套话，而修复轮从未被唤起）。
  * 兜底句只应该在**修复机会用尽之后**的 finalize 补写，保证输出不空白。
  */
-const EXTERNAL_USE_EFFICACY = /^(?:外用|外治|外敷)[^，,；;]*(?:生肌|敛疮|解毒|杀虫|止痒|消肿|止痛|止血|燥湿|拔毒|化腐|蚀疮)/;
+const EXTERNAL_USE_EFFICACY = /^(?:外用|外治|外敷)(?!适量|不|禁|忌|慎|$)[^，,；;。]{2,}/u;
+/**
+ * 「外用＋功效」小句（蜂蜜「外用生肌敛疮」、补骨脂「外用消风祛斑」）：该药外用时的功效，不是它在内服方里的作用。
+ * 2026-10-18 起不再列举功效动词（旧版漏了「消风祛斑」，留出例 S054 的补骨脂功效栏照印）：「外用/外治/外敷」后面接两个字以上、
+ * 又不是「适量」或否定、禁慎字样的，都算。只说途径的（「外用」「只供外用」「外用适量」「外用不可内服」）照旧保留。
+ * 药名表的展示与交付面投影（delivered-surface）共用这一条。
+ */
+export function isExternalUseEfficacyClause(clause: string): boolean {
+  return EXTERNAL_USE_EFFICACY.test(clause.trim());
+}
 
 export function getTcmHerbFunctionDisplayText(
   herb: string,

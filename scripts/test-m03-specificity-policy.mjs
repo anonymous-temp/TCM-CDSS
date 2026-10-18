@@ -329,7 +329,7 @@ assert.equal(annotateM03DecisionSpecificityBoundary(prescribePayload, { reason: 
   const redFlag = net(annotateM03DecisionSpecificityBoundary(
     payload("请立即前往急诊处理本次大量出血。服完本次的药后请来复诊；若再次出现阴道大量出血、头晕心慌，须立即急诊。"),
     { reason: "r", mustCollect: "m", activeRedFlag: true }));
-  assert.match(redFlag, /^当前应优先完成急危重风险评估/);
+  assert.match(redFlag, /^请先尽快到医院急诊或相关专科就诊/);
   assert.doesNotMatch(redFlag, /服完本次的药后请来复诊/);
   assert.match(redFlag, /请立即前往急诊处理本次大量出血/, "模型写的急诊指引保留");
   assert.match(redFlag, /若再次出现阴道大量出血/, "提前就医的征象保留");

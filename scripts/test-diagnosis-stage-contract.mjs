@@ -4401,7 +4401,17 @@ suffixOnlyProposal.candidate.herbs = [{ name: "苦杏仁后下", dose: "6g", rol
 const compiledSuffixOnly = compileM04JsonObjectContent(JSON.stringify(suffixOnlyProposal), stable);
 assert.equal(compiledSuffixOnly?.formula?.candidates[0].herbs[0].name, "苦杏仁");
 assert.match(compiledSuffixOnly?.formula?.candidates[0].herbs[0].decoctionRequirement || "", /后下/);
-for (const herbName of ["三七", "川贝母", "鹿茸"]) {
+// 川贝母 2026-10-18 移出本组：药典「3～10g；研粉冲服，一次1～2g」，煎服是首列用法，研粉只是另一种；冲服的标注来自未复核的
+// curatedDose 行，曾让留出例 S011 写成「冲服 6g」（研粉一次只 1～2g）。三七、鹿茸的药典用法本身就是研粉吞服/冲服，仍钉在这里。
+{
+  const decoctProposal = JSON.parse(proposalJson);
+  decoctProposal.candidate.herbs = [{ name: "川贝母", dose: "6g", role: "臣", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null }];
+  const compiledDecoct = compileM04JsonObjectContent(JSON.stringify(decoctProposal), stable);
+  const decoctContent = applyDeterministicHerbDecoctionRequirements(`<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(compiledDecoct)}\n<!-- DIAGNOSIS_JSON_END -->`);
+  const finalizedDecoct = JSON.parse(decoctContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+  assert.doesNotMatch(finalizedDecoct.formula.candidates[0].herbs[0].decoctionRequirement || "", /冲服/, "川贝母 at a decoction dose must not be forced to 冲服");
+}
+for (const herbName of ["三七", "鹿茸"]) {
   const powderProposal = JSON.parse(proposalJson);
   powderProposal.candidate.herbs = [{ name: herbName, dose: "3g", role: "臣", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null }];
   const compiledPowder = compileM04JsonObjectContent(JSON.stringify(powderProposal), stable);

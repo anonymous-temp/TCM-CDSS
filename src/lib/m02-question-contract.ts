@@ -876,8 +876,23 @@ export function renderStructuredM02Plan(plan: M02Plan): string {
  * 贸然返回空题目可能让对方面板停在一个空的追问页。关闭时仍然一轮只问一题，且该题由服务端保证存在。
  * 调用方确认能处理后，`CDSS_M02_PROCEED_WHEN_SETTLED=true` 打开，无需重新构建。
  */
-export function m02ProceedWhenSettled(): boolean {
-  return process.env.CDSS_M02_PROCEED_WHEN_SETTLED === "true";
+/**
+ * 病历是否足以不再追问（2026-10-18）：舌象与脉象都记录了，或寒热、口渴、二便、汗这四项基本问诊里至少记录了三项。
+ * 逐模块验收的问诊集（IMCS-21 儿科在线问诊）里，只有「刚发烧、今天流鼻涕」的病历模型也返回 proceed，独立评审判「不足以辨证、
+ * 不应停止追问」（330 例里约 1/4 的不合格）。判据复用基本问诊兜底题的同一组「已记录」判据（BASIC_INQUIRY_AXES）。
+ */
+export function m02RecordSufficientForProceed(recordText: string): boolean {
+  const text = String(recordText || "");
+  const tongue = /舌[^，,。；;]{0,6}(?:红|淡|暗|紫|胖|瘦|苔|边|尖|嫩)|苔[^，,。；;]{0,4}(?:白|黄|腻|薄|厚|少|剥|润|燥)/u.test(text);
+  const pulse = /脉[^，,。；;]{0,3}(?:浮|沉|迟|数|滑|涩|弦|细|弱|紧|缓|洪|濡|结|代|促|平|虚|实|微)/u.test(text);
+  const basics = BASIC_INQUIRY_AXES.filter((axis) => axis.recorded.test(text)).length;
+  return (tongue && pulse) || basics >= 3;
+}
+
+/** 允许如实返回「无需追问」：开关打开，且（给了病历时）病历已足以不再追问。红旗病例的处置题不看病历充分度，见路由。 */
+export function m02ProceedWhenSettled(recordText?: string): boolean {
+  if (process.env.CDSS_M02_PROCEED_WHEN_SETTLED !== "true") return false;
+  return recordText === undefined || m02RecordSufficientForProceed(recordText);
 }
 
 export function enforceM02UnansweredAxes(
@@ -939,7 +954,7 @@ export function enforceM02UnansweredAxes(
   // 有急症澄清题时只问它；没有时问模型排在最前的那一题。
   questions = riskLead.length > 0 ? riskLead : others.slice(0, 1);
   // 没有合格的题：允许如实返回「无需追问」时就返回 proceed；否则给一条服务端自有的题，保持调用方现有的一问一答流程。
-  if (questions.length === 0 && fallback && source !== fallback && !m02ProceedWhenSettled()) {
+  if (questions.length === 0 && fallback && source !== fallback && !m02ProceedWhenSettled(sourceText)) {
     questions = fallback.plan.questions.filter((question) => !questionAlreadyAnswered(question, sourceText)).slice(0, 1);
   }
   const normalizedQuestions = questions.slice(0, 1).map((question, index) => ({ ...question, id: `q${index + 1}` }));

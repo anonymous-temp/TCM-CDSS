@@ -346,9 +346,22 @@ export function renderM04DeliveryCheckpoint(
   lines.push("", "## 参考方药（未给剂量）", status, scopeLine);
   for (const candidate of checkpoint.reasoning.formula?.candidates || []) {
     lines.push(`方名：${text(candidate.name)}`);
+    // 出处与随证加减也照常列出（2026-10-18 逐模块验收：不给剂量页只缺用量，评审仍要看方剂出处与加减）。加减只写条件与药名，不写剂量。
+    const source = (candidate as { formulaSource?: { source?: unknown } }).formulaSource?.source;
+    lines.push(...labelled("出处", typeof source === "string" ? source.replace(/^[^：:]{1,12}[：:]/u, "") : ""));
     for (const herb of candidate.herbs) lines.push(`- ${text(herb.name)}（${text(herb.role)}）：${text(herb.function)}`);
     lines.push(...labelled("方义", candidate.formulaAnalysis), ...labelled("适用", candidate.applicable), ...labelled("慎用与不适用", candidate.notApplicable));
   }
+  const modifications = ((checkpoint.reasoning.formula as { modifications?: unknown } | undefined)?.modifications as Array<Record<string, unknown>> | undefined) || [];
+  const modificationLines = modifications.flatMap((item) => {
+    const action = String(item.action ?? item.actionType ?? "");
+    const verb = /remove|去/u.test(action) ? "去" : /adjust|调/u.test(action) ? "调整" : "加";
+    const herb = text(item.herbName);
+    const trigger = text(sanitizeGeneratedSuggestionPreviewText(String(item.trigger ?? "")));
+    const why = text(sanitizeGeneratedSuggestionPreviewText(String(item.reason ?? "")));
+    return herb && trigger ? [`- ${trigger}：${verb}${herb}${why ? `（${why}）` : ""}`] : [];
+  });
+  if (modificationLines.length > 0) lines.push("", "## 随证加减（未给剂量）", ...modificationLines);
   // 问题提示同样走非剂量掩码：本页的全部意义就是不给具体用量，提示文案里的
   // 「当前药量 500g」会把模型提出的剂量从后门放出去。掩码与药味功用共用同一支
   // sanitizeGeneratedSuggestionPreviewText，不另写一套判据。

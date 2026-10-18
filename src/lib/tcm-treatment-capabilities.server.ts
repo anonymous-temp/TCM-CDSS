@@ -1,6 +1,6 @@
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { compileHomeAcupointCare } from "./home-acupoint-care.server";
-import { resolveAcupoint } from "./tcm-acupoints";
+import { acupointPregnancySensitive, resolveAcupoint } from "./tcm-acupoints";
 import {
   TCM_TREATMENT_PROJECTS,
   getTcmTreatmentProjectDefinition,
@@ -22,7 +22,7 @@ import {
 import { affirmedClinicalText } from "./clinical-polarity";
 import { assessPregnancyState } from "./clinical-state";
 import { pregnancyScreenRequired } from "./diagnosis-safety";
-import { cardSentencesMatchedToSyndrome, cardSentencesNamingListedPoints, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
+import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, cardSentencesNamingListedPoints, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, textbookPlanExistsForDisease, textbookTreatmentPlan, type TextbookPlan } from "./tcm-nondrug-textbook-plan.server";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
 type DeliveryMode = "onsite" | "referral";
@@ -1113,7 +1113,7 @@ export function compileTcmTreatmentRecommendations(
       .filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；");
     // 灸法卡与证候相反时整张不出（2026-10-17 留出例 S067：湿热石淋拿到「常规灸法，多用于膏淋、劳淋」）。此前只去卡里说灸的句子，
     // 整张灸法卡每句都说灸，去完为空又退回原文。
-    if (definition.code === "moxibustion" && moxibustionUnsuitableForSyndrome(signedSyndromeText)) return [];
+    if (definition.code === "moxibustion" && moxibustionUnsuitableForSyndrome(signedSyndromeText, prior.therapy?.overallMethod || "")) return [];
     const plannedTreatment = controlledTreatmentPlan(
       definition.code,
       matchedIndicationTags,
@@ -1156,6 +1156,9 @@ export function compileTcmTreatmentRecommendations(
       : [];
     const cardText = (value: string) => clinicalTreatmentScheduleWording(cardSentencesNamingListedPoints(cardSentences(
       definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText) : value), cardPoints));
+    // 卡片写明只适用于本病另几个类型、本例的证不在其中时整张不出（cardApplicabilityExcludesSyndrome）。
+    if ([plannedTreatment.treatmentContent, plannedTreatment.techniqueBoundary]
+      .some((value) => typeof value === "string" && cardApplicabilityExcludesSyndrome(value, diseaseNamesForCard, prior.overview.primarySyndrome || ""))) return [];
     const treatmentPlan = {
       ...plannedTreatment,
       ...(typeof plannedTreatment.treatmentContent === "string" ? { treatmentContent: cardSentences(plannedTreatment.treatmentContent) } : {}),
@@ -1174,14 +1177,9 @@ export function compileTcmTreatmentRecommendations(
       ...treatmentPlan,
       // 小儿针刺的通行要求（《针灸学》刺法注意事项：小儿不能配合，不宜留针；囟门未闭者头顶部腧穴不宜针刺）。
       // 取穴方案出自成人教材，写法是「毫针常规刺，留针」——2026-10-13 独立评审：2 岁、7 岁、11 岁病例照搬成人写法。
-      ...(patientAgeYears != null && patientAgeYears < 12 && definition.code === "acupuncture" && typeof treatmentPlan.techniqueBoundary === "string"
-        ? { techniqueBoundary: `小儿针刺宜浅刺、快出针，一般不留针，手法宜轻；${patientAgeYears < 2 ? "囟门未闭者头顶部腧穴不针；" : ""}不能配合者改用小儿推拿或穴位贴敷。${treatmentPlan.techniqueBoundary}` }
-        : {}),
-      // 老年人针刺量宜小（《针灸学》：「久病、体质虚弱者和老人、儿童，针灸治疗量宜小，宜选用卧位」「年老体弱、气血虚衰…均不宜深刺」
-      //「体质较弱的患者可少留针」；《刺法灸法学》晕针预防：「取穴宜精，手法宜轻」）。教材没有年龄界值，这里取国家老年人健康管理的 65 岁。
-      // 取穴方案出自成人教材——2026-10-13/14 独立评审：74 岁、85 岁病例照搬成人写法，未按高龄调整。
-      ...(patientAgeYears != null && patientAgeYears >= ELDERLY_ACUPUNCTURE_AGE_YEARS && definition.code === "acupuncture" && typeof treatmentPlan.techniqueBoundary === "string"
-        ? { techniqueBoundary: `${ELDERLY_ACUPUNCTURE_NOTE}${treatmentPlan.techniqueBoundary}` }
+      // 小儿、老年与妊娠未写明的人群提示：所有项目卡同一处（populationCardNote）。此前只有针刺卡有小儿、老年两句。
+      ...(typeof treatmentPlan.techniqueBoundary === "string" && populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) : false, treatmentPlan.suggestedSitesOrPoints)
+        ? { techniqueBoundary: `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) : false, treatmentPlan.suggestedSitesOrPoints)}${treatmentPlan.techniqueBoundary}` }
         : {}),
       operatorRequirement: definition.operatorRequirement,
       requiredChecks: [
@@ -1262,6 +1260,44 @@ function homeAcupointCareForCase(
 
 export const ELDERLY_ACUPUNCTURE_AGE_YEARS = 65;
 export const ELDERLY_ACUPUNCTURE_NOTE = "老年人针刺量宜小：取穴少而精、浅刺、手法宜轻、留针时间宜短，取卧位，留针期间注意观察以防晕针。";
+
+/**
+ * 项目卡的人群提示（2026-10-18 起所有项目卡同一处；此前只有针刺卡有小儿、老年两句，7 岁患儿的拔罐卡、耳穴卡照搬成人写法——
+ * 留出例 S151；育龄女性妊娠未写明时，针刺卡取合谷、三阴交也没有任何提示——S144 一类）。
+ *  · 小儿（未满 12 岁）与老年（65 岁起）：《针灸学》「久病、体质虚弱者和老人、儿童，针灸治疗量宜小，宜选用卧位」；
+ *    T/CACM 1560.3—2023「年老、虚弱、严重消瘦者，拔罐时间宜短」；《刺法灸法学》晕针预防「取穴宜精，手法宜轻」。
+ *  · 妊娠未写明的育龄女性：卡上有教材穴位目录标为孕妇禁用/慎用、或定位在脐下小腹、骶部的穴位时（acupointPregnancySensitive），
+ *    提示先告知是否可能怀孕；妊娠阳性或可疑时这些项目在项目级禁忌里已整张去掉。
+ */
+const PEDIATRIC_CARD_NOTE: Partial<Record<string, (ageYears: number) => string>> = {
+  acupuncture: (age) => `小儿针刺宜浅刺、快出针，一般不留针，手法宜轻；${age < 2 ? "囟门未闭者头顶部腧穴不针；" : ""}不能配合者改用小儿推拿或穴位贴敷。`,
+  cupping: () => "小儿拔罐治疗量宜小：选小号罐，吸拔力宜轻，留罐时间宜短，由成人陪护，防止烫伤和皮肤损伤。",
+  auricular: () => "小儿耳穴宜用贴压（如王不留行籽），不用毫针，按压手法宜轻。",
+  moxibustion: () => "小儿施灸治疗量宜小，须由成人看护，以局部温热为度，防止烫伤。",
+  guasha: () => "小儿刮痧手法宜轻、时间宜短，以皮肤微红为度，不强求出痧。",
+};
+const ELDERLY_CARD_NOTE: Partial<Record<string, string>> = {
+  acupuncture: ELDERLY_ACUPUNCTURE_NOTE,
+  cupping: "老年人拔罐吸拔力宜轻、留罐时间宜短，皮肤松弛或有破损处不拔。",
+  moxibustion: "老年人对热的感觉较迟钝，施灸时注意温度，防止烫伤。",
+  guasha: "老年人刮痧手法宜轻、时间宜短，以皮肤微红为度。",
+};
+export function populationCardNote(
+  code: string,
+  ageYears: number | undefined,
+  pregnancyUnresolved: boolean,
+  points: unknown,
+): string {
+  const notes: string[] = [];
+  if (ageYears != null && ageYears < 12) notes.push(PEDIATRIC_CARD_NOTE[code]?.(ageYears) || "");
+  if (ageYears != null && ageYears >= ELDERLY_ACUPUNCTURE_AGE_YEARS) notes.push(ELDERLY_CARD_NOTE[code] || "");
+  const pointNames = Array.isArray(points) ? points.filter((point): point is string => typeof point === "string") : [];
+  const sensitive = pregnancyUnresolved
+    ? pointNames.map((point) => point.replace(/[（(][^）)]*[）)]/g, "").trim()).filter((point) => acupointPregnancySensitive(point))
+    : [];
+  if (sensitive.length > 0) notes.push(`如有怀孕可能请先告知医生：${[...new Set(sensitive)].slice(0, 4).join("、")}孕期不宜针灸刺激。`);
+  return notes.filter(Boolean).join("");
+}
 
 /**
  * 注意事项里点名的治疗项目必须是本例实际给出的项目（2026-10-14 起在出卡处过滤；2026-10-17 起交付面再按最终卡片过一遍）。

@@ -433,8 +433,35 @@ const SYNDROME_DESCRIPTOR_CHARS = /^[寒湿热风暑燥火瘀血气虚实阴阳�
 // 火字证名（火旺、肝火、胃火、痰火扰心…）都算，命门火衰是阳虚，不算。
 const MOXIBUSTION_UNSUITABLE_SYNDROME = /阴虚|阴亏|阴液|实热|热盛|热毒|肺热|湿热|血热|痰热|郁热|火(?!衰)/u;
 /** 已签名证候不宜用灸（阴虚、实热、湿热、火）：卡片里说灸的句子去掉，整张灸法卡也不出（见 tcm-treatment-capabilities）。 */
-export function moxibustionUnsuitableForSyndrome(signedSyndromeText: string): boolean {
-  return MOXIBUSTION_UNSUITABLE_SYNDROME.test(String(signedSyndromeText || ""));
+export function moxibustionUnsuitableForSyndrome(signedSyndromeText: string, signedMethodText = ""): boolean {
+  if (MOXIBUSTION_UNSUITABLE_SYNDROME.test(String(signedSyndromeText || ""))) return true;
+  // 教材按类型命名、证名里不带寒热字的证（淋证的「石淋」「热淋」、痹证的「行痹」）：看已签名的治法。治法是纯清热、泻火、滋阴、凉血、
+  // 清利而不带温、散寒、助阳的，同样不宜灸（2026-10-18：留出例 S067 证名「石淋」、治法清热利湿，仍拿到整张灸法卡）。
+  const method = String(signedMethodText || "");
+  return /清热|泻火|滋阴|凉血|清利|清泄|清肝|清胃/u.test(method) && !/温|散寒|助阳|补阳|壮阳|回阳/u.test(method);
+}
+
+/**
+ * 卡片自己写明只适用于本病的另几个类型（「常规灸法，多用于膏淋、劳淋」），而本例的证不在其中：整张卡不出（2026-10-18，留出例 S067
+ * 湿热石淋拿到这张灸法卡，独立评审判套用别病模板）。类型名按教材写法认：2–4 字、末字与本病名首字相同（淋证→…淋，痹证→…痹），
+ * 或以证、型结尾；本例证名包含该类型名（或反过来）即算相符。没有这类句子、或列的不是类型名时不管。
+ */
+export function cardApplicabilityExcludesSyndrome(text: string, diseaseNames: readonly string[], signedSyndromeText: string): boolean {
+  const syndrome = String(signedSyndromeText || "").replace(/证$/u, "");
+  if (!text || !syndrome) return false;
+  const diseaseHeads = diseaseNames.map((name) => name.trim()[0]).filter(Boolean);
+  for (const match of text.matchAll(/(?:多|主要|常|宜|适)用于([^。；;，,]{2,30})/gu)) {
+    const names = match[1].split(/[、和及与或]/u).map((item) => item.trim()).filter(Boolean);
+    const subtypes = names.filter((name) => /^[\u4e00-\u9fff]{2,4}$/u.test(name) &&
+      (diseaseHeads.some((head) => name.endsWith(head)) || /[证型]$/u.test(name)));
+    if (subtypes.length === 0 || subtypes.length !== names.length) continue;
+    const fits = subtypes.some((name) => {
+      const core = name.replace(/[证型]$/u, "");
+      return syndrome.includes(core) || core.includes(syndrome);
+    });
+    if (!fits) return true;
+  }
+  return false;
 }
 export function cardSentencesMatchedToSyndrome(text: string, diseaseNames: readonly string[], signedSyndromeText: string): string {
   const syndrome = String(signedSyndromeText || "");
@@ -855,4 +882,31 @@ export function textbookTreatmentPlan(input: TextbookPlanInput): TextbookPlan | 
   if (code === "qigong_daoyin") return daoyinPlan(input);
   if (ACUPOINT_PROJECTS.has(code)) return acupointPlan(data, input);
   return undefined;
+}
+
+/**
+ * 给 M04 写饮食调护栏用的一段参考（2026-10-18）。饮食栏（nonPharma.diet）由模型按例写，食疗卡另走 dietPlan；此前模型写饮食栏时
+ * 看不到教材的分证食疗，140 份输出里约一半写「可常食小米粥」「山药粥」（甲方 10.12 测评 5.1「食疗要与辨证相符」）。
+ * 这里按食疗卡同一套病名、证型匹配（matchDiseaseEntries + syndromeLabelMatchesSigned）取《中医食疗学》该证的食疗原则与推荐食材，
+ * 食材只留药食同源目录与普通食物（recipeUsesOnlyFoodSafeIngredients 同一份目录），不留酒类。对不上分证时返回空串，提示词不变。
+ */
+export function textbookDietPromptSection(input: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string }): string {
+  if (!textbookNondrugPlansEnabled()) return "";
+  const data = protocolData();
+  if (!data) return "";
+  const entry = matchDiseaseEntries(data.diet, input.diseaseNames, input.westernNames)[0];
+  const matched = entry?.syndromes.find((syndrome) => syndromeLabelMatchesSigned(syndrome.label, input.signedSyndromeText));
+  if (!entry || !matched) return "";
+  const allowed = homologySet();
+  const foods = commonFoods();
+  const ingredients = [...new Set(matched.ingredients.map((name) => name.trim()))]
+    .filter((name) => name && !/酒/u.test(name) && (allowed.has(name) || foods.has(name)))
+    .slice(0, 8);
+  if (!matched.method && ingredients.length === 0) return "";
+  return [
+    `【本证饮食参考（《中医食疗学》${entry.disease}·${matched.label}）】`,
+    matched.method ? `食疗原则：${matched.method.replace(/[。]+$/u, "")}。` : "",
+    ingredients.length > 0 ? `相宜食材：${ingredients.join("、")}。` : "",
+    "nonPharma.diet 按这一原则写：从相宜食材里选 1–2 种写成家常吃法，并写本证要忌的饮食；不要默认写小米粥、山药粥。",
+  ].join("");
 }

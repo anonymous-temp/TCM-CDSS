@@ -114,7 +114,7 @@ assert.match(
 // 2026-09-24（提速第三批）：M02 出题、M03 两半、M04 首轮改跑 DeepSeek，Qwen strict 退为兜底——
 // 不合 schema / 连不上时由 PRIMARY_STRUCTURED_FALLBACK_MODEL 对同一份提示词重生成。
 const expectedModelMatrix = {
-  OPENAI_MODEL: "deepseek-v4-flash",
+  OPENAI_MODEL: "deepseek-flash",
   BAILIAN_QWEN_MODEL: "qwen3.8-flash",
   PRIMARY_QUESTION_MODEL: "deepseek-flash",
   PRIMARY_STRUCTURED_FALLBACK_MODEL: "qwen3.8-flash",

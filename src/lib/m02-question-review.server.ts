@@ -114,7 +114,7 @@ export function reviewM02QuestionPlan(
   if (!plan || plan.decision !== "ask" || plan.questions.length === 0) {
     // 计划被删空：路由总会提供一条服务端自有的主诉类别兜底题，保留同一次 M02 机会，
     // 而不是把「候选题都不合格」悄悄变成「无需追问」。兜底题同样过已答轴守卫。
-    return plan?.decision === "proceed" && fallbackContent.trim() && !m02ProceedWhenSettled()
+    return plan?.decision === "proceed" && fallbackContent.trim() && !m02ProceedWhenSettled(clinicalSource)
       ? enforceM02UnansweredAxes(
           ensureQuestionStructuredEnvelope(fallbackContent, clinicalSource),
           clinicalSource,

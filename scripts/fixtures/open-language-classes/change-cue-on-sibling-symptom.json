@@ -1,0 +1,60 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "change-cue-on-sibling-symptom",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-18",
+ "trigger": "10.18 逐模块验收主集（公开数据 TCM-RobustSDT，现代门诊式病历）0264：「主诉胸闷、频繁肠鸣，伴脘腹喜温畏冷、目眩眼花、心悸…大便溏薄」——36 岁、无任何起病时间或急性线索，确定性层报「急性或加重胸闷已出现」，剂量收回；语义层只判 priority_review。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "diagnosis-safety 的 hasScopedAcuteChestTightnessSignal 与 cardiacAcuteChangeAttachedAt 在「胸闷」所在小句里找急性变化线索。顿号不是小句边界，「频繁」修饰的是并列的下一个症状「肠鸣」，却被当成胸闷频发。",
+  "exception": "冻结令允许的确定性例外：构词式词法守卫。只对变化类线索（频繁、频发、频作、加重、复发、再发、恶化…）生效，且只在线索写在顿号并列的另一个症状**段首**时不算（「频繁肠鸣」）；写在并列症状之后的（「胸闷、心悸加重2天」）是整串的谓语，照旧算。起病、时间、持续类线索（突发、近N天、持续、N分钟）不受影响。",
+  "sources": "同形态的上一次修复：10/14 腹痛「程度词后跟逗号即结束、不修饰后面的腹痛」（CLAUDE.md 10/14 节）。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：把修饰并列症状的那个变化词去掉，门禁结果必须相同；兄弟句自身必须零红旗。",
+  "pairs": [
+   {
+    "subject": "主诉胸闷、频繁肠鸣，伴脘腹喜温畏冷、目眩眼花、心悸，偶有流涎、形寒肢冷、大便溏薄。",
+    "sibling": "主诉胸闷、肠鸣，伴脘腹喜温畏冷、目眩眼花、心悸，偶有流涎、形寒肢冷、大便溏薄。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "胸闷、频繁嗳气、反酸半年。",
+    "sibling": "胸闷、嗳气、反酸半年。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "胸闷、反复咳嗽2年，咳白痰。",
+    "sibling": "胸闷、咳嗽2年，咳白痰。",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "controls": {
+  "note": "变化词修饰胸闷本身、写在并列症状之后作整串谓语、或有起病时间线索的，必须照旧报警。",
+  "mustStillFlag": [
+   { "text": "频繁胸闷，伴心悸。", "flag": "胸闷" },
+   { "text": "胸闷频繁发作3天。", "flag": "胸闷" },
+   { "text": "胸闷、心悸加重2天。", "flag": "胸闷" },
+   { "text": "反复胸闷、气短加重2天。", "flag": "胸闷" },
+   { "text": "心悸、胸闷频作。", "flag": "胸闷" },
+   { "text": "近3天心悸、胸闷。", "flag": "胸闷" },
+   { "text": "胸闷再发1天。", "flag": "胸闷" }
+  ],
+  "mustStayReady": [
+   "主诉胸闷、频繁肠鸣，伴脘腹喜温畏冷。",
+   "胸闷、频繁嗳气、反酸半年。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-18",
+   "what": "现代医案语料 + 本轮逐模块验收集（M/X/D/H/A/B）+ 10/13 合成与既往评测集里含「胸闷」的病例 × 两种病历形状（改前 HEAD 对改后），~/runlogs/r1018/scripts/gate-replay.mjs",
+   "result": "3,340 次判定 2 次改变，均为触发病例 0264 的两种形状（red_flag → needs_information）"
+  }
+ ]
+}

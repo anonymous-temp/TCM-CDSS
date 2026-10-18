@@ -760,7 +760,8 @@ type ModificationDropCode =
   | "action_conflicts_with_candidate"
   | "bounded_limit"
   | "direction_conflict"
-  | "special_population_conflict";
+  | "special_population_conflict"
+  | "incidental_sedative";
 
 const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>> = {
   malformed: "条目缺少触发事实、病机引用、动作、药名或理由",
@@ -772,6 +773,7 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   bounded_limit: "超过单次最多展示 4 条随症加减的安全边界",
   direction_conflict: "拟加药味与已锁定病机或治法方向冲突",
   special_population_conflict: "拟加药味为药典孕妇禁用，本例备孕/未避孕不宜加入",
+  incidental_sedative: "睡眠差随主病而来，治主病即可，不另加安神药",
 };
 
 /**
@@ -782,9 +784,28 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
  * 去掉后方义里讲这味药的小句由方义核对按「方外之药」删去；剩不到三味时原样保留。
  */
 const SEDATIVE_CATEGORY = /(?:^|；)(?:养心|重镇)?安神药(?:；|$)/u;
-function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2): M04Proposal["candidate"]["herbs"] {
+/** 已签名的证名与病名涉及心、神、寐（含夜啼）、悸、郁：睡眠本身就在病机里，安神药不算顺带。 */
+function signedScopeInvolvesMind(prior: ClinicalReasoningResultV2): boolean {
   const mindScope = `${prior.overview?.primarySyndrome || ""}${(prior.overview?.secondarySyndromes || []).join("")}${prior.overview?.tcmDiseaseName || ""}`;
-  if (/心|神|寐|眠|悸|郁/.test(mindScope)) return candidate.herbs;
+  return /心|神|寐|眠|悸|郁|啼/.test(mindScope);
+}
+/**
+ * 随证加减里为顺带的睡眠差加安神药（2026-10-18；留出例 S132 瘾疹「若瘙痒不能入眠：加珍珠母（平肝潜阳安神）」、
+ * S158 积滞「若烦躁、夜啼难眠：加蝉蜕（宁心安神）」，独立评审判 incidental-sleep 不通过）。主方的同一条判据只管
+ * 君臣佐使表，加减行此前不经过它。判据与主方同源：证名、病名不涉心神；触发条件说的是睡眠；拟加的药归安神药类，
+ * 或这条加减自己写的理由就是安神。教材在本证型下列明的加减（条件与药味都对得上）不在此列。
+ */
+const SLEEP_TRIGGER = /眠|寐|夜啼|夜醒|易醒|早醒|多梦|睡/u;
+const SEDATIVE_REASON = /安神|宁神|宁心|镇静|助眠/u;
+export function incidentalSleepSedativeModification(
+  item: { trigger: string; herbName: string; reason?: string },
+  prior: ClinicalReasoningResultV2,
+): boolean {
+  if (signedScopeInvolvesMind(prior) || !SLEEP_TRIGGER.test(item.trigger)) return false;
+  return SEDATIVE_CATEGORY.test(getTcmHerbFunctionText(item.herbName)) || SEDATIVE_REASON.test(item.reason || "");
+}
+function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2): M04Proposal["candidate"]["herbs"] {
+  if (signedScopeInvolvesMind(prior)) return candidate.herbs;
   const baseName = String(candidate.name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
   const base = new Set((formulaCompilationReferences([baseName])[0]?.ingredients || []).map((name) => compositionIdentityName(name.replace(/[（(][^）)]*[）)]/g, ""))));
   const kept = candidate.herbs.filter((herb) => !(
@@ -1596,6 +1617,10 @@ export function compileM04Proposal(
     // 因「清热与主证方向不符」被整条丢掉（2026-10-13，合成集加减为空 12 例里的一类）。
     if (!textbookSource && item.actionType === "add" && highImpactHerbDirectionIssue(item.herbName, declaredDirection, prior)) {
       directionDropReasons.push("direction_conflict");
+      return [];
+    }
+    if (!textbookSource && item.actionType === "add" && incidentalSleepSedativeModification(item, prior)) {
+      directionDropReasons.push("incidental_sedative");
       return [];
     }
     const triggerSource = textbookSource ? undefined : resolveModificationTriggerSource(item.trigger, prior);

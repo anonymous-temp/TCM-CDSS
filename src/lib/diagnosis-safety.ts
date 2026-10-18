@@ -731,11 +731,23 @@ function unknownTermNotice(source: string, terms: readonly string[]): string {
   return parts.join("；");
 }
 
+/**
+ * 含「无」字的固定说法不是否认：面色无华、爪甲无泽、无光泽、无血色，以及短语末尾的目无神、口淡无味、脉沉细无力（2026-10-18 逐模块验收
+ * 考试病例集 X-C-0137：模型写「面色无华、纳差、大便溏薄、舌淡苔白腻、脉缓，为脾运不健」，「无华」的「无」被当成前置否认词，纳差、便溏
+ * 落进否认范围，病历里同样的「面色无华，纳差」也读不出纳差是阳性，整句被改成「病历尚未确认纳差是否存在；…便溏…」，面色、舌脉一并丢失）。
+ * 只用于判断否认词（等长替换，下标不变）；找症状词仍用原文。「无神志不清」「无味觉减退」这类后面还接着词的照旧是否认。
+ * 与 unrecordedNegativesAsNotReported 排除的固定搭配是同一类。类夹具 fixed-wu-word-not-negation-cue。
+ */
+export function maskNonNegatingWuWords(text: string): string {
+  return text.replace(/无(?=(?:华|泽|光泽|血色)|(?:神|味|力)(?=[，,。；;、）)\s]|$))/gu, "＿");
+}
+
 export function sourceDocumentsNegation(source: string, term: string): boolean {
   const normalized = normalizeClinicalText(source);
   // 否定方向只认真同义，不认下位词——「否认高热」不给「否认发热」背书。
   const equivalents = negationGroundingEquivalents(term);
-  for (const sentence of normalized.split(/[。；;\n]+/)) {
+  for (const rawSentence of normalized.split(/[。；;\n]+/)) {
+    const sentence = maskNonNegatingWuWords(rawSentence);
     for (const equivalent of equivalents) {
       let termIndex = sentence.indexOf(equivalent);
       while (termIndex >= 0) {
@@ -837,14 +849,15 @@ function sourceDocumentsAffirmation(source: string, term: string): boolean {
   const equivalents = POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes(term)) || [term];
   const conceptPatterns = POSITIVE_FACT_EQUIVALENT_PATTERNS.find((item) => item.terms.includes(term))?.patterns || [];
   for (const sentence of normalized.split(/[。；;\n]+/)) {
+    const cueSentence = maskNonNegatingWuWords(sentence);
     for (const equivalent of equivalents) {
       let index = sentence.indexOf(equivalent);
       while (index >= 0) {
         if (
           !isLocalHeatNotFeverAt(sentence, index, equivalent) &&
           !isExcludedClinicalAssertionAt(sentence, index) &&
-          !hasImmediateBareNegator(sentence, index) &&
-          !isNegatedAt(sentence, index) &&
+          !hasImmediateBareNegator(cueSentence, index) &&
+          !isNegatedAt(cueSentence, index) &&
           !/(待核实|待确认|不清楚|未知|不详|未采集|未说明)/.test(sentence)
         ) return true;
         index = sentence.indexOf(equivalent, index + equivalent.length);
@@ -1019,6 +1032,8 @@ function sanitizeUngroundedNegationText(
       //「以皮肤瘙痒、风团时消时现、发无定处为主症」被当成否认句，整句改成「病历已记录瘙痒阳性」，甲方标准病历 9 三次生成都是这样）。
       // 与 unrecordedNegativesAsNotReported 排除的固定搭配同一组。
       .replace(/无(?=定处|定时|定所|常|度|端|故)/g, "＿");
+    // 面色无华、口淡无味、脉沉细无力这类固定说法同样不是否认（maskNonNegatingWuWords）。
+    const negationProbeMasked = maskNonNegatingWuWords(negationProbe);
     const prefix = clause.match(/^(\s*(?:[-*]>?\s*|>\s*|#{1,6}\s*)?(?:[^：:|]{1,24}[：:]\s*)?)/)?.[1] || "";
     // 正文里鉴别一行的「常见：」是 differentialLine（diagnosis-visible-summary）给 typicalManifestation 加的标签：
     // 写的是鉴别对象那个病的表现，不是对本例的断言，与 JSON 里同一字段一样不净化（见下方 typicalManifestation 豁免）。
@@ -1091,12 +1106,12 @@ function sanitizeUngroundedNegationText(
         ].filter(Boolean).join("；")}`;
       }
     }
-    if (CLINICAL_NEGATION_CUE.test(negationProbe)) {
+    if (CLINICAL_NEGATION_CUE.test(negationProbeMasked)) {
       // 前置的否认词只否认它后面的词（2026-10-17）：「恶寒重、发热轻、无汗」里的「无」否认的是汗，不是前面的发热；
       // 此前整句都算否认范围，病历记录了发热，整句被改成「病历已记录发热阳性」，再被风寒鉴别投影补回一遍
       //（甲方标准病历 1 两次生成的辨证依据都是「发热，为寒邪束表…之征；恶寒重、发热轻、无汗，为…之征」）。
       // 后置的「均无」「均否认」、以及句末才出现的否认词（「发热、头痛均否认」）否认的是前面列举的词，照旧整句算。
-      const negatedSpan = clauseNegationScope(clause, negationProbe);
+      const negatedSpan = clauseNegationScope(clause, negationProbeMasked);
       const contradictedPositive = CLINICAL_NEGATION_FACT_TERMS.filter(
         (term) => negatedSpan.includes(term) && sourceDocumentsAffirmation(source, term),
       );
@@ -1699,13 +1714,24 @@ function parseTemperature(text: string): number | null {
     if (isAngularDegreeAt(t, match.index ?? 0, match[0])) continue;
     return Number(`${match[1]}.${match[2]}`);
   }
-  const labeled = t.match(/(?:^|[^A-Za-z])(?:T|体温)["']?\s*[:：]?\s*["']?\s*(4[0-5]|3\d)(?:[.](\d))?/i);
-  if (labeled) return Number(labeled[2] ? `${labeled[1]}.${labeled[2]}` : labeled[1]);
+  for (const labeled of t.matchAll(/(?:^|[^A-Za-z])(?:T|体温)["']?\s*[:：]?\s*["']?\s*(4[0-5]|3\d)(?:[.](\d))?/gi)) {
+    if (followedByLabUnit(t, (labeled.index ?? 0) + labeled[0].length)) continue;
+    return Number(labeled[2] ? `${labeled[1]}.${labeled[2]}` : labeled[1]);
+  }
   for (const match of t.matchAll(/(?<!\d)(4[0-5]|3\d)(?:[.](\d))?\s*(?:℃|°C|度)/gi)) {
     if (isAngularDegreeAt(t, match.index ?? 0, match[0])) continue;
     return Number(match[2] ? `${match[1]}.${match[2]}` : match[1]);
   }
   return null;
+}
+
+/**
+ * 「T」后面的数接着化验单位时不是体温（2026-10-18 逐模块验收 A 集：甲功「T32.0nmol/L（正常值为1.73~3nmol/L）」——T3 的 3
+ * 在原文里丢了——被读成体温 32℃，报低体温红旗）。单位是有限闭集：mol 类、mg、g/L、U/L、IU、ng、μg、pg、%。
+ */
+const LAB_UNIT_AFTER_VALUE = /^\s*(?:[.\d]+\s*)?(?:(?:n|p|m|μ|µ|u)?mol\b|mg|g\s*\/\s*L|U\s*\/\s*L|IU|ng|μg|µg|ug|pg|%)/i;
+function followedByLabUnit(text: string, endIndex: number): boolean {
+  return LAB_UNIT_AFTER_VALUE.test(text.slice(endIndex, endIndex + 12));
 }
 
 function parsePulse(text: string): number | null {
@@ -1775,6 +1801,7 @@ function invalidTemperatureValues(text: string): string[] {
   const out: string[] = [];
   // 仅带 T/体温 标签的候选：无标签的 ℃ 数值（水温等）不按体温非法值处理。
   for (const match of normalized.matchAll(/(?:^|[^A-Za-z])(?:T|体温)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*(?:℃|°C|度)?/gi)) {
+    if (followedByLabUnit(normalized, (match.index ?? 0) + match[0].length)) continue;
     const value = Number(match[1]);
     const valueIndex = (match.index ?? 0) + Math.max(0, match[0].lastIndexOf(match[1]));
     if (isExcludedClinicalAssertionAt(normalized, valueIndex)) continue;
@@ -1832,6 +1859,7 @@ function parseContextualTemperature(text: string): number | null {
     (match, normalized) => {
       if (!/(?:T|体温|℃|°C|度)/i.test(match[0])) return null;
       if (isAngularDegreeAt(normalized, match.index ?? 0, match[0])) return null;
+      if (followedByLabUnit(normalized, (match.index ?? 0) + match[0].length)) return null;
       const decimal = match[2] || match[3];
       return Number(decimal ? `${match[1]}.${decimal}` : match[1]);
     },
@@ -2731,12 +2759,28 @@ function hasAbdominalPrioritySignal(text: string): boolean {
   return false;
 }
 
-function hasAcuteAbdominalSignal(text: string): boolean {
+/**
+ * 慢性病程里「遇到某个诱因就……难忍/剧烈」写的是发作规律，不是此刻的急腹痛（2026-10-18，逐模块验收主集 RobustSDT 0608：
+ * 「近2年来症状逐渐加重…进食稍多则脘腹胀痛难忍」被报「急性、突发或剧烈腹痛」）。只在病历写了一个月以上的病程、全文没有
+ * 今日/突发/近 N 天这类起病线索时，把「诱因 + 则/即/就 + …难忍/剧烈」这一段从程度词判据里拿掉；腹膜刺激征等其余判据照旧。
+ * 类夹具 chronic-triggered-abdominal-severity。
+ */
+const TRIGGERED_SEVERITY = /(?:稍多|过饱|多食|进食|饭后|食后|餐后|劳累|受凉|遇冷|遇寒|每于|每因|每遇|每当|一旦)[^。；;，,]{0,6}(?:则|即|就|便|后)[^。；;，,]{0,10}(?:难忍|剧烈|剧痛|绞痛|疼得厉害|痛得厉害)/gu;
+const ABDOMINAL_CHRONIC_COURSE = /\d+(?:\.\d+)?\s*(?:年|个月|月)|[一二两三四五六七八九十半]+\s*(?:年|个月)|多年|数年/u;
+// 写了以小时、分钟计的时长（「剧痛2小时」）就是此刻这一次的发作，同样算起病线索。
+const ABDOMINAL_ACUTE_ONSET = /今(?:日|天|晨|早|晚)|昨(?:日|晚|夜|天)|突发|突然|骤然|刚刚|刚才|急性|近\s*\d+\s*(?:小时|天|日)|\d+(?:\.\d+)?\s*(?:小时|分钟|h)|半小时|数小时/u;
+function withoutChronicTriggeredSeverity(text: string): string {
+  if (!ABDOMINAL_CHRONIC_COURSE.test(text) || ABDOMINAL_ACUTE_ONSET.test(text)) return text;
+  return text.replace(TRIGGERED_SEVERITY, (match) => "＿".repeat(match.length));
+}
+
+function hasAcuteAbdominalSignal(rawText: string): boolean {
   // 腹膜刺激征的口语表达（“按下去松手更疼”=反跳痛）与“肚子疼”类口语主诉必须覆盖；
   // 松手后“不疼”的否定式描述不命中（间隔字符排除不/无/未）。
   const severe = governedTermAlternation(GOVERNED_SEVERE_TERMS);
   const symptoms = abdominalSymptomAlternation();
-  return hasAnyTerm(text, ["急腹痛", "腹膜刺激征", ...GOVERNED_PERITONEAL_SIGNS]) ||
+  const text = withoutChronicTriggeredSeverity(rawText);
+  return hasAnyTerm(rawText, ["急腹痛", "腹膜刺激征", ...GOVERNED_PERITONEAL_SIGNS]) ||
     // 症状短语自带重度性质词（上腹剧痛/右下腹剧痛/脘腹剧烈疼痛/少腹急痛/腹部绞痛）
     hasPatternWithoutNegation(text, new RegExp(ABDOMINAL_SEVERE_PAIN_COMPOSITION)) ||
     hasPatternWithoutNegation(text, new RegExp(
@@ -3014,20 +3058,37 @@ function hasAcuteExtendedStrokeWarning(text: string): boolean {
     hasPatternWithoutNegation(text, posteriorCombination);
 }
 
+const NEURO_EVENT_ANCHOR_SOURCE_TEXT = String.raw`脑梗(?:死|塞)?|脑卒中|卒中|中风|脑出血|脑溢血|脑血栓|脑栓塞|TIA|短暂性脑缺血发作|颅脑损伤|脑外伤|脑部手术|偏瘫`;
+// 已确立的神经事件：与 NEURO_EVENT_ANCHOR_SOURCE 同一张表（2026-10-18 起；此前这里另写了一份，少了「脑梗」「偏瘫」，
+//「确诊为急性脑梗…好转出院…刻下左侧肢体无力」于是不算陈旧事件、报成神经急症——逐模块验收主集 TCM-SD 438001）。
+// 周围性面瘫（面神经炎、口僻）也是已确立的事件：「口角歪斜1月，住院治疗后改善出院，现仍口角歪斜」不是新发卒中（TCM-SD 436764）。
+const NEURO_ESTABLISHED_EVENT_SOURCE = String.raw`(?:${NEURO_EVENT_ANCHOR_SOURCE_TEXT}|神经损伤|面神经炎|面神经麻痹|周围性面瘫|面瘫|口僻|贝尔麻痹)`;
+/** 小句整体是否被否认（「无肢体无力加重」「未再发」）。只看小句开头的否定词。 */
+function isNegatedClinicalClause(clause: string): boolean {
+  return /^\s*(?:无|未|否认|没有|不伴)/u.test(clause) || /(?:未再|无再|未见)(?:发|发作|加重)/u.test(clause);
+}
+
 function hasStablePostAcuteNeurologicContext(text: string): boolean {
   const normalized = normalizeClinicalText(text);
+  const event = NEURO_ESTABLISHED_EVENT_SOURCE;
   const hasEstablishedNeurologicEvent =
-    /(?:脑梗死|脑卒中|中风|脑出血|TIA|短暂性脑缺血发作|颅脑损伤|神经损伤)[^。；;\n]{0,28}(?:后|恢复期|康复期|后遗)/i.test(normalized) ||
-    /(?:脑梗死|脑卒中|脑出血|中风|TIA|短暂性脑缺血发作)(?:恢复期|康复期|后遗症)/i.test(normalized) ||
-    /(?:脑梗死|脑卒中|中风|脑出血|TIA|短暂性脑缺血发作)[^。；;\n]{0,32}(?:遗留|残留)[^。；;\n]{0,20}(?:无力|麻木|言语不清|口角歪斜|步态异常)/i.test(normalized) ||
+    new RegExp(`${event}[^。；;\\n]{0,28}(?:后|恢复期|康复期|后遗)`, "i").test(normalized) ||
+    new RegExp(`${event}(?:恢复期|康复期|后遗症)`, "i").test(normalized) ||
+    // 「突发中风偏瘫，当时伴有意识不清、头痛呕吐，经某医院住院治疗…但遗留右侧肢体无力」：事件与遗留之间隔着当时的经过，放宽到同一句 80 字。
+    new RegExp(`${event}[^。；;\\n]{0,80}(?:遗留|残留)[^。；;\\n]{0,20}(?:无力|麻木|言语不清|口角歪斜|步态异常)`, "i").test(normalized) ||
     // 病案常把确诊与结局拆成相邻两句：“脑 CT 示脑梗死。经治疗后遗留……”。
     // 句号不能让同一次事件的明确治疗后遗症重新变成“当前起病不明”的急症。
-    /(?:脑梗死|脑卒中|中风|脑出血|TIA|短暂性脑缺血发作)[^。；;\n]{0,16}[。；;]\s*(?:经|已)?(?:抢救|治疗|手术|康复|出院)[^。；;\n]{0,16}(?:后)?(?:后遗|遗留|残留)/i.test(normalized);
+    new RegExp(`${event}[^。；;\\n]{0,16}[。；;]\\s*(?:经|已)?(?:抢救|治疗|手术|康复|出院)[^。；;\\n]{0,16}(?:后)?(?:后遗|遗留|残留)`, "i").test(normalized) ||
+    // 「确诊为急性脑梗，予溶栓…治疗，好转出院」：同一句里有经治疗好转出院的结局。
+    new RegExp(`${event}[^。；;\\n]{0,60}(?:好转|改善|缓解)(?:后)?出院`, "i").test(normalized) ||
+    // 没写病名、但起病有日期（两周以上）且已经治疗好转（「1月前…出现左侧口角歪斜…住院治疗，经治疗症状改善出院」，TCM-SD 436764）。
+    /(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:周|个月|月|年)前[^。；;\n]{0,60}(?:无力|麻木|言语不清|口角歪斜|口眼歪斜|步态异常|偏瘫)[\s\S]{0,120}?(?:好转|改善|缓解)(?:后)?出院/.test(normalized);
   const hasNonAcuteCourse =
     /(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:周|个月|月|年)/.test(normalized);
   const hasCurrentStability =
     /(?:出院后|治疗后|恢复期|康复期|目前|当前|近(?:期|来|\d+个月|[一二两三四五六七八九十]+个月))[^。；;\n]{0,40}(?:病情稳定|稳定|逐渐改善|逐步恢复|无新发|未再发|无再发|无加重)/.test(normalized) ||
-    /(?:病情稳定|恢复平稳|康复调理)[^。；;\n]{0,36}(?:无新发|未再发|无再发|无加重)?/.test(normalized);
+    /(?:病情稳定|恢复平稳|康复调理)[^。；;\n]{0,36}(?:无新发|未再发|无再发|无加重)?/.test(normalized) ||
+    /(?:好转|改善|缓解)(?:后)?出院/.test(normalized);
   const explicitResidualBaseline = /(?:后遗|遗留|残留)[^。；;\n]{0,28}(?:无力|麻木|言语不清|口角歪斜|步态异常)/.test(normalized);
   const acuteChange = /(?:刚刚|刚才|今日|今天|今晨|新发|突发|突然|再发|(?<!反)复发|快速加重|明显加重|恶化)[^。；;\n]{0,28}(?:无力|麻木|言语不清|口角歪斜|步态异常)|(?:无力|麻木|言语不清|口角歪斜|步态异常)[^。；;\n]{0,20}(?:新发|再发|加重|恶化)/.test(normalized);
   return hasEstablishedNeurologicEvent && hasNonAcuteCourse && (hasCurrentStability || (explicitResidualBaseline && !acuteChange));
@@ -3036,7 +3097,7 @@ function hasStablePostAcuteNeurologicContext(text: string): boolean {
 // 神经事件锚点与残留/急性线索（类别级，不含个案关键词）：用于区分「陈旧卒中残留/后遗症期」与
 // 「旧卒中基础上的新发急性加重」。残留框架本身不是否定词，只是把时间轴限定为慢性基线；
 // 一旦同一小句出现急性变化线索（突发/新发/再发/加重…），必须重新视为当前急症（fail-closed）。
-const NEURO_EVENT_ANCHOR_SOURCE = String.raw`(?:脑梗(?:死|塞)?|脑卒中|卒中|中风|脑出血|脑溢血|脑血栓|脑栓塞|TIA|短暂性脑缺血发作|颅脑损伤|脑外伤|脑部手术|偏瘫)`;
+const NEURO_EVENT_ANCHOR_SOURCE = String.raw`(?:${NEURO_EVENT_ANCHOR_SOURCE_TEXT})`;
 const NEURO_RESIDUAL_MARKER_SOURCE = String.raw`(?:后遗(?:症)?(?:期)?|后遗症|遗留|残留|残存|陈旧(?:性)?|恢复期|康复期)`;
 const NEURO_RESIDUAL_MARKER_PATTERN = new RegExp(NEURO_RESIDUAL_MARKER_SOURCE);
 const NEURO_ACUTE_ONSET_CUE_SOURCE = String.raw`(?:刚刚|刚才|方才|今(?:日|天|晨|早|晚)|昨日|昨晚|昨夜|现在|目前|当前|本次|近日|近期|近(?:\d+|[一二两三四五六七八九十]+)\s*(?:小时|天|日|周)|新发|突发|突然|急性)`;
@@ -3192,6 +3253,23 @@ const CARDIAC_ACUTE_CHANGE_ONLY_PATTERN = new RegExp(`^(?:${CARDIAC_ACUTE_CHANGE
 
 // 胸痛/胸闷/心前区痛某一具体出现位置是否附着急性变化线索：同小句、前一小句句尾起病短语、
 // 或紧随其后小句句首的变化动词。线索可用性（否定/历史锚点/残留阻断）复用神经层的通用判定。
+/**
+ * 变化类线索（频繁、加重、复发…）写在顿号并列的另一个症状**前面**时，修饰的是那个症状，不是胸闷（2026-10-18 留出集 RobustSDT 0264：
+ *「主诉胸闷、频繁肠鸣，伴脘腹喜温畏冷…」被报「急性或加重胸闷」、收回剂量）。写在并列症状**后面**的（「胸闷、心悸加重2天」）是整串的谓语，照旧算。
+ * 同一形态的上一次修复是 10/14 的腹痛（程度词后跟逗号即结束）。类夹具 change-cue-on-sibling-symptom。
+ * cueIndex/termIndex 是同一段文字里的下标。
+ */
+function changeCueHeadsSiblingSymptom(text: string, cueIndex: number, termIndex: number): boolean {
+  if (termIndex < 0) return false;
+  const segmentStart = text.lastIndexOf("、", cueIndex - 1) + 1;
+  const nextComma = text.indexOf("、", cueIndex);
+  const segmentEnd = nextComma >= 0 ? nextComma : text.length;
+  const sameSegmentAsTerm = termIndex >= segmentStart && termIndex < segmentEnd;
+  if (sameSegmentAsTerm) return false;
+  // 只看段首：段首到线索之间没有别的字（允许空白）才算「修饰后面的那个症状」。
+  return /^\s*$/u.test(text.slice(segmentStart, cueIndex)) && segmentStart > 0;
+}
+
 function cardiacAcuteChangeAttachedAt(text: string, index: number, matchText: string): boolean {
   const { start, end } = clinicalSubClauseBoundsAt(text, index, matchText.length);
   CARDIAC_ACUTE_ANY_CUE_PATTERN.lastIndex = 0;
@@ -3199,6 +3277,7 @@ function cardiacAcuteChangeAttachedAt(text: string, index: number, matchText: st
     const cueIndex = start + (match.index ?? 0);
     if (cueIndex >= index && cueIndex < index + matchText.length) continue;
     const isChangeVerb = CARDIAC_ACUTE_CHANGE_ONLY_PATTERN.test(match[0]);
+    if (isChangeVerb && changeCueHeadsSiblingSymptom(text.slice(start, end), cueIndex - start, index - start)) continue;
     if (neuroAcuteCueUsableAt(text, cueIndex, match[0], index, isChangeVerb)) return true;
   }
   if (start > 0) {
@@ -3277,6 +3356,7 @@ function hasScopedAcuteChestTightnessSignal(text: string): boolean {
   const scopedCue = new RegExp(
     `${CARDIAC_ACUTE_ONSET_CUE_SOURCE}|${CARDIAC_ACUTE_CHANGE_CUE_SOURCE}|` +
     String.raw`(?:持续|未缓解|无缓解|没有缓解|压榨|濒死|\d+(?:\.\d+)?\s*(?:分钟|分|小时|h|H)|半小时|数小时)`,
+    "g",
   );
   while (index >= 0) {
     if (
@@ -3287,7 +3367,11 @@ function hasScopedAcuteChestTightnessSignal(text: string): boolean {
       if (cardiacAcuteChangeAttachedAt(normalized, index, term)) return true;
       const { start, end } = clinicalSubClauseBoundsAt(normalized, index, term.length);
       const scoped = withoutStableEpisodeDuration(normalized.slice(start, end).replace(NON_NEGATING_PHRASES, ""), normalized);
-      if (scopedCue.test(scoped)) return true;
+      const termAt = scoped.indexOf(term);
+      for (const match of scoped.matchAll(scopedCue)) {
+        if (CARDIAC_ACUTE_CHANGE_ONLY_PATTERN.test(match[0]) && changeCueHeadsSiblingSymptom(scoped, match.index ?? 0, termAt)) continue;
+        return true;
+      }
     }
     index = normalized.indexOf(term, index + term.length);
   }
@@ -3353,6 +3437,28 @@ function firstPatternMatchWithoutNegation(text: string, pattern: RegExp): { inde
   return undefined;
 }
 
+/**
+ * 突发头痛（雷击样头痛线索）。2026-10-18 起排除一种形态：「突发」领起的是一串并列的外感症状，头痛只是其中一项，同一小句有鼻塞、
+ * 流涕、喷嚏、咽痛、恶寒恶风这类外感症状，且没有剧烈、爆炸样之类的程度词（逐模块验收主集 RobustSDT 0098：「今晨起突发鼻塞、头痛，
+ * 伴流清涕、频繁喷嚏…恶风明显」被报「突发剧烈头痛、意识或神经功能异常」）。「突发头痛」「突发剧烈头痛」「突发头晕、头痛、呕吐」照旧算。
+ * 类夹具 sudden-headache-in-cold-symptom-list。
+ */
+const SUDDEN_HEADACHE = /(?:突发|突然|雷击|爆炸).{0,8}头痛/gu;
+const COLD_SYMPTOM_IN_CLAUSE = /鼻塞|流(?:清|浊)?涕|喷嚏|咽痛|咽痒|恶寒|恶风|畏风|怕风/u;
+const HEADACHE_SEVERITY = /剧烈|剧痛|爆炸|炸裂|撕裂|难以忍受|无法忍受|最严重|从未有过|雷击/u;
+function hasSuddenHeadacheSignal(text: string): boolean {
+  if (!hasPatternWithoutNegation(text, /(?:突发|突然|雷击|爆炸).{0,8}头痛/)) return false;
+  for (const match of text.matchAll(SUDDEN_HEADACHE)) {
+    const at = match.index ?? 0;
+    const clauseStart = Math.max(...["。", "；", ";", "\n"].map((mark) => text.lastIndexOf(mark, at - 1))) + 1;
+    const ends = ["。", "；", ";", "\n"].map((mark) => text.indexOf(mark, at + match[0].length)).filter((index) => index >= 0);
+    const clause = text.slice(clauseStart, ends.length > 0 ? Math.min(...ends) : text.length);
+    const coldList = /[、，,]/u.test(match[0]) && COLD_SYMPTOM_IN_CLAUSE.test(clause) && !HEADACHE_SEVERITY.test(clause);
+    if (!coldList && hasPatternWithoutNegation(match[0], /(?:突发|突然|雷击|爆炸).{0,8}头痛/)) return true;
+  }
+  return false;
+}
+
 function hasNeurologicEmergencySignal(text: string): boolean {
   const normalized = normalizeClinicalText(text);
   if (hasPatternWithoutNegation(normalized, CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN)) return true;
@@ -3369,6 +3475,17 @@ function hasNeurologicEmergencySignal(text: string): boolean {
       (!neuroResidualFramingAt(normalized, unilateralSensoryMatch.index, unilateralSensoryMatch.text) &&
         !sensoryDeficitIsChronicPeripheralAt(normalized, unilateralSensoryMatch.index, unilateralSensoryMatch.text)));
   if (stablePostAcuteCourse) {
+    // 陈旧事件基础上本次新出现或加重的缺损（「1月前…改善出院，今日突然右侧肢体无力」）：逐小句看，小句里有起病/加重线索和缺损、
+    // 又没有「N月前、当时、既往」这类历史锚点时就是急症。下面两条正则漏掉了不带「左/右侧」限定、或线索与缺损隔着「出现」的写法
+    //（2026-10-18 把陈旧事件的认法放宽时由反证找到；放宽之前这类病历走下面的「当前缺损默认算急症」，不受影响）。
+    const clauseAcuteChange = normalized.split(/[。；;\n，,]/u).some((clause) => {
+      if (NEURO_HISTORICAL_ANCHOR_PATTERN.test(clause)) return false;
+      if (!/无力|麻木|言语不清|言语不利|口角歪斜|口眼歪斜|步态|偏瘫|视物模糊|视物不清|复视|吞咽困难|饮水呛咳/u.test(clause)) return false;
+      // 线索本身被否认（「近三个月无新发口角歪斜」「未再发」）不算：按本文件同一个否认判据看线索所在位置。
+      return [...clause.matchAll(/(?:刚刚|刚才|今日|今天|今晨|今早|昨晚|昨夜|新发|突发|突然|再发|(?<!反)复发|又发|加重|恶化)/gu)]
+        .some((cue) => !isNegatedAt(clause, cue.index ?? 0) && !isNegatedClinicalClause(clause.slice(Math.max(0, (cue.index ?? 0) - 3))));
+    });
+    if (clauseAcuteChange) return true;
     const acuteCueBeforeDeficit = new RegExp(`(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|近\\s*(?:\\d+|[一二两三四五六七八九十几两]+)\\s*(?:小时|天|日)|本次|当前|目前|新发|突发|突然|再发|复发|快速加重|明显加重).{0,20}(?:出现|发生|再发|复发|加重)?[^。；;\\n]{0,8}${FOCAL_NEUROLOGIC_PATTERN.source}`);
     const acuteCueAfterDeficit = new RegExp(`${FOCAL_NEUROLOGIC_PATTERN.source}[^。；;\\n]{0,20}${TRAILING_ACUTE_NEURO_CUE}`);
     return extendedStrokeWarning || hasPatternWithoutNegation(text, acuteCueBeforeDeficit) || hasPatternWithoutNegation(text, acuteCueAfterDeficit) ||
@@ -3782,7 +3899,7 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
         ? "急性或加重胸闷已出现，需先排除急性冠脉综合征等心血管风险"
       : "短时程、新发、突发或持续胸痛/心前区痛已出现，即使暂未记录伴随症状，也需先排除急性心血管事件");
   }
-  if (hasPatternWithoutNegation(text, /(?:突发|突然|雷击|爆炸).{0,8}头痛/) || hasNeurologicEmergencySignal(text)) {
+  if (hasSuddenHeadacheSignal(text) || hasNeurologicEmergencySignal(text)) {
     redFlags.push("突发剧烈头痛、意识或神经功能异常，需优先排除神经系统急症");
   }
   if (acuteAbdominalSignal) {

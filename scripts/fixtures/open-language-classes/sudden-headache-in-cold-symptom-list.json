@@ -1,0 +1,67 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "sudden-headache-in-cold-symptom-list",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-18",
+ "trigger": "10.18 逐模块验收主集 RobustSDT 0098：「因昨日淋雨受凉，今晨起突发鼻塞、头痛，伴流清涕、频繁喷嚏…恶风明显」被报「突发剧烈头痛、意识或神经功能异常」，剂量收回。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "diagnosis-safety 的突发头痛判据 /(?:突发|突然|雷击|爆炸).{0,8}头痛/ 中间允许任意 8 个字，「突发」领起的一串外感症状里的头痛被当成雷击样头痛。",
+  "exception": "冻结令允许的确定性例外：构词式守卫 + 有限闭集。只在「突发…头痛」中间隔着顿号或逗号（头痛是并列中的一项）、同一句有鼻塞/流涕/喷嚏/咽痛/恶寒恶风这类外感症状、且没有剧烈/爆炸样/难以忍受等程度词时不算；其余照旧。",
+  "sources": "雷击样头痛的定义是「突发的剧烈头痛、一分钟内达到高峰」（ICHD-3 4.4）；感冒的头痛属外感表证的伴随症状。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：去掉触发误报的那一处后门禁结果必须相同，兄弟句自身零红旗。",
+  "pairs": [
+   {
+    "subject": "今晨起突发鼻塞、头痛，伴流清涕、频繁喷嚏，恶风明显。",
+    "sibling": "今晨起鼻塞、头痛，伴流清涕、频繁喷嚏，恶风明显。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "受凉后突发咽痛、头痛，伴恶寒。",
+    "sibling": "受凉后咽痛、头痛，伴恶寒。",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "controls": {
+  "note": "急性起病、本次加重、程度词修饰的必须照旧报警。",
+  "mustStillFlag": [
+   {
+    "text": "今晨突发头痛，伴呕吐。",
+    "flag": "头痛"
+   },
+   {
+    "text": "突发剧烈头痛2小时。",
+    "flag": "头痛"
+   },
+   {
+    "text": "突发头晕、头痛、呕吐1小时。",
+    "flag": "头痛"
+   },
+   {
+    "text": "突发鼻塞、剧烈头痛，伴流涕。",
+    "flag": "头痛"
+   },
+   {
+    "text": "突然头痛，无鼻塞流涕。",
+    "flag": "头痛"
+   }
+  ],
+  "mustStayReady": [
+   "今晨起突发鼻塞、头痛，伴流清涕、频繁喷嚏，恶风明显。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-18",
+   "what": "现代医案语料 + 本轮逐模块验收集（M/X/D/H/A/B）+ 10/13 合成与既往评测集全部病例 × 两种病历形状（改前 HEAD 对改后，三类确定性改动合并回放），~/runlogs/r1018/scripts/gate-replay.mjs",
+   "result": "32,368 次判定 11 次改变：0264（胸闷、频繁肠鸣）、0098（感冒突发鼻塞头痛）、0578（中风后遗症 20 个月）、TCM-SD 436764（面瘫 1 月已改善出院）、438001（急性脑梗好转出院后的残留）各两种形状，MTCMB-93 只少了神经一条（血压红旗仍在）；逐例读过，全是过度红旗。"
+  }
+ ]
+}

@@ -343,6 +343,39 @@ function normalizeHerbName(value: string): string {
   return normalized;
 }
 
+/**
+ * 方剂名录里组成药名的残片与旧名（2026-10-18）：国家经典名方目录的《伤寒论》竹叶石膏汤记作「竹叶二把、麦门冬」，名录转载里还有
+ *「竹叶2把」「麦门冬自2-」「僵蚕5条」。出处排名按药名逐字比，残片与旧名一律对不上，原书条目因此过不了身份门槛
+ *（留出例 S046 署名落到《医略六书》卷十八）。比较前去掉末尾的数量残片（阿拉伯数字，或中文数字＋量词——「三七」这类药名不带量词，不受影响）
+ * 与「自N-」，再按受治理药名身份归一（麦门冬→麦冬、花粉→天花粉；只取可自动归一的行，炙甘草等炮制名保持原样）。只用于出处比对。
+ */
+/** 只去数量残片、不做身份归一的写法；判「逐字一致」（exactComposition）用它，药用部位与旧名差异（当归身/当归）不能算逐字一致。 */
+function catalogIngredientWritten(value: string): string {
+  const cleaned = String(value || "")
+    .replace(/自\d+-?$/u, "")
+    .replace(/(?:\d+(?:\.\d+)?\s*(?:把|枚|个|片|条|钱|两|升|合|斤|分|粒|撮|g|克)?|[一二三四五六七八九十百半]+(?:把|枚|个|片|条|钱|两|升|合|斤|分|粒|撮))$/u, "")
+    .trim();
+  return normalizeHerbName(cleaned.length >= 1 ? cleaned : String(value || ""));
+}
+
+/**
+ * 出处比对时名录组成药名的归一口径（2026-10-18）。身份归一（麦门冬→麦冬、熟地→熟地黄、橘皮→陈皮）只给「原书」条目：
+ * 国家经典名方目录与受治理目录里这首方的出处。名录里的后世转载只去数量残片、按原写法比——给它们也做身份归一后，
+ * 写着生地、丹皮、橘皮的转载反而比原书「更贴近」（回放 724 个候选：清胃散归《金鉴》、普济消毒饮归《卫生鸿宝》、
+ * 逍遥散归《女科切要》、生脉散归《嵩崖尊生》），违背「出处先取原书」。
+ */
+function sourceIngredientKey(candidate: FormulaSourceCandidate, governedSource: string | undefined): (value: string) => string {
+  const anchor = candidate.origin === "official_classic_catalog" ||
+    (governedSource !== undefined && (candidate.variant.source === governedSource || sameFormulaSourceBook(candidate.variant.source, governedSource)));
+  return anchor ? catalogIngredientIdentity : catalogIngredientWritten;
+}
+
+function catalogIngredientIdentity(value: string): string {
+  const normalized = catalogIngredientWritten(value);
+  const canonical = resolveGovernedTcmHerbIdentity(normalized).canonicalName;
+  return canonical ? normalizeHerbName(canonical) : normalized;
+}
+
 function rawHerbIdentityName(value: string): string {
   return value
     .replace(/[\s·•，,。；;：:（）()【】\[\]“”"']/g, "")
@@ -1221,6 +1254,23 @@ function withTextbookSyndromeName(reasoning: ClinicalReasoningResultV2): Clinica
   };
 }
 
+/**
+ * 教材治法里没有针对主症的那一句（「止痛」「止咳」「止泻」…），而模型写的治法里有时，把模型那一句接在教材治法后面（2026-10-18）。
+ * 甲方标准病历 3（头痛·血虚头痛证）：十三五《中医内科学》该证治法原文是「滋阴养血」，模型按提示词写了「养血和络止痛」，
+ * 锚定后只剩「滋阴养血」，评审按另一版教材（「养血滋阴，和络止痛」）判缺主症方向。提示词本来就要求治法含针对主诉主症的方向
+ *（第 8 条），这里不让锚定把它丢掉。只接一句、只接含「止」的那句；教材治法里已有「止」时不接。
+ */
+export function withSymptomDirectedClause(rowMethod: string, modelMethod: string): string {
+  if (!rowMethod || /止/u.test(rowMethod)) return rowMethod;
+  const clause = modelMethod.split(/[，,、；;。]/u).map((item) => item.trim())
+    .find((item) => /^[\u4e00-\u9fff]{2,8}$/u.test(item) && /止/u.test(item) && !rowMethod.includes(item));
+  if (!clause) return rowMethod;
+  // 「养血和络止痛」接在「滋阴养血」后面时，开头与教材治法重复的两字（养血）去掉，只接「和络止痛」。
+  let tail = clause;
+  while (tail.length >= 6 && rowMethod.includes(tail.slice(0, 2))) tail = tail.slice(2);
+  return `${rowMethod}，${tail}`;
+}
+
 export function withDeterministicFormulaReferences(input: ClinicalReasoningResultV2): ClinicalReasoningResultV2 {
   const reasoning = input.stage === "diagnose" ? withTextbookSyndromeName(input) : input;
   if (reasoning.stage === "diagnose") {
@@ -1242,7 +1292,9 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     // 治法的写法 10 例里 0 例完全一致）。没对上时保留模型写的治法。
     const textbookRow = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
     const secondary = Array.isArray(reasoning.overview?.secondarySyndromes) ? reasoning.overview.secondarySyndromes.filter(Boolean) : [];
-    const anchoredMethod = textbookRow && secondary.length === 0 ? textbookRow.therapy.replace(/[。；;]+$/g, "") : "";
+    const anchoredMethod = textbookRow && secondary.length === 0
+      ? withSymptomDirectedClause(textbookRow.therapy.replace(/[。；;]+$/g, ""), String(reasoning.therapy?.overallMethod || ""))
+      : "";
     return {
       ...reasoning,
       overview: {
@@ -1660,6 +1712,33 @@ function sameFormulaSourceBook(source: string, governedSource: string | undefine
   return left.length > 0 && left === book(governedSource);
 }
 
+const ORIGINAL_SOURCE_MARGIN = 0.15;
+const DECOCTION_ADJUNCT_HERBS = new Set(["生姜", "大枣"]);
+
+/**
+ * 出处并列时比「谁多解释了处方」只看有分辨力的药味：不算生姜、大枣（名录常写在煎法里不列入组成），
+ * 合方时也不算合方里另一首方本来就有的药（旋覆代赭汤合温胆汤：枳实属温胆汤，不能替《伤寒全生集》的旋覆代赭汤加分）。
+ */
+function substantiveHerbs(herbs: string[], otherComponentHerbs: ReadonlySet<string>): Set<string> {
+  return new Set(herbs.filter((herb) =>
+    !DECOCTION_ADJUNCT_HERBS.has(herb) && !otherComponentHerbs.has(herb) && !otherComponentHerbs.has(catalogIngredientIdentity(herb))
+  ));
+}
+
+function substantiveSubset(a: string[], b: string[], otherComponentHerbs: ReadonlySet<string>): boolean {
+  const right = new Set(b);
+  return [...substantiveHerbs(a, otherComponentHerbs)].every((herb) => right.has(herb));
+}
+
+/** 排序比较值：b 对上的有分辨力药味真包含 a 的时为正（b 在前），反之为负，互不包含为 0。 */
+function substantiveCoverageOrder(a: string[], b: string[], otherComponentHerbs: ReadonlySet<string>): number {
+  const left = substantiveHerbs(a, otherComponentHerbs);
+  const right = substantiveHerbs(b, otherComponentHerbs);
+  if (left.size === right.size) return 0;
+  const [small, large, sign] = left.size < right.size ? [left, right, 1] : [right, left, -1];
+  return [...small].every((herb) => large.has(herb)) ? sign : 0;
+}
+
 function bestFormulaSourceCandidate(
   candidates: FormulaSourceCandidate[],
   herbs: string[],
@@ -1672,9 +1751,23 @@ function bestFormulaSourceCandidate(
     source: string;
     aliases: ReadonlyMap<string, string>;
   },
+  otherComponentHerbs: ReadonlySet<string> = new Set(),
 ): { candidate: FormulaSourceCandidate; overlap: number; f1: number; matchedHerbs: string[]; usedBaseAlias: boolean } | undefined {
   const normalizedHerbs = [...new Set(herbs.map(normalizeHerbName).filter(Boolean))];
   if (normalizedHerbs.length === 0) return undefined;
+  // 名录组成按 catalogIngredientIdentity 归一（熟地→熟地黄、麦门冬→麦冬），处方药名也要按同一个函数归一后再比，
+  // 否则照原方原名开的处方（左归饮「熟地、枸杞」）反而对不上自己的原书条目。
+  const herbIdentityKeys = normalizedHerbs.map(catalogIngredientIdentity);
+  const originalSourceMarginOver = (
+    item: { candidate: FormulaSourceCandidate; matchedHerbs: string[] },
+    other: { matchedHerbs: string[] },
+  ) => {
+    const original = item.candidate.origin === "official_classic_catalog" ||
+      sameFormulaSourceBook(item.candidate.variant.source, governedSourceIdentity?.source);
+    if (!original) return 0;
+    const explained = new Set(item.matchedHerbs);
+    return other.matchedHerbs.every((herb) => explained.has(herb)) ? ORIGINAL_SOURCE_MARGIN : 0;
+  };
   const ranked = candidates
     .map((candidate) => {
       const variant = candidate.variant;
@@ -1686,16 +1779,25 @@ function bestFormulaSourceCandidate(
         ? governedSourceIdentity.aliases
         : baseIdentityByExact;
       const normalizedFormulaIdentity = normalizeFormulaName(candidate.formulaName);
-      const ingredients = [...new Set(variant.ingredients.map(normalizeHerbName).filter((ingredient) =>
+      const ingredientKey = sourceIngredientKey(candidate, governedSourceIdentity?.source);
+      const ingredients = [...new Set(variant.ingredients.map(ingredientKey).filter((ingredient) =>
         ingredient && ingredient !== normalizedFormulaIdentity
       ))];
+      const writtenIngredients = new Map<string, Set<string>>();
+      for (const raw of variant.ingredients) {
+        const identity = ingredientKey(raw);
+        writtenIngredients.set(identity, (writtenIngredients.get(identity) || new Set()).add(catalogIngredientWritten(raw)));
+      }
       const ingredientOwner = new Array<number>(ingredients.length).fill(-1);
-      const canMatch = (herb: string, ingredient: string) => ingredient === herb || (
-        candidateIdentityByExact.get(herb) === ingredient && !sourceIngredientRequiresProcessingIdentity(ingredient)
-      );
+      const canMatch = (herbIndex: number, ingredient: string) => {
+        const herb = normalizedHerbs[herbIndex];
+        return ingredient === herb || ingredient === herbIdentityKeys[herbIndex] || (
+          candidateIdentityByExact.get(herb) === ingredient && !sourceIngredientRequiresProcessingIdentity(ingredient)
+        );
+      };
       const assign = (herbIndex: number, seen: boolean[]): boolean => {
         for (let ingredientIndex = 0; ingredientIndex < ingredients.length; ingredientIndex += 1) {
-          if (seen[ingredientIndex] || !canMatch(normalizedHerbs[herbIndex], ingredients[ingredientIndex])) continue;
+          if (seen[ingredientIndex] || !canMatch(herbIndex, ingredients[ingredientIndex])) continue;
           seen[ingredientIndex] = true;
           if (ingredientOwner[ingredientIndex] < 0 || assign(ingredientOwner[ingredientIndex], seen)) {
             ingredientOwner[ingredientIndex] = herbIndex;
@@ -1707,7 +1809,7 @@ function bestFormulaSourceCandidate(
       normalizedHerbs.forEach((_, herbIndex) => assign(herbIndex, new Array<boolean>(ingredients.length).fill(false)));
       const matchedHerbs = ingredientOwner.filter((herbIndex) => herbIndex >= 0).map((herbIndex) => normalizedHerbs[herbIndex]);
       const usedBaseAlias = ingredientOwner.some((herbIndex, ingredientIndex) =>
-        herbIndex >= 0 && normalizedHerbs[herbIndex] !== ingredients[ingredientIndex]
+        herbIndex >= 0 && !writtenIngredients.get(ingredients[ingredientIndex])?.has(normalizedHerbs[herbIndex])
       );
       const overlap = ingredientOwner.filter((herbIndex) => herbIndex >= 0).length;
       const precision = overlap / Math.max(normalizedHerbs.length, 1);
@@ -1716,7 +1818,7 @@ function bestFormulaSourceCandidate(
       const requiredOverlap = ingredients.length <= 2 ? ingredients.length : 2;
       const requiredIngredients = requiredFormulaAnchors(candidate.formulaName, variant, ingredients);
       const requiredIngredientsPresent = requiredIngredients.every((required) =>
-        normalizedHerbs.some((herb) => canMatch(herb, required))
+        normalizedHerbs.some((_, herbIndex) => canMatch(herbIndex, required))
       );
       // Formula identity is provenance, not a fuzzy similarity label. Every source and every
       // single/combined branch must enforce the same public contract: retain at least the configured floor (default 80%) of the
@@ -1750,7 +1852,15 @@ function bestFormulaSourceCandidate(
     .filter((item) => item.accepted)
     .sort((a, b) =>
       Number(Boolean(sourceHint && b.candidate.variant.source.includes(sourceHint))) - Number(Boolean(sourceHint && a.candidate.variant.source.includes(sourceHint))) ||
+      // 原书优先（2026-10-18）：国家经典名方目录条目与受治理目录里这首方的出处，组成过了身份门槛、且处方里对得上对方的药味它也都对得上时，
+      // 比名录里的同名异书多算 ORIGINAL_SOURCE_MARGIN 的相似度。处方照原方去一两味（竹叶石膏汤去粳米），名录里恰好少那几味的后世转载
+      //（《医略六书》卷十八）不再因此抢走署名（留出例 S046，独立评审：「出处应先取原书再比药味」）。
+      // 后世方多解释了处方里的药（温胆汤带茯苓、大枣 → 《三因》）时原书不加分，「最贴近的组成优先」不变。
+      (b.f1 + originalSourceMarginOver(b, a)) - (a.f1 + originalSourceMarginOver(a, b)) ||
       b.f1 - a.f1 || b.overlap - a.overlap ||
+      // 分数并列、但一方对上的药味（不算姜枣）真包含另一方时，归多解释了药味的那一方（2026-10-18）。名录常把生姜、大枣写在煎法里
+      // 而不列入组成（《三因》温胆汤），橘皮按身份归一成陈皮后，《千金》温胆汤靠生姜与带茯苓的《三因》打平；茯苓才是两方的分界。
+      substantiveCoverageOrder(a.matchedHerbs, b.matchedHerbs, otherComponentHerbs) ||
       // 组成同样贴近时：国家经典名方目录条目最先（升降散《伤寒瘟疫条辨》），其次是受治理目录里这首方的出处，
       // 然后才是名录里的同名异书（2026-10-13）。「最贴近的组成优先」不变（温胆汤带茯苓时仍归《三因》）；
       // 改的只是并列时谁署名：此前名录转载条目排在核验补充目录之前，逍遥散于是署成《局方》卷九。
@@ -1773,7 +1883,15 @@ function bestFormulaSourceCandidate(
   const bestExact = best.f1 >= 0.999;
   const bestFullyCovered = best.recall >= 0.999 && competingDifferentFormula && competingDifferentFormula.recall < 0.999;
   const trustedCombinedFull = combinedFormula && best.recall >= 0.999 && best.candidate.origin !== "local_formula_catalog";
-  if (competingDifferentFormula && !bestExact && !bestFullyCovered && !trustedCombinedFull && best.f1 - competingDifferentFormula.f1 < 0.08) return undefined;
+  // 近分的不同组成都被最优者的药味（不算姜枣）真包含时，最优者多解释了处方，不算拿不准（2026-10-18，见 substantiveCoverageOrder）。
+  const bestDominatesNearCompetitors = ranked.slice(1).every((item) =>
+    item.candidate.variant.source === best.candidate.variant.source ||
+    item.ingredientSignature === best.ingredientSignature ||
+    best.f1 - item.f1 >= 0.08 ||
+    substantiveCoverageOrder(item.matchedHerbs, best.matchedHerbs, otherComponentHerbs) > 0 ||
+    (best.f1 > item.f1 && substantiveSubset(item.matchedHerbs, best.matchedHerbs, otherComponentHerbs))
+  );
+  if (competingDifferentFormula && !bestExact && !bestFullyCovered && !trustedCombinedFull && !bestDominatesNearCompetitors && best.f1 - competingDifferentFormula.f1 < 0.08) return undefined;
   return { candidate: best.candidate, overlap: best.overlap, f1: best.f1, matchedHerbs: best.matchedHerbs, usedBaseAlias: best.usedBaseAlias };
 }
 
@@ -2110,7 +2228,18 @@ function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: For
   const combined = baseNames.length > 1;
   const explicitlyModified = /(?:加减|化裁|加味)/.test(candidateName);
   const sourceHint = candidateName.match(/《([^》]{2,80})》/)?.[1]?.replace(/[。；;，,\s]+$/g, "") || "";
+  // 合方里另一首方「本来有的药」按它的标准组成算：国家经典名方目录条目，没有时取受治理目录这一条；不取名录里的同名异书，
+  // 那里十几条转载的并集几乎什么药都有（温胆汤一类会因此把茯苓也算成旋覆代赭汤的药）。
+  const componentIngredients = (name: string) => {
+    const governedRow = governedFormulaCompilationRow(name);
+    const standard = normalizedOfficialClassics.get(name)?.variant.ingredients ||
+      (governedRow ? formulaCompilationReferences([governedRow.name])[0]?.ingredients : undefined) || [];
+    return new Set(standard.map(catalogIngredientIdentity).filter(Boolean));
+  };
   for (const normalizedName of baseNames) {
+    const otherComponentHerbs = combined
+      ? new Set(baseNames.filter((name) => name !== normalizedName).flatMap((name) => [...componentIngredients(name)]))
+      : new Set<string>();
     const formulaAliases = new Map(baseAliases);
     const governedRow = governedFormulaCompilationRow(normalizedName);
     if (!combined) {
@@ -2173,6 +2302,7 @@ function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: For
       false,
       baseAliases,
       governedSourceIdentity,
+      otherComponentHerbs,
     ) ||
       (!explicitlyModified
         ? bestFormulaSourceCandidate(
@@ -2184,14 +2314,15 @@ function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: For
           true,
           baseAliases,
           governedSourceIdentity,
+          otherComponentHerbs,
         )
         : undefined);
     if (!matched) return [];
-    const normalizedHerbs = new Set(herbNames.map(normalizeHerbName).filter(Boolean));
+    const normalizedHerbs = new Set(herbNames.flatMap((name) => [normalizeHerbName(name), catalogIngredientIdentity(normalizeHerbName(name))]).filter(Boolean));
     const normalizedBaseAliases = new Set(
       (matched.candidate.variant.source === governedSourceIdentity?.source ? formulaAliases : baseAliases).values(),
     );
-    const normalizedIngredients = matched.candidate.variant.ingredients.map(normalizeHerbName).filter(Boolean);
+    const normalizedIngredients = matched.candidate.variant.ingredients.map(sourceIngredientKey(matched.candidate, governedSourceIdentity?.source)).filter(Boolean);
     const requiredIngredients = requiredFormulaAnchors(
       matched.candidate.formulaName,
       matched.candidate.variant,

@@ -149,7 +149,9 @@ export function annotateM03DecisionSpecificityBoundary(
   const { reason, mustCollect, activeRedFlag } = boundary;
   const UNCERTAINTY_ITEM = "辨证与方剂具体度边界";
   const redFlagFirst = "急危重风险未排除：请优先完成急诊或转诊评估并记录排除或处置依据；以下辨证与治法结论供医生参考，正式采纳与具体用量须在风险处置之后。";
-  const redFlagSafetyNet = "当前应优先完成急危重风险评估；如症状持续、加重或出现新的急性危险信号，请立即急诊或呼叫急救。";
+  // 复诊计划写给患者（9/28 甲方）：红旗档的这一句此前是给医生的流程话（「当前应优先完成急危重风险评估」，2026-10-18 验收主集
+  // 评审判「给医生看的流程用语」）。说法改成患者能照做的，意思不变：先去医院排除急危重情况，加重即急诊。
+  const redFlagSafetyNet = "请先尽快到医院急诊或相关专科就诊，排除急危重情况；如症状持续、加重或出现新的不适，请立即急诊或呼叫急救。";
   const prepend = (existing: unknown, head: string): string => {
     const tail = typeof existing === "string" ? existing.trim() : "";
     if (!tail) return head;
@@ -544,8 +546,14 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
         if (!item || typeof item !== "object") continue;
         const entry = item as Record<string, unknown>;
         for (const key of ["reason", "distinguishingPoints"]) {
-          const grounded = groundText(entry[key]);
-          if (grounded !== entry[key]) entry[key] = grounded;
+          const clauseGrounded = groundText(entry[key]);
+          // 分句开头的「无X」由上面改成「病历未记录X（需问诊核实…）」；句中的「…、无X」交给同一条判据
+          //（unrecordedNegativesAsNotReported，与辨病/辨证依据共用）。
+          const grounded = typeof clauseGrounded === "string" ? unrecordedNegativesAsNotReported(clauseGrounded, clinicalContext) : clauseGrounded;
+          if (grounded !== entry[key]) {
+            entry[key] = grounded;
+            changed = true;
+          }
         }
       }
     };
@@ -879,13 +887,29 @@ const NONDIAGNOSTIC_WESTERN_SUPPORT = /^(?:不限定|未限定|既往体健|无�
  */
 // 「无」后面是固定搭配或虚词的不算（无汗、无力、无明显诱因、无法、无需…）；前面是「有无、并无、尚无」的也不算。
 // 2026-10-17 补：无定处、无常、无度、无端、无故（甲方标准病历 9 瘾疹「发无定处」被改成「发未诉定处」）。
-const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故])([\u4e00-\u9fff]{2,10}?)(?=[、，,。；;：:）)]|等|及|和|或|与|$)/gu;
+// 2026-10-18：X 放宽到 16 字（甲方标准病历 2 辨病依据「无气从少腹上冲胸咽之奔豚特征」13 字，旧上限 10 字漏过）。
+const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故])([\u4e00-\u9fff]{2,16}?)(?=[、，,。；;：:）)]|等|及|和|或|与|$)/gu;
 
-/** 把病历没有记录过的「无X」写成「未诉X」。病历为空时原样返回（无从判断）。 */
+/**
+ * 病历是否写到过这个阴性项的对象（无论肯定还是否定）。2–3 字的词要原词出现；4 字以上的长短语换个说法很常见
+ *（输出「无发热恶寒」，病历「无恶寒发热」），首尾两个字都在病历里出现就算写到过，宁可留着「无」也不错改。
+ */
+function recordMentionsNegatedTerm(record: string, term: string): boolean {
+  if (record.includes(term)) return true;
+  return term.length >= 4 && record.includes(term.slice(0, 2)) && record.includes(term.slice(-2));
+}
+
+/**
+ * 把病历没有记录过的「无X」写成「未诉X」。病历为空时原样返回（无从判断）。
+ *
+ * 2026-10-18 起这是所有「写给医生看的患者事实」字段共用的一条判据：辨病/辨证依据，以及中医病名、证候、西医鉴别的
+ * reason 与 distinguishingPoints（由 groundDifferentialNegativeAssertions 在分句核对之后再调一次）。此前只有两条依据字段用它，
+ * 西医鉴别里句中的「…、无夜间痛；」（甲方标准病历 6 腰椎转移瘤一项）因为不在分句开头而两边都没管。
+ */
 export function unrecordedNegativesAsNotReported(text: string, clinicalContext: string): string {
   const record = clinicalContext.normalize("NFKC").replace(/\s+/g, "");
   if (!record) return text;
-  let out = text.replace(UNRECORDED_NEGATIVE, (match, term: string) => record.includes(term) ? match : `未诉${term}`);
+  let out = text.replace(UNRECORDED_NEGATIVE, (match, term: string) => recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`);
   // 「未诉A、未诉B」并成「未诉A、B」。
   for (let pass = 0; pass < 4; pass += 1) out = out.replace(/(未诉[^，,。；;]{1,30})、未诉/gu, "$1、");
   return out;

@@ -1,0 +1,67 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "chronic-triggered-abdominal-severity",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-18",
+ "trigger": "10.18 逐模块验收主集 RobustSDT 0608：慢性萎缩性胃炎 3 年，「进食稍多则脘腹胀痛难忍」作为程度词命中「急性、突发或剧烈腹痛」。本例最终仍因「近 2 周诸症明显加重，胃痛持续不已」被报（那一条是加重线索，属既定的保守口径，未改）。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "hasAcuteAbdominalSignal 的程度词分支不看病程与诱因：慢性病程里「遇到某诱因就……难忍」写的是发作规律，被当成此刻的剧烈腹痛。",
+  "exception": "冻结令允许的确定性例外：数值阈值（病程一个月以上）+ 构词式守卫。只在病历写了一个月以上病程、全文没有今日/突发/近 N 天/以小时分钟计的时长这类起病线索时，把「诱因 + 则/即/就/后 + …难忍/剧烈」一段从程度词判据里拿掉；腹膜刺激征与加重线索照旧。",
+  "sources": "急腹症指急性起病的腹痛（《外科学》急腹症章）。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：去掉触发误报的那一处后门禁结果必须相同，兄弟句自身零红旗。",
+  "pairs": [
+   {
+    "subject": "胃脘胀痛半年，每于劳累后则疼痛难忍。",
+    "sibling": "胃脘胀痛半年，每于劳累后则疼痛。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "胃脘隐痛8年，遇寒加重，得温则舒，进食稍多则脘腹胀痛难忍。",
+    "sibling": "胃脘隐痛8年，遇寒加重，得温则舒，进食稍多则脘腹胀痛。",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "controls": {
+  "note": "急性起病、本次加重、程度词修饰的必须照旧报警。",
+  "mustStillFlag": [
+   {
+    "text": "胃痛2年，今日腹痛剧烈难忍，伴呕吐。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "胃痛2年，进食后胃脘剧痛2小时。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "腹痛剧烈3小时。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "反复胃痛3年，腹痛剧烈，按之痛甚，伴发热。",
+    "flag": "腹痛"
+   },
+   {
+    "text": "胃痛3年，饭后腹痛剧烈，持续半小时。",
+    "flag": "腹痛"
+   }
+  ],
+  "mustStayReady": [
+   "胃脘胀痛半年，每于劳累后则疼痛难忍。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-18",
+   "what": "现代医案语料 + 本轮逐模块验收集（M/X/D/H/A/B）+ 10/13 合成与既往评测集全部病例 × 两种病历形状（改前 HEAD 对改后，三类确定性改动合并回放），~/runlogs/r1018/scripts/gate-replay.mjs",
+   "result": "32,368 次判定 11 次改变：0264（胸闷、频繁肠鸣）、0098（感冒突发鼻塞头痛）、0578（中风后遗症 20 个月）、TCM-SD 436764（面瘫 1 月已改善出院）、438001（急性脑梗好转出院后的残留）各两种形状，MTCMB-93 只少了神经一条（血压红旗仍在）；逐例读过，全是过度红旗。"
+  }
+ ]
+}

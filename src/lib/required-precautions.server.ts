@@ -25,6 +25,17 @@ function presentIllnessText(state: CaseState): string {
   return state.hisRecord?.fields?.xianbingshi || "";
 }
 
+/** 病历里的年龄（岁；「8个月」按月折算）。读不出时为 undefined。 */
+function patientAgeYears(state: CaseState): number | undefined {
+  const raw = (state.patient as { age?: unknown } | undefined)?.age ?? state.hisRecord?.fields?.age;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0 && raw <= 130) return raw;
+  if (typeof raw !== "string") return undefined;
+  const years = raw.match(/(\d+(?:\.\d+)?)\s*岁/)?.[1] ?? raw.match(/^\s*(\d+(?:\.\d+)?)\s*$/)?.[1];
+  if (years != null) return Number(years);
+  const months = raw.match(/(\d+(?:\.\d+)?)\s*(?:个)?月/)?.[1];
+  return months != null ? Number(months) / 12 : undefined;
+}
+
 const alcoholWarningMemo = new Map<string, boolean>();
 /**
  * 本地说明书目录里有没有说明书写着「该药 + 双硫仑 / 戒酒」（同一句）。甲硝唑自己的片剂说明书不在目录里，
@@ -76,6 +87,21 @@ export function requiredPrecautionsForCase(
     .map((value) => value.match(/丹毒|蜂窝织炎/)?.[0])
     .find(Boolean);
   if (disease) items.push({ kind: "skin_infection_antibiotic", disease });
+  // 年龄相关的服药注意：提示词一直要求「75 岁以上高龄或 6 岁以下幼儿写一条」，模型时写时漏（2026-10-17 留出集 4 例患儿没有）。
+  // 儿童取未满 12 岁——儿科剂量按年龄折算的年龄段（pediatric-dose-rule），这些孩子的家长都需要这一句。
+  const age = patientAgeYears(state);
+  if (age != null && age < 12) items.push({ kind: "pediatric_administration", ageYears: age });
+  else if (age != null && age >= 65) items.push({ kind: "elderly_administration", ageYears: age });
+  // 正在服用的药（2026-10-18 验收主集：泼尼松、酮替芬、氨氯地平、抗生素等病历写明在服，注意事项一句没提，评审判缺）。
+  // 与自服药同一套认药名的办法（带剂型或说明书目录一字不差），整份病历都看；已列为自服药的不重复。
+  const selfTaken = new Set(items.flatMap((item) => item.kind === "self_medication" ? [item.base] : []));
+  const current = [...new Set(selfTakenMedicationMentions(clinicalGroundingText(state))
+    .filter((name) => {
+      const label = findLocalPatentMedicineLabel(name);
+      return patentMedicineBaseName(name) !== name || label?.name.replace(/\s/g, "") === name;
+    })
+    .filter((name) => !selfTaken.has(patentMedicineBaseName(name))))].slice(0, 3);
+  if (current.length > 0) items.push({ kind: "current_medications", names: current });
   return items;
 }
 
@@ -94,6 +120,9 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "postpartum_lactation") {
       return `${order}患者一年内分娩、哺乳情况未记录：写明如正在哺乳须先告知医生，方中哺乳期慎用或回乳的药（如大黄、麦芽）点名说明。`;
     }
+    if (item.kind === "pediatric_administration") return `${order}患儿${item.ageYears < 1 ? `${Math.max(1, Math.round(item.ageYears * 12))}个月` : `${Math.floor(item.ageYears)}岁`}：写一条给家长的服药方法（少量多次、分次喂服，不要强灌，不自行加量）。`;
+    if (item.kind === "elderly_administration") return `${order}患者${Math.floor(item.ageYears)}岁：写一条与年龄相关的服药注意（如起身宜缓、防跌倒）。`;
+    if (item.kind === "current_medications") return `${order}病历记录患者正在服用${item.names.join("、")}：写一条它与本方一起服用时要注意的事（告知医生、不要自行停用，中西药间隔服用；与本方有明确相互作用的写出来）。`;
     return `${order}${item.disease}是细菌感染：写明须到医院由医生决定抗菌药物治疗，以及寒战高热、红肿迅速扩大等须立即就医的表现。`;
   });
   return `【本例注意事项必须写到】以下各项在 nonPharma.precautions 里各写一条，排在最前，不计入条数上限：\n${lines.join("\n")}`;

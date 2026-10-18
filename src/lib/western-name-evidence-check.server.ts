@@ -4,6 +4,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
+import { westernCriteriaPromptValue, westernCriteriaReference } from "./western-diagnostic-criteria.server";
 
 /**
  * 参考西医诊断名与病历已记录内容的一致性核对（2026-10-14）。
@@ -126,6 +127,7 @@ export async function westernNameCorrectionForRecord(
   const diagnosisName = input.diagnosisName.trim();
   // 已经停在症状层面的名称（「头痛待查」）没有可核对的病种。
   if (!recordText.trim() || diagnosisName.length < 2 || /待查$/.test(diagnosisName)) return undefined;
+  const criteria = westernCriteriaPromptValue(await westernCriteriaReference(diagnosisName, signal).catch(() => undefined));
   const messages = [
     {
       role: "system" as const,
@@ -139,6 +141,8 @@ export async function westernNameCorrectionForRecord(
         "D. 诊断名比病历能支撑的更具体：按公认诊断标准，这个名称必须依赖某项检查结果才能成立，或必须满足病程门槛，而病历里既没有记录这项检查的结果，已记录的病程也够不上门槛。典型的如：缺铁性贫血、巨幼细胞贫血等指明贫血类型的名称需要相应检查（只有血红蛋白只能说贫血）；多囊卵巢综合征需要鹿特丹标准三项中至少两项；甲状腺功能减退症、糖尿病等以化验定义的病需要相应化验结果；慢性胃炎、消化性溃疡需要胃镜；骨质疏松症需要骨密度或影像；某种特定病原体感染需要病原学结果；功能性消化不良、肠易激综合征、功能性便秘的时间门槛是起病至今满6个月——病程写满6个月（半年、1年、2年都算）就满足，不要求病历另写“持续3个月”，也不要求做过胃镜；肠易激综合征还必须有腹痛；牙病的分型名称（急性牙髓炎、慢性牙髓炎、急性根尖周炎、牙周脓肿、智齿冠周炎等）需要口腔专科检查（牙髓活力或冷热测试、叩诊、牙周探诊、X线）才能分型，病历没有口腔检查记录时只能写“牙痛”。",
         "以下情况一律判 consistent：门诊常见病按典型临床表现即可诊断、诊断标准本来不要求某项检查（如上呼吸道感染、急性支气管炎、急性胃肠炎、带状疱疹、荨麻疹、湿疹、偏头痛、紧张型头痛、失眠障碍、腰肌劳损、原发性痛经；有烧心或反酸、反流症状的胃食管反流病；有典型发作性胸痛的心绞痛或冠心病；有长期饮酒史并有肝脏影像或肝功能异常的酒精性肝病），这时没做检查不算问题；贫血按病历已记录的原因命名（产后贫血、失血性贫血、月经过多所致贫血）不算过度具体；名称是急危重症（如蛛网膜下腔出血、急性心肌梗死、主动脉夹层、异位妊娠、脑卒中、休克）时不适用 D；检查只有非特异性改变、不能确诊也不能排除；结果正常但该病在此阶段结果本来就可以正常（如痛风急性发作期血尿酸可以正常、冠心病静息心电图可以正常）；病历里写明的既往确诊（如“高血压病史10年”“胃镜示慢性胃炎”）；你只是觉得另一个诊断更可能。拿不准时判 consistent。",
         "判 inconsistent 时给出：quote（A、B、C 写病历里与之矛盾的那句原文；D 写病历里支撑上一级病名的那句原文；逐字复制，不超过40字）、reason（一句话说明为什么不符或缺什么，≤30字）和 supportedName。supportedName 只能是下面两种之一：① 比原诊断更宽一层或更轻一层、现有记录已经够得上的规范病名（如“贫血”“月经稀发”“消化不良”“妊娠呕吐”“关节炎”“牙痛”）；② 指不出这样的病名时写“主要症状＋待查”。不得换成病历同样没有证实的另一个具体病种，不得写比原诊断更重的名称，不带括号和解释。",
+        // 2026-10-18：诊断标准要点来自受治理要点表或权威页面的检索摘要（western-diagnostic-criteria.server.ts），让情形 D 不再只靠上面手写的十几个病。
+        "如果输入里给了 criteria（该诊断名的诊断标准要点，摘自诊疗手册、指南等权威来源）：clinicallyDiagnosable 为 true 的病按典型临床表现即可诊断，不适用 D；requiredTests 不为空时，病历里没有其中任何一项检查的结果、也不是病历写明的既往确诊，才符合 D；durationThreshold 写了病程门槛时按它判断病程够不够；definingFeatures 是定义性表现，病历已记录与之相反时属 B。criteria 里是检索摘录（searchExcerpts）时，只把摘录里明确写出的必需检查或病程门槛当依据。criteria 与上面的通则冲突时以上面的通则为准（急危重症不用 D、病历写明的既往确诊不算）。没有 criteria 时按上面的通则判断。",
         "只输出 JSON：{\"verdict\":\"consistent|inconsistent\",\"type\":\"A|B|C|D|\",\"quote\":\"…\",\"reason\":\"…\",\"supportedName\":\"…\"}",
       ].join("\n"),
     },
@@ -148,6 +152,7 @@ export async function westernNameCorrectionForRecord(
         patient: { sex: input.patient?.sex ?? null, age: input.patient?.age ?? null },
         record: recordText,
         diagnosisName,
+        ...(criteria ? { criteria } : {}),
       }),
     },
   ];
