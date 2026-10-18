@@ -448,7 +448,8 @@ assert.equal(parseM02PlanFromContent(dryCoughReviewedWithFallback)?.decision, "a
 {
   // 缺省：教材里与本例最相近的两个证型，问能把它们分开的那条事实（舌脉缺失时问舌脉）；理由不点证名。
   const textbookFallback = buildCaseAwareQuestionFallback({ chiefComplaint: "咳嗽3天，咳痰色白" });
-  assert.match(textbookFallback, /舌象、脉象更接近下面哪一种/, "舌脉缺失时服务端自有的题问舌脉");
+  assert.match(textbookFallback, /舌象更接近下面哪一种/, "舌脉缺失时服务端自有的题问舌象");
+  assert.doesNotMatch(textbookFallback, /舌象、脉象/, "一题只问一件事：舌象与脉象分开问（2026-10-18 验收集 B）");
   assert.doesNotMatch(textbookFallback, /证(?:与|，|。)/, "追问理由不预设证名");
   assert.match(textbookFallback, /C\. 本次未取得该信息/);
 }

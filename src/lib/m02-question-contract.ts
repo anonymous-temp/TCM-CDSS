@@ -672,7 +672,7 @@ export function buildCaseAwareQuestionFallback(
     // 只用「舌脉缺失时问舌脉」这一种教材题。另一种（「除病历已记录的表现外，还伴有哪一组」）靠字面重合判断
     // 「病历有没有写过」，病历用口语写（头晕眼花、记性变差）而教材用术语（头晕目眩、健忘）时判不出来，
     // 选项就成了病历已写明的症状——独立评审 29 例里 7 例如此（2026-10-13）。
-    if (discriminating && discriminating.field === "舌象") {
+    if (discriminating && (discriminating.field === "舌象" || discriminating.field === "脉象")) {
       return questionBlock(1, discriminating.question, discriminating.reason, discriminating.field,
         [discriminating.optionA, discriminating.optionB, "本次未取得该信息"]);
     }

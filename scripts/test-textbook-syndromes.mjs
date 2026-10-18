@@ -125,10 +125,14 @@ for (const [written, expected] of [["头痛", "头痛"], ["虚劳", "虚劳"], [
   assert.ok(noTongue, "舌脉缺失、候选不止一个证时应能出题");
   assert.equal(noTongue.field, "舌象");
   assert.notEqual(noTongue.optionA, noTongue.optionB, "两个选项必须不同");
-  assert.match(noTongue.optionA, /脉/);
+  // 一题只问一件事（2026-10-18）：舌象与脉象分开问，舌象题的选项只写舌象。
+  assert.match(noTongue.optionA, /舌|苔/);
+  assert.doesNotMatch(`${noTongue.optionA}${noTongue.optionB}`, /脉/);
   assert.doesNotMatch(noTongue.reason, /证(?:与|，)/, "理由不点证名");
   const withTongue = textbook.textbookDiscriminatingQuestion({ ...CASES[1] });
-  if (withTongue) {
+  if (withTongue && withTongue.field === "脉象") {
+    for (const option of [withTongue.optionA, withTongue.optionB]) assert.match(option, /脉/);
+  } else if (withTongue) {
     assert.equal(withTongue.field, "现病史");
     for (const option of [withTongue.optionA, withTongue.optionB]) {
       assert.ok(!CASES[1].presentHistory.includes(option.replace(/^伴/, "")), `选项问的是病历尚未记录的表现：${option}`);

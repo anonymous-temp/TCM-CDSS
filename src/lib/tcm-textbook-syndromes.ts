@@ -520,7 +520,7 @@ export function textbookModificationMatch(
 export interface TextbookDiscriminatingQuestion {
   question: string;
   reason: string;
-  field: "舌象" | "现病史";
+  field: "舌象" | "脉象" | "现病史";
   optionA: string;
   optionB: string;
   syndromeA: string;
@@ -543,12 +543,21 @@ export function textbookDiscriminatingQuestion(input: TextbookCaseInput): Textbo
   if (!(second.score > 0) && first.score >= 6) return undefined;
   // 理由不点证名：题目只收集可观察的事实，证候由辨证阶段定（追问理由不得预设结论）。
   const reason = "两种情况对应不同的证型，治法与选方不同。";
-  const tonguePulse = (row: TextbookSyndromeRow) => [row.tongue, row.pulse].map((item) => item.replace(/[。；;]+$/g, "").trim()).filter(Boolean).join("，");
-  if (!compact(input.tongue || "") && !compact(input.pulse || "")) {
-    const a = tonguePulse(first);
-    const b = tonguePulse(second);
+  // 一题只问一件事（2026-10-18 验收集 B：「舌象、脉象更接近哪一种」评审判两件事并问）：舌象没记录且两个证型的舌象不同就问舌象，
+  // 否则脉象没记录且两者脉象不同就问脉象。
+  const clean = (value: string) => value.replace(/[。；;]+$/g, "").trim();
+  if (!compact(input.tongue || "")) {
+    const a = clean(first.tongue);
+    const b = clean(second.tongue);
     if (a && b && compact(a) !== compact(b)) {
-      return { question: "本例的舌象、脉象更接近下面哪一种？", reason, field: "舌象", optionA: a, optionB: b, syndromeA: first.syndromeName, syndromeB: second.syndromeName };
+      return { question: "本例的舌象更接近下面哪一种？", reason, field: "舌象", optionA: a, optionB: b, syndromeA: first.syndromeName, syndromeB: second.syndromeName };
+    }
+  }
+  if (!compact(input.pulse || "")) {
+    const a = clean(first.pulse);
+    const b = clean(second.pulse);
+    if (a && b && compact(a) !== compact(b)) {
+      return { question: "本例的脉象更接近下面哪一种？", reason, field: "脉象", optionA: a, optionB: b, syndromeA: first.syndromeName, syndromeB: second.syndromeName };
     }
   }
   const rawNarrative = compact(`${input.chiefComplaint || ""}，${input.presentHistory || ""}`);
