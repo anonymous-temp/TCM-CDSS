@@ -471,8 +471,17 @@ export function cardSentencesMatchedToSyndrome(text: string, diseaseNames: reado
   const diseases = diseaseNames.map((name) => name.trim()).filter((name) => name.length >= 2);
   const fits = (descriptor: string) => [...descriptor].every((char) => syndrome.includes(char));
   const noMoxibustion = MOXIBUSTION_UNSUITABLE_SYNDROME.test(syndrome);
-  const kept = text.split(/(?<=[。；;])/).filter((sentence) => {
-    if (noMoxibustion && /灸/.test(sentence) && !/禁灸|不宜灸|慎灸|忌灸|不灸/.test(sentence)) return false;
+  // 「灸」只认施灸的说法：书名、出处括注里的「灸」（《刺法灸法学》）和「针灸」一词不算。施灸的小句只去那一小句
+  //（「留针15分钟，灸5分钟。」→「留针15分钟。」）。此前整句判、句句都带出处里的「灸」，全删光后整段原样退回（2026-10-18 留出例 S002）。
+  const moxibustionWording = (value: string) => /灸/.test(value.replace(/《[^》]*》|（[^）]*）|\([^)]*\)|针灸/g, "")) && !/禁灸|不宜灸|慎灸|忌灸|不灸/.test(value);
+  const kept = text.split(/(?<=[。；;])/).flatMap((sentence) => {
+    if (!noMoxibustion || !moxibustionWording(sentence)) return [sentence];
+    const clauses = sentence.split(/(?<=[，,])/);
+    const rest = clauses.filter((clause) => !moxibustionWording(clause)).join("").replace(/[，,]\s*$/, "");
+    // 剩下的只是施灸的条件（「寒湿腰痛、肾虚腰痛者」「除阴虚火旺外」）时整句去。
+    if (!rest.trim() || rest.length === sentence.length || /(?:者|外|时|后|则|可)\s*$/.test(rest) || /^\s*(?:若|如|除|凡)/.test(rest)) return [];
+    return [/[。；;]$/.test(rest) ? rest : `${rest}${sentence.match(/[。；;]$/)?.[0] || ""}`];
+  }).filter((sentence) => {
     const descriptors = [
       ...diseases.flatMap((disease) => [...sentence.matchAll(new RegExp(`([\\u4e00-\\u9fff]{2})${disease.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "gu"))]
         .map((match) => match[1])),
@@ -596,6 +605,8 @@ function webScheduleFor(
     .filter((entry) => !context || !entry.requiresWesternContext || entry.requiresWesternContext.some((term) => westernContext.includes(term)))
     // 老年人不套用留针超过 30 分钟的疗程（针刺量宜小、留针宜短，见 ELDERLY 说明）。
     .filter((entry) => !(context?.patientAgeYears != null && context.patientAgeYears >= ELDERLY_AGE_YEARS && /留针[^。；]{0,12}(?:小时|[4-9]\d\s*分钟|3[1-9]\s*分钟)/.test(entry.schedule)))
+    // 12 岁以下不套用写明留针时长的疗程：同卡的小儿说明是「一般不留针」（2026-10-18 留出例 S161 9 岁患儿拿到老年便秘方案的「留针20分钟」）。
+    .filter((entry) => !(context?.patientAgeYears != null && context.patientAgeYears < 12 && /留针[^。；]{0,6}\d/.test(entry.schedule)))
     .sort((left, right) => left.tier.localeCompare(right.tier));
   const best = hits[0];
   if (!best) return undefined;

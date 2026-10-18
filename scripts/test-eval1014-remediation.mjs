@@ -1942,6 +1942,17 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
       assert.doesNotMatch(plan.cardSentencesMatchedToSyndrome("留针15分钟，灸5分钟。每日1次。", ["感冒"], syndrome), /灸/, syndrome);
     }
     for (const syndrome of ["风寒束表证", "寒热错杂证", "脾肾阳虚证"]) assert.equal(plan.moxibustionUnsuitableForSyndrome(syndrome), false, syndrome);
+    // 出处里的「针灸」「《刺法灸法学》」不算施灸；只去施灸那一小句，不整段原样退回（S002 修复后本机复测仍原样，因为句句都带出处里的「灸」）。
+    const schedule = "留针15分钟，灸5分钟。上述方法均为每日1次（中国针灸学会《普通感冒》）。一般病症即可出针或留针10～30分钟（《刺法灸法学》总论）。";
+    const heat = plan.cardSentencesMatchedToSyndrome(schedule, ["感冒"], "风热犯表证");
+    assert.doesNotMatch(heat.replace(/《[^》]*》|（[^）]*）|针灸/g, ""), /灸/, heat);
+    assert.match(heat, /^留针15分钟。上述方法均为每日1次/, heat);
+    assert.equal(plan.cardSentencesMatchedToSyndrome(schedule, ["感冒"], "风寒束表证"), schedule, "风寒照写（对照）");
+    // 12 岁以下不套写明留针时长的疗程（S161 9 岁患儿拿到老年便秘方案的「留针20分钟」）。
+    const child = plan.textbookTreatmentPlan({ projectCode: "acupuncture", diseaseNames: ["便秘"], westernNames: ["便秘"], signedSyndromeText: "燥热便秘", currentFacts: "大便干结 腹胀", patientAgeYears: 9 });
+    assert.ok(!child || !/得气后留针20分钟|留针30 min/.test(String(child.scheduleSuggestion || "")), child?.scheduleSuggestion);
+    const adult = plan.textbookTreatmentPlan({ projectCode: "acupuncture", diseaseNames: ["便秘"], westernNames: ["便秘"], signedSyndromeText: "燥热便秘", currentFacts: "大便干结 腹胀", patientAgeYears: 40 });
+    assert.match(String(adult?.scheduleSuggestion || ""), /得气后留针20分钟/, "成人照常（对照）");
     const schedules = JSON.parse(readFileSync("src/data/tcm-nondrug-web-schedules.source.json", "utf8")).entries;
     for (const entry of schedules.filter((item) => item.sourceId === "W-G4-57" || item.sourceId === "W-G4-58")) {
       assert.ok(Array.isArray(entry.requiresWesternContext) && entry.requiresWesternContext.length > 0, `${entry.sourceId} ${entry.modality}`);
