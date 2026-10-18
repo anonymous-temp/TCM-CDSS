@@ -613,7 +613,7 @@ The owner set the bar for "done": the customer re-runs their 10 standard cases a
 - the same record gives the same output;
 - skip-to-prescription p90 ≤ 15 s.
 
-**Status: committed locally (b4bf7b5, e729981, 9092bee; `verify:release` green), not pushed. The owner asked to fix the remaining items first and deploy last (see "Second pass" below).** The build needs about 6.5 GB of memory plus swap; `~/runlogs/deliver1017/deploy/prebuild-when-free.sh` waits for that, moves the three untracked files aside and always restores them.
+**Status: deployed with the second pass as d2bbe09 on 2026-10-17 (see "In production (d2bbe09…)" below); commits not pushed.** The build needs about 6.5 GB of memory plus swap; `~/runlogs/deliver1017/deploy/prebuild-when-free.sh` waits for that, moves the three untracked files aside and always restores them.
 
 The interface stays frozen. Material: `~/runlogs/deliver1017` (cases, paced runner, outputs, review briefs and verdicts).
 
@@ -800,6 +800,24 @@ The owner asked to research the four remaining items online, fix them, commit, a
 - Model-written herb functions that pass the overlap-based grounding check (鹿角胶 「补血滋阴，润燥生津」). Tightening that check changes herb admission (`test:herb-breadth-surface`).
 - 病历3's 治法 is 「滋阴养血」. That is our local 《中医内科学》 verbatim; the reviewer expects 「和络止痛」 from another edition.
 - Questions that ask two things at once; diet text that contradicts itself (忌鱼虾 next to 清蒸鱼).
+
+**In production (d2bbe09, deployed 2026-10-17 about 22:50 Beijing; tag `20261017-d2bbe09-prebuilt`, same release directory and `20260927-dsrepair` override).**
+- **Verification:** `verify:deployed-image` passed (commit + digest + strictReady + both model families) and `regress:prod-smoke` had 0 failures. Container logs before the replacement are in `~/telemetry-archive` on the host.
+- **Customer 10 × 3, production, independent review:** failures per run, columns 中医诊断/西医/治则/鉴别/饮片/治疗/复诊/注意:
+  - run 1: 1/2/0/0/1/0/0/0;
+  - run 2: 1/0/0/0/0/0/0/0;
+  - run 3: 0/0/0/0/2/0/0/0.
+  Two of these failures are server text fixed after the deploy, in commits that are **not deployed yet**: cb2392e (「去石膏、加生地黄」, 病历9 方义) and 7d192ca (「无法分型」 delivered as 「未诉法分型」, 病历7 Western differential; saved outputs held over 100 「未诉法判断」). With them every run is at most 1 per column.
+- **Held-out 32 on production:** 中医诊断 96.6, 证候 93.1, 辅助中药饮片 82.8, 中医治疗 88.5. Every other block is 93–100.
+- **Skip to prescription** (question, 20 s pause, skip): median 1.28 s, p90 3.02 s. All 64 diagnose/prescribe calls were reused precomputations.
+- **Safety probes hold:** bleeding, hypothermia with drowsiness and an infant with HR 55 → `red_flag`; pregnancy, warfarin and lactation with an answered follow-up → `non_dose_only`. 缺铁/PCOS/功能性消化不良 probes → 贫血/月经稀发/消化不良. The adolescent 145/95 probe now says 血压升高待查.
+- **Rollback:** image `tcm-cdss:20261014-5c85a55-prebuilt` with the compose backup in the release directory.
+- **Disk was the deploy's real constraint.**
+  - The local prebuild needs about 3.5 GB free on /home. 2.8 GB ran out of space (ENOSPC) mid-build: the hard-linked `node_modules` tree and the copied sources take room before `.next` is written.
+  - The host floor is 12 GB. The owner approved 10 GB for this deploy, after 19 old uploaded build contexts (3.8 GB, images long gone) were removed from `/home/ubuntu/tcm-cdss/prebuilt`. The host had about 9 GB free afterwards.
+  - The owner also approved deleting `~/.synergy_dataset_source` and two `node_modules` directories (深圳医保局, EviMedScience/OpenScience) to make local room.
+- **The patch deploy was stopped for disk.** Local /home fell back to 1.9 GB while another session's git work and the t3code database grew. The owner chose to ship cb2392e/7d192ca with the next deploy.
+- **Production rate limits:** the first hospital-a batch after `regress:prod-smoke` lost 3 chains to 429. M05 calls also hit 429 on both tenants late in the run, which suggests the tenants share quota with real traffic. Start with the other tenant after a smoke run, and check statuses before counting a case.
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
