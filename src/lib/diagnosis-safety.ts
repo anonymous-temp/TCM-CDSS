@@ -163,7 +163,7 @@ function governedDetectionNode<T>(id: string): T {
 const CARDIAC_DETECTION = governedDetectionNode<{ colloquialPressureVerbs: string[] }>("cardiac");
 const NEURO_DETECTION = governedDetectionNode<{ colloquialFocalSigns: string[]; meningealSigns: string[] }>("neuro");
 const ACUTE_ABDOMEN_DETECTION = governedDetectionNode<{ peritonealSignForms: string[]; obstructionSigns: string[] }>("acute_abdomen");
-const TRAUMA_DETECTION = governedDetectionNode<{ acuteTraumaCues: string[]; fractureTerms: string[]; settledFractureCues: string[] }>("other_critical");
+const TRAUMA_DETECTION = governedDetectionNode<{ acuteTraumaCues: string[]; fractureTerms: string[]; settledFractureCues: string[]; incarcerationSigns: string[] }>("other_critical");
 const RESPIRATORY_DETECTION = governedDetectionNode<{
   colloquialSymptoms: string[];
   centralCyanosisSites: string[];
@@ -3970,6 +3970,12 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   if (anaphylacticAirwaySignal) {
     redFlags.push("急性过敏反应伴喉头或上气道肿胀线索，需立即评估气道、呼吸和循环并急诊处置");
   }
+  // 脱出物或疝块不能还纳（嵌顿）：T6 other_critical.detection.incarcerationSigns；否认、既往走 hasPatternWithoutNegation。
+  if (text.split(/[。；;\n]+/u).some((sentence) =>
+    /(?:\d+|[一二两三四五六七八九十半])\s*(?:个)?(?:小时|天|日|周)|今日|今天|昨日|昨天|突然|突发|加重|剧痛/u.test(sentence) &&
+    hasPatternWithoutNegation(sentence, new RegExp(governedTermAlternation(TRAUMA_DETECTION.incarcerationSigns))))) {
+    redFlags.push("脱出物或疝块不能还纳（嵌顿），有绞窄坏死风险，需急诊或肛肠/外科专科评估");
+  }
   if (hasAcuteTraumaFracture(text)) {
     redFlags.push("外伤后3天内的骨折，需先急诊或骨科处置（固定、评估出血与神经血管损伤），再评估中药处方");
   }
@@ -4127,6 +4133,7 @@ const RED_FLAG_FINDING_RULES: Array<{
   { id: "active-gi-bleeding", message: /消化道出血/, source: /呕血|吐血|黑便|柏油样便|便血|咖啡(?:色|样)/, explanation: "活动性消化道出血表现需立即评估失血量和循环状态。" },
   { id: "active-major-bleeding", message: /活动性大量阴道出血/, source: /阴道(?:出血|流血)|血红蛋白|血色素|HGB|Hb/i, explanation: "活动性大量阴道出血伴持续、重度贫血或循环灌注表现，达到非产科大出血硬门槛。" },
   { id: "acute-respiratory-event", message: /呼吸循环急症|缺氧/, source: /呼吸困难|气促|喘憋|端坐呼吸|不能平卧|无法平卧|喘不上气|发紫/, explanation: "静息或快速加重的呼吸困难及缺氧表现需立即评估。" },
+  { id: "incarceration", message: /不能还纳（嵌顿）/, source: /不能还纳|无法还纳|不能回纳|无法回纳|还纳不能|嵌顿/, explanation: "脱出物或疝块不能还纳，有绞窄坏死风险，需急诊或专科评估。" },
   { id: "acute-trauma-fracture", message: /外伤后3天内的骨折/, source: /骨折|摔伤|跌伤|跌倒|摔倒|车祸|外伤|撞伤|砸伤|坠落|扭伤|挤压伤/, explanation: "外伤后数日内的骨折需先完成急诊或骨科处置，再评估中药处方。" },
   { id: "tcm-critical-pattern", message: /危重中医证候术语/, source: /戴阳证|阴盛格阳|脉微欲绝/, explanation: "病历明确记录当前危重证候术语；该术语只触发现代急症核实，不直接授权任何课程方药或操作。" },
 ];

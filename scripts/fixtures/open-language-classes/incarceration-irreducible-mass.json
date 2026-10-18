@@ -1,0 +1,66 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-18",
+ "contexts": [
+  "outpatient_record"
+ ],
+ "id": "incarceration-irreducible-mass",
+ "trigger": "10.18 逐模块验收 M 集（二遍）3 例「便后肛内肿物脱出…不能还纳/不能回复，疼痛加重」零红旗、照常给剂量。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "确定性层没有嵌顿这一类；T6 other_critical 只写了显式规则。",
+  "exception": "冻结令允许的确定性例外：有限闭集（不能/无法还纳、不能/无法回纳、还纳不能、嵌顿，T6 other_critical.detection.incarcerationSigns）+ 同句近期线索（N小时/天/周、今日、昨日、突然、加重、剧痛）。「不能自行还纳」（Ⅲ度痔）与多年长期脱出不报；否认、既往走 hasPatternWithoutNegation。",
+  "sources": "《外科学》嵌顿疝、嵌顿痔；《中医外科学》痔：嵌顿时应及时复位或手术。"
+ },
+ "parity": {
+  "note": "不同写法的近期嵌顿门禁结果相同；兄弟句必须报警。",
+  "pairs": [
+   {
+    "subject": "便后肛内肿物脱出，不能回纳，疼痛加重2天。",
+    "sibling": "便后肛内肿物脱出，不能还纳，疼痛加重2天。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "右腹股沟包块突然增大，无法还纳，伴疼痛。",
+    "sibling": "右腹股沟包块突然增大，不能还纳，伴疼痛。",
+    "siblingExpect": "flagged"
+   }
+  ]
+ },
+ "controls": {
+  "note": "能还纳、需手法还纳的Ⅲ度痔、多年长期脱出、既往嵌顿史必须不报。mustStillFlag 后两句为定稿后另写的留出句。",
+  "mustStillFlag": [
+   {
+    "text": "肛内肿物脱出，不能还纳1周，伴便后出血。",
+    "flag": "嵌顿"
+   },
+   {
+    "text": "腹股沟包块突然增大，不能回纳，疼痛2小时。",
+    "flag": "嵌顿"
+   },
+   {
+    "text": "今日排便后肿物脱出无法回纳，肛门剧痛。",
+    "flag": "嵌顿"
+   },
+   {
+    "text": "包皮上翻后不能复位，龟头肿痛3天，诊为嵌顿包茎。",
+    "flag": "嵌顿"
+   }
+  ],
+  "mustStayReady": [
+   "便后肛内肿物脱出，可自行还纳。",
+   "便时肛门有物脱出，不能自行还纳十年。",
+   "右侧腹股沟可复性包块3年，平卧可回纳。",
+   "既往嵌顿疝手术史，现腹胀。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-18",
+   "what": "现代医案语料 + 验收集 + 既往评测集里含还纳/回纳/嵌顿的病例 × 两种形状（08e66e2 对改后）",
+   "result": "96 次判定改 15 次：近期痔核/直肠脱出不能还纳 5 例、嵌顿性包茎 1 例、腹股沟不能还纳包块 2 例（考试病例）均为正确报警；首版另有十年长期脱出与「不能自行还纳」2 例误报 → 加近期线索与剔除「不能自行还纳」后消失"
+  }
+ ]
+}
