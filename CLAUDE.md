@@ -819,6 +819,193 @@ The owner asked to research the four remaining items online, fix them, commit, a
 - **The patch deploy was stopped for disk.** Local /home fell back to 1.9 GB while another session's git work and the t3code database grew. The owner chose to ship cb2392e/7d192ca with the next deploy.
 - **Production rate limits:** the first hospital-a batch after `regress:prod-smoke` lost 3 chains to 429. M05 calls also hit 429 on both tenants late in the run, which suggests the tenants share quota with real traffic. Start with the other tenant after a smoke run, and check statuses before counting a case.
 
+### 10/18 round: model check, web search, ≥300 texts per module (2026-10-18)
+
+**What the owner asked for:**
+- confirm the model is DeepSeek V4.1 Flash 1017;
+- use the newly opened Search/Fetch API, the local KB and EviMed wherever they improve reasoning;
+- fix the remaining defects one class at a time;
+- accept every module on at least 300 public input/output texts.
+
+Material is in `~/runlogs/r1018`: `PLAN.md`, `research/`, `sets/`, `out/*-final*`, `judge/*-final*`, `calib/` and `scripts/`. All commits are local; deploy comes last.
+
+**Model.**
+- Production `deepseek-flash` already serves V4.1-Flash-1017, per the pricing page and the 10/17 changelog. `deepseek-v4-flash` is a retired alias.
+- The code, compose and `.env.example` defaults now say `deepseek-flash`, and `test:upstream-guards` pins the compose model matrix.
+- API notes that matter here:
+  - thinking is on by default, so we send `thinking:{type:"disabled"}`;
+  - `json_object` still does not enforce a schema;
+  - strict tools are still beta.
+
+**Search/Fetch API: where it is used, and where it is not.**
+- **The API.** `POST {base}/v1/tools/search` returns `authority` (0–4) and `rerank_score` (0–3). The limit is 5 QPS per account, and from 2026-11-01 it costs $0.75 per 1,000 calls.
+- **The client.** `deepseek-web-search.server.ts` (`webSearchGovernedTerm`) sends governed names only, never record text. Results are memoized, calls time out at 2 s, and `CDSS_WEB_SEARCH=false` turns it off.
+- **Used for one thing: the criteria behind the Western-name check.**
+  - `western-diagnostic-criteria.source.json` covers 132 diseases. It was built offline by `scripts/build-western-diagnostic-criteria.mjs` from authority≥3 pages, with every quote checked verbatim.
+  - Every entry was read and 27 were corrected; `reviewCorrection` records the basis and the prior value.
+  - A name not in the table gets up to two live excerpts (authority≥3, rerank≥1.5).
+  - Lookup qualifiers (急性/慢性…, 左/右…) live in the data file (`nameLookupQualifiers`), not in code.
+- **Not used in M03/M04 generation.** The literature (`research/R-retrieval.md`) says retrieval adds little or hurts strong models on case reasoning:
+  - MIRAGE: GPT-4 on MedQA went 83.97 → 82.80;
+  - MedDistractQA: up to −17.9%;
+  - TCM TOSRR: plain RAG 49.8 vs no RAG 55.8.
+
+  Closed-set selection and narrow, criteria-grounded verification do help. That is the same pattern as this project's textbook disease pick and the 9/27 finding that pasted-in knowledge is barely used. EviMed and the local KB keep their existing roles (relevance-filtered evidence, textbook rows, formula catalog). The Fetch API is unused at runtime.
+
+**Acceptance sets** (public datasets converted to the customer request shape; `scripts/build_acceptance_sets.py`):
+
+| Set | n | Used for |
+|---|---|---|
+| M | 360 | TCM chains: MTCMB, TCM-BEST4SDT, TCM-RobustSDT, TCM-SD, TCMChat |
+| X | 330 | exam-style TCM disease/syndrome, 治法 and formula |
+| H | 330 | acupuncture and other treatment cards |
+| D | 320 | Western diagnosis exam vignettes |
+| A | 340 | red-flag triage |
+| B | 335 | IMCS-21/MedDG next-question dialogues |
+
+- **Judge.** `scripts/judge.mjs` runs deepseek-v4-pro with thinking, one call per case, scored against the customer's rubric. It is a different model from the generator.
+- **Calibration.** Four Claude agents judged 72 sampled verdicts blind (`calib/`, `calib-agree.py`). They agreed on 49. Of the 23 disagreements, 21 were DeepSeek failing a case Claude passed. The numbers below are therefore a conservative lower bound.
+- **Converter bugs.** Two voided earlier outputs: the MSDD 病史 split put 现病史 into 既往史, and 「3个月前」 was read as an infant's age. Check the converters before trusting a red module.
+
+**Class fixes.** Each has a test in `test:eval1014-remediation` §15–16 with a counter-proof. Each gate class also has a fixture under `scripts/fixtures/open-language-classes/` and an old-versus-new corpus replay, and every changed sentence was read.
+
+- **Red-flag over-calls (deterministic):**
+  - a change cue that heads a sibling symptom (「胸闷、频繁肠鸣」);
+  - 「突发…头痛」 inside a list of cold symptoms;
+  - chronic abdominal severity with a known trigger;
+  - stable post-acute neuro events (a clause-level new-onset check keeps 「今日突然右侧肢体无力」);
+  - lab values with units read as temperatures (T3 …);
+  - historical BP extremes (最高/曾达) read as current readings;
+  - a relative after 与/跟/同/和 is a companion, not the subject (「与丈夫发生争吵时突然出现剧烈头痛」 had been attributed to the husband).
+- **Red-flag under-calls** (closed sets in T6 `detection`; every first cut needed a corpus replay to remove over-calls):
+  - peritoneal sign wording;
+  - 停止排气排便 with current abdominal pain or vomiting (the governed companion had no reader);
+  - meningeal signs (颈项强直 excluded: 落枕);
+  - central cyanosis written forms (bare 发绀 hit 20+ Raynaud/脱疽 cases, so peripheral sites are excluded);
+  - acute traumatic fracture ≤3 days;
+  - incarceration (「不能自行还纳」 is grade III prolapse, not incarceration).
+- **Record-stated child age vs an adult registered age** is now a hard dose boundary (shared `highRiskDoseBoundaryReasons`).
+- **M03 grounding.** `splitIntoClinicalClauses` carried 无 across commas. In 「无牵扯痛，反酸偶作，…食纳欠佳」 every affirmed item became 「无…」, quotes failed, the chain emptied and M03 fell back to the placeholder (9 of 360 in M). A sentence that writes 无 before each comma item no longer inherits it. 1,062 of 52,207 corpus sentences changed, and every change read was correct.
+- **Textbook formula identity.**
+  - A textbook name the catalog lacks is one formula: 知柏地黄汤 no longer locks 地黄汤 (21 of 594 names did this).
+  - 栝蒌/栝楼/瓜蒌 spellings resolve to the catalog entry, and so do 丸/散 formulas used as decoctions.
+  - 「…散」 + a verb character (散结) is not a formula name.
+- **Provenance.**
+  - Identity normalization (麦门冬→麦冬, 橘皮→陈皮) applies only to anchor sources: the national catalog and the governed row. Reprints compare as written; normalizing them had made 清胃散 《金鉴》 and 普济消毒饮 《卫生鸿宝》.
+  - The original-book margin applies only when the original explains every herb the reprint explains.
+  - Ties are broken by substantive coverage, which counts neither 姜枣 nor the other component's herbs in a 合方.
+  - 724-candidate replay: 50 changed, all read.
+- **Western.**
+  - 慢性支气管炎 course length is read as numbers.
+  - Case D with no broader disease name keeps the hypothesis as 「原病名待查」 instead of a symptom.
+  - The prompt's 「主要症状＋待查」 placeholder is rejected as a name.
+- **M02 (follow-up questions).**
+  - `decision=proceed` only when the record is sufficient: tongue and pulse, or 3 of 寒热/口渴/二便/汗.
+  - The server's textbook question asks about tongue, else pulse, and its two options must differ on a dimension both name (tongue body, coating colour or coating texture).
+  - A narrow small task removes model questions that ask two things (`CDSS_M02_QUESTION_SINGLE_POINT_CHECK`). It must quote both points verbatim from the stem.
+    - Two things means two separate descriptions (「精神反应和吃奶情况」, 「舌象与脉象」). A yes/no about a group of signs (「是否伴有气短、自汗」) is one point.
+    - The first wording judged any two joined symptoms as two things. On the customer's ten cases, 6 of 30 runs then went to `proceed` after questions the reviewers had passed were dropped.
+    - B set: two-part failures went from 40 to 17.
+- **M04/M05.**
+  - Rule-computed precautions for children under 12, adults 65+ and current medications, including Western drugs after a formal administration verb.
+  - A line for toxic herbs.
+  - Category bans that contradict a recommended medicine are dropped, and so are diet contradictions (忌鱼 next to 鱼).
+  - Incidental sedatives are dropped from modifications.
+  - 川贝母 is not forced to 冲服 at decoction dose.
+  - 马勃/青黛/儿茶 are 包煎.
+  - The colorectal 50+ safety net is written to the patient.
+- **Delivered text.**
+  - **Herb functions.** Direction words the KB and the verified dictionary do not give are removed clause by clause. A clause is kept whole or dropped, never left as a fragment (「补益肝肾」 had become 「肝肾」).
+  - **KB correction.** 青蒿's KB entry was corrected using the textbook line.
+  - **方义.**
+    - A 「去X」 is dropped when X is in the prescription;
+    - 「二药」 is recounted per full sentence.
+  - **无 → 未诉:**
+    - not applied to inference (「示无里热」);
+    - not applied to two-character terms the record has with a gap (「腹中冷痛」).
+  - **治法 anchoring.** The model's symptom clause appended to the textbook 治法 drops a leading overlap, so 「清热凉血调经，调经止血」 becomes 「…调经，止血」.
+  - **Differential points.** A 无 written before each list item does not survive into 「未诉A、无B」.
+  - **Herb labels.** 生津 counts as a yin claim.
+  - **Cards:**
+    - no moxibustion text for 风热/燥热/热秘 and similar heat syndromes;
+    - subtype schedules (结肠慢传输型, 便秘型肠易激) need that Western diagnosis;
+    - pregnancy and lactation text only for patients it can apply to;
+    - textbook 「禁忌：」 sentences whose points are not on the card are dropped;
+    - a catalog template that does not match the disease and has no textbook plan becomes assessment-only;
+    - no facial or lesion bloodletting.
+
+**Acceptance on the final code.** These are DeepSeek-judge pass rates; per the calibration, read them as lower bounds.
+
+| Module | Texts | Pass |
+|---|---|---|
+| 中医诊断 C | M 360 + X 110 | 56.7% / 74.5% |
+| 西医诊断 D | 319 | 58.9% |
+| 治则治法 E | M 360 + X 109 | 75.3% / 88.1% |
+| 中医鉴别 F | 360 | 91.1% |
+| 辅助中药饮片 G | M 360 + X 110 | 76.9% / 82.7% |
+| 中医治疗 H | M 208 + H 241 (cases with cards) | 88.5% / 83.8% |
+| 复诊计划 I | 360 | 96.9% |
+| 注意事项 J | 358 | 88.8% |
+| 追问 B | 335 | 88.4% (was 80.2%) |
+| 红旗 RF | A 340 + M 360 | 92.9% / 88.1–89.4% |
+
+- **C and D are mostly not server defects.**
+  - The references are exam answers or compound syndromes. Customer doctrine sets no 兼证 without grouped evidence, so a reference with an extra 兼证 counts as a miss.
+  - The Western check's A/B/C downgrades fail exam vignettes that expect the full diagnosis. That is by customer doctrine, so it is reported here and was not changed.
+- **M red-flag variance is judge noise.** The same gate outputs were judged differently between runs: 8 of 360 flipped with the gate unchanged.
+- **Customer 10 × 3 (local, b2164d2, independent Claude review with the 10/17 brief).**
+
+  | Run | Failing column(s), 1 each | All other columns |
+  |---|---|---|
+  | 1 | 西医, 中医鉴别, 饮片 | 0 |
+  | 2 | 治则 | 0 |
+  | 3 | 饮片 | 0 |
+
+  - No red flag on 1/2/7/9.
+  - Disease, syndrome and formula were the same in all three runs.
+  - The acceptance line holds.
+  - A second review on 540fe8f (local8):
+    - runs 2 and 3 were at most 1 per column;
+    - run 1 had 2 in 西医. One was 「无夜间痛」 left as a denial, fixed in 98d3a93. The other was a model-written false negative.
+- **Held-out 32 (same build).**
+
+  | Block | Pass |
+  |---|---|
+  | 证候 | 96.6 |
+  | 中医诊断 | 89.7 |
+  | 中医鉴别 | 89.7 |
+  | 方义 | 89.7 |
+  | 中医治疗 | 88.9 |
+  | 饮片 | 82.8 |
+
+  - Every other block scored 93–100.
+  - The server-caused items among the failures were fixed afterwards: S058 未诉腹痛, S145 二药, S151 去桑皮, and the herb-label fragments.
+  - The local8 review (540fe8f) put 中医诊断 at 93.1 and 饮片 at 86.2. 中医治疗 was at 80.8, and its server causes were fixed in 3e73fd5: S002 moxibustion on 风热, and S055/S161 slow-transit schedules. Still open:
+    - S079 has no knee points;
+    - S160 uses 肝俞 (the suspected OCR 肺俞);
+    - S078 is a misjudgement (虚劳·肝血虚 read as 眩晕).
+
+**Left as is (policy or model).**
+- **Red flag where it may be over-cautious (policy).**
+  - BP ≥180/120 without organ symptoms stays a red flag.
+  - Upper-GI alarm features (weight loss, a malignancy history with GI symptoms) withhold dose.
+  - An acute fracture within 3 days is now a red flag, although 骨伤科 clinics treat these.
+- **Haemorrhoidal bleeding over-calls** come from the facts model.
+- **Model-written defects, not fixed:**
+  - two-part questions the narrow check misses (17 remain in B), and questions that repeat answered dialogue items (10);
+  - medicines recommended next to a decoction that already contains them (人参口服液 + 人参; 三黄片 next to a precaution about 黄连 overlap);
+  - 熟地黄 with 便溏.
+- **蚕沙 has no KB function.**
+- **The effect of web search was not A/B tested;** the criteria table is static.
+
+**Running it again.**
+- **Sets:** `scripts/final-run*.sh` (`OUTSET`/`OUT_SUFFIX`), then `judge.mjs <set>`, `rf-judge.mjs <set>` and `summarize.py <judgeDir>`.
+- **Customer cases:** `~/runlogs/deliver1017/cases` and `scripts/make-sample.py`.
+- **Machine limits.**
+  - `tsc` is OOM-killed while runs are active.
+  - `pkill -f` matches its own shell; kill by PID.
+- **Subagent reviewers** cannot write .md files; ask for the summary in the reply.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
