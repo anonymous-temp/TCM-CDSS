@@ -258,7 +258,19 @@ export function reviewAuthoredFormulaAnalysis(
       );
       // 「黄柏、苍术苦寒清下焦湿热，二药合为君」：「二药」在下一个分句里，同样按剩下的本方药味数改写（2026-10-17 留出例 S145，
       // 苍术剔出本方后剩「黄柏苦寒清下焦湿热，二药合为君」）。剩一味时去掉数量词，留「为君」。
-      const following = text.slice(bounds.end).replace(/^([，,]?\s*)([二两三四五六七八九])(药|味)(合|共)?/, (match, lead: string, _numeral: string, unit: string, together: string | undefined) =>
+      // 整个分句删掉、且它以逗号结尾时，紧跟着的、不点任何药名的分句是它的后半句（「首乌藤养心安神，改善血不养心之睡眠差、心悸；」），
+      // 一并删到分号或句号为止；否则留下没有主语的「改善血不养心之睡眠差、心悸」（2026-10-18 甲方标准病历 3，三次生成里两次）。
+      // 「全方…」「共奏…」这类总括句不在此列。
+      let rest = text.slice(bounds.end);
+      if (kept === "" && /[，,]$/.test(text.slice(bounds.start, bounds.end))) {
+        for (;;) {
+          const next = rest.match(/^[^，,；;。！？!?：:]*[，,；;。]?/)?.[0] || "";
+          if (!next || formulaAnalysisHerbMentions(next).length > 0 || /^\s*(?:全方|本方|诸药|共奏|合用|全)/.test(next)) break;
+          rest = /。$/.test(next) ? `。${rest.slice(next.length)}` : rest.slice(next.length);
+          if (/[；;。]$/.test(next)) break;
+        }
+      }
+      const following = rest.replace(/^([，,]?\s*)([二两三四五六七八九])(药|味)(合|共)?/, (match, lead: string, _numeral: string, unit: string, together: string | undefined) =>
         ownCount >= 2 ? `${lead}${CHINESE_NUMERAL[ownCount] || ""}${unit}${together || ""}` : ownCount === 1 ? lead : match);
       text = `${text.slice(0, bounds.start)}${kept}${following}`;
     }

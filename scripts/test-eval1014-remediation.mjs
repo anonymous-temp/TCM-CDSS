@@ -1171,6 +1171,14 @@ const checkAsync = async (name, run) => {
     assert.doesNotMatch(out.text, /苍术|蚕沙|鲜扁豆花|清暑化湿/);
     assert.match(out.text, /滑石、赤小豆清利湿热/);
   });
+  check("12.4 整句删掉的外来药分句以逗号结尾时，紧跟的不点药名的后半句一并删（甲方病历 3「首乌藤养心安神，改善血不养心之睡眠差、心悸；」曾剩没有主语的「改善…心悸」）；下一句点了本方药、总括句照留（对照）", () => {
+    const own = ["熟地黄", "白芍", "党参", "白术", "甘草"];
+    const out = reviewAuthoredFormulaAnalysis("熟地黄与白芍为君，滋阴养血；党参、白术益气健脾，兼顾纳减便溏；首乌藤养心安神，改善血不养心之睡眠差、心悸；甘草调和诸药。全方共奏养血之效。", own);
+    assert.doesNotMatch(out.text, /改善血不养心|首乌藤/, out.text);
+    assert.match(out.text, /兼顾纳减便溏；甘草调和诸药。全方共奏养血之效。/, out.text);
+    const sentenceEnd = reviewAuthoredFormulaAnalysis("熟地黄与白芍为君，滋阴养血；党参、白术益气健脾；酸枣仁养心安神，宁心助眠。全方共奏养血之效。", own);
+    assert.match(sentenceEnd.text, /党参、白术益气健脾。全方共奏养血之效。/, sentenceEnd.text);
+  });
 }
 
 // ───── 13 稀疏病历不套教材证型 ─────
