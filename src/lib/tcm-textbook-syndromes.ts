@@ -372,6 +372,13 @@ function formulaLabel(row: TextbookSyndromeRow): string {
   return row.formulaJoin === "combined" ? row.formulas.join("合") : row.formulas.join("或");
 }
 
+/** 候选病的教材鉴别要点（原文去重后截到 140 字）；没有原文时为空。 */
+function textbookDifferentialGist(disease: string, book: string, names: readonly string[]): string[] {
+  const entry = DISEASES.find((item) => item.disease === disease && item.book === book);
+  const texts = [...new Set(names.map((name) => entry?.differentialTexts?.[name] || "").filter(Boolean))];
+  return texts.length > 0 ? [`  教材鉴别要点：${cut(texts.join("；"), 140)}`] : [];
+}
+
 /** 追问、辨证提示词里的候选段。没有候选时返回空串（提示词里的规则会退回自行辨证）。 */
 export function buildTextbookCandidateContext(input: TextbookCaseInput): string {
   // 闭集选择点了名时多给一个病、每个病的证型给全（教材一个病至多十来个证）：模型比字面重合度更会对口语化的症状。
@@ -381,11 +388,14 @@ export function buildTextbookCandidateContext(input: TextbookCaseInput): string 
   if (candidates.length === 0) return "";
   const lines = candidates.flatMap((item) => [
     `◆ ${item.disease}（《${item.book}》）${item.differentials.length > 0 ? `｜教材鉴别病名：${item.differentials.slice(0, 4).join("、")}` : ""}`,
+    // 教材给的鉴别要点原文（去重、截短）：辨病依据与中医鉴别里的区分点照它写（2026-10-19 甲方标准病历 6：腰痛与背痛、尻痛教材按部位区分，
+    // 模型两次写成「未诉放射痛」）。
+    ...textbookDifferentialGist(item.disease, item.book, item.differentials.slice(0, 4)),
     ...item.rows.map((row) =>
       `  - ${row.syndromeName}｜主症：${cut(row.manifestations, 90)}｜治法：${row.therapy}｜代表方：${formulaLabel(row)}`),
   ]);
   return [
-    "【教材病证候选】（按与本例主诉、症状的相近程度从规划教材中取出；病名、证名、治法、代表方均为教材原文。其中有贴合本例的一行时，病名与证名逐字采用、治法以该行为准、推荐方用该行代表方；都不贴合时再自行辨证。同一病下各证型按教材顺序排列，先后不表示可能性大小。「贴合」指该行主症里能把它与同病其他证型分开的表现——寒热、虚实、诱因、伴随症状或舌脉——至少有一项已见于本例记录；本例只记录了本病主症本身时，没有哪一行贴合。同一病性涉及两脏、两脏各有自身成组的表现（每脏至少两条相互印证）而候选只有单脏证型时，证名写两脏合称（如“肺脾两虚证”），治法兼顾两脏，方用两行代表方合用或加减）",
+    "【教材病证候选】（按与本例主诉、症状的相近程度从规划教材中取出；病名、证名、治法、代表方均为教材原文。其中有贴合本例的一行时，病名与证名逐字采用、治法以该行为准、推荐方用该行代表方；都不贴合时再自行辨证。同一病下各证型按教材顺序排列，先后不表示可能性大小。「贴合」指该行主症里能把它与同病其他证型分开的表现——寒热、虚实、诱因、伴随症状或舌脉——至少有一项已见于本例记录；本例只记录了本病主症本身时，没有哪一行贴合。同一病性涉及两脏、两脏各有自身成组的表现（每脏至少两条相互印证）而候选只有单脏证型时，证名写两脏合称（如“肺脾两虚证”），治法兼顾两脏，方用两行代表方合用或加减。辨病依据与中医鉴别写本病与相近病的区分点时，以各病下「教材鉴别要点」写的区分依据为准（部位、病程、主症、病势等），不另立教材没有的区分点）",
     ...lines,
   ].join("\n");
 }

@@ -253,6 +253,15 @@ await check("6.10 目录消风散《外科正宗》的石膏是生石膏（原�
   assert.ok(ingredients.includes("石膏") && !ingredients.includes("煅石膏"), ingredients.join("、"));
 });
 
+await check("6.12 方义删掉角色后的第一项说法时，「为臣」后面留逗号不留顿号（「黄柏、青蒿为臣、透热」，甲方标准病历 10）", async () => {
+  const review = await jiti.import("../src/lib/formula-analysis-review.ts");
+  const knowledge = await jiti.import("../src/lib/tcm-knowledge.ts");
+  const herbs = ["牡丹皮", "地骨皮", "黄柏", "青蒿", "白芍", "熟地黄", "茯苓"];
+  const text = "本方以清经散为基础加减。牡丹皮、地骨皮为君，清热凉血、退冲任伏热；黄柏、青蒿为臣，补气健脾、透热，解心烦口苦之兼症；白芍养血敛阴柔肝，熟地黄滋阴养血，共为佐药；白茯苓为使，健脾渗湿。全方共奏清热凉血调经之效。";
+  const result = review.removeVerifiedHerbClaims(text, herbs, [{ herb: "青蒿", clause: "黄柏、青蒿为臣，补气健脾、透热", claim: "补气" }], (herb) => knowledge.herbFunctionKnowledgeForDisplay(herb));
+  assert.match(result.text, /黄柏、青蒿为臣，透热，/);
+});
+
 // ───── 7 教材表补骨折 ─────
 await check("7.1 教材表有骨折（三期各一行，后期分肝肾、气血）：肋骨骨折按病名找得到行，初期桃红四物汤；口语主诉也进候选", async () => {
   const tb = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
@@ -262,6 +271,13 @@ await check("7.1 教材表有骨折（三期各一行，后期分肝肾、气血
   assert.ok(tb.textbookDiseaseNamesForCase({ sex: "男", ageYears: 50 }).includes("骨折"));
   const candidates = tb.textbookCandidatesForCase({ chiefComplaint: "外伤后右胸痛3天", presentHistory: "3天前摔倒致右胸部疼痛，CT示右侧第8后肋骨折。", sex: "男", ageYears: 50 });
   assert.ok(candidates.some((entry) => entry.disease === "骨折"), JSON.stringify(candidates.map((entry) => entry.disease)));
+});
+
+await check("7.2 教材病证候选给出各病的教材鉴别要点原文（腰痛与背痛、尻痛按部位分）；没有原文的病不出这一行", async () => {
+  const tb = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
+  const context = tb.buildTextbookCandidateContext({ chiefComplaint: "腰痛半年", presentHistory: "腰部酸痛，劳累后加重，伴耳鸣、口燥咽干，舌红少苔，脉细数。", sex: "女", ageYears: 50 });
+  assert.match(context, /◆ 腰痛[^\n]*\n  教材鉴别要点：背痛[^\n]*尻痛是尻骶部位的疼痛/);
+  assert.match(context, /以各病下「教材鉴别要点」写的区分依据为准/);
 });
 
 // ───── 8 目录锁不住的教材代表方 ─────
