@@ -459,7 +459,8 @@ export function normalizeM03WesternDifferentials(
       }
       const rawManagement = recordValue(reasoning.management) || {};
       const currentSafetyNet = markdownCell(rawManagement.followupSafetyNet);
-      const patientSpecificSafetyNet = `本例为${age}岁且近期出现或进行性加重排便习惯改变，该年龄与病程组合本身即需尽快完成消化专科评估，并结合既往筛查史决定结肠镜检查；便血、消瘦等其他报警征象应另行核实。`;
+      // 写给患者（复诊计划栏读这一段；2026-10-18 验收集 M 评审：「本例为68岁且…决定结肠镜检查」是给医生看的话）。
+      const patientSpecificSafetyNet = `您${age}岁，最近排便习惯有改变或在加重，请尽快到消化专科就诊，由医生结合以往的检查决定是否做肠镜；如出现便血、黑便或体重明显下降，请及时就医。`;
       const followupSafetyNet = currentSafetyNet.includes(patientSpecificSafetyNet)
         ? currentSafetyNet
         : [currentSafetyNet, patientSpecificSafetyNet].filter(Boolean).join(" ");

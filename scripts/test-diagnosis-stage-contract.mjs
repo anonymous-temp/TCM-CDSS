@@ -665,9 +665,11 @@ const olderNewConstipationContent = normalizeM03WesternDifferentials(
 const olderNewConstipationProjection = JSON.parse(olderNewConstipationContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
 assert.ok(olderNewConstipationProjection.westernDiagnosis.primary.suggestedChecks.some((item) => /患者年龄为56岁.*消化专科评估.*结肠镜检查/.test(item)), "documented older age plus recent progressive constipation becomes a patient-specific colonoscopy assessment, not a hypothetical age condition");
 assert.ok(olderNewConstipationProjection.westernDiagnosis.differentials.some((item) => item.name === "结直肠器质性病变"), "older recent-onset constipation keeps colorectal organic disease in the differential");
-assert.match(olderNewConstipationProjection.management.followupSafetyNet, /本例为56岁且近期出现或进行性加重排便习惯改变/);
-assert.match(olderNewConstipationProjection.management.followupSafetyNet, /该年龄与病程组合本身即需尽快完成消化专科评估/);
-assert.match(olderNewConstipationProjection.management.followupSafetyNet, /便血、消瘦等其他报警征象应另行核实/);
+// 2026-10-18 改成写给患者的话（复诊计划栏读这一段），年龄、专科评估与报警征象三项不变。
+assert.match(olderNewConstipationProjection.management.followupSafetyNet, /您56岁，最近排便习惯有改变/);
+assert.match(olderNewConstipationProjection.management.followupSafetyNet, /尽快到消化专科就诊/);
+assert.match(olderNewConstipationProjection.management.followupSafetyNet, /便血、黑便或体重明显下降/);
+assert.doesNotMatch(olderNewConstipationProjection.management.followupSafetyNet, /本例为|另行核实/);
 assert.doesNotMatch(olderNewConstipationProjection.management.followupSafetyNet, /暂无便血|暂无消瘦/);
 assert.equal(normalizeM03WesternDifferentials(olderNewConstipationContent, olderNewConstipationContext, 56), olderNewConstipationContent, "older new-constipation management normalization is byte-idempotent");
 const sanitizedOlderNewConstipationContent = sanitizeUngroundedRedFlagNegations(olderNewConstipationContent, {
