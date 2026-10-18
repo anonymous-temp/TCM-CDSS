@@ -4830,6 +4830,24 @@ function hasReducedEgfr(text: string): boolean {
  * from clinical concepts rather than individual test-case sentences. The independent M04 reviewer
  * remains a semantic backstop for equivalent wording that the deterministic lower bound cannot see.
  */
+/**
+ * 病历里写明的儿童年龄与登记年龄冲突（2026-10-18）：登记年龄是成人（≥18 岁），病历却写「患儿，8个月」「男婴，3个月」「6岁患儿」。
+ * 结构化年龄优先的口径下这类病例按成人给了剂量（验收集 X-G-1792：8 个月患儿生地黄 12g、知母 9g）。两边说的是同一个患者时
+ * 只能有一个对，涉及儿童剂量就先核实，不按任何一边折算。只认儿童称谓紧接年龄的写法，「其子5岁」这类他人年龄不算。
+ * 返回病历写的年龄（岁），不冲突返回 undefined。
+ */
+export function narrativePediatricAgeConflict(state: CaseState): number | undefined {
+  const registered = numberFromClinicalText(patientAgeText(state));
+  if (registered == null || registered < 18) return undefined;
+  const text = [state.chiefComplaint, trustedInputText(state)].filter(Boolean).join("。");
+  const forward = /(?:患儿|婴儿|新生儿|男婴|女婴|宝宝|小儿|男孩|女孩|男童|女童)[，,、\s]*(\d{1,3})\s*(个月|月龄|天|日|岁)(?![前来余后内])/u.exec(text);
+  const backward = /(\d{1,2})\s*岁(?:的)?(?:患儿|男孩|女孩|男童|女童|小儿)/u.exec(text);
+  const years = forward
+    ? Number(forward[1]) / (/(?:个月|月龄)/u.test(forward[2]) ? 12 : /(?:天|日)/u.test(forward[2]) ? 365 : 1)
+    : backward ? Number(backward[1]) : undefined;
+  return years != null && years < 18 ? years : undefined;
+}
+
 export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
   const source = trustedInputText(state);
   const medicationSource = [
@@ -4842,6 +4860,9 @@ export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
     if (!reasons.includes(value)) reasons.push(value);
   };
 
+  if (narrativePediatricAgeConflict(state) != null) {
+    push("病历写明的患儿年龄与登记年龄不一致，涉及儿童剂量折算，需先核实年龄");
+  }
   if (hasNonNegatedClinicalPattern(source, /(?:CKD|慢性肾脏病|慢性肾病)(?:[^。；\n]{0,12}(?:[3-5三四五]期|Ⅲ|Ⅳ|Ⅴ))|(?:肾功能不全|肾衰竭|尿毒症)/i) || hasReducedEgfr(source)) {
     push("慢性肾病3-5期、eGFR降低或肾功能不全需专科/药师完成个体化剂量复核");
   }
@@ -5089,7 +5110,7 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
 
   if (!isKnownClinicalText(state.chiefComplaint || fieldText(state, "zhushu"))) addMissing("chief_complaint", "主诉");
   if (hasInvalidAge) addMissing("age_invalid", "年龄数值需复核（0-120岁）");
-  if (hasAgeConflict) addMissing("age_conflict", "年龄记录冲突需复核");
+  if (hasAgeConflict || narrativePediatricAgeConflict(state) != null) addMissing("age_conflict", "年龄记录冲突需复核");
   const trustedText = trustedInputText(state);
   const sex = patientSexText(state);
   const allergyText = authoritativeFieldOrFallback(state, "guomin", state.allergyHistory) || extractAllergyEvidenceText(trustedText);

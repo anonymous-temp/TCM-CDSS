@@ -906,10 +906,17 @@ function recordMentionsNegatedTerm(record: string, term: string): boolean {
  * reason 与 distinguishingPoints（由 groundDifferentialNegativeAssertions 在分句核对之后再调一次）。此前只有两条依据字段用它，
  * 西医鉴别里句中的「…、无夜间痛；」（甲方标准病历 6 腰椎转移瘤一项）因为不在分句开头而两边都没管。
  */
+/**
+ * 「未见X」「不伴X」同一类（2026-10-18，验收集 X：辨病依据「未见手足疱疹」，病历没写手足）：对象病历没写到过时也改成「未诉X」。
+ * 「未见异常/未见明显异常」这类泛称不改。
+ */
+const UNRECORDED_SEEN_NEGATIVE = /(?:未见|不伴)(?!明显异常|异常|明显)([\u4e00-\u9fff]{2,16}?)(?=[、，,。；;：:）)]|等|及|和|或|与|$)/gu;
+
 export function unrecordedNegativesAsNotReported(text: string, clinicalContext: string): string {
   const record = clinicalContext.normalize("NFKC").replace(/\s+/g, "");
   if (!record) return text;
   let out = text.replace(UNRECORDED_NEGATIVE, (match, term: string) => recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`);
+  out = out.replace(UNRECORDED_SEEN_NEGATIVE, (match, term: string) => recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`);
   // 「未诉A、未诉B」并成「未诉A、B」。
   for (let pass = 0; pass < 4; pass += 1) out = out.replace(/(未诉[^，,。；;]{1,30})、未诉/gu, "$1、");
   return out;

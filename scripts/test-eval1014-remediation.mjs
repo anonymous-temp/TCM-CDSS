@@ -1914,4 +1914,31 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
   });
 }
 
+{
+  const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const types = await jiti.import("../src/lib/diagnosis-types.ts");
+  const permit = (age, chiefComplaint, body) => safety.derivePrescriptionPermission(safety.withSafetyGate(types.normalizeCaseStateInput({ id: "x", chiefComplaint, symptoms: { 现病史: body }, conversation: [], patient: { sex: "男", age } })));
+  check("16.7 病历写「患儿，8个月」「男婴，3个月」「6岁患儿」而登记年龄是成人：不按成人给剂量，先核实年龄（验收集 X-G-1792 8个月患儿生地黄12g）；他人年龄、病程「3个月」、年龄一致的婴儿照常（对照）", () => {
+    for (const [chief, body] of [["患儿，8个月", "腹泻2天。"], ["腹泻2天", "男婴，3个月，腹泻2天。"], ["头痛", "6岁患儿，头痛2天。"]]) {
+      const permission = permit(45, chief, body);
+      assert.equal(permission.candidateMode, "non_dose_only", `${chief}｜${body}`);
+      assert.ok(permission.reasons.some((reason) => /患儿年龄与登记年龄不一致/.test(reason)));
+    }
+    assert.notEqual(permit(45, "咳嗽", "其子5岁，患者咳嗽3天。").candidateMode, "non_dose_only");
+    assert.notEqual(permit(45, "腹痛", "腹痛3个月。").candidateMode, "non_dose_only");
+    assert.ok(!(permit("8个月", "腹泻", "患儿，8个月，腹泻2天。").reasons || []).some((reason) => /登记年龄不一致/.test(reason)));
+  });
+}
+
+{
+  const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  check("16.8 依据里「未见X」「不伴X」与「无X」同口径：病历没写到过 X 就写成「未诉X」（验收集 X-C-0601「未见手足疱疹」）；「未见明显异常」和病历写过的不动（对照）", () => {
+    const record = "主诉：口腔溃疡3天\n现病史：口腔多处溃疡，疼痛，舌尖红，小便短黄，无发热。";
+    assert.equal(visible.unrecordedNegativesAsNotReported("口腔溃疡疼痛，未见手足疱疹，故诊为口疮。", record), "口腔溃疡疼痛，未诉手足疱疹，故诊为口疮。");
+    assert.equal(visible.unrecordedNegativesAsNotReported("不伴恶寒发热。", record), "未诉恶寒发热。");
+    assert.equal(visible.unrecordedNegativesAsNotReported("未见明显异常。", record), "未见明显异常。");
+    assert.equal(visible.unrecordedNegativesAsNotReported("未见发热。", record), "未见发热。");
+  });
+}
+
 console.log(JSON.stringify({ cases, failures: process.exitCode ? "see above" : 0 }));
