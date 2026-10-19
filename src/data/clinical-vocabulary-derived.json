@@ -22,7 +22,7 @@
   "population_medication_label_retained": 7,
   "prohibition_self_medication_change": 12,
   "prohibition_prognosis_promise": 7,
-  "prohibition_clinician_workflow_wording": 8,
+  "prohibition_clinician_workflow_wording": 11,
   "blanket_quantifierPrefixes": 7,
   "blanket_blanketNegation": 4,
   "blanket_blanketUnknown": 7
@@ -64590,7 +64590,10 @@
    "包治"
   ],
   "clinician_workflow_wording": [
+   "请医生补充确认",
+   "处方前请医生",
    "医生需确认",
+   "需优先复核",
    "候选方案",
    "候选处方",
    "审方",

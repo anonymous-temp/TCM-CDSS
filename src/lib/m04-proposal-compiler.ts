@@ -1724,7 +1724,11 @@ function withWithheldBaseIngredientNote(analysis: string, formulaNames: readonly
       return !prose.includes(id);
     });
   if (withheld.length === 0) return analysis;
-  const note = `原方中的${withheld.join("、")}本次未列入药味表，是否使用及用量由医师单独确定。`;
+  // 写成临床说法：「本次未列入药味表，是否使用及用量由医师单独确定」是系统流程话（2026-10-19 H 集 Claude 评审 X-H-0425 判系统句）。
+  const toxic = withheld.filter((name) => getTcmHerbGenerationSafetyProfile(name).toxicity.length > 0);
+  const note = toxic.length === withheld.length
+    ? `原方中的${withheld.join("、")}毒性较大，本方未用。`
+    : `原方中的${withheld.join("、")}本方未用。`;
   const opening = analysis.match(/^[^。]*(?:为基础|加减|化裁)[^。]*。/u);
   return opening ? `${opening[0]}${note}${analysis.slice(opening[0].length)}` : `${analysis}${/[。！!]$/u.test(analysis) ? "" : "。"}${note}`;
 }

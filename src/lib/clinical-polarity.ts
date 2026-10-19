@@ -571,6 +571,27 @@ function sameMedicationIdentity(left: string, right: string): boolean {
  * 只认「服药动作 + 药名」：动作前有否认（未服、否认服用）的小句不算；带引号的取引号里的名字，没有引号的取动作之后到
  *「后/等/治疗」或逗号为止、按「及/和/与/、/或」切开的各段。这里只抽字面上的名字，是不是药由调用方对着说明书目录核。
  */
+/**
+ * 按「、/及/和/与/或」拆药名列举。连词两边都得是能成名的段（各至少两个字）才拆：商品名里的「和」不是连词
+ *（诺和龙、诺和锐、诺和灵——此前拆成「诺」「龙」，糖尿病人的胰岛素与降糖药一个也没取到，2026-10-19 M 集 TCMChat-495、TCM-SD-447858）。
+ */
+export function splitMedicationList(text: string): string[] {
+  const pieces = String(text || "").split(/、|\/|\+|＋/u);
+  return pieces.flatMap((piece) => {
+    const out: string[] = [];
+    let rest = piece;
+    for (;;) {
+      const hit = [...rest.matchAll(/以及|及|和|与|或/gu)].find((match) =>
+        match.index != null && match.index >= 2 && rest.length - match.index - match[0].length >= 2);
+      if (!hit || hit.index == null) break;
+      out.push(rest.slice(0, hit.index));
+      rest = rest.slice(hit.index + hit[0].length);
+    }
+    out.push(rest);
+    return out;
+  });
+}
+
 const SELF_MEDICATION_VERB = /(?:自行|自己|自购|在家)?(?:自服|服用|口服|吃|含服|外用|涂抹|服)/;
 const SELF_MEDICATION_NEGATION = /(?:未|否认|没有|无|不曾|从未|未曾)[^，,。；;\n]{0,4}$/;
 export function selfTakenMedicationMentions(text: string | null | undefined): string[] {
@@ -583,7 +604,7 @@ export function selfTakenMedicationMentions(text: string | null | undefined): st
     const quoted = [...rest.matchAll(/[“"「《]([^”"」》]{2,20})[”"」》]/g)].map((match) => match[1]);
     const parts = quoted.length > 0
       ? quoted
-      : (rest.split(/(?:后|等|治疗|以后|之后|无效|效果)/)[0] || "").split(/及|和|与|、|或|以及/);
+      : splitMedicationList(rest.split(/(?:后|等|治疗|以后|之后|无效|效果)/)[0] || "");
     for (const part of parts) {
       const name = part.replace(/^(?:了|过|用|药物|中成药|西药)/, "").replace(/\s+/g, "").replace(/\d.*$/, "").trim();
       if (name.length >= 2 && name.length <= 20 && !names.includes(name)) names.push(name);
@@ -599,7 +620,7 @@ export function selfTakenMedicationMentions(text: string | null | undefined): st
  * 不收：否认/未用之后的（「未予重视」「未予治疗」）；同一句写了停用的；不像药名的（治疗方式、药物类别、「具体不详」）。
  * 只写了「自服药物」「自行服药」、没写药名的，单独标出（注意事项要提醒把在用的药告诉医生）。
  */
-const RECORDED_MEDICATION_VERB = /(?:自行|自己|自购|在家|长期|规律|平素|平时|目前|现在?)?(?:自服|自用|现服|服用|口服|含服|吸入|外用|外涂|涂抹|予以|给予|予|静滴|注射)/u;
+const RECORDED_MEDICATION_VERB = /(?:自行|自己|自购|在家|长期|规律|平素|平时|目前|现在?)?(?:自服|自用|现服|服用|口服|含服|吸入|外用|外涂|涂抹|予以|给予|给与|予|静滴|注射|加用|改用|换用)/u;
 /** 动词后面跟的是检查（「给予头部CT示：…未见脑挫裂伤」）：不是在用药，这一小句不取药名（2026-10-19 验收主集 M-TCM-SD-439348）。 */
 const RECORDED_EXAM_AFTER_VERB = /^[^，,。；;]{0,8}?(?:CT|MRI|X线|DR|彩超|超声|B超|造影|心电图|胃镜|肠镜|平扫|检查|化验|示[:：]?)/u;
 const STOP_VERB = /停(?:用|服|药|止|掉|了)|已停|自停/u;
@@ -610,7 +631,8 @@ const RECORDED_MEDICATION_CUT = /(?:后|等|治疗|对症|以后|之后|无效|�
 /** 截断词里表示「列举到此为止」的那些（用量数字、括注只截当前药名，后面的顿号项照收）。 */
 const RECORDED_MEDICATION_LIST_END = /(?:后|等|治疗|对症|以后|之后|无效|效果|控制|处理|缓解|改善|好转|至今|未见|现在|疼痛|可达|达到)/u;
 const NOT_A_MEDICATION_NAME = /治|疗|重视|特殊|系统|处理|休息|观察|手术|术$|理疗|针灸|推拿|输液|输血|营养|对症|消炎|止痛|化痰|止咳|止喘|平喘|降压|降糖|降脂|调脂|抗感染|抗凝|抗聚|溶栓|补液|具体|不详|不清|相关|上述|以上|药物|西药|中成药|中药|汤剂|汤药|膏方|验方|饮食|运动|检查|保守|^药$|^等$|查|示|诊断|就诊|收入|入院|监护|置入|放置|引流|切除|介入|支架|热敷|超声|常规|心电图|核磁|CT|静脉|症状|发作|破溃|帮助|剂量|热水器|中西|^液|^[抗调扩降抑护输]|^补[钾钙铁液]|引导|^(?:促进|增强|升高|保肾|利尿|改善|活血|清热|扶正)|法$/u;
-const UNNAMED_SELF_MEDICATION = /(?:自服|自用|自行服用|自行服|自购)(?:了|过)?[^，,。；;\n]{0,6}药(?:物|品)?|(?:自行|自己)(?:服药|用药|吃药|买药)|服药(?:控制|治疗)/u;
+// 「口服药物后血压降至正常，具体不详」「长期服用西药控制」也是没写药名的在用药（2026-10-19 M 集 MTCMB-20、RobustSDT-0512）。
+const UNNAMED_SELF_MEDICATION = /(?:自服|自用|自行服用|自行服|自购)(?:了|过)?[^，,。；;\n]{0,6}药(?:物|品)?|(?:自行|自己)(?:服药|用药|吃药|买药)|服药(?:控制|治疗)|(?:口服|服用)(?:降压|降糖|降脂)?(?:西)?药(?:物)?(?=后|治疗|控制|$)/u;
 /** 病历写着一直在服中药（「后患者一直口服中药治疗」）而没写方名：注意事项请患者把方子带给医生（验收主集 M-TCM-SD-486942）。 */
 const ONGOING_UNNAMED_HERBAL = /(?:一直|长期|持续|规律|坚持|间断)(?:口服|服用|服)(?:中药|汤药|中草药)/u;
 
@@ -634,8 +656,19 @@ export function recordedMedicationMentions(text: string | null | undefined): { n
     // 同一句里写了停用（「其后因不能耐受自行停用该药」），这一句里的药都不算在用。
     // 停要是动词：药名里的「停」（易蒙停）不算（验收主集 RobustSDT-single_0598，「外院曾予蒙脱石散、易蒙停」整句被当成已停）。
     if (STOPPED_OR_PAST_MEDICATION.test(sentence) && STOP_VERB.test(sentence)) { previousSentenceNames = []; continue; }
+    let listContinues = false;
     for (const clause of sentence.split(/[，,]+/u)) {
       if (UNNAMED_SELF_MEDICATION.test(clause) && !/(?:未|否认|没有|无|不曾)[^，,。；;\n]{0,3}(?:自服|自用|自行|服药)/u.test(clause)) unnamed = true;
+      // 用药列举用逗号接着写下去（「现规律服用依折麦布片一天1次，一次1片，阿司匹林100mg qd，可定5mg qn」）：
+      // 紧跟在取到药名的小句后面、整句就是「药名＋用量」的，也是这一串里的药（2026-10-19 M 集 MTCMB-81）。
+      const continued = listContinues && !RECORDED_MEDICATION_VERB.test(clause) ? clause.match(/^\s*([\u4e00-\u9fffA-Za-z][\u4e00-\u9fffA-Za-z0-9-]{1,13}?)\s*\d+(?:\.\d+)?\s*(?:mg|g|ug|μg|mcg|U|IU|ml|片|粒|丸|袋|支|单位|毫克|克)(?![a-z])/iu) : null;
+      if (continued) {
+        const name = continued[1].trim();
+        if (!NOT_A_MEDICATION_NAME.test(name) && !names.includes(name)) names.push(name);
+        continue;
+      }
+      if (listContinues && medicationContinuationOnly(clause)) continue;
+      listContinues = false;
       const verb = clause.match(RECORDED_MEDICATION_VERB);
       if (!verb || verb.index == null) continue;
       if (RECORDED_MEDICATION_NEGATION.test(clause.slice(0, verb.index))) continue;
@@ -644,17 +677,18 @@ export function recordedMedicationMentions(text: string | null | undefined): { n
       // 动词后置（「盐酸左西替利嗪片口服」「强力湿痒膏外用」）：动词在句末时，药名在它前面。
       const before = !rest.trim() && /(?:口服|外用|外涂|吸入|含服)$/u.test(verb[0]) ? clause.slice(0, verb.index) : "";
       const quoted = [...rest.matchAll(/[“"「《]([^”"」》]{2,60})[”"」》]/gu)].map((match) => match[1]);
-      const parts = (quoted.length > 0 ? quoted.join("、") : before || rest).split(/及|和|与|、|或|以及|\/|\+|＋/u);
+      const parts = splitMedicationList(quoted.length > 0 ? quoted.join("、") : before || rest);
       for (const part of parts) {
         // 列举到截断词（「后」「治疗」「（」…）为止：截断词之后的顿号项是别的内容（「予抗感染治疗后尿频、尿急」）。
         const cut = part.search(RECORDED_MEDICATION_CUT);
         const name = (cut >= 0 ? part.slice(0, cut) : part)
-          .replace(/^.*(?:给予|予以)/u, "")
+          .replace(/^.*(?:给予|给与|予以)/u, "")
           .replace(/^(?:长期|规律|平素|平时|自行|使用|应用|了|过|用|以|口服|服用|改用|换用|外擦|外搽|取|舌下含服|含)+/u, "")
           .replace(/[“”"「」《》)）]/gu, "").replace(/泵$/u, "").replace(/[可以的]$/u, "").replace(/\s+/gu, "").trim();
         if (name.length >= 2 && name.length <= 14 && !NOT_A_MEDICATION_NAME.test(name) &&
             /[\u4e00-\u9fff]{2,}|[A-Za-z]{3,}/u.test(name) && !names.includes(name)) {
           names.push(name);
+          listContinues = true;
           // 「予/给予」写的是医生给过的药，可能已经用完或停了：注意事项只请患者说明现在是否还在用。
           if (/予/u.test(verb[0])) given.push(name);
         }
@@ -676,7 +710,37 @@ export function medicationStoppedInNextSentence(text: string, name: string): boo
     STOPPED_PREVIOUS_MEDICATION.test(sentences[index + 1]) && !sentences.slice(index + 1).some((later) => later.includes(name)));
 }
 
-/** 病历肯定写着饮酒（「饮酒30年」「嗜酒」「每日饮白酒」）；「无烟酒嗜好」「否认饮酒」「已戒酒」不算。 */
+/**
+ * 病历里这个药后来停了，或只在「曾…」的往事里出现过（2026-10-19 Claude 评审 M 集）：
+ *  · 后面任一句在同一小句里写「停用/停服/停药/停止」这个药（「…后患者因持续血小板降低停用安罗替尼」隔了好几句；
+ *    「予以停用阿帕替尼」），而再往后没有重新用上；
+ *  · 写到它的每一句，它前面都是「曾接受/曾服用/既往曾…」，所在小句又没有「现/目前/仍/至今/一直/长期/规律/继续/正在」
+ *   （「既往曾接受醋酸泼尼松（…口服）及α骨化醇片（…）治疗」——逗号把「曾」和后一个药隔开了，按小句看不到）。
+ */
+const PAST_MEDICATION_CUE = /曾(?:经)?(?:接受|服用|口服|予|用|使用|应用|多次|间断)|既往曾/u;
+const CURRENT_MEDICATION_CUE = /现|目前|仍|至今|一直|长期|规律|继续|正在|近期|近来/u;
+const RESTART_MEDICATION_CUE = /加用|再次|重新|恢复|又(?:开始)?|继续/u;
+export function medicationStoppedOrOnlyPast(text: string, name: string): boolean {
+  if (!name) return false;
+  // 按小句排成一列（病历常一整段只用逗号）：停用那一小句可能和用药那一小句在同一个长句里。
+  const clauses = String(text || "").normalize("NFKC").split(/[。；;\n]+/u).flatMap((sentence) => {
+    let offset = 0;
+    return sentence.split(/[，,]+/u).map((clause) => {
+      const before = sentence.slice(0, offset);
+      offset += clause.length + 1;
+      return { clause, before };
+    });
+  });
+  const mentions = clauses.map((item, index) => ({ ...item, index })).filter(({ clause }) => clause.includes(name));
+  if (mentions.length === 0) return false;
+  const stoppedIn = (clause: string) => STOP_VERB.test(clause) && !/(?:未|没有|不曾|未曾|不|无|勿)(?:自行|擅自)?停/u.test(clause) && !RESTART_MEDICATION_CUE.test(clause);
+  const lastStop = mentions.filter(({ clause }) => stoppedIn(clause)).at(-1);
+  if (lastStop && !mentions.some(({ clause, index }) => index > lastStop.index && RESTART_MEDICATION_CUE.test(clause))) return true;
+  return mentions.every(({ clause, before }) =>
+    PAST_MEDICATION_CUE.test(before + clause.slice(0, clause.indexOf(name))) && !CURRENT_MEDICATION_CUE.test(clause));
+}
+
+/** 病历肯定写着饮酒/** 病历肯定写着饮酒（「饮酒30年」「嗜酒」「每日饮白酒」）；「无烟酒嗜好」「否认饮酒」「已戒酒」不算。 */
 const ALCOHOL_USE = /(?:饮|喝|嗜|酗)酒|饮(?:用)?白酒|饮啤酒|白酒[^，,。；;]{0,6}(?:两|斤|ml|毫升|克)/u;
 export function recordsAlcoholUse(text: string): boolean {
   return affirmedClinicalSourceClauses(text).some((clause) => ALCOHOL_USE.test(clause) && !/戒酒|已戒|不饮|无饮酒|无烟酒|否认/u.test(clause));
@@ -695,18 +759,21 @@ export function selfPreparedMedicationSentence(sentence: string): boolean {
  */
 const SELF_DISCONTINUED = /(?:自行|擅自|自己)(?:停(?:用|服|药)|减(?:量|药))|自停(?:药|服)?|(?:未|没有|不)(?:规律|按时|坚持)(?:服药|用药|服用)/u;
 const SELF_DISCONTINUED_CONDITION = /高血压|糖尿病|冠心病|心房颤动|房颤|心力衰竭|心衰|甲状腺功能减退|甲减|甲状腺功能亢进|甲亢|癫痫|哮喘|慢阻肺|抑郁|精神分裂|高脂血症|痛风/u;
-export function selfDiscontinuedMedication(text: string): { condition?: string; names: string[] } | undefined {
+export function selfDiscontinuedMedication(text: string): { condition?: string; names: string[]; irregular?: true } | undefined {
   for (const sentence of String(text || "").normalize("NFKC").split(/[。；;\n]+/u)) {
     const hit = sentence.match(SELF_DISCONTINUED);
     // 因不能耐受、不良反应、过敏或无效而停的不在此列：那是该由医生换药的情形，不能写「规律服用」（验收主集吉非替尼一例）。
     if (!hit || hit.index == null || /否认|遵医嘱|医生(?:嘱|建议)|在医生指导下|耐受|副作用|不良反应|过敏|无效/u.test(sentence)) continue;
-    const names = [...sentence.matchAll(/[“"「]([^”"」]{2,20})[”"」]/gu)].map((match) => match[1])
-      .filter((name) => !NOT_A_MEDICATION_NAME.test(name));
+    // 引号里的也可能是诊断（「“频发房性早搏”，收入住院治疗」）：按药名候选收一道。
+    const names = [...sentence.matchAll(/[“"「]([^”"」]{2,20})[”"」]/gu)].map((match) => cleanedMedicationNameCandidate(match[1]))
+      .filter((name) => name && !NOT_A_MEDICATION_NAME.test(name));
     const generic = sentence.match(/降压药|降糖药|胰岛素|抗凝药|抗癫痫药|抗抑郁药/u)?.[0];
     const condition = sentence.match(SELF_DISCONTINUED_CONDITION)?.[0];
     // 只认能说清停的是治什么慢性病的药：同一句写了慢性病、药名或药类。
     if (!condition && !generic && names.length === 0) continue;
-    return { condition, names: generic && names.length === 0 ? [generic] : names.slice(0, 3) };
+    // 「不规律服用」不是停药（2026-10-19 M 集 MTCMB-87：「不规律服用“稳心颗粒”」被写成「您之前自行停用了…」）。
+    const irregular = /(?:未|没有|不)(?:规律|按时|坚持)/u.test(hit[0]);
+    return { condition, names: generic && names.length === 0 ? [generic] : names.slice(0, 3), ...(irregular ? { irregular: true } : {}) };
   }
   return undefined;
 }
@@ -729,6 +796,35 @@ const STOPPED_OR_PAST_MEDICATION = /(?:曾|既往|此前|以前|已停|停用|�
 const GENERIC_MEDICATION_WORD = /^(?:中|西|汤|成|草)?药(?:物|品)?$|^中成药$|^降[压糖脂]药$/u;
 
 /** 跟在正式给药词后面、当前在用的药名（只用于「正在服用的药」这一条注意事项）。 */
+/**
+ * 从病历里取出来的药名候选再收一道（2026-10-19 Claude 评审 M 集注意事项一栏）：取名的三条路各自切词，切出了
+ *「控制」「依折麦布片一天」「α骨化醇片(」「西替利嗪片抗过敏)」「包括甲泼尼龙」「qd+缬沙坦」「bid抑制免疫」「数月」
+ *「二甲双胍早」「安罗替尼抗血管生成」「靶向药物出现血压升高」，原样进了「正在服用的…请告知医生」。
+ * 这里只做构词式的清理：去掉前面的引导词与用法缩写，在用量、括注、用途短语处截断，时间量词、药物类别、
+ * 治疗方式不算药名。返回空串表示这不是一个药名。
+ */
+const MEDICATION_CANDIDATE_LEAD = /^(?:[+＋、，,\s]|qd|bid|tid|qid|qn|qod|prn|po|iv|ih|im|st|药物包括|用药包括|包括|药物有|药物为|药物|西药|中成药|中药|了|用|以|予|给与|给予|予以|口服|服用|使用|应用|加用|改用|继续|规律|长期|一直|现|自服|自行|(?:降(?:压|糖|脂)|抗(?:凝|血小板|生素|病毒|菌|过敏)|止痛|镇痛)药(?:物)?)+/iu;
+const MEDICATION_CANDIDATE_TAIL = /(?<![A-Za-z])\d|[（(\[【“”"「」《》)）\]】?？:：]|[早晚中](?=$|\d)|一[天日次]|每[日天晚次周]|(?:qd|bid|tid|qid|qn|qod|prn|po|iv|ih|im)(?![a-z])|(?<=[\u4e00-\u9fffA-Za-z]{2})(?:抗(?:过敏|感染|血管|凝|血小板|病毒|炎|肿瘤|癫痫|抑郁|焦虑|心律|类风湿)|降(?:压|糖|脂|酶|尿酸)|控制|治疗|对症|保肝|护胃|抑制|调节|改善|预防|止(?:痛|咳|泻|吐|血)|出现|后|等|至今|效果|无效|无明显|好转|可缓解|未缓解|缓解|未见|不显|欠佳|可达|达到|外用|外涂|外敷|口服|吸入)/iu;
+const NOT_MEDICATION_CANDIDATE = /^控制|^[\u4e00-\u9fff]{1,6}类|中成药|[哪何]|腧穴|穴位|不能|无法|酒精|^(?:止血|止泻|止吐|消炎|退热|退烧|感冒|安眠|镇静|助眠|促消化|升白|清热解表|消导破瘀|活血化瘀)(?:药物?|治疗)?$|^(?:外敷|外用)?(?:药膏|膏药|药水)$|^(?:[数几多半两一二三四五六七八九十百\d]+)(?:个)?(?:月|天|日|年|周|次|剂|疗程|小时)|^(?:靶向|激素|抗生素|抗菌|降压|降糖|降脂|止痛|镇痛|中西|保肝|护胃|营养|免疫)(?:药物?|治疗)?$|^(?:中|西|汤|成|草)?药(?:物|品)?$|病$|症$|炎$|早搏$|综合征$|衰竭$|不全$|状态$/u;
+export function cleanedMedicationNameCandidate(raw: string): string {
+  let name = String(raw || "").normalize("NFKC").replace(/\s+/gu, "");
+  let previous = "";
+  while (name && name !== previous) {
+    previous = name;
+    name = name.replace(MEDICATION_CANDIDATE_LEAD, "");
+  }
+  // 「通络止痛类中成药」「降压类药物」：类别说法，截断之前就认（截断会剩下「通络」）。
+  if (/^[\u4e00-\u9fff]{1,6}类(?:中成)?(?:药|制剂)/u.test(name)) return "";
+  const cut = name.search(MEDICATION_CANDIDATE_TAIL);
+  if (cut >= 0) name = name.slice(0, cut);
+  name = name.replace(/[^\p{L}\p{N}-]+$/u, "").replace(/^[^\p{L}\p{N}]+/u, "");
+  if (name.length < 2 || name.length > 14 || !/[\u4e00-\u9fff]{2,}|[A-Za-z]{3,}/u.test(name)) return "";
+  // 带成品剂型的是具体药品（止咳糖浆、消炎利胆片），不按「止咳/消炎」这类治疗说法排除。
+  if (/(?:片|胶囊|颗粒|丸|散|糖浆|口服液|注射液|贴|膏|水|酊|合剂|滴剂|喷雾剂|气雾剂|栓)$/u.test(name) && name.length >= 3 && !/[哪何]|不能|无法|酒精|^(?:外敷|外用)?(?:药膏|膏药|药水)$/u.test(name)) return name;
+  if (NOT_A_MEDICATION_NAME.test(name) || NOT_MEDICATION_CANDIDATE.test(name) || GENERIC_MEDICATION_WORD.test(name)) return "";
+  return name;
+}
+
 export function formallyAdministeredMedicationMentions(text: string): string[] {
   return String(text || "").normalize("NFKC").split(/[，,。；;\n]+/u).flatMap((clause) => {
     if (!FORMAL_ADMINISTRATION_VERB.test(clause) || STOPPED_OR_PAST_MEDICATION.test(clause)) return [];
@@ -862,4 +958,13 @@ export function affirmedCurrentMedicationText(value: string | null | undefined):
 const LIST_HEAD_PREDICATE = /不在|不|无|未|没|非|在|为|属|见|有/u;
 export function carriesListPredicate(item: string): boolean {
   return LIST_HEAD_PREDICATE.test(item);
+}
+
+/**
+ * 病历写着本次月经逾期未至（闭集写法）：「末次月经…至今未至/未来/未潮」「月经推迟/延迟/逾期N天」「停经N天/周/个月」。
+ * 「停经N年」「已停经」「绝经」不算（那是绝经）；否认的不算。
+ */
+const CURRENT_MENSES_OVERDUE = /末次月经[^。；;\n]{0,24}(?:至今|迄今|现|目前)(?:仍|尚)?(?:未至|未来|未潮|未行|未转|没来)|月经(?:推迟|延迟|延后|逾期|过期)(?:约)?(?:\d+|[一二两三四五六七八九十]+)?(?:天|日|周|个?月)?(?:未至|未来|未行)?|停经(?:约)?(?:\d+|[一二两三四五六七八九十]+)(?:天|日|周|个月|月)(?!余年)/u;
+export function currentMensesOverdue(text: string): boolean {
+  return affirmedClinicalSourceClauses(text).some((clause) => CURRENT_MENSES_OVERDUE.test(clause) && !/绝经|停经\s*(?:\d+|[一二两三四五六七八九十]+)\s*年|已停经/u.test(clause));
 }

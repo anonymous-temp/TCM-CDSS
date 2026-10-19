@@ -8,6 +8,7 @@ import { resolveTcmDiseaseName } from "./clinical-terminology";
 import { formulaAnalysisHerbMentions } from "./formula-analysis-review";
 import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbGenerationSafetyProfile } from "./tcm-knowledge";
 import { TCM_ACUPOINTS } from "./tcm-acupoints";
+import { herbRecordCautionConflict } from "./herb-record-caution";
 import type { TcmTreatmentProjectCode } from "./tcm-treatment-projects";
 
 /**
@@ -146,14 +147,22 @@ function westernNameCore(name: string): string {
     .replace(/^(?:急性|慢性|亚急性)/u, "")
     .replace(/(?:左侧|右侧|双侧)/gu, "")
     .replace(/^[左右双]/u, "")
-    .replace(/(?:待查|待排)$/u, "");
+    .replace(/(?:待查|待排)$/u, "")
+    // 「膝关节骨关节炎」即教材节名又名「膝骨关节炎」（2026-10-19 Claude 评审 M-TCMChat-test-336：膝痹病例对不上膝骨性关节炎节，
+    // 针刺卡只剩「局部阿是穴、循经远端穴」）。
+    .replace(/^(膝|髋|肩|踝|肘|腕)关节(?=骨)/u, "$1");
 }
 
 type ConceptRule = { id: string; terms: string[]; covers?: string[] };
 const CONCEPTS = syndromeConceptsJson as { organs: ConceptRule[]; natures: ConceptRule[] };
 
 function syndromeConcepts(label: string): { organs: Set<string>; natures: Set<string> } {
-  const text = compact(label).replace(/证候$/, "").replace(/[证型]$/, "");
+  // 「阳气虚衰」「阳气不足」是阳虚，不因其中的「气虚」二字算气虚（2026-10-19 Claude 评审 H-tri-9278：颤证·气血亏虚证的针刺卡写
+  //「本例属阳气虚衰，加关元、肾俞」——教材颤证节「阳气虚衰」被拆出气虚概念，与本例的气虚对上了）。
+  const text = compact(label).replace(/证候$/, "").replace(/[证型]$/, "").replace(/阳气(?=虚|不足|亏)/gu, "阳")
+    // 饮食停滞、饮食内停、饮食积滞、宿食都是食积（GB/T 16751.2 食积证的同义写法），不因「滞」字另算气滞（X-H-0240：胃痞·饮食内停证
+    // 对不上目录胃肠模板的「饮食停滞」配穴）。
+    .replace(/饮食(?:停滞|内停|积滞|停积)|宿食(?:停滞|内停)?|停食/gu, "食积");
   const organs = new Set<string>();
   const natures = new Set<string>();
   for (const rule of CONCEPTS.organs) if (rule.terms.some((term) => text.includes(term))) organs.add(rule.id);
@@ -227,6 +236,21 @@ function scoringLabel(item: { label: string; alias?: string; keySymptoms?: strin
   return String(item.keySymptoms || "").match(/为([一-龥]{2,8})[。]?$/)?.[1] || item.label;
 }
 
+/**
+ * 卡片上「本例属X」「按X取穴」的 X 与已签名证候（主证＋兼证结论）是否相符：概念全部在本例证候里（syndromeMatchScore），
+ * 或证名字面相同/包含（syndromeLabelMatchesSigned）。院内目录的证型配穴按病机叙述命中时也要过这一道（tcm-treatment-capabilities）。
+ */
+export function syndromeLabelFitsSigned(label: string, signedSyndromeText: string): boolean {
+  if (!label || !String(signedSyndromeText || "").trim()) return false;
+  return syndromeMatchScore(label, signedSyndromeText).score > 0 || syndromeLabelMatchesSigned(label, signedSyndromeText);
+}
+
+/** 已签名主证（「主证；兼证…」的第一段）去掉「证/型」与括注后的写法，用于与教材证型名比是否同名。 */
+function signedPrimaryCore(signedSyndromeText: string): string {
+  return (String(signedSyndromeText || "").split(/[；;]/)[0] || "").normalize("NFKC")
+    .replace(/[\s（()）]/g, "").replace(/(?:证候|证型|证|型)$/u, "");
+}
+
 /** 证名里没有病性字的教材证型（淋证「石淋」「膏淋」）按概念对不上，已签名证名与它字面相同时按它取（2026-10-19 留出例 S067 石淋没加秩边、水道、委阳）。 */
 const LITERAL_SYNDROME_SCORE = 100;
 function pickSyndromes<T extends { label: string; alias?: string; keySymptoms?: string }>(
@@ -234,14 +258,25 @@ function pickSyndromes<T extends { label: string; alias?: string; keySymptoms?: 
   caseSyndromeText: string,
   currentFacts: string,
 ): T[] {
+  // 本例主证名与教材证型名（或其括注又名）相同：证型就是已签名的结论，不再要求病历里有该型辨证要点的同字二字组
+  //（2026-10-19 M-TCMChat-test-438：痛痹，病历写「受凉后疼痛加重」，教材写「遇寒痛增」，二字组对不上，卡片退回目录模板的「瘀血阻络」配穴）。
+  // 没有病历事实时照旧一律不按证型加减（fail-closed，见 syndromeEvidencePresent）。
+  const primaryCore = signedPrimaryCore(caseSyndromeText);
+  const isPrimary = (item: T) => primaryCore.length >= 2 && compact(currentFacts).length > 0 &&
+    [item.label, (item as { alias?: string }).alias || ""].some((name) => signedPrimaryCore(name) === primaryCore);
+  // 教材注明「属危急之候」、或辨证要点写神昏的证型（丹毒「火毒内陷」、中风「闭证」）只在已签名证候逐字写到它时取：
+  // 门诊出卡的病人不在危急状态（那时安全门判红旗、不出卡），按概念对上会把风热毒蕴的面部丹毒写成「本例属火毒内陷，加十宣、十二井穴」
+  //（2026-10-19 Claude 评审 H-tri-17402）。两本教材同名证型有一本这样写即算（《针灸学》丹毒节的火毒内陷没写辨证要点）。
+  const acuteLabels = new Set(candidates.filter((item) => /危急|危候|急危|神昏/u.test(item.keySymptoms || "")).map((item) => item.label));
   const scored = candidates
     .map((item, index) => {
-      const concept = syndromeMatchScore(scoringLabel(item), caseSyndromeText);
-      const literal = concept.score === 0 && syndromeConcepts(item.label).natures.size === 0 &&
+      const acuteOnly = acuteLabels.has(item.label);
+      const concept = acuteOnly ? { score: 0, natures: new Set<string>() } : syndromeMatchScore(scoringLabel(item), caseSyndromeText);
+      const literal = concept.score === 0 && (acuteOnly || syndromeConcepts(item.label).natures.size === 0) &&
         syndromeLabelMatchesSigned(item.label, caseSyndromeText);
       return { item, index, ...(literal ? { score: LITERAL_SYNDROME_SCORE, natures: new Set<string>([`literal:${item.label}`]) } : concept) };
     })
-    .filter((entry) => entry.score > 0 && syndromeEvidencePresent(entry.item.keySymptoms, currentFacts))
+    .filter((entry) => entry.score > 0 && (isPrimary(entry.item) || syndromeEvidencePresent(entry.item.keySymptoms, currentFacts)))
     .sort((left, right) => right.score - left.score || left.index - right.index);
   if (scored.length === 0) return [];
   const first = scored[0];
@@ -316,18 +351,53 @@ function commonFoods(): Set<string> {
  * 桃仁15～30g，药典用量 5～10g、孕妇慎用，同页汤药里还有桃仁 9g）。只看知识库标为有毒或孕期高风险（HIGH）的药材：
  * 山药、薏苡仁这类食材在食疗里本来就按食物量用，不按药典煎剂量卡。
  */
+/**
+ * 2026-10-19（Claude 评审 M-TCM-BEST4SDT-254：寒湿腰痛的「二姜茶」高良姜 15g，药典 3～6g，同页汤药里还有附子）：
+ * 药典用量上限不超过 10 g 的辛香、峻烈之品（高良姜、肉桂、丁香、小茴香、白芷、桔梗、薄荷、荷叶…，药典把它们的煎服量定得小），
+ * 在按日服用的食疗方里同样不超过药典上限；超了就不选这一方。山药、百合、莲子、薏苡仁这类药典上限在 10 g 以上、本来按食物量吃的不卡；
+ * 生姜、干姜、花椒这类作调料的普通食物（目录 commonFoodAllowlist）不卡。整料制成膏、粉、酒、按「每次服若干」分次吃的（桑椹蜜膏、
+ * 天麻菊花枸杞粉、加味大豆酒），方里写的是整料用量，不按单日量比。
+ */
+const SMALL_DOSE_HERB_MAX_G = 10;
+const BATCH_RECIPE = /每(?:次|服)(?:服|食|取|用|饮)?\s*\d+(?:\.\d+)?\s*(?:[～~\-－至]\s*\d+(?:\.\d+)?\s*)?(?:g|克|ml|mL|毫升)|每次\s*\d*\s*(?:汤匙|匙|勺|茶匙|调羹)|装瓶|贮存|贮藏|密封\s*\d+\s*[日天]|蒸馏/u;
 export function recipeExceedsHighRiskHerbDose(recipeText: string): boolean {
   const ingredientSentence = String(recipeText || "").split("。")[0] || "";
+  const batch = BATCH_RECIPE.test(String(recipeText || ""));
   for (const mention of formulaAnalysisHerbMentions(ingredientSentence)) {
     const profile = getTcmHerbGenerationSafetyProfile(mention.token);
     const highRisk = profile.isToxic || profile.populationRules.some((rule) => /孕/.test(rule.population) && rule.severity === "HIGH");
-    if (!highRisk) continue;
-    const amount = ingredientSentence.slice(mention.end).match(/^\s*(\d+(?:\.\d+)?)\s*(?:[～~\-－至]\s*(\d+(?:\.\d+)?))?\s*(?:g|克)/u);
     const max = getTcmHerbDoseLimit(mention.token)?.max;
+    const smallDose = !batch && max != null && max <= SMALL_DOSE_HERB_MAX_G && !commonFoods().has(mention.token);
+    if (!highRisk && !smallDose) continue;
+    const amount = ingredientSentence.slice(mention.end).match(/^\s*(\d+(?:\.\d+)?)\s*(?:[～~\-－至]\s*(\d+(?:\.\d+)?))?\s*(?:g|克)/u);
     if (!amount || max == null) continue;
     if (Number(amount[2] ?? amount[1]) > max) return true;
   }
   return false;
+}
+
+/**
+ * 病历记有糖尿病（消渴）时不选的食疗方（2026-10-19 Claude 评审 M-TCMChat-test-405：空腹血糖 13 的糖尿病人拿到「葛根粉粥」，粳米 100g 早晚服；
+ * 另有蜂蜜、冰糖入方的）。依据《成人糖尿病食养指南（2023年版）》（国卫办食品函〔2023〕5号）：原则三「主食定量，不宜过多，多选全谷物和低 GI 食物」，
+ * 附录 1 表 1.1「即食大米粥」「大米饭、糯米饭」与糖果类「葡萄糖、麦芽糖、白糖、蜂蜜」均为高 GI；原则五「不喝含糖饮料」。
+ *  · 方里有糖类（白糖、冰糖、红糖、砂糖、蜂蜜、饴糖、麦芽糖、葡萄糖）；
+ *  · 精白米（粳米、大米、糯米）煮粥、作饭超过 30 g——指南自己的食谱示例里，粥饭中的精白米每份不超过 30 g（百合莲子粥「粳米 30g」、
+ *    杂粮粥「大米 30g」）。
+ * 大枣、山药等指南示例本身用到的食药物质不在此列。
+ */
+const DIABETES_SUGAR = /白糖|冰糖|红糖|砂糖|蜂蜜|蜜糖|饴糖|麦芽糖|葡萄糖/u;
+const REFINED_RICE = /(粳米|大米|糯米|白米)\s*(\d+(?:\.\d+)?)\s*(?:g|克)/gu;
+export function recipeUnsuitableForDiabetes(recipeText: string): boolean {
+  const text = String(recipeText || "");
+  const ingredientSentence = text.split("。")[0] || "";
+  if (DIABETES_SUGAR.test(text)) return true;
+  return [...ingredientSentence.matchAll(REFINED_RICE)].some((match) => Number(match[2]) > 30);
+}
+
+/** 饮食调护或注意事项写明忌茶、不宜饮茶时，方里有茶叶的食疗方不选（2026-10-19 Claude 评审 X-H-0163：注意事项「不宜喝茶」，食疗卡给姜茶饮（绿茶 10g））。 */
+const TEA_LEAF_INGREDIENT = /茶叶|绿茶|红茶|花茶|普洱|乌龙茶/u;
+export function dietAdviceAvoidsTea(text: string): boolean {
+  return /(?:忌|不宜|避免|勿|少|戒)(?:饮|喝|饮用)?[^。；;，,]{0,4}茶/u.test(String(text || "").replace(/代茶/gu, ""));
 }
 
 /**
@@ -396,6 +466,8 @@ export type TextbookPlanInput = {
   signedNarrative?: string;
   /** 患者年龄（岁）。老年人不列刺络放血、不套用长时间留针的疗程。 */
   patientAgeYears?: number;
+  /** 已签名治则（M03 therapy.overallPrinciple，交付给医生的那一栏）。主证名判不出虚实时按它取舍（signedCardNature）。 */
+  signedPrinciple?: string;
   /** 主诉（教材分套的基本治疗按字面对套时用）。 */
   chiefComplaint?: string;
   /**
@@ -407,6 +479,10 @@ export type TextbookPlanInput = {
   avoidRichFood?: boolean;
   /** 本次处方里已有的药味（按处方身份判定，调用方给）：食疗方里有同一味药的不选，免得汤药与食疗叠加用量（病历 5 黄芪）。 */
   herbAlreadyPrescribed?: (herb: string) => boolean;
+  /** 病历（含既往史）或已签名诊断记有糖尿病、消渴：食疗方不选含糖与大量精白米粥饭的（recipeUnsuitableForDiabetes）。 */
+  recordedDiabetes?: boolean;
+  /** 饮食调护或注意事项写明忌茶（dietAdviceAvoidsTea）：食疗方不选含茶叶的。 */
+  avoidTea?: boolean;
 };
 
 export type TextbookPlanPoint = {
@@ -443,17 +519,81 @@ const NO_NEEDLE_POINTS: ReadonlySet<string> = new Set(["神阙", "乳中"]);
  * 脊背：… / 髀部：… / 膝部：… / 踝部：…」）。生成物把七组拍平成一列，取前 12 个就全是肩、肘、腕的穴——
  * 2026-10-13 独立评审：右膝、右踝红肿热痛的病例，针刺取穴全在上肢。分组照教材原文，部位词是闭集。
  */
-const REGIONAL_MAIN_POINT_GROUPS: Readonly<Record<string, ReadonlyArray<{ region: string; cue: RegExp; points: readonly string[] }>>> = {
-  痹病: [
-    { region: "肩部", cue: /肩/, points: ["肩髃", "肩髎", "肩贞", "臑俞"] },
-    { region: "肘部", cue: /肘/, points: ["曲池", "天井", "尺泽", "少海"] },
-    { region: "腕部", cue: /腕|手指|指关节|掌指/, points: ["阳池", "外关", "阳溪", "腕骨"] },
-    { region: "脊背", cue: /脊|背|腰|颈/, points: ["大杼", "身柱", "腰阳关", "夹脊"] },
-    { region: "髀部", cue: /髋|髀|臀|胯/, points: ["环跳", "居髎", "秩边", "髀关"] },
-    { region: "膝部", cue: /膝/, points: ["血海", "梁丘", "膝眼", "阳陵泉"] },
-    { region: "踝部", cue: /踝|足跟|足背|跖趾|足趾|脚趾/, points: ["申脉", "照海", "昆仑", "丘墟"] },
-  ],
+/**
+ * 2026-10-19（Claude 评审 M 集、H 集）补了三件事：
+ *  · 部位词须与不适写在同一小句（complaint）：查体模板「颈部对称，无青筋暴露」曾让双手、足趾关节肿痛的类风湿病例取到脊背组
+ *    （M-TCM-SD-488395）；「下足腕扎带」曾让周身关节痛取到腕部组（H-tri-10610）。
+ *  · 部位写法：近端指间、掌指、跖趾关节的病历缩写（PIP、MCP、DIP、MTP）与「双手」「手部」算腕手部，「足腕」不算腕。
+ *  · 教材「脊背：大杼 身柱 腰阳关 夹脊」按脊柱节段分开：颈项、背痛取大杼、身柱、夹脊，腰骶痛取腰阳关、夹脊
+ *    （X-H-0171、X-H-0230 颈项强痛取到腰阳关）。四个穴仍出自教材这一组，只按局部取穴的原则不跨节段。
+ * 同法分组的还有头痛（四经分部）与痿证（上肢、下肢两组），原文见下。对不上部位时：痹病只留阿是穴（教材「取局部穴为主」），
+ * 头痛、痿证保持全部主穴（病历没写部位）。
+ */
+type RegionalScheme = {
+  /** 部位词所在小句里须有的不适字样（闭集）。 */
+  complaint: RegExp;
+  /** 一个部位都对不上时：只留阿是穴，或保留全部主穴。 */
+  unmatched: "local_only" | "all";
+  groups: ReadonlyArray<{
+    region: string; cue: RegExp; points: readonly string[];
+    /** 同一部位内外侧各有其穴时（踝部：申脉、昆仑、丘墟在外踝，照海在内踝），病历只写到一侧就不取另一侧的穴。 */
+    sides?: ReadonlyArray<{ cue: RegExp; points: readonly string[] }>;
+  }>;
 };
+const REGIONAL_MAIN_POINT_GROUPS: Readonly<Record<string, RegionalScheme>> = {
+  痹病: {
+    complaint: /痛|疼|酸|麻|僵|肿|胀|受限|不利|屈伸|无力|活动障碍|弹响|畸形|变形|累及|受累|冷|凉|异样|热|灼/u,
+    unmatched: "local_only",
+    groups: [
+      { region: "肩部", cue: /肩/u, points: ["肩髃", "肩髎", "肩贞", "臑俞"] },
+      { region: "肘部", cue: /肘/u, points: ["曲池", "天井", "尺泽", "少海"] },
+      { region: "腕部", cue: /(?<!足)腕|手指|[拇食中环小]指|无名指|指关节|掌指|指间|双手|[左右]手(?!术)|手部|手掌|PIP|MCP|DIP/iu, points: ["阳池", "外关", "阳溪", "腕骨"] },
+      { region: "颈背", cue: /颈|项|背|胸椎/u, points: ["大杼", "身柱", "夹脊"] },
+      { region: "腰骶", cue: /腰|骶/u, points: ["腰阳关", "夹脊"] },
+      { region: "髀部", cue: /髋|髀|臀|胯/u, points: ["环跳", "居髎", "秩边", "髀关"] },
+      { region: "膝部", cue: /膝/u, points: ["血海", "梁丘", "膝眼", "阳陵泉"] },
+      // 内外踝分侧（H-tri-1476 痛在外踝后，取到内踝下的照海）。
+      { region: "踝部", cue: /踝|足跟|足背|跖趾|足趾|脚趾|趾关节|MTP/iu, points: ["申脉", "照海", "昆仑", "丘墟"],
+        sides: [{ cue: /外踝/u, points: ["申脉", "昆仑", "丘墟"] }, { cue: /内踝/u, points: ["照海"] }] },
+    ],
+  },
+  // 《针灸治疗学》头痛「主穴 阳明头痛：头维 印堂 阳白 阿是穴 合谷 内庭 / 少阳头痛：太阳 丝竹空 率谷 风池 阿是穴 外关 侠溪 /
+  // 太阳头痛：天柱 后顶 风池 阿是穴 后溪 申脉 / 厥阴头痛：百会 四神聪 阿是穴 太冲 中冲」，辨证要点按部位归经（前额眉棱鼻根、侧头、
+  // 后枕下连于项、巅顶）；《针灸学》同（少阳另有足临泣，厥阴另有内关）。此前四组拍平后截前 12 个，后枕痛连项的太阳头痛拿到阳明、少阳两组
+  //（H-tri-9376），后枕至颞侧的头痛拿到前额组（H-tri-10297）。
+  头痛: {
+    complaint: /痛|胀|重/u,
+    unmatched: "all",
+    groups: [
+      { region: "阳明", cue: /前额|额部|额头|眉棱|眉骨|鼻根/u, points: ["头维", "印堂", "阳白", "合谷", "内庭"] },
+      { region: "少阳", cue: /侧头|头[^，,。；;]{0,3}[两一单]侧|颞|偏头|太阳穴/u, points: ["太阳", "丝竹空", "率谷", "风池", "外关", "侠溪", "足临泣"] },
+      { region: "太阳", cue: /后枕|枕部|枕后|后头|头后|项/u, points: ["天柱", "后顶", "风池", "后溪", "申脉"] },
+      { region: "厥阴", cue: /巅顶|颠顶|头顶/u, points: ["百会", "四神聪", "太冲", "中冲", "内关"] },
+    ],
+  },
+  // 《针灸治疗学》痿证「主穴 上肢：肩髃 曲池 合谷 颈、胸夹脊 / 下肢：髀关 足三里 阳陵泉 三阴交 腰夹脊」；《针灸学》上肢另有手三里、
+  // 外关，下肢另有伏兔。此前两组整块拼上：只左腕下垂的病例列着髀关、腰夹脊（H-tri-17725），只双下肢无力的列着肩髃、颈夹脊（H-tri-5395）。
+  痿证: {
+    complaint: /无力|痿|萎|瘫|麻木|不遂|下垂|不利|受限|不能|困难|跛|肌力|握力|抬举|垂腕|垂足/u,
+    unmatched: "all",
+    groups: [
+      { region: "上肢", cue: /上肢|四肢|臂|肘|(?<!足)腕|手(?!术)|指|握|肩/u, points: ["肩髃", "曲池", "手三里", "合谷", "外关", "颈夹脊", "胸夹脊"] },
+      { region: "下肢", cue: /下肢|四肢|腿|(?<!不|手)足(?!月|够|以|量)|脚|膝|踝|髋|行走|步态|步履|站立|下蹲|跛/u, points: ["髀关", "伏兔", "阳陵泉", "足三里", "三阴交", "腰夹脊"] },
+    ],
+  },
+};
+/** 本例对上的部位组（部位词与不适字样同在一小句）。 */
+function matchedRegionalGroups(scheme: RegionalScheme, currentFacts: string) {
+  const clauses = currentFacts.normalize("NFKC").split(/[，,。；;\n]/);
+  return scheme.groups.flatMap((group) => {
+    const hits = clauses.filter((clause) => group.cue.test(clause) && scheme.complaint.test(clause));
+    if (hits.length === 0) return [];
+    const sides = (group.sides || []).filter((side) => hits.some((clause) => side.cue.test(clause)));
+    if (sides.length !== 1) return [group];
+    const otherSide = new Set((group.sides || []).filter((side) => side !== sides[0]).flatMap((side) => side.points));
+    return [{ ...group, points: group.points.filter((point) => !otherSide.has(point)) }];
+  });
+}
 
 /**
  * 教材把基本治疗分成几套写时，本例该用哪一套（2026-10-14）。
@@ -465,24 +605,78 @@ const REGIONAL_MAIN_POINT_GROUPS: Readonly<Record<string, ReadonlyArray<{ region
  *  · 其他分法（中经络 / 中脏腑、发作期 / 间歇期、月经先期 / 后期…）：套名逐字出现在已签名病名、证候或主诉里，且只对上一套时取它。
  * 判不出时返回 undefined，行为与此前相同。
  */
-const DEFICIENCY_SYNDROME_WORDS = /虚|亏|不足|失养|衰少|不固|不摄/;
+// 「心肾不交」：《中医诊断学》定为心肾阴虚阳亢的虚热证（「心与肾的阴液亏虚，阳气偏亢」），《中医内科学》不寐节归虚证；
+// 证名里没有虚损字样，此前判不出虚实（2026-10-19 Claude 评审 M-TCM-RobustSDT-single_0686：针刺卡加太溪、肾俞补肾，操作写「针用泻法」）。
+const DEFICIENCY_SYNDROME_WORDS = /虚|亏|不足|失养|衰少|不固|不摄|心肾不交/;
 const EXCESS_SYNDROME_WORDS = /实|热|火|痰|湿|瘀|滞|郁|风|寒|毒|积|闭|亢|逆|扰|饮|浊/;
+/**
+ * 教材分套里按虚实取舍的套名（闭集，取自生成物 variants 的全部套名）：实证/虚证，急惊风（实热）/慢惊风（虚），血滞经闭/血枯经闭。
+ */
+const VARIANT_LABEL_NATURE: Readonly<Record<string, "deficiency" | "excess">> = {
+  实证: "excess", 虚证: "deficiency", 急惊风: "excess", 慢惊风: "deficiency", 血滞经闭: "excess", 血枯经闭: "deficiency",
+};
+/**
+ * 急危状态的那一套与门诊常态的那一套（闭集）：中脏腑（神志昏蒙，闭证/脱证）对中经络，发作期对间歇期。
+ * 门诊出卡时病人不在昏迷或抽搐发作中——那两种情形安全门判红旗、整页不出项目卡（applyTcmTreatmentCapabilityPriority 开头）。
+ * 所以急危那一套只在已签名病名、证候或主诉逐字写到它（或写到闭证、脱证）时取，其余取常态那一套
+ *（2026-10-19 Claude 评审 M-TCM-RobustSDT-single_0578：中风后 20 个月、中经络，针刺卡仍带「百会闭证用毫针刺，泻法」；
+ *  X-H-0047「痫病发作后来诊」，卡上发作期的水沟强刺激与间歇期的鸠尾并列）。
+ */
+const ACUTE_STATE_VARIANTS: ReadonlyArray<{ acute: string; acuteCues: RegExp; usual: string }> = [
+  { acute: "中脏腑", acuteCues: /中脏腑|闭证|脱证/u, usual: "中经络" },
+  { acute: "发作期", acuteCues: /发作期/u, usual: "间歇期" },
+];
 function pickBasicTreatmentVariant(entry: AcupunctureEntry, input: TextbookPlanInput) {
   const variants = (entry.variants || []).filter((item) => item.label && item.mainPoints.length > 0);
   if (variants.length < 2) return undefined;
   const byLabel = (label: string) => variants.find((item) => item.label === label);
-  const deficiencyVariant = byLabel("虚证");
-  const excessVariant = byLabel("实证");
-  if (deficiencyVariant && excessVariant) {
-    const nature = signedSyndromeDeficiencyExcess(input.signedSyndromeText);
-    return nature === "deficiency" ? deficiencyVariant : nature === "excess" ? excessVariant : undefined;
-  }
   const haystack = compact([...input.diseaseNames, input.signedSyndromeText, input.chiefComplaint || ""].join("；"));
+  for (const pair of ACUTE_STATE_VARIANTS) {
+    const acute = byLabel(pair.acute);
+    const usual = byLabel(pair.usual);
+    if (acute && usual) return pair.acuteCues.test(haystack) ? acute : usual;
+  }
+  const natureVariants = variants.filter((item) => VARIANT_LABEL_NATURE[item.label]);
+  if (natureVariants.length === 2 && new Set(natureVariants.map((item) => VARIANT_LABEL_NATURE[item.label])).size === 2) {
+    const nature = signedCardNature(input.signedSyndromeText, input.signedPrinciple);
+    return natureVariants.find((item) => nature && VARIANT_LABEL_NATURE[item.label] === nature);
+  }
   const literal = variants.filter((item) => {
     const label = compact(item.label.replace(/（[^）]*）|\([^)]*\)/g, ""));
     return label.length >= 2 && haystack.includes(label);
   });
   return literal.length === 1 ? literal[0] : undefined;
+}
+
+/**
+ * 卡片上按虚实取舍（教材实证/虚证两套、外感内伤与实证虚证的操作小句、补泻手法）用的本例虚实（2026-10-19）。
+ * 此前把主证与兼证连成一串判：肝肾阴虚证（主）兼「脾阳不足、湿浊内蕴证」判成虚实夹杂、两套并列（M-TCM-RobustSDT-single_0582
+ * 耳鸣：实证的听会、侠溪、中渚泻法与虚证的太溪、肾俞补法同列）；心肾不交证兼血瘀证因「瘀」判成实证、操作写泻法（single_0686）。
+ *  · 先看主证名：纯虚、纯实即按它（兼证是次要的，卡片治的是主证）；
+ *  · 主证名判不出（虚实两类字样都有、或都没有：咽喉气机不和证）时看已签名的治则——它就是交付给医生的那一栏
+ *   （diagnosis-visible-summary nationalTreatmentPrinciple 按证名与治法推出）：虚则补之 ⇒ 虚，实则泻之、热者寒之、寒者热之 ⇒ 实，
+ *    扶正祛邪一类 ⇒ 判不出。
+ */
+export function signedCardNature(signedSyndromeText: string, signedPrinciple = ""): "deficiency" | "excess" | undefined {
+  const primary = String(signedSyndromeText || "").split(/[；;]/)[0] || "";
+  const byName = signedSyndromeDeficiencyExcess(primary);
+  if (byName) return byName;
+  const principle = String(signedPrinciple || "");
+  if (/扶正祛邪|祛邪扶正|攻补兼施|先攻后补|先补后攻|寓攻于补|寓补于攻|标本兼治/u.test(principle)) return undefined;
+  if (/虚则补之|扶正固本|虚者补其母/u.test(principle)) return "deficiency";
+  if (/实则泻之|实者泻其子|热者寒之|寒者热之/u.test(principle)) return "excess";
+  return undefined;
+}
+
+/**
+ * 主证带虚损（纯虚，或本虚标实如脾虚湿蕴、气虚血瘀）：刺络放血不作常规写法（《刺法灸法学》三棱针法「体质虚弱者…慎用」）。
+ * 此前只拦纯虚证，脾虚湿蕴的手部慢性湿疹仍写「皮肤针重叩出血后加拔火罐」（2026-10-19 Claude 评审 M-TCM-BEST4SDT-154）。
+ * 治则写的是补法（虚则补之、扶正祛邪一类）同样算。
+ */
+export function signedPrimaryHasDeficiency(signedSyndromeText: string, signedPrinciple = ""): boolean {
+  const primary = (String(signedSyndromeText || "").split(/[；;]/)[0] || "").replace(/虚热|虚火|虚风|虚寒|虚阳/g, "虚");
+  if (DEFICIENCY_SYNDROME_WORDS.test(primary)) return true;
+  return /虚则补之|扶正固本|虚者补其母|扶正祛邪|祛邪扶正|攻补兼施|先攻后补|先补后攻|寓攻于补|寓补于攻/u.test(String(signedPrinciple || ""));
 }
 
 /**
@@ -504,7 +698,7 @@ const EXTERIOR_SYNDROME_WORDS = /风寒|风热|风燥|风温|暑湿|外感|表|�
 function withSyndromeMatchedClauses(text: string, input: TextbookPlanInput): string {
   if (!/外感/.test(text) && !/内伤/.test(text) && !/实证/.test(text) && !/虚证/.test(text)) return text;
   const exterior = EXTERIOR_SYNDROME_WORDS.test(input.signedSyndromeText);
-  const nature = signedSyndromeDeficiencyExcess(input.signedSyndromeText);
+  const nature = signedCardNature(input.signedSyndromeText, input.signedPrinciple);
   return text.split(/(?<=[。；;])/).filter((clause) => {
     if (/^\s*外感/.test(clause) && !exterior) return false;
     if (/^\s*内伤/.test(clause) && exterior) return false;
@@ -520,13 +714,16 @@ function withSyndromeMatchedClauses(text: string, input: TextbookPlanInput): str
  * 不动的句子：点名到具体穴位的（醒脑开窍法「三阴交用提插补法」、牙痛「配穴太溪用补法」是该穴的定法，不随证候改）、
  * 含平补平泻或「按虚补实泻」的；虚实判不出时整段不动。教材卡与目录卡在卡片汇总处（tcm-treatment-capabilities）都过这一道。
  */
-export function manipulationMatchedToSyndrome(text: string, signedSyndromeText: string): string {
-  const nature = signedSyndromeDeficiencyExcess(signedSyndromeText);
+export function manipulationMatchedToSyndrome(text: string, signedSyndromeText: string, signedPrinciple = ""): string {
+  // 虚实按主证（主证判不出时按已签名治则）定，与教材分套取舍同一判据 signedCardNature（2026-10-19：心肾不交证兼血瘀证曾被兼证的「瘀」
+  // 判成实证，目录失眠模板的「留针用补法」被改成「针用泻法」，同卡却加太溪、肾俞补肾）。
+  const nature = signedCardNature(signedSyndromeText, signedPrinciple);
   if (!nature) return text;
   const wrong = nature === "excess" ? /补法/ : /泻法/;
+  const primary = String(signedSyndromeText || "").split(/[；;]/)[0] || "";
   // 带「平补平泻」的句子照旧不动（本虚标实的痰湿蕴肺用平补平泻是教材原法）；只有证名是纯实热（带热/火、不带虚）而句子又把补法列为
   // 可选时算写错（2026-10-17 留出集：痰热郁肺、痰火扰心沿用「内伤咳嗽针用平补平泻或补法」）。
-  const heatExcess = nature === "excess" && /热|火/.test(signedSyndromeText) && !/虚/.test(signedSyndromeText);
+  const heatExcess = nature === "excess" && /热|火/.test(primary) && !/虚/.test(primary);
   const right = nature === "excess"
     ? (heatExcess ? /泻法|虚补实泻|补虚泻实/ : /泻法|平补平泻|虚补实泻|补虚泻实/)
     : /补法|平补平泻|虚补实泻|补虚泻实/;
@@ -601,12 +798,105 @@ export function cardApplicabilityExcludesSyndrome(text: string, diseaseNames: re
   }
   return false;
 }
-export function cardSentencesMatchedToSyndrome(text: string, diseaseNames: readonly string[], signedSyndromeText: string): string {
+/**
+ * 本例病程：急性还是慢性（只用于卡片里「急性X…」「慢性X…」这类分病程写的小句取舍）。西医主诊断写明急性、慢性时按它；
+ * 否则按主诉里第一个病程数字：≥3 个月算慢性，≤2 周算急性。判不出时返回 undefined，两类小句都留。
+ */
+const CHINESE_DIGITS: Readonly<Record<string, number>> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+function courseNumber(raw: string): number | undefined {
+  if (/^\d/.test(raw)) return Number(raw);
+  if (raw === "半") return 0.5;
+  if (raw === "十") return 10;
+  const tens = raw.match(/^([一二两三四五六七八九])?十([一二三四五六七八九])?$/u);
+  if (tens) return (tens[1] ? CHINESE_DIGITS[tens[1]] : 1) * 10 + (tens[2] ? CHINESE_DIGITS[tens[2]] : 0);
+  return raw.length === 1 ? CHINESE_DIGITS[raw] : undefined;
+}
+export function caseCourse(westernNames: readonly string[], chiefComplaint: string): "acute" | "chronic" | undefined {
+  const western = westernNames.join("；");
+  if (/慢性/u.test(western)) return "chronic";
+  if (/急性/u.test(western)) return "acute";
+  const match = String(chiefComplaint || "").normalize("NFKC")
+    .match(/(\d+(?:\.\d+)?|[一二两三四五六七八九十半]+)\s*(?:余|多)?\s*(年|个月|月|周|星期|天|日)/u);
+  const amount = match ? courseNumber(match[1]) : undefined;
+  if (!match || amount == null) return undefined;
+  const days = amount * ({ 年: 365, 个月: 30, 月: 30, 周: 7, 星期: 7, 天: 1, 日: 1 } as Record<string, number>)[match[2]];
+  return days >= 90 ? "chronic" : days <= 14 ? "acute" : undefined;
+}
+
+const SYNDROME_DESCRIPTOR_CHAR = /[寒湿热风暑燥火瘀血气虚实阴阳肾肝脾肺心胃胆痰郁滞亏损食积水饮]/u;
+/**
+ * 卡片小句里限定「写给哪一型、哪一期」的说法，及其与本例是否相符（2026-10-19 起按小句判，此前按整句）。
+ *  · 证型修饰本病名：「寒湿腰痛」「瘀血腰痛」（两字修饰语 + 病名），「热痹」「风寒湿痹」（1–3 字修饰语 + 病名首字，病名是「X证/X病」时）；
+ *    相符 = 修饰语每个字都在本例证候里；三字以上的类目（风寒湿痹）与本例病性有交集也算（痛痹属风寒湿痹）。
+ *  · 证型名直接带条件：「风热证…」「寒湿者…」，以及小句开头的证型名（可并列）后接「者」或「可/宜」：「瘀血阻络者可用三棱针点刺出血」
+ *   「肾阳虚衰可用隔附子饼灸」「肾气亏虚、脾气虚弱者可温针灸」；相符按证名概念（syndromeLabelFitsSigned）。
+ *  · 病程：「急性腰痛，痛势剧烈者…」「慢性泄泻每日或隔日治疗1次」，与本例病程（caseCourse）相反的不留。
+ */
+function clauseQualifierVerdict(
+  clause: string,
+  diseases: readonly string[],
+  syndrome: string,
+  course: "acute" | "chronic" | undefined,
+): "fits" | "other" | "none" {
+  const charFit = (descriptor: string) => [...descriptor].every((char) => syndrome.includes(char));
+  const have = syndromeConcepts(syndrome).natures;
+  const descriptorFits = (descriptor: string) => charFit(descriptor) ||
+    (descriptor.length >= 3 && [...syndromeConcepts(descriptor).natures].some((nature) => nature !== "虚" && have.has(nature)));
+  const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const verdicts: boolean[] = [];
+  for (const disease of diseases) {
+    for (const match of clause.matchAll(new RegExp(`([\\u4e00-\\u9fff]{2})${escape(disease)}`, "gu"))) {
+      if (SYNDROME_DESCRIPTOR_CHARS.test(match[1])) verdicts.push(descriptorFits(match[1]));
+    }
+    // 病名首字（痹证 → 痹，淋证 → 淋）前的 1–3 个证候用字：「热痹」「风寒湿痹」。
+    const head = /^[\u4e00-\u9fff][证病]$/u.test(disease) ? disease[0] : "";
+    if (head) {
+      for (const match of clause.matchAll(new RegExp(`([\\u4e00-\\u9fff]{1,3})${escape(head)}(?![证病])`, "gu"))) {
+        let descriptor = match[1];
+        while (descriptor && !SYNDROME_DESCRIPTOR_CHAR.test(descriptor[0])) descriptor = descriptor.slice(1);
+        if (descriptor && [...descriptor].every((char) => SYNDROME_DESCRIPTOR_CHAR.test(char))) verdicts.push(descriptorFits(descriptor));
+      }
+    }
+  }
+  for (const match of clause.matchAll(/([\u4e00-\u9fff]{2})(?:证|者|型)/gu)) {
+    if (SYNDROME_DESCRIPTOR_CHARS.test(match[1])) verdicts.push(descriptorFits(match[1]));
+  }
+  // 证型名本身不含「可、宜、用、者」：「寒证可用艾灸法」不能读成证型「寒证可」。
+  const lead = clause.trim().match(/^(?:若|如|凡|对于?)?((?:[^\x00-\x7F可宜用者、和及与或，,。；;\s]{2,4}[、和及与或])*[^\x00-\x7F可宜用者、和及与或，,。；;\s]{2,4})(者|证者|型者)?(?=可|宜|加用|用)/u);
+  if (lead) {
+    // 两字的只认带本病类型字的（便秘 → 冷秘、虚秘；痹证 → 热痹），免得「局部可…」这类两字词被当成证型。
+    const typeChar = (disease: string) => /[证病]$/u.test(disease) ? disease[0] : disease.slice(-1);
+    const labels = lead[1].split(/[、和及与或]/u).filter((label) => (lead[2] || label.length >= 3 || diseases.some((disease) => label.endsWith(typeChar(disease)))) &&
+      (syndromeConcepts(label).natures.size > 0 || syndromeLabelMatchesSigned(label, syndrome)) && !namesAcupoint(label) && !/灸|针|罐|刺/u.test(label));
+    // 条件里的证型与本例相符 = 同名，或脏腑与具体病性都在本例证候里（「胃寒积滞…可加灸」对胃中寒冷证）。
+    // 「积滞、郁滞」与泛称的「虚」不作比较，其余具体病性都要在本例证候里（寒湿腰痛对湿热腰痛不符）。
+    const overlapFits = (label: string) => {
+      const target = syndromeConcepts(label);
+      const specific = [...target.natures].filter((nature) => nature !== "虚" && nature !== "郁滞");
+      return specific.length > 0 && specific.every((nature) => have.has(nature)) &&
+        [...target.organs].every((organ) => syndromeConcepts(syndrome).organs.has(organ));
+    };
+    if (labels.length > 0) verdicts.push(labels.some((label) => syndromeLabelFitsSigned(label, syndrome) || charFit(label) || overlapFits(label)));
+  }
+  const courseWord = clause.trim().match(/^(急性|慢性)/u)?.[1];
+  if (courseWord && course && diseases.some((disease) => clause.includes(disease) || clause.includes(disease.replace(/[证病]$/u, "")))) {
+    verdicts.push((courseWord === "急性") === (course === "acute"));
+  }
+  if (verdicts.length === 0) return "none";
+  return verdicts.some(Boolean) ? "fits" : "other";
+}
+
+export function cardSentencesMatchedToSyndrome(
+  text: string,
+  diseaseNames: readonly string[],
+  signedSyndromeText: string,
+  course?: "acute" | "chronic",
+): string {
   const syndrome = String(signedSyndromeText || "");
   if (!text || !syndrome.trim()) return text;
   const diseases = diseaseNames.map((name) => name.trim()).filter((name) => name.length >= 2);
-  const fits = (descriptor: string) => [...descriptor].every((char) => syndrome.includes(char));
   const noMoxibustion = syndromeHasHeatNature(syndrome);
+  namesAcupoint("");
   // 「灸」只认施灸的说法：书名、出处括注里的「灸」（《刺法灸法学》）和「针灸」一词不算。施灸的小句只去那一小句
   //（「留针15分钟，灸5分钟。」→「留针15分钟。」）。此前整句判、句句都带出处里的「灸」，全删光后整段原样退回（2026-10-18 留出例 S002）。
   const moxibustionWording = (value: string) => /灸/.test(value.replace(/《[^》]*》|（[^）]*）|\([^)]*\)|针灸/g, "")) && !/禁灸|不宜灸|慎灸|忌灸|不灸/.test(value);
@@ -617,14 +907,28 @@ export function cardSentencesMatchedToSyndrome(text: string, diseaseNames: reado
     // 剩下的只是施灸的条件（「寒湿腰痛、肾虚腰痛者」「除阴虚火旺外」）时整句去。
     if (!rest.trim() || rest.length === sentence.length || /(?:者|外|时|后|则|可)\s*$/.test(rest) || /^\s*(?:若|如|除|凡)/.test(rest)) return [];
     return [/[。；;]$/.test(rest) ? rest : `${rest}${sentence.match(/[。；;]$/)?.[0] || ""}`];
-  }).filter((sentence) => {
-    const descriptors = [
-      ...diseases.flatMap((disease) => [...sentence.matchAll(new RegExp(`([\\u4e00-\\u9fff]{2})${disease.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "gu"))]
-        .map((match) => match[1])),
-      // 「风热证大椎可行刺络拔罐」「寒湿者加灸」：证型修饰语后面直接跟证/者/型，不带病名（2026-10-17 甲方标准病历 1，风寒感冒卡里的风热刺络）。
-      ...[...sentence.matchAll(/([\u4e00-\u9fff]{2})(?:证|者|型)/gu)].map((match) => match[1]),
-    ].filter((descriptor) => SYNDROME_DESCRIPTOR_CHARS.test(descriptor));
-    return descriptors.length === 0 || descriptors.some(fits);
+  }).flatMap((sentence) => {
+    // 写给别的证型、别的病程的小句不留：「风寒湿痹可加用灸法，热痹局部可点刺出血。」对痛痹只留前一小句（2026-10-19 Claude 评审
+    // X-H-0059、0437、0171 等 7 例）；「寒湿内盛、脾胃虚弱可用隔姜灸…；肾阳虚衰可用隔附子饼灸。」对脾胃虚弱去后一句（X-H-0146）；
+    //「急性腰痛，痛势剧烈者，阿是穴、委中可用三棱针点刺出血」对十年腰痛整句去（X-H-0097）。限定小句是条件（以者、时结尾，或只是
+    //「急性腰痛」这样的类型名）时，它管的是整句，整句去；本身带做法的只去这一小句。
+    const ending = sentence.match(/[。；;]\s*$/u)?.[0]?.trim() || "";
+    const clauses = sentence.replace(/[。；;]\s*$/u, "").split(/(?<=[，,])/);
+    const keptClauses: string[] = [];
+    for (const clause of clauses) {
+      // 「本例属X，在主穴基础上加…」是出卡时按已签名证候写的，不按类型名再筛一遍。
+      if (/^\s*本例属/u.test(clause)) { keptClauses.push(clause); continue; }
+      const verdict = clauseQualifierVerdict(clause, diseases, syndrome, course);
+      if (verdict !== "other") { keptClauses.push(clause); continue; }
+      const bare = clause.replace(/[，,]\s*$/u, "").trim();
+      const conditional = /(?:者|时)$/u.test(bare) || /^(?:若|如|凡)/u.test(bare) ||
+        diseases.some((disease) => bare.replace(/^(?:急性|慢性)/u, "").replace(/^[\u4e00-\u9fff]{0,2}/u, "") === disease) ||
+        /^(?:急性|慢性)[\u4e00-\u9fff]{1,4}$/u.test(bare);
+      if (conditional) return [];
+    }
+    if (keptClauses.length === clauses.length) return [sentence];
+    const joined = keptClauses.join("").replace(/[，,]\s*$/u, "").trim();
+    return joined ? [`${joined}${ending || "。"}`] : [];
   }).join("").trim();
   return kept || text;
 }
@@ -648,15 +952,46 @@ function namesAcupoint(clause: string): boolean {
 export function cardSentencesNamingListedPoints(text: string, points: readonly string[]): string {
   if (!text || points.length === 0) return text;
   namesAcupoint("");
-  const kept = text.split(/(?<=[。；;])/).filter((sentence) => {
-    // 点了穴名的句子，所点的穴至少一个在本卡上才留。注意句（禁、慎、避免…）照留——它常和操作写在同一句里
-    //（「毫针常规刺，膻中不宜直刺、深刺…」）；只有教材单列的「禁忌：」句点的穴都不在本卡上时不留
-    //（2026-10-18 甲方病历 6 腰痛卡上印着「禁忌：膏肓、肺俞、膈俞等穴局部肌肉薄…避免气胸」，本卡取的是腰部穴）。
-    const named = [...sentence.matchAll(new RegExp(acupointNamePattern!.source, "g"))].map((match) => match[0]);
-    const namesCardPoint = named.length === 0 || named.some((name) => points.some((point) => point.includes(name)));
-    if (/^\s*禁忌[：:]/u.test(sentence)) return namesCardPoint;
-    if (/禁|慎|勿|避免|不宜|不可|以免/.test(sentence)) return true;
-    return namesCardPoint;
+  const onCard = (name: string) => points.some((point) => point.includes(name));
+  const namedIn = (value: string) => [...value.matchAll(new RegExp(acupointNamePattern!.source, "g"))].map((match) => match[0]);
+  // 「背俞穴注意针刺的方向、角度和深度」说的是一类穴：卡上没有任何背俞穴（…俞）时与本卡无关（2026-10-19 Claude 评审 H-tri-5396 不寐卡）。
+  const categoryOffCard = (value: string) => /背俞穴/u.test(value) && !points.some((point) => /俞(?:（|$)/u.test(point));
+  const kept = text.split(/(?<=[。；;])/).flatMap((sentence) => {
+    // 点了穴名的句子，所点的穴至少一个在本卡上才留（2026-10-17 甲方病历 1）。教材单列的「禁忌：」句同样（2026-10-18 甲方病历 6 腰痛卡上
+    // 印着「禁忌：膏肓、肺俞、膈俞等穴局部肌肉薄…避免气胸」）。
+    const named = namedIn(sentence);
+    if (/^\s*禁忌[：:]/u.test(sentence)) return named.length === 0 || named.some(onCard) ? [sentence] : [];
+    // 其余按小句判（2026-10-19 Claude 评审）：注意小句（禁、慎、不宜、不可…）点的穴都不在卡上时去掉这一小句——此前整句照留，
+    // 产后尿失禁卡上印着「肺俞、脾俞不可直刺、深刺」（H-tri-14396），水肿卡印着「肺俞不宜直刺、深刺」（H-tri-3750）；
+    // 并列点穴（「大敦、隐白可点刺出血」）只留在卡上的那几个穴名（H-tri-15803 卡上没有隐白）。
+    const ending = sentence.match(/[。；;]\s*$/u)?.[0]?.trim() || "";
+    const clauses = sentence.replace(/[。；;]\s*$/u, "").split(/(?<=[，,])/);
+    // 去掉的小句后面紧跟的「以免…」「以防…」是它的下半句，一并去掉（水肿卡「毫针常规刺，肺俞不宜直刺、深刺，以免伤及内脏」）。
+    // 按小句去的是注意小句与以穴名开头的做法小句（「神阙用灸，余穴毫针常规刺」去前一小句；「足三里行补法」）；穴名在小句中间的
+    //（「使针感能到达会阴…」的会阴是部位）不按穴名去。
+    const cautionClause = (clause: string) => /禁|慎|勿|避免|不宜|不可|切忌|注意/u.test(clause) ||
+      new RegExp(`^\\s*(?:${acupointNamePattern!.source})`, "u").test(clause);
+    let droppedPrevious = false;
+    const keptClauses = clauses.flatMap((clause) => {
+      if (droppedPrevious && /^\s*(?:以免|以防|防止|免得|否则|或|亦可|也可)/u.test(clause)) return [];
+      droppedPrevious = false;
+      if (categoryOffCard(clause)) { droppedPrevious = true; return []; }
+      const names = namedIn(clause);
+      if (names.length === 0) return [clause];
+      if (!names.some(onCard) && cautionClause(clause)) { droppedPrevious = true; return []; }
+      const list = clause.match(new RegExp(`^\\s*((?:(?:${acupointNamePattern!.source})、)+(?:${acupointNamePattern!.source}))`, "u"));
+      if (!list) return [clause];
+      const listed = list[1].split("、").filter(onCard);
+      return listed.length > 0 ? [`${listed.join("、")}${clause.slice(list[0].length)}`] : [clause];
+    });
+    if (keptClauses.length === 0) return [];
+    // 做法句（不带注意字样）点的穴一个都不在卡上：整句不留（2026-10-17 甲方病历 1「少商、商阳用点刺放血法」）。
+    const remainingNames = namedIn(keptClauses.join(""));
+    if (remainingNames.length > 0 && !remainingNames.some(onCard) && !/禁|慎|勿|避免|不宜|不可|以免|切忌/u.test(keptClauses.join(""))) return [];
+    if (keptClauses.length === clauses.length && keptClauses.every((clause, index) => clause === clauses[index])) return [sentence];
+    const joined = keptClauses.join("").replace(/[，,]\s*$/u, "").trim();
+    // 剩下的只是没有做法的半句（「毫针常规刺，」之外全被去掉时照常收句）。
+    return joined ? [`${joined}${ending || "。"}`] : [];
   }).join("").replace(/[；;](\s*)(?=禁忌[：:]|$)/g, "。$1").trim();
   return kept || text;
 }
@@ -698,7 +1033,8 @@ export function cardTextForPopulation(text: string, reproductiveRelevant: boolea
 
 /** 刺络放血类操作（刺络拔罐、点刺出血、三棱针）。 */
 // 「皮肤针重叩出血后加拔火罐」也是出血类操作（2026-10-17 留出集：脾虚湿蕴、糜烂渗出的湿疮仍写这一句）。
-const BLOODLETTING_SENTENCE = /刺络|放血|点刺出血|三棱针|刺血|叩(?:刺|至)?出血|重叩出血|出血后加拔/;
+// 「皮肤针重叩使出血少许，加拔罐」同样算（2026-10-19 Claude 评审：膝骨性关节炎·肝肾亏损的拔罐卡）。
+const BLOODLETTING_SENTENCE = /刺络|放血|点刺出血|三棱针|刺血|叩(?:刺|至)?出血|重叩出血|叩[^，,。；;]{0,3}使出血|出血后加拔/;
 /** 病历写到的皮肤破损（抓破、结痂、破溃、糜烂、渗液）：这些部位不宜拔罐、刺络。 */
 const BROKEN_SKIN_FACT = /抓痕|血痂|结痂|破溃|溃烂|糜烂|溃疡|渗液|渗出|皲裂/;
 const ELDERLY_AGE_YEARS = 65;
@@ -741,7 +1077,7 @@ function withoutBloodlettingWhenUnsuitable(text: string, input: TextbookPlanInpu
   text = text.split(/(?<=[。；])/).filter((sentence) => !(BLOODLETTING_SENTENCE.test(sentence) &&
     (FACIAL_SITE.test(sentence) || (facialLesion && LESION_LOCAL_SITE.test(sentence))))).join("").trim();
   const elderly = input.patientAgeYears != null && input.patientAgeYears >= ELDERLY_AGE_YEARS;
-  const deficiency = signedSyndromeDeficiencyExcess(input.signedSyndromeText) === "deficiency";
+  const deficiency = signedPrimaryHasDeficiency(input.signedSyndromeText, input.signedPrinciple);
   const brokenSkin = BROKEN_SKIN_FACT.test(input.currentFacts);
   if (!elderly && !deficiency && !brokenSkin) return text;
   // 只去放血的那几小句：同一句里另有针法（蛇串疮「皮损局部阿是穴用围刺法，即…向疱疹带中央沿皮平刺，也可在阿是穴散刺出血后加拔火罐」）
@@ -917,10 +1253,13 @@ export function operationClausesForAge(text: string, ageYears: number | undefine
   const child = ageYears < 12;
   const elderly = ageYears >= ELDERLY_AGE_YEARS;
   if (!child && !elderly) return text;
+  // 深刺（未写「不可、不宜…」的）对小儿与老人都不写：同卡的小儿说明是「宜浅刺、快出针」（2026-10-19 Claude 评审 H-tri-3721：9 岁患儿的
+  // 痹证卡写「小儿针刺宜浅刺…」又写「病在筋骨可深刺」）。小儿另不写重刺激、强刺激（同卡「手法宜轻」）。
+  const deepNeedling = (clause: string) => /深刺/.test(clause) && !/不可|不宜|勿|避免|禁|以免/.test(clause);
   const unsuitable = (clause: string) => child
-    ? /留针[^。；，,]{0,8}\d|留针时间宜长|延长留针|久留针/.test(clause)
+    ? /留针[^。；，,]{0,8}\d|留针时间宜长|延长留针|久留针|重刺激|强刺激/.test(clause) || deepNeedling(clause)
     : /重刺激|强刺激|久留针|留针时间宜长|延长留针|留针[^。；，,]{0,8}(?:小时|[4-9]\d\s*分钟|3[1-9]\s*分钟)/.test(clause) ||
-      (/深刺/.test(clause) && !/不可|不宜|勿|避免|禁|以免/.test(clause));
+      deepNeedling(clause);
   return text.split(/(?<=[。；;])/).map((sentence) => {
     if (!unsuitable(sentence)) return sentence;
     const ending = sentence.match(/[。；;]\s*$/)?.[0]?.trim() || "";
@@ -972,6 +1311,15 @@ export function auricularMethodsForChild(text: string): string {
 /** 四字随症配穴拆开时，后一半是这类泛词就不放宽到只看前一半首字（「腰骶疼痛」不因「腰部疼痛」成立）。 */
 const GENERIC_SYMPTOM_HALVES: ReadonlySet<string> = new Set(["疼痛", "不适", "加重", "发作", "明显", "无力"]);
 
+/**
+ * 教材扫描文本里的错字（闭集，每条都对过原书上下文）：生成物保留扫描原文，出卡时改正，与 tcm-textbook-syndromes 的 TEXTBOOK_OCR_FIXES 同一做法。
+ * 「顽同性头痛」即「顽固性头痛」（《针灸治疗学》头痛节其他治疗·耳针，第 8995 行；2026-10-19 Claude 评审 H-tri-10297、9376）。
+ */
+const NONDRUG_TEXTBOOK_OCR_FIXES: ReadonlyArray<readonly [string, string]> = [["顽同性", "顽固性"]];
+function textbookOcrFixed(text: string): string {
+  return NONDRUG_TEXTBOOK_OCR_FIXES.reduce((value, [wrong, right]) => value.split(wrong).join(right), String(text || ""));
+}
+
 function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | undefined {
   const entries = matchDiseaseEntries(data.acupuncture, input.diseaseNames, input.westernNames);
   if (entries.length === 0) return undefined;
@@ -989,7 +1337,7 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
   // 教材分套写基本治疗的病：按本例证候只取对应的一套（见 pickBasicTreatmentVariant）。
   const variant = code === "acupuncture" ? pickBasicTreatmentVariant(primary, input) : undefined;
   if (code === "acupuncture") {
-    base = { points: variant?.mainPoints || primary.mainPoints, content: variant?.therapy || primary.therapy, system: "body", line: primary.line, entry: primary };
+    base = { points: variant?.mainPoints || primary.mainPoints, content: textbookOcrFixed(variant?.therapy || primary.therapy), system: "body", line: primary.line, entry: primary };
   } else {
     for (const entry of [primary, ...entries.filter((item) => item !== primary)]) {
       const items = entry.projects[code] || [];
@@ -998,9 +1346,15 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
       // 原文里紧跟着「穴」的耳穴名补回来。
       const merged = uniq(items.flatMap((item) => item.points.map((point) =>
         item.pointSystem === "ear" && point.endsWith("耳") && item.content.includes(`${point}穴`) ? `${point}穴` : point)));
+      const content = textbookOcrFixed(items.map((item) => item.content).join(" "));
+      // 「相应病变脏腑（肺、脾、肝、肾）」是取穴说明、括注里才是穴：不把说明本身当一个穴列出（2026-10-19 Claude 评审 H-tri-13758、1173、2579）。
+      const optionHeader = (point: string) => {
+        const options = content.match(new RegExp(`${point.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}（([^）]+)）`, "u"))?.[1];
+        return Boolean(options) && options!.split(/[、，,]/u).map((item) => item.trim()).filter(Boolean).every((item) => merged.includes(item));
+      };
       base = {
-        points: merged,
-        content: items.map((item) => item.content).join(" "),
+        points: merged.filter((point) => !optionHeader(point)),
+        content,
         system: items[0].pointSystem,
         line: items[0].line,
         entry,
@@ -1016,12 +1370,12 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     return undefined;
   }
 
-  // 主穴按部位分组的病（痹病）：只取本例疼痛部位那几组，对不上部位时只留阿是穴。
-  const regionalGroups = code === "acupuncture" ? REGIONAL_MAIN_POINT_GROUPS[base.entry.disease] : undefined;
-  const matchedRegions = regionalGroups ? regionalGroups.filter((group) => group.cue.test(input.currentFacts.normalize("NFKC"))) : [];
-  const regionalBase = regionalGroups
+  // 主穴按部位分组的病（痹病、头痛、痿证）：只取本例不适部位那几组；对不上部位时痹病只留阿是穴，头痛、痿证保持全部主穴。
+  const regionalScheme = code === "acupuncture" ? REGIONAL_MAIN_POINT_GROUPS[base.entry.disease] : undefined;
+  const matchedRegions = regionalScheme ? matchedRegionalGroups(regionalScheme, input.currentFacts) : [];
+  const regionalBase = regionalScheme && (matchedRegions.length > 0 || regionalScheme.unmatched === "local_only")
     ? (() => {
-        const grouped = new Set(regionalGroups.flatMap((group) => group.points));
+        const grouped = new Set(regionalScheme.groups.flatMap((group) => group.points));
         const keep = new Set(matchedRegions.flatMap((group) => group.points));
         return base.points.filter((name) => !grouped.has(name) || keep.has(name));
       })()
@@ -1039,20 +1393,25 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     const picked = pickSyndromes(candidateSyndromes, input.signedSyndromeText, input.currentFacts);
     if (picked.length > 0) {
       tailored = true;
+      // 「在主穴基础上加…」只写穴位表里有的穴：禁针穴（神阙）不列入针刺取穴，正文也不写（2026-10-19 Claude 评审 X-H-0174、0163：
+      // 正文「加脾俞、神阙」，穴位表里没有神阙）。
+      const addedNames: string[] = [];
       for (const syndrome of picked) {
         syndromeLabels.push(syndrome.label);
         for (const point of syndrome.addPoints) {
+          if (NO_NEEDLE_POINTS.has(point)) continue;
+          if (!addedNames.includes(point)) addedNames.push(point);
           if (!points.some((existing) => existing.name === point)) points.push({ name: point, role: "syndrome_refinement", syndromeLabel: syndrome.label, note: `${syndrome.label}配穴` });
         }
       }
-      syndromeClause = `本例属${picked.map((item) => item.label).join("、")}，在主穴基础上加${picked.flatMap((item) => item.addPoints).join("、")}。`;
+      syndromeClause = `本例属${picked.map((item) => item.label).join("、")}${addedNames.length > 0 ? `，在主穴基础上加${addedNames.join("、")}` : ""}。`;
     } else if (input.catalogSyndromeRefinement && input.catalogSyndromeRefinement.addPoints.length > 0) {
       // 教材本节没有本例证型（腰痛节无湿热腰痛）、院内目录的证型配穴已命中时：教材主穴 + 目录配穴（2026-10-19 留出例 S086：
       // 目录模板主穴只是「局部阿是穴（查体确认）」「循经远端穴（按疼痛部位选择）」，没有委中、肾俞、大肠俞）。
       const refinement = input.catalogSyndromeRefinement;
       const removed = new Set(refinement.removePoints || []);
       for (let index = points.length - 1; index >= 0; index -= 1) if (removed.has(points[index].name)) points.splice(index, 1);
-      const added = refinement.addPoints.filter((point) => !points.some((existing) => existing.name === point));
+      const added = refinement.addPoints.filter((point) => !points.some((existing) => existing.name === point) && !NO_NEEDLE_POINTS.has(point));
       if (added.length > 0) {
         tailored = true;
         syndromeLabels.push(refinement.label);
@@ -1083,7 +1442,7 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
         (clause.includes(halves[0]) || (!GENERIC_SYMPTOM_HALVES.has(halves[1]) && clause.includes(halves[0][0])));
       const present = label.length >= 2 && (facts.includes(label) || (halves.length === 2 && factClauses.some(halfInClause)));
       if (!present) continue;
-      const fresh = item.points.filter((point) => !points.some((existing) => existing.name === point) && !oppositeTypePoints.has(point));
+      const fresh = item.points.filter((point) => !points.some((existing) => existing.name === point) && !oppositeTypePoints.has(point) && !NO_NEEDLE_POINTS.has(point));
       if (fresh.length === 0) continue;
       for (const point of fresh) points.push({ name: point, role: "conditional_point", note: `本例有「${item.symptom}」加用` });
       symptomParts.push(`${item.symptom}加${fresh.join("、")}`);
@@ -1103,7 +1462,13 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
   // 小儿耳穴只用压丸（auricularMethodsForChild）。
   const childEar = code === "auricular" && input.patientAgeYears != null && input.patientAgeYears < 12;
   const projectContent = childEar ? auricularMethodsForChild(base.content) : base.content;
-  const meridianSentence = acupunctureTherapy.split("。").map((part) => part.trim()).filter((part) => /^取/.test(part)).join("。");
+  const takeSentence = (therapy: string) => therapy.split("。").map((part) => part.trim()).filter((part) => /^取/.test(part)).join("。");
+  // 分套写的病判不出该取哪一套时，取穴说明按套写明（「实证取…为主；虚证取…为主」）。此前只留「取…」小句、套名丢了，
+  // 卡上是「取手太阴、手足阳明经穴为主。取足少阴经穴为主。」两句互相矛盾（2026-10-19 Claude 评审 X-H-0107、X-H-0047、X-H-0280）。
+  const undecidedVariants = code === "acupuncture" && !variant ? (primary.variants || []).filter((item) => item.label && takeSentence(item.therapy)) : [];
+  const meridianSentence = undecidedVariants.length >= 2
+    ? undecidedVariants.map((item) => `${item.label}${takeSentence(item.therapy)}`).join("；")
+    : takeSentence(acupunctureTherapy);
   // 分套治法（眩晕实证一套写肝阳上亢、痰湿中阻两证：「平肝潜阳，和胃化痰」）只留与本例证候相符的那几小句（2026-10-19，
   // 验收集纯肝阳上亢或纯痰湿的 4 例照印整句、评审判治法与证不符）。
   const therapyForCase = therapyClausesForSyndrome(acupunctureTherapy, input.signedSyndromeText, Boolean(variant));
@@ -1114,8 +1479,9 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
       ? /^取/.test(therapyForCase) ? `${cutText(therapyForCase, 80)}。` : `治法：${cutText(therapyForCase, 80)}。`
       // 「（本例证型在教材中没有对应的配穴）」是系统在讲自己查表的结果，不是给医生的治疗内容（2026-10-19 终评 S067 等 8 例点名）：只写按病取的主穴。
       : `按病取基本穴：${cutText(meridianSentence, 70)}。`
-    : `${projectName}${cutText(withoutFacialPointBloodletting(withoutBloodlettingWhenUnsuitable(projectContent, input), base.points), 240)}`;
-  const variantOperation = variant?.operation || primary.operation;
+    : `${projectName}${cutText(operationClausesForAge(withoutFacialPointBloodletting(withoutBloodlettingWhenUnsuitable(
+      withSyndromeMatchedClauses(projectContent, input), input), base.points), input.patientAgeYears), 240)}`;
+  const variantOperation = textbookOcrFixed(variant?.operation || primary.operation);
   const operation = code === "acupuncture" ? variantOperation : projectContent;
   // 其他疗法不借针刺的操作句：此前耳穴、拔罐卡的疗程栏里出现「外感咳嗽针用泻法，肺俞可配闪罐」（2026-10-14 独立评审）。
   const ageFit = (text: string) => operationClausesForAge(text, input.patientAgeYears);
@@ -1135,9 +1501,27 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
       : defaultClause
         ? `${defaultClause}间隔与疗程按病情和耐受确定。`
         : "间隔与疗程按病情和耐受确定。";
-  const technique = ageFit(withoutFacialPointBloodletting(withoutBloodlettingWhenUnsuitable(withSyndromeMatchedClauses(code === "acupuncture"
-    ? cutText(variantOperation || "毫针常规针刺。", 420)
-    : cutText(`${projectContent}`, 420), input), input), base.points)) || "穴位常规刺。";
+  // 针刺卡的操作栏：教材操作原句去掉已作疗程栏的那一句（此前「头痛急性发作时每日治疗1-2次…」在疗程栏、操作栏各印一遍）。
+  // 其他项目（耳穴、拔罐、灸法）的操作就是治疗内容栏那段教材原文，操作栏不再逐字重抄，只写技术禁忌（2026-10-19 Claude 评审：
+  // X-H-0334、0454、0129 等 10 张耳穴卡「技术边界」与「治疗内容」逐字相同）。
+  // 只去那一句里说频次的小句，同句的手法照留（「内伤咳嗽针用平补平泻或补法，每日或隔日治疗1次」→「内伤咳嗽针用平补平泻或补法。」）。
+  const operationWithoutSchedule = (text: string) => {
+    const sentence = frequency.replace(/[。]+$/u, "").trim();
+    if (!sentence) return text;
+    return text.split(/(?<=[。；;])/).map((part) => {
+      if (ageFit(part.replace(/[。；;]\s*$/u, "").trim()) !== sentence) return part;
+      const ending = part.match(/[。；;]\s*$/u)?.[0]?.trim() || "。";
+      const kept = part.replace(/[。；;]\s*$/u, "").split(/(?<=[，,])/)
+        .filter((clause) => !(/每日|每天|隔日|每周|一日|每隔/u.test(clause) && /\d/u.test(clause) && clause.includes("次")))
+        .join("").replace(/[，,]\s*$/u, "").trim();
+      return kept ? `${kept}${ending}` : "";
+    }).join("");
+  };
+  const technique = code === "acupuncture"
+    ? ageFit(withoutFacialPointBloodletting(withoutBloodlettingWhenUnsuitable(withSyndromeMatchedClauses(
+      operationWithoutSchedule(cutText(variantOperation || "毫针常规针刺。", 420)), input), input), base.points)) || "毫针常规刺。"
+    : "";
+  const contraindications = techniqueContraindications(code);
 
   return {
     kind: "acupoint",
@@ -1146,7 +1530,8 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     items: [],
     scheduleSuggestion: cutText(schedule, 560),
     // 「补泻手法、进针深度」只对用针的项目成立（拔罐、灸法卡上也挂着这句——2026-10-14 复核时发现）。
-    techniqueBoundary: cutText(`${technique} ${techniqueContraindications(code)}${code === "acupuncture" || (code === "auricular" && !childEar) ? "补泻手法、进针深度以现场查体为准。" : ""}`.trim(), 980),
+    techniqueBoundary: cutText(`${technique} ${contraindications}${code === "acupuncture" || (code === "auricular" && !childEar) ? "补泻手法、进针深度以现场查体为准。" : ""}`.trim(), 980) ||
+      "操作参数以现场评估为准。",
     protocolSource: cutText(`${citation}${secondary && code === "acupuncture" ? `；《${data.sources[secondary.book]?.title}》同名节（教材原文第${secondary.line}行）` : ""}${web ? `；${web.citation}` : ""}`, 980),
     syndromeLabels,
     syndromeTailored: tailored,
@@ -1196,15 +1581,39 @@ function dietSyndromeByConcepts<T extends DietSyndrome>(syndromes: readonly T[],
     .sort((left, right) => right.score - left.score || left.index - right.index)[0]?.syndrome;
 }
 
+/**
+ * 方里的药味与本例病历的教材【使用注意】相冲（大便溏泻者慎用的苦杏仁给日泻 7～9 次的病人，2026-10-19 Claude 评审
+ * M-TCM-RobustSDT-single_0501）：判据与处方药味同一个 herbRecordCautionConflict（《中药学》使用注意 × 病历阳性面）。
+ */
+export function recipeConflictsWithRecordedCaution(recipeText: string, currentFacts: string, signedSyndromeText: string): boolean {
+  return formulaAnalysisHerbMentions(String(recipeText || "").split("。")[0] || "")
+    .some((mention) => !commonFoods().has(mention.token) && Boolean(herbRecordCautionConflict(mention.token, currentFacts, signedSyndromeText)));
+}
+
+/** 方子原文里说怎么吃的那一小句（取最后一处，不取写配料用量的小句）。 */
+function recipeUsageClause(text: string): string {
+  const clauses = String(text || "").split(/[。；;，,]/u).map((clause) => clause.trim()).filter(Boolean);
+  for (let index = clauses.length - 1; index >= 0; index -= 1) {
+    const clause = clauses[index];
+    if (/\d+(?:\.\d+)?\s*(?:g|克)/u.test(clause) || /^(?:备注|注[:：]|注意)/u.test(clause)) continue;
+    if (/服|饮|食用|佐餐|代茶|早餐|晚餐|空腹|频频/u.test(clause)) return clause;
+  }
+  return "";
+}
+
 function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | undefined {
   const entries = matchDiseaseEntries(data.diet, input.diseaseNames, input.westernNames);
   const entry = entries[0];
   if (!entry) return undefined;
+  const recordCautionConflict = (recipeText: string) => recipeConflictsWithRecordedCaution(recipeText, input.currentFacts, input.signedSyndromeText);
   // 教材里有些食疗方只写「见‘血证’节」这类互见，没有配料与做法，不能当方案给出。
   const safeRecipes = (syndrome: DietSyndrome) => syndrome.recipes.filter((recipe) =>
     recipe.text.length >= 20 && !recipe.text.startsWith("见") && recipeUsesOnlyFoodSafeIngredients(recipe.text) &&
     !recipeExceedsHighRiskHerbDose(recipe.text) && !recipeContradictsDietPrinciple(recipe.text, syndrome.method) &&
     !(input.avoidRichFood && recipeHasRichIngredient(recipe.text)) &&
+    !(input.recordedDiabetes && recipeUnsuitableForDiabetes(recipe.text)) &&
+    !(input.avoidTea && TEA_LEAF_INGREDIENT.test(String(recipe.text).split("。")[0] || "")) &&
+    !recordCautionConflict(recipe.text) &&
     // 生姜、葱、花椒这类作调料的普通食物不算（目录 commonFoodAllowlist），只看真正的药味。
     !(input.herbAlreadyPrescribed && formulaAnalysisHerbMentions(String(recipe.text).split("。")[0] || "")
       .some((mention) => !commonFoods().has(mention.token) && input.herbAlreadyPrescribed!(mention.token))));
@@ -1215,14 +1624,20 @@ function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | 
   const usable = entry.syndromes.filter((syndrome) => safeRecipes(syndrome).length > 0);
   // 字面对上的分型即本例证型：它没有可给的食疗方（方中有非药食同源药材）时就不出食疗，不再按概念换一型
   //（黄疸·热重于湿的方子都含茵陈，按概念会落到「湿热留恋，以除余邪」那一型，那是恢复期）。
-  const literal = entry.syndromes.find((syndrome) => syndromeLabelMatchesSigned(syndrome.label, input.signedSyndromeText));
+  // 主证先于兼证（脾胃虚寒证兼湿热中阻证给脾胃虚寒的方子，不按教材排序先碰上的兼证那一型）。
+  const primarySyndrome = String(input.signedSyndromeText || "").split(/[；;]/)[0] || "";
+  const literal = entry.syndromes.find((syndrome) => syndromeLabelMatchesSigned(syndrome.label, primarySyndrome)) ||
+    entry.syndromes.find((syndrome) => syndromeLabelMatchesSigned(syndrome.label, input.signedSyndromeText));
   const matched = literal
     ? usable.find((syndrome) => syndrome === literal)
     : dietSyndromeByConcepts(usable, input.signedSyndromeText, input.currentFacts);
   if (!matched) return undefined;
   const first = safeRecipes(matched)[0];
   const items = [format(matched, first)];
-  const usage = frequencySentence(first.text) || first.text.split("。").find((part) => part.includes("每日") || part.includes("每天")) || "";
+  // 疗程栏照方子自己的服法写（「每早空腹及午饭前各服半杯」「趁热频服」「泡水代茶饮」）；此前没有「每日N次」时一律写
+  //「随三餐食用」，与方子的服法相反（2026-10-19 Claude 评审 X-H-0326、0174、0406、0276、0312）。
+  const usage = frequencySentence(first.text) || first.text.split("。").find((part) => part.includes("每日") || part.includes("每天")) ||
+    recipeUsageClause(first.text);
   const dietHead = matched.method ? `食疗原则：${matched.method.replace(/[。]+$/, "")}。` : "";
   return {
     kind: "diet",
@@ -1231,7 +1646,7 @@ function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | 
     treatmentContent: contentWithItems(dietHead, items),
     points: [],
     items,
-    scheduleSuggestion: cutText(usage ? `${usage.replace(/[。]+$/, "")}。` : "随三餐食用，复诊时按症状变化调整。", 560),
+    scheduleSuggestion: cutText(usage ? `${usage.replace(/[。]+$/, "")}。` : "按方中做法食用，复诊时按症状变化调整。", 560),
     techniqueBoundary: "仅作饮食调养，不替代药物治疗；对方中食材过敏者不用，糖尿病、慢性肾病、孕期哺乳期及正在服用抗凝药者请先咨询医生。",
     protocolSource: cutText(bookCitation(data, "shiliao", entry.disease, entry.line), 980),
     syndromeLabels: [matched.label],

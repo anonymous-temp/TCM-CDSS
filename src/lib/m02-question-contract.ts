@@ -1,16 +1,17 @@
 import { redFlagExplicitOnly } from "./clinical-facts";
 import { pulseOptionsMutuallyExclusive, textbookDiscriminatingQuestion, tongueOptionsMutuallyExclusive, withoutFingerVeinClause } from "./tcm-textbook-syndromes";
-import { FOLLOWUP_SKIP_SENTENCE, POSSIBLE_RISK_QUESTIONS, riskQuestionQuotePrefix } from "./followup-conversation";
+import { FOLLOWUP_SKIP_SENTENCE, POSSIBLE_RISK_QUESTIONS, riskQuestionQuotePrefix, riskScreeningQuestionFor, type RiskQuestionVariant } from "./followup-conversation";
+import { PEDIATRIC_STRUCTURED_WORD_PATTERN, pediatricDoseRuleForAgeYears, pediatricDoseRuleForStageWords } from "./pediatric-dose-rule";
 import { affirmedClinicalText } from "./clinical-polarity";
 import type { Completeness } from "./diagnosis-types";
 
 type QuestionFallbackCase = {
-  patient?: { age?: number | string };
+  patient?: { age?: number | string; sex?: string };
   chiefComplaint?: string;
   symptoms?: Record<string, unknown>;
   tongue?: string;
   pulse?: string;
-  clinicalFacts?: { redFlags?: Array<{ category?: string; status?: string; urgency?: string; quote?: string }> };
+  clinicalFacts?: { redFlags?: Array<{ category?: string; status?: string; urgency?: string; quote?: string; subject?: string }> };
   /** 病历已经回答了其急症筛查题的类目（路由按 m02-risk-question-answerability 的核对结果写入），这些类目不再出筛查题。 */
   m02SuppressedRiskCategories?: readonly string[];
   /**
@@ -24,7 +25,7 @@ type QuestionFallbackCase = {
    */
   m02ModelOwnedRiskCategories?: readonly string[];
   vitals?: Record<string, unknown>;
-  hisRecord?: { fields?: { age?: string; zhushu?: string; xianbingshi?: string; tcmDetail?: string; tcmTongue?: string; tcmPulse?: string } };
+  hisRecord?: { fields?: { age?: string; sex?: string; zhushu?: string; xianbingshi?: string; tcmDetail?: string; tcmTongue?: string; tcmPulse?: string } };
 };
 
 export const M02_TARGET_FIELDS = [
@@ -353,6 +354,8 @@ function groundedRiskFactCandidates(state?: QuestionFallbackCase) {
  * question 路由据此在事实抽取（qwen3.8-max，冷启动约 6.6s）进行中先发出题（约 3.4s），
  * 事实回来后指纹不同就丢弃先发结果、按事实重出——输出与串行时逐字等价，只省等待。
  * 新增任何读取 clinicalFacts 的 M02 环节，必须同时进入本指纹，否则先发结果会漏掉它。
+ * 2026-10-19 起兜底题还读一处：需优先评估的线索（m02PriorityEvaluationQuestion），只读 status=positive|possible 的条目，
+ * 已在 promptFacts 里（整条对象序列化，含 urgency、subject、quote）。
  */
 export function m02ClinicalFactsFootprint(state?: QuestionFallbackCase): string {
   const flags = state?.clinicalFacts?.redFlags || [];
@@ -369,12 +372,92 @@ function possibleRiskQuestion(state?: QuestionFallbackCase): PossibleRiskQuestio
       return rank(right) - rank(left);
     });
   const category = candidates[0]?.category;
-  const question = category ? POSSIBLE_RISK_QUESTIONS[category] : undefined;
-  if (!category || !question) return undefined;
-  // 「其他急危重线索」没有类目自己的筛查内容，题干只有「请复核该异常是否正在发生」——脱离上下文读不出「该异常」是什么
-  //（2026-10-14 独立评审）。把事实层给的病历原话放在题干前面，指代才有着落；闸门识别作答时会先去掉这段引文。
-  const quote = category === "other_critical" ? riskQuestionQuote(candidates[0]?.quote) : "";
+  return category ? screeningQuestionForFinding(category, candidates[0]?.quote, state) : undefined;
+}
+
+/** 兜底题看的病历全文（各字段拼接；甲方把病历放在 symptoms 的各个键下）。 */
+function fallbackRecordText(state?: QuestionFallbackCase): string {
+  return [
+    state?.chiefComplaint,
+    ...Object.values(state?.hisRecord?.fields || {}),
+    ...Object.values(state?.symptoms || {}),
+  ].filter((value): value is string => typeof value === "string").join("；");
+}
+
+function fallbackAgeDays(state: QuestionFallbackCase | undefined, recordText: string): number | undefined {
+  return m02PatientAgeDays(state?.patient?.age ?? state?.hisRecord?.fields?.age, recordText);
+}
+
+/**
+ * 某类急症线索的筛查题：类目固定题，按人群或病历写法换成 followup-conversation.RISK_QUESTION_VARIANTS 里的写法
+ *（2026-10-19 r1019 第四轮）。闸门识别作答时各种写法同等对待，阳性选项不变。
+ *  · 新生儿、乳婴儿的儿童危重筛查问吃奶，不问「拒绝饮水」；未满 3 岁（或年龄不详的儿童）的感染筛查不问寒战、血压；
+ *  · 出血：事实层给了病历原话时，原话放在题干前（出血部位就在引文里），只问是否仍在出血及头晕心慌出冷汗；
+ *    没有原话时男性去掉阴道流血一项；
+ *  · 「其他急危重线索」没有类目自己的筛查内容，题干总带病历原话（2026-10-14 独立评审：脱离上下文读不出指的是什么）。
+ * 闸门识别作答时会先去掉题干前的引文。
+ */
+function screeningQuestionForFinding(category: string, rawQuote: unknown, state?: QuestionFallbackCase): PossibleRiskQuestion | undefined {
+  if (!POSSIBLE_RISK_QUESTIONS[category]) return undefined;
+  const recordText = fallbackRecordText(state);
+  const band = m02YoungChildBand(fallbackAgeDays(state, recordText), recordText);
+  const quote = category === "other_critical" || category === "bleeding" ? riskQuestionQuote(rawQuote) : "";
+  const sex = `${state?.patient?.sex || ""}${state?.hisRecord?.fields?.sex || ""}`;
+  const variant: RiskQuestionVariant | undefined =
+    category === "pediatric_critical" && (band === "neonate" || band === "infant") ? "infant"
+      : category === "sepsis" && band ? "youngChild"
+        : category === "bleeding" && quote ? "anchored"
+          : category === "bleeding" && /男/u.test(sex) && !/女/u.test(sex) ? "male"
+            : undefined;
+  const question = riskScreeningQuestionFor(category, variant);
+  if (!question) return undefined;
   return { category, ...question, question: quote ? `${riskQuestionQuotePrefix(quote)}${question.question}` : question.question };
+}
+
+/**
+ * 安全闸门会列为「需优先评估」、本轮却没有筛查题的那条事实层线索（2026-10-19 r1019 第四轮，Claude 评审 B 集）。
+ *
+ * 急症筛查题只为 urgency=urgent 的线索而出（groundedRiskFactCandidates）；事实层判为 clarify 的阳性线索、没有类目筛查题的
+ * 上消化道警示征象、以及病历已写明正在发生（affirmed）的类目，闸门都列在 priority_evaluation_required 里，而模型这一轮没问、
+ * 服务端兜底题照旧问「怕冷还是怕热」，绕过了该优先问的那件事（B-MedDG-train-dialog11584#1 突然瘫软、4926#6 腹胀不排气、
+ * 12121#12 黑便、12324#4 62 岁腹痛加重、14432#7 黑便后虚脱）。这里按事实层那条线索出题：
+ *  · 类目有筛查题、病历没写明正在发生 → 该类目的筛查题（与急症筛查题同一张表、同一套写法，闸门照常识别作答）；
+ *  · 出血类已写明正在发生 → 循环灌注筛查题（出血量够不够影响循环，是出血病例下一步要定的事），题干前带病历原话；
+ *  · 其余（类目没有筛查题、「其他急危重线索」、或已写明正在发生）→ 以病历原话为题，只问这一情况近来是加重、持续还是已缓解（不进闸门识别：
+ *    不是急症筛查，回答作为病历补充）。
+ * 只读 status=positive|possible 的线索（m02ClinicalFactsFootprint 的 promptFacts 已覆盖，先发结果的等价性不受影响），
+ * 判据与闸门的优先评估项相同（clinical-facts.priorityEvaluationItemsFromFacts：本人、clarify 及以上；只认明确现症时只认 positive）；
+ * emergency 已由闸门判急危重，路由出处置题，不走这里。病历已回答其筛查题的类目（m02SuppressedRiskCategories）不再问。
+ */
+export function m02PriorityEvaluationQuestion(state?: QuestionFallbackCase): string | undefined {
+  const answered = new Set(state?.m02SuppressedRiskCategories || []);
+  const affirmed = new Set(state?.m02AffirmedRiskCategories || []);
+  const finding = (state?.clinicalFacts?.redFlags || [])
+    .filter((item) => typeof item.category === "string" && !answered.has(item.category) &&
+      (item.subject ?? "patient") === "patient" &&
+      (item.status === "positive" || (!redFlagExplicitOnly() && item.status === "possible")) &&
+      (item.urgency === "urgent" || item.urgency === "clarify"))
+    .sort((left, right) => (left.urgency === "urgent" ? 0 : 1) - (right.urgency === "urgent" ? 0 : 1))[0];
+  if (!finding?.category) return undefined;
+  const category = finding.category;
+  const quote = riskQuestionQuote(finding.quote);
+  const reason = "这一线索可能需要急诊或优先处置，需先由医生核实。";
+  if ((category === "gi_bleed" || category === "bleeding") && affirmed.has(category)) {
+    const shock = POSSIBLE_RISK_QUESTIONS.shock;
+    return questionBlock(1, `${quote ? riskQuestionQuotePrefix(quote) : ""}${shock.question}`, reason, "现病史", [shock.positive, shock.negative, FOLLOWUP_SKIP_SENTENCE]);
+  }
+  // 「其他急危重线索」的筛查题只问「是否仍在发生」，答「仍在发生」即按急症确认处理——那是为 urgent 线索设的；
+  // 这里的线索可能只到 clarify 级，改问近来的变化，不把一句「仍在」升成急症。
+  const screening = affirmed.has(category) || category === "other_critical" ? undefined : screeningQuestionForFinding(category, finding.quote, state);
+  if (screening) return questionBlock(1, screening.question, reason, "现病史", [screening.positive, screening.negative, FOLLOWUP_SKIP_SENTENCE]);
+  if (!quote) return undefined;
+  return questionBlock(
+    1,
+    `${riskQuestionQuotePrefix(quote)}这一情况近来是在加重、持续，还是已经缓解？`,
+    reason,
+    "现病史",
+    ["近来加重或出现新表现，请补充具体表现", "已经缓解，目前未再出现", FOLLOWUP_SKIP_SENTENCE],
+  );
 }
 
 /**
@@ -425,34 +508,92 @@ function questionBlock(index: number, question: string, reason: string, field: s
  */
 const BASIC_INQUIRY_COLD_HEAT_QUESTION = "平时或这次发病以来，是怕冷还是怕热？";
 const BASIC_INQUIRY_THIRST_QUESTION = "口渴吗？想喝凉的还是热的？";
-const BASIC_INQUIRY_AXES: ReadonlyArray<{ recorded: RegExp; question: string; options: [string, string] }> = [
+type BasicInquiryAxis = {
+  recorded: RegExp;
+  question: string;
+  /** 病程按小时/天计时的题干（只问这次发病以来，不问平时）。 */
+  acuteQuestion: string;
+  options: [string, string];
+};
+// 大便：拉肚子、拉稀、稀便、水样便、排便、拉屎、臭臭、奶瓣是同一项的口语写法（2026-10-19 r1019 第四轮：病历写着「拉肚子」
+// 「3天没拉臭臭」「拉绿屎」仍被问大便情况）。
+const STOOL_RECORDED = /大便|便秘|便溏|便干|便稀|腹泻|泄泻|下利|二便|拉肚子|拉稀|稀便|水样便|排便|未便|便便|(?:拉|绿|黄|稀|干)屎|臭臭|奶瓣|拉了/;
+// 寒热：发烧、高烧、低烧与发热同义；寒战、发抖是怕冷的表现（2026-10-19，r1019：「发高烧39.6…烧的发抖」被问「怕冷还是怕热」，评审判重复）。
+const COLD_HEAT_RECORDED = /怕冷|畏寒|恶寒|畏冷|形寒|怕热|恶热|发热|发烧|高烧|低烧|身热|烘热|潮热|烦热|手足心热|肢冷|不温|(?:手|脚|足)[^，,。；;]{0,3}(?:冰|凉)|喜暖|喜温|得温|得热|遇寒|遇冷|受凉|喜凉|喜冷|恶风|怕风|寒热|寒战|冷战|发抖|冰冷|冰凉|发冷/;
+const BASIC_INQUIRY_AXES: ReadonlyArray<BasicInquiryAxis> = [
   {
-    // 发烧、高烧、低烧与发热同义；寒战、发抖是怕冷的表现（2026-10-19，r1019：「发高烧39.6…烧的发抖」被问「怕冷还是怕热」，评审判重复）。
-    recorded: /怕冷|畏寒|恶寒|畏冷|形寒|怕热|恶热|发热|发烧|高烧|低烧|身热|烘热|潮热|烦热|手足心热|肢冷|不温|(?:手|脚|足)[^，,。；;]{0,3}(?:冰|凉)|喜暖|喜温|得温|得热|遇寒|遇冷|受凉|喜凉|喜冷|恶风|怕风|寒热|寒战|冷战|发抖/,
+    recorded: COLD_HEAT_RECORDED,
     question: BASIC_INQUIRY_COLD_HEAT_QUESTION,
+    acuteQuestion: "这次发病以来，是怕冷还是怕热？",
     options: ["怕冷，喜暖，手脚偏凉", "怕热，喜凉"],
   },
   {
     recorded: /口渴|口干|咽干|不渴|喜饮|欲饮|饮水|饮冷|饮热|热饮|冷饮|口淡|口苦|口黏|口腻/,
     question: BASIC_INQUIRY_THIRST_QUESTION,
+    acuteQuestion: BASIC_INQUIRY_THIRST_QUESTION,
     options: ["口干口渴，想喝凉的", "口不渴，想喝热的"],
   },
   {
-    recorded: /大便|便秘|便溏|便干|便稀|腹泻|泄泻|下利|二便/,
+    recorded: STOOL_RECORDED,
     question: "平时大便情况怎样？",
+    acuteQuestion: "这次发病以来大便情况怎样？",
     options: ["大便干结，排便费力", "大便稀溏，不成形"],
   },
   {
     recorded: /汗/,
     question: "平时出汗情况怎样？",
+    acuteQuestion: "这次发病以来出汗情况怎样？",
     options: ["白天稍一活动就出汗", "夜间睡着后出汗，醒来汗止"],
   },
 ];
 
 /**
+ * 未满 3 岁的婴幼儿（或年龄不详的儿童）用的基本问诊项（2026-10-19 r1019 第四轮，Claude 评审 B 集）。
+ *
+ * 寒热喜恶、口渴喜冷喜热是患者自己的感受：8 月龄、15 月龄、28 天的孩子被问「想喝凉的还是热的」「怕冷还是怕热」，
+ * 评审 6 例判家长无从回答、选项写不进病历（B-IMCS21-train-10252189#12、10877829#5、dev-10347222#5、test-10334253#9、
+ * train-10811814#9、10717789#11）；4 天、10 天的新生儿被问「平时大便情况怎样」——新生儿没有「平时」，母乳儿大便本就稀糊，
+ * 胎黄要看的是大便颜色（10312916#7、dev-10192726#9）。
+ * 改问家长看得到的：吃奶或进食、大便（新生儿问颜色：灰白如陶土是胆道梗阻的报警征象）、精神、手脚温凉、睡着后出汗。
+ * 吃奶或进食在最前：喂养明显减少既是儿科望问的基本项，也是婴幼儿病情轻重的首要观察点。新生儿不问手脚温凉与出汗
+ *（新生儿手脚偏凉、出汗少都很常见，答案不区分寒热虚实）。记录判据同上，只决定问不问。
+ */
+export type M02YoungChildBand = "neonate" | "infant" | "toddler" | "child_unknown_age";
+type YoungChildAxis = { recorded: RegExp; skip?: readonly M02YoungChildBand[]; question: (band: M02YoungChildBand) => string; options: (band: M02YoungChildBand) => [string, string] };
+const breastfeeding = (band: M02YoungChildBand) => band === "neonate" || band === "infant";
+const YOUNG_CHILD_INQUIRY_AXES: ReadonlyArray<YoungChildAxis> = [
+  {
+    recorded: /吃奶|喂奶|奶量|拒奶|吐奶|溢奶|喂养|进食|食欲|胃口|纳差|纳呆|纳少|纳可|纳食|纳谷|吃饭|吃东西|不爱吃|不想吃|不肯吃|不吃|饮食/,
+    question: (band) => breastfeeding(band) ? "这几天吃奶和平时比怎样？" : "这几天孩子吃东西和平时比怎样？",
+    options: (band) => breastfeeding(band) ? ["吃奶明显比平时少", "吃奶和平时差不多"] : ["吃得明显比平时少", "吃得和平时差不多"],
+  },
+  {
+    recorded: STOOL_RECORDED,
+    question: (band) => band === "neonate" ? "大便是什么颜色？" : "这几天大便怎样？",
+    options: (band) => band === "neonate" ? ["大便黄色", "大便颜色发白，像陶土"] : ["大便稀，次数比平时多", "大便干，排便费力"],
+  },
+  {
+    recorded: /精神|萎靡|嗜睡|蔫|玩耍|爱玩|反应差|反应迟钝/,
+    question: () => "这几天精神怎样？",
+    options: () => ["精神差，总想睡、不爱动", "精神好，和平时一样"],
+  },
+  {
+    recorded: COLD_HEAT_RECORDED,
+    skip: ["neonate"],
+    question: () => "摸孩子的手脚，是偏凉还是偏热？",
+    options: () => ["手脚偏凉", "手心脚心偏热"],
+  },
+  {
+    recorded: /汗/,
+    skip: ["neonate"],
+    question: () => "孩子睡着后出汗多吗？",
+    options: () => ["睡着后头颈背部出汗多", "睡着后出汗不多"],
+  },
+];
+
+/**
  * 患者年龄（天）。只认「N天/周/个月/岁」与病历里的「出生/生后 N 天」「新生儿」；给不出返回 undefined。
- * 用途只有一个：未满 28 天的新生儿不问「怕冷还是怕热」（2026-10-19，r1019 验收集 B：黄疸蓝光中、化验单咨询的新生儿
- * 被问寒热喜恶，评审判与主诉无关、新生儿无法自述）。
+ * 用途：婴幼儿不问说不出的主观感受，也不问脉象（m02YoungChildBand）。
  */
 export function m02PatientAgeDays(age: unknown, recordText = ""): number | undefined {
   const fromText = (text: string): number | undefined => {
@@ -467,18 +608,66 @@ export function m02PatientAgeDays(age: unknown, recordText = ""): number | undef
     const parsed = fromText(age);
     if (parsed != null) return parsed;
   }
-  if (/新生儿/u.test(recordText)) return 14;
+  // 「月子娃」「月子里的宝宝」是新生儿（2026-10-19 r1019 第四轮，B-IMCS21-dev-10354982#1）。
+  if (/新生儿|月子(?:里的?)?(?:娃|宝宝|孩子|婴儿)/u.test(recordText)) return 14;
   const born = /(?:出生|生后|出生后)\s*(?:第)?\s*(\d{1,2})\s*(?:天|日)/u.exec(recordText);
-  return born ? Number(born[1]) : undefined;
+  if (born) return Number(born[1]);
+  // 叙述里紧贴着孩子称谓的月龄、日龄（「娃儿55天了」「50多天的宝宝」「宝宝八个月」不认——中文数字不在此列）：
+  // 年龄栏为空时病历常这样写（同轮 B-IMCS21-train-10365137#10、test-10216174#9）。
+  // 「生完孩子12天」说的是产妇产后天数，不是孩子的年龄（排除生、产一类动词后的称谓）。
+  const childAge = /(?<![生产]完|[生产]了|[生产]下)(?:宝宝|宝贝|娃儿?|孩子|小孩|婴儿)\s*(?:才|已经|今天|现在)?\s*(\d{1,3})\s*多?\s*(天|周(?!岁)|个月)|(\d{1,3})\s*多?\s*(天|周(?!岁)|个月)(?:大)?的(?:宝宝|宝贝|娃|孩子|小孩|婴儿)/u.exec(recordText);
+  if (childAge) {
+    const value = Number(childAge[1] ?? childAge[3]);
+    const unit = childAge[2] ?? childAge[4];
+    return unit === "天" ? value : unit === "周" ? value * 7 : value * 30;
+  }
+  return undefined;
 }
 
-export function basicInquiryFallback(recordText: string, options: { ageDays?: number } = {}): string | undefined {
-  const neonate = options.ageDays != null && options.ageDays < 28;
-  // 新生儿说不出怕冷怕热、口渴喜冷喜热（r1019：10 天新生儿的化验单咨询先后被问这两项，评审判对新生儿不适用）。
-  const axis = BASIC_INQUIRY_AXES.find((item) => !item.recorded.test(recordText) &&
-    !(neonate && (item.question === BASIC_INQUIRY_COLD_HEAT_QUESTION || item.question === BASIC_INQUIRY_THIRST_QUESTION)));
+/**
+ * 未满 3 岁的档位（新生儿 / 乳婴儿 / 幼儿），或年龄不详的儿童；3 岁及以上、成人、判不出是儿童时返回 undefined。
+ * 数值年龄按儿童剂量档位表（pediatric-dose-rule，与安全门同一张表）定档；没有数值年龄时看病历里的婴幼儿档位词，
+ * 只有「宝宝、孩子、患儿」这类不带年龄段的词时按年龄不详的儿童处理——家长看得到的问法对任何年龄的孩子都成立，
+ * 主观感受题对说不清的孩子不成立（B-IMCS21-test-10148432#4「宝宝病毒感染反复高烧」被问想喝凉的还是热的）。
+ */
+export function m02YoungChildBand(ageDays: number | undefined, recordText = ""): M02YoungChildBand | undefined {
+  const young = (stage: string | undefined): M02YoungChildBand | undefined =>
+    stage === "neonate" || stage === "infant" || stage === "toddler" ? stage : undefined;
+  if (ageDays != null) return young(pediatricDoseRuleForAgeYears(ageDays / 365)?.stage);
+  const worded = pediatricDoseRuleForStageWords(recordText);
+  if (worded) return young(worded.stage);
+  // 「娃、宝贝」是家长对孩子的称呼，儿童定性词表里没有（只用于这里的问法选择，不进剂量与安全判断）。
+  return PEDIATRIC_STRUCTURED_WORD_PATTERN.test(recordText) || /娃|宝贝/u.test(recordText) ? "child_unknown_age" : undefined;
+}
+
+/**
+ * 病程按小时、天计，且没有按周、月、年计的病程或「反复、平时」一类的长期说法：基本问诊题只问「这次发病以来」。
+ * 「平时或这次发病以来」把体质和本次病情混在一问里，急性吐泻的回答含糊（2026-10-19 r1019 第四轮，B-MedDG-train-dialog4866#1）。
+ * 判不出时保持原题干。只决定题干措辞。
+ */
+// 「一天上拉3/4次」是频次不是病程：天数后面几个字内跟着「次」的不算。
+const ACUTE_COURSE = /(?:\d+|[一二两三四五六七八九十几半])\s*(?:个)?(?:小时|天|日)(?![^，,。；;]{0,6}次)|今天|今日|今早|今晨|昨天|昨日|昨晚|昨夜|前天|刚才|突然|突发/;
+const LONG_COURSE = /(?:\d+|[一二两三四五六七八九十几半多])\s*(?:个)?(?:周|星期|月|年)|多年|反复|经常|常年|一直|长期|平时|平素|素来|慢性|有时|总是|老是|时常|常常|每天|每次|每到|一段时间|很长时间|又犯|从小/;
+export function m02AcuteCourse(courseText: string): boolean {
+  return ACUTE_COURSE.test(courseText) && !LONG_COURSE.test(courseText);
+}
+
+export function basicInquiryFallback(
+  recordText: string,
+  options: { ageDays?: number; courseText?: string } = {},
+): string | undefined {
+  const band = m02YoungChildBand(options.ageDays, recordText);
+  if (band) {
+    const axis = YOUNG_CHILD_INQUIRY_AXES.find((item) => !item.recorded.test(recordText) && !item.skip?.includes(band));
+    return axis
+      ? questionBlock(1, axis.question(band), "这一项家长能直接观察到，有助于判断病情轻重与寒热虚实，目前病历里没有写到。", "现病史",
+        [...axis.options(band), "本次未取得该信息"])
+      : undefined;
+  }
+  const acute = m02AcuteCourse(options.courseText ?? recordText);
+  const axis = BASIC_INQUIRY_AXES.find((item) => !item.recorded.test(recordText));
   return axis
-    ? questionBlock(1, axis.question, "这一项有助于区分寒热虚实，目前病历里没有写到。", "现病史", [...axis.options, "本次未取得该信息"])
+    ? questionBlock(1, acute ? axis.acuteQuestion : axis.question, "这一项有助于区分寒热虚实，目前病历里没有写到。", "现病史", [...axis.options, "本次未取得该信息"])
     : undefined;
 }
 
@@ -699,30 +888,38 @@ export function buildCaseAwareQuestionFallback(
 ): string {
   const risk = possibleRiskQuestion(state);
   if (!risk) {
+    // 闸门会列为「需优先评估」的事实层线索在前（m02PriorityEvaluationQuestion，2026-10-19）：辨证题、基本问诊题都排在它后面。
+    const priority = m02PriorityEvaluationQuestion(state);
+    if (priority) return priority;
+    const recordText = fallbackRecordText(state);
+    const ageDays = fallbackAgeDays(state, recordText);
+    const presentHistory = [state.hisRecord?.fields?.xianbingshi, state.symptoms?.presentHistory]
+      .find((value): value is string => typeof value === "string" && Boolean(value.trim()));
     // 服务端自有的题优先是一道辨证题（2026-10-13）：教材里与本例最相近的两个证型，问能把它们分开的那条事实。
     // 此前这里是按主诉类别预置的西医鉴别方向题或「总体在加重还是缓解」，医生多半直接跳过。
+    // 年龄按天折算后传入（「8个月」不是数字，此前传 undefined，婴儿取的是成人教材的行），性别一并传入（男性不取妇科）。
     const discriminating = options.textbookQuestion === false ? undefined : textbookDiscriminatingQuestion({
       chiefComplaint: state.chiefComplaint || state.hisRecord?.fields?.zhushu,
-      presentHistory: [state.hisRecord?.fields?.xianbingshi, state.symptoms?.presentHistory]
-        .find((value): value is string => typeof value === "string" && Boolean(value.trim())),
+      presentHistory,
       tongue: state.hisRecord?.fields?.tcmTongue || state.tongue,
       pulse: state.hisRecord?.fields?.tcmPulse || state.pulse,
-      ageYears: Number.isFinite(Number(state.patient?.age)) && state.patient?.age !== "" && state.patient?.age != null ? Number(state.patient.age) : undefined,
+      sex: state.patient?.sex || state.hisRecord?.fields?.sex,
+      ageYears: ageDays != null ? ageDays / 365 : undefined,
     });
     // 只用「舌脉缺失时问舌脉」这一种教材题。另一种（「除病历已记录的表现外，还伴有哪一组」）靠字面重合判断
     // 「病历有没有写过」，病历用口语写（头晕眼花、记性变差）而教材用术语（头晕目眩、健忘）时判不出来，
     // 选项就成了病历已写明的症状——独立评审 29 例里 7 例如此（2026-10-13）。
-    if (discriminating && (discriminating.field === "舌象" || discriminating.field === "脉象")) {
+    // 未满 3 岁（或年龄不详的儿童）不问脉象：三岁以下小儿以指纹代脉，家长答不出（2026-10-19 r1019 第四轮，
+    // B-IMCS21-train-10172804#10、10354911#9、10322698#2、10366425#12、10324846#5 五例评审判不合格）。
+    const pulseUnsuitable = Boolean(m02YoungChildBand(ageDays, recordText));
+    if (discriminating && (discriminating.field === "舌象" || (discriminating.field === "脉象" && !pulseUnsuitable))) {
       return questionBlock(1, discriminating.question, discriminating.reason, discriminating.field,
         [discriminating.optionA, discriminating.optionB, "本次未取得该信息"]);
     }
-    const recordText = [
-      state.chiefComplaint,
-      ...Object.values(state.hisRecord?.fields || {}),
-      ...Object.values(state.symptoms || {}),
-    ].filter((value): value is string => typeof value === "string").join("；");
+    const courseText = [state.chiefComplaint, state.hisRecord?.fields?.zhushu, presentHistory]
+      .filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；");
     if (options.settled && options.textbookQuestion !== false) {
-      return basicInquiryFallback(recordText, { ageDays: m02PatientAgeDays(state.patient?.age ?? state.hisRecord?.fields?.age, recordText) }) || agendaQuestionFallback();
+      return basicInquiryFallback(recordText, { ageDays, courseText }) || agendaQuestionFallback();
     }
     const currentComplaint = [
       state.chiefComplaint,
@@ -759,15 +956,17 @@ export function buildCaseAwareQuestionFallback(
     if (familyFallback) return familyFallback;
     // 主诉类别没有预置题时，先问病历里没写到的基本问诊项；四项都写了才退到病情变化题。
     if (options.textbookQuestion !== false) {
-      const basic = basicInquiryFallback(recordText, { ageDays: m02PatientAgeDays(state.patient?.age ?? state.hisRecord?.fields?.age, recordText) });
+      const basic = basicInquiryFallback(recordText, { ageDays, courseText });
       if (basic) return basic;
     }
     return genericModelFailureFallback(state);
   }
+  // 理由写明「急诊或优先处置」：结构化信封按理由与题干把它归到 triage 分支（此前理由里没有这类词，筛查题被标成 differential，
+  // 2026-10-19 r1019 第四轮评审 B-IMCS21 儿童危重筛查题）。
   return questionBlock(
     1,
     risk.question,
-    "该已识别线索可能改变即时处置路径，需要先由医生核实其是否发生及发生时的具体情况。",
+    "这一线索可能需要急诊或优先处置，需先由医生核实。",
     "现病史",
     [risk.positive, risk.negative, FOLLOWUP_SKIP_SENTENCE],
   );
@@ -1337,15 +1536,15 @@ const RISK_AXIS_PATTERNS: Record<string, RegExp> = {
   syncope: /意识丧失|失去意识|晕厥|跌倒|不能回应/,
   neuro: /说话不清|口角歪斜|单侧肢体无力|意识改变|剧烈头痛/,
   gi_bleed: /黑便|鲜血便|便血|呕血/,
-  bleeding: /咯血|阴道.{0,4}流血|出血不止/,
+  bleeding: /咯血|阴道.{0,4}流血|出血不止|仍在出血/,
   acute_abdomen: /腹痛|肚子.{0,6}痛|绞痛|反跳痛|腹部僵硬|停止排气排便|肠梗阻|急腹症/,
   respiratory: /静息.{0,4}喘|不能平卧|说话受限|口唇发紫|呼吸困难/,
-  sepsis: /高热|低体温|寒战|意识变差|血压下降|脓毒/,
+  sepsis: /高热|低体温|寒战|意识变差|血压下降|脓毒|体温过高或过低|皮肤发花/,
   mental_crisis: /自伤|轻生|伤害他人|自杀/,
   shock: /四肢湿冷|站立不稳|尿量.{0,4}减少|循环灌注|休克/,
   anaphylaxis: /喉头|舌唇肿胀|声音嘶哑|喘憋|全身风团|过敏反应/,
   obstetric: /妊娠|孕期|阴道.{0,4}流血|胎动异常|子痫/,
-  pediatric_critical: /患儿|儿童|发绀|拒绝饮水|精神反应.{0,4}差/,
+  pediatric_critical: /患儿|儿童|发绀|拒绝饮水|拒奶|精神反应.{0,4}差/,
   poisoning: /接触|摄入|误服|中毒|可疑暴露|剂量/,
   metabolic: /血糖|深大呼吸|代谢/,
   other_critical: /生命体征|意识|呼吸状态|异常.{0,4}发生/,

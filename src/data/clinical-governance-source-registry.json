@@ -355,7 +355,7 @@
       "sourceType": "project_runtime_grounding_catalog",
       "authorityTier": "project_governed_source",
       "locator": "src/data/physical-exam-claim-lexicon.source.json",
-      "sha256": "ee3af23239dee16fa26156b7aebc658926a61a4a3a19d37a2db0ac5794de8d59",
+      "sha256": "84082bcbb857a796156ba2a45a4b59cb5fdd8e4ee9509b5230e8f6c7d55d8b0e",
       "scope": "M03 阴性或正常查体断言的模态识别；只允许病历已记录的对应查体结果进入医生可见结论",
       "accessedAt": "2026-07-22"
     },

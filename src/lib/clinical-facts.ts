@@ -161,7 +161,7 @@ export type RedFlagFinding = {
 };
 
 export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v20";
-export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v25";
+export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v26";
 
 // 劳力/活动诱发的慢性基线症状限定词（“平路气短”“活动后气促”“劳力性胸闷”）：在已知慢性心肺肾
 // 疾病或慢性病程框架下，这类限定描述的是基线功能状态而非急性事件；静息/夜间/端坐/新发/突发/
@@ -1382,6 +1382,13 @@ function safeJsonParse(text: string): unknown {
 export const CLINICAL_FACTS_EXTRACTION_SYSTEM_PROMPT =
   "你是门诊安全分诊和就诊目标分层的结构化临床语义判断器。理解口语、否定、时序、严重程度和当前状态；把普通症状与真正急诊级红旗分开，并判断本次是否存在当前治疗目标；不得补充患者未写明的信息。";
 
+/** 提示词里「类目 → 可用急诊依据键」一表，直接由解析用的 CATEGORY_EMERGENCY_BASES 生成，两边不会各写各的。 */
+function emergencyTriageBasesByCategoryPromptLines(): string {
+  return (Object.keys(CATEGORY_EMERGENCY_BASES) as BackstopRedFlagCategory[])
+    .map((category) => `  "${category}"：${[...CATEGORY_EMERGENCY_BASES[category]].map((basis) => `"${basis}"`).join("、")}`)
+    .join("\n");
+}
+
 export function buildClinicalFactsExtractionPrompt(text: string): string {
   const categories = Object.entries(BACKSTOP_RED_FLAG_CATEGORIES)
     .map(([key, label]) => `  "${key}"（${label}）`)
@@ -1399,6 +1406,11 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
     governedCategoryRules,
     "处置依据键只能取以下之一：",
     Object.entries(TRIAGE_BASIS).map(([key, label]) => `  \"${key}\"（${label}）`).join("\n"),
+    // 2026-10-19：此前提示词只列了全部依据键，没说每个类目能配哪几个；模型把腹部外伤、胰腺炎、肠梗阻写成
+    // acute_abdomen + acute_target_organ_damage，解析按 CATEGORY_EMERGENCY_BASES 整条作废，唯一一条作废时
+    // 整份输出无效，连同判对了的 disposition=emergency 一起丢失（类夹具 disposition-time-window-emergency）。
+    "urgency=emergency 时，每个类目只能配下列处置依据键之一；配了表外的键，该条红旗整条作废：",
+    emergencyTriageBasesByCategoryPromptLines(),
     "硬规则：",
     "- encounterScope 判断本次就诊是否有可作为辨证/治疗目标的当前阳性症状、功能问题或异常指标。active_current_target=有明确当前目标；historical_or_stable_only=只有既往已治愈/已缓解事件、当前无症状，或无新发变化的稳定背景/后遗状态且没有本次活动性目标；unclear=原文不足以判断。既往疾病名称本身、正常舌脉和正常生命体征不能单独成为当前目标。",
     "- 当前治疗/医疗处置请求或当前不适症状一律判 active_current_target：要求开药、加用中药、调理、治疗、续药、调整方案、咨询用药等当前请求，以及头晕、疼痛、乏力、胀满、口干等任何当前不适主诉，即使其背后的原发病被描述为控制稳定、达标或规律服药，也必须选 active_current_target。‘控制稳定、血压达标、病情平稳’描述的是疾病状态而不是本次就诊目标，绝不能单独作为 historical_or_stable_only 的 grounding quote；historical_or_stable_only 的 quote 中不得包含当前症状或当前治疗请求。",
@@ -1436,7 +1448,8 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
     "disposition（开方前处置去向）是独立于上面类目表的开放判断，不受类目表、词表或上面任何举例的限制：",
     "- 角色：你是同时有急诊与全科经验的主治医师，正在为中医门诊开具剂量级中药做开方前安全把关。只回答一个问题：按现有资料，这位患者今天由门诊中医师直接开中药，是否安全、是否在门诊中医的处置范围之内。",
     "- 先想「必须排除」：与本次表现相符、一旦漏掉可能致死致残或造成不可逆损害、且有处置时间窗的情况，不限系统、不限类目。依据不限于症状，受伤经过、体征、检验与影像/病理结论、用药与暴露同样是依据。每条写 condition（自由文本的病名或情况）、plausibility（likely=现有资料已较支持；possible=现有资料指向它、尚不能排除）、evidenceQuotes（1–4 条原文逐字片段，必须是患者本人当前或近期未解决的事实）。只是理论上可能、现有资料并不指向的，不要列。",
-    "- 再定 setting。判据是「此刻是否存在尚未被处理、有处置时间窗的危险」，不是病名听起来有多重：emergency=现有资料已足以要求立即急诊/急救评估（以小时计）；urgent_specialist=不必立即急诊，但属于下面两种之一、评估前不宜直接开剂量级中药：①尚未被西医明确诊断、要靠影像/病理/手术/住院才能明确或处理的新问题；②已确诊的疾病出现了急性加重的客观证据（新发或明显加重的器官功能受损、检验指标显著恶化、出现新的受累器官）。insufficient_info=原文已有指向某个必须排除情况的具体危险线索，但还差一个关键信息才能决定去向，missingInfo 写出最该问的那一个问题；outpatient_ok=没有尚未处理的时间敏感危险，可在中医门诊常规诊治。setting 不是 outpatient_ok 时 mustNotMiss 不能为空。",
+    "- 再定 setting。判据是「此刻是否存在尚未被处理、有处置时间窗的危险」，不是病名听起来有多重：emergency=现有资料已足以要求立即急诊/急救评估（以小时计）；urgent_specialist=不必立即急诊，但属于下面两种之一、评估前不宜直接开剂量级中药：①尚未被西医明确诊断、要靠影像/病理/手术/住院才能明确或处理，但晚几天到几周评估也不会错过处置时间窗的新问题；②已确诊的疾病出现了急性加重的客观证据（新发或明显加重的器官功能受损、检验指标显著恶化、出现新的受累器官），但还没到当天不处理就会出事的程度。insufficient_info=原文已有指向某个必须排除情况的具体危险线索，但还差一个关键信息才能决定去向，missingInfo 写出最该问的那一个问题；outpatient_ok=没有尚未处理的时间敏感危险，可在中医门诊常规诊治。setting 不是 outpatient_ok 时 mustNotMiss 不能为空。",
+    "- emergency 与 urgent_specialist 的分界只看「必须排除」里最危险那一条的处置时间窗，不看它归哪个专科、要靠影像、检验还是手术来明确。同时满足下面两点就取 emergency，即使该情况仍是 possible、尚待检查证实——排除它本身就得当天由急诊或该专科急诊完成，不能留给择期专科门诊：一是这种情况一旦属实，等不到择期门诊：不在当天（以小时计）处理就可能致死致残、造成器官、肢体或视力的不可逆损失，或进展为危象；刚缓解的事件若最危险的复发集中在随后一两天内，或失血仍在持续且已出现贫血，也属于这一点——「已自行缓解、目前平稳」不等于等得起择期门诊，上面 redFlags 各类目里「当前稳定通常标 urgent」只管单条红旗的分级，不是这里的门槛；二是原文的当前事实已经呈现它的急性表现，即数小时至数天内起病或明显加重，并有相应部位的受伤经过、定位体征、发热、梗阻、出血、客观测量或检验异常等支持。属于这一型的例如：外伤后受伤部位疼痛需排除脏器损伤或内出血，转移性或局限性腹痛伴发热、呕吐需排除外科急腹症，早孕伴阴道出血需排除异位妊娠，眼压急性升高伴视力下降，胆道梗阻伴发热或黄疸，肠梗阻（腹胀伴反复呕吐，或停止排气排便），已确诊、易发危象的疾病近期加重并累及与危象相关的器官功能，黑便或呕血已伴贫血或乏力（失血已波及全身，即使生命体征暂时平稳），近期发作的短暂神经缺损。慢性反复发作而本次没有急性发作表现、数周以上缓慢进展且没有急性并发症、影像或体检发现的占位待定性、长期检验异常查因，属于 urgent_specialist 或更低，不因病名属于急症类型而取 emergency。中医四诊的辨证描述用语（如拒按、喜按、腹胀如鼓、痛有定处）说明的是虚实寒热，单凭这类用语不构成急腹症或梗阻的急性表现，仍要看有无反复呕吐、停止排气排便、反跳痛或腹肌紧张、发热、精神状态变差等。rationale 里写了需急诊、需紧急处置、需当天排除或有进展为危象的风险，setting 就必须是 emergency，两者不得矛盾。",
     "- 已在医院确诊、正在或曾经接受西医诊治的慢性病，本次来中医调理或治疗症状，即使仍有长期存在的检验异常（如持续蛋白尿、转氨酶或肌酐偏高），只要没有上面②所说的急性加重证据，判 outpatient_ok；这类病人用药的剂量与肝肾安全由后续开方环节的剂量和禁忌核对处理，不是这里升档的理由。患有严重或慢性疾病本身不是升档理由。",
     "- 婴幼儿与儿童的普通感冒、咳嗽、发热、腹泻、积食等常见病，只要原文没有公认的危险征象（精神萎靡或反应差、拒奶拒食或不能饮水、呼吸急促或费力、尿量明显减少、抽搐、高热持续不退、新生儿期异常），判 outpatient_ok。只是信息少、没有具体危险线索的，判 outpatient_ok——补问信息是后续问诊环节的事，不是这里升档的理由。既往已治愈或已缓解的事、家属或他人的情况、宣教或引用文本，都不能作为依据。",
     "- 一旦原文出现了具体的危险线索，拿不准时往更需要处置的一档判；这时病历未记录的伴随情况不等于没有，不能把资料缺项当作 outpatient_ok 的理由。disposition 与 redFlags 各自独立作答、互不替代：redFlags 已经表达的风险，这里照样按整体情况给出 setting；反过来，setting 判为 outpatient_ok 也不改变 redFlags 的分级——每条 redFlags 的 urgency 只按上面的类目规则判定（例如体温 35.0–35.9℃、呼吸 25–34 次/分这类孤立的重度非极端生命体征仍标 vital_instability + urgent），不得为了与 setting 一致而下调。",

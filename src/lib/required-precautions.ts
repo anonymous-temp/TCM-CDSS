@@ -34,7 +34,7 @@ export type RequiredPrecaution =
       urgent?: boolean;
     }
   /** 病历写着自行停了长期用药（留出集 S178：高血压急症、一个月前自行停降压药）：由医生评估后规律服用，不要再自行停药。 */
-  | { kind: "self_discontinued_medication"; names: string[]; condition?: string }
+  | { kind: "self_discontinued_medication"; names: string[]; condition?: string; irregular?: true }
   /** 病历写着行动受限（拄拐、轮椅、卧床…）：运动保健按坐位、扶物、家人陪同写（甲方标准病历 5）。只核运动保健一栏，不进注意事项。 */
   | { kind: "mobility_limited_exercise"; limitation: string }
   /** 病历写了自行用药、却没写药名（「自用药物后未见缓解」「自行服药」）。2026-10-19 验收主集 J 模块。 */
@@ -53,6 +53,8 @@ export type RequiredPrecaution =
   | { kind: "administration_and_diet"; diet: string; administration: boolean }
   /** 育龄女性、妊娠与哺乳状态都没记录（验收主集 J 3 例判缺）：服药前告知医生，方中孕妇慎用药点名。 */
   | { kind: "reproductive_status_unknown" }
+  /** 育龄女性病历写着本次月经逾期未至（「末次月经10月21日，至今未至」）：服药前先验孕（2026-10-19 M 集 RobustSDT-0697）。 */
+  | { kind: "menses_overdue_pregnancy_check" }
   /** 重度高血压（≥180/120）而无急性靶器官表现（2026-10-19 起不按急症收回剂量）：写给患者的复测与就诊提示。 */
   | { kind: "severe_hypertension_followup"; reading: string }
   /** 病历写的发病诱因食物（海鲜、啤酒…）：服药期间及以后避开（留出集 S128）。 */

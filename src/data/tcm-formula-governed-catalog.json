@@ -524,7 +524,8 @@
       "五福饮@《成方切用》 → 《景岳全书》:5味",
       "封髓丹@《古今名医方论》 → 《御药院方》:3味",
       "崔氏八味丸@《医方考》 → 《金匮要略》:8味",
-      "消风散@《外科正宗》 → 《外科正宗》:13味"
+      "消风散@《外科正宗》 → 《外科正宗》:13味",
+      "化肝煎@《成方切用》 → 《景岳全书》:6味"
     ],
     "collationAdded": [
       "一物瓜蒂汤",
@@ -54103,9 +54104,9 @@
       "id": "TCM-FORMULA-D0A23FE50787",
       "name": "化肝煎",
       "aliases": [],
-      "source": "《成方切用》",
-      "sourceOriginal": null,
-      "prescriptionOriginal": null,
+      "source": "《景岳全书》",
+      "sourceOriginal": "《景岳全书》",
+      "prescriptionOriginal": "青皮陈皮各二钱芍药二钱丹皮栀子（炒）泽泻各一钱半土贝母二三钱",
       "ingredients": [
         "青皮",
         "陈皮",
@@ -54121,9 +54122,19 @@
         {
           "title": "《成方切用》·化肝煎（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
           "url": "urn:tcm-cdss:tcmoc-books:成方切用:化肝煎"
+        },
+        {
+          "title": "目录校勘组成重录：出处订正：化肝煎是张景岳自制新方，国家《古代经典名方目录》（第一批）与本地名录均作《景岳全书》，《成方切用》（清·吴仪洛）是后世转载。只订正出处，组成沿用原条目（原书另有土贝母，未增补）。",
+          "url": "urn:tcm-cdss:official-classic-formula:化肝煎",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
       "curatedSyndromeTags": [],
+      "adjudicatedIndications": [],
+      "displayName": "化肝煎",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "青皮",
@@ -54185,7 +54196,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "project_reference_verified",
-      "displayName": "化肝煎",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,

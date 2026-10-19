@@ -407,7 +407,8 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
       ...(hasUnconfirmedUnclearEncounterScope(gated)
         ? ["本次就诊是否存在当前活动性治疗目标未确认，请医生确认后再采纳。"] : []),
       ...(noExecutableFormulaPath
-        ? [`推荐方 ${unavailableFormulaNames.join("、")} 暂无可执行剂量基准，本次候选为辨证自拟组方，方名方向供参考。`] : []),
+        // 写给医生的临床说法，不用「剂量基准」「候选」这类系统用语（2026-10-19 Claude 评审 H 集 6 例）。
+        ? [`参考方${unavailableFormulaNames.join("、")}中有须由医生单独定量或不宜入煎剂的药味，药味与用量以本页处方为准。`] : []),
       ...(doseWithheldReasons.length > 0
         ? [`本例暂不给出具体用量：${doseWithheldReasons.join("；")}。药味与方义照常列出，供参考。`] : []),
     ],

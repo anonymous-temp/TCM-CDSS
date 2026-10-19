@@ -54,6 +54,41 @@ const CONCRETE_PULSE_PATTERN = new RegExp(
   `(?:(?:而|且|、|\\s)*(?:${PULSE_FORCE_PATTERN_SOURCE}))?(?=$|[，,。；;\\s])`,
 );
 
+/**
+ * 叙述式脉象（2026-10-19 Claude 评审 M 集）：「左手脉象弦硬」「双手脉搏细而紧绷」「脉搏跳动微弱」
+ * 「诊查显示脉象浮滑有力」「脉平和」「六脉微弱沉细」「所有脉搏都无法触及」。上面的形态学正则要求脉名紧贴标点、
+ * 收在标点上，这些写法一条也认不出；净化器于是把病历里写着的脉象改成「脉象待核实」，辨证依据里留下
+ * 「右手脉象待核实绷有力」「脉象待核实难触」这种残句（M 集 360 例中 27 例）。
+ * 按小句认：有脉的锚词（脉象/脉搏/脉来/左右手脉/寸关尺/脉+脉名），有脉象描述（脉名或脉力、可触与否），
+ * 先去掉生命体征写法（脉率、脉搏频率、N次/分）再看，血管名（静脉/动脉/脉络…）不算。
+ */
+const NARRATIVE_PULSE_HEAD = new RegExp(
+  `(?<![静动络血经淋任督冲带])(?:脉象|脉搏|脉来|脉形|脉势|[左右双两六][手侧部]?脉|[寸关尺][部脉]|脉(?=(?:${PULSE_QUALITY_PATTERN_SOURCE})|平和|和缓))`,
+  "u",
+);
+const NARRATIVE_PULSE_VITAL = /脉(?:搏)?(?:跳动)?(?:频率|率|次数)[^，,。；;\n]*|\d+(?:\.\d+)?\s*(?:次|bpm)[^，,。；;\n]{0,4}/gu;
+const NARRATIVE_PULSE_DESCRIPTOR = new RegExp(
+  `(?:${PULSE_QUALITY_PATTERN_SOURCE.replace("|动", "")})|${PULSE_FORCE_PATTERN_SOURCE}|紧绷|平和|和缓|难触|难以触及|触不到|摸不到|摸不着|无法触及|不可触及|如丝|欲绝|充实|坚硬`,
+  "u",
+);
+const NARRATIVE_PULSE_NOT_INSPECTION = /[静动络血经淋]脉|脉(?:管|压|冲|络)|静脉曲张/u;
+const NARRATIVE_PULSE_UNAVAILABLE = /待核实|待确认|待补充|未采集|未查|未诊|未做|未提供|未记录|未见记录|无记录|未描述|未知|不详|不清楚|无法判断|无法评估|暂缺/u;
+
+function lastNarrativePulseIndex(text: string): number {
+  let last = -1;
+  let offset = 0;
+  for (const raw of text.split(/[，,。；;\n]/u)) {
+    const index = offset;
+    offset += raw.length + 1;
+    if (NARRATIVE_PULSE_NOT_INSPECTION.test(raw) || NARRATIVE_PULSE_UNAVAILABLE.test(raw)) continue;
+    const clause = raw.replace(NARRATIVE_PULSE_VITAL, "");
+    const head = clause.match(NARRATIVE_PULSE_HEAD);
+    if (!head || head.index === undefined) continue;
+    if (NARRATIVE_PULSE_DESCRIPTOR.test(clause.slice(head.index + 1))) last = index;
+  }
+  return last;
+}
+
 function hasConcreteClinicalFactAlongsideUnknown(text: string): boolean {
   return text
     .split(/[，,。；;\n]+/)
@@ -174,6 +209,7 @@ export function isUnknownClinicalFieldText(
     const unknown = new RegExp(`${unknownLabel}[^。；;\\n]{0,16}(?:待核实|待确认|未知|无法判断|未采集)`, "g");
     const lastConcrete = Math.max(
       morphology ? lastMatchIndex(text, morphology) : -1,
+      field === "pulse" ? lastNarrativePulseIndex(text) : -1,
       lastMatchIndex(text, inspectionLexiconPattern(field)),
       // 「面色正常」「舌象正常」「脉象正常」是医生最常点的那一项，属于阳性的「已查且正常」，
       // 不是「未采集」。词表里的正常项写的是专业表述（红黄隐隐／淡红舌，薄白苔／平脉），
@@ -323,7 +359,9 @@ export function assessPregnancyState(text: string): ClinicalStateResult {
       // 「孕N岁/年/次/胎」也不是孕周。此前「不孕3年」「工具避孕3年」「备孕3个月」「上环避孕10年」
       // 一律读成当前妊娠，不孕症与避孕中的患者被收回剂量。
       /(?<![避不备未助试促])孕\d+(?!\d*(?:岁|年|次|胎))(?:\+?)(?:周|月)?/,
-      /(?:妊娠|怀孕)\d+(?:\+?)(?:周|月)/,
+      // 「妊娠8个月」「怀孕六个月」「孕七月」（2026-10-19 Claude 评审 A 集 A-non-0023：「妊娠8个月」一条也没认出，给了剂量）。
+      /(?:妊娠|怀孕)(?:\d+|[一二两三四五六七八九十]+)(?:\+?)(?:周|个?月)/,
+      /(?<![避不备未助试促])孕(?:[一二两三四五六七八九十]+)(?:个)?(?:周|月)/,
       /孕(?:早|中|晚)期/,
       /妊娠(?:早|中|晚)期/,
       /(?:尿|血|β-?)?HCG阳性/i,
@@ -420,6 +458,9 @@ export function assessLactationState(text: string): ClinicalStateResult {
       /疑似哺乳/,
       /不能排除哺乳/,
       /产后[^。；\n]{0,12}(?:是否)?哺乳(?:不详|未知|待确认)?/,
+      // 「妈妈拉肚子还能哺乳吗」「吃药了还能喂奶吗」：问能否继续哺乳，说明正在哺乳（2026-10-19 Claude 评审 B 集 MedDG-164#3）。
+      /(?:还|仍)(?:能|可以)(?:继续)?(?:哺乳|喂奶|母乳喂养|喂母乳)(?:吗|么|嘛)?/,
+      /(?:能不能|可不可以|能否)(?:继续)?(?:哺乳|喂奶|母乳喂养|喂母乳)/,
     ],
     negative: [
       /否认[^。；\n]{0,12}哺乳/,

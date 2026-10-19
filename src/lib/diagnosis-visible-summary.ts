@@ -1,4 +1,5 @@
 import { chineseDurationNumber, discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
+import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import { pediatricDoseRuleForAgeYears } from "./pediatric-dose-rule";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement, SPECIAL_DECOCTION_ORDER, specialDecoctionOrderIndex, withOneOfDecoctionResolved } from "./herb-decoction-rules";
@@ -512,7 +513,7 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
     let changed = false;
     // 「无法、无论、无需、无定处…」是固定说法，不是否认（UNRECORDED_NEGATIVE 排除组里的固定说法部分；无汗、无痰这类症状词照常核）：2026-10-17 生产复测，
     // 情形 D 的鉴别要点「…，无法分型」被改成「病历未记录法分型（需问诊核实…）」，交付成「未诉法分型」。
-    const NEGATIVE_CLAUSE = /^(?:本例|该患者|患者)?(?:均?(?:无(?![法论需妨效碍以所可非常度端故]|定[处时所]|关(?!节)|形之)|没有)|未见|未闻及|未出现|不伴|无明显)(.+)$/u;
+    const NEGATIVE_CLAUSE = /^(?:本例|该患者|患者)?(?:均?(?:无(?![法论需妨效碍以所可非常度端故力神华味]|定[处时所]|关(?!节)|形之)|没有)|未见|未闻及|未出现|不伴|无明显)(.+)$/u;
     const SEASON_CLAUSE = /^发病(?:于|在)非?[^，。；]*(?:季节?|时令)/u;
     const groundClause = (clause: string, entryName: string): string => {
       const trimmed = clause.trim();
@@ -527,7 +528,8 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
       // 第二项仍是病历没有依据的否认（2026-10-18 甲方标准病历 6 腰椎转移瘤一项）。
       const object = negative[1]
         .replace(/(?:等(?:热象|寒象|表现|症状|征象|不适)?|表现|症状)$/u, "")
-        .replace(/([、及和与])(?:无|没有|未见|不伴)(?=[\u4e00-\u9fff]{2})/gu, "$1")
+        // 「无力」「无华」是症状词，不是这一项的否认词（2026-10-19 H 集 X-H-0230：「无上肢麻木、无力或感觉异常」剥成了「、力或感觉异常」）。
+        .replace(/([、及和与])(?:无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故损])|没有|未见|不伴)(?=[\u4e00-\u9fff]{2})/gu, "$1")
         .trim();
       if (!object) return clause;
       const terms = object.split(/[及和与、]/u).map((term) => term.trim()).filter((term) => term.length >= 2);
@@ -908,7 +910,7 @@ const NONDIAGNOSTIC_WESTERN_SUPPORT = /^(?:不限定|未限定|既往体健|无�
 //「示未诉里热」「里未诉湿热积滞」「里和未诉损」）。「无」前面是 示/里/内 的、「无损」，都不改。
 const UNRECORDED_NEGATIVE_FEATURE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故损])([\u4e00-\u9fff]{2,12}?)(?=之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状))/gu;
 // 对象里不能再有「无」：「无脓无屑」曾整段当成一个对象改成「未诉脓无屑」（2026-10-19 验收集 X-C-0192）。
-const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故损])((?:(?!无)[\u4e00-\u9fff]){2,16}?)(?=[、，,。；;：:）)]|等|及|和|或|与|$)/gu;
+const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故损])((?:(?!无)[\u4e00-\u9fff]){2,16}?)(?=[、，,。；;：:）)]|等|及|和|或|与|为(?:主|特点)|$)/gu;
 
 /**
  * 病历是否写到过这个阴性项的对象（无论肯定还是否定）。2–3 字的词要原词出现；4 字以上的长短语换个说法很常见
@@ -965,12 +967,14 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
   if (!record) return text;
   // 「无…结果/报告/记录」说的是缺这份资料，不是否认症状，照原样留。
   // 查病历时去掉「之…表现/特征/症状/象」：「无善惊易恐之表现」查的是善惊易恐（病历写着它就不改）。
-  const core = (term: string) => term.replace(/之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状|象)$/u, "");
+  // 「无典型辐射状血管网」查的是辐射状血管网（D 集 X-D-0379：病历写着「呈辐射状血管网」，却改成了「未诉典型辐射状血管网」）。
+  const core = (term: string) => term.replace(/之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状|象)$/u, "").replace(/^(?:典型|明显|明确|特征性)(?:的)?/u, "");
   // 同一分句里「无」之前已有「示/提示/表明/说明/可知」时，「无X」是从记录推出的判断（「二便调示里和无热结」），不是对症状的否认，照原样留
   //（2026-10-19 甲方标准病历 1 复测：曾改成「示里和未诉热结」）。紧挨着的「示无」已由正则的后顾排除，这里管隔了几个字的。
   // 「…为无热象之佐」「虚劳无传染性」同理：「为无」后接的是判断，「…象」「…性」是推断出的性质，不是病人的症状（2026-10-19 甲方标准病历 3、5 第三轮复测）。
   const inferred = (offset: number, whole: string, term = "") =>
-    /(?:示|表明|说明|可知)[^，,。；;]*$/u.test(whole.slice(0, offset)) || /为$/u.test(whole.slice(0, offset)) || /^[\u4e00-\u9fff]{1,3}[象性](?:之|$)/u.test(term);
+    /(?:示|表明|说明|可知)[^，,。；;]*$/u.test(whole.slice(0, offset)) || /为$/u.test(whole.slice(0, offset)) || /^[\u4e00-\u9fff]{1,3}[象性](?:之|$)/u.test(term) ||
+    notAPatientDenial(offset, whole, term);
   const out = text.replace(UNRECORDED_NEGATIVE, (match, term: string, offset: number, whole: string) =>
     inferred(offset, whole, term) || recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) ? match : `未诉${term}`)
     // 「无气从少腹上冲胸咽之奔豚特征」：对象后面接「之…特征/表现/症状」时上面那条够不着（2026-10-19 甲方标准病历 2 第 3 次生成）。
@@ -982,12 +986,50 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
       const term = `口${what}`;
       return inferred(offset, whole) || recordMentionsNegatedTerm(record, term) || (what === "渴" && /渴|欲饮/u.test(record)) ? match : `未诉${term}`;
     });
+  // 已经是「未诉」的再碰上一遍改写，不叠成「未诉未诉矢气」（H 集 X-H-0312、0115）。
   // 「未诉A、未诉B」并成「未诉A、B」：只并相邻的未诉项。中间隔着一个仍是「无X」的项时不并——并过去会读成
   //「无X、B」，把 B 又写回否认（2026-10-18 回放：「未诉头晕、无恶心呕吐、未诉胸脘痞闷」曾并成「…无恶心呕吐、胸脘痞闷」）。
   return out.split(/([，,。；;])/u).map((segment) => {
     const items = segment.split("、");
     return items.map((item, index) => index > 0 && item.startsWith("未诉") && items[index - 1].startsWith("未诉") ? item.slice(2) : item).join("、");
-  }).join("");
+  }).join("").replace(/未诉(?:未诉)+/gu, "未诉");
+}
+
+/**
+ * 「无X」不是对本例的否认、不改「未诉X」的几种写法（2026-10-19 Claude 评审 H 集，十余处）：
+ *  · 「无」长在固定说法里（「痛无休止」「乳汁无由而生」「语无伦次」「似喘无声」「有声无物」「面色无光泽」「疤痕无发」
+ *    「无痛性黄疸」），闭集；
+ *  · 描述的是另一个病：「无X之肠结」，或分句以病名打头（「口僻仅口眼歪斜而无半身不遂」「痿证以肢体痿弱不用、一般无痛为主」
+ *    「牙痛以牙齿疼痛为主、无骨外露久溃」），或分句前半是泛述（「肝脓肿多无波动性黄疸」「恶性多质硬固定、无周期痛」）；
+ *  · 核实、追问类分句（「核实：无呕吐」「既往有无无热发作」）；
+ *  · 检验或测量（「无眼压资料」「无血钙」）。
+ * 以「本例/患者」打头的分句是对本例的断言，只按固定说法与测量项排除。
+ */
+// 「无菌性脓尿」「无排卵」「无症状性」是医学术语（D 集 X-D-0062、3246）。
+// 「无从判定」「无热惊厥」「发作无热」也是固定说法（症状写法是「无发热」）（D 集 X-D-5154、5494、0750）。
+const FIXED_WU_COLLOCATION_TAIL = /^(?:休止|由|光泽|伦次|声(?![音嘶])|物(?!质)|发(?![热作病生育])|痛性|菌|排卵|症状|从|热(?:惊厥|发作|反复|象|性))/u;
+const GENERIC_DESCRIPTION_LEAD = /(?<![日正异寻])常(?![规见])|多(?![次年日天发月])|一般|往往|通常|每每|皆|典型/u;
+const CHECK_CLAUSE = /核实|待查|询问|追问|与否|是否|有无|需查|应查/u;
+const TEST_FINDING_CONTEXT = /心电图|ECG|导联|P波|QRS|ST段|T波|造影|CT|MRI|磁共振|超声|彩超|B超|X线|胸片|平片|病理|活检|镜下|镜检|培养|涂片|脑脊液|血常规|尿常规|化验|检验|影像|描述|组织|细胞|浸润|阴影|占位|病灶|资料|依据/u;
+const MEASUREMENT_TERM = /^(?:血[钙钾钠镁磷糖脂压氧]|眼压|体温|心率|血象|尿[糖蛋]白?|肝功|肾功)/u;
+const textbookDiseaseNames = (textbookDiseaseNamesJson as { names: string[] }).names
+  .filter((name) => name.length >= 2).sort((left, right) => right.length - left.length);
+function notAPatientDenial(offset: number, whole: string, term: string): boolean {
+  if (FIXED_WU_COLLOCATION_TAIL.test(term) || /之/u.test(term) || MEASUREMENT_TERM.test(term)) return true;
+  const before = whole.slice(0, offset);
+  const clause = before.slice(Math.max(before.search(/[^，,。；;\n]*$/u), 0));
+  if (CHECK_CLAUSE.test(clause)) return true;
+  // 检查所见（心电图、造影、影像、病理、化验）不是患者自诉，「未诉」用不上（2026-10-19 Claude 评审 D 集：「未诉相关P波」
+  //「冠脉造影未诉阻塞性病变」「未诉癌组织」「未诉间质浸润描述」）。
+  // 只看「无」紧前面同一列举项里的几个字和对象本身：「未提供血常规结果、无面色苍白」的面色苍白仍是症状。
+  const nearBefore = before.slice(-6).split(/[、，,；;：:]/u).at(-1) || "";
+  if (TEST_FINDING_CONTEXT.test(`${nearBefore}${term}`)) return true;
+  const lead = clause.replace(/^[\s（(]+/u, "");
+  if (/^(?:本例|患者|病人|该患)/u.test(lead)) return false;
+  if (GENERIC_DESCRIPTION_LEAD.test(clause)) return true;
+  if (textbookDiseaseNames.some((name) => lead.startsWith(name) && lead.length > name.length)) return true;
+  // 教材表以外的国标病名（口僻、厥证…）：分句开头 2–4 个字正好是一个受控中医病名。
+  return [4, 3, 2].some((length) => lead.length > length && isGovernedTcmDiseaseName(lead.slice(0, length)));
 }
 
 export function applyM03AdvisoryQualityBoundaries(content: string, clinicalContext: string): string {
@@ -1632,9 +1674,12 @@ function signedNatureProfile(reasoning: Record<string, unknown>): SignedNaturePr
   // 「健脾」「温肾」「暖宫」这类也是补法（2026-10-13：脾胃虚寒证·温中健脾、和胃降逆 曾被推成「实则泻之」）。
   // 「温中」不在内：它说的是温散寒邪（寒邪内阻证·温中散寒 是「寒者热之」，不是扶正）——第一版把它算作补法，
   // 190 例回放里两例实寒证被推成「扶正祛邪」。
-  const tonifying = /(?:补|益气|益肾|益精|益胃|益阴|益脾|益肺|益心|健脾|健胃|温肾|温补|暖宫|暖肝|壮阳|培元|培土|养|滋|温阳|助阳|回阳|扶阳|固表|固摄|固脱|固精|固冲|填精|生津|育阴|扶正|升阳举陷|升提|敛汗|敛阴)/.test(method);
-  const dispelling = /(?:清|泻|泄|疏|散|化痰|化湿|化瘀|化饮|化浊|化积|祛|逐|活血|行气|理气|利水|利湿|利尿|通络|通腑|通便|通淋|通窍|消食|消积|消肿|攻|解表|解毒|解郁|平肝|潜阳|息风|熄风|降逆|降气|涤痰|破|软坚|燥湿|渗湿|宣肺|透疹|发汗|导滞|开窍|豁痰|止痛|镇惊)/.test(method);
+  // 「固冲止血」「清热生津」「敛汗」在实证里是治标的手段，不是扶正：只在证名本身有虚时算补法
+  //（2026-10-19 Claude 评审 H 集 X-H-0338：月经过多·血热证、清热凉血固冲止血，治则被推成「扶正祛邪」）。
   const nameDeficient = /(?:虚|亏|不足|失养|不固|不摄|怯|衰|脱)/.test(names);
+  const tonifying = /(?:补|益气|益肾|益精|益胃|益阴|益脾|益肺|益心|健脾|健胃|温肾|温补|暖宫|暖肝|壮阳|培元|培土|养|滋|温阳|助阳|回阳|扶阳|固表|固脱|固精|填精|育阴|扶正|升阳举陷|升提|敛阴)/.test(method) ||
+    (nameDeficient && /(?:固摄|固冲|生津|敛汗)/.test(method));
+  const dispelling = /(?:清|泻|泄|疏|散|化痰|化湿|化瘀|化饮|化浊|化积|祛|逐|活血|行气|理气|利水|利湿|利尿|通络|通腑|通便|通淋|通窍|消食|消积|消肿|攻|解表|解毒|解郁|平肝|潜阳|息风|熄风|降逆|降气|涤痰|破|软坚|燥湿|渗湿|宣肺|透疹|发汗|导滞|开窍|豁痰|止痛|镇惊)/.test(method);
   const nameExcess = /(?:实|热|火|寒|湿|痰|饮|瘀|滞|郁|积|毒|风|燥|水停|犯|束|蕴|阻|结|闭|亢|扰|袭)/.test(names.replace(/虚[热火寒]/g, ""));
   // 治法是「怎么治」的直接陈述：治法已写时以它为准，证名只在治法缺席时兜底。
   const deficient = method ? tonifying : nameDeficient;
@@ -2645,8 +2690,9 @@ export function declassifyUnsupportedM03WesternPrimary(content: string, clinical
     if (previousName && previousName !== symptomName && !differentials.some((item) => markdownCell(item.name) === previousName)) {
       differentials.unshift({
         name: previousName,
-        reason: "独立临床复核认为现有病程或必备条件尚不足，暂列鉴别诊断",
-        distinguishingPoints: "是否满足该疾病的病程阈值、功能影响、必要客观依据及排除条件。",
+        // 写给医生的临床说法（2026-10-19 Claude 评审 H 集 H-tri-2009：模板句「是否满足该疾病的病程阈值…」原样进了西医鉴别）。
+        reason: "现有病程或检查尚不足以确诊，暂列鉴别诊断",
+        distinguishingPoints: "需结合病程、查体及必要检查核实是否符合该病的诊断标准",
         nextCheck: suggestedChecks[0] || "结合病程演变、查体及必要检查复核诊断标准",
       });
     }
@@ -2757,8 +2803,17 @@ function splitWesternDifferentialRow(raw: Record<string, unknown>): Record<strin
     : splitAlternativeParts(name.replace(/^[^：:]*(?:待查|待排|待鉴别)[：:]/, ""));
   const usable = completeSharedDiagnosisHead(completeSharedDiagnosisTail(names))
     .filter((item) => !isAmbiguousM03WesternPrimaryLabel(item));
+  // 拆出来的某一段不像病名（只剩部位「食管」「纵隔」「脑干」「硬膜下」，或只剩走向「残余」「进展」「依赖」）时整行不拆，照原样一条
+  //（2026-10-19 Claude 评审 H 集十余处：「食管（需确认有无吞咽困难…）」「残余」「依赖」单独成条）。补全借得到的照旧拆。
+  // 「输血/输液反应」「药物/中毒所致意识障碍」拆出的「输血」「药物」是诱因或操作，不是病名（D 集 X-D-4610、2767）。
+  if (usable.some((item) => !SPLIT_PART_DIAGNOSIS_MORPHEME.test(item) || SPLIT_PART_AGENT_ONLY.test(item))) return [raw];
   return usable.length > 0 ? usable.map((item) => ({ ...raw, name: item })) : [raw];
 }
+
+/** 只是诱因、操作或处置的词（闭集）：单独成条不是病名。 */
+const SPLIT_PART_AGENT_ONLY = /^(?:输血|输液|药物|物质|手术|术后|切口|放疗|化疗|外伤|残余|进展|依赖|复发|感染|炎症|坏死|改变|受累)$/u;
+/** 病名里总有的构词成分（闭集，只用来认出拆分后的碎片；不用来认病）。 */
+const SPLIT_PART_DIAGNOSIS_MORPHEME = /病|炎|癌|瘤|恶变|症|征|血|梗|塞|衰|损|伤|折|裂|疝|痔|瘘|溃疡|结石|感染|结核|增生|肥大|狭窄|扩张|曲张|囊肿|积液|积水|水肿|萎缩|硬化|栓|反流|痉挛|麻痹|瘫|中毒|过敏|缺乏|紊乱|障碍|失调|待查|转移|占位|病变|异常|畸形|脱垂|穿孔|梗阻|息肉|综合|功能|不全|亢进|减退|低下|早搏|颤|速|缓|阻滞|痛|晕|厥|痫|呆|郁|躁|焦虑|失眠|肿|瘀|脓|疹|疣|癣|斑|毒|热|咳|喘|泻|秘|吐|聋|盲|视|弱|劳/u;
 
 /**
  * 泛指病理词（闭集）：单独成条时不指明部位，不是一个诊断名。

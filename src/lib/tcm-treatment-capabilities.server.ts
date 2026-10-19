@@ -23,7 +23,7 @@ import { affirmedClinicalText } from "./clinical-polarity";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
 import { narrativePediatricAgeConflict, pregnancyScreenRequired, reproductiveAdviceRelevant } from "./diagnosis-safety";
-import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, dietAdviceAvoidsRichFood, syndromeHasHeatNature, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
+import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, caseCourse, dietAdviceAvoidsRichFood, dietAdviceAvoidsTea, syndromeHasHeatNature, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, syndromeLabelFitsSigned, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
 import governanceSourceRegistryJson from "../data/clinical-governance-source-registry.json" with { type: "json" };
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
@@ -205,14 +205,27 @@ const BODY_PART_ONLY_TERMS = /^(?:颈肩|颈项|颈部|颈椎|颈肌|脖子|关�
 const BODY_COMPLAINT_WORDS = /痛|酸|麻|僵|肿|胀|受限|不利|屈伸|无力|活动障碍|弹响|畸形/;
 
 /**
- * 选穴用的本例主症词。只取**已签名结论与病历原文**里出现的症状级词，不引入任何新断言：
- * 穴位是按主治匹配选出来的，匹配依据必须是本例真实记录的症状，否则又变成通用池。
+ * 穴位标注「主治含X」用的本例症状词。穴位是按主治匹配选出来的，匹配依据必须是本例病历**当前**真实记录、且是本例症状的那个词
+ *（2026-10-19 Claude 评审，此前从模型写的病机叙述与全部病历里扫词）：
+ *  · 只读病历当前阳性面，不读模型叙述——「瘀久化热，故局部发热」让臂丛损伤的合谷标「主治含发热」（H-tri-1622）；
+ *  · 词前紧挨否认（「发病后无发热」，H-tri-10322）、是「喜热恶寒」这类喜恶偏好（H-tri-10720，腹痛喜温，不是表证恶寒）、
+ *    或只是另一症状的诱因（「受凉、咳嗽、伸腿疼痛加重」，H-tri-1476）的不算。三条都是构词式守卫：否认词与诱因句式为闭集。
  */
-function acupointCaseTerms(clinicalText: string, caseFacts: string, targetPathogenesis: string): string[] {
-  const source = [clinicalText, caseFacts, targetPathogenesis].filter(Boolean).join("；");
-  if (!source) return [];
-  const SYMPTOM_SCAN = /(?:恶寒|发热|头痛|头晕|眩晕|鼻塞|流涕|喷嚏|咽痛|咳嗽|气喘|胸痛|胸闷|心悸|失眠|健忘|多梦|自汗|盗汗|无汗|口渴|纳呆|食少|腹胀|腹痛|泄泻|便秘|呕吐|恶心|呃逆|水肿|尿频|尿急|癃闭|带下|痛经|月经不调|腰痛|膝痛|肩痛|颈痛|痹痛|麻木|抽搐|瘾疹|湿疹|瘙痒|目赤|耳鸣|耳聋|牙痛|口疮)/g;
-  return [...new Set([...source.matchAll(SYMPTOM_SCAN)].map((match) => match[0]))];
+const SYMPTOM_SCAN = /(?:恶寒|发热|头痛|头晕|眩晕|鼻塞|流涕|喷嚏|咽痛|咳嗽|气喘|胸痛|胸闷|心悸|失眠|健忘|多梦|自汗|盗汗|无汗|口渴|纳呆|食少|腹胀|腹痛|泄泻|便秘|呕吐|恶心|呃逆|水肿|尿频|尿急|癃闭|带下|痛经|月经不调|腰痛|膝痛|肩痛|颈痛|痹痛|麻木|抽搐|瘾疹|湿疹|瘙痒|目赤|耳鸣|耳聋|牙痛|口疮)/g;
+export function acupointCaseTerms(currentFacts: string, signedDiseaseNames: readonly string[] = []): string[] {
+  // 已签名的病名本身（腰痛、眩晕、耳鸣…）是结论，不是叙述，照算。
+  const terms = new Set<string>(signedDiseaseNames.flatMap((name) => [...String(name || "").matchAll(SYMPTOM_SCAN)].map((match) => match[0])));
+  for (const clause of String(currentFacts || "").split(/[，,。；;\n]/u)) {
+    for (const match of clause.matchAll(SYMPTOM_SCAN)) {
+      const before = clause.slice(0, match.index);
+      const after = clause.slice((match.index ?? 0) + match[0].length);
+      if (/(?:无|未|没有|没|否认|不伴|不)[^、]{0,2}$/u.test(before)) continue;
+      if (/喜[\u4e00-\u9fff]{1,2}$/u.test(before)) continue;
+      if (/^[、和及]?[^。；;，,]{0,10}?(?:痛|酸|麻|胀)[^。；;，,]{0,3}(?:加重|加剧|更甚|明显)/u.test(after)) continue;
+      terms.add(match[0]);
+    }
+  }
+  return [...terms];
 }
 
 /**
@@ -253,6 +266,21 @@ function annotateGovernedTemplatePoint(
   return wrap([`${entry.code}${meridian}${trigger}`]);
 }
 
+/**
+ * 目录模板操作栏写的「先排除A、B…」与已签名诊断（中医病名、西医主诊断）对照：诊断就是要先排除的那一类时，模板不适用本例。
+ * 类别与诊断用字为闭集：骨折；感染（结核、化脓、脓肿、蜂窝织炎、骨髓炎、感染）；肿瘤、占位（癌、瘤、占位）。
+ */
+const EXCLUDE_FIRST_CATEGORIES: ReadonlyArray<readonly [RegExp, RegExp]> = [
+  [/骨折/u, /骨折/u],
+  [/感染/u, /结核|化脓|脓肿|蜂窝织炎|骨髓炎|感染/u],
+  [/肿瘤|占位/u, /肿瘤|癌|瘤|占位/u],
+];
+export function templateExcludesSignedDiagnosis(techniqueBoundary: string, diagnosisNames: string): boolean {
+  const items = String(techniqueBoundary || "").match(/先排除([^。；;]+)/u)?.[1];
+  if (!items || !diagnosisNames.trim()) return false;
+  return EXCLUDE_FIRST_CATEGORIES.some(([item, diagnosis]) => item.test(items) && diagnosis.test(diagnosisNames));
+}
+
 /** 受治理来源 ID → 卡片上的来源名（来源登记表的题名；题名不带书名号时写「发布者《题名》」）。查不到的 ID 原样保留。 */
 const GOVERNED_SOURCE_BY_ID = new Map(
   ((governanceSourceRegistryJson as { entries?: Array<{ id?: string; title?: string; publisher?: string }> }).entries || [])
@@ -290,7 +318,7 @@ function controlledTreatmentPlan(
   /** 本例年龄（岁）。带年龄下限的模板取不到年龄一律不启用。 */
   patientAgeYears?: number,
   /** 教材方案（tcm-nondrug-textbook-plan.server.ts）的取材：已签名病名、西医主诊断、主证+兼证结论。 */
-  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string; chiefComplaint?: string; avoidRichFood?: boolean; herbAlreadyPrescribed?: (herb: string) => boolean },
+  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string; signedPrinciple?: string; chiefComplaint?: string; avoidRichFood?: boolean; herbAlreadyPrescribed?: (herb: string) => boolean; recordedDiabetes?: boolean; avoidTea?: boolean },
 ): Pick<TreatmentRecommendation,
   "treatmentContent" | "suggestedSitesOrPoints" | "scheduleSuggestion" | "techniqueBoundary" |
   "protocolSource" | "protocolStatus" | "protocolGap" | "tailoringStatus" |
@@ -310,8 +338,11 @@ function controlledTreatmentPlan(
         currentFacts,
         signedNarrative: signedSyndromeText,
         patientAgeYears,
+        signedPrinciple: textbookContext.signedPrinciple,
         chiefComplaint: textbookContext.chiefComplaint,
         avoidRichFood: textbookContext.avoidRichFood,
+        recordedDiabetes: textbookContext.recordedDiabetes,
+        avoidTea: textbookContext.avoidTea,
         herbAlreadyPrescribed: textbookContext.herbAlreadyPrescribed,
       }
     : undefined;
@@ -334,7 +365,7 @@ function controlledTreatmentPlan(
 
   /** 教材方案 → 卡片字段（tcm-nondrug-textbook-plan.server.ts）。证型相符 = 已按本例证型选穴/选方；配穴出自十三五规划教材，并经联网权威来源核对（2026-09-29）。 */
   const fromTextbook = (plan: TextbookPlan) => {
-    const caseTerms = acupointCaseTerms(clinicalText, caseFacts, targetPathogenesis);
+    const caseTerms = acupointCaseTerms(currentFacts, [...(textbookContext?.diseaseNames || []), ...(textbookContext?.westernNames || [])]);
     const bodySystem = projectCode !== "auricular";
     const points = plan.kind === "acupoint"
       ? plan.points.map((point) => (bodySystem
@@ -405,7 +436,17 @@ function controlledTreatmentPlan(
     const pointsGoverned = tcmTreatmentTemplatePointsAreGoverned(governedTemplate);
     // caseFacts 是**已确认的阳性**病历事实（affirmedClinicalText 的产物），
     // 因此「否认恶寒」不会把风寒袭肺的证据门槛顶开——这一点与全仓的极性口径同源。
-    const matchedRefinement = governedTcmTreatmentSyndromeRefinement(governedTemplate, signedSyndromeText, caseFacts);
+    // 证型配穴先按已签名的证候结论（主证＋兼证）命中；按病机叙述（总病机、各节点病机、辨证依据、治法方向）才命中的，配穴证名须与证候结论相符，
+    // 否则卡片会写「按X取穴」「X加减」而 X 不是本例的证（2026-10-19 Claude 评审：眩晕·痰湿中阻证因节点「久病气血不足」写成
+    //「按气血亏虚取穴」（M-TCMChat-test-352）；痛痹因腰部闪挫节点的「气血瘀滞」加了瘀血阻络的膈俞、血海（M-TCMChat-test-438）；
+    // 热秘写成「按饮食停滞取穴」（X-H-0326）；胃热写成按肝气犯胃加太冲、期门（X-H-0104））。
+    // 主证先于兼证：脾胃虚寒证兼湿热中阻证按脾胃虚寒取穴（M-TCM-RobustSDT-single_0614）。
+    const signedConclusion = textbookContext?.signedSyndromeText || signedSyndromeConclusion;
+    const conclusionRefinement = (signedSyndromeConclusion ? governedTcmTreatmentSyndromeRefinement(governedTemplate, signedSyndromeConclusion, caseFacts) : undefined) ||
+      (signedConclusion ? governedTcmTreatmentSyndromeRefinement(governedTemplate, signedConclusion, caseFacts) : undefined);
+    const narrativeRefinement = conclusionRefinement ? undefined : governedTcmTreatmentSyndromeRefinement(governedTemplate, signedSyndromeText, caseFacts);
+    const matchedRefinement = conclusionRefinement ||
+      (narrativeRefinement && (!signedConclusion || syndromeLabelFitsSigned(narrativeRefinement.syndromeLabel, signedConclusion)) ? narrativeRefinement : undefined);
     // ── 未终审的证型加减不得冒充「按本例证型加减过」（2026-08-11）────────────────────
     //
     // 45 条证型配穴里只有一部分经过逐条复核。未终审的那些此前与已核验条目**待遇完全相同**：
@@ -422,7 +463,7 @@ function controlledTreatmentPlan(
       : undefined;
     const refinementApproved = refinementAdjudication?.adjudicationStatus === "approved";
     const refinement = refinementApproved ? matchedRefinement : undefined;
-    const caseTerms = acupointCaseTerms(clinicalText, caseFacts, targetPathogenesis);
+    const caseTerms = acupointCaseTerms(currentFacts, [...(textbookContext?.diseaseNames || []), ...(textbookContext?.westernNames || [])]);
     // 剔除按**命中的**那条走，不按终审后的那条走——这是上面第二条的落点。
     const removed = new Set(matchedRefinement?.removePoints || []);
     const basePoints = governedTemplate.sitesOrPoints.filter((site) => !removed.has(site));
@@ -477,27 +518,41 @@ function controlledTreatmentPlan(
       return projectCode === "auricular" ? bare.length > 0 && !/或/.test(bare) : Boolean(resolveAcupoint(bare));
     }).length;
     // 目录模板是按伴随症状对上的（眩晕病例因「多梦」对上失眠取穴、咳嗽病例因「胃脘」对上胃肠耳穴），而教材里有本病自己的方案：
-    // 用教材的。判据：模板在本例命中的词没有一个出现在主诉里，模板的匹配词也没有一个与已定病名相合
-    //（2026-10-13 独立评审：眩晕·肾精不足给的是安眠、神门、内关、心俞）。没有主诉可对照时不改变原有选择。
-    const chiefComplaint = (textbookContext?.chiefComplaint || "").normalize("NFKC");
+    // 用教材的（2026-10-13 独立评审：眩晕·肾精不足给的是安眠、神门、内关、心俞）。判据见下面 templateOffDisease。
     const templateMatchedOn = [
       ...indicationEvidenceTerms(governedTemplate.indicationTag, caseFacts),
       ...governedTemplate.matchAny.filter((term) => clinicalText.normalize("NFKC").includes(term)),
     ];
-    // 教材有本病自己的针刺节时，没按证型加减、匹配词又与病名无关的目录模板一律算对的是伴随症状（2026-10-19，r1019 验收集）：
-    // 主诉常把伴随症状一并写进去（「产后小便不畅…小腹胀急」「瘿病…失眠烦躁」），上面「命中词不在主诉里」那一条因此拦不住，
-    // 癃闭、瘿病、颤证拿到的都是腹胀、失眠模板，耳穴卡拿到头痛模板。教材没有本病节时仍按主诉判（胃痞配腹胀模板照旧）。
+    // 主诉常把伴随症状一并写进去（「产后小便不畅…小腹胀急」「瘿病…失眠烦躁」），此前「命中词不在主诉里」那一条因此拦不住，
+    // 癃闭、瘿病、颤证拿到的都是腹胀、失眠模板，耳穴卡拿到头痛模板（2026-10-19，r1019 验收集）。
     const diseaseHasTextbookSection = Boolean(textbookContext &&
       textbookPlanExistsForDisease("acupuncture", textbookContext.diseaseNames[0], textbookContext.westernNames[0]));
     // 「与病名相合」看本例中医病名、西医病名和对上的教材节名与又名（头风病之于头痛模板、时行感冒/流行性感冒之于流感模板都算本病）。
-    const diseaseNameForms = diseaseHasTextbookSection && textbookContext
-      ? [...textbookContext.diseaseNames, ...textbookContext.westernNames, ...textbookSectionNames(textbookContext.diseaseNames, textbookContext.westernNames)]
+    const diseaseNameForms = textbookContext
+      ? [...textbookContext.diseaseNames, ...textbookContext.westernNames,
+        ...(diseaseHasTextbookSection ? textbookSectionNames(textbookContext.diseaseNames, textbookContext.westernNames) : [])].filter(Boolean)
       : [];
-    const templateNamesDisease = governedTemplate.matchAny.some((term) => diseaseNameForms.some((name) => name && (name.includes(term) || term.includes(name))));
-    const templateOffDisease = (diseaseHasTextbookSection && !syndromeTailored && templateMatchedOn.length > 0 && !templateNamesDisease) ||
-      chiefComplaint.length > 0 && templateMatchedOn.length > 0 &&
-      !templateMatchedOn.some((term) => chiefComplaint.includes(term)) &&
-      !governedTemplate.matchAny.some((term) => (textbookContext?.diseaseNames || []).some((name) => name.includes(term) || term.includes(name)));
+    const namesDisease = (terms: readonly string[], forms: readonly string[]) => terms.some((term) => forms.some((name) => name && (name.includes(term) || term.includes(name))));
+    // 教材有本病这一项目的方案时，模板自己的匹配词须与已签名的病名（中医、西医）相合——教材节的又名不算（胃痛的耳穴卡用教材「胃、十二指肠、
+    // 脾、肝…」，不因教材又名「胃脘痛」含模板词「胃脘」改用通用胃肠耳穴模板；呃逆用教材「耳中、胃、神门…」）；
+    // 教材没有时放宽到同一症状域：同域的模板（各项目里 indicationTag 相同的那几条）有一条的匹配词与病名或教材节名相合，或病名本身落在这个症状域里
+    //（胃痞的耳穴卡用胃肠耳穴模板——耳穴模板的匹配词没有「胃痞」，针刺的胃肠模板有）。
+    const signedNameForms = textbookContext ? [...textbookContext.diseaseNames, ...textbookContext.westernNames].filter(Boolean) : [];
+    const domainTerms = TCM_TREATMENT_PROJECTS.flatMap((definition) => definition.planTemplates)
+      .filter((template) => template.indicationTag === governedTemplate.indicationTag)
+      .flatMap((template) => template.matchAny);
+    const templateNamesDisease = textbookPlan
+      ? namesDisease(governedTemplate.matchAny, signedNameForms)
+      : namesDisease([...governedTemplate.matchAny, ...domainTerms], diseaseNameForms) ||
+        indicationTags(diseaseNameForms.join("；")).has(governedTemplate.indicationTag);
+    // 2026-10-19（Claude 评审 M 集、H 集）：模板的匹配词与本例病名都不相合，就算对的是伴随症状——不再看主诉里有没有这个词、也不看是否按证型加减过。
+    // 主诉常把伴随症状写在一起（「目赤肿痛，羞明流泪，伴头痛发热」「头晕头痛…恶心欲吐」「喉痛、头痛已2天」），此前只要主诉里有「头痛」，
+    // 风热赤眼、眩晕、乳蛾、风牵偏视都拿到头痛模板，卡片写「针对本例头痛」（X-H-0155/0161、M-TCMChat-test-352、H-tri-16468、H-tri-6697）；
+    // 按证型加减过也一样（眩晕·痰湿中阻按头痛模板的痰浊上扰配穴，五迟按腹胀模板、瘿痈与血证按头痛耳穴模板，紫癜性肾炎腰痛按骨骼肌肉模板，
+    // H-tri-14474、H-tri-7467、X-H-0370、M-TCM-RobustSDT-single_0532）。精确证型闸门选中的模板除外（闸门本身就要求本例当前事实与证型）。
+    // 模板自己写着「先排除骨折、感染…」，而已签名诊断正是其中一项（膝关节结核，H-tri-16689）：这张模板不适用本例，与对错病同样处理。
+    const templateOffDisease = (!syndromeGatedTemplate && templateMatchedOn.length > 0 && diseaseNameForms.length > 0 && !templateNamesDisease) ||
+      templateExcludesSignedDiagnosis(governedTemplate.techniqueBoundary, diseaseNameForms.join("；"));
     // 对的是别的病的模板，按证型加减过也不用（2026-10-14 独立评审：遗尿·肺脾气虚的患儿，因证名与「感染后呼吸康复」模板的匹配词
     // 「肺脾气虚」相同，针刺卡写成「按肺脾气虚取穴，针对本例感冒」，取的是反复感冒的穴）。
     // 教材方案按本例证型配了穴、目录只是病类通用模板时，用教材的（2026-10-18 留出集：泄泻、便秘 4 例都给了通用脾胃模板
@@ -537,7 +592,7 @@ function controlledTreatmentPlan(
     }
     // 对的是伴随症状的模板、本病又没有教材方案时不给这张模板的穴位，落到下面的评估态（2026-10-18 验收集 H：呃逆给失眠取穴、
     // 产后癃闭给腹胀取穴、痿证给头痛取穴）。按本例证型加减过的模板仍照用——那是按证型选的，不是按顺带症状。
-    if (!(templateOffDisease && !textbookPlan && !syndromeTailored)) {
+    if (!(templateOffDisease && !textbookPlan)) {
     // 「取穴」只对取穴类项目成立；食疗/导引/意疗说「取穴」是甲方 9.24/9.27 测评点名的错误（食疗还需要取穴针刺吗）。
     const templateNoun = projectCode === "diet_therapy" ? "食疗" : projectCode === "qigong_daoyin" ? "功法" : projectCode === "mind_therapy" ? "情志调摄" : "取穴";
     const evidenceTerms = indicationEvidenceTerms(governedTemplate.indicationTag, caseFacts);
@@ -912,7 +967,9 @@ export function tcmTreatmentProjectExclusionReason(
   // 取 positive 与 possible 两档：可疑妊娠同样不能扎。既往妊娠（historical）不拦。
   // 系统不建模具体穴位与部位，因此对侵入性/热疗/腹腰骶相关项目一律转人工按禁忌穴位评估——
   // 这是 fail-closed：宁可让医师多确认一次，不可默认放行。
-  if (BLEEDING_EXCLUDED_PROJECTS.has(projectCode) && bleedingTendencyRecorded(caseFacts)) {
+  // 已签名的西医诊断写到凝血障碍、血小板减少（含「待查」）同样算（2026-10-19 Claude 评审 X-H-0370：针后血肿、轻伤出血，诊断
+  //「凝血功能障碍相关出血待查」，居家保健仍给按揉期门、血海）。
+  if (BLEEDING_EXCLUDED_PROJECTS.has(projectCode) && bleedingTendencyRecorded(`${caseFacts}；${prior.westernDiagnosis?.primary?.name || ""}`)) {
     return "出血倾向或血小板明显减少：不推荐按揉、灸、罐、刮痧及侵入性外治项目";
   }
 
@@ -1139,6 +1196,8 @@ export function compileTcmTreatmentRecommendations(
   dietAdvice = "",
   /** 本次处方的药味名（食疗卡不选含同一味药的方子）。 */
   prescribedHerbNames: readonly string[] = [],
+  /** 本次 M04 的注意事项原文（写明忌茶时食疗卡不选含茶叶的方子）。 */
+  precautionText = "",
 ): TreatmentRecommendation[] {
   if (!isTrustedM03(prior) || caseState?.safetyGate?.status === "red_flag") return [];
   const scope = effectiveCapabilityScope(caseState);
@@ -1262,8 +1321,12 @@ export function compileTcmTreatmentRecommendations(
         diseaseNames: [prior.overview.tcmDiseaseName || ""].filter(Boolean),
         westernNames: [prior.westernDiagnosis?.primary?.name || ""].filter(Boolean),
         signedSyndromeText,
+        signedPrinciple: prior.therapy?.overallPrinciple || "",
         chiefComplaint: typeof caseState?.chiefComplaint === "string" ? caseState.chiefComplaint : "",
         avoidRichFood: dietAdviceAvoidsRichFood(dietAdvice),
+        // 糖尿病读病历全部阳性面（含既往史）与已签名病名：糖尿病多写在既往史里（M-TCMChat-test-405）。
+        recordedDiabetes: RECORDED_DIABETES.test([caseFacts, prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""].join("；")),
+        avoidTea: dietAdviceAvoidsTea(`${dietAdvice}；${precautionText}`),
         herbAlreadyPrescribed: prescribedIdentities.size > 0 ? (herb: string) => prescribedIdentities.has(canonicalTcmHerbIdentity(herb)) : undefined,
       },
     );
@@ -1271,14 +1334,15 @@ export function compileTcmTreatmentRecommendations(
     // 疗程栏与操作栏不写流程用语（「复评」「课程索引」「由现场医师复核」）。
     // 写给别的证型的句子、阴虚热证里建议用灸的句子也在这里去掉（cardSentencesMatchedToSyndrome），治疗内容栏同样过这一道。
     const diseaseNamesForCard = [prior.overview.tcmDiseaseName || ""].filter(Boolean);
-    const cardSentences = (value: string) => cardSentencesMatchedToSyndrome(value, diseaseNamesForCard, signedSyndromeText);
+    const course = caseCourse([prior.westernDiagnosis?.primary?.name || ""], typeof caseState?.chiefComplaint === "string" ? caseState.chiefComplaint : "");
+    const cardSentences = (value: string) => cardSentencesMatchedToSyndrome(value, diseaseNamesForCard, signedSyndromeText, course);
     // 只用于针刺卡：穴位栏就是本例的取穴处方。推拿卡的操作是一整套教材手法，穴位栏只列主穴，不能按它删步骤。
     const cardPoints = definition.code === "acupuncture" && Array.isArray(plannedTreatment.suggestedSitesOrPoints)
       ? plannedTreatment.suggestedSitesOrPoints.filter((point): point is string => typeof point === "string")
       : [];
     const reproductiveRelevant = caseState?.patient ? reproductiveAdviceRelevant(caseState as CaseState) : true;
     const cardText = (value: string) => cardTextForPopulation(clinicalTreatmentScheduleWording(cardSentencesNamingListedPoints(cardSentences(
-      definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText) : value), cardPoints)), reproductiveRelevant);
+      definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText, prior.therapy?.overallPrinciple || "") : value), cardPoints)), reproductiveRelevant);
     // 卡片写明只适用于本病另几个类型、本例的证不在其中时整张不出（cardApplicabilityExcludesSyndrome）。
     if ([plannedTreatment.treatmentContent, plannedTreatment.techniqueBoundary]
       .some((value) => typeof value === "string" && cardApplicabilityExcludesSyndrome(value, diseaseNamesForCard, prior.overview.primarySyndrome || ""))) return [];
@@ -1396,6 +1460,8 @@ export function treatmentCardUndeliverable(item: { projectCode?: unknown; protoc
 // 艾灸的烫伤风险另算：糖尿病与感觉减退者对热不敏感，体温升高时不宜温灸（《护理人员中医技术使用手册》悬灸禁忌）。
 // 只读确定性肯定句（treatmentCaseFacts 已剔除否认与既往），闭集词与数值阈值。
 const MOXIBUSTION_BURN_RISK = /糖尿病|消渴|感觉(?:减退|迟钝|障碍|异常)|周围神经病变/;
+/** 病历记有糖尿病（含消渴病名）：食疗卡按《成人糖尿病食养指南（2023年版）》选方（recipeUnsuitableForDiabetes）。 */
+const RECORDED_DIABETES = /糖尿病|消渴/u;
 
 // 需要筛查妊娠的患者（与安全门同一判据 pregnancyScreenRequired：育龄女性、未写明已绝经或无子宫）
 // 没有写明否认妊娠时，居家保健按妊娠禁忌从严去掉禁用穴与腹部、腰骶部穴位。
@@ -1533,6 +1599,8 @@ const PRECAUTION_TREATMENT_MENTIONS: ReadonlyArray<readonly [RegExp, readonly Tc
   [/埋线/, ["thread_embedding"]],
   // 「导引治疗」是项目；运动保健栏里的「可练八段锦」不是注意事项点名的治疗，不在此列。
   [/导引/, ["qigong_daoyin"]],
+  // 「针刺与食疗须在专科评估后由医师安排」而本例没给食疗卡（2026-10-19 Claude 评审 H-tri-10295）。
+  [/食疗/, ["diet_therapy"]],
 ];
 
 export function precautionMentionsUndeliveredTreatment(line: unknown, delivered: ReadonlySet<string>): boolean {
@@ -1573,7 +1641,10 @@ export function applyTcmTreatmentCapabilityPriority(
     // 食疗卡要看本次的饮食调护与处方药味（2026-10-19 甲方病历 5：饮食栏「忌生冷肥甘」、处方有黄芪 20g）。
     const prescribedHerbNames = (reasoning.formula?.candidates?.[0]?.herbs || [])
       .map((herb) => String(herb?.name || "")).filter(Boolean);
-    const recommendations = compileTcmTreatmentRecommendations(proposals, prior, caseState, String(existingNonPharma?.diet || ""), prescribedHerbNames);
+    const precautionText = Array.isArray(existingNonPharma?.precautions)
+      ? existingNonPharma!.precautions.filter((line): line is string => typeof line === "string").join("；")
+      : "";
+    const recommendations = compileTcmTreatmentRecommendations(proposals, prior, caseState, String(existingNonPharma?.diet || ""), prescribedHerbNames, precautionText);
     if (!existingNonPharma && recommendations.length === 0) return content;
     reasoning.nonPharma = existingNonPharma || {
       diet: "",

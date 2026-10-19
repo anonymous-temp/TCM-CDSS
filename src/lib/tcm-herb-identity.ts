@@ -112,6 +112,17 @@ export function resolveGovernedTcmHerbIdentity(value: unknown): GovernedHerbIden
   };
 }
 
+/**
+ * 受治理目录裁定过的「同一味药」规范名，不论能否自动归一（2026-10-19）：白蜜→蜂蜜（中医师裁定「白蜜即蜂蜜」，因作赋形剂、
+ * 剂量语义不同而不自动归一）。**只给文字核对用**（方义说「去白蜜…而留蜂蜜」是不是自相矛盾），剂量、配伍、身份锁定一律仍用
+ * resolveGovernedTcmHerbIdentity。品种分叉（芍药→白芍/赤芍）没有唯一规范名，返回 undefined。
+ */
+export function governedTcmHerbAdjudicatedCanonical(value: unknown): string | undefined {
+  const row = RESOLUTION_INDEX[identityInput(value)];
+  if (!row?.canonicalName || (row.candidates?.length ?? 0) >= 2) return undefined;
+  return row.canonicalName;
+}
+
 export function isAmbiguousGovernedTcmHerbIdentity(value: unknown): boolean {
   return resolveGovernedTcmHerbIdentity(value).status === "ambiguous";
 }

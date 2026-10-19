@@ -264,6 +264,8 @@ test("a candidate that fails a deterministic contract is retained with findings,
     assert.match(rendered, /## 处方补充提示/, `${label}: 问题提示必须随结果交付`);
     assert.match(rendered, /有需要医生核对之处/, `${label}: 不得冒充已核对无误`);
     assert.doesNotMatch(rendered, /确定性校验|候选方|自动修复|本次已生成候选/, `${label}: 这一页写给医生，不说系统自己的流程`);
+    // 2026-10-19 第四轮：这一页不给用量，提示里的「当前药量…；历史参考…」数字段不列（剂量掩码后只剩残句，H 集 19771）。
+    assert.doesNotMatch(rendered, /当前药量|历史参考/, `${label}: 不给剂量页不列剂量数字段`);
     assertNonDose(rendered);
     // 签名/attestation 通道对脏候选必须关闭——保留内容不等于「已通过校验」。
     const attestation = clinicalReviewNotPerformedAttestation(input.reasoning);

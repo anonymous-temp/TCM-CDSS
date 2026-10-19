@@ -893,8 +893,13 @@ export function buildPrescribePrompt(caseState: CaseState, extras: M04PromptExtr
       ...(nonDecoctionHerbs(item.ingredients).length > 0
         ? [`  原方中不入煎的药味：${nonDecoctionHerbs(item.ingredients).join("、")}（溶服或冲服，不与群药同煎；本次不编制用量）。不要写进 candidate.herbs，由医师另行决定是否使用。`]
         : []),
-      ...(formulaManualDoseIngredients(item.formulaName).length > 0
-        ? [`  原方含但本次不编制用量的药味：${formulaManualDoseIngredients(item.formulaName).join("、")}（毒性/管制类，用量与是否使用由医师单独确定并经审方复核）。不得写入本次处方药味表，也不计入组成身份下限。`]
+      // 「沙参」被扣是因为品种未定（北沙参/南沙参），不是毒性（2026-10-19 Claude 评审：沙参麦冬汤加减里没有沙参，方名与药味对不上）；
+      // 「经审方复核」是流程用语，模型会照抄进方义。
+      ...(formulaManualDoseIngredients(item.formulaName).filter((name) => name !== "沙参").length > 0
+        ? [`  原方含但本次不编制用量的药味：${formulaManualDoseIngredients(item.formulaName).filter((name) => name !== "沙参").join("、")}（毒性或管制类，用量与是否使用由医师单独确定）。不得写入本次处方药味表，也不计入组成身份下限；方义里不要写它的去留与用量。`]
+        : []),
+      ...(formulaManualDoseIngredients(item.formulaName).includes("沙参")
+        ? ["  原方的沙参品种未定：写进处方时写明北沙参或南沙参（养阴清肺、益胃生津多用北沙参），不要只写「沙参」。"]
         : []),
     ].join("\n");
   }).join("\n");

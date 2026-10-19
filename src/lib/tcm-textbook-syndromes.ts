@@ -1,6 +1,7 @@
 import textbookTableJson from "../data/tcm-textbook-syndrome-formula-table.json" with { type: "json" };
 import supplementJson from "../data/tcm-textbook-syndrome-supplement.source.json" with { type: "json" };
 import { affirmedClinicalSourceClauses } from "./clinical-polarity";
+import { resolveTcmDiseaseName } from "./clinical-terminology";
 
 /**
  * 教材「病—证—治法—代表方—加减」对照表的运行时读取（2026-10-13，甲方 10.12 测评）。
@@ -199,6 +200,9 @@ function buildDiseases(): TextbookDisease[] {
       modifications: (Array.isArray(raw.modifications) ? raw.modifications : []).flatMap((item) => {
         const record = item && typeof item === "object" ? item as { condition?: unknown; herbs?: unknown; raw?: unknown } : {};
         const herbs = strings(record.herbs).map(fixTextbookOcr);
+        // 「通血络非虫蚁所不能」「化络瘀非天麻三七所不能」是教材讲加药用意的话，不是临床指征：当成加减条件，处方里就出现
+        //「若通血络非虫蚁所不能：加全蝎」（2026-10-19 M 集 TCM-SD-433619）。全表只有这两条是「非…不能」的说法（构词式守卫）。
+        if (/非[^，,。；;]{1,8}不能/u.test(text(record.condition))) return [];
         return text(record.condition) && herbs.length > 0
           ? [{ condition: fixTextbookOcr(text(record.condition)), herbs, raw: fixTextbookOcr(text(record.raw)) }]
           : [];
@@ -455,10 +459,15 @@ export function textbookRowForSyndrome(diseaseName: string, syndromeName: string
   // 病名对上了教材的节、只是该节没有这个证名时，到此为止：不到别的病里找同名证（2026-10-17：虚劳·肺脾两虚证
   // 找到了肺胀的「肺脾两虚证」，锚定把治法换成「补肺健脾，降气化痰」、方换成六君子汤合玉屏风散，病名还会被改成肺胀）。
   if (named.length > 0) return undefined;
-  // 病名没对上（模型写了「头风病」而教材的节是「头痛」）时，证名在全表只属于一个病的，按证名找回那一行。
+  // 病名没对上（模型写了「头风病」而教材的节是「头痛」）时，证名在全表只属于一个病的，按证名找回那一行——
+  // 但只限两个病名在国标里是同一个病（头风病与头痛同归一条）。表里没有这个病的节（鼻渊、面痛、耳鸣、喉喑，多出自耳鼻喉、针灸教材）时，
+  // 同名证是别的病的：此前鼻渊·胆腑郁热证借了黄疸的行，锚定把病名改成黄疸、治法改成「疏肝泄热，利胆退黄」；面痛、耳鸣借成了
+  // 血证（肝火犯胃、胃火炽盛），面痛借成了中风（风痰阻络）（2026-10-19 Claude 评审 H 集 9 例）。
   const owners = DISEASES.filter((disease) => CANDIDATE_BOOK_PRIORITY[disease.bookKey] <= 1)
     .flatMap((disease) => disease.rows.filter((row) => syndromeCore(row.syndromeName) === target || syndromeCore(row.syndrome) === target));
-  return new Set(owners.map((row) => row.disease)).size === 1 ? owners[0] : undefined;
+  if (new Set(owners.map((row) => row.disease)).size !== 1) return undefined;
+  const wanted = resolveTcmDiseaseName(diseaseName)?.canonical;
+  return wanted && wanted === resolveTcmDiseaseName(owners[0].disease)?.canonical ? owners[0] : undefined;
 }
 
 /** 开方提示词里的教材方药段：已定证型的代表方组成与教材加减。 */
@@ -581,12 +590,21 @@ function tongueDimensionValues(text: string): (string | undefined)[] {
   return [TONGUE_BODY.exec(text)?.[1], color?.[1] ?? color?.[2], tongueCoatingTexture(text)];
 }
 
+/**
+ * 舌色里淡（淡白）与淡红单凭这一处不算互斥（2026-10-19 r1019 第四轮，Claude 评审 B-IMCS21-train-10216260#8：
+ * 「舌淡嫩，边有齿痕」对「舌淡红，苔白腻」——唯一的不同是淡与淡红，齿痕舌与白腻苔又常并见，一个孩子两项都能选）。
+ * 偏淡与淡红在望诊上没有硬边界，选项要靠另一个维度（苔色、苔质）或不相邻的舌色（淡对红）分开。
+ * 淡红与红不在此列：「舌质红，苔厚腻」对「舌淡红，苔白」评审判合格（同轮 B-IMCS21-test-10398436#4），没有证据要收紧。
+ */
+const ADJACENT_TONGUE_BODY_SHADES: ReadonlyArray<ReadonlySet<string>> = [new Set(["淡", "淡红"]), new Set(["淡白", "淡红"])];
+
 export function tongueOptionsMutuallyExclusive(a: string, b: string): boolean {
   const left = tongueDimensionValues(a);
   const right = tongueDimensionValues(b);
   return left.some((value, index) => {
     const other = right[index];
     if (value === undefined || other === undefined || value === other) return false;
+    if (index === 0 && ADJACENT_TONGUE_BODY_SHADES.some((pair) => pair.has(value) && pair.has(other))) return false;
     // 厚腻与腻都是腻苔，不算相反。
     return !(index === 2 && new Set([value, other]).has("厚") && new Set([value, other]).has("腻"));
   });

@@ -318,13 +318,14 @@ export function renderM04DeliveryCheckpoint(
     // 「通过校验」四个字删掉（2026-09-13）：候选保留策略生效后，走到这里表示**根本没有
     // 可保留的候选**（模型未产出结构完整的候选、传输中断或时限到期），而不是「校验没过」。
     // 校验没过的候选现在照常保留并带问题提示交付，不再落到本分支。
+    // 写给医生的话（2026-10-19 Claude 评审：「个体化方药候选」「模型未产出结构完整的候选」是系统用语）。标题不动，页面按它分流。
     lines.push("", "## 候选方药生成状态", reason === "deadline"
-      ? `本阶段超过时限，尚未形成可保留的个体化方药候选。${retainedState}暂不提供药味、剂量或用法。`
+      ? `本次方药生成超过时限，尚未形成个体化的参考方药。${retainedState}暂不提供药味、剂量或用法。`
       : reason === "upstream_unavailable"
-        ? `模型服务暂时不可用，尚未形成可保留的个体化方药候选。${retainedState}暂不提供药味、剂量或用法。`
+        ? `模型服务暂时不可用，尚未形成个体化的参考方药。${retainedState}暂不提供药味、剂量或用法。`
       : reason === "dose_withheld"
-        ? `本例暂不给出具体用量（${doseWithheldReasons.join("；") || "需先完成相关核实"}），且本轮尚未形成可保留的个体化方药候选。${retainedState}暂不提供药味、剂量或用法。`
-      : `本轮尚未形成可保留的个体化方药候选（模型未产出结构完整的候选）。${retainedState}暂不提供药味、剂量或用法。`);
+        ? `本例暂不给出具体用量（${doseWithheldReasons.join("；") || "需先完成相关核实"}），本次也尚未形成个体化的参考方药。${retainedState}暂不提供药味、剂量或用法。`
+      : `本次尚未形成完整的个体化参考方药。${retainedState}暂不提供药味、剂量或用法。`);
     return lines.join("\n\n");
   }
   // 因红旗、特殊人群等不给剂量的页（2026-10-19，留出集 S178）：这一页本来就不给用量，只列安全类提示（配伍禁忌、特殊人群禁忌等）；
@@ -357,7 +358,9 @@ export function renderM04DeliveryCheckpoint(
     lines.push(`方名：${text(candidate.name)}`);
     // 出处与随证加减也照常列出（2026-10-18 逐模块验收：不给剂量页只缺用量，评审仍要看方剂出处与加减）。加减只写条件与药名，不写剂量。
     const source = (candidate as { formulaSource?: { source?: unknown } }).formulaSource?.source;
-    lines.push(...labelled("出处", typeof source === "string" ? source.replace(/^[^：:]{1,12}[：:]/u, "") : ""));
+    // 单方的出处栏写成「X：《书》」时去掉方名前缀；合方是「A：《书》；B：《书》」，每张方名都要留（此前只去掉了第一个方名，
+    // 成了「《三因极一病证方论》；四神丸：《内科摘要》」，2026-10-19 H 集 12291、1045）。
+    lines.push(...labelled("出处", typeof source === "string" ? (/[；;]/u.test(source) ? source : source.replace(/^[^：:]{1,12}[：:]/u, "")) : ""));
     for (const herb of candidate.herbs) lines.push(`- ${text(herb.name)}（${text(herb.role)}）：${text(herb.function)}`);
     lines.push(...labelled("方义", candidate.formulaAnalysis), ...labelled("适用", candidate.applicable), ...labelled("慎用与不适用", candidate.notApplicable));
   }
@@ -374,9 +377,14 @@ export function renderM04DeliveryCheckpoint(
   // 问题提示同样走非剂量掩码：本页的全部意义就是不给具体用量，提示文案里的
   // 「当前药量 500g」会把模型提出的剂量从后门放出去。掩码与药味功用共用同一支
   // sanitizeGeneratedSuggestionPreviewText，不另写一套判据。
+  // 这一页不给用量：提示里「当前药量…；历史参考 a–bg。」那段数字经剂量掩码只剩残句（「当前药量 （剂量以审定处方为准）；历史参考 1–（剂量以审定处方为准）」，
+  // 2026-10-19 Claude 评审 H 集 19771、14136），去掉这段，问题本身照列。
+  const withoutDoseFigures = (message: string) => message
+    .replace(/当前药量[^。]*。(?:来源[:：][^。]*。)?/gu, "")
+    .replace(/儿童折算上限[^。]*。/gu, "");
   const findingsSection = clinicalDeliveryAdvisorySection(shownFindings.map((finding) => ({
     ...finding,
-    message: sanitizeGeneratedSuggestionPreviewText(finding.message),
+    message: sanitizeGeneratedSuggestionPreviewText(withoutDoseFigures(finding.message)),
     suggestedAction: sanitizeGeneratedSuggestionPreviewText(finding.suggestedAction),
   })));
   if (findingsSection) lines.push("", findingsSection);

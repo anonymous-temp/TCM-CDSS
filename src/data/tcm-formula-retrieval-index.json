@@ -3,7 +3,7 @@
   "governanceTable": "T8",
   "sourceCatalog": {
     "file": "tcm-formula-governed-catalog.json",
-    "sha256": "c7ca5a9b897378697af06156f6b045846d878c98433ed1bfc0d4814bc183036d"
+    "sha256": "5f58ce8e1f7ea6857c7a108038472a8d46c589a0c9d4a253bd65a415b0d859da"
   },
   "conceptSource": {
     "file": "tcm-formula-retrieval-concepts.json",

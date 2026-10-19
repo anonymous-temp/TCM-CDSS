@@ -199,3 +199,30 @@ const SECONDARY_PATTERN_CLAIM = /(?<![无未不非没])[兼夹](?![顾治以备�
 export function claimsSecondaryPattern(clause: string): boolean {
   return SECONDARY_PATTERN_CLAIM.test(clause);
 }
+
+/**
+ * 治法里意思重复的短语只留一个（2026-10-19 Claude 评审 M/H 集「清利湿热，清热利湿」「平肝潜阳，和胃化湿，通络止痛，化湿和胃」
+ * 「息风化痰，活血通络，熄风化痰止痛」）：教材治法与模型按本例补的半句拼在一起时常见。按字面判：一个短语的字（熄=息）全都出现在
+ * 另一个不短于它的短语里，就是重复，去掉它；字相同时留先出现的。意思相近但用字不同的（「和血通络」「活血通络」）不动。
+ */
+export function withoutRedundantTherapyPhrases(method: string): string {
+  const text = String(method || "");
+  const parts = text.split(/([，,、；;])/u);
+  const phrases = parts.filter((_, index) => index % 2 === 0);
+  const chars = (phrase: string) => new Set([...phrase.replace(/熄/gu, "息").replace(/[^\u4e00-\u9fff]/gu, "")]);
+  const sets = phrases.map(chars);
+  const drop = phrases.map((phrase, index) => {
+    const own = sets[index];
+    if (own.size < 3) return false;
+    return phrases.some((other, at) => at !== index && sets[at].size >= own.size && (sets[at].size > own.size || at < index) &&
+      [...own].every((character) => sets[at].has(character)));
+  });
+  if (!drop.some(Boolean)) return text;
+  const kept: string[] = [];
+  phrases.forEach((phrase, index) => {
+    if (drop[index]) return;
+    if (kept.length > 0) kept.push(parts[index * 2 - 1] || "，");
+    kept.push(phrase);
+  });
+  return kept.join("").replace(/^[，,、；;]+/u, "");
+}

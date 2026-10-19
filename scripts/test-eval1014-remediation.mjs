@@ -1441,7 +1441,8 @@ const checkAsync = async (name, run) => {
     };
     assert.deepEqual(run("泌尿系结石/感染"), ["泌尿系结石", "泌尿系感染"]);
     const unborrowed = run("感染/肿瘤");
-    assert.ok(unborrowed.includes("感染") && !unborrowed.some((name) => name.length > 2 && name.endsWith("感染")), JSON.stringify(unborrowed));
+    // 2026-10-19 第四轮：拆出只剩「感染」这类诱因词的整行不拆（原样「感染/肿瘤」一条），不臆造「X感染」的要求不变。
+    assert.ok(unborrowed.some((name) => name.includes("感染")) && !unborrowed.some((name) => name.length > 2 && name.endsWith("感染") && !name.includes("/")), JSON.stringify(unborrowed));
   });
 }
 
@@ -1449,12 +1450,17 @@ const checkAsync = async (name, run) => {
 {
   const { cardSentencesNamingListedPoints } = await jiti.import("../src/lib/tcm-nondrug-textbook-plan.server.ts");
   const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
-  check("14.13 针刺卡操作栏点名的穴位一个都不在本卡穴位里的句子不留（风寒感冒卡里的「少商、商阳用点刺放血法」）；说禁忌、不宜的句子照留；点名的穴有在卡上的照留（对照）", () => {
+  check("14.13 针刺卡操作栏点名的穴位一个都不在本卡穴位里的句子不留（风寒感冒卡里的「少商、商阳用点刺放血法」）；禁忌、不宜小句点名的穴在卡上时照留、都不在卡上时连同「以免…」下半句去掉；并列点穴只留卡上的（对照）", () => {
     const points = ["列缺（LU7·手太阴肺经）", "合谷（LI4·手阳明大肠经）", "风池（GB20）", "大椎（DU14）", "肺俞（BL13）"];
     const text = "诸穴均宜浅刺。风寒证可加灸法；少商、商阳用点刺放血法。 禁忌：膏肓、肺俞、膈俞等穴局部肌肉薄，须规范操作避免气胸。";
     assert.equal(cardSentencesNamingListedPoints(text, points), "诸穴均宜浅刺。风寒证可加灸法。 禁忌：膏肓、肺俞、膈俞等穴局部肌肉薄，须规范操作避免气胸。");
-    assert.equal(cardSentencesNamingListedPoints("毫针常规刺，膻中不宜直刺、深刺，以免伤及内脏；阴水可加灸。", points), "毫针常规刺，膻中不宜直刺、深刺，以免伤及内脏；阴水可加灸。");
-    assert.equal(cardSentencesNamingListedPoints("大椎、少商可点刺出血。", points), "大椎、少商可点刺出血。");
+    // 2026-10-19 第四轮（Claude 评审 H 集）口径改为：禁忌、不宜小句点名的穴都不在本卡上时这一小句不留——产后尿失禁卡印着
+    //「肺俞、脾俞不可直刺、深刺」（H-tri-14396，卡上无肺俞、脾俞），水肿卡印着「肺俞不宜直刺、深刺，以免伤及内脏」（H-tri-3750）。
+    // 此前本条要求「说禁忌、不宜的句子照留」。点名的穴在卡上时照留（对照）。
+    assert.equal(cardSentencesNamingListedPoints("毫针常规刺，膻中不宜直刺、深刺，以免伤及内脏；阴水可加灸。", points), "毫针常规刺；阴水可加灸。");
+    assert.equal(cardSentencesNamingListedPoints("毫针常规刺，肺俞不宜直刺、深刺，以免伤及内脏；阴水可加灸。", points), "毫针常规刺，肺俞不宜直刺、深刺，以免伤及内脏；阴水可加灸。");
+    // 并列点穴只留卡上的穴名（2026-10-19 第四轮，H-tri-15803「大敦、隐白可点刺出血」，卡上没有隐白）。
+    assert.equal(cardSentencesNamingListedPoints("大椎、少商可点刺出血。", points), "大椎可点刺出血。");
   });
   check("14.14 针刺卡在皮损局部取穴（阿是穴/围刺）时，注意事项里「皮损局部暂不施针」那一小句不留，同条其余照留；卡上没有局部取穴时照留（对照）", () => {
     const run = (card) => projectDeliveredReasoning({

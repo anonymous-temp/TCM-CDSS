@@ -1,4 +1,4 @@
-import { formallyAdministeredMedicationMentions, medicationStoppedInNextSentence, recordedMedicationMentions, recordedMobilityLimitation, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
+import { cleanedMedicationNameCandidate, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationStoppedInNextSentence, medicationStoppedOrOnlyPast, recordedMedicationMentions, recordedMobilityLimitation, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
 import { clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
@@ -136,7 +136,9 @@ export function requiredPrecautionsForCase(
   if (conceptionWithoutPregnancyOrLactation(grounding)) items.push({ kind: "conception_pregnancy_check" });
   else if (reproductiveAdviceRelevant(state) && assessPregnancyState(grounding).status === "unknown" &&
     assessLactationState(grounding).status === "unknown" && !recentChildbirthMentioned(grounding)) {
-    items.push({ kind: "reproductive_status_unknown" });
+    // 本次月经逾期未至的（停经本身不算可疑妊娠——闭经、多囊不能一概收回剂量，见 assessPregnancyState），
+    // 那一句写成先验孕，比「如已怀孕请告知」更具体（2026-10-19 Claude 评审 M 集 RobustSDT-0697：末次月经 10/21 至今未至、脉滑）。
+    items.push({ kind: currentMensesOverdue(grounding) ? "menses_overdue_pregnancy_check" : "reproductive_status_unknown" });
   }
   // 年龄相关的服药注意：提示词一直要求「75 岁以上高龄或 6 岁以下幼儿写一条」，模型时写时漏（2026-10-17 留出集 4 例患儿没有）。
   // 儿童取未满 12 岁——儿科剂量按年龄折算的年龄段（pediatric-dose-rule），这些孩子的家长都需要这一句。
@@ -146,13 +148,15 @@ export function requiredPrecautionsForCase(
   else if (doseAllowed && age != null && age >= 65) items.push({ kind: "elderly_administration", ageYears: age });
   // 自行停了长期用药（降压药最常见）：写一条由医生评估后规律服用，红旗页也写——停药常是这次急症的诱因（留出集 S178）。
   const discontinued = selfDiscontinuedMedication(clinicalGroundingText(state));
-  if (discontinued) items.push({ kind: "self_discontinued_medication", names: discontinued.names, ...(discontinued.condition ? { condition: discontinued.condition } : {}) });
+  if (discontinued) items.push({ kind: "self_discontinued_medication", names: discontinued.names, ...(discontinued.condition ? { condition: discontinued.condition } : {}), ...(discontinued.irregular ? { irregular: true as const } : {}) });
   // 正在服用的药（2026-10-18 验收主集：泼尼松、酮替芬、氨氯地平、抗生素等病历写明在服，注意事项一句没提，评审判缺）。
   // 与自服药同一套认药名的办法（带剂型或说明书目录一字不差），整份病历都看；已列为自服药的不重复。
   const selfTaken = new Set(items.flatMap((item) => item.kind === "self_medication" ? [item.base] : []));
   const grounded = clinicalGroundingText(state);
-  const formallyTaken = new Set(formallyAdministeredMedicationMentions(grounded));
-  const current = [...new Set(selfTakenMedicationMentions(grounded)
+  const formallyTaken = new Set(formallyAdministeredMedicationMentions(grounded).flatMap((name) => splitMedicationList(name)).map((name) => cleanedMedicationNameCandidate(name)).filter(Boolean));
+  // 引号里整串列举（「平素服用“拜阿司匹林、倍他乐克缓释片、盐酸二甲双胍”等药物」）先拆开、按药名候选收一道，再去和下面那条路去重：
+  // 此前整串留在这里，下面那条路取到的三个药都被当成它的一部分去掉了，清理时整串又因过长被丢，三个药一个不剩（M 集 TCM-SD-432116）。
+  const current = [...new Set(selfTakenMedicationMentions(grounded).flatMap((name) => splitMedicationList(name)).map((name) => cleanedMedicationNameCandidate(name)).filter(Boolean)
     .filter((name) => {
       // 西药（卡托普利、拜新同、二甲双胍、阿司匹林…）既不带剂型也不在中成药说明书目录里（2026-10-18 验收主集 J 模块 11 例漏写）：
       // 跟在「服用/口服/注射/吸入/含服」这类正式给药词后面、不是已停或既往的，也算正在用的药。「吃」后面的不算（山楂、水果）。
@@ -168,12 +172,21 @@ export function requiredPrecautionsForCase(
     const a = patentMedicineBaseName(left), b = patentMedicineBaseName(right);
     return a === b || a.includes(b) || b.includes(a);
   };
-  for (const name of recorded.names) {
-    if (selfTaken.has(patentMedicineBaseName(name)) || current.some((known) => sameDrug(known, name))) continue;
+  for (const raw of recorded.names) {
+    const name = cleanedMedicationNameCandidate(raw);
+    if (!name || selfTaken.has(patentMedicineBaseName(name)) || current.some((known) => sameDrug(known, name))) continue;
     current.push(name);
   }
-  const listed = current.filter((name) => !medicationStoppedInNextSentence(grounded, name)).slice(0, 3);
-  const given = listed.filter((name) => recorded.given.includes(name) && !formallyTaken.has(name));
+  // 取名的几条路各自切词，切出过「控制」「依折麦布片一天」「α骨化醇片(」「包括甲泼尼龙」（2026-10-19 Claude 评审 M 集）：
+  // 统一按药名候选收一道、按清理后的名字去重；后来停了或只在「曾…」里出现的不算在用。
+  // 最多列 6 个：长期多药的病人（激素＋吸入剂＋抗组胺，降压＋降糖＋调脂＋抗血小板）列 3 个就漏了评审点名的那几个。
+  const cleanedOf = (name: string) => cleanedMedicationNameCandidate(name);
+  const listed = [...new Set(current.map(cleanedOf).filter(Boolean))]
+    .filter((name, index, all) => !all.some((other, at) => at < index && (other.includes(name) || name.includes(other))))
+    .filter((name) => !medicationStoppedInNextSentence(grounded, name) && !medicationStoppedOrOnlyPast(grounded, name))
+    .slice(0, 6);
+  const givenNames = new Set(recorded.given.map(cleanedOf));
+  const given = listed.filter((name) => givenNames.has(name) && !formallyTaken.has(name));
   if (listed.length > 0) items.push({ kind: "current_medications", names: listed, ...(given.length > 0 ? { given } : {}), ...(redFlag ? { urgent: true } : {}) });
   else if ((recorded.unnamed || recorded.herbal) && !items.some((item) => item.kind === "self_medication")) {
     items.push({ kind: "unnamed_medication", ...(recorded.herbal && !recorded.unnamed ? { herbal: true } : {}) });
@@ -215,7 +228,7 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "pediatric_administration") return `${order}患儿${item.ageYears < 1 ? `${Math.max(1, Math.round(item.ageYears * 12))}个月` : `${Math.floor(item.ageYears)}岁`}：写一条给家长的服药方法（少量多次、分次喂服，不要强灌，不自行加量）。`;
     if (item.kind === "elderly_administration") return `${order}患者${Math.floor(item.ageYears)}岁：写一条与年龄相关的服药注意（如起身宜缓、防跌倒）。`;
     if (item.kind === "current_medications" && item.urgent) return `${order}病历记录患者正在使用${item.names.join("、")}，本例须先就医处置：写一条请把这些药连同药盒带去就医，告诉医生最近一次用药的时间，是否继续由医生决定；不写与中药间隔服用。`;
-    if (item.kind === "self_discontinued_medication") return `${order}病历记录患者自行停用了${discontinuedMedicationLabel(item)}${item.condition ? `（${item.condition}）` : ""}：写一条请尽快由医生评估后调整用药并规律服用，不要再自行停药或减量。`;
+    if (item.kind === "self_discontinued_medication") return `${order}病历记录患者${item.irregular ? "未规律服用" : "自行停用了"}${discontinuedMedicationLabel(item)}${item.condition ? `（${item.condition}）` : ""}：写一条请${item.irregular ? "由医生评估后按医嘱规律服用" : "尽快由医生评估后调整用药并规律服用"}，不要自行停药或减量。`;
     if (item.kind === "current_medications") return `${order}病历记录患者${item.given?.length ? "用过或正在使用" : "正在使用"}${item.names.join("、")}：写一条它与本方一起用时要注意的事（告知医生${item.given?.length ? "现在是否还在用" : ""}、是否继续由医生决定；口服药写「与中药间隔约1小时服用」；乳膏、贴剂等外用药只写「正在外用的某药请告知医生」，不写服用、不写间隔；与本方有明确相互作用的写出来）。`;
     if (item.kind === "unnamed_medication" && item.herbal) return `${order}病历记录患者一直在服中药但没写方名：写一条请把正在服的中药方子带给医生看，由医生决定是否与本方同服，避免药味重复。`;
     if (item.kind === "unnamed_medication") return `${order}病历记录患者自行用过药但没写药名：写一条请把正在用的药（药名、用法）告诉医生，避免与本方重复或相互影响。`;
@@ -223,6 +236,7 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "administration_and_diet") return item.administration
       ? `${order}写一条怎么服和忌什么：按本方煎服法写饭前或饭后、温服，忌口随证写（本例${item.diet}）。`
       : `${order}写一条忌口（本例${item.diet}）；本例暂不给剂量，不写怎么服。`;
+    if (item.kind === "menses_overdue_pregnancy_check") return `${order}写一条（育龄女性，病历写着本次月经逾期未至）：服药前先验孕，确认怀孕告知医生；不用逐味点名哪些药慎用（药表里已逐味标注）。`;
     if (item.kind === "reproductive_status_unknown") return `${order}写一条：如已怀孕、可能怀孕或正在哺乳，须服药前告知医生（患者是育龄女性；不要写「未记录」这类话，也不用逐味点名哪些药慎用——药表里已逐味标注）。`;
     if (item.kind === "severe_hypertension_followup") return `${order}本次血压${item.reading}明显偏高：写一条请患者今天复测血压，并当日或数日内到心内科或全科就诊调整降压药；出现胸痛、气短、剧烈头痛、视物模糊、肢体无力或言语不清须立即就医。`;
     if (item.kind === "gout_diet") return `${order}痛风：写明低嘌呤饮食（少吃海鲜、动物内脏、浓肉汤），戒酒尤其啤酒，多饮水。`;
@@ -233,3 +247,4 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
   });
   return `【本例注意事项必须写到】以下各项在 nonPharma.precautions 里各写一条，排在最前，不计入条数上限：\n${lines.join("\n")}${exerciseNote}`;
 }
+

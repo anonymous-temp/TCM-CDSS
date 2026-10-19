@@ -227,7 +227,8 @@ for (const [source, expected] of [
   // 方义里的「本方案」（自拟方不得自称成方时换上的占位）：方名最终是成方时换回方名；各种写法都不得留下「本方以本方」。
   // 合成集实测：84 例里 3 例的方义以「本方以本方。」「本方以本方加减。」开头。
   for (const [name, analysis, expected] of [
-    ["天王补心丹合朱砂安神丸加减", "本方以本方案加减。生地黄为君。", "本方以天王补心丹合朱砂安神丸为基础加减。生地黄为君。"],
+    // 2026-10-19 第四轮：方名里点到的药不在处方里时不再以该方命名（朱砂安神丸的朱砂不编入），这一行改用组成齐的合方。
+    ["天王补心丹合酸枣仁汤加减", "本方以本方案加减。生地黄为君。", "本方以天王补心丹合酸枣仁汤为基础加减。生地黄为君。"],
     ["良附丸合正气天香散", "本方以本方案为基础加减，高良姜为君。", "本方以良附丸合正气天香散为基础加减，高良姜为君。"],
     ["六味地黄丸合交泰丸加减", "本方以本方案。熟地黄为君。", "本方以六味地黄丸合交泰丸为基础加减。熟地黄为君。"],
     ["四物汤加减", "本方以本方案化裁。因本例冲任失调，故去温燥之品。", "本方以四物汤为基础加减。因本例冲任失调，故去温燥之品。"],
@@ -238,6 +239,8 @@ for (const [source, expected] of [
     const input = structuredClone(prescribe);
     input.formula.candidates[0].name = name;
     input.formula.candidates[0].formulaAnalysis = analysis;
+    // 方名点到的药要在处方里（第四轮名实一致判据），夹具补齐这几味。
+    input.formula.candidates[0].herbs = ["黄芪", "熟地黄", "生地黄", "黄连", "肉桂", "酸枣仁"].map((herbName) => ({ ...input.formula.candidates[0].herbs[0], name: herbName }));
     const projected = projectDeliveredReasoning(input).formula.candidates[0].formulaAnalysis;
     assert.equal(projected, expected, `${name}｜${analysis}`);
     assert.doesNotMatch(projected, /本方以本方[。，,加]|本方案/);

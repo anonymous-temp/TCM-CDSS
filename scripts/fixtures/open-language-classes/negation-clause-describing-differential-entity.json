@@ -1,0 +1,58 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "negation-clause-describing-differential-entity",
+ "mode": "sanitizer",
+ "varies": "text",
+ "addedAt": "2026-10-19",
+ "trigger": "Claude 评审 D/H 集（2026-10-19）：辨病依据「…故归急惊风；有发热，本例持续高热不符」「痫证当有昏仆吐涎、醒后如常，有抽搐，本例均不支持」。模型原文写的是鉴别对象那个病的表现（「痫证发作时无发热，本例持续高热不符」），阴性净化器按本例的否认处理，病历记录了发热，整句改成「病历已记录发热阳性」，交付成「有发热」，句子失去对照对象。",
+ "layerAttribution": {
+  "layer": "visible_text_negation_sanitizer",
+  "mechanism": "diagnosis-safety.sanitizeUngroundedNegationText 按逗号小句逐句判断，不看下一小句：带否认词的小句后面紧跟「本例…」的对照小句时，它说的是被鉴别的病。",
+  "exception": "冻结令允许的构词式守卫：只看小句的位置关系——不以「本例/患者/病人」起头、带否认词，且下一小句以「（而/但）本例」起头。没有新增症状词表。",
+  "whyDeterministic": "缺陷在净化器自己的作用对象判断上；该判据只服务可见文本，安全闸门不走这里。",
+  "residual": "鉴别对象的描述后面不紧跟「本例」对照小句时（「痫证无发热；故与之区分」）仍按本例的否认处理，保守方向。"
+ },
+ "sets": {
+  "development": {
+   "note": "主体句是「鉴别对象 + 否认 ，本例…」，兄弟句去掉对照小句的否认词；两句过净化器都必须原样不动。改动前主体句全部被改写成「病历已记录X阳性，本例…」。",
+   "pairs": [
+    {
+     "record": "高热3天，体温39.5℃，抽搐1次。",
+     "subject": "痫证发作时无发热，本例持续高热不符",
+     "sibling": "痫证发作时体温正常，本例持续高热不符"
+    },
+    {
+     "record": "腹痛2天，伴恶心呕吐，大便3日未行。",
+     "subject": "胃痛一般无大便不通，本例腹痛伴大便3日未行",
+     "sibling": "胃痛一般大便通畅，本例腹痛伴大便3日未行"
+    }
+   ]
+  },
+  "heldOut": {
+   "note": "守卫定下后写的说法。",
+   "pairs": [
+    {
+     "record": "咳嗽2周，咳黄痰，伴胸痛。",
+     "subject": "肺痿多无胸痛，本例咳时胸痛明显",
+     "sibling": "肺痿多以咳吐浊唾涎沫为主，本例咳时胸痛明显"
+    }
+   ]
+  }
+ },
+ "controls": {
+  "note": "以「本例」起头的否认、或后面不接「本例」对照小句的否认，与病历矛盾时照样改正。",
+  "mustStillRewrite": [
+   {
+    "record": "高热3天，体温39.5℃，抽搐1次。",
+    "text": "本例无发热，故非外感。"
+   },
+   {
+    "record": "腹痛2天，伴恶心呕吐。",
+    "text": "无呕吐，属气滞。"
+   }
+  ]
+ },
+ "measurements": {
+  "corpusReplay": "见 ~/runlogs/r1018/work/r1019/counterproofs.txt 4/1.4 与本轮 STATUS：M/H/D 已存输出的鉴别与辨病依据文本回放。"
+ }
+}

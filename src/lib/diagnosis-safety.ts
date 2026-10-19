@@ -1128,6 +1128,11 @@ export function isProspectiveClinicalSentence(value: string): boolean {
   return PROSPECTIVE_CLINICAL_SENTENCE.test(String(value || ""));
 }
 
+/** 小句在讲「去核实/本例没有」：建议核实、与否/是否/有无、未诉/未见/缺、诊脉/望舌这类动作。 */
+const INSPECTION_CHECK_OR_ABSENCE_CLAUSE = /与否|是否|有无|[诊切察查摸按]脉|[望察查看观]舌|观察|核实|待查|待诊|待辨|待定|尚缺|缺少?|未诉|未见|未记录|未提及|未录|之记载|无此|否[、）)]|否$/u;
+/** 下一小句说「本例未诉此/本例无此」：前一小句写的是别的病的表现（鉴别对象），不是对本例的断言。 */
+const INSPECTION_OTHER_ENTITY_FOLLOWUP = /^\s*(?:而|但)?本例(?:并)?(?:未诉|无|未见|不见|未出现|未记录)/u;
+
 function sanitizeUngroundedNegationText(
   value: string,
   source: string,
@@ -1288,6 +1293,13 @@ function sanitizeUngroundedNegationText(
   // 只屏蔽从条件/疑问虚词起到句末的部分：虚词之前的分句仍是对当前病历的陈述，照常净化——
   // 「患者否认胸痛、呼吸困难，如出现上述症状应立即就医」里前半句的否认若病历里没有，仍要纠正，
   // 不能因为同句后半有「如出现」就整句放行（本函数也作用于 M03/M04 可见正文）。
+  // 紧接着下一小句以「本例」起头、对照的是本例自己的表现时，不以「本例/患者」起头、带「无/没有/未见/不伴」的这一小句说的是鉴别对象那个病
+  //（「痫证发作无热，本例持续高热不符」）：不按本例的否认改写——改了就成「有发热，本例持续高热不符」（2026-10-19 Claude 评审 D/H 集多例）。
+  const sanitizeOwnClause = (clause: string, offset: number, whole: string): string => {
+    const next = whole.slice(offset + clause.length + 1).match(/^[^。；;，,]*/u)?.[0] || "";
+    if (/无|没有|未见|不伴/u.test(clause) && !/^\s*(?:本例|患者|病人|该患)/u.test(clause) && /^\s*(?:而|但)?本例/u.test(next)) return clause;
+    return sanitizeClause(clause);
+  };
   const prospectiveSentences: string[] = [];
   const shielded = value.replace(/[^。；;！!？?\n|]+[。；;！!？?]?/g, (sentence) => {
     // 以处置指令收尾、且句中没有对病历的陈述标记的句子，整句都是给患者的前瞻嘱咐：
@@ -1302,30 +1314,48 @@ function sanitizeUngroundedNegationText(
   const scoped = shielded.replace(/[，,](?=(?:但|而|仍|却|同时|另有|随后|继而|突发|新发|出现|伴有))/g, "；");
   let sanitized = scoped.split("\n").map((line) => {
     if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
-      return line.split("|").map((cell) => cell.replace(/[^。；;，]+/g, sanitizeClause)).join("|");
+      return line.split("|").map((cell) => cell.replace(/[^。；;，]+/g, sanitizeOwnClause)).join("|");
     }
     // 子句边界必须含逗号。只按句号/分号切时，「热邪炽盛，未见黑便，未见呕血，热盛迫津」
     // 是**一个**子句，否定分支命中后整句被术语列表替换，「热邪炽盛」「热盛迫津」一并丢失——
     // 净化器越权删掉了它本不该动的、已接地的临床结论。
     // 含逗号后同一输入变为：「热邪炽盛，病历尚未确认黑便是否存在，病历尚未确认呕血是否存在，热盛迫津」
     // 未接地否定照样被净化（安全要求不变），真实病机保住。
-    return line.replace(/[^。；;，]+/g, sanitizeClause);
+    return line.replace(/[^。；;，]+/g, sanitizeOwnClause);
   }).join("\n");
   sanitized = reconcileSyntheticPolarityContradictions(sanitized, source);
+  // 只改对本例的断言：小句里是「待查/与否/未诉…」时，舌脉词是要去核实或本例没有的东西，不是编出来的所见
+  //（2026-10-19 Claude 评审 M 集：建议核实「诊脉弦数与否」改成「诊脉象待核实或弦数」，鉴别里「未诉肢冷、脉微欲绝之危象」
+  // 改成「未诉肢冷脉象待核实之危象」，「汗出如珠伴肢冷脉微欲绝，本例未诉此」描述的是脱汗本身）。
+  const unlessCheckOrAbsenceClause = (replacement: string) => (match: string, ...rest: unknown[]): string => {
+    // 回调参数尾部是 (offset, 整串[, 具名组])：从后往前取，前面的捕获组也可能是字符串。
+    const tail = [...rest].reverse();
+    const whole = String(tail.find((value) => typeof value === "string") ?? "");
+    const offset = Number(tail.find((value) => typeof value === "number") ?? 0);
+    let start = offset;
+    while (start > 0 && !/[，,。；;\n|]/u.test(whole[start - 1])) start -= 1;
+    let end = offset + match.length;
+    while (end < whole.length && !/[，,。；;\n|]/u.test(whole[end])) end += 1;
+    // 前一步刚换进来的「舌象待核实」「脉象待核实」不算核实类小句（否则「舌红苔黄脉滑数」换掉舌象后，脉象就因「核实」二字被放过）。
+    const clause = whole.slice(start, end).replace(/[舌脉]象待核实/gu, "");
+    const nextClause = whole.slice(end + 1).match(/^[^，,。；;\n|]*/u)?.[0] || "";
+    return INSPECTION_CHECK_OR_ABSENCE_CLAUSE.test(clause) || INSPECTION_OTHER_ENTITY_FOLLOWUP.test(nextClause) ? match : replacement;
+  };
   if (!recordedInspection.tongue && !sourceHasKnownTongue(source)) {
     // 识别面与改写面必须认同一批词。少了受控词表这一半，病历里没有舌象、模型却编出
     // 「舌体颤动」「络脉青紫」时，净化器认不出来、原样放行——一条无据的舌象就这么进了结论。
     sanitized = sanitized
-      .replace(/舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|齿痕|边红|尖红)[^，。；;\n|]{0,24}|苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)/g, "舌象待核实")
-      .replace(new RegExp(inspectionLexiconPattern("tongue").source, "g"), "舌象待核实");
+      .replace(/舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|齿痕|边红|尖红)[^，。；;\n|]{0,24}|苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)/g, unlessCheckOrAbsenceClause("舌象待核实"))
+      .replace(new RegExp(inspectionLexiconPattern("tongue").source, "g"), unlessCheckOrAbsenceClause("舌象待核实"));
   }
   if (!recordedInspection.pulse && !sourceHasKnownPulse(source)) {
     sanitized = sanitized
       // 「生脉散」的「脉散」不是脉象（散脉）：方名前缀「生」作词形守卫（2026-10-13 第二轮独立评审：未录脉象的病例里
       // 方名被改成「生脉象待核实合参附龙牡救逆汤」，辨证结果、处方页、方义里共 12 处）。
       // 「脉微欲绝」「脉细如丝」：后面的「欲绝/欲脱/如丝」属于同一个脉象，一并换掉，不留「脉象待核实欲绝」（2026-10-17 留出例 S074）。
-      .replace(new RegExp(`(?<!生)脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?(?:欲绝|欲脱|如丝)?`, "g"), "脉象待核实")
-      .replace(new RegExp(inspectionLexiconPattern("pulse").source, "g"), "脉象待核实");
+      // 「主动脉结」「静脉曲张」的「脉结」「脉…」是血管名（2026-10-19 D 集 X-D-4949：「主动脉结增宽」成了「主动脉象待核实增宽」）。
+      .replace(new RegExp(`(?<![生动静])脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?(?:欲绝|欲脱|如丝)?`, "g"), unlessCheckOrAbsenceClause("脉象待核实"))
+      .replace(new RegExp(inspectionLexiconPattern("pulse").source, "g"), unlessCheckOrAbsenceClause("脉象待核实"));
   }
   return sanitized.replace(/__TCM_CDSS_PROSPECTIVE_(\d+)__/g, (_, index: string) => prospectiveSentences[Number(index)] ?? "");
 }
@@ -1367,7 +1397,7 @@ function sanitizeAgeClaimText(value: string, state: CaseState): string {
 const FEMALE_ONLY_CLINICAL_CONTEXT = /(月经|经期|妊娠|孕产|孕妇|孕期|哺乳|备孕女性|女性[^。；，,]{0,8}备孕)/;
 const DEDUPLICATED_CLINICAL_LIST_FIELDS = new Set(["limitations", "suggestedChecks", "mustCollect"]);
 
-type PhysicalExamClaimGroup = { id: string; label: string; terms: string[] };
+type PhysicalExamClaimGroup = { id: string; label: string; terms: string[]; documentedBy?: string[] };
 const PHYSICAL_EXAM_CLAIM_GROUPS = physicalExamClaimLexicon.groups as PhysicalExamClaimGroup[];
 const PHYSICAL_EXAM_CLAIM_CUES = (physicalExamClaimLexicon.claimCues as string[])
   .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
@@ -1386,9 +1416,15 @@ function physicalExamGroupPattern(group: PhysicalExamClaimGroup): RegExp {
   return new RegExp(group.terms.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"));
 }
 
+const PHYSICAL_EXAM_DOCUMENTED_CUES = ((physicalExamClaimLexicon as { documentedCues?: string[] }).documentedCues || [])
+  .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+const PHYSICAL_EXAM_DOCUMENTED_CUE = new RegExp(`(?:${[PHYSICAL_EXAM_CLAIM_CUES, ...PHYSICAL_EXAM_DOCUMENTED_CUES].filter(Boolean).join("|")})`);
+
+/** 病历里是否已经记过这一类查体：输出断言用的词之外，再认「神经系统未见明显阳性体征」「两肺未闻干、湿啰音」这类记法（documentedBy）。 */
 function sourceDocumentsPhysicalExam(source: string, group: PhysicalExamClaimGroup): boolean {
-  const groupPattern = physicalExamGroupPattern(group);
-  return source.split(/[。；;\n]+/).some((clause) => groupPattern.test(clause) && PHYSICAL_EXAM_CLAIM_CUE.test(clause));
+  const terms = [...group.terms, ...(group.documentedBy || [])].map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const groupPattern = new RegExp(terms.join("|"));
+  return source.split(/[。；;\n]+/).some((clause) => groupPattern.test(clause) && PHYSICAL_EXAM_DOCUMENTED_CUE.test(clause));
 }
 
 /**
@@ -1752,13 +1788,37 @@ function contextualBloodPressurePattern(): RegExp {
 }
 
 function bloodPressureMeasurements(text: string): BloodPressureMeasurement[] {
-  const normalized = normalizeClinicalText(text);
+  // 范围写法「180～200/100～110mmHg」「140～159/90～99」：收缩压、舒张压各是一个范围，取各自上限作一次读数，并把这一段遮住，
+  // 免得下面把「180～200」读成 180/200 报「收缩压/舒张压倒置」（2026-10-19 Claude 评审 D 集 X-D-0395、1223）。
   const measurements: BloodPressureMeasurement[] = [];
+  const normalized = normalizeClinicalText(text).replace(
+    /(\d{2,3})\s*[~～\-－—–至]\s*(\d{2,3})\s*[\/／]\s*(\d{2,3})\s*[~～\-－—–至]\s*(\d{2,3})/gu,
+    (span: string, a: string, b: string, c: string, d: string, offset: number) => {
+      const systolic = Math.max(Number(a), Number(b));
+      const diastolic = Math.max(Number(c), Number(d));
+      if (systolic > diastolic) measurements.push({ systolic, diastolic, first: systolic, second: diastolic, index: offset });
+      return " ".repeat(span.length);
+    });
+  // 千帕写法（「BP21/12kPa」，老病案常见）：按 1kPa=7.5mmHg 换算后再判（2026-10-19 H 集 H-tri-2808：21/12kPa≈158/90mmHg
+  // 被当成 21/12mmHg，报了低血压休克红旗、收回剂量）。
+  const KPA_AFTER = /^\s*k\s*pa/iu;
+  const kpaToMmHg = (value: number) => Math.round(value * 7.5);
   for (const match of normalized.matchAll(contextualBloodPressurePattern())) {
-    const first = Number(match[1]);
-    const second = Number(match[2]);
+    let first = Number(match[1]);
+    let second = Number(match[2]);
     if (!Number.isFinite(first) || !Number.isFinite(second)) continue;
     const index = (match.index ?? 0) + Math.max(0, match[0].lastIndexOf(match[1]));
+    if (KPA_AFTER.test(normalized.slice((match.index ?? 0) + match[0].length))) {
+      first = kpaToMmHg(first);
+      second = kpaToMmHg(second);
+    }
+    measurements.push({ systolic: first, diastolic: second, first, second, index });
+  }
+  for (const match of normalized.matchAll(/(?:BP|血压)\s*[:：]?\s*(\d{1,2}(?:\.\d{1,2})?)\s*\/\s*(\d{1,2}(?:\.\d{1,2})?)\s*k\s*pa/giu)) {
+    if (!/\./u.test(match[1] + match[2])) continue;
+    const index = (match.index ?? 0) + Math.max(0, match[0].lastIndexOf(match[1]));
+    const first = kpaToMmHg(Number(match[1]));
+    const second = kpaToMmHg(Number(match[2]));
     measurements.push({ systolic: first, diastolic: second, first, second, index });
   }
   for (const match of normalized.matchAll(new RegExp(LABELED_BLOOD_PRESSURE_SOURCE, "gi"))) {
@@ -1996,7 +2056,31 @@ function parseContextualNumber(
   return fallback;
 }
 
+/**
+ * 体温：有本次读数（「现在快39℃」「目前体温38.5℃」「就诊时T 38℃」）时以本次为准；前几天、上次、某月那次的极值不当成现在的体温
+ *（2026-10-19 Claude 评审 B 集 IMCS21-10663648#4「前几天发烧39-40℃，现在快39℃」、MedDG-5010#11「12月流感时体温40℃」报了极高热红旗）。
+ */
+const CURRENT_TEMPERATURE_CUE = /(?:现在|目前|现|今日|今天|今晨|刻下|此刻|就诊时|入院时|查体)[^，,。；;\n]{0,6}$/u;
+const PAST_EPISODE_TEMPERATURE_CUE = /(?:前几天|前两天|前些天|\d{1,2}月[^，,。；;\n]{0,8}时|去年|上次|前次|那次|当时|之前|既往)[^，,。；;\n]{0,8}$/u;
 function parseContextualTemperature(text: string): number | null {
+  const normalized = normalizeClinicalText(text);
+  const pattern = /(?:(?:^|[^A-Za-z])(?:T|体温)["']?\s*[:：]?\s*["']?\s*)?(4[0-5]|3\d)(?:(?:[.](\d))|(?:度(\d)))?\s*(?:℃|°C|度)?/gi;
+  const current = [...normalized.matchAll(pattern)].filter((match) => /(?:T|体温|℃|°C|度)/i.test(match[0]) &&
+    CURRENT_TEMPERATURE_CUE.test(normalized.slice(Math.max(0, (match.index ?? 0) - 10), (match.index ?? 0) + match[0].indexOf(match[1]))));
+  const masked = current.length > 0
+    ? [...normalized.matchAll(pattern)].reduce((acc, match) => {
+      const start = match.index ?? 0;
+      const before = normalized.slice(Math.max(0, start - 16), start + match[0].indexOf(match[1]));
+      return PAST_EPISODE_TEMPERATURE_CUE.test(before) ? `${acc.slice(0, start)}${" ".repeat(match[0].length)}${acc.slice(start + match[0].length)}` : acc;
+    }, normalized)
+    : normalized.replace(pattern, (span: string, _a: string, _b: string, _c: string, offset: number) => {
+      const before = normalized.slice(Math.max(0, offset - 16), offset + span.search(/\d/));
+      return /(?:\d{1,2}月[^，,。；;\n]{0,8}时|去年|上次|前次|那次)[^，,。；;\n]{0,8}$/u.test(before) ? " ".repeat(span.length) : span;
+    });
+  return parseContextualTemperatureRaw(masked);
+}
+
+function parseContextualTemperatureRaw(text: string): number | null {
   return parseContextualNumber(
     text,
     /(?:(?:^|[^A-Za-z])(?:T|体温)["']?\s*[:：]?\s*["']?\s*)?(4[0-5]|3\d)(?:(?:[.](\d))|(?:度(\d)))?\s*(?:℃|°C|度)?/gi,
@@ -4506,8 +4590,16 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
         ? "急性或加重胸闷已出现，需先排除急性冠脉综合征等心血管风险"
       : "短时程、新发、突发或持续胸痛/心前区痛已出现，即使暂未记录伴随症状，也需先排除急性心血管事件");
   }
-  if (hasSuddenHeadacheSignal(text) || hasNeurologicEmergencySignal(text)) {
-    redFlags.push("突发剧烈头痛、意识或神经功能异常，需优先排除神经系统急症");
+  // 理由按实际命中的那一项写（2026-10-19 Claude 评审 H 集：十余例没有任何头痛记录的卒中、抽搐、脊髓病例，
+  // 不给剂量的理由都写「突发剧烈头痛、意识或神经功能异常」，读起来像病人有剧烈头痛）。后半句不变，按「神经系统急症」归类的地方照旧认得。
+  const suddenHeadacheSignal = hasSuddenHeadacheSignal(text);
+  const neurologicEmergencySignal = hasNeurologicEmergencySignal(text);
+  if (suddenHeadacheSignal || neurologicEmergencySignal) {
+    redFlags.push(suddenHeadacheSignal && neurologicEmergencySignal
+      ? "突发剧烈头痛伴意识或神经功能异常，需优先排除神经系统急症"
+      : suddenHeadacheSignal
+        ? "突发剧烈头痛，需优先排除神经系统急症"
+        : "意识或神经功能异常，需优先排除神经系统急症");
   } else if (hasMeningealSign(text)) {
     redFlags.push("脑膜刺激征阳性（颈抵抗、克氏征或布氏征），需优先排除脑膜炎、蛛网膜下腔出血等神经系统急症");
   }
@@ -5029,6 +5121,12 @@ export function pregnancyScreenRequired(state: CaseState): boolean {
   const age = authoritativePatientAgeYears(state);
   const physiologicallyNotAtRisk =
     /(绝经|停经)\s*(?:已|约)?\s*(?:1[2-9]|[2-9]\d)\s*(?:个月|月)|绝经\s*(?:已|约)?\s*[1-9]\d*\s*年|绝经后|双侧卵巢切除|子宫全切(?:除)?|无子宫/.test(text) ||
+    // 子宫已切除（含次全切、广泛子宫加双附件切除；「子宫肌瘤切除/剔除」保留子宫，不算），或病历直接写「已绝经/月经已绝」
+    //（2026-10-19 Claude 评审 M 集：「22年前行子宫切除术」「广泛子宫加双附件切除」「现已绝经」「月经已绝」的病人仍收到
+    //「如已怀孕、可能怀孕或正在哺乳」，6 例判注意事项不合格）。「已停经」本身也可能是妊娠，只在 50 岁及以上算绝经。
+    /(?:全|广泛|次全)?子宫(?:加|及|和|\+|＋)?(?:双(?:侧)?附件)?(?:次全)?切除(?!前)/.test(text) ||
+    /(?<![未围])(?:已|现已|业已|因)绝经|月经已绝|经水已绝|天癸已绝/.test(text) ||
+    (age != null && age >= 50 && /(?:已|现已)停经/.test(text)) ||
     // 年龄仅关闭“未知状态必须追问”，绝不覆盖下游已记录的阳性妊娠/哺乳/备孕硬边界。
     // 60 岁以下继续 fail-closed；60 岁及以上不再生成无临床价值的常规生殖状态追问。
     // 下限同理（2026-09-26 实测：3 岁女童病例被要求填写妊娠/哺乳/备孕状态）。取 10 岁而不是
@@ -5053,10 +5151,15 @@ function pediatricQualitativeText(state: CaseState): string | undefined {
     state.patient.sex,
   ].filter(Boolean).join("；"));
   if (PEDIATRIC_STRUCTURED_WORD_PATTERN.test(structuredDemographics)) return structuredDemographics;
-  return normalizeClinicalText(trustedInputText(state))
+  const narrative = normalizeClinicalText(trustedInputText(state));
+  return narrative
     .split(/[。；;\n]+/)
     .map((clause) => clause.trim().replace(/^(?:主诉|现病史|患者信息|一般资料)\s*[:：]\s*/, ""))
-    .find((clause) => PEDIATRIC_CLAUSE_SUBJECT_PATTERN.test(clause));
+    .find((clause) => PEDIATRIC_CLAUSE_SUBJECT_PATTERN.test(clause))
+    // 没有数值年龄时，病历别处称「患儿」也算儿童（「患者张某，男，年龄未详（文中称患儿）」，2026-10-19 Claude 评审 H 集 H-tri-289：
+    // 判不出儿童，按成人给了人参 6g、黄芪 15g）。只在登记年龄缺失时走到这里；判出来的年龄段仍按下面的定性词，只写「患儿」的收回剂量。
+    // 「患者照顾5岁患儿」「陪同患儿就诊」说的是别人的孩子：同一小句有照看、陪同一类动词时不算。
+    ?? (narrative.split(/[，,。；;\n]+/u).some((clause) => /患儿/u.test(clause) && !/照顾|照看|看护|陪同|陪|带着?|抱着?|其|家中|家有/u.test(clause)) ? "患儿" : undefined);
 }
 
 function hasQualitativePediatricContext(state: CaseState): boolean {

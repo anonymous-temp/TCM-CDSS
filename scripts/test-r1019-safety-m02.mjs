@@ -443,14 +443,15 @@ await check("S1.2 病历写了带限定的那一种、或模型否认的就是�
     assert.ok(!text.includes("优先问舌脉（选项写两种候选证型各自的典型舌脉）"));
     assert.ok(text.includes("否定选项只写题干所列表现的否定"));
   });
-  await check("Q6.1 未满 28 天的新生儿不问「怕冷还是怕热」，换下一项基本问诊；两个月照问（对照）", () => {
+  // 2026-10-19 第四轮：3 岁以下都不问主观偏好（B 集 Claude 评审），对照改成成人照问。
+  await check("Q6.1 未满 28 天的新生儿不问「怕冷还是怕热」，换下一项基本问诊；成人照问（对照）", () => {
     assert.equal(contract.m02PatientAgeDays("10天"), 10);
     assert.equal(contract.m02PatientAgeDays("2个月"), 60);
     assert.equal(contract.m02PatientAgeDays("", "宝宝出生8天，黄疸。"), 8);
     const neonate = contract.basicInquiryFallback("血的检验结果帮忙看一下", { ageDays: 10 });
     assert.ok(neonate && !/怕冷还是怕热|想喝凉的还是热的/.test(neonate), neonate);
     assert.ok(!/怕冷还是怕热/.test(contract.basicInquiryFallback("宝宝两岁，发高烧39.6，烧的发抖。", { ageDays: 730 }) || ""), "发烧、发抖已记录时不问寒热");
-    assert.match(contract.basicInquiryFallback("咳嗽2天", { ageDays: 60 }), /怕冷还是怕热/);
+    assert.match(contract.basicInquiryFallback("咳嗽2天", { ageDays: 40 * 365 }), /怕冷还是怕热/);
     const fallback = contract.buildCaseAwareQuestionFallback({ patient: { age: "10天" }, chiefComplaint: "血的检验结果帮忙看一下" }, { settled: true });
     assert.ok(!/怕冷还是怕热/.test(fallback), fallback);
   });

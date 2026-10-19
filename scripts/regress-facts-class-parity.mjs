@@ -16,6 +16,7 @@
  *   反例     —— 目标类目下没有当前患者 positive/possible 且非 routine 的发现。
  *   反例不断言门禁放行：确定性层对部分反例本就保守扣剂量（见 fixture 的 knownDeterministicFindings），
  *   这里量的是语义层。
+ *   fixture 写 positiveCriterion: "red_flag" 时（处置分级类）：阳性=门禁 red_flag，反例=门禁不是 red_flag。
  *
  * 环境变量：CLASS_FILTER（类目 id 子串）、SET_FILTER（development/holdout1/…）、
  * CONTEXT_FILTER（outpatient_record/sparse）、RUNS（默认 5）、CONCURRENCY（默认 4）。
@@ -88,11 +89,15 @@ async function runJob(job) {
   }
   const gate = evaluateSafetyGate(withFacts);
   // mode=disposition（开放判断）：阳性=门禁不给剂量；反例=处置去向没有形成开方前评估项。
+  // positiveCriterion=red_flag（2026-10-19，disposition-time-window-emergency）：缺陷是「判对了危险、却只给了
+  // 宜先专科评估」，扣剂量在修复前就成立，量不出差别。阳性=门禁 red_flag（立即急诊）；反例=没有升成 red_flag。
   const dispositionItems = (gate.missingItems || []).filter((item) => item.includes("开方前处置去向"));
   const active = job.entry.mode === "disposition" ? dispositionItems : activeTargetFindings(facts, job.entry.targetCategories);
-  const pass = job.kind === "positive"
-    ? (job.entry.mode === "disposition" ? gate.allowDosePrescription === false : active.length > 0 && gate.allowDosePrescription === false)
-    : active.length === 0;
+  const pass = job.entry.positiveCriterion === "red_flag"
+    ? (job.kind === "positive") === (gate.status === "red_flag")
+    : job.kind === "positive"
+      ? (job.entry.mode === "disposition" ? gate.allowDosePrescription === false : active.length > 0 && gate.allowDosePrescription === false)
+      : active.length === 0;
   return {
     ...job,
     pass,
@@ -126,6 +131,7 @@ for (const result of results) {
   const group = groups.get(key) || { class: result.entry.id, set: result.setName, context: result.context, kind: result.kind, pass: 0, measured: 0, unavailable: 0, failingTexts: {} };
   if (result.unavailable) {
     group.unavailable += 1;
+    (group.unavailableReasons ||= {})[result.unavailable] = (group.unavailableReasons[result.unavailable] || 0) + 1;
   } else {
     group.measured += 1;
     if (result.pass) group.pass += 1;

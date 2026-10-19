@@ -2510,6 +2510,198 @@ export function formulaNameVariantIngredients(formulaName: string): string[] {
   ])];
 }
 
+/** 药名里太常见、不能当方名简称依据的字（formulaNameIdentityHerbsMissing）。 */
+const COMMON_HERB_NAME_CHARACTERS = new Set([..."黄白子草甘大小生熟参皮仁花叶根石赤川山金红青紫木地天五"]);
+const coreHerbsByNormalizedName = new Map<string, { core?: string[]; reasons?: Record<string, string> }>();
+for (const [name, entry] of Object.entries(coreHerbsJson.formulas as Record<string, { core?: string[]; reasons?: Record<string, string> }>)) {
+  const key = normalizeFormulaName(name);
+  if (key && !coreHerbsByNormalizedName.has(key)) coreHerbsByNormalizedName.set(key, entry);
+}
+
+function knownFormulaName(value: string): boolean {
+  const normalized = normalizeFormulaName(value);
+  return normalized.length >= 2 && (coreHerbsByNormalizedName.has(normalized) || isKnownFormulaNameFragment(normalized));
+}
+
+/**
+ * 方名拆成合方的各张方（「天王补心丹合朱砂安神丸加减」→ 两张）。整名本身是已收录方名时不拆（「百合固金汤」里的「合」不是合方）；
+ * 拆不成每一段都是已收录方名时返回空（不猜）。
+ */
+export function formulaNameComponents(name: string): string[] {
+  const base = String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "").replace(/[（(][^）)]*[）)]/gu, "").trim();
+  if (!base) return [];
+  const split = (value: string): string[] | undefined => {
+    if (knownFormulaName(value)) return [value];
+    for (let at = value.indexOf("合"); at > 0; at = value.indexOf("合", at + 1)) {
+      const left = value.slice(0, at);
+      if (!knownFormulaName(left)) continue;
+      const right = split(value.slice(at + 1));
+      if (right) return [left, ...right];
+    }
+    return undefined;
+  };
+  return split(base) || [];
+}
+
+/**
+ * 方名承载药中处方里没有的那几味（2026-10-19 M 集 Claude 评审：「沙参麦冬汤加减」方中无沙参、「乌头汤加减」无川乌）。
+ *
+ * 只认核心药生成物（tcm-formula-core-herbs.json）里两类有理由的味：方名承载药（name_bearing，名字就是它）与缺了就成了
+ * 另一张方的味（collapses_into：知柏地黄丸缺知母、黄柏即六味地黄丸）。安全定性药（safety_defining：天王补心丹的朱砂、
+ * 薏苡仁汤的川乌）不在此列——缺了它方子仍是那张方，只是去掉了一味毒性药。
+ * 同一味的品种或炮制写法算有（沙参＝北沙参/南沙参，川乌＝制川乌，地黄＝熟地黄/生地黄）。生成物里没有这张方时返回空（不判）。
+ */
+export function formulaNameIdentityHerbsMissing(formulaName: string, herbNames: readonly string[]): string[] {
+  const normalizedName = normalizeFormulaName(String(formulaName || ""));
+  if (!normalizedName) return [];
+  // 每味承载药连同它可接受的写法（品种未定的「沙参」「乌头」「芍药」：解析候选里的任一品种都算）。
+  const required = new Map<string, Set<string>>();
+  const acceptedWritings = (herb: string) => {
+    const resolution = resolveGovernedTcmHerbIdentity(herb);
+    const names = resolution.status === "ambiguous" ? [herb, ...(resolution.candidates || [])] : [herb];
+    return new Set(names.flatMap((name) => [name, compositionIdentityName(name)]).filter(Boolean));
+  };
+  const entry = coreHerbsByNormalizedName.get(normalizedName);
+  // 「缺了就成了另一张方」的味只在方名用简称点到它时算承载药（「知柏地黄丸」的知、柏，「丹栀逍遥散」的丹、栀）：
+  // 大承气汤的芒硝、黄芪建中汤的饴糖、五虎汤的细茶是冲服、烊化或煎时另加的味，系统本就不写进汤剂药味表，方名照旧。
+  // 判法是药名里有一个不常见的字出现在方名（去掉剂型字）里；黄、白、子这类字太常见，不算。
+  const nameBody = normalizedName.replace(/[汤散丸饮丹膏煎方]$/u, "");
+  const abbreviated = (herb: string) => [...herb].some((char) => !COMMON_HERB_NAME_CHARACTERS.has(char) && nameBody.includes(char));
+  for (const herb of entry?.core || []) {
+    const reason = entry?.reasons?.[herb] || "";
+    if (!/^name_bearing/u.test(reason) && !(/^collapses_into/u.test(reason) && abbreviated(herb))) continue;
+    required.set(compositionIdentityName(herb) || herb, acceptedWritings(herb));
+  }
+  // 生成物按药名字面认方名承载药，「乌头汤」的乌头（目录记制川乌）认不出来：方名里的每个药名片段按受治理身份解析，
+  // 与目录组成（含系统不编制用量、已从编译组成里扣除的那几味）里同一身份的那味就是承载药。
+  // 未经复核的中等置信别名（「白虎」挂石膏、「屏风」挂防风）不算。
+  const row = governedFormulaCompilationRow(String(formulaName || "").trim().replace(/(?:加减|化裁|加味)$/u, ""));
+  if (row) {
+    const named = new Map<string, Set<string>>();
+    for (let start = 0; start < normalizedName.length; start += 1) {
+      for (let length = 2; length <= 4 && start + length <= normalizedName.length; length += 1) {
+        const fragment = normalizedName.slice(start, start + length);
+        if (!isKnownTcmHerbName(fragment)) continue;
+        const resolution = resolveGovernedTcmHerbIdentity(fragment);
+        if (resolution.status === "unique_source_backed") continue;
+        const identities = resolution.status === "ambiguous"
+          ? [fragment, ...(resolution.candidates || [])]
+          : [fragment, compositionIdentityName(fragment)];
+        const accepted = new Set(identities.flatMap((name) => [name, compositionIdentityName(name)]).filter(Boolean));
+        for (const identity of accepted) named.set(identity, new Set([...(named.get(identity) || []), ...accepted]));
+      }
+    }
+    for (const raw of row.ingredients) {
+      const written = normalizeHerbName(String(raw || "").replace(/[（(][^）)]*[）)]/gu, ""));
+      const identity = compositionIdentityName(written) || written;
+      const accepted = named.get(identity) || named.get(written);
+      if (accepted && !required.has(identity)) required.set(identity, new Set([identity, written, ...accepted]));
+    }
+  }
+  if (required.size === 0) return [];
+  const present = herbNames.flatMap((raw) => {
+    const written = normalizeHerbName(String(raw || "").replace(/[（(][^）)]*[）)]/gu, ""));
+    return written ? [written, compositionIdentityName(written)].filter(Boolean) : [];
+  });
+  return [...required].filter(([core, accepted]) =>
+    !present.some((name) => accepted.has(name) || (name.length > core.length && name.endsWith(core)))).map(([core]) => core);
+}
+
+/**
+ * 教材代表方的原书出处（2026-10-19 M/H 集 Claude 评审）。教材行给了这首方的组成，出处按组成认是哪一条：
+ *  1 国家古代经典名方目录有这个方名、组成与教材相合（目录组成至少六成在教材组成里）：用它——化肝煎此前取了受治理条目的
+ *   《成方切用》（后世方书转载），目录写的是《景岳全书》（M 集 TCMChat-test-40、BEST4SDT-112）；
+ *  2 受治理编译条目组成与教材相合：用它；组成对不上的是同名异方（四七汤的受治理条目是《局方》人参、官桂、半夏、甘草，
+ *    教材呕吐·肝气犯胃证的四七汤是半夏、厚朴、茯苓、苏叶、姜、枣），不用；
+ *  3 名录里与教材组成逐味相同、或只少一味（教材多列的竹沥这类冲服药引）的那一条，只有一本书时用它；
+ * 方名是丸剂而目录只收了同方的汤剂（教材「十全大补丸」，目录《太平惠民和剂局方》十全大补汤，组成逐味相同）时按同方的另一剂型再找一遍。
+ * 都找不到时返回 undefined，由调用方写教材出处。
+ */
+/** 教材与目录组成的药名比对用身份。教材组成的写法带「末」「汁」（消渴方「黄连末、天花粉末、生地黄汁」）：去掉再认药。 */
+function textbookIngredientIdentity(name: string): string {
+  const written = catalogIngredientWritten(String(name || ""));
+  const bare = written.replace(/(?:末|汁)$/u, "");
+  return compositionIdentityName(bare !== written && bare.length >= 2 && isKnownTcmHerbName(bare) ? bare : written);
+}
+
+/** 现代标准、药典类出处（不是方剂原书）。 */
+const MODERN_STANDARD_SOURCE = /药典|部颁|标准|规范|手册/u;
+
+export function textbookFormulaOriginalSource(
+  formulaName: string,
+  textbookComposition: readonly string[],
+  /** 教材行列了几张方而组成没有分方（合方行的组成是几张方的并集）：不据组成判同名异方，也不按组成在名录里找。 */
+  options: { compositionIsUnion?: boolean } = {},
+): string | undefined {
+  const normalized = normalizeFormulaName(String(formulaName || ""));
+  if (!normalized) return undefined;
+  const identities = (ingredients: readonly string[]) => new Set(ingredients.map(textbookIngredientIdentity).filter(Boolean));
+  const wanted = identities(textbookComposition);
+  // 「相合」只用来排除同名异方（四七汤《局方》人参、官桂、半夏、甘草与教材只共一味半夏；大七气汤《三因方》半夏、茯苓、厚朴、紫苏叶
+  // 与教材积证的青皮、陈皮、三棱、莪术…一味不共）：教材有成形的组成（至少三味）且只是一张方时，目录组成与它至少共两味才算。
+  // 外科、眼科教材行常不列组成或只列几味主药，这时不据组成否定目录出处（银翘散《温病条辨》照用）。
+  const judged = !options.compositionIsUnion && wanted.size >= 3;
+  const agrees = (ingredients: readonly string[]) => !judged || [...identities(ingredients)].filter((id) => wanted.has(id)).length >= 2;
+  const stem = normalized.replace(/[汤丸散饮丹膏煎]$/u, "");
+  const names = [normalized, ...["汤", "丸", "散", "饮"].map((form) => `${stem}${form}`).filter((name) => name !== normalized)];
+  for (const [index, name] of names.entries()) {
+    // 同方另一剂型（十全大补丸借十全大补汤）只在能按组成核实时才借，且只借古籍出处：药典、部颁标准收的是成药
+    //（加味逍遥丸《中国药典》），不是这首方的原书。
+    const usable = (source: string | undefined) => Boolean(source) && (index === 0 || (judged && !MODERN_STANDARD_SOURCE.test(source!)));
+    const official = normalizedOfficialClassics.get(name);
+    if (official && usable(official.variant.source) && agrees(official.variant.ingredients)) return official.variant.source;
+    const reference = formulaCompilationReferences([name])[0];
+    if (reference && usable(reference.source) && agrees(reference.ingredients)) return reference.source;
+    if (!judged) continue;
+    const exact = catalogSourceForExactComposition(name, textbookComposition);
+    if (exact) return exact;
+    // 名录里按组成近似找到的条目只认古籍出处（名录收了药典成药条目：加味逍遥散《中国药典2015》，X 集 G-0679）。
+    const near = (normalizedCatalog.get(name)?.variants || []).filter((variant) => {
+      if (MODERN_STANDARD_SOURCE.test(variant.source)) return false;
+      const ids = identities(variant.ingredients);
+      return ids.size >= wanted.size - 1 && ids.size >= 3 && [...ids].every((id) => wanted.has(id));
+    });
+    const books = new Set(near.map((variant) => variant.source.match(/《([^》]+)》/u)?.[1] || variant.source));
+    if (near.length > 0 && books.size === 1) return near[0].source;
+  }
+  return undefined;
+}
+
+/**
+ * 教材代表方的受治理条目是不是同名异方：教材有成形的组成，而该条目与它不共两味（textbookFormulaOriginalSource 的同一判据）。
+ * 交付面据此不再署那一条的书（四七汤、大七气汤）。
+ */
+export function textbookFormulaGovernedEntryIsHomonym(
+  formulaName: string,
+  textbookComposition: readonly string[],
+  options: { compositionIsUnion?: boolean } = {},
+): boolean {
+  const reference = formulaCompilationReferences([formulaName])[0];
+  if (!reference || options.compositionIsUnion) return false;
+  const wanted = new Set(textbookComposition.map(textbookIngredientIdentity).filter(Boolean));
+  if (wanted.size < 3) return false;
+  return new Set(reference.ingredients.map(textbookIngredientIdentity).filter((id) => wanted.has(id))).size < 2;
+}
+
+/**
+ * 交付的方名里，方名承载药不在处方里的那几张方（formulaNameIdentityHerbsMissing）去掉之后的方名：
+ * 「乌头汤加减」而方中无川乌 →「自拟方」；「天王补心丹合朱砂安神丸加减」而方中无朱砂 →「天王补心丹加减」。
+ * 方名拆不成已收录方名、或每张方都名实相符时返回 undefined（不改）。
+ */
+export function formulaNameWithIdentityHerbsPresent(
+  name: string,
+  herbNames: readonly string[],
+): { name: string; kept: string[]; dropped: Array<{ formula: string; missing: string[] }> } | undefined {
+  const components = formulaNameComponents(name);
+  if (components.length === 0) return undefined;
+  const dropped = components
+    .map((formula) => ({ formula, missing: formulaNameIdentityHerbsMissing(formula, herbNames) }))
+    .filter((item) => item.missing.length > 0);
+  if (dropped.length === 0) return undefined;
+  const kept = components.filter((formula) => !dropped.some((item) => item.formula === formula));
+  return { name: kept.length > 0 ? `${kept.join("合")}加减` : "自拟方", kept, dropped };
+}
+
 /**
  * 这首方原书的组成（2026-10-19）：国家古代经典名方目录有就用它；否则取名录里与受治理编译条目同一本书的那一条（只有一条时）。
  * 方义说「去X」「加X」时对的是原书：消风散的受治理条目取自深圳地方标准，写的是煅石膏，《外科正宗》原方是石膏

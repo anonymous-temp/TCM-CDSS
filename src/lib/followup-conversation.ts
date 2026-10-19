@@ -148,7 +148,50 @@ export const POSSIBLE_RISK_QUESTIONS: Readonly<Record<string, RiskScreeningQuest
   pediatric_critical: { question: "患儿是否出现精神反应明显变差、抽搐、发绀、呼吸费力、拒绝饮水或尿量显著减少？", positive: "存在上述任一情况，请补充具体表现", negative: "经询问未见上述儿童全身危重表现" },
   poisoning: { question: "请核实可能接触或摄入的物质、时间和大致剂量；目前是否有意识、呼吸、抽搐或持续呕吐异常？", positive: "存在可疑暴露或上述任一异常，请补充具体表现", negative: "经核实无可疑暴露，且未见意识、呼吸或抽搐异常" },
   metabolic: { question: "目前是否有血糖明显异常，并伴意识改变、抽搐、深大呼吸或持续呕吐？", positive: "存在上述任一情况，请补充具体表现", negative: "经测量未见严重血糖异常或相应全身表现" },
-  other_critical: { question: "请复核该异常是否正在发生，并补充起病时间、严重程度、生命体征和意识呼吸状态。", positive: "异常仍在发生，请补充具体表现", negative: "经复核异常未在发生，且无生命体征、意识或呼吸改变" },
+  // 只问一件事：是否仍在发生（2026-10-19 r1019 第四轮，Claude 评审 B-MedDG-train-dialog1533#3：旧题干「请复核该异常是否正在发生，
+  // 并补充起病时间、严重程度、生命体征和意识呼吸状态」一题问五件事，起病时间病历已写；选项「经复核异常未在发生」是流程语）。
+  // 题干前总带病历原话（riskQuestionQuotePrefix），「这一情况」有所指。旧题干仍可识别，见 LEGACY_RISK_QUESTIONS。
+  other_critical: { question: "目前这一情况是否仍在发生？", positive: "目前仍在发生，请补充具体表现", negative: "目前已缓解，未再出现" },
+};
+
+export type RiskQuestionVariant = "infant" | "youngChild" | "male" | "anchored";
+
+/**
+ * 同一类目按人群或病历写法换用的题干（2026-10-19 r1019 第四轮，Claude 评审 B 集）。阳性选项沿用类目自己的，
+ * 闸门按「题干 + 阳性选项」识别作答时与类目固定题干同等对待（RISK_QUESTION_BY_TEXT 收全部写法）。
+ *  · infant：未满 1 岁（含新生儿）不会「拒绝饮水」，看的是吃奶（B-IMCS21-test-10454205#4 3 天新生儿、10694833#9）；
+ *  · youngChild：未满 3 岁，寒战、血压下降家长无从观察，看精神、呼吸与皮肤（B-IMCS21-train-10700122#1 5 月龄）；
+ *  · male：男性没有阴道出血（B-MedDG-train-dialog1722#12 46 岁男性便血）；
+ *  · anchored：题干前带病历原话、出血部位就在引文里时，只问是否仍在出血及循环表现，不再列咯血、阴道流血、外伤出血这些
+ *    与本例无关的部位（8156#3、1722#12 便血被问「咯血、阴道大量流血、外伤出血」）。
+ */
+export const RISK_QUESTION_VARIANTS: Readonly<Record<string, Readonly<Partial<Record<RiskQuestionVariant, { question: string; negative?: string }>>>>> = {
+  pediatric_critical: {
+    infant: { question: "患儿是否出现精神反应明显变差、抽搐、发绀、呼吸费力、吃奶明显减少甚至拒奶，或尿量显著减少？" },
+  },
+  sepsis: {
+    youngChild: { question: "患儿目前是否体温过高或过低，并伴精神很差（嗜睡、难以唤醒）、呼吸急促或皮肤发花？", negative: "经询问未见体温异常伴精神、呼吸或皮肤改变" },
+  },
+  bleeding: {
+    male: { question: "目前是否仍有咯血、外伤出血或其他出血不止？" },
+    anchored: { question: "目前是否仍在出血不止，或伴头晕、心慌、出冷汗？", negative: "经询问出血已止，且无头晕、心慌、出冷汗" },
+  },
+};
+
+/** 某类目某种写法的筛查题（没有该写法时返回类目固定题）。 */
+export function riskScreeningQuestionFor(category: string, variant?: RiskQuestionVariant): RiskScreeningQuestion | undefined {
+  const base = POSSIBLE_RISK_QUESTIONS[category];
+  if (!base) return undefined;
+  const alternative = variant ? RISK_QUESTION_VARIANTS[category]?.[variant] : undefined;
+  return alternative ? { ...base, question: alternative.question, negative: alternative.negative ?? base.negative } : base;
+}
+
+/**
+ * 已不再出、但调用方回传的对话里可能还带着的旧题干（只用于识别作答；2026-10-19 起不再出题）。
+ * 题干与阳性选项照旧逐字成对识别。
+ */
+const LEGACY_RISK_QUESTIONS: Readonly<Record<string, readonly RiskScreeningQuestion[]>> = {
+  other_critical: [{ question: "请复核该异常是否正在发生，并补充起病时间、严重程度、生命体征和意识呼吸状态。", positive: "异常仍在发生，请补充具体表现", negative: "经复核异常未在发生，且无生命体征、意识或呼吸改变" }],
 };
 
 /**
@@ -163,9 +206,15 @@ export function stripRiskQuestionQuotePrefix(question: string): string {
   return question.replace(RISK_QUESTION_QUOTE_PREFIX, "");
 }
 
-const RISK_QUESTION_BY_TEXT = new Map(
-  Object.entries(POSSIBLE_RISK_QUESTIONS).map(([category, item]) => [compactFollowupText(item.question), { category, ...item }]),
-);
+const RISK_QUESTION_BY_TEXT = new Map<string, { category: string } & RiskScreeningQuestion>([
+  ...Object.entries(POSSIBLE_RISK_QUESTIONS).map(([category, item]) => [compactFollowupText(item.question), { category, ...item }] as const),
+  ...Object.entries(RISK_QUESTION_VARIANTS).flatMap(([category, variants]) => Object.keys(variants).map((variant) => {
+    const item = riskScreeningQuestionFor(category, variant as RiskQuestionVariant) as RiskScreeningQuestion;
+    return [compactFollowupText(item.question), { category, ...item }] as const;
+  })),
+  ...Object.entries(LEGACY_RISK_QUESTIONS).flatMap(([category, items]) =>
+    items.map((item) => [compactFollowupText(item.question), { category, ...item }] as const)),
+]);
 
 /** 医生对服务端急症筛查题选了阳性选项的类目（题干与选项都必须逐字对上）。 */
 export function confirmedRiskScreeningCategories(conversation: readonly ConversationMessageLike[] | undefined): Array<{ category: string; question: string }> {

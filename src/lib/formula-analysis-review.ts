@@ -1,5 +1,5 @@
 import { herbFunctionKnowledgeForDisplay, isKnownTcmHerbName } from "./tcm-knowledge";
-import { compositionIdentityName, isKnownFormulaNameFragment } from "./tcm-formula-provenance";
+import { compositionIdentityName, formulaNameComponents, isKnownFormulaNameFragment } from "./tcm-formula-provenance";
 import { textbookDistinctHerbKey, textbookEntryName } from "./herb-textbook-identity";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import doctrinePhrasesJson from "../data/tcm-formula-doctrine-phrases.source.json";
@@ -125,6 +125,8 @@ function clauseBounds(text: string, index: number): { start: number; end: number
 }
 
 const CHINESE_NUMERAL = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+/** 以连接或辅助说法开头、没有自己主语的半句（前一分句那味药的说明的延续）。有限闭集的构词式。 */
+const SUBJECTLESS_CONTINUATION = /^\s*(?:助|又|并|且|兼|亦|还|更|以|而|使|其中|与|配合?|协|佐助|制约|监制)/u;
 
 /**
  * 提到外来药的分句怎么改（2026-10-14 独立评审）：分句里没有本方药时整句删（原行为）；分句里也点了本方药时，
@@ -142,7 +144,8 @@ function withoutForeignHerbNames(clause: string, foreignSpans: readonly Span[], 
     out = `${out.slice(0, start)}${out.slice(end)}`;
   }
   return out
-    .replace(/([一二两三四五六七八九])(药|味)(共)?/g, (_match, _numeral: string, unit: string, together: string | undefined) =>
+    // 「五味子」的「五味」是药名，不是味数（2026-10-19 M 集 0486：删掉外来药后「煅牡蛎、五味子为佐」改成了「煅牡蛎、二味子为佐」）。
+    .replace(/([一二两三四五六七八九])(药|味)(?!子)(共)?/g, (_match, _numeral: string, unit: string, together: string | undefined) =>
       ownCount >= 2 ? `${CHINESE_NUMERAL[ownCount] || ""}${unit}${together || ""}` : "")
     .replace(/([二两三四五六七八九])(臣|佐)/g, (match: string, _numeral: string, unit: string) =>
       ownCount >= 2 ? `${CHINESE_NUMERAL[ownCount] || ""}${unit}` : match);
@@ -195,8 +198,16 @@ function replaceInternalReferences(text: string, nodeLabels: Readonly<Record<str
  */
 const REPAIR_PROMPT_JUSTIFICATION = /[，,]\s*因(?:[^。；;，,]*[，,])?[^。；;]*?(?:签名|成立依据|收载方向|均未成立[^。；;，,]{0,8}方向)[^。；;]*?[，,]?\s*故不(?:保留|纳入)(?:该药|此药)?/gu;
 
+/**
+ * 修复轮驳回理由的另一种写法：「去菟丝子，因本例无寒热偏象可据，其温阳方向未成立。」「去僵蚕，因其化痰软坚方向于本例未成立，改由…」
+ *（2026-10-19 M 集 BEST4SDT-250）。「X方向（未/不）成立」是服务端合同的话（方向核验），不是方解；整句讲的是删药过程，整句去掉。
+ */
+const DIRECTION_NOT_ESTABLISHED_SENTENCE = /[^。！!]*方向[^，,。；;]{0,8}(?:未|不)成立[^。！!]*[。！!]?/gu;
+
 function withoutRepairPromptJustification(text: string): { text: string; changed: boolean } {
-  const next = text.replace(REPAIR_PROMPT_JUSTIFICATION, "");
+  const next = text.replace(REPAIR_PROMPT_JUSTIFICATION, "").replace(DIRECTION_NOT_ESTABLISHED_SENTENCE, (sentence: string) =>
+    // 同一句里有君臣佐使的分工（不是只讲删药），只去掉讲「方向未成立」的那一小句。
+    /为[君臣佐使]/u.test(sentence) ? sentence.replace(/[，,；;]?[^，,。；;]*方向[^，,。；;]{0,8}(?:未|不)成立[^，,。；;]*/u, "") : "");
   return { text: next, changed: next !== text };
 }
 
@@ -354,7 +365,7 @@ export function withRecountedHerbCountWords(text: string, candidateHerbs: readon
  *「鹿角胶、龟甲胶（烊化）」，独立评审判名称不一；胶珠是蛤粉烫制后入煎的另一种饮片规格）。只在能确定是同一味时改：
  *  · 按组成身份与教材分味（textbookDistinctHerbKey）对上药味表里唯一的一味；
  *  · 教材里各自单列的两味不改（茯神是茯苓的附药，熟地黄、生地黄各是一味）；
- *  · 方义写的是药味表名加炮制或部位（「麸炒山药」「当归身」「炒牛蒡子」）时不改——那是同一味的具体写法；
+ *  · 方义写的是药味表名加部位（「当归身」）时不改；加炮制或修治字（「麸炒山药」「朱茯神」）时改成药味表的写法（见下）；
  *  · 只凭未经复核的中等置信别名对上的不改（「玉屏风」里的「屏风」）。
  * 改过之后，后面的外来药判断与功效核对按药味表这一味来看（鹿角胶性温补阳，「滋阴…退虚热」由功效核对去掉）。
  */
@@ -364,7 +375,18 @@ export function withMentionsAlignedToTableNames(text: string, candidateHerbs: re
   const replacements: Array<{ start: number; end: number; name: string }> = [];
   for (const mention of formulaAnalysisHerbMentions(text)) {
     const token = mention.token;
-    if (tableNames.includes(token) || tableNames.some((name) => token.includes(name))) continue;
+    if (tableNames.includes(token)) continue;
+    // 方义写的是药味表名前加炮制或修治字（朱茯神、姜天麻、煅石决明、盐杜仲、麸炒枳壳、酒黄芩、冬桑叶、生甘草）而药味表只写原名：
+    // 改成药味表的写法。药味表是开出去的药，方义不得说成另一种饮片规格（2026-10-19 M/H 集 Claude 评审：天麻钩藤饮各例方义写
+    //「朱茯神」、药表是茯神，朱茯神是朱砂拌制的另一种规格）。只认教材里是同一条目的（熟地黄与地黄、川牛膝与牛膝各是一味，不改）。
+    const prefixed = tableNames.filter((name) => token.length > name.length && token.endsWith(name) &&
+      textbookDistinctHerbKey(token) === textbookDistinctHerbKey(name) && textbookEntryName(token) === textbookEntryName(name) &&
+      compositionIdentityName(token) === compositionIdentityName(name));
+    if (prefixed.length === 1) {
+      replacements.push({ start: mention.start, end: mention.end, name: prefixed[0] });
+      continue;
+    }
+    if (tableNames.some((name) => token.includes(name))) continue;
     // 未经复核的中等置信别名不用来改字（「取玉屏风之意」里的「屏风」在别名表里挂到防风）。
     if (resolveGovernedTcmHerbIdentity(token).status === "unique_source_backed") continue;
     const key = textbookDistinctHerbKey(token);
@@ -868,7 +890,9 @@ export function removeVerifiedHerbClaims(
     }
     let start = segment.start;
     const end = segment.end;
-    if (/[，,、]/u.test(text[start - 1] || "")) start -= 1;
+    // 这一段自带结尾的分隔符（段一直延到下一味药之前）时，不再连前面的分隔符一起删：两边都删，前后两段就粘在一起了
+    //（「以羌活、茯苓皮为君，羌活…，茯苓皮淡渗利水」删去讲羌活的一段后成了「为君茯苓皮淡渗利水」，2026-10-19 M 集 TCM-SD-463912）。
+    if (/[，,、]/u.test(text[start - 1] || "") && !/[，,、；;]\s*$/u.test(text.slice(start, end))) start -= 1;
     removals.push({ herb, claim, action: "segment", removed: text.slice(start, end) });
     text = `${text.slice(0, start)}${text.slice(end)}`;
   }
@@ -926,6 +950,9 @@ export function reviewAuthoredFormulaAnalysis(
   const internal = replaceInternalReferences(text, opts.nodeLabels || {});
   if (internal.changed) adjustments.push("internal_reference_rewritten");
   text = internal.text;
+  const process = withoutProcessParentheticals(text);
+  if (process.changed) adjustments.push("process_parenthetical_removed");
+  text = process.text;
   const leaked = withoutRepairPromptJustification(text);
   if (leaked.changed) adjustments.push("repair_prompt_phrase_removed");
   text = leaked.text;
@@ -978,14 +1005,21 @@ export function reviewAuthoredFormulaAnalysis(
       // 一并删到分号或句号为止；否则留下没有主语的「改善血不养心之睡眠差、心悸」（2026-10-18 甲方标准病历 3，三次生成里两次）。
       // 「全方…」「共奏…」这类总括句不在此列。
       let rest = text.slice(bounds.end);
+      // 删掉的分句是一句话的开头（前面是句号或文首）时，这句话的句号不再留：前一句已经收尾，留下就是「。。」
+      //（2026-10-19 M/H 集：「为基础加减。。」「调和诸药。。」，删掉的是只讲外来药朱砂、或只讲已剔出本方之药的那一整句）。
+      const opensSentence = /^\s*$/u.test(text.slice(0, bounds.start)) || /。\s*$/u.test(text.slice(0, bounds.start));
       if (kept === "" && /[，,]$/.test(text.slice(bounds.start, bounds.end))) {
         for (;;) {
           const next = rest.match(/^[^，,；;。！？!?：:]*[，,；;。]?/)?.[0] || "";
-          if (!next || formulaAnalysisHerbMentions(next).length > 0 || /^\s*(?:全方|本方|诸药|共奏|合用|全)/.test(next)) break;
-          rest = /。$/.test(next) ? `。${rest.slice(next.length)}` : rest.slice(next.length);
+          // 后半句点了别的药、但那味药不是它的主语（「助当归安其心神」「又制黄连苦寒伤胃」「其中与炙黄芪相使」）：仍是被删那味药的说明，
+          // 一并删去（2026-10-19 M 集 BEST4SDT-279、RobustSDT-single_0641，H 集 12291：删掉安神药、干姜之后留下没有主语的半句）。
+          if (!next || (formulaAnalysisHerbMentions(next).length > 0 && !SUBJECTLESS_CONTINUATION.test(next)) ||
+            /^\s*(?:全方|本方|诸药|共奏|合用|全)/.test(next)) break;
+          rest = /。$/.test(next) && !opensSentence ? `。${rest.slice(next.length)}` : rest.slice(next.length);
           if (/[；;。]$/.test(next)) break;
         }
       }
+      if (kept === "" && opensSentence) rest = rest.replace(/^\s*。/u, "");
       const following = rest.replace(/^([，,]?\s*)([二两三四五六七八九])(药|味)(?!子)(合|共)?/, (match, lead: string, _numeral: string, unit: string, together: string | undefined) =>
         ownCount >= 2 ? `${lead}${CHINESE_NUMERAL[ownCount] || ""}${unit}${together || ""}` : ownCount === 1 ? lead : match);
       text = `${text.slice(0, bounds.start)}${kept}${following}`;
@@ -1021,4 +1055,245 @@ export function reviewAuthoredFormulaAnalysis(
   const usable = text.length >= 24 && ownMentioned >= requiredCoverage;
   if (!usable) adjustments.push(ownMentioned < requiredCoverage ? "not_about_candidate" : "too_short_after_cleanup");
   return { text, usable, ownMentioned, foreignHerbs, adjustments };
+}
+
+/** 方义开头说本方是自拟方（「本方为自拟方」「本方系辨证自拟」）。 */
+const SELF_COMPOSED_OPENING = /^本方(?:为|系|乃|属)(?:辨证)?自拟(?:组方|方剂|之方|方)?/u;
+/** 方义开头说本方以哪张（或哪几张合方）为底（「本方以X为基础加减」「本方以X合Y加减」「本方为以X加减」）。 */
+const BASE_FORMULA_OPENING = /^本方(?:为|系|乃)?(以)?([^，,。；;：:、]{2,30}?)(?:为基础(?:加减|化裁|加味)?|为底方(?:加减|化裁)?|加减|化裁|加味)/u;
+
+/**
+ * 方义开头一句与交付方名一致（2026-10-19 M/H 集 Claude 评审：方名「清宫汤加减」而方义「本方为自拟方」，方名「自拟方」而方义
+ *「本方以牵正散为基础加减」，「本方为以虎潜丸加减」）。三种写法由同一个判据定：最终方名。
+ *  · 方名是成方（「X加减」「X合Y加减」）而开头说自拟、或说的是另一张方：改成「本方以X为基础加减」；
+ *  · 方名是自拟方而开头说以某张成方为基础：改成「本方为自拟方，参照该方化裁」（那张方是组方的出发点，照实说，但不再自称是它）；
+ *  · 开头与方名一致只是写成「本方为以X加减」：改成「本方以X为基础加减」。
+ * 开头不是这几种写法（「方中…」「以X为君」）时不动；开头点到的不是已收录方名（「本方以补气活血为法」）时不动。
+ * 最终方名由服务端定（目录方或教材代表方，教材方不一定在方剂目录里，如鹿茸补涩丸），这里不再查它是否收录。
+ */
+export function withOpeningMatchingFormulaName(analysis: string, finalName: string): { text: string; changed: boolean } {
+  if (typeof analysis !== "string" || !analysis.trim()) return { text: analysis, changed: false };
+  const name = String(finalName || "").trim();
+  const selfComposed = !name || /^(?:自拟方?|本例辨证组方|辨证组方)(?:加减|加味)?$/u.test(name);
+  const label = name.replace(/(?:加减|化裁|加味)$/u, "");
+  // 方名既不是自拟方、也不像方名（不以汤、散、丸、饮、丹、膏、煎、方结尾，也拆不成已收录方名）时不动。
+  if (!selfComposed && !/[汤散丸饮丹膏煎方]$/u.test(label) && formulaNameComponents(label).length === 0) return { text: analysis, changed: false };
+  const normalize = (value: string) => value.replace(/[《》\s]/gu, "").replace(/(?:加减|化裁|加味)$/u, "");
+  const self = analysis.match(SELF_COMPOSED_OPENING);
+  if (self) {
+    if (selfComposed) return { text: analysis, changed: false };
+    const text = `本方以${label}为基础加减${analysis.slice(self[0].length)}`;
+    return { text, changed: text !== analysis };
+  }
+  const base = analysis.match(BASE_FORMULA_OPENING);
+  if (!base || formulaNameComponents(base[2]).length === 0) return { text: analysis, changed: false };
+  const rest = analysis.slice(base[0].length);
+  let opening: string;
+  if (selfComposed) opening = `本方为自拟方，参照${base[2]}化裁`;
+  else if (normalize(base[2]) !== normalize(label)) opening = `本方以${label}为基础加减`;
+  else if (/^本方(?:为|系|乃)/u.test(base[0])) opening = `本方以${label}为基础加减`;
+  else return { text: analysis, changed: false };
+  const text = `${opening}${rest}`;
+  return { text, changed: text !== analysis };
+}
+
+/** 「X、Y为君」「X为佐」这一类只点角色的小句：药名串＋（共/同/均）为君臣佐使（药）。 */
+const ROLE_ONLY_CLAUSE = /^(?:以)?([^，,。；;：:]{2,40}?)(?:共|同|均|并)?为(君|臣|佐|使)药?$/u;
+
+/**
+ * 方义里只点了角色、没说作用的药（2026-10-19 M/H 集 Claude 评审：「牛膝为佐。」「…牛膝为佐，甘草为使，调和诸药」「黄芪、当归为君，
+ * 川芎…为臣」「川牛膝、桃仁为臣，枳壳行气宽中」）：在角色后补上药味表里这味药的功效（模型为本例写的那一栏，交付前已核过）。
+ * 只认小句里全是本方药名、紧跟着的是另一味药开头的小句、句末、或「诸药合用/全方/共奏」这类总括——后面接着说这味药自己的作用
+ *（「黄芪、当归为君，黄芪补气…」「牛膝为佐，引血下行」）就不是只点了角色。药味表没有功效或是占位句时不补。
+ */
+export function withRoleOnlyHerbsExplained(
+  analysis: string,
+  herbs: ReadonlyArray<{ name?: unknown; function?: unknown }>,
+): { text: string; changed: boolean } {
+  if (typeof analysis !== "string" || !analysis.trim()) return { text: analysis, changed: false };
+  const functionOf = new Map<string, string>();
+  for (const herb of herbs) {
+    const name = typeof herb.name === "string" ? stripAnnotation(herb.name) : "";
+    const value = typeof herb.function === "string" ? herb.function.trim() : "";
+    if (!name || !value || /需医生|复核|本方中的具体/u.test(value)) continue;
+    functionOf.set(identityOf(name), value.replace(/[，,；;。]+/gu, "、").replace(/、+$/u, ""));
+  }
+  if (functionOf.size === 0) return { text: analysis, changed: false };
+  const pieces = analysis.split(/([，,；;。！!])/u);
+  let changed = false;
+  for (let index = 0; index < pieces.length; index += 2) {
+    const clause = pieces[index].trim();
+    const match = clause.match(ROLE_ONLY_CLAUSE);
+    if (!match) continue;
+    const listText = match[1];
+    const mentions = formulaAnalysisHerbMentions(listText);
+    // 小句除了药名和顿号、「和/与/及」之外没有别的字，才是一串药名。
+    const leftover = mentions.reduceRight((value, mention) => `${value.slice(0, mention.start)}${value.slice(mention.end)}`, listText);
+    if (mentions.length === 0 || /[^、和与及\s]/u.test(leftover)) continue;
+    const listed = mentions.map((mention) => identityOf(mention.token));
+    if (!listed.every((identity) => functionOf.has(identity))) continue;
+    // 紧跟着的小句：是这几味药自己的说明就不补。
+    let nextIndex = index + 2;
+    while (nextIndex < pieces.length && !pieces[nextIndex].trim()) nextIndex += 2;
+    const next = nextIndex < pieces.length ? pieces[nextIndex].trim() : "";
+    if (next) {
+      const head = formulaAnalysisHerbMentions(next).find((mention) => mention.start === next.search(/[^\s以而]/u));
+      const summary = /^(?:全方|本方|诸药|共奏|合用|合而|诸味)/u.test(next);
+      if (!summary && !(head && !listed.includes(identityOf(head.token)))) continue;
+    }
+    const explained = mentions.length === 1
+      ? functionOf.get(listed[0])!
+      : mentions.map((mention, position) => `${mention.token}${functionOf.get(listed[position])}`).join("，");
+    pieces[index] = `${pieces[index]}，${explained}`;
+    changed = true;
+  }
+  const text = pieces.join("");
+  return { text, changed: changed && text !== analysis };
+}
+
+/**
+ * 方义里的病历断言小句（2026-10-19 M 集 MTCMB-42「大补心气、升阳行血，有胸闷；」）：阴性净化器把模型对病历的错误说法改写成
+ *「病历已记录X阳性」「病历尚未确认X是否存在」，交付时再换成「有X」「未诉X」。这些句子在注意事项、鉴别里是对的，在方义里只剩一个
+ * 没头没尾的病历断言，不讲配伍。方义里整小句去掉（只认净化器写的那几种固定句式）。
+ */
+export function withoutChartAssertionClauses(analysis: string): { text: string; changed: boolean } {
+  if (typeof analysis !== "string" || !/病历(?:中)?(?:已记录|尚未确认|未记录)|是否存在尚未/u.test(analysis)) return { text: analysis, changed: false };
+  const pieces = analysis.split(/([，,；;。])/u);
+  const kept: string[] = [];
+  for (let index = 0; index < pieces.length; index += 2) {
+    const clause = pieces[index];
+    const separator = pieces[index + 1] || "";
+    if (/^\s*病历(?:中)?(?:已记录|尚未确认|未记录)/u.test(clause) || /是否存在尚未/u.test(clause)) {
+      // 去掉的小句后面是分号或句号：前一小句收尾换成它（逗号不升级成分号、句号以外的不降级）。
+      const strength = (value: string) => (/[。]/u.test(value) ? 3 : /[；;]/u.test(value) ? 2 : /[，,]/u.test(value) ? 1 : 0);
+      if (kept.length > 0 && strength(separator) > strength(kept[kept.length - 1])) kept[kept.length - 1] = separator;
+      continue;
+    }
+    kept.push(clause, separator);
+  }
+  const text = tidyPunctuation(kept.join(""));
+  return { text, changed: text !== analysis };
+}
+
+/**
+ * 药味功效栏的整理（2026-10-19 M/H 集 Claude 评审）：
+ *  · 括注去掉：知识库原文带出处或异读的括注（牛膝「引热(血)下行，且补肝肾(玉女煎)」、桔梗「载药上行(舟楫)」），功效栏不印括注；
+ *    括注后面「且补肝肾」的「且」一并去掉；
+ *  · 近义重复只留一条：一条包含另一条时留更具体的那条（「化痰，化痰散痞」「止咳平喘，降气止咳平喘」），或等长四字只差一个字时留第一条（「清热泻火，清热降火」
+ *   「补中益气，补脾益气」「祛寒止痛，散寒止痛」）——知识库把药典与教材的说法并在一起，取前几条时会连着取到同一功效的两种写法；
+ *  · max 给定时最多留几条（知识库兜底取法用：模型自己写的功效栏不截）。
+ */
+export function conciseHerbFunctionLabel(text: string, max?: number): string {
+  if (typeof text !== "string" || !text.trim()) return text;
+  const clauses = text
+    .replace(/[（(][一-鿿]{1,6}[）)]/gu, "")
+    .split(/[，,、；;]/u)
+    .map((clause) => clause.trim().replace(/^且(?=[一-鿿]{2,})/u, ""))
+    .filter(Boolean);
+  const nearDuplicate = (left: string, right: string) => {
+    if (left.includes(right) || right.includes(left)) return true;
+    if (left.length !== 4 || right.length !== 4) return false;
+    return [...left].filter((char, index) => char !== right[index]).length === 1;
+  };
+  const kept: string[] = [];
+  for (const clause of clauses) {
+    // 后一条把前一条整个包含在内（「化痰，化痰散痞」）：留更具体的那条，放在前一条的位置。
+    const contained = kept.findIndex((item) => clause.length > item.length && clause.includes(item));
+    if (contained >= 0 && !kept.some((item, index) => index !== contained && nearDuplicate(item, clause))) {
+      kept[contained] = clause;
+      continue;
+    }
+    if (kept.some((item) => nearDuplicate(item, clause))) continue;
+    kept.push(clause);
+  }
+  const limited = typeof max === "number" ? kept.slice(0, max) : kept;
+  return limited.length > 0 ? limited.join("，") : text;
+}
+
+/**
+ * 「调和诸药」只属调和药（2026-10-19 M 集 MTCMB-72、93，RobustSDT-single_0582：茯神、五味子作使药，功效栏写「宁心安神，调和诸药」
+ *「敛阴固涩，调和诸药」）。调和药按知识库与核对词典认（甘草、炙甘草、生姜的功效里有「调和诸药」）；大枣、蜂蜜在《中药学》里
+ * 有「缓和药性」、生姜与大枣同为使药调和营卫，也算。不是调和药时去掉功效栏里说调和诸药/调和药性的那一条（别的条目照留；只剩这一条时不动）。
+ */
+export function herbHarmonizesFormula(name: string, knowledgeText: string): boolean {
+  const identity = identityOf(name);
+  return /调和(?:诸药|药性)|缓和药性/u.test(knowledgeText) || TEXTBOOK_HARMONIZING_HERBS.has(identity);
+}
+/**
+ * 知识库功效文本里没有「调和」、而教材明确作调和用的几味（有限闭集）：《中药学》大枣、蜂蜜「缓和药性」；《方剂学》姜枣同用为使
+ *「调和营卫、调和诸药」（桂枝汤等）。
+ */
+const TEXTBOOK_HARMONIZING_HERBS = new Set(["大枣", "蜂蜜", "生姜"]);
+
+export function withoutUnsupportedHarmonizingClause(name: string, functionText: string, knowledgeText: string): string {
+  if (typeof functionText !== "string" || !/调和(?:诸药|药性)/u.test(functionText) || herbHarmonizesFormula(name, knowledgeText)) return functionText;
+  const clauses = functionText.split(/[，,、；;]/u).map((clause) => clause.trim()).filter(Boolean);
+  const kept = clauses.filter((clause) => !/^(?:宁心|兼|并|以)?调和(?:诸药|药性)$/u.test(clause));
+  if (kept.length === 0 || kept.length === clauses.length) return functionText;
+  return kept.join("，");
+}
+
+/**
+ * 方义把「调和诸药」安在不是调和药的药上（2026-10-19 M 集 MTCMB-81「益母草引血下行、调和诸药为使」、MTCMB-93「朱茯神为使，宁心调和诸药」、
+ * RobustSDT-single_0582「五味子敛阴调和为使」）：这一段的主语全不是调和药时（herbHarmonizesFormula），去掉「调和诸药/调和药性/调和」这几个字
+ * 与它前面的连接号，其余照留。主语里有甘草、大枣这类调和药（「牛膝、甘草为使，调和诸药」）或说的是「调和营卫」时不动。
+ */
+export function withoutUnsupportedHarmonizingClaims(
+  analysis: string,
+  candidateHerbs: readonly string[],
+  knowledgeFor: (herb: string) => string,
+): { text: string; changed: boolean } {
+  if (typeof analysis !== "string" || !/调和/u.test(analysis)) return { text: analysis, changed: false };
+  const own = new Set(candidateHerbs.map(identityOf).filter(Boolean));
+  // 光写「调和」的只认紧跟角色或小句末、前面不是脏腑气血的（「敛阴调和为使」「宁心调和」）；「助肝脾调和」「调和营卫」是另一回事。
+  const claim = /[、，,并兼而]?(?:调和(?:诸药|药性)|(?<![脾胃卫血肝阳营])调和(?=为[君臣佐使]|[，,。；;]|$))/gu;
+  let text = analysis;
+  const cuts: Array<{ start: number; end: number }> = [];
+  let sentenceStart = 0;
+  for (const stop of [...text.matchAll(/[。；;]|$/gu)]) {
+    const sentenceEnd = stop.index ?? text.length;
+    for (const segment of analysisSegments(text, sentenceStart, sentenceEnd)) {
+      const subjects = segment.subjects.map((subject) => subject.token);
+      if (subjects.some((name) => !own.has(identityOf(name)))) continue;
+      if (subjects.some((name) => herbHarmonizesFormula(name, knowledgeFor(name)))) continue;
+      const predicate = text.slice(segment.subjectEnd, segment.end);
+      for (const match of predicate.matchAll(claim)) {
+        const start = segment.subjectEnd + (match.index ?? 0);
+        cuts.push({ start, end: start + match[0].length });
+      }
+    }
+    sentenceStart = sentenceEnd + 1;
+    if (sentenceEnd >= text.length) break;
+  }
+  if (cuts.length === 0) return { text: analysis, changed: false };
+  for (const cut of cuts.sort((left, right) => right.start - left.start)) {
+    text = `${text.slice(0, cut.start)}${text.slice(cut.end)}`;
+  }
+  text = tidyPunctuation(text);
+  return { text, changed: text !== analysis };
+}
+
+/**
+ * 方义里的流程话（2026-10-19 M 集 BEST4SDT-205「去制川乌（毒性管制药，用量由医师单独确定并经审方复核）」——模型照抄了开方提示词里
+ * 对扣除药味的说明）：括号里讲审方、复核、单独确定用量、药味表这类流程的整个括注去掉。不是括注的流程句不在此列。
+ */
+const PROCESS_PARENTHETICAL = /[（(][^（）()]{0,40}?(?:审方|复核|单独确定|编制用量|药味表|系统|服务端)[^（）()]{0,40}?[）)]/gu;
+export function withoutProcessParentheticals(text: string): { text: string; changed: boolean } {
+  if (typeof text !== "string") return { text, changed: false };
+  const next = text.replace(PROCESS_PARENTHETICAL, "");
+  return { text: next, changed: next !== text };
+}
+
+/**
+ * 「本方以黄连解毒汤合定痫丸加减，为黄连片、胆南星为君」（2026-10-19 H 集 X-H-0047）：小句开头多一个「为」，后面又是「…为君」。
+ * 开头的「为」紧跟一串本方药名、同一小句里再有「为君/臣/佐/使」时，去掉开头这个「为」（构词式守卫）。
+ */
+export function withoutStrayLeadingRoleVerb(text: string): { text: string; changed: boolean } {
+  if (typeof text !== "string" || !/[，,；;。]\s*为/u.test(text)) return { text, changed: false };
+  const next = text.replace(/([，,；;。]\s*)为(?=[^，,。；;]{2,40}?为[君臣佐使])/gu, (match: string, lead: string, offset: number, whole: string) => {
+    const following = whole.slice(offset + match.length);
+    const first = formulaAnalysisHerbMentions(following).find((mention) => mention.start === 0);
+    return first ? lead : match;
+  });
+  return { text: next, changed: next !== text };
 }

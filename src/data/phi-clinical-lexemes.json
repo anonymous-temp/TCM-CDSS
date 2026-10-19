@@ -4,7 +4,7 @@
     "tcm-disease-lexicon.json": "66c612518569ca97cdce2de79de820dc23785184e5f1fabb932398cd4ae5b11f",
     "tcm-location-lexicon.json": "2b790ee22f9a4f0e39cd52210754e7245bdf15a304c9420e613e1bd1194149f0",
     "tcm-inspection-lexicon.json": "aaac75e52dca885722527b2aa0394c2607ceb1208ed86dded0315db12f75cd67",
-    "phi-clinical-lexical-grammar.source.json": "5fb71071465622a8f2c2652fba8a6196d7ecca8eda4945aa5ea6c9f613773648"
+    "phi-clinical-lexical-grammar.source.json": "0cef8377fdebde4a228d30f8f254ef334dcdf92073c15a570da6f4a38b7e91c5"
   },
   "terms": [
     "丁奚",
@@ -1057,7 +1057,10 @@
     "平卧",
     "平常",
     "平日",
+    "平日入",
     "平时",
+    "平时入",
+    "平素入",
     "平躺",
     "年幼",
     "年老",
