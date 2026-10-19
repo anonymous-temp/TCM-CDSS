@@ -1748,7 +1748,19 @@ const DIAGNOSIS_LABEL_ONLY = /^(?:[\p{Script=Han}A-Za-z0-9+\-]+(?:病|炎|癌|�
  */
 export function isCurrentPositiveTcmAnchor(value: string): boolean {
   return value.normalize("NFKC").split(/[。；;\n]+/).some((sentence) => {
-    if (!sentence.trim() || HISTORICAL_SUPPORT.test(sentence)) return false;
+    if (!sentence.trim()) return false;
+    // 舌象、脉象是本次诊察所见：句首的「既往…」管不到句中的「舌质淡，脉濡弱」（2026-10-19 X 集 X-G-2930：
+    // 模型把「既往有胃病二十余年，每次均因饮食不慎，出现呕吐…舌质淡，脉濡弱」整句当依据，整句判既往，M03 退回占位）。
+    // 构词式守卫：分句以「舌/脉」起头、分句内没有既往线索、不是否定。其余分句照旧随句判既往。
+    // 「手术后2个月出现腹胀」是本次起病的时间锚，不是术后状态（X 集 X-D-4749 同样整份退回占位）：
+    // 「术后 + 时长 + 出现/开始/发现」去掉这一锚再判（构词式守卫，只认这一种写法）。
+    const withoutOnsetAnchor = sentence.replace(/(?:手)?术后\s*(?:\d+|[一二两三四五六七八九十半数几]+)\s*(?:个)?\s*(?:天|日|周|星期|月|年)(?:余|多)?(?:后|来)?\s*(?=出现|开始|发现|始觉|自觉)/u, "");
+    if (HISTORICAL_SUPPORT.test(withoutOnsetAnchor)) {
+      return splitIntoClinicalClauses(sentence).some((clause) => {
+        const trimmed = clause.replace(/^[\s，,、]+/, "");
+        return /^(?:舌|脉)/u.test(trimmed) && !HISTORICAL_SUPPORT.test(trimmed) && !isNegatedClinicalClause(clause);
+      });
+    }
     return splitIntoClinicalClauses(sentence).some((clause) => {
       const normalized = clause.replace(/[\s，,。；;：:、（）()【】\[\]]+/g, "");
       if (!normalized || isNegatedClinicalClause(clause)) return false;

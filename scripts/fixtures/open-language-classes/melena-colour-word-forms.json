@@ -1,0 +1,36 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "melena-colour-word-forms",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "Claude 评审 A 集（r19g）A-out-single_0242：「近一月来出现大便色黑，伴有腹痛、易于疲劳」确定性层未认出黑便。同类现代医案 T16-MR-04853「面色苍白，大便色黑，头晕乏力」也是零确定性红旗。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "POSITIVE_FACT_EQUIVALENT_GROUPS 的黑便组只收「大便发黑/粪便发黑/排黑色便…」，「大便色黑」「黑色大便」「大便呈黑色」不在组内；事实层 OVERT_GI_BLEED_LANGUAGE 同样缺。",
+  "exception": "冻结令允许的构词式守卫：「大便/粪便 + 色黑/呈黑色/颜色发黑」与「黑色大便」五个闭集词形，加入黑便概念组与事实层同源正则；活动性判定（伴随症、反复、量）与否定、铁剂/铋剂守卫照旧。A-out-single_0242 的伴随症是「易于疲劳」，不在受治理伴随症（头晕/乏力/晕厥/冷汗/面色苍白/低血压）里，本修复不改变它的门禁结果——那属于受治理词表的口径，不在本类。",
+  "sources": "门禁回放 gate-replay2.mjs：306 次判定，含黑便新词形的改变 1 处（T16-MR-04853「大便色黑，头晕乏力」补报活动性消化道出血），无误报。"
+ },
+ "contexts": ["outpatient_record"],
+ "parity": {
+  "note": "新词形与既有「大便发黑」写法在同一伴随症下门禁结果相同。",
+  "pairs": [
+   { "subject": "近1周大便色黑，头晕乏力。", "sibling": "近1周大便发黑，头晕乏力。", "siblingExpect": "flagged" },
+   { "subject": "黑色大便3天，伴面色苍白。", "sibling": "黑便3天，伴面色苍白。", "siblingExpect": "flagged" }
+  ]
+ },
+ "controls": {
+  "note": "否认、铁剂后且伴随症被否认的写法不报。",
+  "mustStillFlag": [
+   { "text": "大便呈黑色2天，乏力。", "flag": "消化道出血" }
+  ],
+  "mustStayReady": [
+   "否认大便色黑，胃脘隐痛。",
+   "服用铁剂后大便色黑，无头晕乏力，复查便潜血阴性。"
+  ]
+ },
+ "measurements": {
+  "before": "subject 0/2 报警",
+  "after": "subject 2/2 与兄弟句相同；controls 不变"
+ }
+}

@@ -500,8 +500,10 @@ export const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
   // clinical-facts.ts 的 OVERT_GI_BLEED_LANGUAGE 早就收了「又黑又亮/黑得发亮/黑亮便/大便像柏油」
   // 这批口语，承重的确定性层反而没有——实测「拉的大便又黑又亮，人发晕」确定性红旗 0 条。
   // 两层的词表必须同源，否则模型层一停，最口语的那批写法就全裸奔。
+  // 「大便色黑」「黑色大便」「大便呈黑色」（2026-10-19 A 集 A-out-single_0242：「近一月来出现大便色黑，伴有腹痛、易于疲劳」
+  // 确定性层没认出黑便，只靠事实层给了「优先复核」，照常给了剂量）。闭集词形，事实层 OVERT_GI_BLEED_LANGUAGE 同步收录。
   ["黑便", "大便发黑", "粪便发黑", "排黑色便", "柏油样便", "又黑又亮", "黑得发亮", "黑亮便",
-    "大便像柏油", "大便如柏油", "拉柏油样便"],
+    "大便像柏油", "大便如柏油", "拉柏油样便", "大便色黑", "粪便色黑", "黑色大便", "大便呈黑色", "大便颜色发黑"],
   ["便血", "血便", "大便带血", "排便带血", "解血便"],
   ["咯血", "咳血", "咳出血"],
   // 出血组原先只存在于 NEGATED_HYPONYM_TABLE（第三份表）。并入主表后，
@@ -4597,6 +4599,29 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   const criticalHemoglobin = [...text.matchAll(
     /(?:血红蛋白|血色素|HGB|Hb(?!A1c))\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(?:g\s*\/\s*L|g\/L)?/gi,
   )].some((match) => Number(match[1]) > 0 && Number(match[1]) <= 70);
+  // 重度血小板减少（2026-10-19 A 集 A-non-0046：「反复牙龈出血和月经增多半年…PLT 13×109/L」只给了「出血优先复核」，照常给剂量）。
+  // 数值阈值（冻结规则允许的例外）：ASH 2019 成人 ITP 指南——新诊断且 PLT<20×10⁹/L 建议住院（有条件推荐），已知 ITP、
+  // 无出血者可门诊随访。这里取：PLT<10 直接报；10–<20 须同时有当前皮肤黏膜或脏器出血才报。
+  // 单位写法：×10^9/L、×10⁹/L、上标丢失的「×109/L」、G/L 或不带单位；「13万/μl」是 130×10⁹/L，不收；「最低/曾/既往」的读数、
+  // 输血量（「1u」「1治疗量」）不收。
+  const severeThrombocytopeniaCount = (() => {
+    for (const match of text.matchAll(/(?:血小板(?:计数)?|PLT)\s*(?:[(（]\s*PLT\s*[)）])?\s*[:：]?\s*(\d+(?:\.\d+)?)(?!\s*(?:\.\d|万|\d|u\b|U\b|单位|治疗量|袋|ml|mL|毫升|次|%))/giu)) {
+      const value = Number(match[1]);
+      const at = match.index ?? 0;
+      if (!(value >= 0 && value < 20)) continue;
+      // 「×10^11/L」「×10^12/L」是旧单位或别的计数（2.1×10^11/L = 210×10⁹/L），不收；「×10^3/μL」与 ×10⁹/L 同值。
+      const exponent = text.slice(at + match[0].length).match(/^\s*[×xX*]\s*10\s*(?:\^|⁹|¹)?\s*(\d{0,2})/u)?.[1];
+      if (exponent && exponent !== "9" && exponent !== "3") continue;
+      const clauseStart = Math.max(...["，", ",", "。", "；", ";", "\n"].map((mark) => text.lastIndexOf(mark, at - 1))) + 1;
+      // 「输注/机采血小板1u」是输血量（语料回放 T16-MR-08715），不是计数。
+      if (/(?:最低|曾|既往|以往|此前|治疗前|入院时|输注?|机采)/u.test(text.slice(Math.max(clauseStart, at - 12), at + 3))) continue;
+      if (isHistoricalOrResolvedAt(text, at, match[0].length)) continue;
+      return value;
+    }
+    return undefined;
+  })();
+  const thrombocytopeniaBleeding = severeThrombocytopeniaCount !== undefined && (severeThrombocytopeniaCount < 10 ||
+    hasPatternWithoutNegation(text, /(?:出血|流血|瘀斑|瘀点|紫癜|鼻衄|齿衄|月经(?:增多|量多|过多)|便血|血尿|咯血|呕血|黑便)/u));
   const bleedingCompanionAffirmed = GOVERNED_BLEEDING_COMPANIONS.some((term) =>
     hasPatternWithoutNegation(text, new RegExp(term)));
   const activeMajorVaginalBleedingSignal = vaginalBleedingAffirmed &&
@@ -4640,6 +4665,9 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   }
   if (activeGiBleedingSignal) {
     redFlags.push("当前呕血、咖啡样呕吐物、黑便或便血提示活动性消化道出血风险，需立即评估循环状态并急诊处置");
+  }
+  if (thrombocytopeniaBleeding) {
+    redFlags.push(`重度血小板减少（PLT ${severeThrombocytopeniaCount}×10⁹/L）${(severeThrombocytopeniaCount ?? 0) < 10 ? "" : "伴出血表现"}，有严重自发出血风险，需血液科急诊评估`);
   }
   // 上气道水肿场景下的「吞咽困难」已由过敏红旗完整承接，不再重复成第二条告警；
   // 出血已单独成条时也不叠加——同一事件两条告警会让医生开始忽略告警本身。
@@ -4810,6 +4838,7 @@ const RED_FLAG_FINDING_RULES: Array<{
   { id: "acute-neurologic-event", message: /神经系统|神经功能|头痛/, source: new RegExp(`头痛|意识障碍|意识不清|神志不清|昏迷|昏睡|嗜睡|谵妄|呼之不应|抽搐|惊厥|无力|偏瘫|说不出话|颈抵抗|克氏征|克尼格征|Kernig|布氏征|布鲁津斯基征|Brudzinski|脑膜刺激征|${FOCAL_NEUROLOGIC_PATTERN.source}`), explanation: "急性意识、发作性事件或局灶神经异常需优先排除神经急症。" },
   { id: "acute-abdomen-emergency", message: /急腹症|剧烈腹痛|腹痛\/腹胀/, source: /腹痛|腹胀|胃痛|胃脘痛|肚子疼|右下腹痛|上腹痛|心口窝痛|胃部疼痛|反跳痛|松手更疼|板状腹|腹肌紧张|板状|板样|腹壁强直|肌紧张|腹膜刺激征|停止排气|停止排便|停止肛门排气|肛门停止排气/, explanation: "剧烈腹痛或腹膜刺激征达到急腹症硬门槛；单纯突发、尚无重症表现者进入优先评估而非自动急诊定级。" },
   { id: "active-gi-bleeding", message: /消化道出血/, source: new RegExp(`呕血|吐血|黑便|柏油样便|便血|咖啡(?:色|样)|${governedTermAlternation([...HAEMATEMESIS_COLLOQUIAL_FORMS])}`), explanation: "活动性消化道出血表现需立即评估失血量和循环状态。" },
+  { id: "severe-thrombocytopenia", message: /重度血小板减少/, source: /血小板|PLT/i, explanation: "血小板低于10×10⁹/L，或低于20×10⁹/L并有出血表现，有颅内出血等严重自发出血风险，需血液科急诊评估。" },
   { id: "active-major-bleeding", message: /活动性大量阴道出血/, source: /阴道(?:出血|流血)|血红蛋白|血色素|HGB|Hb/i, explanation: "活动性大量阴道出血伴持续、重度贫血或循环灌注表现，达到非产科大出血硬门槛。" },
   { id: "acute-respiratory-event", message: /呼吸循环急症|缺氧/, source: /呼吸困难|气促|喘憋|端坐呼吸|不能平卧|无法平卧|喘不上气|发紫/, explanation: "静息或快速加重的呼吸困难及缺氧表现需立即评估。" },
   { id: "incarceration", message: /不能还纳（嵌顿）/, source: /不能还纳|无法还纳|不能回纳|无法回纳|还纳不能|嵌顿/, explanation: "脱出物或疝块不能还纳，有绞窄坏死风险，需急诊或专科评估。" },

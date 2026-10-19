@@ -152,6 +152,8 @@ const TEXTBOOK_OCR_FIXES: ReadonlyArray<[RegExp, string]> = [
   [/[草革]薢/g, "萆薢"], [/莞蔚子/g, "茺蔚子"], [/青箱子/g, "青葙子"],
   [/桑[蝶螺]蛸/g, "桑螵蛸"], [/海[蝶螺]蛸/g, "海螵蛸"], [/孚L香/g, "乳香"], [/金养麦/g, "金荞麦"],
   [/篇蓄/g, "萹蓄"], [/竹茄/g, "竹茹"], [/三菱/g, "三棱"], [/木爪/g, "木瓜"], [/黄氏/g, "黄芪"],
+  // 治法里的拆字：「安神固月孚」= 安神固脬（2026-10-19 X 集 X-E-0512，治法栏与针刺卡都照抄了拆字）。全表只此一处。
+  [/月孚/g, "脬"],
 ];
 
 function fixTextbookOcr(value: string): string {
@@ -196,7 +198,7 @@ function buildDiseases(): TextbookDisease[] {
       id: text(raw.id), book: text(raw.book), bookKey, department: text(raw.department), disease,
       syndrome: text(raw.syndrome), syndromeName,
       manifestations: text(raw.manifestations), tongue: text(raw.tongue), pulse: text(raw.pulse),
-      therapy: text(raw.therapy), formulas, formulaJoin: text(raw.formulaJoin) || "single",
+      therapy: fixTextbookOcr(text(raw.therapy)), formulas, formulaJoin: text(raw.formulaJoin) || "single",
       composition: strings(raw.composition).map(fixTextbookOcr),
       modifications: (Array.isArray(raw.modifications) ? raw.modifications : []).flatMap((item) => {
         const record = item && typeof item === "object" ? item as { condition?: unknown; herbs?: unknown; raw?: unknown } : {};

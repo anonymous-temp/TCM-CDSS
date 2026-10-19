@@ -432,7 +432,7 @@ export const HAEMATEMESIS_COLLOQUIAL_FORMS: readonly string[] = [
   "呕吐物有血", "呕吐物中有血", "呕吐物里有血", "呕吐物中有鲜红血", "呕吐物中可见鲜血", "呕吐物为血性", "呕吐物呈血性",
 ];
 const HAEMATEMESIS_COLLOQUIAL_SOURCE = HAEMATEMESIS_COLLOQUIAL_FORMS.join("|");
-const OVERT_GI_BLEED_LANGUAGE = new RegExp(`(?:呕血|吐血|${HAEMATEMESIS_COLLOQUIAL_SOURCE}|咖啡(?:色|样)(?:呕吐物|胃内容物|液体|黏液|粘液|物)|黑便|黑色便|柏油样便|便血|(?:拉|排|解|大便|粪便)[^，,。；;\\n]{0,12}(?:像|如同|跟)?[^，,。；;\\n]{0,4}柏油|(?:又黑又亮|黑得发亮|黑亮便))`);
+const OVERT_GI_BLEED_LANGUAGE = new RegExp(`(?:呕血|吐血|${HAEMATEMESIS_COLLOQUIAL_SOURCE}|咖啡(?:色|样)(?:呕吐物|胃内容物|液体|黏液|粘液|物)|黑便|黑色便|柏油样便|便血|大便色黑|粪便色黑|黑色大便|大便呈黑色|大便颜色发黑|(?:拉|排|解|大便|粪便)[^，,。；;\\n]{0,12}(?:像|如同|跟)?[^，,。；;\\n]{0,4}柏油|(?:又黑又亮|黑得发亮|黑亮便))`);
 const BLEEDING_HYPOPERFUSION_LANGUAGE = /(?:(?:站起|站立|起身|坐起|体位改变)[^，,。；;\n]{0,12})?(?:眼前发黑|黑矇|差点晕|要晕倒|晕厥|意识(?:不清|模糊|异常)|冷汗|心悸|面色苍白|头晕乏力|头晕|乏力)/;
 const REPEATED_OR_MULTI_DAY_BLEEDING_LANGUAGE = /(?:大量|反复|多次|不止|持续出血|喷射|[2-9]\s*次|两次|三次|(?:这|近)?(?:两|三|[2-9])\s*(?:天|日))/;
 const EXPLICIT_MILD_ABDOMINAL_PAIN_LANGUAGE = /(?:(?:腹|肚子|上腹|下腹|左下腹|右下腹)[^，,。；;\n]{0,6}(?:痛|疼)[^，,。；;\n]{0,8}(?:不是很重|不太重|不重|较轻|轻微|轻度|隐痛)|(?:轻微|轻度|较轻)[^，,。；;\n]{0,4}(?:腹痛|肚子痛|肚子疼))/;
