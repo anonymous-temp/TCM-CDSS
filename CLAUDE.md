@@ -1028,6 +1028,95 @@ Material is in `~/runlogs/r1018`: `PLAN.md`, `research/`, `sets/`, `out/*-final*
   - `pkill -f` matches its own shell; kill by PID.
 - **Subagent reviewers** cannot write .md files; ask for the summary in the reply.
 
+### 10/19 round: every remaining gap by class, seven review passes (2026-10-19)
+
+The user asked for every remaining gap to be researched online, fixed and retested against the acceptance line (customer 10 cases × 3 runs: each of the 8 columns fails at most 1/10; held-out 32 ≥90% per block; no red flag on cases 1/2/7/9; same record → same output; skip-to-prescription p90 ≤15 s). Commits a609be4 → af6d892, all local. Plan, counter-proof log and agent notes: `~/runlogs/r1018/work/r1019/` (`PLAN.md`, `counterproofs.txt`, `agentB|D|G|H/`, `r3/`). Suites: `test:r1019-remediation`, `-round3`, `-cards`, `-herbs`, `-herbs-r3`, `-herbs-surface`, `-safety-m02`, `-western`, `-western-r3`, `-claim-check`; class fixture `negation-scope-ends-at-affirmed-item`.
+
+**How the work was split.** Four agents in the main tree, each with its own file list, its own new test file and counter-proof duty (B safety/M02/claim check, D Western, G herbs/方义/加减, H cards); I took precautions, the sanitizer and integration. Rules that held: never copy-and-restore a shared file while an agent works (my counter-proofs once did — warn them, or wait); agents leave `src/lib/zz-*` scratch files and inline vocab that `test:clinical-vocabulary` rejects; review every agent claim against saved outputs before merging.
+
+**Server-caused defects found by the independent reviews (each with a test and counter-proof).**
+- **Customer case 1's rationale became 「咳嗽，为风寒袭表…」 in 2 of 3 runs.** It did not reproduce in 4 sequential traces; it did with three concurrent runs, because the model's wording varies. The negation sanitizer let the 无 of 无汗 govern 「…无汗、鼻塞流清涕、稍有咳嗽」 to the end and rewrote the clause to 「病历已记录咳嗽阳性」. A preposed 无 now stops at a lexicalized sign (无汗/无痰) and at a list item with its own 有/伴/见 (`clauseNegationScope`). Replay 366,772 strings: 13 changed, all rewrite→keep.
+- **`formula_direction_drift` ten times per customer run on case 3.** 加味四物汤 has several same-name catalog versions, so M03 locks nothing and writes the textbook formula in its direction; M04 naming it was rejected, one repair returned invalid JSON and the page fell back to non-dose. `isSignedTextbookFormulaIdentity` (both drift producers) accepts the settled textbook row's formula when it is in the M03 direction and half its composition is present; the textbook-ingredient exemption from direction findings covers such directed, unlocked formulas.
+- **出处 from a same-name later formula** (加味四物汤《朱氏集验方》, 竹叶石膏汤《症因脉治》): when the prescription covers a textbook representative formula, the compilation catalog's source (or the entry identical to the textbook composition) wins; another writing of the same book is left alone.
+- **消风散《外科正宗》 was catalogued with 煅石膏** (granule writing, external-only in ChP), so 石膏 was treated as doctor-dosed and left out of case 9. Collation row ADJ-WEB-20261019-XIAOFENG. G's new 「原方中的X本次未列入药味表」 note is limited to toxic or controlled herbs.
+- **My own regression:** required precautions read the gate's `allowDosePrescription`, which is false on every needs-information case even when M04 gives a limited dose; the child, elderly and administration lines disappeared (held-out S158/S160). They now follow `derivePrescriptionPermission`.
+- **Lab abbreviations erased as internal field names** (dsDNA, cTnI → 「抗及」): the camelCase rule now needs English-word humps.
+- **骨折 had no textbook entry**, so rib fractures were named 胸部屏挫伤: supplement rows from 《中医骨伤科学》 三期 (compositions from the governed catalog).
+- Smaller: differential rows whose subject is the other disease are not sanitized; specific skin lesions document 皮疹 (mucosal 疱疹 excluded); 「示/为…无X」, 「…象/…性」, 「口不渴」, 「无脓无屑」 in the 未诉 rewrite; precaution herb names follow the table; per-herb toxic coverage; bare 「方中有X等药。」 dropped; self-stopped medication; red-flag pages carry medicines to the ER; mobility-limited exercise; dangling 「并告知医生」; 「…为臣、透热」; follow-up text on dose-withheld cases; 兼证 trigger on self-declared 兼象/同病; textbook differential text in the candidate block.
+
+**New narrow small task: patient-claim check** (`m03-patient-claim-check.server.ts`, `CDSS_M03_PATIENT_CLAIM_CHECK`). It removes patient findings the record does not contain from rationales and differentials (口不渴, 双侧, 疱壁紧张, 脱屑, 3月龄…): two agreeing passes plus a verification call, verbatim and record-substring guards, smallest-unit removal, a predicate-bearing list head is never cut. Precision 23/23 on the development set, 23/31 on 200 exam vignettes (terminology substitutions and inferences); ~0.5–1 s on M03.
+
+**Tried and reverted.** A broad 兼证 trigger (any mechanism word the primary does not cover): 157 newly triggered, 52 gained a 兼证, including customer case 4 (肝气犯胃 + 肝郁脾虚; the standard answer has none) — only self-declared markers trigger. Dropping a modification whose stated action is not in the herb's KB function (大枣 「固表止汗」): on 563 prescriptions it dropped 38 and trimmed 76, mostly wrongly (仙鹤草 for bleeding). A 固摄/缩尿 claim group: 乌药, 鹿茸, 熟地黄 are used that way legitimately.
+
+**Rounds 4–5 (same day): Claude reviews instead of a model judge.** The user ruled that acceptance reviews are done by Claude reviewers (subagents), not by calling deepseek-v4-pro. Packets of 24 cases per reviewer: `~/runlogs/r1018/scripts/make-review-packets.py <set> <suffix> 24`, brief `~/runlogs/r1018/claude-review/BRIEF.md`, tally `summarize-claude.py <set><suffix> [--fails]`. Customer 10 and held-out reviews keep the 10/17 briefs (`deliver1017/judge/brief-c10.md`, `fix1014/notes/judge-brief.md`). Fixes were made in a separate worktree (`~/worktrees/r1019-fix`, branch `fix/r1019-round4`) so the main checkout could keep running acceptance sets on one commit; agents worked from `~/runlogs/r1018/work/r1019/agents/COMMON.md`. Suites: `test:r1019-round4` (main session, 16.x = round 5), `-round4-cards|formula|m02|facts|decoction`, `-round5-cards|formula|precautions|therapy`; class fixtures `pain-quality-chouchu-not-seizure`, `comma-affirmed-clause-after-negation`, `negation-clause-describing-differential-entity`, `disposition-time-window-emergency`.
+
+Server-caused classes found by the reviews (each with a test, a counter-proof and, for shared predicates, a replay):
+- **Negation and polarity.** The red-flag sanitizer read 「无汗出，偶有胸痛」 as a denial of chest pain, so a false 「无胸痛」 stayed and became 「未诉胸痛」: `sourceDocumentsAffirmation` and `clauseNegationsAreLiterallyDocumented` now use the same comma rule as `hasNonNegatedClinicalPattern`, and `hasCommaSeparatedPositiveEvidence` accepts a clause that opens with 有/偶有/时有/见 (the gate also gained 「无抽搐昏迷，有意识障碍」). Synonym groups: 咳喘/喘促/喘息 = 气促, 体重下降 = 消瘦. 「无神疲乏力」「无关节痛」 are denials, 「无神」「无关」 are not.
+- **Gate morphology.** 「抽搐痛/抽搐感/抽搐样痛」 is a pain quality, not a seizure. Family-history text is not the patient's own condition for dose boundaries (「母亲…患有心力衰竭」 had withheld dose). Red-flag reasons name only what fired (upper-GI alarm item; cyanosis vs orthopnoea).
+- **Visible text the server damaged.** 「舌苔厚腻」 became 「舌舌象待核实腻」 (coating rewrite now takes the whole phrase); 「以减少苦寒药对胃肠的刺激」 appeared on warming formulas; the diet filter that removes toxic or pregnancy-labelled formula herbs offered as food never ran when the line also contained 「忌…」 (`withoutTimingClauses` tested the whole line before splitting) and treated 「少量」 as a restriction.
+- **治则/治法.** 扶脾/扶土 tonify, 抑肝/抑木 dispel, 乘/旺/肝阳 are excess names, 健脾/健胃 tonify only when the syndrome name shows deficiency, 毒 alone is not heat; two four-character methods that differ only in the first character are one method (和血通络/活血通络).
+- **兼证.** 「为兼夹之象」「属兼夹」「…为兼」 now trigger the consistency check (hedges such as 「是否兼夹…尚待」 do not); after a 兼证 is added, rationale clauses saying it is not a separate syndrome are removed and the method is de-duplicated.
+- **Patient-claim check.** Negative-form spans flagged by only one of the two passes (「腹不胀大」「与咳唾呼吸无关」) now go to the verification call; positive spans still need both passes.
+- **Other.** PHI: 后头部/后枕部 are body regions, not surname + name. Same-class antipyretic analgesics (label text 「其他非甾体抗炎药」「其他含有解热镇痛药」) keep one systemic and one skin-topical item; same-name products from two manufacturers keep one row. Non-dose pages: diet-only precautions that repeat the diet line are not listed, the toxic-herb line no longer says 「按医生开的剂量」, a repeated record quote in the pathogenesis list is shown once.
+
+**Rounds 6–7 (same day).** Round 6 came from the Claude review of the round-5 final run; round 7 from the X (exam-style) and A/B reviews of the r19g run. Suites: `test:r1019-round6-formula|precautions`, `test:r1019-round7` (main session) and `-round7-<area>` (agents); class fixtures `antepartum-bleeding-after-20-weeks`, `severe-thrombocytopenia-count`, `melena-colour-word-forms`.
+- **Safety gate.**
+  - 「胎心率150」 was read as the mother's pulse (the three pulse patterns now exclude 胎 before 心率). Removing that misreading left A-eme-0142 (妊娠37周阴道流血) with no red flag, which exposed a real gap: bleeding after 20 weeks only fired with a quantity word. 妊娠≥20周 + non-negated 阴道出血/流血 is now its own red flag (ACOG/RCOG antepartum haemorrhage). Replay: 1,810 evaluations, 9 changed, all correct.
+  - 「妊娠5个半月」「怀孕3个多月」「妊娠二十余周」 were not pregnancy, so two pregnant patients got dosed prescriptions (X-G-2961/2831). Replay of the assessor over 16,184 records: 5 changed, all real pregnancies.
+  - Platelets: PLT <10×10⁹/L, or <20 with current bleeding, is a red flag (ASH 2019 ITP: newly diagnosed <20 → admission; known ITP without bleeding → outpatient). Units ×10^9/L, ×10⁹/L, OCR'd ×109/L, ×10^3/μL, G/L or none; ×10^11/12, 万, transfusion amounts (「机采血小板1u」 was the first draft's false positive) and 最低/曾/既往 readings do not count.
+  - 「大便色黑」「黑色大便」「大便呈黑色」 join the melena group in both layers. Activity still needs a governed companion; 「易于疲劳」 (A-out-single_0242) is not one, so that case is unchanged — governed-list scope, not this class.
+- **M03 current-fact floor.** A sentence opening with 既往 used to make every quote of it historical, so 「既往有胃病二十余年，每次均因饮食不慎，出现呕吐…舌质淡，脉濡弱」 sent M03 to the placeholder (X-G-2930). Tongue and pulse clauses are now current inside such a sentence, and 「手术后2个月出现腹胀」 is an onset anchor, not a post-operative state (X-D-4749). In the six r19g sets these were the only placeholder results besides a record with no clinical content.
+- **Textbook OCR.** 治法 now goes through `fixTextbookOcr` too (「安神固月孚」 → 安神固脬 reached the 治法 column and the acupuncture card).
+
+**Reviewers, and what changed when the reviewer changed.** Rounds 4–6 were reviewed by Claude subagents: Opus for the customer and held-out cases, Sonnet for the module sets. Sonnet was calibrated against Opus on 48 cases and agreed closely on C/G, was stricter on E and more lenient on F/J. During round 7 the user switched the reviewer to **qwen3.8-max** called directly through Bailian (thinking on, `thinking_budget` 6000, JSON output). Scripts in `~/runlogs/r1018/scripts`:
+- `qwen-chat.mjs`: shared call;
+- `judge-qwen.mjs` / `rf-judge-qwen.mjs`: module sets, same rubric as before;
+- `judge-qwen-cust.mjs`: customer and held-out, same briefs and rubric as the Claude reviews;
+- tallies: `tally-qwen-cust.py`, `tally-qwen-sets.py`.
+
+Output goes to `~/runlogs/r1018/judge-qwen/`. Two things had to be fixed before the numbers meant anything:
+- about 1 in 6 replies parsed to a single row, so incomplete replies are retried;
+- the held-out brief never said that the panel's interface fields (gate/mode/missing/decision) are not engineering wording. qwen failed 工程用语 in 71% of cases until that line was added. The Claude reviewers had inferred it.
+
+Round 5 (718e1ea) was re-judged with qwen, so that comparison uses one judge.
+
+| | 718e1ea (round 5), qwen | af6d892 (round 7), qwen |
+|---|---|---|
+| Customer 10 × 3, failures per column | r1: 饮片 1; r2, r3: 0 | 0 in every column, all three runs |
+| Held-out 32: 中医诊断 / 证候 / 饮片 (merged) | 96.6 / 96.6 / 82.8 | 93.1 / 93.1 / 82.8 |
+| A red flags | 329/340 appropriate | 330/340 |
+| B follow-up | 320/335 = 95.5% | 320/335 = 95.5% |
+| X 中医诊断 / 治则治法 / 饮片 | 70.9 / 86.4 / 72.7 | 70.0 / 86.4 / 80.0 |
+
+- **M, H and D were not rerun in round 7.** Sonnet on 718e1ea:
+  - M: C 71.9, E 85.3, F 95.3, G 85.8, H 99.0, I 99.7, J 97.8;
+  - H: 99.6;
+  - D: 82.8 (mostly exam vignettes that expect the most specific name, against the customer's 「待查/上一级」 doctrine).
+- **qwen is more lenient than Opus on the customer cases.** On the same 718e1ea outputs, Opus found 1–3 column failures per run and qwen found 0–1.
+- **qwen is stricter than Sonnet on X** (Sonnet on 718e1ea: 81.8 / 89.1 / 85.5).
+- **Differences of one case per block are inside the noise.** Each block has 29 cases, and judge and generation each vary from run to run. Under one judge, rounds 6–7 moved only X 饮片 (+8 of 110; formula, pregnancy and current-fact fixes). Held-out, B, A and X C/E did not move.
+- **No red flag on cases 1/2/7/9.** Disease, syndrome and formula were identical across the three customer runs in both rounds.
+- **Judges split on borderline red flags.** On A-non-0046 (PLT 13 with mucosal bleeding), Sonnet called the old output under-cautious and qwen calls the new one over-cautious. The ASH guideline supports the flag.
+
+**What the round-7 reviews found that is left for the owner to direct (not fixed, by the user's decision to stop patching and choose the next direction):**
+- **Exam-style syndrome names.** Most X 中医诊断 failures are exam answers written as 伤寒论 formula patterns (桂枝汤证, 吴茱萸汤证, 大陷胸汤证, 枳实栀子豉汤证, 苓桂术甘汤证…). The system names syndromes the way the 内科 textbook does. Some textbook row names are too broad for the reviewers (厥证 「实证/虚证」, 崩漏 「脾虚证」, 哮病 「肺虚证/肾虚证」).
+- **Server text defects:**
+  - the ungrounded-pulse rewrite matched 「经脉散寒」 (脉散) → 「经脉象待核实寒」 (same class as the 生脉散 fix; S079);
+  - an acupuncture card said 「本例属热淋」 for 石淋 (S067);
+  - 方义 fragments and 「黄芩片」-style names;
+  - a placeholder herb function (冬瓜子);
+  - 「若临床」 truncated modification conditions;
+  - textbook-note 出处.
+- **Follow-up questions:**
+  - the server's trend question has no 「持续」 option;
+  - model questions with two non-exclusive options;
+  - questions that repeat what the dialogue already answered;
+  - questions to infants about thirst.
+- **Red-flag judgement calls:** S128 (hives with abdominal pain and vomiting after seafood: WAO 2020 anaphylaxis criteria support the flag; the case expectation does not), worsening myasthenia, toddler vomiting with distension, 1-month melena without a governed companion.
+- **The agents' half-finished round-7 work** (M02 options, food-therapy conflicts, follow-up signs for post-menopausal women, diet vs 禁食) is saved as `~/runlogs/r1018/work/r1019/round7-agents-partial.patch`. It was not applied: the agents were cut off by a login failure before testing it.
+
+**Not deployed.** Production is still 4a6e9cc (10/18). Rounds 1–7 are local commits only (a609be4 → af6d892).
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
