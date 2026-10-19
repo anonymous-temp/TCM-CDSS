@@ -8,6 +8,7 @@ import {
   RECORD_CONSIDERATION_MARKER,
   RECORD_GAP_MARKER,
   affirmedClinicalSourceClauses,
+  carriesListPredicate,
 } from "./clinical-polarity";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
@@ -250,9 +251,6 @@ function longestSharedRun(a: string, b: string): number {
  * 删这一项（「长期典型劳力相关胸闷胸痛史、明确冠心病诊断」只删前一项）；否则删它所在的逗号分句，
  * 连带一个相邻逗号（分句是括号里唯一的内容时连括号一起删）。删后没有汉字了就原样返回（不把字段删空）。片段不在文中时原样返回。
  */
-/** 并列第一项里可能被后面各项共用的谓语：否定词与「在/为/属/见/有」。 */
-const LIST_HEAD_PREDICATE = /不在|不|无|未|没|非|在|为|属|见|有/u;
-
 export function withoutClaimSpan(value: string, span: string): string {
   const at = span ? value.indexOf(span) : -1;
   if (at < 0) return value;
@@ -270,7 +268,7 @@ export function withoutClaimSpan(value: string, span: string): string {
     let nextStop = itemStop + 1;
     while (nextStop < value.length && !CLAUSE_DELIMITERS.includes(value[nextStop]) && value[nextStop] !== "、") nextStop += 1;
     const nextItem = value.slice(itemStop + 1, nextStop);
-    if (LIST_HEAD_PREDICATE.test(span) && !LIST_HEAD_PREDICATE.test(nextItem)) return value;
+    if (carriesListPredicate(span) && !carriesListPredicate(nextItem)) return value;
   }
   // 片段是这一项末尾、由「并/且/伴/而…」接上的那半句（「慢性胸闷乏力加重并放射至肩背」「肿物脱出不能还纳伴明显坠胀疼痛」）：
   // 只删连接词（连同紧跟的程度词）和片段。

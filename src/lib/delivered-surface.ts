@@ -567,11 +567,15 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         const upgradesTextbookNote = /代表方/u.test(current) && !/代表方/u.test(next);
         // 编译目录没有这首方、出处是按方名从名录里取的同名异方（加味四物汤《朱氏集验方》卷十，五味），而名录里有与教材组成
         // 逐味相同的原书（《金匮翼》卷五）：换成后者（2026-10-19 甲方标准病历 3 第三轮复测两次判「同名异方的出处」）。
+        // 编译目录有这首方（竹叶石膏汤《伤寒论》）而出处取成了组成更像的同名后世方（《症因脉治》卷一，多一味知母）时同理：
+        // 教材代表方指的是编译目录那一首（2026-10-19 留出例 S046 第三轮复测）。处方确以它为主体（covered 已要求组成过半）。
         const homonymSource = covered.some((name) => {
-          const exact = formulaCompilationReferences([name]).length === 0
-            ? catalogSourceForExactComposition(name, textbookBaseIngredients(textbookRow, [name]))
-            : undefined;
-          return Boolean(exact) && !current.includes(exact!);
+          const preferred = formulaCompilationReferences([name])[0]?.source ||
+            catalogSourceForExactComposition(name, textbookBaseIngredients(textbookRow, [name]));
+          if (!preferred || current.includes(preferred)) return false;
+          // 同一本书的不同写法（《外台》与《外台秘要》）不算换书：书名里任一相邻两字已在现有出处里就不动。
+          const title = preferred.replace(/[《》\s]/gu, "").replace(/卷.*$/u, "");
+          return ![...title].slice(0, -1).some((_, index) => current.includes(title.slice(index, index + 2)));
         });
         if (placeholder || upgradesTextbookNote || homonymSource) sourceRecord.source = next;
       }

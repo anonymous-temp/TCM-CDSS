@@ -252,6 +252,17 @@ await check("6.9 出处：编译目录没有的教材代表方被按方名取成
   };
   assert.match(surface.projectDeliveredReasoning(reasoning).formula.candidates[0].formulaSource.source, /《金匮翼》卷五/);
 });
+await check("6.9b 出处：编译目录有这首教材代表方（竹叶石膏汤《伤寒论》）而取成了同名后世方（《症因脉治》卷一）时换回；同一本书的另一写法（《外台》/《外台秘要》）不动（对照）", async () => {
+  const herbs = ["竹叶", "石膏", "麦冬", "知母", "半夏", "柿蒂", "人参", "炙甘草"].map((name, index) => ({ name, role: index < 2 ? "君" : "臣", function: "x", dose: "10g" }));
+  const make = (source, disease = "呃逆", syndrome = "胃火上逆证", name = "竹叶石膏汤") => ({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    overview: { tcmDiseaseName: disease, primarySyndrome: syndrome, recommendedFormulaDirection: `${name}加减` },
+    formula: { candidates: [{ name: `${name}加减`, formulaNames: [name], formulaAnalysis: `本方以${name}为基础加减。`, herbs, formulaSource: { source } }] },
+    nonPharma: { precautions: ["饮食清淡。"] },
+  });
+  assert.equal(surface.projectDeliveredReasoning(make("竹叶石膏汤：《症因脉治》卷一。")).formula.candidates[0].formulaSource.source, "竹叶石膏汤：《伤寒论》");
+  assert.equal(surface.projectDeliveredReasoning(make("竹叶石膏汤：方出《伤寒论》，名见…")).formula.candidates[0].formulaSource.source, "竹叶石膏汤：方出《伤寒论》，名见…");
+});
 await check("6.10 目录消风散《外科正宗》的石膏是生石膏（原书与《方剂学》），不再是只外用的煅石膏、不再列为不编用量的味", async () => {
   const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
   const ingredients = provenance.formulaCompilationReferences(["消风散"])[0]?.ingredients || [];

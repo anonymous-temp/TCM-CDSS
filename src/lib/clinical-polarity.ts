@@ -857,3 +857,9 @@ export function affirmedCurrentMedicationText(value: string | null | undefined):
   const unique = [...new Map(activeEvents.map((event) => [event.identity, event.text])).values()];
   return unique.length > 0 ? unique.join("；") : undefined;
 }
+
+/** 并列第一项里可能被后面各项共用的谓语：否定词与「在/为/属/见/有」（m03-patient-claim-check 删并列项时用）。 */
+const LIST_HEAD_PREDICATE = /不在|不|无|未|没|非|在|为|属|见|有/u;
+export function carriesListPredicate(item: string): boolean {
+  return LIST_HEAD_PREDICATE.test(item);
+}
