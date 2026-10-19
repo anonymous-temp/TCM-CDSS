@@ -1,0 +1,38 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "comma-affirmed-clause-after-negation",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "Claude 评审 M 集（21b9bef）MTCMB-14：病历「伴有手足抖动，无汗出，偶有胸痛」，鉴别「胸痹」写「本例…无胸痛」，净化器认为病历没有肯定胸痛，没改正，交付成「未诉胸痛」。同一判据在门禁里：「无抽搐昏迷，有意识障碍和言语不清晰」的意识障碍此前也被前面的「无」吞掉（语料 T16-MR-10872）。",
+ "layerAttribution": {
+  "layer": "deterministic_negation_scope",
+  "mechanism": "diagnosis-safety.hasCommaSeparatedPositiveEvidence 只认逗号后以「伴/出现/突发/持续…」起头的小句为新起的肯定小句，不认「有/偶有/时有/见/感/觉」；净化器的 sourceDocumentsAffirmation 与 clauseNegationsAreLiterallyDocumented 又只用 isNegatedAt，连这个补判都没接上（同一判据两处各写各的）。",
+  "exception": "冻结令允许的构词式守卫：逗号后的小句在症状词前只有一个动词「有/见/感/觉」（可带「偶/时/常/尚/仍/另/间断/反复」），且小句本身不含否认词。没有新增症状词表。",
+  "sources": "门禁回放 gate-replay2.mjs \"无[^。；]{0,12}，[^。；，]{0,4}有\"：1138 次判定 2 处改变（同一病例两种形状：「无抽搐昏迷，有意识障碍和言语不清晰」新增神经急症，正确）。净化器回放（现代医案原句 + M-r19f/H-r19f/local19 结构化文本）244,328 条 4 处改变，均为改对。"
+ },
+ "contexts": ["outpatient_record"],
+ "parity": {
+  "note": "主体句「无A，有/偶有B」与兄弟句「有/偶有B」门禁结果必须相同（都报警）。",
+  "pairs": [
+   { "subject": "高热3天，无抽搐昏迷，有意识障碍和言语不清晰。", "sibling": "高热3天，有意识障碍和言语不清晰。", "siblingExpect": "flagged" },
+   { "subject": "胸闷3小时，无发热，有胸痛伴大汗。", "sibling": "胸闷3小时，有胸痛伴大汗。", "siblingExpect": "flagged" },
+   { "subject": "腹胀2天，无腹泻，见呕血2次。", "sibling": "腹胀2天，见呕血2次。", "siblingExpect": "flagged" }
+  ]
+ },
+ "controls": {
+  "note": "否认作用域内的症状、逗号后小句自身带否认的，照旧不报。",
+  "mustStillFlag": [
+   { "text": "今晨突发胸痛伴大汗，持续不缓解。", "flag": "胸" }
+  ],
+  "mustStayReady": [
+   "头晕3天，无胸痛，无呕血。",
+   "头晕3天，无发热，也没有胸痛。",
+   "咳嗽1周，无胸痛、呕血。"
+  ]
+ },
+ "measurements": {
+  "before": "subject 0/3 报警（被前面的「无」吞掉）；sibling 3/3 报警",
+  "after": "subject 3/3 与兄弟句相同；controls 不变"
+ }
+}

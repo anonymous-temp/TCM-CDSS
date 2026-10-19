@@ -4,7 +4,7 @@ import { affirmedClinicalSourceClauses } from "./clinical-polarity";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
-import { claimsSecondaryPattern, declaresSecondaryMechanism, mechanismClaimsUncoveredBy } from "./tcm-therapy-phrasing";
+import { claimsSecondaryPattern, declaresSecondaryMechanism, deniesSeparateSecondaryPattern, mechanismClaimsUncoveredBy, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
 
 /**
  * 辨证依据与兼证栏一致（2026-10-19）。
@@ -197,7 +197,16 @@ export function applySecondaryConsistencyDecision(root: Json, decision: Secondar
     overview.secondarySyndromes = [decision.secondarySyndrome];
     const therapy = record(root.therapy);
     const method = text(therapy?.overallMethod);
-    if (therapy && method && !compact(method).includes(compact(decision.method))) therapy.overallMethod = `${method}，${decision.method}`;
+    // 并列治法后去掉同义重复（「和血通络，活血通络」SD-451922）。
+    if (therapy && method && !compact(method).includes(compact(decision.method))) therapy.overallMethod = withoutRedundantTherapyPhrases(`${method}，${decision.method}`);
+    // 依据与病机里「不另立兼证/主证可释」的分句与补上的兼证相抵，去掉（MTCMB-21、MTCMB-90）；去掉后太短就不动。
+    for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"] as const) {
+      const value = text(overview[key]);
+      const denials = value.split(/[，,。；;]/u).map((clause) => clause.trim()).filter((clause) => clause && deniesSeparateSecondaryPattern(clause));
+      if (denials.length === 0) continue;
+      const next = withoutClauses(value, denials);
+      if (next.length >= (key === "tcmDiagnosticRationale" ? 20 : 10)) overview[key] = next;
+    }
     return true;
   }
   if (decision.decision === "remove") {

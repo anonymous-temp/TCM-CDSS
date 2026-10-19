@@ -1,7 +1,8 @@
 import textbookTableJson from "../data/tcm-textbook-syndrome-formula-table.json" with { type: "json" };
 import supplementJson from "../data/tcm-textbook-syndrome-supplement.source.json" with { type: "json" };
-import { affirmedClinicalSourceClauses } from "./clinical-polarity";
+import { affirmedClinicalSourceClauses, clinicalClausePolarity } from "./clinical-polarity";
 import { resolveTcmDiseaseName } from "./clinical-terminology";
+import { POSITIVE_FACT_EQUIVALENT_GROUPS, sourceDocumentsNegation } from "./diagnosis-safety";
 
 /**
  * 教材「病—证—治法—代表方—加减」对照表的运行时读取（2026-10-13，甲方 10.12 测评）。
@@ -836,4 +837,175 @@ export function textbookNearestRow(
   // 只否决胜出的那一行，不先把行剔掉再排：剔掉竞争者会让原本「认不准」的近似行变成明显第一。
   if (addsNature(first.row) || dropsOrgan(first.row) || dropsNature(first.row)) return undefined;
   return first.row;
+}
+
+/**
+ * 教材治法里针对具体症状的项（止血、安神、开窍、止痒…）与它需要的病历表现（2026-10-19，Claude 评审验收主集 M 的治则治法栏）。
+ *
+ * 辨证锚定用教材这一证的治法原文（tcm-formula-provenance withDeterministicFormulaReferences）。教材的治法是按这一证的典型表现写的：
+ * 内痔·湿热下注证「清热利湿止血」（典型表现便血色鲜）、乳岩·气血两亏证「补益气血，宁心安神」、厥证·实证「开窍，顺气，解郁」。
+ * 本例病历没有这些表现、甚至明确否认时（「无便血」「神志清楚」「无痛痒感」），照抄进治法栏就与病历相矛盾——评审 360 份里
+ * 判不通过的这一类有十余例。这里逐项核对：一项治法里的对症字样，病历肯定记录了对应表现（或已定的病本身就以它为主症）才保留。
+ *
+ * 表是有限闭集：只收「止X / 安神 / 开窍…」这类以缓解某个症状为目的的字样，与教材全表 2,495 行里实际出现过的写法逐一对过。
+ * 病性、病机类治法（清热利湿、活血化瘀、健脾和胃、平肝潜阳…）不在此列——它们由证型决定，不由单个症状决定。
+ * 症状写法先取安全层同义组（POSITIVE_FACT_EQUIVALENT_GROUPS，阳性方向展开），再补中医病历常见写法；有无记录用极性层的分句判据
+ *（clinicalClausePolarity，见 therapyWithoutUnsupportedSymptomItems 里为什么不沿用顿号继承），并逐个排除分句内的局部否认
+ *（「双下肢无浮肿」「白睛无黄染」整句会被判成肯定）。
+ */
+type SymptomDirectedTherapyGoal = {
+  /** 治法项里的对症字样。 */
+  goals: readonly string[];
+  /** 病历肯定记录其一即算有这一表现。 */
+  terms: readonly string[];
+  /** 已定病名（或证名）含其一时，这一表现就是本病的主症，照保留。 */
+  diseases: readonly string[];
+  /** 这几本教材里同一字样另有所指：眼科「宁神开窍」「开窍」说的是目窍，不是神志。 */
+  exemptBooks?: readonly string[];
+  /** 已签名病位或证名写到其一时保留（心脾同治这类按脏腑立的项）。 */
+  organs?: readonly string[];
+};
+
+let symptomDirectedTherapyGoals: readonly SymptomDirectedTherapyGoal[] | undefined;
+function therapyGoalTable(): readonly SymptomDirectedTherapyGoal[] {
+  if (symptomDirectedTherapyGoals) return symptomDirectedTherapyGoals;
+  const groupOf = (member: string): readonly string[] => POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes(member)) || [member];
+  const spirit = [
+    ...groupOf("失眠"), ...groupOf("早醒"), ...groupOf("心悸"),
+    "少寐", "寐少", "寐欠安", "寐不安", "夜寐不安", "难寐", "睡眠不佳", "眠浅", "寐浅", "夜不能寐", "梦",
+    "怔忡", "惊", "胆怯", "心烦", "烦躁", "心神不宁", "焦虑", "恍惚", "哭闹", "啼哭", "健忘",
+  ];
+  symptomDirectedTherapyGoals = [
+    {
+      goals: ["止血", "摄血", "止崩", "止衄", "宁血"],
+      terms: [...groupOf("出血"), ...groupOf("便血"), ...groupOf("呕血"), ...groupOf("黑便"), ...groupOf("咯血"),
+        "尿血", "血尿", "衄", "崩漏", "血崩", "漏下", "月经量多", "经量多", "经量增多", "经血量多", "经期延长",
+        "阴道流血", "见红", "带血", "滴血", "射血", "下血", "血丝", "夹血", "血块", "尿色红", "尿色暗红", "尿色鲜红", "积血", "紫癜", "皮下出血"],
+      diseases: ["血证", "便血", "尿血", "吐血", "呕血", "咳血", "咯血", "衄", "崩漏", "月经先期", "月经过多", "经期延长", "经间期出血",
+        "胎漏", "恶露不绝", "紫癜", "葡萄疫", "血淋", "血精", "脐血", "异位妊娠", "血溢", "血胸", "妄行"],
+    },
+    {
+      goals: ["安神", "宁神", "宁心", "定志", "定悸", "镇心", "镇惊", "定惊", "除烦", "宁志"],
+      terms: spirit,
+      diseases: ["心悸", "不寐", "痴呆", "癫", "狂", "痫", "郁证", "夜啼", "多动", "惊风", "情志", "绝经前后诸证", "脏躁", "百合病"],
+    },
+    {
+      goals: ["开窍", "醒神", "醒脑"],
+      terms: [...groupOf("意识改变"), "神昏", "昏迷", "昏倒", "昏仆", "昏厥", "晕厥", "晕倒", "不省人事", "意识丧失", "嗜睡", "昏睡",
+        "谵语", "谵妄", "呼之不应", "神识", "昏蒙", "神志恍惚", "神情淡漠", "表情淡漠"],
+      diseases: ["痴呆", "呆病", "癫", "狂", "痫", "五迟", "多寐"],
+      exemptBooks: ["yanke"],
+    },
+    {
+      goals: ["益智"],
+      terms: ["智力", "智能", "反应迟钝", "记忆力", "健忘", "呆", "不会说话", "语言发育", "发育迟缓"],
+      diseases: ["痴呆", "呆病", "五迟", "五软"],
+    },
+    { goals: ["止痒"], terms: [...groupOf("瘙痒")], diseases: ["瘾疹", "风瘙痒", "痒风", "湿疮", "湿疹", "牛皮癣", "阴痒", "目痒"] },
+    { goals: ["止咳", "镇咳", "止嗽", "宁嗽"], terms: ["咳", "嗽"], diseases: ["咳", "嗽"] },
+    {
+      goals: ["平喘", "定喘"],
+      terms: [...groupOf("呼吸困难"), "喘", "哮", "气急", "呼吸急促", "憋气", "气憋", "不能平卧", "不得平卧"],
+      diseases: ["喘", "哮", "肺胀"],
+    },
+    { goals: ["止呕", "止吐"], terms: [...groupOf("恶心"), ...groupOf("呕吐"), "呕", "泛恶", "欲吐"], diseases: ["呕吐", "恶阻"] },
+    { goals: ["止呃", "止哕"], terms: ["呃", "哕", "打嗝"], diseases: ["呃逆"] },
+    { goals: ["止泻", "涩肠", "止利", "止痢"], terms: [...groupOf("腹泻"), "泻", "泄", "溏", "下利", "痢", "不成形"], diseases: ["泄泻", "痢"] },
+    {
+      goals: ["通便", "润肠", "润下", "通下"],
+      terms: [...groupOf("便秘"), "秘结", "干结", "大便干", "便干", "排便费力", "排出困难", "排出费力", "排出不畅", "大便不通", "燥结", "数日一行"],
+      diseases: ["便秘", "大便难", "肛裂"],
+    },
+    { goals: ["退黄"], terms: ["黄疸", "目黄", "身黄", "黄染", "肤黄", "皮肤发黄", "面目发黄"], diseases: ["黄疸", "胎黄"] },
+    {
+      goals: ["消肿"],
+      terms: ["肿"],
+      diseases: ["肿", "痈", "疖", "疔", "毒", "疮", "腮", "针眼", "骨折", "伤筋", "脱位", "扭伤", "挫伤", "损伤"],
+    },
+    { goals: ["止痛", "定痛", "镇痛"], terms: ["痛", "疼", "酸楚"], diseases: ["痛", "痹"] },
+    { goals: ["敛汗", "止汗"], terms: ["汗出", "自汗", "盗汗", "多汗", "汗多", "出汗"], diseases: ["汗"] },
+    { goals: ["止渴"], terms: ["渴", "口干", "多饮"], diseases: ["消渴"] },
+    { goals: ["止遗", "缩尿", "缩泉"], terms: ["遗尿", "尿床", "失禁", "夜尿", "尿频", "小便频", "遗溺", "遗精"], diseases: ["遗尿", "失禁", "遗精"] },
+    { goals: ["止带"], terms: ["带下", "白带", "黄带", "赤带"], diseases: ["带下"] },
+    {
+      goals: ["止痉", "镇痉", "止颤", "止搐", "止动"],
+      terms: ["抽搐", "抽动", "抽掣", "痉", "搐", "颤", "惊厥", "拘急", "拘挛", "瘛", "角弓反张", "项强"],
+      diseases: ["痉", "痫", "颤", "抽动", "惊风", "破伤风"],
+    },
+    {
+      // 心脾同治按脏腑立项（眩晕·气血亏虚证「补益气血，调养心脾」针对的是心悸少寐、纳少腹胀）：心或脾的表现、
+      // 或已签名的病位与证名写到心或脾，才保留。
+      goals: ["调养心脾", "补益心脾", "调补心脾"],
+      terms: [...spirit, "纳差", "纳少", "纳呆", "纳减", "食少", "食欲不振", "食欲减退", "食欲差", "不思饮食", "纳谷不香", "腹胀", "便溏"],
+      diseases: [],
+      organs: ["心", "脾"],
+    },
+  ];
+  return symptomDirectedTherapyGoals;
+}
+
+export interface TextbookTherapyRecordContext {
+  /** 病历原文（接地语料，与 M03 grounding 同一份）。 */
+  recordText: string;
+  /** 已定病名与证名。 */
+  diseaseName?: string;
+  syndromeName?: string;
+  /** 已签名病位条目（pathogenesis.locationDifferentiation.items）。 */
+  locations?: readonly string[];
+  /** 治法所出的教材（TextbookSyndromeRow.bookKey）。 */
+  bookKey?: string;
+}
+
+/** 治法项开头的语气词（佐以清心安神、急以开窍醒神）：判断去掉对症字样后剩下的是否还是一条治法时不算字数。 */
+const THERAPY_ITEM_LEAD = /^(?:兼以|佐以|并以|辅以|急以|继以|配合|先予)/u;
+
+/**
+ * 去掉治法里病历没有对应表现的对症项（逐项，以逗号、顿号分隔）。
+ *  · 一项里没有对症字样：保留；
+ *  · 有对症字样且至少一个有病历依据（或本病就以它为主症）：整项保留（「消肿止痛」有痛无肿照留）；
+ *  · 都没有依据：去掉这些字样，剩下的仍是一条完整治法（不少于四字，如「清热利湿止血」→「清热利湿」）时保留剩下的，
+ *    否则整项去掉（「宁心安神」「凉血止血」「开窍」）。
+ * 「…者…」形式的条件项是教材自己写的分支条件，不动。没有任何项被去掉时逐字返回原文；全部去掉时返回空串，由调用方决定退回什么。
+ */
+export function therapyWithoutUnsupportedSymptomItems(method: string, context: TextbookTherapyRecordContext): string {
+  const text = String(method || "");
+  const items = text.split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
+  if (items.length === 0) return text;
+  const table = therapyGoalTable();
+  const goalsByLength = table.flatMap((entry) => entry.goals.map((goal) => ({ goal, entry })))
+    .sort((left, right) => right.goal.length - left.goal.length);
+  const recordText = String(context.recordText || "");
+  // 分句只看它自己的极性（clinicalClausePolarity），不沿用顿号列举里的否认继承：「无汗、头重而痛、肢体酸痛」里「无汗」是风寒表实的
+  // 阳性体征，继承下去会把头痛、身痛一起判成否认（X 集 X-G-2677），于是把有疼痛记录的病例的「止痛」去掉。判不准时宁可保留治法项
+  //（与此前相同），不去掉病历其实写了的那一项。分句内的局部否认（「双下肢无浮肿」整句判为肯定）逐词用 sourceDocumentsNegation 排除。
+  let clauses: string[] | undefined;
+  const recordAffirms = (terms: readonly string[]) => {
+    clauses ??= recordText.split(/[，,、。；;\n]+/u).map((clause) => clause.trim()).filter((clause) => clause && clinicalClausePolarity(clause) !== "negative");
+    return clauses.some((clause) => terms.some((term) => clause.includes(term) && !sourceDocumentsNegation(clause, term)));
+  };
+  const named = `${context.diseaseName || ""}${context.syndromeName || ""}`;
+  const organText = `${context.syndromeName || ""}${(context.locations || []).join("")}`;
+  const supported = (entry: SymptomDirectedTherapyGoal) =>
+    Boolean(context.bookKey && entry.exemptBooks?.includes(context.bookKey)) ||
+    entry.diseases.some((disease) => named.includes(disease)) ||
+    Boolean(entry.organs?.some((organ) => organText.includes(organ))) ||
+    recordAffirms(entry.terms);
+  let changed = false;
+  const kept = items.flatMap((item) => {
+    if (item.includes("者")) return [item];
+    let rest = item;
+    const found: SymptomDirectedTherapyGoal[] = [];
+    for (const { goal, entry } of goalsByLength) {
+      if (!rest.includes(goal)) continue;
+      found.push(entry);
+      rest = rest.split(goal).join("\u0000");
+    }
+    if (found.length === 0 || found.some(supported)) return [item];
+    changed = true;
+    const head = rest.split("\u0000").join("");
+    const core = head.replace(THERAPY_ITEM_LEAD, "");
+    return core.length >= 4 && /^[一-鿿]+$/u.test(core) ? [head] : [];
+  });
+  if (!changed) return text;
+  return kept.join("，");
 }

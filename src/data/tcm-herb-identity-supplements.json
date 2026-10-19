@@ -3584,6 +3584,13 @@
       "batch": "ADJ-WEB-20261014-DESCRIPTOR"
     },
     {
+      "inputName": "风药",
+      "canonicalName": null,
+      "autoResolvable": false,
+      "note": "「风药」是方解里的统称（祛风药、风药之燥），不是一味药；旧目录按中等置信别名列成泽兰/黄藤的歧义名。方义核对据此把「黑芝麻润燥以制风药之燥」当成提到本方没有的药，剪成「黑芝麻润燥制之燥」（2026-10-19 Claude 评审甲方标准病历 9）。目录里没有任何方剂以「风药」为药味；改为不可自动落药且不作药名。",
+      "batch": "ADJ-WEB-20261019-DESCRIPTOR"
+    },
+    {
       "inputName": "椒目",
       "canonicalName": "椒目",
       "autoResolvable": true,

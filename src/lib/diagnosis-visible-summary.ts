@@ -2,7 +2,7 @@ import { chineseDurationNumber, discriminatingWesternSupportClauses, narrativeMo
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import { pediatricDoseRuleForAgeYears } from "./pediatric-dose-rule";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
-import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement, SPECIAL_DECOCTION_ORDER, specialDecoctionOrderIndex, withOneOfDecoctionResolved } from "./herb-decoction-rules";
+import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement, SPECIAL_DECOCTION_ORDER, specialDecoctionOrderIndexes, withOneOfDecoctionResolved, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
 import { formulaSyndromeConflictNotice, formulaSyndromeConflicts } from "./formula-syndrome-consistency";
 import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesisCells, normalizeFormulaStructureRole } from "./herb-target-contract";
@@ -11,7 +11,8 @@ import { reviewAuthoredFormulaAnalysis } from "./formula-analysis-review";
 import { namedFormulaDecoctionProfile } from "./formula-decoction-profile";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { NARROWER_THAN_GROUP_CANONICAL, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
+import { NARROWER_THAN_GROUP_CANONICAL, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
+import { assessPregnancyState } from "./clinical-state";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
@@ -126,7 +127,56 @@ export function applyM03DecisionSpecificityPolicy(content: string, state?: CaseS
   const reason = activeRedFlag
     ? "急危重风险未排除：以下辨证、病机与治法结论供医生参考，请先完成急诊或转诊评估并记录排除或处置依据；本次不显示具体用量，正式采纳须在风险处置之后。"
     : "完整度未达C级：以下结论基于现有信息形成，属有界建议；补充病程、伴随表现及必要四诊可提高确定性，正式采纳前请医生核对未知项。";
-  return annotateM03DecisionSpecificityBoundary(content, { reason, mustCollect, activeRedFlag });
+  return annotateM03DecisionSpecificityBoundary(content, { reason, mustCollect, activeRedFlag, pregnancyWarning: pregnancyRedFlagWarningStage(state) });
+}
+
+/**
+ * 妊娠相关红旗的复诊提示要写产科急症表现（2026-10-19，Claude 评审验收主集 M，TCM-BEST4SDT-61：孕妇妊娠逾八月痰喘，
+ * 红旗理由是「请立即完成产科急症评估」，复诊计划的立即就医表现却只写了呼吸症状）。
+ *
+ * 只在病历写明当前妊娠时补（与开方编译同一个判据：assessPregnancyState(接地语料) 为 positive）：同一条「妊娠相关急症」理由也会
+ * 出现在产后（产后发热、产后血晕）与非孕期的阴道大出血（崩漏、异常子宫出血）病例上，那些病例没有胎动、破水可言。
+ * 病历写明孕 20 周前（或写「孕早期/早孕」）时只写腹痛与阴道流血——那时还没有可感知的胎动。
+ */
+function pregnancyRedFlagWarningStage(state: CaseState): "early" | "unspecified" | undefined {
+  if (state.safetyGate?.status !== "red_flag") return undefined;
+  if (!(state.safetyGate.redFlags || []).some((item) => /妊娠|产科/u.test(String(item)))) return undefined;
+  const groundingText = clinicalGroundingText(state);
+  if (assessPregnancyState(groundingText).status !== "positive") return undefined;
+  const weeks = recordedGestationalWeeks(groundingText);
+  return weeks !== undefined && weeks < 20 ? "early" : "unspecified";
+}
+
+/** 病历写明的孕周（月数按 4.3 周折算；「孕早期/早孕」按 12 周）。写不出返回 undefined。只用来决定复诊提示写不写胎动、破水。 */
+function recordedGestationalWeeks(text: string): number | undefined {
+  const normalized = String(text || "").normalize("NFKC");
+  if (/孕早期|妊娠早期|早孕(?!试验|检测|试纸)/u.test(normalized)) return 12;
+  const match = normalized.match(/(?<![避不备未助试促])(?:孕|妊娠|怀孕)(?:逾|满|近|约|已)?(\d+|[一二两三四五六七八九十]+)\s*(?:\+\d+)?\s*(周|个?月)/u);
+  if (!match) return undefined;
+  const amount = /\d/u.test(match[1]) ? Number(match[1]) : chineseDurationNumber(match[1]);
+  if (amount === undefined || !Number.isFinite(amount)) return undefined;
+  return match[2] === "周" ? amount : amount * 4.3;
+}
+
+/** 孕期需立即就诊的表现（按就诊提示的写法）。病历写明孕 20 周前时不写后两项。 */
+const PREGNANCY_WARNING_SIGNS: ReadonlyArray<{ label: string; written: RegExp; laterOnly: boolean }> = [
+  { label: "腹痛", written: /腹[^，,。；;]{0,2}[痛疼]/u, laterOnly: false },
+  { label: "阴道流血", written: /阴道[^，,。；;]{0,2}(?:流血|出血)|见红/u, laterOnly: false },
+  { label: "阴道流水（破水）", written: /破水|流水|羊水/u, laterOnly: true },
+  { label: "胎动减少或异常", written: /胎动/u, laterOnly: true },
+];
+
+/**
+ * 复诊提示里补上还没写到的孕期急症表现；都已写到时逐字返回原文（幂等）。
+ */
+export function withPregnancyWarningSigns(followup: string, stage: "early" | "unspecified"): string {
+  const text = String(followup || "");
+  const missing = PREGNANCY_WARNING_SIGNS
+    .filter((sign) => (stage === "unspecified" || !sign.laterOnly) && !sign.written.test(text))
+    .map((sign) => sign.label);
+  if (missing.length === 0) return text;
+  const sentence = `怀孕期间如出现${missing.join("、")}，请立即到医院产科急诊就诊。`;
+  return text.trim() ? `${text.trim()}\n\n${sentence}` : sentence;
 }
 
 /**
@@ -145,9 +195,9 @@ export function applyM03DecisionSpecificityPolicy(content: string, state?: CaseS
  */
 export function annotateM03DecisionSpecificityBoundary(
   content: string,
-  boundary: { reason: string; mustCollect: string; activeRedFlag: boolean },
+  boundary: { reason: string; mustCollect: string; activeRedFlag: boolean; pregnancyWarning?: "early" | "unspecified" },
 ): string {
-  const { reason, mustCollect, activeRedFlag } = boundary;
+  const { reason, mustCollect, activeRedFlag, pregnancyWarning } = boundary;
   const UNCERTAINTY_ITEM = "辨证与方剂具体度边界";
   const redFlagFirst = "急危重风险未排除：请优先完成急诊或转诊评估并记录排除或处置依据；以下辨证与治法结论供医生参考，正式采纳与具体用量须在风险处置之后。";
   // 复诊计划写给患者（9/28 甲方）：红旗档的这一句此前是给医生的流程话（「当前应优先完成急危重风险评估」，2026-10-18 验收主集
@@ -218,10 +268,16 @@ export function annotateM03DecisionSpecificityBoundary(
                 .trim()
               : management.followupSafetyNet;
             management.followupSafetyNet = prepend(withoutMedicationFollowUp, redFlagSafetyNet).slice(0, 1200);
+            if (pregnancyWarning) {
+              management.followupSafetyNet = withPregnancyWarningSigns(String(management.followupSafetyNet), pregnancyWarning).slice(0, 1200);
+            }
           }
         } else {
           reasoning.management = {
-            ...(activeRedFlag ? { redFlagLoop: redFlagFirst, followupSafetyNet: redFlagSafetyNet } : {}),
+            ...(activeRedFlag ? {
+              redFlagLoop: redFlagFirst,
+              followupSafetyNet: pregnancyWarning ? withPregnancyWarningSigns(redFlagSafetyNet, pregnancyWarning) : redFlagSafetyNet,
+            } : {}),
             mustCollect: [mustCollect],
           };
         }
@@ -529,11 +585,14 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
       const object = negative[1]
         .replace(/(?:等(?:热象|寒象|表现|症状|征象|不适)?|表现|症状)$/u, "")
         // 「无力」「无华」是症状词，不是这一项的否认词（2026-10-19 H 集 X-H-0230：「无上肢麻木、无力或感觉异常」剥成了「、力或感觉异常」）。
-        .replace(/([、及和与])(?:无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故损])|没有|未见|不伴)(?=[\u4e00-\u9fff]{2})/gu, "$1")
+        .replace(/([、及和与])(?:无(?![汗力痰苔华味法论需妨效碍形名根以所不可非明定常度端故损]|神(?!疲|志|昏|情)|关(?!节))|没有|未见|不伴)(?=[\u4e00-\u9fff]{2})/gu, "$1")
         .trim();
       if (!object) return clause;
       const terms = object.split(/[及和与、]/u).map((term) => term.trim()).filter((term) => term.length >= 2);
       if (terms.length === 0) return clause;
+      // 检查所见、记录或描述的缺如（「无明确感染灶描述」「牙体检查无异常」「无记录」）不是患者自诉，不改「病历未记录…」——
+      // 交付面会把它译成「未诉明确感染灶描述」（2026-10-19 Claude 评审甲方病历 2、7、9）。
+      if (TEST_FINDING_CONTEXT.test(`${trimmed}`) || /记录|异常|检查|检验/u.test(object)) return clause;
       // 病历写了具体皮损（水疱、红斑…）时，鉴别行里不带主语的「无皮疹」说的是被鉴别的那个病，不是本例：补上病名（「肋间神经痛无皮疹」），
       // 不改成「病历未记录皮疹」——交付面会把那句译成「未诉皮疹」，紧跟在「本例已出现皮节分布水疱」后面（2026-10-19 甲方标准病历 8）。
       if (entryName && !/^(?:本例|该患者|患者)/u.test(trimmed) && terms.every((term) => recordShowsRashForm(clinicalContext, term))) {
@@ -908,9 +967,10 @@ const NONDIAGNOSTIC_WESTERN_SUPPORT = /^(?:不限定|未限定|既往体健|无�
 // 2026-10-18：X 放宽到 16 字（甲方标准病历 2 辨病依据「无气从少腹上冲胸咽之奔豚特征」13 字，旧上限 10 字漏过）。
 // 2026-10-18：「示无里热」「提示里无湿热积滞」「里和无损」是辨证推断，不是患者没提到的症状（甲方标准病历 1/3/9 三次生成都出现
 //「示未诉里热」「里未诉湿热积滞」「里和未诉损」）。「无」前面是 示/里/内 的、「无损」，都不改。
-const UNRECORDED_NEGATIVE_FEATURE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故损])([\u4e00-\u9fff]{2,12}?)(?=之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状))/gu;
+const UNRECORDED_NEGATIVE_FEATURE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰苔华味法论需妨效碍形名根以所不可非明定常度端故损]|神(?!疲|志|昏|情)|关(?!节))([\u4e00-\u9fff]{2,12}?)(?=之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状))/gu;
 // 对象里不能再有「无」：「无脓无屑」曾整段当成一个对象改成「未诉脓无屑」（2026-10-19 验收集 X-C-0192）。
-const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰神苔华味法论需妨关效碍形名根以所不可非明定常度端故损])((?:(?!无)[\u4e00-\u9fff]){2,16}?)(?=[、，,。；;：:）)]|等|及|和|或|与|为(?:主|特点)|$)/gu;
+// 「无神」「无关」是固定词，但「无神疲乏力」「无关节痛」是对症状的否认（2026-10-19 Claude 评审 M 集 SD-468043、SD-482122：原样留成「无X」）。
+const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰苔华味法论需妨效碍形名根以所不可非明定常度端故损]|神(?!疲|志|昏|情)|关(?!节))((?:(?!无)[\u4e00-\u9fff]){2,16}?)(?=[、，,。；;：:）)]|等|及|和|或|与|为(?:主|特点)|示|提示|表明|说明|故|$)/gu;
 
 /**
  * 病历是否写到过这个阴性项的对象（无论肯定还是否定）。2–3 字的词要原词出现；4 字以上的长短语换个说法很常见
@@ -927,6 +987,8 @@ function recordShowsRashForm(record: string, term: string): boolean {
 
 function recordMentionsNegatedTerm(record: string, term: string): boolean {
   if (record.includes(term) || recordShowsRashForm(record, term)) return true;
+  // 「无吸烟史」对病历「不吸烟」：「…史」查的是那件事本身（2026-10-19 Claude 评审甲方病历 5：COPD 鉴别成了「未记录吸烟史」）。
+  if (/^[\u4e00-\u9fff]{2,8}史$/u.test(term) && record.includes(term.slice(0, -1))) return true;
   // 同一概念的别的写法也算写到过（受治理的同义词组 POSITIVE_FACT_EQUIVALENT_GROUPS，与净化器同一份）：病历「大便干结5天」「5天未解大便」，
   // 鉴别里的「无便秘」不能改成「未诉便秘」（2026-10-19 留出例 S055）；不寐/眠差之于失眠、眩晕之于头晕同理。
   // 只从总称往下展开：「无高热」「无下腹痛」说的是下位词，病历写了发热、腹痛不等于写到过高热、下腹痛（同表的 NARROWER_THAN_GROUP_CANONICAL）。
@@ -1010,7 +1072,7 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
 const FIXED_WU_COLLOCATION_TAIL = /^(?:休止|由|光泽|伦次|声(?![音嘶])|物(?!质)|发(?![热作病生育])|痛性|菌|排卵|症状|从|热(?:惊厥|发作|反复|象|性))/u;
 const GENERIC_DESCRIPTION_LEAD = /(?<![日正异寻])常(?![规见])|多(?![次年日天发月])|一般|往往|通常|每每|皆|典型/u;
 const CHECK_CLAUSE = /核实|待查|询问|追问|与否|是否|有无|需查|应查/u;
-const TEST_FINDING_CONTEXT = /心电图|ECG|导联|P波|QRS|ST段|T波|造影|CT|MRI|磁共振|超声|彩超|B超|X线|胸片|平片|病理|活检|镜下|镜检|培养|涂片|脑脊液|血常规|尿常规|化验|检验|影像|描述|组织|细胞|浸润|阴影|占位|病灶|资料|依据/u;
+const TEST_FINDING_CONTEXT = /检查|查体|体检|心电图|ECG|导联|P波|QRS|ST段|T波|造影|CT|MRI|磁共振|超声|彩超|B超|X线|胸片|平片|病理|活检|镜下|镜检|培养|涂片|脑脊液|血常规|尿常规|化验|检验|影像|描述|组织|细胞|浸润|阴影|占位|病灶|资料|依据/u;
 const MEASUREMENT_TERM = /^(?:血[钙钾钠镁磷糖脂压氧]|眼压|体温|心率|血象|尿[糖蛋]白?|肝功|肾功)/u;
 const textbookDiseaseNames = (textbookDiseaseNamesJson as { names: string[] }).names
   .filter((name) => name.length >= 2).sort((left, right) => right.length - left.length);
@@ -1513,7 +1575,9 @@ function decoctionProfileFromSignedTherapy(
       firstMinutes: 20,
       secondMinutes: 15,
       heat: "武火煮沸后转文火",
-      administration: "饭后温服，以减少苦寒药对胃肠的刺激；中病即止，不宜久服",
+      // 不写「以减少苦寒药对胃肠的刺激」：按首个子治法选到这一档的方子未必有苦寒药（2026-10-19 Claude 评审 M 集 0306、0280：
+      // 温补方的煎服行也这样写，验收主集 41 份处方带这句）。
+      administration: "饭后温服；中病即止，不宜久服",
     };
   }
   return REGULAR;
@@ -1677,15 +1741,23 @@ function signedNatureProfile(reasoning: Record<string, unknown>): SignedNaturePr
   // 「固冲止血」「清热生津」「敛汗」在实证里是治标的手段，不是扶正：只在证名本身有虚时算补法
   //（2026-10-19 Claude 评审 H 集 X-H-0338：月经过多·血热证、清热凉血固冲止血，治则被推成「扶正祛邪」）。
   const nameDeficient = /(?:虚|亏|不足|失养|不固|不摄|怯|衰|脱)/.test(names);
-  const tonifying = /(?:补|益气|益肾|益精|益胃|益阴|益脾|益肺|益心|健脾|健胃|温肾|温补|暖宫|暖肝|壮阳|培元|培土|养|滋|温阳|助阳|回阳|扶阳|固表|固脱|固精|填精|育阴|扶正|升阳举陷|升提|敛阴)/.test(method) ||
-    (nameDeficient && /(?:固摄|固冲|生津|敛汗)/.test(method));
-  const dispelling = /(?:清|泻|泄|疏|散|化痰|化湿|化瘀|化饮|化浊|化积|祛|逐|活血|行气|理气|利水|利湿|利尿|通络|通腑|通便|通淋|通窍|消食|消积|消肿|攻|解表|解毒|解郁|平肝|潜阳|息风|熄风|降逆|降气|涤痰|破|软坚|燥湿|渗湿|宣肺|透疹|发汗|导滞|开窍|豁痰|止痛|镇惊)/.test(method);
-  const nameExcess = /(?:实|热|火|寒|湿|痰|饮|瘀|滞|郁|积|毒|风|燥|水停|犯|束|蕴|阻|结|闭|亢|扰|袭)/.test(names.replace(/虚[热火寒]/g, ""));
+  // 「扶脾」「扶土」也是补法（「抑肝扶脾」曾推成「实则泻之」，2026-10-19 Claude 评审 M 集 RobustSDT-0372、0092）。
+  // 「健脾和胃」用在纯痰湿实证里是治生痰之源，不是扶正（2026-10-19 Claude 评审 M 集 MTCMB-77、MTCMB-8：痰湿中阻证·化痰祛湿、健脾和胃
+  // 推成「扶正祛邪」）：与固冲、生津同样只在证名本身有虚时算补法。「扶脾/扶土」（抑肝扶脾）照算——木乘土本身就是土虚。
+  const tonifying = /(?:补|益气|益肾|益精|益胃|益阴|益脾|益肺|益心|扶脾|扶土|温肾|温补|暖宫|暖肝|壮阳|培元|培土|养|滋|温阳|助阳|回阳|扶阳|固表|固脱|固精|填精|育阴|扶正|升阳举陷|升提|敛阴)/.test(method) ||
+    (nameDeficient && /(?:固摄|固冲|生津|敛汗|健脾|健胃)/.test(method));
+  // 「抑肝」「抑木」是泻法（抑肝扶脾 = 泻肝实脾）。
+  const dispelling = /(?:清|泻|泄|疏|散|抑肝|抑木|化痰|化湿|化瘀|化饮|化浊|化积|祛|逐|活血|行气|理气|利水|利湿|利尿|通络|通腑|通便|通淋|通窍|消食|消积|消肿|攻|解表|解毒|解郁|平肝|潜阳|息风|熄风|降逆|降气|涤痰|破|软坚|燥湿|渗湿|宣肺|透疹|发汗|导滞|开窍|豁痰|止痛|镇惊)/.test(method);
+  const nameExcess = /(?:实|热|火|寒|湿|痰|饮|瘀|滞|郁|积|毒|风|燥|水停|犯|乘|旺|束|蕴|阻|结|闭|亢|扰|袭|肝阳(?!虚|不足|衰))/.test(names.replace(/虚[热火寒]旺?/g, ""));
   // 治法是「怎么治」的直接陈述：治法已写时以它为准，证名只在治法缺席时兜底。
   const deficient = method ? tonifying : nameDeficient;
   const excess = method ? dispelling && (nameExcess || !tonifying) : nameExcess;
   const excessNames = names.replace(/[阴血气阳精津]虚[热火]?|虚[热火寒]/g, "");
-  const heat = /(?:热|火|暑|毒)/.test(excessNames) && (!method || /(?:清|泻火|凉血|泄热|解毒|辛凉)/.test(method));
+  // 证名只有「毒」（毒损心脉、瘀毒内结、湿毒浸淫）而治法只说「解毒」、不说清热凉血时，不算热证：毒不分寒热，
+  // 乌头碱药酒中毒（出冷汗、舌淡）曾被推成「热者寒之」（2026-10-19 留出集 S190）。证名带热/火/暑，或治法写清、凉的，照旧。
+  // 已存输出回放 M/X/H/D 四集：变的 6 条都从「热者寒之」变成「实则泻之」（湿毒浸淫·宣肺解毒、瘀毒内结·活血解毒、毒邪内陷闭窍·解毒开窍）。
+  const heat = (/(?:热|火|暑)/.test(excessNames) && (!method || /(?:清|泻火|凉血|泄热|解毒|辛凉)/.test(method))) ||
+    (/毒/.test(excessNames) && (!method || /(?:清|泻火|凉血|泄热|辛凉)/.test(method)));
   const cold = /寒/.test(excessNames) && (!method || /(?:温|散寒|辛温|回阳)/.test(method));
   return { deficient, excess, heat, cold };
 }
@@ -1861,8 +1933,8 @@ function specialDecoctionClauses(herbs: readonly unknown[]): string[] {
     const name = typeof herb?.name === "string" ? herb.name.trim() : "";
     if (!name) continue;
     const declared = typeof herb?.decoctionRequirement === "string" ? herb.decoctionRequirement : "";
-    const index = specialDecoctionOrderIndex(name, declared);
-    if (index >= 0 && !groups[index].includes(name)) groups[index].push(name);
+    // 先煎又包煎的（金礞石、青礞石）两组都点名，见 specialDecoctionOrderIndexes。
+    for (const index of specialDecoctionOrderIndexes(name, declared)) if (!groups[index].includes(name)) groups[index].push(name);
   }
   return groups.flatMap((names, index) => names.length > 0 ? [SPECIAL_DECOCTION_ORDER[index].phrase(names.join("、"))] : []);
 }
@@ -2011,9 +2083,16 @@ export function applyDeterministicHerbDecoctionRequirements(content: string): st
         if (!rawHerb || typeof rawHerb !== "object" || Array.isArray(rawHerb)) continue;
         const herb = rawHerb as Record<string, unknown>;
         const name = typeof herb.name === "string" ? herb.name : "";
+        // 先去掉这味药没有出处的特殊煎法标注，再按规则层核对与补齐。没有出处的包括另一规格的煎法（教材「滑石块先煎，滑石粉包煎」
+        //「先煎，蛤粉包煎」：药表写「滑石（先煎、包煎）」）与模型记混的（肉豆蔻「后下」）。编译器写药味表、煎服行按药味取特殊煎法
+        //（specialDecoctionOrderIndex）用的是同一道 withoutUnsupportedDecoctionLabels；此前这里只核「缺没缺」，多写的一种照样判满足，
+        // 不经编译器的内容（已缓存的结果、直接带哨兵的内容）药表与煎服行就不一致（2026-10-19 留出例 S145：药表「先煎、包煎」，
+        // 煎服行只写「滑石先煎」；744 份已存结果重放后仍有 12 味：滑石 10、蛤壳 2）。
+        const original = typeof herb.decoctionRequirement === "string" ? herb.decoctionRequirement.trim() : "";
+        const declared = withoutUnsupportedDecoctionLabels(name, original).trim();
+        if (declared !== original) herb.decoctionRequirement = declared || null;
         const rule = decoctionRuleForHerb(name);
         if (!rule) continue;
-        const declared = typeof herb.decoctionRequirement === "string" ? herb.decoctionRequirement.trim() : "";
         const current = withOneOfDecoctionResolved(name, declared);
         if (current !== declared) herb.decoctionRequirement = current;
         if (decoctionRuleSatisfied(name, current)) continue;
@@ -2807,6 +2886,9 @@ function splitWesternDifferentialRow(raw: Record<string, unknown>): Record<strin
   //（2026-10-19 Claude 评审 H 集十余处：「食管（需确认有无吞咽困难…）」「残余」「依赖」单独成条）。补全借得到的照旧拆。
   // 「输血/输液反应」「药物/中毒所致意识障碍」拆出的「输血」「药物」是诱因或操作，不是病名（D 集 X-D-4610、2767）。
   if (usable.some((item) => !SPLIT_PART_DIAGNOSIS_MORPHEME.test(item) || SPLIT_PART_AGENT_ONLY.test(item))) return [raw];
+  // 补全后的几个病名合成一条「A、B」，不再拆成几条理由逐字相同的鉴别（2026-10-19 Claude 评审甲方病历 3、10 三轮中两轮：
+  //「子宫内膜增生」「子宫内膜病变」两条理由一字不差，判西医诊断冗杂）。顿号不是「A/B」那种待定写法，不触发歧义判据。
+  if (usable.length > 1) return [{ ...raw, name: usable.join("、") }];
   return usable.length > 0 ? usable.map((item) => ({ ...raw, name: item })) : [raw];
 }
 

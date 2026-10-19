@@ -23,7 +23,7 @@ import { affirmedClinicalText } from "./clinical-polarity";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
 import { narrativePediatricAgeConflict, pregnancyScreenRequired, reproductiveAdviceRelevant } from "./diagnosis-safety";
-import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, caseCourse, dietAdviceAvoidsRichFood, dietAdviceAvoidsTea, syndromeHasHeatNature, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, syndromeLabelFitsSigned, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
+import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, caseCourse, dietAdviceAvoidsRichFood, facialSoreRecorded, dietAdviceAvoidsTea, syndromeHasHeatNature, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, syndromeLabelFitsSigned, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
 import governanceSourceRegistryJson from "../data/clinical-governance-source-registry.json" with { type: "json" };
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
@@ -192,17 +192,34 @@ export function indicationEvidenceTerms(tag: TcmTreatmentIndicationTag, caseFact
   const scan = new RegExp(pattern.source, `${pattern.flags.replace(/g/g, "")}g`);
   // 只是部位的词（颈部、关节）要和不适写在同一小句里才算本例的表现（2026-10-19，验收集 M-TCM-SD-433630/439348：
   // 查体模板「颈部对称，无青筋暴露」「右膝及踝关节X线示…」被写成「针对本例颈部」「针对本例关节、颈部」）。
+  // 卡上写部位连同那一小句的不适（「胃脘不舒服」「胃脘胀满」），不单写部位（2026-10-19 第五轮留出例 S077「针对本例胃脘」、S158「腹胀、胃脘」）；
+  //「消化」只在「消化不良」里算症状（S054「不消化的食物」被写成「针对本例…消化」）。
   const clauses = caseFacts.split(/[，,。；;\n]/);
-  const bodyPartOnly = (term: string) => BODY_PART_ONLY_TERMS.test(term);
-  const complained = (term: string) => clauses.some((clause) => clause.includes(term) && BODY_COMPLAINT_WORDS.test(clause.replace(term, "")));
-  return [...new Set([...caseFacts.matchAll(scan)].map((match) => match[0]).filter(Boolean))]
-    .filter((term) => !bodyPartOnly(term) || complained(term))
-    .slice(0, 3);
+  const terms: string[] = [];
+  for (const match of caseFacts.matchAll(scan)) {
+    const term = match[0];
+    if (!term) continue;
+    let shown: string | undefined = term;
+    if (term === "消化") {
+      shown = clauses.some((clause) => clause.includes("消化不良")) ? "消化不良" : undefined;
+    } else if (/^(?:胃肠|脾胃)$/u.test(term)) {
+      // 脏腑名不是本例的表现（「针对本例胃肠、脾胃」）。
+      shown = undefined;
+    } else if (BODY_PART_ONLY_TERMS.test(term)) {
+      const clause = clauses.find((item) => item.includes(term) && BODY_COMPLAINT_WORDS.test(item.replace(term, "")));
+      const complaint = clause ? (clause.slice(clause.indexOf(term) + term.length).match(BODY_COMPLAINT_PHRASE) || clause.match(BODY_COMPLAINT_PHRASE))?.[0] : undefined;
+      shown = clause ? `${term}${complaint || ""}` : undefined;
+    }
+    if (shown && !terms.includes(shown)) terms.push(shown);
+  }
+  return terms.slice(0, 3);
 }
-/** 适应证词里只是部位、本身不说不适的词（闭集，取自 INDICATION_PATTERNS 的骨骼肌肉项）。 */
-const BODY_PART_ONLY_TERMS = /^(?:颈肩|颈项|颈部|颈椎|颈肌|脖子|关节|骨关节|肌筋膜|经筋|筋骨)$/;
-/** 部位所在小句里说不适的字（痛、酸、麻、僵、肿、活动受限、屈伸不利…）。 */
-const BODY_COMPLAINT_WORDS = /痛|酸|麻|僵|肿|胀|受限|不利|屈伸|无力|活动障碍|弹响|畸形/;
+/** 适应证词里只是部位、本身不说不适的词（闭集，取自 INDICATION_PATTERNS 的骨骼肌肉项与胃肠项）。 */
+const BODY_PART_ONLY_TERMS = /^(?:颈肩|颈项|颈部|颈椎|颈肌|脖子|关节|骨关节|肌筋膜|经筋|筋骨|胃脘|脘腹)$/;
+/** 部位所在小句里说不适的字（痛、酸、麻、僵、肿、活动受限、屈伸不利、不适…）。 */
+const BODY_COMPLAINT_WORDS = /痛|酸|麻|僵|肿|胀|受限|不利|屈伸|无力|活动障碍|弹响|畸形|不适|不舒服|痞|满|嘈杂|灼热|发凉/;
+/** 卡上与部位连写的那一段不适（取部位之后最先出现的一段）。 */
+const BODY_COMPLAINT_PHRASE = /隐痛|胀痛|刺痛|灼痛|冷痛|疼痛|作痛|胀满|胀闷|痞满|痞闷|不适|不舒服|嘈杂|灼热|发凉|酸痛|酸胀|麻木|僵硬|肿胀|无力|活动受限|屈伸不利|胀|痛|痞|满/;
 
 /**
  * 穴位标注「主治含X」用的本例症状词。穴位是按主治匹配选出来的，匹配依据必须是本例病历**当前**真实记录、且是本例症状的那个词
@@ -222,6 +239,9 @@ export function acupointCaseTerms(currentFacts: string, signedDiseaseNames: read
       if (/(?:无|未|没有|没|否认|不伴|不)[^、]{0,2}$/u.test(before)) continue;
       if (/喜[\u4e00-\u9fff]{1,2}$/u.test(before)) continue;
       if (/^[、和及]?[^。；;，,]{0,10}?(?:痛|酸|麻|胀)[^。；;，,]{0,3}(?:加重|加剧|更甚|明显)/u.test(after)) continue;
+      // 「咳嗽或大笑时有漏尿」「咳嗽时胸痛」：症状词后面紧跟（可带并列的另一诱因）「时」，说的是另一件事发生的情形（2026-10-19 第五轮留出例 S114
+      // 太溪标「主治含咳嗽」）。
+      if (/^(?:[、和及或][^。；;，,]{0,6})?时/u.test(after)) continue;
       terms.add(match[0]);
     }
   }
@@ -318,7 +338,7 @@ function controlledTreatmentPlan(
   /** 本例年龄（岁）。带年龄下限的模板取不到年龄一律不启用。 */
   patientAgeYears?: number,
   /** 教材方案（tcm-nondrug-textbook-plan.server.ts）的取材：已签名病名、西医主诊断、主证+兼证结论。 */
-  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string; signedPrinciple?: string; chiefComplaint?: string; avoidRichFood?: boolean; herbAlreadyPrescribed?: (herb: string) => boolean; recordedDiabetes?: boolean; avoidTea?: boolean },
+  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string; signedPrinciple?: string; signedMethod?: string; chiefComplaint?: string; avoidRichFood?: boolean; herbAlreadyPrescribed?: (herb: string) => boolean; recordedDiabetes?: boolean; avoidTea?: boolean },
 ): Pick<TreatmentRecommendation,
   "treatmentContent" | "suggestedSitesOrPoints" | "scheduleSuggestion" | "techniqueBoundary" |
   "protocolSource" | "protocolStatus" | "protocolGap" | "tailoringStatus" |
@@ -339,6 +359,7 @@ function controlledTreatmentPlan(
         signedNarrative: signedSyndromeText,
         patientAgeYears,
         signedPrinciple: textbookContext.signedPrinciple,
+        signedMethod: textbookContext.signedMethod,
         chiefComplaint: textbookContext.chiefComplaint,
         avoidRichFood: textbookContext.avoidRichFood,
         recordedDiabetes: textbookContext.recordedDiabetes,
@@ -1322,6 +1343,7 @@ export function compileTcmTreatmentRecommendations(
         westernNames: [prior.westernDiagnosis?.primary?.name || ""].filter(Boolean),
         signedSyndromeText,
         signedPrinciple: prior.therapy?.overallPrinciple || "",
+        signedMethod: prior.therapy?.overallMethod || "",
         chiefComplaint: typeof caseState?.chiefComplaint === "string" ? caseState.chiefComplaint : "",
         avoidRichFood: dietAdviceAvoidsRichFood(dietAdvice),
         // 糖尿病读病历全部阳性面（含既往史）与已签名病名：糖尿病多写在既往史里（M-TCMChat-test-405）。
@@ -1348,7 +1370,17 @@ export function compileTcmTreatmentRecommendations(
       .some((value) => typeof value === "string" && cardApplicabilityExcludesSyndrome(value, diseaseNamesForCard, prior.overview.primarySyndrome || ""))) return [];
     // 病历写到皮肤破损时卡上会写「局部皮肤破损…处不施术，取穴避开皮损」（localSiteCardNote），同一张卡就不能再取「阿是穴」（2026-10-19
     // 留出例 S143 丹毒：针刺卡列着阿是穴）。围刺（蛇串疮「皮损局部阿是穴围刺」）本来就是在皮损周围下针，不在此列。
-    const lesionPointAvoided = LOCAL_SITE_NOTE_PROJECTS.has(definition.code) && BROKEN_SKIN_RECORDED.test(currentFacts) &&
+    // 已签名诊断写到骨折（含「待查」）：卡上写着「骨折及其周围肿胀处不施术」（localSiteCardNote），取局部（阿是穴、局部、患处）的针、灸、罐、
+    // 刮痧卡与这句相抵——伤处取阿是穴、申脉、丘墟并「针刺时配合踝关节活动」（2026-10-19 Claude 评审 H-tri-3960 踝部骨折），腰椎压缩性骨折
+    // 拔罐取肾俞、大肠俞、阿是穴并「可行刺络拔罐」（M-TCMChat-test-375）。这类卡整张不出；只取远端穴、不在伤处施术的卡与耳穴卡照出。
+    const signedDiagnosisNames = [prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""];
+    const treatsLocalSite = cardTreatsLocalSite(plannedTreatment.suggestedSitesOrPoints, `${plannedTreatment.treatmentContent || ""}${plannedTreatment.techniqueBoundary || ""}`);
+    if (LOCAL_SITE_NOTE_PROJECTS.has(definition.code) && fractureSigned(signedDiagnosisNames) && treatsLocalSite) return [];
+    // 面部疮疡（鼻旁颊部丹毒、疔疖）同样不在疮疡处下针（2026-10-19 Claude 评审 H-tri-17402：卡仍取阿是穴）。只管取局部的卡：
+    // 不寐卡不因病历顺带写了「面部偶发痤疮」就印面部皮损的提示。
+    const facialSore = treatsLocalSite && facialSoreRecorded(currentFacts, signedDiagnosisNames);
+    const lesionPointAvoided = LOCAL_SITE_NOTE_PROJECTS.has(definition.code) &&
+      (BROKEN_SKIN_RECORDED.test(currentFacts) || facialSore) &&
       !/围刺/.test(`${plannedTreatment.treatmentContent || ""}${plannedTreatment.techniqueBoundary || ""}`);
     const sitesWithoutLesion = lesionPointAvoided && Array.isArray(plannedTreatment.suggestedSitesOrPoints)
       ? plannedTreatment.suggestedSitesOrPoints.filter((site) => !LESION_POINT.test(String(site).replace(/（[^）]*）\s*$/, "").trim()))
@@ -1392,7 +1424,7 @@ export function compileTcmTreatmentRecommendations(
       // 取穴方案出自成人教材，写法是「毫针常规刺，留针」——2026-10-13 独立评审：2 岁、7 岁、11 岁病例照搬成人写法。
       // 小儿、老年与妊娠未写明的人群提示：所有项目卡同一处（populationCardNote）。此前只有针刺卡有小儿、老年两句。
       ...(() => {
-        const note = `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) : false, treatmentPlan.suggestedSitesOrPoints, caseState?.patient ? conceptionCardCaution(caseState) : false)}${localSiteCardNote(definition.code, currentFacts, [prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""])}`;
+        const note = `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) : false, treatmentPlan.suggestedSitesOrPoints, caseState?.patient ? conceptionCardCaution(caseState) : false)}${localSiteCardNote(definition.code, currentFacts, [prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""], treatsLocalSite)}${moxibustionBurnCardNote(definition.code, caseFacts, `${treatmentPlan.treatmentContent || ""}${treatmentPlan.techniqueBoundary || ""}${treatmentPlan.scheduleSuggestion || ""}`)}`;
         return typeof treatmentPlan.techniqueBoundary === "string" && note
           ? { techniqueBoundary: `${note}${treatmentPlan.techniqueBoundary}` }
           : {};
@@ -1544,13 +1576,39 @@ function withoutLesionPointMention(text: string): string {
   return text.replace(/、(?:局部)?阿是穴(?=[、，,。；;\s]|$)/gu, "").replace(/(?:局部)?阿是穴、/gu, "");
 }
 const LOCAL_SITE_NOTE_PROJECTS = new Set(["acupuncture", "moxibustion", "cupping", "guasha"]);
-export function localSiteCardNote(code: string, currentFacts: string, diagnosisNames: readonly string[] = []): string {
+/** 已签名诊断名写到骨折（含「待查」；「排除骨折」不算）。只认诊断名：「X线排除骨折」「2个月前颅骨骨折」不是本次的骨折部位。 */
+export function fractureSigned(diagnosisNames: readonly string[]): boolean {
+  return diagnosisNames.some((name) => /骨折/u.test(name) && !/排除|除外|不考虑/u.test(name));
+}
+/** 卡片取的是病痛局部（阿是穴、局部、患处、伤处、压痛点）。 */
+export function cardTreatsLocalSite(points: unknown, text: string): boolean {
+  const names = Array.isArray(points) ? points.map((point) => String(point).replace(/（[^）]*）\s*$/u, "").trim()) : [];
+  return names.some((name) => LESION_POINT.test(name) || /局部|患处|伤处|痛点/u.test(name)) ||
+    /阿是穴|患处|患部|伤处|压痛点|局部(?:取穴|施|穴)/u.test(String(text || ""));
+}
+export function localSiteCardNote(code: string, currentFacts: string, diagnosisNames: readonly string[] = [], treatsLocalSite = true): string {
   if (!LOCAL_SITE_NOTE_PROJECTS.has(code)) return "";
   const notes: string[] = [];
   if (BROKEN_SKIN_RECORDED.test(currentFacts)) notes.push("局部皮肤破损、流脓或擦伤处不施术，取穴避开皮损。");
-  // 骨折只认已签名的诊断名（「X线排除骨折」「2个月前颅骨骨折」不是本次的骨折部位）。
-  if (diagnosisNames.some((name) => /骨折/.test(name))) notes.push("骨折及其周围肿胀处不施术。");
+  else if (treatsLocalSite && facialSoreRecorded(currentFacts, diagnosisNames)) notes.push("面部皮损处（鼻旁、口唇周围尤甚）不针刺、不挤压、不放血。");
+  if (fractureSigned(diagnosisNames)) notes.push("骨折及其周围肿胀处不施术。");
   return notes.join("");
+}
+
+/**
+ * 施灸的烫伤风险（2026-10-19 Claude 评审 H-tri-5395：腓总神经损伤、小腿外侧及足背皮肤感觉减退，灸法卡只有通用的「防烫伤」）。
+ * 居家保健的艾灸在同一风险下整段不给（homeAcupointCareForCase 的 moxibustionBurnRisk），医师的灸法卡照给、但写明这一条。
+ * 判据与居家保健同一个 MOXIBUSTION_BURN_RISK（本例肯定句，含既往史里的糖尿病）。针刺卡只在卡上仍写着施灸（温针灸、加灸）时提示。
+ */
+const MOXIBUSTION_CARD_WORDING = /温针灸|加灸|灸法|可灸|施灸|艾灸|悬灸|隔姜灸|温和灸/u;
+export function moxibustionBurnCardNote(code: string, caseFacts: string, cardText: string): string {
+  if (!MOXIBUSTION_BURN_RISK.test(String(caseFacts || ""))) return "";
+  const text = String(cardText || "").replace(/《[^》]*》/gu, "");
+  if (code !== "moxibustion" && !(code === "acupuncture" && MOXIBUSTION_CARD_WORDING.test(text))) return "";
+  const diabetes = RECORDED_DIABETES.test(caseFacts);
+  const sensory = /感觉(?:减退|迟钝|障碍|异常)|周围神经病变/u.test(caseFacts);
+  const who = diabetes && sensory ? "本例有糖尿病及局部感觉减退" : diabetes ? "本例有糖尿病" : "本例有局部感觉减退";
+  return `${who}，对热不敏感：施灸以施术者手感试温、时间宜短，${sensory ? "感觉减退处不直接施灸，" : ""}防止烫伤。`;
 }
 
 export function populationCardNote(
@@ -1568,7 +1626,9 @@ export function populationCardNote(
   const sensitive = pregnancyUnresolved || tryingToConceive
     ? pointNames.map((point) => point.replace(/[（(][^）)]*[）)]/g, "").trim()).filter((point) => acupointPregnancySensitive(point))
     : [];
-  const listed = [...new Set(sensitive)].slice(0, 4).join("、");
+  // 卡上的孕期敏感穴全部列出：此前只列前 4 个，产后妊娠未明的卡上列着秩边、承山、昆仑、环跳，却漏了同卡配穴里的三阴交、至阴
+  //（2026-10-19 Claude 评审 H-tri-830；验收集 19 张卡同样漏列）。卡片取穴至多 12 个，不必截断。
+  const listed = [...new Set(sensitive)].join("、");
   if (sensitive.length > 0) {
     notes.push(tryingToConceive
       ? `备孕期间：${listed}孕期不宜针灸刺激，施术前请确认未妊娠，月经逾期者先验孕。`

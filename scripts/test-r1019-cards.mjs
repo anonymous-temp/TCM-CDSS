@@ -320,7 +320,8 @@ check("9.4 病历写明「患儿，8个月」而登记年龄是成人：针刺�
 
 check("9.5 部位词要与不适同在一小句：查体「颈部对称」「踝关节X线示」不算本例表现", () => {
   assert.ok(!cap.indicationEvidenceTerms("musculoskeletal_pain", "颈部对称，无青筋暴露；右膝及踝关节X线示骨折").some((term) => /颈部|关节/.test(term)));
-  assert.ok(cap.indicationEvidenceTerms("musculoskeletal_pain", "颈部疼痛伴活动受限").includes("颈部"));
+  // 2026-10-19 第五轮：部位连同同句的不适一起写（「颈部疼痛」），不单写部位（留出例 S077「针对本例胃脘」）。
+  assert.ok(cap.indicationEvidenceTerms("musculoskeletal_pain", "颈部疼痛伴活动受限").includes("颈部疼痛"));
 });
 
 check("9.6 0～36 月龄急性发热期不给健康保健按揉；「手足心发热」不是发热", () => {

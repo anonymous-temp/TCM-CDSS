@@ -3896,7 +3896,27 @@ const DISPLAY_DIRECTION_GROUPS: readonly RegExp[] = [
   // 「解暑」若不成类就只能靠「剩半句不是功效」整句去掉。回放 748 份处方 5,460 条功效栏：写解暑的 19 条，
   // 无依据的只有这三条枇杷叶（滑石、青蒿、佩兰库里本就有解暑）。
   /解暑|祛暑|清暑|消暑/,
+  // 下面几类（2026-10-19 Claude 评审 M 集 G 模块）：功效栏把这味药没有的方向写上去，此前不在任何一类里，查不出来——
+  // 酸枣仁与远志「聪耳」（MTCMB-10）、桑白皮「润目止痛」（BEST4SDT-118）、枳实「燥湿化痰」（MTCMB-59，库里只有化痰）、
+  // 黄芩「化痰止咳」、白术「助运化痰」、人参「助运化湿」。支持判据放宽到同一病理产物或部位（痰饮、水湿、耳、目），
+  // 知识库提到就照认：广藿香库里是「芳香化浊」、蒲公英是「利尿通淋」，写「化湿」「利湿」照留。
+  // 只作用于功效栏与加减理由的展示（herbFunctionClaimUnsupportedPhrases），不进 herbFunctionMatchesKnowledge 的准入判断。
+  // 回放 1,082 份已存输出 6,000 余条功效栏，止痛、利咽两类试过又撤下：知识库功效栏不全（高良姜库里只有「温中理气，散寒」），
+  // 新判出的近两百条大半是对的说法。
+  /聪耳|益聪/,
+  /润目/,
+  /燥湿/,
+  /化痰|祛痰|消痰|涤痰|豁痰|除痰/,
+  /化湿|祛湿|除湿|胜湿|利湿|渗湿/,
 ];
+/** 上面几类的支持判据（按正则源文本取；没有的那一类就用它自己）。 */
+const DISPLAY_DIRECTION_SUPPORT: ReadonlyMap<string, RegExp> = new Map([
+  // 远志、石菖蒲库里是「开窍」（通九窍，耳目在内），写「聪耳」照留；酸枣仁没有。
+  ["聪耳|益聪", /聪|耳|窍/],
+  ["润目", /润目|明目/],
+  ["化痰|祛痰|消痰|涤痰|豁痰|除痰", /痰|饮/],
+  ["化湿|祛湿|除湿|胜湿|利湿|渗湿", /湿|浊|利水|利尿|渗|水肿/],
+]);
 
 export function herbFunctionClaimUnsupportedPhrases(claimedFunction: string, knowledgeText: string): string[] {
   if (!claimedFunction || !knowledgeText) return [];
@@ -3904,11 +3924,20 @@ export function herbFunctionClaimUnsupportedPhrases(claimedFunction: string, kno
   for (const group of DISPLAY_DIRECTION_GROUPS) {
     const global = new RegExp(group.source, "gu");
     const matches = [...claimedFunction.matchAll(global)].map((match) => match[0]);
-    if (matches.length > 0 && !group.test(knowledgeText)) unsupported.push(...matches);
+    const support = DISPLAY_DIRECTION_SUPPORT.get(group.source) || group;
+    if (matches.length > 0 && !support.test(knowledgeText)) unsupported.push(...matches);
   }
+  // 固摄一类只在方向正相反时判：知识库没有任何收涩的说法、而有通利的说法（牛膝「固摄小便」，库里是利尿通淋、逐瘀通经，
+  // 2026-10-19 M 集 RobustSDT-single_0141）。黄芪库里有固表、鹿茸库里没有通利，「益气固摄」「温肾固摄」不在此列——
+  // 知识库功效栏不全，只按「没写」去判会把方解常用的说法也去掉。
+  const astringent = [...claimedFunction.matchAll(/固摄|固涩|收涩|涩精|固精|缩尿|止遗/gu)].map((match) => match[0]);
+  if (astringent.length > 0 && !/固|涩|敛|缩尿|止遗|止带|止汗|崩漏|安胎/u.test(knowledgeText) &&
+    /利尿|通淋|利水|渗湿|逐瘀|通经|泻下|通便/u.test(knowledgeText)) unsupported.push(...astringent);
   // 引经方向：知识库写了相反方向（桔梗「载药上行」，说成「载药下行」），或完全没有引经的说法时才去；同方向的不同写法
   //（牛膝库里是「引血下行」，写「引药下行」）照留。
+  // 库里只写「引经」没写方向、而功效是升举（升麻「升举阳气；引经」）时按向上算：升麻「引药下行」方向正相反（2026-10-19 M 集 TCM-SD-447767）。
   const knownDirections = new Set([...knowledgeText.matchAll(HERB_GUIDING_DIRECTION)].map((match) => /上/u.test(match[0]) ? "上" : "下"));
+  if (knownDirections.size === 0 && /引经/u.test(knowledgeText) && /升举|升阳|升提/u.test(knowledgeText)) knownDirections.add("上");
   const guidesAtAll = knownDirections.size > 0 || /引经/u.test(knowledgeText);
   for (const match of claimedFunction.matchAll(HERB_GUIDING_DIRECTION)) {
     const direction = /上/u.test(match[0]) ? "上" : "下";

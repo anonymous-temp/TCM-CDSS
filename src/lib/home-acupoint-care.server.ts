@@ -1,6 +1,7 @@
 import homeAcupointCareJson from "../data/tcm-home-acupoint-care.source.json" with { type: "json" };
 import natureLexiconJson from "../data/tcm-nature-lexicon.json" with { type: "json" };
 import type { ClinicalReasoningResultV2, SafetyGate } from "./diagnosis-types";
+import { traumaticEtiologyRecorded } from "./tcm-nondrug-textbook-plan.server";
 
 /**
  * 居家穴位保健（2026-09-28，甲方反馈：M04 调护「穴位保健」从未出现）。
@@ -98,9 +99,16 @@ export function homeAcupointConstitution(prior: ClinicalReasoningResultV2 | null
   for (const rule of table.deficiencyPriority) {
     if (rule.natures.some((id) => natures.has(id))) return rule.constitution;
   }
+  // 外伤（扭伤、骨折、挫伤、跌仆）造成的局部瘀滞是病因，不是体质：不按它推血瘀质、气郁质给期门、血海、合谷、太冲
+  //（2026-10-19 Claude 评审 H-tri-6746 踝扭伤、H-tri-3960 骨折、M-TCMChat-test-375 跌仆腰痛，居家保健都是「按揉期门、血海」）。
+  // 体质是平素的状态（《中医体质分类与判定》），一次外伤后的气滞血瘀不能当体质；本虚的体质（阳虚、阴虚、气虚）照上面先判。
+  const traumaText = [prior.overview?.tcmDiseaseName, prior.westernDiagnosis?.primary?.name, prior.overview?.overallPathogenesis,
+    prior.overview?.primarySyndrome].filter((text): text is string => typeof text === "string").join("；");
+  const traumatic = traumaticEtiologyRecorded(traumaText);
   for (const rule of table.excessPriority) {
     if ((rule.excludeWhenAny || []).some((id) => natures.has(id))) continue;
     if (rule.allOf ? rule.allOf.every((id) => natures.has(id)) : (rule.natures || []).some((id) => natures.has(id))) {
+      if (traumatic && (rule.constitution === "blood_stasis" || rule.constitution === "qi_stagnation")) return undefined;
       return rule.constitution;
     }
   }

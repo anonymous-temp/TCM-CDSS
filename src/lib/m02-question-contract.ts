@@ -450,7 +450,9 @@ export function m02PriorityEvaluationQuestion(state?: QuestionFallbackCase): str
   // 这里的线索可能只到 clarify 级，改问近来的变化，不把一句「仍在」升成急症。
   const screening = affirmed.has(category) || category === "other_critical" ? undefined : screeningQuestionForFinding(category, finding.quote, state);
   if (screening) return questionBlock(1, screening.question, reason, "现病史", [screening.positive, screening.negative, FOLLOWUP_SKIP_SENTENCE]);
-  if (!quote) return undefined;
+  // 引文只是一个读数（「生命体征：38.1」「体温38.1℃」「BP 150/95」）时，「近来加重还是缓解」问不通、选项还会与当前读数相矛盾
+  //（2026-10-19 Claude 评审留出例 S143）：不出这道题，交给后面的兜底。
+  if (!quote || /^[^，,。；;]{0,8}?(?:生命体征|体温|T|P|R|BP|血压|心率|脉搏|呼吸|血氧|SpO2)?\s*[:：]?\s*\d+(?:\.\d+)?(?:\s*\/\s*\d+)?\s*(?:℃|度|mmHg|次\/分|%)?$/iu.test(quote.trim())) return undefined;
   return questionBlock(
     1,
     `${riskQuestionQuotePrefix(quote)}这一情况近来是在加重、持续，还是已经缓解？`,

@@ -32,6 +32,8 @@ export type RequiredPrecaution =
       given?: string[];
       /** 红旗未解除（先急诊处置）：不写与中药间隔服用，写带药就医、告诉医生最近一次用药时间（2026-10-19 留出集 S188：心率 42、血压 82/48 仍写「间隔1小时服用」）。 */
       urgent?: boolean;
+      /** 激素、免疫抑制剂（names 里的那几个）：骤停有风险，补的那句加「不要自行停用或减量」（2026-10-19 M 集 RobustSDT-0530）。 */
+      noSelfStop?: string[];
     }
   /** 病历写着自行停了长期用药（留出集 S178：高血压急症、一个月前自行停降压药）：由医生评估后规律服用，不要再自行停药。 */
   | { kind: "self_discontinued_medication"; names: string[]; condition?: string; irregular?: true }
@@ -50,7 +52,13 @@ export type RequiredPrecaution =
   /** 病历写着自行配制、泡酒服用的药里有药典标注有毒的药（留出集 S190：自泡生草乌、生川乌药酒）：立即停用，不再自制。 */
   | { kind: "toxic_self_preparation"; herbs: string[] }
   /** 服法与忌口（2026-10-19 验收主集 J：几例注意事项只写调护、没写怎么服或忌什么）。忌口按已定证候的寒热湿积推出。 */
-  | { kind: "administration_and_diet"; diet: string; administration: boolean }
+  | {
+      kind: "administration_and_diet";
+      diet: string;
+      administration: boolean;
+      /** 病历写着在饮酒：注意事项里要有戒酒（「忌辛辣」一类饮食句不算写到了戒酒；2026-10-19 M 集 MTCMB-21 每日白酒 5 两）。 */
+      alcohol?: true;
+    }
   /** 育龄女性、妊娠与哺乳状态都没记录（验收主集 J 3 例判缺）：服药前告知医生，方中孕妇慎用药点名。 */
   | { kind: "reproductive_status_unknown" }
   /** 育龄女性病历写着本次月经逾期未至（「末次月经10月21日，至今未至」）：服药前先验孕（2026-10-19 M 集 RobustSDT-0697）。 */
@@ -60,7 +68,19 @@ export type RequiredPrecaution =
   /** 病历写的发病诱因食物（海鲜、啤酒…）：服药期间及以后避开（留出集 S128）。 */
   | { kind: "trigger_foods"; foods: string[] }
   /** 痛风：低嘌呤饮食、限酒（尤其啤酒）、多饮水（《中国高尿酸血症与痛风诊疗指南》2019）。留出集 S145。 */
-  | { kind: "gout_diet" };
+  | { kind: "gout_diet" }
+  /**
+   * 正在用抗凝或抗血小板药（drugs，病历原文药名），或病历写着通常须抗栓的情形而没写药名（indication：支架术后、深静脉血栓、房颤…）：
+   * 方中有知识库标注「出血倾向/月经期/抗凝状态」慎用的活血药时，写一条出血观察（2026-10-19 Claude 评审 M 集 MTCMB-7、42、62）。
+   * 方中没有这类药时交付面不补。
+   */
+  | { kind: "antithrombotic_bleeding"; drugs: string[]; indication?: string }
+  /** 糖尿病（病历或已签名诊断）：写一条按医嘱控糖、监测血糖、少吃甜食；饮食段里推荐的高糖食物去掉（2026-10-19 M 集 TCM-SD-453850、RobustSDT-0141、BEST4SDT-250）。 */
+  | {
+      kind: "diabetes_glucose";
+      /** 病历写着患者本人有糖尿病，或已签名西医诊断是糖尿病（不是「待查」）；只有中医病名消渴、或「糖尿病待查」的为 false：那一句写成尽早查血糖。 */
+      confirmed: boolean;
+    };
 
 /** 自行停用的那类药在给患者的话里怎么称呼。 */
 export function discontinuedMedicationLabel(item: Extract<RequiredPrecaution, { kind: "self_discontinued_medication" }>): string {

@@ -7,8 +7,8 @@
   },
   "supplementSource": {
     "file": "tcm-herb-identity-supplements.json",
-    "sha256": "6611e38eebf1402c86cfd3b01261c09b8e5203c5b9353b46316e8543a2c4c5c1",
-    "rowCount": 477
+    "sha256": "d3d6bfb381bfbd0d090c00545ac23115caee41b76ae3e3c8cc5cd47aba29e0e3",
+    "rowCount": 478
   },
   "governance": {
     "status": "generated_mapping_plus_source_backed_clinical_extensions",
@@ -94713,11 +94713,11 @@
     "风药": {
       "canonicalName": null,
       "status": "ambiguous",
-      "candidates": [
-        "泽兰",
-        "黄藤"
-      ],
-      "autoResolvable": false
+      "autoResolvable": false,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
     },
     "风藤": {
       "canonicalName": null,
@@ -115089,10 +115089,7 @@
       "id": "TCM-HERB-IDENTITY-REVIEW-A325713EDE13",
       "inputName": "风药",
       "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "泽兰",
-        "黄藤"
-      ],
+      "candidates": [],
       "serviceLevel": {
         "triageBusinessDays": 1,
         "adjudicationBusinessDays": 5

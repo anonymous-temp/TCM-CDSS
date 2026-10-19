@@ -77,6 +77,44 @@ const LIQUID_ADJUNCT_METHODS: Record<string, string[]> = {
   人乳: ["兑服"],
   人乳汁: ["兑服"],
 };
+/** 《中药学》【用法用量】里的特殊煎法（「宜布包入煎」即包煎）。 */
+const TEXTBOOK_DECOCTION_METHOD = /先煎|后下|包煎|布包|烊化/gu;
+
+/**
+ * 《中药学》【用法用量】写到的特殊煎法，按这味药的写法分开（2026-10-19 留出例 S131、S145）：
+ *  · 同一味药分块、粉两种规格各写一种煎法（滑石「滑石块先煎，滑石粉包煎」）：写「滑石粉」的只认包煎，写「滑石」的只认先煎——
+ *    此前知识库把两种规格并在一条里，药味表照抄「先煎、包煎」，煎服行只写了先煎；
+ *  · 知识库没有煎法条目、教材写了的（蚕沙「宜布包入煎」、代赭石「先煎」、檀香「宜后下」）照教材补。
+ * 否定说法（「不宜后下」）、别的给药途径（「研粉冲服」「浓缩粉冲服」）不算。own 是这一规格的煎法，otherForm 是另一规格的。
+ */
+function textbookUsageMethods(value: string): { own: Set<string>; otherForm: Set<string>; ownText: string } | undefined {
+  const usage = textbookHerbUsage(value);
+  if (!usage) return undefined;
+  // 这味药写的是哪种规格：粉、块（后缀），生、煅、制（前缀）；都不是时为原名（药典原名即生品、块状：石膏、滑石、川乌生品外用另说）。
+  const written = normalizedName(String(value || ""));
+  const form = /粉$/u.test(written) ? "粉" : /块$/u.test(written) ? "块" : (written.match(/^(生|煅|制)/u)?.[1] ?? "");
+  const matches = (marker: string) => !marker || marker === form || (!form && (marker === "块" || marker === "生"));
+  const own = new Set<string>();
+  const otherForm = new Set<string>();
+  const ownClauses: string[] = [];
+  for (const sentence of usage.text.split(/[。；;]/u)) {
+    // 一句开头点了规格（「生石膏煎服，15～60g，宜打碎先煎」），句内后面没再点规格的小句沿用它；小句自己点了的（「滑石粉包煎」）以小句为准。
+    let sentenceMarker = "";
+    for (const clause of sentence.split(/[，,]/u)) {
+      const at = clause.search(new RegExp(TEXTBOOK_DECOCTION_METHOD.source, "u"));
+      const head = at >= 0 ? clause.slice(0, at) : clause;
+      const marker = /粉/u.test(head) ? "粉" : /块/u.test(head) ? "块" : (head.match(/(?:^|[^\u4e00-\u9fff])?(生|煅|制)[\u4e00-\u9fff]/u)?.[1] ?? "");
+      if (marker && !sentenceMarker) sentenceMarker = marker;
+      const effective = marker || sentenceMarker;
+      const mine = matches(effective);
+      if (mine) ownClauses.push(clause);
+      if (at < 0 || /(?:不|勿|忌|禁)[^，,；;。]{0,2}$/u.test(head)) continue;
+      for (const match of clause.matchAll(TEXTBOOK_DECOCTION_METHOD)) (mine ? own : otherForm).add(match[0] === "布包" ? "包煎" : match[0]);
+    }
+  }
+  return { own, otherForm, ownText: ownClauses.join("，") };
+}
+
 export type DecoctionRule = {
   required: string[];
   oneOf: string[][];
@@ -140,7 +178,8 @@ export function decoctionRuleForHerb(value: string): DecoctionRule | undefined {
   // 不写 prohibited「同煎」：合同把它读成「不入汤剂、须从方中删除」（route_not_decoction），而汁、乳是要随汤服的。
   if (liquid) return { required: [...liquid], oneOf: [], prohibited: [] };
   const herb = resolveHerb(value);
-  if (!herb) return undefined;
+  const textbook = textbookUsageMethods(value);
+  if (!herb) return textbook && textbook.own.size > 0 ? { required: [...textbook.own], oneOf: [], prohibited: [] } : undefined;
   const required = new Set<string>();
   const prohibited = new Set<string>();
   const oneOf: string[][] = [];
@@ -209,6 +248,12 @@ export function decoctionRuleForHerb(value: string): DecoctionRule | undefined {
   }
   for (const method of AUDIT_VERIFIED_METHOD_SUPPLEMENTS[herb.name] || []) required.add(method);
   for (const alternatives of AUDIT_VERIFIED_ONE_OF_SUPPLEMENTS[herb.name] || []) addOneOf(alternatives);
+  // 教材按规格分写的煎法：另一规格才有的那一种不归这味药（滑石不包煎）；知识库收了这味药却没有煎法条目、教材写了的补上
+  //（代赭石先煎、檀香后下、饴糖烊化…，textbookUsageMethods）。
+  for (const method of textbook?.otherForm || []) if (!textbook?.own.has(method)) required.delete(method);
+  for (const method of textbook?.own || []) {
+    if (!required.has(method) && !oneOf.some((alternatives) => alternatives.includes(method))) required.add(method);
+  }
   // 「捣碎」是**准备**指令，「同煎」是**时机**指令，两者不是一回事。
   //
   // 原实现把「捣碎」无条件升级成「捣碎后同煎」，于是已经要求「后下」的药会同时拿到
@@ -272,9 +317,33 @@ export function decoctionRuleSatisfied(value: string, declaration: string): bool
  * 时长取《中药学》总论：「附子、川乌、草乌等毒性大的药物，宜先煎45～60分钟后再下它药」；附子条：「先煎，久煎，口尝至无麻辣感为度」。
  * 煎服行（diagnosis-visible-summary）与随证加减的处理说明（m04-proposal-compiler）用这同一张表。
  */
+/**
+ * 药典【用法与用量】写了先煎时长、且远长于一般先煎 20–30 分钟的药（有限闭集，原文照录）：
+ *  · 水牛角：《中国药典》2020 一部「15～30g，宜先煎3小时以上」。此前煎服行与一般先煎并在一起写「水牛角先煎20–30分钟」
+ *   （2026-10-19 M 集 Claude 评审 RobustSDT-single_0232，清热地黄汤）。
+ * 只在这味药落在先煎一组时起作用（按 normalizedName 认写法）；水牛角浓缩粉冲服，不进先煎一组。组的顺序与编号不变。
+ */
+const PHARMACOPOEIA_LONG_DECOCTION: Readonly<Record<string, string>> = { 水牛角: "先煎3小时以上" };
+
+function firstDecoctionPhrase(herbs: string): string {
+  const names = herbs.split("、").filter(Boolean);
+  const long = new Map<string, string[]>();
+  const usual: string[] = [];
+  for (const name of names) {
+    const phrase = PHARMACOPOEIA_LONG_DECOCTION[normalizedName(name)];
+    if (phrase) long.set(phrase, [...(long.get(phrase) || []), name]);
+    else usual.push(name);
+  }
+  return [
+    ...[...long].map(([phrase, group]) => `${group.join("、")}${phrase}`),
+    ...(usual.length > 0 ? [`${usual.join("、")}先煎20–30分钟`] : []),
+  ].join("，");
+}
+
 export const SPECIAL_DECOCTION_ORDER: ReadonlyArray<{ pattern: RegExp; phrase: (herbs: string) => string }> = [
   { pattern: /久煎/, phrase: (herbs) => `${herbs}先煎45–60分钟（至口尝无麻辣感）` },
-  { pattern: /先煎/, phrase: (herbs) => `${herbs}先煎20–30分钟` },
+  // 药典写了先煎时长、比一般先煎长得多的（水牛角，见 PHARMACOPOEIA_LONG_DECOCTION）在这一组里单独写、写在前面（先下锅）。
+  { pattern: /先煎/, phrase: (herbs) => firstDecoctionPhrase(herbs) },
   { pattern: /后下/, phrase: (herbs) => `${herbs}后下` },
   { pattern: /包煎/, phrase: (herbs) => `${herbs}包煎` },
   { pattern: /另煎|另炖/, phrase: (herbs) => `${herbs}另煎兑入` },
@@ -291,6 +360,10 @@ export const SPECIAL_DECOCTION_ORDER: ReadonlyArray<{ pattern: RegExp; phrase: (
  *（2026-10-14 独立评审留出样本，含大黄的 5 例全中）。
  */
 export function specialDecoctionOrderIndex(name: string, declared = ""): number {
+  return specialDecoctionOrderIndexes(name, declared)[0] ?? -1;
+}
+
+function specialDecoctionRequirementText(name: string, declared: string): string {
   const rule = decoctionRuleForHerb(name);
   let rest = withoutUnsupportedDecoctionLabels(name, declared);
   const chosenAlternatives = (rule?.oneOf || []).map((alternatives) => {
@@ -300,14 +373,26 @@ export function specialDecoctionOrderIndex(name: string, declared = ""): number 
     for (const alternative of alternatives) rest = rest.split(alternative).join("");
     return named.length === 1 ? named[0] : alternatives[0];
   });
-  const requirement = [...(rule?.required || []), ...chosenAlternatives, rest].join("、").replace(/(?:禁止|不宜|不可|不得)[^、；;，,]*/g, "");
-  return SPECIAL_DECOCTION_ORDER.findIndex((item) => item.pattern.test(requirement));
+  return [...(rule?.required || []), ...chosenAlternatives, rest].join("、").replace(/(?:禁止|不宜|不可|不得)[^、；;，,]*/g, "");
 }
 
-/** 单味药的特殊煎法说明（「附子先煎45–60分钟（至口尝无麻辣感）」）；不必点名时为空串。 */
+/**
+ * 这味药在煎服行里要点名的各组。下药时机只取一组（specialDecoctionOrderIndex，即第一项）；包煎是包裹方式，与先煎（含久煎）、
+ * 后下并存——药典金礞石、青礞石「先煎、包煎」，《中药学》礞石「宜打碎布包先煎」。时机落在先煎或后下、同时要求包煎的，包煎一组
+ * 也点名（2026-10-19）：此前只取一组，药味表「先煎、包煎」，煎服行只写「金礞石先煎20–30分钟」。另煎、烊化、冲服、兑服不随群药
+ * 同煎，不再叠包煎。「排在包煎之前的组」即久煎、先煎、后下三组（SPECIAL_DECOCTION_ORDER 的顺序）。
+ */
+export function specialDecoctionOrderIndexes(name: string, declared = ""): number[] {
+  const requirement = specialDecoctionRequirementText(name, declared);
+  const first = SPECIAL_DECOCTION_ORDER.findIndex((item) => item.pattern.test(requirement));
+  if (first < 0) return [];
+  const wrap = SPECIAL_DECOCTION_ORDER.findIndex((item) => item.pattern.test("包煎"));
+  return first < wrap && SPECIAL_DECOCTION_ORDER[wrap].pattern.test(requirement) ? [first, wrap] : [first];
+}
+
+/** 单味药的特殊煎法说明（「附子先煎45–60分钟（至口尝无麻辣感）」）；不必点名时为空串。先煎又包煎的两组都写（「金礞石先煎20–30分钟，金礞石包煎」）。 */
 export function specialDecoctionPhrase(name: string, declared = ""): string {
-  const index = specialDecoctionOrderIndex(name, declared);
-  return index >= 0 ? SPECIAL_DECOCTION_ORDER[index].phrase(name) : "";
+  return specialDecoctionOrderIndexes(name, declared).map((index) => SPECIAL_DECOCTION_ORDER[index].phrase(name)).join("，");
 }
 
 /** 特殊煎法标注（改变下药时机或方式的那几种）。「捣碎」「打碎」是准备，不在此列。 */
@@ -321,10 +406,11 @@ const SPECIAL_DECOCTION_LABEL = /先煎|久煎|后下|包煎|另煎|另炖|烊�
  */
 export function supportedSpecialDecoctionLabels(value: string): Set<string> | undefined {
   const rule = decoctionRuleForHerb(value);
-  const usage = textbookHerbUsage(value);
+  const usage = textbookUsageMethods(value);
   if (!rule && !usage) return undefined;
   const supported = new Set<string>();
-  for (const method of [...(rule?.required || []), ...(rule?.oneOf || []).flat(), usage?.text || ""]) {
+  // 教材按规格分写时只看这一规格的那几句（「滑石粉包煎」不给「滑石」作出处）。
+  for (const method of [...(rule?.required || []), ...(rule?.oneOf || []).flat(), usage?.ownText || ""]) {
     for (const match of String(method).matchAll(SPECIAL_DECOCTION_LABEL)) supported.add(match[0]);
   }
   if (supported.has("另煎")) supported.add("另炖");

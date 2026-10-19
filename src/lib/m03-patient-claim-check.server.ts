@@ -1,4 +1,5 @@
 import "server-only";
+import { negativeFormClaim } from "./tcm-therapy-phrasing";
 
 import {
   CHINESE_NUMERAL_BEFORE_UNIT,
@@ -361,6 +362,21 @@ export function agreedPatientClaimRemovals(first: readonly PatientClaimRemoval[]
 }
 
 /**
+ * 交给复核的片段：两次都标到的，加上只有一次标到、但写成否定或无关的说法（「腹不胀大」「非时聚时散」「与咳唾呼吸无关」
+ *「大便不酸臭」「未见膨隆」）。2026-10-19 Claude 评审 M 集：鉴别区分点里这类病历没写的阴性 16 处判不合格，两次核对各标到一半，
+ * 交集把它们全丢了。复核一步只问「病历写没写到」，否定说法病历没写就是没写，误判面窄；肯定说法仍要两次一致。
+ */
+export function patientClaimCandidatesForVerification(first: readonly PatientClaimRemoval[], second: readonly PatientClaimRemoval[]): PatientClaimRemoval[] {
+  const candidates = agreedPatientClaimRemovals(first, second);
+  for (const item of [...first, ...second]) {
+    if (!negativeFormClaim(item.span)) continue;
+    if (candidates.some((existing) => existing.field === item.field && (existing.span.includes(item.span) || item.span.includes(existing.span)))) continue;
+    candidates.push({ field: item.field, span: item.span });
+  }
+  return candidates;
+}
+
+/**
  * 第二道：逐条复核「病历里有没有写到这句话的全部内容」（2026-10-19）。两次核对都标到、病历里却有同义写法或术语化写法的（「红斑风团」与
  *「风团色红」、「心痛如绞」与「压榨样胸痛」、「小便频数清」与「小便清长」）在留出集里占误删的大半；这一步只问一件事，复核说「写到了」就不删。
  * 只写到一部分（病历「隐痛」、说法「双侧隐痛」）照删。
@@ -445,7 +461,7 @@ async function patientClaimPass(
 
 /**
  * 对一半的内容做核对，返回可删的片段（不改内容，便于与同一半的其他收口并行、再按顺序落实）。
- * 两次核对并行（字段顺序一正一反），只取两次都标到的（agreedPatientClaimRemovals）；有标到的再逐条复核一次，复核说病历写到了的不删。
+ * 两次核对并行（字段顺序一正一反），只取两次都标到的，外加只标到一次的否定说法（patientClaimCandidatesForVerification）；有标到的再逐条复核一次，复核说病历写到了的不删。
  * 关闭、没有字段、未配置、任一次超时或输出非法都返回空数组。
  */
 export async function decidePatientClaimRemovals(
@@ -467,7 +483,7 @@ export async function decidePatientClaimRemovals(
     patientClaimPass(task, buildPatientClaimMessages(recordText, fields), fields, recordText, signal),
     patientClaimPass(task, buildPatientClaimMessages(recordText, [...fields].reverse()), fields, recordText, signal),
   ]);
-  const agreed = first && second ? agreedPatientClaimRemovals(first, second) : undefined;
+  const agreed = first && second ? patientClaimCandidatesForVerification(first, second) : undefined;
   let removals = agreed;
   if (agreed && agreed.length > 0) {
     const byId = new Map(fields.map((field) => [field.id, field.text]));

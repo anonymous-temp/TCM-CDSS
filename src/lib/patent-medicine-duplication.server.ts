@@ -6,6 +6,7 @@ import { requiredPrecautionsForCase } from "./required-precautions.server";
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { catalogSharedComposition } from "./tcm-formula-provenance";
 import { isKnownTcmHerbName } from "./tcm-knowledge";
+import { skinTopicalMedication } from "./delivered-surface";
 
 /**
  * 推荐的中成药与本方汤剂重复（2026-10-19，甲方标准病历三次复评，注意事项一栏每次都因此判不通过）：
@@ -140,4 +141,50 @@ export function patentMedicineDuplication(
   }
   const shared = [...new Set(herbs.filter((herb) => composition.has(herb.identity)).map((herb) => herb.identity))];
   return shared.length >= 2 ? { reason: "decoction_shared_herbs", herbs: shared } : undefined;
+}
+
+/**
+ * 解热镇痛抗炎药只推荐一种（2026-10-19 留出例 S145：急性痛风同时推荐依托考昔、对乙酰氨基酚、布洛芬三种；
+ * 独立评审：两种非甾体抗炎药并列、未注明二选一）。布洛芬、对乙酰氨基酚说明书写「不能同时服用其他含有解热镇痛药的药品」，
+ * 依托考昔、布洛芬说明书写「其他非甾体（类）抗炎药」。
+ * 不另立药理分类表，读说明书自己的话：说明书说到「其他非甾体抗炎药」「其他（含有）解热镇痛药」，这味药本身就属这一类
+ *（「其他」指的是同类的别的药）。两种说法合为一类——对乙酰氨基酚与布洛芬说明书互相禁止同服。
+ * 保留排在前面的那一行（规划器已按院内有货、与本例相关排序），其余同类行不推荐。读不到说明书文字的行不动。
+ */
+const ANALGESIC_CLASS_SELF_REFERENCE = /其他(?:含有)?(?:非甾体(?:类)?抗炎|解热[、，]?镇痛)/u;
+export function analgesicClassMember(medicine: { type?: unknown; name?: unknown; riskNote?: unknown; usageBoundary?: unknown }): boolean {
+  if (medicine.type !== "西药") return false;
+  const label = findLocalPatentMedicineLabel(String(medicine.name || ""));
+  const text = [medicine.riskNote, medicine.usageBoundary, label?.contraindication, label?.precaution, label?.interaction]
+    .map((value) => String(value || "")).join("\n");
+  return ANALGESIC_CLASS_SELF_REFERENCE.test(text);
+}
+
+export function withoutSameClassAnalgesics<T extends { type?: unknown; name?: unknown; route?: unknown; riskNote?: unknown; usageBoundary?: unknown }>(medicines: readonly T[]): T[] {
+  // 全身用（口服、栓剂）与皮肤外用各留一种：外涂的双氯芬酸乳胶剂不挤掉口服的布洛芬（已存输出回放 H-tri-6727）。
+  const kept = new Set<string>();
+  return medicines.filter((medicine) => {
+    if (!analgesicClassMember(medicine)) return true;
+    const key = skinTopicalMedication(String(medicine.name || ""), String(medicine.route || "")) ? "skin" : "systemic";
+    if (kept.has(key)) return false;
+    kept.add(key);
+    return true;
+  });
+}
+
+/**
+ * 同一种药的不同厂家说明书只推荐一行（2026-10-19 留出例 S145：「一枝篙伤湿祛痛膏」与「一枝蒿伤湿祛痛膏」同出一页）。
+ * 按去剂型的药名比；「篙」是说明书药名里「蒿」的误写（一枝蒿为菊科植物，「一枝篙」不是另一种药），比较前换回。
+ */
+const MEDICINE_NAME_VARIANTS: ReadonlyArray<[RegExp, string]> = [[/篙/gu, "蒿"]];
+export function withoutRepeatedMedicineNames<T extends { name?: unknown }>(medicines: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return medicines.filter((medicine) => {
+    let base = patentMedicineBaseName(String(medicine.name || ""));
+    for (const [pattern, replacement] of MEDICINE_NAME_VARIANTS) base = base.replace(pattern, replacement);
+    if (base.length < 2) return true;
+    if (seen.has(base)) return false;
+    seen.add(base);
+    return true;
+  });
 }

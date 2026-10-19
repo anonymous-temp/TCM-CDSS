@@ -54,14 +54,14 @@
       "id": "T8",
       "file": "tcm-formula-governed-catalog.json",
       "schemaVersion": "tcm-formula-governed-catalog-v2",
-      "sha256": "5f58ce8e1f7ea6857c7a108038472a8d46c589a0c9d4a253bd65a415b0d859da",
+      "sha256": "1539323119a41ed5c63e487395a7e5f6d9fc36e634c02168e5f05d4090269827",
       "recordCount": 3017
     },
     {
       "id": "T9",
       "file": "tcm-herb-identity-catalog.json",
       "schemaVersion": "tcm-herb-identity-catalog-v2",
-      "sha256": "46b2ad5604564e947bef2295f06199d0800d0439a4b1ec7796dc885970467c00",
+      "sha256": "02644f3de6a9c1db14519def971fd1089092247a420960ab90f6e11b744ba41c",
       "recordCount": 652
     },
     {
@@ -96,7 +96,7 @@
       "governanceTable": "T8",
       "file": "tcm-formula-retrieval-index.json",
       "schemaVersion": "tcm-formula-retrieval-index-v2",
-      "sha256": "e641859a78eeb3da02a2146683062797d446505457208227fbd62cba1909f7a3",
+      "sha256": "8e240987707f4588e973f9946b2e5b7a2bd9c984763dd0065573bebd36a0f105",
       "recordCount": 2951
     }
   ],

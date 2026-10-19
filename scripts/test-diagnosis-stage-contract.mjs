@@ -82,10 +82,12 @@ assert.match(requiredDecoctionRequirement("菟丝子") || "", /包煎/);
 for (const [herb, method] of [
   ["砂仁", /后下/], ["荆芥", /后下/], ["紫苏叶", /后下/], ["薄荷", /后下/],
   ["石膏", /先煎/], ["鱼腥草", /后下/], ["苦杏仁", /后下/], ["木香", /后下/],
-  ["莱菔子", /包煎/], ["紫苏子", /包煎/], ["车前子", /包煎/], ["滑石", /包煎/], ["龙骨", /先煎/],
+  ["莱菔子", /包煎/], ["紫苏子", /包煎/], ["车前子", /包煎/], ["滑石", /先煎/], ["滑石粉", /包煎/], ["龙骨", /先煎/],
   ["牡蛎", /先煎/], ["龟甲", /先煎/], ["鳖甲", /先煎/], ["鹿茸", /另煎|冲服/],
 ]) {
-  assert.match(requiredDecoctionRequirement(herb) || "", method, `${herb} must keep the method required by the live Lingxi common-herb calibration`);
+  // 滑石按规格（2026-10-19 第五轮）：药典 2020 滑石「先煎」、滑石粉「包煎」，《中药学》「滑石块先煎，滑石粉包煎」，《北京市中药饮片调剂规程》同列；
+  // 此前「滑石→包煎」对齐的是已下线的灵犀审方口径。
+  assert.match(requiredDecoctionRequirement(herb) || "", method, `${herb} must keep the method required by the pharmacopoeia / textbook`);
 }
 assert.match(requiredDecoctionRequirement("龙骨") || "", /先煎/);
 assert.match(getTcmHerbFunctionText("煅龙骨"), /重镇安神药/);
@@ -3831,8 +3833,16 @@ const duplicateHerbProposal = {
   },
   nonPharma: m04.nonPharma,
 };
-assert.match(m04ProposalIssueCode(duplicateHerbProposal, stable) || "", /candidate_herbs_1_name/, "duplicate herb rows are rejected before compilation and audit");
-assert.equal(compileM04Proposal(duplicateHerbProposal, stable), undefined, "duplicate herb rows can never become a signed prescription");
+// 2026-10-19 第五轮起同一身份的两行在归一化时合并成一行（m04-proposal-compiler mergeSameIdentityHerbRows：名称与位置取第一行，
+// 剂量取大，角色取高）：M 集 RobustSDT-single_0329 香苏散合良附丸两首都有香附，模型列两行，此前三轮都被这里的拒绝打回、整页无候选。
+// 不变的是「两行、两个剂量到不了审方与签名」：合并后只有一行、一个剂量。superRefine 的拒绝留作兜底。
+assert.equal(m04ProposalIssueCode(duplicateHerbProposal, stable), undefined, "duplicate herb rows are merged before validation instead of rejecting the proposal");
+{
+  const merged = compileM04Proposal(duplicateHerbProposal, stable);
+  const rows = (merged?.formula?.candidates[0].herbs || []).filter((herb) => herb.name === "酸枣仁");
+  assert.equal(rows.length, 1, "duplicate herb rows never reach the signed prescription as two rows");
+  assert.equal(rows[0].dose, "10g", "the merged row carries one dose (the larger submitted one)");
+}
 for (const [leftName, rightName] of [["黄芪", "黄耆"], ["延胡索", "元胡"]]) {
   const identityDuplicateProposal = {
     ...duplicateHerbProposal,
@@ -3845,8 +3855,10 @@ for (const [leftName, rightName] of [["黄芪", "黄耆"], ["延胡索", "元胡
       })),
     },
   };
-  assert.match(m04ProposalIssueCode(identityDuplicateProposal, stable) || "", /candidate_herbs_1_name/, `${leftName}/${rightName} share one governed proposal identity`);
-  assert.equal(compileM04Proposal(identityDuplicateProposal, stable), undefined, `${leftName}/${rightName} cannot reach audit as two rows and two doses`);
+  // 同上（第五轮合并）：同一身份的两种写法并成一行，仍到不了审方的两行两剂量。
+  assert.equal(m04ProposalIssueCode(identityDuplicateProposal, stable), undefined, `${leftName}/${rightName} share one governed proposal identity and are merged`);
+  const mergedIdentity = compileM04Proposal(identityDuplicateProposal, stable);
+  assert.equal((mergedIdentity?.formula?.candidates[0].herbs || []).length, 1, `${leftName}/${rightName} cannot reach audit as two rows and two doses`);
 }
 const independentlyCataloguedHerbsProposal = {
   ...duplicateHerbProposal,
@@ -5130,7 +5142,8 @@ console.log(JSON.stringify({ cases: 382, failures: 0 }));
   const normalized = normalizeM03WesternDifferentials(`${S}\n${JSON.stringify(reasoning)}\n${E}`, "主诉：头晕");
   const differentials = JSON.parse(normalized.split(S)[1].split(E)[0]).westernDiagnosis.differentials;
   const names = differentials.map((item) => item.name);
-  for (const expected of ["良性阵发性位置性眩晕", "前庭性偏头痛", "慢性阻塞性肺疾病", "慢性肺源性心脏病", "肠易激综合征", "心律失常（如心房颤动等）"]) {
+  // 2026-10-19 第五轮起拆出的几个病名合成一条「A、B」（理由逐字相同的几条鉴别判西医冗杂，甲方病历 3、10）。
+  for (const expected of ["良性阵发性位置性眩晕、前庭性偏头痛", "慢性阻塞性肺疾病、慢性肺源性心脏病", "肠易激综合征", "心律失常（如心房颤动等）"]) {
     assert.ok(names.includes(expected), `拆分后应含 ${expected}，实得 ${names.join("｜")}`);
   }
   assert.ok(!names.some((name) => /^(?:腹泻型|混合型)$/.test(name)), "括注里的分型不是另一个诊断");

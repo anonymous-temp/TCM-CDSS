@@ -416,7 +416,8 @@ const checkAsync = async (name, run) => {
   check("4.1 眩晕·肾精不足（虚证）：只用教材虚证那一套——治法、主穴、操作都不带实证的内容", () => {
     const card = acupuncture(dizzy("肾精不足证", "补肾填精", "肾精亏虚，髓海不足"), caseOf("头晕反复2年", dizzyFacts, 50));
     assert.ok(card, "应有针刺方案");
-    assert.match(card.treatmentContent, /^治法：补益气血，益精填髓/);
+    // 2026-10-19 第五轮：按本例证型配了穴时，卡上的治法写已签名的治法（留出例 S131、S132 曾印本病通用治法），此前写教材虚证那一套的治法。
+    assert.match(card.treatmentContent, /^治法：补肾填精。/);
     assert.doesNotMatch(`${card.treatmentContent}${card.techniqueBoundary}`, /实证|平肝潜阳|\|/);
     const names = pointNames(card);
     for (const point of ["肝俞", "肾俞", "足三里"]) assert.ok(names.includes(point), `虚证主穴 ${point}：${names.join("、")}`);
@@ -428,7 +429,8 @@ const checkAsync = async (name, run) => {
     assert.match(excess.treatmentContent, /^治法：平肝潜阳(?!，和胃化痰)/);
     assert.ok(pointNames(excess).includes("太冲") && !pointNames(excess).includes("肾俞"), pointNames(excess).join("、"));
     const mixed = acupuncture(dizzy("气虚血瘀证", "益气活血", "气虚血瘀，清窍失养"), caseOf("头晕反复2年", dizzyFacts, 50));
-    assert.match(mixed.treatmentContent, /实证：[\s\S]*虚证：/, "判不出虚实时沿用教材两套并列的写法");
+    // 2026-10-19 第四、五轮：判不出时取穴说明按套写明（「实证取…；虚证取…」），治法写已签名的那一条。
+    assert.match(mixed.treatmentContent, /实证[：取][\s\S]*虚证[：取]/, "判不出虚实时沿用教材两套并列的写法");
   });
   check("4.3 老年人针刺：操作栏先写针刺量宜小；高血压专篇的长留针疗程不套到血压正常的老人身上", () => {
     const prior = dizzy("肾精不足证", "补肾填精", "肾精亏虚，髓海不足");
@@ -502,7 +504,8 @@ const checkAsync = async (name, run) => {
     assert.equal(matched("配穴按虚补实泻法操作。", "肾精不足证"), "配穴按虚补实泻法操作。");
     assert.equal(matched("毫针泻法或平补平泻法。", "肝肾阴虚证"), "毫针泻法或平补平泻法。");
     assert.equal(matched("毫针补法，可灸。", "气虚血瘀证"), "毫针补法，可灸。", "虚实夹杂不改");
-    assert.equal(matched("毫针常规刺，泻法。", "肾精不足证"), "针用补法。");
+    // 2026-10-19 第五轮：只换说补泻的那一小句，同句其余小句照留（S011「…，每日或隔日治疗1次」整句换掉后频次丢失）。
+    assert.equal(matched("毫针常规刺，泻法。", "肾精不足证"), "毫针常规刺，针用补法。");
     assert.equal(matched("留针用补法；毫针补法。", "肝火扰心证"), "针用泻法；", "同一段里只写一次");
   });
   check("4.9 出卡处的疗程栏、操作栏不写「复评」「课程索引」：胃脘痛针刺卡、食疗卡、失眠意疗卡（JSON、正文、页面同一份）", () => {
@@ -1439,7 +1442,7 @@ const checkAsync = async (name, run) => {
       const out = normalizeM03WesternDifferentials(content, "腰痛半年，大小便正常。", 70);
       return JSON.parse(out.slice(out.indexOf("-->") + 3, out.lastIndexOf("<!--"))).westernDiagnosis.differentials.map((item) => item.name);
     };
-    assert.deepEqual(run("泌尿系结石/感染"), ["泌尿系结石", "泌尿系感染"]);
+    assert.deepEqual(run("泌尿系结石/感染"), ["泌尿系结石、泌尿系感染"]); // 第四轮起合成一条
     const unborrowed = run("感染/肿瘤");
     // 2026-10-19 第四轮：拆出只剩「感染」这类诱因词的整行不拆（原样「感染/肿瘤」一条），不臆造「X感染」的要求不变。
     assert.ok(unborrowed.some((name) => name.includes("感染")) && !unborrowed.some((name) => name.length > 2 && name.endsWith("感染") && !name.includes("/")), JSON.stringify(unborrowed));
@@ -1789,7 +1792,10 @@ check("15.21 提示词原则：追问题干只问一件事；急症筛查可答�
     const out = (precautions) => projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {}, formula: { candidates: [{ name: "天麻钩藤饮加减", herbs: [] }] },
       nonPharma: { precautions, acupointCare: null, tcmTreatments: [] } }, { requiredPrecautions: items }).nonPharma.precautions;
     assert.match(out(["饮食宜清淡。"])[0], /苯磺酸氨氯地平片.*告知医生/);
-    assert.equal(out(["正在服用的降压药请继续按时服用并告知医生。"]).length, 1);
+    // 2026-10-19 第五轮：在用药逐个核点名（Claude 评审 M 集 J 模块：「服阿司匹林期间注意出血」一句点到阿司匹林就算整项写到，
+    // 其余降糖、调脂药一个没提；「如正在服用其他药物请告知医生」这种泛泛一句也算写到）。只说「降压药」不再算写到，补点名的那句；点了名的照旧不补。
+    assert.equal(out(["正在服用的降压药请继续按时服用并告知医生。"]).length, 2);
+    assert.equal(out(["正在服用的苯磺酸氨氯地平片请继续按时服用并告知医生。"]).length, 1);
   });
   check("15.23 方中有药典标注有毒的药（附子、半夏、苦杏仁）而注意事项没提时补一句；已提到的、没有有毒药的不补（对照）", () => {
     const out = (herbs, precautions) => projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {}, formula: { candidates: [{ name: "四逆汤加减", herbs: herbs.map((name) => ({ name, dose: "9g" })) }] },
@@ -1968,8 +1974,11 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
     // 12 岁以下不套写明留针时长的疗程（S161 9 岁患儿拿到老年便秘方案的「留针20分钟」）。
     const child = plan.textbookTreatmentPlan({ projectCode: "acupuncture", diseaseNames: ["便秘"], westernNames: ["便秘"], signedSyndromeText: "燥热便秘", currentFacts: "大便干结 腹胀", patientAgeYears: 9 });
     assert.ok(!child || !/得气后留针20分钟|留针30 min/.test(String(child.scheduleSuggestion || "")), child?.scheduleSuggestion);
+    // 2026-10-19 第五轮：该频次出自《老年便秘（老年功能性便秘）中医诊疗方案》，60 岁以下不引用（留出例 S055，36 岁热秘）。
     const adult = plan.textbookTreatmentPlan({ projectCode: "acupuncture", diseaseNames: ["便秘"], westernNames: ["便秘"], signedSyndromeText: "燥热便秘", currentFacts: "大便干结 腹胀", patientAgeYears: 40 });
-    assert.match(String(adult?.scheduleSuggestion || ""), /得气后留针20分钟/, "成人照常（对照）");
+    assert.doesNotMatch(String(adult?.scheduleSuggestion || ""), /老年便秘|得气后留针20分钟/, adult?.scheduleSuggestion);
+    const elderly = plan.textbookTreatmentPlan({ projectCode: "acupuncture", diseaseNames: ["便秘"], westernNames: ["便秘"], signedSyndromeText: "燥热便秘", currentFacts: "大便干结 腹胀", patientAgeYears: 70 });
+    assert.match(String(elderly?.scheduleSuggestion || ""), /得气后留针20分钟/, "老年照常（对照）");
     const schedules = JSON.parse(readFileSync("src/data/tcm-nondrug-web-schedules.source.json", "utf8")).entries;
     for (const entry of schedules.filter((item) => item.sourceId === "W-G4-57" || item.sourceId === "W-G4-58")) {
       assert.ok(Array.isArray(entry.requiresWesternContext) && entry.requiresWesternContext.length > 0, `${entry.sourceId} ${entry.modality}`);

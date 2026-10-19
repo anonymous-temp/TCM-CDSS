@@ -419,7 +419,8 @@ check("10.1 「主治含X」只读病历当前阳性面：「发病后无发热�
 
 check("10.2 小儿不写深刺、重刺激：9 岁患儿痹证卡不印「病在筋骨可深刺」（H-tri-3721）；成人照写（对照）", () => {
   const text = "毫针常规刺，病在筋骨可深刺，可用电针。";
-  assert.equal(plan.operationClausesForAge(text, 9), "毫针常规刺，可用电针。");
+  // 第五轮后半（r1019-round5-cards 5.17）：小儿也不写电针——同一病例 H-tri-3721 的复评点名「可用电针」与「浅刺快出」相抵。
+  assert.equal(plan.operationClausesForAge(text, 9), "毫针常规刺。");
   assert.equal(plan.operationClausesForAge(text, 40), text);
 });
 
@@ -434,6 +435,77 @@ check("10.4 注意事项提到本例没给的食疗时整条不留（H-tri-10295
   const line = "针刺与食疗须在专科评估后由医师安排，勿自行操作。";
   assert.equal(cap.precautionMentionsUndeliveredTreatment(line, new Set(["acupuncture"])), true);
   assert.equal(cap.precautionMentionsUndeliveredTreatment(line, new Set(["acupuncture", "diet_therapy"])), false);
+});
+
+// ── 11 第五轮（2026-10-19，21b9bef 上留出 32 例与甲方 10 例的 Claude 评审）─────────────
+check("11.1 卡面「针对本例…」部位连同同句不适写（「胃脘不舒服」「胃脘胀满」，S077、S158），「不消化的食物」不写成「消化」（S054），脏腑名「胃肠、脾胃」不写；直写的症状照写（对照）", () => {
+  assert.deepEqual(cap.indicationEvidenceTerms("digestive", "吃得少,吃完饭胃脘就不舒服,全身倦怠"), ["胃脘不舒服"]);
+  assert.deepEqual(cap.indicationEvidenceTerms("digestive", "不思饮食、腹胀2周；胃脘、腹部胀满"), ["腹胀", "胃脘胀满"]);
+  assert.deepEqual(cap.indicationEvidenceTerms("digestive", "晨起腹泻,泻后腹痛即止,大便稀薄,夹有不消化的食物"), ["腹泻", "腹痛"]);
+  assert.deepEqual(cap.indicationEvidenceTerms("digestive", "消化不良半年，胃肠功能紊乱"), ["消化不良"]);
+});
+
+check("11.2 「主治含X」：症状词后面紧跟「时」是另一件事的情形——「咳嗽或大笑时有漏尿」不算咳嗽（S114 太溪）；直写的咳嗽照算（对照）", () => {
+  assert.deepEqual(cap.acupointCaseTerms("小便次数多,咳嗽或大笑时有漏尿"), []);
+  assert.deepEqual(cap.acupointCaseTerms("咳嗽时胸痛"), ["胸痛"], "胸痛是本例症状，咳嗽只是它发生的情形");
+  assert.deepEqual(cap.acupointCaseTerms("咳嗽2天，咽痒"), ["咳嗽"]);
+});
+
+check("11.3 两字证型名开头的条件句：「血寒、血虚、肾虚可加灸」对痰湿证去掉（S102、X-H-0264），对肾虚证照留（对照）", () => {
+  const text = "毫针常规刺。血寒、血虚、肾虚可加灸。";
+  assert.equal(plan.cardSentencesMatchedToSyndrome(text, ["月经后期"], "痰湿证"), "毫针常规刺。");
+  assert.equal(plan.cardSentencesMatchedToSyndrome(text, ["月经后期"], "肾虚证"), text);
+  assert.equal(plan.cardSentencesMatchedToSyndrome("毫针常规刺。局部可加拔罐。", ["月经后期"], "痰湿证"), "毫针常规刺。局部可加拔罐。", "「局部」不是证型（对照）");
+});
+
+check("11.4 食疗疗程栏不把做法步骤当服法：「加白糖拌匀服」（S046 白糖番茄）不进疗程栏；方子自己写的服法照写（对照）", () => {
+  const hiccup = diet({ diseaseNames: ["呃逆"], signedSyndromeText: "胃火上逆证", currentFacts: "呃声洪亮，口臭烦渴" });
+  assert.match(hiccup.treatmentContent, /白糖番茄/);
+  assert.doesNotMatch(hiccup.scheduleSuggestion, /拌匀/, hiccup.scheduleSuggestion);
+  const vomit = diet({ diseaseNames: ["呕吐"], signedSyndromeText: "脾胃阳虚证", currentFacts: "呕吐清水，喜暖畏寒" });
+  assert.match(vomit.scheduleSuggestion, /趁热频服/);
+});
+
+check("11.5 疗程栏只放频次那几小句，补泻只改那一小句：咳嗽卡疗程栏是「每日或隔日治疗1次」、不是「针用泻法」（S011、S151）；痛风卡的齐刺留在操作栏、疗程栏只写「每日1~2次」（S145）", () => {
+  assert.equal(plan.manipulationMatchedToSyndrome("内伤咳嗽针用平补平泻或补法，每日或隔日治疗1次。", "痰热郁肺证", "实则泻之"), "针用泻法，每日或隔日治疗1次。");
+  const cough = acupuncture({ diseaseNames: ["咳嗽"], signedSyndromeText: "痰热郁肺证", signedPrinciple: "实则泻之", currentFacts: "咳嗽痰黄" });
+  assert.match(cough.scheduleSuggestion, /^每日或隔日治疗1次。/, cough.scheduleSuggestion);
+  const gout = acupuncture({ diseaseNames: ["痛风"], signedSyndromeText: "湿热阻痹", signedPrinciple: "实则泻之", currentFacts: "右足第一跖趾关节红肿热痛" });
+  assert.match(gout.scheduleSuggestion, /^每日1~2次。/, gout.scheduleSuggestion);
+  assert.match(gout.techniqueBoundary, /齐刺/);
+  assert.doesNotMatch(gout.scheduleSuggestion, /齐刺/);
+});
+
+check("11.6 人群、病程专篇的频次：36 岁热秘不引用老年便秘方案（S055），70 岁照引（对照）；急性荨麻疹不引用慢性荨麻疹方案（S128），慢性荨麻疹照引（对照）", () => {
+  const young = acupuncture({ diseaseNames: ["便秘"], westernNames: ["便秘"], signedSyndromeText: "热秘", currentFacts: "大便干结5天", patientAgeYears: 36 });
+  assert.doesNotMatch(young.scheduleSuggestion, /老年便秘/);
+  const old = acupuncture({ diseaseNames: ["便秘"], westernNames: ["便秘"], signedSyndromeText: "热秘", currentFacts: "大便干结5天", patientAgeYears: 72 });
+  assert.match(old.scheduleSuggestion, /老年便秘/);
+  const acute = acupuncture({ diseaseNames: ["瘾疹"], westernNames: ["急性荨麻疹"], signedSyndromeText: "胃肠湿热证", currentFacts: "全身风团伴腹痛1天", chiefComplaint: "全身风团伴腹痛1天" });
+  assert.doesNotMatch(acute.scheduleSuggestion, /慢性荨麻疹/);
+  const chronic = acupuncture({ diseaseNames: ["瘾疹"], westernNames: ["慢性荨麻疹"], signedSyndromeText: "胃肠湿热证", currentFacts: "风团反复发作半年", chiefComplaint: "风团反复发作半年" });
+  assert.match(chronic.scheduleSuggestion, /慢性荨麻疹/);
+});
+
+check("11.7 按证型配了穴时治法写已签名的那一条（S131 脾虚湿蕴、S132 血虚风燥曾印「清热利湿，润燥息风」）；没配上证型时照旧只写按病取的主穴（对照）；「以…为主」的取穴说明照留（颤证）", () => {
+  const spleen = acupuncture({ diseaseNames: ["湿疮"], signedSyndromeText: "脾虚湿蕴证", signedMethod: "健脾利湿止痒", currentFacts: "双手皮疹瘙痒，纳差，大便溏" });
+  assert.match(spleen.treatmentContent, /^治法：健脾利湿止痒。取皮损局部和足太阴经穴为主。本例属脾虚湿蕴/, spleen.treatmentContent);
+  assert.doesNotMatch(spleen.treatmentContent, /清热利湿，润燥息风/);
+  const untailored = acupuncture({ diseaseNames: ["湿疮"], signedSyndromeText: "湿瘀互结证", signedMethod: "利湿化瘀", currentFacts: "皮损肥厚" });
+  assert.match(untailored.treatmentContent, /^按病取基本穴/, untailored.treatmentContent);
+  const tremor = acupuncture({ diseaseNames: ["颤证"], signedSyndromeText: "气血亏虚证", signedMethod: "益气养血，濡养筋脉", currentFacts: "震颤，乏力，心悸" });
+  assert.match(tremor.treatmentContent, /^治法：益气养血，濡养筋脉。以督脉、足厥阴、足少阳经穴为主。/, tremor.treatmentContent);
+});
+
+check("11.8 牙痛耳穴「上颌或下颌」按牙位取（甲方病历 7 右下牙痛只取下颌），牙位没写时两个都留（对照）；疗程栏写了换贴间隔或留针时长时，技术边界不再并列「留置3～7天」（病历 7、8）", () => {
+  const lower = project("auricular", { diseaseNames: ["牙痛"], signedSyndromeText: "胃火牙痛", currentFacts: "右侧下牙持续性胀痛" });
+  assert.ok(names(lower).includes("下颌") && !names(lower).includes("上颌"), JSON.stringify(names(lower)));
+  const unknown = project("auricular", { diseaseNames: ["牙痛"], signedSyndromeText: "胃火牙痛", currentFacts: "牙痛3天" });
+  assert.ok(names(unknown).includes("上颌") && names(unknown).includes("下颌"));
+  assert.match(lower.scheduleSuggestion, /隔日换贴/);
+  assert.doesNotMatch(lower.techniqueBoundary, /留置3～7天/, lower.techniqueBoundary);
+  const stomach = project("auricular", { diseaseNames: ["呃逆"], signedSyndromeText: "胃气上逆证", currentFacts: "呃逆频作" });
+  assert.match(stomach.techniqueBoundary, /留置3～7天/, "疗程栏没写间隔时照写（对照）");
 });
 
 console.log(JSON.stringify({ suite: "r1019-round4-cards", cases, failures: failures.length }));

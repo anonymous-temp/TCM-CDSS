@@ -134,7 +134,8 @@ export function resolveTherapyPhrase<T>(
  */
 export function dietRestrictionForSyndromeText(syndromeText: string): string {
   const parts: string[] = [];
-  if (/寒|阳虚|阳衰|火衰/u.test(syndromeText)) parts.push("忌食生冷寒凉");
+  // 「阳气虚衰证」「阳气不足」也是阳虚（2026-10-19 留出集 S188：低体温、手脚冰凉，忌口落到了兜底的「清淡、少食辛辣油腻」）。
+  if (/寒|阳虚|阳衰|火衰|阳气(?:虚|不足|衰)/u.test(syndromeText)) parts.push("忌食生冷寒凉");
   // 不写「少饮酒」（2026-10-19 甲方复评：与「须戒酒」「忌酒」同屏相抵，也写给了不饮酒的人）；饮酒的戒酒由调用方按病历另加。
   if (/热|火(?!衰)|阴虚/u.test(syndromeText)) parts.push("忌食辛辣温燥");
   if (/湿|痰|饮/u.test(syndromeText)) parts.push("少食肥甘厚腻与甜黏之品");
@@ -172,20 +173,23 @@ export function recordedTriggerFoods(text: string): string[] {
  * 「辨证依据自述兼有X / 为X之兼象 / 化热 / 气阴两伤，兼证栏却写无」）。只认肯定说法：否认、鉴别、暂不支持的分句不算。
  * 闭集：病机词（不足/亏虚/两伤/化热/湿热/气滞/瘀阻…）与兼夹标记词；是否被主证覆盖按病性字比对（气血阴阳、寒热湿痰瘀滞郁饮）。
  */
-const MECHANISM_PHRASE = /(?:心|肝|脾|肺|肾|胃|胆|肠|膀胱|胞宫|冲任)?(?:气阴|气血|阴液|阴血|精血|气|血|阴|阳|津|精)(?:不足|亏虚|亏损|两伤|两虚|耗伤|不固)|化热|化火|湿热|痰热|痰湿|湿浊|寒湿|水湿|水饮|痰饮|血瘀|瘀血|瘀阻|瘀滞|气滞|气郁|肝郁|肝气不舒|兼象|之兼|兼见|兼及|同病|夹杂|夹有/u;
-const SECONDARY_MECHANISM_MARKER = /兼象|之兼|兼见|兼及|同病|夹杂|夹有/u;
+const MECHANISM_PHRASE = /(?:心|肝|脾|肺|肾|胃|胆|肠|膀胱|胞宫|冲任)?(?:气阴|气血|阴液|阴血|精血|气|血|阴|阳|津|精)(?:不足|亏虚|亏损|两伤|两虚|耗伤|不固)|化热|化火|湿热|痰热|痰湿|湿浊|寒湿|水湿|水饮|痰饮|血瘀|瘀血|瘀阻|瘀滞|气滞|气郁|肝郁|肝气不舒|兼象|之兼|兼见|兼及|同病|夹杂|夹有|兼夹|为兼|属兼/u;
+// 「为兼夹之象」「胃肠症状属兼夹」「下元不足为兼」也是自称兼夹（2026-10-19 Claude 评审 M 集 0516、0501、test-65、BEST4SDT-6：兼证栏仍是无）。
+const SECONDARY_MECHANISM_MARKER = /兼象|之兼|兼见|兼及|同病|夹杂|夹有|兼夹|为兼|属兼/u;
 const MECHANISM_MARKER_ONLY = new RegExp(`^(?:${SECONDARY_MECHANISM_MARKER.source})$`, "u");
 /** 分句自称兼夹（「为肝气不舒之兼象」「心脾同病」）。 */
 export function declaresSecondaryMechanism(clause: string): boolean {
   return SECONDARY_MECHANISM_MARKER.test(clause);
 }
-const MECHANISM_NOT_ASSERTED = /非|无|未|不另|不作|不立|不支持|不归|不属|不取|暂不|尚不|待定|待查|孰|排除|鉴别|相别|相区分|而非|不足以|尚欠/u;
+// 「无力」「无华」是体征词，不是否认（「双尺重按无力示下元不足为兼」，BEST4SDT-6）；「是否兼夹…尚待补充」「暂难细辨」是存疑，不是断言。
+const MECHANISM_NOT_ASSERTED = /非|无(?!力|华|神|泽|根)|未|不另|不作|不立|不支持|不归|不属|不取|暂不|尚不|暂难|尚待|是否|待定|待查|孰|排除|鉴别|相别|相区分|而非|不足以|尚欠/u;
 const NATURE_KEY: Readonly<Record<string, string>> = { 气: "气", 血: "血", 阴: "阴", 阳: "阳", 津: "阴", 精: "精", 热: "热", 火: "热", 湿: "湿", 痰: "痰", 寒: "寒", 瘀: "瘀", 滞: "滞", 郁: "郁", 饮: "饮", 水: "湿" };
 const natureKeys = (value: string) => new Set([...value].map((char) => NATURE_KEY[char]).filter(Boolean));
 export function mechanismClaimsUncoveredBy(primarySyndrome: string, ...values: string[]): string[] {
   const covered = natureKeys(primarySyndrome);
   return values.flatMap((value) => String(value || "").split(/[，,。；;]/u)).map((clause) => clause.trim()).filter((clause) => {
-    if (!clause || MECHANISM_NOT_ASSERTED.test(clause)) return false;
+    // 「属兼夹而非主证」「兼夹表邪未净」是在断言兼夹（非主证＝是兼证；未净＝仍在），这几处「非/未」不算否认（BEST4SDT-194、MTCMB-41）。
+    if (!clause || MECHANISM_NOT_ASSERTED.test(clause.replace(/而?非主证|未净|未尽|未除|未清/gu, ""))) return false;
     const phrase = clause.match(MECHANISM_PHRASE)?.[0];
     if (!phrase) return false;
     if (MECHANISM_MARKER_ONLY.test(phrase)) return true;
@@ -196,6 +200,21 @@ export function mechanismClaimsUncoveredBy(primarySyndrome: string, ...values: s
 // 「兼/夹 + 病性」的兼夹说法（m03-secondary-syndrome-consistency 的触发判据）。病性收尾也认「不足/不固/失养/不和/上亢」：
 //「兼有肺气不足」此前漏判，辨证依据写了兼夹、兼证栏却是空的（2026-10-19 验收主集 RobustSDT-single_0467/0311）。
 const SECONDARY_PATTERN_CLAIM = /(?<![无未不非没])[兼夹](?![顾治以备职])[有见杂]?[一-鿿]{0,8}?(?:[虚亏湿痰瘀热寒郁滞风燥火饮浊积]|不足|不固|失养|不和|上亢)/u;
+/**
+ * 依据里「不另立兼证」一类的分句（「痰湿尚未成独立证候，暂作兼夹因素处理」「主证可释」）。兼证核对补上兼证之后，这些分句与兼证栏相抵，
+ * 要一并去掉（2026-10-19 Claude 评审 M 集 MTCMB-21、MTCMB-90）。
+ */
+const SECONDARY_DENIAL_CLAUSE = /不另立|不单立|不另列|未成独立|尚未成独立|暂作兼夹|主证(?:即|已|足以)?可(?:以)?(?:解)?释|主证可概/u;
+export function deniesSeparateSecondaryPattern(clause: string): boolean {
+  return SECONDARY_DENIAL_CLAUSE.test(clause);
+}
+
+/** 病历事实核对里写成否定或无关的说法（「腹不胀大」「非时聚时散」「与咳唾呼吸无关」），见 m03-patient-claim-check。 */
+const NEGATIVE_FORM_CLAIM = /不|非|无关|未见|未有|无/u;
+export function negativeFormClaim(span: string): boolean {
+  return NEGATIVE_FORM_CLAIM.test(span);
+}
+
 export function claimsSecondaryPattern(clause: string): boolean {
   return SECONDARY_PATTERN_CLAIM.test(clause);
 }
@@ -203,7 +222,7 @@ export function claimsSecondaryPattern(clause: string): boolean {
 /**
  * 治法里意思重复的短语只留一个（2026-10-19 Claude 评审 M/H 集「清利湿热，清热利湿」「平肝潜阳，和胃化湿，通络止痛，化湿和胃」
  * 「息风化痰，活血通络，熄风化痰止痛」）：教材治法与模型按本例补的半句拼在一起时常见。按字面判：一个短语的字（熄=息）全都出现在
- * 另一个不短于它的短语里，就是重复，去掉它；字相同时留先出现的。意思相近但用字不同的（「和血通络」「活血通络」）不动。
+ * 另一个不短于它的短语里，就是重复，去掉它；字相同时留先出现的。两个四字短语只差第一个字的（「和血通络」「活血通络」）也算重复。
  */
 export function withoutRedundantTherapyPhrases(method: string): string {
   const text = String(method || "");
@@ -211,7 +230,10 @@ export function withoutRedundantTherapyPhrases(method: string): string {
   const phrases = parts.filter((_, index) => index % 2 === 0);
   const chars = (phrase: string) => new Set([...phrase.replace(/熄/gu, "息").replace(/[^\u4e00-\u9fff]/gu, "")]);
   const sets = phrases.map(chars);
+  // 两个四字治法只差第一个字（「和血通络，活血通络」「补气养血，益气养血」）：意思相同，留前一个（2026-10-19 Claude 评审 M 集 SD-451922 判冗杂）。
+  const nearSynonym = (left: string, right: string) => left.length === 4 && right.length === 4 && left !== right && left.slice(1) === right.slice(1);
   const drop = phrases.map((phrase, index) => {
+    if (phrases.some((other, at) => at < index && nearSynonym(other.trim(), phrase.trim()))) return true;
     const own = sets[index];
     if (own.size < 3) return false;
     return phrases.some((other, at) => at !== index && sets[at].size >= own.size && (sets[at].size > own.size || at < index) &&

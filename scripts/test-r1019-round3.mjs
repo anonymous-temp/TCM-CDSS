@@ -312,8 +312,8 @@ await check("6.13 西医鉴别拆分：「腰椎感染/结核」→ 腰椎感染
     westernDiagnosis: { primary: { name: "腰痛", supportingFacts: [] }, differentials: [{ name, reason: "需排除", distinguishingPoints: "需影像评估", nextCheck: "影像检查" }] },
     pathogenesis: { chain: [] },
   }), "主诉：腰痛3个月")).westernDiagnosis.differentials.map((item) => item.name);
-  assert.deepEqual(split("腰椎感染/结核"), ["腰椎感染", "腰椎结核"]);
-  assert.deepEqual(split("膈肌/胸部病变"), ["膈肌病变", "胸部病变"]);
+  assert.deepEqual(split("腰椎感染/结核"), ["腰椎感染、腰椎结核"]); // 第四轮起合成一条「A、B」，不拆成理由相同的两条
+  assert.deepEqual(split("膈肌/胸部病变"), ["膈肌病变、胸部病变"]);
   const review = await jiti.import("../src/lib/formula-analysis-review.ts");
   const knowledge = await jiti.import("../src/lib/tcm-knowledge.ts");
   const herbs = ["熟地黄", "山药", "山茱萸", "枸杞子", "菟丝子", "鹿角胶", "龟甲胶", "牛膝"];

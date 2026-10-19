@@ -1,5 +1,6 @@
-import { textbookFormulaNames, textbookNearestRow, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { textbookFormulaNames, textbookNearestRow, textbookRowForSyndrome, therapyWithoutUnsupportedSymptomItems } from "./tcm-textbook-syndromes";
 import { herbBoundaryTail, stripHerbBoundaryTail } from "./candidate-boundary-text";
+import { withoutWithheldBaseIngredientNote } from "./formula-withheld-ingredient-note";
 import formulaCatalogJson from "../data/tcm-formula-sources.json" with { type: "json" };
 import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.json" with { type: "json" };
 import governedFormulaCatalogJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
@@ -283,7 +284,7 @@ function replaceLiteralFormulaClaims(value: string, names: string[], replacement
  * 「散」后面接着成词（散结、散寒、散瘀…）时是药名加动词，不是方名：「木香行气散结」被当成方名「木香行气散」换成「本方案」，
  * 方义成了「本方结」（2026-10-18 留出集 S067）。构词式守卫，只看紧跟的一个字；方名识别与方名替换共用。
  */
-function formulaNameIsVerbPhrase(name: string, rightContext: string): boolean {
+export function formulaNameIsVerbPhrase(name: string, rightContext: string): boolean {
   return name.endsWith("散") && /^[结寒瘀邪风热湿郁血肿痞滞表火毒]/u.test(rightContext);
 }
 
@@ -1374,7 +1375,11 @@ export function withSymptomDirectedClause(rowMethod: string, modelMethod: string
   return `${rowMethod}，${tail}`;
 }
 
-export function withDeterministicFormulaReferences(input: ClinicalReasoningResultV2): ClinicalReasoningResultV2 {
+/**
+ * @param clinicalSourceText 病历原文（接地语料，M03 路径的 structuredClinicalContext）。给了时，锚定的教材治法逐项核对
+ *   对症项（止血、安神、开窍…）：病历没有对应表现的项不锚定（therapyWithoutUnsupportedSymptomItems）。不给时与此前完全一致。
+ */
+export function withDeterministicFormulaReferences(input: ClinicalReasoningResultV2, clinicalSourceText?: string): ClinicalReasoningResultV2 {
   const reasoning = input.stage === "diagnose" ? withTextbookSyndromeName(input) : input;
   if (reasoning.stage === "diagnose") {
     const direction = textbookAnchoredFormulaDirection(reasoning);
@@ -1401,8 +1406,22 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     const rowMethod = conditionalBranches
       ? signedConditionalBranch(reasoning, conditionalBranches)?.method || ""
       : textbookRow?.therapy.replace(/[。；;]+$/g, "") || "";
-    const anchoredMethod = textbookRow && secondary.length === 0 && rowMethod
-      ? withSymptomDirectedClause(rowMethod, String(reasoning.therapy?.overallMethod || ""))
+    // 教材治法按这一证的典型表现写（内痔·湿热下注证「清热利湿止血」、乳岩·气血两亏证「补益气血，宁心安神」）：本例病历没有
+    // 对应表现、甚至写明「无便血」「神志清楚」时，那一项不锚定，其余照用；整行都去掉时不锚定，保留模型写的治法（2026-10-19，
+    // Claude 评审验收主集 M 治则治法栏）。接上的模型那一句（withSymptomDirectedClause）同一口径核对——前一轮未核对时锚进去的
+    //「…止血」会被当成模型的句子再接回来。
+    const supportedByRecord = (method: string) => typeof clinicalSourceText === "string" && clinicalSourceText.trim() && textbookRow
+      ? therapyWithoutUnsupportedSymptomItems(method, {
+        recordText: clinicalSourceText,
+        diseaseName: String(reasoning.overview?.tcmDiseaseName || ""),
+        syndromeName: String(reasoning.overview?.primarySyndrome || ""),
+        locations: (reasoning.pathogenesis?.locationDifferentiation?.items || []).filter((item): item is string => typeof item === "string"),
+        bookKey: textbookRow.bookKey,
+      })
+      : method;
+    const recordRowMethod = rowMethod ? supportedByRecord(rowMethod) : "";
+    const anchoredMethod = textbookRow && secondary.length === 0 && recordRowMethod
+      ? supportedByRecord(withSymptomDirectedClause(recordRowMethod, String(reasoning.therapy?.overallMethod || "")))
       : "";
     return {
       ...reasoning,
@@ -1469,6 +1488,14 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
  * 授予身份的那次核验手里就攥着 governed catalog 的 source，把它丢掉是没有道理的：
  * **谁给的身份，谁给出处**。
  */
+/**
+ * 出处栏「方名：出处」，合方用「；」连写。名录里的出处常以句号收尾（「《辨证录》卷十三。」），连写成「卷十三。；」
+ *（2026-10-19 留出例 S143）：每条先去掉收尾的句号。
+ */
+export function formulaSourceLabel(entries: ReadonlyArray<readonly [string, string]>): string {
+  return entries.map(([name, source]) => `${name}：${String(source || "").trim().replace(/[。．.]+$/u, "")}`).join("；");
+}
+
 function restoredFormulaSourceProjection(
   verifications: readonly FormulaComponentVerification[],
   modificationStatus: "canonical" | "modified",
@@ -1484,7 +1511,7 @@ function restoredFormulaSourceProjection(
       evidenceLevel: verifications.every((item) => item.origin !== "local_formula_catalog")
         ? "classic_text" as const
         : "kb_entry" as const,
-      source: verifications.map((item) => `${item.formulaName}：${item.source}`).join("；"),
+      source: formulaSourceLabel(verifications.map((item) => [item.formulaName, item.source] as const)),
       confidence: modificationStatus === "canonical" &&
         verifications.every((item) => item.origin === "official_classic_catalog" && item.exactComposition)
         ? "高" as const
@@ -1801,14 +1828,14 @@ export function stripUntrustedM04IdentityMetadata(content: string): string {
   );
 }
 
-export function applyDeterministicFormulaReferences(content: string): string {
+export function applyDeterministicFormulaReferences(content: string, clinicalSourceText?: string): string {
   return content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
     (match, jsonText: string) => {
       try {
         const parsed = JSON.parse(jsonText) as ClinicalReasoningResultV2;
         if (parsed.schemaVersion !== "tcm-cdss-reasoning-v2") return match;
-        const next = withDeterministicFormulaReferences(parsed);
+        const next = withDeterministicFormulaReferences(parsed, clinicalSourceText);
         return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(next, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
       } catch {
         return match;
@@ -2510,6 +2537,26 @@ export function formulaNameVariantIngredients(formulaName: string): string[] {
   ])];
 }
 
+/**
+ * 名录里这个方名下组成与处方最接近的那一版，处方覆盖了它多少（按组成身份，0–1）；名录里没有这个方名时为 undefined。
+ * 教材合方行（「黄连解毒汤合化坚二陈丸」）只列一份不分方的组成，常是本证的加减药而不是哪张方的组成（失荣·瘀毒化热证列的是
+ * 当归、生地、丹参、白花蛇舌草、半枝莲、山慈菇…），拿它算「处方以这张方为主体」会把编译目录没收的那张方（化坚二陈丸）算成覆盖——
+ * 方中陈皮、半夏、茯苓、僵蚕一味没有，方名却改成「化坚二陈丸加减」（2026-10-19 M 集 TCMChat-test-482）。
+ * 编译目录核不了的方按名录各版本的组成核（交付面改回教材代表方时用）。
+ */
+export function formulaNameCatalogCoverage(formulaName: string, herbNames: readonly string[]): number | undefined {
+  const variants = normalizedCatalog.get(normalizeFormulaName(String(formulaName || "")))?.variants || [];
+  if (variants.length === 0) return undefined;
+  const present = new Set(herbNames.map((name) => compositionIdentityName(String(name || "").replace(/[（(][^）)]*[）)]/gu, ""))).filter(Boolean));
+  let best = 0;
+  for (const variant of variants) {
+    const ids = [...new Set(variant.ingredients.map((name) => compositionIdentityName(catalogIngredientWritten(String(name || "")))).filter(Boolean))];
+    if (ids.length === 0) continue;
+    best = Math.max(best, ids.filter((id) => present.has(id)).length / ids.length);
+  }
+  return best;
+}
+
 /** 药名里太常见、不能当方名简称依据的字（formulaNameIdentityHerbsMissing）。 */
 const COMMON_HERB_NAME_CHARACTERS = new Set([..."黄白子草甘大小生熟参皮仁花叶根石赤川山金红青紫木地天五"]);
 const coreHerbsByNormalizedName = new Map<string, { core?: string[]; reasons?: Record<string, string> }>();
@@ -2598,13 +2645,21 @@ export function formulaNameIdentityHerbsMissing(formulaName: string, herbNames: 
       if (accepted && !required.has(identity)) required.set(identity, new Set([identity, written, ...accepted]));
     }
   }
-  if (required.size === 0) return [];
   const present = herbNames.flatMap((raw) => {
     const written = normalizeHerbName(String(raw || "").replace(/[（(][^）)]*[）)]/gu, ""));
     return written ? [written, compositionIdentityName(written)].filter(Boolean) : [];
   });
-  return [...required].filter(([core, accepted]) =>
-    !present.some((name) => accepted.has(name) || (name.length > core.length && name.endsWith(core)))).map(([core]) => core);
+  const isMissing = ([core, accepted]: readonly [string, Set<string>]) =>
+    !present.some((name) => accepted.has(name) || (name.length > core.length && name.endsWith(core)));
+  // 核心药至少两味、而一味都不在处方里：方子已经不是这张方了（2026-10-19 M 集 MTCMB-59、X 集 G-1785「涤痰汤加减」，
+  // 半夏、天南星都不在——服务端按痰热把温燥的两味剔掉后方名还留着，评审判名实不符）。安全定性药单独缺一味仍不算（天王补心丹缺朱砂、
+  // 薏苡仁汤缺川乌，见上）；只有核心药全缺才算。核心药只有一味的方不在此列。
+  const coreEntries = (entry?.core || []).map((herb) => [compositionIdentityName(herb) || herb, acceptedWritings(herb)] as const);
+  if (coreEntries.length >= 2 && coreEntries.every(isMissing)) {
+    for (const [identity, accepted] of coreEntries) if (!required.has(identity)) required.set(identity, accepted);
+  }
+  if (required.size === 0) return [];
+  return [...required].filter(isMissing).map(([core]) => core);
 }
 
 /**
@@ -2621,7 +2676,15 @@ export function formulaNameIdentityHerbsMissing(formulaName: string, herbNames: 
 function textbookIngredientIdentity(name: string): string {
   const written = catalogIngredientWritten(String(name || ""));
   const bare = written.replace(/(?:末|汁)$/u, "");
-  return compositionIdentityName(bare !== written && bare.length >= 2 && isKnownTcmHerbName(bare) ? bare : written);
+  const base = bare !== written && bare.length >= 2 && isKnownTcmHerbName(bare) ? bare : written;
+  // 名录写法前面多一个产地、品质字（川萆薢、尖槟榔、黑元参），整个写法认不出、去掉这一个字是已知药名时按那味药认：
+  // 程氏萆薢分清饮《医学心悟》、止痛如神汤《外科启玄》与教材组成逐味相同，只因「川萆薢」「尖槟榔」对不上，出处写成了教材
+  //（2026-10-19 M 集 RobustSDT-single_0541、TCM-SD-421902）。认得出的写法（胡黄连、土茯苓）不动。
+  // 认得出、但身份就是它自己的产地写法（川萆薢、川牛膝、浙贝母）同理，只认这几个产地、品质字（有限闭集），
+  // 免得把胡黄连、土茯苓这类本是另一味的药认成黄连、茯苓。只用于出处按组成认书，不进任何处方判断。
+  const regional = /^[川怀广建杭云浙尖净明真黑]/u.test(base) && compositionIdentityName(base) === base;
+  const unprefixed = (!isKnownTcmHerbName(base) || regional) && base.length >= 3 && isKnownTcmHerbName(base.slice(1)) ? base.slice(1) : base;
+  return compositionIdentityName(unprefixed);
 }
 
 /** 现代标准、药典类出处（不是方剂原书）。 */
@@ -2719,6 +2782,30 @@ export function originalBookFormulaIngredients(formulaName: string): string[] {
 }
 
 /**
+ * 方义说「以X为基础，去A、加B」时拿来对的原方组成：原书组成（originalBookFormulaIngredients）与受治理编译组成的并集。
+ * 两样都查不到、而目录收了同方的另一剂型时（教材与模型写「十全大补丸」，编译目录只有《局方》十全大补汤），借那一剂型的编译组成，
+ * 但只留名录里这个方名下也出现过的味（同名丸剂各版本组成的并集）：同名不同剂型偶有组成不同的（大陷胸丸多葶苈子、杏仁），
+ * 只认两边都有的，方义里真加的药不会被当成原方已有（2026-10-19 M 集 TCMChat-test-418：「十全大补丸…加黄芪、大枣」，
+ * 黄芪本是原方药味，评审判配伍表述错误；此前查不到组成，方义核对整句放过）。都查不到时为空。
+ */
+export function formulaEditClaimBaseIngredients(formulaName: string): string[] {
+  const own = [...originalBookFormulaIngredients(formulaName), ...(formulaCompilationReferences([formulaName])[0]?.ingredients || [])];
+  if (own.length > 0) return own;
+  const normalized = normalizeFormulaName(String(formulaName || ""));
+  if (!/[汤丸散饮]$/u.test(normalized)) return [];
+  const named = new Set(formulaNameVariantIngredients(normalized).map((name) => compositionIdentityName(name)).filter(Boolean));
+  if (named.size === 0) return [];
+  const stem = normalized.slice(0, -1);
+  for (const form of ["汤", "丸", "散", "饮"]) {
+    const other = `${stem}${form}`;
+    if (other === normalized) continue;
+    const ingredients = formulaCompilationReferences([other])[0]?.ingredients || [];
+    if (ingredients.length > 0) return ingredients.filter((name) => named.has(compositionIdentityName(name)));
+  }
+  return [];
+}
+
+/**
  * 方名在方剂名录里、组成与给定组成（教材该证代表方的组成）逐味相同的那一条的出处（2026-10-19）。
  *
  * 交付面在「方名随辨证阶段改回教材代表方」时写出处：受治理编译目录有这首方就用它的出处，没有时此前直接写
@@ -2729,10 +2816,10 @@ export function originalBookFormulaIngredients(formulaName: string): string[] {
  */
 export function catalogSourceForExactComposition(formulaName: string, herbs: readonly string[]): string | undefined {
   const normalized = normalizeFormulaName(String(formulaName || ""));
-  const wanted = new Set(herbs.map((name) => compositionIdentityName(String(name || ""))).filter(Boolean));
+  const wanted = new Set(herbs.map((name) => textbookIngredientIdentity(String(name || ""))).filter(Boolean));
   if (!normalized || wanted.size < 2) return undefined;
   const sameSet = (ingredients: readonly string[]) => {
-    const identities = new Set(ingredients.map((name) => compositionIdentityName(catalogIngredientWritten(String(name || "")))).filter(Boolean));
+    const identities = new Set(ingredients.map((name) => textbookIngredientIdentity(String(name || ""))).filter(Boolean));
     return identities.size === wanted.size && [...identities].every((identity) => wanted.has(identity));
   };
   const official = normalizedOfficialClassics.get(normalized);
@@ -2810,7 +2897,7 @@ export function enrichReasoning(
     const herbSafetyProfiles = candidate.herbs.map((herb) => getTcmHerbGenerationSafetyProfile(herb.name));
     const herbBoundaryText = herbBoundaryTail(herbSafetyProfiles);
     const sources = resolveFormulaSources(candidate.name, candidate.herbs);
-    const sourceLabel = sources.map((item) => `${item.formulaName}：${item.source}`).join("；");
+    const sourceLabel = formulaSourceLabel(sources.map((item) => [item.formulaName, item.source] as const));
     sourceLabels.push(sourceLabel);
     const constructionType = candidate.herbs.length === 1
       ? (sources.length === 1 ? "single_base" as const : "single_herb" as const)
@@ -2900,16 +2987,18 @@ export function enrichReasoning(
   return { reasoning: { ...reasoning, formula: { ...reasoning.formula, candidates } }, sourceLabels };
 }
 
+// 自拟方没有「原方」可指：编译时补的「原方中的X毒性较大，本方未用。」整句去掉，不随下面的「原方」→「本方案」变成
+// 「本方案中的朱砂粉毒性较大」（说本方里有朱砂；方外药核对随后删掉这个分句，只剩残句「本方未用。」，见 formula-withheld-ingredient-note）。
 function replaceSelfDevisedFormulaClaims(block: string, explicitIdentityNames: string[]): string {
   return replaceGovernedFormulaClaims(
-    replaceLiteralFormulaClaims(block, explicitIdentityNames, "本例辨证组方"),
+    replaceLiteralFormulaClaims(withoutWithheldBaseIngredientNote(block), explicitIdentityNames, "本例辨证组方"),
     "本例辨证组方",
   ).replace(/原方/g, "本方案");
 }
 
 function replaceFormulaIdentityClaims(value: string, explicitIdentityNames: string[]): string {
   return replaceGovernedFormulaClaims(
-    replaceLiteralFormulaClaims(value, explicitIdentityNames, "本方案"),
+    replaceLiteralFormulaClaims(withoutWithheldBaseIngredientNote(value), explicitIdentityNames, "本方案"),
     "本方案",
   ).replace(/原方/g, "本方案");
 }

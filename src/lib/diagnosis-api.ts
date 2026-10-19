@@ -2765,7 +2765,7 @@ async function callPrimaryTextModelStream(
         if (opts.structuredStage !== "diagnose") return undefined;
         try {
           let transformed = await preparedDiagnoseContent(content);
-          transformed = applyDeterministicFormulaReferences(transformed);
+          transformed = applyDeterministicFormulaReferences(transformed, opts.structuredClinicalContext);
           transformed = synchronizeVisibleClinicalSummary(transformed, "diagnose", opts.structuredClinicalContext || "", opts.structuredCaseState);
           if (opts.outputTransform) transformed = opts.outputTransform(transformed);
           const governedDifferentials = applyGovernedM03DiseaseDifferentialBoundary(
@@ -3895,7 +3895,7 @@ async function callPrimaryTextModelStream(
             finishReason,
           );
           resolvedStructuredContent = rawResolvedStructuredContent
-            ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(rawResolvedStructuredContent, opts.structuredStage))
+            ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(rawResolvedStructuredContent, opts.structuredStage), opts.structuredClinicalContext)
             : undefined;
           if (resolvedStructuredContent) authoritativeContent = resolvedStructuredContent;
           if (opts.structuredStage === "diagnose") {
@@ -4228,7 +4228,7 @@ async function callPrimaryTextModelStream(
             ? resolveCompletedStructuredResponse(wrappedRetryContent, opts.structuredStage, retry.finishReason)
             : undefined;
           const referencedRetryContent = rawResolvedRetryContent
-            ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(rawResolvedRetryContent, opts.structuredStage))
+            ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(rawResolvedRetryContent, opts.structuredStage), opts.structuredClinicalContext)
             : undefined;
           let resolvedRetryContent = referencedRetryContent && opts.structuredStage === "prescribe"
             ? applyDeterministicFormulaAnalysis(applyDeterministicHerbPrescriptionRoles(applyDeterministicHerbFunctions(applyDeterministicHerbDecoctionRequirements(applyDeterministicCandidateTherapyMatch(applyDeterministicHerbTargets(referencedRetryContent, opts.structuredPriorReasoning), opts.structuredPriorReasoning)))))
@@ -4406,7 +4406,7 @@ async function callPrimaryTextModelStream(
                 ? resolveCompletedStructuredResponse(secondWrapped, opts.structuredStage, secondRetry.finishReason)
                 : undefined;
               const secondReferenced = secondRawResolved
-                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(secondRawResolved, opts.structuredStage))
+                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(secondRawResolved, opts.structuredStage), opts.structuredClinicalContext)
                 : undefined;
               let secondResolved = secondReferenced && opts.structuredStage === "prescribe"
                 ? applyDeterministicFormulaAnalysis(applyDeterministicHerbPrescriptionRoles(applyDeterministicHerbFunctions(applyDeterministicHerbDecoctionRequirements(applyDeterministicCandidateTherapyMatch(applyDeterministicHerbTargets(secondReferenced, opts.structuredPriorReasoning), opts.structuredPriorReasoning)))))
@@ -4519,7 +4519,7 @@ async function callPrimaryTextModelStream(
                     ? resolveCompletedStructuredResponse(thirdWrapped, "diagnose", thirdRetry.finishReason)
                     : undefined;
                   const thirdReferenced = thirdRawResolved
-                    ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(thirdRawResolved, "diagnose"))
+                    ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(thirdRawResolved, "diagnose"), opts.structuredClinicalContext)
                     : undefined;
                   let thirdResolved = thirdReferenced
                     ? await preparedDiagnoseContent(thirdReferenced)
@@ -4815,7 +4815,7 @@ async function callPrimaryTextModelStream(
           // its server-owned rendering pass here; the common visible projection below never mutates
           // the sentinel JSON.
           if (opts.structuredStage === "prescribe") {
-            authoritativeContent = applyDeterministicFormulaReferences(authoritativeContent);
+            authoritativeContent = applyDeterministicFormulaReferences(authoritativeContent, opts.structuredClinicalContext);
             authoritativeContent = applyDeterministicDecoctionMethod(
               authoritativeContent,
               opts.structuredClinicalContext || "",
@@ -5108,7 +5108,7 @@ async function callPrimaryTextModelStream(
                 ? resolveCompletedStructuredResponse(finalizedRetryWrapped, "diagnose", finalizedRetry.finishReason)
                 : undefined;
               const finalizedRetryReferenced = finalizedRetryResolved
-                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(finalizedRetryResolved, "diagnose"))
+                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(finalizedRetryResolved, "diagnose"), opts.structuredClinicalContext)
                 : undefined;
               let finalizedRetryCandidate = finalizedRetryReferenced
                 ? await preparedDiagnoseContent(finalizedRetryReferenced)

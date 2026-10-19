@@ -20,9 +20,11 @@
 //   5 「无X→未诉X」只改对本例的否认（固定说法、别的病的描述、核实句、检验与检查所见、医学术语；「未诉A；未诉B」并句）
 //   6 门禁另：血压范围写法按一次读数取上限；有本次体温时不以前几天/上次的极值报红旗
 //   14 另：「还能哺乳吗」「能不能喂奶」按可能哺乳
-//   15 饮食段：与煎服法相反的服药时间、方中有毒药当食物推荐去掉；外用药不写服用与同服间隔：固定说法、别的病的描述、核实句、检验项不改；列举逐项去「无」不动「无力」（H 集十余处）
+//   15 饮食段：与煎服法相反的服药时间、方中有毒药当食物推荐去掉；外用药不写服用与同服间隔
+//   16 第五轮：「无…史」对「不…」、对象截到「示」、检查描述的缺如不改、「风药」不是药名：固定说法、别的病的描述、核实句、检验项不改；列举逐项去「无」不动「无力」（H 集十余处）
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, {
@@ -279,8 +281,8 @@ await check("11.1 拆出来只剩部位或走向的（「食管/胃恶性肿瘤�
     const parts = split(name);
     assert.ok(!parts.some((part) => /^(?:食管|残余|依赖)$/u.test(part)), `${name} → ${parts.join("|")}`);
   }
-  assert.deepEqual(split("腰椎感染/结核"), ["腰椎感染", "腰椎结核"]);
-  assert.deepEqual(split("膈肌/胸部病变"), ["膈肌病变", "胸部病变"]);
+  assert.deepEqual(split("腰椎感染/结核"), ["腰椎感染、腰椎结核"]);
+  assert.deepEqual(split("膈肌/胸部病变"), ["膈肌病变、胸部病变"]);
 });
 
 // ───── 12 没有登记年龄、病历称「患儿」的按儿童收回剂量 ─────
@@ -402,6 +404,258 @@ await check("15.3 注意事项禁一类药的几种写法（「勿与同类清�
   assert.deepEqual(out("服药期间勿与同类清热化痰中成药叠加。", [{ name: "清气化痰丸", correspondingProblem: "痰热咳嗽", indication: "清热化痰，止咳" }]), ["注意休息。"]);
   assert.deepEqual(out("避免与理气类中成药重复使用。", [{ name: "舒肝丸", correspondingProblem: "胁痛", indication: "舒肝和胃，理气止痛" }]), ["注意休息。"]);
   assert.deepEqual(out("服药期间勿与同类清热化痰中成药叠加。", [{ name: "复方丹参滴丸", correspondingProblem: "胸痹" }]), ["服药期间勿与同类清热化痰中成药叠加。", "注意休息。"]);
+});
+
+// ───── 16 第五轮（21b9bef 上甲方 10 例三轮与留出 32 例复评） ─────
+await check("16.1 病历写「不吸烟」时鉴别里的「无吸烟史」不改成「病历未记录吸烟史」（甲方病历 5）；病历没写吸烟的照改（对照）", () => {
+  const ground = (record, points) => {
+    const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", westernDiagnosis: { primary: { name: "反复感冒" }, differentials: [{ name: "慢性阻塞性肺疾病", reason: "需排除", distinguishingPoints: points, nextCheck: "肺功能" }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+    const out = visible.groundDifferentialNegativeAssertions(content, record);
+    return JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)).westernDiagnosis.differentials[0].distinguishingPoints;
+  };
+  assert.equal(ground("反复感冒1年。个人史：不吸烟，不饮酒。", "无吸烟史"), "无吸烟史");
+  assert.match(ground("反复感冒1年。", "无吸烟史"), /病历未记录吸烟史/u);
+});
+
+await check("16.2 「无腹痛腹泻示…」对象截到「示」为止（甲方病历 9：整段推断被当成对象，病历里找不到，改成了「未诉腹痛腹泻示…」）", () => {
+  assert.equal(visible.unrecordedNegativesAsNotReported("无腹痛腹泻示未涉肺胃气机壅滞", "风团瘙痒3天。无腹痛、腹泻。"), "无腹痛腹泻示未涉肺胃气机壅滞");
+});
+
+await check("16.3 鉴别分句开头的「无明确感染灶描述」「牙体检查无异常」不改成「病历未记录…」（甲方病历 7、9）；症状照改（对照）", () => {
+  const ground = (points) => {
+    const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", westernDiagnosis: { primary: { name: "荨麻疹" }, differentials: [{ name: "荨麻疹性血管炎", reason: "需排除", distinguishingPoints: points, nextCheck: "皮肤活检" }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+    const out = visible.groundDifferentialNegativeAssertions(content, "风团瘙痒3天，时起时消。");
+    return JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)).westernDiagnosis.differentials[0].distinguishingPoints;
+  };
+  assert.equal(ground("无明确感染灶描述"), "无明确感染灶描述");
+  assert.equal(ground("牙体检查无异常"), "牙体检查无异常");
+  assert.match(ground("无发热"), /病历未记录发热/u);
+});
+
+await check("16.4 「风药」不是药名：方义「黑芝麻润燥以制风药之燥」不被当成提到外来药剪成「制之燥」（甲方病历 9）", async () => {
+  const knowledge = await jiti.import("../src/lib/tcm-knowledge.ts");
+  assert.equal(knowledge.isKnownTcmHerbName("风药"), false);
+  assert.equal(knowledge.isKnownTcmHerbName("贯众"), true, "真正的歧义药名仍是药（对照）");
+});
+
+await check("16.5 优先评估项的引文只是一个读数（「生命体征：38.1」）时不出「近来加重还是缓解」题（留出例 S143）；症状引文照出（对照）", async () => {
+  const contract = await jiti.import("../src/lib/m02-question-contract.ts");
+  const withFinding = (quote) => contract.m02PriorityEvaluationQuestion({ clinicalFacts: { redFlags: [{ category: "other_critical", status: "positive", urgency: "clarify", subject: "patient", quote }] } });
+  assert.equal(withFinding("生命体征：38.1"), undefined);
+  assert.match(withFinding("近一周右胁持续胀痛") || "", /加重/u);
+});
+
+await check("16.6 不给剂量页：注意事项里只是重说饮食栏忌口的那一条不再列；说了饮食栏没有的（戒酒、保暖）照留（留出集 S178/S188/S190）", async () => {
+  const surface = await jiti.import("../src/lib/delivered-surface.ts");
+  const diet = "饮食宜温热清淡、易消化，少量多餐，忌生冷、辛辣、油腻。";
+  assert.equal(surface.dietOnlyPrecautionCoveredBy("饮食宜清淡、易消化，少食辛辣油腻。", diet), true);
+  assert.equal(surface.dietOnlyPrecautionCoveredBy("服药期间忌食生冷。", diet), true);
+  assert.equal(surface.dietOnlyPrecautionCoveredBy("饮食宜清淡，戒酒。", diet), false, "饮食栏没写酒（对照）");
+  assert.equal(surface.dietOnlyPrecautionCoveredBy("注意保暖，避免受寒。", diet), false, "不是饮食（对照）");
+  assert.equal(surface.dietOnlyPrecautionCoveredBy("饮食宜清淡、易消化。", ""), false, "饮食栏空（对照）");
+});
+
+await check("16.7 不给剂量页的有毒药一句不说「按医生开的剂量」；带剂量页照旧（留出集 S188）", async () => {
+  const surface = await jiti.import("../src/lib/delivered-surface.ts");
+  const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{ name: "桂附理中丸加减", herbs: [{ name: "附子", role: "君" }, { name: "干姜", role: "臣" }], decoction: { method: "" } }] },
+    nonPharma: { diet: "忌生冷。", precautions: ["体温偏低伴嗜睡，请立即就医评估。"] } };
+  const line = (options) => surface.projectDeliveredReasoning(reasoning, options).nonPharma.precautions.find((item) => item.includes("附子")) || "";
+  assert.match(line({ nonDosePage: true }), /医生面诊后决定/u);
+  assert.doesNotMatch(line({ nonDosePage: true }), /医生开的剂量/u);
+  assert.match(line({}), /按医生开的剂量/u, "带剂量页（对照）");
+});
+
+await check("16.8 证名只有「毒」、治法只说解毒不说清热时不推「热者寒之」（S190 乌头碱中毒）；清热解毒、热毒照旧（对照）", () => {
+  const principle = (syndrome, method) => visible.nationalTreatmentPrinciple("", { overview: { primarySyndrome: syndrome }, therapy: { overallMethod: method } });
+  assert.equal(principle("毒损心脉证", "解毒通络，护心复脉，和胃降逆"), "实则泻之");
+  assert.equal(principle("瘀毒内结证", "化瘀散结，活血解毒"), "实则泻之");
+  assert.equal(principle("邪毒闭肺证", "清热解毒，宣肺开闭"), "热者寒之");
+  assert.equal(principle("热毒炽盛证", "解毒凉血"), "热者寒之");
+});
+
+await check("16.9 忌口随证：「阳气虚衰证」按阳虚写忌生冷（S188）；无寒热的证照旧兜底（对照）", async () => {
+  const phrasing = await jiti.import("../src/lib/tcm-therapy-phrasing.ts");
+  assert.match(phrasing.dietRestrictionForSyndromeText("阳气虚衰证；温阳益气"), /生冷/u);
+  assert.equal(phrasing.dietRestrictionForSyndromeText("胃气不和证；理气和胃"), "饮食宜清淡、易消化，少食辛辣油腻");
+});
+
+await check("16.10 解热镇痛抗炎药全身用只留一种（S145 依托考昔/对乙酰氨基酚/布洛芬）；皮肤外用另算、非此类与中成药不动（对照）；编译器接线", async () => {
+  const dup = await jiti.import("../src/lib/patent-medicine-duplication.server.ts");
+  const row = (name, riskNote, extra = {}) => ({ type: "西药", name, riskNote, usageBoundary: "", ...extra });
+  const meds = [
+    row("依托考昔片", "服用阿司匹林或其他非甾体类抗炎药后诱发哮喘的患者禁用。"),
+    row("对乙酰氨基酚片", "不能同时服用其他含有解热镇痛药的药品（如某些复方抗感冒药）。"),
+    row("布洛芬片", "对其他非甾体抗炎药过敏者禁用。"),
+    row("双氯芬酸二乙胺乳胶剂", "不能同时使用其他含有解热镇痛药的药品。"),
+    row("奥美拉唑肠溶胶囊", "对本品过敏者禁用。"),
+    { type: "中成药", name: "元胡止痛片", riskNote: "孕妇慎用。", usageBoundary: "" },
+  ];
+  assert.deepEqual(dup.withoutSameClassAnalgesics(meds).map((item) => item.name), ["依托考昔片", "双氯芬酸二乙胺乳胶剂", "奥美拉唑肠溶胶囊", "元胡止痛片"]);
+  assert.deepEqual(dup.withoutSameClassAnalgesics([meds[1], meds[4]]).map((item) => item.name), ["对乙酰氨基酚片", "奥美拉唑肠溶胶囊"], "只有一种时不动（对照）");
+  const source = readFileSync(new URL("../src/lib/m04-proposal-compiler.ts", import.meta.url), "utf8");
+  assert.match(source, /withoutRepeatedMedicineNames\(withoutSameClassAnalgesics\(proposal\.patentAndWestern/u, "编译器必须接上");
+});
+
+await check("16.11 同一种药不同厂家说明书只推荐一行（一枝篙/一枝蒿伤湿祛痛膏，S145、X-E-0582）；不同药不动（对照）", async () => {
+  const dup = await jiti.import("../src/lib/patent-medicine-duplication.server.ts");
+  const names = (list) => dup.withoutRepeatedMedicineNames(list.map((name) => ({ name }))).map((item) => item.name);
+  assert.deepEqual(names(["一枝篙伤湿祛痛膏", "乳香风湿气雾剂", "一枝蒿伤湿祛痛膏"]), ["一枝篙伤湿祛痛膏", "乳香风湿气雾剂"]);
+  assert.deepEqual(names(["云南白药气雾剂", "云南白药膏"]), ["云南白药气雾剂", "云南白药膏"], "剂型不同的两种照留（对照）");
+});
+
+await check("16.12 病历无舌象时「舌苔厚腻」整段换成「舌象待核实」，不留「舌舌象待核实腻」（BEST4SDT-270）；有舌象的病历原样（对照）", () => {
+  const out = sanitizeOverview("腹胀3天，大便不爽。", { tcmDiagnosticRationale: "兼见腹胀，舌苔厚腻，属湿阻。" }).tcmDiagnosticRationale;
+  assert.doesNotMatch(out, /舌舌象|象待核实腻|待核实腻/u, out);
+  assert.match(out, /兼见腹胀，舌象待核实，属湿阻/u, out);
+  assert.match(sanitizeOverview("腹胀3天，大便不爽。苔黄腻。", { tcmDiagnosticRationale: "兼见腹胀，舌苔厚腻，属湿阻。" }).tcmDiagnosticRationale, /舌苔厚腻/u, "病历有舌象（对照）");
+});
+
+await check("16.13 「抽搐痛」「抽搐感」「抽搐样痛」不报神经急症（H-tri-19642）；发作性抽搐照报（对照）", () => {
+  assert.equal(gateOf("间断性头抽搐痛七年，每遇情绪紧张时诱发。").redFlags.length, 0);
+  assert.equal(gateOf("头痛3月，呈拘急跳痛抽搐感。").redFlags.length, 0);
+  assert.equal(gateOf("颈痛五年，左前臂抽搐样痛。").redFlags.length, 0);
+  assert.match(gateOf("今晨突发四肢抽搐、口吐白沫2分钟。").redFlags.join("；"), /神经/u);
+  assert.match(gateOf("头痛2天，今日抽搐2次。").redFlags.join("；"), /神经/u);
+});
+
+await check("16.14 治则：「抑肝扶脾」「扶土抑木」是扶正祛邪（M 集 0372、0092、X-D-5665 曾推成实则泻之）；纯疏肝和胃照旧实则泻之（对照）", () => {
+  const principle = (syndrome, method) => visible.nationalTreatmentPrinciple("", { overview: { primarySyndrome: syndrome }, therapy: { overallMethod: method } });
+  assert.equal(principle("肝气乘脾证", "抑肝扶脾，化湿止泻"), "扶正祛邪");
+  assert.equal(principle("脾虚肝旺证", "扶土抑木，理脾平肝"), "扶正祛邪");
+  assert.equal(principle("肝胃不和证", "疏肝和胃"), "实则泻之");
+  assert.equal(principle("肾阳虚证", "温补肾阳"), "虚则补之");
+});
+
+await check("16.15 治法里只差第一个字的四字短语留一个（「和血通络，活血通络」SD-451922）；不同治法照留（对照）", async () => {
+  const phrasing = await jiti.import("../src/lib/tcm-therapy-phrasing.ts");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("平肝潜阳，滋养肝肾，和血通络，活血通络"), "平肝潜阳，滋养肝肾，和血通络");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("清肝泻火，清心泻火"), "清肝泻火，清心泻火", "差的不是第一个字（对照）");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("健脾益气，化湿止泻"), "健脾益气，化湿止泻");
+});
+
+await check("16.16 饮食段逐小句去掉方中有毒/孕妇慎用药当食物的推荐（「…忌辛辣；可适量吃山楂、桃仁入膳」test-375，「可少量食用桃仁煮粥」test-488）；忌口小句照留（对照）", async () => {
+  const surface = await jiti.import("../src/lib/delivered-surface.ts");
+  const diet = (text) => surface.projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{ name: "血府逐瘀汤", herbs: [{ name: "桃仁", role: "君" }, { name: "红花", role: "君" }], decoction: { method: "" } }] },
+    nonPharma: { diet: text } }, {}).nonPharma.diet;
+  assert.equal(diet("饮食宜清淡易消化，少食辛辣油腻；可适量吃山楂、桃仁入膳，忌过饱。"), "饮食宜清淡易消化，少食辛辣油腻；忌过饱。");
+  assert.equal(diet("饮食宜清淡易消化，可少量食用桃仁煮粥或桃仁炒菜，忌辛辣油腻及生冷。"), "饮食宜清淡易消化，忌辛辣油腻及生冷。");
+  assert.equal(diet("饮食宜清淡，忌食桃仁等活血之品。"), "饮食宜清淡，忌食桃仁等活血之品。", "忌口（对照）");
+  const yiyi = surface.projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{ name: "参苓白术散", herbs: [{ name: "薏苡仁", role: "臣" }, { name: "茯苓", role: "臣" }], decoction: { method: "" } }] },
+    nonPharma: { diet: "饮食清淡，可常食薏苡仁煮粥，忌生冷。" } }, {}).nonPharma.diet;
+  assert.equal(yiyi, "饮食清淡，可常食薏苡仁煮粥，忌生冷。", "药食同源、非活血攻下（薏苡仁）当食物照常（对照）");
+});
+
+await check("16.17 「为兼夹之象」「属兼夹」「…为兼」算自称兼夹，交给兼证一致核对（M 集 0516、test-65、BEST4SDT-6）；存疑说法不算（对照）", async () => {
+  const phrasing = await jiti.import("../src/lib/tcm-therapy-phrasing.ts");
+  const claims = (syndrome, rationale) => phrasing.mechanismClaimsUncoveredBy(syndrome, rationale).filter((clause) => phrasing.declaresSecondaryMechanism(clause));
+  assert.equal(claims("气阴两虚证", "舌红苔黄示水湿内停、郁而化热，为兼夹之象；").length, 1);
+  assert.equal(claims("痰气郁结证", "双尺重按无力示下元不足为兼。").length, 1);
+  assert.equal(claims("痰火扰神证", "痰火轻重与是否兼夹他邪尚待四诊补充。").length, 0, "存疑（对照）");
+  assert.equal(claims("寒湿痹阻证", "寒热虚实兼夹暂难细辨。").length, 0, "存疑（对照）");
+});
+
+await check("16.18 家族史一栏的心衰不算患者本人的剂量边界（MTCMB-21「母亲健在，患有冠心病、心力衰竭」）；患者本人心衰照收回（对照）", () => {
+  const reasons = (symptoms) => safety.highRiskDoseBoundaryReasons(types.normalizeCaseStateInput({ chiefComplaint: "头晕3年", symptoms, patient: { age: 56, sex: "女" } })).join("；");
+  assert.doesNotMatch(reasons({ 现病史: "阵发性头晕。", 家族史: "父亲已经去世，母亲健在，患有冠心病、心力衰竭；兄弟姐妹均体健。" }), /心力衰竭/u);
+  assert.match(reasons({ 现病史: "阵发性头晕，慢性心力衰竭3年，活动后气短。", 家族史: "否认家族遗传病史。" }), /心力衰竭/u, "本人心衰（对照）");
+});
+
+await check("16.19 「后头部头痛明显」「后枕部胀痛」不当人名脱敏（MTCMB-72）；「患者后建国」照脱敏（对照）", () => {
+  assert.equal(safety.sanitizeFreeTextForModel("头胀，后头部头痛明显，前额部头胀明显。"), "头胀，后头部头痛明显，前额部头胀明显。");
+  assert.equal(safety.sanitizeFreeTextForModel("后枕部胀痛3天。"), "后枕部胀痛3天。");
+  assert.match(safety.sanitizeFreeTextForModel("患者后建国头痛3天。"), /已脱敏/u);
+});
+
+await check("16.20 上消化道警示征象的理由只写命中的那一类（SD-433219：只有体重下降，理由不写吞咽梗阻）；判定不变（对照）", () => {
+  const weight = gateOf("胃脘隐痛3年，近半年体重下降约5公斤，纳差。").redFlags.join("；");
+  assert.match(weight, /上消化道警示征象（不明原因体重下降）/u);
+  assert.doesNotMatch(weight, /吞咽/u);
+  const block = gateOf("进行性吞咽困难2月，进食梗阻感。").redFlags.join("；");
+  assert.match(block, /上消化道警示征象（吞咽或进食梗阻）/u);
+  assert.equal(gateOf("胃脘隐痛3年，纳差，体重无明显变化。").redFlags.length, 0, "无警示征象（对照）");
+});
+
+await check("16.21 只有口唇发绀时理由写发绀，不写「呼吸困难/端坐呼吸」（SD-451922）；端坐呼吸照旧（对照）", () => {
+  const cyanosis = gateOf("头晕1月。查体：口唇发绀，爪甲青紫。").redFlags.join("；");
+  assert.match(cyanosis, /中心性发绀/u);
+  assert.doesNotMatch(cyanosis, /端坐呼吸/u);
+  assert.match(gateOf("气喘3天，夜间不能平卧。").redFlags.join("；"), /端坐呼吸/u);
+});
+
+await check("16.22 病历事实核对：只有一次标到的否定说法（「腹不胀大」「与咳唾呼吸无关」）也交复核（M 集鉴别 16 处）；只标到一次的肯定说法仍不交（对照）", async () => {
+  const claim = await jiti.import("../src/lib/m03-patient-claim-check.server.ts");
+  const first = [{ field: "d0", span: "腹不胀大" }, { field: "d1", span: "干咳无痰" }, { field: "d2", span: "胀痛固定" }];
+  const second = [{ field: "d1", span: "干咳无痰" }, { field: "d3", span: "与咳唾呼吸无关" }];
+  const spans = claim.patientClaimCandidatesForVerification(first, second).map((item) => item.span).sort();
+  assert.deepEqual(spans, ["与咳唾呼吸无关", "干咳无痰", "腹不胀大"].sort());
+  assert.ok(!spans.includes("胀痛固定"), "只一次标到的肯定说法（对照）");
+});
+
+await check("16.23 病历「无汗出，偶有胸痛」「无头痛，有胸痛」算记录了胸痛：鉴别里「本例无胸痛」被改正（MTCMB-14）；病历真否认的照旧不改（对照）", async () => {
+  const differential = (record) => {
+    const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", overview: { tcmDiseaseDifferentials: [{ diseaseName: "胸痹", distinguishingPoints: "本例以阵发性心慌为主症，无胸痛" }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+    const out = safety.sanitizeUngroundedRedFlagNegations(content, stateOf(record));
+    return JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)).overview.tcmDiseaseDifferentials[0].distinguishingPoints;
+  };
+  assert.match(differential("阵发性心慌，伴有手足抖动，无汗出，偶有胸痛，偶有咳嗽。"), /病历已记录胸痛阳性/u);
+  assert.match(differential("阵发性心慌，无头痛，有胸痛。"), /病历已记录胸痛阳性/u);
+  assert.equal(differential("阵发性心慌，无胸痛，偶有头晕。"), "本例以阵发性心慌为主症，无胸痛", "病历否认（对照）");
+});
+
+await check("16.24 兼证核对补上兼证后：依据里「尚未成独立证候，暂作兼夹」分句去掉、治法同义去重（MTCMB-21、SD-451922）；「属兼夹而非主证」算断言（BEST4SDT-194）；其余句子不动（对照）", async () => {
+  const consistency = await jiti.import("../src/lib/m03-secondary-syndrome-consistency.server.ts");
+  const phrasing = await jiti.import("../src/lib/tcm-therapy-phrasing.ts");
+  const root = { overview: { secondarySyndromes: [], tcmDiagnosticRationale: "头晕耳鸣、腰酸示肝肾不足，故主证为肝阳上亢；苔腻、痰多，痰湿尚未成独立证候，暂作兼夹因素处理；口苦为肝火。", overallPathogenesis: "肝肾阴亏，肝阳上扰清窍。" },
+    therapy: { overallMethod: "平肝潜阳，滋养肝肾，和血通络" } };
+  assert.equal(consistency.applySecondaryConsistencyDecision(root, { decision: "add", secondarySyndrome: "痰湿内蕴证", method: "活血通络", evidence: ["苔腻", "痰多"] }), true);
+  assert.doesNotMatch(root.overview.tcmDiagnosticRationale, /尚未成独立证候|暂作兼夹/u, root.overview.tcmDiagnosticRationale);
+  assert.match(root.overview.tcmDiagnosticRationale, /口苦为肝火/u, "其余句子（对照）");
+  assert.equal(root.therapy.overallMethod, "平肝潜阳，滋养肝肾，和血通络");
+  const claims = phrasing.mechanismClaimsUncoveredBy("阴虚喉痹证", "腹冷便溏属兼夹而非主证。").filter((clause) => phrasing.declaresSecondaryMechanism(clause));
+  assert.equal(claims.length, 1);
+  assert.equal(phrasing.mechanismClaimsUncoveredBy("阴虚喉痹证", "腹冷便溏，非兼夹。").filter((clause) => phrasing.declaresSecondaryMechanism(clause)).length, 0, "否认兼夹（对照）");
+});
+
+await check("16.25 治则：纯痰湿实证的「健脾和胃」不算扶正（MTCMB-77/8）；肝阳头痛＋气血不足是扶正祛邪（MTCMB-72）；阴虚火旺仍是虚则补之、脾虚湿盛仍扶正祛邪（对照）", () => {
+  const principle = (syndrome, method, secondary = []) => visible.nationalTreatmentPrinciple("", { overview: { primarySyndrome: syndrome, secondarySyndromes: secondary }, therapy: { overallMethod: method } });
+  assert.equal(principle("痰湿中阻证", "化痰祛湿，健脾和胃，升清止晕"), "实则泻之");
+  assert.equal(principle("肝阳头痛", "平肝潜阳，理气通络，益气养血", ["气血不足证"]), "扶正祛邪");
+  assert.equal(principle("阴虚火旺证", "滋阴清火，养心安神"), "虚则补之");
+  assert.equal(principle("脾虚湿盛证", "健脾化湿"), "扶正祛邪");
+});
+
+await check("16.26 「无神疲乏力」「无关节痛」是对症状的否认，病历没写时改成「未诉」（SD-468043、SD-482122）；「神清无神」「与进食无关」不动（对照）", () => {
+  assert.equal(visible.unrecordedNegativesAsNotReported("本例无神疲乏力，与虚劳区分", "便血3天，肛门坠胀。"), "本例未诉神疲乏力，与虚劳区分");
+  assert.equal(visible.unrecordedNegativesAsNotReported("本例无关节痛，属皮痹", "皮肤硬化半年。"), "本例未诉关节痛，属皮痹");
+  assert.equal(visible.unrecordedNegativesAsNotReported("本例神清无神，属脱证", "神昏2小时。"), "本例神清无神，属脱证");
+  assert.equal(visible.unrecordedNegativesAsNotReported("与进食无关", "胃痛3天。"), "与进食无关");
+});
+
+await check("16.27 同义组：「咳喘」算气促（BEST4SDT-73）、「体重下降」算消瘦（SD-433219）——鉴别里的「无气促」「无消瘦」被改正；病历没有的照旧（对照）", () => {
+  const point = (record, text) => {
+    const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", overview: { tcmDiseaseDifferentials: [{ diseaseName: "肺胀", distinguishingPoints: text }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+    const out = safety.sanitizeUngroundedRedFlagNegations(content, stateOf(record));
+    return JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)).overview.tcmDiseaseDifferentials[0].distinguishingPoints;
+  };
+  assert.match(point("咳嗽1月，入夜则咳喘加重。", "本例无气促"), /气促阳性/u);
+  assert.match(point("胃脘痛半年，体重下降约20kg。", "本例无消瘦"), /消瘦阳性/u);
+  assert.doesNotMatch(point("咳嗽1月，咳白痰。", "本例无气促"), /阳性/u, "病历无（对照）");
+});
+
+await check("16.28 注意事项「龙齿捣碎后同煎」与药表龙齿先煎相抵，去掉这一小句（BEST4SDT-139）；无特殊煎法的「桃仁捣碎后同煎」照留（对照）；用药风险说明里的「；；」收成一个", async () => {
+  const surface = await jiti.import("../src/lib/delivered-surface.ts");
+  const project = (herbs, precautions) => surface.projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{ name: "x", herbs, decoction: { method: "龙齿先煎30分钟，余药加水浸泡后同煎。" } }],
+      patentAndWestern: [{ type: "西药", name: "布洛芬片", riskNote: "对本品过敏者禁用。；；孕妇慎用。。" }] },
+    nonPharma: { diet: "清淡。", precautions } }, {});
+  const out = project([{ name: "龙齿", role: "君", decoctionRequirement: "先煎" }, { name: "桃仁", role: "臣" }], ["龙齿捣碎后同煎，服药期间忌辛辣。", "桃仁捣碎后同煎，孕妇忌服。"]);
+  const lines = out.nonPharma.precautions.join("|");
+  assert.doesNotMatch(lines, /龙齿捣碎后同煎/u, lines);
+  assert.match(lines, /桃仁捣碎后同煎/u, "无特殊煎法（对照）");
+  assert.equal(out.formula.patentAndWestern[0].riskNote, "对本品过敏者禁用。孕妇慎用。");
 });
 
 console.log(JSON.stringify({ suite: "r1019-round4", cases, failures: process.exitCode ? "see above" : 0 }));

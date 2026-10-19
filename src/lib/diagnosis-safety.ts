@@ -509,7 +509,10 @@ export const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
   ["出血", "流血", "大出血", "大量出血"],
   ["放射痛", "疼痛向下肢放射", "疼痛往腿上窜", "痛往腿上窜", "往腿上窜", "向腿部放射", "向下肢放射", "窜到腿上", "串到腿上"],
   ["咳嗽", "干咳", "有痰咳嗽", "咳痰", "咳个不停", "一直咳"],
-  ["呼吸困难", "气促", "气短", "喘憋", "气喘", "喘不上气", "呼吸费力"],
+  // 「咳喘」「喘促」「喘息」也是气促（2026-10-19 Claude 评审 M 集 BEST4SDT-73：病历「入夜则咳喘加重」，辨病依据写「未诉气促」）。
+  ["呼吸困难", "气促", "气短", "喘憋", "气喘", "喘不上气", "呼吸费力", "咳喘", "喘促", "喘息"],
+  // 体重下降与消瘦同义（SD-433219：病历「体重下降约20kg」，辨病依据写「未诉消瘦」）。
+  ["消瘦", "体重下降", "体重减轻", "形体消瘦", "日渐消瘦"],
   ["胸痛", "胸口疼", "心前区痛", "胸口压迫", "胸骨后压榨感"],
   ["腹痛", "肚子疼", "肚子痛", "小肚子疼", "小肚子痛", "小腹疼", "小腹痛", "下腹疼", "下腹痛", "上腹疼", "上腹痛", "胃疼", "胃痛", "胃脘疼", "胃脘痛"],
   ["心悸", "心慌", "心跳快", "心跳加速", "心跳乱", "漏跳感"],
@@ -955,7 +958,8 @@ function sourceDocumentsAffirmation(source: string, term: string): boolean {
           !isLocalHeatNotFeverAt(sentence, index, equivalent) &&
           !isExcludedClinicalAssertionAt(sentence, index) &&
           !hasImmediateBareNegator(cueSentence, index) &&
-          !isNegatedAt(cueSentence, index) &&
+          // 与 hasNonNegatedClinicalPattern 同一判据：前面有否认、逗号后另起肯定小句的，算记录了（MTCMB-14）。
+          (!isNegatedAt(cueSentence, index) || hasCommaSeparatedPositiveEvidence(cueSentence, index, equivalent)) &&
           !/(待核实|待确认|不清楚|未知|不详|未采集|未说明)/.test(sentence)
         ) return true;
         index = sentence.indexOf(equivalent, index + equivalent.length);
@@ -1001,9 +1005,10 @@ function clauseNegationsAreLiterallyDocumented(clause: string, source: string): 
     .map((item) => item.replace(/^(?:本例|患者|病人|当前|目前)\s*/, "").trim())
     .filter((item) => item.length >= 2);
   if (items.length === 0) return false;
+  // 同一判据（hasNonNegatedClinicalPattern）：病历里前有否认、逗号后另起「有/偶有」小句的不算否认（「无汗出，偶有胸痛」，MTCMB-14）。
   return items.every((item) => {
     const index = source.indexOf(item);
-    return index >= 0 && isNegatedAt(source, index);
+    return index >= 0 && isNegatedAt(source, index) && !hasCommaSeparatedPositiveEvidence(source, index, item);
   });
 }
 
@@ -1345,7 +1350,8 @@ function sanitizeUngroundedNegationText(
     // 识别面与改写面必须认同一批词。少了受控词表这一半，病历里没有舌象、模型却编出
     // 「舌体颤动」「络脉青紫」时，净化器认不出来、原样放行——一条无据的舌象就这么进了结论。
     sanitized = sanitized
-      .replace(/舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|齿痕|边红|尖红)[^，。；;\n|]{0,24}|苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)/g, unlessCheckOrAbsenceClause("舌象待核实"))
+      // 舌苔整段一起换：只换「苔厚」两个字时「舌苔厚腻」成了「舌舌象待核实腻」（2026-10-19 Claude 评审 M 集 BEST4SDT-270）。
+      .replace(/舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|齿痕|边红|尖红)[^，。；;\n|]{0,24}|舌?苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)(?:[薄厚白黄腻燥润剥少滑干灰黑微略稍]|而)*/g, unlessCheckOrAbsenceClause("舌象待核实"))
       .replace(new RegExp(inspectionLexiconPattern("tongue").source, "g"), unlessCheckOrAbsenceClause("舌象待核实"));
   }
   if (!recordedInspection.pulse && !sourceHasKnownPulse(source)) {
@@ -2782,6 +2788,9 @@ function hasCommaSeparatedPositiveEvidence(text: string, index: number, term: st
     /(?:伴有?|合并|继而|随后)[^，,。；;\n]+/.test(term) ||
     /^(?:排出?|出现|发生|伴|伴有|合并|再发|复发|突发|突然|新发|今(?:日|晨)|昨(?:日|晚|夜)|持续|加重)/.test(afterComma.trim()) ||
     /(?:伴有?|并|且|继而|随后)[^，,。；;\n]*$/.test(afterComma.trim()) ||
+    // 逗号后的小句以「有/偶有/时有/见」直接引出该症状（「无汗出，偶有胸痛」「无头痛，有胸痛」）：是新起的肯定小句（2026-10-19 Claude 评审 M 集
+    // MTCMB-14：鉴别里「无胸痛」与病历「偶有胸痛」相抵却没被改正，交付成「未诉胸痛」）。构词式：小句里只有这一个动词、本身不带否定。
+    /^(?:偶尔?|时|常|尚|仍|另|间或|间断|反复)?(?:有|见|感|觉)$/.test(afterComma.trim()) ||
     /^(?:约|已|持续|反复)?\s*(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百半数多几]+)\s*(?:次|分钟|分|小时|天|日|周|月|ml|mL|毫升)/.test(after) ||
     /^(?:后|伴有?|并|且|持续|反复|加重|发作|导致|致|继而|随后)/.test(after);
 }
@@ -3252,17 +3261,19 @@ function withoutNonDigestiveMassOrDatedHistory(text: string): string {
  * 四条一律走 hasPatternWithoutNegation：甲方 P0 病例原文写的是「无呕血黑便，无消瘦，无吞咽困难」，
  * 把否定式读成阳性会把整个普通门诊病例打成红旗——那正是本仓库反复付过代价的误报形态。
  */
-function hasUpperGiAlarmFeatureSignal(rawText: string): boolean {
+/** 命中的是哪一类上消化道警示征象（红旗理由只写命中的那一类，见 4630 行附近）。 */
+type UpperGiAlarmKind = "obstruction" | "malignancy" | "weight_loss";
+function upperGiAlarmFeatureKind(rawText: string): UpperGiAlarmKind | undefined {
   const text = rawText;
   // 伴随表现与体重下降只读当前、消化道部位的写法（见 withoutNonDigestiveMassOrDatedHistory）；肿瘤史本身照旧读全文。
   const findingsText = withoutNonDigestiveMassOrDatedHistory(rawText);
   // A
-  if (hasPatternWithoutNegation(text, new RegExp(governedTermAlternation(GOVERNED_GI_ALARM.symptoms)))) return true;
+  if (hasPatternWithoutNegation(text, new RegExp(governedTermAlternation(GOVERNED_GI_ALARM.symptoms)))) return "obstruction";
   // B
   const progression = `${governedTermAlternation(GI_ALARM_DETECTION.progressionCues)}|\\d+\\s*(?:个)?(?:月|年|周)`;
   if (hasPatternWithoutNegation(text, new RegExp(
     `进食困难[^。；;\\n]{0,20}(?:${progression})|(?:${progression})[^。；;\\n]{0,20}进食困难`,
-  ))) return true;
+  ))) return "obstruction";
   // C：恶性肿瘤病史分两档，避免「任何癌症幸存者 + 任何腹胀 = 永久红旗」这类噪声。
   //   · 消化道本身的恶性肿瘤 + **任何**当前消化道症状 ⇒ 触发。
   //     食管癌术后新发上腹胀满要先排除复发与吻合口狭窄，这一档不该再加门槛。
@@ -3288,13 +3299,13 @@ function hasUpperGiAlarmFeatureSignal(rawText: string): boolean {
   const digestive = governedTermAlternation(GI_ALARM_DETECTION.currentDigestiveSymptoms);
   const alarmDigestive = governedTermAlternation(GI_ALARM_DETECTION.alarmDigestiveFindings);
   if (hasPatientHistoryTermWithoutNegation(text, new RegExp(GI_CANCER))
-    && hasPatternWithoutNegation(findingsText, new RegExp(digestive))) return true;
+    && hasPatternWithoutNegation(findingsText, new RegExp(digestive))) return "malignancy";
   if (hasPatientHistoryTermWithoutNegation(text, new RegExp(CANCER))
-    && hasPatientHistoryTermWithoutNegation(findingsText, new RegExp(alarmDigestive))) return true;
+    && hasPatientHistoryTermWithoutNegation(findingsText, new RegExp(alarmDigestive))) return "malignancy";
   // D
   const weightLossCue = governedTermAlternation(GI_ALARM_DETECTION.unexplainedWeightLossCues);
   const weightLoss = governedTermAlternation(GI_ALARM_DETECTION.weightLossTerms);
-  if (hasPatternWithoutNegation(findingsText, new RegExp(`(?:${weightLossCue})[^。；;\\n]{0,8}(?:${weightLoss})`))) return true;
+  if (hasPatternWithoutNegation(findingsText, new RegExp(`(?:${weightLossCue})[^。；;\\n]{0,8}(?:${weightLoss})`))) return "weight_loss";
   // 带数值的体重下降要够得上「有临床意义」才算警示（2026-10-13，数值阈值）。此前任何数字都算：
   // 「干咳3月，近3个月体重下降约2kg」被报成上消化道警示征象并收回剂量。通行定义是 6–12 个月内
   // 非刻意下降超过体重的 5%；病历通常不写体重，按 60kg 折算取 3kg（6 斤）。达不到的仍留在病历里供医生判断。
@@ -3309,9 +3320,9 @@ function hasUpperGiAlarmFeatureSignal(rawText: string): boolean {
     const index = match.index ?? -1;
     if (index < 0 || isExcludedClinicalAssertionAt(findingsText, index)) continue;
     if ((!isNegatedAt(findingsText, index) || hasCommaSeparatedPositiveEvidence(findingsText, index, match[0])) &&
-        !isHistoricalOrResolvedAt(findingsText, index, match[0].length)) return true;
+        !isHistoricalOrResolvedAt(findingsText, index, match[0].length)) return "weight_loss";
   }
-  return false;
+  return undefined;
 }
 
 /**
@@ -3432,7 +3443,9 @@ function hasRecentPositiveTerm(text: string, terms: string[]): boolean {
 const FOCAL_NEUROLOGIC_PATTERN = new RegExp(
   `(?:${FOCAL_NEUROLOGIC_TERMS.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
 );
-const CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN = /(?:昏迷|呼之不应|抽搐|惊厥|癫痫持续状态)/;
+// 「抽搐痛」「抽搐感」「抽搐样痛」是疼痛的性质（「头抽搐痛七年」「头痛呈拘急跳痛抽搐感」），不是发作性抽搐（2026-10-19 Claude 评审 H 集
+// H-tri-19642：七年间断性紧张性头痛被报神经急症、剂量收回）。构词式守卫：只看「抽搐」后面紧跟的痛/感，其余写法照旧。
+const CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN = /(?:昏迷|呼之不应|抽搐(?!痛|感|样(?:疼|胀)?痛)|惊厥|癫痫持续状态)/;
 const ACUTE_CONSCIOUSNESS_CHANGE_TERMS = ["昏睡", "嗜睡", "谵妄"];
 /**
  * 意识改变：急性意识改变那组词、灾难性神经事件里的昏迷/呼之不应，加上同义的书面写法；「反应（较平时）迟钝/变慢」按构词式认。
@@ -4623,8 +4636,12 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   }
   // 上气道水肿场景下的「吞咽困难」已由过敏红旗完整承接，不再重复成第二条告警；
   // 出血已单独成条时也不叠加——同一事件两条告警会让医生开始忽略告警本身。
-  if (hasUpperGiAlarmFeatureSignal(text) && !anaphylacticAirwaySignal) {
-    redFlags.push("上消化道警示征象（吞咽/进食梗阻、恶性肿瘤病史伴消化道症状、或不明原因体重下降）已出现，需优先安排内镜或影像评估以排除梗阻、复发与占位，再评估处方");
+  // 括号里只写命中的那一类（2026-10-19 Claude 评审 M 集 SD-433219：理由列出全部三类，注意事项据此写成「已有吞咽梗阻、消瘦等警示征象」，
+  // 病历并无吞咽梗阻）。「上消化道警示征象（」这个开头不变，按它归类的地方照旧认得。
+  const upperGiAlarmKind = upperGiAlarmFeatureKind(text);
+  if (upperGiAlarmKind && !anaphylacticAirwaySignal) {
+    const item = upperGiAlarmKind === "obstruction" ? "吞咽或进食梗阻" : upperGiAlarmKind === "malignancy" ? "恶性肿瘤病史伴消化道症状" : "不明原因体重下降";
+    redFlags.push(`上消化道警示征象（${item}）已出现，需优先安排内镜或影像评估以排除梗阻、复发与占位，再评估处方`);
   }
   if (activeObstetricHemorrhageSignal) {
     redFlags.push("妊娠期活动性大量阴道出血提示产科急症，需立即转产科急诊评估");
@@ -4632,18 +4649,24 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   if (activeMajorVaginalBleedingSignal && !activeObstetricHemorrhageSignal) {
     redFlags.push("活动性大量阴道出血伴持续/反复、重度贫血或循环灌注风险，需立即评估失血量与循环状态并急诊处置");
   }
-  const acuteRespiratorySignal =
-    hasAnyTerm(text, ["端坐呼吸", "不能平卧", "无法平卧", "喘不上气", "口唇发紫", "嘴唇发紫",
+  const breathingDistressSignal =
+    hasAnyTerm(text, ["端坐呼吸", "不能平卧", "无法平卧", "喘不上气",
       ...RESPIRATORY_DETECTION.colloquialSymptoms]) ||
-    // 中心性发绀的查体写法（「口唇发绀」「口唇轻紫绀」「口唇面颊轻度发绀」）：部位与词表都在 T6 respiratory.detection。
-    hasPatternWithoutNegation(text, new RegExp(
-      `(?:${governedTermAlternation(RESPIRATORY_DETECTION.centralCyanosisSites)})[^，,。；;\\n无未不否没]{0,4}(?:${governedTermAlternation(RESPIRATORY_DETECTION.centralCyanosisTerms)})`,
-    )) ||
     hasColloquialOrthopnea(text) ||
     hasPatternWithoutNegation(text, /(?:说|讲)(?:半句|一句|几句话).{0,12}(?:停|歇|喘)|(?:静息|坐着不动).{0,8}(?:呼吸困难|气促|喘憋)/);
+  // 中心性发绀的查体写法（「口唇发绀」「口唇轻紫绀」「口唇面颊轻度发绀」）：部位与词表都在 T6 respiratory.detection。
+  const centralCyanosisSignal = hasAnyTerm(text, ["口唇发紫", "嘴唇发紫"]) ||
+    hasPatternWithoutNegation(text, new RegExp(
+      `(?:${governedTermAlternation(RESPIRATORY_DETECTION.centralCyanosisSites)})[^，,。；;\\n无未不否没]{0,4}(?:${governedTermAlternation(RESPIRATORY_DETECTION.centralCyanosisTerms)})`,
+    ));
+  const acuteRespiratorySignal = breathingDistressSignal || centralCyanosisSignal;
   // 胸痛/胸闷伴气促时，心血管红旗文案已经完整承接呼吸循环风险；避免同一事件重复成两条告警。
+  // 只有发绀、没有呼吸困难的写法时，理由写发绀（2026-10-19 Claude 评审 M 集 SD-451922：病历只有「口唇发绀、爪甲青紫」，
+  // 理由却是「突发或快速加重呼吸困难/端坐呼吸」）。判定（报不报）不变。
   if (acuteRespiratorySignal && !reportableCardiacRisk && !anaphylacticAirwaySignal) {
-    redFlags.push("突发或快速加重呼吸困难/端坐呼吸，需优先评估呼吸循环急症");
+    redFlags.push(breathingDistressSignal
+      ? "突发或快速加重呼吸困难/端坐呼吸，需优先评估呼吸循环急症"
+      : "口唇发绀等中心性发绀表现，需优先评估血氧与呼吸循环急症");
   }
   // 产科语境的重度高血压阈值独立于通用危急值：妊娠期/产褥期收缩压≥160 或舒张压≥110 即为
   // 重度（子痫前期/子痫谱系），常伴持续头痛、视物异常、右上腹痛。通用 180/120 阈值覆盖不到
@@ -5517,8 +5540,62 @@ export function narrativePediatricAgeConflict(state: CaseState): number | undefi
   return years != null && years < 18 ? years : undefined;
 }
 
+/**
+ * 家族史一栏的原文（甲方传参形状里是 symptoms 的「家族史」键，HIS 字段同名）。拍平后的病历不带栏名，
+ * 「母亲健在，患有冠心病、心力衰竭」逗号后那一小句没有主语，按小句判主语时算成了患者本人（2026-10-19 Claude 评审 M 集 MTCMB-21：
+ * 患者本人无心衰，剂量因「心力衰竭…需完成剂量复核」被收回）。
+ */
+function familyHistoryFieldTexts(state: CaseState): string[] {
+  const fromSymptoms = Object.entries((state.symptoms || {}) as Record<string, unknown>)
+    .filter(([key]) => /家族史/u.test(key)).map(([, value]) => stringifyClinicalValue(value));
+  const fromHis = Object.entries(state.hisRecord?.fields || {})
+    .filter(([key]) => /家族史/u.test(key)).map(([, value]) => stringifyClinicalValue(value));
+  return [...fromSymptoms, ...fromHis].map((value) => value.trim()).filter((value) => value.length >= 4);
+}
+
+/** 免疫抑制治疗：安全门「当前免疫抑制治疗」与注意事项「不要自行停用或减量」读同一份（2026-10-19 起导出）。 */
+export const IMMUNOSUPPRESSIVE_MEDICATION = /(?:环孢素|他克莫司|吗替麦考酚酯|霉酚酸|硫唑嘌呤|甲氨蝶呤|来氟米特|环磷酰胺|生物制剂|免疫抑制剂|长期[^。；\n]{0,8}(?:泼尼松|糖皮质激素)|正在[^。；\n]{0,8}(?:泼尼松|糖皮质激素))/i;
+/** 全身用糖皮质激素的药名（INN 词干「-松/-龙」的中文通用名与俗名，闭集）：骤停有肾上腺皮质功能不全的风险，注意事项写「不要自行停用或减量」。 */
+export const CORTICOSTEROID_MEDICATION = /泼尼松|泼尼龙|强的松|可的松|地塞米松|倍他米松|曲安西龙|激素/u;
+/** 抗凝、抗血小板药：安全门「当前抗凝或抗血小板治疗」与注意事项的出血观察一条读同一份（2026-10-19 起导出）。 */
+export const ANTITHROMBOTIC_MEDICATION = /(?:华法林|利伐沙班|阿哌沙班|达比加群|艾多沙班|肝素|依诺肝素|磺达肝癸钠|抗凝药|抗凝治疗|阿司匹林|氯吡格雷|替格瑞洛|普拉格雷|抗血小板)/i;
+
+/**
+ * 病历写着通常须长期抗凝或抗血小板的情形、却没写药名（2026-10-19 Claude 评审 M 集 MTCMB-42：冠脉支架术后 3 个月、右下肢深静脉血栓，
+ * 方含丹参、川芎，注意事项没有出血一条）。闭集：冠脉支架/PCI 术后、深静脉血栓、肺栓塞、心房颤动、机械瓣置换——
+ * 2016 ACC/AHA 双联抗血小板指南（支架术后 6–12 个月）、CHEST 2021 静脉血栓栓塞指南（至少 3 个月抗凝）、2020 ESC 房颤指南。
+ * 只用于注意事项「如正在服用抗凝或抗血小板药」那一句，不进安全门。返回病历里的说法；否认的不算。
+ */
+const ANTITHROMBOTIC_INDICATION = /PCI|经皮冠状动脉介入|冠脉支架|冠状动脉支架|(?:植入|置入)[^，,。；;]{0,6}支架|深静脉血栓|肺栓塞|心房颤动|房颤|机械瓣|瓣膜置换/iu;
+export function antithromboticIndicationRecorded(state: CaseState): string | undefined {
+  const source = familyHistoryFieldTexts(state).reduce((text, family) => text.split(family).join(""), trustedInputText(state));
+  if (!hasNonNegatedClinicalPattern(source, ANTITHROMBOTIC_INDICATION)) return undefined;
+  const hit = source.match(ANTITHROMBOTIC_INDICATION)?.[0] || "";
+  // 写给患者的说法：病历原文（「于OM植入1枚支架」「房颤」）换成病名。
+  if (/深静脉血栓/u.test(hit)) return "深静脉血栓";
+  if (/肺栓塞/u.test(hit)) return "肺栓塞";
+  if (/房颤|心房颤动/u.test(hit)) return "心房颤动";
+  if (/瓣/u.test(hit)) return "心脏瓣膜置换";
+  return "冠脉支架植入";
+}
+
+/**
+ * 病历写着患者本人有糖尿病（「2型糖尿病」「10年糖尿病史」「平素血糖控制欠佳」），家族史与否认的不算。注意事项写控糖与血糖监测一条用
+ *（2026-10-19 Claude 评审 M 集 TCM-SD-453850、BEST4SDT-250）。
+ */
+const DIABETES_RECORDED = /糖尿病|消渴|血糖控制(?:不佳|欠佳|差|不理想)/u;
+/** 已签名的西医诊断就是糖尿病（不是「糖尿病待查/待排/可能」）。 */
+export function diabetesDiagnosisConfirmed(westernName: string): boolean {
+  return /糖尿病(?!待查|待排|可能|\?|？)/u.test(westernName);
+}
+export function diabetesRecorded(state: CaseState): boolean {
+  const source = familyHistoryFieldTexts(state).reduce((text, family) => text.split(family).join(""), trustedInputText(state));
+  return hasNonNegatedClinicalPattern(source, DIABETES_RECORDED);
+}
+
 export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
-  const source = trustedInputText(state);
+  // 患者本人的病（肾功能不全、心衰、糖尿病足…）不从家族史一栏里读。
+  const source = familyHistoryFieldTexts(state).reduce((text, family) => text.split(family).join(""), trustedInputText(state));
   const medicationSource = [
     authoritativeFieldOrFallback(state, "yongyaoshi", state.medicationHistory),
     extractMedicationEvidenceText(source),
@@ -5538,10 +5615,10 @@ export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
   if (hasNonNegatedClinicalPattern(source, /(?:心力衰竭|心衰|HFrEF|HFpEF|射血分数\s*(?:EF)?\s*[:：]?\s*(?:[1-3]?\d(?:\.\d+)?)\s*%|EF\s*[:：]?\s*(?:[1-3]?\d(?:\.\d+)?)\s*%)/i)) {
     push("心力衰竭或射血分数降低需结合容量状态、肾功能及现用药完成剂量复核");
   }
-  if (/(?:华法林|利伐沙班|阿哌沙班|达比加群|艾多沙班|肝素|依诺肝素|磺达肝癸钠|抗凝药|抗凝治疗|阿司匹林|氯吡格雷|替格瑞洛|普拉格雷|抗血小板)/i.test(activeMedication)) {
+  if (ANTITHROMBOTIC_MEDICATION.test(activeMedication)) {
     push("当前抗凝或抗血小板治疗需完成出血风险与药物相互作用复核");
   }
-  if (/(?:环孢素|他克莫司|吗替麦考酚酯|霉酚酸|硫唑嘌呤|甲氨蝶呤|来氟米特|环磷酰胺|生物制剂|免疫抑制剂|长期[^。；\n]{0,8}(?:泼尼松|糖皮质激素)|正在[^。；\n]{0,8}(?:泼尼松|糖皮质激素))/i.test(activeMedication)) {
+  if (IMMUNOSUPPRESSIVE_MEDICATION.test(activeMedication)) {
     push("当前免疫抑制治疗需完成感染、肝肾功能及药物相互作用复核");
   }
   if (hasNonNegatedClinicalPattern(source, /(?:糖尿病足|糖尿病性足溃疡|足部溃疡|足坏疽|糖足)/i)) {

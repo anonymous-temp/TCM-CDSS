@@ -10,7 +10,7 @@ import { stripHerbBoundaryTail } from "./candidate-boundary-text";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
 import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
-import { compositionIdentityName, formulaCompilationReferences, formulaManualDoseIngredients, formulaNameVariantIngredients, originalBookFormulaIngredients } from "./tcm-formula-provenance";
+import { compositionIdentityName, formulaCompilationReferences, formulaEditClaimBaseIngredients, formulaManualDoseIngredients, formulaNameVariantIngredients } from "./tcm-formula-provenance";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
@@ -32,10 +32,11 @@ import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { fillMedicineRowFromInstructionRecord, type InstructionRecordPool } from "./instruction-record-pool";
 import { formulaAnalysisHerbMentions, formulaAnalysisRoleAssignments, withoutFalseBaseFormulaEdits } from "./formula-analysis-review";
 import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
-import { patentMedicineDuplication, selfTakenMedicationCompositions } from "./patent-medicine-duplication.server";
+import { patentMedicineDuplication, selfTakenMedicationCompositions, withoutRepeatedMedicineNames, withoutSameClassAnalgesics } from "./patent-medicine-duplication.server";
 import { herbRecordCautionConflict, herbRecordCautionConflicts, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
 import { specialDecoctionPhrase, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
+import { withheldBaseIngredientNote } from "./formula-withheld-ingredient-note";
 import { chpPregnancyLabel, conceptionHerbNote } from "./conception-herb-policy";
 
 const evidence = {
@@ -284,6 +285,7 @@ export function precautionNamesHerbOutsideFormula(line: string, prescribedIdenti
  * 剩一味时去掉数量词。方外之物（「不宜同服藜芦」）与 precautionNamesHerbOutsideFormula 同一判法，不动。
  * 编译器按编译时的处方用；交付面按最终处方再用一次（编译之后还会剔药：方向不成立的加味、加减建议）。幂等。
  */
+const SUBJECTLESS_CONTINUATION = /^(?:须|需|应|宜|不宜|不可|切勿|勿|要|均|皆|都|亦|也|且|并|故|按此|照此|煎药时|先煎|后下|包煎|另煎|烊化|捣碎|打碎|研末|冲服|用量)/u;
 export function precautionWithoutAbsentHerbs(line: string, prescribedIdentities: ReadonlySet<string>): string {
   if (prescribedIdentities.size === 0 || typeof line !== "string") return line;
   let touched = false;
@@ -321,6 +323,23 @@ export function precautionWithoutAbsentHerbs(line: string, prescribedIdentities:
     return `${piece.slice(0, tailStart)}${kept}`;
   });
   if (!touched) return line;
+  // 删掉的小句是这一句的主语（「方中制半夏有毒，须经炮制并按医嘱服用，不可自行加量或久服。」），同一句后面没有主语、
+  // 接着讲这味药的小句（以「须/应/宜/不可/勿/按此…」开头，构词式闭集）一并去掉，不留「须经炮制并按医嘱服用…」这种残句
+  //（2026-10-19 Claude 评审 M 集 MTCMB-59）。句号之后的另一句照留。
+  let subjectDropped = false;
+  const originals = line.split(/(?<=[，,；;。！？!?])/u);
+  for (let index = 0; index < pieces.length; index += 1) {
+    const original = originals[index] ?? "";
+    if (pieces[index] === "" && original.trim()) { subjectDropped = true; continue; }
+    if (subjectDropped && SUBJECTLESS_CONTINUATION.test(pieces[index].trim()) &&
+        !formulaAnalysisHerbMentions(pieces[index]).some((mention) => prescribedIdentities.has(canonicalTcmHerbIdentity(mention.token)))) {
+      const end = /[。！？!?]$/u.test(pieces[index]);
+      pieces[index] = "";
+      if (end) subjectDropped = false;
+      continue;
+    }
+    subjectDropped = false;
+  }
   const joined = pieces.join("").replace(/^[，,；;。\s]+/u, "").replace(/[，,；;]+(?=。|$)/u, "").trim();
   if (!/[\u4e00-\u9fff]{4,}/u.test(joined)) return "";
   return /[。！？!?]$/u.test(joined) ? joined : `${joined}。`;
@@ -1263,6 +1282,60 @@ function normalizeHerbs(value: unknown): unknown {
   return entries.map(([name, herb]) => normalizeHerb(herb, name));
 }
 
+const HERB_ROLE_RANK: Readonly<Record<string, number>> = { 君: 4, 臣: 3, 佐: 2, 使: 1 };
+const gramsOf = (dose: unknown) => {
+  const match = typeof dose === "string" ? dose.trim().match(/^(\d+(?:\.\d+)?)\s*(?:g|克)$/iu) : null;
+  return match ? Number(match[1]) : undefined;
+};
+
+/**
+ * 同一标准规范身份（canonicalTcmHerbIdentity，含别名与同源炮制品）的药味行合并成一行（2026-10-19 M 集 RobustSDT-single_0329：
+ * 寒邪客胃证「香苏散合良附丸加减」两首方都有香附，模型列了两行；下面 superRefine 判「必须合并」，修复轮照样重复列，
+ * 三轮之后整页无候选，m04_truncated_no_candidate）。合方共有的药本就是同一味，合并是确定性的，不该靠修复轮：
+ *  · 名称、位置、功效说明、炮制与煎法取第一行（第一行没写的炮制/煎法用后一行的）；
+ *  · 剂量取两行中较大的（之后编译器照常按药典上限核，超上限的封顶并写明原值）；任一行剂量读不出克数时保留第一行的；
+ *  · 君臣佐使取较高的；角色来自后一行时，它的病机指向（targetKind/targetRef/structureRole）随角色一起取——
+ *    合同要求君药指向 P1，只升角色不换指向会把一个合格的君药判成指向次要病机；
+ *  · 有毒标记任一行为真即为真。
+ * 身份按 canonicalTcmHerbIdentity 判，与 superRefine 同一个函数（生地黄与熟地黄、白芍与赤芍各是一味，不合并）；
+ * 身份为空（认不出的药名）的行不合并，照旧交给 superRefine 与合同。superRefine 的检查保留作兜底。
+ */
+function mergeSameIdentityHerbRows(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  const merged: unknown[] = [];
+  const indexByIdentity = new Map<string, number>();
+  let mergedRows = 0;
+  for (const herb of value) {
+    const identity = isRecord(herb) && typeof herb.name === "string" ? canonicalTcmHerbIdentity(herb.name) : "";
+    const at = identity ? indexByIdentity.get(identity) : undefined;
+    if (at == null || !isRecord(herb)) {
+      if (identity) indexByIdentity.set(identity, merged.length);
+      merged.push(herb);
+      continue;
+    }
+    const first = merged[at] as Record<string, unknown>;
+    const next: Record<string, unknown> = { ...first };
+    const firstGrams = gramsOf(first.dose);
+    const laterGrams = gramsOf(herb.dose);
+    if (firstGrams != null && laterGrams != null && laterGrams > firstGrams) next.dose = herb.dose;
+    if ((HERB_ROLE_RANK[String(herb.role)] || 0) > (HERB_ROLE_RANK[String(first.role)] || 0)) {
+      next.role = herb.role;
+      for (const key of ["targetKind", "targetRef", "structureRole"] as const) {
+        if (key in herb) next[key] = herb[key];
+        else delete next[key];
+      }
+    }
+    for (const key of ["processing", "decoctionRequirement", "function"] as const) {
+      if ((next[key] == null || next[key] === "") && herb[key] != null && herb[key] !== "") next[key] = herb[key];
+    }
+    if (herb.isToxic === true) next.isToxic = true;
+    merged[at] = next;
+    mergedRows += 1;
+  }
+  if (mergedRows > 0) console.info("[tcm-cdss:telemetry] m04_same_identity_herb_rows_merged", { mergedRows });
+  return mergedRows > 0 ? merged : value;
+}
+
 function normalizeEmperorCardinality(value: unknown): unknown {
   if (!Array.isArray(value)) return value;
   const emperorIndexes = value.flatMap((herb, index) =>
@@ -1365,7 +1438,7 @@ function normalizeM04ProposalInput(
     else if (candidate[field] != null) delete candidate[field];
   }
   candidate.herbs = normalizeEmperorCardinality(
-    normalizeHerbs(candidate.herbs ?? candidate.medicines ?? candidate["药味"]),
+    mergeSameIdentityHerbRows(normalizeHerbs(candidate.herbs ?? candidate.medicines ?? candidate["药味"])),
   );
 
   const rawDecoction = unwrapRegimenRecord(candidate.decoction ?? candidate["煎服"]);
@@ -1726,9 +1799,7 @@ function withWithheldBaseIngredientNote(analysis: string, formulaNames: readonly
   if (withheld.length === 0) return analysis;
   // 写成临床说法：「本次未列入药味表，是否使用及用量由医师单独确定」是系统流程话（2026-10-19 H 集 Claude 评审 X-H-0425 判系统句）。
   const toxic = withheld.filter((name) => getTcmHerbGenerationSafetyProfile(name).toxicity.length > 0);
-  const note = toxic.length === withheld.length
-    ? `原方中的${withheld.join("、")}毒性较大，本方未用。`
-    : `原方中的${withheld.join("、")}本方未用。`;
+  const note = withheldBaseIngredientNote(withheld, toxic.length === withheld.length);
   const opening = analysis.match(/^[^。]*(?:为基础|加减|化裁)[^。]*。/u);
   return opening ? `${opening[0]}${note}${analysis.slice(opening[0].length)}` : `${analysis}${/[。！!]$/u.test(analysis) ? "" : "。"}${note}`;
 }
@@ -1772,10 +1843,7 @@ function withAnalysisConsistentCandidate(
     console.info("[tcm-cdss:telemetry] formula_analysis_role_alignment", { realigned, emperorConflicts });
   }
   const baseName = analysis.match(/以([^，,。；;合]{2,14}?)为基础/u)?.[1] || String(candidate.name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
-  const baseIngredients = [
-    ...originalBookFormulaIngredients(baseName),
-    ...(formulaCompilationReferences([baseName])[0]?.ingredients || []),
-  ];
+  const baseIngredients = formulaEditClaimBaseIngredients(baseName);
   const editedAnalysis = analysis
     ? withWithheldBaseIngredientNote(
       withoutFalseBaseFormulaEdits(analysis, baseIngredients, herbs.map((herb) => herb.name), formulaNameVariantIngredients(baseName)).text,
@@ -1823,8 +1891,9 @@ export function compileM04Proposal(
   const duplicationHerbs = proposal.candidate.herbs.map((herb) => ({ name: herb.name, role: herb.role }));
   const selfMedications = selfTakenMedicationCompositions(caseState);
   const medicinesBeforeDuplication = proposal.patentAndWestern.length;
-  proposal.patentAndWestern = proposal.patentAndWestern
-    .filter((item) => !patentMedicineDuplication(item, duplicationHerbs, selfMedications));
+  // 解热镇痛抗炎药只留一种（S145：依托考昔、对乙酰氨基酚、布洛芬并列；见 withoutSameClassAnalgesics）。
+  proposal.patentAndWestern = withoutRepeatedMedicineNames(withoutSameClassAnalgesics(proposal.patentAndWestern
+    .filter((item) => !patentMedicineDuplication(item, duplicationHerbs, selfMedications))));
   const duplicateMedicinesDropped = medicinesBeforeDuplication - proposal.patentAndWestern.length;
   if (modificationIssue(proposal, prior)) return undefined;
   const cleanNarrative = (value: string | undefined, fallback: string) =>
@@ -2124,4 +2193,4 @@ export function compileM04JsonObjectContent(
 }
 
 /** 测试用：单味药的核验级别与理由（医生在页面上看到的那一行）。 */
-export const m04CompilerTestHooks = { compileHerbVerification, casePrecautions, withoutIncidentalSedatives, withWithheldBaseIngredientNote, withAnalysisConsistentCandidate };
+export const m04CompilerTestHooks = { compileHerbVerification, casePrecautions, withoutIncidentalSedatives, withWithheldBaseIngredientNote, withAnalysisConsistentCandidate, mergeSameIdentityHerbRows };

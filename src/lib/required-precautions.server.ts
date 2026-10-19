@@ -1,6 +1,6 @@
-import { cleanedMedicationNameCandidate, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationStoppedInNextSentence, medicationStoppedOrOnlyPast, recordedMedicationMentions, recordedMobilityLimitation, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
+import { cleanedMedicationNameCandidate, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
-import { clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
+import { ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import {
   findLocalPatentMedicineLabel,
@@ -181,15 +181,46 @@ export function requiredPrecautionsForCase(
   // 统一按药名候选收一道、按清理后的名字去重；后来停了或只在「曾…」里出现的不算在用。
   // 最多列 6 个：长期多药的病人（激素＋吸入剂＋抗组胺，降压＋降糖＋调脂＋抗血小板）列 3 个就漏了评审点名的那几个。
   const cleanedOf = (name: string) => cleanedMedicationNameCandidate(name);
-  const listed = [...new Set(current.map(cleanedOf).filter(Boolean))]
-    .filter((name, index, all) => !all.some((other, at) => at < index && (other.includes(name) || name.includes(other))))
-    .filter((name) => !medicationStoppedInNextSentence(grounded, name) && !medicationStoppedOrOnlyPast(grounded, name))
-    .slice(0, 6);
+  const candidates = [...new Set(current.map(cleanedOf).filter(Boolean))]
+    .filter((name, index, all) => !all.some((other, at) => at < index && (other.includes(name) || name.includes(other))));
+  // 现病史按时间点分段（clinical-polarity medicationTimelineStatuses，2026-10-19 Claude 评审 M 集 TCM-SD-463912、480964、440006、478843）：
+  // 换掉的旧方案不列；最后一段里接着用的算正在用（即便写的是「予」）；早年的、写着「间断/长期」的请患者说明现在是否还在用。
+  const timeline = medicationTimelineStatuses(presentIllnessText(state), candidates);
+  const pastOnly = new Map(candidates.map((name) => [name, medicationOnlyPastMentions(grounded, name)]));
+  const listed = candidates
+    .filter((name) => !medicationStoppedInNextSentence(grounded, name) && !medicationStopped(grounded, name))
+    .filter((name) => timeline.get(name) !== "superseded")
+    // 只在「曾…」里出现的：这次发病最后一段里用过的（「外院曾予蒙脱石散、易蒙停等药物治疗，症状未能缓解，遂来就诊」，M 集 RobustSDT-0598）
+    // 请患者说明是否还在用；带「既往」的（「既往曾接受醋酸泼尼松…治疗」）照旧不列。
+    .filter((name) => {
+      const past = pastOnly.get(name);
+      return !past || (past === "ever" && ["current", "latest", "ask"].includes(timeline.get(name) || ""));
+    })
+    .sort((left, right) => Number(timeline.get(left) === "ask") - Number(timeline.get(right) === "ask"));
+  // 激素、免疫抑制剂只写了药类没写药名的（「经予免疫抑制剂及激素治疗后」，M 集 RobustSDT-0530）：按药类列，已列了这一类具体药名的不重复。
+  const classes = recordedSystemicTherapyClasses(grounded)
+    .filter((label) => !listed.some((name) => label === "激素" ? CORTICOSTEROID_MEDICATION.test(name) : IMMUNOSUPPRESSIVE_MEDICATION.test(name)));
+  const shown = [...listed, ...classes].slice(0, 6);
   const givenNames = new Set(recorded.given.map(cleanedOf));
-  const given = listed.filter((name) => givenNames.has(name) && !formallyTaken.has(name));
-  if (listed.length > 0) items.push({ kind: "current_medications", names: listed, ...(given.length > 0 ? { given } : {}), ...(redFlag ? { urgent: true } : {}) });
-  else if ((recorded.unnamed || recorded.herbal) && !items.some((item) => item.kind === "self_medication")) {
+  const given = shown.filter((name) => timeline.get(name) !== "current" &&
+    ((givenNames.has(name) && !formallyTaken.has(name)) || pastOnly.get(name) === "ever" || timeline.get(name) === "ask" || classes.includes(name)));
+  const noSelfStop = shown.filter((name) => CORTICOSTEROID_MEDICATION.test(name) || IMMUNOSUPPRESSIVE_MEDICATION.test(name));
+  if (shown.length > 0) {
+    items.push({ kind: "current_medications", names: shown, ...(given.length > 0 ? { given } : {}), ...(redFlag ? { urgent: true } : {}), ...(noSelfStop.length > 0 ? { noSelfStop } : {}) });
+  } else if ((recorded.unnamed || recorded.herbal) && !items.some((item) => item.kind === "self_medication")) {
     items.push({ kind: "unnamed_medication", ...(recorded.herbal && !recorded.unnamed ? { herbal: true } : {}) });
+  }
+  // 抗凝、抗血小板药（与安全门同一份药名）或通常须抗栓的情形（支架术后、深静脉血栓、房颤…）：方中有活血药时写出血观察，交付面按最终处方核。
+  const antithromboticDrugs = [...shown, ...items.flatMap((item) => item.kind === "self_medication" ? [item.name] : [])]
+    .filter((name) => ANTITHROMBOTIC_MEDICATION.test(name));
+  const antithromboticIndication = antithromboticDrugs.length === 0 ? antithromboticIndicationRecorded(state) : undefined;
+  if (antithromboticDrugs.length > 0 || antithromboticIndication) {
+    items.push({ kind: "antithrombotic_bleeding", drugs: antithromboticDrugs, ...(antithromboticIndication ? { indication: antithromboticIndication } : {}) });
+  }
+  // 糖尿病（病历写着患者本人有，或已签名诊断是糖尿病/消渴）：控糖与监测血糖一条。
+  const diabetesConfirmed = diabetesRecorded(state) || diabetesDiagnosisConfirmed(String(prior?.westernDiagnosis?.primary?.name || ""));
+  if (diabetesConfirmed || [prior?.westernDiagnosis?.primary?.name, prior?.overview?.tcmDiseaseName].some((value) => /糖尿病|消渴/u.test(String(value || "")))) {
+    items.push({ kind: "diabetes_glucose", confirmed: diabetesConfirmed });
   }
   if (prior) {
     const overview = prior.overview;
@@ -198,7 +229,7 @@ export function requiredPrecautionsForCase(
     // 病历写了饮酒（个人史「饮酒30年」「嗜酒」）才写戒酒，与饮食栏「忌酒」一致；红旗未解除或不给剂量时只写忌口、不写怎么服
     //（2026-10-14 起红旗页不写服法；10/19 留出集 S178/S188/S190 红旗页仍出现「本方汤药宜饭后温服」，是这条规则补的）。
     const drinking = recordsAlcoholUse(grounding);
-    items.push({ kind: "administration_and_diet", diet: `${dietRestrictionForSyndromeText(syndromeText)}${drinking ? "，戒酒" : ""}`, administration: doseAllowed });
+    items.push({ kind: "administration_and_diet", diet: `${dietRestrictionForSyndromeText(syndromeText)}${drinking ? "，戒酒" : ""}`, administration: doseAllowed, ...(drinking ? { alcohol: true as const } : {}) });
   }
   const limitation = recordedMobilityLimitation(grounding);
   if (limitation) items.push({ kind: "mobility_limited_exercise", limitation });
@@ -229,13 +260,17 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "elderly_administration") return `${order}患者${Math.floor(item.ageYears)}岁：写一条与年龄相关的服药注意（如起身宜缓、防跌倒）。`;
     if (item.kind === "current_medications" && item.urgent) return `${order}病历记录患者正在使用${item.names.join("、")}，本例须先就医处置：写一条请把这些药连同药盒带去就医，告诉医生最近一次用药的时间，是否继续由医生决定；不写与中药间隔服用。`;
     if (item.kind === "self_discontinued_medication") return `${order}病历记录患者${item.irregular ? "未规律服用" : "自行停用了"}${discontinuedMedicationLabel(item)}${item.condition ? `（${item.condition}）` : ""}：写一条请${item.irregular ? "由医生评估后按医嘱规律服用" : "尽快由医生评估后调整用药并规律服用"}，不要自行停药或减量。`;
-    if (item.kind === "current_medications") return `${order}病历记录患者${item.given?.length ? "用过或正在使用" : "正在使用"}${item.names.join("、")}：写一条它与本方一起用时要注意的事（告知医生${item.given?.length ? "现在是否还在用" : ""}、是否继续由医生决定；口服药写「与中药间隔约1小时服用」；乳膏、贴剂等外用药只写「正在外用的某药请告知医生」，不写服用、不写间隔；与本方有明确相互作用的写出来）。`;
+    if (item.kind === "current_medications") return `${order}病历记录患者${item.given?.length ? "用过或正在使用" : "正在使用"}${item.names.join("、")}：写一条它与本方一起用时要注意的事（告知医生${item.given?.length ? "现在是否还在用" : ""}、是否继续由医生决定；口服药写「与中药间隔约1小时服用」；乳膏、贴剂等外用药只写「正在外用的某药请告知医生」，不写服用、不写间隔；与本方有明确相互作用的写出来${item.noSelfStop?.length ? `；${item.noSelfStop.join("、")}不要自行停用或减量` : ""}）。`;
+    if (item.kind === "antithrombotic_bleeding") return `${order}${item.drugs.length > 0 ? `病历记录患者正在使用${item.drugs.join("、")}` : `病历记录${item.indication}，通常在服抗凝或抗血小板药`}：本方若用了活血化瘀药（如桃仁、红花、川芎、丹参、三棱、莪术），写一条与${item.drugs.length > 0 ? "这些药" : "抗凝或抗血小板药"}同用可能增加出血、服药期间留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医；本方没有这类药时不写。`;
+    if (item.kind === "diabetes_glucose") return item.confirmed
+      ? `${order}患者有糖尿病：写一条服药期间按医嘱继续控制血糖、定期监测血糖，少吃甜食与含糖饮料；饮食建议里不要推荐红枣、蜂蜜、冰糖等含糖多的食物。`
+      : `${order}患者口渴多饮、尚未确诊糖尿病：写一条请尽早到医院查空腹血糖和糖化血红蛋白，服药期间少吃甜食与含糖饮料；饮食建议里不要推荐红枣、蜂蜜、冰糖等含糖多的食物。`;
     if (item.kind === "unnamed_medication" && item.herbal) return `${order}病历记录患者一直在服中药但没写方名：写一条请把正在服的中药方子带给医生看，由医生决定是否与本方同服，避免药味重复。`;
     if (item.kind === "unnamed_medication") return `${order}病历记录患者自行用过药但没写药名：写一条请把正在用的药（药名、用法）告诉医生，避免与本方重复或相互影响。`;
     if (item.kind === "herpes_zoster_antiviral") return `${order}带状疱疹：写明须尽早到医院由医生评估是否口服抗病毒药（发疹3天内、仍有新水疱或年龄50岁以上尤应尽早），疼痛明显时一并告知医生；皮疹累及眼周、耳部或出现视物模糊、听力改变、剧烈头痛须立即就医。`;
     if (item.kind === "administration_and_diet") return item.administration
-      ? `${order}写一条怎么服和忌什么：按本方煎服法写饭前或饭后、温服，忌口随证写（本例${item.diet}）。`
-      : `${order}写一条忌口（本例${item.diet}）；本例暂不给剂量，不写怎么服。`;
+      ? `${order}写一条怎么服和忌什么：按本方煎服法写饭前或饭后、温服，忌口随证写（本例${item.diet}）${item.alcohol ? "；病历记录患者饮酒，写明戒酒" : ""}。`
+      : `${order}写一条忌口（本例${item.diet}）${item.alcohol ? "；病历记录患者饮酒，写明戒酒" : ""}；本例暂不给剂量，不写怎么服。`;
     if (item.kind === "menses_overdue_pregnancy_check") return `${order}写一条（育龄女性，病历写着本次月经逾期未至）：服药前先验孕，确认怀孕告知医生；不用逐味点名哪些药慎用（药表里已逐味标注）。`;
     if (item.kind === "reproductive_status_unknown") return `${order}写一条：如已怀孕、可能怀孕或正在哺乳，须服药前告知医生（患者是育龄女性；不要写「未记录」这类话，也不用逐味点名哪些药慎用——药表里已逐味标注）。`;
     if (item.kind === "severe_hypertension_followup") return `${order}本次血压${item.reading}明显偏高：写一条请患者今天复测血压，并当日或数日内到心内科或全科就诊调整降压药；出现胸痛、气短、剧烈头痛、视物模糊、肢体无力或言语不清须立即就医。`;

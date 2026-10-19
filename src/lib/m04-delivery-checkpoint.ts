@@ -5,7 +5,7 @@ import { enrichReasoning, formulaCompilationContractIssue } from "./tcm-formula-
 import { isKnownTcmHerbName } from "./tcm-knowledge";
 import { sanitizeGeneratedSuggestionPreviewText } from "./diagnosis-stream-safety";
 import { NON_DOSE_PRESCRIPTION_MARKER } from "./diagnosis-safety";
-import { projectDeliveredReasoning, type DeliveredSurfaceOptions } from "./delivered-surface";
+import { dietOnlyPrecautionCoveredBy, projectDeliveredReasoning, type DeliveredSurfaceOptions } from "./delivered-surface";
 import { cdssReasonCodeMarker } from "./cdss-reason-codes";
 import { pediatricDoseRuleFromGroundingText } from "./pediatric-dose-rule";
 import { clinicalDeliveryAdvisoryFromIssue, clinicalDeliveryAdvisorySection, collectClinicalDeliveryAdvisories, deduplicateClinicalDeliveryAdvisories, isSafetyClinicalDeliveryAdvisory, type ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
@@ -290,7 +290,7 @@ export function renderM04DeliveryCheckpoint(
   // 非剂量页与带剂量页走同一份交付面投影（2026-10-13）：此前这一页直接渲染未投影的结果，方名显示
   //「本例辨证组方」、方义写「本方以本方案为基础加减」、适用栏是「适用于与本例锁定证候…及病机链一致的情况」。
   const prior = priorReasoning ? projectDeliveredReasoning(priorReasoning, surfaceOptions) : priorReasoning;
-  if (checkpoint) checkpoint = { ...checkpoint, reasoning: projectDeliveredReasoning(checkpoint.reasoning, surfaceOptions) };
+  if (checkpoint) checkpoint = { ...checkpoint, reasoning: projectDeliveredReasoning(checkpoint.reasoning, { ...surfaceOptions, nonDosePage: true }) };
   // 机器码随页交付（2026-09-13）：此前这一整类非剂量页**不带任何 reasonCode**，前端只能靠
   // 文案正则分流，服务端改一句措辞前端就瞎。三种处置各有各的恢复动作，必须分开。
   const reasonMarker = cdssReasonCodeMarker(
@@ -310,8 +310,12 @@ export function renderM04DeliveryCheckpoint(
     ...labelled("病机", prior?.overview?.overallPathogenesis),
     ...labelled("治则治法", prior?.therapy?.overallPrinciple, prior?.therapy?.overallMethod),
   ];
+  // 几个病机节点引的是同一段病历原文时（模型把整段现病史引给了两三个节点，2026-10-19 留出集 S190），原文只在第一次出现时列。
+  const shownFacts = new Set<string>();
   for (const node of prior?.pathogenesis?.chain || []) {
-    lines.push(`- ${factText(node.patientFact)}；${text(node.pathogenesis)}；${text(node.therapyDirection)}`);
+    const fact = factText(node.patientFact);
+    lines.push(`- ${[shownFacts.has(fact) ? "" : fact, text(node.pathogenesis), text(node.therapyDirection)].filter(Boolean).join("；")}`);
+    if (fact) shownFacts.add(fact);
   }
   if (!checkpoint) {
     const retainedState = prior ? "已完成的辨病辨证与治法保留，" : "本次没有可用的已签名辨病辨证，";
@@ -391,7 +395,9 @@ export function renderM04DeliveryCheckpoint(
   // 这一页不给剂量：带用量、剂数、疗程的小句经掩码后读不通（「不可在家自行用法与疗程以审定处方为准」「每日食盐控制在（剂量以审定处方为准）以下」，
   // 2026-10-14 独立评审），只去掉被掩码的那一小句，其余照列；整条都被掩码时整条不列。
   const care = checkpoint.reasoning.nonPharma;
-  const careLines = care ? [care.diet, care.lifestyle, care.exercise, care.emotion, care.acupointCare, ...(care.precautions || [])]
+  // 饮食栏与注意事项在这一页排在同一节：注意事项里只是重说饮食栏忌口的那一条不再列（2026-10-19 留出集 S178/S188/S190）。
+  const precautionLines = (care?.precautions || []).filter((line) => !dietOnlyPrecautionCoveredBy(String(line || ""), String(care?.diet || "")));
+  const careLines = care ? [care.diet, care.lifestyle, care.exercise, care.emotion, care.acupointCare, ...precautionLines]
     .map(withoutMaskedClauses).map(text).filter(Boolean) : [];
   if (care) lines.push("", "## 调护建议", ...careLines);
   const structuredCopy = nonDoseCandidateJsonBlock(

@@ -1,0 +1,58 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "pain-quality-chouchu-not-seizure",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "Claude 评审 H 集（2026-10-19，代码 21b9bef）H-tri-19642：「间断性头抽搐痛七年…头痛…呈拘急跳痛抽搐感」七年间断性紧张性头痛被报「意识或神经功能异常，需优先排除神经系统急症」，剂量与针刺卡都被收回。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "diagnosis-safety.CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN 对任何未被否认的「抽搐」都判神经急症；「抽搐痛」「抽搐感」「抽搐样（疼）痛」说的是疼痛的性质（牵扯、跳动样的痛），不是发作性抽搐。",
+  "exception": "冻结令允许的构词式词法守卫：只看「抽搐」后面紧跟的「痛 / 感 / 样痛 / 样疼痛 / 样胀痛」；「抽搐1次」「四肢抽搐」「发热后抽搐」等写法照旧。没有新增症状词表。",
+  "sources": "语料回放 ~/runlogs/r1018/scripts/gate-replay2.mjs \"抽搐\"：含「抽搐」的 454 次判定（现代医案语料 + 验收集 + 既往评测集，两种病历形状），14 次改变，均为「抽搐样痛 / 抽搐样疼痛 / 抽搐感 / 头抽搐痛」的疼痛描述（颈椎病神经根型、乳癌术后骨转移肩背痛、胃脘痛、紧张性头痛），无一例发作性抽搐改变。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：把疼痛性质换成同义的非「抽搐」写法（跳痛、牵扯痛），门禁结果必须相同。",
+  "pairs": [
+   {
+    "subject": "间断性头抽搐痛七年，每遇情绪紧张时诱发。",
+    "sibling": "间断性头跳痛七年，每遇情绪紧张时诱发。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "颈痛五年，左前臂和上臂抽搐样痛，左手麻木。",
+    "sibling": "颈痛五年，左前臂和上臂牵扯样痛，左手麻木。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "胃脘痛反复发作20余年，呈抽搐样疼痛，食后打嗝。",
+    "sibling": "胃脘痛反复发作20余年，呈牵扯样疼痛，食后打嗝。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "头痛3月，以颞部为主，呈拘急跳痛抽搐感。",
+    "sibling": "头痛3月，以颞部为主，呈拘急跳痛牵扯感。",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "controls": {
+  "note": "发作性抽搐的写法必须照旧报警。",
+  "mustStillFlag": [
+   { "text": "今晨突发四肢抽搐、口吐白沫约2分钟。", "flag": "神经" },
+   { "text": "患儿发热后抽搐1次，持续约3分钟。", "flag": "神经" },
+   { "text": "头痛2天，今日抽搐2次。", "flag": "神经" },
+   { "text": "右侧肢体抽搐伴意识不清半小时。", "flag": "神经" }
+  ],
+  "mustStayReady": [
+   "间断性头抽搐痛七年，每遇情绪紧张时诱发，舌淡红，苔薄白，脉缓弱。"
+  ]
+ },
+ "measurements": {
+  "before": "subject 4/4 报神经急症；controls 4/4 报警",
+  "after": "subject 0/4 报警、与兄弟句相同；controls 4/4 照旧报警"
+ }
+}

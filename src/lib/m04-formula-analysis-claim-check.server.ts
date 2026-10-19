@@ -5,7 +5,7 @@ import { createTextModelClient, getControlledTerminologyModelConfig, textModelRe
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { herbFunctionKnowledgeForDisplay } from "./tcm-knowledge";
 import { compositionIdentityName } from "./tcm-formula-provenance";
-import { combinedEffectMarkerPattern, removeVerifiedHerbClaims, type FormulaAnalysisHerbClaim } from "./formula-analysis-review";
+import { combinedEffectMarkerPattern, contradictedHerbClaims, removeVerifiedHerbClaims, type FormulaAnalysisHerbClaim } from "./formula-analysis-review";
 import textbookReferencesJson from "../data/tcm-herb-textbook-references.json";
 
 /**
@@ -94,6 +94,21 @@ export function herbClaimReferenceText(herb: string): string {
   ].filter(Boolean).join("；");
   referenceCache.set(identity, reference);
   return reference;
+}
+
+/**
+ * 判「方向正相反」用的参考功效（contradictedHerbClaims）：只取这味药自己的功效——知识库功用与《中药学》功效行，不取《方剂学》方解：
+ * 方解里提到这味药的那一句常连着别的药说（左金丸「吴茱萸…又能制黄连之寒，使泻火而不凉遏，苦寒而不伤胃」），
+ * 拿它当吴茱萸的功效，吴茱萸就成了「泻火」「苦寒」。
+ */
+export function herbOwnFunctionReferenceText(herb: string): string {
+  const identity = identityOf(herb);
+  const parents = [herb, identity].map((name) => TEXTBOOK.herbs?.[name]?.parent || "").filter(Boolean);
+  const names = [...new Set([herb, identity, ...parents].filter(Boolean))];
+  return [
+    ...names.map((name) => herbFunctionKnowledgeForDisplay(name)),
+    ...names.map((name) => TEXTBOOK.herbs?.[name]?.function || ""),
+  ].filter(Boolean).join("；");
 }
 
 /** 给模型看的参考功效：教材功效行优先，没有时用知识库功用（去掉「…药」分类标签）。 */
@@ -195,10 +210,20 @@ export async function checkFormulaAnalysisClaimsInContent(content: string, signa
       .filter(Boolean);
     if (!analysis.trim() || herbs.length === 0) continue;
     const claims = await suspectedFormulaAnalysisClaims({ formulaName: String(candidate.name || ""), herbs, analysis }, signal);
-    if (claims.length === 0) continue;
-    const review = removeVerifiedHerbClaims(analysis, herbs, claims, herbClaimReferenceText);
+    // 与参考功效方向正相反的说法（contradictedHerbClaims，确定性）另走一遍第二道，参考功效只取这味药自己的
+    //（herbOwnFunctionReferenceText）；小模型超时、未配置或没报时照常起作用。
+    const modelReview = claims.length > 0 ? removeVerifiedHerbClaims(analysis, herbs, claims, herbClaimReferenceText) : undefined;
+    const afterModel = modelReview && modelReview.removals.length > 0 ? modelReview.text : analysis;
+    const contradicted = contradictedHerbClaims(afterModel, herbs, herbOwnFunctionReferenceText, herbClaimReferenceText);
+    if (claims.length === 0 && contradicted.length === 0) continue;
+    const contradictionReview = contradicted.length > 0 ? removeVerifiedHerbClaims(afterModel, herbs, contradicted, herbOwnFunctionReferenceText) : undefined;
+    const review = {
+      text: contradictionReview && contradictionReview.removals.length > 0 ? contradictionReview.text : afterModel,
+      removals: [...(modelReview?.removals || []), ...(contradictionReview?.removals || [])],
+      rejected: [...(modelReview?.rejected || []), ...(contradictionReview?.rejected || [])],
+    };
     console.info("[tcm-cdss:telemetry] formula_analysis_claim_check", {
-      flagged: claims.length,
+      flagged: claims.length + contradicted.length,
       removed: review.removals.length,
       actions: review.removals.map((item) => item.action).join(",") || "none",
       rejected: review.rejected.map((item) => item.reason).join(",") || "none",

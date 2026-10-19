@@ -1,6 +1,7 @@
 import crosswalkJson from "../data/tcm-western-disease-crosswalk.json" with { type: "json" };
 import abbreviationsJson from "../data/western-diagnosis-abbreviations.source.json" with { type: "json" };
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
+import icd10IndexJson from "../data/icd10-diagnosis-index.json" with { type: "json" };
 import { governedTcmDiseaseCode, resolveTcmDiseaseName } from "./clinical-terminology";
 import { textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
 
@@ -58,6 +59,32 @@ function textbookListedTcmDifferential(name: string, currentDisease: string): bo
   return textbookDifferentialsForDisease(currentDisease).some((item) => item.name === name);
 }
 
+let icd10DiseaseNames: Set<string> | undefined;
+/** ICD-10 中文病名（含索引别名）。只在要把一个中医病名改成国标正名时才读，第一次用到时建一次。 */
+function isIcd10DiseaseName(value: string): boolean {
+  if (!icd10DiseaseNames) {
+    icd10DiseaseNames = new Set();
+    for (const entry of (icd10IndexJson as { entries: Array<{ name?: unknown; aliases?: unknown }> }).entries) {
+      if (typeof entry.name === "string") icd10DiseaseNames.add(entry.name);
+      if (Array.isArray(entry.aliases)) for (const alias of entry.aliases) if (typeof alias === "string") icd10DiseaseNames.add(alias);
+    }
+  }
+  const name = value.trim();
+  return icd10DiseaseNames.has(name) || icd10DiseaseNames.has(name.replace(/病$/u, "")) || icd10DiseaseNames.has(`${name}病`);
+}
+
+/**
+ * 国标把一个中医病名收为别名、正名却是西医（ICD-10）病名的一类（2026-10-19 Claude 评审验收主集 M，TCM-SD-488343）：
+ * 肥胖的教材鉴别「黄胖」归一成了国标正名「钩虫病」，中医鉴别栏里出现寄生虫病名。同类还有 黄肿→钩虫病、寸白虫病→绦虫病、
+ * 赤虫病→姜片虫病、蛊虫病→血吸虫病、肺虫病→肺吸虫病、疠风→麻风病、痘疮→天花、核瘟→鼠疫、暑痉→中暑、注车→晕动病、
+ * 鼻痔→鼻息肉、肉刺→鸡眼、锁子骨断伤→锁骨骨折这类骨伤旧名（国标 41 个正名）。正名是 ICD-10 病名、又不是教材立节的病名，
+ * 而原写法本身不是 ICD-10 病名时，保留原来的中医病名。正名就是教材节名的（肠澼→痢疾、风痧→风疹）照旧归一。
+ */
+function keepsTcmAliasOverWesternCanonical(name: string, canonical: string): boolean {
+  if (TEXTBOOK_DISEASE_NAMES.has(canonical) || TEXTBOOK_DISEASE_NAMES.has(canonical.replace(/病$/u, ""))) return false;
+  return isIcd10DiseaseName(canonical) && !isIcd10DiseaseName(name) && !WESTERN_DISEASE_FORM.test(name);
+}
+
 export type TcmDiseaseDifferentialNameResolution =
   | { action: "keep"; name: string }
   | { action: "rename"; name: string; from: string }
@@ -82,7 +109,8 @@ export function resolveTcmDiseaseDifferentialName(rawName: string, currentDiseas
     if (currentCanonical && direct === currentCanonical) return { action: "drop", from: name };
     // GB/T 15657 把「带状疱疹」「荨麻疹」「湿疹」「偏头痛」收为别名：鉴别栏写正名（蛇串疮/瘾疹/湿疮/偏头风）。
     const compact = (value: string) => value.replace(/\s+/g, "").replace(/病$/, "");
-    return compact(direct) === compact(name) ? { action: "keep", name } : { action: "rename", name: direct, from: name };
+    if (compact(direct) === compact(name) || keepsTcmAliasOverWesternCanonical(name, direct)) return { action: "keep", name };
+    return { action: "rename", name: direct, from: name };
   }
   const stripped = name.replace(/（[^（）]*）|\([^()]*\)/g, "").replace(/(?:可能|待排|待排除|待鉴别)$/, "").trim();
   const expanded = [name, stripped, ABBREVIATIONS.get(stripped) || "", ABBREVIATIONS.get(name) || ""].filter(Boolean);

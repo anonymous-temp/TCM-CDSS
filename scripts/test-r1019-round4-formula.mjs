@@ -430,4 +430,59 @@ await check("9.1 原方扣除的毒性药写成临床说法「原方中的制川
   assert.equal(hooks.withWithheldBaseIngredientNote(control, ["乌头汤"], herbs), control);
 });
 
+// ───── 10 第五轮（21b9bef 上留出 32 例与甲方 10 例的 Claude 评审）─────
+const decoction = await jiti.import("../src/lib/herb-decoction-rules.ts");
+const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+
+await check("10.1 歧义且与所指药味毫不相干的别名不算药名（「风药」曾挂泽兰/黄藤，甲方标准病历 9「制风药之燥」被剪成「制之燥」；同类的「万年」挂木通/通草）；品种未定的本药名（乌头、沙参、萆薢、贯众）照算（对照）", () => {
+  assert.deepEqual(review.formulaAnalysisHerbMentions("以图万年之固").map((item) => item.token), []);
+  assert.deepEqual(review.formulaAnalysisHerbMentions("黑芝麻润燥，以制风药之燥").map((item) => item.token), ["黑芝麻"]);
+  const text = "本方为自拟方。熟地黄、山茱萸为君，补肾填精，以图万年之固；山药、茯苓为臣，健脾渗湿。";
+  assert.equal(review.reviewAuthoredFormulaAnalysis(text, ["熟地黄", "山茱萸", "山药", "茯苓"]).text, text);
+  assert.deepEqual(review.formulaAnalysisHerbMentions("乌头、沙参、萆薢、贯众").map((item) => item.token), ["乌头", "沙参", "萆薢", "贯众"]);
+});
+
+await check("10.2 煎法按规格与教材：滑石只先煎、滑石粉只包煎（教材「滑石块先煎，滑石粉包煎」，此前药表「先煎、包煎」而煎服行只写先煎，S131、S145）；蚕沙「宜布包入煎」→包煎（S145）、代赭石先煎、檀香后下、饴糖烊化照教材补；川贝母（研粉冲服是另一用法）、煅石膏（外用）不补，车前子、大黄照旧（对照）", () => {
+  assert.deepEqual(decoction.decoctionRuleForHerb("滑石").required, ["先煎"]);
+  assert.deepEqual(decoction.decoctionRuleForHerb("滑石粉").required, ["包煎"]);
+  assert.equal(decoction.withoutUnsupportedDecoctionLabels("滑石", "先煎、包煎"), "先煎");
+  assert.equal(decoction.specialDecoctionPhrase("滑石", "先煎、包煎"), "滑石先煎20–30分钟");
+  assert.deepEqual(decoction.decoctionRuleForHerb("蚕沙").required, ["包煎"]);
+  assert.equal(decoction.specialDecoctionPhrase("蚕沙"), "蚕沙包煎");
+  assert.deepEqual(decoction.decoctionRuleForHerb("代赭石").required, ["先煎"]);
+  assert.deepEqual(decoction.decoctionRuleForHerb("檀香").required, ["后下"]);
+  assert.deepEqual(decoction.decoctionRuleForHerb("饴糖").required, ["烊化"]);
+  assert.equal(decoction.decoctionRuleForHerb("川贝母"), undefined);
+  assert.equal(decoction.decoctionRuleForHerb("煅石膏"), undefined);
+  assert.deepEqual(decoction.decoctionRuleForHerb("车前子").required, ["包煎"]);
+  assert.deepEqual(decoction.decoctionRuleForHerb("大黄").oneOf, [["后下", "先煎", "冲服"]]);
+  // 药味表随之补全：蚕沙没写煎法时补「包煎」，滑石的「先煎、包煎」药味表与煎服行一致。
+  const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "prescribe", formula: { candidates: [{ herbs: [{ name: "蚕沙", dose: "10g" }, { name: "滑石", dose: "15g", decoctionRequirement: "先煎" }] }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const filled = visible.applyDeterministicHerbDecoctionRequirements(content);
+  const herbs = JSON.parse(filled.slice(filled.indexOf("{"), filled.lastIndexOf("}") + 1)).formula.candidates[0].herbs;
+  assert.equal(herbs[0].decoctionRequirement, "包煎");
+  assert.equal(herbs[1].decoctionRequirement, "先煎");
+});
+
+await check("10.3 功效栏同义叠写（模型自己写的也过）：龙胆「泻肝胆实火，泻肝胆火」→「泻肝胆实火」（S074）、栀子「清热解毒，凉血解毒，泻火除烦」→「清热凉血解毒，泻火除烦」（甲方病历 8）、「活血止痛，散瘀止痛」→「活血散瘀止痛」；同一功效两种说法不硬并（「补中益气，补脾益气」只留一条），不相干的不动（对照）", () => {
+  const concise = (text) => review.conciseHerbFunctionLabel(text);
+  assert.equal(concise("泻肝胆实火，泻肝胆火"), "泻肝胆实火");
+  assert.equal(concise("清热解毒，凉血解毒，泻火除烦"), "清热凉血解毒，泻火除烦");
+  assert.equal(concise("活血止痛，散瘀止痛"), "活血散瘀止痛");
+  assert.equal(concise("泻热解毒，凉血解毒，泻火解毒"), "泻热凉血解毒");
+  assert.equal(concise("补中益气，补脾益气"), "补中益气");
+  for (const text of ["清热燥湿，泻火解毒", "补肝肾，强筋骨", "利水渗湿，利水消肿", "滋补肝肾，补益肝肾"]) assert.equal(concise(text), text);
+  const out = candidateAfter(prescribeOf({ name: "龙胆泻肝汤加减", herbs: [herbRow("龙胆", "君", "泻肝胆实火，泻肝胆火"), herbRow("栀子", "臣", "清热解毒，凉血解毒，泻火除烦")],
+    analysis: "本方以龙胆泻肝汤为基础加减。龙胆为君，栀子为臣。" }));
+  assert.deepEqual(out.herbs.map((herb) => herb.function), ["泻肝胆实火", "清热凉血解毒，泻火除烦"]);
+});
+
+await check("10.4 合方出处各条收尾的句号去掉，不再「《辨证录》卷十三。；」（S143）；交付面兜住已有的；句中的句号与没有句号的不动（对照）", () => {
+  assert.equal(provenance.formulaSourceLabel([["五神汤", "《辨证录》卷十三。"], ["萆薢渗湿汤", "《疡科心得集》"]]), "五神汤：《辨证录》卷十三；萆薢渗湿汤：《疡科心得集》");
+  const out = candidateAfter(prescribeOf({ name: "自拟方", herbs: ["金银花"], source: "五神汤：《辨证录》卷十三。；萆薢渗湿汤：《疡科心得集》", analysis: "本方为自拟方。金银花为君。" }));
+  assert.equal(out.formulaSource.source, "五神汤：《辨证录》卷十三；萆薢渗湿汤：《疡科心得集》");
+  const keep = "黄连解毒汤：方出《肘后方》卷二，名见《外台》卷一引《崔氏方》";
+  assert.equal(candidateAfter(prescribeOf({ name: "黄连解毒汤", herbs: ["黄连", "黄芩", "黄柏", "栀子"], source: keep, analysis: "本方以黄连解毒汤为基础加减。黄连为君。" })).formulaSource.source, keep);
+});
+
 console.log(JSON.stringify({ suite: "r1019-round4-formula", cases, failures: process.exitCode ? "see above" : 0 }));

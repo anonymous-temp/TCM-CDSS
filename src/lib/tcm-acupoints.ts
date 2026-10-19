@@ -133,6 +133,10 @@ export function selectAcupointsForCaseTerms(
  */
 export function acupointPregnancySensitive(name: string): boolean {
   const entry = resolveAcupoint(name);
-  if (!entry) return false;
-  return /孕/u.test(`${entry.operation || ""}${entry.location}`) || /腹|脐|腰|骶/u.test(entry.location);
+  // 教材把夹脊按节段写成「腰夹脊」「颈夹脊」（目录里只有「夹脊」一条）：腰、骶段算腰骶部腧穴（2026-10-19 Claude 评审 H-tri-830：
+  // 卡上有腰夹脊，孕期提示没列）。颈、胸段不算。
+  if (!entry) return /^(?:腰|骶)夹脊$/u.test(String(name || "").trim()) && Boolean(resolveAcupoint("夹脊"));
+  // 操作写到胎位（至阴「胎位不正用灸法」）同样算：至阴是作用于胎位的穴，项目级妊娠禁忌也把它列为催产活血穴（H-tri-830 漏列）。
+  // 「肌腹」（承山「腓肠肌两肌腹与肌腱交角处」）是肌肉的腹部，不是腹部腧穴。
+  return /孕|胎/u.test(`${entry.operation || ""}${entry.location}`) || /(?<!肌)腹|脐|腰|骶/u.test(entry.location);
 }

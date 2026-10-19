@@ -382,13 +382,14 @@ const completion = (payload) => new Response(JSON.stringify({
     pathogenesis: { chain: [] },
   }), "主诉：月经量多3个月")).westernDiagnosis.differentials.map((item) => item.name);
   await check("9.1 「子宫内膜增生/恶变」→ 子宫内膜增生、子宫内膜恶变；「胃溃疡/恶变」→ 胃溃疡、胃溃疡恶变；不留孤零零的「恶变」", () => {
-    assert.deepEqual(split("子宫内膜增生/恶变"), ["子宫内膜增生", "子宫内膜恶变"]);
-    assert.deepEqual(split("胃溃疡/癌变"), ["胃溃疡", "胃溃疡癌变"]);
+    // 2026-10-19 第四轮：补全后的几个病名合成一条「A、B」，不拆成理由逐字相同的几条（甲方病历 10 两轮判冗杂）。
+    assert.deepEqual(split("子宫内膜增生/恶变"), ["子宫内膜增生、子宫内膜恶变"]);
+    assert.deepEqual(split("胃溃疡/癌变"), ["胃溃疡、胃溃疡癌变"]);
   });
   await check("9.2 对照：借部位的旧拆法不变（泌尿系结石/感染、颅内占位/肿瘤）；两个独立病名照常拆", () => {
-    assert.deepEqual(split("泌尿系结石/感染"), ["泌尿系结石", "泌尿系感染"]);
-    assert.deepEqual(split("颅内占位/肿瘤"), ["颅内占位", "颅内肿瘤"]);
-    assert.deepEqual(split("子宫肌瘤/子宫腺肌病"), ["子宫肌瘤", "子宫腺肌病"]);
+    assert.deepEqual(split("泌尿系结石/感染"), ["泌尿系结石、泌尿系感染"]);
+    assert.deepEqual(split("颅内占位/肿瘤"), ["颅内占位、颅内肿瘤"]);
+    assert.deepEqual(split("子宫肌瘤/子宫腺肌病"), ["子宫肌瘤、子宫腺肌病"]);
   });
 }
 
