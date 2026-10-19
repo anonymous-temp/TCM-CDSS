@@ -1028,7 +1028,7 @@ Material is in `~/runlogs/r1018`: `PLAN.md`, `research/`, `sets/`, `out/*-final*
   - `pkill -f` matches its own shell; kill by PID.
 - **Subagent reviewers** cannot write .md files; ask for the summary in the reply.
 
-### 10/19 round: every remaining gap by class, seven review passes (2026-10-19)
+### 10/19 round: every remaining gap by class, eight review passes (2026-10-19)
 
 The user asked for every remaining gap to be researched online, fixed and retested against the acceptance line (customer 10 cases × 3 runs: each of the 8 columns fails at most 1/10; held-out 32 ≥90% per block; no red flag on cases 1/2/7/9; same record → same output; skip-to-prescription p90 ≤15 s). Commits a609be4 → af6d892, all local. Plan, counter-proof log and agent notes: `~/runlogs/r1018/work/r1019/` (`PLAN.md`, `counterproofs.txt`, `agentB|D|G|H/`, `r3/`). Suites: `test:r1019-remediation`, `-round3`, `-cards`, `-herbs`, `-herbs-r3`, `-herbs-surface`, `-safety-m02`, `-western`, `-western-r3`, `-claim-check`; class fixture `negation-scope-ends-at-affirmed-item`.
 
@@ -1115,7 +1115,69 @@ Round 5 (718e1ea) was re-judged with qwen, so that comparison uses one judge.
 - **Red-flag judgement calls:** S128 (hives with abdominal pain and vomiting after seafood: WAO 2020 anaphylaxis criteria support the flag; the case expectation does not), worsening myasthenia, toddler vomiting with distension, 1-month melena without a governed companion.
 - **The agents' half-finished round-7 work** (M02 options, food-therapy conflicts, follow-up signs for post-menopausal women, diet vs 禁食) is saved as `~/runlogs/r1018/work/r1019/round7-agents-partial.patch`. It was not applied: the agents were cut off by a login failure before testing it.
 
-**Not deployed.** Production is still 4a6e9cc (10/18). Rounds 1–7 are local commits only (a609be4 → af6d892).
+
+**Round 8 (same day, after the user's direction).** The user delegated the disputed red-flag calls to me, asked for every server defect from the round-7 reviews to be fixed and the remaining problems to be researched first, and had five Sonnet subagents do the work while I distributed and accepted it. Plan and file ownership: `~/runlogs/r1018/work/r1020/` (`TODO.md`, `COMMON8.md`, `wpa|wpb|wpc|wpe/`). Commit b23e3e3. Suites `test:r1020-main|m02|m03text|formula|care|jingfang`.
+
+- **Red-flag disputes (my calls, no gate rule added or changed).**
+  - The 9 A-set cases qwen called over-cautious all hold under a named guideline: posterior-circulation TIA with a fall, infant Hb 50, jaundice with RUQ pain, chest pain within 72 h (NICE CG95), acute vertigo, urine ketones 4+, vomiting with distension and no stool, 3 days of rectal bleeding of unknown volume, PLT 13 with bleeding (ASH 2019).
+  - Bare melena stays an advisory (T6 design; ACG 2021 lets GBS ≤1 be managed as an outpatient). Worsening myasthenia and the toddler with vomiting stay facts-model judgements.
+  - **S128 (hives with abdominal pain and one vomit after seafood) is borderline, not a missed red flag.** WAO 2020 criterion 2 needs *severe* GI symptoms, airway and circulation are denied, and 《中医外科学》 瘾疹·肠胃湿热证 is exactly this presentation. Its expectation accepts either a red flag or a priority advisory; the facts model gave one in round 7 and the other in round 8. I first marked it red-flag-only and corrected that after reading the criterion.
+  - The held-out brief's 口径 1 (every round must ask a question) predates `decision=proceed`; the qwen judge script now says proceed is fine when the record is sufficient or the gate is red.
+- **经方方证候选 (WP-A, structural).**
+  - Most X 中医诊断 failures were exam answers written as 伤寒/金匮 formula patterns, which the textbook rows cannot express.
+  - The data: `src/data/tcm-jingfang-patterns.source.json` holds 103 patterns with 154 clauses and 494 key symptoms. Every clause and key symptom is verified verbatim against the local 《伤寒论》 (457) and 《金匮要略方论》 (499) with line numbers (`build:jingfang-patterns`). Syndrome names come from GB/T 16751.2, 《方剂学》 or 《伤寒论选读》.
+  - `jingfang-pattern-pick.server.ts` makes **two** small-task calls: a closed-set pick with verbatim quotes, then a check that each quote really is that symptom. A single call picked a pattern for 9 of 10 customer cases.
+  - M03 sees the picked patterns next to the textbook rows; textbook rows win when they fit. Anchoring keeps a table pattern's name and formula, and the pattern counts as positive formula evidence (otherwise 25 non-common-tier 经方 fall to non-dose pages).
+  - Switch: `CDSS_JINGFANG_PATTERN_PICK`.
+  - The customer's 10 cases were unchanged in all three runs (病历2 was picked offline, but M03 kept the textbook row).
+- **Other round-8 classes:**
+  - **M02 trend question.** It is now a yes/no 「有没有加重」 question, because a plan has exactly two clinical options and the old 「持续」 had no slot. It is skipped when the record already gives the course (one narrow check).
+  - **M02 young children and conversation.** Neuro and respiratory screening uses observable signs under 3 years. The narrow checks read the conversation's Q/A. Same-value options are flagged inside the existing redundancy call. Proceed sufficiency counts answers, not the questions' words.
+  - **PHI.** 「答：都没有」 was redacted as surname + name, which erased a denial; 都没/都没有/都不… are now a closed lexical group.
+  - **M03 text.**
+    - Vessel nouns (经脉/血脉/通脉/冲任脉…) are not pulse claims; one shared lookbehind is used in three places. Replay over 564k strings: 3 changed.
+    - 「与本例…不符」 contrast clauses describe the other disease.
+    - Textbook sections named in Western terms deliver the TCM name the section itself cites (血栓闭塞性脉管炎 → 脱疽, 股骨头缺血性坏死 → 骨蚀).
+  - **M04 text.**
+    - 方义 fragments and 「片」 names are fixed.
+    - The placeholder herb function now falls back to the KB or the 方义 clause.
+    - The 34 textbook 加减 rows with a generic 「临床」 condition are dropped.
+    - 出处 is the book only.
+    - Summary-effect claims that no herb supports are removed: 8 concept groups in `summaryEffectGroups`.
+    - A symptom already in the record is delivered as 「本例已见X」, not 「若X」.
+    - Dosage-form variants supply composition (四妙散 = 四妙丸; S145 had lost 苍术 and half its name).
+    - Incidental-sleep textbook items are no longer offered (S132's empty 加减).
+  - **Care.**
+    - The card's type follows the signed rationale (S067 石淋, not 热淋).
+    - Food therapy vs prescription antagonism (人参—莱菔子 from textbook lines).
+    - Follow-up signs are filtered by population.
+    - Fasting orders and antithrombotics filter the diet.
+  - **Textbook names.** 厥证 rows carry their group (气厥实证/血厥虚证).
+
+**Round 8 measured (qwen3.8-max, same judge both sides; round 7 = af6d892 outputs, round 8 = b23e3e3 fresh generation).**
+
+| Set | Round 7 | Round 8 |
+|---|---|---|
+| Customer 10 × 3, failures per column | 0 everywhere | 0 everywhere; disease/syndrome/formula identical to round 7; no red flag on 1/2/7/9 |
+| Held-out 32: 中医诊断 / 证候 / 饮片 (merged) | 93.1 / 93.1 / 82.8 | 93.1 / 93.1 / **93.1** — every block ≥ 90 (left: S078, S151, model judgement) |
+| B follow-up | 95.5 | 97.3 |
+| A red flags | 330/340 | 330/340 (same 9 disputed + A-eme-0321) |
+| X 中医诊断 / 治则治法 / 饮片 | 70.0 / 86.4 / 80.0 | 69.1 / 89.1 / 78.2 |
+| M C / E / F / G / H / I / J | 48.3 / 55.9 / 93.6 / 61.4 / 94.6 / 100 / 98.8 | 49.0 / 55.2 / 94.9 / 62.5 / 94.9 / 100 / 97.7 |
+| H cards | 88.1 | 89.2 |
+| D Western | 61.9 | 64.6 (no Western change this round: variance) |
+
+- **qwen is far stricter than Sonnet on the module sets.** Sonnet on 718e1ea gave M C/E/G 71.9 / 85.3 / 85.8 and D 82.8. Only compare runs under one judge.
+- **The 经方 channel did not move X yet.** On the 17 X cases whose answer is a formula pattern:
+  - the pick returned the right pattern for 5, a wrong one for 1 (真武汤证), and nothing for 11 (the evidence-check call and the thresholds filter most proposals: evidence checks ran in 226 of 328 cases);
+  - where the pick was right, M03 kept the textbook row in 4 of 5 under rule ①; only X-C-0439 switched (热扰胸膈证) and passed.
+  - The channel is safe (customer and held-out unchanged) but too conservative to pay off. Calibrating it is the obvious next step if the owner wants it.
+- **M's low C/E/G under qwen is mostly a doctrine mismatch, not server defects.**
+  - The references are compound syndromes (肝郁脾虚, 气血两虚, 脾肾两虚 with 湿热). The system, following the customer rule 「兼证须有独立成组证据、默认不立」, usually writes one.
+  - Some of these do have a recorded second group: RobustSDT-0442 has 食欲不振 + 大便溏薄 and still got only 肝气郁结证.
+- **New qwen-visible gap in H:** when no acupuncture card matches the disease, only home acupressure is delivered (7+ cases: 噎膈, 腱鞘囊肿, 膝痹, 脑瘫, 眼病, 鼻衄, 脱肛).
+
+**Not deployed.** Production is still 4a6e9cc (10/18). Rounds 1–8 are local commits only (a609be4 → b23e3e3).
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
