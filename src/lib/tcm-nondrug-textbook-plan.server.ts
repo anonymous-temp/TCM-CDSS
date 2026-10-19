@@ -6,7 +6,7 @@ import syndromeConceptsJson from "../data/tcm-syndrome-label-concepts.source.jso
 import natureLexiconJson from "../data/tcm-nature-lexicon.json" with { type: "json" };
 import { resolveTcmDiseaseName } from "./clinical-terminology";
 import { formulaAnalysisHerbMentions } from "./formula-analysis-review";
-import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbGenerationSafetyProfile } from "./tcm-knowledge";
+import { findTcmHerbPairCautions, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbGenerationSafetyProfile } from "./tcm-knowledge";
 import { TCM_ACUPOINTS } from "./tcm-acupoints";
 import { herbRecordCautionConflict } from "./herb-record-caution";
 import type { TcmTreatmentProjectCode } from "./tcm-treatment-projects";
@@ -305,7 +305,55 @@ function signedPrimaryCore(signedSyndromeText: string): string {
 
 /** 证名里没有病性字的教材证型（淋证「石淋」「膏淋」）按概念对不上，已签名证名与它字面相同时按它取（2026-10-19 留出例 S067 石淋没加秩边、水道、委阳）。 */
 const LITERAL_SYNDROME_SCORE = 100;
+
+/**
+ * 已签名的辨病/辨证依据里肯定地写到了本节的哪一型（2026-10-19 晚，留出例 S067：病名「淋证」、证名「湿热蕴结证」，辨证依据「…故属石淋湿热蕴结证」，
+ * 针刺卡却写「本例属热淋，加委中、行间」——证名里的「热」按概念对上了热淋）。教材同节分「型」的病（淋证六淋、癃闭…），型写在依据里，
+ * 病名与证名往往只写到病与病性。构词式守卫（有限闭集）：型名紧跟在「属/为/即/归为/诊为/辨为」之后（中间不隔字：「为风寒之邪袭于太阳经输」是病机叙述，不是下型；
+ * 回放 H 集 X-H-0230 痛痹被换成「太阳经证」），且这个动词前面不是不/非/未/无——「与热淋相鉴别」「非热淋」「不属热淋」不算肯定。
+ */
+const AFFIRMING_TYPE_LEAD = /(?<![不非未无])(?:属于?|为|即|归为|诊为|辨为|当为)$/u;
+export function affirmedSectionTypes<T extends { label: string; alias?: string }>(types: readonly T[], rationale: string): T[] {
+  const text = String(rationale || "").normalize("NFKC");
+  if (!text.trim()) return [];
+  const coreOf = (value: string) => value.replace(/[\s（()）]/g, "").replace(/(?:证候|证型|证|型)$/u, "");
+  // 只认「证名里没有病性字」的型（石淋、膏淋…，pickSyndromes 里的 literal 型）：这类型按概念永远对不上，只能字面取，依据里写明才算数。
+  // 带病性概念的型（热淋、肾气不足、暑湿…）本来就按已签名证名的概念取；依据里「…为肾气不足、膀胱失约」那样的病机叙述不是下型，不能拿来换证名。
+  // （首版不分这一点，回放 1050 例有 25 张卡的型被依据里的病机词换掉，遗尿·下元虚寒证写成「本例属肾气不足」。）
+  return types.filter((type) => syndromeConcepts(type.label).natures.size === 0 &&
+    [type.label, type.alias || ""].map(coreOf).filter((core) => core.length >= 2).some((core) => {
+    for (let at = text.indexOf(core); at >= 0; at = text.indexOf(core, at + 1)) {
+      if (AFFIRMING_TYPE_LEAD.test(text.slice(Math.max(0, at - 12), at))) return true;
+    }
+    return false;
+  }));
+}
+
 function pickSyndromes<T extends { label: string; alias?: string; keySymptoms?: string; sharedGrams?: ReadonlySet<string> }>(
+  candidates: readonly T[],
+  caseSyndromeText: string,
+  currentFacts: string,
+  diseaseNames: readonly string[] = [],
+  /** 已签名依据里写明的型（见 affirmedSectionTypes）：allTypes 是本节全部的型（含没有配穴的），rationale 是依据原文。 */
+  affirmedFrom?: { allTypes: readonly { label: string; alias?: string }[]; rationale: string },
+): T[] {
+  const picked = pickSyndromesByConcept(candidates, caseSyndromeText, currentFacts, diseaseNames);
+  if (!affirmedFrom || compact(currentFacts).length === 0) return picked;
+  const affirmed = affirmedSectionTypes(affirmedFrom.allTypes, affirmedFrom.rationale);
+  if (affirmed.length === 0) return picked;
+  const isAffirmed = (item: T) => affirmed.some((type) => type.label === item.label);
+  // 按概念挑的型与依据写明的型一致：不动（含主证之外再挑的兼证一型）。
+  if (picked.some(isAffirmed)) return picked;
+  // 挑中的型本来就是已签名的证名/病名点到的（肾气亏虚证之于「肾气亏虚」，依据里泛泛写的「属虚证」不能把它换掉）：不动。
+  // 只换「仅凭证名里一个病性字对上」的型（湿热蕴结证的「热」之于热淋）。
+  if (picked.some((item) => syndromeLabelMatchesSigned(item.label, caseSyndromeText) ||
+    diseaseNames.some((name) => syndromeLabelMatchesSigned(item.label, name)))) return picked;
+  // 依据写明的型有教材配穴时以它为准；那一型没有配穴时保持原挑选，不新增断言。
+  const own = candidates.find(isAffirmed);
+  return own ? [own] : picked;
+}
+
+function pickSyndromesByConcept<T extends { label: string; alias?: string; keySymptoms?: string; sharedGrams?: ReadonlySet<string> }>(
   candidates: readonly T[],
   caseSyndromeText: string,
   currentFacts: string,
@@ -406,6 +454,8 @@ type WebSources = {
   daoyinRoutines: Array<{ routine: string; movements: string[]; movementEffects?: Array<{ movement: string; effect: string; sourceId: string }> }>;
   conditionDaoyin: Array<{ condition: string; method: string; movement: string; frequency: string; sourceIds: string[]; notes?: string }>;
   techniqueSafety: Array<{ technique: string; contraindications: string }>;
+  /** 教材明文的食物—药物同用禁忌（相恶、药食同用禁忌）；十八反、十九畏走知识库配伍规则，不在这里。 */
+  dietHerbAntagonism: { items: Array<{ herb: string; foods: string[]; foodExclusions?: string[]; relation: string }> };
 };
 const WEB = webSourcesJson as unknown as WebSources;
 
@@ -557,6 +607,52 @@ export function recipeUsesOnlyFoodSafeIngredients(recipeText: string): boolean {
   return true;
 }
 
+/**
+ * 食物与本次处方里的药味相冲（2026-10-19 晚，验收集 M-MTCMB-11：痰浊闭阻的食疗卡给「莱菔粥」〔莱菔子30g〕，同页汤药里有人参；
+ * 《中药学》七情「相恶」的例子就是「人参恶莱菔子，莱菔子能削弱人参的补气作用」，《中医食疗学》药食同用禁忌另列人参与萝卜、茶叶）。
+ * 两个来源，不新立药名表：
+ *  · 十八反、十九畏：知识库的配伍规则（findTcmHerbPairIncompatibilities / findTcmHerbPairCautions），食疗方里的药食同源品
+ *    （丁香、肉桂…）与处方药味逐对比；
+ *  · 教材明文写出的食物—药物同用禁忌（tcm-nondrug-web-sources 的 dietHerbAntagonism，逐条带书名与行号；知识库里没有这几对）。
+ * 饮食栏、食疗卡、食疗方选取共用这一组判据：饮食栏推荐萝卜、食疗卡给莱菔粥，对人参方都是同一个问题。
+ */
+export type PrescribedHerbScope = {
+  /** 本次处方的药味名（原样，供知识库配伍规则按各自的别名解析）。 */
+  names: readonly string[];
+  /** 某味药（教材写法）是否在本次处方里（调用方按处方身份判定）。 */
+  has: (herb: string) => boolean;
+};
+
+/** 本次处方里的药味在教材上与之相冲的食物写法（空表示没有）。 */
+export function foodsAntagonizingPrescription(prescribed: PrescribedHerbScope | undefined): string[] {
+  if (!prescribed) return [];
+  return WEB.dietHerbAntagonism.items.filter((row) => prescribed.has(row.herb)).flatMap((row) => row.foods);
+}
+
+/** 文本里点到了该食物（同名异物先去掉：胡萝卜不是萝卜）。 */
+export function textMentionsAntagonistFood(text: string, foods: readonly string[]): string | undefined {
+  if (foods.length === 0) return undefined;
+  let cleaned = String(text || "");
+  for (const row of WEB.dietHerbAntagonism.items) for (const exclusion of row.foodExclusions || []) cleaned = cleaned.split(exclusion).join("");
+  return foods.find((food) => cleaned.includes(food));
+}
+
+/** 一段文字（食疗卡的治疗内容、饮食建议的一个小句）里有没有与本次处方相冲的食物或药味。 */
+export function textAntagonizesPrescription(text: string, prescribed: PrescribedHerbScope | undefined): boolean {
+  if (!prescribed || prescribed.names.length === 0) return false;
+  if (textMentionsAntagonistFood(text, foodsAntagonizingPrescription(prescribed))) return true;
+  const own = [...new Set(prescribed.names.map((name) => String(name || "").trim()).filter(Boolean))];
+  const ingredients = [...new Set(formulaAnalysisHerbMentions(String(text || "")).map((mention) => mention.token))]
+    .filter((token) => !prescribed.has(token) && !own.includes(token));
+  return ingredients.some((token) => own.some((herb) =>
+    findTcmHerbPairIncompatibilities([token, herb]).length > 0 || findTcmHerbPairCautions([token, herb]).length > 0));
+}
+
+/** 食疗方：只看配料那一句（教材食谱第一句写配料与用量，后面是做法）。 */
+export function recipeAntagonizesPrescription(recipeText: string, prescribed: PrescribedHerbScope | undefined): boolean {
+  return textAntagonizesPrescription(String(recipeText || "").split("。")[0] || "", prescribed);
+}
+
 // ─── 计划组装 ────────────────────────────────────────────────────────────────
 
 export type TextbookPlanInput = {
@@ -571,6 +667,12 @@ export type TextbookPlanInput = {
   currentFacts: string;
   /** 本例证候的病位/病机/治法叙述，仅供功法动作选择。 */
   signedNarrative?: string;
+  /**
+   * 已签名的辨病、辨证依据原文（overview.tcmDiseaseRationale + tcmDiagnosticRationale）。教材同节分「型」的病（淋证热淋/石淋/血淋…）
+   * 里，病名只写到病（淋证）、证名只写病性（湿热蕴结证），型写在依据里（「故属石淋湿热蕴结证」）：针刺卡「本例属X」的 X 以它为准，
+   * 不按证名里的「热」去对热淋（pickSyndromes / affirmedSectionTypes，2026-10-19 晚留出例 S067）。
+   */
+  signedRationale?: string;
   /** 患者年龄（岁）。老年人不列刺络放血、不套用长时间留针的疗程。 */
   patientAgeYears?: number;
   /** 已签名治则（M03 therapy.overallPrinciple，交付给医生的那一栏）。主证名判不出虚实时按它取舍（signedCardNature）。 */
@@ -588,6 +690,8 @@ export type TextbookPlanInput = {
   avoidRichFood?: boolean;
   /** 本次处方里已有的药味（按处方身份判定，调用方给）：食疗方里有同一味药的不选，免得汤药与食疗叠加用量（病历 5 黄芪）。 */
   herbAlreadyPrescribed?: (herb: string) => boolean;
+  /** 本次处方的药味名（原样）。食疗方里的食物与处方药味相冲的不选（recipeAntagonizesPrescription：十八反/十九畏 + 教材药食同用禁忌）。 */
+  prescribedHerbNames?: readonly string[];
   /** 病历（含既往史）或已签名诊断记有糖尿病、消渴：食疗方不选含糖与大量精白米粥饭的（recipeUnsuitableForDiabetes）。 */
   recordedDiabetes?: boolean;
   /** 饮食调护或注意事项写明忌茶（dietAdviceAvoidsTea）：食疗方不选含茶叶的。 */
@@ -1664,11 +1768,13 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
       const sharedGrams = sharedKeySymptomGrams(entry.syndromes);
       return entry.syndromes.map((item) => ({ ...item, sharedGrams }));
     };
-    const candidateSyndromes = [
+    const allSectionTypes = [
       ...withShared(primary),
       ...(secondary ? withShared(secondary) : []),
-    ].filter((item) => item.addPoints.length > 0);
-    const picked = pickSyndromes(candidateSyndromes, input.signedSyndromeText, input.currentFacts, input.diseaseNames);
+    ];
+    const candidateSyndromes = allSectionTypes.filter((item) => item.addPoints.length > 0);
+    const picked = pickSyndromes(candidateSyndromes, input.signedSyndromeText, input.currentFacts, input.diseaseNames,
+      input.signedRationale ? { allTypes: allSectionTypes, rationale: input.signedRationale } : undefined);
     if (picked.length > 0) {
       tailored = true;
       // 教材给这一型配穴写了定法（《针灸学》牙痛「配穴太溪用补法，余穴均用泻法」）：两本教材的操作句里点到本例配穴的补泻写进操作栏，
@@ -1928,6 +2034,9 @@ function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | 
   const entry = entries[0];
   if (!entry) return undefined;
   const recordCautionConflict = (recipeText: string) => recipeConflictsWithRecordedCaution(recipeText, input.currentFacts, input.signedSyndromeText);
+  const prescribedScope: PrescribedHerbScope | undefined = input.herbAlreadyPrescribed && input.prescribedHerbNames?.length
+    ? { names: input.prescribedHerbNames, has: input.herbAlreadyPrescribed }
+    : undefined;
   // 教材里有些食疗方只写「见‘血证’节」这类互见，没有配料与做法，不能当方案给出。
   const safeRecipes = (syndrome: DietSyndrome) => syndrome.recipes.filter((recipe) =>
     recipe.text.length >= 20 && !recipe.text.startsWith("见") && recipeUsesOnlyFoodSafeIngredients(recipe.text) &&
@@ -1936,6 +2045,8 @@ function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | 
     !(input.recordedDiabetes && recipeUnsuitableForDiabetes(recipe.text)) &&
     !(input.avoidTea && TEA_LEAF_INGREDIENT.test(String(recipe.text).split("。")[0] || "")) &&
     !recordCautionConflict(recipe.text) &&
+    // 方里的食物与处方药味相冲（人参方给莱菔粥）：同一页前后相反，不选这一方（验收集 M-MTCMB-11）。
+    !recipeAntagonizesPrescription(recipe.text, prescribedScope) &&
     // 生姜、葱、花椒这类作调料的普通食物不算（目录 commonFoodAllowlist），只看真正的药味。
     !(input.herbAlreadyPrescribed && formulaAnalysisHerbMentions(String(recipe.text).split("。")[0] || "")
       .some((mention) => !commonFoods().has(mention.token) && input.herbAlreadyPrescribed!(mention.token))));

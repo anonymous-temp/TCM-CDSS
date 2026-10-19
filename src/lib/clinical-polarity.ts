@@ -1222,3 +1222,9 @@ const CURRENT_MENSES_OVERDUE = /末次月经[^。；;\n]{0,24}(?:至今|迄今|�
 export function currentMensesOverdue(text: string): boolean {
   return affirmedClinicalSourceClauses(text).some((clause) => CURRENT_MENSES_OVERDUE.test(clause) && !/绝经|停经\s*(?:\d+|[一二两三四五六七八九十]+)\s*年|已停经/u.test(clause));
 }
+
+/**
+ * 回指式鉴别尾句（m03-patient-claim-check 删掉被指的分句后，用它认出没有所指的尾句）：整条分句只有
+ * 「（故/因此/所以）（与/同/和）二者/两者/上述各病 …区分/鉴别」。2026-10-19 X-C-0159：「…属产后小便淋痛；故与二者相区分。」
+ */
+export const ORPHAN_ANAPHORIC_TAIL = /^(?:故|因此|所以|从而|遂)?(?:与|同|和)?(?:二者|两者|此二者|上述各?病|以上各?病)[^，,；;。]{0,6}(?:区分|鉴别|区别)$/u;

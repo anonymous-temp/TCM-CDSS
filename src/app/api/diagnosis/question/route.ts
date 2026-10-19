@@ -5,6 +5,9 @@ import {
   enforceM02UnansweredAxes,
   ensureQuestionStructuredEnvelope,
   m02ClinicalFactsFootprint,
+  m02NarrowCheckRecordText,
+  m02PossibleRiskQuestion,
+  m02PriorityTrendQuestion,
   m02ProceedPlanContent,
   m02ProceedWhenSettled,
   redFlagDispositionQuestion,
@@ -12,7 +15,7 @@ import {
   withM02Completeness,
 } from "@/lib/m02-question-contract";
 import { riskCategoryRecordStatus } from "@/lib/m02-risk-question-answerability.server";
-import { questionIdsFailingNarrowChecks } from "@/lib/m02-question-redundancy.server";
+import { priorityTrendAnsweredByRecord, questionIdsFailingNarrowChecks } from "@/lib/m02-question-redundancy.server";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import type { CaseState } from "@/lib/diagnosis-types";
 import { deriveOperationalCompleteness, markdownNdjsonResponse, sanitizeCaseStateForModel, trustedInputText, evaluateSafetyGate } from "@/lib/diagnosis-safety";
@@ -77,6 +80,7 @@ export async function POST(req: Request) {
 }
 
 type QuestionCaseState = CaseState & {
+  m02PriorityTrendAnswered?: boolean;
   m02SuppressedRiskCategories?: readonly string[];
   m02AffirmedRiskCategories?: readonly string[];
   m02ModelOwnedRiskCategories?: readonly string[];
@@ -104,9 +108,11 @@ async function questionStageResponse(inputCaseState: CaseState, signal: AbortSig
   }
   // 事实层判为需要澄清的急症线索，出筛查题之前先核对病历是否已经回答：已回答的类目不再出题；病历已写明正在发生的
   // 不再问「是否确实出现」（交模型问严重度）；已逐项否认其中几项的由模型只问其余几项（m02-risk-question-answerability）。
-  const riskStatus = await riskCategoryRecordStatus(inputCaseState, sourceText, signal);
+  // 窄核对读的病历文本带上对话里的「题干 + 回答」：只看回答（「没有」「都没有」）读不出问诊里已经答过什么（m02NarrowCheckRecordText）。
+  const narrowCheckRecordText = m02NarrowCheckRecordText(sourceText, safeCaseState.conversation);
+  const riskStatus = await riskCategoryRecordStatus(inputCaseState, narrowCheckRecordText, signal);
   const answeredRiskCategories = riskStatus.answered;
-  const caseState: QuestionCaseState = riskStatus.answered.length + riskStatus.affirmed.length + riskStatus.partly.length > 0
+  const riskCaseState: QuestionCaseState = riskStatus.answered.length + riskStatus.affirmed.length + riskStatus.partly.length > 0
     ? {
         ...inputCaseState,
         m02SuppressedRiskCategories: riskStatus.answered,
@@ -114,6 +120,13 @@ async function questionStageResponse(inputCaseState: CaseState, signal: AbortSig
         m02ModelOwnedRiskCategories: riskStatus.partly,
       }
     : inputCaseState;
+  // 优先评估线索若落在服务端的「近来有没有加重」题（没有 urgent 线索的筛查题在前），先核对病历是否已经写出这一情况的变化（逐次读数、
+  // 一直到现在）；已写出就不出这道题，走后面的兜底顺序。只有这一支才调用，其余病例不多一次调用。
+  const trend = m02PossibleRiskQuestion(riskCaseState) ? undefined : m02PriorityTrendQuestion(riskCaseState);
+  const trendAnswered = trend
+    ? await priorityTrendAnsweredByRecord(trend, narrowCheckRecordText, signal)
+    : false;
+  const caseState: QuestionCaseState = trendAnswered ? { ...riskCaseState, m02PriorityTrendAnswered: true } : riskCaseState;
   const fallbackQuestions = buildCaseAwareQuestionFallback(caseState);
   // 模型判断「不需要再问」时用的那道题：先问病历没写到的基本问诊项（见 buildCaseAwareQuestionFallback 的 settled）。
   // 模型输出不可用（解析失败、上游失败）时仍用上面的安全兜底。
@@ -136,7 +149,7 @@ async function questionStageResponse(inputCaseState: CaseState, signal: AbortSig
       // 舌象与脉象并在一问的题先拆成只问一项（拆不开的删掉），再做窄核对（splitTonguePulseQuestions）。
       const split = splitTonguePulseQuestions(content, sourceText, caseState);
       // 模型写的题若病历已经写明（全部或其中一件），或题干并问两件事，与确定性删题同一条路删掉（m02-question-redundancy.server.ts）。
-      const repeated = await questionIdsFailingNarrowChecks(split.content, sourceText, `${fallbackQuestions}\n${settledQuestions}`, signal);
+      const repeated = await questionIdsFailingNarrowChecks(split.content, narrowCheckRecordText, `${fallbackQuestions}\n${settledQuestions}`, signal);
       return withCompleteness(reviewM02QuestionPlan(split.content, sourceText, settledQuestions, [...split.removeIds, ...repeated]));
     },
   });

@@ -39,6 +39,7 @@ const ALLOWLIST = new Map([
   ["src/lib/clinical-facts.ts", "语义事实回补的 schema 字段与文案。"],
   ["src/lib/m02-question-contract.ts", "追问模板文案。"],
   ["src/lib/m04-proposal-compiler.ts", "M04 编译期的结构校验文案。"],
+  ["src/lib/incidental-sleep-modification.ts", "2026-10-20 第八轮从 m04-proposal-compiler.ts（已登记）原样移出：「睡眠差随主病而来、不另加安神药」判据的睡眠词、安神词、神志病名闭集；移出是为了让教材加减检索（tcm-textbook-syndromes.ts）与编译器共用同一判据。迁移计划同编译器：并入受治理词表后改读 clinical-vocabulary。"],
   ["src/lib/western-name-evidence-check.server.ts", "改名结果的写法检查（括号、顿号、「或」「可能」「疑似」「待排」等推测语气），不是临床术语；证候字样走受治理的 westernLabelContainsTcmSyndrome。2026-10-19 起另有两组闭集：主诉时长的单位与数词（病程解析）、患者性别不可能有的西医病名标记（妇产科器官与妊娠产褥、男性生殖器官；乳腺不在其中），都只用于西医半的名单与改名，不进安全判断。"],
   ["src/lib/medicine-candidate-exclusion.ts", "药品剂型与给药途径字样（注射、针剂、单抗、输液；片、胶囊…），是产品形态的封闭集合，不是临床术语判断。"],
   ["src/lib/tcm-diet-plan-contract.ts", "饮食建议里的宜忌指令字样（宜、忌、避免、少食…），用来判断一段话是不是建议的写法检查，不是临床术语。"],

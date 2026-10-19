@@ -261,6 +261,19 @@ export function westernDifferentialIdentity(value: unknown): string {
 }
 
 const TEXTBOOK_DISEASE_NAMES = new Set<string>((textbookDiseaseNamesJson as { names: string[] }).names);
+/**
+ * 教材节名是西医病名、教材在该节定义里写明「属中医学“X”范畴」的：交付时中医病名栏写 X（血栓闭塞性脉管炎 → 脱疽，股骨头缺血性坏死 → 骨蚀）。
+ * 表由 scripts/build-tcm-textbook-disease-names.mjs 从教材对照表生成（每条带书名、行号、原句），不手写。
+ * 教材查表仍用节名：tcm-textbook-syndromes 把这个中医病名登记为该节的别名，按中医病名也能查到同一批证型。
+ */
+const TEXTBOOK_SECTION_TCM_NAME = new Map<string, string>(
+  Object.entries((textbookDiseaseNamesJson as { tcmNameBySectionName?: Record<string, string> }).tcmNameBySectionName || {}),
+);
+
+/** 教材节名 → 交付用的中医病名；不是「西医节名」时原样返回。 */
+export function textbookSectionDeliveryName(sectionName: string): string {
+  return TEXTBOOK_SECTION_TCM_NAME.get(String(sectionName || "").trim()) || sectionName;
+}
 
 /**
  * 教材病名是可以直接交付的规范写法（2026-10-13，甲方 10.12 测评）。国标 GB/T 15657 把「头痛」归到「头风病」、
@@ -277,7 +290,7 @@ export function canonicalTcmDiseaseName(
   context: TerminologyReasoning,
 ): string | undefined {
   const textbook = textbookTcmDiseaseName(value);
-  if (textbook) return textbook;
+  if (textbook) return textbookSectionDeliveryName(textbook);
   const resolved = resolveTcmDiseaseName(value);
   if (resolved && resolved.status !== "unverified") return resolved.canonical;
   // Do not turn a Western diagnosis or a short-lived symptom into a TCM disease automatically.

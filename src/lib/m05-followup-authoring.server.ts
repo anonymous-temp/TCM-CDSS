@@ -5,7 +5,8 @@ import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { SIX_HEALTH_FOLLOWUP_DIMENSIONS } from "./tcm-followup-dimensions";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
-import { deriveFirstReviewTiming, hasStrongPrescriptionRisk, isRecordCompletenessStatement, sanitizeFreeTextForModel } from "./diagnosis-safety";
+import { authoritativePatientAgeYears, deriveFirstReviewTiming, hasStrongPrescriptionRisk, isRecordCompletenessStatement, reproductiveAdviceRelevant, sanitizeFreeTextForModel } from "./diagnosis-safety";
+import { signListForPopulation, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { consumeFollowupWork, type FollowupSharedWork } from "./m05-followup-shared-work";
@@ -309,7 +310,43 @@ export function resetAuthoredFollowupCache(): void {
   authoredFollowupInFlight.clear();
 }
 
+/**
+ * 作文结果按本例人群收口（2026-10-19 晚，Claude 评审 M-TCM-RobustSDT-single_0516：61 岁女性的复诊警示含「月经量骤增」）。
+ * 缓存键是下发给模型的用户消息，里面没有性别与年龄，所以缓存里存的是未收口的原文，收口只在出口做（缓存命中、并入同一次请求都一样）。
+ * 急症表现、观察指标、时间轴的触发/观察项里含月经、孕哺类词的项目，本例不可能出现时去掉（词表与判据同 followupSignsForPopulation）；
+ * 去到不足两条的列表回落通用急症表现 / 观察指标拼串，时间轴某行触发或观察项被去空则整行不要，不足两行整条回落模板——
+ * 都是本层本来就有的回落，不新增分支。
+ */
+export function authoredFollowupForPopulation(authored: AuthoredFollowupContent, audience: HerbBoundaryAudience): AuthoredFollowupContent {
+  if (audience.reproductive) return authored;
+  const urgentSigns = signListForPopulation(authored.urgentSigns, audience);
+  const monitoringIndicators = signListForPopulation(authored.monitoringIndicators, audience);
+  const timeline = authored.timeline
+    .map((item) => ({ ...item, indicators: signListForPopulation(item.indicators, audience), triggers: signListForPopulation(item.triggers, audience) }))
+    .filter((item) => item.indicators.length > 0 && item.triggers.length > 0);
+  if (urgentSigns.length === authored.urgentSigns.length && monitoringIndicators.length === authored.monitoringIndicators.length &&
+    timeline.length === authored.timeline.length &&
+    timeline.every((item, index) => item.indicators.length === authored.timeline[index].indicators.length && item.triggers.length === authored.timeline[index].triggers.length)) {
+    return authored;
+  }
+  return {
+    ...authored,
+    urgentSigns: urgentSigns.length >= 2 ? urgentSigns : [],
+    monitoringIndicators: monitoringIndicators.length >= 2 ? monitoringIndicators : [],
+    timeline: timeline.length >= 2 && new Set(timeline.map((item) => item.time)).size === timeline.length ? timeline : [],
+  };
+}
+
 export async function authorFollowupClinicalContent(
+  state: CaseState,
+  input: Parameters<typeof authorFollowupClinicalContentUnfiltered>[1],
+  signal?: AbortSignal,
+): Promise<AuthoredFollowupContent | null> {
+  const authored = await authorFollowupClinicalContentUnfiltered(state, input, signal);
+  return authored ? authoredFollowupForPopulation(authored, { reproductive: reproductiveAdviceRelevant(state), ageYears: authoritativePatientAgeYears(state) ?? null }) : authored;
+}
+
+async function authorFollowupClinicalContentUnfiltered(
   state: CaseState,
   input: {
     syndrome?: string;

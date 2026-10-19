@@ -1,4 +1,4 @@
-import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04HerbOpposingDirectionIssue } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04HerbOpposingDirectionIssue, signedTextbookFormulaIngredients } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
@@ -233,9 +233,13 @@ export function dropUnsupportedM04CandidateHerbs(
       ...(Array.isArray(prior.overview?.recommendedFormulaNames) ? prior.overview.recommendedFormulaNames : []),
     ].filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
     const baselines = executableFormulaCompilationReferences([...new Set(lockedNames)]);
-    const baselineIdentities = new Set(
-      baselines.flatMap((reference) => reference.ingredients).map((name) => canonicalTcmHerbIdentity(name)),
-    );
+    // 教材给本证配的代表方（M03 推荐方向里写着、目录锁不住或目录里没有这个名字，如痛风·湿热阻痹「四妙散合宣痹汤」）的原方药味同样是基准：
+    // 合同的方向核对早已按它豁免（signedTextbookFormulaIngredients），这里的剔除不能再把它的药（四妙散的苍术）当方向对立的加味删掉
+    //（2026-10-20 第八轮，留出例 S145：方义写「黄柏、苍术二药共为君」而药味表没有苍术）。
+    const baselineIdentities = new Set([
+      ...baselines.flatMap((reference) => reference.ingredients),
+      ...signedTextbookFormulaIngredients(prior),
+    ].map((name) => canonicalTcmHerbIdentity(name)));
     const supportedPrimaryEmperorCount = herbs.filter((value) => {
       const herb = recordValue(value);
       return herb?.role === "君" && herb.targetKind === "pathogenesis_node" && herb.targetRef === "P1" &&

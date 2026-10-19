@@ -1,4 +1,5 @@
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { jingfangRelationFormulaIdentityNames } from "./jingfang-patterns";
 import governedFormulaJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
 import modernCaseFormulaIndexJson from "../data/tcm-modern-case-formula-index.json" with { type: "json" };
 import retrievalConceptJson from "../data/tcm-formula-retrieval-concepts.json" with { type: "json" };
@@ -1315,6 +1316,8 @@ export function textbookRelationFormulaIdentityNames(reasoning: unknown, names: 
 
 export function trustedModelFormulaIdentityNames(reasoning: unknown, names: readonly string[]): Set<string> {
   const textbookTrusted = textbookRelationFormulaIdentityNames(reasoning, names);
+  // 经方方证（证名 + 方向正是方证表里的一项）与教材行同为「证名—方」的正向依据（2026-10-19，第八轮 WP-A）。
+  for (const identity of jingfangRelationFormulaIdentityNames(reasoning, names)) textbookTrusted.add(identity);
   if (textbookTrusted.size === names.length && names.length > 0) return textbookTrusted;
   const modelTrusted = modelTrustedFormulaIdentityNames(reasoning, names);
   for (const identity of textbookTrusted) modelTrusted.add(identity);

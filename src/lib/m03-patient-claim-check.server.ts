@@ -5,6 +5,7 @@ import {
   CHINESE_NUMERAL_BEFORE_UNIT,
   CLAUSE_LINKER_TAIL,
   EXISTENCE_LEAD_IN,
+  ORPHAN_ANAPHORIC_TAIL,
   PATIENT_SELF_REFERENCE,
   RECORD_CONSIDERATION_MARKER,
   RECORD_GAP_MARKER,
@@ -141,6 +142,7 @@ export function buildPatientClaimMessages(recordText: string, fields: readonly P
         "只找一种错误：文字把某个具体表现当成本例患者自己有的（或没有的）来写——症状、体征、症状的性质、部位、侧别、起病时间或起病年龄、检查结果、既往史、诱因——而病历里用任何说法都没有写到，或与病历写的相反。",
         "典型的错误：病历只写“咳嗽”，文字写“本例干咳无痰”；病历只写“起水疱”，文字写“水疱破溃渗液”“疱液浑浊”；病历写“皮肤瘙痒”，文字写“瘙痒夜间加重”；病历没写部位，文字写“本例右侧疼痛”；病历只有胸闷，文字写“胸痛”；病历写“2个月来出现”，文字写“2月龄起病”；病历没写口渴与否，文字写“口不渴”。",
         "同一类错误还有三种写法：写某项“正常、如常、清楚”（如“神志清楚”“四肢活动自如”“饮食如常”）而病历没写这一项；写症状“不在某处”“与某事无关”（如“痛不在胁下”“与进食无关”）而病历没写部位或这层关系；把病历里笼统的“不适”写成具体性质（病历只写“腹部不适”，文字写“腹部痞满”“腹部胀痛”）。",
+        "还有一种容易漏的：病历写了这个症状或体征，文字在它前后加上病历没有的限定——程度（病历“发热”，文字“壮热”）、颜色或性状（病历“身黄”，文字“黄色鲜明”）、固定与否或范围（病历“刺痛”，文字“痛有定处”“肿势散漫”）。这类限定词要逐个对照病历，病历没写的那个限定词就是错误，span 取该限定词连同它修饰的症状（如“壮热”“黄色鲜明”）；病历用另一种说法写了同样的意思（“针刺样痛”与“刺痛如针扎”）不算。",
         "辨证依据常把体征和病机写在同一句里（如“痛剧、XX属热毒”“皮损为XX，与之不同”）：病机部分不用管，但句中每个体征、性状词都要逐个对照病历——病历没写的那个词就是错误。",
         "以下不算错误，不要列出：",
         "- 鉴别诊断里写别的病、别的证的典型表现或一般规律：没有“本例/患者/患儿/该患者”这类主语、只是罗列特征的话（如“搏动性、单侧、伴畏光”“起病即发热重”“多见于中老年”“需排除占位”），默认是在写那个病；",
@@ -314,7 +316,36 @@ export function withoutClaimSpan(value: string, span: string): string {
     .replace(/[；;]+([。])/gu, "$1")
     .replace(/^[，,、。；;：:]+/u, "")
     .trim();
+  next = withoutOrphanedAnaphoricTail(value, next);
   return /[㐀-鿿]/u.test(next) ? next : value;
+}
+
+/**
+ * 删掉一个分句后，紧挨着它的尾句只剩「故与二者相区分」这类回指被删内容的话时，连这条尾句一起删（2026-10-19 X-C-0159：
+ * 「…属产后小便淋痛；故与二者相区分。」——「二者」指的是被删掉的那两条鉴别，留下的尾句没有所指）。
+ * 两个条件同时成立才删：尾句整条只有「（故/因此/所以）（与/同/和）二者/两者/上述各病 …区分/鉴别」这一个回指；
+ * 且尾句前面紧挨着的那个分句，删之前和删之后不是同一个（被删的正是它的所指）。删的是别处、或删之前就这样写的，不动。
+ */
+function clauseBefore(text: string, at: number): string {
+  const head = text.slice(0, at).replace(/[，,、；;。\s]+$/u, "");
+  const cut = Math.max(...["，", ",", "、", "；", ";", "。"].map((mark) => head.lastIndexOf(mark)));
+  return head.slice(cut + 1);
+}
+export function withoutOrphanedAnaphoricTail(before: string, after: string): string {
+  if (before === after) return after;
+  for (const match of after.matchAll(/[^。；;，,]+[。；;，,]?/gu)) {
+    const unit = match[0];
+    const core = unit.replace(/[。；;，,\s]+$/u, "").trim();
+    if (!ORPHAN_ANAPHORIC_TAIL.test(core)) continue;
+    const at = match.index ?? 0;
+    const beforeAt = before.indexOf(unit);
+    if (beforeAt < 0 || clauseBefore(before, beforeAt) === clauseBefore(after, at)) continue;
+    const head = after.slice(0, at).replace(/[；;，,]+$/u, "");
+    const tail = after.slice(at + unit.length);
+    const terminal = /[。；;，,]$/u.test(unit) ? unit.slice(-1) : "";
+    return `${head}${terminal}${tail}`.trim();
+  }
+  return after;
 }
 
 /** 把片段删除落到一半的 JSON 上（纯函数，原地改 root）。片段已不在字段里的跳过；返回实际删了几处。 */
@@ -365,11 +396,19 @@ export function agreedPatientClaimRemovals(first: readonly PatientClaimRemoval[]
  * 交给复核的片段：两次都标到的，加上只有一次标到、但写成否定或无关的说法（「腹不胀大」「非时聚时散」「与咳唾呼吸无关」
  *「大便不酸臭」「未见膨隆」）。2026-10-19 Claude 评审 M 集：鉴别区分点里这类病历没写的阴性 16 处判不合格，两次核对各标到一半，
  * 交集把它们全丢了。复核一步只问「病历写没写到」，否定说法病历没写就是没写，误判面窄；肯定说法仍要两次一致。
+ *
+ * eitherPass（CDSS_M03_PATIENT_CLAIM_EITHER_PASS=true，缺省关）：肯定说法也只要有一次标到就交给复核（2026-10-19 晚第八轮，待主控实测）。
+ * 动机：「病历已有的主词 + 病历没有的限定」（身黄→黄色鲜明、发热→壮热）两次核对常常一次标到一次漏掉（遥测里有「first: 3, second: 0」），
+ * 交集把它们丢了；复核是最后一道关，同义写法在复核里会判「写到了」。代价是复核条数变多。
  */
-export function patientClaimCandidatesForVerification(first: readonly PatientClaimRemoval[], second: readonly PatientClaimRemoval[]): PatientClaimRemoval[] {
+export function patientClaimCandidatesForVerification(
+  first: readonly PatientClaimRemoval[],
+  second: readonly PatientClaimRemoval[],
+  options: { eitherPass?: boolean } = {},
+): PatientClaimRemoval[] {
   const candidates = agreedPatientClaimRemovals(first, second);
   for (const item of [...first, ...second]) {
-    if (!negativeFormClaim(item.span)) continue;
+    if (!options.eitherPass && !negativeFormClaim(item.span)) continue;
     if (candidates.some((existing) => existing.field === item.field && (existing.span.includes(item.span) || item.span.includes(existing.span)))) continue;
     candidates.push({ field: item.field, span: item.span });
   }
@@ -388,7 +427,7 @@ export function buildPatientClaimVerificationMessages(recordText: string, claims
       content: [
         "你是病历核对员。给你一份门诊病历（record，首行是性别、年龄、生命体征）和几条从辨病辨证结论里摘出的、关于本例患者的说法（claims，每条附它所在的那句话 context）。",
         "逐条判断：病历里有没有写到这条说法的全部内容——同义的说法、术语化的说法（病历描述换成中医或西医术语，如“心痛如绞”与“绞痛”、“红斑风团”与“风团色红”、“不想吃饭”与“纳呆”、“手脚发麻”与“四肢麻木”）、几处合起来能得出的，都算写到了。",
-        "只有说法里多出了病历根本没有的内容——新的症状、部位、侧别、性质、诱因、起病时间、与某事的关系、“正常/如常/清楚”这类判断——才算 partial 或 absent。",
+        "只有说法里多出了病历根本没有的内容——新的症状、部位、侧别、性质、程度（病历“发热”，说法“壮热”）、颜色或性状（病历“身黄”，说法“黄色鲜明”）、固定与否、诱因、起病时间、与某事的关系、“正常/如常/清楚”这类判断——才算 partial 或 absent。",
         "- supported：写到了全部内容，quote 给出病历里的原文（逐字复制，不超过40字）；",
         "- partial：只写到一部分（如病历只写“隐痛”，说法是“双侧隐痛”；病历只写“胃脘不适”，说法是“胃脘痞闷”）；",
         "- absent：没写到，或与病历写的相反。",
@@ -483,7 +522,9 @@ export async function decidePatientClaimRemovals(
     patientClaimPass(task, buildPatientClaimMessages(recordText, fields), fields, recordText, signal),
     patientClaimPass(task, buildPatientClaimMessages(recordText, [...fields].reverse()), fields, recordText, signal),
   ]);
-  const agreed = first && second ? patientClaimCandidatesForVerification(first, second) : undefined;
+  const agreed = first && second
+    ? patientClaimCandidatesForVerification(first, second, { eitherPass: process.env.CDSS_M03_PATIENT_CLAIM_EITHER_PASS === "true" })
+    : undefined;
   let removals = agreed;
   if (agreed && agreed.length > 0) {
     const byId = new Map(fields.map((field) => [field.id, field.text]));

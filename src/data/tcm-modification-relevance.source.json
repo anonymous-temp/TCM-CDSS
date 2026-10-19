@@ -15,5 +15,12 @@
   "瘙痒": ["瘙痒", "痒"]
  },
  "maleOnlyTerms": ["遗精", "滑精", "梦遗", "阳痿", "早泄"],
- "femaleReproductiveTerms": ["月经", "经行", "经期", "经量", "经色", "经血", "行经", "痛经", "闭经", "崩漏", "带下", "白带", "恶露"]
+ "femaleReproductiveTerms": ["月经", "经行", "经期", "经量", "经色", "经血", "行经", "痛经", "闭经", "崩漏", "带下", "白带", "恶露"],
+ "pregnancyLactationTerms": ["怀孕", "备孕", "妊娠", "孕期", "孕妇", "哺乳"],
+ "followupSignGrammar": {
+  "conditionLeads": ["如果", "倘若", "一旦", "若", "如", "或"],
+  "eventLeads": ["出现", "发生", "伴有", "伴", "见", "有"],
+  "actionStarts": ["请", "须", "需", "应", "务必", "立即", "及时", "尽快", "马上", "就医", "就诊", "到", "去", "回", "由", "并"]
+ },
+ "pregnancyLactationTermsNote": "复诊提示、急症表现（followupSafetyNet、M05 urgentSigns）里的孕哺类项目：reproductiveAdviceRelevant 判为无此可能的患者（男性、12 岁以下、60 岁及以上、已绝经）不写（2026-10-19 晚，candidate-boundary-text.ts followupSignsForPopulation；月经类词沿用上面的 femaleReproductiveTerms）。"
 }

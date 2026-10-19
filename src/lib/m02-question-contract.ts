@@ -1,6 +1,6 @@
 import { redFlagExplicitOnly } from "./clinical-facts";
 import { pulseOptionsMutuallyExclusive, textbookDiscriminatingQuestion, tongueOptionsMutuallyExclusive, withoutFingerVeinClause } from "./tcm-textbook-syndromes";
-import { FOLLOWUP_SKIP_SENTENCE, POSSIBLE_RISK_QUESTIONS, riskQuestionQuotePrefix, riskScreeningQuestionFor, type RiskQuestionVariant } from "./followup-conversation";
+import { FOLLOWUP_SKIP_SENTENCE, POSSIBLE_RISK_QUESTIONS, followupConversationView, riskQuestionQuotePrefix, riskScreeningQuestionFor, type ConversationMessageLike, type RiskQuestionVariant } from "./followup-conversation";
 import { PEDIATRIC_STRUCTURED_WORD_PATTERN, pediatricDoseRuleForAgeYears, pediatricDoseRuleForStageWords } from "./pediatric-dose-rule";
 import { affirmedClinicalText } from "./clinical-polarity";
 import type { Completeness } from "./diagnosis-types";
@@ -24,6 +24,11 @@ type QuestionFallbackCase = {
    * 不再前置整张固定清单；模型没写时仍出固定筛查题兜底。
    */
   m02ModelOwnedRiskCategories?: readonly string[];
+  /**
+   * 病历已经写出优先评估线索近来的变化（逐次读数、「一直…到现在」、「比之前重」）或此刻仍在：「近来有没有加重」问的是病历已写的事，
+   * 这道服务端兜底题不再出（核对结果，路由按 m02-question-redundancy.priorityTrendAnsweredByRecord 写入；2026-10-19 第八轮）。
+   */
+  m02PriorityTrendAnswered?: boolean;
   vitals?: Record<string, unknown>;
   hisRecord?: { fields?: { age?: string; sex?: string; zhushu?: string; xianbingshi?: string; tcmDetail?: string; tcmTongue?: string; tcmPulse?: string } };
 };
@@ -392,6 +397,8 @@ function fallbackAgeDays(state: QuestionFallbackCase | undefined, recordText: st
  * 某类急症线索的筛查题：类目固定题，按人群或病历写法换成 followup-conversation.RISK_QUESTION_VARIANTS 里的写法
  *（2026-10-19 r1019 第四轮）。闸门识别作答时各种写法同等对待，阳性选项不变。
  *  · 新生儿、乳婴儿的儿童危重筛查问吃奶，不问「拒绝饮水」；未满 3 岁（或年龄不详的儿童）的感染筛查不问寒战、血压；
+ *    神经、呼吸筛查不问「说话不清、头痛」「说话受限、不能平卧」这类孩子说不出的表现，改问抽搐、肢体活动、鼻翼扇动、三凹征
+ *   （2026-10-19 第八轮，B-IMCS21-dev-10143338#9 65 天婴儿被问成人卒中筛查）；
  *  · 出血：事实层给了病历原话时，原话放在题干前（出血部位就在引文里），只问是否仍在出血及头晕心慌出冷汗；
  *    没有原话时男性去掉阴道流血一项；
  *  · 「其他急危重线索」没有类目自己的筛查内容，题干总带病历原话（2026-10-14 独立评审：脱离上下文读不出指的是什么）。
@@ -405,13 +412,24 @@ function screeningQuestionForFinding(category: string, rawQuote: unknown, state?
   const sex = `${state?.patient?.sex || ""}${state?.hisRecord?.fields?.sex || ""}`;
   const variant: RiskQuestionVariant | undefined =
     category === "pediatric_critical" && (band === "neonate" || band === "infant") ? "infant"
-      : category === "sepsis" && band ? "youngChild"
+      : (category === "sepsis" || category === "neuro" || category === "respiratory") && band ? "youngChild"
         : category === "bleeding" && quote ? "anchored"
           : category === "bleeding" && /男/u.test(sex) && !/女/u.test(sex) ? "male"
             : undefined;
   const question = riskScreeningQuestionFor(category, variant);
   if (!question) return undefined;
   return { category, ...question, question: quote ? `${riskQuestionQuotePrefix(quote)}${question.question}` : question.question };
+}
+
+/** 优先评估题针对的那条事实层线索（m02PriorityEvaluationQuestion 与 m02PriorityTrendQuestion 同一口径）。 */
+function priorityEvaluationFinding(state?: QuestionFallbackCase) {
+  const answered = new Set(state?.m02SuppressedRiskCategories || []);
+  return (state?.clinicalFacts?.redFlags || [])
+    .filter((item) => typeof item.category === "string" && !answered.has(item.category) &&
+      (item.subject ?? "patient") === "patient" &&
+      (item.status === "positive" || (!redFlagExplicitOnly() && item.status === "possible")) &&
+      (item.urgency === "urgent" || item.urgency === "clarify"))
+    .sort((left, right) => (left.urgency === "urgent" ? 0 : 1) - (right.urgency === "urgent" ? 0 : 1))[0];
 }
 
 /**
@@ -423,21 +441,15 @@ function screeningQuestionForFinding(category: string, rawQuote: unknown, state?
  * 12121#12 黑便、12324#4 62 岁腹痛加重、14432#7 黑便后虚脱）。这里按事实层那条线索出题：
  *  · 类目有筛查题、病历没写明正在发生 → 该类目的筛查题（与急症筛查题同一张表、同一套写法，闸门照常识别作答）；
  *  · 出血类已写明正在发生 → 循环灌注筛查题（出血量够不够影响循环，是出血病例下一步要定的事），题干前带病历原话；
- *  · 其余（类目没有筛查题、「其他急危重线索」、或已写明正在发生）→ 以病历原话为题，只问这一情况近来是加重、持续还是已缓解（不进闸门识别：
- *    不是急症筛查，回答作为病历补充）。
+ *  · 其余（类目没有筛查题、「其他急危重线索」、或已写明正在发生）→ 以病历原话为题，只问这一情况近来有没有加重（m02PriorityTrendQuestion；
+ *    不进闸门识别：不是急症筛查，回答作为病历补充；病历已写出变化时不出）。
  * 只读 status=positive|possible 的线索（m02ClinicalFactsFootprint 的 promptFacts 已覆盖，先发结果的等价性不受影响），
  * 判据与闸门的优先评估项相同（clinical-facts.priorityEvaluationItemsFromFacts：本人、clarify 及以上；只认明确现症时只认 positive）；
  * emergency 已由闸门判急危重，路由出处置题，不走这里。病历已回答其筛查题的类目（m02SuppressedRiskCategories）不再问。
  */
 export function m02PriorityEvaluationQuestion(state?: QuestionFallbackCase): string | undefined {
-  const answered = new Set(state?.m02SuppressedRiskCategories || []);
   const affirmed = new Set(state?.m02AffirmedRiskCategories || []);
-  const finding = (state?.clinicalFacts?.redFlags || [])
-    .filter((item) => typeof item.category === "string" && !answered.has(item.category) &&
-      (item.subject ?? "patient") === "patient" &&
-      (item.status === "positive" || (!redFlagExplicitOnly() && item.status === "possible")) &&
-      (item.urgency === "urgent" || item.urgency === "clarify"))
-    .sort((left, right) => (left.urgency === "urgent" ? 0 : 1) - (right.urgency === "urgent" ? 0 : 1))[0];
+  const finding = priorityEvaluationFinding(state);
   if (!finding?.category) return undefined;
   const category = finding.category;
   const quote = riskQuestionQuote(finding.quote);
@@ -450,16 +462,37 @@ export function m02PriorityEvaluationQuestion(state?: QuestionFallbackCase): str
   // 这里的线索可能只到 clarify 级，改问近来的变化，不把一句「仍在」升成急症。
   const screening = affirmed.has(category) || category === "other_critical" ? undefined : screeningQuestionForFinding(category, finding.quote, state);
   if (screening) return questionBlock(1, screening.question, reason, "现病史", [screening.positive, screening.negative, FOLLOWUP_SKIP_SENTENCE]);
-  // 引文只是一个读数（「生命体征：38.1」「体温38.1℃」「BP 150/95」）时，「近来加重还是缓解」问不通、选项还会与当前读数相矛盾
-  //（2026-10-19 Claude 评审留出例 S143）：不出这道题，交给后面的兜底。
+  const trend = m02PriorityTrendQuestion(state);
+  // 病历已写出这一情况的变化时不出这道题，交给后面的兜底（路由核对所得，见 m02PriorityTrendAnswered）。
+  if (!trend || state?.m02PriorityTrendAnswered) return undefined;
+  return questionBlock(1, trend.question, reason, "现病史", [trend.options[0], trend.options[1], FOLLOWUP_SKIP_SENTENCE]);
+}
+
+/**
+ * 优先评估题若落在「近来有没有加重」这一支，这道题的内容（没有这一支则 undefined）。
+ *
+ * 路由出题前拿它去核对病历是否已经写明这一情况的变化（m02-question-redundancy.priorityTrendAnsweredByRecord）。
+ * 此前题干问「加重、持续，还是已经缓解」，两个临床选项却是「近来加重」「已经缓解，目前未再出现」：仍在持续的情况无处可选，
+ * 选「已缓解」又与病历矛盾（2026-10-19 第七轮评审 B 集：test-10334253#9 病历写着「又烧38.8度了」、train-10389592#8 写着「这样一直发烧」）。
+ * 追问计划每题恰好两个临床选项（parseM02Plan 与 isAnswerableQuestionBlock，对外接口的选项形状），不能加第三项，
+ * 所以改成把「加重」与「没有加重」（持续不变、已缓解都在后一项）分开的二分题。引文只是一个读数（「体温38.1℃」）时不出：
+ * 一个读数问不出变化（2026-10-19 留出例 S143）。不进闸门识别：这不是急症筛查，回答作为病历补充。
+ */
+export function m02PriorityTrendQuestion(state?: QuestionFallbackCase): { quote: string; question: string; options: [string, string] } | undefined {
+  const affirmed = new Set(state?.m02AffirmedRiskCategories || []);
+  const finding = priorityEvaluationFinding(state);
+  if (!finding?.category) return undefined;
+  const category = finding.category;
+  const quote = riskQuestionQuote(finding.quote);
+  if ((category === "gi_bleed" || category === "bleeding") && affirmed.has(category)) return undefined;
+  if (!(affirmed.has(category) || category === "other_critical") && screeningQuestionForFinding(category, finding.quote, state)) return undefined;
+  // 引文只是一个读数（「生命体征：38.1」「体温38.1℃」「BP 150/95」）时，问不出「近来有没有加重」。
   if (!quote || /^[^，,。；;]{0,8}?(?:生命体征|体温|T|P|R|BP|血压|心率|脉搏|呼吸|血氧|SpO2)?\s*[:：]?\s*\d+(?:\.\d+)?(?:\s*\/\s*\d+)?\s*(?:℃|度|mmHg|次\/分|%)?$/iu.test(quote.trim())) return undefined;
-  return questionBlock(
-    1,
-    `${riskQuestionQuotePrefix(quote)}这一情况近来是在加重、持续，还是已经缓解？`,
-    reason,
-    "现病史",
-    ["近来加重或出现新表现，请补充具体表现", "已经缓解，目前未再出现", FOLLOWUP_SKIP_SENTENCE],
-  );
+  return {
+    quote,
+    question: `${riskQuestionQuotePrefix(quote)}这一情况近来有没有加重？`,
+    options: ["近来加重，请补充具体表现", "没有加重"],
+  };
 }
 
 /**
@@ -476,6 +509,20 @@ function structuredVitalsComplete(state?: QuestionFallbackCase): boolean {
   });
   return has(["T", "temperature", "temp"]) && has(["P", "pulse", "HR", "heartRate"]) &&
     has(["R", "respiration", "RR", "respiratoryRate"]) && has(["BP", "bp", "bloodPressure"]);
+}
+
+/**
+ * 出题前几项窄核对（急症筛查题的可答性、模型题的重复核对、近来有没有加重题的核对）读的病历文本（2026-10-19 第八轮）。
+ *
+ * trustedInputText 只收对话里的回答（user 消息），不带它回答的那道题：「没有」「都挺好的」「都没有」离开题干读不出答的是什么，
+ * 核对器判不出「问诊里已经问过、答过」。这里把对话里每一组「题干 + 回答」按问答体的写法（「问：… 答：…」）补在后面。
+ * 甲方把问诊记录写在 symptoms 里时它已在病历文本中，对话为空时与原文本相同。
+ * 只给这几项核对用；安全闸门、出题提示词、选项是否已知的确定性判断照旧读 trustedInputText。
+ */
+export function m02NarrowCheckRecordText(sourceText: string, conversation?: readonly ConversationMessageLike[]): string {
+  const pairs = followupConversationView(conversation).answers
+    .map(({ question, answer }) => `问：${question.replace(/\s+/g, " ").slice(0, 200)} 答：${answer}`);
+  return [sourceText, ...pairs].filter((value) => value.trim()).join("\n");
 }
 
 /** 路由用：本例此刻会出的急症筛查题（没有则 undefined）。 */
@@ -1029,7 +1076,9 @@ function optionAlreadyKnown(option: M02PlanOption, sourceText: string): boolean 
 type KnownClinicalAxis = "trajectory" | "duration" | "frequency" | "severity" | "headache_quality";
 
 const AXIS_QUESTION_PATTERNS: Record<KnownClinicalAxis, RegExp> = {
-  trajectory: /(?:与.{0,24}(?:刚出现|起初|开始时|以前|之前).{0,24}(?:相比|比起)|(?:总体|变化趋势|病情趋势).{0,18}(?:加重|恶化|缓解|好转|稳定|反复|波动)|(?:加重|恶化).{0,12}(?:还是|或).{0,12}(?:缓解|好转|稳定|反复|波动))/,
+  // 末一支是服务端「近来有没有加重」优先评估题的题干（m02PriorityTrendQuestion）：旧题干「加重、持续，还是已经缓解」由上一支认出，
+  // 病历已写病情趋势时这道题就不出；改成二分题干后要在这里点名，否则这层已答守卫对它失效。
+  trajectory: /(?:与.{0,24}(?:刚出现|起初|开始时|以前|之前).{0,24}(?:相比|比起)|(?:总体|变化趋势|病情趋势).{0,18}(?:加重|恶化|缓解|好转|稳定|反复|波动)|(?:加重|恶化).{0,12}(?:还是|或).{0,12}(?:缓解|好转|稳定|反复|波动)|这一情况近来有没有加重)/,
   duration: /(?:多久|多长时间|什么时候开始|何时开始|起病时间|持续了|病程)/,
   frequency: /(?:多久一次|多久发作一次|每(?:天|日|周|月)几次|一(?:天|日|周|月)几次|发作频率|出现频率|发作次数)/,
   severity: /(?:疼痛评分|几分疼|程度如何|多严重|轻度.{0,6}中度.{0,6}重度|是轻、中还是重)/,
@@ -1118,12 +1167,23 @@ export function renderStructuredM02Plan(plan: M02Plan): string {
  * 调用方确认能处理后，`CDSS_M02_PROCEED_WHEN_SETTLED=true` 打开，无需重新构建。
  */
 /**
+ * 问答体记录（「问：… 答：…」）里医生的提问不是患者的表现（2026-10-19 第八轮）：只数回答与其余字段。
+ * 对话形式（conversation）里本来就只有 user 消息进病历文本（diagnosis-safety.trustedInputText），问答体记录与之同口径。
+ * B-IMCS21-train-10141611#12：记录里「问：发烧，拉肚子不 答：早晨起床也咳的厉害」，提问里的「发烧」「拉肚子」被数成寒热、大便已记录，
+ * 加上「爱流汗」凑成 4 取 3，判病历充分而不再追问；实际回答没有说这两项。回答里写了（「不发烧，不拉肚子」）仍照常数。
+ * 「问：」「答：」是问答体记录的结构标记，不是临床词表。
+ */
+function withoutDialogueQuestions(text: string): string {
+  return text.replace(/问[：:][\s\S]*?(?=答[：:])/gu, "");
+}
+
+/**
  * 病历是否足以不再追问（2026-10-18）：舌象与脉象都记录了，或寒热、口渴、二便、汗这四项基本问诊里至少记录了三项。
  * 逐模块验收的问诊集（IMCS-21 儿科在线问诊）里，只有「刚发烧、今天流鼻涕」的病历模型也返回 proceed，独立评审判「不足以辨证、
  * 不应停止追问」（330 例里约 1/4 的不合格）。判据复用基本问诊兜底题的同一组「已记录」判据（BASIC_INQUIRY_AXES）。
  */
 export function m02RecordSufficientForProceed(recordText: string): boolean {
-  const text = String(recordText || "");
+  const text = withoutDialogueQuestions(String(recordText || ""));
   const tongue = /舌[^，,。；;]{0,6}(?:红|淡|暗|紫|胖|瘦|苔|边|尖|嫩)|苔[^，,。；;]{0,4}(?:白|黄|腻|薄|厚|少|剥|润|燥)/u.test(text);
   const pulse = /脉[^，,。；;]{0,3}(?:浮|沉|迟|数|滑|涩|弦|细|弱|紧|缓|洪|濡|结|代|促|平|虚|实|微)/u.test(text);
   const basics = BASIC_INQUIRY_AXES.filter((axis) => axis.recorded.test(text)).length;

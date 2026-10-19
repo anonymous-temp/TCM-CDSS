@@ -7,6 +7,8 @@
  * 「；；；；。命中相应人群或状态时…复核。」再追加一遍新的，残段逐轮累积（瘦身前后都是约四分之一病例）。
  * 生成与剥离放在同一个文件里：尾段长什么样只有这里知道，编译器与出处富化都调同一个剥离函数。
  */
+import modificationRelevanceJson from "../data/tcm-modification-relevance.source.json";
+
 export type HerbBoundaryRule = { population: string; severity: "LOW" | "MEDIUM" | "HIGH" };
 export type HerbBoundaryProfile = { herb: string; isToxic: boolean; toxicity: readonly string[]; populationRules: readonly HerbBoundaryRule[] };
 
@@ -79,4 +81,65 @@ export function stripHerbBoundaryTail(text: string): string {
     .replace(/[；;]{2,}。?/g, "")
     .replace(/\s{2,}/g, " ")
     .trim();
+}
+
+/**
+ * 复诊提示、急症表现里写给患者的「出现…请就医」项目，只留本例患者可能出现的（2026-10-19，Claude 评审 M-TCM-RobustSDT-single_0516：
+ * 61 岁女性的复诊提示写着「月经量骤增」）。注意事项、随证加减、逐味人群提示早已按同一判据收口（reproductiveAdviceRelevant：
+ * 男性、12 岁以下、60 岁及以上、已绝经者没有此可能），模型自己写的复诊提示一直没有过这道判据。
+ * 词表不另立：月经/带下类取 tcm-modification-relevance 的 femaleReproductiveTerms（随证加减的触发条件用的是同一份），
+ * 孕哺类取同文件的 pregnancyLactationTerms。audience.reproductive 为 false 时，含这些词的那一项（按顿号、逗号、分号切）整项去掉，
+ * 其余项照旧；去掉后前一项改用被去项的收尾标点，开头的「若/出现」转给下一项；整句只剩「若出现X，请立即就医」这一个项目时整句去掉。
+ * 按本例可能性过滤，不改任何临床判断：audience 缺省或 reproductive 为 true（育龄女性、年龄不详）时原样返回。
+ */
+const POPULATION_SIGN_TERMS: readonly string[] = [
+  ...(modificationRelevanceJson as { femaleReproductiveTerms: string[] }).femaleReproductiveTerms,
+  ...(modificationRelevanceJson as { pregnancyLactationTerms: string[] }).pregnancyLactationTerms,
+];
+const SIGN_ITEM_DELIMITER = /(?<=[、，,；;。！？!?])/u;
+// 引导词与「说怎么办」的起头词是句式功能词（不是临床词表），放在数据文件里（tcm-modification-relevance.source.json 的 followupSignGrammar），
+// 长的在前，这里只拼正则。
+const SIGN_GRAMMAR = (modificationRelevanceJson as { followupSignGrammar: { conditionLeads: string[]; eventLeads: string[]; actionStarts: string[] } }).followupSignGrammar;
+const SIGN_LEAD = new RegExp(`^(?:${SIGN_GRAMMAR.conditionLeads.join("|")})?(?:${SIGN_GRAMMAR.eventLeads.join("|")})?`, "u");
+/** 紧接在症状项后面、说怎么办的小句（请…就医、须…、立即…）：症状项被去光时，这一句失去了条件，整句去掉。 */
+const SIGN_ACTION_START = new RegExp(`^(?:${SIGN_GRAMMAR.actionStarts.join("|")})`, "u");
+
+export function followupSignOutsidePopulation(item: string, audience?: HerbBoundaryAudience): boolean {
+  return Boolean(audience && !audience.reproductive) && POPULATION_SIGN_TERMS.some((term) => String(item || "").includes(term));
+}
+
+export function followupSignsForPopulation(text: string, audience?: HerbBoundaryAudience): string {
+  const original = String(text || "");
+  if (!audience || audience.reproductive || !POPULATION_SIGN_TERMS.some((term) => original.includes(term))) return original;
+  const sentences = original.split(/(?<=[。！？!?])/u).map((sentence) => {
+    let items = sentence.split(SIGN_ITEM_DELIMITER).map((piece) => {
+      const match = piece.match(/^([\s\S]*?)([、，,；;。！？!?]?)$/u);
+      return { body: match?.[1] ?? piece, delimiter: match?.[2] ?? "" };
+    });
+    for (let guard = 0; guard < 20; guard += 1) {
+      const at = items.findIndex((item) => followupSignOutsidePopulation(item.body, audience));
+      if (at < 0) break;
+      const removed = items[at];
+      const next = items[at + 1];
+      const previous = items[at - 1];
+      if (at === 0 && (!next || SIGN_ACTION_START.test(next.body))) return "";
+      const rest = items.filter((_, index) => index !== at);
+      if (at > 0) {
+        // 被去项在句末（后面没有别的项）时，前一项接上被去项的收尾标点；否则也承接被去项的标点（「黑便、月经量骤增，或头晕」→「黑便，或头晕」）。
+        rest[at - 1] = { ...previous, delimiter: removed.delimiter };
+      } else {
+        const lead = removed.body.match(SIGN_LEAD)?.[0] ?? "";
+        if (lead && !next.body.startsWith(lead)) rest[0] = { ...next, body: `${lead}${next.body}` };
+      }
+      items = rest;
+    }
+    return items.map((item) => `${item.body}${item.delimiter}`).join("");
+  });
+  const result = sentences.join("");
+  return result.trim() ? result : original;
+}
+
+/** 条目列表（急症表现、观察指标…）里去掉本例不可能出现的项。 */
+export function signListForPopulation(items: readonly string[] | undefined, audience?: HerbBoundaryAudience): string[] {
+  return (items || []).filter((item) => !followupSignOutsidePopulation(item, audience));
 }

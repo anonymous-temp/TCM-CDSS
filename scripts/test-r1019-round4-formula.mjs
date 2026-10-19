@@ -267,7 +267,7 @@ await check("4.3 同名异方（RobustSDT-0061 四七汤）：教材四七汤（
   const out = candidateAfter(prescribeOf({ name: "四七汤加减", herbs: ["半夏", "紫苏叶", "厚朴", "茯苓", "佛手", "香附", "生姜", "大枣"], overview,
     source: "四七汤：《太平惠民和剂局方》", analysis: "本方以四七汤为基础加减，加紫苏叶、厚朴、佛手、香附、生姜、大枣。半夏为君。" }));
   assert.equal(out.formulaAnalysis, "本方以四七汤为基础加减，加佛手、香附。半夏为君。");
-  assert.equal(out.formulaSource.source, "四七汤：《中医内科学》呕吐·肝气犯胃证代表方");
+  assert.equal(out.formulaSource.source, "四七汤：《中医内科学》"); // 10/19 第八轮：出处栏只写书名，不写「…证代表方」说明（X-G-0679/0629）
   const xiaoyao = { tcmDiseaseName: "胁痛", primarySyndrome: "肝郁气滞证", recommendedFormulaDirection: "逍遥散加减", recommendedFormulaNames: ["逍遥散"] };
   const control = "本方以逍遥散为基础加减，去薄荷之辛散，加香附、陈皮以增理气。柴胡为君。";
   assert.equal(candidateAfter(prescribeOf({ name: "逍遥散加减", herbs: ["柴胡", "当归", "白芍", "白术", "茯苓", "炙甘草", "香附", "陈皮"], overview: xiaoyao,

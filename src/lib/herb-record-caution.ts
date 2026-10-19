@@ -1,7 +1,7 @@
 import cautionTableJson from "../data/tcm-herb-record-caution.source.json";
 import { affirmedClinicalText } from "./clinical-polarity";
 import { textbookDistinctHerbKey, textbookHerbCaution, textbookHerbsWithCaution } from "./herb-textbook-identity";
-import { formulaCompilationReferences } from "./tcm-formula-provenance";
+import { formulaCompilationReferences, governedDosageFormVariantComposition } from "./tcm-formula-provenance";
 
 /**
  * 饮片的教材【使用注意】与本例病历对照（2026-10-19）。
@@ -146,7 +146,13 @@ export function textbookBaseIngredients(
   if (row?.compositionByFormula?.length) {
     return row.compositionByFormula.filter((item) => named(item.formula)).flatMap((item) => [...(item.herbs || [])]);
   }
-  return (row?.formulas || []).some(named) ? [...(row?.composition || [])] : [];
+  const base = (row?.formulas || []).some(named) ? [...(row?.composition || [])] : [];
+  // 教材行没有分方组成、方剂目录也没有这个名字的方（2026-10-20 第八轮，留出例 S145 痛风·湿热阻痹「四妙散合宣痹汤」：教材只列了宣痹汤的药，
+  // 目录只收同组成的「四妙丸」）：按剂型互换的名字取受治理目录里的组成补进来，否则这首方的药（苍术）既不算原方药味、也不计入方名覆盖。
+  const extras = (row?.formulas || [])
+    .filter((formula) => named(formula) && formulaCompilationReferences([formula]).length === 0)
+    .flatMap((formula) => governedDosageFormVariantComposition(formula));
+  return extras.length > 0 ? [...new Set([...base, ...extras])] : base;
 }
 
 export function herbRecordCautionConflicts(

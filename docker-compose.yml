@@ -93,6 +93,8 @@ services:
       # 语义层只为病历明确写出的现症提示与限制给药；false 恢复 2026-10-13 之前的口径。
       CDSS_REDFLAG_EXPLICIT_ONLY: ${CDSS_REDFLAG_EXPLICIT_ONLY:-true}
       CDSS_TEXTBOOK_DISEASE_PICK: ${CDSS_TEXTBOOK_DISEASE_PICK:-true}
+      # 经方方证闭集选择（jingfang-pattern-pick.server.ts）：false 关闭，提示词与此前逐字相同。
+      CDSS_JINGFANG_PATTERN_PICK: ${CDSS_JINGFANG_PATTERN_PICK:-true}
       PRIMARY_TEXT_MAX_TOKENS: ${PRIMARY_TEXT_MAX_TOKENS:-14000}
       # M03/M04 编排总时限门禁（代码钳制 60–180s）。富上下文（证据/检索注入）下首诊被合同拒绝后
       # 需要预留一次完整修复轮次的时间，默认 120s 容易在修复中途触顶降级。

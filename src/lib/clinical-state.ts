@@ -27,6 +27,23 @@ export const PULSE_QUALITY_PATTERN_SOURCE =
  * 但不属于脉象本身，所以必须单独成组。
  */
 export const PULSE_FORCE_PATTERN_SOURCE = "无力|有力|少力|不整|不齐";
+/**
+ * 「脉」字前出现这些字时，「X脉」是**脉管/方名/治法**的构词，不是脉象断言（构词式闭集守卫，只列字，不列病例）：
+ * 经脉、血脉、络脉、筋脉、冲脉/任脉/督脉/带脉（奇经）、阴维脉/阳维脉/阴跷脉/阳跷脉、动脉、静脉、
+ * 生脉（散/饮）、通脉（四逆汤）、复脉（汤）。后面碰巧跟着脉名字（散/实/虚/弱/紧/长/短…）时，
+ * 「温通经脉散寒」「血脉实」里的「脉散」「脉实」不是散脉、实脉——识别面与改写面必须认同一批词，所以只此一处。
+ * 来源：2026-10-19 留出例 S079（方义「肉桂温通经脉散寒」被净化器改成「肉桂温通经脉象待核实寒」），与 10/13 的「生脉散」同类。
+ * 刻意不收「心/肝/脾/肺/肾」：「肝脉弦」「心脉洪」是《内经》脏腑脉位的真脉象断言。
+ */
+export const PULSE_VESSEL_NOUN_PREFIX_CLASS = "生动静经络筋冲任督带通复维跷";
+/** 「失血脉微欲绝」「吐血脉数」的「血」是出血，后面的脉是真脉象断言：血字前是出血动词/名词时不按脉管构词放过。 */
+const PULSE_BLEEDING_BEFORE_XUE_CLASS = "失亡出吐咯衄便尿崩漏下呕";
+/**
+ * 放在「脉」（或以「脉」起头的脉象词）之前的反向断言：脉前是脉管构词（上面的字集，或不跟在出血词后的「血」）就不匹配。
+ * 诊断净化的改写面与叙述式脉象的识别面共用这一份。
+ */
+export const PULSE_VESSEL_NOUN_LOOKBEHIND_SOURCE =
+  `(?<![${PULSE_VESSEL_NOUN_PREFIX_CLASS}])(?<!(?<![${PULSE_BLEEDING_BEFORE_XUE_CLASS}])血)`;
 
 const CONCRETE_CLINICAL_FACT_PATTERN = new RegExp([
   "舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|有齿痕|齿痕|边红|尖红)",
@@ -63,7 +80,7 @@ const CONCRETE_PULSE_PATTERN = new RegExp(
  * 先去掉生命体征写法（脉率、脉搏频率、N次/分）再看，血管名（静脉/动脉/脉络…）不算。
  */
 const NARRATIVE_PULSE_HEAD = new RegExp(
-  `(?<![静动络血经淋任督冲带])(?:脉象|脉搏|脉来|脉形|脉势|[左右双两六][手侧部]?脉|[寸关尺][部脉]|脉(?=(?:${PULSE_QUALITY_PATTERN_SOURCE})|平和|和缓))`,
+  `(?<!淋)${PULSE_VESSEL_NOUN_LOOKBEHIND_SOURCE}(?:脉象|脉搏|脉来|脉形|脉势|[左右双两六][手侧部]?脉|[寸关尺][部脉]|脉(?=(?:${PULSE_QUALITY_PATTERN_SOURCE})|平和|和缓))`,
   "u",
 );
 const NARRATIVE_PULSE_VITAL = /脉(?:搏)?(?:跳动)?(?:频率|率|次数)[^，,。；;\n]*|\d+(?:\.\d+)?\s*(?:次|bpm)[^，,。；;\n]{0,4}/gu;
@@ -210,7 +227,10 @@ export function isUnknownClinicalFieldText(
     const lastConcrete = Math.max(
       morphology ? lastMatchIndex(text, morphology) : -1,
       field === "pulse" ? lastNarrativePulseIndex(text) : -1,
-      lastMatchIndex(text, inspectionLexiconPattern(field)),
+      // 脉象词表（脉浮/脉虚/脉紧…）前是脉管构词时不是脉象（筋脉紧急、经脉虚弱）：识别面与净化器的改写面同一个守卫。
+      lastMatchIndex(text, field === "pulse"
+        ? new RegExp(`${PULSE_VESSEL_NOUN_LOOKBEHIND_SOURCE}(?:${inspectionLexiconPattern("pulse").source})`)
+        : inspectionLexiconPattern(field)),
       // 「面色正常」「舌象正常」「脉象正常」是医生最常点的那一项，属于阳性的「已查且正常」，
       // 不是「未采集」。词表里的正常项写的是专业表述（红黄隐隐／淡红舌，薄白苔／平脉），
       // 口语写法必须一并认下，否则最省事的那条录入路径反而判不出来。

@@ -3130,7 +3130,7 @@ function unsupportedHighImpactHerbScan(
 }
 
 /** 已签名 M03 锁定的、又正是教材给本证配的代表方的组成（教材表该证一行；锁定的方不是这一行的方时为空）。 */
-function signedTextbookFormulaIngredients(prior: M03ReasoningLike | null | undefined): string[] {
+export function signedTextbookFormulaIngredients(prior: M03ReasoningLike | null | undefined): string[] {
   const overview = prior?.overview;
   const locked = Array.isArray(overview?.recommendedFormulaNames)
     ? overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))

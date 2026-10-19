@@ -4,7 +4,7 @@
     "tcm-disease-lexicon.json": "66c612518569ca97cdce2de79de820dc23785184e5f1fabb932398cd4ae5b11f",
     "tcm-location-lexicon.json": "2b790ee22f9a4f0e39cd52210754e7245bdf15a304c9420e613e1bd1194149f0",
     "tcm-inspection-lexicon.json": "aaac75e52dca885722527b2aa0394c2607ceb1208ed86dded0315db12f75cd67",
-    "phi-clinical-lexical-grammar.source.json": "5ad6681a3ecd49dee581efff3508203aa1cf643f956abf1b4663317f1071f2c1"
+    "phi-clinical-lexical-grammar.source.json": "3ba631a304efe012ac276d074f66dcbc645dd7434068852149a14e570700223f"
   },
   "terms": [
     "丁奚",
@@ -2297,7 +2297,14 @@
     "郁闭",
     "郁阻",
     "郑声",
+    "都不",
+    "都会",
     "都属",
+    "都无",
+    "都有",
+    "都未",
+    "都没",
+    "都没有",
     "酒厥",
     "酒客病",
     "酒疸",

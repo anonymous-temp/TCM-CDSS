@@ -1,8 +1,9 @@
 import textbookTableJson from "../data/tcm-textbook-syndrome-formula-table.json" with { type: "json" };
 import supplementJson from "../data/tcm-textbook-syndrome-supplement.source.json" with { type: "json" };
 import { affirmedClinicalSourceClauses, clinicalClausePolarity } from "./clinical-polarity";
-import { resolveTcmDiseaseName } from "./clinical-terminology";
+import { resolveTcmDiseaseName, textbookSectionDeliveryName } from "./clinical-terminology";
 import { POSITIVE_FACT_EQUIVALENT_GROUPS, sourceDocumentsNegation } from "./diagnosis-safety";
+import { textbookModificationIsIncidentalSleep } from "./incidental-sleep-modification";
 
 /**
  * 教材「病—证—治法—代表方—加减」对照表的运行时读取（2026-10-13，甲方 10.12 测评）。
@@ -50,7 +51,7 @@ interface TextbookDisease {
 
 type RawRow = {
   id?: unknown; book?: unknown; bookKey?: unknown; department?: unknown; disease?: unknown; diseaseAliases?: unknown;
-  westernEquivalents?: unknown; tcmEquivalents?: unknown; syndrome?: unknown; syndromeName?: unknown; syndromeKind?: unknown;
+  westernEquivalents?: unknown; tcmEquivalents?: unknown; group?: unknown; syndrome?: unknown; syndromeName?: unknown; syndromeKind?: unknown;
   manifestations?: unknown; tongue?: unknown; pulse?: unknown; therapy?: unknown; formulas?: unknown; formulaJoin?: unknown;
   composition?: unknown; modifications?: unknown;
 };
@@ -177,6 +178,9 @@ export function textbookFormulaNames(): ReadonlySet<string> {
   return textbookFormulaNameSet;
 }
 
+/** 教材加减条件里的泛称（不是哪一种变化）：「临床可加槟榔」「方中…」「症状较严重者」「病情…」。有限闭集；编译器的教材加减兜底也认同一组。 */
+export const TEXTBOOK_GENERIC_CONDITION = /^(?:临床|方中|症状|病情|诸症|上述|上症)/u;
+
 function buildDiseases(): TextbookDisease[] {
   const byKey = new Map<string, TextbookDisease>();
   for (const raw of RAW_ROWS) {
@@ -185,7 +189,10 @@ function buildDiseases(): TextbookDisease[] {
     // 分期标题（初期/成痈期…）不是证名，不进候选。
     if (text(raw.syndromeKind) === "stage") continue;
     const disease = text(raw.disease);
-    const syndromeName = text(raw.syndromeName) || text(raw.syndrome);
+    // 分组标题下只写「实证/虚证」的行，证名拼上分组（厥证：气厥实证、血厥虚证）。表里只有厥证这四行如此
+    //（2026-10-19 X 集 X-C-0123/0173：主证只写「实证/虚证」，评审判证名过泛、未辨气厥血厥）。
+    const bareSyndrome = /^(?:实|虚)证$/u.test(text(raw.syndrome)) && text(raw.group) ? `${text(raw.group)}${text(raw.syndrome)}` : "";
+    const syndromeName = bareSyndrome || text(raw.syndromeName) || text(raw.syndrome);
     const formulas = strings(raw.formulas).map(fixTextbookOcr);
     if (!disease || !syndromeName || !text(raw.therapy) || formulas.length === 0) continue;
     const key = `${bookKey}|${disease}`;
@@ -196,7 +203,7 @@ function buildDiseases(): TextbookDisease[] {
     entry.aliases = [...new Set([...entry.aliases, ...strings(raw.diseaseAliases), ...strings(raw.westernEquivalents), ...strings(raw.tcmEquivalents)])];
     entry.rows.push({
       id: text(raw.id), book: text(raw.book), bookKey, department: text(raw.department), disease,
-      syndrome: text(raw.syndrome), syndromeName,
+      syndrome: bareSyndrome || text(raw.syndrome), syndromeName,
       manifestations: text(raw.manifestations), tongue: text(raw.tongue), pulse: text(raw.pulse),
       therapy: fixTextbookOcr(text(raw.therapy)), formulas, formulaJoin: text(raw.formulaJoin) || "single",
       composition: strings(raw.composition).map(fixTextbookOcr),
@@ -206,6 +213,10 @@ function buildDiseases(): TextbookDisease[] {
         // 「通血络非虫蚁所不能」「化络瘀非天麻三七所不能」是教材讲加药用意的话，不是临床指征：当成加减条件，处方里就出现
         //「若通血络非虫蚁所不能：加全蝎」（2026-10-19 M 集 TCM-SD-433619）。全表只有这两条是「非…不能」的说法（构词式守卫）。
         if (/非[^，,。；;]{1,8}不能/u.test(text(record.condition))) return [];
+        // 「临床可加槟榔、木香、枳实以调气化滞」（痢疾·休息痢）被切成条件「临床」：它不是一种变化，是教材泛泛的用药提示。
+        // 留着，提示词里就是「若临床，加槟榔、木香、枳实」，模型照抄成触发条件「若临床」（2026-10-20 第八轮 X-G-0020），
+        // 又因教材「有加减」把模型自己的条件式加减挡住。全表 34 条（条件以临床/方中/症状/病情/诸症/上述/上症 开头）。
+        if (TEXTBOOK_GENERIC_CONDITION.test(text(record.condition).replace(/^(?:若|如果|如)/u, "").trim())) return [];
         return text(record.condition) && herbs.length > 0
           ? [{ condition: fixTextbookOcr(text(record.condition)), herbs, raw: fixTextbookOcr(text(record.raw)) }]
           : [];
@@ -222,6 +233,11 @@ function buildDiseases(): TextbookDisease[] {
       .filter((item) => item.name.length >= 2 && item.name.length <= 8 && !/[与和及、]/.test(item.name));
     entry.differentials = differentialRows.map((item) => item.name);
     entry.differentialTexts = Object.fromEntries(differentialRows.filter((item) => item.text).map((item) => [item.name, item.text]));
+  }
+  // 节名是西医病名、教材写明其属某个中医病的（血栓闭塞性脉管炎 → 脱疽）：交付用中医病名，按中医病名也要查得到这一节。
+  for (const entry of byKey.values()) {
+    const delivered = textbookSectionDeliveryName(entry.disease);
+    if (delivered !== entry.disease && !entry.aliases.includes(delivered)) entry.aliases = [...entry.aliases, delivered];
   }
   return [...byKey.values()];
 }
@@ -482,11 +498,22 @@ export function textbookRowForSyndrome(diseaseName: string, syndromeName: string
   return wanted && wanted === resolveTcmDiseaseName(owners[0].disease)?.canonical ? owners[0] : undefined;
 }
 
+/**
+ * 教材这一证的加减里，编译器真会留下的条目。被「睡眠差随主病而来、不另加安神药」规则不列的（本证不涉心神、条件只说睡不好、药全是安神药）
+ * 不算：湿疮·血虚风燥证教材只有一条「瘙痒不能入眠者，加珍珠母、夜交藤、酸枣仁」，提示词里列着它、编译器又把它挡掉，
+ * 模型自己写的条件式加减还因「教材有加减」被拒，随证加减一栏就空了（2026-10-20 第八轮，留出例 S132）。判据与编译器同一个
+ *（incidental-sleep-modification.ts）。
+ */
+export function usableTextbookModifications(row: TextbookSyndromeRow): TextbookSyndromeRow["modifications"] {
+  const scope = { overview: { primarySyndrome: row.syndromeName, tcmDiseaseName: row.disease } };
+  return row.modifications.filter((item) => !textbookModificationIsIncidentalSleep(item, scope));
+}
+
 /** 开方提示词里的教材方药段：已定证型的代表方组成与教材加减。 */
 export function buildTextbookFormulaContext(diseaseName: string, syndromeName: string, input: TextbookCaseInput = {}): string {
   const row = textbookRowForSyndrome(diseaseName, syndromeName, input);
   if (!row) return "";
-  const modifications = row.modifications.slice(0, 8).map((item) => `若${item.condition.replace(/^若/, "")}，加${item.herbs.join("、")}`);
+  const modifications = usableTextbookModifications(row).slice(0, 8).map((item) => `若${item.condition.replace(/^若/, "")}，加${item.herbs.join("、")}`);
   return [
     `【教材方药】${row.disease}·${row.syndromeName}（《${row.book}》）：治法 ${row.therapy}；代表方 ${formulaLabel(row)}${row.composition.length > 0 ? `（${row.composition.join("、")}）` : ""}。`
       + `辨证阶段已定用该代表方：candidate.name 写“${formulaLabel(row)}加减”，candidate.herbs 以该方组成为主体（保留其大部分药味），再按本例病机加减，增减合计不超过 4 味；不要另起一张方。`,
@@ -518,8 +545,9 @@ export function conditionalModificationWithoutTextbook(
 ): boolean {
   const row = textbookRowForSyndrome(diseaseName, syndromeName);
   const inCandidate = (herb: string) => candidateHerbNames.some((name) => name.includes(herb) || herb.includes(name));
-  const textbookUsable = Boolean(row && row.modifications.some((item) => item.herbs.length === 0 || item.herbs.some((herb) => !inCandidate(herb))));
-  if (row && row.modifications.length > 0 && (candidateHerbNames.length === 0 || textbookUsable)) return false;
+  const rowModifications = row ? usableTextbookModifications(row) : [];
+  const textbookUsable = Boolean(row && rowModifications.some((item) => item.herbs.length === 0 || item.herbs.some((herb) => !inCandidate(herb))));
+  if (row && rowModifications.length > 0 && (candidateHerbNames.length === 0 || textbookUsable)) return false;
   const text = (typeof trigger === "string" ? trigger : "").normalize("NFKC").trim().replace(/[。；;，,\s]+$/u, "");
   if (!/^若/u.test(text)) return false;
   const condition = text.replace(/^若(?:兼见|兼有|见|兼|伴有?|出现)?/u, "");

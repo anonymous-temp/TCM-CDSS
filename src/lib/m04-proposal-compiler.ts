@@ -1,4 +1,6 @@
 import { conditionalModificationWithoutTextbook, textbookModificationMatch, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { incidentalSleepSedativeModification, incidentalSleepTriggerModification, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
+
 import { z } from "zod";
 import {
   normalizeModelNullableText,
@@ -39,6 +41,9 @@ import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./c
 import { specialDecoctionPhrase, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
 import { withheldBaseIngredientNote } from "./formula-withheld-ingredient-note";
 import { chpPregnancyLabel, conceptionHerbNote } from "./conception-herb-policy";
+
+/** 「睡眠差随主病而来」判据已移到 incidental-sleep-modification.ts（教材加减检索共用），这里原名再导出。 */
+export { incidentalSleepSedativeModification, incidentalSleepTriggerModification };
 
 const evidence = {
   evidenceLevel: "model_inference" as const,
@@ -898,7 +903,63 @@ export function modificationConditionSymptomTerms(trigger: string): string[] {
 
 /** 病历里有没有一句**肯定地**写到这个词（同一个否定谓词逐句判）。 */
 function recordAffirmsTerm(recordText: string, term: string): boolean {
-  return recordText.split(/[。；;\n]+/u).some((sentence) => sentence.includes(term) && !sourceDocumentsNegation(sentence, term));
+  return affirmingRecordSentence(recordText, term) !== undefined;
+}
+function affirmingRecordSentence(recordText: string, term: string): string | undefined {
+  return recordText.split(/[。；;\n]+/u).find((sentence) => sentence.includes(term) && !sourceDocumentsNegation(sentence, term));
+}
+
+/** 模型的条件式加减（教材没有可用加减时）在 evidence.source 里的统一写法。改写成「本例已见X」时换成病历原句。 */
+export const MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE = "按本证常见兼症变化拟定的备用加减";
+
+/**
+ * 随证加减的触发条件说的症状，病历里**已经肯定写到**（2026-10-20 第八轮，X-G-0570「若抽搐」而病历已有抽搐、X-G-0617「若便闭」而已便闭、
+ * X-G-0307「若肿势明显」而病历写着肿势明显）：条件式「若X」是给还没出现的变化备的，病历已有的症状写成「若」是把现症当成假设。
+ * 返回改写后的触发条件（「本例已见X」），不是已见时返回 undefined。判法：
+ *  · 条件按顿号、连词切开，每一段都得是症状词（病机说法「肾阴亏虚」「热偏重」不算，沿用 modificationConditionSymptomTerms 的切法与过滤）；
+ *  · 没有程度词的段（「若抽搐」「若便闭」）：病历里肯定写到这个症状词（同义写法按 equivalents）；
+ *  · 带程度词的段（「若口渴甚」「若恶寒甚」）：是「加重」这个变化，病历只写了症状本身不算已见；病历里逐字肯定写到同一个带程度的说法才算
+ *    （「若肿势明显」而病历写「肿势明显」）。
+ * 只作用于显示：教材加减条件与模型的条件式加减在编译与合同核对时仍按「若…」判，这个改写在最后的交付投影里做（delivered-surface），
+ * 合同不会再看到「本例已见」这种触发。否定判定复用 sourceDocumentsNegation（单一否定谓词）。
+ */
+export function modificationConditionAlreadyPresent(trigger: string, recordText: string): { trigger: string; quote: string } | undefined {
+  if (!recordText || typeof trigger !== "string") return undefined;
+  const text = trigger.normalize("NFKC").trim().replace(CONDITION_LEAD, "").replace(/[。；;，,\s]+$/u, "");
+  // 「胃脘胀痛而便闭」：「而」连着两个并列的现症，同样切开。
+  const parts = text.split(CONDITION_SPLIT).flatMap((part) => part.split(/而(?=[一-鿿])/u)).map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0 || parts.length > 4) return undefined;
+  const written: string[] = [];
+  const quotes: string[] = [];
+  for (const rawPart of parts) {
+    let part = rawPart;
+    let degree = false;
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const suffix of MODIFICATION_RELEVANCE.qualifierSuffixes) {
+        if (part.length > suffix.length && part.endsWith(suffix)) {
+          part = part.slice(0, -suffix.length);
+          // 「者」「时」只是语气，不是程度。
+          if (suffix !== "者" && suffix !== "时") degree = true;
+          changed = true;
+        }
+      }
+      for (const prefix of MODIFICATION_RELEVANCE.termLeadPrefixes) {
+        if (part.length > prefix.length && part.startsWith(prefix)) { part = part.slice(prefix.length); changed = true; }
+      }
+    }
+    // 症状词的长度判据与 modificationConditionSymptomTerms 相同。病机说法的结尾字/标记字（结、虚、证…）这里不另判：那两张表是为「条件说的是不是症状」
+    // 切词用的，会把「大便秘结」「小便不利」当成病机；这里要求病历里肯定、逐字写到这个说法，病机说法（肾阴亏虚）不会逐字出现在患者原话里。
+    if (!part || part.length > 6) return undefined;
+    if (part.length < 2 && !MODIFICATION_RELEVANCE.equivalents[part]) return undefined;
+    const forms = degree ? [rawPart.replace(new RegExp(`^(?:${MODIFICATION_RELEVANCE.termLeadPrefixes.join("|")})`, "u"), "").replace(/(?:者|时)$/u, "")] : (MODIFICATION_RELEVANCE.equivalents[part] || [part]);
+    const hit = forms.map((form) => (form ? { form, sentence: affirmingRecordSentence(recordText, form) } : undefined)).find((item) => item?.sentence);
+    if (!hit?.sentence) return undefined;
+    // 引文只取含这个症状的那一小句（逗号分开），不整句贴。
+    quotes.push(hit.sentence.split(/[，,]/u).find((clause) => clause.includes(hit.form)) || hit.sentence);
+    written.push(degree ? forms[0] : part);
+  }
+  return { trigger: `本例已见${written.join("、")}`, quote: [...new Set(quotes)].join("；") };
 }
 
 /**
@@ -952,68 +1013,6 @@ export function modificationConditionOutsidePopulation(trigger: string, caseStat
  * 该味在知识库里归安神药类、是佐或使、不在所称方剂的目录组成里，且已签名的证名与病名都不涉心、神、寐、悸、郁。
  * 去掉后方义里讲这味药的小句由方义核对按「方外之药」删去；剩不到三味时原样保留。
  */
-const SEDATIVE_CATEGORY = /(?:^|；)(?:养心|重镇)?安神药(?:；|$)/u;
-/**
- * 已签名的证名与病名涉及心、神、寐（含夜啼）、悸、郁：睡眠本身就在病机里，安神药不算顺带。
- * 病名本身是神志病的（注意力缺陷多动障碍、抽动障碍、痴呆、癫狂、痫病）同样算：教材这几病的证型就是心肝火旺、心脾两虚、痰火扰神，
- * 只是阴虚、髓海不足这几证的证名里不带「心」「神」（2026-10-19；回放例 X-E-0950 多动障碍·肝肾阴虚「若夜寐不安：加酸枣仁」，
- * 《中医儿科学》本证原文加减 L168782「夜寐不安者，加酸枣仁、五味子」）。
- */
-function signedScopeInvolvesMind(prior: ClinicalReasoningResultV2): boolean {
-  const mindScope = `${prior.overview?.primarySyndrome || ""}${(prior.overview?.secondarySyndromes || []).join("")}${prior.overview?.tcmDiseaseName || ""}`;
-  return /心|神|寐|眠|悸|郁|啼|多动|抽动|痴呆|癫|狂|痫/.test(mindScope);
-}
-/**
- * 随证加减里为顺带的睡眠差加安神药（2026-10-18；留出例 S132 瘾疹「若瘙痒不能入眠：加珍珠母（平肝潜阳安神）」、
- * S158 积滞「若烦躁、夜啼难眠：加蝉蜕（宁心安神）」，独立评审判 incidental-sleep 不通过）。主方的同一条判据只管
- * 君臣佐使表，加减行此前不经过它。判据与主方同源：证名、病名不涉心神；触发条件说的是睡眠；拟加的药归安神药类，
- * 或这条加减自己写的理由就是安神。教材在本证型下列明的加减（条件与药味都对得上）不在此列。
- */
-const SLEEP_TRIGGER = /眠|寐|夜啼|夜醒|易醒|早醒|多梦|睡/u;
-const SEDATIVE_REASON = /安神|宁神|宁心|镇静|助眠/u;
-/**
- * 理由里明写是为了睡眠（「助眠」「安眠」）：触发条件没写睡眠时同样算（2026-10-19 起，按用意判）。
- * 「止啼」不收：回放 1,437 条加减里唯一新命中的是五迟·脾虚肝旺「若惊惕不安较甚、夜啼频作：加天麻（平肝息风、镇惊止啼）」，
- * 天麻治的是肝旺本身。留出例 S132（珍珠母）、S158（蝉蜕）两条是教材本证的加减原文（《中医外科学》湿疮·血虚风燥证
- *「瘙痒不能入眠者，加珍珠母、夜交藤、酸枣仁」；《中医儿科学》积滞·食积化热「烦躁、夜啼难眠者，加蝉蜕、钩藤」），此前按教材加减照列；2026-10-19 起由下面 incidentalSleepTriggerModification 不列。
- */
-const SLEEP_PURPOSE_REASON = /助眠|安眠/u;
-export function incidentalSleepSedativeModification(
-  item: { trigger: string; herbName: string; reason?: string },
-  prior: ClinicalReasoningResultV2,
-): boolean {
-  if (signedScopeInvolvesMind(prior)) return false;
-  if (!SLEEP_TRIGGER.test(item.trigger) && !SLEEP_PURPOSE_REASON.test(item.reason || "")) return false;
-  return SEDATIVE_CATEGORY.test(getTcmHerbFunctionText(item.herbName)) || SEDATIVE_REASON.test(item.reason || "");
-}
-/**
- * 加减条件只说睡不好（「若瘙痒不能入眠」「若烦躁、夜啼难眠」「若失眠多梦明显」），证名、病名不涉心神，加的又是安神药或理由写明安神
- *（incidentalSleepSedativeModification）：教材本证列明的这类加减同样不列（2026-10-19）。
- * 留出例 S132「若瘙痒不能入眠：加珍珠母（重镇安神止痒）」、S158「若烦躁、夜啼难眠：加蝉蜕（清心除烦，安神定惊）」七轮独立评审判
- * incidental-sleep（另四轮按教材加减判通过）；两条都是教材本证加减原文（《中医外科学》湿疮·血虚风燥证 L207559、《中医儿科学》积滞·食积化热 L167648），
- * 此前按教材加减照列。睡眠差随主病而来，治主病即可（与主方去掉顺带的安神药同一口径）。
- * 「只说睡不好」按条目判：条件按顿号逗号拆开，每一条都是睡眠或随之的烦躁。条件里另有成组表现的不算——
- *「若头晕耳鸣、虚烦少寐、腰膝酸软：加熟地黄、五味子、山茱萸」（《中医内科学》血虚头痛）治的是肝肾，「若兼见心悸怔忡，少寐健忘：加柏子仁」
- * 是心血不足（评审判过通过），「若阴虚火旺，兼见五心烦热、躁动失眠：加知母」治的是火旺。
- * 不收「寐深难以唤醒」「因寐不醒」——那是遗尿的睡得太沉，石菖蒲醒神正对。
- */
-const SLEEP_LOSS_TRIGGER = /难眠|不能入眠|不眠|失眠|少寐|不寐|多梦|夜啼|入睡困难|难以入睡|影响入睡|夜寐不安|寐不安|睡眠不实|睡不安|易醒|早醒|眠差|寐差/u;
-const SLEEP_COMPANION_ITEM = /^(?:烦躁|心烦|虚烦|烦热|躁扰|哭闹)$/u;
-const TRIGGER_ITEM_FILLER = /^(?:若|如|兼见|症见|伴有|伴|或)+|(?:者|明显|加重|较甚|尤甚|甚|等)+$/gu;
-function sleepOnlyTrigger(trigger: string): boolean {
-  const items = String(trigger || "")
-    .split(/[、，,；;。]/u)
-    .map((item) => item.replace(TRIGGER_ITEM_FILLER, "").trim())
-    .filter(Boolean);
-  return items.some((item) => SLEEP_LOSS_TRIGGER.test(item)) &&
-    items.every((item) => SLEEP_LOSS_TRIGGER.test(item) || SLEEP_COMPANION_ITEM.test(item));
-}
-export function incidentalSleepTriggerModification(
-  item: { trigger: string; herbName: string; reason?: string },
-  prior: ClinicalReasoningResultV2,
-): boolean {
-  return sleepOnlyTrigger(item.trigger) && incidentalSleepSedativeModification(item, prior);
-}
 function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2): M04Proposal["candidate"]["herbs"] {
   if (signedScopeInvolvesMind(prior)) return candidate.herbs;
   const baseName = String(candidate.name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
@@ -2199,7 +2198,7 @@ export function compileM04Proposal(
           ? `《${textbookSource.book}》${textbookSource.disease}·${textbookSource.syndromeName}加减：${textbookSource.raw}`
           : triggerSource
             ? `患者原文：${triggerSource.sourceQuote}`
-            : "按本证常见兼症变化拟定的备用加减",
+            : MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE,
         confidence: "中" as const,
       },
     }];

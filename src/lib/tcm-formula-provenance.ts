@@ -1,4 +1,6 @@
 import { textbookFormulaNames, textbookNearestRow, textbookRowForSyndrome, therapyWithoutUnsupportedSymptomItems } from "./tcm-textbook-syndromes";
+import { jingfangPatternForSignedSyndrome } from "./jingfang-patterns";
+import { textbookSectionDeliveryName } from "./clinical-terminology";
 import { herbBoundaryTail, stripHerbBoundaryTail } from "./candidate-boundary-text";
 import { withoutWithheldBaseIngredientNote } from "./formula-withheld-ingredient-note";
 import formulaCatalogJson from "../data/tcm-formula-sources.json" with { type: "json" };
@@ -246,6 +248,27 @@ export function catalogSharedComposition(name: string): string[] {
     .filter((set) => set.size > 0);
   if (sets.length === 0) return [];
   return [...sets[0]].filter((herb) => sets.every((set) => set.has(herb)));
+}
+
+/**
+ * 剂型互换的同名方在受治理编译目录里的组成（2026-10-20 第八轮，留出例 S145）：教材写「四妙散」，目录只收同一首方的「四妙丸」（《成方便读》，
+ * 苍术、黄柏、牛膝、薏苡仁）。只认受治理编译行（组成逐味核过）：这个名字去掉丸/散/汤/丹后，换成另一种成药后缀（散换丸、丸换散、汤和丹换丸或散）恰好一个能在目录里查到时，取那一条的组成。
+ * 不取名录（同名异方）各版本的共有药味——那一份常只剩几味公共药，拿来当覆盖基准会把无关的方算成「已覆盖」；
+ * 组成超过 8 味的也不取（附子理中丸—附子理中汤《三因》11 味是另一首合方，不是教材的附子理中丸）。目录里有这个名字本身的、没有剂型后缀的、
+ * 或几个后缀都查得到的，都返回空。
+ */
+export function governedDosageFormVariantComposition(name: string): string[] {
+  const raw = normalizeFormulaName(String(name || ""));
+  const base = raw.replace(/(?:丸|散|汤|丹)$/u, "");
+  if (!raw || base === raw || governedFormulaCompilationRow(raw)) return [];
+  // 换哪几种后缀：散与丸是同一首方的两种成药形态（四妙散—四妙丸）；汤、丹换丸或散。不换成汤——「四妙汤」是《验方新编》的另一首方。
+  // 换丸或散有不止一个查得到的，不取。
+  const suffixes = raw.endsWith("散") ? ["丸"] : raw.endsWith("丸") ? ["散"] : ["丸", "散"];
+  const rows = suffixes.map((suffix) => governedFormulaCompilationRow(`${base}${suffix}`))
+    .filter((row): row is GovernedFormulaCompilationRow => Boolean(row));
+  if (rows.length !== 1) return [];
+  const composition = [...new Set(compilationIngredients(rows[0]).map((item) => compositionIdentityName(item)).filter(Boolean))];
+  return composition.length >= 3 && composition.length <= 8 ? composition : [];
 }
 
 /** 该方中系统不编制用量、需医师单独开具并经审方复核的味（可为空）。 */
@@ -1336,6 +1359,9 @@ function withTextbookSyndromeName(reasoning: ClinicalReasoningResultV2): Clinica
   const syndrome = String(overview?.primarySyndrome || "");
   if (!disease || !syndrome || overview?.primarySyndromeResolution === "unresolved") return reasoning;
   if (textbookRowForSyndrome(disease, syndrome)) return reasoning;
+  // 证名与方向正是经方方证表里的一项（太阳中风证 + 桂枝汤加减）：这是方证辨证的写法，不是教材行的近义写法，不改名
+  //（2026-10-19，第八轮 WP-A；否则「营卫不和证」「寒热错杂证」这类会被拉到字面最近的教材行，再把治法与方一并锚到那一行）。
+  if (jingfangPatternForSignedSyndrome(syndrome, String(overview.recommendedFormulaDirection || ""))) return reasoning;
   const evidence = [
     ...(Array.isArray(overview.primarySyndromeBasis) ? overview.primarySyndromeBasis : []),
     ...(reasoning.pathogenesis?.chain || []).flatMap((node) => [node.patientFact, node.syndromeEvidence]),
@@ -1427,12 +1453,13 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
       ...reasoning,
       overview: {
         ...reasoning.overview,
-        // 证名对上教材的一行而病名写法不同（「头风病」对「头痛」）时，病名用教材的节名。
-        ...(textbookRow && reasoning.overview?.tcmDiseaseName && reasoning.overview.tcmDiseaseName !== textbookRow.disease
+        // 证名对上教材的一行而病名写法不同（「头风病」对「头痛」）时，病名用教材的节名；
+        // 节名是西医病名而教材写明它属某个中医病的（血栓闭塞性脉管炎 → 脱疽），用那个中医病名，不把西医节名改回去。
+        ...(textbookRow && reasoning.overview?.tcmDiseaseName && reasoning.overview.tcmDiseaseName !== textbookSectionDeliveryName(textbookRow.disease)
           ? {
-              tcmDiseaseName: textbookRow.disease,
+              tcmDiseaseName: textbookSectionDeliveryName(textbookRow.disease),
               ...(typeof reasoning.overview.tcmDiseaseRationale === "string"
-                ? { tcmDiseaseRationale: reasoning.overview.tcmDiseaseRationale.split(reasoning.overview.tcmDiseaseName).join(textbookRow.disease) }
+                ? { tcmDiseaseRationale: reasoning.overview.tcmDiseaseRationale.split(reasoning.overview.tcmDiseaseName).join(textbookSectionDeliveryName(textbookRow.disease)) }
                 : {}),
             }
           : {}),

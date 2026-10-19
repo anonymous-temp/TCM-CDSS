@@ -14,13 +14,14 @@ import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals, patient
 import { completeTcmDiseaseDifferentials } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { semanticRedFlagsForBanner } from "@/lib/banner-semantic-red-flags.server";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, derivePrescriptionPermission, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, derivePrescriptionPermission, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, reproductiveAdviceRelevant, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03SharedPatientContext } from "@/lib/m03-context-packets";
 import { cdssReasonCodeMarker } from "@/lib/cdss-reason-codes";
 import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothesis-rerank.server";
 import { pickTextbookDiseasesForCase } from "@/lib/textbook-disease-pick.server";
+import { pickJingfangPatternsForCase } from "@/lib/jingfang-pattern-pick.server";
 
 type ParsedStageRequest = Extract<Awaited<ReturnType<typeof readCustomerBoundCaseStateRequest>>, { ok: true }>;
 
@@ -138,10 +139,12 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
     .catch(() => "");
   // 两个增补层互不依赖，并发跑；任一不可用都静默退回确定性行为。
   // 教材病名闭集选择与它们并发（约 1s，M02 已预取时命中缓存）；不可用时返回空数组，候选退回主诉词表。
-  const [formulaRecallHint, assistedNegations, textbookDiseasePicks] = await Promise.all([
+  // 经方方证闭集选择（jingfang-pattern-pick.server.ts）同样并发：教材里没有对应行的《伤寒论》《金匮要略》方证，由它补进「经方方证候选」。
+  const [formulaRecallHint, assistedNegations, textbookDiseasePicks, jingfangPatternPicks] = await Promise.all([
     normalizeCaseTextForFormulaRecall(safeState, signal),
     assistedPolarityDecisions(safeState, signal),
     pickTextbookDiseasesForCase(safeState, signal),
+    pickJingfangPatternsForCase(safeState, signal),
   ]);
   // L1b 只在 L1a 的受控证候 ID 闭集内做最多 +20% 的召回重排；失败、超时或非法输出均返回空集，
   // 下游严格保持 L1a 原顺序。它不写病历、不做诊断、不绕过方名身份锁。
@@ -158,7 +161,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   }
   const originalDiagnoseBasePrompt = buildDiagnosePrompt(
     safeState,
-    { formulaRecallHint, assistedNegations, syndromeHypothesisRerank, similarCasesContext: similarCases.context, textbookDiseasePicks },
+    { formulaRecallHint, assistedNegations, syndromeHypothesisRerank, similarCasesContext: similarCases.context, textbookDiseasePicks, jingfangPatternPicks },
   );
   // Only add facts absent from the legacy template; its coherent TCM chain stays intact.
   const diagnoseBasePrompt = originalDiagnoseBasePrompt + buildM03AdditionalPatientContext(safeState, originalDiagnoseBasePrompt);
@@ -304,6 +307,8 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
     // 是不带标题的裸行，会被一律猜成「现病史」（2026-08-12 线上实测）。与上一行同一份脱敏 DTO。
     structuredCaseState: safeState,
     structuredPatientAge: authoritativePatientAgeYears(gated),
+    // 复诊提示里的急症表现按本例可能出现的人群写（月经/孕哺类项目不给男性、12 岁以下、60 岁及以上、已绝经者；交付面 followupSignsForPopulation）。
+    structuredHerbBoundaryAudience: { reproductive: reproductiveAdviceRelevant(gated), ageYears: authoritativePatientAgeYears(gated) ?? null },
     structuredLineagePreference: safeState.tcmLineagePreference,
     // 这里不再预算「生成前短名单」：enforceRetrievedM03FormulaSelection 明确 `void` 掉了它
     // （方名锁定只认签名证候的 positiveSufficiency，症状召回证明不了充分性）。原先这一行是一次

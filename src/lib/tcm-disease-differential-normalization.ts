@@ -2,7 +2,7 @@ import crosswalkJson from "../data/tcm-western-disease-crosswalk.json" with { ty
 import abbreviationsJson from "../data/western-diagnosis-abbreviations.source.json" with { type: "json" };
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import icd10IndexJson from "../data/icd10-diagnosis-index.json" with { type: "json" };
-import { governedTcmDiseaseCode, resolveTcmDiseaseName } from "./clinical-terminology";
+import { governedTcmDiseaseCode, resolveTcmDiseaseName, textbookSectionDeliveryName } from "./clinical-terminology";
 import { textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
 
 /**
@@ -97,9 +97,11 @@ export function resolveTcmDiseaseDifferentialName(rawName: string, currentDiseas
   // 不归一到国标条目（「头痛」→「头风病」），也不因国标没有收录而丢掉（教材的鉴别病名如「奔豚」「热疮」）。
   const textbookName = name.replace(/类病$/u, "");
   if (TEXTBOOK_DISEASE_NAMES.has(textbookName)) {
-    return textbookName === currentDisease.trim().replace(/类病$/u, "")
+    // 教材节名是西医病名而教材写明它属哪个中医病的（血栓闭塞性脉管炎 → 脱疽），鉴别栏也写中医病名；与当前病名同一个病时不构成鉴别。
+    const delivered = textbookSectionDeliveryName(textbookName);
+    return delivered === currentDisease.trim().replace(/类病$/u, "")
       ? { action: "drop", from: name }
-      : textbookName === name ? { action: "keep", name } : { action: "rename", name: textbookName, from: name };
+      : delivered === name ? { action: "keep", name } : { action: "rename", name: delivered, from: name };
   }
   if (textbookListedTcmDifferential(name, currentDisease.trim().replace(/类病$/u, ""))) return { action: "keep", name };
   const currentCanonical = governedCanonical(currentDisease);

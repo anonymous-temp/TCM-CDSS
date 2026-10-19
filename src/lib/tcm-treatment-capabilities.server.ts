@@ -338,7 +338,7 @@ function controlledTreatmentPlan(
   /** 本例年龄（岁）。带年龄下限的模板取不到年龄一律不启用。 */
   patientAgeYears?: number,
   /** 教材方案（tcm-nondrug-textbook-plan.server.ts）的取材：已签名病名、西医主诊断、主证+兼证结论。 */
-  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string; signedPrinciple?: string; signedMethod?: string; chiefComplaint?: string; avoidRichFood?: boolean; herbAlreadyPrescribed?: (herb: string) => boolean; recordedDiabetes?: boolean; avoidTea?: boolean },
+  textbookContext?: { diseaseNames: readonly string[]; westernNames: readonly string[]; signedSyndromeText: string; signedPrinciple?: string; signedMethod?: string; chiefComplaint?: string; avoidRichFood?: boolean; herbAlreadyPrescribed?: (herb: string) => boolean; prescribedHerbNames?: readonly string[]; signedRationale?: string; recordedDiabetes?: boolean; avoidTea?: boolean },
 ): Pick<TreatmentRecommendation,
   "treatmentContent" | "suggestedSitesOrPoints" | "scheduleSuggestion" | "techniqueBoundary" |
   "protocolSource" | "protocolStatus" | "protocolGap" | "tailoringStatus" |
@@ -357,6 +357,7 @@ function controlledTreatmentPlan(
         signedSyndromeText: textbookContext.signedSyndromeText,
         currentFacts,
         signedNarrative: signedSyndromeText,
+        signedRationale: textbookContext.signedRationale,
         patientAgeYears,
         signedPrinciple: textbookContext.signedPrinciple,
         signedMethod: textbookContext.signedMethod,
@@ -365,6 +366,7 @@ function controlledTreatmentPlan(
         recordedDiabetes: textbookContext.recordedDiabetes,
         avoidTea: textbookContext.avoidTea,
         herbAlreadyPrescribed: textbookContext.herbAlreadyPrescribed,
+        prescribedHerbNames: textbookContext.prescribedHerbNames,
       }
     : undefined;
   const textbookPlan = textbookInput ? textbookTreatmentPlan(textbookInput) : undefined;
@@ -617,8 +619,11 @@ function controlledTreatmentPlan(
     // 「取穴」只对取穴类项目成立；食疗/导引/意疗说「取穴」是甲方 9.24/9.27 测评点名的错误（食疗还需要取穴针刺吗）。
     const templateNoun = projectCode === "diet_therapy" ? "食疗" : projectCode === "qigong_daoyin" ? "功法" : projectCode === "mind_therapy" ? "情志调摄" : "取穴";
     const evidenceTerms = indicationEvidenceTerms(governedTemplate.indicationTag, caseFacts);
+    // 「针对本例X」的 X 只能是病历里写到的、或已签名的中医病名（2026-10-19 晚，验收集 M-TCM-RobustSDT-single_0442：积证的卡写「针对本例功能性消化不良」——
+    // 模板是按西医主诊断对上的，clinicalText 里有西医诊断名和模型写的病机，词在那里不等于本例有这个表现）。
+    const claimableText = [caseFacts, ...(textbookContext?.diseaseNames || [])].join("；").normalize("NFKC");
     const matchedTemplateTerms = governedTemplate.matchAny
-      .filter((term) => clinicalText.normalize("NFKC").includes(term))
+      .filter((term) => claimableText.includes(term))
       .slice(0, 3);
     const groundedTerms = evidenceTerms.length > 0 ? evidenceTerms : matchedTemplateTerms;
     return {
@@ -1350,6 +1355,10 @@ export function compileTcmTreatmentRecommendations(
         recordedDiabetes: RECORDED_DIABETES.test([caseFacts, prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""].join("；")),
         avoidTea: dietAdviceAvoidsTea(`${dietAdvice}；${precautionText}`),
         herbAlreadyPrescribed: prescribedIdentities.size > 0 ? (herb: string) => prescribedIdentities.has(canonicalTcmHerbIdentity(herb)) : undefined,
+        prescribedHerbNames,
+        // 辨病、辨证依据原文：教材同节分型的病（淋证六淋…）里，型写在依据中（「故属石淋湿热蕴结证」），针刺卡「本例属X」以它为准。
+        signedRationale: [prior.overview.tcmDiseaseRationale, prior.overview.tcmDiagnosticRationale]
+          .filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；"),
       },
     );
     // 教材卡与院内目录卡在这里过同一道：针刺的补泻手法与已签名证候相符（失眠模板写的是「留针用补法」），

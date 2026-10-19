@@ -5,7 +5,7 @@ import { createTextModelClient, getControlledTerminologyModelConfig, textModelRe
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { herbFunctionKnowledgeForDisplay } from "./tcm-knowledge";
 import { compositionIdentityName } from "./tcm-formula-provenance";
-import { combinedEffectMarkerPattern, contradictedHerbClaims, removeVerifiedHerbClaims, type FormulaAnalysisHerbClaim } from "./formula-analysis-review";
+import { combinedEffectMarkerPattern, contradictedHerbClaims, removeVerifiedHerbClaims, withoutUnsupportedSummaryEffects, type FormulaAnalysisHerbClaim } from "./formula-analysis-review";
 import textbookReferencesJson from "../data/tcm-herb-textbook-references.json";
 
 /**
@@ -215,10 +215,14 @@ export async function checkFormulaAnalysisClaimsInContent(content: string, signa
     const modelReview = claims.length > 0 ? removeVerifiedHerbClaims(analysis, herbs, claims, herbClaimReferenceText) : undefined;
     const afterModel = modelReview && modelReview.removals.length > 0 ? modelReview.text : analysis;
     const contradicted = contradictedHerbClaims(afterModel, herbs, herbOwnFunctionReferenceText, herbClaimReferenceText);
-    if (claims.length === 0 && contradicted.length === 0) continue;
     const contradictionReview = contradicted.length > 0 ? removeVerifiedHerbClaims(afterModel, herbs, contradicted, herbOwnFunctionReferenceText) : undefined;
+    const afterHerbClaims = contradictionReview && contradictionReview.removals.length > 0 ? contradictionReview.text : afterModel;
+    // 总括句（「共奏…之效」「全方以…为主」）里方中没有一味药支持的功效（2026-10-20 第八轮；不依赖小模型，确定性）。
+    // 参考功效只取各药自己的（知识库功用与《中药学》功效行）：带《方剂学》方解的那一份会把「升麻…以助通便」「黄柏泻下焦之火」当成通便、泻下的依据。
+    const summary = withoutUnsupportedSummaryEffects(afterHerbClaims, herbs, herbOwnFunctionReferenceText);
+    if (claims.length === 0 && contradicted.length === 0 && summary.removed.length === 0) continue;
     const review = {
-      text: contradictionReview && contradictionReview.removals.length > 0 ? contradictionReview.text : afterModel,
+      text: summary.removed.length > 0 ? summary.text : afterHerbClaims,
       removals: [...(modelReview?.removals || []), ...(contradictionReview?.removals || [])],
       rejected: [...(modelReview?.rejected || []), ...(contradictionReview?.rejected || [])],
     };
@@ -227,8 +231,9 @@ export async function checkFormulaAnalysisClaimsInContent(content: string, signa
       removed: review.removals.length,
       actions: review.removals.map((item) => item.action).join(",") || "none",
       rejected: review.rejected.map((item) => item.reason).join(",") || "none",
+      summaryEffectsRemoved: summary.removed.length,
     });
-    if (review.removals.length > 0 && review.text !== analysis) {
+    if ((review.removals.length > 0 || summary.removed.length > 0) && review.text !== analysis) {
       candidate.formulaAnalysis = review.text;
       changed = true;
     }

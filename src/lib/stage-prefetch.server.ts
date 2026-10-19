@@ -1,4 +1,5 @@
 import { pickTextbookDiseasesForCase } from "./textbook-disease-pick.server";
+import { pickJingfangPatternsForCase } from "./jingfang-pattern-pick.server";
 import type { CaseState } from "./diagnosis-types";
 import {
   diagnoseReasoningFromState,
@@ -134,6 +135,7 @@ export function prefetchDiagnoseInputs(caseState: CaseState): void {
     void buildExternalEvidenceContext(safeState, "diagnose").catch(() => undefined);
     void normalizeCaseTextForFormulaRecall(safeState).catch(() => undefined);
     void pickTextbookDiseasesForCase(safeState).catch(() => undefined);
+    void pickJingfangPatternsForCase(safeState).catch(() => undefined);
     void assistedPolarityDecisions(safeState)
       .then((negations) => rerankSyndromeHypothesesForFormulaRecall(safeState, negations))
       .catch(() => undefined);

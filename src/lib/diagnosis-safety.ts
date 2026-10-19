@@ -14,6 +14,7 @@ import {
   isPositiveOrPossibleClinicalState,
   PULSE_FORCE_PATTERN_SOURCE,
   PULSE_QUALITY_PATTERN_SOURCE,
+  PULSE_VESSEL_NOUN_LOOKBEHIND_SOURCE,
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
 import { generalizeOccupation, shouldRedactNarrativeNameCandidate, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
@@ -1140,6 +1141,14 @@ const INSPECTION_CHECK_OR_ABSENCE_CLAUSE = /与否|是否|有无|[诊切察查�
 /** 下一小句说「本例未诉此/本例无此」：前一小句写的是别的病的表现（鉴别对象），不是对本例的断言。 */
 const INSPECTION_OTHER_ENTITY_FOLLOWUP = /^\s*(?:而|但)?本例(?:并)?(?:未诉|无|未见|不见|未出现|未记录)/u;
 
+/**
+ * 对照小句的开头：「本例…」，或前面只隔一个连词/比较词——「而本例」「但本例」「与本例持续高热不符」「不同于本例」「较本例」。
+ * 鉴别句的对照面写法不止一种（2026-10-19 X-C-0055：同一句鉴别「痫证发作无发热，与本例持续高热不符」，第七轮模型换成「与本例」，
+ * 上一轮只认「（而/但）本例」，于是又被改成「有发热，与本例持续高热不符」，句子失去对照对象）。
+ * 只列虚词与比较词（构词式闭集，不含症状词）。
+ */
+const CONTRAST_WITH_THIS_CASE_OPENING = /^\s*(?:而|但|却|然)?(?:(?:与|同|和|跟|较|不同于|有别于|异于|区别于)\s*)?本例/u;
+
 function sanitizeUngroundedNegationText(
   value: string,
   source: string,
@@ -1304,7 +1313,7 @@ function sanitizeUngroundedNegationText(
   //（「痫证发作无热，本例持续高热不符」）：不按本例的否认改写——改了就成「有发热，本例持续高热不符」（2026-10-19 Claude 评审 D/H 集多例）。
   const sanitizeOwnClause = (clause: string, offset: number, whole: string): string => {
     const next = whole.slice(offset + clause.length + 1).match(/^[^。；;，,]*/u)?.[0] || "";
-    if (/无|没有|未见|不伴/u.test(clause) && !/^\s*(?:本例|患者|病人|该患)/u.test(clause) && /^\s*(?:而|但)?本例/u.test(next)) return clause;
+    if (/无|没有|未见|不伴/u.test(clause) && !/^\s*(?:本例|患者|病人|该患)/u.test(clause) && CONTRAST_WITH_THIS_CASE_OPENING.test(next)) return clause;
     return sanitizeClause(clause);
   };
   const prospectiveSentences: string[] = [];
@@ -1362,8 +1371,11 @@ function sanitizeUngroundedNegationText(
       // 方名被改成「生脉象待核实合参附龙牡救逆汤」，辨证结果、处方页、方义里共 12 处）。
       // 「脉微欲绝」「脉细如丝」：后面的「欲绝/欲脱/如丝」属于同一个脉象，一并换掉，不留「脉象待核实欲绝」（2026-10-17 留出例 S074）。
       // 「主动脉结」「静脉曲张」的「脉结」「脉…」是血管名（2026-10-19 D 集 X-D-4949：「主动脉结增宽」成了「主动脉象待核实增宽」）。
-      .replace(new RegExp(`(?<![生动静])脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?(?:欲绝|欲脱|如丝)?`, "g"), unlessCheckOrAbsenceClause("脉象待核实"))
-      .replace(new RegExp(inspectionLexiconPattern("pulse").source, "g"), unlessCheckOrAbsenceClause("脉象待核实"));
+      // 「温通经脉散寒」「血脉实」「筋脉紧」的「脉散」「脉实」「脉紧」是脉管构词后碰巧跟着脉名字，不是脉象（2026-10-19 留出例 S079：
+      // 方义「肉桂温通经脉散寒」被改成「肉桂温通经脉象待核实寒」）。守卫字集只此一处（clinical-state 的 PULSE_VESSEL_NOUN_LOOKBEHIND_SOURCE，含上面的生/动/静），
+      // 受控词表那一支同样适用（词表里有「脉虚」「脉弱」「脉紧」…，「经脉虚弱」不是脉象）。
+      .replace(new RegExp(`${PULSE_VESSEL_NOUN_LOOKBEHIND_SOURCE}脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?(?:欲绝|欲脱|如丝)?`, "g"), unlessCheckOrAbsenceClause("脉象待核实"))
+      .replace(new RegExp(`${PULSE_VESSEL_NOUN_LOOKBEHIND_SOURCE}(?:${inspectionLexiconPattern("pulse").source})`, "g"), unlessCheckOrAbsenceClause("脉象待核实"));
   }
   return sanitized.replace(/__TCM_CDSS_PROSPECTIVE_(\d+)__/g, (_, index: string) => prospectiveSentences[Number(index)] ?? "");
 }

@@ -219,13 +219,13 @@ await check("6.2 病历已写明正在出血（affirmed）：问循环灌注表�
   assert.equal(firstLine(content), `**问题1：** 病历记录“最近都有黑便”。${shock.question}`);
   assert.equal(gateWith(`病历记录“最近都有黑便”。${shock.question}`, shock.positive).status, "red_flag");
 });
-await check("6.3 没有类目筛查题的线索（上消化道警示征象）：以病历原话问近来加重、持续还是缓解；不进闸门识别（不是急症确认，对照）", () => {
+await check("6.3 没有类目筛查题的线索（上消化道警示征象）：以病历原话问近来有没有加重（10/19 第八轮由三选改二分：原题缺「持续」项）；不进闸门识别（不是急症确认，对照）", () => {
   const content = settled(withFacts(caseOf("大便困难，大便黑色，口臭很严重", { sex: "男", age: 30 }), [finding("gi_alarm", "大便黑色")]));
-  assert.equal(firstLine(content), "**问题1：** 病历记录“大便黑色”。这一情况近来是在加重、持续，还是已经缓解？");
-  assert.deepEqual(followup.confirmedRiskScreeningCategories([{ role: "assistant", content: "病历记录“大便黑色”。这一情况近来是在加重、持续，还是已经缓解？" }, { role: "user", content: "近来加重或出现新表现，请补充具体表现" }]), []);
+  assert.equal(firstLine(content), "**问题1：** 病历记录“大便黑色”。这一情况近来有没有加重？");
+  assert.deepEqual(followup.confirmedRiskScreeningCategories([{ role: "assistant", content: "病历记录“大便黑色”。这一情况近来有没有加重？" }, { role: "user", content: "近来加重，请补充具体表现" }]), []);
   // 「其他急危重线索」只到 clarify 级时同样问近来变化：它的筛查题答「仍在发生」即按急症确认，不该由 clarify 级线索触发。
   const other = settled(withFacts(caseOf("孕38周，昨天晚上拉肚子拉的可狠", { sex: "女", age: 25 }), [finding("other_critical", "昨天晚上拉肚子拉的可狠", "clarify")]));
-  assert.equal(firstLine(other), "**问题1：** 病历记录“昨天晚上拉肚子拉的可狠”。这一情况近来是在加重、持续，还是已经缓解？");
+  assert.equal(firstLine(other), "**问题1：** 病历记录“昨天晚上拉肚子拉的可狠”。这一情况近来有没有加重？");
 });
 await check("6.4 不出优先评估题（对照）：病历已回答该类筛查题、他人的线索、只认明确现症时的 possible、emergency（由路由出处置题）", () => {
   const base = caseOf("肚子不舒服，然后突然身体没力气瘫软", { sex: "男", age: 28 });
