@@ -351,12 +351,15 @@ await check("3.1 没有选出方证时提示词与此前逐字相同；选出时
   assert.ok(withPick.includes("病历「出汗多」≈汗出；病历「一吹风就觉得冷」≈恶风"));
   assert.ok(withPick.includes("《伤寒论》）：太阳中风，阳浮而阴弱"), "原文条文带书名");
   assert.ok(withPick.includes("与相近方证的区分：桂枝汤证见汗出恶风"));
-  assert.match(withPick, /教材病证候选】里有贴合本例的一行[\s\S]*仍按教材行写病名、证名、治法与代表方，不采用本段/u, "规则①：教材行贴合时用教材行");
-  assert.match(withPick, /教材候选里没有贴合的一行[\s\S]*逐字写该方证的“规范证名”[\s\S]*recommendedFormulaDirection 写该经方/u, "规则②：教材没有贴合行时用方证");
-  assert.match(withPick, /只有发热、恶寒、头痛、咳嗽等泛化症状[\s\S]*不采用本段/u, "规则③：泛症不采用");
+  // 第九轮 WP9-A 把采用规则从「教材行贴合就用教材行」改成「教材行与方证都贴合时比较区分点」（见 test-r1021-jingfang），下面三条断言随之改写：
+  // 教材行区分表现齐全仍用教材行（普通病例）；教材没有贴合行时用方证；只有泛化症状不采用。
+  assert.match(withPick, /教材行的主症已经写全这些条文特征症[\s\S]*采用教材行，不采用本段/u, "规则①：教材行已写全条文特征症时用教材行");
+  assert.match(withPick, /教材里没有贴合本例的行[\s\S]*逐字写该方证的“规范证名”[\s\S]*recommendedFormulaDirection 写该经方/u, "规则②：教材没有贴合行时用方证");
+  assert.match(withPick, /只有泛化症状时，不采用本段/u, "规则③：泛症不采用");
   // 段落夹在患者资料之后、方剂检索之前，且是整段新增（去掉这一段后与基线逐字相同）
-  const section = withPick.slice(withPick.indexOf("【经方方证候选】"));
-  const sectionEnd = section.indexOf("\n3. 只有发热、恶寒、头痛、咳嗽等泛化症状");
+  // 第九轮起重要原则第 7 条里也出现「【经方方证候选】」字样（指向该段），所以按段首的整句定位。
+  const section = withPick.slice(withPick.indexOf("【经方方证候选】（以下方证"));
+  const sectionEnd = section.indexOf("\n4. 病历与方证的区分点相反");
   assert.ok(sectionEnd > 0);
   const stripped = withPick.replace(section.slice(0, section.indexOf("\n", sectionEnd + 1) + 1), "");
   assert.equal(stripped, base, "去掉「经方方证候选」整段后应与基线逐字相同");

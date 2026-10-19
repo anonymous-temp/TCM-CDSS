@@ -64,14 +64,38 @@ function recordText(caseState: CaseState): string {
   );
 }
 
-export async function pickTextbookDiseasesForCase(caseState: CaseState, signal?: AbortSignal): Promise<string[]> {
-  if (!enabled() || signal?.aborted) return [];
-  const config = getControlledTerminologyModelConfig();
-  if (!config.configured) return [];
-  if (!(caseState.chiefComplaint || "").trim()) return [];
+/** 调用参数。运行时与离线探针共用。 */
+export function textbookDiseasePickCallParams(model: string) {
+  return {
+    model,
+    temperature: 0,
+    max_tokens: 120,
+    stream: false as const,
+    response_format: { type: "json_object" as const },
+    ...textModelRequestTuning(model, { reasoningEffort: "low", thinkingEnabled: false }),
+  };
+}
+
+/**
+ * 选择请求的消息与闭集清单。运行时与离线探针（~/runlogs/r1018/work/r1021/diseasepick/probe.mjs）共用这一处，避免探针测的不是线上提示词。
+ *
+ * 2026-10-19 第九轮量过、没有采用的提示词改法（离线探针 deepseek-flash，112 例：甲方 10 + 留出 29 + X 集 26 + M 集 48）：
+ *  · 清单每项附教材定义（「病名｜定义」）+ 「按整组表现、西医病名只作旁证、教材必备表现已否认则不选」：S151 排第一的由肺炎喘嗽变咳嗽，
+ *    但「上腹不适伴反酸」这类主诉被定义里的词带走（胃痞 → 吐酸，胃痞掉出前三个 2 例）；
+ *  · 名字清单 + 「主诉为起点、整组表现归病、既往史/辅助检查只作旁证、多系统慢性虚损考虑虚劳」：S078 虚劳排第一，
+ *    但甲方病历 3（头痛，产后）排到产后身痛之后、S032（头晕 3 月，气血亏虚）虚劳排第一；
+ *  · 只加既往史/辅助检查：前三含 gold 49 → 48，第一 42 → 42，没有收益。
+ * 基线（本提示词）前三含 gold 107/112、第一 96/112；剩下的未命中多是数据集自身的出院诊断写法（头晕记 中风、胸闷记 心衰），
+ * 不是提示词能修的。S078、S151 这一类改在候选一侧：tcm-textbook-syndromes 的 promoteBestFitPickedDisease 与候选里的教材定义、诊断依据。
+ */
+export function buildTextbookDiseasePickRequest(caseState: CaseState): {
+  messages: Array<{ role: "system" | "user"; content: string }>;
+  allowed: ReadonlySet<string>;
+} | undefined {
+  if (!(caseState.chiefComplaint || "").trim()) return undefined;
   const ageYears = typeof caseState.patient?.age === "number" ? caseState.patient.age : undefined;
   const names = textbookDiseaseNamesForCase({ sex: caseState.patient?.sex, ageYears });
-  if (names.length === 0) return [];
+  if (names.length === 0) return undefined;
   const allowed = new Set(names);
   const messages = [
     {
@@ -97,17 +121,22 @@ export async function pickTextbookDiseasesForCase(caseState: CaseState, signal?:
       }),
     },
   ];
+  return { messages, allowed };
+}
+
+export async function pickTextbookDiseasesForCase(caseState: CaseState, signal?: AbortSignal): Promise<string[]> {
+  if (!enabled() || signal?.aborted) return [];
+  const config = getControlledTerminologyModelConfig();
+  if (!config.configured) return [];
+  const request = buildTextbookDiseasePickRequest(caseState);
+  if (!request) return [];
+  const { messages, allowed } = request;
   return memoizedSmallTask<string[]>("textbook_disease_pick", smallTaskMemoKey([config.model, messages]), async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), PICK_TIMEOUT_MS);
     try {
       const response = await observeModelTask({ task: "textbook_disease_pick", stage: "diagnose", model: config.model }, () => createTextModelClient(config).chat.completions.create({
-        model: config.model,
-        temperature: 0,
-        max_tokens: 120,
-        stream: false,
-        response_format: { type: "json_object" },
-        ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
+        ...textbookDiseasePickCallParams(config.model),
         messages,
       }, { signal: controller.signal }));
       const content = response.choices[0]?.message?.content;

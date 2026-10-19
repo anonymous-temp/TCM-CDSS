@@ -672,7 +672,7 @@ const checkAsync = async (name, run) => {
     choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(payload) }, finish_reason: "stop" }],
     usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
   }), { headers: { "content-type": "application/json" } });
-  await checkAsync("7.4 收口：没有可保留的病名级鉴别才补写；已有的不动、不发请求；模型不可用原样返回", async () => {
+  await checkAsync("7.4 收口：可保留的病名级鉴别不足 2 条才补写（10/19 第九轮由「一条都没有」改为「不足 2 条」，甲方验收鉴别覆盖率要求各≥2条；1 条补到 2 条见 test-r1021-differentials）；已有 2 条不动、不发请求；模型不可用原样返回", async () => {
     const half = (differentials) => JSON.stringify({ overview: { tcmDiseaseName: "带下过多", primarySyndrome: "脾虚证", tcmDiseaseDifferentials: differentials }, pathogenesis: { chain: [] } });
     const recordText = "白带量多半年，色白质稀如涕，无臭，无阴痒，神疲乏力，纳少便溏。";
     const textbookNames = textbook.textbookDifferentialsForDisease("带下过多").map((item) => item.name);
@@ -685,8 +685,11 @@ const checkAsync = async (name, run) => {
       assert.equal(filled.overview.tcmDiseaseDifferentials[0].diseaseName, textbookNames[0]);
       assert.match(filled.overview.tcmDiseaseDifferentials[0].distinguishingPoints, /^本例/);
       assert.equal(filled.overview.primarySyndrome, "脾虚证", "其余字段不动");
-      const existing = half([{ diseaseName: textbookNames[0], reason: "同见白色分泌物", distinguishingPoints: "本例出自阴道，未诉尿痛", typicalManifestation: "尿窍流浊", nextCheck: null }]);
-      assert.equal(await authoring.completeTcmDiseaseDifferentials(existing, { recordText }), existing, "模型已经写了可保留的鉴别时原样返回");
+      const existing = half([
+        { diseaseName: textbookNames[0], reason: "同见白色分泌物", distinguishingPoints: "本例出自阴道，未诉尿痛", typicalManifestation: "尿窍流浊", nextCheck: null },
+        { diseaseName: textbookNames[1] || "阴痒", reason: "同属带下异常", distinguishingPoints: "本例无阴痒", typicalManifestation: "阴部瘙痒", nextCheck: null },
+      ]);
+      assert.equal(await authoring.completeTcmDiseaseDifferentials(existing, { recordText }), existing, "模型已经写了 2 条可保留的鉴别时原样返回");
       assert.equal(calls, 1, "不发请求");
       globalThis.fetch = async () => { throw new Error("upstream down"); };
       const other = half([{ diseaseName: "阴道炎", reason: "x", distinguishingPoints: "y" }]);

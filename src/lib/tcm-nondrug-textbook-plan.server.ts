@@ -53,7 +53,7 @@ type DietSyndrome = { label: string; keySymptoms: string; method: string; ingred
 type DietEntry = { disease: string; aliases: string[]; westernScope: string; line: number; principle: string; syndromes: DietSyndrome[] };
 type ProtocolData = {
   sources: Record<string, TextbookBook>;
-  modalityDefaults: Record<string, { text: string; line: number }>;
+  modalityDefaults: Record<string, { text: string; line: number; book?: string }>;
   acupuncture: AcupunctureEntry[];
   tuina: TuinaEntry[];
   diet: DietEntry[];
@@ -97,6 +97,17 @@ function entryKeys(entry: { disease: string; aliases: string[] }): string[] {
     name.split(/[、,，]/).map((part) => part.trim()).filter(Boolean));
 }
 
+/**
+ * 小儿专节（节名以「小儿」起头：小儿积滞、小儿脑性瘫痪、小儿多动症、小儿食积…）不对成年患者取（2026-10-19 晚，第九轮 WP9-D）。
+ * 回放 H/M/X 集：成年人的胃痞、积证，因西医诊断「功能性消化不良」等于《针灸治疗学》小儿积滞节的范围而拿到了小儿积滞节；
+ * 又因为同一轮给这些节补了儿科病名的又名（积滞、五迟、五软），成年人不能靠病名字面碰上。年龄未知时不拦（照旧按病名取）。
+ * 18 岁取自成年的法定界线；未满 18 岁照取（脑瘫、多动症到青春期仍在随访）。
+ */
+const ADULT_AGE_YEARS = 18;
+export function pediatricSectionExcludes(sectionName: string, patientAgeYears?: number): boolean {
+  return /^小儿/u.test(sectionName) && typeof patientAgeYears === "number" && Number.isFinite(patientAgeYears) && patientAgeYears >= ADULT_AGE_YEARS;
+}
+
 /** 本例中医病名（及其受治理别名）与教材病证节的相符。同名多节时（针灸治疗学/针灸学各一节）全部返回。 */
 function matchDiseaseEntries<T extends { disease: string; aliases: string[]; westernScope?: string }>(
   list: readonly T[],
@@ -104,6 +115,21 @@ function matchDiseaseEntries<T extends { disease: string; aliases: string[]; wes
   westernNames: readonly string[],
   /** 本例当前事实：专节也可按教材给专节下的定义表现认（PRESENTATION_SECTIONS），不只按西医诊断名。 */
   currentFacts = "",
+  /** 患者年龄（岁）：小儿专节不对成年人取（pediatricSectionExcludes）。 */
+  patientAgeYears?: number,
+  /** 西医诊断名的主干与教材节名/又名整词相等时，节名/又名至少几个字才算（缺省 3；针刺节放宽到 2，见下）。 */
+  minWesternKeyLength = 3,
+): T[] {
+  return matchDiseaseEntriesByName(list, diseaseNames, westernNames, currentFacts, minWesternKeyLength)
+    .filter((entry) => !pediatricSectionExcludes(entry.disease, patientAgeYears));
+}
+
+function matchDiseaseEntriesByName<T extends { disease: string; aliases: string[]; westernScope?: string }>(
+  list: readonly T[],
+  diseaseNames: readonly string[],
+  westernNames: readonly string[],
+  currentFacts = "",
+  minWesternKeyLength = 3,
 ): T[] {
   // 字面相符的节优先，国标归一后才相符的节只在没有字面相符时用（2026-10-19）：GB/T 15657 把「不育症」也归到「不孕」，
   // 此前女性不孕症病例拿到的是男子「不育症」节的治法与取穴（验收集 M-TCM-SD-449314、H-tri-6870）。
@@ -125,11 +151,14 @@ function matchDiseaseEntries<T extends { disease: string; aliases: string[]; wes
     return presented.length > 0 ? presented : exact;
   }
   // 中医病名对不上教材节时，用签名的西医诊断名对教材「西医学…属本病范畴」的范围，或对节名/又名（去掉急慢性、左右侧、待查后）；
-  // 只认整词相等，不做子串。
+  // 只认整词相等，不做子串。针刺节的节名/又名整词相等从 3 字放宽到 2 字（minWesternKeyLength，2026-10-19 晚，H-tri-15337 经行吐衄·
+  // 西医「鼻衄待查」：去掉「待查」后正是教材节名「鼻衄」，被 ≥3 的门槛挡在外面；针灸节名只有两个字的病不在少数——鼻衄、脱肛、牙痛、耳鸣）。
+  // 整词相等不是子串，「腹痛待查」不会碰上别的节。食疗、推拿节不放宽：回放时月经后期·西医「痛经」因此拿到痛经节的食疗方（气滞血瘀·牡丹花粥，
+  // 方的适应证是痛经，本例是月经后期）。范围表（westernScope）里的短语仍要 ≥3 字。
   const western = new Set(westernNames.map((name) => compact(name)).filter((name) => name.length >= 3));
   if (western.size === 0 && westernCores.length === 0) return [];
   return list.filter((entry) => (entry.westernScope || "").split(/[、,，]/).some((part) => western.has(compact(part))) ||
-    entryKeys(entry).some((key) => { const k = compact(key); return k.length >= 3 && westernCores.includes(k); }));
+    entryKeys(entry).some((key) => { const k = compact(key); return k.length >= minWesternKeyLength && westernCores.includes(k); }));
 }
 
 /**
@@ -1683,7 +1712,7 @@ export function limbWeaknessRecorded(currentFacts: string): boolean {
 }
 
 function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | undefined {
-  const entries = matchDiseaseEntries(data.acupuncture, input.diseaseNames, input.westernNames, input.currentFacts);
+  const entries = matchDiseaseEntries(data.acupuncture, input.diseaseNames, input.westernNames, input.currentFacts, input.patientAgeYears, 2);
   if (entries.length === 0) return undefined;
   // 只在有病历事实时判（textbookPlanExistsForDisease 用空事实问「本病有没有教材方案」）。
   if (entries.some((entry) => entry.disease === "痿证") && compact(input.currentFacts).length > 0 && !limbWeaknessRecorded(input.currentFacts)) return undefined;
@@ -1895,14 +1924,22 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
   const operation = code === "acupuncture" ? variantOperation : projectContent;
   // 其他疗法不借针刺的操作句：此前耳穴、拔罐卡的疗程栏里出现「外感咳嗽针用泻法，肺俞可配闪罐」（2026-10-14 独立评审）。
   const ageFit = (text: string) => operationClausesForAge(text, input.patientAgeYears);
-  const frequency = ageFit(frequencySentence(withSyndromeMatchedClauses(operation, input)) ||
+  const ownFrequency = ageFit(frequencySentence(withSyndromeMatchedClauses(operation, input)) ||
     (code === "acupuncture" ? frequencySentence(withSyndromeMatchedClauses(primary.operation, input)) : ""));
   const defaultKey = code === "acupuncture" ? "acupuncture" : code === "cupping" ? "cupping" : code === "moxibustion" ? "moxibustion" : "";
   const defaultText = defaultKey ? data.modalityDefaults[defaultKey]?.text || "" : "";
   // 《刺法灸法学》的「…即可出针或留针10～30分钟」是成人的通用写法；未满 12 岁的针刺卡上同时印着「小儿…一般不留针」，
   // 两句矛盾（2026-10-18 留出例 S160、S161 独立评审）。《针灸治疗学》疳证节：「对婴幼儿可采取速刺不留针」（第 11162 行）。
   const childNeedling = code === "acupuncture" && input.patientAgeYears != null && input.patientAgeYears < 12;
-  const web = frequency ? undefined : webScheduleFor(code, input.diseaseNames, input);
+  const web = ownFrequency ? undefined : webScheduleFor(code, input.diseaseNames, input);
+  // 次序：本节（主教材）的频次 > 该病的联网诊疗方案频次（更具体：分急慢性、分证型）> 同名节另一本教材的频次 > 教材总论的通行次数与疗程。
+  // 另一本教材的频次排在联网方案后面，免得把联网方案里分急慢性的疗程（test:r1019-round4-cards 11.6）挤掉。
+  // （《针灸学》小儿脑性瘫痪「每日1次」，《针灸治疗学》同名节没写；2026-10-19 晚。）
+  // 另一本教材的频次只在它是通常情形的次数时才用：「眩晕重症可每日治疗2次」是重症加次，不是这位患者的常规次数（S032、S078），
+  // 用它会把总论的通行次数也挤掉。严重程度/发作期限定词是有限闭集的构词式守卫。
+  const secondaryFrequency = web || code !== "acupuncture" || !secondary ? ""
+    : ageFit(frequencySentence(withSyndromeMatchedClauses(secondary.operation, input)));
+  const frequency = ownFrequency || (/重症|重者|严重|急性发作|发作期|发作时|病情较重/u.test(secondaryFrequency) ? "" : secondaryFrequency);
   // 总论的留针、留罐、施灸时长只是没有专门写法时的通用参考：教材本节、联网频次来源或本项目原文已写了时长（「留针30分钟」「留罐10分钟」
   //「每次8~10壮」「每个部位施灸3～5分钟」）就不再并列总论那一句（2026-10-19 Claude 评审：两种留针时长并列；验收集 37 张针刺卡、6 张罐灸卡）。
   const ownDuration = cardStatesDuration(code, [frequency, web?.schedule || "", base.content, code === "acupuncture" ? textbookOcrFixed(variant?.operation || primary.operation) : ""].join("。"));
@@ -1915,13 +1952,22 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
         return clauses.length > 0 ? `${clauses.join("").replace(/[，,]\s*$/u, "").trim()}。` : frequency;
       })()
     : "";
+  // 本节与联网来源都没写频次时，写教材总论通行的次数与疗程（generator 的 COURSE_DEFAULT_PATTERNS），标明书名：
+  // 回放 1082 例：针刺方案 790 个里 508 个（64%）、灸法方案 61 个里 36 个的疗程栏只有一句「间隔与疗程按病情和耐受确定」，没有频次（甲方外治标准要求具体穴位、频次、安全边界）。
+  const courseDefault = code === "acupuncture" ? data.modalityDefaults.acupunctureCourse
+    : code === "moxibustion" ? data.modalityDefaults.moxibustionCourse : undefined;
+  const courseClause = courseDefault && !frequency && !web
+    ? `${courseDefault.text.replace(/[。]+$/u, "")}（《${data.sources[courseDefault.book || ""]?.title || "教材"}》总论）。`
+    : "";
   const schedule = frequency
     ? `${frequencyOnly}${defaultClause ? ` ${defaultClause}` : ""}`
     : web
       ? `${web.schedule}。${defaultClause}`
-      : defaultClause
-        ? `${defaultClause}间隔与疗程按病情和耐受确定。`
-        : "间隔与疗程按病情和耐受确定。";
+      : courseClause
+        ? `${courseClause}${defaultClause ? ` ${defaultClause}` : ""} 具体间隔与疗程按病情和耐受调整。`
+        : defaultClause
+          ? `${defaultClause}间隔与疗程按病情和耐受确定。`
+          : "间隔与疗程按病情和耐受确定。";
   // 针刺卡的操作栏：教材操作原句去掉已作疗程栏的那一句（此前「头痛急性发作时每日治疗1-2次…」在疗程栏、操作栏各印一遍）。
   // 其他项目（耳穴、拔罐、灸法）的操作就是治疗内容栏那段教材原文，操作栏不再逐字重抄，只写技术禁忌（2026-10-19 Claude 评审：
   // X-H-0334、0454、0129 等 10 张耳穴卡「技术边界」与「治疗内容」逐字相同）。
@@ -1967,7 +2013,7 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
 }
 
 function tuinaPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | undefined {
-  const entries = matchDiseaseEntries(data.tuina, input.diseaseNames, input.westernNames);
+  const entries = matchDiseaseEntries(data.tuina, input.diseaseNames, input.westernNames, "", input.patientAgeYears);
   const entry = entries[0];
   if (!entry) return undefined;
   const sites = uniq([...entry.sites, ...entry.points]);
@@ -2030,7 +2076,7 @@ function recipeUsageClause(text: string): string {
 }
 
 function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | undefined {
-  const entries = matchDiseaseEntries(data.diet, input.diseaseNames, input.westernNames);
+  const entries = matchDiseaseEntries(data.diet, input.diseaseNames, input.westernNames, "", input.patientAgeYears);
   const entry = entries[0];
   if (!entry) return undefined;
   const recordCautionConflict = (recipeText: string) => recipeConflictsWithRecordedCaution(recipeText, input.currentFacts, input.signedSyndromeText);
@@ -2059,11 +2105,25 @@ function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | 
   //（黄疸·热重于湿的方子都含茵陈，按概念会落到「湿热留恋，以除余邪」那一型，那是恢复期）。
   // 主证先于兼证（脾胃虚寒证兼湿热中阻证给脾胃虚寒的方子，不按教材排序先碰上的兼证那一型）。
   const primarySyndrome = String(input.signedSyndromeText || "").split(/[；;]/)[0] || "";
-  const literal = entry.syndromes.find((syndrome) => syndromeLabelMatchesSigned(syndrome.label, primarySyndrome)) ||
-    entry.syndromes.find((syndrome) => syndromeLabelMatchesSigned(syndrome.label, input.signedSyndromeText));
+  // 次序：主证字面 → 主证按概念 → （主证在本节没有对应的型时才）兼证字面 → 兼证按概念。主证在教材本节有对应的型、只是那一型没有可给的方
+  // 或病历没有该型的表现时，不拿兼证的型顶替（2026-10-19 晚，第九轮 WP9-D，H-tri-12291：脾肾阳虚泻兼湿热内蕴证的 2 岁患儿，
+  // 食疗卡是湿热伤中型的马齿苋粥「清热利湿止泻」，与主证相反；教材泄泻节有肾阳虚衰型，但那一型此处没有病历表现可对）。
+  const hasSecondary = /[；;]/u.test(String(input.signedSyndromeText || ""));
+  const primaryLiteral = entry.syndromes.find((syndrome) => syndromeLabelMatchesSigned(syndrome.label, primarySyndrome));
+  const primaryConcept = primaryLiteral ? undefined : dietSyndromeByConcepts(usable, primarySyndrome, input.currentFacts);
+  const primaryHasSectionType = Boolean(primaryLiteral) || entry.syndromes.some((syndrome) => {
+    const fit = syndromeMatchScore(syndrome.label, primarySyndrome);
+    return fit.score > 0 && [...fit.natures].some((nature) => nature !== "虚");
+  });
+  const secondaryLiteral = hasSecondary && !primaryHasSectionType
+    ? entry.syndromes.find((syndrome) => syndromeLabelMatchesSigned(syndrome.label, input.signedSyndromeText))
+    : undefined;
+  const literal = primaryLiteral || secondaryLiteral;
   const matched = literal
     ? usable.find((syndrome) => syndrome === literal)
-    : dietSyndromeByConcepts(usable, input.signedSyndromeText, input.currentFacts);
+    : primaryConcept || (hasSecondary && primaryHasSectionType
+      ? undefined
+      : dietSyndromeByConcepts(usable, input.signedSyndromeText, input.currentFacts));
   if (!matched) return undefined;
   const first = safeRecipes(matched)[0];
   const items = [format(matched, first)];
@@ -2159,7 +2219,7 @@ export function textbookSectionNames(diseaseNames: readonly string[], westernNam
   if (!textbookNondrugPlansEnabled()) return [];
   const data = protocolData();
   if (!data) return [];
-  return uniq(matchDiseaseEntries(data.acupuncture, diseaseNames, westernNames).flatMap(entryKeys));
+  return uniq(matchDiseaseEntries(data.acupuncture, diseaseNames, westernNames, "", undefined, 2).flatMap(entryKeys));
 }
 
 /** 教材里有没有该病证的该项目方案（不看证型与病历事实）。供适应证排序：标签没收的病名，教材有方案即算适应证。 */
@@ -2167,6 +2227,8 @@ export function textbookPlanExistsForDisease(
   projectCode: TcmTreatmentProjectCode,
   tcmDiseaseName: string | undefined,
   westernName: string | undefined,
+  /** 患者年龄（岁）：小儿专节不对成年人算「有方案」（pediatricSectionExcludes）。 */
+  patientAgeYears?: number,
 ): boolean {
   if (!tcmDiseaseName && !westernName) return false;
   return Boolean(textbookTreatmentPlan({
@@ -2175,6 +2237,7 @@ export function textbookPlanExistsForDisease(
     westernNames: westernName ? [westernName] : [],
     signedSyndromeText: "",
     currentFacts: "",
+    patientAgeYears,
   }));
 }
 

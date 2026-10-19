@@ -178,6 +178,24 @@ export function completedM04ProposalCandidate(partial: string): Record<string, u
   }
 }
 
+/**
+ * M03 中医半流里 `overview` 对象一闭合就返回它（2026-10-19）。只给服务端预取用（鉴别条目不足时提前发补写请求，
+ * tcm-disease-differential-authoring.server.ts）：返回的是模型原文，未经任何校验，只能用于「按请求内容逐字比对命中」的缓存预热，
+ * 绝不能进任何出口。
+ */
+export function completedM03Overview(partial: string): Record<string, unknown> | undefined {
+  const start = partial.indexOf("{");
+  if (start < 0) return undefined;
+  const tail = fieldTail(partial.slice(start), "overview");
+  const valueJson = tail && completedTopLevelValueJson(`{"module":${tail}`, "module");
+  if (!valueJson) return undefined;
+  try {
+    return record(JSON.parse(valueJson));
+  } catch {
+    return undefined;
+  }
+}
+
 export function newM04ModuleDraftFrames(partial: string, emitted: Set<string>): StreamModuleDraftFrame[] {
   if (emitted.has("m04.candidate")) return [];
   const object = partial.slice(partial.indexOf("{"));

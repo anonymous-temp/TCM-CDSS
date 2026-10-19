@@ -370,6 +370,17 @@ const scripts = [
   "test:r1020-formula",
   "test:r1020-care",
   "test:r1020-jingfang",
+  // 第九轮（按甲方验收标准 P0/P1 排）：加减之间互查十八反、作答后的红旗筛查即预先算辨证开方（main）；经方方证选择与采用校准（jingfang）；
+  // 病名/证候鉴别各补到 ≥2 条（differentials）；成组第二组证据时立兼证、改名不丢复合证（compound）；教材针灸方案别名与频次（cards）；
+  // 西医名核对有决定性检查时不降级（western）；病名选择附教材诊断依据与提前规则（diseasepick）；中成药同类去重、方向底线、与注意事项和现用药不矛盾（medicines）。
+  "test:r1021-main",
+  "test:r1021-jingfang",
+  "test:r1021-differentials",
+  "test:r1021-compound",
+  "test:r1021-cards",
+  "test:r1021-western",
+  "test:r1021-diseasepick",
+  "test:r1021-medicines",
   // 10/19 中医治疗卡：括注证型名（行痹（风痹））的配穴、按部位分配取穴名额、与证不符的治法小句、儿童不留针/老人不重刺激、
   // 文字精确的教材节优先、西医点名的专节、出血倾向不推拿艾灸拔罐、选卡与交付同一不可交付判据。
   "test:r1019-cards",

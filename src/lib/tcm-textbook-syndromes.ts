@@ -46,6 +46,10 @@ interface TextbookDisease {
   differentials: string[];
   /** 教材【鉴别诊断】各条的原文（病名 → 原文段落）。 */
   differentialTexts: Record<string, string>;
+  /** 教材该病定义的首句（「X是以…为主症的病证」）；教材没有定义句时为空。 */
+  definition: string;
+  /** 教材【诊断依据】各条原文。 */
+  diagnosisPoints: string[];
   rows: TextbookSyndromeRow[];
 }
 
@@ -55,7 +59,7 @@ type RawRow = {
   manifestations?: unknown; tongue?: unknown; pulse?: unknown; therapy?: unknown; formulas?: unknown; formulaJoin?: unknown;
   composition?: unknown; modifications?: unknown;
 };
-type RawDisease = { bookKey?: unknown; disease?: unknown; diseaseAliases?: unknown; westernEquivalents?: unknown; tcmEquivalents?: unknown; differentials?: unknown };
+type RawDisease = { bookKey?: unknown; disease?: unknown; diseaseAliases?: unknown; westernEquivalents?: unknown; tcmEquivalents?: unknown; differentials?: unknown; definition?: unknown; diagnosisPoints?: unknown };
 
 const strings = (value: unknown): string[] => Array.isArray(value)
   ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim())
@@ -125,6 +129,14 @@ function terms(value: string): string[] {
   return value.normalize("NFKC").split(/[，,。；;：:、\s]+/)
     .map((item) => item.replace(/^(?:或|甚则|甚至|兼见|兼|伴有?|常伴|可伴|或见|并见|时有?|常|多)/, "").trim())
     .filter((item) => item.length >= 2 && item.length <= 10);
+}
+
+/**
+ * 教材证型主症按标点切成的短语（去掉「或/兼见/伴」这类引导词，2–10 字）。m03-secondary-syndrome-consistency 用它算病历对证型的吻合度
+ *（2026-10-19，第九轮 WP9-C）。
+ */
+export function textbookManifestationTerms(row: Pick<TextbookSyndromeRow, "manifestations">): string[] {
+  return terms(String(row.manifestations || "").normalize("NFKC"));
 }
 
 function bigrams(value: string): string[] {
@@ -198,7 +210,7 @@ function buildDiseases(): TextbookDisease[] {
     const key = `${bookKey}|${disease}`;
     const entry = byKey.get(key) || {
       bookKey, book: text(raw.book), department: text(raw.department), disease,
-      aliases: [], differentials: [], differentialTexts: {}, rows: [],
+      aliases: [], differentials: [], differentialTexts: {}, definition: "", diagnosisPoints: [], rows: [],
     };
     entry.aliases = [...new Set([...entry.aliases, ...strings(raw.diseaseAliases), ...strings(raw.westernEquivalents), ...strings(raw.tcmEquivalents)])];
     entry.rows.push({
@@ -231,6 +243,8 @@ function buildDiseases(): TextbookDisease[] {
     const differentialRows = (Array.isArray(raw.differentials) ? raw.differentials : [])
       .map((item) => ({ name: text((item as { name?: unknown })?.name), text: text((item as { text?: unknown })?.text) }))
       .filter((item) => item.name.length >= 2 && item.name.length <= 8 && !/[与和及、]/.test(item.name));
+    entry.definition = text(raw.definition);
+    entry.diagnosisPoints = strings(raw.diagnosisPoints);
     entry.differentials = differentialRows.map((item) => item.name);
     entry.differentialTexts = Object.fromEntries(differentialRows.filter((item) => item.text).map((item) => [item.name, item.text]));
   }
@@ -318,6 +332,35 @@ function departmentFits(disease: TextbookDisease, input: TextbookCaseInput): boo
 }
 
 /**
+ * 闭集选择点了几个病时，它给的先后是按主诉定的；辨证提示词（M02、M03）又默认第一个病是本例的病。主诉的一个症状常是几个病共有的主症
+ * （头晕：眩晕，也是虚劳血虚证的一项），于是整组表现明明与另一个病的某一证型逐项对上，病名仍被主诉带走
+ * （2026-10-19 留出集 S078：头晕、眼花、胁痛、肢麻、抽筋、筋惕、面色不华、月经量多后量少，教材虚劳·肝血虚证的主症几乎逐条对上，
+ * 病名写成眩晕·气血亏虚证、归脾汤，双错）。
+ * 做法：被点名的病里，若另一个病「与本例最贴合的一行」的相近分（rowScore）比排第一的病高出 PICKED_DISEASE_ROW_FIT_MARGIN 以上，
+ * 把它提到第一位；其余先后不变。只改候选的先后，不增删候选，病名仍由辨证提示词在候选里定。
+ * 数值阈值：一个整词命中记 2 分、两字词 1.4 分，4 分约为多对上两三项主症。
+ * 回放（离线 107 例，闭集选择给出的前三个里含 gold 病名者）：甲方风格的留出 29 例 26 → 28、甲方 10 例 9 → 9，X 集 25 → 25；
+ * 真实住院病历 M 集 44 例 36 → 35（1 例由眩晕改头痛）。整体用相近分排序则 M 集降到 29/44，所以只在差距大时才动。
+ */
+export const PICKED_DISEASE_ROW_FIT_MARGIN = 4;
+
+function promoteBestFitPickedDisease(
+  picked: Array<{ disease: string; score: number; rows: Array<{ score: number }> }>,
+  preferred: readonly string[],
+): void {
+  if (picked.length < 2) return;
+  const lead = picked.reduce((best, item) => preferred.indexOf(item.disease) < preferred.indexOf(best.disease) ? item : best);
+  let challenger = lead;
+  let bar = (lead.rows[0]?.score ?? 0) + PICKED_DISEASE_ROW_FIT_MARGIN;
+  for (const item of picked) {
+    if (item === lead) continue;
+    const fit = item.rows[0]?.score ?? 0;
+    if (fit > bar) { challenger = item; bar = fit; }
+  }
+  if (challenger !== lead) challenger.score = lead.score + 5;
+}
+
+/**
  * 按病例取教材候选：最多 maxDiseases 个病，每个病最多 maxRowsPerDisease 行（按与本例表现的相近程度排序）。
  * 纯函数、确定性：同一份病历每次返回相同的候选与顺序。
  */
@@ -379,6 +422,7 @@ export function textbookCandidatesForCase(
   // 鉴别对象，中医鉴别诊断写的是两种皮肤病（独立评审）。选择落空（超时、未配置、点到的病不在本科别）时仍用字面候选。
   const all = [...byDisease.values()];
   const picked = all.filter((item) => preferred.includes(item.disease));
+  if (!wanted) promoteBestFitPickedDisease(picked, preferred);
   return (picked.length > 0 ? picked : all)
     .sort((left, right) => right.score - left.score || left.disease.localeCompare(right.disease))
     .map(({ bookKey, ...item }) => { void bookKey; return item; })
@@ -402,6 +446,27 @@ function textbookDifferentialGist(disease: string, book: string, names: readonly
   return texts.length > 0 ? [`  教材鉴别要点：${cut(texts.join("；"), 140)}`] : [];
 }
 
+/**
+ * 候选病的教材定义与【诊断依据】（原文去掉序号后截短）。选病名要对照它：只靠闭集选择的先后，模型会按「像不像」定病
+ * （儿童发热咳嗽痰黄 → 肺炎喘嗽，而病历已写明无气促、无鼻翼扇动，教材该病的诊断依据正是气急鼻扇；
+ * 多系统血虚表现 → 眩晕，教材虚劳的诊断依据是「一组或多组有内在联系的证候群、慢性演变」）。没有原文时为空。
+ */
+function textbookDiagnosisGist(disease: string, book: string): string[] {
+  const entry = DISEASES.find((item) => item.disease === disease && item.book === book);
+  if (!entry) return [];
+  const definition = entry.definition.split(/(?<=。)/u)[0]?.trim() || "";
+  const points = entry.diagnosisPoints
+    .map((point) => point.replace(/^\s*(?:[（(][一二三四五六七八九十\d]+[）)]|\d+\s*[.、．])\s*/u, "").trim())
+    .map((point) => point.replace(/[。；;]+$/u, ""))
+    .filter((point) => point.length >= 6);
+  const joined = points.join("；");
+  const gist = joined.length > 260 ? `${joined.slice(0, 259)}…` : joined;
+  return [
+    ...(definition ? [`  教材定义：${cut(definition, 110)}`] : []),
+    ...(gist ? [`  教材诊断依据：${gist}`] : []),
+  ];
+}
+
 /** 追问、辨证提示词里的候选段。没有候选时返回空串（提示词里的规则会退回自行辨证）。 */
 export function buildTextbookCandidateContext(input: TextbookCaseInput): string {
   // 闭集选择点了名时多给一个病、每个病的证型给全（教材一个病至多十来个证）：模型比字面重合度更会对口语化的症状。
@@ -414,11 +479,12 @@ export function buildTextbookCandidateContext(input: TextbookCaseInput): string 
     // 教材给的鉴别要点原文（去重、截短）：辨病依据与中医鉴别里的区分点照它写（2026-10-19 甲方标准病历 6：腰痛与背痛、尻痛教材按部位区分，
     // 模型两次写成「未诉放射痛」）。
     ...textbookDifferentialGist(item.disease, item.book, item.differentials.slice(0, 4)),
+    ...textbookDiagnosisGist(item.disease, item.book),
     ...item.rows.map((row) =>
       `  - ${row.syndromeName}｜主症：${cut(row.manifestations, 90)}｜治法：${row.therapy}｜代表方：${formulaLabel(row)}`),
   ]);
   return [
-    "【教材病证候选】（按与本例主诉、症状的相近程度从规划教材中取出；病名、证名、治法、代表方均为教材原文。其中有贴合本例的一行时，病名与证名逐字采用、治法以该行为准、推荐方用该行代表方；都不贴合时再自行辨证。同一病下各证型按教材顺序排列，先后不表示可能性大小。「贴合」指该行主症里能把它与同病其他证型分开的表现——寒热、虚实、诱因、伴随症状或舌脉——至少有一项已见于本例记录；本例只记录了本病主症本身时，没有哪一行贴合。同一病性涉及两脏、两脏各有自身成组的表现（每脏至少两条相互印证）而候选只有单脏证型时，证名写两脏合称（如“肺脾两虚证”），治法兼顾两脏，方用两行代表方合用或加减。辨病依据与中医鉴别写本病与相近病的区分点时，以各病下「教材鉴别要点」写的区分依据为准（部位、病程、主症、病势等），不另立教材没有的区分点）",
+    "【教材病证候选】（按与本例主诉、症状的相近程度从规划教材中取出；病名、证名、治法、代表方均为教材原文。候选里有两个以上的病时先定病名：先对照各病下的「教材定义」「教材诊断依据」，再逐病找出其下与本例最贴合的一行证型，比较各病的最贴合行——主症逐项对得上的越多（特别是能把证型分开的表现）、该病的诊断依据越符合，越应归入该病；主诉里的单个症状（头晕、咳嗽、头痛这类）常是几个病共有的主症，不能单凭它定病；教材写明的必备表现而病历已明确否认的，不算符合；西医诊断与检查结果只作旁证，不直接决定中医病名；各病的先后只是检索时的初排，不表示哪个更可能。其中有贴合本例的一行时，病名与证名逐字采用、治法以该行为准、推荐方用该行代表方；都不贴合时再自行辨证。同一病下各证型按教材顺序排列，先后不表示可能性大小。「贴合」指该行主症里能把它与同病其他证型分开的表现——寒热、虚实、诱因、伴随症状或舌脉——至少有一项已见于本例记录；本例只记录了本病主症本身时，没有哪一行贴合。同一病性涉及两脏、两脏各有自身成组的表现（每脏至少两条相互印证）而候选只有单脏证型时，证名写两脏合称（如“肺脾两虚证”），治法兼顾两脏，方用两行代表方合用或加减。辨病依据与中医鉴别写本病与相近病的区分点时，以各病下「教材鉴别要点」写的区分依据为准（部位、病程、主症、病势等），不另立教材没有的区分点）",
     ...lines,
   ].join("\n");
 }
@@ -782,7 +848,7 @@ export function textbookFormulaLabel(row: TextbookSyndromeRow): string {
  * 教材对某个病要求鉴别的病证及其原文要点（去掉开头重复的病名，截到两句以内）。
  * 病名鉴别为空时用它补齐：内容是教材原文，不是服务端写的话。
  */
-export function textbookDifferentialsForDisease(diseaseName: string): Array<{ name: string; text: string; book: string }> {
+export function textbookDifferentialsForDisease(diseaseName: string, limit = 2): Array<{ name: string; text: string; book: string }> {
   const wanted = compact(diseaseName).replace(/类病$/u, "");
   if (!wanted) return [];
   const disease = DISEASES
@@ -795,7 +861,7 @@ export function textbookDifferentialsForDisease(diseaseName: string): Array<{ na
     const sentences = raw.split(/(?<=。)/).slice(0, 2).join("").trim();
     const textValue = sentences.length > 110 ? `${sentences.slice(0, 108)}…` : sentences;
     return textValue.length >= 8 ? [{ name, text: textValue, book: disease.book }] : [];
-  }).slice(0, 2);
+  }).slice(0, limit);
 }
 
 function charJaccard(left: string, right: string): number {
@@ -852,13 +918,25 @@ export function textbookNearestRow(
     .filter((organ) => modelLocations.length === 0 || locatedOrgans.has(organ)));
   const dropsOrgan = (row: TextbookSyndromeRow) => {
     const rowOrgans = new Set(compact(row.syndromeName).match(TEXTBOOK_ORGAN_WORDS) || []);
-    return rowOrgans.size > 0 && [...modelOrgans].some((organ) => !rowOrgans.has(organ));
+    // 两个脏腑的合称不能改成一个不写脏腑的行（肝肾阴虚证 → 阴虚火旺证、心脾两虚证 → 气血两虚证）：脏腑是合称的一半（2026-10-19，第九轮 WP9-C）。
+    if (rowOrgans.size === 0) return modelOrgans.size >= 2;
+    return [...modelOrgans].some((organ) => !rowOrgans.has(organ));
   };
   // 病性因素同理（2026-10-19）：模型写「气虚血瘀证」「阴虚阳亢证」，改成教材单因素的「血瘀…」「肝阳上亢证」就丢了一个因素，
   // 不是同义写法——≥300 条验收里评审最常判的就是「遗漏气虚/阴虚」。虚/亏/不足/衰、火/热各算一类，不因写法不同否决。
   // 「命门火衰」即肾阳衰，按「阳 + 虚」算（肾阳不足证 → 命门火衰证 是同义归一）。
   const natureClass = (word: string) => /^(?:虚|亏|不足|衰)$/u.test(word) ? "虚" : word === "火" ? "热" : word;
-  const natureClassesOf = (name: string) => new Set((compact(name).replace(/火衰/gu, "阳衰").match(TEXTBOOK_NATURE_WORDS) || []).map(natureClass));
+  // 气与郁滞也是证名里的因素，TEXTBOOK_NATURE_WORDS 没收它们：「气滞血瘀证」归一成「血瘀证」、「气阴两虚证」归一成「阴虚火旺证」、
+  //「气血两虚证」归一成「血虚证」时，丢了一个因素却不被否决（2026-10-19 第九轮 WP9-C：对每个教材病 × 12 个复合证名扫描，改名 504 例，
+  // 其中丢「气」或「郁滞」的见 test-r1021-compound）。「气」只在气虚/气滞/气阴/气血/气不足这些构词里算（肝气郁结、中气、元气不算）；
+  //「阳气虚衰」就是阳虚，不另算气。
+  const natureClassesOf = (name: string) => {
+    const text = compact(name).replace(/火衰/gu, "阳衰").replace(/阳气(?=虚|衰|不足|亏)/gu, "阳");
+    const classes = new Set((text.match(TEXTBOOK_NATURE_WORDS) || []).map(natureClass));
+    if (/气(?=虚|滞|阴|血|衰|亏|不足)/u.test(text)) classes.add("气");
+    if (/郁|滞|气犯|不和|肝旺/u.test(text)) classes.add("郁滞");
+    return classes;
+  };
   const modelNatureClasses = natureClassesOf(syndromeName);
   const dropsNature = (row: TextbookSyndromeRow) => {
     const rowClasses = natureClassesOf(row.syndromeName);

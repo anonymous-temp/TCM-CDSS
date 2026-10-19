@@ -36,7 +36,7 @@ import { instructionRecordPoolFromText, type InstructionRecordPool } from "@/lib
 import { applyDeterministicIcd10Coding } from "@/lib/icd10-diagnosis-coding.server";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { newModuleNotices } from "@/lib/diagnosis-stream-modules";
-import { completedM04ProposalCandidate, newM03ModuleDraftFrames, newM04ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
+import { completedM03Overview, completedM04ProposalCandidate, newM03ModuleDraftFrames, newM04ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
 import { mergeParallelM03Halves, parseM03WesternHalf } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
@@ -524,6 +524,11 @@ type StreamSafetyOptions = {
    * （缓存按实际模型输入逐字命中，原文与终稿不一致只是不命中）；回调异常被吞掉，不影响本阶段。
    */
   onInitialM04Candidate?: (candidate: Record<string, unknown>) => void;
+  /**
+   * M03 首轮流里 `overview` 对象闭合时回调一次（2026-10-19）。只用于服务端预取：鉴别条目不足时提前发出补写请求，
+   * 中医半写完收口时同一请求直接命中，补写不占关键路径（见 prefetchTcmDifferentialTopUp）。回调异常被吞掉，不影响本阶段。
+   */
+  onInitialM03Overview?: (overview: Record<string, unknown>) => void;
   /**
    * 上游模型服务不可用时的专用降级页(2026-08-04)。修复轮走**非流式**端点,
    * provider 503/超时会让它们整体失败;此前这种情况与「临床证据不足」共用同一句降级文案,
@@ -2667,6 +2672,7 @@ async function callPrimaryTextModelStream(
       /** 解析干净（status=clean）的并行西医半；有限结果兜底时用（truncateFallbackWithWestern）。 */
       let m03CleanWesternHalf: string | undefined;
       let initialM04CandidateReported = false;
+      let initialM03OverviewReported = false;
       /**
        * 「同一条确定性合同拒绝码只修一次」的账本。
        *
@@ -3181,6 +3187,17 @@ async function callPrimaryTextModelStream(
         if (opts.structuredStage === "diagnose") {
           for (const frame of newM03ModuleDraftFrames(partial, emittedM03DraftKeys)) {
             enqueueModuleDraft(frame);
+          }
+          if (opts.onInitialM03Overview && !initialM03OverviewReported && structuredRetryCount === 0) {
+            const overview = completedM03Overview(partial);
+            if (overview) {
+              initialM03OverviewReported = true;
+              try {
+                opts.onInitialM03Overview(overview);
+              } catch {
+                // 预取是纯增益。
+              }
+            }
           }
         } else if (opts.structuredStage === "prescribe") {
           for (const frame of newM04ModuleDraftFrames(partial, emittedM04DraftKeys)) {

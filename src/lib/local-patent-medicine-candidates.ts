@@ -2,12 +2,15 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import localMedicineIndex from "../data/local-patent-medicine-index.json" with { type: "json" };
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
-import type { CaseState } from "./diagnosis-types";
+import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { affirmativeNegationFormsIn, governedSyndromeLabelAxes } from "./clinical-vocabulary";
 import { buildFormulaAxisProfile, scoreFormulaAxes } from "./tcm-formula-axis-score";
 import { formulaCounterEvidence } from "./formula-discrimination-guard";
 import { matchingMedicineClinicalConcepts } from "./medicine-clinical-concepts";
-import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
+import { catalogSharedComposition, executableFormulaCompilationReferences } from "./tcm-formula-provenance";
+import { parseMedicationLabelUsage } from "./medication-label-usage";
+import { getTcmHerbFunctionCategories, isKnownTcmHerbName } from "./tcm-knowledge";
+import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 
 export type LocalPatentMedicineEntry = {
   name: string;
@@ -340,6 +343,7 @@ export function retrieveLocalPatentMedicineCandidates(
   if (facts.length === 0) return [];
   // 体质前提证据面 = 阳性事实 + 签名证候/病性/治法文本（只认已记录内容）。
   const reasoning = caseState.reasoningDiagnose;
+  const signedDirection = signedDirectionOf(reasoning);
   const constitutionEvidenceText = [
     ...facts,
     reasoning?.overview?.primarySyndrome,
@@ -415,6 +419,17 @@ export function retrieveLocalPatentMedicineCandidates(
       [entry.contraindication, entry.precaution].filter(Boolean).join("；"),
       reasoning?.overview?.primarySyndrome || "",
     ))
+    // 第六道（2026-10-19 第九轮）：内服成药的补泻、寒热方向与已签名证候**明确相反**时排除（补益药配纯实证、攻邪药配纯虚证、
+    // 清热药配寒证、温热药配热证；虚实夹杂、寒热并见、读不出方向一律弃权，见 patentMedicineDirectionConflict）。
+    // 放在检索层而不只在规划器里：M04 模型自己也从这份证据清单里挑中成药（M 集 RobustSDT-0088/0090 的胆清胶囊就是模型直接抄的），
+    // 清单里有的它就可能选。第四道只读词表解出的寒热，「风寒湿痹证」在词表里寒热并存、读不出方向。
+    .filter((entry) => {
+      if (!signedDirection || !medicineIsInternalUse(entry.name, entry.usage)) return true;
+      return !patentMedicineDirectionConflict({
+        clause: medicineFunctionClause(entry.indication),
+        herbs: () => patentMedicineCompositionIdentities(entry.name),
+      }, signedDirection);
+    })
     .sort((left, right) =>
       right.score - left.score ||
       right.matchedConcepts.length - left.matchedConcepts.length ||
@@ -462,4 +477,189 @@ export function buildLocalPatentMedicineContext(
     ...candidates.map(formatLocalPatentMedicineRecord),
     "选择纪律：只能复制上方同一条目的药名、规格、ID和指纹；适应证必须覆盖本例当前阳性问题。条目是候选边界，不替代医师辨证、说明书原文核验或药师审查；不得补写条目未载明的信息。",
   ].join("\n");
+}
+
+/**
+ * 中成药的组成（2026-10-19 第九轮从 patent-medicine-duplication.server.ts 移来：重复判据与检索层的方向底线共用同一份成份读法）。
+ */
+const COMPOSITION_FILE = "local-patent-medicine-composition.json";
+let compositionEntries: Record<string, { ingredients?: string[] }> | undefined;
+function compositionTable(): Record<string, { ingredients?: string[] }> {
+  if (compositionEntries) return compositionEntries;
+  try {
+    // 按 process.cwd()/src/data 懒加载，不打进代码包（与处方中成药说明书目录同一读法）。
+    const parsed = JSON.parse(readFileSync(path.join(process.cwd(), "src", "data", COMPOSITION_FILE), "utf8")) as {
+      entries?: Record<string, { ingredients?: string[] }>;
+    };
+    compositionEntries = parsed.entries && typeof parsed.entries === "object" ? parsed.entries : {};
+  } catch (error) {
+    console.warn("[tcm-cdss:knowledge] patent medicine composition table unavailable", {
+      reason: error instanceof Error ? error.message.slice(0, 120) : "unknown",
+    });
+    compositionEntries = {};
+  }
+  return compositionEntries;
+}
+
+/**
+ * 说明书成份里的一味药 → 判重复用的药名键。知识库不认得的写法（「酒女贞子」「麸炒白术」）去掉开头一两个字后再试，
+ * 余下部分是知识库认得的药名才算；仍认不得的（盐酸小檗碱、人参须）不计。
+ */
+function ingredientIdentity(raw: string): string | undefined {
+  const token = String(raw || "").normalize("NFKC").replace(/\s+/g, "").replace(/^灸/, "炙");
+  if (token.length < 2) return undefined;
+  if (isKnownTcmHerbName(token)) return textbookDistinctHerbKey(token) || undefined;
+  for (const cut of [1, 2]) {
+    const rest = token.slice(cut);
+    if (rest.length >= 2 && isKnownTcmHerbName(rest)) return textbookDistinctHerbKey(rest) || undefined;
+  }
+  return undefined;
+}
+
+/** 中成药的组成（判重复用的药名键，去重）。说明书成份优先，其次方剂目录；都查不到时为空。 */
+export function patentMedicineCompositionIdentities(name: string): string[] {
+  const clean = String(name || "").normalize("NFKC").replace(/\s+/g, "");
+  if (!clean) return [];
+  const table = compositionTable();
+  const labelName = table[clean] ? clean : findLocalPatentMedicineLabel(clean)?.name;
+  const ingredients = (labelName && table[labelName]?.ingredients) || [];
+  const fromLabel = ingredients.map(ingredientIdentity).filter((item): item is string => Boolean(item));
+  const identities = fromLabel.length > 0
+    ? fromLabel
+    : catalogSharedComposition(clean).map((item) => textbookDistinctHerbKey(item)).filter(Boolean);
+  return [...new Set(identities)];
+}
+
+
+/**
+ * ───────── 给药途径字样与「方向底线」所用的闭集（2026-10-19 第九轮 WP9-G；判据说明见 patent-medicine-duplication.server.ts） ─────────
+ * 词表登记在本文件（见 test-clinical-vocabulary-single-source 的 ALLOWLIST：中成药剂型/给药途径是产品形态的封闭集合）。
+ * 方向底线只在明确相反时用：补益药用于纯实证、攻邪药用于纯虚证、清热药用于寒证、温热药用于热证；
+ * 虚实夹杂、寒热并见、说明书与成份都读不出方向时一律弃权。
+ */
+
+/**
+ * 外用剂型（只用于注意事项措辞：外用药不说「服用」、不套口服间隔；也用于方向底线和重复判据区分内服与外用）。
+ * 「奇正消痛贴」「红花油」「风油精」也是外用（2026-10-19 Claude 评审 H 集 H-tri-6369、2210：写成了「正在服用…间隔1小时」「已自服的红花油」）。
+ * 原在 delivered-surface.ts，第九轮移到这里让检索层、重复判据、交付面共用同一份。
+ */
+export const TOPICAL_MEDICATION_FORM = /(?:乳膏|软膏|凝胶|乳胶剂|搽剂|擦剂|涂剂|洗剂|洗液|贴剂|贴膏|膏药|(?<!口)贴|栓|栓剂|滴眼液|滴耳液|滴鼻液|喷雾剂|气雾剂|酊|红花油|药油|油精|活络油)$/u;
+
+/** 内服：用法字段不是外用，药名也不是外用剂型（栓剂经直肠吸收，算全身用药，不在这里排除）。 */
+export function medicineIsInternalUse(name: string, usage: string): boolean {
+  const route = parseMedicationLabelUsage(usage).route || "";
+  const topicalName = TOPICAL_MEDICATION_FORM.test(name.trim()) && !/栓剂?$/u.test(name.trim());
+  return !medicineRouteIsExternal(route) && !topicalName && !medicineRouteIsSensory(`${name} ${route}`);
+}
+
+/** 药名开头的「复方/加味/小儿」一类修饰，取药名主干时去掉。 */
+export function productNameStem(baseName: string): string {
+  return baseName.replace(/^(?:复方|加味|新|小儿|儿童|总)/u, "");
+}
+
+/** 用法字段写明是外用（贴、敷、涂、喷、搽、洗…）。 */
+export function medicineRouteIsExternal(route: string): boolean {
+  return /外用|外涂|外搽|涂|敷|贴|喷|搽|擦|洗|熏|撒布|患处|局部/u.test(route);
+}
+
+/** 五官局部用药（眼、耳、鼻）。 */
+export function medicineRouteIsSensory(text: string): boolean {
+  return /滴眼|眼用|眼膏|洗眼|滴耳|滴鼻|鼻用|鼻喷/u.test(text);
+}
+
+/** 说明书功能：适应证第一句里「用于/主治」之前的部分（「补气养阴，宁心益智。本品用于…」→「补气养阴，宁心益智」）。 */
+export function medicineFunctionClause(indication: string): string {
+  return String(indication || "").split(/[。；]\s*(?=本品|用于|主治|适用)|用于|主治|适用于/u)[0] || "";
+}
+
+/**
+ * 按病原体或瘤种选药的药理分类（抗感染、抗寄生虫、抗肿瘤…）：同类不同药往往对应不同病原体（甲硝唑与克霉唑栓同属「咪唑衍生物」，
+ * 一个治滴虫和厌氧菌、一个治念珠菌），不按药理类别合并，只在药名相同时才算重复。
+ */
+export function classIsPathogenSpecific(classPath: string): boolean {
+  return /抗感染|抗寄生虫|抗肿瘤|抗菌|抗真菌|抗病毒/u.test(classPath);
+}
+
+/** 已签名的证名（主证、兼证）与治法：方向底线只读这两样。 */
+export type SignedDirection = { names: string; method: string };
+
+export function signedDirectionOf(prior: Pick<ClinicalReasoningResultV2, "overview" | "therapy"> | null | undefined): SignedDirection | undefined {
+  const overview = prior?.overview;
+  const names = [overview?.primarySyndrome, ...(Array.isArray(overview?.secondarySyndromes) ? overview.secondarySyndromes : [])]
+    .map((value) => String(value || "").trim()).filter(Boolean).join("，");
+  const method = String(prior?.therapy?.overallMethod || "").trim();
+  return names || method ? { names, method } : undefined;
+}
+
+export type MedicineDirectionConflict = "tonic_for_excess" | "attack_for_deficiency" | "cold_for_cold_case" | "warm_for_heat_case";
+
+const DEFICIENT_NAME = /虚|亏|不足|失养|不固|不摄|怯|衰|脱/u;
+const EXCESS_NAME = /热|火|湿|痰|饮|瘀|滞|郁|积|毒|风|寒|燥|亢|扰|犯|乘|旺|束|蕴|阻|结|闭/u;
+/** 治法里有补、润、养、固这类字样：证名再实也不是纯攻（风燥伤肺·润燥止咳用养阴药不算相反）。 */
+const METHOD_HAS_TONIC = /补|益|养|滋|润|生津|固|扶|填|培|温阳|助阳|壮|健脾|健胃/u;
+/** 治法里有攻邪字样（与诊断可见摘要里判「祛邪类动词」同一份动词）。 */
+const METHOD_HAS_ATTACK = /清|泻|泄|疏|散|抑肝|抑木|化痰|化湿|化瘀|化饮|化浊|化积|祛|逐|活血|行气|理气|利水|利湿|利尿|通络|通腑|通便|通淋|通窍|消食|消积|消肿|攻|解表|解毒|解郁|平肝|潜阳|息风|熄风|降逆|降气|涤痰|破|软坚|燥湿|渗湿|宣肺|透疹|发汗|导滞|开窍|豁痰|止痛|镇惊/u;
+/** 成药功能清单里的纯补、纯攻字样（比治法里的窄：只收一看就是补或一看就是攻的）。 */
+const MEDICINE_TONIC = /补气|补血|补阴|补阳|补肾|补益|补虚|益气|益肾|益精|滋阴|养阴|养血|大补|温补|填精|固本|扶正|培元/u;
+const MEDICINE_ATTACK = /清热解毒|泻火|泻下|攻下|通腑|逐水|破血|活血|化瘀|祛瘀|散瘀|行气|理气|燥湿|化湿|祛湿|利湿|化痰|祛痰|消积|消食|导滞|解表|疏风/u;
+const MEDICINE_COLD = /清热|泻火|凉血|泄热|解毒|清肝|清胃|清肺|清心|苦寒/u;
+const MEDICINE_WARM = /温中|温肾|温阳|散寒|助阳|回阳|温经|温补|辛温|祛寒|驱寒/u;
+const MEDICINE_RELEASE_EXTERIOR = /解表|发表|发汗|解肌|散风|疏风|宣肺/u;
+const COLD_HERB_CATEGORIES: ReadonlySet<string> = new Set(["清热药", "清热泻火药", "清热解毒药", "清热燥湿药", "清热凉血药", "清虚热药"]);
+const WARM_HERB_CATEGORIES: ReadonlySet<string> = new Set(["温里药", "补阳药", "发散风寒药", "祛风寒湿药", "温化寒痰药"]);
+
+/** 成份里有没有补虚药（中药学分类「补虚药」）；甘草、大枣是调和之品，不计。 */
+function compositionHasTonicHerb(herbs: readonly string[]): boolean {
+  return herbs.some((herb) => herb !== "甘草" && herb !== "大枣" && getTcmHerbFunctionCategories(herb).includes("补虚药"));
+}
+
+/** 成药由成份里药味的中药学功效分类判寒热：寒药占三分之一以上而无温药，或反之；其余弃权。 */
+function medicineThermalByComposition(herbs: readonly string[]): "cold" | "warm" | undefined {
+  if (herbs.length === 0) return undefined;
+  let cold = 0, warm = 0;
+  for (const herb of herbs) {
+    const categories = getTcmHerbFunctionCategories(herb);
+    if (categories.some((category) => COLD_HERB_CATEGORIES.has(category))) cold += 1;
+    if (categories.some((category) => WARM_HERB_CATEGORIES.has(category))) warm += 1;
+  }
+  const floor = Math.ceil(herbs.length / 3);
+  if (cold >= 1 && warm === 0 && cold >= floor) return "cold";
+  if (warm >= 1 && cold === 0 && warm >= floor) return "warm";
+  return undefined;
+}
+
+/**
+ * 内服成药（说明书功能 clause，成份 herbs 为药味身份名）与已签名证候是否明确相反；相反时返回原因码。
+ * 调用方负责只对内服中成药调用（外用药治局部，不随整体证候走）。
+ */
+export function patentMedicineDirectionConflict(
+  medicine: { clause: string; herbs: readonly string[] | (() => readonly string[]) },
+  direction: SignedDirection,
+): MedicineDirectionConflict | undefined {
+  const { names, method } = direction;
+  const { clause } = medicine;
+  // 成份只在要用时才取（检索层对每个命中的条目都会调到这里，取成份要查说明书目录）。
+  let herbList: readonly string[] | undefined;
+  const herbs = (): readonly string[] => (herbList ??= typeof medicine.herbs === "function" ? medicine.herbs() : medicine.herbs);
+  const caseDeficient = DEFICIENT_NAME.test(names);
+  const caseExcess = EXCESS_NAME.test(names.replace(/[阴血气阳精津]虚[热火]?|虚[热火寒]/gu, ""));
+  if (clause) {
+    // 纯补：功能里一个攻邪字样都没有（「补肾壮骨，祛风蠲痹」是补攻并用，不算）。
+    if (MEDICINE_TONIC.test(clause) && !METHOD_HAS_ATTACK.test(clause) &&
+        caseExcess && !caseDeficient && method && !METHOD_HAS_TONIC.test(method)) return "tonic_for_excess";
+    // 纯攻：功能是攻邪、没有补益字样，成份里（调和之品不计）也没有一味补虚药（参苓口服液：理脾消食，成份有太子参、白扁豆，不算纯攻）。
+    if (MEDICINE_ATTACK.test(clause) && !MEDICINE_TONIC.test(clause) && !compositionHasTonicHerb(herbs()) &&
+        caseDeficient && !caseExcess && method && !METHOD_HAS_ATTACK.test(method)) return "attack_for_deficiency";
+  }
+  // 寒热：本例证名只有寒（或只有热），治法也没有反向字样。
+  const caseColdOnly = /寒/u.test(names) && !/热|火|暑/u.test(names) && !MEDICINE_COLD.test(method);
+  const caseHeatOnly = /热|火|暑/u.test(names.replace(/虚热|虚火/gu, "")) && !/寒/u.test(names) && !MEDICINE_WARM.test(method);
+  if (!caseColdOnly && !caseHeatOnly) return undefined;
+  // 功能里同时写着解表、散风（荆防败毒丸：清热散风，发表解肌）是表证用药，寒热不单凭一个「清热」定。
+  const byClause = clause && MEDICINE_COLD.test(clause) && !MEDICINE_WARM.test(clause) && !MEDICINE_RELEASE_EXTERIOR.test(clause) ? "cold"
+    : clause && MEDICINE_WARM.test(clause) && !MEDICINE_COLD.test(clause) ? "warm" : undefined;
+  const thermal = byClause ?? (clause && (MEDICINE_COLD.test(clause) || MEDICINE_WARM.test(clause)) ? undefined : medicineThermalByComposition(herbs()));
+  if (thermal === "cold" && caseColdOnly) return "cold_for_cold_case";
+  if (thermal === "warm" && caseHeatOnly) return "warm_for_heat_case";
+  return undefined;
 }

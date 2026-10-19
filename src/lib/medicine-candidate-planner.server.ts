@@ -23,6 +23,13 @@ import {
 } from "./local-patent-medicine-candidates";
 import type { EvidenceBoundMedicineProposal } from "./m04-proposal-compiler";
 import { parseMedicationLabelUsage } from "./medication-label-usage";
+import {
+  patentMedicineDuplication,
+  patentMedicineOpposesSignedDirection,
+  selfTakenMedicationCompositions,
+  signedDirectionOf,
+  withoutSameClassMedicines,
+} from "./patent-medicine-duplication.server";
 import { inventoryAvailabilityView, type InventoryAvailabilityView } from "./drug-inventory.server";
 import { createTextModelClient, getPrimaryTextModelConfig, isApprovedTextModel, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
@@ -105,6 +112,28 @@ function casePlanningText(caseState: CaseState): string {
     .slice(0, 2600);
 }
 
+/**
+ * 本例已签名的中医辨证（病名、证候、兼证、治法、病机、舌脉），放在规划模型看到的病例事实最前面。
+ * 第九轮 M 集验收评审（模块 K）：4 例中成药的药性方向与证候相反（补益心脾的宁心益智胶囊配肝阳上亢、燥湿的平胃丸配肝胃不和、
+ * 润肺养阴的润肺膏配痰浊壅肺、滋阴的人参固本丸配气虚湿浊），根因之一是规划模型此前只看到证候名与依据，看不到治法与病机——
+ * 「寒热虚实不相反」这条提示词规则没有可以对照的东西。casePlanningText 不动（它还是西药/AI 提名「对应问题必须在病例里」的核对文本，
+ * 把证候治法并进去会放宽那个核对）；这一段只给模型看。
+ */
+function signedDiagnosisText(caseState: CaseState): string {
+  const reasoning = diagnoseReasoningFromState(caseState) || caseState.reasoningDiagnose || caseState.reasoningV2;
+  const overview = reasoning?.overview;
+  const secondary = Array.isArray(overview?.secondarySyndromes) ? overview.secondarySyndromes.filter(Boolean).join("、") : "";
+  const parts = [
+    overview?.tcmDiseaseName ? `中医病名：${compact(overview.tcmDiseaseName, 40)}` : "",
+    overview?.primarySyndrome ? `证候：${compact(overview.primarySyndrome, 60)}` : "",
+    secondary ? `兼证：${compact(secondary, 80)}` : "",
+    reasoning?.therapy?.overallMethod ? `治法：${compact(reasoning.therapy.overallMethod, 80)}` : "",
+    overview?.overallPathogenesis ? `病机：${compact(overview.overallPathogenesis, 120)}` : "",
+    caseState.tongue ? `舌：${compact(caseState.tongue, 60)}` : "",
+    caseState.pulse ? `脉：${compact(caseState.pulse, 40)}` : "",
+  ].filter(Boolean);
+  return parts.length > 0 ? `本例已定中医辨证（医生已签名）：${parts.join("；")}。` : "";
+}
 
 function localCandidateToProposal(candidate: LocalPatentMedicineCandidate): EvidenceBoundMedicineProposal {
   const problem = candidate.matchedConcepts.join("、") || compact(candidate.indication, 100);
@@ -179,7 +208,7 @@ function externalCandidateToProposal(
 export const MEDICINE_PLANNER_MODEL_TIMEOUT_MS = 12_000;
 
 /** 规划器提示词版本，进缓存键：改了提示词，旧缓存不得再命中。 */
-const PLANNER_PROMPT_VERSION = "2026-09-28-inventory-ai-patent-v3";
+const PLANNER_PROMPT_VERSION = "2026-10-19-signed-direction-class-dedupe-v4";
 
 /**
  * 规划结果缓存与并发合流（2026-09-27，提速）。规划器输入是（模型，病例规划文本，本地候选目录）
@@ -219,7 +248,7 @@ async function runPlannerModel(
   if (!config.configured || !isApprovedTextModel(config.model)) return undefined;
   if (requestSignal?.aborted) return undefined;
   const key = createHash("sha256")
-    .update(JSON.stringify([config.model, config.baseUrl || "", PLANNER_PROMPT_VERSION, casePlanningText(caseState), localCandidates.map((item) => [
+    .update(JSON.stringify([config.model, config.baseUrl || "", PLANNER_PROMPT_VERSION, casePlanningText(caseState), signedDiagnosisText(caseState), localCandidates.map((item) => [
       item.id, item.name, compact(item.indication, 240), item.matchedConcepts, item.matchedPatientFacts, inventoryLabels.get(item.id) || "",
     ])]))
     .digest("hex");
@@ -295,8 +324,9 @@ async function runPlannerModelUncached(
               : []),
             // 中成药辨证用药（《中成药临床应用指导原则》）：按西医病名对药是最常见的不合理用药——独立评审里，无表证的慢性痰湿咳嗽配了参苏丸，
             // 气虚低热配了藿香正气丸，白带常规阴性的脾虚带下配了治阴道炎的凝胶。
-            "中成药要按证候选（辨证用药）：候选说明书功能主治所针对的证型，要与病例事实里的中医证候相符；寒热、虚实、表里相反或不相干的不选（没有表证不选解表剂，虚证不选只祛邪的药，寒证不选清热药）。没有相符的候选就一个也不选，localEvidenceIds 返回空数组——宁缺毋滥。",
-            "病例已写明患者正在使用的药不再提出；病历已记录的检查结果不支持的病（如病原学检查阴性的感染），不为它选药；不提注射剂和生物制剂。",
+            "中成药要按已定证候和治法选（辨证用药，《中成药临床应用指导原则》）：病例事实开头的「本例已定中医辨证」是医生已签名的证候、治法、病机，候选说明书的功能主治必须与它同向。逐个候选核对三点——①说明书所述证型（「……所致」「……证」）就是本例证候或其兼证，只是症状词相同而证型不同的不选（肝胆湿热所致的呃逆不用于胃火上逆，脾胃湿盛的嗳气吞酸不用于肝胃不和）；②寒热虚实不相反：温补药不用于实热，滋阴药不用于湿浊、痰湿或气虚阳虚，润肺滋养药不用于痰浊壅肺，纯补益药不用于纯实证，纯清热攻邪药不用于虚证、寒证，没有表证不选解表剂；③说明书靠它起效的病邪（湿、痰、瘀、热、积滞）本例确有记载才选。没有相符的候选就一个也不选，localEvidenceIds 返回空数组——宁缺毋滥。",
+            "同一个对应问题、同一种给药途径只选一个药：功效相近、成分重叠的中成药不并列（两种外用止痛喷剂、两种湿疹外用膏、两种行气化湿丸剂只取一个）；药理类别相同的西药（如两种非甾体抗炎药、两种促胃肠动力药、两种渗透性泻药）只提一个。",
+            "病例已写明患者正在使用的药不再提出，成分或功效相同的同类药（病历在用丹参滴丸，不再选丹参类中成药）也不再选；病历已记录的检查结果不支持的病（如病原学检查阴性的感染），不为它选药；不提注射剂和生物制剂。",
             "西药仅在当前西医诊断已有足够依据且药物适应证可直接覆盖该诊断/症状时提出；不得为待排诊断、阴性症状、单纯中医证候提出西药。",
             "不得提出抗菌药、激素、抗凝药、抗精神病药或其他高风险药物，除非病例已有明确对应诊断和必要证据。",
             "每个对应问题必须是病例中当前阳性的具体诊断或症状，不得写‘调理’‘改善体质’等泛化词。",
@@ -307,7 +337,7 @@ async function runPlannerModelUncached(
         },
         {
           role: "user",
-          content: `病例事实：${casePlanningText(caseState)}\n本地中成药候选：${JSON.stringify(localCatalog)}`,
+          content: `${signedDiagnosisText(caseState)}\n病例事实：${casePlanningText(caseState)}\n本地中成药候选：${JSON.stringify(localCatalog)}`,
         },
       ],
     }, { signal: controller.signal }));
@@ -497,6 +527,9 @@ export async function planEvidenceBoundMedicineCandidates(
     }
   }
   const localCandidates = inStockFirst([...baseCandidates, ...inStockExtras], (item) => inStock(item.name, "patent"));
+  // 方向与已签名证候明确相反的内服中成药（补益药配纯实证、攻邪药配纯虚证、清热药配寒证、温热药配热证）已在检索层排除
+  // （retrieveLocalPatentMedicineCandidates 第六道），规划模型、M04 证据清单、规划器兜底首选都因此看不到它们；下面只对 EviMed 核对来的行再过一遍。
+  const signedDirection = signedDirectionOf(diagnoseReasoningFromState(caseState) || caseState.reasoningDiagnose || caseState.reasoningV2);
   // 院内状态只在本院同步了中成药时写给规划模型：没同步时每个候选都会显示「库存外用药」，
   // 本机 65 例实测模型因此几乎每例都另提中成药（46 次核对不到说明书），规划器中位耗时 +1.1 秒。
   const inventoryLabels = new Map(patentSynced ? localCandidates.flatMap((item) => {
@@ -554,9 +587,16 @@ export async function planEvidenceBoundMedicineCandidates(
     (item) => inStock(item.candidate.name, "western"),
   );
   const exclusionText = `${caseText}；${caseState.pastHistory || ""}；${caseState.medicationHistory || ""}`;
-  const planned: ResolvedPlannerMedicine[] = [...selectedLocal, ...aiPatent, ...western]
+  // 与病历在用的中成药同品、同组成的不再推荐；方向相反的不列（AI 提名核对到的药也过这一道）；
+  // 同一问题、同一给药途径的中成药与同一药理类别的西药只留排在最前的一个（第九轮 M 集 K 模块：多潘立酮＋甲氧氯普胺、
+  // 聚乙二醇4000＋乳果糖、两种外用止痛喷剂、两种湿疹膏、天麻首乌片＋天麻醒脑胶囊、木香顺气丸＋平胃丸并列）。
+  const selfMedications = selfTakenMedicationCompositions(caseState);
+  const screened = [...selectedLocal, ...aiPatent, ...western]
     .filter((item) => !medicineCandidateExcludedForCase(item.candidate.name, exclusionText))
-    .slice(0, 6);
+    .filter((item) => !patentMedicineDuplication(item.candidate, [], selfMedications))
+    .filter((item) => !patentMedicineOpposesSignedDirection(item.candidate, signedDirection));
+  const keptCandidates = new Set<EvidenceBoundMedicineProposal>(withoutSameClassMedicines(screened.map((item) => item.candidate)));
+  const planned: ResolvedPlannerMedicine[] = screened.filter((item) => keptCandidates.has(item.candidate)).slice(0, 6);
   const candidates = planned.map((item) => item.candidate);
   const localRecords = planned.filter((item) => item.candidate.type === "中成药" && item.record && item.candidate.evidenceId.startsWith("LOCAL-INST-"))
     .map((item) => item.record as string);

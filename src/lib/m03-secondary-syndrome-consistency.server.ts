@@ -2,6 +2,7 @@ import "server-only";
 
 import { affirmedClinicalSourceClauses } from "./clinical-polarity";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
+import { textbookManifestationTerms, textbookRowForSyndrome, type TextbookSyndromeRow } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { claimsSecondaryPattern, declaresSecondaryMechanism, deniesSeparateSecondaryPattern, mechanismClaimsUncoveredBy, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
@@ -16,6 +17,18 @@ import { claimsSecondaryPattern, declaresSecondaryMechanism, deniesSeparateSecon
  * 让它二选一——病历里该病机另有至少两条相互印证的表现，就补成兼证并并列治法；不够，就指出依据和病机里要删的分句。
  * 服务端只核对：兼证名是证名、不是主证本身；支持表现逐字出自病历、且不在否认句里；要删的分句逐字在原文里。其余情况原样返回。
  * 开关：CDSS_M03_SECONDARY_CONSISTENCY=false 关闭。
+ *
+ * 第二条路：独立成组证据核对（2026-10-19 晚，第九轮 WP9-C）。
+ * M 集（真实医案）中医诊断 183 例不合格里，参考为复合证、病历里第二组表现确实成组（舌脉各自有支撑）、系统却只给了单证的约占两成：
+ * 模型在辨证依据里常已写到那一组（「舌淡暗边有齿痕、脉细为脾运不健」「腰酸畏寒、夜尿频示肾阳亦不足」），却既没有「兼」「夹」字样（第一条路碰不到），
+ * 也没立兼证。第一条路只在依据里自称兼夹时才核对。
+ * 做法与它同一风格：兼证栏为空时，按病历另发一次小任务，让模型先分组再下结论（每组逐字摘录、标判断），采信后再发一次否决式复核
+ * （保留须有至少两条是该兼证的特异表现），两次都过，才补兼证。服务端只做三件事：摘录逐字出自病历肯定句且不少于两条；兼证名不是主证本身；
+ * 教材吻合度闸门（见 GROUP_CHECK_FIT_CEILING）。
+ * 为什么不是「看到第二组就立」：同一套提示词在甲方标准病历（教材式单证，标准答案无兼证）上也会找到「第二组」——病历 4（肝气犯胃）的
+ * 「大便溏结不调、饮食欠佳」、病历 3（血虚头痛）的「食欲下降、大便稀溏」——模型自己分不出哪些是应立的兼证，复核提示词也分不出（离线对照：
+ * 复核保留了所有 4 个甲方病例的候选中的 3 个）。能把两类病例分开的只有一个与临床内容无关的量：病历对主证教材证型的吻合度。
+ * 开关：CDSS_M03_SECONDARY_GROUP_CHECK=false 关闭第二条路。
  */
 const TIMEOUT_MS = (() => {
   const value = Number(process.env.M03_SECONDARY_CONSISTENCY_TIMEOUT_MS || 5_000);
@@ -30,6 +43,10 @@ function broadTrigger(): "markers" | "all" | "off" {
 
 function enabled(): boolean {
   return process.env.CDSS_M03_SECONDARY_CONSISTENCY !== "false";
+}
+
+function groupCheckEnabled(): boolean {
+  return process.env.CDSS_M03_SECONDARY_GROUP_CHECK !== "false";
 }
 
 type Json = Record<string, unknown>;
@@ -126,6 +143,157 @@ export function withoutClauses(value: string, clauses: readonly string[]): strin
     else out = `${before}${after.replace(/^[。；;]/u, before && !/[。；;]$/u.test(before) ? "。" : "")}`;
   }
   return out.replace(/^[，,。；;]+/u, "").replace(/([。；;])[，,]+/gu, "$1").trim();
+}
+
+// ───── 第二条路：独立成组证据核对 ─────
+
+/**
+ * 教材吻合度闸门：病历对主证教材证型的主症吻合度（病历肯定句里出现的教材主症短语占比）达到此值，主证已解释了主要表现，不再另找第二组。
+ * 数值阈值，取自离线分布（2026-10-19，deepseek-flash 找组 + 否决复核，同一份提示词）：
+ *   甲方标准病历 10 例吻合度 0.20–0.50（病历 3 血虚头痛 0.43、病历 4 肝气犯胃 0.50、牙痛 胃火上炎有教材行，找组都找到了「第二组」）；
+ *   留出（教材式单证）10 例 0.10–0.44；
+ *   验收 M 集参考为复合证、人工判「第二组确实成组」的 18 例 0.00–0.27（RobustSDT-0614/0617/0621/0631 四例 0.00–0.10，0530/0541 最高 0.27）。
+ * 取 0.30：教材式病历（写病历时照着教材证型的主症写）几乎都在其上；真实医案对教材证型只是部分吻合。吻合度未知（模型证名对不上教材行）时不设闸。
+ */
+export const GROUP_CHECK_FIT_CEILING = 0.3;
+/** 教材主症短语至少这么多条，吻合度才有意义（只有两三条的证型，一条之差就是三成）。 */
+const FIT_MIN_ITEMS = 4;
+const FIT_BIGRAM_SHARE = 0.6;
+
+const bigramsOf = (value: string): Set<string> => {
+  const grams = new Set<string>();
+  for (let index = 0; index + 1 < value.length; index += 1) grams.add(value.slice(index, index + 2));
+  return grams;
+};
+
+/**
+ * 病历对教材证型主症的吻合度（0–1）：教材主症按标点切成短语，病历肯定句里整句包含，或二字组至少 FIT_BIGRAM_SHARE 出现在病历里，算对上一条。
+ * 教材证型的主症短语不足 FIT_MIN_ITEMS 条时返回 undefined。
+ */
+export function textbookPatternFit(row: Pick<TextbookSyndromeRow, "manifestations">, recordText: string): number | undefined {
+  const items = textbookManifestationTerms(row).map(compact).filter((phrase) => phrase.length >= 2);
+  if (items.length < FIT_MIN_ITEMS) return undefined;
+  const record = compact(affirmedClinicalSourceClauses(recordText).join("，") || recordText);
+  const recordGrams = bigramsOf(record);
+  const covered = items.filter((item) => {
+    if (record.includes(item)) return true;
+    const grams = bigramsOf(item);
+    if (grams.size === 0) return false;
+    let shared = 0;
+    for (const gram of grams) if (recordGrams.has(gram)) shared += 1;
+    return shared / grams.size >= FIT_BIGRAM_SHARE;
+  }).length;
+  return covered / items.length;
+}
+
+const GROUP_FINDER_SYSTEM = [
+  "你是中医主治医师，复核一份辨证结论有没有漏掉“第二个成组的证候”。主证已定，不改主证。",
+  "",
+  "先分组，再判断。把病历里主证没有包含的表现，按脏腑或病性分成最多两组，每组写：",
+  "- syndrome：国标规范证名（以“证”结尾）；",
+  "- items：逐字摘自病历的表现 2–4 条（每条不超过12字；只摘病历肯定存在的，否认的不摘）；",
+  "- verdict：independent（独立成组）/ merged（并入主证）/ single（只有一条或顺带提到）。",
+  "",
+  "一组判 independent，须同时满足：",
+  "1. 至少两条相互印证的表现（症状、舌象、脉象均可）；",
+  "2. 属于与主证不同的脏腑，或不同的病性（例：主证肝气郁结，另一组是脾气虚；主证湿热中阻，另一组是脾胃气虚；主证脾阳虚，另一组是肾阳虚）；",
+  "3. 这些表现不是主证本身的典型表现（primaryManifestations 里列出的），也不是主证病机的直接结果。",
+  "不算第二组：只有一条表现；睡眠欠佳、纳差、乏力这类顺带提到的单项；年龄、病程、检查指标本身；病历没写的。",
+  "",
+  "decision=add 当且仅当有一组判 independent；多组满足时只取对治法影响最大的一组，secondarySyndrome 与 method（2–8字治法）取该组。其余 decision=none。",
+  "只输出 JSON：{\"groups\":[{\"syndrome\":\"…证\",\"items\":[\"…\",\"…\"],\"verdict\":\"independent|merged|single\"}],\"decision\":\"add|none\",\"secondarySyndrome\":\"…证\",\"method\":\"…\"}",
+].join("\n");
+
+const GROUP_VERIFIER_SYSTEM = [
+  "你是资深中医，复核“第二个证候能否立为兼证”。系统已定主证；另一位医生认为病历里还有第二个成组证候，想立为兼证（proposedSecondary，支持表现 proposedEvidence）。",
+  "",
+  "判断标准是“特异性”：",
+  "- 特异表现 = 对这个兼证有定性意义的表现，如脾虚的舌淡胖有齿痕、大便溏薄、食后腹胀；肾阳虚的畏寒肢冷、腰膝冷痛、夜尿频多；湿热的苔黄腻、口苦口黏、小便黄赤；血瘀的舌质紫暗或瘀斑、刺痛固定、脉涩；气虚的气短懒言、动则汗出、脉弱；阴虚的舌红少苔、五心烦热、盗汗。",
+  "- 非特异表现 = 乏力、纳差、睡眠差、口干、烦躁、轻度便秘或便溏、轻微头晕这类几乎任何证候都会伴有的表现，以及主证自己的典型表现（primaryManifestations）。",
+  "保留（keep）：proposedEvidence 里至少有两条是这个兼证的特异表现，且与主证不是同一个病机的不同说法。",
+  "否决（drop）：支持表现多数是非特异表现，或本来就是主证的典型表现，或兼证与主证是同脏同类（如同为肾虚、同为痰湿）。",
+  "只输出 JSON：{\"specific\":[\"特异的那几条原文\"],\"verdict\":\"keep|drop\"}",
+].join("\n");
+
+/** 找组小任务的输出 → 可用的兼证决定。只认被选中的那一组判 independent；摘录的逐字核对与通常的补兼证同一口径。 */
+export function parseGroupFinderDecision(
+  content: unknown,
+  context: { recordText: string; primarySyndrome: string; editableText: string },
+): Extract<SecondaryConsistencyDecision, { decision: "add" }> | undefined {
+  if (typeof content !== "string" || !content.trim()) return undefined;
+  let parsed: Json | undefined;
+  try { parsed = record(JSON.parse(content)); } catch { return undefined; }
+  if (!parsed || text(parsed.decision) !== "add") return undefined;
+  const name = text(parsed.secondarySyndrome).replace(/\s+/gu, "");
+  const groups = Array.isArray(parsed.groups) ? parsed.groups.map(record).filter((item): item is Json => Boolean(item)) : [];
+  const chosen = groups.find((group) => text(group.syndrome).replace(/\s+/gu, "") === name);
+  if (!name || !chosen || text(chosen.verdict) !== "independent") return undefined;
+  const decision = parseSecondaryConsistencyDecision(JSON.stringify({
+    decision: "add", secondarySyndrome: name, method: text(parsed.method), evidence: Array.isArray(chosen.items) ? chosen.items : [],
+  }), context);
+  return decision?.decision === "add" ? decision : undefined;
+}
+
+/** 否决式复核的输出：只有明确 keep 才算保留（缺字段、乱写一律当否决）。 */
+export function parseGroupVerifierVerdict(content: unknown): boolean {
+  if (typeof content !== "string" || !content.trim()) return false;
+  try { return text(record(JSON.parse(content))?.verdict) === "keep"; } catch { return false; }
+}
+
+async function smallJsonTask<T>(
+  namespace: string,
+  messages: Array<{ role: "system" | "user"; content: string }>,
+  maxTokens: number,
+  parse: (content: unknown) => T | undefined,
+  signal?: AbortSignal,
+): Promise<T | undefined> {
+  if (signal?.aborted) return undefined;
+  const config = getControlledTerminologyModelConfig();
+  if (!config.configured) return undefined;
+  return memoizedSmallTask<T | undefined>(namespace, smallTaskMemoKey([config.model, messages]), async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const response = await observeModelTask({ task: namespace, stage: "diagnose", model: config.model }, () => createTextModelClient(config).chat.completions.create({
+        model: config.model,
+        temperature: 0,
+        max_tokens: maxTokens,
+        stream: false,
+        response_format: { type: "json_object" },
+        ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
+        messages,
+      }, { signal: controller.signal }));
+      const value = parse(response.choices[0]?.message?.content);
+      return { value, cacheable: value !== undefined };
+    } catch {
+      return { value: undefined, cacheable: false };
+    } finally {
+      clearTimeout(timer);
+    }
+  }, undefined, signal);
+}
+
+/** 找组 → 否决式复核，两次都过才返回兼证决定。任何失败都是 undefined（原样返回）。 */
+async function decideIndependentGroup(
+  input: { recordText: string; primarySyndrome: string; method: string; textbookRow?: TextbookSyndromeRow; editableText: string },
+  signal?: AbortSignal,
+): Promise<Extract<SecondaryConsistencyDecision, { decision: "add" }> | undefined> {
+  const recordText = input.recordText.slice(0, MAX_RECORD_CHARS);
+  if (!recordText.trim()) return undefined;
+  const primaryManifestations = input.textbookRow
+    ? [input.textbookRow.manifestations, input.textbookRow.tongue, input.textbookRow.pulse].filter(Boolean).join("；")
+    : undefined;
+  const context = { recordText: input.recordText, primarySyndrome: input.primarySyndrome, editableText: input.editableText };
+  const proposal = await smallJsonTask("m03_secondary_group_find", [
+    { role: "system", content: GROUP_FINDER_SYSTEM },
+    { role: "user", content: JSON.stringify({ primarySyndrome: input.primarySyndrome, method: input.method, ...(primaryManifestations ? { primaryManifestations } : {}), record: recordText }) },
+  ], 500, (content) => parseGroupFinderDecision(content, context), signal);
+  if (!proposal) return undefined;
+  const keep = await smallJsonTask("m03_secondary_group_verify", [
+    { role: "system", content: GROUP_VERIFIER_SYSTEM },
+    { role: "user", content: JSON.stringify({ primarySyndrome: input.primarySyndrome, ...(primaryManifestations ? { primaryManifestations } : {}), proposedSecondary: proposal.secondarySyndrome, proposedEvidence: proposal.evidence, record: recordText }) },
+  ], 200, (content) => parseGroupVerifierVerdict(content), signal);
+  return keep ? proposal : undefined;
 }
 
 async function decideSecondaryConsistency(
@@ -253,16 +421,30 @@ export async function reconcileSecondarySyndromes(
     ...(trigger === "off" ? [] : mechanismClaimsUncoveredBy(primarySyndrome, rationale, pathogenesis)
       .filter((clause) => trigger === "all" || declaresSecondaryMechanism(clause))),
   ])].slice(0, 6);
-  if (claims.length === 0) return tcmContent;
-  const decision = await decideSecondaryConsistency({
-    recordText: context.recordText,
-    primarySyndrome,
-    rationale,
-    pathogenesis,
-    method: text(record(root.therapy)?.overallMethod),
-    claims,
-  }, signal);
+  const method = text(record(root.therapy)?.overallMethod);
+  // 第二条路的闸门：主证对得上教材证型、且病历对它的吻合度达到 GROUP_CHECK_FIT_CEILING 时不另找第二组；对不上教材行时不设闸。
+  // 未定主证（unresolved）不找。
+  const textbookRow = textbookRowForSyndrome(text(overview.tcmDiseaseName), primarySyndrome);
+  const fit = textbookRow ? textbookPatternFit(textbookRow, context.recordText) : undefined;
+  const groupCheck = groupCheckEnabled() && text(overview.primarySyndromeResolution) !== "unresolved" &&
+    (fit === undefined || fit < GROUP_CHECK_FIT_CEILING);
+  if (claims.length === 0 && !groupCheck) return tcmContent;
+  // 两条路并行（找组与依据里的兼夹说法核对各发一次小任务，互不等待）；第一条路补兼证优先，其次第二条路，最后才是第一条路的「删说法」。
+  const [claimDecision, groupDecision] = await Promise.all([
+    claims.length > 0
+      ? decideSecondaryConsistency({ recordText: context.recordText, primarySyndrome, rationale, pathogenesis, method, claims }, signal)
+      : Promise.resolve(undefined),
+    groupCheck
+      ? decideIndependentGroup({ recordText: context.recordText, primarySyndrome, method, textbookRow, editableText: `${rationale}\n${pathogenesis}` }, signal)
+      : Promise.resolve(undefined),
+  ]);
+  const decision = claimDecision?.decision === "add" ? claimDecision : groupDecision || claimDecision;
   const applied = decision ? applySecondaryConsistencyDecision(root, decision) : false;
-  console.info("[tcm-cdss:telemetry] m03_secondary_consistency", { claims: claims.length, decision: decision?.decision || "unavailable", applied });
+  console.info("[tcm-cdss:telemetry] m03_secondary_consistency", {
+    claims: claims.length,
+    decision: decision?.decision || "unavailable",
+    applied,
+    ...(groupCheck ? { group: groupDecision ? "add" : "none", fit: fit === undefined ? null : Math.round(fit * 100) / 100 } : {}),
+  });
   return applied ? JSON.stringify(root) : tcmContent;
 }

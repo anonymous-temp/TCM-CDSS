@@ -7,7 +7,10 @@ import { REPRODUCTIVE_RECORD_KEYS } from "./followup-conversation";
 import {
   JINGFANG_GENERIC_SYMPTOMS,
   JINGFANG_MIN_SPECIFICITY,
+  jingfangClauseCooccurrence,
   jingfangClosedSetForPick,
+  jingfangPatternsCovering,
+  jingfangSymptomStartsWith,
   jingfangPatternByName,
   jingfangSymptomSpecificity,
   type JingfangEvidence,
@@ -96,11 +99,18 @@ export function parseJingfangCandidates(content: unknown, recordText: string): J
       if (!rawRecord.includes(squashedQuote)) continue;
       // 否认：引文自己带否定（没有出汗、不口渴）而症状不是否定写法时，不能当证据；引文落在被否认的分句里时也不能。
       // 主症本身就是否定写法（无汗而喘、不渴、不得眠）时，引文须同样带否定字，才算对上。
-      const quoteNegated = NEGATOR_START.test(squashedQuote);
+      // 引文以否定字起头不等于否定：不大便、不欲饮水、不得眠、不能食本身就是症状（病历极性模块对「不口渴」「不腹痛」也读成肯定，
+      // 不能拿来判）。判据用方证表自己的症状清单当词表：引文开头三个字正是表里某个症状的开头（「不大便…」「不欲饮…」），
+      // 且这个方证症状不是否定写法时，引文的「不」是症状的一部分，不是否认；「不口渴」「没有出汗」表里没有这样的症状，照旧是否认。
       const symptomNegated = NEGATOR_ANY.test(symptom);
+      const quoteNegated = NEGATOR_START.test(squashedQuote) && !(!symptomNegated && jingfangSymptomStartsWith(squashedQuote.slice(0, 3)));
       if (quoteNegated && !symptomNegated) continue;
       if (!affirmedRecord.includes(squashedQuote) && !(quoteNegated && symptomNegated)) continue;
-      if (evidence.some((existing) => existing.symptom === symptom || squash(existing.quote) === squashedQuote)) continue;
+      // 同一症状不重复；同一段原话一般只算一条证据（防止一句话被对到好几个症状上凑条数）。唯一的例外是原话里
+      // 逐字写着两个症状（「汗出恶风」「伴恶风,汗出」「发热口渴」）：这是病历写了两个表现，不是一个表现数两次（构词式守卫，不依赖词表）。
+      const sharesQuote = (existing: JingfangEvidence) => squash(existing.quote) === squashedQuote
+        && !(squashedQuote.includes(squash(symptom)) && squashedQuote.includes(squash(existing.symptom)));
+      if (evidence.some((existing) => existing.symptom === symptom || sharesQuote(existing))) continue;
       evidence.push({ symptom, quote });
     }
     if (evidence.length > 0) out.push({ pattern, evidence });
@@ -122,11 +132,23 @@ export function jingfangEvidenceSufficient(pattern: JingfangPattern, evidence: r
   const required = isFirst ? pattern.minQuotes : Math.max(MIN_QUOTES_FOR_SECOND_PICK, pattern.minQuotes);
   const symptoms = [...new Set(evidence.map((item) => item.symptom))];
   if (symptoms.length < required) return false;
+  // 含「近似」证据（核对只判到 close）时至少要 3 个不同主症：近似是较弱的确认，一条逐字加一条近似不够。
+  // 本机留出集 32 例里没有这条时 3 例（消渴·肾阴亏虚、湿热腰痛、积滞）靠「一条近似 + 一条泛症」推出了无关方证；
+  // 有这条后留出集与基线持平，代价是 X 集 1 例（茯苓桂枝甘草大枣汤证，脐部跳动≈脐下悸）和开发集 1 例（黄土汤证）回到空选。
+  if (evidence.some((item) => item.approximate) && symptoms.length < 3) return false;
   if (!symptoms.some((symptom) => !JINGFANG_GENERIC_SYMPTOMS.has(symptom))) return false;
   // 特异度之和够，或者核对确认的不同主症有 4 条以上：桂枝汤证的「发热、汗出、恶风、头痛、脉浮缓」每个症状都出现在许多方证里，
   // 特异度之和低，但五条互相印证的全是它的主症——条数多本身就是证据（本机探针里，被核对确认的证据最多的非目标方证是 3 条）。
   if (symptoms.length >= STRONG_EVIDENCE_COUNT) return true;
-  return symptoms.reduce((sum, symptom) => sum + jingfangSymptomSpecificity(symptom), 0) >= JINGFANG_MIN_SPECIFICITY;
+  if (symptoms.reduce((sum, symptom) => sum + jingfangSymptomSpecificity(symptom), 0) >= JINGFANG_MIN_SPECIFICITY) return true;
+  // 条文内互证（第九轮）：同一条原文里的两个以上主症都被病历逐字确认，其中至少一个不是泛化症状。特异度求和惩罚的是「每个症状
+  // 单看都很常见」，而桂枝汤证的汗出+发热、桂枝去芍药汤证的脉促+胸满、大陷胸汤证的不大便+硬满痛不可近，合在一起正是一条条文。
+  // 第二个方证仍要求条数更多（至少 3 个不同主症），不因为这一条放宽。还要求这组证据只有这一个方证能全部覆盖：
+  // 恶寒+无汗+脉浮紧麻黄汤证、葛根汤证、大青龙汤证都能覆盖，分不出是哪个，就不推给 M03。
+  const clause = jingfangClauseCooccurrence(pattern, symptoms);
+  if (!(isFirst && clause.count >= 2 && clause.symptoms.some((symptom) => !JINGFANG_GENERIC_SYMPTOMS.has(symptom)))) return false;
+  const covering = jingfangPatternsCovering(symptoms);
+  return covering.length === 1 && covering[0] === pattern.patternName;
 }
 
 /** 核对判「否」的证据对丢弃后，按要求定最终入选的方证（最多 MAX_PICKS 个）。same 与 jingfangEvidencePairs 同序。 */
@@ -165,14 +187,16 @@ export function buildJingfangPickMessages(caseState: CaseState, record: string) 
       content: [
         "你是中医经方方证检索器，不负责诊断、处方或安全判断。",
         "任务：根据病历文本，从给定的《伤寒论》《金匮要略》方证清单里，选出病历主症确实出现、且彼此能互相印证的方证。每个方证附有它的原文主症短语。",
+        "做法：先在病历里找最特异的表现（别处少见的：咽中如有炙脔、喜悲伤欲哭、里急后重、身黄如橘子色、脉结代…），在清单里找写到它的方证，再用病历的其余表现逐项核对。不要从发热、恶寒、汗出、口渴、腹泻、头痛这类很多方证共有的表现开始凑；病历里有明显不寻常的表现而所选方证对不上它时，换一个能对上的方证，或返回空数组。",
         "规则：",
         "1. 只能逐字复制清单里的方证名；不得改写，不得给清单外的名字。",
         `2. 最多 ${MAX_PICKS} 个，最贴合的排第一。病历通常只对应一个方证；只有第二个方证也有 3 条以上互相印证的主症时才给第二个。清单里没有合适的方证、或病历只有发热、恶寒、头痛、咳嗽等泛化症状时，返回空数组；宁缺毋滥。`,
-        "3. 每个方证必须给出至少 2 条证据（清单标注“单症”的至少 1 条）。每条证据 = quote（病历原文里逐字出现的一小段，不超过 20 字，不得改写、不得拼接不相邻的两处）+ symptom（它对应的该方证主症，必须逐字取自该方证的症状清单）。两条证据必须对应不同的主症、使用不同的原文片段。",
+        "3. 每个方证必须给出至少 2 条证据（清单标注“单症”的至少 1 条）。每条证据 = quote（病历原文里逐字出现的一小段，不超过 20 字，不得改写、不得拼接不相邻的两处）+ symptom（它对应的该方证主症，必须逐字取自该方证的症状清单）。两条证据必须对应不同的主症、使用不同的原文片段（原文里同一小段确实写了两个主症时，如“汗出恶风”，可以分别对应两条）。",
         "4. quote 说的必须就是 symptom 那个表现本身（同义或口语说法可以），不是相关的、伴随的、可能由它引起的另一个表现；对不上就不要凑。",
         "5. 病历写了“无”“否认”“未见”的表现不能作为证据；只有主症本身就是否定写法（如“无汗”“不渴”）时，quote 才取病历里同样带否定字的那一小段。",
         "6. 同一个症状在不同方证里区分意义不同（有汗/无汗、口渴/不渴、下利清谷/热利下重、脉浮/脉沉）：病历与方证的区分点相反的，不要选。",
         "7. 病历用日常说法时（怕风=恶风，出汗=汗出，肚子胀=腹满），symptom 取清单里的写法，quote 仍取病历原话。",
+        "8. 清单里的一个主症由几个方面合成时（舌淡苔润、吐利=呕吐加下利、心悸头眩），quote 要取病历里相邻的完整说法（“舌质淡，苔白润”“呕吐，腹泻”），只对上一半的不算。",
         "只输出 JSON：{\"patterns\":[{\"pattern\":\"方证名\",\"evidence\":[{\"quote\":\"…\",\"symptom\":\"…\"},{\"quote\":\"…\",\"symptom\":\"…\"}]}]}，不要解释。",
       ].join("\n"),
     },
@@ -190,46 +214,89 @@ export function buildJingfangPickMessages(caseState: CaseState, record: string) 
   ];
 }
 
-/** 证据对核对（第二次窄调用）的消息：不给方证名，只问（病历原话，症状）是否就是同一个表现。 */
+/**
+ * 证据对核对（第二次窄调用）的消息：不给方证名，只问（病历原话，症状）是不是同一个表现。
+ * 三档（第九轮）：same 就是它；close 是同一个表现、只是程度/颜色/部位/说法有出入；different 不是。
+ * 为什么不止是/否：二元核对对「突感脐部跳动」对「脐下悸」这种部位说法差别极敏感——同一批证据对换个批次组成，判定就会翻（本机两次探针
+ * 49 个相同的证据对里 4 个翻了）。三档让「边界上的说法」落在 close 上，same 与 close 之间的翻动不再影响结论，只有 different 才是真否。
+ */
 export function buildJingfangEvidenceCheckMessages(pairs: ReadonlyArray<{ quote: string; symptom: string }>) {
   return [
     {
       role: "system" as const,
       content: [
         "你是中医病历症状对应核对器，只做语言对应判断，不诊断、不开方。",
-        "输入是若干对（病历原话 quote，症状 symptom）。逐对判断：病历原话本身是否就是在说这个症状。",
-        "规则：",
-        "1. 同义或口语说法算（怕风=恶风，出汗多=汗出，肚子胀=腹满，手脚冰凉=手足逆冷，拉完还想拉=里急后重）。",
-        "2. 症状带有时间或程度限定时，原话的时间、程度大致相当就算（下午发热明显≈日晡所发潮热，5天没大便≈不大便五六日）；原话明显更轻、更泛或没有这个限定的不算（原话只说“发热”，症状是“日晡所发潮热”→否）。",
-        "3. 只是相关、常伴随、可能由它引起、或同属一个系统但不是同一个表现的，不算（头痛≠腹痛，咳嗽≠喘，心烦≠失眠，情绪诱发≠胸胁苦满，口苦≠心烦喜呕，食欲减退≠嘿嘿不欲饮食）。",
-        "4. 原话里被否认的表现不算（原话“无汗”对症状“汗出”→否）；症状本身是否定写法（“无汗而喘”“不渴”）时，原话要有同样的否定。",
-        "5. 脉象、舌象症状要原话也是同类的脉象、舌象才算；拿不准的判否。",
-        "只输出 JSON：{\"verdicts\":[{\"id\":1,\"same\":true}]}，id 与输入顺序一致，不要解释。",
+        "输入是若干对（病历原话 quote，症状 symptom）。逐对判断 match，三选一：",
+        "same：病历原话本身就是在说这个症状。同义或口语说法算（怕风=恶风，出汗多=汗出，肚子胀=腹满，手脚冰凉=手足逆冷，拉完还想拉=里急后重）。",
+        "close：说的是同一个表现，只是程度、颜色、部位或说法有出入（尿色深黄像浓茶≈小便黄赤，胃脘堵闷≈心下痞，后背发凉≈背微恶寒）；原话是几个症状连写时（“汗出恶风”“发热口渴”），其中包含这个症状也算 same。",
+        "different：不是同一个表现。只是相关、常伴随、可能由它引起、或同属一个系统的不算（头痛≠腹痛，咳嗽≠喘，心烦≠失眠，情绪诱发≠胸胁苦满，口苦≠心烦喜呕，食欲减退≠嘿嘿不欲饮食）；原话明显更轻、更泛、少了症状的关键限定的不算（原话只说“发热”，症状是“日晡所发潮热”）；原话里被否认的表现不算（原话“无汗”对症状“汗出”）；症状本身是否定写法（“无汗而喘”“不渴”）时，原话要有同样的否定；脉象、舌象症状要原话也是同类的脉象、舌象才算。拿不准的判 different。",
+        "只输出 JSON：{\"verdicts\":[{\"id\":1,\"match\":\"same\"}]}，id 与输入顺序一致，不要解释。",
       ].join("\n"),
     },
     { role: "user" as const, content: JSON.stringify({ pairs: pairs.map((pair, index) => ({ id: index + 1, quote: pair.quote, symptom: pair.symptom })) }) },
   ];
 }
 
-/** 解析核对结果：返回与输入等长的布尔数组；缺项、非法输出一律按「否」（不放行没被确认的证据）。 */
-export function parseJingfangEvidenceVerdicts(content: unknown, count: number): boolean[] {
-  const verdicts = new Array<boolean>(count).fill(false);
-  if (typeof content !== "string" || !content.trim()) return verdicts;
+/**
+ * 解析核对结果为三档分数：2 = same，1 = close，0 = different/缺项/非法（不放行没被确认的证据）。
+ * 兼容旧格式 {id, same:true}（= same）。返回与输入等长的数组。
+ */
+export function parseJingfangEvidenceGrades(content: unknown, count: number): Array<0 | 1 | 2> {
+  const grades = new Array<0 | 1 | 2>(count).fill(0);
+  if (typeof content !== "string" || !content.trim()) return grades;
   let parsed: unknown;
-  try { parsed = JSON.parse(content); } catch { return verdicts; }
+  try { parsed = JSON.parse(content); } catch { return grades; }
   const list = parsed && typeof parsed === "object" ? (parsed as { verdicts?: unknown }).verdicts : undefined;
-  if (!Array.isArray(list)) return verdicts;
+  if (!Array.isArray(list)) return grades;
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
     const id = (item as { id?: unknown }).id;
+    if (typeof id !== "number" || !Number.isInteger(id) || id < 1 || id > count) continue;
+    const match = (item as { match?: unknown }).match;
     const same = (item as { same?: unknown }).same;
-    if (typeof id === "number" && Number.isInteger(id) && id >= 1 && id <= count && same === true) verdicts[id - 1] = true;
+    grades[id - 1] = match === "same" || same === true ? 2 : match === "close" ? 1 : 0;
   }
-  return verdicts;
+  return grades;
+}
+
+/** 只有 same 算确认（旧口径，供不区分 close 的调用方）。 */
+export function parseJingfangEvidenceVerdicts(content: unknown, count: number): boolean[] {
+  return parseJingfangEvidenceGrades(content, count).map((grade) => grade === 2);
+}
+
+/**
+ * 三档分数 → 每个证据对「是否确认」（与 jingfangEvidencePairs 同序）：same 确认；close 只在同一方证里至少有一条 same 时确认
+ *（一个方证的证据不能全靠「差不多」撑起来）；different 不确认。
+ */
+export function jingfangVerifiedFromGrades(candidates: readonly JingfangCandidate[], grades: ReadonlyArray<number>): boolean[] {
+  const verified: boolean[] = [];
+  let offset = 0;
+  for (const candidate of candidates) {
+    const own = candidate.evidence.map((_, index) => grades[offset + index] ?? 0);
+    offset += candidate.evidence.length;
+    const anchored = own.some((grade) => grade === 2);
+    // 舌象、脉象症状（舌淡苔润、脉结代、苔白）不接受「差不多」：舌脉的每个字都有区分意义（舌淡胖≠舌淡苔白，脉弦而结≠脉结代），
+    // 本机探针里二者正是 close 档放进来的两个错配。构词式守卫（首字），不另列词表。
+    candidate.evidence.forEach((item, index) => verified.push(own[index] === 2 || (own[index] === 1 && anchored && !/^[舌脉苔]/u.test(item.symptom))));
+  }
+  return verified;
+}
+
+/** 核对只判到 close 的证据对打上 approximate 标记（提示词里写「近似」而不是「≈」）。返回新的候选，不改入参。与 jingfangEvidencePairs 同序。 */
+export function jingfangMarkApproximate(candidates: readonly JingfangCandidate[], grades: ReadonlyArray<number>): JingfangCandidate[] {
+  let offset = 0;
+  return candidates.map((candidate) => {
+    const evidence = candidate.evidence.map((item, index) => (grades[offset + index] === 1 ? { ...item, approximate: true } : item));
+    offset += candidate.evidence.length;
+    return { pattern: candidate.pattern, evidence };
+  });
 }
 
 export async function pickJingfangPatternsForCase(caseState: CaseState, signal?: AbortSignal): Promise<JingfangPick[]> {
   if (!enabled() || signal?.aborted) return [];
+  // 红旗病例不出方证候选（第九轮）：红旗表示急危重线索，把它包装成「某某汤证」会把急症当成可以辨证调理的病；
+  // 本机留出集里乌头药酒中毒（心律失常）曾被选出炙甘草汤证。检测照常，只是这一段候选不进提示词。
+  if (caseState.safetyGate?.status === "red_flag") return [];
   const config = getControlledTerminologyModelConfig();
   if (!config.configured) return [];
   if (!(caseState.chiefComplaint || "").trim()) return [];
@@ -258,7 +325,8 @@ export async function pickJingfangPatternsForCase(caseState: CaseState, signal?:
       const pairs = jingfangEvidencePairs(candidates);
       const checked = await ask("jingfang_evidence_check", buildJingfangEvidenceCheckMessages(pairs), 80 + pairs.length * 24);
       if (typeof checked !== "string" || !checked.trim()) return { value: [], cacheable: false };
-      return { value: finalizeJingfangPicks(candidates, parseJingfangEvidenceVerdicts(checked, pairs.length)), cacheable: true };
+      const grades = parseJingfangEvidenceGrades(checked, pairs.length);
+      return { value: finalizeJingfangPicks(jingfangMarkApproximate(candidates, grades), jingfangVerifiedFromGrades(candidates, grades)), cacheable: true };
     } catch {
       return { value: [], cacheable: false };
     } finally {

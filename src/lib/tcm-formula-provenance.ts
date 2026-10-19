@@ -1358,7 +1358,29 @@ function withTextbookSyndromeName(reasoning: ClinicalReasoningResultV2): Clinica
   const disease = String(overview?.tcmDiseaseName || "");
   const syndrome = String(overview?.primarySyndrome || "");
   if (!disease || !syndrome || overview?.primarySyndromeResolution === "unresolved") return reasoning;
-  if (textbookRowForSyndrome(disease, syndrome)) return reasoning;
+  const exactRow = textbookRowForSyndrome(disease, syndrome);
+  if (exactRow) {
+    // 证名只差末尾的「证/证候/型」时用教材行的写法（2026-10-19 第九轮 WP9-F）：甲方标准病历 3 教材写「血虚头痛」，候选里多了一段教材诊断依据后
+    // 模型三次里两三次写成「血虚头痛证」，同一病历两次生成的证名字面不同。意思相同，字面按教材。
+    const suffix = /(?:证候|证型|证|型)$/u;
+    const plain = (value: string) => value.replace(/\s+/gu, "").replace(suffix, "");
+    if (exactRow.syndromeName && exactRow.syndromeName !== syndrome && plain(exactRow.syndromeName) === plain(syndrome)) {
+      // 教材行比模型写的长一个「证」时，正文里已经带「证」的地方不能再补一次（「血虚头痛证」→「血虚头痛证证」）。
+      const escapedSyndrome = syndrome.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+      const written = new RegExp(`${escapedSyndrome}(?![证型候])`, "gu");
+      const renameSuffix = (value: unknown) => typeof value === "string" ? value.replace(written, () => exactRow.syndromeName) : value;
+      return {
+        ...reasoning,
+        overview: {
+          ...overview,
+          primarySyndrome: exactRow.syndromeName,
+          tcmDiagnosticRationale: renameSuffix(overview.tcmDiagnosticRationale) as typeof overview.tcmDiagnosticRationale,
+          tcmDiseaseRationale: renameSuffix(overview.tcmDiseaseRationale) as typeof overview.tcmDiseaseRationale,
+        },
+      };
+    }
+    return reasoning;
+  }
   // 证名与方向正是经方方证表里的一项（太阳中风证 + 桂枝汤加减）：这是方证辨证的写法，不是教材行的近义写法，不改名
   //（2026-10-19，第八轮 WP-A；否则「营卫不和证」「寒热错杂证」这类会被拉到字面最近的教材行，再把治法与方一并锚到那一行）。
   if (jingfangPatternForSignedSyndrome(syndrome, String(overview.recommendedFormulaDirection || ""))) return reasoning;

@@ -204,6 +204,17 @@ export function symptomLevelWesternName(name: string): boolean {
   return /^R/iu.test(code) || SYMPTOM_CODE_OUTSIDE_R.test(code);
 }
 
+/**
+ * D 类的前置核对结果是否否决这次改名：meetsCriteria 明确为 true；或 decisive 是病历里逐字存在的一段（≥4 字）而 meetsCriteria 没有
+ * 明确写 false。meetsCriteria 为 false 时 decisive 只是「有一点依据但不够」，不否决。
+ */
+export function decisiveFindingVetoesD(decisive: unknown, meetsCriteria: unknown, recordText: string): boolean {
+  if (meetsCriteria === true) return true;
+  if (meetsCriteria === false) return false;
+  const quoted = typeof decisive === "string" ? compact(decisive) : "";
+  return quoted.length >= 4 && compact(recordText).includes(quoted);
+}
+
 /** 模型输出 → 可采信的改名（否则 undefined）。引文必须逐字在病历里；名称必须合规且与原名不同。 */
 export function parseWesternNameCorrection(
   content: unknown,
@@ -215,8 +226,12 @@ export function parseWesternNameCorrection(
   let parsed: unknown;
   try { parsed = JSON.parse(content); } catch { return undefined; }
   if (!parsed || typeof parsed !== "object") return undefined;
-  const { verdict, type, quote, reason, supportedName, emergencyName, missingTest } = parsed as Record<string, unknown>;
+  const { verdict, type, quote, reason, supportedName, emergencyName, missingTest, decisive, meetsCriteria } = parsed as Record<string, unknown>;
   if (verdict !== "inconsistent" || (type !== "A" && type !== "B" && type !== "C" && type !== "D")) return undefined;
+  // D 类（缺确诊依据）的否决：核对自己指出了病历里一项已够得上名称程度的客观依据（meetsCriteria 为 true，或交出逐字在病历里的 decisive
+  // 而没有说它不够），就是自相矛盾——拿不准保持原样（2026-10-19 第九轮，D 集 23 例把有造影/活检/典型体征的病名换成「X待查」）。
+  // 只管 D：A–C 说的是病历已记录的内容与病名相反，decisive 与之无关。
+  if (type === "D" && decisiveFindingVetoesD(decisive, meetsCriteria, recordText)) return undefined;
   const name = typeof supportedName === "string" ? supportedName.trim() : "";
   const quoted = typeof quote === "string" ? quote.trim() : "";
   const why = typeof reason === "string" ? reason.trim().replace(/[。；;]+$/u, "") : "";
@@ -454,15 +469,19 @@ export async function westernNameCorrectionForRecord(
         // FSGS→慢性肾炎），痰脱落细胞学阴性被当成 A 把肺癌换成肺结核。C 与通则各补一句阈值与低敏感度检查。
         "C. 诊断名说的是较重的一层（“功能不全”“衰竭”“剧吐”“重度”等需要特定指标或程度才成立的名称），而病历记录的指标、程度只够得上较轻的一层。病历记录的测量值已经达到该程度的公认阈值时（如二尖瓣反流面积占左房45%，>40%即重度）不属于 C。",
         "D. 诊断名比病历能支撑的更具体：按公认诊断标准，这个名称必须依赖某项检查结果才能成立，或必须满足病程门槛，而病历里既没有记录这项检查的结果，已记录的病程也够不上门槛。典型的如：缺铁性贫血、巨幼细胞贫血等指明贫血类型的名称需要相应检查（只有血红蛋白只能说贫血）；多囊卵巢综合征需要鹿特丹标准三项中至少两项；甲状腺功能减退症、糖尿病等以化验定义的病需要相应化验结果；慢性胃炎、消化性溃疡需要胃镜；骨质疏松症需要双能X线骨密度（DXA）结果或脆性骨折史（X线片描述「骨质疏松」不够，写“骨质疏松待查”）；某种特定病原体感染需要病原学结果；功能性消化不良、肠易激综合征、功能性便秘的时间门槛：成人是起病至今满6个月——病程写满6个月（主诉里的“半年”“1年余”“1+年”“2年”都算）就满足，不要求病历另写“持续3个月”，也不要求做过胃镜；未满18岁的患者按罗马IV儿童标准，功能性便秘满1个月、功能性消化不良和肠易激综合征满2个月就满足，不得套用成人的6个月；没满门槛时 supportedName 写“消化不良待查”“便秘待查”这类上一级名称（不写成单个症状）；功能性便秘、肠易激综合征是排除性诊断：50岁及以上起病、或有报警征象（便血、黑便、消瘦、贫血、近期排便习惯改变）的，病历没有结肠镜结果就属 D（写“便秘待查”“腹痛待查”这类上一级名称）；肠易激综合征还必须有腹痛；牙病的分型名称（急性牙髓炎、慢性牙髓炎、急性根尖周炎、牙周脓肿、智齿冠周炎等）需要口腔专科检查（牙髓活力或冷热测试、叩诊、牙周探诊、X线）才能分型，病历没有口腔检查记录时只能写“牙痛”；病历记录了叩诊、松动度、牙周探诊、牙髓测试或X线所见中任何一项的，就是做过口腔检查，不适用 D。",
+        // 2026-10-19 第九轮（D 集 113 例不合格里 23 例是核对把有依据的病名换成「X待查」）：核对只问「金标准检查有没有做」，造影、X线、
+        // 活检里的特征性所见和临床诊断标准都被当成没有依据。先找依据再判：decisive 逐字引病历里对该病名最有诊断价值的一项客观依据，
+        // meetsCriteria 判这一项连同其余记录是否已够得上名称所说的程度；够了不得判 D（服务端据 decisive 逐字核对后否决 D）。
+        "D 的前置核对（判 D 之前先做）：先在病历里找对这个病名最有诊断价值的一项客观依据——特征性的影像、造影或超声所见，病理或活检所见，确诊性化验或化验组合，或公认诊断标准里能数够条目的典型体征与病史组合——逐字写进 decisive（只能是检查、化验、影像、病理的结果，或查体得到的阳性体征；患者自述的症状、病程、病史不算，没有就写空串，meetsCriteria 写 false）；再判断这一项连同病历其余记录，按公认诊断标准是否已经够得上**这个病名所说的具体程度**，写进 meetsCriteria（true/false）。诊断标准的全部条件都要数：病程门槛、排除性诊断所需的排除（50岁及以上起病或有报警征象须有结肠镜之类）、定义性表现，缺任何一项就是 false，这时才可以判 D。meetsCriteria 为 true 时不得判 D。criteria 是带出处的诊断要点表（有 source 字段）、clinicallyDiagnosable 为 false 且 requiredTests 不为空时，表是公认标准的当前版本：只有病历里已有 requiredTests 中某一项的结果（或表里写明的替代条件）时 meetsCriteria 才能为 true，典型表现和支持性化验（嗜酸性粒细胞、IgE、红细胞形态等）不能顶替。表里没有该病（criteria 为空或只是 searchExcerpts）时按下面的原则自己判断。诊断标准允许临床诊断的病，凭典型症状加特征体征、或典型表现加一项支持性影像或化验就成立（如瓣膜病和先天性心脏病凭典型杂音与胸片或心电图，血栓闭塞性脉管炎凭病史与肢体体征，风湿热凭主要表现加前驱咽峡炎，贲门失弛缓症凭食管造影所见）；criteria 或检索摘录里写“金标准是X”“X可确诊”，不等于没做X就不能下这个病名，只有诊断标准明文写“须…才能诊断”的检查、病历又没有时才属 D。D 只用于名称指明的病种、病原、分型、病因、程度，病历里确实没有任何一项支持它的客观依据的情形。",
         "以下情况一律判 consistent：门诊常见病按典型临床表现即可诊断、诊断标准本来不要求某项检查（如上呼吸道感染、急性支气管炎、急性胃肠炎、带状疱疹、荨麻疹、湿疹、偏头痛和紧张型头痛（criteria 给了 featureRule 时按它数特征）、失眠障碍、腰肌劳损、原发性痛经；有烧心或反酸、反流症状的胃食管反流病；有典型发作性胸痛的心绞痛或冠心病；有长期饮酒史并有肝脏影像或肝功能异常的酒精性肝病），这时没做检查不算问题；贫血按病历已记录的原因命名（产后贫血、失血性贫血、月经过多所致贫血）不算过度具体；名称是急危重症（如蛛网膜下腔出血、急性心肌梗死、主动脉夹层、异位妊娠、脑卒中、休克、化脓性脑膜炎、脓毒症）时不适用 D；检查只有非特异性改变、不能确诊也不能排除；结果正常但该病在此阶段结果本来就可以正常（如痛风急性发作期血尿酸可以正常、冠心病静息心电图可以正常）；病历里写明的既往确诊（如“高血压病史10年”“胃镜示慢性胃炎”）；病历已记录支持该诊断的关键化验或检查结果（如甲亢已有 T3、T4 升高），只是还缺另一项补充检查；病历写明已在医院做过相关检查、结果正常或未见异常的（如“心内科完善相关检查后未见明显异常”），即使没有逐项列出、未见报告原件，也按已有检查结果对待，不适用 D；病历已经记录了确诊这个病的病理或活检所见、特征性影像或造影所见、或分级所需的测量值（如活检见癌细胞与病理核分裂、关节造影示盘不可复、X线示骨吸收与牙周袋），不适用 D，也不得改成上一级或“待查”；阴性结果本身不能排除该病的检查（如痰脱落细胞学、单次培养、早期影像）记录为阴性，不属于 A；你只是觉得另一个诊断更可能。拿不准时判 consistent。",
-        "判 inconsistent 时给出：missingTest（只用于 D：缺的那一项检查，写检查名称本身，不超过20字，如“血清铁蛋白”“结肠镜”“牙髓活力测试”；缺的是病程时写这个病确诊前可以开出的检查、量表或记录，如功能性消化不良写“胃镜”、功能性便秘写“排便日记”，不写“随访至病程满N个月”这类等待病程的说法），quote（A、B、C 写病历里与之矛盾的那句原文；D 写病历里支撑上一级病名的那句原文；逐字复制，不超过40字）、reason（一句话说明为什么不符或缺什么，≤30字）和 supportedName。supportedName 只能是下面两种之一：① 比原诊断更宽一层或更轻一层、现有记录已经够得上的规范病名（如“贫血”“月经稀发”“妊娠呕吐”“关节炎”“牙痛”，这些是病名，不加“待查”）；这一级只剩单个症状时写成症状加“待查”（如“乏力待查”“消化不良待查”）；② 指不出这样的病名时：D 类写原诊断名加“待查”（如“多发性骨髓瘤待查”，表示首要考虑不变、尚未确诊）；A、B、C 类写病历里最主要的症状加“待查”（如“关节痛待查”“血尿待查”）。不得换成病历同样没有证实的另一个具体病种，不得写比原诊断更重的名称，不带括号和解释。",
+        "判 inconsistent 时给出：missingTest（只用于 D：缺的那一项检查，写检查名称本身，不超过20字，如“血清铁蛋白”“结肠镜”“牙髓活力测试”；缺的是病程时写这个病确诊前可以开出的检查、量表或记录，如功能性消化不良写“胃镜”、功能性便秘写“排便日记”，不写“随访至病程满N个月”这类等待病程的说法），quote（A、B、C 写病历里与之矛盾的那句原文；D 写病历里支撑上一级病名的那句原文；逐字复制，不超过40字）、reason（一句话说明为什么不符或缺什么，≤30字）和 supportedName。supportedName 只能是下面两种之一：① 比原诊断更宽一层或更轻一层、现有记录已经够得上的规范病名（如“贫血”“月经稀发”“妊娠呕吐”“关节炎”“牙痛”，这些是病名，不加“待查”）；这一级只剩单个症状时写成症状加“待查”（如“乏力待查”“消化不良待查”）；D 类先看是不是只有名称里的某个限定（病原、分型、病因、梗阻性、程度、定位）没有依据——是，就去掉这个限定，写去掉后病历够得上的病名（如“肥厚型梗阻性心肌病”缺流出道压差，写“肥厚型心肌病”；“肺炎链球菌肺炎”无病原学，写“肺炎”），不加“待查”；原名是“病名伴症状”（如“支气管扩张伴咯血”）而缺的是病名的确诊依据时，写“病名待查”（“支气管扩张待查”），不退到症状；② 指不出这样的病名时：D 类写原诊断名加“待查”（如“多发性骨髓瘤待查”，表示首要考虑不变、尚未确诊）；A、B、C 类写病历里最主要的症状加“待查”（如“关节痛待查”“血尿待查”）。不得换成病历同样没有证实的另一个具体病种，不得写比原诊断更重的名称，不带括号和解释。",
         // 2026-10-19：A、B 类允许改成西医半自己列出的、病历检查所见已经指向的那个病（服务端只认名单里逐字有的名称）；
         // 「上一级」本身有依据时不挂「待查」；另报原名是否急危重症，红旗病例据此不把急危重病名改掉。
         "例外：A、B 类里，病历记录的检查所见本身就是另一个病的确诊依据或特征性表现（如活检、典型影像征象、确诊性化验），而这个病就在输入的 listedDiagnoses 里时，supportedName 直接写这个病（逐字照抄名单里的写法），quote 写那句检查所见。上一级病名本身已有记录支持时（如“急性尿潴留”的上一级“尿潴留”）不要再加“待查”。",
         "另给出 emergencyName：原诊断名属于需要立即处理的急危重症（如急性心肌梗死、急性胰腺炎、消化道穿孔、休克、异位妊娠、脑卒中、主动脉夹层、颅内血肿）时为 true，否则为 false。",
         // 2026-10-18：诊断标准要点来自受治理要点表或权威页面的检索摘要（western-diagnostic-criteria.server.ts），让情形 D 不再只靠上面手写的十几个病。
         "如果输入里给了 criteria（该诊断名的诊断标准要点，摘自诊疗手册、指南等权威来源）：clinicallyDiagnosable 为 true 的病按典型临床表现即可诊断，不适用 D；requiredTests 不为空时，病历里没有其中任何一项检查的结果、也不是病历写明的既往确诊，才符合 D；requiredTests 写了适用条件的（如“50岁及以上起病…时需结肠镜”），只在本例符合该条件时才要求这项检查；durationThreshold 写了病程门槛时按它判断病程够不够；definingFeatures 是定义性表现，病历已记录与之相反时属 B；有 featureRule 的（如紧张型头痛、偏头痛按国际头痛分类第3版数特征），病历记录到的特征不够它要求的项数时属 D；有 requiredHistory 的（如反应性关节炎起病前数周的腹泻或尿道炎），病历既没有记录这段病史、也没有它写的特征性表现时属 D；这两种 D 的 supportedName 写主要症状加“待查”（如“头痛待查”“关节痛待查”）。criteria 里是检索摘录（searchExcerpts）时，只把摘录里明确写出的必需检查或病程门槛当依据。criteria 与上面的通则冲突时以上面的通则为准（急危重症不用 D、病历写明的既往确诊不算）。没有 criteria 时按上面的通则判断。",
-        "只输出 JSON：{\"verdict\":\"consistent|inconsistent\",\"type\":\"A|B|C|D|\",\"quote\":\"…\",\"reason\":\"…\",\"supportedName\":\"…\",\"missingTest\":\"…\",\"emergencyName\":true|false}",
+        "只输出 JSON，decisive 与 meetsCriteria 写在最前：{\"decisive\":\"…\",\"meetsCriteria\":true|false,\"verdict\":\"consistent|inconsistent\",\"type\":\"A|B|C|D|\",\"quote\":\"…\",\"reason\":\"…\",\"supportedName\":\"…\",\"missingTest\":\"…\",\"emergencyName\":true|false}",
       ].join("\n"),
     },
     {
@@ -483,7 +502,7 @@ export async function westernNameCorrectionForRecord(
       const response = await observeModelTask({ task: "western_name_evidence_check", stage: "diagnose", model: config.model }, () => createTextModelClient(config).chat.completions.create({
         model: config.model,
         temperature: 0,
-        max_tokens: 260,
+        max_tokens: 340,
         stream: false,
         response_format: { type: "json_object" },
         ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),

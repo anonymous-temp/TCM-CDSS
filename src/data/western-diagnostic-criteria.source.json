@@ -55,25 +55,32 @@
   },
   {
    "name": "阿尔茨海默病",
-   "clinicallyDiagnosable": false,
-   "requiredTests": [
-    "淀粉样蛋白PET",
-    "脑脊液生物标志物",
-    "血浆生物标志物（如p-tau217）"
-   ],
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
    "durationThreshold": "",
    "definingFeatures": [
-    "始于无症状期出现AD神经病理改变",
-    "Core 1生物标志物异常即可确诊AD",
-    "神经病理负荷进展导致临床症状出现",
-    "Core 2生物标志物异常增加AD致症状的把握"
+    "起病隐匿，认知下降的病史明确（患者或知情者报告）",
+    "至少两个认知领域受损并影响日常生活（痴呆综合征）",
+    "排除脑血管病、路易体痴呆、额颞叶痴呆等其他原因",
+    "生物标志物（淀粉样蛋白PET、脑脊液）用于增加病理特异性，不是临床诊断的前提"
    ],
-   "quote": "An abnormal Core 1 biomarker result is sufficient to establish a diagnosis of AD and to inform clinical decision making throughout the disease continuum.",
-   "url": "https://www.uptodate.com/contents/care-of-patients-with-advanced-dementia/abstract/9,26-31",
-   "siteName": "Uptodate",
-   "title": "Medline ® Abstracts for References 9,26-31 of 'Care of patients with advanced dementia' - Medline ® Abstracts for References 9,26-31 of 'Care of patients with advanced dementia'",
-   "retrievedAt": "2026-10-18",
-   "reviewedAt": "2026-10-18"
+   "quote": "The core clinical criteria for AD dementia will continue to be the cornerstone of the diagnosis in clinical practice, but biomarker evidence is expected to enhance the pathophysiological specificity of the diagnosis of AD dementia.",
+   "url": "https://pubmed.ncbi.nlm.nih.gov/21514250/",
+   "siteName": "PubMed（NIA-AA 2011 阿尔茨海默病性痴呆诊断指南，McKhann 等，Alzheimers Dement 2011;7:263）",
+   "title": "The diagnosis of dementia due to Alzheimer's disease: recommendations from the National Institute on Aging-Alzheimer's Association workgroups on diagnostic guidelines for Alzheimer's disease",
+   "retrievedAt": "2026-10-19",
+   "reviewedAt": "2026-10-19",
+   "reviewCorrection": {
+    "basis": "原条目取自 2024 年修订标准的生物学定义（Core 1 生物标志物异常即可确诊AD），那是有条件做淀粉样蛋白PET或脑脊液/血浆标志物时的定义；门诊临床诊断沿用 NIA-AA 2011：核心临床标准仍是临床实践中诊断的基石，生物标志物只增加病理特异性（PubMed 21514250 摘要原文）。原条目要求 PET/脑脊液，使「4年进行性记忆减退、定向障碍、CSF 正常、CT 脑萎缩」的病历被改成「阿尔茨海默病待查」（2026-10-19 验收集 X-D-3151）。",
+    "before": {
+     "clinicallyDiagnosable": false,
+     "requiredTests": [
+      "淀粉样蛋白PET",
+      "脑脊液生物标志物",
+      "血浆生物标志物（如p-tau217）"
+     ]
+    }
+   }
   },
   {
    "name": "闭经",

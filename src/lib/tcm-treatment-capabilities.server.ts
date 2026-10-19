@@ -549,7 +549,7 @@ function controlledTreatmentPlan(
     // 主诉常把伴随症状一并写进去（「产后小便不畅…小腹胀急」「瘿病…失眠烦躁」），此前「命中词不在主诉里」那一条因此拦不住，
     // 癃闭、瘿病、颤证拿到的都是腹胀、失眠模板，耳穴卡拿到头痛模板（2026-10-19，r1019 验收集）。
     const diseaseHasTextbookSection = Boolean(textbookContext &&
-      textbookPlanExistsForDisease("acupuncture", textbookContext.diseaseNames[0], textbookContext.westernNames[0]));
+      textbookPlanExistsForDisease("acupuncture", textbookContext.diseaseNames[0], textbookContext.westernNames[0], patientAgeYears));
     // 「与病名相合」看本例中医病名、西医病名和对上的教材节名与又名（头风病之于头痛模板、时行感冒/流行性感冒之于流感模板都算本病）。
     const diseaseNameForms = textbookContext
       ? [...textbookContext.diseaseNames, ...textbookContext.westernNames,
@@ -609,7 +609,15 @@ function controlledTreatmentPlan(
         }
       }
     }
-    if (textbookPlan && (templateOffDisease || (!syndromeTailored &&
+    // 目录的证型配穴只对上了兼证、对不上主证，而教材本节按主证配了穴：用教材的（2026-10-19 晚，第九轮 WP9-D，H-tri-12291：
+    // 脾肾阳虚泻兼湿热内蕴证的 2 岁患儿，针刺卡写「按湿热中阻取穴」、取阴陵泉与内庭——治的是兼证，清热的内庭还与主证的阳虚相反；
+    // 教材泄泻节有肾阳虚衰（肾俞、命门）。回放 H/M/X 集共 3 张，其余两张教材没有按证型配穴，保持原状）。
+    // 兼证有独立成组证据才立（甲方口径），但卡片的「按X取穴」说的是整张卡的取穴依据，主证不能被兼证顶替。
+    const primaryOfSigned = signedSyndromeConclusion || String(textbookContext?.signedSyndromeText || "").split(/[；;]/)[0] || "";
+    const refinementOnlyFitsSecondary = Boolean(matchedRefinement) && Boolean(primaryOfSigned) &&
+      /[；;]/u.test(String(textbookContext?.signedSyndromeText || "")) &&
+      !syndromeLabelFitsSigned(matchedRefinement!.syndromeLabel, primaryOfSigned);
+    if (textbookPlan && (templateOffDisease || (refinementOnlyFitsSecondary && textbookSyndromeTailored) || (!syndromeTailored &&
       (tcmTreatmentProjectIsPointFree(projectCode) || !pointsGoverned || catalogSpecificPoints < 3 || textbookSyndromeTailored)))) {
       return { ...fromTextbook(textbookPlan), ...deferredGovernedTemplate };
     }
@@ -1039,7 +1047,7 @@ function rankedTreatmentCandidates(
     // 该项目方案时，病名本身就是适应证（亲和度取 55，低于任何标签命中）。节点认出了别的标签（睡眠节点上的推拿）
     // 说明它是另一个适应证的节点，不得凭病名改绑——「不得静默改绑到别的节点」的底线不变。
     if (score <= 0 && nodeTags.size === 0 &&
-      textbookPlanExistsForDisease(projectCode, prior.overview?.tcmDiseaseName, prior.westernDiagnosis?.primary?.name)) score = 55;
+      textbookPlanExistsForDisease(projectCode, prior.overview?.tcmDiseaseName, prior.westernDiagnosis?.primary?.name, treatmentPatientAgeYears(caseState))) score = 55;
     if (score <= 0) return;
     const key = `${projectCode}:${targetRef}`;
     const current = scoredByKey.get(key);
@@ -1319,7 +1327,7 @@ export function compileTcmTreatmentRecommendations(
     // 拔罐、刮痧是以泻为主的操作，纯虚证整张不出（2026-10-18 甲方病历 6：肾阴虚腰痛三次生成都给了拔罐/走罐，教材腰痛节只对寒湿、瘀血腰痛加拔罐）。
     // 虚实夹杂、实证照常。与灸法、刺络用同一个虚实判据。
     if ((definition.code === "cupping" || definition.code === "guasha") && signedSyndromeDeficiencyExcess(signedSyndromeText) === "deficiency") return [];
-    const { planOrigin, ...plannedTreatment } = controlledTreatmentPlan(
+    const { planOrigin, ...plannedRaw } = controlledTreatmentPlan(
       definition.code,
       matchedIndicationTags,
       node.pathogenesis || node.syndromeEvidence || prior.overview.overallPathogenesis,
@@ -1361,6 +1369,8 @@ export function compileTcmTreatmentRecommendations(
           .filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；"),
       },
     );
+    // 囟门未闭（2 岁以下，或病历写明）的患儿，针刺卡不列头顶部腧穴：卡上同时写着「囟门未闭者头顶部腧穴不针」又列着百会、四神聪，自相矛盾。
+    const plannedTreatment = openFontanelleAvoidsVertex(definition.code, patientAgeYears, currentFacts) ? withoutVertexPoints(plannedRaw) : plannedRaw;
     // 教材卡与院内目录卡在这里过同一道：针刺的补泻手法与已签名证候相符（失眠模板写的是「留针用补法」），
     // 疗程栏与操作栏不写流程用语（「复评」「课程索引」「由现场医师复核」）。
     // 写给别的证型的句子、阴虚热证里建议用灸的句子也在这里去掉（cardSentencesMatchedToSyndrome），治疗内容栏同样过这一道。
@@ -1433,7 +1443,7 @@ export function compileTcmTreatmentRecommendations(
       // 取穴方案出自成人教材，写法是「毫针常规刺，留针」——2026-10-13 独立评审：2 岁、7 岁、11 岁病例照搬成人写法。
       // 小儿、老年与妊娠未写明的人群提示：所有项目卡同一处（populationCardNote）。此前只有针刺卡有小儿、老年两句。
       ...(() => {
-        const note = `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) : false, treatmentPlan.suggestedSitesOrPoints, caseState?.patient ? conceptionCardCaution(caseState) : false)}${localSiteCardNote(definition.code, currentFacts, [prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""], treatsLocalSite)}${moxibustionBurnCardNote(definition.code, caseFacts, `${treatmentPlan.treatmentContent || ""}${treatmentPlan.techniqueBoundary || ""}${treatmentPlan.scheduleSuggestion || ""}`)}`;
+        const note = `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) : false, treatmentPlan.suggestedSitesOrPoints, caseState?.patient ? conceptionCardCaution(caseState) : false)}${fontanelleCardNote(definition.code, patientAgeYears, currentFacts)}${localSiteCardNote(definition.code, currentFacts, [prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""], treatsLocalSite)}${moxibustionBurnCardNote(definition.code, caseFacts, `${treatmentPlan.treatmentContent || ""}${treatmentPlan.techniqueBoundary || ""}${treatmentPlan.scheduleSuggestion || ""}`)}`;
         return typeof treatmentPlan.techniqueBoundary === "string" && note
           ? { techniqueBoundary: `${note}${treatmentPlan.techniqueBoundary}` }
           : {};
@@ -1618,6 +1628,42 @@ export function moxibustionBurnCardNote(code: string, caseFacts: string, cardTex
   const sensory = /感觉(?:减退|迟钝|障碍|异常)|周围神经病变/u.test(caseFacts);
   const who = diabetes && sensory ? "本例有糖尿病及局部感觉减退" : diabetes ? "本例有糖尿病" : "本例有局部感觉减退";
   return `${who}，对热不敏感：施灸以施术者手感试温、时间宜短，${sensory ? "感觉减退处不直接施灸，" : ""}防止烫伤。`;
+}
+
+/**
+ * 病历记有囟门未闭时，针刺卡写明头顶部腧穴不针（2026-10-19 晚，第九轮 WP9-D）。小儿针刺的通行提示只在 2 岁以下写「囟门未闭者头顶部腧穴不针」
+ * （PEDIATRIC_CARD_NOTE，《针灸学》刺法注意事项）；这一轮五迟、五软接上了教材小儿脑性瘫痪节（主穴百会、风府、四神聪），H-tri-14474
+ * 5 岁患儿病历写「囟门闭合不全」，卡上有百会、四神聪而无一句提示。2 岁以上病历写明囟门未闭的才补这一句；写法是有限闭集的构词式守卫
+ * （囟门 + 未闭/未合/闭合不全/闭合延迟/迟闭/过大）。2 岁以下已有通行提示，不重复。
+ */
+const FONTANELLE_OPEN_RECORDED = /囟门(?:未闭|未合|闭合不全|闭合延迟|闭合迟缓|迟闭|不闭|过大|宽大|开大)/u;
+/** 囟门区的头顶部腧穴（《经络腧穴学》：百会、前顶、囟会、上星、后顶、四神聪）。 */
+const FONTANELLE_VERTEX_POINTS: ReadonlySet<string> = new Set(["百会", "四神聪", "前顶", "囟会", "上星", "后顶"]);
+/** 2 岁以下（囟门通常未闭，与 PEDIATRIC_CARD_NOTE 同界），或 2～11 岁病历写明囟门未闭：针刺卡不列头顶部腧穴。 */
+export function openFontanelleAvoidsVertex(code: string, ageYears: number | undefined, currentFacts: string): boolean {
+  if (code !== "acupuncture" || ageYears == null || ageYears >= 12) return false;
+  return ageYears < 2 || fontanelleCardNote(code, ageYears, currentFacts) !== "";
+}
+function withoutVertexPoints<T extends { suggestedSitesOrPoints?: unknown; pointProvenance?: unknown; treatmentContent?: unknown; techniqueBoundary?: unknown }>(plan: T): T {
+  const plain = (value: unknown) => String(value || "").replace(/[（(][^）)]*[）)]/g, "").replace(/^双侧/u, "").trim();
+  const sites = Array.isArray(plan.suggestedSitesOrPoints) ? plan.suggestedSitesOrPoints.filter((site) => !FONTANELLE_VERTEX_POINTS.has(plain(site))) : plan.suggestedSitesOrPoints;
+  // 去掉头顶穴后一个穴也不剩，说明这张卡就是头顶取穴的方案：保持原样，由卡上的提示交医生判断（不把卡删成空）。
+  if (Array.isArray(sites) && sites.length === 0) return plan;
+  const stripTransfix = (text: unknown) => typeof text === "string" ? text.replace(/四神聪可向百会穴?透刺[。；;]?/gu, "") : text;
+  return {
+    ...plan,
+    suggestedSitesOrPoints: sites,
+    ...(Array.isArray(plan.pointProvenance)
+      ? { pointProvenance: plan.pointProvenance.filter((record) => !FONTANELLE_VERTEX_POINTS.has(plain((record as { point?: unknown })?.point))) }
+      : {}),
+    treatmentContent: stripTransfix(plan.treatmentContent),
+    techniqueBoundary: stripTransfix(plan.techniqueBoundary),
+  };
+}
+
+export function fontanelleCardNote(code: string, ageYears: number | undefined, currentFacts: string): string {
+  if (code !== "acupuncture" || ageYears == null || ageYears < 2 || ageYears >= 12) return "";
+  return FONTANELLE_OPEN_RECORDED.test(String(currentFacts || "").normalize("NFKC")) ? "病历记有囟门未闭，头顶部腧穴不针。" : "";
 }
 
 export function populationCardNote(

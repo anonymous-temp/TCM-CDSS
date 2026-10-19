@@ -22,7 +22,7 @@ import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAl
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { textbookDifferentialsForDisease, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
-import { resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
+import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, herbFunctionKnowledgeForDisplay, isExternalUseEfficacyClause, isKnownTcmHerbName } from "./tcm-knowledge";
@@ -32,7 +32,8 @@ import { dietAdviceAvoidsRichFood, isFoodMedicineHomologyItem, recipeHasRichIngr
 import { discontinuedMedicationLabel, type RequiredPrecaution } from "./required-precautions";
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { patentMedicineCompositionIdentities } from "./patent-medicine-duplication.server";
-import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBaseName } from "./local-patent-medicine-candidates";
+import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
+import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBaseName, TOPICAL_MEDICATION_FORM } from "./local-patent-medicine-candidates";
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
 import { withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
@@ -58,9 +59,7 @@ export type DeliveredSurfaceOptions = {
   recordText?: string;
 };
 
-/** 外用剂型（只用于注意事项措辞：外用药不说「服用」、不套口服间隔）。 */
-// 「奇正消痛贴」「红花油」「风油精」也是外用（2026-10-19 Claude 评审 H 集 H-tri-6369、2210：写成了「正在服用…间隔1小时」「已自服的红花油」）。
-const TOPICAL_MEDICATION_FORM = /(?:乳膏|软膏|凝胶|乳胶剂|搽剂|擦剂|涂剂|洗剂|洗液|贴剂|贴膏|膏药|(?<!口)贴|栓|栓剂|滴眼液|滴耳液|滴鼻液|喷雾剂|气雾剂|酊|红花油|药油|油精|活络油)$/u;
+// 外用剂型（只用于注意事项措辞：外用药不说「服用」、不套口服间隔）：词表在 local-patent-medicine-candidates（TOPICAL_MEDICATION_FORM，检索层的方向底线与重复判据共用）。
 
 /** 涂在皮肤上的外用药（栓剂经直肠吸收、全身起效，不算；解热镇痛抗炎药按全身与皮肤外用分开各留一种，见 withoutSameClassAnalgesics）。 */
 export function skinTopicalMedication(name: string, route = ""): boolean {
@@ -321,6 +320,16 @@ function precautionAvoidedMedicineCategory(line: string): string | undefined {
   return raw?.replace(/^.*的(?=[\u4e00-\u9fff]{2,})/u, "")
     .replace(/^.*?(?:服用|服|用|吃|含|与|和|同|再|其他|其它|同)(?=[\u4e00-\u9fff]{2,})/u, "")
     .replace(/^(?:服用|服|用|吃|含|再|其他|其它|同)+/u, "");
+}
+
+/**
+ * 「服本方期间不要再服其他治疗胃脘胀满的中成药，以免功效重复」：叫患者避开的是按所治问题说的一类中成药（不带「类」字），返回那个问题（「胃脘胀满」）。
+ */
+function precautionAvoidedTreatedProblem(line: string): string | undefined {
+  if (!/不宜|不要|勿|避免|停服|忌/u.test(line)) return undefined;
+  // 「不要自行加用其他治疗关节痛的中成药」说的是患者自己另加：推荐栏是医生评估的备选，由医生决定，两句不矛盾（M 集 SD-488395），不算。
+  if (/自行|自己|擅自|私自|自购/u.test(line)) return undefined;
+  return line.match(/(?:治疗|缓解|改善|针对)([\u4e00-\u9fff]{2,10}?)的(?:其他|其它|同类|类似)?(?:中成药|成药)/u)?.[1];
 }
 
 /** 「不宜再服含人参或党参的滋补类中成药」：叫患者避开的成份药名（知识库认得的）。 */
@@ -643,23 +652,27 @@ function deliveredDiagnose(reasoning: Json): void {
   // 「某某类病」是国标里的分类名，不是病名（测评截图里的「痹证类病」「虚劳类病」）。
   const overview = record(reasoning.overview);
   if (overview && typeof overview.tcmDiseaseName === "string") overview.tcmDiseaseName = overview.tcmDiseaseName.replace(/类病$/u, "");
-  // 中医鉴别诊断每例必出（甲方 10.12 测评 2.3「中医鉴别诊断未生成」）：模型没写或写的病名全被归一丢掉时，
-  // 用教材【鉴别诊断】对该病列出的病证补齐，要点是教材原文。有限结论（证候未形成）不补。
+  // 中医鉴别诊断每例必出（甲方 10.12 测评 2.3「中医鉴别诊断未生成」），且至少两项（甲方验收「鉴别诊断覆盖率」，2026-10-19）：
+  // 模型没写、写的病名被归一丢掉、或只剩一项而补写小任务也没补上时，用教材【鉴别诊断】对该病列出的病证补齐，要点是教材原文。
+  // 补写小任务（tcm-disease-differential-authoring）才按本例写区分要点，这里只是它没写出时的兜底。有限结论（证候未形成）不补。
+  const presentDifferentials = records(overview?.tcmDiseaseDifferentials);
   if (overview && !isLimitedDiagnose(reasoning) && typeof overview.tcmDiseaseName === "string" &&
-    (!Array.isArray(overview.tcmDiseaseDifferentials) || overview.tcmDiseaseDifferentials.length === 0)) {
+    presentDifferentials.length < MIN_TCM_DIFFERENTIALS) {
     // 教材一句话列几个病（「本病应与甲、乙、丙相鉴别」）时，这几个病取到的是同一句：同一句只用一次。
     // 名字与补写小任务、辨证阶段归一走同一个判据（resolveTcmDiseaseDifferentialName）：西医病名（瘾疹节的丘疹性荨麻疹）不贴。
     const diseaseName = overview.tcmDiseaseName;
-    const textbookDifferentials = textbookDifferentialsForDisease(diseaseName)
+    const presentNames = new Set(presentDifferentials.map((item) => typeof item.diseaseName === "string" ? item.diseaseName.replace(/类病$/u, "") : ""));
+    const textbookDifferentials = textbookDifferentialsForDisease(diseaseName, presentDifferentials.length === 0 ? 2 : 50)
       .flatMap((item) => {
         const resolved = resolveTcmDiseaseDifferentialName(item.name, diseaseName);
         return resolved.action === "drop" ? [] : [{ ...item, name: resolved.name }];
       })
-      .filter((item, index, list) => list.findIndex((other) => other.text === item.text) === index);
+      .filter((item) => !presentNames.has(item.name))
+      .filter((item, index, list) => list.findIndex((other) => other.text === item.text) === index)
+      .slice(0, MIN_TCM_DIFFERENTIALS - presentDifferentials.length);
     // 理由不写来源口吻（「教材列为本病的鉴别病证」），要点去掉「本病与X相鉴别。」这类开场句（2026-10-14 独立评审：元话语）。
-    // 教材对鉴别病的描述照列；按本例写区分要点的是辨证阶段的补写（tcm-disease-differential-authoring），这里只是它没写出时的兜底。
     if (textbookDifferentials.length > 0) {
-      overview.tcmDiseaseDifferentials = textbookDifferentials.map((item) => ({
+      overview.tcmDiseaseDifferentials = [...presentDifferentials, ...textbookDifferentials.map((item) => ({
         diseaseName: item.name,
         reason: "主症相近",
         distinguishingPoints: item.text
@@ -668,7 +681,7 @@ function deliveredDiagnose(reasoning: Json): void {
           .trim() || item.text,
         typicalManifestation: "",
         nextCheck: null,
-      }));
+      }))];
     }
   }
   // 推荐方向里的系统批注（「按已签名证候反查受控目录锁定，医生可改选」）不是方名的一部分。
@@ -1155,6 +1168,21 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         if (precautionAvoidedContainedHerbs(line).length > 0) return true;
         // 点了一个具体成药再说「等同类」的（「不要再服人参天麻药酒等同类祛风活血中成药」）说的是患者自己在用的那种，不是推荐的药：照留（留出例 S079）。
         if (/[\u4e00-\u9fff]{2,12}(?:丸|片|胶囊|颗粒|口服液|合剂|药酒|膏|散|冲剂)等(?:同类|其他|此类)?/u.test(line)) return true;
+        // 按所治问题说的一类（「不要再服其他治疗胃脘胀满的中成药」，第九轮 M 集 RobustSDT-0623：同页推荐栏列着胃苏颗粒）：
+        // 注意事项是对汤剂重叠的提醒，而推荐栏本来就写着「与中药饮片方案不默认联用」（《中成药临床应用指导原则》：功能相同或基本相同的
+        // 中成药原则上不宜叠加使用）。两句矛盾时取保守的一边——注意事项照留，不再推荐治这个问题的中成药；定位为「替代方案」的不动（换用汤剂，不与汤剂同服）。
+        const treatedProblem = precautionAvoidedTreatedProblem(line);
+        if (treatedProblem) {
+          const treatedWords = treatedProblem.length >= 4 ? [treatedProblem.slice(0, 2), treatedProblem.slice(-2)] : [treatedProblem];
+          const treatedConcepts = new Set(matchingMedicineClinicalProblemTerms(treatedProblem));
+          for (const item of records(formula?.patentAndWestern)) {
+            if (item.type !== "中成药" || item.positioning === "替代方案") continue;
+            const text = medicineText(item);
+            if (text.includes(treatedProblem) || treatedWords.every((word) => text.includes(word)) ||
+                matchingMedicineClinicalProblemTerms(text).some((key) => treatedConcepts.has(key))) stacked.add(item);
+          }
+          return true;
+        }
         const category = precautionAvoidedMedicineCategory(line);
         if (!category || category.length < 2) return true;
         const words = category.length >= 4 ? [category.slice(0, 2), category.slice(-2)] : [category];

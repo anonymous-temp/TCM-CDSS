@@ -35,7 +35,7 @@ import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { fillMedicineRowFromInstructionRecord, type InstructionRecordPool } from "./instruction-record-pool";
 import { formulaAnalysisHerbMentions, formulaAnalysisRoleAssignments, withoutFalseBaseFormulaEdits } from "./formula-analysis-review";
 import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
-import { patentMedicineDuplication, selfTakenMedicationCompositions, withoutRepeatedMedicineNames, withoutSameClassAnalgesics } from "./patent-medicine-duplication.server";
+import { patentMedicineDuplication, patentMedicineOpposesSignedDirection, selfTakenMedicationCompositions, signedDirectionOf, withoutRepeatedMedicineNames, withoutSameClassAnalgesics, withoutSameClassMedicines } from "./patent-medicine-duplication.server";
 import { herbRecordCautionConflict, herbRecordCautionConflicts, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
 import { specialDecoctionPhrase, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
@@ -750,6 +750,32 @@ export function modificationTriggerGroundedInM03(
 ): boolean {
   return Boolean(resolveModificationTriggerSource(trigger, prior)) || Boolean(textbookModificationForPrior(trigger, prior))
     || modelConditionalModificationForPrior(trigger, prior);
+}
+
+/**
+ * 加味之间也不得相反（十八反十九畏）。两条加减各自与方中药味无反，但同一张处方页上同时列出时就是一对禁忌药：
+ * 呕吐·脾胃虚寒的教材加减「呕吐较甚加半夏」「久呕…汗出肢冷加附子」（附子属乌头类，反半夏），2026-10-19 H 集 X-H-0163/0174
+ * 两例原样交付（甲方验收红线「处方中出现明确禁忌药对」）。按顺序保留前一条，后一条与方中药味或已保留的加味相反时不列。
+ */
+export function withoutMutuallyIncompatibleAdditions<T extends { action?: string; herbName?: string }>(
+  items: readonly T[],
+  candidateHerbNames: readonly string[],
+  dropReasons?: ModificationDropCode[],
+): T[] {
+  const present = [...candidateHerbNames];
+  const kept: T[] = [];
+  for (const item of items) {
+    const herb = typeof item.herbName === "string" ? item.herbName.trim() : "";
+    if (item.action === "加" && herb) {
+      if (modificationHerbIncompatibleWithCandidate(herb, present)) {
+        dropReasons?.push("action_conflicts_with_candidate");
+        continue;
+      }
+      present.push(herb);
+    }
+    kept.push(item);
+  }
+  return kept;
 }
 
 /** 拟加的药与方中某一味相反（十八反，含类别展开：附子属乌头类）。只看「新加的这味」参与的配对，方内原有的配对另有核对。 */
@@ -2016,8 +2042,12 @@ export function compileM04Proposal(
   const selfMedications = selfTakenMedicationCompositions(caseState);
   const medicinesBeforeDuplication = proposal.patentAndWestern.length;
   // 解热镇痛抗炎药只留一种（S145：依托考昔、对乙酰氨基酚、布洛芬并列；见 withoutSameClassAnalgesics）。
-  proposal.patentAndWestern = withoutRepeatedMedicineNames(withoutSameClassAnalgesics(proposal.patentAndWestern
-    .filter((item) => !patentMedicineDuplication(item, duplicationHerbs, selfMedications))));
+  // 第九轮：方向与已签名证候明确相反的内服中成药不列（补益药用于纯实证、攻邪药用于纯虚证、清热药用于寒证、温热药用于热证），
+  // 随后同一问题、同一给药途径的中成药与同一药理类别的西药各只留排在最前的一个（见 withoutSameClassMedicines）。
+  const signedDirection = signedDirectionOf(prior);
+  proposal.patentAndWestern = withoutSameClassMedicines(withoutRepeatedMedicineNames(withoutSameClassAnalgesics(proposal.patentAndWestern
+    .filter((item) => !patentMedicineDuplication(item, duplicationHerbs, selfMedications))
+    .filter((item) => !patentMedicineOpposesSignedDirection(item, signedDirection)))));
   const duplicateMedicinesDropped = medicinesBeforeDuplication - proposal.patentAndWestern.length;
   if (modificationIssue(proposal, prior)) return undefined;
   const cleanNarrative = (value: string | undefined, fallback: string) =>
@@ -2205,9 +2235,9 @@ export function compileM04Proposal(
   };
   const modelModifications = proposal.modifications.flatMap((item) => compileModification(item));
   // 模型的加减经上面的判据全部剔除、本证教材行列有加减时，按教材条目补 1–2 条（textbookFallbackModifications）。
-  const compiledModifications = modelModifications.length > 0
+  const compiledModifications = withoutMutuallyIncompatibleAdditions(modelModifications.length > 0
     ? modelModifications
-    : textbookFallbackModifications(prior, candidateHerbNames, (item) => compileModification(item, []));
+    : textbookFallbackModifications(prior, candidateHerbNames, (item) => compileModification(item, [])), candidateHerbNames, directionDropReasons);
   const m03FormulaNames = Array.isArray(prior.overview.recommendedFormulaNames)
     ? prior.overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
     : [];

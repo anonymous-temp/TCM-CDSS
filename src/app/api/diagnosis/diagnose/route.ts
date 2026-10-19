@@ -11,7 +11,7 @@ import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { alignWesternPrimaryAndName } from "@/lib/western-primary-reselect.server";
 import { reconcileSecondarySyndromes } from "@/lib/m03-secondary-syndrome-consistency.server";
 import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals, patientClaimRecordText } from "@/lib/m03-patient-claim-check.server";
-import { completeTcmDiseaseDifferentials } from "@/lib/tcm-disease-differential-authoring.server";
+import { completeTcmDiseaseDifferentials, prefetchTcmDifferentialTopUp } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { semanticRedFlagsForBanner } from "@/lib/banner-semantic-red-flags.server";
 import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, derivePrescriptionPermission, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, reproductiveAdviceRelevant, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText } from "@/lib/diagnosis-safety";
@@ -237,6 +237,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   console.info("[tcm-cdss:timing] m03_pre_model", preModelTimings);
   // 本例说法核对用的病历：正文前补性别、年龄、带名称的生命体征（同一份脱敏 DTO）。
   const patientClaimRecord = patientClaimRecordText(trustedInputText(safeState), safeState.patient, safeState.vitals);
+  const differentialTopUpContext = { recordText: trustedInputText(safeState), patient: { sex: safeState.patient?.sex, age: safeState.patient?.age } };
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: signal,
     structuredLimitedInformation: limitedInformation,
@@ -254,12 +255,15 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
             evidenceBudgetChars: diagnoseEvidenceBudget,
             stageInstructions,
           }),
-          // 中医半没有可保留的病名级鉴别、而教材对该病列有鉴别病证时，只补写这一项（其余病例不发请求）。
+          // 中医半的 overview 一闭合就预发补写请求（后文还有三成以上要写），收口时同一请求直接命中。
+          onInitialM03Overview: (overview: Record<string, unknown>) =>
+            prefetchTcmDifferentialTopUp(overview, differentialTopUpContext),
+          // 中医半的病名级、证候级鉴别保留下来不足两项时，只补写缺的那几项（其余病例不发请求）。
           // 辨证依据或病机写了兼夹病机、兼证栏却为空时，补成兼证或删掉那几个分句（其余病例不发请求）。
           // 同一份输入上并行核对「关于本例的说法有无病历依据」（m03-patient-claim-check.server.ts）：先落兼证一致的结果，再删无据片段
           //（已不在文中的跳过）。
           m03TcmHalfTransform: async (tcmContent: string, transformSignal: AbortSignal) => {
-            const completed = await completeTcmDiseaseDifferentials(tcmContent, { recordText: trustedInputText(safeState) }, transformSignal);
+            const completed = await completeTcmDiseaseDifferentials(tcmContent, differentialTopUpContext, transformSignal);
             const [reconciled, claimRemovals] = await Promise.all([
               reconcileSecondarySyndromes(completed, { recordText: trustedInputText(safeState) }, transformSignal),
               decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),

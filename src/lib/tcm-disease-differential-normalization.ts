@@ -16,6 +16,9 @@ import { textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
  *   · 归一不了 → 这一条丢掉（不能让西医病名冒充中医病名鉴别）。
  */
 
+/** 中医鉴别（病名级、证候级）每栏至少几项：甲方验收「鉴别诊断覆盖率：存在明显需鉴别病种/证候时，至少各有 2 条」。 */
+export const MIN_TCM_DIFFERENTIALS = 2;
+
 const TEXTBOOK_DISEASE_NAMES = new Set<string>((textbookDiseaseNamesJson as { names: string[] }).names);
 
 type CrosswalkRow = { westernName: string; tcmDisease: string };
@@ -44,7 +47,7 @@ function governedCanonical(value: string): string {
  * 教材外科、妇科各节也列西医病名（瘾疹节的丘疹性荨麻疹、蛇串疮节的肋间神经痛），所以西医写法（对照表或缩写表里有、或带西医构词）
  * 仍走下面的对照归一或丢弃。
  */
-const WESTERN_DISEASE_FORM = /性|炎|综合征|症$|瘤|癌|感染|溃疡|结石|梗[死塞]|增生|硬化|障碍|紊乱|病毒|细菌|神经|血管|细胞|淋巴|[A-Za-z]/u;
+export const WESTERN_DISEASE_FORM = /性|炎|综合征|症$|瘤|癌|感染|溃疡|结石|梗[死塞]|增生|硬化|障碍|紊乱|病毒|细菌|神经|血管|细胞|淋巴|[A-Za-z]/u;
 /**
  * 只收中医病证名的构词：二到四个字、以痛/疮/痹/汗/衄/证/痨收尾（背痛、尻痛、真头痛、胃脘痛、脱汗、战汗、舌衄、抱儿痨、脓窝疮）。
  * 教材全表 460 对鉴别里，放宽到「教材列了就收」会新收进肠梗阻、直肠息肉、尖锐湿疣、血友病这类西医病名，并让荨麻疹不再归一成瘾疹，
