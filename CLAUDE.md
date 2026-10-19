@@ -1177,7 +1177,117 @@ Round 5 (718e1ea) was re-judged with qwen, so that comparison uses one judge.
   - Some of these do have a recorded second group: RobustSDT-0442 has 食欲不振 + 大便溏薄 and still got only 肝气郁结证.
 - **New qwen-visible gap in H:** when no acupuncture card matches the disease, only home acupressure is delivered (7+ cases: 噎膈, 腱鞘囊肿, 膝痹, 脑瘫, 眼病, 鼻衄, 脱肛).
 
-**Not deployed.** Production is still 4a6e9cc (10/18). Rounds 1–8 are local commits only (a609be4 → b23e3e3).
+**Production after round 8.** 324ff55 was deployed on 2026-10-19 23:19 Beijing (15:19 UTC) (tag `20261019-324ff55-prebuilt`, same release directory and `20260927-dsrepair` override); `verify:deployed-image` and `regress:prod-smoke` passed. The host's telemetry archive shows bd86afb had gone out earlier the same day. Rollback is the previous image with the compose backup in the release directory.
+
+**Round 9 (same day): the customer's acceptance standard.** The user sent the customer's acceptance standard and asked that its P0/P1 modules be made sound first:
+- **1.1 core metrics:**
+  - P0: red flags ≥95% (over-warning counts as a miss), TCM diagnosis ≥95% (disease 0.5 + syndrome 0.5), traceable basis ≥90%, Western diagnosis ≥90%, dose safety / 十八反十九畏 / special-population contraindications 100%, 随证加减 ≥90%.
+  - P1: differential coverage ≥90% (at least 2 disease and 2 syndrome differentials), 治则治法 / formula choice / 配伍 / 中成药推荐 ≥90%.
+  - P2: lineage, pathogenesis, formula provenance, 外治 ≥85%, care, follow-up, same-case consistency.
+- **1.2 red lines (one veto each):**
+  - a missed red flag;
+  - a dose over 2× the pharmacopoeia with no warning;
+  - 十八反;
+  - a contraindicated herb for a special population;
+  - ≥5/30 cases wrong on both disease and syndrome;
+  - ≥3 mutually exclusive 治法 within one case class.
+- **2 latency:** the customer measured 灵犀 M02/M03/M04 P90 at 17/41/38 s, against a competitor at 3.5/8/8 s.
+
+Plan and agent notes: `~/runlogs/r1018/work/r1021/` (`TODO9.md`, `COMMON9.md`, one directory per work package with a `diagnosis.md`); P0 audit `p0-audit.mjs`. Seven Sonnet agents (WP9-A…G) worked in the worktree `~/worktrees/r1021-fix`; commit 5b102e4. Suites `test:r1021-main|jingfang|differentials|compound|cards|western|diseasepick|medicines`.
+
+- **P0 audit on round-8 outputs (1,082 prescriptions).** Dose over the pharmacopoeia ceiling: 0; over 2×: 0. Pregnancy-prohibited, child-toxic and organ-failure herbs: 0. 十八反: 2, both between two **added** herbs (理中丸 加半夏 + 加附子, X-H-0163/0174). Each addition was checked only against the formula, never against the other additions. `withoutMutuallyIncompatibleAdditions` in the compiler now keeps the first of an incompatible pair.
+- **Latency on production** (customer request shape, answered follow-up, cold, 32 chains): M02 p50 6.0 / p90 10.1 s, red-flags 5.1 / 6.7, M03 12.1 / 14.3, M04 10.8 / 12.4, M05 1.0 / 2.9. Server telemetry for 10/17–10/19 agrees: M03's pre-model work is p50 2.9 / p90 6.0 s, mostly facts extraction, and the two parallel halves take p50 9.8 / p90 13.7 s. The customer's 41/38 s figures predate the 10/12 slimming.
+  - **Answered-path precompute** (`precomputeAnsweredPath` in `no-answer-precompute.server.ts`, called by the red-flags route). The skip path was already precomputed (10/13); an answered follow-up was cold. Now, when the red-flags call carries an answered follow-up, it starts diagnose → prescribe over loopback with the same case state the HIS sends next, and the HIS's diagnose call joins it.
+  - Conditions: result reuse on (production only), `CDSS_REDFLAGS_PRECOMPUTE` not `false`, no regenerate header or parameter, an API-token or Bearer caller (not the page), a chief complaint, and a user answer right after an assistant question.
+  - `test:r1021-main` 2.1 pins that `answeredCaseState` has the same stage fingerprint as the HIS's diagnose request.
+  - M02's own critical path is facts extraction on `qwen3.8-max`; it was not touched, because moving facts off the max tier has released dose before (9/11, 9/19).
+- **WP9-B differentials ≥2.** In round 8, 30% of 1,340 outputs had fewer than two TCM disease differentials (syndrome: 7). There were three causes:
+  - the prompt said 1–2;
+  - normalization dropped Western and symptom-level names;
+  - the authoring task ran only at zero.
+
+  Now:
+  - the prompt asks for 2–3;
+  - the authoring task (`tcm-disease-differential-authoring.server.ts`) fills up to two from the textbook list, then from the standard TCM disease names of the patient's department (63% of textbook diseases list fewer than two retainable differentials), through the same predicate as delivery (`resolveTcmDiseaseDifferentialName`). It also fills syndrome differentials;
+  - it is **prefetched while the TCM half streams** (`onInitialM03Overview` → `prefetchTcmDifferentialTopUp`) and joined at the merge through the small-task memo. Measured wait at the merge: 0–64 ms. It needs `CDSS_SMALL_TASK_MEMO` on and parallel M03;
+  - the delivered-surface fallback also fills to two.
+
+  Live, 20 cases: 13/20 under two → 0/20. Offline, 120 deficient outputs: 95% filled.
+- **WP9-E Western over-downgrade.** Of 113 D-set failures:
+  - 23 were the name check downgrading a name the record proves;
+  - 25 were the model writing the parent name itself;
+  - 28 were a wrong direction;
+  - 11 missed a complication;
+  - 20 were reference granularity, which matches the customer's doctrine.
+
+  The A1 root cause was the **live web excerpts**: 「金标准是食管测压」「超声心动图可确诊」 made "the gold-standard test was not done" read as missing evidence (88 D hits with search on, 27 with it off). Changes:
+  - the check now writes `decisive` (a verbatim test, imaging, pathology or sign; never a symptom or course) and `meetsCriteria` first;
+  - `decisiveFindingVetoesD` rejects a D downgrade when either holds;
+  - criteria-table rows with `clinicallyDiagnosable=false` + `requiredTests` still require one of those tests, so 缺铁/PCOS/dental/asthma keep the 10/17 behaviour;
+  - a qualifier-only downgrade drops the qualifier (肺炎链球菌肺炎 → 肺炎), and 「病名伴症状」 becomes 「病名待查」, not the symptom;
+  - Alzheimer's is clinically diagnosable (NIA-AA 2011, PubMed 21514250);
+  - the Western task asks for the most specific level the decisive finding supports and for complications that have objective evidence.
+
+  Live subset of 49, re-judged by the same judge: 18 → 31 pass.
+- **WP9-F disease pick.** The closed-set pick now receives each candidate's textbook definition and diagnostic basis (`buildTextbookDiseasePickRequest`). A picked disease whose best row fits the record clearly better (margin `PICKED_DISEASE_ROW_FIT_MARGIN` = 4) moves first (`promoteBestFitPickedDisease`). `withTextbookSyndromeName` writes the textbook's 证 suffix form. Held-out S078 (虚劳) and S151 (咳嗽) are right in the live chain; the customer's ten are unchanged.
+- **WP9-C compound syndromes.** M-set references are compound in 86 of 360 cases (27% pass). Only 33/360 outputs had a 兼证.
+  - **What it is not.** Re-prompting was not the lever. The model cannot tell "should add" from "should not" by content: the customer's 病历3/4 second groups look as specific to it as a real compound case.
+  - **Second path in `m03-secondary-syndrome-consistency.server.ts`.** A group finder plus a specificity verifier, each with verbatim quotes. It runs only when the record fits the main syndrome's textbook row poorly (`textbookPatternFit` < 0.30). Customer cases sit at 0.20–0.50, held-out at 0.10–0.44, and the hand-labelled compound cases at 0.00–0.27. Switch: `CDSS_M03_SECONDARY_GROUP_CHECK`.
+  - **Renaming keeps compound names.** `textbookNearestRow` may not drop 气/郁滞 or the organs of a two-organ name. Renames over 6,233 probes went from 504 to 72, all synonyms.
+  - **Live result.** On 15 should-add cases: 0/15 → 22 of 30 runs. On 50 protected runs (customer and held-out): 0 added.
+  - **Judge result.** The qwen judge barely moved, because most failing compound cases have the **main** syndrome wrong, not a missing second group.
+- **WP9-A 经方方证 calibration.** On the 17 X cases whose answer is a formula pattern, the pick went from 5 right / 1 wrong / 11 empty to 8 / 1 / 8. M03 adopted 3 of the 8 correct picks (was 1 of 5). The changes:
+  - one verbatim quote containing two key symptoms counts twice;
+  - 「不」-initial key symptoms (不大便) are not denials;
+  - an in-clause corroboration branch: ≥2 confirmed key symptoms from the same 条文, at least one not generic, and no other pattern covering them all;
+  - the evidence check has three levels (same / close / different). A "close" is accepted only next to a "same" in the same pattern, never for tongue or pulse, and with ≥3 distinct key symptoms;
+  - red-flag cases get no candidates;
+  - the M03 rule compares the textbook row and the pattern discriminator by discriminator.
+
+  Customer cases are unchanged, and held-out cases gained no new picks.
+- **WP9-D acupuncture coverage.** Of the H-set cases that got only home acupressure, most have no textbook section (the list is in `cards/diagnosis.md` §3; nothing is invented for them). Changes:
+  - textbook aliases the generator had not collected: 五迟 → 小儿脑性瘫痪, 鼻衄/倒经, 突发性耳聋 = 暴聋, 踝关节外侧韧带损伤;
+  - two-character Western names match acupuncture sections;
+  - child-only sections need age < 18;
+  - textbook points follow the **main** syndrome when the catalog matched only the 兼证;
+  - vertex points are dropped and the reason is stated when the fontanelle is recorded open;
+  - the textbook's general frequency and course are used when a section has none (it was missing on 64% of cards).
+
+  Customer and held-out cards are verbatim unchanged except the frequency line.
+- **WP9-G patent/Western medicines** (new judge module K, 中成药推荐, 87.2% on M-r19i). Changes:
+  - same pharmacological class with the same problem and route keeps one (`src/data/western-drug-pharmacology-class.json` from `scripts/build-western-drug-class.py`);
+  - a direction floor against the signed syndrome (warming medicines for a heat syndrome, and the reverse);
+  - no recommendation that the precautions forbid, or that duplicates a medicine the record says is already taken.
+
+  The 40-case K subset went from 22/40 to 33/34.
+- **Gate wording.** `test:doctor-vocabulary` rejects internal words such as 闭集 and 受治理 inside prompt literals that can reach doctor-visible text. Two agent prompts had to be reworded.
+
+**Round 9 measured (qwen3.8-max, same judge both sides; round 8 = 324ff55 outputs r19i/local22, round 9 = 5b102e4 fresh generation r19j/local23).** Deterministic checks first, because they do not depend on the judge.
+
+| Check | Round 8 | Round 9 |
+|---|---|---|
+| P0 audit, all sets (~1,700 outputs): dose > ChP ceiling / > 2× / 十八反 incl. 加减 / pregnancy-prohibited / child-toxic / organ | 0 / 0 / 2 / 0 / 0 / 0 | 0 / 0 / 0 / 0 / 0 / 0 |
+| Fewer than 2 TCM disease differentials | M 82/360, X 108/330, H 132/330 | M 0/360, X 5/330, H 5/330, customer + held-out 1/62 (黧黑斑: the only candidate is a synonym) |
+| Disease 0.5 + syndrome 0.5 vs answer, customer 10 × 3 / held-out 29 | 100% / 91.4% (2 wrong on both) | 100% / 100%; identical across the three customer runs |
+| A gate decisions | — | 0 of 340 changed |
+| Local stage medians (M03 / M04) | 9.9 / 10.2 s | 9.9 / 10.3 s |
+
+| Judged (qwen) | Round 8 | Round 9 |
+|---|---|---|
+| Customer 10 × 3, failures per column | 0 everywhere | run 1: 饮片 1 (病历7 empty 加减); runs 2–3: 0. Separately, 病历7 run 2 was a **non-dose page** (see below); the judge put it under 红旗与剂量档 |
+| Held-out 32 | every block ≥ 90 | every block 100 except 西医 26/29 = 89.7 (S032 中度贫血 at Hb 92 and S102 PCOS were the same names that passed in round 8; S079 is check variance) |
+| A red flags | 330/340 | 328/340 (outputs identical; the two flips are judge variance) |
+| B follow-up | 97.3 | 97.9 |
+| X C / E / G | 69.1 / 89.1 / 78.2 | 73.4 / 89.1 / 80.9; formula-pattern answers 3/22 → 7/22 |
+| M C / E / F / G / H / I / J / K | 49.0 / 55.2 / 94.9 / 62.5 / 94.9 / 100 / 97.7 / 87.2 | 51.9 / 61.8 / 96.2 / 68.2 / 94.8 / 99.7 / 98.5 / 90.8 |
+| H cards | 89.2 | 90.9 |
+| D Western | 64.6 | 62.2 |
+
+- **D did not move on the full set.** Among cases whose name changed, 23 went fail → pass (the over-downgrades this round targeted: 室间隔缺损, 贲门失弛缓症, 肥厚型心肌病, 阿尔茨海默病…) and 26 went pass → fail. The second group is the Western half writing a different disease on a fresh generation (腰椎转移瘤 → 甲状腺瘤), plus two side effects of the new rules: a complication appended to the name (「急性心肌炎伴心力衰竭」「支气管肺炎合并心力衰竭」) and qualifier dropping (急性肾盂肾炎 → 尿路感染, 脊髓型颈椎病 → 颈椎病). Among unchanged names, 15 of 198 verdicts flipped, which is the judge's own variance.
+- **New server defect found by this run, not fixed (the user asked for a stop and summary first).** 病历7 run 2: the model wrote 「…白酒，辛热积于胃腑…」. `scrubPhi` in `diagnosis-safety.ts` (inside the evidence output transform) matches punctuation + surname 辛 + 1–2 characters + 于, and 辛热 is not in the clinical-lexeme exemption, so 「辛热积」 became 「[已脱敏]」. The signed M03 kept the original text, `crossStageReasoningIssue` reported `pathogenesis_drift` at the route's final T1 recheck, and the page lost its dose. It reproduces offline (`~/runlogs/r1018/work/r1021/final/drift.mjs <r2.json> <r3.json>`): every final-transform step leaves the text alone except the evidence transform. Same class as 9/29 「患者高龄」 and 10/13 「患者全身发热」. The fix belongs in the governed lexeme grammar (性味 forms 辛热/辛温/辛凉/辛燥… as a closed group) with the two-way corpus measurement.
+- **S102 PCOS (held-out) is not downgraded** although the record has a normal ultrasound and normal hormones. The check does return D, but its quote joins the two findings in reversed order with 「；」 (「性激素六项大致正常；妇科彩超：…」), which is not a verbatim substring, so the downgrade is discarded (1 of 2 probe calls; `final/wprobe.mjs`). Not fixed.
+
+**Not deployed.** Production runs round 8 (324ff55). Round 9 (5b102e4) is a local commit.
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
