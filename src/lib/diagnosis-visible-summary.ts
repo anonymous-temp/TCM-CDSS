@@ -2791,10 +2791,11 @@ function completeSharedDiagnosisHead(parts: readonly string[]): string[] {
     }
     // 「泌尿系结石/感染」拆开后的「感染」：感染能单独成病名，但兄弟项带着部位时借来（泌尿系感染），否则与兄弟项重复成一条空泛的鉴别
     //（2026-10-17 甲方标准病历 6）。兄弟项借不出部位时原样（「感染/肿瘤」）。
-    if (!GENERIC_PATHOLOGY_NOUN.test(part) && !/^(?:感染|炎症)$/.test(part)) return [part];
+    // 「腰椎感染/结核」拆出的「结核」同理借部位成「腰椎结核」（2026-10-19 留出例 S086 第三轮复测：鉴别里孤零零一条「结核」）。
+    if (!GENERIC_PATHOLOGY_NOUN.test(part) && !/^(?:感染|炎症|结核)$/.test(part)) return [part];
     for (const donor of [...parts.slice(0, index).reverse(), ...parts.slice(index + 1)]) {
       if (GENERIC_PATHOLOGY_NOUN.test(donor)) continue;
-      const head = donor.replace(GENERIC_PATHOLOGY_TAIL, "");
+      const head = donor.replace(GENERIC_PATHOLOGY_TAIL, "").replace(/(?:感染|炎症|结核)$/u, "");
       if (head.length >= 2 && head.length < donor.length) return [`${head}${part}`];
     }
     return [part];
@@ -2810,6 +2811,11 @@ function completeSharedDiagnosisHead(parts: readonly string[]): string[] {
 function completeSharedDiagnosisTail(parts: readonly string[]): string[] {
   const modifierEnd = /[性系部道型侧]$/;
   return parts.flatMap((part, index) => {
+    // 只剩一个器官名的段（「膈肌/胸部病变」拆出的「膈肌」，2026-10-19 留出例 S046）：借兄弟项的泛指病理词尾成「膈肌病变」，借不到不单独成条。
+    if (/^[\u4e00-\u9fff]{1,3}(?:肌|膜)$/u.test(part)) {
+      const tail = parts.filter((other) => other !== part).map((other) => other.match(GENERIC_PATHOLOGY_TAIL)?.[0]).find(Boolean);
+      return tail ? [`${part}${tail}`] : [];
+    }
     if (!modifierEnd.test(part)) return [part];
     const donor = [...parts.slice(index + 1), ...parts.slice(0, index)].find((other) => !modifierEnd.test(other));
     const tail = donor?.match(/[性系部道型侧]([^性系部道型侧]{2,6})$/)?.[1];

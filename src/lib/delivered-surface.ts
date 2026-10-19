@@ -1100,7 +1100,15 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
       management.followupSafetyNet = followupWhenDoseWithheld(management.followupSafetyNet, options.doseWithheld);
     }
   }
-  else if (projected.stage === "prescribe") deliveredPrescribe(projected, options);
+  else if (projected.stage === "prescribe") {
+    deliveredPrescribe(projected, options);
+    // 方义里某一步删掉连词后面那半句、留下「…化生而，…」的残句（甲方标准病历 6 最终复测）：去掉悬空的「而」。
+    for (const candidate of records(record(projected.formula)?.candidates)) {
+      if (typeof candidate.formulaAnalysis === "string") {
+        candidate.formulaAnalysis = candidate.formulaAnalysis.replace(/(?<=[\u4e00-\u9fff])而(?=[，,；;。])/gu, "");
+      }
+    }
+  }
   else return reasoning;
   rewordDeep(projected);
   return projected as T;

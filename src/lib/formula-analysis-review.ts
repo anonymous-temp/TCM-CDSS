@@ -874,7 +874,9 @@ export function removeVerifiedHerbClaims(
   }
   if (removals.length === 0) return { text: original, removals, rejected };
   // 删掉角色后面的第一项说法时，剩下的说法与「为臣」之间留的是顿号（「黄柏、青蒿为臣、透热」，2026-10-19 甲方标准病历 10 第三轮复测）：改回逗号。
-  const tidied = tidyPunctuation(text.replace(/^[，,、]/u, "")).replace(/(为[君臣佐使]药?)、(?=[一-鿿])/gu, "$1，");
+  // 删掉连词后面那半句时，前半句末尾的「而」也去掉（「助阴液化生而，龟胶偏润」，甲方标准病历 6 最终复测）。
+  const tidied = tidyPunctuation(text.replace(/^[，,、]/u, "")).replace(/(为[君臣佐使]药?)、(?=[一-鿿])/gu, "$1，")
+    .replace(/(?<=[一-鿿])而(?=[，,；;。])/gu, "");
   const before = reviewAuthoredFormulaAnalysis(original, candidateHerbs);
   const after = reviewAuthoredFormulaAnalysis(tidied, candidateHerbs);
   if (tidied.length < 24 || (before.usable && !after.usable)) {

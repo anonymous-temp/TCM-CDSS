@@ -304,6 +304,27 @@ await check("8.3 病历声明核对不删并列的第一项、当它的谓语为
   assert.equal(claim.withoutClaimSpan("长期典型劳力相关胸闷胸痛史、明确冠心病诊断，属胸痹", "长期典型劳力相关胸闷胸痛史"), "明确冠心病诊断，属胸痹");
 });
 
+await check("6.13 西医鉴别拆分：「腰椎感染/结核」→ 腰椎感染、腰椎结核；「膈肌/胸部病变」→ 膈肌病变、胸部病变；方义删连词后半句不留「而，」", async () => {
+  const wrap = (reasoning) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const unwrap = (content) => JSON.parse(content.slice(content.indexOf("{"), content.lastIndexOf("}") + 1));
+  const split = (name) => unwrap(visible.groundStructuredPatientFacts(wrap({
+    stage: "diagnose",
+    westernDiagnosis: { primary: { name: "腰痛", supportingFacts: [] }, differentials: [{ name, reason: "需排除", distinguishingPoints: "需影像评估", nextCheck: "影像检查" }] },
+    pathogenesis: { chain: [] },
+  }), "主诉：腰痛3个月")).westernDiagnosis.differentials.map((item) => item.name);
+  assert.deepEqual(split("腰椎感染/结核"), ["腰椎感染", "腰椎结核"]);
+  assert.deepEqual(split("膈肌/胸部病变"), ["膈肌病变", "胸部病变"]);
+  const review = await jiti.import("../src/lib/formula-analysis-review.ts");
+  const knowledge = await jiti.import("../src/lib/tcm-knowledge.ts");
+  const herbs = ["熟地黄", "山药", "山茱萸", "枸杞子", "菟丝子", "鹿角胶", "龟甲胶", "牛膝"];
+  const text = "本方以左归丸为基础加减。熟地黄为君，滋肾填精；山药、山茱萸、枸杞子为臣，补益肝肾；鹿角胶、龟甲胶为佐，血肉有情，一温一润，助阴液化生而退虚热，龟胶偏润以制鹿胶之温；菟丝子、牛膝为使，强腰膝。全方共奏滋阴补肾之效。";
+  const result = review.removeVerifiedHerbClaims(text, herbs, [{ herb: "鹿角胶", clause: "鹿角胶、龟甲胶为佐，血肉有情，一温一润，助阴液化生而退虚热", claim: "退虚热" }], (herb) => knowledge.herbFunctionKnowledgeForDisplay(herb));
+  assert.ok(!/而[，,；;。]/.test(result.text), result.text);
+  const reasoning = rx(["饮食清淡。"]);
+  reasoning.formula.candidates[0].formulaAnalysis = "本方以左归丸为基础加减。鹿角胶、龟甲胶为佐，血肉有情，一温一润，助阴液化生而，龟胶偏润以制鹿胶之温。";
+  assert.equal(surface.projectDeliveredReasoning(reasoning).formula.candidates[0].formulaAnalysis, "本方以左归丸为基础加减。鹿角胶、龟甲胶为佐，血肉有情，一温一润，助阴液化生，龟胶偏润以制鹿胶之温。");
+});
+
 // ───── 8 目录锁不住的教材代表方 ─────
 await check("8.1 M03 推荐方向是教材代表方而目录锁不住（加味四物汤）：M04 照教材命名不判 formula_direction_drift；方向没写它、药味不过半、M03 已锁别的方都不算（对照）", async () => {
   const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
