@@ -658,4 +658,25 @@ await check("16.28 注意事项「龙齿捣碎后同煎」与药表龙齿先煎�
   assert.equal(out.formula.patentAndWestern[0].riskNote, "对本品过敏者禁用。孕妇慎用。");
 });
 
+await check("16.29 鉴别「无明显诱因、皮损沿一侧神经分布且以刺痛为主」：描述性并列项不在否认作用域里，整句不改；病历写着否认的一项保留「无」、只改没写到的（甲方病历 8 漆疮）", () => {
+  const rec = "患者五天前无明显诱因出现左侧胁肋部针刺样疼痛，三天前发现左侧胁肋部片状红斑，其上可见水疱。";
+  const point = (text) => {
+    const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", overview: { tcmDiseaseDifferentials: [{ diseaseName: "漆疮", distinguishingPoints: text }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+    const out = visible.groundDifferentialNegativeAssertions(content, rec);
+    return JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)).overview.tcmDiseaseDifferentials[0].distinguishingPoints;
+  };
+  assert.match(point("本例无明显诱因、皮损沿一侧神经分布且以刺痛为主，无接触漆类史"), /^本例无明显诱因、皮损沿一侧神经分布且以刺痛为主，病历未记录接触漆类史/u);
+  assert.match(point("无明显诱因、接触漆类史"), /^无明显诱因，病历未记录接触漆类史/u);
+  assert.match(point("本例无接触漆类史"), /病历未记录接触漆类史/u, "只有未记录项（对照）");
+});
+
+await check("16.30 病名写成教材某病下的一型（「石淋·湿热蕴结证」）且表里没有以它为名的节时，用那一行（淋证·石淋，石韦散；留出例 S067 曾落到外科五神汤）；鼻渊、虚劳·肺脾两虚照旧不借（对照）", async () => {
+  const t = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
+  const row = t.textbookRowForSyndrome("石淋", "湿热蕴结证");
+  assert.equal(row?.disease, "淋证");
+  assert.deepEqual(row?.formulas, ["石韦散"]);
+  assert.equal(t.textbookRowForSyndrome("鼻渊", "胆腑郁热证"), undefined);
+  assert.equal(t.textbookRowForSyndrome("虚劳", "肺脾两虚证"), undefined);
+});
+
 console.log(JSON.stringify({ suite: "r1019-round4", cases, failures: process.exitCode ? "see above" : 0 }));

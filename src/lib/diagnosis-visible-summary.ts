@@ -602,9 +602,19 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
       // 病历写到过这一项（原词或同义写法，与 unrecordedNegativesAsNotReported 同一判据）却没有否认它时，不改成「病历未记录X」：
       // 那是假话（2026-10-19 留出例 S055：病历「大便干结5天」，「药物性便秘」一行交付成「未诉便秘」）。分句原样留给净化器按病历肯定处理。
       const compactRecord = clinicalContext.normalize("NFKC").replace(/\s+/g, "");
-      const allDocumented = terms.every((term) => sourceDocumentsNegation(clinicalContext, term) || recordMentionsNegatedTerm(compactRecord, term));
-      if (allDocumented) return clause;
+      // 并列项里有一项是描述（「皮损沿一侧神经分布且以刺痛为主」）而不是一个表现名：那是对本例的肯定描述，不在「无」的作用域里，
+      // 整句不改（2026-10-19 Claude 评审甲方病历 8 第五轮：「无明显诱因、皮损沿一侧神经分布且以刺痛为主」交付成「未诉明显诱因、皮损沿…」）。
+      if (terms.some((term) => /且|为主|沿|分布|呈|局限|而非/u.test(term))) return clause;
+      const documented = (term: string) => sourceDocumentsNegation(clinicalContext, term) || recordMentionsNegatedTerm(compactRecord, term);
+      if (terms.every(documented)) return clause;
       changed = true;
+      // 病历里写着否认的那几项（「无明显诱因」）保留「无」，只把病历没写到的改成「病历未记录」。
+      const kept = terms.filter(documented);
+      const unrecorded = terms.filter((term) => !documented(term));
+      if (kept.length > 0) {
+        const head = trimmed.slice(0, trimmed.length - negative[1].length);
+        return `${head}${kept.join("、")}，病历未记录${unrecorded.join("、")}（需问诊核实后方可用于排除）`;
+      }
       return `病历未记录${object}（需问诊核实后方可用于排除）`;
     };
     const groundText = (value: unknown, entryName: string): unknown => {

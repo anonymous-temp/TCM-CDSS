@@ -1,0 +1,36 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "antepartum-bleeding-after-20-weeks",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-19",
+ "trigger": "Claude 评审 A 集（718e1ea）A-eme-0142：「妊娠37周，晨起发现阴道流血，多于月经量」红旗理由是「心率/脉搏 150次/分异常」——把「胎心率150」读成了孕妇脉搏。修掉误读后该例确定性红旗为零：产科出血规则只认「大量/持续/血块/浸湿」这类量词；同类 A-eme-0295（妊娠37周阴道流血）此前就是零红旗。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "diagnosis-safety.activeObstetricHemorrhageSignal 只认带量词的产科出血；产前出血（孕 20 周后阴道流血）无论量多少都要当日产科评估，没有对应规则。另：脉搏解析的「心率」前不排除「胎」。",
+  "exception": "冻结令允许的数值阈值 + 构词式守卫：孕周（20–42）数值阈值；阴道与出血/流血之间同一小句 6 字内；否认走既有 hasPatternWithoutNegation；「见红」不算（足月临产先兆）。脉搏解析：「心率」前紧挨「胎」不算。没有新增症状词表。",
+  "sources": "ACOG / RCOG 产前出血指南：妊娠 20 周后任何阴道流血都需医院评估（前置胎盘、胎盘早剥、前置血管）。门禁回放 gate-replay2.mjs \"孕|妊娠|胎心\"：1810 次判定 9 处改变（4 例 × 形状）：A-eme-0295、A-eme-0142、A-eme-0246 补报或改正理由，现代医案「妊娠22周阴道少量出血7天」（胎漏）补报，均为改对或更保守。"
+ },
+ "contexts": ["outpatient_record"],
+ "parity": {
+  "note": "主体句（未写量词的孕晚期阴道流血）与带量词的兄弟句门禁都必须报警。",
+  "pairs": [
+   { "subject": "妊娠37周，晨起发现阴道流血，无腹痛。", "sibling": "妊娠37周，晨起发现阴道大量流血，无腹痛。", "siblingExpect": "flagged" },
+   { "subject": "孕30周，阴道流血2小时。", "sibling": "孕30周，阴道持续流血2小时。", "siblingExpect": "flagged" }
+  ]
+ },
+ "controls": {
+  "note": "孕 20 周前、否认阴道流血、足月见红、胎心率读数本身不报这一条。",
+  "mustStillFlag": [
+   { "text": "妊娠34周，阴道流血伴下腹痛1小时。", "flag": "产科" }
+  ],
+  "mustStayReady": [
+   "妊娠30周，无阴道流血，胎心率150次/分。",
+   "孕38周，今晨见红，无腹痛。"
+  ]
+ },
+ "measurements": {
+  "before": "subject 0/2 报警（A-eme-0142 只靠胎心率误读报警）",
+  "after": "subject 2/2 与兄弟句相同；controls 不变"
+ }
+}

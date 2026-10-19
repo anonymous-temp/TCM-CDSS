@@ -1945,7 +1945,8 @@ function followedByLabUnit(text: string, endIndex: number): boolean {
 }
 
 function parsePulse(text: string): number | null {
-  const match = normalizeClinicalText(text).match(/(?:^|[^A-Za-z])(?:P|HR|心率|脉搏)["']?\s*[:：]?\s*["']?\s*(\d{2,3})\s*(?:次\/分|次每分|bpm)?/i);
+  // 「胎心率150次/分」是胎儿心率，不是孕妇的脉搏（2026-10-19 Claude 评审 A 集 A-eme-0142：红旗理由写成「心率/脉搏 150次/分异常」）。构词式守卫：心率前面紧挨「胎」不算。
+  const match = normalizeClinicalText(text).match(/(?:^|[^A-Za-z胎])(?:P|HR|心率|脉搏)["']?\s*[:：]?\s*["']?\s*(\d{2,3})\s*(?:次\/分|次每分|bpm)?/i);
   if (!match) return null;
   const value = Number(match[1]);
   // 生理可达边界之外的录入值（如 0、300 次/分）不是有效测量，交给非法值复核流程而不是危急值。
@@ -1985,7 +1986,7 @@ function invalidSpo2Values(text: string): string[] {
 function invalidPulseValues(text: string): string[] {
   const normalized = normalizeClinicalText(text);
   const out: string[] = [];
-  for (const match of normalized.matchAll(/(?:^|[^A-Za-z])(?:P|HR|心率|脉搏)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*(?:次\/分|次每分|bpm)?/gi)) {
+  for (const match of normalized.matchAll(/(?:^|[^A-Za-z胎])(?:P|HR|心率|脉搏)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*(?:次\/分|次每分|bpm)?/gi)) {
     const value = Number(match[1]);
     const valueIndex = (match.index ?? 0) + Math.max(0, match[0].lastIndexOf(match[1]));
     if (isExcludedClinicalAssertionAt(normalized, valueIndex)) continue;
@@ -2104,7 +2105,7 @@ function parseContextualTemperatureRaw(text: string): number | null {
 function parseContextualPulse(text: string): number | null {
   return parseContextualNumber(
     text,
-    /(?:^|[^A-Za-z])(?:P|HR|心率|脉搏)["']?\s*[:：]?\s*["']?\s*(\d{2,3})\s*(?:次\/分|次每分|bpm)?/gi,
+    /(?:^|[^A-Za-z胎])(?:P|HR|心率|脉搏)["']?\s*[:：]?\s*["']?\s*(\d{2,3})\s*(?:次\/分|次每分|bpm)?/gi,
     (match) => {
       const value = Number(match[1]);
       return Number.isFinite(value) && value >= 20 && value <= 250 ? value : null;
@@ -4562,6 +4563,12 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   const activeObstetricHemorrhageSignal =
     hasPatternWithoutNegation(text, /(?:孕|妊娠|怀孕)[^。；;\n]{0,40}(?:大量|大出血|持续|反复|鲜红色|血块|浸湿)[^。；;\n]{0,12}(?:阴道)?(?:出血|流血)/) ||
     hasPatternWithoutNegation(text, /(?:阴道)?(?:出血|流血)[^。；;\n]{0,30}(?:大量|大出血|持续|反复|鲜红色|血块|浸湿)[^。；;\n]{0,30}(?:孕|妊娠|怀孕)/);
+  // 妊娠 20 周以后的阴道流血（产前出血）不论量多少都要当日产科评估，排除前置胎盘、胎盘早剥（数值阈值：孕周≥20）。
+  // 此前只认「大量/持续/血块」这类量词：「妊娠37周，晨起发现阴道流血，多于月经量」（Claude 评审 A 集 A-eme-0142）的红旗
+  // 只靠把「胎心率150」误读成孕妇脉搏才出来。「见红」在足月是临产先兆，不算。
+  const gestationalWeeks = Number(text.match(/(?:孕|妊娠|怀孕)\s*(\d{2})(?:\s*\+\s*\d)?\s*周/u)?.[1] ?? NaN);
+  const antepartumBleedingSignal = Number.isFinite(gestationalWeeks) && gestationalWeeks >= 20 && gestationalWeeks <= 42 &&
+    hasPatternWithoutNegation(text, /阴道[^。；;\n，,]{0,6}(?:出血|流血)/u);
   // 非妊娠活动性大量阴道出血同样属于 bleeding 硬门。旧实现只有产科分支，且只认连续短语
   // 「阴道大量出血」；真实病案常写成「阴道出血21天，量多」「阴道流血不止，面色苍白」，
   // 甚至已经给出血色素 66g/L。三个信号都在病例里时，旧门仍然红旗为零。
@@ -4645,8 +4652,10 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   }
   if (activeObstetricHemorrhageSignal) {
     redFlags.push("妊娠期活动性大量阴道出血提示产科急症，需立即转产科急诊评估");
+  } else if (antepartumBleedingSignal) {
+    redFlags.push(`妊娠${gestationalWeeks}周阴道流血，需立即转产科急诊评估（排除前置胎盘、胎盘早剥）`);
   }
-  if (activeMajorVaginalBleedingSignal && !activeObstetricHemorrhageSignal) {
+  if (activeMajorVaginalBleedingSignal && !activeObstetricHemorrhageSignal && !antepartumBleedingSignal) {
     redFlags.push("活动性大量阴道出血伴持续/反复、重度贫血或循环灌注风险，需立即评估失血量与循环状态并急诊处置");
   }
   const breathingDistressSignal =

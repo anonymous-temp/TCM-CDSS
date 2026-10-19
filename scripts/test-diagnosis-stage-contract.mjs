@@ -4115,7 +4115,12 @@ const compiledConditionalProposal = compileM04Proposal({
   modifications: [{ trigger: "纳差便溏", targetRef: "P1", actionType: "add", herbName: "乌药", reason: "加强理气止痛" }],
   nonPharma: m04.nonPharma,
 }, heatQiPrior);
-assert.deepEqual(compiledConditionalProposal?.formula?.modifications, [], "an opposing optional modification is omitted without discarding the current prescription");
+// 2026-10-19 第六轮起：模型的加减全部剔除、本证教材行列有加减时，编译器按教材条目补 1–2 条（textbookFallbackModifications；
+// 评分细则把加减空缺列为一票否决）。这里要钉的仍是「相反方向的那一条（乌药）不留、现方不丢」；补出来的只能是教材本证加减。
+assert.ok(compiledConditionalProposal?.formula?.candidates?.[0]?.herbs?.length, "the current prescription survives");
+assert.ok(!(compiledConditionalProposal?.formula?.modifications || []).some((item) => item.herbName === "乌药"), "an opposing optional modification is omitted without discarding the current prescription");
+assert.ok((compiledConditionalProposal?.formula?.modifications || []).every((item) => /^《[^》]+》[^：]+加减：/u.test(item.evidence?.source || "")),
+  "any row left after the omission is a textbook fallback row for the signed syndrome");
 const wrappedScalarRegimenProposal = {
   schemaVersion: "tcm-cdss-m04-proposal-v1",
   candidate: {

@@ -275,6 +275,8 @@
     "test:r1019-round5-formula": "node scripts/test-r1019-round5-formula.mjs",
     "test:r1019-round5-precautions": "node scripts/test-r1019-round5-precautions.mjs",
     "test:r1019-round5-therapy": "node scripts/test-r1019-round5-therapy.mjs",
+    "test:r1019-round6-formula": "node scripts/test-r1019-round6-formula.mjs",
+    "test:r1019-round6-precautions": "node scripts/test-r1019-round6-precautions.mjs",
     "test:conception-dose-policy": "jiti scripts/test-conception-dose-policy.mjs",
     "test:pediatric-dose-rule": "jiti scripts/test-pediatric-dose-rule.mjs",
     "test:pediatric-vitals": "jiti scripts/test-pediatric-vitals.mjs",

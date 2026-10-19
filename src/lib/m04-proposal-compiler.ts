@@ -17,6 +17,7 @@ import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities
 import {
   canonicalTcmHerbIdentity,
   doseInGrams,
+  modificationDoseWithinPharmacopoeia,
   doseWithinConservativeModelLimit,
   highImpactHerbDirectionIssue,
   ordinaryHistoricalDoseDeviation,
@@ -1034,10 +1035,21 @@ type ModificationNormalization = {
   droppedReasons: ModificationDropCode[];
 };
 
+/**
+ * 加的药本就在方中（2026-10-19 第六轮；本地甲方 10 例病历 7 两次生成，清胃散的三条加减「加石膏」「加黄连」…全因
+ * action_conflicts_with_candidate 删光，交付为空）：模型说的是这味药要多用，写成「调整」这一行（接口原有的动作取值），
+ * 理由前说明「加重X用量」。不写克数：调整行不带剂量（modificationDoseWithinPharmacopoeia 只许「加」行带），用量由医生定。
+ */
+function increasedDoseReason(herbName: string, reason: string): string {
+  return /加重|加大|增加|重用|增量|加量/u.test(reason) ? reason : `加重${herbName}用量，${reason}`;
+}
+
 function normalizeModifications(
   value: unknown,
   prior?: ClinicalReasoningResultV2 | null,
   prescribedHerbNames: ReadonlySet<string> = new Set(),
+  /** 方中药味按 modificationHerbIdentity 对应的写法：「调整」行的药名必须与方中那一行逐字相同（成方合同按字面核）。 */
+  prescribedNameByIdentity: ReadonlyMap<string, string> = new Map(),
 ): ModificationNormalization {
   if (!Array.isArray(value)) return { items: [], submittedCount: 0, droppedReasons: [] };
   const governedNodeIds = new Set(
@@ -1079,7 +1091,20 @@ function normalizeModifications(
     if (governedNodeIds.size > 0 && !governedNodeIds.has(targetRef)) return drop("invalid_target");
     const herbIdentity = modificationHerbIdentity(normalizedHerbName);
     if (["remove", "adjust"].includes(actionType) && !prescribedHerbNames.has(herbIdentity)) return drop("action_conflicts_with_candidate");
-    if (actionType === "add" && prescribedHerbNames.has(herbIdentity)) return drop("action_conflicts_with_candidate");
+    if (actionType === "add" && prescribedHerbNames.has(herbIdentity)) {
+      const prescribedName = prescribedNameByIdentity.get(herbIdentity);
+      if (!prescribedName) return drop("action_conflicts_with_candidate");
+      return [{
+        ...item,
+        trigger,
+        targetRef,
+        actionType: "adjust" as const,
+        herbName: prescribedName,
+        dose: undefined,
+        reason: increasedDoseReason(prescribedName, reason),
+        ...(symptomPathogenesis ? { symptomPathogenesis } : { symptomPathogenesis: undefined }),
+      }];
+    }
     return [{
       ...item,
       trigger,
@@ -1529,7 +1554,12 @@ function normalizeM04ProposalInput(
       ? candidate.herbs.flatMap((herb) => isRecord(herb) && typeof herb.name === "string" ? [modificationHerbIdentity(herb.name)] : [])
       : [],
   );
-  const modificationNormalization = normalizeModifications(rawModifications, prior, prescribedHerbNames);
+  const prescribedNameByIdentity = new Map(
+    Array.isArray(candidate.herbs)
+      ? candidate.herbs.flatMap((herb) => isRecord(herb) && typeof herb.name === "string" ? [[modificationHerbIdentity(herb.name), herb.name.trim()] as const] : [])
+      : [],
+  );
+  const modificationNormalization = normalizeModifications(rawModifications, prior, prescribedHerbNames, prescribedNameByIdentity);
   const modifications = modificationNormalization.items;
   const rawNonPharma = isRecord(rawNonPharmaValue) ? { ...rawNonPharmaValue } : rawNonPharmaValue;
   const nonPharma = isRecord(rawNonPharma)
@@ -1608,6 +1638,101 @@ function modificationAddDose(herbName: string, modelDose: string | undefined, pe
   const base = Number.isFinite(requested) && requested > 0 ? requested : 10;
   const dose = Math.min(ceiling, Math.max(floor, base));
   return `${Number(dose.toFixed(1))}g`;
+}
+
+/** 教材加减条件里不是本例可观察的变化、而是治疗安排的写法（「可先服玉枢丹」「在针眼未发之间歇期」「治疗时除选用…」）。 */
+const TEXTBOOK_CONDITION_NOT_OBSERVABLE = /可先|可用|选用|治疗时|间歇期|之间|未发|病位|主次/u;
+/** 教材加减条件里的泛称（不是哪一种变化）：「临床可加槟榔」「方中…」「症状较严重者」「病情…」。 */
+const TEXTBOOK_CONDITION_GENERIC_TERM = /^(?:临床|方中|症状|病情|诸症|上述|上症)/u;
+
+/**
+ * 教材加减原文里药名之后说用意的那半句（「加生地黄、白茅根清热凉血止血」「加艾叶…干姜以温经止痛」）；没有时取知识库功效前两条。
+ */
+function textbookModificationReason(raw: string, herbName: string, writtenHerbs: readonly string[]): string {
+  const lastAt = Math.max(...writtenHerbs.map((name) => {
+    const at = raw.lastIndexOf(name);
+    return at >= 0 ? at + name.length : -1;
+  }));
+  const purpose = lastAt > 0
+    ? raw.slice(lastAt).replace(/^(?:等|各)?(?:药)?(?:以|而|来)?/u, "").replace(/[。；;，,].*$/u, "").trim()
+    : "";
+  // 「以加强清解暑热之力」→「清解暑热」。剩下的是另一味药、方名（「、黑锡丹」）或药类（「虫类药」）时不用。
+  const cleaned = purpose.replace(/^(?:加强|增强)/u, "").replace(/之(?:力|功|效)$/u, "");
+  if (/^[一-鿿][一-鿿、]{1,19}$/u.test(cleaned) && !/[药方丹丸散汤饮]$/u.test(cleaned) && formulaAnalysisHerbMentions(cleaned).length === 0) return cleaned;
+  const functions = getTcmHerbFunctionText(herbName).split(/[；;，,]/u).map((item) => item.trim())
+    .filter((item) => item && !/药$/u.test(item) && !/外用/u.test(item));
+  return [...new Set(functions)].slice(0, 2).join("，") || "按教材本证加减";
+}
+
+/**
+ * 模型写的随证加减经现有判据全部剔除、交付为空时，按本证教材行的加减条目确定性补 1–2 条（2026-10-19 第六轮）。
+ * 评分细则把加减空缺列为一票否决；已存输出里本地甲方 10 例病历 7（清胃散，模型三条加的药本就在主方里）、留出例 S132、S044，
+ * M-r19g 6/250、H-r19g 8/256、M-r19f 11/250 是空的。
+ * 取法：
+ *  · 只看已签名 M03 病名、证名对应的那一行（textbookRowForSyndrome），按教材原顺序；
+ *  · 条件写本例可观察的变化（有症状词，modificationConditionSymptomTerms），不是治疗安排；条件照教材原文写成「若…」——
+ *    与 10/13 定的第一类加减（教材条件、免方向检查）同一口径；
+ *  · 药不在本方、身份认得出、不是有毒或医师定量的药（确定性补写不替医生开毒性药）、药典有内服区间；
+ *  · 剂量取药典区间下限（经 modificationAddDose 与模型那一路同一夹取，儿童再按年龄分数折算），
+ *    再过成方合同的同一道剂量核对（modificationDoseWithinPharmacopoeia）；
+ *  · 然后交给与模型加减同一个编译函数（compile）：触发条件是否本证教材加减、是否与病历相抵、本例性别生育期会不会有、
+ *    偶发失眠的安神药、教材【使用注意】与病历相抵、与方中药十八反、备孕禁用，全部同一套谓词。
+ * 每条教材条目：两味一组的（交泰丸「肉桂、黄连」）方中没有的几味都过得了才一起补；三味以上并列的只取第一味过得了的。至多两行。
+ * 教材行没有可用条目时保持为空。
+ */
+export function textbookFallbackModifications<T extends { doseOrHandling: string | null }>(
+  prior: ClinicalReasoningResultV2,
+  candidateHerbNames: readonly string[],
+  compile: (item: M04Proposal["modifications"][number]) => T[],
+): T[] {
+  const row = textbookRowForSyndrome(String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""));
+  const targetRef = prior.pathogenesis?.chain?.[0]?.nodeId;
+  if (!row || !targetRef || row.modifications.length === 0) return [];
+  const present = new Set(candidateHerbNames.map((name) => modificationHerbIdentity(name)));
+  const out: T[] = [];
+  for (const entry of row.modifications) {
+    if (out.length >= 2) break;
+    const condition = String(entry.condition || "").trim().replace(/^(?:若|如果|如)/u, "").replace(/(?:者|时)$/u, "");
+    if (condition.length < 2 || condition.length > 24 || TEXTBOOK_CONDITION_NOT_OBSERVABLE.test(condition)) continue;
+    // 条件得是一种变化（症状或证候的变化），不是教材的泛称（「临床可加」「方中…」「症状较严重者」）、不夹药名方名
+    //（「若气血虚甚者，重用黄芪」「常用人参、黄芪…」）。泛称是有限闭集。
+    const trigger = `若${condition}`;
+    const terms = modificationConditionSymptomTerms(trigger).filter((term) => !TEXTBOOK_CONDITION_GENERIC_TERM.test(term));
+    if (terms.length === 0 || formulaAnalysisHerbMentions(condition).length > 0) continue;
+    const compileHerb = (written: string): T | undefined => {
+      const herbName = canonicalTcmHerbIdentity(String(written || "").trim());
+      if (!herbName || !isKnownTcmHerbName(herbName)) return undefined;
+      if (isClinicianDoseHerb(herbName) || getTcmHerbGenerationSafetyProfile(herbName).toxicity.length > 0) return undefined;
+      const limit = getTcmHerbDoseLimit(herbName);
+      if (typeof limit?.min !== "number" || typeof limit?.max !== "number" || !(limit.min > 0) || !(limit.max >= limit.min)) return undefined;
+      if (!textbookModificationForPrior(trigger, prior, herbName)) return undefined;
+      const compiled = compile({
+        trigger,
+        targetRef,
+        actionType: "add",
+        herbName,
+        dose: `${limit.min}g`,
+        reason: textbookModificationReason(String(entry.raw || ""), herbName, entry.herbs),
+      });
+      return compiled.length === 1 && modificationDoseWithinPharmacopoeia(compiled[0].doseOrHandling, herbName, "加") ? compiled[0] : undefined;
+    };
+    const absent = entry.herbs.filter((written) => !present.has(modificationHerbIdentity(canonicalTcmHerbIdentity(String(written || "").trim()))));
+    if (absent.length === 0) continue;
+    if (entry.herbs.length <= 2) {
+      // 两味一组的（「夜梦纷纭，时醒时寐，加肉桂、黄连」即交泰丸）：方中没有的几味都过得了才补、一起补，不拆开只补一味。
+      const rows = absent.map(compileHerb);
+      if (rows.some((row) => !row) || out.length + rows.length > 2) continue;
+      out.push(...(rows as T[]));
+    } else {
+      // 三味以上并列的（「口干舌燥者，加沙参、天花粉、玄参、知母」）是可选的几味：取第一味过得了的。
+      for (const written of absent) {
+        const row = compileHerb(written);
+        if (row) { out.push(row); break; }
+      }
+    }
+  }
+  if (out.length > 0) console.info("[tcm-cdss:telemetry] m04_textbook_fallback_modifications", { count: out.length });
+  return out;
 }
 
 /**
@@ -1986,7 +2111,14 @@ export function compileM04Proposal(
   const candidateHerbNames = compiledHerbs
     .map((herb) => (typeof herb.name === "string" ? herb.name.trim() : ""))
     .filter(Boolean);
-  const compiledModifications = proposal.modifications.flatMap((item) => {
+  type ProposalModification = M04Proposal["modifications"][number];
+  const candidateIdentities = new Set(candidateHerbNames.map((name) => modificationHerbIdentity(name)));
+  const compileModification = (item: ProposalModification, dropReasons: ModificationDropCode[] = directionDropReasons) => {
+    // 减、调整的药得还在最终药味里（编译时可能去掉了顺带的安神药、合并了同身份的行）：成方合同按最终药味核，对不上就整份修复。
+    if (item.actionType !== "add" && !candidateIdentities.has(modificationHerbIdentity(item.herbName))) {
+      dropReasons.push("action_conflicts_with_candidate");
+      return [];
+    }
     const node = prior.pathogenesis.chain.find((candidate) => candidate.nodeId === item.targetRef);
     const declaredDirection = [item.reason, node?.therapyDirection, node?.pathogenesis]
       .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
@@ -2000,44 +2132,44 @@ export function compileM04Proposal(
     // 条件说的正是证候起了变化，药的方向随条件走，不该拿当前主证去核——此前痰浊头痛的这条教材加减
     // 因「清热与主证方向不符」被整条丢掉（2026-10-13，合成集加减为空 12 例里的一类）。
     if (!textbookSource && item.actionType === "add" && highImpactHerbDirectionIssue(item.herbName, declaredDirection, prior)) {
-      directionDropReasons.push("direction_conflict");
+      dropReasons.push("direction_conflict");
       return [];
     }
     if (item.actionType === "add" && (incidentalSleepTriggerModification(item, prior) ||
       (!textbookSource && incidentalSleepSedativeModification(item, prior)))) {
-      directionDropReasons.push("incidental_sedative");
+      dropReasons.push("incidental_sedative");
       return [];
     }
     // 拟加的药，教材【使用注意】写明与本例已记录的情况相抵（甲方病历 3：「若头晕耳鸣、虚烦少寐：加熟地黄」，病历食欲下降、大便稀溏，
     //《中药学》熟地黄「食少便溏者忌服」）。教材加减同样不列：教材的条件是证候变化，没有替这位患者的脾胃作主。
     if (item.actionType === "add" && modificationRecordText &&
       herbRecordCautionConflict(item.herbName, modificationRecordText, modificationSyndromeText)) {
-      directionDropReasons.push("record_caution_conflict");
+      dropReasons.push("record_caution_conflict");
       return [];
     }
     const triggerSource = textbookSource ? undefined : resolveModificationTriggerSource(item.trigger, prior);
     const modelConditional = !textbookSource && !triggerSource && modelConditionalModificationForPrior(item.trigger, prior, candidateHerbNames);
     if (!textbookSource && !triggerSource && !modelConditional) {
-      directionDropReasons.push("trigger_not_current_fact");
+      dropReasons.push("trigger_not_current_fact");
       return [];
     }
     // 条件与本例相抵或本例不可能出现（教材加减同样适用：教材条件是「可预见的变化」，不是病历已否认的、或这个人不会有的症状）。
     if (modificationRecordText && modificationConditionContradictsRecord(item.trigger, modificationRecordText)) {
-      directionDropReasons.push("trigger_contradicts_record");
+      dropReasons.push("trigger_contradicts_record");
       return [];
     }
     if (caseState && modificationConditionOutsidePopulation(item.trigger, caseState)) {
-      directionDropReasons.push("trigger_outside_population");
+      dropReasons.push("trigger_outside_population");
       return [];
     }
     // 拟加的药不得与方中任何一味相反（十八反）。此前只有「可替换药味」做了这项排除，加味本身没有。
     if (item.actionType === "add" && modificationHerbIncompatibleWithCandidate(item.herbName, candidateHerbNames)) {
-      directionDropReasons.push("action_conflicts_with_candidate");
+      dropReasons.push("action_conflicts_with_candidate");
       return [];
     }
     // 备孕/未避孕：药典孕妇禁用的饮片不作为加味（方中药味由合同修复轮拦，加减是可选的备用条目，直接不列）。
     if (conceptionTier && item.actionType === "add" && chpPregnancyLabel(item.herbName)?.level === "prohibited") {
-      directionDropReasons.push("special_population_conflict");
+      dropReasons.push("special_population_conflict");
       return [];
     }
     const actionVerb = item.actionType === "add" ? "加" : item.actionType === "remove" ? "减" : "调整";
@@ -2071,7 +2203,12 @@ export function compileM04Proposal(
         confidence: "中" as const,
       },
     }];
-  });
+  };
+  const modelModifications = proposal.modifications.flatMap((item) => compileModification(item));
+  // 模型的加减经上面的判据全部剔除、本证教材行列有加减时，按教材条目补 1–2 条（textbookFallbackModifications）。
+  const compiledModifications = modelModifications.length > 0
+    ? modelModifications
+    : textbookFallbackModifications(prior, candidateHerbNames, (item) => compileModification(item, []));
   const m03FormulaNames = Array.isArray(prior.overview.recommendedFormulaNames)
     ? prior.overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
     : [];

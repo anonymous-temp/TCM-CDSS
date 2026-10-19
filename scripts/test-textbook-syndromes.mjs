@@ -219,11 +219,16 @@ assert.equal(textbook.textbookRowForSyndrome("不存在的病", "热证"), undef
   assert.deepEqual(kept.map((item) => item.herbName), ["黄连"], "教材条件式加减保留");
   assert.match(kept[0].evidence.source, /《中医内科学》头痛·痰浊头痛加减/);
   // 对照一：同一味药、触发改成病历已记录的表现（不是教材条件）→ 仍按方向核对丢弃。
+  // 2026-10-19 第六轮起，模型的加减全被剔除时按教材行补 1–2 条（textbookFallbackModifications）：这里只核被剔除的那条确实不在，
+  // 余下的都必须是教材补的条目（触发是教材原条件、出处写教材）。
+  const fallbackOnly = (rows) => rows.every((item) => /教材|《/u.test(String(item.evidence?.source || "")) && /^若/u.test(String(item.trigger || "")));
   const factTriggered = compileM04Proposal(proposal([{ ...textbookRow, trigger: "胸脘满闷" }]), prior).formula.modifications;
-  assert.deepEqual(factTriggered, [], "非教材触发的加减照旧核方向");
+  assert.ok(!factTriggered.some((item) => item.herbName === "黄连" && /胸脘满闷/u.test(String(item.trigger || ""))), "非教材触发的加减照旧核方向");
+  assert.ok(fallbackOnly(factTriggered), `剔除后只剩教材补的条目：${JSON.stringify(factTriggered.map((item) => [item.trigger, item.herbName]))}`);
   // 对照二：教材条件、但药不在该条教材加减里（把枳壳写成枳实）→ 不算教材加减。
   const wrongHerb = compileM04Proposal(proposal([{ ...textbookRow, trigger: "若痰湿中阻，胸脘满闷甚", herbName: "枳实", reason: "行气消痞" }]), prior).formula.modifications;
-  assert.deepEqual(wrongHerb, [], "药名必须在该条教材加减里");
+  assert.ok(!wrongHerb.some((item) => item.herbName === "枳实"), "药名必须在该条教材加减里");
+  assert.ok(fallbackOnly(wrongHerb), `剔除后只剩教材补的条目：${JSON.stringify(wrongHerb.map((item) => [item.trigger, item.herbName]))}`);
 }
 
 // ── 7b2. 教材没有给这一证列加减时：模型写的条件式加减在边界内接受 ─────────────────────────────

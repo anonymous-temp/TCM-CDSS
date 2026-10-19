@@ -4,6 +4,7 @@ import { ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import {
   findLocalPatentMedicineLabel,
+  labelledMedicineNamesIn,
   localPrescriptionPatentMedicineEntries,
   patentMedicineBaseName,
   type LocalPatentMedicineEntry,
@@ -233,13 +234,17 @@ export function requiredPrecautionsForCase(
   }
   const limitation = recordedMobilityLimitation(grounding);
   if (limitation) items.push({ kind: "mobility_limited_exercise", limitation });
+  // 病历里写到的药名（含后来停了、只在往事里出现的）：交付面核对注意事项点名的药是不是病历里有的。
+  const recordedDrugs = [...new Set([...labelledMedicineNamesIn(grounded), ...recorded.names, ...candidates, ...items.flatMap((item) => item.kind === "self_medication" ? [item.name] : [])]
+    .map((name) => String(name || "").trim()).filter((name) => name.length >= 2))];
+  if (recordedDrugs.length > 0) items.push({ kind: "recorded_drug_names", names: recordedDrugs });
   return items;
 }
 
 /** 给 M04 模型的一段话：逐项列出本例必须写到的注意事项，模型按本例写，服务端事后逐项核对。 */
 export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaution[]): string {
   const mobility = items.find((item) => item.kind === "mobility_limited_exercise");
-  const listed = items.filter((item) => item.kind !== "mobility_limited_exercise");
+  const listed = items.filter((item) => item.kind !== "mobility_limited_exercise" && item.kind !== "recorded_drug_names");
   const exerciseNote = mobility?.kind === "mobility_limited_exercise"
     ? `\n运动保健：病历记录患者「${mobility.limitation}」，运动保健一栏按行动受限写（坐位或床旁活动、扶物、家人陪同，量与时长减半），不写需要站立屈膝或长时间行走的功法。`
     : "";
@@ -247,14 +252,15 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
   const lines = listed.map((item, index) => {
     const order = `${index + 1}.`;
     if (item.kind === "self_medication") {
-      const parts = [`病历记录患者已自服${item.name}`];
+      const parts = [`患者已自服${item.name}`];
       if (item.composition.length > 0) parts.push(`（方剂目录组成含${item.composition.join("、")}）：写明它与本方处方里都有的药（只列你开的处方里也有的那几味）、服本方期间是否停服及原因`);
       else parts.push("：写明服本方期间是否继续服用由医生决定");
       if (item.alcoholWarning) parts.push(`；并写明服用${item.base}期间须戒酒（说明书：与酒同用可出现双硫仑样反应）`);
       return `${order}${parts.join("")}。`;
     }
     if (item.kind === "postpartum_lactation") {
-      return `${order}患者一年内分娩、哺乳情况未记录：写明如正在哺乳须先告知医生，方中哺乳期慎用或回乳的药（如大黄、麦芽）点名说明。`;
+      // 不用「患者一年内分娩、哺乳情况未记录：」这样的标题：模型会照抄成写给患者的第三人称（2026-10-19 甲方病历 3「患者一年内分娩，如正在哺乳…」）。
+      return `${order}写一句给产后一年内的患者：「产后如正在哺乳，请服药前告知医生」，并点名方中哺乳期禁用、慎用的药（禁用、慎用分开写；回乳的药如麦芽也点名）。`;
     }
     if (item.kind === "pediatric_administration") return `${order}患儿${item.ageYears < 1 ? `${Math.max(1, Math.round(item.ageYears * 12))}个月` : `${Math.floor(item.ageYears)}岁`}：写一条给家长的服药方法（少量多次、分次喂服，不要强灌，不自行加量）。`;
     if (item.kind === "elderly_administration") return `${order}患者${Math.floor(item.ageYears)}岁：写一条与年龄相关的服药注意（如起身宜缓、防跌倒）。`;
@@ -280,6 +286,6 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "conception_pregnancy_check") return `${order}写一条（患者备孕或未避孕）：服药期间如月经逾期须先验孕，确认怀孕立即停药并告知医生；不用逐味点名哪些药慎用（药表里已逐味标注）。`;
     return `${order}${item.disease}是细菌感染：写明须到医院由医生决定抗菌药物治疗，以及寒战高热、红肿迅速扩大等须立即就医的表现。`;
   });
-  return `【本例注意事项必须写到】以下各项在 nonPharma.precautions 里各写一条，排在最前，不计入条数上限：\n${lines.join("\n")}${exerciseNote}`;
+  return `【本例注意事项必须写到】以下各项在 nonPharma.precautions 里各写一条，排在最前，不计入条数上限。清单是写给你看的；写进注意事项时直接对患者说（用「您」或不写主语），不要照抄清单里「患者已自服」「病历记录」这类说法：\n${lines.join("\n")}${exerciseNote}`;
 }
 

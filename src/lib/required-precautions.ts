@@ -76,6 +76,11 @@ export type RequiredPrecaution =
    */
   | { kind: "antithrombotic_bleeding"; drugs: string[]; indication?: string }
   /** 糖尿病（病历或已签名诊断）：写一条按医嘱控糖、监测血糖、少吃甜食；饮食段里推荐的高糖食物去掉（2026-10-19 M 集 TCM-SD-453850、RobustSDT-0141、BEST4SDT-250）。 */
+  /**
+   * 不是要写的项目：病历里写到的成药、西药名（说明书目录认得的带剂型药名，加上取名办法取到的药名）。交付面据此核对注意事项里点名的药
+   *（2026-10-19 留出例 S145：病历与推荐药里都没有的「连翘败毒丸」被写成「不要再服」）。与 mobility_limited_exercise 一样只用于核对，不进注意事项。
+   */
+  | { kind: "recorded_drug_names"; names: string[] }
   | {
       kind: "diabetes_glucose";
       /** 病历写着患者本人有糖尿病，或已签名西医诊断是糖尿病（不是「待查」）；只有中医病名消渴、或「糖尿病待查」的为 false：那一句写成尽早查血糖。 */

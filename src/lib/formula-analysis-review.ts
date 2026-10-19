@@ -154,15 +154,50 @@ const SUBJECTLESS_CONTINUATION = /^\s*(?:助|又|并|且|兼|亦|还|更|以|而
  * 只删外来药名和它旁边的一个顿号/连词，本方药名留下，同句的「二药」「三味」按剩下的本方药味数改写——
  * 此前整句删，「黄柏、苍术二药共为君」（苍术已被剔出本方）删成了没有君药名的「直清下注足部之湿热」。
  */
+/** 顿号分开的一小段只是药名（「黄柏」「黄柏、苍术」里的「黄柏」）：去掉药名和引子后什么也不剩。 */
+function bareHerbList(piece: string): boolean {
+  let rest = piece;
+  for (const mention of [...formulaAnalysisHerbMentions(piece)].sort((left, right) => right.start - left.start)) {
+    rest = `${rest.slice(0, mention.start)}${rest.slice(mention.end)}`;
+  }
+  return !/[一-鿿]/u.test(rest.replace(/^(?:以|佐以|配以|伍以|加)/u, ""));
+}
+
 function withoutForeignHerbNames(clause: string, foreignSpans: readonly Span[], ownCount: number): string {
   if (ownCount === 0) return "";
   let out = clause;
   for (const span of [...foreignSpans].sort((left, right) => right.start - left.start)) {
     let start = span.start;
     let end = span.end;
+    // 外来药自成顿号一小段、带着自己的说明（「黄柏苦寒清热燥湿、苍术燥湿」，2026-10-19 留出例 S145）：连同说明整小段去掉。
+    // 此前只去药名，剩「黄柏苦寒清热燥湿燥湿」。前一小段只是药名（「黄柏、苍术二药共为君」）时仍只去药名。
+    const nextSeparator = out.indexOf("、", end);
+    const clauseTail = out.slice(end).search(/[，,；;。]/u);
+    const pieceEnd = nextSeparator >= 0 ? nextSeparator : clauseTail >= 0 ? end + clauseTail : out.length;
+    const ownPredicate = out.slice(end, pieceEnd);
+    const predicateOnly = /[一-鿿]/u.test(ownPredicate) && formulaAnalysisHerbMentions(ownPredicate).length === 0;
+    if (predicateOnly && out[start - 1] === "、") {
+      const previousStart = out.lastIndexOf("、", start - 2) + 1;
+      if (!bareHerbList(out.slice(previousStart, start - 1))) {
+        out = `${out.slice(0, start - 1)}${out.slice(pieceEnd)}`;
+        continue;
+      }
+    }
+    if (predicateOnly && start === 0 && nextSeparator >= 0 && !bareHerbList(out.slice(nextSeparator + 1))) {
+      out = out.slice(nextSeparator + 1);
+      continue;
+    }
     if (/[、和及与]/.test(out[start - 1] || "")) start -= 1;
     else if (out[end] === "、") end += 1;
     out = `${out.slice(0, start)}${out.slice(end)}`;
+    // 去掉药名后前后两段说明连成同一个词叠写（「清热燥湿」＋「燥湿」）：只留一个。
+    for (let width = 4; width >= 2; width -= 1) {
+      const left = out.slice(Math.max(0, start - width), start);
+      if (left.length === width && /^[一-鿿]+$/u.test(left) && out.slice(start, start + width) === left) {
+        out = `${out.slice(0, start)}${out.slice(start + width)}`;
+        break;
+      }
+    }
   }
   return out
     // 「五味子」的「五味」是药名，不是味数（2026-10-19 M 集 0486：删掉外来药后「煅牡蛎、五味子为佐」改成了「煅牡蛎、二味子为佐」）。
@@ -1171,15 +1206,26 @@ export function reviewAuthoredFormulaAnalysis(
           const next = rest.match(/^[^，,；;。！？!?：:]*[，,；;。]?/)?.[0] || "";
           // 后半句点了别的药、但那味药不是它的主语（「助当归安其心神」「又制黄连苦寒伤胃」「其中与炙黄芪相使」）：仍是被删那味药的说明，
           // 一并删去（2026-10-19 M 集 BEST4SDT-279、RobustSDT-single_0641，H 集 12291：删掉安神药、干姜之后留下没有主语的半句）。
+          // 后面是定角色的那一句（「共为君药」）：说的是前面几味药合起来的角色，留下（下面按剩下的味数改「共为」）。
           if (!next || (formulaAnalysisHerbMentions(next).length > 0 && !SUBJECTLESS_CONTINUATION.test(next)) ||
-            /^\s*(?:全方|本方|诸药|共奏|合用|全)/.test(next)) break;
+            /^\s*(?:全方|本方|诸药|共奏|合用|全)/.test(next) || /^\s*(?:共|同|合|均|并|皆|俱)?为[君臣佐使]/u.test(next)) break;
           rest = /。$/.test(next) && !opensSentence ? `。${rest.slice(next.length)}` : rest.slice(next.length);
           if (/[；;。]$/.test(next)) break;
         }
       }
       if (kept === "" && opensSentence) rest = rest.replace(/^\s*。/u, "");
+      // 「共为君药」「均为臣」只剩一味作主语时去掉「共/均」（2026-10-19 留出例 S145「黄柏苦寒清热燥湿，共为君药」；「同为君」「并为」常是
+      // 「也是君药」，不动）。数的是这一段
+      //（上一个分号或句号之后）到删改处为止的本方药；这一句前面还有没定角色的段（「金银花甘寒；连翘…、苍术…，共为君」）时不改。
+      const sentenceStart = text.lastIndexOf("。", bounds.start - 1) + 1;
+      const segmentStart = Math.max(sentenceStart, text.lastIndexOf("；", bounds.start - 1) + 1, text.lastIndexOf(";", bounds.start - 1) + 1);
+      const earlierSegments = text.slice(sentenceStart, segmentStart);
+      const segmentOwn = new Set(formulaAnalysisHerbMentions(`${text.slice(segmentStart, bounds.start)}${kept}`)
+        .map((mention) => identityOf(mention.token)).filter((identity) => ownIdentities.has(identity))).size;
+      const singleSubject = segmentOwn === 1 && (!earlierSegments.trim() || ROLE_ASSIGNMENT.test(earlierSegments));
       const following = rest.replace(/^([，,]?\s*)([二两三四五六七八九])(药|味)(?!子)(合|共)?/, (match, lead: string, _numeral: string, unit: string, together: string | undefined) =>
-        ownCount >= 2 ? `${lead}${CHINESE_NUMERAL[ownCount] || ""}${unit}${together || ""}` : ownCount === 1 ? lead : match);
+        ownCount >= 2 ? `${lead}${CHINESE_NUMERAL[ownCount] || ""}${unit}${together || ""}` : ownCount === 1 ? lead : match)
+        .replace(/^([，,]?\s*)(?:共|合|均|皆|俱)(为[君臣佐使])/u, (match, lead: string, role: string) => singleSubject ? `${lead}${role}` : match);
       text = `${text.slice(0, bounds.start)}${kept}${following}`;
     }
     adjustments.push("foreign_clause_removed");

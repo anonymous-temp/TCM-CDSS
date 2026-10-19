@@ -92,6 +92,47 @@ export function findLocalPatentMedicineLabel(name: string): LocalPatentMedicineE
   return undefined;
 }
 
+/**
+ * 一段文字里点名的、本地说明书目录认得的成药与西药（2026-10-19，留出例 S145 注意事项凭空出现「不要再服连翘败毒丸」）。
+ * 只认带剂型的写法（丸、片、胶囊、颗粒、口服液…）：全名或去剂型的基础名对上目录即算，从右往左逐位取最长；
+ * 不带剂型的「当归」即便对得上「当归丸」的基础名也不算药名。目录按全名、基础名建一次索引。
+ */
+let labelledNameIndex: { full: Set<string>; base: Set<string> } | undefined;
+function labelledNames(): { full: Set<string>; base: Set<string> } {
+  if (labelledNameIndex) return labelledNameIndex;
+  const full = new Set<string>();
+  const base = new Set<string>();
+  for (const entries of [ENTRIES, localPrescriptionPatentMedicineEntries()]) {
+    for (const entry of entries) {
+      const name = entry.name.normalize("NFKC").replace(/\s/g, "");
+      full.add(name);
+      const stem = patentMedicineBaseName(name);
+      if (stem.length >= 2 && stem !== name) base.add(stem);
+    }
+  }
+  labelledNameIndex = { full, base };
+  return labelledNameIndex;
+}
+export function labelledMedicineNamesIn(text: string): string[] {
+  const source = String(text || "").normalize("NFKC");
+  const { full, base } = labelledNames();
+  const found: string[] = [];
+  for (let end = source.length; end >= 3; end -= 1) {
+    if (!PATENT_DOSAGE_FORM_SUFFIX.test(source.slice(Math.max(0, end - 4), end))) continue;
+    for (let length = Math.min(12, end); length >= 3; length -= 1) {
+      const name = source.slice(end - length, end);
+      if (!/^[\u4e00-\u9fffA-Za-z0-9]+$/u.test(name)) continue;
+      // 结尾已是剂型（上面只在剂型处取结尾）；基础名索引只收两个字以上的。
+      if (full.has(name) || base.has(patentMedicineBaseName(name))) {
+        if (!found.includes(name)) found.unshift(name);
+        end -= length - 1;
+        break;
+      }
+    }
+  }
+  return found;
+}
+
 /** 中成药说明书条目（按全名，再按去剂型基础名回退）；基准比对器据此判定「同类中成药」。 */
 export function findLocalPatentMedicineEntry(name: string): LocalPatentMedicineEntry | undefined {
   const raw = String(name || "").normalize("NFKC").replace(/\s/g, "");

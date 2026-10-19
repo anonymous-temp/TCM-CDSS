@@ -457,6 +457,15 @@ export function textbookRowForSyndrome(diseaseName: string, syndromeName: string
     const exact = disease.rows.find((row) => syndromeCore(row.syndromeName) === target || syndromeCore(row.syndrome) === target);
     if (exact) return exact;
   }
+  // 病名本身是教材某病下的一型（「石淋」是淋证的一型，不是一节）、表里没有以它为名的节：用那一行（2026-10-19 Claude 评审留出例 S067：
+  // 模型写「石淋·湿热蕴结证」，查不到行，选方落到外科同名证的五神汤；上一轮写「淋证·石淋」时是石韦散）。只认内科类（优先级≤1）、
+  // 全表只属一个病的型名。
+  if (named.length === 0) {
+    const diseaseCore = syndromeCore(diseaseName);
+    const subtypeRows = diseaseCore.length >= 2 ? DISEASES.filter((disease) => CANDIDATE_BOOK_PRIORITY[disease.bookKey] <= 1)
+      .flatMap((disease) => disease.rows.filter((row) => syndromeCore(row.syndromeName) === diseaseCore || syndromeCore(row.syndrome) === diseaseCore)) : [];
+    if (subtypeRows.length > 0 && new Set(subtypeRows.map((row) => row.disease)).size === 1) return subtypeRows[0];
+  }
   // 病名对上了教材的节、只是该节没有这个证名时，到此为止：不到别的病里找同名证（2026-10-17：虚劳·肺脾两虚证
   // 找到了肺胀的「肺脾两虚证」，锚定把治法换成「补肺健脾，降气化痰」、方换成六君子汤合玉屏风散，病名还会被改成肺胀）。
   if (named.length > 0) return undefined;

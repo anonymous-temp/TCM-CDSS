@@ -1288,7 +1288,8 @@ const checkAsync = async (name, run) => {
   const { requiredPrecautionsPromptSection } = precautionModule;
   // 2026-10-19 起另有两类通用项（服法与忌口、育龄女性妊娠哺乳状态未记录），见 test-r1019-remediation 6.x。
   // 本节断言的是 10/17 这几类专项「哪些情况出、哪些不出」，比对时把通用项滤掉。
-  const GENERAL_PRECAUTION_KINDS = new Set(["administration_and_diet", "reproductive_status_unknown", "trigger_foods", "gout_diet", "severe_hypertension_followup", "toxic_self_preparation"]);
+  // 2026-10-19 第六轮：recorded_drug_names 不是要写的项目，只供交付面核对注意事项点名的药是不是病历里有的（与 mobility_limited_exercise 同类），也滤掉。
+  const GENERAL_PRECAUTION_KINDS = new Set(["administration_and_diet", "reproductive_status_unknown", "trigger_foods", "gout_diet", "severe_hypertension_followup", "toxic_self_preparation", "recorded_drug_names"]);
   const requiredPrecautionsForCase = (...args) => precautionModule.requiredPrecautionsForCase(...args).filter((item) => !GENERAL_PRECAUTION_KINDS.has(item.kind));
   const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
   const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
@@ -1354,7 +1355,8 @@ const checkAsync = async (name, run) => {
     assert.equal(covered.nonPharma.precautions.length, 2, "模型已写到的不再补");
     // 模型把提示里给的整串组成抄成「重叠」：本方没有的药删掉，只留本方真有的（本地复测病历 7：处方没有黄芩、黄柏、栀子、连翘）。
     const copied = projectDeliveredReasoning(prescription(["病历记录已自服黄连上清丸，与本方黄连、大黄、黄芩、黄柏、栀子、连翘等重叠，服本方期间应停服黄连上清丸。", "甲硝唑服药期间不要饮酒。"]), { requiredPrecautions: items });
-    assert.equal(copied.nonPharma.precautions[0], "病历记录已自服黄连上清丸，与本方黄连、大黄等重叠，服本方期间应停服黄连上清丸。");
+    // 2026-10-19 第六轮：照抄核对清单的「病历记录已自服」改成对患者说的「您已自服」（甲方病历 3、M 集 MTCMB-73 一类）；本断言核的是重叠药只留本方实有的。
+    assert.equal(copied.nonPharma.precautions[0], "您已自服黄连上清丸，与本方黄连、大黄等重叠，服本方期间应停服黄连上清丸。");
     // 一味真有的都不剩还说重叠：换成规则那一句（按本方实有药味说）。
     const none = projectDeliveredReasoning(prescription(["已自服黄连上清丸，与本方黄芩、栀子重叠，请停服。", "甲硝唑服药期间不要饮酒。"], ["升麻", "生地黄", "牡丹皮", "当归", "石膏"]), { requiredPrecautions: items });
     assert.match(none.nonPharma.precautions[0], /^已自服的黄连上清丸是否继续服用/);

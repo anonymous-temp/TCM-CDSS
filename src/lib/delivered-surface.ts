@@ -32,7 +32,7 @@ import { dietAdviceAvoidsRichFood, isFoodMedicineHomologyItem, recipeHasRichIngr
 import { discontinuedMedicationLabel, type RequiredPrecaution } from "./required-precautions";
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { patentMedicineCompositionIdentities } from "./patent-medicine-duplication.server";
-import { findLocalPatentMedicineLabel } from "./local-patent-medicine-candidates";
+import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBaseName } from "./local-patent-medicine-candidates";
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
 import { withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
@@ -89,7 +89,7 @@ const currentMedicationsNamed = (item: Extract<RequiredPrecaution, { kind: "curr
 /** 注意事项里已经写到这一项了吗（说到药名 / 哺乳 / 抗菌治疗即算，不管模型怎么措辞）。 */
 function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly string[]): boolean {
   // 运动保健一栏的项目，注意事项里不核（见 exerciseForMobilityLimitation）。
-  if (item.kind === "mobility_limited_exercise") return true;
+  if (item.kind === "mobility_limited_exercise" || item.kind === "recorded_drug_names") return true;
   if (item.kind === "self_discontinued_medication") return lines.some((line) => /停/u.test(line) && /自行|擅自|规律|遵医嘱/u.test(line) &&
     (item.names.some((name) => line.includes(name)) || /降压|降糖|原来|长期|原用/u.test(line) || (item.condition ? line.includes(item.condition) : false)));
   if (item.kind === "current_medications" && item.urgent) return item.names.every((name) => lines.some((line) => line.includes(medicationBaseName(name)) &&
@@ -191,7 +191,7 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
       ? `您之前未规律服用${discontinuedMedicationLabel(item)}，请由医生评估后按医嘱规律服用，不要自行停药或减量。`
       : `您之前自行停用了${discontinuedMedicationLabel(item)}，请尽快由医生评估后调整用药并规律服用，不要再自行停药或减量。`;
   }
-  if (item.kind === "mobility_limited_exercise") return "";
+  if (item.kind === "mobility_limited_exercise" || item.kind === "recorded_drug_names") return "";
   if (item.kind === "current_medications") {
     // 是否继续由医生定，不写「不要自行停用」：红旗病例里那句会变成让心率 42、血压 82/48 的患者继续服美托洛尔（2026-10-18 留出集 S188）。
     // 外用药（乳膏、贴剂、栓剂…）不说「服用」，也不套口服药的间隔时间（甲方病历 8：阿昔洛韦乳膏）。
@@ -401,6 +401,32 @@ function withoutRepeatedTopicLines(lines: readonly unknown[]): unknown[] {
   }
   return kept;
 }
+
+/**
+ * 去掉注意事项里点名、却不在病历与推荐药里的成药、西药（knownDrugs 是去剂型的基础名）。见调用处。
+ */
+function withoutUnrecordedMedicineMentions(line: string, knownDrugs: readonly string[]): string {
+  const unknown = labelledMedicineNamesIn(line).filter((name) => {
+    const stem = patentMedicineBaseName(name);
+    return !knownDrugs.some((known) => known === stem || known.includes(stem) || stem.includes(known));
+  });
+  if (unknown.length === 0) return line;
+  const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  let out = line;
+  // 「不要再服三黄丸、清宁丸等同类泻火通便中成药」：只去掉举例的药名（与它的顿号），说一类药的话照留。
+  for (const name of unknown) {
+    out = out.replace(new RegExp(`${escape(name)}[、和及与]?(?=[^，,。；;]*?等[^，,。；;]{0,10}?(?:中成药|成药|制剂|药物|药品|补品))`, "gu"), "");
+  }
+  out = out.replace(/(服用|服|吃|用|如)等(?=[^，,。；;]{0,10}?(?:中成药|成药|制剂|药物|药品|补品))/gu, "$1")
+    // 举例的药名去掉后「同类」没有了所指（「不要再服养心定悸口服液等同类中成药」，留出例 S018）：说成功效相近的。
+    .replace(/(服用|服|吃|用)同类(?:的)?(?=中成药|成药|制剂|药物|药品)/gu, "$1功效相近的");
+  const rest = unknown.filter((name) => out.includes(name));
+  if (rest.length === 0) return out;
+  return withoutTimingClauses(out, (clause) => rest.some((name) => clause.includes(name)));
+}
+
+/** 哺乳期用药的那一句（说到哺乳，且是请告知医生、慎用禁用、回乳这类话）。 */
+const LACTATION_MEDICATION_ADVICE = /哺乳(?=[\s\S]*(?:告知|告诉|咨询|医生|慎用|禁用|忌用|回乳))|(?:告知|告诉|咨询|医生|慎用|禁用|忌用|回乳)[\s\S]*哺乳/u;
 
 /** 只剩一句指回前文的话（「煎药时请按此处理。」「请照此操作。」）：前文被删后没有所指。构词式闭集。 */
 const ANAPHORIC_INSTRUCTION = /^(?:煎药时|煎煮时|服药时|服用时)?(?:请)?(?:按此|照此|按上述|照上述|如上)(?:处理|操作|执行|煎煮|煎|服用|服)?[。.；;，,]?$/u;
@@ -1086,6 +1112,19 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       });
       if (stacked.size > 0 && formula) formula.patentAndWestern = records(formula.patentAndWestern).filter((item) => !stacked.has(item));
     }
+    // 注意事项点名的成药、西药（说明书目录认得的带剂型药名），病历里没写、本页也没推荐（2026-10-19 留出例 S145「服本方期间不要再服连翘败毒丸」）：
+    // 「X、Y等同类…中成药」只去掉举例的药名，留下说一类药的话；其余去掉那一小句（连同它的「以免…」），整条只剩它时整条去掉。
+    // 病历里的药名由 required-precautions 算出（recorded_drug_names）；没有传入本例必写项目时不核（调用方没给病历）。
+    if (options?.requiredPrecautions) {
+      const knownDrugs = [
+        ...options.requiredPrecautions.flatMap((item) => item.kind === "recorded_drug_names" || item.kind === "current_medications" ? item.names
+          : item.kind === "self_medication" ? [item.name] : item.kind === "self_discontinued_medication" ? item.names : []),
+        ...records(formula?.patentAndWestern).map((item) => String(item.name || "")),
+      ].map((name) => patentMedicineBaseName(name.trim())).filter((name) => name.length >= 2);
+      precautions = precautions
+        .map((line) => typeof line === "string" ? withoutUnrecordedMedicineMentions(line, knownDrugs) : line)
+        .filter((line) => typeof line !== "string" || /[\u4e00-\u9fff]{4,}/u.test(line));
+    }
     // 针刺卡在皮损局部取穴（阿是穴、围刺）时，注意事项里「皮损局部暂不施针」那一小句与之矛盾，不留（2026-10-17 本地复测：
     // 蛇串疮卡按教材「皮损局部阿是穴用围刺法」，注意事项写「皮损局部暂不施针」；丹毒卡列阿是穴，注意事项写「红肿处不宜针刺」）。
     const localNeedling = records(nonPharma.tcmTreatments).some((item) => item.projectCode === "acupuncture" &&
@@ -1148,9 +1187,16 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         .filter((name) => name && chpPregnancyLabel(name));
       // 方中有哺乳期禁用/慎用药时，「哺乳」一句要逐味点到、档位与药表一致才算写到（只写「如正在哺乳请告知医生」的补规则那句）。
       const lactationNamed = lactationHerbs.length === 0 || current.some((line) => /哺乳/u.test(line) && lactationLineMatchesTiers(line, lactationTiers));
-      const added = required.filter((item) => item.kind !== "antithrombotic_bleeding" || bleedingHerbs.length > 0)
+      const missing = required.filter((item) => item.kind !== "antithrombotic_bleeding" || bleedingHerbs.length > 0)
         .filter((item) => (item.kind === "postpartum_lactation" && !lactationNamed) ||
-          !requiredPrecautionCovered(item, item.kind === "administration_and_diet" ? coverageLines : current))
+          !requiredPrecautionCovered(item, item.kind === "administration_and_diet" ? coverageLines : current));
+      // 补哺乳那句规则句时，模型写的哺乳一句换掉，不并存（2026-10-19 甲方病历 3：「患者一年内分娩…方中当归等哺乳期用药请先咨询医生」
+      // 与「产后如正在哺乳…（方中川芎哺乳期须慎用）」同出一页，说法不一）。只换「告知医生、慎用禁用」这类哺乳用药的话；
+      // 同时说妊娠的（「如已怀孕、可能怀孕或正在哺乳…」）、哺乳护理（「哺乳前后清洁乳头」）照留。
+      if (missing.some((item) => item.kind === "postpartum_lactation")) {
+        precautions = precautions.filter((line) => typeof line !== "string" || !LACTATION_MEDICATION_ADVICE.test(line) || /孕/u.test(line));
+      }
+      const added = missing
         .map((item) => requiredPrecautionLine(item, herbIdentities, lactationHerbs, pregnancyLabelledHerbs,
           String(record(records(formula?.candidates)[0]?.decoction)?.method || ""), item.kind === "administration_and_diet" ? coverageLines : current,
           { lactationTiers, bleedingHerbs }))
@@ -1181,7 +1227,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         .filter((line) => typeof line !== "string" || line.trim().length > 0);
     }
     // 模型把提示词里的条目标题抄进写给患者的话（2026-10-19 本地复测病历 10「育龄女性，妊娠与哺乳情况未记录：如已怀孕…」）：去掉这类标题。
-    precautions = precautions.map((line) => typeof line !== "string" ? line : line.replace(PROMPT_ITEM_HEADING, ""));
+    precautions = precautions.map((line) => typeof line !== "string" ? line
+      : THIRD_PERSON_PROMPT_OPENINGS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), line.replace(PROMPT_ITEM_HEADING, "")));
     // 写给患者的话里不留英文用法缩写（验收主集 J：模型照抄病历「倍博特1# QD」）与「1#」；不到 80 岁不称「高龄」（留出集 S190：62 岁写成高龄者）。
     const ageYears = options?.herbBoundaryAudience?.ageYears;
     precautions = precautions.map((line) => typeof line !== "string" ? line : withPatientFacingDosingWords(line, ageYears));
@@ -1391,6 +1438,17 @@ function withoutQuestionChatter(analysis: string): string {
 // 2026-10-18：「皮损局部不作针刺」（甲方标准病历 8 三次生成之一）——否定词还有「不作/不做/不施」。
 /** 规则注意事项提示词条目的标题式开头（有限闭集：育龄女性/备孕/服法与忌口这几项的标题）。 */
 const PROMPT_ITEM_HEADING = /^(?:育龄女性[，,]?妊娠与哺乳情况(?:均)?未记录|患者备孕或未避孕|服法与忌口)[：:]\s*/u;
+/**
+ * 模型照抄给它的核对清单写成的第三人称开头（2026-10-19：「患者一年内分娩，如正在哺乳…」甲方病历 3；「病历记录患者已自服板蓝根颗粒」
+ * 「病历记录已自服麝香通心滴丸」M 集 MTCMB-33、73；「患者68岁，服药期间起身宜缓」RobustSDT-0438）：换成对患者说的话。闭集。
+ */
+const THIRD_PERSON_PROMPT_OPENINGS: ReadonlyArray<[RegExp, string]> = [
+  // 外用药不说「自服」（「病历记录患者已自服青鹏软膏」，M 集 TCM-SD-482122）。
+  [/^病历记录(?:患者)?(?:已|曾)?自服(?:了)?(?=[^，,。；;]*?(?:乳膏|软膏|凝胶|搽剂|擦剂|洗剂|洗液|贴剂|贴膏|膏药|贴|酊|喷雾剂|气雾剂|滴眼液)(?:[，,。；;]|$))/u, "您已外用"],
+  [/^病历记录(?:患者)?(?:已|曾)?自服(?:了)?/u, "您已自服"],
+  [/^患者(?:近)?(?:一年|1年)内(?:曾)?分娩[，,]\s*/u, "产后"],
+  [/^患者(\d{1,3})岁[，,]/u, "您$1岁，"],
+];
 /** 劝进热粥助汗的小句（「可进热粥助汗」「服后喝碗热稀粥」）；「忌热粥」这类否定说法不算。 */
 const PORRIDGE_TO_SWEAT = /(?<![忌勿不禁])(?:啜|喝|进|食|吃|饮)[^，,。；;]{0,4}热(?:稀)?粥/u;
 const LOCAL_NEEDLING_FORBIDDEN = /(?:皮损|局部|患处|病灶|红肿[^，,。；;]{0,4}处|疱疹|皮疹)[^，,。；;]{0,6}(?:暂不|不宜|勿|避免|禁止|不可|不要|不作|不做|不施)[^，,。；;]{0,4}(?:施针|针刺|针)/u;
@@ -1530,7 +1588,8 @@ function withoutTimingClauses(line: string, pattern: RegExp | ((clause: string) 
       return "";
     }
     // 指回被删小句的「煎药时请按此处理」不单独留下（M 集 TCM-SD-482280）。
-    if (index > 0 && removed[index - 1] && ANAPHORIC_INSTRUCTION.test(clause.trim())) {
+    // 被删小句的目的从句（「不要再服连翘败毒丸，以免清热药重复叠加」）随它去掉（留出例 S145）。
+    if (index > 0 && removed[index - 1] && (ANAPHORIC_INSTRUCTION.test(clause.trim()) || /^(?:以免|以防|免得|否则)/u.test(clause.trim()))) {
       removed[index] = true;
       return "";
     }
