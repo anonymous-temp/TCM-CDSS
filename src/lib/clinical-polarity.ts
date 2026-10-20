@@ -540,6 +540,7 @@ export const MEDICATION_DOSAGE_FORM_SUFFIXES = [
 const MEDICATION_CONTROLLED_ALIASES: Record<string, string> = {
   盐酸二甲双胍: "二甲双胍",
   华法林钠: "华法林",
+  华法令: "华法林",
   硫酸氢氯吡格雷: "氯吡格雷",
   枸橼酸西地那非: "西地那非",
 };
