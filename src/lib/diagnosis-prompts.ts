@@ -1,4 +1,5 @@
 // src/lib/diagnosis-prompts.ts
+import { isM02PromptRedFlagFact } from "./clinical-facts";
 import herbFunctionCategoriesJson from "../data/tcm-herb-function-categories.json" with { type: "json" };
 import type { CaseState } from "./diagnosis-types";
 import { buildPromptWithPublicPrefix } from "./model-prompt-cache";
@@ -618,7 +619,7 @@ export function buildQuestionPrompt(
     medicationHistory: caseState.medicationHistory || null,
     allergyHistory: caseState.allergyHistory || null,
     redFlagSemanticFacts: caseState.clinicalFacts?.redFlags
-      .filter((item) => item.status === "positive" || item.status === "possible")
+      .filter(isM02PromptRedFlagFact)
       .filter((item) => !(item.urgency === "urgent" && settledRiskCategories.includes(item.category)))
       .map((item) => ({
         category: item.category, subject: item.subject, status: item.status, urgency: item.urgency, quote: item.quote,

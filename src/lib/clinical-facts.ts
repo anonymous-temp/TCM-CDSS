@@ -1475,6 +1475,16 @@ export type FactsLlmCall = (
 ) => Promise<string>;
 
 /**
+ * M02 出题提示词（redFlagSemanticFacts）与先发结果指纹（m02ClinicalFactsFootprint）共用的条目判据（2026-10-20）。
+ * 只收阳性/疑似、且不是常规级（routine）的线索：出题规则本就要求「routine 的普通症状按常规诊疗处理、不为它出筛查题」，
+ * 病历原文里它照样在；把它塞进清单只会让指纹与无事实时不同，迫使 M02 丢掉先发结果、按事实重出一遍（线上 42 例里 4 例
+ * 只因此重出，含甲方病历 3、4；每次多 4–5s）。提示词与指纹必须走同一个判据，否则先发结果会与按事实出的题不一致。
+ */
+export function isM02PromptRedFlagFact(item: { status?: string; urgency?: string }): boolean {
+  return (item.status === "positive" || item.status === "possible") && item.urgency !== "routine";
+}
+
+/**
  * 抽取输出写到一半时，红旗段已经定下的那部分事实（2026-10-20，M02 提速）。
  *
  * 抽取模型按提示词的格式依次写 disposition、redFlags、affirmedSymptoms、encounterScope（30 份病历实测 30/30

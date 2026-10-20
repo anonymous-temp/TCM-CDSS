@@ -243,4 +243,28 @@ await check("4.2 抽取不绑本请求的中止信号；后台结果的拒绝被
   assert.match(route, /factsReady\.catch\(\(\) => undefined\)/);
 });
 
+console.log("5 常规级线索不进 M02（提示词与指纹同一判据）");
+const prompts = await jiti.import("../src/lib/diagnosis-prompts.ts");
+const routineHeadache = { category: "neuro", subject: "patient", status: "positive", urgency: "routine", triageBasis: "routine_care", quote: "突发胸骨后压榨样疼痛" };
+await check("5.1 只有常规级阳性线索时：指纹与提示词都与无事实时相同（先发结果可采用）", async () => {
+  const factFree = { ...baseCase, clinicalFacts: undefined };
+  const withRoutine = { ...baseCase, clinicalFacts: { redFlags: [routineHeadache] } };
+  assert.equal(contract.m02ClinicalFactsFootprint(withRoutine), contract.m02ClinicalFactsFootprint(factFree));
+  assert.equal(prompts.buildQuestionPrompt(withRoutine), prompts.buildQuestionPrompt(factFree));
+});
+await check("5.2 对照：需澄清、急症级的线索照旧进提示词并改变指纹", async () => {
+  const factFree = { ...baseCase, clinicalFacts: undefined };
+  for (const urgency of ["clarify", "urgent"]) {
+    const withFact = { ...baseCase, clinicalFacts: { redFlags: [{ ...routineHeadache, urgency, triageBasis: urgency === "urgent" ? "urgent_review" : "clarification_needed" }] } };
+    assert.notEqual(contract.m02ClinicalFactsFootprint(withFact), contract.m02ClinicalFactsFootprint(factFree), urgency);
+    assert.notEqual(prompts.buildQuestionPrompt(withFact), prompts.buildQuestionPrompt(factFree), urgency);
+  }
+});
+await check("5.3 两处读同一个判据", async () => {
+  const promptSource = readFileSync(new URL("../src/lib/diagnosis-prompts.ts", import.meta.url), "utf8");
+  const contractSource = readFileSync(new URL("../src/lib/m02-question-contract.ts", import.meta.url), "utf8");
+  assert.match(promptSource, /redFlagSemanticFacts: caseState\.clinicalFacts\?\.redFlags\s*\.filter\(isM02PromptRedFlagFact\)/);
+  assert.match(contractSource, /const promptFacts = flags\.filter\(isM02PromptRedFlagFact\);/);
+});
+
 console.log(`\nr1023 M02 latency: ${cases} checks passed`);

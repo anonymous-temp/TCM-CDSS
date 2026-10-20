@@ -1,4 +1,4 @@
-import { redFlagExplicitOnly } from "./clinical-facts";
+import { isM02PromptRedFlagFact, redFlagExplicitOnly } from "./clinical-facts";
 import { pulseOptionsMutuallyExclusive, textbookDiscriminatingQuestion, tongueOptionsMutuallyExclusive, withoutFingerVeinClause } from "./tcm-textbook-syndromes";
 import { FOLLOWUP_SKIP_SENTENCE, POSSIBLE_RISK_QUESTIONS, followupConversationView, riskQuestionQuotePrefix, riskScreeningQuestionFor, type ConversationMessageLike, type RiskQuestionVariant } from "./followup-conversation";
 import { PEDIATRIC_STRUCTURED_WORD_PATTERN, pediatricDoseRuleForAgeYears, pediatricDoseRuleForStageWords } from "./pediatric-dose-rule";
@@ -364,7 +364,7 @@ function groundedRiskFactCandidates(state?: QuestionFallbackCase) {
  */
 export function m02ClinicalFactsFootprint(state?: QuestionFallbackCase): string {
   const flags = state?.clinicalFacts?.redFlags || [];
-  const promptFacts = flags.filter((item) => item.status === "positive" || item.status === "possible");
+  const promptFacts = flags.filter(isM02PromptRedFlagFact);
   const riskFacts = groundedRiskFactCandidates(state);
   return JSON.stringify([promptFacts, riskFacts]);
 }

@@ -46,7 +46,7 @@ check("footprint equality implies identical prompt and fallback", () => {
     }
   }
   // 有意义的事实必须让指纹不同（否则先发结果会漏掉它）。
-  for (const redFlags of [[flag("positive", "emergency")], [flag("possible", "routine")], [flag("negative", "urgent")]]) {
+  for (const redFlags of [[flag("positive", "emergency")], [flag("possible", "clarify")], [flag("positive", "urgent")], [flag("negative", "urgent")]]) {
     assert.notEqual(m02ClinicalFactsFootprint({ ...baseCase, clinicalFacts: { redFlags } }), m02ClinicalFactsFootprint(factFree),
       `facts that M02 reads must change the footprint: ${JSON.stringify(redFlags)}`);
   }
@@ -62,6 +62,13 @@ check("footprint equality implies identical prompt and fallback", () => {
   }
   // 纯阴性/既往常规事实不改变 M02 的任何输入：先发结果必须可用（这是提速的来源）。
   assert.equal(m02ClinicalFactsFootprint({ ...baseCase, clinicalFacts: { redFlags: [flag("negative", "routine")] } }), m02ClinicalFactsFootprint(factFree));
+  // 2026-10-20：常规级（routine）阳性/疑似条目 M02 也不再读（出题规则本就按常规诊疗处理，isM02PromptRedFlagFact）；
+  // 此前「疑似 + routine」在上面的「必须改变指纹」名单里；阴性 + urgent 仍在那里（急症筛查题只看 urgency，groundedRiskFactCandidates）。
+  for (const redFlags of [[flag("positive", "routine")], [flag("possible", "routine")]]) {
+    const withFacts = { ...baseCase, clinicalFacts: { redFlags } };
+    assert.equal(m02ClinicalFactsFootprint(withFacts), m02ClinicalFactsFootprint(factFree), `not read by M02: ${JSON.stringify(redFlags)}`);
+    assert.equal(buildQuestionPrompt(withFacts), buildQuestionPrompt(factFree), `prompt identical: ${JSON.stringify(redFlags)}`);
+  }
 });
 check("question route speculates on the fact-free case and gates adoption on the footprint", () => {
   const route = readFileSync("src/app/api/diagnosis/question/route.ts", "utf8");
