@@ -442,6 +442,7 @@ ${herbCountPreferenceInstruction(caseState)}- candidate.herbs 只包含本次真
 ${COMPACT_JSON_OUTPUT_RULE}
 只输出一个合法 JSON 对象，不要输出 Markdown、sentinel、代码围栏、解释或第二份结果。医生可见报告由服务端从这个通过校验的对象确定性渲染。该 JSON 不包含、也不得填写任何安全裁决字段；红旗、处方放行、审方和写回权限由系统确定性规则独立计算。
 overview.tcmDiseaseName、overview.primarySyndrome、overview.overallPathogenesis、therapy.overallPrinciple 和 therapy.overallMethod 应在当前已知资料范围内给出最佳临床工作判断，不得为了显得完整而补写患者没有提供的表现。tcmDiseaseName 是规范中医病名，只有当前资料支持病名倾向时填写（如符合不寐病范畴时写“不寐”）；短期“睡不好”等孤立症状不得自动升级为病名。primarySyndrome 是证型，二者不得混写。证候名只写规范证名本身（如“风寒袭肺证”），不要在后面挂“倾向”“可能”“待排”“工作判断”等把握度说明——把握度写在 primarySyndromeResolution 与 primarySyndromeResolutionReason，secondarySyndromes 同理。overallPathogenesis（≤100字）必须写病机推演、解释阳性事实经何种功能失常或气血津液变化形成当前证候，不能复制主诉或把症状串联后改名为病机。overallPrinciple 是治则，overallMethod 是具体治法（总治法由服务端从 overallMethod 复制，不要输出 overview.overallTherapy），治则与治法不得复写成同一句。**overview.primarySyndrome 只写一个证候**，用教材与国标的规范证名：上方【教材病证候选】里有贴合本例的证名时逐字采用（如“心虚胆怯证”“肝气犯胃证”；贴合的含义见重要原则第 7 条，只记录了主症本身时没有贴合的证名），不要自造近义写法（如“心胆气虚证”“肝胃不和证”），也不要把并列证候或病机结果塞进这一个字段——病机结果（胃失和降、清阳不展、筋脉失养这类）写进 overview.overallPathogenesis 与 pathogenesis.chain。**overview.secondarySyndromes 按证据填写，不预设为空**：病历里另有一组主证解释不了、且自身成组（至少两条相互印证的症状或舌脉）的表现时，写 1 个兼证（最多 1 个）；顺带提到的单个伴随症状（睡眠欠佳、纳差、乏力这类）不构成兼证，不要为它立证。两个病理因素各有成组表现、而国标或教材有它们的合称证名时（气虚血瘀证、气阴两虚证、阴虚阳亢证、肝郁脾虚证、痰瘀互结证、脾肾阳虚证、湿热瘀阻证这类），可以直接用合称证名作主证，不再另立兼证；合称证名里的每个因素都要各有至少两条本例表现。写了兼证，就必须在 tcmDiagnosticRationale 里单独用一句讲清它的依据。教材候选里只有单一脏腑的证型、而本例另一脏腑也有自身成组的同性质表现时（如反复感冒、短气自汗属肺气虚之外，又有食少、食后腹胀、便溏这组脾气虚表现），证名写两脏合称（如“肺脾两虚证”），治法兼顾两脏，此时不必逐字套用单脏的教材证名；两脏都必须各有至少两条相互印证的本例表现，只有一条或只是顺带提到时不要合称。
+**先辨病位病性、后定证名**（输出顺序即推理顺序：pathogenesis 写在 overview 之前）：先写 pathogenesis——locationDifferentiation 逐个病位、natureDifferentiation 逐个病性都从病历逐字摘出依据，本虚写进 rootDeficiency、标实写进 branchExcess；先看外感表邪是否仍在（恶寒发热、鼻塞流涕这类表证未解时，不把它写成单纯的里虚证）。再写 overview：证名由上面已经列出且有依据的病位、病性组成，教材有贴合的证名就用教材证名（它的每个要素都要在上面列出）；上面没列出的病位病性不得出现在证名、兼证与治法里。本虚与标实并见时，由驱动主诉主症的那一方定主证，另一方有成组依据时立兼证。证型（主证加兼证）合计 1–3 个要素，治法按要素顺序逐一对应（主证沿用教材治法，每个兼证一项），至多再加一项针对主诉主症的对症项；证型里没有的病机不另立治法——实证里不加益气、养阴、扶正，未列肾虚不加补肾。
 **辨证抓主症主线**：以主诉主症，以及与它成组出现的寒热、汗出、口渴、饮食二便、舌脉来定主证；与所定主证寒热虚实相抵触的关键表现（例如定为气血亏虚却见舌红苔黄、脉弦数）不得略过，必须据此修正主证。主证已经能解释的伴随表现不另立证候；主证解释不了、但只是顺带提到的零散症状（如因疼痛而睡眠欠佳、偶有纳差），不立证、不进治法、不为它选方，留给开方阶段的随证加减处理。但病历里有**独立于主证、成组出现**（两项以上相互印证，且至少一项是舌象、脉象或寒热口渴二便这类定性表现）的另一组表现时——如苔黄腻、口黏口苦并见（湿热），口苦、咽干、小便黄、口渴并见（郁热），舌暗、刺痛、夜甚并见（瘀血）——必须立为兼证写进 secondarySyndromes，治法与选方同时兼顾；辨证依据里说到的“兼夹/兼有某证”必须与兼证栏一致，不得依据里写了兼夹而兼证栏为空。**输出前自查一遍**：tcmDiagnosticRationale 与 overallPathogenesis 里凡有“兼”“夹”“并见”“兼有…之象”“本虚标实”“虚实夹杂”指向主证以外另一证候的说法，secondarySyndromes 就必须写出该证（或主证用合称证名把它包含进去），治法也要并列上它的治法；判断它不够立兼证时，就把这类说法从依据和病机里删掉，不要两头都留。只收本例确有记录的表现，不得为凑证候补写病历没有的症状。pathogenesis.chain 按主证的病机层次展开（1–3 个节点，首个节点承接主诉主症），不为顺带的伴随症状单设节点；写了兼证时才为它另设一个节点和对应的 therapyDirection。分治方向由服务端按病机链逐节点生成（首个节点为“主要”，其余为“次要”），不要输出 therapy.subTherapies。
 westernDiagnosis.primary.name 必须是纯现代医学诊断或症状级工作诊断，不得夹带“痰湿型、肝火型、气虚证”等中医证型后缀。supportingFacts 负责逐项列事实；clinicalRationale 不得逐项串联或复制 supportingFacts，也不得整句复述现病史。它必须用1–2句完成“已记录事实中的病程/表现模式 → 当前工作诊断 → 还需排除或核实什么”的推理链。病历中的影像、病理、内镜、特征性检验或已明确的既往诊断足以确立具体疾病时，primary.name 直接写该疾病名，推理链点明确立它的依据及仍需排除的情况。westernDiagnosis.differentials 每项必须写真正的鉴别理由和能区分主诊断的要点，不能只罗列病史；每项 name 只能写一个疾病/症状方向，多个候选必须拆成多项，不得用“或/斜杠/顿号/可能”合并命名。
 辨病、辨证依据里为了和相邻病证区分而提到病历**没有记录**的症状时，写“未诉某某”，不写“无某某”——“无”只用于病历明确否认的表现。
@@ -504,6 +505,15 @@ JSON要求：
 - JSON 右花括号必须是回复最后一个非空内容；其后禁止追加解释、免责声明、尾注或第二份结果。
 
 {
+  "pathogenesis": {
+    "locationDifferentiation": {"items":["病位1"],"details":[{"location":"病位1","basis":"支持该病位的病历原文短句（≤20字）"}],"resolution":"resolved | bounded | unresolved（按本例病位证据实际强度填）"},
+    "natureDifferentiation": {"items":["病性1"],"rootDeficiency":["本虚病性"],"branchExcess":["标实病性"],"basis":"支持病性判断的病历原文短句（≤20字）","resolution":"resolved | bounded | unresolved（按本例病性证据实际强度填）"},
+    "symptomClusters": [{"symptoms":["病历原文症状1","病历原文症状2"],"mechanism":"共同病机（≤15字）"}],
+    "chain": [
+      {"patientFact":"从病历逐字摘录的短句（≤20字），不得改写或扩写","syndromeEvidence":"支持本证的病历原文引用：与 patientFact 同类的四诊/症状/病史原句，须能在病历中找到相同极性的原文；不得写入病历未记录或已否认的表现，也不得用某证型的典型表现代替本例事实","pathogenesis":"病机判断（≤25字）","therapyDirection":"治法方向（≤25字）"}
+    ],
+    "uncertainties": [{"item":"待确认信息（≤10字）","reason":"为什么影响判断（≤20字）","affects":"影响辨证/方药/风险的范围（≤20字）"}]
+  },
   "overview": {
     "tcmDiseaseName": "规范中医病名",
     "primarySyndrome": "主证候",
@@ -523,18 +533,9 @@ JSON要求：
     "differentials": [{"name":"需鉴别方向","reason":"为何需要鉴别","distinguishingPoints":"本例支持或不支持该方向的区分要点","nextCheck":"建议检查或复核点"},{"name":"另一个需鉴别方向","reason":"…","distinguishingPoints":"…","nextCheck":"…"}],
     "candidates": [{"name":"与 primary.name 逐字相同","likelihood":"高","keyEvidence":["本例支持它的已记录事实"],"againstEvidence":["本例不支持它的点，可为空"]},{"name":"第二候选诊断","likelihood":"中","keyEvidence":["…"],"againstEvidence":["…"]},{"name":"第三候选诊断","likelihood":"低","keyEvidence":["…"],"againstEvidence":["…"]}]
   },
-  "pathogenesis": {
-    "locationDifferentiation": {"items":["病位1"],"details":[{"location":"病位1","basis":"支持该病位的病历原文短句（≤20字）"}],"resolution":"resolved | bounded | unresolved（按本例病位证据实际强度填）"},
-    "natureDifferentiation": {"items":["病性1"],"rootDeficiency":["本虚病性"],"branchExcess":["标实病性"],"basis":"支持病性判断的病历原文短句（≤20字）","resolution":"resolved | bounded | unresolved（按本例病性证据实际强度填）"},
-    "symptomClusters": [{"symptoms":["病历原文症状1","病历原文症状2"],"mechanism":"共同病机（≤15字）"}],
-    "chain": [
-      {"patientFact":"从病历逐字摘录的短句（≤20字），不得改写或扩写","syndromeEvidence":"支持本证的病历原文引用：与 patientFact 同类的四诊/症状/病史原句，须能在病历中找到相同极性的原文；不得写入病历未记录或已否认的表现，也不得用某证型的典型表现代替本例事实","pathogenesis":"病机判断（≤25字）","therapyDirection":"治法方向（≤25字）"}
-    ],
-    "uncertainties": [{"item":"待确认信息（≤10字）","reason":"为什么影响判断（≤20字）","affects":"影响辨证/方药/风险的范围（≤20字）"}]
-  },
   "therapy": {
     "overallPrinciple": "国标治则术语1条（如 实则泻之）",
-    "overallMethod": "一行治法，与证名要素对应"
+    "overallMethod": "一行治法：按证型要素逐一对应（主证沿用教材治法），至多再加一项针对主诉主症的对症项"
   },
   "lineageAdaptation": {
     "applicable": "applicable",

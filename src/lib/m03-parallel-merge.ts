@@ -48,7 +48,7 @@ export function buildM03ParallelHalfSuffix(half: "western" | "tcm"): string {
     ].join("");
   }
   return [
-    "【并行分工·中医半】本次请求是 M03 并行分工中的中医半。仅应用上文中医辨病辨证、病机与治法规则，只输出一个顶层仅含以下字段的 JSON 对象：overview、pathogenesis、therapy、lineageAdaptation。",
+    "【并行分工·中医半】本次请求是 M03 并行分工中的中医半。仅应用上文中医辨病辨证、病机与治法规则，只输出一个顶层仅含以下字段的 JSON 对象，按此顺序写：pathogenesis、overview、therapy、lineageAdaptation（先写病位、病性与病机链，再据此写病名与证名）。",
     serverOwned,
     "westernDiagnosis 与 management 由并行进程负责——本次省略这两个字段不违反上文完整性要求，也不得以任何形式输出它们。",
     "pathogenesis.chain 必须至少有 1 个完整节点；每个节点的 patientFact 和 syndromeEvidence 都必须各自从上方患者事实边界中逐字复制一段连续原文，不得改写、拼接或把推理句写进这两列。",

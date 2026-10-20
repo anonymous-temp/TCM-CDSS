@@ -295,6 +295,7 @@
     "test:r1021-medicines": "node scripts/test-r1021-medicines.mjs",
     "test:r1022-main": "node scripts/test-r1022-main.mjs",
     "test:r1022-phi": "node scripts/test-r1022-phi.mjs",
+    "test:r1022-abc": "node scripts/test-r1022-abc.mjs",
     "test:r1022-western": "node scripts/test-r1022-western.mjs",
     "test:conception-dose-policy": "jiti scripts/test-conception-dose-policy.mjs",
     "test:pediatric-dose-rule": "jiti scripts/test-pediatric-dose-rule.mjs",

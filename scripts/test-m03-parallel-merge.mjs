@@ -47,7 +47,7 @@ check("西医半后缀声明自己的字段并显式豁免另一半", () => {
 check("中医半后缀声明自己的字段并显式豁免另一半", () => {
   const suffix = buildM03ParallelHalfSuffix("tcm");
   assert.match(suffix, /并行分工·中医半/);
-  assert.match(suffix, /仅含以下字段的 JSON 对象：overview、pathogenesis、therapy、lineageAdaptation。/);
+  assert.match(suffix, /仅含以下字段的 JSON 对象，按此顺序写：pathogenesis、overview、therapy、lineageAdaptation（先写病位、病性与病机链，再据此写病名与证名）。/);
   assert.match(suffix, /schemaVersion、stage、formula、nonPharma、pathogenesis.summary 及各层 evidence 均由服务端生成/);
   assert.match(suffix, /westernDiagnosis 与 management 由并行进程负责/);
   assert.match(suffix, /pathogenesis\.chain 必须至少有 1 个完整节点/);

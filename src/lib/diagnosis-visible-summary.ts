@@ -1732,44 +1732,51 @@ const UMBRELLA_TREATMENT_PRINCIPLES = new Set<string>([
   "治未病", "瘥后防复", "未病先防", "已病防变", "因时制宜", "因地制宜", "因人制宜", "正治法", "反治法", "调理阴阳",
 ]);
 
-interface SignedNatureProfile { deficient: boolean; excess: boolean; heat: boolean; cold: boolean }
+interface SignedNatureProfile { deficient: boolean; excess: boolean; heat: boolean; cold: boolean; mixedColdHeat: boolean; rootTonifying: boolean }
 
-/** 虚实寒热只读已定的证名（主证、兼证）与治法：补益类动词 ⇒ 虚，祛邪类动词 ⇒ 实。 */
+/**
+ * 治则的虚实寒热按已定的证型要素（主证与兼证）判：证名里有虚就是虚，有邪（热火寒湿痰瘀滞郁…、外感）就是实，两样都有是虚实夹杂。
+ * 治法只在某个证名本身看不出虚实时才参与（痛痹、胸痹、头痛这类病名式证名：治法写的是祛邪就算实）。
+ *
+ * 2026-10-20 第十轮按甲方口径「治则与治法是否与主证候匹配」与竞品 ABC（证型列要素、治法逐要素对应、不另推）重写：此前虚实主要读治法用词，
+ * 治法里多写一句益气养阴（气滞心胸证兼肝火上炎证）就推成「扶正祛邪」，而证型里没有任何虚；痛痹兼肾阳虚证又因「痛痹」两字看不出实而推成
+ * 「虚则补之」；为了压住这类误推，又给健脾、健胃、生津、固冲、敛汗各加了「证名有虚才算补」的例外。现在以证型为准，这些例外不再需要。
+ */
 function signedNatureProfile(reasoning: Record<string, unknown>): SignedNatureProfile {
   const overview = recordValue(reasoning.overview);
   const therapy = recordValue(reasoning.therapy);
-  const names = [
+  const elements = [
     markdownCell(overview?.primarySyndrome),
     ...(Array.isArray(overview?.secondarySyndromes)
-      ? overview!.secondarySyndromes.filter((item): item is string => typeof item === "string")
+      ? overview!.secondarySyndromes.filter((item): item is string => typeof item === "string").map((item) => markdownCell(item))
       : []),
-  ].join("，");
+  ].filter(Boolean);
   const method = markdownCell(therapy?.overallMethod) || markdownCell(overview?.overallTherapy);
-  // 「健脾」「温肾」「暖宫」这类也是补法（2026-10-13：脾胃虚寒证·温中健脾、和胃降逆 曾被推成「实则泻之」）。
-  // 「温中」不在内：它说的是温散寒邪（寒邪内阻证·温中散寒 是「寒者热之」，不是扶正）——第一版把它算作补法，
-  // 190 例回放里两例实寒证被推成「扶正祛邪」。
-  // 「固冲止血」「清热生津」「敛汗」在实证里是治标的手段，不是扶正：只在证名本身有虚时算补法
-  //（2026-10-19 Claude 评审 H 集 X-H-0338：月经过多·血热证、清热凉血固冲止血，治则被推成「扶正祛邪」）。
-  const nameDeficient = /(?:虚|亏|不足|失养|不固|不摄|怯|衰|脱)/.test(names);
-  // 「扶脾」「扶土」也是补法（「抑肝扶脾」曾推成「实则泻之」，2026-10-19 Claude 评审 M 集 RobustSDT-0372、0092）。
-  // 「健脾和胃」用在纯痰湿实证里是治生痰之源，不是扶正（2026-10-19 Claude 评审 M 集 MTCMB-77、MTCMB-8：痰湿中阻证·化痰祛湿、健脾和胃
-  // 推成「扶正祛邪」）：与固冲、生津同样只在证名本身有虚时算补法。「扶脾/扶土」（抑肝扶脾）照算——木乘土本身就是土虚。
-  const tonifying = /(?:补|益气|益肾|益精|益胃|益阴|益脾|益肺|益心|扶脾|扶土|温肾|温补|暖宫|暖肝|壮阳|培元|培土|养|滋|温阳|助阳|回阳|扶阳|固表|固脱|固精|填精|育阴|扶正|升阳举陷|升提|敛阴)/.test(method) ||
-    (nameDeficient && /(?:固摄|固冲|生津|敛汗|健脾|健胃)/.test(method));
-  // 「抑肝」「抑木」是泻法（抑肝扶脾 = 泻肝实脾）。
-  const dispelling = /(?:清|泻|泄|疏|散|抑肝|抑木|化痰|化湿|化瘀|化饮|化浊|化积|祛|逐|活血|行气|理气|利水|利湿|利尿|通络|通腑|通便|通淋|通窍|消食|消积|消肿|攻|解表|解毒|解郁|平肝|潜阳|息风|熄风|降逆|降气|涤痰|破|软坚|燥湿|渗湿|宣肺|透疹|发汗|导滞|开窍|豁痰|止痛|镇惊)/.test(method);
-  const nameExcess = /(?:实|热|火|寒|湿|痰|饮|瘀|滞|郁|积|毒|风|燥|水停|犯|乘|旺|束|蕴|阻|结|闭|亢|扰|袭|肝阳(?!虚|不足|衰))/.test(names.replace(/虚[热火寒]旺?/g, ""));
-  // 治法是「怎么治」的直接陈述：治法已写时以它为准，证名只在治法缺席时兜底。
-  const deficient = method ? tonifying : nameDeficient;
-  const excess = method ? dispelling && (nameExcess || !tonifying) : nameExcess;
-  const excessNames = names.replace(/[阴血气阳精津]虚[热火]?|虚[热火寒]/g, "");
-  // 证名只有「毒」（毒损心脉、瘀毒内结、湿毒浸淫）而治法只说「解毒」、不说清热凉血时，不算热证：毒不分寒热，
-  // 乌头碱药酒中毒（出冷汗、舌淡）曾被推成「热者寒之」（2026-10-19 留出集 S190）。证名带热/火/暑，或治法写清、凉的，照旧。
-  // 已存输出回放 M/X/H/D 四集：变的 6 条都从「热者寒之」变成「实则泻之」（湿毒浸淫·宣肺解毒、瘀毒内结·活血解毒、毒邪内陷闭窍·解毒开窍）。
-  const heat = (/(?:热|火|暑)/.test(excessNames) && (!method || /(?:清|泻火|凉血|泄热|解毒|辛凉)/.test(method))) ||
-    (/毒/.test(excessNames) && (!method || /(?:清|泻火|凉血|泄热|辛凉)/.test(method)));
-  const cold = /寒/.test(excessNames) && (!method || /(?:温|散寒|辛温|回阳)/.test(method));
-  return { deficient, excess, heat, cold };
+  // 「乘」是木旺乘土、土本已虚（肝气乘脾 = 肝旺脾虚）；「伤气、伤阴、耗气」说的是正气已伤（劳倦伤气、热毒伤阴）。
+  const DEFICIENT = /(?:虚|亏|不足|失养|不固|不摄|怯|衰|脱|不振|乘|伤[阴津气阳精]|耗[气阴血津]|两伤|耗伤|亏耗)/;
+  // 虚热、虚火、虚寒说的是虚证的寒热表现，不是实邪。
+  const withoutDeficiencyHeat = (name: string) => name.replace(/[阴血气阳精津]?虚发?[热火寒]旺?/g, "");
+  const EXCESS = /(?:实|热|火|寒|湿|痰|饮|瘀|滞|郁|积|毒|风|燥|水停|犯|乘|旺|束|蕴|阻|结|闭|亢|扰|袭|感冒|外感|肝阳(?!虚|不足|衰))/;
+  const dispelling = /(?:清|泻|泄|疏|散|抑肝|抑木|化痰|化湿|化瘀|化饮|化浊|化积|祛|逐|活血|行气|理气|利水|利湿|利尿|通络|通腑|通便|通淋|通窍|消食|消积|消肿|攻|解表|解毒|解郁|平肝|潜阳|息风|熄风|降逆|降气|涤痰|破|软坚|燥湿|渗湿|宣肺|透疹|发汗|导滞|开窍|豁痰|镇惊)/.test(method);
+  const tonifying = /(?:补|益气|益肾|益精|益胃|益阴|益脾|益肺|益心|扶脾|扶土|温肾|温补|暖宫|暖肝|壮阳|培元|培土|养|滋|温阳|助阳|回阳|扶阳|固表|固脱|固精|填精|育阴|扶正|升阳举陷|升提|敛阴|健脾|振奋)/.test(method);
+  const deficientElement = elements.some((name) => DEFICIENT.test(name));
+  const excessElement = elements.some((name) => EXCESS.test(withoutDeficiencyHeat(name)));
+  // 证名看不出虚实的要素（痛痹、胸痹、头痛…）：按治法判。
+  const neutralElement = elements.some((name) => !DEFICIENT.test(name) && !EXCESS.test(withoutDeficiencyHeat(name)));
+  const deficient = deficientElement || (neutralElement && tonifying) || (elements.length === 0 && tonifying);
+  const excess = excessElement || (neutralElement && dispelling) || (elements.length === 0 && dispelling);
+  const excessText = elements.map(withoutDeficiencyHeat).join("，");
+  const heat = (/(?:热|火|暑)/.test(excessText) && (!method || /(?:清|泻火|凉血|泄热|解毒|辛凉)/.test(method))) ||
+    (/毒/.test(excessText) && (!method || /(?:清|泻火|凉血|泄热|辛凉)/.test(method))) ||
+    (neutralElement && !excessElement && /(?:清热|泻火|凉血|泄热|辛凉)/.test(method));
+  const cold = (/寒/.test(excessText) && (!method || /(?:温|散寒|辛温|回阳)/.test(method))) ||
+    (neutralElement && !excessElement && /(?:散寒|辛温|温经)/.test(method));
+  // 寒热错杂、上热下寒这类标准证名本身就是寒热并见（半夏泻心汤证的治法「辛开苦降」里没有清、温字样）。
+  const mixedColdHeat = /(?:寒热错杂|寒热夹杂|寒热互结|上热下寒|上寒下热)/.test(excessText);
+  // 实证而治法里有治本的补益（化痰降气、健脾益气；益气养营、活血行瘀——教材本证治法自带的）：写「标本兼治」，
+  // 既不说成纯泻（与治法里的补相抵），也不说成扶正祛邪（证型里没有虚）。温阳、温经在寒证里是「寒者热之」的温法，不算。
+  const rootTonifying = /(?:补|益气|养血|养阴|养营|滋|健脾|填精|固表|固摄|固涩|振奋)/.test(method);
+  return { deficient, excess, heat: heat || mixedColdHeat, cold: cold || mixedColdHeat, mixedColdHeat, rootTonifying };
 }
 
 function treatmentPrincipleFitsNature(term: string, nature: SignedNatureProfile): boolean {
@@ -1792,8 +1799,11 @@ function treatmentPrincipleFitsNature(term: string, nature: SignedNatureProfile)
 function derivedTreatmentPrinciple(nature: SignedNatureProfile): string {
   if (nature.deficient && nature.excess) return "扶正祛邪";
   if (nature.deficient) return "虚则补之";
+  // 寒热错杂（半夏泻心汤证这类）：单写寒者热之或热者寒之都只说了一半。表寒里热这类寒热分属表里的仍按实证。
+  if (nature.mixedColdHeat) return "调理阴阳";
   if (nature.heat && !nature.cold) return "热者寒之";
   if (nature.cold && !nature.heat) return "寒者热之";
+  if (nature.excess && nature.rootTonifying) return "标本兼治";
   if (nature.excess) return "实则泻之";
   return "";
 }

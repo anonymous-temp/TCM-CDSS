@@ -621,7 +621,9 @@ await check("16.24 兼证核对补上兼证后：依据里「尚未成独立证�
 
 await check("16.25 治则：纯痰湿实证的「健脾和胃」不算扶正（MTCMB-77/8）；肝阳头痛＋气血不足是扶正祛邪（MTCMB-72）；阴虚火旺仍是虚则补之、脾虚湿盛仍扶正祛邪（对照）", () => {
   const principle = (syndrome, method, secondary = []) => visible.nationalTreatmentPrinciple("", { overview: { primarySyndrome: syndrome, secondarySyndromes: secondary }, therapy: { overallMethod: method } });
-  assert.equal(principle("痰湿中阻证", "化痰祛湿，健脾和胃，升清止晕"), "实则泻之");
+  // 第十轮（10/20）：实证而治法带教材本有的治本补益（健脾和胃）写「标本兼治」——仍不说扶正（证型无虚），也不与治法里的健脾相抵（qwen 评审判「实则泻之」与健脾矛盾）。
+  assert.equal(principle("痰湿中阻证", "化痰祛湿，健脾和胃，升清止晕"), "标本兼治");
+  assert.notEqual(principle("痰湿中阻证", "化痰祛湿，健脾和胃，升清止晕"), "扶正祛邪");
   assert.equal(principle("肝阳头痛", "平肝潜阳，理气通络，益气养血", ["气血不足证"]), "扶正祛邪");
   assert.equal(principle("阴虚火旺证", "滋阴清火，养心安神"), "虚则补之");
   assert.equal(principle("脾虚湿盛证", "健脾化湿"), "扶正祛邪");

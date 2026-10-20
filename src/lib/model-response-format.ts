@@ -448,7 +448,9 @@ function schemaForTask(task: StructuredOutputTask): JsonSchema {
     ));
   }
   return pruneUnreachableDefs(stripServerOwnedM03Fields(requireGeneratedM03Content(requireGeneratedM03Chain(reasoningHalfSchema([
-    "schemaVersion", "stage", "overview", "pathogenesis", "therapy", "formula", "nonPharma", "lineageAdaptation",
+    // 先病机（病位、病性逐要素摘依据）后证名：关思考时字段顺序就是模型的推理顺序，先写证名会让后面的病位病性去迁就它
+    //（2026-10-20 第十轮联网调研：证素辨证「证候→证素→证名」、TCMEval-SDT「临床信息→病机→证候」；我们的模板正好反过来）。
+    "schemaVersion", "stage", "pathogenesis", "overview", "therapy", "formula", "nonPharma", "lineageAdaptation",
   ])))));
 }
 
