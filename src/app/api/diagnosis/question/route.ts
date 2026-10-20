@@ -25,6 +25,7 @@ import { prefetchDiagnoseInputs } from "@/lib/stage-prefetch.server";
 import { precomputeNoAnswerPath } from "@/lib/no-answer-precompute.server";
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   if (!(parsed.caseState.chiefComplaint || parsed.caseState.hisRecord?.fields.zhushu || "").trim()) {
@@ -47,7 +48,18 @@ export async function POST(req: Request) {
   // M02 只经 m02ClinicalFactsFootprint 读取事实层；先用「无事实」病例发出题，事实回来后
   // 指纹为空（绝大多数门诊病例）就采用先发结果，否则丢弃并按事实重出——结果与串行逐字等价。
   // 事实已在客户端快照或服务端缓存里时（浏览器流程先走 red-flags），走原串行路径。
-  const factsReady = maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal);
+  //
+  // 2026-10-20 起不等整份事实：抽取改为流式，红旗段（disposition + redFlags）一写完就拿来比指纹
+  //（clinical-facts.earlyClinicalFactsFromPartial；M02 只读这两段，后面的 affirmedSymptoms、encounterScope 不进闸门也不进指纹）。
+  // 线上实测红旗段写完中位 3.4s、整份 5.4s（P90 5.2s 对 7.6s）。整份照旧写完、签名、入服务端缓存，供 red-flags 与「不回答」预计算合流。
+  // 抽取不绑本请求的中止信号：它是后续各阶段共用的计算（与 stage-prefetch 同一原则），M02 先返回也不能把它掐掉。
+  let resolveEarlyFacts: (state: CaseState) => void = () => undefined;
+  const earlyFacts = new Promise<CaseState>((resolve) => { resolveEarlyFacts = resolve; });
+  // CDSS_M02_EARLY_FACTS=false 回到等整份事实（回退开关；抽取仍不绑本请求的中止信号）。
+  const factsReady = maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, undefined, {
+    onEarlyRedFlags: process.env.CDSS_M02_EARLY_FACTS === "false" ? undefined : (state) => resolveEarlyFacts(state),
+  });
+  factsReady.catch(() => undefined);
   const settled = await Promise.race([
     factsReady,
     new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 30)),
@@ -64,8 +76,12 @@ export async function POST(req: Request) {
     void speculative.then((response) => response.body?.cancel().catch(() => undefined)).catch(() => undefined);
   };
   let caseState: CaseState;
+  let factsSource: "early" | "full" = "full";
   try {
-    caseState = await factsReady;
+    caseState = await Promise.race([factsReady, earlyFacts.then((state) => {
+      factsSource = "early";
+      return state;
+    })]);
   } catch (error) {
     discardSpeculative();
     throw error;
@@ -73,8 +89,11 @@ export async function POST(req: Request) {
   // 先发结果可用的条件：M02 从事实层读到的内容相同，且「闸门是否已判急危重」相同——后者决定这一轮是出追问还是出
   // 急症处置确认题，而处置去向判断（disposition）不在 redFlags 清单里，指纹看不到它。
   const redFlagState = (state: CaseState) => evaluateSafetyGate(state).status === "red_flag";
-  if (m02ClinicalFactsFootprint(caseState) === m02ClinicalFactsFootprint(factFreeState) &&
-    redFlagState(caseState) === redFlagState(factFreeState)) return speculative;
+  const adopted = m02ClinicalFactsFootprint(caseState) === m02ClinicalFactsFootprint(factFreeState) &&
+    redFlagState(caseState) === redFlagState(factFreeState);
+  // 量线上效果用：事实从哪一段来（早到的红旗段 / 整份）、先发结果是否采用（不采用即按事实重出，M02 多一轮出题）。
+  console.info("[tcm-cdss:telemetry] m02_facts_overlap", { factsSource, adopted, factsWaitMs: Date.now() - startedAt });
+  if (adopted) return speculative;
   discardSpeculative();
   return questionStageResponse(caseState, req.signal);
 }

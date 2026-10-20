@@ -228,6 +228,8 @@ async function callFactsPhaseModel(
   // "probe" 不是临床相位，只用于账本分档：健康探针每次约 41 token，
   // 混进 clinical_facts_extract 会把真实抽取成本算歪（实测均值被从 2100 拉到 1469）。
   phase: ClinicalFactsPhase | "probe" = "extract",
+  /** 给了就流式请求，并以「到目前为止的全文」逐段回调（只有抽取相位会给，见 REAL_FACTS_LLM_CALL）。 */
+  onPartial?: (partial: string) => void,
 ): Promise<string> {
   const task = `clinical_facts_${phase}`;
   const promptChars = system.length + user.length;
@@ -241,22 +243,47 @@ async function callFactsPhaseModel(
   const client = createTextModelClient({ ...primary, model: config.model }, {
     retryOwner: phase === "extract" ? "application" : "sdk",
   });
-  const res = await observeModelTask({ task, stage: "shared", model: config.model, promptChars }, () => client.chat.completions.create(
-    {
-      model: config.model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      temperature: 0,
-      // This classifier has a tiny JSON contract. Disable extended thinking so the provider cannot
-      // spend the whole output budget on hidden reasoning and leave an empty/partial final object.
-      max_tokens: 2400,
-      response_format: { type: "json_object" },
-      ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
-    },
-    { timeout: clinicalFactsPhaseTimeoutMs(), signal: phaseSignal },
-  ));
+  const body = {
+    model: config.model,
+    messages: [
+      { role: "system" as const, content: system },
+      { role: "user" as const, content: user },
+    ],
+    temperature: 0,
+    // This classifier has a tiny JSON contract. Disable extended thinking so the provider cannot
+    // spend the whole output budget on hidden reasoning and leave an empty/partial final object.
+    max_tokens: 2400,
+    response_format: { type: "json_object" as const },
+    ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
+  };
+  const requestOptions = { timeout: clinicalFactsPhaseTimeoutMs(), signal: phaseSignal };
+  if (!onPartial) {
+    const res = await observeModelTask({ task, stage: "shared", model: config.model, promptChars }, () =>
+      client.chat.completions.create(body, requestOptions));
+    return res.choices?.[0]?.message?.content || "";
+  }
+  // 流式与非流式是同一次请求、同一组参数（温度 0、同一 JSON 契约），只是边写边收：M02 等到红旗段写完即可
+  // 出结论（earlyClinicalFactsFromPartial），整份照旧写完后解析、落地、签名、入缓存。
+  const res = await observeModelTask({ task, stage: "shared", model: config.model, promptChars }, async () => {
+    const stream = await client.chat.completions.create(
+      { ...body, stream: true, stream_options: { include_usage: true } },
+      requestOptions,
+    );
+    let content = "";
+    let usage: unknown;
+    for await (const chunk of stream) {
+      if (chunk.usage) usage = chunk.usage;
+      const delta = chunk.choices?.[0]?.delta?.content;
+      if (!delta) continue;
+      content += delta;
+      try {
+        onPartial(content);
+      } catch {
+        // 早到结论只是提速；它出错不能影响整份抽取。
+      }
+    }
+    return { choices: [{ message: { content } }], usage };
+  });
   return res.choices?.[0]?.message?.content || "";
 }
 
@@ -279,14 +306,14 @@ export async function callClinicalFactsPhaseWithRetry(
   throw lastError instanceof Error ? lastError : new Error("clinical_facts_phase_unavailable");
 }
 
-const REAL_FACTS_LLM_CALL: FactsLlmCall = async (system, user, signal, phase = "extract") => {
+const REAL_FACTS_LLM_CALL: FactsLlmCall = async (system, user, signal, phase = "extract", onPartial) => {
   const { extractor } = getClinicalFactsModelPlan();
   // Extraction gets one transport/empty-response retry. Repair remains single-shot at the
   // application level: SDK transport recovery may retry failed HTTP requests, but a completed
   // invalid response is not regenerated.
   const maxAttempts = phase === "extract" ? 2 : 1;
   return callClinicalFactsPhaseWithRetry(
-    () => callFactsPhaseModel(extractor, system, user, signal, phase),
+    () => callFactsPhaseModel(extractor, system, user, signal, phase, phase === "extract" ? onPartial : undefined),
     signal,
     maxAttempts,
   );
@@ -477,7 +504,14 @@ export async function maybeAttachClinicalFactsBackstop(
   state: CaseState,
   llmCall: FactsLlmCall = REAL_FACTS_LLM_CALL,
   signal?: AbortSignal,
-  options?: { cacheTtlOverrideMs?: number },
+  options?: {
+    cacheTtlOverrideMs?: number;
+    /**
+     * 本次真的发起了抽取时，红旗段一写完就以「同样签名、只缺后两段」的病例回调一次（clinical-facts.earlyClinicalFactsFromPartial）。
+     * 命中缓存、合流到别的请求的在飞抽取时不会回调——调用方照旧等返回值。M02 用它提早出题（question 路由）。
+     */
+    onEarlyRedFlags?: (state: CaseState) => void;
+  },
 ): Promise<CaseState> {
   const withoutStaleFacts = { ...state, clinicalFacts: undefined };
   // Empty failure snapshots still belong to this tenant; binding alone grants no clinical attestation.
@@ -545,17 +579,23 @@ export async function maybeAttachClinicalFactsBackstop(
       deadlineController.abort(new Error("clinical_facts_total_timeout"));
     }, clinicalFactsTotalTimeoutMs());
     const effectiveSignal = signal ? AbortSignal.any([signal, deadlineController.signal]) : deadlineController.signal;
-    const observedLlmCall: FactsLlmCall = async (system, user, callSignal, phase) => {
+    const observedLlmCall: FactsLlmCall = async (system, user, callSignal, phase, onPartial) => {
       try {
-        return await llmCall(system, user, callSignal, phase);
+        return await llmCall(system, user, callSignal, phase, onPartial);
       } catch (error) {
         unavailableReason = totalTimedOut ? "timeout" : classifyUnavailableReason(error, callSignal);
         throw error;
       }
     };
     let facts;
+    const onEarlyRedFlags = options?.onEarlyRedFlags;
     try {
-      facts = await extractClinicalFacts(text, observedLlmCall, effectiveSignal);
+      facts = await extractClinicalFacts(text, observedLlmCall, effectiveSignal, onEarlyRedFlags
+        ? (early) => {
+            const assembled = assembleExtractedFacts(early);
+            if (assembled.clinicalFacts?.semanticStatus === "checked") onEarlyRedFlags(assembled);
+          }
+        : undefined);
     } finally {
       clearTimeout(deadline);
     }
@@ -576,6 +616,12 @@ export async function maybeAttachClinicalFactsBackstop(
         },
       };
     }
+    return assembleExtractedFacts(facts);
+  };
+
+  // 抽取结果 → 带来源指纹、版本与签名的病例。早到的红旗段与整份结果走同一条装配（签名载荷里没有 affirmedSymptoms，
+  // encounterScope 早到时为空）；早到的那份只在内存里供 M02 用，不写缓存。
+  function assembleExtractedFacts(facts: NonNullable<Awaited<ReturnType<typeof extractClinicalFacts>>>): CaseState {
     const { extractor } = getClinicalFactsModelPlan();
     const unsignedFacts = {
       ...facts,
@@ -614,7 +660,7 @@ export async function maybeAttachClinicalFactsBackstop(
       };
     }
     return { ...state, clinicalFacts: { ...unsignedFacts, attestation } };
-  };
+  }
 
   const pending = compute();
   if (!usesConfiguredModelPlan) return pending;

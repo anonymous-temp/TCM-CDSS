@@ -1470,7 +1470,41 @@ export type FactsLlmCall = (
   userPrompt: string,
   signal?: AbortSignal,
   phase?: ClinicalFactsPhase,
+  /** 抽取相位流式输出时，每收到一段就以「到目前为止的全文」回调一次（见 earlyClinicalFactsFromPartial）。 */
+  onPartial?: (partial: string) => void,
 ) => Promise<string>;
+
+/**
+ * 抽取输出写到一半时，红旗段已经定下的那部分事实（2026-10-20，M02 提速）。
+ *
+ * 抽取模型按提示词的格式依次写 disposition、redFlags、affirmedSymptoms、encounterScope（30 份病历实测 30/30
+ * 是这个顺序）。安全闸门与 M02 只读前两段：affirmedSymptoms 只给净化器核对「不把已记录的症状写成否认」，
+ * encounterScope 只由路由另行判断，二者都不进闸门、不进 M02 的事实指纹（m02ClinicalFactsFootprint）。
+ * 红旗段写完时距整份写完还有约 2 秒（中位 3.4s 对 5.4s，P90 5.2s 对 7.6s），M02 先拿这一段出结论。
+ *
+ * 只有在「这一段的结论与整份写完后的结论必然相同」时才返回，否则返回 undefined（调用方照旧等整份）：
+ *  · redFlags 数组已经闭合、其后紧跟 affirmedSymptoms 或 encounterScope 键，且 disposition 写在它之前；
+ *  · 解析通过（与整份同一个 parseClinicalFacts）；
+ *  · 落地核对没有丢掉任何一条红旗——丢了条目，整份写完后会走引用修复轮，结论可能变化。
+ * 落地核对只看红旗本身与病历原文，不读后两段（groundClinicalFacts）。整份写完后若 JSON 后半段坏掉触发结构修复、
+ * 或传输中断触发重抽，最终结论以重抽为准：此后各阶段（red-flags、辨证、开方）读的都是最终结果，M02 只是这一轮的追问。
+ */
+export function earlyClinicalFactsFromPartial(partial: string, sourceText: string): ClinicalFacts | undefined {
+  const redFlagsKey = partial.search(/"redFlags"\s*:/);
+  if (redFlagsKey < 0) return undefined;
+  const dispositionKey = partial.search(/"disposition"\s*:/);
+  if (dispositionKey < 0 || dispositionKey > redFlagsKey) return undefined;
+  const tail = /\]\s*,\s*"(?:affirmedSymptoms|encounterScope)"\s*:/g;
+  tail.lastIndex = redFlagsKey;
+  const closing = tail.exec(partial);
+  if (!closing) return undefined;
+  const prefix = `${partial.slice(0, closing.index + 1)}}`;
+  const parsed = parseClinicalFacts(prefix);
+  if (!parsed) return undefined;
+  const grounded = groundClinicalFacts(parsed, sourceText);
+  if (grounded.redFlags.length < parsed.redFlags.length) return undefined;
+  return { ...grounded, affirmedSymptoms: [], encounterScope: undefined, reviewStatus: "single_pass" };
+}
 
 /**
  * 受约束抽取器。护栏 1(schema)+2(grounding)在此应用;返回 null 表示抽取不可用(调用方 fallback 纯确定性)。
@@ -1480,13 +1514,25 @@ export async function extractClinicalFacts(
   text: string,
   llmCall: FactsLlmCall,
   signal?: AbortSignal,
+  /** 红旗段写完即回调一次（earlyClinicalFactsFromPartial）；整份结果仍由本函数返回。 */
+  onEarlyRedFlags?: (facts: ClinicalFacts) => void,
 ): Promise<ClinicalFacts | null> {
   if (!text.trim()) return { redFlags: [] };
   if (signal?.aborted) return null;
   const extractionPrompt = buildClinicalFactsExtractionPrompt(text);
   let raw: string;
   try {
-    raw = await llmCall(CLINICAL_FACTS_EXTRACTION_SYSTEM_PROMPT, extractionPrompt, signal, "extract");
+    let earlyEmitted = false;
+    const onPartial = onEarlyRedFlags
+      ? (partial: string) => {
+          if (earlyEmitted || signal?.aborted) return;
+          const early = earlyClinicalFactsFromPartial(partial, text);
+          if (!early) return;
+          earlyEmitted = true;
+          onEarlyRedFlags(early);
+        }
+      : undefined;
+    raw = await llmCall(CLINICAL_FACTS_EXTRACTION_SYSTEM_PROMPT, extractionPrompt, signal, "extract", onPartial);
   } catch {
     return null; // fail-closed:抽取不可用 → 纯确定性
   }
