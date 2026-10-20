@@ -4,6 +4,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { alignWesternNameWithRecord, isCleanWesternDiagnosisName, listedWesternDiagnosisNames, withoutSexIncompatibleWesternNames } from "./western-name-evidence-check.server";
+import { quoteGroundedInText } from "./verbatim-quote";
 
 /**
  * 西医主诊断的闭集重选（2026-10-19）。
@@ -72,7 +73,7 @@ export function parseWesternPrimaryReselection(
   if (!name || !isCleanWesternDiagnosisName(name) || /待查$/u.test(name) || compact(name) === compact(current)) return undefined;
   const quote = typeof value.quote === "string" ? value.quote.trim() : "";
   const reason = typeof value.reason === "string" ? value.reason.trim().replace(/[。；;]+$/u, "") : "";
-  if (compact(quote).length < 4 || compact(quote).length > 60 || !compact(recordText).includes(compact(quote))) return undefined;
+  if (!quoteGroundedInText(quote, recordText)) return undefined;
   if (reason.length < 4 || reason.length > 60) return undefined;
   // 名单里的病本身就是在原诊断名上说得更具体：按换名处理。
   const effective = action === "append" && compact(name).includes(compact(current)) ? "replace" : action;

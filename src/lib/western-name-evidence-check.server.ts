@@ -6,6 +6,7 @@ import { observeModelTask } from "./cdss-model-task-telemetry";
 import { westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
 import { westernCriteriaEntry, westernCriteriaPromptValue, westernCriteriaReference, westernNameWithoutCourseOrSideQualifier } from "./western-diagnostic-criteria.server";
 import { resolveIcd10Diagnosis } from "./icd10-diagnosis-coding.server";
+import { quoteGroundedInText } from "./verbatim-quote";
 
 /**
  * 参考西医诊断名与病历已记录内容的一致性核对（2026-10-14）。
@@ -37,6 +38,7 @@ import { resolveIcd10Diagnosis } from "./icd10-diagnosis-coding.server";
  *  · 超时、未配置、输出非法、引文不在病历里、给出的名称不合规，一律不采信（保持模型原样）；
  *  · temperature 0，按请求内容缓存，同一份病历得到同一结论。
  * 开关：CDSS_WESTERN_NAME_EVIDENCE_CHECK=false 关闭。
+ * 2026-10-20 起核对并行做两次、两次一致才改名（agreedWesternNameCorrection；CDSS_WESTERN_NAME_CHECK_AGREEMENT=false 恢复单次）。
  */
 const TIMEOUT_MS = (() => {
   const value = Number(process.env.WESTERN_NAME_EVIDENCE_CHECK_TIMEOUT_MS || 5_000);
@@ -93,6 +95,14 @@ export function listedWesternDiagnosisNames(western: unknown): string[] {
 }
 
 /** 原名去掉核对给出的上一级之后仍包含它（「神经源性休克」⊃「休克」、「大量心包积液」⊃「心包积液」）：说的还是同一类病。 */
+/** 短名的每个字按顺序出现在长名里（「急性扁桃体炎」之于「急性化脓性扁桃体炎」）。 */
+function isCharacterSubsequence(short: string, long: string): boolean {
+  if (!short || short.length >= long.length) return false;
+  let at = 0;
+  for (const char of long) if (char === short[at]) at += 1;
+  return at === short.length;
+}
+
 function namesSameDiseaseFamily(broader: string, current: string): boolean {
   const core = compact(broader.replace(/待查$/u, ""));
   return core.length >= 2 && core !== compact(current) && compact(current).includes(core);
@@ -264,8 +274,19 @@ export function parseWesternNameCorrection(
   const named = keepHypothesis ? `${current}待查` : qualifierOnly ? name.replace(/待查$/u, "") : name;
   // 停在单个症状上的名称一律带「待查」（「乏力」→「乏力待查」）；只去掉病程限定或侧别的上一级（「尿潴留」）本身有依据，不加。
   const bareSymptom = !qualifierOnly && !/待查$/u.test(named) && symptomLevelWesternName(named);
-  const supported = bareSymptom ? `${named}待查` : named;
-  if (compact(quoted).length < 4 || compact(quoted).length > 60 || !compact(recordText).includes(compact(quoted))) return undefined;
+  const symptomSupported = bareSymptom ? `${named}待查` : named;
+  // D 类说的是「缺确诊所需的检查或病程」，给出的名称只能是同一个病往宽处说：原名去掉限定（脊髓型颈椎病→颈椎病、
+  // 急性化脓性扁桃体炎→急性扁桃体炎，按字序是原名的子序列）、症状层名称，或病历自己写着的说法（主诉「牙痛3天」→牙痛）。
+  // 核对把另一个病当成「上一级」交回时（附睾结核→附睾炎、甲状腺癌骨转移→甲状腺瘤、肾包虫病→肾囊肿、糖尿病→消渴病、
+  // 慢性非萎缩性胃炎→功能性消化不良；2026-10-19 第九轮终测 D 集），换名就成了另一个没有依据的诊断：改写「原病名待查」，
+  // 留住首要考虑——与 keepHypothesis 同一口径。只管不带「待查」的名称；带「待查」的照上面的规则。
+  const supportedCore = compact(symptomSupported.replace(/待查$/u, ""));
+  const supported = type === "D" && !/待查$/u.test(symptomSupported) &&
+    !isCharacterSubsequence(supportedCore, compact(current)) && !symptomLevelWesternName(supportedCore) &&
+    !compact(recordText).includes(supportedCore) && current.length >= 2 && !INVALID_SUPPORTED_NAME_FORM.test(current)
+    ? `${current}待查`
+    : symptomSupported;
+  if (!quoteGroundedInText(quoted, recordText)) return undefined;
   if (why.length < 4 || why.length > 60) return undefined;
   // D 类的理由必须说缺什么；理由本身说门槛「已满足/符合」而没说缺哪样时，是核对自相矛盾，不采信（2026-10-19 本机探针：9岁患儿
   // 「儿童功能性便秘需病程满1个月，病历仅3个月已满足；…符合」仍判 D，交付成「便秘待查」）。
@@ -444,17 +465,101 @@ export function applyWesternNameCorrection(westernContent: string, correction: W
   return JSON.stringify(root);
 }
 
+/**
+ * 两次核对一致才采信（2026-10-20 第十轮 B3）。
+ *
+ * 为什么：第九轮代码对同一批病历跑两次，西医主诊断名不同 14/80；其中 4 例是病名核对这一次判 D、下一次不判（肺结核↔肺结核待查、
+ * 急性肾盂肾炎↔尿路感染、梗阻性黄疸↔梗阻性黄疸待查、胃癌待查↔上消化道出血待查）。核对 temperature 0，但同一份病历在边界上的结论
+ * 仍随生成摇摆，单次结论就决定要不要把病名降一级。做法照 m03-patient-claim-check：两次核对并行（第二次把输入的内容顺序整个颠倒，
+ * 缓存键因此不同、也不是同一个提示的重放），两次都给出可采信的改名、类型相同、解析后的名称相同才改名；任一次不改、或两次不一致，保持模型原样。
+ * 第一次的请求与此前逐字相同（缓存与离线回放可对照）；两次并行，不增加串行等待。
+ * 开关：CDSS_WESTERN_NAME_CHECK_AGREEMENT=false 恢复单次。
+ */
+function agreementRequired(): boolean {
+  return process.env.CDSS_WESTERN_NAME_CHECK_AGREEMENT !== "false";
+}
+
+export type WesternNameAgreement = "off" | "none" | "agreed" | "agreed_merged" | "one_only" | "type_differs" | "name_differs";
+
+/**
+ * D 类两次给的名称只是同一个病说到不同的宽度（「哮喘待查」与「支气管哮喘待查」、「骨质疏松待查」与「绝经后骨质疏松症待查」、
+ * 「颈椎病」与「颈椎病待查」）：两次都认的是较宽、较弱的那一个——核心名取较短的（按字序是另一个的子序列），任一次带「待查」就带「待查」。
+ * 取交集而不是取其中一次，结果与两次的先后无关。不是子序列关系的两个名称（「心包炎待查」与「心包积液待查」）仍算不一致。
+ * 离线回放（157 例，两次一致的 56 例之外）：名称不同 11 例里 8 例属于这一种，其中一例是甲方口径保护例 S114（绝经后骨质疏松症→骨质疏松待查）；
+ * 只比字面相等时，这类例子因为两次宽窄不同而整条丢掉降级。CDSS_WESTERN_NAME_CHECK_NAME_MERGE=false 恢复只比字面。
+ */
+export function weakerCommonWesternName(first: string, second: string): string | undefined {
+  const coreOf = (name: string) => compact(name.replace(/待查$/u, ""));
+  const a = coreOf(first);
+  const b = coreOf(second);
+  if (a.length < 2 || b.length < 2) return undefined;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  if (shorter !== longer && !isCharacterSubsequence(shorter, longer)) return undefined;
+  return /待查$/u.test(first) || /待查$/u.test(second) ? `${shorter}待查` : shorter;
+}
+
+/**
+ * 两次核对的合并。类型相同、名称（紧凑比较）相同才算一致（D 类名称只是宽窄不同时取较弱的公共名称，见 weakerCommonWesternName），
+ * 取第一次的引文、理由与缺失检查；其余字段取保守的一侧：
+ * 任一次说原名属急危重症则按急危重症处理（红旗病例上因此不被改写）；病程远不到门槛只有两次都这么说才删原病名，否则按“未满”。
+ */
+export function agreedWesternNameCorrection(
+  first: WesternNameCorrection | undefined,
+  second: WesternNameCorrection | undefined,
+): { correction?: WesternNameCorrection; agreement: Exclude<WesternNameAgreement, "off"> } {
+  if (!first && !second) return { agreement: "none" };
+  if (!first || !second) return { agreement: "one_only" };
+  if (first.type !== second.type) return { agreement: "type_differs" };
+  let supportedName = first.supportedName;
+  let merged = false;
+  if (compact(first.supportedName) !== compact(second.supportedName)) {
+    const weaker = first.type === "D" && process.env.CDSS_WESTERN_NAME_CHECK_NAME_MERGE !== "false"
+      ? weakerCommonWesternName(first.supportedName, second.supportedName)
+      : undefined;
+    if (!weaker) return { agreement: "name_differs" };
+    supportedName = weaker;
+    merged = true;
+  }
+  const course: WesternNameCorrection["course"] = first.course === "far_below" && second.course === "far_below"
+    ? "far_below"
+    : first.course || second.course ? "unmet" : undefined;
+  const courseNextCheck = first.courseNextCheck || second.courseNextCheck;
+  const correction: WesternNameCorrection = { ...first, supportedName };
+  delete correction.currentIsEmergency;
+  delete correction.course;
+  delete correction.courseNextCheck;
+  if (first.currentIsEmergency || second.currentIsEmergency) correction.currentIsEmergency = true;
+  if (course) correction.course = course;
+  if (course && courseNextCheck) correction.courseNextCheck = courseNextCheck;
+  return { agreement: merged ? "agreed_merged" : "agreed", correction };
+}
+
+export type WesternNameCheckOutcome = {
+  correction?: WesternNameCorrection;
+  first?: WesternNameCorrection;
+  second?: WesternNameCorrection;
+  agreement: WesternNameAgreement;
+};
+
 export async function westernNameCorrectionForRecord(
   input: { recordText: string; diagnosisName: string; patient?: { sex?: unknown; age?: unknown }; listedNames?: readonly string[] },
   signal?: AbortSignal,
 ): Promise<WesternNameCorrection | undefined> {
-  if (!enabled() || signal?.aborted) return undefined;
+  return (await westernNameCheckOutcome(input, signal)).correction;
+}
+
+export async function westernNameCheckOutcome(
+  input: { recordText: string; diagnosisName: string; patient?: { sex?: unknown; age?: unknown }; listedNames?: readonly string[] },
+  signal?: AbortSignal,
+): Promise<WesternNameCheckOutcome> {
+  const none: WesternNameCheckOutcome = { agreement: agreementRequired() ? "none" : "off" };
+  if (!enabled() || signal?.aborted) return none;
   const config = getControlledTerminologyModelConfig();
-  if (!config.configured) return undefined;
+  if (!config.configured) return none;
   const recordText = input.recordText.slice(0, MAX_RECORD_CHARS);
   const diagnosisName = input.diagnosisName.trim();
   // 已经停在症状层面的名称（「头痛待查」）没有可核对的病种。
-  if (!recordText.trim() || diagnosisName.length < 2 || /待查$/.test(diagnosisName)) return undefined;
+  if (!recordText.trim() || diagnosisName.length < 2 || /待查$/.test(diagnosisName)) return none;
   const criteria = westernCriteriaPromptValue(await westernCriteriaReference(diagnosisName, signal).catch(() => undefined));
   const messages = [
     {
@@ -495,6 +600,40 @@ export async function westernNameCorrectionForRecord(
       }),
     },
   ];
+  const parseOptions = { listedNames: input.listedNames, patientAge: patientAgeYears(input.patient?.age) };
+  const run = (requestMessages: typeof messages) =>
+    westernNameCheckPass(requestMessages, config, recordText, diagnosisName, parseOptions, signal);
+  if (!agreementRequired()) {
+    const only = await run(messages);
+    return { correction: only, first: only, agreement: "off" };
+  }
+  // 第二次：内容顺序整个颠倒（键序、鉴别名单顺序），说明不变。
+  const reversedMessages = [
+    messages[0],
+    {
+      role: "user" as const,
+      content: JSON.stringify({
+        ...(input.listedNames && input.listedNames.length > 0 ? { listedDiagnoses: [...input.listedNames].reverse() } : {}),
+        ...(criteria ? { criteria } : {}),
+        diagnosisName,
+        record: recordText,
+        patient: { age: input.patient?.age ?? null, sex: input.patient?.sex ?? null },
+      }),
+    },
+  ];
+  const [first, second] = await Promise.all([run(messages), run(reversedMessages)]);
+  const { correction, agreement } = agreedWesternNameCorrection(first, second);
+  return { correction, first, second, agreement };
+}
+
+async function westernNameCheckPass(
+  messages: ReadonlyArray<{ role: "system"; content: string } | { role: "user"; content: string }>,
+  config: ReturnType<typeof getControlledTerminologyModelConfig>,
+  recordText: string,
+  diagnosisName: string,
+  parseOptions: { listedNames?: readonly string[]; patientAge?: number },
+  signal?: AbortSignal,
+): Promise<WesternNameCorrection | undefined> {
   return memoizedSmallTask<WesternNameCorrection | undefined>("western_name_evidence_check", smallTaskMemoKey([config.model, messages]), async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -506,10 +645,10 @@ export async function westernNameCorrectionForRecord(
         stream: false,
         response_format: { type: "json_object" },
         ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
-        messages,
+        messages: [...messages],
       }, { signal: controller.signal }));
       const content = response.choices[0]?.message?.content;
-      return { value: parseWesternNameCorrection(content, recordText, diagnosisName, { listedNames: input.listedNames, patientAge: patientAgeYears(input.patient?.age) }), cacheable: typeof content === "string" && content.trim().length > 0 };
+      return { value: parseWesternNameCorrection(content, recordText, diagnosisName, parseOptions), cacheable: typeof content === "string" && content.trim().length > 0 };
     } catch {
       return { value: undefined, cacheable: false };
     } finally {
@@ -546,10 +685,12 @@ export async function alignWesternNameWithRecord(
   const pendingCore = name.replace(/待查$/u, "");
   const pendingEntry = pendingCore !== name ? westernCriteriaEntry(pendingCore) : undefined;
   const checkName = pendingEntry && (pendingEntry.featureRule || pendingEntry.requiredHistory) ? pendingCore : name;
-  const checked = await westernNameCorrectionForRecord({ recordText: context.recordText, diagnosisName: checkName, patient: context.patient, listedNames }, signal);
+  const outcome = await westernNameCheckOutcome({ recordText: context.recordText, diagnosisName: checkName, patient: context.patient, listedNames }, signal);
+  const checked = outcome.correction;
   // 核对给回的就是原来的「X待查」：没有改动。
   const found = checked && compact(checked.supportedName) !== compact(name) ? checked : undefined;
   const correction = found && !(context.redFlag && heldOnRedFlag(found, checkName)) ? found : undefined;
+  const passLabel = (item: WesternNameCorrection | undefined) => (item ? `${item.type}:${item.supportedName.slice(0, 30)}` : "-");
   console.info("[tcm-cdss:telemetry] western_name_evidence_check", {
     applied: Boolean(correction),
     type: found?.type,
@@ -559,6 +700,10 @@ export async function alignWesternNameWithRecord(
     // 病名不是患者信息；记下来是为了能把改名归到病例上（10/19 分析验收集时只有类型码，归不了因）。
     currentName: name.slice(0, 30),
     supportedName: found ? found.supportedName.slice(0, 30) : undefined,
+    // 两次核对的结论与是否一致（第十轮 B3）：统计一致率、看哪些边界病例两次不一致而未改名。
+    agreement: outcome.agreement,
+    firstPass: passLabel(outcome.first),
+    secondPass: passLabel(outcome.second),
   });
   if (!correction) return westernContent;
   // 按去掉「待查」的病名核对时，原病名那条鉴别与候选写病名本身（「反应性关节炎」），不写「反应性关节炎待查」。

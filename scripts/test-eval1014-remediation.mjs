@@ -343,7 +343,8 @@ const checkAsync = async (name, run) => {
       globalThis.fetch = async () => { calls += 1; return completion(verdict({})); };
       const changed = JSON.parse(await westernCheck.alignWesternNameWithRecord(half("睡眠呼吸暂停低通气综合征"), { recordText: record }));
       assert.equal(changed.westernDiagnosis.primary.name, "白天嗜睡待查");
-      assert.equal(calls, 1);
+      // 第十轮 B3：病名核对并行发两次（内容顺序一正一反），两次一致才改名（test:r1022-western）。
+      assert.equal(calls, 2);
       globalThis.fetch = async () => { calls += 1; return completion({ verdict: "consistent", type: "", quote: "", reason: "", supportedName: "" }); };
       assert.equal(await westernCheck.alignWesternNameWithRecord(half("发作性睡病"), { recordText: record }), half("发作性睡病"));
       globalThis.fetch = async () => { throw new Error("upstream down"); };

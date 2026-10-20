@@ -2,6 +2,17 @@ import clinicalLexemes from "../data/phi-clinical-lexemes.json" with { type: "js
 
 const CLINICAL_NAME_COLLISIONS = new Set(clinicalLexemes.terms);
 const CLINICAL_LEXEME_FOLLOWERS = new Set(clinicalLexemes.lexemeFollowers);
+// 病历抬头规则只认语法源里标了 headerExempt 的词条（目前只有整词「高龄」），不是整张词形表。
+const CLINICAL_HEADER_TERMS = new Set(clinicalLexemes.headerTerms);
+// 方义起句「方中有人参…」：候选恰为「方中」时的带上下文豁免，见 phi-clinical-lexical-grammar.source.json 的 formulaReading。
+const FORMULA_READING_CANDIDATES = new Set(clinicalLexemes.formulaReading.candidates);
+const FORMULA_READING_LINKS = new Set(clinicalLexemes.formulaReading.linkChars);
+// 跨候选边界的部位词：「左小腹痛」的候选是「左小」，部位词「小腹」被切开；候选之后紧跟「腹」时放行。
+const STRADDLE_OPENINGS = new Map<string, Set<string>>();
+for (const item of clinicalLexemes.straddleOpenings) STRADDLE_OPENINGS.set(item.candidate, new Set(item.nextChars));
+const FORMULA_READING_OPENERS = new Set(clinicalLexemes.formulaReading.openers);
+// 药性类别词是开放的（润肠之品、温补之品、活血化瘀之品），按构词认：有 + 1–6 字 + 之品/之药（不认「药物」：「有服用降压药物史」是病史）。
+const FORMULA_READING_OBJECT = new RegExp(`^[\\u4e00-\\u9fa5]{1,6}(?:${clinicalLexemes.formulaReading.objectSuffixes.join("|") || "(?!)"})`);
 
 const OCCUPATION_GROUPS: Array<[RegExp, string]> = [
   [/(?:医生|医师|护士|药师|医务|护理)/, "医疗卫生工作"],
@@ -92,8 +103,38 @@ export function isClinicalTemporalPhrase(value: unknown): boolean {
   return typeof value === "string" && CLINICAL_TEMPORAL_PHRASE.test(value.trim());
 }
 
+/**
+ * 候选串是否受治理临床词形：整词在闭集里，或「双字词形 + 一个功能语素」（全身伴、干咳已、劳累后、皮损位）。
+ * 姓名候选是姓氏字 + 1–2 字的贪婪/惰性匹配，临床词后紧跟的一个功能语素会被并入三字候选。
+ * 叙述规则、主语前缀（本例X）、关系前缀（患者X）三处共用这一条判据——此前后两处只认整词，
+ * 「本例水肿起于眼睑」「本例皮损位于面部」「本例关节未诉肿大」的词形加语素豁免轮不到（2026-10-20）。
+ * 语素集合只收体、时、方位、连接、否定等功能字，刻意不收可作名字用字的中/少/小/和/常/期：
+ * 前两字即便与名字同形（疾病词表的「强中」），「强中华」这类三字姓名仍照常脱敏。
+ */
+export function isGovernedClinicalLexemeCandidate(candidate: string): boolean {
+  if (CLINICAL_NAME_COLLISIONS.has(candidate)) return true;
+  return candidate.length === 3 && CLINICAL_NAME_COLLISIONS.has(candidate.slice(0, 2))
+    && CLINICAL_LEXEME_FOLLOWERS.has(candidate[2]);
+}
+
+/**
+ * 方义起句：候选恰为「方中」，其后紧跟「有」，再其后是受治理药名（药典药味及别名的前两字）或药性/用法类别词。
+ * 方是姓氏字、中是名字常用字，双字「方中」不能进词形闭集；加上「有 + 药名」这一上下文后，
+ * 「方中有高血压」「患者方中有糖尿病」仍照常脱敏。following 是候选之后的原文（取前 10 个字符即可）。
+ */
+export function isFormulaReadingOpening(candidate: string, following: string): boolean {
+  if (!FORMULA_READING_CANDIDATES.has(candidate) || !following) return false;
+  if (!FORMULA_READING_LINKS.has(following[0])) return false;
+  return FORMULA_READING_OPENERS.has(following.slice(1, 3)) || FORMULA_READING_OBJECT.test(following.slice(1));
+}
+
+/** 候选之后紧跟的一个字与候选合成部位词（左小 + 腹 = 左小腹）。 */
+export function isStraddledClinicalWord(candidate: string, following: string): boolean {
+  return Boolean(following) && (STRADDLE_OPENINGS.get(candidate)?.has(following[0]) ?? false);
+}
+
 /** Refine an already surname-matched narrative candidate, not a general-purpose name detector. */
-export function shouldRedactNarrativeNameCandidate(candidate: string): boolean {
+export function shouldRedactNarrativeNameCandidate(candidate: string, following = ""): boolean {
   if (isClinicalTemporalPhrase(candidate)) return false;
   // Exempt known clinical lexemes, not every unlabelled two-character name. Generated from the
   // governed disease/location/inspection dictionaries plus finite lexical compositions; the large
@@ -104,19 +145,18 @@ export function shouldRedactNarrativeNameCandidate(candidate: string): boolean {
   // 「患者干咳已有2月」「患者黄疸出现3天」在送模型之前就丢了侧别、诱因乃至主症本身。
   // scrubSubjectPrefixedName / scrubRelationPrefixedName 9/29 起已按同一词形集合豁免，三处判据在此对齐。
   // 「患者张三失眠」不受影响：张三不是词形。姓 × 常见名字 × 带标签句式的泄漏反证见 test:phi-clinical-collision。
-  if (CLINICAL_NAME_COLLISIONS.has(candidate)) return false;
   // Morphological guard: the caller's surname+{1,2} capture is greedy, so a clinical lexeme followed
   // by one function or locative morpheme (全身伴有, 劳累后出现, 干咳已有, 左腹部) arrives as a
   // three-character candidate. Both the head and the governed follower set must match; followers
   // exclude given-name characters, so 强中华 stays redacted although 强中 is a disease lexeme.
-  return !(candidate.length === 3 && CLINICAL_NAME_COLLISIONS.has(candidate.slice(0, 2))
-    && CLINICAL_LEXEME_FOLLOWERS.has(candidate[2]));
+  if (isGovernedClinicalLexemeCandidate(candidate)) return false;
+  return !(isFormulaReadingOpening(candidate, following) || isStraddledClinicalWord(candidate, following));
 }
 
 export function scrubSubjectPrefixedName(text: string, marker = "[姓名已脱敏]"): string {
   return String(text || "").replace(SUBJECT_PREFIXED_NAME, (match, prefix: string, candidate: string) =>
     // 已知临床词形（高龄、高血压…）不是姓名：主语前缀 + 姓氏字开头的临床词曾被整段抹掉（2026-09-29）
-    isClinicalTemporalPhrase(candidate) || CLINICAL_NAME_COLLISIONS.has(candidate) ? match : `${prefix}${marker}`);
+    isClinicalTemporalPhrase(candidate) || isGovernedClinicalLexemeCandidate(candidate) ? match : `${prefix}${marker}`);
 }
 
 /**
@@ -142,7 +182,7 @@ export function scrubRelationPrefixedName(text: string, marker = "[姓名已脱�
   // 「患者高龄，受凉后…」被抹成「患者[姓名已脱敏]，…」，M04 抄回被改写的病机与已签名 M03 对不上（pathogenesis_drift）。
   // 姓名候选仍是「姓氏 ∩ 上下文」，只对闭集临床词形（phi-clinical-lexemes）让路；姓氏×常见名的反证见 test:eval924-round2。
   return String(text || "").replace(RELATION_PREFIXED_NAME, (match, prefix: string, candidate: string) =>
-    CLINICAL_NAME_COLLISIONS.has(candidate) ? match : `${prefix}${marker}`);
+    isGovernedClinicalLexemeCandidate(candidate) ? match : `${prefix}${marker}`);
 }
 
 /**
@@ -174,6 +214,10 @@ export function scrubRecordHeaderName(text: string, marker = "[姓名已脱敏]"
   // 姓氏枚举 + 上下文两个条件取交集，才既认得出姓名、又不误伤临床措辞。
   const startsWithSurname = new RegExp(`^(?:${CHINESE_COMPOUND_SURNAME.source}|${CHINESE_SURNAME.source})`).test(candidate);
   if (!startsWithSurname) return source;
+  // 「高龄」不是姓名：「高龄男性，既往脑梗死」「高龄女性、既往…」里「高龄」+ 紧接的男/女被当成「姓名 + 性别」，
+  // 年龄信息在送模型之前就丢了（M03/M04 输出 189,040 串里 17 处）。只认语法源里标了 headerExempt 的整词，
+  // 「高」姓 + 名字「龄」之外的真实抬头（高伟，男，45岁）不受影响。
+  if (CLINICAL_HEADER_TERMS.has(candidate)) return source;
   return source.replace(header[0], marker);
 }
 

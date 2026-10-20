@@ -157,8 +157,10 @@ const criteriaFile = JSON.parse(fs.readFileSync(path.join(process.env.R1019_SRC 
     assert.equal(named("乏力"), "乏力待查");
     assert.equal(named("头痛", "B", "记录与该病核心表现相反"), "头痛待查");
     assert.equal(named("多关节痛", "B", "记录与该病核心表现相反"), "多关节痛待查");
-    assert.equal(named("牙痛"), "牙痛");
-    assert.equal(named("贫血"), "贫血");
+    // 第十轮起 D 类交回的名称须是原名的宽写、症状层或病历原有说法（这份病历讲的是乏力，「某综合征→牙痛」会改写原病名待查，见 test:r1022-main 3.x）；
+    // 这里要钉的是「牙痛是病名、不补待查」，改用不受该约束的 B 类。
+    assert.equal(named("牙痛", "B", "记录与该病核心表现相反"), "牙痛");
+    assert.equal(named("贫血", "B", "记录与该病核心表现相反"), "贫血");
     assert.equal(named("关节炎", "B", "记录与该病核心表现相反"), "关节炎");
   });
   await check("3.2 症状判据：ICD-10 R 章与少数别章症状码（关节痛、颈痛、便秘）算；病名（牙痛、失眠、贫血、高血压）不算", () => {
@@ -249,7 +251,7 @@ const criteriaFile = JSON.parse(fs.readFileSync(path.join(process.env.R1019_SRC 
     const same = content("反应性关节炎待查", "c");
     const echoed = await nameCheck.alignWesternNameWithRecord(same, { recordText: record("c"), patient: { sex: "女", age: 39 } });
     await check("5.4 「反应性关节炎待查」按「反应性关节炎」核对：前驱感染没有记录时交付「关节痛待查」，原病名（不带待查）进候选与鉴别；对照：「腹痛待查」不核对；核对给回原来的「X待查」时不改", () => {
-      assert.equal(firstCalls, 1);
+      assert.equal(firstCalls, 2, "第十轮 B3：病名核对并行两次，一致才改名");
       assert.equal(out.primary.name, "关节痛待查");
       const row = out.differentials.find((d) => d.name === "反应性关节炎");
       assert.equal(row?.reason, "尚未取得确诊所需的检查或病程依据", JSON.stringify(out.differentials));

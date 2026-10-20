@@ -154,17 +154,21 @@ const verdict = (extra) => JSON.stringify({ verdict: "inconsistent", type: "D", 
   const packets = fs.readFileSync(path.join(SRC, "lib/m03-context-packets.ts"), "utf8");
   const prompts = fs.readFileSync(path.join(SRC, "lib/diagnosis-prompts.ts"), "utf8");
   const GRANULARITY = "按它能确立的最具体一层写：不停在它之上一层";
-  const COMPLICATION = "必须写进 name，或至少作为 differentials 的第一项";
-  await check("4.1 西医半提示词：粒度原则与并发症/合并症必写（休克、DIC、多器官功能衰竭、急腹症有依据不得省略）", () => {
+  // 第十轮（10/20 用户定）撤回「并发症必须写进 name」：r19j 的 D 集出现「急性心肌炎伴心力衰竭」「支气管肺炎合并心力衰竭」等无据并入。
+  // 有客观依据的并发症改为 differentials 第一项并点明依据，急危重诊断仍不得省略。
+  const COMPLICATION = "列为 differentials 的第一项并在 reason 里点明依据，不靠推测并入 name";
+  await check("4.1 西医半提示词：粒度原则；有据的并发症/合并症列鉴别第一项、不并入病名（休克、DIC、多器官功能衰竭、急腹症有依据不得省略）", () => {
     assert.ok(packets.includes(GRANULARITY), "西医半缺粒度原则");
-    assert.ok(packets.includes(COMPLICATION), "西医半缺并发症必写");
+    assert.ok(packets.includes(COMPLICATION), "西医半缺并发症列鉴别第一项");
+    assert.ok(!packets.includes("必须写进 name"), "西医半仍要求并发症写进病名");
     assert.ok(packets.includes("休克、DIC、多器官功能衰竭、急腹症这类急危重诊断有依据时不得省略"));
     // 单次出现：不是复制粘贴了两遍
     assert.equal(packets.split(GRANULARITY).length - 1, 1);
   });
   await check("4.2 完整版提示词（修复轮、兜底用）与西医半同口径", () => {
     assert.ok(prompts.includes("按它能确立的最具体一层写：不停在它之上一层"), "完整版缺粒度原则");
-    assert.ok(prompts.includes("必须写进 primary.name（用“伴”“合并”），或至少作为 differentials 的第一项"), "完整版缺并发症必写");
+    assert.ok(prompts.includes("列为 differentials 的第一项并在 reason 里点明依据，不靠推测并入 primary.name"), "完整版缺并发症列鉴别第一项");
+    assert.ok(!prompts.includes("必须写进 primary.name"), "完整版仍要求并发症写进病名");
   });
   await check("4.3 对照：提示词没有把「伴」写成无条件追加——并发症以「病历已有客观依据」为前提", () => {
     assert.ok(packets.includes("病历已有客观依据的并发症、合并症"));
