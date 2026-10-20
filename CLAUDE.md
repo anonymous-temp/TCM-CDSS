@@ -1287,7 +1287,106 @@ Plan and agent notes: `~/runlogs/r1018/work/r1021/` (`TODO9.md`, `COMMON9.md`, o
 - **New server defect found by this run, not fixed (the user asked for a stop and summary first).** 病历7 run 2: the model wrote 「…白酒，辛热积于胃腑…」. `scrubPhi` in `diagnosis-safety.ts` (inside the evidence output transform) matches punctuation + surname 辛 + 1–2 characters + 于, and 辛热 is not in the clinical-lexeme exemption, so 「辛热积」 became 「[已脱敏]」. The signed M03 kept the original text, `crossStageReasoningIssue` reported `pathogenesis_drift` at the route's final T1 recheck, and the page lost its dose. It reproduces offline (`~/runlogs/r1018/work/r1021/final/drift.mjs <r2.json> <r3.json>`): every final-transform step leaves the text alone except the evidence transform. Same class as 9/29 「患者高龄」 and 10/13 「患者全身发热」. The fix belongs in the governed lexeme grammar (性味 forms 辛热/辛温/辛凉/辛燥… as a closed group) with the two-way corpus measurement.
 - **S102 PCOS (held-out) is not downgraded** although the record has a normal ultrasound and normal hormones. The check does return D, but its quote joins the two findings in reversed order with 「；」 (「性激素六项大致正常；妇科彩超：…」), which is not a verbatim substring, so the downgrade is discarded (1 of 2 probe calls; `final/wprobe.mjs`). Not fixed.
 
-**Not deployed.** Production runs round 8 (324ff55). Round 9 (5b102e4) is a local commit.
+**Deployment.** Round 9 went to production together with round 10's A and B as 604a33b on 2026-10-20 (see the next section).
+
+### 10/20 round 10: the two round-9 defects, Western stability, ABC conventions for 证型/治法/治则 (2026-10-20)
+
+The user chose: A (fix the two defects found by the round-9 acceptance run, deploy round 9, measure the answered path on production), B (Western stability; revert the two round-9 side effects), C (research the main-syndrome problem and act on it), then align 治法/治则/兼证 with the competitor ABC 诊所管家 ("别是我们推理的多了或者偏了"), check the customer's P0/P1 items, and run a wider test. Plan, research and agent notes: `~/runlogs/r1018/work/r1022/` (`TODO10.md`, `COMMON10.md`, `research/abc-format.txt`, `research/syndrome-methods.txt`, `phi/`, `western/`, `abc/`, `adj/`). Commits 8b1c8e2 + 604a33b (A+B, **deployed**), 7090d85 (C+ABC, local) and 392a237 (P0 population wording, local; `deploy/r10-p0` = 604a33b + this fix). Suites `test:r1022-main|phi|western|abc`.
+
+**What ABC actually outputs** (five screenshots on its own blog, transcribed): 证型 is one line of 1–3 elements without main/secondary (a single element uses a standard name, 风燥伤肺证; several are mechanism phrases, 风邪犯肺，肺阴亏虚，卫表不固); 辨证要点 one line per element; 治法 2–3 items mapping to the elements; **no 治则** anywhere (AI output, record fields, open API); 加减 3–4 「若X：加A 剂量、B 剂量」 items. ABC grows elements from side signs (舌下络脉青紫 → 气滞血瘀), which is more aggressive than our "兼证 only with grouped evidence"; the customer's own 10.12 feedback called a forced 兼证 牵强, so that rule stays.
+
+**A.**
+- **The 病历7 non-dose page was the server's, not the scrubber's alone.** `restoreSignedM03ClinicalSections` (evidence output transform) restored the M03 sections into the prescription from `caseState.reasoningDiagnose`, and the prescribe route passed the PHI-sanitized `safeState`; the final T1 recheck compared with the unsanitized signed M03. Any M03 sentence the scrubber rewrote became `pathogenesis_drift` and withheld the dose. The route now passes the signed M03 (`{ ...safeState, reasoningDiagnose: signedPriorReasoning }`), so the class is closed whatever the scrubber does.
+- **PHI scrubber vs model-written clinical text.** 769 of 189,040 round-9 model output strings were rewritten (方中有人参 → 「[已脱敏]有人参」, 查体有无, 明确腹痛, 黎明前腹痛 (五更泻!), 连声咳嗽, 辛热积于…). 24 construction groups in `phi-clinical-lexical-grammar.source.json`, context-bound exemptions (`isFormulaReadingOpening`: 方中 only before 有 + governed herb; `isStraddledClinicalWord`: 左小+腹), and one shared predicate `isGovernedClinicalLexemeCandidate` for the three name rules. False redactions: model outputs 660 → 139, 17k-case corpus 35 → 28, acceptance records 32 → 19; 5,573,568 surname × name × pattern probes leak exactly the same set (高寿 was removed from the exemptions: it let real names through).
+- **Narrow-check quotes:** `src/lib/verbatim-quote.ts` (`quoteGroundedInText`): a quote made of record fragments joined by 「；，」 in another order counts when every fragment (≥3 chars) is verbatim. S102's PCOS downgrade had been dropped for that.
+- **Deployed 604a33b** (tag `20261020-604a33b-prebuilt`, 2026-10-20 10:31 Beijing): `verify:deployed-image` ok, `regress:prod-smoke` 0 failures (cold M03 P95 14.3 s, M04 P95 10.7 s). Rollback image `tcm-cdss:20261019-324ff55-prebuilt`.
+- **Answered-path latency on production** (customer request shape, answered follow-up, 20 s think time, REGENERATE=0, 32 chains, all 200): M03 p50/p90/p99 12.1/14.3/15.7 → 8.6/10.5/10.9 s; M04 10.8/12.1 → 9.5/10.7 s; red-flags p90 6.5 → 9.0 s (the precompute shares capacity). The round-9 measurement used REGENERATE=1, which bypasses reuse and therefore the precompute too.
+
+**B (Western).**
+- Complications with objective evidence are listed first in `differentials` with their basis instead of «必须写进 name» (r19j: 急性心肌炎伴心力衰竭, 支气管肺炎合并心力衰竭 without evidence).
+- A D-type downgrade may only use a broader name of the same disease — a character subsequence of the original (脊髓型颈椎病 → 颈椎病, 急性化脓性扁桃体炎 → 急性扁桃体炎), a symptom-level name, or the record's own wording (主诉「牙痛3天」 → 牙痛); anything else becomes 「原病名待查」. The check had handed back other diseases: 附睾结核 → 附睾炎, 甲状腺癌骨转移 → 甲状腺瘤, 肾包虫病 → 肾囊肿, 糖尿病 → 消渴病. S102 is now 多囊卵巢综合征待查 (the reviewer asked for 待排).
+- The name check runs twice in parallel (content order reversed, separate cache keys) and renames only when both agree; width-only D differences merge to the broader name (`CDSS_WESTERN_NAME_CHECK_AGREEMENT`, `…_NAME_MERGE`). Check renames fall by a third; protected customer downgrades unchanged.
+- **Stability was measured and did not move significantly:** the same record gives a different Western primary name in 14/80 (17.5%) of paired runs on round-9 code and 11/80 after; four arms sit within one binomial standard error. Most remaining variance is the Western half rewording its own name, which a check cannot fix.
+
+**C + ABC (7090d85, not deployed).**
+- **Research** (`research/syndrome-methods.txt`): our TCM-half template made the model write `primarySyndrome` before its own location/nature analysis; with thinking off, field order is the reasoning order. Element-first (证素辨证 证候→证素→证名; TCMEval-SDT info → pathogenesis → syndrome) was the top recommendation (CHD-SEDD: syndrome F1 61 → 85% in a narrow setting).
+- **Element-first:** provider schema key order, the parallel-half instruction and the template now put `pathogenesis` (location and nature elements with verbatim basis, 本虚/标实 separated) before `overview`; one prompt paragraph says the syndrome is composed of the listed elements, 本虚/标实 decides the head, 治法 maps element by element (main syndrome keeps the textbook 治法) with at most one symptomatic item, and no 治法 for a mechanism the syndrome line lacks.
+- **治则** is now derived from the delivered syndrome elements (`signedNatureProfile`): a deficient element ⇒ 虚, a pathogen element ⇒ 实 (感冒/外感 count), both ⇒ 扶正祛邪; 治法 wording only for names that show neither (痛痹, 胸痹); 乘/伤X/两伤/耗伤 are deficiency; excess with a root tonification in 治法 ⇒ 标本兼治; 寒热错杂 names ⇒ 调理阴阳. Replay over 1,402 round-9 diagnoses: 112 changed, all read, customer cases unchanged. Before, a stray 「益气养阴」 in 治法 turned a pure heat case into 扶正祛邪 and 痛痹兼肾阳虚 became 虚则补之.
+- **Same-day measurement matters.** A fresh generation of round-9 code today scored 中医诊断 ~45% on the M100 subset, against 50–52% for the stored round-9 outputs judged twice. Every arm generated today (A+B 42, old order 44, element-first 45) sits there; comparing a fresh arm with stored outputs would have blamed the new code. Only compare arms generated the same day.
+- **Result (same day, qwen):** 中医诊断 unchanged (45 vs 42–45 per 100); 治则治法 M 47 (A+B) / 43 (same rules, old order) → 52/98, X 24–26 → 27/30. Customer 10 × 2 and held-out 32: disease and syndrome 100%, identical across runs; M03 output tokens +3%.
+- **Not done here:** the research's second step (closed-set discriminator adjudication between the model's syndrome and 1–2 neighbouring textbook rows) was evaluated offline only (`adj/`).
+  - **Offline evaluation of the adjudication step** (`adj/`, 392 calls): candidates = the model's syndrome + 1–2 (or all) rows of the same disease; the model marks each row's manifestations supported/contradicted with verbatim quotes, never a name; override only on score lead ≥2 with ≥1 contradiction and two agreeing passes. On 141 eligible M/X cases: **0 correct overrides**, 1–4 wrong ones (cases whose syndrome already matched the reference); the model's contradiction sets agree between the two orders only 0.29–0.47. Not shipped.
+  - **Error classes of the remaining 中医诊断 failures** (63 on M100 + X60, hand-classified): deficiency/excess, cold/heat or deficiency-type flips 23 (5–7 are 苔黄腻 written as 痰浊/痰湿 without heat); disease name 14 (7 where the reference disease has its own textbook section the closed-set pick did not choose: 中风 for an old stroke with dizziness, 癌病, 心衰…); missing 兼证 10; organ 4; main/secondary 3; external/internal 1; reference from another system (经方方证, diagnostics names) 4. 43 of the 55 M failures failed in all four same-day arms; 12 flip between generations.
+
+**P0 found by the wider test: pregnancy, lactation and warfarin in old case-record wording (392a237).** The new special-population set S (137 real records: pregnancy 20, lactation 15, anticoagulant 12, hepatic 15, renal 15, 75+ 15, five child age bands × 9) found 8 patients with an independent hard dose boundary who got dosed prescriptions (pregnancy 2/21, lactation 4/15, anticoagulant 2/12). The deterministic assessors did not read:
+- 「妊娠已6个月」 (已/约/近/有 between 妊娠/怀孕 and the number, after whitespace removal);
+- 「HCG（+）」「尿妊娠试验(+)」「早孕试验：弱阳性」 (test name + plus sign; 「（-）」 is a negative);
+- 「产后缺乳」「乳汁稀少/量少/欠通畅/点滴不出」「挤出乳汁再喂」 (scant or blocked milk is lactation by itself; 「患儿自幼缺乳」 and 「喂奶粉」 are excluded, 「还能喂奶吗」 stays possible);
+- 「哺乳中」「现哺乳」;
+- 「华法令」, another transliteration of 华法林 (antithrombotic matcher and the medication alias map).
+
+Open-language freeze exception: finite closed sets and morphological guards. Corpus replay over 20,496 texts (17k modern cases, the ten acceptance sets, synthetic sets): pregnancy 6, lactation 8, anticoagulant 3 changes, all read and all correct. Re-running S on the fix: 0 of 21/15/12 dosed. `test:r1022-main` §4 with counter-proofs. **Not deployed** (see below).
+
+**Round 10 measured (qwen3.8-max; local, 7090d85 = A+B+C/ABC, before the P0 fix).** The wider test added four sets built for this round (`sets/round10-sets-report.txt`, fixed seed, no overlap with the old sets, leak-checked): M2 (360 real TCM records, five sources), X2 (330 exam-style, C/E/G × 110), S (above) and L (20 M2 records × 5 lineages), plus the 10/13 synthetic 190 and customer-history 52, and a judge that scores the customer's own 1.1 rows (`judge-qwen-p.mjs`: T 依据可追溯, R 随证加减, Q 治则治法与主证匹配, S 选方, P 配伍, K 中成药, L 病机, Y 出处方义, W 外治, N 调护, V 随访, Z 流派; it does not compare against dataset answers).
+
+Deterministic checks (do not depend on the judge):
+
+| Check | Round 10 |
+|---|---|
+| P0 audit, every set (dose > ChP ceiling / > 2× / 十八反 incl. 加减 / pregnancy-prohibited / child-toxic / organ) | 0 / 0 / 0 / 0 / 0 / 0. The independent-boundary gap above is a different class: the patient was not recognised as pregnant/lactating/anticoagulated at all |
+| Disease 0.5 + syndrome 0.5 vs the answer (customer 1.1 P0 ≥95%) | customer 10 × 3: 100%, held-out 32 × 2: 100%; no case wrong on both |
+| Same record, repeated fresh generations | customer 10 × 3: disease, syndrome, 兼证, formula identical 10/10, 治法 8/10, Western 8/10; held-out 32 × 2: disease and syndrome 32/32, formula 31/32, 兼证 30/32, Western 26/32, 治法 22/32 |
+| Synthetic 190 / customer-history 52 (`score.py`) | every block ≥ 94% except 证候 90.0 / 80.8 (any 兼证 counts as forced: 10/190, 7/52) and 注意事项 84.3 / 87.5 (more than 5 lines once the rule-computed lines are added) |
+| TCM disease differentials < 2 | L + HIST + SYN: 5/342 |
+| Local stage medians / p90 (synthetic 190) | question 6.5 / 12.5 s, diagnose 10.6 / 12.3 s, prescribe 11.5 / 14.5 s |
+
+Judged by qwen3.8-max, round 9 (5b102e4, r19j) → round 10 (7090d85, r20). Both judged with the same scripts; the round-9 outputs were generated on 10/19, so per the same-day note a few points either way are generation drift.
+
+| Set | Round 9 | Round 10 |
+|---|---|---|
+| Customer 10 × 3, failures per column | run 1: 饮片 1; runs 2–3: 0 | run 1: 0; run 2: 中医诊断 1 (病历10's rationale ends 「尚需结合复诊舌脉修正」 although tongue and pulse are recorded); run 3: 饮片 1 (病历7 empty 加减). One 工程用语 fail was the review renderer printing the interface value `syndrome` (`panel.py` now labels it) |
+| Held-out 32 | every block 100 except 西医 89.7 (one run) | two runs: every block ≥ 96.6 except merged 中医诊断 94.8; 西医 98.3 |
+| A red flags | 328/340 | 331/340 (8 over, all guideline-backed calls from round 8; 1 under, A-eme-0175) |
+| B follow-up | 97.9 | 96.7 |
+| X C / E / G | 73.4 / 89.1 / 80.9 | 71.8 / 90.0 / 82.7 |
+| M C / E / F / G / H / I / J / K | 51.9 / 61.8 / 96.2 / 68.2 / 94.8 / 99.7 / 98.5 / 90.8 | 54.4 / 64.0 / 96.6 / 68.9 / 95.3 / 100 / 97.7 / 92.4 |
+| H cards | 90.9 | 88.6 |
+| D Western | 62.2 | 64.9 |
+| New: M2 C / E / F / G / H / I / J / K | — | 61.9 / 70.6 / 95.6 / 74.4 / 96.9 / 99.1 / 96.8 / 91.9 |
+| New: X2 C / E / G | — | 71.8 / 85.5 / 78.2 |
+| New: S C / G / J / K | — | 70.1 / 87.1 / 96.2 / 93.9 |
+| New: L C / G | — | 44.0 / 59.6 (lineage consistency Z below is 100%; the misses are the main syndrome against the reference) |
+
+The customer's 1.1 rows (`judge-qwen-p.mjs`; percentages, n in brackets where a row is not applicable to every case):
+
+| Row | customer 10 × 3 | held-out 32 × 2 | S 137 | L 100 | M2 360 |
+|---|---|---|---|---|---|
+| T 依据可追溯 (P0 ≥90) | 100 | 98.4 | 94.9 | 96.0 | 97.2 |
+| R 随证加减 (P0 ≥90) | 100 | 98.4 | 97.7 | 99.0 | 98.0 |
+| Q 治则治法与主证匹配 (P1 ≥90) | 100 | 100 | 100 | 98.0 | 98.3 |
+| S 选方 (P1 ≥90) | 100 | 100 | 98.5 | 100 | 98.6 |
+| P 配伍 (P1 ≥90) | 100 | 100 | 100 | 100 | 100 |
+| K 中成药 (P1 ≥90) | 100 (24) | 96.8 (31) | 97.1 (34) | 100 (48) | 97.7 (128) |
+| L 病机 (P2 ≥90) | 100 | 100 | 99.3 | 95.0 | 93.6 |
+| Y 出处方义 (P2 ≥90) | 100 | 100 | 99.3 | 100 | 98.9 |
+| W 外治 (P2 ≥85) | 100 | 100 (54) | 98.2 (56) | 100 (71) | 98.0 (205) |
+| N 调护 (P2 ≥90) | 100 | 100 | 99.3 | 100 | 99.7 |
+| V 随访 (P2 ≥90) | 100 | 100 | 90.4 | 97.0 | 93.9 |
+| Z 流派 (P2 ≥90) | — | 100 (2) | — | 100 | — |
+
+- **Read the two judges together.** The 1.1 rubric checks the output against itself and the record (is every quoted basis in the record, does 治法 match the system's own syndrome); the module judges compare with dataset answers. Every 1.1 row is ≥90% on every set (lowest: M2 L 病机 93.6, S V 随访 90.4), while M/L C and G sit at 44–75% because the main syndrome differs from the reference (most often a compound reference such as 气虚血瘀 where we write one element, or the reverse).
+- **The customer's own 1.1/1.2 numbers that we can compute:** red flags 97.4% (≥95), dose/十八反/special-population audit 100%, disease+syndrome on the customer and held-out cases 100% with no double misses, differentials ≥2 at 98.5%, Western 98.3% on the held-out set (the D exam set is 64.9% against the most specific exam answer).
+
+**Found by the round-10 run, not fixed (per the stop rule).**
+- **兼证 from the model's own 「兼」 wording, and duplicated 治法 items.** With pathogenesis written first, the model more often concludes 「病性属痰湿兼气虚」; the self-declared-marker path then adds the 兼证 and appends its method, giving 「燥湿化痰，理气止咳，健脾和胃，健脾益气」. 兼证 rate X 12.4 → 15.2%, H 18.8 → 20.9%, M flat (36.4 → 34.7%); synthetic 10/190 and history 7/52, where the scorer counts any 兼证 as forced. 治法 lists with two items starting with the same two characters: M 15 → 21/360, X 5 → 9/330. The opposite miss also exists: 心血瘀阻证 with six recorded 气虚 findings got no 兼证 (L set).
+- **Non-dose pages' follow-up has no day.** 「按医生安排复诊」 on special-population non-dose pages fails the customer's V row 13/136 on S.
+- **Model-written defects seen by the reviews:** 病历7 empty 加减 in about one run of three (`trigger_not_current_fact`; the 牙痛 supplement rows have no textbook 加减); 病历2 五味安神颗粒 (心脾两虚 label) for 心虚胆怯; S032 「中度贫血」 at Hb 92 (case C did not fire); S058 「未诉腹痛」 against 「腹中冷痛」; S-lactation-010 disease 鼻塞 with 「无鼻塞」 recorded; a 12–17 y record of 风湿性心肌炎 written as 病毒性.
+- **Not a defect:** S131 滑石 先煎 follows ChP 2020 (滑石 先煎, 滑石粉 包煎); the held-out reviewer expected 包煎.
+- **Acceptance-set data:** chief complaint taken from occupation or date in M 47/360, X 21, H 29, D 7, A 20 (`round10-sets-report.txt`); M2/X2/S/L are built without it.
+
+**Deploy status.** 604a33b (round 9 + round 10 A/B) is in production. ea33d20 (`deploy/r10-p0`: 604a33b + the P0 fix, without C/ABC) passed `verify:release` and prebuilt, then the deploy script stopped at the host disk floor: 10.1 GB free < 12 GB. Our own reclaimable files on the host (build contexts of 4a6e9cc/bd86afb/324ff55, the bd86afb image) total about 1.5 GB; the rest of the 178 GB belongs to other projects (hecrs-state 20 GB, evimed/rxai images with 29.5 GB reclaimable). The floor was not lowered. Two hours later the host was at 4.4 GB free (98%) from other projects' writes. Production therefore still lacks the pregnancy/lactation/warfarin wording fix.
+
+**Running it again.** `~/runlogs/r1018/scripts/final-run-r20.sh` (generation, resumable; judges detached), then `tally-qwen-sets.py <set>-r20`, `tally-qwen-p.py <P-dir>`, `tally-qwen-cust.py c10|held`, `~/runlogs/fix1012/scripts/score.py <out> --cases <file>`, `work/r1021/p0-audit.mjs <out>…` and `work/r1021/final/dx-halfscore.py <out>`. qwen throughput is about 12 judgements per minute across all processes regardless of worker count, so a full round of judging takes about four hours; give the comparable module sets priority and run the 1.1 rubric afterwards.
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
