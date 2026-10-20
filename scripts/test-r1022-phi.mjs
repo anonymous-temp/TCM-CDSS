@@ -47,7 +47,7 @@ const scrub = (text) => safety.sanitizeFreeTextForModel(text);
 const keepAll = (texts, label) => {
   for (const text of texts) assert.equal(scrub(text), text, `${label}：临床原句不应被改写\n  ${text}\n  → ${scrub(text)}`);
 };
-const redactAll = (texts, label, nameOf = (t) => t) => {
+const redactAll = (texts, label) => {
   for (const text of texts) assert.match(scrub(text), /已脱敏/, `${label}：姓名必须照旧脱敏\n  ${text}\n  → ${scrub(text)}`);
 };
 
