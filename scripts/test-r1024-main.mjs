@@ -131,6 +131,15 @@ await check("2.4 「部位+症状」隔字写法的构词式守卫：腹中冷�
   }
 });
 
+await check("2.9 被否认的是下位词时，病历只写上位词不算矛盾：咳嗽≠咳痰、发热≠高热、腹痛≠胃脘痛；病历写到下位词本身仍删（对照）", async () => {
+  assert.equal(visible.withoutDenialsOfRecordedFindings("本例咳嗽不重，未诉咳痰、气促", "恶寒发热1天，头痛，咳嗽不重，无汗。"), "本例咳嗽不重，未诉咳痰、气促");
+  assert.equal(visible.withoutDenialsOfRecordedFindings("无高热，与肺炎相区分", "发热2天，体温37.8℃，咽痛。"), "无高热，与肺炎相区分");
+  assert.equal(visible.withoutDenialsOfRecordedFindings("未诉胃脘痛", "腹痛3天，以脐周为主。"), "未诉胃脘痛");
+  assert.equal(visible.withoutDenialsOfRecordedFindings("未诉咳痰、气促", "咳嗽1周，咳痰色白量多。"), "未诉气促");
+  // 上位词被否认、病历写的是下位词：下位词证明上位词，照旧删。
+  assert.equal(visible.withoutDenialsOfRecordedFindings("未诉咳嗽", "咳痰色白1周。"), "");
+});
+
 console.log("3 不给剂量时的复诊节点");
 const caseState = (record, extra = {}) => ({
   id: "r1024", chiefComplaint: record.split("。")[0], patient: { sex: "女", age: 30 }, symptoms: { 现病史: record }, vitals: {},

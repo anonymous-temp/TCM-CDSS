@@ -1107,8 +1107,14 @@ export function recordAffirmsDeniedFinding(clinicalContext: string, rawTerm: str
   if (term.length < 2 || term.length > 8) return false;
   if (new RegExp(`^(?:${NEGATED_TERM_QUALIFIER_SOURCE})`, "u").test(term)) return false;
   if (sourceDocumentsNegation(clinicalContext, term)) return false;
-  if (sourceDocumentsAffirmation(clinicalContext, term)) return true;
   const affirmed = (affirmedClinicalText(clinicalContext) || "").normalize("NFKC").replace(/\s+/g, "");
+  // 被否认的是同义组里的下位词（咳痰、高热、胃脘痛、入睡困难、眩晕…）时，病历只写了上位词不算矛盾：
+  //「咳嗽不重」证明不了有咳痰，「发热3天」证明不了有高热（2026-10-21 甲方历史 aug-B-fenghan「未诉咳痰」本是对的）。
+  // 这时要病历肯定写到这个词本身。与否定方向收窄用同一张表（NARROWER_THAN_GROUP_CANONICAL）。
+  if (NARROWER_THAN_GROUP_CANONICAL.has(term)) {
+    return (affirmed.includes(term) && sourceDocumentsAffirmation(clinicalContext, term)) || recordAffirmsSplitTwoCharacterTerm(affirmed, term);
+  }
+  if (sourceDocumentsAffirmation(clinicalContext, term)) return true;
   return recordAffirmsSplitTwoCharacterTerm(affirmed, term);
 }
 export function withoutDenialsOfRecordedFindings(text: string, clinicalContext: string): string {
