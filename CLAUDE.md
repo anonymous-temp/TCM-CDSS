@@ -1497,6 +1497,75 @@ The user asked for five of the six items left by round 10 (「最后一项先不
 - Judges: `judge-qwen.mjs M2 4 <keys>` with `OUT_SUFFIX` and `JUDGE_MODULES=C,E`; `judge-qwen-cust.mjs c10|held <out> <judgeDir>`; `judge-qwen-p.mjs <out> <judgeDir>`.
 - Checks: `node work/r1024/scan.mjs <dirs>` (deterministic, `VERBOSE=1` lists hits; most denial hits describe the other disease), `python3 work/r1024/ab-secondary.py`, and `score.py <out> --cases <file>`.
 
+### 10/21 round 13: the page shows ABC fields + evaluated items only; same record → same result; model pairing (2026-10-21)
+
+The user asked for three things:
+- a cleaner page: show what ABC returns, and drop anything the evaluation does not score. The backend interface is untouched, because the customer is integrated;
+- the same input should give the same result twice;
+- a decision on whether every model should be deepseek-flash.
+
+Commit e64f1da, local, on top of the undeployed round 12. Notes, measurement scripts and screenshots: `~/runlogs/r1018/work/r1025/`. Suite `test:r1025-main` (11 checks, counter-proofs in `counterproofs.txt`).
+
+**Page doctrine (`src/lib/clinician-page-view.ts` holds the list; only `DiagnosisClient.tsx` changed).**
+- **Kept:** the union of ABC's six blocks (+ 外治) and every item the acceptance standard (1.1/1.2) and the 10.12 eight columns score:
+  - red flags; disease and syndrome with their basis; Western name + 推理说明; TCM differentials;
+  - 治则 + 总治法; 病位/病性/总体病机;
+  - formula with one 出处 line; herb table 药名/剂量/角色/功效; 煎服法; 加减 one line each; patent/Western medicines; treatment cards;
+  - 饮食/生活/情志; 注意事项; follow-up; lineage (when chosen); the follow-up question.
+- **Western stays** because 1.1 scores 「西医诊断准确率 ≥90% P0：诊断方向及依据」.
+- **Hidden:**
+  - citation links, the ICD chip, Western differentials and evidence groups;
+  - symptom clusters, chain cards, uncertainties, sub-therapies, classic text, formula provenance detail;
+  - inventory chips (a 9/28 customer requirement; HIS `herbAvailability` still carries them);
+  - 运动/穴位/节气调护, the prescription safety summary, the status table, 需优先补充, 风险复评;
+  - 辨证充分度, quality annotations, the case-level badge.
+- **Follow-up** shows the M05 「随访管理方案/转诊评估/红旗预警」 items (`followupPlanItems`; its 注意事项 duplicates the care section and is skipped), falling back to `followupSafetyNet`.
+- **Signed payload, API output, HIS scheme and the download report are byte-for-byte unchanged.** Eleven suites had page-side assertions moved to the new doctrine; their server/HIS halves are unchanged. Dead helpers that only fed hidden blocks were deleted from `result-display-policy.ts` (the orphan guard in `test:suggested-check-tiering` demanded it).
+- **Size:** customer case 4 rendered as text went from 190 lines to 79.
+- **Layout:** the xl report panel is only 410–460 px wide although breakpoints are viewport-based, so herb table, decoction, medicine and treatment grids are single-column at xl.
+
+**Same record, same result.**
+- **Measurement:** 42 records (customer 10 + held-out 32), two independent processes, reuse off, prompt-hash preload. Fields identical between the two runs:
+
+  | Field | Identical |
+  |---|---|
+  | red flag, disease | 42/42 |
+  | syndrome | 41/42 |
+  | formula | 40/42 |
+  | Western | 33/42 |
+  | 治法 | 35/42 |
+  | herbs | 29/42 |
+  | doses | 9/42 |
+  | 加减 | 17/42 |
+  | follow-up question | 22/42 |
+  | precautions | 4/42 |
+
+  In 41 of 42 the first differing request was a *prompt* that differed, and it differed because an earlier model output differed (mostly facts `affirmedSymptoms`, then the M02 question). Only one case had identical prompts and a different output. **Temperature 0 does not make DeepSeek or Qwen deterministic; the only guarantee is compute once and replay** (stage-result reuse, production only).
+- **What was wrong with reuse:**
+  - The page sends `hisRecord.caseId/updatedAt`, `faceCapture.*At` and similar, so its fingerprint changed on every click; **page users never got a reused result**. The fingerprint now drops `SESSION_METADATA_CONTAINERS` × (`caseId|encounterId|*At`). The customer's request shape was not affected.
+  - M02 was outside reuse. The question route now goes through `coalesceStageResponse` (stage `question`; downstream outputs excluded from its fingerprint). Server fallback questions are not cached.
+  - M05 authoring now runs at temperature 0. M05 is not in reuse: its inputs are signed, and rebinding a replayed signature is the 10/12 409 class.
+
+**Model pairing (decided: not all deepseek-flash).**
+
+Production used Qwen in only three places: facts extraction (`qwen3.8-max`, p50 6.5 s / p90 11.1 s), the medicine planner (`qwen3.8-flash`, 2.1 / 3.4 s), and repair / strict fallback (~0.2% of calls). Every other call already ran on deepseek-flash. Both facts extraction and the planner now resolve endpoint and key by model family (`textModelConfigForModel`), so either can be switched by env alone.
+
+| Task | Decision | Measured |
+|---|---|---|
+| Facts extraction | stays `qwen3.8-max` | A red-flag set: max 324/340 = 95.3% vs flash 316/340 = 92.9% (below the 95% P0 line; 9 unavailable). Facts class parity (RUNS=3): 17 failures each, but flash judged current events historical (holdout2 18/24) and was unavailable 11 times vs 1. Same verdict as 9/11 and 9/19 |
+| Medicine planner | **`deepseek-flash`** (`MEDICINE_PLANNER_MODEL`, new; compose default set) | per call 2.1 → 0.9 s; M04 p50 10.3 → 9.6 s, p90 13.0–14.1 → 12.0 s; qwen 1.1 rubric 中成药 100% in both arms; fewer cases get a recommendation (19 vs 25 of 42) |
+| Strict fallback, M03 repair | stay Qwen | ~0.2% of calls; the only cross-provider redundancy when DeepSeek fails (402 incident) |
+
+1.1 rubric on the planner arm: every row ≥97.6%. The T and R misses were in diagnosis and modifications, not the planner. Other stage medians were unchanged: question 4.2 s, red-flags 1.7 s, diagnose 10.4 s.
+
+**Also fixed:** `regress-facts-class-parity` crashed on `mode: "sanitizer"` fixtures (no contexts); it now skips them.
+
+**Found, not fixed (stop rule).**
+- From round 12: S-renal-008 limited M03, S044 加减 lost in finalize, customer case 9 风热疮 differential.
+- A 12-year-old got a pregnancy/lactation line in precautions.
+- A red-flag page with a facts finding graded `urgent` on a vital sign still depends on the facts model's grading.
+- Production needs `MEDICINE_PLANNER_MODEL=deepseek-flash` in the release override; compose's default does not override an explicit runtime env.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
