@@ -1418,6 +1418,85 @@ Volumes, backups, `hecrs-*` state/releases and anything dated today were left al
 - **Not touched:** other projects on this machine (including their local docker).
 - **Measurement secrets** are regenerated from the production container with `~/runlogs/fix1012/scripts/mk-env.mjs` (it reads `/tmp/cdss-measure-secret/prod.env`) and shredded at the end.
 
+### 10/21 round 12: 兼证 by the diagnostics textbook, follow-up when dose is withheld, modifications, anemia grade, denials (2026-10-21)
+
+The user asked for five of the six items left by round 10 (「最后一项先不做，其余的都做完」; the sixth, the patent medicine on customer case 2 whose indication does not match the syndrome, was deferred). Commits 8a1f84e, eaf7e84, 22e2b41, 631bce3; **local, not pushed or deployed** (production still runs dbcca5d). Notes, counter-proofs, the resumable measurement script and probes: `~/runlogs/r1018/work/r1024/` (`TODO.md`, `counterproofs.txt`, `measure.sh`, `ab-secondary.py`, `scan.mjs`, `probe/`). Suite `test:r1024-main` (26 checks).
+
+**1. 兼证 and duplicated 治法.**
+- **Criteria table.** `src/data/tcm-diagnostics-syndrome-criteria.json` (121 entries) is cut verbatim, with line numbers, from the local 《中医诊断学》 by `scripts/build-tcm-diagnostics-syndrome-criteria.py`:
+  - each entry has 【证候表现】 and 【辨证要点】;
+  - the key points are split into specific features and a co-occurrence category (「纳少、腹胀、便溏与气虚症状共见」 → specific features + the 气虚证 entry's manifestations);
+  - aliases are only those the book or plain reordering supports (肝火上炎证 = 肝火炽盛证 quotes the book; 津亏肠燥证 = 肠燥津亏证);
+  - composites 湿热/痰热/痰湿/寒湿 are built from their two component entries.
+  Names with no defensible match (大肠燥热、肝火扰心、风热犯表、脾虚痰湿) stay unknown, and an unknown name is left as it was.
+- **One check for every 兼证 source.** It applies to the model's own field, the self-declared-claim path and the round-9 independent-group path (`m03-secondary-syndrome-consistency.server.ts`). A small task only maps verbatim record quotes to the entry's listed items; the server counts.
+  - Findings of the main syndrome's textbook row do not count.
+  - A normal entry passes with ≥2 specific features (all of them if it lists fewer) plus ≥1 category finding.
+  - A composite needs ≥3 findings with ≥1 from each component; an entry without key points needs ≥3 distinct findings.
+  - **Same organ as the main syndrome** (心血瘀阻 兼 心阳虚: 心悸 and 胸闷 belong to both rows): a specific feature excluded only because the main row has it still counts when the category has ≥3 findings.
+- **On failure:** a model-written 兼证 is withdrawn together with the 治法 items that belong only to it (`therapyItemsOnlyFor`) and its 「兼X」 wording; a path proposal is not added. Switch `CDSS_M03_SECONDARY_CRITERIA`.
+- **Same-head 治法 merge.** Two four-character items with the same two-character head become one (健脾和胃 + 健脾益气 → 健脾益气和胃; `mergedSameHeadTherapyPhrases`, exactly two items, purpose tails such as 助运/止痛 go last).
+- **Measured.** 60 M2 records (30 with a compound reference, 30 single), criteria on vs off, same day:
+  - 兼证 rate 35% → 15%; 治法 with ≥4 items 10 → 6; duplicate heads 0 in both arms.
+  - qwen judge: C 32 vs 34/60, E 36/58 vs 34/56, both within noise.
+  - Withdrawn in the on arm: 肝肾阴虚 兼 湿热蕴耳, 脾虚夹寒 兼 津亏肠燥, 气血两虚 兼 肾精不足. The on arm's three judge losses are reference mismatches: MTCMB-36's own rationale says 阴津不足 is 兼夹, not a separate syndrome, and the judge wanted the reference's 气虚.
+  - Elsewhere: synthetic 190 「无牵强兼证」 184/190 (round 10: 180); customer history 50/52; held-out 32: no 兼证, judge 兼证 100%; customer 10 × 2: no 兼证 candidate in either run.
+- **Known limit.** The criteria are the book's key points. 脾肾阳虚 is withdrawn for a record with 浮肿、形寒肢冷、便溏 but no 腰腹冷痛/久泄/五更泻 (RobustSDT-0007, whose reference is 脾肾阳虚 + 水饮凌心).
+
+**2. Follow-up when dose is withheld.** Before, non-dose pages said only 「按医生安排复诊」.
+- `doseWithheldFollowupKind` in `diagnosis-safety.ts` uses the same predicates as `derivePrescriptionPermission`, and `followupWhenDoseWithheld` in the delivered surface writes the sentence:
+  - red flag: today;
+  - pregnancy, lactation, specialist review: within 3 days;
+  - anticoagulant: within 3 days, plus a coagulation recheck within 1 week of starting the herbs;
+  - child of unknown age: the same day.
+- It applies to both stages and the M04 non-dose page.
+- Dosed pages: 「请服完本次的药后复诊」 gets the dose count and days from the formula's `followUpAfterDoses/Days`.
+- **S set:** 74 of 76 non-dose cases carry a dated node. The other two are limited M03 results whose template says 「完成现场评估或补录后，重新运行辨病辨证分析」.
+- **Scorer change.** The 10/13 scorer rejected any 「N天」 in the follow-up. It now accepts 「N天内/N周内」 (【10/21 订正】 in `~/runlogs/fix1012/scripts/score.py`), because the customer's 1.1 随访 row asks for a concrete time.
+
+**3. Modifications (customer case 7 empty in about 1 of 3 runs).** `normalizeModifications` called the model-conditional predicate without the prescription's herbs, so the exemption "every textbook modification herb is already in the formula" (清胃散 with 大黄、石膏、知母) applied only later, after the model's own conditional rows had already been dropped as `trigger_not_current_fact`.
+- Case 7 is now non-empty in 4/4 + 2/2 runs.
+- Across 351 dosed prescriptions, 6 have empty 加减 (see S044 below).
+
+**4. Anemia grade.**
+- The grade follows the record's current Hb (Chinese adult scale: >90 g/L 轻度, 61–90 中度, 31–60 重度, ≤30 极重度; `recordAnemiaGrade`).
+- It is not applied in pregnancy, under 6 months, with readings in different grades, with any reading ≥130, to history readings, or to unit-less small values.
+- The first cut regraded only names. Held-out S032 then showed 「轻度贫血」 next to 「中度贫血」 in `coding.display`, the Western rationale, a differential's points, key evidence and `redFlagLoop` (judge hard error).
+- Now every string in the delivered payload is regraded (`regradeAnemiaEverywhere`), except hypothetical wording (若进展为重度贫血) and strings quoted verbatim from the record. Names are regraded even when the record itself says 中度.
+- Replay over 551 saved outputs: 22 have a gradable Hb, 8 strings change, all of them S032.
+
+**5. Denials of recorded findings** (held-out S058: record 「腹中冷痛」, output 「未诉腹痛」).
+- **The rule.** `withoutDenialsOfRecordedFindings` drops a 「未诉/否认/未见/没有/无 + X」 item when the record affirms X and does not also deny it. It runs after `unrecordedNegativesAsNotReported` on rationales and differentials. A clause emptied this way takes a dangling 「与X相区分」 with it.
+- **Split two-character terms.** A body-site character and a symptom character with one or two modifiers between them count as X (腹中冷痛, 腰酸痛, 胁肋疼痛). Both are closed sets, and the guards are: no negator or conjunction in the gap, no negation earlier in the clause, not followed by 不明显.
+- **Narrower terms (fixed the same day).** The group expansion used in the affirming direction must not let a broader record word prove a narrower denied word. The first commit deleted a correct 「未诉咳痰」 against 「咳嗽不重」, and would have let 「下腹痛」 prove 「上腹痛」 (replay: 60 of 442 records for 胃脘痛 alone).
+  - When X is in `NARROWER_THAN_GROUP_CANONICAL`, the record must contain X itself.
+  - This is the same table the negation direction uses. With it, no deletion is added anywhere.
+- **Left.** A model-written denial of a recorded finding in different wording still passes, for example 「无流清水样涕」 against 「流清水样鼻涕」 (synthetic S001). `unrecordedNegativesAsNotReported` then turns it into 「未诉…」.
+
+**Measured on the final code** (local route harness, customer request shape; qwen3.8-max judge with the same scripts as round 10; round-10 numbers in brackets).
+
+| Set | Result |
+|---|---|
+| Customer 10 × 2, qwen, failures per column | r1: 中医诊断 1 (病历10 辨病依据), 中医鉴别 1 (病历9: 风热疮 listed for 瘾疹 with 「均见风团样皮疹」); r2: 0. No red flag on 1/2/7/9; disease, syndrome, formula identical across runs |
+| Held-out 32, qwen | every block ≥ 96.6% except 红旗与剂量档 93.8% (S160/S162: the judge read the interface value `limited_dose` as a contradiction); 加减 96.6% (S044) |
+| Customer history 52 (`score.py`) | 证候 92.3 (80.8), 注意事项 92.5 (87.5), 复诊计划 100 after the scorer correction, other blocks 97.5–100 |
+| Synthetic 190 (`score.py`) | 证候 92.1 (90.0), 注意事项 88.0 (84.3), 复诊计划 100, 红旗与剂量边界 98.9 (S128 is the round-8 borderline case; S012 see below), other blocks ≥ 95.6 |
+| S set 137, customer 1.1 rubric (qwen) | V 随访 98.5 (90.4): the two misses are S-renal-008 (limited M03, below) and a lactation case whose 3-day node the judge found too thin. T 依据可追溯 93.4 (94.9), all other rows 96.9–100 |
+| Stage medians (synthetic 190) | question 4.4 s, diagnose 11.0 s, prescribe 11.1 s |
+
+**Found by this round's runs, not fixed (stop rule).**
+- **S-renal-008 gets a limited M03 in 4 of 5 runs.** The record is one long sentence that ends 「…腰痛乏力，肾功能不全既往规律口服金水宝（外院）」. The model quotes the whole sentence as every 主证依据 and 病机链 fact, and `isCurrentPositiveTcmAnchor` reads the 「既往」 near its end as making the whole sentence historical, giving `tcm_syndrome_current_fact_missing`. This is the class round 7 fixed for sentences that open with 既往. It is unrelated to the 兼证 criteria (it reproduces with each switch off). Changing that shared predicate needs a two-way corpus replay.
+- **S044 loses its 加减 after review.** `modificationReview.retainedCount` is 2–3 but `modifications` is empty. Instrumented runs show the rows are already gone before the route's final transform, i.e. inside the stream layer's `finalizeM04CandidateContent` (one of `dropUnsupportedM04ModificationDirections`, `declassifyAndDropOpposingM04CandidateHerbs`, `enforceM04PriorStageOwnership`). The rows are 「若壮热口渴，便秘尿赤」 + 黄芩/黄连 on a cold-damp 藿香正气散 case. The exact step was not pinned.
+- **Customer case 9 (one run):** the differential top-up listed 风热疮 for 瘾疹 with 「均见风团样皮疹」.
+- **8 of 555 red-flags calls returned `semantic_screen_unavailable`.** The facts extraction was aborted at its 10/15 s deadlines while the qwen judges ran on the same Bailian account. These cases fail closed (non-dose at the red-flags call; later stages re-read facts). Do not run qwen judging concurrently with generation if the red-flags numbers matter.
+- **Pregnancy disease rationale contradicts itself** in 3 of 20 S-set pregnancy records (「属胎漏…故不归胎漏」 when 腰酸腹痛 point to 胎动不安); model-written, the T-row misses.
+- **Precaution count:** more than 5 lines in 7 of 158 synthetic and 2 of 40 history prescriptions.
+
+**Running it again.**
+- Generation: `bash ~/runlogs/r1018/work/r1024/measure.sh` (resumable).
+- Judges: `judge-qwen.mjs M2 4 <keys>` with `OUT_SUFFIX` and `JUDGE_MODULES=C,E`; `judge-qwen-cust.mjs c10|held <out> <judgeDir>`; `judge-qwen-p.mjs <out> <judgeDir>`.
+- Checks: `node work/r1024/scan.mjs <dirs>` (deterministic, `VERBOSE=1` lists hits; most denial hits describe the other disease), `python3 work/r1024/ab-secondary.py`, and `score.py <out> --cases <file>`.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
