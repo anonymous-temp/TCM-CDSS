@@ -182,6 +182,9 @@ await check("5.1 证名查《中医诊断学》条目：原名、同义名、「
   assert.equal(secondary.diagnosticsCriteriaFor("心气不足证")?.name, "心气虚证");
   assert.equal(secondary.diagnosticsCriteriaFor("风邪证")?.name, "风淫证");
   assert.equal(secondary.diagnosticsCriteriaFor("不存在证"), undefined);
+  assert.equal(secondary.diagnosticsCriteriaFor("肝火上炎证")?.name, "肝火炽盛证", "书中写明「肝火炽盛证又名肝火上炎证」");
+  assert.equal(secondary.diagnosticsCriteriaFor("湿热内蕴证")?.name, "湿热证");
+  assert.deepEqual(secondary.diagnosticsCriteriaFor("湿热内蕴证")?.components, ["湿淫证", "热证"]);
   const spleen = secondary.diagnosticsCriteriaFor("脾气虚证");
   assert.equal(spleen.keyPointsText, "纳少、腹胀、便溏与气虚症状共见。");
   assert.deepEqual(spleen.specific, ["纳少", "腹胀", "便溏"]);
@@ -198,6 +201,13 @@ await check("5.2 判定：特异表现 + 共见类症状够数才立；与主证
   assert.equal(secondary.evaluateCriteriaMatches(spleen, matches.slice(0, 2), { recordText: record, primaryTerms: [] }).verdict, "fail", "缺共见的气虚症状");
   assert.equal(secondary.evaluateCriteriaMatches(spleen, matches, { recordText: record, primaryTerms: ["少气懒言", "大便偏稀"] }).verdict, "fail", "两条是主证自己的表现");
   assert.equal(secondary.evaluateCriteriaMatches(spleen, [{ item: "纳少", quote: "编造的表现" }, ...matches.slice(1)], { recordText: record, primaryTerms: [] }).verdict, "fail", "摘录须出自病历");
+});
+await check("5.2b 组合证（湿热）：湿与热两边各至少 1 条、合计至少 3 条；只有热象不立", async () => {
+  const dampHeat = secondary.diagnosticsCriteriaFor("湿热内蕴证");
+  const record = "头身困重，脘痞纳呆，口苦，小便短黄，大便干结，面赤，口渴欲饮。";
+  const hot = [{ item: "小便短黄", quote: "小便短黄" }, { item: "面赤", quote: "面赤" }, { item: "口渴欲饮", quote: "口渴欲饮" }];
+  assert.equal(secondary.evaluateCriteriaMatches(dampHeat, hot, { recordText: record, primaryTerms: [] }).verdict, "fail", "只有热象");
+  assert.equal(secondary.evaluateCriteriaMatches(dampHeat, [...hot, { item: "肢体困重", quote: "头身困重" }], { recordText: record, primaryTerms: [] }).verdict, "pass");
 });
 await check("5.3 两三个字的摘录每个字都在主证某条表现里，算同一表现（头晕之于头痛而晕）", async () => {
   const qi = secondary.diagnosticsCriteriaFor("心气虚证");

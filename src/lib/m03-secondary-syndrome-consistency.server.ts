@@ -380,6 +380,8 @@ type CriteriaEntry = {
   category: string | null;
   categoryEntries: string[];
   manifestations: string[];
+  /** 组合证（湿热、痰热、痰湿、寒湿）：由这几个证的证候表现合成，判定时每个组成证至少对上 1 条。 */
+  components?: string[];
 };
 const CRITERIA_ENTRIES = new Map<string, CriteriaEntry>((criteriaJson.entries as CriteriaEntry[]).map((entry) => [entry.name, entry]));
 const CRITERIA_ALIASES = criteriaJson.aliases as Record<string, string>;
@@ -443,6 +445,7 @@ export function evaluateCriteriaMatches(
   const manifestSet = new Set(entry.manifestations);
   const affirmedClauses = affirmedClinicalSourceClauses(context.recordText).flatMap((clause) => clause.split(/[，,]/u)).map(compact).filter(Boolean);
   const seenQuotes = new Set<string>();
+  const componentHits = new Map<string, number>();
   let specific = 0;
   let category = 0;
   let listed = 0;
@@ -456,10 +459,14 @@ export function evaluateCriteriaMatches(
     else if (manifestSet.has(match.item)) listed += 1;
     else continue;
     seenQuotes.add(quote);
+    for (const component of entry.components || []) {
+      if (CRITERIA_ENTRIES.get(component)?.manifestations.includes(match.item)) componentHits.set(component, (componentHits.get(component) || 0) + 1);
+    }
   }
   const distinct = seenQuotes.size;
   let pass: boolean;
-  if (!entry.keyPointsText) pass = distinct >= 3;
+  if (entry.components?.length) pass = distinct >= 3 && entry.components.every((component) => (componentHits.get(component) || 0) >= 1);
+  else if (!entry.keyPointsText) pass = distinct >= 3;
   else if (entry.categoryEntries.length > 0) {
     const needSpecific = Math.min(2, entry.specific.length);
     const needCategory = entry.specific.length >= 2 ? 1 : 2;

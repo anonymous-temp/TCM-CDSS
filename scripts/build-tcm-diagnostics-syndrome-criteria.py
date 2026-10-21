@@ -34,10 +34,20 @@ CATEGORY_ENTRIES = {
 ALIASES = {
     "脾气虚证": ["脾虚证", "脾气亏虚证", "脾气不足证", "脾胃气虚证"],
     "津液亏虚证": ["津亏证", "伤津证", "津伤证", "津液不足证"],
-    "风淫证": ["风邪证", "风证"], "湿淫证": ["湿邪证", "湿证", "湿阻证"], "寒淫证": ["寒邪证"], "暑淫证": ["暑邪证", "暑湿证"],
+    "风淫证": ["风邪证", "风证"], "寒淫证": ["寒邪证"], "暑淫证": ["暑邪证", "暑湿证"],
     "燥淫证": ["燥邪证", "燥证"], "火淫证": ["火热证", "火邪证"],
     "气血两虚证": ["气血亏虚证", "气血不足证"], "血瘀证": ["瘀血证", "瘀血内阻证", "瘀血阻滞证"], "气滞证": ["气机郁滞证"],
     "痰证": ["痰浊证", "痰阻证", "痰浊内阻证"], "饮证": ["饮停证", "痰饮证"],
+    "肠燥津亏证": ["津亏肠燥证", "肠燥证"], "瘀阻脑络证": ["瘀血阻窍证", "瘀阻脑窍证"], "肝火炽盛证": ["肝火上炎证"],
+    "胃热炽盛证": ["胃热证", "胃火炽盛证", "胃火证"],
+    "湿淫证": ["湿邪证", "湿证", "湿阻证", "湿浊内蕴证", "湿浊中阻证", "湿滞证", "湿滞中焦证", "湿浊证"],
+}
+# 由两个证的证候表现合成的组合证（湿热、痰热…是常见的兼证写法，本书没有单列）：两边各至少 1 条、合计至少 3 条。
+COMPOSITES = {
+    "湿热证": (["湿淫证", "热证"], ["湿热内蕴证", "湿热内阻证", "湿热中阻证"]),
+    "痰热证": (["痰证", "热证"], ["痰热内蕴证", "痰热内扰证"]),
+    "痰湿证": (["痰证", "湿淫证"], ["痰湿内蕴证", "痰湿内阻证", "痰湿中阻证"]),
+    "寒湿证": (["湿淫证", "寒证"], ["寒湿内阻证", "寒湿内蕴证"]),
 }
 NAME_SUFFIX_VARIANTS = ["不足证", "亏虚证", "亏损证"]
 CO_OCCUR = re.compile(r"(?:，|、)?(?:常)?与([^，。、]{1,10}?)(?:症状|证的症状|证症状)?共见")
@@ -101,6 +111,18 @@ def main() -> None:
         i = block_end
     if len(entries) < 100:
         sys.exit(f"只切出 {len(entries)} 个证，原文结构可能变了，不生成")
+    by_name = {entry["name"]: entry for entry in entries}
+    for name, (components, aliases) in COMPOSITES.items():
+        parts = [by_name[c] for c in components if c in by_name]
+        if len(parts) != len(components):
+            sys.exit(f"组合证 {name} 的组成证缺失")
+        entries.append({
+            "name": name, "line": None, "definition": "", "manifestationsText": "",
+            "manifestations": list(dict.fromkeys(item for part in parts for item in part["manifestations"])),
+            "keyPointsText": "", "keyPointsLine": None, "specific": [], "category": None, "categoryEntries": [],
+            "components": components,
+        })
+        ALIASES.setdefault(name, []).extend(aliases)
     names = {entry["name"] for entry in entries}
     unresolved = sorted({entry["category"] for entry in entries if entry["category"] and not entry["categoryEntries"]})
     for entry in entries:
