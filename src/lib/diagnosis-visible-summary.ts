@@ -11,7 +11,7 @@ import { reviewAuthoredFormulaAnalysis } from "./formula-analysis-review";
 import { namedFormulaDecoctionProfile } from "./formula-decoction-profile";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { NARROWER_THAN_GROUP_CANONICAL, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
+import { NARROWER_THAN_GROUP_CANONICAL, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
 import { assessPregnancyState } from "./clinical-state";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
@@ -636,7 +636,10 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
           const clauseGrounded = groundText(entry[key], entryName);
           // 分句开头的「无X」由上面改成「病历未记录X（需问诊核实…）」；句中的「…、无X」交给同一条判据
           //（unrecordedNegativesAsNotReported，与辨病/辨证依据共用）。
-          const grounded = typeof clauseGrounded === "string" ? unrecordedNegativesAsNotReported(clauseGrounded, clinicalContext) : clauseGrounded;
+          // 否认与病历相反的项（病历肯定写着的表现被写成「未诉/无」）在这之后删掉（withoutDenialsOfRecordedFindings，2026-10-21）。
+          const grounded = typeof clauseGrounded === "string"
+            ? withoutDenialsOfRecordedFindings(unrecordedNegativesAsNotReported(clauseGrounded, clinicalContext), clinicalContext)
+            : clauseGrounded;
           if (grounded !== entry[key]) {
             entry[key] = grounded;
             changed = true;
@@ -1068,6 +1071,103 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
 }
 
 /**
+ * 否认与病历相反的那一项删掉（2026-10-21 第十二轮；留出例 S058：病历「腹中冷痛、热敷后舒服」，辨病依据写「未诉腹痛，与肠结相区分」，
+ * 西医鉴别「肠易激综合征便秘型」的要点只有一句「未诉腹痛」——模型自己写的，服务端的「无X→未诉X」改写早已认得「腹中冷痛」算写到过腹痛）。
+ *
+ * 对象：分句里的「未诉/否认/未见/没有/无 + 一列表现」。某一项病历肯定写着（与净化器同一判据 sourceDocumentsAffirmation：
+ * 原词或受治理同义词、局部发热守卫、否认后另起肯定小句；另认两字词中间隔一两个字的写法，如「腹中冷痛」之于腹痛），
+ * 且病历没有同时否认它，这一项就是假话：只删这一项；整句都是这类项时删掉整个分句。
+ * 不删：描述的是被鉴别的那个病（notAPatientDenial）、从记录推出的判断（「示无热象」「为无…之佐」）、带程度/起病限定的否认
+ *（「无剧烈头痛」对病历「头痛隐隐」是两件事，见净化器 qualified-negation 一类）。只删不补：不替模型写区分要点。
+ */
+const DENIAL_SEGMENT = /^(\s*(?:本例|患者|病人|该患者)?(?:亦|也|并|均|尚|且)?)(未诉|否认|未见|没有|无)(?![汗力痰苔华味法论需妨效碍形名根以所不可非明定常度端故损]|神(?!疲|志|昏|情)|关(?!节))([\u4e00-\u9fff、]{2,40})$/u;
+const DANGLING_DISTINCTION = /^\s*(?:故|可|借此|以此|据此)?(?:可)?与[^，,。；;]{1,24}(?:相)?(?:区分|鉴别|区别|不同)$/u;
+// 两字「部位 + 症状」词中间隔一两个修饰字（腹中冷痛、腰酸痛、胁肋疼痛、腹部胀大、头晕胀痛、心中悸动）：有限闭集的构词式守卫。
+// 首字必须是部位、尾字必须是症状字——「阵发性燥热」的发、「流水红肿」的水、「恶梦和心悸」的恶不是部位，不算；
+// 中间隔着否定字（口不渴、下腹不痛）或并列连词的也不算。语料回放见 ~/runlogs/r1018/work/r1024/probe/denial-replay.mjs。
+const SPLIT_TERM_SITE = /^[头腹腰胁胸咽喉口背颈项膝脘肩心]$/u;
+const SPLIT_TERM_SYMPTOM = /^[痛胀晕悸渴肿麻痒闷]$/u;
+function recordAffirmsSplitTwoCharacterTerm(affirmedRecord: string, term: string): boolean {
+  if (term.length !== 2 || affirmedRecord.includes(term)) return false;
+  if (!SPLIT_TERM_SITE.test(term[0]) || !SPLIT_TERM_SYMPTOM.test(term[1])) return false;
+  for (let at = affirmedRecord.indexOf(term[0]); at >= 0; at = affirmedRecord.indexOf(term[0], at + 1)) {
+    const window = affirmedRecord.slice(at + 1, at + 4);
+    const tail = window.indexOf(term[1]);
+    // 所在小句前半有否定词（「也没有头痛、胸腹疼痛等不适」）：仍在否认的作用域里。
+    const clauseHead = affirmedRecord.slice(0, at).split(/[，,。；;]/u).at(-1) || "";
+    // 后面紧跟「不明显/不显/不著」的（「腰部疼痛不明显」）也不算肯定。
+    const after = affirmedRecord.slice(at + 1 + tail + 1, at + 1 + tail + 5);
+    if (tail >= 1 && !/[，,。；;、：:\s不无未没非否和与及或]/u.test(window.slice(0, tail)) && !/(?:无|没有|没|未|否认|不伴|不)/u.test(clauseHead) &&
+      !/^(?:不明显|不显|不著)/u.test(after)) return true;
+  }
+  return false;
+}
+export function recordAffirmsDeniedFinding(clinicalContext: string, rawTerm: string): boolean {
+  const term = rawTerm.replace(/^(?:明显|明确)(?:的)?/u, "").replace(/(?:等|表现|症状|史)$/u, "");
+  if (term.length < 2 || term.length > 8) return false;
+  if (new RegExp(`^(?:${NEGATED_TERM_QUALIFIER_SOURCE})`, "u").test(term)) return false;
+  if (sourceDocumentsNegation(clinicalContext, term)) return false;
+  if (sourceDocumentsAffirmation(clinicalContext, term)) return true;
+  const affirmed = (affirmedClinicalText(clinicalContext) || "").normalize("NFKC").replace(/\s+/g, "");
+  return recordAffirmsSplitTwoCharacterTerm(affirmed, term);
+}
+export function withoutDenialsOfRecordedFindings(text: string, clinicalContext: string): string {
+  if (!text || !clinicalContext.trim()) return text;
+  const parts = text.split(/([，,；;。])/u);
+  let offset = 0;
+  const kept: string[] = [];
+  let removedLastSegment = false;
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    const segmentOffset = offset;
+    offset += part.length;
+    if (index % 2 === 1) {
+      // 分隔符：前一段被整段删掉时，这个分隔符一并去掉（句末句号除外，留给收尾整理）。
+      if (removedLastSegment && part !== "。") continue;
+      kept.push(part);
+      continue;
+    }
+    // 前一段整段删掉了，这一段只是它的落脚（「与肠结相区分」）：一并删掉，不留没有依据的结论。
+    if (removedLastSegment && DANGLING_DISTINCTION.test(part)) continue;
+    removedLastSegment = false;
+    const match = part.match(DENIAL_SEGMENT);
+    if (!match) {
+      kept.push(part);
+      continue;
+    }
+    const [, lead, cue, object] = match;
+    const cueOffset = segmentOffset + lead.length;
+    const before = text.slice(0, cueOffset);
+    if (/(?:示|表明|说明|可知|为)$/u.test(before) || /(?:示|表明|说明|可知)[^，,。；;]*$/u.test(before)) {
+      kept.push(part);
+      continue;
+    }
+    const items = object.split(/[、及和与]/u).map((item) => item.replace(/^(?:无|未见|没有)/u, "").trim()).filter(Boolean);
+    if (items.length === 0 || items.some((item) => notAPatientDenial(cueOffset, text, item))) {
+      kept.push(part);
+      continue;
+    }
+    const contradicted = items.filter((item) => recordAffirmsDeniedFinding(clinicalContext, item));
+    if (contradicted.length === 0) {
+      kept.push(part);
+      continue;
+    }
+    const remaining = items.filter((item) => !contradicted.includes(item));
+    if (remaining.length > 0) {
+      kept.push(`${lead}${cue}${remaining.join("、")}`);
+      continue;
+    }
+    removedLastSegment = true;
+    // 前面已有的分隔符（「…；」「…，」）留给下一段；整段删后若紧跟句末则把上一个逗号收成句号。
+  }
+  const result = kept.join("")
+    .replace(/^[，,；;。\s]+/u, "")
+    .replace(/[，,；;]+(?=。|$)/gu, "")
+    .replace(/([，,；;])[，,；;]+/gu, "$1");
+  return result.trim() ? result : "";
+}
+
+/**
  * 「无X」不是对本例的否认、不改「未诉X」的几种写法（2026-10-19 Claude 评审 H 集，十余处）：
  *  · 「无」长在固定说法里（「痛无休止」「乳汁无由而生」「语无伦次」「似喘无声」「有声无物」「面色无光泽」「疤痕无发」
  *    「无痛性黄疸」），闭集；
@@ -1308,7 +1408,10 @@ export function applyM03AdvisoryQualityBoundaries(content: string, clinicalConte
     // 「无里急后重、无脓血，与痢疾相区分」「无善惊易恐」——病历只有现病史，这些阴性项没有问过）。
     // 只换这一个字的说法，不删内容；病历里出现过该词（无论肯定还是否定）的不动。
     for (const key of ["tcmDiseaseRationale", "tcmDiagnosticRationale"] as const) {
-      if (typeof overview[key] === "string") overview[key] = unrecordedNegativesAsNotReported(overview[key] as string, clinicalContext);
+      if (typeof overview[key] !== "string") continue;
+      const rewritten = withoutDenialsOfRecordedFindings(unrecordedNegativesAsNotReported(overview[key] as string, clinicalContext), clinicalContext);
+      // 依据整句都是被删掉的假否认时留原句（依据栏不能空）——实际极少，留给评审看到。
+      if (rewritten.trim()) overview[key] = rewritten;
     }
 
     const strictIssue = m03SemanticIssue(reasoning, clinicalContext);

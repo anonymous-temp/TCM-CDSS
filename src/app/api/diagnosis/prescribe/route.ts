@@ -15,7 +15,7 @@ import { conceptionWithoutPregnancyOrLactation } from "@/lib/clinical-state";
 import { chpPregnancyProhibitedHerbNames } from "@/lib/conception-herb-policy";
 import { herbRecordCautionPromptSection, textbookBaseIngredients } from "@/lib/herb-record-caution";
 import { textbookRowForSyndrome } from "@/lib/tcm-textbook-syndromes";
-import { authoritativePatientAgeYears, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
@@ -443,6 +443,9 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     structuredStage: "prescribe",
     // 非空 ⇒ 最终交付走非剂量投影（药味与方义照常可见）。
     structuredDoseWithheldReasons: doseWithheldReasons,
+    // 不给剂量时复诊提示按原因写节点（2026-10-21；与辨证阶段同一判据 doseWithheldFollowupKind）。
+    structuredDoseWithheld: doseWithheldReasons.length > 0 ? (gated.safetyGate?.status === "red_flag" ? "red_flag" : "withheld") : undefined,
+    structuredDoseWithheldKind: doseWithheldReasons.length > 0 ? doseWithheldFollowupKind(gated) : undefined,
     // 非剂量投影从结构化载荷重建页面，横幅不在载荷里；显式带上，红旗警示不得丢失。
     structuredContinuityBanner: advisoryBanner || undefined,
     structuredQueueKey: parsed.customer.customerHash,

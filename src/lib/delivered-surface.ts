@@ -37,6 +37,8 @@ import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBa
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
 import { withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
+import { assessPregnancyState } from "./clinical-state";
+import type { DoseWithheldFollowupKind } from "./diagnosis-safety";
 
 /**
  * 投影时可选的本例信息：herbBoundaryAudience 决定逐味人群提示列哪些人群（见 herbBoundaryPopulationRelevant）；
@@ -50,6 +52,8 @@ export type DeliveredSurfaceOptions = {
    * 复诊计划里「请服完本次的药后复诊」这句按它换成先就医（2026-10-19 验收主集 I 模块：不给剂量的病例仍写服完药再来）。
    */
   doseWithheld?: "red_flag" | "withheld";
+  /** 不给剂量的具体原因类别（diagnosis-safety.doseWithheldFollowupKind）：复诊提示按它写节点与观察项。缺省时按 doseWithheld 的旧写法。 */
+  doseWithheldKind?: DoseWithheldFollowupKind;
   /** 投影的是不给剂量的那一页（renderM04DeliveryCheckpoint 设）：注意事项里不说「按医生开的剂量」。 */
   nonDosePage?: boolean;
   /**
@@ -596,6 +600,49 @@ export function deliveredWesternDiagnosisName(name: unknown, coding?: unknown): 
   return causeUnknown && symptomLevel ? `${core}待查` : core;
 }
 
+/**
+ * 贫血分度按病历里的血红蛋白读数重算（2026-10-21 第十二轮；留出例 S032：Hb 92 g/L 交付为「中度贫血」）。
+ * 国内成人分度（《内科学》）：Hb >90 g/L 轻度、61–90 中度、31–60 重度、≤30 极重度；6 月龄以上儿童沿用同一分度。
+ * WHO 2011 把 80–109 g/L 记为中度，国内医生按国内分度判，交付按国内分度写。
+ * 只在：病名写了分度、病历里能读到本次的 Hb、所有读数落在同一档、且都低于 130 g/L（不贫血的病例不在这里改病名）时改写；
+ * 妊娠（另有分度）、6 月龄以下（新生儿另有标准）不改；「既往/曾/最低/以前…」后面的读数不收。冻结规则允许的数值阈值。
+ */
+const HEMOGLOBIN_READING = /(?:血红蛋白|血色素|HGB|Hb(?!A1c))\s*(?:[(（]\s*(?:HGB|Hb)\s*[)）])?\s*[:：]?\s*(?:为|是|约)?\s*(\d+(?:\.\d+)?)\s*(g\s*\/\s*d[lL]|g\s*\/\s*L|克\s*\/\s*升)?/gu;
+const HEMOGLOBIN_HISTORY_CUE = /(?:既往|曾|最低|以前|之前|去年|年前|月前|入院时|治疗前)[^，,。；;]{0,8}$/u;
+const ANEMIA_GRADE_WORD = /(极重度|重度|中度|轻度)(?=[^，,。；;（）()]{0,10}贫血)/u;
+export function hemoglobinReadingsGramsPerLitre(recordText: string): number[] {
+  const values: number[] = [];
+  for (const match of recordText.normalize("NFKC").matchAll(HEMOGLOBIN_READING)) {
+    const at = match.index ?? 0;
+    if (HEMOGLOBIN_HISTORY_CUE.test(recordText.normalize("NFKC").slice(Math.max(0, at - 12), at))) continue;
+    const raw = Number(match[1]);
+    const unit = (match[2] || "").replace(/\s/g, "");
+    const value = /d[lL]$/.test(unit) ? raw * 10 : raw;
+    // 不带单位的小读数可能是 g/dL（「Hb 9.2」），不猜。
+    if (!unit && raw < 25) continue;
+    if (value > 0 && value < 250) values.push(value);
+  }
+  return values;
+}
+export function anemiaGradeForHemoglobin(gramsPerLitre: number): string {
+  if (gramsPerLitre > 90) return "轻度";
+  if (gramsPerLitre > 60) return "中度";
+  if (gramsPerLitre > 30) return "重度";
+  return "极重度";
+}
+export function regradedAnemiaName(name: string, recordText: string | undefined, ageYears: number | null | undefined): string {
+  if (!recordText || typeof name !== "string" || !ANEMIA_GRADE_WORD.test(name)) return name;
+  if (ageYears != null && ageYears < 0.5) return name;
+  const pregnancy = assessPregnancyState(recordText).status;
+  if (pregnancy === "positive" || pregnancy === "possible") return name;
+  const readings = hemoglobinReadingsGramsPerLitre(recordText);
+  if (readings.length === 0 || readings.some((value) => value >= 130)) return name;
+  const grades = new Set(readings.map(anemiaGradeForHemoglobin));
+  if (grades.size !== 1) return name;
+  const [grade] = [...grades];
+  return name.replace(ANEMIA_GRADE_WORD, grade);
+}
+
 /** 西医鉴别名同样只留名称本身。 */
 function deliveredDifferentialName(name: unknown): unknown {
   if (typeof name !== "string") return name;
@@ -614,7 +661,7 @@ function isLimitedDiagnose(reasoning: Json): boolean {
   return overview?.primarySyndromeResolution === "unresolved" && (!Array.isArray(chain) || chain.length === 0);
 }
 
-function deliveredDiagnose(reasoning: Json): void {
+function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): void {
   // 鉴别的「建议核实」模型写成字符串 null 的，按空值交付（2026-10-17 留出例 S132「建议核实：null」）。
   const overviewForNulls = record(reasoning.overview);
   for (const row of [
@@ -644,6 +691,10 @@ function deliveredDiagnose(reasoning: Json): void {
     primary.suggestedChecks = [];
   }
   for (const item of records(western?.differentials)) item.name = deliveredDifferentialName(item.name);
+  // 病名里的贫血分度与病历 Hb 读数对齐（regradedAnemiaName）。主诊断、候选、鉴别同一口径。
+  for (const item of [primary, ...records(western?.candidates), ...records(western?.differentials)]) {
+    if (item && typeof item.name === "string") item.name = regradedAnemiaName(item.name, options?.recordText, options?.herbBoundaryAudience?.ageYears);
+  }
   // 模型自己写明「不适用」的鉴别项（女性病例列前列腺增生、男性病例列异位妊娠，理由写「本例为男性患者，不适用」）不列（2026-10-14 独立评审）。
   if (western && Array.isArray(western.differentials)) {
     western.differentials = records(western.differentials).filter((item) =>
@@ -1779,13 +1830,47 @@ export function dietOnlyPrecautionCoveredBy(line: string, diet: string): boolean
   });
 }
 
-export function followupWhenDoseWithheld(text: string, reason: "red_flag" | "withheld"): string {
-  const first = reason === "red_flag"
+/**
+ * 不给剂量时的复诊节点（2026-10-21 第十二轮；验收 S 集「随访可操作」：复诊要有明确天数或节点、可观察的指标、何时立即就医）。
+ * 按原因各写一句，节点取保守值：红旗今天；妊娠、哺乳、抗凝、专科评估 3 天内；患儿年龄不明补齐当天。抗凝的「服药后 1 周内复查凝血」：
+ * 与华法林相互作用的药物多在合用后数天到 1 周内达峰（唑类抗真菌药合用 2 天 INR 即升高、1 周达峰，中国药物经济学 2016），
+ * 这里只写复查时点，不写目标值。
+ */
+const DOSE_WITHHELD_FOLLOWUP: Record<DoseWithheldFollowupKind, string> = {
+  red_flag: "请今天就到医院急诊或专科就诊，由医生评估、排除急重情况后再定后续治疗，在此之前不要自行服用中药。",
+  pregnancy: "请在3天内到产科或中医妇科面诊，由医生确认孕周和孕期用药安全后再开方，在此之前不要自行服用中药；如出现阴道流血或腹痛加重，请立即就医。",
+  lactation: "请在3天内到医院面诊，由医生确认哺乳情况和孩子的月龄、选用哺乳期可用的药后再开方，在此之前不要自行服用中药。",
+  anticoagulant: "请带上正在服用的抗凝或抗血小板药，在3天内请开这些药的医生评估与中药合用的出血风险；如医生同意服用中药，服药后1周内复查凝血指标（服华法林者查INR）；如出现牙龈或鼻腔出血、皮肤瘀斑、黑便或尿色发红，请立即就医。",
+  pediatric_age: "请补充孩子的准确年龄（出生日期），由医生当天按年龄确定用量后再开方，在此之前不要自行给孩子服用中药。",
+  specialist: "请在3天内到相关专科就诊，带上最近的化验和检查结果，由医生评估后确定能否用中药、怎么用。",
+  other: "请在3天内到医院就诊，由医生完成评估并确定能否用药、怎么用药后再开方。",
+};
+export function followupWhenDoseWithheld(text: string, reason: "red_flag" | "withheld", kind?: DoseWithheldFollowupKind): string {
+  const first = kind ? DOSE_WITHHELD_FOLLOWUP[kind] : reason === "red_flag"
     ? "请先到医院急诊或专科就诊，由医生评估、排除急重情况后再定后续治疗。"
     : "请先到医院就诊，由医生完成评估并确定能否用药、怎么用药后，再按医生安排复诊。";
+  // 已经是本函数写过的句子（含旧写法）：换成按原因的那一句，幂等。
+  const previous = [...Object.values(DOSE_WITHHELD_FOLLOWUP),
+    "请先到医院急诊或专科就诊，由医生评估、排除急重情况后再定后续治疗。",
+    "请先到医院就诊，由医生完成评估并确定能否用药、怎么用药后，再按医生安排复诊。"].find((sentence) => text.includes(sentence));
+  if (previous) return previous === first ? text : text.replace(previous, first);
   if (FINISH_MEDICINE_FIRST.test(text)) return text.replace(FINISH_MEDICINE_FIRST, first);
-  if (reason === "red_flag" && !/急诊|就医|就诊/u.test(text)) return `${first}${text}`;
+  if ((reason === "red_flag" || kind) && !text.includes(first)) {
+    if (reason === "red_flag" && /急诊|就医|就诊/u.test(text) && !kind) return text;
+    return `${first}${text}`;
+  }
   return text;
+}
+
+/**
+ * 给剂量的方：「请服完本次的药后复诊」补上剂数与天数（2026-10-21 第十二轮；验收 S 集：复诊句没有天数，虽然煎服法写了 7 剂）。
+ * 数取自方剂的 followUpAfterDoses / followUpAfterDays（M05 首次复诊同一来源 patientFacingFirstReview）；取不到时原样。
+ */
+export function followupWithDoseCount(text: string, doses: unknown, days: unknown): string {
+  if (!Number.isInteger(doses) || !Number.isInteger(days) || Number(doses) <= 0 || Number(days) <= 0) return text;
+  const match = text.match(FINISH_MEDICINE_FIRST);
+  if (!match || /\d/u.test(match[0])) return text;
+  return text.replace(/请?(?:服完|吃完|用完)本次的?药(?:后|再)?(?:按时)?复诊/u, `请在服完${doses}剂药后（约${days}天后）复诊`);
 }
 
 /** 就地投影一份已解析的结构化结果。非 V2 结果原样返回。 */
@@ -1794,18 +1879,27 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
   if (!object || object.schemaVersion !== "tcm-cdss-reasoning-v2") return reasoning;
   const projected = structuredClone(object);
   if (projected.stage === "diagnose") {
-    deliveredDiagnose(projected);
+    deliveredDiagnose(projected, options);
     const therapy = record(projected.therapy);
     if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = withoutRedundantTherapyPhrases(therapy.overallMethod);
     const overviewRecord = record(projected.overview);
     if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = withoutRedundantTherapyPhrases(overviewRecord.overallTherapy);
     const management = record(projected.management);
     if (management && typeof management.followupSafetyNet === "string" && options?.doseWithheld) {
-      management.followupSafetyNet = followupWhenDoseWithheld(management.followupSafetyNet, options.doseWithheld);
+      management.followupSafetyNet = followupWhenDoseWithheld(management.followupSafetyNet, options.doseWithheld, options.doseWithheldKind);
     }
   }
   else if (projected.stage === "prescribe") {
     deliveredPrescribe(projected, options);
+    const management = record(projected.management);
+    if (management && typeof management.followupSafetyNet === "string") {
+      if (options?.doseWithheld) {
+        management.followupSafetyNet = followupWhenDoseWithheld(management.followupSafetyNet, options.doseWithheld, options.doseWithheldKind);
+      } else {
+        const decoction = record(records(record(projected.formula)?.candidates)[0]?.decoction);
+        management.followupSafetyNet = followupWithDoseCount(management.followupSafetyNet, decoction?.followUpAfterDoses, decoction?.followUpAfterDays);
+      }
+    }
     // 方义里某一步删掉连词后面那半句、留下「…化生而，…」的残句（甲方标准病历 6 最终复测）：去掉悬空的「而」。
     for (const candidate of records(record(projected.formula)?.candidates)) {
       if (typeof candidate.formulaAnalysis === "string") {

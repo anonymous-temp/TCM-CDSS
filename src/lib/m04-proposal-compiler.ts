@@ -747,9 +747,15 @@ const MODIFICATION_FACT_CONCEPTS = [
 export function modificationTriggerGroundedInM03(
   trigger: string,
   prior?: ClinicalReasoningResultV2 | null,
+  /**
+   * 方中药味。教材这一证的加减药都已在方中时，模型写的条件式加减照样可用（conditionalModificationWithoutTextbook）。
+   * 2026-10-21 第十二轮：规整阶段调用这里时没给药名，那条豁免只在后面的编译阶段生效，模型的条件式加减在规整阶段就被判
+   *「触发条件不能回溯」丢光——甲方病历 7（牙痛·胃火上炎，清胃散已含大黄、石膏、知母）约每 3 次 1 次加减为空。
+   */
+  candidateHerbNames: readonly string[] = [],
 ): boolean {
   return Boolean(resolveModificationTriggerSource(trigger, prior)) || Boolean(textbookModificationForPrior(trigger, prior))
-    || modelConditionalModificationForPrior(trigger, prior);
+    || modelConditionalModificationForPrior(trigger, prior, candidateHerbNames);
 }
 
 /**
@@ -1108,7 +1114,7 @@ function normalizeModifications(
     if (/(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百半]+)\s*(?:mg|g|毫克|克)(?!\s*\/\s*(?:L|升))/i.test(doseBearingText)) {
       return drop("contains_unaudited_dose");
     }
-    if (!modificationTriggerGroundedInM03(trigger, prior)) return drop("trigger_not_current_fact");
+    if (!modificationTriggerGroundedInM03(trigger, prior, [...prescribedNameByIdentity.values()])) return drop("trigger_not_current_fact");
     const normalizedHerbName = canonicalTcmHerbIdentity(herbName.trim());
     // 随症加减是可选决策支持，不能让一条模型臆造的药味、病机引用或动作拖垮
     // 已通过核心契约的候选处方。服务端只保留知识库可识别且与当前上下文一致的行。

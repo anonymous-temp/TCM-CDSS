@@ -925,7 +925,7 @@ function isLocalHeatNotFeverAt(sentence: string, index: number, equivalent: stri
  */
 // 「明显」不在内：「无明显呕吐」「无明显消瘦」在病历里就是否认（语料回放 X-G-2004、H-tri-16069：病历写着「恶心呕吐」「日渐消瘦」，
 // 模型写「无明显呕吐」「无明显消瘦」，那是真矛盾，要照旧改正）。
-const NEGATED_TERM_QUALIFIER_SOURCE = "最剧烈|剧烈|突发|突然|骤然|爆裂样|爆炸样|雷击样|撕裂样|刀割样|持续性|进行性|喷射性|喷射状|大量|频繁|严重|急性|剧";
+export const NEGATED_TERM_QUALIFIER_SOURCE = "最剧烈|剧烈|突发|突然|骤然|爆裂样|爆炸样|雷击样|撕裂样|刀割样|持续性|进行性|喷射性|喷射状|大量|频繁|严重|急性|剧";
 /** 病历里写了带限定的那一种：「剧烈头痛」或倒装的「头痛剧烈」「头痛较剧烈」（同一小句、非否定）。 */
 function qualifiedFormDocumented(source: string, qualifier: string, term: string): boolean {
   if (sourceDocumentsAffirmation(source, `${qualifier}${term}`)) return true;
@@ -948,7 +948,7 @@ function termOnlyQualifiedIn(span: string, term: string, source: string): boolea
   return seen;
 }
 
-function sourceDocumentsAffirmation(source: string, term: string): boolean {
+export function sourceDocumentsAffirmation(source: string, term: string): boolean {
   const normalized = normalizeClinicalText(source);
   const equivalents = POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes(term)) || [term];
   const conceptPatterns = POSITIVE_FACT_EQUIVALENT_PATTERNS.find((item) => item.terms.includes(term))?.patterns || [];
@@ -5679,6 +5679,28 @@ export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
     push("活动期自身免疫性疾病需由相关专科与药师联合复核后再决定剂量方案");
   }
   return reasons;
+}
+
+/**
+ * 不给剂量时复诊提示按哪一类原因写节点（2026-10-21 第十二轮；验收 S 集「随访可操作」90.4%：不给剂量的页只写「按医生安排复诊」，
+ * 没有天数、没有观察指标）。判据与 derivePrescriptionPermission 的各条边界同源：红旗 → 今天急诊；妊娠、哺乳、抗凝 → 3 天内面诊
+ *（抗凝另写开始服药后 1 周内复查凝血）；患儿年龄不明 → 补充年龄当天；肾功能不全、心衰、免疫抑制、糖尿病足、活动期自身免疫病 → 3 天内专科；
+ * 其余（语义复核未完成等）→ 3 天内就诊。给剂量的病例返回 undefined。
+ */
+export type DoseWithheldFollowupKind = "red_flag" | "pregnancy" | "lactation" | "anticoagulant" | "pediatric_age" | "specialist" | "other";
+export function doseWithheldFollowupKind(state: CaseState): DoseWithheldFollowupKind | undefined {
+  const gate = evaluateSafetyGate(state);
+  if (gate.status === "red_flag") return "red_flag";
+  const permission = derivePrescriptionPermission(state);
+  if (permission.candidateMode !== "non_dose_only" && permission.candidateMode !== "blocked") return undefined;
+  const maternal = maternalStateText(state, structuredCaseText(state));
+  if (isPositiveOrPossibleClinicalState(assessPregnancyState(maternal))) return "pregnancy";
+  if (isPositiveOrPossibleClinicalState(assessLactationState(maternal))) return "lactation";
+  if ((isPediatricPatient(state) && !pediatricDoseRuleForCase(state)) || narrativePediatricAgeConflict(state) != null) return "pediatric_age";
+  const highRisk = highRiskDoseBoundaryReasons(state);
+  if (highRisk.some((reason) => reason.includes("抗凝"))) return "anticoagulant";
+  if (highRisk.length > 0) return "specialist";
+  return "other";
 }
 
 /**

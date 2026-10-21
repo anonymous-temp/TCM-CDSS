@@ -290,15 +290,18 @@ const criteriaFile = JSON.parse(fs.readFileSync(path.join(process.env.R1019_SRC 
     assert.equal(visible.unrecordedNegativesAsNotReported("伴心悸，无失眠。", "心悸3月\n活动后加重"), "伴心悸，未诉失眠。");
     assert.equal(visible.unrecordedNegativesAsNotReported("伴恶心，无头晕。", "眩晕2天\n视物旋转"), "伴恶心，无头晕。");
   });
-  await check("7.2 S055：鉴别分句「无便秘」不改成「病历未记录便秘（…）」，交给净化器按病历肯定改成「病历已记录便秘阳性」；对照：「无发热」病历没写照常改", () => {
+  // 2026-10-21 第十二轮：病历肯定写着的表现被写成「无X/未诉X」时，鉴别与依据里直接删掉这一项（diagnosis-visible-summary.withoutDenialsOfRecordedFindings，
+  // 留出例 S058「腹中冷痛」对「未诉腹痛」）。此前这一项留给净化器改写成「病历已记录便秘阳性」，交付为「有便秘」——放在鉴别要点里读不出区分。
+  // 净化器自身的改写口径不变（下面两条照旧钉它）。
+  await check("7.2 S055：鉴别分句「无便秘」不改成「病历未记录便秘（…）」，病历肯定写着便秘时删掉这一项；对照：「无发热」病历没写照常改", () => {
     const state = normalizeCaseStateInput({ id: "S055", chiefComplaint: "大便干结5天", patient: { sex: "男", age: 36 }, symptoms: { 现病史: "平素嗜食辛辣。5天未解大便，腹胀，口干口臭，面红，心烦，小便短赤。无腹痛、呕吐，肛门有排气。" }, conversation: [] });
     const ctx = safety.clinicalGroundingText(state);
     const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", westernDiagnosis: { primary: { name: "便秘" }, differentials: [{ name: "药物性便秘", reason: "需排除药物因素", distinguishingPoints: "当前用药情况未记录，无便秘", nextCheck: "核对现用药物" }, { name: "肠梗阻", reason: "需排除", distinguishingPoints: "无发热", nextCheck: "腹部平片" }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
     const grounded = visible.groundDifferentialNegativeAssertions(content, ctx);
     const rows = JSON.parse(grounded.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).westernDiagnosis.differentials;
-    assert.equal(rows[0].distinguishingPoints, "当前用药情况未记录，无便秘");
+    assert.equal(rows[0].distinguishingPoints, "当前用药情况未记录");
     assert.equal(rows[1].distinguishingPoints, "病历未记录发热（需问诊核实后方可用于排除）");
-    assert.match(safety.sanitizeUngroundedRedFlagNegations(rows[0].distinguishingPoints, state), /病历已记录便秘阳性/u);
+    assert.match(safety.sanitizeUngroundedRedFlagNegations("当前用药情况未记录，无便秘", state), /病历已记录便秘阳性/u);
     assert.doesNotMatch(safety.sanitizeUngroundedRedFlagNegations("当前用药情况未记录，未诉便秘", state), /未诉便秘|尚未确认便秘/u);
   });
   await check("7.3 同义词组是同一份受治理数据（导出 POSITIVE_FACT_EQUIVALENT_GROUPS）；粪质、单次未排、眩晕记作下位词：「否认大便干结」不等于否认便秘", () => {

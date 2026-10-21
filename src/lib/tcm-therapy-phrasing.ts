@@ -239,12 +239,68 @@ export function withoutRedundantTherapyPhrases(method: string): string {
     return phrases.some((other, at) => at !== index && sets[at].size >= own.size && (sets[at].size > own.size || at < index) &&
       [...own].every((character) => sets[at].has(character)));
   });
-  if (!drop.some(Boolean)) return text;
+  if (!drop.some(Boolean)) return mergedSameHeadTherapyPhrases(text);
   const kept: string[] = [];
   phrases.forEach((phrase, index) => {
     if (drop[index]) return;
     if (kept.length > 0) kept.push(parts[index * 2 - 1] || "，");
     kept.push(phrase);
   });
+  return mergedSameHeadTherapyPhrases(kept.join("").replace(/^[，,、；;]+/u, ""));
+}
+
+/**
+ * 同一个两字动宾开头的两项四字治法合成一项（2026-10-21 第十二轮；验收 M 集 21/360 例「健脾和胃，健脾益气」「活血通窍，活血化瘀」
+ * 「养阴生津，养阴润肺」）：留第一项的位置，写成「开头两字 + 两个后半」，合成后最多六字。后半是「止痛、和胃、安神…」这类说目的的放后，
+ * 其余（益气、化瘀、解毒、生津…）按原顺序在前——「健脾益气和胃」「活血化瘀通窍」「清热解毒生津」。三项及以上同头的不合（太长）。
+ */
+const PURPOSE_TAIL = /^(?:助运|止痛|止咳|平喘|安神|宁神|通络|通窍|止血|止泻|止呕|通便|消肿|利咽|明目|调经|止带|止痒|和胃|和中|润肺|润肠|降逆|开窍|散结|定志|固表|止汗|缩尿)$/u;
+export function mergedSameHeadTherapyPhrases(method: string): string {
+  const parts = String(method || "").split(/([，,、；;])/u);
+  const phrases = parts.filter((_, index) => index % 2 === 0).map((phrase) => phrase.trim());
+  const used = new Set<number>();
+  const merged = new Map<number, string>();
+  phrases.forEach((phrase, index) => {
+    if (used.has(index) || phrase.length !== 4 || !/^[\u4e00-\u9fff]{4}$/u.test(phrase)) return;
+    const sameHead = phrases.filter((other) => other.length === 4 && other.slice(0, 2) === phrase.slice(0, 2));
+    if (sameHead.length !== 2) return;
+    const partners = phrases.flatMap((other, at) => at > index && !used.has(at) && other.length === 4 && other.slice(0, 2) === phrase.slice(0, 2) && other !== phrase ? [at] : []);
+    if (partners.length !== 1) return;
+    const tails = [phrase.slice(2), phrases[partners[0]].slice(2)];
+    const ordered = [...tails.filter((tail) => !PURPOSE_TAIL.test(tail)), ...tails.filter((tail) => PURPOSE_TAIL.test(tail))];
+    merged.set(index, `${phrase.slice(0, 2)}${ordered.join("")}`);
+    used.add(partners[0]);
+  });
+  if (merged.size === 0) return method;
+  const kept: string[] = [];
+  phrases.forEach((phrase, index) => {
+    if (used.has(index)) return;
+    if (kept.length > 0) kept.push(parts[index * 2 - 1] || "，");
+    kept.push(merged.get(index) ?? phrase);
+  });
   return kept.join("").replace(/^[，,、；;]+/u, "");
+}
+
+/**
+ * 撤下一个兼证时，治法里只为它而写的那几项（2026-10-21 第十二轮）。按证名里的脏腑与病性字找对应的治法用词：
+ * 一项治法含兼证要素的用词、又不含主证任何要素的用词，才算只属于兼证；主证教材治法里原有的不算。拿不准的一律保留。
+ */
+const ELEMENT_METHOD_WORDS: ReadonlyArray<readonly [RegExp, RegExp]> = [
+  [/脾/u, /健脾|运脾|补脾|醒脾|实脾/u], [/胃/u, /和胃|养胃|益胃|清胃|温胃/u], [/肺/u, /宣肺|补肺|润肺|清肺|肃肺|敛肺/u],
+  [/肾/u, /补肾|益肾|温肾|滋肾|固肾/u], [/肝/u, /疏肝|柔肝|养肝|平肝|清肝|泻肝/u], [/心/u, /养心|宁心|清心|补心/u],
+  [/气虚|气不足|气亏/u, /益气|补气/u], [/血虚|血不足|血亏/u, /养血|补血/u], [/阴虚|阴亏|阴不足/u, /滋阴|养阴/u],
+  [/阳虚|阳不足|阳衰/u, /温阳|助阳|补阳|温肾/u], [/气滞|气郁|郁滞/u, /理气|行气|疏肝|解郁/u], [/瘀/u, /活血|化瘀|祛瘀/u],
+  [/痰/u, /化痰|祛痰|涤痰/u], [/湿/u, /化湿|燥湿|利湿|祛湿|渗湿|除湿/u], [/热|火/u, /清热|泻火|清火/u],
+  [/寒/u, /散寒|温中|温经|祛寒/u], [/风/u, /祛风|疏风|息风/u], [/燥|津亏|津伤|津液/u, /生津|润燥/u], [/食/u, /消食|导滞/u],
+];
+export function therapyItemsOnlyFor(method: string, secondaryName: string, primaryName: string, primaryTextbookMethod = ""): string[] {
+  const words = (name: string) => ELEMENT_METHOD_WORDS.filter(([element]) => element.test(name)).map(([, method]) => method);
+  const secondaryWords = words(secondaryName);
+  const primaryWords = words(primaryName);
+  if (secondaryWords.length === 0) return [];
+  return String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter((item) =>
+    item.length >= 2 &&
+    secondaryWords.some((pattern) => pattern.test(item)) &&
+    !primaryWords.some((pattern) => pattern.test(item)) &&
+    !(primaryTextbookMethod && primaryTextbookMethod.includes(item)));
 }

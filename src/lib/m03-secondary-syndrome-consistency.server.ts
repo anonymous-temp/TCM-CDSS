@@ -5,7 +5,8 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { textbookManifestationTerms, textbookRowForSyndrome, type TextbookSyndromeRow } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
-import { claimsSecondaryPattern, declaresSecondaryMechanism, deniesSeparateSecondaryPattern, mechanismClaimsUncoveredBy, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
+import { claimsSecondaryPattern, declaresSecondaryMechanism, deniesSeparateSecondaryPattern, mechanismClaimsUncoveredBy, therapyItemsOnlyFor, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
+import criteriaJson from "../data/tcm-diagnostics-syndrome-criteria.json" with { type: "json" };
 
 /**
  * 辨证依据与兼证栏一致（2026-10-19）。
@@ -47,6 +48,10 @@ function enabled(): boolean {
 
 function groupCheckEnabled(): boolean {
   return process.env.CDSS_M03_SECONDARY_GROUP_CHECK !== "false";
+}
+
+function criteriaCheckEnabled(): boolean {
+  return process.env.CDSS_M03_SECONDARY_CRITERIA !== "false";
 }
 
 type Json = Record<string, unknown>;
@@ -357,6 +362,189 @@ async function decideSecondaryConsistency(
   }, undefined, signal);
 }
 
+// ───── 兼证判据：《中医诊断学》辨证要点（2026-10-21 第十二轮） ─────
+//
+// 不论兼证从哪来（依据里自称兼夹、独立成组核对、模型自己写进兼证栏），立之前都按教材的【辨证要点】数一遍：
+// 该证的特异表现至少 2 条（要点只列 1 条时那 1 条 + 共见类症状 2 条），要点写了「与X症状共见」的再要至少 1 条 X 类症状；
+// 要点只是一串表现（「以……为主要表现」）的，要至少 3 条、其中 2 条是要点里的。主证教材证型自己的表现（主症、舌、脉）不算——
+// 这就是「独立成组」：S161 燥热便秘补的「津亏证」（口干、便干就是热秘本身）、S128 胃肠湿热补的「风邪证」（风团瘙痒就是瘾疹本身）
+// 因此不立；L 集心血瘀阻证病历里心悸气短、动则益甚、倦怠乏力、易汗出成组，心气虚证照立。
+// 病历表现与教材条目的对应由小任务做（只许从给定条目里选、病历逐字摘录，同义写法算，如「食欲差」之于「纳少」），条数由服务端数。
+// 查不到这个证名、或小任务失败：判 unknown，照旧（不因判据缺失而增删兼证）。开关 CDSS_M03_SECONDARY_CRITERIA=false。
+
+type CriteriaEntry = {
+  name: string;
+  line: number;
+  keyPointsText: string;
+  specific: string[];
+  category: string | null;
+  categoryEntries: string[];
+  manifestations: string[];
+};
+const CRITERIA_ENTRIES = new Map<string, CriteriaEntry>((criteriaJson.entries as CriteriaEntry[]).map((entry) => [entry.name, entry]));
+const CRITERIA_ALIASES = criteriaJson.aliases as Record<string, string>;
+const CRITERIA_SUFFIX_VARIANTS = criteriaJson.nameSuffixVariants as string[];
+
+/** 证名 → 《中医诊断学》条目：原名、受治理的同义名，或「X不足证/X亏虚证」→「X虚证」。 */
+export function diagnosticsCriteriaFor(name: string): CriteriaEntry | undefined {
+  const clean = compact(name);
+  if (!clean) return undefined;
+  const withSuffix = clean.endsWith("证") ? clean : `${clean}证`;
+  const lookup = (value: string) => CRITERIA_ENTRIES.get(value) ?? CRITERIA_ENTRIES.get(CRITERIA_ALIASES[value] || "");
+  const direct = lookup(withSuffix);
+  if (direct) return direct;
+  for (const suffix of CRITERIA_SUFFIX_VARIANTS) {
+    if (withSuffix.endsWith(suffix)) {
+      const entry = lookup(`${withSuffix.slice(0, -suffix.length)}虚证`);
+      if (entry) return entry;
+    }
+  }
+  return undefined;
+}
+
+function criteriaCategoryItems(entry: CriteriaEntry): string[] {
+  return [...new Set(entry.categoryEntries.flatMap((name) => {
+    const category = CRITERIA_ENTRIES.get(name);
+    return category ? [...category.specific, ...category.manifestations] : [];
+  }))];
+}
+
+export function criteriaItemsFor(entry: CriteriaEntry): string[] {
+  return [...new Set([...entry.specific, ...criteriaCategoryItems(entry), ...entry.manifestations])].slice(0, 40);
+}
+
+const sharesPrimaryManifestation = (quote: string, primaryTerms: readonly string[]): boolean => {
+  const value = compact(quote);
+  if (!value) return false;
+  const grams = bigramsOf(value);
+  return primaryTerms.some((raw) => {
+    const term = compact(raw);
+    if (term.length < 2) return false;
+    if (value.includes(term) || term.includes(value)) return true;
+    // 两三个字的摘录，每个字都在主证这条表现里（「头晕」之于「头痛而晕」）：同一表现的不同写法。
+    if (value.length <= 3 && [...value].every((char) => term.includes(char))) return true;
+    const termGrams = bigramsOf(term);
+    let shared = 0;
+    for (const gram of grams) if (termGrams.has(gram)) shared += 1;
+    return grams.size > 0 && shared / grams.size >= FIT_BIGRAM_SHARE;
+  });
+};
+
+export type CriteriaVerdict = { verdict: "pass" | "fail" | "unknown"; entry?: string; specific: number; category: number; listed: number; distinct: number };
+
+/** 小任务给出的对应 → 判定。纯函数，供测试。 */
+export function evaluateCriteriaMatches(
+  entry: CriteriaEntry,
+  matches: ReadonlyArray<{ item: string; quote: string | null }>,
+  context: { recordText: string; primaryTerms: readonly string[] },
+): CriteriaVerdict {
+  const specificSet = new Set(entry.specific);
+  const categorySet = new Set(criteriaCategoryItems(entry));
+  const manifestSet = new Set(entry.manifestations);
+  const affirmedClauses = affirmedClinicalSourceClauses(context.recordText).flatMap((clause) => clause.split(/[，,]/u)).map(compact).filter(Boolean);
+  const seenQuotes = new Set<string>();
+  let specific = 0;
+  let category = 0;
+  let listed = 0;
+  for (const match of matches) {
+    const quote = compact(match.quote || "");
+    if (quote.length < 2 || quote.length > 20 || seenQuotes.has(quote)) continue;
+    if (!affirmedClauses.some((clause) => clause.includes(quote) || orderedWithin(clause, quote, quote.length + 3))) continue;
+    if (sharesPrimaryManifestation(quote, context.primaryTerms)) continue;
+    if (specificSet.has(match.item)) specific += 1;
+    else if (categorySet.has(match.item)) category += 1;
+    else if (manifestSet.has(match.item)) listed += 1;
+    else continue;
+    seenQuotes.add(quote);
+  }
+  const distinct = seenQuotes.size;
+  let pass: boolean;
+  if (!entry.keyPointsText) pass = distinct >= 3;
+  else if (entry.categoryEntries.length > 0) {
+    const needSpecific = Math.min(2, entry.specific.length);
+    const needCategory = entry.specific.length >= 2 ? 1 : 2;
+    pass = specific >= needSpecific && category >= needCategory;
+  } else if (entry.category) pass = specific >= Math.min(2, entry.specific.length) && distinct >= 2;
+  else pass = specific >= Math.min(2, entry.specific.length) && distinct >= 3;
+  return { verdict: pass ? "pass" : "fail", entry: entry.name, specific, category, listed, distinct };
+}
+
+const CRITERIA_MATCH_SYSTEM = [
+  "你是中医主治医师。下面是教材对某一证候列出的辨证条目（items）。逐条看病历里有没有这一表现。",
+  "病历原文肯定写着这一表现时，给出病历里的逐字摘录（不超过16字）；意思相同的写法也算（如“食欲差”之于“纳少”，“大便时稀”之于“便溏”，“动则气短”之于“气短”）。",
+  "病历否认的、没写到的、要靠推断的，quote 给 null。一处摘录只对应一条最贴切的条目。",
+  "只输出 JSON：{\"matches\":[{\"item\":\"条目原文\",\"quote\":\"病历逐字摘录或null\"}]}",
+].join("\n");
+
+function parseCriteriaMatches(content: unknown, items: readonly string[]): Array<{ item: string; quote: string | null }> | undefined {
+  if (typeof content !== "string" || !content.trim()) return undefined;
+  let parsed: Json | undefined;
+  try { parsed = record(JSON.parse(content)); } catch { return undefined; }
+  if (!parsed || !Array.isArray(parsed.matches)) return undefined;
+  const allowed = new Set(items);
+  return parsed.matches.map(record).flatMap((item) => {
+    const name = text(item?.item);
+    if (!allowed.has(name)) return [];
+    const quote = item?.quote == null ? null : text(item.quote);
+    return [{ item: name, quote: quote && quote !== "null" ? quote : null }];
+  });
+}
+
+/** 一个兼证名按辨证要点核一遍。查不到条目或小任务失败为 unknown。 */
+export async function verifySecondaryByCriteria(
+  name: string,
+  context: { recordText: string; primaryTerms: readonly string[] },
+  signal?: AbortSignal,
+): Promise<CriteriaVerdict> {
+  const entry = diagnosticsCriteriaFor(name);
+  if (!entry || entry.specific.length === 0 && entry.manifestations.length === 0) return { verdict: "unknown", specific: 0, category: 0, listed: 0, distinct: 0 };
+  const items = criteriaItemsFor(entry);
+  const recordText = context.recordText.slice(0, MAX_RECORD_CHARS);
+  const matches = await smallJsonTask("m03_secondary_criteria", [
+    { role: "system", content: CRITERIA_MATCH_SYSTEM },
+    { role: "user", content: JSON.stringify({ syndrome: entry.name, keyPoints: entry.keyPointsText, items, record: recordText }) },
+  ], 700, (content) => parseCriteriaMatches(content, items), signal);
+  if (!matches) return { verdict: "unknown", entry: entry.name, specific: 0, category: 0, listed: 0, distinct: 0 };
+  return evaluateCriteriaMatches(entry, matches, context);
+}
+
+/** 主证教材证型自己的表现（主症短语 + 舌 + 脉），用来判兼证的支持表现是否独立。 */
+export function primaryManifestationTerms(row: TextbookSyndromeRow | undefined): string[] {
+  if (!row) return [];
+  return [...textbookManifestationTerms(row), ...[row.tongue, row.pulse].flatMap((value) => String(value || "").split(/[，,、；;。]/u))]
+    .map((item) => item.trim()).filter((item) => item.length >= 2);
+}
+
+/** 撤下模型自写的兼证：兼证栏去掉它，治法里只属于它的项去掉，依据与病机里「兼X」的字样去掉。纯函数，供测试。 */
+export function withdrawSecondarySyndrome(root: Json, name: string, primaryTextbookMethod = ""): boolean {
+  const overview = record(root.overview);
+  if (!overview || !Array.isArray(overview.secondarySyndromes)) return false;
+  const current = overview.secondarySyndromes as unknown[];
+  const remaining = current.filter((item) => compact(text(item)) !== compact(name));
+  if (remaining.length === current.length) return false;
+  overview.secondarySyndromes = remaining;
+  const primary = text(overview.primarySyndrome);
+  const therapy = record(root.therapy);
+  const method = text(therapy?.overallMethod);
+  if (therapy && method) {
+    const only = therapyItemsOnlyFor(method, name, primary, primaryTextbookMethod);
+    const items = method.split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
+    const kept = items.filter((item) => !only.includes(item));
+    if (kept.length > 0 && kept.length < items.length) therapy.overallMethod = kept.join("，");
+  }
+  const core = compact(name).replace(/证$/u, "");
+  if (core.length >= 2) {
+    const escaped = core.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const claim = new RegExp(`[，,；;]?(?:兼|夹)(?:有|见|夹)?[\\u4e00-\\u9fff]{0,4}?${escaped}(?:之象|之候|之证|证)?`, "gu");
+    for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"] as const) {
+      const value = text(overview[key]);
+      const next = value.replace(claim, "").replace(/^[，,；;]+/u, "");
+      if (next !== value && next.length >= (key === "tcmDiagnosticRationale" ? 20 : 10)) overview[key] = next;
+    }
+  }
+  return true;
+}
+
 /** 把决定落到中医半上：补兼证（并列治法）或删分句。纯函数，供测试。 */
 export function applySecondaryConsistencyDecision(root: Json, decision: SecondaryConsistencyDecision): boolean {
   const overview = record(root.overview);
@@ -407,11 +595,26 @@ export async function reconcileSecondarySyndromes(
   const overview = record(root?.overview);
   if (!root || !overview) return tcmContent;
   const secondary = Array.isArray(overview.secondarySyndromes) ? overview.secondarySyndromes.filter((item) => text(item)) : [];
-  if (secondary.length > 0) return tcmContent;
   const primarySyndrome = text(overview.primarySyndrome);
   const rationale = text(overview.tcmDiagnosticRationale);
   const pathogenesis = text(overview.overallPathogenesis);
   if (!primarySyndrome) return tcmContent;
+  const textbookRow = textbookRowForSyndrome(text(overview.tcmDiseaseName), primarySyndrome);
+  const primaryTerms = primaryManifestationTerms(textbookRow);
+  // 模型自己写进兼证栏的：按辨证要点逐个核（evaluateCriteriaMatches），不够数的撤下（连同只为它写的治法与「兼X」字样）。
+  if (secondary.length > 0) {
+    if (!criteriaCheckEnabled()) return tcmContent;
+    const verdicts = await Promise.all(secondary.map((name) => verifySecondaryByCriteria(text(name), { recordText: context.recordText, primaryTerms }, signal)));
+    let withdrawn = 0;
+    secondary.forEach((name, index) => {
+      if (verdicts[index].verdict === "fail" && withdrawSecondarySyndrome(root!, text(name), textbookRow?.therapy || "")) withdrawn += 1;
+    });
+    console.info("[tcm-cdss:telemetry] m03_secondary_criteria", {
+      source: "model", candidates: secondary.length, withdrawn,
+      verdicts: verdicts.map((item) => `${item.entry || "?"}:${item.verdict}:${item.specific}/${item.category}/${item.distinct}`),
+    });
+    return withdrawn > 0 ? JSON.stringify(root) : tcmContent;
+  }
   // 自称兼夹的分句（「为X之兼象」「心脾同病」）也算；只用病机词解释某个伴随表现的分句（「纳差便溏为脾运不健」）默认不算——
   // 2026-10-19 离线量：宽判据在验收主集新触发 157 例、52 例补了兼证，其中有甲方标准病历 4（肝气犯胃证补成兼肝郁脾虚证，
   // 甲方标准答案无兼证，10/13 起的口径是伴随症状进加减、不进主方）。CDSS_M03_SECONDARY_BROAD_TRIGGER=all 打开宽判据，=false 只留兼/夹说法。
@@ -424,7 +627,6 @@ export async function reconcileSecondarySyndromes(
   const method = text(record(root.therapy)?.overallMethod);
   // 第二条路的闸门：主证对得上教材证型、且病历对它的吻合度达到 GROUP_CHECK_FIT_CEILING 时不另找第二组；对不上教材行时不设闸。
   // 未定主证（unresolved）不找。
-  const textbookRow = textbookRowForSyndrome(text(overview.tcmDiseaseName), primarySyndrome);
   const fit = textbookRow ? textbookPatternFit(textbookRow, context.recordText) : undefined;
   const groupCheck = groupCheckEnabled() && text(overview.primarySyndromeResolution) !== "unresolved" &&
     (fit === undefined || fit < GROUP_CHECK_FIT_CEILING);
@@ -438,13 +640,23 @@ export async function reconcileSecondarySyndromes(
       ? decideIndependentGroup({ recordText: context.recordText, primarySyndrome, method, textbookRow, editableText: `${rationale}\n${pathogenesis}` }, signal)
       : Promise.resolve(undefined),
   ]);
-  const decision = claimDecision?.decision === "add" ? claimDecision : groupDecision || claimDecision;
+  let decision: SecondaryConsistencyDecision | undefined = claimDecision?.decision === "add" ? claimDecision : groupDecision || claimDecision;
+  // 立之前按辨证要点核一遍（两条路同一判据）。不够数：依据里自称兼夹的那几句删掉（第一条路原本的「删说法」），否则不动。
+  let criteria: CriteriaVerdict | undefined;
+  if (decision?.decision === "add" && criteriaCheckEnabled()) {
+    criteria = await verifySecondaryByCriteria(decision.secondarySyndrome, { recordText: context.recordText, primaryTerms }, signal);
+    if (criteria.verdict === "fail") {
+      const removable = claims.filter((clause) => secondaryPatternClaims(clause).length > 0 || declaresSecondaryMechanism(clause));
+      decision = claimDecision?.decision === "remove" ? claimDecision : removable.length > 0 ? { decision: "remove", clauses: removable } : undefined;
+    }
+  }
   const applied = decision ? applySecondaryConsistencyDecision(root, decision) : false;
   console.info("[tcm-cdss:telemetry] m03_secondary_consistency", {
     claims: claims.length,
     decision: decision?.decision || "unavailable",
     applied,
     ...(groupCheck ? { group: groupDecision ? "add" : "none", fit: fit === undefined ? null : Math.round(fit * 100) / 100 } : {}),
+    ...(criteria ? { criteria: `${criteria.entry || "?"}:${criteria.verdict}:${criteria.specific}/${criteria.category}/${criteria.distinct}` } : {}),
   });
   return applied ? JSON.stringify(root) : tcmContent;
 }

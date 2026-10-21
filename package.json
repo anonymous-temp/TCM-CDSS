@@ -298,6 +298,7 @@
     "test:r1022-abc": "node scripts/test-r1022-abc.mjs",
     "test:r1022-western": "node scripts/test-r1022-western.mjs",
     "test:r1023-m02-latency": "node scripts/test-r1023-m02-latency.mjs",
+    "test:r1024-main": "node scripts/test-r1024-main.mjs",
     "test:conception-dose-policy": "jiti scripts/test-conception-dose-policy.mjs",
     "test:pediatric-dose-rule": "jiti scripts/test-pediatric-dose-rule.mjs",
     "test:pediatric-vitals": "jiti scripts/test-pediatric-vitals.mjs",
