@@ -630,17 +630,42 @@ export function anemiaGradeForHemoglobin(gramsPerLitre: number): string {
   if (gramsPerLitre > 30) return "重度";
   return "极重度";
 }
-export function regradedAnemiaName(name: string, recordText: string | undefined, ageYears: number | null | undefined): string {
-  if (!recordText || typeof name !== "string" || !ANEMIA_GRADE_WORD.test(name)) return name;
-  if (ageYears != null && ageYears < 0.5) return name;
+/** 病历当前 Hb 读数对应的唯一分度。不判（返回 undefined）：妊娠或可疑妊娠、半岁以下、没有读数、有 ≥130 的读数、读数分属不同分度。 */
+export function recordAnemiaGrade(recordText: string | undefined, ageYears: number | null | undefined): string | undefined {
+  if (!recordText) return undefined;
+  if (ageYears != null && ageYears < 0.5) return undefined;
   const pregnancy = assessPregnancyState(recordText).status;
-  if (pregnancy === "positive" || pregnancy === "possible") return name;
+  if (pregnancy === "positive" || pregnancy === "possible") return undefined;
   const readings = hemoglobinReadingsGramsPerLitre(recordText);
-  if (readings.length === 0 || readings.some((value) => value >= 130)) return name;
+  if (readings.length === 0 || readings.some((value) => value >= 130)) return undefined;
   const grades = new Set(readings.map(anemiaGradeForHemoglobin));
-  if (grades.size !== 1) return name;
-  const [grade] = [...grades];
-  return name.replace(ANEMIA_GRADE_WORD, grade);
+  return grades.size === 1 ? [...grades][0] : undefined;
+}
+// 假设或预防的说法（「若进展为重度贫血」「避免发展成中度贫血」）说的不是本例现在的分度，不改。
+const HYPOTHETICAL_ANEMIA_GRADE_CUE = /(?:若|如|如果|一旦|进展|发展|演变|转为|加重为|避免|防止|警惕|以免)[^，,。；;]{0,6}$/u;
+/** 一段文字里说本例贫血分度的地方，按给定分度改写。 */
+export function regradedAnemiaText(text: string, grade: string): string {
+  return text.replace(new RegExp(ANEMIA_GRADE_WORD.source, "gu"), (word: string, _group: string, offset: number) =>
+    HYPOTHETICAL_ANEMIA_GRADE_CUE.test(text.slice(Math.max(0, offset - 10), offset)) ? word : grade);
+}
+export function regradedAnemiaName(name: string, recordText: string | undefined, ageYears: number | null | undefined): string {
+  if (typeof name !== "string" || !ANEMIA_GRADE_WORD.test(name)) return name;
+  const grade = recordAnemiaGrade(recordText, ageYears);
+  return grade ? regradedAnemiaText(name, grade) : name;
+}
+/** 交付载荷里所有文字的贫血分度与病历 Hb 对齐（2026-10-21 留出 S032：病名改成轻度后，编码显示、西医推理、鉴别要点、红旗处置里仍写「中度贫血」）。 */
+// 逐字引自病历的条目（医生自己写了「中度贫血」时的依据引文）不改，否则引文与原文对不上。
+function regradeAnemiaEverywhere(value: unknown, grade: string, recordText: string): unknown {
+  if (typeof value === "string") {
+    return ANEMIA_GRADE_WORD.test(value) && !recordText.includes(value.trim()) ? regradedAnemiaText(value, grade) : value;
+  }
+  if (Array.isArray(value)) return value.map((item) => regradeAnemiaEverywhere(item, grade, recordText));
+  if (value && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    for (const key of Object.keys(object)) object[key] = regradeAnemiaEverywhere(object[key], grade, recordText);
+    return object;
+  }
+  return value;
 }
 
 /** 西医鉴别名同样只留名称本身。 */
@@ -691,7 +716,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
     primary.suggestedChecks = [];
   }
   for (const item of records(western?.differentials)) item.name = deliveredDifferentialName(item.name);
-  // 病名里的贫血分度与病历 Hb 读数对齐（regradedAnemiaName）。主诊断、候选、鉴别同一口径。
+  // 病名里的贫血分度与病历 Hb 读数对齐（regradedAnemiaName）。病名不是引文：病历自己写了「中度贫血」也按读数改；其余各栏见 regradeAnemiaEverywhere。
   for (const item of [primary, ...records(western?.candidates), ...records(western?.differentials)]) {
     if (item && typeof item.name === "string") item.name = regradedAnemiaName(item.name, options?.recordText, options?.herbBoundaryAudience?.ageYears);
   }
@@ -1910,6 +1935,9 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
     }
   }
   else return reasoning;
+  // 贫血分度与病历 Hb 读数对齐：病名、编码显示、推理、鉴别、处置与开方各栏同一口径（recordAnemiaGrade）。
+  const anemiaGrade = recordAnemiaGrade(options?.recordText, options?.herbBoundaryAudience?.ageYears);
+  if (anemiaGrade && options?.recordText) regradeAnemiaEverywhere(projected, anemiaGrade, options.recordText);
   // 复诊提示里的急症表现只写本例可能出现的（男性、12 岁以下、60 岁及以上、已绝经者不写月经/孕哺类项目，见 followupSignsForPopulation）。
   // 两个阶段的载荷里都带这一栏；辨证阶段的路由没有给人群时（audience 缺省）原样不动。
   const managementForSigns = record(projected.management);

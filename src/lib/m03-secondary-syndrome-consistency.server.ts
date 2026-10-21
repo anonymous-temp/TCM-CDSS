@@ -447,13 +447,18 @@ export function evaluateCriteriaMatches(
   const seenQuotes = new Set<string>();
   const componentHits = new Map<string, number>();
   let specific = 0;
+  // 特异表现病历里有、但与主证同脏同一表现而扣掉的条数（主证心血瘀阻、兼证心阳虚：心悸、胸闷两边都有）。
+  let sharedSpecific = 0;
   let category = 0;
   let listed = 0;
   for (const match of matches) {
     const quote = compact(match.quote || "");
     if (quote.length < 2 || quote.length > 20 || seenQuotes.has(quote)) continue;
     if (!affirmedClauses.some((clause) => clause.includes(quote) || orderedWithin(clause, quote, quote.length + 3))) continue;
-    if (sharesPrimaryManifestation(quote, context.primaryTerms)) continue;
+    if (sharesPrimaryManifestation(quote, context.primaryTerms)) {
+      if (specificSet.has(match.item)) sharedSpecific += 1;
+      continue;
+    }
     if (specificSet.has(match.item)) specific += 1;
     else if (categorySet.has(match.item)) category += 1;
     else if (manifestSet.has(match.item)) listed += 1;
@@ -470,7 +475,10 @@ export function evaluateCriteriaMatches(
   else if (entry.categoryEntries.length > 0) {
     const needSpecific = Math.min(2, entry.specific.length);
     const needCategory = entry.specific.length >= 2 ? 1 : 2;
-    pass = specific >= needSpecific && category >= needCategory;
+    // 与主证同脏：该脏的特异表现两边共有（扣掉了），兼的其实是病性（阳虚、气虚…）。病性那一类症状至少 3 条、
+    // 特异表现病历里确实有（独立的加共有的够数）时立——心血瘀阻兼心阳虚，阳虚是另一组证据。
+    pass = (specific >= needSpecific && category >= needCategory) ||
+      (specific + sharedSpecific >= needSpecific && category >= 3);
   } else if (entry.category) pass = specific >= Math.min(2, entry.specific.length) && distinct >= 2;
   else pass = specific >= Math.min(2, entry.specific.length) && distinct >= 3;
   return { verdict: pass ? "pass" : "fail", entry: entry.name, specific, category, listed, distinct };

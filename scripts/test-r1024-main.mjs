@@ -71,6 +71,35 @@ await check("1.4 交付面投影：主诊断、候选、鉴别同一口径", asy
   assert.equal(out.westernDiagnosis.differentials[0].name, "轻度巨幼细胞性贫血");
 });
 
+await check("1.5 S032：病名之外各栏（编码显示、推理、鉴别要点、主要依据、红旗处置）同一分度；假设说法与逐字病历引文不改", async () => {
+  const record = "头晕乏力3月，活动后加重，面色苍白。血红蛋白92g/L（本院）。";
+  const reasoning = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { primarySyndrome: "气血两虚证", primarySyndromeResolution: "bounded", primarySyndromeBasis: ["血红蛋白92g/L（本院）"] },
+    pathogenesis: { chain: [{ patientFact: "头晕乏力3月" }] },
+    westernDiagnosis: {
+      primary: { name: "中度贫血", coding: { display: "中度贫血" }, clinicalRationale: "血红蛋白92g/L提示中度贫血；若不治疗可进展为重度贫血。", supportingFacts: [] },
+      candidates: [{ name: "中度贫血" }, { name: "缺铁性贫血", keyEvidence: ["中度贫血伴头发枯干"] }],
+      differentials: [{ name: "消化道出血", reason: "x", distinguishingPoints: "本例有中度贫血但未记录黑便" }],
+    },
+    management: { redFlagLoop: "血红蛋白92g/L提示中度贫血，宜尽快评估。" },
+    therapy: { overallMethod: "益气养血" },
+  };
+  const out = surface.projectDeliveredReasoning(reasoning, { recordText: record, herbBoundaryAudience: { reproductive: false, ageYears: 40 } });
+  const w = out.westernDiagnosis;
+  assert.equal(w.primary.name, "轻度贫血");
+  assert.equal(w.primary.coding.display, "轻度贫血");
+  assert.equal(w.primary.clinicalRationale, "血红蛋白92g/L提示轻度贫血；若不治疗可进展为重度贫血。");
+  assert.equal(w.candidates[1].keyEvidence[0], "轻度贫血伴头发枯干");
+  assert.equal(w.differentials[0].distinguishingPoints, "本例有轻度贫血但未记录黑便");
+  assert.equal(out.management.redFlagLoop, "血红蛋白92g/L提示轻度贫血，宜尽快评估。");
+  // 医生在病历里自己写了「中度贫血」时，逐字引文不改；病名照旧按 Hb 读数。
+  const doctorRecord = "中度贫血，血红蛋白92g/L。";
+  const quoted = surface.projectDeliveredReasoning({ ...reasoning, overview: { ...reasoning.overview, primarySyndromeBasis: ["中度贫血"] } }, { recordText: doctorRecord, herbBoundaryAudience: { reproductive: false, ageYears: 40 } });
+  assert.equal(quoted.overview.primarySyndromeBasis[0], "中度贫血");
+  assert.equal(quoted.westernDiagnosis.primary.name, "轻度贫血");
+});
+
 console.log("2 否认与病历相反");
 const s058 = "排便困难2年，4～5日一行，腹中冷痛、热敷后舒服，小便清长，腰膝酸冷。无恶心呕吐。舌淡，苔白，脉沉迟。";
 await check("2.1 S058：「未诉腹痛」删掉，连带悬空的「与肠结相区分」；鉴别要点只有这一句时删空（页面改显示理由）", async () => {
@@ -201,6 +230,16 @@ await check("5.2 判定：特异表现 + 共见类症状够数才立；与主证
   assert.equal(secondary.evaluateCriteriaMatches(spleen, matches.slice(0, 2), { recordText: record, primaryTerms: [] }).verdict, "fail", "缺共见的气虚症状");
   assert.equal(secondary.evaluateCriteriaMatches(spleen, matches, { recordText: record, primaryTerms: ["少气懒言", "大便偏稀"] }).verdict, "fail", "两条是主证自己的表现");
   assert.equal(secondary.evaluateCriteriaMatches(spleen, [{ item: "纳少", quote: "编造的表现" }, ...matches.slice(1)], { recordText: record, primaryTerms: [] }).verdict, "fail", "摘录须出自病历");
+});
+await check("5.2a 与主证同脏（心血瘀阻兼心阳虚）：心悸、胸闷两边共有，阳虚症状至少 3 条时立；阳虚症状只有 2 条不立（对照）", async () => {
+  const heartYang = secondary.diagnosticsCriteriaFor("心阳虚证");
+  const record = "胸部刺痛，心悸，胸闷，畏寒肢冷，面色淡白，小便清长。舌紫暗，脉涩。";
+  const shared = [{ item: heartYang.specific[0], quote: "心悸" }, { item: heartYang.specific[1] || heartYang.specific[0], quote: "胸闷" }];
+  const yang = ["畏寒肢冷", "面色淡白", "小便清长"].map((quote) => ({ item: secondary.criteriaItemsFor(heartYang).find((item) => item.includes(quote.slice(0, 2))) || quote, quote }));
+  const context = { recordText: record, primaryTerms: ["心胸疼痛", "心悸", "胸闷"] };
+  const verdict = secondary.evaluateCriteriaMatches(heartYang, [...shared, ...yang], context);
+  assert.equal(verdict.verdict, "pass", JSON.stringify({ verdict, specific: heartYang.specific, yang }));
+  assert.equal(secondary.evaluateCriteriaMatches(heartYang, [...shared, ...yang.slice(0, 2)], context).verdict, "fail");
 });
 await check("5.2b 组合证（湿热）：湿与热两边各至少 1 条、合计至少 3 条；只有热象不立", async () => {
   const dampHeat = secondary.diagnosticsCriteriaFor("湿热内蕴证");
