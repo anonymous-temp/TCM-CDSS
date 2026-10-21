@@ -432,8 +432,8 @@ check(() => {
     "医生页面必须渲染病名鉴别（甲方 2.2 的明确要求）");
   assert.ok(!/tcmDifferentials\.map/.test(clientSource),
     "医生页面不得再把证候鉴别当成鉴别诊断渲染——证候取舍属辨证过程，已在「辨证推理」交代");
-  assert.ok(clientSource.includes("reasoning.overview.tcmDifferentials"),
-    "签名载荷里的 tcmDifferentials 仍应被读取用于边界提示，不得连字段一起删掉");
+  // 2026-10-21 页面口径（src/lib/clinician-page-view.ts）：证候鉴别的「边界提示」也下线，页面不再读 tcmDifferentials；
+  // 字段本身仍在签名载荷与接口出参里（这里只钉页面不渲染它）。
 });
 
 // 甲方 2026-08-18：中医治疗项目页面不得再展开后台治理对象。页面只消费共享医生端投影，

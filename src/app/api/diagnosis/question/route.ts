@@ -23,6 +23,7 @@ import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { reviewM02QuestionPlan } from "@/lib/m02-question-review.server";
 import { prefetchDiagnoseInputs } from "@/lib/stage-prefetch.server";
 import { precomputeNoAnswerPath } from "@/lib/no-answer-precompute.server";
+import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
 
 export async function POST(req: Request) {
   const startedAt = Date.now();
@@ -43,6 +44,27 @@ export async function POST(req: Request) {
   prefetchDiagnoseInputs(parsed.caseState);
   // 出题的同时按「不回答」把辨证、开方先算出来：医生跳过追问时后两步直接取现成结果（no-answer-precompute.server.ts）。
   precomputeNoAnswerPath(req, parsed.caseState);
+  // 同一份病历只出一次题（2026-10-21，「同样的输入两次推理的结果要一样」）：与 M03/M04 同一套复用
+  //（stage-result-coalescing.server.ts：同租户、同病历内容、同版本同模型，进行中合流、完成后回放、加密落盘 30 天）。
+  // 温度 0 也不保证逐字相同——实测甲方 10 例 + 留出 32 例两次独立出题只有 22/42 相同；题不同，医生的回答就不同，
+  // 后面的诊断随之改变。上游故障时的服务端兜底题不存，下次照常重出。显式重新生成：x-cdss-regenerate: 1 或 ?regenerate=1。
+  const regenerate = req.headers.get("x-cdss-regenerate") === "1" || new URL(req.url).searchParams.get("regenerate") === "1";
+  const degradedContents = new Set<string>();
+  return coalesceStageResponse({
+    stage: "question",
+    key: stageRequestFingerprint("question", parsed.customer, parsed.caseState),
+    bypass: regenerate,
+    compute: (signal) => computeQuestion(parsed.caseState, startedAt, signal, degradedContents),
+    cacheable: (content) => !degradedContents.has(content.trim()),
+  });
+}
+
+async function computeQuestion(
+  inputCaseState: CaseState,
+  startedAt: number,
+  requestSignal: AbortSignal,
+  degradedContents: Set<string>,
+): Promise<Response> {
   // 事实抽取与出题并行（2026-09-27）。外部接口按 collect → question 直调时，事实层抽取
   // （qwen3.8-max，冷启动实测 6.6s）此前必须先做完才开始出题（3.4s），M02 整段约 10s。
   // M02 只经 m02ClinicalFactsFootprint 读取事实层；先用「无事实」病例发出题，事实回来后
@@ -56,7 +78,7 @@ export async function POST(req: Request) {
   let resolveEarlyFacts: (state: CaseState) => void = () => undefined;
   const earlyFacts = new Promise<CaseState>((resolve) => { resolveEarlyFacts = resolve; });
   // CDSS_M02_EARLY_FACTS=false 回到等整份事实（回退开关；抽取仍不绑本请求的中止信号）。
-  const factsReady = maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, undefined, {
+  const factsReady = maybeAttachClinicalFactsBackstop(inputCaseState, undefined, undefined, {
     onEarlyRedFlags: process.env.CDSS_M02_EARLY_FACTS === "false" ? undefined : (state) => resolveEarlyFacts(state),
   });
   factsReady.catch(() => undefined);
@@ -64,12 +86,13 @@ export async function POST(req: Request) {
     factsReady,
     new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 30)),
   ]);
-  if (settled) return questionStageResponse(settled, req.signal);
-  const factFreeState: CaseState = { ...parsed.caseState, clinicalFacts: undefined };
+  if (settled) return questionStageResponse(settled, requestSignal, degradedContents);
+  const factFreeState: CaseState = { ...inputCaseState, clinicalFacts: undefined };
   const speculativeController = new AbortController();
   const speculative = questionStageResponse(
     factFreeState,
-    AbortSignal.any([req.signal, speculativeController.signal]),
+    AbortSignal.any([requestSignal, speculativeController.signal]),
+    degradedContents,
   );
   const discardSpeculative = () => {
     speculativeController.abort();
@@ -95,7 +118,7 @@ export async function POST(req: Request) {
   console.info("[tcm-cdss:telemetry] m02_facts_overlap", { factsSource, adopted, factsWaitMs: Date.now() - startedAt });
   if (adopted) return speculative;
   discardSpeculative();
-  return questionStageResponse(caseState, req.signal);
+  return questionStageResponse(caseState, requestSignal, degradedContents);
 }
 
 type QuestionCaseState = CaseState & {
@@ -105,7 +128,7 @@ type QuestionCaseState = CaseState & {
   m02ModelOwnedRiskCategories?: readonly string[];
 };
 
-async function questionStageResponse(inputCaseState: CaseState, signal: AbortSignal): Promise<Response> {
+async function questionStageResponse(inputCaseState: CaseState, signal: AbortSignal, degradedContents?: Set<string>): Promise<Response> {
   const safeCaseState = sanitizeCaseStateForModel(inputCaseState);
   const sourceText = trustedInputText(safeCaseState);
   // 对外信封里的 completeness 由服务端按当前病历确定性写入（与各阶段路由 withSafetyGate 同一口径），
@@ -155,15 +178,21 @@ async function questionStageResponse(inputCaseState: CaseState, signal: AbortSig
     sourceText,
   ));
   const prompt = buildQuestionPrompt(safeCaseState, answeredRiskCategories, { affirmed: riskStatus.affirmed, partly: riskStatus.partly });
+  const outputTransform = (content: string) => withCompleteness(enforceM02UnansweredAxes(
+    ensureQuestionStructuredEnvelope(content, sourceText, fallbackQuestions),
+    sourceText,
+    settledQuestions,
+    caseState,
+  ));
+  // 上游故障兜底的两种正文（流层兜底经 outputTransform、非 2xx 兜底不经）：最终正文与之相同即不入复用（见 POST）。
+  if (degradedContents) {
+    degradedContents.add(fallback.trim());
+    try { degradedContents.add(outputTransform(fallbackQuestions).trim()); } catch { /* 兜底本身已安全可答 */ }
+  }
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "question", {
     requestSignal: signal,
     streamErrorFallback: fallbackQuestions,
-    outputTransform: (content) => withCompleteness(enforceM02UnansweredAxes(
-      ensureQuestionStructuredEnvelope(content, sourceText, fallbackQuestions),
-      sourceText,
-      settledQuestions,
-      caseState,
-    )),
+    outputTransform,
     finalOutputTransform: async (content) => {
       // 舌象与脉象并在一问的题先拆成只问一项（拆不开的删掉），再做窄核对（splitTonguePulseQuestions）。
       const split = splitTonguePulseQuestions(content, sourceText, caseState);

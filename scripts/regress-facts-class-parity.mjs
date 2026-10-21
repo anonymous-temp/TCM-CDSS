@@ -59,8 +59,9 @@ function activeTargetFindings(facts, targetCategories) {
 const classes = readdirSync(fixtureDir)
   .filter((file) => file.endsWith(".json"))
   .map((file) => JSON.parse(readFileSync(path.join(fixtureDir, file), "utf8")))
-  // 确定性类目与模型无关，整类都在闸门 test:open-language-classes 里量。
-  .filter((entry) => entry.mode !== "deterministic")
+  // 确定性类目与净化器类目与模型无关，整类都在闸门 test:open-language-classes 里量（2026-10-21：sanitizer 类目
+  // 没有 contexts，此前一读到就整个脚本崩掉）。
+  .filter((entry) => entry.mode !== "deterministic" && entry.mode !== "sanitizer")
   .filter((entry) => !process.env.CLASS_FILTER || entry.id.includes(process.env.CLASS_FILTER));
 if (classes.length === 0) throw new Error("no open-language class fixture matched CLASS_FILTER");
 

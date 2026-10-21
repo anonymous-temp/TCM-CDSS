@@ -18,9 +18,11 @@ assert.deepEqual(
 assert.match(authority, /TCM_DISEASE_NAME_VISIBLE_TO_CLINICIAN\s*=\s*true/);
 assert.match(client, /辨病：/);
 assert.match(client, /辨证：/);
-assert.match(client, /tcmDiseaseReferences/);
-assert.match(client, /tcmSyndromeReferences/);
-assert.match(client, /guidelineReferences/);
+// 2026-10-21 页面口径（src/lib/clinician-page-view.ts）：国标/指南引用不再上屏（ABC 与验收标准都没有这一项）；
+// 服务端可见正文与接口出参照旧带着它们（下面 visible 的断言不变）。
+assert.doesNotMatch(client, /tcmDiseaseReferences/);
+assert.doesNotMatch(client, /tcmSyndromeReferences/);
+assert.doesNotMatch(client, /guidelineReferences/);
 assert.match(visible, /中医辨病循证依据/);
 assert.match(visible, /中医辨证循证依据/);
 assert.match(visible, /西医鉴别诊断/);
@@ -29,8 +31,6 @@ assert.doesNotMatch(visible, /参考文献[^\n]*appliesTo/);
 // 医生页面的「标签 ↔ 字段」配对与对外接口文档一致（甲方 2026-09-17/18「辨病依据、辨证依据对不上」）。
 // 页面没有渲染测试设施，这里钉**标签与它渲染的那个字段在同一处**，而不只是两个字符串各自出现。
 const pairings = [
-  [/<ClinicalCitationLinks label="中医辨病循证依据" citations=\{reasoning\.overview\.tcmDiseaseReferences\} \/>/, "国标病名引用 = 辨病循证依据"],
-  [/<ClinicalCitationLinks label="中医辨证循证依据" citations=\{reasoning\.overview\.tcmSyndromeReferences\} \/>/, "国标证候引用 = 辨证循证依据"],
   [/辨病依据：<\/span>\{tcmDiseaseRationale\}/, "辨病依据 = tcmDiseaseRationale"],
   [/辨证依据：<\/span>\{tcmRationale\}/, "辨证依据 = tcmDiagnosticRationale"],
 ];

@@ -467,30 +467,38 @@ assert.ok(INJECTION_BASE, "缺少注入用基线 fixture");
   const care = careHtml(html);
   const careText = visibleTextFromHtml(care);
 
-  check("K/M05 全部临床正文与独立生活管理实际渲染且长段不截断", () => {
+  // 2026-10-21 页面口径（src/lib/clinician-page-view.ts）：M05 正文里只有「随访管理方案」「转诊评估」「红旗预警（患者须知）」
+  // 三节上屏（验收「随访建议」：复诊节点、观察指标、触发条件）；处方安全总评、生活管理（与调护重复）、康复管理、
+  // 正文表格不再上屏。接口与下载报告里的 M05 全文不变。
+  const shownLines = [clinicalLines[1], clinicalLines[2], clinicalLines[3], clinicalLines[4], clinicalLines[5], clinicalLines[8]];
+  const hiddenLines = [clinicalLines[0], clinicalLines[6], clinicalLines[7]];
+  check("K/M05 随访、转诊与红旗须知实际渲染且长段不截断；安全总评、生活管理、康复不上屏", () => {
     assert.ok(longFollowup.length > 1400 && longRehab.length > 1400, "两个长段必须分别越过旧截断预算");
-    for (const expected of clinicalLines) {
-      assert.ok(careText.includes(expected), `健康调护实际渲染缺失：${expected}`);
+    for (const expected of shownLines) {
+      assert.ok(careText.includes(expected), `复诊计划实际渲染缺失：${expected}`);
+    }
+    assert.ok(careText.includes("复诊记录第24项"), "随访长段不得截断");
+    for (const hidden of hiddenLines) {
+      assert.ok(!careText.includes(hidden), `不该上屏的 M05 段落出现在页面上：${hidden}`);
     }
     assert.ok(care.includes('data-clinical-contract-ids="M05-assessment"'), "正文子容器必须归属现有 M05 合同");
   });
-  check("K/M03 与 M04 既有调护和安全网保留", () => {
-    for (const expected of [prescribe.nonPharma.diet, prescribe.nonPharma.lifestyle, prescribe.nonPharma.emotion, diagnose.management.followupSafetyNet]) {
+  check("K/M03 与 M04 既有调护保留", () => {
+    // 随访安全网只在 M05 没有随访内容时作为复诊计划出现（此处 M05 有），不与随访方案重复。
+    for (const expected of [prescribe.nonPharma.diet, prescribe.nonPharma.lifestyle, prescribe.nonPharma.emotion]) {
       assert.ok(careText.includes(expected), `既有建议被替换：${expected}`);
     }
   });
-  check("K/M05 康复只出现一次且审方仍由独立审方区呈现一次", () => {
-    assert.equal(occurrences(pageText, clinicalLines[7]), 1, "完整康复长段只能出现一次");
-    assert.equal(occurrences(pageText, "康复记录第1项"), 1, "不能保留旧康复片段导致重复");
+  check("K/M05 康复不上屏且审方仍由独立审方区呈现一次", () => {
+    assert.equal(occurrences(pageText, clinicalLines[7]), 0, "康复长段不上屏");
+    assert.equal(occurrences(pageText, "康复记录第1项"), 0, "康复片段不上屏");
     assert.equal(occurrences(pageText, auditLine), 1, "审方正文只能出现一次");
     assert.ok(!careText.includes(auditLine), "调护区不得重复挂载审方正文");
   });
-  check("K/只展示已有正文表格且不从结构化时间轴新建表格", () => {
-    assert.ok(careText.includes("历史正文表格独立复诊动作"), "历史正文中的独有临床表格不得被删");
-    assert.equal(occurrences(care, "<table"), 1);
+  check("K/正文表格与结构化时间轴都不在页面上新建表格", () => {
+    assert.ok(!careText.includes("历史正文表格独立复诊动作"), "正文表格不上屏");
+    assert.equal(occurrences(care, "<table"), 0);
     assert.ok(!pageText.includes(timeline[0].action), "结构化时间轴不得产生额外页面内容");
-    const withoutTable = { ...completed.state, riskAssessment: completed.state.riskAssessment.replace(canonicalTable, "") };
-    assert.equal(occurrences(careHtml(renderResultAreaHtml(withoutTable)), "<table"), 0);
   });
   check("K/展示不改变既有状态且隐藏状态标记与时间轴载荷不泄漏", () => {
     assert.deepEqual(completed.state, stateBeforeRender);
@@ -507,14 +515,14 @@ assert.ok(INJECTION_BASE, "缺少注入用基线 fixture");
   };
   check("K/仅 M05 有调护正文时不声称全部调护未生成", () => {
     const onlyM05Care = visibleTextFromHtml(careHtml(renderResultAreaHtml(withoutStructuredCare(completed.state))));
-    assert.ok(onlyM05Care.includes(clinicalLines[6]));
+    assert.ok(onlyM05Care.includes(clinicalLines[2]));
     assert.doesNotMatch(onlyM05Care, /本轮未生成饮食\/起居\/情志调护内容|可点击「重新生成」补齐/);
   });
   check("K/M04 非结构化调护正文仍与 M05 并存", () => {
     const fallbackState = { ...withoutStructuredCare(completed.state), prescription: "## 非药物干预\n既有处方非结构化建议：注意休息。" };
     const text = visibleTextFromHtml(careHtml(renderResultAreaHtml(fallbackState)));
     assert.ok(text.includes("既有处方非结构化建议：注意休息。"));
-    assert.ok(text.includes(clinicalLines[6]));
+    assert.ok(text.includes(clinicalLines[2]));
   });
   check("K/M05 缺失或空白时保持原空态且不新增内容", () => {
     const absent = withoutStructuredCare({ ...completed.state, riskAssessment: undefined });

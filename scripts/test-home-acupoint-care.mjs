@@ -221,8 +221,10 @@ check("wiring: HIS guidance, visible report, page, delivery checkpoint and M04 p
   const visible = readFileSync(new URL("../src/lib/diagnosis-visible-summary.ts", import.meta.url), "utf8");
   assert.match(visible, /\["运动保健", "exercise"\][^\n]*\["穴位保健", "acupointCare"\]/);
   const page = readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
-  assert.match(page, /label="运动保健" value=\{reasoning\.nonPharma\.exercise\}/);
-  assert.match(page, /label="穴位保健" value=\{reasoning\.nonPharma\.acupointCare\}/);
+  // 2026-10-21 页面口径（src/lib/clinician-page-view.ts）：医生页面的调护只列饮食/起居/情志（验收调护项），
+  // 运动保健与穴位保健不再上屏；HIS 方案、可见正文、交付检查点与 M04 提示词照旧带着它们（本条其余断言不变）。
+  assert.doesNotMatch(page, /label="运动保健"/);
+  assert.doesNotMatch(page, /label="穴位保健"/);
   assert.doesNotMatch(page, /穴位\/外治/);
   const prompts = readFileSync(new URL("../src/lib/diagnosis-prompts.ts", import.meta.url), "utf8");
   assert.match(prompts, /"exercise":"运动保健/);

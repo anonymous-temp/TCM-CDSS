@@ -74,9 +74,10 @@ check("两个出口都不再自拼指南展示串", () => {
   ];
   for (const outlet of outlets) {
     const source = readFileSync(fileURLToPath(new URL(`../${outlet}`, import.meta.url)), "utf8");
+    // 2026-10-21 页面口径（src/lib/clinician-page-view.ts）：医生页面不再列指南引用；只要某个出口还显示引用，就必须走共享投影。
     assert.ok(
-      source.includes("guidelineReferenceDisplay"),
-      `${outlet} 没有使用共享投影 guidelineReferenceDisplay`,
+      source.includes("guidelineReferenceDisplay") || !/guidelineReferences/.test(source),
+      `${outlet} 显示了指南引用却没有使用共享投影 guidelineReferenceDisplay`,
     );
     assert.ok(
       !/\$\{(?:entry|item|reference)\.citation\}/.test(source),

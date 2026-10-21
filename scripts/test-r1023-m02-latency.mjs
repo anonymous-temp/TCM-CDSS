@@ -239,7 +239,8 @@ await check("4.1 与早到结论竞速，指纹判据不变", async () => {
   assert.match(route, /m02ClinicalFactsFootprint\(caseState\) === m02ClinicalFactsFootprint\(factFreeState\)/);
 });
 await check("4.2 抽取不绑本请求的中止信号；后台结果的拒绝被接住", async () => {
-  assert.match(route, /maybeAttachClinicalFactsBackstop\(parsed\.caseState, undefined, undefined, \{/);
+  // 2026-10-21 起出题逻辑移进 computeQuestion（追问结果纳入复用），入参改名为 inputCaseState；主张不变。
+  assert.match(route, /maybeAttachClinicalFactsBackstop\((?:parsed\.caseState|inputCaseState), undefined, undefined, \{/);
   assert.match(route, /factsReady\.catch\(\(\) => undefined\)/);
 });
 

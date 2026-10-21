@@ -395,7 +395,8 @@ async function authorFollowupClinicalContentUnfiltered(
       const client = createTextModelClient(config);
       const response = await observeModelTask({ task: "m05_followup_authoring", stage: "assess", model: config.model }, () => client.chat.completions.create({
         model: config.model,
-        temperature: 0.2,
+        // 温度 0（2026-10-21，「同样的输入两次结果要一样」）：此前 0.2 没有记录理由，是全链路唯一非 0 的首轮温度。
+        temperature: 0,
         max_tokens: 1500,
         response_format: { type: "json_object" },
         ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),

@@ -5,6 +5,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, typ
 import { extractCdssReasonCode, reasonCodeRequiresM03Rerun } from "@/lib/cdss-reason-codes";
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
+import { followupPlanItems } from "@/lib/clinician-page-view";
 import remarkGfm from "remark-gfm";
 import {
   Activity,
@@ -29,8 +30,8 @@ import {
   X,
 } from "lucide-react";
 import { appendClinicalPresetValue, appendDelimitedValue, detectTonguePulseFieldConflict } from "@/lib/clinical-entry";
-import { classifyWesternDiagnosticEvidence, westernDiagnosticEvidenceGroups, clinicalFactSourcesFromCaseState, clinicalFactWithSource, guidelineReferenceDisplay, uniqueClinicalFacts } from "@/lib/clinical-fact-source";
-import type { CaseState, ClinicalCitation, ClinicalReasoningResultV2, HisRecordSnapshot, Phase, SafetyGate, StructuredFollowupTimelineItem } from "@/lib/diagnosis-types";
+import { uniqueClinicalFacts } from "@/lib/clinical-fact-source";
+import type { CaseState, ClinicalReasoningResultV2, HisRecordSnapshot, Phase, SafetyGate, StructuredFollowupTimelineItem } from "@/lib/diagnosis-types";
 import { ageValue, normalizeCaseStateInput, normalizeStructuredFollowupTimeline } from "@/lib/diagnosis-types";
 import { LINEAGE_OPTIONS, displayableLineageAdaptation } from "@/lib/tcm-lineages";
 import {
@@ -47,7 +48,7 @@ import {
   prescribeReasoningFromState,
   stripDiagnosisJSON,
 } from "@/lib/diagnosis-parse";
-import { clinicalTextForDisplay, hasExecutableSignedM03, isDisplayableClinicalText, syndromeDifferentiationState } from "@/lib/diagnosis-client-guards";
+import { hasExecutableSignedM03, isDisplayableClinicalText } from "@/lib/diagnosis-client-guards";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import {
   filterModificationsForEditedHerbs,
@@ -57,7 +58,7 @@ import {
   synchronizeEditedCandidate,
 } from "@/lib/prescription-revision";
 import { normalizedFormulaModificationFields } from "@/lib/formula-modification";
-import { containsUnknownClinicalCue, isUnknownClinicalText, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "@/lib/clinical-state";
+import { PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "@/lib/clinical-state";
 import { inspectionLexiconGroups, inspectionLexiconNormal, type InspectionField } from "@/lib/tcm-inspection-lexicon";
 import { computeTongueRoiCrop, detectTongueRoi } from "@/lib/tongue-image-roi";
 import { sanitizeCustomerEvidenceNarrative, sanitizeLabeledEvidenceLines } from "@/lib/customer-evidence";
@@ -100,7 +101,6 @@ import { extractRiskAuditSection, extractRiskNonAuditSection, replaceRiskAssessm
 import { parseWarningDisplayReceipt, warningDisplayMaterial, stableWarningJson, type VerifiedWarningObservation } from "@/lib/warning-display-binding";
 import { prepareWarningObservation, matchingWarningObservation, resolveWarningDisplayProfile, type InstalledWarningObservation } from "@/lib/warning-display-observation";
 import { matchingWarningStorageReceipt, withWarningStorageReceipt } from "@/lib/warning-display-storage";
-import { buildSeasonalCare } from "@/lib/tcm-seasonal-care";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import {
   M03_DRAFT_MODULES,
@@ -110,13 +110,10 @@ import {
 } from "@/lib/diagnosis-stream-protocol";
 import { encounterScopeAwaitingConfirmation, parseClinicalFacts, type ClinicalFacts } from "@/lib/clinical-facts";
 import {
-  buildMedicineCandidateEmptyState,
-  buildTieredSuggestedChecks,
   herbCaseMeaning,
   isNonRedundantClinicalRationale,
   resolveAuditReviewPresentation,
   safeDietAdviceForDisplay,
-  doseSourceLabelForDisplay,
   GOVERNED_HERB_DATA_LABEL,
 } from "@/lib/result-display-policy";
 import {
@@ -1260,188 +1257,6 @@ export function requiresLimitedCandidateReview(
   return hasPrescription && (safetyLocked || sufficiencyLabel !== "辨证充分");
 }
 
-function signalFromText(label: string, value: string | undefined, action: string): DifferentiationSignal {
-  const cleaned = cleanInlineMarkdown(value || "");
-  const grounded = Boolean(cleaned && !isUnknownClinicalText(cleaned));
-  const partial = grounded && containsUnknownClinicalCue(cleaned);
-  return {
-    label,
-    value: grounded ? cleaned : "未形成稳定证据",
-    status: partial ? "partial" : grounded ? "complete" : "missing",
-    action,
-  };
-}
-
-function hasReasoningEvidenceSource(source: unknown): boolean {
-  return typeof source === "string" &&
-    cleanInlineMarkdown(source).length > 0 &&
-    !/(?:内部证据缺口|证据不足|待检索|待核验|未配置)/.test(source);
-}
-
-function hasReasoningV2SyndromeSupport(caseState: CaseState): boolean {
-  const reasoning = diagnoseReasoningFromState(caseState) || caseState.reasoningV2;
-  return Boolean(
-    reasoning?.overview?.primarySyndrome &&
-    (
-      hasReasoningEvidenceSource(reasoning.overview.evidence?.source) ||
-      (reasoning.pathogenesis?.chain ?? []).some((item) => item.syndromeEvidence || item.patientFact)
-    ),
-  );
-}
-
-function hasReasoningV2MechanismSupport(caseState: CaseState): boolean {
-  const reasoning = diagnoseReasoningFromState(caseState) || caseState.reasoningV2;
-  return Boolean(
-    reasoning?.overview?.overallPathogenesis &&
-    (reasoning.pathogenesis?.chain ?? []).some((item) =>
-      item.patientFact?.trim() &&
-      item.syndromeEvidence?.trim() &&
-      item.pathogenesis?.trim()
-    ),
-  );
-}
-
-function signalStatusClass(status: DifferentiationSignalStatus): string {
-  if (status === "complete") return "border-emerald-100 bg-emerald-50 text-emerald-800";
-  if (status === "partial") return "border-amber-100 bg-amber-50 text-amber-900";
-  return "border-red-100 bg-red-50 text-red-800";
-}
-
-function signalStatusLabel(status: DifferentiationSignalStatus): string {
-  if (status === "complete") return "已具备";
-  if (status === "partial") return "待补强";
-  return "不足";
-}
-
-function caseSymptomSummary(caseState: CaseState): string {
-  const fields = caseState.hisRecord?.fields;
-  const direct = [
-    caseState.chiefComplaint,
-    fields?.zhushu,
-    fields?.xianbingshi,
-    formatUnknown(caseState.symptoms),
-  ]
-    .map((item) => cleanInlineMarkdown(String(item || "")))
-    .filter((item) => item && item !== "未提及");
-  return direct[0] || "";
-}
-
-function buildDifferentiationSignals(caseState: CaseState, summary: DecisionSummary): DifferentiationSignal[] {
-  const tonguePulse = [
-    caseState.tongue || caseState.hisRecord?.fields?.tcmTongue,
-    caseState.pulse || caseState.hisRecord?.fields?.tcmPulse,
-  ].filter(Boolean).join("；");
-  const faceAndInquiry = [
-    caseState.faceNote || caseState.hisRecord?.fields?.tcmFace,
-    caseState.hisRecord?.fields?.tcmDetail,
-  ].filter(Boolean).join("；");
-  const hasTongue = Boolean(tonguePulse && [caseState.tongue || caseState.hisRecord?.fields?.tcmTongue].some((value) => value && !isUnknownClinicalText(String(value))));
-  const hasPulse = Boolean(tonguePulse && [caseState.pulse || caseState.hisRecord?.fields?.tcmPulse].some((value) => value && !isUnknownClinicalText(String(value))));
-  const observationText = [tonguePulse, faceAndInquiry].filter(Boolean).join("；");
-  const hasOtherObservation = Boolean(faceAndInquiry && !isUnknownClinicalText(faceAndInquiry));
-  const observationStatus: DifferentiationSignalStatus = hasTongue && hasPulse
-    ? "complete"
-    : hasTongue || hasPulse || hasOtherObservation
-      ? "partial"
-      : "missing";
-  const observationSignal: DifferentiationSignal = {
-    label: "四诊辨证信息",
-    value: observationText && !isUnknownClinicalText(observationText) ? cleanInlineMarkdown(observationText) : "未形成稳定证据",
-    status: observationStatus,
-    action: "可按病例需要补充舌质/舌苔、脉象、面象或寒热汗出、饮食二便。",
-  };
-  // Prefer the structured reasoningV2 fields M03 emits (machine-readable, phrasing-stable) over
-  // regex-parsed markdown headings — otherwise an off-whitelist 证候/病机 heading silently blanks the
-  // signal, downgrading 辨证充分度 to "辨证不足" and dead-ending the dose gate on a fully valid diagnosis.
-  const diagnoseReasoning = diagnoseReasoningFromState(caseState) || caseState.reasoningV2;
-  const syndrome = meaningfulField(diagnoseReasoning?.overview?.primarySyndrome, summary.tcmPattern, summary.tcmDiagnosisSection, summary.patternSection);
-  const mechanism = meaningfulField(diagnoseReasoning?.overview?.overallPathogenesis, summary.coreMechanism, summary.mechanismSection, summary.subMechanismSection);
-  const signals = [
-    signalFromText("主诉与现病史", caseSymptomSummary(caseState), "补齐起病、诱因、主症程度、伴随症状和诊疗经过。"),
-    observationSignal,
-    signalFromText("证候归纳", syndrome, "补足能区分主证与兼证的关键症状、舌脉和反证。"),
-    signalFromText("病机关联", mechanism, "把患者事实、证候证据、病位病性和治法方向串成可复核链路。"),
-  ];
-
-  if (signals[2].status === "complete" && !summary.tcmEvidence && !summary.tcmReference && !hasReasoningV2SyndromeSupport(caseState)) {
-    signals[2].status = "partial";
-  }
-  if (signals[3].status === "complete" && !summary.treatmentPrinciple && !hasReasoningV2MechanismSupport(caseState)) {
-    signals[3].status = "partial";
-  }
-
-  return signals;
-}
-
-function differentiationSufficiencyProfile(caseState: CaseState, summary: DecisionSummary) {
-  const signals = buildDifferentiationSignals(caseState, summary);
-  const score = Math.round((
-    caseState.completeness.infoGain * 0.28 +
-    caseState.completeness.answerability * 0.24 +
-    caseState.completeness.managementImpact * 0.22 +
-    caseState.completeness.redFlag * 0.16 +
-    (signals.filter((item) => item.status === "complete").length / signals.length) * 0.10
-  ) * 100);
-  const missingSignals = signals.filter((item) => item.status === "missing");
-  // Before M03 has produced a diagnosis (e.g. still streaming), nothing has been differentiated yet —
-  // show a neutral "pending" state instead of a red "辨证不足" that contradicts the in-progress reasoning.
-  if (!meaningfulField(caseState.diagnosis)) {
-    return {
-      score: Math.max(0, Math.min(100, score)),
-      label: "待辨证完成",
-      tone: "gray",
-      desc: "四诊信息已录入；辨证推理完成后给出辨证充分度评估。",
-      signals,
-    };
-  }
-  // 主证候没有成立时不得显示「辨证充分」。这个评分取自 M02 的**信息采集完整度**（completeness 四维
-  // 加权），与 M03 是否真的辨出证候不同源：服务端在安全降级、合同复核未过、仅既往史等分支下会把
-  // primarySyndromeResolution 置为非 resolved，但 completeness 原样透传、客户端也从不回写，
-  // 所以 level 仍可能是 C、四维仍可能满分。实测后果就是「综合支撑度 100% 辨证充分」与
-  // 「当前证候依据不足以形成稳定结论」同屏——采集量与判断量被并排当成同一件事。
-  // 采集充分不等于辨证成立；结论未成立时以结论为准。
-  const signedDiagnoseReasoning = diagnoseReasoningFromState(caseState);
-  // 三态各自成话（2026-08-11）：此前这里把 `!== "resolved"` 一刀切写成「辨证未成立」，
-  // 把契约里的 bounded（证型**成立**、但可回溯依据有限）也算了进去。
-  // 于是甲方看到「辨证未成立 / 69%」与一张 6 味 7 剂的处方同屏——说法错了，不是门禁放行错了。
-  // 判据收敛在 syndromeDifferentiationState 一处（见该函数注释），本处只负责怎么说。
-  const differentiationState = syndromeDifferentiationState(signedDiagnoseReasoning);
-  if (differentiationState === "not_established") {
-    return {
-      score: Math.max(0, Math.min(39, score)),
-      label: "辨证未成立",
-      tone: "yellow" as const,
-      desc: "信息采集已达标，但本次未能形成稳定的主证候结论；结论区已说明原因与需补充项。",
-      signals,
-    };
-  }
-  if (differentiationState === "bounded") {
-    return {
-      score: Math.max(40, Math.min(69, score)),
-      label: "有界辨证",
-      tone: "yellow" as const,
-      // 原因文字取已签名载荷里服务端写好的那句（「仅有 N 条可逐字回溯的本例依据…」），
-      // 不在客户端另造说法。
-      desc: clinicalTextForDisplay(signedDiagnoseReasoning?.overview.primarySyndromeResolutionReason)
-        || "已形成主证候结论，但可逐字回溯的本例依据有限；候选方案按有限信息生成，采纳前请补齐结论区所列项。",
-      signals,
-    };
-  }
-  const label = caseState.completeness.level === "C" && missingSignals.length === 0
-    ? "辨证充分"
-    : "有限信息可辨证";
-  const tone = label === "辨证充分" ? "green" : "yellow";
-  const desc = label === "辨证充分"
-    ? "主诉、舌脉、证候和病机链已能支撑候选方案推理；处方仍需独立安全复核。"
-    : "系统已基于现有信息完成辨证；未提供的资料会作为具体复核点展示，不阻断后续分析。";
-  // 展示的百分比必须与 label/tone(权威=完整度 level 门控)同源，否则会出现「81% + 辨证不足/红条」这类
-  // 数值与色标自相矛盾。把连续加权 score 夹到 label 对应区间，level 门控保持唯一权威。
-  const displayScore = label === "辨证充分"
-    ? Math.max(70, Math.min(100, score))
-    : Math.max(40, Math.min(69, score));
-  return { score: displayScore, label, tone, desc, signals };
-}
-
 type PrescriptionRiskLevel = "strong" | "info" | "general" | "none";
 
 export function prescriptionRiskLabel(
@@ -1645,13 +1460,6 @@ function applyDifferentiationGateOutcome(caseState: CaseState): CaseState {
   );
 }
 
-function statusToneClass(tone: string): string {
-  if (tone === "red") return "bg-red-50 text-red-700 border-red-200";
-  if (tone === "yellow") return "bg-yellow-50 text-yellow-800 border-yellow-200";
-  if (tone === "green") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  return "bg-gray-50 text-gray-600 border-gray-200";
-}
-
 // ─── Productized diagnosis surfaces ─────────────────────────────────────────
 
 function TopProgress({ caseState }: { caseState: CaseState }) {
@@ -1699,7 +1507,6 @@ function RiskSummaryPanel({
   followupQuestionCard?: ReactNode;
 }) {
   const redStatus = redFlagStatusForCase(caseState);
-  const summary = buildDecisionSummary(caseState);
   const activeGate = caseState.safetyGate || evaluateSafetyGate(caseState);
   const isRedFlag = activeGate.status === "red_flag";
   const hasEmergencyReferralReport = isRedFlag && Boolean(caseState.diagnosis || caseState.riskAssessment);
@@ -1707,38 +1514,11 @@ function RiskSummaryPanel({
     () => buildEmergencyPresentation(caseState),
     [caseState],
   );
-  const differentiationProfile = useMemo(
-    () => {
-      const base = differentiationSufficiencyProfile(caseState, summary);
-      const activeReasoning = mergeReasoningStages(diagnoseReasoningFromState(caseState), prescribeReasoningFromState(caseState)) || caseState.reasoningV2;
-      const hasDosePrescription = hasGeneratedDosePrescription(summary, activeReasoning);
-      const hasMeasuredVitals = hasRecordedMeasuredVitals(caseState.vitals);
-      const display = resolveSufficiencyDisplay(base, {
-        hasMeasuredVitals,
-        requiresLimitedReview: requiresLimitedCandidateReview(
-          hasDosePrescription,
-          caseState.safetyLocked === true,
-          base.label,
-        ),
-      });
-      const signals = base.signals;
-      return { ...base, ...display, signals };
-    },
-    [caseState, summary],
-  );
-  const shouldShowDifferentiationProfile =
-    !isRedFlag && (
-      Boolean(caseState.diagnosis) ||
-      isDifferentiationLimitedTerminalCase(caseState)
-    );
   const questionRoundNotice = maxQuestionRoundNotice(caseState);
   const hasTriageAdvisory = !isRedFlag && (activeGate.advisories || []).length > 0;
-  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
-  const scoreComponents = useMemo(
-    () => differentiationScoreComponents(caseState, differentiationProfile.signals),
-    [caseState, differentiationProfile.signals],
-  );
 
+  // 「辨证充分度」卡（支撑度评分、分值构成、追问进度条）2026-10-21 起不上屏（clinician-page-view.ts）：
+  // ABC 面板与验收标准里都没有这一项。红旗卡、优先关注提示与追问卡照常。
   return (
     <div className="flex flex-col gap-3">
       {isRedFlag && !hasEmergencyReferralReport && (
@@ -1774,121 +1554,15 @@ function RiskSummaryPanel({
         <p className="mt-2 text-xs leading-relaxed text-amber-900">{redStatus.desc}</p>
       </div>}
 
-      {shouldShowDifferentiationProfile && (
-        <div data-testid="completeness-card" className="bg-white border rounded-xl p-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">辨证充分度</p>
-            <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold ${statusToneClass(differentiationProfile.tone)}`}>
-              {differentiationProfile.label}
-            </span>
-          </div>
-          {/* 综合支撑度整行可点击：展开时给出该分值的加权构成与未具备项，收起时不再堆叠全绿“已具备”卡。 */}
-          <button
-            type="button"
-            onClick={() => setShowScoreBreakdown((value) => !value)}
-            aria-expanded={showScoreBreakdown}
-            className="w-full rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-left transition-colors hover:bg-gray-100"
-          >
-            <div className="flex items-center justify-between text-xs">
-              <span className="flex items-center gap-1 font-semibold text-gray-700">
-                综合支撑度
-                <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ${showScoreBreakdown ? "rotate-180" : ""}`} />
-              </span>
-              <span className={`font-bold ${
-                differentiationProfile.tone === "green" ? "text-emerald-600" :
-                differentiationProfile.tone === "yellow" ? "text-amber-600" :
-                differentiationProfile.tone === "red" ? "text-red-500" :
-                "text-gray-500"
-              }`}>{differentiationProfile.score}%</span>
-            </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
-              <div
-                className={`h-full rounded-full transition-all ${
-                  differentiationProfile.tone === "green" ? "bg-emerald-500" :
-                  differentiationProfile.tone === "yellow" ? "bg-amber-400" :
-                  differentiationProfile.tone === "red" ? "bg-red-400" :
-                  "bg-gray-300"
-                }`}
-                style={{ width: `${differentiationProfile.score}%` }}
-              />
-            </div>
-            {!showScoreBreakdown && (
-              <p className="mt-1.5 text-[11px] text-gray-400">点击查看该分值由哪些维度构成</p>
-            )}
-          </button>
-          {showScoreBreakdown && (
-            <div className="mt-2 rounded-lg border border-gray-100 bg-white px-3 py-2.5">
-              <p className="mb-2 text-[11px] font-semibold text-gray-500">分值构成（各维度覆盖度 × 权重）</p>
-              <div className="grid gap-1.5">
-                {scoreComponents.map((component) => (
-                  <div key={component.label} className="text-[11px]">
-                    <div className="flex items-center justify-between text-gray-600">
-                      <span>{component.label} <span className="text-gray-400">×{Math.round(component.weight * 100)}%</span></span>
-                      <span className="font-semibold text-gray-700">{Math.round(component.value * 100)}% → +{component.contribution}</span>
-                    </div>
-                    <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-gray-100">
-                      <div className="h-full rounded-full bg-gray-300" style={{ width: `${Math.round(component.value * 100)}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 text-[11px] leading-relaxed text-gray-400">
-                综合支撑度为以上维度加权合成，并按当前辨证充分度等级归一展示。
-              </p>
-              <div className="mt-2.5 grid gap-1.5">
-                {differentiationProfile.signals.map((signal) => (
-                  <div key={signal.label} className={`rounded-lg border px-2.5 py-1.5 text-[11px] ${signalStatusClass(signal.status)}`}>
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold">{signal.label}</p>
-                      <span className="shrink-0 text-[10px] font-bold opacity-75">{signalStatusLabel(signal.status)}</span>
-                    </div>
-                    {signal.status !== "complete" && signal.action && (
-                      <p className="mt-0.5 leading-relaxed opacity-80">补强：{signal.action}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <p className="text-xs text-gray-400 mt-2">
-            {caseState.questionOutcome === "skipped"
-              ? "本轮关键追问已跳过"
-              : caseState.questionOutcome === "not_needed"
-                ? "本例无需追加关键追问"
-                : `已完成 ${caseState.questionRounds}/${caseState.maxQuestionRounds} 轮追问`}
-          </p>
-          {caseState.questionOutcome !== "not_needed" && (
-            <div
-              className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-gray-100"
-              role="progressbar"
-              aria-label="关键追问进度"
-              aria-valuemin={0}
-              aria-valuemax={caseState.maxQuestionRounds}
-              aria-valuenow={caseState.questionRounds}
-            >
-              <div
-                className="h-full rounded-full bg-teal-500 transition-[width]"
-                style={{ width: `${Math.min(100, Math.round((caseState.questionRounds / Math.max(1, caseState.maxQuestionRounds)) * 100))}%` }}
-              />
-            </div>
-          )}
+      {!isRedFlag && followupQuestionCard && (
+        <div data-testid="sufficiency-followup-card" className="bg-white border rounded-xl p-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">本轮关键追问</p>
+          <p className="mt-1 text-xs leading-relaxed text-gray-500">可点选实际回答或在每题下直接记录患者原话、查体和检查结果；也可跳过并按现有信息继续。</p>
           {questionRoundNotice && (
             <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs leading-relaxed text-amber-700">
               {questionRoundNotice}
             </p>
           )}
-          {followupQuestionCard && (
-            <div className="mt-3" data-testid="sufficiency-followup-card">
-              {followupQuestionCard}
-            </div>
-          )}
-        </div>
-      )}
-
-      {!isRedFlag && !shouldShowDifferentiationProfile && followupQuestionCard && (
-        <div data-testid="sufficiency-followup-card" className="bg-white border rounded-xl p-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">本轮关键追问</p>
-          <p className="mt-1 text-xs leading-relaxed text-gray-500">可点选实际回答或在每题下直接记录患者原话、查体和检查结果；也可跳过并按现有信息继续。</p>
           <div className="mt-3">{followupQuestionCard}</div>
         </div>
       )}
@@ -3141,52 +2815,11 @@ export function hasExplicitNonDosePrescriptionResult(caseState: Pick<CaseState, 
   return !hasCandidate && isNonDosePrescriptionText(caseState.prescription);
 }
 
-/**
- * 经典条文出处面板。
- *
- * 这批数据（222,338 条 tcmoc 古籍证据）此前只在服务端被填进 candidate.classicEvidence 并随
- * 结构化流下发，前端与 HIS 都没有任何渲染代码——医生只能看到一行「经典方出处：《XX》」，
- * 拿不到任何可核验的原文。证据绑定系统里，看不到原文的「证据」等于没有证据。
- *
- * 三条呈现纪律：
- * 1. **默认折叠**：右栏只有 410/460px，条文是核验材料不是首屏结论；点开即在，一条不删。
- * 2. **摘录给全**：这是医生自证的唯一材料。剂量与操作已在服务端按规则打码
- *    （显示为「[具体剂量或操作已隔离]」），这是刻意的——条文里的古代剂量不能被当成可执行用量。
- * 3. **不越界断言**：这些条文是按**方名**检索出来的，只能证明"历代如此论述该方"，
- *    不能证明"适用于本例患者"。标题与脚注都必须把这条说清楚，否则等于用出处冒充适应证依据。
- */
-function ClassicEvidencePanel({ evidence }: {
-  evidence?: Array<{ evidenceId: string; citation: string; anchorLevel: string; clauseNumber?: number; excerpt: string; tier: string }>;
-}) {
-  const items = (evidence || []).filter((item) => item?.citation && item?.excerpt);
-  if (items.length === 0) return null;
-  const tierLabel = (tier: string) => tier === "canon" ? "经典" : tier === "common" ? "通行" : "经验";
-  const anchorLabel = (level: string) => level === "tiaowen" ? "条文" : level === "chapter_paragraph" ? "篇章段" : "页段";
-  return (
-    <details className="rounded-xl border border-slate-200 bg-slate-50">
-      <summary className="cursor-pointer list-none px-3 py-2 text-xs font-bold text-slate-700">
-        经典条文出处（{items.length} 条）
-        <span className="ml-2 font-normal text-slate-500">按方名检索所得，说明历代如何论述该方，不代表适用于本例</span>
-      </summary>
-      <div className="space-y-2 px-3 pb-3">
-        {items.map((item) => (
-          <div key={item.evidenceId} className="rounded-lg border border-slate-200 bg-white p-2.5">
-            <p className="text-[11px] font-semibold text-slate-700">
-              {item.citation}
-              <span className="ml-2 font-normal text-slate-500">
-                {tierLabel(item.tier)}·{anchorLabel(item.anchorLevel)}{item.clauseNumber != null ? `·第${item.clauseNumber}条` : ""}
-              </span>
-            </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-slate-600">{item.excerpt}</p>
-            <p className="mt-1 text-[10px] text-slate-400">证据ID {item.evidenceId}</p>
-          </div>
-        ))}
-        <p className="text-[10px] leading-relaxed text-slate-500">
-          条文中的具体剂量与操作已隔离显示：古代剂量与现代用量不可直接换算，本例用量以上方药味表与处方后审方为准。
-        </p>
-      </div>
-    </details>
-  );
+/** 出处一行只写书名：收载来源常写成「方名：《书名》」，方名已在上一行，去掉重复的「方名：」前缀。 */
+function formulaSourceForDisplay(source: string, candidateName: string): string {
+  const baseName = candidateName.replace(/(?:加减|化裁)$/u, "").trim();
+  const prefix = /^([^：:《]{2,20})[：:]\s*(?=《)/u.exec(source.trim());
+  return prefix && baseName && (prefix[1] === baseName || baseName.includes(prefix[1])) ? source.trim().slice(prefix[0].length) : source.trim();
 }
 
 function DecoctionInstructionsPanel({ decoction }: {
@@ -3213,17 +2846,21 @@ function DecoctionInstructionsPanel({ decoction }: {
     decoction.secondDecoctionMinutes != null ? `二煎 ${decoction.secondDecoctionMinutes} 分钟` : "",
     decoction.targetVolumeMl != null ? `合并药液约 ${decoction.targetVolumeMl}mL` : "",
   ].filter(Boolean).join("；");
+  // 煎服法优先用处方自己的那一行用法（点名先煎/后下/包煎/烊化的药，甲方 10.12「煎服法」评的就是它）；
+  // 没有时才退回通用煎煮步骤与服法。复诊节点在随访区列，这里不重复（2026-10-21）。
+  const authoredMethod = isDisplayableClinicalText(decoction.method) && !/(?:由服务端生成|信息展示不全|待确认)/.test(decoction.method)
+    ? decoction.method.trim()
+    : "";
   const items = [
     { label: "剂数与疗程", value: [decoction.doseCount, decoction.course].filter(Boolean).join(" · ") },
-    { label: "煎煮", value: preparation || decoction.method },
     {
-      label: "频次与服法",
-      value: [
+      label: "用法",
+      value: authoredMethod || [
+        preparation,
         decoction.dailyDoseCount ? `每日${decoction.dailyDoseCount}剂` : "",
         decoction.administration || "",
       ].filter(Boolean).join("；"),
     },
-    { label: "复诊", value: decoction.followUpNode },
   ].filter((item) => isDisplayableClinicalText(item.value) && !/(?:由服务端生成|信息展示不全|待确认)/.test(item.value));
   if (items.length === 0) return null;
   return (
@@ -3232,8 +2869,8 @@ function DecoctionInstructionsPanel({ decoction }: {
       data-clinical-contract-ids="M04-decoction"
       data-clinical-renderer="decoction-panel"
     >
-      <p className="text-xs font-bold text-rose-800">常规煎服参考</p>
-      <div className="mt-2 grid gap-2 md:grid-cols-2">
+      <p className="text-xs font-bold text-rose-800">煎服法</p>
+      <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-1">
       {items.map((item) => (
         <div key={item.label} className="rounded-lg bg-white px-3 py-2 text-xs leading-relaxed text-gray-700">
           <p className="text-[11px] font-bold text-rose-600">{item.label}</p>
@@ -4344,68 +3981,8 @@ function MedicinePlanCards({ section, nonDrugSection }: { section?: string; nonD
   );
 }
 
-type InventoryTag = { label: "院内有货" | "缺货" | "库存外用药"; inventoryName?: string; note?: string };
-type InventoryTagMap = ReadonlyMap<string, InventoryTag>;
-const EMPTY_INVENTORY_TAGS: InventoryTagMap = new Map();
-
-/**
- * 院内库存标签（甲方 2026-09-28：药名旁显示「院内有货 / 缺货 / 库存外用药」）。方案出来后单独查一次
- * /api/drug-inventory/availability，与 HIS 方案出参同一判据；查询失败或该客户未接库存时不显示，
- * 不影响任何诊疗内容。键为 `${kind}:${name}`。
- */
-function useInventoryTags(herbNames: readonly string[], medicines: ReadonlyArray<{ name: string; type: string }>): InventoryTagMap {
-  const [tags, setTags] = useState<InventoryTagMap>(EMPTY_INVENTORY_TAGS);
-  const requestKey = JSON.stringify([
-    ...herbNames.map((name) => ({ name, kind: "herb" })),
-    ...medicines.map((item) => ({ name: item.name, kind: item.type === "西药" ? "western" : "patent" })),
-  ]);
-  useEffect(() => {
-    const items = JSON.parse(requestKey) as Array<{ name: string; kind: string }>;
-    if (items.length === 0) return;
-    const controller = new AbortController();
-    void fetch(apiUrl("/api/drug-inventory/availability"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: items.slice(0, 100) }),
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then((response) => response.ok ? response.json() : null)
-      .then((body: { inventoryLoaded?: unknown; items?: unknown } | null) => {
-        if (!body || body.inventoryLoaded !== true || !Array.isArray(body.items)) return;
-        const next = new Map<string, InventoryTag>();
-        for (const raw of body.items as Array<Record<string, unknown>>) {
-          const label = raw.label;
-          if (label !== "院内有货" && label !== "缺货" && label !== "库存外用药") continue;
-          next.set(`${String(raw.kind)}:${String(raw.name)}`, {
-            label,
-            ...(typeof raw.inventoryName === "string" ? { inventoryName: raw.inventoryName } : {}),
-            ...(typeof raw.note === "string" ? { note: raw.note } : {}),
-          });
-        }
-        setTags(next);
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
-  }, [requestKey]);
-  return tags;
-}
-
-function InventoryTagChip({ tag }: { tag?: InventoryTag }) {
-  if (!tag) return null;
-  const tone = tag.label === "院内有货"
-    ? "bg-emerald-50 text-emerald-700"
-    : tag.label === "缺货"
-      ? "bg-orange-50 text-orange-700"
-      : "bg-slate-100 text-slate-600";
-  const title = [tag.inventoryName ? `院内药名：${tag.inventoryName}` : "", tag.note || ""].filter(Boolean).join("；");
-  return (
-    <span className={`ml-1.5 inline-flex rounded-full px-1.5 py-0.5 align-middle text-[10px] font-semibold ${tone}`} title={title || undefined} data-inventory-label={tag.label}>
-      {tag.label}
-    </span>
-  );
-}
-
+// 院内库存标签（甲方 2026-09-28）2026-10-21 起不在医生页面显示（clinician-page-view.ts）；库存接口与 HIS 方案里的
+// herbAvailability / medicineAvailability 不变。
 function isCompleteStructuredMedicineCandidate(
   item: NonNullable<StructuredFormula["patentAndWestern"]>[number],
 ): boolean {
@@ -4414,10 +3991,17 @@ function isCompleteStructuredMedicineCandidate(
     shouldRenderEvidenceStatus(item.evidence);
 }
 
-function StructuredMedicinePlanCards({ candidates, caseState, inventoryTags = EMPTY_INVENTORY_TAGS }: {
+/** 取第一句（到第一个句号或分号为止）；没有句读时原样返回。 */
+function firstSentenceForDisplay(text: string | undefined): string {
+  const value = (text || "").trim();
+  const end = value.search(/[。；;]/u);
+  return end > 0 ? value.slice(0, end + 1) : value;
+}
+
+// 库存标签、规格与推荐模式徽标不再上屏（2026-10-21，clinician-page-view.ts）；HIS 方案里的库存字段不变。
+function StructuredMedicinePlanCards({ candidates, caseState }: {
   candidates: NonNullable<StructuredFormula["patentAndWestern"]>;
   caseState: CaseState;
-  inventoryTags?: InventoryTagMap;
 }) {
   const visible = candidates.filter(isCompleteStructuredMedicineCandidate);
   if (visible.length === 0) return null;
@@ -4431,18 +4015,13 @@ function StructuredMedicinePlanCards({ candidates, caseState, inventoryTags = EM
                 <Pill className="h-4 w-4 text-blue-600" />
                 <p className="break-words text-sm font-semibold text-gray-950">{item.name}</p>
                 <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">{item.type}</span>
-                <InventoryTagChip tag={inventoryTags.get(`${item.type === "西药" ? "western" : "patent"}:${item.name}`)} />
               </div>
-              <p className="mt-1 text-xs text-gray-500">{item.specification}</p>
             </div>
-            <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-              {item.recommendationMode === "discussion_only" ? "仅供讨论" : "候选需复核"}
-            </span>
           </div>
           {/* 甲方 UI 决策：展示医生实际要看的主信息——适应症、用法用量、风险提示；
               「候选定位/使用边界」类定位话术与「外部参考资料核验」块不再呈现。
               用法用量来自结构化字段（途径/单次量/频次/疗程），缺项自然省略。 */}
-          <div className="mt-3 grid gap-2 md:grid-cols-2">
+          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-1">
             <SummaryLine label="适应症（本例对应问题）" value={item.correspondingProblem} tone="green" />
             <SummaryLine
               label="用法用量"
@@ -4451,9 +4030,10 @@ function StructuredMedicinePlanCards({ candidates, caseState, inventoryTags = EM
                 .join("，")}
               tone="blue"
             />
+            {/* 说明书风险段只取第一句（多为禁忌人群）；整段说明书在接口与 HIS 方案里照旧完整。 */}
             <SummaryLine
               label="风险提示"
-              value={clinicianVisibleMedicationRiskNote(item.riskNote, caseState)}
+              value={firstSentenceForDisplay(clinicianVisibleMedicationRiskNote(item.riskNote, caseState))}
               tone="amber"
             />
           </div>
@@ -4619,42 +4199,6 @@ function SummaryLine({ label, value, tone = "gray" }: { label: string; value?: s
   );
 }
 
-function ClinicalCitationLinks({
-  label,
-  citations,
-}: {
-  label: string;
-  citations?: ReadonlyArray<Pick<ClinicalCitation, "evidenceId" | "citation" | "url"> & { appliesTo?: string }>;
-}) {
-  const visible = (citations || []).flatMap((citation) => {
-    const display = guidelineReferenceDisplay(citation);
-    return display.text ? [{ ...display, evidenceId: citation.evidenceId }] : [];
-  });
-  if (visible.length === 0) return null;
-  return (
-    <div className="mt-2">
-      <p className="text-[11px] font-semibold">{label}</p>
-      <div className="mt-1 flex flex-wrap gap-1.5">
-        {visible.map((citation) => citation.href ? (
-          <a
-            key={`${citation.evidenceId}-${citation.text}`}
-            href={citation.href}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="rounded-md bg-white/80 px-2 py-1 text-[11px] underline decoration-current/30 underline-offset-2"
-          >
-            {citation.text}
-          </a>
-        ) : (
-          <span key={`${citation.evidenceId}-${citation.text}`} className="rounded-md bg-white/80 px-2 py-1 text-[11px]">
-            {citation.text}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 
 // 甲方评测(2026-08-04) 第 4 条「旧的深层推理明细组件源码也未完全删除」：
 // 「查看证候与病机推理明细」折叠区在上一轮已按甲方反馈下线（见病机区 F5 注释），但它的证据明细
@@ -4732,26 +4276,18 @@ export function extractServerLeadingNotices(caseState: CaseState): { safety: str
 }
 
 function ServerLeadingNotices({ caseState }: { caseState: CaseState }) {
-  const { safety, annotations } = extractServerLeadingNotices(caseState);
-  if (safety.length === 0 && annotations.length === 0) return null;
+  // 页面只列安全警示（服务端带标记的那一段）。质量批注是系统自评的说明（「本次候选已完成确定性核查…」），
+  // ABC 面板与验收标准里都没有，2026-10-21 起不上屏（clinician-page-view.ts）；接口正文照旧带着它。
+  const { safety } = extractServerLeadingNotices(caseState);
+  if (safety.length === 0) return null;
   return (
     <div className="space-y-2" data-testid="server-leading-notices">
-      {safety.length > 0 && (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-3" data-testid="server-safety-advisory">
-          <p className="text-xs font-bold text-red-800">安全警示（系统判定，未解除）</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5 text-xs leading-relaxed text-red-800">
-            {safety.map((line) => <li key={line}>{line}</li>)}
-          </ul>
-        </div>
-      )}
-      {annotations.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3" data-testid="server-quality-annotations">
-          <p className="text-xs font-bold text-amber-900">质量批注（采纳前请核对）</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5 text-xs leading-relaxed text-amber-900">
-            {annotations.map((line) => <li key={line}>{line}</li>)}
-          </ul>
-        </div>
-      )}
+      <div className="rounded-xl border border-red-300 bg-red-50 p-3" data-testid="server-safety-advisory">
+        <p className="text-xs font-bold text-red-800">安全警示（系统判定，未解除）</p>
+        <ul className="mt-1 list-disc space-y-1 pl-5 text-xs leading-relaxed text-red-800">
+          {safety.map((line) => <li key={line}>{line}</li>)}
+        </ul>
+      </div>
     </div>
   );
 }
@@ -4785,10 +4321,6 @@ function ResultTabsV2({
   // F3（甲方反馈：西医支持依据罗列病历、冗余）：默认只展示前 4 条且每条约 60 字截断，
   // 展开后显示全部完整内容。仅展示层状态，不改结构化载荷。Hook 须在下方 early return 之前调用。
   const reasoning = mergeReasoningStages(diagnoseReasoningFromState(caseState), prescribeReasoningFromState(caseState)) || caseState.reasoningV2;
-  const inventoryTags = useInventoryTags(
-    (reasoning?.formula?.candidates?.[0]?.herbs || []).map((herb) => herb.name).filter(Boolean),
-    (reasoning?.formula?.patentAndWestern || []).map((item) => ({ name: item.name, type: item.type })).filter((item) => item.name),
-  );
   if (!reasoning) return null;
 
   const formula = reasoning.formula;
@@ -4815,7 +4347,6 @@ function ResultTabsV2({
   );
   const medicineCandidates = formula?.patentAndWestern?.filter(isCompleteStructuredMedicineCandidate) || [];
   const hasMedicineCandidates = medicineCandidates.length > 0;
-  const medicineCandidateEmptyState = buildMedicineCandidateEmptyState(caseState);
   // 需求3：诊断分三段各带推理——西医诊断（含 ICD-10）、中医辨病、中医辨证。
   // 辨病与辨证此前共用 tcmDiagnosticRationale，界面上也只显示证型：医生看到「心脾两虚证」
   // 却读不到中医病名，更读不到为什么把这组表现归入该病名而不是相邻病名。
@@ -4845,61 +4376,17 @@ function ResultTabsV2({
   // 证候之间的取舍属于辨证过程，已在「辨证推理」一段交代；签名载荷里的
   // overview.tcmDifferentials 一字不动，已集成的调用方照常可取。
   const tcmDiseaseDifferentials = reasoning.overview.tcmDiseaseDifferentials || [];
-  const westernDifferentials = reasoning.westernDiagnosis.differentials || [];
-  // 方名只从已签名载荷里逐字取出，不重新检索、不代选（与服务端 deferredFormulaSelectionLines 同源）。
-  const deferredFormulaNames = (reasoning.overview.deferredFormulaSelection?.names || [])
-    .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
-  const tcmDifferentials = reasoning.overview.tcmDifferentials || [];
-  const tcmDifferentialBoundary = tcmDifferentials.length === 0 &&
-    reasoning.overview.primarySyndromeResolution !== "resolved" &&
-    isDisplayableClinicalText(reasoning.overview.primarySyndromeResolutionReason || "")
-    ? reasoning.overview.primarySyndromeResolutionReason || ""
+  // 2026-10-21 页面口径（clinician-page-view.ts）：西医只呈现诊断与诊断依据（ABC「初步诊断/支持依据」、验收「诊断方向及依据」），
+  // 不再呈现 ICD 编码、循证引用与西医鉴别；证候鉴别本就不上屏（甲方 2.2），其「鉴别边界」说明随之下线。签名载荷与接口不变。
+  const westernRationale = isDisplayableClinicalText(reasoning.westernDiagnosis.primary.clinicalRationale || "")
+    ? (reasoning.westernDiagnosis.primary.clinicalRationale || "").trim()
     : "";
-  const tcmGroundedAlternativeFacts = [
-    ...(reasoning.pathogenesis?.symptomClusters || []).flatMap((cluster) => cluster.symptoms || []),
-    ...(reasoning.pathogenesis?.chain || []).flatMap((step) => [step.patientFact, step.syndromeEvidence]),
-  ].filter((value): value is string => typeof value === "string" && Boolean(value.trim()));
-  // 甲方评测(2026-08-04) 1.1.1：西医诊断下方不再是一串主诉/现病史复述，改为
-  // 分类依据（症状/体征/检查/排除/待查/指南），每条标注它来自病历的哪个字段。
-  // 三类与来源都由确定性层从已签名载荷与病例状态派生（clinical-fact-source.ts），此处只负责呈现。
-  const westernFactSources = clinicalFactSourcesFromCaseState(caseState);
-  // sources 必须传：分类的第二把判据是「这条事实落在病历的哪个字段」，不传等于把字段兜底
-  // 整个关掉，凡是模型没标注的条目一律掉进「症状依据」——线上实测里生命体征、既往史、
-  // 用药史因此都被印成症状。服务端 Markdown 一直传着（diagnosis-visible-summary.ts:2696），
-  // 只有这个出口没传：又一次「同一判据两处各写各的」。
-  const westernEvidence = classifyWesternDiagnosticEvidence(reasoning.westernDiagnosis.primary, westernFactSources);
-  // 分组与标题走**服务端同一个投影函数**（2026-08-11）。
-  //
-  // 甲方 2026-08-10 要求把笼统的「支持依据 / 待查依据」改成分类呈现，那次只改了服务端 Markdown，
-  // 这个页面继续渲染旧的三组——而甲方读的正是页面，于是线上实测「支持依据没生效」。
-  // 与本轮 ②③⑥⑨ 完全同形：同一个呈现口径在两个出口各写各的。现在只有 clinical-fact-source 一处。
-  //
-  // 折叠只作用于「症状依据」（它是最长的一组、也是甲方 F3 反馈的那一组），其余分组照常全量呈现。
-  const westernEvidenceGroups = westernDiagnosticEvidenceGroups(
-    // 「症状依据」必须是**分类后的**症状子集，不能拿全量支持依据顶上。
-    // 2026-08-12 甲方线上实测：「神清，表情痛苦」同时出现在症状依据与体征依据——
-    // 根因就在这里：westernSupportingFactsAll 是全部支持依据（含体征、检查），
-    // 被当成 symptom 传进来，于是每一条体征依据都被印两遍。
-    // 折叠/截断仍然只作用在症状那一组（下面的展开按钮也只挂在它上面）。
-    westernEvidence,
-    // 甲方线上实测：「指南引用要能点开看原文」。url 一直在载荷里、服务端 Markdown 也一直在印，
-    // 只有这里在拼展示串时把第三段丢了——同一份数据两个出口各写各的。现在共用同一个投影。
-    (reasoning.westernDiagnosis.primary.guidelineReferences || []).map(guidelineReferenceDisplay),
-  ).filter((group) => !["症状依据", "体征依据", "依据"].includes(group.label));
   // When the chain stopped at prescribe/assess, the failed stage keeps its own section with the
   // actual failure reason and an in-panel retry; downstream sections must not pretend to have run.
   const failedStage = caseState.phase === "error" && caseState.lastError ? caseState.lastError.phase : undefined;
   const prescribeStageFailed = failedStage === "prescribe";
   const assessStageFailed = failedStage === "assess";
-  // 传**结构化病性条目**而不是拼接后的自由文本：拼接串会让「上热下寒」同时命中寒热两条、
-  // 让「尚未化热」这类否定表述照样触发建议。buildSeasonalCare 现按 T2 病性词表逐条解析。
-  const seasonalCare = buildSeasonalCare([
-    ...(reasoning.pathogenesis?.natureDifferentiation?.items || []),
-    ...(reasoning.pathogenesis?.natureDifferentiation?.rootDeficiency || []),
-    ...(reasoning.pathogenesis?.natureDifferentiation?.branchExcess || []),
-    reasoning.overview.primarySyndrome,
-    ...(reasoning.overview.secondarySyndromes || []),
-  ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())), new Date());
+  const followupItems = followupPlanItems(summary.nonAuditAssessmentSection);
   const governedSurfaceId = caseState.safetyGate?.status === "red_flag"
     ? "red_flag_escalation"
     : hasExplicitNonDoseResult
@@ -4926,7 +4413,7 @@ function ResultTabsV2({
         order={sectionOrder(["M03-overview", "M03-western"])}
         id="cdss-section-diagnosis"
         title="诊断结论"
-        subtitle="西医诊断倾向与中医诊断"
+        subtitle="西医诊断与中医诊断"
         contractIds={["M03-overview", "M03-western"]}
         rendererId="diagnosis-conclusion-section"
       >
@@ -4940,127 +4427,34 @@ function ResultTabsV2({
         */}
         <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)] xl:grid-cols-1">
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-950">
-            <p className="font-bold text-blue-800">西医诊断倾向</p>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold">{westernDiagnosisLabelForDisplay(reasoning.westernDiagnosis.primary.name, reasoning.westernDiagnosis.primary.coding)}</p>
-              {reasoning.westernDiagnosis.primary.coding && (
-                <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-800">
-                  ICD-10 {reasoning.westernDiagnosis.primary.coding.code}
-                </span>
-              )}
-            </div>
-            {reasoning.westernDiagnosis.primary.coding && reasoning.westernDiagnosis.primary.coding.display !== reasoning.westernDiagnosis.primary.name && (
-              <p className="mt-1 text-[11px] text-blue-700">编码名称：{reasoning.westernDiagnosis.primary.coding.display}</p>
-            )}
-            {westernEvidenceGroups.map((group) => (
-              <div key={group.label} className="mt-2">
-                <p className="text-[11px] font-semibold text-blue-800">{group.label}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  {group.items.map((item, index) => (
-                    item.href ? (
-                      <a
-                        key={`${item.text}-${index}`}
-                        href={item.href}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="rounded-md bg-white/80 px-2 py-1 text-[11px] text-blue-900 underline decoration-blue-300 underline-offset-2 hover:bg-white"
-                      >
-                        {item.text}
-                      </a>
-                    ) : (
-                      <span key={`${item.text}-${index}`} className="rounded-md bg-white/80 px-2 py-1 text-[11px] text-blue-900">
-                        {group.withSource ? clinicalFactWithSource(item.text, westernFactSources) : item.text}
-                      </span>
-                    )
-                  ))}
-                </div>
-              </div>
-            ))}
+            <p className="font-bold text-blue-800">西医诊断</p>
+            <p className="mt-1 text-sm font-semibold">{westernDiagnosisLabelForDisplay(reasoning.westernDiagnosis.primary.name, reasoning.westernDiagnosis.primary.coding)}</p>
+            {/* 标签与对外接口文档 clinicalRationale 同名（「推理说明」）。 */}
+            {westernRationale && <p className="mt-1"><span className="font-semibold">推理说明：</span>{westernRationale}</p>}
           </div>
           <div className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">
             <p className="font-bold text-amber-800">中医诊断</p>
-            {/*
-              甲方评测(2026-08-04) 1.2.1「中医诊断卡只保留证候结论，病名与病史复述移除」。
-              移走的两行各有各的理由：
-                · 「辨病：X」是另一个判断，它的推理（辨病依据 + 病名鉴别）本来就在下方
-                  「中医辨病辨证分析」区，标题留在这张卡里等于把同一段判断劈成两半；
-                · 「主症：…」取的是 primarySyndromeBasis[0]，即主诉原句——正是甲方连续两轮
-                  指出的「病史复述」。它在辨证推理句里作为四诊要点出现即可，不该单列一行。
-              字段本身不变：tcmDiseaseName 仍在签名载荷、HIS 方案与下方分析区中呈现。
-            */}
             {tcmDiseaseName && <p className="mt-1 text-sm font-semibold">辨病：{tcmDiseaseName}</p>}
-            {/*
-              标签名必须与对外接口文档一致（甲方 2026-09-17/18 实测「辨病依据、辨证依据对不上」）：
-              文档里 tcmDiseaseReferences / tcmSyndromeReferences 叫「辨病循证依据 / 辨证循证依据」，
-              「辨病依据 / 辨证依据」是 tcmDiseaseRationale / tcmDiagnosticRationale。此前这里把
-              「依据」挂在国标引用上，下方分析区又把真正的依据叫「推理」——两个标题正好交叉，
-              甲方拿文档对页面，看到「辨病依据」下面是一行 GB/T 15657。
-            */}
-            <ClinicalCitationLinks label="中医辨病循证依据" citations={reasoning.overview.tcmDiseaseReferences} />
-            <p className="mt-2 text-sm font-semibold">辨证：{reasoning.overview.primarySyndrome}</p>
+            <p className="mt-1 text-sm font-semibold">辨证：{reasoning.overview.primarySyndrome}</p>
             {reasoning.overview.secondarySyndromes && reasoning.overview.secondarySyndromes.length > 0 && (
               <p className="mt-1">兼证：{joinClinicalClauses(reasoning.overview.secondarySyndromes, "、")}</p>
             )}
-            <ClinicalCitationLinks label="中医辨证循证依据" citations={reasoning.overview.tcmSyndromeReferences} />
-            {/* 被剥离的方名：服务端可见摘要 2026-08-10 起已经写这一行，医生页面当时没跟上——
-                同一个字段只接了一个出口。剥离本身是对的（方名锁定要求签名证候与该方在治理目录
-                中有直接关系），但医生只看到「本例辨证组方」时，既不知道系统曾指向哪张方，
-                也无从判断要不要自己采用。措辞与服务端摘要同源：明确写「未锁定、由医生判断」。 */}
-            {deferredFormulaNames.length > 0 && (
-              <p data-testid="deferred-formula-selection" className="mt-1 rounded-md bg-amber-100/70 px-2.5 py-2">
-                <span className="font-semibold">未锁定经典方方向：</span>
-                本次分析曾检索到 {joinClinicalClauses(deferredFormulaNames, "、")}
-                ，但该方与本例签名证候尚无可核验的直接对应关系，因此未予锁定为候选处方；仅供医生进行方证鉴别。
-              </p>
-            )}
           </div>
         </div>
-        {westernDifferentials.length > 0 && (
-          <div data-testid="western-differentials" className="mt-3 rounded-lg border border-blue-100 bg-white p-3 text-xs leading-relaxed text-gray-700">
-            <p className="font-bold text-blue-800">西医鉴别诊断</p>
-            <div className="mt-2 grid gap-2 lg:grid-cols-2 xl:grid-cols-1">
-              {westernDifferentials.map((item, index) => (
-                <div key={`${item.name}-${index}`} className="rounded-md bg-blue-50 px-2.5 py-2">
-                  <p><span className="font-semibold text-blue-900">{item.name}</span></p>
-                  {isDisplayableClinicalText(item.distinguishingPoints || item.reason) && (
-                    <p className="mt-1"><span className="font-semibold">鉴别要点：</span>{item.distinguishingPoints || item.reason}</p>
-                  )}
-                  {item.nextCheck && <p className="mt-1"><span className="font-semibold">建议检查：</span>{item.nextCheck}</p>}
-                  <ClinicalCitationLinks label="参考文献" citations={item.guidelineReferences} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {(tcmDiseaseName || tcmDiseaseRationale || tcmRationale || tcmDiseaseDifferentials.length > 0 || tcmDifferentialBoundary) && (
+        {(tcmDiseaseRationale || tcmRationale || tcmDiseaseDifferentials.length > 0) && (
           <div className="mt-3 rounded-lg border border-amber-100 bg-white p-3 text-xs leading-relaxed text-gray-700">
-            <p className="font-bold text-amber-800">中医辨病辨证分析</p>
-            {/* 两段推理分开呈现：辨病回答「为什么归入这个病名」，辨证回答「为什么是这个证型」。
-                病名（1.2.1 从诊断卡移出）与它的归属推理归在同一处，医生一眼读到的是完整的一段判断。 */}
-            {tcmDiseaseName && <p className="mt-1"><span className="font-semibold">中医病名：</span>{tcmDiseaseName}</p>}
-            {tcmDiseaseRationale && <p className="mt-1"><span className="font-semibold">辨病依据：</span>{tcmDiseaseRationale}</p>}
+            {tcmDiseaseRationale && <p><span className="font-semibold">辨病依据：</span>{tcmDiseaseRationale}</p>}
             {tcmRationale && <p className="mt-1"><span className="font-semibold">辨证依据：</span>{tcmRationale}</p>}
             {tcmDiseaseDifferentials.length > 0 && (
-              <div data-testid="tcm-disease-differentials" className="mt-2 grid gap-2 lg:grid-cols-2">
+              <div data-testid="tcm-disease-differentials" className="mt-2 space-y-1.5">
+                <p className="font-semibold text-amber-800">中医鉴别诊断</p>
                 {tcmDiseaseDifferentials.map((item, index) => (
-                  <p key={`${item.diseaseName}-${index}`} className="rounded-md bg-amber-50 px-2.5 py-2">
-                    <span className="font-semibold text-amber-900">鉴别 {item.diseaseName}：</span>
-                    {/* typicalManifestation（该病名通常长什么样）是「鉴别要写全三件事」里的第一件，
-                        此前只落到了服务端 Markdown 一个出口，医生页面读不到——读者不知道拿什么在跟本例比。 */}
-                    {clinicalSentence([
-                      item.typicalManifestation ? `常见：${item.typicalManifestation}` : "",
-                      item.reason,
-                      item.distinguishingPoints ? `区分要点：${item.distinguishingPoints}` : "",
-                      item.nextCheck ? `建议核实：${item.nextCheck}` : "",
-                    ], "；")}
+                  <p key={`${item.diseaseName}-${index}`} className="rounded-md bg-amber-50 px-2.5 py-1.5">
+                    <span className="font-semibold text-amber-900">{item.diseaseName}：</span>
+                    {item.distinguishingPoints || item.reason}
                   </p>
                 ))}
               </div>
-            )}
-            {tcmDifferentialBoundary && (
-              <p data-testid="tcm-differential-boundary" className="mt-2 rounded-md bg-amber-50 px-2.5 py-2">
-                <span className="font-semibold text-amber-900">当前鉴别边界：</span>{tcmDifferentialBoundary}
-              </p>
             )}
           </div>
         )}
@@ -5075,201 +4469,39 @@ function ResultTabsV2({
         order={sectionOrder("M03-pathogenesis")}
         id="cdss-section-pathogenesis"
         title={clinicalOutputLabel("M03-pathogenesis", "病机拆解")}
-        subtitle="总体病机、病位病性与子病机"
+        subtitle="病位、病性与总体病机"
         contractIds="M03-pathogenesis"
         rendererId="pathogenesis-section"
       >
         {(() => {
-          // 只呈现一个连贯的病机视图：模型给的结构化子字段若为空/占位("待生成/证据不足/需补充")，
-          // 不再与 Markdown 兜底正文并列展示，避免"病机链证据不足 + 待生成 + 完整病机分析"这类自相矛盾。
+          // 2026-10-21 页面口径（clinician-page-view.ts）：验收「病机分析」看的是病位、病性与病机推导，页面只列这三项；
+          // 症状群、子病机逐条卡片（患者事实/关键依据与上方辨证依据逐字重复）、待核实信息不再上屏。签名载荷与接口不变。
           const p = reasoning.pathogenesis;
           const placeholder = /(暂未|证据不足|待补|待确认|待生成|不生成|无法形成|需补充关键)/;
           const overallPathogenesis = (reasoning.overview.overallPathogenesis || "").trim();
           const summaryText = (p.summary || "").trim();
           const locItems = p.locationDifferentiation.items.map((item) => item.trim()).filter(isDisplayableClinicalText);
-          const locDetails = (p.locationDifferentiation.details || []).filter((item) =>
-            isDisplayableClinicalText(item.location) && isDisplayableClinicalText(item.basis)
-          );
-          // 需求4 之后病位只按 items 渲染，details 仅用于判断本区块是否有结论（见下方注释）。
-          const locationResolutionReason = (p.locationDifferentiation.resolutionReason || "").trim();
-          const hasLocationConclusion = locItems.length > 0 || locDetails.length > 0 ||
-            p.locationDifferentiation.resolution === "unresolved" || isDisplayableClinicalText(locationResolutionReason);
           const natItems = p.natureDifferentiation.items.map((item) => item.trim()).filter(isDisplayableClinicalText);
           const rootDeficiency = (p.natureDifferentiation.rootDeficiency || []).map((item) => item.trim()).filter(isDisplayableClinicalText);
           const branchExcess = (p.natureDifferentiation.branchExcess || []).map((item) => item.trim()).filter(isDisplayableClinicalText);
-          // 需求4：病性的 basis 不再上屏，因此不再计算它的展示版本。
-          const natureResolutionReason = (p.natureDifferentiation.resolutionReason || "").trim();
-          const hasNatureConclusion = natItems.length > 0 || rootDeficiency.length > 0 || branchExcess.length > 0 ||
-            p.natureDifferentiation.resolution === "unresolved" || isDisplayableClinicalText(natureResolutionReason);
-          // 需求4：症状群只保留真正有信息量的。原过滤只要求「至少一个症状可展示 + 机制可展示」，
-          // 于是两类无意义条目照样上屏：
-          //   1) 只有一个症状的「群」——症状群的价值就在于多个表现指向同一机制，单症状不构成群，
-          //      它已经在病机链里逐条出现过；
-          //   2) 机制只是把症状换个说法重述（「入睡困难 + 多梦：睡眠障碍」），读完不增加任何判断。
-          const symptomClusters = (p.symptomClusters || []).filter((item) => {
-            const symptoms = (item.symptoms || []).filter(isDisplayableClinicalText);
-            const mechanism = (item.mechanism || "").trim();
-            if (symptoms.length < 2 || !isDisplayableClinicalText(mechanism)) return false;
-            const mechanismCore = mechanism.replace(/[\s，,。；;、（）()]/g, "");
-            return !symptoms.every((symptom) => {
-              const core = symptom.replace(/[\s，,。；;、（）()]/g, "");
-              return core.length > 0 && mechanismCore.includes(core);
-            });
-          });
-          const chain = p.chain.filter((step) =>
-            step.patientFact?.trim() &&
-            !isCustomerEvidencePlaceholder(step.patientFact) &&
-            step.syndromeEvidence?.trim() &&
-            !isCustomerEvidencePlaceholder(step.syndromeEvidence) &&
-            step.pathogenesis?.trim() &&
-            !isCustomerEvidencePlaceholder(step.pathogenesis) &&
-            step.therapyDirection?.trim() &&
-            !isCustomerEvidencePlaceholder(step.therapyDirection)
-          );
-          // 病机区的**单一去重权威**：按呈现顺序登记，判据是「逐字相同，或已被更长的一段完整包含」。
-          // 原实现各处自写 isSameClinicalNarrative（只判逐字相等），于是 summary（病机链的合并投影）
-          // 与各 chain 节点互相「不相等」，同一句病机在本区里被完整印两遍——渲染层测试正是从这里
-          // 揪出来的：lib 层函数全绿，因为这段判断根本不在任何函数里，而在 JSX 的三元表达式里。
-          const pathogenesisLedger = createPathogenesisNarrativeLedger();
-          pathogenesisLedger.claim(overallPathogenesis);
-          // summary 是病机链的合并投影。有链时逐条呈现，合并句就是纯重复，不再上屏；
-          // 无链时它是本区唯一的结构化病机表述，照常显示。
-          const summaryOk = chain.length === 0 &&
-            isDisplayableClinicalText(summaryText) &&
-            !placeholder.test(summaryText) &&
-            pathogenesisLedger.claim(summaryText);
-          const caseRelationship = p.caseRelationship;
-          const caseRelationshipText = pathogenesisLedger.claim(caseRelationship?.relationship)
-            ? caseRelationship?.relationship
-            : "";
-          // F5（甲方反馈）：原「查看证候与病机推理明细」折叠区与本区结构化病机视图内容重复，已移除；
-          // 它唯一可能独有的 subMechanismSection 并入 fallback 链，结构化内容缺失时仍可见。
+          const natureItems = natItems.length > 0 ? natItems : [...rootDeficiency, ...branchExcess];
+          // 总体病机缺失时由 summary（病机链的合并投影）顶上；两者都没有才退回正文兜底。
+          const pathogenesisText = isDisplayableClinicalText(overallPathogenesis)
+            ? overallPathogenesis
+            : isDisplayableClinicalText(summaryText) && !placeholder.test(summaryText) ? summaryText : "";
           const fallback = compactMarkdown(summary.mechanismSection || summary.patternSection || summary.subMechanismSection || "", 1200);
-          const showFallback = chain.length === 0 && !summaryOk && Boolean(fallback) && fallback !== "待生成";
-          const nothing = !isDisplayableClinicalText(overallPathogenesis) && !summaryOk && locItems.length === 0 && locDetails.length === 0 && natItems.length === 0 && rootDeficiency.length === 0 && branchExcess.length === 0 && symptomClusters.length === 0 && chain.length === 0 && !showFallback;
+          const showFallback = !pathogenesisText && locItems.length === 0 && natureItems.length === 0 &&
+            Boolean(fallback) && fallback !== "待生成";
           return (
-            <div className="space-y-3">
-              {(hasLocationConclusion || hasNatureConclusion) && (
+            <div className="space-y-2">
+              {(locItems.length > 0 || natureItems.length > 0) && (
                 <div className="grid gap-2 md:grid-cols-2">
-                  {hasLocationConclusion && (
-                    <div className="rounded-lg bg-amber-50 p-3">
-                      <p className="text-[11px] font-bold text-amber-700">病位辨证</p>
-                      {/*
-                        需求4：病机区不再逐条罗列「依据」。此前病位按 details[].basis 逐条展开成
-                        「脾：食少倦怠 → 归属脾」这类句子，与紧邻的病机链、证候依据大面积重复，
-                        医生要在三处读同一批原文。结论本身（病位）保留，依据回到病机链一处呈现。
-                        顺带消掉一类 bug：details 只是 items 的「逐字可回溯」子集，原实现是
-                        details ? … : items ? … 的三元，details 非空时会把没有 detail 的病位整条吃掉
-                        （心脾两虚只显示「脾」，「心」在界面上凭空消失）。现在统一按 items 渲染，
-                        两个列表不再有分歧，locDetails / locItemsWithoutDetail 也不再参与展示。
-                      */}
-                      {locItems.length > 0 ? (
-                        <p className="mt-1 text-xs leading-relaxed text-amber-950">{joinClinicalClauses(locItems, "、")}</p>
-                      ) : (
-                        <p className="mt-1 text-xs leading-relaxed text-amber-950">
-                          {locationResolutionReason || "当前记录尚不能支持明确病位归属"}
-                        </p>
-                      )}
-                      {/* 甲方 UI 决策：外部参考资料核验展示下线（意义不大）；证据仍在结构化载荷与 HIS 载荷中。 */}
-                    </div>
-                  )}
-                  {hasNatureConclusion && (
-                    <div className="rounded-lg bg-rose-50 p-3">
-                      <p className="text-[11px] font-bold text-rose-700">病性辨证</p>
-                      {(natItems.length > 0 || rootDeficiency.length > 0 || branchExcess.length > 0) ? (
-                        <p className="mt-1 text-xs leading-relaxed text-rose-950">
-                          {joinClinicalClauses(natItems.length > 0 ? natItems : [...rootDeficiency, ...branchExcess], "、")}
-                        </p>
-                      ) : (
-                        <p className="mt-1 text-xs leading-relaxed text-rose-950">
-                          {natureResolutionReason || "当前记录尚不能支持明确病性归纳"}
-                        </p>
-                      )}
-                      {/* 需求4：病性同样不再单列「判断依据」，理由同病位——依据统一回到病机链一处。 */}
-
-                    </div>
-                  )}
+                  {locItems.length > 0 && <SummaryLine label="病位" value={joinClinicalClauses(locItems, "、")} tone="amber" />}
+                  {natureItems.length > 0 && <SummaryLine label="病性" value={joinClinicalClauses(natureItems, "、")} tone="amber" />}
                 </div>
               )}
-              {isDisplayableClinicalText(overallPathogenesis) && (
-                <div className="rounded-lg border border-amber-100 bg-amber-50 p-3">
-                  <p className="text-[11px] font-bold text-amber-700">总体病机</p>
-                  <p className="mt-1 text-xs leading-relaxed text-amber-950">{overallPathogenesis}</p>
-                  {summaryOk && <p className="mt-1 text-xs leading-relaxed text-amber-800">{summaryText}</p>}
-                </div>
-              )}
-              {caseRelationship && [caseRelationship.rootPattern, caseRelationship.mainManifestation, caseRelationshipText].some(isDisplayableClinicalText) && (
-                <div className="grid gap-2 rounded-lg border border-violet-100 bg-violet-50 p-3 text-xs leading-relaxed text-violet-950 md:grid-cols-3">
-                  <div><p className="text-[11px] font-bold text-violet-700">本证</p><p className="mt-1">{caseRelationship.rootPattern}</p></div>
-                  <div><p className="text-[11px] font-bold text-violet-700">主要表现</p><p className="mt-1">{caseRelationship.mainManifestation}</p></div>
-                  {isDisplayableClinicalText(caseRelationshipText) && (
-                    <div><p className="text-[11px] font-bold text-violet-700">病机联系</p><p className="mt-1">{caseRelationshipText}</p></div>
-                  )}
-                </div>
-              )}
-              {symptomClusters.length > 0 && (
-                <div className="rounded-lg border border-sky-100 bg-sky-50 p-3">
-                  <p className="text-[11px] font-bold text-sky-700">症状群与病机联系</p>
-                  <div className="mt-2 space-y-1.5 text-xs leading-relaxed text-sky-950">
-                    {symptomClusters.map((item, index) => (
-                      <p key={`${item.mechanism}-${index}`}><span className="font-semibold">{item.symptoms.filter(isDisplayableClinicalText).join(" + ")}：</span>{clinicalTextForDisplay(item.mechanism)}</p>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {chain.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[11px] font-bold text-gray-500">子病机与对应治法</p>
-                  {chain.map((step, index) => {
-                    // 与上方同一本账本：本区里已完整呈现过的病机不再重复，只保留节点特有的部分。
-                    const pathogenesisDisplay = step.pathogenesis;
-                    const relatedClusterFacts = symptomClusters
-                      .filter((cluster) => {
-                        const mechanism = clinicalEvidenceFingerprint(cluster.mechanism);
-                        const pathogenesis = clinicalEvidenceFingerprint(step.pathogenesis);
-                        return mechanism.includes(pathogenesis) || pathogenesis.includes(mechanism);
-                      })
-                      .flatMap((cluster) => cluster.symptoms);
-                    const evidenceDisplay = prioritizeTcmEvidenceForDisplay(
-                      [step.syndromeEvidence],
-                      relatedClusterFacts.length > 0 ? relatedClusterFacts : tcmGroundedAlternativeFacts,
-                      caseState.chiefComplaint || caseState.hisRecord?.fields?.zhushu || "",
-                      2,
-                    );
-                    return (
-                    <div key={`${step.pathogenesis}-${index}`} className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-xs leading-relaxed">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="font-semibold text-gray-900">子病机 {index + 1}</p>
-                        {step.pathogenesisType && <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-amber-700" title="病机在本例演变链中的位置">{step.pathogenesisType}</span>}
-                      </div>
-                      <div className="mt-2 grid gap-1.5 md:grid-cols-2">
-                        <p className="rounded-md bg-white px-2 py-1.5 text-gray-700"><span className="font-semibold">患者事实：</span>{step.patientFact}</p>
-                        <p className="rounded-md bg-white px-2 py-1.5 text-sky-800">
-                          <span className="font-semibold">辨证关键依据：</span>
-                          {joinClinicalClauses(evidenceDisplay.length > 0 ? evidenceDisplay : [step.syndromeEvidence], "；")}
-                        </p>
-                      </div>
-                      {isDisplayableClinicalText(pathogenesisDisplay) && (
-                        <p className="mt-1 text-amber-800"><span className="font-semibold">病机演变：</span>{pathogenesisDisplay}</p>
-                      )}
-                      <p className="mt-1 text-emerald-800"><span className="font-semibold">对应治法：</span>{step.therapyDirection}</p>
-                    </div>
-                    );
-                  })}
-                </div>
-              )}
-              {p.uncertainties.length > 0 && (
-                <details className="rounded-lg border border-gray-100 bg-white">
-                  <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-gray-700">影响判断的待核实信息</summary>
-                  <div className="space-y-1.5 border-t border-gray-100 px-3 py-2 text-xs leading-relaxed text-gray-600">
-                    {p.uncertainties.map((item, index) => (
-                      <p key={`${item.item}-${index}`}><span className="font-semibold text-gray-800">{item.item}：</span>{clinicalSentence([item.reason, item.affects ? `可能影响${item.affects}` : ""], "；")}</p>
-                    ))}
-                  </div>
-                </details>
-              )}
+              {pathogenesisText && <SummaryLine label="总体病机" value={pathogenesisText} tone="amber" />}
               {showFallback && <MarkdownBlock content={fallback} compact />}
-              {nothing && null}
             </div>
           );
         })()}
@@ -5279,7 +4511,7 @@ function ResultTabsV2({
         order={sectionOrder("M03-therapy")}
         id="cdss-section-differentiation"
         title="治则治法"
-        subtitle="治则、总治法与分治方向"
+        subtitle="治则与总治法"
         contractIds="M03-therapy"
         rendererId="therapy-section"
       >
@@ -5288,16 +4520,7 @@ function ResultTabsV2({
             <SummaryLine label="治则" value={reasoning.therapy.overallPrinciple || summary.treatmentPrinciple} tone="green" />
             <SummaryLine label="总治法" value={reasoning.therapy.overallMethod || reasoning.overview.overallTherapy} tone="blue" />
           </div>
-          {reasoning.therapy.subTherapies.length > 0 && (
-              <div className="grid gap-2 md:grid-cols-2">
-                {reasoning.therapy.subTherapies.map((item, index) => (
-                  <div key={`${item.therapy}-${index}`} className="rounded-lg border bg-gray-50 p-3 text-xs leading-relaxed text-gray-700">
-                    <p className="font-semibold text-gray-950">{item.priority === "主要" ? "主要治法" : "兼顾治法"}：{item.therapy}</p>
-                    {isDisplayableClinicalText(item.targetPathogenesis) && <p className="mt-1">对应病机：{item.targetPathogenesis}</p>}
-                  </div>
-                ))}
-              </div>
-          )}
+          {/* 分治方向（subTherapies）不再上屏（2026-10-21，clinician-page-view.ts）：ABC 与验收只看治则与治法。 */}
         </div>
       </SchemeSection>
 
@@ -5321,20 +4544,7 @@ function ResultTabsV2({
                 <span className="text-xs text-gray-600">本例{lineageDisplay.applicability}</span>
               </div>
               {lineageDisplay.reason && <p className="text-xs leading-relaxed text-gray-700">{lineageDisplay.reason}</p>}
-              {lineageDisplay.influencedDecisions.length > 0 && (
-                <div className="grid gap-2 md:grid-cols-2">
-                  {lineageDisplay.influencedDecisions.map((item, index) => (
-                    <div key={`${item.aspect}-${index}`} className="rounded-lg border bg-gray-50 p-3 text-xs leading-relaxed text-gray-700">
-                      <p className="font-semibold text-gray-950">{item.aspect}</p>
-                      <p className="mt-1">{item.detail}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {lineageDisplay.alternativeDirection && (
-                <p className="text-xs leading-relaxed text-gray-700"><span className="font-semibold">替代方向：</span>{lineageDisplay.alternativeDirection}</p>
-              )}
-              <p className="text-[11px] text-gray-500">{lineageDisplay.safetyBoundary}</p>
+              {/* 逐项影响、替代方向与边界说明不再上屏（2026-10-21）：验收「流派与方案一致性」看的是方案本身是否符合该流派。 */}
             </div>
           </SchemeSection>
         );
@@ -5370,52 +4580,22 @@ function ResultTabsV2({
                       </span>
                     )}
                   </div>
-                  {firstCandidate.therapyMatch && !/^对应锁定治法[：:]/.test(firstCandidate.therapyMatch) && (
-                    <p className="mt-1 text-xs leading-relaxed text-gray-600">{firstCandidate.therapyMatch}</p>
+                  {/* 出处只列书名一行（验收「出处准确」）；收载核验明细、经典条文原文与治法对应说明不再上屏（2026-10-21）。 */}
+                  {firstCandidate.constructionType !== "self_devised" &&
+                    firstCandidate.constructionType !== "single_herb" &&
+                    shouldRenderEvidenceStatus(firstCandidate.formulaSource) &&
+                    firstCandidate.formulaSource?.source && (
+                    <p className="mt-1 text-xs leading-relaxed text-gray-600">出处：{formulaSourceForDisplay(firstCandidate.formulaSource.source, firstCandidate.name)}</p>
                   )}
                 </div>
               </div>
-              {firstCandidate.identityDeclassified && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
-                  <p className="font-bold">处方身份说明</p>
-                  <p className="mt-1">实际组成未沿用原命名经方身份，不代表原方或经典出处；请按当前完整药味与剂量重新审方。</p>
-                </div>
-              )}
-              {firstCandidate.constructionType !== "self_devised" &&
-                firstCandidate.constructionType !== "single_herb" &&
-                shouldRenderEvidenceStatus(firstCandidate.formulaSource) && (
-                <div className={`rounded-lg border p-3 text-xs leading-relaxed ${firstCandidate.formulaSource.evidenceLevel === "insufficient" ? "border-amber-200 bg-amber-50 text-amber-950" : "border-blue-100 bg-blue-50 text-blue-950"}`}>
-                  <p className={`font-bold ${firstCandidate.formulaSource.evidenceLevel === "insufficient" ? "text-amber-800" : "text-blue-800"}`}>
-                    {firstCandidate.formulaSource.evidenceLevel === "kb_entry"
-                      ? "方剂资料收载来源"
-                      : firstCandidate.constructionType === "combined"
-                        ? "合方基础方出处"
-                        : firstCandidate.modificationStatus === "modified"
-                          ? "参考基础方及出处"
-                          : "经典方出处"}
-                  </p>
-                  {firstCandidate.formulaSource?.source && (
-                    <p className="mt-1 text-xs text-blue-900">{firstCandidate.formulaSource.source}</p>
-                  )}
-                  {firstCandidate.constructionType === "combined" && firstCandidate.baseFormulas && firstCandidate.baseFormulas.length > 1 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {firstCandidate.baseFormulas.map((base) => (
-                        <span key={`${base.name}-${base.source}`} className="rounded-full border border-blue-100 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-800">
-                          {base.name}：{base.source}；{base.verificationStatus === "verified_individually" ? "逐方已核验" : "来源参考"}；组成 {base.matchedIngredientCount}/{base.totalIngredientCount || "?"} 味{base.requiredIngredientCount != null ? `，核心药味 ${base.matchedRequiredIngredientCount || 0}/${base.requiredIngredientCount}` : ""}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              <ClassicEvidencePanel evidence={firstCandidate.classicEvidence} />
-              <DecoctionInstructionsPanel decoction={firstCandidate.decoction} />
               <div className="overflow-x-auto rounded-xl border">
-                <div className="min-w-[640px]">
+                {/* 按报告栏宽度排版（右栏约 380px 时 640px 最小宽度会把「功效」列挤出可视区）；功效列自动换行。 */}
+                <div className="min-w-0">
                 {/* 甲方 UI 决策：逐味「本例配伍意义」与方义解析重复，删列；全方配伍思路
                     统一在独立的「方义解析」模块呈现。 */}
-                <div className="grid grid-cols-[1fr_0.6fr_0.5fr_1.4fr] gap-2 border-b bg-gray-50 px-3 py-2 text-[11px] font-bold text-gray-500">
-                  <span>药名</span><span>剂量</span><span>角色</span><span>对应病机</span>
+                <div className="grid grid-cols-[minmax(4.5rem,1fr)_3rem_2.25rem_minmax(0,1.6fr)] gap-2 border-b bg-gray-50 px-3 py-2 text-[11px] font-bold text-gray-500">
+                  <span>药名</span><span>剂量</span><span>角色</span><span>功效</span>
                 </div>
                 <div className="divide-y divide-gray-100">
                   {firstCandidate.herbs.map((herb, index) => {
@@ -5442,10 +4622,9 @@ function ResultTabsV2({
                       data-warning-level={warning.level}
                       className={`border-l-4 px-3 py-2 text-xs leading-relaxed text-gray-700 ${rowTone}`}
                     >
-                      <div className="grid grid-cols-[1fr_0.6fr_0.5fr_1.4fr] gap-2">
+                      <div className="grid grid-cols-[minmax(4.5rem,1fr)_3rem_2.25rem_minmax(0,1.6fr)] gap-2">
                         <span className="font-semibold text-gray-950">
                           {herb.name}{herb.processing ? `（${herb.processing}）` : ""}
-                          <InventoryTagChip tag={inventoryTags.get(`herb:${herb.name}`)} />
                           {/* 甲方评测(2026-08-04) 第 1 条「混入 L0/L1/L3 等工程标签」的**可复现来源**就在这里：
                               ClinicalWarningLevel 是内部分级枚举（L0–L4），这枚 chip 此前把枚举值本身印在
                               每一味药后面，医生看到的是「桂枝 L0 9g 君 …」。分级枚举有现成的中文标签
@@ -5462,21 +4641,17 @@ function ResultTabsV2({
                           {herb.verificationTier === "identity_pending" ? "待核定" : herb.dose}
                         </span>
                         <span>{herb.role}</span>
-                        <span>{firstCandidateTargetCells[index]}</span>
+                        {/* 第四列是这味药的功效（ABC 推荐处方的写法）；对应病机已在上方病机与方义里写过，2026-10-21 起不再逐味重复。 */}
+                        <span>{isDisplayableClinicalText(herb.function) ? herb.function : firstCandidateTargetCells[index]}</span>
                       </div>
-                      {(warning.level !== "L0" || herb.isToxic || herb.decoctionRequirement) && (
-                        <div className="mt-2 rounded-lg bg-gray-50 p-2 text-[11px] text-gray-600">
-                          {warning.level !== "L0" && <p><span className="font-semibold text-gray-700">分级理由：</span>{warning.reasons.join("；")}</p>}
-                          {herb.doseSource && <p><span className="font-semibold text-gray-700">剂量来源：</span>{doseSourceLabelForDisplay(herb.doseSource)}</p>}
-                          {herb.isToxic && <p><span className="font-semibold text-gray-700">药味注意：</span>毒性/峻烈药需严守炮制剂量。</p>}
-                          {herb.decoctionRequirement && <p><span className="font-semibold text-gray-700">特殊煎法：</span>{herb.decoctionRequirement}</p>}
-                        </div>
-                      )}
+                      {/* 逐味的分级理由、剂量来源与特殊煎法不再展开（2026-10-21，clinician-page-view.ts）：风险徽标保留、
+                          理由放在徽标的悬停提示里；先煎/后下等已在下面「煎服法」那一行点名。 */}
                     </div>
                   )})}
                 </div>
                 </div>
               </div>
+              <DecoctionInstructionsPanel decoction={firstCandidate.decoction} />
               {/*
                 需求6：药味加减要以「随证加减建议」的形式主动给出，而不是把加减这件事整个丢给
                 药味工作台让医生自己改。因此这一块即使为空也要出现——否则医生分不清
@@ -5489,32 +4664,22 @@ function ResultTabsV2({
                   data-clinical-renderer="formula-modification-list"
                 >
                   <p className="text-sm font-semibold text-gray-950">随证加减建议</p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-gray-500">针对本次病历已记录、主方未直接针对的兼症给出加减提示；采用后须按调整后的完整处方重新审方。</p>
                   {!formula.modifications?.length && (
-                    <p className="mt-2 rounded-md bg-white px-2.5 py-2 text-xs leading-relaxed text-gray-600">
-                      本次病历已记录的表现均已由主方药味直接覆盖，暂无需额外加减；如复诊时出现新的兼症，可在药味工作台调整后重新审方。
-                    </p>
+                    <p className="mt-2 text-xs leading-relaxed text-gray-600">本次病历的表现已由主方覆盖，暂无需加减。</p>
                   )}
-                  {/* 多条加减常挂在同一个病机上；与服务端 Markdown 共用同一本去重账本，
-                      本节内的病机原文只完整写一次（甲方评测 2026-08-04 第 3 条）。 */}
-                  <div className="mt-2 space-y-2">
+                  {/* ABC 加减建议的写法：「若X：加A（剂量），理由」。多条挂同一病机时与服务端共用同一本去重账本。 */}
+                  <div className="mt-2 space-y-1.5">
                     {(formula.modifications || []).map((item, index) => {
                       const cell = modificationCells[index];
                       const modification = normalizedFormulaModificationFields(item);
                       if (!modification) return null;
+                      const reason = clinicalSentence([cell.target, cell.reason], "；");
                       return (
-                      <div key={`${item.trigger}-${index}`} className="rounded-lg border bg-white p-3 text-xs leading-relaxed text-gray-700">
-                        <p><span className="font-semibold text-gray-950">{item.trigger}：</span>动作：{modification.action}；药味：{modification.herbName}{item.doseOrHandling ? `（${item.doseOrHandling}）` : ""}</p>
-                        {cell.target && (
-                          <p className="mt-1"><span className="font-semibold text-gray-900">对应病机：</span>{clinicalSentence([cell.target, cell.reason], "；")}</p>
-                        )}
-                        {!cell.target && cell.reason && (
-                          <p className="mt-1"><span className="font-semibold text-gray-900">加减理由：</span>{cell.reason}</p>
-                        )}
-                        {/* 甲方 UI 决策：不再逐条渲染「触发依据」（整段现病史原文逐条重复）与
-                            「采用前」（每条同一句审方套话）——加减依据已并入对应病机行，
-                            重新审方的要求由本节副标题一次性说明。 */}
-                      </div>
+                      <p key={`${item.trigger}-${index}`} className="rounded-lg border bg-white px-3 py-2 text-xs leading-relaxed text-gray-700">
+                        <span className="font-semibold text-gray-950">{item.trigger}：</span>
+                        {modification.action}{modification.herbName}{item.doseOrHandling ? `（${item.doseOrHandling}）` : ""}
+                        {reason ? `，${reason}` : ""}
+                      </p>
                     )})}
                   </div>
                 </div>
@@ -5562,33 +4727,26 @@ function ResultTabsV2({
             {unclearScopeAwaitingConfirmation && (
               <EncounterScopeConfirmationNotice resultKind="non_dose" onConfirm={onConfirmEncounterScope} />
             )}
-            <div className="rounded-lg border bg-white p-3">
-              <MarkdownBlock
-                content={compactMarkdown([
-                  summary.preCheckSection,
-                  summary.prescriptionPlanSection,
-                  summary.westernPatentMedicineSection,
-                ].filter(Boolean).join("\n\n"), 2200)}
-                compact
-              />
-            </div>
+            {[summary.preCheckSection, summary.prescriptionPlanSection, summary.westernPatentMedicineSection].some((section) => section?.trim()) && (
+              <div className="rounded-lg border bg-white p-3">
+                <MarkdownBlock
+                  content={compactMarkdown([
+                    summary.preCheckSection,
+                    summary.prescriptionPlanSection,
+                    summary.westernPatentMedicineSection,
+                  ].filter(Boolean).join("\n\n"), 2200)}
+                  compact
+                />
+              </div>
+            )}
           </div>
         </SchemeSection>
       )}
 
       {hasMedicineCandidates && <SchemeSection order={sectionOrder("M04-patent-western", 1)} id="cdss-section-medicine" title={clinicalOutputLabel("M04-patent-western", "中成药/西药候选")} subtitle="基于西医诊断与证据的独立候选方案" contractIds="M04-patent-western" rendererId="medicine-section">
-        <StructuredMedicinePlanCards candidates={medicineCandidates} caseState={caseState} inventoryTags={inventoryTags} />
+        <StructuredMedicinePlanCards candidates={medicineCandidates} caseState={caseState} />
       </SchemeSection>}
-      {!hasMedicineCandidates && caseState.phase !== "diagnose" && caseState.phase !== "prescribe" && (
-        <SchemeSection order={sectionOrder("M04-patent-western", 1)} id="cdss-section-medicine" title="中成药候选" subtitle="本地证型检索结果；西药需外部说明书证据" contractIds="M04-patent-western" rendererId="medicine-section">
-          <div className="space-y-1.5 text-xs leading-relaxed text-gray-600">
-            <p className="font-semibold text-gray-900">{medicineCandidateEmptyState.headline}</p>
-            <p>{formula?.medicineCandidateStatus?.reason || medicineCandidateEmptyState.explanation}</p>
-            <p className="text-blue-700">{medicineCandidateEmptyState.action}</p>
-          </div>
-        </SchemeSection>
-      )}
-
+      {/* 没有可列的中成药/西药时不再出说明块（2026-10-21）：ABC 与验收都只看有推荐时推荐得对不对。 */}
       {firstCandidate && <AuditReviewSection order={sectionOrder("M04-formula", 2)} caseState={caseState} content={summary.medicineRiskSection} />}
 
       {assessStageFailed && onRetry && (
@@ -5605,7 +4763,8 @@ function ResultTabsV2({
           contractIds="M03-M04-tcm-treatment"
           rendererId="tcm-treatment-section"
         >
-          <div className="grid gap-2 sm:grid-cols-2">
+          {/* xl 以上报告栏只有 410–460px（视口断点与容器宽度不是一回事，见诊断区注释），外治卡单列。 */}
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
             {clinicianTreatmentProjects.map((item, index) => (
               <div key={`${item.projectCode}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700">
                 <p className="font-semibold text-gray-950">{item.title}</p>
@@ -5626,7 +4785,7 @@ function ResultTabsV2({
         order={sectionOrder(["M03-M04-nonpharma", "M03-M04-management"])}
         id="cdss-section-followup"
         title="健康调护与注意事项"
-        subtitle="饮食起居、运动与穴位保健、情志调护、注意事项与随访安全网"
+        subtitle="饮食起居、情志调护、注意事项与复诊"
         contractIds={["M03-M04-nonpharma", "M03-M04-management"]}
         rendererId="followup-care-section"
       >
@@ -5637,11 +4796,10 @@ function ResultTabsV2({
                 <SummaryLine label="饮食调养" value={safeDietAdviceForDisplay(reasoning.nonPharma.diet, caseState)} tone="green" />
               )}
               <SummaryLine label="生活方式" value={reasoning.nonPharma.lifestyle} tone="blue" />
-              {reasoning.nonPharma.exercise && <SummaryLine label="运动保健" value={reasoning.nonPharma.exercise} tone="green" />}
               <SummaryLine label="情志调护" value={reasoning.nonPharma.emotion} tone="amber" />
-              {reasoning.nonPharma.acupointCare && <SummaryLine label="穴位保健" value={reasoning.nonPharma.acupointCare} tone="blue" />}
-              {/* 中医治疗项目已上移为独立模块（cdss-section-tcm-treatment），此处不再重复渲染。 */}
-              {seasonalCare && <SummaryLine label={`节气调护（${seasonalCare.solarTerm}）`} value={`${seasonalCare.climateFocus}：${seasonalCare.advice}`} tone="green" />}
+              {/* 中医治疗项目已上移为独立模块（cdss-section-tcm-treatment），此处不再重复渲染。
+                  运动保健、穴位保健、节气调护不再上屏（2026-10-21，clinician-page-view.ts：验收调护项只看饮食/起居/情志）；
+                  接口与 HIS 的 exercise / acupointCare 字段不变。 */}
               {reasoning.nonPharma.precautions.length > 0 && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
                   <p className="mb-1.5 text-xs font-semibold text-amber-900">注意事项</p>
@@ -5662,22 +4820,18 @@ function ResultTabsV2({
               本轮未生成饮食/起居/情志调护内容；可点击「重新生成」补齐，或由医生按本例证候直接补充。
             </p>
           ) : null}
-          {summary.nonAuditAssessmentSection && (
-            <div data-clinical-contract-ids="M05-assessment">
-              <MarkdownBlock content={summary.nonAuditAssessmentSection} compact />
+          {/* 复诊计划（验收「随访建议」：复诊天数、观察指标、触发条件）。取 M05「随访管理方案」「转诊评估」「红旗预警」各项；
+              M05 未生成或没有这几节时退回随访安全网。处方安全总评、整体状态复评、生活管理、康复管理、需优先补充、
+              风险复评不再上屏（2026-10-21，clinician-page-view.ts）。 */}
+          {followupItems.length > 0 ? (
+            <div className="grid gap-2" data-clinical-contract-ids="M05-assessment">
+              {followupItems.map((item, index) => item.label
+                ? <SummaryLine key={`${item.label}-${index}`} label={item.label} value={item.value} tone="amber" />
+                : <p key={`followup-${index}`} className="text-xs leading-relaxed text-gray-700">{item.value}</p>)}
             </div>
-          )}
-          {reasoning.management && (
-            <div className="grid gap-2 md:grid-cols-2">
-              {/* 甲方线上实测（0811）：基础病史/生命体征/查体都还没有的病例，「需优先补充」里
-                  头颅 CT、经颅多普勒与"问病程"并列，等于把最贵的检查放进了第一步。分级判据
-                  buildTieredSuggestedChecks 早就写好了，只是在 851e4d76（治法词表对账）里被
-                  连带删掉了调用，从此成了死代码——所以线上看到的是模型原样自由文本。 */}
-              <SummaryLine label="需优先补充" value={joinClinicalClauses(buildTieredSuggestedChecks(caseState, reasoning.management.mustCollect || []), "；")} tone="blue" />
-              <SummaryLine label="风险复评" value={reasoning.management.redFlagLoop} tone="amber" />
-              <SummaryLine label="随访安全网" value={reasoning.management.followupSafetyNet} tone="amber" />
-            </div>
-          )}
+          ) : reasoning.management?.followupSafetyNet ? (
+            <SummaryLine label="复诊计划" value={reasoning.management.followupSafetyNet} tone="amber" />
+          ) : null}
         </div>
       </SchemeSection>
     </div>
@@ -7845,12 +6999,6 @@ function AiSupportPanel({
   const hasDecisionResults = Boolean(caseState.diagnosis || caseState.prescription || caseState.riskAssessment);
   const warningProfile = resolveWarningDisplayProfile(caseState, installedWarningObservation);
   const isActiveRedFlag = (caseState.safetyGate || evaluateSafetyGate(caseState)).status === "red_flag";
-  const warningBadgeTone =
-    warningProfile.level === "L4" ? "bg-red-900 text-white" :
-    warningProfile.level === "L3" ? "bg-red-100 text-red-800" :
-    warningProfile.level === "L2" ? "bg-orange-100 text-orange-800" :
-    warningProfile.level === "L1" ? "bg-amber-100 text-amber-800" :
-    "bg-slate-100 text-slate-700";
   const isFollowupOnlyState =
     !caseState.prescription &&
     !caseState.riskAssessment &&
@@ -8098,9 +7246,7 @@ function AiSupportPanel({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-[13px] font-bold text-gray-900">本轮辅助推理已完成</p>
-                <span data-testid="case-warning-level" className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${warningBadgeTone}`}>
-                  {warningProfile.level} · {warningProfile.label}
-                </span>
+                {/* 病例分级徽标（L0–L4 · 标签）不再上屏（2026-10-21，clinician-page-view.ts）；是否可执行仍由下面一句说明。 */}
               </div>
               <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">
                 {warningProfile.executable

@@ -135,9 +135,8 @@ assert.equal(
   "T 36.5℃，P 74次/分，R 18次/分，BP 118/72mmHg",
   "unitless manual inputs must receive one canonical display unit",
 );
+// 2026-10-21：中成药空状态与「需优先补充」分级两个展示函数随页面精简删除（src/lib/clinician-page-view.ts），其断言一并删去。
 const {
-  buildMedicineCandidateEmptyState,
-  buildTieredSuggestedChecks,
   herbCaseMeaning,
   resolveAuditReviewPresentation,
   safeDietAdviceForDisplay,
@@ -172,16 +171,6 @@ assert.deepEqual(
   "an unavailable audit must remain visible and fail closed",
 );
 
-const sparseMedicineEmptyState = buildMedicineCandidateEmptyState({
-  patient: {},
-  symptoms: {},
-  chiefComplaint: "头疼睡不着觉",
-});
-assert.match(sparseMedicineEmptyState.explanation, /不会为了填满栏目生成具体药名/);
-assert.match(sparseMedicineEmptyState.action, /年龄\/生理状态/);
-assert.match(sparseMedicineEmptyState.action, /生命体征/);
-assert.match(sparseMedicineEmptyState.action, /过敏史/);
-assert.match(sparseMedicineEmptyState.action, /当前用药/);
 assert.match(
   herbCaseMeaning({
     function: "活血祛瘀，润肠通便",
@@ -191,38 +180,6 @@ assert.match(
   "the workbench must show herb-specific knowledge together with its case-specific role",
 );
 
-const sparseHeadacheChecks = buildTieredSuggestedChecks({
-  patient: {},
-  chiefComplaint: "头疼睡不着觉",
-  symptoms: {},
-  safetyGate: { status: "ready" },
-}, ["头颅CT或MRI平扫+增强", "经颅多普勒", "血常规、肝肾功能"]);
-// 首步措辞现在按**本例真正缺的项**拼（甲方 2026-08-12：已提供的字段不得再被要求补充）。
-// 本 fixture 现病史/生命体征/年龄全缺，三项都该点名；断言改为逐项检查，不再匹配旧的固定话术。
-for (const missing of ["现病史", "年龄", "测量生命体征", "神经系统查体"]) {
-  assert.match(sparseHeadacheChecks.join("；"), new RegExp(missing), `资料全缺时应点名「${missing}」`);
-}
-assert.doesNotMatch(
-  sparseHeadacheChecks.join("；"),
-  /先补充病程、诱因、伴随症状及既往史/,
-  "旧的固定话术不得回归：它点名的四项与触发判据是两个不相交的集合",
-);
-assert.match(sparseHeadacheChecks.join("；"), /补充问诊或神经系统查体出现相应指征/);
-assert.doesNotMatch(sparseHeadacheChecks.join("；"), /CT|MRI|经颅多普勒/, "sparse non-red-flag cases must not present a routine advanced-imaging shopping list");
-assert.match(sparseHeadacheChecks.join("；"), /血常规、肝肾功能/, "grounded non-advanced checks survive sparse-case tiering");
-assert.deepEqual(
-  buildTieredSuggestedChecks({ safetyGate: { status: "red_flag" } }, ["立即急诊头颅CT"]),
-  ["立即急诊头颅CT"],
-  "red-flag pathways must preserve urgent clinician-directed testing",
-);
-assert.deepEqual(
-  buildTieredSuggestedChecks(
-    { patient: { age: 45 }, symptoms: { presentHistory: "头痛3天" }, vitals: { bloodPressure: "126/78" }, safetyGate: { status: "ready" } },
-    ["复测血压并记录头痛变化；判断把握度低"],
-  ),
-  ["复测血压并记录头痛变化"],
-  "boilerplate removal must preserve the clinically useful part of the same line",
-);
 assert.equal(
   safeDietAdviceForDisplay("多食活血化瘀之品如山楂、黑木耳", { allergyHistory: "", medicationHistory: "" }),
   "保持规律、均衡饮食和充足饮水；不要把食疗替代诊疗或药物。存在基础病、过敏或正在用药时，具体饮食调整请由接诊医生结合实际情况确认。",
@@ -238,10 +195,10 @@ const diagnosisClientSource = fs.readFileSync(new URL("../src/app/diagnosis/Diag
 // 被剥离的方名必须在医生页面上出现（2026-08-11）。服务端可见摘要 2026-08-10 起已经写这一行，
 // 页面当时没跟上：医生只看到「本例辨证组方」，既不知道系统曾指向哪张方，也无从判断要不要自己采用。
 // 与 ②③⑥⑨ 同形状——同一个字段只接了一个出口。
-assert.match(diagnosisClientSource, /deferredFormulaSelection/,
-  "医生页面必须呈现被剥离的方名（overview.deferredFormulaSelection），不能只写进签名载荷与服务端摘要");
-assert.match(diagnosisClientSource, /未锁定经典方方向/,
-  "措辞须与服务端可见摘要同源，明确写「未锁定、由医生判断」，避免被读成推荐");
+// 2026-10-21 页面口径（src/lib/clinician-page-view.ts）：这一行不再上屏。deferredFormulaSelection 自 2026-10-12
+// 输出瘦身起已从 M03 载荷剥掉（模型不再写、合并时丢弃），页面这块早已是死代码；服务端可见摘要的断言见文末，不变。
+assert.doesNotMatch(diagnosisClientSource, /未锁定经典方方向/,
+  "医生页面不再渲染被剥离的方名提示（字段已不在载荷里）");
 assert.doesNotMatch(diagnosisClientSource, /cdss-section-generation-basis|本次生成依据/, "generic generation-basis boilerplate must be removed from the report");
 assert.doesNotMatch(diagnosisClientSource, /Lingxi 建议性复核/, "the report must use the customer-facing reasonable-medication-review name");
 assert.doesNotMatch(diagnosisClientSource, /判断把握度/, "the clinician UI must show rationale and limitations instead of a low-confidence badge");
@@ -260,10 +217,12 @@ assert.match(
   /data-testid="non-dose-prescription-result"[\s\S]{0,1400}summary\.currentConclusionSection/,
   "the non-dose panel must render the server-owned current conclusion instead of a generic shell",
 );
-assert.match(
+// 2026-10-21 页面口径（src/lib/clinician-page-view.ts）：证候鉴别不上屏（甲方 2.2），它的「鉴别边界」说明取自证候定级的
+// 内部理由字段，也随之下线；病名鉴别照常列出（第九轮起至少两条）。
+assert.doesNotMatch(
   diagnosisClientSource,
-  /data-testid="tcm-differential-boundary"[\s\S]{0,240}tcmDifferentialBoundary/,
-  "a bounded TCM differential explanation must be visible when no differential row can be formed",
+  /data-testid="tcm-differential-boundary"/,
+  "the syndrome-differential boundary note is off the clinician page",
 );
 assert.doesNotMatch(diagnosisClientSource, /rendererId="lineage-section"|testId="tcm-lineage"/, "lineage adaptation and preference controls are internal-only");
 assert.doesNotMatch(diagnosisClientSource, />西医诊断分析</, "the clinician report must not render the Western analysis panel");
@@ -1339,21 +1298,12 @@ assert.match(phiPersistedOnce.hisRecord.rawText, /突发胸痛/, "snapshot rawTe
 assert.doesNotMatch(phiPersistedOnce.conversation[0].content, /市博物馆/, "snapshot conversation must generalize the anchored employer");
 assert.deepEqual(phiPersistedTwice, phiPersistedOnce, "snapshot persistence must be hash-stable across re-saves");
 
-// ─── 经典条文出处必须真的渲染，且不得越界断言 ───
-// 222,338 条古籍证据此前只在服务端被填进 candidate.classicEvidence 随流下发，
-// 前端与 HIS 零渲染——医生只看到一行「经典方出处：《XX》」，拿不到任何可核验原文。
-// 证据绑定系统里，看不到原文的「证据」等于没有证据。
-assert.ok(diagnosisClientSource.includes("ClassicEvidencePanel"), "候选方卡必须渲染经典条文出处面板");
-assert.match(diagnosisClientSource, /<ClassicEvidencePanel evidence=\{firstCandidate\.classicEvidence\}/,
-  "面板必须消费 candidate.classicEvidence，而不是另造一份数据");
-const panelStart = diagnosisClientSource.indexOf("function ClassicEvidencePanel(");
-const panel = diagnosisClientSource.slice(panelStart, diagnosisClientSource.indexOf("function DecoctionInstructionsPanel"));
-assert.ok(panel.includes("item.excerpt"), "必须渲染条文摘录——只给出处不给原文，医生无从核验");
-assert.ok(panel.includes("不代表适用于本例"),
-  "必须声明这些条文是按方名检索所得、不代表适用于本例，否则等于用出处冒充适应证依据");
-assert.ok(panel.includes("以上方药味表与处方后审方为准"),
-  "必须声明古代剂量不可直接换算，本例用量以药味表与审方为准");
-assert.match(panel, /<details/, "默认折叠：右栏宽度有限，条文是核验材料不是首屏结论");
+// ─── 经典条文原文面板 ───
+// 2026-10-21 页面口径（src/lib/clinician-page-view.ts）：出处只列书名一行，经典条文原文面板不再上屏（ABC 与验收标准
+// 都只看「出处准确」）。candidate.classicEvidence 仍随签名载荷与 HIS 方案下发，可核验原文不丢。
+assert.ok(!diagnosisClientSource.includes("ClassicEvidencePanel"), "经典条文原文面板不再挂在医生页面上");
+assert.match(diagnosisClientSource, /出处：\{formulaSourceForDisplay\(firstCandidate\.formulaSource\.source/,
+  "候选方卡仍须列出处（书名一行）");
 
 console.log(JSON.stringify({ cases: 134, failures: 0 }));
 

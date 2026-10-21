@@ -74,7 +74,8 @@ check("question route speculates on the fact-free case and gates adoption on the
   const route = readFileSync("src/app/api/diagnosis/question/route.ts", "utf8");
   assert.match(route, /m02ClinicalFactsFootprint\(caseState\) === m02ClinicalFactsFootprint\(factFreeState\)/);
   assert.match(route, /questionStageResponse\(\s*factFreeState/);
-  assert.match(route, /discardSpeculative\(\);\s*return questionStageResponse\(caseState, req\.signal\)/);
+  // 2026-10-21 起出题逻辑移进 computeQuestion（追问结果纳入复用），中止信号改名为 requestSignal；主张不变。
+  assert.match(route, /discardSpeculative\(\);\s*return questionStageResponse\(caseState, (?:req\.signal|requestSignal)(?:, degradedContents)?\)/);
   assert.match(route, /prefetchDiagnoseInputs\(parsed\.caseState\)/, "M02 must prefetch M03 pre-model inputs");
 });
 

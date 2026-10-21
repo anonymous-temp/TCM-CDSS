@@ -16,7 +16,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 顶层 await import：与其余套件同一写法，交给 jiti 解析 TS 与无扩展名的相对导入。
-const policy = await import("../src/lib/result-display-policy.ts");
+// （result-display-policy 的剂量来源中文名已随页面精简删除，2026-10-21。）
 
 const failures = [];
 const check = (name, fn) => {
@@ -102,25 +102,12 @@ check("① 医生可见文案里不得出现内部口径词", () => {
   assert.deepEqual(offenders, [], `以下文案会渲染给医生，但带着内部口径词：\n  ${offenders.join("\n  ")}`);
 });
 
-check("② doseSource 的可见中文名只有一处定义，且是甲方给定的措辞", () => {
-  assert.equal(policy.doseSourceLabelForDisplay("governed_boundary"), "剂量已完成规则校验");
-  assert.equal(policy.doseSourceLabelForDisplay("classical_source"), "经典来源原方量");
-  // 认不出的取值一律落到最保守的那一档，绝不假装剂量有来源。
-  assert.equal(policy.doseSourceLabelForDisplay("none"), "未形成可执行来源");
-  assert.equal(policy.doseSourceLabelForDisplay(""), "未形成可执行来源");
-  assert.equal(policy.doseSourceLabelForDisplay(undefined), "未形成可执行来源");
-  assert.equal(policy.doseSourceLabelForDisplay("something_new"), "未形成可执行来源");
-
-  // 页面不得再自己写一份映射——那正是这次的成因。
+// ② doseSource 可见中文名：2026-10-21 医生页面不再逐味列剂量来源，doseSourceLabelForDisplay 无出口而删除
+// （src/lib/clinician-page-view.ts）。若以后哪个出口重新显示剂量来源，先把统一投影加回来，不得内联三元映射。
+check("② 页面不显示剂量来源，也没有内联一份 doseSource → 中文名的映射", () => {
   const client = readFileSync(fileURLToPath(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url)), "utf8");
-  assert.ok(
-    /doseSourceLabelForDisplay\(/.test(client),
-    "医生页面必须调用统一投影 doseSourceLabelForDisplay，不得内联三元映射",
-  );
-  assert.ok(
-    !/doseSource\s*===\s*"governed_boundary"\s*\?/.test(client),
-    "医生页面又内联了一份 doseSource → 中文名的映射",
-  );
+  assert.ok(!/herb\.doseSource/.test(client), "医生页面又在逐味显示剂量来源");
+  assert.ok(!/doseSource\s*===\s*"governed_boundary"\s*\?/.test(client), "医生页面又内联了一份 doseSource → 中文名的映射");
 });
 
 check("③ 机器取值不得被改动：doseSource 枚举是 HIS 出参契约", () => {

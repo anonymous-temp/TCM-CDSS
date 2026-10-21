@@ -31,7 +31,7 @@ import {
   withoutSameClassMedicines,
 } from "./patent-medicine-duplication.server";
 import { inventoryAvailabilityView, type InventoryAvailabilityView } from "./drug-inventory.server";
-import { createTextModelClient, getPrimaryTextModelConfig, isApprovedTextModel, textModelRequestTuning } from "./text-model";
+import { createTextModelClient, getPrimaryTextModelConfig, isApprovedTextModel, textModelConfigForModel, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 
 const PlannerSchema = z.object({
@@ -238,13 +238,23 @@ function awaitPlannerWithSignal(
   });
 }
 
+
+/**
+ * 用药规划的模型（2026-10-21）：MEDICINE_PLANNER_MODEL 指定时按模型家族解析端点（与各小任务同一个 textModelConfigForModel）；
+ * 未设置时沿用主服务商的基础模型，与此前行为相同。缓存键里本就带着模型名与端点，换模型不会回放旧结果。
+ */
+export function plannerModelConfig() {
+  const model = process.env.MEDICINE_PLANNER_MODEL?.trim();
+  return model ? textModelConfigForModel(model) : getPrimaryTextModelConfig();
+}
+
 async function runPlannerModel(
   caseState: CaseState,
   localCandidates: readonly LocalPatentMedicineCandidate[],
   requestSignal?: AbortSignal,
   inventoryLabels: ReadonlyMap<string, string> = new Map(),
 ): Promise<PlannerSelection | undefined> {
-  const config = getPrimaryTextModelConfig();
+  const config = plannerModelConfig();
   if (!config.configured || !isApprovedTextModel(config.model)) return undefined;
   if (requestSignal?.aborted) return undefined;
   const key = createHash("sha256")
@@ -280,7 +290,7 @@ async function runPlannerModelUncached(
   requestSignal?: AbortSignal,
   inventoryLabels: ReadonlyMap<string, string> = new Map(),
 ): Promise<PlannerSelection | undefined> {
-  const config = getPrimaryTextModelConfig();
+  const config = plannerModelConfig();
   if (!config.configured || !isApprovedTextModel(config.model)) return undefined;
   const controller = new AbortController();
   const abortFromRequest = () => controller.abort();

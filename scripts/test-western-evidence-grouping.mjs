@@ -110,9 +110,11 @@ check("③ 医生页面不得用全量支持依据覆盖某一个分组", () => 
     "页面又把全量支持依据当成「症状依据」传进分组投影了——每条体征依据都会被印两遍",
   );
   assert.ok(!source.includes("westernSymptomFactsDisplay"), "医生页不再渲染症状依据折叠列表");
+  // 2026-10-21 页面口径（src/lib/clinician-page-view.ts）：医生页的西医只列病名与推理说明，分组依据整体不再上屏
+  //（原先只删症状/体征两组）；服务端 Markdown 的分组照旧（下面的断言不变）。
   assert.ok(
-    source.includes('.filter((group) => !["症状依据", "体征依据", "依据"].includes(group.label))'),
-    "医生页必须删除症状依据与体征依据分组，仅保留检查/排除/指南等必要信息",
+    !source.includes("westernDiagnosticEvidenceGroups("),
+    "医生页不再渲染西医分组依据",
   );
   const server = readFileSync(
     fileURLToPath(new URL("../src/lib/diagnosis-visible-summary.ts", import.meta.url)),
@@ -168,11 +170,11 @@ check("⑦ 医生页面必须把 sources 传进分类，否则字段兜底整个
     fileURLToPath(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url)),
     "utf8",
   );
+  // 2026-10-21 页面口径（src/lib/clinician-page-view.ts）：医生页不再做西医分组，自然不调用分类；若以后加回，仍须传 sources。
   const call = source.match(/classifyWesternDiagnosticEvidence\(([^;]*?)\)\s*;/);
-  assert.ok(call, "页面没有调用 classifyWesternDiagnosticEvidence");
   assert.ok(
-    /,/.test(call[1]) && /[Ss]ources/.test(call[1]),
-    `页面调用未传 sources，字段兜底失效：classifyWesternDiagnosticEvidence(${call[1]})`,
+    !call || (/,/.test(call[1]) && /[Ss]ources/.test(call[1])),
+    `页面调用未传 sources，字段兜底失效：classifyWesternDiagnosticEvidence(${call?.[1]})`,
   );
   // 同一判据的两个出口必须都传：服务端 Markdown 一直传着，别把它改回去。
   const server = readFileSync(

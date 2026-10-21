@@ -28,7 +28,7 @@ import { STREAM_REPLACE_MARKER } from "./diagnosis-stream-protocol";
  * `CDSS_STAGE_RESULT_REUSE=false` 整体关闭（回滚开关）；生产（NODE_ENV=production）默认开启。
  */
 
-export type CoalescedStage = "diagnose" | "prescribe";
+export type CoalescedStage = "question" | "diagnose" | "prescribe";
 
 type Entry = {
   key: string;
@@ -69,6 +69,9 @@ export function stageResultReuseEnabled(): boolean {
 // 本阶段及之后阶段的**产物**不进指纹：HIS 重推时常把上一轮的诊断/处方原样带回来，
 // 它们不影响本阶段的生成输入，带进指纹就永远对不上。
 const OUTPUT_KEYS: Record<CoalescedStage, readonly string[]> = {
+  // 追问阶段（2026-10-21 起纳入）：诊断、处方等下游产物都不影响出题。
+  question: ["id", "phase", "diagnosis", "prescription", "riskAssessment", "followupTimeline", "previousResult",
+    "auditAdvisory", "reasoningDiagnose", "reasoningPrescribe", "reasoningV2", "prescriptionRevision", "warningAcknowledgement"],
   diagnose: ["id", "phase", "diagnosis", "prescription", "riskAssessment", "followupTimeline", "previousResult",
     "auditAdvisory", "reasoningDiagnose", "reasoningPrescribe", "prescriptionRevision", "warningAcknowledgement"],
   prescribe: ["id", "phase", "prescription", "riskAssessment", "followupTimeline", "previousResult",
@@ -76,6 +79,23 @@ const OUTPUT_KEYS: Record<CoalescedStage, readonly string[]> = {
 };
 
 const WORKFLOW_KEYS = ["questionRounds", "questionOutcome", "maxQuestionRounds", "completeness", "safetyGate", "clinicalFacts", "lastError"] as const;
+
+// 会话元数据不进指纹（2026-10-21，「同样的输入两次推理的结果要一样」）。页面每新建一次病例，hisRecord 都带新的
+// caseId 和 updatedAt（未给时取当前时间），面诊结果带 updatedAt，确认/解除类记录带时间戳——同一份病历从页面录两次，
+// 指纹从来对不上，页面用户一次也复用不到（甲方接口不带 hisRecord，不受影响）。这里只去掉编号与时间，病历内容照旧全量进指纹。
+const SESSION_METADATA_CONTAINERS = ["hisRecord", "faceCapture", "tongueDx", "encounterScopeConfirmation", "emergencyClearance"] as const;
+const SESSION_METADATA_KEY = /^(?:caseId|encounterId|[a-z]+At)$/;
+
+function withoutSessionMetadata(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutSessionMetadata);
+  if (!value || typeof value !== "object") return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, inner] of Object.entries(value as Record<string, unknown>)) {
+    if (SESSION_METADATA_KEY.test(key)) continue;
+    out[key] = withoutSessionMetadata(inner);
+  }
+  return out;
+}
 
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
@@ -123,6 +143,9 @@ export function stageRequestFingerprint(
   // 流程字段不进指纹（2026-10-13）：追问轮次与结果、完整度、闸门结果、事实层快照都由同一份病历派生，
   // 不是生成输入。带进指纹时，同一份病历「未追问」「跳过追问」「页面带着快照重推」会各算一次、各不相同。
   for (const key of WORKFLOW_KEYS) delete state[key];
+  for (const key of SESSION_METADATA_CONTAINERS) {
+    if (state[key] !== undefined) state[key] = withoutSessionMetadata(state[key]);
+  }
   // 上游阶段产物里只与绑定有关的字段（合同签名）不进指纹：同一 M03 换绑到新编号后签名必然不同，
   // 带进指纹会让 M04 永远复用不上；回放时按本次请求重新签名（见 rebindFinalContent）。
   for (const key of ["reasoningDiagnose", "reasoningV2"]) {

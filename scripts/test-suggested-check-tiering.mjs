@@ -9,13 +9,15 @@
 //   ① 分级行为本身（含红旗豁免、资料充分时不改写、不动点）；
 //   ② result-display-policy 里每个导出都必须仍有调用点——这是"它怎么会没人发现"的那一层，
 //      少了这条，下一次连带删除同样会静默通过全部门禁。
+//
+// 2026-10-21：医生页面按 ABC 字段与验收项精简（src/lib/clinician-page-view.ts），「需优先补充」不再上屏，
+// buildTieredSuggestedChecks 与中成药空状态、剂量来源中文名三个展示函数随之删除，判据①的用例一并删掉。
+// 判据②（每个导出都必须仍有引用点）保留：它正是发现这三个函数变成死代码的那条。
+
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-
-const policy = await import("../src/lib/result-display-policy.ts");
-const { buildTieredSuggestedChecks, isTieredFirstStep } = policy;
 
 const failures = [];
 const check = (name, fn) => {
@@ -27,90 +29,6 @@ const check = (name, fn) => {
 };
 
 // 甲方实测那一例的形状：只有主诉，现病史/体征/年龄皆缺。
-const sparseHeadache = { chiefComplaint: "头痛 3 天" };
-const modelChecks = [
-  "补充头痛病程、诱因与伴随症状",
-  "头颅 CT 排除颅内器质性病变",
-  "经颅多普勒评估脑血管",
-  "血常规、C 反应蛋白",
-];
-
-check("资料稀疏时：影像降为『有指征再评估』，不与问诊查体并列", () => {
-  const tiered = buildTieredSuggestedChecks(sparseHeadache, modelChecks);
-  assert.ok(isTieredFirstStep(tiered[0]), `第一步应是问诊+查体，实际：${tiered[0]}`);
-  assert.ok(tiered[0].includes("神经系统查体"), "头痛主诉的查体重点应落到神经系统");
-  assert.ok(
-    tiered.some((item) => /出现相应指征.*影像学检查/.test(item)),
-    "影像应降级为条件句，而不是消失也不是并列",
-  );
-  for (const removed of ["头颅 CT", "经颅多普勒"]) {
-    assert.ok(!tiered.some((item) => item.includes(removed)), `${removed} 不应仍以并列项出现`);
-  }
-  assert.ok(tiered.some((item) => item.includes("血常规")), "非影像类检查应原样保留，不得被一并抹掉");
-});
-
-check("红旗病例豁免：不得因为资料稀疏而延后检查", () => {
-  const tiered = buildTieredSuggestedChecks(
-    { ...sparseHeadache, safetyGate: { status: "red_flag" } },
-    modelChecks,
-  );
-  assert.ok(tiered.some((item) => item.includes("头颅 CT")), "红旗病例的影像检查必须原样保留");
-  assert.ok(!isTieredFirstStep(tiered[0]), "红旗病例不应被改写成先问诊");
-});
-
-check("资料充分时不改写模型判断", () => {
-  const complete = {
-    chiefComplaint: "头痛 3 天",
-    patient: { age: 46, sex: "女" },
-    vitals: { bp: "128/82", t: "36.6" },
-    symptoms: { presentHistory: "3 天前无明显诱因出现右侧搏动性头痛，伴畏光，无发热无外伤。" },
-  };
-  const tiered = buildTieredSuggestedChecks(complete, modelChecks);
-  assert.ok(tiered.some((item) => item.includes("头颅 CT")), "资料充分时不得下调模型给出的检查");
-  assert.ok(!isTieredFirstStep(tiered[0]), "资料充分时不应插入补录首步");
-});
-
-// ── 甲方 2026-08-12 线上实测：无效追问 ────────────────────────────────────────
-// 病历已提供病程、诱因、伴随症状与既往史，这一栏仍打印
-// 「先补充病程、诱因、伴随症状及既往史，测量生命体征并完成神经系统查体。」
-// 根因：这句话是写死的固定常量，与触发它的三项判据是两个**不相交的集合**——
-// 既往史从头到尾没被读过，病程/诱因/伴随症状只是「现病史非空」的粗粒度代理。
-check("⑦ 只缺一项时不得点名已经提供的字段", () => {
-  const onlyAgeMissing = {
-    chiefComplaint: "头痛 3 天",
-    vitals: { bp: "128/82", t: "36.6" },
-    pastHistory: "高血压病史 5 年，规律服药。",
-    symptoms: { presentHistory: "3 天前受凉后出现搏动性头痛，伴畏光，无发热无外伤。" },
-  };
-  const tiered = buildTieredSuggestedChecks(onlyAgeMissing, modelChecks);
-  assert.ok(isTieredFirstStep(tiered[0]), `年龄缺失仍应插入补录首步，实际：${tiered[0]}`);
-  for (const provided of ["病程", "诱因", "伴随症状", "既往史", "现病史"]) {
-    assert.ok(!tiered[0].includes(provided), `已经提供的「${provided}」不得再被要求补充：${tiered[0]}`);
-  }
-  assert.ok(!tiered[0].includes("测量生命体征"), `生命体征已记录，不该再要求测量：${tiered[0]}`);
-  assert.ok(tiered[0].includes("年龄"), `真正缺的年龄必须点名：${tiered[0]}`);
-});
-
-// HIS 直传：生命体征在 hisRecord.fields 而不是 context.vitals。
-// 原判据只看 context.vitals，会把「已经量过」误判成「没量」，于是照样要求测量。
-check("⑧ HIS 直传的生命体征也算已记录", () => {
-  const hisVitals = {
-    chiefComplaint: "头痛 3 天",
-    patient: { age: 46, sex: "女" },
-    symptoms: { presentHistory: "3 天前受凉后出现搏动性头痛。" },
-    hisRecord: { fields: { vitalsBP: "128/82mmHg", vitalsT: "36.6" } },
-  };
-  const tiered = buildTieredSuggestedChecks(hisVitals, modelChecks);
-  assert.ok(!isTieredFirstStep(tiered[0]), `资料其实齐备，不应插入补录首步：${tiered[0]}`);
-  assert.ok(tiered.some((item) => item.includes("头颅 CT")), "资料齐备时不得下调模型给出的检查");
-});
-
-check("不动点：分级结果再进一次原样返回", () => {
-  const once = buildTieredSuggestedChecks(sparseHeadache, modelChecks);
-  const twice = buildTieredSuggestedChecks(sparseHeadache, once);
-  assert.deepEqual(twice, once, "重复分级把首步叠加了两遍");
-});
-
 // ── 「它怎么会没人发现」这一层 ────────────────────────────────────────────
 // 展示策略是**只在渲染点生效**的一层：一旦调用点消失，产物立刻回落到模型自由文本，
 // 而所有单元测试仍然全绿（函数本身还在，还能被直接 import 测）。所以判据必须落在
@@ -158,4 +76,4 @@ if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "suggested-check-tiering", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "suggested-check-tiering", checks: 7, failures: 0 }));
+console.log(JSON.stringify({ suite: "suggested-check-tiering", checks: 1, failures: 0 }));

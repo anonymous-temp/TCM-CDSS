@@ -522,9 +522,11 @@ for (const guard of ["submittedDifferentials.length > 0 && displayableDifferenti
     clinicalTextForDisplay("肝郁化火，上扰心神。"), "肝郁化火，上扰心神。",
     "正常病机文本被改动了——过滤只应作用于套话从句",
   );
-  // 展示侧必须真的用到剔除函数，否则套话会重新出现在屏幕上（另一个方向的回归）。
+  // 展示侧：2026-10-21 起症状群不再上屏（src/lib/clinician-page-view.ts）。若以后加回，机制文本仍须走剔除函数，
+  // 否则套话会重新出现在屏幕上（另一个方向的回归）。
+  const pageSource = readFileSync("src/app/diagnosis/DiagnosisClient.tsx", "utf8");
   assert.ok(
-    /clinicalTextForDisplay\(item\.mechanism\)/.test(readFileSync("src/app/diagnosis/DiagnosisClient.tsx", "utf8")),
+    /clinicalTextForDisplay\(item\.mechanism\)/.test(pageSource) || !/symptomClusters/.test(pageSource),
     "症状群机制文本没有走 clinicalTextForDisplay",
   );
 }

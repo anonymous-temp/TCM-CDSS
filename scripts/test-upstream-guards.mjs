@@ -126,6 +126,9 @@ const expectedModelMatrix = {
   CLINICAL_FACTS_MODEL: "qwen3.8-max",
   // 小任务改跑 DeepSeek（2026-09-20）。主生成留在 Qwen：严格 JSON Schema 是 9/19 换回 Qwen 的全部理由。
   CONTROLLED_TERMINOLOGY_MODEL: "deepseek-flash",
+  // 用药规划改跑 DeepSeek（2026-10-21，甲方 10 + 留出 32 同批对照）：单次 2.1→0.9s、M04 中位 −0.7s，
+  // 1.1 口径「中成药推荐」两组都 100%。事实抽取不跟着换：A 集红旗准确 95.3% 对 92.9%，见 CLAUDE.md 第十三轮。
+  MEDICINE_PLANNER_MODEL: "deepseek-flash",
 };
 {
   // 结构化阶段靠供应商解码器执行 schema；矩阵里任何一个 Qwen 档没有严格模式，对应任务就退回

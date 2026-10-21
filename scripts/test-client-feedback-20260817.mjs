@@ -423,10 +423,12 @@ const mahuangHerbs = [
     "医生页面不得读取后台操作资质字段");
   assert.doesNotMatch(diagnosisClient, /item\.precautions/,
     "中医治疗项目卡不得读取后台安全边界字段；健康调护注意事项走 nonPharma.precautions 独立出口");
-  assert.match(diagnosisClient, /const pathogenesisDisplay = step\.pathogenesis/,
-    "每个子病机必须显示自己的病机演变，不得因去重把子病机2留空");
-  assert.match(diagnosisClient, /!\["症状依据", "体征依据", "依据"\]\.includes\(group\.label\)/,
-    "医生页面必须删除症状依据和体征依据分组");
+  // 2026-10-21 页面口径（src/lib/clinician-page-view.ts）：子病机逐条卡片与西医分组依据整体下线，
+  // 原先这两条钉的「子病机2不得留空」「删除症状/体征依据分组」随之改为「两块都不再上屏」。
+  assert.doesNotMatch(diagnosisClient, /const pathogenesisDisplay = step\.pathogenesis/,
+    "子病机逐条卡片不再上屏（病机区只列病位、病性、总体病机）");
+  assert.doesNotMatch(diagnosisClient, /westernDiagnosticEvidenceGroups\(/,
+    "西医分组依据不再上屏（西医只列病名与推理说明）");
   const visibleSummary = readFileSync(path.join(repoRoot, "src/lib/diagnosis-visible-summary.ts"), "utf8");
   assert.doesNotMatch(visibleSummary, /同上述(?:病机|项目)|同总体病机/,
     "医生可见 Markdown 也不得用跨段占位替代真实病机或治疗内容");

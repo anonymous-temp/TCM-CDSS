@@ -1,6 +1,6 @@
 import type { CaseState } from "./diagnosis-types";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { getPrimaryTextModelConfig, createTextModelClient, isApprovedTextModel, textModelRequestTuning } from "./text-model";
+import { getPrimaryTextModelConfig, createTextModelClient, isApprovedTextModel, textModelConfigForModel, textModelRequestTuning } from "./text-model";
 import {
   CLINICAL_FACTS_EXTRACTOR_VERSION,
   CLINICAL_FACTS_PROMPT_VERSION,
@@ -118,14 +118,16 @@ function endpointAllowed(endpoint: string): boolean {
 }
 
 function primaryFactsPhaseModel(model: string): ClinicalFactsPhaseModel {
-  const primary = getPrimaryTextModelConfig();
-  const endpoint = chatCompletionsEndpoint(primary.baseUrl);
+  // 端点按模型家族解析（与各小任务同一个 textModelConfigForModel，2026-10-21）：CLINICAL_FACTS_MODEL 换成另一家族的
+  // 模型时，请求发到那一家的端点，而不是把 deepseek 模型名发到百炼端点。同一家族时与此前完全相同。
+  const resolved = textModelConfigForModel(model);
+  const endpoint = chatCompletionsEndpoint(resolved.baseUrl);
   return {
-    provider: primary.provider,
+    provider: resolved.provider,
     model,
-    apiKey: primary.apiKey,
+    apiKey: resolved.apiKey,
     endpoint,
-    configured: Boolean(primary.configured && primary.apiKey && isApprovedTextModel(model) && endpointAllowed(endpoint)),
+    configured: Boolean(resolved.configured && resolved.apiKey && isApprovedTextModel(model) && endpointAllowed(endpoint)),
   };
 }
 
@@ -239,8 +241,7 @@ async function callFactsPhaseModel(
   const phaseSignal = signal
     ? AbortSignal.any([signal, AbortSignal.timeout(clinicalFactsPhaseTimeoutMs())])
     : AbortSignal.timeout(clinicalFactsPhaseTimeoutMs());
-  const primary = getPrimaryTextModelConfig();
-  const client = createTextModelClient({ ...primary, model: config.model }, {
+  const client = createTextModelClient(textModelConfigForModel(config.model), {
     retryOwner: phase === "extract" ? "application" : "sdk",
   });
   const body = {
