@@ -1,4 +1,4 @@
-import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04HerbOpposingDirectionIssue, signedTextbookFormulaIngredients } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, isTextbookConditionalModification, m04HerbOpposingDirectionIssue, signedTextbookFormulaIngredients } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
@@ -84,6 +84,9 @@ export function dropUnsupportedM04ModificationDirections(
         if (fields.action !== "加" && identity && !candidateHerbIdentities.has(identity)) return false;
       }
       if (!fields || fields.action !== "加") return true;
+      // 教材条件式加减（药在该条教材加减里）不拿当前主证的方向去核，与编译器、最终合同同一判据（2026-10-22 留出集 S044：
+      // 外邪犯胃证的教材加减「若见壮热口渴，便秘尿赤者，可加黄芩、黄连、栀子」编译时放行，到这里因「清热与主证方向相反」被删光）。
+      if (isTextbookConditionalModification(trigger, fields.herbName, prior)) return true;
       const declaredDirection = [modification.reason, modification.targetPathogenesis]
         .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
         .join("；");

@@ -473,11 +473,12 @@ JSON要求：
   「还需要排除什么」，candidates 回答「按当前资料最可能的是哪几个、各自凭什么」。
   keyEvidence / againstEvidence 只能引用**本例已记录的事实**，不得写病历没有的表现。
   确实只能给出一个候选时就只写 1 条，不要为了凑数把不成立的诊断列进来。
-- 中医鉴别（tcmDifferentials / tcmDiseaseDifferentials）每一条都要让医生一眼读懂三件事，各子字段都写短句（typicalManifestation ≤25字，reason ≤15字，distinguishingPoints ≤30字，nextCheck ≤15字）：
+- 中医鉴别（tcmDifferentials / tcmDiseaseDifferentials）每一条都要让医生一眼读懂四件事，各子字段都写短句（typicalManifestation ≤25字，reason ≤15字，distinguishingPoints ≤30字，nextCheck ≤15字）：
   ① typicalManifestation 写该证候/病名**通常长什么样**（症状 + 舌脉），这是参考知识，
      不是本例的事实，不得在其中断言本例有或没有某个症状；
-  ② distinguishingPoints 写**本例哪一点对不上，因此可以排除**，要指名本例已记录的表现；
-  ③ nextCheck 写需要做什么才能确认或排除（量表、监测、四诊复核），没有就写 null。
+  ② reason 写两者相近之处，只能取该鉴别病/证候本身就有、本例也记录了的表现，不得把只属于本例的表现（如本例的特征性皮损）写成两者共有；
+  ③ distinguishingPoints 写**本例哪一点对不上，因此可以排除**，要指名本例已记录的表现；
+  ④ nextCheck 写需要做什么才能确认或排除（量表、监测、四诊复核），没有就写 null。
   参考写法：「肝火扰心证 — 常见：急躁易怒、目赤口苦、便秘尿赤，舌红苔黄脉弦数；
   本例无热象，可排除」「睡眠呼吸暂停综合征 — 常见：打鼾伴呼吸暂停、日间嗜睡；
   本例无此表现，建议睡眠监测」。

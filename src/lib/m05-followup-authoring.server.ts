@@ -5,7 +5,7 @@ import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { SIX_HEALTH_FOLLOWUP_DIMENSIONS } from "./tcm-followup-dimensions";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
-import { authoritativePatientAgeYears, deriveFirstReviewTiming, hasStrongPrescriptionRisk, isRecordCompletenessStatement, reproductiveAdviceRelevant, sanitizeFreeTextForModel } from "./diagnosis-safety";
+import { authoritativePatientAgeYears, deriveFirstReviewTiming, hasStrongPrescriptionRisk, isRecordCompletenessStatement, pregnancyAdviceRelevant, reproductiveAdviceRelevant, sanitizeFreeTextForModel } from "./diagnosis-safety";
 import { signListForPopulation, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
@@ -343,7 +343,7 @@ export async function authorFollowupClinicalContent(
   signal?: AbortSignal,
 ): Promise<AuthoredFollowupContent | null> {
   const authored = await authorFollowupClinicalContentUnfiltered(state, input, signal);
-  return authored ? authoredFollowupForPopulation(authored, { reproductive: reproductiveAdviceRelevant(state), ageYears: authoritativePatientAgeYears(state) ?? null }) : authored;
+  return authored ? authoredFollowupForPopulation(authored, { reproductive: reproductiveAdviceRelevant(state), pregnancy: pregnancyAdviceRelevant(state), ageYears: authoritativePatientAgeYears(state) ?? null }) : authored;
 }
 
 async function authorFollowupClinicalContentUnfiltered(

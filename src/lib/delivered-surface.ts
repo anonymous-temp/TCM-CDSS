@@ -408,6 +408,30 @@ function withPatientFacingWorkflowWording(line: string, nonDosePage: boolean): s
  * M 集 MTCMB-6 等 6 例）：只看两个话题——不点药名、泛泛请患者把在用的药告诉医生的，与说哺乳的——较短一句的二字词六成以上都在较长一句里时，
  * 留先出现的那句（规则补的排在最前）。点了具体药名的（「正在服用的阿司匹林请告知医生」「正在服用的二甲双胍请告知医生」）句式几乎一样，不并。
  */
+/**
+ * 注意事项按提示词是 3–5 条；规则补写的条目（现用药、年龄、毒性药、孕哺…）排在前面，加上模型写的常超过 5 条
+ *（2026-10-21 合成集 7/159、病史集 2/40）。超出时只去两类内容最轻的：不点名任何药的「如正在服用其他药物请告知医生」，
+ * 和同一页第二条起的孕哺提示（第一条是规则按药典孕妇慎用/禁用标签写的那条）。去完仍超出就照留——其余各条都是本例具体的服药安全提示。
+ */
+const PRECAUTION_CAP = 5;
+const GENERIC_MEDICATION_DISCLOSURE = /^(?:如|若)(?:正在|同时|另外|还在)?(?:服用|使用|服)(?:其他|其它)(?:药物|药品|药)[^。；;]*?(?:告知|告诉|咨询)医生/u;
+const PREGNANCY_TOPIC_LINE = /怀孕|妊娠|孕期|孕妇|备孕/u;
+function withinPrecautionCap(lines: readonly unknown[]): unknown[] {
+  const count = (items: readonly unknown[]) => items.filter((line) => typeof line === "string").length;
+  let out = [...lines];
+  if (count(out) > PRECAUTION_CAP) out = out.filter((line) => typeof line !== "string" || !GENERIC_MEDICATION_DISCLOSURE.test(line.trim()));
+  if (count(out) > PRECAUTION_CAP) {
+    let pregnancyLineSeen = false;
+    out = out.filter((line) => {
+      if (typeof line !== "string" || !PREGNANCY_TOPIC_LINE.test(line)) return true;
+      if (pregnancyLineSeen) return false;
+      pregnancyLineSeen = true;
+      return true;
+    });
+  }
+  return out;
+}
+
 function withoutRepeatedTopicLines(lines: readonly unknown[]): unknown[] {
   const topic = (line: string) => /(?:告知|告诉)医生/u.test(line) && /药名|药物名称|用药情况|(?:正在|在)(?:使用|服用|用)的(?:药物|药)(?![\u4e00-\u9fff]{2,}(?:片|胶囊|颗粒|丸))/u.test(line) ? "medication"
     : /哺乳/u.test(line) ? "lactation" : "";
@@ -1377,7 +1401,11 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     if (toxicHerbs.length > 0) {
       const lines = precautions.filter((line): line is string => typeof line === "string");
       // 逐味核：每一味有毒的药都要在说毒性或中毒表现的那句里被点到（2026-10-19 留出例 S054：只写了「吴茱萸有小毒」，附子一字未提）。
-      const unmentioned = [...new Set(toxicHerbs)].filter((name) => !lines.some((line) => line.includes(name) && TOXICITY_ADVICE.test(line)));
+      // 点到按药物身份认（2026-10-22：模型写「方中附片有毒…」，药表是附子，字面对不上又补一条附子毒性提示，同一页两句说同一味毒药；
+      // S 集、病史集各 1 例，注意事项因此超过 5 条）。
+      const mentionsHerb = (line: string, name: string) => line.includes(name) ||
+        formulaAnalysisHerbMentions(line).some((mention) => canonicalTcmHerbIdentity(mention.token) === canonicalTcmHerbIdentity(name));
+      const unmentioned = [...new Set(toxicHerbs)].filter((name) => !lines.some((line) => TOXICITY_ADVICE.test(line) && mentionsHerb(line, name)));
       if (unmentioned.length > 0) {
         // 不给剂量的页没有「医生开的剂量」：改说用不用、用多少由医生面诊后定（2026-10-19 留出集 S188 红旗页「须按医生开的剂量和煎法服用」）。
         precautions = [...precautions, options?.nonDosePage
@@ -1416,6 +1444,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     precautions = withoutRepeatedTopicLines(precautions);
     // 只剩「方中有木香、当归等药。」这种不带任何提示的半句（后半句被前面哪一步删掉了）：整条不留（2026-10-19 留出例 S078）。
     precautions = precautions.filter((line) => typeof line !== "string" || !isPrecautionStub(line.trim()));
+    precautions = withinPrecautionCap(precautions);
     nonPharma.precautions = precautions;
   }
   // 运动保健按病历记录的行动受限写（甲方标准病历 5：拄拐的 78 岁患者写成「以散步、八段锦为主」）。

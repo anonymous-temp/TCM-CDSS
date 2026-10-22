@@ -5187,6 +5187,20 @@ export function reproductiveAdviceRelevant(state: CaseState): boolean {
   return true;
 }
 
+/**
+ * 写给患者的孕哺提示（「如已怀孕、可能怀孕或正在哺乳，请服药前告知医生」、逐味「孕期慎用」、复诊里的妊娠相关信号）是否写给本例
+ *（2026-10-22）。在 reproductiveAdviceRelevant（12 岁起）之上再收一档：未满 15 岁（人口统计通用的育龄口径 15–49 岁）不写，
+ * 病历自己写到停经、月经推迟、性生活、妊娠、早孕或哺乳的除外。S 集 12 岁、14 岁女孩发热、头痛的处方都写着上面那句（第十二轮评审）。
+ * 月经、带下类提示仍按 reproductiveAdviceRelevant；安全闸门的孕哺筛查（pregnancyScreenRequired，10–59 岁）不受影响。
+ */
+const YOUNG_ADOLESCENT_PREGNANCY_CONTEXT = /停经|月经(?:推迟|延后|逾期|未至|未来)|性生活|同房|怀孕|妊娠|早孕|哺乳|HCG/iu;
+export function pregnancyAdviceRelevant(state: CaseState): boolean {
+  if (!reproductiveAdviceRelevant(state)) return false;
+  const age = authoritativePatientAgeYears(state);
+  if (age == null || age >= 15) return true;
+  return YOUNG_ADOLESCENT_PREGNANCY_CONTEXT.test(normalizeClinicalText(trustedInputText(state)));
+}
+
 export function pregnancyScreenRequired(state: CaseState): boolean {
   const sex = patientSexText(state);
   if (!/女/.test(sex)) return false;

@@ -14,7 +14,7 @@ import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals, patient
 import { completeTcmDiseaseDifferentials, prefetchTcmDifferentialTopUp } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { semanticRedFlagsForBanner } from "@/lib/banner-semantic-red-flags.server";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, derivePrescriptionPermission, doseWithheldFollowupKind, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, reproductiveAdviceRelevant, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, derivePrescriptionPermission, doseWithheldFollowupKind, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, pregnancyAdviceRelevant, renderSafetyLimitedDiagnosisContract, reproductiveAdviceRelevant, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03SharedPatientContext } from "@/lib/m03-context-packets";
@@ -314,7 +314,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
     structuredCaseState: safeState,
     structuredPatientAge: authoritativePatientAgeYears(gated),
     // 复诊提示里的急症表现按本例可能出现的人群写（月经/孕哺类项目不给男性、12 岁以下、60 岁及以上、已绝经者；交付面 followupSignsForPopulation）。
-    structuredHerbBoundaryAudience: { reproductive: reproductiveAdviceRelevant(gated), ageYears: authoritativePatientAgeYears(gated) ?? null },
+    structuredHerbBoundaryAudience: { reproductive: reproductiveAdviceRelevant(gated), pregnancy: pregnancyAdviceRelevant(gated), ageYears: authoritativePatientAgeYears(gated) ?? null },
     structuredLineagePreference: safeState.tcmLineagePreference,
     // 这里不再预算「生成前短名单」：enforceRetrievedM03FormulaSelection 明确 `void` 掉了它
     // （方名锁定只认签名证候的 positiveSufficiency，症状召回证明不了充分性）。原先这一行是一次

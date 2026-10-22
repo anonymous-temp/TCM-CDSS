@@ -187,8 +187,8 @@ async function runAuthoringTask<T>(
   }, [], signal);
 }
 
-const OUTPUT_FORMAT_DISEASE = "只输出 JSON：{\"differentials\":[{\"diseaseName\":\"…\",\"reason\":\"…\",\"typicalManifestation\":\"…\",\"distinguishingPoints\":\"本例…\",\"nextCheck\":\"…\"}]}";
-const OUTPUT_FORMAT_SYNDROME = "只输出 JSON：{\"differentials\":[{\"syndrome\":\"…\",\"reason\":\"…\",\"typicalManifestation\":\"…\",\"distinguishingPoints\":\"本例…\",\"nextCheck\":\"…\"}]}";
+const OUTPUT_FORMAT_DISEASE = "只输出 JSON：{\"differentials\":[{\"diseaseName\":\"…\",\"typicalManifestation\":\"…\",\"reason\":\"…\",\"distinguishingPoints\":\"本例…\",\"nextCheck\":\"…\"}]}";
+const OUTPUT_FORMAT_SYNDROME = "只输出 JSON：{\"differentials\":[{\"syndrome\":\"…\",\"typicalManifestation\":\"…\",\"reason\":\"…\",\"distinguishingPoints\":\"本例…\",\"nextCheck\":\"…\"}]}";
 
 /**
  * 补写病名级鉴别。existing 是已经保留下来的（归一后的）病名；candidates 是教材对本病所列、且过得了归一判据的鉴别病名。
@@ -240,7 +240,7 @@ export async function authorTcmDiseaseDifferentials(
         `1. diseaseName 必须是中医病名${closed ? "" : "（如对咳嗽写喘证、肺痨，对胁痛写胃脘痛、黄疸）"}，不得写西医病名、证型或症状堆砌，不得与本病同名，不得是本病的别名、异名或亚型，不得与 alreadyListed 重复。`,
         "2. typicalManifestation：该鉴别病的典型表现，不超过30字。",
         "3. distinguishingPoints：本例与它的区别，必须以“本例”开头，只引用病历已记录的表现；病历没有提到的表现写“未诉…”，不要写“无…”；不要复述教材对该病的定义；不超过40字。",
-        "4. reason：为什么需要与它鉴别（两者相近之处），不超过15字。",
+        "4. reason：两者相近之处，只写该鉴别病本身就有、本例病历也记录了的表现（即 typicalManifestation 与本例共有的），不超过15字；不得把只属于本例的表现（如本例的特征性皮损、体征）说成两者共有。",
         "5. nextCheck：必要时需要核实的一项问诊、查体或检查，不超过15字；没有就写空字符串。属急重症的鉴别病名（如真头痛、厥证、肠痈），nextCheck 必须写明相应的急症排查。",
         `${OUTPUT_FORMAT_DISEASE}（恰好 ${need} 项）`,
       ].join("\n"),
@@ -296,7 +296,7 @@ export async function authorTcmSyndromeDifferentials(
         "1. syndrome 必须是中医证候名（如肝郁气滞证），不得写病名或症状堆砌，不得与主证候（syndrome 字段）同名，不得与 alreadyListed 重复。",
         "2. typicalManifestation：该证候的典型表现（症状加舌脉），不超过30字。",
         "3. distinguishingPoints：本例哪一点对不上主证候以外的这个证候，必须以“本例”开头，只引用病历已记录的表现；病历没有提到的表现写“未诉…”，不要写“无…”；不超过40字。",
-        "4. reason：为什么需要与它鉴别，不超过15字。",
+        "4. reason：两者相近之处，只写该证候本身就有、本例病历也记录了的表现，不超过15字；不得把只属于本例的表现说成两者共有。",
         "5. nextCheck：必要时需要核实的一项四诊内容，不超过15字；没有就写空字符串。",
         `${OUTPUT_FORMAT_SYNDROME}（恰好 ${need} 项）`,
       ].join("\n"),

@@ -1477,7 +1477,10 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
         ...reasoning.overview,
         // 证名对上教材的一行而病名写法不同（「头风病」对「头痛」）时，病名用教材的节名；
         // 节名是西医病名而教材写明它属某个中医病的（血栓闭塞性脉管炎 → 脱疽），用那个中医病名，不把西医节名改回去。
-        ...(textbookRow && reasoning.overview?.tcmDiseaseName && reasoning.overview.tcmDiseaseName !== textbookSectionDeliveryName(textbookRow.disease)
+        // 节名合写两个病名（「胎漏、胎动不安」「堕胎、小产」）而模型按教材定义写了其中一个时，保留模型的写法——两个病名各有定义，
+        // 改回节名就把模型已作的区分抹掉了，依据里的「属胎动不安」也会被换成「属胎漏、胎动不安」（2026-10-22）。
+        ...(textbookRow && reasoning.overview?.tcmDiseaseName && reasoning.overview.tcmDiseaseName !== textbookSectionDeliveryName(textbookRow.disease) &&
+          !textbookSectionDeliveryName(textbookRow.disease).split("、").includes(reasoning.overview.tcmDiseaseName.trim())
           ? {
               tcmDiseaseName: textbookSectionDeliveryName(textbookRow.disease),
               ...(typeof reasoning.overview.tcmDiseaseRationale === "string"

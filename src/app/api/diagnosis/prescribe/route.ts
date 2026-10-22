@@ -15,7 +15,7 @@ import { conceptionWithoutPregnancyOrLactation } from "@/lib/clinical-state";
 import { chpPregnancyProhibitedHerbNames } from "@/lib/conception-herb-policy";
 import { herbRecordCautionPromptSection, textbookBaseIngredients } from "@/lib/herb-record-caution";
 import { textbookRowForSyndrome } from "@/lib/tcm-textbook-syndromes";
-import { authoritativePatientAgeYears, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
@@ -452,7 +452,7 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     // M04 repair must never receive raw HIS identifiers.
     structuredClinicalContext,
     structuredPatientAge: authoritativePatientAgeYears(gated),
-    structuredHerbBoundaryAudience: { reproductive: reproductiveAdviceRelevant(gated), ageYears: authoritativePatientAgeYears(gated) ?? null },
+    structuredHerbBoundaryAudience: { reproductive: reproductiveAdviceRelevant(gated), pregnancy: pregnancyAdviceRelevant(gated), ageYears: authoritativePatientAgeYears(gated) ?? null },
     structuredRequiredPrecautions: requiredPrecautions,
     structuredCaseState: safeState,
     structuredMedicineCandidates: medicinePlan.candidates,

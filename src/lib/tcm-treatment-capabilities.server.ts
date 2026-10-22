@@ -22,7 +22,7 @@ import {
 import { affirmedClinicalText } from "./clinical-polarity";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
-import { narrativePediatricAgeConflict, pregnancyScreenRequired, reproductiveAdviceRelevant } from "./diagnosis-safety";
+import { narrativePediatricAgeConflict, pregnancyAdviceRelevant, pregnancyScreenRequired, reproductiveAdviceRelevant } from "./diagnosis-safety";
 import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, caseCourse, dietAdviceAvoidsRichFood, facialSoreRecorded, dietAdviceAvoidsTea, syndromeHasHeatNature, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, syndromeLabelFitsSigned, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
 import governanceSourceRegistryJson from "../data/clinical-governance-source-registry.json" with { type: "json" };
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
@@ -1443,7 +1443,7 @@ export function compileTcmTreatmentRecommendations(
       // 取穴方案出自成人教材，写法是「毫针常规刺，留针」——2026-10-13 独立评审：2 岁、7 岁、11 岁病例照搬成人写法。
       // 小儿、老年与妊娠未写明的人群提示：所有项目卡同一处（populationCardNote）。此前只有针刺卡有小儿、老年两句。
       ...(() => {
-        const note = `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) : false, treatmentPlan.suggestedSitesOrPoints, caseState?.patient ? conceptionCardCaution(caseState) : false)}${fontanelleCardNote(definition.code, patientAgeYears, currentFacts)}${localSiteCardNote(definition.code, currentFacts, [prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""], treatsLocalSite)}${moxibustionBurnCardNote(definition.code, caseFacts, `${treatmentPlan.treatmentContent || ""}${treatmentPlan.techniqueBoundary || ""}${treatmentPlan.scheduleSuggestion || ""}`)}`;
+        const note = `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) && pregnancyAdviceRelevant(caseState as CaseState) : false, treatmentPlan.suggestedSitesOrPoints, caseState?.patient ? conceptionCardCaution(caseState) : false)}${fontanelleCardNote(definition.code, patientAgeYears, currentFacts)}${localSiteCardNote(definition.code, currentFacts, [prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""], treatsLocalSite)}${moxibustionBurnCardNote(definition.code, caseFacts, `${treatmentPlan.treatmentContent || ""}${treatmentPlan.techniqueBoundary || ""}${treatmentPlan.scheduleSuggestion || ""}`)}`;
         return typeof treatmentPlan.techniqueBoundary === "string" && note
           ? { techniqueBoundary: `${note}${treatmentPlan.techniqueBoundary}` }
           : {};

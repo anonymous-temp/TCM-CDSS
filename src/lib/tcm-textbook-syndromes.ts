@@ -454,7 +454,9 @@ function textbookDifferentialGist(disease: string, book: string, names: readonly
 function textbookDiagnosisGist(disease: string, book: string): string[] {
   const entry = DISEASES.find((item) => item.disease === disease && item.book === book);
   if (!entry) return [];
-  const definition = entry.definition.split(/(?<=。)/u)[0]?.trim() || "";
+  // 一节合写两个病名（胎漏、胎动不安）时定义是两句、各定一个病名，两句都给，病名按它分（2026-10-22）。
+  const combinedSection = disease.includes("、");
+  const definition = (combinedSection ? entry.definition : entry.definition.split(/(?<=。)/u)[0])?.trim() || "";
   const points = entry.diagnosisPoints
     .map((point) => point.replace(/^\s*(?:[（(][一二三四五六七八九十\d]+[）)]|\d+\s*[.、．])\s*/u, "").trim())
     .map((point) => point.replace(/[。；;]+$/u, ""))
@@ -462,7 +464,7 @@ function textbookDiagnosisGist(disease: string, book: string): string[] {
   const joined = points.join("；");
   const gist = joined.length > 260 ? `${joined.slice(0, 259)}…` : joined;
   return [
-    ...(definition ? [`  教材定义：${cut(definition, 110)}`] : []),
+    ...(definition ? [`  教材定义：${cut(definition, combinedSection ? 240 : 110)}`] : []),
     ...(gist ? [`  教材诊断依据：${gist}`] : []),
   ];
 }
@@ -484,7 +486,7 @@ export function buildTextbookCandidateContext(input: TextbookCaseInput): string 
       `  - ${row.syndromeName}｜主症：${cut(row.manifestations, 90)}｜治法：${row.therapy}｜代表方：${formulaLabel(row)}`),
   ]);
   return [
-    "【教材病证候选】（按与本例主诉、症状的相近程度从规划教材中取出；病名、证名、治法、代表方均为教材原文。候选里有两个以上的病时先定病名：先对照各病下的「教材定义」「教材诊断依据」，再逐病找出其下与本例最贴合的一行证型，比较各病的最贴合行——主症逐项对得上的越多（特别是能把证型分开的表现）、该病的诊断依据越符合，越应归入该病；主诉里的单个症状（头晕、咳嗽、头痛这类）常是几个病共有的主症，不能单凭它定病；教材写明的必备表现而病历已明确否认的，不算符合；西医诊断与检查结果只作旁证，不直接决定中医病名；各病的先后只是检索时的初排，不表示哪个更可能。其中有贴合本例的一行时，病名与证名逐字采用、治法以该行为准、推荐方用该行代表方；都不贴合时再自行辨证。同一病下各证型按教材顺序排列，先后不表示可能性大小。「贴合」指该行主症里能把它与同病其他证型分开的表现——寒热、虚实、诱因、伴随症状或舌脉——至少有一项已见于本例记录；本例只记录了本病主症本身时，没有哪一行贴合。同一病性涉及两脏、两脏各有自身成组的表现（每脏至少两条相互印证）而候选只有单脏证型时，证名写两脏合称（如“肺脾两虚证”），治法兼顾两脏，方用两行代表方合用或加减。辨病依据与中医鉴别写本病与相近病的区分点时，以各病下「教材鉴别要点」写的区分依据为准（部位、病程、主症、病势等），不另立教材没有的区分点）",
+    "【教材病证候选】（按与本例主诉、症状的相近程度从规划教材中取出；病名、证名、治法、代表方均为教材原文。候选里有两个以上的病时先定病名：先对照各病下的「教材定义」「教材诊断依据」，再逐病找出其下与本例最贴合的一行证型，比较各病的最贴合行——主症逐项对得上的越多（特别是能把证型分开的表现）、该病的诊断依据越符合，越应归入该病；主诉里的单个症状（头晕、咳嗽、头痛这类）常是几个病共有的主症，不能单凭它定病；教材写明的必备表现而病历已明确否认的，不算符合；西医诊断与检查结果只作旁证，不直接决定中医病名；各病的先后只是检索时的初排，不表示哪个更可能。节名合写两个病名的（如“胎漏、胎动不安”“堕胎、小产”），病名按该节「教材定义」只写与本例相符的那一个。其中有贴合本例的一行时，病名与证名逐字采用、治法以该行为准、推荐方用该行代表方；都不贴合时再自行辨证。同一病下各证型按教材顺序排列，先后不表示可能性大小。「贴合」指该行主症里能把它与同病其他证型分开的表现——寒热、虚实、诱因、伴随症状或舌脉——至少有一项已见于本例记录；本例只记录了本病主症本身时，没有哪一行贴合。同一病性涉及两脏、两脏各有自身成组的表现（每脏至少两条相互印证）而候选只有单脏证型时，证名写两脏合称（如“肺脾两虚证”），治法兼顾两脏，方用两行代表方合用或加减。辨病依据与中医鉴别写本病与相近病的区分点时，以各病下「教材鉴别要点」写的区分依据为准（部位、病程、主症、病势等），不另立教材没有的区分点）",
     ...lines,
   ].join("\n");
 }

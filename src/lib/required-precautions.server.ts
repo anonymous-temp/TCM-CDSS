@@ -1,6 +1,6 @@
 import { cleanedMedicationNameCandidate, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
-import { ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
+import { ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import {
   findLocalPatentMedicineLabel,
@@ -135,7 +135,7 @@ export function requiredPrecautionsForCase(
   if (triggerFoods.length > 0) items.push({ kind: "trigger_foods", foods: triggerFoods });
   // 备孕/未避孕（2026-10-14 起照常给剂量、慎用药逐味标注）：注意事项要写一句服药期间月经逾期先验孕（留出集 S102 评审判缺）。
   if (conceptionWithoutPregnancyOrLactation(grounding)) items.push({ kind: "conception_pregnancy_check" });
-  else if (reproductiveAdviceRelevant(state) && assessPregnancyState(grounding).status === "unknown" &&
+  else if (pregnancyAdviceRelevant(state) && assessPregnancyState(grounding).status === "unknown" &&
     assessLactationState(grounding).status === "unknown" && !recentChildbirthMentioned(grounding)) {
     // 本次月经逾期未至的（停经本身不算可疑妊娠——闭经、多囊不能一概收回剂量，见 assessPregnancyState），
     // 那一句写成先验孕，比「如已怀孕请告知」更具体（2026-10-19 Claude 评审 M 集 RobustSDT-0697：末次月经 10/21 至今未至、脉滑）。

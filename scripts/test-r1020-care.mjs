@@ -288,7 +288,8 @@ await check("4.4 经 authorFollowupClinicalContent 入口：缓存键里没有�
 
 await check("4.5 接线：辨证路由把人群（reproductiveAdviceRelevant、年龄）交给交付面，开方路由原有的也在（交付面只在给了人群时收口）", () => {
   const diagnose = readFileSync("src/app/api/diagnosis/diagnose/route.ts", "utf8");
-  assert.match(diagnose, /structuredHerbBoundaryAudience: \{ reproductive: reproductiveAdviceRelevant\(gated\), ageYears: authoritativePatientAgeYears\(gated\) \?\? null \}/u);
+  // 10/22 起多一个 pregnancy（孕哺类提示按 pregnancyAdviceRelevant，见 test:r1026-main §4）。
+  assert.match(diagnose, /structuredHerbBoundaryAudience: \{ reproductive: reproductiveAdviceRelevant\(gated\), pregnancy: pregnancyAdviceRelevant\(gated\), ageYears: authoritativePatientAgeYears\(gated\) \?\? null \}/u);
   const prescribe = readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
   assert.match(prescribe, /structuredHerbBoundaryAudience: \{ reproductive: reproductiveAdviceRelevant\(gated\)/u);
 });

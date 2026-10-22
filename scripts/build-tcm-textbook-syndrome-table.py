@@ -1559,6 +1559,23 @@ class BookParser:
             definition = intro_parts[0]
         sentence = re.match(r"^[^。]*。", definition)
         definition = (sentence.group(0) if sentence else definition)[:200]
+        # 一节合写两个病名（「胎漏、胎动不安」）时，教材在节首逐个给出各自的定义句（胎漏：阴道少量流血而无腰酸腹痛；
+        # 胎动不安：腰酸、腹痛、小腹下坠，或伴少量流血）。此前只取到「病名虽不同，但临床难以截然分开」那一句，
+        # 模型看不到两者的区分，按节名逐字写成前一个（2026-10-22 S 集妊娠例：腰酸腹痛下坠写成胎漏，依据里又说「故不归胎漏」）。
+        # 每个病名都找到「称为/为“X”」的定义句时，用这几句作定义；有一个找不到就保持原样。
+        parts = [part for part in name.split("、") if len(part) >= 2] if "、" in name else []
+        if len(parts) >= 2:
+            sentences = [item for body in intro_parts for item in re.findall(r"[^。]*。", body)]
+            picked: list[str] = []
+            for part in parts:
+                hit = next((item for item in sentences if re.search(rf"(?:称为|名为|为|曰)[“\"]?{re.escape(part)}[”\"]?", nospace(item))), None)
+                if hit is None:
+                    picked = []
+                    break
+                if hit not in picked:
+                    picked.append(hit)
+            if picked:
+                definition = "".join(picked)[:300]
         intro = "".join(intro_parts)
         western = span.get("western")
         info = {

@@ -1746,6 +1746,17 @@ const DIAGNOSIS_LABEL_ONLY = /^(?:[\p{Script=Han}A-Za-z0-9+\-]+(?:病|炎|癌|�
  * 两处叠加，慢性病程的病例（不寐、便秘、虚劳……）整份辨证被判成「没有当前事实」而退回占位结果
  *（合成集 S170 稳定复现、S022 偶发）。本判据只是「至少有一条现症」的底线，逐条事实的接地另有专门校验。
  */
+// 前置的既往时间锚只管它所在的小句及其后，管不到它前面已写完的现症；「已缓解/已治愈/目前稳定…」这类转归词
+// 说的是前面写过的表现，仍按整句判既往。
+const FORWARD_HISTORY_ANCHOR = /(?:既往|曾经)/u;
+const HISTORICAL_OUTCOME_CUE = /(?:已缓解|已治愈|无新发|未再发|目前稳定|当前稳定|恢复期|后遗症)/u;
+
+function isCurrentPositiveClause(clause: string): boolean {
+  const normalized = clause.replace(/[\s，,。；;：:、（）()【】\[\]]+/g, "");
+  if (!normalized || isNegatedClinicalClause(clause)) return false;
+  return !DIAGNOSIS_LABEL_ONLY.test(normalized);
+}
+
 export function isCurrentPositiveTcmAnchor(value: string): boolean {
   return value.normalize("NFKC").split(/[。；;\n]+/).some((sentence) => {
     if (!sentence.trim()) return false;
@@ -1756,16 +1767,21 @@ export function isCurrentPositiveTcmAnchor(value: string): boolean {
     // 「术后 + 时长 + 出现/开始/发现」去掉这一锚再判（构词式守卫，只认这一种写法）。
     const withoutOnsetAnchor = sentence.replace(/(?:手)?术后\s*(?:\d+|[一二两三四五六七八九十半数几]+)\s*(?:个)?\s*(?:天|日|周|星期|月|年)(?:余|多)?(?:后|来)?\s*(?=出现|开始|发现|始觉|自觉)/u, "");
     if (HISTORICAL_SUPPORT.test(withoutOnsetAnchor)) {
-      return splitIntoClinicalClauses(sentence).some((clause) => {
+      const clauses = splitIntoClinicalClauses(sentence);
+      // 句中靠后才出现的「既往/曾经」（2026-10-22 S 集 S-renal-008：「尿频，夜尿1次，…腰痛乏力，肾功能不全既往规律口服金水宝」
+      // 整句被引作依据，句末的「既往」让前面七项现症全算既往，M03 五次里四次退回受限结果）：
+      // 锚之前的小句按现症判（构词式守卫：锚小句须含既往/曾经、句中无转归词、锚不在首个小句）。
+      const anchorIndex = clauses.findIndex((clause) => HISTORICAL_SUPPORT.test(clause));
+      const forwardAnchorOnly = anchorIndex > 0
+        && FORWARD_HISTORY_ANCHOR.test(clauses[anchorIndex])
+        && !HISTORICAL_OUTCOME_CUE.test(withoutOnsetAnchor);
+      return clauses.some((clause, index) => {
+        if (forwardAnchorOnly && index < anchorIndex) return isCurrentPositiveClause(clause);
         const trimmed = clause.replace(/^[\s，,、]+/, "");
         return /^(?:舌|脉)/u.test(trimmed) && !HISTORICAL_SUPPORT.test(trimmed) && !isNegatedClinicalClause(clause);
       });
     }
-    return splitIntoClinicalClauses(sentence).some((clause) => {
-      const normalized = clause.replace(/[\s，,。；;：:、（）()【】\[\]]+/g, "");
-      if (!normalized || isNegatedClinicalClause(clause)) return false;
-      return !DIAGNOSIS_LABEL_ONLY.test(normalized);
-    });
+    return splitIntoClinicalClauses(sentence).some(isCurrentPositiveClause);
   });
 }
 
@@ -2551,8 +2567,8 @@ export function modificationDoseWithinPharmacopoeia(doseOrHandling: unknown, her
   return dose > 0 && dose <= max && (min == null || dose >= 0.5);
 }
 
-/** 加减的触发条件是已定证型在教材里的一条加减，且所加的药在该条里。 */
-function isTextbookConditionalModification(trigger: unknown, herbName: string, prior: M03ReasoningLike): boolean {
+/** 加减的触发条件是已定证型在教材里的一条加减，且所加的药在该条里。编译器、最终合同与定稿前的方向过滤共用这一判据。 */
+export function isTextbookConditionalModification(trigger: unknown, herbName: string, prior: M03ReasoningLike): boolean {
   return Boolean(textbookModificationMatch(
     String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""), String(trigger || ""), herbName,
   ));

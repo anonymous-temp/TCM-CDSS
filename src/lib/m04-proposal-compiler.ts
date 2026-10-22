@@ -27,7 +27,7 @@ import {
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
-import { authoritativePatientAgeYears, clinicalGroundingText, reproductiveAdviceRelevant, sourceDocumentsNegation } from "./diagnosis-safety";
+import { authoritativePatientAgeYears, clinicalGroundingText, pregnancyAdviceRelevant, reproductiveAdviceRelevant, sourceDocumentsNegation } from "./diagnosis-safety";
 import modificationRelevanceJson from "../data/tcm-modification-relevance.source.json";
 import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
@@ -224,7 +224,7 @@ const PRESCRIPTION_ADMINISTRATION_LINE = /温服|冷服|顿服|煎服|先煎|后
 
 /**
  * 注意事项按本例收口（只删，不改写）：
- *  · 生殖相关的条目只写给有此可能的患者：男性、儿童、已绝经者不写（见 reproductiveAdviceRelevant）；
+ *  · 孕哺相关的条目只写给有此可能的患者：男性、未满 15 岁、已绝经者不写（见 pregnancyAdviceRelevant）；
  *  · 已确认妊娠的，不写「如已怀孕或备孕请先告知医生」这个假设小句，同一条里其余内容（「方中川贝母、桔梗孕期慎用」）照列
  *   （2026-10-14 独立评审：孕 24 周仍写「如已怀孕」）；
  *  · 红旗未解除（安全闸门 red_flag）时不写怎么服这张方——此刻要做的是急诊评估，这一页也不给剂量
@@ -233,7 +233,7 @@ const PRESCRIPTION_ADMINISTRATION_LINE = /温服|冷服|顿服|煎服|先煎|后
  */
 function casePrecautions(precautions: readonly string[], caseState: CaseState | undefined): string[] {
   if (!caseState) return [...precautions];
-  if (!reproductiveAdviceRelevant(caseState)) precautions = precautions.filter((item) => !REPRODUCTIVE_ADVICE_LINE.test(item));
+  if (!pregnancyAdviceRelevant(caseState)) precautions = precautions.filter((item) => !REPRODUCTIVE_ADVICE_LINE.test(item));
   else if (assessPregnancyState(clinicalGroundingText(caseState)).status === "positive") {
     precautions = precautions.map((item) => withoutClauses(item, PREGNANCY_CONDITIONAL_CLAUSE)).filter(Boolean);
   }
