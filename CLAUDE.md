@@ -1705,6 +1705,25 @@ The user asked for every found-but-unfixed item to be researched or thought thro
   - §3.9 now says M02 is reused too.
   - `test:api-doc-field-parity` registers `westernDiagnosis.candidates[].keyEvidence` as conditional.
 
+**qwen 1.1 rubric (same scripts as rounds 10–14).** Every row is ≥95% in every arm, so the rubric is saturated and cannot show this round's effect.
+- det42: round 14 → 15 is unchanged within noise (R 41 → 40 of 42; every other row 100%).
+- Targeted ON vs OFF: ON has 2 L (病机分析) failures.
+  - S189.r2: the two arms generated different primary syndromes (脾虚证 vs 实热证). This is generation variance, and the element check withdrew nothing there.
+  - S-pregnancy-014.r1 (胎漏·血热证): the check withdrew 气虚, because the record matches only 乏力 among the 气虚证 key points (脉细滑数 is not 脉虚). The judge wanted the deficiency kept. This is a real disagreement between the criteria and the judge, so it is recorded here rather than tuned away.
+
+**In production (ccb67f4, deployed 2026-10-22 about 20:35 Beijing; tag `20261022-ccb67f4-prebuilt`, same release directory and `20260927-dsrepair` override).**
+- **Verification.** `verify:release` was green (275 suites). `verify:deployed-image` passed (commit, digest, strictReady, both families). `regress:prod-smoke` had 0 failures (M03 P95 14.7 s, M04 P95 11.5 s).
+- **The external reviewer's script, re-run on hospital-b.**
+  - Red flags 10/10; no tongue/pulse gives a bounded result; early menses keeps 月经 in its basis.
+  - Palpitation: 心虚胆怯证, the second node 「神不守舍而寐浅多梦 → 养心安神，和血宁心」, the uncertainty 「是否兼心血虚」, textbook 加减 as `kb_entry` with the textbook raw, and a correct usage line.
+  - The stomach case now picks the disease 胃痞 (肝郁气滞证, 越鞠丸合枳术丸) instead of this morning's 胃痛·肝气犯胃证. The element check did not fire and labels do not affect generation, so this is the disease pick varying on a new build (the reuse fingerprint includes the build digest). 「胀痛」 reads more like 胃痛. Left for a later round.
+- **Rollback.** Image `tcm-cdss:20261022-14cb304-prebuilt` with `docker-compose.yml.pre-ccb67f4`.
+- **Disk.**
+  - The host was at 1.8 GB before the deploy, because other projects (rxai upgrade dumps, hecrs) keep writing.
+  - With the user's approval, the Docker build cache (3.4 GB reclaimed), our dbcca5d image and the 14cb304 build context were removed; the list is in `~/telemetry-archive/cleanup-20261022.txt` on the host. The four dangling images are referenced by rxai/hecrs containers and stayed.
+  - The user approved a 9 GB floor for this deploy only (the script default stays 12). By the time the script checked, the host had 14 GB, so the floor was not actually lowered. It was back at 3.1 GB minutes later.
+  - Locally, the approved cleanup was superseded outputs, `node_modules/.cache`, `~/.npm` and `~/.cache/uv`. The local prebuild left 298 MB free on /home; the artifact was deleted after the deploy.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
