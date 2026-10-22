@@ -1680,7 +1680,7 @@ The user asked for every found-but-unfixed item to be researched or thought thro
   - `enrichPrescriptionProvenance` rewrote **every** 先煎 on a line that mentioned 酸枣仁 to 捣碎后同煎. Once the usage line named 酸枣仁, 龙齿 became 「龙齿捣碎后同煎20–30分钟」. The delivered surface's BEST4SDT-139 patch for 「龙齿捣碎后同煎」 in precautions was the same root cause. Only the 先煎 right after 酸枣仁 is rewritten now.
   - Therapy items with the organ inside (「养肝血」「滋肾阴」) count as therapy for the element.
 
-**Measured (local route harness, customer request shape, same day; material in `~/runlogs/r1018/out/{tgtON,tgtOFF,det}-r27`, summary script `work/r1027/probe/summarize.mjs`).**
+**Measured (local route harness, customer request shape, same day; the raw outputs were deleted in the evening cleanup, the numbers are recorded here; the case set is `work/r1027/target-elements.json` and the summary script `work/r1027/probe/summarize.mjs`).**
 
 | | element check off | element check on |
 |---|---|---|
@@ -1722,7 +1722,19 @@ The user asked for every found-but-unfixed item to be researched or thought thro
   - The host was at 1.8 GB before the deploy, because other projects (rxai upgrade dumps, hecrs) keep writing.
   - With the user's approval, the Docker build cache (3.4 GB reclaimed), our dbcca5d image and the 14cb304 build context were removed; the list is in `~/telemetry-archive/cleanup-20261022.txt` on the host. The four dangling images are referenced by rxai/hecrs containers and stayed.
   - The user approved a 9 GB floor for this deploy only (the script default stays 12). By the time the script checked, the host had 14 GB, so the floor was not actually lowered. It was back at 3.1 GB minutes later.
+  - **Evening cleanup on the host.** The user also asked to clear other projects' temp files, historical images and process files. The host ended at 4.4 GB. What was removed:
+    - superseded unused CI/runtime images. One recent rollback was kept per product: open-science 02db5f94f26e, rxai de995e8, ours 14cb304;
+    - the finished rxai fresh-install test container from 10/20;
+    - the build cache;
+    - unlinked anonymous volumes and our three old deployment volumes.
+  - **Images also referenced by digest from the local registry `127.0.0.1:35541/evimed-selected` only lose their tag on `docker rmi <tag>`** and free nothing. Remove them by ID with `-f`, or leave them. The 「unique size」 in `docker system df -v` overstates what removal frees, because most layers are shared with the running images.
+  - Backups, database dumps (rxai pre-upgrade dumps in `~/.cache`) and project data directories (hecrs-state/backups/incoming/releases…) were left alone.
   - Locally, the approved cleanup was superseded outputs, `node_modules/.cache`, `~/.npm` and `~/.cache/uv`. The local prebuild left 298 MB free on /home; the artifact was deleted after the deploy.
+  - **Evening cleanup on this machine.**
+    - What was removed: every `/tmp` entry owned by coder with no change in 24 h and no process using it (5,706 entries; / went from 2.1 → 9.2 GB free), the jiti and node compile caches, and the pnpm/corepack caches.
+    - Kept, because they are in use: `/tmp/bat-pg` (a running postgres whose binaries are in `~/.cache/evimed-pg`) and `/tmp/code-server`.
+    - `/tmp/rxai-codex` was a linked worktree of `~/workspace/合理用药`. It was clean and its HEAD was on origin, so it was removed with `git worktree remove`.
+    - The deleted names are in `~/runlogs/r1018/work/r1027/local-cleanup-20261022.txt`.
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
