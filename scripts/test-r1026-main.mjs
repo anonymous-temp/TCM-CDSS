@@ -255,4 +255,17 @@ await check("6.3 锚定保留模型写的「胎动不安」，不改回节名；
   assert.equal(renamed.overview.tcmDiseaseName, "胎漏、胎动不安");
 });
 
+// ───── 7 整类对照的门诊病历模板 ─────
+await check("7.1 句子写了体温时，模板结构化体温取同一读数；没写时 36.5℃；两个以上读数不填；角度「30度」不算体温", async () => {
+  const { outpatientRecord } = await import("./lib/open-language-class-contexts.mjs");
+  const t = (text) => [outpatientRecord(text, "x").vitals.T, outpatientRecord(text, "x").hisRecord.fields.vitalsT];
+  assert.deepEqual(t("体温35.5℃，无寒战、意识改变或暴露史。"), ["35.5℃", "35.5℃"]);
+  assert.deepEqual(t("腋温35.3℃，手足欠温，无意识改变。"), ["35.3℃", "35.3℃"]);
+  assert.deepEqual(t("入睡困难，多梦易醒"), ["36.5℃", "36.5℃"]);
+  assert.deepEqual(t("直腿抬高试验30度阳性"), ["36.5℃", "36.5℃"]);
+  assert.deepEqual(t("发热3天，最高39℃，今晨37.8℃"), [undefined, undefined]);
+  // 其余三项照旧取模板值（确定性血压夹具建在完整模板上）。
+  assert.equal(outpatientRecord("血压200/120mmHg，头晕。", "x").vitals.BP, "122/76mmHg");
+});
+
 console.log(`\n${cases} checks`);

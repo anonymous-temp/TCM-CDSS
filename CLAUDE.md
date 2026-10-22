@@ -1598,7 +1598,13 @@ The user asked for every found-but-unfixed item to be researched or thought thro
   - Result: 腰酸/腹痛/下坠 cases 12/12 胎动不安; bleeding-only cases 5/6 胎漏.
 
 **Looked at, not changed.**
-- **「Vital urgency depends on the facts model」 (round 13) is a measurement artifact.** The `outpatient_record` parity context carries a structured T 36.5℃ that contradicts the sentence's 35.x℃, so 「possible/clarify」 is a sensible judgement. The sparse context passes, and the fixture's own `measurementsNote` already says so.
+- **「Vital urgency depends on the facts model」 (round 13) is a measurement artifact; the harness was fixed, the product was not changed.**
+  - The `outpatient_record` parity context carried a structured T 36.5℃ that contradicted the sentence's 35.x℃, so 「possible/clarify」 was a sensible judgement. 14 of round 13's 17 parity failures were this.
+  - `scripts/lib/open-language-class-contexts.mjs` now sets the structured temperature to the sentence's own reading when it states exactly one, and omits it when it states several. That is the golden baseline case's shape.
+  - Only temperature changed. Deleting the structured BP was tried first: it added 「high_risk_missing_vitals」 to the deterministic BP fixtures, which were built on the complete template.
+  - Gate replay over all 753 fixture sentences in that context (status, dose, red flags, advisories, missing items): 0 changed.
+  - Re-measured with qwen3.8-max, RUNS=3: that class 2/12 → 12/12 (development) and 2/6 → 6/6 (held-out). All parity failures went 17 → 6; the 6 are disposition-time-window sampling in the sparse context, which the template change does not touch (3 in round 13).
+  - Pinned by `test:r1026-main` 7.1.
 - **A model-written normal claim against an abnormal record** (S162 「本例精神尚可」 vs 「精神疲倦」): 1 in 687 saved diagnoses. The claim-check prompt already covers contradictions, so no rule was added.
 - **病历2 五味安神颗粒** is still deferred by the user.
 
