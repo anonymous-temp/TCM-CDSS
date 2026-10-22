@@ -1,0 +1,499 @@
+{
+  "schemaVersion": 1,
+  "purpose": "病机链、病性轴里「主证名之外」写出的虚性证素（气虚、血虚、阴虚、阳虚）要过《中医诊断学》辨证要点核对（m03-element-support.server.ts）。本表只负责认出这些说法、归到哪一类证素与哪个脏腑；够不够数由 tcm-diagnostics-syndrome-criteria.json 的判据决定。",
+  "sourceRef": "《中医诊断学》（十三五规划教材，李灿东主编，2016）气虚证、血虚证、阴虚证、阳虚证及脏腑虚证各条【辨证要点】；国中医药医政发〔2020〕3号《中医临床诊疗术语 第2部分：证候》。辨证要点原文按本表 keyPoints 逐字摘录（阳虚证原文的「面色㿠白」在本地语料缺字，按教材补全）。",
+  "organs": {
+    "心": "心",
+    "肝": "肝",
+    "脾": "脾",
+    "肺": "肺",
+    "肾": "肾",
+    "胃": "胃",
+    "胆": "胆",
+    "中": "脾",
+    "卫": "肺"
+  },
+  "mentions": [
+    {
+      "pattern": "气血两虚",
+      "types": [
+        "气虚",
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "气血亏虚",
+      "types": [
+        "气虚",
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "气血不足",
+      "types": [
+        "气虚",
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "气血虚弱",
+      "types": [
+        "气虚",
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "气血亏耗",
+      "types": [
+        "气虚",
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "气阴两虚",
+      "types": [
+        "气虚",
+        "阴虚"
+      ]
+    },
+    {
+      "pattern": "气阴亏虚",
+      "types": [
+        "气虚",
+        "阴虚"
+      ]
+    },
+    {
+      "pattern": "气阴不足",
+      "types": [
+        "气虚",
+        "阴虚"
+      ]
+    },
+    {
+      "pattern": "阴阳两虚",
+      "types": [
+        "阴虚",
+        "阳虚"
+      ]
+    },
+    {
+      "pattern": "阴血不足",
+      "types": [
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "阴血亏虚",
+      "types": [
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "精血不足",
+      "types": [
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "精血亏虚",
+      "types": [
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "营血不足",
+      "types": [
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "营血亏虚",
+      "types": [
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "血亏虚",
+      "types": [
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "血不足",
+      "types": [
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "血亏",
+      "types": [
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "血虚",
+      "types": [
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "血少",
+      "types": [
+        "血虚"
+      ]
+    },
+    {
+      "pattern": "阴液不足",
+      "types": [
+        "阴虚"
+      ]
+    },
+    {
+      "pattern": "阴液亏虚",
+      "types": [
+        "阴虚"
+      ]
+    },
+    {
+      "pattern": "阴津不足",
+      "types": [
+        "阴虚"
+      ]
+    },
+    {
+      "pattern": "阴津亏虚",
+      "types": [
+        "阴虚"
+      ]
+    },
+    {
+      "pattern": "阴精不足",
+      "types": [
+        "阴虚"
+      ]
+    },
+    {
+      "pattern": "阴不足",
+      "types": [
+        "阴虚"
+      ]
+    },
+    {
+      "pattern": "阴亏",
+      "types": [
+        "阴虚"
+      ]
+    },
+    {
+      "pattern": "阴虚",
+      "types": [
+        "阴虚"
+      ]
+    },
+    {
+      "pattern": "阳气不足",
+      "types": [
+        "阳虚"
+      ]
+    },
+    {
+      "pattern": "阳气虚衰",
+      "types": [
+        "阳虚"
+      ]
+    },
+    {
+      "pattern": "阳气亏虚",
+      "types": [
+        "阳虚"
+      ]
+    },
+    {
+      "pattern": "命门火衰",
+      "types": [
+        "阳虚"
+      ]
+    },
+    {
+      "pattern": "火不暖土",
+      "types": [
+        "阳虚"
+      ]
+    },
+    {
+      "pattern": "阳不足",
+      "types": [
+        "阳虚"
+      ]
+    },
+    {
+      "pattern": "阳虚",
+      "types": [
+        "阳虚"
+      ]
+    },
+    {
+      "pattern": "阳衰",
+      "types": [
+        "阳虚"
+      ]
+    },
+    {
+      "pattern": "气亏虚",
+      "types": [
+        "气虚"
+      ]
+    },
+    {
+      "pattern": "气不足",
+      "types": [
+        "气虚"
+      ]
+    },
+    {
+      "pattern": "气虚",
+      "types": [
+        "气虚"
+      ]
+    },
+    {
+      "pattern": "气弱",
+      "types": [
+        "气虚"
+      ]
+    },
+    {
+      "pattern": "阳气不振",
+      "types": [
+        "阳虚"
+      ]
+    },
+    {
+      "pattern": "阳不振",
+      "types": [
+        "阳虚"
+      ]
+    },
+    {
+      "pattern": "阳微",
+      "types": [
+        "阳虚"
+      ]
+    },
+    {
+      "pattern": "气血亏",
+      "types": [
+        "气虚",
+        "血虚"
+      ]
+    }
+  ],
+  "types": {
+    "血虚": {
+      "genericEntry": "血虚证",
+      "organEntrySuffix": "血虚证",
+      "keyPoints": "面、睑、唇、舌色淡白，脉细",
+      "therapyVerbs": [
+        "养血",
+        "补血",
+        "生血",
+        "益血"
+      ],
+      "therapyWord": "养血"
+    },
+    "阴虚": {
+      "genericEntry": "阴虚证",
+      "organEntrySuffix": "阴虚证",
+      "keyPoints": "口咽干燥、五心烦热、潮热盗汗、两颧潮红、舌红少苔、脉细数",
+      "therapyVerbs": [
+        "滋阴",
+        "养阴",
+        "育阴",
+        "补阴"
+      ],
+      "therapyWord": "滋阴"
+    },
+    "气虚": {
+      "genericEntry": "气虚证",
+      "organEntrySuffix": "气虚证",
+      "keyPoints": "神疲乏力、少气懒言、脉虚、动则诸症加剧",
+      "therapyVerbs": [
+        "益气",
+        "补气"
+      ],
+      "therapyWord": "益气"
+    },
+    "阳虚": {
+      "genericEntry": "阳虚证",
+      "organEntrySuffix": "阳虚证",
+      "keyPoints": "畏寒肢冷、小便清长、面色㿠白，常与气虚症状共见",
+      "therapyVerbs": [
+        "温阳",
+        "助阳",
+        "补阳",
+        "壮阳",
+        "温肾"
+      ],
+      "therapyWord": "温阳"
+    }
+  },
+  "entailment": {
+    "organDeficiencyDefaultType": "气虚",
+    "organDeficiencyAllTypes": [
+      "肾"
+    ],
+    "anyTypeMarkers": [
+      "两虚",
+      "两亏",
+      "不足证",
+      "亏虚证",
+      "亏损证",
+      "虚损"
+    ],
+    "coldDeficiencyMarkers": [
+      "虚寒",
+      "脏寒",
+      "火衰"
+    ],
+    "heatDeficiencyMarkers": [
+      "虚火",
+      "虚热"
+    ],
+    "insecurityMarkers": [
+      "不固"
+    ],
+    "deficiencyNameMarkers": [
+      "虚",
+      "怯",
+      "弱",
+      "亏",
+      "不足",
+      "衰"
+    ],
+    "_note": "证名里有 deficiencyNameMarkers 任一字样时，名中各脏腑按 organDeficiencyDefaultType 算涵盖（肾按各类）：心虚胆怯证涵盖心、胆气虚（国标心胆气虚证即心虚胆怯）；涵盖口径宁宽勿窄，只为找出明显的名外证素。 不固（表虚不固、肾气不固）与虚、怯等同样按名中脏腑算涵盖。脾、胃同组：涵盖其一即涵盖另一（脾胃气虚证即脾气虚证）。阳虚涵盖同脏气虚（阳虚常与气虚共见）。",
+    "organCoverageGroups": [
+      [
+        "脾",
+        "胃"
+      ]
+    ],
+    "typeImplies": {
+      "阳虚": [
+        "气虚"
+      ]
+    },
+    "impliedByName": [
+      {
+        "marker": "肝阳",
+        "types": [
+          "阴虚"
+        ],
+        "organs": [
+          "肝",
+          "肾"
+        ],
+        "basis": "《中医诊断学》肝阳上亢证：肝肾阴亏、肝阳亢扰于上，上实下虚"
+      },
+      {
+        "marker": "阳亢",
+        "types": [
+          "阴虚"
+        ],
+        "organs": [
+          "肝",
+          "肾"
+        ],
+        "basis": "同上"
+      },
+      {
+        "marker": "风阳",
+        "types": [
+          "阴虚"
+        ],
+        "organs": [
+          "肝",
+          "肾"
+        ],
+        "basis": "风阳上扰由肝肾阴亏、阳亢化风"
+      },
+      {
+        "marker": "相火",
+        "types": [
+          "阴虚"
+        ],
+        "organs": [
+          "肾"
+        ],
+        "basis": "相火妄动为肾阴亏虚、虚火内炽"
+      },
+      {
+        "marker": "心肾不交",
+        "types": [
+          "阴虚"
+        ],
+        "organs": [
+          "心",
+          "肾"
+        ],
+        "basis": "《中医诊断学》心肾不交证：心肾水火既济失调，多为心肾阴亏"
+      },
+      {
+        "marker": "下元",
+        "types": [
+          "气虚",
+          "阳虚",
+          "阴虚"
+        ],
+        "organs": [
+          "肾"
+        ],
+        "basis": "下元即肾"
+      },
+      {
+        "marker": "劳淋",
+        "types": [
+          "气虚",
+          "阳虚",
+          "阴虚"
+        ],
+        "organs": [
+          "脾",
+          "肾"
+        ],
+        "basis": "《中医内科学》淋证·劳淋：脾肾亏虚，湿浊留恋"
+      },
+      {
+        "marker": "失健运",
+        "types": [
+          "气虚"
+        ],
+        "organs": [
+          "脾"
+        ],
+        "basis": "脾失健运即脾气虚弱、运化失职"
+      },
+      {
+        "marker": "亏脱",
+        "types": [
+          "气虚",
+          "血虚"
+        ],
+        "organs": [],
+        "basis": "气血亏脱"
+      }
+    ]
+  },
+  "dependentClauseOpeners": [
+    "兼",
+    "并",
+    "且",
+    "亦",
+    "又",
+    "而",
+    "故",
+    "则",
+    "致",
+    "以致"
+  ]
+}

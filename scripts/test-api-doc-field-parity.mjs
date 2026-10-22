@@ -69,6 +69,8 @@ const CONDITIONAL = new Map([
   // 本轮 EviMed 未命中就整条不输出——这正是"宁可少一栏，也不让一条编造的指南名出现"的行为。
   ["westernDiagnosis.primary.guidelineReferences[]", "仅当本轮 EviMed 指南/文献检索命中、且模型引用了其条目号时输出"],
   ["westernDiagnosis.differentials[].guidelineReferences[]", "仅当本轮受治理证据命中并绑定到对应鉴别诊断时输出"],
+  // 2026-10-22 V2.38：西医诊断依据的位置写进 §5.1（外部复核照旧版文档找 supportingFacts，读到空数组）。
+  ["westernDiagnosis.candidates[].keyEvidence", "西医部分列出候选诊断时输出"],
   ["overview.tcmDiseaseReferences[]", "仅在形成中医病名时由服务端绑定受治理辨病标准"],
   ["overview.tcmSyndromeReferences[]", "仅在形成中医证候时由服务端绑定受治理辨证标准"],
   // 2026-08-10 ⑪：protocolGapNote 只在 protocolGap 命中受控映射时下发（HIS 方案出参，

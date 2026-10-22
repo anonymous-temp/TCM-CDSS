@@ -13,6 +13,11 @@ export type EvidenceScope = {
   ids: Set<string>;
   urls: Set<string>;
   records: EvidenceRecord[];
+  /**
+   * 服务端受治理资料出处的核验（教材证型行与加减、《中医诊断学》辨证要点；governed-evidence-sources.server.ts）。
+   * 只对 kb_entry 生效；由服务端路由传入，页面侧没有。
+   */
+  governed?: (source: string) => boolean;
 };
 
 const CUSTOMER_EVIDENCE_PLACEHOLDER = /(?:证据不足|待检索|待核验|检索失败|未配置|内部证据缺口|来源机构未明|年份未明|摘要未提供|题名未知|年份未知|来源未知|机构未知)/;
@@ -95,6 +100,7 @@ export function sourceAllowed(source: string, evidenceLevel: string | undefined,
   if (!clean || CUSTOMER_EVIDENCE_PLACEHOLDER.test(clean)) return false;
   if (evidenceLevel === "insufficient") return false;
   if (/(?:中国药典|药典).{0,12}2020|2020.{0,12}(?:中国药典|药典)/.test(clean)) return false;
+  if (evidenceLevel === "kb_entry" && scope?.governed?.(clean)) return true;
   if (evidenceLevel === "model_inference" || evidenceLevel === "deterministic_rule") {
     // model_inference/deterministic_rule 不得挟带外部权威引用。除 URL/ID/《》/DOI/PMID/指南/说明书/药典/文献/共识 外，
     // 补齐常见文献造假信号(研究/论文/循证/临床试验/RCT/荟萃/系统评价/meta/期刊/杂志)；命中即须通过 guideline 白名单校验，

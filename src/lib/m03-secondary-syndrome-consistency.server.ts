@@ -432,7 +432,8 @@ const sharesPrimaryManifestation = (quote: string, primaryTerms: readonly string
   });
 };
 
-export type CriteriaVerdict = { verdict: "pass" | "fail" | "unknown"; entry?: string; specific: number; category: number; listed: number; distinct: number };
+/** quotes：计入判定的病历摘录（去重、已排除主证同一表现），证素核对给证据标签用。 */
+export type CriteriaVerdict = { verdict: "pass" | "fail" | "unknown"; entry?: string; specific: number; category: number; listed: number; distinct: number; quotes?: string[] };
 
 /** 小任务给出的对应 → 判定。纯函数，供测试。 */
 export function evaluateCriteriaMatches(
@@ -481,7 +482,7 @@ export function evaluateCriteriaMatches(
       (specific + sharedSpecific >= needSpecific && category >= 3);
   } else if (entry.category) pass = specific >= Math.min(2, entry.specific.length) && distinct >= 2;
   else pass = specific >= Math.min(2, entry.specific.length) && distinct >= 3;
-  return { verdict: pass ? "pass" : "fail", entry: entry.name, specific, category, listed, distinct };
+  return { verdict: pass ? "pass" : "fail", entry: entry.name, specific, category, listed, distinct, quotes: [...seenQuotes] };
 }
 
 const CRITERIA_MATCH_SYSTEM = [

@@ -2065,7 +2065,17 @@ function specialDecoctionClauses(herbs: readonly unknown[]): string[] {
     // 先煎又包煎的（金礞石、青礞石）两组都点名，见 specialDecoctionOrderIndexes。
     for (const index of specialDecoctionOrderIndexes(name, declared)) if (!groups[index].includes(name)) groups[index].push(name);
   }
-  return groups.flatMap((names, index) => names.length > 0 ? [SPECIAL_DECOCTION_ORDER[index].phrase(names.join("、"))] : []);
+  // 要捣碎的药（药典【用法与用量】或炮制项写「用时捣碎」：酸枣仁、苦杏仁…）也在用法里点名，写在下药时机之后（2026-10-22 第十五轮，
+  // 外部复核：酸枣仁药味栏写「捣碎后同煎」、煎服用法没写，只看用法的出口会漏）。捣碎是准备，不改变下药顺序。
+  const crushed = herbs.flatMap((rawHerb) => {
+    const herb = recordValue(rawHerb);
+    const name = typeof herb?.name === "string" ? herb.name.trim() : "";
+    return name && typeof herb?.decoctionRequirement === "string" && /捣碎|打碎/u.test(herb.decoctionRequirement) ? [name] : [];
+  });
+  return [
+    ...groups.flatMap((names, index) => names.length > 0 ? [SPECIAL_DECOCTION_ORDER[index].phrase(names.join("、"))] : []),
+    ...(crushed.length > 0 ? [`${[...new Set(crushed)].join("、")}用前捣碎`] : []),
+  ];
 }
 
 export function applyDeterministicDecoctionMethod(content: string, clinicalContext: string, patientAgeYears?: number): string {

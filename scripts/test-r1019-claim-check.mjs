@@ -207,7 +207,8 @@ await check("B1 横幅列出每一条不同的红旗：去重、语义层红旗�
 await check("W1 辨证路由：中医半与兼证一致并行、西医半与病名核对并行，都落在它们的结果上；确定性红旗病例的横幅并进语义层红旗", () => {
   const route = fs.readFileSync(path.join(SRC, "app/api/diagnosis/diagnose/route.ts"), "utf8");
   assert.match(route, /Promise\.all\(\[\s*reconcileSecondarySyndromes\(completed,[\s\S]{0,200}decidePatientClaimRemovals\(completed,[^)]*"tcm"/u);
-  assert.match(route, /return applyPatientClaimRemovalsToContent\(reconciled, "tcm", claimRemovals\)/u);
+  // 2026-10-22 第十五轮：兼证核对的结果先过证素核对（applyElementSupportDecision），本例说法核对仍落在它上面。
+  assert.match(route, /return applyPatientClaimRemovalsToContent\(applyElementSupportDecision\(reconciled, elementDecision\), "tcm", claimRemovals\)/u);
   assert.match(route, /Promise\.all\(\[\s*alignWesternPrimaryAndName\([\s\S]{0,400}decidePatientClaimRemovals\(westernContent,[^)]*"western"/u);
   assert.match(route, /return applyPatientClaimRemovalsToContent\(aligned, "western", claimRemovals\)/u);
   assert.match(route, /patientClaimRecordText\(trustedInputText\(safeState\), safeState\.patient, safeState\.vitals\)/u);

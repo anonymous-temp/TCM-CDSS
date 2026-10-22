@@ -653,6 +653,25 @@ export function textbookModificationMatch(
   return undefined;
 }
 
+/** 教材证型行的出处写法（证据标签与出处核验共用这一种）：《中医内科学》心悸·心虚胆怯证。 */
+export function textbookRowProvenance(row: Pick<TextbookSyndromeRow, "book" | "disease" | "syndromeName">): string {
+  return `《${row.book}》${row.disease}·${row.syndromeName}`;
+}
+
+/**
+ * 服务端写的教材出处是否属实（2026-10-22 第十五轮）：书名、病名、证名逐字是表里的一行；带「加减：」的，那条加减原文逐字在这一行里。
+ * 证据清洗（evidence-source-validation）此前不认教材表，把编译器写的教材加减出处一律降成「证据不足」并清空——
+ * 已存 567 条加减里 499 条如此，与接口文档 V2.35「evidence.source 写教材出处」相反。
+ */
+export function textbookProvenanceVerified(source: string): boolean {
+  const match = source.trim().match(/^《([^》]+)》([^·《》]+)·(.+?)(?:加减：(.+))?$/u);
+  if (!match) return false;
+  const [, book, disease, syndromeName, raw] = match;
+  return DISEASES.some((entry) => entry.rows.some((row) =>
+    row.book === book && row.disease === disease && row.syndromeName === syndromeName &&
+    (raw === undefined || row.modifications.some((item) => item.raw === raw))));
+}
+
 export interface TextbookDiscriminatingQuestion {
   question: string;
   reason: string;

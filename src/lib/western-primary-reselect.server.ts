@@ -3,7 +3,7 @@ import "server-only";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
-import { alignWesternNameWithRecord, isCleanWesternDiagnosisName, listedWesternDiagnosisNames, withoutSexIncompatibleWesternNames } from "./western-name-evidence-check.server";
+import { alignWesternNameWithRecord, isCleanWesternDiagnosisName, listedWesternDiagnosisNames, rationaleAlignedWithRenamedPrimary, withoutSexIncompatibleWesternNames } from "./western-name-evidence-check.server";
 import { quoteGroundedInText } from "./verbatim-quote";
 
 /**
@@ -100,6 +100,21 @@ function quotedBloodPressureNotShock(quote: string): boolean {
 }
 
 /** 把采信的重选写进西医半的输出：只动主诊断名、候选与鉴别三处；解析不了时原样返回。 */
+/**
+ * 重选主诊断后推理说明跟着改（2026-10-22 第十五轮）：此前只改病名，推理说明仍在论证原来那个病（「符合急性弥漫性腹膜炎」而病名已是绞窄性肠梗阻）。
+ *  · replace：前面写上采信这次重选的那句理由与新病名，原病名的断言式改成「需与X鉴别」；
+ *  · append：后面补上并发症的那句理由（推理说明原本只论证了主诊断）。
+ * 理由是重选小任务写的、引文已逐字核对在病历里（parseWesternPrimaryReselection）。
+ */
+export function rationaleForReselection(rationale: string, previous: string, selection: WesternPrimaryReselection): string {
+  const base = rationale.trim();
+  if (selection.action === "replace") {
+    const hedged = rationaleAlignedWithRenamedPrimary(base, previous, "A");
+    return `${selection.reason}，考虑${selection.name}${hedged ? `；${hedged}` : "。"}`;
+  }
+  return base ? `${base.replace(/[。；;\s]+$/u, "")}；${selection.reason}。` : `${selection.reason}。`;
+}
+
 export function applyWesternPrimaryReselection(westernContent: string, selection: WesternPrimaryReselection): string {
   let parsed: unknown;
   try { parsed = JSON.parse(westernContent); } catch { return westernContent; }
@@ -113,6 +128,7 @@ export function applyWesternPrimaryReselection(westernContent: string, selection
   const lead = candidates.find((item) => item.name === previous);
   const selected = candidates.find((item) => item.name === selection.name);
   const others = candidates.filter((item) => item.name !== previous && item.name !== selection.name);
+  if (typeof primary.clinicalRationale === "string") primary.clinicalRationale = rationaleForReselection(primary.clinicalRationale, previous, selection);
   if (selection.action === "replace") {
     primary.name = selection.name;
     if (candidates.length > 0) {

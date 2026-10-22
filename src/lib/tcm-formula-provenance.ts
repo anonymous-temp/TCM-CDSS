@@ -3144,9 +3144,10 @@ export function enrichPrescriptionProvenance(
     candidateConstructionTypes,
     candidateIdentityClaims,
   );
-  return alignedNarrative.replace(/^([^\n]*酸枣仁[^\n]*)$/gm, (line) =>
-    /先煎/.test(line) ? line.replace(/先煎(?:\s*\d+\s*分钟)?/g, "捣碎后同煎") : line
-  );
+  // 酸枣仁写成「先煎」时改成「捣碎后同煎」。只改紧跟在酸枣仁后面、中间没有别的药或分隔号的那一处：此前整行里所有「先煎」都改，
+  // 煎服用法点名酸枣仁（「龙齿先煎20–30分钟，…，酸枣仁用前捣碎」）后，龙齿也成了「捣碎后同煎」（2026-10-22 实测；
+  // 交付面 withoutContradictedDecoctionClaims 注释里的 BEST4SDT-139「龙齿捣碎后同煎」是同一个根因）。
+  return alignedNarrative.replace(/酸枣仁([^，,；;、。\n]{0,12}?)先煎(?:\s*\d+(?:[–-]\d+)?\s*分钟)?/g, "酸枣仁$1捣碎后同煎");
 }
 
 export function buildFormulaProvenanceContext(caseState: CaseState): string {

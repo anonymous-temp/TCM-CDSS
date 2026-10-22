@@ -437,7 +437,9 @@ try {
   settledSigned = signed;
   // 2026-10-13 更新指纹：交付面投影（delivered-surface.ts）在签名前清空西医诊断下的症状依据/待查依据/检查建议，
   // 治则改为国标治则术语（按证名与治法推出）。指纹仍然钉住「同一份合成输入 ⇒ 同一份最终临床载荷」。
-  assert.equal(m03ClinicalDecisionHash(signed), "sha256:e347a4a436adfdf4448306c4d14d04932ef76d5e89cf46fa23eed839a23a2b85", "the settled projection must preserve the final clinical payload");
+  // 2026-10-22 第十五轮再更新：逐字段比对新旧载荷，差异只有三处，都是本轮有意的——病机链首节点证据标为教材证型行
+  //（《中医内科学》不寐·心脾两虚证）、三条把握度说明换成临床写法、服务端「辨证推理质量边界」不确定项不交付。
+  assert.equal(m03ClinicalDecisionHash(signed), "sha256:3388f53948ca1fe884be1c38ec50391ca78d9b5bd2c38f94f2761353751f0966", "the settled projection must preserve the final clinical payload");
   assert.deepEqual(signed.westernDiagnosis.primary.supportingFacts, [], "交付的辨证结果不带症状依据");
   assert.deepEqual(signed.westernDiagnosis.primary.limitations, [], "交付的辨证结果不带待查依据");
   assert.deepEqual(signed.westernDiagnosis.primary.suggestedChecks, [], "交付的辨证结果不带检查建议");

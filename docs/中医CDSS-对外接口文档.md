@@ -2,8 +2,8 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V2.37 |
-| 发布日期 | 2026-10-14 |
+| 文档版本 | V2.38 |
+| 发布日期 | 2026-10-22 |
 | 服务版本 | `tcm-cdss-20260828-lineage-modification-contract-r1` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
@@ -471,9 +471,9 @@ Content-Type: application/json
 **客户端超时建议不低于 200 秒**，否则会在服务端仍在正常推理时被客户端单方面切断。
 心跳帧（§3.5）的作用正是让连接在长推理期间保持活跃，请勿把"一段时间没有正文"判为超时。
 
-**重试语义**：M01、M02、M05 为**非幂等**接口——同一 `caseState` 重复调用会重新生成内容，
+**重试语义**：M01、M05 为**非幂等**接口——同一 `caseState` 重复调用会重新生成内容，
 结论文字可能不同，但不会产生重复的业务副作用（系统无处方落库，结论由贵方决定是否采纳）。
-**M03、M04 自 V2.28 起对「同一病例」只计算一次**：服务端按「客户 + 阶段 + 会影响本阶段生成的病例内容」
+**M03、M04 自 V2.28 起、M02 自 V2.38 起对「同一病例」只计算一次**：服务端按「客户 + 阶段 + 会影响本阶段生成的病例内容」
 （不含上一轮返回的诊断/处方等产物）识别同一病例，同一病例的重复请求会**并入仍在进行的同一次计算**，
 或在 30 分钟内**直接回放已完成的结果**；计算与您的连接无关，您这边超时断开后计算照常完成，重试即可取到。
 响应头 `x-cdss-stage-result: joined | reused` 标明这次是并入还是回放。降级页、中断页与上游故障页不会被复用。
@@ -499,6 +499,25 @@ gzip -c m05-request.json | curl -X POST "$BASE_URL/api/diagnosis/assess" \
   -H "x-cdss-api-token: $CDSS_API_TOKEN" -H "x-cdss-customer-id: $CUSTOMER_ID" \
   --data-binary @-
 ```
+
+### 3.12 测试与验收怎么做（V2.38 新增）
+
+1. **先确认测的是哪个版本**：`GET /api/diagnosis/health` 的 `build.commit` 与 `releaseId` 是线上实际运行的版本，以它为准，不以文档日期为准。
+2. **测「同一病例结果是否稳定」要分两种**：同一份病历重复请求，按 §3.9 并入同一次计算或回放已有结果（响应头 `x-cdss-stage-result: joined | reused`），
+   这本来就会一致，不能说明重新生成的稳定性；要测重新生成的波动，请求头加 `x-cdss-regenerate: 1`，并逐字段统计（证名、治则、治法、方名、核心药味）的变化率。
+3. **西医诊断依据看哪里**：见 §5.1。`supportingFacts` / `limitations` / `suggestedChecks` 自 V2.35 起按贵方要求恒为空数组，依据在 `clinicalRationale`、
+   `candidates[].keyEvidence/againstEvidence` 与 `differentials[]`；病名因缺确诊检查而写到上一级（「贫血」「多囊卵巢综合征待查」）时，
+   推理说明写「考虑X可能」，原病名在鉴别里注明「尚未取得确诊所需的检查或病程依据」。
+4. **证据标签的含义**（`evidence: {evidenceLevel, source, confidence}`，V2.38 起按来源写）：
+   - `kb_entry`（标准资料）：对上规划教材该证型（`source` 如「《中医内科学》心悸·心虚胆怯证」）、教材该证的加减原文（「…加减：兼心血不足，加阿胶、制何首乌、龙眼肉」）、
+     《中医诊断学》辨证要点（「《中医诊断学》血虚证辨证要点」），或所用成方的组成（`source` 同方剂出处）。服务端逐字核对资料属实才写这一级。
+   - `model_inference`（病例内推理）：由本例病历推出、没有对上上述资料的，如病机链第二个节点、加味的药；按本证常见兼症写的条件式加减 `confidence` 为「低」。
+   - 主证名之外的虚性证素（如心虚胆怯证另写「心血不足」）要过《中医诊断学》辨证要点：病历里没有成组表现的不进病机、治法与方药，写在 `pathogenesis.uncertainties` 里
+     （「是否兼心血虚：心血虚的辨证要点（心悸、失眠、多梦与血虚症状共见）在本例尚未成组出现」），供医生望诊、问诊核实；
+     病历里这一类证素成组、只是脏腑归属没有专属表现时保留，证据标为该类辨证要点、`confidence` 为「低」。
+5. **限流**：每个 Token + 客户每 10 分钟 60 次模型调用（§3.8），一条完整链路约 5 次；超限返回 `429` 与 `Retry-After`，按秒数退避后重试，不要计为用例失败。
+   并发测试请分开使用不同客户编号。
+6. **页面与接口**：舌象、脉象不是必填（§3.3.1），医生页面只需性别与主诉即可开始；追问可跳过，跳过后分析照常继续。
 
 ---
 
@@ -1736,8 +1755,8 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 | 内容 | 字段路径 |
 |---|---|
 | 西医诊断倾向 | `westernDiagnosis.primary.name` |
-| 西医诊断依据 | `westernDiagnosis.primary.supportingFacts` |
-| 西医诊断待查依据 | `westernDiagnosis.primary.suggestedChecks`（建议检查）<br>`westernDiagnosis.primary.limitations`（依据不足之处） |
+| 西医诊断依据 | `westernDiagnosis.primary.clinicalRationale`（推理说明：记录中的表现与检查 → 诊断 → 还需排除或核实什么）<br>`westernDiagnosis.candidates[].keyEvidence` / `againstEvidence`（可选：西医部分列出候选诊断时输出，各候选的支持与反对依据）<br>`westernDiagnosis.primary.supportingFacts` 自 V2.35 起恒为空数组（贵方 10.12 测评要求症状罗列不再展示） |
+| 西医诊断待查依据 | 尚需排除的情况与关键检查写在 `clinicalRationale` 与 `westernDiagnosis.differentials[].nextCheck`<br>`westernDiagnosis.primary.suggestedChecks` / `limitations` 自 V2.35 起恒为空数组（同上） |
 | 西医鉴别诊断 | `westernDiagnosis.differentials[]` |
 | 西医鉴别诊断参考文献 | `westernDiagnosis.differentials[].guidelineReferences[]`（可选：仅当本轮受治理证据检索命中并绑定到该鉴别项时输出） |
 | ICD-10 编码 | `westernDiagnosis.primary.coding`（可选：仅当匹配到受控医保码时输出） |
@@ -1758,6 +1777,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 | 治则 | `therapy.overallPrinciple` |
 | 总治法 | `therapy.overallMethod` |
 | 分治法 | `therapy.subTherapies[]` |
+| 病机节点、分治法、药味、加减的证据标签 | `pathogenesis.chain[].evidence`、`therapy.subTherapies[].evidence`、`formula.candidates[].herbs[].evidence`、`formula.modifications[].evidence`：`{evidenceLevel, source, confidence}`，含义见 §3.12（V2.38 起按来源写） |
 | 国标术语对应关系 | `terminologyMappings[]`（可选：单次最多 20 条） |
 
 ### 5.2 方药与调护（M04 响应）
@@ -2463,6 +2483,7 @@ V2.25 起响应包含 `classicEvidence`：经典条文语料逐项的 `name`（�
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.38 | 2026-10-22 | **接口路径、字段名、结构与调用顺序都不变，集成方不需要改代码；以下是 10/14 以来写进现有字段的变化。** ① **证据标签按来源写（§3.12）**：`pathogenesis.chain[].evidence`、`therapy.subTherapies[].evidence`、`formula.candidates[].herbs[].evidence` 此前是同一个常量（病例内推理/中），现在对上教材证型、成方组成的写「标准资料」并给出处；教材加减此前多被标成「证据不足」且出处为空，现在为「标准资料」+ 教材加减原文。② **主证名之外的虚性证素要过《中医诊断学》辨证要点**：病历里没有成组表现的（如心虚胆怯证另写「心血不足→养血安神」）不再进入病机链、分治法、总治法与方药，改写在 `pathogenesis.uncertainties`。③ **西医**：缺确诊检查或病程时病名写到上一级或「X待查」，推理说明随之写「考虑X可能」；主诊断按病历特异记录在西医半自己列出的候选里重选时，推理说明写明理由。④ **中医鉴别**：病名鉴别、证候鉴别各至少两项。⑤ **兼证**：须有《中医诊断学》辨证要点成组支撑，不够数的不立。⑥ **治则**：按证名里的证素推：有虚的证素为「虚则补之」，有邪的为「实则泻之」，两者都有为「扶正祛邪」。⑦ **不给剂量的病例**：`management.followupSafetyNet` 写明复诊时间（红旗当天；妊娠、哺乳、需专科评估、抗凝治疗 3 天内，抗凝另写开始服药 1 周内复查凝血；年龄不明的患儿当天）。⑧ **孕哺提示**：注意事项、逐味人群提示与随访信号里的孕哺内容从 15 岁起写（月经类仍 12 岁起，安全闸门的孕哺筛查 10–59 岁不变）。⑨ **煎服法**：要捣碎的药在 `decoction.method` 里点名（「酸枣仁用前捣碎」）。⑩ **M02 同一病例只计算一次**（§3.9），与 M03/M04 相同。⑪ **措辞**：病位、病性、证候把握度说明不再出现「可逐字回溯」「按有界建议展示」这类校验用语；服务端两条「质量边界」不确定项不再下发。 | 无字段增删、无枚举增删；证据标签、西医推理说明、不确定项的内容变化见左栏。 |
 | V2.37 | 2026-10-14 | **接口路径、字段名、结构与调用顺序都不变，集成方不需要改代码。** ① 病历只记录了主症（如只有「胃痛3天」）、没有能分开证型的表现时，`overview.primarySyndrome` 写只表达病位与气机失常的证名（如胃气不和证），治法、推荐方随之为调理气机的平和方向，不再默认套用教材该病的第一条证型；病历有能分证型的表现时行为不变。② `formula.candidates[].compositionLogic[].summary` 改为「组成：…。出处：…。」（HIS 方案 `formulaRationale.compositionLogic` 同源）。 |
 | V2.36 | 2026-10-14 | **接口路径、字段名、结构与调用顺序都不变，集成方不需要改代码；有三处行为变化请知悉。** ① **追问会返回 `decision=proceed`**：病历已足够、没有值得问的题时，以及安全闸门已判急危重时，`m02Plan.decision` 为 `proceed`、`questions` 为空数组（取值一直在接口里，此前服务端缺省从不返回；收到时直接调用辨证接口）。② **备孕 / 未避孕不再收回剂量**：病历记录备孕或未避孕、且没有妊娠或哺乳（含停经、月经逾期）记录时照常给剂量；《中国药典》2020 年版孕妇禁用 / 忌用的饮片不进方，孕妇慎用的饮片在该味 `verificationReasons` 里写明药典原文与「使用前请确认未妊娠」；加减里拟加孕妇禁用饮片的行不列，`modificationReview.droppedReasons[].code` 记 `special_population_conflict`。妊娠、可能妊娠、哺乳期照旧不给剂量，`doseWithheldReasons` 文案不变。③ **低体温合并意识改变判红旗**：体温 35.0～35.5℃ 且病历记录嗜睡、反应迟钝、意识模糊等当前表现时，红旗、不给剂量（此前只有 <35℃）。另有内容层面的修正，字段不变：`formula.modifications[].riskNote` 见该字段说明；煎服用法里大黄等「几选一」煎法的药按药味表标注写（不再与药味表矛盾）；中医治疗项目的疗程与操作说明不再出现流程用语，补泻手法与证候相符；鉴别诊断的典型表现栏写鉴别对象自身的表现；参考西医诊断名与病历已记录的检查结果直接矛盾时改为够得上的较宽或较轻一层名称。 |
 | V2.35 | 2026-10-13 | **按 10.12 医学测评整改：接口路径、字段名、结构与调用顺序都不变，集成方不需要改任何东西；变化只有「某些字段不再带内容」和「内容写得更准」。** ① **追问作答 / 跳过后不再读不到病历**：整份病历放在 `symptoms`（含「现病史 / 既往史 / 过敏史 / 用药史 / 辅助检查」等中文键）、追问问答放在 `conversation` 的传参方式下，此前只要有一条回答或一次跳过，安全闸门就只看对话、不看病历正文——现病史写明的呕血黑便不报红旗，孕周与抗凝药照常给剂量，性别 / 舌脉 / 过敏史被判成未提供。现在追问的回答是对病历的补充；跳过句（`本次未能确认，请继续现场评估`）不是病历内容，不进入任何判断；对急症筛查题选了阳性选项即按已确认的急症表现处理；`symptoms` 的中文键与规范键等价；生命体征只认字符串与数值（`{"ValueKind":3}` 这类序列化残留按未提供）。② **西医诊断**：`supportingFacts` / `limitations` / `suggestedChecks` 恒为空数组；`name` 写最可能的规范病名，不带括号说明，不带「，病因待查」（只能停在症状层面时写「症状名＋待查」）。③ **中医诊断与证候**：病名、证名用规划教材的写法（「头痛」不写「头风病」，「虚劳」不写「虚劳类病」）；`secondarySyndromes` 默认空数组，只有另成一组的表现才写一个；`tcmDiseaseDifferentials` 每例 1–2 条。④ **治则治法**：`overallPrinciple` 只写国家标准治则术语，不带括号；`overallMethod` 一行，证型对上教材时用教材治法。⑤ **方药**：辨证阶段定的方名（教材该证的代表方优先）开方阶段不再改名，不再出现「本例辨证组方」（确无成方写「自拟方」）；`decoction.method` 写成一行用法并点名先煎 / 后下 / 包煎 / 另煎的药味；`modifications[]` 优先取教材该证的加减（`trigger` 可以是「若…」的条件句，此时没有 `triggerSource`；教材该证没有列加减时可以是按本证常见兼症写的条件句），「加」的行带剂量，`evidence.source` 写教材出处或「患者原文：…」；`applicable`、`modifications[].riskNote`、`patentAndWestern[].usageBoundary` / `relationship` 为空串。⑥ **中医治疗与调护**：给不出具体内容的项目不再下发；食疗只在教材食疗分型与本例证型对得上时给一个方子；`precautions` 写给患者，不含天数、体温等数字阈值。⑦ **复诊计划**（`management.followupSafetyNet`）写给患者。⑧ **追问一轮一题**，优先问能把教材候选证型分开的那条事实；急症筛查题只为事实层判为 urgent 的线索而出。没有值得问的题时是否返回 `decision=proceed` 由服务端开关控制，缺省仍返回一题。⑨ **红旗**：语义层只为病历明确写出的现症提示与限制给药（「可能」「仅不能排除」的不再提示）；确定性红旗与危急生命体征不变。⑩ **同一份病历结果一致**：结果按病历内容留存（缺省 30 天，换病例编号、只差标点空格都算同一份），请求头 `x-cdss-regenerate: 1` 显式重新生成；出题的同时服务端已按「不回答」开始计算，跳过追问后的辨证、开方直接取现成结果。 |

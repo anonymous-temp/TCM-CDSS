@@ -485,8 +485,10 @@ export function buildEvidenceOutputTransform(
   evidenceContext: string,
   priorTransform?: (content: string) => string,
   medicineCaseState?: CaseState,
+  /** 服务端受治理资料出处的核验（governed-evidence-sources.server.ts），由路由传入；本模块也被页面引用，不直接 import 教材表。 */
+  governedSourceVerified?: (source: string) => boolean,
 ): (content: string) => string {
-  const scope = buildEvidenceScope(evidenceContext);
+  const scope: EvidenceScope = { ...buildEvidenceScope(evidenceContext), ...(governedSourceVerified ? { governed: governedSourceVerified } : {}) };
   let knowledgeTraceRecorded = false;
   const medicineCaseText = medicineCaseState ? [
     medicineCaseState.chiefComplaint,

@@ -1624,6 +1624,87 @@ The user asked for every found-but-unfixed item to be researched or thought thro
 - **Disk.** The host had 11 GB, below the 12 GB floor. The floor was reached with our own files only: the d070936 image (rollback of the rollback), the dbcca5d build context (its image stays), journal vacuum and apt clean, logged in `~/telemetry-archive/cleanup-20261020.txt`. 15 GB free after the deploy. Locally the 2.3 GB `.next` dev cache in the main checkout had to go before the prebuild.
 - **Helper fixed in passing:** `~/runlogs/fix1012/scripts/with-prod-env.mjs` defaults its cwd to a deleted worktree; pass `WITH_ENV_CWD=$PWD`.
 
+### 10/22 round 15: the external review — element support, evidence labels by source (2026-10-22)
+
+**Where it came from.** The user forwarded an external review of production 14cb304 (with its test script). The reviewer worked from interface doc V2.27 and hospital-a. We re-ran the script on hospital-b; material, the reproduction and the analysis are in `~/runlogs/r1018/work/r1027/` (`ANALYSIS.md`, `repro/`, `scan-elements.py`, `probe/`).
+- **What the review got right.** On the palpitation case the main syndrome 心虚胆怯证 equals the customer's own standard answer for 病历2. The problem is a second chain node with no grouped evidence: the reviewer got 「心血不足 → 养血安神」 plus 酸枣仁, and our re-run got 「肝血不足 → 养血柔肝」 plus 白芍.
+- **What it misread.**
+  - The Western `supportingFacts` / `limitations` / `suggestedChecks` are empty on purpose since V2.35 (the customer's red box). The basis is in `clinicalRationale`, `candidates[]` and `differentials[]`, but §5.1 of our own doc still pointed at `supportingFacts`.
+  - The page needs only sex and chief complaint.
+  - Parallel identical requests join one computation, so they say nothing about stability.
+- **Research.** Notes are in `ANALYSIS.md` and the two agent reports summarised in the round notes.
+  - There is no public "血虚 needs ≥N findings" threshold. The usable rule is the 《中医诊断学》 key-point co-occurrence, which round 12 already cut into `tcm-diagnostics-syndrome-criteria.json`.
+  - Models almost never label "insufficient evidence" themselves: ConfiDx found a best untrained recognition rate of 0.057. The criterion therefore has to live outside the model.
+  - 酸枣仁 is textbook for 不寐·心胆气虚 (安神定志丸合酸枣仁汤). The defect is the pathogenesis claim, not the herb.
+  - FDA's 2026 CDS guidance asks for the key variables and explicitly warns against overload. It does not ask for every input, so the empty arrays can stay.
+
+**What changed.** Suite `test:r1027-main` (18 checks, each with a counter-proof in `counterproofs.txt`).
+- **Element support (`m03-element-support.server.ts`, data `tcm-deficiency-element-lexicon.source.json`).**
+  - It finds deficiency elements (气虚/血虚/阴虚/阳虚, with the organ just before them) in chain nodes and the nature axis that the primary or secondary syndrome name does not entail.
+  - The entailment rule is deliberately loose, only meant to catch clear extras:
+    - a name with 虚/怯/弱/亏/不足/衰/不固 covers 气虚 of its organs (肾: every type);
+    - 两虚/不足证/亏虚证 cover all types of the organs named;
+    - 虚寒 → 阳虚, 虚火/虚热 → 阴虚;
+    - 肝阳/阳亢/风阳/相火/心肾不交 imply 阴虚; 下元, 劳淋 and 失健运 are listed too;
+    - 脾 and 胃 are one group, and 阳虚 covers 气虚 of the same organ.
+  - Each extra element runs through the **same** criteria check as 兼证 (`verifySecondaryByCriteria`; the main row's own manifestations do not count).
+    - Only the organs the name does not cover are checked: 「脾肾气虚」 under 肾气虚证 is checked as 脾气虚证.
+    - The single-organ entry is used if it exists (肝血虚证), otherwise the type entry.
+    - When the name has no element of that type at all and the organ entry fails, the type entry is checked in parallel (`combinedElementVerdict`). If it passes, the element stays with confidence 低: the element holds, the organ is the inference. Example: 湿热壅盛证 with 「肾阳不足」 and grouped cold signs but no 腰膝冷痛.
+    - At most 2 types per case, in parallel with the 兼证 and claim checks, so it adds no serial wait. It triggers on about 17% of outputs (87 of 513 saved).
+  - **Fail:**
+    - the clause naming the element and the therapy items only for it (养血/补血…, never the textbook 治法's own items) are removed from the chain;
+    - a node left with only dependent clauses (兼…) or no therapy is dropped, but never one holding 无汗/自汗, and never the last node. The first node can go too: an excess primary whose chain opened with 「脾肾阳虚气化失司…」 (S-renal-009, no commas to split on) kept the deficiency claim until that rule;
+    - the element is removed from the nature axis, the rationale and the overall pathogenesis;
+    - an uncertainty named after the checked entry is added (「是否兼肝血虚：肝血虚的辨证要点（眩晕、视力减退、肢体麻木与血虚症状共见）在本例尚未成组出现」). It is not named after the type: 「是否兼气虚」 under 肾气虚证 contradicted the primary;
+    - M04 never sees it.
+  - **Pass:** the node's evidence becomes `kb_entry` 「《中医诊断学》X证辨证要点」, with confidence 中, or 低 on the type-entry fallback.
+  - **Unknown** (task failed or no entry): nothing changes.
+  - Switch: `CDSS_M03_ELEMENT_SUPPORT=false`.
+- **Our own validator erased our own provenance.** The compiler wrote textbook 加减 sources as `model_inference` + 「《…》」. `sanitizeEvidenceObject` therefore downgraded them to `insufficient` 「内部证据缺口」, and the delivered surface then blanked the source. That was 499 of 567 saved modifications, against V2.35's promise.
+  - `governed-evidence-sources.server.ts` verifies textbook row, textbook 加减 raw and 《中医诊断学》 key-point sources verbatim against the local tables (`textbookProvenanceVerified`).
+  - `EvidenceScope.governed` accepts them for `kb_entry` only.
+  - The routes pass the verifier in, because the 5MB table must stay out of `cdss-evidence-context` (it reaches the browser bundle through `diagnosis-types`).
+  - Textbook modifications are `kb_entry`; patient-quote triggers are `model_inference`/中; model conditionals are `model_inference`/低.
+- **Evidence labels by source (delivered surface).** Before, chain, subTherapies and herbs were 100% the constant 「病例内推理/中」. Now:
+  - the first chain node on a textbook row is `kb_entry` 「《中医内科学》心悸·心虚胆怯证」;
+  - subTherapies mirror their node;
+  - herbs in the named formula's composition (catalog or textbook row, by composition identity) take the formula source;
+  - added herbs keep `model_inference`.
+- **Wording.**
+  - The resolutionReason system sentences 「可逐字回溯…」「按有界建议展示」「标记为已解决」 become clinical wording in the delivered surface's closed set. The source strings are untouched, because `applyM03AdvisoryQualityBoundaries` reads 「有界」.
+  - The two server uncertainty items 「辨证推理质量边界 / 西医诊断依据边界」 are not delivered.
+- **Decoction line.** Herbs whose requirement says 捣碎/打碎 are named after the timing groups (「酸枣仁用前捣碎」).
+- **Western rationale follows the name.** After the name check downgrades (74 renamed outputs, 28 still said 「符合缺铁性贫血」 under 「贫血」), assertive frames become 「考虑X可能」 (D) or 「需与X鉴别」 (A–C) (`rationaleAlignedWithRenamedPrimary`). A primary reselection prepends its reason (replace) or appends it (append).
+- **Found while measuring, fixed in the same round.**
+  - `enrichPrescriptionProvenance` rewrote **every** 先煎 on a line that mentioned 酸枣仁 to 捣碎后同煎. Once the usage line named 酸枣仁, 龙齿 became 「龙齿捣碎后同煎20–30分钟」. The delivered surface's BEST4SDT-139 patch for 「龙齿捣碎后同煎」 in precautions was the same root cause. Only the 先煎 right after 酸枣仁 is rewritten now.
+  - Therapy items with the organ inside (「养肝血」「滋肾阴」) count as therapy for the element.
+
+**Measured (local route harness, customer request shape, same day; material in `~/runlogs/r1018/out/{tgtON,tgtOFF,det}-r27`, summary script `work/r1027/probe/summarize.mjs`).**
+
+| | element check off | element check on |
+|---|---|---|
+| Targeted 22 records × 2 (saved outputs that triggered): outputs still carrying an unchecked or failed extra deficiency element | 38/44 | 13/44 (the rest were checked and passed, or are nature-axis items that cannot be emptied) |
+| Same: elements withdrawn into an uncertainty / checked and labelled | 0 / 0 | 29 / 4 outputs |
+| M03 complete; diagnose median; prescribe median | 44/44; 13.3 s; 9.7 s | 44/44; 13.6 s; 9.7 s |
+
+- **det42 (customer 10 + held-out 32) against this morning's round-14 run (det-r26).**
+  - Disease is identical in 42/42, syndrome in 41/42. On the customer 10, disease and syndrome are 10/10 and formula 9/10 (病历9 消风散 → 消风散加减).
+  - The element check withdrew in 3 of 42: 病历2 (脾气虚, 心血虚), 病历3 (脾气虚), S054 (脾阳虚). The customer's standard answers for 病历2/3 have no 兼证.
+- **Evidence labels on det42, round 14 → 15.**
+  - First chain node `kb_entry`: 0 → 40/42.
+  - Herbs `kb_entry`: 0 → 221/369.
+  - Modifications `kb_entry`: 0 → 81/99; `insufficient` 83 → 1.
+- **Latency on det42.** Medians: diagnose 10.3 → 10.4 s, prescribe 10.4 → 9.6 s.
+- **External-review palpitation case on final code, × 2:** 心虚胆怯证 / 虚则补之 / 镇惊定志，养心安神 / 安神定志丸加减. 肝血不足 is gone from the chain and the 养血 items with it; the uncertainty reads 「是否兼肝血虚」; the usage line has 龙齿先煎 and 酸枣仁用前捣碎. 酸枣仁 can still be chosen as a 安神 herb, which is textbook for 不寐·心胆气虚.
+
+- **Interface doc V2.38.**
+  - §5.1 now points to where the Western basis is.
+  - New §3.12 「测试与验收怎么做」 covers version check, joined/reused vs regenerate, evidence label meanings, rate limits, and the tongue/pulse page.
+  - The changelog sums up 10/14–10/22.
+  - §3.9 now says M02 is reused too.
+  - `test:api-doc-field-parity` registers `westernDiagnosis.candidates[].keyEvidence` as conditional.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).

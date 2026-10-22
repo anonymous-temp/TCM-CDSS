@@ -21,7 +21,7 @@ import { textbookBaseIngredients } from "./herb-record-caution";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
-import { textbookDifferentialsForDisease, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
@@ -554,6 +554,21 @@ const SYNTHETIC_PHRASES: ReadonlyArray<[RegExp, string]> = [
   [/病历已记录(?=无|未见|未诉|不伴|否认)/g, ""],
   // 「病历已记录关节无明显红肿发热」：部位在前、否定在后，同样去掉前缀。
   [/病历已记录(?=[^，,。；;：:\n]{1,8}(?:无|未见|未诉|不伴))/g, ""],
+  // 证候、病位、病性把握度说明里的校验用语（「可逐字回溯」「已按有界建议展示」「标记为已解决」，2026-10-22 外部复核读接口时看到）：
+  // 服务端固定句，有限闭集（diagnosis-visible-summary 的 resolutionReason 写法），换成临床说法。
+  [/证型“([^”]{1,30})”仅有0条可逐字回溯的本例依据，尚未达到稳定结论所需证据/g, "证型“$1”尚缺直接的病历依据，尚需进一步明确"],
+  [/病位“([^”]{1,30})”仅有0条互相独立且可逐字回溯的本例依据/g, "病位“$1”尚缺直接的病历依据"],
+  [/证型“([^”]{1,30})”仅有(\d+)条可逐字回溯的本例依据，尚未达到稳定结论所需证据/g, "证型“$1”的病历依据有$2条，尚需进一步明确"],
+  [/病位“([^”]{1,30})”仅有(\d+)条互相独立且可逐字回溯的本例依据/g, "病位“$1”的病历依据有$2条"],
+  [/病性“([^”]{1,30})”缺少可逐字回溯的本例依据，暂不能标记为已解决/g, "病性“$1”的病历依据较少，尚需进一步明确"],
+  [/寒热病性目前缺少两个以上相互独立的证据维度，已按有界建议展示/g, "寒热属性的依据少于两个方面，尚需进一步明确"],
+  [/病位归纳目前只有单一证据维度支持，已按有界建议展示/g, "病位判断目前只有一个方面的依据，尚需进一步明确"],
+  [/当前证型可逐字回溯的本例依据仍有限，按有界建议展示/g, "当前证型的病历依据仍有限，尚需进一步明确"],
+  [/现有资料尚不足以完成相近证型的稳定鉴别，当前证型按有界建议展示/g, "现有资料尚不足以与相近证型稳定区分，尚需进一步明确"],
+  [/当前缺少可逐字回溯且具有鉴别力的西医诊断依据，西医部分仅作症状性工作判断/g, "当前缺少有鉴别力的西医诊断依据，西医诊断暂按症状判断"],
+  [/[，,]?\s*(?:已)?按有界建议展示/g, "，尚需进一步明确"],
+  [/可逐字回溯的本例依据/g, "病历依据"],
+  [/当前工作证候/g, "当前证候"],
 ];
 
 /**
@@ -571,7 +586,7 @@ const SERVER_NOTES: readonly RegExp[] = [
 
 /** 把系统句式换成临床写法；没有命中时原样返回（逐字节不变）。 */
 export function clinicalWordingForSyntheticPhrases(value: string): string {
-  if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|受控目录|症状层/.test(value)) return value;
+  if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|受控目录|症状层|可逐字回溯|有界建议|工作证候/.test(value)) return value;
   let text = value.replace(BOUNDED_ADVICE_NOTE, "");
   for (const note of SERVER_NOTES) text = text.replace(note, "");
   text = text.trim();
@@ -703,6 +718,8 @@ const SELF_COMPOSED_NAME = /^本例辨证组方(?:加减)?$/;
 /** 逐味安全边界句（candidate-boundary-text.ts 写的那一段）之前的通用模板句。 */
 const NOT_APPLICABLE_TEMPLATE_HEAD = /^[\s\S]*?(?=各药毒性与特殊人群提示[:：])/;
 
+const SERVER_QUALITY_BOUNDARY_ITEMS = new Set(["辨证推理质量边界", "西医诊断依据边界"]);
+
 /** 服务端的有限结论（红旗收口、修复用尽）：证候未定且病机链为空。它的支持事实里放的是红旗发现，开方阶段要读。 */
 function isLimitedDiagnose(reasoning: Json): boolean {
   const overview = record(reasoning.overview);
@@ -726,6 +743,9 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
     pathogenesis.uncertainties = pathogenesis.uncertainties.filter((item) => {
       const row = record(item);
       const reason = typeof row?.reason === "string" ? row.reason : "";
+      // 服务端固定的「辨证推理质量边界 / 西医诊断依据边界」两条（diagnosis-visible-summary 质量边界投影）只说校验状态、不含本例内容，
+      // 且用了「工作证候」「解耦」这类工程用语（2026-10-22 外部复核读接口时看到），不交付。
+      if (row && SERVER_QUALITY_BOUNDARY_ITEMS.has(String(row.item || ""))) return false;
       return !(reason && !reason.replace(BOUNDED_ADVICE_NOTE, "").trim());
     });
   }
@@ -1484,7 +1504,10 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       if (present) {
         modification.trigger = present.trigger;
         const evidence = record(modification.evidence);
-        if (evidence && evidence.source === MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE) evidence.source = `患者原文：${present.quote}`;
+        if (evidence && evidence.source === MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE) {
+          evidence.source = `患者原文：${present.quote}`;
+          evidence.confidence = "中";
+        }
       }
     }
     if (typeof modification.riskNote === "string" && /药味工作台|重新审方/.test(modification.riskNote)) modification.riskNote = "";
@@ -1927,6 +1950,60 @@ export function followupWithDoseCount(text: string, doses: unknown, days: unknow
   return text.replace(/请?(?:服完|吃完|用完)本次的?药(?:后|再)?(?:按时)?复诊/u, `请在服完${doses}剂药后（约${days}天后）复诊`);
 }
 
+/**
+ * 证据标签按来源（2026-10-22 第十五轮）。外部复核要求每个病机节点标明「直接事实 / 合理推断 / 证据不足」；
+ * 接口的证据枚举本来就能表达（kb_entry 标准资料 / model_inference 病例内推理 / insufficient 证据不足 + confidence），
+ * 但此前病机链、分治法、药味的证据是服务端填的同一个常量（已存输出 100% 为「病例内推理 / 中」），不携带信息。
+ *  · 病机链首节点（主证）对上教材证型行：标准资料，出处为该行（《中医内科学》心悸·心虚胆怯证）；证候未定时置信「低」。
+ *    证素核对够数的节点已标《中医诊断学》辨证要点（m03-element-support.server.ts），不覆盖。
+ *  · 分治法与它对应的病机节点同一标签（分治法由病机链逐节点投影）。
+ *  · 药味：在所用成方的组成里（方剂目录或教材该证代表方组成，按组成身份比）的，标准资料、出处同方剂出处；新增药味不动。
+ * 不加字段、不加枚举值；幂等。
+ */
+const DIAGNOSTICS_CRITERIA_SOURCE = /^《中医诊断学》.+辨证要点$/u;
+const compactText = (value: unknown) => typeof value === "string" ? value.replace(/[\s，,。；;、]/gu, "") : "";
+
+function withSourceBasedReasoningEvidence(reasoning: Json): void {
+  const overview = record(reasoning.overview);
+  const pathogenesis = record(reasoning.pathogenesis);
+  if (!overview || !pathogenesis || isLimitedDiagnose(reasoning)) return;
+  const chain = records(pathogenesis.chain);
+  const row = textbookRowForSyndrome(String(overview.tcmDiseaseName || ""), String(overview.primarySyndrome || ""));
+  const first = chain[0];
+  const firstEvidence = record(first?.evidence);
+  if (row && first && !(firstEvidence?.evidenceLevel === "kb_entry" && DIAGNOSTICS_CRITERIA_SOURCE.test(String(firstEvidence.source || "")))) {
+    first.evidence = { evidenceLevel: "kb_entry", source: textbookRowProvenance(row), confidence: overview.primarySyndromeResolution === "unresolved" ? "低" : "中" };
+  }
+  for (const item of records(record(reasoning.therapy)?.subTherapies)) {
+    const node = chain.find((candidate) => compactText(candidate.pathogenesis) && compactText(candidate.pathogenesis) === compactText(item.targetPathogenesis));
+    const evidence = record(node?.evidence);
+    if (evidence) item.evidence = { ...evidence };
+  }
+}
+
+function withSourceBasedHerbEvidence(reasoning: Json): void {
+  const overview = record(reasoning.overview);
+  const row = overview ? textbookRowForSyndrome(String(overview.tcmDiseaseName || ""), String(overview.primarySyndrome || "")) : undefined;
+  for (const candidate of records(record(reasoning.formula)?.candidates)) {
+    const formulaSource = record(candidate.formulaSource);
+    const sourceText = formulaSource?.evidenceLevel === "kb_entry" && typeof formulaSource.source === "string" ? formulaSource.source.trim() : "";
+    if (!sourceText || sourceText === "自拟方") continue;
+    const names = [
+      ...(Array.isArray(candidate.formulaNames) ? candidate.formulaNames : []),
+      ...records(candidate.baseFormulas).map((base) => base.name),
+    ].filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
+    const ingredients = new Set([
+      ...formulaCompilationReferences(names).flatMap((reference) => reference.ingredients),
+      ...(row ? textbookBaseIngredients(row, [String(candidate.name || ""), ...names]) : []),
+    ].map((name) => compositionIdentityName(name)).filter(Boolean));
+    if (ingredients.size === 0) continue;
+    for (const herb of records(candidate.herbs)) {
+      const identity = compositionIdentityName(String(herb.name || ""));
+      if (identity && ingredients.has(identity)) herb.evidence = { evidenceLevel: "kb_entry", source: sourceText, confidence: "中" };
+    }
+  }
+}
+
 /** 就地投影一份已解析的结构化结果。非 V2 结果原样返回。 */
 export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSurfaceOptions): T {
   const object = record(reasoning);
@@ -1964,6 +2041,8 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
     }
   }
   else return reasoning;
+  withSourceBasedReasoningEvidence(projected);
+  if (projected.stage === "prescribe") withSourceBasedHerbEvidence(projected);
   // 贫血分度与病历 Hb 读数对齐：病名、编码显示、推理、鉴别、处置与开方各栏同一口径（recordAnemiaGrade）。
   const anemiaGrade = recordAnemiaGrade(options?.recordText, options?.herbBoundaryAudience?.ageYears);
   if (anemiaGrade && options?.recordText) regradeAnemiaEverywhere(projected, anemiaGrade, options.recordText);

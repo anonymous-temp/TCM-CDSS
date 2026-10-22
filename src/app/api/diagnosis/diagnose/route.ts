@@ -1,4 +1,5 @@
 import { prefetchDiagnoseInputs, prefetchPrescribeInputsFromSignedDiagnose, tapFinalStageContent } from "@/lib/stage-prefetch.server";
+import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
 import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
@@ -10,6 +11,7 @@ import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { alignWesternPrimaryAndName } from "@/lib/western-primary-reselect.server";
 import { reconcileSecondarySyndromes } from "@/lib/m03-secondary-syndrome-consistency.server";
+import { applyElementSupportDecision, decideElementSupport } from "@/lib/m03-element-support.server";
 import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals, patientClaimRecordText } from "@/lib/m03-patient-claim-check.server";
 import { completeTcmDiseaseDifferentials, prefetchTcmDifferentialTopUp } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
@@ -262,13 +264,16 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
           // 辨证依据或病机写了兼夹病机、兼证栏却为空时，补成兼证或删掉那几个分句（其余病例不发请求）。
           // 同一份输入上并行核对「关于本例的说法有无病历依据」（m03-patient-claim-check.server.ts）：先落兼证一致的结果，再删无据片段
           //（已不在文中的跳过）。
+          // 病机链、病性轴里主证/兼证名之外的虚性证素按《中医诊断学》辨证要点核对（m03-element-support.server.ts，与上两件并行）：
+          // 不够数的撤下并写进不确定项，落在兼证核对之后（那一步补上的兼证若已涵盖，就不撤）、本例说法核对之前。
           m03TcmHalfTransform: async (tcmContent: string, transformSignal: AbortSignal) => {
             const completed = await completeTcmDiseaseDifferentials(tcmContent, differentialTopUpContext, transformSignal);
-            const [reconciled, claimRemovals] = await Promise.all([
+            const [reconciled, claimRemovals, elementDecision] = await Promise.all([
               reconcileSecondarySyndromes(completed, { recordText: trustedInputText(safeState) }, transformSignal),
               decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),
+              decideElementSupport(completed, { recordText: trustedInputText(safeState) }, transformSignal),
             ]);
-            return applyPatientClaimRemovalsToContent(reconciled, "tcm", claimRemovals);
+            return applyPatientClaimRemovalsToContent(applyElementSupportDecision(reconciled, elementDecision), "tcm", claimRemovals);
           },
           // 西医半一返回就核对病名与病历已记录内容是否矛盾或说得过细（约 0.8 秒，与中医半并行）；采信则只改病名这一项。红旗病例不用「过细」一类。
           // 同时在西医半自己列出的候选与鉴别里重选主诊断（2026-10-19，western-primary-reselect）：两者并行；换名时对新名称再核对一次。
@@ -330,6 +335,8 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
         return initialSafetyBanner ? `${initialSafetyBanner}${sanitized}` : sanitized;
       },
       safeState,
+      // 服务端写的教材证型行、《中医诊断学》辨证要点出处逐条核验后放行（证素核对的节点标签）。
+      governedEvidenceSourceVerified,
     ),
   });
   // M03 签名完成即预取本例 M04 的规划器与 EviMed 检索（stage-prefetch.server.ts）。只写缓存。

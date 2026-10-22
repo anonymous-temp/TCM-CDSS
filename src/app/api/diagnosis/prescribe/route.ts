@@ -1,4 +1,5 @@
 import { requiredPrecautionsForCase, requiredPrecautionsPromptSection } from "@/lib/required-precautions.server";
+import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.server";
 import { textbookDietPromptSection } from "@/lib/tcm-nondrug-textbook-plan.server";
 import { restoreDiagnoseSupportingFacts } from "@/lib/delivered-surface";
 import { affirmedClinicalSourceClauses } from "@/lib/clinical-polarity";
@@ -425,6 +426,8 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     // 两处必须是同一份：此前回填用的是脱敏后的 safeState，脱敏规则改动过的任何一句 M03 文本（「辛热积于胃腑」
     // →「[已脱敏]于胃腑」）都会在终审判成 pathogenesis_drift、整张处方退成无剂量页（2026-10-19 甲方病历7 第2次生成）。
     { ...safeState, reasoningDiagnose: signedPriorReasoning },
+    // 编译器写的教材加减出处、辨证阶段带过来的教材与辨证要点出处，逐条核验后放行（此前一律被降成「证据不足」）。
+    governedEvidenceSourceVerified,
   );
   preModelTimings.promptReady = Date.now() - orchestrationStartedAt;
   console.info("[tcm-cdss:timing] m04_pre_model", preModelTimings);

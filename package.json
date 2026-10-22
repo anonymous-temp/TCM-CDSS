@@ -301,6 +301,7 @@
     "test:r1024-main": "node scripts/test-r1024-main.mjs",
     "test:r1025-main": "node scripts/test-r1025-main.mjs",
     "test:r1026-main": "node scripts/test-r1026-main.mjs",
+    "test:r1027-main": "node scripts/test-r1027-main.mjs",
     "test:conception-dose-policy": "jiti scripts/test-conception-dose-policy.mjs",
     "test:pediatric-dose-rule": "jiti scripts/test-pediatric-dose-rule.mjs",
     "test:pediatric-vitals": "jiti scripts/test-pediatric-vitals.mjs",
