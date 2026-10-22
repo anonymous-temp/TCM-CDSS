@@ -1566,6 +1566,58 @@ Production used Qwen in only three places: facts extraction (`qwen3.8-max`, p50 
 - A red-flag page with a facts finding graded `urgent` on a vital sign still depends on the facts model's grading.
 - Production needs `MEDICINE_PLANNER_MODEL=deepseek-flash` in the release override; compose's default does not override an explicit runtime env.
 
+### 10/22 round 14: the items left by rounds 12–13, and rounds 12–14 in production (2026-10-22)
+
+The user asked for every found-but-unfixed item to be researched or thought through, fixed where possible, then committed and deployed. Commit 14cb304. Notes, replay and counter-proof scripts: `~/runlogs/r1018/work/r1026/`. Suite `test:r1026-main` (20 checks, each with a counter-proof in `counterproofs.txt`).
+
+**Fixed.**
+- **A late 「既往/曾经」 made the whole sentence historical** (`isCurrentPositiveTcmAnchor`).
+  - S-renal-008's record ends 「…腰痛乏力，肾功能不全既往规律口服金水宝」. The model quotes the whole sentence, so 4 of 5 M03 runs became the limited result.
+  - A forward anchor now governs only its own clause and the clauses after it. Outcome words (已缓解/已治愈/目前稳定…) still make the whole sentence historical, and a sentence that starts with 既往 is unchanged.
+  - Replay over 65,854 anchors and record sentences: 6 changed, all prefix symptoms becoming current. S-renal-008 completes in 3 of 3 runs.
+- **The finalize direction filter deleted textbook modifications.**
+  - `dropUnsupportedM04ModificationDirections` lacked the textbook exemption that the compiler and the final contract already apply. It now calls the same exported `isTextbookConditionalModification`.
+  - S044 (外邪犯胃证) loses 「若见壮热口渴，便秘尿赤…加黄芩、黄连」 no more: 3 of 3 runs keep it.
+- **Differential 「reason」 claimed shared findings the other disease does not have** (风热疮「均见风团」).
+  - Both the authoring task and the M03 rule now say the reason may only name what the other disease itself has and the record shows.
+  - The authoring JSON writes `typicalManifestation` before `reason`, since field order is reasoning order with thinking off.
+- **Pregnancy/lactation advice for 12–14-year-old girls.** `pregnancyAdviceRelevant` sits on top of `reproductiveAdviceRelevant`:
+  - from 15 (the demographic reproductive age 15–49), or younger when the record mentions 停经/月经推迟/性生活/妊娠/早孕/哺乳/HCG;
+  - it gates precautions, per-herb cautions (`HerbBoundaryAudience.pregnancy`), follow-up signs and the acupuncture card's 「如有怀孕可能请先告知医生」;
+  - menstrual advice stays at 12, and the gate's pregnancy screen (`pregnancyScreenRequired`, 10–59) is unchanged;
+  - 「儿科 0–14 岁」 was considered and not used: no national rule text was found.
+- **Precautions.**
+  - A toxic herb counts as covered by identity (`formulaAnalysisHerbMentions` + `canonicalTcmHerbIdentity`), so 「附片有毒」 covers 附子. The rule line was added twice before.
+  - Above 5 lines, the generic 「如正在服用其他药物请告知医生」 and second-and-later pregnancy lines go first (`withinPrecautionCap`). Anything else stays even if the count is still over 5.
+  - det42: every prescription now has 3–5 lines.
+- **Combined textbook sections (胎漏、胎动不安; 堕胎、小产).**
+  - The generator took 「病名虽不同，但临床难以截然分开」 as the definition, so the model never saw what separates the two names. It wrote the first one verbatim and then argued 「故不归胎漏」 (3 of 20 S-set pregnancy records).
+  - The generator now cuts each name's own defining sentence (diff: exactly these two definitions).
+  - The candidate block shows both sentences, and the prompt says to write the name that fits.
+  - Anchoring (`withDeterministicFormulaReferences`) no longer renames a model-written half back to the section name.
+  - Result: 腰酸/腹痛/下坠 cases 12/12 胎动不安; bleeding-only cases 5/6 胎漏.
+
+**Looked at, not changed.**
+- **「Vital urgency depends on the facts model」 (round 13) is a measurement artifact.** The `outpatient_record` parity context carries a structured T 36.5℃ that contradicts the sentence's 35.x℃, so 「possible/clarify」 is a sensible judgement. The sparse context passes, and the fixture's own `measurementsNote` already says so.
+- **A model-written normal claim against an abnormal record** (S162 「本例精神尚可」 vs 「精神疲倦」): 1 in 687 saved diagnoses. The claim-check prompt already covers contradictions, so no rule was added.
+- **病历2 五味安神颗粒** is still deferred by the user.
+
+**Measured** (local, customer request shape):
+
+| Set | Result |
+|---|---|
+| det42 (customer 10 + held-out 32) vs round 13 | disease 42/42 identical, syndrome 41/42, formula name 39/42 (加减 suffix or known borderline cases) |
+| qwen 1.1 rubric, det42 | every row ≥ 96% (R 97.6: S058 一条加减; K 96.0: 病历2) |
+| Affected cases × 3 | listed above |
+
+**In production (14cb304, deployed 2026-10-22 about 10:25 Beijing; tag `20261022-14cb304-prebuilt`, same release directory and `20260927-dsrepair` override).** This deploy carries rounds 12, 13 and 14 (production had dbcca5d).
+- **Override:** it now sets `MEDICINE_PLANNER_MODEL: deepseek-flash`; backup `production.override.yml.pre-planner-20261022`.
+- **Verification:** `verify:deployed-image` passed (commit, digest, strictReady, both model families). `regress:prod-smoke` had 0 failures (cold M03 P95 15.4 s, M04 P95 11.2 s).
+- **Live probes on hospital-b** (regenerated): S-renal-008 complete, S044 keeps the textbook 加减, 病历9 differential reasons correct, the 12-year-old has no pregnancy lines, S-pregnancy-004 → 胎动不安.
+- **Rollback:** image `tcm-cdss:20261020-dbcca5d-prebuilt` with `docker-compose.yml.pre-14cb304`, plus the override backup.
+- **Disk.** The host had 11 GB, below the 12 GB floor. The floor was reached with our own files only: the d070936 image (rollback of the rollback), the dbcca5d build context (its image stays), journal vacuum and apt clean, logged in `~/telemetry-archive/cleanup-20261020.txt`. 15 GB free after the deploy. Locally the 2.3 GB `.next` dev cache in the main checkout had to go before the prebuild.
+- **Helper fixed in passing:** `~/runlogs/fix1012/scripts/with-prod-env.mjs` defaults its cwd to a deleted worktree; pass `WITH_ENV_CWD=$PWD`.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
