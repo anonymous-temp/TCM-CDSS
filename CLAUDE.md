@@ -1736,6 +1736,54 @@ The user asked for every found-but-unfixed item to be researched or thought thro
     - `/tmp/rxai-codex` was a linked worktree of `~/workspace/合理用药`. It was clean and its HEAD was on origin, so it was removed with `git worktree remove`.
     - The deleted names are in `~/runlogs/r1018/work/r1027/local-cleanup-20261022.txt`.
 
+### 10/24 round 16: the customer's 100-case test set and "pregnancy status unknown read as possible" (2026-10-24)
+
+The user sent the customer's 100-case test set (two versions; the updated one sets 诊疗思路 and 饮片味数 per case) and a page screenshot: a 36-year-old with insomnia whose 问诊补充 said 「末次月经及妊娠可能性尚待核实」 got 「已记录妊娠、哺乳或备孕阳性/可疑状态」, no dose, 「妊娠相关腹痛、出血或循环症状需优先排除产科急症」 and 「3天内到产科」. Material: `~/runlogs/r1018/work/r1028/` (`cases-v2.json` page-shape cases from `scripts/convert.py`, `scripts/page-chain.mjs` page-shape driver, `expect.py`, `scripts/score.py`, `scripts/judge.mjs` + `panel_page.py` + `tally.py`, `replay/`, `counterproofs.txt`). Suite `test:r1028-main` (28 checks, every one with a counter-proof).
+
+**Test the page shape.** The screenshot came from our own page (request archive 10/23 02:33): `hisRecord.fields` (zhushu/xianbingshi/…/tcmDetail = 问诊补充/fuzhuJiancha/tcmLineagePreference), `conversation` = one user message with the whole raw text, `questionOutcome` not_needed / skipped. `page-chain.mjs` reproduces it (red-flags → question → skip or proceed → red-flags → diagnose → prescribe → assess); `REPO=` points it at a worktree.
+
+**What was wrong, by class (each pinned in `test:r1028-main`, shared predicates replayed old vs new on 20,597 records and every change read; notes in `replay/NOTES.md`).**
+- **Pregnancy status.** `assessPregnancyState` read 「妊娠可能」 as possible even when followed by 尚待核实/尚未排除/不详 — now unknown (`PREGNANCY_STATUS_PENDING_TAIL`); 「不能排除妊娠」 and cue-backed forms stay possible. Postposed denial (「妊娠状态明确否认」「怀孕已排除」) is negative. Current pregnancy written as 妊娠N天, 妊娠腹痛/恶阻…, 胎漏, 胎动不安, 先兆流产, 单胎/宫内妊娠, 「妊娠后已经…」 is positive (37 corpus records of pregnant women had been dosable). Negations no longer cross commas; similes (「如孕5月」) and birth history (「孕32周出生」「孕36+2周早产」) are not pregnancy — the latter gave a 3-year-old girl (C077) a pregnancy hard boundary and 「3天内到产科」. For children under 10, clauses about the mother (母孕期…, 出生体重) are dropped from the maternal-state text.
+- **Obstetric advisory** reads the pregnancy assessor (positive/possible) or 「育龄女性停经/月经逾期 + 阴道出血或腹痛」 instead of the bare word 妊娠 (which fired on 「妊娠可能性尚待核实」 + 头晕, on infertility records and on 「妊娠期高血压病史」). Abdominal pain is matched as 腹 + ≤2 chars + 痛 (「下腹隐痛」), without negation in the gap. A ≤42-day postpartum path was tried and withdrawn: it flagged ordinary postpartum colds.
+- **M04 special-population contract** (`M04_SPECIAL_POPULATION_MATCHERS` pregnancy arm) and the fallback reference page now read the assessor too: 「近期未计划妊娠」 (C039) had made 半夏/天南星 pregnancy T1 and the page non-dose.
+- **Pregnancy advice** (`pregnancyAdviceRelevant`) is off when pregnancy is explicitly negative and conception is not positive (C018).
+- **Weight loss** with a number but no 「不明原因/进行性」 is an upper-GI alarm only with a current digestive symptom (governed list + new `weightLossDigestiveContext` in T6, clause-level polarity); C031 (diabetes) lost the false red flag.
+- **「无尿痛/无尿频/无尿意」** no longer trigger the shock advisory (57 corpus records); a negated sibling 「无…持续呕吐」 no longer makes bloating a priority evaluation (C011).
+- **Base formulas with an internal 十八反 pair** (洗心汤, 附子粳米汤…; 29 of 2,529 compilable formulas) are announced to M04, which drops one herb and names the prescription 本例辨证组方; `formulaCompilationContractIssue` accepts that (C057 had shown 附子 + 清半夏).
+- **Herb count.** M04 gets 【饮片味数】 in the per-case part of the prompt with the locked formula's base size and composition floor and what to do (drop distant 佐使 for 10 味以内 unless 伤寒/金匮; add herbs bound to recorded symptoms for 15 味以上; explain in 方义 when impossible). The preference still never enters M03 (§3.3.3) and the server still never trims.
+- **Lineage.** `withDeterministicFormulaReferences` no longer overwrites the model's formula with the textbook representative when the doctor chose a school, the model judged it applicable/partial, the formula belongs to that school (`lineageAffinitiesForFormula`) and passes `trustedModelFormulaIdentityNames`; 治法 then stays the model's (written for that formula) and M04 drops the 「辨证阶段已定用该代表方」 block. The M03 shortlist adds up to three recalled formulas of the chosen school beyond the top five.
+- **Western name** (`deterministicWesternNameCorrection`): 「慢性X（待查）」 below the table's course threshold → 急性X or X (C052 urticaria 2 weeks); 「新生儿X」 after 28 days → 婴儿X/小儿X (C071); on red-flag cases a D correction that only adds 待查 to a non-emergency name is applied (C019 食管癌).
+- **Follow-up.** When dose is given but the gate requires priority evaluation, `followupSafetyNet` and M05's first review start with 「请在3天内到相关专科就诊，先完成评估（需排除X）」 (`priorityEvaluationFollowupFocus`; 16 baseline cases said 「服完本次的药后复诊」).
+- **Drug allergy** recorded anywhere (`recordedDrugAllergyPhrases`, three explicit forms) is a required precaution (C099 amoxicillin urticaria was only in an internal field).
+
+- **Follow-up after the qwen review of the final run** (second commit): modifications no longer introduce a 十九畏 pair (C062 人参 with 五灵脂); a measured temperature counts as recorded fever in `sourceDocumentsAffirmation` and the denial check, per word (发热 37.3℃, 高热 39℃); medicines the record marks 外用 are worded as topical; `nonPharma.precautions` over 6 items is truncated instead of `.max(6).catch([])` wiping the list (after required items were added C051 delivered no precautions).
+
+**Measured** (local page-shape harness, same day; `out/base-v2` on ac23d9f vs `out/final3-v2` on the fix branch before the follow-up commit; qwen3.8-max judge, same scripts both sides).
+
+| Deterministic | Before | After |
+|---|---|---|
+| Red flag where expected | 28/28 | 28/28 |
+| No red flag where none expected | 47/48 (C031) | 49/49 |
+| Dose given where expected | 34/40 | 40/40 |
+| Pregnancy unknown/denied written as positive | 2/8 cases | 0/9 |
+| Herb-count preference met (dosed) | 21/36 | 34/40 |
+| M03 / M04 median | 14.6 / 11.3 s | 12.8 / 10.8 s |
+
+| qwen, customer 1.1/1.2 rubric | Before | After |
+|---|---|---|
+| RF red flags (P0 ≥95) | 94 | 98 |
+| SAFE dose/special population (P0 100) | 98 | 99 (C070 十九畏 inside the formula, advisory tier) |
+| FACT no fabrication | 93 | 94.1 |
+| T / C / D | 99 / 95 / 92 | 96 / 96 / 97 |
+| F differentials | 94 | 99 (the judge panel now also shows interface syndrome differentials — not comparable) |
+| Q / S / P / R / K | 99 / 98 / 99 / 99 / 100 | 98 / 98 / 98 / 98 / 95 |
+| V follow-up / Z lineage / H herb count | 94 / 97.8 / 72.9 | 100 / 100 / 90.4 |
+| Red lines | 2 (C057 十八反, C037) | 0 |
+
+One final-run case (C093) fell to the limited M03 (`m03_chain_empty` on both passes); 3/3 reruns were complete — generation variance on a record full of quoted speech.
+
+**Left on purpose.** The page still shows only disease differentials (customer 8/05, pinned by `test:diagnosis-presentation-contract`); syndrome differentials are in `overview.tcmDifferentials`. Unknown pregnancy status keeps the generic 「如已怀孕…告知医生」 line and per-herb 孕期慎用 notes; whether ChP 孕妇禁用 herbs should be removed for every reproductive-age woman of unknown status is an owner decision. Model judgement: 肛裂 named without an anal exam, 气滞耳窍证 with 加味乌药汤 for sudden deafness, breast lump with family history not escalated, exclusion diagnoses (惊恐障碍, 纤维肌痛综合征) without 待查.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
