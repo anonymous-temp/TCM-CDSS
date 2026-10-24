@@ -39,7 +39,7 @@ import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
 import { withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
 import { assessPregnancyState } from "./clinical-state";
-import type { DoseWithheldFollowupKind } from "./diagnosis-safety";
+import { priorityEvaluationFirstStep, type DoseWithheldFollowupKind } from "./diagnosis-safety";
 
 /**
  * 投影时可选的本例信息：herbBoundaryAudience 决定逐味人群提示列哪些人群（见 herbBoundaryPopulationRelevant）；
@@ -742,7 +742,9 @@ function isLimitedDiagnose(reasoning: Json): boolean {
  * 返回病历原文那一小句（去掉栏目名）。
  */
 const ACCOUNT_PARTY = "(?:家属|陪同(?:者|人员|人)?|代述者|监护人|本人|患者|病人|父母|母亲|父亲|配偶|子女)";
-const RECORDED_ACCOUNT_CONFLICT = new RegExp(`${ACCOUNT_PARTY}[^。；;\\n，,]{0,6}(?:与|和|跟|及)[^。；;\\n，,]{0,6}${ACCOUNT_PARTY}[^。；;\\n]{0,18}?(?:不同|不一致|不一|有出入|有差异|相矛盾|矛盾|相左)`, "u");
+// 第二种写法：病历直接写明时间线、病程或说法互相矛盾（2026-10-24 C093「…又称三天前就因疼痛请假，时间线互相矛盾」）。主语限在时间与说法，
+// 「回答前后不一致」不在其中。
+const RECORDED_ACCOUNT_CONFLICT = new RegExp(`${ACCOUNT_PARTY}[^。；;\\n，,]{0,6}(?:与|和|跟|及)[^。；;\\n，,]{0,6}${ACCOUNT_PARTY}[^。；;\\n]{0,18}?(?:不同|不一致|不一|有出入|有差异|相矛盾|矛盾|相左)|(?:时间线|时间顺序|发病时间|起病时间|持续时间|病程|说法|描述|叙述|自述)[^。；;\\n，,]{0,4}(?:互相|相互|前后)?(?:矛盾|不一致|对不上|不符)`, "u");
 export function recordedAccountConflict(recordText: string | undefined): string | undefined {
   for (const sentence of String(recordText || "").normalize("NFKC").split(/[。；;\n]+/u)) {
     const match = sentence.match(RECORDED_ACCOUNT_CONFLICT);
@@ -1070,6 +1072,18 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
             textbookFormulaGovernedEntryIsHomonym(name, textbookBaseIngredients(textbookRow, [name]), textbookCompositionOptions(textbookRow));
         });
         if (placeholder || upgradesTextbookNote || homonymSource || governedHomonym) sourceRecord.source = next;
+      }
+    }
+    // 方名是目录里的成方（组成标志药都在）、出处栏却写「自拟方」（2026-10-24 C063：辨证阶段走中性证名、选方写「辨证组方」，开方时模型用了
+    // 香砂六君子汤加减，出处仍按自拟方，评审判出处有误）：出处按编译目录补上这首方的书。
+    {
+      const sourceRecord = record(candidate.formulaSource);
+      const finalName = typeof candidate.name === "string" ? candidate.name.trim() : "";
+      const baseName = finalName.replace(/(?:加减|化裁|加味)$/u, "");
+      if (sourceRecord && /^(?:自拟方)?$/u.test(String(sourceRecord.source || "").trim()) && baseName && !SELF_COMPOSED_NAME.test(finalName) && finalName !== "自拟方" &&
+        !/合/u.test(baseName) && formulaNameIdentityHerbsMissing(baseName, records(candidate.herbs).map((herb) => String(herb.name || ""))).length === 0) {
+        const reference = formulaCompilationReferences([baseName])[0];
+        if (reference?.source) sourceRecord.source = `${baseName}：${reference.source}`;
       }
     }
     // 方义里的方名此前被「自拟方不得自称成方」一律换成了「本方案」（tcm-formula-provenance）。
@@ -1989,12 +2003,8 @@ export function followupWhenDoseWithheld(text: string, reason: "red_flag" | "wit
  */
 const FINISH_MEDICINE_WITH_COUNT = /请?在?(?:服完|吃完|用完)(?:本次的?药|\d+剂药)(?:后|再)?(?:（约\d+天后）)?(?:按时)?复诊[^。；;]*[。；;]?/u;
 export function followupWhenPriorityEvaluation(text: string, focus: string): string {
-  // 乳房肿块按 NICE NG12 疑似肿瘤路径：两周内专科评估，先做乳腺超声（年龄大者加乳腺 X 线）。
-  const first = /乳腺癌/u.test(focus)
-    ? "请在2周内到乳腺专科就诊，先完成乳腺超声检查（必要时加做乳腺X线），排除乳腺癌后再按医生安排服药与复诊。"
-    : focus
-    ? `请在3天内到相关专科就诊，先完成评估（需排除${focus}），再按医生安排服药与复诊。`
-    : "请在3天内到医院完成评估、核实病情后，再按医生安排服药与复诊。";
+  // 与 M05 首次复诊同一句（priorityEvaluationFirstStep；乳房肿块按 NICE NG12 两周内乳腺专科）。
+  const first = priorityEvaluationFirstStep(focus);
   if (text.includes(first)) return text;
   if (FINISH_MEDICINE_WITH_COUNT.test(text)) return text.replace(FINISH_MEDICINE_WITH_COUNT, first);
   return `${first}${text}`;

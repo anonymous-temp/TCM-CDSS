@@ -46,6 +46,11 @@ export function promoteCriticalSecondarySyndrome(tcmContent: string): string {
   if (!alreadyPrimary) {
     overview.primarySyndrome = critical;
     overview.secondarySyndromes = [primary, ...secondary.filter((_, index) => index !== criticalIndex)].slice(0, 2);
+    // 辨证依据里原先「主证属/为…」的结论随之改口，并补一句主次（2026-10-24 C053 第二轮：依据写「故主证属风邪外袭」而主证已是气脱证，评审判自相矛盾）。
+    if (typeof overview.tcmDiagnosticRationale === "string") {
+      const rationale = overview.tcmDiagnosticRationale.trim().replace(/主证(?:属|为)/gu, "原辨为").replace(/[。；;，,]$/u, "");
+      overview.tcmDiagnosticRationale = `${rationale}；现已见${critical.replace(/证$/u, "")}之象，急则治其标，以${critical}为主证，${primary}列为兼证。`;
+    }
   }
 
   const therapy = record(root.therapy);

@@ -4754,7 +4754,13 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   // 括号里只写命中的那一类（2026-10-19 Claude 评审 M 集 SD-433219：理由列出全部三类，注意事项据此写成「已有吞咽梗阻、消瘦等警示征象」，
   // 病历并无吞咽梗阻）。「上消化道警示征象（」这个开头不变，按它归类的地方照旧认得。
   const upperGiAlarmKind = upperGiAlarmFeatureKind(text);
-  if (upperGiAlarmKind && !anaphylacticAirwaySignal) {
+  // 体重下降同时咯血、痰中带血：红旗照报，但要查的首先是肺（结核、肺癌），不写「上消化道…内镜」（2026-10-24 甲方 100 例 C005：
+  // 63 岁吸烟者咯血 1 周、体重下降 5kg、食欲差，红旗写成上消化道警示征象，评审判标签错）。
+  const respiratoryBleeding = upperGiAlarmKind === "weight_loss" &&
+    hasPatternWithoutNegation(text, /咯血|咳血|痰血|痰中[^，,。；;\n]{0,4}带[^，,。；;\n]{0,4}血/u);
+  if (upperGiAlarmKind && !anaphylacticAirwaySignal && respiratoryBleeding) {
+    redFlags.push("咯血伴体重下降，需优先完成胸部CT与痰检以排除肺癌或肺结核，再评估处方");
+  } else if (upperGiAlarmKind && !anaphylacticAirwaySignal) {
     const item = upperGiAlarmKind === "obstruction" ? "吞咽或进食梗阻" : upperGiAlarmKind === "malignancy" ? "恶性肿瘤病史伴消化道症状" : "不明原因体重下降";
     redFlags.push(`上消化道警示征象（${item}）已出现，需优先安排内镜或影像评估以排除梗阻、复发与占位，再评估处方`);
   }
@@ -5479,6 +5485,9 @@ function allergyHistoryNeedsClarification(text: string): boolean {
   return /(有|曾|既往|出现过|发生过)[^。；\n]{0,18}(过敏|药物过敏|食物过敏)|过敏体质|易过敏|过敏待查|过敏[^。；\n]{0,18}(不详|不清楚|不明确|待查)|药物过敏史[^。；\n]{0,18}(不详|不清楚|不明确|待查)/.test(normalized);
 }
 
+/** 用药记录里写了具体药名（常见药名、剂型构词或西药词尾）。 */
+const NAMED_MEDICATION = /(?:阿司匹林|华法林|二甲双胍|胰岛素|硝苯地平|缬沙坦|氯吡格雷|褪黑素|左甲状腺素|[\u4e00-\u9fa5A-Za-z]{2,}(?:片|胶囊|颗粒|丸|口服液|注射液|缓释片|控释片)|[\u4e00-\u9fa5]{1,6}(?:西林|霉素|沙星|洛芬|普利|沙坦|他汀|地平|双胍|格列[\u4e00-\u9fa5]{1,2}|唑仑|西泮|洛尔|替丁|拉唑|噻嗪))/u;
+
 function medicationHistoryNeedsClarification(text: string): boolean {
   const normalized = stringifyClinicalValue(text).trim();
   if (!normalized) return false;
@@ -6068,7 +6077,10 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   if (clinicalFieldRequiresExplicitPrescriptionState("allergy_history") && !isKnownClinicalText(allergyText)) addMissing("allergy_unknown", `${clinicalRequiredFieldLabel("allergy_history", "过敏史")}（明确有/无及过敏原/反应）`);
   else if (allergyHistoryNeedsClarification(allergyText)) addMissing("allergy_details", "已提及过敏史但缺少过敏原/反应");
   if (clinicalFieldRequiresExplicitPrescriptionState("medication_history") && !isKnownClinicalText(medicationText)) addMissing("medication_unknown", `${clinicalRequiredFieldLabel("medication_history", "当前用药")}（明确有/无及药物清单）`);
-  else if (medicationHistoryNeedsClarification(medicationText)) addMissing("medication_details", "已提及当前用药但缺少药名/剂量/频次");
+  // 写了药名、只缺剂量频次时不说「缺少药名」（2026-10-24 C045：病历写着二甲双胍，评审判复述不准）。
+  else if (medicationHistoryNeedsClarification(medicationText)) {
+    addMissing("medication_details", NAMED_MEDICATION.test(medicationText) ? "已提及当前用药但缺少剂量/频次" : "已提及当前用药但缺少药名/剂量/频次");
+  }
   if (hasInvalidBp) addMissing("blood_pressure_invalid", "血压数值需复核（收缩压应高于舒张压）");
   const invalidVitalFindings = invalidEnteredVitalFindings(state).filter((finding) => !(finding.name === "血压" && hasInvalidBp));
   if (invalidVitalFindings.length > 0) {
@@ -6905,14 +6917,23 @@ export function deriveFirstReviewTiming(state: CaseState, hasStrongRisk: boolean
  * 与 prescription-regimen-contract 的 followUpAfterDoses/followUpAfterDays 同源。
  * 正文「首次复诊时间」与随访时间轴第一条共用本函数的结果，两处仍逐字相同。
  */
+/**
+ * 安全门要求先完成临床评估时，复诊安排的第一句（辨证页、开方页的复诊计划与 M05 首次复诊共用这一处；2026-10-24 C069 两处各写各的，
+ * 开方页「2周内到乳腺专科」、M05「3天内到相关专科」，评审判时间窗矛盾）。乳房肿块按 NICE NG12 疑似肿瘤路径：两周内专科评估。
+ */
+export function priorityEvaluationFirstStep(focus: string): string {
+  if (/乳腺癌/u.test(focus)) return "请在2周内到乳腺专科就诊，先完成乳腺超声检查（必要时加做乳腺X线），排除乳腺癌后再按医生安排服药与复诊。";
+  return focus
+    ? `请在3天内到相关专科就诊，先完成评估（需排除${focus}），再按医生安排服药与复诊。`
+    : "请在3天内到医院完成评估、核实病情后，再按医生安排服药与复诊。";
+}
+
 export function patientFacingFirstReview(state: CaseState, hasStrongRisk: boolean): string {
   if (hasStrongRisk) return "处方需经医生调整确认后再服用；确认用药后，请在1-3天内复诊。";
   // 安全门要求先完成临床评估的病例：首次复诊先说去评估（与辨证、开方页复诊计划的第一句同一判据，2026-10-24）。
   const priorityFocus = priorityEvaluationFollowupFocus(state);
   if (priorityFocus !== undefined) {
-    return priorityFocus
-      ? `请在3天内到相关专科就诊，先完成评估（需排除${priorityFocus}），再按医生安排服药与复诊；如有不适或症状加重，请立即就医。`
-      : "请在3天内到医院完成评估、核实病情后，再按医生安排服药与复诊；如有不适或症状加重，请立即就医。";
+    return `${priorityEvaluationFirstStep(priorityFocus).replace(/。$/u, "")}；如有不适或症状加重，请立即就医。`;
   }
   const decoction = primaryPrescribeCandidate(state)?.decoction;
   const doses = decoction?.followUpAfterDoses;

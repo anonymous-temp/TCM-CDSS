@@ -189,6 +189,9 @@ await check("6.1 兼证栏里的脱证提为主证、治法固脱在前；原病
   assert.equal(after.overview.tcmDiseaseName, "虚脱");
   assert.match(after.overview.tcmDiseaseRationale, /瘾疹为其起因/);
   assert.match(after.therapy.overallMethod, /^回阳固脱/);
+  const withRationale = JSON.parse(critical.promoteCriticalSecondarySyndrome(JSON.stringify({ ...before, overview: { ...before.overview, tcmDiagnosticRationale: "风团瘙痒，故主证属风热犯表；脉微汗出为阳气欲脱。" } })));
+  assert.ok(!/主证属风热/.test(withRationale.overview.tcmDiagnosticRationale), withRationale.overview.tcmDiagnosticRationale);
+  assert.match(withRationale.overview.tcmDiagnosticRationale, /以阳气虚脱证为主证，风热犯表证列为兼证/);
   // 模型已把脱证写成主证、病名仍是瘾疹：病名改虚脱，证与治法不动。
   const primaryAlready = { ...before, overview: { ...before.overview, primarySyndrome: "气脱证", secondarySyndromes: ["风毒炽盛证"] } };
   const promoted = JSON.parse(critical.promoteCriticalSecondarySyndrome(JSON.stringify(primaryAlready)));
@@ -235,6 +238,7 @@ await check("10.1 病历记着家属与本人说法不同：辨病依据点明�
   const record = "主诉：全身不舒服半年\n其他四诊/问诊补充：家属与本人对症状持续时间描述不同";
   assert.equal(surface.recordedAccountConflict(record), "家属与本人对症状持续时间描述不同");
   assert.equal(surface.recordedAccountConflict("其他四诊/问诊补充：家属代述，患者回答前后不一致"), undefined);
+  assert.match(String(surface.recordedAccountConflict("现病史：患者口述腹痛“昨晚才开始”，又称三天前就因疼痛请假，时间线互相矛盾；无呕血。")), /时间线互相矛盾$/);
   const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseName: "眩晕", tcmDiseaseRationale: "以头晕为主症、病程半年，属眩晕范畴。", primarySyndrome: "气血亏虚证" }, pathogenesis: { chain: [], uncertainties: [] } };
   const projected = surface.projectDeliveredReasoning(reasoning, { recordText: record });
   assert.match(projected.overview.tcmDiseaseRationale, /病历记录「家属与本人对症状持续时间描述不同」/);
@@ -285,6 +289,42 @@ await check("14.1 「加」这一行的理由说要去掉这味药时不交付�
   assert.equal(compiler.addModificationReasonSaysRemove("川芎", "去川芎以免动血"), true);
   assert.equal(compiler.addModificationReasonSaysRemove("苍术", "燥湿健脾，去除湿邪"), false);
   assert.equal(compiler.addModificationReasonSaysRemove("延胡索", "活血行气止痛"), false);
+});
+
+// ─── 15 本轮 qwen 复评后的补修 ─────────────────────────────────────────────────
+const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+await check("15.1 优先评估的复诊第一句在开方页与 M05 首次复诊是同一句（C069：一处「2周内乳腺专科」、一处「3天内相关专科」）", () => {
+  const lump = pageCase({ age: 38, chief: "左乳无痛性结节1个月", present: "洗澡时触及无痛肿块", past: "母亲有乳腺癌史", detail: "妊娠状态明确否认", exams: "尚未乳腺超声" });
+  const first = safety.priorityEvaluationFirstStep("乳腺癌");
+  assert.match(first, /2周内到乳腺专科/);
+  assert.ok(surface.followupWhenPriorityEvaluation("请服完本次的药后复诊。", "乳腺癌").startsWith(first));
+  assert.ok(safety.patientFacingFirstReview(lump, false).startsWith(first.replace(/。$/, "")), safety.patientFacingFirstReview(lump, false));
+});
+
+await check("15.2 用药写了药名、只缺剂量频次时，缺项写「缺少剂量/频次」，不说缺药名（C045 二甲双胍）", () => {
+  const named = safety.evaluateSafetyGate(pageCase({ sex: "男", age: 58, chief: "口干多饮3月", medication: "二甲双胍" })).missingItems;
+  assert.ok(named.includes("已提及当前用药但缺少剂量/频次"), JSON.stringify(named));
+  const vague = safety.evaluateSafetyGate(pageCase({ sex: "男", age: 58, chief: "头晕3月", medication: "长期服用降压药" })).missingItems;
+  assert.ok(vague.includes("已提及当前用药但缺少药名/剂量/频次"), JSON.stringify(vague));
+});
+
+await check("15.3 体重下降同时咯血：红旗照报，写查肺，不写「上消化道…内镜」（C005）；没有咯血的照旧", () => {
+  const hemoptysis = safety.evaluateSafetyGate(pageCase({ sex: "男", age: 63, chief: "间断咯血1周，体重下降2月", present: "痰中反复带鲜红血丝，夜间盗汗，近2月体重下降约5kg", detail: "低热、食欲差" })).redFlags;
+  assert.ok(hemoptysis.some((item) => /咯血伴体重下降.*胸部CT/.test(item)), JSON.stringify(hemoptysis));
+  assert.ok(!hemoptysis.some((item) => /上消化道警示征象（不明原因体重下降）/.test(item)), JSON.stringify(hemoptysis));
+  const gastric = safety.evaluateSafetyGate(pageCase({ sex: "男", age: 63, chief: "上腹胀2月，体重下降", present: "上腹胀满，近2月体重下降约5kg，纳差" })).redFlags;
+  assert.ok(gastric.some((item) => /上消化道警示征象（不明原因体重下降）/.test(item)), JSON.stringify(gastric));
+});
+
+await check("15.4 方名是目录成方（标志药都在）、出处写「自拟方」时按目录补出处（C063 香砂六君子汤加减）", () => {
+  const saved = JSON.parse(fs.readFileSync("scripts/fixtures/r1028-c051-prescribe.json", "utf8"));
+  const reference = provenance.formulaCompilationReferences(["香砂六君子汤"])[0];
+  const base = types.normalizeReasoningV2(saved);
+  const candidate = base.formula.candidates[0];
+  const herbs = reference.ingredients.map((name, index) => ({ ...candidate.herbs[index % candidate.herbs.length], name }));
+  const reasoning = { ...base, formula: { ...base.formula, candidates: [{ ...candidate, name: "香砂六君子汤加减", formulaNames: ["香砂六君子汤"], herbs, formulaSource: { evidenceLevel: "model_inference", source: "自拟方", confidence: "中" } }] } };
+  const projected = surface.projectDeliveredReasoning(reasoning, {});
+  assert.equal(projected.formula.candidates[0].formulaSource.source, `香砂六君子汤：${reference.source}`);
 });
 
 console.log(JSON.stringify({ suite: "r1029-main", cases, failures: process.exitCode ? "see above" : 0 }));
