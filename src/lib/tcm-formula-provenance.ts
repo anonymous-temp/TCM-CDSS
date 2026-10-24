@@ -1409,6 +1409,26 @@ export function lineageDecisionsMatchingDirection<T extends ClinicalReasoningRes
   return { ...reasoning, lineageAdaptation: { ...adaptation, influencedDecisions: kept } } as T;
 }
 
+/**
+ * 选了某派时，辨证依据末尾那句眼目句写成了别的流派（2026-10-24 第十八轮线上流派测试：扶阳思路的 C043 写成
+ *「温病看卫气营血层次，舌红等温热见证，以下按常规辨证处理」——照抄了提示词的示例）。只认「〈派名〉（学派/思路/派）看/重…」这一句式，
+ * 派名不是所选流派的整句去掉；辨证正文里出现的卫气营血、六经等术语不动。不限定流派时不处理。
+ */
+const LINEAGE_LENS_SUBJECT: Readonly<Record<string, string>> = {
+  "classical-formula": "经方", "warm-disease": "温病", "nourish-yin-danxi": "丹溪", "warm-tonify": "温补", "support-yang": "扶阳",
+};
+export function withoutForeignLineageLensSentence<T extends ClinicalReasoningResultV2>(reasoning: T, lineagePreference?: string): T {
+  const own = LINEAGE_LENS_SUBJECT[String(lineagePreference || "")];
+  const rationale = reasoning.overview?.tcmDiagnosticRationale;
+  if (!own || typeof rationale !== "string") return reasoning;
+  const foreign = Object.values(LINEAGE_LENS_SUBJECT).filter((name) => name !== own).join("|");
+  const lens = new RegExp(`^(?:按|从)?(?:${foreign})(?:学派|思路|派)?(?:看|重)`, "u");
+  const sentences = rationale.split(/(?<=[。；;])/u);
+  const kept = sentences.filter((sentence) => !lens.test(sentence.trim()));
+  if (kept.length === sentences.length) return reasoning;
+  return { ...reasoning, overview: { ...reasoning.overview, tcmDiagnosticRationale: kept.join("").trim() } } as T;
+}
+
 function textbookAnchoredFormulaDirection(reasoning: ClinicalReasoningResultV2, lineagePreference?: string): string {
   const direction = String(reasoning.overview?.recommendedFormulaDirection || "");
   const row = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
@@ -1555,7 +1575,7 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
       : textbookRow && secondary.length === 0 && recordRowMethod
         ? supportedByRecord(withSymptomDirectedClause(recordRowMethod, String(reasoning.therapy?.overallMethod || "")))
         : "";
-    return lineageDecisionsMatchingDirection({
+    return lineageDecisionsMatchingDirection(withoutForeignLineageLensSentence({
       ...reasoning,
       overview: {
         ...reasoning.overview,
@@ -1578,7 +1598,7 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
         formulaSelectionMode: formulaSelectionMode(governedDirection, recommendedFormulaNames),
       },
       ...(anchoredMethod && reasoning.therapy ? { therapy: { ...reasoning.therapy, overallMethod: anchoredMethod } } : {}),
-    }, governedDirection);
+    }, lineagePreference), governedDirection);
   }
   if (reasoning.stage === "prescribe" && reasoning.formula) {
     return {

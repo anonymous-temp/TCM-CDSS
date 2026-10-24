@@ -15,6 +15,7 @@
 //  13 停药写在同一句后面小句（「…半年余，…而停药」）也算停用，不再写成「正在服用」；条件写法（停药则…）与一直在用的不算。
 //  14 模型写「血氧正常」而病历只有「指脉氧饱和度97%」：照录病历那句，不再写「病历未记录本次血氧结果」。
 //  15 「脾气不升/清阳不升/中气下陷」证名推虚则补之；「难以入眠」等算写到入睡困难，「未诉入睡困难」不留。
+//  16 选了某派时，辨证依据里写成别的流派的眼目句（照抄示例）整句去掉；辨证正文里的术语不动。
 //   5 中成药：说明书适应证明写实热/实火/实证/实寒的，纯虚证不推荐（润肠丸「用于实热津亏便秘」配阴虚秘）。
 
 import assert from "node:assert/strict";
@@ -313,6 +314,18 @@ await check("15.2 病历写「难以入眠/不易入睡」时删去「未诉入�
   assert.equal(visible.withoutDenialsOfRecordedFindings("心悸易怒，未诉入睡困难，与不寐相区分。", "现病史：近1周心慌，夜里异常兴奋难以入眠。"), "心悸易怒。");
   assert.equal(visible.withoutDenialsOfRecordedFindings("心悸易怒，未诉入睡困难。", "现病史：近1周心慌，晚上不易入睡。"), "心悸易怒。");
   assert.equal(visible.withoutDenialsOfRecordedFindings("心悸易怒，未诉入睡困难。", "现病史：近1周心慌，纳可。"), "心悸易怒，未诉入睡困难。");
+});
+
+// ── 16 串派的眼目句 ──
+await check("16.1 扶阳思路下「温病看卫气营血层次…」整句去掉；所选派自己的眼目句、正文里的卫气营血术语、不限定流派都不动", () => {
+  const withRationale = (text) => ({ ...structuredClone(c001), overview: { ...structuredClone(c001).overview, tcmDiagnosticRationale: text } });
+  const copied = "寒湿痹阻故疼痛，证属痛痹。温病看卫气营血层次，舌红等温热见证，以下按常规辨证处理。";
+  assert.equal(provenance.withoutForeignLineageLensSentence(withRationale(copied), "support-yang").overview.tcmDiagnosticRationale, "寒湿痹阻故疼痛，证属痛痹。");
+  const own = "寒湿痹阻故疼痛，证属痛痹。扶阳看阴阳盛衰，本例怕冷、舌淡胖，阳虚之据部分可见。";
+  assert.equal(provenance.withoutForeignLineageLensSentence(withRationale(own), "support-yang").overview.tcmDiagnosticRationale, own);
+  const term = "发热微恶寒，邪在卫分，属卫气营血之卫分证。";
+  assert.equal(provenance.withoutForeignLineageLensSentence(withRationale(term), "classical-formula").overview.tcmDiagnosticRationale, term);
+  assert.equal(provenance.withoutForeignLineageLensSentence(withRationale(copied), "unrestricted").overview.tcmDiagnosticRationale, copied);
 });
 
 console.log(`\n${cases} checks`);
