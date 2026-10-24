@@ -375,8 +375,10 @@ export function patentMedicineOpposesSignedDirection(
   if (!direction || medicine.type !== "中成药") return undefined;
   const name = String(medicine.name || "").trim();
   if (!name || medicineRouteGroup(name, medicine.route) !== "systemic") return undefined;
+  const indication = findLocalPatentMedicineLabel(name)?.indication || "";
   return patentMedicineDirectionConflict({
-    clause: medicineFunctionClause(findLocalPatentMedicineLabel(name)?.indication || ""),
+    clause: medicineFunctionClause(indication),
     herbs: patentMedicineCompositionIdentities(name),
+    indication,
   }, direction);
 }

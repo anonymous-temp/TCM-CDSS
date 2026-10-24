@@ -428,6 +428,7 @@ export function retrieveLocalPatentMedicineCandidates(
       return !patentMedicineDirectionConflict({
         clause: medicineFunctionClause(entry.indication),
         herbs: () => patentMedicineCompositionIdentities(entry.name),
+        indication: entry.indication,
       }, signedDirection);
     })
     .sort((left, right) =>
@@ -591,7 +592,7 @@ export function signedDirectionOf(prior: Pick<ClinicalReasoningResultV2, "overvi
   return names || method ? { names, method } : undefined;
 }
 
-export type MedicineDirectionConflict = "tonic_for_excess" | "attack_for_deficiency" | "cold_for_cold_case" | "warm_for_heat_case";
+export type MedicineDirectionConflict = "tonic_for_excess" | "attack_for_deficiency" | "cold_for_cold_case" | "warm_for_heat_case" | "excess_indication_for_deficiency";
 
 const DEFICIENT_NAME = /虚|亏|不足|失养|不固|不摄|怯|衰|脱/u;
 const EXCESS_NAME = /热|火|湿|痰|饮|瘀|滞|郁|积|毒|风|寒|燥|亢|扰|犯|乘|旺|束|蕴|阻|结|闭/u;
@@ -632,8 +633,13 @@ function medicineThermalByComposition(herbs: readonly string[]): "cold" | "warm"
  * 内服成药（说明书功能 clause，成份 herbs 为药味身份名）与已签名证候是否明确相反；相反时返回原因码。
  * 调用方负责只对内服中成药调用（外用药治局部，不随整体证候走）。
  */
+/**
+ * 说明书「用于…」里明写的实证（实热、实火、实证、实寒）：功能短句只写「润肠通便」读不出补泻，适应证却写着「用于实热津亏便秘」
+ *（润肠丸）。本例证名是纯虚证（阴虚秘）时它与证候虚实相反（2026-10-24 甲方 100 例 C014 中成药评审不合格）。只认带「实」字的写法。
+ */
+const INDICATION_EXCESS = /实(?:热|火|证|寒)/u;
 export function patentMedicineDirectionConflict(
-  medicine: { clause: string; herbs: readonly string[] | (() => readonly string[]) },
+  medicine: { clause: string; herbs: readonly string[] | (() => readonly string[]); indication?: string },
   direction: SignedDirection,
 ): MedicineDirectionConflict | undefined {
   const { names, method } = direction;
@@ -651,6 +657,8 @@ export function patentMedicineDirectionConflict(
     if (MEDICINE_ATTACK.test(clause) && !MEDICINE_TONIC.test(clause) && !compositionHasTonicHerb(herbs()) &&
         caseDeficient && !caseExcess && method && !METHOD_HAS_ATTACK.test(method)) return "attack_for_deficiency";
   }
+  const usedFor = medicine.indication ? medicine.indication.slice(clause.length) : "";
+  if (usedFor && INDICATION_EXCESS.test(usedFor) && caseDeficient && !caseExcess) return "excess_indication_for_deficiency";
   // 寒热：本例证名只有寒（或只有热），治法也没有反向字样。
   const caseColdOnly = /寒/u.test(names) && !/热|火|暑/u.test(names) && !MEDICINE_COLD.test(method);
   const caseHeatOnly = /热|火|暑/u.test(names.replace(/虚热|虚火/gu, "")) && !/寒/u.test(names) && !MEDICINE_WARM.test(method);

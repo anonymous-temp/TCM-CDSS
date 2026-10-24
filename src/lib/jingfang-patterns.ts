@@ -160,7 +160,7 @@ function cut(value: string, max: number): string {
  * M03 中医半提示词里的「经方方证候选」段。没有通过校验的方证时返回空串（提示词与此前逐字相同）。
  * 规则写在段内而不是固定前缀里：没有选出方证的病例（绝大多数）不增加任何提示词。
  */
-export function buildJingfangCandidateContext(picks: readonly JingfangPick[] | undefined): string {
+export function buildJingfangCandidateContext(picks: readonly JingfangPick[] | undefined, lineagePreference?: string): string {
   const entries = (picks || []).flatMap((pick) => {
     const pattern = jingfangPatternByName(pick.patternName);
     return pattern ? [{ pattern, pick }] : [];
@@ -176,6 +176,13 @@ export function buildJingfangCandidateContext(picks: readonly JingfangPick[] | u
   return [
     "【经方方证候选】（以下方证的原文主症在病历里逐字可见。方证辨证出自《伤寒论》《金匮要略》，与上方教材「病—证—法—方」对照是两套并行的辨证体系，相交而不等同；条文为本地古籍电子版原文，个别字有缺漏。）",
     ...lines,
+    ...(lineagePreference === "classical-formula"
+      ? [
+          // 医生选了经方思路（2026-10-24 第十八轮）：甲方要看「不同诊疗思路是否改变分析重点」，经方思路的分析重点就是方证相应；
+          // 此前这里与不限定流派同一条「教材行优先」规则，选了经方思路的感冒、心悸照样落在教材的时方上。
+          "医生选定了经方思路：下面第 2 条的逐项比较改为——「病历已见」里有条文特征症（第 1 条）、且病历与方证的区分点不相反（第 4 条）时，采用方证，不再因为教材行也能解释而改用教材行；教材代表方可在辨证依据里作对照。只有泛化症状时仍不采用。",
+        ]
+      : []),
     "采用规则（只在上面列出了方证时适用，是对重要原则第 7 条“有贴合行就用教材行”的补充）：",
     "1. 先分清「病历已见」里的两类表现。条文特征症：「方证主症」里别的方证少见、能把该方证与相近方证分开的表现（如颠顶痛、干呕吐涎沫、心中懊憹、气上冲、脐下悸、脉促胸满、汗出恶风脉浮缓、心下痛按之石硬）。泛化症状：发热、恶寒、头痛、咳嗽、口渴、腹痛、心烦、脉数这类很多证型共有的表现。「病历已见」里只有泛化症状时，不采用本段。",
     "2. 再逐项对教材行，不要因为教材行“大致贴合”就放弃方证。取【教材病证候选】里与本例最近的一行，看那些条文特征症是否已写在这一行的主症里：",

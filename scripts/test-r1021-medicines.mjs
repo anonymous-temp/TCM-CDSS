@@ -306,7 +306,7 @@ await check("7.1 编译器：现用药重复 → 方向底线 → 解热镇痛 �
   assert.match(plannerSource, /patentMedicineDuplication\(item\.candidate, \[\], selfMedications\)/u);
   assert.match(plannerSource, /patentMedicineOpposesSignedDirection\(item\.candidate, signedDirection\)/u);
   const candidatesSource = fs.readFileSync("src/lib/local-patent-medicine-candidates.ts", "utf8");
-  assert.match(candidatesSource, /patentMedicineDirectionConflict\(\{\s*clause: medicineFunctionClause\(entry\.indication\),\s*herbs: \(\) => patentMedicineCompositionIdentities\(entry\.name\),\s*\}, signedDirection\)/u, "检索层第六道");
+  assert.match(candidatesSource, /patentMedicineDirectionConflict\(\{\s*clause: medicineFunctionClause\(entry\.indication\),\s*herbs: \(\) => patentMedicineCompositionIdentities\(entry\.name\),\s*indication: entry\.indication,\s*\}, signedDirection\)/u, "检索层第六道（10/24 起带适应证全文，见 test:r1030-main 5.1）");
   assert.match(fs.readFileSync("src/lib/delivered-surface.ts", "utf8"), /TOPICAL_MEDICATION_FORM \} from "\.\/local-patent-medicine-candidates"/u, "外用剂型词表只有一份");
   assert.match(plannerSource, /withoutSameClassMedicines\(screened\.map/u);
   assert.match(plannerSource, /PLANNER_PROMPT_VERSION = "2026-10-19-signed-direction-class-dedupe-v4"/u, "提示词改了，缓存键里的版本必须变");

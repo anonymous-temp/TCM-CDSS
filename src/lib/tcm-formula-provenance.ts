@@ -13,7 +13,7 @@ import formulaRoleBindingsJson from "../data/tcm-formula-role-bindings.source.js
 import type { CaseState, ClinicalReasoningResultV2, EvidenceRef } from "./diagnosis-types";
 import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
-import { lockedFormulaNamesIncludeModelTrustedOnly, normalizedFormulaIdentity, trustedModelFormulaIdentityNames } from "./tcm-formula-indications";
+import { formulaFunctionsPositivelyAligned, lineageFormulaSyndromeSupportedNames, lockableFormulaCatalogFunctions, lockedFormulaNamesIncludeModelTrustedOnly, normalizedFormulaIdentity, signedTherapyMethodIds, trustedModelFormulaIdentityNames } from "./tcm-formula-indications";
 import { lineageAffinitiesForFormula } from "./tcm-formula-lineage-affinity";
 import { formulaInCommonTier, formulaLockTierEnabled } from "./tcm-formula-tier";
 import {
@@ -1361,7 +1361,52 @@ function lineageChosenFormulaDirectionKept(reasoning: ClinicalReasoningResultV2,
     .some((affinity) => affinity.adjudicated && affinity.lineageCode === preference));
   if (!inLineage) return false;
   const trusted = trustedModelFormulaIdentityNames(reasoning, names);
+  // 选了流派时，目录主治证候与已签名证候相容也算对证的正面依据（治法用词对不上不再否决，治法随后按方改写，见 lineageKeptTherapy）。
+  // 只在没有兼证时：治法要改按方写，有兼证时那一项治法会被一并换掉。
+  const secondary = reasoning.overview?.secondarySyndromes;
+  if (!Array.isArray(secondary) || secondary.filter(Boolean).length === 0) {
+    for (const identity of lineageFormulaSyndromeSupportedNames(reasoning, names)) trusted.add(identity);
+  }
   return names.every((name) => trusted.has(normalizedFormulaIdentity(name)));
+}
+
+/**
+ * 按流派保留了模型选的方、而模型写的治法与这首方的功效对不上时（治法照抄了教材行），治法改按这首方在目录里的功效写，
+ * 针对主诉主症的那一句（含「止」）接在后面（withSymptomDirectedClause）。对得上时保留模型写的治法。
+ * 方与治法不一致，开方阶段按治法核方会把方退成自拟方，医生看到的也是「方是桂枝汤、治法是辛温解表宣肺散寒」。
+ */
+function lineageKeptTherapy(reasoning: ClinicalReasoningResultV2, direction: string): string {
+  const modelMethod = String(reasoning.therapy?.overallMethod || reasoning.overview?.overallTherapy || "");
+  const functions = [...new Set(identifyKnownFormulaNames(direction).flatMap((name) => lockableFormulaCatalogFunctions(name)))];
+  if (functions.length === 0) return "";
+  if (formulaFunctionsPositivelyAligned(functions, signedTherapyMethodIds(reasoning))) return "";
+  return withSymptomDirectedClause(functions.join("，"), modelMethod);
+}
+
+/**
+ * 流派适配说明（lineageAdaptation.influencedDecisions，模型写）与最终交付的方一致（2026-10-24 第十八轮）。
+ * 方名由服务端锚定（教材代表方 / 流派方 / 自拟），流派适配说明却是模型在锚定前写的：甲方 100 例里 7 例写着「按经方方证相应选桂枝汤加减」
+ *「取八珍汤气血双补」，交付的却是荆防败毒散、圣愈汤。点名了一首最终没有交付的方、又不是在说「不套用/未选」它的那一条，整条去掉；
+ * 别的条目（辨证视角、加减风格）与 applicable、applicabilityReason 不动。
+ */
+const FORMULA_NOT_ADOPTED_CUE = /(?:不|未|非|没有|暂不|而非|不再|弃)[^，。；;、]{0,4}$/u;
+// 后置否定：「麻黄汤等方证眼目不符，暂不套用经方名」（C009 交付越婢加术汤）。
+const FORMULA_NOT_ADOPTED_AFTER = /^[^，。；;]{0,8}?(?:不符|不合|不相符|不宜|不套|不用|不选|未用|未选|暂不)/u;
+export function lineageDecisionsMatchingDirection<T extends ClinicalReasoningResultV2>(reasoning: T, direction: string): T {
+  const adaptation = (reasoning as { lineageAdaptation?: { influencedDecisions?: Array<{ aspect?: unknown; detail?: unknown }> } | null }).lineageAdaptation;
+  const items = adaptation?.influencedDecisions;
+  if (!adaptation || !Array.isArray(items) || items.length === 0) return reasoning;
+  const delivered = new Set(identifyKnownFormulaNames(direction).map(normalizedFormulaIdentity));
+  const kept = items.filter((item) => {
+    const detail = typeof item?.detail === "string" ? item.detail : "";
+    return identifyKnownFormulaNames(detail).every((name) => {
+      if (delivered.has(normalizedFormulaIdentity(name))) return true;
+      const at = detail.indexOf(name);
+      return at >= 0 && (FORMULA_NOT_ADOPTED_CUE.test(detail.slice(0, at)) || FORMULA_NOT_ADOPTED_AFTER.test(detail.slice(at + name.length)));
+    });
+  });
+  if (kept.length === items.length) return reasoning;
+  return { ...reasoning, lineageAdaptation: { ...adaptation, influencedDecisions: kept } } as T;
 }
 
 function textbookAnchoredFormulaDirection(reasoning: ClinicalReasoningResultV2, lineagePreference?: string): string {
@@ -1505,10 +1550,12 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     // 否则方是桂枝汤、治法却是「辛温解表，宣肺散寒」，方与治法对不上，开方阶段按治法核方会把它退成自拟方。
     const lineageKept = Boolean(textbookRow) &&
       lineageChosenFormulaDirectionKept(reasoning, String(reasoning.overview?.recommendedFormulaDirection || ""), lineagePreference);
-    const anchoredMethod = textbookRow && secondary.length === 0 && recordRowMethod && !lineageKept
-      ? supportedByRecord(withSymptomDirectedClause(recordRowMethod, String(reasoning.therapy?.overallMethod || "")))
-      : "";
-    return {
+    const anchoredMethod = lineageKept
+      ? lineageKeptTherapy(reasoning, String(reasoning.overview?.recommendedFormulaDirection || ""))
+      : textbookRow && secondary.length === 0 && recordRowMethod
+        ? supportedByRecord(withSymptomDirectedClause(recordRowMethod, String(reasoning.therapy?.overallMethod || "")))
+        : "";
+    return lineageDecisionsMatchingDirection({
       ...reasoning,
       overview: {
         ...reasoning.overview,
@@ -1531,7 +1578,7 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
         formulaSelectionMode: formulaSelectionMode(governedDirection, recommendedFormulaNames),
       },
       ...(anchoredMethod && reasoning.therapy ? { therapy: { ...reasoning.therapy, overallMethod: anchoredMethod } } : {}),
-    };
+    }, governedDirection);
   }
   if (reasoning.stage === "prescribe" && reasoning.formula) {
     return {
@@ -1925,6 +1972,16 @@ export function applyDeterministicFormulaReferences(content: string, clinicalSou
         const parsed = JSON.parse(jsonText) as ClinicalReasoningResultV2;
         if (parsed.schemaVersion !== "tcm-cdss-reasoning-v2") return match;
         const next = withDeterministicFormulaReferences(parsed, clinicalSourceText, lineagePreference);
+        if (parsed.stage === "diagnose" && lineagePreference && lineagePreference !== "unrestricted") {
+          // 流派选方的去留（方名与流派代码，无病历内容）：选了流派而方被改回教材代表方的比例只能从这里看到。
+          console.info("[tcm-cdss:telemetry] lineage_formula_direction", {
+            lineage: lineagePreference,
+            applicable: (parsed as { lineageAdaptation?: { applicable?: unknown } }).lineageAdaptation?.applicable ?? null,
+            modelDirection: String(parsed.overview?.recommendedFormulaDirection || "").slice(0, 40),
+            modelTherapy: String(parsed.therapy?.overallMethod || "").slice(0, 40),
+            finalDirection: String(next.overview?.recommendedFormulaDirection || "").slice(0, 40),
+          });
+        }
         return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(next, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
       } catch {
         return match;

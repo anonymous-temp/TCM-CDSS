@@ -1,0 +1,302 @@
+{
+ "schemaVersion": "tcm-cdss-reasoning-v2",
+ "stage": "prescribe",
+ "overview": {
+  "tcmDiseaseName": "吐酸",
+  "primarySyndrome": "热证",
+  "primarySyndromeResolution": "bounded",
+  "primarySyndromeBasis": [
+   "烧心反酸4个月",
+   "晚餐后和躺下时胸骨后烧灼感",
+   "抬高床头有改善",
+   "舌象：舌淡红，苔薄黄"
+  ],
+  "primarySyndromeResolutionReason": "缺口苦口渴喜冷等热象细节，寒热偏重未定",
+  "tcmDiseaseRationale": "以胃中酸水上泛、烧心为主症，病程4个月反复发作，故归入吐酸；嘈杂以似饥非饥、莫可名状为主，本例未诉此特点。",
+  "tcmDiagnosticRationale": "烧心反酸、胸骨后烧灼感、卧位加重，为胃气上逆、酸水泛溢，属吐酸热证；苔薄黄示郁热内蕴，脉弦示气机郁滞，喜咖啡夜宵助生内热；无吞咽困难及黑便，未见瘀阻或出血之象。",
+  "tcmDiseaseReferences": [
+   {
+    "evidenceId": "STD-GBT-15657-2021",
+    "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+    "sourceType": "standard"
+   }
+  ],
+  "tcmSyndromeReferences": [
+   {
+    "evidenceId": "STD-GBT-16751-2-2021",
+    "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医临床诊疗术语 第2部分: 证候: GB/T 16751.2-2021[S]. 2021.",
+    "sourceType": "standard"
+   }
+  ],
+  "tcmDifferentials": [
+   {
+    "syndrome": "寒证",
+    "reason": "同见吐酸，需分寒热",
+    "distinguishingPoints": "本例苔薄黄、烧灼感明显，未诉喜热畏寒，不支持寒证",
+    "typicalManifestation": "吐酸时作，喜唾涎沫，饮食喜热，四肢不温，舌淡苔白，脉沉迟",
+    "nextCheck": "询问饮食喜恶与四肢温度"
+   },
+   {
+    "syndrome": "胃热证（嘈杂）",
+    "reason": "同有胃热与吞酸",
+    "distinguishingPoints": "本例以烧心反酸为主，未诉似饥非饥、口臭，主症不符",
+    "typicalManifestation": "嘈杂似饥非饥，口渴喜冷，口臭心烦，舌红苔黄，脉滑数",
+    "nextCheck": "追问有无嘈杂似饥感"
+   }
+  ],
+  "tcmDiseaseDifferentials": [
+   {
+    "diseaseName": "嘈杂",
+    "reason": "同属胃脘不适，易与吐酸混淆",
+    "distinguishingPoints": "本例主症为酸水上泛与胸骨后烧灼，未诉似饥非饥",
+    "typicalManifestation": "胃中空虚，似饥非饥，似辣非辣，时作时止",
+    "nextCheck": "问诊有无莫可名状的胃中空虚感"
+   },
+   {
+    "diseaseName": "胃痛",
+    "reason": "均可有烧灼感",
+    "distinguishingPoints": "本例烧心反酸位于胸骨后，与体位相关，未诉胃脘疼痛",
+    "typicalManifestation": "胃脘部疼痛，可伴烧灼感",
+    "nextCheck": "询问胃脘部有无疼痛"
+   }
+  ],
+  "secondarySyndromes": [],
+  "overallPathogenesis": "饮食偏嗜咖啡夜宵，胃气郁滞，久则化热，胃失和降，酸水随气上逆，扰于胸膈，故见烧心反酸、卧位加重",
+  "overallTherapy": "清泄肝火，和胃降逆",
+  "recommendedFormulaDirection": "左金丸加减",
+  "recommendedFormulaNames": [
+   "左金丸"
+  ],
+  "formulaSelectionMode": "single",
+  "evidence": {
+   "evidenceLevel": "model_inference",
+   "source": "病例内推理",
+   "confidence": "低"
+  }
+ },
+ "formula": {
+  "candidates": [
+   {
+    "name": "左金丸加减",
+    "formulaNames": [],
+    "constructionType": "self_devised",
+    "formulaSource": {
+     "evidenceLevel": "model_inference",
+     "source": "左金丸：《丹溪心法》",
+     "confidence": "中"
+    },
+    "herbs": [
+     {
+      "name": "黄连",
+      "processing": "切片",
+      "dose": "3g",
+      "role": "君",
+      "prescriptionRole": "君药：和胃降逆，制酸止痛",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P1",
+      "structureRole": null,
+      "targetPathogenesis": "胃失和降，气逆于上，酸水泛溢",
+      "function": "清胃泄热，降逆制酸",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 2-5g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "黄芩",
+      "processing": null,
+      "dose": "10g",
+      "role": "臣",
+      "prescriptionRole": "臣药：和胃降逆，制酸止痛",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P1",
+      "structureRole": null,
+      "targetPathogenesis": "胃失和降，气逆于上，酸水泛溢",
+      "function": "清热燥湿，助泄郁热",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 3-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "栀子",
+      "processing": null,
+      "dose": "10g",
+      "role": "臣",
+      "prescriptionRole": "臣药：和胃降逆，制酸止痛",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P1",
+      "structureRole": null,
+      "targetPathogenesis": "胃失和降，气逆于上，酸水泛溢",
+      "function": "清泄郁热，导热下行",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 6-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "海螵蛸",
+      "processing": null,
+      "dose": "10g",
+      "role": "佐",
+      "prescriptionRole": "佐药：和胃降逆，制酸止痛",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P1",
+      "structureRole": null,
+      "targetPathogenesis": "胃失和降，气逆于上，酸水泛溢",
+      "function": "制酸止痛，收敛护膜",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 5-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "陈皮",
+      "processing": null,
+      "dose": "6g",
+      "role": "佐",
+      "prescriptionRole": "佐药：和胃降逆，制酸止痛",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P1",
+      "structureRole": null,
+      "targetPathogenesis": "胃失和降，气逆于上，酸水泛溢",
+      "function": "理气和胃，调畅气机",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 3-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "佛手",
+      "processing": null,
+      "dose": "6g",
+      "role": "佐",
+      "prescriptionRole": "佐药：和胃降逆，制酸止痛",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P1",
+      "structureRole": null,
+      "targetPathogenesis": "胃失和降，气逆于上，酸水泛溢",
+      "function": "理气和中，疏肝和胃",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 3-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "枳壳",
+      "processing": null,
+      "dose": "6g",
+      "role": "佐",
+      "prescriptionRole": "佐药：和胃降逆，制酸止痛",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P1",
+      "structureRole": null,
+      "targetPathogenesis": "胃失和降，气逆于上，酸水泛溢",
+      "function": "行气宽中，降逆除痞",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 3-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "竹茹",
+      "processing": null,
+      "dose": "6g",
+      "role": "佐",
+      "prescriptionRole": "佐药：和胃降逆，制酸止痛",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P1",
+      "structureRole": null,
+      "targetPathogenesis": "胃失和降，气逆于上，酸水泛溢",
+      "function": "清热和胃，降逆止呕",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 5-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "甘草",
+      "processing": null,
+      "dose": "6g",
+      "role": "使",
+      "prescriptionRole": "使药：调和诸药，协调药性",
+      "targetKind": "formula_structure",
+      "targetRef": "FORMULA_STRUCTURE",
+      "structureRole": "harmonize",
+      "targetPathogenesis": "调和诸药，协调药性",
+      "function": "调和诸药",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 2-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     }
+    ],
+    "formulaAnalysis": "本方以左金丸为基础加减，黄连为君，苦寒清胃泄热、降逆制酸，直折胃中郁热上逆之势；少量反佐黄连苦寒，使泻火而不伤胃，黄芩、栀子助君清泄郁热，同为臣药；海螵蛸制酸止痛、收敛护膜，陈皮、佛手、枳壳理气和胃、调畅气机，竹茹清热降逆，共为佐药；甘草为使，调和诸药、缓急和中。全方清泄与降逆并行，寒温相制，共奏清泄肝火、和胃降逆、制酸止痛之效。"
+   }
+  ]
+ },
+ "_note": "甲方 100 例合成病例 C018（胃食管反流）第十七轮交付的 M04 结构（合成数据）；test:r1030-main 6.x 用"
+}

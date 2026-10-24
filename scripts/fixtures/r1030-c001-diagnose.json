@@ -1,0 +1,235 @@
+{
+ "schemaVersion": "tcm-cdss-reasoning-v2",
+ "stage": "diagnose",
+ "overview": {
+  "tcmDiseaseName": "感冒",
+  "primarySyndrome": "风寒束表证",
+  "primarySyndromeResolution": "bounded",
+  "primarySyndromeBasis": [
+   "鼻塞流涕、咽痒2天",
+   "受凉后出现清涕、喷嚏和轻度咽痒",
+   "怕风，微恶寒",
+   "舌象：舌淡红，苔薄白",
+   "脉象：浮脉"
+  ],
+  "primarySyndromeResolutionReason": "汗出情况未记录，表虚表实尚需核实",
+  "tcmDiseaseRationale": "以鼻塞流涕、喷嚏、咽痒为主症，受凉后起病、病程2天，病位在卫表鼻窍，故归入感冒；鼻渊以浊涕量多、眉额胀痛为主，本例为清涕，可与之区分。",
+  "tcmDiagnosticRationale": "鼻塞流涕、喷嚏、咽痒伴怕风、微恶寒，为风寒袭表、肺气失宣、鼻窍不利，故属风寒束表证；清涕、口不渴、舌淡红苔薄白、脉浮，均支持风寒在表而无热象；面色稍白、食欲尚可、大便正常提示里气未伤，病位仍在表。",
+  "tcmDiseaseReferences": [
+   {
+    "evidenceId": "STD-GBT-15657-2021",
+    "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+    "sourceType": "standard"
+   }
+  ],
+  "tcmSyndromeReferences": [
+   {
+    "evidenceId": "STD-GBT-16751-2-2021",
+    "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医临床诊疗术语 第2部分: 证候: GB/T 16751.2-2021[S]. 2021.",
+    "sourceType": "standard"
+   }
+  ],
+  "tcmDifferentials": [
+   {
+    "syndrome": "风热犯表证",
+    "reason": "同为外感表证，需分寒热",
+    "distinguishingPoints": "本例清涕、口不渴、苔薄白、脉浮不数，未诉热象",
+    "typicalManifestation": "发热较著、咽痛、流黄稠涕、口干欲饮，舌尖红苔薄黄，脉浮数",
+    "nextCheck": "复核咽部有无红肿、涕色变化"
+   },
+   {
+    "syndrome": "气虚感冒",
+    "reason": "表证需辨虚实",
+    "distinguishingPoints": "本例既往体健，未诉气短乏力、自汗记录，脉浮不弱",
+    "typicalManifestation": "恶寒较甚、气短乏力、自汗、咳痰无力，舌淡苔薄白，脉浮无力",
+    "nextCheck": "询问平素易感冒及乏力情况"
+   },
+   {
+    "syndrome": "阳虚感冒",
+    "reason": "需排除阳虚兼表",
+    "distinguishingPoints": "本例脉浮、无四肢不温记录，舌不胖",
+    "typicalManifestation": "恶寒重、无汗、四肢不温、语声低微，舌淡胖苔白，脉沉细无力",
+    "nextCheck": "复核四肢温度与脉象沉浮"
+   }
+  ],
+  "tcmDiseaseDifferentials": [
+   {
+    "diseaseName": "鼻渊",
+    "reason": "均以鼻塞流涕为主症",
+    "distinguishingPoints": "本例为受凉后清涕、喷嚏，病程2天，未诉浊涕及眉额胀痛",
+    "typicalManifestation": "浊涕量多腥臭、鼻塞经久、眉额骨胀痛压痛",
+    "nextCheck": "询问涕色涕量与眉额部压痛"
+   },
+   {
+    "diseaseName": "风温",
+    "reason": "早期均见鼻塞流涕等表证",
+    "distinguishingPoints": "本例微恶寒、体温37.2℃，无胸痛气促，病势轻",
+    "typicalManifestation": "发热急骤、寒战高热、汗出热复起、咳嗽胸痛、头痛剧",
+    "nextCheck": "监测体温与咳嗽胸痛变化"
+   }
+  ],
+  "secondarySyndromes": [],
+  "overallPathogenesis": "受凉后风寒袭表，卫阳被遏故怕风微恶寒；肺气失宣、鼻窍不利故鼻塞流涕、喷嚏、咽痒；邪在表未入里，故口不渴、二便正常",
+  "overallTherapy": "辛温解表，宣肺散寒",
+  "recommendedFormulaDirection": "荆防败毒散加减",
+  "recommendedFormulaNames": [
+   "荆防败毒散"
+  ],
+  "formulaSelectionMode": "single",
+  "evidence": {
+   "evidenceLevel": "model_inference",
+   "source": "病例内推理",
+   "confidence": "低"
+  }
+ },
+ "pathogenesis": {
+  "summary": "风寒袭表，肺失宣降，鼻窍不利；风寒束表，卫阳被遏，营卫不和",
+  "locationDifferentiation": {
+   "items": [
+    "肺",
+    "卫表",
+    "鼻窍"
+   ],
+   "details": [
+    {
+     "location": "肺",
+     "basis": "受凉后出现清涕、喷嚏和轻度咽痒"
+    },
+    {
+     "location": "卫表",
+     "basis": "怕风，微恶寒"
+    },
+    {
+     "location": "鼻窍",
+     "basis": "鼻塞流涕、咽痒2天"
+    }
+   ],
+   "resolution": "bounded",
+   "resolutionReason": "病位判断目前只有一个方面的依据，尚需进一步明确。",
+   "evidence": {
+    "evidenceLevel": "model_inference",
+    "source": "本例四诊与病史推断",
+    "confidence": "低"
+   }
+  },
+  "natureDifferentiation": {
+   "items": [
+    "风寒",
+    "表证"
+   ],
+   "rootDeficiency": [],
+   "branchExcess": [
+    "风寒"
+   ],
+   "basis": "舌象：舌淡红，苔薄白",
+   "resolution": "bounded",
+   "resolutionReason": "寒热属性的依据少于两个方面，尚需进一步明确。",
+   "evidence": {
+    "evidenceLevel": "model_inference",
+    "source": "本例四诊与病史推断",
+    "confidence": "低"
+   }
+  },
+  "symptomClusters": [
+   {
+    "symptoms": [
+     "清涕",
+     "喷嚏",
+     "怕风",
+     "微恶寒"
+    ],
+    "mechanism": "风寒袭表，肺气失宣"
+   }
+  ],
+  "chain": [
+   {
+    "nodeId": "P1",
+    "patientFact": "受凉后出现清涕、喷嚏和轻度咽痒",
+    "syndromeEvidence": "鼻塞流涕、咽痒2天",
+    "pathogenesis": "风寒袭表，肺失宣降，鼻窍不利",
+    "therapyDirection": "辛温解表，宣肺通窍",
+    "evidence": {
+     "evidenceLevel": "kb_entry",
+     "source": "《中医内科学》感冒·风寒束表证",
+     "confidence": "中"
+    }
+   },
+   {
+    "nodeId": "P2",
+    "patientFact": "怕风，微恶寒",
+    "syndromeEvidence": "舌象：舌淡红，苔薄白",
+    "pathogenesis": "风寒束表，卫阳被遏，营卫不和",
+    "therapyDirection": "调和营卫，疏风散寒",
+    "evidence": {
+     "evidenceLevel": "model_inference",
+     "source": "本例资料",
+     "confidence": "中"
+    }
+   }
+  ],
+  "uncertainties": [
+   {
+    "item": "有汗无汗",
+    "reason": "病历未记录汗出情况",
+    "affects": "表虚表实判断与选方"
+   },
+   {
+    "item": "恶寒与恶风轻重",
+    "reason": "仅记微恶寒、怕风",
+    "affects": "表寒程度与方药温散力度"
+   }
+  ]
+ },
+ "therapy": {
+  "overallPrinciple": "寒者热之",
+  "overallMethod": "辛温解表，宣肺散寒",
+  "subTherapies": [
+   {
+    "therapy": "辛温解表，宣肺通窍",
+    "targetPathogenesis": "风寒袭表，肺失宣降，鼻窍不利",
+    "priority": "主要",
+    "evidence": {
+     "evidenceLevel": "kb_entry",
+     "source": "《中医内科学》感冒·风寒束表证",
+     "confidence": "中"
+    }
+   },
+   {
+    "therapy": "调和营卫，疏风散寒",
+    "targetPathogenesis": "风寒束表，卫阳被遏，营卫不和",
+    "priority": "次要",
+    "evidence": {
+     "evidenceLevel": "model_inference",
+     "source": "本例资料",
+     "confidence": "中"
+    }
+   }
+  ]
+ },
+ "lineageAdaptation": {
+  "schemaVersion": "tcm-cdss-reasoning-v2",
+  "lineageCode": "classical-formula",
+  "label": "经方思路",
+  "applicable": "partial",
+  "applicabilityReason": "经方思路与本例外感风寒表证相符；但汗出有无未明，表虚表实待核",
+  "influencedDecisions": [
+   {
+    "aspect": "方源选择",
+    "detail": "按经方方证相应选桂枝汤加减"
+   },
+   {
+    "aspect": "辨证视角",
+    "detail": "先辨六经表证，再核对方证眼目"
+   }
+  ],
+  "unaffectedBySafety": [
+   "红旗排查",
+   "剂量安全",
+   "配伍禁忌",
+   "特殊人群",
+   "相互作用"
+  ],
+  "safetyDeference": "急危重风险处置和药事审方要求优先于流派偏好"
+ },
+ "_note": "甲方 100 例合成病例 C001（普通感冒，经方思路）第十七轮交付的 M03 结构（合成数据，非真实患者）；test:r1030-main 用"
+}

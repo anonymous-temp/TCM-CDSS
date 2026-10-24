@@ -1327,6 +1327,46 @@ export function textbookRelationFormulaIdentityNames(reasoning: unknown, names: 
   return new Set(row.formulas.map(normalizedFormulaIdentity).filter((identity) => wanted.has(identity)));
 }
 
+/**
+ * 医生选定流派、模型按流派选了该派的方时的「证候层」正向依据（2026-10-24 第十八轮）：目录给这首方标的主治证候与已签名主证/兼证相容
+ *（formulaMatchSyndromeCompatible，与召回、锁方同一谓词）。
+ *
+ * 为什么需要：trustedModelFormulaIdentityNames 的模型选方路径按「方的功效 ↔ 签名治法」逐词对齐。选了流派时模型常常换了方、治法仍照抄教材行
+ *（流派矩阵 12 例×6 派遥测：经方思路下感冒写桂枝汤、治法写「辛温解表，宣肺散寒」），桂枝汤〔解肌发表、调和营卫〕对不上词，于是被改回教材的
+ * 荆防败毒散，而流派适配说明里还写着「选桂枝汤」。方的主治证候是目录里逐条核过的正面证据，比治法用词更直接；治法随后按这首方的功效改写
+ *（withDeterministicFormulaReferences），方与治法仍然一致。
+ * 只在流派路径用（lineageChosenFormulaDirectionKept）：不限定流派时的模型选方仍按原判据。
+ */
+export function lineageFormulaSyndromeSupportedNames(reasoning: unknown, names: readonly string[]): Set<string> {
+  const overview = (reasoning as { overview?: { primarySyndrome?: unknown; primarySyndromeResolution?: unknown; secondarySyndromes?: unknown } } | null | undefined)?.overview;
+  if (names.length === 0 || typeof overview?.primarySyndrome !== "string" || overview.primarySyndromeResolution === "unresolved") return new Set();
+  const secondary = Array.isArray(overview.secondarySyndromes) ? overview.secondarySyndromes : [];
+  const signedSyndromeIds = [overview.primarySyndrome, ...secondary]
+    .map((value) => canonicalPrimarySyndromeId(value))
+    .filter((id): id is string => Boolean(id));
+  if (signedSyndromeIds.length === 0) return new Set();
+  const wanted = new Set(names.map(normalizedFormulaIdentity));
+  const supported = new Set<string>();
+  for (const entry of ENTRIES) {
+    if (!entry.identityLockEligible) continue;
+    const identities = [entry.name, ...entry.aliases].map(normalizedFormulaIdentity);
+    if (!identities.some((identity) => wanted.has(identity))) continue;
+    const tagged = entry.syndromeTags.some((tag) => signedSyndromeIds.some((id) => formulaMatchSyndromeCompatible(tag, id))) ||
+      entry.curatedSyndromeRelations.some((relation) => signedSyndromeIds.some((id) => formulaMatchSyndromeCompatible(relation.syndromeId, id)));
+    if (!tagged) continue;
+    for (const identity of identities) supported.add(identity);
+  }
+  return supported;
+}
+
+/** 目录里这首方的功效（可锁定条目，按方名或别名）；没有时为空数组。 */
+export function lockableFormulaCatalogFunctions(name: string): string[] {
+  const wanted = normalizedFormulaIdentity(name);
+  const entry = ENTRIES.find((item) => item.identityLockEligible &&
+    [item.name, ...item.aliases].some((identity) => normalizedFormulaIdentity(identity) === wanted));
+  return entry ? [...entry.functions] : [];
+}
+
 export function trustedModelFormulaIdentityNames(reasoning: unknown, names: readonly string[]): Set<string> {
   const textbookTrusted = textbookRelationFormulaIdentityNames(reasoning, names);
   // 经方方证（证名 + 方向正是方证表里的一项）与教材行同为「证名—方」的正向依据（2026-10-19，第八轮 WP-A）。

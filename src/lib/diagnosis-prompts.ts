@@ -762,7 +762,7 @@ export function buildDiagnosePrompt(caseState: CaseState, retrieval: M03FormulaR
     preferredDiseases: retrieval.textbookDiseasePicks,
   });
   // 经方方证候选（《伤寒论》《金匮要略》方证；规则写在段内，没有选出方证时为空串，不增加任何提示词）。
-  const jingfangCandidateContext = buildJingfangCandidateContext(retrieval.jingfangPatternPicks);
+  const jingfangCandidateContext = buildJingfangCandidateContext(retrieval.jingfangPatternPicks, getLineageCard(caseState.tcmLineagePreference).code);
 
   // ★ 顺序即缓存边界 ★
   // DeepSeek 的 context caching 按**前缀**自动命中（实测同一 2866-token 前缀第二次起命中 2816），

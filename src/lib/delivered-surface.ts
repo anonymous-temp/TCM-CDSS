@@ -746,9 +746,11 @@ const ACCOUNT_PARTY = "(?:家属|陪同(?:者|人员|人)?|代述者|监护人|�
 // 「回答前后不一致」不在其中。
 const RECORDED_ACCOUNT_CONFLICT = new RegExp(`${ACCOUNT_PARTY}[^。；;\\n，,]{0,6}(?:与|和|跟|及)[^。；;\\n，,]{0,6}${ACCOUNT_PARTY}[^。；;\\n]{0,18}?(?:不同|不一致|不一|有出入|有差异|相矛盾|矛盾|相左)|(?:时间线|时间顺序|发病时间|起病时间|持续时间|病程|说法|描述|叙述|自述)[^。；;\\n，,]{0,4}(?:互相|相互|前后)?(?:矛盾|不一致|对不上|不符)`, "u");
 export function recordedAccountConflict(recordText: string | undefined): string | undefined {
-  for (const sentence of String(recordText || "").normalize("NFKC").split(/[。；;\n]+/u)) {
-    const match = sentence.match(RECORDED_ACCOUNT_CONFLICT);
-    if (match) return sentence.slice(sentence.lastIndexOf("：", match.index ?? 0) + 1).replace(/^[^：:]{0,12}[：:]/u, "").trim();
+  // 先在原文上匹配，引文照原文的全角标点交付；只有原文里夹着半角/兼容字符才对不上时退回 NFKC 归一后的句子
+  //（此前一律归一，引文里的全角逗号交付成半角，2026-10-24 C093）。
+  for (const original of String(recordText || "").split(/[。；;\n]+/u)) {
+    const sentence = RECORDED_ACCOUNT_CONFLICT.test(original) ? original : original.normalize("NFKC");
+    if (RECORDED_ACCOUNT_CONFLICT.test(sentence)) return sentence.replace(/^[^：:]{0,12}[：:]/u, "").trim();
   }
   return undefined;
 }
@@ -1714,12 +1716,18 @@ function textbookFormulasCoveredByPrescription(row: { formulas: string[]; compos
     const ids = [...new Set(ingredients.map((name) => compositionIdentityName(name.replace(/[（(][^）)]*[）)]/g, ""))).filter(Boolean))];
     return ids.length === 0 ? 0 : ids.filter((id) => present.has(id)).length / ids.length;
   };
-  const byCatalog = row.formulas.filter((name) => formulaCompilationReferences([name]).some((reference) => share(reference.ingredients) >= 0.5));
+  // 三味及以下的小方由全部药味界定（左金丸＝黄连＋吴茱萸）：少一味就已经不是这首方。此前按「过半」算，
+  // 处方只有黄连仍交付「左金丸加减」，方义还写着吴茱萸的反佐（2026-10-24 甲方 100 例 C018）。
+  const covered = (ingredients: readonly string[]) => {
+    const size = new Set(ingredients.map((name) => compositionIdentityName(name.replace(/[（(][^）)]*[）)]/g, ""))).filter(Boolean)).size;
+    return share(ingredients) >= (size > 0 && size <= 3 ? 1 : 0.5);
+  };
+  const byCatalog = row.formulas.filter((name) => formulaCompilationReferences([name]).some((reference) => covered(reference.ingredients)));
   // 目录里没有这个名字、只有剂型不同的同名方（四妙散—四妙丸，governedDosageFormVariantComposition）：按那份组成算覆盖，合方名里不丢这一首
   //（2026-10-20 第八轮，S145「四妙散合宣痹汤」处方有黄柏、薏苡仁、牛膝，方名只剩「宣痹汤加减」）。基准是另一首方的组成，门槛取 75%。
   const byVariant = row.formulas.filter((name) => formulaCompilationReferences([name]).length === 0 && share(governedDosageFormVariantComposition(name)) >= 0.75);
   if (byCatalog.length > 0 || byVariant.length > 0) return row.formulas.filter((name) => byCatalog.includes(name) || byVariant.includes(name));
-  if (share(row.composition) < 0.5) return [];
+  if (!covered(row.composition)) return [];
   // 编译目录核不了、方名目录（各版本）核得了的，也要过半（M 集 test-482「化坚二陈丸加减」只剩黄连、甘草，按教材行合集算过了半，目录覆盖 0.33）。
   const catalogCovered = (name: string) => formulaCompilationReferences([name]).length > 0 || (formulaNameCatalogCoverage(name, herbNames) ?? 1) >= 0.5;
   if (row.formulas.length < 2) return row.formulas.filter(catalogCovered);

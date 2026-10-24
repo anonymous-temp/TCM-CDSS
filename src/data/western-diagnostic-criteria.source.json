@@ -3156,6 +3156,121 @@
    "retrievedAt": "2026-10-24",
    "reviewedAt": "2026-10-24",
    "reviewCorrection": "2026-10-24 新增（甲方 100 例 C071：2 月龄发热、未做任何血检即交付「婴儿败血症」）。共识的临床诊断也要求血液非特异性检查≥2项阳性或脑脊液改变，未做任何化验时只能写「待查」。婴儿期沿用同一口径（晚发败血症 >3 日龄，其余条件同早发）。"
+  },
+  {
+   "name": "急性胰腺炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "血清脂肪酶或淀粉酶（>3倍正常上限）",
+    "腹部增强CT、MRI或超声"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "严重中上腹或左上腹痛，放射至背部",
+    "上腹压痛",
+    "恶心、呕吐",
+    "低血容量体征",
+    "血清脂肪酶或淀粉酶>3倍正常上限"
+   ],
+   "quote": "In most patients who present with typical clinical signs, the diagnosis is confirmed by elevated serum lipase, or amylase if lipase is unavailable (>3 times upper limit of normal).",
+   "url": "https://bestpractice.bmj.com/topics/en-us/66?debug=0",
+   "siteName": "BMJ Best Practice",
+   "title": "Acute pancreatitis - Evidence last reviewed: 17 Sep 2026",
+   "retrievedAt": "2026-10-24",
+   "reviewCorrection": {
+    "basis": "修订版亚特兰大标准与《中国急性胰腺炎诊治指南（2021）》：符合腹痛、血清脂肪酶/淀粉酶>3倍正常上限、影像学特征性改变三项中的两项即可诊断；酶学与影像任一项都可作为确诊所需的检查",
+    "before": {
+     "requiredTests": [
+      "血清脂肪酶>3倍正常上限",
+      "无脂肪酶时淀粉酶>3倍正常上限"
+     ]
+    }
+   },
+   "reviewedAt": "2026-10-24"
+  },
+  {
+   "name": "急性胆囊炎",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "腹部超声"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "右上腹疼痛",
+    "右上腹压痛",
+    "炎症表现（发热、白细胞升高、CRP升高）",
+    "可触及包块",
+    "存在危险因素（如胆结石）"
+   ],
+   "quote": "Ultrasound is the definitive initial test.",
+   "url": "https://bestpractice.bmj.com/topics/en-gb/78?debug=0",
+   "siteName": "BMJ Best Practice",
+   "title": "Acute cholecystitis - Evidence last reviewed: 16 Sep 2026",
+   "retrievedAt": "2026-10-24",
+   "reviewedAt": "2026-10-24"
+  },
+  {
+   "name": "急性心肌梗死",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "系列心电图",
+    "系列心脏标志物（肌钙蛋白）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "心肌坏死标志物（优先肌钙蛋白）高于参考值上限第99百分位",
+    "符合心肌缺血的临床背景"
+   ],
+   "quote": "心肌梗死定义为在符合心肌缺血的临床背景下发生的心肌坏死（1）。这些情况可表现为心脏标志物（优先选用肌钙蛋白[cTn]）高于参考值上限（URL）第99个百分位数，加至少以下一点：",
+   "url": "http://www.msdmanuals.cn/professional/cardiovascular-disorders/coronary-artery-disease/acute-myocardial-infarction-mi",
+   "siteName": "默沙东诊疗手册",
+   "title": "急性心肌梗死 (MI) - 心脏病学 - MSD诊疗手册专业版",
+   "retrievedAt": "2026-10-24",
+   "reviewedAt": "2026-10-24"
+  },
+  {
+   "name": "急性肺栓塞",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "CT肺动脉造影（CTPA）"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "临床概率评估（Wells/Geneva评分、PERC规则）",
+    "呼吸困难、胸痛、低氧血症",
+    "合并深静脉血栓的体征",
+    "血流动力学不稳定或右心衰征象",
+    "CT肺动脉造影确诊"
+   ],
+   "quote": "Clinical probability, assessed by a validated prediction rule and clinical judgement, is the basis for all diagnostic strategies for PE. Computed tomographic pulmonary angiography is the definitive diagnostic investigation.",
+   "url": "https://bestpractice.bmj.com/topics/en-gb/116?debug=1",
+   "siteName": "BMJ Best Practice",
+   "title": "Pulmonary embolism",
+   "retrievedAt": "2026-10-24",
+   "reviewedAt": "2026-10-24"
+  },
+  {
+   "name": "蛛网膜下腔出血",
+   "clinicallyDiagnosable": false,
+   "requiredTests": [
+    "头颅CT平扫",
+    "腰穿脑脊液分析"
+   ],
+   "durationThreshold": "",
+   "definingFeatures": [
+    "突发剧烈头痛，数秒内达高峰",
+    "常伴意识丧失或意识障碍",
+    "24小时内出现脑膜刺激征",
+    "CT见脑沟内血液",
+    "脑脊液见大量红细胞及黄变症"
+   ],
+   "quote": "根据患者的典型症状可提示蛛网膜下腔出血诊断。在蛛网膜下腔出血引起不可逆损伤之前应尽快行相关检查。",
+   "url": "http://www.msdmanuals.cn/professional/neurologic-disorders/stroke/subarachnoid-hemorrhage?media=full?wruleredirectid=3?wautoredirectid=36132",
+   "siteName": "默沙东诊疗手册",
+   "title": "蛛网膜下腔出血",
+   "retrievedAt": "2026-10-24",
+   "reviewedAt": "2026-10-24",
+   "reviewNote": "默沙东同页「诊断」：头颅CT平扫，CT阴性而临床仍疑诊时行腰穿脑脊液检查。基层病历（第十八轮基层集）常在未做头颅CT时直接写出此诊断。"
   }
  ],
  "courseFields": {

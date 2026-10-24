@@ -1,6 +1,6 @@
 {
  "generatedBy": "scripts/build-tcm-textbook-disease-names.mjs",
- "count": 335,
+ "count": 336,
  "names": [
   "癌病",
   "艾滋病",
@@ -266,6 +266,7 @@
   "痫证",
   "消渴",
   "消渴内障",
+  "小便不禁",
   "哮病",
   "哮喘",
   "胁痛",
