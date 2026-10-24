@@ -602,6 +602,18 @@ const METHOD_HAS_TONIC = /补|益|养|滋|润|生津|固|扶|填|培|温阳|助�
 const METHOD_HAS_ATTACK = /清|泻|泄|疏|散|抑肝|抑木|化痰|化湿|化瘀|化饮|化浊|化积|祛|逐|活血|行气|理气|利水|利湿|利尿|通络|通腑|通便|通淋|通窍|消食|消积|消肿|攻|解表|解毒|解郁|平肝|潜阳|息风|熄风|降逆|降气|涤痰|破|软坚|燥湿|渗湿|宣肺|透疹|发汗|导滞|开窍|豁痰|止痛|镇惊/u;
 /** 成药功能清单里的纯补、纯攻字样（比治法里的窄：只收一看就是补或一看就是攻的）。 */
 const MEDICINE_TONIC = /补气|补血|补阴|补阳|补肾|补益|补虚|益气|益肾|益精|滋阴|养阴|养血|大补|温补|填精|固本|扶正|培元/u;
+/**
+ * 注意事项「不宜再服滋补类中成药」说的这一类：说明书功能里有补益字样（同上 MEDICINE_TONIC），或健脾、补脾、补中这类补脾胃的写法
+ *（健脾丸「健脾开胃」——此前按「滋补」二字字面比对认不出它，同页又推荐健脾丸，2026-10-24 第十八轮基层病例 A042）。
+ */
+export function patentMedicineLabelIsTonic(indication: string): boolean {
+  const clause = medicineFunctionClause(indication);
+  return MEDICINE_TONIC.test(clause) || /健脾|补脾|补中/u.test(clause);
+}
+/** 注意事项里说的是补益一类中成药（滋补类、补益类、进补类…）。 */
+export function tonicMedicineCategory(category: string): boolean {
+  return /滋补|补益|进补|补养|温补|补虚/u.test(category);
+}
 const MEDICINE_ATTACK = /清热解毒|泻火|泻下|攻下|通腑|逐水|破血|活血|化瘀|祛瘀|散瘀|行气|理气|燥湿|化湿|祛湿|利湿|化痰|祛痰|消积|消食|导滞|解表|疏风/u;
 const MEDICINE_COLD = /清热|泻火|凉血|泄热|解毒|清肝|清胃|清肺|清心|苦寒/u;
 const MEDICINE_WARM = /温中|温肾|温阳|散寒|助阳|回阳|温经|温补|辛温|祛寒|驱寒/u;

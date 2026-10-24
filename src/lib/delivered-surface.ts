@@ -34,7 +34,7 @@ import { discontinuedMedicationLabel, type RequiredPrecaution } from "./required
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { patentMedicineCompositionIdentities } from "./patent-medicine-duplication.server";
 import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
-import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBaseName, TOPICAL_MEDICATION_FORM } from "./local-patent-medicine-candidates";
+import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBaseName, patentMedicineLabelIsTonic, tonicMedicineCategory, TOPICAL_MEDICATION_FORM } from "./local-patent-medicine-candidates";
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
 import { withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
@@ -1368,7 +1368,10 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         const words = category.length >= 4 ? [category.slice(0, 2), category.slice(-2)] : [category];
         const conflicting = records(formula?.patentAndWestern).filter((item) => {
           const text = medicineText(item);
-          return text.includes(category) || words.every((word) => text.includes(word));
+          return text.includes(category) || words.every((word) => text.includes(word)) ||
+            // 「滋补类」按说明书功能判补益（健脾丸「健脾开胃」不含「滋补」二字）。
+            (item.type === "中成药" && tonicMedicineCategory(category) &&
+              patentMedicineLabelIsTonic(String(findLocalPatentMedicineLabel(String(item.name || ""))?.indication || item.functionIndication || "")));
         });
         if (conflicting.length === 0) return true;
         // 推荐的中成药里起这一类作用的药，与本方汤药里的药同属一类（芦荟与大黄同为攻下药）：注意事项说得对——是推荐药叠加了本方的作用，

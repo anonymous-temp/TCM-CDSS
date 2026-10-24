@@ -9,6 +9,8 @@
 //   7 西医诊断标准要点表：补急性胰腺炎、急性胆囊炎、急性心肌梗死、急性肺栓塞、蛛网膜下腔出血（基层病例未做化验影像就下的急症诊断）。
 //   8 哺乳已结束的写法（哺乳期过后/已过/结束、断奶后、停止哺乳）判否认，不再按哺乳阳性收回剂量（基层病例 A062）。
 //   9 补充行「小便不禁」（《针灸治疗学》尿失禁节证候 + T/CACM 1553—2023 方药）：成人漏尿不再落到阴挺。
+//  10 中成药/西药行的说明书字段（风险提示、用法边界、联用关系）与正文药品表行不进否定净化器（「感冒发热病人不宜服用」被改成「未诉发热」）。
+//  11 注意事项「不宜再服滋补类中成药」与推荐的补益类中成药（健脾丸「健脾开胃」）不再同页矛盾。
 //   5 中成药：说明书适应证明写实热/实火/实证/实寒的，纯虚证不推荐（润肠丸「用于实热津亏便秘」配阴虚秘）。
 
 import assert from "node:assert/strict";
@@ -42,6 +44,7 @@ const patent = await jiti.import("../src/lib/local-patent-medicine-candidates.ts
 const criteria = await jiti.import("../src/lib/western-diagnostic-criteria.server.ts");
 const clinicalState = await jiti.import("../src/lib/clinical-state.ts");
 const textbook = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
+const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
 
 const c001 = JSON.parse(fs.readFileSync("scripts/fixtures/r1030-c001-diagnose.json", "utf8"));
 const withChoice = ({ formula, therapy = "辛温解表，宣肺散寒，通窍止痒", applicable = "applicable", secondary = [], decisions } = {}) => {
@@ -214,6 +217,36 @@ await check("9.1 漏尿主诉召回小便不禁；两证的治法与代表方；
   assert.deepEqual(textbook.textbookRowForSyndrome("小便不禁", "肾气不固证")?.formulas, ["金匮肾气丸"]);
   const protocols = JSON.parse(fs.readFileSync("src/data/tcm-nondrug-textbook-protocols.json", "utf8"));
   assert.ok(protocols.acupuncture.find((item) => item.disease === "尿失禁")?.aliases.includes("小便不禁"));
+});
+
+// ── 10 说明书原文不净化 ──
+await check("10.1 说明书风险提示与药品表行原样保留；同一页里写本例的否认照常净化", () => {
+  const state = { id: "x", chiefComplaint: "咳嗽3天", patient: { sex: "男", age: 30 }, symptoms: { presentHistory: "咳嗽3天，咽痒" }, conversation: [{ role: "user", content: "主诉：咳嗽3天\n现病史：咳嗽3天，咽痒" }], questionRounds: 1 };
+  const label = "1.忌烟酒。2.感冒发热病人不宜服用。3.不适用于急性肠炎腹泻，腹痛，或发烧。";
+  const json = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [], patentAndWestern: [{ type: "中成药", name: "九味双解口服液", riskNote: label, usageBoundary: label, correspondingProblem: "否认腹痛的咳嗽" }] } };
+  const row = `| 九味双解口服液 | 口服 | [LOCAL-INST-002] | ${label} |`;
+  const out = safety.sanitizeUngroundedRedFlagNegations(`${row}\n本例否认腹痛。\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(json)}\n<!-- DIAGNOSIS_JSON_END -->`, state);
+  const parsed = JSON.parse(out.match(/START -->\s*([\s\S]*?)\s*<!--/)[1]);
+  assert.equal(parsed.formula.patentAndWestern[0].riskNote, label);
+  assert.equal(parsed.formula.patentAndWestern[0].usageBoundary, label);
+  assert.ok(out.startsWith(row), "正文药品表行原样");
+  // 对照：模型写的字段、正文写本例的句子照常净化。
+  assert.notEqual(parsed.formula.patentAndWestern[0].correspondingProblem, "否认腹痛的咳嗽");
+  assert.doesNotMatch(out.split("<!-- DIAGNOSIS_JSON_START")[0].split("\n")[1], /^本例否认腹痛/);
+});
+
+// ── 11 滋补类 ──
+await check("11.1 「不宜再服滋补类中成药」与推荐健脾丸不再同页并存；补益判据只认说明书功能", () => {
+  const fixture = JSON.parse(fs.readFileSync("scripts/fixtures/r1030-a042-prescribe.json", "utf8"));
+  delete fixture._note;
+  const out = surface.projectDeliveredReasoning(fixture, { requiredPrecautions: [] });
+  const banned = out.nonPharma.precautions.some((line) => /滋补类中成药/.test(line));
+  const recommended = out.formula.patentAndWestern.some((item) => item.name === "健脾丸");
+  assert.ok(!(banned && recommended), "同页矛盾");
+  assert.equal(patent.patentMedicineLabelIsTonic("健脾开胃。用于脾胃虚弱，脘腹胀满，食少便溏。"), true);
+  assert.equal(patent.patentMedicineLabelIsTonic("润肠通便。用于实热津亏便秘。"), false);
+  assert.equal(patent.tonicMedicineCategory("滋补"), true);
+  assert.equal(patent.tonicMedicineCategory("润肠通便"), false);
 });
 
 console.log(`\n${cases} checks`);

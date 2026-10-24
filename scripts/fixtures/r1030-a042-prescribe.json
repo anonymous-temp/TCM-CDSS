@@ -1,0 +1,598 @@
+{
+ "schemaVersion": "tcm-cdss-reasoning-v2",
+ "stage": "prescribe",
+ "overview": {
+  "tcmDiseaseName": "胸痹",
+  "primarySyndrome": "痰浊闭阻证",
+  "primarySyndromeResolution": "bounded",
+  "primarySyndromeBasis": [
+   "一躺下即胸闷上不来气数月",
+   "现病史：自述一躺下即胸闷上不来气，已数月，伴大便溏薄",
+   "舌象：舌质淡红，苔白腻",
+   "脉象：脉沉弦",
+   "口唇青"
+  ],
+  "primarySyndromeResolutionReason": "缺胸痛性质、寒热口渴及喘促程度记录",
+  "tcmDiseaseRationale": "以胸闷、卧则呼吸欠畅为主症，病程数月反复，病位在胸膺，故归入胸痹；其主症为胸闷而非喘促抬肩，与喘证相区分。",
+  "tcmDiagnosticRationale": "胸闷卧则加重、苔白腻、脉沉弦，为痰浊中阻、胸阳不展，故属痰浊闭阻证；大便溏薄、舌质淡红示脾运不健、湿浊内生，与痰浊同源；口唇青为胸中气机壅滞、血脉不畅之象。",
+  "tcmDiseaseReferences": [
+   {
+    "evidenceId": "STD-GBT-15657-2021",
+    "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+    "sourceType": "standard"
+   }
+  ],
+  "tcmSyndromeReferences": [
+   {
+    "evidenceId": "STD-GBT-16751-2-2021",
+    "citation": "国家市场监督管理总局, 国家标准化管理委员会. 中医临床诊疗术语 第2部分: 证候: GB/T 16751.2-2021[S]. 2021.",
+    "sourceType": "standard"
+   }
+  ],
+  "tcmDifferentials": [
+   {
+    "syndrome": "气滞心胸证",
+    "reason": "均见胸闷、脉弦",
+    "distinguishingPoints": "本例未诉太息、情志诱发记录；而见苔白腻、便溏，偏痰湿",
+    "typicalManifestation": "心胸满闷，太息则舒，情志诱发，苔薄腻脉细弦",
+    "nextCheck": "询问胸闷是否随情志波动、得嗳气则舒"
+   },
+   {
+    "syndrome": "心血瘀阻证",
+    "reason": "胸闷日久需防瘀阻",
+    "distinguishingPoints": "未诉胸痛，舌质淡红非紫暗，瘀象不著",
+    "typicalManifestation": "心胸刺痛，痛有定处，入夜为甚，舌紫暗脉弦涩",
+    "nextCheck": "追问有无胸痛、痛处固定及夜间加重"
+   },
+   {
+    "syndrome": "心肾阳虚证",
+    "reason": "脉沉、口唇青需辨阳虚",
+    "distinguishingPoints": "本例脉沉弦非沉细迟，未诉怯寒肢冷、水肿",
+    "typicalManifestation": "胸闷气短，动则更甚，怯寒肢冷，舌淡胖苔白，脉沉细迟",
+    "nextCheck": "询问畏寒、四肢温度及下肢浮肿"
+   }
+  ],
+  "tcmDiseaseDifferentials": [
+   {
+    "diseaseName": "喘证",
+    "reason": "均见卧则呼吸不畅",
+    "distinguishingPoints": "本例以胸闷为主，未诉张口抬肩、摇身撷肚",
+    "typicalManifestation": "呼吸困难，张口抬肩，鼻翼扇动，不能平卧",
+    "nextCheck": "观察平卧时呼吸形态与抬肩动作"
+   },
+   {
+    "diseaseName": "悬饮",
+    "reason": "均有胸闷、苔白腻",
+    "distinguishingPoints": "本例胸闷卧甚，未诉胸胁胀痛及咳唾转侧加重",
+    "typicalManifestation": "胸胁胀痛持续不解，咳唾转侧呼吸加重",
+    "nextCheck": "询问胸胁胀痛及咳唾情况"
+   }
+  ],
+  "secondarySyndromes": [],
+  "overallPathogenesis": "脾运不健，湿浊内停而为痰，痰浊中阻，胸阳不展，卧则气机壅滞更甚，故胸闷上不来气；气滞日久血行不畅，故口唇青",
+  "overallTherapy": "通阳泄浊，豁痰宣痹",
+  "recommendedFormulaDirection": "栝蒌薤白半夏汤合涤痰汤加减",
+  "recommendedFormulaNames": [
+   "瓜蒌薤白半夏汤",
+   "涤痰汤"
+  ],
+  "formulaSelectionMode": "combined",
+  "deferredFormulaSelection": {
+   "direction": "栝蒌薤白半夏汤合涤痰汤加减",
+   "names": [
+    "瓜蒌薤白半夏汤"
+   ],
+   "mode": "single",
+   "reason": "governed_syndrome_relation_unverified"
+  },
+  "evidence": {
+   "evidenceLevel": "model_inference",
+   "source": "病例内推理",
+   "confidence": "低"
+  }
+ },
+ "formula": {
+  "candidates": [
+   {
+    "name": "涤痰汤加减",
+    "formulaNames": [],
+    "positioning": "首选",
+    "constructionType": "self_devised",
+    "modificationStatus": "canonical",
+    "baseFormulas": [],
+    "discriminationPath": [],
+    "classicEvidence": [],
+    "compositionLogic": [],
+    "textualModifications": [],
+    "formulaSource": {
+     "evidenceLevel": "model_inference",
+     "source": "涤痰汤：《奇效良方》",
+     "confidence": "中"
+    },
+    "therapyMatch": "通阳泄浊，豁痰宣痹",
+    "applicable": "",
+    "notApplicable": "制天南星（毒性：有毒）",
+    "herbs": [
+     {
+      "name": "姜半夏",
+      "processing": null,
+      "dose": "9g",
+      "role": "君",
+      "prescriptionRole": "君药：宽胸理气，宣畅气机",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P1",
+      "structureRole": null,
+      "targetPathogenesis": "卧则气机壅滞，胸阳不展",
+      "function": "燥湿化痰，降逆宽胸",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 3-9g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "制天南星",
+      "processing": null,
+      "dose": "6g",
+      "role": "君",
+      "prescriptionRole": "君药：宽胸理气，宣畅气机",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P1",
+      "structureRole": null,
+      "targetPathogenesis": "卧则气机壅滞，胸阳不展",
+      "function": "燥湿化痰，祛风止痉",
+      "isToxic": true,
+      "verificationTier": "toxic_regulated",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "毒性提示：有毒"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "橘红",
+      "processing": null,
+      "dose": "9g",
+      "role": "臣",
+      "prescriptionRole": "臣药：健脾化湿，调畅中焦",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P2",
+      "structureRole": null,
+      "targetPathogenesis": "脾运不健，湿浊内停",
+      "function": "理气化痰，调畅中焦",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 3-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "枳实",
+      "processing": "麸炒",
+      "dose": "9g",
+      "role": "臣",
+      "prescriptionRole": "臣药：宽胸理气，宣畅气机",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P1",
+      "structureRole": null,
+      "targetPathogenesis": "卧则气机壅滞，胸阳不展",
+      "function": "破气消痰，宽胸散结",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 3-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "茯苓",
+      "processing": null,
+      "dose": "12g",
+      "role": "臣",
+      "prescriptionRole": "臣药：健脾化湿，调畅中焦",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P2",
+      "structureRole": null,
+      "targetPathogenesis": "脾运不健，湿浊内停",
+      "function": "健脾渗湿，杜生痰之源",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 10-15g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "竹茹",
+      "processing": "姜",
+      "dose": "9g",
+      "role": "佐",
+      "prescriptionRole": "佐药：健脾化湿，调畅中焦",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P2",
+      "structureRole": null,
+      "targetPathogenesis": "脾运不健，湿浊内停",
+      "function": "清热化痰，和胃止呕",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 5-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "人参",
+      "processing": null,
+      "dose": "6g",
+      "role": "佐",
+      "prescriptionRole": "佐药：健脾化湿，调畅中焦",
+      "targetKind": "pathogenesis_node",
+      "targetRef": "P2",
+      "structureRole": null,
+      "targetPathogenesis": "脾运不健，湿浊内停",
+      "function": "补脾益气",
+      "isToxic": false,
+      "decoctionRequirement": "另煎",
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 3-9g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "甘草",
+      "processing": null,
+      "dose": "6g",
+      "role": "使",
+      "prescriptionRole": "使药：调和诸药，协调药性",
+      "targetKind": "formula_structure",
+      "targetRef": "FORMULA_STRUCTURE",
+      "structureRole": "harmonize",
+      "targetPathogenesis": "调和诸药，协调药性",
+      "function": "调和诸药",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 2-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     },
+     {
+      "name": "生姜",
+      "processing": null,
+      "dose": "9g",
+      "role": "使",
+      "prescriptionRole": "使药：引经载药，调和诸药",
+      "targetKind": "formula_structure",
+      "targetRef": "FORMULA_STRUCTURE",
+      "structureRole": "guide",
+      "targetPathogenesis": "引经载药，调和诸药",
+      "function": "温中化痰，引药入胸",
+      "isToxic": false,
+      "verificationTier": "verified",
+      "doseSource": "governed_boundary",
+      "verificationReasons": [
+       "剂量已按 3-10g 的标准区间完成规则校验"
+      ],
+      "evidence": {
+       "evidenceLevel": "model_inference",
+       "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+       "confidence": "中"
+      }
+     }
+    ],
+    "formulaAnalysis": "本方以涤痰汤为基础加减，去石菖蒲，以姜半夏、制天南星为君，燥湿化痰、降逆宽胸，直对卧则气机壅滞、胸阳不展之痰浊闭阻；橘红、枳实为臣，理气化痰、破气宽胸，助君药宣畅胸中气机，茯苓健脾渗湿，从脾运不健、湿浊内停处断痰之源；竹茹为佐，化痰和胃，兼姜半夏、南星之燥；人参佐助健脾益气，使中焦运化有权；甘草调和诸药，生姜温中化痰并引药入胸，共成通阳泄浊、豁痰宣痹之效。",
+    "decoction": {
+     "doseCount": "7剂",
+     "method": "每日1剂，人参另煎兑入，余药加水浸泡30分钟，武火煮沸后转文火，水煎两次（约30、20分钟），共取药液约500mL，分2次服，饭后温服",
+     "course": "7日",
+     "followUpNode": "完成7剂（7日）后复诊；出现不适或症状加重时提前复诊",
+     "dosesPerDay": 1,
+     "administrationTimesPerDay": 2,
+     "soakMinutes": 30,
+     "decoctionTimes": 2,
+     "firstDecoctionMinutes": 30,
+     "secondDecoctionMinutes": 20,
+     "targetVolumeMl": 500,
+     "administration": "每日1剂，每日分2次服，饭后温服；服药与进餐间隔按患者胃肠耐受及院内规范执行",
+     "followUpAfterDoses": 7,
+     "followUpAfterDays": 7
+    }
+   }
+  ],
+  "patentAndWestern": [
+   {
+    "type": "中成药",
+    "name": "健脾丸",
+    "specification": "728丸",
+    "evidenceId": "LOCAL-INST-003",
+    "evidenceFingerprint": "sha256:8e608d9b15132a28538ce639dfb927aa7b9aa0a709454a054f602d84d1be9efc",
+    "recommendationMode": "candidate_review",
+    "singleDose": "一次8丸",
+    "frequency": "一日3次",
+    "route": "口服",
+    "usageBoundary": "",
+    "positioning": "需医生评估",
+    "correspondingProblem": "食少便溏",
+    "evidence": {
+     "evidenceLevel": "drug_label",
+     "source": "[LOCAL-INST-003]",
+     "confidence": "中"
+    },
+    "relationship": "",
+    "riskNote": "尚不明确。1.忌食生冷油腻不易消化食物。2.不适用于急性肠炎腹泻，未诉腹痛，或发烧。3.东大夫健脾丸(浓缩丸)不适用于口干、舌少津，或手足心热，脘腹作胀，不欲饮食。4.服药三天症状无改善，或出现其他症状时，应立即停用并到医院诊治。6.小儿用法用量，请咨询医师或药师。7．对本品过敏者禁用，过敏体质者慎用。8.本品性状发生改变时禁止使用。9.儿童必须在成人监护下使用。10.请将本品放在儿童不能接触的地方。11.如正在使用其他药品，使用东大夫健脾丸(浓缩丸)前请咨询医师或药师。未载明；如与其他药物同时使用可能会发生药物相互作用，详情请咨询医师或药师。"
+   }
+  ],
+  "medicineCandidateStatus": {
+   "status": "available",
+   "reason": "已形成与本例问题匹配并绑定真实说明书条目的候选。"
+  },
+  "modifications": [
+   {
+    "trigger": "若痰浊郁而化热者，用黄连温胆汤",
+    "targetPathogenesis": "兼见痰浊郁而化热者，用黄连温胆汤",
+    "action": "加",
+    "herbName": "郁金",
+    "doseOrHandling": "3g",
+    "reason": "化瘀，利胆退黄",
+    "riskNote": "",
+    "evidence": {
+     "evidenceLevel": "kb_entry",
+     "source": "《中医内科学》胸痹·痰浊闭阻证加减：痰浊郁而化热者，用黄连温胆汤加郁金",
+     "confidence": "中"
+    }
+   },
+   {
+    "trigger": "若痰热兼有郁火",
+    "targetPathogenesis": "兼见痰热兼有郁火",
+    "action": "加",
+    "herbName": "蛤壳",
+    "doseOrHandling": "6g",
+    "reason": "清热利湿，制酸止痛",
+    "riskNote": "蛤壳先煎20–30分钟",
+    "evidence": {
+     "evidenceLevel": "kb_entry",
+     "source": "《中医内科学》胸痹·痰浊闭阻证加减：如痰热兼有郁火者，加海浮石、海蛤壳、栀子、天竺黄、竹沥",
+     "confidence": "中"
+    }
+   }
+  ],
+  "modificationReview": {
+   "submittedCount": 3,
+   "retainedCount": 2,
+   "droppedCount": 1,
+   "droppedReason": "触发条件不能回溯到本次病历已确认的当前事实（2条）；拟加药味的教材【使用注意】与本例已记录的情况相抵",
+   "droppedReasons": [
+    {
+     "code": "trigger_not_current_fact",
+     "count": 2,
+     "message": "触发条件不能回溯到本次病历已确认的当前事实"
+    },
+    {
+     "code": "record_caution_conflict",
+     "count": 1,
+     "message": "拟加药味的教材【使用注意】与本例已记录的情况相抵"
+    }
+   ]
+  }
+ },
+ "nonPharma": {
+  "diet": "少食肥甘厚腻与甜黏之品，可用茯苓、薏苡仁煮粥或煲汤，饮食清淡易消化。",
+  "lifestyle": "起居规律，避免熬夜与饱食后即卧，睡时适当垫高上半身，卧室保持通风。",
+  "emotion": "保持心情舒畅，避免忧思恼怒，可每日静坐调息10分钟以畅气机。",
+  "exercise": "以散步、八段锦为主，每次20分钟、每周4次，以不引起胸闷为度，避免剧烈运动。",
+  "acupointCare": "按揉气海（肚脐正下方约两横指处）、关元（肚脐正下方约四横指处）：用掌根按在穴位上，轻柔缓和地打圈按揉，每个穴位2～3分钟，每天1～2次。也可以艾灸气海、关元：点燃艾条（或用温灸盒）对着穴位温灸，艾条燃着的一端与皮肤保持2～3厘米，以温热不烫为度，每次10分钟，每周1次。宜在饭后1～2小时再按揉，过饥、过饱或过度劳累时不宜按揉；局部皮肤破损、红肿或感染处不要按揉；有出血倾向的血液病患者不宜自行按揉，正在服用抗凝、抗血小板药物者请先咨询医生。居家保健只作辅助，不能代替治疗；按揉后如有不适请停止。艾灸时注意防火防烫伤，灸后局部皮肤微红属正常；如起小水疱不要挑破，较大水疱请到医院处理。发热、皮肤破损处不要灸；有出血倾向者不宜艾灸；糖尿病、手脚感觉减退者灸时要特别注意防烫伤，灸前请先咨询医生。空腹或饭后一小时左右不宜艾灸。",
+  "tcmTreatments": [
+   {
+    "projectCode": "acupuncture",
+    "projectName": "针刺疗法",
+    "availability": "clinic_available",
+    "riskLevel": "moderate",
+    "recommendationMode": "clinician_assessment",
+    "targetRef": "P1",
+    "targetPathogenesis": "卧则气机壅滞，胸阳不展",
+    "protocolStatus": "governed_class_template_not_syndrome_tailored",
+    "tailoringStatus": "class_template_only",
+    "protocolGap": "syndrome_refinement_not_matched",
+    "pointProvenance": [
+     {
+      "point": "内关",
+      "role": "base_point",
+      "sourceRefs": [
+       "《针灸治疗学》(2016)",
+       "《针灸学》(2016)"
+      ],
+      "authorityTier": "project_governed_source",
+      "adjudicationStatus": "approved",
+      "conflictNote": null
+     },
+     {
+      "point": "阴郄",
+      "role": "base_point",
+      "sourceRefs": [
+       "《针灸治疗学》(2016)",
+       "《针灸学》(2016)"
+      ],
+      "authorityTier": "project_governed_source",
+      "adjudicationStatus": "approved",
+      "conflictNote": null
+     },
+     {
+      "point": "郄门",
+      "role": "base_point",
+      "sourceRefs": [
+       "《针灸治疗学》(2016)",
+       "《针灸学》(2016)"
+      ],
+      "authorityTier": "project_governed_source",
+      "adjudicationStatus": "approved",
+      "conflictNote": null
+     },
+     {
+      "point": "膻中",
+      "role": "base_point",
+      "sourceRefs": [
+       "《针灸治疗学》(2016)",
+       "《针灸学》(2016)"
+      ],
+      "authorityTier": "project_governed_source",
+      "adjudicationStatus": "approved",
+      "conflictNote": null
+     }
+    ],
+    "sourceAuthorityTier": "project_governed_source",
+    "treatmentContent": "按病取基本穴：取手厥阴、手少阴经穴为主。",
+    "suggestedSitesOrPoints": [
+     "内关（PC6·手厥阴心包经·主治含胸闷）",
+     "阴郄（HT6·手少阴心经）",
+     "郄门（PC4·手厥阴心包经）",
+     "膻中（RN17·任脉·主治含胸闷）"
+    ],
+    "scheduleSuggestion": "针灸治疗常规为一日治疗一次；根据病情和实际情况，也可一日两次或两日一次。一般针灸治疗1～2周为一个疗程（《针灸学》总论）。 一般病症只要针下得气而施以适当的补泻手法后，即可出针或留针10～30分钟（《刺法灸法学》总论）。 具体间隔与疗程按病情和耐受调整。",
+    "techniqueBoundary": "膻中向下平刺，余穴毫针常规刺，可用电针。补泻手法、进针深度以现场查体为准。",
+    "protocolSource": "《针灸治疗学》（高树中，杨骏主编，中国中医药出版社，2016）「心绞痛」节（教材原文第12380行）；《针灸学》同名节（教材原文第117073行）",
+    "operatorRequirement": "由具备相应资质的中医执业人员操作",
+    "requiredChecks": [
+     "出血倾向、抗凝用药、局部感染和晕针史"
+    ],
+    "containsMedication": false,
+    "requiresMedicationAudit": false,
+    "executable": false,
+    "clinicianReviewRequired": true
+   },
+   {
+    "projectCode": "auricular",
+    "projectName": "耳穴",
+    "availability": "clinic_available",
+    "riskLevel": "moderate",
+    "recommendationMode": "clinician_assessment",
+    "targetRef": "P1",
+    "targetPathogenesis": "卧则气机壅滞，胸阳不展",
+    "protocolStatus": "governed_class_template_not_syndrome_tailored",
+    "tailoringStatus": "class_template_only",
+    "protocolGap": "syndrome_refinement_not_matched",
+    "pointProvenance": [
+     {
+      "point": "心",
+      "role": "base_point",
+      "sourceRefs": [
+       "《针灸治疗学》(2016)"
+      ],
+      "authorityTier": "project_governed_source",
+      "adjudicationStatus": "approved",
+      "conflictNote": null
+     },
+     {
+      "point": "神门",
+      "role": "base_point",
+      "sourceRefs": [
+       "《针灸治疗学》(2016)"
+      ],
+      "authorityTier": "project_governed_source",
+      "adjudicationStatus": "approved",
+      "conflictNote": null
+     },
+     {
+      "point": "交感",
+      "role": "base_point",
+      "sourceRefs": [
+       "《针灸治疗学》(2016)"
+      ],
+      "authorityTier": "project_governed_source",
+      "adjudicationStatus": "approved",
+      "conflictNote": null
+     },
+     {
+      "point": "皮质下",
+      "role": "base_point",
+      "sourceRefs": [
+       "《针灸治疗学》(2016)"
+      ],
+      "authorityTier": "project_governed_source",
+      "adjudicationStatus": "approved",
+      "conflictNote": null
+     },
+     {
+      "point": "内分泌",
+      "role": "base_point",
+      "sourceRefs": [
+       "《针灸治疗学》(2016)"
+      ],
+      "authorityTier": "project_governed_source",
+      "adjudicationStatus": "approved",
+      "conflictNote": null
+     }
+    ],
+    "sourceAuthorityTier": "project_governed_source",
+    "treatmentContent": "取心、神门、交感、皮质下、内分泌。每次选用3~4穴，毫针刺法，或压丸法。",
+    "suggestedSitesOrPoints": [
+     "心",
+     "神门",
+     "交感",
+     "皮质下",
+     "内分泌"
+    ],
+    "scheduleSuggestion": "间隔与疗程按病情和耐受确定。",
+    "techniqueBoundary": "禁忌：耳部炎症、破溃、冻伤部位禁用；单耳为宜，留置3～7天，两耳交替。补泻手法、进针深度以现场查体为准。",
+    "protocolSource": "《针灸治疗学》（高树中，杨骏主编，中国中医药出版社，2016）「心绞痛」节（教材原文第12380行）",
+    "operatorRequirement": "由受训人员辨穴并指导按压",
+    "requiredChecks": [
+     "耳部皮损感染、胶布或籽粒过敏和刺激强度"
+    ],
+    "containsMedication": false,
+    "requiresMedicationAudit": false,
+    "executable": false,
+    "clinicianReviewRequired": true
+   }
+  ],
+  "precautions": [
+   "本方饭后温服，每日两次；少食肥甘厚腻与甜黏之品。",
+   "方中姜半夏、制天南星为化痰之品，服后如觉口舌麻木请及时告知医生。",
+   "服本方期间不宜再服滋补类中成药。",
+   "针刺与耳穴治疗请按医师安排进行。",
+   "如正在服用其他药物，请先告知医生，以免药性重复或相互影响。"
+  ]
+ },
+ "_note": "第十八轮基层集 A042（公众号基层病例，已去标识）交付的 M04 结构；test:r1030-main 11.x 用"
+}

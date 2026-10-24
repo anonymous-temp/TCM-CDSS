@@ -1638,6 +1638,10 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
           // 鉴别对象的「典型表现」写的是那个病自己的表现，不是对本例的断言（查体净化也把它当非本例字段，见 PHYSICAL_EXAM_ASSERTION_FIELDS）。
           // 2026-10-14 独立评审：肠结一条的典型表现「腹痛、呕吐、无排气排便」被改写成「否认腹痛；未诉呕吐」——本例的阴性填进了别的病的典型表现栏。
           if (typeof value === "string" && key === "typicalManifestation") return value;
+          // 中成药、西药行里由服务端按说明书逐字补的字段（风险提示、用法边界、联用关系）是说明书原文，不是对本例的断言：
+          //「感冒发热病人不宜服用」「不适用于急性肠炎腹泻，腹痛，或发烧」被改成「未诉发热」「未诉腹痛」（2026-10-24 第十八轮基层集
+          // 11 个药、甲方 100 例 C001）。只豁免这几个说明书字段，correspondingProblem、positioning 等模型写的字段照常净化。
+          if (typeof value === "string" && parentKey === "patentAndWestern" && MEDICINE_LABEL_FIELDS.has(key)) return value;
           // 已删除 nonPharma.monitoring 的净化豁免。该豁免不是安全控制，而是对本净化器的**豁免**：
           // 它存在的唯一理由是重写 trigger 的条件/动作措辞会破坏 monitoring 的语义合同，让 M04
           // 合同拒掉服务端自己净化过的输出。语义合同（5 个 monitoring_* 驳回码）已随字段一并删除，
@@ -1750,10 +1754,18 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
       return `__TCM_CDSS_JSON_BLOCK_${index}__`;
     },
   );
-  const examGroundedNarrative = sanitizeUngroundedPhysicalExamClaimsInNarrative(placeholderContent, source);
+  // 正文里的中成药/西药表格行（带说明书证据编号）同理不净化：说明书注意事项被删句、改写（与上面 JSON 字段同一类）。
+  const labelRows: string[] = [];
+  const shieldedContent = placeholderContent.replace(/^\|[^\n]*\[(?:LOCAL|EVIMED)[-A-Z0-9]*\][^\n]*$/gmu, (row) => `__TCM_CDSS_LABEL_ROW_${labelRows.push(row) - 1}__`);
+  const examGroundedNarrative = sanitizeUngroundedPhysicalExamClaimsInNarrative(shieldedContent, source);
   const sanitizedNarrative = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(examGroundedNarrative, source, extractorAffirmedTerms, recordedInspection), state), state);
-  return sanitizedNarrative.replace(/__TCM_CDSS_JSON_BLOCK_(\d+)__/g, (_, index: string) => jsonBlocks[Number(index)] || "");
+  return sanitizedNarrative
+    .replace(/__TCM_CDSS_LABEL_ROW_(\d+)__/g, (_, index: string) => labelRows[Number(index)] ?? "")
+    .replace(/__TCM_CDSS_JSON_BLOCK_(\d+)__/g, (_, index: string) => jsonBlocks[Number(index)] || "");
 }
+
+/** 中成药、西药行里服务端按说明书逐字填写的字段（instruction-record-pool 补齐）：说明书原文，不按本例断言净化。 */
+const MEDICINE_LABEL_FIELDS = new Set(["riskNote", "usageBoundary", "relationship", "specification", "singleDose", "frequency", "route"]);
 
 function structuredCaseText(state: CaseState): string {
   return trustedInputText(state);
