@@ -1782,7 +1782,63 @@ The user sent the customer's 100-case test set (two versions; the updated one se
 
 One final-run case (C093) fell to the limited M03 (`m03_chain_empty` on both passes); 3/3 reruns were complete — generation variance on a record full of quoted speech.
 
-**Left on purpose.** The page still shows only disease differentials (customer 8/05, pinned by `test:diagnosis-presentation-contract`); syndrome differentials are in `overview.tcmDifferentials`. Unknown pregnancy status keeps the generic 「如已怀孕…告知医生」 line and per-herb 孕期慎用 notes; whether ChP 孕妇禁用 herbs should be removed for every reproductive-age woman of unknown status is an owner decision. Model judgement: 肛裂 named without an anal exam, 气滞耳窍证 with 加味乌药汤 for sudden deafness, breast lump with family history not escalated, exclusion diagnoses (惊恐障碍, 纤维肌痛综合征) without 待查.
+**Left on purpose.** The page still shows only disease differentials (customer 8/05, pinned by `test:diagnosis-presentation-contract`); syndrome differentials are in `overview.tcmDifferentials`. Unknown pregnancy status keeps the generic 「如已怀孕…告知医生」 line and per-herb 孕期慎用 notes; whether ChP 孕妇禁用 herbs should be removed for every reproductive-age woman of unknown status was decided in round 17 (kept out, see below). Model judgement: 肛裂 named without an anal exam, 气滞耳窍证 with 加味乌药汤 for sudden deafness, breast lump with family history not escalated, exclusion diagnoses (惊恐障碍, 纤维肌痛综合征) without 待查.
+
+### 10/24 round 17: the round-16 leftovers by class, unknown pregnancy status decided (2026-10-24)
+
+The user asked for every remaining item from the round-16 qwen review to be researched online and fixed at the root, one class at a time, then tested and deployed without further questions, and left the unknown-pregnancy herb policy to our recommendation. Material: `~/runlogs/r1018/work/r1029/` (`TODO.md`, `measure.sh`, `targeted.py`, `replay/`, `counterproofs.txt`, `out/`, `judge/`). Suite `test:r1029-main` (22 checks, every one with a counter-proof in `counterproofs.txt`).
+
+**Decided: unknown pregnancy status (owner left it to us).** Women 15–49 whose record says nothing about pregnancy (not positive, possible or denied; no menopause or hysterectomy; lactation and conception not positive) form a second tier next to 备孕/未避孕 (`chpPregnancyHerbTier` in `conception-herb-policy.ts`, read by the M04 contract, the compiler and the prompt): dose is given, the 37 ChP 2020 孕妇禁用/忌用 herbs (三棱, 莪术, 水蛭, 牵牛子, 甘遂, 麝香…) are kept out (special-population T1 → repair; a modification adding one is dropped), 孕妇慎用 herbs are used without per-herb notes, and the generic 「如已怀孕…请服药前告知医生」 line stays. Why: the prohibited herbs are drastic purgatives, blood-breakers and toxic herbs that almost always have substitutes, while the 慎用 list (桂枝, 牡丹皮, 桃仁, 红花, 牛膝, 大黄…) is part of many common formulas. `clinicalGroundingText` now carries a labelled 「患者性别：女/男」 line like the age line, because the customer and page shapes often keep sex only in the structured field. `recordExcludesPregnancyPotential` in `clinical-state.ts` is the single menopause/hysterectomy predicate (the gate's `pregnancyScreenRequired` reads it too).
+
+**What was wrong, by class** (each pinned in `test:r1029-main` with a counter-proof; gate predicates replayed old vs new on 20,596 records, `replay/`):
+- **Reproductive screen asked every sub-item.** Once pregnancy is positive, possible or denied, `lactation_unknown` / `conception_unknown` are no longer added (lactation stays when childbirth within 12 months is recorded). Replay: 415 lactation and 243 conception items removed, 4 records went needs_information → ready (all had 「否认妊娠，未哺乳」-style records). C018 got full dose.
+- **Stopped medicines counted as current.** 「普萘洛尔曾短期服用，目前停用」 produced 「已提及当前用药但缺少药名/剂量/频次」; only an explicit current stop (目前停用、现已停药、停用至今…) with no current-use cue counts. The first cut (any 停药) also caught 「停药复发」「长期间断服用…停药即复发」 and was narrowed after the replay.
+- **Unevaluated breast mass** (`unevaluatedBreastMass`, NICE NG12: unexplained breast lump at 30+ → suspected-cancer referral; men 50+): priority evaluation 需排除乳腺癌 (dose still given), follow-up 「2周内到乳腺专科…乳腺超声」, acupuncture cards drop breast-region points (乳根、膻中、期门…), other local cards are not delivered. Mastitis/乳痈/lactation and a patient's own known or operated cancer are excluded; a mother's history is not. Replay: 65 records, all breast masses without recorded imaging.
+- **ENT and shock had no textbook rows.** Supplement rows: 耳鸣耳聋 (six types; 证候 and 治法 from 《中医食疗学》 lines 42738–42786, formulas confirmed on two web sources) and 虚脱 (four shock patterns verbatim from 《中西医结合外科学》 lines 143271–143274; definition and 主症 from 《针灸治疗学》 急症·虚脱). The 虚脱 entry carries its diagnosis points (血压下降、脉微欲绝、休克) because the first run put a hypoglycaemia case with BP 104/64 into 虚脱.
+- **Collapse syndrome as a secondary** (C053 anaphylactic shock: 瘾疹·风热犯表证，兼阳气虚脱): `promoteCriticalSecondarySyndrome` (M03 TCM-half transform) swaps it to primary, puts 固脱救逆 first in 治法, and renames the disease 虚脱 when the original disease has no such row; a prompt rule asks for this when shock signs are recorded.
+- **《中医诊断学》 key-point split** lost single-character sites and symptoms: 血虚证 had only 「舌色淡白、脉细」, 肺气虚证 only 「痰稀」. The generator now gives each site of 「面、睑、唇、舌色淡白」 the shared predicate and keeps 咳/喘; four entries' key points and nine manifestation lists changed.
+- **Neutral functional syndromes** (胃气不和证、肺气失宣证、心神不宁证) no longer derive 实则泻之 from a 理气 method: 治则 is 调理阴阳 unless the model wrote a non-虚实 term (急则治标).
+- **Colorectal follow-up** fired on 「偶有便秘」 plus 「近期跌倒一次」 from another field: the recency cue must be in the constipation sentence or be an elided-subject course sentence (「最近三个月越来越明显」).
+- **Two-party account conflicts** (「家属与本人对症状持续时间描述不同」) are quoted in the disease rationale and added to `uncertainties`; 「患者回答前后不一致」 (a delirium sign) is not this class. **Anorectal lesion names** (肛裂、痔…) with 「暂未接受肛门检查」 get 「病名是据病史的初步判断，需肛门视诊确认」.
+- **Western.** On red-flag cases an emergency name may also become 「X待查」 (the name stays visible); after a deterministic rename (新生儿→婴儿) the name is checked again — C071 婴儿败血症 without any blood test → 婴儿败血症待查; new criteria rows 新生儿/婴儿败血症 (2019 consensus quote). `test:r1021-western` pins 137 entries.
+- **Precautions**: a recorded drug allergy counts as covered when the model's line names the drug (C070 had two lines). **Modifications**: an 「加」 row whose reason says to remove the herb (暂去、去之…) is dropped (C098).
+- **Herb count prompt**: the escape hatch 「本例无更多需兼顾的表现，未加至…」 is gone; aim at floor+2 with same-direction 臣佐药, count before output.
+- **Locked or textbook formulas with ChP-prohibited base herbs** (found by a probe: 35-year-old, 癥瘕·气滞血瘀, status unknown → textbook 香棱丸 with 三棱、莪术 as 君药; the model kept them through three repairs and the page fell back to non-dose). `formulaBaseHerbsBarredInPregnancy` (`conception-herb-policy.server.ts`) lists them in the tier prompt (drop them, name it 本例辨证组方), and `formulaCompilationContractIssue` accepts the declassified candidate. Rerun: 香棱丸加减 without 三棱、莪术, dosed; the pregnancy-denied control keeps them.
+
+**Second pass after the qwen review of the measured run (4abb98e3, d8329b25).**
+- The priority-evaluation follow-up sentence had two writers (page `followupWhenPriorityEvaluation`, M05 `patientFacingFirstReview`): C069 said 「2周内乳腺专科」 on one and 「3天内相关专科」 on the other. One function now (`priorityEvaluationFirstStep`).
+- 「已提及当前用药但缺少药名/剂量/频次」 when the name is recorded (C045 二甲双胍) → 「…缺少剂量/频次」; a count (「每天吃一片」) is not a name.
+- Weight loss with hemoptysis keeps its red flag but reads 「咯血伴体重下降，需优先完成胸部CT与痰检…」 instead of 「上消化道警示征象…内镜」 (C005; 2 corpus records).
+- Collapse promotion rewrites 「主证属…」 in the syndrome rationale (C053); 「时间线互相矛盾」-type statements join the conflict note (C093); a named catalog formula whose 出处 said 自拟方 gets the catalog source (C063).
+
+**Measured** (same day; page shape `out/p100-base` on f3b7b0fa vs `out/p100-new` on 0d674d5f; customer shape `out/det-base` / `det-new`; qwen3.8-max with the round-16 scripts — this run's judge was more lenient than round 16's on the same rubric, so compare only within the table).
+
+| Deterministic, 101 cases | Before | After |
+|---|---|---|
+| Red flag where expected / none where none expected | 28/28 / 49/49 | 28/28 / 49/49 |
+| Dose given where expected / withheld where expected | 40/40 / 33/33 | 40/40 / 33/33 |
+| Unknown/denied pregnancy written as positive | 0/9 | 0/9 |
+| Herb-count preference met | 36/42 | 39/42 |
+| ≥2 TCM disease differentials | 100/101 | 101/101 |
+| Medians question / diagnose / prescribe | 3.8 / 12.7 / 10.4 s | 3.9 / 12.4 / 10.4 s |
+
+| qwen, customer rubric | Before | After |
+|---|---|---|
+| RF / SAFE / FACT / T | 99 / 100 / 96 / 99 | 99 / 100 / 95 / 98 |
+| C / D / F / Q | 99 / 99 / 100 / 99 | 97 / 100 / 100 / 98 |
+| S / P / R / K | 99 / 99 / 100 / 94.1 | 99 / 100 / 99 / 89.5 |
+| L / Y / W / N / V / Z | 100 / 100 / 100 / 100 / 100 / 98.9 | 100 / 98 / 100 / 100 / 99 / 100 |
+| H herb count | 83.3 | 96.3 |
+| Red lines | 0 | 0 |
+
+The second-pass fixes (C069 V, C005 RF, C045 FACT, C053 T, C063 Y, C093 FACT) target six of the after-column failures; the K failures are model medicine choices (an unverifiable 感冒合剂 name, 润肠丸 for 阴虚秘).
+
+- Customer 10 + held-out 32 (customer shape): disease and syndrome match the standard answers on all 10 customer cases in both arms (identical disease/syndrome/formula), no 兼证 added, no red flag on 1/2/7/9; held-out 29/29 disease, 28/29 syndrome (S067 石淋 vs 湿热蕴结, generation variance). qwen with the 10/17 briefs: every customer column passes in both arms (the only note is the deferred 病历2 五味安神颗粒); held-out blocks 97.4–100.
+- Targeted reruns on the final code: C071 婴儿败血症待查, C053 虚脱·阳气暴脱证, C092 conflict note, C016 note, C091 调理阴阳, C069 2-week breast clinic without breast points.
+
+**In production (d8329b25, tag `20261024-d8329b2-prebuilt`, deployed 2026-10-24 about 23:50 Beijing; 4519b4f went out about an hour earlier, then the second pass).** `verify:deployed-image` (commit, digest, strictReady, both model families) and `regress:prod-smoke` (0 failures) passed after each deploy. Live probes (page shape, hospital-b/a): the screenshot case gets 归脾汤 with dose and only the generic pregnancy line; C018 full dose without 哺乳/备孕 items; C069 breast priority evaluation; C071 婴儿败血症待查; C091 调理阴阳; the 香棱丸 probe dosed without 三棱/莪术; after the second pass C005 「咯血伴体重下降…胸部CT」, C045 「缺少剂量/频次」, C069 page and M05 both 「2周内到乳腺专科」, C093 conflict note, C053 虚脱·阳气虚脱证 with the rewritten rationale. Rollback: image `tcm-cdss:20261024-4519b4f-prebuilt` (or `…20261022-ccb67f4…`) with the compose backups in the release directory. Cosmetic leftover: the conflict quote is NFKC-normalised, so full-width commas inside it print as ASCII. Host disk was 8.8 GB; the Docker build cache (6.0 GB, regenerable) and our 14cb304 image were removed (`~/telemetry-archive/cleanup-20261024.txt` on the host). The local prebuild ran on the root filesystem (`PREBUILT_ROOT=/var/tmp/build-prebuilt`, a clean worktree with a real `node_modules` copy) because /home had 2.6 GB.
+
+**Left as is.** C084 (acute delirium on top of MCI) is still named 痴呆: no 神昏 section exists in the local corpus; the red flag and Western 谵妄 are right. C087 is still 脾气虚证 although 血虚 now passes the corrected criteria — promoting a passing element to a 兼证 would change customer cases (病历2/3 checks) and was not done. Sudden deafness with only 脉弦 stays a neutral 气滞耳窍证 with model-chosen formulas (当归芍药散, 加味乌药汤). Herb count still misses by 1–2 herbs in about one in ten preference cases (C018 左金丸 base of 2, C092 归脾汤). C053 named 瘾疹·风热犯表证 without any 脱证 in one production run: the rule depends on the model recognising shock; the red flag holds.
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
