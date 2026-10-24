@@ -400,6 +400,8 @@ const CURRENT_CONSTIPATION_PATTERN = /(?:便秘|大便[^。；\n]{0,12}(?:解不
 const RECENT_OR_PROGRESSIVE_CHANGE_PATTERN = /(?:(?:最近|近期|近来|近)\s*(?:(?:\d+(?:\.\d+)?|[一二两三四五六七八九十半]+)\s*(?:个)?\s*(?:天|日|周|月|年))?[^。；\n]{0,24}(?:新发|初发|开始|出现|越来越|逐渐|进行性|加重|明显)|(?:新发|初发|首次出现|进行性加重|逐渐加重|越来越明显)[^。；\n]{0,24}(?:便秘|排便|大便))/;
 const COLORECTAL_ORGANIC_DIFFERENTIAL = /(?:结肠|直肠|结直肠)[^。；\n]{0,16}(?:肿瘤|癌|占位|器质性病变)/;
 const CONSTIPATION_AGE_THRESHOLD = 40;
+/** 省略主语、只写病程走向的一句（「现病史：最近三个月越来越明显」）：时间之后紧接走向词，中间不夹别的症状。 */
+const ELIDED_SUBJECT_PROGRESSION = /^(?:[^：:，,]{0,8}[：:])?\s*(?:最近|近期|近来|近)\s*(?:(?:\d+(?:\.\d+)?|[一二两三四五六七八九十半]+)\s*(?:个)?\s*(?:天|日|周|月|年))?(?:来|以来)?(?:症状|病情|情况)?(?:越来越|逐渐|进行性|加重|明显)/u;
 
 function hasExertionalNocturnalBreathlessness(clinicalContext: string): boolean {
   const affirmed = affirmedClinicalText(clinicalContext) || "";
@@ -495,10 +497,13 @@ export function normalizeM03WesternDifferentials(
     const age = typeof patientAgeYears === "number" && Number.isFinite(patientAgeYears) && patientAgeYears >= 0 && patientAgeYears <= 120
       ? patientAgeYears
       : undefined;
-    // 便秘与「近期出现/加重」要写在同一句里（2026-10-24 C088：「偶有便秘及嗅觉减退」与另一栏「近期跌倒一次，未出现幻觉」被拼成
-    //「近期新发便秘」，69 岁帕金森样病例的复诊计划多了一句结直肠筛查）。
+    // 「近期出现/加重」要说的是便秘：与便秘写在同一句，或是省略了主语、只写病程走向的一句（主诉便秘、现病史「最近三个月越来越明显」）。
+    // 2026-10-24 C088：「偶有便秘及嗅觉减退」与另一栏「近期跌倒一次，未出现幻觉」被拼成「近期新发便秘」，69 岁帕金森样病例的复诊计划多了一句结直肠筛查。
+    const sentences = affirmed.split(/[。；;\n]+/).map((sentence) => sentence.trim());
     const hasOlderNewConstipation = typeof age === "number" && age > CONSTIPATION_AGE_THRESHOLD &&
-      affirmed.split(/[。；;\n]+/).some((sentence) => CURRENT_CONSTIPATION_PATTERN.test(sentence) && RECENT_OR_PROGRESSIVE_CHANGE_PATTERN.test(sentence));
+      CURRENT_CONSTIPATION_PATTERN.test(affirmed) &&
+      sentences.some((sentence) => (CURRENT_CONSTIPATION_PATTERN.test(sentence) && RECENT_OR_PROGRESSIVE_CHANGE_PATTERN.test(sentence)) ||
+        ELIDED_SUBJECT_PROGRESSION.test(sentence));
     if (hasOlderNewConstipation) {
       const primary = recordValue(western.primary);
       if (primary) {

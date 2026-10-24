@@ -5105,7 +5105,8 @@ console.log(JSON.stringify({ cases: 382, failures: 0 }));
   // 舌脉、体征、病史等同类服务端标签行同样不是主诉：主诉缺席时也不得被取作主诊断。
   const noComplaintContext = groundingFor("", 60, { symptoms: {}, hisRecord: undefined });
   for (const line of noComplaintContext.split("\n").filter(Boolean)) {
-    assert.match(line, /^(?:患者年龄|舌象|脉象|生命体征|既往史|用药史|过敏史)：/, `前提：无主诉时每行都是服务端标签行，实得 ${line}`);
+    // 2026-10-24 第十七轮起接地语料另补一行「患者性别：X」（药典孕妇禁用档要认育龄女性），同样是服务端标签行。
+    assert.match(line, /^(?:患者年龄|患者性别|舌象|脉象|生命体征|既往史|用药史|过敏史)：/, `前提：无主诉时每行都是服务端标签行，实得 ${line}`);
   }
   const noComplaint = unwrap(declassifyAmbiguousM03WesternPrimary(wrap(withPrimary("心律失常或焦虑状态")), noComplaintContext)).westernDiagnosis.primary;
   assert.equal(noComplaint.name, "心律失常或焦虑状态", "找不到主诉时不改写，交给修复轮，而不是拿标签行造诊断名");

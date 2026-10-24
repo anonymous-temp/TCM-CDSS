@@ -138,8 +138,9 @@ const verdict = (extra) => JSON.stringify({ verdict: "inconsistent", type: "D", 
     assert.equal(ad.reviewCorrection?.before?.clinicallyDiagnosable, false);
     assert.ok(ad.reviewCorrection.before.requiredTests.length >= 2 && ad.reviewCorrection.basis.length > 40);
   });
-  await check("3.2 对照：其余条目不变（条目数 135；缺铁性贫血、支气管哮喘、社区获得性肺炎仍要求检查，不可临床诊断）", () => {
-    assert.equal(table.entries.length, 135);
+  // 2026-10-24 第十七轮加了新生儿败血症、婴儿败血症两行（135 → 137）。
+  await check("3.2 对照：其余条目不变（条目数 137；缺铁性贫血、支气管哮喘、社区获得性肺炎仍要求检查，不可临床诊断）", () => {
+    assert.equal(table.entries.length, 137);
     for (const name of ["缺铁性贫血", "支气管哮喘", "社区获得性肺炎", "多囊卵巢综合征"]) {
       assert.ok(entry(name), name);
       assert.ok(entry(name).requiredTests.length > 0 || entry(name).durationThreshold || entry(name).definingFeatures.length > 0, name);

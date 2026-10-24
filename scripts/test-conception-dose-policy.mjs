@@ -181,7 +181,10 @@ check("4.2 备孕档：加减里加药典孕妇禁用的三棱整条不列，加
 // ───── 5 提示词 ─────
 check("5.1 M04 提示词：备孕档列出药典孕妇禁用饮片并要求慎用药写明（与合同、编译器同一判据）", () => {
   const route = readFileSync(path.join(repoRoot, "src/app/api/diagnosis/prescribe/route.ts"), "utf8");
-  assert.match(route, /if \(conceptionWithoutPregnancyOrLactation\(groundingText\)\) \{\s*promptSuffixes\.push\(`【备孕\/未避孕】/);
+  // 2026-10-24 第十七轮：备孕档与「妊娠状态未记录」档共用 chpPregnancyHerbTier（conception-herb-policy），路由按档写两段提示。
+  assert.match(route, /const pregnancyHerbTier = chpPregnancyHerbTier\(groundingText\);/);
+  assert.match(route, /if \(pregnancyHerbTier === "conception"\) \{\s*promptSuffixes\.push\(`【备孕\/未避孕】/);
+  assert.equal(policy.chpPregnancyHerbTier("患者年龄：30岁\n患者性别：女\n未避孕1年未孕"), "conception");
   assert.match(route, /chpPregnancyProhibitedHerbNames\(\)\.join\("、"\)/);
   assert.equal(policy.chpPregnancyProhibitedHerbNames().length, 37);
 });

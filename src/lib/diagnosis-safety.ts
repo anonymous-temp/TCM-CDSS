@@ -403,11 +403,11 @@ export function trustedInputText(state: CaseState): string {
  * 真实症状一起丢弃。红旗判定仍走 trustedInputText，一字未改。
  */
 /**
- * 接地语料里由服务端加标签写入的字段行（trustedInputText 的 clinicianEnteredFields 与下方补写的年龄行）。
+ * 接地语料里由服务端加标签写入的字段行（trustedInputText 的 clinicianEnteredFields 与下方补写的年龄、性别行）。
  * 它们是病历事实，但不是主诉：消费方找「主诉那一行」时必须跳过，否则无主诉标签的病历会把
  * 「患者年龄：45岁」当主诉（实测西医主诊断被写成「年龄：45岁症状」）。标签集合必须与写入处逐字一致。
  */
-export const SERVER_LABELED_GROUNDING_LINE = /^(?:患者年龄|舌象|舌象图像复核|脉象|面象|生命体征|既往史|用药史|过敏史)：/;
+export const SERVER_LABELED_GROUNDING_LINE = /^(?:患者年龄|患者性别|舌象|舌象图像复核|脉象|面象|生命体征|既往史|用药史|过敏史)：/;
 
 export function clinicalGroundingText(state: CaseState): string {
   const authoritative = trustedInputText(state);
