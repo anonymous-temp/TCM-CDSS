@@ -1,0 +1,38 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "measured-weight-loss-digestive-context",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-24",
+ "trigger": "甲方 100 例测试集 C031（49 岁男，口渴、多尿、乏力 1 个月，夜尿 3–4 次，体重下降 4kg，空腹血糖 11.8、HbA1c 9.3%，无腹痛呕吐）：确定性层报「上消化道警示征象（不明原因体重下降）」，整方不给剂量。体重下降由高血糖解释，病历没有任何消化道症状；甲方验收口径把过度预警记为漏判同等的不合格。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "diagnosis-safety.upperGiAlarmFeatureKind 的 D 档：带数值、≥3kg 的体重下降一律记作上消化道警示，不看有没有消化道症状。写了「不明原因/进行性」的那一支、吞咽梗阻、消化道肿瘤史两支都不受影响。",
+  "exception": "冻结令允许的确定性例外：有限闭集（受治理 currentDigestiveSymptoms，去掉体重词本身）+ 数值阈值（沿用 3kg）。只收窄「只有数值的体重下降」这一支：须同时有当前、未被否认的消化道症状。",
+  "sources": "NICE NG12 1.2.7：55 岁以上体重下降伴上腹痛、反流或消化不良者转诊上消化道内镜；体重下降本身不是上消化道特异警示。"
+ },
+ "contexts": ["sparse"],
+ "parity": {
+  "note": "兄弟句法：体重下降有其他明确解释、没有消化道症状时，门禁结果与去掉体重下降一句完全相同。",
+  "pairs": [
+   { "subject": "口渴、多尿、乏力1个月，食量增加、易饥，体重下降4kg。", "sibling": "口渴、多尿、乏力1个月，食量增加、易饥。", "siblingExpect": "clean" },
+   { "subject": "心悸手颤、怕热多汗2个月，近2月体重下降5kg。", "sibling": "心悸手颤、怕热多汗2个月。", "siblingExpect": "clean" },
+   { "subject": "干咳3周，夜间汗多，近1月体重下降3.5kg。", "sibling": "干咳3周，夜间汗多。", "siblingExpect": "clean" }
+  ]
+ },
+ "controls": {
+  "note": "有消化道症状的数值体重下降、写了不明原因/进行性的体重下降，照旧报上消化道警示。",
+  "mustStillFlag": [
+   { "text": "上腹隐痛2月，纳差，体重下降4kg。", "flag": "体重下降" },
+   { "text": "胃脘胀痛反复3月，近2月体重下降8斤。", "flag": "体重下降" },
+   { "text": "乏力1月，不明原因体重下降。", "flag": "体重下降" }
+  ],
+  "mustStayReady": [
+   "口渴、多饮、多尿1月，体重下降4kg，空腹血糖11.8mmol/L。",
+   "情绪低落2月，体重下降3kg，无腹痛、呕吐。"
+  ]
+ },
+ "measurements": [
+  { "date": "2026-10-24", "what": "见 test:r1028-main 与 ~/runlogs/r1018/work/r1028/replay（改前主检出对改后工作树，语料两种形态）。" }
+ ]
+}

@@ -1229,3 +1229,33 @@ export function currentMensesOverdue(text: string): boolean {
  * 「（故/因此/所以）（与/同/和）二者/两者/上述各病 …区分/鉴别」。2026-10-19 X-C-0159：「…属产后小便淋痛；故与二者相区分。」
  */
 export const ORPHAN_ANAPHORIC_TAIL = /^(?:故|因此|所以|从而|遂)?(?:与|同|和)?(?:二者|两者|此二者|上述各?病|以上各?病)[^，,；;。]{0,6}(?:区分|鉴别|区别)$/u;
+
+
+/**
+ * 病历里记录的药物过敏（2026-10-24 甲方 100 例 C099：过敏史栏写「无」，同时写着阿莫西林后全身荨麻疹；患者要求开消炎药，
+ * 注意事项一句没提）。逐小句找「药名 + 用后/过敏 + 过敏反应」，返回病历原文里的那一小段（去掉栏目说明），供注意事项点名。
+ * 小句里先出现否定或「不详/未知」的不算；不是药（猫毛、花粉、尘螨、食物）不算——要有给药动词或西药、剂型构词。
+ */
+const DRUG_ALLERGY_REACTION = "(?:荨麻疹|皮疹|红斑|瘙痒|过敏|喘息|哮喘发作|喉头水肿|血管性水肿|休克|呼吸困难|面唇肿胀)";
+const DRUG_NAME_FORM = "[\\u4e00-\\u9fa5]{0,6}?(?:西林|霉素|沙星|头孢[\\u4e00-\\u9fa5]{0,4}|洛芬|匹林|磺胺[\\u4e00-\\u9fa5]{0,3}|普利|沙坦|他汀|硝唑|康唑|卡因|青霉素|造影剂|疫苗|胰岛素)";
+// 三种写法：药名后（曾）出现过敏反应 / 药名诱发、引起、致过敏反应；对药名过敏、药名过敏；用、服、注射某药后出现过敏反应或「药物过敏」。
+const DRUG_ALLERGY_FORMS = [
+  new RegExp(`${DRUG_NAME_FORM}(?:后|诱发|引起|致|导致)[^，,。；;]{0,10}?${DRUG_ALLERGY_REACTION}`, "u"),
+  new RegExp(`对?${DRUG_NAME_FORM}(?:类)?(?:药物)?过敏(?!史不详|史未知|不详|未知)`, "u"),
+  new RegExp(`(?:服用|使用|口服|注射|输注|输液|(?<![食饮享])用)[^，,。；;]{1,10}(?:后|时)[^，,。；;]{0,8}?${DRUG_ALLERGY_REACTION}|药物过敏(?!史不详|史未知|不详)`, "u"),
+];
+export function recordedDrugAllergyPhrases(text: string | null | undefined): string[] {
+  const phrases: string[] = [];
+  for (const clause of String(text || "").normalize("NFKC").split(/[。；;\n]+/u)) {
+    for (const part of clause.split(/(?:但|然而|不过)/u)) {
+      const cleaned = part.replace(/^[^，,：:]{0,8}[：:]/u, "").replace(/^[^，,：:]*?(?:注明|记载|记录|写明|提示|显示)/u, "").replace(/^[，,：:\s]+/u, "").trim();
+      const match = DRUG_ALLERGY_FORMS.map((form) => cleaned.match(form)).find(Boolean);
+      if (!match) continue;
+      // 小句里在命中处之前有否定或「不详/未知」：「否认药物过敏」「无青霉素过敏」「青霉素过敏史不详」不算。
+      if (/(?:否认|无|未发现|未见|没有|不详|未知|尚未)/u.test(cleaned.slice(0, match.index ?? 0)) || /^(?:否认|无|未发现|没有)/u.test(cleaned)) continue;
+      const phrase = cleaned.slice(0, 40);
+      if (!phrases.includes(phrase)) phrases.push(phrase);
+    }
+  }
+  return phrases.slice(0, 2);
+}

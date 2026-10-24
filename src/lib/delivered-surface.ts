@@ -54,6 +54,8 @@ export type DeliveredSurfaceOptions = {
   doseWithheld?: "red_flag" | "withheld";
   /** 不给剂量的具体原因类别（diagnosis-safety.doseWithheldFollowupKind）：复诊提示按它写节点与观察项。缺省时按 doseWithheld 的旧写法。 */
   doseWithheldKind?: DoseWithheldFollowupKind;
+  /** 给了剂量但安全门要求优先完成临床评估（priorityEvaluationFollowupFocus）：评估要排除的情况；只有类目提示时为空串。 */
+  priorityEvaluation?: string;
   /** 投影的是不给剂量的那一页（renderM04DeliveryCheckpoint 设）：注意事项里不说「按医生开的剂量」。 */
   nonDosePage?: boolean;
   /**
@@ -121,6 +123,7 @@ function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly str
   if (item.kind === "reproductive_status_unknown") return lines.some((line) => /孕|哺乳/u.test(line));
   if (item.kind === "toxic_self_preparation") return lines.some((line) => item.herbs.some((herb) => line.includes(herb)) && /停用|停服|停止|不要再|勿再|不可再/u.test(line));
   if (item.kind === "conception_pregnancy_check") return lines.some((line) => /验孕|妊娠试验|早孕试纸|月经(?:逾期|推迟|延后)/u.test(line));
+  if (item.kind === "drug_allergy") return lines.some((line) => /过敏/u.test(line) && /告知|告诉|勿|不要|避免|禁用/u.test(line));
   if (item.kind === "menses_overdue_pregnancy_check") return lines.some((line) => /验孕|妊娠试验|早孕试纸|HCG/iu.test(line));
   return lines.some((line) => /抗生素|抗菌|抗感染|青霉素|头孢/.test(line));
 }
@@ -228,6 +231,7 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
     // 《中国带状疱疹诊疗专家共识（2022 版）》：发疹 72 小时内尽早系统抗病毒；仍有新水疱、50 岁以上、累及眼耳者也应尽早。不写药名与剂量。
     return "带状疱疹请尽早到医院由医生评估是否需要口服抗病毒药（发疹3天内、仍有新水疱出现或年龄50岁以上尤应尽早），疼痛明显请一并告知医生；如皮疹累及眼周、耳部，或出现视物模糊、听力改变、剧烈头痛，请立即就医。";
   }
+  if (item.kind === "drug_allergy") return `病历记录有药物过敏（${item.phrases.join("；")}），请勿再用该药及同类药物；就诊开药或自行购药时，请主动告诉医生和药师。`;
   if (item.kind === "gout_diet") return "痛风需低嘌呤饮食：少吃海鲜、动物内脏和浓肉汤，戒酒（尤其啤酒），每天多饮水。";
   if (item.kind === "trigger_foods") return `本次发病与进食${item.foods.join("、")}有关，服药期间及以后请避免${item.foods.join("、")}。`;
   if (item.kind === "severe_hypertension_followup") {
@@ -1940,6 +1944,20 @@ export function followupWhenDoseWithheld(text: string, reason: "red_flag" | "wit
 }
 
 /**
+ * 给了剂量、安全门要求先完成临床评估的病例：复诊第一句先说 3 天内去评估，再按医生安排服药与复诊（2026-10-24）。
+ * 换掉「请服完本次的药后复诊」或已补了剂数的那句；没有这句时放在最前。模型写的立即就医表现照留。幂等。
+ */
+const FINISH_MEDICINE_WITH_COUNT = /请?在?(?:服完|吃完|用完)(?:本次的?药|\d+剂药)(?:后|再)?(?:（约\d+天后）)?(?:按时)?复诊[^。；;]*[。；;]?/u;
+export function followupWhenPriorityEvaluation(text: string, focus: string): string {
+  const first = focus
+    ? `请在3天内到相关专科就诊，先完成评估（需排除${focus}），再按医生安排服药与复诊。`
+    : "请在3天内到医院完成评估、核实病情后，再按医生安排服药与复诊。";
+  if (text.includes(first)) return text;
+  if (FINISH_MEDICINE_WITH_COUNT.test(text)) return text.replace(FINISH_MEDICINE_WITH_COUNT, first);
+  return `${first}${text}`;
+}
+
+/**
  * 给剂量的方：「请服完本次的药后复诊」补上剂数与天数（2026-10-21 第十二轮；验收 S 集：复诊句没有天数，虽然煎服法写了 7 剂）。
  * 数取自方剂的 followUpAfterDoses / followUpAfterDays（M05 首次复诊同一来源 patientFacingFirstReview）；取不到时原样。
  */
@@ -2018,6 +2036,8 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
     const management = record(projected.management);
     if (management && typeof management.followupSafetyNet === "string" && options?.doseWithheld) {
       management.followupSafetyNet = followupWhenDoseWithheld(management.followupSafetyNet, options.doseWithheld, options.doseWithheldKind);
+    } else if (management && typeof management.followupSafetyNet === "string" && typeof options?.priorityEvaluation === "string") {
+      management.followupSafetyNet = followupWhenPriorityEvaluation(management.followupSafetyNet, options.priorityEvaluation);
     }
   }
   else if (projected.stage === "prescribe") {
@@ -2028,7 +2048,9 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
         management.followupSafetyNet = followupWhenDoseWithheld(management.followupSafetyNet, options.doseWithheld, options.doseWithheldKind);
       } else {
         const decoction = record(records(record(projected.formula)?.candidates)[0]?.decoction);
-        management.followupSafetyNet = followupWithDoseCount(management.followupSafetyNet, decoction?.followUpAfterDoses, decoction?.followUpAfterDays);
+        management.followupSafetyNet = typeof options?.priorityEvaluation === "string"
+          ? followupWhenPriorityEvaluation(management.followupSafetyNet, options.priorityEvaluation)
+          : followupWithDoseCount(management.followupSafetyNet, decoction?.followUpAfterDoses, decoction?.followUpAfterDays);
       }
     }
     // 方义里某一步删掉连词后面那半句、留下「…化生而，…」的残句（甲方标准病历 6 最终复测）：去掉悬空的「而」。

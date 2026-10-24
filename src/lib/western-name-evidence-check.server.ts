@@ -674,6 +674,47 @@ async function westernNameCheckPass(
 }
 
 /**
+ * 不需要模型就能判的两种名称与病历不符（2026-10-24 甲方 100 例）：
+ *  · 「慢性X」（含「慢性X待查」）而病历病程没满表里该病的门槛：C052 风团 2 周写「慢性荨麻疹待查」（门槛 6 周）。
+ *    表里有「急性X」就写它，没有就去掉「慢性」。「X待查」以前一律不核对，病程门槛因此从未生效。
+ *  · 「新生儿X」而患儿已超过 28 天：C071 2 月龄写「新生儿败血症」。满 1 岁写「小儿X」，不满 1 岁写「婴儿X」。
+ */
+export function deterministicWesternNameCorrection(name: string, recordText: string, patientAge?: number): WesternNameCorrection | undefined {
+  const trimmed = name.trim();
+  const core = trimmed.replace(/待查$/u, "");
+  if (/^慢性/u.test(core)) {
+    const entry = westernCriteriaEntry(core);
+    const child = typeof patientAge === "number" && Number.isFinite(patientAge) && patientAge < 18;
+    const threshold = child ? entry?.courseThresholdDays?.under18 ?? entry?.courseThresholdDays?.adult : entry?.courseThresholdDays?.adult;
+    const course = recordCourseDays(recordText);
+    if (entry && threshold && course && course.upper < threshold) {
+      const base = core.replace(/^慢性/u, "");
+      const acute = `急性${base}`;
+      const supportedName = westernCriteriaEntry(acute)?.name === acute ? acute : base;
+      if (compact(supportedName) !== compact(trimmed)) {
+        return {
+          type: "D",
+          supportedName,
+          quote: chiefComplaintLine(recordText) || core,
+          reason: `病程未满${threshold % 30 === 0 ? `${threshold / 30}个月` : threshold % 7 === 0 ? `${threshold / 7}周` : `${threshold}天`}`,
+          course: course.upper < threshold / 4 ? "far_below" : "unmet",
+          ...(entry.courseNextCheck ? { courseNextCheck: entry.courseNextCheck, missingTest: entry.courseNextCheck } : {}),
+        };
+      }
+    }
+  }
+  if (/新生儿/u.test(trimmed) && typeof patientAge === "number" && Number.isFinite(patientAge) && patientAge > 28 / 365) {
+    return {
+      type: "B",
+      supportedName: trimmed.replace(/新生儿/gu, patientAge >= 1 ? "小儿" : "婴儿"),
+      quote: chiefComplaintLine(recordText) || trimmed,
+      reason: "患儿已超出新生儿期（出生28天内）",
+    };
+  }
+  return undefined;
+}
+
+/**
  * 西医半返回后的收口：核对病名，采信则改写西医半的输出；任何失败都原样返回。
  * redFlag：确定性闸门判了红旗时不用情形 D——急危重的病名（蛛网膜下腔出血、异位妊娠）在检查出来之前本来就该先按它处置，
  * 改成「待查」会把医生的注意力从必须排除的病上移开。A–C（病历已记录的内容与病名相反）照常，但原名属急危重症时见 heldOnRedFlag。过滤放在缓存之外，
@@ -695,6 +736,11 @@ export async function alignWesternNameWithRecord(
     return westernContent;
   }
   if (!name) return westernContent;
+  const ruled = deterministicWesternNameCorrection(name, context.recordText, patientAgeYears(context.patient?.age));
+  if (ruled) {
+    console.info("[tcm-cdss:telemetry] western_name_evidence_check", { applied: true, type: ruled.type, deterministic: true, currentName: name.slice(0, 30), supportedName: ruled.supportedName.slice(0, 30) });
+    return applyWesternNameCorrection(westernContent, ruled);
+  }
   // 「反应性关节炎待查」「紧张型头痛待查」：待查的是一个靠特征计数或前驱病史成立的病（要点表有 featureRule / requiredHistory），
   // 病历连这些都没有时「原病名待查」本身就说过头了（2026-10-19 留出例 S079，复核：病历无前驱泌尿生殖道或肠道感染史）。这类按去掉「待查」
   // 的病名核对；其余「X待查」照旧不核对。
@@ -749,6 +795,8 @@ function withPrimaryName(westernContent: string, primaryName: string): string {
  * 淀粉酶不高本来就排除不了胰腺炎）。
  */
 function heldOnRedFlag(found: WesternNameCorrection, currentName: string): boolean {
-  if (found.type === "D") return true;
+  // 「原病名待查」只是标明未确诊、首要考虑不变（食管癌→食管癌待查），不会把注意力移开；原名不是急危重症时照常采信
+  //（2026-10-24 甲方 100 例 C019：进行性吞咽困难红旗例，未做胃镜即交付「食管癌」）。
+  if (found.type === "D") return Boolean(found.currentIsEmergency) || compact(found.supportedName) !== compact(`${currentName}待查`);
   return Boolean(found.currentIsEmergency) && !found.adoptedFromList && !namesSameDiseaseFamily(found.supportedName, currentName);
 }

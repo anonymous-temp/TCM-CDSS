@@ -464,6 +464,8 @@ type StreamSafetyOptions = {
   structuredDoseWithheld?: "red_flag" | "withheld";
   /** 不给剂量的原因类别（diagnosis-safety.doseWithheldFollowupKind）：交付面按它写复诊节点。辨证、开方两个路由都给。 */
   structuredDoseWithheldKind?: import("./diagnosis-safety").DoseWithheldFollowupKind;
+  /** 给了剂量但安全门要求优先完成临床评估时的评估重点（diagnosis-safety.priorityEvaluationFollowupFocus）：交付面据此改写复诊第一句。 */
+  structuredPriorityEvaluation?: string;
   structuredCaseState?: CaseState;
   structuredMedicineCandidates?: readonly EvidenceBoundMedicineProposal[];
   /**
@@ -2780,7 +2782,7 @@ async function callPrimaryTextModelStream(
         if (opts.structuredStage !== "diagnose") return undefined;
         try {
           let transformed = await preparedDiagnoseContent(content);
-          transformed = applyDeterministicFormulaReferences(transformed, opts.structuredClinicalContext);
+          transformed = applyDeterministicFormulaReferences(transformed, opts.structuredClinicalContext, opts.structuredLineagePreference);
           transformed = synchronizeVisibleClinicalSummary(transformed, "diagnose", opts.structuredClinicalContext || "", opts.structuredCaseState);
           if (opts.outputTransform) transformed = opts.outputTransform(transformed);
           const governedDifferentials = applyGovernedM03DiseaseDifferentialBoundary(
@@ -3092,7 +3094,7 @@ async function callPrimaryTextModelStream(
         const page = renderM04DeliveryCheckpoint(
           m04DeliveryCheckpoint, opts.structuredPriorReasoning, reason, opts.structuredDoseWithheldReasons || [],
           { herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, recordText: deliveredSurfaceRecordText(opts.structuredCaseState),
-            doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind });
+            doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation });
         // 已签名剂量页自带横幅（由 outputTransform 贴上）；重建页则需要在这里补回。
         return opts.structuredContinuityBanner && !page.includes("CDSS_SAFETY_ADVISORY")
           ? `${opts.structuredContinuityBanner}${page}`
@@ -3922,7 +3924,7 @@ async function callPrimaryTextModelStream(
             finishReason,
           );
           resolvedStructuredContent = rawResolvedStructuredContent
-            ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(rawResolvedStructuredContent, opts.structuredStage), opts.structuredClinicalContext)
+            ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(rawResolvedStructuredContent, opts.structuredStage), opts.structuredClinicalContext, opts.structuredLineagePreference)
             : undefined;
           if (resolvedStructuredContent) authoritativeContent = resolvedStructuredContent;
           if (opts.structuredStage === "diagnose") {
@@ -4255,7 +4257,7 @@ async function callPrimaryTextModelStream(
             ? resolveCompletedStructuredResponse(wrappedRetryContent, opts.structuredStage, retry.finishReason)
             : undefined;
           const referencedRetryContent = rawResolvedRetryContent
-            ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(rawResolvedRetryContent, opts.structuredStage), opts.structuredClinicalContext)
+            ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(rawResolvedRetryContent, opts.structuredStage), opts.structuredClinicalContext, opts.structuredLineagePreference)
             : undefined;
           let resolvedRetryContent = referencedRetryContent && opts.structuredStage === "prescribe"
             ? applyDeterministicFormulaAnalysis(applyDeterministicHerbPrescriptionRoles(applyDeterministicHerbFunctions(applyDeterministicHerbDecoctionRequirements(applyDeterministicCandidateTherapyMatch(applyDeterministicHerbTargets(referencedRetryContent, opts.structuredPriorReasoning), opts.structuredPriorReasoning)))))
@@ -4433,7 +4435,7 @@ async function callPrimaryTextModelStream(
                 ? resolveCompletedStructuredResponse(secondWrapped, opts.structuredStage, secondRetry.finishReason)
                 : undefined;
               const secondReferenced = secondRawResolved
-                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(secondRawResolved, opts.structuredStage), opts.structuredClinicalContext)
+                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(secondRawResolved, opts.structuredStage), opts.structuredClinicalContext, opts.structuredLineagePreference)
                 : undefined;
               let secondResolved = secondReferenced && opts.structuredStage === "prescribe"
                 ? applyDeterministicFormulaAnalysis(applyDeterministicHerbPrescriptionRoles(applyDeterministicHerbFunctions(applyDeterministicHerbDecoctionRequirements(applyDeterministicCandidateTherapyMatch(applyDeterministicHerbTargets(secondReferenced, opts.structuredPriorReasoning), opts.structuredPriorReasoning)))))
@@ -4546,7 +4548,7 @@ async function callPrimaryTextModelStream(
                     ? resolveCompletedStructuredResponse(thirdWrapped, "diagnose", thirdRetry.finishReason)
                     : undefined;
                   const thirdReferenced = thirdRawResolved
-                    ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(thirdRawResolved, "diagnose"), opts.structuredClinicalContext)
+                    ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(thirdRawResolved, "diagnose"), opts.structuredClinicalContext, opts.structuredLineagePreference)
                     : undefined;
                   let thirdResolved = thirdReferenced
                     ? await preparedDiagnoseContent(thirdReferenced)
@@ -4842,7 +4844,7 @@ async function callPrimaryTextModelStream(
           // its server-owned rendering pass here; the common visible projection below never mutates
           // the sentinel JSON.
           if (opts.structuredStage === "prescribe") {
-            authoritativeContent = applyDeterministicFormulaReferences(authoritativeContent, opts.structuredClinicalContext);
+            authoritativeContent = applyDeterministicFormulaReferences(authoritativeContent, opts.structuredClinicalContext, opts.structuredLineagePreference);
             authoritativeContent = applyDeterministicDecoctionMethod(
               authoritativeContent,
               opts.structuredClinicalContext || "",
@@ -5135,7 +5137,7 @@ async function callPrimaryTextModelStream(
                 ? resolveCompletedStructuredResponse(finalizedRetryWrapped, "diagnose", finalizedRetry.finishReason)
                 : undefined;
               const finalizedRetryReferenced = finalizedRetryResolved
-                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(finalizedRetryResolved, "diagnose"), opts.structuredClinicalContext)
+                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(finalizedRetryResolved, "diagnose"), opts.structuredClinicalContext, opts.structuredLineagePreference)
                 : undefined;
               let finalizedRetryCandidate = finalizedRetryReferenced
                 ? await preparedDiagnoseContent(finalizedRetryReferenced)
@@ -5342,7 +5344,7 @@ async function callPrimaryTextModelStream(
           //（delivered-surface.ts 是唯一口径）。可见正文随之重渲染，常量 attestation 重新绑定到最终载荷。
           let emissionM04Attestation = m04AttestationWithScope;
           if (!truncated && transformed.ok && (opts.structuredStage === "diagnose" || opts.structuredStage === "prescribe")) {
-            const surfaced = applyDeliveredSurfaceToContent(emissionContent, { herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, recordText: deliveredSurfaceRecordText(opts.structuredCaseState) });
+            const surfaced = applyDeliveredSurfaceToContent(emissionContent, { herbBoundaryAudience: opts.structuredHerbBoundaryAudience, requiredPrecautions: opts.structuredRequiredPrecautions, doseWithheld: opts.structuredDoseWithheld, doseWithheldKind: opts.structuredDoseWithheldKind, priorityEvaluation: opts.structuredPriorityEvaluation, recordText: deliveredSurfaceRecordText(opts.structuredCaseState) });
             if (surfaced !== emissionContent) {
               // 辨证结果随载荷重渲染可见正文（与上面的特异性投影同一做法），正文之前的服务端前置区（安全警示横幅、
               // 质量批注）原样带回。开方结果只换结构化载荷：它的可见正文里有渲染之后才并入的内容（儿童用药说明等），

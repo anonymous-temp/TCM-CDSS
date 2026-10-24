@@ -2,7 +2,7 @@ import { conditionalModificationWithoutTextbook, textbookModificationMatch, text
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
 import { chpPregnancyLabel } from "./conception-herb-policy";
-import { assessConceptionState, assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, isPositiveOrPossibleClinicalState, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
+import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, isPositiveOrPossibleClinicalState, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
 import tcmKnowledgeIdentitySource from "../data/tcm-knowledge.json";
 import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { formulaStructureTarget } from "./herb-target-contract";
@@ -3805,10 +3805,13 @@ const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
 }> = [
   {
     population: /孕期|妊娠/, patient: /妊娠|怀孕|孕妇|孕期|备孕|计划妊娠/, code: "pregnancy",
-    // 备孕/未避孕这一档（妊娠、哺乳都不是阳性或可疑）不按知识库的孕期规则拦：知识库把红花、桃仁、附子这些药典只列为
+    // 是否孕妇只看受治理的妊娠判据（阳性或可疑），与安全闸门同源（2026-10-24）。此前看「妊娠/怀孕」字面，病历写
+    //「妊娠可能性尚待核实」「妊娠状态未知」也按孕妇拦知识库孕期规则，而什么都没写的同龄女性不拦——同一状态两种处置；
+    // 反过来「宫内早孕」「停经40天时查HCG（+）」没有这几个字，字面判据又认不出（10/14 记录的缺口）。
+    // 备孕/未避孕这一档（妊娠不是阳性或可疑）照旧不按知识库孕期规则拦：知识库把红花、桃仁、附子这些药典只列为
     //「孕妇慎用」的也记成 HIGH，照它拦就把慎用药一并删了。这一档只拦药典孕妇禁用的（见函数开头），慎用的在编译器里逐味标注。
-    denied: (context) => (assessPregnancyState(context).status === "negative" && !isPositiveOrPossibleClinicalState(assessConceptionState(context))) ||
-      conceptionWithoutPregnancyOrLactation(context),
+    isPatient: (context) => isPositiveOrPossibleClinicalState(assessPregnancyState(context)),
+    denied: (context) => !isPositiveOrPossibleClinicalState(assessPregnancyState(context)),
   },
   { population: /哺乳期/, patient: /哺乳|乳母|产后喂养/, code: "lactation", denied: (context) => assessLactationState(context).status === "negative" },
   // 儿童臂不再自带一份正则：数值年龄按小数年龄判（「患者年龄：0.5岁」「6.0833岁」旧正则匹配不上，月龄婴儿与带月数的儿童整段漏判），

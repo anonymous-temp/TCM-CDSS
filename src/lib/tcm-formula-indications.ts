@@ -5,7 +5,7 @@ import modernCaseFormulaIndexJson from "../data/tcm-modern-case-formula-index.js
 import retrievalConceptJson from "../data/tcm-formula-retrieval-concepts.json" with { type: "json" };
 import retrievalIndexJson from "../data/tcm-formula-retrieval-index.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
-import { applyLineageAffinityPresentationOrder, type FormulaLineageAffinity } from "./tcm-formula-lineage-affinity";
+import { applyLineageAffinityPresentationOrder, lineageAffinitiesForFormula, type FormulaLineageAffinity } from "./tcm-formula-lineage-affinity";
 import { formulaIdentityLockAllowed } from "./tcm-formula-tier";
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, canonicalTcmSyndromeTerm, formulaMatchSyndromeCompatible, governedSyndromeFeatureMatch, governedTcmTermLabelById, governedTreatmentMethodById, governedTreatmentMethodsInText, matchCompatibleGovernedSyndromeIds, treatmentMethodsShareLineage } from "./clinical-governance-tables";
@@ -1078,13 +1078,26 @@ export function buildTcmFormulaIndicationContext(
   assistedNegations?: AssistedNegationClauses,
   syndromeRerank: readonly SyndromeHypothesisRerankDecision[] = [],
 ): string {
-  const candidates = retrieveTcmFormulaIndicationCandidates(
+  // 医生选了学术流派时多召回一截，把同样由本例事实召回、但排在前 limit 名之外的该流派方（至多 3 首、须可锁定）补进短名单
+  //（2026-10-24 甲方 100 例：经方思路的胸痹、痛风病例短名单里一首仲景方都没有，展示顺序加分无从生效）。
+  // 召回判据、准入分与锁定判据都不变：补进来的仍是本例阳性事实召回到的方，只是不再被名次截掉。
+  const schoolPreference = caseState.tcmLineagePreference && caseState.tcmLineagePreference !== "unrestricted" ? caseState.tcmLineagePreference : "";
+  const recalled = retrieveTcmFormulaIndicationCandidates(
     caseState,
-    limit,
+    schoolPreference ? limit * 3 : limit,
     recallHint,
     assistedNegations,
     syndromeRerank,
   );
+  const candidates = schoolPreference
+    ? [
+      ...recalled.slice(0, limit),
+      ...recalled.slice(limit)
+        .filter((candidate) => candidate.identityLockEligible && candidate.syndromeTags.length > 0 &&
+          lineageAffinitiesForFormula(candidate.name, candidate.source).some((affinity) => affinity.adjudicated && affinity.lineageCode === schoolPreference))
+        .slice(0, 3),
+    ]
+    : recalled;
   if (candidates.length === 0) {
     return "【M03经典方检索】本例当前阳性事实未命中受控经典方主治索引；可按已锁定病机与治法形成自拟方向，但必须说明未采用经典方是因受控目录无匹配结果。";
   }
@@ -1150,7 +1163,7 @@ export function buildTcmFormulaReasoningContext(
   ].join("\n");
 }
 
-function normalizedFormulaIdentity(value: string): string {
+export function normalizedFormulaIdentity(value: string): string {
   return value.replace(/\s+/g, "").replace(/(?:加减|化裁)$/, "");
 }
 

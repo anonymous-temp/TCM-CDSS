@@ -1,4 +1,4 @@
-import { cleanedMedicationNameCandidate, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
+import { cleanedMedicationNameCandidate, recordedDrugAllergyPhrases, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
 import { ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
@@ -134,6 +134,8 @@ export function requiredPrecautionsForCase(
   const triggerFoods = recordedTriggerFoods(presentIllnessText(state));
   if (triggerFoods.length > 0) items.push({ kind: "trigger_foods", foods: triggerFoods });
   // 备孕/未避孕（2026-10-14 起照常给剂量、慎用药逐味标注）：注意事项要写一句服药期间月经逾期先验孕（留出集 S102 评审判缺）。
+  const drugAllergy = recordedDrugAllergyPhrases(grounding);
+  if (drugAllergy.length > 0) items.push({ kind: "drug_allergy", phrases: drugAllergy });
   if (conceptionWithoutPregnancyOrLactation(grounding)) items.push({ kind: "conception_pregnancy_check" });
   else if (pregnancyAdviceRelevant(state) && assessPregnancyState(grounding).status === "unknown" &&
     assessLactationState(grounding).status === "unknown" && !recentChildbirthMentioned(grounding)) {
@@ -284,6 +286,7 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "trigger_foods") return `${order}本次发病与进食${item.foods.join("、")}有关：写明服药期间及以后避免${item.foods.join("、")}。`;
     if (item.kind === "toxic_self_preparation") return `${order}病历记录患者自行配制并服用含${item.herbs.join("、")}的药（药典标注有毒）：写明立即停用、不要再自行配制服用，并写出须立即就医的中毒表现（口唇舌及四肢发麻、心慌、心跳不齐、呼吸困难）。`;
     if (item.kind === "conception_pregnancy_check") return `${order}写一条（患者备孕或未避孕）：服药期间如月经逾期须先验孕，确认怀孕立即停药并告知医生；不用逐味点名哪些药慎用（药表里已逐味标注）。`;
+    if (item.kind === "drug_allergy") return `${order}病历记录有药物过敏（${item.phrases.join("；")}）：写明请勿再用该药及同类药物，就诊开药或自行购药时主动告诉医生和药师；推荐的中成药、西药不得含该药或同类药。`;
     return `${order}${item.disease}是细菌感染：写明须到医院由医生决定抗菌药物治疗，以及寒战高热、红肿迅速扩大等须立即就医的表现。`;
   });
   return `【本例注意事项必须写到】以下各项在 nonPharma.precautions 里各写一条，排在最前，不计入条数上限。清单是写给你看的；写进注意事项时直接对患者说（用「您」或不写主语），不要照抄清单里「患者已自服」「病历记录」这类说法：\n${lines.join("\n")}${exerciseNote}`;

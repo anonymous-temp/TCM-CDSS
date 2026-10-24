@@ -49,6 +49,8 @@ export type RequiredPrecaution =
   | { kind: "herpes_zoster_antiviral" }
   /** 备孕/未避孕而未妊娠：服药期间月经逾期先验孕，确认怀孕即停药告知医生（2026-10-19 留出集 S102）。 */
   | { kind: "conception_pregnancy_check" }
+  /** 病历记录的药物过敏（原文小段，至多两段）：再用同一或同类药前告知医生（2026-10-24 甲方 100 例 C099）。 */
+  | { kind: "drug_allergy"; phrases: string[] }
   /** 病历写着自行配制、泡酒服用的药里有药典标注有毒的药（留出集 S190：自泡生草乌、生川乌药酒）：立即停用，不再自制。 */
   | { kind: "toxic_self_preparation"; herbs: string[] }
   /** 服法与忌口（2026-10-19 验收主集 J：几例注意事项只写调护、没写怎么服或忌什么）。忌口按已定证候的寒热湿积推出。 */

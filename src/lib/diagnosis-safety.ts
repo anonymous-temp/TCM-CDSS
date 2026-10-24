@@ -137,6 +137,7 @@ const GI_ALARM_DETECTION = (GOVERNED_GI_ALARM as unknown as {
     alarmDigestiveFindings: string[];
     unexplainedWeightLossCues: string[];
     weightLossTerms: string[];
+    weightLossDigestiveContext: string[];
   };
 }).detection;
 
@@ -3043,7 +3044,10 @@ function hasAbdominalPrioritySignal(text: string): boolean {
         const clauseEnd = clauseEndCandidates.length > 0 ? Math.min(...clauseEndCandidates) : normalized.length;
         // 被否认的加重线索（「无明显加重及缓解因素」）不算进展（与 hasSymptomThenUnnegatedCue 同一守卫，类夹具 negated-abdominal-change-cue）。
         const localClause = normalized.slice(Math.max(clauseStart, index - 24), Math.min(clauseEnd, index + term.length + 48))
-          .replace(/(?:无|未|没有|未见|并无|否认|不再|并未)[^，,。；;\n]{0,3}?(?:明显|快速|很快|迅速|持续|进行性|越来越)?[^，,。；;\n]{0,4}?加重/gu, (match) => "＿".repeat(match.length));
+          .replace(/(?:无|未|没有|未见|并无|否认|不再|并未)[^，,。；;\n]{0,3}?(?:明显|快速|很快|迅速|持续|进行性|越来越)?[^，,。；;\n]{0,4}?加重/gu, (match) => "＿".repeat(match.length))
+          // 被否认的并列症状里的「持续」（「无黑便、便血及持续呕吐」）说的不是腹痛本身（2026-10-24 甲方 100 例 C011：餐后腹胀 6 个月
+          // 被要求「优先完成腹部查体与严重度评估」）。
+          .replace(/(?:无|没有|未见|并无|否认|不伴)[^，,。；;\n]{0,12}?持续[^，,。；;\n]{0,6}/gu, (match) => "＿".repeat(match.length));
         const priority =
           GOVERNED_ACUTE_ONSET_TERMS.some((cue) => localClause.includes(cue)) ||
           /(?:快速|明显|很快|迅速|持续|进行性|越来越)[^，,。；;\n]{0,4}加重|(?:仍|一直|反复)?持续(?:存在|不缓解)?|(?:未|无|没有|尚未)(?:见)?(?:缓解|好转|改善)/.test(localClause);
@@ -3329,7 +3333,24 @@ function upperGiAlarmFeatureKind(rawText: string): UpperGiAlarmKind | undefined 
     `(?:${weightLoss})[^。；;\\n\\d]{0,10}(?:\\d+(?:\\.\\d+)?\\s*[-~～—–至到]\\s*)?(\\d+(?:\\.\\d+)?)\\s*(kg|公斤|斤|千克)`,
     "gi",
   );
-  for (const match of findingsText.matchAll(measuredLoss)) {
+  // 只有数值、没写「不明原因/进行性」的体重下降，要同时有当前消化道症状才算**上消化道**警示（2026-10-24，甲方 100 例 C031：
+  //「口渴、多尿、乏力1个月…体重下降4kg」，空腹血糖 11.8，被报「上消化道警示征象（不明原因体重下降）」并收回剂量）。
+  // NICE NG12 的上消化道转诊口径也是「体重下降 + 上腹痛/反流/消化不良」。体重词本身（消瘦）不算消化道症状。
+  const weightLossWords = new Set(GI_ALARM_DETECTION.weightLossTerms);
+  const digestiveWithoutWeightLoss = [
+    ...GI_ALARM_DETECTION.currentDigestiveSymptoms.filter((term) => !weightLossWords.has(term)),
+    ...GI_ALARM_DETECTION.weightLossDigestiveContext,
+  ];
+  // 极性按小句判：否定词只管它自己那个逗号小句，不沿逗号向后继承（「无发热，无明显心慌胸闷，纳差，呃逆」里纳差是阳性）。
+  // 这里只决定「要不要报」，读宽一点是报警方向，比闸门的逗号续接否定宽松是有意的（语料回放 M2-TCMChat-test-456、corpus-17177）。
+  const digestivePattern = new RegExp(governedTermAlternation(digestiveWithoutWeightLoss), "g");
+  const hasCurrentDigestiveSymptom = findingsText.split(/[，,。；;\n]+/).some((clause) => {
+    for (const match of clause.matchAll(digestivePattern)) {
+      if (!/(?:否认|无|未见|未|没有|不伴|未诉)/.test(clause.slice(0, match.index ?? 0))) return true;
+    }
+    return false;
+  });
+  for (const match of hasCurrentDigestiveSymptom ? findingsText.matchAll(measuredLoss) : []) {
     const kilograms = Number(match[1]) * (match[2] === "斤" ? 0.5 : 1);
     if (kilograms < SIGNIFICANT_WEIGHT_LOSS_KG) continue;
     const index = match.index ?? -1;
@@ -4897,6 +4918,9 @@ function programmaticRedFlagFindings(
  * never create an emergency lock: they preserve clinician visibility until the semantic model can
  * distinguish severity, timing and symptom combinations. The normal path remains fully model-owned.
  */
+/** 腹痛的构词式：「下腹隐痛」「小腹坠痛」「腹部胀痛」——字面「腹痛」认不出这些（2026-10-24，孕 12 周下腹隐痛没有产科提示）。 */
+const ABDOMINAL_PAIN_FORM = /腹[部中]?[^，,。；;\n无不未没]{0,2}痛/;
+
 export function narrativeFallbackAdvisories(state: CaseState): string[] {
   const text = trustedInputText(state);
   const semanticCategories = state.clinicalFacts?.semanticStatus === "checked"
@@ -4960,16 +4984,27 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
     const obstetric = governedRedFlagCategory("obstetric");
     const pregnancyQualified = obstetric.symptoms.filter((term) => /妊娠|孕|产/.test(term));
     const needsPregnancyContext = obstetric.symptoms.filter((term) => !/妊娠|孕|产/.test(term));
+    // 「是否妊娠」读受治理的妊娠判据（阳性或可疑），不再看「妊娠/怀孕」字面（2026-10-24 甲方页面实测）：
+    // 字面判据把「妊娠可能性尚待核实」「妊娠状态未知」「妊娠期高血压病史」都当成孕妇，失眠病历因一句「偶有头晕」
+    // 被提示「需优先排除产科急症」。
     if (
       hasAnyTerm(text, pregnancyQualified) ||
-      (hasAnyTerm(text, ["妊娠", "怀孕", "孕早期", "早孕", "孕期"]) &&
-        hasAnyTerm(text, ["腹痛", "阴道流血", "头晕", "晕厥", ...needsPregnancyContext, ...obstetric.dangerCompanions]))
+      (isPositiveOrPossibleClinicalState(assessPregnancyState(maternalStateText(state, text))) &&
+        (hasAnyTerm(text, ["腹痛", "阴道流血", "头晕", "晕厥", ...needsPregnancyContext, ...obstetric.dangerCompanions]) || hasPatternWithoutNegation(text, ABDOMINAL_PAIN_FORM))) ||
+      // 育龄女性停经伴阴道出血或腹痛：妊娠状态没写，也要先排除异位妊娠、流产（语料回放：「停经38天，阴道流血9天」「停经41天，带中夹血」
+      // 以前只因分析里碰巧写了「妊娠」二字才有这条提示）。只认出血与腹痛，不认头晕——闭经病例常伴头晕。
+      // 「停经超过2年」「停经3年」是绝经，不收；「月经推迟3-10天」说的是平时周期，不是这次没来，也不收。
+      (pregnancyScreenRequired(state) && hasPatternWithoutNegation(text, /(?:停经|月经(?:逾期|过期|未至|未来潮))(?![^。；;，,\n]{0,6}年)/) &&
+        (hasAnyTerm(text, ["阴道流血", "阴道出血", "带中夹血", "见红"]) || hasPatternWithoutNegation(text, ABDOMINAL_PAIN_FORM)))
     ) {
       addAdvisory("obstetric", "妊娠相关腹痛、出血或循环症状需优先排除产科急症");
     }
   }
   if (hasAnyTerm(text, [...governedRedFlagCategory("shock").symptoms,
-    "全身冰冷", "四肢冰冷", "少尿", "无尿", "意识模糊"])) {
+    "全身冰冷", "四肢冰冷", "少尿", "意识模糊"]) ||
+    // 「无尿」要按构词式认：「无尿痛、腹痛及阴道流血」里的「无尿」是否认尿痛（2026-10-24 甲方 100 例 C097：孕 12 周、血压 110/68，
+    // 被提示「循环灌注异常线索需立即复核」）。
+    hasPatternWithoutNegation(text, /无尿(?![痛频急道意感等])/)) {
     addAdvisory("shock", "循环灌注异常线索需立即复核血压、意识、尿量及末梢循环");
   }
   if (hasAnyTerm(text, [...governedRedFlagCategory("anaphylaxis").symptoms,
@@ -5107,7 +5142,7 @@ function hasInvalidAgeText(value: string): boolean {
 }
 
 function patientSexText(state: CaseState): string {
-  const structured = authoritativeFieldOrFallback(state, "sex", state.patient.sex);
+  const structured = authoritativeFieldOrFallback(state, "sex", state.patient?.sex);
   if (isKnownClinicalText(structured)) {
     const normalized = normalizeClinicalText(structured).trim();
     if (/女/.test(normalized) || /^(?:f|female|woman)$/i.test(normalized)) return "女";
@@ -5196,6 +5231,11 @@ export function reproductiveAdviceRelevant(state: CaseState): boolean {
 const YOUNG_ADOLESCENT_PREGNANCY_CONTEXT = /停经|月经(?:推迟|延后|逾期|未至|未来)|性生活|同房|怀孕|妊娠|早孕|哺乳|HCG/iu;
 export function pregnancyAdviceRelevant(state: CaseState): boolean {
   if (!reproductiveAdviceRelevant(state)) return false;
+  // 病历明确否认妊娠、也不在备孕：不再写孕期提示与逐味「孕期慎用」（2026-10-24 甲方 100 例 C018「明确否认妊娠，近两周月经正常」
+  // 仍出现「孕期/妊娠慎用」「如已怀孕请先告知」，测试重点即「明确妊娠阴性不应触发孕期提示」）。
+  const recorded = normalizeClinicalText(trustedInputText(state));
+  if (assessPregnancyState(maternalStateText(state, recorded)).status === "negative" &&
+    !isPositiveOrPossibleClinicalState(assessConceptionState(recorded))) return false;
   const age = authoritativePatientAgeYears(state);
   if (age == null || age >= 15) return true;
   return YOUNG_ADOLESCENT_PREGNANCY_CONTEXT.test(normalizeClinicalText(trustedInputText(state)));
@@ -5319,7 +5359,12 @@ function isInfantFeedingContext(state: CaseState): boolean {
 
 /** 孕哺备孕阳性判据读的文本：婴幼儿语境先去掉喂养方式词，其余原样。 */
 function maternalStateText(state: CaseState, text: string): string {
-  return isInfantFeedingContext(state) ? stripInfantFeedingPhrases(text) : text;
+  if (!isInfantFeedingContext(state)) return text;
+  // 婴幼儿的出生史、母亲孕期情况（「母孕期感冒服药」「其母孕期患妊娠期糖尿病」）说的是母亲，不是患儿自己（2026-10-24）。
+  return stripInfantFeedingPhrases(text)
+    .split(/(?<=[。；;，,\n])/)
+    .filter((clause) => !/母(?:亲|孕|体)|其母|生母|胎龄|出生(?:时|史|体重)/.test(clause))
+    .join("");
 }
 
 /**
@@ -5702,6 +5747,19 @@ export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
  * 其余（语义复核未完成等）→ 3 天内就诊。给剂量的病例返回 undefined。
  */
 export type DoseWithheldFollowupKind = "red_flag" | "pregnancy" | "lactation" | "anticoagulant" | "pediatric_age" | "specialist" | "other";
+/**
+ * 给了剂量、但安全门要求「正式采纳前需优先完成临床评估」时，复诊计划的第一句要先说去评估（2026-10-24 甲方 100 例：突发性耳聋、
+ * 结核密切接触、疑似风湿热、恶性胆道梗阻待排等 16 例照写「请服完本次的药后复诊」，与安全门的要求相反）。
+ * 返回评估要排除的情况（开放判断写的「需排除：X」）；只有类目提示、没有具体去向时返回空串；不需要优先评估或已是红旗时 undefined。
+ */
+export function priorityEvaluationFollowupFocus(state: CaseState): string | undefined {
+  const gate = evaluateSafetyGate(state);
+  if (gate.status === "red_flag") return undefined;
+  const item = (gate.missingItems || []).find((entry) => entry.includes("优先完成临床评估"));
+  if (!item) return undefined;
+  return item.match(/需排除：(.+?)）；处方前/u)?.[1]?.trim() || "";
+}
+
 export function doseWithheldFollowupKind(state: CaseState): DoseWithheldFollowupKind | undefined {
   const gate = evaluateSafetyGate(state);
   if (gate.status === "red_flag") return "red_flag";
@@ -6790,6 +6848,13 @@ export function deriveFirstReviewTiming(state: CaseState, hasStrongRisk: boolean
  */
 export function patientFacingFirstReview(state: CaseState, hasStrongRisk: boolean): string {
   if (hasStrongRisk) return "处方需经医生调整确认后再服用；确认用药后，请在1-3天内复诊。";
+  // 安全门要求先完成临床评估的病例：首次复诊先说去评估（与辨证、开方页复诊计划的第一句同一判据，2026-10-24）。
+  const priorityFocus = priorityEvaluationFollowupFocus(state);
+  if (priorityFocus !== undefined) {
+    return priorityFocus
+      ? `请在3天内到相关专科就诊，先完成评估（需排除${priorityFocus}），再按医生安排服药与复诊；如有不适或症状加重，请立即就医。`
+      : "请在3天内到医院完成评估、核实病情后，再按医生安排服药与复诊；如有不适或症状加重，请立即就医。";
+  }
   const decoction = primaryPrescribeCandidate(state)?.decoction;
   const doses = decoction?.followUpAfterDoses;
   const days = decoction?.followUpAfterDays;

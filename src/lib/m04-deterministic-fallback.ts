@@ -1,5 +1,6 @@
 import { isPediatricPatient, NON_DOSE_PRESCRIPTION_MARKER, pediatricDoseRuleForCase } from "./diagnosis-safety";
 import type { CaseState } from "./diagnosis-types";
+import { assessLactationState, assessPregnancyState, isPositiveOrPossibleClinicalState, recentChildbirthMentioned } from "./clinical-state";
 import { cdssReasonCodeMarker } from "./cdss-reason-codes";
 import { executableFormulaCompilationReferences, formulaManualDoseIngredients } from "./tcm-formula-provenance";
 import { retrieveTcmFormulaCandidatesForReasoning } from "./tcm-formula-indications";
@@ -39,7 +40,8 @@ function specialPopulationNotice(state: CaseState): string | undefined {
     state.hisRecord?.fields?.jiwangshi,
   ].filter(Boolean).join("；");
   const age = Number(state.patient?.age);
-  if (/妊娠|怀孕|孕\d|停经.{0,12}(?:恶心|呕吐|妊娠试验阳性)|产后|哺乳/.test(text)) {
+  // 读受治理的孕哺判据与「一年内分娩」，不看字面（2026-10-24）：字面判据把「否认妊娠」「妊娠可能性尚待核实」「未哺乳」也当成孕产妇。
+  if (isPositiveOrPossibleClinicalState(assessPregnancyState(text)) || isPositiveOrPossibleClinicalState(assessLactationState(text)) || recentChildbirthMentioned(text)) {
     return "**特殊人群提醒**：本例涉及妊娠/产褥/哺乳背景。上表为方剂通用基准，其中药味须逐味核对妊娠禁忌与慎用（如半夏、枳实类须炮制并由医师权衡），采纳前必须完成产科评估并经药师复核。";
   }
   if (isPediatricPatient(state)) {

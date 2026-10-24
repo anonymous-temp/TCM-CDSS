@@ -8,6 +8,7 @@ import { diagnoseReasoningFromState } from "./diagnosis-parse";
 import { getLineageCard, getLineageQuestionStrategy } from "./tcm-lineages";
 import { executableFormulaCompilationReferences, formulaCompilationReferences, formulaManualDoseIngredients } from "./tcm-formula-provenance";
 import {
+  findTcmHerbPairIncompatibilities,
   getTcmHerbDoseLimit,
   getTcmHerbFunctionCategories,
   getTcmHerbFunctionText,
@@ -361,7 +362,7 @@ function kbCoveredHerbShortlistContext(diagnoseReasoning: ReturnType<typeof diag
 const COMPACT_JSON_OUTPUT_RULE = `输出必须是**单行紧凑 JSON**：不换行、不缩进，冒号与逗号后不加空格。
 内容同样要紧凑：每个字段用短句写清临床要点，不重复其他字段已写过的内容；必填字段不得省略，下文标了字数或条数上限的按上限写。`;
 
-function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: CaseState): string {
+function reasoningV2Instruction(stage: "diagnose" | "prescribe"): string {
   if (stage === "prescribe") {
     return `
 
@@ -396,7 +397,7 @@ ${COMPACT_JSON_OUTPUT_RULE}
 }
 
 硬约束：
-${herbCountPreferenceInstruction(caseState)}- candidate.herbs 只包含本次真正采用的药味。经典方/合方按服务端给出的基础方组成编译；自拟复方在有依据的前提下应给出完整的君臣佐使层次，常见规模为 8–14 味（不少于4味，明确的单味方案可为1味）。每增加一味都必须同时满足三条：绑定一个真实病机节点 targetRef 或受控 formula_structure 角色、在服务端药味知识库有功能收载、其收载方向与本例某条已锁定治法方向一致；三条任一不满足即不得加入。不得为凑数量增药，不得加入与任何锁定治法方向无关的药味，所有条件性加减不得写在表外。功效重叠的同类药不并用：人参、党参、太子参、西洋参只取其一；同一味药的不同炮制品（生地黄与熟地黄除外）不重复入方。
+- candidate.herbs 只包含本次真正采用的药味。经典方/合方按服务端给出的基础方组成编译；自拟复方在有依据的前提下应给出完整的君臣佐使层次，常见规模为 8–14 味（不少于4味，明确的单味方案可为1味）。每增加一味都必须同时满足三条：绑定一个真实病机节点 targetRef 或受控 formula_structure 角色、在服务端药味知识库有功能收载、其收载方向与本例某条已锁定治法方向一致；三条任一不满足即不得加入。不得为凑数量增药，不得加入与任何锁定治法方向无关的药味，所有条件性加减不得写在表外。功效重叠的同类药不并用：人参、党参、太子参、西洋参只取其一；同一味药的不同炮制品（生地黄与熟地黄除外）不重复入方。
 - dose 必须是单一数值加单位（如10g），不得用范围、片、枚、酌量或待确认。
 - formulaAnalysis 写**本方的方解**，不是逐味功效的罗列：第一句必须点出方名（与 candidate.name 一致，如“本方以某某汤为基础加减”；自拟方写“本方为自拟方”），最后一句呼应 M03 的治法；君药解决本例哪一层病机、
   臣药如何助君或治兼证、佐药为何在此（佐助/佐制/反佐）、使药如何调和或引经，
@@ -443,7 +444,7 @@ ${herbCountPreferenceInstruction(caseState)}- candidate.herbs 只包含本次真
 ${COMPACT_JSON_OUTPUT_RULE}
 只输出一个合法 JSON 对象，不要输出 Markdown、sentinel、代码围栏、解释或第二份结果。医生可见报告由服务端从这个通过校验的对象确定性渲染。该 JSON 不包含、也不得填写任何安全裁决字段；红旗、处方放行、审方和写回权限由系统确定性规则独立计算。
 overview.tcmDiseaseName、overview.primarySyndrome、overview.overallPathogenesis、therapy.overallPrinciple 和 therapy.overallMethod 应在当前已知资料范围内给出最佳临床工作判断，不得为了显得完整而补写患者没有提供的表现。tcmDiseaseName 是规范中医病名，只有当前资料支持病名倾向时填写（如符合不寐病范畴时写“不寐”）；短期“睡不好”等孤立症状不得自动升级为病名。primarySyndrome 是证型，二者不得混写。证候名只写规范证名本身（如“风寒袭肺证”），不要在后面挂“倾向”“可能”“待排”“工作判断”等把握度说明——把握度写在 primarySyndromeResolution 与 primarySyndromeResolutionReason，secondarySyndromes 同理。overallPathogenesis（≤100字）必须写病机推演、解释阳性事实经何种功能失常或气血津液变化形成当前证候，不能复制主诉或把症状串联后改名为病机。overallPrinciple 是治则，overallMethod 是具体治法（总治法由服务端从 overallMethod 复制，不要输出 overview.overallTherapy），治则与治法不得复写成同一句。**overview.primarySyndrome 只写一个证候**，用教材与国标的规范证名：上方【教材病证候选】里有贴合本例的证名时逐字采用（如“心虚胆怯证”“肝气犯胃证”；贴合的含义见重要原则第 7 条，只记录了主症本身时没有贴合的证名），不要自造近义写法（如“心胆气虚证”“肝胃不和证”），也不要把并列证候或病机结果塞进这一个字段——病机结果（胃失和降、清阳不展、筋脉失养这类）写进 overview.overallPathogenesis 与 pathogenesis.chain。**overview.secondarySyndromes 按证据填写，不预设为空**：病历里另有一组主证解释不了、且自身成组（至少两条相互印证的症状或舌脉）的表现时，写 1 个兼证（最多 1 个）；顺带提到的单个伴随症状（睡眠欠佳、纳差、乏力这类）不构成兼证，不要为它立证。两个病理因素各有成组表现、而国标或教材有它们的合称证名时（气虚血瘀证、气阴两虚证、阴虚阳亢证、肝郁脾虚证、痰瘀互结证、脾肾阳虚证、湿热瘀阻证这类），可以直接用合称证名作主证，不再另立兼证；合称证名里的每个因素都要各有至少两条本例表现。写了兼证，就必须在 tcmDiagnosticRationale 里单独用一句讲清它的依据。教材候选里只有单一脏腑的证型、而本例另一脏腑也有自身成组的同性质表现时（如反复感冒、短气自汗属肺气虚之外，又有食少、食后腹胀、便溏这组脾气虚表现），证名写两脏合称（如“肺脾两虚证”），治法兼顾两脏，此时不必逐字套用单脏的教材证名；两脏都必须各有至少两条相互印证的本例表现，只有一条或只是顺带提到时不要合称。
-**先辨病位病性、后定证名**（输出顺序即推理顺序：pathogenesis 写在 overview 之前）：先写 pathogenesis——locationDifferentiation 逐个病位、natureDifferentiation 逐个病性都从病历逐字摘出依据，本虚写进 rootDeficiency、标实写进 branchExcess；先看外感表邪是否仍在（恶寒发热、鼻塞流涕这类表证未解时，不把它写成单纯的里虚证）。再写 overview：证名由上面已经列出且有依据的病位、病性组成，教材有贴合的证名就用教材证名（它的每个要素都要在上面列出）；上面没列出的病位病性不得出现在证名、兼证与治法里。本虚与标实并见时，由驱动主诉主症的那一方定主证，另一方有成组依据时立兼证。证型（主证加兼证）合计 1–3 个要素，治法按要素顺序逐一对应（主证沿用教材治法，每个兼证一项），至多再加一项针对主诉主症的对症项；证型里没有的病机不另立治法——实证里不加益气、养阴、扶正，未列肾虚不加补肾。
+**先辨病位病性、后定证名**（输出顺序即推理顺序：pathogenesis 写在 overview 之前）：先写 pathogenesis——locationDifferentiation 逐个病位、natureDifferentiation 逐个病性都从病历逐字摘出依据，本虚写进 rootDeficiency、标实写进 branchExcess；先看外感表邪是否仍在（恶寒发热、鼻塞流涕这类表证未解时，不把它写成单纯的里虚证）。再写 overview：证名由上面已经列出且有依据的病位、病性组成，教材有贴合的证名就用教材证名（它的每个要素都要在上面列出）；上面没列出的病位病性不得出现在证名、兼证与治法里。本虚与标实并见时，由驱动主诉主症的那一方定主证，另一方有成组依据时立兼证。证型（主证加兼证）合计 1–3 个要素，治法按要素顺序逐一对应（主证沿用教材治法——按所选流派换用了别的方时，主证治法随该方写；每个兼证一项），至多再加一项针对主诉主症的对症项；证型里没有的病机不另立治法——实证里不加益气、养阴、扶正，未列肾虚不加补肾。
 **辨证抓主症主线**：以主诉主症，以及与它成组出现的寒热、汗出、口渴、饮食二便、舌脉来定主证；与所定主证寒热虚实相抵触的关键表现（例如定为气血亏虚却见舌红苔黄、脉弦数）不得略过，必须据此修正主证。主证已经能解释的伴随表现不另立证候；主证解释不了、但只是顺带提到的零散症状（如因疼痛而睡眠欠佳、偶有纳差），不立证、不进治法、不为它选方，留给开方阶段的随证加减处理。但病历里有**独立于主证、成组出现**（两项以上相互印证，且至少一项是舌象、脉象或寒热口渴二便这类定性表现）的另一组表现时——如苔黄腻、口黏口苦并见（湿热），口苦、咽干、小便黄、口渴并见（郁热），舌暗、刺痛、夜甚并见（瘀血）——必须立为兼证写进 secondarySyndromes，治法与选方同时兼顾；辨证依据里说到的“兼夹/兼有某证”必须与兼证栏一致，不得依据里写了兼夹而兼证栏为空。**输出前自查一遍**：tcmDiagnosticRationale 与 overallPathogenesis 里凡有“兼”“夹”“并见”“兼有…之象”“本虚标实”“虚实夹杂”指向主证以外另一证候的说法，secondarySyndromes 就必须写出该证（或主证用合称证名把它包含进去），治法也要并列上它的治法；判断它不够立兼证时，就把这类说法从依据和病机里删掉，不要两头都留。只收本例确有记录的表现，不得为凑证候补写病历没有的症状。pathogenesis.chain 按主证的病机层次展开（1–3 个节点，首个节点承接主诉主症），不为顺带的伴随症状单设节点；写了兼证时才为它另设一个节点和对应的 therapyDirection。分治方向由服务端按病机链逐节点生成（首个节点为“主要”，其余为“次要”），不要输出 therapy.subTherapies。
 westernDiagnosis.primary.name 必须是纯现代医学诊断或症状级工作诊断，不得夹带“痰湿型、肝火型、气虚证”等中医证型后缀。supportingFacts 负责逐项列事实；clinicalRationale 不得逐项串联或复制 supportingFacts，也不得整句复述现病史。它必须用1–2句完成“已记录事实中的病程/表现模式 → 当前工作诊断 → 还需排除或核实什么”的推理链。病历中的影像、病理、内镜、特征性检验或已明确的既往诊断足以确立具体疾病时，primary.name 直接写该疾病名，推理链点明确立它的依据及仍需排除的情况。westernDiagnosis.differentials 每项必须写真正的鉴别理由和能区分主诊断的要点，不能只罗列病史；每项 name 只能写一个疾病/症状方向，多个候选必须拆成多项，不得用“或/斜杠/顿号/可能”合并命名。
 辨病、辨证依据里为了和相邻病证区分而提到病历**没有记录**的症状时，写“未诉某某”，不写“无某某”——“无”只用于病历明确否认的表现。
@@ -461,7 +462,7 @@ JSON要求：
 - 必须是合法 JSON，不要代码块，不要注释，不要尾逗号。
 - M03 不产出方剂组成：formula 由服务端恒定写为 null，不要输出该字段。
 - M03 只形成辨病辨证、病机、治法与方名方向，任何字段都不得输出药味组成、克数/毫克数、每日剂数、煎服法或疗程。recommendedFormulaDirection 只能写方名或方义方向，不得携带药味、剂量、剂数、煎服法和疗程；这些内容只能在 M04 生成并经审方。
-- overview.recommendedFormulaDirection 是本例方名锁定的唯一来源：服务端从这句话里识别方名与选方方式（recommendedFormulaNames、formulaSelectionMode 由服务端推出，不要输出），据此锁定方名或判为自拟，必须认真填写。选方顺序：①上方【教材病证候选】里与所定病名、证型同一行的代表方，逐字抄写方名（教材写两方合用的就写“X合Y加减”）；②教材候选里没有贴合的行时，从【M03经典方检索】短名单中选与本例证候-病机匹配的经典方，逐字抄写方名（不得改写、不得自造）——主方明确写“X加减”（如“血府逐瘀汤加减”），明确合方写“X合Y加减”，两三首并列待医生选择写“X或Y”；短名单中确无方证匹配的经典方时才按已锁定病机与治法自拟，此时只写“按已锁定病机与治法辨证组方”。不得把未收载方伪装成经典方，不得在短名单有匹配方时仍默认自拟，也不得罗列被排除的方名、书名或文献。
+- overview.recommendedFormulaDirection 是本例方名锁定的唯一来源：服务端从这句话里识别方名与选方方式（recommendedFormulaNames、formulaSelectionMode 由服务端推出，不要输出），据此锁定方名或判为自拟，必须认真填写。选方顺序：①上方【教材病证候选】里与所定病名、证型同一行的代表方，逐字抄写方名（教材写两方合用的就写“X合Y加减”）；医生选定了具体流派（诊疗思路不是“不限定”）、本例与该流派相符或部分相符（lineageAdaptation.applicable 为 applicable 或 partial）时，先看【M03经典方检索】里带「流派取向」标注的方：其中有与本例主证、病机方证相合的，选它而不是教材代表方（教材代表方可在辨证依据里作对照），治法照该方的功效写（如选桂枝汤写“解肌发表，调和营卫”，不照抄教材行的治法），并在 lineageAdaptation.influencedDecisions 写明按该流派选方；没有方证相合的流派方时仍用教材代表方，不为体现流派硬套；②教材候选里没有贴合的行时，从【M03经典方检索】短名单中选与本例证候-病机匹配的经典方，逐字抄写方名（不得改写、不得自造）——主方明确写“X加减”（如“血府逐瘀汤加减”），明确合方写“X合Y加减”，两三首并列待医生选择写“X或Y”；短名单中确无方证匹配的经典方时才按已锁定病机与治法自拟，此时只写“按已锁定病机与治法辨证组方”。不得把未收载方伪装成经典方，不得在短名单有匹配方时仍默认自拟，也不得罗列被排除的方名、书名或文献。
 - M03 pathogenesis.chain[].therapyDirection 必须逐节点具体且互不重复，不得给所有节点复写同一句治法；M04 将按各节点治法方向确定性生成君臣佐使方义，重复句式会直接造成方义重复。
 - M03 pathogenesis.chain 必须至少有 1 个完整节点。每个节点的 patientFact 和 syndromeEvidence 都必须各自从患者临床资料或医生最新补充中逐字摘录一段连续原文；两列可以引用同一段原文，但都不得总结、改写、拼接或补出病历没有的事实。pathogenesis 和 therapyDirection 才写推理与治法；不确定内容只写入 uncertainties。每个保留节点必须完整填写这四项；空节点不得输出。
 - 病机中的病因、诱因、脏腑归属和传变路径也必须受患者事实约束，不能因为某种症状“常见于”某证就补写。本例只有反酸、烧心、腹胀等表现时，最多形成“胃失和降、气机不畅”等症状直接支持的有限结论；没有情绪相关加重、胸胁或乳房胀痛、善太息、月经相关变化、脉弦等依据，不得推出肝气郁结/肝郁犯胃。食积、外感、痰湿、血瘀、寒热虚实等其他方向同理：没有对应阳性事实就降为中性功能性病机，并把待核实方向放入 uncertainties，不得写进主证、病机链或治法。
@@ -537,7 +538,7 @@ JSON要求：
   },
   "therapy": {
     "overallPrinciple": "国标治则术语1条（如 实则泻之）",
-    "overallMethod": "一行治法：按证型要素逐一对应（主证沿用教材治法），至多再加一项针对主诉主症的对症项"
+    "overallMethod": "一行治法：按证型要素逐一对应（主证沿用教材治法，按所选流派换方时随该方写），至多再加一项针对主诉主症的对症项"
   },
   "lineageAdaptation": {
     "applicable": "applicable",
@@ -779,7 +780,7 @@ export function buildDiagnosePrompt(caseState: CaseState, retrieval: M03FormulaR
 4. 安全规则、说明书、药典和国家/行业规范优先于流派倾向和模型推断。
 5. 不得伪造指南、文献题名、年份、链接或DOI；无明确来源时省略来源字段。各层 evidence 由服务端统一生成，模型不得填充内部证据标记。
 6. 若医生选择了诊疗思路偏好，只能用于辨证视角、方证/方源选择和加减解释；不得为迎合偏好而忽略反证、禁忌、红旗或更匹配的证候。
-7. 病名、证型、治法、方名先看教材：后文【教材病证候选】列出了与本例主诉相近的教材病证（病名—证型—主症—治法—代表方），其中有贴合本例的一行时，病名、证名逐字采用教材写法，治法以该行为准，推荐方用该行的代表方；没有贴合的行时再自行辨证；后文列有【经方方证候选】时，教材行与方证谁优先要先按该段的采用规则逐项比较，不是教材行“大致贴合”就一律采用。「贴合」指该行主症里能把它与同病其他证型分开的表现（寒热、虚实、诱因、伴随症状或舌脉）至少有一项已见于本例记录，候选的先后不表示可能性大小；主症本身（绝大多数主症在教材里同时见于虚证与实证的证型）和病程长短都不算这样的表现，不能单凭它推定虚证、寒证、热证或湿、痰、瘀。本例只记录了主症本身、没有任何能分开证型的表现时，不得从候选里挑一个证型套用（套用寒证就会开温药、套用热证就会开凉药，而病历里没有这样的依据）：primarySyndrome 写只表达病位与气机失常、不带寒热虚实判断的规范证名（国标里如“X气不和证”“X失宣证”“心神不宁证”这类写法），primarySyndromeResolution 写 bounded；治法只写与之对应的调理方向（理气、和中、宣肺、疏风、止痛、安神这一类），不写温、清、补、泻、化湿、活血等需要寒热虚实或病理产物依据的治法；推荐方选与这一治法相合、药性平和的经典方（不选以温中散寒、清热泻火、滋补或燥湿为主的方），没有就写“按已锁定病机与治法辨证组方”；tcmDiagnosticRationale 只写本例已记录的表现、能分证型的哪些表现病历未记录（如“寒热喜恶、舌脉均未记录”）以及暂按什么考虑，不解释证名是怎么取的（不写“只表达病位与气机失常”“不带寒热虚实判断”“不涉温清补泻”这类话）；证名只写一个规范证名，不加括号，不带病名前缀。推荐主方方向坚持经典方优先：方证匹配时优先选用有出处可考的经典名方并写出方名；只有确无方证匹配的经典方时才按病机与治法自拟，自拟方向只写“按已锁定病机与治法辨证组方”，不罗列被排除方名。不得默认所有病例都自拟组方，也不得跨病种套用同一套药味与角色。
+7. 病名、证型、治法、方名先看教材：后文【教材病证候选】列出了与本例主诉相近的教材病证（病名—证型—主症—治法—代表方），其中有贴合本例的一行时，病名、证名逐字采用教材写法，治法以该行为准，推荐方用该行的代表方（医生选定流派、按下文选方顺序改用该流派的方时，治法随所选方写）；没有贴合的行时再自行辨证；后文列有【经方方证候选】时，教材行与方证谁优先要先按该段的采用规则逐项比较，不是教材行“大致贴合”就一律采用。「贴合」指该行主症里能把它与同病其他证型分开的表现（寒热、虚实、诱因、伴随症状或舌脉）至少有一项已见于本例记录，候选的先后不表示可能性大小；主症本身（绝大多数主症在教材里同时见于虚证与实证的证型）和病程长短都不算这样的表现，不能单凭它推定虚证、寒证、热证或湿、痰、瘀。本例只记录了主症本身、没有任何能分开证型的表现时，不得从候选里挑一个证型套用（套用寒证就会开温药、套用热证就会开凉药，而病历里没有这样的依据）：primarySyndrome 写只表达病位与气机失常、不带寒热虚实判断的规范证名（国标里如“X气不和证”“X失宣证”“心神不宁证”这类写法），primarySyndromeResolution 写 bounded；治法只写与之对应的调理方向（理气、和中、宣肺、疏风、止痛、安神这一类），不写温、清、补、泻、化湿、活血等需要寒热虚实或病理产物依据的治法；推荐方选与这一治法相合、药性平和的经典方（不选以温中散寒、清热泻火、滋补或燥湿为主的方），没有就写“按已锁定病机与治法辨证组方”；tcmDiagnosticRationale 只写本例已记录的表现、能分证型的哪些表现病历未记录（如“寒热喜恶、舌脉均未记录”）以及暂按什么考虑，不解释证名是怎么取的（不写“只表达病位与气机失常”“不带寒热虚实判断”“不涉温清补泻”这类话）；证名只写一个规范证名，不加括号，不带病名前缀。推荐主方方向坚持经典方优先：方证匹配时优先选用有出处可考的经典名方并写出方名；只有确无方证匹配的经典方时才按病机与治法自拟，自拟方向只写“按已锁定病机与治法辨证组方”，不罗列被排除方名。不得默认所有病例都自拟组方，也不得跨病种套用同一套药味与角色。
 8. **主诉主症是全案锚点**：病位辨证、总体病机、P1 核心病机、总治法与推荐方向都必须首先解释并针对主诉主症（如主诉头痛，病位须包含头/清窍及其所属脏腑经络定位，治法须含针对头痛的方向如养血和络止痛，选方须以主治该病症者优先）；顺带提到的睡眠欠佳、纳差、乏力等伴随症状不另立证候、不写进治法，也不得主导选方，留给开方阶段的随证加减。主诉主症未被任何病机节点与治法覆盖时，视为辨证未完成。
 
 ${M03_CLINICAL_INFERENCE_AUTHORITY}
@@ -790,7 +791,7 @@ ${governedTreatmentPrinciplePromptContext()}
 
 ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
 
-${reasoningV2Instruction("diagnose", caseState)}
+${reasoningV2Instruction("diagnose")}
 
 以下字段由服务端确定性生成或覆盖，**不要输出**：schemaVersion、stage、formula、nonPharma、pathogenesis.summary、各处 evidence 对象，overview 的 overallTherapy/recommendedFormulaNames/formulaSelectionMode/deferredFormulaSelection/tcmDiseaseReferences/tcmSyndromeReferences，病位与病性的 resolutionReason，病机节点的 nodeId/pathogenesisType/biaoBen，pathogenesis.caseRelationship，therapy.subTherapies，westernDiagnosis.primary.coding，以及 lineageAdaptation 的 schemaVersion/lineageCode/label/unaffectedBySafety/safetyDeference/alternativeDirection。只提交需要临床判断的内容。
 
@@ -824,16 +825,38 @@ export /**
  * 再说偏好——顺序反了模型就会为了凑数字去删经典方的基准药味或删掉绑定病机的药。
  * 服务端侧同样不设任何按味数的确定性裁剪：偏好只影响生成，不参与任何删减判定。
  */
-function herbCountPreferenceInstruction(caseState: CaseState): string {
+function herbCountPreferenceInstruction(
+  caseState: CaseState,
+  lockedReferences: ReadonlyArray<{ formulaName: string; source: string; ingredients: readonly string[]; minimumPreservedIngredientCount: number }> = [],
+): string {
   const band = caseState.herbCountPreference;
   if (!band) return "";
-  const label = band === "within_10" ? "10 味以内"
-    : band === "between_10_15" ? "10–15 味"
-    : "15 味及以上";
-  return `- 本次就诊方设置了饮片味数偏好：${label}。这是**建议而非硬约束**：经典方的基准组成不得为凑味数裁剪；`
-    + `任何绑定病机节点、承担已锁定治法方向、或作为安全佐制所必需的药味都不得删除；`
-    + `临床确需加味时照加。在不牺牲上述任何一条的前提下尽量贴近该区间；确实无法贴近时，`
-    + `在 formulaAnalysis 末尾用半句说明是哪条临床必要性使味数超出偏好，不得为迎合数字牺牲方剂完整性。\n`;
+  const [label, lo, hi] = band === "within_10" ? ["10 味以内", 1, 10] as const
+    : band === "between_10_15" ? ["10–15 味", 10, 15] as const
+    : ["15 味及以上", 15, Infinity] as const;
+  // 2026-10-24 甲方 100 例：选了味数的 36 例里 15 例落在区间外，方解也都没说为什么（提示词只说「尽量贴近」）。
+  // 现在把本例的数字算好给模型：基础方几味、组成身份下限几味、离区间差几味，按方向给出能做的事。
+  // 甲方 8/05 的边界不变：经典方基准组成与绑定病机、安全佐制的药味不为凑数裁剪，也不为凑数加无关的药；服务端不做任何按味数的删减。
+  const base = new Set(lockedReferences.flatMap((reference) => reference.ingredients)).size;
+  const floor = lockedReferences.reduce((sum, reference) => sum + reference.minimumPreservedIngredientCount, 0);
+  const classic = lockedReferences.some((reference) => /伤寒|金匮/.test(reference.source));
+  const lines = [`- **医生选择了饮片味数：${label}**。candidate.herbs 的总味数（不含 modifications 里的条件加减）是医生核对的指标，能落在区间内就必须落在区间内。`];
+  if (base > 0) {
+    lines.push(`  本例锁定方基础组成共 ${base} 味，组成身份下限至少保留 ${floor} 味。`);
+    if (base > hi) {
+      lines.push(classic
+        ? `  基础组成已超过 ${hi} 味，且含《伤寒论》《金匮要略》原方：原方药味不删，也不再加味；在 formulaAnalysis 末尾用半句写明「原方组成${base}味，未减至${label}」。`
+        : `  基础组成已超过 ${hi} 味：在不少于 ${floor} 味的前提下，先去掉与本例证候关系最远的佐使药，使总数落到 ${hi} 味以内；不再另外加味。删到下限仍超出时，在 formulaAnalysis 末尾用半句写明原因。`);
+    } else if (base < lo) {
+      lines.push(`  基础组成少于 ${lo} 味，需要在基础组成上加 ${lo - base} 味以上：只针对本例已记录的兼症或 M03 次要病机节点逐一加味，每味绑定病机节点、功效对应已锁定的治法方向；本例确实没有更多需要照顾的表现时不凑数，在 formulaAnalysis 末尾用半句写明「本例无更多需兼顾的表现，未加至${label}」。`);
+    } else {
+      lines.push(`  基础组成已在区间内：随证加味后的总数仍须在 ${lo === 1 ? "" : `${lo}–`}${Number.isFinite(hi) ? hi : ""}${Number.isFinite(hi) ? "" : "以上"} 味之内。`);
+    }
+  } else {
+    lines.push(`  本例为辨证组方：总味数直接落在${label}。`);
+  }
+  lines.push("  不论哪种情况，都不得删除绑定主病机的君臣药、锚点药味和安全佐制所需的药，也不得为凑数加入与已锁定治法无关的药。");
+  return `${lines.join("\n")}\n`;
 }
 
 /** 高影响方向的医生可读标签。只用于提示文案，判据仍在 highImpactTherapyDirectionStatus。 */
@@ -901,6 +924,11 @@ export function buildPrescribePrompt(caseState: CaseState, extras: M04PromptExtr
       // 「原方有、但本次不写进处方」，否则模型会自行补回去、随后被剂量门禁拒绝整方。
       // 不入煎的药味（芒硝溶服、朱砂不入汤剂…）：合同不接受把它们写进汤剂药味表。原方含这类药时要先告诉模型，
       // 否则它照原方写进去、逐轮被驳回，最后整方退成非剂量页（2026-10-13 本机回放甲方真实病例：大承气汤的芒硝）。
+      // 原方组成本身含十八反（洗心汤、附子粳米汤里的附子与半夏）：先告诉模型只能留一味（2026-10-24 甲方 100 例 C057：
+      // 洗心汤照原方开出附子、清半夏，确定性审方拦下后整页退成非剂量、两味都列在页面上——甲方验收表的一票否决项）。
+      ...(findTcmHerbPairIncompatibilities(item.ingredients).length > 0
+        ? [`  原方组成里的配伍禁忌：${findTcmHerbPairIncompatibilities(item.ingredients).map((pair) => `${pair.leftDrug}与${pair.rightDrug}（${pair.category}）`).join("；")}。本次处方不得同时开出这两味：按本例病机保留其一、去掉另一味（需要时换用同功效、不相反的药）。去掉的是锚点药味时不再沿用原方名：candidate.name 写「本例辨证组方」，formulaAnalysis 第一句写「本方参照${item.formulaName}，去${"某药"}以避相反」这类说明（写实际去掉的药名）。`]
+        : []),
       ...(nonDecoctionHerbs(item.ingredients).length > 0
         ? [`  原方中不入煎的药味：${nonDecoctionHerbs(item.ingredients).join("、")}（溶服或冲服，不与群药同煎；本次不编制用量）。不要写进 candidate.herbs，由医师另行决定是否使用。`]
         : []),
@@ -932,7 +960,11 @@ export function buildPrescribePrompt(caseState: CaseState, extras: M04PromptExtr
         ...formulaCompilationReferences(textbookRow.formulas).flatMap((reference) => reference.ingredients),
       ]))]
     : [];
-  const textbookFormulaContext = diagnoseReasoning
+  // M03 锁定的方不是教材这一证的代表方（医生选了流派、按流派选了方，见 lineageChosenFormulaDirectionKept）：不再给「辨证阶段已定用
+  // 该代表方……不要另起一张方」这段，它与锁定方相反（2026-10-24）。
+  const lockedOutsideTextbookRow = Boolean(textbookRow) && lockedFormulaNames.length > 0 &&
+    !lockedFormulaNames.some((name) => textbookRow!.formulas.includes(name));
+  const textbookFormulaContext = diagnoseReasoning && !lockedOutsideTextbookRow
     ? [
         buildTextbookFormulaContext(diagnoseReasoning.overview.tcmDiseaseName || "", diagnoseReasoning.overview.primarySyndrome || ""),
         textbookNonDecoction.length > 0
@@ -1052,7 +1084,7 @@ M04 提案不允许重写 overview、pathogenesis、therapy 或 lineageAdaptatio
 每味药必须引用后附【M04药味可引用病机节点】中的节点或方内结构作用枚举。每个候选必须恰有 1–2 味君药，且这些君药全部直接引用 P1；君/臣药只能引用病机节点；佐/使药引用 FORMULA_STRUCTURE 时必须选择一个结构枚举。臣药的引用节点必须不同于君药，整方药味必须覆盖 M03 各主要治法方向，服务端按 targetRef/structureRole 逐味生成“角色＋治法方向”的治法→药味映射，重复引用会产生重复方义。不得把肝郁、痰湿、血瘀等 M03 未确认病机塞进自由文本；服务端会忽略模型自写 targetPathogenesis，并根据 targetRef/structureRole 生成最终可见内容。
 
 只输出一个 JSON 对象，不要生成哨兵、Markdown 正文、表格或 JSON 之外的任何内容。服务端会把最小提案编译为完整 V2 契约，并在药味剂量校验、方剂出处复核和证据净化后确定性生成医生可见报告。这样可以确保页面、报告、审方与 HIS 使用同一份方名、药味和剂量。
-`, `${reasoningV2Instruction("prescribe", caseState)}
+`, `${reasoningV2Instruction("prescribe")}
 
 以上为固定规范。以下是本例患者资料、已签名 M03 结果与检索上下文——只有这部分逐例变化。
 
@@ -1068,7 +1100,7 @@ ${structuredDiagnosis || "（无结构化M03结果；请仅把下方M03文本作
 【服务端方剂目录编译基准（锁定方名、出处与组成身份；不是剂量医嘱）】
 ${formulaCompilationContext || "（M03 未锁定命名方；M04 不得临时附会方名，只能承接本例病机与治法形成辨证组方，并明确未采用经典方的病例内理由）"}
 命名方候选必须满足上述可计算的“组成身份下限”和锚点药味要求，只允许针对 M03 已确认病机作有理由的加减；不得用“同治法”替换成另一组药后仍沿用原方名。最终服务端会按实际 herbs[] 反向核验方名和出处。
-${highImpactDirectionContext}
+${caseState.herbCountPreference ? `\n【饮片味数】\n${herbCountPreferenceInstruction(caseState, executableFormulaCompilationReferences(lockedFormulaNames))}` : ""}${highImpactDirectionContext}
 
 【M03后方剂精确检索记录（只用于核对既有选择；M04 不得据此改方名）】
 ${m03FormulaRetrievalContext}
