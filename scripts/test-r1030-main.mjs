@@ -14,6 +14,7 @@
 //  12 选了流派时辨证依据末尾按该派眼目看本例（相符写判断，不相符写该派看什么、本例缺什么）；适配说明一条写辨证视角、说到方只写最终推荐的方。
 //  13 停药写在同一句后面小句（「…半年余，…而停药」）也算停用，不再写成「正在服用」；条件写法（停药则…）与一直在用的不算。
 //  14 模型写「血氧正常」而病历只有「指脉氧饱和度97%」：照录病历那句，不再写「病历未记录本次血氧结果」。
+//  15 「脾气不升/清阳不升/中气下陷」证名推虚则补之；「难以入眠」等算写到入睡困难，「未诉入睡困难」不留。
 //   5 中成药：说明书适应证明写实热/实火/实证/实寒的，纯虚证不推荐（润肠丸「用于实热津亏便秘」配阴虚秘）。
 
 import assert from "node:assert/strict";
@@ -50,6 +51,7 @@ const textbook = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
 const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
 const prompts = await jiti.import("../src/lib/diagnosis-prompts.ts");
 const polarity = await jiti.import("../src/lib/clinical-polarity.ts");
+const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 
 const c001 = JSON.parse(fs.readFileSync("scripts/fixtures/r1030-c001-diagnose.json", "utf8"));
 const withChoice = ({ formula, therapy = "辛温解表，宣肺散寒，通窍止痒", applicable = "applicable", secondary = [], decisions } = {}) => {
@@ -297,6 +299,20 @@ await check("14.1 病历写了指脉氧读数时，血氧断言改写为照录�
   assert.match(run("咳嗽3天，测指脉氧饱和度97%"), /病历记录[^；]*指脉氧饱和度97%/);
   assert.match(run("咳嗽3天，SpO2 96%"), /病历记录[^；]*SpO2 96%/);
   assert.match(run("咳嗽3天"), /病历未记录本次血氧结果/);
+});
+
+// ── 15 治则与否认 ──
+await check("15.1 脾气不升证、清阳不升证推「虚则补之」；肝气郁结证仍「实则泻之」", () => {
+  const principle = (syndrome, method) => visible.nationalTreatmentPrinciple("", { overview: { primarySyndrome: syndrome }, therapy: { overallMethod: method } });
+  assert.equal(principle("脾气不升证", "升清降浊，化气行水"), "虚则补之");
+  assert.equal(principle("清阳不升证", "升清降浊"), "虚则补之");
+  assert.equal(principle("肝气郁结证", "疏肝解郁"), "实则泻之");
+});
+
+await check("15.2 病历写「难以入眠/不易入睡」时删去「未诉入睡困难」；病历没写时保留", () => {
+  assert.equal(visible.withoutDenialsOfRecordedFindings("心悸易怒，未诉入睡困难，与不寐相区分。", "现病史：近1周心慌，夜里异常兴奋难以入眠。"), "心悸易怒。");
+  assert.equal(visible.withoutDenialsOfRecordedFindings("心悸易怒，未诉入睡困难。", "现病史：近1周心慌，晚上不易入睡。"), "心悸易怒。");
+  assert.equal(visible.withoutDenialsOfRecordedFindings("心悸易怒，未诉入睡困难。", "现病史：近1周心慌，纳可。"), "心悸易怒，未诉入睡困难。");
 });
 
 console.log(`\n${cases} checks`);

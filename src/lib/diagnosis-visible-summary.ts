@@ -11,7 +11,7 @@ import { reviewAuthoredFormulaAnalysis } from "./formula-analysis-review";
 import { namedFormulaDecoctionProfile } from "./formula-decoction-profile";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { NARROWER_THAN_GROUP_CANONICAL, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
+import { NARROWER_THAN_GROUP_CANONICAL, NARROWER_TERM_SYNONYMS, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
 import { assessPregnancyState } from "./clinical-state";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
@@ -1126,7 +1126,8 @@ export function recordAffirmsDeniedFinding(clinicalContext: string, rawTerm: str
   //「咳嗽不重」证明不了有咳痰，「发热3天」证明不了有高热（2026-10-21 甲方历史 aug-B-fenghan「未诉咳痰」本是对的）。
   // 这时要病历肯定写到这个词本身。与否定方向收窄用同一张表（NARROWER_THAN_GROUP_CANONICAL）。
   if (NARROWER_THAN_GROUP_CANONICAL.has(term)) {
-    return (affirmed.includes(term) && sourceDocumentsAffirmation(clinicalContext, term)) || recordAffirmsSplitTwoCharacterTerm(affirmed, term);
+    return [term, ...(NARROWER_TERM_SYNONYMS[term] || [])].some((written) => affirmed.includes(written) && sourceDocumentsAffirmation(clinicalContext, written)) ||
+      recordAffirmsSplitTwoCharacterTerm(affirmed, term);
   }
   if (sourceDocumentsAffirmation(clinicalContext, term)) return true;
   return recordAffirmsSplitTwoCharacterTerm(affirmed, term);
@@ -1876,7 +1877,8 @@ function signedNatureProfile(reasoning: Record<string, unknown>): SignedNaturePr
   ].filter(Boolean);
   const method = markdownCell(therapy?.overallMethod) || markdownCell(overview?.overallTherapy);
   // 「乘」是木旺乘土、土本已虚（肝气乘脾 = 肝旺脾虚）；「伤气、伤阴、耗气」说的是正气已伤（劳倦伤气、热毒伤阴）。
-  const DEFICIENT = /(?:虚|亏|不足|失养|不固|不摄|怯|衰|脱|不振|乘|伤[阴津气阳精]|耗[气阴血津]|两伤|耗伤|亏耗)/;
+  // 「脾气不升」「中气下陷」「气陷」也是虚（2026-10-24 第十八轮基层病例 B069：脾气不升证配「升清降浊，化气行水」被推成「实则泻之」）。
+  const DEFICIENT = /(?:虚|亏|不足|失养|不固|不摄|怯|衰|脱|不振|乘|伤[阴津气阳精]|耗[气阴血津]|两伤|耗伤|亏耗|气不升|清阳不升|下陷|气陷)/;
   // 虚热、虚火、虚寒说的是虚证的寒热表现，不是实邪。
   const withoutDeficiencyHeat = (name: string) => name.replace(/[阴血气阳精津]?虚发?[热火寒]旺?/g, "");
   const EXCESS = /(?:实|热|火|寒|湿|痰|饮|瘀|滞|郁|积|毒|风|燥|水停|犯|乘|旺|束|蕴|阻|结|闭|亢|扰|袭|感冒|外感|肝阳(?!虚|不足|衰))/;
