@@ -69,4 +69,9 @@ export function sparse(text, customerId) {
   };
 }
 
-export const OPEN_LANGUAGE_CLASS_CONTEXTS = { outpatient_record: outpatientRecord, sparse };
+// 儿童病历（2026-10-24 第十八轮）：与 sparse 同形，患者 9 岁。年龄守卫类（儿童慢性胸闷气促）只能在这个语境里量。
+export function pediatricSparse(text, customerId) {
+  return { ...sparse(text, customerId), patient: { sex: "女", age: 9 } };
+}
+
+export const OPEN_LANGUAGE_CLASS_CONTEXTS = { outpatient_record: outpatientRecord, sparse, pediatric_sparse: pediatricSparse };

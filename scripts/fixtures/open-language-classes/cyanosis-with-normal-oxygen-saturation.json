@@ -1,0 +1,57 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "cyanosis-with-normal-oxygen-saturation",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-24",
+ "trigger": "第十八轮基层病例 B017（《中国全科医学》社区 COPD 病例）：65 岁慢阻肺稳定期，查体「口唇略发绀」「指脉氧96%」「呼吸平稳」，被报「口唇发绀等中心性发绀表现，需优先评估血氧与呼吸循环急症」，剂量收回。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "diagnosis-safety.detectProgrammaticRedFlags 的中心性发绀规则（10/18 补的漏报类）只看查体写法，不看同一份病历里实测的血氧。",
+  "exception": "冻结令允许的数值阈值：同一份病历实测血氧 ≥94% 时，单凭发绀不报急症（静息未吸氧时中心性发绀通常在 SpO2 85% 以下才出现）；呼吸困难/端坐呼吸那一半照报，血氧 ≤89% 仍由生命体征红旗报。没有新增词表。",
+  "sources": "2026-10-24 语料回放（改前 98f9c068 / 改后工作树，现代医案语料 + 十个验收集 + 既往评测集 + 甲方 100 例 + 第十八轮基层集 144 例，共 20,740 条病历）：安全门状态或剂量档改变 4 条，本类只有 B017（目标病例），其余 3 条是同轮另外三类的目标病例。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句把发绀换成正常唇色、血氧不变，门禁结果必须相同。",
+  "pairs": [
+   {
+    "subject": "慢阻肺多年，查体口唇略发绀，指脉氧96%，呼吸平稳。",
+    "sibling": "慢阻肺多年，查体口唇淡红，指脉氧96%，呼吸平稳。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "口唇轻度发绀，SpO2 95%。",
+    "sibling": "口唇淡红，SpO2 95%。",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "controls": {
+  "note": "血氧未记录、偏低或伴呼吸困难时照旧报警。",
+  "mustStillFlag": [
+   {
+    "text": "口唇发绀，指脉氧92%。",
+    "flag": "发绀"
+   },
+   {
+    "text": "口唇明显发绀。",
+    "flag": "发绀"
+   },
+   {
+    "text": "口唇发绀伴端坐呼吸，指脉氧95%。",
+    "flag": "呼吸"
+   },
+   {
+    "text": "口唇发绀，指脉氧86%。",
+    "flag": "血氧"
+   }
+  ]
+ },
+ "measurements": {
+  "before": "subject 2/2 报中心性发绀急症",
+  "after": "subject 0/2、与兄弟句相同；controls 4/4 照旧报警"
+ }
+}

@@ -3540,7 +3540,8 @@ const FOCAL_NEUROLOGIC_PATTERN = new RegExp(
 );
 // 「抽搐痛」「抽搐感」「抽搐样痛」是疼痛的性质（「头抽搐痛七年」「头痛呈拘急跳痛抽搐感」），不是发作性抽搐（2026-10-19 Claude 评审 H 集
 // H-tri-19642：七年间断性紧张性头痛被报神经急症、剂量收回）。构词式守卫：只看「抽搐」后面紧跟的痛/感，其余写法照旧。
-const CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN = /(?:昏迷|呼之不应|抽搐(?!痛|感|样(?:疼|胀)?痛)|惊厥|癫痫持续状态)/;
+// 「抽搐的痛」「抽搐似的疼」同属这一构词（2026-10-24 第十八轮基层病例 B008：26 岁胃痛半年「疼痛为“抽搐的痛，好像有很多胃气”」被报神经急症）。
+const CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN = /(?:昏迷|呼之不应|抽搐(?!痛|感|样(?:疼|胀)?痛|(?:样|似)?的(?:疼痛|胀痛|痛|疼))|惊厥|癫痫持续状态)/;
 const ACUTE_CONSCIOUSNESS_CHANGE_TERMS = ["昏睡", "嗜睡", "谵妄"];
 /**
  * 意识改变：急性意识改变那组词、灾难性神经事件里的昏迷/呼之不应，加上同义的书面写法；「反应（较平时）迟钝/变慢」按构词式认。
@@ -4718,7 +4719,14 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
     hasPatternWithoutNegation(text, new RegExp(term)));
   const activeMajorVaginalBleedingSignal = vaginalBleedingAffirmed &&
     (governedMajorVaginalBleedingAffirmed || severityNearVaginalBleeding || criticalHemoglobin || bleedingCompanionAffirmed);
-  const cardiacRiskFlagged = !cardiacClearanceApplies && (acuteChestPainSignal || (chestPainSignal && cardiacCompanion) || acuteChestTightnessSignal || (chestTightnessSignal && cardiacCompanion));
+  // 14 岁以下儿童、病程写明为反复/数月以上、又没有任何急性线索（突发、加重、持续不缓解…）时，胸闷/胸痛伴气促不按急性冠脉事件报
+  //（2026-10-24 第十八轮基层病例 B059：9 岁「反复咳嗽、喘息半年，夜间明显…偶尔伴胸闷气促」、FeNO 升高的过敏性哮喘被报急性心血管事件）。
+  // 年龄与病程是数值/闭集守卫（冻结规则允许的例外）；急性胸痛、急性胸闷两路不受影响，成人不变。
+  const caseAgeYears = numberFromClinicalText(patientAgeText(withPatientObject(state)));
+  const chronicPediatricChestSymptom = caseAgeYears != null && caseAgeYears < 14 && !acuteChestPainSignal && !acuteChestTightnessSignal &&
+    /(?:反复|多年|半年|数月|长期|(?:\d+|[一二两三四五六七八九十])\s*(?:个)?(?:月|年))/u.test(text);
+  const cardiacRiskFlagged = !cardiacClearanceApplies && !chronicPediatricChestSymptom &&
+    (acuteChestPainSignal || (chestPainSignal && cardiacCompanion) || acuteChestTightnessSignal || (chestTightnessSignal && cardiacCompanion));
   const reportableCardiacRisk = cardiacRiskFlagged;
   if (reportableCardiacRisk) {
     redFlags.push(((acuteChestTightnessSignal || chestTightnessSignal) && cardiacCompanion) || (chestPainSignal && cardiacCompanion)
@@ -4794,7 +4802,11 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
     hasPatternWithoutNegation(text, new RegExp(
       `(?:${governedTermAlternation(RESPIRATORY_DETECTION.centralCyanosisSites)})[^，,。；;\\n无未不否没]{0,4}(?:${governedTermAlternation(RESPIRATORY_DETECTION.centralCyanosisTerms)})`,
     ));
-  const acuteRespiratorySignal = breathingDistressSignal || centralCyanosisSignal;
+  // 同一份病历实测血氧 ≥94%（静息、未吸氧时中心性发绀一般在 SpO2 85% 以下才出现）：「口唇略发绀」是慢性或外周表现，不单凭它报急症
+  //（2026-10-24 第十八轮基层病例 B017：慢阻肺稳定期「口唇略发绀」「指脉氧96%」被报呼吸循环急症）。数值阈值，冻结规则允许的例外；
+  // 呼吸困难/端坐呼吸那一半不受影响，血氧 ≤89% 仍由生命体征红旗报。
+  const cyanosisWithNormalOxygen = centralCyanosisSignal && spo2 != null && spo2 >= 94;
+  const acuteRespiratorySignal = breathingDistressSignal || (centralCyanosisSignal && !cyanosisWithNormalOxygen);
   // 胸痛/胸闷伴气促时，心血管红旗文案已经完整承接呼吸循环风险；避免同一事件重复成两条告警。
   // 只有发绀、没有呼吸困难的写法时，理由写发绀（2026-10-19 Claude 评审 M 集 SD-451922：病历只有「口唇发绀、爪甲青紫」，
   // 理由却是「突发或快速加重呼吸困难/端坐呼吸」）。判定（报不报）不变。

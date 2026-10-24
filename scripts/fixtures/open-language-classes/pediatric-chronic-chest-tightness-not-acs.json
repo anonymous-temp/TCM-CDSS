@@ -1,0 +1,49 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "pediatric-chronic-chest-tightness-not-acs",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-24",
+ "trigger": "第十八轮基层病例 B059（社区儿科哮喘病例）：9 岁「反复咳嗽、喘息半年，夜间明显，偶尔还会伴着胸闷气促」，FeNO 升高，被报「胸痛/胸闷伴大汗、放射痛或气促，需排除急性心血管事件」，剂量收回。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "diagnosis-safety.detectProgrammaticRedFlags 的心血管规则：「胸闷」+ 受治理伴随症（气促）即报急性心血管事件，不看年龄与病程。急性冠脉综合征在儿童极罕见，慢性反复的胸闷气促多为哮喘。",
+  "exception": "冻结令允许的数值/闭集守卫：年龄 <14 岁、病程写明为反复/数月以上（闭集写法）、且急性胸痛与急性胸闷两路都没有命中时，不按急性冠脉事件报；有突发、加重、持续等急性线索的照报，成人不变。",
+  "sources": "2026-10-24 语料回放（改前 98f9c068 / 改后工作树，现代医案语料 + 十个验收集 + 既往评测集 + 甲方 100 例 + 第十八轮基层集 144 例，共 20,740 条病历）：安全门状态或剂量档改变 4 条，本类只有 B059（目标病例），其余 3 条是同轮另外三类的目标病例。"
+ },
+ "contexts": [
+  "pediatric_sparse"
+ ],
+ "parity": {
+  "note": "兄弟句把胸闷气促换成上呼吸道症状，门禁结果必须相同。",
+  "pairs": [
+   {
+    "subject": "反复咳嗽、喘息半年，夜间明显，偶尔伴胸闷气促。",
+    "sibling": "反复咳嗽、喘息半年，夜间明显，偶尔伴咽痒喷嚏。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "哮喘2年，运动后胸闷气促，休息可缓解。",
+    "sibling": "哮喘2年，运动后咳嗽，休息可缓解。",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "controls": {
+  "note": "儿童急性胸痛、急性胸闷照报。",
+  "mustStillFlag": [
+   {
+    "text": "2小时前突发胸痛伴气促、大汗。",
+    "flag": "心血管"
+   },
+   {
+    "text": "今日突然胸闷气促，持续不缓解。",
+    "flag": "心"
+   }
+  ]
+ },
+ "measurements": {
+  "before": "subject 2/2 报急性心血管事件",
+  "after": "subject 0/2、与兄弟句相同；controls 2/2 照旧报警"
+ }
+}
