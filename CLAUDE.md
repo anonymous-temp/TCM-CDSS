@@ -1840,6 +1840,69 @@ The second-pass fixes (C069 V, C005 RF, C045 FACT, C053 T, C063 Y, C093 FACT) ta
 
 **Left as is.** C084 (acute delirium on top of MCI) is still named 痴呆: no 神昏 section exists in the local corpus; the red flag and Western 谵妄 are right. C087 is still 脾气虚证 although 血虚 now passes the corrected criteria — promoting a passing element to a 兼证 would change customer cases (病历2/3 checks) and was not done. Sudden deafness with only 脉弦 stays a neutral 气滞耳窍证 with model-chosen formulas (当归芍药散, 加味乌药汤). Herb count still misses by 1–2 herbs in about one in ten preference cases (C018 左金丸 base of 2, C092 归脾汤). C053 named 瘾疹·风热犯表证 without any 脱证 in one production run: the rule depends on the model recognising shock; the red flag holds.
 
+### 10/24 round 18: lineage that changes the analysis, 144 primary-care records from the web (2026-10-24)
+
+The user asked for the machine to be cleaned up, every test result and leftover to be reviewed again with online research, a test on at least 100 records from primary-care institutions found online, and the customer's lineage (诊疗思路) selection to really work; then one or two find–analyse–fix-by-class–release rounds. Material: `~/runlogs/r1018/work/r1030/` (`TODO.md`, `cp.sh` + `counterproofs.txt`, `lineage/` (`cases-lin.json` 12 cases × 6 lineages, `matrix.py`, `linstat.mjs`), `primary-care/` (`agentA-tcm.json` 73 TCM records, `agentB-gp.json` 71 GP records, saved source pages, `cases-*.json`), `scripts/` (`convert-pc.py`, `judge-pc.mjs`, `judge-lin6.mjs`, `brief.py`, `page-chain-prod.mjs` with `PACE_MS`), `replay/`, `out/`, `judge/`). Suite `test:r1030-main` (16 checks, each with a counter-proof).
+
+**Primary-care records.** Two sub-agents collected 144 published outpatient records: 73 with TCM content from 27 WeChat accounts of township health centres, community health centres, village clinics and county TCM hospitals, and 71 general-practice records (49 from community health centres; 27 teaching cases from 《中国全科医学》), 15 of them red-flag presentations. Every record carries its source URL and a verbatim excerpt; all 144 excerpts were checked against the saved page text (`agentA-dl/`, `agentB-dl/`; the Sogou WeChat links are temporary). `convert-pc.py` turns them into the page shape (fields left empty when the page has none; age from birth year and visit year; `HP163/92` read as blood pressure). Original diagnoses are passed to the judge as reference only.
+
+**Lineage: what was wrong.** Telemetry (`lineage_formula_direction`, formula names and codes only) over the 12 × 6 matrix showed the server, not the model, removing the school: under 经方思路 the model wrote 桂枝汤 for 风寒感冒 but copied the textbook row's therapy (辛温解表，宣肺散寒); `trustedModelFormulaIdentityNames` compares formula functions with the signed therapy word by word, 桂枝汤〔解肌发表、调和营卫〕 failed, and `withDeterministicFormulaReferences` restored 荆防败毒散 while `lineageAdaptation` still said 「选桂枝汤」 (7 of 71 lineage cases in the customer's 100-case set; 9 of 60 in the matrix). Fixes:
+- `lineageFormulaSyndromeSupportedNames` (`tcm-formula-indications.ts`): on the lineage path only, and only without a secondary syndrome, a school formula whose catalog syndrome tags are compatible with the signed syndrome (`formulaMatchSyndromeCompatible`) is positive evidence. 桂枝汤 passes for 风寒束表证 and fails for 风热犯表证; 四逆汤 and 银翘散 fail for 风寒束表证. When the model's therapy does not align with the kept formula, the therapy becomes the formula's catalog functions plus the model's symptom clause (`lineageKeptTherapy`), so M04 accepts the same formula.
+- `lineageDecisionsMatchingDirection`: an `influencedDecisions` item naming a formula that is not delivered, and not as 「不套用/未用 X」 (preposed or postposed negation), is dropped.
+- 经方思路: a picked 经方 pattern with a 条文特征症 and no opposite discriminator is adopted over the textbook row (`buildJingfangCandidateContext(picks, lineage)`).
+- M03 prompt: with a chosen school, the syndrome rationale ends with one sentence through that school's lens (六经与方证眼目 / 卫气营血与津液 / 气血痰郁与相火 / 脾肾命门与阴阳 / 阴阳盛衰与阳虚阴盛的实据), using recorded findings only; when the school does not fit, it says what the school looks at and what the case lacks. One `influencedDecisions` item is the 辨证视角, and formulas named there are the delivered one. Unrestricted cases are unchanged (`lineageAdaptation` stays null).
+
+**Other classes, each with a test and counter-proof.**
+- Medicine label text went through the patient negation sanitizer: 「感冒发热病人不宜服用」 became 「未诉发热」 and the Markdown table lost the sentence (11 medicines in 73 records). `riskNote`/`usageBoundary`/`relationship` (and spec, dose, route) of `patentAndWestern` rows, and Markdown table rows carrying a label evidence id, are exempt (`MEDICINE_LABEL_FIELDS`).
+- A precaution banning 滋补类中成药 next to a recommended 健脾丸 (label 「健脾开胃」): tonic categories are matched against the label's function clause (`patentMedicineLabelIsTonic`).
+- A patent medicine whose label says 用于实热/实火/实证/实寒 is not offered for a pure deficiency syndrome (`excess_indication_for_deficiency`; 润肠丸 for 阴虚秘; 27 labels carry such wording).
+- Formulas of three herbs or fewer keep their name only with every herb present (左金丸 without 吴茱萸 was delivered as 左金丸加减).
+- Lactation: 哺乳期过后/已过/结束, 断奶后, 停止哺乳 are denials; 未断奶/未停止哺乳/哺乳期间 stay positive.
+- Gate (deterministic, class fixtures, `pediatric_sparse` context added): 「抽搐的痛」「抽搐似的疼」 are pain qualities; central cyanosis with a recorded SpO2 ≥94% is not an emergency on its own; a child under 14 with chest tightness/pain plus breathlessness in a recurrent or months-long course, without an acute cue, is not flagged as an acute cardiac event.
+- Corpus replay old vs new over 20,740 records (modern-case corpus, acceptance sets, earlier evaluation sets, the customer's 100 cases, the 144 primary-care records): 4 gate changes, exactly the four target cases.
+- Western criteria rows (reviewed): 急性胰腺炎 (lipase/amylase or imaging, revised Atlanta), 急性胆囊炎, 急性心肌梗死, 急性肺栓塞, 蛛网膜下腔出血.
+- Textbook supplement 小便不禁: 证候 from 《针灸治疗学》 尿失禁节 (lines 10421–10422), 治法 and formulas from T/CACM 1553—2023 《女性压力性尿失禁中医诊疗指南》 (肾气不固 → 金匮肾气丸; 脾肺气虚 → 补中益气汤合缩泉丸); 湿热下注 and 下焦瘀滞 have no verifiable formula and were not added. Complaint bridge 漏尿/尿失禁, acupuncture alias 小便不禁. A 48-year-old with stress incontinence had been named 阴挺.
+- Account-conflict quotes keep full-width punctuation.
+- Second and third batches (after the GP records): a later clause in the same sentence that stops without naming another drug stops the drugs named earlier (「…半年余，因腹痛、恶心停药」; conditional 「停药则…/停药复发」 does not; replay 7 changes, all recorded stops); a model claim 「血氧正常」 against 「指脉氧饱和度97%」 quotes the recorded sentence; 既往体检/体检/平素/平时 join the subject prefixes before a denial (fixture `subject-prefixed-denial`; 「既往体检无…糖尿病」 had produced 「本例有糖尿病，对热不敏感」 on a moxibustion card); 气不升/清阳不升/下陷 mark deficiency for 治则; 难以入眠/不易入睡/入睡难 count as recorded 入睡困难 (`NARROWER_TERM_SYNONYMS`).
+- Lens examples in the prompt are placeholder forms and `withoutForeignLineageLensSentence` drops a lens sentence that opens with another school's name (production: 扶阳思路 C043 had copied the 温病 example).
+
+**Measured** (qwen3.8-max with the round-16 rubric `judge-pc.mjs`, a lineage-specific judge `judge-lin6.mjs`, same day for every comparison).
+
+| Lineage matrix, 12 cases × 6 lineages | Before (98f9c068) | Fixes | + lens prompt |
+|---|---|---|---|
+| `lineageAdaptation` names a formula that was not delivered | 9 | 0 | 0 |
+| Analysis organised by the chosen school (judge) | 46/60 | 55/60 | 60/60 |
+| Honest about fit, no forced syndrome or formula | 58/60 | 60/60 | 60/60 |
+| Note consistent with delivered formula and therapy | 54/60 | 58/60 | 60/60 |
+| Record facts unchanged | 59/60 | 60/60 | 60/60 |
+| The six lineages differ in focus (per case) | 9/12 | 8/12 | 11/12 |
+| Same syndrome across the six lineages | 7/12 | 9/12 | 9/12 |
+
+The general rubric's Z row (流派一致) scored 100% on the "before" arm as well, so it cannot see these contradictions; the lineage-specific judge is the measure.
+
+| Primary-care records (qwen, customer rubric) | 73 TCM (e535c19b) | 71 GP + 9 reruns (c06b1195) |
+|---|---|---|
+| RF / SAFE / FACT / T | 97.3 / 98.6 / 93.2 / 98.6 | 92.5 / 97.5 / 93.8 / 98.8 |
+| C / D / F / Q / S / P / R | 98.6 / 98.6 / 100 / 98.6 / 98.6 / 100 / 100 | 100 / 97.5 / 100 / 98.8 / 100 / 100 / 98.7 |
+| K / L / Y / W / N / V | 96.3 / 100 / 98.6 / 98.3 / 98.6 / 98.6 | 87.5 / 100 / 98.8 / 100 / 100 / 97.5 |
+| Red lines | 0 | 0 |
+
+Most failures in the first column came from my converter (an age written as birth year, `HP163/92` read as a pulse) and were re-run after the fix; in the second column the RF failures are B008, B017 and B059, fixed after that snapshot. All 15 red-flag GP records were flagged (red flag or priority evaluation).
+
+**Left as is.**
+- Mixed polarity in the record itself (A056 「无腹痛，发热，呕吐」 then 「无呕吐，发热」) still produces 「有呕吐；否认呕吐」 in a rationale; this is the frozen open-language polarity class and needs its own fixture and replay.
+- 平胃散加味 whose extra herbs match an obscure later reprint is signed 《一盘珠》卷二 (B041); changing the margin rule would undo the deliberate 温胆汤《三因》 choice.
+- A creatinine rise from 64 to 233 μmol/L (B032, KDIGO stage 3) gets a 3-day priority evaluation, not a red flag: a deterministic AKI rule needs dated multi-value parsing.
+- A palliative patient with known metastatic liver cancer gets the 「恶性肿瘤病史伴消化道症状」 upper-GI alarm (B035), the owner's existing policy.
+- Model judgement: 平胃散 for renal colic style choices (A023 大承气汤去芒硝), 「日晒后」 inferred from 「外出运动」 (B044), hypertension grade wording (B013), 遗尿 picked as the disease when the complaint is two weeks of fever (A033).
+
+**In production.**
+- **Release 1: 7154f84** (tag `20261024-7154f84-prebuilt`): lineage fixes, label text, tonic precautions, small formulas, lactation, the three gate guards, criteria rows, 小便不禁. `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 16.9 s, M04 P95 12.2 s).
+- **Production tests on 7154f84** (page shape, paced at ≥65 s per chain per tenant; `page-chain-prod.mjs` with `PACE_MS`): lineage 6 cases × 6 lineages on hospital-b — 0 notes naming an undelivered formula, 经方思路 C001 → 桂枝汤 (5 herbs), lineage judge focus 28/30, honest 30/30, consistent 29/30, facts 30/30; 40 primary-care records on hospital-a — all HTTP 200, 15/15 red-flag records flagged (red flag or priority evaluation), B008/B017/B059 no longer red flags, A062 dosed, A071 小便不禁.
+- **Release 2** (stopped medicines, SpO2 readings, 体检/平素 denials, 治则, 入睡困难 synonyms, foreign lens sentence) passed `verify:release`; RELEASE2
+- **Host disk.** Before release 1 the host had 11.1 GB; our own old images (4519b4f, ccb67f4), old build contexts, the Docker build cache and a 9/11 `image-transfer.tar` (446 MB) in the release directory were removed (logged in `~/telemetry-archive/cleanup-20261024.txt`), giving 12.6 GB. An hour later another project (open-science / evimed) built several images (6.5 GB runtime images, 11 GB build cache) and the host fell to 1.6 GB (100%); our container stayed healthy.
+- **Local build.** /home had under 4 GB and memory under 6 GB, so the prebuild ran on the root filesystem with a temporary 2 GB swap file on root (a 3 GB file on /home was removed at once when /home fell to 230 MB; the first two attempts were OOM-killed and ENOSPC). The swap file was removed after the build.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
