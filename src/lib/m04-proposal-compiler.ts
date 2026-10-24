@@ -11,7 +11,7 @@ import { sanitizeUnverifiedClinicalNarrative } from "./customer-evidence";
 import { stripHerbBoundaryTail } from "./candidate-boundary-text";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
-import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
+import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairCautions, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
 import { compositionIdentityName, formulaCompilationReferences, formulaEditClaimBaseIngredients, formulaManualDoseIngredients, formulaNameVariantIngredients } from "./tcm-formula-provenance";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
@@ -787,7 +787,11 @@ export function withoutMutuallyIncompatibleAdditions<T extends { action?: string
 /** 拟加的药与方中某一味相反（十八反，含类别展开：附子属乌头类）。只看「新加的这味」参与的配对，方内原有的配对另有核对。 */
 export function modificationHerbIncompatibleWithCandidate(herbName: string, candidateHerbNames: readonly string[]): boolean {
   const before = findTcmHerbPairIncompatibilities(candidateHerbNames).length;
-  return findTcmHerbPairIncompatibilities([...candidateHerbNames, herbName]).length > before;
+  if (findTcmHerbPairIncompatibilities([...candidateHerbNames, herbName]).length > before) return true;
+  // 十九畏也不经加减新引入（2026-10-24 甲方 100 例 C062：方含五灵脂、加减「加人参」）。十九畏在方内仍只作提示，不驳回整方；
+  // 加减是可选的附加项，按知识库「提示档可用于替代药筛选」的口径不列这一行。
+  const cautionsBefore = findTcmHerbPairCautions(candidateHerbNames).length;
+  return findTcmHerbPairCautions([...candidateHerbNames, herbName]).length > cautionsBefore;
 }
 
 /** 教材没有给已定证型列加减时，模型写的条件式加减（tcm-textbook-syndromes.conditionalModificationWithoutTextbook）。 */

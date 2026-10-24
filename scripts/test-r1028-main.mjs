@@ -320,4 +320,44 @@ await check("7.5 病历记录的药物过敏要写进注意事项必须项；否
   }
 });
 
+await check("7.6 加减不新引入十九畏（C062：方含五灵脂，加人参）；十八反照旧", async () => {
+  const compiler = await jiti.import("../src/lib/m04-proposal-compiler.ts");
+  assert.equal(compiler.modificationHerbIncompatibleWithCandidate("人参", ["五灵脂", "蒲黄", "延胡索"]), true);
+  assert.equal(compiler.modificationHerbIncompatibleWithCandidate("甘草", ["海藻", "昆布"]), true);
+  assert.equal(compiler.modificationHerbIncompatibleWithCandidate("延胡索", ["五灵脂", "蒲黄"]), false);
+});
+
+await check("7.7 病历测得发热时，「未诉发热」从辨病依据删掉（C072 T 38.0℃）；体温正常或说的是高热时不动", async () => {
+  const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const febrile = "主诉：咳嗽喘息2天\n生命体征/体格检查：T 38.0℃，P 154次/分";
+  assert.equal(visible.withoutDenialsOfRecordedFindings("以咳嗽喘息为主，未诉发热，故与外感发热相区分。", febrile), "以咳嗽喘息为主。");
+  assert.match(visible.withoutDenialsOfRecordedFindings("以咳嗽喘息为主，未诉发热，故与外感发热相区分。", "主诉：咳嗽2天\n生命体征：T 36.8℃"), /未诉发热/);
+  assert.match(visible.withoutDenialsOfRecordedFindings("未诉高热。", febrile), /未诉高热/);
+});
+
+await check("7.8 病历写明外用的药，注意事项按外用写、不说服用（C051「外用低效激素间断使用」）", async () => {
+  const precautions = await jiti.import("../src/lib/required-precautions.server.ts");
+  const caseState = pageCase({ age: 22, chief: "双手瘙痒脱皮3个月", present: "频繁接触洗洁精后双手皲裂、红斑和瘙痒", medication: "保湿霜、外用低效激素间断使用" });
+  const items = precautions.requiredPrecautionsForCase(caseState);
+  const current = items.find((item) => item.kind === "current_medications");
+  assert.ok(current, JSON.stringify(items.map((item) => item.kind)));
+  assert.ok((current.topical || []).some((name) => name.includes("激素")), JSON.stringify(current));
+  assert.ok(!(current.noSelfStop || []).some((name) => name.includes("激素")), "外用激素被要求「不要自行停用」");
+  assert.match(precautions.requiredPrecautionsPromptSection(items), /病历写明是外用/);
+});
+
+await check("7.9 注意事项超过 6 条时截断、不整列清空；药名去掉「间断使用」这类用法尾巴（C051 页面一条注意事项都没有）", async () => {
+  const fs = await import("node:fs");
+  const saved = JSON.parse(fs.readFileSync(new URL("./fixtures/r1028-c051-prescribe.json", import.meta.url), "utf8"));
+  const lines = Array.from({ length: 8 }, (_, index) => `第${index + 1}条注意事项，服药期间请留意。`);
+  const normalized = types.normalizeReasoningV2({ ...saved, nonPharma: { ...saved.nonPharma, precautions: lines } });
+  assert.deepEqual(normalized.nonPharma.precautions, lines.slice(0, 6));
+  const longLine = "很长".repeat(150);
+  const clipped = types.normalizeReasoningV2({ ...saved, nonPharma: { ...saved.nonPharma, precautions: ["第一条", longLine] } });
+  assert.equal(clipped.nonPharma.precautions.length, 2);
+  assert.equal(clipped.nonPharma.precautions[1].length, 200);
+  assert.equal(polarity.cleanedMedicationNameCandidate("低效激素间断使用"), "低效激素");
+  assert.equal(polarity.cleanedMedicationNameCandidate("氯雷他定"), "氯雷他定");
+});
+
 console.log(JSON.stringify({ suite: "r1028-main", cases, failures: process.exitCode ? "see above" : 0 }));

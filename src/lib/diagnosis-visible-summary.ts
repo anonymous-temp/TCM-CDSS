@@ -11,7 +11,7 @@ import { reviewAuthoredFormulaAnalysis } from "./formula-analysis-review";
 import { namedFormulaDecoctionProfile } from "./formula-decoction-profile";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { NARROWER_THAN_GROUP_CANONICAL, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
+import { NARROWER_THAN_GROUP_CANONICAL, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
 import { assessPregnancyState } from "./clinical-state";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
@@ -1102,9 +1102,16 @@ function recordAffirmsSplitTwoCharacterTerm(affirmedRecord: string, term: string
   }
   return false;
 }
+const FEVER_TERM_FLOOR: Readonly<Record<string, number>> = { 发热: 37.3, 发烧: 37.3, 身热: 37.3, 体温升高: 37.3, 低热: 37.3, 高热: 39 };
 export function recordAffirmsDeniedFinding(clinicalContext: string, rawTerm: string): boolean {
   const term = rawTerm.replace(/^(?:明显|明确)(?:的)?/u, "").replace(/(?:等|表现|症状|史)$/u, "");
   if (term.length < 2 || term.length > 8) return false;
+  // 发热类词：病历测得的体温本身就是记录（按各词自己的界值：发热 37.3℃、高热 39℃；只看测得值，不经同义组，免得「发热」证明「高热」）。
+  const feverFloor = FEVER_TERM_FLOOR[term];
+  if (feverFloor !== undefined) {
+    const measured = recordedMaxBodyTemperature(clinicalContext);
+    if (measured !== undefined && measured >= feverFloor) return true;
+  }
   if (new RegExp(`^(?:${NEGATED_TERM_QUALIFIER_SOURCE})`, "u").test(term)) return false;
   if (sourceDocumentsNegation(clinicalContext, term)) return false;
   const affirmed = (affirmedClinicalText(clinicalContext) || "").normalize("NFKC").replace(/\s+/g, "");

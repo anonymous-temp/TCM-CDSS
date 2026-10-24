@@ -1634,7 +1634,10 @@ const ReasoningV2SchemaBase = z.object({
     // 静默补 []，类型非法时归零而不是让整个 nonPharma 落到下面的 `.nullable().catch(null)`
     // ——后者会连带丢掉 diet/lifestyle/emotion。旧的 monitoring 键因 nonPharma 不是 strict
     // object 而被静默剥离，不产生任何拒绝。
-    precautions: z.array(z.string().max(200)).max(6).default([]).catch([]),
+    // 超过 6 条或某条超过 200 字时只截断，不整列清空（2026-10-24 甲方 100 例 C051：交付面补上必写项后共 8 条，`.max(6).catch([])`
+    // 把整列注意事项归零，页面一条注意事项都没有）。必写项排在最前，截掉的是末尾模型写的那几条。
+    precautions: z.array(z.unknown()).default([]).catch([])
+      .transform((items) => items.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.slice(0, 200)).slice(0, 6)),
   }).nullable().catch(null),
   lineageAdaptation: z.object({
     schemaVersion: z.literal("tcm-cdss-reasoning-v2"),

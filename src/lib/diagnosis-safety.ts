@@ -949,7 +949,26 @@ function termOnlyQualifiedIn(span: string, term: string, source: string): boolea
   return seen;
 }
 
+/**
+ * 病历测得的最高体温（「T 38.0℃」「体温38.5℃」；只认 34–43℃）。发热类词的「病历记录了」也包括测得的体温（2026-10-24 甲方 100 例 C072：
+ * 18 月龄 T 38.0℃，辨病依据的「无发热」被净化成「病历尚未确认发热是否存在」，交付成「未诉发热」）。
+ */
+export function recordedMaxBodyTemperature(source: string): number | undefined {
+  let max: number | undefined;
+  for (const match of String(source || "").normalize("NFKC").matchAll(/(?:\bT|体温)\s*[:：]?\s*(\d{2}(?:\.\d)?)\s*(?:℃|°C|度)?/gu)) {
+    const value = Number(match[1]);
+    if (value >= 34 && value <= 43 && (max === undefined || value > max)) max = value;
+  }
+  return max;
+}
+const FEVER_TERM_MIN_TEMPERATURE: Readonly<Record<string, number>> = { 发热: 37.3, 发烧: 37.3, 身热: 37.3, 体温升高: 37.3, 低热: 37.3, 高热: 39 };
+
 export function sourceDocumentsAffirmation(source: string, term: string): boolean {
+  const feverFloor = FEVER_TERM_MIN_TEMPERATURE[term];
+  if (feverFloor !== undefined) {
+    const measured = recordedMaxBodyTemperature(source);
+    if (measured !== undefined && measured >= feverFloor) return true;
+  }
   const normalized = normalizeClinicalText(source);
   const equivalents = POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes(term)) || [term];
   const conceptPatterns = POSITIVE_FACT_EQUIVALENT_PATTERNS.find((item) => item.terms.includes(term))?.patterns || [];

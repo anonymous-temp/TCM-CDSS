@@ -34,6 +34,8 @@ export type RequiredPrecaution =
       urgent?: boolean;
       /** 激素、免疫抑制剂（names 里的那几个）：骤停有风险，补的那句加「不要自行停用或减量」（2026-10-19 M 集 RobustSDT-0530）。 */
       noSelfStop?: string[];
+      /** 病历写明外用的（「外用低效激素」）：按外用药写，不说「服用」。药名本身带外用剂型的另由剂型判。 */
+      topical?: string[];
     }
   /** 病历写着自行停了长期用药（留出集 S178：高血压急症、一个月前自行停降压药）：由医生评估后规律服用，不要再自行停药。 */
   | { kind: "self_discontinued_medication"; names: string[]; condition?: string; irregular?: true }

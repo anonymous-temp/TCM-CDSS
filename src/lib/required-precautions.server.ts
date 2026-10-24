@@ -207,9 +207,12 @@ export function requiredPrecautionsForCase(
   const givenNames = new Set(recorded.given.map(cleanedOf));
   const given = shown.filter((name) => timeline.get(name) !== "current" &&
     ((givenNames.has(name) && !formallyTaken.has(name)) || pastOnly.get(name) === "ever" || timeline.get(name) === "ask" || classes.includes(name)));
-  const noSelfStop = shown.filter((name) => CORTICOSTEROID_MEDICATION.test(name) || IMMUNOSUPPRESSIVE_MEDICATION.test(name));
+  // 激素、免疫抑制剂「不要自行停用」只说全身用药：外用的低效激素乳膏不在此列。
+  // 病历写着「外用 / 外涂 / 外搽 / 外敷」的药按外用写（2026-10-24 甲方 100 例 C051：「外用低效激素间断使用」被写成「正在服用的低效激素」）。
+  const topical = shown.filter((name) => new RegExp(`(?:外用|外涂|外搽|外敷|局部涂抹)[^，,。；;]{0,4}${name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}`, "u").test(grounded));
+  const noSelfStop = shown.filter((name) => (CORTICOSTEROID_MEDICATION.test(name) || IMMUNOSUPPRESSIVE_MEDICATION.test(name)) && !topical.includes(name));
   if (shown.length > 0) {
-    items.push({ kind: "current_medications", names: shown, ...(given.length > 0 ? { given } : {}), ...(redFlag ? { urgent: true } : {}), ...(noSelfStop.length > 0 ? { noSelfStop } : {}) });
+    items.push({ kind: "current_medications", names: shown, ...(given.length > 0 ? { given } : {}), ...(redFlag ? { urgent: true } : {}), ...(noSelfStop.length > 0 ? { noSelfStop } : {}), ...(topical.length > 0 ? { topical } : {}) });
   } else if ((recorded.unnamed || recorded.herbal) && !items.some((item) => item.kind === "self_medication")) {
     items.push({ kind: "unnamed_medication", ...(recorded.herbal && !recorded.unnamed ? { herbal: true } : {}) });
   }
@@ -268,7 +271,7 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "elderly_administration") return `${order}患者${Math.floor(item.ageYears)}岁：写一条与年龄相关的服药注意（如起身宜缓、防跌倒）。`;
     if (item.kind === "current_medications" && item.urgent) return `${order}病历记录患者正在使用${item.names.join("、")}，本例须先就医处置：写一条请把这些药连同药盒带去就医，告诉医生最近一次用药的时间，是否继续由医生决定；不写与中药间隔服用。`;
     if (item.kind === "self_discontinued_medication") return `${order}病历记录患者${item.irregular ? "未规律服用" : "自行停用了"}${discontinuedMedicationLabel(item)}${item.condition ? `（${item.condition}）` : ""}：写一条请${item.irregular ? "由医生评估后按医嘱规律服用" : "尽快由医生评估后调整用药并规律服用"}，不要自行停药或减量。`;
-    if (item.kind === "current_medications") return `${order}病历记录患者${item.given?.length ? "用过或正在使用" : "正在使用"}${item.names.join("、")}：写一条它与本方一起用时要注意的事（告知医生${item.given?.length ? "现在是否还在用" : ""}、是否继续由医生决定；口服药写「与中药间隔约1小时服用」；乳膏、贴剂等外用药只写「正在外用的某药请告知医生」，不写服用、不写间隔；与本方有明确相互作用的写出来${item.noSelfStop?.length ? `；${item.noSelfStop.join("、")}不要自行停用或减量` : ""}）。`;
+    if (item.kind === "current_medications") return `${order}病历记录患者${item.given?.length ? "用过或正在使用" : "正在使用"}${item.names.join("、")}：写一条它与本方一起用时要注意的事（告知医生${item.given?.length ? "现在是否还在用" : ""}、是否继续由医生决定；口服药写「与中药间隔约1小时服用」；乳膏、贴剂等外用药只写「正在外用的某药请告知医生」，不写服用、不写间隔；与本方有明确相互作用的写出来${item.topical?.length ? `；${item.topical.join("、")}病历写明是外用，按外用药写` : ""}${item.noSelfStop?.length ? `；${item.noSelfStop.join("、")}不要自行停用或减量` : ""}）。`;
     if (item.kind === "antithrombotic_bleeding") return `${order}${item.drugs.length > 0 ? `病历记录患者正在使用${item.drugs.join("、")}` : `病历记录${item.indication}，通常在服抗凝或抗血小板药`}：本方若用了活血化瘀药（如桃仁、红花、川芎、丹参、三棱、莪术），写一条与${item.drugs.length > 0 ? "这些药" : "抗凝或抗血小板药"}同用可能增加出血、服药期间留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医；本方没有这类药时不写。`;
     if (item.kind === "diabetes_glucose") return item.confirmed
       ? `${order}患者有糖尿病：写一条服药期间按医嘱继续控制血糖、定期监测血糖，少吃甜食与含糖饮料；饮食建议里不要推荐红枣、蜂蜜、冰糖等含糖多的食物。`

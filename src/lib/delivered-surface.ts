@@ -215,8 +215,9 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
     const missing = unnamedCurrentMedications(item, currentLines);
     const names = missing.length > 0 ? missing : item.names;
     const given = new Set(item.given || []);
-    const topical = names.filter((name) => TOPICAL_MEDICATION_FORM.test(name) && !given.has(name));
-    const oral = names.filter((name) => !TOPICAL_MEDICATION_FORM.test(name) && !given.has(name));
+    const isTopical = (name: string) => TOPICAL_MEDICATION_FORM.test(name) || (item.topical || []).includes(name);
+    const topical = names.filter((name) => isTopical(name) && !given.has(name));
+    const oral = names.filter((name) => !isTopical(name) && !given.has(name));
     const recorded = names.filter((name) => given.has(name));
     return [
       oral.length > 0 ? `正在服用的${oral.join("、")}请告知医生，是否继续服用由医生决定；中药与西药同服时最好间隔1小时左右` : "",
