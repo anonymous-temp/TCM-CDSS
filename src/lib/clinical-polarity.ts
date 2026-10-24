@@ -1244,6 +1244,15 @@ const DRUG_ALLERGY_FORMS = [
   new RegExp(`对?${DRUG_NAME_FORM}(?:类)?(?:药物)?过敏(?!史不详|史未知|不详|未知)`, "u"),
   new RegExp(`(?:服用|使用|口服|注射|输注|输液|(?<![食饮享])用)[^，,。；;]{1,10}(?:后|时)[^，,。；;]{0,8}?${DRUG_ALLERGY_REACTION}|药物过敏(?!史不详|史未知|不详)`, "u"),
 ];
+/**
+ * 过敏原文里的药名（「阿司匹林诱发喘息」→ 阿司匹林）：注意事项是否已写到这条过敏，看有没有点到药名，不只看「过敏」二字
+ *（2026-10-24 C070：模型写「您有阿司匹林诱发喘息史，请勿再用该药及同类药物」没有「过敏」二字，规则又补了一句同样的话）。
+ */
+export function drugNamesInAllergyPhrases(phrases: readonly string[]): string[] {
+  const form = new RegExp(DRUG_NAME_FORM, "u");
+  return Array.from(new Set(phrases.map((phrase) => phrase.match(form)?.[0] || "").filter((name) => name.length >= 2)));
+}
+
 export function recordedDrugAllergyPhrases(text: string | null | undefined): string[] {
   const phrases: string[] = [];
   for (const clause of String(text || "").normalize("NFKC").split(/[。；;\n]+/u)) {

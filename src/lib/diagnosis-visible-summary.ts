@@ -495,8 +495,10 @@ export function normalizeM03WesternDifferentials(
     const age = typeof patientAgeYears === "number" && Number.isFinite(patientAgeYears) && patientAgeYears >= 0 && patientAgeYears <= 120
       ? patientAgeYears
       : undefined;
+    // 便秘与「近期出现/加重」要写在同一句里（2026-10-24 C088：「偶有便秘及嗅觉减退」与另一栏「近期跌倒一次，未出现幻觉」被拼成
+    //「近期新发便秘」，69 岁帕金森样病例的复诊计划多了一句结直肠筛查）。
     const hasOlderNewConstipation = typeof age === "number" && age > CONSTIPATION_AGE_THRESHOLD &&
-      CURRENT_CONSTIPATION_PATTERN.test(affirmed) && RECENT_OR_PROGRESSIVE_CHANGE_PATTERN.test(affirmed);
+      affirmed.split(/[。；;\n]+/).some((sentence) => CURRENT_CONSTIPATION_PATTERN.test(sentence) && RECENT_OR_PROGRESSIVE_CHANGE_PATTERN.test(sentence));
     if (hasOlderNewConstipation) {
       const primary = recordValue(western.primary);
       if (primary) {
@@ -1879,6 +1881,11 @@ function signedNatureProfile(reasoning: Record<string, unknown>): SignedNaturePr
   const excessElement = elements.some((name) => EXCESS.test(withoutDeficiencyHeat(name)));
   // 证名看不出虚实的要素（痛痹、胸痹、头痛…）：按治法判。
   const neutralElement = elements.some((name) => !DEFICIENT.test(name) && !EXCESS.test(withoutDeficiencyHeat(name)));
+  // 只表达病位与气机失常的中性证名（「胃气不和证」「肺气失宣证」「心神不宁证」，稀疏病历按提示词规则写的）：寒热虚实本来就没判，
+  // 不再按治法用词推虚实（2026-10-24 C091「胃部不舒服2天」：辨证依据写「寒热虚实无从判定」，治法「理气和胃」被推成「实则泻之」）。
+  const functionalOnly = elements.length > 0 && elements.every((name) =>
+    !DEFICIENT.test(name) && !EXCESS.test(withoutDeficiencyHeat(name)) && /(?:气不和|失和|失宣|失降|宣降失常|不宁|气机不畅|气机不利)证?$/.test(name));
+  if (functionalOnly) return { deficient: false, excess: false, heat: false, cold: false, mixedColdHeat: false, rootTonifying: false };
   const deficient = deficientElement || (neutralElement && tonifying) || (elements.length === 0 && tonifying);
   const excess = excessElement || (neutralElement && dispelling) || (elements.length === 0 && dispelling);
   const excessText = elements.map(withoutDeficiencyHeat).join("，");
@@ -1942,7 +1949,8 @@ export function nationalTreatmentPrinciple(current: string, reasoning: Record<st
   if (derived) return [derived, ...supplementary.filter((term) => term !== derived)].slice(0, 2).join("，");
   const fitting = written.filter((term) => treatmentPrincipleFitsNature(term, nature) && !UMBRELLA_TREATMENT_PRINCIPLES.has(term));
   if (fitting.length > 0) return fitting.slice(0, 2).join("，");
-  return written.find((term) => term !== "正治法" && term !== "反治法") || "调理阴阳";
+  // 兜底也不取与证型虚实寒热相反的条目（中性证名下模型写的「实则泻之」）。
+  return written.find((term) => term !== "正治法" && term !== "反治法" && (!NATURE_BOUND.has(term) || treatmentPrincipleFitsNature(term, nature))) || "调理阴阳";
 }
 
 const SYNDROME_HEDGE_SUFFIX = /^(.+?证)\s*(?:[（(]\s*(?:倾向|可能|待排除?|待定|待查)\s*[）)]|之?(?:倾向|可能|待排除?|待定|待查)|(?:症状)?[层级]?工作判断)$/;

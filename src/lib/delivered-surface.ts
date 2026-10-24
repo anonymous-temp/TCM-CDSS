@@ -18,6 +18,7 @@
 
 import { compositionIdentityName, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
+import { drugNamesInAllergyPhrases } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
@@ -123,7 +124,10 @@ function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly str
   if (item.kind === "reproductive_status_unknown") return lines.some((line) => /孕|哺乳/u.test(line));
   if (item.kind === "toxic_self_preparation") return lines.some((line) => item.herbs.some((herb) => line.includes(herb)) && /停用|停服|停止|不要再|勿再|不可再/u.test(line));
   if (item.kind === "conception_pregnancy_check") return lines.some((line) => /验孕|妊娠试验|早孕试纸|月经(?:逾期|推迟|延后)/u.test(line));
-  if (item.kind === "drug_allergy") return lines.some((line) => /过敏/u.test(line) && /告知|告诉|勿|不要|避免|禁用/u.test(line));
+  if (item.kind === "drug_allergy") {
+    const drugs = drugNamesInAllergyPhrases(item.phrases);
+    return lines.some((line) => (/过敏/u.test(line) || drugs.some((drug) => line.includes(drug))) && /告知|告诉|勿|不要|避免|禁用/u.test(line));
+  }
   if (item.kind === "menses_overdue_pregnancy_check") return lines.some((line) => /验孕|妊娠试验|早孕试纸|HCG/iu.test(line));
   return lines.some((line) => /抗生素|抗菌|抗感染|青霉素|头孢/.test(line));
 }
@@ -732,6 +736,21 @@ function isLimitedDiagnose(reasoning: Json): boolean {
   return overview?.primarySyndromeResolution === "unresolved" && (!Array.isArray(chain) || chain.length === 0);
 }
 
+/**
+ * 病历自己记着的说法冲突：两方（家属、本人、陪同者、监护人…）对同一件事说法不同（2026-10-24 甲方 100 例 C092「家属与本人对症状持续时间
+ * 描述不同」，系统直接按「病程半年」立论，评审判为擅自取一端）。只认两方并列的写法；「患者回答前后不一致」是谵妄、认知障碍的表现，不是这一类。
+ * 返回病历原文那一小句（去掉栏目名）。
+ */
+const ACCOUNT_PARTY = "(?:家属|陪同(?:者|人员|人)?|代述者|监护人|本人|患者|病人|父母|母亲|父亲|配偶|子女)";
+const RECORDED_ACCOUNT_CONFLICT = new RegExp(`${ACCOUNT_PARTY}[^。；;\\n，,]{0,6}(?:与|和|跟|及)[^。；;\\n，,]{0,6}${ACCOUNT_PARTY}[^。；;\\n]{0,18}?(?:不同|不一致|不一|有出入|有差异|相矛盾|矛盾|相左)`, "u");
+export function recordedAccountConflict(recordText: string | undefined): string | undefined {
+  for (const sentence of String(recordText || "").normalize("NFKC").split(/[。；;\n]+/u)) {
+    const match = sentence.match(RECORDED_ACCOUNT_CONFLICT);
+    if (match) return sentence.slice(sentence.lastIndexOf("：", match.index ?? 0) + 1).replace(/^[^：:]{0,12}[：:]/u, "").trim();
+  }
+  return undefined;
+}
+
 function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): void {
   // 鉴别的「建议核实」模型写成字符串 null 的，按空值交付（2026-10-17 留出例 S132「建议核实：null」）。
   const overviewForNulls = record(reasoning.overview);
@@ -776,6 +795,26 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
   }
   // 「某某类病」是国标里的分类名，不是病名（测评截图里的「痹证类病」「虚劳类病」）。
   const overview = record(reasoning.overview);
+  // 肛肠局部病变的病名（肛裂、痔、肛痈、肛漏）要靠肛门视诊、指诊才能确定；病历写明还没做这项检查时，辨病依据说明这是据病史的初步判断
+  //（2026-10-24 甲方 100 例 C016：「暂未接受肛门检查」「未做血常规或肛肠检查」，病名直接写肛裂，评审判把推断当确定事实；西医半已改「痔出血待查」）。
+  if (overview && typeof overview.tcmDiseaseName === "string" && /^(?:肛裂|痔|内痔|外痔|混合痔|肛痈|肛漏|息肉痔)$/u.test(overview.tcmDiseaseName.trim()) &&
+    typeof overview.tcmDiseaseRationale === "string" && !/(?:视诊|指诊|肛门检查)[^。；;]{0,8}确认/u.test(overview.tcmDiseaseRationale) &&
+    /(?:未|暂未|尚未|没有|未曾)(?:接受|做|行|进行)?[^。；;\n]{0,6}(?:肛门|肛肠|直肠指|肛门指|肛门镜)[^。；;\n]{0,4}(?:检查|诊)/u.test(String(options?.recordText || "").normalize("NFKC"))) {
+    overview.tcmDiseaseRationale = `${overview.tcmDiseaseRationale.trim().replace(/[。；;，,]$/u, "")}；病历记录尚未做肛门检查，病名是据病史的初步判断，需肛门视诊（必要时指诊）确认。`;
+  }
+  // 病历记着两方说法不同时，辨病依据点明并列入待核实（recordedAccountConflict）；依据里已经说到的不重复。
+  const accountConflict = recordedAccountConflict(options?.recordText);
+  if (overview && accountConflict && !isLimitedDiagnose(reasoning) && typeof overview.tcmDiseaseRationale === "string" &&
+    !/(?:不一致|不同|有出入|有差异|矛盾|相左)/u.test(overview.tcmDiseaseRationale)) {
+    overview.tcmDiseaseRationale = `${overview.tcmDiseaseRationale.trim().replace(/[。；;，,]$/u, "")}；病历记录「${accountConflict}」，所据病程与表现待核实。`;
+    const uncertaintyHost = record(reasoning.pathogenesis);
+    if (uncertaintyHost) {
+      const present = records(uncertaintyHost.uncertainties);
+      if (!present.some((item) => String(item.reason || "").includes(accountConflict))) {
+        uncertaintyHost.uncertainties = [...present, { item: "病史说法不一致", reason: `病历记录「${accountConflict}」`, affects: "病程长短与辨病依据" }];
+      }
+    }
+  }
   if (overview && typeof overview.tcmDiseaseName === "string") overview.tcmDiseaseName = overview.tcmDiseaseName.replace(/类病$/u, "");
   // 中医鉴别诊断每例必出（甲方 10.12 测评 2.3「中医鉴别诊断未生成」），且至少两项（甲方验收「鉴别诊断覆盖率」，2026-10-19）：
   // 模型没写、写的病名被归一丢掉、或只剩一项而补写小任务也没补上时，用教材【鉴别诊断】对该病列出的病证补齐，要点是教材原文。
@@ -1950,7 +1989,10 @@ export function followupWhenDoseWithheld(text: string, reason: "red_flag" | "wit
  */
 const FINISH_MEDICINE_WITH_COUNT = /请?在?(?:服完|吃完|用完)(?:本次的?药|\d+剂药)(?:后|再)?(?:（约\d+天后）)?(?:按时)?复诊[^。；;]*[。；;]?/u;
 export function followupWhenPriorityEvaluation(text: string, focus: string): string {
-  const first = focus
+  // 乳房肿块按 NICE NG12 疑似肿瘤路径：两周内专科评估，先做乳腺超声（年龄大者加乳腺 X 线）。
+  const first = /乳腺癌/u.test(focus)
+    ? "请在2周内到乳腺专科就诊，先完成乳腺超声检查（必要时加做乳腺X线），排除乳腺癌后再按医生安排服药与复诊。"
+    : focus
     ? `请在3天内到相关专科就诊，先完成评估（需排除${focus}），再按医生安排服药与复诊。`
     : "请在3天内到医院完成评估、核实病情后，再按医生安排服药与复诊。";
   if (text.includes(first)) return text;

@@ -22,7 +22,7 @@ import {
 import { affirmedClinicalText } from "./clinical-polarity";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
-import { narrativePediatricAgeConflict, pregnancyAdviceRelevant, pregnancyScreenRequired, reproductiveAdviceRelevant } from "./diagnosis-safety";
+import { narrativePediatricAgeConflict, pregnancyAdviceRelevant, pregnancyScreenRequired, reproductiveAdviceRelevant, unevaluatedBreastMass } from "./diagnosis-safety";
 import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, caseCourse, dietAdviceAvoidsRichFood, facialSoreRecorded, dietAdviceAvoidsTea, syndromeHasHeatNature, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, syndromeLabelFitsSigned, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
 import governanceSourceRegistryJson from "../data/clinical-governance-source-registry.json" with { type: "json" };
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
@@ -1401,18 +1401,28 @@ export function compileTcmTreatmentRecommendations(
     const lesionPointAvoided = LOCAL_SITE_NOTE_PROJECTS.has(definition.code) &&
       (BROKEN_SKIN_RECORDED.test(currentFacts) || facialSore) &&
       !/围刺/.test(`${plannedTreatment.treatmentContent || ""}${plannedTreatment.techniqueBoundary || ""}`);
-    const sitesWithoutLesion = lesionPointAvoided && Array.isArray(plannedTreatment.suggestedSitesOrPoints)
-      ? plannedTreatment.suggestedSitesOrPoints.filter((site) => !LESION_POINT.test(String(site).replace(/（[^）]*）\s*$/, "").trim()))
+    // 未经影像评估的乳房肿块（unevaluatedBreastMass，与安全门的优先评估同一判据）：不在乳房局部施术——针刺卡去掉胸前乳房周围的穴，
+    // 取局部的其他外治卡整张不出（2026-10-24 C069：乳根、膻中「向肿块方向斜刺」，评审要求先完成影像排除恶性）。
+    const breastMassAvoided = Boolean(caseState?.patient) && unevaluatedBreastMass(caseState as CaseState);
+    if (breastMassAvoided && definition.code !== "acupuncture" && LOCAL_SITE_NOTE_PROJECTS.has(definition.code) && treatsLocalSite) return [];
+    const sitesWithoutLesion = Array.isArray(plannedTreatment.suggestedSitesOrPoints)
+      ? plannedTreatment.suggestedSitesOrPoints.filter((site) => {
+        const point = String(site).replace(/（[^）]*）\s*$/, "").trim();
+        return !(lesionPointAvoided && LESION_POINT.test(point)) && !(breastMassAvoided && (BREAST_REGION_POINTS.has(point) || LESION_POINT.test(point)));
+      })
       : plannedTreatment.suggestedSitesOrPoints;
-    if (lesionPointAvoided && Array.isArray(plannedTreatment.suggestedSitesOrPoints) && plannedTreatment.suggestedSitesOrPoints.length > 0 &&
+    if ((lesionPointAvoided || breastMassAvoided) && Array.isArray(plannedTreatment.suggestedSitesOrPoints) && plannedTreatment.suggestedSitesOrPoints.length > 0 &&
       (sitesWithoutLesion || []).length === 0) return [];
-    const lesionText = (value: string) => lesionPointAvoided ? withoutLesionPointMention(value) : value;
+    const lesionText = (value: string) => {
+      const withoutLesion = lesionPointAvoided ? withoutLesionPointMention(value) : value;
+      return breastMassAvoided ? withoutBreastRegionPointSentences(withoutLesion) : withoutLesion;
+    };
     const treatmentPlan = {
       ...plannedTreatment,
-      ...(lesionPointAvoided ? {
+      ...(lesionPointAvoided || breastMassAvoided ? {
         suggestedSitesOrPoints: sitesWithoutLesion,
         ...(Array.isArray(plannedTreatment.pointProvenance)
-          ? { pointProvenance: plannedTreatment.pointProvenance.filter((record) => !LESION_POINT.test(String(record.point || ""))) }
+          ? { pointProvenance: plannedTreatment.pointProvenance.filter((record) => !LESION_POINT.test(String(record.point || "")) && !(breastMassAvoided && BREAST_REGION_POINTS.has(String(record.point || "")))) }
           : {}),
       } : {}),
       ...(typeof plannedTreatment.treatmentContent === "string" ? { treatmentContent: lesionText(cardSentences(plannedTreatment.treatmentContent)) } : {}),
@@ -1443,7 +1453,7 @@ export function compileTcmTreatmentRecommendations(
       // 取穴方案出自成人教材，写法是「毫针常规刺，留针」——2026-10-13 独立评审：2 岁、7 岁、11 岁病例照搬成人写法。
       // 小儿、老年与妊娠未写明的人群提示：所有项目卡同一处（populationCardNote）。此前只有针刺卡有小儿、老年两句。
       ...(() => {
-        const note = `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) && pregnancyAdviceRelevant(caseState as CaseState) : false, treatmentPlan.suggestedSitesOrPoints, caseState?.patient ? conceptionCardCaution(caseState) : false)}${fontanelleCardNote(definition.code, patientAgeYears, currentFacts)}${localSiteCardNote(definition.code, currentFacts, [prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""], treatsLocalSite)}${moxibustionBurnCardNote(definition.code, caseFacts, `${treatmentPlan.treatmentContent || ""}${treatmentPlan.techniqueBoundary || ""}${treatmentPlan.scheduleSuggestion || ""}`)}`;
+        const note = `${populationCardNote(definition.code, patientAgeYears, caseState?.patient ? homeCarePregnancyUnresolved(caseState) && pregnancyAdviceRelevant(caseState as CaseState) : false, treatmentPlan.suggestedSitesOrPoints, caseState?.patient ? conceptionCardCaution(caseState) : false)}${fontanelleCardNote(definition.code, patientAgeYears, currentFacts)}${localSiteCardNote(definition.code, currentFacts, [prior.overview.tcmDiseaseName || "", prior.westernDiagnosis?.primary?.name || ""], treatsLocalSite)}${breastMassAvoided && LOCAL_SITE_NOTE_PROJECTS.has(definition.code) ? "乳房肿块性质未明（尚未完成影像评估）前，不在乳房及肿块局部施术。" : ""}${moxibustionBurnCardNote(definition.code, caseFacts, `${treatmentPlan.treatmentContent || ""}${treatmentPlan.techniqueBoundary || ""}${treatmentPlan.scheduleSuggestion || ""}`)}`;
         return typeof treatmentPlan.techniqueBoundary === "string" && note
           ? { techniqueBoundary: `${note}${treatmentPlan.techniqueBoundary}` }
           : {};
@@ -1588,6 +1598,14 @@ const ELDERLY_CARD_NOTE: Partial<Record<string, string>> = {
  * 依据《刺法灸法学》针刺注意事项「皮肤有感染、溃疡、瘢痕或肿瘤的部位不宜针刺」与拔罐、施灸的同类禁忌。只读本例肯定句。
  */
 const BROKEN_SKIN_RECORDED = /流脓|窦道|破溃|溃烂|擦伤|渗液|皮损破/;
+/** 胸前乳房周围的穴（足阳明、足太阴、足少阴、任脉在胸部第 2–6 肋间的穴与乳中、乳根）：乳房肿块未经评估时针刺卡不取。 */
+const BREAST_REGION_POINTS = new Set(["乳中", "乳根", "膺窗", "屋翳", "库房", "气户", "天池", "天溪", "食窦", "胸乡", "周荣", "膻中", "神封", "灵墟", "步廊", "神藏", "期门"]);
+/** 卡片文字里点到上面这些穴的句子去掉（「乳根、膻中向肿块方向斜刺」）。 */
+function withoutBreastRegionPointSentences(text: string): string {
+  const sentences = text.split(/(?<=[。；;])/u);
+  const kept = sentences.filter((sentence) => ![...BREAST_REGION_POINTS].some((point) => sentence.includes(point)) && !/肿块|结节局部|患处/u.test(sentence));
+  return kept.length > 0 ? kept.join("") : text;
+}
 /** 「阿是穴」「局部阿是穴」：取的就是病痛（皮损）所在处。 */
 const LESION_POINT = /^(?:局部)?阿是穴$/;
 /** 卡片文字里列举的「阿是穴」去掉（「取肾俞、大肠俞、阿是穴」「阿是穴、委中可用三棱针点刺出血」），不动其他穴名。 */

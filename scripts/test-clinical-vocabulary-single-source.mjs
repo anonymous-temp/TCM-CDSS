@@ -66,6 +66,7 @@ const ALLOWLIST = new Map([
   ["src/lib/tcm-formula-provenance.ts", "方剂出处解析的结构词(《》括号等)与文案。"],
   ["src/lib/tcm-treatment-projects.ts", "受控治疗项目目录标签,已是集中来源。"],
   ["src/lib/tcm-treatment-capabilities.server.ts", "治疗项目方案文案。"],
+  ["src/lib/m03-critical-syndrome.ts", "脱证证名（亡阳、亡阴、气脱、血脱…）与固脱救逆治法的有限闭集，用于把兼证栏里的脱证提为主证（急则治标）；与安全层同性质的保守下限，2026-10-24 第十七轮。"],
   ["src/lib/his-scheme.ts", "HIS 交付载荷的字段与文案。"],
   ["src/lib/prescription-output-safety.ts", "处方正文清洗的结构模式(空白模板残片),是形态判据不是临床词表。"],
   ["src/lib/clinical-warning-tier.ts", "警示分级文案。"],

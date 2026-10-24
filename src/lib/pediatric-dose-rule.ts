@@ -136,7 +136,8 @@ export function pediatricDoseRuleForStageWords(text: string): PediatricDoseRule 
  * 接地语料里的年龄标签行 → 年（可为小数）。首选服务端写的「患者年龄：N岁」（小数年，权威口径，排在语料首行），
  * 也认叙述里带标签的「年龄：8个月 / 20天」。没有标签行返回 undefined。
  */
-function labeledAgeYears(text: string): number | undefined {
+/** 接地语料里标签化的年龄（「患者年龄：39岁」「年龄：8个月」），按小数年龄返回。 */
+export function labeledAgeYears(text: string): number | undefined {
   const match = text.match(LABELED_AGE);
   if (!match) return undefined;
   const amount = Number(match[1]);

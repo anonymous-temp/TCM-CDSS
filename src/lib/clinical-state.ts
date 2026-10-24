@@ -622,6 +622,19 @@ export function isPositiveOrPossibleClinicalState(state: ClinicalStateResult): b
  * 妊娠或哺乳阳性/可疑时不属于这一档，仍按独立硬边界不给剂量；停经、月经逾期由妊娠判据判为可疑，同样不属于这一档。
  * 安全闸门、M04 合同与编译器读的都是这一个判据。
  */
+/**
+ * 病历本身说明已没有妊娠可能：绝经（含「绝经N年」「停经12个月以上」）、子宫切除（「子宫肌瘤切除/剔除」保留子宫，不算）、双侧卵巢切除；
+ * 50 岁及以上写「已停经」也算（更年轻的「已停经」可能就是妊娠）。安全闸门的孕哺筛查（pregnancyScreenRequired）与
+ * 药典孕妇禁用档（conception-herb-policy）读的是这一个判据。
+ */
+export function recordExcludesPregnancyPotential(text: string, ageYears?: number): boolean {
+  return /(绝经|停经)\s*(?:已|约)?\s*(?:1[2-9]|[2-9]\d)\s*(?:个月|月)|绝经\s*(?:已|约)?\s*[1-9]\d*\s*年|绝经后|双侧卵巢切除|子宫全切(?:除)?|无子宫/.test(text) ||
+    // 子宫已切除（含次全切、广泛子宫加双附件切除），或病历直接写「已绝经/月经已绝」（2026-10-19 Claude 评审 M 集）。
+    /(?:全|广泛|次全)?子宫(?:加|及|和|\+|＋)?(?:双(?:侧)?附件)?(?:次全)?切除(?!前)/.test(text) ||
+    /(?<![未围])(?:已|现已|业已|因)绝经|月经已绝|经水已绝|天癸已绝/.test(text) ||
+    (ageYears != null && ageYears >= 50 && /(?:已|现已)停经/.test(text));
+}
+
 export function conceptionWithoutPregnancyOrLactation(text: string): boolean {
   return isPositiveOrPossibleClinicalState(assessConceptionState(text)) &&
     !isPositiveOrPossibleClinicalState(assessPregnancyState(text)) &&

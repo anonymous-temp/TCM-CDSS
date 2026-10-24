@@ -724,6 +724,7 @@ export async function alignWesternNameWithRecord(
   westernContent: string,
   context: { recordText: string; patient?: { sex?: unknown; age?: unknown }; redFlag?: boolean },
   signal?: AbortSignal,
+  afterDeterministic = false,
 ): Promise<string> {
   if (!enabled()) return westernContent;
   let name = "";
@@ -736,10 +737,13 @@ export async function alignWesternNameWithRecord(
     return westernContent;
   }
   if (!name) return westernContent;
-  const ruled = deterministicWesternNameCorrection(name, context.recordText, patientAgeYears(context.patient?.age));
+  const ruled = afterDeterministic ? undefined : deterministicWesternNameCorrection(name, context.recordText, patientAgeYears(context.patient?.age));
   if (ruled) {
     console.info("[tcm-cdss:telemetry] western_name_evidence_check", { applied: true, type: ruled.type, deterministic: true, currentName: name.slice(0, 30), supportedName: ruled.supportedName.slice(0, 30) });
-    return applyWesternNameCorrection(westernContent, ruled);
+    const corrected = applyWesternNameCorrection(westernContent, ruled);
+    // 确定性改写只改了病程或年龄限定（慢性→急性、新生儿→婴儿）时，改后的病名是否有确诊所需的检查照常再核一次
+    //（2026-10-24 C071：新生儿败血症改成婴儿败血症后就返回了，未做任何血检仍写确诊名）。已是「待查」的不再核。
+    return /待查$/u.test(ruled.supportedName) ? corrected : alignWesternNameWithRecord(corrected, context, signal, true);
   }
   // 「反应性关节炎待查」「紧张型头痛待查」：待查的是一个靠特征计数或前驱病史成立的病（要点表有 featureRule / requiredHistory），
   // 病历连这些都没有时「原病名待查」本身就说过头了（2026-10-19 留出例 S079，复核：病历无前驱泌尿生殖道或肠道感染史）。这类按去掉「待查」
@@ -794,9 +798,11 @@ function withPrimaryName(westernContent: string, primaryName: string): string {
  *（「神经源性休克」→「休克待查」）——不把急危重病名换成症状（2026-10-19，验收集 X-D-0529 急性胰腺炎凭「血淀粉酶<500」被改成「腹痛」，
  * 淀粉酶不高本来就排除不了胰腺炎）。
  */
-function heldOnRedFlag(found: WesternNameCorrection, currentName: string): boolean {
+export function heldOnRedFlag(found: WesternNameCorrection, currentName: string): boolean {
   // 「原病名待查」只是标明未确诊、首要考虑不变（食管癌→食管癌待查），不会把注意力移开；原名不是急危重症时照常采信
   //（2026-10-24 甲方 100 例 C019：进行性吞咽困难红旗例，未做胃镜即交付「食管癌」）。
-  if (found.type === "D") return Boolean(found.currentIsEmergency) || compact(found.supportedName) !== compact(`${currentName}待查`);
+  // 急危重病名也一样（2026-10-24 C071：2 月龄发热、未做任何血检，交付「婴儿败血症」）：「婴儿败血症待查」留着病名，红旗与处置不变，
+  // 只是不把没有检查依据的诊断写成已确诊。换成别的病名或症状的仍不采信。
+  if (found.type === "D") return compact(found.supportedName) !== compact(`${currentName}待查`);
   return Boolean(found.currentIsEmergency) && !found.adoptedFromList && !namesSameDiseaseFamily(found.supportedName, currentName);
 }

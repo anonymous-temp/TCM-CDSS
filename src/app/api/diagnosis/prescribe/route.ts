@@ -12,8 +12,7 @@ import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
 import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-parse";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { pediatricDoseRuleGuidance, pediatricDoseRuleSummary, pediatricRestrictedHerbNames } from "@/lib/pediatric-dose-rule";
-import { conceptionWithoutPregnancyOrLactation } from "@/lib/clinical-state";
-import { chpPregnancyProhibitedHerbNames } from "@/lib/conception-herb-policy";
+import { chpPregnancyHerbTier, chpPregnancyProhibitedHerbNames, formulaBaseHerbsBarredInPregnancy } from "@/lib/conception-herb-policy.server";
 import { herbRecordCautionPromptSection, textbookBaseIngredients } from "@/lib/herb-record-caution";
 import { textbookRowForSyndrome } from "@/lib/tcm-textbook-syndromes";
 import { authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupFocus, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
@@ -311,9 +310,22 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     promptSuffixes.push(`【儿童剂量】${pediatricDoseRuleSummary(pediatricDose)}。前文各药的 [min-max g] 与「服务端方剂目录编译基准」里的克数都是**成人**用量：请把每味药折算为成人一般用量×${pediatricDose.fractionText}（可低于成人下限；绝不得超过该药成人上限×${pediatricDose.fractionText}），药味多的处方保持主药用量、精简或减少辅助药；麻黄、附子、细辛、乌头、大黄、巴豆、芒硝等辛热苦寒峻烈药无论年龄档一律不超过成人上限的 2/3 并尽量从低；每味药仍必须写出可解析的克数，并在适用边界中写明本例按年龄分数法折算。本例禁用药味（不得入方）：${restricted.prohibited.join("、")}；慎用药味（非必需不用，用则从低并写明理由）：${restricted.caution.join("、")}。`);
   }
   // 备孕/未避孕（owner 2026-10-14）：照常给剂量；药典孕妇禁用的饮片不得入方（合同按特殊人群驱动修复），慎用的用则写明。
-  // 合同与编译器读同一个判据（conceptionWithoutPregnancyOrLactation）与同一份接地文本。
-  if (conceptionWithoutPregnancyOrLactation(groundingText)) {
-    promptSuffixes.push(`【备孕/未避孕】本例记录了备孕或未避孕，未见妊娠、哺乳记录：照常给出剂量。不得使用《中国药典》2020年版孕妇禁用/忌用的饮片（${chpPregnancyProhibitedHerbNames().join("、")}）；孕妇慎用的饮片（如桃仁、红花、牛膝、附子、肉桂、大黄、枳实）非必需不用，用则在注意事项写明使用前确认未妊娠、月经逾期者先验孕。`);
+  // 合同与编译器读同一个判据（chpPregnancyHerbTier）与同一份接地文本。
+  const pregnancyHerbTier = chpPregnancyHerbTier(groundingText);
+  // 锁定方或教材代表方的组成里就有药典孕妇禁用的药（癥瘕·气滞血瘀的香棱丸，君药三棱、莪术）：先告诉模型去掉它们、改按辨证组方命名，
+  // 合同同样受理这种降级（formulaCompilationContractIssue）。2026-10-24 探针：不告诉时模型三轮都照原方写三棱，整页退成非剂量。
+  const tierBarredBaseHerbs = pregnancyHerbTier && signedPriorReasoning?.stage === "diagnose"
+    ? formulaBaseHerbsBarredInPregnancy(signedPriorReasoning)
+    : [];
+  const tierBarredLine = tierBarredBaseHerbs.length > 0
+    ? `锁定方或教材代表方的组成里有药典孕妇禁用的${tierBarredBaseHerbs.map((item) => `${item.herb}（${item.formula}）`).join("、")}：本次去掉，不再沿用原方名，candidate.name 写「本例辨证组方」，可按已定治法加非禁用的同功效药；formulaAnalysis 第一句写明参照哪首方、去了哪几味（药典孕妇禁用）。`
+    : "";
+  if (pregnancyHerbTier === "pregnancy_unknown") {
+    // 育龄女性、病历没有记录妊娠状态（2026-10-24）：照常给剂量，只避开药典孕妇禁用的；合同与编译器读同一个判据。
+    promptSuffixes.push(`【妊娠状态未记录】本例为育龄女性，病历没有记录妊娠状态：照常给出剂量。不得使用《中国药典》2020年版孕妇禁用/忌用的饮片（${chpPregnancyProhibitedHerbNames().join("、")}）；孕妇慎用的饮片按辨证需要照用。${tierBarredLine}`);
+  }
+  if (pregnancyHerbTier === "conception") {
+    promptSuffixes.push(`【备孕/未避孕】本例记录了备孕或未避孕，未见妊娠、哺乳记录：照常给出剂量。不得使用《中国药典》2020年版孕妇禁用/忌用的饮片（${chpPregnancyProhibitedHerbNames().join("、")}）；孕妇慎用的饮片（如桃仁、红花、牛膝、附子、肉桂、大黄、枳实）非必需不用，用则在注意事项写明使用前确认未妊娠、月经逾期者先验孕。${tierBarredLine}`);
   }
   // 饮片使用注意与本例（2026-10-19 甲方标准病历 3：熟地黄为君，病历食欲下降、大便稀溏；《中药学》熟地黄「食少便溏者忌服」）：
   // 事先列给模型，不靠修复轮。编译器对仍写进处方的那一味逐味写明（herb-record-caution）。没有冲突时提示词不变。

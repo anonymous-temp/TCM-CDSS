@@ -1,8 +1,8 @@
 import { conditionalModificationWithoutTextbook, textbookModificationMatch, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
-import { chpPregnancyLabel } from "./conception-herb-policy";
-import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, isPositiveOrPossibleClinicalState, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
+import { chpPregnancyLabel, chpPregnancyHerbTier } from "./conception-herb-policy";
+import { assessLactationState, assessPregnancyState, isPositiveOrPossibleClinicalState, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
 import tcmKnowledgeIdentitySource from "../data/tcm-knowledge.json";
 import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { formulaStructureTarget } from "./herb-target-contract";
@@ -3846,7 +3846,8 @@ export function m04GenerationSpecialPopulationIssue(
   }
   // 备孕/未避孕（owner 2026-10-14）：照常给剂量，药典 2020 孕妇禁用/忌用的饮片不进方——与知识库按人群登记的 HIGH 规则同一出口，
   // 修复轮删掉该味。码沿用 pregnancy：修复提示与人群口径相同。
-  if (conceptionWithoutPregnancyOrLactation(clinicalContext)) {
+  // 2026-10-24 起再加一档：15–49 岁女性、病历没有记录妊娠状态（chpPregnancyHerbTier 的 pregnancy_unknown），同样只拦药典孕妇禁用的。
+  if (chpPregnancyHerbTier(clinicalContext)) {
     for (const [herbIndex, herb] of herbs.entries()) {
       if (chpPregnancyLabel(herb.name)?.level === "prohibited") return `herb_${herbIndex}_special_population_high_risk_pregnancy`;
     }

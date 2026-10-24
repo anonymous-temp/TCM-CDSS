@@ -1,4 +1,5 @@
 import { textbookFormulaNames, textbookNearestRow, textbookRowForSyndrome, therapyWithoutUnsupportedSymptomItems } from "./tcm-textbook-syndromes";
+import { chpPregnancyLabel } from "./conception-herb-policy";
 import { jingfangPatternForSignedSyndrome } from "./jingfang-patterns";
 import { textbookSectionDeliveryName } from "./clinical-terminology";
 import { herbBoundaryTail, stripHerbBoundaryTail } from "./candidate-boundary-text";
@@ -1197,6 +1198,9 @@ export function formulaCompilationContractIssue(
     // 锁定方原组成里就有十八反（洗心汤、附子粳米汤的附子与半夏；目录 2,529 首可编译方里 29 首，24 首两味都是锚点药）：
     // 照原方开必含相反药，去掉一味又够不上组成身份下限。提示词让模型去一味、改按辨证组方命名，这里直接受理（2026-10-24 甲方 100 例 C057）。
     if (references.some((reference) => findTcmHerbPairIncompatibilities(reference.ingredients).length > 0)) return undefined;
+    // 锁定方原组成里有药典孕妇禁用的药（香棱丸的三棱、莪术）：备孕、妊娠状态未记录的育龄女性按提示词去掉这几味、改按辨证组方命名，同样受理
+    //（2026-10-24 第十七轮；没有这一档的病例模型不会去掉它们，这里只放行「已透明降级」这一种写法）。
+    if (references.some((reference) => reference.ingredients.some((herb) => chpPregnancyLabel(herb)?.level === "prohibited"))) return undefined;
     // Provider generation gets a chance to honour an M03-governed classic baseline. Transparent
     // declassification remains a valid final safety fallback, but accepting it during provider
     // validation would suppress the targeted composition repair entirely.

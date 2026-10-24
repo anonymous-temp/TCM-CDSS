@@ -15,6 +15,8 @@ import {
   PULSE_FORCE_PATTERN_SOURCE,
   PULSE_QUALITY_PATTERN_SOURCE,
   PULSE_VESSEL_NOUN_LOOKBEHIND_SOURCE,
+  recentChildbirthMentioned,
+  recordExcludesPregnancyPotential,
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
 import { generalizeOccupation, shouldRedactNarrativeNameCandidate, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
@@ -417,7 +419,10 @@ export function clinicalGroundingText(state: CaseState): string {
   const ageLine = authoritativeAge != null && !/年龄\s*[:：]/.test(authoritative)
     ? `患者年龄：${Number(authoritativeAge.toFixed(4))}岁`
     : "";
-  const groundingBase = [ageLine, authoritative].filter(Boolean).join("\n");
+  // 性别同样补一行标签化事实（2026-10-24）：药典孕妇禁用档要在接地语料里认出「育龄女性」，而页面与 HIS 的性别常只在结构化字段里。
+  const sex = patientSexText(state);
+  const sexLine = (sex === "女" || sex === "男") && !/性别\s*[:：]?\s*[男女]/.test(authoritative) ? `患者性别：${sex}` : "";
+  const groundingBase = [ageLine, sexLine, authoritative].filter(Boolean).join("\n");
   const symptomEntries = flattenClinicalInput(state.symptoms)
     .filter((entry) => typeof entry === "string" && entry.trim())
     .filter((entry) => !authoritative.includes(entry.trim()))
@@ -2983,6 +2988,29 @@ function hasPatternWithoutNegation(text: string, pattern: RegExp): boolean {
 }
 
 /**
+ * 未经影像或病理评估的乳房肿块（2026-10-24 甲方 100 例 C069：38 岁、母亲乳腺癌、左乳无痛结节 1 个月、尚未做乳腺超声，
+ * 红旗与优先关注都是空的，照常疏肝方，针刺卡还取乳根、膻中）。NICE NG12：30 岁及以上不明原因的乳房肿块（不论有无疼痛）
+ * 按疑似肿瘤路径两周内转诊；男性 50 岁及以上乳晕下不明肿块同样。这里是给剂量的优先评估项（不是红旗）：复诊节点改为
+ * 「3天内到相关专科完成评估（需排除乳腺癌）」，治疗卡不在乳房局部施术（tcm-treatment-capabilities 读同一个判据）。
+ * 写法是有限闭集的构词式守卫：部位（乳房/乳腺/左右双乳/乳晕/腋下）+ 肿块类名词，否定与既往按 hasPatternWithoutNegation；
+ * 病历里已有乳腺影像、穿刺或病理的结果，或写明已确诊、已切除的，不算未评估。
+ */
+const BREAST_MASS_PATTERN = /(?:乳房|乳腺|[左右双]侧?乳|乳晕|腋下|腋窝)[^。；;\n，,]{0,6}(?:肿块|结节|包块|硬结|肿物)|(?:触及|扪及|摸到|摸及)[^。；;\n，,]{0,8}(?:乳房|乳腺|乳)[^。；;\n，,]{0,6}(?:肿块|结节|包块|硬结|肿物)/u;
+const BREAST_EVALUATION_RECORDED = /(?:超声|B超|彩超|钼靶|X线|MRI|磁共振|穿刺|病理|活检)[^。；;\n]{0,16}(?:示|提示|显示|所见|报告|结果|BI-?RADS|诊断为)|BI-?RADS|已确诊|确诊为|切除术后|已切除|乳[^。；;\n，,]{0,6}术后|(?:确诊|诊断为?)[^。；;\n]{0,6}乳(?:腺)?癌|(?<!母亲|母|姐姐|妹妹|家族|家人|外婆|奶奶|姨)乳(?:腺)?癌[^。；;\n]{0,8}(?:确诊|术后|复发|转移|化疗|放疗|肿物)/iu;
+// 乳痈、乳腺炎（红肿热痛、成脓）与哺乳期的乳房结块按感染处置，不是「不明原因的肿块」。
+const BREAST_INFLAMMATORY = /乳痈|乳腺炎|化脓|流脓|脓肿|成脓|哺乳期/u;
+export function unevaluatedBreastMass(state: CaseState): boolean {
+  return unevaluatedBreastMassText(trustedInputText(state), authoritativePatientAgeYears(state), patientSexText(withPatientObject(state)));
+}
+export function unevaluatedBreastMassText(text: string, ageYears: number | undefined, sex: string): boolean {
+  const normalized = normalizeClinicalText(text);
+  if (!hasPatternWithoutNegation(normalized, BREAST_MASS_PATTERN)) return false;
+  if (BREAST_EVALUATION_RECORDED.test(normalized) || BREAST_INFLAMMATORY.test(normalized)) return false;
+  if (ageYears == null) return /女/.test(sex);
+  return /男/.test(sex) ? ageYears >= 50 : ageYears >= 30;
+}
+
+/**
  * 「患者本人的既往事实」判据：只排除**否定**与**非本人主语**，不排除历史性。
  *
  * hasPatternWithoutNegation 会把 isHistoricalOrResolvedAt 判为历史的命中一并丢掉——
@@ -5266,13 +5294,7 @@ export function pregnancyScreenRequired(state: CaseState): boolean {
   const text = normalizeClinicalText(trustedInputText(state));
   const age = authoritativePatientAgeYears(state);
   const physiologicallyNotAtRisk =
-    /(绝经|停经)\s*(?:已|约)?\s*(?:1[2-9]|[2-9]\d)\s*(?:个月|月)|绝经\s*(?:已|约)?\s*[1-9]\d*\s*年|绝经后|双侧卵巢切除|子宫全切(?:除)?|无子宫/.test(text) ||
-    // 子宫已切除（含次全切、广泛子宫加双附件切除；「子宫肌瘤切除/剔除」保留子宫，不算），或病历直接写「已绝经/月经已绝」
-    //（2026-10-19 Claude 评审 M 集：「22年前行子宫切除术」「广泛子宫加双附件切除」「现已绝经」「月经已绝」的病人仍收到
-    //「如已怀孕、可能怀孕或正在哺乳」，6 例判注意事项不合格）。「已停经」本身也可能是妊娠，只在 50 岁及以上算绝经。
-    /(?:全|广泛|次全)?子宫(?:加|及|和|\+|＋)?(?:双(?:侧)?附件)?(?:次全)?切除(?!前)/.test(text) ||
-    /(?<![未围])(?:已|现已|业已|因)绝经|月经已绝|经水已绝|天癸已绝/.test(text) ||
-    (age != null && age >= 50 && /(?:已|现已)停经/.test(text)) ||
+    recordExcludesPregnancyPotential(text, age ?? undefined) ||
     // 年龄仅关闭“未知状态必须追问”，绝不覆盖下游已记录的阳性妊娠/哺乳/备孕硬边界。
     // 60 岁以下继续 fail-closed；60 岁及以上不再生成无临床价值的常规生殖状态追问。
     // 下限同理（2026-09-26 实测：3 岁女童病例被要求填写妊娠/哺乳/备孕状态）。取 10 岁而不是
@@ -5428,6 +5450,13 @@ function medicationStatusIsActionable(text: string): boolean {
     /(目前|当前)?[^。；\n]{0,8}(未|无|没有)[^。；\n]{0,16}(使用|服用)[^。；\n]{0,18}(中药|中成药|西药|保健品|药物)/.test(text) ||
     /(?:已|现已)?停用[^。；\n]{0,12}(?:全部|所有)?(?:药物|中药|中成药|西药|保健品)/.test(text)
   ) return true;
+  // 写到的药都已停用、没有正在用的（2026-10-24 C088「普萘洛尔曾短期服用，目前停用」被当成「已提及当前用药但缺少药名/剂量/频次」）：
+  // 当前用药状态是明确的「无」。同一份记录里还有现服、正在用、长期用的药时不算。
+  const medicationClauses = text.split(/[。；;\n]+/).map((clause) => clause.trim()).filter(Boolean);
+  // 只认写明「现在已停」的说法（目前停用、现已停药、已停服、停用至今）；「停药复发」「停药后失眠依旧」说的是过去停过，不算。
+  if (medicationClauses.length > 0 &&
+    medicationClauses.every((clause) => /(?:目前|现在|现已|现|已经|均已|已)(?:已)?(?:停用|停服|停药)|(?:停用|停服|停药)(?:至今|中)|未再(?:服用|使用)|不再(?:服用|使用)/.test(clause)) &&
+    !/(?:现服|正在|仍在|仍服|一直|长期|间断|常(?:服|口服|用)|偶服|每日|每天|在用|目前(?:仍)?(?:服用|使用|口服))/.test(text)) return true;
   const namedDose = /(?:服用|口服|使用|应用|在用|现服|偶服|吃)[^。；\n]{0,10}([\u4e00-\u9fa5A-Za-z]{2,20})\s*\d+(?:\.\d+)?\s*(?:mg|g|ml|毫克|克|片|粒|袋|丸)/i.exec(text) ||
     /(?:^|[，,；;。\n])\s*((?:阿司匹林|华法林|二甲双胍|胰岛素|硝苯地平|缬沙坦|氯吡格雷|褪黑素)|[\u4e00-\u9fa5A-Za-z]{2,20}(?:片|胶囊|颗粒|丸|散|口服液|注射液))\s*\d+(?:\.\d+)?\s*(?:mg|g|ml|毫克|克|片|粒|袋|丸)/i.exec(text);
   if (!namedDose || /^(?:药物|中药|西药|成药|安眠药|降压药|降糖药|抗凝药|止痛药|止咳药)$/.test(namedDose[1])) return false;
@@ -5990,6 +6019,10 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   if (hasAbdominalPrioritySignal(semanticSourceText) && !hasAcuteAbdominalSignal(semanticSourceText)) {
     priorityEvaluationItems.push("突发、持续或进展性腹痛/胃痛需优先完成腹部查体与严重度评估");
   }
+  if (unevaluatedBreastMassText(semanticSourceText, authoritativePatientAgeYears(state), patientSexText(state)) &&
+    !priorityEvaluationItems.some((item) => /乳腺癌/.test(item))) {
+    priorityEvaluationItems.push("乳房肿块尚未完成影像评估，宜先由乳腺专科尽快评估（需排除：乳腺癌）；处方前需完成评估");
+  }
   if (
     hasGiBleedPrioritySignal(semanticSourceText) &&
     !(state.clinicalFacts?.semanticStatus === "checked" &&
@@ -6071,9 +6104,16 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   }
   if (reproductiveScreenRequired) {
     const reproductiveLabel = clinicalRequiredFieldLabel("reproductive_status", "妊娠/哺乳/备孕状态");
-    if (!hasExplicitPregnancyStatus(text)) addMissing("pregnancy_unknown", `${reproductiveLabel}（妊娠）`);
-    if (!hasExplicitLactationStatus(text)) addMissing("lactation_unknown", `${reproductiveLabel}（哺乳）`);
-    if (!hasExplicitConceptionStatus(text)) addMissing("conception_unknown", `${reproductiveLabel}（备孕）`);
+    // 妊娠一项已经明确（阳性、可疑或否认）时，哺乳、备孕两项不再逐项追问（2026-10-24 甲方 100 例 C018「明确否认妊娠，近两周月经正常」
+    // 仍列「哺乳」「备孕」、C062 尿妊娠试验阳性的异位妊娠仍列「备孕」，评审判为过度追问）：妊娠阳性或可疑本身已是不给剂量的边界，
+    // 备孕无从谈起；否认妊娠时备孕只影响药典孕妇慎用药的逐味标注，哺乳只在病历提到近一年内分娩时才需要问。
+    const pregnancyKnown = hasExplicitPregnancyStatus(maternalStateText(state, text));
+    const pregnancyNegative = pregnancyKnown && !isPositiveOrPossibleClinicalState(assessPregnancyState(maternalStateText(state, text)));
+    if (!pregnancyKnown) addMissing("pregnancy_unknown", `${reproductiveLabel}（妊娠）`);
+    if (!hasExplicitLactationStatus(text) && (!pregnancyKnown || (pregnancyNegative && recentChildbirthMentioned(text)))) {
+      addMissing("lactation_unknown", `${reproductiveLabel}（哺乳）`);
+    }
+    if (!hasExplicitConceptionStatus(text) && !pregnancyKnown) addMissing("conception_unknown", `${reproductiveLabel}（备孕）`);
   }
   if (mentalHealthSafetyScreenRequired(trustedText) &&
       !hasExplicitMentalHealthSafetyScreen(trustedText) &&

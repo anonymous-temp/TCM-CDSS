@@ -12,6 +12,7 @@ import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { alignWesternPrimaryAndName } from "@/lib/western-primary-reselect.server";
 import { reconcileSecondarySyndromes } from "@/lib/m03-secondary-syndrome-consistency.server";
 import { applyElementSupportDecision, decideElementSupport } from "@/lib/m03-element-support.server";
+import { promoteCriticalSecondarySyndrome } from "@/lib/m03-critical-syndrome";
 import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals, patientClaimRecordText } from "@/lib/m03-patient-claim-check.server";
 import { completeTcmDiseaseDifferentials, prefetchTcmDifferentialTopUp } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
@@ -273,7 +274,8 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
               decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),
               decideElementSupport(completed, { recordText: trustedInputText(safeState) }, transformSignal),
             ]);
-            return applyPatientClaimRemovalsToContent(applyElementSupportDecision(reconciled, elementDecision), "tcm", claimRemovals);
+            // 脱证落在兼证栏时提为主证（m03-critical-syndrome，急则治标），在其余核对之后、教材锚定之前。
+            return promoteCriticalSecondarySyndrome(applyPatientClaimRemovalsToContent(applyElementSupportDecision(reconciled, elementDecision), "tcm", claimRemovals));
           },
           // 西医半一返回就核对病名与病历已记录内容是否矛盾或说得过细（约 0.8 秒，与中医半并行）；采信则只改病名这一项。红旗病例不用「过细」一类。
           // 同时在西医半自己列出的候选与鉴别里重选主诊断（2026-10-19，western-primary-reselect）：两者并行；换名时对新名称再核对一次。

@@ -53,13 +53,43 @@ NAME_SUFFIX_VARIANTS = ["不足证", "亏虚证", "亏损证"]
 CO_OCCUR = re.compile(r"(?:，|、)?(?:常)?与([^，。、]{1,10}?)(?:症状|证的症状|证症状)?共见")
 
 
+# 只写部位、与后一项共用谓语的并列写法（「面、睑、唇、舌色淡白」「口、鼻、唇、舌、皮肤干燥」「眼睑、口唇、爪甲色淡」）：
+# 把末项的谓语分给前面每个部位（2026-10-24：此前单字部位被丢，血虚证的辨证要点只剩「舌色淡白、脉细」两项）。
+SITE_WORDS = ["皮肤", "毛发", "爪甲", "眼睑", "口唇", "口腔", "鼻腔", "咽喉", "四肢", "肢体", "手足", "面色", "面", "睑", "唇", "舌", "甲", "口", "鼻", "咽", "喉", "目", "眼", "耳", "头", "身"]
+# 单字的症状项（「咳、喘、痰稀与气虚症状共见」）照收，不按两字下限丢掉。
+SINGLE_CHAR_SYMPTOMS = {"咳", "喘", "呕", "吐", "泻", "悸", "眩", "晕", "渴", "肿", "痒"}
+
+
+def distribute_shared_predicate(parts: list[str]) -> list[str]:
+    out: list[str] = []
+    run: list[str] = []
+    for part in parts:
+        if part in SITE_WORDS:
+            run.append(part)
+            continue
+        if run:
+            site = next((word for word in sorted(SITE_WORDS, key=len, reverse=True) if part.startswith(word) and len(part) > len(word)), None)
+            if site:
+                predicate = part[len(site):]
+                out.extend(f"{word}{predicate}" for word in run)
+            else:
+                out.extend(run)
+            run = []
+        out.append(part)
+    out.extend(run)
+    return out
+
+
 def split_items(text: str) -> list[str]:
-    parts = re.split(r"[，、；。,;]|或者|或|及|和", text)
+    raw = re.split(r"[，；。,;]|或者|或|及|和", text)
+    parts = []
+    for chunk in raw:
+        parts.extend(distribute_shared_predicate([piece.strip() for piece in chunk.split("、")]))
     items = []
     for part in parts:
         item = re.sub(r"^(?:以|伴有?|兼见|并见|可见|见|甚则|甚至|常|多|有|等)", "", part.strip())
         item = re.sub(r"(?:等(?:为主要表现|为证候特点|表现)?|为主要表现|为证候特点|为主|表现共见|共见)$", "", item).strip()
-        if 2 <= len(item) <= 14 and re.search(r"[一-鿿]", item):
+        if (2 <= len(item) <= 14 or item in SINGLE_CHAR_SYMPTOMS) and re.search(r"[一-鿿]", item):
             items.append(item)
     return list(dict.fromkeys(items))
 

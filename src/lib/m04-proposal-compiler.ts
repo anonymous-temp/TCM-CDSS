@@ -37,10 +37,10 @@ import { formulaAnalysisHerbMentions, formulaAnalysisRoleAssignments, withoutFal
 import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
 import { patentMedicineDuplication, patentMedicineOpposesSignedDirection, selfTakenMedicationCompositions, signedDirectionOf, withoutRepeatedMedicineNames, withoutSameClassAnalgesics, withoutSameClassMedicines } from "./patent-medicine-duplication.server";
 import { herbRecordCautionConflict, herbRecordCautionConflicts, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
-import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
+import { assessPregnancyState } from "./clinical-state";
 import { specialDecoctionPhrase, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
 import { withheldBaseIngredientNote } from "./formula-withheld-ingredient-note";
-import { chpPregnancyLabel, conceptionHerbNote } from "./conception-herb-policy";
+import { chpPregnancyHerbTier, chpPregnancyLabel, conceptionHerbNote } from "./conception-herb-policy";
 
 /** 「睡眠差随主病而来」判据已移到 incidental-sleep-modification.ts（教材加减检索共用），这里原名再导出。 */
 export { incidentalSleepSedativeModification, incidentalSleepTriggerModification };
@@ -888,7 +888,7 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   action_conflicts_with_candidate: "增减动作与当前处方药味状态冲突",
   bounded_limit: "超过单次最多展示 4 条随症加减的安全边界",
   direction_conflict: "拟加药味与已锁定病机或治法方向冲突",
-  special_population_conflict: "拟加药味为药典孕妇禁用，本例备孕/未避孕不宜加入",
+  special_population_conflict: "拟加药味为药典孕妇禁用，本例备孕/未避孕或妊娠状态未记录，不宜加入",
   incidental_sedative: "睡眠差随主病而来，治主病即可，不另加安神药",
   trigger_contradicts_record: "触发条件里的症状病历已明确否认",
   trigger_outside_population: "触发条件是本例患者的性别或生育期不会出现的症状",
@@ -1079,6 +1079,12 @@ function increasedDoseReason(herbName: string, reason: string): string {
   return /加重|加大|增加|重用|增量|加量/u.test(reason) ? reason : `加重${herbName}用量，${reason}`;
 }
 
+/** 「加」这一行的理由说的是把这味药去掉（暂去、去之、删去、去+药名）：动作与理由相反。 */
+export function addModificationReasonSaysRemove(herbName: string, reason: string): boolean {
+  const escaped = herbName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`暂去|去之|删去|去掉(?:此|本|该)药|(?:此|本|该)药(?:暂)?去|去${escaped}`, "u").test(reason);
+}
+
 function normalizeModifications(
   value: unknown,
   prior?: ClinicalReasoningResultV2 | null,
@@ -1126,6 +1132,9 @@ function normalizeModifications(
     if (governedNodeIds.size > 0 && !governedNodeIds.has(targetRef)) return drop("invalid_target");
     const herbIdentity = modificationHerbIdentity(normalizedHerbName);
     if (["remove", "adjust"].includes(actionType) && !prescribedHerbNames.has(herbIdentity)) return drop("action_conflicts_with_candidate");
+    // 动作写「加」、理由却在说把这味去掉（2026-10-24 甲方 100 例 C098：「若咯血量增多：加川芎（活血力强，出血增多时暂去以防动血）」）：
+    // 自相矛盾的一行不交付。
+    if (actionType === "add" && addModificationReasonSaysRemove(herbName, reason)) return drop("action_conflicts_with_candidate");
     if (actionType === "add" && prescribedHerbNames.has(herbIdentity)) {
       const prescribedName = prescribedNameByIdentity.get(herbIdentity);
       if (!prescribedName) return drop("action_conflicts_with_candidate");
@@ -2065,7 +2074,8 @@ export function compileM04Proposal(
   // 儿童折算档位：与 M04 合同同源（同一份接地语料里的「患者年龄」），成人病例为 undefined、行为不变。
   const pediatric = caseState ? pediatricDoseRuleFromGroundingText(clinicalGroundingText(caseState)) : undefined;
   // 与合同（m04GenerationSpecialPopulationIssue）读同一个判据、同一份接地文本。
-  const conceptionTier = caseState ? conceptionWithoutPregnancyOrLactation(clinicalGroundingText(caseState)) : false;
+  // 两档：备孕/未避孕，或育龄女性妊娠状态未记录（chpPregnancyHerbTier）。
+  const conceptionTier = caseState ? chpPregnancyHerbTier(clinicalGroundingText(caseState)) : undefined;
   // 注意事项里「方中有某药」只能说本方与随证加减里确有的药（见 precautionNamesHerbOutsideFormula）。
   const prescribedPrecautionIdentities = new Set([
     ...proposal.candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name)),
@@ -2121,7 +2131,7 @@ export function compileM04Proposal(
       if (notes.length > 0) verification.verificationReasons = [...notes, ...verification.verificationReasons].slice(0, 8);
     }
     // 备孕/未避孕（owner 2026-10-14）：照常给剂量；药典孕妇慎用的饮片在这一味写明（禁用的由合同修复轮拦下，修复用尽仍留着时同样写明）。
-    const conceptionNote = conceptionTier ? conceptionHerbNote(herb.name) : undefined;
+    const conceptionNote = conceptionTier ? conceptionHerbNote(herb.name, conceptionTier) : undefined;
     if (conceptionNote) verification.verificationReasons = [conceptionNote, ...verification.verificationReasons].slice(0, 8);
     const recordCaution = recordCautions.get(herbIndex);
     if (recordCaution) {
@@ -2229,7 +2239,7 @@ export function compileM04Proposal(
       // 加入的药有特殊煎法时写在这一条里（附子「先煎45–60分钟，至口尝无麻辣感」）：用量栏只收「数字g」，
       // 煎服行只列方中原有的药——此前 11 岁患儿「寒痛甚加附子3g」一条没有任何煎法说明（2026-10-14 独立评审）。
       riskNote: item.actionType === "add"
-        ? [specialDecoctionPhrase(item.herbName.trim()), conceptionTier ? conceptionHerbNote(item.herbName.trim()) || "" : ""].filter(Boolean).join("；")
+        ? [specialDecoctionPhrase(item.herbName.trim()), conceptionTier ? conceptionHerbNote(item.herbName.trim(), conceptionTier) || "" : ""].filter(Boolean).join("；")
         : "",
       ...(substitutions.length > 0 ? { substitutions } : {}),
       // 证据等级按来源（2026-10-22 第十五轮）：教材该证的加减是标准资料（出处由证据清洗按教材表逐字核验）；
