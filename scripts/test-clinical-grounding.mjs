@@ -1222,7 +1222,9 @@ for (const medication of ["在吃降压药", "每天吃一片降压药", "口服
     zhushu: "入睡困难6个月", sex: "男", age: "48岁", tcmTongue: "舌淡红苔薄白", tcmPulse: "脉弦细",
     guomin: "否认药物及食物过敏", yongyaoshi: medication,
   });
-  assert.match(evaluateSafetyGate(incompleteMedication).missingItems.join("、"), /药名\/剂量\/频次/, medication);
+  // 2026-10-24 第十七轮：写了药名（阿司匹林）时缺项写「缺少剂量/频次」，没写药名（降压药、一片）时仍是「缺少药名/剂量/频次」。
+  const label = evaluateSafetyGate(incompleteMedication).missingItems.join("、");
+  assert.match(label, /阿司匹林/.test(medication) ? /已提及当前用药但缺少剂量\/频次/ : /药名\/剂量\/频次/, medication);
 }
 const ageConflict = stateFromRecord("男性，年龄记录待核。", {
   zhushu: "入睡困难", sex: "男", age: "58岁", tcmTongue: "舌淡红苔薄白", tcmPulse: "脉弦细",

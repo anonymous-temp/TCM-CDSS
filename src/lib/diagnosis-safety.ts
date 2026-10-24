@@ -5486,7 +5486,7 @@ function allergyHistoryNeedsClarification(text: string): boolean {
 }
 
 /** 用药记录里写了具体药名（常见药名、剂型构词或西药词尾）。 */
-const NAMED_MEDICATION = /(?:阿司匹林|华法林|二甲双胍|胰岛素|硝苯地平|缬沙坦|氯吡格雷|褪黑素|左甲状腺素|[\u4e00-\u9fa5A-Za-z]{2,}(?:片|胶囊|颗粒|丸|口服液|注射液|缓释片|控释片)|[\u4e00-\u9fa5]{1,6}(?:西林|霉素|沙星|洛芬|普利|沙坦|他汀|地平|双胍|格列[\u4e00-\u9fa5]{1,2}|唑仑|西泮|洛尔|替丁|拉唑|噻嗪))/u;
+const NAMED_MEDICATION = /(?:阿司匹林|华法林|二甲双胍|胰岛素|硝苯地平|缬沙坦|氯吡格雷|褪黑素|左甲状腺素|[\u4e00-\u9fa5A-Za-z]{2,}(?<![一二两三四五六七八九十半几数\d])(?:片|胶囊|颗粒|丸|口服液|注射液|缓释片|控释片)|[\u4e00-\u9fa5]{1,6}(?:西林|霉素|沙星|洛芬|普利|沙坦|他汀|地平|双胍|格列[\u4e00-\u9fa5]{1,2}|唑仑|西泮|洛尔|替丁|拉唑|噻嗪))/u;
 
 function medicationHistoryNeedsClarification(text: string): boolean {
   const normalized = stringifyClinicalValue(text).trim();
