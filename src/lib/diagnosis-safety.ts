@@ -875,7 +875,11 @@ function freshAbsoluteDateInText(value: string, maxAgeDays = 30): boolean {
 }
 
 /** 检查名的常用简称（只用于在病历里找这项检查的那句记录）。 */
-const EXAM_TERM_SYNONYMS: Readonly<Record<string, readonly string[]>> = { 甲功: ["甲状腺功能"], 甲状腺功能: ["甲功"] };
+// 血氧的病历写法（2026-10-24 第十八轮基层病例 B002：「测指脉氧饱和度97%」，输出写成「病历未记录本次血氧结果」）。
+const EXAM_TERM_SYNONYMS: Readonly<Record<string, readonly string[]>> = {
+  甲功: ["甲状腺功能"], 甲状腺功能: ["甲功"],
+  血氧: ["指脉氧", "氧饱和度", "SpO2", "SPO2", "指氧"], 血氧饱和度: ["指脉氧", "氧饱和度", "SpO2", "SPO2", "指氧"],
+};
 /**
  * 病历里关于这项检查结果的那一句（去掉「辅助检查：」这类字段标签），照录给医生看；病历没写这项检查的结果时说「病历未记录本次X结果」。
  * 只照录、不判断新旧：新旧由 sourceDocumentsCurrentNormality 判，这里只负责让医生看到原文。
@@ -884,7 +888,9 @@ function recordedExamResultNotice(source: string, term: string): string {
   const names = [term, ...(EXAM_TERM_SYNONYMS[term] || [])];
   const sentence = normalizeClinicalText(source).split(/[。；;\n]+/)
     .map((item) => item.replace(/^\s*[^：:，,]{1,8}[：:]\s*/u, "").trim())
-    .find((item) => names.some((name) => item.includes(name)) && /(?:正常|异常|升高|降低|阳性|阴性|未见|增高|减低)/.test(item));
+    // 结果也可以只是一个带单位的读数（「指脉氧饱和度97%」「血红蛋白92g/L」）。
+    .find((item) => names.some((name) => item.includes(name)) &&
+      /(?:正常|异常|升高|降低|阳性|阴性|未见|增高|减低)|\d+(?:\.\d+)?\s*(?:%|mmol|μmol|umol|g\/L|mg|U\/L|×10|次\/分)/u.test(item));
   return sentence && sentence.length <= 60 ? `病历记录${sentence}` : `病历未记录本次${term}结果`;
 }
 

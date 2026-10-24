@@ -1,0 +1,56 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "subject-prefixed-denial",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-24",
+ "trigger": "第十八轮基层病例 B011（《中国全科医学》社区骨质疏松病例）：既往史「既往体检无高血压、糖尿病、冠心病、肾病…等慢性病病史」整句被当成肯定，艾灸卡写出「本例有糖尿病，对热不敏感」。",
+ "layerAttribution": {
+  "layer": "clinical_polarity",
+  "mechanism": "clinical-polarity.NEGATIVE_PREFIX 的主语闭集（患者/既往/目前…）没有「体检」「既往体检」「平素」「平时」，这几个主语后面的「无…」不被当成否认。",
+  "exception": "冻结令允许的有限闭集：只在否认前缀的主语闭集里加「既往体检、体检、平素、平时」四个写法；没有新增症状词表。",
+  "sources": "语料回放 ~/runlogs/r1018/work/r1030/replay/replay-aff.mjs：含「体检/平素/平时 + 无/否认/没有/未」的句子 18 句，肯定句抽取改变 13 句，全部是被去掉的否认（平时无不适、平素无吸烟饮酒史、体检无异常、既往体检无高血压糖尿病…）；安全门回放见 replay2。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句去掉「体检」主语，门禁结果必须相同。",
+  "pairs": [
+   {
+    "subject": "既往体检无高血压、糖尿病病史。",
+    "sibling": "既往无高血压、糖尿病病史。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "平素无吸烟饮酒史。",
+    "sibling": "无吸烟饮酒史。",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "clausePolarity": {
+  "negative": [
+   "既往体检无高血压、糖尿病",
+   "体检无糖尿病",
+   "平素无吸烟饮酒史",
+   "平时无不适",
+   "既往体检：无糖尿病"
+  ],
+  "notNegative": [
+   "平素喜食辛辣",
+   "体检发现血糖升高",
+   "平时容易感冒",
+   "体检示血压偏高"
+  ]
+ },
+ "controls": {
+  "note": "肯定写法不受影响。",
+  "mustStillFlag": [],
+  "mustStayReady": []
+ },
+ "measurements": {
+  "before": "clausePolarity negative 5 句判 affirmed",
+  "after": "5/5 negative；notNegative 4/4 不判否"
+ }
+}

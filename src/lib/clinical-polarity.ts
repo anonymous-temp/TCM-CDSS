@@ -53,7 +53,7 @@ export const PATIENT_SELF_REFERENCE = /本例|该例|此例|该患者|患者|患
 
 // 「当时/此时/发病时/起病时」开头的否认（「当时无腹痛、水肿、发热及关节痛」）同样是否认：此前前缀不认「当时」，
 // 关节痛被读成阳性，治疗卡写「针对本例关节」（2026-10-19 验收主集 RobustSDT-single_0532）。
-const NEGATIVE_PREFIX = new RegExp(String.raw`^(?:(?:患者|病人|本人|既往|目前|当前|现阶段|本次|近期|近日|入院以来|就诊以来|发病以来|病程中|病程以来|随访以来|既往史|过敏史|用药史|当时|此时|彼时|发病时|起病时|就诊时|入院时)\s*[：:]?\s*)?(?:${CLINICAL_EXAM_NEGATION_VERB_SOURCE}|否认|不是(?!很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|并非(?!很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|不曾|没有|并无|未见|未发现|未提示|未诊断|未患|未(?:服用|使用|口服|应用)|暂(?:不|未)(?:服用|使用|口服|应用|吃)|没(?:有)?(?:服用|使用|吃)|从未|无(?!菌性|痛性|症状性|创性|脉性|意识性)|暂无(?:明确)?|已排除|已除外)`);
+const NEGATIVE_PREFIX = new RegExp(String.raw`^(?:(?:患者|病人|本人|既往体检|体检|既往|平素|平时|目前|当前|现阶段|本次|近期|近日|入院以来|就诊以来|发病以来|病程中|病程以来|随访以来|既往史|过敏史|用药史|当时|此时|彼时|发病时|起病时|就诊时|入院时)\s*[：:]?\s*)?(?:${CLINICAL_EXAM_NEGATION_VERB_SOURCE}|否认|不是(?!很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|并非(?!很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|不曾|没有|并无|未见|未发现|未提示|未诊断|未患|未(?:服用|使用|口服|应用)|暂(?:不|未)(?:服用|使用|口服|应用|吃)|没(?:有)?(?:服用|使用|吃)|从未|无(?!菌性|痛性|症状性|创性|脉性|意识性)|暂无(?:明确)?|已排除|已除外)`);
 // Colloquial history commonly uses the aspect marker “过” instead of a formal “否认/未见”,
 // for example “没吐过血” or “没有晕厥过”. Requiring the aspect marker keeps this boundary
 // narrow enough that affirmative negative-form symptoms such as “没精神/没力气/没胃口” remain
@@ -796,8 +796,18 @@ export function medicationStopped(text: string, name: string): boolean {
   if (lastStop && !mentions.some(({ clause, index }) => index > lastStop.index && RESTART_MEDICATION_CUE.test(clause))) return true;
   const last = mentions.at(-1)!;
   const next = clauses[last.index + 1];
-  return Boolean(next && next.sentenceIndex === last.sentenceIndex && NOT_CONTINUED_AFTER.test(next.clause.trim()));
+  if (next && next.sentenceIndex === last.sentenceIndex && NOT_CONTINUED_AFTER.test(next.clause.trim())) return true;
+  // 同一句里药名之后、不点别的药的「停药」「停用（了）」「停服」（2026-10-24 第十八轮基层病例 A032：「曾服天麻钩藤饮、镇肝熄风汤…半年余，
+  //（…）因阵发性腹痛、恶心停药」，注意事项写成「正在服用的天麻钩藤饮请告知医生」）。带宾语的「停用二甲双胍」只说那一个药，不算；
+  // 之后又写了重新用上的不算。
+  // 条件写法（「停药则无法入睡」「停药复发」）说的是规律，不是已经停了（语料回放：「一直服用舒乐安定方能入睡，停药则无法入睡」）。
+  return clauses.some((item, at) => item.sentenceIndex === last.sentenceIndex && at > last.index &&
+    GENERIC_STOP_CLAUSE.test(item.clause.trim()) && !CONDITIONAL_STOP.test(item.clause) && !/(?:未|没有|不曾|未曾|不|勿)(?:自行|擅自)?停/u.test(item.clause) &&
+    !clauses.some((later, laterAt) => laterAt > at && RESTART_MEDICATION_CUE.test(later.clause)));
 }
+/** 不带宾语的停药小句：「…而停药」「遂停用」「后自行停服了」。 */
+const GENERIC_STOP_CLAUSE = /停药|停(?:用|服)(?:了)?$/u;
+const CONDITIONAL_STOP = /停(?:药|用|服)(?:则|即|就|便|复发|反复|加重|发作)/u;
 
 /**
  * 写到这个药的每一句，它前面都是「曾…/既往曾…」、所在小句又没有「现/目前/仍…」：返回 "past"（带「既往」，过去的事）

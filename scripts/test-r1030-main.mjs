@@ -12,6 +12,8 @@
 //  10 中成药/西药行的说明书字段（风险提示、用法边界、联用关系）与正文药品表行不进否定净化器（「感冒发热病人不宜服用」被改成「未诉发热」）。
 //  11 注意事项「不宜再服滋补类中成药」与推荐的补益类中成药（健脾丸「健脾开胃」）不再同页矛盾。
 //  12 选了流派时辨证依据末尾按该派眼目看本例（相符写判断，不相符写该派看什么、本例缺什么）；适配说明一条写辨证视角、说到方只写最终推荐的方。
+//  13 停药写在同一句后面小句（「…半年余，…而停药」）也算停用，不再写成「正在服用」；条件写法（停药则…）与一直在用的不算。
+//  14 模型写「血氧正常」而病历只有「指脉氧饱和度97%」：照录病历那句，不再写「病历未记录本次血氧结果」。
 //   5 中成药：说明书适应证明写实热/实火/实证/实寒的，纯虚证不推荐（润肠丸「用于实热津亏便秘」配阴虚秘）。
 
 import assert from "node:assert/strict";
@@ -47,6 +49,7 @@ const clinicalState = await jiti.import("../src/lib/clinical-state.ts");
 const textbook = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
 const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
 const prompts = await jiti.import("../src/lib/diagnosis-prompts.ts");
+const polarity = await jiti.import("../src/lib/clinical-polarity.ts");
 
 const c001 = JSON.parse(fs.readFileSync("scripts/fixtures/r1030-c001-diagnose.json", "utf8"));
 const withChoice = ({ formula, therapy = "辛温解表，宣肺散寒，通窍止痒", applicable = "applicable", secondary = [], decisions } = {}) => {
@@ -263,6 +266,37 @@ await check("12.1 M03 提示词：选流派时要求按该派眼目写一句（�
   const plain = prompts.buildDiagnosePrompt({ ...state, tcmLineagePreference: "unrestricted" });
   assert.match(plain, /本例 lineageAdaptation 输出 null/);
   assert.doesNotMatch(chosen, /本例 lineageAdaptation 输出 null/);
+});
+
+// ── 13 停药 ──
+await check("13.1 同一句后面小句的「停药」算停用；带宾语的停用、未停药、停后又用、条件写法、一直在用的不算", () => {
+  const yes = [
+    ["诉既往曾用天麻钩藤饮、镇肝熄风汤等治疗半年余，血压一直在150/100mmHg左右，后因服药出现阵发性腹痛、恶心而停药。", "天麻钩藤饮"],
+    ["曾服天麻钩藤饮、镇肝熄风汤半年余，因阵发性腹痛、恶心停药", "镇肝熄风汤"],
+    ["常口服地西泮、氯硝西泮等西药，停药后失眠依旧且副作用明显", "地西泮"],
+  ];
+  const no = [
+    ["服用二甲双胍，停用格列齐特", "二甲双胍"],
+    ["服用氨氯地平，血压控制可，未停药", "氨氯地平"],
+    ["曾服布洛芬，后停药，近日又开始服用", "布洛芬"],
+    ["头晕失眠20年，一直服用舒乐安定方能入睡，停药则无法入睡", "舒乐安定"],
+    ["口服卡马西平缓解，停药复发", "卡马西平"],
+  ];
+  for (const [text, name] of yes) assert.equal(polarity.medicationStopped(text, name), true, text);
+  for (const [text, name] of no) assert.equal(polarity.medicationStopped(text, name), false, text);
+});
+
+// ── 14 血氧读数 ──
+await check("14.1 病历写了指脉氧读数时，血氧断言改写为照录病历原句；病历没有任何血氧记录时仍写未记录", () => {
+  const run = (history) => {
+    const state = { id: "x", chiefComplaint: "咳嗽3天", patient: { sex: "女", age: 30 }, symptoms: { presentHistory: history }, conversation: [{ role: "user", content: `主诉：咳嗽3天\n现病史：${history}` }], questionRounds: 1 };
+    const json = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", westernDiagnosis: { differentials: [{ name: "肺炎", distinguishingPoints: "血氧正常，暂不支持重症" }] } };
+    const out = safety.sanitizeUngroundedRedFlagNegations(`<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(json)}\n<!-- DIAGNOSIS_JSON_END -->`, state);
+    return JSON.parse(out.match(/START -->\s*([\s\S]*?)\s*<!--/)[1]).westernDiagnosis.differentials[0].distinguishingPoints;
+  };
+  assert.match(run("咳嗽3天，测指脉氧饱和度97%"), /病历记录[^；]*指脉氧饱和度97%/);
+  assert.match(run("咳嗽3天，SpO2 96%"), /病历记录[^；]*SpO2 96%/);
+  assert.match(run("咳嗽3天"), /病历未记录本次血氧结果/);
 });
 
 console.log(`\n${cases} checks`);
