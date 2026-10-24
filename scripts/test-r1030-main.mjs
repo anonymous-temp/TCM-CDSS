@@ -11,6 +11,7 @@
 //   9 补充行「小便不禁」（《针灸治疗学》尿失禁节证候 + T/CACM 1553—2023 方药）：成人漏尿不再落到阴挺。
 //  10 中成药/西药行的说明书字段（风险提示、用法边界、联用关系）与正文药品表行不进否定净化器（「感冒发热病人不宜服用」被改成「未诉发热」）。
 //  11 注意事项「不宜再服滋补类中成药」与推荐的补益类中成药（健脾丸「健脾开胃」）不再同页矛盾。
+//  12 选了流派时辨证依据末尾按该派眼目看本例（相符写判断，不相符写该派看什么、本例缺什么）；适配说明一条写辨证视角、说到方只写最终推荐的方。
 //   5 中成药：说明书适应证明写实热/实火/实证/实寒的，纯虚证不推荐（润肠丸「用于实热津亏便秘」配阴虚秘）。
 
 import assert from "node:assert/strict";
@@ -45,6 +46,7 @@ const criteria = await jiti.import("../src/lib/western-diagnostic-criteria.serve
 const clinicalState = await jiti.import("../src/lib/clinical-state.ts");
 const textbook = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
 const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
+const prompts = await jiti.import("../src/lib/diagnosis-prompts.ts");
 
 const c001 = JSON.parse(fs.readFileSync("scripts/fixtures/r1030-c001-diagnose.json", "utf8"));
 const withChoice = ({ formula, therapy = "辛温解表，宣肺散寒，通窍止痒", applicable = "applicable", secondary = [], decisions } = {}) => {
@@ -247,6 +249,20 @@ await check("11.1 「不宜再服滋补类中成药」与推荐健脾丸不再�
   assert.equal(patent.patentMedicineLabelIsTonic("润肠通便。用于实热津亏便秘。"), false);
   assert.equal(patent.tonicMedicineCategory("滋补"), true);
   assert.equal(patent.tonicMedicineCategory("润肠通便"), false);
+});
+
+// ── 12 流派视角 ──
+await check("12.1 M03 提示词：选流派时要求按该派眼目写一句（五派眼目都在）、适配说明含辨证视角；不限定时输出 null", () => {
+  const base = structuredClone(c001);
+  const state = { id: "lin", chiefComplaint: "鼻塞流涕、咽痒2天", patient: { sex: "女", age: 24 }, symptoms: { presentHistory: "受凉后出现清涕、喷嚏和轻度咽痒" }, conversation: [{ role: "user", content: "主诉：鼻塞流涕、咽痒2天" }], questionRounds: 1 };
+  void base;
+  const chosen = prompts.buildDiagnosePrompt({ ...state, tcmLineagePreference: "classical-formula" });
+  for (const eye of ["六经归属与方证眼目", "卫气营血或三焦层次", "气血痰郁与阴虚相火", "脾肾命门与阴阳互济", "阴阳盛衰与阳虚阴盛的实据"]) assert.ok(chosen.includes(eye), eye);
+  assert.match(chosen, /其中一条 aspect 写「辨证视角」/);
+  assert.match(chosen, /不为迎合该派补写病历没有的表现/);
+  const plain = prompts.buildDiagnosePrompt({ ...state, tcmLineagePreference: "unrestricted" });
+  assert.match(plain, /本例 lineageAdaptation 输出 null/);
+  assert.doesNotMatch(chosen, /本例 lineageAdaptation 输出 null/);
 });
 
 console.log(`\n${cases} checks`);
