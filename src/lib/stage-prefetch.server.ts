@@ -15,6 +15,7 @@ import { assistedPolarityDecisions } from "./polarity-negation-assist.server";
 import { rerankSyndromeHypothesesForFormulaRecall } from "./syndrome-hypothesis-rerank.server";
 import { deriveSafetyLocked, sanitizeCaseStateForModel, withSafetyGate } from "./diagnosis-safety";
 import { planEvidenceBoundMedicineCandidates } from "./medicine-candidate-planner.server";
+import { prescribeWorkingPriorReasoning } from "./prescribe-working-reasoning";
 import { maybeAttachClinicalFactsBackstop } from "./clinical-facts-runtime";
 import {
   buildLocalHighRiskHerbPairSection,
@@ -51,15 +52,18 @@ export function prefetchPrescribeInputsFromSignedDiagnose(
     const reasoning = extractDiagnosisJSON(finalDiagnoseContent);
     if (!reasoning || reasoning.stage !== "diagnose" || typeof reasoning.contractSignature !== "string") return;
     // 与对外接口文档「M03 → M04 交接：caseState.diagnosis、caseState.reasoningDiagnose」同形。
+    // 规划器按开方路由内存里的那份辨证结果建缓存键（补回支持事实），预取必须用同一份，否则永远未命中。
     const handoff: CaseState = {
       ...gatedCaseState,
       phase: "prescribe",
       diagnosis: stripDiagnosisJSON(finalDiagnoseContent),
-      reasoningDiagnose: reasoning as unknown as CaseState["reasoningDiagnose"],
+      reasoningDiagnose: prescribeWorkingPriorReasoning(gatedCaseState, reasoning as unknown as CaseState["reasoningDiagnose"]),
     };
     const safeState = sanitizeCaseStateForModel(handoff);
     void buildExternalEvidenceContext(safeState, "prescribe").catch(() => undefined);
-    void planEvidenceBoundMedicineCandidates(safeState, customerId).catch(() => undefined);
+    void assistedPolarityDecisions(safeState)
+      .then((assistedNegations) => planEvidenceBoundMedicineCandidates(safeState, customerId, undefined, assistedNegations))
+      .catch(() => undefined);
   } catch {
     // 预取是纯增益：任何异常都不影响 M03 已交付的结果。
   }

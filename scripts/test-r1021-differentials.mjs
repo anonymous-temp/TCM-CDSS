@@ -395,7 +395,8 @@ await check("6.4 接线（源码）：流式层在首轮 overview 闭合时回�
   assert.match(api, /completedM03Overview\(partial\)/);
   const route = fs.readFileSync("src/app/api/diagnosis/diagnose/route.ts", "utf8");
   assert.match(route, /onInitialM03Overview: \(overview: Record<string, unknown>\) =>\s*prefetchTcmDifferentialTopUp\(overview, differentialTopUpContext\)/);
-  assert.match(route, /completeTcmDiseaseDifferentials\(tcmContent, differentialTopUpContext, transformSignal\)/);
+  // 第十九轮起收口包在 finishTcmHalf(content) 里（病名须解释就诊原因时对重抽稿再走一遍），参数名随之是 content。
+  assert.match(route, /completeTcmDiseaseDifferentials\((?:tcmContent|content), differentialTopUpContext, transformSignal\)/);
   assert.ok(route.indexOf("onInitialM03Overview") > route.indexOf("m03ParallelGenerationEnabled()"), "在并行两半的分支里");
   assert.ok(route.indexOf("onInitialM03Overview") < route.indexOf("truncateFallback:"), "不在并行分支之外");
 });

@@ -3,7 +3,7 @@ import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
 import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
-import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars } from "@/lib/prompt-budget";
+import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars, promptSectionHeaders } from "@/lib/prompt-budget";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
 import { normalizeCaseTextForFormulaRecall } from "@/lib/formula-recall-normalization.server";
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
@@ -25,6 +25,7 @@ import { cdssReasonCodeMarker } from "@/lib/cdss-reason-codes";
 import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothesis-rerank.server";
 import { pickTextbookDiseasesForCase } from "@/lib/textbook-disease-pick.server";
 import { pickJingfangPatternsForCase } from "@/lib/jingfang-pattern-pick.server";
+import { checkDiseaseExplainsVisitReason, tcmHalfDiseaseName, visitReasonRedrawInstruction } from "@/lib/m03-visit-reason-check.server";
 
 type ParsedStageRequest = Extract<Awaited<ReturnType<typeof readCustomerBoundCaseStateRequest>>, { ok: true }>;
 
@@ -241,6 +242,31 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   // 本例说法核对用的病历：正文前补性别、年龄、带名称的生命体征（同一份脱敏 DTO）。
   const patientClaimRecord = patientClaimRecordText(trustedInputText(safeState), safeState.patient, safeState.vitals);
   const differentialTopUpContext = { recordText: trustedInputText(safeState), patient: { sex: safeState.patient?.sex, age: safeState.patient?.age } };
+  const visitReasonInput = {
+    chiefComplaint: safeState.chiefComplaint || "",
+    presentHistory: [safeState.hisRecord?.fields?.xianbingshi, safeState.symptoms?.presentHistory, safeState.symptoms?.现病史]
+      .find((value): value is string => typeof value === "string" && Boolean(value.trim())) || "",
+    ageYears: typeof safeState.patient?.age === "number" ? safeState.patient.age : undefined,
+  };
+  const m03HalfPrompts = m03ParallelGenerationEnabled()
+    ? buildM03ContextPackets({
+      sharedPatientContext: buildM03SharedPatientContext(safeState),
+      fullPrompt: prompt,
+      evidenceContext,
+      evidenceBudgetChars: diagnoseEvidenceBudget,
+      stageInstructions,
+    })
+    : undefined;
+  // 各知识通道这一次是否进了提示词（段名与闭集选择出的病名，不含病例内容）。
+  console.info("[tcm-cdss:knowledge] prompt_sections", {
+    stage: "diagnose",
+    sections: promptSectionHeaders(m03HalfPrompts?.tcm || prompt),
+    westernSections: m03HalfPrompts ? promptSectionHeaders(m03HalfPrompts.western) : [],
+    textbookDiseasePicks,
+    jingfangPicks: jingfangPatternPicks.length,
+    similarCases: similarCases.cases.length,
+    evidenceTruncated: boundedDiagnoseEvidence.truncated,
+  });
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: signal,
     structuredLimitedInformation: limitedInformation,
@@ -249,15 +275,9 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
     // The Western half receives only its task, shared facts and relevant evidence. The TCM half
     // retains the complete coherent chain; repair/review/fallback still use the full prompt.
     // M03_PARALLEL_GENERATION=false 一键回退单发全量生成。
-    ...(m03ParallelGenerationEnabled()
+    ...(m03HalfPrompts
       ? {
-          m03ParallelHalfPrompts: buildM03ContextPackets({
-            sharedPatientContext: buildM03SharedPatientContext(safeState),
-            fullPrompt: prompt,
-            evidenceContext,
-            evidenceBudgetChars: diagnoseEvidenceBudget,
-            stageInstructions,
-          }),
+          m03ParallelHalfPrompts: m03HalfPrompts,
           // 中医半的 overview 一闭合就预发补写请求（后文还有三成以上要写），收口时同一请求直接命中。
           onInitialM03Overview: (overview: Record<string, unknown>) =>
             prefetchTcmDifferentialTopUp(overview, differentialTopUpContext),
@@ -267,15 +287,30 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
           //（已不在文中的跳过）。
           // 病机链、病性轴里主证/兼证名之外的虚性证素按《中医诊断学》辨证要点核对（m03-element-support.server.ts，与上两件并行）：
           // 不够数的撤下并写进不确定项，落在兼证核对之后（那一步补上的兼证若已涵盖，就不撤）、本例说法核对之前。
-          m03TcmHalfTransform: async (tcmContent: string, transformSignal: AbortSignal) => {
-            const completed = await completeTcmDiseaseDifferentials(tcmContent, differentialTopUpContext, transformSignal);
-            const [reconciled, claimRemovals, elementDecision] = await Promise.all([
-              reconcileSecondarySyndromes(completed, { recordText: trustedInputText(safeState) }, transformSignal),
-              decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),
-              decideElementSupport(completed, { recordText: trustedInputText(safeState) }, transformSignal),
+          // 病名须解释本次就诊原因（m03-visit-reason-check.server.ts，与上面几件并行，只在病名不是选病第一个时发请求）：
+          // 核对确认不解释、候选里有能解释的病时，中医半按就诊原因重抽一次，再把上面的收口在新稿上重走一遍（其余病例原样）。
+          m03TcmHalfTransform: async (tcmContent: string, transformSignal: AbortSignal, redraw?: (instruction: string) => Promise<string | undefined>) => {
+            const finishTcmHalf = async (content: string) => {
+              const completed = await completeTcmDiseaseDifferentials(content, differentialTopUpContext, transformSignal);
+              const [reconciled, claimRemovals, elementDecision] = await Promise.all([
+                reconcileSecondarySyndromes(completed, { recordText: trustedInputText(safeState) }, transformSignal),
+                decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),
+                decideElementSupport(completed, { recordText: trustedInputText(safeState) }, transformSignal),
+              ]);
+              // 脱证落在兼证栏时提为主证（m03-critical-syndrome，急则治标），在其余核对之后、教材锚定之前。
+              return promoteCriticalSecondarySyndrome(applyPatientClaimRemovalsToContent(applyElementSupportDecision(reconciled, elementDecision), "tcm", claimRemovals));
+            };
+            const disease = tcmHalfDiseaseName(tcmContent);
+            const [visit, finished] = await Promise.all([
+              checkDiseaseExplainsVisitReason({ ...visitReasonInput, disease, picks: textbookDiseasePicks }, transformSignal),
+              finishTcmHalf(tcmContent),
             ]);
-            // 脱证落在兼证栏时提为主证（m03-critical-syndrome，急则治标），在其余核对之后、教材锚定之前。
-            return promoteCriticalSecondarySyndrome(applyPatientClaimRemovalsToContent(applyElementSupportDecision(reconciled, elementDecision), "tcm", claimRemovals));
+            if (visit.status !== "not_covered" || !redraw) return finished;
+            const redrawn = await redraw(visitReasonRedrawInstruction(disease, visit));
+            const redrawnDisease = redrawn ? tcmHalfDiseaseName(redrawn) : "";
+            const adopted = Boolean(redrawn && redrawnDisease && redrawnDisease !== disease);
+            console.info("[tcm-cdss:telemetry] m03_visit_reason_check", { disease, better: visit.better, redrawnDisease: redrawnDisease || null, adopted });
+            return adopted && redrawn ? finishTcmHalf(redrawn) : finished;
           },
           // 西医半一返回就核对病名与病历已记录内容是否矛盾或说得过细（约 0.8 秒，与中医半并行）；采信则只改病名这一项。红旗病例不用「过细」一类。
           // 同时在西医半自己列出的候选与鉴别里重选主诊断（2026-10-19，western-primary-reselect）：两者并行；换名时对新名称再核对一次。

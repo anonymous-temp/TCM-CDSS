@@ -983,10 +983,22 @@ export function recordedMaxBodyTemperature(source: string): number | undefined {
 const FEVER_TERM_MIN_TEMPERATURE: Readonly<Record<string, number>> = { 发热: 37.3, 发烧: 37.3, 身热: 37.3, 体温升高: 37.3, 低热: 37.3, 高热: 39 };
 
 export function sourceDocumentsAffirmation(source: string, term: string): boolean {
+  return affirmationMentionKind(source, term).kind !== "none";
+}
+
+/**
+ * 病历里该词的肯定记载是哪一种：clear（这一小句本身就是肯定：「头痛明显」「偶有胸痛」「T 38.5℃」）、ambiguous（否认列举后的裸词，
+ * 只因为后面别的小句里有程度/时间词才没算进否认——见 isNegatedAt 的 afterTermScope），none（没有肯定记载）。
+ * sourceDocumentsAffirmation 两种都算（与改动前同一结论）；recordedFindingReading 把后一种读成不明确。
+ */
+function affirmationMentionKind(source: string, term: string): { kind: "clear" | "ambiguous" | "none"; negatedMention: boolean } {
   const feverFloor = FEVER_TERM_MIN_TEMPERATURE[term];
+  let clear = false;
+  let ambiguous = false;
+  let negatedMention = false;
   if (feverFloor !== undefined) {
     const measured = recordedMaxBodyTemperature(source);
-    if (measured !== undefined && measured >= feverFloor) return true;
+    if (measured !== undefined && measured >= feverFloor) clear = true;
   }
   const normalized = normalizeClinicalText(source);
   const equivalents = POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes(term)) || [term];
@@ -1000,21 +1012,76 @@ export function sourceDocumentsAffirmation(source: string, term: string): boolea
           !isLocalHeatNotFeverAt(sentence, index, equivalent) &&
           !isExcludedClinicalAssertionAt(sentence, index) &&
           !hasImmediateBareNegator(cueSentence, index) &&
-          // 与 hasNonNegatedClinicalPattern 同一判据：前面有否认、逗号后另起肯定小句的，算记录了（MTCMB-14）。
-          (!isNegatedAt(cueSentence, index) || hasCommaSeparatedPositiveEvidence(cueSentence, index, equivalent)) &&
           !/(待核实|待确认|不清楚|未知|不详|未采集|未说明)/.test(sentence)
-        ) return true;
+        ) {
+          // 与 hasNonNegatedClinicalPattern 同一判据：前面有否认、逗号后另起肯定小句的，算记录了（MTCMB-14）。
+          const positiveClause = hasCommaSeparatedPositiveEvidence(cueSentence, index, equivalent);
+          if (positiveClause || !isNegatedAt(cueSentence, index)) {
+            if (positiveClause || !isNegatedAt(cueSentence, index, "clause")) clear = true;
+            else ambiguous = true;
+          } else if (negationReachesMentionDirectly(cueSentence, index, equivalent)) {
+            negatedMention = true;
+          }
+        }
         index = sentence.indexOf(equivalent, index + equivalent.length);
       }
     }
     for (const pattern of conceptPatterns) {
       const matches = sentence.matchAll(new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`));
       for (const match of matches) {
-        if (match.index != null && !isNegatedAt(sentence, match.index)) return true;
+        if (match.index != null && !isNegatedAt(sentence, match.index)) clear = true;
       }
     }
   }
+  return { kind: clear ? "clear" : ambiguous ? "ambiguous" : "none", negatedMention };
+}
+
+/**
+ * 闸门判否认的这一处，是不是可以当作「病历否认了它」来读：否认词与它在同一逗号小句里（「无发热」「无发热、呕吐」），
+ * 或它是否认列举在逗号后延续的裸词——这一小句里只有它自己，且与否认那一小句之间至多隔一个同样的短裸词小句
+ *（「无呕吐，发热」「无腹痛，发热，呕吐」）。带了自己谓语的小句（「无汗，鼻塞声重，咳嗽有痰」）与隔得更远的
+ *（「无食欲，眠差，入睡困难，小便调，便秘」）闸门的列举延续判成否认，读法不认。构词式守卫，只用于病历读法与照录核对，闸门不读。
+ */
+function negationReachesMentionDirectly(sentence: string, index: number, equivalent: string): boolean {
+  const clauseStart = Math.max(sentence.lastIndexOf("，", index - 1), sentence.lastIndexOf(",", index - 1)) + 1;
+  if (CLINICAL_NEGATION_CUE.test(sentence.slice(clauseStart, index))) return true;
+  const rest = sentence.slice(index + equivalent.length);
+  const clauseEnd = rest.search(/[，,。；;\n]/u);
+  const tail = (clauseEnd >= 0 ? rest.slice(0, clauseEnd) : rest).trim();
+  if (sentence.slice(clauseStart, index).trim() !== "" || !/^(?:等|等症|等症状)?$/u.test(tail)) return false;
+  const previous = sentence.slice(0, Math.max(0, clauseStart - 1)).split(/[，,]/u);
+  for (let hop = 0; hop < 2 && previous.length > 0; hop += 1) {
+    const clause = previous.pop()!.trim();
+    if (CLINICAL_NEGATION_CUE.test(clause)) return true;
+    if (!/^[\u4e00-\u9fff]{2,4}$/u.test(clause)) return false;
+  }
   return false;
+}
+
+/**
+ * 病历对一个表现的读法（2026-10-25 第十九轮，A056）。一处判据、三个取值，各消费方按自己的失败方向取保守：
+ *  · affirmed：只有肯定记载；
+ *  · denied：有否认记载，且没有本小句里就成立的肯定（否认列举后的裸词与另一处明确否认并存时，按逐项否认读：
+ *    「无腹痛，发热，呕吐，…」与后文「无呕吐」——两处都读成没有呕吐，病历前后一致）；
+ *  · conflicting：本小句成立的肯定与否认都有（「否认胸痛。今日突发胸痛」，或病程里前后变化）；
+ *  · ambiguous：只有「否认列举后的裸词」这一种记载，是否在否认范围里读不出；
+ *  · absent：都没有。
+ * 安全闸门不读它（闸门照旧把 ambiguous 当阳性）；交付文本的否认净化通过 sanitizerReading 读它。
+ */
+export type RecordedFindingReading = "affirmed" | "denied" | "conflicting" | "ambiguous" | "absent";
+export function recordedFindingReading(source: string, term: string): RecordedFindingReading {
+  const affirmation = affirmationMentionKind(source, term);
+  // 否认记载两种判据都算：sourceDocumentsNegation（否认词作用域）与闸门的 isNegatedAt 里「否认词直达」或「列举延续到逗号后的裸词」
+  //（「无呕吐，发热」；negationReachesMentionDirectly）。
+  const denied = affirmation.negatedMention || sourceDocumentsNegation(source, term);
+  if (affirmation.kind === "clear") return denied ? "conflicting" : "affirmed";
+  if (affirmation.kind === "ambiguous") return denied ? "denied" : "ambiguous";
+  return denied ? "denied" : "absent";
+}
+
+/** 读法不明确时，交付文本里替代「有X」「无X」的那一句（临床措辞，交付面不再改写）。 */
+export function unsettledFindingNotice(terms: readonly string[]): string {
+  return `${terms.join("、")}的有无病历记载不明确，需核实`;
 }
 
 function sourceHasKnownTongue(source: string): boolean {
@@ -1048,10 +1115,26 @@ function clauseNegationsAreLiterallyDocumented(clause: string, source: string): 
     .filter((item) => item.length >= 2);
   if (items.length === 0) return false;
   // 同一判据（hasNonNegatedClinicalPattern）：病历里前有否认、逗号后另起「有/偶有」小句的不算否认（「无汗出，偶有胸痛」，MTCMB-14）。
+  // 病历里任一处这样否认过都算（2026-10-25 A056：此前只看第一次出现的位置，第一次恰在歧义的「无腹痛，发热，呕吐，…并有加重趋势」里，
+  // 病历原文「无呕吐，发热」被改写）；前后记载不一的不算照录，交给下面的读法分支。
   return items.every((item) => {
-    const index = source.indexOf(item);
-    return index >= 0 && isNegatedAt(source, index) && !hasCommaSeparatedPositiveEvidence(source, index, item);
+    // 只在病历读法是「否认」时按任一处照录放行：病历另有本小句成立的肯定（前后不一或其实是肯定）时不算照录（2026-10-25 回放：
+    //「发热咳嗽4天…无汗，咳嗽呛感」，闸门的列举延续把「咳嗽呛感」读成否认，此前首次出现判法恰好看的是主诉那一处）。
+    const reading = recordedFindingReading(source, item);
+    if (reading === "affirmed" || reading === "conflicting") return false;
+    let index = source.indexOf(item);
+    while (index >= 0) {
+      if (isNegatedAt(source, index) && !hasCommaSeparatedPositiveEvidence(source, index, item) &&
+        negationReachesMentionDirectly(source, index, item)) return true;
+      index = source.indexOf(item, index + item.length);
+    }
+    return false;
   });
+}
+
+/** 照录核对用的紧凑形：去空白、全半角标点归一。 */
+function quoteComparable(value: string): string {
+  return value.normalize("NFKC").replace(/\s+/g, "").replace(/[，,]/g, "，").replace(/[；;]/g, "；").replace(/[：:]/g, "：");
 }
 
 function qualifiedDocumentedDenial(source: string, term: string): string | undefined {
@@ -1188,6 +1271,39 @@ const INSPECTION_OTHER_ENTITY_FOLLOWUP = /^\s*(?:而|但)?本例(?:并)?(?:未�
  */
 const CONTRAST_WITH_THIS_CASE_OPENING = /^\s*(?:而|但|却|然)?(?:(?:与|同|和|跟|较|不同于|有别于|异于|区别于)\s*)?本例/u;
 
+/**
+ * 否认净化用的读法：在 recordedFindingReading 之上取保守方向，并用事实抽取模型的阳性表核对读不出的那一种。
+ *  · conflicting 按 affirmed 处理：病历在本小句里肯定过的表现，不让模型写成「无X」（回放 20,740 份病历：前后两种记载多是病程变化或
+ *    条件句——「最近都有黑便。急性肠胃炎的时候，还没有黑便」「一痒就咳嗽，不痒就不咳嗽」——改写成阳性比「需核实」准）；
+ *    同一句里不再另出一句「病历已记录否认X」（此前两句并存，交付成「有X；否认X」）。
+ *  · ambiguous（只有否认列举后的裸词一种记载）：事实抽取模型把它列为阳性的按 affirmed；否则写明记载不明确。回放里这一种多半其实是
+ *    新起的阳性小句（「无痰，胸闷，喘息严重」「不咳，口苦，晨起明显」），也有真是逐项否认的（A056），确定性规则判不出，交给第二个读者。
+ */
+type SanitizerReading = "affirmed" | "denied" | "ambiguous" | "absent";
+function sanitizerReading(source: string, term: string, extractorAffirmedTerms: readonly string[]): SanitizerReading {
+  const reading = recordedFindingReading(source, term);
+  if (reading === "conflicting") return "affirmed";
+  if (reading === "ambiguous") {
+    const affirmedByExtractor = extractorAffirmedTerms.some((item) => item.length >= 2 && (item === term || item.includes(term) || term.includes(item)));
+    return affirmedByExtractor ? "affirmed" : "ambiguous";
+  }
+  return reading;
+}
+
+/** 句中这些词里读法不明确的那几个，及替代它们的一句话。 */
+function unsettledFindingsIn(
+  terms: readonly string[],
+  source: string,
+  span: string,
+  extractorAffirmedTerms: readonly string[],
+): { terms: Set<string>; notices: string[] } {
+  const unsettled = terms.filter((term) => !termOnlyQualifiedIn(span, term, source) &&
+    sanitizerReading(source, term, extractorAffirmedTerms) === "ambiguous");
+  // 同一表现的长短两种写法（「头痛」「剧烈头痛」）只留短的那个。
+  const shown = unsettled.filter((term) => !unsettled.some((other) => other !== term && term.includes(other)));
+  return { terms: new Set(unsettled), notices: shown.length > 0 ? [unsettledFindingNotice(shown)] : [] };
+}
+
 function sanitizeUngroundedNegationText(
   value: string,
   source: string,
@@ -1258,7 +1374,7 @@ function sanitizeUngroundedNegationText(
     const unrecordedButDocumentedPositive = CLINICAL_NEGATION_FACT_TERMS.filter(
       (term) => clause.includes(term) &&
         /(?:未记录|未提及|未询问|未采集)/.test(clause) &&
-        sourceDocumentsAffirmation(source, term) &&
+        sanitizerReading(source, term, extractorAffirmedTerms) === "affirmed" &&
         !termOnlyQualifiedIn(clause, term, source),
     );
     if (
@@ -1275,17 +1391,19 @@ function sanitizeUngroundedNegationText(
       const mentioned = CLINICAL_NEGATION_FACT_TERMS.filter((term) => clause.includes(term));
       // 「病历尚未确认剧烈头痛是否存在」里的「头痛」只是「剧烈头痛」的一部分：不得据病历里的普通头痛再补一句「头痛阳性」
       //（同一句过两遍净化时「有头痛；有头痛」就是这样叠出来的）。
-      const documentedPositive = mentioned.filter((term) => sourceDocumentsAffirmation(source, term) &&
+      const documentedPositive = mentioned.filter((term) => sanitizerReading(source, term, extractorAffirmedTerms) === "affirmed" &&
         !termOnlyQualifiedIn(clause, term, source));
+      const unsettled = unsettledFindingsIn(mentioned, source, clause, extractorAffirmedTerms);
       // 每个词只出一句。documentedDenialNotice 已经把「只否认了下位词」这种情形
       // 说成「病历已记录否认<变体>，<term>的一般情况需医生核实」，
       // 若再让它落进 stillUnknown 走一遍 unknownTermNotice，同一句会印两遍。
-      const denial = documentedDenialNotices(source, mentioned.filter((term) => !documentedPositive.includes(term)));
+      const denial = documentedDenialNotices(source, mentioned.filter((term) => !documentedPositive.includes(term) && !unsettled.terms.has(term)));
       const documentedNegativeNotices = denial.notices;
-      const stillUnknown = mentioned.filter((term) => !documentedPositive.includes(term) && !denial.covered.has(term));
-      if (documentedPositive.length > 0 || documentedNegativeNotices.length > 0) {
+      const stillUnknown = mentioned.filter((term) => !documentedPositive.includes(term) && !denial.covered.has(term) && !unsettled.terms.has(term));
+      if (documentedPositive.length > 0 || documentedNegativeNotices.length > 0 || unsettled.notices.length > 0) {
         return `${prefix}${[
           documentedPositive.length > 0 ? `病历已记录${documentedPositive.join("、")}阳性` : "",
+          ...unsettled.notices,
           documentedNegativeNotices.join("；"),
           stillUnknown.length > 0 ? unknownTermNotice(source, stillUnknown) : "",
         ].filter(Boolean).join("；")}`;
@@ -1297,10 +1415,13 @@ function sanitizeUngroundedNegationText(
       //（甲方标准病历 1 两次生成的辨证依据都是「发热，为寒邪束表…之征；恶寒重、发热轻、无汗，为…之征」）。
       // 后置的「均无」「均否认」、以及句末才出现的否认词（「发热、头痛均否认」）否认的是前面列举的词，照旧整句算。
       const negatedSpan = clauseNegationScope(clause, negationProbeMasked);
+      // 病历读法见 sanitizerReading：病历肯定过的改成阳性（不再同时另出一句否认）；病历按逐项否认读的照留模型的否认；
+      // 读不出的写明需核实（2026-10-25 A056：病历先「无腹痛，发热，呕吐，…并有加重趋势」、后「无呕吐，发热」，此前同一句交付成「有呕吐；否认呕吐」）。
       const contradictedPositive = CLINICAL_NEGATION_FACT_TERMS.filter(
-        (term) => negatedSpan.includes(term) && sourceDocumentsAffirmation(source, term) &&
+        (term) => negatedSpan.includes(term) && sanitizerReading(source, term, extractorAffirmedTerms) === "affirmed" &&
           !termOnlyQualifiedIn(negatedSpan, term, source),
       );
+      const unsettled = unsettledFindingsIn(CLINICAL_NEGATION_FACT_TERMS.filter((term) => negatedSpan.includes(term)), source, negatedSpan, extractorAffirmedTerms);
       const unknown = CLINICAL_NEGATION_FACT_TERMS.filter(
         (term) => negatedSpan.includes(term) &&
           !sourceDocumentsNegation(source, term) &&
@@ -1308,13 +1429,17 @@ function sanitizeUngroundedNegationText(
           // 「无剧烈头痛」否认的是剧烈头痛，不另出一句「头痛是否存在」（qualified-negation-not-bare-symptom）。
           !termOnlyQualifiedIn(negatedSpan, term, source),
       );
-      if (contradictedPositive.length > 0 || unknown.length > 0) {
+      if (contradictedPositive.length > 0 || unknown.length > 0 || unsettled.notices.length > 0) {
         const supportedNotices = documentedDenialNotices(
           source,
-          CLINICAL_NEGATION_FACT_TERMS.filter((term) => clause.includes(term) && !unknown.includes(term)),
+          // 已改成阳性的词不再另出一句否认（「有X；否认X」）；病历否认的是它带限定的那一种（「否认突发雷击样头痛」）时保留，
+          // 交给下面的 reconcileSyntheticPolarityContradictions 换成病历原句——那是两件不同的事实，不矛盾。
+          CLINICAL_NEGATION_FACT_TERMS.filter((term) => clause.includes(term) && !unknown.includes(term) &&
+            (!contradictedPositive.includes(term) || Boolean(qualifiedDocumentedDenial(source, term))) && !unsettled.terms.has(term)),
         ).notices;
         return `${prefix}${[
           contradictedPositive.length > 0 ? `病历已记录${contradictedPositive.join("、")}阳性` : "",
+          ...unsettled.notices,
           supportedNotices.join("；"),
           unknown.length > 0 ? unknownTermNotice(source, unknown) : "",
         ].filter(Boolean).join("；")}`;
@@ -1350,7 +1475,32 @@ function sanitizeUngroundedNegationText(
   // 不能因为同句后半有「如出现」就整句放行（本函数也作用于 M03/M04 可见正文）。
   // 紧接着下一小句以「本例」起头、对照的是本例自己的表现时，不以「本例/患者」起头、带「无/没有/未见/不伴」的这一小句说的是鉴别对象那个病
   //（「痫证发作无热，本例持续高热不符」）：不按本例的否认改写——改了就成「有发热，本例持续高热不符」（2026-10-19 Claude 评审 D/H 集多例）。
+  // 逐字照录病历原文的一段不改写：病历自己的话不会与病历矛盾（2026-10-25 A056：模型照录「…神疲，精神萎靡，无呕吐，发热」，
+  // 交付成「…精神萎靡，有呕吐；有呕吐；否认呕吐，发热」）。净化按逗号小句做，所以看的是这一小句连同前后小句拼成的、
+  // 在病历里逐字出现的最长一段（至少 8 字）；病程里先有后无（「伴呕吐2次。今日无呕吐」）照录后一句也不改。
+  const recordComparable = quoteComparable(source);
+  const clauseInVerbatimRecordSpan = (clause: string, offset: number, whole: string): boolean => {
+    const sentenceStart = Math.max(...["。", "；", ";", "\n"].map((mark) => whole.lastIndexOf(mark, offset - 1))) + 1;
+    const restEnd = whole.slice(offset).search(/[。；;\n]/u);
+    const sentence = whole.slice(sentenceStart, restEnd >= 0 ? offset + restEnd : whole.length);
+    const parts = sentence.split(/([，,])/u);
+    const at = sentence.indexOf(clause, offset - sentenceStart > 0 ? offset - sentenceStart - 1 : 0);
+    if (at < 0) return false;
+    let position = 0;
+    const units = parts.filter((_, index) => index % 2 === 0).map((text) => { const unit = { text, start: position }; position += text.length + 1; return unit; });
+    const self = units.findIndex((unit) => unit.start <= at && at < unit.start + unit.text.length + 1);
+    if (self < 0) return false;
+    for (let from = self; from >= 0; from -= 1) {
+      for (let to = self; to < units.length; to += 1) {
+        const span = units.slice(from, to + 1).map((unit) => unit.text).join("，").replace(/^\s*(?:[-*]>?\s*|>\s*|#{1,6}\s*)?(?:[^：:|]{1,24}[：:]\s*)?/u, "");
+        const comparable = quoteComparable(span);
+        if (comparable.length >= 8 && recordComparable.includes(comparable)) return true;
+      }
+    }
+    return false;
+  };
   const sanitizeOwnClause = (clause: string, offset: number, whole: string): string => {
+    if (CLINICAL_NEGATION_CUE.test(clause) && clauseInVerbatimRecordSpan(clause, offset, whole)) return clause;
     const next = whole.slice(offset + clause.length + 1).match(/^[^。；;，,]*/u)?.[0] || "";
     if (/无|没有|未见|不伴/u.test(clause) && !/^\s*(?:本例|患者|病人|该患)/u.test(clause) && CONTRAST_WITH_THIS_CASE_OPENING.test(next)) return clause;
     return sanitizeClause(clause);
@@ -2741,7 +2891,44 @@ function hasPatientScopedSpanOccurrence(text: string, span: string): boolean {
  */
 const INTENSITY_MODIFIER_ONLY_SEGMENT = /^(?:持续|突发|突然|急性|反复|阵发性?|间断|间歇性?|明显|大量|少量|剧烈|进行性|快速|逐渐|新发|再发|复发|严重|轻微|最)*$/;
 
-function isNegatedAt(text: string, index: number): boolean {
+/**
+ * 否认词跨逗号延续到后面的裸词（「否认胸痛，胸闷，气促」）是这套判据的既有设计；可是同一句的逗号列举里只要有一项带着自己的肯定证据，
+ * 这一串就不是否认列举，而是否认一项之后接着写的阳性表现（2026-10-25 第十九轮，网上基层病历 A056 引出的整类排查）：
+ *「无咳嗽，胸痛，伴大汗」「无头痛，言语不清，右侧肢体无力」「无恶心，黑便3次」「无咳嗽，乏力，胸痛，大汗淋漓」此前红旗全丢——
+ * 去掉开头那句无关的否认，同一句都是红旗。冻结令允许的确定性例外：有限闭集（数量/次数、起首的「伴/有/偶有/出现…」、程度/时相/起病词、
+ * 侧别）+ 构词式守卫（以否认词起首的项本身是否认，跳过；有「均无/均否认」这类集体后置否认时整串仍是否认）。只会把「否认」改成「未否认」，
+ * 闸门方向只增不减。类夹具 scripts/fixtures/open-language-classes/denial-run-broken-by-positive-item.json。
+ * afterTermScope 为 "clause"（病历读法）时只看被测词自己那一小句。
+ */
+const DENIAL_RUN_POSITIVE_ITEM = new RegExp([
+  "\\d+(?:\\.\\d+)?\\s*(?:次|天|日|周|月|年|小时|分钟|ml|mL|毫升|斤|kg|公斤)",
+  "[一二两三四五六七八九十数几多]次",
+  "^(?:伴有?|有|见|偶有|时有|常有|出现|自觉|并有)",
+  "(?:明显|剧烈|频作|频发|加重|严重|持续|阵发|反复|大量|不止|淋漓|难忍|如注|突发|突然|骤然|新发|再发|复发|今日|今晨|今早|今天|昨日|昨晚|昨夜|近日|刚刚|刚才)",
+  "(?:左侧|右侧|双侧|一侧|单侧|半身|偏身)",
+].join("|"), "u");
+const DENIAL_RUN_ITEM_NEGATED = /^(?:否认|无|未见|未诉|未出现|没有|不伴|并无|尚无|暂无)/u;
+const DENIAL_RUN_COLLECTIVE_NEGATION = /(?:均无|均否认|均未|皆无|皆否认|都没有|都无)/u;
+function denialRunBrokenByPositiveItem(afterNegation: string, text: string, index: number, scope: "window" | "clause"): boolean {
+  const sentenceRest = text.slice(index).split(/[。；;\n]/u)[0];
+  const termClause = `${afterNegation.slice(Math.max(afterNegation.lastIndexOf("，"), afterNegation.lastIndexOf(",")) + 1)}${sentenceRest.split(/[，,]/u)[0]}`;
+  const items = scope === "clause"
+    ? [termClause]
+    : [...afterNegation.split(/[，,]/u).slice(1, -1), termClause, ...sentenceRest.split(/[，,]/u).slice(1)];
+  if (items.some((item) => DENIAL_RUN_COLLECTIVE_NEGATION.test(item))) return false;
+  return items.some((item) => {
+    const trimmed = item.trim();
+    return Boolean(trimmed) && !DENIAL_RUN_ITEM_NEGATED.test(trimmed) && DENIAL_RUN_POSITIVE_ITEM.test(trimmed);
+  });
+}
+
+/**
+ * afterTermScope：被测词之后找程度/时间修饰时看多远。安全闸门用缺省的 "window"（词后 24 字，可越过逗号进下一小句——宁可多判阳性）；
+ * 病历读法（recordedFindingReading）另用 "clause" 再判一次，只看被测词所在的这一小句：两种范围给出不同结论的那一处，
+ * 是「越过逗号借来的修饰词」决定的阳性，读法记为不明确（2026-10-25，A056「无腹痛，发热，呕吐，于乡卫生院输液治疗两天无效，
+ * 并有加重趋势」：「加重」说的是腹泻，却让发热、呕吐都成了阳性，再与后文「无呕吐」叠出「有呕吐；否认呕吐」）。
+ */
+function isNegatedAt(text: string, index: number, afterTermScope: "window" | "clause" = "window"): boolean {
   const hardStart = Math.max(
     text.lastIndexOf("。", index - 1),
     text.lastIndexOf("；", index - 1),
@@ -2772,6 +2959,7 @@ function isNegatedAt(text: string, index: number): boolean {
     const afterComma = afterNegation.slice(commaIndex + 1);
     const beforeComma = afterNegation.slice(0, commaIndex);
     const explicitNegativeContinuation = new RegExp(`^(?:也|亦|并|且|均|都)?\\s*(?:否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|无|未见|没有|未诉|未出现|未发生|不伴)`).test(afterComma.trim());
+    if (!explicitNegativeContinuation && denialRunBrokenByPositiveItem(afterNegation, text, index, afterTermScope)) return false;
     const explicitPositiveClause = /^(?:突发|出现|再发|复发|伴|伴有|持续|加重|发作|本次|当前|目前|现在|现|诉|呈|排出|排)/.test(afterComma.trim())
       // 否认列举的延续项是**裸词**（「否认胸痛，胸闷，气促」）。一旦从句里出现了
       // 诱发/发作/加重这类动词，它描述的就是一个已经发生的阳性事件，不是继续在否认。
@@ -2796,7 +2984,8 @@ function isNegatedAt(text: string, index: number): boolean {
     //   · 「胸闷」「气促」—— 裸词,是否认列举的延续项。
     // 因此只在「否定对象已完整 + 词后带阳性修饰」时终止作用域,不影响裸词列举。
     if (!explicitNegativeContinuation && afterComma.trim().length === 0 && beforeComma.trim().length > 0) {
-      const afterTerm = text.slice(index, index + 24).replace(/^[^一-龥]*/, "");
+      const afterTermWindow = text.slice(index, index + 24).replace(/^[^一-龥]*/, "");
+      const afterTerm = afterTermScope === "clause" ? afterTermWindow.split(/[，,。；;\n]/u)[0] : afterTermWindow;
       // 跳过被测词本身:词长未知,故取词后 24 字里首个出现的修饰词位置作判据。
       //
       // 判据分两组，都表示「这是一句阳性断言，不是否认列举的延续项」：

@@ -1011,52 +1011,61 @@ export function buildTcmKnowledgeContext(caseState: CaseState, stage: "diagnose"
 
   sections.push("## 院内合理用药/中药标准资料支持");
   sections.push(`资料版本：${data.schemaVersion}；生成时间：${data.generatedAt}；饮片条目：${data.summary.herbCount}。`);
-  sections.push("使用边界：以下内容仅作为证据与风险提示素材，不替代医生审方；不得输出“硬拦截/自动通过”。");
-  sections.push("药典版本边界：本地剂量规则含2020版历史基线；2025年10月1日起处方采纳必须以《中华人民共和国药典》2025年版、现行说明书及院内药事规则复核，历史基线不得表述为现行药典核验结论。");
-  sections.push(`全局规则：${data.globalRules.join(" ")}`);
-  sections.push(formatHisSupportContext(text));
-
-  if (stage === "prescribe") {
-    sections.push(`候选处方剂量限定名单（用于候选处方剂量核验；herbs[]只能选择本名单或下方命中规则中带明确最小/最大剂量的药味；未覆盖药味不得输出剂量或放入候选处方）：${formatCommonDoseIndex()}`);
-    sections.push(`模型生成前置配伍核验索引（来自本地结构化高风险配伍规则；候选方不得同时包含任一药对，医生工作台修改后仍以真实审方为准）：${formatHighRiskPairIndex()}`);
-  }
-
+  const boundaryLines = [
+    "使用边界：以下内容仅作为证据与风险提示素材，不替代医生审方；不得输出“硬拦截/自动通过”。",
+    "药典版本边界：本地剂量规则含2020版历史基线；2025年10月1日起处方采纳必须以《中华人民共和国药典》2025年版、现行说明书及院内药事规则复核，历史基线不得表述为现行药典核验结论。",
+    `全局规则：${data.globalRules.join(" ")}`,
+    formatHisSupportContext(text),
+  ];
+  const caseLines: string[] = [];
   if (hits.length > 0) {
-    sections.push("命中饮片/药味规则：");
+    caseLines.push("命中饮片/药味规则：");
     for (const hit of hits) {
       const details = hit.entries.map((entry) => `  - ${compactEntry(entry)}`).join("\n");
-      sections.push(`- ${hit.name}\n${details}`);
+      caseLines.push(`- ${hit.name}\n${details}`);
     }
   } else {
-    sections.push("命中饮片/药味规则：暂未从病例文本命中具体药味；处方生成时需优先选择可核验药味，并标注依据。");
+    caseLines.push("命中饮片/药味规则：暂未从病例文本命中具体药味；处方生成时需优先选择可核验药味，并标注依据。");
   }
 
   if (patentRisks.length > 0) {
-    sections.push("命中中成药重点风险：");
+    caseLines.push("命中中成药重点风险：");
     for (const item of patentRisks) {
-      sections.push(`- ${item.productOrGroup}：${item.keyRiskFields}；触发：${item.triggerCondition}；动作：${item.action}；依据：${item.sourceIds}`);
+      caseLines.push(`- ${item.productOrGroup}：${item.keyRiskFields}；触发：${item.triggerCondition}；动作：${item.action}；依据：${item.sourceIds}`);
     }
   }
 
   if (westernInteractions.length > 0) {
-    sections.push("命中西药/中成药相互作用或同类互斥：");
+    caseLines.push("命中西药/中成药相互作用或同类互斥：");
     for (const item of westernInteractions) {
-      sections.push(`- ${item.left} + ${item.right}：${item.condition}；强度${item.severity}；动作：${item.action}；依据：${item.sourceIds}`);
+      caseLines.push(`- ${item.left} + ${item.right}：${item.condition}；强度${item.severity}；动作：${item.action}；依据：${item.sourceIds}`);
     }
   }
 
   if (currentMedicationConflicts.length > 0) {
-    sections.push("命中当前用药-新处方冲突/同类互斥：");
+    caseLines.push("命中当前用药-新处方冲突/同类互斥：");
     for (const item of currentMedicationConflicts) {
-      sections.push(`- ${item.ruleName}：当前用药${item.existingExamples}，新处方${item.newExamples}；条件：${item.condition}；强度${item.severity}；提示动作：${item.action}；依据：${item.sourceIds}`);
+      caseLines.push(`- ${item.ruleName}：当前用药${item.existingExamples}，新处方${item.newExamples}；条件：${item.condition}；强度${item.severity}；提示动作：${item.action}；依据：${item.sourceIds}`);
     }
   }
 
   if (labThresholds.length > 0) {
-    sections.push("实验室/检查阈值规则：");
+    caseLines.push("实验室/检查阈值规则：");
     for (const item of labThresholds) {
-      sections.push(`- ${item.condition}（${item.lab} ${item.operator} ${item.thresholdValue}${item.thresholdUnit}）：涉及${item.drugOrClass}，强度${item.severity}；缺失策略：${item.missingLabPolicy}；动作：${item.action}；依据：${item.sourceIds}`);
+      caseLines.push(`- ${item.condition}（${item.lab} ${item.operator} ${item.thresholdValue}${item.thresholdUnit}）：涉及${item.drugOrClass}，强度${item.severity}；缺失策略：${item.missingLabPolicy}；动作：${item.action}；依据：${item.sourceIds}`);
     }
+  }
+
+  if (stage === "prescribe") {
+    // 开方阶段的顺序（2026-10-25 第十九轮）：本例命中的规则在前，两份通用索引在最后。证据块超预算时 prompt-budget 从本段段尾逐行裁，
+    // 此前顺序是「剂量名单（一行约 1.7 万字）→ 配伍索引 → 本例命中规则」，于是先被裁掉的恰是本例的规则——线上 48 小时 81 次开方
+    // 81 次裁剪、每次省略 21,459 字，丹参配华法林的出血风险、他汀与肝功能这类命中条目一次也没进提示词，与「先裁通用剂量索引」的设计相反。
+    // 两份索引的内容不变，只是放到最后；预算够时照旧完整给出。
+    sections.push(...boundaryLines.slice(0, 2), ...caseLines, ...boundaryLines.slice(2));
+    sections.push(`模型生成前置配伍核验索引（来自本地结构化高风险配伍规则；候选方不得同时包含任一药对，医生工作台修改后仍以真实审方为准）：${formatHighRiskPairIndex()}`);
+    sections.push(`候选处方剂量限定名单（用于候选处方剂量核验；herbs[]只能选择本名单或下方命中规则中带明确最小/最大剂量的药味；未覆盖药味不得输出剂量或放入候选处方）：${formatCommonDoseIndex()}`);
+  } else {
+    sections.push(...boundaryLines, ...caseLines);
   }
 
   return sections.join("\n");

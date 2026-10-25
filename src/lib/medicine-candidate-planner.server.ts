@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { CaseState } from "./diagnosis-types";
+import type { AssistedNegationClauses } from "./clinical-polarity";
 import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 import {
@@ -496,6 +497,12 @@ export async function planEvidenceBoundMedicineCandidates(
   caseState: CaseState,
   customerIdOrSignal?: string | AbortSignal,
   explicitRequestSignal?: AbortSignal,
+  /**
+   * 口语否定增补（2026-10-25）：与 M04 证据段的本地中成药检索传同一份，前 10 名的编号 LOCAL-INST-001…010 才与提示词里那一串一致。
+   * 此前规划器检索不带它，模型若判出口语否定、改变了检索排序，规划器选的「003」与提示词里的「003」就不是同一个药
+   *（编译时证据绑定对不上而被丢弃，召回白丢）。
+   */
+  assistedNegations?: AssistedNegationClauses,
 ): Promise<MedicineCandidatePlan> {
   const customerId = typeof customerIdOrSignal === "string" ? customerIdOrSignal : undefined;
   const requestSignal = typeof customerIdOrSignal === "string" ? explicitRequestSignal : customerIdOrSignal;
@@ -510,10 +517,10 @@ export async function planEvidenceBoundMedicineCandidates(
   // 病例检索前 10 名（编号 001–010，与 M04 证据段同一序列）+ 其后同一排序的非处方候选。
   // 本地检索每次约 0.1 秒 CPU（逐条匹配临床概念），所以前 10 名之外与处方目录只在用得上时才算：
   // 本院同步了中成药（补入院内有货的药）或模型提名了中成药（核对说明书）。
-  let otcPool = retrieveLocalPatentMedicineCandidates(caseState, patentSynced ? 60 : 10);
+  let otcPool = retrieveLocalPatentMedicineCandidates(caseState, patentSynced ? 60 : 10, assistedNegations);
   let rxPool: LocalPatentMedicineCandidate[] | undefined;
   const extendedPools = (): readonly (readonly LocalPatentMedicineCandidate[])[] => {
-    if (otcPool.length <= 10) otcPool = retrieveLocalPatentMedicineCandidates(caseState, 60);
+    if (otcPool.length <= 10) otcPool = retrieveLocalPatentMedicineCandidates(caseState, 60, assistedNegations);
     rxPool ||= retrieveLocalPatentMedicineCandidates(caseState, 60, undefined, {
       entries: localPrescriptionPatentMedicineEntries(),
       idOffset: PLANNER_EXTRA_LOCAL_ID_OFFSET + 100,

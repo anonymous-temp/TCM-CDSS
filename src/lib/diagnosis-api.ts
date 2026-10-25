@@ -517,7 +517,11 @@ type StreamSafetyOptions = {
    * 中医半流结束后、合并之前的收口（辨证路由注入「病名级鉴别缺失时只补写这一项」，见 tcm-disease-differential-authoring.server.ts）。
    * 绝大多数病例原样返回、不发请求；抛错由注入方兜住，这里只在它成功返回字符串时采用。
    */
-  m03TcmHalfTransform?: (tcmContent: string, signal: AbortSignal) => Promise<string>;
+  /**
+   * 第三个参数（2026-10-25）：用同一首轮模型、同一份中医半提示词外加一段约束重抽一次中医半（非流式，过同一套结构核对）；
+   * 不合规、超时、预算不够时返回 undefined。只供「病名须解释就诊原因」这一类结论用（m03-visit-reason-check）。
+   */
+  m03TcmHalfTransform?: (tcmContent: string, signal: AbortSignal, redraw?: (instruction: string) => Promise<string | undefined>) => Promise<string>;
   /**
    * M04 已编译候选（带 DIAGNOSIS_JSON 哨兵）在合同核对与签名之前的收口（开方路由注入方义药物功效核对，
    * 见 m04-formula-analysis-claim-check.server.ts）。首轮与两处修复轮各调一次；抛错、超时或返回空串时沿用原内容。
@@ -3872,8 +3876,35 @@ async function callPrimaryTextModelStream(
         if (nonStrictStreamFailure) throw nonStrictStreamFailure;
         if (m03ParallelHalves) {
           if (opts.m03TcmHalfTransform) {
+            const tcmHalfTask = initialStructuredTask;
+            const tcmHalfModel = initialResponseModel;
+            const redrawTcmHalf = async (instruction: string): Promise<string | undefined> => {
+              if (!tcmHalfTask || absoluteRunDeadline - Date.now() < STRUCTURED_STRICT_FALLBACK_MIN_BUDGET_MS) return undefined;
+              const startedAt = Date.now();
+              const attempt = await requestStructuredCompletion({
+                model: tcmHalfModel,
+                prompt: `${m03ParallelHalves.tcm}\n\n${instruction}`,
+                kind,
+                task: tcmHalfTask,
+                stage: "diagnose",
+                usageLabel: "diagnose_tcm_half_redraw",
+                parentSignal: upstreamController.signal,
+                absoluteDeadline: absoluteRunDeadline,
+                temperature: m04Retry.samplingTemperature,
+              });
+              const check = attempt.ok && !supportsStrictJsonSchema(tcmHalfModel)
+                ? checkNonStrictStructuredContent(tcmHalfTask, attempt.content)
+                : undefined;
+              const accepted = attempt.ok && (!check || check.violations.length === 0) ? (check ? check.content : attempt.content) : undefined;
+              console.info("[tcm-cdss:timing] m03_tcm_half_redraw", {
+                model: tcmHalfModel,
+                outcome: accepted ? "ok" : attempt.ok ? "provider_schema_violation" : attempt.reason,
+                durationMs: Date.now() - startedAt,
+              });
+              return accepted;
+            };
             try {
-              const transformed = await opts.m03TcmHalfTransform(accumulatedContent, upstreamController.signal);
+              const transformed = await opts.m03TcmHalfTransform(accumulatedContent, upstreamController.signal, redrawTcmHalf);
               if (typeof transformed === "string" && transformed.trim()) accumulatedContent = transformed;
             } catch {
               // 收口失败不影响本阶段：沿用模型原输出。

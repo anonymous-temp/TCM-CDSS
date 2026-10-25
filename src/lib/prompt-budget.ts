@@ -78,6 +78,22 @@ function compactEvidenceBySectionPriority(source: string, limit: number): Prompt
  * title or URL is not normally split into a misleading partial citation. The returned text is also
  * the only text that may be used to build the output citation whitelist.
  */
+/**
+ * 提示词里出现的段标题（「【…】」与「## …」，按出现先后、去重、每个截到 20 字）。只取固定的段名，不含病例内容；
+ * 供 `[tcm-cdss:knowledge] prompt_sections` 遥测核对各知识通道是否真的进了这一次的提示词（2026-10-25 第十九轮知识库接入复查：
+ * 开方证据块每次被裁、本例命中规则从未进提示词，此前日志里看不出来）。
+ */
+export function promptSectionHeaders(prompt: string): string[] {
+  const headers: string[] = [];
+  for (const line of String(prompt || "").split("\n")) {
+    const match = line.match(/^\s*(【[^】\n]{1,40}】|## [^\n]{1,40})/u);
+    if (!match) continue;
+    const header = match[1].slice(0, 20);
+    if (!headers.includes(header)) headers.push(header);
+  }
+  return headers;
+}
+
 export function compactEvidenceContextForPrompt(
   evidenceContext: string,
   maxChars: number,

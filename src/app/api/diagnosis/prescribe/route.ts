@@ -1,8 +1,7 @@
 import { requiredPrecautionsForCase, requiredPrecautionsPromptSection } from "@/lib/required-precautions.server";
 import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.server";
 import { textbookDietPromptSection } from "@/lib/tcm-nondrug-textbook-plan.server";
-import { restoreDiagnoseSupportingFacts } from "@/lib/delivered-surface";
-import { affirmedClinicalSourceClauses } from "@/lib/clinical-polarity";
+import { prescribeWorkingPriorReasoning } from "@/lib/prescribe-working-reasoning";
 import { prefetchAssessFollowupFromDraftCandidate, prefetchAssessFollowupFromSignedPrescribe, tapFinalStageContent } from "@/lib/stage-prefetch.server";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
 import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
@@ -35,7 +34,7 @@ import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-pl
 import { buildDrugInventoryPromptContext } from "@/lib/drug-inventory.server";
 import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
-import { compactEvidenceContextForPrompt, m04EvidencePromptBudgetChars, m04ExternalEvidenceSoftDeadlineMs } from "@/lib/prompt-budget";
+import { compactEvidenceContextForPrompt, m04EvidencePromptBudgetChars, m04ExternalEvidenceSoftDeadlineMs, promptSectionHeaders } from "@/lib/prompt-budget";
 import { declassifyAndDropOpposingM04CandidateHerbs } from "@/lib/m04-modification-safety";
 import { checkFormulaAnalysisClaimsInContent } from "@/lib/m04-formula-analysis-claim-check.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
@@ -117,12 +116,7 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   // 服务端的有限结论自带红旗发现，不补。
   // 签名上下文仍用回传的那份（未补回事实）：补回只改内存里的工作副本，不能让 M04 的签名绑到一份调用方手里没有的 M03。
   const deliveredSignedPriorReasoning = signedPriorReasoning;
-  if (!isLimitedM03NotPrescribable(signedPriorReasoning)) {
-    signedPriorReasoning = restoreDiagnoseSupportingFacts(signedPriorReasoning, affirmedClinicalSourceClauses(
-      [parsed.caseState.hisRecord?.fields?.xianbingshi, parsed.caseState.symptoms?.presentHistory]
-        .find((value): value is string => typeof value === "string" && Boolean(value.trim())),
-    ));
-  }
+  signedPriorReasoning = prescribeWorkingPriorReasoning(parsed.caseState, signedPriorReasoning);
   if (isLimitedM03NotPrescribable(signedPriorReasoning)) {
     const signedEmergency = isEmergencyLimitedDiagnosis(signedPriorReasoning);
     const emergencyLimited = signedEmergency || deterministicGate.safetyGate?.status === "red_flag";
@@ -256,7 +250,9 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   // 此前只能从「规划器结束到提示词压缩日志」之间的 3.5s 空白推断。只记毫秒数。
   const preModelTimings: Record<string, number> = { prepared: Date.now() - orchestrationStartedAt };
   const [medicinePlan, baseEvidenceContext, inventoryContext] = await Promise.all([
-    planEvidenceBoundMedicineCandidates(safeState, parsed.customer.customerId, signal)
+    // 规划器与证据段的本地中成药检索用同一份口语否定增补（编号一致）；增补多半已被辨证阶段缓存，几乎不等。
+    assistedNegationsPromise
+      .then((assistedNegations) => planEvidenceBoundMedicineCandidates(safeState, parsed.customer.customerId, signal, assistedNegations))
       .then((value) => { preModelTimings.planner = Date.now() - orchestrationStartedAt; return value; }),
     assistedNegationsPromise.then((assistedNegations) => {
       const softDeadline = m04ExternalEvidenceSoftDeadlineMs();
@@ -372,6 +368,12 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   );
   const boundedEvidence = compactEvidenceContextForPrompt(evidenceContext, evidenceBudget);
   const prompt = appendEvidenceContext(basePrompt, boundedEvidence.text) + promptSuffix;
+  console.info("[tcm-cdss:knowledge] prompt_sections", {
+    stage: "prescribe",
+    sections: promptSectionHeaders(prompt),
+    evidenceTruncated: boundedEvidence.truncated,
+    caseRulesRetained: boundedEvidence.text.includes("命中饮片/药味规则："),
+  });
   if (boundedEvidence.truncated) {
     console.warn("[tcm-cdss:prescribe] evidence context compacted to fit prompt budget", {
       basePromptChars: basePrompt.length,

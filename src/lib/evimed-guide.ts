@@ -819,11 +819,20 @@ async function buildSingleEvidenceSection(
   let result: GuideEvidenceResult | undefined;
   let usedQuery = query;
   const topicQueries = buildSignedTopicEvidenceQueries(caseState, stage, kind).filter((candidate) => candidate !== query);
-  if (topicQueries.length > 0) {
-    // 与 M03 阶段同一套有界扇出：签名主题词按优先级在前，原叙述查询垫底；先到先用、其余取消。
+  // 有界扇出的查询序列：开方/随访阶段是签名主题词，辨证阶段是本例的临床问题词；原叙述查询都垫底。
+  // 两个阶段共用同一条选取规则（2026-10-25 第十九轮）：此前辨证阶段取「第一个有返回的问题查询」，不看它的条目能否通过下面的病例相关性过滤，
+  // 线上 48 小时 87 次辨证检索里 66 次结果被整段滤空，后面本可用的查询（另一个问题词、原叙述查询）一次也没被采用——
+  // 正是 9/28 在开方阶段修过的同一缺陷，当时只修了一个阶段。
+  const fanOut = topicQueries.length > 0
+    ? [...topicQueries, query]
+    : stage === "diagnose" && kind !== "instruction" && problemQueries.length
+      ? [...problemQueries, query]
+      : undefined;
+  if (fanOut) {
+    // 先到先用、其余取消。
     const unused = new AbortController();
     const querySignal = signal ? AbortSignal.any([unused.signal, signal]) : unused.signal;
-    const ordered = [...topicQueries, query];
+    const ordered = fanOut;
     const pending = ordered.map((candidate) => fetchExternalEvidence(kind, candidate, { ...options, signal: querySignal }));
     const relevanceFilterOn = process.env.CDSS_EVIDENCE_RELEVANCE_FILTER !== "false";
     try {
@@ -847,27 +856,6 @@ async function buildSingleEvidenceSection(
       chosen ??= firstNonEmpty;
       result = chosen?.result ?? firstResult;
       usedQuery = chosen?.query ?? query;
-    } finally {
-      unused.abort();
-    }
-  } else if (stage === "diagnose" && kind !== "instruction" && problemQueries.length) {
-    const unused = new AbortController();
-    const querySignal = signal ? AbortSignal.any([unused.signal, signal]) : unused.signal;
-    // Start the same bounded fan-out, consume by clinical priority instead of waiting for all.
-    // The first successful priority query is exactly the former Promise.all selection. Unused
-    // work is cancelled; its caught empty result never changes already selected evidence IDs.
-    const full = fetchExternalEvidence(kind, query, { ...options, signal: querySignal });
-    const preferred = problemQueries.map(candidate => fetchExternalEvidence(kind, candidate, { ...options, signal: querySignal }));
-    try {
-      for (const [index, pending] of preferred.entries()) {
-        const candidate = await pending;
-        if (candidate.ok && candidate.list.length) {
-          result = candidate;
-          usedQuery = problemQueries[index];
-          break;
-        }
-      }
-      result ??= await full;
     } finally {
       unused.abort();
     }
@@ -953,7 +941,8 @@ export async function buildExternalEvidenceContext(
   const sections = await Promise.all(targets.map((kind) => buildSingleEvidenceSection(kind, caseState, stage, signal)));
   return [
     "## 外部证据检索支持",
-    "以下为模型可引用的外部证据上下文；硬安全边界由确定性门控负责，灵犀审方只提供风险提示，检索结果不得作为自动放行依据。",
+    // 「灵犀审方只提供风险提示」一句随外部审方一起删掉（该审方 2026-09-25 已移除，提示词还在告诉模型有它）。
+    "以下为模型可引用的外部证据上下文；硬安全边界由确定性门控负责，检索结果不得作为自动放行依据。",
     ...sections,
   ].join("\n\n");
 }
