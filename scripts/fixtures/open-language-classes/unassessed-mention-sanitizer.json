@@ -1,0 +1,57 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "unassessed-mention-sanitizer",
+ "mode": "sanitizer",
+ "addedAt": "2026-10-25",
+ "layerAttribution": {
+  "layer": "visible_text_negation_sanitizer",
+  "mechanism": "病历读法（affirmationMentionKind）把「是否黑便尚未询问」里的黑便当成记录了，模型的「无黑便」被净化成「病历已记录黑便阳性」（C093 交付「有黑便」）。",
+  "exception": "与 unassessed-mention-not-recorded 同一判据（unassessedMentionAt），本夹具钉净化器一侧；另外第二十轮起与病历相反的否认改为删除，不再改写成阳性。",
+  "whyDeterministic": "缺陷在净化器读病历的判据上；模型写的「无黑便」方向本来就接近事实（未询问），被改反了。"
+ },
+ "probe": "鉴别要点：本例无黑便，与上消化道出血相区分。",
+ "sets": {
+  "development": {
+   "note": "主体病历多一句「未评估」的记载，净化结果必须与去掉这句的兄弟病历逐字相同（都是「尚未确认黑便是否存在」）。",
+   "pairs": [
+    {
+     "subject": "上腹痛3天，无呕血。是否黑便尚未询问。",
+     "sibling": "上腹痛3天，无呕血。"
+    },
+    {
+     "subject": "上腹痛3天，有无黑便不详。",
+     "sibling": "上腹痛3天。"
+    },
+    {
+     "subject": "胃脘胀痛1周，黑便情况未问。",
+     "sibling": "胃脘胀痛1周。"
+    }
+   ]
+  },
+  "heldOut": {
+   "note": "判据冻结后写的说法。",
+   "pairs": [
+    {
+     "subject": "反酸烧心2月，未询问有无黑便、呕血。",
+     "sibling": "反酸烧心2月。"
+    },
+    {
+     "subject": "上腹隐痛半月，需追问是否黑便。",
+     "sibling": "上腹隐痛半月。"
+    }
+   ]
+  }
+ },
+ "controls": {
+  "note": "真正记载了黑便的病历，模型的「无黑便」仍被改正（第二十轮起是删掉）。",
+  "mustStillAffirm": [
+   "上腹痛3天，解黑便2次。",
+   "大便色黑如柏油2天，黑便3次。",
+   "问：有没有黑便？ 答：有，昨天解了两次。"
+  ]
+ },
+ "measurements": {
+  "before": "主体 5 对全部与兄弟不同（主体被改成「病历已记录黑便阳性」）",
+  "after": "5/5 与兄弟相同；反例 3/3 被改正"
+ }
+}

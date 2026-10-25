@@ -39,7 +39,7 @@ import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
 import { withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
 import { assessPregnancyState } from "./clinical-state";
-import { priorityEvaluationFirstStep, type DoseWithheldFollowupKind } from "./diagnosis-safety";
+import { priorityEvaluationFirstStep, priorityEvaluationFollowUpNode, quoteWithoutDeniedLeadingItems, type DoseWithheldFollowupKind } from "./diagnosis-safety";
 
 /**
  * 投影时可选的本例信息：herbBoundaryAudience 决定逐味人群提示列哪些人群（见 herbBoundaryPopulationRelevant）；
@@ -776,6 +776,21 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
       if (row && SERVER_QUALITY_BOUNDARY_ITEMS.has(String(row.item || ""))) return false;
       return !(reason && !reason.replace(BOUNDED_ADVICE_NOTE, "").trim());
     });
+  }
+  // 病历引文的读法与原处一致：开头落在病历否认范围里的裸词去掉（quoteWithoutDeniedLeadingItems；A056「发热，呕吐，于乡卫生院…」）。
+  // 主证依据去掉后为空的那一条不交付，整列都空时原样保留（合同要求非空）；病机节点的患者事实为空时原样保留。
+  if (options?.recordText) {
+    const overview = record(reasoning.overview);
+    if (overview && Array.isArray(overview.primarySyndromeBasis)) {
+      const trimmed = overview.primarySyndromeBasis.map((item) => typeof item === "string" ? quoteWithoutDeniedLeadingItems(item, options.recordText!) : item)
+        .filter((item) => typeof item !== "string" || Boolean(item.trim()));
+      if (trimmed.length > 0) overview.primarySyndromeBasis = trimmed;
+    }
+    for (const node of records(pathogenesis?.chain)) {
+      if (typeof node.patientFact !== "string") continue;
+      const trimmed = quoteWithoutDeniedLeadingItems(node.patientFact, options.recordText);
+      if (trimmed.trim()) node.patientFact = trimmed;
+    }
   }
   const western = record(reasoning.westernDiagnosis);
   const primary = record(western?.primary);
@@ -2013,10 +2028,15 @@ export function followupWhenDoseWithheld(text: string, reason: "red_flag" | "wit
  * 换掉「请服完本次的药后复诊」或已补了剂数的那句；没有这句时放在最前。模型写的立即就医表现照留。幂等。
  */
 const FINISH_MEDICINE_WITH_COUNT = /请?在?(?:服完|吃完|用完)(?:本次的?药|\d+剂药)(?:后|再)?(?:（约\d+天后）)?(?:按时)?复诊[^。；;]*[。；;]?/u;
-export function followupWhenPriorityEvaluation(text: string, focus: string): string {
-  // 与 M05 首次复诊同一句（priorityEvaluationFirstStep；乳房肿块按 NICE NG12 两周内乳腺专科）。
-  const first = priorityEvaluationFirstStep(focus);
+export function followupWhenPriorityEvaluation(text: string, focus: string, regimen?: { doses?: unknown; days?: unknown }): string {
+  // 与 M05 首次复诊同一句（priorityEvaluationFirstStep；乳房肿块按 NICE NG12 两周内乳腺专科）。开方页带上剂数：
+  // 先评估、医生确认可以服药后服完 N 剂再复诊，与煎服法的复诊节点同一份计划（2026-10-25 第二十轮）。
+  const first = priorityEvaluationFirstStep(focus, regimen);
   if (text.includes(first)) return text;
+  // 辨证阶段写的、不带剂数的那一句（开方阶段的复诊计划常沿用它）：换成带剂数的。
+  const plain = priorityEvaluationFirstStep(focus);
+  const generic = priorityEvaluationFirstStep("");
+  for (const previous of [plain, generic]) if (previous !== first && text.includes(previous)) return text.replace(previous, first);
   if (FINISH_MEDICINE_WITH_COUNT.test(text)) return text.replace(FINISH_MEDICINE_WITH_COUNT, first);
   return `${first}${text}`;
 }
@@ -2113,8 +2133,15 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
       } else {
         const decoction = record(records(record(projected.formula)?.candidates)[0]?.decoction);
         management.followupSafetyNet = typeof options?.priorityEvaluation === "string"
-          ? followupWhenPriorityEvaluation(management.followupSafetyNet, options.priorityEvaluation)
+          ? followupWhenPriorityEvaluation(management.followupSafetyNet, options.priorityEvaluation, { doses: decoction?.followUpAfterDoses, days: decoction?.followUpAfterDays })
           : followupWithDoseCount(management.followupSafetyNet, decoction?.followUpAfterDoses, decoction?.followUpAfterDays);
+      }
+    }
+    // 煎服法的复诊节点也先写评估这一步（priorityEvaluationFollowUpNode，与上面复诊计划同一份计划）。
+    if (!options?.doseWithheld && typeof options?.priorityEvaluation === "string") {
+      for (const candidate of records(record(projected.formula)?.candidates)) {
+        const decoction = record(candidate.decoction);
+        if (decoction && typeof decoction.followUpNode === "string") decoction.followUpNode = priorityEvaluationFollowUpNode(options.priorityEvaluation, decoction.followUpNode);
       }
     }
     // 方义里某一步删掉连词后面那半句、留下「…化生而，…」的残句（甲方标准病历 6 最终复测）：去掉悬空的「而」。

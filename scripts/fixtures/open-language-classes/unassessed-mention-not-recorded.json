@@ -1,0 +1,67 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "unassessed-mention-not-recorded",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-25",
+ "trigger": "第十九轮 qwen 评审：甲方 100 例 C093 病历「其他四诊/问诊补充：是否黑便尚未询问」，系统把黑便当成记录了——闸门出消化道出血提示，模型写的「无黑便」被净化成「有黑便」，西医鉴别交付成「无呕血，有黑便」「不支持：有黑便；否认呕血」。按类排查：同一维（ConText 的未评估/假设）在三处各写各的——闸门完全不认「是否/尚未询问/未询问」，病历读法按整句判「不详/待核实」（同一句别处一个「（具体不详）」把「伴恶心」也吞掉，基层病例 B004），否认读者把「有无」里的「无」当否认词。",
+ "layerAttribution": {
+  "layer": "deterministic_assertion_context",
+  "mechanism": "diagnosis-safety.clinicalAssertionContextAt 只有主语（本人/家属）与语气（实际/条件）两维，没有「未评估」；hasTerm/hasNonNegatedClinicalPattern 因此把「是否黑便尚未询问」「未询问有无呕血」里的表现当成当前阳性；affirmationMentionKind 另用整句正则排除「待核实/不详」；isNegatedAt 与 sourceDocumentsNegation 把「有无」读成「无」。",
+  "exception": "冻结令允许的有限闭集 + 构词式守卫（unassessedMentionAt / questionAnswerPolarityAt）：前置触发词（是否、有无、有没有、可有、未询问、未问及、未查、需询问、待核实…）管到本小句末；后置状态词（尚未询问、未问、不详、未知、待核实、待排…）只在本小句以它收尾、中间不夹属性名词（性质、部位、程度、原因、具体…）时成立；「不清/不明/说不清」常是症状名的一部分（神志不清、言语不清），只在隔着「情况/与否/有无」或冒号时成立；伪触发（是否因…、是否与…有关）不算；答了「有/是」的按答案；问答体只认存在性问句，按答句定有无。结论经 mood=unassessed 落到 isExcludedClinicalAssertionAt，所有消费方同一判据。只会把「当前阳性」改成「未评估」，不新增症状词表。",
+  "sources": "闸门回放 ~/runlogs/r1018/work/r1032/replay/gate.mjs（20,740 份病历，HEAD 对工作树）：红旗丢失 0；新增 5 例都是此前被误读吞掉的真阳性（B024、「时常有便血」、「左半身无法活动，语言不利」、「漫无目的…双手握紧抽搐」、「吞咽困难」）；其余是待补问项（睡眠差→鼾症筛查 49 例：「无发热，食欲可，睡眠差」里的睡眠差现在读成有）。首版把裸用的「不清」当未评估，回放丢了 15 例神经红旗（神志不清、言语不清），已改。读法回放 ~/runlogs/r1018/work/r1032/replay/sanitizer.mjs：27,772 个（病历，表现）组合里 194 个读法改变，逐个读过。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "主体句里多出一句「未评估」的记载，门禁结果必须与去掉这句的兄弟句相同（都不报红旗）。",
+  "pairs": [
+   {
+    "subject": "头痛3天，未询问是否肢体无力、言语不清。",
+    "sibling": "头痛3天。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "胸闷2天，有无胸痛不详，有无大汗不详。",
+    "sibling": "胸闷2天。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "上腹痛3天，无呕血。是否黑便尚未询问。",
+    "sibling": "上腹痛3天，无呕血。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "咳嗽5天，咯血情况未问。",
+    "sibling": "咳嗽5天。",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "controls": {
+  "note": "真正记载的表现照报：写明次数的黑便、写明的言语不清与肢体无力、答了「有」的问句。",
+  "mustStillFlag": [
+   {
+    "text": "上腹痛3天，解黑便2次。",
+    "flag": "消化道出血"
+   },
+   {
+    "text": "今晨突发言语不清、右侧肢体无力2小时。",
+    "flag": "神经"
+   },
+   {
+    "text": "今晨突发神志不清1小时，呼之不应。",
+    "flag": "神经"
+   }
+  ],
+  "mustStayReady": [
+   "头痛3天，无呕吐。",
+   "腹痛3天，性质不详。"
+  ]
+ },
+ "measurements": {
+  "before": "subject 4 例中 2 例报警（未询问…肢体无力、言语不清；有无胸痛不详…有无大汗不详）、C093 形状出消化道出血提示",
+  "after": "subject 4/4 与兄弟句相同；controls 不变"
+ }
+}

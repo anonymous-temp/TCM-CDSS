@@ -17,7 +17,7 @@ import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals, patient
 import { completeTcmDiseaseDifferentials, prefetchTcmDifferentialTopUp } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { semanticRedFlagsForBanner } from "@/lib/banner-semantic-red-flags.server";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupFocus, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, pregnancyAdviceRelevant, renderSafetyLimitedDiagnosisContract, reproductiveAdviceRelevant, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, commaContinuedDenialReadingNotice, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupFocus, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, pregnancyAdviceRelevant, renderSafetyLimitedDiagnosisContract, reproductiveAdviceRelevant, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03SharedPatientContext } from "@/lib/m03-context-packets";
@@ -187,6 +187,8 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
       promptChars: prompt.length,
     });
   }
+  // 否认后逗号接着写的裸词，规则读法与事实模型都读成「没有」时，明告生成模型（commaContinuedDenialReadingNotice；2026-10-25 A056）。
+  stageInstructions += commaContinuedDenialReadingNotice(safeState);
   if (limitedInformation) {
     stageInstructions += "\n\n【有限信息推理】请使用患者已经提供的信息完成辨病辨证；降低相应结论置信度，并把真正影响判断的未知项写入本半负责的 limitations 或 uncertainties。不得因年龄、性别、生命体征、舌脉、过敏史或当前用药未提供而拒绝输出 M03，也不得臆造缺失事实。";
   }
@@ -240,7 +242,8 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   preModelMark("promptReady");
   console.info("[tcm-cdss:timing] m03_pre_model", preModelTimings);
   // 本例说法核对用的病历：正文前补性别、年龄、带名称的生命体征（同一份脱敏 DTO）。
-  const patientClaimRecord = patientClaimRecordText(trustedInputText(safeState), safeState.patient, safeState.vitals);
+  // 病历读法核对（commaContinuedDenialReadingNotice）也给核对器：它与生成模型读的是同一句歧义写法。
+  const patientClaimRecord = [patientClaimRecordText(trustedInputText(safeState), safeState.patient, safeState.vitals), commaContinuedDenialReadingNotice(safeState).trim()].filter(Boolean).join("\n");
   const differentialTopUpContext = { recordText: trustedInputText(safeState), patient: { sex: safeState.patient?.sex, age: safeState.patient?.age } };
   const visitReasonInput = {
     chiefComplaint: safeState.chiefComplaint || "",

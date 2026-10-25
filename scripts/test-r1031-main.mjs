@@ -65,24 +65,25 @@ await check("1.2 逐字照录病历原文的一段不改写（A056 交付成「�
   assert.equal(D.recordedFindingReading(hx, "呕吐"), "conflicting");
   const verbatim = "病历记载：今日无呕吐，精神可，进食少。";
   assert.equal(D.sanitizeUngroundedRedFlagNegations(verbatim, state(hx, { chiefComplaint: "腹泻3天" })), verbatim);
-  assert.match(D.sanitizeUngroundedRedFlagNegations("本例无呕吐。", state(hx, { chiefComplaint: "腹泻3天" })), /病历已记录呕吐阳性/, "不是照录的否认仍按阳性改");
+  // 不是照录的否认仍被改正——第二十轮起改正方式是删掉这一条（不再改写成「病历已记录呕吐阳性」）。
+  assert.equal(D.sanitizeUngroundedRedFlagNegations("本例无呕吐。", state(hx, { chiefComplaint: "腹泻3天" })), "", "不是照录的否认仍被改正");
 });
 
-await check("1.3 病历前后两种记载并存：模型的否认改成阳性，同一句不再另出一句否认", () => {
+await check("1.3 病历前后两种记载并存：模型的否认删掉（第二十轮起不改写成阳性），同一句不另出一句否认", () => {
   const hx = "否认胸痛。今日上午突发胸痛2小时，伴大汗。";
   assert.equal(D.recordedFindingReading(hx, "胸痛"), "conflicting");
   const out = D.sanitizeUngroundedRedFlagNegations("鉴别：本例无胸痛，不支持。", state(hx, { chiefComplaint: "胸痛2小时" }));
-  assert.match(out, /病历已记录胸痛阳性/);
-  assert.doesNotMatch(out, /否认胸痛/);
+  assert.equal(out, "");
+  assert.doesNotMatch(out, /否认胸痛|无胸痛|阳性/);
 });
 
-await check("1.4 病历明确肯定、前面隔着固定的「无」字说法（疲乏无力、面色无华）：模型的「无X」改成阳性（此前按首次出现判成照录否认）", () => {
+await check("1.4 病历明确肯定、前面隔着固定的「无」字说法（疲乏无力、面色无华）：模型的「无X」被改正（此前按首次出现判成照录否认）", () => {
   const hx = "眩晕、头痛、疲乏无力、左侧偏瘫、胸痛、汗出、口干欲饮。";
   assert.equal(D.recordedFindingReading(hx, "胸痛"), "affirmed");
-  assert.match(D.sanitizeUngroundedRedFlagNegations("鉴别要点：本例无胸痛，与之不符。", state(hx, { chiefComplaint: "眩晕十年" })), /病历已记录胸痛阳性/);
+  assert.equal(D.sanitizeUngroundedRedFlagNegations("鉴别要点：本例无胸痛，与之不符。", state(hx, { chiefComplaint: "眩晕十年" })), "");
 });
 
-await check("1.5 只有「否认列举后的裸词」一种记载：事实模型列为阳性的写阳性，否则写明记载不明确", () => {
+await check("1.5 只有「否认列举后的裸词」一种记载：事实模型列为阳性的删掉这条否认，否则写明记载不明确", () => {
   const hx = "无腹痛，发热，呕吐，于乡卫生院输液治疗两天无效，并有加重趋势。";
   assert.equal(D.recordedFindingReading(hx, "发热"), "ambiguous");
   const plain = D.sanitizeUngroundedRedFlagNegations("鉴别要点：本例无发热，与之不符。", state(hx));
@@ -91,7 +92,7 @@ await check("1.5 只有「否认列举后的裸词」一种记载：事实模型
   const withFacts = D.sanitizeUngroundedRedFlagNegations("鉴别要点：本例无发热，与之不符。", state(hx, {
     clinicalFacts: { affirmedSymptoms: [{ term: "发热", quote: "发热" }] },
   }));
-  assert.match(withFacts, /病历已记录发热阳性/);
+  assert.equal(withFacts, "");
 });
 
 await check("1.6 带了自己谓语的小句（咳嗽有痰）、隔得远的裸词（…小便调，便秘）不算病历的否认", () => {

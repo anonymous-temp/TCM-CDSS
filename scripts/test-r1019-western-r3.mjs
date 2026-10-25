@@ -301,7 +301,8 @@ const criteriaFile = JSON.parse(fs.readFileSync(path.join(process.env.R1019_SRC 
     const rows = JSON.parse(grounded.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).westernDiagnosis.differentials;
     assert.equal(rows[0].distinguishingPoints, "当前用药情况未记录");
     assert.equal(rows[1].distinguishingPoints, "病历未记录发热（需问诊核实后方可用于排除）");
-    assert.match(safety.sanitizeUngroundedRedFlagNegations("当前用药情况未记录，无便秘", state), /病历已记录便秘阳性/u);
+    // 2026-10-25 第二十轮起，病历肯定、模型否认的那一项由净化器直接删掉，不再改写成「病历已记录便秘阳性」。
+    assert.equal(safety.sanitizeUngroundedRedFlagNegations("当前用药情况未记录，无便秘", state), "当前用药情况未记录");
     assert.doesNotMatch(safety.sanitizeUngroundedRedFlagNegations("当前用药情况未记录，未诉便秘", state), /未诉便秘|尚未确认便秘/u);
   });
   await check("7.3 同义词组是同一份受治理数据（导出 POSITIVE_FACT_EQUIVALENT_GROUPS）；粪质、单次未排、眩晕记作下位词：「否认大便干结」不等于否认便秘", () => {

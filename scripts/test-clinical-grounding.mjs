@@ -910,7 +910,10 @@ assert.match(preservedNightSweatConcept, /患者盗汗/);
 assert.doesNotMatch(preservedNightSweatConcept, /盗汗阳性表现未在本次病历中明确记录/);
 const colloquialDiarrhea = stateFromRecord("最近吃点东西就想跑厕所，稀稀的有半个月。", { zhushu: "吃东西后跑厕所，大便稀" });
 const preservedDiarrheaConcept = sanitizeUngroundedRedFlagNegations("患者无发热、腹痛或腹泻。", colloquialDiarrhea);
-assert.match(preservedDiarrheaConcept, /病历已记录腹泻阳性/, "colloquial loose-stool phrases must ground the canonical diarrhoea concept");
+// 2026-10-25 第二十轮起，病历肯定、模型否认的那一项直接删掉（不再改写成「病历已记录腹泻阳性」）；口语稀便照样接地为腹泻，
+// 所以腹泻既不留在否认里，也不变成「尚未确认」。
+assert.doesNotMatch(preservedDiarrheaConcept, /腹泻/, "colloquial loose-stool phrases must ground the canonical diarrhoea concept");
+assert.match(preservedDiarrheaConcept, /尚未确认发热是否存在/);
 for (const documentedAbdominalPain of [
   "来月经第一天肚子疼得蜷着，热水袋捂着好点。",
   "小肚子一阵一阵地痛。",

@@ -602,8 +602,9 @@ await check("16.23 病历「无汗出，偶有胸痛」「无头痛，有胸痛�
     const out = safety.sanitizeUngroundedRedFlagNegations(content, stateOf(record));
     return JSON.parse(out.slice(out.indexOf("{"), out.lastIndexOf("}") + 1)).overview.tcmDiseaseDifferentials[0].distinguishingPoints;
   };
-  assert.match(differential("阵发性心慌，伴有手足抖动，无汗出，偶有胸痛，偶有咳嗽。"), /病历已记录胸痛阳性/u);
-  assert.match(differential("阵发性心慌，无头痛，有胸痛。"), /病历已记录胸痛阳性/u);
+  // 第二十轮起被改正的方式是删掉这条否认（不再改写成「病历已记录胸痛阳性」）。
+  assert.equal(differential("阵发性心慌，伴有手足抖动，无汗出，偶有胸痛，偶有咳嗽。"), "本例以阵发性心慌为主症");
+  assert.equal(differential("阵发性心慌，无头痛，有胸痛。"), "本例以阵发性心慌为主症");
   assert.equal(differential("阵发性心慌，无胸痛，偶有头晕。"), "本例以阵发性心慌为主症，无胸痛", "病历否认（对照）");
 });
 

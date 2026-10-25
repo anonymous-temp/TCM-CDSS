@@ -15,6 +15,7 @@ import {
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
+import { recordedFindingReading } from "./diagnosis-safety";
 
 /**
  * 辨病辨证里关于本例患者的说法要有病历依据（2026-10-19，独立评审通则 1）。
@@ -189,7 +190,10 @@ export function parsePatientClaimRemovals(
     const fieldText = byId.get(field);
     if (!fieldText || span.length < 2 || span.length > MAX_SPAN_CHARS || !fieldText.includes(span)) continue;
     const key = compact(span);
-    if (key.length < 2 || source.includes(key)) continue;
+    // 片段是病历原文的一部分就不删——除非病历里它只以否认的形式出现（「无腹痛，发热，呕吐」里的「发热、呕吐」，2026-10-25 A056：
+    //「发热、呕吐为湿浊内扰之象」因为四个字在病历里逐字出现而被放过）。读法用病历读法（recordedFindingReading），
+    // 只解除保护，删不删仍由两次核对与复核决定。
+    if (key.length < 2 || (source.includes(key) && !onlyDeniedInRecord(span, recordText))) continue;
     // 「有胸痛」「伴口苦」：去掉开头的「有/伴/见」后是病历里肯定写着的表现（「偶有心慌、胸痛」），不删。否认句里的不算（「无恶心呕吐」对「有呕吐」照删）。
     const core = key.replace(EXISTENCE_LEAD_IN, "");
     if (core.length >= 2 && core !== key && affirmed.includes(core)) continue;
@@ -214,10 +218,16 @@ export function parsePatientClaimRemovals(
         !/^\s*(?:有|伴)/u.test(fieldText.slice(sentenceStart))) continue;
     // 片段大半是病历原话（「心前区压迫不适非典型更年期表现」里的「心前区压迫不适」）：错的只是后面的推断，不按本例说法删。
     const shared = longestSharedRun(key, source);
-    if (shared >= 4 && shared * 2 >= key.length) continue;
+    if (shared >= 4 && shared * 2 >= key.length && !onlyDeniedInRecord(span, recordText)) continue;
     if (!removals.some((removal) => removal.field === field && removal.span === span)) removals.push({ field, span });
   }
   return removals;
+}
+
+/** 片段里的表现在病历里只有否认的读法（每一项都读成 denied，至少一项）。 */
+function onlyDeniedInRecord(span: string, recordText: string): boolean {
+  const items = span.replace(EXISTENCE_LEAD_IN, "").split(/[、，,和及与]/u).map((item) => item.trim()).filter((item) => item.length >= 2);
+  return items.length > 0 && items.every((item) => recordedFindingReading(recordText, item) === "denied");
 }
 
 const COMMA = /[，,]/u;

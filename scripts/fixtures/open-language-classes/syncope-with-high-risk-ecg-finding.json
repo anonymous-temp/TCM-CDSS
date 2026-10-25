@@ -1,0 +1,51 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "syncope-with-high-risk-ecg-finding",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-25",
+ "trigger": "第十九轮 qwen 评审：基层病例 B024（67 岁，24 小时动态心电图窦性停搏最长 3 秒，入院时突发晕厥）两层都没报红旗：事实层判 clarify（病历年龄栏写着「就诊在报道前一年」），确定性层的晕厥只有提示档。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rule",
+  "mechanism": "detectProgrammaticRedFlags 没有「晕厥 + 心电记录的高危心律失常」这一条；晕厥只在 narrativeFallbackAdvisories 出提示；hasTerm 的时间判据把「入院时突发晕厥」算既往（clinical-polarity 的「入院时」时间线索）。",
+  "exception": "数值阈值 + 有限闭集（T6 syncope.detection.highRiskEcgFindings）：2018 ESC 晕厥指南主要高危心电特征——清醒时窦性停搏 >3 s（这里取 ≥3 秒）、二度 II 型/三度/高度房室传导阻滞、室速/室颤；晕厥取本次病程里不否认、本人、非远期（既往/多年前…）的一处；睡眠中的长间歇、已植入起搏器不算。只增不减。",
+  "sources": "https://doi.org/10.1093/eurheartj/ehy037（Table 6 主要高危心电特征；4.2.4.8：≥3 s 长间歇属有意义的心律失常；5.4.1.1：自发晕厥时记录到窦性停搏是起搏指征）。闸门回放 20,740 份：只有 B024 一例新增此红旗。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "同一事实的两种写法（停搏写法、阻滞写法）门禁结果相同，且都报警。",
+  "pairs": [
+   {
+    "subject": "头晕1周，动态心电图示窦性停搏最长达3.2秒，今晨晕厥1次。",
+    "sibling": "头晕1周，动态心电图示长RR间期3.5秒，今晨晕厥1次。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "今晨起床后突然晕倒，约1分钟自行苏醒；心电图示三度房室传导阻滞。",
+    "sibling": "今晨起床后突然晕倒，约1分钟自行苏醒；心电图示完全性房室传导阻滞。",
+    "siblingExpect": "flagged"
+   }
+  ]
+ },
+ "controls": {
+  "note": "停搏不足 3 秒、睡眠中的停搏、否认晕厥、已植入起搏器、心电图未见停搏都不报。",
+  "mustStillFlag": [
+   {
+    "text": "因头晕到社区卫生服务中心就诊，经24小时动态心电图检查，发现窦性停搏，最长达3秒；入院时突发晕厥。",
+    "flag": "高危心律失常"
+   }
+  ],
+  "mustStayReady": [
+   "头晕2周，动态心电图：窦性停搏最长2.1秒；今晨晕厥1次，自行苏醒。",
+   "头晕2周，动态心电图：夜间睡眠中窦性停搏3.2秒，无晕厥。",
+   "头晕2周，动态心电图：窦性停搏，最长达3秒。无晕厥、黑矇。",
+   "头晕2天，晕厥1次；心电图未见窦性停搏、房室传导阻滞。"
+  ]
+ },
+ "measurements": {
+  "before": "所有 flagged 写法 0 报警",
+  "after": "flagged 写法全部报警；controls 不报"
+ }
+}

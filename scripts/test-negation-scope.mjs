@@ -83,8 +83,9 @@ expectDenial("无汗", "汗", "紧邻否定");
 expectDenial("否认心悸", "心悸", "显式否认");
 {
   const conflicting = gateText("否认发热");
-  if (!conflicting.includes("病历已记录发热阳性") || conflicting.includes("否认发热")) {
-    failures.push({ text: "主诉恶寒发热 + 否认发热", term: "发热", kind: "false_denial", why: `前后两种记载并存时只写阳性、不并列否认；实际 "${conflicting}"` });
+  // 第二十轮起：与病历相反的否认直接删掉，不改写成「发热阳性」，也不另出一句「否认发热」。
+  if (/否认发热|发热阳性|发热是否存在/.test(conflicting)) {
+    failures.push({ text: "主诉恶寒发热 + 否认发热", term: "发热", kind: "false_denial", why: `前后两种记载并存时删掉否认、不并列阳性或否认；实际 "${conflicting}"` });
   }
 }
 expectDenial("患者否认胸痛", "胸痛", "带主语的显式否认");

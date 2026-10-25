@@ -184,12 +184,69 @@ const RESPIRATORY_DETECTION = governedDetectionNode<{
   orthopneaColloquial: string[];
   orthopneaBreathingCues: string[];
 }>("respiratory");
-const SYNCOPE_DETECTION = governedDetectionNode<{ colloquialSymptoms: string[] }>("syncope");
+const SYNCOPE_DETECTION = governedDetectionNode<{
+  colloquialSymptoms: string[];
+  highRiskEcgFindings: {
+    pauseTerms: string[];
+    pauseSecondsAtLeast: number;
+    asleepCues: string[];
+    conductionBlockForms: string[];
+    ventricularArrhythmiaTerms: string[];
+  };
+}>("syncope");
 const PEDIATRIC_DETECTION = governedDetectionNode<{ colloquialCriticalSigns: string[] }>("pediatric_critical");
 const POISONING_DETECTION = governedDetectionNode<{
   colloquialSymptoms: string[];
   colloquialCompanions: string[];
 }>("poisoning");
+
+/**
+ * 晕厥/黑矇 + 心电记录的主要高危心律失常（2026-10-25 第二十轮，基层病例 B024：「24小时动态心电图：窦性停搏，最长达3秒」后
+ *「入院时突发晕厥」，两层都没报红旗——事实层判 clarify，确定性层的晕厥只有提示档）。2018 ESC 晕厥指南：清醒时窦性停搏 >3 s、
+ * 二度 II 型/三度房室传导阻滞、室速是主要高危心电特征，需强化诊断、可能需紧急处理与住院；自发晕厥时记录到窦性停搏是起搏指征。
+ * 词表与阈值在 T6 syncope.detection.highRiskEcgFindings（数值阈值 + 有限闭集）；睡眠中的长间歇不算；否认、既往、非本人按共用语境判据。
+ * 返回命中的那一项（写进红旗理由），没有返回 undefined。类夹具 syncope-with-high-risk-ecg-finding。
+ */
+function syncopeWithHighRiskEcgFinding(text: string): string | undefined {
+  const ecg = SYNCOPE_DETECTION.highRiskEcgFindings;
+  const normalized = normalizeClinicalText(text);
+  // 已植入起搏器：长间歇/传导阻滞已有处理。
+  if (/(?:植入|安装|置入|安置)[^。；;\n]{0,6}起搏器|起搏器(?:植入|安装|置入)(?:术)?后/u.test(normalized)) return undefined;
+  if (!syncopeInSameEpisode(normalized)) return undefined;
+  const pause = new RegExp(`(${governedTermAlternation(ecg.pauseTerms)})[^。；;\\n]{0,12}?(\\d+(?:\\.\\d+)?)\\s*(?:秒|s(?![a-z])|S(?![a-z])|sec)`, "gu");
+  const asleep = new RegExp(governedTermAlternation(ecg.asleepCues), "u");
+  for (const match of normalized.matchAll(pause)) {
+    const at = match.index ?? 0;
+    if (!(Number(match[2]) >= ecg.pauseSecondsAtLeast)) continue;
+    if (isExcludedClinicalAssertionAt(normalized, at) || isNegatedAt(normalized, at) || isHistoricalOrResolvedAt(normalized, at, match[0].length)) continue;
+    const clauseStart = Math.max(...["。", "；", ";", "\n"].map((mark) => normalized.lastIndexOf(mark, at - 1))) + 1;
+    if (asleep.test(normalized.slice(Math.max(clauseStart, at - 10), at + match[0].length))) continue;
+    return `${match[1]}${match[2]}秒`;
+  }
+  for (const form of [...ecg.conductionBlockForms, ...ecg.ventricularArrhythmiaTerms]) {
+    if (hasPatternWithoutNegation(normalized, new RegExp(governedTermAlternation([form]), "u"))) return form;
+  }
+  return undefined;
+}
+
+/**
+ * 本次病程里的晕厥：不否认、是患者本人、不是假设或未评估；时间上只排除明确远期的（既往、多年前、去年、小时候…）。
+ * 不用 hasTerm 的「当前」判据：「入院时突发晕厥」在那里算既往（clinical-polarity 的「入院时」时间线索），可在长间歇未处理时，
+ * 同一病程里的晕厥就是这条规则要的风险背景（B024）。
+ */
+function syncopeInSameEpisode(normalized: string): boolean {
+  const terms = [...governedRedFlagCategory("syncope").symptoms, ...SYNCOPE_DETECTION.colloquialSymptoms];
+  for (const term of terms) {
+    let at = normalized.indexOf(term);
+    while (at >= 0) {
+      const clauseStart = Math.max(...["。", "；", ";", "\n"].map((mark) => normalized.lastIndexOf(mark, at - 1))) + 1;
+      const remote = /既往|曾经|多年前|去年|前年|\d+\s*年前|[一二两三四五六七八九十数几多]+年前|小时候|幼时|儿时|童年/u.test(normalized.slice(clauseStart, at));
+      if (!remote && !isExcludedClinicalAssertionAt(normalized, at) && !isNegatedAt(normalized, at) && !isPostfixNegatedAt(normalized, at, term.length)) return true;
+      at = normalized.indexOf(term, at + term.length);
+    }
+  }
+  return false;
+}
 
 /**
  * 端坐呼吸的口语只在**与呼吸线索同句**时成立。
@@ -683,7 +740,8 @@ const POSITIVE_FACT_EQUIVALENT_PATTERNS: readonly {
   },
 ];
 const DEGREE_AFTER_NEGATOR = "(?:很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)";
-const CLINICAL_NEGATION_CUE = new RegExp(`(否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|均无|均未见|未见|未诉|未出现|没有|不伴|无明显|无再发|未再发|(?:当前|目前|现阶段|患者|病人)?(?:从未有|未曾有|无)(?=[\\u4e00-\\u9fa5]))`);
+// 「未明显发热」与「无明显发热」同义，是否认（2026-10-25 第二十轮，甲方 100 例 C038 读成记录了发热）；「未明显好转/缓解」不是对表现的否认。
+const CLINICAL_NEGATION_CUE = new RegExp(`(否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|均无|均未见|未见|未明显(?!好转|缓解|改善|减轻|变化|加重)|未诉|未出现|没有|不伴|无明显|无再发|未再发|(?:当前|目前|现阶段|患者|病人)?(?:从未有|未曾有|无)(?=[\\u4e00-\\u9fa5]))`);
 // 否定作用域的终止判据(2026-08-04 修正)。
 //
 // 原判据只在逗号**后接转折词**时断作用域(「无胸痛，但突发晕厥」)。但中文病历里更常见的是
@@ -811,14 +869,21 @@ function unknownTermNotice(source: string, terms: readonly string[]): string {
  * 与 unrecordedNegativesAsNotReported 排除的固定搭配是同一类。类夹具 fixed-wu-word-not-negation-cue。
  */
 export function maskNonNegatingWuWords(text: string): string {
-  return text.replace(/无(?=(?:华|泽|光泽|血色)|(?:神|味|力)(?=[，,。；;、）)\s]|$))/gu, "＿");
+  // 问句「有无X」「有没有X」里的「无」「没有」也不是否认（unassessedMentionAt，2026-10-25 第二十轮）。
+  return text
+    .replace(/无(?=(?:华|泽|光泽|血色)|(?:神|味|力)(?=[，,。；;、）)\s]|$))/gu, "＿")
+    .replace(/有(无|没有|否(?!认))/gu, (_, word: string) => `有${"＿".repeat(word.length)}`)
+    // 「无法行走」「无法入睡」是不能（症状本身），「漫无目的」「无精打采」是成语；「无法（完全）排除/否认X」是排除不了（可能有），不在此列。
+    .replace(/无(?=法(?!(?:完全|彻底|明确|轻易|简单)?(?:排除|除外|否认)))|(?<=漫)无(?=目的)|无(?=精打采)/gu, "＿");
 }
 
 export function sourceDocumentsNegation(source: string, term: string): boolean {
   const normalized = normalizeClinicalText(source);
   // 否定方向只认真同义，不认下位词——「否认高热」不给「否认发热」背书。
   const equivalents = negationGroundingEquivalents(term);
-  for (const rawSentence of normalized.split(/[。；;\n]+/)) {
+  for (const sentenceMatch of normalized.matchAll(/[^。；;\n]+/gu)) {
+    const rawSentence = sentenceMatch[0];
+    const sentenceOffset = sentenceMatch.index ?? 0;
     const sentence = maskNonNegatingWuWords(rawSentence);
     for (const equivalent of equivalents) {
       let termIndex = sentence.indexOf(equivalent);
@@ -826,17 +891,23 @@ export function sourceDocumentsNegation(source: string, term: string): boolean {
         // 「大出血」里含着「出血」两个字。若这次出现整个落在某个**下位词**里，
         // 那么被否认的是那个下位词，不是本词——否则上面的收窄会被子串匹配绕开
         // （实测：病历「否认大出血」→ 输出「病历已记录否认出血」）。
-        if (occurrenceIsInsideNarrowerTerm(sentence, termIndex, equivalent.length, term)) {
+        // 下位词里的那一次、以及不是对本例当下的记载（家属的、假设的、未评估的：「是否黑便尚未询问」「有无发热不详」）都不算本例的否认
+        //（2026-10-25 第二十轮：「有无」里的「无」曾被当成否认词，「未询问」的表现读成了否认）。
+        // 问句里的表现、答句说「没有」：是记载的否认（questionAnswerPolarityAt）。
+        if (!occurrenceIsInsideNarrowerTerm(sentence, termIndex, equivalent.length, term) && questionAnswerPolarityAt(normalized, sentenceOffset + termIndex) === "negative") return true;
+        if (occurrenceIsInsideNarrowerTerm(sentence, termIndex, equivalent.length, term) || isExcludedClinicalAssertionAt(sentence, termIndex)) {
           termIndex = sentence.indexOf(equivalent, termIndex + equivalent.length);
           continue;
         }
-        if (!isExcludedClinicalAssertionAt(sentence, termIndex) && hasImmediateBareNegator(sentence, termIndex)) return true;
+        if (hasImmediateBareNegator(sentence, termIndex)) return true;
         const before = sentence.slice(Math.max(0, termIndex - 24), termIndex);
         const negations = Array.from(before.matchAll(new RegExp(CLINICAL_NEGATION_CUE.source, "g")));
         const nearest = negations.at(-1);
         if (nearest?.index != null) {
           const between = before.slice(nearest.index + nearest[0].length);
-          if (!NEGATION_SCOPE_BREAK.test(between) && !NON_SYMPTOM_NEGATION_OBJECT.test(between)) return true;
+          // 列举里先出现正常所见或频度起首的一项（「无口干口苦、纳可、眠可、经常腹泻」），否认到它之前为止——与 isNegatedAt 同一判据。
+          const runBroken = between.split(/[、，,]/u).slice(1).some((item) => ENUMERATION_RUN_BREAK_ITEM.test(item.trim()));
+          if (!runBroken && !NEGATION_SCOPE_BREAK.test(between) && !NON_SYMPTOM_NEGATION_OBJECT.test(between)) return true;
         }
         // 后置否定（2026-08-09 收窄）。原判据是「术语后面紧跟否定词即判已否认」，
         // 但中文里否定词否定的是**它后面**的东西，不是前面的。于是
@@ -952,6 +1023,11 @@ function qualifiedFormDocumented(source: string, qualifier: string, term: string
   const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return hasPatternWithoutNegation(normalizeClinicalText(source), new RegExp(`${escape(term)}[^，,。；;\\n无未]{0,4}${escape(qualifier)}`, "u"));
 }
+/** 「剧烈头痛」这类带限定词的复合项，病历写的是倒装的「头痛剧烈」（2026-10-25 第二十轮：复合项此前只按字面找，倒装写法落成「尚未确认剧烈头痛」）。 */
+function qualifiedCompoundDocumented(source: string, term: string): boolean {
+  const qualifier = term.match(new RegExp(`^(?:${NEGATED_TERM_QUALIFIER_SOURCE})`, "u"))?.[0];
+  return Boolean(qualifier) && term.length > qualifier!.length + 1 && qualifiedFormDocumented(source, qualifier!, term.slice(qualifier!.length));
+}
 // 倒装的程度限定（「无头痛剧烈」「未见头痛如劈」，2026-10-19 甲方标准病历 3 第 1 次生成辨病依据成「…故归头痛；有头痛。」）。
 const POSTPOSED_TERM_QUALIFIER = /^(?:较|很|特别|极|甚)?(?:剧烈|如劈|欲裂|如裂|难忍|剧)/u;
 function termOnlyQualifiedIn(span: string, term: string, source: string): boolean {
@@ -1011,8 +1087,9 @@ function affirmationMentionKind(source: string, term: string): { kind: "clear" |
         if (
           !isLocalHeatNotFeverAt(sentence, index, equivalent) &&
           !isExcludedClinicalAssertionAt(sentence, index) &&
-          !hasImmediateBareNegator(cueSentence, index) &&
-          !/(待核实|待确认|不清楚|未知|不详|未采集|未说明)/.test(sentence)
+          // 「待核实/不详/未知」这类未评估说法只管它所在小句里的那个表现（isExcludedClinicalAssertionAt → unassessedMentionAt）；
+          // 此前按整句判，同一句别处一个「（具体不详）」就把「伴恶心」也算成没记录（2026-10-25 第二十轮，基层病例 B004）。
+          !hasImmediateBareNegator(cueSentence, index)
         ) {
           // 与 hasNonNegatedClinicalPattern 同一判据：前面有否认、逗号后另起肯定小句的，算记录了（MTCMB-14）。
           const positiveClause = hasCommaSeparatedPositiveEvidence(cueSentence, index, equivalent);
@@ -1029,13 +1106,19 @@ function affirmationMentionKind(source: string, term: string): { kind: "clear" |
     for (const pattern of conceptPatterns) {
       const matches = sentence.matchAll(new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`));
       for (const match of matches) {
-        if (match.index != null && !isNegatedAt(sentence, match.index)) clear = true;
+        if (match.index != null && !isExcludedClinicalAssertionAt(sentence, match.index) && !isNegatedAt(sentence, match.index)) clear = true;
       }
     }
   }
   return { kind: clear ? "clear" : ambiguous ? "ambiguous" : "none", negatedMention };
 }
 
+/**
+ * 自带谓语的项（「眠差」「入睡困难」「食欲下降」「鼻塞声重」「咳嗽有痰」）：在说有，不是否认列举在逗号后延续的裸词。
+ * 病历读法（negationReachesMentionDirectly）与读法核对提示（commaContinuedDenialReadingNotice）共用这一处
+ *（2026-10-25 第二十轮：「无明显发热，食欲下降」曾读成否认食欲下降——读法用的是只看字数的裸词判据，提示用的是这一条）。
+ */
+const OWN_PREDICATE_ITEM = /[有伴见感觉作]|(?:差|少|多|可|调|佳|好|难|困难|不利|不畅|不适|欠佳|明显|重|轻|甚|剧|频|稀|干|黄|赤|红|淡|白|胀|紧|减退|增多|减少|加重|缓解|正常|下降|升高|降低|增加|不振|减弱|亢进|异常)$/u;
 /**
  * 闸门判否认的这一处，是不是可以当作「病历否认了它」来读：否认词与它在同一逗号小句里（「无发热」「无发热、呕吐」），
  * 或它是否认列举在逗号后延续的裸词——这一小句里只有它自己，且与否认那一小句之间至多隔一个同样的短裸词小句
@@ -1049,11 +1132,13 @@ function negationReachesMentionDirectly(sentence: string, index: number, equival
   const clauseEnd = rest.search(/[，,。；;\n]/u);
   const tail = (clauseEnd >= 0 ? rest.slice(0, clauseEnd) : rest).trim();
   if (sentence.slice(clauseStart, index).trim() !== "" || !/^(?:等|等症|等症状)?$/u.test(tail)) return false;
+  // 这一项或中间隔着的项自带谓语（OWN_PREDICATE_ITEM），就不是否认列举的延续。
+  if (OWN_PREDICATE_ITEM.test(`${equivalent}${tail}`.replace(/(?:等症状|等症|等)$/u, ""))) return false;
   const previous = sentence.slice(0, Math.max(0, clauseStart - 1)).split(/[，,]/u);
   for (let hop = 0; hop < 2 && previous.length > 0; hop += 1) {
     const clause = previous.pop()!.trim();
     if (CLINICAL_NEGATION_CUE.test(clause)) return true;
-    if (!/^[\u4e00-\u9fff]{2,4}$/u.test(clause)) return false;
+    if (!/^[\u4e00-\u9fff]{2,4}$/u.test(clause) || OWN_PREDICATE_ITEM.test(clause)) return false;
   }
   return false;
 }
@@ -1077,6 +1162,78 @@ export function recordedFindingReading(source: string, term: string): RecordedFi
   if (affirmation.kind === "clear") return denied ? "conflicting" : "affirmed";
   if (affirmation.kind === "ambiguous") return denied ? "denied" : "ambiguous";
   return denied ? "denied" : "absent";
+}
+
+/**
+ * 否认之后用逗号接着写的裸词（「无腹痛，发热，呕吐」）是中文病历里最常见的歧义写法：既可读成逐项否认，也可读成「无腹痛；有发热、呕吐」。
+ * 2026-10-25 第二十轮 A056（8 月龄腹泻，病历两处「无腹痛，发热，呕吐」「无呕吐，发热」）：规则读法与事实模型（qwen3.8-max）都读成没有发热、
+ * 呕吐，西医半也写「无发热、无呕吐」，中医半却 3 次里有 2–3 次写「发热、呕吐为湿浊内扰之象」——生成模型自己读歧了，事后核对器也读歧。
+ * 两个读者一致时直接告诉生成模型怎么读（预防，而不是生成后再删）：只取这种位置上的裸词（negationReachesMentionDirectly 的列举延续），
+ * 病历读法为「否认」（别处没有本小句成立的肯定），且事实模型没有把它列为阳性。任一读者不同意就不写，交给原有流程。
+ * 返回给 M03 两半的一段提示；没有时为空串。
+ */
+export function commaContinuedDenialReadingNotice(state: CaseState): string {
+  const source = clinicalGroundingText(state);
+  const normalized = normalizeClinicalText(source);
+  const extractorAffirmed = (state.clinicalFacts?.affirmedSymptoms || [])
+    .filter((item) => Boolean(item?.term) && Boolean(item?.quote) && source.includes(item.quote))
+    .map((item) => item.term);
+  const denied: string[] = [];
+  const quotes: string[] = [];
+  for (const sentence of normalized.split(/[。；;\n]+/u)) {
+    const cue = maskNonNegatingWuWords(sentence);
+    const clauses: Array<{ text: string; start: number }> = [];
+    let offset = 0;
+    for (const raw of sentence.split(/[，,]/u)) {
+      clauses.push({ text: raw, start: offset });
+      offset += raw.length + 1;
+    }
+    clauses.forEach((clause, position) => {
+      const item = clause.text.trim().replace(/(?:等症状|等症|等)$/u, "");
+      // 只认名词性的裸词：自带谓语的（「眠差」「入睡困难」「鼻塞声重」「咳嗽有痰」「口干」）是在说有，不是否认列举的延续。
+      if (position === 0 || !/^[\u4e00-\u9fff]{2,4}$/u.test(item) || CLINICAL_NEGATION_CUE.test(item) || OWN_PREDICATE_ITEM.test(item)) return;
+      const index = clause.start + clause.text.indexOf(item);
+      if (!negationReachesMentionDirectly(cue, index, item)) return;
+      if (recordedFindingReading(source, item) !== "denied") return;
+      if (extractorAffirmed.some((term) => term.length >= 2 && (term === item || term.includes(item) || item.includes(term)))) return;
+      if (!denied.includes(item)) denied.push(item);
+      // 引文从带否认词的那一小句起，到这一项为止（至多隔两项）。
+      let from = position - 1;
+      while (from > 0 && from >= position - 2 && !CLINICAL_NEGATION_CUE.test(maskNonNegatingWuWords(clauses[from].text))) from -= 1;
+      const quote = clauses.slice(from, position + 1).map((part) => part.text.trim()).join("，");
+      if (quotes.some((existing) => existing.includes(quote))) return;
+      for (let at = quotes.length - 1; at >= 0; at -= 1) if (quote.includes(quotes[at])) quotes.splice(at, 1);
+      quotes.push(quote);
+    });
+  }
+  if (denied.length === 0) return "";
+  return `\n\n【病历读法核对】病历${quotes.slice(0, 3).map((quote) => `「${quote}」`).join("")}里，否认词之后用逗号接着写的${denied.join("、")}按逐项否认读（与病历其余记载和事实抽取一致）：本例没有${denied.join("、")}，不得写成本例的表现、辨证依据或鉴别中「同见」的表现。`;
+}
+
+/**
+ * 病历引文的读法要与它在病历原处一致（2026-10-25 第二十轮 A056）：模型把「蛋花样，无腹痛，发热，呕吐，于乡卫生院输液治疗两天无效」
+ * 从「发热」切开，「发热，呕吐，于乡卫生院输液治疗两天无效，并有加重趋势」作为主证依据——逐字是病历原话，切掉「无腹痛，」以后读成了有发热、呕吐。
+ * 引文开头若是病历原处落在否认范围里的裸词（negationReachesMentionDirectly，病历读法为否认），去掉这几项，剩下的仍逐字是病历原话；
+ * 全部去掉时返回空串。不在病历里逐字出现的引文原样返回（另有接地核对）。
+ */
+export function quoteWithoutDeniedLeadingItems(quote: string, source: string): string {
+  const text = String(quote || "");
+  const normalizedSource = normalizeClinicalText(source);
+  const at = normalizedSource.indexOf(normalizeClinicalText(text.trim()));
+  if (!text.trim() || at < 0) return text;
+  const sentenceStart = Math.max(...["。", "；", ";", "\n"].map((mark) => normalizedSource.lastIndexOf(mark, at - 1))) + 1;
+  const ends = ["。", "；", ";", "\n"].map((mark) => normalizedSource.indexOf(mark, at)).filter((value) => value >= 0);
+  const sentence = normalizedSource.slice(sentenceStart, ends.length > 0 ? Math.min(...ends) : normalizedSource.length);
+  const cue = maskNonNegatingWuWords(sentence);
+  const leading = text.trim();
+  let cut = 0;
+  for (const match of leading.matchAll(/[^，,]+[，,]?/gu)) {
+    const item = match[0].replace(/[，,]$/u, "").trim();
+    const position = at - sentenceStart + (match.index ?? 0);
+    if (!/^[\u4e00-\u9fff]{2,4}$/u.test(item) || !negationReachesMentionDirectly(cue, position, item) || recordedFindingReading(source, item) !== "denied") break;
+    cut = (match.index ?? 0) + match[0].length;
+  }
+  return cut === 0 ? text : leading.slice(cut).trim();
 }
 
 /** 读法不明确时，交付文本里替代「有X」「无X」的那一句（临床措辞，交付面不再改写）。 */
@@ -1124,7 +1281,7 @@ function clauseNegationsAreLiterallyDocumented(clause: string, source: string): 
     if (reading === "affirmed" || reading === "conflicting") return false;
     let index = source.indexOf(item);
     while (index >= 0) {
-      if (isNegatedAt(source, index) && !hasCommaSeparatedPositiveEvidence(source, index, item) &&
+      if (!isExcludedClinicalAssertionAt(source, index) && isNegatedAt(source, index) && !hasCommaSeparatedPositiveEvidence(source, index, item) &&
         negationReachesMentionDirectly(source, index, item)) return true;
       index = source.indexOf(item, index + item.length);
     }
@@ -1244,6 +1401,32 @@ function clauseNegationScope(clause: string, probe: string): string {
 /** 鉴别列表（中医病名/证候、西医）的字段名：其中每一项的 distinguishingPoints/reason 里，以该项病证名为主语的否认说的是那个病。 */
 const DIFFERENTIAL_LIST_KEYS = new Set(["tcmDiseaseDifferentials", "tcmDifferentials", "differentials"]);
 
+/** 写诊断理由的散文字段：其中以鉴别病证名为主语的否认分句说的是那个病。 */
+const DIFFERENTIAL_PROSE_FIELDS = new Set(["tcmDiseaseRationale", "tcmDiagnosticRationale", "primarySyndromeRationale", "clinicalRationale"]);
+
+/** 本结果里列出的鉴别病证名（中医病名、证候、西医鉴别与候选；去括号，至少 2 字）。 */
+function collectDifferentialNames(root: unknown): string[] {
+  const names = new Set<string>();
+  const walk = (value: unknown, key = "") => {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (DIFFERENTIAL_LIST_KEYS.has(key) || key === "candidates") {
+          const row = item && typeof item === "object" ? item as Record<string, unknown> : {};
+          for (const field of ["diseaseName", "name", "syndrome"]) {
+            const name = typeof row[field] === "string" ? String(row[field]).replace(/[（(][^（）()]*[）)]/gu, "").trim() : "";
+            if (name.length >= 2) names.add(name);
+          }
+        }
+        walk(item, key);
+      }
+      return;
+    }
+    if (value && typeof value === "object") for (const [childKey, child] of Object.entries(value as Record<string, unknown>)) walk(child, childKey);
+  };
+  walk(root);
+  return [...names];
+}
+
 /** 分句以被鉴别的病证名开头（可隔「则/多/常/一般/通常」），紧接着是否认词：「风瘙痒无原发皮疹」「肋间神经痛多无皮疹」。 */
 function differentialSubjectNegation(clause: string, entryName: string): boolean {
   const at = clause.indexOf(entryName);
@@ -1304,6 +1487,33 @@ function unsettledFindingsIn(
   return { terms: new Set(unsettled), notices: shown.length > 0 ? [unsettledFindingNotice(shown)] : [] };
 }
 
+/**
+ * 被删掉的否认小句的占位（逗号小句级）。行内收尾时连同一个相邻逗号一起去掉（withoutDroppedNegationClauses）；
+ * 整段只剩它时成空串，JSON 列表里的空项由 visit 去掉。
+ */
+const DROPPED_NEGATION_CLAUSE = "\u0000CDSS_DROPPED_NEGATION\u0000";
+/** 只是给前一小句下结论的尾句（「与之不符」「与外感不符」「不支持肺痈」「可资鉴别」）：前一小句删掉后它没有前提，一起删。 */
+const DEPENDENT_CONCLUSION_CLAUSE = "(?:故|因此|所以|可)?(?:与[^，,。；;]{0,12}(?:不符|不同|有别|相区分|相鉴别|区分|鉴别)|不支持[^，,。；;]{0,12}|可资鉴别|(?:可)?排除[^，,。；;]{0,12}|不考虑[^，,。；;]{0,12}|非[^，,。；;]{1,10})";
+function withoutDroppedNegationClauses(text: string): string {
+  if (!text.includes(DROPPED_NEGATION_CLAUSE)) return text;
+  const drop = DROPPED_NEGATION_CLAUSE;
+  return text
+    // 删掉的小句后面紧跟的、只回指它的结论尾句一并删（到句末或分号为止）。
+    .replace(new RegExp(`${drop}[，,]\\s*${DEPENDENT_CONCLUSION_CLAUSE}(?=[。；;]|$)`, "gu"), drop)
+    // 整句只剩它：连句末标点一起去掉。
+    .replace(new RegExp(`(^|[。；;\\n])([ \\t]*)${drop}[。；;]`, "gu"), "$1$2")
+    // 句中：连同一个相邻逗号去掉。
+    .replace(new RegExp(`${drop}[，,]\\s*`, "gu"), "")
+    .replace(new RegExp(`[，,]\\s*${drop}`, "gu"), "")
+    .replace(new RegExp(drop, "gu"), "")
+    .replace(/[；;，,]+([。])/gu, "$1")
+    .replace(/([。；;])[；;，,]+/gu, "$1")
+    .replace(/([：:])\s*[；;，,]+/gu, "$1")
+    .replace(/^([ \t]*(?:[-*+]|\d+[.、])[ \t]*)[；;，,]+/gmu, "$1")
+    // 整行只剩标签（「鉴别要点：。」「- **依据**：」）：内容全删了，标签也不留。
+    .replace(/^[ \t]*(?:[-*+]|\d+[.、])?[ \t]*(?:\*\*)?[^\n：:*]{1,24}(?:\*\*)?[：:][ \t]*[。；;]?[ \t]*$/gmu, "");
+}
+
 function sanitizeUngroundedNegationText(
   value: string,
   source: string,
@@ -1316,6 +1526,11 @@ function sanitizeUngroundedNegationText(
    * 头号缺陷形状（同一判据两处各写各的）的第 N 次复发。
    */
   recordedInspection: { tongue: boolean; pulse: boolean } = { tongue: false, pulse: false },
+  /**
+   * 病历肯定、模型否认时怎么改：drop 删掉这条否认（缺省）；affirm 是改动前的写法「病历已记录X阳性」，只给 JSON 里的单值字段兜底——
+   * 删完整个字段就空了时（「鉴别要点：无腹痛」），空字段过不了下游合同，宁可退回旧写法。
+   */
+  contradictionMode: "drop" | "affirm" = "drop",
 ): string {
   const sanitizeClause = (clause: string): string => {
     // 抹掉的部分用等长占位，探针里的位置与原句一一对应（下面按否认线索的位置定否认作用域）。
@@ -1359,8 +1574,11 @@ function sanitizeUngroundedNegationText(
     if (extractorAffirmedTerms.length > 0) {
       const contradicted = extractorAffirmedTerms.filter((term: string) =>
         new RegExp(`否认[^。；;]{0,12}${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(clause));
+      // 与下面规则判定的矛盾同一处理：删掉这条否认，不另写一句肯定（见 DROPPED_NEGATION_CLAUSE）。
       if (contradicted.length > 0) {
-        return `${prefix}病历尚未确认${contradicted.join("、")}是否已排除；病历已记录该表现存在，请医生核对后再采纳`;
+        return contradictionMode === "drop"
+          ? `${prefix}${DROPPED_NEGATION_CLAUSE}`
+          : `${prefix}病历尚未确认${contradicted.join("、")}是否已排除；病历已记录该表现存在，请医生核对后再采纳`;
       }
     }
     const documentedPendingTests = CLINICAL_NORMALITY_TERMS.filter(
@@ -1418,7 +1636,8 @@ function sanitizeUngroundedNegationText(
       // 病历读法见 sanitizerReading：病历肯定过的改成阳性（不再同时另出一句否认）；病历按逐项否认读的照留模型的否认；
       // 读不出的写明需核实（2026-10-25 A056：病历先「无腹痛，发热，呕吐，…并有加重趋势」、后「无呕吐，发热」，此前同一句交付成「有呕吐；否认呕吐」）。
       const contradictedPositive = CLINICAL_NEGATION_FACT_TERMS.filter(
-        (term) => negatedSpan.includes(term) && sanitizerReading(source, term, extractorAffirmedTerms) === "affirmed" &&
+        (term) => negatedSpan.includes(term) &&
+          (sanitizerReading(source, term, extractorAffirmedTerms) === "affirmed" || qualifiedCompoundDocumented(source, term)) &&
           !termOnlyQualifiedIn(negatedSpan, term, source),
       );
       const unsettled = unsettledFindingsIn(CLINICAL_NEGATION_FACT_TERMS.filter((term) => negatedSpan.includes(term)), source, negatedSpan, extractorAffirmedTerms);
@@ -1426,10 +1645,16 @@ function sanitizeUngroundedNegationText(
         (term) => negatedSpan.includes(term) &&
           !sourceDocumentsNegation(source, term) &&
           !sourceDocumentsAffirmation(source, term) &&
+          !qualifiedCompoundDocumented(source, term) &&
           // 「无剧烈头痛」否认的是剧烈头痛，不另出一句「头痛是否存在」（qualified-negation-not-bare-symptom）。
           !termOnlyQualifiedIn(negatedSpan, term, source),
       );
       if (contradictedPositive.length > 0 || unknown.length > 0 || unsettled.notices.length > 0) {
+        // 病历肯定了的那几项：删掉模型的这条否认，不改写成「病历已记录X阳性」（2026-10-25 第二十轮）。改写是凭空写出一句肯定断言，
+        // 读法一错就是一句错话，而且落在「不支持」「鉴别要点」这类槽里意思正好反过来——甲方 100 例 C093「不支持：有腹痛」「无呕血，有黑便」
+        //（病历只写了「是否黑便尚未询问」）、C038「有发热，体温36.8℃」（病历「未明显发热」）、C065「有腹痛，乳痈发热无乳房局部症状」
+        //（模型在写鉴别对象的表现）。删除是最小改动：错读的代价是少一句，不是多一句反话；与交付面 withoutDenialsOfRecordedFindings
+        //（病历肯定、模型写「未诉/否认X」时删去该项）同一处理，此前两处一删一改。同一小句里别的项照旧：病历否认的照录，没写的写「尚未确认」。
         const supportedNotices = documentedDenialNotices(
           source,
           // 已改成阳性的词不再另出一句否认（「有X；否认X」）；病历否认的是它带限定的那一种（「否认突发雷击样头痛」）时保留，
@@ -1437,12 +1662,13 @@ function sanitizeUngroundedNegationText(
           CLINICAL_NEGATION_FACT_TERMS.filter((term) => clause.includes(term) && !unknown.includes(term) &&
             (!contradictedPositive.includes(term) || Boolean(qualifiedDocumentedDenial(source, term))) && !unsettled.terms.has(term)),
         ).notices;
-        return `${prefix}${[
-          contradictedPositive.length > 0 ? `病历已记录${contradictedPositive.join("、")}阳性` : "",
+        const remaining = [
+          contradictionMode === "affirm" && contradictedPositive.length > 0 ? `病历已记录${contradictedPositive.join("、")}阳性` : "",
           ...unsettled.notices,
           supportedNotices.join("；"),
           unknown.length > 0 ? unknownTermNotice(source, unknown) : "",
-        ].filter(Boolean).join("；")}`;
+        ].filter(Boolean);
+        return `${prefix}${remaining.length > 0 ? remaining.join("；") : DROPPED_NEGATION_CLAUSE}`;
       }
     }
     const unsupportedNormality = CLINICAL_NORMALITY_TERMS.filter(
@@ -1528,7 +1754,7 @@ function sanitizeUngroundedNegationText(
     // 未接地否定照样被净化（安全要求不变），真实病机保住。
     return line.replace(/[^。；;，]+/g, sanitizeOwnClause);
   }).join("\n");
-  sanitized = reconcileSyntheticPolarityContradictions(sanitized, source);
+  sanitized = reconcileSyntheticPolarityContradictions(withoutDroppedNegationClauses(sanitized), source);
   // 只改对本例的断言：小句里是「待查/与否/未诉…」时，舌脉词是要去核实或本例没有的东西，不是编出来的所见
   //（2026-10-19 Claude 评审 M 集：建议核实「诊脉弦数与否」改成「诊脉象待核实或弦数」，鉴别里「未诉肢冷、脉微欲绝之危象」
   // 改成「未诉肢冷脉象待核实之危象」，「汗出如珠伴肢冷脉微欲绝，本例未诉此」描述的是脱汗本身）。
@@ -1794,6 +2020,7 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
       let sanitizedBlock = match;
       try {
         const missingExamLabels = new Set<string>();
+        const differentialNames: string[] = [];
         const visit = (value: unknown, key = "", parentKey = "", entryName = ""): unknown => {
           // Identity labels are not patient assertions. They have already passed the stage contract;
           // running negation prose replacement over them can turn a valid diagnosis name into a
@@ -1836,13 +2063,23 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
             }
             // 鉴别行里以被鉴别病证自己为主语的否认（「风瘙痒无原发皮疹」「肋间神经痛无皮疹」）说的是那个病，不是本例，
             // 与 typicalManifestation 同理不净化；只护住这一分句，同一字段里写本例的分句照常核对（2026-10-19 甲方标准病历 9）。
+            // 辨病、辨证依据与诊断说明里拿别的病作对照的分句同理（「产后腹痛无发热，乳痈…」「肺痨以咯血、潮热为主」）：主语是本结果里列出的
+            // 某个鉴别病证名时不按本例改写（2026-10-25 第二十轮，甲方 100 例 C065 辨病依据交付成「有腹痛，乳痈发热无乳房局部症状」）。
             const kept: string[] = [];
-            const shielded = entryName && (key === "distinguishingPoints" || key === "reason")
-              ? groundedValue.replace(/[^，,；;。]+/gu, (clause) => differentialSubjectNegation(clause, entryName)
+            const subjectNames = (key === "distinguishingPoints" || key === "reason")
+              ? [entryName, ...differentialNames].filter(Boolean)
+              : DIFFERENTIAL_PROSE_FIELDS.has(key) ? differentialNames : [];
+            const shielded = subjectNames.length > 0
+              ? groundedValue.replace(/[^，,；;。]+/gu, (clause) => subjectNames.some((name) => differentialSubjectNegation(clause, name))
                 ? `__CDSS_KEEP_${kept.push(clause) - 1}__`
                 : clause)
               : groundedValue;
-            const sanitized = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(shielded, source, extractorAffirmedTerms, recordedInspection), state), state)
+            const negationSanitized = sanitizeUngroundedNegationText(shielded, source, extractorAffirmedTerms, recordedInspection);
+            // 单值字段被删空（整段只有一条与病历相反的否认）：退回旧写法，不留空字段；列表项删空由下面的数组分支去掉。
+            const fieldEmptied = parentKey !== key && !negationSanitized.trim() && shielded.trim().length > 0;
+            const sanitized = sanitizePatientApplicableText(sanitizeAgeClaimText(fieldEmptied
+              ? sanitizeUngroundedNegationText(shielded, source, extractorAffirmedTerms, recordedInspection, "affirm")
+              : negationSanitized, state), state)
               .replace(/__CDSS_KEEP_(\d+)__/gu, (_, index: string) => kept[Number(index)] ?? "");
             if (key === "followupSafetyNet") return ensureActionableFollowupSafetyNet(sanitized);
             const documentedPositive = sanitized.match(/病历已记录(.+?)阳性/);
@@ -1871,7 +2108,9 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
             return sanitized;
           }
           if (Array.isArray(value)) {
-            const visited = value.map((item) => visit(item, key, key, entryName));
+            // 净化把整条删空了（病历肯定、模型否认的那一项，DROPPED_NEGATION_CLAUSE）：列表里不留空项。原本就是空串的照旧。
+            const visited = value.map((item) => visit(item, key, key, entryName))
+              .filter((item, index) => !(typeof item === "string" && !item.trim() && typeof value[index] === "string" && String(value[index]).trim()));
             if (key === "uncertainties") return visited.filter((item) => item !== undefined);
             return DEDUPLICATED_CLINICAL_LIST_FIELDS.has(key)
               ? deduplicateClinicalListItems(visited.filter((item) => typeof item !== "string" || Boolean(item.trim())))
@@ -1891,7 +2130,9 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
           }
           return visited;
         };
-        const visited = visit(JSON.parse(jsonText)) as Record<string, unknown>;
+        const parsedRoot = JSON.parse(jsonText);
+        differentialNames.push(...collectDifferentialNames(parsedRoot));
+        const visited = visit(parsedRoot) as Record<string, unknown>;
         if (missingExamLabels.size > 0) {
           const western = visited.westernDiagnosis && typeof visited.westernDiagnosis === "object" && !Array.isArray(visited.westernDiagnosis)
             ? visited.westernDiagnosis as Record<string, unknown>
@@ -2732,8 +2973,9 @@ export function canProceedToM03AfterFollowup(state: CaseState): boolean {
 // （没胃口=纳差、没精神=乏力、没什么/没关系/没问题…），用负向前瞻排除这些搭配，避免制造漏报。
 // 查体否定动词与 clinical-polarity 的 NEGATIVE_PREFIX 共用同一份闭集——同一判据只写一处
 // （「全腹未触及压痛反跳痛」原判阳性反跳痛，见该文件里的实测记录）。
-const NEGATION_PATTERN = new RegExp(`(${CLINICAL_EXAM_NEGATION_VERB_SOURCE}|否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|无|未见|未发现|未诊断|未患|没有|没(?!有什么|关系|问题|事|错|完|意思|办法|时间|空|钱|人|影|底|数|辙|门|胃口|精神|力气|劲儿|劲|趣)|未诉|无诉|未主诉|未出现|未发生|未有|未曾|未再发|无再发|从未|从无|没有过|不伴|已缓解|已消失|排除)`, "g");
-const NON_NEGATING_PHRASES = /(无明显诱因|无诱因|无缓解|无好转|无改善|没缓解|没好转|没改善|没消失|无规律|无特殊处理|未予处理|未治疗)/g;
+const NEGATION_PATTERN = new RegExp(`(${CLINICAL_EXAM_NEGATION_VERB_SOURCE}|否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|无|未见|未明显(?!好转|缓解|改善|减轻|变化|加重)|未发现|未诊断|未患|没有|没(?!有什么|关系|问题|事|错|完|意思|办法|时间|空|钱|人|影|底|数|辙|门|胃口|精神|力气|劲儿|劲|趣)|未诉|无诉|未主诉|未出现|未发生|未有|未曾|未再发|无再发|从未|从无|没有过|不伴|已缓解|已消失|排除)`, "g");
+// 「有无/有没有/有否」是问句（unassessedMentionAt 判未评估），其中的「无」「没有」不是否认词（2026-10-25 第二十轮：「有无黑便不详」曾读成否认黑便）。
+const NON_NEGATING_PHRASES = /(无明显诱因|无诱因|无缓解|无好转|无改善|没缓解|没好转|没改善|没消失|无规律|无特殊处理|未予处理|未治疗|有无|有没有|有否|无法(?!(?:完全|彻底|明确|轻易|简单)?(?:排除|除外|否认))|漫无目的|无精打采)/g;
 
 function containsNegation(value: string): boolean {
   NEGATION_PATTERN.lastIndex = 0;
@@ -2743,7 +2985,7 @@ function containsNegation(value: string): boolean {
 }
 
 type ClinicalAssertionSubject = "patient" | "non_patient";
-type ClinicalAssertionMood = "actual" | "conditional";
+type ClinicalAssertionMood = "actual" | "conditional" | "unassessed";
 type ClinicalAssertionTemporality = "current" | "historical";
 
 type ClinicalAssertionContext = {
@@ -2756,6 +2998,82 @@ const PATIENT_SUBJECT_MARKER = /^(?:患者本人|患者|病人|患儿|本人|我
 const CLINICAL_SUBJECT_MARKERS = /(?:我|其)?(?:父亲|母亲|爸爸|妈妈|爸|妈|父母|家属|家人|家里人|亲属|祖父|祖母|爷爷|奶奶|外祖父|外祖母|姥爷|姥姥|儿子|女儿|哥哥|姐姐|弟弟|妹妹|兄|姐|弟|妹|兄弟|姐妹|丈夫|妻子|配偶|岳父|岳母|岳父母|公公|婆婆|公婆|伯父|伯母|叔叔|婶婶|舅舅|舅妈|姑姑|姑父|姨妈|姨父|侄子|侄女|外甥|外甥女)|患者本人|患者|病人|患儿|本人|我/g;
 const REPORTER_RELATIVE_SOURCE = "(?:家属|家人|亲属|儿子|女儿|妻子|丈夫|配偶|母亲|父亲|妈妈|爸爸|老伴|哥哥|弟弟|姐姐|妹妹|兄弟|姐妹)";
 const REPORTER_RELATIVE_AT_END = new RegExp(`${REPORTER_RELATIVE_SOURCE}$`);
+
+/**
+ * 未评估的记载：病历在这一处既没说有、也没说无（2026-10-25 第二十轮，甲方 100 例 C093「是否黑便尚未询问」读成记录了黑便，
+ * 模型写的「无黑便」被改成「有黑便」）。ConText 算法把一处记载的语境分成否定、假设/不确定、时间、主语几个维度，每个维度是
+ *「触发词 + 方向 + 作用域（到小句边界为止）」；这里是其中「未评估」一维（Azure TA4H 叫 neutral_possible，i2b2 归 hypothetical）。
+ *  · 前置触发：本小句里、被测词之前有问句或未问的说法——是否、有无、有没有、可有、未询问、未问及、未查、需询问、待核实……；
+ *    「是否因受凉…」「是否与进食有关」问的是原因或关系，不是有无（伪触发）；「未查到/未查出」是查了没有，归否定。
+ *  · 后置触发：被测词所在小句以未评估的状态收尾——尚未询问、未问、不详、不清楚、未知、待核实、待排……，中间只夹「情况、与否、有无」；
+ *    夹着性质、部位、程度、原因、次数、具体这类属性名词时，不详的是属性，表现本身照有（「腹痛性质不详」「静脉滴注治疗（具体不详）」）。
+ *  · 小句里或问句后紧跟着答了「有/是/阳性」的，按答案算（「是否黑便：有」）。
+ * 此前同一类判据有两份各写各的：病历读法按整句判（同一句里任何地方出现「不详」，整句的表现都不算记录——B024 一类「伴恶心，……
+ *（具体不详）」把「伴恶心」吞掉），闸门与否认核对则完全不认「是否/尚未询问」。现在只有这一处，经 clinicalAssertionContextAt 的
+ * mood 落到所有消费方（闸门 hasTerm/hasNonNegatedClinicalPattern、病历读法、否认照录核对、OSA 筛查）。
+ * 冻结令允许的确定性例外：有限闭集（触发词、属性名词）+ 构词式守卫（方向、小句作用域、伪触发、答句）。类夹具 unassessed-mention-not-recorded。
+ */
+const UNASSESSED_VERB = "(?:询问|问及|问到|追问|问|查(?![到出见及体])|检查(?![到出见及])|评估|记录|提及|采集|描述|说明)";
+const UNASSESSED_STATUS_SOURCE = `(?:尚未|暂未|未曾|未|没有?)${UNASSESSED_VERB}|不详|未知|待(?:核实|确认|询问|追问|排除?|评估|查明)|无法(?:确定|判断|评估|回忆|描述)|未能(?:确认|明确)`;
+// 「不清、不清楚、不明、说不清、记不清」本身常是症状名的一部分（神志不清、言语不清、构音不清、视物不清、吐字不清）：只在前面隔着
+//「情况/与否/有无」或冒号、括号时才算未评估（「黑便情况不清楚」「黑便：说不清」）。2026-10-25 回放：裸用时神经系统红旗 15 例丢失。
+const UNASSESSED_WEAK_STATUS_SOURCE = "不清楚?|不明|说不清|记不清";
+const UNASSESSED_PRE_TRIGGER = new RegExp(
+  `(?:是否|有无|有没有|有否|可有|是不是|(?:尚未|暂未|未曾|未|没有?|需要?|待|尚待)${UNASSESSED_VERB}(?:过)?(?:有无|是否|有没有)?)(?!因|由|与|和|跟|在|于|为|系|属|需|要|能|可以)`,
+  "u",
+);
+const UNASSESSED_POST_TRIGGER = new RegExp(
+  `(?:(?:的)?(?:情况|与否|之?有无|是否存在|是否出现|是否发生)?\\s*[：:（(]?\\s*(?:${UNASSESSED_STATUS_SOURCE})|(?:(?:的)?(?:情况|与否|之?有无|是否存在|是否出现|是否发生)\\s*[：:（(]?|\\s*[：:（(])\\s*(?:${UNASSESSED_WEAK_STATUS_SOURCE}))\\s*[）)]?\\s*$`,
+  "u",
+);
+const UNASSESSED_ATTRIBUTE_NOUN = /性质|部位|程度|原因|病因|诱因|次数|频率|频次|时间|时长|[^大]量|颜色|色泽|具体|最高|范围|规律|特点|变化|治疗|用药|药物|药名|剂量|结果|数值|经过|名称|日期|年限|病程|来源/u;
+const UNASSESSED_PSEUDO = /(?:不论|无论|不管)(?:是否|有无)/u;
+
+/**
+ * 问答体记录（「问：有没有发热或者呕吐 答：没有」「问：有没有恶心呕吐？答：偶尔会有」）：被测词落在问句里（「问：」之后、「答：」之前，
+ * 同一个分号段内）时，问句的作用域跨过逗号到「答：」为止，有无由答句定——答句以有/是/偶尔会有起头为 positive，以没有/无/都没有起头为
+ * negative，其余（答非所问、没答）为 unanswered。不在问句里返回 undefined。
+ */
+/** 问属性而不是问有无的词（「咳嗽厉害吗」「便秘多久了」「咳嗽频繁吗」）：问句默认这个表现是有的。 */
+const ATTRIBUTE_QUESTION_WORD = /厉害|严重|频繁|多久|几天|几次|多少|什么|怎么|如何|明显|好转|加重|缓解|重不重|多不多|好不好|正常|规律|时候/u;
+function questionAnswerPolarityAt(normalized: string, index: number): "positive" | "negative" | "unanswered" | undefined {
+  const segmentStart = Math.max(...["；", ";", "。", "\n"].map((mark) => normalized.lastIndexOf(mark, index - 1))) + 1;
+  const ends = ["；", ";", "。", "\n"].map((mark) => normalized.indexOf(mark, index)).filter((value) => value >= 0);
+  const segment = normalized.slice(segmentStart, ends.length > 0 ? Math.min(...ends) : normalized.length);
+  const at = index - segmentStart;
+  const question = segment.slice(0, at).search(/问\s*[：:]/u);
+  if (question < 0 || /答\s*[：:]/u.test(segment.slice(question, at))) return undefined;
+  // 只认问有没有的问句：被测词前有「有没有/有无/是否/有」，或词后只隔「等情况/症状」就是「吗/么/没有/不」。
+  // 问属性的（「便秘多久了」「咳嗽厉害吗」「咳嗽几天了」）默认这个表现是有的，不在这里处理。
+  const questionText = segment.slice(question, at);
+  const sinceLastBreak = questionText.slice(Math.max(questionText.lastIndexOf("？"), questionText.lastIndexOf("?")) + 1);
+  const suffixQuestion = /^([\u4e00-\u9fff]{1,8}?)(?:等|这些|这种)?(?:情况|症状|表现|不适)?(?:吗|么|嘛|没有)/u.exec(segment.slice(at));
+  const existenceQuestion = /(?:有没有|有无|是否|有否|可有|(?:^|[，,？?\s])有)/u.test(sinceLastBreak.replace(/^问\s*[：:]/u, " ")) ||
+    (Boolean(suffixQuestion) && !ATTRIBUTE_QUESTION_WORD.test(suffixQuestion![1]));
+  if (!existenceQuestion) return undefined;
+  // 答句在本段，或问句以句号收尾、答句在下一段（「问：有腹痛吗。答：没有。」）。
+  const following = normalized.slice(segmentStart + at).split(/问\s*[：:]/u)[0];
+  const answer = /答\s*[：:]\s*([^；;。\n]*)/u.exec(following)?.[1]?.trim() || "";
+  if (!answer) return "unanswered";
+  if (/^(?:都|也|均|全|就是)?(?:没有|没|无|不|否|未)/u.test(answer)) return "negative";
+  if (/^(?:就是|是的?|对|嗯)?[，,]?\s*(?:有|是|偶尔(?:会)?有|有时(?:会)?有|经常有|会有|一直有)/u.test(answer)) return "positive";
+  return "unanswered";
+}
+
+function unassessedMentionAt(normalized: string, index: number): boolean {
+  const answered = questionAnswerPolarityAt(normalized, index);
+  if (answered) return answered !== "positive";
+  const clauseStart = Math.max(...["，", ",", "。", "；", ";", "\n", "？", "?", "（", "(", "！", "!"].map((mark) => normalized.lastIndexOf(mark, index - 1))) + 1;
+  const ends = ["，", ",", "。", "；", ";", "\n", "？", "?", "！", "!"].map((mark) => normalized.indexOf(mark, index)).filter((value) => value >= 0);
+  const clauseEnd = ends.length > 0 ? Math.min(...ends) : normalized.length;
+  const before = normalized.slice(clauseStart, index);
+  const after = normalized.slice(index, clauseEnd);
+  if (/[：:]\s*(?:有|是|阳性|＋|\+)/u.test(after) ||
+      /^[？?]\s*(?:患者|家属|患儿)?(?:答|回答|诉|称)?[：:]?\s*(?:有|是|阳性)/u.test(normalized.slice(clauseEnd, clauseEnd + 10))) return false;
+  if (UNASSESSED_PRE_TRIGGER.test(before) && !UNASSESSED_PSEUDO.test(before)) return true;
+  const post = UNASSESSED_POST_TRIGGER.exec(after);
+  return Boolean(post) && !UNASSESSED_ATTRIBUTE_NOUN.test(after.slice(0, post!.index));
+}
 
 function clinicalAssertionContextAt(text: string, index: number): ClinicalAssertionContext {
   const normalized = normalizeClinicalText(text);
@@ -2814,6 +3132,7 @@ function clinicalAssertionContextAt(text: string, index: number): ClinicalAssert
     const adviceStart = adviceOffset < 0 ? conditionalStart + match[0].length : conditionalStart + adviceOffset;
     if (index >= conditionalStart && index < adviceStart) mood = "conditional";
   }
+  if (mood === "actual" && unassessedMentionAt(normalized, index)) mood = "unassessed";
 
   let subject: ClinicalAssertionSubject = /家族史\s*[:：]?/.test(prefix) ? "non_patient" : "patient";
   const clauseStart = Math.max(
@@ -2865,7 +3184,7 @@ function clinicalAssertionContextAt(text: string, index: number): ClinicalAssert
 
 function isExcludedClinicalAssertionAt(text: string, index: number): boolean {
   const context = clinicalAssertionContextAt(text, index);
-  return context.subject === "non_patient" || context.mood === "conditional";
+  return context.subject === "non_patient" || context.mood !== "actual";
 }
 
 function hasPatientScopedSpanOccurrence(text: string, span: string): boolean {
@@ -2900,12 +3219,25 @@ const INTENSITY_MODIFIER_ONLY_SEGMENT = /^(?:持续|突发|突然|急性|反复|
  * 闸门方向只增不减。类夹具 scripts/fixtures/open-language-classes/denial-run-broken-by-positive-item.json。
  * afterTermScope 为 "clause"（病历读法）时只看被测词自己那一小句。
  */
+/**
+ * 否认列举到这一项为止：频度起首的项（「经常腹泻」「时有心慌」）在说有；正常所见（「纳可」「眠可」「二便调」「月经正常」）是另起的
+ * 系统回顾，不在否认词之下（2026-10-25 第二十轮，基层病例 A039「无口干口苦、纳可、眠可、经常腹泻」把经常腹泻读成否认）。
+ * 逗号列举（DENIAL_RUN_POSITIVE_ITEM）与顿号列举（isNegatedAt 的顿号分支）共用。顿号列举不用强度/时相词断开：
+ *「否认呕血、黑便、持续剧烈腹痛」里的「持续剧烈」是被否认那一项自己的定语（INTENSITY_MODIFIER_ONLY_SEGMENT）。
+ */
+const FREQUENCY_LEAD_SOURCE = "^(?:经常|常常|时常|偶尔|偶有|时有|常有|每日|每天|每晚|一直|总是)";
+const NORMAL_FINDING_ITEM = /(?:可|调|正常|尚可|佳|如常)$/u;
+// 正常所见只在否认词与被测词之间才截断（「无口干口苦、纳可、眠可、经常腹泻」）；在被测词之后（「无发热，胸闷，胸痛，纳可，眠可」）
+// 说明不了前面那几项是有是无，不截断（回放 corpus-986/13174）。频度起首的项在哪里都算（与「偶有/时有」同类，见 DENIAL_RUN_POSITIVE_ITEM）。
+const ENUMERATION_RUN_BREAK_ITEM = new RegExp(`${FREQUENCY_LEAD_SOURCE}|${NORMAL_FINDING_ITEM.source}`, "u");
 const DENIAL_RUN_POSITIVE_ITEM = new RegExp([
   "\\d+(?:\\.\\d+)?\\s*(?:次|天|日|周|月|年|小时|分钟|ml|mL|毫升|斤|kg|公斤)",
   "[一二两三四五六七八九十数几多]次",
   "^(?:伴有?|有|见|偶有|时有|常有|出现|自觉|并有)",
   "(?:明显|剧烈|频作|频发|加重|严重|持续|阵发|反复|大量|不止|淋漓|难忍|如注|突发|突然|骤然|新发|再发|复发|今日|今晨|今早|今天|昨日|昨晚|昨夜|近日|刚刚|刚才)",
   "(?:左侧|右侧|双侧|一侧|单侧|半身|偏身)",
+  // 2026-10-25 第二十轮：频度起首（「经常腹泻」）——见 ENUMERATION_RUN_BREAK_ITEM；正常所见只看被测词之前（denialRunBrokenByPositiveItem）。
+  FREQUENCY_LEAD_SOURCE,
 ].join("|"), "u");
 const DENIAL_RUN_ITEM_NEGATED = /^(?:否认|无|未见|未诉|未出现|没有|不伴|并无|尚无|暂无)/u;
 const DENIAL_RUN_COLLECTIVE_NEGATION = /(?:均无|均否认|均未|皆无|皆否认|都没有|都无)/u;
@@ -2916,6 +3248,9 @@ function denialRunBrokenByPositiveItem(afterNegation: string, text: string, inde
     ? [termClause]
     : [...afterNegation.split(/[，,]/u).slice(1, -1), termClause, ...sentenceRest.split(/[，,]/u).slice(1)];
   if (items.some((item) => DENIAL_RUN_COLLECTIVE_NEGATION.test(item))) return false;
+  // 否认词与被测词之间的项两种范围都看（clause 范围只是不借被测词之后小句的修饰词）。
+  const between = afterNegation.split(/[，,]/u).slice(1, -1);
+  if (between.some((item) => NORMAL_FINDING_ITEM.test(item.trim()) && !DENIAL_RUN_ITEM_NEGATED.test(item.trim()))) return true;
   return items.some((item) => {
     const trimmed = item.trim();
     return Boolean(trimmed) && !DENIAL_RUN_ITEM_NEGATED.test(trimmed) && DENIAL_RUN_POSITIVE_ITEM.test(trimmed);
@@ -3006,6 +3341,8 @@ function isNegatedAt(text: string, index: number, afterTermScope: "window" | "cl
   const enumerationIndex = afterNegation.lastIndexOf("、");
   if (enumerationIndex >= 0) {
     const afterEnumeration = afterNegation.slice(enumerationIndex + 1).trim();
+    // 顿号列举里出现正常所见或频度起首的一项，否认到它之前为止（ENUMERATION_RUN_BREAK_ITEM）。
+    if (afterNegation.split("、").slice(1).some((item) => ENUMERATION_RUN_BREAK_ITEM.test(item.trim()) && !DENIAL_RUN_ITEM_NEGATED.test(item.trim()))) return false;
     // afterNegation 止于被测词起点：顿号之后若只剩纯修饰段，它是被测词自己的定语，
     // 共享否定继续生效，不得按「新阳性从句」否决。
     if (!INTENSITY_MODIFIER_ONLY_SEGMENT.test(afterEnumeration) &&
@@ -3744,7 +4081,8 @@ const FOCAL_NEUROLOGIC_PATTERN = new RegExp(
 // 「抽搐痛」「抽搐感」「抽搐样痛」是疼痛的性质（「头抽搐痛七年」「头痛呈拘急跳痛抽搐感」），不是发作性抽搐（2026-10-19 Claude 评审 H 集
 // H-tri-19642：七年间断性紧张性头痛被报神经急症、剂量收回）。构词式守卫：只看「抽搐」后面紧跟的痛/感，其余写法照旧。
 // 「抽搐的痛」「抽搐似的疼」同属这一构词（2026-10-24 第十八轮基层病例 B008：26 岁胃痛半年「疼痛为“抽搐的痛，好像有很多胃气”」被报神经急症）。
-const CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN = /(?:昏迷|呼之不应|抽搐(?!痛|感|样(?:疼|胀)?痛|(?:样|似)?的(?:疼痛|胀痛|痛|疼))|惊厥|癫痫持续状态)/;
+// 「抽搐疼痛」同一构词（2026-10-25 第二十轮回放 corpus-17224：「四肢无力、麻木感、时有抽搐疼痛」）。
+const CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN = /(?:昏迷|呼之不应|抽搐(?!痛|疼痛?|感|样(?:疼|胀)?痛|(?:样|似)?的(?:疼痛|胀痛|痛|疼))|惊厥|癫痫持续状态)/;
 const ACUTE_CONSCIOUSNESS_CHANGE_TERMS = ["昏睡", "嗜睡", "谵妄"];
 /**
  * 意识改变：急性意识改变那组词、灾难性神经事件里的昏迷/呼之不应，加上同义的书面写法；「反应（较平时）迟钝/变慢」按构词式认。
@@ -4600,10 +4938,8 @@ function hasExplicitOsaScreen(text: string): boolean {
   return domains.filter((pattern) => {
     const match = text.match(pattern);
     if (!match || match.index == null) return false;
-    const before = text.slice(Math.max(0, match.index - 12), match.index);
-    const after = text.slice(match.index + match[0].length, match.index + match[0].length + 12);
-    return !/(?:需|需要|待|尚待|未问|未询问|不详|未知|待核实)[^。；;\n]{0,10}$/.test(before) &&
-      !/^(?:不详|未知|待核实|待询问)/.test(after);
+    // 「需询问打鼾」「打鼾不详」不算已筛查：与病历读法、闸门同一个未评估判据（unassessedMentionAt）。
+    return !unassessedMentionAt(normalizeClinicalText(text), match.index);
   }).length >= 3;
 }
 
@@ -4969,6 +5305,10 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   if (activeGiBleedingSignal) {
     redFlags.push("当前呕血、咖啡样呕吐物、黑便或便血提示活动性消化道出血风险，需立即评估循环状态并急诊处置");
   }
+  const syncopeEcgFinding = syncopeWithHighRiskEcgFinding(text);
+  if (syncopeEcgFinding) {
+    redFlags.push(`晕厥伴心电记录的高危心律失常（${syncopeEcgFinding}），需立即心内科急诊评估（心电监护，必要时临时起搏）`);
+  }
   if (thrombocytopeniaBleeding) {
     redFlags.push(`重度血小板减少（PLT ${severeThrombocytopeniaCount}×10⁹/L）${(severeThrombocytopeniaCount ?? 0) < 10 ? "" : "伴出血表现"}，有严重自发出血风险，需血液科急诊评估`);
   }
@@ -5151,6 +5491,7 @@ const RED_FLAG_FINDING_RULES: Array<{
   { id: "acute-neurologic-event", message: /神经系统|神经功能|头痛/, source: new RegExp(`头痛|意识障碍|意识不清|神志不清|昏迷|昏睡|嗜睡|谵妄|呼之不应|抽搐|惊厥|无力|偏瘫|说不出话|颈抵抗|克氏征|克尼格征|Kernig|布氏征|布鲁津斯基征|Brudzinski|脑膜刺激征|${FOCAL_NEUROLOGIC_PATTERN.source}`), explanation: "急性意识、发作性事件或局灶神经异常需优先排除神经急症。" },
   { id: "acute-abdomen-emergency", message: /急腹症|剧烈腹痛|腹痛\/腹胀/, source: /腹痛|腹胀|胃痛|胃脘痛|肚子疼|右下腹痛|上腹痛|心口窝痛|胃部疼痛|反跳痛|松手更疼|板状腹|腹肌紧张|板状|板样|腹壁强直|肌紧张|腹膜刺激征|停止排气|停止排便|停止肛门排气|肛门停止排气/, explanation: "剧烈腹痛或腹膜刺激征达到急腹症硬门槛；单纯突发、尚无重症表现者进入优先评估而非自动急诊定级。" },
   { id: "active-gi-bleeding", message: /消化道出血/, source: new RegExp(`呕血|吐血|黑便|柏油样便|便血|咖啡(?:色|样)|${governedTermAlternation([...HAEMATEMESIS_COLLOQUIAL_FORMS])}`), explanation: "活动性消化道出血表现需立即评估失血量和循环状态。" },
+  { id: "syncope-high-risk-arrhythmia", message: /晕厥伴心电记录的高危心律失常/, source: /晕厥|黑矇|意识丧失|晕倒|昏倒|停搏|长间歇|房室传导阻滞|室速|室性心动过速|室颤/, explanation: "晕厥合并心电记录的主要高危心律失常（长间歇、高度房室传导阻滞、室速），需心电监护下急诊评估，可能需要起搏或住院。" },
   { id: "severe-thrombocytopenia", message: /重度血小板减少/, source: /血小板|PLT/i, explanation: "血小板低于10×10⁹/L，或低于20×10⁹/L并有出血表现，有颅内出血等严重自发出血风险，需血液科急诊评估。" },
   { id: "active-major-bleeding", message: /活动性大量阴道出血/, source: /阴道(?:出血|流血)|血红蛋白|血色素|HGB|Hb/i, explanation: "活动性大量阴道出血伴持续、重度贫血或循环灌注表现，达到非产科大出血硬门槛。" },
   { id: "acute-respiratory-event", message: /呼吸循环急症|缺氧/, source: /呼吸困难|气促|喘憋|端坐呼吸|不能平卧|无法平卧|喘不上气|发紫/, explanation: "静息或快速加重的呼吸困难及缺氧表现需立即评估。" },
@@ -7147,22 +7488,49 @@ export function deriveFirstReviewTiming(state: CaseState, hasStrongRisk: boolean
 /**
  * 安全门要求先完成临床评估时，复诊安排的第一句（辨证页、开方页的复诊计划与 M05 首次复诊共用这一处；2026-10-24 C069 两处各写各的，
  * 开方页「2周内到乳腺专科」、M05「3天内到相关专科」，评审判时间窗矛盾）。乳房肿块按 NICE NG12 疑似肿瘤路径：两周内专科评估。
+ *
+ * 开了剂量的方还有煎服法里的「完成7剂（7日）后复诊」：两句此前由两处各写（这里与 applyDeterministicFollowUpNode），读起来是
+ *「3天内去评估」对「服完7剂再来」（2026-10-25 第二十轮：已存输出里给了剂量又要求先评估的 52 例全部如此，甲方标准病历 10、S044 被评审判矛盾）。
+ * 现在一份计划、两种写法：先评估（时限、去哪、做什么）→ 医生确认可以服药 → 服完 N 剂复诊。regimen 取方剂的 followUpAfterDoses/Days，
+ * 复诊计划第一句（priorityEvaluationFirstStep）与煎服法复诊节点（priorityEvaluationFollowUpNode）都由 priorityEvaluationPlan 拼出。
  */
-export function priorityEvaluationFirstStep(focus: string): string {
-  if (/乳腺癌/u.test(focus)) return "请在2周内到乳腺专科就诊，先完成乳腺超声检查（必要时加做乳腺X线），排除乳腺癌后再按医生安排服药与复诊。";
+type PriorityEvaluationPlan = { window: string; visit: string; nodeVisit: string; clearance: string };
+function priorityEvaluationPlan(focus: string): PriorityEvaluationPlan {
+  if (/乳腺癌/u.test(focus)) {
+    return { window: "2周内", visit: "到乳腺专科就诊，先完成乳腺超声检查（必要时加做乳腺X线）", nodeVisit: "到乳腺专科完成乳腺超声检查", clearance: "排除乳腺癌、医生确认可以服药后" };
+  }
   return focus
-    ? `请在3天内到相关专科就诊，先完成评估（需排除${focus}），再按医生安排服药与复诊。`
-    : "请在3天内到医院完成评估、核实病情后，再按医生安排服药与复诊。";
+    ? { window: "3天内", visit: `到相关专科就诊，先完成评估（需排除${focus}）`, nodeVisit: "到相关专科完成评估", clearance: "医生确认可以服药后" }
+    : { window: "3天内", visit: "到医院完成评估、核实病情", nodeVisit: "到医院完成评估", clearance: "医生确认可以服药后" };
+}
+type FollowupRegimen = { doses?: unknown; days?: unknown };
+function regimenCounts(regimen?: FollowupRegimen): { doses: number; days: number } | undefined {
+  const doses = Number(regimen?.doses);
+  const days = Number(regimen?.days);
+  return Number.isInteger(doses) && Number.isInteger(days) && doses > 0 && days > 0 ? { doses, days } : undefined;
+}
+export function priorityEvaluationFirstStep(focus: string, regimen?: FollowupRegimen): string {
+  const plan = priorityEvaluationPlan(focus);
+  const counts = regimenCounts(regimen);
+  if (counts) return `请在${plan.window}${plan.visit}；${plan.clearance}，服完${counts.doses}剂药（约${counts.days}天后）再复诊。`;
+  if (/乳腺癌/u.test(focus)) return `请在${plan.window}${plan.visit}，排除乳腺癌后再按医生安排服药与复诊。`;
+  return focus ? `请在${plan.window}${plan.visit}，再按医生安排服药与复诊。` : `请在${plan.window}${plan.visit}后，再按医生安排服药与复诊。`;
+}
+/** 煎服法的复诊节点前面补上评估这一步（与 priorityEvaluationFirstStep 同一份计划）。已补过的原样返回。 */
+export function priorityEvaluationFollowUpNode(focus: string, node: string): string {
+  const plan = priorityEvaluationPlan(focus);
+  if (!node.trim() || /^先在(?:3天内|2周内)/u.test(node)) return node;
+  return `先在${plan.window}${plan.nodeVisit}；${plan.clearance}，${node.trim()}`;
 }
 
 export function patientFacingFirstReview(state: CaseState, hasStrongRisk: boolean): string {
   if (hasStrongRisk) return "处方需经医生调整确认后再服用；确认用药后，请在1-3天内复诊。";
   // 安全门要求先完成临床评估的病例：首次复诊先说去评估（与辨证、开方页复诊计划的第一句同一判据，2026-10-24）。
   const priorityFocus = priorityEvaluationFollowupFocus(state);
-  if (priorityFocus !== undefined) {
-    return `${priorityEvaluationFirstStep(priorityFocus).replace(/。$/u, "")}；如有不适或症状加重，请立即就医。`;
-  }
   const decoction = primaryPrescribeCandidate(state)?.decoction;
+  if (priorityFocus !== undefined) {
+    return `${priorityEvaluationFirstStep(priorityFocus, { doses: decoction?.followUpAfterDoses, days: decoction?.followUpAfterDays }).replace(/。$/u, "")}；如有不适或症状加重，请立即就医。`;
+  }
   const doses = decoction?.followUpAfterDoses;
   const days = decoction?.followUpAfterDays;
   if (Number.isInteger(doses) && Number.isInteger(days) && Number(doses) > 0 && Number(days) > 0) {

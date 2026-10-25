@@ -100,11 +100,11 @@ await check("2.1 鉴别对象的否认后面接「与本例…」「不同于本
   assert.equal(sanitize("痫证发作体温正常，与本例持续高热不符。", FEVER_RECORD), "痫证发作体温正常，与本例持续高热不符。");
 });
 
-await check("2.2 对照：本例自己的否认、后面不接对照本例的否认，与病历矛盾时照样改正", () => {
-  assert.match(sanitize("本例无发热，与本例持续高热不符。", FEVER_RECORD), /病历已记录发热阳性/u);
-  assert.match(sanitize("无发热，故非外感。", FEVER_RECORD), /病历已记录发热阳性/u);
-  assert.match(sanitize("痫证发作无发热，故与二者相区分。", FEVER_RECORD), /病历已记录发热阳性/u, "没有对照本例的小句：保守方向（类夹具 residual）");
-  assert.match(sanitize("患者无发热，与本例持续高热不符。", FEVER_RECORD), /病历已记录发热阳性/u, "以患者起头的否认是本例的断言");
+await check("2.2 对照：本例自己的否认、后面不接对照本例的否认，与病历矛盾时照样改正（第二十轮起改正方式是删掉，连同只回指它的结论尾句）", () => {
+  assert.equal(sanitize("本例无发热，与本例持续高热不符。", FEVER_RECORD), "");
+  assert.equal(sanitize("无发热，故非外感。", FEVER_RECORD), "");
+  assert.equal(sanitize("痫证发作无发热，故与二者相区分。", FEVER_RECORD), "", "没有对照本例的小句：保守方向（类夹具 residual）");
+  assert.equal(sanitize("患者无发热，与本例持续高热不符。", FEVER_RECORD), "", "以患者起头的否认是本例的断言");
 });
 
 // ───── 2b 删掉分句后的回指尾句 ─────

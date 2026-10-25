@@ -51,6 +51,17 @@ const { maybeAttachClinicalFactsBackstop } = await jiti.import("../src/lib/clini
 const { evaluateSafetyGate, sanitizeUngroundedRedFlagNegations } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
 
+/**
+ * 净化器把一句否认判为与病历相反、做了改正：第二十轮起改正方式是删掉那条否认小句（不再改写成「病历已记录X阳性」）；
+ * 单值字段整段删空时退回旧写法，仍带「阳性」。所以「改正」= 带阳性，或否认小句已不在输出里、也没有变成「尚未确认/未诉」。
+ */
+function correctedAgainstRecord(out, probeText) {
+  if (/阳性/.test(out)) return true;
+  const clause = String(probeText).match(/(?:否认|未见|没有|不伴|无)[^，,。；;]*/u)?.[0] || "";
+  return Boolean(clause) && !out.includes(clause) && !/尚未确认|未诉/.test(out);
+}
+
+
 const TRIAGE_BASIS_FOR_URGENCY = { urgent: "urgent_review", clarify: "clarification_needed", routine: "routine_care" };
 const fixtureDir = path.join(here, "fixtures/open-language-classes");
 const fixtureFiles = readdirSync(fixtureDir).filter((file) => file.endsWith(".json"));
@@ -196,7 +207,8 @@ for (const file of fixtureFiles) {
       }
     }
     for (const [index, control] of entry.controls.mustStillRewrite.entries()) {
-      assert.match(sanitizeText(control.text, control.record, `${label}-control-${index}`), /阳性/, `${label}: 反例「${control.text}」没有被改正`);
+      const out = sanitizeText(control.text, control.record, `${label}-control-${index}`);
+      assert.ok(correctedAgainstRecord(out, control.text), `${label}: 反例「${control.text}」没有被改正：${out}`);
       cases += 1;
     }
     continue;
@@ -216,14 +228,14 @@ for (const file of fixtureFiles) {
         seen.add(pair.subject);
         const subject = sanitizeUngroundedRedFlagNegations(entry.probe, stateFor(pair.subject, `${label}-${setName}-${index}-s`));
         const sibling = sanitizeUngroundedRedFlagNegations(entry.probe, stateFor(pair.sibling, `${label}-${setName}-${index}-b`));
-        assert.ok(!/阳性/.test(sibling), `${label}/${setName}: 兄弟句「${pair.sibling}」自身就被改成阳性，断言空转：${sibling}`);
+        assert.ok(!correctedAgainstRecord(sibling, entry.probe), `${label}/${setName}: 兄弟句「${pair.sibling}」自身就被当成病历记录了，断言空转：${sibling}`);
         assert.equal(subject, sibling, `${label}/${setName}: 「${pair.subject}」与兄弟句净化结果不同`);
         cases += 1;
       }
     }
     for (const [index, record] of entry.controls.mustStillAffirm.entries()) {
       const out = sanitizeUngroundedRedFlagNegations(entry.probe, stateFor(record, `${label}-control-${index}`));
-      assert.ok(/阳性/.test(out), `${label}: 反例「${record}」里真正记录的症状没有被认出：${out}`);
+      assert.ok(correctedAgainstRecord(out, entry.probe), `${label}: 反例「${record}」里真正记录的症状没有被认出：${out}`);
       cases += 1;
     }
     continue;
