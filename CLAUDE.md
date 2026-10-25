@@ -1969,7 +1969,7 @@ qwen3.8-max review, same scripts as rounds 16–18, both arms judged in this rou
 - B024: a 3-second sinus pause followed by syncope is not a red flag in either layer.
 - Model judgement: S128 (hives with abdominal pain after seafood) is flagged in one arm and not the other, the round-8 borderline. (S032 was listed here as an invented blood pressure; round 20 found the record has BP 98/62 in its structured vitals — the review panel had shown empty vitals, see round 20.)
 
-**Production.** Still 7154f84. 123bcb7f passed `verify:release` (typecheck, lint, 279 suites, fresh-artifact suites) and is prebuilt as `20261025-123bcb7-prebuilt` (`/var/tmp/build-prebuilt/`, meta `~/runlogs/r1018/work/r1031/deploy3.meta`; release 2's prebuild was removed, this one includes it). The host had 5.5–8.1 GB free during the round against the 12 GB floor; the floor was not lowered and no other project's data was touched. Production probes are ready in `cases-prod3.json` (A033, A056, B012 and two gate probes).
+**Production (superseded: deployed with round 20 as 2c7e00e5).** Still 7154f84 at the end of this round. 123bcb7f passed `verify:release` (typecheck, lint, 279 suites, fresh-artifact suites) and is prebuilt as `20261025-123bcb7-prebuilt` (`/var/tmp/build-prebuilt/`, meta `~/runlogs/r1018/work/r1031/deploy3.meta`; release 2's prebuild was removed, this one includes it). The host had 5.5–8.1 GB free during the round against the 12 GB floor; the floor was not lowered and no other project's data was touched. Production probes are ready in `cases-prod3.json` (A033, A056, B012 and two gate probes).
 
 ### 10/25 round 20: unassessed mentions, deletion instead of a polarity flip, one follow-up plan, syncope with a high-risk ECG (2026-10-25)
 
@@ -2035,7 +2035,16 @@ qwen3.8-max review, same scripts as rounds 16–19, both arms judged this round:
 - The visit plan for a suspected liver abscess (B006, WBC 17, HR 107) and hyperglycaemia with ketonuria (B010) is 「3天内」; the priority-evaluation window is one size for every focus.
 - The static golden-harness CLI has a fixed 30 s budget; under the load of other sessions it took 28–41 s on both old and new code and failed the gate once; it passed on a quieter machine.
 
-**Production.** Still 7154f84. 2c7e00e5 passed `verify:release` and is prebuilt as `20261025-2c7e00e-prebuilt` (`/var/tmp/build-prebuilt/`, meta `~/runlogs/r1018/work/r1032/deploy4.meta`; the superseded 123bcb7 prebuild was removed). The host had 8.0 GB free against the 12 GB floor; our only images there are the running 7154f84 and its rollback, so the floor cannot be reached without the user's approval to lower it or to clean other projects' images.
+**In production (2c7e00e5, deployed 2026-10-25 about 23:05 Beijing; tag `20261025-2c7e00e-prebuilt`, same release directory and `20260927-dsrepair` override).** It carries rounds 19 and 20 (123bcb7 was never deployed on its own).
+- **Disk.** The host had 8.0 GB free against the 12 GB floor. With the user's approval, the rollback-of-the-rollback image (d8329b2) and six unused images of other projects were removed by ID: two open-science, one evimed-knowledge-plugin, one evimed-result-replay and two older rxai-offline delivery images. Each had one tag and no container. They are listed in `~/telemetry-archive/cleanup-20261025.txt` on the host. Volumes, backups and data directories were not touched. That gave 13 GB, and 12 GB remained after the deploy.
+- **Verification.** `verify:deployed-image` passed (commit, digest, strictReady, qwen and deepseek both live) and `regress:prod-smoke` had 0 failures (M03 P95 17.7 s, M04 P95 14.2 s).
+- **Probes on hospital-b, page shape** (`~/runlogs/r1018/work/r1032/out/prod-probe`):
+  - C093: no 「有黑便」 and no GI advisory in 3 of 3. With dose, the follow-up node and the safety net read 「先在3天内到医院完成评估；医生确认可以服药后，完成5剂（5日）后复诊」.
+  - B024: red flag 「晕厥伴心电记录的高危心律失常（窦性停搏3秒）…」.
+  - A056: red flag; the TCM half says 「发热、呕吐病历已否认」.
+  - C069: decoction node, safety net and M05 first review all say 2 weeks, breast clinic, then 7 doses.
+- **Not fixed (stop rule):** C093 fell to the limited M03 in 1 of 3 production runs (`m03_chain_empty`; before normalization `m03_sub_therapies_missing`; the qwen repair round repeated it). Locally it was complete 5 of 5 on the same code, and round 17 saw the same failure once, so it predates this round.
+- **Rollback:** image `tcm-cdss:20261024-7154f84-prebuilt` with `docker-compose.yml.pre-2c7e00e`. It is the only older tcm-cdss image left on the host.
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
