@@ -1967,9 +1967,75 @@ qwen3.8-max review, same scripts as rounds 16–18, both arms judged in this rou
 - 「是否黑便尚未询问」 counts as a recorded 黑便 (the unknown-status filter misses 尚未询问 and 是否 forms), so C093 got 「有黑便」 in both arms.
 - A priority evaluation from the facts layer with a dosed prescription gives 「请在3天内到医院完成评估」 next to the decoction line's 「完成7剂后复诊」 (病历10 new arm, S044 old arm).
 - B024: a 3-second sinus pause followed by syncope is not a red flag in either layer.
-- Model judgement: S032 invented a blood pressure (98/62) in a Western differential; S128 (hives with abdominal pain after seafood) is flagged in one arm and not the other, the round-8 borderline.
+- Model judgement: S128 (hives with abdominal pain after seafood) is flagged in one arm and not the other, the round-8 borderline. (S032 was listed here as an invented blood pressure; round 20 found the record has BP 98/62 in its structured vitals — the review panel had shown empty vitals, see round 20.)
 
 **Production.** Still 7154f84. 123bcb7f passed `verify:release` (typecheck, lint, 279 suites, fresh-artifact suites) and is prebuilt as `20261025-123bcb7-prebuilt` (`/var/tmp/build-prebuilt/`, meta `~/runlogs/r1018/work/r1031/deploy3.meta`; release 2's prebuild was removed, this one includes it). The host had 5.5–8.1 GB free during the round against the 12 GB floor; the floor was not lowered and no other project's data was touched. Production probes are ready in `cases-prod3.json` (A033, A056, B012 and two gate probes).
+
+### 10/25 round 20: unassessed mentions, deletion instead of a polarity flip, one follow-up plan, syncope with a high-risk ECG (2026-10-25)
+
+The user listed what round 19's review left, said most of it looked like regex/keyword rules, and asked for algorithmic, class-level fixes researched online:
+- C093: the record says 「是否黑便尚未询问」; the output said 「有黑便」;
+- a dosed case that must first be evaluated gets 「3天内到医院完成评估」 in the follow-up plan and 「完成7剂后复诊」 in the decoction block (病历10, S044);
+- B024: Holter sinus pause up to 3 s, then syncope — no red flag in either layer;
+- model judgement: A056 still writes the record-denied 发热、呕吐 as present in 2 of 3 runs; S032 「invented」 a blood pressure.
+
+Material: `~/runlogs/r1018/work/r1032/` (`replay/`, `probe/`, `cp.sh` + `cp-run.sh` + `counterproofs.txt`, `measure.sh`, `judge.sh`, `compare.py`, `targets.py`, `out/`, `judge/`). Suite `test:r1032-main` (21 checks, each with a counter-proof); class fixtures `unassessed-mention-not-recorded`, `unassessed-mention-sanitizer`, `syncope-with-high-risk-ecg-finding`.
+
+**Algorithm.** ConText (Harkema 2009, the NegEx extension) assigns each mention several context dimensions — negated, hypothetical/uncertain, historical, experiencer — each by trigger terms, a direction and a scope that ends at the clause boundary; assertion-classification work (i2b2 present/absent/possible/hypothetical; Azure TA4H `neutral_possible`) treats "not assessed" as its own value, not as present or absent. This project already had the engine (`clinicalAssertionContextAt`: subject + conditional mood) but no "unassessed" value, and three readers kept their own partial copies.
+
+**1. Unassessed is a mood of the shared assertion context (`unassessedMentionAt`, `questionAnswerPolarityAt`).**
+- Pre-triggers in the same comma clause before the mention: 是否、有无、有没有、可有、未询问、未问及、未查、需询问、待核实…; post-states that end the mention's own clause: 尚未询问、未问、不详、未知、待核实、待排…, with only 情况/与否/有无 between. Attribute nouns in between (性质、部位、程度、原因、具体…) mean the attribute is unknown and the finding is still recorded (「腹痛性质不详」, 「发热，体温不详」). Pseudo-triggers (「是否因受凉…」) don't count; an answered 「：有」 counts as present.
+- 「不清/不明/说不清」 are weak: they are part of symptom names (神志不清、言语不清、构音不清), so they only count after 情况/与否/有无 or a colon. The first version used them bare and the gate replay lost 15 neurological red flags.
+- Dialogue records: an existence question (「有没有X」「X吗」) is resolved by its answer, also when the answer is in the next sentence (「问：有腹痛吗。答：没有。」); attribute questions (「咳嗽厉害吗」「便秘多久了」) presuppose the finding.
+- 「有无/有没有/有否」 and 「无法X」「漫无目的」 are no longer negation cues (both in `NON_NEGATING_PHRASES` and `maskNonNegatingWuWords`; 「无法排除X」 stays modal).
+- `affirmationMentionKind` dropped its sentence-wide 「待核实|不详|未知…」 test: one 「（具体不详）」 anywhere in a sentence used to make every finding in it unrecorded (B004 「伴恶心」 read as denied). `sourceDocumentsNegation` and the literal-denial check skip excluded mentions too.
+- Denial runs stop at a normal-finding item (纳可、眠可、二便调) between the cue and the term, and at an item opening with a frequency word (经常、时有、偶尔…) — commas and 、 alike (A039 「无口干口苦、纳可、眠可、经常腹泻」). Normal findings after the term do not break the run (corpus-986/13174 would otherwise become chest-pain red flags). 「否认呕血、黑便、持续剧烈腹痛」 stays one denial.
+- Own-predicate items (眠差、食欲下降、咳嗽有痰…) are not bare list continuations; `OWN_PREDICATE_ITEM` is now the one predicate for the record reading and the A056 notice (C019 「无明显发热，食欲下降」 had read as a denial).
+- 「抽搐疼痛」 joins the pain-quality forms of 抽搐 (corpus-17224).
+
+**2. The sanitizer deletes a contradicted denial instead of rewriting it as 「病历已记录X阳性」.** The rewrite inserted a new affirmative sentence the model never wrote; whenever the reading was wrong it was a false statement, and in polarity-sensitive slots it reversed the argument (C093 「不支持：有腹痛」「无呕血，有黑便」, C038 「有发热，体温36.8℃」 for 「未明显发热」, C065 「有腹痛，乳痈…」 for a sentence about the differential). Now the item is removed (with a following clause that only concludes from it: 「与之不符」「故非外感」), list items emptied this way are dropped, and a single-value field that would become empty keeps the old rewrite (contracts need non-empty fields). This matches `withoutDenialsOfRecordedFindings` on the delivered surface, which already deleted. Also: a negation whose subject is any differential name listed in the same result is not rewritten in the rationale fields (C065 「产后腹痛无发热」); 「未明显X」 is a denial; a postposed qualified form (「头痛剧烈」) documents 「剧烈头痛」.
+
+**3. One follow-up plan.** `priorityEvaluationPlan` → `priorityEvaluationFirstStep(focus, regimen)` (page/M05: 「请在3天内到相关专科就诊，先完成评估（需排除…）；医生确认可以服药后，服完N剂药（约N天后）再复诊」) and `priorityEvaluationFollowUpNode` (decoction: 「先在3天内到相关专科完成评估；医生确认可以服药后，完成N剂（N日）后复诊…」). Without a regimen the sentences are byte-identical to before. The regimen contract still passes. All 52 saved priority-evaluation cases had the contradiction.
+
+**4. Syncope with a documented high-risk ECG finding is a deterministic red flag.** 2018 ESC syncope guideline (doi 10.1093/eurheartj/ehy037): major high-risk ECG features include sinus pauses >3 s while awake, Mobitz II / third-degree AV block and VT; high-risk patients need intensive evaluation and may need urgent treatment and admission; sinus arrest during spontaneous syncope is a pacing indication. Thresholds and terms are in T6 `syncope.detection.highRiskEcgFindings`; pause ≥3 s, not asleep, not after a pacemaker; the syncope may be anywhere in the same episode (hasTerm's temporal rule reads 「入院时突发晕厥」 as historical, so the rule uses its own non-remote check). B024's facts-layer `clarify` likely comes from the dataset's age field 「就诊在报道前一年」.
+
+**5. A056: tell the generator how to read the record, and check quotes against their source context.**
+- `commaContinuedDenialReadingNotice`: bare items continued after a denial (「无腹痛，发热，呕吐」) that the deterministic reading calls denied and the facts model does not affirm are named in a 【病历读法核对】 paragraph of both M03 halves and of the patient-claim checker's record. Either reader disagreeing → no notice.
+- `quoteWithoutDeniedLeadingItems` (delivered surface): a verbatim quote in the syndrome basis or a chain node that starts with items lying inside a record denial (「发热，呕吐，于乡卫生院…」 cut from 「无腹痛，发热，呕吐，于乡卫生院…」) loses those items; the rest is still verbatim.
+- Patient-claim check: a span that is verbatim in the record is no longer protected when the record reads it only as denied (both the substring and the "mostly record words" guards). Audit on saved outputs: with the notice in the checker's record, the round-19 A056 statements 「发热、呕吐为湿浊内扰之象」 are removed; on the old arm's p100 + det42 the new guard removed one span, C019 「食欲下降」, which was the reading bug fixed under 1.
+
+**6. S032 was the review panel, not the model.** The record's structured vitals contain BP 98/62. `judge-qwen-cust.mjs` judged held-out files with the customer-10 brief and took vitals from the c10 case file (empty for S032). It now reads vitals from the output's own input and judges only its own case set.
+
+**Replays** (old = HEAD 595cad54 in `/tmp/r1032-old`, both ways, every change read):
+- Gate, 20,740 records: 63 changed, no red flag lost, 4 gained (B024; 「时常有便血」 with a rectal cancer history; 「左半身无法活动，语言不利」; a seizure hidden behind 「漫无目的」). The rest are information requests: 49 sleep-apnoea screens because 「无发热，食欲可，睡眠差」 now reads 睡眠差 as present. The first version of the unassessed states lost 15 neurological red flags (bare 「不清」); a draft of the normal-finding break created two chest-pain red flags from findings after the term; both were fixed before this count.
+- Record reading, 27,772 (record, finding) pairs: 228 readings changed (most denied/absent → affirmed: 时常、经常、偶尔、无法入睡后的表现, own-predicate items; dialogue answers; C093/C040 affirmed → absent). The sanitizer probe set changed in 22,806 of 55,544 probes, almost all because a contradicted denial is now deleted instead of rewritten.
+- The full gate stopped once on `test:negation-presentation-parity`: 「无法完全否认呕血」 lost its GI-bleed signal because 「无法」 was masked before the modal guard looked at it. 「无法」 followed by an optional adverb and 排除/除外/否认 stays modal now.
+
+**Measured** (same day, old = 595cad54 = 123bcb7f's clinical code, new = this round; page shape for p100 and primary care, customer shape for det42; the new arm was regenerated in full after the quote trimming was added, the first partial run is kept in `out/_pre-quote-trim/`):
+
+| | Old | New |
+|---|---|---|
+| Targets × 3 (C093, B024, A056, C038, C061, C065, C069, A039, B004) | — | C093 no 「有黑便」 and no GI-bleed advisory 3/3; B024 red flag 3/3; A056 no 发热/呕吐 asserted anywhere in the TCM half 3/3 (round 19: 2/3); C038/C061/C065 no 「有发热/有腹痛」 3/3; follow-up plan and decoction node agree in every priority case |
+| det42: disease / syndrome vs standard answers (29 labelled) | 29/29 / 29/29 | 29/29 / 29/29 (same disease 42/42, same syndrome 42/42 across arms) |
+| Priority evaluation with dose: decoction node contradicts the follow-up plan | det42 2/2, p100 15/15, primary care 33/33 | 0/2, 0/16, 0/36 |
+| 「有X」 inside 不支持/鉴别 slots (mostly sanitizer flips) | p100 18, primary care 26 | 2, 4 |
+| p100: same disease across arms / red-flag cases | 96/100 / 38 | — / 39 (C065: facts layer graded puerperal sepsis) |
+| Primary care: same disease / red flags | 144/144 / 24 | — / 26 (B024; B060 facts-graded anaphylaxis) |
+| Paired median latency change (p100) | | M03 +0.27 s, M04 +0.47 s (more patient-claim verification calls: 0.16 → 0.25 per check) |
+
+qwen3.8-max review, same scripts as rounds 16–19, both arms judged this round:
+- p100 (customer rubric 1.1/1.2), old → new: RF 98 → 99, FACT 97 → 99, T 99 → 100, Q 98 → 100, S 99 → 100, SAFE 100 → 99, D 100 → 98, Y 100 → 97; red lines 2 → 1 (C075 in both arms, see below; C065 old).
+- Primary care 144 (all records): FACT 95.8 → 97.2, C 95.1 → 98.6, S 97.2 → 99.3, R 98.6 → 100, K 93.5 → 97.7; SAFE 100 → 97.9 — of its three, B029 is a judge error (天葵子/野菊花 12 g are inside ChP 9–15 g), B032 identical system behaviour judged differently (renal impairment gets dose in both arms), B061 is a model diet line recommending 蒸蛋 to an egg-allergic child; red lines 1 (B010 old) → 0.
+- Customer 10 (customer brief): new arm 0 failures in all eight columns (old: 复诊计划 1); no red flag on 病历1/2/7/9.
+- Held-out 32: every block ≥ 96.6% in both arms; new arm no hard error (old: S102 PCOS); the two 红旗与剂量档 failures per arm are the judge reading the interface value `limited_dose` as a contradiction.
+
+**Found, not fixed (stop rule).**
+- C075 (4 y, 39.6 ℃, HR 152, non-blanching purpura, lethargy, low urine): the facts extraction timed out in both arms (26–29 s under machine load; round 19 extracted it and flagged), dose was withheld, but the deterministic layer has no 「fever + non-blanching rash in a child」 rule (NICE NG143 red feature).
+- Diet lines do not check recorded food allergens (B061 蒸蛋 with a recorded egg allergy).
+- The visit plan for a suspected liver abscess (B006, WBC 17, HR 107) and hyperglycaemia with ketonuria (B010) is 「3天内」; the priority-evaluation window is one size for every focus.
+- The static golden-harness CLI has a fixed 30 s budget; under the load of other sessions it took 28–41 s on both old and new code and failed the gate once; it passed on a quieter machine.
+
+**Production.** Still 7154f84. 2c7e00e5 passed `verify:release` and is prebuilt as `20261025-2c7e00e-prebuilt` (`/var/tmp/build-prebuilt/`, meta `~/runlogs/r1018/work/r1032/deploy4.meta`; the superseded 123bcb7 prebuild was removed). The host had 8.0 GB free against the 12 GB floor; our only images there are the running 7154f84 and its rollback, so the floor cannot be reached without the user's approval to lower it or to clean other projects' images.
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
