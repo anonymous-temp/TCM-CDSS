@@ -1903,6 +1903,74 @@ Most failures in the first column came from my converter (an age written as birt
 - **Host disk.** Before release 1 the host had 11.1 GB; our own old images (4519b4f, ccb67f4), old build contexts, the Docker build cache and a 9/11 `image-transfer.tar` (446 MB) in the release directory were removed (logged in `~/telemetry-archive/cleanup-20261024.txt`), giving 12.6 GB. An hour later another project (open-science / evimed) built several images (6.5 GB runtime images, 11 GB build cache) and the host fell to 1.6 GB (100%); our container stayed healthy.
 - **Local build.** /home had under 4 GB and memory under 6 GB, so the prebuild ran on the root filesystem with a temporary 2 GB swap file on root (a 3 GB file on /home was removed at once when /home fell to 230 MB; the first two attempts were OOM-killed and ENOSPC). The swap file was removed after the build.
 
+### 10/25 round 19: record polarity, disease name vs reason for visit, knowledge-base wiring (2026-10-25)
+
+The user pointed at two leftovers of round 18 that affect accuracy and asked for root-cause fixes, preferably with model and algorithm capability, plus a review of whether every knowledge channel is retrieved, recalled, ranked and used as intended:
+- A056: the record says 「无腹痛，发热，呕吐」 and later 「无呕吐，发热」; the output said 「有呕吐；否认呕吐」;
+- A033: chief complaint 「感冒后发热2周（伴自幼遗尿）」, disease 遗尿.
+
+Material: `~/runlogs/r1018/work/r1031/` (`TODO.md`, `probe/`, `replay/`, `cp.sh` + `counterproofs.txt`, `measure.sh`, `judge.sh`, `compare.py`, `out/`, `judge/`). Suite `test:r1031-main` (16 checks, each with a counter-proof); class fixture `denial-run-broken-by-positive-item`.
+
+**A056: one record reading, three values (`recordedFindingReading` in `diagnosis-safety.ts`).**
+- Root cause, measured: the output was the server's. Three pieces of the negation sanitizer composed it.
+  - `isNegatedAt` looks for a severity or time word up to 24 characters after the symptom, across commas, so the 「加重」 in 「…呕吐，于乡卫生院输液治疗两天无效，并有加重趋势」 (about the diarrhoea) made 发热 and 呕吐 read as affirmed.
+  - The "literally documented denial" check looked only at the first occurrence of each word, which was the ambiguous one, so even the record quote 「无呕吐，发热」 was rewritten.
+  - The contradiction branch then wrote 「病历已记录呕吐阳性」 and also 「病历已记录否认呕吐」 in the same sentence.
+- The reading is computed per finding over all mentions: `affirmed` (some clause by itself affirms it), `denied`, `conflicting` (both), `ambiguous` (only a bare item after a denial, affirmed only by a word in a later clause), `absent`. A list-continuation mention counts as a denial only when the item stands bare in its own comma clause, at most two short clauses after the denied one (`negationReachesMentionDirectly`); 「无汗，鼻塞声重，咳嗽有痰」 and 「无食欲，眠差，入睡困难，小便调，便秘」 do not deny 咳嗽 or 便秘.
+- The gate does not read it. The sanitizer reads it through `sanitizerReading`:
+  - `conflicting` is treated as affirmed (present), and no generic 「否认X」 is written next to it. A record's narrower denial (「否认突发雷击样头痛」) is kept for `reconcileSyntheticPolarityContradictions`, as before.
+  - `ambiguous` asks the second reader: affirmed in the facts model's grounded `affirmedSymptoms` → present; otherwise 「X的有无病历记载不明确，需核实」.
+  - A model sentence that, grown clause by clause, is a ≥8-character verbatim stretch of the record is never rewritten (course changes such as 「伴呕吐2次。今日无呕吐」).
+- Why `conflicting` → present and not "needs checking": in the replay most both-way records are course changes or conditionals (「最近都有黑便。急性肠胃炎的时候，还没有黑便」「一痒就咳嗽，不痒就不咳嗽」); "present" was the more accurate rewrite there.
+- Replay (`replay/sanitizer.mjs`, 20,740 records × every listed finding the record mentions, two model-style probes each, 55,544 probes): 1,294 changed. 406 + 56 were denials the old code kept although the record plainly affirms the finding (the old literal check did not mask 「疲乏无力」「面色无华」, so 「…疲乏无力、左侧偏瘫、胸痛」 counted as a denial of 胸痛); 313 kept denials became 「尚未确认」; 68 + 15 visible 「有X；否认X」 pairs became one statement; 284 became 「记载不明确」 (mostly comma lists whose bare items are in fact positive — the facts model resolves them in production).
+- Still model judgement: in 2 of 3 runs the M03 model wrote 「发热、呕吐为湿浊内扰之象」 for A056, although both the deterministic reading and the facts model read them as denied and the record says 「无呕吐」 today. In 313 saved outputs only A056 showed this; a deterministic removal was measured and rejected (half of its hits were misreads, e.g. 「伴恶心」, 「经常腹泻」).
+
+**Found on the way, in the gate: a leading unrelated denial swallowed red flags.** `isNegatedAt` carries a denial across commas to the following bare items (「否认胸痛，胸闷，气促」), which also swallowed findings that carry their own positive evidence: 「无咳嗽，胸痛，伴大汗」「无头痛，言语不清，右侧肢体无力」「无恶心，黑便3次」「无咳嗽，乏力，胸痛，大汗淋漓」 raised no deterministic red flag (their controls without the leading denial do). The facts model (qwen3.8-max) flagged all four, so production was covered by the second layer. `denialRunBrokenByPositiveItem`: within the same sentence, if any item after the denial carries a count, an opening 伴/有/偶有/出现…, a severity/onset/time word, or a side (左侧/右侧/双侧…), the run is not a denial list. Items that open with a negation are skipped, and a collective postfix denial (均无) keeps the list denied. It can only turn "denied" into "not denied". Gate replay (`replay/gate.mjs`, HEAD vs worktree, 20,740 records): 88 changed, 23 newly red-flagged, all read — mostly real findings the old rule hid (20 kg weight loss in a month, projectile vomiting with neck stiffness and seizures, hemiparesis with facial droop, 「无头晕，偶心慌、胸痛」); a few are other rules' existing handling of chronic or post-acute courses (10-year insomnia with 肢体无力, post-stroke rehabilitation). The remaining 65 are information requests (睡眠差 → sleep-apnoea screening, 胸闷 → vitals). Customer 10, held-out 32, the 100-case set and the 144 primary-care records did not change (one special-population record gains a vitals request). Not changed: 「胸痛，大汗，呕血均无」 is flagged by the short-duration chest-pain rule before and after (a collective postfix denial that rule never honoured).
+
+**A033: the disease must explain the reason for this visit (`m03-visit-reason-check.server.ts`).**
+- Measured: the closed-set pick had 发热 first for A033 and only 消渴 for B012 (「2型糖尿病3年，就诊取降糖药」); M03 still wrote 遗尿 and 疮疡类病 (an almost healed insect-bite wound), and A036 (「发热2天，伴腹胀、纳差」) became 积滞. Over 295 saved outputs M03 departed from the pick's first disease in 37; most departures were corrections (S078 虚劳, C025 心衰, C080 痹证 for 「膝关节疼痛伴发热」), so the disease is not pinned to the pick.
+- Prevention: the candidate block now opens its disease rule with "the disease must explain the reason for this visit — the chief complaint's leading complaint or the disease it names; a disease that only covers an accompanying symptom (after 伴, in brackets), a lifelong or years-long condition, or a healed or incidental finding is not this visit's disease; whole-group fit decides only between diseases that all explain it".
+- Detection and correction: when M03's disease is not the pick's first and is not written in the chief complaint's lead segment (before 伴/兼/合并/括号), a narrow small task asks, twice with the candidates in reversed order, whether the disease explains the visit. Both passes must say no and name the same better candidate; the quoted reason must be verbatim in the lead segment, and the better disease must be one of the picks. Then the TCM half is redrawn once on the first-pass model with that constraint (`m03TcmHalfTransform`'s new `redraw` argument: same prompt + instruction, non-streamed, same schema check) and the half's transforms run again on the redrawn half. It runs in parallel with the other TCM-half checks, so other cases pay nothing. Offline over the 33 departures it flagged A033 and B012 only (C067 and B065 were removed by the lead-segment and "no candidate" guards). Switch `CDSS_M03_VISIT_REASON_CHECK`.
+- Result, 3 runs each on the new code: A033 发热·胃肠积热证 (《中医儿科学》, 大承气汤 at child doses, 桑螵蛸/益智 for the enuresis, 肺肾气虚 as secondary) 3/3; A036 感冒·夹滞 3/3; B012 消渴 3/3 (two runs through the redraw, M03 34 s instead of ~10 s); A071 小便不禁 3/3.
+
+**Knowledge-base wiring review.** An inventory of 26 channels (stage, consumer, ranking, failure behaviour, telemetry), checked against 48 hours of production logs and a traced local chain that saved every model request:
+- **M04 never saw the case-specific knowledge-base rules.** All 81 production M04 calls compacted the evidence block (32–34k → 11–12.5k characters, 21,459 dropped each time). The compactor trims the herb-knowledge section line by line from its end, and the case rules (herb hits, 丹参 with anticoagulants, 复方丹参制剂 + 华法林, statins and liver function) came after a 16,889-character dose index, so they went first — the opposite of the documented intent. The prescribe-stage order is now case rules → global rules → pair index → dose index. The dose index text is unchanged; it still does not fit and is dropped as before.
+- **M03 literature evidence was empty in most calls.** In production, 66 of 81 M03 calls lost the EviMed literature section to the relevance filter (the guide section survived every time). M03 took the first problem query that returned anything, before the relevance filter — the defect fixed for M04 on 9/28. Both stages now use one loop: the first query whose results survive the relevance filter wins. Offline A/B on det42 (real EviMed calls, same records): literature present 5 → 6 of 42, guide 41 → 40. The rest is a retrieval limit of the external service: for these records EviMed literature returns zero or one item, and that one is off-topic.
+- **The M03 → M04 planner prefetch never hit** (162 planner calls for 81 M04): the prefetch planned on the delivered M03 (supporting facts emptied), the route on its working copy (facts restored). `prescribeWorkingPriorReasoning` is now the one helper for both, and the planner's local retrieval receives the same polarity-assist negations as the M04 evidence list (its LOCAL-INST numbering could otherwise differ from the prompt's).
+- The evidence header no longer mentions the 灵犀 audit removed on 9/25.
+- New telemetry `[tcm-cdss:knowledge] prompt_sections` (section headers only, plus the textbook picks, 经方 pick count, similar-case count, `evidenceTruncated`, and for M04 `caseRulesRetained`).
+- Checked and fine: the textbook pick, 经方 pick, polarity assist, syndrome rerank, formula recall and the narrow checks had no timeouts or errors in 48 h; similar cases came in at every call (top score 29.5–388); M03's pre-model wait p50 0.22 s.
+- Left: M05 builds no evidence (the `assess` query branches in `evimed-guide.ts` are dead; earlier text in this file says M04/M05 fan out evidence queries); M03's citation whitelist is built from the uncompacted evidence (compaction happened once in 81 M03 calls); about 20 switches are not forwarded by `docker-compose.yml` (defaults are on).
+
+**Measured** (same day, old = HEAD 85ae4d4e, i.e. release 2's clinical code; new = this round; page shape for p100 and primary care, customer shape for det42):
+
+| | Old | New |
+|---|---|---|
+| det42: disease / syndrome vs standard answers (39 labelled) | 39/39 / 39/39 | 39/39 / 39/39 |
+| det42: same disease / syndrome / formula as the other arm | 41/42 / 42/42 / 40/42 | |
+| p100: red flag where expected / dose withheld where expected / M03 complete | 28/28 / 33/33 / 100/100 | 27/28 (C084: facts extraction unavailable once, dose withheld) / 33/33 / 100/100 |
+| p100: same disease as the other arm | 97/100 | |
+| 144 primary-care records: 「有X；否认X」 pairs / system-sentence residue | 14 (A056) / 1 | 0 / 0 |
+| 144 primary-care records: red flags | 25 | 25 |
+| M04 calls keeping the case-specific knowledge rules | 0/81 (production log) | 100/100 (p100 telemetry) |
+| Medians M03 / M04 (p100) | 13.1 / 11.1 s | 12.9 / 11.0 s |
+
+The visit-reason check ran 13 times in p100, 3 in det42 and 19 in the primary-care set; it redrew 3 (all primary care: 日晒疮 → 湿疮 for a steroid-cream facial dermatitis without sun exposure, 水肿 → 消渴 for 「糖尿病十多年…下肢浮肿」 as the source doctor wrote, 瘾疹 → 接触性皮炎 after flower viewing). A036 went to 积滞 again in one primary-care run (the check judged it covered; 3/3 感冒夹滞 in the target runs).
+
+qwen3.8-max review, same scripts as rounds 16–18, both arms judged in this round:
+- p100 (customer rubric 1.1/1.2): every row 97–100% in both arms, red lines 0 in both; 中成药 21/21 → 16/18 and 治则 99 → 98 are inside the judge's noise.
+- Primary care, the 51 records whose outputs differ between arms plus the targets (identical outputs get identical verdicts): FACT 46 → 49, 中医诊断 48 → 50, 剂量安全 50 → 51, 依据 49 → 50, 选方 49 → 51; 西医 51 → 49, 治则 49 → 48. One red line in the new arm, B024 (sinus pause up to 3 s, syncope on admission): identical in both arms — no deterministic red flag, facts graded the syncope `clarify` — so it predates this round.
+- Held-out 32 + customer 10 (held-out brief): new arm 100% on every block; old arm 97.6% (follow-up and precautions) and 95.0% (red flag and dose tier).
+- Customer brief over the same 42: no red flag on 病历1/2/7/9 in either arm; column failures old 西医 1 / 治则 1 / 饮片 2 / 复诊 2, new 西医 1 / 鉴别 1 / 饮片 1 / 复诊 3.
+
+**Found by the review, not fixed (stop rule).**
+- 「是否黑便尚未询问」 counts as a recorded 黑便 (the unknown-status filter misses 尚未询问 and 是否 forms), so C093 got 「有黑便」 in both arms.
+- A priority evaluation from the facts layer with a dosed prescription gives 「请在3天内到医院完成评估」 next to the decoction line's 「完成7剂后复诊」 (病历10 new arm, S044 old arm).
+- B024: a 3-second sinus pause followed by syncope is not a red flag in either layer.
+- Model judgement: S032 invented a blood pressure (98/62) in a Western differential; S128 (hives with abdominal pain after seafood) is flagged in one arm and not the other, the round-8 borderline.
+
+**Production.** Still 7154f84. 123bcb7f passed `verify:release` (typecheck, lint, 279 suites, fresh-artifact suites) and is prebuilt as `20261025-123bcb7-prebuilt` (`/var/tmp/build-prebuilt/`, meta `~/runlogs/r1018/work/r1031/deploy3.meta`; release 2's prebuild was removed, this one includes it). The host had 5.5–8.1 GB free during the round against the 12 GB floor; the floor was not lowered and no other project's data was touched. Production probes are ready in `cases-prod3.json` (A033, A056, B012 and two gate probes).
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
