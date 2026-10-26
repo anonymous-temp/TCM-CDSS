@@ -95,12 +95,32 @@ export function recordedAllergensInText(text: string, polarityAt: MentionPolarit
   return [...found.values()];
 }
 
-/** 读病历小任务读出的过敏类别（allergy-<类>），并集进来。 */
+/**
+ * 引文里有没有说出这一类（本类的记录词、不耐受词、食物词或成份词，最左最长，排除词不算）。过敏类别是闭集：模型可以读、
+ * 但它给的引文必须点出这一类，否则不采信（2026-10-26 C058：病历只记青霉素过敏，读病历小任务给了「对乳及乳制品过敏」，
+ * 引文是病历原文却与乳制品无关）。
+ */
+function quoteNamesClass(entry: ClassEntry, quote: string): boolean {
+  const named = [...entry.recordTerms, ...entry.intoleranceTerms, ...entry.foodTerms, ...entry.medicineIngredientTerms.map((item) => item.term)];
+  const candidates = [...named, ...entry.excludeTerms];
+  for (let index = 0; index < quote.length; index += 1) {
+    const term = longestAt(quote, index, candidates);
+    if (term) {
+      if (named.includes(term) && !(entry.excludeTerms.includes(term) && !entry.recordTerms.includes(term))) return true;
+      index += term.length - 1;
+      continue;
+    }
+    if (entry.singleCharTerms.includes(quote[index]) && DATA.singleCharRecordFollowers.some((follower) => quote.startsWith(follower, index + 1))) return true;
+  }
+  return false;
+}
+
+/** 读病历小任务读出的过敏类别（allergy-<类>），并集进来；引文须点出这一类（quoteNamesClass）。 */
 export function allergensFromScreen(present: ReadonlyArray<{ conceptId: string; quote: string }> | undefined): RecordedAllergen[] {
   return (present || []).flatMap((item) => {
     if (!item.conceptId.startsWith(ALLERGY_CONCEPT_PREFIX)) return [];
     const entry = CLASSES.get(item.conceptId.slice(ALLERGY_CONCEPT_PREFIX.length));
-    if (!entry) return [];
+    if (!entry || !quoteNamesClass(entry, item.quote)) return [];
     const intolerance = entry.intoleranceTerms.some((term) => item.quote.includes(term)) && !entry.recordTerms.some((term) => item.quote.includes(term));
     return [{ classId: entry.id, labelZh: entry.labelZh, kind: intolerance ? "intolerance" as const : "allergy" as const, quote: item.quote }];
   });

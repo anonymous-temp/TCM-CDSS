@@ -280,6 +280,24 @@
           "altered-conscious-level",
           "objective-altered-mental-state"
         ]
+      },
+      {
+        "id": "ctl-flushed-face",
+        "ageMonths": 372,
+        "record": "主诉：肉眼血尿1天\n现病史：尿频尿痛，T 38.0℃\n面象：面红，神疲",
+        "absent": [
+          "mottled-ashen",
+          "pale-clinician"
+        ]
+      },
+      {
+        "id": "ctl-scant-urine",
+        "ageMonths": 600,
+        "record": "主诉：发热乏力2天\n现病史：最高38.8℃，伴寒战，尿少",
+        "absent": [
+          "no-urine-18h",
+          "no-urine-12-18h"
+        ]
       }
     ]
   }

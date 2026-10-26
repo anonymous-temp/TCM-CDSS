@@ -177,7 +177,7 @@
       "conceptId": "mottled-ashen",
       "labelZh": "皮肤花斑或面色灰白",
       "definitionZh": "皮肤出现花斑、花纹、大理石样花纹、发花、网状青紫斑，或面色灰白、青灰、灰暗、土灰色（灌注不足的表现）。",
-      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。",
+      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。面红、面色潮红、面赤、面色红润。",
       "sourceQuote": "Pale, mottled, ashen or blue",
       "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Colour', Red column",
       "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
@@ -1825,7 +1825,7 @@
       "conceptId": "mottled-ashen",
       "labelZh": "皮肤花斑或面色灰白",
       "definitionZh": "皮肤出现花斑、花纹、大理石样花纹、发花、网状青紫斑，或面色灰白、青灰、灰暗、土灰色（灌注不足的表现）。",
-      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。",
+      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。面红、面色潮红、面赤、面色红润。",
       "sourceQuote": "Mottled or ashen appearance",
       "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Skin / Any', High risk criteria column",
       "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
@@ -2687,7 +2687,7 @@
       "conceptId": "mottled-ashen",
       "labelZh": "皮肤花斑或面色灰白",
       "definitionZh": "皮肤出现花斑、花纹、大理石样花纹、发花、网状青紫斑，或面色灰白、青灰、灰暗、土灰色（灌注不足的表现）。",
-      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。",
+      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。面红、面色潮红、面赤、面色红润。",
       "sourceQuote": "Mottled or ashen appearance",
       "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Skin / Any', High risk criteria column",
       "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
@@ -3088,7 +3088,7 @@
       "conceptId": "no-urine-18h",
       "labelZh": "18 小时未排尿",
       "definitionZh": "过去 18 小时及以上没有排尿（留置导尿者：每小时尿量 <0.5 ml/kg）。",
-      "notCountZh": "尿少但仍在排尿；只写『小便短赤』。",
+      "notCountZh": "尿少但仍在排尿；只写『小便短赤』。只写尿少、尿量减少、小便短少，没有写多长时间未排尿（归『尿量减少』）。「少尿」同样不算。",
       "sourceQuote": "Not passed urine in previous 18 hours",
       "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Circulation and hydration', High risk criteria column",
       "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
@@ -3163,7 +3163,7 @@
       "conceptId": "no-urine-12-18h",
       "labelZh": "12～18 小时未排尿",
       "definitionZh": "过去 12～18 小时没有排尿（留置导尿者：每小时 0.5～1 ml/kg）。",
-      "notCountZh": "尿少但仍在排尿；只写『小便短赤』。",
+      "notCountZh": "尿少但仍在排尿；只写『小便短赤』。只写尿少、尿量减少、小便短少，没有写多长时间未排尿（归『尿量减少』）。「少尿」同样不算。",
       "sourceQuote": "Not passed urine in the past 12 to 18 hours",
       "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Circulation and hydration', Moderate to high risk criteria column",
       "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
@@ -3214,7 +3214,7 @@
       "conceptId": "mottled-ashen",
       "labelZh": "皮肤花斑或面色灰白",
       "definitionZh": "皮肤出现花斑、花纹、大理石样花纹、发花、网状青紫斑，或面色灰白、青灰、灰暗、土灰色（灌注不足的表现）。",
-      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。",
+      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。面红、面色潮红、面赤、面色红润。",
       "sourceQuote": "Mottled or ashen appearance",
       "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Skin', High risk criteria column",
       "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
@@ -3589,7 +3589,7 @@
       "conceptId": "no-urine-18h",
       "labelZh": "18 小时未排尿",
       "definitionZh": "过去 18 小时及以上没有排尿（留置导尿者：每小时尿量 <0.5 ml/kg）。",
-      "notCountZh": "尿少但仍在排尿；只写『小便短赤』。",
+      "notCountZh": "尿少但仍在排尿；只写『小便短赤』。只写尿少、尿量减少、小便短少，没有写多长时间未排尿（归『尿量减少』）。「少尿」同样不算。",
       "sourceQuote": "Not passed urine in previous 18 hours",
       "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Circulation and hydration', High-risk criteria column",
       "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
@@ -3663,7 +3663,7 @@
       "conceptId": "no-urine-12-18h",
       "labelZh": "12～18 小时未排尿",
       "definitionZh": "过去 12～18 小时没有排尿（留置导尿者：每小时 0.5～1 ml/kg）。",
-      "notCountZh": "尿少但仍在排尿；只写『小便短赤』。",
+      "notCountZh": "尿少但仍在排尿；只写『小便短赤』。只写尿少、尿量减少、小便短少，没有写多长时间未排尿（归『尿量减少』）。「少尿」同样不算。",
       "sourceQuote": "Not passed urine in the past 12 to 18 hours",
       "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Circulation and hydration', Medium-risk criteria column",
       "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
@@ -3713,7 +3713,7 @@
       "conceptId": "mottled-ashen",
       "labelZh": "皮肤花斑或面色灰白",
       "definitionZh": "皮肤出现花斑、花纹、大理石样花纹、发花、网状青紫斑，或面色灰白、青灰、灰暗、土灰色（灌注不足的表现）。",
-      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。",
+      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。面红、面色潮红、面赤、面色红润。",
       "sourceQuote": "Mottled or ashen appearance",
       "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Skin', High-risk criteria column",
       "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
@@ -4287,5 +4287,35 @@
       "altered-conscious-level",
       "weak-high-pitched-cry"
     ]
+  },
+  "quoteAnchors": {
+    "purpose": "界限能落在字面上的判别项：模型给的引文里必须出现下列字样之一，否则不采信（模型读、代码核证据）。2026-10-26 实测：「少尿」被读成 18 小时未排尿、「面色苍白」被读成面色灰白，定义里写了「不算」仍会读错。",
+    "byConcept": {
+      "no-urine-18h": [
+        "小时",
+        "天",
+        "日",
+        "h"
+      ],
+      "no-urine-12-18h": [
+        "小时",
+        "天",
+        "日",
+        "h"
+      ],
+      "mottled-ashen": [
+        "花斑",
+        "花纹",
+        "大理石",
+        "发花",
+        "网状",
+        "灰白",
+        "青灰",
+        "灰暗",
+        "土灰",
+        "发灰",
+        "死灰"
+      ]
+    }
   }
 }

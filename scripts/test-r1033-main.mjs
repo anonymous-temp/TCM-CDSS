@@ -241,6 +241,11 @@ await check("4.4 读病历结果的解析：清单外的 id、引文对不回病
   assert.deepEqual(screen.parseRedflagDiscriminatorScreen(JSON.stringify({ present: [
     { id: "currently-fitting", quote: "家属诉患者此刻仍在抽搐" }, { id: "no-urine-18h", quote: "近18小时无尿" }, { id: "focal-neuro-signs", quote: "否认头痛" },
   ] }), ["currently-fitting", "no-urine-18h", "focal-neuro-signs"], fitting).map((item) => item.conceptId), ["currently-fitting", "no-urine-18h"]);
+  // 界限落在字面上的判别项：「少尿」不是 18 小时未排尿，「面色苍白」不是花斑灰白（源表 quoteAnchors）。
+  const scant = "高热2天，少尿，面色苍白";
+  assert.deepEqual(screen.parseRedflagDiscriminatorScreen(JSON.stringify({ present: [
+    { id: "no-urine-18h", quote: "少尿" }, { id: "mottled-ashen", quote: "面色苍白" },
+  ] }), ["no-urine-18h", "mottled-ashen"], scant), []);
   const request = screen.buildRedflagDiscriminatorRequest(record, { ageMonths: 48 });
   assert.ok(request.concepts.includes("non-blanching-rash") && request.concepts.includes("ctx-fever"));
   assert.ok(!screen.buildRedflagDiscriminatorRequest(record, { ageMonths: 40 * 12 }).concepts.includes("weak-high-pitched-cry"));
@@ -349,6 +354,9 @@ await check("7.5 精简过敏分类表与源表同步；读病历小任务的清
   assert.ok(request.concepts.includes("allergy-crustacean"));
   const parsed = screen.parseRedflagDiscriminatorScreen(JSON.stringify({ present: [{ id: "allergy-crustacean", quote: "吃虾后起风团" }] }), request.concepts, "过敏史：吃虾后起风团");
   assert.deepEqual(allergen.allergensFromScreen(parsed).map((item) => item.classId), ["crustacean"]);
+  // 引文要点出这一类：C058 病历只记青霉素过敏，读出「对乳及乳制品过敏」而引文与乳制品无关的不采信。
+  assert.deepEqual(allergen.allergensFromScreen([{ conceptId: "allergy-milk", quote: "青霉素服后出现全身荨麻疹" }]), []);
+  assert.deepEqual(allergen.allergensFromScreen([{ conceptId: "allergy-milk", quote: "喝牛奶后起风团" }]).map((item) => item.classId), ["milk"]);
 });
 
 console.log(`r1033-main: ${cases} checks`);

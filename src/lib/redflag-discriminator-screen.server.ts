@@ -39,6 +39,7 @@ const DEFINITIONS = (() => {
   return map;
 })();
 
+const QUOTE_ANCHORS = new Map(Object.entries((source as { quoteAnchors?: { byConcept?: Record<string, string[]> } }).quoteAnchors?.byConcept || {}));
 const NEGATION_INTRINSIC = new Set((source as { negationIntrinsicConcepts?: { conceptIds?: string[] } }).negationIntrinsicConcepts?.conceptIds || []);
 
 export function buildRedflagDiscriminatorRequest(recordText: string, patient: DiscriminatorPatient): {
@@ -100,6 +101,9 @@ export function parseRedflagDiscriminatorScreen(content: unknown, concepts: read
     const absenceFinding = NEGATION_INTRINSIC.has(conceptId);
     const aligned = alignQuoteToSource(quote, recordText);
     if (!aligned) continue;
+    // 界限能落在字面上的判别项（源表 quoteAnchors）：引文须出现规定字样之一。
+    const anchors = QUOTE_ANCHORS.get(conceptId);
+    if (anchors && !anchors.some((anchor) => aligned.span.includes(anchor))) continue;
     const polarity = clauseLocalMentionPolarityAt(recordText, Math.max(aligned.start, aligned.end - 1));
     if (polarity === "excluded" || (polarity === "negated" && !absenceFinding)) continue;
     if (!absenceFinding && !quoteHasCurrentOccurrence(recordText, aligned.span)) continue;
