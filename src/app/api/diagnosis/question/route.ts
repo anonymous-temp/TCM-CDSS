@@ -24,8 +24,9 @@ import { reviewM02QuestionPlan } from "@/lib/m02-question-review.server";
 import { prefetchDiagnoseInputs } from "@/lib/stage-prefetch.server";
 import { precomputeNoAnswerPath } from "@/lib/no-answer-precompute.server";
 import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
+import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const startedAt = Date.now();
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
@@ -205,3 +206,6 @@ async function questionStageResponse(inputCaseState: CaseState, signal: AbortSig
   await response.body?.cancel().catch(() => undefined);
   return markdownNdjsonResponse(fallback);
 }
+
+// 临床请求与响应都加密留存（用户 2026-10-26 D3），见 request-archive.server.ts。
+export const POST = withClinicalResponseArchive(handlePost);

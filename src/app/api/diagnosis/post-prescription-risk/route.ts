@@ -24,6 +24,7 @@ import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { hasHisWorkbenchEditShape } from "@/lib/his-prescription-validation";
 import { contractProvenanceAdvisory, recordContractProvenance, type ContractProvenanceIssue } from "@/lib/contract-provenance";
+import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
 /** 编辑前的合同签名与复核标记只对应编辑前的版本；医生编辑版审方前移除。 */
 function stripPreEditContractMetadata(caseState: CaseState): CaseState {
@@ -42,7 +43,7 @@ function stripPreEditContractMetadata(caseState: CaseState): CaseState {
   };
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   // 签名/凭据核验只标注、不拦截（owner 2026-10-12；contract-provenance.ts）。核验不通过时照常
@@ -175,3 +176,6 @@ export async function POST(req: Request) {
     audit: undefined, auditSkipped: true, advisories: clinicalAdvisories,
   }));
 }
+
+// 临床请求与响应都加密留存（用户 2026-10-26 D3），见 request-archive.server.ts。
+export const POST = withClinicalResponseArchive(handlePost);

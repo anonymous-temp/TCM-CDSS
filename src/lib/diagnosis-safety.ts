@@ -5063,6 +5063,73 @@ function giBleedRecurrenceCountsAsActive(text: string, at: number, bleedText: st
   return false;
 }
 
+function hasColloquialChestPressureSignal(text: string): boolean {
+  return hasPatternWithoutNegation(
+    text,
+    new RegExp(
+      "(?:胸口|胸前|胸部|胸骨后|心口|心前区).{0,10}(?:(?:像|跟|如同).{0,5})?(?:石头|重物|东西)?"
+      + `(?:压着|压住|压得|压迫|发紧|勒紧|箍紧|堵得慌|闷得慌|${governedTermAlternation(CARDIAC_DETECTION.colloquialPressureVerbs)})`,
+    ),
+  );
+}
+
+const FEBRILE_CHEST_TIGHTNESS = priorityEvaluationWindowTable.febrileChestTightnessDeferral;
+const ACS_TYPICAL_COMPANIONS = [
+  ...GOVERNED_CARDIAC_COMPANIONS.filter((term) => !FEBRILE_CHEST_TIGHTNESS.respiratoryCompanions.includes(term)),
+  ...FEBRILE_CHEST_TIGHTNESS.acsTypicalExtraTerms,
+];
+
+function news2Points(bands: readonly (readonly number[])[], value: number): number {
+  for (const [upper, points] of bands) if (value <= upper) return points;
+  return 0;
+}
+
+/**
+ * 「无不稳定征象」：心率、呼吸、收缩压、血氧至少记录 minimumRecordedVitals 项，按 NEWS2（RCP 2017）无单项 3 分、
+ * 已记录各项总分 <5。记录不足返回 false（不能确认稳定）。
+ */
+function vitalsRecordedAndStableByNews2(measurements: CurrentVitalMeasurements): boolean {
+  const bands = FEBRILE_CHEST_TIGHTNESS.news2;
+  const scored: number[] = [];
+  if (measurements.respiration != null) scored.push(news2Points(bands.respiration, measurements.respiration));
+  if (measurements.spo2 != null) scored.push(news2Points(bands.spo2, measurements.spo2));
+  if (measurements.bloodPressure) scored.push(news2Points(bands.systolic, measurements.bloodPressure.systolic));
+  if (measurements.pulse != null) scored.push(news2Points(bands.pulse, measurements.pulse));
+  if (scored.length < FEBRILE_CHEST_TIGHTNESS.minimumRecordedVitals) return false;
+  if (scored.some((points) => points >= 3)) return false;
+  const temperaturePoints = measurements.temperature != null ? news2Points(bands.temperature, measurements.temperature) : 0;
+  return scored.reduce((sum, points) => sum + points, 0) + temperaturePoints < 5;
+}
+
+/**
+ * 发热病程中的胸闷（可伴气促、呼吸困难），满足全部条件时不按急性心血管事件报红旗，改为 24 小时内评估、照常给剂量
+ * （用户 2026-10-26 决定 D1）。条件与依据见 priority-evaluation-windows.source.json febrileChestTightnessDeferral：
+ * 当前发热；有胸闷且伴气促或呼吸困难、无胸痛；胸闷无突发/加重/持续/按分钟小时计的急性线索；无急性冠脉典型伴随；未肯定记载已知心脏病；
+ * 无意识改变；生命体征记录足够且按 NEWS2 稳定。红旗规则与 24 小时通道读同一个谓词。
+ */
+export function febrileChestTightnessDeferralApplies(state: CaseState): boolean {
+  const text = trustedInputText(state);
+  if (!hasAnyTerm(text, ["胸闷"])) return false;
+  if (hasAnyTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) || hasColloquialChestPressureSignal(text)) return false;
+  if (hasScopedAcuteChestTightnessSignal(text)) return false;
+  // 只替换原本会报的那一条红旗：要有呼吸类伴随（气促、呼吸困难）。单纯发热加胸闷原规则不报，这里也不加 24 小时评估
+  //（回放 S137 产后乳痈「发热…胸闷」：先前写法多出一条「排除心肌炎」，属过度提示）。
+  if (!hasAnyTerm(text, FEBRILE_CHEST_TIGHTNESS.respiratoryCompanions)) return false;
+  if (hasAnyTerm(text, ACS_TYPICAL_COMPANIONS)) return false;
+  // 已知心脏病是既往史，判「有没有肯定记载」而不是「是不是当前发作」：hasAnyTerm 会把「冠心病史5年」当既往跳过。
+  if (FEBRILE_CHEST_TIGHTNESS.knownCardiacDisease.some((term) => {
+    for (let at = text.indexOf(term); at >= 0; at = text.indexOf(term, at + term.length)) {
+      if (recordMentionPolarityAt(text, at) === "affirmed") return true;
+    }
+    return false;
+  })) return false;
+  if (currentConsciousnessChangeTerm(text)) return false;
+  const measurements = currentVitalMeasurements(state);
+  const febrile = (measurements.temperature != null && measurements.temperature >= 37.3) || hasAnyTerm(text, ["发热", "发烧", "高热"]);
+  if (!febrile) return false;
+  return vitalsRecordedAndStableByNews2(measurements);
+}
+
 export function detectProgrammaticRedFlags(state: CaseState): string[] {
   const text = trustedInputText(state);
   const redFlags: string[] = [];
@@ -5100,13 +5167,7 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
     redFlags.push(`血压录入 ${invertedCriticalBp.first}/${invertedCriticalBp.second}mmHg 疑似收缩压/舒张压倒置且包含危急值，不能静默纠正；需立即规范复测并按高血压危象或循环风险完成现场评估`);
   }
 
-  const colloquialChestPressureSignal = hasPatternWithoutNegation(
-    text,
-    new RegExp(
-      "(?:胸口|胸前|胸部|胸骨后|心口|心前区).{0,10}(?:(?:像|跟|如同).{0,5})?(?:石头|重物|东西)?"
-      + `(?:压着|压住|压得|压迫|发紧|勒紧|箍紧|堵得慌|闷得慌|${governedTermAlternation(CARDIAC_DETECTION.colloquialPressureVerbs)})`,
-    ),
-  );
+  const colloquialChestPressureSignal = hasColloquialChestPressureSignal(text);
   const chestPainSignal = hasAnyTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) || colloquialChestPressureSignal;
   const chestTightnessSignal = hasAnyTerm(text, ["胸闷"]);
   // 劳力性慢性稳定型（劳力诱发 + 慢性病程/规律服药/控制稳定，无急性变化线索）不是急性冠脉
@@ -5297,7 +5358,10 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   const caseAgeYears = numberFromClinicalText(patientAgeText(withPatientObject(state)));
   const chronicPediatricChestSymptom = caseAgeYears != null && caseAgeYears < 14 && !acuteChestPainSignal && !acuteChestTightnessSignal &&
     /(?:反复|多年|半年|数月|长期|(?:\d+|[一二两三四五六七八九十])\s*(?:个)?(?:月|年))/u.test(text);
-  const cardiacRiskFlagged = !cardiacClearanceApplies && !chronicPediatricChestSymptom &&
+  // 发热病程中的胸闷（可伴气促）且无不稳定征象：改 24 小时内评估、照常给剂量（用户 2026-10-26 决定 D1；
+  // 判据与依据在 priority-evaluation-windows.source.json febrileChestTightnessDeferral，同一个谓词也给 24 小时通道挂项）。
+  const febrileChestTightnessDeferred = febrileChestTightnessDeferralApplies(state);
+  const cardiacRiskFlagged = !cardiacClearanceApplies && !chronicPediatricChestSymptom && !febrileChestTightnessDeferred &&
     (acuteChestPainSignal || (chestPainSignal && cardiacCompanion) || acuteChestTightnessSignal || (chestTightnessSignal && cardiacCompanion));
   const reportableCardiacRisk = cardiacRiskFlagged;
   if (reportableCardiacRisk) {
@@ -6811,6 +6875,8 @@ function collectPriorityEvaluationEntries(state: CaseState, semanticSourceText: 
   };
   attachPathway("breast_mass", "乳房肿块尚未完成影像评估，宜先由乳腺专科尽快评估（需排除：乳腺癌）；处方前需完成评估",
     unevaluatedBreastMassText(semanticSourceText, authoritativePatientAgeYears(state), patientSexText(state)));
+  attachPathway("febrile_chest_tightness", "发热伴胸闷（或气促），暂无不稳定征象，宜24小时内到医院完成心电图、肌钙蛋白与血氧检查（需排除：病毒性心肌炎、肺炎）；处方前需完成评估",
+    febrileChestTightnessDeferralApplies(state));
   attachPathway("hyperglycemic_ketosis", "高血糖伴酮体升高，已达糖尿病酮症酸中毒的血糖与酮体两项标准（ADA 2024），宜当天到医院急诊查血气与血酮（需排除：糖尿病酮症酸中毒）；处方前需完成评估",
     hyperglycemicKetosisSignal(semanticSourceText, diabetesRecordedInText(semanticSourceText, state)));
   if (
@@ -6904,6 +6970,11 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
     const conflictSummary = vitalSourceConflicts.join("；").slice(0, 600);
     addMissing("vitals_source_conflict", `生命体征来源记录冲突（${conflictSummary}）`);
     advisories.push(`生命体征存在来源冲突，请以本次实测值核对后更新：${conflictSummary}`);
+  }
+  // 生命体征字段传来的不是数值、又没能从同一病例补回（input-vitals-recovery.server.ts）：如实告诉医生这几项没用上。
+  const unreadableVitals = state.inputDiagnostics?.unreadableVitals || [];
+  if (unreadableVitals.length > 0) {
+    advisories.push(`本次请求的生命体征（${unreadableVitals.join("、")}）未能读取，红旗检查未使用这些数值，请核对生命体征后再提交`);
   }
   const semanticUnavailable = semanticScreeningUnavailableItem(state);
   if (semanticUnavailable) addMissing("semantic_screen_unavailable", semanticUnavailable);

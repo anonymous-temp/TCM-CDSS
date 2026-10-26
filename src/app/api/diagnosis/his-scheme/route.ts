@@ -34,6 +34,7 @@ import {
   verifyDiagnoseReasoningSignature,
   verifyPrescribeReasoningSignature,
 } from "@/lib/reasoning-contract-signature";
+import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
 const EVIDENCE_SCOPE_TTL_MS = 60_000;
 const evidenceScopeCache = new Map<string, { expiresAt: number; scope: ReturnType<typeof buildEvidenceScope> }>();
@@ -80,7 +81,7 @@ async function withDrugAvailability(
   );
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   const contractVersion = hisSchemeContractVersionFromRequest(req, parsed.body);
@@ -228,3 +229,6 @@ export async function POST(req: Request) {
     auditCorrelation: skippedRxAuditCorrelation({ candidateIndex, prescriptionHash: herbHash, auditedAt }),
   });
 }
+
+// 临床请求与响应都加密留存（用户 2026-10-26 D3），见 request-archive.server.ts。
+export const POST = withClinicalResponseArchive(handlePost);

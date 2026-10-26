@@ -4,6 +4,7 @@ import { readJsonRequest } from "@/lib/diagnosis-request";
 import { markdownNdjsonResponse } from "@/lib/diagnosis-safety";
 import { validateCollectRequiredFields } from "@/lib/clinical-required-fields";
 import { requireCustomerContext } from "@/lib/customer-context";
+import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
 const MAX_IMAGE_SIZE = 5_600_000; // ~4MB binary as base64
 const MAX_USER_INPUT_CHARS = 12000;
@@ -29,7 +30,7 @@ function isValidTongueImageDataUrl(value: string): boolean {
   return true;
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const parsed = await readJsonRequest(req, { maxBytes: MAX_IMAGE_SIZE + MAX_USER_INPUT_CHARS + 2048 });
   if (!parsed.ok) return parsed.response;
   const customer = await requireCustomerContext(req);
@@ -84,3 +85,6 @@ export async function POST(req: Request) {
 
   return callDiagnosisStream(prompt, images ? "glm" : "deepseek", images, "collect", { requestSignal: req.signal });
 }
+
+// 临床请求与响应都加密留存（用户 2026-10-26 D3），见 request-archive.server.ts。
+export const POST = withClinicalResponseArchive(handlePost);

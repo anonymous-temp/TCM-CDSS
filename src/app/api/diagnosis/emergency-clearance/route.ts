@@ -2,8 +2,9 @@ import { readJsonRequest } from "@/lib/diagnosis-request";
 import { normalizeCaseStateInput } from "@/lib/diagnosis-types";
 import { issueEmergencyClearance, stripInvalidEmergencyClearance } from "@/lib/emergency-clearance.server";
 import { requireCustomerContext } from "@/lib/customer-context";
+import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const parsed = await readJsonRequest(req);
   if (!parsed.ok) return parsed.response;
   const body = parsed.body && typeof parsed.body === "object"
@@ -36,3 +37,6 @@ export async function POST(req: Request) {
   }
   return Response.json({ emergencyClearance: result.clearance });
 }
+
+// 临床请求与响应都加密留存（用户 2026-10-26 D3），见 request-archive.server.ts。
+export const POST = withClinicalResponseArchive(handlePost);

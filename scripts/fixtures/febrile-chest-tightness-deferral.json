@@ -1,0 +1,165 @@
+{
+  "schemaVersion": "cdss-redflag-deferral-class-v1",
+  "id": "febrile-chest-tightness-deferral",
+  "addedAt": "2026-10-26",
+  "trigger": "甲方 10/26 实测 K16：33 岁女，受凉后咽痛、流涕、发热 2 天（38.7℃），病程中间断干咳、伴胸闷、气促；T 38.5、P 88、R 20、BP 120/80，双肺呼吸音清。心血管规则「胸闷 + 气促（伴随症任一项）」直接报红旗、不给剂量；甲方连调 4 次开方。",
+  "decision": "用户 2026-10-26 D1：发热伴胸闷（可伴气促）、没有不稳定征象时，不报红旗，24 小时内评估（心电图、肌钙蛋白、血氧），剂量照常给。",
+  "layerAttribution": {
+    "layer": "deterministic_red_flag_rules",
+    "mechanism": "diagnosis-safety.detectProgrammaticRedFlags 心血管一类：cardiacCompanion 在全文任意位置找到 T6 cardiac.dangerCompanions 之一（含呼吸系统的 气促、呼吸困难）就报「需排除急性心血管事件」，不看有没有发热这一更可能的解释、也不看生命体征是否稳定。",
+    "change": "同一个谓词 febrileChestTightnessDeferralApplies 同时用于：红旗规则跳过、24 小时通道（pathway febrile_chest_tightness）挂项。判据与依据全部在 src/data/priority-evaluation-windows.source.json febrileChestTightnessDeferral。",
+    "exception": "冻结令允许的确定性例外：数值阈值（NEWS2 各项分档）+ 有限闭集（呼吸类伴随症 2 项、已知心脏病 12 项）；否定、既往、未评估的写法沿用闸门同一套极性判据（已知心脏病用三值读法，既往史照算）。"
+  },
+  "deferred": [
+    {
+      "id": "k16-shape",
+      "caseState": {
+        "chiefComplaint": "咽痛、流涕、发热2天",
+        "patient": {
+          "sex": "女",
+          "age": 33
+        },
+        "symptoms": {
+          "现病史": "受凉后咽痛、流涕、发热2天，最高体温38.7℃，伴鼻塞、头痛、全身肌肉酸痛。病程中出现间断干咳，无咳痰，伴胸闷、气促。",
+          "既往史": "既往体健，无高血压、糖尿病、心脏病史",
+          "体格检查": "神志清，咽部充血，双肺呼吸音清，心律齐"
+        },
+        "vitals": {
+          "T": "38.5",
+          "P": "88",
+          "R": "20",
+          "BP": "120/80"
+        }
+      }
+    },
+    {
+      "id": "denied-heart-disease-spo2",
+      "caseState": {
+        "chiefComplaint": "发热咳嗽3天",
+        "patient": {
+          "sex": "男",
+          "age": 46
+        },
+        "symptoms": {
+          "现病史": "发热3天，体温38.2℃，咳嗽少痰，自觉胸闷，活动后气促。",
+          "既往史": "否认冠心病、心衰病史"
+        },
+        "vitals": {
+          "T": "38.0",
+          "P": "96",
+          "R": "20",
+          "BP": "126/78",
+          "SpO2": "96%"
+        }
+      }
+    }
+  ],
+  "mustStayRed": [
+    {
+      "id": "cold-sweat",
+      "change": "现病史加「出冷汗」",
+      "patch": {
+        "symptoms.现病史": "受凉后咽痛、流涕、发热2天，最高体温38.7℃。病程中伴胸闷、气促，出冷汗。"
+      }
+    },
+    {
+      "id": "known-chd",
+      "change": "既往史写冠心病",
+      "patch": {
+        "symptoms.既往史": "冠心病史5年"
+      }
+    },
+    {
+      "id": "spo2-91",
+      "change": "血氧 91%（NEWS2 3 分）",
+      "patch": {
+        "vitals.SpO2": "91"
+      }
+    },
+    {
+      "id": "rr-26",
+      "change": "呼吸 26（NEWS2 3 分）",
+      "patch": {
+        "vitals.R": "26"
+      }
+    },
+    {
+      "id": "hr-135",
+      "change": "心率 135（NEWS2 3 分）",
+      "patch": {
+        "vitals.P": "135"
+      }
+    },
+    {
+      "id": "news2-aggregate-6",
+      "change": "呼吸 22、心率 115、体温 39.2（各 2 分，总分 6）",
+      "patch": {
+        "vitals.R": "22",
+        "vitals.P": "115",
+        "vitals.T": "39.2"
+      }
+    },
+    {
+      "id": "temperature-only",
+      "change": "只记录体温（无法确认稳定）",
+      "patch": {
+        "vitals": {
+          "T": "38.5"
+        }
+      }
+    },
+    {
+      "id": "no-fever",
+      "change": "不发热（T 36.8，病历无发热）",
+      "patch": {
+        "chiefComplaint": "咽痛、流涕2天",
+        "symptoms.现病史": "受凉后咽痛、流涕2天。病程中伴胸闷、气促。",
+        "vitals.T": "36.8"
+      }
+    },
+    {
+      "id": "sudden-onset",
+      "change": "今晨突发胸闷",
+      "patch": {
+        "symptoms.现病史": "受凉后咽痛、流涕、发热2天，最高体温38.7℃。今晨突发胸闷、气促。"
+      }
+    },
+    {
+      "id": "chest-pain",
+      "change": "胸痛而非胸闷",
+      "patch": {
+        "symptoms.现病史": "受凉后咽痛、流涕、发热2天，最高体温38.7℃。病程中伴胸痛、气促。"
+      }
+    },
+    {
+      "id": "altered-consciousness",
+      "change": "意识模糊",
+      "patch": {
+        "symptoms.现病史": "受凉后咽痛、流涕、发热2天，最高体温38.7℃。病程中伴胸闷、气促，今日意识模糊。"
+      }
+    }
+  ],
+  "note": "病历句式按甲方 K16 原文分句写：「N天前…出现…」开头的整句会被闸门当作过去的事（第二十二轮发现、本轮不改，见 CLAUDE.md），夹具不依赖这一点。",
+  "unaffected": [
+    {
+      "id": "tightness-without-dyspnoea-unchanged",
+      "caseState": {
+        "chiefComplaint": "发热伴咽痛2天",
+        "patient": {
+          "sex": "女",
+          "age": 28
+        },
+        "symptoms": {
+          "现病史": "发热2天，体温最高38.9℃，咽痛，伴胸闷。"
+        },
+        "vitals": {
+          "T": "38.6",
+          "P": "98",
+          "R": "18",
+          "BP": "112/70"
+        }
+      },
+      "why": "单纯发热加胸闷（无气促、呼吸困难）原规则就不报红旗，D1 也不加 24 小时评估（回放 S137 产后乳痈曾因此多出「排除心肌炎」）。"
+    }
+  ]
+}

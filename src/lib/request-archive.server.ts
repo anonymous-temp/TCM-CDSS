@@ -15,8 +15,12 @@
  *   不再追加并留遥测，已有留存一条不动（8/9 根分区写满曾让 strict health 503）。
  * - 永不影响请求本身：不 await、任何失败只留原因码，不带内容。
  * - 读取：scripts/request-archive-export.mjs（只依赖 node 内置模块，可直接管道进容器执行）。
+ * - 响应也留存（用户 2026-10-26 决定 D3）：同一闭集路由的响应正文，边流给调用方边复制，结束后同样加密追加到同一份
+ *   日文件；请求行与响应行带同一个 exchangeId 对上（响应行 kind="response"，请求行没有 kind）。调用方中途断开时
+ *   留下已收到的部分并标 aborted；单条超过 4MB 只留前 4MB 并标 truncated；服务端自己发起的预先计算不留。
  */
-import { createCipheriv, createHash, createHmac, randomBytes } from "node:crypto";
+import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
+import { INTERNAL_PRECOMPUTE_HEADER, isInternalPrecomputeRequest } from "./internal-precompute";
 import { appendFile, mkdir, readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -124,6 +128,9 @@ let appendTail: Promise<void> = Promise.resolve();
 const archivedBytes = new Map<string, number>();
 let lastFullNoticeAt = 0;
 let keyMissingNoticed = false;
+/** 同一次调用的请求行与响应行共用的编号（只在留存打开、路由在闭集里时生成）。 */
+const exchangeIds = new WeakMap<Request, string>();
+const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 
 async function currentArchiveBytes(directory: string): Promise<number> {
   const known = archivedBytes.get(directory);
@@ -171,8 +178,13 @@ export function archiveClinicalRequest(req: Request, body: unknown): Promise<voi
     customerIdHeader: req.headers.get("x-cdss-customer-id")?.slice(0, 128) || undefined,
     regenerate: req.headers.get("x-cdss-regenerate") || undefined,
     contentEncoding: req.headers.get("content-encoding") || undefined,
+    exchangeId: exchangeIds.get(req),
     body,
   };
+  return enqueueArchiveLine(route, payload);
+}
+
+function enqueueArchiveLine(route: string, payload: unknown): Promise<void> {
   // 目录与上限在请求到达时定下，而不是轮到写盘时再读：写盘是排队异步的。
   const now = new Date();
   const directory = archiveDirectory();
@@ -199,6 +211,86 @@ export function archiveClinicalRequest(req: Request, body: unknown): Promise<voi
   });
   appendTail = task;
   return task;
+}
+
+function concatChunks(chunks: Uint8Array[], size: number): Uint8Array {
+  const out = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
+/** 把一个临床路由的响应包一层：正文照原样流给调用方，同时复制一份，结束（或调用方断开）时加密留存。 */
+function archiveClinicalResponse(req: Request, route: string, response: Response, startedAt: number): Response {
+  const meta = {
+    kind: "response" as const,
+    exchangeId: exchangeIds.get(req),
+    status: response.status,
+    contentType: response.headers.get("content-type") || undefined,
+    stageResult: response.headers.get("x-cdss-stage-result") || undefined,
+    customerIdHeader: req.headers.get("x-cdss-customer-id")?.slice(0, 128) || undefined,
+  };
+  if (!response.body) {
+    void enqueueArchiveLine(route, { ...meta, body: "", truncated: false, aborted: false, ms: Date.now() - startedAt });
+    return response;
+  }
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  let truncated = false;
+  let finished = false;
+  const finish = (aborted: boolean) => {
+    if (finished) return;
+    finished = true;
+    const body = new TextDecoder().decode(concatChunks(chunks, size));
+    void enqueueArchiveLine(route, { ...meta, body, truncated, aborted, ms: Date.now() - startedAt });
+  };
+  const copy = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      if (!truncated) {
+        const room = MAX_RESPONSE_BYTES - size;
+        const kept = chunk.byteLength > room ? chunk.subarray(0, room) : chunk;
+        if (kept.byteLength < chunk.byteLength) truncated = true;
+        chunks.push(kept);
+        size += kept.byteLength;
+      }
+      controller.enqueue(chunk);
+    },
+    flush() {
+      finish(false);
+    },
+  });
+  req.signal?.addEventListener("abort", () => finish(true), { once: true });
+  return new Response(response.body.pipeThrough(copy), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+/**
+ * 临床路由出口的统一包装（用户 2026-10-26 决定 D3：响应也加密留存）。留存关闭、路由不在闭集里、或服务端自己发起的
+ * 预先计算时原样返回；任何留存失败都不影响响应本身。
+ */
+export function withClinicalResponseArchive(
+  handler: (req: Request) => Promise<Response>,
+): (req: Request) => Promise<Response> {
+  return async (req: Request) => {
+    const route = requestArchiveEnabled() && requestArchiveKey() ? archivedRouteOf(req.url) : undefined;
+    if (route) exchangeIds.set(req, randomUUID());
+    const startedAt = Date.now();
+    const response = await handler(req);
+    if (!route) return response;
+    try {
+      if (req.headers.has(INTERNAL_PRECOMPUTE_HEADER) && await isInternalPrecomputeRequest(req.headers)) return response;
+      return archiveClinicalResponse(req, route, response, startedAt);
+    } catch {
+      notice("response_wrap_failed", { route });
+      return response;
+    }
+  };
 }
 
 /** 等已排队的留存写完（只给测试与优雅退出用；请求路径从不等它）。 */

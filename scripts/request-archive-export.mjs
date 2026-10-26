@@ -6,8 +6,10 @@
 //   ssh evimed "docker exec -i tcm-cdss-deepseek-green-20260911-tcm-cdss-1 node --input-type=module - --since=2026-10-12T00:00:00+08:00" \
 //     < scripts/request-archive-export.mjs > <本机 0600 目录>/requests.ndjson
 // 参数：--dir=<目录>（缺省 CDSS_REQUEST_ARCHIVE_PATH）  --since=/--until=<ISO 时间>  --route=<路由子串，如 prescribe>
+//       --kind=request|response（2026-10-26 起响应也留存：响应行 kind="response"，与请求行用 exchangeId 对上；旧请求行没有 kind）
 //       --summary（只输出每条的时间、路由、客户编号与请求体字节数，不输出病历内容）
-// 输出：每行一条 {ts, route, kid, method, query?, customerIdHeader?, regenerate?, contentEncoding?, body}；
+// 输出：请求行 {ts, route, kid, method, query?, customerIdHeader?, regenerate?, contentEncoding?, exchangeId?, body}；
+//       响应行 {ts, route, kid, kind:"response", exchangeId, status, contentType?, stageResult?, customerIdHeader?, body(正文文本), truncated, aborted, ms}；
 // 解不开的行（密钥已轮换、行被截断）只在 stderr 计数，不中断导出。
 import { createDecipheriv, createHash, createHmac } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
@@ -68,9 +70,12 @@ function main() {
       let payload;
       try { payload = decryptRequestArchiveLine(line, material); } catch { failed += 1; continue; }
       const record = { ts: line.ts, route: line.route, kid: line.kid, ...payload };
+      const kind = record.kind === "response" ? "response" : "request";
+      if (opts.kind && opts.kind !== kind) continue;
       if (opts.summary) {
-        process.stdout.write(`${JSON.stringify({ ts: record.ts, route: record.route, customerIdHeader: record.customerIdHeader,
-          caseId: record.body?.caseState?.id, bodyBytes: Buffer.byteLength(JSON.stringify(record.body ?? null)) })}\n`);
+        process.stdout.write(`${JSON.stringify({ ts: record.ts, route: record.route, kind, customerIdHeader: record.customerIdHeader,
+          exchangeId: record.exchangeId, status: record.status,
+          caseId: record.body?.caseState?.id, bodyBytes: Buffer.byteLength(typeof record.body === "string" ? record.body : JSON.stringify(record.body ?? null)) })}\n`);
       } else {
         process.stdout.write(`${JSON.stringify(record)}\n`);
       }

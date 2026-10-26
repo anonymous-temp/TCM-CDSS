@@ -4,6 +4,7 @@ import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { derivePrescriptionPermission, evaluateSafetyGate, hasDeterministicCriticalVitalRedFlag, withSafetyGate } from "@/lib/diagnosis-safety";
 import { precomputeAnsweredPath } from "@/lib/no-answer-precompute.server";
 import { prefetchDiagnoseInputs } from "@/lib/stage-prefetch.server";
+import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
 function prescriptionPermissionView(state: ReturnType<typeof withSafetyGate>) {
   const permission = derivePrescriptionPermission(state);
@@ -13,7 +14,7 @@ function prescriptionPermissionView(state: ReturnType<typeof withSafetyGate>) {
   };
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
 
@@ -52,3 +53,6 @@ export async function POST(req: Request) {
     latencyMs: Date.now() - startedAt,
   });
 }
+
+// 临床请求与响应都加密留存（用户 2026-10-26 D3），见 request-archive.server.ts。
+export const POST = withClinicalResponseArchive(handlePost);

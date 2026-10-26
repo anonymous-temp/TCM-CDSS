@@ -27,6 +27,33 @@
       "clearance": "排除糖尿病酮症酸中毒、医生确认可以服药后",
       "withoutRegimenTail": "排除糖尿病酮症酸中毒后再按医生安排服药与复诊",
       "source": "ADA/EASD/JBDS/AACE/DTS 2024 Hyperglycemic Crises in Adults With Diabetes: A Consensus Report（Diabetes Care 2024;47:1257–1275）——DKA 诊断三项：血糖 ≥200 mg/dL（11.1 mmol/L）或既往糖尿病；β-羟丁酸 ≥3.0 mmol/L 或尿酮 ≥2+；pH <7.3 和/或 HCO3- <18 mmol/L。门诊病历多半没有血气，前两项成立即按疑似 DKA 当天评估。"
+    },
+    "febrile_chest_tightness": {
+      "window": "within_24h",
+      "focus": "病毒性心肌炎、肺炎",
+      "visit": "到医院完成心电图、肌钙蛋白（心肌损伤标志物）与血氧检查，先排除病毒性心肌炎与肺炎",
+      "nodeVisit": "到医院完成心电图、肌钙蛋白与血氧检查",
+      "clearance": "排除病毒性心肌炎与肺炎、医生确认可以服药后",
+      "withoutRegimenTail": "排除病毒性心肌炎与肺炎后再按医生安排服药与复诊",
+      "source": "用户 2026-10-26 决定（D1）：发热伴胸闷（可伴气促）、无不稳定征象时不报红旗，24 小时内评估并照常给剂量。依据：ESC 2025 心肌炎与心包炎指南——近期上呼吸道感染或发热后出现胸痛/胸闷、气促等临床综合征，心电图、肌钙蛋白、超声任一异常即「可能心肌炎」，需心电图与肌钙蛋白评估；NICE CG95 的急诊分层针对疑似心源性胸痛（典型特征，正在发作或 12 小时内且无心电图）。"
+    }
+  },
+  "febrileChestTightnessDeferral": {
+    "purpose": "发热病程中的胸闷（可伴气促、呼吸困难）在下列条件全部成立时，不按急性心血管事件报红旗，改为 24 小时内评估（pathway febrile_chest_tightness），剂量照常给出；任一条件不成立，原红旗规则照旧。条件：有当前发热；有胸闷且伴气促或呼吸困难（单纯胸闷原规则不报，也不加评估）、无胸痛；胸闷没有突发、加重、持续或按分钟/小时计的急性线索；无急性冠脉典型伴随（大汗、冷汗、放射痛、晕厥、一身汗、压榨、濒死）；病历未肯定记载已知心脏病；未记录意识改变；心率、呼吸、收缩压、血氧至少记录两项，且按 NEWS2 无单项 3 分、已记录各项总分 <5。",
+    "respiratoryCompanions": ["气促", "呼吸困难"],
+    "respiratoryCompanionsNote": "受治理红旗词表 T6 cardiac.dangerCompanions 中属于呼吸系统的两项；其余各项为急性冠脉典型特征，出现即不适用本条。",
+    "acsTypicalExtraTerms": ["一身汗", "压榨", "濒死"],
+    "knownCardiacDisease": ["冠心病", "冠状动脉粥样硬化性心脏病", "心绞痛", "心肌梗死", "心梗", "冠脉支架", "支架植入", "冠脉搭桥", "心力衰竭", "心衰", "心肌病", "心脏瓣膜病"],
+    "knownCardiacDiseaseNote": "病历肯定记载已知心脏病时不适用（急性冠脉综合征与心衰加重的先验概率高）；否认的不算。",
+    "minimumRecordedVitals": 2,
+    "news2": {
+      "source": "Royal College of Physicians. National Early Warning Score (NEWS) 2, 2017：任一单项 3 分或总分 ≥5 需紧急临床评估。本条只用它判断「无不稳定征象」。",
+      "bandsNote": "每项按 [上界, 分值] 升序，取第一个「数值 ≤ 上界」的分值；体温只计入总分。",
+      "respiration": [[8, 3], [11, 1], [20, 0], [24, 2], [999, 3]],
+      "spo2": [[91, 3], [93, 2], [95, 1], [100, 0]],
+      "systolic": [[90, 3], [100, 2], [110, 1], [219, 0], [999, 3]],
+      "pulse": [[40, 3], [50, 1], [90, 0], [110, 1], [130, 2], [999, 3]],
+      "temperature": [[35.0, 3], [36.0, 1], [38.0, 0], [39.0, 1], [99, 2]]
     }
   },
   "hyperglycemicKetosisThresholds": {

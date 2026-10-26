@@ -6,6 +6,7 @@ import {
 } from "@/lib/m02-answer-interpreter.server";
 import { parseM02Plan } from "@/lib/m02-question-contract";
 import { requireCustomerContext } from "@/lib/customer-context";
+import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
 export const runtime = "nodejs";
 
@@ -28,7 +29,7 @@ function failureStatus(code: M02AnswerInterpretationFailureCode): number {
   return 200;
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const parsed = await readJsonRequest(req, { maxBytes: 1_000_000 });
   if (!parsed.ok) {
     return typedFailure(
@@ -65,3 +66,6 @@ export async function POST(req: Request) {
     ? Response.json(result)
     : Response.json(result, { status: failureStatus(result.failure.code) });
 }
+
+// 临床请求与响应都加密留存（用户 2026-10-26 D3），见 request-archive.server.ts。
+export const POST = withClinicalResponseArchive(handlePost);

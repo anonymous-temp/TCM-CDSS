@@ -26,6 +26,7 @@ import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothe
 import { pickTextbookDiseasesForCase } from "@/lib/textbook-disease-pick.server";
 import { pickJingfangPatternsForCase } from "@/lib/jingfang-pattern-pick.server";
 import { checkDiseaseExplainsVisitReason, tcmHalfDiseaseName, visitReasonRedrawInstruction } from "@/lib/m03-visit-reason-check.server";
+import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
 type ParsedStageRequest = Extract<Awaited<ReturnType<typeof readCustomerBoundCaseStateRequest>>, { ok: true }>;
 
@@ -36,7 +37,7 @@ function diagnoseResultReusable(content: string): boolean {
     !content.includes("CDSS_REASON_CODE:upstream_model_unavailable");
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   // 同一租户、同一病例内容的请求只算一次：进行中并入、已完成复用；调用方断开不中止计算
@@ -385,3 +386,6 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   return tapFinalStageContent(response, (finalContent) =>
     prefetchPrescribeInputsFromSignedDiagnose(gated, finalContent, parsed.customer.customerId));
 }
+
+// 临床请求与响应都加密留存（用户 2026-10-26 D3），见 request-archive.server.ts。
+export const POST = withClinicalResponseArchive(handlePost);

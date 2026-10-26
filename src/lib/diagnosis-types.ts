@@ -162,6 +162,8 @@ export interface CaseState {
   tongueDx?: TongueDiagnosisResult;
   faceCapture?: FaceCaptureResult;
   vitals?: Record<string, unknown>;
+  /** 服务端读输入时的诊断（只由服务端写，调用方传不进来）：如生命体征字段传来的不是数值（.NET 序列化残留）且未能从同一病例补回。 */
+  inputDiagnostics?: { unreadableVitals?: string[] };
   pastHistory?: string;
   medicationHistory?: string;
   allergyHistory?: string;
@@ -2071,13 +2073,70 @@ function normalizeSafetyGate(value: unknown): SafetyGate | undefined {
   };
 }
 
+/** 按键名取值，精确键优先，其次不区分大小写的唯一匹配。 */
+function caseInsensitiveField(record: Record<string, unknown>, key: string): unknown {
+  if (key in record) return record[key];
+  const lower = key.toLowerCase();
+  const match = Object.keys(record).find((candidate) => candidate.toLowerCase() === lower);
+  return match === undefined ? undefined : record[match];
+}
+
+function withCanonicalKeyCase(value: unknown, canonical: readonly string[], path: string, renamed: string[]): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  const byLower = new Map(canonical.map((key) => [key.toLowerCase(), key]));
+  let next: Record<string, unknown> | undefined;
+  for (const [key, entry] of Object.entries(record)) {
+    if (canonical.includes(key)) continue;
+    const target = byLower.get(key.toLowerCase());
+    // 调用方同时给了规范写法时以规范写法为准，不覆盖。
+    if (!target || target in record) continue;
+    next ??= { ...record };
+    next[target] = entry;
+    delete next[key];
+    renamed.push(`${path}.${key}`);
+  }
+  return next ?? record;
+}
+
+const PATIENT_INPUT_KEYS = ["name", "sex", "age", "occupation"] as const;
+const CONVERSATION_ITEM_KEYS = ["role", "content"] as const;
+
+/**
+ * 宽容读取（Tolerant Reader，Fowler 2011）：调用方键名的大小写与接口文档不同时（.NET 不设命名策略就按 C# 属性名
+ * 输出 PascalCase），对已知键按不区分大小写对上，接口字段不变。只动我们读取的已知键：caseState 顶层、patient、
+ * hisRecord 与其 fields、conversation 各项；生命体征键（T/P/R/BP）与病历中文键原样保留。
+ * renamed 列出被改名的路径（不含内容），供服务端记遥测。
+ */
+export function canonicalizeInputKeyCase(value: unknown): { value: unknown; renamed: string[] } {
+  const renamed: string[] = [];
+  const top = withCanonicalKeyCase(value, Object.keys(CaseStateInputSchema.shape), "caseState", renamed);
+  if (!top || typeof top !== "object" || Array.isArray(top)) return { value: top, renamed };
+  const record = { ...(top as Record<string, unknown>) };
+  record.patient = withCanonicalKeyCase(record.patient, PATIENT_INPUT_KEYS, "caseState.patient", renamed);
+  const his = withCanonicalKeyCase(record.hisRecord, Object.keys(HisRecordInputSchema.shape), "caseState.hisRecord", renamed);
+  if (his && typeof his === "object" && !Array.isArray(his)) {
+    const hisRecord = { ...(his as Record<string, unknown>) };
+    hisRecord.fields = withCanonicalKeyCase(hisRecord.fields, Object.keys(HisFieldsInputSchema.unwrap().shape), "caseState.hisRecord.fields", renamed);
+    record.hisRecord = hisRecord;
+  }
+  if (Array.isArray(record.conversation)) {
+    record.conversation = record.conversation.map((item, index) =>
+      withCanonicalKeyCase(item, CONVERSATION_ITEM_KEYS, `caseState.conversation[${index}]`, renamed));
+  }
+  for (const key of ["patient", "hisRecord", "conversation"]) if (record[key] === undefined) delete record[key];
+  return { value: record, renamed };
+}
+
 function normalizeConversation(value: unknown): CaseState["conversation"] {
   if (!Array.isArray(value)) return [];
   return value
     .map((item) => recordValue(item))
     .map((item) => {
-      const role = item.role === "assistant" ? "assistant" : item.role === "user" ? "user" : undefined;
-      const content = stringValue(item.content, MAX_CONVERSATION_CHARS);
+      // 键名与取值都不区分大小写：.NET 调用方按 C# 属性名输出 Role/Content（2026-10-26 甲方 00000239 一次开方请求整段问答因此被丢）。
+      const rawRole = stringValue(caseInsensitiveField(item, "role"))?.toLowerCase();
+      const role = rawRole === "assistant" ? "assistant" : rawRole === "user" ? "user" : undefined;
+      const content = stringValue(caseInsensitiveField(item, "content"), MAX_CONVERSATION_CHARS);
       return role && content ? { role, content } : null;
     })
     .filter((item): item is CaseState["conversation"][number] => Boolean(item))
@@ -2357,7 +2416,7 @@ function scrubNonScalarVitals(vitals: Record<string, unknown>): Record<string, u
 }
 
 export function normalizeCaseStateInput(value: unknown): CaseState | null {
-  const parsed = CaseStateInputSchema.safeParse(value);
+  const parsed = CaseStateInputSchema.safeParse(canonicalizeInputKeyCase(value).value);
   if (!parsed.success) return null;
   const input = parsed.data;
   // M02 is a single information-gain decision, not a questionnaire loop. Legacy/external snapshots

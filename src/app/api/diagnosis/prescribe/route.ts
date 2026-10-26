@@ -38,6 +38,7 @@ import { compactEvidenceContextForPrompt, m04EvidencePromptBudgetChars, m04Exter
 import { declassifyAndDropOpposingM04CandidateHerbs } from "@/lib/m04-modification-safety";
 import { checkFormulaAnalysisClaimsInContent } from "@/lib/m04-formula-analysis-claim-check.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
+import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
 /** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
 function rejectedHerbName(issue: string, reasoning: ReturnType<typeof parseReasoningV2>): string | undefined {
@@ -60,7 +61,7 @@ function prescribeResultReusable(content: string): boolean {
   return content.includes("CDSS_REASON_CODE:dose_authorization_withheld");
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   // The browser gives the complete request 210s. Start the server's 180s M04 orchestration clock
   // before clinical-fact/evidence preparation so the stream can still deliver its fail-closed
   // fallback inside that browser margin instead of being cut off as an HTTP 0 abort.
@@ -618,3 +619,6 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     void prefetchAssessFollowupFromSignedPrescribe(parsed.caseState, finalContent);
   });
 }
+
+// 临床请求与响应都加密留存（用户 2026-10-26 D3），见 request-archive.server.ts。
+export const POST = withClinicalResponseArchive(handlePost);

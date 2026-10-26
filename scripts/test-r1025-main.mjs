@@ -156,7 +156,7 @@ await check("2.4 追问结果复用：正常题第二次直接回放、不再计
 });
 await check("2.5 追问路由接进复用：按追问阶段指纹、可显式重新生成、兜底正文不入复用；预取与不回答预计算在复用之外照常触发", async () => {
   const route = readFileSync("src/app/api/diagnosis/question/route.ts", "utf8");
-  const post = route.slice(route.indexOf("export async function POST"), route.indexOf("async function computeQuestion"));
+  const post = route.slice(route.indexOf("async function handlePost"), route.indexOf("async function computeQuestion"));
   assert.match(post, /coalesceStageResponse\(\{\s*stage: "question",\s*key: stageRequestFingerprint\("question", parsed\.customer, parsed\.caseState\)/);
   assert.match(post, /bypass: regenerate/);
   assert.match(post, /cacheable: \(content\) => !degradedContents\.has\(content\.trim\(\)\)/);

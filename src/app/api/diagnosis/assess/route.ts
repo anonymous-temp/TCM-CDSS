@@ -32,8 +32,9 @@ import { recordCdssStageTelemetry } from "@/lib/cdss-stage-telemetry";
 import { isTrustedHisWorkbenchEdit } from "@/lib/his-prescription-validation";
 import { caseWarningStateWithoutSkippedAudit } from "@/lib/clinical-warning-projection.server";
 import { contractProvenanceAdvisory, recordContractProvenance, type ContractProvenanceIssue } from "@/lib/contract-provenance";
+import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const startedAt = Date.now();
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
@@ -174,3 +175,6 @@ export async function POST(req: Request) {
   });
   return markdownNdjsonResponse(rawProjection.markdown, observation);
 }
+
+// 临床请求与响应都加密留存（用户 2026-10-26 D3），见 request-archive.server.ts。
+export const POST = withClinicalResponseArchive(handlePost);

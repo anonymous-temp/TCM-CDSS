@@ -1,4 +1,5 @@
-import { normalizeCaseStateInput, type CaseState } from "./diagnosis-types";
+import { canonicalizeInputKeyCase, normalizeCaseStateInput, type CaseState } from "./diagnosis-types";
+import { recoverUnreadableVitals } from "./input-vitals-recovery.server";
 import { stripInvalidEmergencyClearance } from "./emergency-clearance.server";
 import { readJsonBodyWithLimit } from "./http-guard";
 import { archiveClinicalRequest } from "./request-archive.server";
@@ -41,6 +42,11 @@ export async function readCaseStateRequest(req: Request): Promise<CaseStateReque
     return { ok: false, response: Response.json({ error: "caseState required" }, { status: 400 }) };
   }
 
+  // 键名大小写与文档不同的已知键照样读（normalizeCaseStateInput 内部同一个函数）；这里只记被改名的路径，便于告诉调用方。
+  const keyCase = canonicalizeInputKeyCase(body.caseState);
+  if (keyCase.renamed.length > 0) {
+    console.warn("[tcm-cdss:telemetry] input_key_case_normalized", { paths: keyCase.renamed.slice(0, 16), count: keyCase.renamed.length });
+  }
   const caseState = normalizeCaseStateInput(body.caseState);
   if (!caseState) {
     return { ok: false, response: Response.json({ error: "caseState must be an object" }, { status: 400 }) };
@@ -66,6 +72,9 @@ export async function readCustomerBoundCaseStateRequest(
     ...parsed.caseState,
     customerId: customer.context.customerId,
   });
+  // 生命体征传来的不是数值时，从同一租户同一病例最近一次请求补回（用户 2026-10-26 D2）。
+  const rawCaseState = parsed.body && typeof parsed.body === "object" ? (parsed.body as { caseState?: unknown }).caseState : undefined;
+  tenantBoundState = recoverUnreadableVitals(tenantBoundState, rawCaseState, customer.context.customerId || "-");
   if (tenantBoundState.clinicalFacts && !clinicalFactsTenantBindingMatches(
     tenantBoundState.clinicalFacts,
     customer.context.customerId,
