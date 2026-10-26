@@ -5137,9 +5137,11 @@ export function pediatricChestPainNonCardiac(state: CaseState): boolean {
   // 突发、持续不缓解的胸闷/胸痛不豁免（气胸、心肌炎、肺栓塞也在这一档；open-language 夹具「今日突然胸闷气促，持续不缓解」）。
   if (hasScopedAcuteChestTightnessSignal(text)) return false;
   if (hasPatternWithoutNegation(text, /(?:突发|突然|剧烈)[^。；;\n，,]{0,6}(?:胸痛|心前区痛)|(?:胸痛|心前区痛)[^。；;\n]{0,8}(?:持续不缓解|无缓解|不能缓解|剧烈)/u)) return false;
-  // 活动时胸痛是诱因描述，不按时态取舍（「1天前打篮球时出现胸痛」里「打篮球时」落在起病时间与「出现」之间）：只看肯定还是否认。
+  // 活动时胸痛是诱因描述，不按时态取舍（「1天前打篮球时出现胸痛」里「打篮球时」落在起病时间与「出现」之间）：只看肯定还是否认，
+  // 并且看的是匹配里那个胸痛/胸闷词本身——「活动后无胸痛加重」在「活动后」处读是肯定，否认落在胸痛上（第二十三轮生产探针）。
   for (const match of text.matchAll(new RegExp(PEDIATRIC_EXERTIONAL_CHEST_PAIN.source, "gu"))) {
-    if (recordMentionPolarityAt(text, match.index ?? 0) === "affirmed") return false;
+    const symptomOffset = match[0].search(/胸痛|胸闷|心前区痛/u);
+    if (recordMentionPolarityAt(text, (match.index ?? 0) + Math.max(0, symptomOffset)) === "affirmed") return false;
   }
   return !PEDIATRIC_CHEST_PAIN.cardiacRedFlagTerms.some((term) => {
     for (let at = text.indexOf(term); at >= 0; at = text.indexOf(term, at + term.length)) {
@@ -5185,9 +5187,30 @@ export function hasActiveBleedingRedFlag(redFlags: readonly string[]): boolean {
   return redFlags.some((flag) => ACTIVE_BLEEDING_RED_FLAG.test(flag));
 }
 const activeBleedingTextMemo = new Map<string, boolean>();
-/** 开方核对只拿得到接地正文：用本闸门的确定性红旗检测跑一遍，看有没有出血类红旗。按正文记忆，避免逐味重复计算。 */
+const registeredActiveBleedingTexts = new Map<string, number>();
+const REGISTERED_ACTIVE_BLEEDING_LIMIT = 5000;
+/**
+ * 开方路由把本次闸门（含事实层）实际给出的红旗按接地正文登记（第二十三轮生产探针 C062）：接地正文里的生命体征只有
+ * 「生命体征：88/56」这样不带项名的值，凭正文重算闸门读不出低血压，「妊娠期腹痛或阴道出血伴血压88/56mmHg」这条红旗就丢了，
+ * 方中川芎没有被剔除。登记只会把「有活动性出血」补成真，不会把正文自己读出的出血抹掉。
+ */
+export function registerActiveBleedingRedFlags(texts: readonly string[], redFlags: readonly string[]): void {
+  if (!hasActiveBleedingRedFlag(redFlags)) return;
+  for (const text of texts) {
+    if (!text.trim()) continue;
+    registeredActiveBleedingTexts.delete(text);
+    registeredActiveBleedingTexts.set(text, Date.now());
+  }
+  while (registeredActiveBleedingTexts.size > REGISTERED_ACTIVE_BLEEDING_LIMIT) {
+    const oldest = registeredActiveBleedingTexts.keys().next().value;
+    if (oldest === undefined) break;
+    registeredActiveBleedingTexts.delete(oldest);
+  }
+}
+/** 开方核对只拿得到接地正文：先看路由登记的闸门红旗，再用本闸门的确定性红旗检测跑一遍。按正文记忆，避免逐味重复计算。 */
 export function activeBleedingInGroundingText(text: string): boolean {
   if (!text.trim()) return false;
+  if (registeredActiveBleedingTexts.has(text)) return true;
   const cached = activeBleedingTextMemo.get(text);
   if (cached !== undefined) return cached;
   const state = normalizeCaseStateInput({ chiefComplaint: "", symptoms: { 现病史: text } });
@@ -8043,13 +8066,25 @@ function priorityEvaluationTarget(target: PriorityEvaluationTarget | string): Pr
     ? { focus: target, window: priorityEvaluationWindowTable.defaultWindow as PriorityEvaluationWindowId }
     : target;
 }
+/**
+ * 就诊句已写「先排除X」时，后面的「排除X、医生确认…」「排除X后再按…」不再说第二遍（第二十三轮生产探针 K16：
+ * 「…先排除病毒性心肌炎与肺炎；排除病毒性心肌炎与肺炎、医生确认可以服药后…」）。
+ */
+function withoutExclusionAlreadyInVisit(visit: string, text: string): string {
+  const head = text.match(/^排除([^、，,；;]+?)(、|后)/u);
+  if (!head || !visit.includes(`排除${head[1]}`)) return text;
+  return text.slice(head[0].length) || text;
+}
+
 function priorityEvaluationPlan(input: PriorityEvaluationTarget | string): PriorityEvaluationPlan {
   const target = priorityEvaluationTarget(input);
   const window = PRIORITY_WINDOW_LABELS.get(target.window) || "3天内";
   const pathway = target.pathway ? priorityEvaluationWindowTable.pathways[target.pathway] : undefined;
   if (pathway) {
     return {
-      window, visit: pathway.visit, nodeVisit: pathway.nodeVisit, clearance: pathway.clearance, withoutRegimenTail: pathway.withoutRegimenTail,
+      window, visit: pathway.visit, nodeVisit: pathway.nodeVisit,
+      clearance: withoutExclusionAlreadyInVisit(pathway.visit, pathway.clearance),
+      withoutRegimenTail: withoutExclusionAlreadyInVisit(pathway.visit, pathway.withoutRegimenTail),
       ...("afterStep" in pathway && typeof pathway.afterStep === "string" ? { afterStep: pathway.afterStep } : {}),
     };
   }

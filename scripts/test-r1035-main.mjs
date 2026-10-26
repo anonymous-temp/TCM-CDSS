@@ -99,6 +99,16 @@ await check("1.5 D4 复诊第一步：红旗当天急诊或专科排除急危重
   assert.equal(merged.split("排除急危重情况").length, 2, merged);
   assert.match(merged, /如症状持续、加重或出现新的不适，请立即急诊或呼叫急救。/);
   assert.match(merged, /若再次出现剧烈头痛/);
+  // 就诊句已说「先排除X」的通道（发热胸闷 24 小时、高血糖酮症），后面不再说第二遍（生产探针 K16）。
+  for (const pathway of ["febrile_chest_tightness", "hyperglycemic_ketosis"]) {
+    const focus = { focus: "", window: "within_24h", pathway };
+    for (const text of [safety.priorityEvaluationFirstStep(focus, { doses: 5, days: 5 }), safety.priorityEvaluationFirstStep(focus)]) {
+      const excluded = text.match(/先排除([^，。；]+)/u)?.[1];
+      assert.ok(excluded, text);
+      assert.equal(text.split(`排除${excluded}`).length, 2, text);
+    }
+  }
+  assert.match(safety.priorityEvaluationFirstStep({ focus: "", window: "within_2w", pathway: "breast_mass" }, { doses: 7, days: 7 }), /排除乳腺癌、医生确认可以服药后/, "就诊句没说排除的通道照旧");
   assert.equal(plan(PREGNANT).target?.pathway, "pregnancy_review");
   assert.match(plan(PREGNANT).text, /阴道流血/);
   assert.equal(plan(WARFARIN).target?.pathway, "anticoagulant_review");
@@ -130,6 +140,18 @@ await check("2.1 D4：活动性出血红旗时，《中药学》活血化瘀药�
   assert.equal(contract.m04GenerationSpecialPopulationIssue([{ name: "黄芪" }, { name: "红花" }], bleeding), "herb_1_special_population_high_risk_bleeding_anticoagulation");
   assert.equal(contract.m04GenerationSpecialPopulationIssue([{ name: "三七" }], bleeding), undefined);
   assert.equal(contract.m04GenerationSpecialPopulationIssue([{ name: "红花" }], "胃脘胀痛半月，无黑便。"), undefined);
+});
+
+await check("2.1b D4：闸门的出血红旗按接地正文登记后，开方核对认得（正文里生命体征不带项名、凭正文重算读不出低血压）；没有登记、没有出血红旗时不认", () => {
+  const text = `患者年龄：28岁\n患者性别：女\n停经6周，右下腹痛伴阴道少量出血1天。尿妊娠试验阳性\n生命体征：88/56\n生命体征：${Date.now() % 1000}`;
+  assert.equal(safety.activeBleedingInGroundingText(text), false, "凭正文读不出");
+  safety.registerActiveBleedingRedFlags([text], ["急性或突发头痛"]);
+  assert.equal(safety.activeBleedingInGroundingText(text), false, "不是出血类红旗不登记");
+  safety.registerActiveBleedingRedFlags([text], ["妊娠期腹痛或阴道出血伴血压88/56mmHg，需立即急诊排除异位妊娠破裂或流产大出血"]);
+  assert.equal(safety.activeBleedingInGroundingText(text), true);
+  assert.equal(contract.m04GenerationSpecialPopulationIssue([{ name: "熟地黄" }, { name: "川芎" }], text), "herb_1_special_population_high_risk_bleeding_anticoagulation");
+  const route = fs.readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
+  assert.match(route, /registerActiveBleedingRedFlags\(\[groundingText, structuredClinicalContext, clinicalGroundingText\(gated\)\], gated\.safetyGate\?\.redFlags/);
 });
 
 const content = (herbs, extra = {}) => `前文\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [{ name: "测试方", herbs, formulaAnalysis: herbs.map((herb) => `${herb.name}为${herb.role}`).join("，") + "。", ...extra }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
@@ -230,7 +252,9 @@ await check("3.2 儿童胸痛没有心源性警示不按急性冠脉报红旗，
   const cough = gated(kid("咳嗽2天，咳时胸痛，伴发热，体温38.5℃。", { vitals: { T: "38.5", P: "96", R: "20", BP: "105/68" } }));
   assert.equal(cough.safetyGate.redFlags.length, 0, cough.safetyGate.redFlags.join("；"));
   assert.equal(safety.priorityEvaluationFollowupTarget(cough)?.pathway, "febrile_chest_tightness");
-  for (const text of ["1天前打篮球时出现胸痛。", "今天胸痛，伴晕厥一次。", "胸痛2天，先天性心脏病术后。", "胸痛2天，其父40岁猝死。"]) {
+  // 否认写法不算心源性警示（生产探针：「无晕厥，活动后无胸痛加重」曾被读成活动时胸痛）。
+  assert.equal(gated(record({ cc: "咳嗽咳痰3天", sex: "男", age: 13, text: "咳嗽咳痰3天，咳时胸痛，伴发热，体温38.5℃，无晕厥，活动后无胸痛加重。", vitals: { T: "38.5", P: "96", R: "20", BP: "105/68" } })).safetyGate.redFlags.length, 0);
+  for (const text of ["1天前打篮球时出现胸痛。", "今天胸痛，伴晕厥一次。", "胸痛2天，先天性心脏病术后。", "胸痛2天，其父40岁猝死。", "跑步后胸痛加重2天。"]) {
     assert.equal(gated(kid(text)).safetyGate.status, "red_flag", text);
   }
   assert.equal(gated(record({ cc: "胸痛2天", sex: "男", age: 40, text: "咳嗽2天，咳时胸痛。" })).safetyGate.status, "red_flag", "成人不受影响");

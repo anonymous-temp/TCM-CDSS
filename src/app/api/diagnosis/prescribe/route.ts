@@ -14,7 +14,7 @@ import { pediatricDoseRuleGuidance, pediatricDoseRuleSummary, pediatricRestricte
 import { chpPregnancyHerbTier, chpPregnancyProhibitedHerbNames, formulaBaseHerbsBarredInPregnancy } from "@/lib/conception-herb-policy.server";
 import { herbRecordCautionPromptSection, textbookBaseIngredients } from "@/lib/herb-record-caution";
 import { textbookRowForSyndrome } from "@/lib/tcm-textbook-syndromes";
-import { authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, registerActiveBleedingRedFlags } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
@@ -241,6 +241,9 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     // 拼成「8个月岁」既难看，又会让两处年龄各说各的（儿童折算档位读的是第一处）。
     safeState.patient.age != null && !/患者年龄\s*[:：]/.test(groundingText) ? `患者年龄：${safeState.patient.age}岁` : "",
   ].filter(Boolean).join("\n");
+  // 本次闸门（含事实层）的出血类红旗按接地正文登记：开方核对与定稿剔除只拿得到正文，凭正文重算会丢掉靠结构化生命体征
+  // 才成立的红旗（第二十三轮 C062），活血化瘀药就漏剔了。
+  registerActiveBleedingRedFlags([groundingText, structuredClinicalContext, clinicalGroundingText(gated)], gated.safetyGate?.redFlags || []);
   // 口语否定增补：**必须传 signal**。此前漏传，医生中断请求后它仍会空转满 6s
   // 才自己超时——diagnose 路由（:83）一直是传的，两条路径写法不同源。
   //
