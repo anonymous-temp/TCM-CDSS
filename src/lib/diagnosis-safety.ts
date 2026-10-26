@@ -6794,22 +6794,25 @@ function collectPriorityEvaluationEntries(state: CaseState, semanticSourceText: 
   if (hasAbdominalPrioritySignal(semanticSourceText) && !hasAcuteAbdominalSignal(semanticSourceText)) {
     entries.push({ text: "突发、持续或进展性腹痛/胃痛需优先完成腹部查体与严重度评估" });
   }
-  const breast = priorityEvaluationWindowTable.pathways.breast_mass;
-  if (unevaluatedBreastMassText(semanticSourceText, authoritativePatientAgeYears(state), patientSexText(state)) &&
-    !texts().some((item) => item.includes(breast.focus))) {
-    entries.push({
-      text: "乳房肿块尚未完成影像评估，宜先由乳腺专科尽快评估（需排除：乳腺癌）；处方前需完成评估",
-      window: breast.window as PriorityEvaluationWindowId, pathway: "breast_mass", focus: breast.focus,
-    });
-  }
-  const ketosis = priorityEvaluationWindowTable.pathways.hyperglycemic_ketosis;
-  if (hyperglycemicKetosisSignal(semanticSourceText, diabetesRecordedInText(semanticSourceText, state)) &&
-    !texts().some((item) => item.includes(ketosis.focus))) {
-    entries.push({
-      text: "高血糖伴酮体升高，已达糖尿病酮症酸中毒的血糖与酮体两项标准（ADA 2024），宜当天到医院急诊查血气与血酮（需排除：糖尿病酮症酸中毒）；处方前需完成评估",
-      window: ketosis.window as PriorityEvaluationWindowId, pathway: "hyperglycemic_ketosis", focus: ketosis.focus,
-    });
-  }
+  // 专门路径（乳腺专科超声、急诊血气血酮）：语义层已列了同一个病时不另起一条，把路径挂到那一条上；
+  // 模型给的时限更急就用模型的（2026-10-26 生产探针 C069：语义层也写了乳腺癌，复诊退回「到相关专科」）。
+  const attachPathway = (pathway: PriorityEvaluationPathway, text: string, applies: boolean) => {
+    if (!applies) return;
+    const entry = priorityEvaluationWindowTable.pathways[pathway];
+    const window = entry.window as PriorityEvaluationWindowId;
+    const existing = entries.find((item) => item.text.includes(entry.focus));
+    if (!existing) {
+      entries.push({ text, window, pathway, focus: entry.focus });
+      return;
+    }
+    existing.pathway = pathway;
+    existing.focus = entry.focus;
+    if (!existing.window || PRIORITY_EVALUATION_WINDOWS.indexOf(window) < PRIORITY_EVALUATION_WINDOWS.indexOf(existing.window)) existing.window = window;
+  };
+  attachPathway("breast_mass", "乳房肿块尚未完成影像评估，宜先由乳腺专科尽快评估（需排除：乳腺癌）；处方前需完成评估",
+    unevaluatedBreastMassText(semanticSourceText, authoritativePatientAgeYears(state), patientSexText(state)));
+  attachPathway("hyperglycemic_ketosis", "高血糖伴酮体升高，已达糖尿病酮症酸中毒的血糖与酮体两项标准（ADA 2024），宜当天到医院急诊查血气与血酮（需排除：糖尿病酮症酸中毒）；处方前需完成评估",
+    hyperglycemicKetosisSignal(semanticSourceText, diabetesRecordedInText(semanticSourceText, state)));
   if (
     hasGiBleedPrioritySignal(semanticSourceText) &&
     !(state.clinicalFacts?.semanticStatus === "checked" &&

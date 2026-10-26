@@ -173,6 +173,15 @@ await check("3.3b 处置去向与类目条目引同一句原文、不单列时�
   assert.equal(safety.priorityEvaluationFollowupTarget(withFacts(liver, possible))?.window, "within_24h");
 });
 
+await check("3.3c 语义层也列了乳腺癌时，乳腺专科路径挂到那一条上（生产探针 C069：复诊曾退回「到相关专科」）", () => {
+  const lump = pageCase({ age: 38, chief: "左乳无痛性结节1个月", present: "洗澡时触及无痛肿块", detail: "妊娠状态明确否认", exams: "尚未乳腺超声" });
+  const facts = { semanticStatus: "checked", reviewStatus: "single_pass", redFlags: [],
+    disposition: { setting: "urgent_specialist", mustNotMiss: [{ condition: "乳腺癌", plausibility: "likely", evidenceQuotes: ["洗澡时触及无痛肿块"], timeWindow: "within_2w" }] } };
+  const target = safety.priorityEvaluationFollowupTarget(withFacts(lump, facts));
+  assert.deepEqual(target, { focus: "乳腺癌", window: "within_2w", pathway: "breast_mass" });
+  assert.match(safety.priorityEvaluationFirstStep(target), /^请在2周内到乳腺专科就诊，先完成乳腺超声检查/);
+});
+
 await check("3.4 ADA 2024 两项（血糖 ≥11.1 或已知糖尿病 + 尿酮 ≥2+ / 血酮 ≥3.0）→ 优先评估、24 小时内急诊查血气；尿酮 1+、既往读数不算", () => {
   const ketosis = pageCase({ sex: "男", age: 44, chief: "发现血糖增高4h", present: "口渴多饮", exams: "随机静脉血浆葡萄糖21.0 mmol/L；尿常规：尿糖(++++)，酮体(++)" });
   const target = safety.priorityEvaluationFollowupTarget(ketosis);
