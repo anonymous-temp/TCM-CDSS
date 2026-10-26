@@ -251,7 +251,9 @@ await check("11.1 未经影像评估的乳房肿块（≥30 岁）列为优先�
   const lump = pageCase({ age: 38, chief: "左乳无痛性结节1个月", present: "洗澡时触及无痛肿块，近月无明显增大", past: "母亲有乳腺癌史", detail: "妊娠状态明确否认", exams: "尚未乳腺超声" });
   assert.ok(safety.unevaluatedBreastMass(lump));
   assert.equal(safety.priorityEvaluationFollowupFocus(lump), "乳腺癌");
-  assert.match(surface.followupWhenPriorityEvaluation("请服完本次的药后复诊。", "乳腺癌"), /2周内到乳腺专科就诊，先完成乳腺超声/);
+  // 2026-10-26 第二十一轮：时限与路径由结构化的评估对象给（priorityEvaluationFollowupTarget），不再按病名正则。
+  assert.deepEqual(safety.priorityEvaluationFollowupTarget(lump), { focus: "乳腺癌", window: "within_2w", pathway: "breast_mass" });
+  assert.match(surface.followupWhenPriorityEvaluation("请服完本次的药后复诊。", safety.priorityEvaluationFollowupTarget(lump)), /2周内到乳腺专科就诊，先完成乳腺超声/);
   // 乳痈、乳腺炎与已确诊、术后的不算「未经评估」。
   assert.ok(!safety.unevaluatedBreastMass(pageCase({ age: 32, chief: "左乳红肿热痛有硬结3天", present: "产后哺乳期，左乳硬结，发热" })));
   assert.ok(!safety.unevaluatedBreastMass(pageCase({ age: 52, chief: "右乳癌术后3个月，右乳肿物", detail: "否认妊娠" })));
@@ -295,9 +297,10 @@ await check("14.1 「加」这一行的理由说要去掉这味药时不交付�
 const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
 await check("15.1 优先评估的复诊第一句在开方页与 M05 首次复诊是同一句（C069：一处「2周内乳腺专科」、一处「3天内相关专科」）", () => {
   const lump = pageCase({ age: 38, chief: "左乳无痛性结节1个月", present: "洗澡时触及无痛肿块", past: "母亲有乳腺癌史", detail: "妊娠状态明确否认", exams: "尚未乳腺超声" });
-  const first = safety.priorityEvaluationFirstStep("乳腺癌");
+  const target = safety.priorityEvaluationFollowupTarget(lump);
+  const first = safety.priorityEvaluationFirstStep(target);
   assert.match(first, /2周内到乳腺专科/);
-  assert.ok(surface.followupWhenPriorityEvaluation("请服完本次的药后复诊。", "乳腺癌").startsWith(first));
+  assert.ok(surface.followupWhenPriorityEvaluation("请服完本次的药后复诊。", target).startsWith(first));
   assert.ok(safety.patientFacingFirstReview(lump, false).startsWith(first.replace(/。$/, "")), safety.patientFacingFirstReview(lump, false));
 });
 

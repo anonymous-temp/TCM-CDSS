@@ -18,6 +18,9 @@ import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy, locationItemsCoverC
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { isPediatricGroundingText, pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
+import { alignQuoteToSource } from "./source-quote-alignment";
+import { allergenHerbMatch, recordedAllergensInText } from "./allergen-profile";
+import { clauseLocalMentionPolarityAt, recordMentionPolarityAt } from "./diagnosis-safety";
 import { missedLockableFormulaCandidates, namedFormulaPositiveSufficiencyIssue } from "./tcm-formula-indications";
 import { formulaModificationHerbName, normalizeFormulaModificationAction } from "./formula-modification";
 
@@ -369,6 +372,18 @@ const CLINICAL_IRREGULAR_MENSES_IDIOM = /(?:月经|经期|经行)(?:先后)?(?:�
  */
 export const SERVER_PATHOGENESIS_NO_MECHANISM_NOTE = "（服务端提示：本栏未见病机要素，请医生核定是否需要补充病机推演）";
 
+/**
+ * 病机/治法里只有个别从句是对冲（「肝气郁结，横逆犯胃，起病时间尚待核实」）时，去掉这些从句再判（2026-10-26
+ * 第二十一轮）：原先一个从句带「待核实」就判整条不稳定、整个病机节点被删。去掉后仍不稳定、或全是对冲的，返回 undefined。
+ */
+export function stableM03CoreTextWithoutHedges(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  if (!isUnstableM03CoreText(value)) return value;
+  const kept = value.split(/(?<=[，,；;。])/u).filter((clause) => !UNSTABLE_REASONING_MARKER.test(clause));
+  const text = kept.join("").replace(/[，,；;]+$/u, "").trim();
+  return text && !isUnstableM03CoreText(text) ? text : undefined;
+}
+
 export function isUnstableM03CoreText(value: unknown): boolean {
   if (typeof value !== "string") return true;
   const withoutServerNote = value.split(SERVER_PATHOGENESIS_NO_MECHANISM_NOTE).join("");
@@ -632,6 +647,20 @@ function contextNegatesGroundedConcept(context: string, concept: GroundedFactCon
   return contextNegatesTerm(context, concept.surface) || Boolean(concept.objectiveNegate?.(context));
 }
 
+/**
+ * 分句里这个表现的每一处提及都是「未问及 / 他人 / 条件」时，不算病历肯定记载（2026-10-26 第二十一轮）：
+ * 「是否黑便尚未询问」曾让模型写的「黑便」接地成功。与安全门同一套语境判定（recordMentionPolarityAt）。
+ */
+function hasOnlyExcludedMentions(sentence: string, pattern: RegExp): boolean {
+  const global = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+  let found = false;
+  for (const match of sentence.matchAll(global)) {
+    found = true;
+    if (recordMentionPolarityAt(sentence, match.index ?? 0) !== "excluded") return false;
+  }
+  return found;
+}
+
 function sentenceAffirmsGroundedConcept(sentence: string, concept: GroundedFactConcept): boolean {
   return hasAffirmedClinicalTerm(sentence, concept.surface) || Boolean(concept.objectiveAffirm?.(sentence));
 }
@@ -848,7 +877,37 @@ export function describeM03GroundingConflict(reasoning: M03ReasoningLike, clinic
   return undefined;
 }
 
+/**
+ * 逐字/概念接地都不成立时，按写法对齐（2026-10-26 第二十一轮）：病历「脉象：弦」与模型「脉弦」、
+ * 「腹痛“昨晚才开始”」与「腹痛昨晚才开始」、「三天」与「3天」、「mmHg」与「mmHp」。只接受写法差异
+ * （归一化 / 四诊字段紧凑写法 / 拉丁字母单错），逐字命中却被上面判否的不在这里翻案；对上的原文位置
+ * 必须与引文同极性，且不是他人、条件或未评估的提及。返回病历原文片段。
+ */
+function alignedPatientFactQuote(value: string, clinicalContext: string): string | undefined {
+  const valueNegated = isNegatedClinicalClause(value.trim());
+  const aligned = alignQuoteToSource(value, clinicalContext, {
+    excludedAt: (text, index) => {
+      const polarity = recordMentionPolarityAt(text, index);
+      if (polarity === "excluded") return true;
+      if (valueNegated) return false;
+      let clauseStart = index;
+      while (clauseStart > 0 && !/[，,。；;\n]/u.test(text[clauseStart - 1])) clauseStart -= 1;
+      let clauseEnd = index;
+      while (clauseEnd < text.length && !/[，,。；;\n]/u.test(text[clauseEnd])) clauseEnd += 1;
+      return polarity === "negated" || isNegatedClinicalClause(text.slice(clauseStart, clauseEnd));
+    },
+  });
+  return aligned && aligned.status !== "exact" ? aligned.span : undefined;
+}
+
 export function patientFactSourceQuote(value: string, clinicalContext: string): string | undefined {
+  const quote = legacyPatientFactSourceQuote(value, clinicalContext);
+  if (quote) return quote;
+  if (!isGenericPatientEvidencePolarityAligned(value, clinicalContext)) return undefined;
+  return alignedPatientFactQuote(value, clinicalContext);
+}
+
+function legacyPatientFactSourceQuote(value: string, clinicalContext: string): string | undefined {
   if (!isGenericPatientEvidencePolarityAligned(value, clinicalContext)) return undefined;
   const approximateSourceQuote = (): string | undefined => {
     const normalizedFact = normalizedFactSupportText(value);
@@ -887,10 +946,14 @@ export function patientFactSourceQuote(value: string, clinicalContext: string): 
     const factIsNegated = hasNegatedClinicalTerm(value, factPattern);
     const source = sourceSentences.find((sentence) => {
       if (concept) {
-        return factIsNegated ? sentenceNegatesGroundedConcept(sentence, concept) : sentenceAffirmsGroundedConcept(sentence, concept);
+        return factIsNegated
+          ? sentenceNegatesGroundedConcept(sentence, concept)
+          : sentenceAffirmsGroundedConcept(sentence, concept) && !hasOnlyExcludedMentions(sentence, concept.surface);
       }
       if (!pattern.test(sentence)) return false;
-      return factIsNegated ? hasNegatedClinicalTerm(sentence, pattern) : hasAffirmedClinicalTerm(sentence, pattern);
+      return factIsNegated
+        ? hasNegatedClinicalTerm(sentence, pattern)
+        : hasAffirmedClinicalTerm(sentence, pattern) && !hasOnlyExcludedMentions(sentence, pattern);
     });
     if (!source) return approximateSourceQuote();
     if (!selected.includes(source)) selected.push(source);
@@ -900,7 +963,9 @@ export function patientFactSourceQuote(value: string, clinicalContext: string): 
   for (const concept of surfaceOnlyConcepts) {
     const factIsNegated = hasNegatedClinicalTerm(value, concept.surface);
     const source = sourceSentences.find((sentence) =>
-      factIsNegated ? sentenceNegatesGroundedConcept(sentence, concept) : sentenceAffirmsGroundedConcept(sentence, concept));
+      factIsNegated
+        ? sentenceNegatesGroundedConcept(sentence, concept)
+        : sentenceAffirmsGroundedConcept(sentence, concept) && !hasOnlyExcludedMentions(sentence, concept.surface));
     if (!source) return approximateSourceQuote();
     if (!selected.includes(source)) selected.push(source);
   }
@@ -3850,6 +3915,15 @@ export function m04GenerationSpecialPopulationIssue(
   if (chpPregnancyHerbTier(clinicalContext)) {
     for (const [herbIndex, herb] of herbs.entries()) {
       if (chpPregnancyLabel(herb.name)?.level === "prohibited") return `herb_${herbIndex}_special_population_high_risk_pregnancy`;
+    }
+  }
+  // 病历记录的食物等过敏（第二十一轮，B061）：与过敏原同源的饮片（鸡子黄、蜜炙饮片、淡豆豉、海马…，分类表 avoid 档）不进方，
+  // 与人群 HIGH 规则同一出口，修复轮删掉该味；caution 档只在注意事项里提示。
+  const allergens = recordedAllergensInText(clinicalContext, clauseLocalMentionPolarityAt);
+  if (allergens.length > 0) {
+    for (const [herbIndex, herb] of herbs.entries()) {
+      const name = typeof herb.name === "string" ? herb.name.trim() : "";
+      if (name && allergenHerbMatch(name, allergens)?.action === "avoid") return `herb_${herbIndex}_special_population_high_risk_allergy`;
     }
   }
   for (const [herbIndex, herb] of herbs.entries()) {

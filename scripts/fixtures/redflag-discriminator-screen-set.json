@@ -1,0 +1,286 @@
+{
+  "purpose": "指南红旗判别项读病历小任务（redflag-discriminator-screen.server.ts）的实测集。开发集在提示词定稿前写，留出集在定稿后另写（口语、家长转述）；对照组是中医门诊常见、不应读成红色征象的写法。每条写明期望读出的概念（present）与不得读出的概念（absent）。运行：npm run regress:redflag-discriminator-screen（真实模型，按次计费）。",
+  "version": "2026-10-26",
+  "sets": {
+    "development": [
+      {
+        "id": "dev-child-rash-drowsy",
+        "ageMonths": 48,
+        "record": "主诉：发热2天\n现病史：体温39.6℃，身上出现紫红色斑点，压之不褪色，精神萎靡，嗜睡，尿量明显减少",
+        "present": [
+          "non-blanching-rash",
+          "does-not-wake",
+          "ctx-fever"
+        ]
+      },
+      {
+        "id": "dev-infant-respiratory",
+        "ageMonths": 18,
+        "record": "主诉：发热1天伴气喘\n现病史：口唇发绀，呼吸时有呻吟声，三凹征阳性",
+        "present": [
+          "grunting",
+          "chest-indrawing"
+        ]
+      },
+      {
+        "id": "dev-infant-fontanelle",
+        "ageMonths": 8,
+        "record": "主诉：发热半天\n现病史：体温39℃，前囟饱满膨隆，哭声尖直，难以安抚",
+        "present": [
+          "bulging-fontanelle",
+          "weak-high-pitched-cry",
+          "ctx-fever"
+        ]
+      },
+      {
+        "id": "dev-child-status",
+        "ageMonths": 36,
+        "record": "主诉：高热伴抽搐\n现病史：今晨高热惊厥，抽搐20分钟仍未停止，呼之不应",
+        "present": [
+          "status-epilepticus",
+          "no-response-social-cues"
+        ]
+      },
+      {
+        "id": "dev-child-mottled",
+        "ageMonths": 24,
+        "record": "主诉：发热3天\n现病史：皮肤花斑，四肢冰凉，面色灰白",
+        "present": [
+          "mottled-ashen",
+          "ctx-fever"
+        ]
+      },
+      {
+        "id": "dev-adult-sepsis-text",
+        "ageMonths": 780,
+        "record": "主诉：发热寒战2天\n现病史：今日神志模糊、答非所问，全身皮肤出现瘀斑",
+        "present": [
+          "non-blanching-rash",
+          "objective-altered-mental-state",
+          "ctx-infection-suspected"
+        ]
+      },
+      {
+        "id": "dev-adult-anuria",
+        "ageMonths": 840,
+        "record": "主诉：尿频尿痛伴发热3天\n现病史：近18小时无尿",
+        "present": [
+          "no-urine-18h",
+          "ctx-infection-suspected"
+        ]
+      },
+      {
+        "id": "dev-adult-haemorrhage",
+        "ageMonths": 360,
+        "record": "主诉：外伤后出血1小时\n现病史：左前臂伤口大量出血不止，加压包扎后仍持续渗血",
+        "present": [
+          "uncontrollable-major-haemorrhage"
+        ]
+      },
+      {
+        "id": "dev-adult-fitting",
+        "ageMonths": 600,
+        "record": "主诉：突发抽搐\n现病史：家属诉患者此刻仍在抽搐，口吐白沫，呼之不应",
+        "present": [
+          "currently-fitting",
+          "altered-conscious-level"
+        ]
+      },
+      {
+        "id": "dev-child-rash-not-cyanosis",
+        "ageMonths": 48,
+        "record": "主诉：高热伴皮疹2天\n现病史：高热39.5℃，精神差，身上出现紫红色按压不褪色斑点，口唇干",
+        "present": [
+          "non-blanching-rash",
+          "ctx-fever"
+        ],
+        "absent": [
+          "blue",
+          "cyanosis",
+          "appears-ill"
+        ]
+      },
+      {
+        "id": "dev-adult-shock",
+        "ageMonths": 600,
+        "record": "主诉：呕血后头晕1小时\n现病史：面色苍白，皮肤湿冷，脉搏细速\n体格检查：BP 78/50mmHg，P 128次/分",
+        "present": [
+          "shock"
+        ]
+      }
+    ],
+    "heldOut": [
+      {
+        "id": "held-parent-rash",
+        "ageMonths": 60,
+        "record": "主诉：孩子烧了两天\n现病史：家长说今天叫不太醒，腿上有出血点，按了不退",
+        "present": [
+          "non-blanching-rash",
+          "does-not-wake",
+          "ctx-fever"
+        ]
+      },
+      {
+        "id": "held-infant-breathing",
+        "ageMonths": 10,
+        "record": "主诉：发烧伴喘\n现病史：喘得厉害，鼻翼扇动，吸气时肋骨下面往里凹",
+        "present": [
+          "chest-indrawing",
+          "ctx-fever"
+        ]
+      },
+      {
+        "id": "held-elderly-mottled",
+        "ageMonths": 900,
+        "record": "主诉：发烧2天\n现病史：老人发烧后一天没怎么尿，身上皮肤发花",
+        "present": [
+          "mottled-ashen",
+          "ctx-infection-suspected"
+        ]
+      }
+    ],
+    "controls": [
+      {
+        "id": "ctl-blanching-rash",
+        "ageMonths": 48,
+        "record": "主诉：发热1天\n现病史：精神可，玩耍如常，躯干散在红色皮疹，压之褪色",
+        "absent": [
+          "non-blanching-rash",
+          "does-not-wake",
+          "no-response-social-cues",
+          "appears-ill"
+        ]
+      },
+      {
+        "id": "ctl-night-crying",
+        "ageMonths": 36,
+        "record": "主诉：夜啼1周\n现病史：夜间啼哭，白天精神好、饮食正常",
+        "absent": [
+          "weak-high-pitched-cry",
+          "does-not-wake"
+        ]
+      },
+      {
+        "id": "ctl-tcm-complexion",
+        "ageMonths": 72,
+        "record": "主诉：纳差半年\n现病史：面色萎黄，唇色淡，舌淡苔白",
+        "absent": [
+          "pale-clinician",
+          "mottled-ashen",
+          "cyanosis"
+        ]
+      },
+      {
+        "id": "ctl-tcm-stasis",
+        "ageMonths": 540,
+        "record": "主诉：胸闷1月\n现病史：唇色紫暗，舌有瘀斑，脉涩",
+        "absent": [
+          "cyanosis",
+          "non-blanching-rash"
+        ]
+      },
+      {
+        "id": "ctl-negated",
+        "ageMonths": 24,
+        "record": "主诉：发热1天\n现病史：无皮疹，无抽搐，精神反应好",
+        "absent": [
+          "non-blanching-rash",
+          "status-epilepticus",
+          "currently-fitting",
+          "does-not-wake"
+        ]
+      },
+      {
+        "id": "ctl-unassessed",
+        "ageMonths": 48,
+        "record": "主诉：发热1天\n现病史：是否有皮疹尚未查看，是否抽搐尚未询问",
+        "absent": [
+          "non-blanching-rash",
+          "status-epilepticus",
+          "currently-fitting"
+        ]
+      },
+      {
+        "id": "ctl-fontanelle-normal",
+        "ageMonths": 8,
+        "record": "主诉：发热半天\n现病史：体温38℃，前囟平软，吃奶好",
+        "absent": [
+          "bulging-fontanelle",
+          "weak-high-pitched-cry"
+        ]
+      },
+      {
+        "id": "ctl-menses",
+        "ageMonths": 360,
+        "record": "主诉：月经量多3月\n现病史：经期7天，量多有血块，无头晕乏力",
+        "absent": [
+          "uncontrollable-major-haemorrhage",
+          "exsanguinating-haemorrhage"
+        ]
+      },
+      {
+        "id": "ctl-old-stroke",
+        "ageMonths": 720,
+        "record": "主诉：咳嗽2天\n既往史：脑梗死后遗留右侧肢体无力3年\n现病史：咳嗽少痰，神志清",
+        "absent": [
+          "focal-neuro-signs",
+          "objective-altered-mental-state",
+          "altered-conscious-level"
+        ]
+      },
+      {
+        "id": "ctl-acute-face",
+        "ageMonths": 420,
+        "record": "主诉：发热3天\n体格检查：急性病容，神志清，咽红",
+        "absent": [
+          "appears-ill",
+          "objective-altered-mental-state",
+          "altered-conscious-level"
+        ]
+      },
+      {
+        "id": "ctl-pale-alone",
+        "ageMonths": 420,
+        "record": "主诉：乏力1月\n现病史：面色苍白，纳差，神清\n体格检查：BP 108/70mmHg，P 82次/分",
+        "absent": [
+          "shock",
+          "appears-ill"
+        ]
+      },
+      {
+        "id": "ctl-tachycardia-alone",
+        "ageMonths": 480,
+        "record": "主诉：心慌2天\n体格检查：P 108次/分，BP 126/80mmHg，神清，皮肤温暖",
+        "absent": [
+          "shock"
+        ]
+      },
+      {
+        "id": "ctl-orthopnea",
+        "ageMonths": 780,
+        "record": "主诉：气短1月\n现病史：夜间不能平卧，需高枕，说话成句",
+        "absent": [
+          "inadequate-breathing"
+        ]
+      },
+      {
+        "id": "ctl-daytime-sleepy",
+        "ageMonths": 540,
+        "record": "主诉：打鼾5年\n现病史：白天嗜睡，开会时易睡着，叫之即醒，对答清楚",
+        "absent": [
+          "altered-conscious-level",
+          "objective-altered-mental-state"
+        ]
+      },
+      {
+        "id": "ctl-slow-elderly",
+        "ageMonths": 960,
+        "record": "主诉：便秘3月\n现病史：老人平素反应迟缓，对答切题，神志清楚",
+        "absent": [
+          "altered-conscious-level",
+          "objective-altered-mental-state"
+        ]
+      }
+    ]
+  }
+}

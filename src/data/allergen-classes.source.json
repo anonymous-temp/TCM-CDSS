@@ -1,0 +1,4879 @@
+{
+  "version": "2026-10-26",
+  "status": "受治理（2026-10-26 第二十一轮）：GB 7718-2025 4.12.1 八类按原文；饮片与中成药成份逐条带出处，交叉反应只按 caution。",
+  "classCount": {
+    "total": 15,
+    "gbCategories": 8,
+    "nonGb": 7
+  },
+  "purpose": "患者约束档案中的过敏原类别闭集：病历记录词、饮食/食疗词、处方药材、中成药成份，统一映射到同一组类别。",
+  "gbListAsFound": {
+    "standard": "GB 7718—2025《食品安全国家标准 预包装食品标签通则》，2025-03-16 发布，2027-03-16 实施",
+    "clause": "4.12.1 以下食品配料可能导致敏感人群产生过敏反应，如用作配料，应在配料表中加以提示，或在配料表临近位置标示提示信息，标示形式见附录 D。",
+    "items": [
+      "a) 含有麸质的谷物及其制品(如小麦、黑麦、大麦、燕麦、斯佩耳特小麦或它们的杂交品系)。",
+      "b) 甲壳纲类动物及其制品(如虾、龙虾、蟹等)。",
+      "c) 鱼类及其制品。",
+      "d) 蛋类及其制品。",
+      "e) 花生及其制品。",
+      "f) 大豆及其制品。",
+      "g) 乳及乳制品(包括乳糖)。",
+      "h) 坚果及其果仁类制品。"
+    ],
+    "voluntary": "上述配料以外的其他可能的致敏物质可自愿标示提示信息。问答三十八举例：芝麻及其制品、椰子及其制品。",
+    "exemptions": "附录 D.4 列明的深加工配料可免于标示：a) 精炼大豆油、精炼花生油、大豆来源的肽、磷脂、维生素E、植物甾醇、植物甾醇酯及植物甾烷醇酯、黄原胶；b) 淀粉、糊精、葡萄糖浆、谷物来源的精炼植物油；c) 甲壳素、壳寡糖、鱼明胶、精炼鱼油、鱼油来源 DHA；d) 乳糖醇。",
+    "sourceIds": [
+      "gb7718-2025",
+      "gb7718-2025-interpretation",
+      "gb7718-2025-qa"
+    ]
+  },
+  "checkerConventions": {
+    "actions": {
+      "avoid": "不得推荐或开具；已在处方里的应替换，并说明理由。",
+      "caution": "可保留，但须标注并提示医生向患者核实；不自动删除。",
+      "none": "不处理（GB 豁免配料，或仅属不耐受的情形）。"
+    },
+    "recordParsing": "recordTerms 是过敏原名词，须与「过敏」「过敏史」「sIgE阳性」「忌食」等同句出现，或出现在过敏史字段里，并且没有被否定（如「否认食物过敏」「无X过敏」），才算记录了过敏。intoleranceTerms 映射到同一类别，但 kind 记为 intolerance，按该类的 intoleranceHandling 处理。",
+    "genericVsSpecific": "过敏记录写的是 genericRecordTerms 时，herbs 按各自的 action 处理。只点名了 specificMembers 中的某些成员时：sameAsFood 与所点成员有交集的药材升为 avoid；其余药材的 avoid 降为 caution（caution 保持不变）。egg 类例外：各种禽蛋之间交叉常见，不做降级。",
+    "singleCharTerms": "各类的 singleCharTerms（鱼、虾、蟹、蛋、贝、螺、蚌、奶、蜜、漆）只在两种情况下使用：一是过敏语境的记录词（如「对虾过敏」「鱼过敏」）；二是在饮食文本中作为独立的食物项，且前后有「吃、食、忌、少、多、、、和、或」之类的边界。不能做子串匹配。",
+    "matching": "全部匹配先做 NFKC 归一。每个类别单独扫描，取最左最长匹配：候选词是本类的 foodTerms、药材名及 writtenVariants、medicineIngredientTerms、excludeTerms、gbExemptTerms 的并集，命中排除词或豁免词则不报。之所以要「最长优先」而不是「先遮掉排除词」，是因为排除词「桃仁」是药材名「核桃仁」的子串，先遮会把核桃仁也遮掉；按最长优先，蓖麻油（排除）压过麻油、鸡蛋花（排除）压过鸡蛋、核桃仁（药材）压过桃仁（排除）。单字词放在各类的 singleCharTerms 里，规则见 singleCharTerms 条；不能做子串匹配，否则会误中「鱼际」「蛋白质」「贝母」「蜜环菌」这类词。",
+    "herbNames": "药材按处方里写的原名（含炮制名）匹配，同时也按身份目录归一后的标准名匹配。注意：归一会丢掉炮制信息，例如蜜百部归一为百部、麸炒白术归一为白术。processedFormPattern 处理带「蜜」「麸炒」前缀的炮制名。herbs 列表同样用于中成药的成份表。",
+    "foodActions": "foodTerms 命中时默认按 avoid；cautionFoodTerms（由 foodTermNotes 里注明 caution 的词生成）按 caution。genericVsSpecific 的降级规则同样适用于 specificMembers 中列出的食物词。intolerance 记录改按 intoleranceHandling.foodAction 处理。",
+    "medicines": "medicineIngredientTerms 用于中成药、西药的成份和辅料表（含本项目 local-patent-medicine-composition.json 里的真实写法）。",
+    "umbrella": "seafood 是总类，药材和食物的处理动作从成员类继承，再按 umbrellaOf 中的上限封顶。病历写「鱼虾」「鱼虾蟹」时直接映射到 fish 和 crustacean，不经总类。",
+    "kbField": "herbs[].kb.status 取值：kb_herb 表示在 tcm-knowledge.json 的 herbs 中；kb_herb_via_identity 表示经 tcm-herb-identity-catalog.json 的 resolutionIndex 归到知识库中的药名；identity_catalog_only 表示只在身份目录里；not_in_kb 表示两处都没有，但在经典方或中成药成份中出现。"
+  },
+  "intoleranceDecision": "不耐受计入同一类别，但处理分开。乳糖不耐受只影响饮食建议（caution），不影响药材和药品。乳糜泻按过敏处理。「麸质不耐受」或非乳糜泻麸质敏感的饮食建议按 avoid（处理方式就是无麸质饮食），药材按 caution。",
+  "sources": [
+    {
+      "id": "gb7718-2025",
+      "title": "食品安全国家标准 预包装食品标签通则 GB 7718—2025（4.12 致敏物质；附录D 致敏物质在食品标签中的标示形式）",
+      "publisher": "国家卫生健康委员会、国家市场监督管理总局（2025-03-16发布，2027-03-16实施）",
+      "url": "https://scjgj.quanzhou.gov.cn/xxgk/zfxxgk/fdzdgknr/ywgz/202605/P020260507404214105782.pdf",
+      "accessed": "2026-10-26",
+      "note": "所取 PDF 是泉州市市场监督管理局公开的汇编，共 25 页。其中收录：食品安全国家标准数据检索平台（国家食品安全风险评估中心）上的标准全文、解读材料（2025-03-16），以及国家卫健委食品安全标准与监测评估司发布的问答（2025-09-25）。4.12.1 a)–h) 与 D.4、D.5 均逐字取自标准正文。"
+    },
+    {
+      "id": "gb7718-2025-interpretation",
+      "title": "《食品安全国家标准 预包装食品标签通则》（GB 7718-2025）解读材料 七、关于致敏物质",
+      "publisher": "国家卫生健康委员会、国家市场监督管理总局",
+      "url": "https://scjgj.quanzhou.gov.cn/xxgk/zfxxgk/fdzdgknr/ywgz/202605/P020260507404214105782.pdf",
+      "accessed": "2026-10-26",
+      "note": "原文：GB 7718-2011 把这八类食品及其制品作为推荐标示，新标准改为直接用作配料时强制标示。"
+    },
+    {
+      "id": "gb7718-2025-qa",
+      "title": "《食品安全国家标准 预包装食品标签通则》（GB 7718-2025）问答 三十八、关于致敏物质标示",
+      "publisher": "国家卫生健康委员会 食品安全标准与监测评估司（发布时间 2025-09-25）",
+      "url": "https://www.nhc.gov.cn/sps/c100087/202509/bc824a504ec34c27883da73f14c20d44.shtml",
+      "accessed": "2026-10-26",
+      "note": "国家卫健委原站对本次抓取返回 HTTP 412。正文改从 gb7718-2025 那份汇编 PDF 中的问答页读取，并与 cli.im 镜像比对。问答原文：「食品中除上述八大类以外的其他可能的致敏物质，如芝麻及其制品、椰子及其制品等可自愿标示」。"
+    },
+    {
+      "id": "gb19300-nut-definition",
+      "title": "T/CCLJS 熟制软度坚果与籽类食品（征求意见稿）3.1.1/3.1.2，引用 GB 19300《食品安全国家标准 坚果与籽类食品》的术语定义",
+      "publisher": "中国副食流通协会坚果炒货分会（团体标准征求意见稿，2024）",
+      "url": "https://www.ttbz.org.cn/upload/file/20240828/6386045202315842564388571.pdf",
+      "accessed": "2026-10-26",
+      "note": "该稿注明定义来源为 GB 19300：坚果为「具有坚硬外壳的木本类植物的籽粒，包括巴旦木、核桃、板栗、杏核、扁桃核、山核桃、开心果、香榧、夏威夷果、松籽等」；籽类「包括葵花籽、西瓜籽、南瓜籽、花生、蚕豆、豌豆、大豆、鹰嘴豆等」。GB 19300 原文未抓取到，属转引。"
+    },
+    {
+      "id": "chp-0213",
+      "title": "中国药典2015年版四部 通则0213 炮制通则（蜜炙、麸炒、煨）",
+      "publisher": "国家药典委员会（drugfuture.com 扫描本）",
+      "url": "https://www.drugfuture.com/Pharmacopoeia/CP2015-4/31-32.pdf",
+      "accessed": "2026-10-26",
+      "note": "原文：「蜜炙时，用炼蜜。除另有规定外，每100kg待炮炙品用炼蜜25kg」；「麸炒……每100kg待炮炙品，用麸皮10～15kg」；「煨 取待炮炙品用面皮或湿纸包裹……或将其与麸皮同置……每100kg待炮炙品用麸皮50kg」。2020年版四部原文未抓取；2020年版一部各品种（经神农Alpha）引用的仍是「蜜炙法（通则0213）」「麸炒法（通则0213）」。"
+    },
+    {
+      "id": "chp-0108",
+      "title": "中国药典2015年版四部 通则0108 丸剂（蜜丸、水蜜丸定义）",
+      "publisher": "国家药典委员会（drugfuture.com 扫描本）",
+      "url": "https://www.drugfuture.com/Pharmacopoeia/CP2015-4/10-11.pdf",
+      "accessed": "2026-10-26",
+      "note": "原文：「蜜丸系指饮片细粉以炼蜜为黏合剂制成的丸剂」「水蜜丸系指饮片细粉以炼蜜和水为黏合剂制成的丸剂」。2020年版原文未抓取。"
+    },
+    {
+      "id": "shennongalpha-chp2020",
+      "title": "神农Alpha 天然药材知识库：各品种条目逐字引用《中国药典·2020年版·一部》的来源/制法/注意",
+      "publisher": "西湖大学 神农Alpha（ShennongAlpha）",
+      "url": "https://shennongalpha.westlake.edu.cn/",
+      "accessed": "2026-10-26",
+      "note": "经 /api/snnmm?nmmgn_zh= 接口及条目页 HTML 取得；每味药的条目链接写在该药的 sourceUrl 里。标注「国家中医药管理局名词术语成果转化与规范推广」的条目不在药典内（如花生衣、松子仁、浮小麦）。"
+    },
+    {
+      "id": "hkcmms-tritici-levis",
+      "title": "Hong Kong Chinese Materia Medica Standards Vol.5: Tritici Levis Fructus（浮小麦）",
+      "publisher": "Chinese Medicine Regulatory Office, Department of Health, HKSAR",
+      "url": "https://www.cmro.gov.hk/files/hkcmms/vol5/pdf_e/Tritici_Levis_Fructus_v5_e.pdf",
+      "accessed": "2026-10-26",
+      "note": "原文：'the dried, shriveled and light caryopsis of Triticum aestivum L. (Poaceae)'。"
+    },
+    {
+      "id": "shenqu-2023",
+      "title": "蔡金阳等. 经典名方越鞠丸的历史沿革与处方考证. 中草药, 2023, 54(19): 6511",
+      "publisher": "中草药杂志社",
+      "url": "https://www.tiprpress.com/zcy/article/pdf/20231931",
+      "accessed": "2026-10-26",
+      "note": "该文引《全国中药炮制规范》1988年版及部颁成方制剂第19册：神曲（建神曲）由面粉、麦麸、辣蓼、青蒿、苍耳草、赤小豆、苦杏仁制成，比例 25:50:5:5:5:1:1，自然发酵。各省炮制规范的配方不完全一致。"
+    },
+    {
+      "id": "yitang-2020",
+      "title": "赵容等. 饴糖的研究现状. 中草药, 2020, 51(3): 821",
+      "publisher": "中草药杂志社",
+      "url": "https://www.tiprpress.com/zcy/article/pdf/20200336",
+      "accessed": "2026-10-26",
+      "note": "原文：饴糖「由粳米、高粱、大麦及各种富含淀粉的可食物质发酵糖化制成」；古法以小麦蘖或大麦蘖（即麦芽）糖化。"
+    },
+    {
+      "id": "jizihuang",
+      "title": "Ji Zi Huang (鸡子黄) — Vitellus Ovi Galli",
+      "publisher": "Attilio D'Alberto, Chinese herbal medicine materia medica",
+      "url": "https://www.attiliodalberto.com/chinese-herbal-medicine/herbs/ji-zi-huang.php",
+      "accessed": "2026-10-26",
+      "note": "原文：'Vitellus Ovi Galli — is known in English as Egg yolk'。"
+    },
+    {
+      "id": "villacis2006",
+      "title": "Villacis J, et al. Do shrimp-allergic individuals tolerate shrimp-derived glucosamine? Clin Exp Allergy 2006",
+      "publisher": "Clin Exp Allergy (PMID 17083356)",
+      "url": "https://europepmc.org/article/MED/17083356",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "kuehn2014",
+      "title": "Kuehn A, et al. Fish allergens at a glance: variable allergenicity of parvalbumins, the major fish allergens. Front Immunol 2014",
+      "publisher": "Front Immunol (PMID 24795722, PMC4001008)",
+      "url": "https://europepmc.org/article/MED/24795722",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "taki2023",
+      "title": "Taki AC, et al. Thermostable allergens in canned fish: evaluating risks for fish allergy. Allergy 2023",
+      "publisher": "Allergy (PMID 37650248, PMC10952748)",
+      "url": "https://europepmc.org/article/MED/37650248",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "kuehn2009",
+      "title": "Kuehn A, Hilger C, Hentges F. Anaphylaxis provoked by ingestion of marshmallows containing fish gelatin. J Allergy Clin Immunol 2009",
+      "publisher": "J Allergy Clin Immunol (PMID 19178936)",
+      "url": "https://europepmc.org/article/MED/19178936",
+      "accessed": "2026-10-26",
+      "note": "这是读者来信，没有摘要，只核对了题目。"
+    },
+    {
+      "id": "nugraha2022",
+      "title": "Nugraha R, et al. Recombinant tropomyosin from the Pacific oyster (Crassostrea gigas) for better diagnosis. Foods 2022",
+      "publisher": "Foods (PMID 35159555, PMC8834279)",
+      "url": "https://europepmc.org/article/MED/35159555",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "orriols1997",
+      "title": "Orriols R, et al. High prevalence of mollusc shell hypersensitivity pneumonitis in nacre factory workers. Eur Respir J 1997",
+      "publisher": "Eur Respir J (PMID 9150313)",
+      "url": "https://europepmc.org/article/MED/9150313",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "pei2021",
+      "title": "Pei J, et al. Extraction, purification, bioactivities and application of matrix proteins from pearl powder and nacre powder: a review. Front Bioeng Biotechnol 2021",
+      "publisher": "Front Bioeng Biotechnol (PMID 33959598, PMC8095667)",
+      "url": "https://europepmc.org/article/MED/33959598",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "yang2018",
+      "title": "Yang Z, et al. Cockroach is a major cross-reactive allergen source in shrimp-sensitized rural children in southern China. Allergy 2018",
+      "publisher": "Allergy (PMID 29072879)",
+      "url": "https://europepmc.org/article/MED/29072879",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "jeong2017",
+      "title": "Jeong KY, et al. Role of tropomyosin in silkworm allergy. Mol Med Rep 2017",
+      "publisher": "Mol Med Rep (PMID 28339033)",
+      "url": "https://europepmc.org/article/MED/28339033",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "degier2018",
+      "title": "de Gier S, Verhoeckx K. Insect (food) allergy and allergens. Mol Immunol 2018",
+      "publisher": "Mol Immunol (PMID 29731166)",
+      "url": "https://europepmc.org/article/MED/29731166",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "bahmani2024",
+      "title": "Bahmani M, et al. From grain to malt: tracking changes of ultra-low-gluten barley storage proteins after malting. Food Chem 2024",
+      "publisher": "Food Chem (PMID 37619393)",
+      "url": "https://europepmc.org/article/MED/37619393",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "kanny1996",
+      "title": "Kanny G, et al. Sesame seed and sesame seed oil contain masked allergens of growing importance. Allergy 1996",
+      "publisher": "Allergy (PMID 9020427)",
+      "url": "https://europepmc.org/article/MED/9020427",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "elbany2024",
+      "title": "Elbany C, et al. A rare case of lysozyme-induced anaphylaxis in a child with egg allergy. Arch Pediatr 2024",
+      "publisher": "Arch Pediatr (PMID 38538467)",
+      "url": "https://europepmc.org/article/MED/38538467",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "benjamin2024",
+      "title": "Benjamin-van Aalst O, et al. Goat milk allergy and a potential role for goat milk in cow's milk allergy. Nutrients 2024",
+      "publisher": "Nutrients (PMID 39125282, PMC11314217)",
+      "url": "https://europepmc.org/article/MED/39125282",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "morikawa2016",
+      "title": "Morikawa M, et al. A case of anaphylaxis in the pediatric patient with milk allergy due to traces of milk protein in the lactose used as an excipient of Inavir inhalation. Arerugi 2016",
+      "publisher": "Arerugi (PMID 27193929)",
+      "url": "https://europepmc.org/article/MED/27193929",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "robles2014",
+      "title": "Robles J, Motheral L. Hypersensitivity reaction after inhalation of a lactose-containing dry powder inhaler. J Pediatr Pharmacol Ther 2014",
+      "publisher": "J Pediatr Pharmacol Ther (PMID 25309152, PMC4187530)",
+      "url": "https://europepmc.org/article/MED/25309152",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "santoro2019",
+      "title": "Santoro A, et al. Allergic reactions to cow's milk proteins in medications in childhood. Acta Biomed 2019",
+      "publisher": "Acta Biomed (PMID 30830066, PMC6502173)",
+      "url": "https://europepmc.org/article/MED/30830066",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "hayashi2011",
+      "title": "Hayashi T, et al. Immunological characterization of honey proteins and identification of MRJP 1 as an IgE-binding protein. Biosci Biotechnol Biochem 2011",
+      "publisher": "Biosci Biotechnol Biochem (PMID 21389615)",
+      "url": "https://europepmc.org/article/MED/21389615",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "matuszewska2025",
+      "title": "Matuszewska-Mach E, et al. Ensuring the safe use of bee products: a review of allergic risks and management. Int J Mol Sci 2025",
+      "publisher": "Int J Mol Sci (PMID 41465502, PMC12732908)",
+      "url": "https://europepmc.org/article/MED/41465502",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "li2021",
+      "title": "Li JD, et al. A case of anaphylaxis caused by major royal jelly protein 3 of royal jelly and its cross-reactivity with honeycomb. J Asthma Allergy 2021",
+      "publisher": "J Asthma Allergy (PMID 35221696, PMC8866983)",
+      "url": "https://europepmc.org/article/MED/35221696",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "degroot2026",
+      "title": "de Groot AC, et al. Propolis and beeswax in cosmetics: a market survey and literature review on their relationship and role in allergic contact dermatitis. Contact Dermatitis 2026",
+      "publisher": "Contact Dermatitis (PMID 41663074, PMC13070719)",
+      "url": "https://europepmc.org/article/MED/41663074",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "long2023",
+      "title": "Long FF, et al. Effects of ultrasound on the immunoreactivity of amandin, an allergen in apricot kernels during debitterizing. Ultrason Sonochem 2023",
+      "publisher": "Ultrason Sonochem (PMID 37088029, PMC10457589)",
+      "url": "https://europepmc.org/article/MED/37088029",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "alessi2025",
+      "title": "Alessi L, et al. Armelline almond allergy: the first reported case. J Investig Allergol Clin Immunol 2025",
+      "publisher": "J Investig Allergol Clin Immunol (PMID 39635849)",
+      "url": "https://europepmc.org/article/MED/39635849",
+      "accessed": "2026-10-26",
+      "note": "没有摘要，原文 PDF 抓取返回 403。只核对了题目和检索摘要，所以只作旁证，不支撑「avoid」。"
+    },
+    {
+      "id": "thermo-f237",
+      "title": "Thermo Fisher ImmunoCAP Allergen Encyclopedia: f237 Apricot",
+      "publisher": "Thermo Fisher Scientific (Phadia)",
+      "url": "https://www.thermofisher.com/phadia/wo/en/resources/allergen-encyclopedia/f237.html",
+      "accessed": "2026-10-26",
+      "note": "原文：'Pru ar 3, has a sequence amino acid identity of 91% and 94% with peach and almond LTPs'。该页提到的杏仁（kernel）病例是氰化物中毒，不是过敏。"
+    },
+    {
+      "id": "boateng2022",
+      "title": "Boateng ID. A critical review of current technologies used to reduce ginkgotoxin, ginkgotoxin-5'-glucoside, ginkgolic acid, allergic glycoprotein, and cyanide in Ginkgo biloba L. seed. Food Chem 2022",
+      "publisher": "Food Chem (PMID 35176549)",
+      "url": "https://europepmc.org/article/MED/35176549",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "han2016",
+      "title": "Han EJ, et al. Allergic reaction to ginkgo nut on FDG PET/CT. Clin Nucl Med 2016",
+      "publisher": "Clin Nucl Med (PMID 27276210)",
+      "url": "https://europepmc.org/article/MED/27276210",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "norback2021",
+      "title": "Norbäck D, Wieslander G. A review on epidemiological and clinical studies on buckwheat allergy. Plants (Basel) 2021",
+      "publisher": "Plants (PMID 33806876, PMC8005110)",
+      "url": "https://europepmc.org/article/MED/33806876",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "oka2004",
+      "title": "Oka K, et al. A study of cross-reactions between mango contact allergens and urushiol. Contact Dermatitis 2004",
+      "publisher": "Contact Dermatitis (PMID 15606656)",
+      "url": "https://europepmc.org/article/MED/15606656",
+      "accessed": "2026-10-26"
+    },
+    {
+      "id": "repo-patent-composition",
+      "title": "仓库内部数据：src/data/local-patent-medicine-composition.json 中出现的成份名",
+      "publisher": "本项目（只作词表来源，不作事实依据）",
+      "url": "file:///home/coder/worktrees/r1030-fix/src/data/local-patent-medicine-composition.json",
+      "accessed": "2026-10-26",
+      "note": "medicineIngredientTerms 和若干 excludeTerms 取自该文件 4,077 个成份名里的真实写法，如 鸡蛋参、鸡蛋花、螃蟹甲、虾蟆草、山芝麻、蜜环菌、羊乳根、鱼石脂、雷贝拉唑钠、螺内酯。"
+    }
+  ],
+  "classes": [
+    {
+      "id": "gluten_cereal",
+      "labelZh": "含麸质谷物",
+      "gbCategory": true,
+      "gbCategoryName": "含有麸质的谷物及其制品(如小麦、黑麦、大麦、燕麦、斯佩耳特小麦或它们的杂交品系)",
+      "gbClause": "GB 7718-2025 4.12.1 a)",
+      "sourceIds": [
+        "gb7718-2025"
+      ],
+      "genericRecordTerms": [
+        "麸质",
+        "谷蛋白",
+        "面筋",
+        "含麸质谷物",
+        "麦类",
+        "谷物"
+      ],
+      "recordTerms": [
+        "麸质",
+        "谷蛋白",
+        "面筋",
+        "含麸质谷物",
+        "麦类",
+        "小麦",
+        "面粉",
+        "面食",
+        "麦麸",
+        "大麦",
+        "青稞",
+        "黑麦",
+        "燕麦",
+        "斯佩耳特小麦",
+        "乳糜泻",
+        "麸质敏感性肠病",
+        "谷蛋白肠病",
+        "小麦依赖运动诱发过敏",
+        "ω-5醇溶蛋白",
+        "Tri a 19"
+      ],
+      "specificMembers": {
+        "wheat": [
+          "小麦",
+          "面粉",
+          "面食",
+          "麦麸",
+          "斯佩耳特小麦",
+          "小麦依赖运动诱发过敏",
+          "ω-5醇溶蛋白",
+          "Tri a 19"
+        ],
+        "barley": [
+          "大麦",
+          "青稞",
+          "麦芽"
+        ],
+        "rye": [
+          "黑麦"
+        ],
+        "oats": [
+          "燕麦"
+        ]
+      },
+      "intoleranceTerms": [
+        "麸质不耐受",
+        "麸质不耐",
+        "非乳糜泻麸质敏感",
+        "麸质敏感"
+      ],
+      "intoleranceHandling": {
+        "foodAction": "avoid",
+        "herbAction": "caution",
+        "medicineAction": "caution",
+        "basis": "非乳糜泻麸质敏感的处理同样是无麸质饮食，所以饮食建议按「avoid」处理。草药煎剂里麸质的水溶出量没有数据，按「caution」。乳糜泻是免疫介导疾病，按过敏处理（见 recordTerms）。"
+      },
+      "foodTerms": [
+        "小麦",
+        "面粉",
+        "全麦",
+        "全麦面包",
+        "面包",
+        "馒头",
+        "花卷",
+        "包子",
+        "饺子",
+        "馄饨",
+        "面条",
+        "挂面",
+        "拉面",
+        "方便面",
+        "面片",
+        "面疙瘩",
+        "疙瘩汤",
+        "烙饼",
+        "烧饼",
+        "煎饼",
+        "发糕",
+        "饼干",
+        "蛋糕",
+        "月饼",
+        "油条",
+        "麻花",
+        "意面",
+        "通心粉",
+        "馕",
+        "麦片",
+        "麦仁",
+        "小麦胚芽",
+        "麦麸",
+        "麸皮",
+        "面筋",
+        "烤麸",
+        "大麦",
+        "大麦茶",
+        "青稞",
+        "糌粑",
+        "黑麦",
+        "燕麦",
+        "燕麦片",
+        "燕麦粥",
+        "麦芽糖",
+        "啤酒",
+        "酱油"
+      ],
+      "foodTermNotes": {
+        "燕麦": "GB 7718-2025 把燕麦列入含麸质谷物。乳糜泻患者对燕麦的耐受因人而异，命中时按 caution 提示即可。",
+        "酱油": "一般用大豆加小麦酿造，按 caution 处理。",
+        "啤酒": "大麦芽酿造。",
+        "蛋糕": "同时含蛋、乳。"
+      },
+      "excludeTerms": [
+        "麦冬",
+        "山麦冬",
+        "麦门冬",
+        "瞿麦",
+        "荞麦",
+        "苦荞",
+        "金荞麦",
+        "野荞麦",
+        "麦饭石",
+        "麦粒肿",
+        "麦氏点",
+        "麦角",
+        "麦角甾醇",
+        "薏苡仁",
+        "薏米",
+        "谷芽",
+        "稻芽",
+        "小米",
+        "大米",
+        "糯米",
+        "粳米",
+        "玉米",
+        "高粱",
+        "面色",
+        "面部",
+        "面容",
+        "面瘫",
+        "面目",
+        "面红",
+        "面肿",
+        "面黄",
+        "两面针",
+        "辣椒面",
+        "淀粉",
+        "糊精",
+        "葡萄糖浆",
+        "麦芽糊精"
+      ],
+      "excludeNotes": "淀粉、糊精、葡萄糖浆是 GB 7718-2025 D.4 b) 列明的「已去除致敏蛋白」谷物加工配料，可不标示；单字「面」「麦」不能用作匹配词。",
+      "gbExemptTerms": [
+        "淀粉",
+        "糊精",
+        "葡萄糖浆",
+        "谷物来源的精炼植物油"
+      ],
+      "herbs": [
+        {
+          "name": "浮小麦",
+          "kb": {
+            "status": "identity_catalog_only",
+            "canonicalName": "浮小麦",
+            "identityStatus": "source_backed_clinical_extension"
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [
+            "wheat"
+          ],
+          "basis": "小麦（Triticum aestivum）干瘪轻浮的颖果，即小麦本身。不论乳糜泻还是小麦 IgE 过敏都是直接暴露。",
+          "sourceUrl": "https://www.cmro.gov.hk/files/hkcmms/vol5/pdf_e/Tritici_Levis_Fructus_v5_e.pdf",
+          "sourceIds": [
+            "hkcmms-tritici-levis",
+            "shennongalpha-chp2020"
+          ]
+        },
+        {
+          "name": "小麦",
+          "kb": {
+            "status": "identity_catalog_only",
+            "canonicalName": "小麦",
+            "identityStatus": "source_backed_clinical_extension"
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [
+            "wheat"
+          ],
+          "basis": "甘麦大枣汤等方用的小麦（淮小麦），与浮小麦同一物种的颖果。",
+          "sourceUrl": "https://www.cmro.gov.hk/files/hkcmms/vol5/pdf_e/Tritici_Levis_Fructus_v5_e.pdf",
+          "sourceIds": [
+            "hkcmms-tritici-levis"
+          ],
+          "writtenVariants": [
+            {
+              "name": "淮小麦",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "麦芽",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "麦芽"
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [
+            "barley"
+          ],
+          "basis": "《中国药典》2020：麦芽是大麦果实发芽后干燥而成。大麦属 GB 含麸质谷物；大麦醇溶蛋白在发芽后仍存在，可诱发乳糜泻（Bahmani 2024）。病历只写小麦过敏时，按惯例降为 caution。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-0103",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "bahmani2024",
+            "gb7718-2025"
+          ],
+          "writtenVariants": [
+            {
+              "name": "炒麦芽",
+              "kb": {
+                "status": "kb_herb",
+                "canonicalName": "炒麦芽"
+              }
+            },
+            {
+              "name": "焦麦芽",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "生麦芽",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "麦芽粉",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "麦牙",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "大麦",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [
+            "barley"
+          ],
+          "basis": "《中国药典》2020：本品为禾本科植物大麦 Hordeum vulgare L. 的成熟果实。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-0102",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "gb7718-2025"
+          ]
+        },
+        {
+          "name": "神曲",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "神曲"
+          },
+          "relation": "same_source_material",
+          "action": "avoid",
+          "sameAsFood": [
+            "wheat"
+          ],
+          "basis": "神曲（建神曲/六神曲）以面粉、麦麸为主料（按1988年炮制规范的比例，92份中占75份），加辣蓼、青蒿、苍耳草、赤小豆、苦杏仁自然发酵而成。各省配方不一，但都以面粉或麦麸为基料。另含少量苦杏仁，见 tree_nut。",
+          "sourceUrl": "https://www.tiprpress.com/zcy/article/pdf/20231931",
+          "sourceIds": [
+            "shenqu-2023"
+          ],
+          "writtenVariants": [
+            {
+              "name": "六神曲",
+              "kb": {
+                "status": "identity_catalog_only",
+                "canonicalName": "六神曲",
+                "identityStatus": "source_backed_clinical_extension"
+              }
+            },
+            {
+              "name": "建神曲",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "焦神曲",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "炒神曲",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "麸炒六神曲",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "饴糖",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "饴糖由粳米、高粱、大麦等淀粉原料用麦芽（大麦蘖或小麦蘖）糖化熬制而成。残留麸质量没有数据。",
+          "sourceUrl": "https://www.tiprpress.com/zcy/article/pdf/20200336",
+          "sourceIds": [
+            "yitang-2020"
+          ],
+          "writtenVariants": [
+            {
+              "name": "胶饴",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "麸炒白术",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "白术",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：用蜜炙麸皮拌炒，炒后筛去麸皮（每100kg白术片用蜜炙麸皮10kg）。成品可能残留少量麦麸，同时涉及蜂蜜，见 bee_products。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-00qb",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "麸炒枳壳",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "枳壳",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020「照麸炒法（通则0213）炒至色变深」；麸炒每100kg用麸皮10～15kg，炒后筛去。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01fv",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "麸炒枳实",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "枳实",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "同麸炒法（通则0213）。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01g4",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "麸炒苍术",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "苍术",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "同麸炒法（通则0213）。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-011m",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "麸炒山药",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "山药",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "同麸炒法（通则0213）。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-009k",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "麸炒薏苡仁",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "同麸炒法（通则0213）。薏苡仁本身不含麸质，只有麸炒品才涉及。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-022v",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "麸炒芡实",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "芡实",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "同麸炒法（通则0213）。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-011s",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "煨肉豆蔻",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "肉豆蔻",
+            "identityStatus": "source_backed_clinical_extension"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "通则0213 煨法：用面皮包裹，或与麸皮同置（每100kg用麸皮50kg），煨后除去。",
+          "sourceUrl": "https://www.drugfuture.com/Pharmacopoeia/CP2015-4/31-32.pdf",
+          "sourceIds": [
+            "chp-0213"
+          ]
+        }
+      ],
+      "processedFormPattern": {
+        "prefixes": [
+          "麸炒"
+        ],
+        "action": "caution",
+        "basis": "通则0213 麸炒法，炒后筛去麸皮。凡以「麸炒」开头的处方名都按此处理，不必逐个列举（如麸炒僵蚕、麸炒椿皮、麸莱菔子）。",
+        "sourceIds": [
+          "chp-0213"
+        ]
+      },
+      "medicineIngredientTerms": [
+        {
+          "term": "面粉",
+          "action": "avoid",
+          "basis": "小麦制品"
+        },
+        {
+          "term": "熟面粉",
+          "action": "avoid",
+          "basis": "小麦制品"
+        },
+        {
+          "term": "寒食面",
+          "action": "avoid",
+          "basis": "传统陈小麦面粉"
+        },
+        {
+          "term": "麦麸",
+          "action": "avoid",
+          "basis": "小麦麸皮"
+        },
+        {
+          "term": "麸皮",
+          "action": "avoid",
+          "basis": "小麦麸皮"
+        },
+        {
+          "term": "麦饼",
+          "action": "avoid",
+          "basis": "小麦制品"
+        },
+        {
+          "term": "小麦胚芽粉",
+          "action": "avoid",
+          "basis": "小麦胚芽"
+        },
+        {
+          "term": "小麦胚油",
+          "action": "caution",
+          "basis": "GB 7718-2025 D.4 b) 豁免的是「谷物来源的精炼植物油」，成份里没写是否精炼。",
+          "sourceIds": [
+            "gb7718-2025"
+          ]
+        },
+        {
+          "term": "糊丸",
+          "action": "caution",
+          "basis": "糊丸的赋形剂可能是面糊（小麦），也可能是米糊，要看说明书。",
+          "verified": false
+        },
+        {
+          "term": "半夏曲",
+          "action": "caution",
+          "basis": "各地炮制规范多以面粉为辅料制曲。本次未抓取到具体规范原文。",
+          "verified": false
+        }
+      ],
+      "notes": "大麦、燕麦、黑麦对小麦 IgE 过敏者的交叉反应不在本表结论之内。病历只写「小麦过敏」时，按 sameAsFood 惯例，大麦来源的药（麦芽）降为 caution。",
+      "cautionFoodTerms": [
+        "燕麦",
+        "酱油"
+      ]
+    },
+    {
+      "id": "crustacean",
+      "labelZh": "甲壳类",
+      "gbCategory": true,
+      "gbCategoryName": "甲壳纲类动物及其制品(如虾、龙虾、蟹等)",
+      "gbClause": "GB 7718-2025 4.12.1 b)",
+      "sourceIds": [
+        "gb7718-2025"
+      ],
+      "genericRecordTerms": [
+        "甲壳类",
+        "甲壳纲",
+        "虾蟹",
+        "虾蟹类"
+      ],
+      "recordTerms": [
+        "甲壳类",
+        "甲壳纲",
+        "虾蟹",
+        "虾蟹类",
+        "鱼虾",
+        "鱼虾蟹",
+        "虾",
+        "对虾",
+        "基围虾",
+        "河虾",
+        "小龙虾",
+        "龙虾",
+        "虾皮",
+        "虾米",
+        "蟹",
+        "螃蟹",
+        "河蟹",
+        "大闸蟹",
+        "梭子蟹",
+        "皮皮虾",
+        "原肌球蛋白",
+        "Pen a 1"
+      ],
+      "specificMembers": {
+        "shrimp": [
+          "虾",
+          "对虾",
+          "基围虾",
+          "河虾",
+          "小龙虾",
+          "龙虾",
+          "虾皮",
+          "虾米",
+          "海米",
+          "皮皮虾",
+          "虾蛄"
+        ],
+        "crab": [
+          "蟹",
+          "螃蟹",
+          "河蟹",
+          "大闸蟹",
+          "梭子蟹",
+          "蟹黄"
+        ]
+      },
+      "recordTermNotes": {
+        "原肌球蛋白": "原肌球蛋白（tropomyosin）致敏也可能来自尘螨、蟑螂，单凭组分阳性只按 caution。",
+        "鱼虾": "同时映射到 fish。"
+      },
+      "intoleranceTerms": [],
+      "singleCharTerms": [
+        "虾",
+        "蟹"
+      ],
+      "foodTerms": [
+        "虾仁",
+        "虾皮",
+        "虾米",
+        "海米",
+        "开洋",
+        "基围虾",
+        "对虾",
+        "明虾",
+        "河虾",
+        "草虾",
+        "小龙虾",
+        "龙虾",
+        "皮皮虾",
+        "虾蛄",
+        "虾酱",
+        "虾油",
+        "虾饺",
+        "虾滑",
+        "虾片",
+        "虾丸",
+        "虾粥",
+        "虾仁粥",
+        "螃蟹",
+        "大闸蟹",
+        "河蟹",
+        "梭子蟹",
+        "青蟹",
+        "蟹黄",
+        "蟹肉",
+        "蟹膏",
+        "蟹粥",
+        "蟹棒",
+        "海鲜粥"
+      ],
+      "foodTermNotes": {
+        "蟹棒": "鱼糜制品，常加蟹味料或蟹肉，按 caution。",
+        "海鲜粥": "所用海鲜不确定，按 caution。"
+      },
+      "excludeTerms": [
+        "虾青素",
+        "虾蟆草",
+        "虾游脉",
+        "鱼翔脉",
+        "螃蟹甲",
+        "蟹足肿",
+        "蟹爪兰",
+        "蟹睛",
+        "甲壳素",
+        "壳聚糖",
+        "壳寡糖",
+        "蛤蟆"
+      ],
+      "excludeNotes": "虾游脉、鱼翔脉是十怪脉名；蟹足肿即瘢痕疙瘩；蟹睛是眼科病名；螃蟹甲、虾蟆草是植物药。甲壳素、壳寡糖属 GB 7718-2025 D.4 c) 豁免配料。",
+      "gbExemptTerms": [
+        "甲壳素",
+        "壳寡糖"
+      ],
+      "herbs": [],
+      "herbsNote": "《中国药典》2020 一部没有直接取自虾蟹的饮片。中成药成份里出现的虾、蟹见 medicineIngredientTerms。",
+      "crossReactiveHerbs": [
+        {
+          "name": "土鳖虫（䗪虫）",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "土鳖虫（䗪虫）"
+          },
+          "relation": "cross_reactive",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：鳖蠊科昆虫地鳖/冀地鳖的雌虫干燥体，属蜚蠊目（蟑螂类）。华南儿童研究中，蟑螂是虾致敏儿童的主要交叉反应来源，但交叉反应的主体不是原肌球蛋白（Yang 2018）。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-004g",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "yang2018"
+          ],
+          "crossReactsWith": [
+            "shrimp"
+          ]
+        },
+        {
+          "name": "僵蚕",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "僵蚕"
+          },
+          "relation": "cross_reactive",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：家蚕幼虫感染白僵菌致死的干燥体。15例蚕蛹过敏患者中8例对重组蚕原肌球蛋白有 IgE 反应，其中6例同时与虾、蟹有反应（Jeong 2017）。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-022i",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "jeong2017"
+          ],
+          "crossReactsWith": [
+            "shrimp",
+            "crab"
+          ]
+        },
+        {
+          "name": "九香虫",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "九香虫"
+          },
+          "relation": "cross_reactive",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：蝽科昆虫九香虫的干燥体。昆虫的原肌球蛋白、精氨酸激酶是泛过敏原，与甲壳类有交叉反应（de Gier 2018 综述）。没有九香虫本身的数据。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-002q",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "degier2018"
+          ]
+        },
+        {
+          "name": "虻虫",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "虻虫"
+          },
+          "relation": "cross_reactive",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "雌性虻科昆虫的干燥全体，按昆虫泛过敏原处理（de Gier 2018）。没有虻虫本身的数据。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-085d",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "degier2018"
+          ]
+        }
+      ],
+      "crossReactiveFoodTerms": {
+        "terms": [
+          "牡蛎",
+          "生蚝",
+          "扇贝",
+          "蛤蜊",
+          "鲍鱼",
+          "鱿鱼",
+          "墨鱼",
+          "章鱼",
+          "海螺",
+          "田螺",
+          "螺蛳"
+        ],
+        "action": "caution",
+        "basis": "软体动物原肌球蛋白（牡蛎 Cra g 1）与对虾原肌球蛋白存在部分交叉致敏（Nugraha 2022）。",
+        "sourceIds": [
+          "nugraha2022"
+        ]
+      },
+      "medicineIngredientTerms": [
+        {
+          "term": "虾仁",
+          "action": "avoid",
+          "basis": "虾本身"
+        },
+        {
+          "term": "螃蟹",
+          "action": "avoid",
+          "basis": "蟹本身"
+        },
+        {
+          "term": "海米",
+          "action": "avoid",
+          "basis": "干虾仁"
+        },
+        {
+          "term": "干海米",
+          "action": "avoid",
+          "basis": "干虾仁"
+        },
+        {
+          "term": "大海米",
+          "action": "avoid",
+          "basis": "干虾仁"
+        },
+        {
+          "term": "螃蟹壳",
+          "action": "caution",
+          "basis": "蟹壳主要成分为甲壳素和碳酸钙，可能残留蟹肉蛋白。没有数据。"
+        },
+        {
+          "term": "氨基葡萄糖",
+          "action": "caution",
+          "basis": "常从虾蟹壳甲壳素制得。双盲激发试验中，15例虾过敏者都能耐受每日1500mg虾源氨基葡萄糖（Villacis 2006），但有严重过敏史者仍宜谨慎。",
+          "sourceIds": [
+            "villacis2006"
+          ]
+        },
+        {
+          "term": "盐酸氨基葡萄糖",
+          "action": "caution",
+          "basis": "同上",
+          "sourceIds": [
+            "villacis2006"
+          ]
+        },
+        {
+          "term": "硫酸氨基葡萄糖",
+          "action": "caution",
+          "basis": "同上",
+          "sourceIds": [
+            "villacis2006"
+          ]
+        }
+      ],
+      "notes": "GB 类别只含甲壳纲（虾、蟹），不含软体动物。软体动物另立 mollusc 类，两者都归在 seafood 总类下。",
+      "cautionFoodTerms": [
+        "蟹棒",
+        "海鲜粥"
+      ]
+    },
+    {
+      "id": "fish",
+      "labelZh": "鱼类",
+      "gbCategory": true,
+      "gbCategoryName": "鱼类及其制品",
+      "gbClause": "GB 7718-2025 4.12.1 c)",
+      "sourceIds": [
+        "gb7718-2025"
+      ],
+      "genericRecordTerms": [
+        "鱼",
+        "鱼类",
+        "鱼肉",
+        "鱼虾",
+        "鱼虾蟹",
+        "河鱼",
+        "海鱼"
+      ],
+      "recordTerms": [
+        "鱼",
+        "鱼类",
+        "鱼肉",
+        "鱼虾",
+        "鱼虾蟹",
+        "河鱼",
+        "海鱼",
+        "鳕鱼",
+        "三文鱼",
+        "鲑鱼",
+        "金枪鱼",
+        "带鱼",
+        "黄鱼",
+        "鲈鱼",
+        "鲫鱼",
+        "鲤鱼",
+        "草鱼",
+        "鲢鱼",
+        "鳙鱼",
+        "鲳鱼",
+        "鲅鱼",
+        "鳗鱼",
+        "黄鳝",
+        "鳝鱼",
+        "泥鳅",
+        "黑鱼",
+        "乌鱼",
+        "鳢鱼",
+        "鱼子",
+        "鱼籽",
+        "小清蛋白",
+        "小白蛋白",
+        "parvalbumin"
+      ],
+      "specificMembersNote": "鱼类过敏多为广泛交叉（小白蛋白），但也有只对个别鱼种过敏的（Kuehn 2014）。病历只点名某一种鱼时，其他鱼和鱼来源药材按惯例降为 caution。",
+      "specificMembers": {
+        "named_species": [
+          "鳕鱼",
+          "三文鱼",
+          "鲑鱼",
+          "金枪鱼",
+          "带鱼",
+          "黄鱼",
+          "鲈鱼",
+          "鲫鱼",
+          "鲤鱼",
+          "草鱼",
+          "鲢鱼",
+          "鳙鱼",
+          "鲳鱼",
+          "鲅鱼",
+          "鳗鱼",
+          "黄鳝",
+          "鳝鱼",
+          "泥鳅",
+          "黑鱼",
+          "乌鱼",
+          "鳢鱼"
+        ]
+      },
+      "intoleranceTerms": [],
+      "singleCharTerms": [
+        "鱼"
+      ],
+      "foodTerms": [
+        "鱼肉",
+        "鱼汤",
+        "鱼片",
+        "鱼丸",
+        "鱼粥",
+        "鱼片粥",
+        "鱼头汤",
+        "鱼头豆腐汤",
+        "鲫鱼",
+        "鲫鱼汤",
+        "鲫鱼豆腐汤",
+        "鲤鱼",
+        "鲤鱼汤",
+        "黑鱼",
+        "黑鱼汤",
+        "乌鱼",
+        "乌鳢",
+        "生鱼",
+        "生鱼汤",
+        "鲈鱼",
+        "清蒸鱼",
+        "清蒸鲈鱼",
+        "草鱼",
+        "鲢鱼",
+        "鳙鱼",
+        "胖头鱼",
+        "鳜鱼",
+        "鲶鱼",
+        "黄鱼",
+        "黄花鱼",
+        "带鱼",
+        "鲳鱼",
+        "鳕鱼",
+        "三文鱼",
+        "金枪鱼",
+        "沙丁鱼",
+        "秋刀鱼",
+        "鲅鱼",
+        "鳀鱼",
+        "银鱼",
+        "小鱼干",
+        "鱼干",
+        "咸鱼",
+        "鳗鱼",
+        "黄鳝",
+        "鳝鱼",
+        "鳝鱼汤",
+        "泥鳅",
+        "泥鳅汤",
+        "鱼子",
+        "鱼籽",
+        "鱼露",
+        "鱼翅",
+        "鱼胶",
+        "花胶",
+        "鱼肚",
+        "鱼鳔",
+        "鱼肝油",
+        "深海鱼",
+        "深海鱼油"
+      ],
+      "foodTermNotes": {
+        "鱼胶": "鱼鳔或鱼皮的胶原制品，按 caution。",
+        "花胶": "同鱼胶，按 caution。",
+        "鱼肝油": "精炼鱼油属 GB D.4 c) 豁免，按 caution。",
+        "深海鱼油": "同鱼肝油，按 caution。"
+      },
+      "excludeTerms": [
+        "鱼腥草",
+        "鱼腥草素",
+        "鱼腥味",
+        "鱼际",
+        "鱼际穴",
+        "鱼翔脉",
+        "鱼尾纹",
+        "鱼鳞病",
+        "鱼鳞状",
+        "鱼石脂",
+        "小鱼仙草",
+        "青鱼胆草",
+        "红鱼眼",
+        "鱿鱼",
+        "墨鱼",
+        "章鱼",
+        "八爪鱼",
+        "鲍鱼",
+        "甲鱼",
+        "鳄鱼",
+        "娃娃鱼",
+        "大鲵",
+        "鲸鱼",
+        "木鱼",
+        "卡鱼刺",
+        "精炼鱼油",
+        "鱼明胶",
+        "鱼油来源DHA"
+      ],
+      "excludeNotes": "鱿鱼、墨鱼、章鱼、鲍鱼是软体动物（归 mollusc）；甲鱼是爬行动物；鱼际是穴位或解剖名；鱼石脂取自页岩油；鱼腥草是三白草科植物。精炼鱼油、鱼明胶、鱼油来源 DHA 属 GB D.4 c) 豁免配料。",
+      "gbExemptTerms": [
+        "精炼鱼油",
+        "鱼明胶",
+        "鱼油来源DHA"
+      ],
+      "herbs": [
+        {
+          "name": "海马",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "海马"
+          },
+          "relation": "same_source_material",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：海龙科动物线纹海马、刺海马、大海马、三斑海马或小海马（海蛆）的干燥体，即整条硬骨鱼。鱼类主要过敏原小白蛋白耐热（Taki 2023），且在多种鱼间广泛交叉（Kuehn 2014）。未检到海马本身的过敏数据。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01oh",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "taki2023",
+            "kuehn2014"
+          ],
+          "writtenVariants": [
+            {
+              "name": "海蛆",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "海马",
+                "identityStatus": "unique_source_backed"
+              }
+            }
+          ]
+        },
+        {
+          "name": "海龙",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "海龙"
+          },
+          "relation": "same_source_material",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：海龙科动物刁海龙、拟海龙或尖海龙的干燥体，属整条硬骨鱼。依据同海马，同样没有物种本身的数据。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01ot",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "taki2023",
+            "kuehn2014"
+          ]
+        },
+        {
+          "name": "鱼鳔",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "鱼鳔（含鱼鳔胶、鱼鳔珠）主要成分是胶原。GB 7718-2025 D.4 c) 豁免「鱼明胶」，但已有摄入含鱼明胶棉花糖后发生严重过敏反应的报告（Kuehn 2009），鱼胶原也被列为鱼类过敏原之一（Kuehn 2014）。",
+          "sourceUrl": "https://europepmc.org/article/MED/19178936",
+          "sourceIds": [
+            "gb7718-2025",
+            "kuehn2009",
+            "kuehn2014"
+          ],
+          "writtenVariants": [
+            {
+              "name": "鱼鳔胶",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "鱼鳔珠",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "青鱼胆",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "苦木",
+            "identityStatus": "unique_source_backed"
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "青鱼的胆囊，属鱼类组织，但不是肌肉。没有过敏数据。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-06qk",
+          "sourceIds": [
+            "shennongalpha-chp2020"
+          ]
+        }
+      ],
+      "medicineIngredientTerms": [
+        {
+          "term": "鲜鳢鱼",
+          "action": "avoid",
+          "basis": "鳢鱼（黑鱼）本身"
+        },
+        {
+          "term": "鳝鱼",
+          "action": "avoid",
+          "basis": "黄鳝本身"
+        },
+        {
+          "term": "鱼肝油",
+          "action": "caution",
+          "basis": "多为精炼鱼油（GB D.4 c) 豁免），但成份里没写是否精炼。",
+          "sourceIds": [
+            "gb7718-2025"
+          ]
+        },
+        {
+          "term": "每中含鱼肝油",
+          "action": "caution",
+          "basis": "同鱼肝油（成份原文写法）",
+          "sourceIds": [
+            "gb7718-2025"
+          ]
+        }
+      ],
+      "notes": "海马、海龙定为 avoid 的依据是「整条鱼」这一身份事实，不是物种特异的过敏研究。如需更保守的口径，可降为 caution。",
+      "cautionFoodTerms": [
+        "鱼胶",
+        "花胶",
+        "鱼肝油",
+        "深海鱼油"
+      ]
+    },
+    {
+      "id": "egg",
+      "labelZh": "蛋类",
+      "gbCategory": true,
+      "gbCategoryName": "蛋类及其制品",
+      "gbClause": "GB 7718-2025 4.12.1 d)",
+      "sourceIds": [
+        "gb7718-2025"
+      ],
+      "genericRecordTerms": [
+        "蛋",
+        "蛋类",
+        "禽蛋"
+      ],
+      "recordTerms": [
+        "蛋类",
+        "禽蛋",
+        "鸡蛋",
+        "鸭蛋",
+        "鹅蛋",
+        "鹌鹑蛋",
+        "鸽子蛋",
+        "蛋清",
+        "鸡蛋白",
+        "蛋黄",
+        "卵清蛋白",
+        "卵白蛋白",
+        "卵类黏蛋白",
+        "溶菌酶",
+        "Gal d 1",
+        "Gal d 2"
+      ],
+      "recordTermNotes": {
+        "蛋白": "单写「蛋白过敏」有歧义，可能指蛋白质类药物或牛奶蛋白，不映射。只有「鸡蛋白」「蛋清」或食物过敏原检测语境里的写法才映射到 egg。"
+      },
+      "intoleranceTerms": [],
+      "singleCharTerms": [
+        "蛋"
+      ],
+      "foodTerms": [
+        "鸡蛋",
+        "鸭蛋",
+        "鹅蛋",
+        "鹌鹑蛋",
+        "鸽子蛋",
+        "鸽蛋",
+        "咸鸭蛋",
+        "皮蛋",
+        "松花蛋",
+        "茶叶蛋",
+        "卤蛋",
+        "蛋黄",
+        "蛋清",
+        "鸡蛋清",
+        "鸡蛋白",
+        "蒸蛋",
+        "鸡蛋羹",
+        "蛋羹",
+        "水蒸蛋",
+        "蛋花汤",
+        "紫菜蛋花汤",
+        "荷包蛋",
+        "煮鸡蛋",
+        "水煮蛋",
+        "炒鸡蛋",
+        "番茄炒蛋",
+        "西红柿炒鸡蛋",
+        "蛋炒饭",
+        "蛋饼",
+        "鸡蛋饼",
+        "蛋汤",
+        "蛋挞",
+        "蛋卷",
+        "蛋糕",
+        "蛋黄酥",
+        "鸡蛋面",
+        "蛋黄酱",
+        "沙拉酱",
+        "红糖鸡蛋",
+        "红糖荷包蛋",
+        "甜酒冲蛋",
+        "醪糟蛋",
+        "醪糟鸡蛋",
+        "艾叶煮鸡蛋",
+        "益母草煮鸡蛋",
+        "当归煮鸡蛋",
+        "枸杞蒸蛋",
+        "牛奶炖蛋",
+        "蛋奶"
+      ],
+      "excludeTerms": [
+        "蛋白质",
+        "优质蛋白",
+        "植物蛋白",
+        "动物蛋白",
+        "高蛋白",
+        "低蛋白",
+        "蛋白粉",
+        "乳清蛋白",
+        "大豆蛋白",
+        "白蛋白",
+        "球蛋白",
+        "免疫球蛋白",
+        "血红蛋白",
+        "糖化血红蛋白",
+        "脂蛋白",
+        "载脂蛋白",
+        "C反应蛋白",
+        "蛋白尿",
+        "尿蛋白",
+        "蛋白酶",
+        "胃蛋白酶",
+        "水解蛋白",
+        "蛋白电泳",
+        "低蛋白血症",
+        "鸡蛋花",
+        "鸡蛋参",
+        "鸡内金",
+        "鸡蛋大",
+        "鸽蛋大",
+        "蛋黄果"
+      ],
+      "excludeNotes": "「蛋白」单用多指蛋白质，不能用作匹配词。鸡蛋花是夹竹桃科植物，鸡蛋参是党参属植物，鸡内金是鸡砂囊内壁，都不是蛋。体积比喻写法（如「核桃大小」「鸡蛋大」「黄豆大小」）只在病历或查体描述里出现，不是食物，匹配前先遮掉。",
+      "gbExemptTerms": [],
+      "herbs": [
+        {
+          "name": "鸡子黄",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "鸡蛋黄（Vitellus Ovi Galli），见黄连阿胶汤等方。",
+          "sourceUrl": "https://www.attiliodalberto.com/chinese-herbal-medicine/herbs/ji-zi-huang.php",
+          "sourceIds": [
+            "jizihuang"
+          ],
+          "writtenVariants": [
+            {
+              "name": "鸡蛋黄",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "鸡子白",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "鸡蛋清，见于中成药成份（如九味痔疮胶囊）。命名与鸡子黄（Vitellus Ovi Galli，鸡子即鸡蛋）一致，没有找到单独的「鸡子白」条目。",
+          "sourceUrl": "https://www.attiliodalberto.com/chinese-herbal-medicine/herbs/ji-zi-huang.php",
+          "sourceIds": [
+            "jizihuang",
+            "repo-patent-composition"
+          ],
+          "basisType": "definitional"
+        },
+        {
+          "name": "凤凰衣",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "鸡蛋壳内膜。没有检到蛋壳膜所含蛋类过敏原的文献，因为与蛋同源，按 caution。",
+          "sourceUrl": null,
+          "sourceIds": [],
+          "verified": false
+        },
+        {
+          "name": "鸡蛋壳",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "以碳酸钙为主，可能残留蛋清。没有数据。",
+          "sourceUrl": null,
+          "sourceIds": [],
+          "writtenVariants": [
+            {
+              "name": "鸡蛋壳粉",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "鸡子壳",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ],
+          "verified": false
+        },
+        {
+          "name": "蛋黄油",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "鸡蛋黄加热熬出的油，多外用。可能残留蛋黄蛋白，没有数据。",
+          "sourceUrl": null,
+          "sourceIds": [],
+          "writtenVariants": [
+            {
+              "name": "鸡蛋黄油",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ],
+          "verified": false
+        },
+        {
+          "name": "鸡胎",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "孵化中的鸡胚，属蛋内容物。没有数据。",
+          "sourceUrl": null,
+          "sourceIds": [],
+          "verified": false
+        }
+      ],
+      "medicineIngredientTerms": [
+        {
+          "term": "鸡蛋",
+          "action": "avoid",
+          "basis": "蛋本身"
+        },
+        {
+          "term": "蛋黄",
+          "action": "avoid",
+          "basis": "蛋本身"
+        },
+        {
+          "term": "溶菌酶",
+          "action": "avoid",
+          "basis": "药用溶菌酶通常取自鸡蛋清。有报告：含20mg盐酸溶菌酶的非处方含片使一名鸡蛋过敏儿童发生严重过敏反应，皮试和溶菌酶特异性 IgE 均阳性（Elbany 2024）。",
+          "sourceIds": [
+            "elbany2024"
+          ]
+        },
+        {
+          "term": "盐酸溶菌酶",
+          "action": "avoid",
+          "basis": "同上",
+          "sourceIds": [
+            "elbany2024"
+          ]
+        },
+        {
+          "term": "卵磷脂",
+          "action": "caution",
+          "basis": "可能来自蛋黄，也可能来自大豆，要看说明书。"
+        },
+        {
+          "term": "蛋黄卵磷脂",
+          "action": "avoid",
+          "basis": "蛋黄来源"
+        }
+      ],
+      "notes": "各种禽蛋之间交叉反应常见，病历只写「鸡蛋」时，其他禽蛋的食物词也按 avoid 处理（不适用 sameAsFood 降级）。",
+      "specificMembers": {},
+      "cautionFoodTerms": []
+    },
+    {
+      "id": "peanut",
+      "labelZh": "花生",
+      "gbCategory": true,
+      "gbCategoryName": "花生及其制品",
+      "gbClause": "GB 7718-2025 4.12.1 e)",
+      "sourceIds": [
+        "gb7718-2025"
+      ],
+      "genericRecordTerms": [
+        "花生"
+      ],
+      "recordTerms": [
+        "花生",
+        "落花生",
+        "花生米",
+        "花生仁",
+        "花生酱",
+        "Ara h 2"
+      ],
+      "intoleranceTerms": [],
+      "foodTerms": [
+        "花生",
+        "花生米",
+        "花生仁",
+        "落花生",
+        "长生果",
+        "花生酱",
+        "花生油",
+        "花生奶",
+        "花生露",
+        "花生粥",
+        "花生糖",
+        "花生碎",
+        "五香花生",
+        "鱼皮花生",
+        "花生红枣汤",
+        "红枣花生汤",
+        "花生猪蹄汤",
+        "猪蹄花生汤",
+        "花生炖猪蹄",
+        "花生衣",
+        "花生红衣",
+        "宫保鸡丁",
+        "沙茶酱"
+      ],
+      "foodTermNotes": {
+        "花生油": "精炼花生油属 GB D.4 a) 豁免，按 caution。",
+        "宫保鸡丁": "菜名，通常含花生米。",
+        "沙茶酱": "常含花生，按 caution。"
+      },
+      "excludeTerms": [
+        "花生四烯酸",
+        "花生酸",
+        "花生米大",
+        "花生米大小",
+        "精炼花生油"
+      ],
+      "excludeNotes": "体积比喻写法（如「核桃大小」「鸡蛋大」「黄豆大小」）只在病历或查体描述里出现，不是食物，匹配前先遮掉。",
+      "gbExemptTerms": [
+        "精炼花生油"
+      ],
+      "herbs": [
+        {
+          "name": "花生衣",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "same_source_material",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "落花生（Arachis hypogaea）的种皮，属 GB 类别「花生及其制品」。没有检到种皮过敏原含量的文献，所以 avoid 依据的是花生制品这一身份，不是种皮蛋白测定。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-0afd",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "gb7718-2025"
+          ],
+          "writtenVariants": [
+            {
+              "name": "花生红衣",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "落花生种皮的浸膏片",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "落花生",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "落花生种子，即花生。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-08r9",
+          "sourceIds": [
+            "shennongalpha-chp2020"
+          ]
+        }
+      ],
+      "medicineIngredientTerms": [
+        {
+          "term": "花生米",
+          "action": "avoid",
+          "basis": "花生本身"
+        },
+        {
+          "term": "花生油",
+          "action": "caution",
+          "basis": "精炼花生油属 GB D.4 a) 豁免，成份里没写是否精炼。",
+          "sourceIds": [
+            "gb7718-2025"
+          ]
+        }
+      ],
+      "notes": "花生是豆科植物，与树坚果分属不同类别，按 GB 分别处理。GB 19300 把花生归为「籽类」。",
+      "specificMembers": {},
+      "cautionFoodTerms": [
+        "花生油",
+        "沙茶酱"
+      ]
+    },
+    {
+      "id": "soy",
+      "labelZh": "大豆",
+      "gbCategory": true,
+      "gbCategoryName": "大豆及其制品",
+      "gbClause": "GB 7718-2025 4.12.1 f)",
+      "sourceIds": [
+        "gb7718-2025"
+      ],
+      "genericRecordTerms": [
+        "大豆",
+        "黄豆",
+        "豆制品"
+      ],
+      "recordTerms": [
+        "大豆",
+        "黄豆",
+        "黑豆",
+        "青豆",
+        "毛豆",
+        "豆制品",
+        "豆浆",
+        "豆腐",
+        "豆奶",
+        "Gly m 4"
+      ],
+      "recordTermNotes": {
+        "豆制品": "中文病历里的「豆制品过敏」一般指大豆制品。",
+        "青豆": "有时指青皮大豆，有时指豌豆，按 caution 映射。"
+      },
+      "intoleranceTerms": [],
+      "foodTerms": [
+        "大豆",
+        "黄豆",
+        "黑豆",
+        "黑豆汤",
+        "黑豆粥",
+        "毛豆",
+        "青豆",
+        "豆浆",
+        "黑豆浆",
+        "五谷豆浆",
+        "豆奶",
+        "豆腐",
+        "嫩豆腐",
+        "老豆腐",
+        "冻豆腐",
+        "油豆腐",
+        "豆腐脑",
+        "豆花",
+        "豆干",
+        "豆腐干",
+        "千张",
+        "百叶",
+        "腐竹",
+        "豆皮",
+        "豆腐皮",
+        "素鸡",
+        "腐乳",
+        "豆腐乳",
+        "臭豆腐",
+        "黄豆芽",
+        "纳豆",
+        "味噌",
+        "黄豆酱",
+        "大酱",
+        "豆豉",
+        "大豆油",
+        "豆油",
+        "大豆蛋白",
+        "大豆分离蛋白",
+        "黄豆炖猪蹄",
+        "黄豆猪蹄汤",
+        "黄豆排骨汤",
+        "鱼头豆腐汤",
+        "鲫鱼豆腐汤",
+        "酱油"
+      ],
+      "foodTermNotes": {
+        "大豆油": "精炼大豆油属 GB D.4 a) 豁免，按 caution。",
+        "豆油": "同大豆油，按 caution。",
+        "酱油": "大豆加小麦酿造，按 caution。",
+        "青豆": "可能指豌豆，按 caution。"
+      },
+      "excludeTerms": [
+        "土豆",
+        "绿豆",
+        "绿豆芽",
+        "绿豆汤",
+        "赤小豆",
+        "红豆",
+        "红小豆",
+        "赤豆",
+        "白扁豆",
+        "扁豆",
+        "刀豆",
+        "蚕豆",
+        "豌豆",
+        "鹰嘴豆",
+        "芸豆",
+        "四季豆",
+        "豆角",
+        "豇豆",
+        "荷兰豆",
+        "咖啡豆",
+        "可可豆",
+        "相思豆",
+        "豆蔻",
+        "白豆蔻",
+        "肉豆蔻",
+        "草豆蔻",
+        "红豆蔻",
+        "小豆蔻",
+        "山豆根",
+        "北豆根",
+        "巴豆",
+        "苦豆子",
+        "棘豆",
+        "豆豉姜",
+        "豆腐果",
+        "豆瓣酱",
+        "黄豆大",
+        "黄豆大小",
+        "豆状",
+        "精炼大豆油",
+        "大豆磷脂",
+        "豆磷脂",
+        "磷脂",
+        "维生素E",
+        "植物甾醇",
+        "黄原胶",
+        "大豆来源的肽"
+      ],
+      "excludeNotes": "赤小豆、绿豆、扁豆、刀豆等都是豆科其他属，不是大豆（大豆专指 Glycine max，含黄豆、黑豆、青豆）。豆蔻类是姜科或肉豆蔻科；豆豉姜是樟科植物；豆瓣酱以蚕豆为主（含小麦）。精炼大豆油、磷脂、维生素E、植物甾醇、黄原胶、大豆来源的肽属 GB D.4 a) 豁免。体积比喻写法（如「核桃大小」「鸡蛋大」「黄豆大小」）只在病历或查体描述里出现，不是食物，匹配前先遮掉。",
+      "gbExemptTerms": [
+        "精炼大豆油",
+        "大豆来源的肽",
+        "磷脂",
+        "维生素E",
+        "植物甾醇",
+        "植物甾醇酯",
+        "植物甾烷醇酯",
+        "黄原胶"
+      ],
+      "herbs": [
+        {
+          "name": "黑豆",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "黑豆"
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：豆科植物大豆 Glycine max (L.) Merr. 的干燥成熟种子（黑色种皮品种），即大豆。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-004s",
+          "sourceIds": [
+            "shennongalpha-chp2020"
+          ],
+          "writtenVariants": [
+            {
+              "name": "黑大豆",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "黑豆",
+                "identityStatus": "unique_source_backed"
+              }
+            }
+          ]
+        },
+        {
+          "name": "大豆",
+          "kb": {
+            "status": "identity_catalog_only",
+            "canonicalName": "大豆",
+            "identityStatus": "source_backed_clinical_extension"
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "大豆种子本身。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-004s",
+          "sourceIds": [
+            "shennongalpha-chp2020"
+          ],
+          "writtenVariants": [
+            {
+              "name": "黄豆",
+              "kb": {
+                "status": "identity_catalog_only",
+                "canonicalName": "大豆",
+                "identityStatus": "source_backed_clinical_extension"
+              }
+            }
+          ]
+        },
+        {
+          "name": "大豆黄卷",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "大豆黄卷"
+          },
+          "relation": "same_source_material",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：大豆成熟种子发芽后干燥的炮制加工品。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-004u",
+          "sourceIds": [
+            "shennongalpha-chp2020"
+          ],
+          "writtenVariants": [
+            {
+              "name": "大豆卷",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "大豆黄卷",
+                "identityStatus": "unique_source_backed"
+              }
+            },
+            {
+              "name": "清水豆卷",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "淡豆豉",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "淡豆豉"
+          },
+          "relation": "same_source_material",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：大豆干燥成熟种子（黑豆）的发酵加工品，仍是大豆制品。发酵可降低但不能消除大豆蛋白的免疫反应性；本表没有引用淡豆豉本身的测定。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-004v",
+          "sourceIds": [
+            "shennongalpha-chp2020"
+          ],
+          "writtenVariants": [
+            {
+              "name": "豆豉",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "淡豆豉",
+                "identityStatus": "unique_source_backed"
+              }
+            }
+          ]
+        },
+        {
+          "name": "制何首乌",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "制何首乌"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：用黑豆汁拌炖或拌蒸，「炖至汁液吸尽」，每100kg用黑豆10kg；但药典同时允许「清蒸」不用黑豆汁。所以某一批是否含大豆取决于工艺，按 caution。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-013s",
+          "sourceIds": [
+            "shennongalpha-chp2020"
+          ]
+        },
+        {
+          "name": "阿胶",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "阿胶"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020 制法：「浓缩（可分别加入适量的黄酒、冰糖及豆油）」，豆油是可选辅料。GB D.4 a) 只豁免精炼大豆油。风险低。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-015s",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "gb7718-2025"
+          ],
+          "writtenVariants": [
+            {
+              "name": "阿胶珠",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "阿胶",
+                "identityStatus": "unique_high_confidence"
+              }
+            }
+          ]
+        },
+        {
+          "name": "龟甲胶",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "龟甲胶"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020 制法：「浓缩（可加适量的黄酒、冰糖及豆油）」，依据同阿胶。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-014i",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "gb7718-2025"
+          ]
+        },
+        {
+          "name": "鹿角胶",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "鹿角胶"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020 制法：「浓缩（可加适量黄酒、冰糖和豆油）」，依据同阿胶。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01sm",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "gb7718-2025"
+          ]
+        }
+      ],
+      "medicineIngredientTerms": [
+        {
+          "term": "大豆油",
+          "action": "caution",
+          "basis": "精炼大豆油属 GB D.4 a) 豁免，成份里没写是否精炼。",
+          "sourceIds": [
+            "gb7718-2025"
+          ]
+        },
+        {
+          "term": "豆油",
+          "action": "caution",
+          "basis": "同上",
+          "sourceIds": [
+            "gb7718-2025"
+          ]
+        },
+        {
+          "term": "含黑豆馏油",
+          "action": "caution",
+          "basis": "黑豆干馏所得的馏油，外用。蛋白含量不明。",
+          "verified": false
+        },
+        {
+          "term": "野料豆",
+          "action": "caution",
+          "basis": "一般指野大豆（Glycine soja）种子，与大豆同属。本次未抓取到来源与过敏数据。",
+          "verified": false
+        }
+      ],
+      "notes": "黑豆在药典里就是大豆（Glycine max），一般人会以为「黑豆不是大豆」，这一点务必保留。",
+      "specificMembers": {},
+      "cautionFoodTerms": [
+        "大豆油",
+        "豆油",
+        "酱油",
+        "青豆"
+      ]
+    },
+    {
+      "id": "milk",
+      "labelZh": "乳及乳制品",
+      "gbCategory": true,
+      "gbCategoryName": "乳及乳制品(包括乳糖)",
+      "gbClause": "GB 7718-2025 4.12.1 g)",
+      "sourceIds": [
+        "gb7718-2025"
+      ],
+      "genericRecordTerms": [
+        "牛奶",
+        "乳制品",
+        "奶制品",
+        "牛奶蛋白",
+        "牛乳蛋白"
+      ],
+      "recordTerms": [
+        "牛奶",
+        "牛乳",
+        "奶",
+        "奶类",
+        "奶制品",
+        "乳制品",
+        "牛奶蛋白",
+        "牛乳蛋白",
+        "奶粉",
+        "配方奶",
+        "酸奶",
+        "奶酪",
+        "羊奶",
+        "酪蛋白",
+        "乳清蛋白",
+        "β-乳球蛋白",
+        "α-乳白蛋白",
+        "Bos d 4",
+        "Bos d 5",
+        "Bos d 8",
+        "乳糖"
+      ],
+      "recordTermNotes": {
+        "奶": "只在过敏史字段里、紧挨「过敏」时才映射。",
+        "乳糖": "「乳糖过敏」的说法常是乳糖不耐受的误写。有「不耐受」字样时按 intoleranceTerms 处理，否则按牛奶过敏处理（偏保守）。",
+        "羊奶": "羊奶与牛奶蛋白高度同源，存在交叉反应，不建议牛奶 IgE 过敏者用羊奶替代（Benjamin-van Aalst 2024）。"
+      },
+      "intoleranceTerms": [
+        "乳糖不耐受",
+        "乳糖不耐",
+        "乳糖酶缺乏"
+      ],
+      "intoleranceHandling": {
+        "foodAction": "caution",
+        "herbAction": "none",
+        "medicineAction": "none",
+        "basis": "乳糖不耐受与剂量相关，不是免疫反应：饮食上提示少量或改用低乳糖、无乳糖奶及酸奶即可；药片里的乳糖赋形剂剂量很小，不作处理。"
+      },
+      "singleCharTerms": [
+        "奶"
+      ],
+      "foodTerms": [
+        "牛奶",
+        "牛乳",
+        "鲜奶",
+        "鲜牛奶",
+        "纯牛奶",
+        "脱脂奶",
+        "低脂奶",
+        "奶粉",
+        "配方奶",
+        "酸奶",
+        "酸牛奶",
+        "奶酪",
+        "芝士",
+        "乳酪",
+        "黄油",
+        "奶油",
+        "炼乳",
+        "乳清",
+        "奶片",
+        "奶茶",
+        "奶昔",
+        "冰淇淋",
+        "雪糕",
+        "双皮奶",
+        "姜撞奶",
+        "奶豆腐",
+        "乳扇",
+        "奶皮子",
+        "酥油",
+        "酥油茶",
+        "羊奶",
+        "羊乳",
+        "马奶",
+        "驼奶",
+        "牛初乳",
+        "奶糖",
+        "牛奶燕麦粥",
+        "牛奶麦片",
+        "牛奶炖蛋",
+        "蛋奶",
+        "蛋糕"
+      ],
+      "foodTermNotes": {
+        "驼奶": "与牛奶的交叉反应较羊奶低，按 caution。",
+        "马奶": "按 caution。",
+        "蛋糕": "同时含蛋和小麦。"
+      },
+      "excludeTerms": [
+        "乳香",
+        "制乳香",
+        "炙乳香",
+        "醋乳香",
+        "乳腺",
+        "乳房",
+        "乳头",
+        "乳晕",
+        "乳汁",
+        "母乳",
+        "人乳",
+        "乳糜",
+        "乳糜尿",
+        "乳酸",
+        "乳酸钙",
+        "乳牙",
+        "乳鸽",
+        "乳猪",
+        "乳蛾",
+        "乳痈",
+        "乳癖",
+        "乳岩",
+        "乳核",
+        "乳衄",
+        "乳胀",
+        "缺乳",
+        "豆奶",
+        "豆乳",
+        "腐乳",
+        "豆腐乳",
+        "椰奶",
+        "椰乳",
+        "椰汁",
+        "杏仁奶",
+        "杏仁露",
+        "花生奶",
+        "核桃奶",
+        "核桃乳",
+        "燕麦奶",
+        "米乳",
+        "乳化",
+        "乳糖醇",
+        "羊乳根",
+        "羊奶奶叶",
+        "奶桃",
+        "牛奶树",
+        "牛奶根",
+        "乳鹿",
+        "钟乳石",
+        "石钟乳"
+      ],
+      "excludeNotes": "乳香是橄榄科树脂；乳蛾、乳痈、乳癖、乳岩、乳衄是中医病名；羊乳根是党参属植物；母乳、人乳（母乳喂养）不是牛奶过敏原。豆奶、杏仁露、椰奶等植物饮品分别归各自的类。乳糖醇属 GB D.4 d) 豁免。",
+      "gbExemptTerms": [
+        "乳糖醇"
+      ],
+      "herbs": [],
+      "herbsNote": "《中国药典》2020 一部没有乳类饮片。中成药成份里的乳制品见 medicineIngredientTerms。",
+      "medicineIngredientTerms": [
+        {
+          "term": "牛乳",
+          "action": "avoid",
+          "basis": "牛奶本身"
+        },
+        {
+          "term": "黄油",
+          "action": "avoid",
+          "basis": "乳制品"
+        },
+        {
+          "term": "酪蛋白",
+          "action": "avoid",
+          "basis": "牛奶蛋白"
+        },
+        {
+          "term": "乳清蛋白",
+          "action": "avoid",
+          "basis": "牛奶蛋白"
+        },
+        {
+          "term": "全脂奶粉",
+          "action": "avoid",
+          "basis": "乳制品"
+        },
+        {
+          "term": "脱脂奶粉",
+          "action": "avoid",
+          "basis": "乳制品"
+        },
+        {
+          "term": "酥油",
+          "action": "caution",
+          "basis": "澄清黄油，蛋白含量很低，但属乳制品。"
+        },
+        {
+          "term": "鲜酥油",
+          "action": "caution",
+          "basis": "同酥油"
+        },
+        {
+          "term": "乳糖",
+          "action": "caution",
+          "basis": "GB 7718-2025 把乳糖明确列入「乳及乳制品」。药用乳糖可能混有牛奶蛋白：吸入粉剂中检出 β-乳球蛋白并致牛奶过敏儿童严重过敏（Morikawa 2016），含乳糖干粉吸入剂对牛奶蛋白过敏者禁用（Robles 2014）；口服片剂里的乳糖风险较低。",
+          "sourceIds": [
+            "gb7718-2025",
+            "morikawa2016",
+            "robles2014",
+            "santoro2019"
+          ]
+        },
+        {
+          "term": "乳果糖",
+          "action": "caution",
+          "basis": "乳果糖糖浆中检出过牛奶蛋白（Santoro 2019 综述）。",
+          "sourceIds": [
+            "santoro2019"
+          ]
+        },
+        {
+          "term": "乳酸菌素",
+          "action": "caution",
+          "basis": "某些益生菌制剂中检出过牛奶蛋白（Santoro 2019）；乳酸菌素本身的生产原料未核实。",
+          "sourceIds": [
+            "santoro2019"
+          ],
+          "verified": false
+        }
+      ],
+      "notes": "intolerance 只调整食物建议，不影响药材和药品。",
+      "specificMembers": {},
+      "cautionFoodTerms": [
+        "驼奶",
+        "马奶"
+      ]
+    },
+    {
+      "id": "tree_nut",
+      "labelZh": "坚果",
+      "gbCategory": true,
+      "gbCategoryName": "坚果及其果仁类制品",
+      "gbClause": "GB 7718-2025 4.12.1 h)",
+      "sourceIds": [
+        "gb7718-2025",
+        "gb19300-nut-definition"
+      ],
+      "genericRecordTerms": [
+        "坚果",
+        "果仁",
+        "坚果类",
+        "树坚果"
+      ],
+      "recordTerms": [
+        "坚果",
+        "坚果类",
+        "果仁",
+        "树坚果",
+        "核桃",
+        "胡桃",
+        "山核桃",
+        "碧根果",
+        "杏仁",
+        "巴旦木",
+        "腰果",
+        "开心果",
+        "榛子",
+        "夏威夷果",
+        "澳洲坚果",
+        "松子",
+        "松仁",
+        "香榧",
+        "榧子",
+        "板栗",
+        "栗子",
+        "白果",
+        "银杏果"
+      ],
+      "specificMembers": {
+        "walnut": [
+          "核桃",
+          "核桃仁",
+          "胡桃",
+          "胡桃仁",
+          "山核桃",
+          "碧根果"
+        ],
+        "apricot_kernel": [
+          "杏仁",
+          "杏核",
+          "苦杏仁",
+          "甜杏仁",
+          "南杏",
+          "北杏",
+          "杏仁露",
+          "杏仁茶"
+        ],
+        "almond": [
+          "巴旦木",
+          "巴旦仁",
+          "巴旦杏仁",
+          "扁桃核",
+          "美国大杏仁"
+        ],
+        "cashew": [
+          "腰果"
+        ],
+        "pistachio": [
+          "开心果",
+          "阿月浑子"
+        ],
+        "hazelnut": [
+          "榛子",
+          "欧榛",
+          "川榛子"
+        ],
+        "macadamia": [
+          "夏威夷果",
+          "澳洲坚果"
+        ],
+        "pine_nut": [
+          "松子",
+          "松仁",
+          "松子仁",
+          "海松子"
+        ],
+        "torreya": [
+          "香榧",
+          "榧子"
+        ],
+        "chestnut": [
+          "板栗",
+          "栗子"
+        ],
+        "ginkgo": [
+          "白果",
+          "银杏果"
+        ]
+      },
+      "intoleranceTerms": [],
+      "foodTerms": [
+        "坚果",
+        "果仁",
+        "什锦坚果",
+        "五仁",
+        "核桃",
+        "核桃仁",
+        "胡桃",
+        "山核桃",
+        "碧根果",
+        "核桃粥",
+        "核桃仁粥",
+        "核桃乳",
+        "核桃粉",
+        "核桃酥",
+        "琥珀核桃",
+        "黑芝麻核桃粉",
+        "杏仁",
+        "甜杏仁",
+        "南杏",
+        "北杏",
+        "杏仁茶",
+        "杏仁露",
+        "杏仁粉",
+        "杏仁豆腐",
+        "杏仁粥",
+        "巴旦木",
+        "巴旦仁",
+        "美国大杏仁",
+        "腰果",
+        "开心果",
+        "榛子",
+        "夏威夷果",
+        "澳洲坚果",
+        "松子",
+        "松仁",
+        "松子仁",
+        "香榧",
+        "板栗",
+        "栗子",
+        "栗子粥",
+        "板栗烧鸡",
+        "板栗炖鸡",
+        "白果",
+        "银杏果",
+        "白果粥",
+        "腐竹白果粥"
+      ],
+      "foodTermNotes": {
+        "杏仁": "中文「杏仁」可能指杏核仁（南杏/北杏，GB 19300 列为坚果「杏核」），也可能指巴旦木/扁桃仁，两者都按坚果处理。",
+        "白果": "银杏种子，不在 GB 19300 的坚果列举中，生食有毒。按 caution 处理，病历点名白果时升为 avoid。",
+        "板栗": "GB 19300 列为坚果。"
+      },
+      "excludeTerms": [
+        "花生",
+        "莲子",
+        "葵花籽",
+        "瓜子",
+        "南瓜子",
+        "西瓜子",
+        "椰子",
+        "椰肉",
+        "椰奶",
+        "杏子",
+        "杏干",
+        "杏脯",
+        "杏鲍菇",
+        "杏叶防风",
+        "杏香兔耳风",
+        "银杏叶",
+        "银杏酮酯",
+        "榛蘑",
+        "马栗",
+        "松花粉",
+        "松节",
+        "核桃枝",
+        "核桃楸皮",
+        "核桃楸青果皮",
+        "板栗壳",
+        "桃仁",
+        "扁桃仁",
+        "毛桃仁",
+        "大桃仁",
+        "核桃大",
+        "核桃大小",
+        "栗子大",
+        "蚕豆大"
+      ],
+      "excludeNotes": "杏子、杏干是杏的果肉，不是杏仁；杏鲍菇、榛蘑是菌类；马栗是七叶树属，不是板栗；银杏叶是叶。椰子在 GB 问答中与芝麻并列为「其他可能的致敏物质」，不算坚果。桃仁是桃的种子，属 Prunus 但不是坚果，本表不列入。「扁桃仁」在中药里是桃仁的别名（新生化颗粒成份写作「桃仁、别名毛桃仁、扁桃仁、大桃仁」），不是巴旦木，所以排除；巴旦木的写法是巴旦木、巴旦仁、巴旦杏仁。体积比喻写法（如「核桃大小」「鸡蛋大」「黄豆大小」）只在病历或查体描述里出现，不是食物，匹配前先遮掉。",
+      "gbExemptTerms": [],
+      "herbs": [
+        {
+          "name": "核桃仁",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "核桃仁"
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [
+            "walnut"
+          ],
+          "basis": "《中国药典》2020：胡桃科植物胡桃 Juglans regia L. 的干燥成熟种子，即核桃仁（GB 19300 列为坚果）。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01ly",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "gb19300-nut-definition"
+          ],
+          "writtenVariants": [
+            {
+              "name": "胡桃仁",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "核桃仁",
+                "identityStatus": "unique_source_backed"
+              }
+            },
+            {
+              "name": "胡桃",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "核桃仁",
+                "identityStatus": "source_backed_clinical_extension"
+              }
+            }
+          ]
+        },
+        {
+          "name": "苦杏仁",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "苦杏仁"
+          },
+          "relation": "is_the_food",
+          "action": "caution",
+          "sameAsFood": [
+            "apricot_kernel"
+          ],
+          "basis": "《中国药典》2020：山杏、西伯利亚杏、东北杏或杏的干燥成熟种子，即杏核仁（GB 19300 列为坚果「杏核」）。杏核仁含 amandin，已被描述为杏仁过敏原（Long 2023）；杏的 LTP（Pru ar 3）与扁桃（巴旦木）LTP 序列一致性为 94%（Thermo f237）。但杏核仁与核桃、腰果等其他坚果的交叉数据不足，所以笼统写「坚果过敏」时按 caution，病历点名杏仁/杏核时升为 avoid。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-0175",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "gb19300-nut-definition",
+            "long2023",
+            "thermo-f237",
+            "alessi2025"
+          ],
+          "writtenVariants": [
+            {
+              "name": "杏仁",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "苦杏仁",
+                "identityStatus": "unique_high_confidence"
+              }
+            },
+            {
+              "name": "炒苦杏仁",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "苦杏仁",
+                "identityStatus": "source_backed_preparation_form"
+              }
+            },
+            {
+              "name": "燀苦杏仁",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "苦杏仁",
+                "identityStatus": "source_backed_clinical_extension"
+              }
+            },
+            {
+              "name": "苦杏仁霜",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "杏仁水",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "北杏仁",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "甜杏仁",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "is_the_food",
+          "action": "caution",
+          "sameAsFood": [
+            "apricot_kernel"
+          ],
+          "basis": "杏的甜味种仁（南杏），依据同苦杏仁。",
+          "sourceUrl": null,
+          "sourceIds": [
+            "gb19300-nut-definition",
+            "long2023"
+          ],
+          "writtenVariants": [
+            {
+              "name": "南杏仁",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ],
+          "verified": false
+        },
+        {
+          "name": "巴旦杏仁",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "is_the_food",
+          "action": "caution",
+          "sameAsFood": [
+            "almond"
+          ],
+          "basis": "扁桃（巴旦木，Prunus dulcis）的种子，GB 19300 列为坚果（巴旦木、扁桃核）。笼统写「坚果过敏」时按 caution，点名巴旦木时升为 avoid。维吾尔药成份写作「巴旦仁」。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-05yd",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "gb19300-nut-definition"
+          ],
+          "writtenVariants": [
+            {
+              "name": "巴旦仁",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "巴旦木",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "阿月浑子",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "is_the_food",
+          "action": "caution",
+          "sameAsFood": [
+            "pistachio"
+          ],
+          "basis": "阿月浑子即开心果（pistachio），见于维吾尔药成份。笼统写「坚果过敏」时按 caution，点名开心果时升为 avoid。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-065h",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "gb19300-nut-definition"
+          ]
+        },
+        {
+          "name": "欧榛",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "is_the_food",
+          "action": "caution",
+          "sameAsFood": [
+            "hazelnut"
+          ],
+          "basis": "榛子，见于中成药成份（欧榛、川榛子）。笼统写「坚果过敏」时按 caution，点名榛子时升为 avoid。",
+          "sourceUrl": null,
+          "sourceIds": [
+            "repo-patent-composition"
+          ],
+          "writtenVariants": [
+            {
+              "name": "川榛子",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ],
+          "verified": false
+        },
+        {
+          "name": "榧子",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "榧子"
+          },
+          "relation": "is_the_food",
+          "action": "caution",
+          "sameAsFood": [
+            "torreya"
+          ],
+          "basis": "《中国药典》2020：红豆杉科植物榧 Torreya grandis 的干燥成熟种子，即香榧（GB 19300 列为坚果）。没有检到香榧的过敏或交叉反应文献，笼统写「坚果过敏」时按 caution，点名香榧/榧子时升为 avoid。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-020y",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "gb19300-nut-definition"
+          ]
+        },
+        {
+          "name": "松子仁",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "is_the_food",
+          "action": "caution",
+          "sameAsFood": [
+            "pine_nut"
+          ],
+          "basis": "红松的种仁，即松子（GB 19300 列为坚果「松籽」）。松子与其他坚果的交叉性低，笼统写「坚果过敏」时按 caution，点名松子时升为 avoid。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-087x",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "gb19300-nut-definition"
+          ],
+          "writtenVariants": [
+            {
+              "name": "海松子",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "白皮松子",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "白皮松子仁",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "白果",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "白果"
+          },
+          "relation": "is_the_food",
+          "action": "caution",
+          "sameAsFood": [
+            "ginkgo"
+          ],
+          "basis": "《中国药典》2020：银杏科植物银杏的干燥成熟种子。不在 GB 19300 坚果列举中。银杏种子含致敏糖蛋白（Boateng 2022 综述），有接触后全身过敏的病例（Han 2016）。病历点名白果时升为 avoid。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-00qy",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "boateng2022",
+            "han2016"
+          ]
+        },
+        {
+          "name": "神曲",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "神曲"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "神曲配料中含少量苦杏仁（按1988年规范为92份中占1份），点名杏仁时也按 caution。",
+          "sourceUrl": "https://www.tiprpress.com/zcy/article/pdf/20231931",
+          "sourceIds": [
+            "shenqu-2023"
+          ],
+          "writtenVariants": [
+            {
+              "name": "六神曲",
+              "kb": {
+                "status": "identity_catalog_only",
+                "canonicalName": "六神曲",
+                "identityStatus": "source_backed_clinical_extension"
+              }
+            },
+            {
+              "name": "建神曲",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "焦神曲",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        }
+      ],
+      "medicineIngredientTerms": [
+        {
+          "term": "核桃",
+          "action": "avoid",
+          "basis": "核桃本身"
+        },
+        {
+          "term": "核桃油",
+          "action": "caution",
+          "basis": "坚果油，精炼程度不明"
+        },
+        {
+          "term": "杏仁油",
+          "action": "caution",
+          "basis": "坚果油，精炼程度不明"
+        }
+      ],
+      "notes": "惯例：笼统写「坚果过敏」时，只有核桃仁按 avoid（中国最常见的树坚果，且就是核桃），其余坚果来源药材按 caution；病历点名哪种坚果，就对那种升为 avoid。",
+      "cautionFoodTerms": [
+        "白果"
+      ]
+    },
+    {
+      "id": "mollusc",
+      "labelZh": "软体动物（贝类等）",
+      "gbCategory": false,
+      "gbCategoryName": null,
+      "genericRecordTerms": [
+        "贝类",
+        "贝壳类",
+        "软体动物",
+        "带壳海鲜",
+        "壳类海鲜"
+      ],
+      "recordTerms": [
+        "贝类",
+        "贝壳类",
+        "软体动物",
+        "带壳海鲜",
+        "壳类海鲜",
+        "牡蛎",
+        "生蚝",
+        "蚝",
+        "海蛎子",
+        "扇贝",
+        "干贝",
+        "瑶柱",
+        "蛤蜊",
+        "花蛤",
+        "文蛤",
+        "蚬子",
+        "蛏子",
+        "贻贝",
+        "青口",
+        "淡菜",
+        "鲍鱼",
+        "海螺",
+        "田螺",
+        "螺蛳",
+        "鱿鱼",
+        "墨鱼",
+        "乌贼",
+        "章鱼",
+        "八爪鱼",
+        "蜗牛"
+      ],
+      "recordTermNotes": {
+        "带壳海鲜": "可能包括虾蟹，同时映射到 crustacean。",
+        "壳类海鲜": "同上。"
+      },
+      "specificMembers": {
+        "bivalve": [
+          "牡蛎",
+          "生蚝",
+          "蚝",
+          "海蛎子",
+          "扇贝",
+          "干贝",
+          "瑶柱",
+          "蛤蜊",
+          "花蛤",
+          "文蛤",
+          "蚬子",
+          "蛏子",
+          "贻贝",
+          "青口",
+          "淡菜",
+          "蚌"
+        ],
+        "gastropod": [
+          "鲍鱼",
+          "海螺",
+          "田螺",
+          "螺蛳",
+          "蜗牛"
+        ],
+        "cephalopod": [
+          "鱿鱼",
+          "墨鱼",
+          "乌贼",
+          "章鱼",
+          "八爪鱼"
+        ]
+      },
+      "intoleranceTerms": [],
+      "singleCharTerms": [
+        "贝",
+        "螺",
+        "蚌"
+      ],
+      "foodTerms": [
+        "贝类",
+        "扇贝",
+        "干贝",
+        "瑶柱",
+        "蛤蜊",
+        "花蛤",
+        "文蛤",
+        "蚬子",
+        "蛏子",
+        "牡蛎",
+        "生蚝",
+        "蚝",
+        "蚝油",
+        "海蛎子",
+        "海蛎",
+        "贻贝",
+        "青口",
+        "淡菜",
+        "鲍鱼",
+        "海螺",
+        "田螺",
+        "螺蛳",
+        "螺蛳粉",
+        "螺肉",
+        "蚌肉",
+        "河蚌",
+        "鱿鱼",
+        "墨鱼",
+        "乌贼",
+        "章鱼",
+        "八爪鱼",
+        "蜗牛",
+        "牡蛎汤",
+        "蛤蜊汤",
+        "干贝粥",
+        "淡菜粥"
+      ],
+      "foodTermNotes": {
+        "蚝油": "牡蛎提取物调味料，按 caution。",
+        "牡蛎": "饮食建议里的「牡蛎」指牡蛎肉；处方里的「牡蛎」是贝壳，见 herbs。",
+        "螺蛳粉": "汤底用螺蛳熬制。"
+      },
+      "excludeTerms": [
+        "贝母",
+        "川贝",
+        "川贝母",
+        "浙贝母",
+        "平贝母",
+        "伊贝母",
+        "土贝母",
+        "湖北贝母",
+        "宝贝",
+        "雷贝拉唑",
+        "氯贝酸铝",
+        "非诺贝特",
+        "螺内酯",
+        "螺旋藻",
+        "螺旋",
+        "螺纹",
+        "鲍曼不动杆菌",
+        "蛤蚧",
+        "蛤蟆",
+        "蛤蟆油",
+        "海参",
+        "海蜇",
+        "海胆",
+        "牡丹",
+        "牡荆"
+      ],
+      "excludeNotes": "贝母类是百合科植物（处方常用）；蛤蚧是壁虎科爬行动物；蛤蟆油取自林蛙；雷贝拉唑、螺内酯、非诺贝特是西药；鲍曼不动杆菌是病原菌名；海参、海蜇、海胆分属棘皮动物和刺胞动物，不是软体动物（归 seafood 总类的 caution）。",
+      "gbExemptTerms": [],
+      "herbs": [
+        {
+          "name": "牡蛎",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "牡蛎"
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：牡蛎科动物长牡蛎、大连湾牡蛎或近江牡蛎的贝壳。贝壳以碳酸钙为主，含少量有机基质蛋白（珍珠/珍珠层基质蛋白综述，Pei 2021）。吸入贝壳粉尘可致职业性过敏性肺炎（Orriols 1997），但没有检到软体动物过敏者口服贝壳或煅贝壳后发生反应的文献。煅品经高温处理，蛋白残留更少。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-013a",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "pei2021",
+            "orriols1997"
+          ],
+          "writtenVariants": [
+            {
+              "name": "生牡蛎",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "牡蛎",
+                "identityStatus": "unique_high_confidence"
+              }
+            },
+            {
+              "name": "煅牡蛎",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "牡蛎",
+                "identityStatus": "unique_high_confidence"
+              }
+            },
+            {
+              "name": "牡蛎粉",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "石决明",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "石决明"
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：鲍科动物的贝壳，依据同牡蛎。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-00np",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "pei2021",
+            "orriols1997"
+          ],
+          "writtenVariants": [
+            {
+              "name": "煅石决明",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "石决明",
+                "identityStatus": "unique_source_backed"
+              }
+            }
+          ]
+        },
+        {
+          "name": "珍珠母",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "珍珠母"
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：三角帆蚌、褶纹冠蚌或马氏珍珠贝的贝壳，依据同牡蛎。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01cz",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "pei2021",
+            "orriols1997"
+          ],
+          "writtenVariants": [
+            {
+              "name": "煅珍珠母",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "珍珠",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "珍珠"
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：珍珠贝科及蚌科双壳类受刺激形成的珍珠，含珍珠基质蛋白（Pei 2021）。没有口服致敏数据。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01cn",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "pei2021"
+          ],
+          "writtenVariants": [
+            {
+              "name": "珍珠粉",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "珍珠",
+                "identityStatus": "source_backed_clinical_extension"
+              }
+            },
+            {
+              "name": "珍珠层粉",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "瓦楞子",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "瓦楞子"
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：蚶科动物毛蚶、泥蚶或魁蚶的贝壳，依据同牡蛎。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-00im",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "pei2021",
+            "orriols1997"
+          ],
+          "writtenVariants": [
+            {
+              "name": "煅瓦楞子",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "瓦楞子",
+                "identityStatus": "source_backed_preparation_form"
+              }
+            }
+          ]
+        },
+        {
+          "name": "蛤壳",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "蛤壳"
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：帘蛤科动物文蛤或青蛤的贝壳，依据同牡蛎。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01x4",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "pei2021",
+            "orriols1997"
+          ],
+          "writtenVariants": [
+            {
+              "name": "海蛤壳",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "蛤壳",
+                "identityStatus": "unique_source_backed"
+              }
+            },
+            {
+              "name": "煅蛤壳",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "蛤壳",
+                "identityStatus": "source_backed_preparation_form"
+              }
+            },
+            {
+              "name": "蛤壳粉",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "煅蛤壳粉",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "海蛤粉",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "蛤壳",
+                "identityStatus": "source_backed_clinical_extension"
+              }
+            },
+            {
+              "name": "文蛤",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "蛤壳",
+                "identityStatus": "source_backed_clinical_extension"
+              }
+            }
+          ]
+        },
+        {
+          "name": "海螵蛸",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "海螵蛸"
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：乌贼科动物无针乌贼或金乌贼的干燥内壳，依据同牡蛎。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01p2",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "pei2021",
+            "orriols1997"
+          ],
+          "writtenVariants": [
+            {
+              "name": "乌贼骨",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "海螵蛸",
+                "identityStatus": "unique_source_backed"
+              }
+            },
+            {
+              "name": "海螵蛸去壳",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "紫贝齿",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "宝贝科动物的贝壳，不在药典和本项目知识库中。依据同牡蛎。",
+          "sourceUrl": null,
+          "sourceIds": [],
+          "writtenVariants": [
+            {
+              "name": "贝齿",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ],
+          "verified": false
+        }
+      ],
+      "medicineIngredientTerms": [
+        {
+          "term": "蚌肉",
+          "action": "avoid",
+          "basis": "软体动物肉"
+        },
+        {
+          "term": "鲜河蚌肉",
+          "action": "avoid",
+          "basis": "软体动物肉"
+        },
+        {
+          "term": "鲜淡水珠蚌肉",
+          "action": "avoid",
+          "basis": "软体动物肉"
+        },
+        {
+          "term": "海螺",
+          "action": "avoid",
+          "basis": "软体动物（全体或肉）"
+        },
+        {
+          "term": "田螺壳",
+          "action": "caution",
+          "basis": "贝壳，依据同牡蛎"
+        },
+        {
+          "term": "白螺蛳壳",
+          "action": "caution",
+          "basis": "贝壳，依据同牡蛎"
+        },
+        {
+          "term": "螺厣",
+          "action": "caution",
+          "basis": "螺的厣（口盖）"
+        },
+        {
+          "term": "牡蛎碳酸钙",
+          "action": "caution",
+          "basis": "以牡蛎壳为原料的钙剂，依据同牡蛎"
+        }
+      ],
+      "notes": "贝壳类药材统一按 caution：有「同源」事实（药典来源），但没有口服致敏证据。软体动物原肌球蛋白与甲壳类有部分交叉（Nugraha 2022），见 crustacean.crossReactiveFoodTerms。",
+      "crossReactiveFoodTerms": {
+        "terms": [
+          "虾",
+          "蟹",
+          "龙虾",
+          "小龙虾"
+        ],
+        "action": "caution",
+        "basis": "原肌球蛋白在软体动物和甲壳类之间存在部分交叉致敏（Nugraha 2022）。",
+        "sourceIds": [
+          "nugraha2022"
+        ]
+      },
+      "cautionFoodTerms": [
+        "蚝油"
+      ]
+    },
+    {
+      "id": "seafood",
+      "labelZh": "海鲜（总称）",
+      "gbCategory": false,
+      "gbCategoryName": null,
+      "umbrellaOf": [
+        {
+          "classId": "crustacean",
+          "foodAction": "inherit",
+          "herbAction": "inherit"
+        },
+        {
+          "classId": "mollusc",
+          "foodAction": "inherit",
+          "herbAction": "inherit"
+        },
+        {
+          "classId": "fish",
+          "foodAction": "caution",
+          "herbAction": "caution"
+        }
+      ],
+      "umbrellaBasis": "中文病历里的「海鲜过敏」多指虾蟹贝类，是否包括鱼说不准，所以鱼类食物和鱼来源药材按 caution，不按 avoid。病历同时写了「鱼」（如「鱼虾过敏」）时，直接映射到 fish。",
+      "recordTerms": [
+        "海鲜",
+        "海产品",
+        "海产",
+        "海味",
+        "海货",
+        "水产品",
+        "河鲜",
+        "海鲜类"
+      ],
+      "recordTermNotes": {
+        "水产品": "包括淡水鱼虾，按三个成员类全部继承（fish 也是 inherit）。",
+        "河鲜": "按淡水鱼虾蟹处理，三类全部继承。"
+      },
+      "intoleranceTerms": [],
+      "foodTerms": [
+        "海鲜",
+        "海产品",
+        "海鲜粥",
+        "海鲜汤",
+        "海鲜面",
+        "海鲜饭",
+        "海鲜火锅",
+        "海参",
+        "海蜇",
+        "海胆"
+      ],
+      "foodTermNotes": {
+        "海参": "棘皮动物，不属任何成员类。对「海鲜过敏」按 caution。",
+        "海蜇": "刺胞动物，按 caution。",
+        "海胆": "棘皮动物，按 caution。"
+      },
+      "excludeTerms": [
+        "海马",
+        "海龙",
+        "海藻",
+        "海带",
+        "昆布",
+        "海风藤",
+        "海金沙",
+        "海桐皮",
+        "胖大海",
+        "海浮石",
+        "浮海石",
+        "海螵蛸",
+        "海松子",
+        "海狗肾"
+      ],
+      "excludeNotes": "这些带「海」字的名称，不按 seafood 总类的食物词匹配：海马、海龙、海螵蛸由各成员类的 herbs 处理；海藻、昆布、海带是藻类；海风藤、海金沙、海桐皮、胖大海是植物；海浮石是苔虫骨骼或浮石；海狗肾取自海豹。",
+      "gbExemptTerms": [],
+      "herbs": [],
+      "notes": "总类本身不带药材，药材动作从成员类继承，再按 umbrellaOf 封顶。",
+      "specificMembers": {},
+      "cautionFoodTerms": [
+        "海参",
+        "海蜇",
+        "海胆"
+      ]
+    },
+    {
+      "id": "sesame",
+      "labelZh": "芝麻",
+      "gbCategory": false,
+      "gbCategoryName": null,
+      "gbNote": "GB 7718-2025 问答三十八把「芝麻及其制品」列为八大类以外可自愿标示的致敏物质。",
+      "sourceIds": [
+        "gb7718-2025-qa"
+      ],
+      "genericRecordTerms": [
+        "芝麻"
+      ],
+      "recordTerms": [
+        "芝麻",
+        "黑芝麻",
+        "白芝麻",
+        "芝麻酱",
+        "麻酱",
+        "芝麻油",
+        "香油",
+        "Ses i 1"
+      ],
+      "intoleranceTerms": [],
+      "foodTerms": [
+        "芝麻",
+        "黑芝麻",
+        "白芝麻",
+        "芝麻酱",
+        "麻酱",
+        "芝麻糊",
+        "黑芝麻糊",
+        "芝麻油",
+        "香油",
+        "小磨香油",
+        "麻油",
+        "芝麻丸",
+        "黑芝麻丸",
+        "芝麻饼",
+        "麻团",
+        "芝麻汤圆",
+        "黑芝麻汤圆",
+        "芝麻盐",
+        "芝麻核桃粉",
+        "黑芝麻核桃粉",
+        "麻酱凉面"
+      ],
+      "foodTermNotes": {
+        "芝麻油": "芝麻油含有隐蔽的芝麻过敏原，有经激发试验证实的芝麻油过敏（Kanny 1996），所以饮食建议里按 avoid，不当作精炼油豁免。",
+        "麻油": "多指芝麻油，同上。"
+      },
+      "excludeTerms": [
+        "亚麻籽",
+        "亚麻子",
+        "亚麻籽油",
+        "胡麻",
+        "胡麻仁",
+        "胡麻油",
+        "火麻仁",
+        "麻仁",
+        "麻子仁",
+        "天麻",
+        "升麻",
+        "麻黄",
+        "蓖麻",
+        "蓖麻油",
+        "罗布麻",
+        "苘麻",
+        "山芝麻",
+        "芝麻菜",
+        "芝麻菜子",
+        "芝麻大",
+        "芝麻大小",
+        "麻木",
+        "麻疹",
+        "麻醉",
+        "麻痹",
+        "发麻",
+        "麻辣",
+        "花椒"
+      ],
+      "excludeNotes": "西北所说的「胡麻油」通常是亚麻籽油，本项目身份目录也把胡麻仁归为亚麻子，但古籍中「胡麻」可指芝麻，存在歧义；山芝麻是梧桐科山芝麻属植物；芝麻菜是十字花科植物；麻仁、火麻仁是大麻种子；蓖麻是大戟科。体积比喻写法（如「核桃大小」「鸡蛋大」「黄豆大小」）只在病历或查体描述里出现，不是食物，匹配前先遮掉。",
+      "gbExemptTerms": [],
+      "herbs": [
+        {
+          "name": "黑芝麻",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "黑芝麻"
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：脂麻科植物脂麻 Sesamum indicum L. 的干燥成熟种子，即芝麻。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01xe",
+          "sourceIds": [
+            "shennongalpha-chp2020"
+          ],
+          "writtenVariants": [
+            {
+              "name": "芝麻",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "黑芝麻",
+                "identityStatus": "source_backed_clinical_extension"
+              }
+            },
+            {
+              "name": "炒黑芝麻",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "黑芝麻",
+                "identityStatus": "source_backed_preparation_form"
+              }
+            },
+            {
+              "name": "脂麻",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        }
+      ],
+      "medicineIngredientTerms": [
+        {
+          "term": "麻油",
+          "action": "caution",
+          "basis": "多用于黑膏药或外用制剂的基质。芝麻油可含芝麻过敏原（Kanny 1996）；外用途径的风险低于口服。",
+          "sourceIds": [
+            "kanny1996"
+          ]
+        },
+        {
+          "term": "芝麻油",
+          "action": "caution",
+          "basis": "同上",
+          "sourceIds": [
+            "kanny1996"
+          ]
+        }
+      ],
+      "notes": "桑麻丸等中成药成份含黑芝麻，通过 herbs 匹配。",
+      "specificMembers": {},
+      "cautionFoodTerms": []
+    },
+    {
+      "id": "bee_products",
+      "labelZh": "蜂蜜及蜂产品",
+      "gbCategory": false,
+      "gbCategoryName": null,
+      "genericRecordTerms": [
+        "蜂产品",
+        "蜂类制品"
+      ],
+      "recordTerms": [
+        "蜂产品",
+        "蜂类制品",
+        "蜂蜜",
+        "蜜",
+        "蜂王浆",
+        "蜂皇浆",
+        "蜂胶",
+        "蜂花粉",
+        "蜂巢",
+        "蜂蜡"
+      ],
+      "recordTermNotes": {
+        "蜜": "单字只在「对蜜过敏」这类结构里映射。",
+        "蜂毒": "蜂蜇过敏（蜂毒过敏）是另一种致敏途径，不映射到本类，见 excludeTerms。"
+      },
+      "specificMembers": {
+        "honey": [
+          "蜂蜜",
+          "蜜",
+          "蜜糖"
+        ],
+        "royal_jelly": [
+          "蜂王浆",
+          "蜂皇浆"
+        ],
+        "propolis": [
+          "蜂胶"
+        ],
+        "bee_pollen": [
+          "蜂花粉",
+          "油菜蜂花粉",
+          "蜜源花粉"
+        ],
+        "beeswax": [
+          "蜂蜡"
+        ],
+        "bee_brood": [
+          "雄蜂蛹",
+          "蜂皇幼虫"
+        ]
+      },
+      "intoleranceTerms": [],
+      "singleCharTerms": [
+        "蜜"
+      ],
+      "foodTerms": [
+        "蜂蜜",
+        "蜂蜜水",
+        "蜜糖",
+        "土蜂蜜",
+        "槐花蜜",
+        "枣花蜜",
+        "椴树蜜",
+        "枇杷蜜",
+        "麦卢卡蜂蜜",
+        "蜂巢蜜",
+        "蜂蜜柚子茶",
+        "蜂蜜柠檬水",
+        "蜂蜜蒸梨",
+        "冰糖蜂蜜",
+        "蜂蜜调服",
+        "蜂王浆",
+        "蜂皇浆",
+        "蜂胶",
+        "蜂花粉",
+        "蜂巢"
+      ],
+      "excludeTerms": [
+        "蜂房",
+        "露蜂房",
+        "蜂窝织炎",
+        "蜂窝组织炎",
+        "蜂窝状",
+        "蜂窝草",
+        "蜂蜇",
+        "蜜蜂蜇伤",
+        "蜂毒",
+        "蜜环菌",
+        "天麻蜜环菌",
+        "蜜桃",
+        "水蜜桃",
+        "蜜柚",
+        "蜜瓜",
+        "哈密瓜",
+        "甜蜜素",
+        "蜜饯",
+        "蜜枣",
+        "蜜桶花",
+        "蜜蒙花",
+        "密蒙花"
+      ],
+      "excludeNotes": "蜂房是胡蜂科（马蜂）的巢，不是蜜蜂产品；蜜环菌是真菌；蜜桃、蜜柚、蜜瓜是水果品种名；蜂窝织炎是感染病名；蜜饯、蜜枣主要用糖腌渍；蜜蒙花即密蒙花，是植物。",
+      "gbExemptTerms": [],
+      "herbs": [
+        {
+          "name": "蜂蜜",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "蜂蜜"
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [
+            "honey"
+          ],
+          "basis": "《中国药典》2020：中华蜜蜂或意大利蜂所酿的蜜。蜂蜜中有蜜蜂来源蛋白 MRJP1 可结合 IgE（Hayashi 2011），也有花粉来源的过敏（Di Costanzo 2021，见蜂产品综述 Matuszewska-Mach 2025）。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-020b",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "hayashi2011",
+            "matuszewska2025"
+          ]
+        },
+        {
+          "name": "蜂王浆",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "same_source_material",
+          "action": "avoid",
+          "sameAsFood": [
+            "royal_jelly"
+          ],
+          "basis": "蜜蜂分泌物，主要过敏原为 MRJP 家族蛋白；国内有蜂王浆致严重过敏、并与蜂巢交叉的病例（Li 2021）。病历只写「蜂蜜过敏」时，按惯例降为 caution。",
+          "sourceUrl": "https://europepmc.org/article/MED/35221696",
+          "sourceIds": [
+            "li2021",
+            "hayashi2011"
+          ],
+          "writtenVariants": [
+            {
+              "name": "蜂皇浆",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "鲜蜂王浆",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "蜂王浆冻干粉",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "蜂皇浆冻干粉",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "内含蜂王浆",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "蜂胶",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "蜂胶"
+          },
+          "relation": "same_source_material",
+          "action": "avoid",
+          "sameAsFood": [
+            "propolis"
+          ],
+          "basis": "《中国药典》2020：意大利蜂工蜂采集的植物树脂与其上颚腺、蜡腺等分泌物的混合物。蜂胶可致过敏性接触性皮炎，蜂蜡可能混有蜂胶，两者偶有共同反应（de Groot 2026）。病历只写「蜂蜜过敏」时降为 caution。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-0200",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "degroot2026",
+            "matuszewska2025"
+          ],
+          "writtenVariants": [
+            {
+              "name": "蜂胶膏",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "蜂蜡",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "蜂蜡"
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [
+            "beeswax"
+          ],
+          "basis": "《中国药典》2020：蜜蜂分泌的蜡。蜂蜡可能混有蜂胶，蜂胶致敏者偶有共同反应（de Groot 2026）。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-0208",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "degroot2026"
+          ]
+        },
+        {
+          "name": "蜂花粉",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "same_source_material",
+          "action": "avoid",
+          "sameAsFood": [
+            "bee_pollen"
+          ],
+          "basis": "蜜蜂采集的花粉团，有严重过敏报告（见 Matuszewska-Mach 2025 综述）。病历只写「蜂蜜过敏」时降为 caution。",
+          "sourceUrl": "https://europepmc.org/article/MED/41465502",
+          "sourceIds": [
+            "matuszewska2025"
+          ],
+          "writtenVariants": [
+            {
+              "name": "油菜蜂花粉",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "蜜源花粉",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "雄蜂蛹",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [
+            "bee_brood"
+          ],
+          "basis": "蜜蜂蛹，属蜂产品中的蜂子（bee brood，见 Matuszewska-Mach 2025）。",
+          "sourceUrl": "https://europepmc.org/article/MED/41465502",
+          "sourceIds": [
+            "matuszewska2025"
+          ],
+          "writtenVariants": [
+            {
+              "name": "蜂皇幼虫冻干粉",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "炙甘草",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "炙甘草"
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：甘草片「照蜜炙法（通则0213）」炒制。通则0213 默认每100kg用炼蜜25kg，蜂蜜被饮片吸收，不像麸皮那样筛去，属实际摄入。替代品是生甘草。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-00n2",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ],
+          "writtenVariants": [
+            {
+              "name": "蜜甘草",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "甘草蜜炙",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "蜜炙甘草",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "甘草",
+                "identityStatus": "source_backed_clinical_extension"
+              }
+            }
+          ]
+        },
+        {
+          "name": "炙黄芪",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "炙黄芪"
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020「照蜜炙法（通则0213）炒至不粘手」，依据同炙甘草。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01q8",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ],
+          "writtenVariants": [
+            {
+              "name": "蜜黄芪",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "炙红芪",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "炙红芪"
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020「照蜜炙法（通则0213）炒至不粘手」，依据同炙甘草。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-00zp",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "蜜麻黄",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：照蜜炙法，每100kg麻黄用炼蜜20kg。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-000e",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ],
+          "writtenVariants": [
+            {
+              "name": "炙麻黄",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "蜜百部",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "百部",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：照蜜炙法，每100kg百部用炼蜜12.5kg。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-00vi",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ],
+          "writtenVariants": [
+            {
+              "name": "炙百部",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "蜜枇杷叶",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "枇杷叶",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：照蜜炙法，每100kg枇杷叶丝用炼蜜20kg。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-017r",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ],
+          "writtenVariants": [
+            {
+              "name": "炙枇杷叶",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "蜜款冬花",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020「照蜜炙法（通则0213）用蜜水炒至不粘手」。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01v2",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ],
+          "writtenVariants": [
+            {
+              "name": "炙款冬花",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "蜜桑白皮",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "桑白皮",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020「照蜜炙法（通则0213）炒至不粘手」。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01pk",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ],
+          "writtenVariants": [
+            {
+              "name": "炙桑白皮",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "蜜旋覆花",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020「照蜜炙法（通则0213）炒至不粘手」。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01a5",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "蜜白前",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "白前",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020「照蜜炙法（通则0213）炒至不粘手」。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-00rn",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "蜜前胡",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020「照蜜炙法（通则0213）炒至不粘手」。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01jr",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "蜜槐角",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：照蜜炙法，每100kg槐角用炼蜜5kg。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01zl",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "蜜百合",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：照蜜炙法，每100kg百合用炼蜜5kg。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-00v6",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ],
+          "writtenVariants": [
+            {
+              "name": "炙百合",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "蜜罂粟壳",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "罂粟壳",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020「照蜜炙法（通则0213）炒至放凉后不粘手」。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-021s",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "chp-0213"
+          ]
+        },
+        {
+          "name": "蜜紫菀",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "紫菀",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "蜜炙紫菀（通则0213 蜜炙法）。神农Alpha 未检到该条目，本项目身份目录归为紫菀的炮制品。",
+          "sourceUrl": "https://www.drugfuture.com/Pharmacopoeia/CP2015-4/31-32.pdf",
+          "sourceIds": [
+            "chp-0213"
+          ],
+          "writtenVariants": [
+            {
+              "name": "炙紫菀",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "麸炒白术",
+          "kb": {
+            "status": "kb_herb_via_identity",
+            "canonicalName": "白术",
+            "identityStatus": "source_backed_preparation_form"
+          },
+          "relation": "processed_with",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：用蜜炙麸皮拌炒，炒后筛去。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-00qb",
+          "sourceIds": [
+            "shennongalpha-chp2020"
+          ]
+        },
+        {
+          "name": "蜜丸",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "蜜丸"
+          },
+          "relation": "processed_with",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2015年版四部 通则0108 丸剂：「蜜丸系指饮片细粉以炼蜜为黏合剂制成的丸剂」，水蜜丸「以炼蜜和水为黏合剂」，蜂蜜属实际摄入。本项目知识库把「蜜丸」作为条目名。药品名称或剂型含「大蜜丸」「小蜜丸」「水蜜丸」的都按此处理。",
+          "sourceUrl": "https://www.drugfuture.com/Pharmacopoeia/CP2015-4/10-11.pdf",
+          "sourceIds": [
+            "chp-0108"
+          ],
+          "writtenVariants": [
+            {
+              "name": "大蜜丸",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "小蜜丸",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "水蜜丸",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ]
+        }
+      ],
+      "processedFormPattern": {
+        "prefixes": [
+          "蜜",
+          "蜜炙"
+        ],
+        "exceptPrefixedNames": [
+          "蜜蒙花",
+          "蜜环菌",
+          "蜜桶花"
+        ],
+        "alsoHoneyFried": [
+          "炙甘草",
+          "炙黄芪",
+          "炙红芪",
+          "炙麻黄",
+          "炙百部",
+          "炙枇杷叶",
+          "炙款冬花",
+          "炙桑白皮",
+          "炙紫菀",
+          "炙百合"
+        ],
+        "notHoneyFried": [
+          "炙淫羊藿",
+          "炙乳香",
+          "炙没药",
+          "炙鳖甲",
+          "炙龟甲"
+        ],
+        "action": "avoid",
+        "basis": "以「蜜」开头的饮片名都是蜜炙品，按 avoid。「炙」本身不等于蜜炙：《中国药典》2020 的炙淫羊藿用羊脂油（每100kg用20kg），炙乳香、炙没药是醋炙，鳖甲、龟甲是醋淬。只有 alsoHoneyFried 里列出的「炙X」才按蜜炙处理。",
+        "sourceIds": [
+          "chp-0213",
+          "shennongalpha-chp2020"
+        ],
+        "verificationNote": "notHoneyFried 中只有炙淫羊藿经药典条目逐字核对（羊脂油）；其余几味按通常的醋炙、砂烫或蒸制写法列出，未逐条核对。"
+      },
+      "medicineIngredientTerms": [
+        {
+          "term": "蜂蜜",
+          "action": "avoid",
+          "basis": "蜂蜜本身"
+        },
+        {
+          "term": "峰蜜",
+          "action": "avoid",
+          "basis": "「蜂蜜」的错写"
+        },
+        {
+          "term": "蜂蜜干膏",
+          "action": "avoid",
+          "basis": "蜂蜜制品"
+        },
+        {
+          "term": "辅为蜂蜜",
+          "action": "avoid",
+          "basis": "蜂蜜作辅料"
+        },
+        {
+          "term": "辅科为蜂蜜",
+          "action": "avoid",
+          "basis": "蜂蜜作辅料"
+        },
+        {
+          "term": "炼蜜",
+          "action": "avoid",
+          "basis": "蜂蜜加热炼制品"
+        },
+        {
+          "term": "蜜炼",
+          "action": "avoid",
+          "basis": "如蜜炼川贝枇杷膏，以蜂蜜熬膏"
+        }
+      ],
+      "notes": "按 sameAsFood 惯例：写「蜂产品过敏」时，蜂蜜、蜂王浆、蜂胶、蜂花粉全部 avoid；只写「蜂蜜过敏」时，蜂蜜和蜜炙品 avoid，其他蜂产品降为 caution。蜂毒（蜂蜇）过敏另属一类，不映射到本类。",
+      "cautionFoodTerms": []
+    },
+    {
+      "id": "mango",
+      "labelZh": "芒果",
+      "gbCategory": false,
+      "gbCategoryName": null,
+      "genericRecordTerms": [
+        "芒果",
+        "杧果"
+      ],
+      "recordTerms": [
+        "芒果",
+        "杧果",
+        "芒果皮炎"
+      ],
+      "intoleranceTerms": [],
+      "foodTerms": [
+        "芒果",
+        "杧果",
+        "青芒",
+        "芒果干",
+        "芒果汁",
+        "芒果布丁",
+        "芒果西米露",
+        "杨枝甘露",
+        "芒果冰沙",
+        "芒果班戟",
+        "芒果千层"
+      ],
+      "excludeTerms": [
+        "芒硝",
+        "玄明粉",
+        "芒刺",
+        "舌生芒刺",
+        "芒种",
+        "光芒"
+      ],
+      "excludeNotes": "芒硝是矿物药；「舌生芒刺」是舌诊术语；芒种是节气。",
+      "gbExemptTerms": [],
+      "herbs": [
+        {
+          "name": "芒果核",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "中成药成份（如「补芒果核」）里的芒果种核。芒果过敏的蛋白或接触致敏物（间苯二酚类）在种核中的含量不明。",
+          "sourceUrl": null,
+          "sourceIds": [
+            "repo-patent-composition"
+          ],
+          "writtenVariants": [
+            {
+              "name": "补芒果核",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ],
+          "verified": false
+        },
+        {
+          "name": "芒果叶",
+          "kb": {
+            "status": "not_in_kb",
+            "canonicalName": null
+          },
+          "relation": "same_source_material",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "中成药成份里的芒果叶，没有过敏数据。",
+          "sourceUrl": null,
+          "sourceIds": [
+            "repo-patent-composition"
+          ],
+          "verified": false
+        }
+      ],
+      "crossReactiveHerbs": [
+        {
+          "name": "干漆",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "干漆"
+          },
+          "relation": "cross_reactive",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：漆树科漆树树脂加工后的干燥品，【注意】「孕妇及对漆过敏者禁用」。芒果皮炎的致敏物（mangol，即十七碳烯基间苯二酚）与漆酚存在交叉致敏（Oka 2004）。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-003q",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "oka2004"
+          ],
+          "crossReactsWith": [
+            "lacquer_urushiol"
+          ]
+        }
+      ],
+      "medicineIngredientTerms": [],
+      "notes": "芒果过敏有两种：口服的 IgE 介导反应（口腔过敏综合征等），以及接触芒果皮、汁引起的皮炎（与漆酚交叉）。腰果、开心果同属漆树科，本表不列入它们与芒果的交叉。",
+      "specificMembers": {},
+      "cautionFoodTerms": []
+    },
+    {
+      "id": "lacquer_urushiol",
+      "labelZh": "漆（漆树/生漆）",
+      "gbCategory": false,
+      "gbCategoryName": null,
+      "chpNote": "《中国药典》2020 干漆【注意】：「孕妇及对漆过敏者禁用」。本项目知识库已收这句原文，只用于妊娠规则。",
+      "sourceIds": [
+        "shennongalpha-chp2020"
+      ],
+      "genericRecordTerms": [
+        "漆",
+        "生漆",
+        "漆树"
+      ],
+      "recordTerms": [
+        "漆",
+        "生漆",
+        "大漆",
+        "漆树",
+        "漆疮",
+        "漆性皮炎",
+        "漆酚"
+      ],
+      "recordTermNotes": {
+        "漆": "单字只在「漆过敏」「对漆过敏」结构里映射；「油漆过敏」指化工涂料，不映射。"
+      },
+      "intoleranceTerms": [],
+      "singleCharTerms": [
+        "漆"
+      ],
+      "foodTerms": [
+        "漆油",
+        "漆油鸡",
+        "漆树芽",
+        "漆芽"
+      ],
+      "foodTermNotes": {
+        "漆油": "云南等地用漆树籽榨的食用油。"
+      },
+      "excludeTerms": [
+        "油漆",
+        "喷漆",
+        "漆黑",
+        "漆面",
+        "清漆"
+      ],
+      "gbExemptTerms": [],
+      "herbs": [
+        {
+          "name": "干漆",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "干漆"
+          },
+          "relation": "is_the_food",
+          "action": "avoid",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：漆树科植物漆树 Toxicodendron vernicifluum 的树脂经加工后的干燥品。【注意】「孕妇及对漆过敏者禁用」。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-003q",
+          "sourceIds": [
+            "shennongalpha-chp2020"
+          ]
+        }
+      ],
+      "crossReactiveFoodTerms": {
+        "terms": [
+          "芒果",
+          "杧果"
+        ],
+        "action": "caution",
+        "basis": "漆酚致敏者对芒果皮炎致敏物（mangol）有交叉反应（Oka 2004）。",
+        "sourceIds": [
+          "oka2004"
+        ]
+      },
+      "medicineIngredientTerms": [],
+      "notes": "这一类不在题目给的例子里，是因为药典干漆条目明文规定「对漆过敏者禁用」才加的。如不需要，可以删掉。",
+      "specificMembers": {},
+      "cautionFoodTerms": []
+    },
+    {
+      "id": "buckwheat",
+      "labelZh": "荞麦",
+      "gbCategory": false,
+      "gbCategoryName": null,
+      "genericRecordTerms": [
+        "荞麦"
+      ],
+      "recordTerms": [
+        "荞麦",
+        "苦荞",
+        "甜荞",
+        "荞麦皮",
+        "Fag e 2"
+      ],
+      "intoleranceTerms": [],
+      "foodTerms": [
+        "荞麦",
+        "荞麦面",
+        "荞面",
+        "苦荞",
+        "苦荞茶",
+        "荞麦茶",
+        "荞麦米",
+        "荞麦饭",
+        "荞麦馒头",
+        "荞麦粥",
+        "荞麦皮枕"
+      ],
+      "foodTermNotes": {
+        "荞麦皮枕": "荞麦壳枕头可经吸入致敏（Norbäck 2021），睡眠类调护建议里会出现。"
+      },
+      "excludeTerms": [
+        "瞿麦",
+        "麦冬"
+      ],
+      "excludeNotes": "金荞麦是药材名，比食物词「荞麦」长，按最长优先由 crossReactiveHerbs 处理。",
+      "gbExemptTerms": [],
+      "herbs": [],
+      "crossReactiveHerbs": [
+        {
+          "name": "金荞麦",
+          "kb": {
+            "status": "kb_herb",
+            "canonicalName": "金荞麦"
+          },
+          "relation": "cross_reactive",
+          "action": "caution",
+          "sameAsFood": [],
+          "basis": "《中国药典》2020：蓼科植物金荞麦 Fagopyrum dibotrys 的干燥根茎，与荞麦（F. esculentum / F. tataricum）同属。荞麦的主要过敏原是种子贮藏蛋白（Fag e 1/2/3，Norbäck 2021），而金荞麦入药的是根茎，没有交叉反应数据，按 caution 只是因为同属。",
+          "sourceUrl": "https://shennongalpha.westlake.edu.cn/knowledge/nmm-01a6",
+          "sourceIds": [
+            "shennongalpha-chp2020",
+            "norback2021"
+          ],
+          "writtenVariants": [
+            {
+              "name": "炒金荞麦",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            },
+            {
+              "name": "野荞麦根",
+              "kb": {
+                "status": "kb_herb_via_identity",
+                "canonicalName": "金荞麦",
+                "identityStatus": "unique_source_backed"
+              }
+            },
+            {
+              "name": "金桥麦",
+              "kb": {
+                "status": "not_in_kb",
+                "canonicalName": null
+              }
+            }
+          ],
+          "crossReactsWith": [
+            "buckwheat_seed"
+          ]
+        }
+      ],
+      "medicineIngredientTerms": [
+        {
+          "term": "荞麦",
+          "action": "avoid",
+          "basis": "荞麦本身"
+        },
+        {
+          "term": "荞麦花粉",
+          "action": "caution",
+          "basis": "荞麦花粉，没有经口致敏数据"
+        }
+      ],
+      "notes": "荞麦不含麸质（已从 gluten_cereal 中排除）。荞麦过敏在中国荞麦产区并不少见（人群患病率约0.1–0.4%），而且糖尿病饮食建议里常推荐荞麦，所以单独立类。",
+      "specificMembers": {},
+      "cautionFoodTerms": []
+    }
+  ]
+}

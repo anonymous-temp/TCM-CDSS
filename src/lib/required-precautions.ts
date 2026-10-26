@@ -53,6 +53,8 @@ export type RequiredPrecaution =
   | { kind: "conception_pregnancy_check" }
   /** 病历记录的药物过敏（原文小段，至多两段）：再用同一或同类药前告知医生（2026-10-24 甲方 100 例 C099）。 */
   | { kind: "drug_allergy"; phrases: string[] }
+  /** 病历记录的食物（及同源饮片、蜂产品、漆等）过敏或不耐受，按 allergen-profile 归类（2026-10-26 第二十一轮，B061）。 */
+  | { kind: "food_allergy"; classes: Array<{ classId: string; labelZh: string; kind: "allergy" | "intolerance"; quote: string }> }
   /** 病历写着自行配制、泡酒服用的药里有药典标注有毒的药（留出集 S190：自泡生草乌、生川乌药酒）：立即停用，不再自制。 */
   | { kind: "toxic_self_preparation"; herbs: string[] }
   /** 服法与忌口（2026-10-19 验收主集 J：几例注意事项只写调护、没写怎么服或忌什么）。忌口按已定证候的寒热湿积推出。 */

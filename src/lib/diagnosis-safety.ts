@@ -19,6 +19,9 @@ import {
   recordExcludesPregnancyPotential,
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
+import priorityEvaluationWindowTable from "../data/priority-evaluation-windows.source.json";
+import { evaluateDiscriminators, redFeatureChecklistForPatient, type DiscriminatorOutcome } from "./redflag-discriminators";
+import emergencyDiagnosisNames from "../data/emergency-diagnosis-names.source.json";
 import { generalizeOccupation, shouldRedactNarrativeNameCandidate, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
 import { determineCompletenessLevel } from "./diagnosis-types";
 import {
@@ -26,6 +29,11 @@ import {
   dispositionAdvisoriesFromFacts,
   dispositionEmergencyRedFlagsFromFacts,
   dispositionPriorityItemsFromFacts,
+  groundClinicalFacts,
+  dispositionPriorityWindowFromFacts,
+  dispositionPriorityTargetFromFacts,
+  PRIORITY_EVALUATION_WINDOWS,
+  type PriorityEvaluationWindowId,
   clinicalFactsReviewSettled,
   groundedPatientTriageCategories,
   HAEMATEMESIS_COLLOQUIAL_FORMS,
@@ -3187,6 +3195,31 @@ function isExcludedClinicalAssertionAt(text: string, index: number): boolean {
   return context.subject === "non_patient" || context.mood !== "actual";
 }
 
+/**
+ * 原文某位置的提及能不能当作患者本人、此刻、肯定存在的事实（2026-10-26 第二十一轮）。
+ * 引文对齐（source-quote-alignment.ts）把模型引文换成病历原文片段之前用它守住语境：
+ * 「是否黑便尚未询问」里的黑便是 excluded，「无呕血」里的呕血是 negated。与安全门同一套 ConText 判据。
+ */
+export function recordMentionPolarityAt(text: string, index: number): "affirmed" | "negated" | "excluded" {
+  const normalized = normalizeClinicalText(text);
+  if (isExcludedClinicalAssertionAt(normalized, index)) return "excluded";
+  if (isNegatedAt(normalized, index)) return "negated";
+  return "affirmed";
+}
+
+/**
+ * 只看提及所在的那个逗号分句的读法（第二十一轮）：给「只加风险」的读法用——指南判别项读病历、过敏档案。
+ * 安全门自己的否认串（「无腹痛，发热，呕吐」逐项否认）会越过逗号，把「一天没怎么尿，身上皮肤发花」里的皮肤发花、
+ *「否认药物过敏，鸡蛋过敏」里的鸡蛋也读成否认；这两个读法若照用，会把真阳性丢掉。分句内的否认、未问及、他人照旧排除。
+ */
+export function clauseLocalMentionPolarityAt(text: string, index: number): "affirmed" | "negated" | "excluded" {
+  let start = index;
+  while (start > 0 && !/[，,。；;\n]/u.test(text[start - 1])) start -= 1;
+  let end = index;
+  while (end < text.length && !/[，,。；;\n]/u.test(text[end])) end += 1;
+  return recordMentionPolarityAt(text.slice(start, end), index - start);
+}
+
 function hasPatientScopedSpanOccurrence(text: string, span: string): boolean {
   let offset = text.indexOf(span);
   while (offset >= 0) {
@@ -5535,6 +5568,48 @@ function programmaticRedFlagFindings(
 }
 
 /**
+ * 两路读法不一致（2026-10-26 第二十一轮）：确定性规则读出的红旗，语义事实层对同一处原文给了「否认 / 未问及 / 不是患者本人」的读法，
+ * 而且该类目没有任何肯定的读法时，红旗与「剂量不给」都保留（接口取值冻结，也不能让一次模型输出撤销确定性红旗），只在这条红旗后面
+ * 写明两种读法不一致、请医生先核实、核实确无可解除。只认结构化规则（带原文分句）与同类目的语义条目；急缓判断不同的不算——
+ * B024 窦性停搏伴晕厥，语义层判 clarify、规则判急诊，后者是对的。已存 371 例带事实层的红旗病例里此条件一例未触发。
+ */
+const READER_DISAGREEMENT_RULE_CATEGORIES: Record<string, BackstopRedFlagCategory> = {
+  "acute-cardiac-event": "cardiac",
+  "acute-neurologic-event": "neuro",
+  "acute-abdomen-emergency": "acute_abdomen",
+  "active-gi-bleeding": "gi_bleed",
+  "syncope-high-risk-arrhythmia": "syncope",
+  "active-major-bleeding": "bleeding",
+  "acute-respiratory-event": "respiratory",
+  "mental-crisis-current": "mental_crisis",
+  incarceration: "acute_abdomen",
+};
+export const READER_DISAGREEMENT_NOTE_LEAD = "两种读法不一致，请先核实";
+
+function withReaderDisagreementNote(state: CaseState, message: string): string {
+  if (message.includes(READER_DISAGREEMENT_NOTE_LEAD)) return message;
+  const facts = state.clinicalFacts;
+  if (!facts || facts.semanticStatus !== "checked" || !clinicalFactsReviewSettled(facts.reviewStatus)) return message;
+  const rule = RED_FLAG_FINDING_RULES.find((candidate) => candidate.message.test(message));
+  const category = rule ? READER_DISAGREEMENT_RULE_CATEGORIES[rule.id] : undefined;
+  if (!rule || !category) return message;
+  const sourceText = trustedInputText(state);
+  if (facts.disposition?.setting === "emergency") return message;
+  const grounded = groundClinicalFacts(facts, sourceText).redFlags.filter((finding) => finding.category === category);
+  if (grounded.some((finding) => finding.subject === "patient" && (finding.status === "positive" || finding.status === "possible"))) return message;
+  // 规则命中的每一处（去重后的分句）都要被语义层对同一处原文读成否认/未问及/他人，才算两路读法相反。
+  const clauses = [...new Set(sourceText.split(/[\n。；;]+/).map((item) => item.trim()).filter((item) => hasPatternWithoutNegation(item, rule.source)))];
+  if (clauses.length === 0) return message;
+  const contraryFindings = grounded.filter((finding) =>
+    (finding.status === "negative" || finding.status === "unknown" || finding.subject !== "patient") && rule.source.test(finding.quote));
+  const coverOf = (clause: string) => contraryFindings.find((finding) => clause.includes(finding.quote) || finding.quote.includes(clause));
+  if (!clauses.every((clause) => coverOf(clause))) return message;
+  const contrary = coverOf(clauses[0])!;
+  const reading = contrary.subject !== "patient" ? "不是患者本人的情况" : contrary.status === "negative" ? "否认" : "未问及或未确定";
+  return `${message}（${READER_DISAGREEMENT_NOTE_LEAD}：病历「${contrary.quote}」这一处，规则读为存在，语义复核读为${reading}；核实确有则按上述处置，确无可由医生解除此项）`;
+}
+
+/**
  * Model-outage fallback for common but non-definitive risk symptoms. These checks intentionally
  * never create an emergency lock: they preserve clinician visibility until the semantic model can
  * distinguish severity, timing and symptom combinations. The normal path remains fully model-owned.
@@ -6378,11 +6453,68 @@ export type DoseWithheldFollowupKind = "red_flag" | "pregnancy" | "lactation" | 
  * 返回评估要排除的情况（开放判断写的「需排除：X」）；只有类目提示、没有具体去向时返回空串；不需要优先评估或已是红旗时 undefined。
  */
 export function priorityEvaluationFollowupFocus(state: CaseState): string | undefined {
+  return priorityEvaluationFollowupTarget(state)?.focus;
+}
+
+export type PriorityEvaluationPathway = keyof typeof priorityEvaluationWindowTable.pathways;
+/** 复诊计划第一句的评估对象：要排除什么、最迟多久、走哪条专门路径（2026-10-26 第二十一轮）。 */
+export type PriorityEvaluationTarget = { focus: string; window: PriorityEvaluationWindowId; pathway?: PriorityEvaluationPathway };
+
+/**
+ * 时限取各来源里最紧的一档：事实模型对「宜先专科评估」各项给的 timeWindow、乳房肿块的疑似肿瘤路径（两周内）、
+ * 血糖与酮体达到 DKA 两项标准（24 小时内），其余按缺省 3 天内。此前只有一个常量和一条按病名的正则。
+ */
+export function priorityEvaluationFollowupTarget(state: CaseState): PriorityEvaluationTarget | undefined {
   const gate = evaluateSafetyGate(state);
   if (gate.status === "red_flag") return undefined;
   const item = (gate.missingItems || []).find((entry) => entry.includes("优先完成临床评估"));
   if (!item) return undefined;
-  return item.match(/需排除：(.+?)）；处方前/u)?.[1]?.trim() || "";
+  const focus = item.match(/需排除：(.+?)）；处方前/u)?.[1]?.trim() || "";
+  const defaultWindow = priorityEvaluationWindowTable.defaultWindow as PriorityEvaluationWindowId;
+  const rank = (window: PriorityEvaluationWindowId) => PRIORITY_EVALUATION_WINDOWS.indexOf(window);
+  const entries = collectPriorityEvaluationEntries(state, trustedInputText(state));
+  if (entries.length === 0) return { focus, window: defaultWindow };
+  const most = entries.reduce((best, next) => rank(next.window || defaultWindow) < rank(best.window || defaultWindow) ? next : best);
+  return {
+    focus: most.focus ?? (most.text.match(/需排除：(.+?)）/u)?.[1]?.trim() || focus),
+    window: most.window || defaultWindow,
+    ...(most.pathway ? { pathway: most.pathway } : {}),
+  };
+}
+
+/** 病历文本里患者本人有糖尿病（家族史一栏另由 diabetesRecorded 剔除；这里给门禁用，读同一份可信文本）。 */
+function diabetesRecordedInText(text: string, state: CaseState): boolean {
+  const source = familyHistoryFieldTexts(state).reduce((value, family) => value.split(family).join(""), text);
+  return hasNonNegatedClinicalPattern(source, DIABETES_RECORDED);
+}
+
+/**
+ * ADA 2024 高血糖危象共识的 DKA 前两项（血糖 ≥11.1 mmol/L 或既往糖尿病；尿酮 ≥2+ 或血酮 ≥3.0 mmol/L）同时成立。
+ * 只读数值：「酮体(++)」「尿酮2+」「β-羟丁酸 3.4 mmol/L」「随机血糖 21.0 mmol/L」「GLU 380 mg/dL」；「最高/既往/曾」的读数不算。
+ */
+const KETOSIS_THRESHOLDS = priorityEvaluationWindowTable.hyperglycemicKetosisThresholds;
+const HISTORICAL_LAB_CUE = /(?:最高|既往|曾|以前|此前|上次|去年|年前|月前)[^。；;\n，,]{0,6}$/u;
+function hyperglycemicKetosisSignal(text: string, diabetesKnown: boolean): boolean {
+  const normalized = normalizeClinicalText(text);
+  const current = (index: number) => !HISTORICAL_LAB_CUE.test(normalized.slice(Math.max(0, index - 12), index));
+  let glucoseHigh = diabetesKnown;
+  for (const match of normalized.matchAll(/(?:血糖|葡萄糖|GLU)[^。；;\n\d]{0,10}?(\d+(?:\.\d+)?)\s*(mmol\s*\/\s*L|mg\s*\/\s*dL)?/giu)) {
+    if (!current(match.index ?? 0)) continue;
+    const value = Number(match[1]);
+    const mgdl = /mg/iu.test(match[2] || "");
+    if (mgdl ? value >= KETOSIS_THRESHOLDS.glucoseMgPerDl : value >= KETOSIS_THRESHOLDS.glucoseMmolPerL && value < 100) glucoseHigh = true;
+  }
+  if (!glucoseHigh) return false;
+  for (const match of normalized.matchAll(/(?:尿)?酮体?\s*[（(：:]?\s*(\+{1,4}|[1-4]\s*\+)/gu)) {
+    if (!current(match.index ?? 0)) continue;
+    const plus = /^\d/u.test(match[1]) ? Number(match[1].replace(/\D/gu, "")) : match[1].length;
+    if (plus >= KETOSIS_THRESHOLDS.urineKetonePlus) return true;
+  }
+  for (const match of normalized.matchAll(/(?:血酮(?:体)?|β\s*-?\s*羟丁酸|BHB)[^。；;\n\d]{0,8}?(\d+(?:\.\d+)?)/giu)) {
+    if (!current(match.index ?? 0)) continue;
+    if (Number(match[1]) >= KETOSIS_THRESHOLDS.bloodKetoneMmolPerL) return true;
+  }
+  return false;
 }
 
 export function doseWithheldFollowupKind(state: CaseState): DoseWithheldFollowupKind | undefined {
@@ -6571,6 +6703,132 @@ export function mergePrescriptionReviewItems(
   ));
 }
 
+/**
+ * 指南红旗判别项 → 闸门（2026-10-26 第二十一轮；表与口径见 redflag-discriminators.ts）。文字项读事实层里带着的读病历结果
+ *（引文须仍在本次可信文本里），数值项读本次实测生命体征。只会多报，不撤销任何判断。
+ */
+const DISCRIMINATOR_OUTCOME_CACHE = new WeakMap<CaseState, DiscriminatorOutcome>();
+function discriminatorOutcomeForState(state: CaseState): DiscriminatorOutcome {
+  // 同一次门禁求值里会读三次（红旗、优先评估、提示），按病例对象记一次。
+  const cached = DISCRIMINATOR_OUTCOME_CACHE.get(state);
+  if (cached) return cached;
+  const outcome = computeDiscriminatorOutcome(state);
+  DISCRIMINATOR_OUTCOME_CACHE.set(state, outcome);
+  return outcome;
+}
+function computeDiscriminatorOutcome(state: CaseState): DiscriminatorOutcome {
+  const ageYears = authoritativePatientAgeYears(state);
+  const sourceText = trustedInputText(state);
+  const screen = state.clinicalFacts?.discriminatorScreen;
+  const verifiedScreen = screen && screen.status === "checked"
+    ? { ...screen, present: screen.present.filter((item) => sourceText.includes(item.quote)) }
+    : screen;
+  const vitals = currentVitalMeasurements(state);
+  return evaluateDiscriminators({
+    patient: {
+      ageMonths: ageYears != null ? ageYears * 12 : undefined,
+      pregnant: assessPregnancyState(maternalStateText(state, structuredCaseText(state))).status === "positive",
+    },
+    vitals: {
+      temperature: vitals.temperature,
+      heartRate: vitals.pulse,
+      respiratoryRate: vitals.respiration,
+      spo2: vitals.spo2,
+      systolicBP: vitals.bloodPressure?.systolic,
+    },
+    screen: verifiedScreen,
+  });
+}
+
+/** 两路读病历的指南核对都没完成时，给医生的当面核对清单（不改处置；语义筛查失败本身另有缺项、不给剂量）。 */
+function discriminatorChecklistAdvisory(state: CaseState): string[] {
+  const facts = state.clinicalFacts;
+  // 危急生命体征已直接定红旗时事实层不跑，也就没有这份结果，不出清单。
+  if (facts?.discriminatorScreen?.status !== "unavailable") return [];
+  const ageYears = authoritativePatientAgeYears(state);
+  const labels = redFeatureChecklistForPatient({ ageMonths: ageYears != null ? ageYears * 12 : undefined });
+  return labels.length > 0
+    ? [`指南红色征象的核对没有完成（读病历的复核没有返回），请当面逐项确认有无：${labels.join("；")}。有任何一项请立即急诊评估`]
+    : [];
+}
+
+/**
+ * 本系统自己的西医主诊断是急危重病名、安全门却没有红旗时补报一条（2026-10-26 第二十一轮；病名表 emergency-diagnosis-names.source.json）。
+ * 只读确定的写法（不带待查、待排、可能、既往、术后）；只会多报。
+ */
+const EMERGENCY_DIAGNOSIS_STEMS = emergencyDiagnosisNames.names.map((entry) => entry.stem).sort((a, b) => b.length - a.length);
+const EMERGENCY_DIAGNOSIS_EXCLUDED = new RegExp(emergencyDiagnosisNames.excludeQualifiers, "u");
+export function ownEmergencyDiagnosisName(state: CaseState): string | undefined {
+  const reasoning = state.reasoningDiagnose as { stage?: unknown; westernDiagnosis?: { primary?: { name?: unknown } } } | undefined;
+  if (!reasoning || reasoning.stage !== "diagnose") return undefined;
+  const name = typeof reasoning.westernDiagnosis?.primary?.name === "string" ? reasoning.westernDiagnosis.primary.name.trim() : "";
+  if (!name || EMERGENCY_DIAGNOSIS_EXCLUDED.test(name)) return undefined;
+  return EMERGENCY_DIAGNOSIS_STEMS.some((stem) => name.includes(stem)) ? name : undefined;
+}
+
+type PriorityEvaluationEntry = { text: string; window?: PriorityEvaluationWindowId; pathway?: PriorityEvaluationPathway; focus?: string };
+
+/**
+ * 开方前须优先完成的临床评估项（安全门写缺项文字、复诊计划定时限，同一份清单；2026-10-26 第二十一轮从门禁里抽出）。
+ * window：这一项最迟多久内评估；没有的按缺省 3 天内。
+ */
+function collectPriorityEvaluationEntries(state: CaseState, semanticSourceText: string): PriorityEvaluationEntry[] {
+  const entries: PriorityEvaluationEntry[] = priorityEvaluationItemsFromFacts(state.clinicalFacts, semanticSourceText).map((text) => ({ text }));
+  const texts = () => entries.map((entry) => entry.text);
+  // 开方前处置去向（开放判断）：类目表之外的必须排除情况也扣剂量，见 clinical-facts ClinicalDisposition。
+  const dispositionWindow = dispositionPriorityWindowFromFacts(state.clinicalFacts, semanticSourceText);
+  const dispositionItems = dispositionPriorityItemsFromFacts(state.clinicalFacts, semanticSourceText, texts());
+  for (const text of dispositionItems) {
+    entries.push({ text, ...(dispositionWindow && text.includes("宜先由西医相关专科尽快评估") ? { window: dispositionWindow } : {}) });
+  }
+  // 处置去向与类目条目引同一句原文时不单列（见 dispositionPriorityItemsFromFacts），它的时限与要排除的情况挂到那条类目条目上。
+  const dispositionTarget = dispositionItems.length === 0 ? dispositionPriorityTargetFromFacts(state.clinicalFacts, semanticSourceText) : undefined;
+  // 没有引同一句的，挂到第一条还没有时限的条目上：时限是模型对这一病例要排除的情况给的，只会让复诊更早。
+  const sharedQuoteEntry = dispositionTarget
+    ? entries.find((entry) => entry.text.includes(`“${dispositionTarget.quote}”`)) ?? entries.find((entry) => !entry.window)
+    : undefined;
+  if (dispositionTarget && sharedQuoteEntry && !sharedQuoteEntry.window) {
+    sharedQuoteEntry.window = dispositionTarget.window;
+    sharedQuoteEntry.focus = dispositionTarget.conditions[0];
+  }
+  if (hasAbdominalPrioritySignal(semanticSourceText) && !hasAcuteAbdominalSignal(semanticSourceText)) {
+    entries.push({ text: "突发、持续或进展性腹痛/胃痛需优先完成腹部查体与严重度评估" });
+  }
+  const breast = priorityEvaluationWindowTable.pathways.breast_mass;
+  if (unevaluatedBreastMassText(semanticSourceText, authoritativePatientAgeYears(state), patientSexText(state)) &&
+    !texts().some((item) => item.includes(breast.focus))) {
+    entries.push({
+      text: "乳房肿块尚未完成影像评估，宜先由乳腺专科尽快评估（需排除：乳腺癌）；处方前需完成评估",
+      window: breast.window as PriorityEvaluationWindowId, pathway: "breast_mass", focus: breast.focus,
+    });
+  }
+  const ketosis = priorityEvaluationWindowTable.pathways.hyperglycemic_ketosis;
+  if (hyperglycemicKetosisSignal(semanticSourceText, diabetesRecordedInText(semanticSourceText, state)) &&
+    !texts().some((item) => item.includes(ketosis.focus))) {
+    entries.push({
+      text: "高血糖伴酮体升高，已达糖尿病酮症酸中毒的血糖与酮体两项标准（ADA 2024），宜当天到医院急诊查血气与血酮（需排除：糖尿病酮症酸中毒）；处方前需完成评估",
+      window: ketosis.window as PriorityEvaluationWindowId, pathway: "hyperglycemic_ketosis", focus: ketosis.focus,
+    });
+  }
+  if (
+    hasGiBleedPrioritySignal(semanticSourceText) &&
+    !(state.clinicalFacts?.semanticStatus === "checked" &&
+      groundedPatientTriageCategories(state.clinicalFacts, semanticSourceText).has("gi_bleed"))
+  ) {
+    // 与 narrativeFallbackAdvisories 同一套让位语义：语义层已有接地的 gi_bleed 结论时让位
+    // （其条目自带原文引用与升级说明，信息量更高）；语义层缺席或单条漏检时本确定性项兜底，
+    // needs_information 的承诺从此不押在模型可用性上。
+    entries.push({ text: "消化道出血相关表现需优先复核出血量、持续性、循环状态及血红蛋白；处方前需完成评估" });
+  }
+  // 指南脓毒症高危数值项：当天评估（不升红旗，见 redflag-discriminators.source.json gatePolicy）。
+  for (const item of discriminatorOutcomeForState(state).priority) {
+    if (!entries.some((entry) => entry.text.includes(`需排除：${item.focus}`))) {
+      entries.push({ text: item.text, window: "within_24h", focus: item.focus });
+    }
+  }
+  return entries;
+}
+
 export function evaluateSafetyGate(state: CaseState): SafetyGate {
   const missingItems: string[] = [];
   const missingItemCodes: SafetyMissingItemCode[] = [];
@@ -6590,26 +6848,7 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
     ...dispositionEmergencyRedFlagsFromFacts(state.clinicalFacts, semanticSourceText),
   ];
   const semanticEmergencyEvidence = structuredRedFlagEvidenceFromFacts(state.clinicalFacts, semanticSourceText);
-  const priorityEvaluationItems = priorityEvaluationItemsFromFacts(state.clinicalFacts, semanticSourceText);
-  // 开方前处置去向（开放判断）：类目表之外的必须排除情况也扣剂量，见 clinical-facts ClinicalDisposition。
-  priorityEvaluationItems.push(...dispositionPriorityItemsFromFacts(state.clinicalFacts, semanticSourceText, priorityEvaluationItems));
-  if (hasAbdominalPrioritySignal(semanticSourceText) && !hasAcuteAbdominalSignal(semanticSourceText)) {
-    priorityEvaluationItems.push("突发、持续或进展性腹痛/胃痛需优先完成腹部查体与严重度评估");
-  }
-  if (unevaluatedBreastMassText(semanticSourceText, authoritativePatientAgeYears(state), patientSexText(state)) &&
-    !priorityEvaluationItems.some((item) => /乳腺癌/.test(item))) {
-    priorityEvaluationItems.push("乳房肿块尚未完成影像评估，宜先由乳腺专科尽快评估（需排除：乳腺癌）；处方前需完成评估");
-  }
-  if (
-    hasGiBleedPrioritySignal(semanticSourceText) &&
-    !(state.clinicalFacts?.semanticStatus === "checked" &&
-      groundedPatientTriageCategories(state.clinicalFacts, semanticSourceText).has("gi_bleed"))
-  ) {
-    // 与 narrativeFallbackAdvisories 同一套让位语义：语义层已有接地的 gi_bleed 结论时让位
-    // （其条目自带原文引用与升级说明，信息量更高）；语义层缺席或单条漏检时本确定性项兜底，
-    // needs_information 的承诺从此不押在模型可用性上。
-    priorityEvaluationItems.push("消化道出血相关表现需优先复核出血量、持续性、循环状态及血红蛋白；处方前需完成评估");
-  }
+  const priorityEvaluationItems = collectPriorityEvaluationEntries(state, semanticSourceText).map((entry) => entry.text);
   const semanticTriage = semanticEmergencyFindings.length > 0
     ? {
         level: "emergency_review" as const,
@@ -6620,7 +6859,8 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
       ? { level: "priority_review" as const, findings: priorityEvaluationItems }
       : undefined;
   const fallbackAdvisories = narrativeFallbackAdvisories(state);
-  const advisories = Array.from(new Set([...semanticAdvisories, ...fallbackAdvisories, ...vitalAdvisories]));
+  const discriminatorAdvisories = [...discriminatorOutcomeForState(state).advisories, ...discriminatorChecklistAdvisory(state)];
+  const advisories = Array.from(new Set([...semanticAdvisories, ...fallbackAdvisories, ...vitalAdvisories, ...discriminatorAdvisories]));
   const text = structuredCaseText(state);
   const ageRaw = patientAgeText(state);
   const age = numberFromClinicalText(ageRaw);
@@ -6724,7 +6964,16 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
         ...dispositionEmergencyRedFlagsFromFacts(state.clinicalFacts, semanticSourceText),
       ]
     : [];
-  const redFlags = [...programmaticRedFlags, ...reviewedSemanticEmergencyFindings];
+  const discriminatorRedFlags = discriminatorOutcomeForState(state).redFlags;
+  const redFlags = [
+    ...programmaticRedFlags.map((flag) => withReaderDisagreementNote(state, flag)),
+    ...reviewedSemanticEmergencyFindings,
+    ...discriminatorRedFlags,
+  ];
+  const ownEmergencyName = redFlags.length === 0 ? ownEmergencyDiagnosisName(state) : undefined;
+  if (ownEmergencyName) {
+    redFlags.push(`本次辨病的西医诊断为急危重病「${ownEmergencyName}」，需先完成急诊或专科评估，再评估中药处方`);
+  }
   if (redFlags.length > 0) {
     const redFlagFindings = programmaticRedFlagFindings(state, redFlags);
     const activeGate = { redFlags, redFlagFindings };
@@ -7494,14 +7743,25 @@ export function deriveFirstReviewTiming(state: CaseState, hasStrongRisk: boolean
  * 现在一份计划、两种写法：先评估（时限、去哪、做什么）→ 医生确认可以服药 → 服完 N 剂复诊。regimen 取方剂的 followUpAfterDoses/Days，
  * 复诊计划第一句（priorityEvaluationFirstStep）与煎服法复诊节点（priorityEvaluationFollowUpNode）都由 priorityEvaluationPlan 拼出。
  */
-type PriorityEvaluationPlan = { window: string; visit: string; nodeVisit: string; clearance: string };
-function priorityEvaluationPlan(focus: string): PriorityEvaluationPlan {
-  if (/乳腺癌/u.test(focus)) {
-    return { window: "2周内", visit: "到乳腺专科就诊，先完成乳腺超声检查（必要时加做乳腺X线）", nodeVisit: "到乳腺专科完成乳腺超声检查", clearance: "排除乳腺癌、医生确认可以服药后" };
+type PriorityEvaluationPlan = { window: string; visit: string; nodeVisit: string; clearance: string; withoutRegimenTail?: string };
+const PRIORITY_WINDOW_LABELS = new Map(priorityEvaluationWindowTable.windows.map((entry) => [entry.id, entry.label]));
+const PRIORITY_WINDOW_LABEL_PATTERN = priorityEvaluationWindowTable.windows.map((entry) => entry.label).join("|");
+function priorityEvaluationTarget(target: PriorityEvaluationTarget | string): PriorityEvaluationTarget {
+  return typeof target === "string"
+    ? { focus: target, window: priorityEvaluationWindowTable.defaultWindow as PriorityEvaluationWindowId }
+    : target;
+}
+function priorityEvaluationPlan(input: PriorityEvaluationTarget | string): PriorityEvaluationPlan {
+  const target = priorityEvaluationTarget(input);
+  const window = PRIORITY_WINDOW_LABELS.get(target.window) || "3天内";
+  const pathway = target.pathway ? priorityEvaluationWindowTable.pathways[target.pathway] : undefined;
+  if (pathway) {
+    return { window, visit: pathway.visit, nodeVisit: pathway.nodeVisit, clearance: pathway.clearance, withoutRegimenTail: pathway.withoutRegimenTail };
   }
+  const focus = target.focus;
   return focus
-    ? { window: "3天内", visit: `到相关专科就诊，先完成评估（需排除${focus}）`, nodeVisit: "到相关专科完成评估", clearance: "医生确认可以服药后" }
-    : { window: "3天内", visit: "到医院完成评估、核实病情", nodeVisit: "到医院完成评估", clearance: "医生确认可以服药后" };
+    ? { window, visit: `到相关专科就诊，先完成评估（需排除${focus}）`, nodeVisit: "到相关专科完成评估", clearance: "医生确认可以服药后" }
+    : { window, visit: "到医院完成评估、核实病情", nodeVisit: "到医院完成评估", clearance: "医生确认可以服药后" };
 }
 type FollowupRegimen = { doses?: unknown; days?: unknown };
 function regimenCounts(regimen?: FollowupRegimen): { doses: number; days: number } | undefined {
@@ -7509,27 +7769,29 @@ function regimenCounts(regimen?: FollowupRegimen): { doses: number; days: number
   const days = Number(regimen?.days);
   return Number.isInteger(doses) && Number.isInteger(days) && doses > 0 && days > 0 ? { doses, days } : undefined;
 }
-export function priorityEvaluationFirstStep(focus: string, regimen?: FollowupRegimen): string {
-  const plan = priorityEvaluationPlan(focus);
+export function priorityEvaluationFirstStep(target: PriorityEvaluationTarget | string, regimen?: FollowupRegimen): string {
+  const plan = priorityEvaluationPlan(target);
   const counts = regimenCounts(regimen);
   if (counts) return `请在${plan.window}${plan.visit}；${plan.clearance}，服完${counts.doses}剂药（约${counts.days}天后）再复诊。`;
-  if (/乳腺癌/u.test(focus)) return `请在${plan.window}${plan.visit}，排除乳腺癌后再按医生安排服药与复诊。`;
-  return focus ? `请在${plan.window}${plan.visit}，再按医生安排服药与复诊。` : `请在${plan.window}${plan.visit}后，再按医生安排服药与复诊。`;
+  if (plan.withoutRegimenTail) return `请在${plan.window}${plan.visit}，${plan.withoutRegimenTail}。`;
+  return priorityEvaluationTarget(target).focus
+    ? `请在${plan.window}${plan.visit}，再按医生安排服药与复诊。`
+    : `请在${plan.window}${plan.visit}后，再按医生安排服药与复诊。`;
 }
 /** 煎服法的复诊节点前面补上评估这一步（与 priorityEvaluationFirstStep 同一份计划）。已补过的原样返回。 */
-export function priorityEvaluationFollowUpNode(focus: string, node: string): string {
-  const plan = priorityEvaluationPlan(focus);
-  if (!node.trim() || /^先在(?:3天内|2周内)/u.test(node)) return node;
+export function priorityEvaluationFollowUpNode(target: PriorityEvaluationTarget | string, node: string): string {
+  const plan = priorityEvaluationPlan(target);
+  if (!node.trim() || new RegExp(`^先在(?:${PRIORITY_WINDOW_LABEL_PATTERN})`, "u").test(node)) return node;
   return `先在${plan.window}${plan.nodeVisit}；${plan.clearance}，${node.trim()}`;
 }
 
 export function patientFacingFirstReview(state: CaseState, hasStrongRisk: boolean): string {
   if (hasStrongRisk) return "处方需经医生调整确认后再服用；确认用药后，请在1-3天内复诊。";
   // 安全门要求先完成临床评估的病例：首次复诊先说去评估（与辨证、开方页复诊计划的第一句同一判据，2026-10-24）。
-  const priorityFocus = priorityEvaluationFollowupFocus(state);
+  const priorityTarget = priorityEvaluationFollowupTarget(state);
   const decoction = primaryPrescribeCandidate(state)?.decoction;
-  if (priorityFocus !== undefined) {
-    return `${priorityEvaluationFirstStep(priorityFocus, { doses: decoction?.followUpAfterDoses, days: decoction?.followUpAfterDays }).replace(/。$/u, "")}；如有不适或症状加重，请立即就医。`;
+  if (priorityTarget !== undefined) {
+    return `${priorityEvaluationFirstStep(priorityTarget, { doses: decoction?.followUpAfterDoses, days: decoction?.followUpAfterDays }).replace(/。$/u, "")}；如有不适或症状加重，请立即就医。`;
   }
   const doses = decoction?.followUpAfterDoses;
   const days = decoction?.followUpAfterDays;

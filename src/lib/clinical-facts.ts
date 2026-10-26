@@ -1,3 +1,5 @@
+import { alignQuoteToSource } from "./source-quote-alignment";
+import type { DiscriminatorScreen } from "./redflag-discriminators";
 import type { ClinicalStateStatus } from "./clinical-state";
 import { clinicalClausePolarity, clinicalEventTemporalScopeAt } from "./clinical-polarity";
 import redFlagTriageJson from "../data/redflag-triage-lexicon.json" with { type: "json" };
@@ -161,7 +163,7 @@ export type RedFlagFinding = {
 };
 
 export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v20";
-export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v26";
+export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v27";
 
 // 劳力/活动诱发的慢性基线症状限定词（“平路气短”“活动后气促”“劳力性胸闷”）：在已知慢性心肺肾
 // 疾病或慢性病程框架下，这类限定描述的是基线功能状态而非急性事件；静息/夜间/端坐/新发/突发/
@@ -369,12 +371,18 @@ export type AffirmedSymptom = {
 export const DISPOSITION_SETTINGS = ["emergency", "urgent_specialist", "insufficient_info", "outpatient_ok"] as const;
 export type DispositionSetting = (typeof DISPOSITION_SETTINGS)[number];
 
+/** 「宜先专科评估」一档的评估时限（2026-10-26 第二十一轮；表与含义见 src/data/priority-evaluation-windows.source.json）。 */
+export const PRIORITY_EVALUATION_WINDOWS = ["within_24h", "within_48h", "within_3d", "within_2w"] as const;
+export type PriorityEvaluationWindowId = (typeof PRIORITY_EVALUATION_WINDOWS)[number];
+
 export type MustNotMissCondition = {
   /** 自由文本的病名或情况——刻意不设闭集。 */
   condition: string;
   plausibility: "likely" | "possible";
   /** 1–4 条原文逐字片段；接地在消费侧执行（这里看不到病历原文）。 */
   evidenceQuotes: string[];
+  /** setting=urgent_specialist 时模型给的评估时限；缺省按 3 天内。 */
+  timeWindow?: PriorityEvaluationWindowId;
 };
 
 export type ClinicalDisposition = {
@@ -406,7 +414,32 @@ export type ClinicalFacts = {
   /** SHA-256 binding of the authenticated API client and customer; never contains raw IDs. */
   customerBindingHash?: string;
   attestation?: string;
+  /** 指南红旗判别项的读病历结果（redflag-discriminator-screen.server.ts），与抽取同时跑、一起签名缓存；抽取失败时也保留。 */
+  discriminatorScreen?: DiscriminatorScreen;
 };
+
+/** 判别项结果的结构校验（客户端回传的病例里也会带着它）；不合格整段丢弃。只会给闸门加风险，不会撤销任何判断。 */
+function parseDiscriminatorScreen(raw: unknown): DiscriminatorScreen | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const status = (raw as { status?: unknown }).status;
+  if (status !== "checked" && status !== "unavailable") return undefined;
+  const list = (raw as { present?: unknown }).present;
+  const present = Array.isArray(list)
+    ? list.flatMap((item) => {
+        const conceptId = item && typeof item === "object" ? (item as { conceptId?: unknown }).conceptId : undefined;
+        const quote = item && typeof item === "object" ? (item as { quote?: unknown }).quote : undefined;
+        return typeof conceptId === "string" && /^[a-z0-9-]{2,80}$/u.test(conceptId) && typeof quote === "string" && quote.length >= 2 && quote.length <= 200
+          ? [{ conceptId, quote }]
+          : [];
+      }).slice(0, 30)
+    : [];
+  const models = (raw as { models?: unknown }).models;
+  return {
+    status,
+    present: status === "checked" ? present : [],
+    ...(Array.isArray(models) ? { models: models.filter((model): model is string => typeof model === "string").slice(0, 4) } : {}),
+  };
+}
 
 const VALID_STATUSES: ReadonlySet<string> = new Set([
   "positive", "possible", "negative", "historical", "unknown",
@@ -777,6 +810,7 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
     modelTrace,
     customerBindingHash,
     attestation,
+    discriminatorScreen: parseDiscriminatorScreen((root as { discriminatorScreen?: unknown }).discriminatorScreen),
   };
 }
 
@@ -802,7 +836,8 @@ function parseClinicalDisposition(raw: unknown): ClinicalDisposition | undefined
               .filter((value) => value.length >= 2 && value.length <= 200))].slice(0, 4)
           : [];
         if (condition.length < 2 || condition.length > 60 || !plausibility || evidenceQuotes.length === 0) return [];
-        return [{ condition, plausibility, evidenceQuotes }];
+        const timeWindow = memberOf((item as { timeWindow?: unknown }).timeWindow, PRIORITY_EVALUATION_WINDOWS);
+        return [{ condition, plausibility, evidenceQuotes, ...(timeWindow ? { timeWindow } : {}) }];
       }).slice(0, 6)
     : [];
   // 升档必须说出要排除什么；只写 setting 不给依据的升档不作数（outpatient_ok 本身不需要依据）。
@@ -862,6 +897,62 @@ function reanchorDistributedNegationQuote(sourceText: string, quote: string): st
     offset = sourceText.indexOf(item, offset + 1);
   }
   return undefined;
+}
+
+/** 原文位置的语境判定（由调用方注入安全层的 recordMentionPolarityAt；本模块被安全层引用，不能反向依赖）。 */
+export type MentionPolarityAt = (text: string, index: number) => "affirmed" | "negated" | "excluded";
+
+/**
+ * 引文按写法对回原文（2026-10-26 第二十一轮）：模型 quote 只差标点、引号、空白、全半角、计量单位前的
+ * 中文数词、四诊字段写法（「脉象：弦」⇄「脉弦」）或拉丁字母单错（mmHp）时，换成病历原文片段，
+ * 不再判未落地、不再多跑一轮 5–6s 的引用修复。逐字命中的不动；内容不同的不动（交给原有修复轮）。
+ * 阳性/可疑条目对上的位置必须是患者本人此刻的肯定提及；阴性条目只排除他人/条件/未评估的提及。
+ */
+export function reanchorClinicalFactQuotes(facts: ClinicalFacts, sourceText: string, mentionPolarityAt?: MentionPolarityAt): ClinicalFacts {
+  const align = (quote: string, mode: "affirmed" | "any"): string => {
+    if (!quote || sourceText.includes(quote)) return quote;
+    const aligned = alignQuoteToSource(quote, sourceText, {
+      minNormalizedChars: 2,
+      excludedAt: mentionPolarityAt
+        ? (text, index) => {
+            const polarity = mentionPolarityAt(text, index);
+            return polarity === "excluded" || (mode === "affirmed" && polarity === "negated");
+          }
+        : undefined,
+    });
+    return aligned && aligned.status !== "exact" ? aligned.span : quote;
+  };
+  const redFlags = facts.redFlags.map((finding) => {
+    const mode = finding.status === "positive" || finding.status === "possible" ? "affirmed" as const : "any" as const;
+    const quote = align(finding.quote, mode);
+    const escalationEvidenceQuotes = finding.escalationEvidenceQuotes?.map((item) => align(item, "affirmed"));
+    return quote === finding.quote && escalationEvidenceQuotes === finding.escalationEvidenceQuotes
+      ? finding
+      : { ...finding, quote, ...(escalationEvidenceQuotes ? { escalationEvidenceQuotes } : {}) };
+  });
+  const affirmedSymptoms = facts.affirmedSymptoms?.map((item) => {
+    const quote = align(item.quote, "affirmed");
+    return quote === item.quote ? item : { ...item, quote };
+  });
+  const encounterScope = facts.encounterScope
+    ? { ...facts.encounterScope, quote: align(facts.encounterScope.quote, "any") }
+    : facts.encounterScope;
+  const disposition = facts.disposition
+    ? {
+        ...facts.disposition,
+        mustNotMiss: facts.disposition.mustNotMiss.map((item) => ({
+          ...item,
+          evidenceQuotes: item.evidenceQuotes.map((quote) => align(quote, "any")),
+        })),
+      }
+    : facts.disposition;
+  return {
+    ...facts,
+    redFlags,
+    ...(affirmedSymptoms ? { affirmedSymptoms } : {}),
+    ...(facts.encounterScope ? { encounterScope } : {}),
+    ...(facts.disposition ? { disposition } : {}),
+  };
 }
 
 /** 护栏 2:原文 grounding + positive 本地极性复核。 */
@@ -956,6 +1047,11 @@ export function groundClinicalFacts(facts: ClinicalFacts, sourceText: string): C
     redFlags: groundedRedFlags,
     ...(facts.affirmedSymptoms ? { affirmedSymptoms: groundedAffirmedSymptoms } : {}),
   };
+}
+
+/** 引文在原文里至少有一处是当前（非既往、非已缓解、非被否认）的提及；指南判别项小任务的接地也用它（第二十一轮）。 */
+export function quoteHasCurrentOccurrence(sourceText: string, quote: string): boolean {
+  return hasCurrentQuoteOccurrence(sourceText, quote, false);
 }
 
 function hasCurrentQuoteOccurrence(sourceText: string, quote: string, allowUncertain: boolean): boolean {
@@ -1249,6 +1345,8 @@ type GroundedDisposition = {
   conditions: string[];
   quote: string;
   missingInfo?: string;
+  /** 接地成立的各条「必须排除」里最紧的评估时限（只对 urgent_specialist 有意义）。 */
+  timeWindow?: PriorityEvaluationWindowId;
 };
 
 /**
@@ -1268,12 +1366,47 @@ function groundedDisposition(facts: ClinicalFacts | undefined, sourceText: strin
   if (grounded.length === 0) return undefined;
   const ordered = [...grounded].sort((left, right) =>
     (left.plausibility === "likely" ? 0 : 1) - (right.plausibility === "likely" ? 0 : 1));
+  const windows = grounded.map((item) => item.timeWindow).filter((value): value is PriorityEvaluationWindowId => Boolean(value));
+  const timeWindow = windows.length > 0
+    ? PRIORITY_EVALUATION_WINDOWS.find((window) => windows.includes(window))
+    : undefined;
   return {
     setting: disposition.setting,
     conditions: [...new Set(ordered.map((item) => item.condition))].slice(0, 3),
     quote: ordered[0].evidenceQuotes[0],
     ...(disposition.missingInfo ? { missingInfo: disposition.missingInfo } : {}),
+    ...(timeWindow ? { timeWindow } : {}),
   };
+}
+
+/**
+ * 「宜先由西医相关专科尽快评估」那一项的评估时限：与 dispositionPriorityItemsFromFacts 同一份接地结果
+ *（同样只认 likely，当只认明确现症时）。模型没写时返回 undefined，由调用方按缺省 3 天内。
+ */
+/**
+ * 「宜先专科评估」这一项的时限、要排除的情况与第一条原文依据（第二十一轮）。门禁里这一项常因与类目条目引同一句原文而不单列，
+ * 时限就挂到那条类目条目上（B006：模型给了 24 小时内，复诊仍写 3 天内）。
+ */
+export function dispositionPriorityTargetFromFacts(
+  facts: ClinicalFacts | undefined,
+  sourceText: string,
+): { window: PriorityEvaluationWindowId; conditions: string[]; quote: string } | undefined {
+  if (facts?.disposition?.setting !== "urgent_specialist") return undefined;
+  // 只定复诊多快，不定给不给剂量：「可能」的必须排除项也取它的时限（B010：模型给疑似酮症酸中毒 24 小时内，
+  // 「只认明确现症」把这一段滤掉后复诊仍写 3 天内）。扣不扣剂量仍按 dispositionPriorityItemsFromFacts 的口径。
+  const disposition = groundedDisposition(facts, sourceText, false);
+  if (!disposition || disposition.setting !== "urgent_specialist" || !disposition.timeWindow) return undefined;
+  return { window: disposition.timeWindow, conditions: disposition.conditions, quote: disposition.quote };
+}
+
+export function dispositionPriorityWindowFromFacts(
+  facts: ClinicalFacts | undefined,
+  sourceText: string,
+): PriorityEvaluationWindowId | undefined {
+  const requested = facts?.disposition?.setting;
+  if (requested !== "urgent_specialist") return undefined;
+  const disposition = groundedDisposition(facts, sourceText, redFlagExplicitOnly());
+  return disposition?.setting === "urgent_specialist" ? disposition.timeWindow : undefined;
 }
 
 /**
@@ -1398,7 +1531,7 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
   ).join("\n");
   return [
     "从下面【临床文本】中识别急危重红旗线索。先在内部完成口语归一、否定与时序判断，只输出**一个 JSON 对象**，不要正文/代码围栏/解释。",
-    "格式：{\"disposition\":{\"setting\":<emergency|urgent_specialist|insufficient_info|outpatient_ok>,\"mustNotMiss\":[{\"condition\":<自由文本病名或情况>,\"plausibility\":<likely|possible>,\"evidenceQuotes\":[<1-4条原文逐字片段>]}],\"missingInfo\":<可选：最该问的一个问题>,\"rationale\":<一句话>},\"redFlags\":[{\"category\":<类目键>,\"subject\":<patient|other|uncertain>,\"status\":<positive|possible|negative|historical|unknown>,\"urgency\":<emergency|urgent|clarify|routine>,\"triageBasis\":<处置依据键>,\"quote\":<原文逐字片段>,\"escalationRationale\":<可选：多线索合成升级理由>,\"escalationEvidenceQuotes\":<可选：2-6条原文逐字片段>}],\"affirmedSymptoms\":[{\"term\":<症状名>,\"quote\":<原文逐字片段>}],\"encounterScope\":{\"status\":<active_current_target|historical_or_stable_only|unclear>,\"quote\":<原文逐字片段>}}",
+    "格式：{\"disposition\":{\"setting\":<emergency|urgent_specialist|insufficient_info|outpatient_ok>,\"mustNotMiss\":[{\"condition\":<自由文本病名或情况>,\"plausibility\":<likely|possible>,\"evidenceQuotes\":[<1-4条原文逐字片段>],\"timeWindow\":<within_24h|within_48h|within_3d|within_2w，仅 setting=urgent_specialist 时写>}],\"missingInfo\":<可选：最该问的一个问题>,\"rationale\":<一句话>},\"redFlags\":[{\"category\":<类目键>,\"subject\":<patient|other|uncertain>,\"status\":<positive|possible|negative|historical|unknown>,\"urgency\":<emergency|urgent|clarify|routine>,\"triageBasis\":<处置依据键>,\"quote\":<原文逐字片段>,\"escalationRationale\":<可选：多线索合成升级理由>,\"escalationEvidenceQuotes\":<可选：2-6条原文逐字片段>}],\"affirmedSymptoms\":[{\"term\":<症状名>,\"quote\":<原文逐字片段>}],\"encounterScope\":{\"status\":<active_current_target|historical_or_stable_only|unclear>,\"quote\":<原文逐字片段>}}",
     "affirmedSymptoms：文本中**明确陈述为存在**的症状，不限于红旗类目，常见如瘀斑、肿胀、乏力、纳差、腰酸、多梦等一律照收；每条 quote 必须逐字来自原文。被否定的（无X、否认X）与未提及的一律不收。该字段仅用于核对后续结论有没有把已记录的症状误写成否认，不参与任何分级判定。",
     "类目键只能取以下之一：",
     categories,
@@ -1449,6 +1582,7 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
     "- 角色：你是同时有急诊与全科经验的主治医师，正在为中医门诊开具剂量级中药做开方前安全把关。只回答一个问题：按现有资料，这位患者今天由门诊中医师直接开中药，是否安全、是否在门诊中医的处置范围之内。",
     "- 先想「必须排除」：与本次表现相符、一旦漏掉可能致死致残或造成不可逆损害、且有处置时间窗的情况，不限系统、不限类目。依据不限于症状，受伤经过、体征、检验与影像/病理结论、用药与暴露同样是依据。每条写 condition（自由文本的病名或情况）、plausibility（likely=现有资料已较支持；possible=现有资料指向它、尚不能排除）、evidenceQuotes（1–4 条原文逐字片段，必须是患者本人当前或近期未解决的事实）。只是理论上可能、现有资料并不指向的，不要列。",
     "- 再定 setting。判据是「此刻是否存在尚未被处理、有处置时间窗的危险」，不是病名听起来有多重：emergency=现有资料已足以要求立即急诊/急救评估（以小时计）；urgent_specialist=不必立即急诊，但属于下面两种之一、评估前不宜直接开剂量级中药：①尚未被西医明确诊断、要靠影像/病理/手术/住院才能明确或处理，但晚几天到几周评估也不会错过处置时间窗的新问题；②已确诊的疾病出现了急性加重的客观证据（新发或明显加重的器官功能受损、检验指标显著恶化、出现新的受累器官），但还没到当天不处理就会出事的程度。insufficient_info=原文已有指向某个必须排除情况的具体危险线索，但还差一个关键信息才能决定去向，missingInfo 写出最该问的那一个问题；outpatient_ok=没有尚未处理的时间敏感危险，可在中医门诊常规诊治。setting 不是 outpatient_ok 时 mustNotMiss 不能为空。",
+    "- setting=urgent_specialist 时，每条 mustNotMiss 写 timeWindow，即这项评估最迟要在多久内完成才不会错过处置时机：within_24h=24小时内（病情可能在一两天内恶化：已有全身炎症反应或器官功能受损证据的感染、显著的代谢紊乱、新出现的器官功能异常）；within_48h=48小时内（检验或检查提示需要尽快明确，但没有当天恶化的证据）；within_3d=3天内（需要专科明确或处理，短期内恶化可能小）；within_2w=2周内（疑似肿瘤或占位、没有急性并发症，参照疑似癌症两周内转诊的路径）。按病历里已有的客观证据定档，拿不准时取更早的一档。",
     "- emergency 与 urgent_specialist 的分界只看「必须排除」里最危险那一条的处置时间窗，不看它归哪个专科、要靠影像、检验还是手术来明确。同时满足下面两点就取 emergency，即使该情况仍是 possible、尚待检查证实——排除它本身就得当天由急诊或该专科急诊完成，不能留给择期专科门诊：一是这种情况一旦属实，等不到择期门诊：不在当天（以小时计）处理就可能致死致残、造成器官、肢体或视力的不可逆损失，或进展为危象；刚缓解的事件若最危险的复发集中在随后一两天内，或失血仍在持续且已出现贫血，也属于这一点——「已自行缓解、目前平稳」不等于等得起择期门诊，上面 redFlags 各类目里「当前稳定通常标 urgent」只管单条红旗的分级，不是这里的门槛；二是原文的当前事实已经呈现它的急性表现，即数小时至数天内起病或明显加重，并有相应部位的受伤经过、定位体征、发热、梗阻、出血、客观测量或检验异常等支持。属于这一型的例如：外伤后受伤部位疼痛需排除脏器损伤或内出血，转移性或局限性腹痛伴发热、呕吐需排除外科急腹症，早孕伴阴道出血需排除异位妊娠，眼压急性升高伴视力下降，胆道梗阻伴发热或黄疸，肠梗阻（腹胀伴反复呕吐，或停止排气排便），已确诊、易发危象的疾病近期加重并累及与危象相关的器官功能，黑便或呕血已伴贫血或乏力（失血已波及全身，即使生命体征暂时平稳），近期发作的短暂神经缺损。慢性反复发作而本次没有急性发作表现、数周以上缓慢进展且没有急性并发症、影像或体检发现的占位待定性、长期检验异常查因，属于 urgent_specialist 或更低，不因病名属于急症类型而取 emergency。中医四诊的辨证描述用语（如拒按、喜按、腹胀如鼓、痛有定处）说明的是虚实寒热，单凭这类用语不构成急腹症或梗阻的急性表现，仍要看有无反复呕吐、停止排气排便、反跳痛或腹肌紧张、发热、精神状态变差等。rationale 里写了需急诊、需紧急处置、需当天排除或有进展为危象的风险，setting 就必须是 emergency，两者不得矛盾。",
     "- 已在医院确诊、正在或曾经接受西医诊治的慢性病，本次来中医调理或治疗症状，即使仍有长期存在的检验异常（如持续蛋白尿、转氨酶或肌酐偏高），只要没有上面②所说的急性加重证据，判 outpatient_ok；这类病人用药的剂量与肝肾安全由后续开方环节的剂量和禁忌核对处理，不是这里升档的理由。患有严重或慢性疾病本身不是升档理由。",
     "- 婴幼儿与儿童的普通感冒、咳嗽、发热、腹泻、积食等常见病，只要原文没有公认的危险征象（精神萎靡或反应差、拒奶拒食或不能饮水、呼吸急促或费力、尿量明显减少、抽搐、高热持续不退、新生儿期异常），判 outpatient_ok。只是信息少、没有具体危险线索的，判 outpatient_ok——补问信息是后续问诊环节的事，不是这里升档的理由。既往已治愈或已缓解的事、家属或他人的情况、宣教或引用文本，都不能作为依据。",
@@ -1499,7 +1633,7 @@ export function isM02PromptRedFlagFact(item: { status?: string; urgency?: string
  * 落地核对只看红旗本身与病历原文，不读后两段（groundClinicalFacts）。整份写完后若 JSON 后半段坏掉触发结构修复、
  * 或传输中断触发重抽，最终结论以重抽为准：此后各阶段（red-flags、辨证、开方）读的都是最终结果，M02 只是这一轮的追问。
  */
-export function earlyClinicalFactsFromPartial(partial: string, sourceText: string): ClinicalFacts | undefined {
+export function earlyClinicalFactsFromPartial(partial: string, sourceText: string, mentionPolarityAt?: MentionPolarityAt): ClinicalFacts | undefined {
   const redFlagsKey = partial.search(/"redFlags"\s*:/);
   if (redFlagsKey < 0) return undefined;
   const dispositionKey = partial.search(/"disposition"\s*:/);
@@ -1509,8 +1643,9 @@ export function earlyClinicalFactsFromPartial(partial: string, sourceText: strin
   const closing = tail.exec(partial);
   if (!closing) return undefined;
   const prefix = `${partial.slice(0, closing.index + 1)}}`;
-  const parsed = parseClinicalFacts(prefix);
-  if (!parsed) return undefined;
+  const rawParsed = parseClinicalFacts(prefix);
+  if (!rawParsed) return undefined;
+  const parsed = reanchorClinicalFactQuotes(rawParsed, sourceText, mentionPolarityAt);
   const grounded = groundClinicalFacts(parsed, sourceText);
   if (grounded.redFlags.length < parsed.redFlags.length) return undefined;
   return { ...grounded, affirmedSymptoms: [], encounterScope: undefined, reviewStatus: "single_pass" };
@@ -1526,6 +1661,8 @@ export async function extractClinicalFacts(
   signal?: AbortSignal,
   /** 红旗段写完即回调一次（earlyClinicalFactsFromPartial）；整份结果仍由本函数返回。 */
   onEarlyRedFlags?: (facts: ClinicalFacts) => void,
+  /** 引文对齐的语境守卫（安全层 recordMentionPolarityAt）；缺省时只按写法对齐、不判语境。 */
+  mentionPolarityAt?: MentionPolarityAt,
 ): Promise<ClinicalFacts | null> {
   if (!text.trim()) return { redFlags: [] };
   if (signal?.aborted) return null;
@@ -1536,7 +1673,7 @@ export async function extractClinicalFacts(
     const onPartial = onEarlyRedFlags
       ? (partial: string) => {
           if (earlyEmitted || signal?.aborted) return;
-          const early = earlyClinicalFactsFromPartial(partial, text);
+          const early = earlyClinicalFactsFromPartial(partial, text, mentionPolarityAt);
           if (!early) return;
           earlyEmitted = true;
           onEarlyRedFlags(early);
@@ -1566,6 +1703,7 @@ export async function extractClinicalFacts(
     }
   }
   if (!parsed) return null;
+  parsed = reanchorClinicalFactQuotes(parsed, text, mentionPolarityAt);
   let grounded = groundClinicalFacts(parsed, text);
   if (!repairUsed && grounded.redFlags.length < parsed.redFlags.length && !signal?.aborted) {
     const rejectedQuotes = parsed.redFlags
@@ -1589,7 +1727,8 @@ export async function extractClinicalFacts(
         "repair",
       );
       if (signal?.aborted) return null;
-      const repaired = parseClinicalFacts(repairedRaw);
+      const repairedParsed = parseClinicalFacts(repairedRaw);
+      const repaired = repairedParsed ? reanchorClinicalFactQuotes(repairedParsed, text, mentionPolarityAt) : null;
       if (repaired) {
         const repairedGrounded = groundClinicalFacts(repaired, text);
         const merged = [...grounded.redFlags];

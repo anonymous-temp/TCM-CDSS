@@ -15,7 +15,8 @@ import {
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
-import { recordedFindingReading } from "./diagnosis-safety";
+import { recordedFindingReading, recordMentionPolarityAt } from "./diagnosis-safety";
+import { alignQuoteToSource } from "./source-quote-alignment";
 
 /**
  * 辨病辨证里关于本例患者的说法要有病历依据（2026-10-19，独立评审通则 1）。
@@ -194,6 +195,11 @@ export function parsePatientClaimRemovals(
     //「发热、呕吐为湿浊内扰之象」因为四个字在病历里逐字出现而被放过）。读法用病历读法（recordedFindingReading），
     // 只解除保护，删不删仍由两次核对与复核决定。
     if (key.length < 2 || (source.includes(key) && !onlyDeniedInRecord(span, recordText))) continue;
+    // 写法不同的原文（「脉弦」⇄「脉象：弦」、「三天」⇄「3天」，第二十一轮）同样是病历里肯定写着的，不删。
+    const aligned = alignQuoteToSource(span, recordText, {
+      excludedAt: (text, index) => recordMentionPolarityAt(text, index) !== "affirmed",
+    });
+    if (aligned && aligned.status !== "exact" && !onlyDeniedInRecord(span, recordText)) continue;
     // 「有胸痛」「伴口苦」：去掉开头的「有/伴/见」后是病历里肯定写着的表现（「偶有心慌、胸痛」），不删。否认句里的不算（「无恶心呕吐」对「有呕吐」照删）。
     const core = key.replace(EXISTENCE_LEAD_IN, "");
     if (core.length >= 2 && core !== key && affirmed.includes(core)) continue;

@@ -19,7 +19,7 @@ import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-
 import { unsupportedHighImpactHerbFindings, affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03PreservedParallelHalfIssue, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
 import { parseStreamModuleDraftFrame, stageProgressHeartbeatStatus, STREAM_REPLACE_MARKER, type StageProgressPhase, type StreamModuleDraftFrame } from "@/lib/diagnosis-stream-protocol";
 import { normalizeM03TcmDiseaseDifferentialNames } from "@/lib/tcm-disease-differential-normalization";
-import { groundDifferentialNegativeAssertions, alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyGovernedM03DiseaseDifferentialBoundary, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
+import { groundDifferentialNegativeAssertions, alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyGovernedM03DiseaseDifferentialBoundary, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, groundStructuredPatientFacts, type ChainGroundingReport, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { modelUsageSnapshot, parseOpenAICompatCompletionPayload, type CompatUsage } from "@/lib/openai-compatible-response";
 import { recordModelTaskTelemetry } from "./cdss-model-task-telemetry";
@@ -465,7 +465,7 @@ type StreamSafetyOptions = {
   /** 不给剂量的原因类别（diagnosis-safety.doseWithheldFollowupKind）：交付面按它写复诊节点。辨证、开方两个路由都给。 */
   structuredDoseWithheldKind?: import("./diagnosis-safety").DoseWithheldFollowupKind;
   /** 给了剂量但安全门要求优先完成临床评估时的评估重点（diagnosis-safety.priorityEvaluationFollowupFocus）：交付面据此改写复诊第一句。 */
-  structuredPriorityEvaluation?: string;
+  structuredPriorityEvaluation?: import("./diagnosis-safety").PriorityEvaluationTarget | string;
   structuredCaseState?: CaseState;
   structuredMedicineCandidates?: readonly EvidenceBoundMedicineProposal[];
   /**
@@ -575,7 +575,9 @@ export async function prepareDiagnoseStructuredContent(
   // 因此下游合同、签名载荷与三出口的形状逐字不变。必须排在最前——后面每个 phase 都
   // 假定对象是完整的。
   const serverOwned = phase("server_owned_fields", applyServerOwnedM03Fields(content, lineagePreference));
-  const grounded = phase("grounding", groundStructuredPatientFacts(serverOwned, clinicalContext));
+  // 病机链接地删除记账（第二十一轮）：只记原因与条数，不记病历原文。
+  const reportChainGrounding = (event: ChainGroundingReport) => console.info("[tcm-cdss:telemetry] m03_chain_grounding", event);
+  const grounded = phase("grounding", groundStructuredPatientFacts(serverOwned, clinicalContext, reportChainGrounding));
   const discriminatorProjected = phase(
     "key_discriminators",
     applyM03KeySyndromeDiscriminatorsToContent(grounded, clinicalContext),

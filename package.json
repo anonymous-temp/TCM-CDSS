@@ -307,6 +307,8 @@
     "test:r1030-main": "node scripts/test-r1030-main.mjs",
     "test:r1031-main": "node scripts/test-r1031-main.mjs",
     "test:r1032-main": "node scripts/test-r1032-main.mjs",
+    "test:r1033-main": "node scripts/test-r1033-main.mjs",
+    "regress:redflag-discriminator-screen": "node scripts/regress-redflag-discriminator-screen.mjs",
     "test:conception-dose-policy": "jiti scripts/test-conception-dose-policy.mjs",
     "test:pediatric-dose-rule": "jiti scripts/test-pediatric-dose-rule.mjs",
     "test:pediatric-vitals": "jiti scripts/test-pediatric-vitals.mjs",

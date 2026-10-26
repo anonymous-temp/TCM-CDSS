@@ -1,0 +1,28 @@
+{
+  "version": "2026-10-26",
+  "purpose": "模型引文与病历原文的对齐（source-quote-alignment.ts）。只放病历模板的写法结构：带标签的四诊字段、可省略的引号与标点、中文数词后的计量单位。不放临床术语，不做同义改写。",
+  "basis": "2026-10-26 第二十一轮：病历写「脉象：弦」，模型证候依据写「脉弦」，接地判找不到 → 唯一病机节点被删 → m03_chain_empty → 有限诊断页（生产 C093）。字段标签与紧凑写法是病历模板（问诊表单）的结构，与 clinicalGroundingText 拼出的「舌象：」「脉象：」「面象：」同源。",
+  "fieldLabels": [
+    { "label": "脉象", "compactPrefix": "脉", "compactSuffix": "脉" },
+    { "label": "脉诊", "compactPrefix": "脉", "compactSuffix": "脉" },
+    { "label": "脉", "compactPrefix": "脉", "compactSuffix": "脉" },
+    { "label": "舌象", "compactPrefix": "", "compactSuffix": "" },
+    { "label": "舌质", "compactPrefix": "舌", "compactSuffix": "" },
+    { "label": "舌苔", "compactPrefix": "苔", "compactSuffix": "" },
+    { "label": "面象", "compactPrefix": "", "compactSuffix": "" },
+    { "label": "面色", "compactPrefix": "面色", "compactSuffix": "" },
+    { "label": "指纹", "compactPrefix": "指纹", "compactSuffix": "" }
+  ],
+  "droppedQuoteMarks": "“”\"'‘’「」『』",
+  "punctuationClasses": [
+    { "canonical": "，", "members": "，,、" },
+    { "canonical": "；", "members": "；;" },
+    { "canonical": "：", "members": "：:" },
+    { "canonical": "（", "members": "（(" },
+    { "canonical": "）", "members": "）)" },
+    { "canonical": "！", "members": "！!" },
+    { "canonical": "？", "members": "？?" }
+  ],
+  "chineseNumeralDigits": { "零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9 },
+  "numeralUnits": ["天", "日", "周", "月", "年", "次", "岁", "小时", "分钟", "剂"]
+}

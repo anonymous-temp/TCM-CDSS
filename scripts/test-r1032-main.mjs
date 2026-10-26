@@ -169,7 +169,7 @@ const prescribeReasoning = () => ({
 await check("3.1 计划的两种写法：无剂数时与改动前逐字相同；有剂数时先评估、医生确认可服药后服完 N 剂复诊（病历10、S044）", () => {
   assert.equal(D.priorityEvaluationFirstStep(""), "请在3天内到医院完成评估、核实病情后，再按医生安排服药与复诊。");
   assert.equal(D.priorityEvaluationFirstStep("社区获得性肺炎"), "请在3天内到相关专科就诊，先完成评估（需排除社区获得性肺炎），再按医生安排服药与复诊。");
-  assert.equal(D.priorityEvaluationFirstStep("乳腺癌"), "请在2周内到乳腺专科就诊，先完成乳腺超声检查（必要时加做乳腺X线），排除乳腺癌后再按医生安排服药与复诊。");
+  assert.equal(D.priorityEvaluationFirstStep({ focus: "乳腺癌", window: "within_2w", pathway: "breast_mass" }), "请在2周内到乳腺专科就诊，先完成乳腺超声检查（必要时加做乳腺X线），排除乳腺癌后再按医生安排服药与复诊。");
   assert.equal(D.priorityEvaluationFirstStep("", { doses: 7, days: 7 }), "请在3天内到医院完成评估、核实病情；医生确认可以服药后，服完7剂药（约7天后）再复诊。");
   assert.equal(D.priorityEvaluationFollowUpNode("", "完成7剂（7日）后复诊；出现不适或症状加重时提前复诊"), "先在3天内到医院完成评估；医生确认可以服药后，完成7剂（7日）后复诊；出现不适或症状加重时提前复诊");
 });

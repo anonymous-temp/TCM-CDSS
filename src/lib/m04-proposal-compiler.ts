@@ -27,7 +27,7 @@ import {
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
-import { authoritativePatientAgeYears, clinicalGroundingText, pregnancyAdviceRelevant, reproductiveAdviceRelevant, sourceDocumentsNegation } from "./diagnosis-safety";
+import { authoritativePatientAgeYears, clinicalGroundingText, clauseLocalMentionPolarityAt, pregnancyAdviceRelevant, reproductiveAdviceRelevant, sourceDocumentsNegation } from "./diagnosis-safety";
 import modificationRelevanceJson from "../data/tcm-modification-relevance.source.json";
 import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
@@ -41,6 +41,7 @@ import { assessPregnancyState } from "./clinical-state";
 import { specialDecoctionPhrase, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
 import { withheldBaseIngredientNote } from "./formula-withheld-ingredient-note";
 import { chpPregnancyHerbTier, chpPregnancyLabel, conceptionHerbNote } from "./conception-herb-policy";
+import { allergenHerbMatch, recordedAllergensInText } from "./allergen-profile";
 
 /** 「睡眠差随主病而来」判据已移到 incidental-sleep-modification.ts（教材加减检索共用），这里原名再导出。 */
 export { incidentalSleepSedativeModification, incidentalSleepTriggerModification };
@@ -877,7 +878,8 @@ type ModificationDropCode =
   | "incidental_sedative"
   | "trigger_contradicts_record"
   | "trigger_outside_population"
-  | "record_caution_conflict";
+  | "record_caution_conflict"
+  | "allergen_conflict";
 
 const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>> = {
   malformed: "条目缺少触发事实、病机引用、动作、药名或理由",
@@ -893,6 +895,7 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   trigger_contradicts_record: "触发条件里的症状病历已明确否认",
   trigger_outside_population: "触发条件是本例患者的性别或生育期不会出现的症状",
   record_caution_conflict: "拟加药味的教材【使用注意】与本例已记录的情况相抵",
+  allergen_conflict: "拟加药味与病历记录的过敏原同源，不宜加入",
 };
 
 type ModificationRelevanceTable = {
@@ -2076,6 +2079,7 @@ export function compileM04Proposal(
   // 与合同（m04GenerationSpecialPopulationIssue）读同一个判据、同一份接地文本。
   // 两档：备孕/未避孕，或育龄女性妊娠状态未记录（chpPregnancyHerbTier）。
   const conceptionTier = caseState ? chpPregnancyHerbTier(clinicalGroundingText(caseState)) : undefined;
+  const recordedAllergens = caseState ? recordedAllergensInText(clinicalGroundingText(caseState), clauseLocalMentionPolarityAt) : [];
   // 注意事项里「方中有某药」只能说本方与随证加减里确有的药（见 precautionNamesHerbOutsideFormula）。
   const prescribedPrecautionIdentities = new Set([
     ...proposal.candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name)),
@@ -2219,6 +2223,11 @@ export function compileM04Proposal(
     // 备孕/未避孕：药典孕妇禁用的饮片不作为加味（方中药味由合同修复轮拦，加减是可选的备用条目，直接不列）。
     if (conceptionTier && item.actionType === "add" && chpPregnancyLabel(item.herbName)?.level === "prohibited") {
       dropReasons.push("special_population_conflict");
+      return [];
+    }
+    // 病历记录的食物等过敏：与过敏原同源的饮片（avoid 档）不作为加味（第二十一轮）。
+    if (recordedAllergens.length > 0 && item.actionType === "add" && allergenHerbMatch(item.herbName, recordedAllergens)?.action === "avoid") {
+      dropReasons.push("allergen_conflict");
       return [];
     }
     const actionVerb = item.actionType === "add" ? "加" : item.actionType === "remove" ? "减" : "调整";

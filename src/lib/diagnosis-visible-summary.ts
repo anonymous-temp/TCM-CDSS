@@ -1,4 +1,4 @@
-import { chineseDurationNumber, discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
+import { chineseDurationNumber, discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote, stableM03CoreTextWithoutHedges } from "./diagnosis-stage-contract";
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import { pediatricDoseRuleForAgeYears } from "./pediatric-dose-rule";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
@@ -2755,7 +2755,14 @@ const SERVER_AUTHORED_DIFFERENTIAL_REASONS: ReadonlySet<string> = new Set([
   DIFFERENTIAL_REASON_UNGROUNDED_FALLBACK,
 ]);
 
-export function groundStructuredPatientFacts(content: string, clinicalContext: string): string {
+/** 病机链接地的删除记账（只记原因与条数，不记病历原文）。 */
+export type ChainGroundingReport = { kept: number; dropped: Record<string, number>; salvaged: number; trimmedHedges: number };
+
+export function groundStructuredPatientFacts(
+  content: string,
+  clinicalContext: string,
+  report?: (event: ChainGroundingReport) => void,
+): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -2874,12 +2881,23 @@ export function groundStructuredPatientFacts(content: string, clinicalContext: s
         return [{ ...item, reason }];
       }));
     }
+    // 最小单元（2026-10-26 第二十一轮）：节点只因个别对冲从句或证候依据一列没落地而整条删除，链删空就
+    // m03_chain_empty → 有限诊断页。现在：对冲从句单独去掉；链要删空时，用同一半已落地的主证依据补上
+    // 证候依据列（都是模型自己引用、且逐字在病历里的原文）；每次删除按原因记账。
+    const dropped: Record<string, number> = {};
+    const drop = (reason: string) => { dropped[reason] = (dropped[reason] || 0) + 1; return [] as Record<string, unknown>[]; };
+    let trimmedHedges = 0;
+    const salvageable: Array<{ node: Record<string, unknown>; patientFactQuote: string; pathogenesis: string; therapyDirection: string }> = [];
     const groundedChain = pathogenesis.chain.flatMap((rawNode) => {
-      if (!rawNode || typeof rawNode !== "object" || Array.isArray(rawNode)) return [];
+      if (!rawNode || typeof rawNode !== "object" || Array.isArray(rawNode)) return drop("node_not_object");
       const node = rawNode as Record<string, unknown>;
-      if (typeof node.patientFact !== "string") return [];
-      if (isUnstableM03CoreText(node.pathogenesis) || isUnstableM03CoreText(node.therapyDirection)) return [];
-      if (!clinicalContext) return [node];
+      if (typeof node.patientFact !== "string") return drop("patient_fact_missing");
+      const pathogenesisText = stableM03CoreTextWithoutHedges(node.pathogenesis);
+      const therapyText = stableM03CoreTextWithoutHedges(node.therapyDirection);
+      if (!pathogenesisText) return drop("pathogenesis_unstable");
+      if (!therapyText) return drop("therapy_unstable");
+      if (pathogenesisText !== node.pathogenesis || therapyText !== node.therapyDirection) trimmedHedges += 1;
+      if (!clinicalContext) return [{ ...node, pathogenesis: pathogenesisText, therapyDirection: therapyText }];
       const patientFactQuote = stripClinicalTransportPrefix(
         exactClinicalSourceQuotes(node.patientFact, clinicalContext)[0] || "",
       );
@@ -2889,10 +2907,34 @@ export function groundStructuredPatientFacts(content: string, clinicalContext: s
       // These fields have different semantics: patientFact is the observed manifestation and
       // syndromeEvidence is the four-examination/diagnostic evidence used to infer the mechanism.
       // Each must independently ground to the chart; never copy one quote into both columns.
-      return patientFactQuote && syndromeEvidenceQuote
-        ? [{ ...node, patientFact: patientFactQuote, syndromeEvidence: syndromeEvidenceQuote }]
-        : [];
+      if (!patientFactQuote) return drop("patient_fact_ungrounded");
+      if (!syndromeEvidenceQuote) {
+        salvageable.push({ node, patientFactQuote, pathogenesis: pathogenesisText, therapyDirection: therapyText });
+        return drop("syndrome_evidence_ungrounded");
+      }
+      return [{ ...node, pathogenesis: pathogenesisText, therapyDirection: therapyText, patientFact: patientFactQuote, syndromeEvidence: syndromeEvidenceQuote }];
     });
+    let salvaged = 0;
+    if (groundedChain.length === 0 && salvageable.length > 0 && clinicalContext) {
+      const overview = recordValue(reasoning.overview);
+      const basisQuotes = semanticItems(overview?.primarySyndromeBasis).flatMap((item) =>
+        exactClinicalSourceQuotes(item, clinicalContext).map((quote) => stripClinicalTransportPrefix(quote)).filter(Boolean));
+      for (const candidate of salvageable) {
+        const evidence = basisQuotes.find((quote) => quote !== candidate.patientFactQuote);
+        if (!evidence) continue;
+        groundedChain.push({
+          ...candidate.node,
+          pathogenesis: candidate.pathogenesis,
+          therapyDirection: candidate.therapyDirection,
+          patientFact: candidate.patientFactQuote,
+          syndromeEvidence: evidence,
+        });
+        salvaged += 1;
+      }
+    }
+    if (report && (Object.keys(dropped).length > 0 || salvaged > 0 || trimmedHedges > 0)) {
+      report({ kept: groundedChain.length, dropped, salvaged, trimmedHedges });
+    }
     pathogenesis.chain = groundedChain.map((node, index) => ({ ...node, nodeId: `P${index + 1}` }));
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {

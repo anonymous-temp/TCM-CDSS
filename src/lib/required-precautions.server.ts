@@ -1,6 +1,6 @@
 import { cleanedMedicationNameCandidate, recordedDrugAllergyPhrases, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
-import { ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
+import { clauseLocalMentionPolarityAt, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import {
   findLocalPatentMedicineLabel,
@@ -14,6 +14,7 @@ import { catalogSharedComposition } from "./tcm-formula-provenance";
 import { getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
 import { dietRestrictionForSyndromeText, recordedTriggerFoods } from "./tcm-therapy-phrasing";
 import { discontinuedMedicationLabel, type RequiredPrecaution } from "./required-precautions";
+import { allergensFromScreen, mergeRecordedAllergens, recordedAllergensInText } from "./allergen-profile";
 
 export type { RequiredPrecaution } from "./required-precautions";
 
@@ -136,6 +137,12 @@ export function requiredPrecautionsForCase(
   // 备孕/未避孕（2026-10-14 起照常给剂量、慎用药逐味标注）：注意事项要写一句服药期间月经逾期先验孕（留出集 S102 评审判缺）。
   const drugAllergy = recordedDrugAllergyPhrases(grounding);
   if (drugAllergy.length > 0) items.push({ kind: "drug_allergy", phrases: drugAllergy });
+  // 食物等过敏：病历闭集读法 ∪ 读病历小任务的结果（事实层里带着），一份档案，饮食、食疗、饮片、中成药都对照它（第二十一轮，B061）。
+  const allergens = mergeRecordedAllergens(
+    recordedAllergensInText(grounding, clauseLocalMentionPolarityAt),
+    allergensFromScreen(state.clinicalFacts?.discriminatorScreen?.status === "checked" ? state.clinicalFacts.discriminatorScreen.present : undefined),
+  );
+  if (allergens.length > 0) items.push({ kind: "food_allergy", classes: allergens });
   if (conceptionWithoutPregnancyOrLactation(grounding)) items.push({ kind: "conception_pregnancy_check" });
   else if (pregnancyAdviceRelevant(state) && assessPregnancyState(grounding).status === "unknown" &&
     assessLactationState(grounding).status === "unknown" && !recentChildbirthMentioned(grounding)) {
@@ -290,6 +297,10 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "toxic_self_preparation") return `${order}病历记录患者自行配制并服用含${item.herbs.join("、")}的药（药典标注有毒）：写明立即停用、不要再自行配制服用，并写出须立即就医的中毒表现（口唇舌及四肢发麻、心慌、心跳不齐、呼吸困难）。`;
     if (item.kind === "conception_pregnancy_check") return `${order}写一条（患者备孕或未避孕）：服药期间如月经逾期须先验孕，确认怀孕立即停药并告知医生；不用逐味点名哪些药慎用（药表里已逐味标注）。`;
     if (item.kind === "drug_allergy") return `${order}病历记录有药物过敏（${item.phrases.join("；")}）：写明请勿再用该药及同类药物，就诊开药或自行购药时主动告诉医生和药师；推荐的中成药、西药不得含该药或同类药。`;
+    if (item.kind === "food_allergy") {
+      const labels = item.classes.map((entry) => entry.labelZh).join("、");
+      return `${order}病历记录对${labels}过敏或不耐受（${item.classes.map((entry) => `「${entry.quote}」`).join("；")}）：这是硬约束——饮食建议、食疗方不得推荐含${labels}的食物，处方、加减和中成药不得含${labels}来源的药材或成份（如鸡子黄、蜜炙饮片、淡豆豉）；注意事项写明请避开${labels}及其制品，出现皮疹、瘙痒、口唇肿胀或呼吸不畅立即就医。`;
+    }
     return `${order}${item.disease}是细菌感染：写明须到医院由医生决定抗菌药物治疗，以及寒战高热、红肿迅速扩大等须立即就医的表现。`;
   });
   return `【本例注意事项必须写到】以下各项在 nonPharma.precautions 里各写一条，排在最前，不计入条数上限。清单是写给你看的；写进注意事项时直接对患者说（用「您」或不写主语），不要照抄清单里「患者已自服」「病历记录」这类说法：\n${lines.join("\n")}${exerciseNote}`;

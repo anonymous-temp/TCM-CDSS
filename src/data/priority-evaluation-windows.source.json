@@ -1,0 +1,38 @@
+{
+  "version": "2026-10-26",
+  "purpose": "给了剂量、但安全门要求先完成临床评估时，复诊计划第一句的评估时限（diagnosis-safety.priorityEvaluationPlan）。时限由事实模型逐项判断（mustNotMiss.timeWindow），数值兜底与疑似肿瘤路径由确定性层给；同一病例取最紧的一档。",
+  "basis": "2026-10-25 第二十轮评审：优先评估一律写「3天内」，疑似肝脓肿（白细胞 17、心率 107）与高血糖伴酮尿也是 3 天，乳腺那一档是按病名正则加的。",
+  "windows": [
+    { "id": "within_24h", "label": "24小时内", "meaningZh": "病情可能在一两天内恶化：已有全身炎症反应或器官功能受损证据的感染、显著代谢紊乱、新发器官功能异常等，需当天完成评估" },
+    { "id": "within_48h", "label": "48小时内", "meaningZh": "不能等过两天：检验或检查结果提示需尽快明确，但没有当天恶化的证据（参照 NICE NG12 very urgent：48 小时内）" },
+    { "id": "within_3d", "label": "3天内", "meaningZh": "需专科明确或处理，短期内恶化可能小" },
+    { "id": "within_2w", "label": "2周内", "meaningZh": "疑似肿瘤或占位、没有急性并发症（参照 NICE NG12 urgent suspected cancer pathway：两周内）" }
+  ],
+  "defaultWindow": "within_3d",
+  "pathways": {
+    "breast_mass": {
+      "window": "within_2w",
+      "focus": "乳腺癌",
+      "visit": "到乳腺专科就诊，先完成乳腺超声检查（必要时加做乳腺X线）",
+      "nodeVisit": "到乳腺专科完成乳腺超声检查",
+      "clearance": "排除乳腺癌、医生确认可以服药后",
+      "withoutRegimenTail": "排除乳腺癌后再按医生安排服药与复诊",
+      "source": "NICE NG12 1.4：30 岁及以上不明原因乳房肿块，疑似癌症路径两周内转诊（2026-10-24 第十七轮已核）"
+    },
+    "hyperglycemic_ketosis": {
+      "window": "within_24h",
+      "focus": "糖尿病酮症酸中毒",
+      "visit": "到医院急诊查血气与血酮，先排除糖尿病酮症酸中毒",
+      "nodeVisit": "到医院急诊完成血气与血酮检查",
+      "clearance": "排除糖尿病酮症酸中毒、医生确认可以服药后",
+      "withoutRegimenTail": "排除糖尿病酮症酸中毒后再按医生安排服药与复诊",
+      "source": "ADA/EASD/JBDS/AACE/DTS 2024 Hyperglycemic Crises in Adults With Diabetes: A Consensus Report（Diabetes Care 2024;47:1257–1275）——DKA 诊断三项：血糖 ≥200 mg/dL（11.1 mmol/L）或既往糖尿病；β-羟丁酸 ≥3.0 mmol/L 或尿酮 ≥2+；pH <7.3 和/或 HCO3- <18 mmol/L。门诊病历多半没有血气，前两项成立即按疑似 DKA 当天评估。"
+    }
+  },
+  "hyperglycemicKetosisThresholds": {
+    "glucoseMmolPerL": 11.1,
+    "glucoseMgPerDl": 200,
+    "urineKetonePlus": 2,
+    "bloodKetoneMmolPerL": 3.0
+  }
+}

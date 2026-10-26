@@ -39,7 +39,8 @@ import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
 import { withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
 import { assessPregnancyState } from "./clinical-state";
-import { priorityEvaluationFirstStep, priorityEvaluationFollowUpNode, quoteWithoutDeniedLeadingItems, type DoseWithheldFollowupKind } from "./diagnosis-safety";
+import { allergenHerbMatch, allergenMatchesInText } from "./allergen-profile";
+import { priorityEvaluationFirstStep, priorityEvaluationFollowUpNode, quoteWithoutDeniedLeadingItems, type DoseWithheldFollowupKind, type PriorityEvaluationTarget } from "./diagnosis-safety";
 
 /**
  * 投影时可选的本例信息：herbBoundaryAudience 决定逐味人群提示列哪些人群（见 herbBoundaryPopulationRelevant）；
@@ -56,7 +57,7 @@ export type DeliveredSurfaceOptions = {
   /** 不给剂量的具体原因类别（diagnosis-safety.doseWithheldFollowupKind）：复诊提示按它写节点与观察项。缺省时按 doseWithheld 的旧写法。 */
   doseWithheldKind?: DoseWithheldFollowupKind;
   /** 给了剂量但安全门要求优先完成临床评估（priorityEvaluationFollowupFocus）：评估要排除的情况；只有类目提示时为空串。 */
-  priorityEvaluation?: string;
+  priorityEvaluation?: PriorityEvaluationTarget | string;
   /** 投影的是不给剂量的那一页（renderM04DeliveryCheckpoint 设）：注意事项里不说「按医生开的剂量」。 */
   nonDosePage?: boolean;
   /**
@@ -127,6 +128,10 @@ function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly str
   if (item.kind === "drug_allergy") {
     const drugs = drugNamesInAllergyPhrases(item.phrases);
     return lines.some((line) => (/过敏/u.test(line) || drugs.some((drug) => line.includes(drug))) && /告知|告诉|勿|不要|避免|禁用/u.test(line));
+  }
+  if (item.kind === "food_allergy") {
+    return item.classes.every((entry) => lines.some((line) => /过敏|不耐受/u.test(line) && /避开|避免|忌|勿|不要|不宜/u.test(line) &&
+      (line.includes(entry.labelZh.replace(/（[^）]*）/u, "")) || allergenMatchesInText(line, [entry]).length > 0)));
   }
   if (item.kind === "menses_overdue_pregnancy_check") return lines.some((line) => /验孕|妊娠试验|早孕试纸|HCG/iu.test(line));
   return lines.some((line) => /抗生素|抗菌|抗感染|青霉素|头孢/.test(line));
@@ -237,6 +242,10 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
     return "带状疱疹请尽早到医院由医生评估是否需要口服抗病毒药（发疹3天内、仍有新水疱出现或年龄50岁以上尤应尽早），疼痛明显请一并告知医生；如皮疹累及眼周、耳部，或出现视物模糊、听力改变、剧烈头痛，请立即就医。";
   }
   if (item.kind === "drug_allergy") return `病历记录有药物过敏（${item.phrases.join("；")}），请勿再用该药及同类药物；就诊开药或自行购药时，请主动告诉医生和药师。`;
+  if (item.kind === "food_allergy") {
+    const labels = item.classes.map((entry) => entry.labelZh.replace(/（[^）]*）/u, "")).join("、");
+    return `病历记录您对${labels}过敏或不耐受，饮食、食疗和用药请避开${labels}及其制品；服药后如出现皮疹、瘙痒、口唇肿胀或呼吸不畅，请停药并立即就医。`;
+  }
   if (item.kind === "gout_diet") return "痛风需低嘌呤饮食：少吃海鲜、动物内脏和浓肉汤，戒酒（尤其啤酒），每天多饮水。";
   if (item.kind === "trigger_foods") return `本次发病与进食${item.foods.join("、")}有关，服药期间及以后请避免${item.foods.join("、")}。`;
   if (item.kind === "severe_hypertension_followup") {
@@ -1260,6 +1269,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       ? { names: formulaHerbNames, has: (herb: string) => formulaIdentities.has(canonicalTcmHerbIdentity(herb)) }
       : undefined;
     const onAntithrombotic = (options?.requiredPrecautions || []).some((item) => item.kind === "antithrombotic_bleeding");
+    // 病历记录的食物等过敏（第二十一轮，B061）：饮食段、食疗卡不推荐含过敏原的食物（avoid 档；caution 档留给注意事项提示）。
+    const recordedAllergens = (options?.requiredPrecautions || []).flatMap((item) => item.kind === "food_allergy" ? item.classes : []);
+    const mentionsAllergenFood = (text: string) => allergenMatchesInText(text, recordedAllergens).some((match) => match.action === "avoid");
     const careTexts = [nonPharma.diet, nonPharma.lifestyle, nonPharma.exercise, nonPharma.emotion, ...(Array.isArray(nonPharma.precautions) ? nonPharma.precautions : [])]
       .map((value) => String(value || ""));
     const fasting = fastingOrdered(careTexts);
@@ -1267,12 +1279,14 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       if (fasting) nonPharma.diet = withoutEatingRecommendations(nonPharma.diet);
       if (prescribed) nonPharma.diet = withoutRecommendedFoods(String(nonPharma.diet), (text) => textAntagonizesPrescription(text, prescribed));
       if (onAntithrombotic) nonPharma.diet = withoutRecommendedFoods(String(nonPharma.diet), mentionsBloodActivatingFood);
+      if (recordedAllergens.length > 0) nonPharma.diet = withoutRecommendedFoods(String(nonPharma.diet), mentionsAllergenFood);
     }
     if (Array.isArray(nonPharma.tcmTreatments)) {
       nonPharma.tcmTreatments = records(nonPharma.tcmTreatments).filter((item) => {
         if (item.projectCode !== "diet_therapy") return true;
         const content = String(item.treatmentContent || "");
-        return !(fasting || textAntagonizesPrescription(content, prescribed) || (onAntithrombotic && mentionsBloodActivatingFood(content)));
+        return !(fasting || textAntagonizesPrescription(content, prescribed) || (onAntithrombotic && mentionsBloodActivatingFood(content)) ||
+          (recordedAllergens.length > 0 && mentionsAllergenFood(content)));
       });
     }
   }
@@ -1344,6 +1358,14 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     if (avoidedContained.size > 0 && formula && Array.isArray(formula.patentAndWestern)) {
       formula.patentAndWestern = records(formula.patentAndWestern).filter((item) => item.type === "西药" ||
         !patentMedicineCompositionIdentities(String(item.name || "")).some((herb) => avoidedContained.has(herb)));
+    }
+    // 病历记录的食物等过敏（第二十一轮，B061）：推荐的中成药、西药名称或成份含过敏原（溶菌酶、蜂蜜丸、含鸡子黄的方…）的不推荐。
+    const allergyClasses = (options?.requiredPrecautions || []).flatMap((item) => item.kind === "food_allergy" ? item.classes : []);
+    if (allergyClasses.length > 0 && formula && Array.isArray(formula.patentAndWestern)) {
+      formula.patentAndWestern = records(formula.patentAndWestern).filter((item) =>
+        !allergenMatchesInText([item.name, item.functionIndication, item.composition, item.ingredients].filter((value) => typeof value === "string").join("；"), allergyClasses, "medicine")
+          .some((match) => match.action === "avoid") &&
+        !(item.type !== "西药" && patentMedicineCompositionIdentities(String(item.name || "")).some((herb) => allergenHerbMatch(herb, allergyClasses)?.action === "avoid")));
     }
     const recommended = records(formula?.patentAndWestern).map((item) => String(item.name || "").trim()).filter((name) => name.length >= 2);
     if (recommended.length > 0) {
@@ -2028,14 +2050,14 @@ export function followupWhenDoseWithheld(text: string, reason: "red_flag" | "wit
  * 换掉「请服完本次的药后复诊」或已补了剂数的那句；没有这句时放在最前。模型写的立即就医表现照留。幂等。
  */
 const FINISH_MEDICINE_WITH_COUNT = /请?在?(?:服完|吃完|用完)(?:本次的?药|\d+剂药)(?:后|再)?(?:（约\d+天后）)?(?:按时)?复诊[^。；;]*[。；;]?/u;
-export function followupWhenPriorityEvaluation(text: string, focus: string, regimen?: { doses?: unknown; days?: unknown }): string {
+export function followupWhenPriorityEvaluation(text: string, focus: PriorityEvaluationTarget | string, regimen?: { doses?: unknown; days?: unknown }): string {
   // 与 M05 首次复诊同一句（priorityEvaluationFirstStep；乳房肿块按 NICE NG12 两周内乳腺专科）。开方页带上剂数：
   // 先评估、医生确认可以服药后服完 N 剂再复诊，与煎服法的复诊节点同一份计划（2026-10-25 第二十轮）。
   const first = priorityEvaluationFirstStep(focus, regimen);
   if (text.includes(first)) return text;
   // 辨证阶段写的、不带剂数的那一句（开方阶段的复诊计划常沿用它）：换成带剂数的。
   const plain = priorityEvaluationFirstStep(focus);
-  const generic = priorityEvaluationFirstStep("");
+  const generic = priorityEvaluationFirstStep(typeof focus === "string" ? "" : { focus: "", window: focus.window });
   for (const previous of [plain, generic]) if (previous !== first && text.includes(previous)) return text.replace(previous, first);
   if (FINISH_MEDICINE_WITH_COUNT.test(text)) return text.replace(FINISH_MEDICINE_WITH_COUNT, first);
   return `${first}${text}`;
@@ -2120,7 +2142,7 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
     const management = record(projected.management);
     if (management && typeof management.followupSafetyNet === "string" && options?.doseWithheld) {
       management.followupSafetyNet = followupWhenDoseWithheld(management.followupSafetyNet, options.doseWithheld, options.doseWithheldKind);
-    } else if (management && typeof management.followupSafetyNet === "string" && typeof options?.priorityEvaluation === "string") {
+    } else if (management && typeof management.followupSafetyNet === "string" && options?.priorityEvaluation !== undefined) {
       management.followupSafetyNet = followupWhenPriorityEvaluation(management.followupSafetyNet, options.priorityEvaluation);
     }
   }
@@ -2132,13 +2154,13 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
         management.followupSafetyNet = followupWhenDoseWithheld(management.followupSafetyNet, options.doseWithheld, options.doseWithheldKind);
       } else {
         const decoction = record(records(record(projected.formula)?.candidates)[0]?.decoction);
-        management.followupSafetyNet = typeof options?.priorityEvaluation === "string"
+        management.followupSafetyNet = options?.priorityEvaluation !== undefined
           ? followupWhenPriorityEvaluation(management.followupSafetyNet, options.priorityEvaluation, { doses: decoction?.followUpAfterDoses, days: decoction?.followUpAfterDays })
           : followupWithDoseCount(management.followupSafetyNet, decoction?.followUpAfterDoses, decoction?.followUpAfterDays);
       }
     }
     // 煎服法的复诊节点也先写评估这一步（priorityEvaluationFollowUpNode，与上面复诊计划同一份计划）。
-    if (!options?.doseWithheld && typeof options?.priorityEvaluation === "string") {
+    if (!options?.doseWithheld && options?.priorityEvaluation !== undefined) {
       for (const candidate of records(record(projected.formula)?.candidates)) {
         const decoction = record(candidate.decoction);
         if (decoction && typeof decoction.followUpNode === "string") decoction.followUpNode = priorityEvaluationFollowUpNode(options.priorityEvaluation, decoction.followUpNode);

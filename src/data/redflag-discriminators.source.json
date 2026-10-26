@@ -1,0 +1,4291 @@
+{
+  "version": "2026-10-26",
+  "status": "受治理（2026-10-26 第二十一轮）：指南原表逐行收录，每行引文逐字核对过实际抓取的页面（research/src-fetch）。闸门怎么用每一档见 gatePolicy。",
+  "purpose": "门诊红旗判别表：每行是指南表格里的一条判别特征，带等级和年龄段。小模型逐行判 present / absent / unassessed 并给逐字引文；数值行（各年龄段生命体征）由代码判断，不交给模型。任一 red 行 present 即红旗，amber 行 present 即优先评估。覆盖范围逐表逐行取自指南，不按事故补词。",
+  "conventions": {
+    "level": "red：红旗，任一 present 即触发。amber：优先评估。sourceLevel 保留指南原文等级名，下游需要时可以重新映射。",
+    "population": "年龄上下界均为闭区间，单位是指南所写的整月或整岁。例如『1 to 2 years』写成 12～35 月，『12 to 24 months』写成 12～23 月；两档在边界上重叠时，边界值归较大年龄档（NG143 的 24 月归『2 to 5 years』）。缺省的上下界表示不设限。",
+    "requiresFever": "NG143 各行只在患儿有发热时适用。NG143 对发热的定义是体温高于正常日间波动；1.1.6 规定家长感觉孩子发热也算。",
+    "requiresSuspectedInfection": "ng51- 各行只在有可能感染的症状或体征时适用（NG254 与 NG253 的 1.1.1：Think 'could this be sepsis?' if a person presents with symptoms or signs that indicate possible infection）。如何判定可能感染由调用方决定，例如发热、寒战、局部感染灶，或医生怀疑感染。",
+    "numeric": "kind=numeric 的行由代码比较记录中的数值。op 取 > >= < <= 或 between；between 用 min/max，两端都包含。spo2 行的 condition='breathing air'，表示只用未吸氧时的读数。",
+    "text": "kind=text 的行交给小模型判断，要求给出病历原文的逐字引文。病历里没写、或写得不足以判断的，记 unassessed，不记 absent。",
+    "conceptId": "不同来源里含义相同的行共用一个 conceptId（例如 NG143 与 NG254 的 'No response to social cues'），模型对每个 conceptId 只需判一次，再分发到各行。",
+    "verified": "true：sourceQuote 逐字取自本次实际抓取的页面（已用脚本做空白归一化后的子串核对）。false：阈值或定义是推断出来的，或原始手册没有抓到，原因写在该行的 thresholdNote 里。MTS 各行另有 definitionVerified=false，表示中文定义是转述，未对照 MTS 手册。"
+  },
+  "scopeNotes": [
+    "NG143：当前网页版的红绿灯表是 Table 2（任务说明写的是 Table 1；现在的 Table 1 是 APLS 心动过速表，其数值与 Table 2 的心动过速行相同）。",
+    "NG51 已于 2025-11-19 被拆分替代：16 岁及以上为 NG253，16 岁以下为 NG254，妊娠及近期妊娠为 NG255。本表 id 仍用 ng51- 前缀，sourceId 写实际的继任指南。",
+    "NG253（16 岁及以上）：在急性医院、急性精神卫生机构和救护车上按 NEWS2 分档（rec 1.6.1–1.6.2，≥7 高危、5–6 中危），本表不收。社区与羁押场所用 Table 1 判别条目，本表按门诊视同社区场所收录。NEWS2 情境下另有 1.6.3：花斑或灰白、按压不褪色瘀点紫癜、皮肤口唇舌发绀，提示风险高于评分。",
+    "NG254（16 岁以下）：三个年龄段（不足 5 岁、5～11 岁、12～15 岁）都有判别表；rec 1.1.8 建议考虑使用早期预警评分，指南正在按全国 PEWS 更新。",
+    "MTS：只收开放来源能逐字核对的一般判别条目（红/橙两档）。另收了一条 specific 判别条目『very low SpO2』，用于补 16 岁及以上未吸氧血氧这一条。低血糖（hypoglycaemia，见于红色病人所用判别条目）因开放来源没有给出阈值，未收。"
+  ],
+  "sources": [
+    {
+      "id": "nice-ng143",
+      "title": "Fever in under 5s: assessment and initial management (NG143)",
+      "publisher": "National Institute for Health and Care Excellence (NICE)",
+      "url": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "accessed": "2026-10-26",
+      "note": "Published 07 November 2019, last updated 26 November 2021. In the current web version the traffic-light system is Table 2 ('Traffic light system for identifying risk of serious illness [2013]'); Table 1 is now the APLS tachycardia table."
+    },
+    {
+      "id": "nice-ng51",
+      "title": "Suspected sepsis: recognition, diagnosis and early management (NG51)",
+      "publisher": "NICE",
+      "url": "https://www.nice.org.uk/guidance/ng51",
+      "accessed": "2026-10-26",
+      "note": "Superseded. The page says: 'This guideline has been updated and replaced by NICE's guidelines on suspected sepsis in people aged 16 or over (NG253), suspected sepsis in under 16s (NG254) and suspected sepsis in pregnant or recently pregnant people (NG255).' Rows keep the ng51- id prefix and cite the successor guideline in sourceId."
+    },
+    {
+      "id": "nice-ng254",
+      "title": "Suspected sepsis in under 16s: recognition, diagnosis and early management (NG254)",
+      "publisher": "NICE",
+      "url": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "accessed": "2026-10-26",
+      "note": "Published 19 November 2025; last reviewed 5 March 2026 (being updated around the national PEWS). Tables 1-3 (under 5, 5 to 11, 12 to 15)."
+    },
+    {
+      "id": "nice-ng253",
+      "title": "Suspected sepsis in people aged 16 or over: recognition, assessment and early management (NG253)",
+      "publisher": "NICE",
+      "url": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "accessed": "2026-10-26",
+      "note": "Published 19 November 2025, last updated 23 September 2026. Criteria table (Table 1) applies to community and custodial settings; acute hospital, acute mental health and ambulance settings use NEWS2 (rec 1.6.1-1.6.2) and are not tabulated here."
+    },
+    {
+      "id": "nice-ng255",
+      "title": "Suspected sepsis in pregnant or recently pregnant people: recognition, diagnosis and early management (NG255)",
+      "publisher": "NICE",
+      "url": "https://www.nice.org.uk/guidance/ng255/chapter/Evaluating-risk-level",
+      "accessed": "2026-10-26",
+      "note": "Published 19 November 2025. Table 1 is identical to NG253 Table 1 except the moderate-to-high heart-rate band (100 to 130). 'Recently pregnant' = 24 hours after termination or miscarriage, or 4 weeks after giving birth (Terms used in this guideline)."
+    },
+    {
+      "id": "mts-vaidyanathan-2012",
+      "title": "Vaidyanathan S, et al. Autonomic dysreflexia in a tetraplegic patient due to a blocked urethral catheter... Int J Emerg Med 2012;5:6. Table 2: General Discriminators for each category as per the Manchester Triage System",
+      "publisher": "Springer / BMC (CC BY 2.0), via PubMed Central",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "accessed": "2026-10-26",
+      "note": "Open-access tabulation of MTS general discriminators by category (cites the MTS manual, 2nd edition era). The MTS manual itself (Manchester Triage Group, Emergency Triage) is copyrighted and was not fetched."
+    },
+    {
+      "id": "mts-sorz-nechay-2025",
+      "title": "Sorz-Nechay A, et al. Relieving the pediatric emergency department by referring low triaged patients using the Manchester Triage System. Eur J Pediatr 2025. doi:10.1007/s00431-025-06230-5",
+      "publisher": "Springer (CC BY 4.0), via PubMed Central / Europe PMC",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12152041/",
+      "accessed": "2026-10-26",
+      "note": "Full text fetched from Europe PMC (https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12152041/fullTextXML); pmc.ncbi.nlm.nih.gov served a bot check."
+    },
+    {
+      "id": "mts-seiger-2014",
+      "title": "Seiger N, van Veen M, et al. Improving the Manchester Triage System for pediatric emergency care: an international multicenter study. PLoS One 2014;9:e83267",
+      "publisher": "PLOS (CC BY 4.0), via PubMed Central / Europe PMC",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3893080/",
+      "accessed": "2026-10-26",
+      "note": "Fetched from Europe PMC full-text XML. Table 1 gives the validated fever modification (hot child <3 months very urgent, >3 months urgent); methods define very low / low saturation."
+    },
+    {
+      "id": "mts-guedes-2015",
+      "title": "Guedes HM, et al. Relationship between complaints presented by emergency patients and the final outcome. Rev Lat Am Enfermagem 2015. doi:10.1590/0104-1169.0227.2592",
+      "publisher": "Revista Latino-Americana de Enfermagem (open access), via PubMed Central / Europe PMC",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4623720/",
+      "accessed": "2026-10-26",
+      "note": "Fetched from Europe PMC full-text XML. Lists the discriminators actually used for red and orange MTS patients (incl. very low SpO2 at orange, history of fitting at yellow)."
+    },
+    {
+      "id": "mts-zaloznik-2026",
+      "title": "Zaloznik Djordjevic J, et al. Manchester Triage System: Effectiveness, Limitations, and Global Implementation - A Structured Narrative Review. Healthcare (Basel) 2026. doi:10.3390/healthcare14162502",
+      "publisher": "MDPI (CC BY 4.0), via PubMed Central / Europe PMC",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13512649/",
+      "accessed": "2026-10-26",
+      "note": "Fetched from Europe PMC full-text XML. Quotes the MTS description of the shock discriminator (via Graeff 2017)."
+    },
+    {
+      "id": "mts-van-veen-2008",
+      "title": "van Veen M, et al. Manchester triage system in paediatric emergency care: prospective observational study. BMJ 2008;337:a1501",
+      "publisher": "BMJ (CC BY 2.0), via PubMed Central / Europe PMC",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC2548283/",
+      "accessed": "2026-10-26",
+      "note": "Fetched from Europe PMC full-text XML."
+    }
+  ],
+  "combinationRules": [
+    {
+      "id": "ng254-immunocompromised-escalation",
+      "sourceId": "nice-ng254",
+      "rule": "Under 16 with suspected sepsis: impaired immunity (drugs or illness) plus ANY moderate-to-high (amber) ng51- row => treat as red (refer for emergency medical care).",
+      "sourceQuote": "their immunity is impaired by drugs or illness and they meet any moderate to high risk criteria.",
+      "sourceLocation": "NG254 rec 1.6.1",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Managing-suspected-sepsis",
+      "verified": true,
+      "note": "For under 12s the tables have no 'impaired immune system' row, so the immunity condition must come from the record (ng51-12to15-amber-impaired-immunity concept can be reused)."
+    },
+    {
+      "id": "ng253-medium-risk-action",
+      "sourceId": "nice-ng253",
+      "rule": "16+ in community: any medium-risk row => assess for a definitive diagnosis; if not reached or not treatable outside hospital, refer urgently. This is the 'amber = priority evaluation' meaning.",
+      "sourceQuote": "In the community and in custodial settings, assess people aged 16 or over with suspected sepsis who meet any medium-risk criteria (as per table 1) to:",
+      "sourceLocation": "NG253 rec 1.7.9",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Managing-suspected-sepsis",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-amber-action",
+      "sourceId": "nice-ng143",
+      "rule": "Non-paediatric practitioner: any red feature => urgent referral to a paediatric specialist (immediately life-threatening => 999); amber features with no diagnosis => safety net or referral.",
+      "sourceQuote": "Children with any 'red' features but who are not considered to have an immediately life-threatening illness should be referred urgently to the care of a paediatric specialist.",
+      "sourceLocation": "NG143 rec 1.4.3",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    }
+  ],
+  "discriminators": [
+    {
+      "id": "ng143-red-pale",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "colour",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "pale-clinician",
+      "labelZh": "面色/皮肤苍白（医生所见）",
+      "definitionZh": "医生在本次就诊查体时看到的当前苍白：面色苍白、皮肤苍白、口唇苍白、面无血色、脸色煞白。『面色㿠白』『面白』只有写成本次发热病程中的当前所见才算。",
+      "notCountZh": "只是家长说脸色发白、医生没写查见（这归『家长诉苍白』那一行）；中医望诊的体质描述，如面色萎黄、面色少华、面色无华、『素体/平素面色㿠白』；舌色描述，如舌淡、舌质淡、淡红舌、舌淡胖（淡红舌是正常舌色）。",
+      "sourceQuote": "Pale, mottled, ashen or blue",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Colour', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true,
+      "splitFrom": "Pale, mottled, ashen or blue"
+    },
+    {
+      "id": "ng143-red-mottled-ashen",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "colour",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "mottled-ashen",
+      "labelZh": "皮肤花斑或面色灰白",
+      "definitionZh": "皮肤出现花斑、花纹、大理石样花纹、发花、网状青紫斑，或面色灰白、青灰、灰暗、土灰色（灌注不足的表现）。",
+      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。",
+      "sourceQuote": "Pale, mottled, ashen or blue",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Colour', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true,
+      "splitFrom": "Pale, mottled, ashen or blue"
+    },
+    {
+      "id": "ng143-red-blue",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "colour",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "blue",
+      "labelZh": "皮肤、口唇或舌发青（发绀）",
+      "definitionZh": "同『发绀』：皮肤、口唇或舌发青发紫，如发绀、紫绀、口唇青紫、口周发青、面色青紫。",
+      "notCountZh": "唇色紫暗、舌质紫暗、舌有瘀斑等中医血瘀描述；外伤淤青；只有手足末端遇冷发紫。紫红色、暗红色的皮疹或斑点，紫癜、瘀点、瘀斑（这些归按压不褪色的皮疹）；只写「面色紫红」「口唇红」。",
+      "sourceQuote": "Pale, mottled, ashen or blue",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Colour', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true,
+      "splitFrom": "Pale, mottled, ashen or blue"
+    },
+    {
+      "id": "ng143-amber-pallor-reported",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "colour",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "pallor-reported",
+      "labelZh": "家长诉孩子脸色发白",
+      "definitionZh": "家长或照护者说孩子脸色发白、嘴唇发白、『脸色不好看/没血色』，而医生没有另外记录查见苍白。",
+      "notCountZh": "医生已查见苍白（归红色那一行）；家长只说『气色差』『脸黄』『瘦』，没有提到发白。",
+      "sourceQuote": "Pallor reported by parent/carer",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Colour', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-no-response-social-cues",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "no-response-social-cues",
+      "labelZh": "对社交刺激无反应",
+      "definitionZh": "对父母或医生的呼唤、逗引完全没有反应：呼之不应、对外界刺激无反应、不认人、目光呆滞无反应。",
+      "notCountZh": "有反应但比平时少，如反应差、反应迟钝、逗之少笑（这些归 amber『对社交刺激反应不正常』）；怕生、对陌生人哭闹拒绝；正在熟睡、一叫就醒。",
+      "sourceQuote": "No response to social cues",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Activity', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-appears-ill",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "appears-ill",
+      "labelZh": "医生判断病情重（病重面容）",
+      "definitionZh": "医生明确记录患儿看起来病得重：一般情况差、危重病容、重病容、病情危重、精神反应极差、『看起来病得很重』。",
+      "notCountZh": "『急性病容』（这是发热病人的常规体检用语，指面颊潮红、表情痛苦，不等于病重）；『慢性病容』；『一般情况可』『精神可』。只写「精神差」「精神不振」「精神萎靡」「乏力」（这些是反应差，归琥珀色『对社交刺激反应不正常』），没有医生写明病情重或危重病容。",
+      "sourceQuote": "Appears ill to a healthcare professional",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Activity', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-does-not-wake",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "does-not-wake",
+      "labelZh": "叫不醒，或唤醒后不能保持清醒",
+      "definitionZh": "叫不醒，或唤醒后很快又睡过去：昏迷、叫不醒、唤不醒、昏睡（要强刺激才醒，停止刺激马上又睡）、嗜睡。按《诊断学》意识障碍分级，嗜睡是『可被唤醒，但刺激去除后很快又入睡』，正好对应『唤醒后不能保持清醒』，所以算本行。",
+      "notCountZh": "睡得多，但叫一声就醒、醒后能保持清醒（属正常）；正常的夜间睡眠或午睡；中医『多寐』或成人慢性困倦；唤醒困难但醒后能保持清醒（归 amber『需长时间刺激才醒』）。",
+      "sourceQuote": "Does not wake or if roused does not stay awake",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Activity', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-weak-high-pitched-cry",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "weak-high-pitched-cry",
+      "labelZh": "哭声微弱、尖直或持续不止",
+      "definitionZh": "哭声微弱、低弱，尖叫样哭声、哭声尖直，或持续哭闹、无法安抚。",
+      "notCountZh": "夜啼（夜间啼哭、白天如常）；饥饿、尿湿后哭闹，安抚后能停；只写『哭闹』而没写程度；声音嘶哑但哭声有力。",
+      "sourceQuote": "Weak, high-pitched or continuous cry",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Activity', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-not-responding-normally",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "not-responding-normally",
+      "labelZh": "对社交刺激反应不正常（反应差）",
+      "definitionZh": "有反应但比平时少：反应差、反应欠佳、反应迟钝、逗引反应减少、对周围不感兴趣、表情淡漠。",
+      "notCountZh": "完全没有反应、呼之不应（归红色『对社交刺激无反应』）；怕生、害羞。",
+      "sourceQuote": "Not responding normally to social cues",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Activity', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-no-smile",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "no-smile",
+      "labelZh": "不笑（逗之不笑）",
+      "definitionZh": "平时会笑的婴幼儿这次不笑、逗之不笑、笑容消失。",
+      "notCountZh": "还没到会笑的月龄（约 2 月龄前）；只是哭闹时没笑。",
+      "sourceQuote": "No smile",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Activity', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-wakes-prolonged-stimulation",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "wakes-prolonged-stimulation",
+      "labelZh": "需长时间刺激才能唤醒",
+      "definitionZh": "唤醒困难：要反复呼唤、摇动才醒，但醒后能保持清醒。",
+      "notCountZh": "嗜睡、昏睡、叫不醒，或醒后马上又睡（归红色『叫不醒/唤醒后不能保持清醒』）；正常熟睡，一叫就醒。",
+      "sourceQuote": "Wakes only with prolonged stimulation",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Activity', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-decreased-activity",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "decreased-activity",
+      "labelZh": "活动减少（精神萎靡、精神差）",
+      "definitionZh": "活动或精神状态比平时差，但仍能唤醒、有反应：精神萎靡、精神差、精神欠佳、精神不振、蔫、蔫蔫的、打蔫、没精神、少动、懒动、玩耍减少、不愿活动。『精神萎靡』归这一行，不归红色：萎靡说的是倦怠少动，并不包含『无反应』或『叫醒后不能保持清醒』这两条红色判据。只有同时写了无反应、呼之不应、叫不醒、嗜睡、昏睡，才另外计入红色各行。",
+      "notCountZh": "精神可、精神好、玩耍如常；只说食欲差、挑食；夜间睡眠不好、白天困倦，但活动正常。",
+      "sourceQuote": "Decreased activity",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Activity', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-grunting",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "grunting",
+      "labelZh": "呻吟样呼吸（呼气性呻吟）",
+      "definitionZh": "呼气时发出呻吟声：呼气性呻吟、呼吸时哼哼声，多见于婴幼儿。",
+      "notCountZh": "因疼痛而呻吟；撒娇哼唧；打鼾；喉中痰鸣。",
+      "sourceQuote": "Grunting",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Respiratory', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-rr-over-60",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 >60 次/分",
+      "definitionZh": "记录的呼吸频率大于 60 次/分（安静状态计数；年龄不限于某一段，5 岁以下发热患儿均适用）。由代码按数值判断。",
+      "notCountZh": "未写数值的『气促』『呼吸急促』（由代码以外的文本行处理，不在本行）；哭闹时的计数（若记录注明）。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": ">",
+        "value": 60,
+        "unit": "breaths/min",
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "Tachypnoea: respiratory rate more than 60 breaths per minute",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Respiratory', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-chest-indrawing",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "chest-indrawing",
+      "labelZh": "中重度胸壁吸气性凹陷（三凹征）",
+      "definitionZh": "三凹征阳性；明显吸气性凹陷；肋间隙、胸骨上窝或剑突下凹陷。",
+      "notCountZh": "三凹征阴性；只写『呼吸稍促』，没写凹陷；明确写了『轻度吸凹』（指南只把中重度列入本行）。",
+      "sourceQuote": "Moderate or severe chest indrawing",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Respiratory', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-nasal-flaring",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "nasal-flaring",
+      "labelZh": "鼻翼扇动",
+      "definitionZh": "鼻翼扇动、鼻扇（中医写作『鼻翼煽动』，同一体征）。",
+      "notCountZh": "鼻塞、流涕；鼻翼没有扇动。",
+      "sourceQuote": "Nasal flaring",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Respiratory', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-rr-over-50-6-12m",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 6,
+        "maxAgeMonths": 12,
+        "requiresFever": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 >50 次/分（6～12 月龄）",
+      "definitionZh": "6～12 月龄发热患儿，记录的呼吸频率大于 50 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』；不足 6 月龄（NG143 未给该年龄的 amber 呼吸线，仅 >60 为红）。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": ">",
+        "value": 50,
+        "unit": "breaths/min",
+        "minAgeMonths": 6,
+        "maxAgeMonths": 12
+      },
+      "sourceQuote": "Tachypnoea: respiratory rate >50 breaths per minute, age 6 to 12 months;",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Respiratory', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-rr-over-40-over-12m",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 13,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 >40 次/分（12 月龄以上）",
+      "definitionZh": "12 月龄以上、5 岁以下的发热患儿，记录的呼吸频率大于 40 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": ">",
+        "value": 40,
+        "unit": "breaths/min",
+        "minAgeMonths": 13,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": ">40 breaths per minute, age more than 12 months",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Respiratory', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-spo2-le-95",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "numeric",
+      "conceptId": "spo2-low",
+      "labelZh": "血氧饱和度 ≤95%（未吸氧）",
+      "definitionZh": "未吸氧时测得的 SpO2 ≤95%。由代码判断。",
+      "notCountZh": "吸氧状态下的读数；未写数值的『血氧偏低』。指南提醒部分血氧仪在深色皮肤者会高估读数。",
+      "numeric": {
+        "measure": "spo2",
+        "op": "<=",
+        "value": 95,
+        "unit": "%",
+        "condition": "breathing air",
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "Oxygen saturation less than or equal to 95% in air",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Respiratory', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-crackles",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "crackles",
+      "labelZh": "肺部湿啰音",
+      "definitionZh": "肺部湿啰音、细湿啰音、水泡音、捻发音。只写『啰音』而没说干湿的也算：门诊记录常省略，宁可优先评估。",
+      "notCountZh": "只有干啰音、哮鸣音、痰鸣音；『双肺呼吸音清』『未闻及啰音』。",
+      "sourceQuote": "Crackles in the chest",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Respiratory', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-reduced-skin-turgor",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "reduced-skin-turgor",
+      "labelZh": "皮肤弹性差（脱水）",
+      "definitionZh": "皮肤弹性差或减退：捏起的皮肤回缩缓慢、皮肤皱褶展平慢。",
+      "notCountZh": "只写皮肤干燥、脱屑；湿疹。",
+      "sourceQuote": "Reduced skin turgor",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Circulation and hydration', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-hr-over-160-under-12m",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 11,
+        "requiresFever": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 >160 次/分（不足 12 月龄）",
+      "definitionZh": "该年龄段发热患儿记录的心率大于 160 次/分（APLS 心动过速标准，NG143 Table 1 同值）。由代码判断。",
+      "notCountZh": "未写数值的『心率快』『心悸』；哭闹时测得且注明的读数仍按数值判断（指南未豁免）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": ">",
+        "value": 160,
+        "unit": "beats/min",
+        "minAgeMonths": 0,
+        "maxAgeMonths": 11
+      },
+      "sourceQuote": "More than 160 beats per minute, age less than 12 months",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Circulation and hydration', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-hr-over-150-12-24m",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 12,
+        "maxAgeMonths": 23,
+        "requiresFever": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 >150 次/分（12～24 月龄）",
+      "definitionZh": "该年龄段发热患儿记录的心率大于 150 次/分（APLS 心动过速标准，NG143 Table 1 同值）。由代码判断。",
+      "notCountZh": "未写数值的『心率快』『心悸』；哭闹时测得且注明的读数仍按数值判断（指南未豁免）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": ">",
+        "value": 150,
+        "unit": "beats/min",
+        "minAgeMonths": 12,
+        "maxAgeMonths": 23
+      },
+      "sourceQuote": "More than 150 beats per minute, age 12 to 24 months",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Circulation and hydration', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-hr-over-140-2-5y",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 24,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 >140 次/分（2～5 岁）",
+      "definitionZh": "该年龄段发热患儿记录的心率大于 140 次/分（APLS 心动过速标准，NG143 Table 1 同值）。由代码判断。",
+      "notCountZh": "未写数值的『心率快』『心悸』；哭闹时测得且注明的读数仍按数值判断（指南未豁免）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": ">",
+        "value": 140,
+        "unit": "beats/min",
+        "minAgeMonths": 24,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "More than 140 beats per minute, age 2 to 5 years",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Circulation and hydration', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-crt-ge-3s",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "numeric",
+      "conceptId": "crt-prolonged",
+      "labelZh": "毛细血管再充盈时间 ≥3 秒",
+      "definitionZh": "记录的毛细血管再充盈时间（CRT）≥3 秒。由代码判断。",
+      "notCountZh": "未写秒数的『末梢循环差』（由文本行处理）。",
+      "numeric": {
+        "measure": "capillaryRefillSeconds",
+        "op": ">=",
+        "value": 3,
+        "unit": "s",
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "Capillary refill time more than or equal to 3 seconds",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Circulation and hydration', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-dry-mucous-membranes",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "dry-mucous-membranes",
+      "labelZh": "黏膜干燥",
+      "definitionZh": "医生查见口唇、口腔或舌面干燥：唇干、口唇干燥皲裂、口腔黏膜干燥、舌面干燥、舌干少津。",
+      "notCountZh": "患者自述的口干、口渴、欲饮（这是症状，不是查见的黏膜干燥）；慢性唇炎；张口呼吸引起的唇干，且没有其他脱水表现。",
+      "sourceQuote": "Dry mucous membranes",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Circulation and hydration', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-poor-feeding-infant",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 11,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "poor-feeding-infant",
+      "labelZh": "婴儿吃奶差",
+      "definitionZh": "婴儿吃奶明显减少：拒奶、吃奶少、吃奶差、奶量减少、吸吮无力、喂养困难。",
+      "notCountZh": "1 岁以上儿童的挑食、厌食、纳差；『不吃不喝』这类慢性厌食（病程以月计）；吐奶，但吃奶量正常。",
+      "sourceQuote": "Poor feeding in infants",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Circulation and hydration', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-reduced-urine-output",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "reduced-urine-output",
+      "labelZh": "尿量减少",
+      "definitionZh": "明确说尿量或排尿次数比平时减少：尿量减少、尿少、少尿、小便短少、尿次减少、尿布湿得少、半天没尿。",
+      "notCountZh": "中医描述小便颜色或性状的『小便短赤』『小便黄』『小便黄赤』（这是中医常规写法，不说明尿量；记为 unassessed，不算 present）；尿频、尿急、尿痛。",
+      "sourceQuote": "Reduced urine output",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Circulation and hydration', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-temp-ge-38-under-3m",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 2,
+        "requiresFever": true
+      },
+      "kind": "numeric",
+      "conceptId": "temp-high-young-infant",
+      "labelZh": "不足 3 月龄体温 ≥38℃",
+      "definitionZh": "不足 3 月龄，记录体温 ≥38℃（指南注：部分疫苗接种后可致 3 月龄以下发热）。由代码判断。",
+      "notCountZh": "家长主观感觉发热但未测体温（另由 requiresFever 处理，不触发本行）。",
+      "numeric": {
+        "measure": "temperature",
+        "op": ">=",
+        "value": 38,
+        "unit": "°C",
+        "minAgeMonths": 0,
+        "maxAgeMonths": 2
+      },
+      "sourceQuote": "Age less than 3 months, temperature more than or equal to 38°C",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Other', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-non-blanching-rash",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "non-blanching-rash",
+      "labelZh": "按压不褪色的皮疹（瘀点/瘀斑/紫癜）",
+      "definitionZh": "按压不褪色的皮疹：压之不褪色、按压不褪色、玻片压之不褪色、瘀点、瘀斑、紫癜、紫癜样斑点、出血点、出血性皮疹、皮下出血点。温病学所说的『发斑』（点大成片、平摊于皮肤、压之不退色）也算。",
+      "notCountZh": "写明压之褪色的皮疹；斑丘疹、荨麻疹（风团）、湿疹、痱子、蚊虫叮咬、丘疹、疱疹；只写『红色皮疹』而没说是否褪色、也没写瘀点瘀斑（这种情况记为 unassessed，并提示医生做按压试验）；外伤淤青。",
+      "sourceQuote": "Non-blanching rash",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Other', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-bulging-fontanelle",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "bulging-fontanelle",
+      "labelZh": "前囟膨隆",
+      "definitionZh": "前囟膨隆、前囟饱满紧张、囟门隆起、囟门凸起；中医『囟填』也算。",
+      "notCountZh": "前囟平软；前囟凹陷（中医『囟陷』，属脱水，不归本行）；只写『前囟未闭』。",
+      "sourceQuote": "Bulging fontanelle",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Other', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-neck-stiffness",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "neck-stiffness",
+      "labelZh": "颈项强直",
+      "definitionZh": "查体见颈项强直、颈强直、颈抵抗阳性、脑膜刺激征阳性，或低头困难、下颏不能贴胸。本行只在 5 岁以下发热时使用。仓库现有词表因为落枕、痉证不收『颈项强直』，这里因有发热和年龄两个前提，予以收录。",
+      "notCountZh": "颈软、颈无抵抗；落枕或颈部肌肉酸痛；颈部淋巴结肿大引起的转头痛；《伤寒论》『项背强几几』类经证描述，而没有写查体颈强直（记为 unassessed，提示医生查脑膜刺激征）。",
+      "sourceQuote": "Neck stiffness",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Other', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-status-epilepticus",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "status-epilepticus",
+      "labelZh": "惊厥持续状态",
+      "definitionZh": "惊厥持续状态：记录写明『持续状态』，或抽搐持续不止、反复抽搐而间期意识不恢复。",
+      "notCountZh": "单次短暂、已自行缓解的热性惊厥；既往有癫痫、本次未发作；寒战（另见 amber『寒战』）；抽动症；腿抽筋。震颤、颤抖、发抖（包括「像在抽搐」这类比喻）。",
+      "sourceQuote": "Status epilepticus",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Other', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-focal-neuro-signs",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "focal-neuro-signs",
+      "labelZh": "局灶性神经体征",
+      "definitionZh": "本次新出现的局灶神经体征：一侧肢体无力、偏瘫、口角歪斜、言语不清、新发斜视、瞳孔不等大、共济失调。",
+      "notCountZh": "原有脑瘫或后遗症，本次没有变化；面部表情因哭闹而不对称。",
+      "sourceQuote": "Focal neurological signs",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Other', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-red-focal-seizures",
+      "sourceId": "nice-ng143",
+      "level": "red",
+      "sourceLevel": "Red – high risk",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "focal-seizures",
+      "labelZh": "局灶性抽搐",
+      "definitionZh": "抽搐局限在一侧肢体或面部：一侧肢体抽动、口角抽动、眼球向一侧凝视伴抽动。",
+      "notCountZh": "全身性抽搐（若持续不止，归惊厥持续状态）；寒战；抽动症。震颤、颤抖、发抖（包括「像在抽搐」这类比喻）。",
+      "sourceQuote": "Focal seizures",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Other', Red column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-temp-ge-39-3-6m",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 3,
+        "maxAgeMonths": 6,
+        "requiresFever": true
+      },
+      "kind": "numeric",
+      "conceptId": "temp-high-infant",
+      "labelZh": "3～6 月龄体温 ≥39℃",
+      "definitionZh": "3～6 月龄，记录体温 ≥39℃。由代码判断。",
+      "notCountZh": "6 月龄以上不单凭体温高低判断（NG143 1.2.11）。",
+      "numeric": {
+        "measure": "temperature",
+        "op": ">=",
+        "value": 39,
+        "unit": "°C",
+        "minAgeMonths": 3,
+        "maxAgeMonths": 6
+      },
+      "sourceQuote": "Age 3 to 6 months, temperature more than or equal to 39°C",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Other', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-fever-5-days",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "fever-5-days",
+      "labelZh": "发热持续 5 天及以上",
+      "definitionZh": "本次发热已持续 5 天及以上，如『发热5天』『热程1周』『反复发热6天』。需按川崎病评估。",
+      "notCountZh": "发热不到 5 天；数月前曾发热、现已退。",
+      "sourceQuote": "Fever for more than or equal to 5 days",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Other', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-rigors",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "rigors",
+      "labelZh": "寒战",
+      "definitionZh": "寒战、发冷打颤、恶寒战栗、打寒颤。",
+      "notCountZh": "中医『恶寒』『畏寒』『怕冷』（只是怕冷，没有战栗）；肌肉抽搐；惊厥。",
+      "sourceQuote": "Rigors",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Other', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-limb-joint-swelling",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "limb-joint-swelling",
+      "labelZh": "肢体或关节肿胀",
+      "definitionZh": "本次新出现的局部肢体或关节肿胀（红肿）。",
+      "notCountZh": "全身性或双下肢凹陷性水肿、眼睑浮肿；腮腺或淋巴结肿大；已知的慢性关节病，本次没有变化。",
+      "sourceQuote": "Swelling of a limb or joint",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Other', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng143-amber-non-weight-bearing",
+      "sourceId": "nice-ng143",
+      "level": "amber",
+      "sourceLevel": "Amber – intermediate risk",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresFever": true
+      },
+      "kind": "text",
+      "conceptId": "non-weight-bearing",
+      "labelZh": "患肢不负重或不使用肢体",
+      "definitionZh": "不肯站、不肯走、拒绝负重、跛行加重到不能负重；某一肢体不愿活动、不能活动（假性瘫痪）。",
+      "notCountZh": "还没到会走的年龄；全身乏力、但各肢体活动对称；因疼痛轻微跛行、仍能负重。",
+      "sourceQuote": "Non-weight bearing limb or not using an extremity",
+      "sourceLocation": "NG143 Table 2 (Traffic light system for identifying risk of serious illness [2013]), row 'Other', Amber column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng143/chapter/Recommendations",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-no-response-social-cues",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "no-response-social-cues",
+      "labelZh": "对社交刺激无反应",
+      "definitionZh": "对父母或医生的呼唤、逗引完全没有反应：呼之不应、对外界刺激无反应、不认人、目光呆滞无反应。",
+      "notCountZh": "有反应但比平时少，如反应差、反应迟钝、逗之少笑（这些归 amber『对社交刺激反应不正常』）；怕生、对陌生人哭闹拒绝；正在熟睡、一叫就醒。",
+      "sourceQuote": "No response to social cues",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Behaviour / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-appears-ill",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "appears-ill",
+      "labelZh": "医生判断病情重（病重面容）",
+      "definitionZh": "医生明确记录患儿看起来病得重：一般情况差、危重病容、重病容、病情危重、精神反应极差、『看起来病得很重』。",
+      "notCountZh": "『急性病容』（这是发热病人的常规体检用语，指面颊潮红、表情痛苦，不等于病重）；『慢性病容』；『一般情况可』『精神可』。只写「精神差」「精神不振」「精神萎靡」「乏力」（这些是反应差，归琥珀色『对社交刺激反应不正常』），没有医生写明病情重或危重病容。",
+      "sourceQuote": "Appears ill to a healthcare professional",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Behaviour / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-does-not-wake",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "does-not-wake",
+      "labelZh": "叫不醒，或唤醒后不能保持清醒",
+      "definitionZh": "叫不醒，或唤醒后很快又睡过去：昏迷、叫不醒、唤不醒、昏睡（要强刺激才醒，停止刺激马上又睡）、嗜睡。按《诊断学》意识障碍分级，嗜睡是『可被唤醒，但刺激去除后很快又入睡』，正好对应『唤醒后不能保持清醒』，所以算本行。",
+      "notCountZh": "睡得多，但叫一声就醒、醒后能保持清醒（属正常）；正常的夜间睡眠或午睡；中医『多寐』或成人慢性困倦；唤醒困难但醒后能保持清醒（归 amber『需长时间刺激才醒』）。",
+      "sourceQuote": "Does not wake, or if roused does not stay awake",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Behaviour / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-weak-high-pitched-cry",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "weak-high-pitched-cry",
+      "labelZh": "哭声微弱、尖直或持续不止",
+      "definitionZh": "哭声微弱、低弱，尖叫样哭声、哭声尖直，或持续哭闹、无法安抚。",
+      "notCountZh": "夜啼（夜间啼哭、白天如常）；饥饿、尿湿后哭闹，安抚后能停；只写『哭闹』而没写程度；声音嘶哑但哭声有力。",
+      "sourceQuote": "Weak high-pitched or continuous cry",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Behaviour / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-not-responding-normally",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "not-responding-normally",
+      "labelZh": "对社交刺激反应不正常（反应差）",
+      "definitionZh": "有反应但比平时少：反应差、反应欠佳、反应迟钝、逗引反应减少、对周围不感兴趣、表情淡漠。",
+      "notCountZh": "完全没有反应、呼之不应（归红色『对社交刺激无反应』）；怕生、害羞。",
+      "sourceQuote": "Not responding normally to social cues",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Behaviour / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-no-smile",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "no-smile",
+      "labelZh": "不笑（逗之不笑）",
+      "definitionZh": "平时会笑的婴幼儿这次不笑、逗之不笑、笑容消失。",
+      "notCountZh": "还没到会笑的月龄（约 2 月龄前）；只是哭闹时没笑。",
+      "sourceQuote": "No smile",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Behaviour / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-wakes-prolonged-stimulation",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "wakes-prolonged-stimulation",
+      "labelZh": "需长时间刺激才能唤醒",
+      "definitionZh": "唤醒困难：要反复呼唤、摇动才醒，但醒后能保持清醒。",
+      "notCountZh": "嗜睡、昏睡、叫不醒，或醒后马上又睡（归红色『叫不醒/唤醒后不能保持清醒』）；正常熟睡，一叫就醒。",
+      "sourceQuote": "Wakes only with prolonged stimulation",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Behaviour / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-decreased-activity",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "decreased-activity",
+      "labelZh": "活动减少（精神萎靡、精神差）",
+      "definitionZh": "活动或精神状态比平时差，但仍能唤醒、有反应：精神萎靡、精神差、精神欠佳、精神不振、蔫、蔫蔫的、打蔫、没精神、少动、懒动、玩耍减少、不愿活动。『精神萎靡』归这一行，不归红色：萎靡说的是倦怠少动，并不包含『无反应』或『叫醒后不能保持清醒』这两条红色判据。只有同时写了无反应、呼之不应、叫不醒、嗜睡、昏睡，才另外计入红色各行。",
+      "notCountZh": "精神可、精神好、玩耍如常；只说食欲差、挑食；夜间睡眠不好、白天困倦，但活动正常。",
+      "sourceQuote": "Decreased activity",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Behaviour / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-parent-concern",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "parent-concern-behaviour",
+      "labelZh": "家长觉得孩子行为与平时不同",
+      "definitionZh": "家长或照护者担心孩子『跟平时不一样』『不像平时』，例如异常安静、异常烦躁、不爱理人。",
+      "notCountZh": "家长只担心体温高、发热天数，或只担心吃饭、挑食；家长只是一般性焦虑，没有说孩子哪里和平时不同。",
+      "sourceQuote": "Parent or carer concern that child is behaving differently from usual",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Behaviour / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-grunting",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "grunting",
+      "labelZh": "呻吟样呼吸（呼气性呻吟）",
+      "definitionZh": "呼气时发出呻吟声：呼气性呻吟、呼吸时哼哼声，多见于婴幼儿。",
+      "notCountZh": "因疼痛而呻吟；撒娇哼唧；打鼾；喉中痰鸣。",
+      "sourceQuote": "Grunting",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Respiratory / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-apnoea",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "apnoea",
+      "labelZh": "呼吸暂停",
+      "definitionZh": "呼吸暂停、呼吸停顿，或憋气后面色青紫。",
+      "notCountZh": "哭闹诱发的屏气发作、很快自行恢复；病程长、慢性的睡眠打鼾伴呼吸暂停（如腺样体肥大），本次没有新变化。",
+      "sourceQuote": "Apnoea",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Respiratory / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-spo2-lt-90",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "spo2-low",
+      "labelZh": "血氧饱和度 <90%（未吸氧）",
+      "definitionZh": "未吸氧时 SpO2 <90%；或需氧量较基线增加（门诊少见，若记录写明也计入）。数值部分由代码判断。",
+      "notCountZh": "吸氧状态下的读数；无数值的『血氧低』。",
+      "numeric": {
+        "measure": "spo2",
+        "op": "<",
+        "value": 90,
+        "unit": "%",
+        "condition": "breathing air",
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "Oxygen saturation of less than 90% in air or increased oxygen requirement over baseline",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Respiratory / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-spo2-lt-92",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "spo2-low",
+      "labelZh": "血氧饱和度 <92%（未吸氧）",
+      "definitionZh": "未吸氧时 SpO2 <92%。由代码判断。",
+      "notCountZh": "吸氧状态下的读数。",
+      "numeric": {
+        "measure": "spo2",
+        "op": "<",
+        "value": 92,
+        "unit": "%",
+        "condition": "breathing air",
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "Oxygen saturation of less than 92% in air or increased oxygen requirement over baseline",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Respiratory / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-nasal-flaring",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "nasal-flaring",
+      "labelZh": "鼻翼扇动",
+      "definitionZh": "鼻翼扇动、鼻扇（中医写作『鼻翼煽动』，同一体征）。",
+      "notCountZh": "鼻塞、流涕；鼻翼没有扇动。",
+      "sourceQuote": "Nasal flaring",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Respiratory / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-rr-ge-60-under-1y",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 ≥60 次/分",
+      "definitionZh": "该年龄段记录的呼吸频率 ≥60 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": ">=",
+        "unit": "breaths/min",
+        "value": 60,
+        "minAgeMonths": 0,
+        "maxAgeMonths": 11
+      },
+      "sourceQuote": "Raised respiratory rate: 60 breaths per minute or more",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Respiratory / Under 1 year', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-rr-50-59-under-1y",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 50～59 次/分",
+      "definitionZh": "该年龄段记录的呼吸频率 50～59 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": "between",
+        "unit": "breaths/min",
+        "min": 50,
+        "max": 59,
+        "minAgeMonths": 0,
+        "maxAgeMonths": 11
+      },
+      "sourceQuote": "Raised respiratory rate: 50 to 59 breaths per minute",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Respiratory / Under 1 year', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-rr-ge-50-1-2y",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 12,
+        "maxAgeMonths": 35,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 ≥50 次/分",
+      "definitionZh": "该年龄段记录的呼吸频率 ≥50 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": ">=",
+        "unit": "breaths/min",
+        "value": 50,
+        "minAgeMonths": 12,
+        "maxAgeMonths": 35
+      },
+      "sourceQuote": "Raised respiratory rate: 50 breaths per minute or more",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Respiratory / 1 to 2 years', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-rr-40-49-1-2y",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 12,
+        "maxAgeMonths": 35,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 40～49 次/分",
+      "definitionZh": "该年龄段记录的呼吸频率 40～49 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": "between",
+        "unit": "breaths/min",
+        "min": 40,
+        "max": 49,
+        "minAgeMonths": 12,
+        "maxAgeMonths": 35
+      },
+      "sourceQuote": "Raised respiratory rate: 40 to 49 breaths per minute",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Respiratory / 1 to 2 years', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-rr-ge-40-3-4y",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 36,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 ≥40 次/分",
+      "definitionZh": "该年龄段记录的呼吸频率 ≥40 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": ">=",
+        "unit": "breaths/min",
+        "value": 40,
+        "minAgeMonths": 36,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "Raised respiratory rate: 40 breaths per minute or more",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Respiratory / 3 to 4 years', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-rr-35-39-3-4y",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeMonths": 36,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 35～39 次/分",
+      "definitionZh": "该年龄段记录的呼吸频率 35～39 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": "between",
+        "unit": "breaths/min",
+        "min": 35,
+        "max": 39,
+        "minAgeMonths": 36,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "Raised respiratory rate: 35 to 39 breaths per minute",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Respiratory / 3 to 4 years', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-hr-lt-60",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-low",
+      "labelZh": "心率 <60 次/分（心动过缓）",
+      "definitionZh": "记录心率 <60 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率慢』。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": "<",
+        "value": 60,
+        "unit": "beats/min",
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "Bradycardia: heart rate less than 60 beats per minute",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Circulation and hydration / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-crt-ge-3s",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "crt-prolonged",
+      "labelZh": "毛细血管再充盈时间 ≥3 秒",
+      "definitionZh": "记录 CRT ≥3 秒。由代码判断。",
+      "notCountZh": "未写秒数的『末梢循环差』。",
+      "numeric": {
+        "measure": "capillaryRefillSeconds",
+        "op": ">=",
+        "value": 3,
+        "unit": "s",
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "Capillary refill time of 3 seconds or more",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Circulation and hydration / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-reduced-urine-output",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "reduced-urine-output",
+      "labelZh": "尿量减少",
+      "definitionZh": "明确说尿量或排尿次数比平时减少：尿量减少、尿少、少尿、小便短少、尿次减少、尿布湿得少、半天没尿。",
+      "notCountZh": "中医描述小便颜色或性状的『小便短赤』『小便黄』『小便黄赤』（这是中医常规写法，不说明尿量；记为 unassessed，不算 present）；尿频、尿急、尿痛。",
+      "sourceQuote": "Reduced urine output",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Circulation and hydration / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true,
+      "sourceQuoteContinued": "For catheterised patients, passed less than 1 ml/kg of urine per hour"
+    },
+    {
+      "id": "ng51-u5-red-hr-ge-160-under-1y",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 ≥160 次/分",
+      "definitionZh": "该年龄段记录的心率 ≥160 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率快』；指南提示须结合β受体阻滞剂等用药解读（NG254 1.4.4）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": ">=",
+        "unit": "beats/min",
+        "value": 160,
+        "minAgeMonths": 0,
+        "maxAgeMonths": 11
+      },
+      "sourceQuote": "Rapid heart rate: 160 beats per minute or more",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Circulation and hydration / Under 1 year', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-hr-150-159-under-1y",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 150～159 次/分",
+      "definitionZh": "该年龄段记录的心率 150～159 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率快』；指南提示须结合β受体阻滞剂等用药解读（NG254 1.4.4）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": "between",
+        "unit": "beats/min",
+        "min": 150,
+        "max": 159,
+        "minAgeMonths": 0,
+        "maxAgeMonths": 11
+      },
+      "sourceQuote": "Rapid heart rate: 150 to 159 beats per minute",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Circulation and hydration / Under 1 year', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-hr-ge-150-1-2y",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 12,
+        "maxAgeMonths": 35,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 ≥150 次/分",
+      "definitionZh": "该年龄段记录的心率 ≥150 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率快』；指南提示须结合β受体阻滞剂等用药解读（NG254 1.4.4）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": ">=",
+        "unit": "beats/min",
+        "value": 150,
+        "minAgeMonths": 12,
+        "maxAgeMonths": 35
+      },
+      "sourceQuote": "Rapid heart rate: 150 beats per minute or more",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Circulation and hydration / 1 to 2 years', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-hr-140-149-1-2y",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 12,
+        "maxAgeMonths": 35,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 140～149 次/分",
+      "definitionZh": "该年龄段记录的心率 140～149 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率快』；指南提示须结合β受体阻滞剂等用药解读（NG254 1.4.4）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": "between",
+        "unit": "beats/min",
+        "min": 140,
+        "max": 149,
+        "minAgeMonths": 12,
+        "maxAgeMonths": 35
+      },
+      "sourceQuote": "Rapid heart rate: 140 to 149 beats per minute",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Circulation and hydration / 1 to 2 years', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-hr-ge-140-3-4y",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 36,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 ≥140 次/分",
+      "definitionZh": "该年龄段记录的心率 ≥140 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率快』；指南提示须结合β受体阻滞剂等用药解读（NG254 1.4.4）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": ">=",
+        "unit": "beats/min",
+        "value": 140,
+        "minAgeMonths": 36,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "Rapid heart rate: 140 beats per minute or more",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Circulation and hydration / 3 to 4 years', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-hr-130-139-3-4y",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 36,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 130～139 次/分",
+      "definitionZh": "该年龄段记录的心率 130～139 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率快』；指南提示须结合β受体阻滞剂等用药解读（NG254 1.4.4）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": "between",
+        "unit": "beats/min",
+        "min": 130,
+        "max": 139,
+        "minAgeMonths": 36,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "Rapid heart rate: 130 to 139 beats per minute",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Circulation and hydration / 3 to 4 years', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-mottled-ashen",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "colour",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "mottled-ashen",
+      "labelZh": "皮肤花斑或面色灰白",
+      "definitionZh": "皮肤出现花斑、花纹、大理石样花纹、发花、网状青紫斑，或面色灰白、青灰、灰暗、土灰色（灌注不足的表现）。",
+      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。",
+      "sourceQuote": "Mottled or ashen appearance",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Skin / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-cyanosis",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "colour",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "cyanosis",
+      "labelZh": "发绀（皮肤、口唇或舌青紫）",
+      "definitionZh": "皮肤、口唇或舌发绀：发绀、紫绀、口唇青紫、口周发青、面色青紫，或写明发绀的舌青紫。",
+      "notCountZh": "中医血瘀类望诊描述，如唇色紫暗、舌质紫暗、舌有瘀点瘀斑、爪甲青紫（未写发绀/紫绀）；局部外伤淤青；只有手足末端遇冷发紫、复温后消退（在 NG254 里归『手脚冰凉』）。紫红色、暗红色的皮疹或斑点，紫癜、瘀点、瘀斑（这些归按压不褪色的皮疹）；只写「面色紫红」「口唇红」。",
+      "sourceQuote": "Cyanosis of skin, lips or tongue",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Skin / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-non-blanching-rash",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "non-blanching-rash",
+      "labelZh": "按压不褪色的皮疹（瘀点/瘀斑/紫癜）",
+      "definitionZh": "按压不褪色的皮疹：压之不褪色、按压不褪色、玻片压之不褪色、瘀点、瘀斑、紫癜、紫癜样斑点、出血点、出血性皮疹、皮下出血点。温病学所说的『发斑』（点大成片、平摊于皮肤、压之不退色）也算。",
+      "notCountZh": "写明压之褪色的皮疹；斑丘疹、荨麻疹（风团）、湿疹、痱子、蚊虫叮咬、丘疹、疱疹；只写『红色皮疹』而没说是否褪色、也没写瘀点瘀斑（这种情况记为 unassessed，并提示医生做按压试验）；外伤淤青。",
+      "sourceQuote": "Non-blanching petechial or purpuric rash",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Skin / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-pallor",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "colour",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "pallor-skin-lips-tongue",
+      "labelZh": "皮肤、口唇或舌苍白",
+      "definitionZh": "皮肤、口唇或舌色明显苍白，医生查见或家长诉均可，例如面色苍白、口唇苍白、睑结膜苍白、舌色苍白（失血样）。",
+      "notCountZh": "中医舌象的『舌淡、舌质淡、淡红舌、舌淡胖』（是对舌色深浅的分级描述，淡红舌正常）；体质描述，如面色萎黄、少华、无华；只说『气色差』。",
+      "sourceQuote": "Pallor of skin, lips or tongue",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Skin / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-temp-lt-36",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "temperature",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "temp-low",
+      "labelZh": "体温 <36℃",
+      "definitionZh": "记录体温 <36℃。由代码判断。国内多测腋温，腋温通常低于核心温度，按腋温套用会略偏多报（判断取舍见备注）。",
+      "notCountZh": "未写数值的『怕冷』『手脚凉』。",
+      "numeric": {
+        "measure": "temperature",
+        "op": "<",
+        "value": 36,
+        "unit": "°C",
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59
+      },
+      "sourceQuote": "Less than 36ºC",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Temperature / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-red-temp-ge-38-under-3m",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "temperature",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 2,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "temp-high-young-infant",
+      "labelZh": "不足 3 月龄体温 ≥38℃",
+      "definitionZh": "不足 3 月龄，记录体温 ≥38℃。由代码判断。",
+      "notCountZh": "家长主观感觉发热但无测量值。",
+      "numeric": {
+        "measure": "temperature",
+        "op": ">=",
+        "value": 38,
+        "unit": "°C",
+        "minAgeMonths": 0,
+        "maxAgeMonths": 2
+      },
+      "sourceQuote": "38°C or more",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Temperature / Under 3 months', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-temp-ge-39-3-6m",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "temperature",
+      "population": {
+        "minAgeMonths": 3,
+        "maxAgeMonths": 6,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "temp-high-infant",
+      "labelZh": "3～6 月龄体温 ≥39℃",
+      "definitionZh": "3～6 月龄，记录体温 ≥39℃。由代码判断。",
+      "notCountZh": "家长主观感觉发热但无测量值。",
+      "numeric": {
+        "measure": "temperature",
+        "op": ">=",
+        "value": 39,
+        "unit": "°C",
+        "minAgeMonths": 3,
+        "maxAgeMonths": 6
+      },
+      "sourceQuote": "39°C or more",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Temperature / 3 to 6 months', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-leg-pain",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "other",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "leg-pain",
+      "labelZh": "腿痛",
+      "definitionZh": "本次发热或感染期间新出现的腿痛、下肢疼痛，或因腿痛不愿走路。",
+      "notCountZh": "长期反复、只在夜间出现、白天活动如常的生长痛；本次就诊以前就有的慢性关节痛。",
+      "sourceQuote": "Leg pain",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Other / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-u5-amber-cold-hands-feet",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 59,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "cold-hands-feet",
+      "labelZh": "手脚冰凉",
+      "definitionZh": "本次发热或感染期间手脚冰凉、四肢末端发凉、手足厥冷，包括高热时手足冰凉（热深厥深）。",
+      "notCountZh": "中医体质描述的『手足不温』『四末不温』『畏寒肢冷』，写的是平素或慢性阳虚表现；冬季在户外受冷。",
+      "sourceQuote": "Cold hands or feet",
+      "sourceLocation": "NG254 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in children under 5), row 'Other / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-objective-altered-mental-state",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "objective-altered-mental-state",
+      "labelZh": "医生查见意识或行为改变",
+      "definitionZh": "医生查见的意识或行为改变：意识模糊、谵妄、胡言乱语、答非所问、定向力障碍、反应迟钝、嗜睡、昏睡、神志不清、GCS 下降；烦躁不安且难以安抚、或伴应答改变的，也算。",
+      "notCountZh": "只有家属转述、医生没有查见（归 amber『家属诉新出现的意识或行为改变』）；原有的认知障碍或智力障碍没有新变化；情绪低落、焦虑、失眠；中医症状『心烦』『烦躁』（没有意识或应答改变）；神疲乏力但神志清楚。白天嗜睡、白天犯困、睡眠多而叫得醒、对答清楚（睡眠问题）；反应慢、反应迟缓但对答切题（老年或慢性病的常态）。",
+      "sourceQuote": "Objective evidence of altered behaviour or mental state",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Behaviour / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-appears-ill",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "appears-ill",
+      "labelZh": "医生判断病情重（病重面容）",
+      "definitionZh": "医生明确记录患儿看起来病得重：一般情况差、危重病容、重病容、病情危重、精神反应极差、『看起来病得很重』。",
+      "notCountZh": "『急性病容』（这是发热病人的常规体检用语，指面颊潮红、表情痛苦，不等于病重）；『慢性病容』；『一般情况可』『精神可』。只写「精神差」「精神不振」「精神萎靡」「乏力」（这些是反应差，归琥珀色『对社交刺激反应不正常』），没有医生写明病情重或危重病容。",
+      "sourceQuote": "Appears ill to a healthcare professional",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Behaviour / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-does-not-wake",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "does-not-wake",
+      "labelZh": "叫不醒，或唤醒后不能保持清醒",
+      "definitionZh": "叫不醒，或唤醒后很快又睡过去：昏迷、叫不醒、唤不醒、昏睡（要强刺激才醒，停止刺激马上又睡）、嗜睡。按《诊断学》意识障碍分级，嗜睡是『可被唤醒，但刺激去除后很快又入睡』，正好对应『唤醒后不能保持清醒』，所以算本行。",
+      "notCountZh": "睡得多，但叫一声就醒、醒后能保持清醒（属正常）；正常的夜间睡眠或午睡；中医『多寐』或成人慢性困倦；唤醒困难但醒后能保持清醒（归 amber『需长时间刺激才醒』）。",
+      "sourceQuote": "Does not wake or if roused does not stay awake",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Behaviour / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-not-behaving-normally",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "not-behaving-normally",
+      "labelZh": "行为与平时不同",
+      "definitionZh": "行为与平时不同：异常安静或异常烦躁、不愿说话、不愿玩、和平时判若两人。",
+      "notCountZh": "医生已查见意识改变（归红色那一行）；只是情绪不好、闹脾气、挑食。",
+      "sourceQuote": "Not behaving normally",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Behaviour / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-decreased-activity",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "decreased-activity",
+      "labelZh": "活动减少（精神萎靡、精神差）",
+      "definitionZh": "活动或精神状态比平时差，但仍能唤醒、有反应：精神萎靡、精神差、精神欠佳、精神不振、蔫、蔫蔫的、打蔫、没精神、少动、懒动、玩耍减少、不愿活动。『精神萎靡』归这一行，不归红色：萎靡说的是倦怠少动，并不包含『无反应』或『叫醒后不能保持清醒』这两条红色判据。只有同时写了无反应、呼之不应、叫不醒、嗜睡、昏睡，才另外计入红色各行。",
+      "notCountZh": "精神可、精神好、玩耍如常；只说食欲差、挑食；夜间睡眠不好、白天困倦，但活动正常。",
+      "sourceQuote": "Decreased activity",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Behaviour / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-parent-concern",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "parent-concern-behaviour",
+      "labelZh": "家长觉得孩子行为与平时不同",
+      "definitionZh": "家长或照护者担心孩子『跟平时不一样』『不像平时』，例如异常安静、异常烦躁、不爱理人。",
+      "notCountZh": "家长只担心体温高、发热天数，或只担心吃饭、挑食；家长只是一般性焦虑，没有说孩子哪里和平时不同。",
+      "sourceQuote": "Parent or carer concern that the child is behaving differently from usual",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Behaviour / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-spo2-lt-90",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "spo2-low",
+      "labelZh": "血氧饱和度 <90%（未吸氧）",
+      "definitionZh": "未吸氧时 SpO2 <90%；或需氧量较基线增加。数值部分由代码判断。",
+      "notCountZh": "吸氧状态下的读数。",
+      "numeric": {
+        "measure": "spo2",
+        "op": "<",
+        "value": 90,
+        "unit": "%",
+        "condition": "breathing air",
+        "minAgeYears": 5,
+        "maxAgeYears": 11
+      },
+      "sourceQuote": "Oxygen saturation of less than 90% in air or increased oxygen requirement over baseline",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Respiratory / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-spo2-lt-92",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "spo2-low",
+      "labelZh": "血氧饱和度 <92%（未吸氧）",
+      "definitionZh": "未吸氧时 SpO2 <92%。由代码判断。",
+      "notCountZh": "吸氧状态下的读数。",
+      "numeric": {
+        "measure": "spo2",
+        "op": "<",
+        "value": 92,
+        "unit": "%",
+        "condition": "breathing air",
+        "minAgeYears": 5,
+        "maxAgeYears": 11
+      },
+      "sourceQuote": "Oxygen saturation of less than 92% in air or increased oxygen requirement over baseline",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Respiratory / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-rr-ge-29-5y",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 5,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 ≥29 次/分",
+      "definitionZh": "该年龄段记录的呼吸频率 ≥29 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": ">=",
+        "unit": "breaths/min",
+        "value": 29,
+        "minAgeYears": 5,
+        "maxAgeYears": 5
+      },
+      "sourceQuote": "Raised respiratory rate: 29 breaths per minute or more",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Respiratory / Aged 5 years', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-rr-24-28-5y",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 5,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 24～28 次/分",
+      "definitionZh": "该年龄段记录的呼吸频率 24～28 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": "between",
+        "unit": "breaths/min",
+        "min": 24,
+        "max": 28,
+        "minAgeYears": 5,
+        "maxAgeYears": 5
+      },
+      "sourceQuote": "Raised respiratory rate: 24 to 28 breaths per minute",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Respiratory / Aged 5 years', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-rr-ge-27-6-7y",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 6,
+        "maxAgeYears": 7,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 ≥27 次/分",
+      "definitionZh": "该年龄段记录的呼吸频率 ≥27 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": ">=",
+        "unit": "breaths/min",
+        "value": 27,
+        "minAgeYears": 6,
+        "maxAgeYears": 7
+      },
+      "sourceQuote": "Raised respiratory rate: 27 breaths per minute or more",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Respiratory / Aged 6 to 7 years', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-rr-24-26-6-7y",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 6,
+        "maxAgeYears": 7,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 24～26 次/分",
+      "definitionZh": "该年龄段记录的呼吸频率 24～26 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": "between",
+        "unit": "breaths/min",
+        "min": 24,
+        "max": 26,
+        "minAgeYears": 6,
+        "maxAgeYears": 7
+      },
+      "sourceQuote": "Raised respiratory rate: 24 to 26 breaths per minute",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Respiratory / Aged 6 to 7 years', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-rr-ge-25-8-11y",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 8,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 ≥25 次/分",
+      "definitionZh": "该年龄段记录的呼吸频率 ≥25 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": ">=",
+        "unit": "breaths/min",
+        "value": 25,
+        "minAgeYears": 8,
+        "maxAgeYears": 11
+      },
+      "sourceQuote": "Raised respiratory rate: 25 breaths per minute or more",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Respiratory / Aged 8 to 11 years', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-rr-22-24-8-11y",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 8,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 22～24 次/分",
+      "definitionZh": "该年龄段记录的呼吸频率 22～24 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": "between",
+        "unit": "breaths/min",
+        "min": 22,
+        "max": 24,
+        "minAgeYears": 8,
+        "maxAgeYears": 11
+      },
+      "sourceQuote": "Raised respiratory rate: 22 to 24 breaths per minute",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Respiratory / Aged 8 to 11 years', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-hr-ge-130-5y",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 5,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 ≥130 次/分",
+      "definitionZh": "该年龄段记录的心率 ≥130 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率快』。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": ">=",
+        "unit": "beats/min",
+        "value": 130,
+        "minAgeYears": 5,
+        "maxAgeYears": 5
+      },
+      "sourceQuote": "Raised heart rate: 130 beats per minute or more",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Circulation and hydration / Aged 5 years', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-hr-120-129-5y",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 5,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 120～129 次/分",
+      "definitionZh": "该年龄段记录的心率 120～129 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率快』。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": "between",
+        "unit": "beats/min",
+        "min": 120,
+        "max": 129,
+        "minAgeYears": 5,
+        "maxAgeYears": 5
+      },
+      "sourceQuote": "Raised heart rate: 120 to 129 beats per minute",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Circulation and hydration / Aged 5 years', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-hr-ge-120-6-7y",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 6,
+        "maxAgeYears": 7,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 ≥120 次/分",
+      "definitionZh": "该年龄段记录的心率 ≥120 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率快』。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": ">=",
+        "unit": "beats/min",
+        "value": 120,
+        "minAgeYears": 6,
+        "maxAgeYears": 7
+      },
+      "sourceQuote": "Raised heart rate: 120 beats per minute or more",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Circulation and hydration / Aged 6 to 7 years', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-hr-110-119-6-7y",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 6,
+        "maxAgeYears": 7,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 110～119 次/分",
+      "definitionZh": "该年龄段记录的心率 110～119 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率快』。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": "between",
+        "unit": "beats/min",
+        "min": 110,
+        "max": 119,
+        "minAgeYears": 6,
+        "maxAgeYears": 7
+      },
+      "sourceQuote": "Raised heart rate: 110 to 119 beats per minute",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Circulation and hydration / Aged 6 to 7 years', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-hr-ge-115-8-11y",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 8,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 ≥115 次/分",
+      "definitionZh": "该年龄段记录的心率 ≥115 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率快』。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": ">=",
+        "unit": "beats/min",
+        "value": 115,
+        "minAgeYears": 8,
+        "maxAgeYears": 11
+      },
+      "sourceQuote": "Raised heart rate: 115 beats per minute or more",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Circulation and hydration / Aged 8 to 11 years', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-hr-105-114-8-11y",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 8,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 105～114 次/分",
+      "definitionZh": "该年龄段记录的心率 105～114 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率快』。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": "between",
+        "unit": "beats/min",
+        "min": 105,
+        "max": 114,
+        "minAgeYears": 8,
+        "maxAgeYears": 11
+      },
+      "sourceQuote": "Raised heart rate: 105 to 114 beats per minute",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Circulation and hydration / Aged 8 to 11 years', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-hr-lt-60",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-low",
+      "labelZh": "心率 <60 次/分",
+      "definitionZh": "记录心率 <60 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心率慢』；运动员型基础心率慢需结合背景（NG254 1.4.4）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": "<",
+        "value": 60,
+        "unit": "beats/min",
+        "minAgeYears": 5,
+        "maxAgeYears": 11
+      },
+      "sourceQuote": "Heart rate less than 60 beats per minute",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Circulation and hydration / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-crt-ge-3s",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "crt-prolonged",
+      "labelZh": "毛细血管再充盈时间 ≥3 秒",
+      "definitionZh": "记录 CRT ≥3 秒。由代码判断。",
+      "notCountZh": "未写秒数的『末梢循环差』。",
+      "numeric": {
+        "measure": "capillaryRefillSeconds",
+        "op": ">=",
+        "value": 3,
+        "unit": "s",
+        "minAgeYears": 5,
+        "maxAgeYears": 11
+      },
+      "sourceQuote": "Capillary refill time of 3 seconds or more",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Circulation and hydration / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-reduced-urine-output",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "reduced-urine-output",
+      "labelZh": "尿量减少",
+      "definitionZh": "明确说尿量或排尿次数比平时减少：尿量减少、尿少、少尿、小便短少、尿次减少、尿布湿得少、半天没尿。",
+      "notCountZh": "中医描述小便颜色或性状的『小便短赤』『小便黄』『小便黄赤』（这是中医常规写法，不说明尿量；记为 unassessed，不算 present）；尿频、尿急、尿痛。",
+      "sourceQuote": "Reduced urine output",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Circulation and hydration / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-temp-lt-36",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "temperature",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "temp-low",
+      "labelZh": "体温 <36℃",
+      "definitionZh": "记录体温 <36℃（指南写的是耳温）。由代码判断。",
+      "notCountZh": "未写数值的『怕冷』。",
+      "numeric": {
+        "measure": "temperature",
+        "op": "<",
+        "value": 36,
+        "unit": "°C",
+        "site": "tympanic (as written in the guideline)",
+        "minAgeYears": 5,
+        "maxAgeYears": 11
+      },
+      "sourceQuote": "Tympanic temperature less than 36°C",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Temperature / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-mottled-ashen",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "colour",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "mottled-ashen",
+      "labelZh": "皮肤花斑或面色灰白",
+      "definitionZh": "皮肤出现花斑、花纹、大理石样花纹、发花、网状青紫斑，或面色灰白、青灰、灰暗、土灰色（灌注不足的表现）。",
+      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。",
+      "sourceQuote": "Mottled or ashen appearance",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Skin / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-cyanosis",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "colour",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "cyanosis",
+      "labelZh": "发绀（皮肤、口唇或舌青紫）",
+      "definitionZh": "皮肤、口唇或舌发绀：发绀、紫绀、口唇青紫、口周发青、面色青紫，或写明发绀的舌青紫。",
+      "notCountZh": "中医血瘀类望诊描述，如唇色紫暗、舌质紫暗、舌有瘀点瘀斑、爪甲青紫（未写发绀/紫绀）；局部外伤淤青；只有手足末端遇冷发紫、复温后消退（在 NG254 里归『手脚冰凉』）。紫红色、暗红色的皮疹或斑点，紫癜、瘀点、瘀斑（这些归按压不褪色的皮疹）；只写「面色紫红」「口唇红」。",
+      "sourceQuote": "Cyanosis of skin, lips or tongue",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Skin / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-red-non-blanching-rash",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "other",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "non-blanching-rash",
+      "labelZh": "按压不褪色的皮疹（瘀点/瘀斑/紫癜）",
+      "definitionZh": "按压不褪色的皮疹：压之不褪色、按压不褪色、玻片压之不褪色、瘀点、瘀斑、紫癜、紫癜样斑点、出血点、出血性皮疹、皮下出血点。温病学所说的『发斑』（点大成片、平摊于皮肤、压之不退色）也算。",
+      "notCountZh": "写明压之褪色的皮疹；斑丘疹、荨麻疹（风团）、湿疹、痱子、蚊虫叮咬、丘疹、疱疹；只写『红色皮疹』而没说是否褪色、也没写瘀点瘀斑（这种情况记为 unassessed，并提示医生做按压试验）；外伤淤青。",
+      "sourceQuote": "Non-blanching petechial or purpuric rash",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Skin / Any', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-leg-pain",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "other",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "leg-pain",
+      "labelZh": "腿痛",
+      "definitionZh": "本次发热或感染期间新出现的腿痛、下肢疼痛，或因腿痛不愿走路。",
+      "notCountZh": "长期反复、只在夜间出现、白天活动如常的生长痛；本次就诊以前就有的慢性关节痛。",
+      "sourceQuote": "Leg pain",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Other / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-5to11-amber-cold-hands-feet",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 5,
+        "maxAgeYears": 11,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "cold-hands-feet",
+      "labelZh": "手脚冰凉",
+      "definitionZh": "本次发热或感染期间手脚冰凉、四肢末端发凉、手足厥冷，包括高热时手足冰凉（热深厥深）。",
+      "notCountZh": "中医体质描述的『手足不温』『四末不温』『畏寒肢冷』，写的是平素或慢性阳虚表现；冬季在户外受冷。",
+      "sourceQuote": "Cold hands or feet",
+      "sourceLocation": "NG254 Table 2 (Criteria for stratification of risk of severe illness or death from sepsis in children aged 5 to 11 years), row 'Other / Any', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-red-objective-altered-mental-state",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "objective-altered-mental-state",
+      "labelZh": "医生查见新出现的意识改变",
+      "definitionZh": "医生查见的意识或行为改变：意识模糊、谵妄、胡言乱语、答非所问、定向力障碍、反应迟钝、嗜睡、昏睡、神志不清、GCS 下降；烦躁不安且难以安抚、或伴应答改变的，也算。",
+      "notCountZh": "只有家属转述、医生没有查见（归 amber『家属诉新出现的意识或行为改变』）；原有的认知障碍或智力障碍没有新变化；情绪低落、焦虑、失眠；中医症状『心烦』『烦躁』（没有意识或应答改变）；神疲乏力但神志清楚。白天嗜睡、白天犯困、睡眠多而叫得醒、对答清楚（睡眠问题）；反应慢、反应迟缓但对答切题（老年或慢性病的常态）。",
+      "sourceQuote": "Objective evidence of new altered mental state",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'History', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-amber-reported-altered-mental-state",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "reported-new-altered-mental-state",
+      "labelZh": "家属诉新出现的意识或行为改变",
+      "definitionZh": "本人、家属或朋友诉近期新出现：糊涂、反应慢、说胡话、言行反常、认人困难。",
+      "notCountZh": "医生已查见（归红色）；长期存在、没有新变化的认知障碍；只是心情差、睡眠差。",
+      "sourceQuote": "History from patient, friend or relative of new onset of altered behaviour or mental state",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'History', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-amber-acute-functional-deterioration",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "history",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "acute-functional-deterioration",
+      "labelZh": "近期功能急剧下降",
+      "definitionZh": "近日功能突然下降：突然下不了床、不能自己走路、生活不能自理、跌倒后起不来。",
+      "notCountZh": "长期卧床或慢性功能障碍、近期没有新变化；只是某个关节活动受限、局部疼痛，整体活动能力没有下降。",
+      "sourceQuote": "History of acute deterioration of functional ability",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'History', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-amber-impaired-immunity",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "history",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "impaired-immunity",
+      "labelZh": "免疫功能受损（疾病或药物）",
+      "definitionZh": "疾病或药物导致免疫功能受损：正在化疗或放疗；长期口服糖皮质激素（泼尼松、甲泼尼龙等）；正在用免疫抑制剂（他克莫司、环孢素、吗替麦考酚酯、甲氨蝶呤、硫唑嘌呤、生物制剂）；器官或骨髓移植后；HIV/艾滋病；先天性免疫缺陷；已知中性粒细胞减少。",
+      "notCountZh": "『免疫力差』『体虚易感冒』『卫气不固』等中医或口语说法；只有高龄或只有糖尿病（指南把它们列为易感因素，不在本表）；外用或吸入激素；已经停用很久的激素。",
+      "sourceQuote": "Impaired immune system (illness or drugs including oral steroids)",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'History', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-amber-recent-trauma-surgery-procedure",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "history",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "recent-trauma-surgery-procedure",
+      "labelZh": "6 周内外伤、手术或有创操作",
+      "definitionZh": "近 6 周内做过手术、受过外伤，或做过有创操作，例如内镜下活检或切除、导尿、置管、穿刺、人工流产、刮宫、拔牙；小针刀、穴位埋线、刺络放血也按有创操作算。",
+      "notCountZh": "超过 6 周；常规针刺、拔罐、刮痧、艾灸、推拿（皮肤破损轻微，本表不计）；只是抽过血。",
+      "sourceQuote": "Trauma, surgery or invasive procedures in the last 6 weeks",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'History', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-red-rr-ge-25",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 ≥25 次/分",
+      "definitionZh": "记录呼吸频率 ≥25 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": ">=",
+        "value": 25,
+        "unit": "breaths/min",
+        "minAgeYears": 12,
+        "maxAgeYears": 15
+      },
+      "sourceQuote": "Raised respiratory rate: 25 breaths per minute or more",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Respiratory', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-red-new-oxygen-need",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "new-oxygen-need-40pct",
+      "labelZh": "新出现需吸氧（≥40%）才能维持血氧",
+      "definitionZh": "新出现需要吸入 40% 及以上浓度的氧，才能把血氧维持在 92% 以上（已知慢性高碳酸血症性呼吸衰竭者为 88% 以上）。门诊记录里少见。",
+      "notCountZh": "长期家庭氧疗的基线需求（如慢阻肺低流量吸氧），本次没有增加；只写『吸氧后好转』而没有氧浓度。",
+      "sourceQuote": "New need for oxygen (40% FiO2 or more) to maintain saturation more than 92% (or more than 88% in known chronic hypercapnic respiratory failure)",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Respiratory', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-amber-rr-21-24",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 21～24 次/分",
+      "definitionZh": "记录呼吸频率 21～24 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": "between",
+        "min": 21,
+        "max": 24,
+        "unit": "breaths/min",
+        "minAgeYears": 12,
+        "maxAgeYears": 15
+      },
+      "sourceQuote": "Raised respiratory rate: 21 to 24 breaths per minute",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Respiratory', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-red-sbp-le-90",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "sbp-low",
+      "labelZh": "收缩压 ≤90 mmHg",
+      "definitionZh": "记录收缩压 ≤90 mmHg。由代码判断。",
+      "notCountZh": "未写数值的『血压偏低』。",
+      "numeric": {
+        "measure": "systolicBP",
+        "op": "<=",
+        "value": 90,
+        "unit": "mmHg",
+        "minAgeYears": 12,
+        "maxAgeYears": 15
+      },
+      "sourceQuote": "Systolic blood pressure 90 mmHg or less or systolic blood pressure more than 40 mmHg below normal",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Blood pressure', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true,
+      "splitFrom": "Systolic blood pressure 90 mmHg or less or systolic blood pressure more than 40 mmHg below normal"
+    },
+    {
+      "id": "ng51-12to15-red-sbp-40-below-normal",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "sbp-40-below-normal",
+      "labelZh": "收缩压比平时低 40 mmHg 以上",
+      "definitionZh": "收缩压比患者平时的基础值低 40 mmHg 以上，需要记录里同时有平时血压和本次血压，例如『平时 150/90，今 100/60』。",
+      "notCountZh": "没有平时血压可比；只写『血压偏低』。",
+      "sourceQuote": "Systolic blood pressure 90 mmHg or less or systolic blood pressure more than 40 mmHg below normal",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Blood pressure', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true,
+      "splitFrom": "Systolic blood pressure 90 mmHg or less or systolic blood pressure more than 40 mmHg below normal"
+    },
+    {
+      "id": "ng51-12to15-amber-sbp-91-100",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "sbp-low",
+      "labelZh": "收缩压 91～100 mmHg",
+      "definitionZh": "记录收缩压 91～100 mmHg。由代码判断。",
+      "notCountZh": "未写数值的『血压偏低』。",
+      "numeric": {
+        "measure": "systolicBP",
+        "op": "between",
+        "min": 91,
+        "max": 100,
+        "unit": "mmHg",
+        "minAgeYears": 12,
+        "maxAgeYears": 15
+      },
+      "sourceQuote": "Systolic blood pressure 91 to 100 mmHg",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Blood pressure', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-red-hr-gt-130",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 >130 次/分",
+      "definitionZh": "记录心率 >130 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心悸』『心率快』。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": ">",
+        "value": 130,
+        "unit": "beats/min",
+        "minAgeYears": 12,
+        "maxAgeYears": 15
+      },
+      "sourceQuote": "Raised heart rate: more than 130 beats per minute",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Circulation and hydration', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-red-no-urine-18h",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "no-urine-18h",
+      "labelZh": "18 小时未排尿",
+      "definitionZh": "过去 18 小时及以上没有排尿（留置导尿者：每小时尿量 <0.5 ml/kg）。",
+      "notCountZh": "尿少但仍在排尿；只写『小便短赤』。",
+      "sourceQuote": "Not passed urine in previous 18 hours",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Circulation and hydration', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-amber-hr-91-130",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 91～130 次/分（非妊娠）",
+      "definitionZh": "未妊娠者记录心率 91～130 次/分；妊娠或近期妊娠者用 100～130 那一行。由代码判断。",
+      "notCountZh": "未写数值的『心率快』；β受体阻滞剂会影响心率反应（NG254 1.4.4）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": "between",
+        "min": 91,
+        "max": 130,
+        "unit": "beats/min",
+        "notPregnant": true,
+        "minAgeYears": 12,
+        "maxAgeYears": 15
+      },
+      "sourceQuote": "Raised heart rate: 91 to 130 beats per minute (100 to 130 beats per minute in pregnancy) or new-onset arrhythmia",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Circulation and hydration', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true,
+      "splitFrom": "Raised heart rate: 91 to 130 beats per minute (100 to 130 beats per minute in pregnancy) or new-onset arrhythmia"
+    },
+    {
+      "id": "ng51-12to15-amber-new-arrhythmia",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "new-arrhythmia",
+      "labelZh": "新发心律失常",
+      "definitionZh": "本次新出现的心律不齐：新发房颤、心电图示新发心律失常、本次查见脉律不齐且写明为新出现。",
+      "notCountZh": "已知慢性房颤、早搏，本次没有变化；中医脉象『结脉/代脉/促脉』只作脉诊描述、没说是新出现（交给医生核实，记为 unassessed）。",
+      "sourceQuote": "Raised heart rate: 91 to 130 beats per minute (100 to 130 beats per minute in pregnancy) or new-onset arrhythmia",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Circulation and hydration', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true,
+      "splitFrom": "Raised heart rate: 91 to 130 beats per minute (100 to 130 beats per minute in pregnancy) or new-onset arrhythmia"
+    },
+    {
+      "id": "ng51-12to15-amber-no-urine-12-18h",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "no-urine-12-18h",
+      "labelZh": "12～18 小时未排尿",
+      "definitionZh": "过去 12～18 小时没有排尿（留置导尿者：每小时 0.5～1 ml/kg）。",
+      "notCountZh": "尿少但仍在排尿；只写『小便短赤』。",
+      "sourceQuote": "Not passed urine in the past 12 to 18 hours",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Circulation and hydration', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-amber-temp-lt-36",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "temperature",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "temp-low",
+      "labelZh": "体温 <36℃",
+      "definitionZh": "记录体温 <36℃（指南写的是耳温）。由代码判断。",
+      "notCountZh": "未写数值的『怕冷』。",
+      "numeric": {
+        "measure": "temperature",
+        "op": "<",
+        "value": 36,
+        "unit": "°C",
+        "site": "tympanic (as written in the guideline)",
+        "minAgeYears": 12,
+        "maxAgeYears": 15
+      },
+      "sourceQuote": "Tympanic temperature less than 36°C",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Temperature', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-red-mottled-ashen",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "colour",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "mottled-ashen",
+      "labelZh": "皮肤花斑或面色灰白",
+      "definitionZh": "皮肤出现花斑、花纹、大理石样花纹、发花、网状青紫斑，或面色灰白、青灰、灰暗、土灰色（灌注不足的表现）。",
+      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。",
+      "sourceQuote": "Mottled or ashen appearance",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Skin', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-red-cyanosis",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "colour",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "cyanosis",
+      "labelZh": "发绀（皮肤、口唇或舌青紫）",
+      "definitionZh": "皮肤、口唇或舌发绀：发绀、紫绀、口唇青紫、口周发青、面色青紫，或写明发绀的舌青紫。",
+      "notCountZh": "中医血瘀类望诊描述，如唇色紫暗、舌质紫暗、舌有瘀点瘀斑、爪甲青紫（未写发绀/紫绀）；局部外伤淤青；只有手足末端遇冷发紫、复温后消退（在 NG254 里归『手脚冰凉』）。紫红色、暗红色的皮疹或斑点，紫癜、瘀点、瘀斑（这些归按压不褪色的皮疹）；只写「面色紫红」「口唇红」。",
+      "sourceQuote": "Cyanosis of skin, lips or tongue",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Skin', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-red-non-blanching-rash",
+      "sourceId": "nice-ng254",
+      "level": "red",
+      "sourceLevel": "High risk criteria",
+      "category": "other",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "non-blanching-rash",
+      "labelZh": "按压不褪色的皮疹（瘀点/瘀斑/紫癜）",
+      "definitionZh": "按压不褪色的皮疹：压之不褪色、按压不褪色、玻片压之不褪色、瘀点、瘀斑、紫癜、紫癜样斑点、出血点、出血性皮疹、皮下出血点。温病学所说的『发斑』（点大成片、平摊于皮肤、压之不退色）也算。",
+      "notCountZh": "写明压之褪色的皮疹；斑丘疹、荨麻疹（风团）、湿疹、痱子、蚊虫叮咬、丘疹、疱疹；只写『红色皮疹』而没说是否褪色、也没写瘀点瘀斑（这种情况记为 unassessed，并提示医生做按压试验）；外伤淤青。",
+      "sourceQuote": "Non-blanching petechial or purpuric rash",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Skin', High risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-12to15-amber-wound-infection",
+      "sourceId": "nice-ng254",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "other",
+      "population": {
+        "minAgeYears": 12,
+        "maxAgeYears": 15,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "wound-infection-signs",
+      "labelZh": "手术切口或伤口有感染迹象",
+      "definitionZh": "手术切口或伤口红肿、渗液、流脓、裂开、愈合不良。",
+      "notCountZh": "已愈合的瘢痕；轻微擦伤、没有红肿渗液。",
+      "sourceQuote": "Signs of potential infection, including redness, swelling or discharge at surgical site or breakdown of wound",
+      "sourceLocation": "NG254 Table 3 (Criteria for stratification of risk of severe illness or death from sepsis in young people aged 12 to 15 in any setting), row 'Skin', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng254/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-red-objective-altered-mental-state",
+      "sourceId": "nice-ng253",
+      "level": "red",
+      "sourceLevel": "High-risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "objective-altered-mental-state",
+      "labelZh": "医生查见新出现的意识改变",
+      "definitionZh": "医生查见的意识或行为改变：意识模糊、谵妄、胡言乱语、答非所问、定向力障碍、反应迟钝、嗜睡、昏睡、神志不清、GCS 下降；烦躁不安且难以安抚、或伴应答改变的，也算。",
+      "notCountZh": "只有家属转述、医生没有查见（归 amber『家属诉新出现的意识或行为改变』）；原有的认知障碍或智力障碍没有新变化；情绪低落、焦虑、失眠；中医症状『心烦』『烦躁』（没有意识或应答改变）；神疲乏力但神志清楚。白天嗜睡、白天犯困、睡眠多而叫得醒、对答清楚（睡眠问题）；反应慢、反应迟缓但对答切题（老年或慢性病的常态）。",
+      "sourceQuote": "Objective evidence of new altered mental state",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'History', High-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-amber-reported-altered-mental-state",
+      "sourceId": "nice-ng253",
+      "level": "amber",
+      "sourceLevel": "Medium-risk criteria",
+      "category": "activity",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "reported-new-altered-mental-state",
+      "labelZh": "家属诉新出现的意识或行为改变",
+      "definitionZh": "本人、家属或朋友诉近期新出现：糊涂、反应慢、说胡话、言行反常、认人困难。",
+      "notCountZh": "医生已查见（归红色）；长期存在、没有新变化的认知障碍；只是心情差、睡眠差。",
+      "sourceQuote": "History from patient, friend or relative of new onset of altered behaviour or mental state",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'History', Medium-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-amber-acute-functional-deterioration",
+      "sourceId": "nice-ng253",
+      "level": "amber",
+      "sourceLevel": "Medium-risk criteria",
+      "category": "history",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "acute-functional-deterioration",
+      "labelZh": "近期功能急剧下降",
+      "definitionZh": "近日功能突然下降：突然下不了床、不能自己走路、生活不能自理、跌倒后起不来。",
+      "notCountZh": "长期卧床或慢性功能障碍、近期没有新变化；只是某个关节活动受限、局部疼痛，整体活动能力没有下降。",
+      "sourceQuote": "History of acute deterioration of functional ability",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'History', Medium-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-amber-impaired-immunity",
+      "sourceId": "nice-ng253",
+      "level": "amber",
+      "sourceLevel": "Medium-risk criteria",
+      "category": "history",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "impaired-immunity",
+      "labelZh": "免疫功能受损（疾病或药物）",
+      "definitionZh": "疾病或药物导致免疫功能受损：正在化疗或放疗；长期口服糖皮质激素（泼尼松、甲泼尼龙等）；正在用免疫抑制剂（他克莫司、环孢素、吗替麦考酚酯、甲氨蝶呤、硫唑嘌呤、生物制剂）；器官或骨髓移植后；HIV/艾滋病；先天性免疫缺陷；已知中性粒细胞减少。",
+      "notCountZh": "『免疫力差』『体虚易感冒』『卫气不固』等中医或口语说法；只有高龄或只有糖尿病（指南把它们列为易感因素，不在本表）；外用或吸入激素；已经停用很久的激素。",
+      "sourceQuote": "Impaired immune system (illness or drugs including oral steroids)",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'History', Medium-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-amber-recent-trauma-surgery-procedure",
+      "sourceId": "nice-ng253",
+      "level": "amber",
+      "sourceLevel": "Medium-risk criteria",
+      "category": "history",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "recent-trauma-surgery-procedure",
+      "labelZh": "6 周内外伤、手术或有创操作",
+      "definitionZh": "近 6 周内做过手术、受过外伤，或做过有创操作，例如内镜下活检或切除、导尿、置管、穿刺、人工流产、刮宫、拔牙；小针刀、穴位埋线、刺络放血也按有创操作算。",
+      "notCountZh": "超过 6 周；常规针刺、拔罐、刮痧、艾灸、推拿（皮肤破损轻微，本表不计）；只是抽过血。",
+      "sourceQuote": "Trauma, surgery or invasive procedures in the last 6 weeks",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'History', Medium-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-red-rr-ge-25",
+      "sourceId": "nice-ng253",
+      "level": "red",
+      "sourceLevel": "High-risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 ≥25 次/分",
+      "definitionZh": "记录呼吸频率 ≥25 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": ">=",
+        "value": 25,
+        "unit": "breaths/min",
+        "minAgeYears": 16
+      },
+      "sourceQuote": "Raised respiratory rate: 25 breaths per minute or more",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Respiratory', High-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-red-new-oxygen-need",
+      "sourceId": "nice-ng253",
+      "level": "red",
+      "sourceLevel": "High-risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "new-oxygen-need-40pct",
+      "labelZh": "新出现需吸氧（≥40%）才能维持血氧",
+      "definitionZh": "新出现需要吸入 40% 及以上浓度的氧，才能把血氧维持在 92% 以上（已知慢性高碳酸血症性呼吸衰竭者为 88% 以上）。门诊记录里少见。",
+      "notCountZh": "长期家庭氧疗的基线需求（如慢阻肺低流量吸氧），本次没有增加；只写『吸氧后好转』而没有氧浓度。",
+      "sourceQuote": "New need for oxygen (40% FiO2 or more) to maintain saturation more than 92% (or more than 88% in chronic hypercapnic respiratory failure)",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Respiratory', High-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-amber-rr-21-24",
+      "sourceId": "nice-ng253",
+      "level": "amber",
+      "sourceLevel": "Medium-risk criteria",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "rr-high",
+      "labelZh": "呼吸频率 21～24 次/分",
+      "definitionZh": "记录呼吸频率 21～24 次/分。由代码判断。",
+      "notCountZh": "未写数值的『气促』。",
+      "numeric": {
+        "measure": "respiratoryRate",
+        "op": "between",
+        "min": 21,
+        "max": 24,
+        "unit": "breaths/min",
+        "minAgeYears": 16
+      },
+      "sourceQuote": "Raised respiratory rate: 21 to 24 breaths per minute",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Respiratory', Medium-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-red-sbp-le-90",
+      "sourceId": "nice-ng253",
+      "level": "red",
+      "sourceLevel": "High-risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "sbp-low",
+      "labelZh": "收缩压 ≤90 mmHg",
+      "definitionZh": "记录收缩压 ≤90 mmHg。由代码判断。",
+      "notCountZh": "未写数值的『血压偏低』。",
+      "numeric": {
+        "measure": "systolicBP",
+        "op": "<=",
+        "value": 90,
+        "unit": "mmHg",
+        "minAgeYears": 16
+      },
+      "sourceQuote": "Systolic blood pressure 90 mmHg or less or systolic blood pressure more than 40mmHg below normal",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Blood pressure', High-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true,
+      "splitFrom": "Systolic blood pressure 90 mmHg or less or systolic blood pressure more than 40mmHg below normal"
+    },
+    {
+      "id": "ng51-16plus-red-sbp-40-below-normal",
+      "sourceId": "nice-ng253",
+      "level": "red",
+      "sourceLevel": "High-risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "sbp-40-below-normal",
+      "labelZh": "收缩压比平时低 40 mmHg 以上",
+      "definitionZh": "收缩压比患者平时的基础值低 40 mmHg 以上，需要记录里同时有平时血压和本次血压，例如『平时 150/90，今 100/60』。",
+      "notCountZh": "没有平时血压可比；只写『血压偏低』。",
+      "sourceQuote": "Systolic blood pressure 90 mmHg or less or systolic blood pressure more than 40mmHg below normal",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Blood pressure', High-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true,
+      "splitFrom": "Systolic blood pressure 90 mmHg or less or systolic blood pressure more than 40mmHg below normal"
+    },
+    {
+      "id": "ng51-16plus-amber-sbp-91-100",
+      "sourceId": "nice-ng253",
+      "level": "amber",
+      "sourceLevel": "Medium-risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "sbp-low",
+      "labelZh": "收缩压 91～100 mmHg",
+      "definitionZh": "记录收缩压 91～100 mmHg。由代码判断。",
+      "notCountZh": "未写数值的『血压偏低』。",
+      "numeric": {
+        "measure": "systolicBP",
+        "op": "between",
+        "min": 91,
+        "max": 100,
+        "unit": "mmHg",
+        "minAgeYears": 16
+      },
+      "sourceQuote": "Systolic blood pressure 91 to 100 mmHg",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Blood pressure', Medium-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-red-hr-gt-130",
+      "sourceId": "nice-ng253",
+      "level": "red",
+      "sourceLevel": "High-risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 >130 次/分",
+      "definitionZh": "记录心率 >130 次/分。由代码判断。",
+      "notCountZh": "未写数值的『心悸』『心率快』。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": ">",
+        "value": 130,
+        "unit": "beats/min",
+        "minAgeYears": 16
+      },
+      "sourceQuote": "Raised heart rate: more than 130 beats per minute",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Circulation and hydration', High-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-red-no-urine-18h",
+      "sourceId": "nice-ng253",
+      "level": "red",
+      "sourceLevel": "High-risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "no-urine-18h",
+      "labelZh": "18 小时未排尿",
+      "definitionZh": "过去 18 小时及以上没有排尿（留置导尿者：每小时尿量 <0.5 ml/kg）。",
+      "notCountZh": "尿少但仍在排尿；只写『小便短赤』。",
+      "sourceQuote": "Not passed urine in previous 18 hours",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Circulation and hydration', High-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-amber-hr-91-130",
+      "sourceId": "nice-ng253",
+      "level": "amber",
+      "sourceLevel": "Medium-risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 91～130 次/分（非妊娠）",
+      "definitionZh": "未妊娠者记录心率 91～130 次/分；妊娠或近期妊娠者用 100～130 那一行。由代码判断。",
+      "notCountZh": "未写数值的『心率快』；β受体阻滞剂会影响心率反应（NG254 1.4.4）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": "between",
+        "min": 91,
+        "max": 130,
+        "unit": "beats/min",
+        "notPregnant": true,
+        "minAgeYears": 16
+      },
+      "sourceQuote": "Raised heart rate: 91 to 130 beats per minute (100 to 130 beats per minute in pregnancy) or new-onset arrhythmia",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Circulation and hydration', Medium-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true,
+      "splitFrom": "Raised heart rate: 91 to 130 beats per minute (100 to 130 beats per minute in pregnancy) or new-onset arrhythmia"
+    },
+    {
+      "id": "ng51-16plus-amber-new-arrhythmia",
+      "sourceId": "nice-ng253",
+      "level": "amber",
+      "sourceLevel": "Medium-risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "new-arrhythmia",
+      "labelZh": "新发心律失常",
+      "definitionZh": "本次新出现的心律不齐：新发房颤、心电图示新发心律失常、本次查见脉律不齐且写明为新出现。",
+      "notCountZh": "已知慢性房颤、早搏，本次没有变化；中医脉象『结脉/代脉/促脉』只作脉诊描述、没说是新出现（交给医生核实，记为 unassessed）。",
+      "sourceQuote": "Raised heart rate: 91 to 130 beats per minute (100 to 130 beats per minute in pregnancy) or new-onset arrhythmia",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Circulation and hydration', Medium-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true,
+      "splitFrom": "Raised heart rate: 91 to 130 beats per minute (100 to 130 beats per minute in pregnancy) or new-onset arrhythmia"
+    },
+    {
+      "id": "ng51-16plus-amber-no-urine-12-18h",
+      "sourceId": "nice-ng253",
+      "level": "amber",
+      "sourceLevel": "Medium-risk criteria",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "no-urine-12-18h",
+      "labelZh": "12～18 小时未排尿",
+      "definitionZh": "过去 12～18 小时没有排尿（留置导尿者：每小时 0.5～1 ml/kg）。",
+      "notCountZh": "尿少但仍在排尿；只写『小便短赤』。",
+      "sourceQuote": "Not passed urine in the past 12 to 18 hours",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Circulation and hydration', Medium-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-amber-temp-lt-36",
+      "sourceId": "nice-ng253",
+      "level": "amber",
+      "sourceLevel": "Medium-risk criteria",
+      "category": "temperature",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "temp-low",
+      "labelZh": "体温 <36℃",
+      "definitionZh": "记录体温 <36℃（指南写的是耳温）。由代码判断。",
+      "notCountZh": "未写数值的『怕冷』。",
+      "numeric": {
+        "measure": "temperature",
+        "op": "<",
+        "value": 36,
+        "unit": "°C",
+        "site": "tympanic (as written in the guideline)",
+        "minAgeYears": 16
+      },
+      "sourceQuote": "Tympanic temperature less than 36°C",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Temperature', Medium-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-red-mottled-ashen",
+      "sourceId": "nice-ng253",
+      "level": "red",
+      "sourceLevel": "High-risk criteria",
+      "category": "colour",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "mottled-ashen",
+      "labelZh": "皮肤花斑或面色灰白",
+      "definitionZh": "皮肤出现花斑、花纹、大理石样花纹、发花、网状青紫斑，或面色灰白、青灰、灰暗、土灰色（灌注不足的表现）。",
+      "notCountZh": "中医慢性体质描述，如面色晦暗、面色黧黑；色素沉着、色素痣、胎记；湿疹、脱屑等皮肤病变；外伤淤青。面色苍白（苍白另有一行，成人表里没有）；面色萎黄、暗黄、少华、无华等中医面色描述。",
+      "sourceQuote": "Mottled or ashen appearance",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Skin', High-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-red-cyanosis",
+      "sourceId": "nice-ng253",
+      "level": "red",
+      "sourceLevel": "High-risk criteria",
+      "category": "colour",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "cyanosis",
+      "labelZh": "发绀（皮肤、口唇或舌青紫）",
+      "definitionZh": "皮肤、口唇或舌发绀：发绀、紫绀、口唇青紫、口周发青、面色青紫，或写明发绀的舌青紫。",
+      "notCountZh": "中医血瘀类望诊描述，如唇色紫暗、舌质紫暗、舌有瘀点瘀斑、爪甲青紫（未写发绀/紫绀）；局部外伤淤青；只有手足末端遇冷发紫、复温后消退（在 NG254 里归『手脚冰凉』）。紫红色、暗红色的皮疹或斑点，紫癜、瘀点、瘀斑（这些归按压不褪色的皮疹）；只写「面色紫红」「口唇红」。",
+      "sourceQuote": "Cyanosis of skin, lips or tongue",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Skin', High-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-red-non-blanching-rash",
+      "sourceId": "nice-ng253",
+      "level": "red",
+      "sourceLevel": "High-risk criteria",
+      "category": "other",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "non-blanching-rash",
+      "labelZh": "按压不褪色的皮疹（瘀点/瘀斑/紫癜）",
+      "definitionZh": "按压不褪色的皮疹：压之不褪色、按压不褪色、玻片压之不褪色、瘀点、瘀斑、紫癜、紫癜样斑点、出血点、出血性皮疹、皮下出血点。温病学所说的『发斑』（点大成片、平摊于皮肤、压之不退色）也算。",
+      "notCountZh": "写明压之褪色的皮疹；斑丘疹、荨麻疹（风团）、湿疹、痱子、蚊虫叮咬、丘疹、疱疹；只写『红色皮疹』而没说是否褪色、也没写瘀点瘀斑（这种情况记为 unassessed，并提示医生做按压试验）；外伤淤青。",
+      "sourceQuote": "Non-blanching petechial or purpuric rash",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Skin', High-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-16plus-amber-wound-infection",
+      "sourceId": "nice-ng253",
+      "level": "amber",
+      "sourceLevel": "Medium-risk criteria",
+      "category": "other",
+      "population": {
+        "minAgeYears": 16,
+        "setting": "community or custodial (NG253 1.5); acute hospital, acute mental health and ambulance settings use NEWS2 instead",
+        "requiresSuspectedInfection": true
+      },
+      "kind": "text",
+      "conceptId": "wound-infection-signs",
+      "labelZh": "手术切口或伤口有感染迹象",
+      "definitionZh": "手术切口或伤口红肿、渗液、流脓、裂开、愈合不良。",
+      "notCountZh": "已愈合的瘢痕；轻微擦伤、没有红肿渗液。",
+      "sourceQuote": "Signs of potential infection, including redness, swelling or discharge at surgical site or breakdown of wound",
+      "sourceLocation": "NG253 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people aged 16 or above if they are in a community or custodial setting), row 'Skin', Medium-risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng253/chapter/Evaluating-risk",
+      "verified": true
+    },
+    {
+      "id": "ng51-pregnant-amber-hr-100-130",
+      "sourceId": "nice-ng255",
+      "level": "amber",
+      "sourceLevel": "Moderate to high risk criteria",
+      "category": "circulation",
+      "population": {
+        "pregnantOrRecentlyPregnant": true,
+        "requiresSuspectedInfection": true
+      },
+      "kind": "numeric",
+      "conceptId": "hr-high",
+      "labelZh": "心率 100～130 次/分（妊娠或近期妊娠）",
+      "definitionZh": "妊娠或近期妊娠（流产或终止妊娠后 24 小时内、分娩后 4 周内）者，记录心率 100～130 次/分。由代码判断。NG255 Table 1 其余各行与 NG253 Table 1 相同，代码对妊娠者沿用 16 岁及以上各行（心率 amber 一行换成本行）。",
+      "notCountZh": "未妊娠者（用 91～130 那一行）。",
+      "numeric": {
+        "measure": "heartRate",
+        "op": "between",
+        "min": 100,
+        "max": 130,
+        "unit": "beats/min",
+        "pregnantOrRecentlyPregnant": true
+      },
+      "sourceQuote": "Raised heart rate: 100 to 130 beats per minute or new-onset arrhythmia",
+      "sourceLocation": "NG255 Table 1 (Criteria for stratification of risk of severe illness or death from sepsis in people who are or have recently been pregnant), row 'Circulation and hydration', Moderate to high risk criteria column",
+      "sourceUrl": "https://www.nice.org.uk/guidance/ng255/chapter/Evaluating-risk-level",
+      "verified": true
+    },
+    {
+      "id": "mts-airway-compromise",
+      "sourceId": "mts-vaidyanathan-2012",
+      "level": "red",
+      "sourceLevel": "Red (immediate)",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 0
+      },
+      "kind": "text",
+      "conceptId": "airway-compromise",
+      "labelZh": "气道受阻",
+      "definitionZh": "气道受阻，或患者自己无法保持气道通畅：吸气性喉鸣（喉喘鸣）、喉头水肿伴呼吸困难、异物卡喉咳不出、口咽分泌物无法清除、气道梗阻。",
+      "notCountZh": "咽痛；咽部异物感（中医『梅核气』）；只有声音嘶哑、没有呼吸困难；打鼾。",
+      "sourceQuote": "Airway compromise; inadequate breathing; exsanguinating haemorrhage; shock; currently fitting; unresponsive child",
+      "sourceLocation": "Vaidyanathan 2012, Table 2 (General Discriminators for each category as per the Manchester Triage System), row 'Red'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "verified": true,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it."
+    },
+    {
+      "id": "mts-inadequate-breathing",
+      "sourceId": "mts-vaidyanathan-2012",
+      "level": "red",
+      "sourceLevel": "Red (immediate)",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 0
+      },
+      "kind": "text",
+      "conceptId": "inadequate-breathing",
+      "labelZh": "呼吸不足（呼吸衰竭征象）",
+      "definitionZh": "呼吸不足以维持氧合：呼吸极度费力、辅助呼吸肌参与、呼吸浅慢或节律不规则、因气促说不出话、呼吸困难伴发绀、呼吸疲劳。",
+      "notCountZh": "主观胸闷、气短，但安静时呼吸平稳；慢性喘病稳定期；只在活动后气短。单写端坐呼吸、夜间不能平卧（心衰体位）；呼吸急促但能连续说完整句子；单写口唇稍紫或口唇发绀而呼吸不费力。",
+      "sourceQuote": "Airway compromise; inadequate breathing; exsanguinating haemorrhage; shock; currently fitting; unresponsive child",
+      "sourceLocation": "Vaidyanathan 2012, Table 2 (General Discriminators for each category as per the Manchester Triage System), row 'Red'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "verified": true,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it."
+    },
+    {
+      "id": "mts-exsanguinating-haemorrhage",
+      "sourceId": "mts-vaidyanathan-2012",
+      "level": "red",
+      "sourceLevel": "Red (immediate)",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 0
+      },
+      "kind": "text",
+      "conceptId": "exsanguinating-haemorrhage",
+      "labelZh": "致命性大出血",
+      "definitionZh": "出血又多又快，不立即止住就会危及生命：喷射状出血、大量呕血不止、大量阴道出血伴休克征象。",
+      "notCountZh": "少量出血；已经止住的出血；痔疮便后滴血，量少。",
+      "sourceQuote": "Airway compromise; inadequate breathing; exsanguinating haemorrhage; shock; currently fitting; unresponsive child",
+      "sourceLocation": "Vaidyanathan 2012, Table 2 (General Discriminators for each category as per the Manchester Triage System), row 'Red'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "verified": true,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it."
+    },
+    {
+      "id": "mts-shock",
+      "sourceId": "mts-vaidyanathan-2012",
+      "level": "red",
+      "sourceLevel": "Red (immediate)",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 0
+      },
+      "kind": "text",
+      "conceptId": "shock",
+      "labelZh": "休克（循环灌注不足）",
+      "definitionZh": "循环衰竭的一组表现同时出现：血压低（收缩压 <90 mmHg）或脉搏细速、摸不清，并且有灌注不足的表现（皮肤湿冷、大汗淋漓伴面色苍白、四肢冰凉、意识改变或尿少）。开放来源对该判据的描述是出汗、苍白、心动过速与低血压同时存在。",
+      "notCountZh": "只有其中一项：单写面色苍白、出汗或出冷汗、心率快、血压偏低（如 100/64 mmHg）、少尿；中医『自汗』『盗汗』；体位性头晕而血压、心率正常；运动或天热出汗。",
+      "sourceQuote": "Airway compromise; inadequate breathing; exsanguinating haemorrhage; shock; currently fitting; unresponsive child",
+      "sourceLocation": "Vaidyanathan 2012, Table 2 (General Discriminators for each category as per the Manchester Triage System), row 'Red'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "verified": true,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it.",
+      "supportingQuotes": [
+        {
+          "sourceId": "mts-zaloznik-2026",
+          "quote": "The reason was the definition of the discriminator “shock”, which is described as sweating, pallor, tachycardia, and hypotension.",
+          "location": "Results, sepsis paragraph (citing Graeff 2017)"
+        }
+      ]
+    },
+    {
+      "id": "mts-currently-fitting",
+      "sourceId": "mts-vaidyanathan-2012",
+      "level": "red",
+      "sourceLevel": "Red (immediate)",
+      "category": "neuro",
+      "population": {
+        "minAgeYears": 0
+      },
+      "kind": "text",
+      "conceptId": "currently-fitting",
+      "labelZh": "正在抽搐",
+      "definitionZh": "就诊当时正在抽搐，或抽搐未停止。",
+      "notCountZh": "抽搐已经停止（无论既往还是本次，MTS 归黄色『抽搐史』）；寒战；抽动症；腿抽筋；中医『筋惕肉瞤』。震颤、颤抖、发抖（包括「像在抽搐」这类比喻）。",
+      "sourceQuote": "Airway compromise; inadequate breathing; exsanguinating haemorrhage; shock; currently fitting; unresponsive child",
+      "sourceLocation": "Vaidyanathan 2012, Table 2 (General Discriminators for each category as per the Manchester Triage System), row 'Red'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "verified": true,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it.",
+      "supportingQuotes": [
+        {
+          "sourceId": "mts-guedes-2015",
+          "quote": "abrupt onset (22 - 8.2%) and history of fitting (7 - 2.6%).",
+          "location": "Results, discriminators of patients classified as yellow (shows 'history of fitting' is a yellow-level discriminator, i.e. a seizure that has stopped is not 'currently fitting')"
+        }
+      ]
+    },
+    {
+      "id": "mts-unresponsive-child",
+      "sourceId": "mts-vaidyanathan-2012",
+      "level": "red",
+      "sourceLevel": "Red (immediate)",
+      "category": "neuro",
+      "population": {
+        "minAgeYears": 0,
+        "maxAgeYears": 15
+      },
+      "kind": "text",
+      "conceptId": "unresponsive-child",
+      "labelZh": "患儿无反应",
+      "definitionZh": "患儿对呼唤和疼痛刺激都没有反应。",
+      "notCountZh": "正在熟睡、能唤醒；对陌生人不理睬。",
+      "sourceQuote": "Airway compromise; inadequate breathing; exsanguinating haemorrhage; shock; currently fitting; unresponsive child",
+      "sourceLocation": "Vaidyanathan 2012, Table 2 (General Discriminators for each category as per the Manchester Triage System), row 'Red'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "verified": true,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it.",
+      "populationNote": "The open tabulation says 'unresponsive child'; the MTS child/adult boundary is not stated in the sources fetched. 15 years (under 16) is used to match NICE NG254/NG253. Unresponsive adults are captured by mts-altered-conscious-level (mapped red).",
+      "supportingQuotes": [
+        {
+          "sourceId": "mts-van-veen-2008",
+          "quote": "In the Manchester triage system, conditions such as shock, inadequate breathing, compromised airway, and unresponsiveness are used to identify children who need to be seen immediately.",
+          "location": "Discussion"
+        }
+      ]
+    },
+    {
+      "id": "mts-severe-pain",
+      "sourceId": "mts-vaidyanathan-2012",
+      "level": "amber",
+      "sourceLevel": "Orange (very urgent)",
+      "category": "pain",
+      "population": {
+        "minAgeYears": 0
+      },
+      "kind": "text",
+      "conceptId": "severe-pain",
+      "labelZh": "当前剧烈疼痛",
+      "definitionZh": "就诊时疼痛剧烈、难以忍受：剧痛、疼痛难忍、痛不可忍、疼痛剧烈、辗转不安、强迫体位。MTS 的疼痛尺通常把 8～10 分列为重度，但这一数值未能从开放来源核实，所以本行不设数值阈值。",
+      "notCountZh": "隐痛、胀痛、酸痛，且没有写程度；以前剧痛、现在已缓解；只写『疼痛』而没有程度（记为 unassessed）。",
+      "sourceQuote": "Severe pain; uncontrollable major haemorrhage; altered consciousness level; hot child; very hot adult",
+      "sourceLocation": "Vaidyanathan 2012, Table 2, row 'Orange'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "verified": true,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it.",
+      "mappingNote": "MTS orange mapped to amber (priority evaluation), not red: pain alone does not make an outpatient visit unsafe, and amber here does not withhold dose."
+    },
+    {
+      "id": "mts-uncontrollable-major-haemorrhage",
+      "sourceId": "mts-vaidyanathan-2012",
+      "level": "red",
+      "sourceLevel": "Orange (very urgent)",
+      "category": "circulation",
+      "population": {
+        "minAgeYears": 0
+      },
+      "kind": "text",
+      "conceptId": "uncontrollable-major-haemorrhage",
+      "labelZh": "无法控制的大出血",
+      "definitionZh": "持续压迫仍止不住的大量出血，或出血浸透敷料后还在流。",
+      "notCountZh": "压迫后已止血；少量渗血。",
+      "sourceQuote": "Severe pain; uncontrollable major haemorrhage; altered consciousness level; hot child; very hot adult",
+      "sourceLocation": "Vaidyanathan 2012, Table 2, row 'Orange'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "verified": true,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it.",
+      "mappingNote": "MTS orange mapped to red: bleeding that does not stop with pressure cannot be managed in an outpatient TCM clinic."
+    },
+    {
+      "id": "mts-altered-conscious-level",
+      "sourceId": "mts-vaidyanathan-2012",
+      "level": "red",
+      "sourceLevel": "Orange (very urgent)",
+      "category": "neuro",
+      "population": {
+        "minAgeYears": 0
+      },
+      "kind": "text",
+      "conceptId": "altered-conscious-level",
+      "labelZh": "意识水平改变（不完全清醒）",
+      "definitionZh": "不完全清醒：只对声音或疼痛刺激有反应（AVPU 的 V 或 P）、意识模糊、嗜睡、昏睡、谵妄、定向障碍、答非所问。",
+      "notCountZh": "失眠、疲倦，但神志清楚；中医『神疲』『倦怠』（精神疲倦但清醒）；『神志清』；原有痴呆或智力障碍、本次没有变化。白天嗜睡、白天犯困、睡眠多而叫得醒、对答清楚（睡眠问题）；反应慢、反应迟缓但对答切题（老年或慢性病的常态）。",
+      "sourceQuote": "Severe pain; uncontrollable major haemorrhage; altered consciousness level; hot child; very hot adult",
+      "sourceLocation": "Vaidyanathan 2012, Table 2, row 'Orange'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "verified": true,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it.",
+      "mappingNote": "MTS orange mapped to red: a patient who is not fully alert needs emergency assessment, not an outpatient prescription."
+    },
+    {
+      "id": "mts-hot-child-under-3m",
+      "sourceId": "mts-vaidyanathan-2012",
+      "level": "red",
+      "sourceLevel": "Orange (very urgent)",
+      "category": "temperature",
+      "population": {
+        "minAgeMonths": 0,
+        "maxAgeMonths": 2
+      },
+      "kind": "numeric",
+      "conceptId": "temp-high-young-infant",
+      "labelZh": "婴儿（不足 3 月龄）发热 ≥38.5℃（MTS hot child）",
+      "definitionZh": "不足 3 月龄，记录体温 ≥38.5℃。由代码判断。NG143 与 NG254 已有更低的线（≥38℃ 红），本行被它们覆盖，保留只为完整对照 MTS。",
+      "notCountZh": "家长主观感觉发热但无测量值。",
+      "numeric": {
+        "measure": "temperature",
+        "op": ">=",
+        "value": 38.5,
+        "unit": "°C",
+        "minAgeMonths": 0,
+        "maxAgeMonths": 2
+      },
+      "sourceQuote": "Severe pain; uncontrollable major haemorrhage; altered consciousness level; hot child; very hot adult",
+      "sourceLocation": "Vaidyanathan 2012, Table 2, row 'Orange'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "verified": false,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it.",
+      "thresholdNote": "Threshold 38.5 °C is taken from the open definition of the MTS 'hot' discriminator (Sorz-Nechay 2025: 'defined as a fever ranging from ≥ 38.5 to 41.0 °C'); another paper uses T > 38 °C for the same discriminator, and the MTS manual was not fetched. Hence verified=false.",
+      "supportingQuotes": [
+        {
+          "sourceId": "mts-sorz-nechay-2025",
+          "quote": "“hot” (n = 53, 9.3%), defined as a fever ranging from ≥ 38.5 to 41.0 °C",
+          "location": "Results"
+        },
+        {
+          "sourceId": "mts-seiger-2014",
+          "quote": "Hot child <3 months",
+          "location": "Table 1 (Discriminator modifications... MTS version 1): original discriminator 'Hot child' (original category Very urgent) split into 'Hot child <3 months' kept at Very urgent"
+        }
+      ],
+      "mappingNote": "MTS orange mapped to red for under 3 months, consistent with NG143/NG254 (age under 3 months, 38 °C or more = red/high risk)."
+    },
+    {
+      "id": "mts-hot-child-3m-plus",
+      "sourceId": "mts-vaidyanathan-2012",
+      "level": "amber",
+      "sourceLevel": "Orange (very urgent)",
+      "category": "temperature",
+      "population": {
+        "minAgeMonths": 3,
+        "maxAgeYears": 15
+      },
+      "kind": "numeric",
+      "conceptId": "temp-high-child",
+      "labelZh": "儿童发热 ≥38.5℃（MTS hot child，3 月龄以上）",
+      "definitionZh": "3 月龄以上儿童记录体温 ≥38.5℃。默认不启用，见 enabledByDefault 与 mappingNote。",
+      "notCountZh": "不足 3 月龄（归 mts-hot-child-under-3m）；家长主观感觉发热但无测量值。",
+      "numeric": {
+        "measure": "temperature",
+        "op": ">=",
+        "value": 38.5,
+        "unit": "°C",
+        "minAgeMonths": 3,
+        "maxAgeYears": 15
+      },
+      "sourceQuote": "Severe pain; uncontrollable major haemorrhage; altered consciousness level; hot child; very hot adult",
+      "sourceLocation": "Vaidyanathan 2012, Table 2, row 'Orange'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "verified": false,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it.",
+      "enabledByDefault": false,
+      "mappingNote": "The original MTS puts 'hot child' at orange for every age. Seiger 2014 validated moving it to urgent (yellow) above 3 months ('Hot child >3 months | Urgent'), and NG143 1.2.11 says not to use the height of temperature alone above 6 months. Enabling this row would put almost every febrile child seen in a TCM clinic into priority evaluation, so it is kept for traceability and disabled by default.",
+      "thresholdNote": "Same threshold caveat as mts-hot-child-under-3m.",
+      "supportingQuotes": [
+        {
+          "sourceId": "mts-seiger-2014",
+          "quote": "Hot child >3 months",
+          "location": "Table 1 (MTS version 1): 'Hot child >3 months' moved to category Urgent; 86% of these children had been over-triaged by the original MTS"
+        }
+      ]
+    },
+    {
+      "id": "mts-very-hot-adult",
+      "sourceId": "mts-vaidyanathan-2012",
+      "level": "red",
+      "sourceLevel": "Orange (very urgent)",
+      "category": "temperature",
+      "population": {
+        "minAgeYears": 16
+      },
+      "kind": "numeric",
+      "conceptId": "temp-very-high",
+      "labelZh": "成人体温 >41℃（MTS very hot）",
+      "definitionZh": "16 岁及以上，记录体温 >41.0℃（超高热）。由代码判断。",
+      "notCountZh": "38.5～41.0℃（MTS 'hot adult'，黄色，不在本表）。",
+      "numeric": {
+        "measure": "temperature",
+        "op": ">",
+        "value": 41.0,
+        "unit": "°C",
+        "minAgeYears": 16
+      },
+      "sourceQuote": "Severe pain; uncontrollable major haemorrhage; altered consciousness level; hot child; very hot adult",
+      "sourceLocation": "Vaidyanathan 2012, Table 2, row 'Orange'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3395851/table/T2/",
+      "verified": false,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it.",
+      "thresholdNote": "The open source defines 'hot' as ≥38.5 to 41.0 °C; 'very hot' is therefore taken as above 41.0 °C. This is inferred, not quoted, so verified=false. The adult age boundary (16) is chosen to match NICE.",
+      "supportingQuotes": [
+        {
+          "sourceId": "mts-sorz-nechay-2025",
+          "quote": "“hot” (n = 53, 9.3%), defined as a fever ranging from ≥ 38.5 to 41.0 °C",
+          "location": "Results"
+        }
+      ],
+      "mappingNote": "MTS orange mapped to red: hyperpyrexia above 41 °C needs emergency cooling and assessment."
+    },
+    {
+      "id": "mts-very-low-spo2",
+      "sourceId": "mts-seiger-2014",
+      "level": "red",
+      "sourceLevel": "Orange (very urgent) — specific discriminator, not general",
+      "category": "respiratory",
+      "population": {
+        "minAgeYears": 0
+      },
+      "kind": "numeric",
+      "conceptId": "spo2-low",
+      "labelZh": "血氧饱和度 <90%（未吸氧，MTS very low SpO2）",
+      "definitionZh": "任何年龄，未吸氧时 SpO2 <90%。由代码判断。为 16 岁及以上补上未吸氧血氧这一条：NG253 社区表只有『需吸氧 ≥40% 才能维持』这种写法，没有未吸氧的数值线。",
+      "notCountZh": "吸氧状态下的读数；慢阻肺等已知慢性低氧且本次无变化（由医生判断，代码不豁免）。",
+      "numeric": {
+        "measure": "spo2",
+        "op": "<",
+        "value": 90,
+        "unit": "%",
+        "condition": "breathing air",
+        "minAgeYears": 0
+      },
+      "sourceQuote": "The discriminators ‘very low saturation’ and ‘low saturation’ were defined as peripheral oxygen saturation in air lower than 90% and lower than 95% respectively.",
+      "sourceLocation": "Seiger 2014, Methods, 'MTS version 2'",
+      "sourceUrl": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3893080/",
+      "verified": true,
+      "definitionVerified": false,
+      "definitionNote": "Definition paraphrased; the MTS manual (Manchester Triage Group, Emergency Triage) was not fetched, so the wording is not checked against it.",
+      "mtsDiscriminatorType": "specific (appears in respiratory and other flowcharts; Seiger 2014 added it to all flowcharts in their MTS version 2)",
+      "supportingQuotes": [
+        {
+          "sourceId": "mts-guedes-2015",
+          "quote": "The key discriminators that directed the choice of these flowcharts were: very low SpO2 (32 - 20.6%)",
+          "location": "Results, patients classified as orange"
+        }
+      ],
+      "mappingNote": "MTS orange mapped to red, consistent with NG254 (<90% in air = high risk in under 12s)."
+    }
+  ],
+  "gatePolicy": {
+    "purpose": "指南原表的等级 → 本系统闸门的处置。取保守口径：甲方验收把过度警示也算错，脓毒症指南的数值线（成人心率>130、呼吸≥25，3–4 岁心率≥140）在发热门诊患者里大面积触发，只作当天评估，不升红旗；中危（amber）的脓毒症条目不进闸门。",
+    "actions": {
+      "red_flag": "红旗：立即急诊评估，不给剂量",
+      "priority_24h": "开方前须优先完成临床评估，复诊时限 24 小时内（剂量照常按其余规则）",
+      "advisory": "可见提示，不改剂量与处置",
+      "none": "只留在表里，闸门不用"
+    },
+    "bySource": {
+      "nice-ng143": {
+        "red": {
+          "text": "red_flag",
+          "numeric": "red_flag"
+        },
+        "amber": {
+          "text": "advisory",
+          "numeric": "advisory"
+        }
+      },
+      "nice-ng254": {
+        "red": {
+          "text": "red_flag",
+          "numeric": "priority_24h"
+        },
+        "amber": {
+          "text": "none",
+          "numeric": "none"
+        }
+      },
+      "nice-ng253": {
+        "red": {
+          "text": "red_flag",
+          "numeric": "priority_24h"
+        },
+        "amber": {
+          "text": "none",
+          "numeric": "none"
+        }
+      },
+      "nice-ng255": {
+        "red": {
+          "text": "red_flag",
+          "numeric": "priority_24h"
+        },
+        "amber": {
+          "text": "none",
+          "numeric": "none"
+        }
+      },
+      "mts-vaidyanathan-2012": {
+        "red": {
+          "text": "none",
+          "numeric": "red_flag"
+        },
+        "amber": {
+          "text": "none",
+          "numeric": "none"
+        }
+      },
+      "mts-seiger-2014": {
+        "red": {
+          "text": "none",
+          "numeric": "red_flag"
+        },
+        "amber": {
+          "text": "none",
+          "numeric": "none"
+        }
+      }
+    },
+    "disabledWhen": "verified=false 或 enabledByDefault=false 的行不进闸门（MTS 体温三行阈值未能核对原手册）。",
+    "mtsTextRowsNote": "2026-10-26 实测后收回：曼彻斯特分诊的文字判别项是急诊分诊护士当面判断用的，交给模型读病历时常凭单项判（「大汗不止」判休克、「像在抽搐」判正在抽搐、「白天嗜睡」判意识改变），在甲方 100 例与基层 144 份里没有一例红旗是只靠它们补出来的，却多出 1 例误报与多条错的理由。文字行保留在表里、不进闸门；数值行（未吸氧血氧 <90%、成人体温 >41℃）照用。"
+  },
+  "contextConcepts": [
+    {
+      "conceptId": "ctx-fever",
+      "labelZh": "本次发热",
+      "definitionZh": "本次病程中正在发热：测得体温升高，或病历写本次发热、发烧、高热、身热、低热，或家长诉孩子发热（NG143 1.1.6：家长感觉孩子发热也算）。",
+      "notCountZh": "既往发热已退、只写『无发热』『热退』；手心发热、局部发热、发热感；五心烦热等中医自觉症状。"
+    },
+    {
+      "conceptId": "ctx-infection-suspected",
+      "labelZh": "可能有感染",
+      "definitionZh": "病历里有提示可能感染的症状或体征：发热或寒战，咳嗽咳痰伴发热，尿频尿急尿痛伴发热，局部红肿热痛或化脓，皮肤伤口感染，医生写明考虑感染，或检验提示感染（白细胞、中性粒细胞、CRP、降钙素原升高）。",
+      "notCountZh": "只写『无发热』且没有任何感染灶或检验依据；单纯慢性咳嗽无发热无痰色改变。"
+    }
+  ],
+  "negationIntrinsicConcepts": {
+    "purpose": "这些判别项本身就是「没有、不、无法」——否认词是发现的一部分（「近18小时无尿」「叫不醒」「呼之不应」）。读病历小任务的引文落地时，这些概念的否认读法不算排除，只排除未问及与他人；其余概念的否认照旧排除（「无皮疹」）。",
+    "conceptIds": [
+      "no-response-social-cues",
+      "does-not-wake",
+      "not-responding-normally",
+      "no-smile",
+      "non-weight-bearing",
+      "no-urine-18h",
+      "no-urine-12-18h",
+      "unresponsive-child",
+      "uncontrollable-major-haemorrhage",
+      "altered-conscious-level",
+      "weak-high-pitched-cry"
+    ]
+  }
+}

@@ -1,3 +1,5 @@
+import { alignQuoteToSource } from "./source-quote-alignment";
+
 /**
  * 窄核对小任务交回的「病历原文摘录」是否真出自病历。
  *
@@ -19,6 +21,8 @@ export function quoteGroundedInText(
   if (whole.length < minChars || whole.length > maxChars) return false;
   const source = compact(text);
   if (source.includes(whole)) return true;
+  // 只差写法（标点、引号、全半角、计量单位前的中文数词、四诊字段写法、拉丁字母单错）的引文同样出自病历（第二十一轮）。
+  if (alignQuoteToSource(quote, text)) return true;
   const parts = whole.split(/[；;，,。]+/u).map((part) => part.trim()).filter(Boolean);
   if (parts.length < 2) return false;
   return parts.every((part) => part.length >= 3 && source.includes(part));

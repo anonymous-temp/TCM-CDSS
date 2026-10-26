@@ -12,7 +12,9 @@ import {
   type FactsLlmCall,
   type ClinicalFactsPhase,
 } from "./clinical-facts";
-import { sanitizeCaseStateForModel, trustedInputText } from "./diagnosis-safety";
+import { authoritativePatientAgeYears, recordMentionPolarityAt, sanitizeCaseStateForModel, trustedInputText } from "./diagnosis-safety";
+import { assessPregnancyState } from "./clinical-state";
+import type { DiscriminatorScreen } from "./redflag-discriminators";
 import { parseCustomerId } from "./customer-id";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 
@@ -347,6 +349,8 @@ function attestationPayload(facts: NonNullable<CaseState["clinicalFacts"]>): str
     redFlags: facts.redFlags,
     // 处置去向同样签入：客户端删掉它就能把「宜先专科评估」变回放行剂量。
     disposition: facts.disposition,
+    // 指南判别项结果同样签入（第二十一轮）。
+    discriminatorScreen: facts.discriminatorScreen,
   });
 }
 
@@ -571,6 +575,8 @@ export async function maybeAttachClinicalFactsBackstop(
 
   // 计算段包进 singleflight：登记在飞 promise，让并发的同键请求合流到同一次模型调用，
   // 而不是各发一遍抽取。成功结果写入服务端缓存（失败结果一律不写，见上）。
+  // 指南判别项结果：compute 里赋值，装配（含早到的红旗段）时读取。
+  let screenResult: DiscriminatorScreen | undefined;
   const compute = async (): Promise<CaseState> => {
     let unavailableReason: ClinicalFactsUnavailableReason = signal?.aborted ? "aborted" : "invalid_output";
     let totalTimedOut = false;
@@ -588,6 +594,19 @@ export async function maybeAttachClinicalFactsBackstop(
         throw error;
       }
     };
+    // 指南红旗判别项（第二十一轮）：与抽取同时跑，各自超时；结果并进同一份事实对象，抽取失败时也保留。
+    // 不绑在抽取的总截止上——抽取超时正是它要兜住的情况。
+    const ageYears = authoritativePatientAgeYears(state);
+    // 小任务模块带 server-only 标记，按需加载：纯脚本环境（确定性测试）加载本模块时不碰它。
+    const screenPromise = llmCall === REAL_FACTS_LLM_CALL
+      ? import("./redflag-discriminator-screen.server")
+          .then(({ runRedflagDiscriminatorScreen }) => runRedflagDiscriminatorScreen(text, {
+            ageMonths: ageYears != null ? Math.round(ageYears * 12 * 100) / 100 : undefined,
+            pregnant: assessPregnancyState(fullText).status === "positive",
+          }, signal))
+          .catch(() => undefined)
+      : Promise.resolve(undefined);
+    void screenPromise.then((value) => { screenResult = value; });
     let facts;
     const onEarlyRedFlags = options?.onEarlyRedFlags;
     try {
@@ -596,7 +615,7 @@ export async function maybeAttachClinicalFactsBackstop(
             const assembled = assembleExtractedFacts(early);
             if (assembled.clinicalFacts?.semanticStatus === "checked") onEarlyRedFlags(assembled);
           }
-        : undefined);
+        : undefined, recordMentionPolarityAt);
     } finally {
       clearTimeout(deadline);
     }
@@ -604,6 +623,7 @@ export async function maybeAttachClinicalFactsBackstop(
       unavailableReason = "aborted";
       facts = null;
     }
+    screenResult = await screenPromise;
     if (!facts) {
       return {
         ...withoutStaleFacts,
@@ -614,6 +634,7 @@ export async function maybeAttachClinicalFactsBackstop(
           semanticStatus: "unavailable",
           resultSource: "failure",
           unavailableReason,
+          ...(screenResult ? { discriminatorScreen: screenResult } : {}),
         },
       };
     }
@@ -626,6 +647,8 @@ export async function maybeAttachClinicalFactsBackstop(
     const { extractor } = getClinicalFactsModelPlan();
     const unsignedFacts = {
       ...facts,
+      // 模型输出里即使写了这个键也不采信：只用本次小任务的结果（早到的红旗段装配时它可能还没回来）。
+      discriminatorScreen: screenResult,
       modelTrace: { extractor: { provider: extractor.provider, model: extractor.model } },
       customerBindingHash,
       sourceFingerprint,
