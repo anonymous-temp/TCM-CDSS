@@ -32,6 +32,9 @@ const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
 const polarity = await jiti.import("../src/lib/clinical-polarity.ts");
 const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const pruning = await jiti.import("../src/lib/m04-modification-safety.ts");
+const surface = await jiti.import("../src/lib/delivered-surface.ts");
+const pruningCompiler = await jiti.import("../src/lib/m04-proposal-compiler.ts");
+const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 
 const gated = (raw) => safety.withSafetyGate(types.normalizeCaseStateInput(raw));
 const permissionOf = (raw) => safety.derivePrescriptionPermission(gated(raw));
@@ -89,7 +92,13 @@ await check("1.5 D4 复诊第一步：红旗当天急诊或专科排除急危重
   };
   const red = plan(GI_BLEED);
   assert.equal(red.target?.pathway, "red_flag_clearance");
-  assert.match(red.text, /^请在当天到医院急诊或专科就诊，先排除急危重情况；排除急危重情况、医生确认可以服药后，服完7剂药/);
+  assert.match(red.text, /^请在当天到医院急诊或专科就诊，先排除急危重情况；医生确认可以服药后，服完7剂药/);
+  assert.equal(red.text.split("排除急危重情况").length, 2, "首句里「排除急危重情况」只说一次");
+  // 辨证阶段写进来的旧红旗句（「请先尽快到医院急诊或相关专科就诊，排除急危重情况；…」）与首句重复，只留后半句（本轮实测 S178/S188/S190）。
+  const merged = surface.followupWhenPriorityEvaluation(`${visible.RED_FLAG_SAFETY_NET}\n\n若再次出现剧烈头痛，请立即就医。`, red.target, { doses: 7, days: 7 });
+  assert.equal(merged.split("排除急危重情况").length, 2, merged);
+  assert.match(merged, /如症状持续、加重或出现新的不适，请立即急诊或呼叫急救。/);
+  assert.match(merged, /若再次出现剧烈头痛/);
   assert.equal(plan(PREGNANT).target?.pathway, "pregnancy_review");
   assert.match(plan(PREGNANT).text, /阴道流血/);
   assert.equal(plan(WARFARIN).target?.pathway, "anticoagulant_review");
@@ -149,10 +158,59 @@ await check("2.3 D4 定稿剔除：方内十八反删地位较低的一味（甘
   assert.equal(pruning.dropSafetyConflictingM04CandidateHerbs(content(herbs), ""), content(herbs));
 });
 
+await check("2.3b D4 定稿剔除：须医生单独定量的管制或濒危药材（羚羊角）还有别的君药时拿出并写明另行开具；它是唯一君药时不拿", () => {
+  const context = "发热、头痛伴呕吐2天，意识障碍半天。";
+  const herbs = [{ name: "羚羊角", role: "君", dose: "3g" }, { name: "钩藤", role: "君", dose: "12g" }, { name: "桑叶", role: "臣", dose: "9g" }, { name: "菊花", role: "臣", dose: "9g" }, { name: "白芍", role: "佐", dose: "12g" }, { name: "甘草", role: "使", dose: "6g" }];
+  const pruned = candidateOf(pruning.dropSafetyConflictingM04CandidateHerbs(content(herbs), context));
+  assert.deepEqual(pruned.herbs.map((herb) => herb.name), ["钩藤", "桑叶", "菊花", "白芍", "甘草"]);
+  assert.match(pruned.notApplicable, /羚羊角（须由医生单独定量的管制或濒危药材，未列入本方，如需使用请医生另行开具）/);
+  const sole = [{ name: "羚羊角", role: "君", dose: "3g" }, ...herbs.slice(2)];
+  assert.ok(candidateOf(pruning.dropSafetyConflictingM04CandidateHerbs(content(sole), context)).herbs.some((herb) => herb.name === "羚羊角"), "唯一君药不拿");
+});
+
 await check("2.4 D4：开方定稿在核对与签名之前做安全剔除（finalizeM04CandidateContent）", () => {
   const api = fs.readFileSync("src/lib/diagnosis-api.ts", "utf8");
   const finalize = api.slice(api.indexOf("const finalizeM04CandidateContent = "), api.indexOf("let lastM04CandidateDirectionPruned"));
   assert.match(finalize, /dropSafetyConflictingM04CandidateHerbs\(finalized, opts\.structuredClinicalContext \|\| ""\)/);
+});
+
+await check("2.5 D4 随证加减与方中药味同一判据：活动性出血时拟加的红花不列（三七照列）；转氨酶升高时拟加川楝子照列并写明肝功能不全者慎用；对照不写", () => {
+  const compiler = pruningCompiler;
+  const prior = types.ReasoningV2Schema.parse({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { tcmDiseaseName: "胃痛", primarySyndrome: "瘀血停胃证", overallPathogenesis: "瘀停胃络，不通则痛", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+    pathogenesis: { chain: [{ nodeId: "P1", patientFact: "胃脘隐痛", syndromeEvidence: "胃脘隐痛，痛有定处", pathogenesis: "瘀停胃络，不通则痛", therapyDirection: "化瘀通络" }] },
+    therapy: { overallPrinciple: "实则泻之", overallMethod: "化瘀通络，和胃止痛", subTherapies: [{ therapy: "化瘀通络", targetPathogenesis: "瘀停胃络", priority: "主要" }] },
+    formula: { candidates: [], patentAndWestern: [], modifications: [] },
+  });
+  const compile = (caseState) => compiler.compileM04Proposal({
+    candidate: {
+      name: "自拟方", applicable: "胃脘隐痛。", notApplicable: "",
+      herbs: [
+        { name: "黄芪", dose: "15g", role: "君", function: "补气升阳" }, { name: "党参", dose: "12g", role: "臣", function: "健脾益气" },
+        { name: "白术", dose: "10g", role: "臣", function: "健脾燥湿" }, { name: "炙甘草", dose: "6g", role: "使", function: "调和诸药" },
+      ].map((herb) => ({ ...herb, targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, processing: null, isToxic: false, decoctionRequirement: null })),
+      formulaAnalysis: "黄芪补气为君，党参、白术健脾为臣，炙甘草调和诸药为使。",
+      decoction: { doseCount: "7剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "7日复诊" },
+    },
+    patentAndWestern: [],
+    modifications: [
+      { trigger: "胃脘隐痛", targetRef: "P1", actionType: "add", herbName: "红花", dose: "6g", reason: "活血止痛" },
+      { trigger: "胃脘隐痛", targetRef: "P1", actionType: "add", herbName: "三七", dose: "3g", reason: "化瘀止血" },
+      { trigger: "胃脘隐痛", targetRef: "P1", actionType: "add", herbName: "川楝子", dose: "6g", reason: "行气止痛" },
+    ],
+    nonPharma: { diet: "宜温热易消化饮食。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: [], tcmTreatments: [] },
+  }, prior, caseState);
+  const added = (raw) => compile(types.normalizeCaseStateInput(raw)).formula.modifications;
+  const bleeding = added(record({ cc: "胃脘隐痛伴黑便1天", sex: "男", age: 50, text: "胃脘隐痛，痛有定处，今日解黑便2次，头晕乏力。" }));
+  assert.ok(!bleeding.some((item) => item.herbName === "红花"), JSON.stringify(bleeding.map((item) => item.herbName)));
+  assert.ok(bleeding.some((item) => item.herbName === "三七"), JSON.stringify(compile(types.normalizeCaseStateInput(record({ cc: "胃脘隐痛伴黑便1天", sex: "男", age: 50, text: "胃脘隐痛，痛有定处，今日解黑便2次，头晕乏力。" }))).formula.modificationReview));
+  const liver = added(record({ cc: "胃脘隐痛1月", sex: "男", age: 50, text: "胃脘隐痛，痛有定处。转氨酶升高半年。" }));
+  assert.match(liver.find((item) => item.herbName === "川楝子")?.riskNote || "", /川楝子肝功能不全者慎用/, JSON.stringify(liver));
+  assert.ok(liver.some((item) => item.herbName === "红花"), "没有出血红旗时红花照列");
+  const control = added(record({ cc: "胃脘隐痛1月", sex: "男", age: 50, text: "胃脘隐痛，痛有定处，肝功能正常。" }));
+  assert.ok(control.some((item) => item.herbName === "川楝子"));
+  assert.doesNotMatch(control.find((item) => item.herbName === "川楝子")?.riskNote || "", /肝功能不全/);
 });
 
 // ---------- 新发现：时间、儿童胸痛、周围性面瘫、OSA ----------

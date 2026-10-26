@@ -43,8 +43,8 @@
       "focus": "急危重情况",
       "visit": "到医院急诊或专科就诊，先排除急危重情况",
       "nodeVisit": "到医院急诊或专科完成评估",
-      "clearance": "排除急危重情况、医生确认可以服药后",
-      "withoutRegimenTail": "排除急危重情况、医生确认可以服药后再按医生安排服药与复诊",
+      "clearance": "医生确认可以服药后",
+      "withoutRegimenTail": "医生确认可以服药后再按医生安排服药与复诊",
       "source": "用户 2026-10-26 决定 D4：红旗不再收回剂量，改为给剂量、置顶警示、红旗解除前不可采纳（formalAdoption=blocked），复诊第一步当天急诊或专科排除急危重情况。"
     },
     "pregnancy_review": {

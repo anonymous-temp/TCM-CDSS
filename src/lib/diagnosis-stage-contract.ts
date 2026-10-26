@@ -3884,7 +3884,9 @@ const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
   { population: /儿童|婴幼儿/, patient: /儿童|婴儿|幼儿|小儿|未成年/, isPatient: isPediatricGroundingText, code: "pediatric" },
   { population: /出血倾向|月经期|抗凝状态/, patient: /出血倾向|月经期|经期|抗凝|抗血小板|华法林|利伐沙班|阿哌沙班|达比加群|肝素|阿司匹林|氯吡格雷/, code: "bleeding_anticoagulation" },
   { population: /老年人/, patient: /老年|高龄|(?:年龄|患者年龄)\s*[:：]?\s*(?:6[5-9]|[7-9]\d|1\d{2})\s*岁/, code: "older_adult" },
-  { population: /肝功能不全/, patient: /肝功能不全|肝衰竭|失代偿期肝硬化|Child-Pugh\s*[BC]/i, code: "hepatic_impairment" },
+  // 肝功能异常、转氨酶升高也算（第二十三轮，S-hepatic-014「转氨酶升高」加补骨脂没有任何提示）：知识库这一人群的规则是可致肝损伤的药
+  //（何首乌、补骨脂、雷公藤、黄药子…，除朱砂外都是慎用级），已有肝功能异常者同样要避开或监测。
+  { population: /肝功能不全/, patient: /肝功能不全|肝衰竭|失代偿期肝硬化|Child-Pugh\s*[BC]|肝功能(?:异常|损害|受损)|肝损伤|(?:谷丙|谷草)?转氨酶(?:明显|轻度|显著)?(?:升高|增高|偏高)|(?:ALT|AST)\s*[:：]?\s*\d{3}/i, code: "hepatic_impairment" },
   { population: /肾功能不全/, patient: /肾功能不全|肾衰竭|尿毒症|慢性肾脏病|慢性肾病|eGFR\s*[:：]?\s*(?:[0-5]?\d(?:\.\d+)?)\b/i, code: "renal_impairment" },
   { population: /心血管病/, patient: /心力衰竭|心衰|冠心病|心律失常|高血压|心肌梗死|心绞痛/, code: "cardiovascular_disease" },
   { population: /心血管\/青光眼\/前列腺/, patient: /心血管病|心力衰竭|心衰|冠心病|心律失常|高血压|青光眼|前列腺增生/, code: "cardio_glaucoma_prostate" },
@@ -3892,6 +3894,23 @@ const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
   { population: /体虚\/胃弱/, patient: /体虚|体质虚弱|胃弱|脾胃虚弱/, code: "frailty_gastric_weakness" },
   { population: /运动员/, patient: /运动员|竞技体育|兴奋剂检查/, code: "athlete" },
 ];
+
+/**
+ * 拟加药味（随证加减）的慎用级人群提示（剂量一致化 D4，第二十三轮）：知识库里该味中等风险（慎用）的人群，本例病历记有其一时返回人群名。
+ * 判据与开方核对的高风险拦截同一组人群匹配（M04_SPECIAL_POPULATION_MATCHERS），只是等级不同：高风险拦下，慎用写明。
+ */
+export function recordedPopulationCautions(herbName: string, clinicalContext: string): string[] {
+  if (!clinicalContext.trim() || !herbName.trim()) return [];
+  const populations = new Set<string>();
+  for (const rule of getTcmHerbGenerationSafetyProfile(herbName.trim()).populationRules) {
+    if (rule.severity !== "MEDIUM") continue;
+    const matcher = M04_SPECIAL_POPULATION_MATCHERS.find((item) => item.population.test(rule.population));
+    if (matcher && !matcher.denied?.(clinicalContext) && (contextAffirmsTerm(clinicalContext, matcher.patient) || matcher.isPatient?.(clinicalContext))) {
+      populations.add(rule.population.trim());
+    }
+  }
+  return [...populations];
+}
 
 export function m04GenerationSpecialPopulationIssue(
   herbs: ReadonlyArray<{ name?: unknown }>,

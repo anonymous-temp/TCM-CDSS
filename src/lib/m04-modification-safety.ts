@@ -3,7 +3,7 @@ import { executableFormulaCompilationReferences } from "./tcm-formula-provenance
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
 import { formulaAnalysisAfterHerbRemoval } from "./formula-analysis-review";
-import { findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
+import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -317,9 +317,10 @@ const SAFETY_PRUNE_MIN_RETAINED = 3;
 
 /**
  * 剂量一致化（用户 2026-10-26 决定 D4）：候选里与本例安全边界冲突的药按单味剔除，剂量照常给，不再让一味药把整张方拖成非剂量页。
- * 剔除两类（判据都是开方核对自己的那一个，不另写）：
+ * 剔除三类（判据都是开方核对自己的那一个，不另写）：
  *   1) 人群/过敏/活动性出血冲突：m04GenerationSpecialPopulationIssue 对单味判 HIGH；
- *   2) 方内十八反：findTcmHerbPairIncompatibilities，删两味中地位较低的一味。
+ *   2) 方内十八反：findTcmHerbPairIncompatibilities，删两味中地位较低的一味；
+ *   3) 须由医生单独定量的管制或濒危药材（dosePassesSafetySanityCeiling 对这两类一律不放行）：还有别的君药时连君药也拿出。
  * 不删君药（君药决定全方走向，交给修复轮重选）；删后不足 3 味不删（交给修复轮）。方义随删掉的药改写，删了什么写进「慎用与不适用」。
  * 必须排在核对与签名之前（finalizeM04CandidateContent）：签名绑定的是剔除后的最终候选。
  */
@@ -338,9 +339,20 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
     const nameOf = (value: unknown) => String(recordValue(value)?.name || "").trim();
     const roleOf = (value: unknown) => String(recordValue(value)?.role || "").trim();
     const removed: Array<{ name: string; reason: string }> = [];
+    // 须由医生单独定量的管制或濒危药材（羚羊角、麝香、生川乌…，clinicianDoseHerbClass）：合同不许系统给它们剂量，
+    // 模型写了剂量整方就退成非剂量页（第二十三轮红旗集：羚角钩藤汤 2 例）。单味拿出、写明请医生另行开具；
+    // 它是唯一的君药时不拿（交给修复轮重选）。
+    let emperorsLeft = herbs.filter((value) => roleOf(value) === "君").length;
     let retained = herbs.filter((value) => {
       const name = nameOf(value);
-      if (!name || roleOf(value) === "君") return true;
+      if (!name) return true;
+      const regulatory = clinicianDoseHerbClass(name);
+      if ((regulatory === "controlled_or_toxic" || regulatory === "endangered_or_banned") && (roleOf(value) !== "君" || emperorsLeft > 1)) {
+        if (roleOf(value) === "君") emperorsLeft -= 1;
+        removed.push({ name, reason: "须由医生单独定量的管制或濒危药材，未列入本方，如需使用请医生另行开具" });
+        return false;
+      }
+      if (roleOf(value) === "君") return true;
       const issue = m04GenerationSpecialPopulationIssue([{ name }], clinicalContext);
       if (!issue) return true;
       const code = issue.replace(/^herb_\d+_special_population_high_risk_/u, "");

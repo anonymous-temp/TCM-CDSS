@@ -22,7 +22,9 @@ import {
   modificationDoseWithinPharmacopoeia,
   doseWithinConservativeModelLimit,
   highImpactHerbDirectionIssue,
+  m04GenerationSpecialPopulationIssue,
   ordinaryHistoricalDoseDeviation,
+  recordedPopulationCautions,
 } from "./diagnosis-stage-contract";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
@@ -40,7 +42,7 @@ import { herbRecordCautionConflict, herbRecordCautionConflicts, textbookBaseIngr
 import { assessPregnancyState } from "./clinical-state";
 import { specialDecoctionPhrase, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
 import { withheldBaseIngredientNote } from "./formula-withheld-ingredient-note";
-import { chpPregnancyHerbTier, chpPregnancyLabel, conceptionHerbNote } from "./conception-herb-policy";
+import { chpPregnancyHerbTier, conceptionHerbNote } from "./conception-herb-policy";
 import { allergenHerbMatch, recordedAllergensInText } from "./allergen-profile";
 
 /** 「睡眠差随主病而来」判据已移到 incidental-sleep-modification.ts（教材加减检索共用），这里原名再导出。 */
@@ -890,7 +892,7 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   action_conflicts_with_candidate: "增减动作与当前处方药味状态冲突",
   bounded_limit: "超过单次最多展示 4 条随症加减的安全边界",
   direction_conflict: "拟加药味与已锁定病机或治法方向冲突",
-  special_population_conflict: "拟加药味为药典孕妇禁用，本例备孕/未避孕或妊娠状态未记录，不宜加入",
+  special_population_conflict: "拟加药味与本例人群或状态冲突（药典孕妇禁用、妊娠/哺乳/儿童高风险、活动性出血时的活血化瘀药等），不宜加入",
   incidental_sedative: "睡眠差随主病而来，治主病即可，不另加安神药",
   trigger_contradicts_record: "触发条件里的症状病历已明确否认",
   trigger_outside_population: "触发条件是本例患者的性别或生育期不会出现的症状",
@@ -2080,6 +2082,7 @@ export function compileM04Proposal(
   // 两档：备孕/未避孕，或育龄女性妊娠状态未记录（chpPregnancyHerbTier）。
   const conceptionTier = caseState ? chpPregnancyHerbTier(clinicalGroundingText(caseState)) : undefined;
   const recordedAllergens = caseState ? recordedAllergensInText(clinicalGroundingText(caseState), clauseLocalMentionPolarityAt) : [];
+  const modificationGroundingText = caseState ? clinicalGroundingText(caseState) : "";
   // 注意事项里「方中有某药」只能说本方与随证加减里确有的药（见 precautionNamesHerbOutsideFormula）。
   const prescribedPrecautionIdentities = new Set([
     ...proposal.candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name)),
@@ -2220,14 +2223,16 @@ export function compileM04Proposal(
       dropReasons.push("action_conflicts_with_candidate");
       return [];
     }
-    // 备孕/未避孕：药典孕妇禁用的饮片不作为加味（方中药味由合同修复轮拦，加减是可选的备用条目，直接不列）。
-    if (conceptionTier && item.actionType === "add" && chpPregnancyLabel(item.herbName)?.level === "prohibited") {
-      dropReasons.push("special_population_conflict");
-      return [];
-    }
     // 病历记录的食物等过敏：与过敏原同源的饮片（avoid 档）不作为加味（第二十一轮）。
     if (recordedAllergens.length > 0 && item.actionType === "add" && allergenHerbMatch(item.herbName, recordedAllergens)?.action === "avoid") {
       dropReasons.push("allergen_conflict");
+      return [];
+    }
+    // 与本例人群或状态冲突的饮片不作为加味：与方中药味同一个判据（m04GenerationSpecialPopulationIssue）——备孕或妊娠状态未记录时的药典孕妇禁用药、
+    // 妊娠/哺乳/儿童/出血或抗凝/肝肾功能不全等人群的高风险药、活动性出血时的活血化瘀药。此前加减只查了备孕这一档：
+    // 剂量一致化（第二十三轮 D4）后红旗、妊娠、抗凝病例也给剂量，方中药味经合同与定稿剔除，拟加的药却没有任何拦截。
+    if (item.actionType === "add" && modificationGroundingText && m04GenerationSpecialPopulationIssue([{ name: item.herbName }], modificationGroundingText)) {
+      dropReasons.push("special_population_conflict");
       return [];
     }
     const actionVerb = item.actionType === "add" ? "加" : item.actionType === "remove" ? "减" : "调整";
@@ -2248,7 +2253,13 @@ export function compileM04Proposal(
       // 加入的药有特殊煎法时写在这一条里（附子「先煎45–60分钟，至口尝无麻辣感」）：用量栏只收「数字g」，
       // 煎服行只列方中原有的药——此前 11 岁患儿「寒痛甚加附子3g」一条没有任何煎法说明（2026-10-14 独立评审）。
       riskNote: item.actionType === "add"
-        ? [specialDecoctionPhrase(item.herbName.trim()), conceptionTier ? conceptionHerbNote(item.herbName.trim(), conceptionTier) || "" : ""].filter(Boolean).join("；")
+        ? [
+          specialDecoctionPhrase(item.herbName.trim()),
+          conceptionTier ? conceptionHerbNote(item.herbName.trim(), conceptionTier) || "" : "",
+          // 慎用级人群提示（D4）：本例病历记有该人群时写明（转氨酶升高加补骨脂 → 「补骨脂肝功能不全者慎用…」）。
+          ...recordedPopulationCautions(item.herbName, modificationGroundingText)
+            .map((population) => `${item.herbName.trim()}${population}者慎用，本例病历有相应记录，请医生核对后再加`),
+        ].filter(Boolean).join("；")
         : "",
       ...(substitutions.length > 0 ? { substitutions } : {}),
       // 证据等级按来源（2026-10-22 第十五轮）：教材该证的加减是标准资料（出处由证据清洗按教材表逐字核验）；

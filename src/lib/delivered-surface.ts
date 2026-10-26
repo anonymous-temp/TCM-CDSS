@@ -16,6 +16,7 @@
  * 守得对；不对的只是把守的过程原样念给了医生听。
  */
 
+import { RED_FLAG_SAFETY_NET_VISIT } from "./diagnosis-visible-summary";
 import { compositionIdentityName, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { drugNamesInAllergyPhrases } from "./clinical-polarity";
@@ -2054,6 +2055,9 @@ export function followupWhenPriorityEvaluation(text: string, focus: PriorityEval
   // 与 M05 首次复诊同一句（priorityEvaluationFirstStep；乳房肿块按 NICE NG12 两周内乳腺专科）。开方页带上剂数：
   // 先评估、医生确认可以服药后服完 N 剂再复诊，与煎服法的复诊节点同一份计划（2026-10-25 第二十轮）。
   const first = priorityEvaluationFirstStep(focus, regimen);
+  // 红旗给了剂量（第二十三轮 D4）：首句已是「当天到医院急诊或专科…排除急危重情况」，辨证阶段写进来的
+  // 「请先尽快到医院急诊或相关专科就诊，排除急危重情况；」与之重复，只留它后半句（加重即急诊）。
+  if (typeof focus !== "string" && focus.pathway === "red_flag_clearance") text = text.replace(RED_FLAG_SAFETY_NET_VISIT, "");
   if (text.includes(first)) return text;
   // 辨证阶段写的、不带剂数的那一句（开方阶段的复诊计划常沿用它）：换成带剂数的。
   const plain = priorityEvaluationFirstStep(focus);

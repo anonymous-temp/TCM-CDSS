@@ -179,6 +179,10 @@ export function withPregnancyWarningSigns(followup: string, stage: "early" | "un
   return text.trim() ? `${text.trim()}\n\n${sentence}` : sentence;
 }
 
+/** 红旗档复诊计划的首句（写给患者）：先去医院排除急危重情况，加重即急诊。 */
+export const RED_FLAG_SAFETY_NET_VISIT = "请先尽快到医院急诊或相关专科就诊，排除急危重情况；";
+export const RED_FLAG_SAFETY_NET = `${RED_FLAG_SAFETY_NET_VISIT}如症状持续、加重或出现新的不适，请立即急诊或呼叫急救。`;
+
 /**
  * M03 终审出口的**保留式投影**：一个字不删，只加边界（2026-09-13）。
  *
@@ -202,7 +206,7 @@ export function annotateM03DecisionSpecificityBoundary(
   const redFlagFirst = "急危重风险未排除：请优先完成急诊或转诊评估并记录排除或处置依据；以下辨证与治法结论供医生参考，正式采纳与具体用量须在风险处置之后。";
   // 复诊计划写给患者（9/28 甲方）：红旗档的这一句此前是给医生的流程话（「当前应优先完成急危重风险评估」，2026-10-18 验收主集
   // 评审判「给医生看的流程用语」）。说法改成患者能照做的，意思不变：先去医院排除急危重情况，加重即急诊。
-  const redFlagSafetyNet = "请先尽快到医院急诊或相关专科就诊，排除急危重情况；如症状持续、加重或出现新的不适，请立即急诊或呼叫急救。";
+  const redFlagSafetyNet = RED_FLAG_SAFETY_NET;
   const prepend = (existing: unknown, head: string): string => {
     const tail = typeof existing === "string" ? existing.trim() : "";
     if (!tail) return head;
