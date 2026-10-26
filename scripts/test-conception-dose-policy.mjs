@@ -109,11 +109,12 @@ check("2.1 备孕、未避孕、有生育计划：不再收回剂量，也不再
     assert.ok(!hardDoseSafetyBoundaryReasons(state).includes(MATERNAL_REASON), `${label}：M05 同一判据`);
   }
 });
-check("2.2 对照：妊娠、哺乳、备孕合并停经（可能已妊娠）仍不给剂量", () => {
+check("2.2 对照：妊娠、哺乳、备孕合并停经（可能已妊娠）仍按孕哺边界处理——剂量一致化（D4）后给剂量、采纳前须医生确认，原因写孕哺", () => {
   for (const [label, raw] of Object.entries(HARD)) {
     const state = withSafetyGate(raw);
     const permission = derivePrescriptionPermission(state);
-    assert.equal(permission.candidateMode, "non_dose_only", `${label}：${JSON.stringify(permission)}`);
+    assert.equal(permission.candidateMode, "limited_dose", `${label}：${JSON.stringify(permission)}`);
+    assert.equal(permission.formalAdoption, "eligible_after_doctor_confirmation", label);
     assert.ok(permission.reasons.includes(MATERNAL_REASON), label);
     assert.equal(conceptionWithoutPregnancyOrLactation(raw.symptoms.presentHistory), false, `${label} 不属于备孕档`);
   }

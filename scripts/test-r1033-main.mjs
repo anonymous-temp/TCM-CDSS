@@ -274,7 +274,9 @@ await check("5.1 规则读出胸痛红旗、语义层对同一处原文读为否
   const noted = safety.evaluateSafetyGate(contrary);
   assert.equal(noted.status, "red_flag");
   assert.ok(noted.redFlags.some((flag) => flag.includes(safety.READER_DISAGREEMENT_NOTE_LEAD)), JSON.stringify(noted.redFlags));
-  assert.equal(safety.derivePrescriptionPermission(contrary).candidateMode, "non_dose_only");
+  // 剂量一致化（用户 2026-10-26 决定 D4）：红旗保留时给剂量、红旗解除前不可采纳。
+  assert.equal(safety.derivePrescriptionPermission(contrary).candidateMode, "limited_dose");
+  assert.equal(safety.derivePrescriptionPermission(contrary).formalAdoption, "blocked");
   const agreeing = withFacts(chest, { redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "clarify", triageBasis: "clarification_needed", quote: "今晨突发胸痛伴大汗" }], semanticStatus: "checked", reviewStatus: "single_pass" });
   assert.ok(!safety.evaluateSafetyGate(agreeing).redFlags.some((flag) => flag.includes(safety.READER_DISAGREEMENT_NOTE_LEAD)));
 });

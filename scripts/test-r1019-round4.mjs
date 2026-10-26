@@ -310,7 +310,10 @@ await check("14.1 「妊娠8个月」「怀孕六个月」「孕七月」判妊�
   assert.equal(clinicalState.assessPregnancyState("孕1产1").status, "historical");
   assert.equal(clinicalState.assessPregnancyState("不孕3年").status, "unknown");
   const pregnant = safety.withSafetyGate(stateOf("妊娠8个月，近1周心悸、怕热、多汗，甲状腺功能T3、T4正常。", { patient: { sex: "女", age: 28 } }));
-  assert.equal(safety.derivePrescriptionPermission(pregnant).candidateMode, "non_dose_only");
+  // 剂量一致化（用户 2026-10-26 决定 D4）：认作妊娠后给剂量、采纳前须医生确认，原因写妊娠（此前是收回剂量）。
+  const permission = safety.derivePrescriptionPermission(pregnant);
+  assert.match(permission.reasons.join("；"), /妊娠/);
+  assert.equal(permission.formalAdoption, "eligible_after_doctor_confirmation");
 });
 
 await check("5.4 医学术语与检查所见里的「无」不改（D 集「未诉菌性脓尿」「未诉相关P波」「冠脉造影未诉阻塞性病变」「未诉典型辐射状血管网」）", () => {

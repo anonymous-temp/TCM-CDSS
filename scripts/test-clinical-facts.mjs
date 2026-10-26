@@ -1327,10 +1327,13 @@ ok("prompt: 提取提示含发热分诊 ≥40℃/受损 原则线", (() => {
   for (const [source, quote, category] of controls) {
     ok(`原文落地反例: 「${quote}」（${source.slice(0, 12)}…）仍不按当前事件保留`, !keeps(source, quote, category));
   }
-  // 安全门的时间判定不受影响：不带 groundingQuote 时「4天前出现发热」仍是既往（门禁口径另行裁定）。
+  // 安全门的时间判定（2026-10-26 第二十三轮裁定）：两周内起病（「4天前出现发热」）也按当前，月、年仍按既往；
+  // 事实层原文落地核验（groundingQuote）照旧收「N天/周前…出现」。
   const gateText = "病人4天前出现发热症状，最高38.5℃，伴畏寒。";
-  ok("安全门时间判定不变: 不带 groundingQuote 时近期起病句式仍按既往",
-    clinicalEventTemporalScopeAt(gateText, gateText.indexOf("最高"), 0) === "historical" &&
+  const monthsText = "病人3个月前出现发热症状，最高38.5℃，伴畏寒。";
+  ok("安全门时间判定：两周内起病按当前、月以上仍按既往；原文落地核验照旧",
+    clinicalEventTemporalScopeAt(gateText, gateText.indexOf("最高"), 0) === "current" &&
+    clinicalEventTemporalScopeAt(monthsText, monthsText.indexOf("最高"), 0) === "historical" &&
     clinicalEventTemporalScopeAt(gateText, gateText.indexOf("最高"), "最高38.5℃，伴畏寒".length, { groundingQuote: true }) === "current");
 }
 
@@ -1344,8 +1347,11 @@ ok("prompt: 提取提示含发热分诊 ≥40℃/受损 原则线", (() => {
   ok("原文落地反例: 「半年前出现便血」仍不按当前事件保留", !keeps("半年前出现便血，量多，色鲜红。", "便血，量多", "gi_bleed"));
   const { clinicalEventTemporalScopeAt } = await import("../src/lib/clinical-polarity.ts");
   const gateText = "自诉约半月前劳累后出现发热不适，自测体温最高39.5℃。";
-  ok("安全门时间判定不变: 不带 groundingQuote 时「半月前出现」仍按既往",
-    clinicalEventTemporalScopeAt(gateText, gateText.indexOf("自测"), 0) === "historical");
+  // 2026-10-26 第二十三轮：安全门也收两周内起病，「半月/半个月前…出现」与之同档按当前；「半年前出现」仍按既往。
+  const gateHalfYear = "自诉约半年前劳累后出现发热不适，自测体温最高39.5℃。";
+  ok("安全门时间判定: 不带 groundingQuote 时「半月前出现」按当前、「半年前出现」仍按既往",
+    clinicalEventTemporalScopeAt(gateText, gateText.indexOf("自测"), 0) === "current" &&
+    clinicalEventTemporalScopeAt(gateHalfYear, gateHalfYear.indexOf("自测"), 0) === "historical");
 }
 
 // —— 否定列表的分配式引用（2026-09-28）——

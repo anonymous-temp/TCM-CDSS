@@ -16,6 +16,7 @@ const {
   deriveOperationalCompleteness,
   derivePrescriptionPermission,
   deriveSafetyLocked,
+  highRiskDoseBoundaryReasons,
   safetyGateForLimitedDiagnosisFallback,
   withSafetyGate,
 } = await jiti.import("../src/lib/diagnosis-safety.ts");
@@ -131,8 +132,10 @@ for (const pastHistory of [
   "既往史栏误填：确认怀孕，孕10周",
 ]) {
   const pregnancy = { ...base, patient: { sex: "女", age: 31 }, pastHistory };
-  assert.equal(permission(pregnancy).candidateMode, "non_dose_only", `当前妊娠必须阻断剂量候选: ${pastHistory}`);
-  assert.equal(permission(pregnancy).formalAdoption, "blocked", `当前妊娠不得正式采纳: ${pastHistory}`);
+  // 剂量一致化（用户 2026-10-26 决定 D4）：当前妊娠给剂量（药典孕妇禁用药由开方核对剔除），采纳前须医生确认，原因写妊娠。
+  assert.equal(permission(pregnancy).candidateMode, "limited_dose", `当前妊娠给剂量、标为有限: ${pastHistory}`);
+  assert.equal(permission(pregnancy).formalAdoption, "eligible_after_doctor_confirmation", `当前妊娠采纳前须医生确认: ${pastHistory}`);
+  assert.match(permission(pregnancy).reasons.join("；"), /妊娠/, `当前妊娠必须列为原因: ${pastHistory}`);
 }
 
 for (const pastHistory of [
@@ -141,9 +144,9 @@ for (const pastHistory of [
   "既往孕3产1",
   "曾经怀孕，现已终止妊娠",
 ]) {
-  assert.notEqual(
-    permission({ ...base, patient: { sex: "女", age: 31 }, pastHistory }).candidateMode,
-    "non_dose_only",
+  assert.doesNotMatch(
+    permission({ ...base, patient: { sex: "女", age: 31 }, pastHistory }).reasons.join("；"),
+    /已记录妊娠/,
     `明确历史妊娠不得误判为当前妊娠: ${pastHistory}`,
   );
 }
@@ -170,9 +173,10 @@ for (const [label, patch] of [
 ]) {
   const governedState = withSafetyGate({ ...base, ...patch });
   const result = derivePrescriptionPermission(governedState);
-  assert.equal(result.candidateMode, "non_dose_only", `${label}必须进入高风险非剂量路径`);
-  assert.equal(result.formalAdoption, "blocked", `${label}未经专科/药师复核不得正式采纳`);
-  assert.equal(deriveSafetyLocked(governedState), true, `${label}的独立确定性剂量门必须在审方前建立安全锁`);
+  // 剂量一致化（D4）：给剂量，按人群剔除相冲药（开方核对），采纳前须医生确认，复诊第一步专科评估；原因照列。
+  assert.equal(result.candidateMode, "limited_dose", `${label}给剂量、标为有限`);
+  assert.equal(result.formalAdoption, "eligible_after_doctor_confirmation", `${label}采纳前须医生确认`);
+  assert.ok(result.reasons.length > 0 && !result.reasons.some((reason) => /关键信息覆盖有限/.test(reason)), `${label}的原因必须是边界本身`);
 }
 
 for (const [label, patch] of [
@@ -180,7 +184,7 @@ for (const [label, patch] of [
   ["既往已停抗凝", { medicationHistory: "两年前服用华法林，现已停用；当前否认其他用药" }],
   ["稳定自身免疫病", { pastHistory: "系统性红斑狼疮目前稳定，无近期复发或加重" }],
 ]) {
-  assert.notEqual(permission({ ...base, ...patch }).candidateMode, "non_dose_only", `${label}不得被当前高风险规则误伤`);
+  assert.deepEqual(highRiskDoseBoundaryReasons(withSafetyGate({ ...base, ...patch })), [], `${label}不得被当前高风险规则误伤`);
 }
 
 const semanticUnavailable = {
@@ -193,8 +197,10 @@ const semanticUnavailable = {
     reviewStatus: "unavailable",
   },
 };
-assert.equal(permission(semanticUnavailable).candidateMode, "non_dose_only", "语义红旗筛查未完成时只允许非剂量分析");
-assert.equal(permission(semanticUnavailable).formalAdoption, "blocked");
+// 剂量一致化（D4）：语义红旗复核超时不再收回剂量（同一病历一会儿有剂量一会儿没有，最随机的一个来源），采纳前请医生当面核对。
+assert.equal(permission(semanticUnavailable).candidateMode, "limited_dose", "语义红旗筛查未完成：给剂量、标为有限");
+assert.equal(permission(semanticUnavailable).formalAdoption, "eligible_after_doctor_confirmation");
+assert.match(permission(semanticUnavailable).reasons.join("；"), /红旗语义复核未完成/);
 
 const urgentActiveBleeding = {
   ...base,
@@ -215,8 +221,9 @@ const urgentActiveBleeding = {
 };
 const urgentGate = withSafetyGate(urgentActiveBleeding).safetyGate;
 assert.equal(urgentGate?.status, "red_flag", "活动性黑便应按消化道出血风险进入急症分流");
-assert.equal(permission(urgentActiveBleeding).candidateMode, "non_dose_only", "活动性消化道出血不得生成剂量候选");
-assert.equal(permission(urgentActiveBleeding).formalAdoption, "blocked");
+// 剂量一致化（D4）：红旗也给剂量，红旗解除前不可采纳（活血化瘀药由开方核对剔除）。
+assert.equal(permission(urgentActiveBleeding).candidateMode, "limited_dose", "活动性消化道出血：给剂量、标为有限");
+assert.equal(permission(urgentActiveBleeding).formalAdoption, "blocked", "活动性消化道出血：红旗解除前不可采纳");
 
 const emergency = {
   ...base,
@@ -231,7 +238,7 @@ const emergency = {
     reasons: ["请优先急诊评估"],
   },
 };
-assert.equal(permission(emergency).candidateMode, "non_dose_only");
+assert.equal(permission(emergency).candidateMode, "limited_dose");
 assert.equal(permission(emergency).formalAdoption, "blocked");
 
 const emergencyLimited = buildSafetyLimitedDiagnosisReasoning(emergency, emergency.safetyGate);
@@ -543,8 +550,18 @@ const finalSegment = (ndjson) => ndjson.split("\n").filter(Boolean)
     assert.match(final, /每味药取成人一般用量的 2\/3 以内/);
     assert.doesNotMatch(controlFinal, /儿童用药说明/, "反证：成人对照组没有儿童说明");
   }
+  // 剂量一致化（D4）：红旗给剂量——最终页带用量、不走非剂量投影，但仍以确定性安全警示横幅开头、写明红旗；采纳锁定。
+  {
+    const { state, canned } = await signedDoseAxisState("red-flag", { chiefComplaint: "当前持续压榨性胸痛30分钟未缓解，伴大汗" });
+    assert.equal(permission(state).candidateMode, "limited_dose", "red-flag: 前提——给剂量");
+    assert.equal(permission(state).formalAdoption, "blocked", "red-flag: 红旗解除前不可采纳");
+    const final = finalSegment((await prescribeWithStubModel(state, canned)).text);
+    assert.match(final, DOSE_AMOUNT, "red-flag: 交付剂量");
+    assert.doesNotMatch(final, /CDSS_NON_DOSE_PRESCRIPTION/, "red-flag: 不走非剂量投影");
+    assert.ok(final.startsWith("<!-- CDSS_SAFETY_ADVISORY -->"), "red-flag: 最终页仍以确定性安全警示横幅开头");
+    assert.match(final, /红旗提示：胸痛/, "red-flag: 横幅写明红旗");
+  }
   for (const [id, patch, reasonPattern] of [
-    ["red-flag", { chiefComplaint: "当前持续压榨性胸痛30分钟未缓解，伴大汗" }, /红旗提示：胸痛/],
     ["pediatric-unknown-stage", { patient: { sex: "男" }, chiefComplaint: "患儿咳嗽痰多3天，黄芪汤证" }, /儿童年龄段无法判定/],
   ]) {
     const { state, canned } = await signedDoseAxisState(id, patch);

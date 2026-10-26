@@ -53,7 +53,7 @@ import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy } from "@/lib/tcm-ch
 import { enforceRetrievedM03FormulaSelection } from "@/lib/tcm-formula-indications";
 import { applyGovernedTcmDiagnosticCitations } from "@/lib/tcm-diagnostic-citations";
 import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-normalization.server";
-import { declassifyAndDropOpposingM04CandidateHerbs, dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
+import { declassifyAndDropOpposingM04CandidateHerbs, dropSafetyConflictingM04CandidateHerbs, dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
 import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
 import { checkNonStrictStructuredContent, checkNonStrictStructuredValue, responseFormatForTask, strictToolParametersForTask, strictToolSystemInstruction, structuredOutputSchemaInstruction, structuredValueFromToolArguments, supportsStrictJsonSchema, supportsStrictToolRetry, type ProviderSchemaViolation, type StructuredOutputTask } from "@/lib/model-response-format";
 import { insertM03ProvisionalDraft, renderM03ProvisionalDraftSection, schemaValidDiagnoseDraft } from "@/lib/m03-provisional-draft";
@@ -2841,6 +2841,8 @@ async function callPrimaryTextModelStream(
         finalized = dropUnsupportedM04ModificationDirections(finalized, opts.structuredPriorReasoning);
         // 同一条不变量的另一半：方向未成立的**实际加味**按单味剔除，不让单味缺陷放大成整方作废。
         // 必须排在 attestation 与签名之前——签名绑定的必须是剔除后的最终候选。
+        // 与本例安全边界冲突的非君药按单味剔除（剂量一致化 D4）：人群/过敏/活动性出血、方内十八反。
+        finalized = dropSafetyConflictingM04CandidateHerbs(finalized, opts.structuredClinicalContext || "");
         const beforeDirectionPrune = finalized;
         finalized = declassifyAndDropOpposingM04CandidateHerbs(finalized, opts.structuredPriorReasoning);
         lastM04CandidateDirectionPruned = finalized !== beforeDirectionPrune;

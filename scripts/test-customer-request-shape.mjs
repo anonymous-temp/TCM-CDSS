@@ -17,6 +17,7 @@ const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-type
 const {
   deriveOperationalCompleteness,
   derivePrescriptionPermission,
+  priorityEvaluationFollowupTarget,
   evaluateSafetyGate,
   trustedInputText,
 } = await jiti.import("../src/lib/diagnosis-safety.ts");
@@ -94,7 +95,10 @@ for (const probe of RED_FLAG_PROBES) {
     const gate = evaluateSafetyGate(state);
     assert.equal(gate.status, "red_flag", `${probe.name} × ${shape}：现病史里的急危重表现必须报红旗`);
     assert.deepEqual([...gate.redFlags].sort(), [...expected.redFlags].sort(), `${probe.name} × ${shape}：红旗集合应与无追问时相同`);
-    assert.equal(derivePrescriptionPermission(state).candidateMode, "non_dose_only", `${probe.name} × ${shape}：红旗未解除不得给剂量`);
+    // 剂量一致化（用户 2026-10-26 决定 D4）：红旗也给剂量，但红旗解除前不可采纳——四种追问形状结论一致。
+    const permission = derivePrescriptionPermission(state);
+    assert.equal(permission.candidateMode, "limited_dose", `${probe.name} × ${shape}：红旗给剂量、标为有限`);
+    assert.equal(permission.formalAdoption, "blocked", `${probe.name} × ${shape}：红旗未解除不得采纳`);
   }
 }
 
@@ -111,7 +115,12 @@ for (const probe of BOUNDARY_PROBES) {
   for (const [shape, conversation] of Object.entries(SHAPES)) {
     const state = customerCase(probe, conversation);
     const permission = derivePrescriptionPermission(state);
-    assert.equal(permission.candidateMode, "non_dose_only", `${probe.name} × ${shape}：不得给出带剂量处方（实际 ${permission.candidateMode}）`);
+    // 剂量一致化（用户 2026-10-26 决定 D4）：独立边界给剂量（开方核对按人群剔除相冲药）、采纳前须医生确认；
+    // 本节钉的是「四种传参都认得出边界」——原因与复诊第一步（先去评估）在每种传参下都要一致。
+    assert.equal(permission.candidateMode, "limited_dose", `${probe.name} × ${shape}：剂量档（实际 ${permission.candidateMode}）`);
+    assert.equal(permission.formalAdoption, "eligible_after_doctor_confirmation", `${probe.name} × ${shape}：采纳前须医生确认`);
+    assert.ok(permission.reasons.some((reason) => /妊娠|哺乳|抗凝/.test(reason)), `${probe.name} × ${shape}：原因必须写明边界`);
+    assert.match(priorityEvaluationFollowupTarget(state)?.pathway || "", /pregnancy_review|lactation_review|anticoagulant_review/, `${probe.name} × ${shape}：复诊第一步先去评估`);
   }
 }
 
@@ -163,7 +172,7 @@ for (const probe of BOUNDARY_PROBES) {
   });
   assert.equal(state.pastHistory, "高血压病史10年");
   assert.equal(state.symptoms.既往史, "房颤病史5年，长期口服华法林");
-  assert.equal(derivePrescriptionPermission(state).candidateMode, "non_dose_only", "留在 symptoms 里的那份既往史仍要进闸门");
+  assert.ok(derivePrescriptionPermission(state).reasons.some((reason) => /抗凝/.test(reason)), "留在 symptoms 里的那份既往史仍要进闸门（华法林认作抗凝边界）");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -207,7 +216,9 @@ for (const probe of BOUNDARY_PROBES) {
   assert.deepEqual(confirmedRiskScreeningCategories(positive.conversation).map((item) => item.category), ["acute_abdomen"]);
   const positiveGate = evaluateSafetyGate(positive);
   assert.equal(positiveGate.status, "red_flag", "医生对急腹症筛查题选了「存在上述任一情况」，必须按阳性处理");
-  assert.equal(derivePrescriptionPermission(positive).candidateMode, "non_dose_only");
+  // 剂量一致化（D4）：红旗也给剂量，红旗解除前不可采纳。
+  assert.equal(derivePrescriptionPermission(positive).candidateMode, "limited_dose");
+  assert.equal(derivePrescriptionPermission(positive).formalAdoption, "blocked");
   const negative = customerCase(record, [{ role: "assistant", content: risk.question }, { role: "user", content: risk.negative }]);
   assert.deepEqual(confirmedRiskScreeningCategories(negative.conversation), []);
   assert.notEqual(evaluateSafetyGate(negative).status, "red_flag", "阴性选项不报红旗；题干里的「反跳痛、腹部僵硬」不是病历内容");

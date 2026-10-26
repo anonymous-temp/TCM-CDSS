@@ -212,11 +212,20 @@ check("4.5 儿童给出折算档位，说明不进「需确认」原因清单；
   assert.equal(safety.hasHardDoseSafetyBoundary(child), false);
 });
 
-check("4.6 独立硬边界不受影响：儿童 + 红旗仍收回剂量（红旗轴照旧）", () => {
+check("4.6 儿童 + 红旗：剂量一致化（D4）后给折算剂量、红旗解除前不可采纳；旧口径（CDSS_DOSE_CONSISTENCY=false）收回剂量且不带折算档位", () => {
   const redFlagChild = caseWith({ sex: "男", age: "5岁", weight: "18kg" }, "当前持续压榨性胸痛30分钟未缓解，伴大汗");
   const permission = safety.derivePrescriptionPermission(redFlagChild);
-  assert.equal(permission.candidateMode, "non_dose_only");
-  assert.equal(permission.pediatricDose, undefined, "收回剂量的出口不带折算档位（没有剂量可折算）");
+  assert.equal(permission.candidateMode, "limited_dose");
+  assert.equal(permission.formalAdoption, "blocked");
+  assert.ok(permission.pediatricDose, "给了剂量就带折算档位");
+  process.env.CDSS_DOSE_CONSISTENCY = "false";
+  try {
+    const legacy = safety.derivePrescriptionPermission(redFlagChild);
+    assert.equal(legacy.candidateMode, "non_dose_only");
+    assert.equal(legacy.pediatricDose, undefined, "收回剂量的出口不带折算档位（没有剂量可折算）");
+  } finally {
+    delete process.env.CDSS_DOSE_CONSISTENCY;
+  }
 });
 
 check("4.6b 婴幼儿病历的「母乳喂养」是患儿自己的喂养方式，不是母亲的哺乳期：不得触发孕哺独立硬边界（2026-09-30 回放：12 天新生儿被收回剂量）", () => {

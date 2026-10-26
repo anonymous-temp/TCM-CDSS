@@ -23,7 +23,7 @@ import priorityEvaluationWindowTable from "../data/priority-evaluation-windows.s
 import { evaluateDiscriminators, redFeatureChecklistForPatient, type DiscriminatorOutcome } from "./redflag-discriminators";
 import emergencyDiagnosisNames from "../data/emergency-diagnosis-names.source.json";
 import { generalizeOccupation, shouldRedactNarrativeNameCandidate, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
-import { determineCompletenessLevel } from "./diagnosis-types";
+import { determineCompletenessLevel, normalizeCaseStateInput } from "./diagnosis-types";
 import {
   additiveRedFlagsFromFacts,
   dispositionAdvisoriesFromFacts,
@@ -5107,6 +5107,53 @@ function vitalsRecordedAndStableByNews2(measurements: CurrentVitalMeasurements):
  * 当前发热；有胸闷且伴气促或呼吸困难、无胸痛；胸闷无突发/加重/持续/按分钟小时计的急性线索；无急性冠脉典型伴随；未肯定记载已知心脏病；
  * 无意识改变；生命体征记录足够且按 NEWS2 稳定。红旗规则与 24 小时通道读同一个谓词。
  */
+const PERIPHERAL_FACIAL_PALSY = priorityEvaluationWindowTable.peripheralFacialPalsyOnly;
+/**
+ * 只有周围性面瘫（额纹也受累或闭眼不全），没有肢体、言语、吞咽、视觉、意识等其他缺损、也没有写额纹保留：
+ * 不按「意识或神经功能异常」报红旗，改 48 小时内评估（第二十三轮红旗规则逐类审查；回放 X-H-0062「2天前受风后出现左侧面部麻木，
+ * 额纹消失，眼裂变大，鼻唇沟变浅，口角下垂」）。判据与依据在 priority-evaluation-windows.source.json peripheralFacialPalsyOnly。
+ */
+export function peripheralFacialPalsyOnly(text: string): boolean {
+  const normalized = normalizeClinicalText(text);
+  if (!hasAnyTerm(normalized, PERIPHERAL_FACIAL_PALSY.facialSigns)) return false;
+  if (!hasAnyTerm(normalized, PERIPHERAL_FACIAL_PALSY.lowerMotorNeuronSigns)) return false;
+  if (hasAnyTerm(normalized, PERIPHERAL_FACIAL_PALSY.foreheadSparingSigns)) return false;
+  if (hasAnyTerm(normalized, PERIPHERAL_FACIAL_PALSY.otherNeurologicDeficits)) return false;
+  return !hasSuddenHeadacheSignal(normalized);
+}
+
+const PEDIATRIC_CHEST_PAIN = priorityEvaluationWindowTable.pediatricChestPainNonCardiac;
+const PEDIATRIC_EXERTIONAL_CHEST_PAIN = new RegExp(PEDIATRIC_CHEST_PAIN.exertionalPattern, "u");
+/**
+ * 未满 18 岁的胸痛/胸闷没有心源性警示（活动时胸痛、晕厥/黑矇、发绀、先心病/心肌病/川崎病/心脏手术、家族猝死、急性冠脉典型伴随）：
+ * 不按急性冠脉事件报红旗（第二十三轮；甲方 K17：13 岁咳嗽咳痰，回答里写「胸痛，呕吐」）。有发热时另走 24 小时通道。
+ */
+export function pediatricChestPainNonCardiac(state: CaseState): boolean {
+  const age = authoritativePatientAgeYears(state);
+  if (age == null || age >= 18) return false;
+  const text = trustedInputText(state);
+  if (!hasAnyTerm(text, ["胸闷"]) && !hasAnyTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) && !hasColloquialChestPressureSignal(text)) return false;
+  if (hasAnyTerm(text, ACS_TYPICAL_COMPANIONS)) return false;
+  // 突发、持续不缓解的胸闷/胸痛不豁免（气胸、心肌炎、肺栓塞也在这一档；open-language 夹具「今日突然胸闷气促，持续不缓解」）。
+  if (hasScopedAcuteChestTightnessSignal(text)) return false;
+  if (hasPatternWithoutNegation(text, /(?:突发|突然|剧烈)[^。；;\n，,]{0,6}(?:胸痛|心前区痛)|(?:胸痛|心前区痛)[^。；;\n]{0,8}(?:持续不缓解|无缓解|不能缓解|剧烈)/u)) return false;
+  // 活动时胸痛是诱因描述，不按时态取舍（「1天前打篮球时出现胸痛」里「打篮球时」落在起病时间与「出现」之间）：只看肯定还是否认。
+  for (const match of text.matchAll(new RegExp(PEDIATRIC_EXERTIONAL_CHEST_PAIN.source, "gu"))) {
+    if (recordMentionPolarityAt(text, match.index ?? 0) === "affirmed") return false;
+  }
+  return !PEDIATRIC_CHEST_PAIN.cardiacRedFlagTerms.some((term) => {
+    for (let at = text.indexOf(term); at >= 0; at = text.indexOf(term, at + term.length)) {
+      if (recordMentionPolarityAt(text, at) === "affirmed") return true;
+    }
+    return false;
+  });
+}
+
+function currentFeverRecorded(state: CaseState): boolean {
+  const temperature = currentVitalMeasurements(state).temperature;
+  return (temperature != null && temperature >= 37.3) || hasAnyTerm(trustedInputText(state), ["发热", "发烧", "高热"]);
+}
+
 export function febrileChestTightnessDeferralApplies(state: CaseState): boolean {
   const text = trustedInputText(state);
   if (!hasAnyTerm(text, ["胸闷"])) return false;
@@ -5124,10 +5171,30 @@ export function febrileChestTightnessDeferralApplies(state: CaseState): boolean 
     return false;
   })) return false;
   if (currentConsciousnessChangeTerm(text)) return false;
-  const measurements = currentVitalMeasurements(state);
-  const febrile = (measurements.temperature != null && measurements.temperature >= 37.3) || hasAnyTerm(text, ["发热", "发烧", "高热"]);
-  if (!febrile) return false;
-  return vitalsRecordedAndStableByNews2(measurements);
+  if (!currentFeverRecorded(state)) return false;
+  return vitalsRecordedAndStableByNews2(currentVitalMeasurements(state));
+}
+
+/**
+ * 出血类红旗（剂量一致化 D4）：红旗也给剂量后，活动性出血时不能开活血化瘀药——《中药学》第十九章活血化瘀药：
+ * 「不宜用于妇女月经过多以及其他出血证而无瘀血现象者」。认的是本闸门自己写的几条出血红旗原句（闭集，代码常量），
+ * 不另起一套出血判据：消化道出血、重度血小板减少、咯血、妊娠期与非妊娠期大量阴道出血。
+ */
+const ACTIVE_BLEEDING_RED_FLAG = /活动性消化道出血|重度血小板减少|咯血|阴道流血|阴道出血/u;
+export function hasActiveBleedingRedFlag(redFlags: readonly string[]): boolean {
+  return redFlags.some((flag) => ACTIVE_BLEEDING_RED_FLAG.test(flag));
+}
+const activeBleedingTextMemo = new Map<string, boolean>();
+/** 开方核对只拿得到接地正文：用本闸门的确定性红旗检测跑一遍，看有没有出血类红旗。按正文记忆，避免逐味重复计算。 */
+export function activeBleedingInGroundingText(text: string): boolean {
+  if (!text.trim()) return false;
+  const cached = activeBleedingTextMemo.get(text);
+  if (cached !== undefined) return cached;
+  const state = normalizeCaseStateInput({ chiefComplaint: "", symptoms: { 现病史: text } });
+  const result = state ? hasActiveBleedingRedFlag(detectProgrammaticRedFlags(state)) : false;
+  if (activeBleedingTextMemo.size > 2000) activeBleedingTextMemo.clear();
+  activeBleedingTextMemo.set(text, result);
+  return result;
 }
 
 export function detectProgrammaticRedFlags(state: CaseState): string[] {
@@ -5361,7 +5428,8 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   // 发热病程中的胸闷（可伴气促）且无不稳定征象：改 24 小时内评估、照常给剂量（用户 2026-10-26 决定 D1；
   // 判据与依据在 priority-evaluation-windows.source.json febrileChestTightnessDeferral，同一个谓词也给 24 小时通道挂项）。
   const febrileChestTightnessDeferred = febrileChestTightnessDeferralApplies(state);
-  const cardiacRiskFlagged = !cardiacClearanceApplies && !chronicPediatricChestSymptom && !febrileChestTightnessDeferred &&
+  const pediatricNonCardiacChestPain = pediatricChestPainNonCardiac(state);
+  const cardiacRiskFlagged = !cardiacClearanceApplies && !chronicPediatricChestSymptom && !febrileChestTightnessDeferred && !pediatricNonCardiacChestPain &&
     (acuteChestPainSignal || (chestPainSignal && cardiacCompanion) || acuteChestTightnessSignal || (chestTightnessSignal && cardiacCompanion));
   const reportableCardiacRisk = cardiacRiskFlagged;
   if (reportableCardiacRisk) {
@@ -5374,7 +5442,8 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   // 理由按实际命中的那一项写（2026-10-19 Claude 评审 H 集：十余例没有任何头痛记录的卒中、抽搐、脊髓病例，
   // 不给剂量的理由都写「突发剧烈头痛、意识或神经功能异常」，读起来像病人有剧烈头痛）。后半句不变，按「神经系统急症」归类的地方照旧认得。
   const suddenHeadacheSignal = hasSuddenHeadacheSignal(text);
-  const neurologicEmergencySignal = hasNeurologicEmergencySignal(text);
+  // 只有周围性面瘫不报神经红旗（改 48 小时内评估，见 peripheralFacialPalsyOnly）。
+  const neurologicEmergencySignal = hasNeurologicEmergencySignal(text) && !peripheralFacialPalsyOnly(text);
   if (suddenHeadacheSignal || neurologicEmergencySignal) {
     redFlags.push(suddenHeadacheSignal && neurologicEmergencySignal
       ? "突发剧烈头痛伴意识或神经功能异常，需优先排除神经系统急症"
@@ -5428,6 +5497,16 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
     redFlags.push("妊娠期活动性大量阴道出血提示产科急症，需立即转产科急诊评估");
   } else if (antepartumBleedingSignal) {
     redFlags.push(`妊娠${gestationalWeeks}周阴道流血，需立即转产科急诊评估（排除前置胎盘、胎盘早剥）`);
+  }
+  // 妊娠腹痛或阴道出血伴循环不稳定（血压≤90/≤50、心率≥120、晕厥）：直接急诊排除异位妊娠破裂、流产大出血（NICE NG126 1.4.1）。
+  if (!activeObstetricHemorrhageSignal && !antepartumBleedingSignal && pregnancyPainOrBleedingSignal(state, text)) {
+    const unstable = earlyPregnancyInstabilitySigns(state, text);
+    const weeks = recordedGestationalWeeks(text);
+    if (unstable.length > 0) {
+      redFlags.push(weeks != null && weeks >= 20
+        ? `妊娠${weeks}周腹痛伴${unstable.join("、")}，需立即到产科急诊排除胎盘早剥等产科急症`
+        : `妊娠期腹痛或阴道出血伴${unstable.join("、")}，需立即急诊排除异位妊娠破裂或流产大出血`);
+    }
   }
   if (activeMajorVaginalBleedingSignal && !activeObstetricHemorrhageSignal && !antepartumBleedingSignal) {
     redFlags.push("活动性大量阴道出血伴持续/反复、重度贫血或循环灌注风险，需立即评估失血量与循环状态并急诊处置");
@@ -5681,6 +5760,56 @@ function withReaderDisagreementNote(state: CaseState, message: string): string {
 /** 腹痛的构词式：「下腹隐痛」「小腹坠痛」「腹部胀痛」——字面「腹痛」认不出这些（2026-10-24，孕 12 周下腹隐痛没有产科提示）。 */
 const ABDOMINAL_PAIN_FORM = /腹[部中]?[^，,。；;\n无不未没]{0,2}痛/;
 
+const STOPPED_PERIOD_FORM = /(?:停经|月经(?:逾期|过期|未至|未来潮))(?![^。；;，,\n]{0,6}年)/;
+/**
+ * 妊娠（阳性或可疑）伴腹痛或阴道出血，或育龄女性停经伴阴道出血或腹痛：先排除异位妊娠、流产（NICE NG126）。
+ * 产科提示、24 小时早孕评估通道与「伴循环不稳定」红旗用这同一个判据（第二十三轮回放：C062 停经6周右下腹痛伴阴道出血、
+ * 血压 88/56，只得到默认的「3天内」）。不认头晕：闭经病例常伴头晕；头晕只在产科提示那一档另算。
+ */
+export function pregnancyPainOrBleedingSignal(state: CaseState, text = trustedInputText(state)): boolean {
+  const obstetric = governedRedFlagCategory("obstetric");
+  if (hasAnyTerm(text, obstetric.symptoms.filter((term) => /妊娠|孕|产/.test(term)))) return true;
+  const painOrBleeding = hasAnyTerm(text, ["阴道流血", "阴道出血", ...obstetric.symptoms.filter((term) => !/妊娠|孕|产/.test(term))]) ||
+    hasPatternWithoutNegation(text, ABDOMINAL_PAIN_FORM);
+  if (painOrBleeding && isPositiveOrPossibleClinicalState(assessPregnancyState(maternalStateText(state, text)))) return true;
+  return pregnancyScreenRequired(state) && hasPatternWithoutNegation(text, STOPPED_PERIOD_FORM) &&
+    (hasAnyTerm(text, ["阴道流血", "阴道出血", "带中夹血", "见红"]) || hasPatternWithoutNegation(text, ABDOMINAL_PAIN_FORM));
+}
+
+/** 病历写明的孕周：「孕34周」「妊娠12+3周」「怀孕已5个半月」（月按 4.3 周折算）；没写返回 undefined。 */
+export function recordedGestationalWeeks(text: string): number | undefined {
+  // 「避孕5个月」「不孕3年」「备孕2个月」「未孕」里的「孕」不是孕周（第二十三轮回放 corpus-10602「未避孕5个月未能怀孕」）。
+  const weeks = text.match(/(?:(?<![避不备未])孕|妊娠|怀孕)\s*(?:已|约|近)?\s*(\d{1,2})(?:\s*\+\s*\d)?\s*周/u)?.[1];
+  if (weeks) return Number(weeks);
+  const months = text.match(/(?:(?<![避不备未])孕|妊娠|怀孕)\s*(?:已|约|近)?\s*(\d{1,2})\s*个(半)?月/u);
+  return months ? Math.round(Number(months[1]) * 4.3 + (months[2] ? 2 : 0)) : undefined;
+}
+
+/**
+ * 24 小时早孕/产科评估通道只给确认妊娠、停经或其他可疑妊娠的病例；「可疑」只来自不孕求子的写法（「未避孕2年未能怀孕」「备孕」）、
+ * 又没写停经时不给——那是不孕症就诊里的慢性腹痛，产科提示照旧，时限按默认（第二十三轮回放 corpus-12971/10772/13222）。
+ */
+function pregnancyAssessmentPathwayApplies(state: CaseState, text: string): boolean {
+  if (!pregnancyPainOrBleedingSignal(state, text)) return false;
+  if (hasPatternWithoutNegation(text, STOPPED_PERIOD_FORM)) return true;
+  const pregnancy = assessPregnancyState(maternalStateText(state, text));
+  return !(pregnancy.status === "possible" && /避孕|备孕|未孕|不孕/u.test(pregnancy.evidence || ""));
+}
+
+const EARLY_PREGNANCY_INSTABILITY = priorityEvaluationWindowTable.earlyPregnancyInstability;
+/** 上一条成立时的循环不稳定表现（NG126 1.4.1 血流动力学不稳定直接转急诊）：阈值在 priority-evaluation-windows earlyPregnancyInstability。 */
+function earlyPregnancyInstabilitySigns(state: CaseState, text: string): string[] {
+  const measured = currentVitalMeasurements(state);
+  const signs: string[] = [];
+  const bp = measured.bloodPressure;
+  if (bp && (bp.systolic <= EARLY_PREGNANCY_INSTABILITY.systolicAtMost || bp.diastolic <= EARLY_PREGNANCY_INSTABILITY.diastolicAtMost)) {
+    signs.push(`血压${bp.systolic}/${bp.diastolic}mmHg`);
+  }
+  if (measured.pulse != null && measured.pulse >= EARLY_PREGNANCY_INSTABILITY.pulseAtLeast) signs.push(`心率${measured.pulse}次/分`);
+  if (hasAnyTerm(text, EARLY_PREGNANCY_INSTABILITY.collapseTerms)) signs.push("晕厥");
+  return signs;
+}
+
 export function narrativeFallbackAdvisories(state: CaseState): string[] {
   const text = trustedInputText(state);
   const semanticCategories = state.clinicalFacts?.semanticStatus === "checked"
@@ -5742,20 +5871,17 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
   // 故按「是否自带妊娠限定」二分：自带的独立成立，不自带的仍与妊娠上下文合取。
   {
     const obstetric = governedRedFlagCategory("obstetric");
-    const pregnancyQualified = obstetric.symptoms.filter((term) => /妊娠|孕|产/.test(term));
     const needsPregnancyContext = obstetric.symptoms.filter((term) => !/妊娠|孕|产/.test(term));
     // 「是否妊娠」读受治理的妊娠判据（阳性或可疑），不再看「妊娠/怀孕」字面（2026-10-24 甲方页面实测）：
     // 字面判据把「妊娠可能性尚待核实」「妊娠状态未知」「妊娠期高血压病史」都当成孕妇，失眠病历因一句「偶有头晕」
     // 被提示「需优先排除产科急症」。
+    // 腹痛、阴道出血与「育龄女性停经伴出血或腹痛」读 pregnancyPainOrBleedingSignal（与 24 小时早孕评估通道、循环不稳定红旗同一判据）；
+    // 育龄女性停经那一支只认出血与腹痛，不认头晕——闭经病例常伴头晕。「停经超过2年」是绝经，「月经推迟3-10天」说的是平时周期，都不收。
+    // 已确认妊娠时头晕、晕厥与产科危险伴随也提示。
     if (
-      hasAnyTerm(text, pregnancyQualified) ||
+      pregnancyPainOrBleedingSignal(state, text) ||
       (isPositiveOrPossibleClinicalState(assessPregnancyState(maternalStateText(state, text))) &&
-        (hasAnyTerm(text, ["腹痛", "阴道流血", "头晕", "晕厥", ...needsPregnancyContext, ...obstetric.dangerCompanions]) || hasPatternWithoutNegation(text, ABDOMINAL_PAIN_FORM))) ||
-      // 育龄女性停经伴阴道出血或腹痛：妊娠状态没写，也要先排除异位妊娠、流产（语料回放：「停经38天，阴道流血9天」「停经41天，带中夹血」
-      // 以前只因分析里碰巧写了「妊娠」二字才有这条提示）。只认出血与腹痛，不认头晕——闭经病例常伴头晕。
-      // 「停经超过2年」「停经3年」是绝经，不收；「月经推迟3-10天」说的是平时周期，不是这次没来，也不收。
-      (pregnancyScreenRequired(state) && hasPatternWithoutNegation(text, /(?:停经|月经(?:逾期|过期|未至|未来潮))(?![^。；;，,\n]{0,6}年)/) &&
-        (hasAnyTerm(text, ["阴道流血", "阴道出血", "带中夹血", "见红"]) || hasPatternWithoutNegation(text, ABDOMINAL_PAIN_FORM)))
+        hasAnyTerm(text, ["腹痛", "头晕", "晕厥", ...needsPregnancyContext, ...obstetric.dangerCompanions]))
     ) {
       addAdvisory("obstetric", "妊娠相关腹痛、出血或循环症状需优先排除产科急症");
     }
@@ -6341,6 +6467,9 @@ export function canForceProceedPastSafetyGate(gate: SafetyGate | undefined): boo
   return gate.missingItems.length > 0 && gate.missingItems.every((item) => item !== "主诉");
 }
 
+/** 剂量一致化后，语义红旗复核未完成时写进「采纳前需确认」的那一句（D4）。 */
+export const SEMANTIC_SCREEN_UNVERIFIED_DOSE_REASON = "本次红旗语义复核未完成，采纳前请医生当面核对有无急症表现";
+
 export function hardDoseSafetyBoundaryReasons(state: CaseState): string[] {
   const gate = evaluateSafetyGate(state);
   if (gate.status === "red_flag") return gate.redFlags.length > 0 ? gate.redFlags : ["命中急危重红旗"];
@@ -6522,7 +6651,10 @@ export function priorityEvaluationFollowupFocus(state: CaseState): string | unde
 
 export type PriorityEvaluationPathway = keyof typeof priorityEvaluationWindowTable.pathways;
 /** 复诊计划第一句的评估对象：要排除什么、最迟多久、走哪条专门路径（2026-10-26 第二十一轮）。 */
-export type PriorityEvaluationTarget = { focus: string; window: PriorityEvaluationWindowId; pathway?: PriorityEvaluationPathway };
+/** 复诊时限：事实模型的四档之外，多一档「当天」只给红旗未解除但给了剂量的病例（D4）。 */
+export type FollowupWindowId = PriorityEvaluationWindowId | "today";
+const FOLLOWUP_WINDOW_ORDER: readonly FollowupWindowId[] = ["today", ...PRIORITY_EVALUATION_WINDOWS];
+export type PriorityEvaluationTarget = { focus: string; window: FollowupWindowId; pathway?: PriorityEvaluationPathway };
 
 /**
  * 时限取各来源里最紧的一档：事实模型对「宜先专科评估」各项给的 timeWindow、乳房肿块的疑似肿瘤路径（两周内）、
@@ -6530,12 +6662,22 @@ export type PriorityEvaluationTarget = { focus: string; window: PriorityEvaluati
  */
 export function priorityEvaluationFollowupTarget(state: CaseState): PriorityEvaluationTarget | undefined {
   const gate = evaluateSafetyGate(state);
-  if (gate.status === "red_flag") return undefined;
+  // 剂量一致化（D4）：给了剂量的红旗病例，复诊第一步是当天急诊或专科排除急危重情况；不给剂量时由 followupWhenDoseWithheld 写。
+  if (gate.status === "red_flag") return doseRestrictionFollowupTarget(state);
+  const restriction = doseRestrictionFollowupTarget(state);
+  const gateTarget = gatePriorityEvaluationTarget(state, gate);
+  if (!restriction) return gateTarget;
+  if (!gateTarget) return restriction;
+  const rank = (window: FollowupWindowId) => FOLLOWUP_WINDOW_ORDER.indexOf(window);
+  return rank(gateTarget.window) <= rank(restriction.window) ? gateTarget : restriction;
+}
+
+function gatePriorityEvaluationTarget(state: CaseState, gate: SafetyGate): PriorityEvaluationTarget | undefined {
   const item = (gate.missingItems || []).find((entry) => entry.includes("优先完成临床评估"));
   if (!item) return undefined;
   const focus = item.match(/需排除：(.+?)）；处方前/u)?.[1]?.trim() || "";
   const defaultWindow = priorityEvaluationWindowTable.defaultWindow as PriorityEvaluationWindowId;
-  const rank = (window: PriorityEvaluationWindowId) => PRIORITY_EVALUATION_WINDOWS.indexOf(window);
+  const rank = (window: FollowupWindowId) => FOLLOWUP_WINDOW_ORDER.indexOf(window);
   const entries = collectPriorityEvaluationEntries(state, trustedInputText(state));
   if (entries.length === 0) return { focus, window: defaultWindow };
   const most = entries.reduce((best, next) => rank(next.window || defaultWindow) < rank(best.window || defaultWindow) ? next : best);
@@ -6544,6 +6686,29 @@ export function priorityEvaluationFollowupTarget(state: CaseState): PriorityEval
     window: most.window || defaultWindow,
     ...(most.pathway ? { pathway: most.pathway } : {}),
   };
+}
+
+/**
+ * 给了剂量但有红旗或独立边界的病例（D4）：复诊第一步按原因去评估。与 doseWithheldFollowupKind 同一组原因、同一个优先顺序；
+ * 不给剂量（算不出剂量、或已回退旧口径）时返回 undefined，那时由 followupWhenDoseWithheld 写。
+ */
+export function doseRestrictionFollowupTarget(state: CaseState): PriorityEvaluationTarget | undefined {
+  const permission = derivePrescriptionPermission(state);
+  if (permission.candidateMode !== "limited_dose" && permission.candidateMode !== "full_dose") return undefined;
+  const gate = evaluateSafetyGate(state);
+  const pathwayTarget = (pathway: PriorityEvaluationPathway): PriorityEvaluationTarget => {
+    const entry = priorityEvaluationWindowTable.pathways[pathway];
+    return { focus: entry.focus, window: entry.window as FollowupWindowId, pathway };
+  };
+  if (gate.status === "red_flag") return pathwayTarget("red_flag_clearance");
+  if (!doseConsistencyEnabled()) return undefined;
+  const maternal = maternalStateText(state, structuredCaseText(state));
+  if (isPositiveOrPossibleClinicalState(assessPregnancyState(maternal))) return pathwayTarget("pregnancy_review");
+  if (isPositiveOrPossibleClinicalState(assessLactationState(maternal))) return pathwayTarget("lactation_review");
+  const highRisk = highRiskDoseBoundaryReasons(state);
+  if (highRisk.some((reason) => reason.includes("抗凝"))) return pathwayTarget("anticoagulant_review");
+  if (highRisk.length > 0) return pathwayTarget("specialist_review");
+  return undefined;
 }
 
 /** 病历文本里患者本人有糖尿病（家族史一栏另由 diabetesRecorded 剔除；这里给门禁用，读同一份可信文本）。 */
@@ -6611,7 +6776,22 @@ export function doseWithheldFollowupKind(state: CaseState): DoseWithheldFollowup
  * 这一条不受本开关影响，也不该受。
  */
 export function redFlagDoseAuthorizationAllowed(): boolean {
-  return (process.env.CDSS_REDFLAG_DOSE_AUTHORIZATION || "withhold").trim().toLowerCase() === "allow";
+  const explicit = (process.env.CDSS_REDFLAG_DOSE_AUTHORIZATION || "").trim().toLowerCase();
+  if (explicit === "allow") return true;
+  if (explicit === "withhold") return false;
+  return doseConsistencyEnabled();
+}
+
+/**
+ * 剂量一致化（用户 2026-10-26 决定 D4）：「不给剂量」不再当作风险处置的手段——同类病历一会儿有剂量一会儿没有，
+ * 甲方使用观感差（K16 因红旗不给剂量连调 4 次开方）。改为默认给剂量，风险用三样东西表达：置顶警示横幅、
+ * 开方核对按人群剔除或标注相冲的药、采纳门槛（红旗：红旗解除前 formalAdoption=blocked；其他边界：采纳需医生确认），
+ * 复诊第一步先去评估（priorityEvaluationFollowupTarget 的 red_flag_clearance / pregnancy_review / … 通道）。
+ * 只有真算不出剂量时才不给：缺主诉、儿童年龄段判不出、病历与登记年龄冲突。接口字段与取值集合不变。
+ * CDSS_DOSE_CONSISTENCY=false 回到旧口径（红旗与独立硬边界一律不给剂量）；CDSS_REDFLAG_DOSE_AUTHORIZATION 显式设值时仍以它为准。
+ */
+export function doseConsistencyEnabled(): boolean {
+  return (process.env.CDSS_DOSE_CONSISTENCY || "").trim().toLowerCase() !== "false";
 }
 
 /** 集成方用于识别「本响应携带未解除安全警示」的稳定标记（见对外接口文档）。 */
@@ -6675,10 +6855,10 @@ function deriveBasePrescriptionPermission(state: CaseState): PrescriptionPermiss
   //   · 旧版 advise 档直接给 full_dose ⇒ 红旗儿科病例反而拿到了完整剂量方；
   //   · 新版无条件 non_dose_only ⇒ 结论碰巧安全，但开关失效、且掩盖了上面那个排序缺陷。
   // 现在只在函数末尾按各自理由汇总，红旗只决定「要不要收回剂量授权」这一件事。
+  const redFlagReasons = gate.redFlags && gate.redFlags.length > 0
+    ? [...gate.redFlags]
+    : ["当前存在急危重分流提示"];
   if (gate.status === "red_flag" && !redFlagDoseAuthorizationAllowed()) {
-    const redFlagReasons = gate.redFlags && gate.redFlags.length > 0
-      ? [...gate.redFlags]
-      : ["当前存在急危重分流提示"];
     return {
       candidateMode: "non_dose_only",
       formalAdoption: "blocked",
@@ -6700,12 +6880,39 @@ function deriveBasePrescriptionPermission(state: CaseState): PrescriptionPermiss
     positivePregnancyOrLactation ? "已记录妊娠、哺乳或备孕阳性/可疑状态" : "",
     ...highRiskReasons,
   ].filter(Boolean);
-  if (nonDoseReasons.length > 0) {
+  const semanticSafetyUnverified = gate.missingItemCodes?.includes("semantic_screen_unavailable") === true;
+  if (doseConsistencyEnabled()) {
+    // 只有算不出剂量才不给：儿童年龄段判不出、病历写的年龄与登记年龄冲突（年龄分数法无从折算）。
+    const ageConflict = narrativePediatricAgeConflict(state) != null;
+    const uncomputable = nonDoseReasons.filter((reason) =>
+      reason === PEDIATRIC_AGE_STAGE_UNKNOWN_REASON || (ageConflict && reason.includes("年龄")));
+    if (uncomputable.length > 0) {
+      return { candidateMode: "non_dose_only", formalAdoption: "blocked", reasons: uncomputable };
+    }
+    const boundaryReasons = [
+      ...nonDoseReasons,
+      ...(semanticSafetyUnverified ? [SEMANTIC_SCREEN_UNVERIFIED_DOSE_REASON] : []),
+    ];
+    if (gate.status === "red_flag") {
+      // 红旗：给剂量，红旗解除前不可采纳（HIS 据 formalAdoption=blocked 锁定；医生经急诊放行接口解除后重新判定）。
+      return {
+        candidateMode: "limited_dose",
+        formalAdoption: "blocked",
+        reasons: Array.from(new Set([...redFlagReasons, ...boundaryReasons])),
+      };
+    }
+    if (boundaryReasons.length > 0) {
+      return {
+        candidateMode: "limited_dose",
+        formalAdoption: "eligible_after_doctor_confirmation",
+        reasons: Array.from(new Set([...boundaryReasons, ...(gate.missingItems || [])])),
+      };
+    }
+  } else if (nonDoseReasons.length > 0) {
     return { candidateMode: "non_dose_only", formalAdoption: "blocked", reasons: nonDoseReasons };
   }
 
-  const semanticSafetyUnverified = gate.missingItemCodes?.includes("semantic_screen_unavailable") === true;
-  if (semanticSafetyUnverified) {
+  if (semanticSafetyUnverified && !doseConsistencyEnabled()) {
     return {
       candidateMode: "non_dose_only",
       formalAdoption: "blocked",
@@ -6876,7 +7083,16 @@ function collectPriorityEvaluationEntries(state: CaseState, semanticSourceText: 
   attachPathway("breast_mass", "乳房肿块尚未完成影像评估，宜先由乳腺专科尽快评估（需排除：乳腺癌）；处方前需完成评估",
     unevaluatedBreastMassText(semanticSourceText, authoritativePatientAgeYears(state), patientSexText(state)));
   attachPathway("febrile_chest_tightness", "发热伴胸闷（或气促），暂无不稳定征象，宜24小时内到医院完成心电图、肌钙蛋白与血氧检查（需排除：病毒性心肌炎、肺炎）；处方前需完成评估",
-    febrileChestTightnessDeferralApplies(state));
+    febrileChestTightnessDeferralApplies(state) || (pediatricChestPainNonCardiac(state) && currentFeverRecorded(state)));
+  attachPathway("peripheral_facial_palsy", "周围性面瘫（额纹受累或闭眼不全，未见其他神经缺损），宜48小时内到神经内科或面瘫门诊评估是否需要口服激素（需排除：中枢性面瘫）；处方前需完成评估",
+    peripheralFacialPalsyOnly(trustedInputText(state)));
+  // 妊娠伴腹痛或阴道出血：20 周以前（或孕周没写）走早孕评估，20 周以后走产科急诊（早产临产、胎盘早剥）。
+  const pregnancyPainOrBleeding = pregnancyAssessmentPathwayApplies(state, semanticSourceText);
+  const latePregnancy = (recordedGestationalWeeks(semanticSourceText) ?? 0) >= 20;
+  attachPathway("early_pregnancy_pain_bleeding", "妊娠伴腹痛或阴道出血，宜24小时内到妇产科急诊或早孕门诊完成盆腔超声与血hCG检查（需排除：异位妊娠、先兆流产）；处方前需完成评估",
+    pregnancyPainOrBleeding && !latePregnancy);
+  attachPathway("late_pregnancy_pain_bleeding", "妊娠20周以后腹痛，宜24小时内到产科急诊完成胎心监护与产科检查（需排除：早产临产、胎盘早剥）；处方前需完成评估",
+    pregnancyPainOrBleeding && latePregnancy);
   attachPathway("hyperglycemic_ketosis", "高血糖伴酮体升高，已达糖尿病酮症酸中毒的血糖与酮体两项标准（ADA 2024），宜当天到医院急诊查血气与血酮（需排除：糖尿病酮症酸中毒）；处方前需完成评估",
     hyperglycemicKetosisSignal(semanticSourceText, diabetesRecordedInText(semanticSourceText, state)));
   if (
@@ -7014,7 +7230,9 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
       !hasCurrentMentalHealthCrisis(trustedText)) {
     addMissing("behavioral_crisis_screening", "情志危机需补充当前自杀/自伤/他伤安全筛查");
   }
-  if (insomniaPresentation(trustedText) && !hasExplicitOsaScreen(trustedText)) {
+  // 只对以失眠就诊的病例（主诉里有失眠）要求 OSA 筛查：慢性失眠评估包括睡眠呼吸暂停（AASM）；胃痛、头痛病历里顺带一句「睡眠差」
+  // 不是就诊原因（第二十三轮回放：甲方「上腹部胀痛半月…睡眠差」因起病时间读法修正而多出这一项）。
+  if (insomniaPresentation((state.chiefComplaint || fieldText(state, "zhushu") || "").trim()) && !hasExplicitOsaScreen(trustedText)) {
     addMissing("osa_screening", "失眠需补充OSA风险筛查（打鼾/呼吸暂停/日间嗜睡/高血压）");
   }
   if (thyroidScreenRequired(trustedText) && !hasCurrentThyroidAssessment(trustedText)) {
@@ -7817,7 +8035,7 @@ export function deriveFirstReviewTiming(state: CaseState, hasStrongRisk: boolean
  * 现在一份计划、两种写法：先评估（时限、去哪、做什么）→ 医生确认可以服药 → 服完 N 剂复诊。regimen 取方剂的 followUpAfterDoses/Days，
  * 复诊计划第一句（priorityEvaluationFirstStep）与煎服法复诊节点（priorityEvaluationFollowUpNode）都由 priorityEvaluationPlan 拼出。
  */
-type PriorityEvaluationPlan = { window: string; visit: string; nodeVisit: string; clearance: string; withoutRegimenTail?: string };
+type PriorityEvaluationPlan = { window: string; visit: string; nodeVisit: string; clearance: string; withoutRegimenTail?: string; afterStep?: string };
 const PRIORITY_WINDOW_LABELS = new Map(priorityEvaluationWindowTable.windows.map((entry) => [entry.id, entry.label]));
 const PRIORITY_WINDOW_LABEL_PATTERN = priorityEvaluationWindowTable.windows.map((entry) => entry.label).join("|");
 function priorityEvaluationTarget(target: PriorityEvaluationTarget | string): PriorityEvaluationTarget {
@@ -7830,7 +8048,10 @@ function priorityEvaluationPlan(input: PriorityEvaluationTarget | string): Prior
   const window = PRIORITY_WINDOW_LABELS.get(target.window) || "3天内";
   const pathway = target.pathway ? priorityEvaluationWindowTable.pathways[target.pathway] : undefined;
   if (pathway) {
-    return { window, visit: pathway.visit, nodeVisit: pathway.nodeVisit, clearance: pathway.clearance, withoutRegimenTail: pathway.withoutRegimenTail };
+    return {
+      window, visit: pathway.visit, nodeVisit: pathway.nodeVisit, clearance: pathway.clearance, withoutRegimenTail: pathway.withoutRegimenTail,
+      ...("afterStep" in pathway && typeof pathway.afterStep === "string" ? { afterStep: pathway.afterStep } : {}),
+    };
   }
   const focus = target.focus;
   return focus
@@ -7846,8 +8067,9 @@ function regimenCounts(regimen?: FollowupRegimen): { doses: number; days: number
 export function priorityEvaluationFirstStep(target: PriorityEvaluationTarget | string, regimen?: FollowupRegimen): string {
   const plan = priorityEvaluationPlan(target);
   const counts = regimenCounts(regimen);
-  if (counts) return `请在${plan.window}${plan.visit}；${plan.clearance}，服完${counts.doses}剂药（约${counts.days}天后）再复诊。`;
-  if (plan.withoutRegimenTail) return `请在${plan.window}${plan.visit}，${plan.withoutRegimenTail}。`;
+  const after = plan.afterStep ? plan.afterStep : "";
+  if (counts) return `请在${plan.window}${plan.visit}；${plan.clearance}，服完${counts.doses}剂药（约${counts.days}天后）再复诊。${after}`;
+  if (plan.withoutRegimenTail) return `请在${plan.window}${plan.visit}，${plan.withoutRegimenTail}。${after}`;
   return priorityEvaluationTarget(target).focus
     ? `请在${plan.window}${plan.visit}，再按医生安排服药与复诊。`
     : `请在${plan.window}${plan.visit}后，再按医生安排服药与复诊。`;
@@ -7860,9 +8082,10 @@ export function priorityEvaluationFollowUpNode(target: PriorityEvaluationTarget 
 }
 
 export function patientFacingFirstReview(state: CaseState, hasStrongRisk: boolean): string {
-  if (hasStrongRisk) return "处方需经医生调整确认后再服用；确认用药后，请在1-3天内复诊。";
   // 安全门要求先完成临床评估的病例：首次复诊先说去评估（与辨证、开方页复诊计划的第一句同一判据，2026-10-24）。
+  // 红旗给了剂量（D4）时这一步排在最前：先当天急诊或专科排除急危重情况，审方强提示的「调整确认」放在其后由医生处理。
   const priorityTarget = priorityEvaluationFollowupTarget(state);
+  if (hasStrongRisk && priorityTarget?.pathway !== "red_flag_clearance") return "处方需经医生调整确认后再服用；确认用药后，请在1-3天内复诊。";
   const decoction = primaryPrescribeCandidate(state)?.decoction;
   if (priorityTarget !== undefined) {
     return `${priorityEvaluationFirstStep(priorityTarget, { doses: decoction?.followUpAfterDoses, days: decoction?.followUpAfterDays }).replace(/。$/u, "")}；如有不适或症状加重，请立即就医。`;
@@ -8164,7 +8387,11 @@ export function buildDeterministicRiskFollowupPayload(
 ): DeterministicRiskFollowupPayload {
   const gate = state.safetyGate || evaluateSafetyGate(state);
   const followup = structuredFollowupInputs(state);
-  if (gate.status === "red_flag") {
+  // 剂量一致化（D4）：红旗病例给了剂量时照常出随访方案（首次复诊先当天急诊或专科排除急危重情况，见 patientFacingFirstReview），
+  // 安全总评写「红旗解除前不得采纳」；剂量没给时仍是现场处置那一段。
+  const redFlagWithDose = gate.status === "red_flag" && redFlagDoseAuthorizationAllowed() && hasStructuredDoseCandidate(state) &&
+    derivePrescriptionPermission(state).candidateMode === "limited_dose";
+  if (gate.status === "red_flag" && !redFlagWithDose) {
     return {
       ...joinWarningText([buildSafetyLimitedRisk(gate)]),
       timelineItems: normalizedStructuredFollowupItems([{
@@ -8187,7 +8414,9 @@ export function buildDeterministicRiskFollowupPayload(
     };
   }
   const hardDoseBoundary = hardDoseSafetyBoundaryReasons(state);
-  if (hardDoseBoundary.length > 0) {
+  // 剂量一致化（D4）：给了剂量的红旗/边界病例走下面的常规风险段，采纳门槛由 doctorAction 说明；只有剂量真没给时才是「受限状态」。
+  const doseActuallyWithheld = derivePrescriptionPermission(state).candidateMode === "non_dose_only";
+  if (hardDoseBoundary.length > 0 && doseActuallyWithheld) {
     return {
       ...joinWarningText([buildRestrictedDoseRiskFollowup(hardDoseBoundary)]),
       timelineItems: normalizedStructuredFollowupItems([{
@@ -8207,9 +8436,13 @@ export function buildDeterministicRiskFollowupPayload(
   // NOTE: pure evidence-provenance tokens ("待检索"/"证据不足") are intentionally NOT here — every
   // model-inference prescription cites them, so scanning for them mislabels benign cases as 中风险.
   const hasReviewRisk = Boolean(missingAdvisory) || hasCurrentRiskLine(riskSource, /(一般提示|需复核|慎用|相互作用|过敏|特殊人群|信息不足提示|待补充信息后再评估|用药史|当前用药)/);
-  const highest = hasStrongRisk ? "强提示" : hasReviewRisk ? "一般提示" : "说明性提示";
-  const overall = hasStrongRisk ? "较高风险，需调整或复核后采纳" : hasReviewRisk ? "中等风险，需医生复核后采纳" : "当前未识别确定性高危用药冲突，仍需医生最终确认";
-  const doctorAction = hasStrongRisk
+  const highest = redFlagWithDose || hasStrongRisk ? "强提示" : hasReviewRisk ? "一般提示" : "说明性提示";
+  const overall = redFlagWithDose
+    ? `存在未解除的急危重红旗（${gate.redFlags.join("；") || "急危重分流提示"}），需先完成急诊或专科处置`
+    : hasStrongRisk ? "较高风险，需调整或复核后采纳" : hasReviewRisk ? "中等风险，需医生复核后采纳" : "当前未识别确定性高危用药冲突，仍需医生最终确认";
+  const doctorAction = redFlagWithDose
+    ? "红旗解除前不得采纳本方；请先按急诊或转诊流程处置，排除急危重情况、确认可以服药后再采纳。"
+    : hasStrongRisk
     ? "候选处方命中强提示或审方未完成，请调整剂量/药味、完善复核或请药师复核后再采纳。"
     : hasReviewRisk
       ? "处方可作为候选方案审阅，请结合过敏史、现用药、特殊人群状态和院内规则完成复核。"

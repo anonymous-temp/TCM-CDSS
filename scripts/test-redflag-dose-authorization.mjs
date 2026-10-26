@@ -16,7 +16,8 @@
  *     ③唯一跑默认档的断言只验「开关自报 advise」，不验「开关起作用」，所以套件抓不到。
  *
  * 【现在的口径】剂量授权单独成轴：
- *   · CDSS_REDFLAG_DOSE_AUTHORIZATION 管剂量授权，默认 withhold（与线上一致），
+ *   · CDSS_REDFLAG_DOSE_AUTHORIZATION 管剂量授权；2026-10-26 起缺省按剂量一致化（D4）给剂量、红旗解除前不可采纳，
+ *     显式 withhold 或 CDSS_DOSE_CONSISTENCY=false 回到旧的「红旗不给剂量」，
  *     allow 是运维回退档；
  *   · 流程与呈现只有「提示不拦截」一种（CDSS_GATE_DISPOSITION 及其 block 回退档
  *     2026-09-25 删除，原第 4 节「两轴不得绑回同一开关」随之删除）。
@@ -71,14 +72,31 @@ function withAuthorization(value, run) {
 const ADULT = caseOf({});
 assert.equal(gateOf(ADULT), "red_flag", "夹具前提：该病例必须命中红旗，否则本套件测的不是红旗路径");
 
-// ── 1. 默认档必须与线上一致：红旗不给剂量 ──────────────────────────────────
+function withLegacyDosePolicy(run) {
+  const prev = process.env.CDSS_DOSE_CONSISTENCY;
+  process.env.CDSS_DOSE_CONSISTENCY = "false";
+  try { run(); } finally {
+    if (prev === undefined) delete process.env.CDSS_DOSE_CONSISTENCY;
+    else process.env.CDSS_DOSE_CONSISTENCY = prev;
+  }
+}
+
+// ── 1. 默认档：剂量一致化（用户 2026-10-26 决定 D4）——红旗也给剂量，但红旗解除前不可采纳 ─────────────
+// 此前（2026-08-15 起）默认 withhold：红旗不给剂量。甲方观感差（K16 因红旗不给剂量连调 4 次开方），用户定为默认给剂量、
+// 风险用置顶警示 + 采纳门槛表达。withhold 与 CDSS_DOSE_CONSISTENCY=false 是回退档，下面两头都钉。
 withAuthorization(undefined, () => {
-  assert.equal(redFlagDoseAuthorizationAllowed(), false, "缺省必须是 withhold");
-  assert.equal(modeOf(ADULT), "non_dose_only", "默认档下红旗病例不得取得剂量级候选");
+  assert.equal(redFlagDoseAuthorizationAllowed(), true, "缺省（剂量一致化）：红旗给剂量");
+  const permission = derivePrescriptionPermission(withSafetyGate(ADULT));
+  assert.equal(permission.candidateMode, "limited_dose", "缺省：红旗病例给剂量级候选");
+  assert.equal(permission.formalAdoption, "blocked", "缺省：红旗解除前不可采纳");
 });
 withAuthorization("withhold", () => {
-  assert.equal(modeOf(ADULT), "non_dose_only", "显式 withhold 与默认一致");
+  assert.equal(modeOf(ADULT), "non_dose_only", "显式 withhold：回到红旗不给剂量");
 });
+withLegacyDosePolicy(() => withAuthorization(undefined, () => {
+  assert.equal(redFlagDoseAuthorizationAllowed(), false, "CDSS_DOSE_CONSISTENCY=false 时缺省回到 withhold");
+  assert.equal(modeOf(ADULT), "non_dose_only", "旧口径下红旗病例不得取得剂量级候选");
+}));
 
 // ── 2. 开关必须**真的起作用**（旧套件只验自报值，抓不到失效） ───────────────
 withAuthorization("allow", () => {
@@ -106,24 +124,41 @@ const PREGNANT = caseOf({
 });
 for (const value of [undefined, "withhold", "allow"]) {
   withAuthorization(value, () => {
+    // 年龄段判不出的儿童：剂量无从折算，任何档位都不给（剂量一致化下唯一保留的「算不出剂量」类边界之一）。
     assert.equal(
       modeOf(PEDIATRIC), "non_dose_only",
       `年龄段判不出的儿童病例，剂量边界不得被红旗剂量开关绕过（档位=${value ?? "默认"}）：` +
       "旧版 advise 档实测给出 full_dose，儿科硬边界被红旗分支的提前返回整条跳过",
     );
+  });
+  withLegacyDosePolicy(() => withAuthorization(value, () => {
     assert.equal(
       modeOf(PREGNANT), "non_dose_only",
-      `妊娠阳性的剂量边界不得被红旗剂量开关绕过（档位=${value ?? "默认"}）`,
+      `旧口径：妊娠阳性的剂量边界不得被红旗剂量开关绕过（档位=${value ?? "默认"}）`,
     );
-  });
+  }));
 }
+// 剂量一致化：妊娠阳性加红旗给剂量，但红旗解除前不可采纳，原因里两条都在（不得被红旗吞掉妊娠）。
+withAuthorization(undefined, () => {
+  const permission = derivePrescriptionPermission(withSafetyGate(PREGNANT));
+  assert.equal(permission.candidateMode, "limited_dose");
+  assert.equal(permission.formalAdoption, "blocked");
+  assert.ok(permission.reasons.some((reason) => /妊娠/.test(reason)), JSON.stringify(permission.reasons));
+});
 
-// 年龄段可判的儿童：只有红旗轴管它——默认/withhold 收回，allow 回退档放行并带折算档位（不再有独立的儿科硬边界）。
-for (const value of [undefined, "withhold"]) {
-  withAuthorization(value, () => {
-    assert.equal(modeOf(PEDIATRIC_KNOWN_AGE), "non_dose_only", `红旗未解除：6 岁儿童同样收回剂量（档位=${value ?? "默认"}）`);
-  });
-}
+// 年龄段可判的儿童：缺省给折算剂量、红旗解除前不可采纳；withhold 与旧口径收回；allow 放行并带折算档位。
+withAuthorization(undefined, () => {
+  const permission = derivePrescriptionPermission(withSafetyGate(PEDIATRIC_KNOWN_AGE));
+  assert.equal(permission.candidateMode, "limited_dose", "缺省：6 岁儿童红旗给折算剂量");
+  assert.equal(permission.formalAdoption, "blocked", "缺省：红旗解除前不可采纳");
+  assert.equal(permission.pediatricDose?.stage, "preschool");
+});
+withAuthorization("withhold", () => {
+  assert.equal(modeOf(PEDIATRIC_KNOWN_AGE), "non_dose_only", "withhold：红旗未解除，6 岁儿童同样收回剂量");
+});
+withLegacyDosePolicy(() => withAuthorization(undefined, () => {
+  assert.equal(modeOf(PEDIATRIC_KNOWN_AGE), "non_dose_only", "旧口径：红旗未解除，6 岁儿童同样收回剂量");
+}));
 withAuthorization("allow", () => {
   const permission = derivePrescriptionPermission(withSafetyGate(PEDIATRIC_KNOWN_AGE));
   assert.notEqual(permission.candidateMode, "non_dose_only", "allow 回退档：年龄段可判的儿童不再有独立硬边界");
@@ -216,11 +251,18 @@ for (const [label, patch] of Object.entries(HARD_BOUNDARY_CASES)) {
       const where = `${label}·${shape}·questionRounds=${questionRounds}（完整度 ${state.completeness?.level}）`;
       assert.notEqual(state.safetyGate.status, "red_flag", `夹具前提：${where} 不得命中红旗，否则测的是红旗轴`);
       assert.ok(hardDoseSafetyBoundaryReasons(state).length > 0, `夹具前提：${where} 必须被 hardDoseSafetyBoundaryReasons 认作独立硬边界`);
-      assert.equal(permission.candidateMode, "non_dose_only",
-        `${where}：独立硬边界必须收回剂量，不得因「病历不完整且尚未追问」先拿到 limited_dose`);
-      assert.equal(permission.formalAdoption, "blocked", `${where}：不得可采纳`);
+      // 剂量一致化（D4）：独立边界给剂量、采纳需医生确认；只有患儿年龄段判不出（算不出剂量）仍收回。
+      // 不变的那一半：边界不得因「病历不完整且尚未追问」被跳过——理由必须是边界本身，不是「信息覆盖有限」。
+      const uncomputable = label === "患儿年龄不明";
+      assert.equal(permission.candidateMode, uncomputable ? "non_dose_only" : "limited_dose", `${where}：剂量档`);
+      assert.equal(permission.formalAdoption, uncomputable ? "blocked" : "eligible_after_doctor_confirmation", `${where}：采纳门槛`);
       assert.ok(!permission.reasons.some((reason) => /关键信息覆盖有限/.test(reason)),
         `${where}：理由必须是硬边界本身，不是「信息覆盖有限」`);
+      withLegacyDosePolicy(() => {
+        const legacy = derivePrescriptionPermission(withSafetyGate({ ...SPARSE, ...extra, ...patch, questionRounds }));
+        assert.equal(legacy.candidateMode, "non_dose_only", `${where}：旧口径下独立硬边界收回剂量`);
+        assert.equal(legacy.formalAdoption, "blocked", `${where}：旧口径下不得可采纳`);
+      });
       hardBoundaryCells += 1;
     }
   }

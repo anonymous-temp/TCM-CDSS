@@ -127,8 +127,19 @@ check("④ 模型没给（或校验没过）时逐字回落原两条模板", () 
 check("⑤ 红旗 / 无结构化剂量 / 硬剂量边界：三条降级路径完全不走模型", () => {
   const redFlag = doseCase();
   redFlag.safetyGate = { status: "red_flag", redFlags: ["咯血"], reasons: ["需急诊评估"], missingItems: [], allowDiagnosis: false, allowDosePrescription: false };
-  const redFlagPayload = buildDeterministicRiskFollowupPayload(redFlag, AUTHORED);
-  assert.equal(redFlagPayload.timelineItems.length, 1, "红旗路径只有一条确定性行");
+  // 剂量一致化（用户 2026-10-26 决定 D4）：红旗也给剂量时照常出随访方案，总评写「红旗解除前不得采纳」；
+  // 旧口径（CDSS_DOSE_CONSISTENCY=false，红旗不给剂量）仍是一条现场处置行、不用模型时间轴——下面照旧钉住。
+  const withDose = buildDeterministicRiskFollowupPayload(redFlag, AUTHORED);
+  assert.equal(withDose.timelineItems.length, 2, "剂量一致化：红旗给了剂量照常出随访方案");
+  assert.match(JSON.stringify(withDose), /红旗解除前不得采纳本方/);
+  process.env.CDSS_DOSE_CONSISTENCY = "false";
+  let redFlagPayload;
+  try {
+    redFlagPayload = buildDeterministicRiskFollowupPayload(redFlag, AUTHORED);
+  } finally {
+    delete process.env.CDSS_DOSE_CONSISTENCY;
+  }
+  assert.equal(redFlagPayload.timelineItems.length, 1, "旧口径：红旗路径只有一条确定性行");
   assert.equal(redFlagPayload.timelineItems[0].action, "优先完成现场风险处置");
   for (const item of redFlagPayload.timelineItems) {
     assert.ok(

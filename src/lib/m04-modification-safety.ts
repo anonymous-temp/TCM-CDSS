@@ -1,8 +1,9 @@
-import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, isTextbookConditionalModification, m04HerbOpposingDirectionIssue, signedTextbookFormulaIngredients } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, isTextbookConditionalModification, m04HerbOpposingDirectionIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
 import { formulaAnalysisAfterHerbRemoval } from "./formula-analysis-review";
+import { findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -299,6 +300,76 @@ export function dropUnsupportedM04CandidateHerbs(
         retained.map((value) => recordValue(value)?.name).filter((name): name is string => typeof name === "string" && Boolean(name.trim())),
       );
     }
+    return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
+  } catch {
+    return content;
+  }
+}
+
+const SAFETY_PRUNE_POPULATION_LABELS: Readonly<Record<string, string>> = {
+  pregnancy: "孕期不宜", lactation: "哺乳期不宜", pediatric: "儿童不宜", bleeding_anticoagulation: "出血或抗凝状态不宜",
+  older_adult: "老年人不宜", hepatic_impairment: "肝功能不全不宜", renal_impairment: "肾功能不全不宜",
+  cardiovascular_disease: "心血管病不宜", cardio_glaucoma_prostate: "心血管病、青光眼或前列腺增生不宜", diabetes: "糖尿病不宜",
+  frailty_gastric_weakness: "体虚胃弱不宜", athlete: "运动员不宜", allergy: "与病历记录的过敏原同源",
+};
+const SAFETY_PRUNE_ROLE_RANK: Readonly<Record<string, number>> = { 君: 0, 臣: 1, 佐: 2, 使: 3 };
+const SAFETY_PRUNE_MIN_RETAINED = 3;
+
+/**
+ * 剂量一致化（用户 2026-10-26 决定 D4）：候选里与本例安全边界冲突的药按单味剔除，剂量照常给，不再让一味药把整张方拖成非剂量页。
+ * 剔除两类（判据都是开方核对自己的那一个，不另写）：
+ *   1) 人群/过敏/活动性出血冲突：m04GenerationSpecialPopulationIssue 对单味判 HIGH；
+ *   2) 方内十八反：findTcmHerbPairIncompatibilities，删两味中地位较低的一味。
+ * 不删君药（君药决定全方走向，交给修复轮重选）；删后不足 3 味不删（交给修复轮）。方义随删掉的药改写，删了什么写进「慎用与不适用」。
+ * 必须排在核对与签名之前（finalizeM04CandidateContent）：签名绑定的是剔除后的最终候选。
+ */
+export function dropSafetyConflictingM04CandidateHerbs(content: string, clinicalContext: string): string {
+  if (!clinicalContext.trim()) return content;
+  const start = content.indexOf(START_MARKER);
+  const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
+  if (start < 0 || end < 0) return content;
+  try {
+    const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
+    const candidates = recordValue(reasoning.formula)?.candidates;
+    if (!Array.isArray(candidates) || candidates.length === 0) return content;
+    const candidate = recordValue(candidates[0]);
+    const herbs = candidate?.herbs;
+    if (!candidate || !Array.isArray(herbs) || herbs.length === 0) return content;
+    const nameOf = (value: unknown) => String(recordValue(value)?.name || "").trim();
+    const roleOf = (value: unknown) => String(recordValue(value)?.role || "").trim();
+    const removed: Array<{ name: string; reason: string }> = [];
+    let retained = herbs.filter((value) => {
+      const name = nameOf(value);
+      if (!name || roleOf(value) === "君") return true;
+      const issue = m04GenerationSpecialPopulationIssue([{ name }], clinicalContext);
+      if (!issue) return true;
+      const code = issue.replace(/^herb_\d+_special_population_high_risk_/u, "");
+      removed.push({ name, reason: SAFETY_PRUNE_POPULATION_LABELS[code] || "本例特殊人群不宜" });
+      return false;
+    });
+    for (let guard = 0; guard < 6; guard += 1) {
+      const names = retained.map(nameOf);
+      const pair = findTcmHerbPairIncompatibilities(names)[0];
+      if (!pair) break;
+      const indexOf = (drug: string) => names.findIndex((name) => name === drug ||
+        canonicalTcmHerbIdentity(name) === canonicalTcmHerbIdentity(drug) || name.includes(drug) || drug.includes(name));
+      const left = indexOf(String(pair.leftDrug || ""));
+      const right = indexOf(String(pair.rightDrug || ""));
+      if (left < 0 || right < 0 || left === right) break;
+      const rank = (index: number) => SAFETY_PRUNE_ROLE_RANK[roleOf(retained[index])] ?? 2;
+      const drop = rank(left) === rank(right) ? Math.max(left, right) : rank(left) > rank(right) ? left : right;
+      if (roleOf(retained[drop]) === "君") break;
+      removed.push({ name: names[drop], reason: `与${names[drop === left ? right : left]}属${pair.category || "十八反"}` });
+      retained = retained.filter((_, index) => index !== drop);
+    }
+    if (removed.length === 0 || retained.length < SAFETY_PRUNE_MIN_RETAINED) return content;
+    candidate.herbs = retained;
+    if (typeof candidate.formulaAnalysis === "string") {
+      candidate.formulaAnalysis = formulaAnalysisAfterHerbRemoval(candidate.formulaAnalysis, retained.map(nameOf).filter(Boolean));
+    }
+    const note = `按本例情况已去除：${removed.map((item) => `${item.name}（${item.reason}）`).join("；")}`;
+    const previous = typeof candidate.notApplicable === "string" ? candidate.notApplicable.trim() : "";
+    candidate.notApplicable = previous ? `${previous.replace(/[。；;]+$/u, "")}；${note}` : note;
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {
     return content;

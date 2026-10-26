@@ -105,6 +105,14 @@ const CURRENT_TEMPORAL_CUE_SOURCE = String.raw`(?:本次|本轮|这次|此次|�
 const RECENT_ONSET_TEMPORAL_CUE_SOURCE = String.raw`(?:(?:\d+|[一二两三四五六七八九十半数几]+)\s*(?:天|日|周)|半个?月)前[^，,。；;\n]{0,12}?(?:出现|发生|发病|起病|发作|感到|感觉|自觉)`;
 
 /**
+ * 安全门也收的那一段近期起病（2026-10-26 第二十三轮）：「N天/日前」N≤14、「1–2周前」「半（个）月前」接出现/发生/起病/发作…。
+ * 甲方 K16「2天前受凉后出现咽痛、流涕、发热…，病程中…伴胸闷、气促」整句被「2天前」判成既往，句中的胸闷气促读不到；
+ * 9/28 那次不收是因为「6个月前…出现发热41℃」「9个月前出现胸闷气促」会被抬成急症——月、年在这里仍不收，只收两周以内的起病。
+ * 数字前不得紧挨数字：「15天前」「22天前」「十几天前」不能读成「5天前」「2天前」「几天前」（回放发现）。
+ */
+const GATE_RECENT_ONSET_TEMPORAL_CUE_SOURCE = String.raw`(?<![\d一二两三四五六七八九十百])(?:(?:1[0-4]|[1-9]|十[一二三四]?|[一二两三四五六七八九]|半|数|几)\s*(?:天|日)|(?:[12]|[一二两])\s*周|半个?月)前[^，,。；;\n]{0,12}?(?:出现|发生|发病|起病|发作|感到|感觉|自觉)`;
+
+/**
  * 封闭背景句：本身是一句完整的基线概括——「既往体健」「既往史无特殊」「否认高血压、糖尿病病史」
  * 「此前从未有过类似情况」。
  * 它的时间锚点只管自己这一逗号分句，不能越过逗号把后面的当前主诉一起算成既往。
@@ -185,7 +193,7 @@ export function clinicalEventTemporalScopeAt(
   const lastHistorical = lastMatchIndex(maskClosedBackgroundClauses(before), HISTORICAL_TEMPORAL_CUE_SOURCE);
   const lastCurrent = Math.max(
     lastMatchIndex(currentSearchText, CURRENT_TEMPORAL_CUE_SOURCE),
-    options.groundingQuote ? lastMatchIndex(currentSearchText, RECENT_ONSET_TEMPORAL_CUE_SOURCE) : -1,
+    options.groundingQuote ? lastMatchIndex(currentSearchText, RECENT_ONSET_TEMPORAL_CUE_SOURCE) : lastMatchIndex(currentSearchText, GATE_RECENT_ONSET_TEMPORAL_CUE_SOURCE),
   );
   const postfixHistorical = new RegExp(
     `^(?:\\s*(?:发生|发作|出现|起病|开始)?\\s*(?:于|在|是)?\\s*)${HISTORICAL_TEMPORAL_CUE_SOURCE}`,

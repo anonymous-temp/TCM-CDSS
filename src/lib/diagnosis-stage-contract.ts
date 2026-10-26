@@ -20,7 +20,7 @@ import { isPediatricGroundingText, pediatricDoseCeilingG, pediatricDoseRuleFromG
 import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
 import { alignQuoteToSource } from "./source-quote-alignment";
 import { allergenHerbMatch, recordedAllergensInText } from "./allergen-profile";
-import { clauseLocalMentionPolarityAt, recordMentionPolarityAt } from "./diagnosis-safety";
+import { activeBleedingInGroundingText, clauseLocalMentionPolarityAt, recordMentionPolarityAt } from "./diagnosis-safety";
 import { missedLockableFormulaCandidates, namedFormulaPositiveSufficiencyIssue } from "./tcm-formula-indications";
 import { formulaModificationHerbName, normalizeFormulaModificationAction } from "./formula-modification";
 
@@ -3924,6 +3924,13 @@ export function m04GenerationSpecialPopulationIssue(
     for (const [herbIndex, herb] of herbs.entries()) {
       const name = typeof herb.name === "string" ? herb.name.trim() : "";
       if (name && allergenHerbMatch(name, allergens)?.action === "avoid") return `herb_${herbIndex}_special_population_high_risk_allergy`;
+    }
+  }
+  // 活动性出血红旗（剂量一致化 D4：红旗也给剂量）：《中药学》归为活血化瘀药的不进方，与「出血倾向/抗凝」人群同一出口。
+  if (activeBleedingInGroundingText(clinicalContext)) {
+    for (const [herbIndex, herb] of herbs.entries()) {
+      const name = typeof herb.name === "string" ? herb.name.trim() : "";
+      if (name && getTcmHerbFunctionCategories(name).includes("活血化瘀药")) return `herb_${herbIndex}_special_population_high_risk_bleeding_anticoagulation`;
     }
   }
   for (const [herbIndex, herb] of herbs.entries()) {

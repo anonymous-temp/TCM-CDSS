@@ -86,7 +86,9 @@ await check("1.2 D1 不适用时红旗照旧：冷汗、已知冠心病、血氧
   for (const control of fixture.mustStayRed) {
     const { gate, mode } = gateOf(patched(base, control.patch));
     assert.equal(gate.status, "red_flag", `${control.id}（${control.change}）: ${gate.status}`);
-    assert.equal(mode, "non_dose_only", control.id);
+    // 剂量一致化（第二十三轮 D4）：红旗给剂量，红旗解除前不可采纳。
+    assert.equal(mode, "limited_dose", control.id);
+    assert.equal(safety.derivePrescriptionPermission(safety.withSafetyGate(types.normalizeCaseStateInput(patched(base, control.patch)))).formalAdoption, "blocked", control.id);
   }
 });
 

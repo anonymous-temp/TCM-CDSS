@@ -344,9 +344,10 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
     structuredStage: "diagnose",
     // 不给剂量的病例（红旗未解除，或待优先评估、妊娠哺乳等独立边界）：复诊提示不写「请服完本次的药后复诊」（交付面按它改写，
     // 2026-10-19 验收主集 I 模块）。与开方阶段同一个判据 derivePrescriptionPermission。
-    structuredDoseWithheld: gated.safetyGate?.status === "red_flag"
-      ? "red_flag"
-      : ["non_dose_only", "blocked"].includes(derivePrescriptionPermission(gated).candidateMode) ? "withheld" : undefined,
+    // 剂量一致化（D4）：红旗也给剂量时不算「不给剂量」，复诊走 structuredPriorityEvaluation 的当天评估通道。
+    structuredDoseWithheld: ["non_dose_only", "blocked"].includes(derivePrescriptionPermission(gated).candidateMode)
+      ? gated.safetyGate?.status === "red_flag" ? "red_flag" : "withheld"
+      : undefined,
     // 复诊节点按不给剂量的具体原因写（2026-10-21，doseWithheldFollowupKind）。
     structuredDoseWithheldKind: doseWithheldFollowupKind(gated),
     // 给了剂量但需优先完成临床评估：复诊计划先写去评估（2026-10-24，priorityEvaluationFollowupTarget）。

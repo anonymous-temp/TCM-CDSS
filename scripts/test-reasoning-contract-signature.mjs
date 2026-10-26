@@ -1024,10 +1024,15 @@ try {
       reasoning,
       buildDiagnoseContractSignatureContext(doseAxisCase),
     );
+    // 剂量一致化（用户 2026-10-26 决定 D4）起红旗缺省给剂量；本条测的是「剂量收回时照常进入生成」，在旧口径下跑。
+    const stubEnv = { AI_TEXT_PROVIDER: "bailian-qwen", BAILIAN_QWEN_API_KEY: "signature-test-fake-key", BAILIAN_QWEN_MODEL: "qwen3.8-flash", CDSS_DOSE_CONSISTENCY: "false" };
+    const priorDosePolicy = process.env.CDSS_DOSE_CONSISTENCY;
+    process.env.CDSS_DOSE_CONSISTENCY = "false";
     assert.equal(derivePrescriptionPermission(withSafetyGate(doseAxisCase)).candidateMode, "non_dose_only",
       "前提：本例剂量授权确实被收回");
+    if (priorDosePolicy === undefined) delete process.env.CDSS_DOSE_CONSISTENCY;
+    else process.env.CDSS_DOSE_CONSISTENCY = priorDosePolicy;
     // 假密钥让路由真正发起上游请求；fetch 被拦截为 503，路由应在**生成之后**走上游不可用兜底。
-    const stubEnv = { AI_TEXT_PROVIDER: "bailian-qwen", BAILIAN_QWEN_API_KEY: "signature-test-fake-key", BAILIAN_QWEN_MODEL: "qwen3.8-flash" };
     const savedEnv = Object.fromEntries(Object.keys(stubEnv).map((key) => [key, process.env[key]]));
     const previousFetch = globalThis.fetch;
     const upstreamPrompts = [];

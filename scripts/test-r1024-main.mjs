@@ -146,11 +146,21 @@ const caseState = (record, extra = {}) => ({
   conversation: [], phase: "prescribe", questionRounds: 1, maxQuestionRounds: 1, ...extra,
 });
 await check("3.1 原因类别与扣剂量同一判据：妊娠、哺乳、抗凝、儿童年龄不明、专科评估；给剂量的病例为 undefined", async () => {
-  assert.equal(safety.doseWithheldFollowupKind(caseState("胃脘胀痛3天。妊娠已6个月。")), "pregnancy");
-  assert.equal(safety.doseWithheldFollowupKind(caseState("咳嗽5天。产后2月，哺乳中。")), "lactation");
-  assert.equal(safety.doseWithheldFollowupKind(caseState("头晕1周。长期口服华法林。")), "anticoagulant");
-  assert.equal(safety.doseWithheldFollowupKind(caseState("咳嗽3天。慢性肾功能不全，肌酐升高。")), "specialist");
+  // 剂量一致化（用户 2026-10-26 决定 D4）：妊娠、哺乳、抗凝、专科边界改为给剂量，不再是「不给剂量」的原因，复诊第一步走对应的评估通道；
+  // 只有儿童年龄段判不出仍不给。旧口径（CDSS_DOSE_CONSISTENCY=false）的原因类别照旧钉住。
+  const cases = [["胃脘胀痛3天。妊娠已6个月。", "pregnancy", "pregnancy_review"], ["咳嗽5天。产后2月，哺乳中。", "lactation", "lactation_review"],
+    ["头晕1周。长期口服华法林。", "anticoagulant", "anticoagulant_review"], ["咳嗽3天。慢性肾功能不全，肌酐升高。", "specialist", "specialist_review"]];
+  for (const [text, , pathway] of cases) {
+    assert.equal(safety.doseWithheldFollowupKind(caseState(text)), undefined, text);
+    assert.equal(safety.priorityEvaluationFollowupTarget(caseState(text))?.pathway, pathway, text);
+  }
   assert.equal(safety.doseWithheldFollowupKind(caseState("患儿咳嗽3天。", { patient: { sex: "男" } })), "pediatric_age");
+  process.env.CDSS_DOSE_CONSISTENCY = "false";
+  try {
+    for (const [text, kind] of cases) assert.equal(safety.doseWithheldFollowupKind(caseState(text)), kind, `旧口径：${text}`);
+  } finally {
+    delete process.env.CDSS_DOSE_CONSISTENCY;
+  }
 });
 await check("3.2 不给剂量的复诊句按原因写节点；已写过的换成新的、幂等；红旗写今天", async () => {
   const pregnant = surface.followupWhenDoseWithheld("请服完本次的药后复诊；如出现腹痛请立即就医。", "withheld", "pregnancy");

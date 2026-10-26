@@ -179,15 +179,18 @@ await check("4.3 抗凝：「华法令」与华法林同一药（安全门正则
   assert.ok(safety.ANTITHROMBOTIC_MEDICATION.test("口服华法令2.5mg，一日一次"));
   assert.equal(polarity.canonicalMedicationIdentity("华法令"), "华法林");
 });
-await check("4.4 端到端：这几份病历的剂量权限收回（非剂量），对照：普通成人病历照旧给剂量", () => {
+await check("4.4 端到端：这几份病历认作妊娠/哺乳/抗凝边界（剂量一致化 D4 后给剂量、采纳前须医生确认、原因写边界），对照：普通成人病历没有边界原因", () => {
   const permission = (sex, age, text) => safety.derivePrescriptionPermission(safety.withSafetyGate(types.normalizeCaseStateInput({ chiefComplaint: text.slice(0, 14), patient: { sex, age }, symptoms: { 现病史: text } })));
   for (const [sex, age, text] of [["女", 26, "妊娠已 6 个月，近期来面目、四肢浮肿日趋严重，纳少便溏"], ["女", 30, "停经47天，停经40天时查HCG（+），近一周胃口差，恶心"],
     ["女", 36, "产后缺乳15天，乳房胀硬疼痛，情志抑郁"], ["男", 68, "心悸气短，口服华法令、地高辛等药"]]) {
     const p = permission(sex, age, text);
     assert.notEqual(p.candidateMode, "full_dose", text);
-    assert.notEqual(p.candidateMode, "limited_dose", `${text} → ${p.candidateMode}：${p.reasons.join("；")}`);
+    assert.equal(p.formalAdoption, "eligible_after_doctor_confirmation", text);
+    assert.match(p.reasons.join("；"), /妊娠|哺乳|抗凝/, `${text} → ${p.candidateMode}：${p.reasons.join("；")}`);
   }
-  assert.ok(["limited_dose", "full_dose"].includes(permission("男", 45, "胃脘胀痛半月，嗳气，大便溏结不调").candidateMode));
+  const control = permission("男", 45, "胃脘胀痛半月，嗳气，大便溏结不调");
+  assert.ok(["limited_dose", "full_dose"].includes(control.candidateMode));
+  assert.doesNotMatch(control.reasons.join("；"), /妊娠|哺乳|抗凝/);
 });
 
 console.log(`r1022-main: ${cases} cases${process.exitCode ? " (FAILED)" : " ok"}`);

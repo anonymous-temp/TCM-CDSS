@@ -50,9 +50,11 @@ await check("1.1 「妊娠5个半月」「怀孕3个多月」「妊娠二十余�
 await check("1.2 X-G-2961 原病历：妊娠状态阳性、只给非剂量内容；同一病历去掉孕月写法仍给剂量（对照）", () => {
   const record = "患者，女性，26岁。妊娠5个半月，面目四肢水肿，皮薄光亮，按之凹陷不起，面色黄白无华，神疲气短懒言，口淡而腻，脘腹胀满，食欲不振，大便溏薄，舌胖嫩苔白腻，脉缓滑。";
   const permission = permissionOf("妊娠5个半月，面目四肢水肿，皮薄光亮，按之凹陷不起，面色黄白无华，神疲气短懒言", record);
-  assert.equal(permission.candidateMode, "non_dose_only", JSON.stringify(permission));
+  // 剂量一致化（D4）：妊娠认出来以后给剂量、采纳前须医生确认，原因写妊娠；对照没有妊娠原因。
+  assert.match(permission.reasons.join("；"), /妊娠/, JSON.stringify(permission));
+  assert.equal(permission.formalAdoption, "eligible_after_doctor_confirmation", JSON.stringify(permission));
   const control = permissionOf("面目四肢水肿，神疲气短懒言", record.replace("妊娠5个半月，", "否认妊娠，"));
-  assert.notEqual(control.candidateMode, "non_dose_only", JSON.stringify(control));
+  assert.doesNotMatch(control.reasons.join("；"), /已记录妊娠/, JSON.stringify(control));
 });
 
 await check("2.1 教材治法拆字「固月孚」订正为「固脬」（遗尿·心肾失交证）；其余行的治法不变（对照）", async () => {
@@ -77,7 +79,9 @@ await check("4.1 A-non-0046 原病历报重度血小板减少红旗、不给剂�
   const flag = state.safetyGate.redFlags.find((item) => item.includes("重度血小板减少"));
   assert.ok(flag, JSON.stringify(state.safetyGate.redFlags));
   assert.equal(safety.redFlagRuleIdForMessage(flag), "severe-thrombocytopenia");
-  assert.equal(safety.derivePrescriptionPermission(state).candidateMode, "non_dose_only");
+  // 剂量一致化（D4）：红旗给剂量、红旗解除前不可采纳（活血化瘀药由开方核对剔除）。
+  assert.equal(safety.derivePrescriptionPermission(state).candidateMode, "limited_dose");
+  assert.equal(safety.derivePrescriptionPermission(state).formalAdoption, "blocked");
   for (const text of ["已知ITP 5年，PLT 15×10^9/L，无出血。", "体检PLT 130×10^9/L，鼻衄1次。"]) {
     const control = safety.withSafetyGate(types.normalizeCaseStateInput({ id: "r7c", chiefComplaint: "x", patient: { sex: "女", age: 28 }, symptoms: { 现病史: text }, conversation: [] }));
     assert.ok(!control.safetyGate.redFlags.some((item) => item.includes("血小板")), text);
