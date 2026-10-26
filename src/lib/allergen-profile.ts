@@ -12,6 +12,7 @@ type HerbEntry = { name: string; action: "avoid" | "caution"; sameAsFood?: strin
 type ClassEntry = {
   id: string;
   labelZh: string;
+  avoidPhraseZh: string;
   recordTerms: string[];
   genericRecordTerms: string[];
   intoleranceTerms: string[];
@@ -35,6 +36,11 @@ type MentionPolarityAt = (text: string, index: number) => "affirmed" | "negated"
 
 export function allergenClassLabel(classId: string): string | undefined {
   return CLASSES.get(classId)?.labelZh;
+}
+
+/** 写给患者的「请避开…」：取数据表的 avoidPhraseZh（乳及乳制品、蜂蜜及蜂产品本身已含制品，不能再拼「及其制品」）。 */
+export function allergenAvoidPhrase(classIds: readonly string[]): string {
+  return [...new Set(classIds)].map((classId) => CLASSES.get(classId)?.avoidPhraseZh).filter((phrase): phrase is string => Boolean(phrase)).join("、");
 }
 
 /** 读病历小任务用的清单项：每类一个「对X过敏」概念（id 为 allergy-<类>）。 */

@@ -346,6 +346,7 @@
     {
       "id": "gluten_cereal",
       "labelZh": "含麸质谷物",
+      "avoidPhraseZh": "含有麸质的谷物及其制品",
       "gbCategory": true,
       "gbCategoryName": "含有麸质的谷物及其制品(如小麦、黑麦、大麦、燕麦、斯佩耳特小麦或它们的杂交品系)",
       "gbClause": "GB 7718-2025 4.12.1 a)",
@@ -929,6 +930,7 @@
     {
       "id": "crustacean",
       "labelZh": "甲壳类",
+      "avoidPhraseZh": "虾蟹等甲壳类及其制品",
       "gbCategory": true,
       "gbCategoryName": "甲壳纲类动物及其制品(如虾、龙虾、蟹等)",
       "gbClause": "GB 7718-2025 4.12.1 b)",
@@ -1215,6 +1217,7 @@
     {
       "id": "fish",
       "labelZh": "鱼类",
+      "avoidPhraseZh": "鱼类及其制品",
       "gbCategory": true,
       "gbCategoryName": "鱼类及其制品",
       "gbClause": "GB 7718-2025 4.12.1 c)",
@@ -1533,6 +1536,7 @@
     {
       "id": "egg",
       "labelZh": "蛋类",
+      "avoidPhraseZh": "蛋类及其制品",
       "gbCategory": true,
       "gbCategoryName": "蛋类及其制品",
       "gbClause": "GB 7718-2025 4.12.1 d)",
@@ -1823,6 +1827,7 @@
     {
       "id": "peanut",
       "labelZh": "花生",
+      "avoidPhraseZh": "花生及其制品",
       "gbCategory": true,
       "gbCategoryName": "花生及其制品",
       "gbClause": "GB 7718-2025 4.12.1 e)",
@@ -1956,6 +1961,7 @@
     {
       "id": "soy",
       "labelZh": "大豆",
+      "avoidPhraseZh": "大豆及其制品",
       "gbCategory": true,
       "gbCategoryName": "大豆及其制品",
       "gbClause": "GB 7718-2025 4.12.1 f)",
@@ -2322,6 +2328,7 @@
     {
       "id": "milk",
       "labelZh": "乳及乳制品",
+      "avoidPhraseZh": "乳及乳制品",
       "gbCategory": true,
       "gbCategoryName": "乳及乳制品(包括乳糖)",
       "gbClause": "GB 7718-2025 4.12.1 g)",
@@ -2563,6 +2570,7 @@
     {
       "id": "tree_nut",
       "labelZh": "坚果",
+      "avoidPhraseZh": "坚果及其果仁类制品",
       "gbCategory": true,
       "gbCategoryName": "坚果及其果仁类制品",
       "gbClause": "GB 7718-2025 4.12.1 h)",
@@ -3108,6 +3116,7 @@
     {
       "id": "mollusc",
       "labelZh": "软体动物（贝类等）",
+      "avoidPhraseZh": "贝类等软体动物及其制品",
       "gbCategory": false,
       "gbCategoryName": null,
       "genericRecordTerms": [
@@ -3607,6 +3616,7 @@
     {
       "id": "seafood",
       "labelZh": "海鲜（总称）",
+      "avoidPhraseZh": "海鲜及其制品",
       "gbCategory": false,
       "gbCategoryName": null,
       "umbrellaOf": [
@@ -3689,6 +3699,7 @@
     {
       "id": "sesame",
       "labelZh": "芝麻",
+      "avoidPhraseZh": "芝麻及其制品",
       "gbCategory": false,
       "gbCategoryName": null,
       "gbNote": "GB 7718-2025 问答三十八把「芝麻及其制品」列为八大类以外可自愿标示的致敏物质。",
@@ -3835,6 +3846,7 @@
     {
       "id": "bee_products",
       "labelZh": "蜂蜜及蜂产品",
+      "avoidPhraseZh": "蜂蜜及蜂产品",
       "gbCategory": false,
       "gbCategoryName": null,
       "genericRecordTerms": [
@@ -4591,6 +4603,7 @@
     {
       "id": "mango",
       "labelZh": "芒果",
+      "avoidPhraseZh": "芒果及其制品",
       "gbCategory": false,
       "gbCategoryName": null,
       "genericRecordTerms": [
@@ -4698,6 +4711,7 @@
     {
       "id": "lacquer_urushiol",
       "labelZh": "漆（漆树/生漆）",
+      "avoidPhraseZh": "漆及含漆的药材",
       "gbCategory": false,
       "gbCategoryName": null,
       "chpNote": "《中国药典》2020 干漆【注意】：「孕妇及对漆过敏者禁用」。本项目知识库已收这句原文，只用于妊娠规则。",
@@ -4778,6 +4792,7 @@
     {
       "id": "buckwheat",
       "labelZh": "荞麦",
+      "avoidPhraseZh": "荞麦及其制品",
       "gbCategory": false,
       "gbCategoryName": null,
       "genericRecordTerms": [

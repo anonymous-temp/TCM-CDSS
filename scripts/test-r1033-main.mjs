@@ -368,4 +368,20 @@ await check("7.5 精简过敏分类表与源表同步；读病历小任务的清
   assert.deepEqual(allergen.allergensFromScreen([{ conceptId: "allergy-milk", quote: "喝牛奶后起风团" }]).map((item) => item.classId), ["milk"]);
 });
 
+await check("7.6 「请避开…」取类别表的写法：类名已含制品的（乳及乳制品、蜂蜜及蜂产品）不再拼「及其制品」；补写句与 M04 提示词同一写法", () => {
+  const classes = [
+    { classId: "egg", labelZh: "蛋类", kind: "allergy", quote: "鸡蛋过敏" },
+    { classId: "milk", labelZh: "乳及乳制品", kind: "allergy", quote: "牛奶过敏" },
+    { classId: "bee_products", labelZh: "蜂蜜及蜂产品", kind: "allergy", quote: "蜂蜜过敏" },
+  ];
+  const items = [{ kind: "food_allergy", classes }];
+  const once = surface.projectDeliveredReasoning(prescribeWithCare({ diet: "宜清淡。" }), { requiredPrecautions: items });
+  const line = once.nonPharma.precautions.find((entry) => /过敏/.test(entry)) || "";
+  assert.ok(line.includes("请避开蛋类及其制品、乳及乳制品、蜂蜜及蜂产品；"), line);
+  const prompt = required.requiredPrecautionsPromptSection(items);
+  assert.ok(prompt.includes("请避开蛋类及其制品、乳及乳制品、蜂蜜及蜂产品，"), prompt);
+  for (const text of [line, prompt]) assert.ok(!/(乳制品|蜂产品)及其制品/.test(text), text);
+  assert.equal(allergen.allergenAvoidPhrase(["egg", "egg"]), "蛋类及其制品");
+});
+
 console.log(`r1033-main: ${cases} checks`);

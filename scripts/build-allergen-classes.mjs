@@ -10,6 +10,7 @@ const herbEntries = (list) => (list || []).flatMap((herb) => [herb.name, ...(her
 const classes = source.classes.map((item) => ({
   id: item.id,
   labelZh: item.labelZh,
+  avoidPhraseZh: item.avoidPhraseZh,
   recordTerms: uniq([...(item.recordTerms || []), ...(item.genericRecordTerms || [])]),
   genericRecordTerms: uniq(item.genericRecordTerms),
   intoleranceTerms: uniq(item.intoleranceTerms),
@@ -29,6 +30,9 @@ const classes = source.classes.map((item) => ({
   ...(item.intoleranceHandling ? { intoleranceHandling: { foodAction: item.intoleranceHandling.foodAction, herbAction: item.intoleranceHandling.herbAction, medicineAction: item.intoleranceHandling.medicineAction } } : {}),
   ...(item.umbrellaOf ? { umbrellaOf: item.umbrellaOf } : {}),
 }));
+// 写给患者的「请避开…」用 avoidPhraseZh：类名本身已带制品的（乳及乳制品、蜂蜜及蜂产品）不能再拼「及其制品」（第二十一轮生产探针 B061）。
+const missingAvoidPhrase = classes.filter((item) => typeof item.avoidPhraseZh !== "string" || !item.avoidPhraseZh.trim()).map((item) => item.id);
+if (missingAvoidPhrase.length > 0) { console.error(`过敏原类别缺少 avoidPhraseZh：${missingAvoidPhrase.join("、")}`); process.exit(1); }
 // 病历里「这一句在说过敏」的提示词（过敏史一栏整行都算）。不耐受单列：按各类的 intoleranceHandling 处理。
 const RECORD_CUES = ["过敏", "忌食", "不耐受", "不耐", "sIgE", "特异性IgE", "食物激发试验"];
 // 单字词（鱼、虾、蛋…）只在紧跟这些字时算过敏记录（「对虾过敏」「鱼类过敏」）。
