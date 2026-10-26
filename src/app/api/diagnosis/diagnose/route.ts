@@ -2,6 +2,7 @@ import { prefetchDiagnoseInputs, prefetchPrescribeInputsFromSignedDiagnose, tapF
 import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
 import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
+import { rationaleFindingsChecklistNotice } from "@/lib/rationale-findings-checklist";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
 import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars, promptSectionHeaders } from "@/lib/prompt-budget";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
@@ -17,7 +18,8 @@ import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals, patient
 import { completeTcmDiseaseDifferentials, prefetchTcmDifferentialTopUp } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { semanticRedFlagsForBanner } from "@/lib/banner-semantic-red-flags.server";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, commaContinuedDenialReadingNotice, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, pregnancyAdviceRelevant, renderSafetyLimitedDiagnosisContract, reproductiveAdviceRelevant, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, commaContinuedDenialReadingNotice, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, pregnancyAdviceRelevant, renderSafetyLimitedDiagnosisContract, reproductiveAdviceRelevant, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText, hasActiveBleedingRedFlag, registerActiveBleedingRedFlags } from "@/lib/diagnosis-safety";
+import { ACTIVE_BLEEDING_M03_RULE } from "@/lib/active-bleeding-treatment";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03SharedPatientContext } from "@/lib/m03-context-packets";
@@ -193,6 +195,10 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   if (limitedInformation) {
     stageInstructions += "\n\n【有限信息推理】请使用患者已经提供的信息完成辨病辨证；降低相应结论置信度，并把真正影响判断的未知项写入本半负责的 limitations 或 uncertainties。不得因年龄、性别、生命体征、舌脉、过敏史或当前用药未提供而拒绝输出 M03，也不得臆造缺失事实。";
   }
+  // 本次闸门（含事实层）的出血类红旗按接地正文登记，教材锚定与开方核对凭正文判断时读得到（接地正文里生命体征不带项名）。
+  registerActiveBleedingRedFlags([clinicalGroundingText(safeState)], gated.safetyGate?.redFlags || []);
+  // 活动性出血红旗：治法先止血，不立活血化瘀为主法（第二十三轮，胎盘早剥锁定少腹逐瘀汤）。依据与写法见 active-bleeding-treatment。
+  if (hasActiveBleedingRedFlag(gated.safetyGate?.redFlags || [])) stageInstructions += `\n\n${ACTIVE_BLEEDING_M03_RULE}`;
   if (redFlagAnalysis) {
     stageInstructions += `\n\n【急危重线索并存】服务器确定性判定本例存在红旗：${(gated.safetyGate?.redFlags || []).join("；") || "见安全提示"}。请照常完成辨病辨证；在 management 中把急诊/转诊评估列为第一优先级并给出具体处置指引，不得因红旗拒绝输出辨证结论，也不得淡化红旗。`;
   }
@@ -207,6 +213,8 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
     stageInstructions += "\n\n【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请在本半负责的 limitations、uncertainties 或 management.mustCollect 中显式记录“本次就诊目标需医生确认”，不得据此臆造当前治疗目标或直接给出剂量级结论。";
   }
   prompt += stageInstructions;
+  // 辨证依据要逐项交代的已记录表现只进中医半（西医半不读辨证依据）。
+  prompt += rationaleFindingsChecklistNotice(safeState);
   const semanticBannerFlags = await bannerSemanticRedFlags;
   const initialSafetyBanner = buildSafetyAdvisoryBanner(redFlagAnalysis && gated.safetyGate
     ? { ...gated.safetyGate, redFlags: [...gated.safetyGate.redFlags, ...semanticBannerFlags] }

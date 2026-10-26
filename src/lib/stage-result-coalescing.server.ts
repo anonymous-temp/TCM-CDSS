@@ -115,6 +115,10 @@ function canonicalJson(value: unknown): string {
 function fingerprintText(value: string): string {
   return value.normalize("NFKC")
     .replace(/\s+/g, "")
+    // 舌苔、脉象拆成几个勾选项写（甲方 HIS 同一份病历两次传来「舌淡红，苔薄白」与「舌淡红，苔薄，苔白」，「脉浮紧」与「脉浮，脉紧」，
+    // 2026-10-26 测评「相同病历输出一致性」）：合成一个再算指纹。只影响是否复用，不改送给模型的病历。
+    .replace(/([苔脉])([\u4e00-\u9fff]{1,3})[，,、]?\1(?=[\u4e00-\u9fff])/gu, "$1$2")
+    .replace(/([苔脉])([\u4e00-\u9fff]{1,6})[，,、]?\1(?=[\u4e00-\u9fff])/gu, "$1$2")
     .replace(/[，,]/g, ",").replace(/[；;]/g, ";").replace(/[。．]/g, ".").replace(/[：:]/g, ":").replace(/[、]/g, ",")
     .replace(/([,;.:])\1+/g, "$1")
     .replace(/[,;.:]+$/g, "");

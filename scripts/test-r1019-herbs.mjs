@@ -467,6 +467,7 @@ check("8.5 自服黄连上清丸（甲方病历 7）：三黄片与它共有大�
 const medicineRow = (name, id) => ({ type: "中成药", name, specification: "1盒", singleDose: "一次1袋", frequency: "一日2次", route: "口服", administrationTiming: null,
   usageBoundary: "按说明书", course: null, positioning: "需医生评估", correspondingProblem: "胃脘隐痛", evidenceId: id,
   evidenceFingerprint: `sha256:${"a".repeat(63)}${id.slice(-1)}`, relationship: "医生评估", riskNote: "按说明书" });
+// 第二十四轮起中成药说明书要说到本例主要问题（patentMedicineCoversMainProblem）：对照药人参口服液治的是乏力，主诉补上乏力。
 check("8.6 编译器：同组成的中成药从推荐里去掉，删光时状态写明是与汤剂组成重复；不重复的照列（对照）", () => {
   const compiled = compiler.compileM04Proposal({
     candidate: { name: "自拟方", applicable: "胃脘隐痛喜温。", notApplicable: "实热证不用。",
@@ -480,7 +481,7 @@ check("8.6 编译器：同组成的中成药从推荐里去掉，删光时状态
       decoction: { doseCount: "7剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "7日复诊" } },
     patentAndWestern: [], modifications: [],
     nonPharma: { diet: "宜温热易消化饮食，忌生冷。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: [], tcmTreatments: [] },
-  }, prior, { ...base, patient: { sex: "女", age: 50 }, symptoms: { presentHistory: "胃脘隐痛3年，喜温喜按。" } },
+  }, prior, { ...base, chiefComplaint: "胃脘隐痛3年，伴身倦乏力", patient: { sex: "女", age: 50 }, symptoms: { presentHistory: "胃脘隐痛3年，喜温喜按，身倦乏力。" } },
   [medicineRow("参苓白术散", "LOCAL-INST-001"), medicineRow("人参口服液", "LOCAL-INST-002")]);
   assert.deepEqual(compiled.formula.patentAndWestern.map((item) => item.name), ["人参口服液"]);
   const onlyDuplicate = compiler.compileM04Proposal({
@@ -490,7 +491,7 @@ check("8.6 编译器：同组成的中成药从推荐里去掉，删光时状态
       decoction: { doseCount: "7剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "7日复诊" } },
     patentAndWestern: [], modifications: [],
     nonPharma: { diet: "宜温热易消化饮食，忌生冷。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: [], tcmTreatments: [] },
-  }, prior, { ...base, patient: { sex: "女", age: 50 }, symptoms: { presentHistory: "胃脘隐痛3年，喜温喜按。" } }, [medicineRow("参苓白术散", "LOCAL-INST-001")]);
+  }, prior, { ...base, chiefComplaint: "胃脘隐痛3年，伴身倦乏力", patient: { sex: "女", age: 50 }, symptoms: { presentHistory: "胃脘隐痛3年，喜温喜按，身倦乏力。" } }, [medicineRow("参苓白术散", "LOCAL-INST-001")]);
   assert.deepEqual(onlyDuplicate.formula.patentAndWestern, []);
   assert.match(onlyDuplicate.formula.medicineCandidateStatus.reason, /组成重复/);
 });

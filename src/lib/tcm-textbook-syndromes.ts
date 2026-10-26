@@ -916,6 +916,11 @@ function charJaccard(left: string, right: string): number {
  */
 /** 证名里表示病性的字（有限闭集）：寒热、痰湿瘀、燥毒、虚实所在的阴阳气血、食积水饮。 */
 const TEXTBOOK_NATURE_WORDS = /寒|热|火|湿|痰|瘀|燥|毒|虚|亏|不足|衰|阴|阳|血|食|饮|风/g;
+/** 证名里不写病性字、意思里带着病性的写法（有限闭集）：读病性时把它带着的病性字补上。 */
+const IMPLIED_SYNDROME_NATURE: ReadonlyArray<readonly [RegExp, string]> = [[/心肾不交/u, "阴虚火"], [/不固/u, "虚"]];
+function syndromeNatureText(name: string): string {
+  return IMPLIED_SYNDROME_NATURE.reduce((text, [pattern, nature]) => pattern.test(name) ? `${text}${nature}` : text, name);
+}
 /** 证名里表示病位的脏腑字（有限闭集）。 */
 const TEXTBOOK_ORGAN_WORDS = /心|肝|脾|肺|肾|胃|胆|肠|膀胱/g;
 
@@ -941,8 +946,10 @@ export function textbookNearestRow(
   //  · 病历与哪一行的主症都对不上，改名只凭字面相近。
   const modelWords = `${syndromeName}${method}`;
   const modelNatureWords = modelWords.match(TEXTBOOK_NATURE_WORDS) || [];
+  // 证名不写病性字、意思里却带着病性的（心肾不交＝阴虚火旺，「…不固」＝虚）按带着的病性看（第二十四轮甲方 api-f076：模型有意写了
+  // 中性的「心神不宁证」并在依据里说明虚实未定，被改成「心肾不交证」后治法锚成「滋阴降火」、治则推成「虚则补之」，与依据自相矛盾）。
   const addsNature = (row: TextbookSyndromeRow) => (top === 0 || modelNatureWords.length === 0) &&
-    (row.syndromeName.match(TEXTBOOK_NATURE_WORDS) || []).some((word) => !modelWords.includes(word));
+    (syndromeNatureText(row.syndromeName).match(TEXTBOOK_NATURE_WORDS) || []).some((word) => !modelWords.includes(word));
   // 也不得丢掉模型写的病位（2026-10-17，甲方标准病历 5）：模型写「肺脾两虚证」，教材虚劳只有单脏的「肺气虚证」
   //「脾气虚证」，按字面相近改成「肺气虚证」后，辨证依据成了「两脏各有成组表现，故为肺气虚证」，治法也跟着锚成「补益肺气」。
   // 两脏合称不是单脏证型的同义写法。只在教材这一行自己写了脏腑、却缺模型写的某一脏时否决；

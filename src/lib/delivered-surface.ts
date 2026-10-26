@@ -643,6 +643,40 @@ const PLACEHOLDER_WESTERN_NAME = /^(?:当前未形成可复核的西医工作诊
  * 症状层面的工作诊断（ICD-10 R 章，或名称本身以「症状」收尾）写成「X待查」；点了名的病种只留病名本身
  *（「功能性消化不良，病因待查」自相矛盾：既已定病，又说病因待查）。
  */
+/**
+ * 不带「加减」的单方名，处方是不是原方：组成身份与方剂目录（编译目录）该方的组成逐味相同（生姜、大枣两味不计）。
+ * 带后缀、合方、自拟方或目录查不到组成的返回 undefined（不判）。
+ */
+export function candidateIsOriginalFormula(name: string, herbs: readonly Record<string, unknown>[]): boolean | undefined {
+  const trimmed = String(name || "").trim();
+  if (!trimmed || /(?:加减|化裁|加味)$/u.test(trimmed) || /合/u.test(trimmed) || SELF_COMPOSED_NAME.test(trimmed) || trimmed === "自拟方") return undefined;
+  const reference = formulaCompilationReferences([trimmed])[0];
+  const optional = new Set(["生姜", "大枣"].map((herb) => compositionIdentityName(herb)));
+  const ingredients = new Set((reference?.ingredients || []).map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, ""))).filter((id) => id && !optional.has(id)));
+  if (ingredients.size === 0) return undefined;
+  const present = new Set(herbs.map((herb) => compositionIdentityName(String(herb.name || ""))).filter((id) => id && !optional.has(id)));
+  return present.size === ingredients.size && [...ingredients].every((id) => present.has(id));
+}
+
+/**
+ * 交付给调用方的西医诊断依据/**
+ * 交付给调用方的西医诊断依据（10.26 甲方测评「西医诊断无依据」）：模型写的 clinicalRationale，一句话，
+ * 放进 primary.supportingFacts 唯一的一项。只做去空白与长度上限，不改写内容；没有就不放。
+ */
+export function deliveredWesternBasis(western: unknown): string | undefined {
+  const rationale = record(record(western)?.primary)?.clinicalRationale ?? record(western)?.clinicalRationale;
+  if (typeof rationale !== "string") return undefined;
+  const text = rationale.replace(/\s+/g, " ").trim();
+  if (!text) return undefined;
+  return text.length > 300 ? `${text.slice(0, 299)}…` : text;
+}
+
+/** 症状依据栏里只有交付面放的那一句诊断依据（开方阶段读回时据此判定「没有病历事实」）。 */
+export function isDeliveredWesternBasisOnly(supportingFacts: readonly unknown[], western: unknown): boolean {
+  const basis = deliveredWesternBasis(western);
+  return Boolean(basis) && supportingFacts.length === 1 && typeof supportingFacts[0] === "string" && supportingFacts[0].trim() === basis;
+}
+
 export function deliveredWesternDiagnosisName(name: unknown, coding?: unknown): string {
   const label = typeof name === "string" ? name.trim() : "";
   if (!label || PLACEHOLDER_WESTERN_NAME.test(label)) return label;
@@ -806,8 +840,12 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
   const primary = record(western?.primary);
   if (primary && !isLimitedDiagnose(reasoning)) {
     primary.name = deliveredWesternDiagnosisName(primary.name, primary.coding);
-    // 甲方红框「方框内内容不建议展示」：症状依据、待查依据、检查建议三块整块不再输出。
-    primary.supportingFacts = [];
+    // 甲方红框「方框内内容不建议展示」（10.12）：病历原句罗列的症状依据、待查依据、检查建议三块整块不再输出。
+    // 10.26 测评 11 例全判「西医诊断无依据」：面板只读这三个数组，诊断依据于是一个字都没有。症状依据栏改放一句
+    // 诊断依据——模型写的 clinicalRationale（「起病、主要表现、阴性所见 → 符合某病；需与某病鉴别」），不是病历罗列。
+    // 开方阶段读回时这一句不当病历事实用（restoreDiagnoseSupportingFacts 认得它，照旧按病历补回）。
+    const basis = deliveredWesternBasis(western);
+    primary.supportingFacts = basis ? [basis] : [];
     if (Array.isArray(primary.supportingFactKinds)) primary.supportingFactKinds = [];
     primary.limitations = [];
     primary.suggestedChecks = [];
@@ -1127,9 +1165,13 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       candidate.formulaAnalysis = `${opening ? (selfComposed ? "本方为自拟方。" : `本方以${label}为基础加减${opening[2]}`) : ""}${rest}`
         .replace(/本方案/g, "本方");
     }
+    // 方名与组成一致（2026-10-26 甲方测评「方名（柴胡疏肝散-柴胡疏肝散加减）」）：方名不带「加减」时，组成与方剂目录的原方逐味相同
+    // 才是原方，方义开头写「本方用X原方」；组成不同的方名补「加减」，方义照旧「以X为基础加减」。目录查不到组成的不动。
+    const original = typeof candidate.name === "string" ? candidateIsOriginalFormula(candidate.name, records(candidate.herbs)) : undefined;
+    if (original === false && typeof candidate.name === "string") candidate.name = `${candidate.name.trim()}加减`;
     // 方义开头与最终方名一致（自拟方 / 以某方为基础），三种写法同一个判据（withOpeningMatchingFormulaName）。
     if (typeof candidate.formulaAnalysis === "string" && typeof candidate.name === "string") {
-      candidate.formulaAnalysis = withOpeningMatchingFormulaName(candidate.formulaAnalysis, candidate.name).text;
+      candidate.formulaAnalysis = withOpeningMatchingFormulaName(candidate.formulaAnalysis, candidate.name, original === true).text;
     }
     // 方义里的药名按药味表写（朱茯神→茯神，withMentionsAlignedToTableNames；编译时审过一次，交付面按最终药味表再对一次）；
     // 去掉阴性净化器写进方义的病历断言小句；只点了角色的药补上药味表里它的功效。
@@ -2068,6 +2110,21 @@ export function followupWhenPriorityEvaluation(text: string, focus: PriorityEval
 }
 
 /**
+ * 月经病按月经周期复诊（2026-10-26 甲方测评病历 10：月经先期写「建议调理2周后复诊评估月经周期及经量变化」，
+ * 评「复诊周期不符合逻辑」——月经周期要到下次月经才看得出）。病名属月经病（月经先期、后期、先后无定期、过多、过少、
+ * 经期延长、经间期出血、崩漏、闭经、痛经、经行诸证）时：去掉「N周后复诊评估月经…」这类按周算看月经的半句，补一句按周期观察。
+ * 剂数复诊（服完N剂药后复诊看服药反应）与先就医评估那一句照留。幂等。
+ */
+const MENSTRUAL_DISEASE = /^(?:月经(?:先期|后期|先后无定期|先后不定期|过多|过少)|经期延长|经间期出血|崩漏|闭经|痛经|经行[\u4e00-\u9fff]{1,6})$/u;
+const MENSTRUAL_CYCLE_FOLLOWUP = "月经的变化要按月经周期观察：请在下次月经来潮时及经净后复诊，一般连续调理观察3个月经周期。";
+export function followupWithMenstrualCycle(text: string, tcmDiseaseName: unknown): string {
+  if (typeof tcmDiseaseName !== "string" || !MENSTRUAL_DISEASE.test(tcmDiseaseName.trim()) || text.includes(MENSTRUAL_CYCLE_FOLLOWUP)) return text;
+  const withoutWeeks = text.replace(/[^。；;，,]*?(?:\d+|[一二两三四]|半)(?:周|个月|月)后?复诊[^。；;，,]*?月经[^。；;，,]*[，,。；;]?/u, "");
+  const base = withoutWeeks.trim();
+  return base ? `${base.replace(/[，,；;]$/u, "。").replace(/([^。])$/u, "$1。")}${MENSTRUAL_CYCLE_FOLLOWUP}` : MENSTRUAL_CYCLE_FOLLOWUP;
+}
+
+/**
  * 给剂量的方：「请服完本次的药后复诊」补上剂数与天数（2026-10-21 第十二轮；验收 S 集：复诊句没有天数，虽然煎服法写了 7 剂）。
  * 数取自方剂的 followUpAfterDoses / followUpAfterDays（M05 首次复诊同一来源 patientFacingFirstReview）；取不到时原样。
  */
@@ -2149,6 +2206,9 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
     } else if (management && typeof management.followupSafetyNet === "string" && options?.priorityEvaluation !== undefined) {
       management.followupSafetyNet = followupWhenPriorityEvaluation(management.followupSafetyNet, options.priorityEvaluation);
     }
+    if (management && typeof management.followupSafetyNet === "string" && !options?.doseWithheld) {
+      management.followupSafetyNet = followupWithMenstrualCycle(management.followupSafetyNet, overviewRecord?.tcmDiseaseName);
+    }
   }
   else if (projected.stage === "prescribe") {
     deliveredPrescribe(projected, options);
@@ -2161,6 +2221,7 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
         management.followupSafetyNet = options?.priorityEvaluation !== undefined
           ? followupWhenPriorityEvaluation(management.followupSafetyNet, options.priorityEvaluation, { doses: decoction?.followUpAfterDoses, days: decoction?.followUpAfterDays })
           : followupWithDoseCount(management.followupSafetyNet, decoction?.followUpAfterDoses, decoction?.followUpAfterDays);
+        management.followupSafetyNet = followupWithMenstrualCycle(String(management.followupSafetyNet), record(projected.overview)?.tcmDiseaseName);
       }
     }
     // 煎服法的复诊节点也先写评估这一步（priorityEvaluationFollowUpNode，与上面复诊计划同一份计划）。
@@ -2225,7 +2286,8 @@ export function restoreDiagnoseSupportingFacts<T>(prior: T, affirmedRecordClause
   const primary = record(record(object?.westernDiagnosis)?.primary);
   if (!object || object.stage !== "diagnose" || !primary) return prior;
   const existing = Array.isArray(primary.supportingFacts) ? primary.supportingFacts.filter((item) => typeof item === "string" && item.trim()) : [];
-  if (existing.length > 0) return prior;
+  // 交付面放在症状依据栏里的那一句诊断依据不是病历事实，照旧按病历补回（10.26）。
+  if (existing.length > 0 && !isDeliveredWesternBasisOnly(existing, record(object.westernDiagnosis))) return prior;
   const facts = [...new Set(affirmedRecordClauses.map((item) => item.trim()).filter((item) => item.length >= 2 && item.length <= 600))].slice(0, 12);
   if (facts.length === 0) return prior;
   const restored = structuredClone(object);

@@ -1,4 +1,5 @@
 import "server-only";
+import secondaryStructureJson from "../data/tcm-secondary-syndrome-structure.source.json" with { type: "json" };
 
 import { affirmedClinicalSourceClauses } from "./clinical-polarity";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
@@ -531,6 +532,48 @@ export function primaryManifestationTerms(row: TextbookSyndromeRow | undefined):
     .map((item) => item.trim()).filter((item) => item.length >= 2);
 }
 
+// 证名寒热字样（受治理来源：src/data/tcm-secondary-syndrome-structure.source.json）。
+const anyOf = (terms: readonly string[]) => new RegExp(terms.join("|"), "u");
+const wholeNameOf = (terms: readonly string[]) => new RegExp(`^(?:${terms.join("|")})证?$`, "u");
+const HEAT_SYNDROME = anyOf(secondaryStructureJson.heatSyndromeTerms);
+const COLD_SYNDROME = anyOf(secondaryStructureJson.coldSyndromeTerms);
+const MIXED_COLD_HEAT = anyOf(secondaryStructureJson.mixedColdHeatTerms);
+const DEFICIENT_HEAT_SECONDARY = wholeNameOf(secondaryStructureJson.deficientHeatSecondaryNames);
+const DEFICIENT_COLD_SECONDARY = wholeNameOf(secondaryStructureJson.deficientColdSecondaryNames);
+const YIN_DEFICIENT_PRIMARY = anyOf(secondaryStructureJson.yinDeficiencyPrimaryTerms);
+const YANG_DEFICIENT_PRIMARY = anyOf(secondaryStructureJson.yangDeficiencyPrimaryTerms);
+/**
+ * 模型自写的兼证与主证在结构上不成立（第二十四轮，甲方 10/26 K04「风热犯肺证」兼「风寒表证」、治法里还加了「散寒」；甲方标准病历 6
+ * 一次生成「肾阴虚证」兼「虚热证」）：
+ *   · 寒热相反：主证属热、兼证属寒（或反过来），而证名与依据都没有写成寒热错杂的那几种（表寒里热、寒包火、上热下寒…）；
+ *   · 主证已经包含：兼证去掉「证」字后是主证名的一部分，或阴虚主证下的「虚热/虚火」、阳虚主证下的「虚寒」。
+ * 证名词是封闭的病性字样（不靠模型），与辨证要点核对（verifySecondaryByCriteria）互不替代：这里只拦结构上自相矛盾或重复的。
+ */
+export function secondaryStructurallyInvalid(primary: string, secondary: string, rationaleText = ""): "cold_heat_conflict" | "entailed_by_primary" | "declared_not_independent" | undefined {
+  const p = compact(primary).replace(/证$/u, "");
+  const sRaw = compact(secondary);
+  const s = sRaw.replace(/证$/u, "");
+  if (!p || !s) return undefined;
+  // 依据自己说这组表现「非独立病证」「不另立」，兼证栏却写了它（2026-10-26 甲方测评病历 10：兼证心火亢盛证，
+  // 依据末句「夜寐不宁系火热扰心所致，非独立病证」，判「辨证依据与证候矛盾」）。兼证默认不立，按依据撤下兼证。
+  // 那一分句须说到兼证名里至少两个字（「火热扰心」对「心火亢盛」），别的兼夹因素的否认句不算。
+  const secondaryChars = new Set([...s].filter((character) => /[\u4e00-\u9fff]/u.test(character)));
+  if (rationaleText.split(/[。；;\n]/u).some((clause) => deniesSeparateSecondaryPattern(clause) &&
+    [...secondaryChars].filter((character) => clause.includes(character)).length >= 2)) return "declared_not_independent";
+  if (s.length >= 2 && p.includes(s)) return "entailed_by_primary";
+  if (YIN_DEFICIENT_PRIMARY.test(p) && DEFICIENT_HEAT_SECONDARY.test(sRaw)) return "entailed_by_primary";
+  if (YANG_DEFICIENT_PRIMARY.test(p) && DEFICIENT_COLD_SECONDARY.test(sRaw)) return "entailed_by_primary";
+  if (MIXED_COLD_HEAT.test(`${p}${s}${rationaleText}`)) return undefined;
+  // 病性字样按完整证名读（「肺热证」的「热证」去掉「证」字就认不出）。
+  const pRaw = compact(primary);
+  const primaryHeat = HEAT_SYNDROME.test(pRaw) && !COLD_SYNDROME.test(pRaw);
+  const primaryCold = COLD_SYNDROME.test(pRaw) && !HEAT_SYNDROME.test(pRaw);
+  const secondaryHeat = HEAT_SYNDROME.test(sRaw) && !COLD_SYNDROME.test(sRaw);
+  const secondaryCold = COLD_SYNDROME.test(sRaw) && !HEAT_SYNDROME.test(sRaw);
+  if ((primaryHeat && secondaryCold) || (primaryCold && secondaryHeat)) return "cold_heat_conflict";
+  return undefined;
+}
+
 /** 撤下模型自写的兼证：兼证栏去掉它，治法里只属于它的项去掉，依据与病机里「兼X」的字样去掉。纯函数，供测试。 */
 export function withdrawSecondarySyndrome(root: Json, name: string, primaryTextbookMethod = ""): boolean {
   const overview = record(root.overview);
@@ -617,12 +660,24 @@ export async function reconcileSecondarySyndromes(
   if (!primarySyndrome) return tcmContent;
   const textbookRow = textbookRowForSyndrome(text(overview.tcmDiseaseName), primarySyndrome);
   const primaryTerms = primaryManifestationTerms(textbookRow);
-  // 模型自己写进兼证栏的：按辨证要点逐个核（evaluateCriteriaMatches），不够数的撤下（连同只为它写的治法与「兼X」字样）。
+  // 模型自己写进兼证栏的：先撤结构上不成立的（寒热相反、主证已包含，secondaryStructurallyInvalid），再按辨证要点逐个核
+  //（evaluateCriteriaMatches），不够数的撤下（连同只为它写的治法与「兼X」字样）。
   if (secondary.length > 0) {
-    if (!criteriaCheckEnabled()) return tcmContent;
-    const verdicts = await Promise.all(secondary.map((name) => verifySecondaryByCriteria(text(name), { recordText: context.recordText, primaryTerms }, signal)));
-    let withdrawn = 0;
-    secondary.forEach((name, index) => {
+    let structural = 0;
+    const structuralReasons: string[] = [];
+    for (const name of secondary) {
+      const reason = secondaryStructurallyInvalid(primarySyndrome, text(name), `${rationale}${pathogenesis}`);
+      if (reason && withdrawSecondarySyndrome(root, text(name), textbookRow?.therapy || "")) {
+        structural += 1;
+        structuralReasons.push(reason);
+      }
+    }
+    if (structural > 0) console.info("[tcm-cdss:telemetry] m03_secondary_structural", { withdrawn: structural, reasons: structuralReasons });
+    const remainingSecondary = Array.isArray(overview.secondarySyndromes) ? overview.secondarySyndromes.filter((item) => text(item)) : [];
+    if (remainingSecondary.length === 0 || !criteriaCheckEnabled()) return structural > 0 ? JSON.stringify(root) : tcmContent;
+    const verdicts = await Promise.all(remainingSecondary.map((name) => verifySecondaryByCriteria(text(name), { recordText: context.recordText, primaryTerms }, signal)));
+    let withdrawn = structural;
+    remainingSecondary.forEach((name, index) => {
       if (verdicts[index].verdict === "fail" && withdrawSecondarySyndrome(root!, text(name), textbookRow?.therapy || "")) withdrawn += 1;
     });
     console.info("[tcm-cdss:telemetry] m03_secondary_criteria", {

@@ -66,6 +66,9 @@ const BARE_EXEMPT = new Map([
   ["sepsis::高热", "sepsis.qualifiers=[current,severe]；单独发热在门诊过于常见，按表要求与寒战合取"],
   ["sepsis::寒战", "同上，与发热/实测体温≥38.5℃ 合取"],
   ["sepsis::感染", "「感染」过于宽泛（上感/皮肤感染均含此词），按表 qualifiers 需合取"],
+  ["anaphylaxis::全身风团", "皮肤表现本身不是严重过敏：WAO 2020 过敏反应判据要求皮肤表现同时伴呼吸受累、血压下降或靶器官灌注不足、严重胃肠道症状之一（表的 dangerCompanions）。"
+    + "单写风团就提示「严重过敏或气道受累」，2026-10-26 甲方测评病历 9（荨麻疹，逐项否认胸闷气促、腹痛、喉头梗阻）两次判过度预警；"
+    + "伴受累表现时照旧提示（test:r1036-main 8.3）"],
   ...["腹痛", "腹胀", "胃痛", "胃脘痛", "肚子疼", "右下腹痛", "上腹痛", "心口窝痛", "胃部疼痛"].map(
     (term) => [`acute_abdomen::${term}`,
       "acute_abdomen.qualifiers=[acuteOnset,severe,current]，表明确要求限定词；"

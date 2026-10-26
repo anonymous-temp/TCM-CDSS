@@ -814,7 +814,8 @@ const checkAsync = async (name, run) => {
   const chaihu = ["陈皮", "柴胡", "川芎", "香附", "枳壳", "白芍", "炙甘草"];
   const claim = "本方以柴胡疏肝散为基础加减，去原方中偏于走窜耗气之品，保留核心疏肝理气之组。柴胡为君。";
   check("7.13 原方药味一味不少时去掉「去原方中…之品」及紧跟的「保留…」；真删了一味时照留；目录查不到组成时不动（对照）", () => {
-    assert.equal(analysisFor("柴胡疏肝散", chaihu, claim), "本方以柴胡疏肝散为基础加减。柴胡为君。");
+    // 第二十四轮（10.26 甲方「方名与方义」）：组成与目录原方逐味相同时方义开头写「本方用某方原方」（candidateIsOriginalFormula）。
+    assert.equal(analysisFor("柴胡疏肝散", chaihu, claim), "本方用柴胡疏肝散原方。柴胡为君。");
     assert.equal(analysisFor("柴胡疏肝散", chaihu.filter((herb) => herb !== "川芎"), claim), claim);
     assert.equal(analysisFor("自拟方", ["陈皮"], "本方为自拟方，去其燥烈之品。"), "本方为自拟方，去其燥烈之品。");
   });
@@ -873,7 +874,8 @@ const checkAsync = async (name, run) => {
     const youGui = ["熟地黄", "附子", "肉桂", "山药", "山茱萸", "菟丝子", "鹿角胶", "枸杞子", "当归", "杜仲"];
     const out = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {},
       formula: { candidates: [{ name: "右归丸", herbs: youGui.map((name) => ({ name, dose: "9g" })), formulaAnalysis: "本方以右归丸为基础加减，去原方温燥之品后以附子、肉桂为君，温补肾阳。" }] }, nonPharma: null }).formula.candidates[0].formulaAnalysis;
-    assert.equal(out, "本方以右归丸为基础加减，以附子、肉桂为君，温补肾阳。");
+    // 组成与目录原方逐味相同：开头为「本方用右归丸原方」（第二十四轮）。
+    assert.equal(out, "本方用右归丸原方，以附子、肉桂为君，温补肾阳。");
     // 药味取自甲方标准病历 8 的实际处方（龙胆泻肝汤全方 + 牡丹皮）。
     const longdan = ["龙胆", "黄芩", "栀子", "泽泻", "川木通", "车前子", "地黄", "牡丹皮", "当归", "柴胡", "甘草"];
     const tail = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {},
@@ -902,9 +904,10 @@ const checkAsync = async (name, run) => {
     const jing = ["荆芥", "防风", "羌活", "独活", "柴胡", "前胡", "川芎", "枳壳", "茯苓", "桔梗", "甘草", "生姜", "薄荷"];
     const analysisFor = (name, herbs, formulaAnalysis) => projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {},
       formula: { candidates: [{ name, herbs: herbs.map((herb) => ({ name: herb, dose: "9g" })), formulaAnalysis }] }, nonPharma: null }).formula.candidates[0].formulaAnalysis;
-    assert.equal(analysisFor("荆防败毒散", jing, "本方以荆防败毒散为基础加减，去辛散走表之品，荆芥、防风为君。"), "本方以荆防败毒散为基础加减，荆芥、防风为君。");
+    // 两例组成都与目录原方逐味相同：开头为「本方用某方原方」（第二十四轮）。
+    assert.equal(analysisFor("荆防败毒散", jing, "本方以荆防败毒散为基础加减，去辛散走表之品，荆芥、防风为君。"), "本方用荆防败毒散原方，荆芥、防风为君。");
     const chaihu = ["陈皮", "柴胡", "川芎", "香附", "枳壳", "白芍", "炙甘草"];
-    assert.equal(analysisFor("柴胡疏肝散", chaihu, "本方以柴胡疏肝散为基础加减，去原方中与气滞胀痛无直接关联的川芎？不，川芎保留。柴胡、香附为君。"), "本方以柴胡疏肝散为基础加减。柴胡、香附为君。");
+    assert.equal(analysisFor("柴胡疏肝散", chaihu, "本方以柴胡疏肝散为基础加减，去原方中与气滞胀痛无直接关联的川芎？不，川芎保留。柴胡、香附为君。"), "本方用柴胡疏肝散原方。柴胡、香附为君。");
   });
   check("7.23 注意事项叫患者别再服的药正是推荐西成药时不留；别的药照留（对照）", () => {
     const out = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {},

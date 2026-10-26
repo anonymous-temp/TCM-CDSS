@@ -74,12 +74,17 @@ test("toxic, controlled, ambiguous, missing/curated ranges and invalid magnitude
     { name: "党参", dose: "31g", isToxic: true },
     { name: "附子", dose: "16g" }, { name: "朱砂", dose: "1g" }, { name: "犀角", dose: "1g" },
     { name: "贯众", dose: "10g" }, { name: "不存在药味", dose: "10g" },
-    { name: "龙骨", dose: "121g" }, { name: "生地黄", dose: "16g" },
+    { name: "龙骨", dose: "121g" },
     { name: "石斛", dose: "30g" },
     { name: "党参", dose: "501g" }, { name: "党参", dose: "0g" },
     { name: "党参", dose: "-1g" }, { name: "党参", dose: "2片" },
   ]) assert.equal(ordinaryHistoricalDoseDeviation(herb, "煎服"), undefined, JSON.stringify(herb));
   assert.equal(ordinaryHistoricalDoseDeviation({ name: "党参", dose: "12g" }, "煎服"), undefined);
+  // 药典同一药材条目下分列的用量（地黄条目：生地黄 10～15g）同样是药典单一来源，按上限处理（2026-10-26 第二十四轮：
+  // 红旗集里犀角地黄汤、清瘟败毒饮的生地黄超量让整页退成非剂量页）。此前按「来源不是 dose 条目」不走这条路。
+  const shengdi = ordinaryHistoricalDoseDeviation({ name: "生地黄", dose: "16g" }, "煎服");
+  assert.equal(shengdi?.max, 15);
+  assert.match(shengdi?.basis || "", /地黄条目：生地黄/);
   // 身份目录没有收的常用炮制品（2026-10-13）：「普通炮制前缀 + 药典标准名」按原药算普通药味。
   // 合成集实测：煅海螵蛸 15g、5 岁患儿的炒谷芽超量各让一张普通处方整方退成非剂量页。
   for (const [name, dose] of [["煅海螵蛸", "15g"], ["炒鸡内金", "30g"]]) {

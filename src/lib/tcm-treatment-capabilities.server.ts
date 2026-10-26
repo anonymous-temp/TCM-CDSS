@@ -1010,7 +1010,8 @@ export function tcmTreatmentProjectExclusionReason(
   const pregnancyStatus = treatmentPregnancyStatus(caseState, facts);
   if (pregnancyStatus === "positive" || pregnancyStatus === "possible") {
     if (new Set<TcmTreatmentProjectCode>([
-      "acupuncture", "moxibustion", "tuina", "cupping", "guasha", "needle_knife",
+      // 耳穴（毫针、埋针、压丸）此前不在内，而耳穴卡自己写着「妊娠期禁用」（第二十四轮甲方 100 例 C097：妊娠 12 周给了耳穴卡）。
+      "acupuncture", "moxibustion", "tuina", "cupping", "guasha", "needle_knife", "auricular",
       "thread_embedding", "bloodletting", "fire_cautery", "hook_cutting", "thread_drainage",
       "ligation", "medicated_bath", "medicated_ironing", "fumigation_wash", "acupoint_application",
       "medicated_plaster",
@@ -1046,7 +1047,11 @@ function rankedTreatmentCandidates(
     // 适应证标签是词袋，没有收「蛇串疮/水疱」「心悸」这类病名：**该节点一个标签都没认出来**，而教材里有该病证的
     // 该项目方案时，病名本身就是适应证（亲和度取 55，低于任何标签命中）。节点认出了别的标签（睡眠节点上的推拿）
     // 说明它是另一个适应证的节点，不得凭病名改绑——「不得静默改绑到别的节点」的底线不变。
-    if (score <= 0 && nodeTags.size === 0 &&
+    // 主证节点（病机链第一个节点）承接的就是本病：教材有该病的这一项目方案时，即使节点认出了别的标签也按病名算适应证
+    //（2026-10-26 甲方测评病历 5：虚劳·肺脾两虚证只给了食疗，《推拿学》虚劳节的方案没出；「这类虚证很适合针灸治疗」）。
+    // 只用于服务端按目录补的项目（模型自己绑定了节点、却绑错了的，仍不得改绑，见上一段）。
+    const mainNode = node === chain[0] && !explicit;
+    if (score <= 0 && (nodeTags.size === 0 || mainNode) &&
       textbookPlanExistsForDisease(projectCode, prior.overview?.tcmDiseaseName, prior.westernDiagnosis?.primary?.name, treatmentPatientAgeYears(caseState))) score = 55;
     if (score <= 0) return;
     const key = `${projectCode}:${targetRef}`;

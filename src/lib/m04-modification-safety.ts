@@ -4,6 +4,7 @@ import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
 import { formulaAnalysisAfterHerbRemoval } from "./formula-analysis-review";
 import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
+import { precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -312,6 +313,11 @@ const SAFETY_PRUNE_POPULATION_LABELS: Readonly<Record<string, string>> = {
   cardiovascular_disease: "心血管病不宜", cardio_glaucoma_prostate: "心血管病、青光眼或前列腺增生不宜", diabetes: "糖尿病不宜",
   frailty_gastric_weakness: "体虚胃弱不宜", athlete: "运动员不宜", allergy: "与病历记录的过敏原同源",
 };
+/** 开方核对人群冲突码（herb_N_special_population_high_risk_<code>）→ 写给医生的原因。 */
+export function specialPopulationConflictLabel(issue: string): string {
+  const code = issue.replace(/^herb_\d+_special_population_high_risk_/u, "");
+  return SAFETY_PRUNE_POPULATION_LABELS[code] || "本例特殊人群不宜";
+}
 const SAFETY_PRUNE_ROLE_RANK: Readonly<Record<string, number>> = { 君: 0, 臣: 1, 佐: 2, 使: 3 };
 const SAFETY_PRUNE_MIN_RETAINED = 3;
 
@@ -382,6 +388,37 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
     const note = `按本例情况已去除：${removed.map((item) => `${item.name}（${item.reason}）`).join("；")}`;
     const previous = typeof candidate.notApplicable === "string" ? candidate.notApplicable.trim() : "";
     candidate.notApplicable = previous ? `${previous.replace(/[。；;]+$/u, "")}；${note}` : note;
+    return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
+  } catch {
+    return content;
+  }
+}
+
+/**
+ * 定稿剔药之后（方向相反的药、无病机支撑的药、本例安全边界冲突的药）注意事项里仍点名已不在方中的药：按最终药味与随证加减去掉那一小句
+ *（第二十四轮甲方 100 例 C018：「方中含吴茱萸有小毒」，吴茱萸已剔出本方）。交付面投影也做同一件事，但「保留已签名候选」的交付连续性
+ * 路径不经过投影，所以在定稿、签名之前做一次。判据就是编译器与交付面那一个（precautionWithoutAbsentHerbs）。
+ */
+export function withoutPrecautionsNamingAbsentHerbs(content: string): string {
+  const start = content.indexOf(START_MARKER);
+  const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
+  if (start < 0 || end < 0) return content;
+  try {
+    const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
+    const formula = recordValue(reasoning.formula);
+    const candidate = recordValue(Array.isArray(formula?.candidates) ? formula?.candidates[0] : undefined);
+    const nonPharma = recordValue(reasoning.nonPharma);
+    if (!candidate || !nonPharma || !Array.isArray(nonPharma.precautions) || !Array.isArray(candidate.herbs)) return content;
+    const identities = new Set([
+      ...candidate.herbs.map((herb) => canonicalTcmHerbIdentity(String(recordValue(herb)?.name || ""))),
+      ...(Array.isArray(formula?.modifications) ? formula.modifications : []).map((item) => canonicalTcmHerbIdentity(String(recordValue(item)?.herbName || ""))),
+    ].filter(Boolean));
+    if (identities.size === 0) return content;
+    const cleaned = nonPharma.precautions
+      .map((line) => typeof line === "string" ? precautionWithoutAbsentHerbs(line, identities) : line)
+      .filter((line) => typeof line !== "string" || line.trim().length > 0);
+    if (JSON.stringify(cleaned) === JSON.stringify(nonPharma.precautions)) return content;
+    nonPharma.precautions = cleaned;
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {
     return content;

@@ -38,6 +38,7 @@ import { fillMedicineRowFromInstructionRecord, type InstructionRecordPool } from
 import { formulaAnalysisHerbMentions, formulaAnalysisRoleAssignments, withoutFalseBaseFormulaEdits } from "./formula-analysis-review";
 import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
 import { patentMedicineDuplication, patentMedicineOpposesSignedDirection, selfTakenMedicationCompositions, signedDirectionOf, withoutRepeatedMedicineNames, withoutSameClassAnalgesics, withoutSameClassMedicines } from "./patent-medicine-duplication.server";
+import { findLocalPatentMedicineLabel, patentMedicineCoversMainProblem, patentMedicineMatchesSignedSyndrome } from "./local-patent-medicine-candidates";
 import { herbRecordCautionConflict, herbRecordCautionConflicts, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
 import { assessPregnancyState } from "./clinical-state";
 import { specialDecoctionPhrase, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
@@ -2064,11 +2065,26 @@ export function compileM04Proposal(
   // 与本方汤剂或患者自服药同组成的中成药不再推荐（同一组药吃两遍；见 patentMedicineDuplication，2026-10-19）。
   const duplicationHerbs = proposal.candidate.herbs.map((herb) => ({ name: herb.name, role: herb.role }));
   const selfMedications = selfTakenMedicationCompositions(caseState);
-  const medicinesBeforeDuplication = proposal.patentAndWestern.length;
   // 解热镇痛抗炎药只留一种（S145：依托考昔、对乙酰氨基酚、布洛芬并列；见 withoutSameClassAnalgesics）。
   // 第九轮：方向与已签名证候明确相反的内服中成药不列（补益药用于纯实证、攻邪药用于纯虚证、清热药用于寒证、温热药用于热证），
   // 随后同一问题、同一给药途径的中成药与同一药理类别的西药各只留排在最前的一个（见 withoutSameClassMedicines）。
   const signedDirection = signedDirectionOf(prior);
+  // 中成药说明书「用于」部分说不到本例主要问题的不列；对证的中成药排在前面（2026-10-26 甲方测评病历 8：
+  // 蛇串疮推荐穿黄清热胶囊、龙血竭胶囊，对证的龙胆泻肝丸反排在最后）。判据见 patentMedicineCoversMainProblem。
+  const mainProblem = {
+    chiefComplaint: caseState?.chiefComplaint || "",
+    tcmDiseaseName: prior.overview?.tcmDiseaseName || "",
+    westernName: prior.westernDiagnosis?.primary?.name || "",
+    syndromes: [prior.overview?.primarySyndrome, ...(prior.overview?.secondarySyndromes || [])].filter((item): item is string => Boolean(item)),
+  };
+  const labelIndication = (item: { type?: string; name?: string }) =>
+    item.type === "中成药" ? findLocalPatentMedicineLabel(String(item.name || ""))?.indication || "" : "";
+  const coveredMedicines = proposal.patentAndWestern
+    .filter((item) => item.type !== "中成药" || patentMedicineCoversMainProblem(labelIndication(item), mainProblem) !== false);
+  const syndromeMatched = (item: { type?: string; name?: string }) =>
+    item.type === "中成药" && patentMedicineMatchesSignedSyndrome(labelIndication(item), mainProblem.syndromes);
+  proposal.patentAndWestern = [...coveredMedicines.filter(syndromeMatched), ...coveredMedicines.filter((item) => !syndromeMatched(item))];
+  const medicinesBeforeDuplication = proposal.patentAndWestern.length;
   proposal.patentAndWestern = withoutSameClassMedicines(withoutRepeatedMedicineNames(withoutSameClassAnalgesics(proposal.patentAndWestern
     .filter((item) => !patentMedicineDuplication(item, duplicationHerbs, selfMedications))
     .filter((item) => !patentMedicineOpposesSignedDirection(item, signedDirection)))));

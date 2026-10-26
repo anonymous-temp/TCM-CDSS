@@ -17,6 +17,7 @@ import { assessPregnancyState } from "./clinical-state";
 import type { DiscriminatorScreen } from "./redflag-discriminators";
 import { parseCustomerId } from "./customer-id";
 import { observeModelTask } from "./cdss-model-task-telemetry";
+import { clinicalFactsStoreEnabled, clinicalFactsStoreKey, readPersistedClinicalFacts, writePersistedClinicalFacts } from "./clinical-facts-store.server";
 
 export { CLINICAL_FACTS_EXTRACTOR_VERSION, CLINICAL_FACTS_PROMPT_VERSION } from "./clinical-facts";
 
@@ -385,6 +386,37 @@ function signClinicalFacts(facts: NonNullable<CaseState["clinicalFacts"]>): stri
   return `hmac-sha256:${createHmac("sha256", key).update(attestationPayload(facts)).digest("hex")}`;
 }
 
+/** 事实留存键（留存未开启时 undefined）：缓存键之外再绑定抽取版本与抽取模型（代码版本在 clinicalFactsStoreKey 里）。 */
+function clinicalFactsPersistKey(cacheKey: string): string | undefined {
+  if (!clinicalFactsStoreEnabled()) return undefined;
+  let model = "";
+  try { model = getClinicalFactsModelPlan().extractor.model; } catch { return undefined; }
+  return clinicalFactsStoreKey(cacheKey, [CLINICAL_FACTS_ATTESTATION_VERSION, CLINICAL_FACTS_EXTRACTOR_VERSION, CLINICAL_FACTS_PROMPT_VERSION, model]);
+}
+
+/** 按病例算出事实留存键并写入（运行时在真实抽取成功后做同一件事；测试用它预置一份留存）。 */
+export async function persistClinicalFactsForState(state: CaseState, facts: CaseState["clinicalFacts"]): Promise<boolean> {
+  const fullText = trustedInputText(sanitizeCaseStateForModel(state));
+  if (!fullText.trim()) return false;
+  const sourceFingerprint = createHash("sha256").update(fullText).digest("hex").slice(0, 32);
+  const key = clinicalFactsPersistKey(clinicalFactsCacheKey(sourceFingerprint, state.customerId));
+  if (!key) return false;
+  await writePersistedClinicalFacts(key, facts);
+  return true;
+}
+
+/** 留存的事实（不带签名）按本次时间重新签名；病历文本指纹或租户绑定不一致的不用。 */
+function restampedPersistedFacts(
+  persisted: NonNullable<CaseState["clinicalFacts"]>,
+  sourceFingerprint: string,
+  customerBindingHash: string | undefined,
+): NonNullable<CaseState["clinicalFacts"]> | undefined {
+  if (persisted.sourceFingerprint !== sourceFingerprint || (persisted.customerBindingHash || undefined) !== customerBindingHash) return undefined;
+  const unsigned = { ...persisted, extractedAt: new Date(Date.now()).toISOString(), resultSource: "fresh" as const, attestation: undefined };
+  const attestation = signClinicalFacts(unsigned);
+  return attestation ? { ...unsigned, attestation } : undefined;
+}
+
 export function hasValidClinicalFactsAttestation(
   facts: CaseState["clinicalFacts"],
   nowMs = Date.now(),
@@ -566,6 +598,18 @@ export async function maybeAttachClinicalFactsBackstop(
   if (cachedFacts) {
     return { ...state, clinicalFacts: { ...cachedFacts, resultSource: "cache" } };
   }
+  // 同一份病历的事实按内容留存（clinical-facts-store.server.ts，与阶段结果复用同一开关）：进程内缓存过期后
+  // 同一份病历再来，用第一次抽取的结果，按本次时间重新签名。版本、代码、模型、租户任一不同即不回放。
+  const storeKey = usesConfiguredModelPlan ? clinicalFactsPersistKey(cacheKey) : undefined;
+  if (storeKey) {
+    const persisted = await readPersistedClinicalFacts(storeKey);
+    const restamped = persisted ? restampedPersistedFacts(persisted, sourceFingerprint, customerBindingHash) : undefined;
+    if (restamped && hasValidClinicalFactsAttestation(restamped, Date.now(), options?.cacheTtlOverrideMs, state.customerId)) {
+      writeClinicalFactsCache(cacheKey, restamped);
+      console.info("[tcm-cdss:telemetry] clinical_facts_reuse", { mode: "persisted" });
+      return { ...state, clinicalFacts: { ...restamped, resultSource: "cache" } };
+    }
+  }
   // 并发合流：同一份病历被两个路由同时请求时（前端会并发触发），只发一次模型调用。
   const inFlight = usesConfiguredModelPlan ? clinicalFactsInFlight.get(cacheKey) : undefined;
   if (inFlight) {
@@ -695,6 +739,7 @@ export async function maybeAttachClinicalFactsBackstop(
   try {
     const result = await pending;
     writeClinicalFactsCache(cacheKey, result.clinicalFacts);
+    if (storeKey) void writePersistedClinicalFacts(storeKey, result.clinicalFacts);
     return result;
   } finally {
     clinicalFactsInFlight.delete(cacheKey);

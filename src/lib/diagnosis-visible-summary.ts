@@ -1167,7 +1167,8 @@ export function withoutDenialsOfRecordedFindings(text: string, clinicalContext: 
       kept.push(part);
       continue;
     }
-    const items = object.split(/[、及和与]/u).map((item) => item.replace(/^(?:无|未见|没有)/u, "").trim()).filter(Boolean);
+    // 「未诉有痛风史」「没有出现X」：否认词与所否认的事之间的「有/出现/发生」不是事的一部分（第二十四轮甲方 100 例 C044）。
+    const items = object.split(/[、及和与]/u).map((item) => item.replace(/^(?:无|未见|没有)/u, "").replace(/^(?:有|出现|发生)/u, "").trim()).filter(Boolean);
     if (items.length === 0 || items.some((item) => notAPatientDenial(cueOffset, text, item))) {
       kept.push(part);
       continue;
@@ -1860,7 +1861,7 @@ const UMBRELLA_TREATMENT_PRINCIPLES = new Set<string>([
   "治未病", "瘥后防复", "未病先防", "已病防变", "因时制宜", "因地制宜", "因人制宜", "正治法", "反治法", "调理阴阳",
 ]);
 
-interface SignedNatureProfile { deficient: boolean; excess: boolean; heat: boolean; cold: boolean; mixedColdHeat: boolean; rootTonifying: boolean }
+interface SignedNatureProfile { deficient: boolean; excess: boolean; heat: boolean; cold: boolean; mixedColdHeat: boolean; rootTonifying: boolean; branchLead?: boolean }
 
 /**
  * 治则的虚实寒热按已定的证型要素（主证与兼证）判：证名里有虚就是虚，有邪（热火寒湿痰瘀滞郁…、外感）就是实，两样都有是虚实夹杂。
@@ -1897,6 +1898,12 @@ function signedNatureProfile(reasoning: Record<string, unknown>): SignedNaturePr
   const functionalOnly = elements.length > 0 && elements.every((name) =>
     !DEFICIENT.test(name) && !EXCESS.test(withoutDeficiencyHeat(name)) && /(?:气不和|失和|失宣|失降|宣降失常|不宁|气机不畅|气机不利)证?$/.test(name));
   if (functionalOnly) return { deficient: false, excess: false, heat: false, cold: false, mixedColdHeat: false, rootTonifying: false };
+  // 虚证而治法第一项是治标的重镇、止血、止痛一类（心虚胆怯证「镇惊定志，养心安神」）：先治其标、兼补其本，写「标本兼治」
+  //（2026-10-26 甲方测评病历 2：「治则有更好的说法（标本兼顾），治法镇惊定志、养心安神与单独的虚则补之不能完全对应」）。
+  // 只看第一项：「滋阴养血，和络止痛」（血虚头痛）首项是补，仍是虚则补之（甲方同批判对）。
+  const leadMethod = method.split(/[，,、；;]/)[0] || "";
+  const branchLead = /(?:镇惊|重镇|镇心|潜阳|息风|熄风|止血|止痛|止咳|平喘)/.test(leadMethod) &&
+    !/(?:补|益|养|滋|健脾|温阳|温肾|固|填精|育阴|扶)/.test(leadMethod);
   const deficient = deficientElement || (neutralElement && tonifying) || (elements.length === 0 && tonifying);
   const excess = excessElement || (neutralElement && dispelling) || (elements.length === 0 && dispelling);
   const excessText = elements.map(withoutDeficiencyHeat).join("，");
@@ -1910,7 +1917,7 @@ function signedNatureProfile(reasoning: Record<string, unknown>): SignedNaturePr
   // 实证而治法里有治本的补益（化痰降气、健脾益气；益气养营、活血行瘀——教材本证治法自带的）：写「标本兼治」，
   // 既不说成纯泻（与治法里的补相抵），也不说成扶正祛邪（证型里没有虚）。温阳、温经在寒证里是「寒者热之」的温法，不算。
   const rootTonifying = /(?:补|益气|养血|养阴|养营|滋|健脾|填精|固表|固摄|固涩|振奋)/.test(method);
-  return { deficient, excess, heat: heat || mixedColdHeat, cold: cold || mixedColdHeat, mixedColdHeat, rootTonifying };
+  return { deficient, excess, heat: heat || mixedColdHeat, cold: cold || mixedColdHeat, mixedColdHeat, rootTonifying, branchLead };
 }
 
 function treatmentPrincipleFitsNature(term: string, nature: SignedNatureProfile): boolean {
@@ -1919,7 +1926,9 @@ function treatmentPrincipleFitsNature(term: string, nature: SignedNatureProfile)
       return nature.deficient && !nature.excess;
     case "实则泻之": case "实者泻其子":
       return nature.excess && !nature.deficient;
-    case "扶正祛邪": case "祛邪扶正": case "攻补兼施": case "先攻后补": case "先补后攻": case "寓攻于补": case "寓补于攻": case "标本兼治":
+    case "标本兼治":
+      return nature.deficient && (nature.excess || Boolean(nature.branchLead));
+    case "扶正祛邪": case "祛邪扶正": case "攻补兼施": case "先攻后补": case "先补后攻": case "寓攻于补": case "寓补于攻":
       return nature.deficient && nature.excess;
     case "寒者热之":
       return nature.cold && !nature.heat;
@@ -1932,6 +1941,7 @@ function treatmentPrincipleFitsNature(term: string, nature: SignedNatureProfile)
 
 function derivedTreatmentPrinciple(nature: SignedNatureProfile): string {
   if (nature.deficient && nature.excess) return "扶正祛邪";
+  if (nature.deficient && nature.branchLead) return "标本兼治";
   if (nature.deficient) return "虚则补之";
   // 寒热错杂（半夏泻心汤证这类）：单写寒者热之或热者寒之都只说了一半。表寒里热这类寒热分属表里的仍按实证。
   if (nature.mixedColdHeat) return "调理阴阳";

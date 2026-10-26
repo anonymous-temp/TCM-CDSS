@@ -52,7 +52,8 @@ const diagnose = () => ({
   assert.notEqual(out, source, "投影返回新对象，不改入参");
   assert.deepEqual(source.westernDiagnosis.primary.supportingFacts.length, 2, "入参不被改动");
   const primary = out.westernDiagnosis.primary;
-  assert.deepEqual(primary.supportingFacts, [], "症状依据不带内容");
+  // 10.26 甲方测评 11 例全判「西医诊断无依据」：症状依据栏改放一句诊断依据（clinicalRationale），不再是病历罗列（第二十四轮）。
+  assert.deepEqual(primary.supportingFacts, ["反复感冒伴乏力自汗。"], "症状依据只放一句诊断依据");
   assert.deepEqual(primary.supportingFactKinds, []);
   assert.deepEqual(primary.limitations, [], "待查依据不带内容");
   assert.deepEqual(primary.suggestedChecks, [], "检查建议不带内容");
@@ -172,7 +173,7 @@ for (const [source, expected] of [
   assert.deepEqual(out.nonPharma.tcmTreatments.map((item) => item.projectCode), ["acupuncture"], "给不出具体内容的项目不下发");
   assert.deepEqual(out.nonPharma.tcmTreatments[0].suggestedSitesOrPoints, ["肺俞", "太渊"]);
   assert.equal(out.nonPharma.tcmTreatments[0].scheduleSuggestion, "每日1次。");
-  assert.deepEqual(out.westernDiagnosis.primary.supportingFacts, [], "开方结果里的辨证副本同一口径");
+  assert.deepEqual(out.westernDiagnosis.primary.supportingFacts, ["反复感冒伴乏力自汗。"], "开方结果里的辨证副本同一口径");
   assert.deepEqual(projectDeliveredReasoning(out), out, "幂等");
   // 逐味人群提示只列本例可能属于的人群（2026-10-17）：男性、儿童与 60 岁以上患者的处方此前 96% 带孕期或哺乳期提示。
   {
@@ -252,7 +253,7 @@ for (const [source, expected] of [
   const wrap = (value) => `正文\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(value, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
   const projected = applyDeliveredSurfaceToContent(wrap(diagnose()));
   const parsed = JSON.parse(projected.match(/<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/)[1]);
-  assert.deepEqual(parsed.westernDiagnosis.primary.supportingFacts, []);
+  assert.deepEqual(parsed.westernDiagnosis.primary.supportingFacts, ["反复感冒伴乏力自汗。"]);
   assert.equal(applyDeliveredSurfaceToContent(projected), projected, "已投影的内容逐字节不变");
   assert.equal(applyDeliveredSurfaceToContent("没有结构化结果的正文"), "没有结构化结果的正文");
 }
@@ -262,7 +263,7 @@ for (const [source, expected] of [
   const delivered = projectDeliveredReasoning(diagnose());
   const restored = restoreDiagnoseSupportingFacts(delivered, ["近一年感冒约九次", "易疲乏、短气自汗", ""]);
   assert.deepEqual(restored.westernDiagnosis.primary.supportingFacts, ["近一年感冒约九次", "易疲乏、短气自汗"]);
-  assert.deepEqual(delivered.westernDiagnosis.primary.supportingFacts, [], "入参不被改动");
+  assert.deepEqual(delivered.westernDiagnosis.primary.supportingFacts, ["反复感冒伴乏力自汗。"], "入参不被改动（交付的那一句诊断依据不当病历事实，照旧补回）");
   const untouched = diagnose();
   assert.equal(restoreDiagnoseSupportingFacts(untouched, ["别的事实"]), untouched, "回传的辨证结果自带支持事实时原样返回");
 }

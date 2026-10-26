@@ -16,7 +16,7 @@ import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosi
 import { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
-import { unsupportedHighImpactHerbFindings, affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03PreservedParallelHalfIssue, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
+import { herbBarredForCase, unsupportedHighImpactHerbFindings, affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03PreservedParallelHalfIssue, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
 import { parseStreamModuleDraftFrame, stageProgressHeartbeatStatus, STREAM_REPLACE_MARKER, type StageProgressPhase, type StreamModuleDraftFrame } from "@/lib/diagnosis-stream-protocol";
 import { normalizeM03TcmDiseaseDifferentialNames } from "@/lib/tcm-disease-differential-normalization";
 import { groundDifferentialNegativeAssertions, alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyGovernedM03DiseaseDifferentialBoundary, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, groundStructuredPatientFacts, type ChainGroundingReport, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
@@ -27,7 +27,15 @@ import { applyServerOwnedM03Fields } from "./m03-server-owned-fields";
 import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, stripUntrustedM04IdentityMetadata, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
 import { clinicalReviewNotPerformedAttestation } from "@/lib/clinical-review-binding";
 import { applyDeliveredSurfaceToContent } from "./delivered-surface";
-import { clinicalGroundingText } from "./diagnosis-safety";
+import { activeBleedingInGroundingText, clinicalGroundingText } from "./diagnosis-safety";
+import type { FormulaReferenceCaseSafety } from "@/lib/tcm-formula-provenance";
+
+/** 教材锚定用的本例安全事实（见 withDeterministicFormulaReferences）：与开方核对同一判据、同一份接地正文。 */
+function formulaReferenceCaseSafety(clinicalContext?: string): FormulaReferenceCaseSafety | undefined {
+  const context = clinicalContext || "";
+  if (!context.trim()) return undefined;
+  return { activeBleeding: activeBleedingInGroundingText(context), barredHerb: (herb: string) => herbBarredForCase(herb, context) };
+}
 import type { HerbBoundaryAudience } from "./candidate-boundary-text";
 import type { RequiredPrecaution } from "@/lib/required-precautions";
 import { applyDiagnoseContractSignature, applyPrescribeContractSignature, clinicalReviewPayloadHash, type DiagnoseContractSignatureContext, type PrescribeContractSignatureContext } from "@/lib/reasoning-contract-signature";
@@ -53,7 +61,7 @@ import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy } from "@/lib/tcm-ch
 import { enforceRetrievedM03FormulaSelection } from "@/lib/tcm-formula-indications";
 import { applyGovernedTcmDiagnosticCitations } from "@/lib/tcm-diagnostic-citations";
 import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-normalization.server";
-import { declassifyAndDropOpposingM04CandidateHerbs, dropSafetyConflictingM04CandidateHerbs, dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
+import { declassifyAndDropOpposingM04CandidateHerbs, dropSafetyConflictingM04CandidateHerbs, dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections, withoutPrecautionsNamingAbsentHerbs } from "@/lib/m04-modification-safety";
 import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
 import { checkNonStrictStructuredContent, checkNonStrictStructuredValue, responseFormatForTask, strictToolParametersForTask, strictToolSystemInstruction, structuredOutputSchemaInstruction, structuredValueFromToolArguments, supportsStrictJsonSchema, supportsStrictToolRetry, type ProviderSchemaViolation, type StructuredOutputTask } from "@/lib/model-response-format";
 import { insertM03ProvisionalDraft, renderM03ProvisionalDraftSection, schemaValidDiagnoseDraft } from "@/lib/m03-provisional-draft";
@@ -1015,6 +1023,7 @@ function validatedStructuredReasoning(
         priorReasoning,
         false,
         allowTransparentFormulaDeclassification,
+        (herb) => herbBarredForCase(herb, clinicalContext),
       );
       if (compilationIssue) {
         console.warn("[tcm-cdss:contract] M04 formula-compilation rejection", {
@@ -1225,6 +1234,7 @@ function structuredRejectionReason(
         priorReasoning,
         false,
         allowTransparentDeclassification,
+        (herb) => herbBarredForCase(herb, clinicalContext),
       );
       if (formulaIssue) return `m04_${formulaIssue}`;
       if (attributionScope === "safety_floor_waived") {
@@ -2788,7 +2798,7 @@ async function callPrimaryTextModelStream(
         if (opts.structuredStage !== "diagnose") return undefined;
         try {
           let transformed = await preparedDiagnoseContent(content);
-          transformed = applyDeterministicFormulaReferences(transformed, opts.structuredClinicalContext, opts.structuredLineagePreference);
+          transformed = applyDeterministicFormulaReferences(transformed, opts.structuredClinicalContext, opts.structuredLineagePreference, formulaReferenceCaseSafety(opts.structuredClinicalContext));
           transformed = synchronizeVisibleClinicalSummary(transformed, "diagnose", opts.structuredClinicalContext || "", opts.structuredCaseState);
           if (opts.outputTransform) transformed = opts.outputTransform(transformed);
           const governedDifferentials = applyGovernedM03DiseaseDifferentialBoundary(
@@ -2846,6 +2856,10 @@ async function callPrimaryTextModelStream(
         const beforeDirectionPrune = finalized;
         finalized = declassifyAndDropOpposingM04CandidateHerbs(finalized, opts.structuredPriorReasoning);
         lastM04CandidateDirectionPruned = finalized !== beforeDirectionPrune;
+        // 剔药之后按最终药味重写煎服行（「瓦楞子先煎」而瓦楞子已剔除），并去掉注意事项里点名已不在方中的药。交付连续性路径
+        //（保留的已签名候选）不经过交付面投影，这一步必须在签名之前（第二十四轮甲方 100 例 C018）。
+        finalized = applyDeterministicDecoctionMethod(finalized, opts.structuredClinicalContext || "", opts.structuredPatientAge);
+        finalized = withoutPrecautionsNamingAbsentHerbs(finalized);
         // overview/pathogenesis/therapy 等字段归 M03 所有。最终展示和证据变换前逐字回绑，
         // 既不放宽漂移门禁，也不让一个展示变换把已合法处方变成 pathogenesis_drift。
         finalized = enforceM04PriorStageOwnership(
@@ -3959,7 +3973,7 @@ async function callPrimaryTextModelStream(
             finishReason,
           );
           resolvedStructuredContent = rawResolvedStructuredContent
-            ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(rawResolvedStructuredContent, opts.structuredStage), opts.structuredClinicalContext, opts.structuredLineagePreference)
+            ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(rawResolvedStructuredContent, opts.structuredStage), opts.structuredClinicalContext, opts.structuredLineagePreference, formulaReferenceCaseSafety(opts.structuredClinicalContext))
             : undefined;
           if (resolvedStructuredContent) authoritativeContent = resolvedStructuredContent;
           if (opts.structuredStage === "diagnose") {
@@ -4292,7 +4306,7 @@ async function callPrimaryTextModelStream(
             ? resolveCompletedStructuredResponse(wrappedRetryContent, opts.structuredStage, retry.finishReason)
             : undefined;
           const referencedRetryContent = rawResolvedRetryContent
-            ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(rawResolvedRetryContent, opts.structuredStage), opts.structuredClinicalContext, opts.structuredLineagePreference)
+            ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(rawResolvedRetryContent, opts.structuredStage), opts.structuredClinicalContext, opts.structuredLineagePreference, formulaReferenceCaseSafety(opts.structuredClinicalContext))
             : undefined;
           let resolvedRetryContent = referencedRetryContent && opts.structuredStage === "prescribe"
             ? applyDeterministicFormulaAnalysis(applyDeterministicHerbPrescriptionRoles(applyDeterministicHerbFunctions(applyDeterministicHerbDecoctionRequirements(applyDeterministicCandidateTherapyMatch(applyDeterministicHerbTargets(referencedRetryContent, opts.structuredPriorReasoning), opts.structuredPriorReasoning)))))
@@ -4470,7 +4484,7 @@ async function callPrimaryTextModelStream(
                 ? resolveCompletedStructuredResponse(secondWrapped, opts.structuredStage, secondRetry.finishReason)
                 : undefined;
               const secondReferenced = secondRawResolved
-                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(secondRawResolved, opts.structuredStage), opts.structuredClinicalContext, opts.structuredLineagePreference)
+                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(secondRawResolved, opts.structuredStage), opts.structuredClinicalContext, opts.structuredLineagePreference, formulaReferenceCaseSafety(opts.structuredClinicalContext))
                 : undefined;
               let secondResolved = secondReferenced && opts.structuredStage === "prescribe"
                 ? applyDeterministicFormulaAnalysis(applyDeterministicHerbPrescriptionRoles(applyDeterministicHerbFunctions(applyDeterministicHerbDecoctionRequirements(applyDeterministicCandidateTherapyMatch(applyDeterministicHerbTargets(secondReferenced, opts.structuredPriorReasoning), opts.structuredPriorReasoning)))))
@@ -4583,7 +4597,7 @@ async function callPrimaryTextModelStream(
                     ? resolveCompletedStructuredResponse(thirdWrapped, "diagnose", thirdRetry.finishReason)
                     : undefined;
                   const thirdReferenced = thirdRawResolved
-                    ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(thirdRawResolved, "diagnose"), opts.structuredClinicalContext, opts.structuredLineagePreference)
+                    ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(thirdRawResolved, "diagnose"), opts.structuredClinicalContext, opts.structuredLineagePreference, formulaReferenceCaseSafety(opts.structuredClinicalContext))
                     : undefined;
                   let thirdResolved = thirdReferenced
                     ? await preparedDiagnoseContent(thirdReferenced)
@@ -4714,6 +4728,7 @@ async function callPrimaryTextModelStream(
                 opts.structuredPriorReasoning,
                 false,
                 false,
+                (herb) => herbBarredForCase(herb, opts.structuredClinicalContext || ""),
               )
             : undefined;
           // 受理判据取 **waive=true** 口径（甲方 2026-08-08 定：质量类一律不阻断）。
@@ -4879,7 +4894,7 @@ async function callPrimaryTextModelStream(
           // its server-owned rendering pass here; the common visible projection below never mutates
           // the sentinel JSON.
           if (opts.structuredStage === "prescribe") {
-            authoritativeContent = applyDeterministicFormulaReferences(authoritativeContent, opts.structuredClinicalContext, opts.structuredLineagePreference);
+            authoritativeContent = applyDeterministicFormulaReferences(authoritativeContent, opts.structuredClinicalContext, opts.structuredLineagePreference, formulaReferenceCaseSafety(opts.structuredClinicalContext));
             authoritativeContent = applyDeterministicDecoctionMethod(
               authoritativeContent,
               opts.structuredClinicalContext || "",
@@ -5172,7 +5187,7 @@ async function callPrimaryTextModelStream(
                 ? resolveCompletedStructuredResponse(finalizedRetryWrapped, "diagnose", finalizedRetry.finishReason)
                 : undefined;
               const finalizedRetryReferenced = finalizedRetryResolved
-                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(finalizedRetryResolved, "diagnose"), opts.structuredClinicalContext, opts.structuredLineagePreference)
+                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(finalizedRetryResolved, "diagnose"), opts.structuredClinicalContext, opts.structuredLineagePreference, formulaReferenceCaseSafety(opts.structuredClinicalContext))
                 : undefined;
               let finalizedRetryCandidate = finalizedRetryReferenced
                 ? await preparedDiagnoseContent(finalizedRetryReferenced)

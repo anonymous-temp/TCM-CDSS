@@ -1,6 +1,6 @@
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode, type ClinicalReasoningResultV2, type ClinicalReviewAttestation } from "./diagnosis-types";
 import { clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation, sha256CanonicalForContract } from "./clinical-review-binding";
-import { m04SafetyContractIssue } from "./diagnosis-stage-contract";
+import { herbBarredForCase, m04SafetyContractIssue } from "./diagnosis-stage-contract";
 import { enrichReasoning, formulaCompilationContractIssue } from "./tcm-formula-provenance";
 import { isKnownTcmHerbName } from "./tcm-knowledge";
 import { sanitizeGeneratedSuggestionPreviewText } from "./diagnosis-stream-safety";
@@ -137,7 +137,8 @@ export function retainM04DeliveryCheckpoint(
     clinicalContext: input.clinicalContext || "", waiveTherapyCoverageAnnotated: true,
   });
   const compilationIssue = formulaCompilationContractIssue(
-    enriched, input.priorReasoning, false, reasoning.formula?.candidates?.[0]?.identityDeclassified === true);
+    enriched, input.priorReasoning, false, reasoning.formula?.candidates?.[0]?.identityDeclassified === true,
+    (herb) => herbBarredForCase(herb, input.clinicalContext || ""));
   const contractIssues = [...new Set([safetyIssue, compilationIssue, ...(input.extraContractIssues || [])]
     .filter((issue): issue is string => Boolean(issue)))];
   // Never replace a completed attested result with a pending or malformed repair. For the same

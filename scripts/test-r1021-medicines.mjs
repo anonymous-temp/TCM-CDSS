@@ -301,6 +301,8 @@ try {
 await check("7.1 编译器：现用药重复 → 方向底线 → 解热镇痛 → 同名 → 同类，依次过；规划器与编译器共用同一组函数", () => {
   const compiler = fs.readFileSync("src/lib/m04-proposal-compiler.ts", "utf8");
   assert.match(compiler, /withoutSameClassMedicines\(withoutRepeatedMedicineNames\(withoutSameClassAnalgesics\(proposal\.patentAndWestern\s*\.filter\(\(item\) => !patentMedicineDuplication\(item, duplicationHerbs, selfMedications\)\)\s*\.filter\(\(item\) => !patentMedicineOpposesSignedDirection\(item, signedDirection\)\)\)\)\)/u);
+  // 第二十四轮：在这一串之前先过「说明书说到本例主要问题」（patentMedicineCoversMainProblem），对证的排前。
+  assert.match(compiler, /patentMedicineCoversMainProblem\(labelIndication\(item\), mainProblem\) !== false\);[\s\S]{0,400}proposal\.patentAndWestern = \[\.\.\.coveredMedicines\.filter\(syndromeMatched\)/u);
   assert.match(compiler, /const signedDirection = signedDirectionOf\(prior\)/u);
   const plannerSource = fs.readFileSync("src/lib/medicine-candidate-planner.server.ts", "utf8");
   assert.match(plannerSource, /patentMedicineDuplication\(item\.candidate, \[\], selfMedications\)/u);

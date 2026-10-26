@@ -3843,8 +3843,13 @@ export function ordinaryHistoricalDoseDeviation(
   if (ordinaryBase && (clinicianDoseHerbClass(ordinaryBase) || getTcmHerbGenerationSafetyProfile(ordinaryBase).isToxic)) return undefined;
   if (!dosePassesSafetySanityCeiling(name, herb.dose)) return undefined;
   const limit = getTcmHerbDoseLimit(name);
-  if (limit?.sourceType !== "dose" || limit.basis !== "中华人民共和国药典：2020年版．一部" || limit.sourceConflict) return undefined;
-  const { min, max, basis } = limit;
+  // 药典同一药材条目下按炮制或用药形式分列的用量（地黄条目：鲜地黄 12～30g、生地黄 10～15g）同样是药典单一来源（第二十三轮：
+  // 犀角地黄汤、增液汤里生地黄写到 20–30g，此前不走「按上限处理」，修复用尽后整页退成非剂量页，红旗集 2 例）。
+  const pharmacopoeiaSingleSource = limit?.basis === "中华人民共和国药典：2020年版．一部" ||
+    (limit?.sourceType === "routeDose" && typeof limit.basis === "string" && limit.basis.startsWith("中华人民共和国药典：2020年版．一部（"));
+  if (!limit || (limit.sourceType !== "dose" && limit.sourceType !== "routeDose") || !pharmacopoeiaSingleSource || limit.sourceConflict || typeof limit.basis !== "string") return undefined;
+  const { min, max } = limit;
+  const basis: string = limit.basis;
   if (typeof min !== "number" || typeof max !== "number" || !Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || min > max) return undefined;
   const grams = doseInGrams(herb.dose);
   if (grams == null || doseWithinConservativeModelLimit(name, herb.dose, decoctionMethod, pediatric)) return undefined;
@@ -3910,6 +3915,11 @@ export function recordedPopulationCautions(herbName: string, clinicalContext: st
     }
   }
   return [...populations];
+}
+
+/** 这一味药对本例是否属于开方核对要拦的（人群高风险、药典孕妇禁用档、儿童禁用、过敏原同源、活动性出血时的活血化瘀药）。 */
+export function herbBarredForCase(herb: string, clinicalContext: string): boolean {
+  return Boolean(herb.trim() && clinicalContext.trim() && m04GenerationSpecialPopulationIssue([{ name: herb.trim() }], clinicalContext));
 }
 
 export function m04GenerationSpecialPopulationIssue(

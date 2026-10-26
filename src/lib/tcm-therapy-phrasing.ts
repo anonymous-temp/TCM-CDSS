@@ -204,7 +204,7 @@ const SECONDARY_PATTERN_CLAIM = /(?<![无未不非没])[兼夹](?![顾治以备�
  * 依据里「不另立兼证」一类的分句（「痰湿尚未成独立证候，暂作兼夹因素处理」「主证可释」）。兼证核对补上兼证之后，这些分句与兼证栏相抵，
  * 要一并去掉（2026-10-19 Claude 评审 M 集 MTCMB-21、MTCMB-90）。
  */
-const SECONDARY_DENIAL_CLAUSE = /不另立|不单立|不另列|未成独立|尚未成独立|暂作兼夹|主证(?:即|已|足以)?可(?:以)?(?:解)?释|主证可概/u;
+const SECONDARY_DENIAL_CLAUSE = /不另立|不单立|不另列|未成独立|尚未成独立|非独立(?:之)?(?:病)?证|无需另立|不必另立|暂作兼夹|主证(?:即|已|足以)?可(?:以)?(?:解)?释|主证可概/u;
 export function deniesSeparateSecondaryPattern(clause: string): boolean {
   return SECONDARY_DENIAL_CLAUSE.test(clause);
 }

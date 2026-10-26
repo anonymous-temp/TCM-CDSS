@@ -13,6 +13,7 @@
 // 环境变量：CONC（并发，缺省 3）、RUNS（每例重复生成次数，缺省 1）、FOLLOWUP=skip|answer|none（缺省 skip）、
 //           CDSS_CUSTOMER_ID（缺省 hospital-a）、STAGES（缺省 question,redflags,diagnose,prescribe,assess）、SHARD=i/n（分片）、ONLY（按 key 子串筛选）、
 //           REGENERATE=0（不带重新生成头，观察结果复用）、THINK_MS（出题后停顿毫秒数）。
+//           STAGES 不含 question 时病例自带的 conversation 原样带上（回放甲方的原始问答）。
 // 病例文件：[{ key, gold?, expect?, caseState: { chiefComplaint, patient, symptoms: {现病史…}, tongue?, pulse?, vitals?, tcmLineagePreference? } }]
 // 输出：outDir/<key>.r<run>.json，已存在且完整的跳过（断点续跑）。
 import fs from "node:fs";
@@ -111,7 +112,8 @@ async function runCase(entry, run) {
   // 甲方的写法：每一步只带病历、对话与上一步的结构化结果。
   const record = { ...entry.caseState, id: `${entry.caseState.id || entry.key}-${run}-${Date.now().toString(36)}` };
   out.caseId = record.id;
-  let conversation = [];
+  // 回放甲方原始请求时病例自带他们的问答（不跑追问这一步）：原样保留，不清空（2026-10-26 第二十四轮）。
+  let conversation = !STAGES.has("question") && Array.isArray(entry.caseState.conversation) ? entry.caseState.conversation : [];
   if (STAGES.has("question") && FOLLOWUP !== "none") {
     const question = stream(await post("question", { caseState: { ...record, phase: "question", questionRounds: 0 } }));
     const plan = question.structured?.m02Plan;

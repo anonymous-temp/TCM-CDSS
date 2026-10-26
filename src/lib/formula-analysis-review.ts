@@ -1238,7 +1238,17 @@ export function reviewAuthoredFormulaAnalysis(
       mentionedOwn.add(identity || mention.token);
       continue;
     }
-    const before = text.slice(Math.max(0, mention.start - 6), mention.start);
+    // 「去延胡索、川芎、五灵脂」「以三七易延胡索、五灵脂」：去、易、不用管到顿号连着的整串药名，不只是第一味
+    //（2026-10-27 第二十四轮：胎盘早剥一例方义「…易延胡索、五灵脂为君」被当成外来药连「为君」一起删掉）。
+    let listStart = mention.start;
+    for (;;) {
+      const separator = text[listStart - 1];
+      if (!separator || !/[、和及与]/u.test(separator)) break;
+      const previous = mentions.find((item) => item.end === listStart - 1);
+      if (!previous) break;
+      listStart = previous.start;
+    }
+    const before = text.slice(Math.max(0, listStart - 6), listStart);
     const after = text.slice(mention.end, mention.end + 6);
     if (EXEMPT_PREFIX.test(before) || EXEMPT_SUFFIX.test(after)) continue;
     foreign.push(mention);
@@ -1273,7 +1283,11 @@ export function reviewAuthoredFormulaAnalysis(
           // 后半句点了别的药、但那味药不是它的主语（「助当归安其心神」「又制黄连苦寒伤胃」「其中与炙黄芪相使」）：仍是被删那味药的说明，
           // 一并删去（2026-10-19 M 集 BEST4SDT-279、RobustSDT-single_0641，H 集 12291：删掉安神药、干姜之后留下没有主语的半句）。
           // 后面是定角色的那一句（「共为君药」）：说的是前面几味药合起来的角色，留下（下面按剩下的味数改「共为」）。
-          if (!next || (formulaAnalysisHerbMentions(next).length > 0 && !SUBJECTLESS_CONTINUATION.test(next)) ||
+          // 后半句给本方的药定角色（「以三七、蒲黄为君」）：那是本方药自己的一句，不是被删外来药的后半句，留下。
+          // 只点了本方药作宾语的（「助当归安其心神」）仍是被删那味药的说明，照删。
+          const nextOwn = /为[君臣佐使]/u.test(next) &&
+            formulaAnalysisHerbMentions(next).some((mention) => ownRaw.has(mention.token) || ownIdentities.has(identityOf(mention.token)));
+          if (!next || nextOwn || (formulaAnalysisHerbMentions(next).length > 0 && !SUBJECTLESS_CONTINUATION.test(next)) ||
             /^\s*(?:全方|本方|诸药|共奏|合用|全)/.test(next) || /^\s*(?:共|同|合|均|并|皆|俱)?为[君臣佐使]/u.test(next)) break;
           rest = /。$/.test(next) && !opensSentence ? `。${rest.slice(next.length)}` : rest.slice(next.length);
           if (/[；;。]$/.test(next)) break;
@@ -1344,7 +1358,7 @@ const BASE_FORMULA_OPENING = /^本方(?:为|系|乃)?(以)?([^，,。；;：:、
  * 开头不是这几种写法（「方中…」「以X为君」）时不动；开头点到的不是已收录方名（「本方以补气活血为法」）时不动。
  * 最终方名由服务端定（目录方或教材代表方，教材方不一定在方剂目录里，如鹿茸补涩丸），这里不再查它是否收录。
  */
-export function withOpeningMatchingFormulaName(analysis: string, finalName: string): { text: string; changed: boolean } {
+export function withOpeningMatchingFormulaName(analysis: string, finalName: string, original = false): { text: string; changed: boolean } {
   if (typeof analysis !== "string" || !analysis.trim()) return { text: analysis, changed: false };
   const name = String(finalName || "").trim();
   const selfComposed = !name || /^(?:自拟方?|本例辨证组方|辨证组方)(?:加减|加味)?$/u.test(name);
@@ -1352,10 +1366,14 @@ export function withOpeningMatchingFormulaName(analysis: string, finalName: stri
   // 方名既不是自拟方、也不像方名（不以汤、散、丸、饮、丹、膏、煎、方结尾，也拆不成已收录方名）时不动。
   if (!selfComposed && !/[汤散丸饮丹膏煎方]$/u.test(label) && formulaNameComponents(label).length === 0) return { text: analysis, changed: false };
   const normalize = (value: string) => value.replace(/[《》\s]/gu, "").replace(/(?:加减|化裁|加味)$/u, "");
+  // 处方组成与方剂目录的原方逐味相同（调用方据组成判定后传入 original）而方义开头写「以X为基础加减」，与方名说法相左
+  //（2026-10-26 甲方测评「方名（柴胡疏肝散-柴胡疏肝散加减）」）：开头改成「本方用X原方」。组成不同的，方名补「加减」（交付面）。
+  const originalFormula = original && !selfComposed && !/(?:加减|化裁|加味)$/u.test(name);
+  const baseOpening = originalFormula ? `本方用${label}原方` : `本方以${label}为基础加减`;
   const self = analysis.match(SELF_COMPOSED_OPENING);
   if (self) {
     if (selfComposed) return { text: analysis, changed: false };
-    const text = `本方以${label}为基础加减${analysis.slice(self[0].length)}`;
+    const text = `${baseOpening}${analysis.slice(self[0].length)}`;
     return { text, changed: text !== analysis };
   }
   const base = analysis.match(BASE_FORMULA_OPENING);
@@ -1363,8 +1381,9 @@ export function withOpeningMatchingFormulaName(analysis: string, finalName: stri
   const rest = analysis.slice(base[0].length);
   let opening: string;
   if (selfComposed) opening = `本方为自拟方，参照${base[2]}化裁`;
-  else if (normalize(base[2]) !== normalize(label)) opening = `本方以${label}为基础加减`;
-  else if (/^本方(?:为|系|乃)/u.test(base[0])) opening = `本方以${label}为基础加减`;
+  else if (normalize(base[2]) !== normalize(label)) opening = baseOpening;
+  else if (/^本方(?:为|系|乃)/u.test(base[0])) opening = baseOpening;
+  else if (originalFormula) opening = baseOpening;
   else return { text: analysis, changed: false };
   const text = `${opening}${rest}`;
   return { text, changed: text !== analysis };

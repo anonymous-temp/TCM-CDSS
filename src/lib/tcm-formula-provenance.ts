@@ -1145,6 +1145,8 @@ export function formulaCompilationContractIssue(
   prior: ClinicalReasoningResultV2 | null | undefined,
   trustedWorkbenchEdit = false,
   allowTransparentDeclassification = true,
+  /** 本例不宜的药（herbBarredForCase 按本例接地正文判）；锁定方组成里有这样的药时，透明降级为辨证组方直接受理。 */
+  barredForCase?: (herb: string) => boolean,
 ): string | undefined {
   const candidate = reasoning?.formula?.candidates?.[0];
   if (!reasoning || reasoning.stage !== "prescribe" || !candidate || !prior || prior.stage !== "diagnose") {
@@ -1201,6 +1203,9 @@ export function formulaCompilationContractIssue(
     // 锁定方原组成里有药典孕妇禁用的药（香棱丸的三棱、莪术）：备孕、妊娠状态未记录的育龄女性按提示词去掉这几味、改按辨证组方命名，同样受理
     //（2026-10-24 第十七轮；没有这一档的病例模型不会去掉它们，这里只放行「已透明降级」这一种写法）。
     if (references.some((reference) => reference.ingredients.some((herb) => chpPregnancyLabel(herb)?.level === "prohibited"))) return undefined;
+    // 锁定方组成里有本例不宜的药（第二十三轮：胎盘早剥、活动性出血时锁定少腹逐瘀汤，君药延胡索、川芎是活血化瘀药）：
+    // 开方核对一定拦下这几味，照原方开不出来；提示词让模型去掉、改按辨证组方命名，这里受理。判据只认本例（按接地正文），不是所有含这类药的方。
+    if (barredForCase && references.some((reference) => reference.ingredients.some((herb) => barredForCase(herb)))) return undefined;
     // Provider generation gets a chance to honour an M03-governed classic baseline. Transparent
     // declassification remains a valid final safety fallback, but accepting it during provider
     // validation would suppress the targeted composition repair entirely.
@@ -1525,10 +1530,47 @@ export function withSymptomDirectedClause(rowMethod: string, modelMethod: string
  * @param clinicalSourceText 病历原文（接地语料，M03 路径的 structuredClinicalContext）。给了时，锚定的教材治法逐项核对
  *   对症项（止血、安神、开窍…）：病历没有对应表现的项不锚定（therapyWithoutUnsupportedSymptomItems）。不给时与此前完全一致。
  */
-export function withDeterministicFormulaReferences(input: ClinicalReasoningResultV2, clinicalSourceText?: string, lineagePreference?: string): ClinicalReasoningResultV2 {
+/**
+ * 本例的安全事实（由调用方按本例接地正文算好传进来，避免本模块反向依赖安全层）。教材锚定遇到它们时不覆盖模型的写法（第二十三轮）：
+ *   · activeBleeding：有活动性出血红旗时，教材行的治法若是活血/化瘀/逐瘀而不含止血，不锚定治法（胎盘早剥·瘀血内停证，
+ *     教材「活血化瘀，和络止痛」覆盖了按「止血为先」写的治法）；
+ *   · barredHerb：教材代表方或锁定方的组成里有本例不宜的药时，不把方向改成那首方，保留模型写的方向。
+ */
+export type FormulaReferenceCaseSafety = { activeBleeding: boolean; barredHerb: (herb: string) => boolean };
+const BLOOD_MOVING_METHOD = /活血|化瘀|逐瘀|祛瘀|散瘀|破血|破瘀/u;
+function bloodMovingWithoutHemostasis(method: string): boolean {
+  return BLOOD_MOVING_METHOD.test(method) && !/止血/u.test(method);
+}
+/**
+ * 方向里的方对本例是不是「去掉不宜的药就不成其方」：本例不宜的药占该方组成的三分之一以上或达 3 味，或活动性出血时方名本身就是
+ * 逐瘀、活血、化瘀、破血一类（少腹逐瘀汤、会厌逐瘀汤）。只去一两味次要药的（四物汤去川芎、仙方活命饮去乳香没药）不算，方名照留，
+ * 开方阶段去掉那几味并写明。
+ */
+function directionBarredForCase(direction: string, reasoning: ClinicalReasoningResultV2, caseSafety: FormulaReferenceCaseSafety): boolean {
+  const names = identifyKnownFormulaNames(direction);
+  if (names.length === 0) return false;
+  const row = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
+  return names.some((name) => {
+    if (caseSafety.activeBleeding && BLOOD_MOVING_FORMULA_NAME.test(name)) return true;
+    const reference = formulaCompilationReferences([name])[0];
+    const herbs = [...new Set(reference?.ingredients || (row?.formulas.includes(name) ? row.composition || [] : []))];
+    if (herbs.length === 0) return false;
+    const barred = herbs.filter((herb) => caseSafety.barredHerb(herb)).length;
+    return barred >= 3 || barred * 3 >= herbs.length;
+  });
+}
+const BLOOD_MOVING_FORMULA_NAME = /逐瘀|活血|化瘀|破血|祛瘀|破瘀/u;
+
+export function withDeterministicFormulaReferences(input: ClinicalReasoningResultV2, clinicalSourceText?: string, lineagePreference?: string, caseSafety?: FormulaReferenceCaseSafety): ClinicalReasoningResultV2 {
   const reasoning = input.stage === "diagnose" ? withTextbookSyndromeName(input) : input;
   if (reasoning.stage === "diagnose") {
-    const direction = textbookAnchoredFormulaDirection(reasoning, lineagePreference);
+    const modelDirection = String(reasoning.overview?.recommendedFormulaDirection || "");
+    const anchoredDirection = textbookAnchoredFormulaDirection(reasoning, lineagePreference);
+    // 教材代表方对本例不宜时不改成它，保留模型写的；模型写的也不宜时，方向改为辨证组方（不再挂一首去掉主药就不成其方的方名）。
+    const preferred = caseSafety && anchoredDirection !== modelDirection && directionBarredForCase(anchoredDirection, reasoning, caseSafety)
+      ? modelDirection
+      : anchoredDirection;
+    const direction = caseSafety && directionBarredForCase(preferred, reasoning, caseSafety) ? "按已锁定病机与治法辨证组方" : preferred;
     const identifiedNames = identifyKnownFormulaNames(direction);
     const identifiedMode = formulaSelectionMode(direction, identifiedNames);
     const identityGovernedNames = identifiedNames.filter((name) => formulaCompilationReferences([name]).length === 1);
@@ -1570,9 +1612,10 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     // 否则方是桂枝汤、治法却是「辛温解表，宣肺散寒」，方与治法对不上，开方阶段按治法核方会把它退成自拟方。
     const lineageKept = Boolean(textbookRow) &&
       lineageChosenFormulaDirectionKept(reasoning, String(reasoning.overview?.recommendedFormulaDirection || ""), lineagePreference);
+    const bleedingBarsRowMethod = Boolean(caseSafety?.activeBleeding) && bloodMovingWithoutHemostasis(recordRowMethod);
     const anchoredMethod = lineageKept
       ? lineageKeptTherapy(reasoning, String(reasoning.overview?.recommendedFormulaDirection || ""))
-      : textbookRow && secondary.length === 0 && recordRowMethod
+      : textbookRow && secondary.length === 0 && recordRowMethod && !bleedingBarsRowMethod
         ? supportedByRecord(withSymptomDirectedClause(recordRowMethod, String(reasoning.therapy?.overallMethod || "")))
         : "";
     return lineageDecisionsMatchingDirection(withoutForeignLineageLensSentence({
@@ -1984,14 +2027,14 @@ export function stripUntrustedM04IdentityMetadata(content: string): string {
   );
 }
 
-export function applyDeterministicFormulaReferences(content: string, clinicalSourceText?: string, lineagePreference?: string): string {
+export function applyDeterministicFormulaReferences(content: string, clinicalSourceText?: string, lineagePreference?: string, caseSafety?: FormulaReferenceCaseSafety): string {
   return content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
     (match, jsonText: string) => {
       try {
         const parsed = JSON.parse(jsonText) as ClinicalReasoningResultV2;
         if (parsed.schemaVersion !== "tcm-cdss-reasoning-v2") return match;
-        const next = withDeterministicFormulaReferences(parsed, clinicalSourceText, lineagePreference);
+        const next = withDeterministicFormulaReferences(parsed, clinicalSourceText, lineagePreference, caseSafety);
         if (parsed.stage === "diagnose" && lineagePreference && lineagePreference !== "unrestricted") {
           // 流派选方的去留（方名与流派代码，无病历内容）：选了流派而方被改回教材代表方的比例只能从这里看到。
           console.info("[tcm-cdss:telemetry] lineage_formula_direction", {

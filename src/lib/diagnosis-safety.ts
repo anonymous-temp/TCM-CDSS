@@ -1381,6 +1381,16 @@ const PROSPECTIVE_INSTRUCTION_SENTENCE = new RegExp(`${PROSPECTIVE_CARE_DIRECTIV
 const CHART_ASSERTION_MARKER = /患者|病人|患儿|本例|否认|病历|已记录|既往|查体|检查示/;
 
 /**
+ * 「无」只否认紧跟的一个独立成词的体征（有限闭集的构词式守卫）。两处用、口径不同，方向各自从严：
+ *  · 净化器的前置否认作用域（顿号列举）：只认「无汗」「无痰」「无苔」三个词（2026-10-19）。「无汗出、发热」仍按两项一并否认——
+ *    可见文本里按否认读是保守方向（negation-scope-ends-at-affirmed-item 的对照）。
+ *  · 闸门的逗号延续：另认「无汗出」与「无汗而喘」（无只管汗，喘是阳性）。闸门里把逗号后的抽搐、神志昏蒙读成否认是漏报红旗，
+ *    这里多认一个词是保守方向（第二十四轮，lexicalized-sign-negation-stops-at-comma）。
+ */
+const LEXICALIZED_NEGATED_SIGN_IN_LIST = /^无[汗痰苔]$/u;
+const LEXICALIZED_NEGATED_SIGN = /^无(?:汗出?|痰|苔)(?:而[^，,、。；;]*)?$/u;
+
+/**
  * 一个小句里否认词管得到的那一段（构词式守卫，闭集）。前置否认词（无/否认/未见…）管它后面的部分；
  * 否认词前面紧挨着「均/皆/俱/都/亦/也」，或否认词后面已经没有汉字时，是后置否认，管整句。
  * `probe` 是与 `clause` 等长、已抹掉固定说法的探针。
@@ -1401,7 +1411,7 @@ function clauseNegationScope(clause: string, probe: string): string {
   //（甲方标准病历 1 本地复测三次中两次）。「无恶心、呕吐」这类普通列举照旧一并否认。
   const scope = clause.slice(matches[0].index ?? 0);
   const items = scope.split("、");
-  if (/^无[汗痰]$/u.test(items[0].trim())) return items[0];
+  if (LEXICALIZED_NEGATED_SIGN_IN_LIST.test(items[0].trim())) return items[0];
   const affirmedAt = items.findIndex((item, index) => index > 0 && NEGATION_SCOPE_AFFIRMED_ITEM.test(item.trim()));
   return affirmedAt > 0 ? items.slice(0, affirmedAt).join("、") : scope;
 }
@@ -3323,6 +3333,11 @@ function isNegatedAt(text: string, index: number, afterTermScope: "window" | "cl
     return false;
   }
   const commaIndex = Math.max(afterNegation.lastIndexOf("，"), afterNegation.lastIndexOf(","));
+  // 「无」只否认紧跟的一个独立成词的体征（无汗、无痰、无苔）就到逗号为止：「恶寒发热，无汗，头身疼痛」的头身疼痛、
+  //「少苔或无苔，舌面生津」的舌面生津都是阳性（第二十四轮甲方 api-ba8a：输出写「未见舌面生津」，病历明写「舌面生津」）。
+  // 与净化器 clauseNegationScope 的「无汗/无痰」同一条（2026-10-19），有限闭集的构词式守卫。
+  const firstCommaAfterCue = afterNegation.search(/[，,]/u);
+  if (last[0] === "无" && firstCommaAfterCue >= 0 && LEXICALIZED_NEGATED_SIGN.test(`无${afterNegation.slice(0, firstCommaAfterCue).trim()}`)) return false;
   if (commaIndex >= 0) {
     const afterComma = afterNegation.slice(commaIndex + 1);
     const beforeComma = afterNegation.slice(0, commaIndex);
@@ -3552,6 +3567,19 @@ function hasAnaphylacticAirwayEmergency(text: string): boolean {
   ) || ((parseContextualSpo2(normalized) ?? 100) <= 91) || bloodPressureIsCritical(parseContextualBloodPressure(normalized));
   if (recentExposure && allergicManifestation && airwayBreathingCirculation) return true;
   return false;
+}
+
+/** 皮肤过敏表现之外、构成严重过敏所需的受累表现（WAO 2020：呼吸、循环/灌注、严重胃肠道），有限闭集。 */
+const ANAPHYLAXIS_INVOLVEMENT_COMPANIONS = ["气促", "气喘", "喘憋", "喘息", "胸闷", "憋气", "憋闷", "呼吸微弱", "呼吸急促", "喉头", "喉咙肿", "吞咽困难", "血压下降", "晕厥", "黑矇", "腹痛", "呕吐"];
+
+/** 写到了且没被否认（不论是否带「发作时」这类时间限定：「风团发作时出现呕吐」就是胃肠受累）。 */
+function mentionedWithoutNegation(text: string, terms: readonly string[]): boolean {
+  return terms.some((term) => {
+    for (let index = text.indexOf(term); index >= 0; index = text.indexOf(term, index + term.length)) {
+      if (!isNegatedAt(text, index)) return true;
+    }
+    return false;
+  });
 }
 
 function hasAnyTerm(text: string, terms: string[]): boolean {
@@ -5182,7 +5210,9 @@ export function febrileChestTightnessDeferralApplies(state: CaseState): boolean 
  * 「不宜用于妇女月经过多以及其他出血证而无瘀血现象者」。认的是本闸门自己写的几条出血红旗原句（闭集，代码常量），
  * 不另起一套出血判据：消化道出血、重度血小板减少、咯血、妊娠期与非妊娠期大量阴道出血。
  */
-const ACTIVE_BLEEDING_RED_FLAG = /活动性消化道出血|重度血小板减少|咯血|阴道流血|阴道出血/u;
+// 第二十三轮实测补全：事实层的处置去向写「需排除：…腹腔内出血」「…蛛网膜下腔出血」「…失血性休克」「下消化道活动性出血」，
+// 原先这五个短语一个也认不出（异位妊娠破裂开了乳香、没药，雷击样头痛开了牛膝、益母草）。「出血风险/出血倾向」不是出血。
+const ACTIVE_BLEEDING_RED_FLAG = /活动性[^，。；、]{0,8}出血|消化道[^，。；、（）]{0,8}出血(?!风险|倾向)|重度血小板减少|咯血|呕血|便血|黑便|阴道(?:流|出)血|腹腔内出血|颅内出血|脑出血|蛛网膜下腔出血|失血性休克|出血性休克|大出血/u;
 export function hasActiveBleedingRedFlag(redFlags: readonly string[]): boolean {
   return redFlags.some((flag) => ACTIVE_BLEEDING_RED_FLAG.test(flag));
 }
@@ -5916,9 +5946,18 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
     hasPatternWithoutNegation(text, /无尿(?![痛频急道意感等])/)) {
     addAdvisory("shock", "循环灌注异常线索需立即复核血压、意识、尿量及末梢循环");
   }
-  if (hasAnyTerm(text, [...governedRedFlagCategory("anaphylaxis").symptoms,
-    "风团", "荨麻疹", "脸肿", "喉紧", "喉头肿胀", "声音嘶哑"])) {
-    addAdvisory("anaphylaxis", "严重过敏或气道受累线索需立即复核气道、呼吸和循环");
+  // 皮肤表现（风团、荨麻疹）本身不是严重过敏：WAO 2020 过敏反应判据要求皮肤表现同时伴呼吸受累、血压下降或靶器官
+  // 灌注不足、严重胃肠道症状之一。此前单写「风团」就提示「严重过敏或气道受累」，10/26 甲方测评病历 9（荨麻疹，
+  // 病历写明「无胸闷、气促，无腹痛、腹泻，无喉头梗阻感」）两次都被当成过度预警。气道表现照旧单独成立。
+  {
+    const anaphylaxis = governedRedFlagCategory("anaphylaxis");
+    const skinOnly = new Set(["全身风团"]);
+    const airway = [...anaphylaxis.symptoms.filter((term) => !skinOnly.has(term)), "脸肿", "喉紧", "喉头肿胀"];
+    const involvement = [...anaphylaxis.dangerCompanions, ...ANAPHYLAXIS_INVOLVEMENT_COMPANIONS];
+    if (hasAnyTerm(text, airway) ||
+      (hasAnyTerm(text, [...skinOnly, "风团", "荨麻疹"]) && mentionedWithoutNegation(text, involvement))) {
+      addAdvisory("anaphylaxis", "严重过敏或气道受累线索需立即复核气道、呼吸和循环");
+    }
   }
   if (hasAnyTerm(text, [...governedRedFlagCategory("pediatric_critical").symptoms,
     "发绀", "精神萎靡", "反应差", ...PEDIATRIC_DETECTION.colloquialCriticalSigns]) && isPediatricPatient(state)) {
@@ -8076,6 +8115,13 @@ function withoutExclusionAlreadyInVisit(visit: string, text: string): string {
   return text.slice(head[0].length) || text;
 }
 
+function focusWithoutNestedExclusion(focus: string | undefined): string {
+  const text = String(focus || "").trim();
+  const inner = text.match(/[（(](?:需)?(?:排除|除外)([^（）()]+)[）)]/u)?.[1];
+  if (inner) return inner.trim();
+  return text.replace(/[（(][^（）()]*[）)]/gu, "").trim();
+}
+
 function priorityEvaluationPlan(input: PriorityEvaluationTarget | string): PriorityEvaluationPlan {
   const target = priorityEvaluationTarget(input);
   const window = PRIORITY_WINDOW_LABELS.get(target.window) || "3天内";
@@ -8088,7 +8134,9 @@ function priorityEvaluationPlan(input: PriorityEvaluationTarget | string): Prior
       ...("afterStep" in pathway && typeof pathway.afterStep === "string" ? { afterStep: pathway.afterStep } : {}),
     };
   }
-  const focus = target.focus;
+  // 事实层写的待排除项自带括号说明时（「异常子宫出血（需排除子宫内膜病变、凝血功能障碍或内分泌疾病）」），
+  // 只取括号里真正要排除的那些，不套成「需排除异常子宫出血（需排除…）」两层括号（2026-10-26 甲方测评病历 10 本机复测）。
+  const focus = focusWithoutNestedExclusion(target.focus);
   return focus
     ? { window, visit: `到相关专科就诊，先完成评估（需排除${focus}）`, nodeVisit: "到相关专科完成评估", clearance: "医生确认可以服药后" }
     : { window, visit: "到医院完成评估、核实病情", nodeVisit: "到医院完成评估", clearance: "医生确认可以服药后" };

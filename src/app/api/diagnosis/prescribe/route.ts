@@ -12,15 +12,17 @@ import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-pa
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { pediatricDoseRuleGuidance, pediatricDoseRuleSummary, pediatricRestrictedHerbNames } from "@/lib/pediatric-dose-rule";
 import { chpPregnancyHerbTier, chpPregnancyProhibitedHerbNames, formulaBaseHerbsBarredInPregnancy } from "@/lib/conception-herb-policy.server";
+import { formulaBaseHerbsBarredForCase } from "@/lib/formula-base-herbs-barred.server";
+import { ACTIVE_BLEEDING_M04_RULE } from "@/lib/active-bleeding-treatment";
 import { herbRecordCautionPromptSection, textbookBaseIngredients } from "@/lib/herb-record-caution";
 import { textbookRowForSyndrome } from "@/lib/tcm-textbook-syndromes";
-import { authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, registerActiveBleedingRedFlags } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, registerActiveBleedingRedFlags, activeBleedingInGroundingText } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { reconcileRecordedHistoryClaimsInPrescribeContent, recordedHistoryFields } from "@/lib/record-history-consistency";
 import { applyTcmTreatmentCapabilityPriority } from "@/lib/tcm-treatment-capabilities.server";
-import { m03SafetyContractIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
+import { herbBarredForCase, m03SafetyContractIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
 import { isM04FinalizerDeferredLabelIssue, isSafetyRejection } from "@/lib/diagnosis-rejection-tiers";
 import { isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { enforceReviewedPrescriptionOutput } from "@/lib/prescription-output-safety";
@@ -327,6 +329,16 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   if (pregnancyHerbTier === "conception") {
     promptSuffixes.push(`【备孕/未避孕】本例记录了备孕或未避孕，未见妊娠、哺乳记录：照常给出剂量。不得使用《中国药典》2020年版孕妇禁用/忌用的饮片（${chpPregnancyProhibitedHerbNames().join("、")}）；孕妇慎用的饮片（如桃仁、红花、牛膝、附子、肉桂、大黄、枳实）非必需不用，用则在注意事项写明使用前确认未妊娠、月经逾期者先验孕。${tierBarredLine}`);
   }
+  // 锁定方或教材代表方的组成里本例不宜的药（整类，第二十三轮；备孕档的药典孕妇禁用已在上面那一句里）：先告诉模型去掉、改按辨证组方命名，
+  // 合同按同一判据受理透明降级（formulaCompilationContractIssue 的 barredForCase）。胎盘早剥时锁定少腹逐瘀汤（君药延胡索、川芎）就是这一类。
+  const tierBarredNames = new Set(tierBarredBaseHerbs.map((item) => item.herb));
+  const caseBarredBaseHerbs = signedPriorReasoning?.stage === "diagnose"
+    ? formulaBaseHerbsBarredForCase(signedPriorReasoning, structuredClinicalContext).filter((item) => !tierBarredNames.has(item.herb))
+    : [];
+  if (caseBarredBaseHerbs.length > 0) {
+    promptSuffixes.push(`【锁定方中本例不宜的药】锁定方或教材代表方的组成里有本例不宜的药：${caseBarredBaseHerbs.map((item) => `${item.herb}（${item.formula}；${item.reason}）`).join("、")}。本次去掉，不再沿用原方名，candidate.name 写「本例辨证组方」，可按已定治法加本例适宜的同功效药；formulaAnalysis 第一句写明参照哪首方、去了哪几味及原因。`);
+  }
+  if (activeBleedingInGroundingText(structuredClinicalContext)) promptSuffixes.push(ACTIVE_BLEEDING_M04_RULE);
   // 饮片使用注意与本例（2026-10-19 甲方标准病历 3：熟地黄为君，病历食欲下降、大便稀溏；《中药学》熟地黄「食少便溏者忌服」）：
   // 事先列给模型，不靠修复轮。编译器对仍写进处方的那一味逐味写明（herb-record-caution）。没有冲突时提示词不变。
   if (signedPriorReasoning?.stage === "diagnose") {
@@ -355,6 +367,18 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   }
   if (noExecutableFormulaPath) {
     promptSuffixes.push(`【方名剂量基准缺失】推荐方 ${unavailableFormulaNames.join("、")} 在本地标准剂量资料中暂无可执行的逐味剂量基准。请按已锁定证候与治法自拟组方（constructionType=self_devised，不得沿用该方名身份），方名方向已另行保留给医生参考。`);
+  }
+  // 饮片味数（甲方 100 例测试集逐例设定）：正文【饮片味数】一段在提示词中部，第二十三轮实测选了味数的 73 例里 11 例落在区间外
+  //（多是选「15 味及以上」得 11–14 味）。在提示词末尾再要求输出前数一遍——只提醒核对，补足或精简的办法仍按正文那一段。
+  const herbCountLabel = gated.herbCountPreference === "within_10" ? "10 味以内"
+    : gated.herbCountPreference === "between_10_15" ? "10–15 味"
+    : gated.herbCountPreference === "at_least_15" ? "15 味及以上" : "";
+  // 目标留出余量：服务端定稿时可能因本例安全边界或治法方向剔除个别药味（第二十四轮复测：选 15 味以上的 3 例都停在 14 味）。
+  const herbCountTarget = gated.herbCountPreference === "within_10" ? "8–9 味"
+    : gated.herbCountPreference === "between_10_15" ? "12–13 味"
+    : gated.herbCountPreference === "at_least_15" ? "16–17 味" : "";
+  if (herbCountLabel) {
+    promptSuffixes.push(`【饮片味数核对】医生选择的饮片味数是「${herbCountLabel}」，以 ${herbCountTarget} 为目标（服务端可能因本例安全边界剔除个别药味，留出余量）。输出前数一遍 candidate.herbs 的味数（不含 modifications）：不在区间内，就按上文【饮片味数】一段补足或精简后再输出；确实做不到时在 formulaAnalysis 末尾用半句写明原因。`);
   }
   if (doseWithheldReasons.length > 0) {
     // 模型仍需产出完整结构（剂量字段参与服务端的药典边界与配伍核验），但必须知道本例
@@ -545,7 +569,7 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
       // 真正的判定只有 safetyIssue 这一条（2026-09-25 收敛；路由级差分验证输出逐字节不变）。
       // 为什么全量语义合同不能替代 T1 重跑：m04SemanticIssue 命中第一个问题就短路返回，
       // 检查顺序不反映临床严重度，拿到一个 T2 码只证明排在它前面的检查通过了。
-      const qualityIssue = safetyIssue ? "" : formulaCompilationContractIssue(reasoning, signedPriorReasoning, false, true) || declassificationTherapyIssue || m04SemanticIssue(
+      const qualityIssue = safetyIssue ? "" : formulaCompilationContractIssue(reasoning, signedPriorReasoning, false, true, (herb) => herbBarredForCase(herb, structuredClinicalContext)) || declassificationTherapyIssue || m04SemanticIssue(
         reasoning,
         "",
         signedPriorReasoning,

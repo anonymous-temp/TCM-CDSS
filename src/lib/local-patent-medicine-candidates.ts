@@ -592,7 +592,7 @@ export function signedDirectionOf(prior: Pick<ClinicalReasoningResultV2, "overvi
   return names || method ? { names, method } : undefined;
 }
 
-export type MedicineDirectionConflict = "tonic_for_excess" | "attack_for_deficiency" | "cold_for_cold_case" | "warm_for_heat_case" | "excess_indication_for_deficiency";
+export type MedicineDirectionConflict = "tonic_for_excess" | "attack_for_deficiency" | "cold_for_cold_case" | "warm_for_heat_case" | "excess_indication_for_deficiency" | "deficiency_indication_for_excess";
 
 const DEFICIENT_NAME = /虚|亏|不足|失养|不固|不摄|怯|衰|脱/u;
 const EXCESS_NAME = /热|火|湿|痰|饮|瘀|滞|郁|积|毒|风|寒|燥|亢|扰|犯|乘|旺|束|蕴|阻|结|闭/u;
@@ -650,6 +650,64 @@ function medicineThermalByComposition(herbs: readonly string[]): "cold" | "warm"
  *（润肠丸）。本例证名是纯虚证（阴虚秘）时它与证候虚实相反（2026-10-24 甲方 100 例 C014 中成药评审不合格）。只认带「实」字的写法。
  */
 const INDICATION_EXCESS = /实(?:热|火|证|寒)/u;
+const INDICATION_DEFICIENCY = /[阴阳气血精津]虚|两虚|亏虚|不足|虚弱|虚损|虚寒/u;
+
+/** 说明书「用于」部分写的证：「X所致」的 X，否则第一个逗号前的一句（「阴虚血热，月经先期」→ 阴虚血热）；不像证名的返回空。 */
+export function labelSyndromePhrase(usedFor: string): string {
+  const text = String(usedFor || "").replace(/^[。；，,\s]*(?:本品)?(?:用于|主治|适用于)?/u, "");
+  const caused = text.match(/^([^，,。；;]{2,10}?)(?:所致|引起|导致)/u)?.[1];
+  const first = caused || (text.split(/[，,。；;]/u)[0] || "");
+  return /[虚实热寒湿痰瘀郁滞火风燥毒亏损衰]|不足/u.test(first) && first.length <= 10 ? first : "";
+}
+
+/**
+ * 中成药说明书「用于」部分是否说到本例的主要问题（2026-10-26 甲方测评：蛇串疮推荐穿黄清热胶囊——说明书写的是热毒所致急性上呼吸道感染、
+ * 扁桃体炎、咽喉炎；龙血竭胶囊——跌打损伤、瘀血作痛；月经先期推荐乳癖康胶囊——乳腺增生，是由追问答出的乳房胀痛检索来的）。
+ * 主要问题 = 主诉、中医病名、西医诊断、已签名的证。三条任一成立即算说到：
+ *  · 受治理概念表（medicine-clinical-concepts，与检索同一份）在主要问题与「用于」部分之间有病证或问题概念相合；
+ *  · 「用于」部分写着中医病名、西医诊断（去「待查」）或主诉里的症状；
+ *  · 说明书写的证与本例的证有两个以上相同的字（肝胆湿热对肝经郁热，心脾两虚对心虚胆怯）。
+ * 说明书查不到的返回 undefined（不判）。
+ */
+export function patentMedicineCoversMainProblem(indication: string, main: {
+  chiefComplaint?: string; tcmDiseaseName?: string; westernName?: string; syndromes?: readonly string[];
+}): boolean | undefined {
+  if (!indication || !indication.trim()) return undefined;
+  const clause = medicineFunctionClause(indication);
+  const usedFor = indication.slice(clause.length) || indication;
+  const syndromes = (main.syndromes || []).map((item) => String(item || "").replace(/证$/u, "").trim()).filter(Boolean);
+  const western = String(main.westernName || "").replace(/待查$|待排$/u, "").trim();
+  const disease = String(main.tcmDiseaseName || "").trim();
+  const complaintTerms = String(main.chiefComplaint || "")
+    .split(/[，,、；;。及和伴]/u)
+    .map((item) => item.replace(/\d+[^，,、]*$|[半一二三四五六七八九十数]+(?:个)?(?:天|日|周|月|年)[余多]?$/u, "").trim())
+    .filter((item) => item.length >= 2);
+  const mainText = [main.chiefComplaint, disease, western, ...syndromes].filter(Boolean).join("，");
+  const concepts = matchingMedicineClinicalConcepts(mainText, usedFor);
+  if (concepts.some((concept) => concept.axis === "problem")) return true;
+  if ([disease, western, ...complaintTerms, ...syndromes].some((term) => term && term.length >= 2 && usedFor.includes(term))) return true;
+  const labelSyndrome = labelSyndromePhrase(usedFor);
+  // 说明书在证之后点名了具体的病（乳腺增生、跌打损伤、急性上呼吸道感染…）、而上面没有一个对得上本例：只是证相近不够
+  //（乳癖康胶囊「肝气郁结，气滞血瘀所致的乳腺增生」与肝郁血热的月经先期证相近，病不同）。只列症状的（六味地黄丸「肾阴亏损，
+  // 头晕耳鸣，腰膝酸软…」）证相合即可。
+  const labelItems = usedFor.replace(/^[。；，,\s]*(?:本品)?(?:用于|主治|适用于)?/u, "").split(/[，,、；;。]|所致的?|引起的?/u).map((item) => item.trim()).filter(Boolean);
+  if (labelItems.some((item) => LABEL_SPECIFIC_DISEASE.test(item))) return false;
+  if (concepts.some((concept) => concept.axis === "syndrome")) return true;
+  if (labelSyndrome && syndromes.some((syndrome) => [...new Set(syndrome)].filter((character) => /[\u4e00-\u9fff]/u.test(character) && labelSyndrome.includes(character)).length >= 2)) return true;
+  return false;
+}
+
+/** 说明书里的具体病名（不是症状）：以增生、炎、病、综合征、结节、瘤、癌、溃疡、感染、损伤、骨折、疮、疹、癣、痔、疝结尾，有限闭集。 */
+const LABEL_SPECIFIC_DISEASE = /(?:增生|炎|病|综合征|结节|瘤|癌|溃疡|感染|损伤|骨折|(?<![生口])疮|疹|癣|痔|疝)$/u;
+
+/** 说明书写的证与本例的证相合（用于把对证的中成药排在前面，见编译器）。 */
+export function patentMedicineMatchesSignedSyndrome(indication: string, syndromes: readonly string[]): boolean {
+  const clause = medicineFunctionClause(indication);
+  const labelSyndrome = labelSyndromePhrase(indication.slice(clause.length) || indication);
+  if (!labelSyndrome) return false;
+  return syndromes.map((item) => String(item || "").replace(/证$/u, "")).some((syndrome) =>
+    [...new Set(syndrome)].filter((character) => /[\u4e00-\u9fff]/u.test(character) && labelSyndrome.includes(character)).length >= 2);
+}
 export function patentMedicineDirectionConflict(
   medicine: { clause: string; herbs: readonly string[] | (() => readonly string[]); indication?: string },
   direction: SignedDirection,
@@ -671,6 +729,15 @@ export function patentMedicineDirectionConflict(
   }
   const usedFor = medicine.indication ? medicine.indication.slice(clause.length) : "";
   if (usedFor && INDICATION_EXCESS.test(usedFor) && caseDeficient && !caseExcess) return "excess_indication_for_deficiency";
+  // 说明书写的证是虚证（「用于阴虚血热，月经先期」）、本例是纯实证（肝郁血热、阳盛血热）：方向相反
+  //（2026-10-26 甲方测评病历 10「固经丸适合阴虚血热，此病历为实热」）。说明书的证里另有与本例相同的邪实要素时
+  //（加味逍遥丸「肝郁血虚」对肝郁血热，都有「郁」）不算相反。虚热、虚火（阴虚血热）是虚证的热象，不算邪实。
+  const labelSyndrome = labelSyndromePhrase(usedFor);
+  // 治法里本有补、润、养一类（风燥伤肺·润燥止咳）时不算相反，与上面纯补药的口径相同。
+  if (labelSyndrome && INDICATION_DEFICIENCY.test(labelSyndrome) && caseExcess && !caseDeficient && method && !METHOD_HAS_TONIC.test(method)) {
+    const labelExcess = [...labelSyndrome.replace(/[阴血气阳精津]虚(?:血|内)?[热火]/gu, "")].filter((character) => EXCESS_NAME.test(character));
+    if (!labelExcess.some((character) => names.includes(character))) return "deficiency_indication_for_excess";
+  }
   // 寒热：本例证名只有寒（或只有热），治法也没有反向字样。
   const caseColdOnly = /寒/u.test(names) && !/热|火|暑/u.test(names) && !MEDICINE_COLD.test(method);
   const caseHeatOnly = /热|火|暑/u.test(names.replace(/虚热|虚火/gu, "")) && !/寒/u.test(names) && !MEDICINE_WARM.test(method);

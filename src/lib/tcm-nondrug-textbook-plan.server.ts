@@ -1162,13 +1162,17 @@ function clauseQualifierVerdict(
 }
 
 export function cardSentencesMatchedToSyndrome(
-  text: string,
+  rawText: string,
   diseaseNames: readonly string[],
   signedSyndromeText: string,
   course?: "acute" | "chronic",
 ): string {
   const syndrome = String(signedSyndromeText || "");
-  if (!text || !syndrome.trim()) return text;
+  if (!rawText || !syndrome.trim()) return rawText;
+  // 句首的证型名用逗号接做法（「肾阳虚，可加灸。」）与「肾阳虚者可加灸」是同一个条件：按后者读，整句随条件去留。此前逗号把条件与做法
+  // 隔开，肾阴虚证的针刺卡只删了「可加灸」，留下孤零零的「肾阳虚。」（第二十四轮甲方 100 例 C066）。
+  const text = rawText.replace(/(^|[。；;]\s*)([\u4e00-\u9fff]{2,6})[，,](?=\s*(?:可|宜))/gu, (whole, lead: string, label: string) =>
+    syndromeConcepts(label).natures.size > 0 && !namesAcupoint(label) && !/[者时后外刺针穴取用食煮治疗]/u.test(label) ? `${lead}${label}者` : whole);
   const diseases = diseaseNames.map((name) => name.trim()).filter((name) => name.length >= 2);
   const noMoxibustion = syndromeHasHeatNature(syndrome);
   namesAcupoint("");

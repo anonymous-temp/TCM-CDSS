@@ -439,8 +439,10 @@ try {
   // 治则改为国标治则术语（按证名与治法推出）。指纹仍然钉住「同一份合成输入 ⇒ 同一份最终临床载荷」。
   // 2026-10-22 第十五轮再更新：逐字段比对新旧载荷，差异只有三处，都是本轮有意的——病机链首节点证据标为教材证型行
   //（《中医内科学》不寐·心脾两虚证）、三条把握度说明换成临床写法、服务端「辨证推理质量边界」不确定项不交付。
-  assert.equal(m03ClinicalDecisionHash(signed), "sha256:3388f53948ca1fe884be1c38ec50391ca78d9b5bd2c38f94f2761353751f0966", "the settled projection must preserve the final clinical payload");
-  assert.deepEqual(signed.westernDiagnosis.primary.supportingFacts, [], "交付的辨证结果不带症状依据");
+  // 2026-10-27 第二十四轮再更新：唯一差异是症状依据栏放了一句诊断依据（clinicalRationale，10.26 甲方测评「西医诊断无依据」）；
+  // 把这一栏清空后指纹与上一版（sha256:3388f539…）逐字相同。
+  assert.equal(m03ClinicalDecisionHash(signed), "sha256:6efb30e0dfa31dde7ce67feeca57be319f9d1848806f2bcdc5e735ca1c87780a", "the settled projection must preserve the final clinical payload");
+  assert.deepEqual(signed.westernDiagnosis.primary.supportingFacts, [signed.westernDiagnosis.primary.clinicalRationale], "交付的辨证结果症状依据栏只放一句诊断依据");
   assert.deepEqual(signed.westernDiagnosis.primary.limitations, [], "交付的辨证结果不带待查依据");
   assert.deepEqual(signed.westernDiagnosis.primary.suggestedChecks, [], "交付的辨证结果不带检查建议");
   assert.ok(signed.contractSignature, "the settled output must still be signed");

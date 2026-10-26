@@ -4,7 +4,7 @@ import type { CustomerContext } from "./customer-context";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "./diagnosis-parse";
 import { clinicalGroundingText } from "./diagnosis-safety";
-import { m04SafetyContractIssue } from "./diagnosis-stage-contract";
+import { herbBarredForCase, m04SafetyContractIssue } from "./diagnosis-stage-contract";
 import {
   editedPrescriptionSemanticIssue,
 } from "./prescription-revision";
@@ -158,6 +158,8 @@ export function validateHisPrescriptionForWriteBack(
     selectedReasoning,
     diagnoseReasoning,
     trustedWorkbenchEdit,
+    true,
+    (herb) => herbBarredForCase(herb, clinicalGroundingText(caseState)),
   );
   const issues = [...new Set([regimenIssue, editedIssue, floorIssue, formulaIssue]
     .filter((issue): issue is string => Boolean(issue)))];

@@ -31,6 +31,7 @@ const MAX_UNITS = 2;
 
 type TypeConfig = { genericEntry: string; organEntrySuffix: string; keyPoints: string; therapyVerbs: string[]; therapyWord: string };
 const LEXICON = lexiconJson as unknown as {
+  rationaleClauseFilter: { lineageLensMarkers: string[]; assertionMarkers: string[]; negationMarkers: string[] };
   organs: Record<string, string>;
   mentions: Array<{ pattern: string; types: DeficiencyType[] }>;
   types: Record<DeficiencyType, TypeConfig>;
@@ -174,13 +175,31 @@ function natureTerms(root: Json): string[] {
   return ["items", "rootDeficiency", "branchExcess"].flatMap((key) => Array.isArray(nature?.[key]) ? (nature![key] as unknown[]).map(text) : []).filter(Boolean);
 }
 
+/**
+ * 辨证依据里断言本例证素的分句（「精神差、食欲下降，为心脾两虚、气血不足」）。不收：流派视角句（「扶阳看阴阳盛衰与阳虚阴盛的实据」
+ * 说的是该派看什么）、否认句（「未见阳虚之象」「非气虚」）、没有断言词的分句。2026-10-26 回放：不分句时 294 份输出里新增 21 份触发，
+ * 多半是这两类。
+ */
+const RATIONALE_LENS = new RegExp(LEXICON.rationaleClauseFilter.lineageLensMarkers.join("|"), "u");
+const RATIONALE_ASSERTION = new RegExp(LEXICON.rationaleClauseFilter.assertionMarkers.join("|"), "u");
+const RATIONALE_NEGATION = new RegExp(LEXICON.rationaleClauseFilter.negationMarkers.join("|"), "u");
+export function rationaleAssertionClauses(rationale: string): string {
+  return String(rationale || "").split(/[。；;]/u)
+    .flatMap((sentence) => RATIONALE_LENS.test(sentence) ? [] : sentence.split(/[，,]/u))
+    .filter((clause) => RATIONALE_ASSERTION.test(clause) && !RATIONALE_NEGATION.test(clause))
+    .join("。");
+}
+
 /** 中医半里需要核对的类别（纯函数，供测试）。至多 MAX_UNITS 个，按出现次数多少排。 */
 export function elementCheckUnits(root: Json): ElementUnit[] {
   const entailment = entailedDeficiencies(namedSyndromes(root));
   const byType = new Map<DeficiencyType, { organs: Set<string>; mentions: number }>();
+  // 辨证依据里解释伴随表现时写出的名外证素（「精神差、食欲下降，为心脾两虚、气血不足」，心虚胆怯证下）同样要核：
+  // 甲方 10.26 测评病历 2 判「辨证依据错误」。未通过时连同该分句一起撤下（applyElementSupportDecision 本就处理依据）。
   const sources = [
     ...records(record(root.pathogenesis)?.chain).map((node) => text(node.pathogenesis)),
     ...natureTerms(root),
+    rationaleAssertionClauses(text(record(root.overview)?.tcmDiagnosticRationale)),
   ];
   for (const source of sources) {
     for (const mention of deficiencyMentions(source)) {

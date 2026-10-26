@@ -1726,7 +1726,8 @@ function baseTcmHerbFunctionText(herb: string): string {
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     .join("；");
   const categoryIndex = herbFunctionCategories.categories as Record<string, string[]>;
-  const categories = CONTROLLED_HERB_FUNCTION_CATEGORY_REPLACEMENTS[canonical] || categoryIndex[canonical] || [];
+  const categoryKey = herbFunctionCategoryKey(canonical, canonical);
+  const categories = CONTROLLED_HERB_FUNCTION_CATEGORY_REPLACEMENTS[canonical] || (categoryKey ? categoryIndex[categoryKey] : undefined) || [];
   const controlled = CONTROLLED_HERB_FUNCTION_TEXT[canonical];
   if (controlled) return withFunctionSupplement(canonical, [controlled, ...categories.slice(0, 2)].filter(Boolean).join("；"));
 
@@ -1785,12 +1786,41 @@ function baseTcmHerbFunctionText(herb: string): string {
  * deliberately kept separate from the broader merged function text, whose historical sources may
  * contain noisy or overly broad indications that are unsuitable for high-impact safety decisions.
  */
+/**
+ * 功效分类表（《中药学》第十版）按书里的药名作键：延胡索、土鳖虫、益智仁、刺蒺藜、扁蓄……而知识库规范名是药典名
+ *（延胡索（元胡）、土鳖虫（䗪虫）、益智、蒺藜、萹蓄）。此前先换成规范名再查表，这 9 味任何写法都查不到分类
+ *（第二十三轮发现：「活动性出血不进活血化瘀药」拦不住延胡索）。这里按规范名把表键收一次；表里没有、受控身份能落到表键的
+ *（怀牛膝→牛膝、生附子→附子）也认。只改「查得到」，不改分类内容。
+ */
+const herbFunctionCategoryKeyByCanonical: ReadonlyMap<string, string> = (() => {
+  const categoryIndex = herbFunctionCategories.categories as Record<string, string[]>;
+  const map = new Map<string, string>();
+  for (const key of Object.keys(categoryIndex)) {
+    const canonical = canonicalKnowledgeHerbName(key);
+    if (canonical && canonical !== key && !categoryIndex[canonical] && !map.has(canonical)) map.set(canonical, key);
+  }
+  return map;
+})();
+function herbFunctionCategoryKey(herb: string, canonical: string): string | undefined {
+  const categoryIndex = herbFunctionCategories.categories as Record<string, string[]>;
+  if (categoryIndex[canonical]) return canonical;
+  const raw = String(herb || "").trim();
+  if (categoryIndex[raw]) return raw;
+  const aliased = herbFunctionCategoryKeyByCanonical.get(canonical);
+  if (aliased) return aliased;
+  const governed = resolveGovernedTcmHerbIdentity(raw).canonicalName;
+  if (governed && categoryIndex[governed]) return governed;
+  const governedAliased = governed ? herbFunctionCategoryKeyByCanonical.get(canonicalKnowledgeHerbName(governed)) : undefined;
+  return governedAliased;
+}
+
 export function getTcmHerbFunctionCategories(herb: string): string[] {
   const canonical = canonicalKnowledgeHerbName(herb);
   const categoryIndex = herbFunctionCategories.categories as Record<string, string[]>;
   const replacement = CONTROLLED_HERB_FUNCTION_CATEGORY_REPLACEMENTS[canonical];
   if (replacement) return [...new Set(replacement)];
-  return [...new Set([...(categoryIndex[canonical] || []), ...(CONTROLLED_HERB_FUNCTION_CATEGORIES[canonical] || [])])];
+  const key = herbFunctionCategoryKey(herb, canonical);
+  return [...new Set([...(key ? categoryIndex[key] || [] : []), ...(CONTROLLED_HERB_FUNCTION_CATEGORIES[canonical] || [])])];
 }
 
 /** 功效分类 → 药味的反向索引（由正向表一次性派生，不新增数据）。 */

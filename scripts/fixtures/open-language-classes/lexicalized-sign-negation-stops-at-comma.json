@@ -1,0 +1,45 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "lexicalized-sign-negation-stops-at-comma",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-10-26",
+ "trigger": "第二十四轮甲方病例与语料回放：api-ba8a「少苔或无苔，舌面生津」输出「未见舌面生津」；语料 corpus-13204「怯寒发热，无汗，咳嗽，喉间痰声漉漉，神志昏蒙」、corpus-12305「左半身出汗右半身无汗，双手颤抖，夜间双手抽搐」两例的神志昏蒙、抽搐被逗号延续的「无」读成否认，红旗漏报。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "diagnosis-safety 的 isNegatedAt 让前置「无」越过逗号延续到后面的裸词（否认列举「无恶寒，发热」的读法）。「无汗」「无痰」「无苔」「无汗出」「无汗而喘」是独立成词的体征，「无」只否认汗、痰、苔，逗号之后是新的陈述。",
+  "exception": "冻结令允许的确定性例外：有限闭集的构词式守卫（LEXICALIZED_NEGATED_SIGN：无 + 汗/汗出/痰/苔，可接「而…」），闸门与净化器的前置否认作用域共用这一条。普通否认列举（「无恶寒，发热」「无发热，无抽搐」）读法不变。",
+  "sources": "净化器 clauseNegationScope 的「无汗/无痰」（2026-10-19）与本类同一形态。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句法：去掉前面那个独立成词的「无X」，门禁结果必须相同；兄弟句自身必须报警。",
+  "pairs": [
+   { "subject": "怯寒发热，无汗，咳嗽，神志昏蒙。", "sibling": "怯寒发热，咳嗽，神志昏蒙。", "siblingExpect": "flagged" },
+   { "subject": "左半身出汗右半身无汗，双手颤抖，夜间双手抽搐。", "sibling": "左半身出汗，双手颤抖，夜间双手抽搐。", "siblingExpect": "flagged" },
+   { "subject": "无汗出，抽搐。", "sibling": "抽搐。", "siblingExpect": "flagged" },
+   { "subject": "无汗而喘，神志昏蒙。", "sibling": "喘，神志昏蒙。", "siblingExpect": "flagged" },
+   { "subject": "舌红无苔，神志昏蒙。", "sibling": "舌红，神志昏蒙。", "siblingExpect": "flagged" }
+  ]
+ },
+ "controls": {
+  "note": "逐项否认、普通否认列举照旧读成否认。",
+  "mustStillFlag": [
+   { "text": "无痰，四肢抽搐。", "flag": "神经" }
+  ],
+  "mustStayReady": [
+   "无汗，无抽搐。",
+   "无发热，无抽搐，神志清。",
+   "无汗、抽搐。"
+  ]
+ },
+ "measurements": [
+  {
+   "date": "2026-10-26",
+   "what": "现代医案语料 + 验收集 + 甲方留存病例共 20,923 份病历，改前 e8928bfc 对改后（~/runlogs/r1018/work/r1036/replay/gate.mjs）",
+   "result": "6 例判定改变：corpus-12305 抽搐、corpus-13204 神志昏蒙两例由漏报改为红旗；其余 4 例多出气促复核提示或缺项码，均为「无汗/无痰，X」之后的阳性表现，逐条读过"
+  }
+ ]
+}
