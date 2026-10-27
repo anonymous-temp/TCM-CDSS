@@ -82,4 +82,4 @@ export function sectionTitleGroup<K extends keyof typeof SECTION_TITLES>(key: K)
   return [...SECTION_TITLES[key]];
 }
 
-export const SAFETY_DEFERENCE_TEXT = "急危重风险处置和药事审方要求优先于流派偏好";
+export const SAFETY_DEFERENCE_TEXT = "急危重风险处置与用药安全核对优先于流派偏好";

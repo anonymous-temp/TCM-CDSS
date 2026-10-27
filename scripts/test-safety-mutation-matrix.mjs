@@ -681,7 +681,7 @@ const nonDoseRisk = buildDeterministicRiskFollowup(pediatricNonDoseState);
 assert.match(nonDoseRisk, /本轮未生成剂量级处方/);
 assert.match(nonDoseRisk, /非药物与继续评估/);
 assert.match(nonDoseRisk, /补足后.*重新进行辨证与处方级安全评估/s);
-assert.doesNotMatch(nonDoseRisk, /处方可作为候选方案审阅|用药依从性|服法与禁忌|续方|减量|ADR|服药后随访/);
+assert.doesNotMatch(nonDoseRisk, /处方供医生审阅|用药依从性|服法与禁忌|续方|减量|ADR|服药后随访/);
 cases += 1;
 
 const structuredDoseRisk = buildDeterministicRiskFollowup({
@@ -755,8 +755,8 @@ const restrictedStructuredDoseRisk = buildDeterministicRiskFollowup({
     },
   },
 });
-assert.match(restrictedStructuredDoseRisk, /语义红旗筛查未完成.*不阻断候选方案展示/s);
-assert.match(restrictedStructuredDoseRisk, /处方可作为候选方案审阅/);
+assert.match(restrictedStructuredDoseRisk, /语义红旗筛查未完成.*不影响医生审阅本方/s);
+assert.match(restrictedStructuredDoseRisk, /处方供医生审阅/);
 assert.doesNotMatch(restrictedStructuredDoseRisk, /不得采纳、执行或转写|受限状态/);
 cases += 1;
 

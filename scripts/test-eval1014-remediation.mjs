@@ -509,6 +509,7 @@ const checkAsync = async (name, run) => {
     assert.equal(matched("毫针常规刺，泻法。", "肾精不足证"), "毫针常规刺，针用补法。");
     assert.equal(matched("留针用补法；毫针补法。", "肝火扰心证"), "针用泻法；", "同一段里只写一次");
   });
+  const scheduleWording = await jiti.import("../src/lib/treatment-schedule-wording.ts");
   check("4.9 出卡处的疗程栏、操作栏不写「复评」「课程索引」：胃脘痛针刺卡、食疗卡、失眠意疗卡（JSON、正文、页面同一份）", () => {
     const stomach = signedPrior({ disease: "胃痛", syndrome: "饮食伤胃证", method: "消食导滞，和胃止痛", pathogenesis: "饮食停滞，胃气失和", western: "功能性消化不良", patientFact: "胃脘胀痛，嗳腐吞酸" });
     const out = cards(stomach, caseOf("胃脘胀痛3天", "暴饮暴食后胃脘胀痛3天，嗳腐吞酸，大便不爽，舌苔厚腻，脉滑", 40), ["acupuncture", "diet_therapy", "auricular"]);
@@ -516,11 +517,14 @@ const checkAsync = async (name, run) => {
     for (const card of out) {
       assert.doesNotMatch(`${card.scheduleSuggestion}${card.techniqueBoundary}`, /复评|课程索引/, `${card.projectCode}：${card.scheduleSuggestion}｜${card.techniqueBoundary}`);
     }
-    const mind = cards(insomnia("心脾两虚证", "补益心脾，养血安神", "心脾两虚，心神失养"),
-      caseOf("失眠半年", "入睡困难，多梦易醒，心悸健忘，神疲食少，舌淡，脉细弱", 40), ["mind_therapy"])[0];
-    assert.ok(mind, "夹具前提：有意疗卡");
-    assert.doesNotMatch(mind.scheduleSuggestion, /复评/, mind.scheduleSuggestion);
-    assert.match(mind.scheduleSuggestion, /复诊时按情绪与睡眠变化调整/, "只改措辞，复诊时按什么调整照写");
+    // 意疗卡没有穴位、是类目模板，交付面本就去掉（treatmentCardUndeliverable）；第二十七轮起《推拿学》不寐节按教材取穴操作交付，
+    // 占了第三个名额，意疗卡不再出卡。措辞改写本身照钉：目录原句「复诊时按情绪与睡眠变化复评」改成「…调整」，复诊时按什么调整照写。
+    const mindCards = cards(insomnia("心脾两虚证", "补益心脾，养血安神", "心脾两虚，心神失养"),
+      caseOf("失眠半年", "入睡困难，多梦易醒，心悸健忘，神疲食少，舌淡，脉细弱", 40), ["mind_therapy"]);
+    for (const card of mindCards) assert.doesNotMatch(`${card.scheduleSuggestion}${card.techniqueBoundary}`, /复评|课程索引/, `${card.projectCode}：${card.scheduleSuggestion}`);
+    const mindSchedule = scheduleWording.clinicalTreatmentScheduleWording("日常执行；复诊时按情绪与睡眠变化复评，不设固定疗程。");
+    assert.doesNotMatch(mindSchedule, /复评/, mindSchedule);
+    assert.match(mindSchedule, /复诊时按情绪与睡眠变化调整/, "只改措辞，复诊时按什么调整照写");
   });
   check("4.10 证型配穴：肾阴亏虚证不配「阴阳两虚」（关元、命门）；教材证型名不带病性时按辨证要点末尾的「为X」比对（消渴·下消）", () => {
     const xiaoke = (syndrome, method, fact) => signedPrior({ disease: "消渴", syndrome, method, pathogenesis: "肾虚固摄无权", western: "2型糖尿病", patientFact: fact });
@@ -2136,7 +2140,7 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
     const out = surface.projectDeliveredReasoning(rx({ name: "x", formulaAnalysis: "x", herbs: [] }, { precautions: ["起身宜缓，防止跌倒。"] }), { requiredPrecautions: required });
     const lines = out.nonPharma.precautions.join("\n");
     assert.doesNotMatch(lines, /不要自行停用/);
-    assert.match(lines, /正在服用的美托洛尔请告知医生，是否继续服用由医生决定/);
+    assert.match(lines, /正在服用的美托洛尔请告知医生，是否继续服用、与本方如何错开服用由医生决定/);
     assert.match(lines, /正在外用的阿昔洛韦乳膏请告知医生/);
     assert.equal((lines.match(/跌倒/g) || []).length, 1);
   });

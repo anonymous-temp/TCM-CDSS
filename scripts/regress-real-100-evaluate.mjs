@@ -223,7 +223,7 @@ function parseM04ContentStats(content) {
   if (sourceLine) {
     stats.formulaSourcePresent = sourceLine[1].trim().length > 0;
     stats.construction = "classical";
-  } else if (/实际组成未沿用原命名经方身份/.test(content)) {
+  } else if (/实际组成未沿用原命名经方/.test(content)) {
     stats.construction = "declassified";
   } else if (/\*\*组方依据\*\*|自拟方|自拟候选/.test(content)) {
     stats.formulaSourcePresent = false;

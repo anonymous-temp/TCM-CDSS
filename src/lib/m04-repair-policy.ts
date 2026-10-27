@@ -118,6 +118,9 @@ export function canAcceptTransparentFormulaFallback(input: TransparentFormulaFal
  * 产品语义（甲方定）：**安全问题阻断，质量问题标注**——医生看得到批注，灵犀审方照常复核。
  * transparent_therapy_contract_missing 不在此列：它意味着候选或 M03 结构本身缺失，无从标注。
  */
+/** 质量批注的开头（写给医生：哪几项已核对、用量谁来定）。2026-10-27 起不再写「确定性核查」「系统未能自动对应」「已锁定治法」这类系统自述。 */
+export const QUALITY_LEAD = "本方药味、剂量、配伍与人群禁忌已逐项核对，具体用量请医生结合药味表的参考来源确认；";
+
 export function m04TherapyIssueQualityAnnotation(therapyIssue: string | undefined): string | undefined {
   if (typeof therapyIssue !== "string" || !therapyIssue) return undefined;
   // 各发射点会给同一族码加不同前缀（m04_ / candidate_N_ / transparent_therapy_ /
@@ -129,10 +132,10 @@ export function m04TherapyIssueQualityAnnotation(therapyIssue: string | undefine
     // 注意 herb_support 也以 herb_ 开头——只在后随数字（herb_3_…逐味码）时才剥这层前缀。
     .replace(/^transparent_therapy_(?=herb_\d)/, "");
   if (core === "transparent_therapy_coverage") {
-    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；系统未能自动核验全部治法方向的覆盖情况，方义与治法的对应关系请医生结合本次病历核对。";
+    return QUALITY_LEAD + "方义与治法各方向的对应请医生结合本次病历核对。";
   }
   if (core === "transparent_therapy_herb_support") {
-    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；部分君臣药味的功效方向未能被系统自动对应到已锁定治法，请医生逐味核对方义。";
+    return QUALITY_LEAD + "部分君臣药的功效与本例治法的对应请医生逐味核对方义。";
   }
   // 词表未成立 ≠ 方向对立：对立（与锁定治法直接相反）在合同里是独立判定、任何时候不豁免；
   // 这里放行的只是「系统词表没能把该药的方向对应到 M03 已锁定治法」。
@@ -145,25 +148,23 @@ export function m04TherapyIssueQualityAnnotation(therapyIssue: string | undefine
   // 与 owner doctrine 一致：安全问题阻断，质量问题标注。
   // contract_missing / herbs_missing 不在此列：那意味着候选或 M03 结构本身缺失，无从标注。
   if (core === "transparent_therapy_herb_knowledge_missing") {
-    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；个别药味的功效方向系统未能自动核验（药味功效词表尚未收载），请医生核对方义。";
+    return QUALITY_LEAD + "个别药味的功效与本例治法的对应请医生核对方义。";
   }
   if (/^herb_\d+_unsupported_high_impact_[a-z_]+$/.test(core)) {
-    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；个别药味的功效方向未能被系统自动对应到本例已锁定的治法（不属于方向相反），该药味的取舍请医生结合方义判断。";
+    return QUALITY_LEAD + "个别药味的功效与本例治法不完全对应（不属于方向相反），取舍请医生结合方义判断。";
   }
   if (/^herb_\d+_emperor_therapy_mismatch$/.test(core)) {
-    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；君药的功效方向未能被系统自动对应到主病机治法，君药的选取请医生按辨证结论核对。";
+    return QUALITY_LEAD + "君药功效与主要病机治法的对应请医生按辨证结论核对。";
   }
   const uncoveredDirection = /^therapy_direction_uncovered_([a-z_]+)$/.exec(core);
   if (uncoveredDirection) {
     // 方向名用受控中文映射，医生页面不出现内部枚举值。
     const labels: Record<string, string> = { heat_clear: "清热", yang_warm: "温阳/温里", blood_move: "活血", purge: "泻下", orifice_open: "开窍", mass_soften: "软坚" };
     const label = labels[uncoveredDirection[1]] || "该";
-    return `本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；`
-      + `但已锁定治法中的「${label}」方向在主方药味中未见系统可自动核验的承接药味，`
-      + `是否加入相应药味请医生结合方义判断后再采纳。`;
+    return `${QUALITY_LEAD}本例治法中的「${label}」方向在主方药味中未见对应药味，是否加入相应药味请医生结合方义判断。`;
   }
   if (/^pathogenesis_node_uncovered_[A-Za-z0-9]+$/.test(core)) {
-    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；M03 辨证提出的个别病机方向本次未见对应药味，是否补充针对性药味请医生判断。";
+    return QUALITY_LEAD + "辨证中的个别病机方向本次未见对应药味，是否补充针对性药味请医生判断。";
   }
   return undefined;
 }

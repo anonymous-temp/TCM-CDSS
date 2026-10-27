@@ -248,7 +248,7 @@ check("8.2 交付面会去掉的卡（仅评估、只有治则、无穴类目模
   assert.equal(cap.treatmentCardUndeliverable({ projectCode: "auricular", tailoringStatus: "class_template_only", treatmentContent: "取患侧腰骶椎、肾、膀胱、神门。", suggestedSitesOrPoints: ["肾"] }), false);
 });
 
-check("8.3 名额先给可交付的卡：瘀血腰痛的推拿卡只有一段治则（交付面会去掉），不得占掉教材耳穴卡的名额（验收集 H-tri-7669 两节点病机）", () => {
+check("8.3 名额先给可交付的卡：瘀血腰痛三张卡都可交付；推拿卡按《推拿学》腰痛节给手法与操作（第二十七轮起不再以病种治则开头、不再被当作只有治则的卡）（验收集 H-tri-7669 两节点病机）", () => {
   const prior = signedPrior("腰痛", "瘀血腰痛", "闪挫致腰部气血壅滞，瘀阻经络", "第三腰椎横突综合征");
   prior.therapy = { overallPrinciple: "实则泻之", overallMethod: "活血化瘀，通络止痛", subTherapies: [] };
   prior.pathogenesis.chain = [
@@ -259,7 +259,9 @@ check("8.3 名额先给可交付的卡：瘀血腰痛的推拿卡只有一段治
   const cards = compile(prior, "腰部疼痛1月余，加重4天", present,
     [{ projectCode: "acupuncture", targetRef: "P2" }, { projectCode: "cupping", targetRef: "P1" }, { projectCode: "auricular", targetRef: "P1" }], { sex: "男", age: 45 });
   assert.ok(cards.every((card) => !cap.treatmentCardUndeliverable(card)), cards.map((card) => `${card.projectCode}:${card.tailoringStatus}`).join("、"));
-  assert.ok(cards.some((card) => card.projectCode === "auricular"), cards.map((card) => card.projectCode).join("、"));
+  const tuina = cards.find((card) => card.projectCode === "tuina");
+  assert.ok(!tuina || /^手法：/.test(tuina.treatmentContent), tuina?.treatmentContent);
+  assert.equal(cards.length, 3);
 });
 
 check("8.4 青盲按教材病名准入，给出视神经萎缩节的针刺卡（此前青盲对不上任何教材节，一张针刺卡都没有）", () => {
@@ -492,14 +494,19 @@ const elderlyState = {
   safetyGate: { status: "needs_information", redFlags: [], candidateMode: "limited_dose", allowDosePrescription: false },
 };
 
-check("11.1 病历 5：模型提名的导引、灸法、推拿编出来是两张仅评估卡和一张只有治则的推拿卡（交付面都会去掉），居家穴位保健仍要给（此前按这三张卡去重成 null）", () => {
+check("11.1 病历 5：模型提名的导引、灸法编出来是仅评估卡（交付面会去掉）；推拿按《推拿学》虚劳节给取穴与操作、背俞穴按本例肺脾两脏取（第二十七轮起交付，甲方 10.26「虚劳只给食疗」）；居家穴位保健仍要给", () => {
   const prescribe = { stage: "prescribe", nonPharma: { diet: "", lifestyle: "", emotion: "", acupointCare: null, precautions: ["推拿后注意保暖，避免受凉。", "饭后温服。"],
     tcmTreatments: [{ projectCode: "qigong_daoyin", targetRef: "P1" }, { projectCode: "moxibustion", targetRef: "P1" }, { projectCode: "tuina", targetRef: "P1" }] } };
   const out = readRx(cap.applyTcmTreatmentCapabilityPriority(wrapRx(prescribe), elderlyState, elderlyLungSpleen())).nonPharma;
   assert.ok(out.tcmTreatments.some((item) => cap.treatmentCardUndeliverable(item)), "夹具前提：有交付面会去掉的卡");
-  assert.match(out.acupointCare || "", /按揉气海/, out.acupointCare);
+  const tuina = out.tcmTreatments.find((item) => item.projectCode === "tuina");
+  assert.ok(tuina && !cap.treatmentCardUndeliverable(tuina), "推拿卡有取穴与教材操作，交付");
+  assert.doesNotMatch(tuina.treatmentContent, /^治则/, tuina.treatmentContent);
+  const points = tuina.suggestedSitesOrPoints.join("、");
+  assert.match(points, /肺俞/); assert.match(points, /脾俞/);
+  assert.doesNotMatch(points, /心俞|肝俞|配以/, `背俞穴只取本例两脏：${points}`);
   assert.match(out.acupointCare || "", /艾灸气海/, "仅评估的灸法卡不算医师已在灸");
-  assert.deepEqual(out.precautions, ["饭后温服。"], "只有治则的推拿卡交付时会被去掉，注意事项里的「推拿后…」一并不留");
+  assert.deepEqual(out.precautions, ["推拿后注意保暖，避免受凉。", "饭后温服。"], "推拿卡交付，注意事项里的「推拿后…」保留");
   // 对照：会交付的卡上已有的穴，居家保健照旧不重复（遗尿的教材针刺卡取关元，居家按揉只剩气海）。
   const enuresis = elderlyLungSpleen();
   enuresis.overview.tcmDiseaseName = "遗尿";

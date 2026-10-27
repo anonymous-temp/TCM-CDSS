@@ -1,10 +1,11 @@
-import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, isTextbookConditionalModification, m04HerbOpposingDirectionIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04CandidateOpposingDirectionIndices, isTextbookConditionalModification, m04HerbOpposingDirectionIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
 import { formulaAnalysisAfterHerbRemoval } from "./formula-analysis-review";
-import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
+import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbFunctionCategories } from "./tcm-knowledge";
 import { precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
+import { herbAnyRecordCautionConflict, herbRecordCautionIsHard } from "./herb-record-caution";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -251,7 +252,14 @@ export function dropUnsupportedM04CandidateHerbs(
         !m04HerbOpposingDirectionIssue(herb as Parameters<typeof m04HerbOpposingDirectionIssue>[0], prior);
     }).length;
 
-    const retained = herbs.filter((value) => {
+    // 终审会按方向对立拒的那几味（与终审同一判据）。基准保护只给终审自己也豁免的药：候选已不再声称方名时，
+    // M03 锁定方的原方药味不再豁免，留着它只会让终审把整张方拒成非剂量页（第二十七轮 C068）。
+    const contractOpposing = m04CandidateOpposingDirectionIndices(
+      herbs.map((value) => recordValue(value) || {}) as Parameters<typeof m04CandidateOpposingDirectionIndices>[0],
+      prior,
+      candidate.formulaNames,
+    );
+    const retained = herbs.filter((value, index) => {
       const herb = recordValue(value);
       if (!herb) return true;
       const name = typeof herb.name === "string" ? herb.name.trim() : "";
@@ -263,7 +271,7 @@ export function dropUnsupportedM04CandidateHerbs(
       // herbs (production modern-16911: 左金丸 identity removed, but 吴茱萸 remained in a pure
       // heat-clearing plan and the final safety-floor check correctly rejected it).
       if ((enforceBaselineFloor || candidateStillClaimsClassicIdentity) &&
-        baselineIdentities.has(canonicalTcmHerbIdentity(name))) return true;
+        baselineIdentities.has(canonicalTcmHerbIdentity(name)) && !contractOpposing.has(index)) return true;
       // 与门禁同一入口、同一入参形态：拼接功用串再判会落到 function 分支，与门禁读
       // prescriptionRole/targetPathogenesis 的口径不一致，导致「该剔的没剔、门禁照旧驳回」。
       const directionIssue = m04HerbOpposingDirectionIssue(
@@ -287,7 +295,8 @@ export function dropUnsupportedM04CandidateHerbs(
         .filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
         .map((name) => canonicalTcmHerbIdentity(name)),
     );
-    const baselineStillSatisfied = !enforceBaselineFloor || baselines.every((reference) =>
+    // 身份下限只约束仍声称方名的候选：已是自拟方的候选没有「削到身份下限以下」这回事。
+    const baselineStillSatisfied = !enforceBaselineFloor || !candidateStillClaimsClassicIdentity || baselines.every((reference) =>
       reference.ingredients.filter((ingredient) => retainedIdentities.has(canonicalTcmHerbIdentity(ingredient))).length
         >= reference.minimumPreservedIngredientCount);
     if (!baselineStillSatisfied) return content;
@@ -349,6 +358,9 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
     // 模型写了剂量整方就退成非剂量页（第二十三轮红旗集：羚角钩藤汤 2 例）。单味拿出、写明请医生另行开具；
     // 它是唯一的君药时不拿（交给修复轮重选）。
     let emperorsLeft = herbs.filter((value) => roleOf(value) === "君").length;
+    const overview = recordValue(reasoning.overview);
+    const syndromeText = [overview?.primarySyndrome, ...(Array.isArray(overview?.secondarySyndromes) ? overview.secondarySyndromes : [])]
+      .filter((value): value is string => typeof value === "string").join("；");
     let retained = herbs.filter((value) => {
       const name = nameOf(value);
       if (!name) return true;
@@ -362,6 +374,14 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
       if ((regulatory === "controlled_or_toxic" || regulatory === "endangered_or_banned") && (roleOf(value) !== "君" || emperorsLeft > 1)) {
         if (roleOf(value) === "君") emperorsLeft -= 1;
         removed.push({ name, reason: "须由医生单独定量的管制或濒危药材，未列入本方，如需使用请医生另行开具" });
+        return false;
+      }
+      // 教材【使用注意】写明「忌用、不宜」而病历正是这种情况（脾胃虚寒、食少便溏…，herb-record-caution）：原方药味也单味拿出、写明依据
+      //（第二十七轮：甲方 10.26 测评病历 3 血虚头痛「黄芩不宜」，病历记便溏、小便清长，三次生成都带黄芩）。君药同下面的规则。
+      const recordCaution = herbAnyRecordCautionConflict(name, clinicalContext, syndromeText);
+      if (recordCaution && herbRecordCautionIsHard(recordCaution) && (roleOf(value) !== "君" || emperorsLeft > 1)) {
+        if (roleOf(value) === "君") emperorsLeft -= 1;
+        removed.push({ name, reason: `《中药学》「${recordCaution.condition}者${recordCaution.verb}」，本例${recordCaution.recordFindings.join("、")}` });
         return false;
       }
       const issue = m04GenerationSpecialPopulationIssue([{ name }], clinicalContext);
@@ -390,6 +410,20 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
       if (roleOf(retained[drop]) === "君") break;
       removed.push({ name: names[drop], reason: `与${names[drop === left ? right : left]}属${pair.category || "十八反"}` });
       retained = retained.filter((_, index) => index !== drop);
+    }
+    // 同属补气药的「参」（人参、党参、太子参、西洋参…）只留一味：甲方 10.12 测评「不要人参党参同用这类重复」，此前只有提示词，
+    // 第二十七轮回放 3 份仍同用（C032、C040 人参＋党参，C013 太子参＋西洋参）。留地位高的一味（君＞臣＞佐＞使，同级留先写的），君药不拿。
+    const ginsengLike = (value: unknown) => {
+      const name = nameOf(value);
+      return /参$/u.test(name) && getTcmHerbFunctionCategories(canonicalTcmHerbIdentity(name) || name).includes("补气药");
+    };
+    const ginsengs = retained.filter(ginsengLike);
+    if (ginsengs.length > 1) {
+      const rank = (value: unknown) => SAFETY_PRUNE_ROLE_RANK[roleOf(value)] ?? 2;
+      const keep = [...ginsengs].sort((a, b) => rank(a) - rank(b))[0];
+      const drops = ginsengs.filter((value) => value !== keep && roleOf(value) !== "君");
+      for (const value of drops) removed.push({ name: nameOf(value), reason: `与${nameOf(keep)}同属补气的参类，不重复使用` });
+      retained = retained.filter((value) => !drops.includes(value));
     }
     if (removed.length === 0 || retained.length < SAFETY_PRUNE_MIN_RETAINED) return content;
     candidate.herbs = retained;

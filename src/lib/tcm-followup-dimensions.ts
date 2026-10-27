@@ -21,8 +21,8 @@ export function sixHealthFollowupTable(selected?: readonly string[]): string {
     ? SIX_HEALTH_FOLLOWUP_DIMENSIONS.filter((item) => picked.includes(item.dimension))
     : SIX_HEALTH_FOLLOWUP_DIMENSIONS;
   return [
-    picked.length >= 2 ? "### 整体状态复评（按本例证候选取）" : "### 整体状态六维复评",
-    "| 维度 | 复评问题 |",
+    picked.length >= 2 ? "### 整体状态评估（按本例证候选取）" : "### 整体状态六维评估",
+    "| 维度 | 评估问题 |",
     "|---|---|",
     ...rows.map((item) => `| ${item.dimension} | ${item.question} |`),
     "",

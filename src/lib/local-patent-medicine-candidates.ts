@@ -582,7 +582,13 @@ export function classIsPathogenSpecific(classPath: string): boolean {
 }
 
 /** 已签名的证名（主证、兼证）与治法：方向底线只读这两样。 */
-export type SignedDirection = { names: string; method: string };
+/** decoctionThermal：本次汤剂按组成的寒温（medicineThermalByComposition 同一判据），证名与治法都不分寒热时用它定方向（编译时才有）。 */
+export type SignedDirection = { names: string; method: string; decoctionThermal?: "cold" | "warm" };
+
+/** 汤剂按组成的寒温：清热类药占三分之一以上且没有温里散寒类为 cold，反之为 warm，其余不定。 */
+export function decoctionThermalByComposition(herbs: readonly string[]): "cold" | "warm" | undefined {
+  return medicineThermalByComposition(herbs);
+}
 
 export function signedDirectionOf(prior: Pick<ClinicalReasoningResultV2, "overview" | "therapy"> | null | undefined): SignedDirection | undefined {
   const overview = prior?.overview;
@@ -738,9 +744,15 @@ export function patentMedicineDirectionConflict(
     const labelExcess = [...labelSyndrome.replace(/[阴血气阳精津]虚(?:血|内)?[热火]/gu, "")].filter((character) => EXCESS_NAME.test(character));
     if (!labelExcess.some((character) => names.includes(character))) return "deficiency_indication_for_excess";
   }
-  // 寒热：本例证名只有寒（或只有热），治法也没有反向字样。
-  const caseColdOnly = /寒/u.test(names) && !/热|火|暑/u.test(names) && !MEDICINE_COLD.test(method);
-  const caseHeatOnly = /热|火|暑/u.test(names.replace(/虚热|虚火/gu, "")) && !/寒/u.test(names) && !MEDICINE_WARM.test(method);
+  // 寒热：本例证名只有寒（或只有热），治法也没有反向字样。证名不分寒热（外感风邪证、风邪犯表证）时看已签名的治法：
+  // 只有清热一边的按热、只有温散一边的按寒（第二十七轮接口回放：外感风邪证、治法疏风清热，汤剂黄芩栀子连翘黄连，推荐桂枝颗粒）。
+  const neutralNames = !/寒/u.test(names) && !/热|火|暑/u.test(names);
+  const caseColdOnly = (/寒/u.test(names) && !/热|火|暑/u.test(names) && !MEDICINE_COLD.test(method)) ||
+    (neutralNames && MEDICINE_WARM.test(method) && !MEDICINE_COLD.test(method)) ||
+    (neutralNames && !MEDICINE_WARM.test(method) && !MEDICINE_COLD.test(method) && direction.decoctionThermal === "warm");
+  const caseHeatOnly = (/热|火|暑/u.test(names.replace(/虚热|虚火/gu, "")) && !/寒/u.test(names) && !MEDICINE_WARM.test(method)) ||
+    (neutralNames && MEDICINE_COLD.test(method) && !MEDICINE_WARM.test(method)) ||
+    (neutralNames && !MEDICINE_WARM.test(method) && !MEDICINE_COLD.test(method) && direction.decoctionThermal === "cold");
   if (!caseColdOnly && !caseHeatOnly) return undefined;
   // 功能里同时写着解表、散风（荆防败毒丸：清热散风，发表解肌）是表证用药，寒热不单凭一个「清热」定。
   const byClause = clause && MEDICINE_COLD.test(clause) && !MEDICINE_WARM.test(clause) && !MEDICINE_RELEASE_EXTERIOR.test(clause) ? "cold"

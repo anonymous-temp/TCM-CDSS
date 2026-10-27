@@ -2016,19 +2016,40 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
   };
 }
 
+/**
+ * 教材写「根据五脏的不同配以五脏的背俞穴」（《推拿学》虚劳）时按本例证名里的脏取背俞穴：这句是取穴方法，不是部位，不进穴位表；
+ * 证名里写到的脏（肺脾两虚→肺俞、脾俞）之外的背俞穴不取。证名里一个脏都没有时照教材全列。
+ */
+const BACK_SHU_ORGANS: ReadonlyArray<readonly [string, string]> = [["肺俞", "肺"], ["心俞", "心"], ["肝俞", "肝"], ["脾俞", "脾"], ["肾俞", "肾"]];
+export function tuinaBackShuForSyndrome(sites: readonly string[], signedSyndromeText: string): { sites: string[]; note: string } {
+  const instruction = sites.find((site) => /配以.*背俞穴/u.test(site));
+  const all = uniq(sites.filter((site) => site !== instruction));
+  if (!instruction) return { sites: all, note: "" };
+  const organs = BACK_SHU_ORGANS.filter(([, organ]) => signedSyndromeText.includes(organ));
+  if (organs.length === 0) return { sites: all, note: "" };
+  const wanted = organs.map(([point]) => point);
+  const kept = [...all.filter((site) => !BACK_SHU_ORGANS.some(([point]) => site === point)), ...wanted];
+  const organWord = organs.length === 1 ? "脏" : organs.length === 2 ? "两脏" : "诸脏";
+  return { sites: uniq(kept), note: `按本例${organs.map(([, organ]) => organ).join("、")}${organWord}取${wanted.join("、")}。` };
+}
+
 function tuinaPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | undefined {
   const entries = matchDiseaseEntries(data.tuina, input.diseaseNames, input.westernNames, "", input.patientAgeYears);
   const entry = entries[0];
   if (!entry) return undefined;
-  const sites = uniq([...entry.sites, ...entry.points]);
+  const backShu = tuinaBackShuForSyndrome([...entry.sites, ...entry.points], input.signedSyndromeText);
+  const sites = backShu.sites;
   if (sites.length === 0) return undefined;
   const picked = pickSyndromes(entry.syndromeModifications.map((item) => ({ ...item, keySymptoms: "" })), input.signedSyndromeText, input.currentFacts);
   const modification = picked[0];
   const tuinaWeb = webScheduleFor("tuina", input.diseaseNames, input);
+  // 教材写了逐步操作时，卡片正文给手法与本例取的背俞穴，不再以病种治则开头（第二十七轮：甲方 10.26 病历 5「虚劳只给食疗」——
+  // 《推拿学》虚劳节有取穴与操作，卡片却只以一段病种治则开头，被当作「只有治则」的卡不交付）。教材没有操作步骤的病种照旧以治则开头。
+  const principle = `治则：${(entry.principle.split("。")[0] || entry.principle).trim().replace(/[“”"]/g, "")}。`;
   return {
     kind: "acupoint",
     treatmentContent: cutText(
-      `治则：${(entry.principle.split("。")[0] || entry.principle).trim().replace(/[“”"]/g, "")}。手法：${uniq(entry.manipulations).slice(0, 8).join("、") || "见操作"}。${modification ? `本例证候与教材「${modification.label}」相符：${cutText(modification.content, 200)}` : ""}`,
+      `${entry.operation.length > 0 ? "" : principle}手法：${uniq(entry.manipulations).slice(0, 8).join("、") || "见操作"}。${backShu.note}${modification ? `本例证候与教材「${modification.label}」相符：${cutText(modification.content, 200)}` : ""}`,
       1150,
     ),
     points: sites.slice(0, POINT_LIMIT).map((name) => ({ name, role: "base_point" as const })),

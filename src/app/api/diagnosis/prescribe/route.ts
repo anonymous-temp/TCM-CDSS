@@ -309,7 +309,7 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   const informationNotice = limitedInformation
     ? [
         "## 信息完整性边界",
-        `本候选方药仅依据已经提供的信息生成；正式采纳前需确认：${reviewItemsText}。这些未知项不影响医生审阅候选方案，但不会被视为已核实事实。`,
+        `本候选方药仅依据已经提供的信息生成；正式采纳前需确认：${reviewItemsText}。这些未知项不影响医生审阅本方，但不会被视为已核实事实。`,
       ].join("\n")
     : "";
   const pediatricDose = permission.pediatricDose;

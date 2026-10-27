@@ -19,6 +19,7 @@
 import { RED_FLAG_SAFETY_NET_VISIT } from "./diagnosis-visible-summary";
 import { compositionIdentityName, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
+import { signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { drugNamesInAllergyPhrases } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
@@ -230,7 +231,7 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
     const oral = names.filter((name) => !isTopical(name) && !given.has(name));
     const recorded = names.filter((name) => given.has(name));
     return [
-      oral.length > 0 ? `正在服用的${oral.join("、")}请告知医生，是否继续服用由医生决定；中药与西药同服时最好间隔1小时左右` : "",
+      oral.length > 0 ? `正在服用的${oral.join("、")}请告知医生，是否继续服用、与本方如何错开服用由医生决定` : "",
       topical.length > 0 ? `正在外用的${topical.join("、")}请告知医生，是否继续使用由医生决定` : "",
       recorded.length > 0 ? `病历记录用过的${recorded.join("、")}，请告知医生现在是否还在用，能否与本方同用由医生决定` : "",
       noSelfStopLine,
@@ -1151,6 +1152,35 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         if (reference?.source) sourceRecord.source = `${baseName}：${reference.source}`;
       }
     }
+    // 方名写成了自拟方，组成却就是辨证阶段锁定的（或剥名前所称的）那首成方：按组成身份比对，逐味相同写原方名，保留数达到该方的身份下限
+    // 写「X加减」，出处取编译目录的书（第二十七轮：甲方接口回放「恶心、头晕伴流涕」，组成正是旋覆代赭汤的七味，方名与出处却是「自拟方」，
+    // 评审判「经方未给出经典文献出处」）。组成达不到下限的照旧是自拟方。只改交付的方名、出处与方义开头，不改身份字段。
+    {
+      const currentName = typeof candidate.name === "string" ? candidate.name.trim() : "";
+      if (!currentName || currentName === "自拟方" || SELF_COMPOSED_NAME.test(currentName)) {
+        const herbNames = records(candidate.herbs).map((herb) => String(herb.name || ""));
+        const present = new Set(herbNames.map((name) => compositionIdentityName(name)).filter(Boolean));
+        const claimed = [
+          ...(Array.isArray(candidate.declassifiedFromFormulaNames) ? candidate.declassifiedFromFormulaNames : []),
+          ...(Array.isArray(record(reasoning.overview)?.recommendedFormulaNames) ? record(reasoning.overview)!.recommendedFormulaNames as unknown[] : []),
+        ].map((name) => String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "")).filter((name) => name && !/合|本例辨证组方/u.test(name));
+        for (const name of [...new Set(claimed)]) {
+          const reference = formulaCompilationReferences([name])[0];
+          if (!reference?.ingredients?.length) continue;
+          const ingredients = [...new Set(reference.ingredients.map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, ""))).filter(Boolean))];
+          const kept = ingredients.filter((id) => present.has(id)).length;
+          if (kept < Math.max(reference.minimumPreservedIngredientCount || 0, Math.ceil(ingredients.length * 0.6))) continue;
+          const original = candidateIsOriginalFormula(name, records(candidate.herbs)) === true;
+          candidate.name = original ? name : `${name}加减`;
+          const sourceRecord = record(candidate.formulaSource);
+          if (sourceRecord && reference.source) sourceRecord.source = `${name}：${reference.source}`;
+          if (typeof candidate.formulaAnalysis === "string") {
+            candidate.formulaAnalysis = withOpeningMatchingFormulaName(candidate.formulaAnalysis, String(candidate.name), original).text;
+          }
+          break;
+        }
+      }
+    }
     // 方义里的方名此前被「自拟方不得自称成方」一律换成了「本方案」（tcm-formula-provenance）。
     // 方名最终是成方时把它换回来；确是自拟方时「本方以本方案为基础加减」只是空话，改成一句说明。
     // 此前只处理了带「为基础」的写法，「本方以本方案加减。」被留成「本方以本方。」（合成集 84 例里 3 例）。
@@ -1288,6 +1318,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         recipeHasRichIngredient(String(item.treatmentContent || ""))) return false;
       return true;
     });
+    for (const item of records(nonPharma.tcmTreatments)) {
+      if (typeof item.operatorRequirement === "string") item.operatorRequirement = operatorRequirementWording(item.operatorRequirement);
+    }
   }
   if (nonPharma) {
     const foods = avoidedFoods([String(nonPharma.diet || ""), ...(Array.isArray(nonPharma.precautions) ? nonPharma.precautions.map((line) => String(line || "")) : [])]);
@@ -2204,6 +2237,18 @@ function withSourceBasedHerbEvidence(reasoning: Json): void {
 }
 
 /** 就地投影一份已解析的结构化结果。非 V2 结果原样返回。 */
+/**
+ * 证名、病名都不涉心神时，治法里单列的「宁心安神」「养心安神」一项去掉（甲方 10.12「佐以安神」模板、顺带的失眠不进主治法；
+ * 判据与开方的顺带安神药同一个 signedScopeInvolvesMind）。只去整项都是安神的那一项（「宁心止汗」留着），只剩这一项时不动。
+ * 第二十七轮回放：虚劳·脾胃阴虚「益气健脾，滋阴和胃，宁心安神」、消渴「生津止渴，宁心安神」。
+ */
+export function withoutIncidentalSedationMethod(method: string, mindInScope: boolean): string {
+  if (mindInScope) return method;
+  const items = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
+  const kept = items.filter((item) => !/^(?:养心|宁心|清心|镇惊|重镇|镇静)?(?:安神|宁神|宁心)(?:定志|助眠)?$/u.test(item));
+  return kept.length > 0 && kept.length < items.length ? kept.join("，") : method;
+}
+
 export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSurfaceOptions): T {
   const object = record(reasoning);
   if (!object || object.schemaVersion !== "tcm-cdss-reasoning-v2") return reasoning;
@@ -2211,9 +2256,10 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
   if (projected.stage === "diagnose") {
     deliveredDiagnose(projected, options);
     const therapy = record(projected.therapy);
-    if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = withoutRedundantTherapyPhrases(therapy.overallMethod);
+    const mindInScope = signedScopeInvolvesMind(projected as SignedScopeLike);
+    if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(therapy.overallMethod, mindInScope));
     const overviewRecord = record(projected.overview);
-    if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = withoutRedundantTherapyPhrases(overviewRecord.overallTherapy);
+    if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(overviewRecord.overallTherapy, mindInScope));
     const management = record(projected.management);
     if (management && typeof management.followupSafetyNet === "string" && options?.doseWithheld) {
       management.followupSafetyNet = followupWhenDoseWithheld(management.followupSafetyNet, options.doseWithheld, options.doseWithheldKind);
@@ -2274,6 +2320,50 @@ const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
 
 /** 对 sentinel 内的结构化结果应用交付面投影；没有变化时逐字节返回原文。 */
+/**
+ * 开方结果的可见正文不随投影重渲染（正文里有渲染之后才并入的内容，见 diagnosis-api 的交付面投影），但方名标题与方义段
+ * 是结构化字段的逐字副本：投影改了它们，正文就得跟着改，否则同一份响应两个说法。第二十七轮甲方 00000239 的 13 岁咳嗽病例
+ *（2026-10-27）结构化方义是「本方为自拟方。…」，正文方义仍是占位替换留下的「本方以本方案合本方案加减。…」，四次重放四次如此。
+ * 只换这两处，且只在正文里确有投影前的原文时换；其余正文不动。
+ */
+function withVisibleFormulaSectionsSynced(visible: string, before: Record<string, unknown> | undefined, after: Record<string, unknown> | undefined): string {
+  const candidateOf = (value: Record<string, unknown> | undefined) => record(Array.isArray(record(value?.formula)?.candidates) ? (record(value?.formula)!.candidates as unknown[])[0] : undefined);
+  const pre = candidateOf(before), post = candidateOf(after);
+  if (!pre || !post) return visible;
+  let text = visible;
+  const preAnalysis = typeof pre.formulaAnalysis === "string" ? pre.formulaAnalysis.trim() : "";
+  const postAnalysis = typeof post.formulaAnalysis === "string" ? post.formulaAnalysis.trim() : "";
+  if (preAnalysis && postAnalysis && preAnalysis !== postAnalysis) {
+    const escaped = (value: string) => value.replace(/\r\n?/g, "\n").replace(/\|/g, "\\|").trim();
+    const heading = text.indexOf("### 方义分析");
+    const at = heading >= 0 ? text.indexOf(escaped(preAnalysis), heading) : -1;
+    if (at >= 0) text = `${text.slice(0, at)}${escaped(postAnalysis)}${text.slice(at + escaped(preAnalysis).length)}`;
+  }
+  const preName = typeof pre.name === "string" ? pre.name.trim() : "";
+  const postName = typeof post.name === "string" ? post.name.trim() : "";
+  if (preName && postName && preName !== postName) {
+    const section = text.indexOf("# 候选方药");
+    const headingLine = section >= 0 ? text.indexOf(`\n## ${preName}\n`, section) : -1;
+    if (headingLine >= 0) text = `${text.slice(0, headingLine)}\n## ${postName}\n${text.slice(headingLine + preName.length + 5)}`;
+  }
+  return text;
+}
+
+/**
+ * 治疗卡的操作者要求写给医生、患者看的写法：不说「资质」（甲方 2026-08-20「病种模板、政府发布方案、现场医师确认、资质和烫伤风险不是给用户看的」；
+ * 第二十七轮回放 69 张卡仍是「由具备相应资质的中医执业人员操作」）。目录原文不动，只在交付面换说法；换不出内容时保留原句（字段不得为空）。
+ */
+export function operatorRequirementWording(text: string): string {
+  const reworded = text
+    .replace(/具备相应资质的人员/gu, "专业人员")
+    .replace(/具备相应资质的/gu, "")
+    .replace(/(具备)(外科|针刀诊疗)(?:专项)?资质和/gu, "$1$2与")
+    .replace(/(具备)(?:相应|专项)?资质和/gu, "$1")
+    .replace(/、资质和/gu, "和")
+    .trim();
+  return /资质/u.test(reworded) || !reworded ? text : reworded;
+}
+
 export function applyDeliveredSurfaceToContent(content: string, options?: DeliveredSurfaceOptions): string {
   const start = content.lastIndexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -2282,7 +2372,10 @@ export function applyDeliveredSurfaceToContent(content: string, options?: Delive
     const parsed = JSON.parse(content.slice(start + START_MARKER.length, end).trim());
     const projected = projectDeliveredReasoning(parsed, options);
     if (JSON.stringify(projected) === JSON.stringify(parsed)) return content;
-    return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(projected, null, 2)}\n${content.slice(end)}`;
+    const visible = record(parsed)?.stage === "prescribe"
+      ? withVisibleFormulaSectionsSynced(content.slice(0, start), record(parsed), record(projected))
+      : content.slice(0, start);
+    return `${visible}${START_MARKER}\n${JSON.stringify(projected, null, 2)}\n${content.slice(end)}`;
   } catch {
     return content;
   }

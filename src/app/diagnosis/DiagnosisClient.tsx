@@ -4276,7 +4276,7 @@ export function extractServerLeadingNotices(caseState: CaseState): { safety: str
 }
 
 function ServerLeadingNotices({ caseState }: { caseState: CaseState }) {
-  // 页面只列安全警示（服务端带标记的那一段）。质量批注是系统自评的说明（「本次候选已完成确定性核查…」），
+  // 页面只列安全警示（服务端带标记的那一段）。质量批注是服务端的核对说明（「本方药味、剂量、配伍与人群禁忌已逐项核对…」），
   // ABC 面板与验收标准里都没有，2026-10-21 起不上屏（clinician-page-view.ts）；接口正文照旧带着它。
   const { safety } = extractServerLeadingNotices(caseState);
   if (safety.length === 0) return null;

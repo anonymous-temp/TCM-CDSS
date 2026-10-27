@@ -1962,8 +1962,9 @@ function sanitizePatientApplicableText(value: string, state: CaseState): string 
     const headingPrefix = line.match(/^(#{1,6}\s*)/)?.[1] || "";
     const body = headingPrefix ? line.slice(headingPrefix.length) : line;
     const clauses = body.split(/([。；;])/);
+    // 只剩标点（「孕妇慎用本方。」→「。」）算删空：此前男性患者的注意事项里留下一条只有句号的项。
     const filtered = clauses.map((clause) => FEMALE_ONLY_CLINICAL_CONTEXT.test(clause) ? "" : clause).join("").trim();
-    return filtered ? `${headingPrefix}${filtered}` : "";
+    return /[^\s。；;，,、]/u.test(filtered) ? `${headingPrefix}${filtered}` : "";
   }).filter((line) => line.trim()).join("\n");
 }
 
@@ -2051,6 +2052,10 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
           //「感冒发热病人不宜服用」「不适用于急性肠炎腹泻，腹痛，或发烧」被改成「未诉发热」「未诉腹痛」（2026-10-24 第十八轮基层集
           // 11 个药、甲方 100 例 C001）。只豁免这几个说明书字段，correspondingProblem、positioning 等模型写的字段照常净化。
           if (typeof value === "string" && parentKey === "patentAndWestern" && MEDICINE_LABEL_FIELDS.has(key)) return value;
+          // 加减核对统计（modificationReview：哪几条加减为什么没收进来）是服务端写的规则说明，不是对本例的断言。
+          // 第二十七轮甲方 100 例 C098（68 岁男性）：「拟加药味与本例人群或状态冲突（药典孕妇禁用、妊娠/哺乳/儿童高风险…）」
+          // 整句按「男性不适用」删空，空串过不了结构校验，整张处方退成非剂量页（三次生成两次）。
+          if (typeof value === "string" && (parentKey === "modificationReview" || parentKey === "droppedReasons")) return value;
           // 已删除 nonPharma.monitoring 的净化豁免。该豁免不是安全控制，而是对本净化器的**豁免**：
           // 它存在的唯一理由是重写 trigger 的条件/动作措辞会破坏 monitoring 的语义合同，让 M04
           // 合同拒掉服务端自己净化过的输出。语义合同（5 个 monitoring_* 驳回码）已随字段一并删除，
@@ -2095,9 +2100,13 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
             const negationSanitized = sanitizeUngroundedNegationText(shielded, source, extractorAffirmedTerms, recordedInspection);
             // 单值字段被删空（整段只有一条与病历相反的否认）：退回旧写法，不留空字段；列表项删空由下面的数组分支去掉。
             const fieldEmptied = parentKey !== key && !negationSanitized.trim() && shielded.trim().length > 0;
-            const sanitized = sanitizePatientApplicableText(sanitizeAgeClaimText(fieldEmptied
+            const ageSanitized = sanitizeAgeClaimText(fieldEmptied
               ? sanitizeUngroundedNegationText(shielded, source, extractorAffirmedTerms, recordedInspection, "affirm")
-              : negationSanitized, state), state)
+              : negationSanitized, state);
+            const populationSanitized = sanitizePatientApplicableText(ageSanitized, state);
+            // 单值字段不因「男性不适用」整段删空（与上面的否认删空同一条）：空串过不了结构校验，整张结果随之退成占位或非剂量页；
+            // 列表项删空照旧由数组分支去掉。
+            const sanitized = (parentKey !== key && !populationSanitized.trim() && ageSanitized.trim() ? ageSanitized : populationSanitized)
               .replace(/__CDSS_KEEP_(\d+)__/gu, (_, index: string) => kept[Number(index)] ?? "");
             if (key === "followupSafetyNet") return ensureActionableFollowupSafetyNet(sanitized);
             const documentedPositive = sanitized.match(/病历已记录(.+?)阳性/);
@@ -8104,7 +8113,7 @@ export function buildSafetyLimitedRisk(gate: SafetyGate): string {
     "| 时间点 | 医生/患者动作 | 观察指标 | 触发处置 |",
     "|------|--------------|---------|---------|",
     `| 当前 | 完善${gate.missingItems.join("、") || "红旗排查"} | 主诉、舌脉、四诊问诊，以及已提示但不完整的过敏/用药/特殊人群信息 | 信息未补齐前不形成包含具体用量的候选处方 |`,
-    "| 补齐后 | 重新发起辅助推理 | 证候、病机、风险提示 | 完成必要的处方前信息核查后进入候选方案 |",
+    "| 补齐后 | 重新发起辅助推理 | 证候、病机、风险提示 | 完成必要的处方前信息核查后再开方 |",
   ].join("\n"));
 }
 
@@ -8636,13 +8645,13 @@ export function buildDeterministicRiskFollowupPayload(
   const highest = redFlagWithDose || hasStrongRisk ? "强提示" : hasReviewRisk ? "一般提示" : "说明性提示";
   const overall = redFlagWithDose
     ? `存在未解除的急危重红旗（${gate.redFlags.join("；") || "急危重分流提示"}），需先完成急诊或专科处置`
-    : hasStrongRisk ? "较高风险，需调整或复核后采纳" : hasReviewRisk ? "中等风险，需医生复核后采纳" : "当前未识别确定性高危用药冲突，仍需医生最终确认";
+    : hasStrongRisk ? "较高风险，需调整或核对后使用" : hasReviewRisk ? "中等风险，需医生核对后使用" : "当前未识别确定性高危用药冲突，仍需医生最终确认";
   const doctorAction = redFlagWithDose
     ? "红旗解除前不得采纳本方；请先按急诊或转诊流程处置，排除急危重情况、确认可以服药后再采纳。"
     : hasStrongRisk
     ? "候选处方命中强提示或审方未完成，请调整剂量/药味、完善复核或请药师复核后再采纳。"
     : hasReviewRisk
-      ? "处方可作为候选方案审阅，请结合过敏史、现用药、特殊人群状态和院内规则完成复核。"
+      ? "处方供医生审阅，请结合过敏史、现用药、特殊人群状态和院内规则核对后使用。"
       : "当前无确定性强提示；仍需医生按病情、说明书和院内药事规则最终确认。";
   // 随访管理方案写进病历、交给患者（2026-09-28 甲方）：栏目名不变，内容一律写给患者本人——
   // 什么时候复诊、服药期间留意什么、出现什么提前来、出现什么立即去急诊。
@@ -8721,9 +8730,9 @@ export function buildDeterministicRiskFollowupPayload(
     // current findings are supplied separately; words in labels/negative boilerplate cannot grade.
     adviceText(`**最高提示强度**：${highest}`),
     adviceText(`**综合风险判断**：${overall}`),
-    adviceText(`**评级依据**：${hasStrongRisk ? "处方后置复核命中强提示或存在未完成的确定性审方链路。" : hasReviewRisk ? "病历或处方中存在需医生复核的用药、过敏、特殊人群或联用信息。" : "处方后置复核未提示明确高危冲突。"}`),
+    adviceText(`**评级依据**：${hasStrongRisk ? "处方核对命中强提示，或有尚未完成的用药安全核对。" : hasReviewRisk ? "病历或处方中有需医生核对的用药、过敏、特殊人群或联用信息。" : "处方核对未提示明确高危冲突。"}`),
     adviceText(`**医生需确认事项**：${doctorAction}`),
-    ...(missingAdvisory ? [`**待核实信息**：${missingAdvisory}。这些未知项不阻断候选方案展示，正式采纳前请结合临床实际确认。`] : []),
+    ...(missingAdvisory ? [`**待核实信息**：${missingAdvisory}。这些未知项不影响医生审阅本方，使用前请结合临床实际确认。`] : []),
     ...(vitalAdvisories.length > 0 ? [`**生命体征录入提示**：${vitalAdvisories.join("；")}`] : []),
     "",
     "## 随访管理方案",
@@ -8781,7 +8790,7 @@ export function buildForcedIncompleteRiskFollowup(state: CaseState): string {
   return [
     "## 处方安全总评",
     "**最高提示强度**：待临床复核",
-    "**综合风险判断**：本轮已按医生选择，基于现有资料形成候选方案；以下待核实信息不会阻断报告生成，但须在正式采纳前由医生确认。",
+    "**综合风险判断**：本轮已按医生选择，基于现有资料开出本方；以下待核实信息须在使用前由医生确认。",
     `**待复核信息**：${missing}。请结合本次接诊可获得的资料核对证候、病机、方药匹配与剂量合理性。`,
     "",
     "## 随访管理方案",
@@ -8815,13 +8824,13 @@ export function applySafetyLimitedOutcome(state: CaseState): CaseState {
 export function applyCompletenessLimitedOutcome(state: CaseState): CaseState {
   const gated = withSafetyGate(state);
   const completenessLevel = gated.completeness?.level || "未评估";
-  const completenessText = completenessLevel === "C" ? "可生成候选方案" : completenessLevel === "B" ? "可初步推理" : "信息不足";
+  const completenessText = completenessLevel === "C" ? "可开方" : completenessLevel === "B" ? "可初步推理" : "信息不足";
   const gate: SafetyGate = {
     status: "needs_information",
     allowDiagnosis: false,
     allowDosePrescription: false,
     action: "complete_before_prescription",
-    missingItems: [`辨证信息完整度不足（当前：${completenessText}，需达到：可生成候选方案）`],
+    missingItems: [`辨证信息完整度不足（当前：${completenessText}，需达到：可开方）`],
     redFlags: [],
     reasons: ["主诉、舌脉或核心辨证证据仍不足以支撑剂量级候选处方。年龄和非高风险场景下的生命体征不作为通用阻断项；性别/生理状态、过敏史与当前用药须在 M04 前明确。"],
   };

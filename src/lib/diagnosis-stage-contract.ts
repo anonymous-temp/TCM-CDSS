@@ -3125,6 +3125,23 @@ export function unsupportedHighImpactHerbFindings(
   );
 }
 
+/**
+ * 终审安全底线会按方向对立驳回的那几味（下标）。与 m04SafetyContractIssue 的方向一项逐字同参：
+ * 只认候选自己仍声称的方名（governedFormulaNames(candidate.formulaNames)）与已签名教材代表方的原方药味为基准豁免，
+ * 词表未收载只批注、不算对立（waive=true）。定稿剔药必须用这一个判据决定「哪味会被拒」，不能另算一份基准：
+ * 第二十七轮 C068（M03 锁仙方活命饮，因出血未排除去乳香、没药后候选已是自拟方），剔药按 M03 锁定方把白芷、皂角刺当基准保护，
+ * 终审按候选自己的方名不豁免，整页退成非剂量页，三次生成两次如此。
+ */
+export function m04CandidateOpposingDirectionIndices(
+  herbs: ReadonlyArray<HighImpactHerbLike>,
+  prior: M03ReasoningLike | null | undefined,
+  candidateFormulaNames: unknown,
+): Set<number> {
+  if (!prior) return new Set();
+  return new Set(unsupportedHighImpactHerbScan(herbs, prior, true, governedFormulaNames(candidateFormulaNames) || [], true)
+    .map((finding) => finding.index));
+}
+
 function unsupportedHighImpactHerbIssue(
   herbs: ReadonlyArray<HighImpactHerbLike>,
   prior: M03ReasoningLike | null | undefined,

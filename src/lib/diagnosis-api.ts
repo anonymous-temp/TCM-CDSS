@@ -5447,6 +5447,21 @@ async function callPrimaryTextModelStream(
               // 质量批注）原样带回。开方结果只换结构化载荷：它的可见正文里有渲染之后才并入的内容（儿童用药说明等），
               // 重渲染会把它们丢掉；调用方与页面读的都是结构化载荷。
               let synchronized = surfaced;
+              // 开方结果：「# 候选方药」起的正文按投影后的载荷重渲染，之前的前置区（质量批注、安全横幅、儿童用药说明、信息完整性边界——
+              // 路由在渲染之后并入的那几段）原样保留。此前开方正文整段不重渲染，正文方义与结构化方义两种说法（2026-10-27 甲方实测
+              // 「本方以本方案合本方案加减」对结构化「本方为自拟方」；今日 90 份回放 42 份方义不一致、11 份留「本方案」）。
+              if (opts.structuredStage === "prescribe") {
+                const rerendered = synchronizeVisibleClinicalSummary(
+                  surfaced,
+                  opts.structuredStage,
+                  opts.structuredClinicalContext || "",
+                  opts.structuredCaseState,
+                );
+                const candidateHeading = /^# 候选方药\s*$/m;
+                const previousAt = emissionContent.slice(0, emissionContent.indexOf("<!-- DIAGNOSIS_JSON_START -->")).search(candidateHeading);
+                const renderedAt = rerendered.search(candidateHeading);
+                if (previousAt >= 0 && renderedAt >= 0) synchronized = `${emissionContent.slice(0, previousAt)}${rerendered.slice(renderedAt)}`;
+              }
               if (opts.structuredStage === "diagnose") {
                 const resynchronized = synchronizeVisibleClinicalSummary(
                   surfaced,

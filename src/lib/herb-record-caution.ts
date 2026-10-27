@@ -28,6 +28,7 @@ type CautionTable = {
   looseStool: { cautionTerms: string[]; recordTerms: string[]; recordNormalTerms: string[] };
   poorAppetite: { cautionTerms: string[]; recordTerms: string[] };
   qualifiers: Array<{ cautionTerms: string[]; syndromeTerms: string[] }>;
+  coldDeficiency: { cautionTerms: string[]; recordColdTerms: string[]; recordHeatTerms: string[]; signedHeatTerms: string[]; hardVerbs: string[] };
 };
 
 const TABLE = cautionTableJson as unknown as CautionTable;
@@ -93,6 +94,8 @@ export type HerbRecordCautionConflict = {
   /** 这一句只说生品（「生用……者忌用」）。 */
   rawOnly: boolean;
   recordFindings: string[];
+  /** cold_deficiency：教材「脾胃虚寒者忌用/不宜」按病历虚寒表现判出（herbColdDeficiencyCautionConflict）。缺省为便溏类。 */
+  kind?: "loose_stool" | "cold_deficiency";
 };
 
 /**
@@ -127,6 +130,43 @@ export function herbRecordCautionConflict(herbName: string, recordText: string, 
     };
   }
   return undefined;
+}
+
+/**
+ * 教材写「脾胃虚寒者忌用/不宜」而本例病历自己显出脾胃虚寒（第二十七轮）：有便溏一类、至少一项虚寒表现、没有任何热象，
+ * 已签名的证候里没有热、火、毒。判据词表在 tcm-herb-record-caution.source.json 的 coldDeficiency。
+ */
+export function herbColdDeficiencyCautionConflict(herbName: string, recordText: string, syndromeText = ""): HerbRecordCautionConflict | undefined {
+  const caution = textbookHerbCaution(herbName);
+  if (!caution) return undefined;
+  const table = TABLE.coldDeficiency;
+  if (table.signedHeatTerms.some((term) => syndromeText.includes(term))) return undefined;
+  const sentence = String(caution.text || "").split(/[。；;]/u).find((item) => table.cautionTerms.some((term) => item.includes(term)) && CONTRAINDICATION.test(item));
+  if (!sentence) return undefined;
+  const affirmed = affirmedClinicalText(recordText) || "";
+  const loose = affirmedTerms(affirmed, TABLE.looseStool.recordTerms);
+  if (loose.length === 0 || TABLE.looseStool.recordNormalTerms.some((term) => affirmed.includes(term))) return undefined;
+  const cold = affirmedTerms(affirmed, table.recordColdTerms);
+  if (cold.length === 0 || table.recordHeatTerms.some((term) => affirmed.includes(term))) return undefined;
+  const verb = sentence.match(CONTRAINDICATION)?.[0] || "不宜";
+  return {
+    herb: String(herbName || "").trim(), monograph: caution.herb, caution: caution.text, cautionLine: caution.line,
+    condition: table.cautionTerms.find((term) => sentence.includes(term)) || "脾胃虚寒", verb, rawOnly: false, recordFindings: [...loose, ...cold],
+    kind: "cold_deficiency",
+  };
+}
+
+/**
+ * 苦寒药对着病历显出的脾胃虚寒、教材写的是忌用或不宜（不是慎用）：原方药味也去掉，方名写加减（甲方 10.26 病历 3「黄芩不宜」）。
+ * 便溏类注意（当归「大便溏泻者忌服」、熟地黄「食少便溏者忌服」）不在此列：血虚证的代表方离不开当归，原方药味照旧由医生权衡。
+ */
+export function herbRecordCautionIsHard(conflict: Pick<HerbRecordCautionConflict, "verb" | "kind">): boolean {
+  return conflict.kind === "cold_deficiency" && TABLE.coldDeficiency.hardVerbs.includes(conflict.verb);
+}
+
+/** 便溏类注意与脾胃虚寒注意任一冲突（先看便溏类）。 */
+export function herbAnyRecordCautionConflict(herbName: string, recordText: string, syndromeText = ""): HerbRecordCautionConflict | undefined {
+  return herbRecordCautionConflict(herbName, recordText, syndromeText) || herbColdDeficiencyCautionConflict(herbName, recordText, syndromeText);
 }
 
 /**
@@ -172,9 +212,11 @@ export function herbRecordCautionConflicts(
   ].map((name) => textbookDistinctHerbKey(name)).filter(Boolean));
   return herbs.flatMap((herb, index) => {
     const name = typeof herb.name === "string" ? herb.name.trim() : "";
-    if (!name || baseKeys.has(textbookDistinctHerbKey(name))) return [];
-    const conflict = herbRecordCautionConflict(name, recordText, syndromeText);
-    return conflict ? [{ ...conflict, index, ...(typeof herb.role === "string" ? { role: herb.role } : {}) }] : [];
+    if (!name) return [];
+    const conflict = herbAnyRecordCautionConflict(name, recordText, syndromeText);
+    // 原方药味：教材写「慎用」的照旧由医生权衡；写「忌用、不宜」的不再豁免（甲方 10.26 病历 3 黄芩）。
+    if (!conflict || (baseKeys.has(textbookDistinctHerbKey(name)) && !herbRecordCautionIsHard(conflict))) return [];
+    return [{ ...conflict, index, ...(typeof herb.role === "string" ? { role: herb.role } : {}) }];
   });
 }
 
@@ -189,20 +231,28 @@ export function herbRecordCautionPromptSection(
   formulaNames: readonly string[] = [],
   extraBaseIngredients: readonly string[] = [],
 ): string {
-  const conflicts = textbookHerbsWithCaution()
-    .map((name) => herbRecordCautionConflict(name, recordText, syndromeText))
+  const all = textbookHerbsWithCaution()
+    .map((name) => herbAnyRecordCautionConflict(name, recordText, syndromeText))
     .filter((item): item is HerbRecordCautionConflict => Boolean(item));
-  if (conflicts.length === 0) return "";
+  if (all.length === 0) return "";
   const bases = formulaNames.map(baseFormulaName).filter(Boolean);
   const baseKeys = new Set([
     ...formulaCompilationReferences([...new Set(bases)]).flatMap((reference) => reference.ingredients),
     ...extraBaseIngredients,
   ].map((name) => textbookDistinctHerbKey(name)).filter(Boolean));
-  const kept = conflicts.filter((item) => baseKeys.has(textbookDistinctHerbKey(item.monograph))).map((item) => item.monograph);
+  const inBase = (item: HerbRecordCautionConflict) => baseKeys.has(textbookDistinctHerbKey(item.monograph));
+  // 脾胃虚寒一类（41 味苦寒药）逐味列出太长：只列所选代表方里有的（要去掉的那几味），其余用一句话说不新增苦寒清热药。
+  const conflicts = all.filter((item) => item.kind !== "cold_deficiency" || inBase(item));
+  const coldPattern = all.find((item) => item.kind === "cold_deficiency");
+  const kept = conflicts.filter((item) => inBase(item) && !herbRecordCautionIsHard(item)).map((item) => item.monograph);
+  const dropped = conflicts.filter((item) => inBase(item) && herbRecordCautionIsHard(item)).map((item) => item.monograph);
   const findings = [...new Set(conflicts.flatMap((item) => item.recordFindings))];
+  if (conflicts.length === 0) return coldPattern ? `【饮片使用注意与本例】本例${coldPattern.recordFindings.join("、")}而无热象，属脾胃虚寒：不要新增黄芩、黄连、黄柏、龙胆、石膏一类苦寒清热药（《中药学》【使用注意】脾胃虚寒者忌用或不宜）。` : "";
   const listed = conflicts.map((item) => `${item.rawOnly ? "生" : ""}${item.monograph}（${item.condition}者${item.verb}）`).join("、");
   return [
     `【饮片使用注意与本例】病历记有${findings.join("、")}。《中药学》【使用注意】写明此类患者忌服、慎用或不宜的饮片：${listed}。`,
-    `这些药不要新增进处方，也不要用它们替换代表方里的药味${kept.length > 0 ? `；所选代表方原有的${kept.join("、")}可以保留，保留时在注意事项里写明` : ""}。`,
+    `这些药不要新增进处方，也不要用它们替换代表方里的药味${kept.length > 0 ? `；所选代表方原有的${kept.join("、")}可以保留，保留时在注意事项里写明` : ""}`,
+    `${dropped.length > 0 ? `；所选代表方原有的${dropped.join("、")}性苦寒，教材写明脾胃虚寒者忌用或不宜，本例去掉，方名写「X加减」，方义写明去掉的原因` : ""}。`,
+    coldPattern ? `本例${coldPattern.recordFindings.join("、")}而无热象，属脾胃虚寒：不要新增黄芩、黄连、黄柏、龙胆、石膏一类苦寒清热药。` : "",
   ].join("");
 }

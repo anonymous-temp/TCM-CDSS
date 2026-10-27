@@ -41,6 +41,15 @@ export function herbBoundaryPopulationRelevant(population: string, audience?: He
   return true;
 }
 
+/**
+ * 病情类合写标签里只对育龄女性成立的那一段（「出血倾向/月经期/抗凝状态」的「月经期」）：本例不可能属于时去掉这一段，其余照列
+ *（第二十七轮：男性、儿童、60 岁以上患者的处方写着「川芎（出血倾向/月经期/抗凝状态慎用）」，今日回放 49 份）。
+ */
+export function herbBoundaryPopulationLabel(population: string, audience?: HerbBoundaryAudience): string {
+  if (!audience || audience.reproductive || !population.includes("/")) return population;
+  return population.split("/").filter((part) => !part.includes("月经") && !part.includes("经期")).join("/") || population;
+}
+
 /** 文本里有本文件写出的尾段（新写法）。 */
 export function hasHerbBoundaryTail(text: string): boolean {
   return String(text || "").includes(HERB_BOUNDARY_MARKER);
@@ -53,7 +62,7 @@ export function herbBoundaryNote(profile: HerbBoundaryProfile, audience?: HerbBo
     ...SEVERITY_WORDING.flatMap(([severity, wording]) => {
       const populations = [...new Set(profile.populationRules
         .filter((rule) => rule.severity === severity && herbBoundaryPopulationRelevant(rule.population.trim(), audience))
-        .map((rule) => rule.population.trim())
+        .map((rule) => herbBoundaryPopulationLabel(rule.population.trim(), audience))
         .filter(Boolean))];
       return populations.length > 0 ? [`${populations.join("、")}${wording}`] : [];
     }),

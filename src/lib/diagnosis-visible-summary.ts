@@ -4374,11 +4374,11 @@ function renderPrescribeWarningProjection(
         ...(recordList(candidate.declassifiedFromFormulaNames).length > 0
           || (Array.isArray(candidate.declassifiedFromFormulaNames)
             && candidate.declassifiedFromFormulaNames.length > 0)
-          ? [`**处方身份说明**：M03 原锁定「${(candidate.declassifiedFromFormulaNames as string[])
+          ? [`**处方说明**：辨证阶段推荐「${(candidate.declassifiedFromFormulaNames as string[])
             .map((value) => markdownCell(value)).filter(Boolean).join("、")}」，`
             + "但本方实际组成与该方的标准组成不符，已按自拟方呈现，不代表原方或经典出处；"
-            + "如需按原方开具，请补齐缺失药味后重新生成，或按当前完整药味与剂量重新审方。"]
-          : ["**处方身份说明**：实际组成未沿用原命名经方身份，不代表原方或经典出处；请按当前完整药味与剂量重新审方。"]),
+            + "如需按原方开具，请补齐缺失药味后重新生成，或按当前完整药味与剂量核对后使用。"]
+          : ["**处方说明**：实际组成未沿用原命名经方，不代表原方或经典出处；请按当前完整药味与剂量核对后使用。"]),
       ] : []),
       ...(!isSelfDevised && !isSingleHerb && customerEvidenceDisplayStatus(formulaSource) === "traceable"
         ? [`**方剂出处**：${markdownCell(formulaSource?.source)}`]

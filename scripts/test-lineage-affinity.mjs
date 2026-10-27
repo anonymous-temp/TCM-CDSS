@@ -228,7 +228,7 @@ const reasoningWithLineage = {
     applicabilityReason: "表实无汗、脉浮紧，方证对应清楚",
     influencedDecisions: [{ aspect: "方源选择", detail: "候选方优先自《伤寒论》检索短名单中核对" }],
     unaffectedBySafety: [],
-    safetyDeference: "急危重风险处置和药事审方要求优先于流派偏好",
+    safetyDeference: "急危重风险处置与用药安全核对优先于流派偏好",
   },
 };
 
@@ -241,7 +241,7 @@ check("带 lineageAdaptation 的载荷：M03 可见报告出现「流派适配�
   assert.ok(output.includes("## 流派适配记录"), "报告缺失流派段——甲方基线 §10.2 的承诺未兑现");
   assert.ok(output.includes("经方思路"));
   assert.ok(output.includes("方源选择"));
-  assert.ok(output.includes("急危重风险处置和药事审方要求优先于流派偏好"), "流派段必须携带安全让位声明");
+  assert.ok(output.includes("急危重风险处置与用药安全核对优先于流派偏好"), "流派段必须携带安全让位声明");
 });
 
 check("未选流派（lineageAdaptation=null）：报告不得出现流派段", () => {

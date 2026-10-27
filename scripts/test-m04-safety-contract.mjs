@@ -882,7 +882,7 @@ console.log(JSON.stringify({
       assert.ok(qualityAnnotationCopy(`${prefix}${code}`));
     }
     const annotation = m04TherapyIssueQualityAnnotation(code);
-    assert.ok(annotation && /已完成确定性核查/.test(annotation),
+    assert.ok(annotation && /已逐项核对/.test(annotation),
       `${code} 应带批注受理且写明哪些安全层已通过：${annotation}`);
     assert.ok(isWaivableM04TherapyCoverageCode(code) && isWaivableM04TherapyCoverageCode(`candidate_0_${code}`),
       `${code} 及其 candidate 前缀形式都必须被识别为可豁免`);
@@ -973,7 +973,7 @@ console.log(JSON.stringify({
     "m04_pathogenesis_node_uncovered_P3",
   ]) {
     const annotation = m04TherapyIssueQualityAnnotation(code);
-    assert.ok(annotation && /已完成确定性核查/.test(annotation),
+    assert.ok(annotation && /已逐项核对/.test(annotation),
       `${code} 应带批注受理且写明安全层已通过：${annotation}`);
   }
   for (const code of [

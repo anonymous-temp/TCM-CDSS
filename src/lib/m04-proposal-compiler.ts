@@ -38,7 +38,7 @@ import { fillMedicineRowFromInstructionRecord, type InstructionRecordPool } from
 import { formulaAnalysisHerbMentions, formulaAnalysisRoleAssignments, withoutFalseBaseFormulaEdits } from "./formula-analysis-review";
 import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
 import { patentMedicineDuplication, patentMedicineOpposesSignedDirection, selfTakenMedicationCompositions, signedDirectionOf, withoutRepeatedMedicineNames, withoutSameClassAnalgesics, withoutSameClassMedicines } from "./patent-medicine-duplication.server";
-import { findLocalPatentMedicineLabel, patentMedicineCoversMainProblem, patentMedicineMatchesSignedSyndrome } from "./local-patent-medicine-candidates";
+import { decoctionThermalByComposition, findLocalPatentMedicineLabel, patentMedicineCoversMainProblem, patentMedicineMatchesSignedSyndrome } from "./local-patent-medicine-candidates";
 import { herbRecordCautionConflict, herbRecordCautionConflicts, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
 import { assessPregnancyState } from "./clinical-state";
 import { specialDecoctionPhrase, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
@@ -190,7 +190,7 @@ function medicineEvidenceFromSource(source: string) {
 // 通用安全文案：不断言任何患者事实、不含任何剂量，因此不违反证据绑定基线。
 const BASELINE_PRECAUTIONS = [
   "服药期间如出现皮疹、瘙痒、明显恶心呕吐、腹泻或心悸等新发不适，应立即停药并联系接诊医生。",
-  "本方为本次辨证形成的候选方案，未经医生复核不得自行加量、延长疗程或转给他人服用。",
+  "本方按本次辨证开出，请按医生开的剂量和疗程服用，不要自行加量、延长疗程或转给他人服用。",
   "如同时在服用其他中药、中成药或西药，复诊时须携带完整用药清单交由医生核对。",
 ] as const;
 
@@ -2068,7 +2068,9 @@ export function compileM04Proposal(
   // 解热镇痛抗炎药只留一种（S145：依托考昔、对乙酰氨基酚、布洛芬并列；见 withoutSameClassAnalgesics）。
   // 第九轮：方向与已签名证候明确相反的内服中成药不列（补益药用于纯实证、攻邪药用于纯虚证、清热药用于寒证、温热药用于热证），
   // 随后同一问题、同一给药途径的中成药与同一药理类别的西药各只留排在最前的一个（见 withoutSameClassMedicines）。
-  const signedDirection = signedDirectionOf(prior);
+  // 证名、治法都不分寒热时，按本次汤剂组成的寒温定方向（第二十七轮：外感风邪证·疏风解表，汤剂黄芩栀子连翘黄连，推荐桂枝颗粒）。
+  const baseDirection = signedDirectionOf(prior);
+  const signedDirection = baseDirection ? { ...baseDirection, decoctionThermal: decoctionThermalByComposition(proposal.candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name) || herb.name)) } : baseDirection;
   // 中成药说明书「用于」部分说不到本例主要问题的不列；对证的中成药排在前面（2026-10-26 甲方测评病历 8：
   // 蛇串疮推荐穿黄清热胶囊、龙血竭胶囊，对证的龙胆泻肝丸反排在最后）。判据见 patentMedicineCoversMainProblem。
   const mainProblem = {

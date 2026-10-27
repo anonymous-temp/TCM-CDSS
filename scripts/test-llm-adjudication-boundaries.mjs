@@ -196,7 +196,7 @@ ok("营销词不得活过 finalize", (() => {
   ok("渲染确实产出了 M04 正文（否则下面两条断言无意义）", withName.includes("候选方药"));
   ok("剥名时说出 M03 原锁定的方名", withName.includes("麻黄汤"));
   ok("剥名说明仍保留「不代表原方或经典出处」", withName.includes("不代表原方或经典出处"));
-  ok("无原方名记录时回落到原有措辞", without.includes("实际组成未沿用原命名经方身份"));
+  ok("无原方名记录时回落到原有措辞", without.includes("实际组成未沿用原命名经方，不代表原方或经典出处"));
   ok("无原方名记录时不得凭空捏造方名", !without.includes("原锁定"));
 
   // 候选自身没有任何可记录的方名时（模型自己就写成「本例辨证组方」且 formulaNames 为空，
