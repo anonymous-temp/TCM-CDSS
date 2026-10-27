@@ -737,6 +737,7 @@ assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be 
   const redundancyBodies = [];
   let singlePointVerdict = { verdict: "single", points: [] };
   const singlePointBodies = [];
+  const consensusBodies = [];
   const savedFetch = globalThis.fetch;
   globalThis.fetch = async (_url, init) => {
     const body = JSON.parse(init.body);
@@ -752,6 +753,15 @@ assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be 
     if (!body.stream && /追问题题干的核对器/.test(body.messages?.[0]?.content || "")) {
       singlePointBodies.push(body);
       return new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content: JSON.stringify(singlePointVerdict) }, finish_reason: "stop" }] }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    // 2026-10-27 第二十六轮：出题并行发出第二份独立采样（同一提示词、温度 0.3、非流式），两份各走同一套核对后取共识。
+    // 这里第二份交回与首轮相同的计划；别的非流式调用仍不许有。
+    if (!body.stream && body.temperature === 0.3 && /m02Plan/.test(JSON.stringify(body.messages || []))) {
+      consensusBodies.push(body);
+      if (providerStatus !== 200) return new Response("upstream down", { status: providerStatus });
+      return new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content: providerContent }, finish_reason: "stop" }] }), {
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -779,6 +789,8 @@ assert.deepEqual(proseUpdated.symptoms, {}, "free-text group labels must not be 
     assert.deepEqual(envelopeJson(unscored).completeness, expectedObject, "success path: completeness is the deterministic operational completeness");
     assert.equal(envelopeJson(unscored).m02Plan.questions[0].question, routePlan.questions[0].question, "the unscored provider plan is delivered, not replaced by the fallback");
     assert.equal(upstreamBodies.length, 1, "one streamed generation call, no review call");
+    assert.ok(consensusBodies.length <= 1, "at most one consensus sample of the same prompt");
+    if (consensusBodies.length === 1) assert.deepEqual(consensusBodies[0].messages, upstreamBodies[0].messages, "the consensus sample uses the same system and user prompt as the streamed call");
     assert.ok(redundancyBodies.length <= 1, "at most one narrow redundancy check on the model-written question");
     assert.ok(singlePointBodies.length <= 1, "at most one narrow single-point check on the model-written question");
     assert.doesNotMatch(JSON.stringify(singlePointBodies), /多梦易醒/, "the single-point check sees only the question, not the record");

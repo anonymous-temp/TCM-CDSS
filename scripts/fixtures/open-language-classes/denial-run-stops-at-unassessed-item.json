@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "cdss-open-language-class-v1",
+  "id": "denial-run-stops-at-unassessed-item",
+  "mode": "deterministic",
+  "paritySchema": "sibling-phrasing",
+  "addedAt": "2026-10-27",
+  "trigger": "第二十一轮遗留：「无皮疹，是否抽搐尚未询问，面色苍白」里，安全层把面色苍白也读成否认——否认词跨逗号延续到后面的裸词（「否认胸痛，胸闷，气促」是逐项否认），中间夹着一句「是否X尚未询问」也照样延续。两个加性读者（事实层、红旗判别读者）按小句判，不受影响；闸门自己的读法不对。第二十六轮修。",
+  "layerAttribution": {
+    "layer": "deterministic_negation_scope",
+    "mechanism": "diagnosis-safety.isNegatedAt 的逗号否认列举（denialRunBrokenByPositiveItem 管列举在哪一项断开）。未评估的一项（是否X尚未询问、有无X待核实、X情况不详）是另一种断言——问了没问、有无不明——否认列举到它为止。",
+    "exception": "冻结令允许的构词式守卫：判据复用 unassessedMentionAt 的同一套前置/后置触发词（UNASSESSED_PRE_TRIGGER、UNASSESSED_STATUS_SOURCE、伪触发 UNASSESSED_PSEUDO），只看否认词与被测词之间的列举项。只会把否认改成未否认，闸门方向只增不减；没有新增症状词表。",
+    "sources": "闸门回放 ~/runlogs/r1018/work/r1038/replay/gate-unassessed.json（旧码 85cbf1b 对新码，全语料与各评测集）。"
+  },
+  "contexts": ["outpatient_record"],
+  "parity": {
+    "note": "主体句「无A，<未评估项>，<阳性表现>」与去掉开头否认的兄弟句门禁结果必须相同（都报警）。",
+    "pairs": [
+      { "subject": "头晕1天，无咳嗽，是否发热尚未询问，言语不清，肢体无力。", "sibling": "头晕1天，是否发热尚未询问，言语不清，肢体无力。", "siblingExpect": "flagged" },
+      { "subject": "乏力3天，无咳嗽，有无黑便待核实，胸痛，大汗。", "sibling": "乏力3天，有无黑便待核实，胸痛，大汗。", "siblingExpect": "flagged" },
+      { "subject": "头晕1天，否认外伤，呕吐情况不详，言语不清，肢体无力。", "sibling": "头晕1天，呕吐情况不详，言语不清，肢体无力。", "siblingExpect": "flagged" }
+    ]
+  },
+  "controls": {
+    "note": "没有未评估项夹在中间的逐项否认照旧是否认；未评估项在被测词之后不影响前面的否认。",
+    "mustStillFlag": [],
+    "mustStayReady": [
+      "头晕1天，无咳嗽，言语不清，肢体无力。",
+      "头晕3天，否认胸痛，胸闷，气促。",
+      "头晕3天，否认胸痛，胸闷，是否气促尚未询问。"
+    ]
+  },
+  "measurements": {
+    "before": "subject 0/3 报警（否认越过未评估项）；sibling 3/3 报警",
+    "after": "subject 3/3 与兄弟句相同；controls 不变"
+  }
+}

@@ -73,9 +73,12 @@ export function rationaleMentionsChiefSymptom(rationale: string, phrase: string)
   return false;
 }
 
-/** 漏了两项以上（清单只有两三项时漏一项）才重写。 */
-export function rationaleNeedsCoverageRewrite(missing: readonly string[], findings: readonly string[]): boolean {
-  return missing.length >= 2 || (missing.length >= 1 && findings.length <= 3);
+/**
+ * 漏了两项以上（清单只有两三项时漏一项）才重写；病历记录了的舌象或脉象漏讲时单凭这一项也重写（2026-10-27 第二十六轮：甲方病历 4
+ * 三次里一次只讲舌象没讲「脉弦细」，病历 3 曾被评审判「辨证依据未引舌脉」——舌脉是辨证的定性依据，不与一般伴随表现同权）。
+ */
+export function rationaleNeedsCoverageRewrite(missing: readonly string[], findings: readonly string[], keyFindings: readonly string[] = []): boolean {
+  return missing.length >= 2 || (missing.length >= 1 && findings.length <= 3) || missing.some((item) => keyFindings.includes(item));
 }
 
 /** 流派视角那一句（「从…看，…」「…看…，本例…，以下按常规辨证处理」）：重写稿必须原样保留。 */
@@ -170,7 +173,7 @@ export function acceptedRationaleRewrite(candidate: string, input: { rationale: 
  */
 export async function completeRationaleCoverage(
   content: string,
-  context: { recordText: string; findings: readonly string[]; chiefFindings?: readonly string[] },
+  context: { recordText: string; findings: readonly string[]; chiefFindings?: readonly string[]; keyFindings?: readonly string[] },
   signal?: AbortSignal,
 ): Promise<string> {
   const chiefFindings = [...(context.chiefFindings || [])];
@@ -186,7 +189,8 @@ export async function completeRationaleCoverage(
   const chiefMissing = chiefFindings.filter((item) => !rationaleMentionsChiefSymptom(rationale, item));
   const findings = [...new Set([...chiefFindings, ...context.findings])];
   const missing = [...chiefMissing, ...missingRationaleFindings(rationale, context.findings.filter((item) => !chiefFindings.includes(item)))];
-  if (chiefMissing.length === 0 && (context.findings.length < 2 || !rationaleNeedsCoverageRewrite(missing, findings))) return content;
+  const keyFindings = (context.keyFindings || []).filter((item) => context.findings.includes(item));
+  if (chiefMissing.length === 0 && !missing.some((item) => keyFindings.includes(item)) && (context.findings.length < 2 || !rationaleNeedsCoverageRewrite(missing, findings))) return content;
   const config = getControlledTerminologyModelConfig();
   if (!config.configured) return content;
   const secondary = Array.isArray(overview.secondarySyndromes) ? overview.secondarySyndromes.map(text).filter(Boolean) : [];
@@ -216,6 +220,105 @@ export async function completeRationaleCoverage(
     }
   }, undefined, signal);
   console.info("[tcm-cdss:telemetry] m03_rationale_coverage", { findings: findings.length, missing: missing.length, chiefMissing: chiefMissing.length, rewritten: Boolean(rewritten), rejected: rewritten ? undefined : lastRewriteRejection });
+  if (!rewritten) return content;
+  overview.tcmDiagnosticRationale = rewritten;
+  return JSON.stringify(root);
+}
+
+/**
+ * 各项核对之后，舌象、脉象只剩在「…，是否兼X尚待核实。」那一句里，或整段都不见了时，按主证重写一次依据（2026-10-27 第二十六轮）。
+ * 证素核对（m03-element-support）撤下没成组的证素时，原句里归给它的表现整串挪进待核实那一句；模型原稿常把舌淡白、脉细弱也归给了
+ * 这个证素（「食欲下降、大便稀溏、舌淡白苔薄白为脾虚运化失健」），于是主证血虚头痛的推理里一处舌脉也不剩，舌脉反倒成了「是否兼脾气虚」
+ * 的依据（甲方病历 3，三次里一次）。舌脉是辨证的定性依据：主证能解释的应当写进主证的推理。
+ * 做法与漏讲重写同一个小任务、同一套采信核对，另加三条：待核实那一句要留着；X 不再出现在那一句以外；舌脉要在那一句以外讲到。
+ * 不合格、超时、未配置时原样返回（保留撤下后的稿子）。
+ */
+const PENDING_SENTENCE = /[^。；;]*是否兼([^，,。；;]{2,10})尚待核实[。；;]?/u;
+export function keyFindingsOnlyInPendingSentence(rationale: string, keyFindings: readonly string[]): { pendingElement: string; stranded: string[] } | undefined {
+  const pending = PENDING_SENTENCE.exec(rationale);
+  if (!pending) return undefined;
+  const rest = rationale.replace(pending[0], "");
+  const stranded = keyFindings.filter((item) => !rationaleMentionsFinding(rest, item));
+  return stranded.length > 0 ? { pendingElement: pending[1], stranded } : undefined;
+}
+
+/**
+ * 核对之后舌脉的去向：只剩在待核实那一句里（pendingElement 有值），或整段都不见了（核对删片段时连同舌脉一起删掉：
+ * 甲方病历 10 三次里一次，重写稿讲了「脉濡滑」，本例说法核对删掉那一分句后依据里没有脉象）。
+ */
+export function keyFindingsGapAfterChecks(rationale: string, keyFindings: readonly string[]): { pendingElement?: string; stranded: string[] } | undefined {
+  const pendingGap = keyFindingsOnlyInPendingSentence(rationale, keyFindings);
+  if (pendingGap) return pendingGap;
+  const absent = keyFindings.filter((item) => !rationaleMentionsFinding(rationale, item));
+  return absent.length > 0 ? { stranded: absent } : undefined;
+}
+
+export function acceptedReattributedRationale(candidate: string, input: { rationale: string; findings: string[]; stranded: string[]; pendingElement: string; primary: string; secondary: string[]; disease?: string; recordText?: string }): string | undefined {
+  const value = acceptedRationaleRewrite(candidate, { ...input, missing: [] });
+  if (!value) return undefined;
+  const pending = PENDING_SENTENCE.exec(value);
+  // 待核实那一句要留着（X 仍是没成组的证素），X 不得在那一句以外出现，舌脉要在那一句以外讲到。
+  if (!pending || pending[1] !== input.pendingElement) { lastRewriteRejection = "missing"; return undefined; }
+  const rest = value.replace(pending[0], "");
+  if (rest.includes(input.pendingElement) || missingRationaleFindings(rest, input.stranded).length > 0) { lastRewriteRejection = "missing"; return undefined; }
+  return value;
+}
+
+export async function reattributeStrandedKeyFindings(
+  content: string,
+  context: { recordText: string; findings: readonly string[]; keyFindings: readonly string[] },
+  signal?: AbortSignal,
+): Promise<string> {
+  if (!rationaleCoverageEnabled() || signal?.aborted || context.keyFindings.length === 0) return content;
+  let root: Json | undefined;
+  try { root = record(JSON.parse(content)); } catch { return content; }
+  const overview = record(root?.overview);
+  const rationale = text(overview?.tcmDiagnosticRationale);
+  const primary = text(overview?.primarySyndrome);
+  if (!root || !overview || !rationale || !primary) return content;
+  const gap = keyFindingsGapAfterChecks(rationale, context.keyFindings);
+  if (!gap) return content;
+  const config = getControlledTerminologyModelConfig();
+  if (!config.configured) return content;
+  const secondary = Array.isArray(overview.secondarySyndromes) ? overview.secondarySyndromes.map(text).filter(Boolean) : [];
+  const findings = [...new Set([...context.findings])];
+  const base = buildRationaleCoverageMessages({ recordText: context.recordText, disease: text(overview.tcmDiseaseName), primary, secondary, rationale, findings, missing: gap.stranded });
+  const messages = [
+    base[0],
+    {
+      role: "user" as const,
+      content: gap.pendingElement
+        ? `${base[1].content}\n5. 原依据末尾「是否兼${gap.pendingElement}尚待核实」这一句要保留：${gap.pendingElement}在本例没有成组的依据，其余部分不要再把任何表现归于${gap.pendingElement}。${gap.stranded.join("、")}要写进主证（或兼证）的推理，说明它们怎样支持主证；只有主证确实解释不了的表现才留在那一句里。`
+        : `${base[1].content}\n5. 原依据没有讲到病历记录的${gap.stranded.join("、")}：要写进主证（或兼证）的推理，说明它们怎样支持主证；原依据其余内容尽量保留原话。`,
+    },
+  ];
+  const input = { rationale, findings, stranded: gap.stranded, pendingElement: gap.pendingElement || "", primary, secondary, disease: text(overview.tcmDiseaseName), recordText: context.recordText };
+  const rewritten = await memoizedSmallTask<string | undefined>("m03_rationale_reattribution", smallTaskMemoKey([config.model, messages]), async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    try {
+      const response = await observeModelTask({ task: "m03_rationale_reattribution", stage: "diagnose", model: config.model }, () => createTextModelClient(config).chat.completions.create({
+        model: config.model,
+        temperature: 0,
+        max_tokens: 600,
+        stream: false,
+        response_format: { type: "json_object" },
+        ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
+        messages,
+      }, { signal: controller.signal }));
+      let parsed: Json | undefined;
+      try { parsed = record(JSON.parse(response.choices[0]?.message?.content || "")); } catch { parsed = undefined; }
+      const value = gap.pendingElement
+        ? acceptedReattributedRationale(text(parsed?.rationale), input)
+        : acceptedRationaleRewrite(text(parsed?.rationale), { ...input, missing: gap.stranded });
+      return { value, cacheable: Boolean(value) };
+    } catch {
+      return { value: undefined, cacheable: false };
+    } finally {
+      clearTimeout(timer);
+    }
+  }, undefined, signal);
+  console.info("[tcm-cdss:telemetry] m03_rationale_reattribution", { pending: Boolean(gap.pendingElement), stranded: gap.stranded.length, rewritten: Boolean(rewritten), rejected: rewritten ? undefined : lastRewriteRejection });
   if (!rewritten) return content;
   overview.tcmDiagnosticRationale = rewritten;
   return JSON.stringify(root);

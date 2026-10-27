@@ -2141,6 +2141,53 @@ async function requestStructuredCompletion(args: {
   }
 }
 
+/**
+ * M02 出题的第二份独立采样（2026-10-27 第二十六轮）。托管服务上温度 0 并不确定（服务端批大小随负载变，规约顺序跟着变；
+ * Thinking Machines 2025、Atil et al. 2024），同一病历多次生成，「出一道题」与「无需追问」来回切换：甲方 10 例 ×4 次里 11/40 次不出题，
+ * 其中 5 次是模型自己判无需追问、6 次是题目被「病历已写明 / 一题两问」核对删掉。路由拿两份计划各自走同一套核对，
+ * 有一份留下了模型自己的题就出那一题（见 question/route.ts）。与首轮流同一模型、同一系统与用户提示词、json_object；
+ * 采样温度取 0.3（与 M04 同模型重抽同一档），两份之间更接近独立抽样。非流式；失败、超时、未配置返回 undefined。
+ */
+export async function sampleQuestionPlanOnce(prompt: string, signal: AbortSignal, timeoutMs = 12_000): Promise<string | undefined> {
+  const model = modelForQuestionStage(getPrimaryTextModelConfig().model);
+  const config = textModelConfigForModel(model);
+  if (!config.configured || !isApprovedTextModel(model) || signal.aborted) return undefined;
+  const controller = new AbortController();
+  const abortFromParent = () => controller.abort();
+  signal.addEventListener("abort", abortFromParent, { once: true });
+  const startedAt = Date.now();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchWithConnectTimeout(chatCompletionsUrl(config.baseUrl), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: explicitPromptCacheMessages(cdssSystemPrompt("question"), prompt, { provider: config.provider, model }),
+        stream: false,
+        max_tokens: 3_000,
+        temperature: M02_CONSENSUS_SAMPLE_TEMPERATURE,
+        response_format: { type: "json_object" },
+        ...textModelRequestTuning(model, { thinkingEnabled: false }),
+      }),
+    }, controller);
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      return undefined;
+    }
+    const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, PRIMARY_TEXT_MAX_OUTPUT_CHARS * 4 + 65_536));
+    recordModelUsage("question_consensus_sample", model, result, { taskStage: "question", promptChars: prompt.length, durationMs: Date.now() - startedAt });
+    const content = result?.choices?.[0]?.message?.content || "";
+    return content.trim() && content.length <= PRIMARY_TEXT_MAX_OUTPUT_CHARS ? content : undefined;
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", abortFromParent);
+  }
+}
+const M02_CONSENSUS_SAMPLE_TEMPERATURE = 0.3;
+
 /** 同模型重抽的采样温度：与 M04 重试温度阶梯的第二级相同（m04-retry-policy）。 */
 const M04_SAME_MODEL_REDRAW_TEMPERATURE = 0.3;
 

@@ -2,7 +2,7 @@ import { prefetchDiagnoseInputs, prefetchPrescribeInputsFromSignedDiagnose, tapF
 import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
 import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
-import { chiefComplaintFindings, rationaleFindingsChecklist, rationaleFindingsChecklistNotice } from "@/lib/rationale-findings-checklist";
+import { chiefComplaintFindings, rationaleFindingsChecklist, rationaleFindingsChecklistNotice, recordedTonguePulse } from "@/lib/rationale-findings-checklist";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
 import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars, promptSectionHeaders } from "@/lib/prompt-budget";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
@@ -15,7 +15,7 @@ import { reconcileSecondarySyndromes } from "@/lib/m03-secondary-syndrome-consis
 import { applyElementSupportDecision, decideElementSupport } from "@/lib/m03-element-support.server";
 import { promoteCriticalSecondarySyndrome } from "@/lib/m03-critical-syndrome";
 import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals, patientClaimRecordText } from "@/lib/m03-patient-claim-check.server";
-import { completeRationaleCoverage } from "@/lib/m03-rationale-coverage.server";
+import { completeRationaleCoverage, reattributeStrandedKeyFindings } from "@/lib/m03-rationale-coverage.server";
 import { completeTcmDiseaseDifferentials, prefetchTcmDifferentialTopUp } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { semanticRedFlagsForBanner } from "@/lib/banner-semantic-red-flags.server";
@@ -310,15 +310,22 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
             const finishTcmHalf = async (content: string) => {
               // 辨证依据漏讲已记录表现时先按病历重写这一段（m03-rationale-coverage.server.ts，只在漏两项以上时发请求），
               // 后面的兼证、证素、本例说法核对都在重写稿上做。
-              const covered = await completeRationaleCoverage(content, { recordText: patientClaimRecord, findings: rationaleFindingsChecklist(safeState), chiefFindings: chiefComplaintFindings(safeState) }, transformSignal);
+              const covered = await completeRationaleCoverage(content, { recordText: patientClaimRecord, findings: rationaleFindingsChecklist(safeState), chiefFindings: chiefComplaintFindings(safeState), keyFindings: recordedTonguePulse(safeState) }, transformSignal);
               const completed = await completeTcmDiseaseDifferentials(covered, differentialTopUpContext, transformSignal);
               const [reconciled, claimRemovals, elementDecision] = await Promise.all([
                 reconcileSecondarySyndromes(completed, { recordText: trustedInputText(safeState) }, transformSignal),
                 decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),
                 decideElementSupport(completed, { recordText: trustedInputText(safeState) }, transformSignal),
               ]);
+              // 证素撤下、本例说法删片段之后，病历记录的舌脉只剩在「是否兼X尚待核实」那一句里或整段不见了时，按主证重写一次依据
+              //（m03-rationale-coverage，其余病例不发请求）。
+              const reattributed = await reattributeStrandedKeyFindings(
+                applyPatientClaimRemovalsToContent(applyElementSupportDecision(reconciled, elementDecision), "tcm", claimRemovals),
+                { recordText: patientClaimRecord, findings: rationaleFindingsChecklist(safeState), keyFindings: recordedTonguePulse(safeState) },
+                transformSignal,
+              );
               // 脱证落在兼证栏时提为主证（m03-critical-syndrome，急则治标），在其余核对之后、教材锚定之前。
-              return promoteCriticalSecondarySyndrome(applyPatientClaimRemovalsToContent(applyElementSupportDecision(reconciled, elementDecision), "tcm", claimRemovals));
+              return promoteCriticalSecondarySyndrome(reattributed);
             };
             const disease = tcmHalfDiseaseName(tcmContent);
             const [visit, finished] = await Promise.all([

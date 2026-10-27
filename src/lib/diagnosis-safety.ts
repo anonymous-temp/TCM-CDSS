@@ -3078,6 +3078,14 @@ function questionAnswerPolarityAt(normalized: string, index: number): "positive"
   return "unanswered";
 }
 
+const UNASSESSED_ITEM_STATUS_TAIL = new RegExp(`(?:${UNASSESSED_STATUS_SOURCE})\\s*[）)]?\\s*$`, "u");
+/** 逗号列举里的一项本身是一句未评估的话（「是否抽搐尚未询问」「有无黑便待核实」「呕吐情况不详」）。 */
+function isUnassessedEnumerationItem(item: string): boolean {
+  const trimmed = item.trim();
+  if (!trimmed || UNASSESSED_PSEUDO.test(trimmed)) return false;
+  return UNASSESSED_PRE_TRIGGER.test(trimmed) || UNASSESSED_ITEM_STATUS_TAIL.test(trimmed);
+}
+
 function unassessedMentionAt(normalized: string, index: number): boolean {
   const answered = questionAnswerPolarityAt(normalized, index);
   if (answered) return answered !== "positive";
@@ -3294,6 +3302,9 @@ function denialRunBrokenByPositiveItem(afterNegation: string, text: string, inde
   // 否认词与被测词之间的项两种范围都看（clause 范围只是不借被测词之后小句的修饰词）。
   const between = afterNegation.split(/[，,]/u).slice(1, -1);
   if (between.some((item) => NORMAL_FINDING_ITEM.test(item.trim()) && !DENIAL_RUN_ITEM_NEGATED.test(item.trim()))) return true;
+  // 夹着一句未评估的话（「无皮疹，是否抽搐尚未询问，面色苍白」）：那一句是另一种断言（问了没问、有无不明），否认列举到它为止，
+  // 后面的裸词不再在否认词之下（2026-10-27 第二十六轮；第二十一轮遗留）。判据与 unassessedMentionAt 同一套触发词。
+  if (between.some(isUnassessedEnumerationItem)) return true;
   return items.some((item) => {
     const trimmed = item.trim();
     return Boolean(trimmed) && !DENIAL_RUN_ITEM_NEGATED.test(trimmed) && DENIAL_RUN_POSITIVE_ITEM.test(trimmed);
@@ -6406,8 +6417,15 @@ function medicationStatusIsActionable(text: string): boolean {
   const namedDose = /(?:服用|口服|使用|应用|在用|现服|偶服|吃)[^。；\n]{0,10}([\u4e00-\u9fa5A-Za-z]{2,20})\s*\d+(?:\.\d+)?\s*(?:mg|g|ml|毫克|克|片|粒|袋|丸)/i.exec(text) ||
     /(?:^|[，,；;。\n])\s*((?:阿司匹林|华法林|二甲双胍|胰岛素|硝苯地平|缬沙坦|氯吡格雷|褪黑素)|[\u4e00-\u9fa5A-Za-z]{2,20}(?:片|胶囊|颗粒|丸|散|口服液|注射液))\s*\d+(?:\.\d+)?\s*(?:mg|g|ml|毫克|克|片|粒|袋|丸)/i.exec(text);
   if (!namedDose || /^(?:药物|中药|西药|成药|安眠药|降压药|降糖药|抗凝药|止痛药|止咳药)$/.test(namedDose[1])) return false;
-  return /(?:每(?:日|天|晚|早|周)|一日|一天|早晚|睡前|晨起|餐前|餐后|必要时|按需|偶尔|不定期|\b(?:bid|tid|qd|qod|prn)\b|\d+\s*次\s*[\/／]\s*(?:日|天|周))/i.test(text);
+  return MEDICATION_FREQUENCY.test(text);
 }
+
+/**
+ * 给药频次的写法：中文（每日、早晚、睡前…）、拉丁缩写（bid、tid、qn、q8h…）与「剂量单位/日」的处方写法（60mg/d、1片/d、2次/d）。
+ * 2026-10-27 第二十六轮：基层病历 B013「硝苯地平控释片60mg/d+富马酸比索洛尔5mg/d」此前读不出频次，提示「已提及当前用药但缺少剂量/频次」。
+ * 有限闭集（单位与时间缩写）。
+ */
+const MEDICATION_FREQUENCY = /(?:每(?:日|天|晚|早|周)|一日|一天|早晚|睡前|晨起|餐前|餐后|必要时|按需|偶尔|不定期|\b(?:bid|tid|qid|qd|qod|qn|qw|prn|hs)\b|\bq\d{1,2}h\b|\d+\s*次\s*[\/／]\s*(?:日|天|周|d\b)|(?:mg|g|ml|μg|ug|mcg|iu|毫克|克|片|粒|袋|丸|支|单位)\s*[\/／]\s*(?:日|天|晚|d\b|qd\b))/i;
 
 function allergyStatusIsActionable(text: string): boolean {
   if (!isKnownClinicalText(text)) return false;
@@ -7239,7 +7257,37 @@ function collectPriorityEvaluationEntries(state: CaseState, semanticSourceText: 
       entries.push({ text: item.text, window: "within_24h", focus: item.focus });
     }
   }
+  // 模型写的「需排除：X」对上指南时限表的某一行时，时限取较紧的一档（只收紧）；专门路径的条目自带时限，不动。
+  const defaultWindow = priorityEvaluationWindowTable.defaultWindow as PriorityEvaluationWindowId;
+  for (const entry of entries) {
+    if (entry.pathway) continue;
+    const row = guidelineEvaluationWindow(entry.focus || exclusionFocusIn(entry.text) || "");
+    if (row && PRIORITY_EVALUATION_WINDOWS.indexOf(row.window) < PRIORITY_EVALUATION_WINDOWS.indexOf(entry.window || defaultWindow)) entry.window = row.window;
+  }
   return entries;
+}
+
+/**
+ * 指南时限表（priority-evaluation-windows.source.json guidelineWindows，2026-10-27 第二十六轮）。事实模型给的时限常比指南慢一档：
+ * 第二十一轮基层病历里短暂性脑缺血、深静脉血栓、急性肾损伤（肌酐 64→233）、马尾综合征风险都给了 48 小时，NICE 要求 24 小时内或立即。
+ * 时限由模型读病历判断（它写出要排除的病），病名到时限的对应由数据表给出、每行带指南原文与链接——不是按症状词补规则。
+ * 病名是有限闭集（表里逐行列出的写法）；拉丁缩写（TIA、DVT、AKI…）按词边界匹配。返回能对上的行里最紧的一档。
+ */
+type GuidelineWindowRow = { id: string; matchNames: readonly string[]; window: PriorityEvaluationWindowId };
+const GUIDELINE_WINDOW_ROWS: readonly GuidelineWindowRow[] =
+  ((priorityEvaluationWindowTable as { guidelineWindows?: { rows?: GuidelineWindowRow[] } }).guidelineWindows?.rows || []);
+function guidelineNameIn(focus: string, name: string): boolean {
+  if (/^[A-Za-z]/u.test(name)) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    return new RegExp(`(?<![A-Za-z])${escaped}(?![A-Za-z])`, "u").test(focus);
+  }
+  return focus.includes(name);
+}
+export function guidelineEvaluationWindow(focus: string): GuidelineWindowRow | undefined {
+  if (!focus.trim()) return undefined;
+  return GUIDELINE_WINDOW_ROWS
+    .filter((row) => row.matchNames.some((name) => guidelineNameIn(focus, name)))
+    .sort((a, b) => PRIORITY_EVALUATION_WINDOWS.indexOf(a.window) - PRIORITY_EVALUATION_WINDOWS.indexOf(b.window))[0];
 }
 
 export function evaluateSafetyGate(state: CaseState): SafetyGate {

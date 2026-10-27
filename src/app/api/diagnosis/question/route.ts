@@ -1,4 +1,4 @@
-import { callDiagnosisStream } from "@/lib/diagnosis-api";
+import { callDiagnosisStream, sampleQuestionPlanOnce } from "@/lib/diagnosis-api";
 import { buildQuestionPrompt } from "@/lib/diagnosis-prompts";
 import {
   buildCaseAwareQuestionFallback,
@@ -10,6 +10,7 @@ import {
   m02PriorityTrendQuestion,
   m02ProceedPlanContent,
   m02ProceedWhenSettled,
+  parseM02PlanFromContent,
   redFlagDispositionQuestion,
   splitTonguePulseQuestions,
   withM02Completeness,
@@ -190,22 +191,69 @@ async function questionStageResponse(inputCaseState: CaseState, signal: AbortSig
     degradedContents.add(fallback.trim());
     try { degradedContents.add(outputTransform(fallbackQuestions).trim()); } catch { /* 兜底本身已安全可答 */ }
   }
+  type ReviewedQuestionPlan = { reviewed: string; modelOwned: boolean; telemetry: Record<string, unknown> };
+  // 一份出题计划走完整套核对：舌脉并问拆开、窄核对（病历已写明 / 一题两问 / 选项同值）、确定性删题与收口。
+  // modelOwned：收口后留下的题是模型自己写的（不是服务端的基本问诊兜底题或 proceed）。
+  const reviewQuestionPlan = async (content: string): Promise<ReviewedQuestionPlan> => {
+    // 舌象与脉象并在一问的题先拆成只问一项（拆不开的删掉），再做窄核对（splitTonguePulseQuestions）。
+    const split = splitTonguePulseQuestions(content, sourceText, caseState);
+    // 模型写的题若病历已经写明（全部或其中一件），或题干并问两件事，与确定性删题同一条路删掉（m02-question-redundancy.server.ts）。
+    const repeated = await questionIdsFailingNarrowChecks(split.content, narrowCheckRecordText, `${fallbackQuestions}\n${settledQuestions}`, signal);
+    const reviewed = reviewM02QuestionPlan(split.content, sourceText, settledQuestions, [...split.removeIds, ...repeated]);
+    const modelPlan = parseM02PlanFromContent(content);
+    const splitPlan = parseM02PlanFromContent(split.content);
+    const finalPlan = parseM02PlanFromContent(reviewed);
+    const modelOwned = finalPlan?.decision === "ask" &&
+      finalPlan.questions.some((question) => splitPlan?.questions.some((own) => own.question === question.question));
+    return {
+      reviewed,
+      modelOwned,
+      telemetry: {
+        modelDecision: modelPlan?.decision ?? "unparsed",
+        modelQuestions: modelPlan?.questions.length ?? 0,
+        splitRemoved: split.removeIds.length,
+        narrowRemoved: repeated.length,
+        primaryModelOwned: modelOwned,
+      },
+    };
+  };
+  // 第二份独立采样与首轮流同时发出（diagnosis-api.sampleQuestionPlanOnce）；CDSS_M02_QUESTION_CONSENSUS=false 关闭。
+  const secondSample = process.env.CDSS_M02_QUESTION_CONSENSUS === "false" ? undefined : sampleQuestionPlanOnce(prompt, signal);
+  secondSample?.catch(() => undefined);
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "question", {
     requestSignal: signal,
     streamErrorFallback: fallbackQuestions,
     outputTransform,
     finalOutputTransform: async (content) => {
-      // 舌象与脉象并在一问的题先拆成只问一项（拆不开的删掉），再做窄核对（splitTonguePulseQuestions）。
-      const split = splitTonguePulseQuestions(content, sourceText, caseState);
-      // 模型写的题若病历已经写明（全部或其中一件），或题干并问两件事，与确定性删题同一条路删掉（m02-question-redundancy.server.ts）。
-      const repeated = await questionIdsFailingNarrowChecks(split.content, narrowCheckRecordText, `${fallbackQuestions}\n${settledQuestions}`, signal);
-      return withCompleteness(reviewM02QuestionPlan(split.content, sourceText, settledQuestions, [...split.removeIds, ...repeated]));
+      const primary = await reviewQuestionPlan(content);
+      // 两份计划取共识（第二十六轮）：首轮留下了模型自己的题就用它；否则第二份留下了模型自己的题就用第二份的题；
+      // 两份都没有（都判无需追问、或题都被核对删掉）才按原来的收口（病历已足够时 proceed，不够时基本问诊题）。
+      let chosen = primary;
+      let consensus: "primary" | "second" | "none" | "unavailable" = secondSample ? "none" : "unavailable";
+      if (primary.modelOwned) consensus = "primary";
+      else if (secondSample) {
+        const raw = await Promise.race([secondSample, new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), M02_CONSENSUS_WAIT_MS))]);
+        let second: ReviewedQuestionPlan | undefined;
+        if (raw) {
+          try { second = await reviewQuestionPlan(outputTransform(raw)); } catch { second = undefined; }
+        } else consensus = "unavailable";
+        if (second?.modelOwned) {
+          chosen = second;
+          consensus = "second";
+        }
+      }
+      // 出题与否的来由。只记判定码与题数，不记题干。
+      console.info("[tcm-cdss:telemetry] m02_plan_outcome", { ...primary.telemetry, consensus, finalDecision: parseM02PlanFromContent(chosen.reviewed)?.decision ?? "unparsed" });
+      return withCompleteness(chosen.reviewed);
     },
   });
   if (response.ok || signal.aborted) return response;
   await response.body?.cancel().catch(() => undefined);
   return markdownNdjsonResponse(fallback);
 }
+
+/** 首轮已收口、只差第二份采样时最多再等多久；等不到按首轮结果交付。 */
+const M02_CONSENSUS_WAIT_MS = 4_000;
 
 // 临床请求与响应都加密留存（用户 2026-10-26 D3），见 request-archive.server.ts。
 export const POST = withClinicalResponseArchive(handlePost);

@@ -161,5 +161,837 @@
     "glucoseMgPerDl": 200,
     "urineKetonePlus": 2,
     "bloodKetoneMmolPerL": 3.0
+  },
+  "guidelineWindows": {
+    "purpose": "事实模型给「宜先专科评估」各项写的时限（mustNotMiss.timeWindow）常比指南慢一档（第二十一轮：短暂性脑缺血、深静脉血栓、急性肾损伤、马尾综合征风险给了 48 小时）。模型在「需排除：X」里写出的病名对上下表某一行时，时限取这一行与模型给的较紧的一档；只收紧，不放松；专门路径（乳腺、面瘫、妊娠、酮症…）不受影响。",
+    "basis": "2026-10-27 第二十六轮联网整理：每行的 quote 逐字取自 url 页面（NICE、KDIGO/NICE NG148、ESC、英国眼科与验光学会、UKKA、内分泌学会急症指南、RCH Melbourne 等）。指南写「立即/当天」的（guidelineTier=today）映射为非红旗的最紧一档 within_24h：当天这一档只给红旗未解除而给了剂量的病例（D4）。条件行（分期、血钾分档、涂阳…）只按名字本身写明了条件的写法匹配。",
+    "rows": [
+      {
+        "id": "tia",
+        "matchNames": [
+          "短暂性脑缺血发作",
+          "TIA",
+          "疑似TIA",
+          "短暂性脑缺血",
+          "一过性脑缺血发作",
+          "小中风",
+          "一过性黑蒙"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "within_24h",
+        "condition": "24 h counts from symptom onset, not from the visit; onset >24 h ago means as soon as possible (today).",
+        "quote": "Refer immediately people who have had a suspected TIA for specialist assessment and investigation, to be seen within 24 hours of onset of symptoms. [2019]",
+        "source": "NICE NG128 Stroke and TIA in over 16s, rec 1.1.5",
+        "url": "https://www.nice.org.uk/guidance/ng128/chapter/Recommendations"
+      },
+      {
+        "id": "acute_vestibular_syndrome_stroke",
+        "matchNames": [
+          "后循环卒中",
+          "后循环缺血待排",
+          "急性眩晕待排卒中",
+          "小脑卒中待排"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "condition": "sudden-onset vertigo + nausea/vomiting + gait unsteadiness not explained by BPPV or postural hypotension",
+        "quote": "Refer immediately adults with sudden-onset acute vestibular syndrome in whom benign paroxysmal positional vertigo or postural hypotension do not account for the presentation, in line with local stroke pathways, if a healthcare professional with training and experience in the use of the HINTS test is not available.",
+        "source": "NICE NG127 Suspected neurological conditions, rec 1.2.4",
+        "url": "https://www.nice.org.uk/guidance/ng127/chapter/Recommendations-for-adults-aged-over-16"
+      },
+      {
+        "id": "first_seizure",
+        "matchNames": [
+          "首次癫痫发作",
+          "首次痫性发作",
+          "首次抽搐发作",
+          "癫痫待查",
+          "痫证待查",
+          "癫痫复发"
+        ],
+        "window": "within_2w",
+        "guidelineTier": "within_2w",
+        "quote": "Refer children, young people and adults urgently (for an appointment within 2 weeks) for an assessment after a first suspected seizure:",
+        "source": "NICE NG217 Epilepsies, rec 1.1.1 (1.1.2 gives the same 2-week window for recurrence after remission)",
+        "url": "https://www.nice.org.uk/guidance/ng217/chapter/1-Diagnosis-and-assessment-of-epilepsy"
+      },
+      {
+        "id": "rapidly_progressive_weakness_gbs",
+        "matchNames": [
+          "吉兰-巴雷综合征",
+          "格林-巴利综合征",
+          "GBS",
+          "急性炎症性脱髓鞘性多发性神经病",
+          "急性进行性对称性肢体无力"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Refer immediately adults with rapidly (within 4 weeks) progressive symmetrical limb weakness for neurological assessment and assessment of bulbar and respiratory function.",
+        "source": "NICE NG127 Suspected neurological conditions, rec 1.7.2",
+        "url": "https://www.nice.org.uk/guidance/ng127/chapter/Recommendations-for-adults-aged-over-16"
+      },
+      {
+        "id": "cauda_equina",
+        "matchNames": [
+          "马尾综合征",
+          "马尾神经综合征",
+          "不完全性马尾综合征",
+          "马尾综合征待排",
+          "CES"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Refer immediately, in line with local pathways, adults who have severe low back pain radiating into the leg and new-onset disturbance of bladder, bowel or sexual function, or new-onset perineal numbness, to have an assessment for cauda equina syndrome.",
+        "source": "NICE NG127 Suspected neurological conditions, rec 1.7.3",
+        "url": "https://www.nice.org.uk/guidance/ng127/chapter/Recommendations-for-adults-aged-over-16"
+      },
+      {
+        "id": "giant_cell_arteritis",
+        "matchNames": [
+          "巨细胞动脉炎",
+          "巨细胞性动脉炎",
+          "颞动脉炎",
+          "GCA",
+          "风湿性多肌痛伴头痛待排GCA"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "within_24h",
+        "condition": "no visual symptoms; with new visual symptoms (amaurosis, diplopia, visual loss) use retinal_artery_occlusion (today) — EULAR: 'Patients with new onset of visual symptoms should be seen as soon as possible by an ophthalmological team'.",
+        "quote": "Untreated active GCA is an emergency and carries a substantial risk of permanent visual loss and other ischaemic complications. … Results from two retrospective cohort studies have shown that immediate treatment of GCA patients and rapid referral to a specialised centre (‘fast-track clinic’) for diagnostic work-up, including imaging, within 24 hours after presenting with signs and symptoms of GCA can reduce the rate of permanent visual impairment compared with historical cohorts with routine non-urgent referral.",
+        "source": "EULAR 2018 update of recommendations for the management of large vessel vasculitis (Ann Rheum Dis 2020;79:19-30), recommendation 1 and its explanation",
+        "url": "https://ard.bmj.com/content/79/1/19.full"
+      },
+      {
+        "id": "sudden_hearing_loss_recent",
+        "matchNames": [
+          "突发性聋",
+          "突发性耳聋",
+          "突聋",
+          "暴聋",
+          "突发性感音神经性聋",
+          "SSNHL"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "within_24h",
+        "condition": "onset over ≤3 days and within the past 30 days, not explained by external/middle-ear cause",
+        "quote": "If the hearing loss developed suddenly (over a period of 3 days or less) within the past 30 days, refer immediately (to be seen within 24 hours) to an ear, nose and throat service or an emergency department.",
+        "source": "NICE NG98 Hearing loss in adults, rec 1.1.2",
+        "url": "https://www.nice.org.uk/guidance/ng98/chapter/Recommendations"
+      },
+      {
+        "id": "hearing_loss_with_facial_droop",
+        "matchNames": [
+          "单侧听力下降伴面瘫",
+          "耳带状疱疹",
+          "Ramsay Hunt综合征",
+          "亨特综合征",
+          "听力下降伴同侧面部麻木"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "within_24h",
+        "condition": "requires hearing loss on the same side as the facial droop/altered sensation",
+        "quote": "Refer immediately (to be seen within 24 hours) adults with acquired unilateral hearing loss and altered sensation or facial droop on the same side to an ear, nose and throat service or, if stroke is suspected, follow a local stroke referral pathway.",
+        "source": "NICE NG98 Hearing loss in adults, rec 1.1.3",
+        "url": "https://www.nice.org.uk/guidance/ng98/chapter/Recommendations"
+      },
+      {
+        "id": "retinal_detachment",
+        "matchNames": [
+          "视网膜脱离",
+          "视网膜脱落",
+          "孔源性视网膜脱离",
+          "视网膜裂孔"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "The management of acute retinal detachment in the United Kingdom has improved over the past two decades with patients experiencing better outcomes from surgical intervention for this potentially blinding ophthalmic emergency. … where there is imminent danger that the fovea is about to detach surgery must be carried out urgently within 24 hours.",
+        "source": "Royal College of Ophthalmologists, Ophthalmic Services Guidance: Retinal detachment (2010)",
+        "url": "https://curriculum.rcophth.ac.uk/2010_prof_064_osg-retinal-detachment-june-2010"
+      },
+      {
+        "id": "acute_angle_closure",
+        "matchNames": [
+          "急性闭角型青光眼",
+          "急性闭角型青光眼发作",
+          "急性房角关闭",
+          "青光眼急性发作",
+          "绿风内障"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "An acute attack of angle closure is an emergency which requires same-day referral to the ophthalmologist.",
+        "source": "College of Optometrists Clinical Management Guideline: Primary angle closure / PACG",
+        "url": "https://www.college-optometrists.org/clinical-guidance/clinical-management-guidelines/primaryangleclosure_primaryangleclosureglaucoma_pa"
+      },
+      {
+        "id": "retinal_artery_occlusion",
+        "matchNames": [
+          "视网膜中央动脉阻塞",
+          "视网膜动脉阻塞",
+          "视网膜分支动脉阻塞",
+          "眼动脉阻塞",
+          "CRAO",
+          "突发无痛性单眼视力丧失"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Acute, symptomatic retinal or ophthalmic arterial occlusion should undergo an immediate referral to the nearest stroke referral center for prompt assessment for an acute intervention.",
+        "source": "American Academy of Ophthalmology, Retinal and Ophthalmic Artery Occlusions PPP 2024 (highlighted findings)",
+        "url": "https://aao.org/preferred-practice-pattern/retinal-ophthalmic-artery-occlusions-ppp"
+      },
+      {
+        "id": "orbital_cellulitis",
+        "matchNames": [
+          "眶蜂窝织炎",
+          "眼眶蜂窝织炎",
+          "眶内感染"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "All cases of suspected orbital cellulitis need emergency (same day) referral to the ophthalmologist or to an accident and emergency department.",
+        "source": "College of Optometrists CMG: Cellulitis (preseptal and orbital)",
+        "url": "https://www.college-optometrists.org/clinical-guidance/clinical-management-guidelines/cellulitis_preseptalandorbital"
+      },
+      {
+        "id": "microbial_keratitis",
+        "matchNames": [
+          "角膜溃疡",
+          "感染性角膜炎",
+          "细菌性角膜炎",
+          "真菌性角膜炎",
+          "化脓性角膜炎",
+          "凝脂翳"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Microbial keratitis is a sight-threatening emergency. In the case of small ulcers with a low risk of sight-threatening complications the optometrist may begin treatment with antibiotic eye drops. More serious cases will need to be referred on the same day to an ophthalmologist (specialist eye doctor).",
+        "source": "College of Optometrists CMG: Microbial keratitis (bacterial, fungal)",
+        "url": "https://www.college-optometrists.org/clinical-guidance/clinical-management-guidelines/microbialkeratitis_bacterial_fungal"
+      },
+      {
+        "id": "dvt_suspected",
+        "matchNames": [
+          "深静脉血栓",
+          "下肢深静脉血栓",
+          "深静脉血栓形成",
+          "DVT",
+          "下肢深静脉血栓待排",
+          "股腘静脉血栓"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Offer people with a likely DVT Wells score (2 points or more):\na proximal leg vein ultrasound scan, with the result available within 4 hours if possible (if the scan result cannot be obtained within 4 hours follow recommendation 1.1.4)\nIf a proximal leg vein ultrasound scan result cannot be obtained within 4 hours, offer people with a DVT Wells score of 2 points or more:\na D‑dimer test, then\ninterim therapeutic anticoagulation (see the section on interim therapeutic anticoagulation for suspected DVT or PE) and\na proximal leg vein ultrasound scan with the result available within 24 hours. [2012, amended 2020]",
+        "source": "NICE NG158 Venous thromboembolic diseases, recs 1.1.3–1.1.4",
+        "url": "https://www.nice.org.uk/guidance/ng158/chapter/Recommendations"
+      },
+      {
+        "id": "pe_suspected_stable",
+        "matchNames": [
+          "肺栓塞",
+          "肺动脉栓塞",
+          "PE",
+          "肺栓塞待排",
+          "急性肺栓塞"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "offer a computed tomography pulmonary angiogram (CTPA) immediately if possible or\nIf a CTPA, V/Q SPECT or V/Q planar scan cannot be done immediately, offer interim therapeutic anticoagulation (see the section on interim therapeutic anticoagulation for suspected DVT or PE). [2012, amended 2020]",
+        "source": "NICE NG158 Venous thromboembolic diseases, rec 1.1.18 (PE likely, Wells >4)",
+        "url": "https://www.nice.org.uk/guidance/ng158/chapter/Recommendations"
+      },
+      {
+        "id": "aaa_symptomatic",
+        "matchNames": [
+          "症状性腹主动脉瘤",
+          "腹主动脉瘤破裂待排",
+          "腹主动脉瘤先兆破裂"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Offer an immediate bedside aortic ultrasound to people in whom a diagnosis of symptomatic and/or ruptured AAA is being considered. Discuss immediately with a regional vascular service if:",
+        "source": "NICE NG156 Abdominal aortic aneurysm, rec 1.1.9",
+        "url": "https://www.nice.org.uk/guidance/ng156/chapter/Recommendations"
+      },
+      {
+        "id": "acute_limb_ischaemia",
+        "matchNames": [
+          "急性肢体缺血",
+          "急性下肢缺血",
+          "急性动脉栓塞",
+          "急性下肢动脉栓塞",
+          "急性动脉闭塞"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Patients with acute limb ischaemia, of less than two weeks duration, require immediate referral to vascular surgery. Emergency intervention may be required to prevent amputation.",
+        "source": "Vascular Society of GB&I, A Best Practice Clinical Care Pathway for Peripheral Arterial Disease (PAD QIF 2022 update), p.2",
+        "url": "https://www.vsqip.org.uk/wp-content/uploads/2024/04/PAD-QIF-2022-Update.pdf"
+      },
+      {
+        "id": "diabetic_foot_limb_threatening",
+        "matchNames": [
+          "糖尿病足坏疽",
+          "糖尿病足感染伴发热",
+          "糖尿病足深部感染",
+          "糖尿病足骨髓炎",
+          "糖尿病足伴下肢缺血"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "If a person has a limb-threatening or life-threatening diabetic foot problem, refer them immediately to acute services and inform the multidisciplinary foot care service",
+        "source": "NICE NG19 Diabetic foot problems, rec 1.4.1 (examples: ulceration with fever/sepsis, ulceration with limb ischaemia, deep-seated soft tissue or bone infection, gangrene)",
+        "url": "https://www.nice.org.uk/guidance/ng19/chapter/Recommendations"
+      },
+      {
+        "id": "diabetic_foot_active",
+        "matchNames": [
+          "糖尿病足",
+          "糖尿病足溃疡",
+          "糖尿病足感染",
+          "急性夏科足",
+          "夏科关节病",
+          "Charcot足"
+        ],
+        "window": "within_48h",
+        "guidelineTier": "within_48h",
+        "quote": "For all other active diabetic foot problems, refer the person within 1 working day to the multidisciplinary foot care service or foot protection service (according to local protocols and pathways; also see the recommendation on services and protocols commissioners and service providers should ensure are in place) for triage within 1 further working day. [2015]",
+        "source": "NICE NG19 Diabetic foot problems, rec 1.4.2 (acute Charcot: rec 1.7.3, same 1+1 working days)",
+        "url": "https://www.nice.org.uk/guidance/ng19/chapter/Recommendations"
+      },
+      {
+        "id": "aki_stage3",
+        "matchNames": [
+          "急性肾损伤3期",
+          "急性肾损伤",
+          "AKI",
+          "AKI 3期",
+          "急性肾衰竭",
+          "急性肾功能不全"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "within_24h",
+        "condition": "KDIGO stage 3 (creatinine ≥3× baseline or ≥354 μmol/L, or RRT), OR any AKI with no clear cause, inadequate response or complications (e.g. creatinine 64→233 μmol/L = 3.6× → stage 3)",
+        "quote": "Discuss the management of acute kidney injury with a nephrologist or paediatric nephrologist as soon as possible and within 24 hours of detection when one or more of the following is present:\nacute kidney injury with no clear cause\ninadequate response to treatment\ncomplications associated with acute kidney injury\nstage 3 acute kidney injury (according to (p)RIFLE, AKIN or KDIGO criteria)",
+        "source": "NICE NG148 Acute kidney injury, rec 1.5.15",
+        "url": "https://www.nice.org.uk/guidance/ng148/chapter/Recommendations"
+      },
+      {
+        "id": "aki_suspected_specialist_cause",
+        "matchNames": [
+          "急进性肾小球肾炎",
+          "急性肾小球肾炎",
+          "血管炎肾损害",
+          "急性间质性肾炎",
+          "骨髓瘤肾病",
+          "肾炎综合征"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "within_24h",
+        "condition": "with AKI (rising creatinine); haematuria + proteinuria without UTI also prompts nephritis referral (rec 1.4.3)",
+        "quote": "Discuss the management of acute kidney injury with a nephrologist or paediatric nephrologist as soon as possible and within 24 hours of detection when one or more of the following is present:\na possible diagnosis that may need specialist treatment (for example, vasculitis, glomerulonephritis, tubulointerstitial nephritis or myeloma)",
+        "source": "NICE NG148 Acute kidney injury, rec 1.5.15",
+        "url": "https://www.nice.org.uk/guidance/ng148/chapter/Recommendations"
+      },
+      {
+        "id": "hyperkalaemia_severe",
+        "matchNames": [
+          "重度高钾血症",
+          "严重高钾血症"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "condition": "K+ ≥6.5 mmol/L",
+        "quote": "We recommend that patients with severe hyperkalaemia (K+ ≥ 6.5 mmol/l) detected in the community are admitted for immediate assessment and treatment. (1B)",
+        "source": "UK Kidney Association Clinical Practice Guideline: Management of hyperkalaemia in adults (Oct 2023), Guideline 1.2.3",
+        "url": "https://www.renal.org/sites/renal.org/files/FINAL%20VERSION%20-%20UKKA%20CLINICAL%20PRACTICE%20GUIDELINE%20-%20MANAGEMENT%20OF%20HYPERKALAEMIA%20IN%20ADULTS%20-%20191223.pdf"
+      },
+      {
+        "id": "hyperkalaemia_moderate",
+        "matchNames": [
+          "中度高钾血症"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "within_24h",
+        "condition": "K+ 6.0–6.4 mmol/L; acutely unwell or with AKI → hospital assessment (Guideline 4.2)",
+        "quote": "We recommend that the serum K+ is repeated within 1 day of an episode of moderate hyperkalaemia (K+ 6.0 – 6.4 mmol/l) when detected in the community. (1C)",
+        "source": "UKKA hyperkalaemia guideline 2023, Guideline 1.2.2",
+        "url": "https://www.renal.org/sites/renal.org/files/FINAL%20VERSION%20-%20UKKA%20CLINICAL%20PRACTICE%20GUIDELINE%20-%20MANAGEMENT%20OF%20HYPERKALAEMIA%20IN%20ADULTS%20-%20191223.pdf"
+      },
+      {
+        "id": "hyperkalaemia_mild",
+        "matchNames": [
+          "轻度高钾血症"
+        ],
+        "window": "within_3d",
+        "guidelineTier": "within_3d",
+        "condition": "K+ 5.5–5.9 mmol/L, unexpected, patient well",
+        "quote": "We recommend that the serum K+ is repeated within 3 days, or as soon as feasible, if an episode of mild hyperkalaemia (K+ 5.5 – 5.9 mmol/l) is detected unexpectedly in the community. (1C)",
+        "source": "UKKA hyperkalaemia guideline 2023, Guideline 1.2.1",
+        "url": "https://www.renal.org/sites/renal.org/files/FINAL%20VERSION%20-%20UKKA%20CLINICAL%20PRACTICE%20GUIDELINE%20-%20MANAGEMENT%20OF%20HYPERKALAEMIA%20IN%20ADULTS%20-%20191223.pdf"
+      },
+      {
+        "id": "hypercalcaemia_severe",
+        "matchNames": [
+          "重度高钙血症",
+          "高钙血症危象"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "condition": "adjusted calcium >3.5 mmol/L (3.0–3.5: 'prompt treatment is usually indicated' — no clock given)",
+        "quote": ">3.5 mmol/L: requires urgent correction due to the risk of dysrhythmia and coma",
+        "source": "Society for Endocrinology Endocrine Emergency Guidance: Emergency management of acute hypercalcaemia in adult patients (Endocr Connect 2016;5:G9), severity table",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5314807/"
+      },
+      {
+        "id": "adrenal_crisis_suspected",
+        "matchNames": [
+          "肾上腺危象",
+          "急性肾上腺皮质功能不全",
+          "肾上腺皮质功能减退危象",
+          "艾迪生病危象",
+          "Addison病危象"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Diagnostic measures should never delay prompt treatment of a suspected adrenal crisis! There are no adverse consequences of initiating life-saving hydrocortisone treatment and diagnosis can be safely and formally established once the patient has clinically recovered",
+        "source": "Society for Endocrinology Endocrine Emergency Guidance: Emergency management of acute adrenal insufficiency (adrenal crisis) in adult patients (Endocr Connect 2016)",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5314805/"
+      },
+      {
+        "id": "hyponatraemia_severe_symptomatic",
+        "matchNames": [
+          "重度低钠血症",
+          "症状性低钠血症"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "condition": "severe symptoms (vomiting, seizures, reduced consciousness) or moderately severe (nausea, confusion, headache); profound = Na <125 mmol/L",
+        "quote": "Patients with severe symptoms require immediate treatment with hypertonic saline, irrespective of the cause of the hyponatraemia.",
+        "source": "Society for Endocrinology Endocrine Emergency Guidance: Emergency management of severe symptomatic hyponatraemia in adult patients (Endocr Connect 2016)",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5314809/"
+      },
+      {
+        "id": "acs_recent_chest_pain",
+        "matchNames": [
+          "急性冠脉综合征",
+          "ACS",
+          "不稳定型心绞痛",
+          "急性心肌梗死待排",
+          "非ST段抬高型心肌梗死",
+          "心肌梗死待排",
+          "真心痛"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "If an ACS is suspected (see recommendation 1.2.1.3) and there are no reasons for emergency referral, refer people for urgent same-day assessment if:\nthey had chest pain in the last 12 hours, but are now pain free with a normal resting 12‑lead ECG or\nthe last episode of pain was 12 to 72 hours ago. [2010]",
+        "source": "NICE CG95 Recent-onset chest pain of suspected cardiac origin, rec 1.2.1.8 (1.2.1.7 = emergency if pain now or in last 12 h with abnormal/unavailable ECG)",
+        "url": "https://www.nice.org.uk/guidance/cg95/chapter/Recommendations"
+      },
+      {
+        "id": "hypertensive_emergency_signs",
+        "matchNames": [
+          "高血压急症",
+          "恶性高血压",
+          "急进型高血压",
+          "高血压伴视网膜出血",
+          "高血压伴视乳头水肿",
+          "高血压脑病"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Refer people for specialist assessment, carried out on the same day, if they have a clinic blood pressure of 180/120 mmHg and higher with:\nsigns of retinal haemorrhage or papilloedema (accelerated hypertension) or\nlife-threatening symptoms such as new onset confusion, chest pain, signs of heart failure, or acute kidney injury. [2019]",
+        "source": "NICE NG136 Hypertension in adults, rec 1.5.2",
+        "url": "https://www.nice.org.uk/guidance/ng136/chapter/Recommendations"
+      },
+      {
+        "id": "pregnancy_new_hypertension",
+        "matchNames": [
+          "妊娠期高血压",
+          "妊娠高血压",
+          "子痫前期",
+          "先兆子痫",
+          "妊娠期高血压疾病",
+          "子肿",
+          "子晕"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "within_24h",
+        "condition": "≥20 weeks, first episode BP ≥140/90; ≥160/110 → pregnancy_severe_hypertension (today)",
+        "quote": "Refer women over 20+0 weeks with a first episode of hypertension (blood pressure of 140/90 mmHg or higher) to secondary care to be seen within 24 hours.",
+        "source": "NICE NG201 Antenatal care, rec 1.2.26",
+        "url": "https://www.nice.org.uk/guidance/ng201/chapter/Recommendations"
+      },
+      {
+        "id": "pregnancy_severe_hypertension",
+        "matchNames": [
+          "妊娠期重度高血压",
+          "重度子痫前期",
+          "子痫前期重度"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Urgently refer women with severe hypertension (blood pressure of 160/110 mmHg or higher) to secondary care to be seen on the same day.",
+        "source": "NICE NG201 Antenatal care, rec 1.2.27",
+        "url": "https://www.nice.org.uk/guidance/ng201/chapter/Recommendations"
+      },
+      {
+        "id": "reduced_fetal_movements",
+        "matchNames": [
+          "胎动减少",
+          "胎动异常",
+          "胎动消失"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "condition": "≥24 weeks",
+        "quote": "advise her to contact maternity services at any time of day or night if she has any concerns about her baby's movements or she notices reduced fetal movements after 24+0 weeks",
+        "source": "NICE NG201 Antenatal care, rec 1.2.34",
+        "url": "https://www.nice.org.uk/guidance/ng201/chapter/Recommendations"
+      },
+      {
+        "id": "ectopic_pregnancy_suspected",
+        "matchNames": [
+          "异位妊娠",
+          "宫外孕",
+          "异位妊娠待排",
+          "输卵管妊娠"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Refer immediately to an early pregnancy assessment service (or out-of-hours gynaecology service if the early pregnancy assessment service is not available) for further assessment of women with a positive pregnancy test and the following on examination:\npain and abdominal tenderness or\npelvic tenderness or\ncervical motion tenderness. [2012]",
+        "source": "NICE NG126 Ectopic pregnancy and miscarriage, rec 1.4.7",
+        "url": "https://www.nice.org.uk/guidance/ng126/chapter/Symptoms-and-signs-of-ectopic-pregnancy-and-initial-assessment"
+      },
+      {
+        "id": "early_pregnancy_bleeding_or_pain",
+        "matchNames": [
+          "先兆流产",
+          "早孕期阴道出血",
+          "妊娠早期阴道流血",
+          "胎漏",
+          "胎动不安",
+          "早孕腹痛"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "within_24h",
+        "condition": "bleeding with pain, or ≥6 weeks, or uncertain gestation (rec 1.4.9: 'The urgency of this referral depends on the clinical situation'); <6 weeks, bleeding without pain and no risk factors → expectant management (rec 1.4.10)",
+        "quote": "Refer women who return with worsening symptoms and signs that could suggest an ectopic pregnancy to an early pregnancy assessment service (or out-of-hours gynaecology service if the early pregnancy assessment service is not available) for further assessment. The decision about whether she should be seen immediately or within 24 hours will depend on the clinical situation. [2012] … Ensure that a system is in place to enable women referred to their local early pregnancy assessment service to attend within 24 hours if the clinical situation warrants this.",
+        "source": "NICE NG126 rec 1.4.11 (worsening symptoms; see also 1.4.9 'The urgency of this referral depends on the clinical situation') and rec 1.3.4 (early pregnancy assessment services)",
+        "url": "https://www.nice.org.uk/guidance/ng126/chapter/Symptoms-and-signs-of-ectopic-pregnancy-and-initial-assessment"
+      },
+      {
+        "id": "tb_smear_positive_or_cavitation",
+        "matchNames": [
+          "空洞型肺结核",
+          "痰涂片阳性肺结核",
+          "开放性肺结核"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "within_24h",
+        "condition": "smear-positive or cavitation on imaging; other suspected active TB: 'consider urgent referral to TB clinics' (rec 1.8.9.5, no clock)",
+        "quote": "Multidisciplinary TB teams should ensure people who have a smear‑positive result or imaging features highly suggestive of smear‑positive TB (for example, evidence of cavitation on chest X‑ray) are assessed the next working day.",
+        "source": "NICE NG33 Tuberculosis, rec 1.8.9.8",
+        "url": "https://www.nice.org.uk/guidance/ng33/chapter/Recommendations"
+      },
+      {
+        "id": "septic_arthritis",
+        "matchNames": [
+          "化脓性关节炎",
+          "感染性关节炎",
+          "脓毒性关节炎",
+          "关节感染",
+          "人工关节感染"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Septic arthritis requires urgent aspiration +/- arthrotomy and washout. Do not delay antibiotics",
+        "source": "Royal Children's Hospital Melbourne Clinical Practice Guideline: Bone and joint infection",
+        "url": "https://www.rch.org.au/clinicalguide/guideline_index/Bone_and_joint_infection/"
+      },
+      {
+        "id": "eczema_herpeticum",
+        "matchNames": [
+          "疱疹样湿疹",
+          "Kaposi水痘样疹",
+          "卡波西水痘样疹",
+          "湿疹合并单纯疱疹感染"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Immediately (same day) refer children for specialist dermatological advice if eczema herpeticum is suspected (see recommendations 1.5.1.40 and 1.5.1.41). [2007]",
+        "source": "NICE CG57 Atopic eczema in under 12s, rec 1.7.1.1",
+        "url": "https://www.nice.org.uk/guidance/cg57/chapter/Recommendations"
+      },
+      {
+        "id": "kawasaki_disease",
+        "matchNames": [
+          "川崎病",
+          "皮肤黏膜淋巴结综合征",
+          "川崎病待排",
+          "不完全川崎病"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Administer without delay when clinically safe. IVIg should still be given >10 days of fever if there is evidence of active inflammation",
+        "source": "Royal Children's Hospital Melbourne Clinical Practice Guideline: Kawasaki disease (IVIg; 'Delayed IVIg administration (≥10 days after fever onset)' listed as a risk factor for coronary aneurysm)",
+        "url": "https://www.rch.org.au/clinicalguide/guideline_index/Kawasaki_disease/"
+      },
+      {
+        "id": "intussusception",
+        "matchNames": [
+          "肠套叠",
+          "小儿肠套叠",
+          "肠套叠待排"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Ileocolic intussusception necessitates rapid diagnosis and a collaborative treatment approach involving emergency medicine, radiology and surgery",
+        "source": "Royal Children's Hospital Melbourne Clinical Practice Guideline: Intussusception",
+        "url": "https://www.rch.org.au/clinicalguide/guideline_index/Intussusception/"
+      },
+      {
+        "id": "testicular_torsion",
+        "matchNames": [
+          "睾丸扭转",
+          "精索扭转",
+          "睾丸扭转待排",
+          "急性阴囊痛",
+          "急性阴囊"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Urgent exploration (recommended within two hours) should be performed by the surgeon on-call.",
+        "source": "Royal Australasian College of Surgeons position paper: Acute scrotal pain and suspected testicular torsion guidelines (2022)",
+        "url": "https://www.surgeons.org/about-racs/position-papers/acute-scrotal-pain-and-suspected-testicular-torsion-guidelines-2022"
+      },
+      {
+        "id": "inflammatory_arthritis_suspected",
+        "matchNames": [
+          "类风湿关节炎",
+          "类风湿关节炎待查",
+          "早期炎性关节炎",
+          "持续性滑膜炎",
+          "多关节炎"
+        ],
+        "window": "within_3d",
+        "guidelineTier": "within_3d",
+        "condition": "persistent synovitis (swelling, not just pain) of >1 joint or small joints of hands/feet",
+        "quote": "Adults with suspected persistent synovitis affecting more than 1 joint, or the small joints of the hands and feet, are referred to rheumatology services within 3 working days of presenting in primary care. [2013, updated 2020]",
+        "source": "NICE QS33 Rheumatoid arthritis in over 16s, quality statement 1 (supports NG100 rec 1.1.1 'Refer urgently')",
+        "url": "https://www.nice.org.uk/guidance/qs33/chapter/Quality-statement-1-Referral"
+      },
+      {
+        "id": "leukaemia_suspected_adult",
+        "matchNames": [
+          "白血病",
+          "急性白血病",
+          "白血病待排",
+          "急性髓系白血病",
+          "急性淋巴细胞白血病"
+        ],
+        "window": "within_48h",
+        "guidelineTier": "within_48h",
+        "quote": "Consider a very urgent full blood count to assess for leukaemia in adults with any of the following:",
+        "source": "NICE NG12 Suspected cancer, rec 1.10.1; 'Very urgent' = 'To happen within 48 hours' (Terms used in this guideline)",
+        "url": "https://www.nice.org.uk/guidance/ng12/chapter/Recommendations-organised-by-site-of-cancer"
+      },
+      {
+        "id": "leukaemia_suspected_child_petechiae",
+        "matchNames": [
+          "儿童白血病",
+          "小儿白血病待排",
+          "儿童不明原因瘀点"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "condition": "child/young person (<25) with unexplained petechiae or hepatosplenomegaly; other features (pallor, fatigue, unexplained fever, bone pain) → very urgent FBC within 48 h (rec 1.10.3)",
+        "quote": "Refer children and young people for immediate specialist assessment for leukaemia if they have unexplained petechiae or hepatosplenomegaly. [2015]",
+        "source": "NICE NG12 Suspected cancer, rec 1.10.2; 'Immediate' = 'An acute admission or referral occurring within a few hours, or even more quickly if necessary'",
+        "url": "https://www.nice.org.uk/guidance/ng12/chapter/Recommendations-organised-by-site-of-cancer"
+      },
+      {
+        "id": "itp_newly_diagnosed_plt_lt20",
+        "matchNames": [
+          "重度血小板减少"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "condition": "adults, newly diagnosed, platelets <20×10⁹/L. Established ITP with <20: outpatient with 'expedited follow-up with a hematologist'; children <20 with no/mild bleeding: outpatient suggested.",
+        "quote": "In adults with newly diagnosed ITP and a platelet count of <20 × 109/L who are asymptomatic or have minor mucocutaneous bleeding, the ASH guideline panel suggests admission to the hospital rather than management as an outpatient",
+        "source": "American Society of Hematology 2019 guidelines for immune thrombocytopenia (Blood Adv 2019;3:3829), recommendation on inpatient vs outpatient management (adults)",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6963252/"
+      },
+      {
+        "id": "lymphoma_or_cns_tumour_child",
+        "matchNames": [
+          "儿童淋巴瘤",
+          "儿童淋巴结肿大待查",
+          "儿童脑肿瘤",
+          "小儿颅内肿瘤待排",
+          "神经母细胞瘤",
+          "肾母细胞瘤",
+          "Wilms瘤"
+        ],
+        "window": "within_48h",
+        "guidelineTier": "within_48h",
+        "condition": "children and young people",
+        "quote": "Consider a very urgent referral (for an appointment within 48 hours) for specialist assessment for non‑Hodgkin lymphoma in children and young people presenting with unexplained lymphadenopathy or splenomegaly. … Consider a very urgent referral (for an appointment within 48 hours) for suspected brain or central nervous system cancer in children and young people with newly abnormal cerebellar or other central neurological function. [2015]",
+        "source": "NICE NG12 Suspected cancer, recs 1.10.7 and 1.9.2 (NG12 gives the same 'very urgent referral (for an appointment within 48 hours)' for Hodgkin lymphoma, bone/soft-tissue sarcoma on imaging, neuroblastoma and Wilms' tumour in children)",
+        "url": "https://www.nice.org.uk/guidance/ng12/chapter/Recommendations-organised-by-site-of-cancer"
+      },
+      {
+        "id": "lung_cancer_suspected",
+        "matchNames": [
+          "肺癌",
+          "肺癌待排",
+          "肺占位",
+          "肺部占位性病变"
+        ],
+        "window": "within_2w",
+        "guidelineTier": "within_2w",
+        "quote": "Refer people using a suspected cancer pathway referral for lung cancer if they:\nhave chest X‑ray findings that suggest lung cancer, or\nare aged 40 and over with unexplained haemoptysis. [2015]\nOffer an urgent, direct access chest X‑ray to assess for lung cancer in people aged 40 and over if they have 2 or more of the following unexplained symptoms, or if they have ever smoked and have 1 or more of the following unexplained symptoms:",
+        "source": "NICE NG12 recs 1.1.1–1.1.2",
+        "url": "https://www.nice.org.uk/guidance/ng12/chapter/Recommendations-organised-by-site-of-cancer"
+      },
+      {
+        "id": "upper_gi_cancer_suspected",
+        "matchNames": [
+          "食管癌",
+          "胃癌",
+          "食管癌待排",
+          "胃癌待排",
+          "进行性吞咽困难",
+          "噎膈",
+          "上消化道肿瘤"
+        ],
+        "window": "within_2w",
+        "guidelineTier": "within_2w",
+        "quote": "Refer people using a suspected cancer pathway referral for oesophageal cancer if they:\nhave dysphagia, or\nare aged 55 and over, with weight loss, and they have any of the following:",
+        "source": "NICE NG12 rec 1.2.1 (stomach cancer 1.2.7 identical criteria)",
+        "url": "https://www.nice.org.uk/guidance/ng12/chapter/Recommendations-organised-by-site-of-cancer"
+      },
+      {
+        "id": "pancreatic_cancer_suspected",
+        "matchNames": [
+          "胰腺癌",
+          "胰腺癌待排",
+          "胰腺占位",
+          "胰头癌"
+        ],
+        "window": "within_2w",
+        "guidelineTier": "within_2w",
+        "quote": "Refer people using a suspected cancer pathway referral for pancreatic cancer if they are aged 40 and over and have jaundice. [2015]",
+        "source": "NICE NG12 rec 1.2.4",
+        "url": "https://www.nice.org.uk/guidance/ng12/chapter/Recommendations-organised-by-site-of-cancer"
+      },
+      {
+        "id": "colorectal_cancer_suspected",
+        "matchNames": [
+          "结直肠癌",
+          "大肠癌",
+          "直肠癌",
+          "结肠癌",
+          "结直肠癌待排",
+          "直肠肿物"
+        ],
+        "window": "within_2w",
+        "guidelineTier": "within_2w",
+        "quote": "Refer adults using a suspected cancer pathway referral for colorectal cancer if they have a FIT result of at least 10 micrograms of haemoglobin per gram of faeces. [2023]",
+        "source": "NICE NG12 rec 1.3.2 (rectal mass: 1.3.5)",
+        "url": "https://www.nice.org.uk/guidance/ng12/chapter/Recommendations-organised-by-site-of-cancer"
+      },
+      {
+        "id": "breast_cancer_suspected",
+        "matchNames": [
+          "乳腺癌",
+          "乳腺癌待排",
+          "乳腺肿块",
+          "乳房肿块",
+          "乳岩",
+          "乳腺占位"
+        ],
+        "window": "within_2w",
+        "guidelineTier": "within_2w",
+        "quote": "Refer people using a suspected cancer pathway referral for breast cancer if they are:\naged 30 and over and have an unexplained breast lump with or without pain, or",
+        "source": "NICE NG12 rec 1.4.1",
+        "url": "https://www.nice.org.uk/guidance/ng12/chapter/Recommendations-organised-by-site-of-cancer"
+      },
+      {
+        "id": "endometrial_cancer_suspected",
+        "matchNames": [
+          "子宫内膜癌",
+          "子宫内膜癌待排",
+          "绝经后阴道出血",
+          "绝经后出血"
+        ],
+        "window": "within_2w",
+        "guidelineTier": "within_2w",
+        "quote": "Refer women, and trans men and non-binary people with female reproductive organs using a suspected cancer pathway referral for endometrial cancer if they are aged 55 and over with unexplained post-menopausal bleeding that cannot be attributed to hormone replacement therapy (HRT). [2015, amended 2026]",
+        "source": "NICE NG12 rec 1.5.12",
+        "url": "https://www.nice.org.uk/guidance/ng12/chapter/Recommendations-organised-by-site-of-cancer"
+      },
+      {
+        "id": "urological_cancer_haematuria",
+        "matchNames": [
+          "膀胱癌",
+          "肾癌",
+          "膀胱癌待排",
+          "肾癌待排",
+          "无痛性肉眼血尿",
+          "肉眼血尿待查"
+        ],
+        "window": "within_2w",
+        "guidelineTier": "within_2w",
+        "quote": "Refer people using a suspected cancer pathway referral for bladder cancer if they are:\naged 45 and over and have:\nunexplained visible haematuria without urinary tract infection, or",
+        "source": "NICE NG12 rec 1.6.4 (renal cancer 1.6.6 same haematuria criteria)",
+        "url": "https://www.nice.org.uk/guidance/ng12/chapter/Recommendations-organised-by-site-of-cancer"
+      },
+      {
+        "id": "jaundice_unexplained",
+        "matchNames": [
+          "黄疸待查",
+          "梗阻性黄疸",
+          "不明原因黄疸",
+          "药物性肝损伤伴黄疸",
+          "药物性肝炎伴黄疸",
+          "急性肝损伤伴黄疸"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "condition": "clinical jaundice without an established benign cause (not neonatal physiological jaundice, not known Gilbert's)",
+        "quote": "As indicated in figure 1 the presence of unexplained clinical jaundice or suspicion of possible hepatic or biliary malignancy should lead to an immediate referral.",
+        "source": "British Society of Gastroenterology: Guidelines on the management of abnormal liver blood tests (Gut 2018;67:6-19)",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5754852/"
+      },
+      {
+        "id": "mental_health_crisis_very_urgent",
+        "matchNames": [
+          "自杀意念伴计划",
+          "自杀企图",
+          "有自杀计划",
+          "严重自伤风险",
+          "急性精神病性发作伴伤人风险"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "today",
+        "quote": "Very urgent presentations should receive a face-to-face assessment within 4 hours.",
+        "source": "NHS England, Mental health access and waiting time standards — urgent and emergency community mental health services (all ages)",
+        "url": "https://www.england.nhs.uk/mental-health/resources/access-waiting-time/"
+      },
+      {
+        "id": "mental_health_crisis_urgent",
+        "matchNames": [
+          "自杀意念",
+          "消极观念",
+          "抑郁伴自杀风险",
+          "精神危机"
+        ],
+        "window": "within_24h",
+        "guidelineTier": "within_24h",
+        "quote": "Urgent presentations should receive a face-to-face assessment within 24 hours.",
+        "source": "NHS England, Mental health access and waiting time standards",
+        "url": "https://www.england.nhs.uk/mental-health/resources/access-waiting-time/"
+      }
+    ]
   }
 }

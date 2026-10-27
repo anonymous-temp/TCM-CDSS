@@ -14,7 +14,8 @@ import { isUnrecordedInspectionFieldValue } from "./clinical-state";
  * 病历记了舌象、脉象时排在清单最前（2026-10-27 第二十五轮：甲方 10.26 测评病历 3、11「证候分析不全面」，评审指出依据没引病历里的
  * 「舌淡白、苔薄白、脉细弱」；甲方口径是「症状＋舌脉→证型」。清单此前只有事实层的症状）。未记录、未查的不列。
  */
-function recordedTonguePulse(state: CaseState): string[] {
+/** 病历记录了的舌象、脉象（未记录、「难配合」不算）。也是辨证依据重写的单项触发（m03-rationale-coverage）。 */
+export function recordedTonguePulse(state: CaseState): string[] {
   return ([["tongue", state.tongue], ["pulse", state.pulse]] as const)
     .filter(([field, value]) => !isUnrecordedInspectionFieldValue(value, field))
     .map(([, value]) => String(value || "").normalize("NFKC").replace(/^\s*(?:舌象|脉象)\s*[:：]\s*/u, "").trim())
