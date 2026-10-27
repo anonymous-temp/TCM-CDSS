@@ -528,6 +528,12 @@ function diseasesNamed(diseaseName: string, ageYears?: number): TextbookDisease[
   return loose.sort((left, right) => order.indexOf(left.bookKey) - order.indexOf(right.bookKey) || left.disease.localeCompare(right.disease));
 }
 
+/** 这个病名在教材里只出现在《中医妇科学》（异位妊娠、痛经、带下病…）：男性患者的鉴别里不列（第二十七轮 C015：21 岁男性肠痈的鉴别写了异位妊娠）。 */
+export function textbookDiseaseOnlyGynecologic(diseaseName: string): boolean {
+  const matches = diseasesNamed(diseaseName);
+  return matches.length > 0 && matches.every((disease) => disease.bookKey === "fuke");
+}
+
 /**
  * 教材里该病的定义首句（按病名取节，未成年先儿科），教材没有这一节或没有定义句时为空串。
  * 供病名与就诊原因的核对（m03-visit-reason-check）给核对器看「这个病是什么」。

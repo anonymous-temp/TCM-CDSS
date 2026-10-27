@@ -250,4 +250,23 @@ await check("7.1 证名不分寒热（外感风邪证）时按已签名治法定
   assert.equal(patentMedicine.patentMedicineDirectionConflict(guizhi, { names: "外感风邪证", method: "疏风解表" }), undefined, "治法与汤剂都不定：不判");
 });
 
+// ---------- 8 新臂扫描抓到的两处 ----------
+const secondary = await jiti.import("../src/lib/m03-secondary-syndrome-consistency.server.ts");
+await check("8.1 男性患者的中医病名鉴别不列只属《中医妇科学》的病（C015：21 岁男性肠痈列了异位妊娠）；女性照列、非妇科病照列（对照）", () => {
+  const diag = (sex) => surface.projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { tcmDiseaseName: "肠痈", primarySyndrome: "瘀滞证", secondarySyndromes: [], tcmDiseaseDifferentials: [
+      { diseaseName: "腹痛", reason: "均有腹痛", distinguishingPoints: "无固定压痛点" }, { diseaseName: "异位妊娠", reason: "均有下腹痛", distinguishingPoints: "停经史" }] },
+    therapy: { overallMethod: "行气活血，通腑泄热" } }, { patientSex: sex }).overview.tcmDiseaseDifferentials.map((item) => item.diseaseName);
+  assert.ok(!diag("男").includes("异位妊娠"), diag("男").join("、"));
+  assert.ok(diag("男").includes("腹痛"));
+  assert.ok(diag("女").includes("异位妊娠"), "女性照列");
+});
+
+await check("8.2 依据明确排除了某一型（「故不归寒凝或湿热」）而兼证栏写着它（C061 寒凝胞宫证）：按依据撤下；排除语后面说的是别的型时不撤（对照）", () => {
+  const rationale = "经期小腹痉挛痛、热敷缓解，为胞宫气滞血行不畅，故属气滞血瘀证；舌淡红、苔薄白示无明显寒热与湿浊，故不归寒凝或湿热。";
+  assert.equal(secondary.secondaryStructurallyInvalid("气滞血瘀证", "寒凝胞宫证", rationale), "declared_not_independent");
+  assert.equal(secondary.secondaryStructurallyInvalid("气滞血瘀证", "肝郁脾虚证", rationale), undefined);
+  assert.equal(secondary.secondaryStructurallyInvalid("肝气犯胃证", "脾气虚证", "纳差、便溏为脾虚之象，不属单纯肝郁。"), undefined);
+});
+
 console.log(JSON.stringify({ suite: "r1039-main", cases, failures: process.exitCode ? "see above" : 0 }));

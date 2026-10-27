@@ -205,6 +205,12 @@ const SECONDARY_PATTERN_CLAIM = /(?<![无未不非没])[兼夹](?![顾治以备�
  * 要一并去掉（2026-10-19 Claude 评审 M 集 MTCMB-21、MTCMB-90）。
  */
 const SECONDARY_DENIAL_CLAUSE = /不另立|不单立|不另列|未成独立|尚未成独立|非独立(?:之)?(?:病)?证|无需另立|不必另立|暂作兼夹|主证(?:即|已|足以)?可(?:以)?(?:解)?释|主证可概/u;
+/** 依据里排除某一型的说法（「故不归寒凝或湿热」「不属肝郁」）：返回排除语开始的位置，没有时 -1（m03-secondary-syndrome-consistency 用）。 */
+const SECONDARY_RULE_OUT_CUE = /不归|不属|不考虑|不支持|可排除|故非/u;
+export function ruleOutCueIndex(clause: string): number {
+  const match = clause.match(SECONDARY_RULE_OUT_CUE);
+  return match?.index ?? -1;
+}
 export function deniesSeparateSecondaryPattern(clause: string): boolean {
   return SECONDARY_DENIAL_CLAUSE.test(clause);
 }

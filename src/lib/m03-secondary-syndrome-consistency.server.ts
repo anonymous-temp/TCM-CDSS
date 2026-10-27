@@ -6,7 +6,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { textbookManifestationTerms, textbookRowForSyndrome, type TextbookSyndromeRow } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
-import { claimsSecondaryPattern, declaresSecondaryMechanism, deniesSeparateSecondaryPattern, mechanismClaimsUncoveredBy, therapyItemsOnlyFor, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
+import { claimsSecondaryPattern, declaresSecondaryMechanism, deniesSeparateSecondaryPattern, mechanismClaimsUncoveredBy, ruleOutCueIndex, therapyItemsOnlyFor, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
 import criteriaJson from "../data/tcm-diagnostics-syndrome-criteria.json" with { type: "json" };
 
 /**
@@ -560,6 +560,13 @@ export function secondaryStructurallyInvalid(primary: string, secondary: string,
   const secondaryChars = new Set([...s].filter((character) => /[\u4e00-\u9fff]/u.test(character)));
   if (rationaleText.split(/[。；;\n]/u).some((clause) => deniesSeparateSecondaryPattern(clause) &&
     [...secondaryChars].filter((character) => clause.includes(character)).length >= 2)) return "declared_not_independent";
+  // 依据把这一型明确排除了（「舌淡红、苔薄白示无明显寒热与湿浊，故不归寒凝或湿热」），兼证栏却写着它（第二十七轮甲方 100 例 C061：
+  // 气滞血瘀证兼寒凝胞宫证）。排除语之后的那段说到兼证名里连续两个字即算；只看排除语之后，前半句讲别的不算。
+  const corePairs = [...new Set([...s].slice(0, -1).map((character, index) => `${character}${s[index + 1]}`))].filter((pair) => /^[\u4e00-\u9fff]{2}$/u.test(pair));
+  if (rationaleText.split(/[。；;\n]/u).some((clause) => {
+    const at = ruleOutCueIndex(clause);
+    return at >= 0 && corePairs.some((pair) => clause.slice(at).includes(pair));
+  })) return "declared_not_independent";
   if (s.length >= 2 && p.includes(s)) return "entailed_by_primary";
   if (YIN_DEFICIENT_PRIMARY.test(p) && DEFICIENT_HEAT_SECONDARY.test(sRaw)) return "entailed_by_primary";
   if (YANG_DEFICIENT_PRIMARY.test(p) && DEFICIENT_COLD_SECONDARY.test(sRaw)) return "entailed_by_primary";

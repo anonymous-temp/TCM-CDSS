@@ -2069,8 +2069,10 @@ export function compileM04Proposal(
   // 第九轮：方向与已签名证候明确相反的内服中成药不列（补益药用于纯实证、攻邪药用于纯虚证、清热药用于寒证、温热药用于热证），
   // 随后同一问题、同一给药途径的中成药与同一药理类别的西药各只留排在最前的一个（见 withoutSameClassMedicines）。
   // 证名、治法都不分寒热时，按本次汤剂组成的寒温定方向（第二十七轮：外感风邪证·疏风解表，汤剂黄芩栀子连翘黄连，推荐桂枝颗粒）。
-  const baseDirection = signedDirectionOf(prior);
-  const signedDirection = baseDirection ? { ...baseDirection, decoctionThermal: decoctionThermalByComposition(proposal.candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name) || herb.name)) } : baseDirection;
+  const signedDirection = signedDirectionOf(prior) && {
+    ...signedDirectionOf(prior)!,
+    decoctionThermal: decoctionThermalByComposition(proposal.candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name) || herb.name)),
+  };
   // 中成药说明书「用于」部分说不到本例主要问题的不列；对证的中成药排在前面（2026-10-26 甲方测评病历 8：
   // 蛇串疮推荐穿黄清热胶囊、龙血竭胶囊，对证的龙胆泻肝丸反排在最后）。判据见 patentMedicineCoversMainProblem。
   const mainProblem = {

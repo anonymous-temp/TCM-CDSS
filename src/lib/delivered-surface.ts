@@ -24,7 +24,7 @@ import { drugNamesInAllergyPhrases } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
-import { textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
+import { textbookDifferentialsForDisease, textbookDiseaseOnlyGynecologic, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
@@ -67,6 +67,8 @@ export type DeliveredSurfaceOptions = {
    * 不给时只看辨证阶段引用的患者原话（引文常被截断，漏的多一些）。
    */
   recordText?: string;
+  /** 患者性别（病历结构化字段）：男性的中医病名鉴别不列只属妇科的病（textbookDiseaseOnlyGynecologic）。 */
+  patientSex?: string;
 };
 
 // 外用剂型（只用于注意事项措辞：外用药不说「服用」、不套口服间隔）：词表在 local-patent-medicine-candidates（TOPICAL_MEDICATION_FORM，检索层的方向底线与重复判据共用）。
@@ -887,6 +889,12 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
   // 中医鉴别诊断每例必出（甲方 10.12 测评 2.3「中医鉴别诊断未生成」），且至少两项（甲方验收「鉴别诊断覆盖率」，2026-10-19）：
   // 模型没写、写的病名被归一丢掉、或只剩一项而补写小任务也没补上时，用教材【鉴别诊断】对该病列出的病证补齐，要点是教材原文。
   // 补写小任务（tcm-disease-differential-authoring）才按本例写区分要点，这里只是它没写出时的兜底。有限结论（证候未形成）不补。
+  const maleOnlyFilter = /男/u.test(options?.patientSex || "")
+    ? (name: string) => !textbookDiseaseOnlyGynecologic(name)
+    : () => true;
+  if (overview && Array.isArray(overview.tcmDiseaseDifferentials)) {
+    overview.tcmDiseaseDifferentials = records(overview.tcmDiseaseDifferentials).filter((item) => maleOnlyFilter(String(item.diseaseName || "")));
+  }
   const presentDifferentials = records(overview?.tcmDiseaseDifferentials);
   if (overview && !isLimitedDiagnose(reasoning) && typeof overview.tcmDiseaseName === "string" &&
     presentDifferentials.length < MIN_TCM_DIFFERENTIALS) {
@@ -899,7 +907,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
         const resolved = resolveTcmDiseaseDifferentialName(item.name, diseaseName);
         return resolved.action === "drop" ? [] : [{ ...item, name: resolved.name }];
       })
-      .filter((item) => !presentNames.has(item.name))
+      .filter((item) => !presentNames.has(item.name) && maleOnlyFilter(item.name))
       .filter((item, index, list) => list.findIndex((other) => other.text === item.text) === index)
       .slice(0, MIN_TCM_DIFFERENTIALS - presentDifferentials.length);
     // 理由不写来源口吻（「教材列为本病的鉴别病证」），要点去掉「本病与X相鉴别。」这类开场句（2026-10-14 独立评审：元话语）。
