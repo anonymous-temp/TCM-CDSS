@@ -1218,9 +1218,14 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       const textbookBase = textbookRow && textbookRow.formulas.some((name) => baseName.includes(name)) &&
         textbookFormulaGovernedEntryIsHomonym(baseName, textbookBaseIngredients(textbookRow, [baseName]), textbookCompositionOptions(textbookRow))
         ? textbookBaseIngredients(textbookRow, [baseName]) : [];
-      const catalogIds = new Set((textbookBase.length > 0 ? textbookBase : reference?.ingredients || [])
-        .map((name) => rawFormHerbIdentity(name.replace(/[（(][^）)]*[）)]/g, ""))).filter(Boolean));
-      if (catalogIds.size > 0) candidate.formulaAnalysis = withoutFalseAdditionClaims(candidate.formulaAnalysis, catalogIds);
+      const catalogNames = (textbookBase.length > 0 ? textbookBase : reference?.ingredients || []).map((name) => name.replace(/[（(][^）)]*[）)]/g, ""));
+      const catalogIds = new Set(catalogNames.map((name) => rawFormHerbIdentity(name)).filter(Boolean));
+      const catalogExactIds = new Map<string, Set<string>>();
+      for (const name of catalogNames) {
+        const raw = rawFormHerbIdentity(name);
+        if (raw) catalogExactIds.set(raw, new Set([...(catalogExactIds.get(raw) || []), canonicalTcmHerbIdentity(name)]));
+      }
+      if (catalogIds.size > 0) candidate.formulaAnalysis = withoutFalseAdditionClaims(candidate.formulaAnalysis, catalogIds, catalogExactIds);
     }
     // 方义里夹着模型的自问自答（「去原方中…的川芎？不，川芎保留。」，2026-10-17 甲方标准病历 4）：带问号的小句与同句里紧跟的自我更正不留。
     if (typeof candidate.formulaAnalysis === "string" && /[二两](?:药|味)/u.test(candidate.formulaAnalysis)) {
@@ -1864,15 +1869,24 @@ function rawFormHerbIdentity(name: string): string {
  * 方义开头一句（「本方以X为基础加减，去A，加B。」）里不实的加药说法：「加B」的B已在原方组成里，去掉B（都去掉时整小句不留）；
  *「以B易原方B'」两边是同一味，整小句不留。只看第一句，后面讲配伍的话不动。
  */
-function withoutFalseAdditionClaims(analysis: string, catalogIds: ReadonlySet<string>): string {
+function withoutFalseAdditionClaims(analysis: string, catalogIds: ReadonlySet<string>, catalogExactIds: ReadonlyMap<string, ReadonlySet<string>> = new Map()): string {
   const end = analysis.indexOf("。");
   const first = end >= 0 ? analysis.slice(0, end) : analysis;
   const rest = end >= 0 ? analysis.slice(end) : "";
   // 「去石膏、加生地黄」：加药说法也会跟在顿号后面（2026-10-17 生产复测病历 9），顿号后紧跟「加」的地方同样切开。
   const clauses = first.split(/[，,；;]|、(?=(?:并|再|另)?加)/);
-  const kept = clauses.flatMap((clause) => {
+  const kept = clauses.flatMap((clause, index) => {
     const swap = clause.match(/^\s*(?:并|且)?以([^，,；;易]{2,6})易(?:原方(?:中)?)?([^，,；;并]{2,6})/u);
     if (swap && rawFormHerbIdentity(swap[1]) === rawFormHerbIdentity(swap[2])) return [];
+    // 「以生地黄易之」：代词换药，「之」前面没有被去掉的药（开头一句改写后只剩「本方以消风散为基础加减，以生地黄易之」，
+    // 2026-10-27 本地甲方病历 9），而换上的药本来就在原方组成里（原方写这味药本身，或写未经炮制的基原名：地黄涵盖生地黄）。
+    // 前面有「去原方熟地之滋腻」这类先行词时照留（桃红四物汤）。
+    const pronounSwap = clause.match(/^\s*(?:并|且)?以([^，,；;易]{2,6})易之\s*$/u);
+    if (pronounSwap && !clauses.slice(0, index).some((previous) => /去/u.test(previous))) {
+      const raw = rawFormHerbIdentity(pronounSwap[1]);
+      const listed = raw ? catalogExactIds.get(raw) : undefined;
+      if (listed && (listed.has(canonicalTcmHerbIdentity(pronounSwap[1])) || listed.has(raw))) return [];
+    }
     const addition = clause.match(/^(\s*(?:并|再|另)?(?:加用|加入|加))([^，,；;]+)$/u);
     if (!addition) return [clause];
     const names = addition[2].split(/[、和及与]/u).map((item) => item.trim()).filter(Boolean);

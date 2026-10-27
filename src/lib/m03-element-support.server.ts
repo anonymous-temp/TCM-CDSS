@@ -1,6 +1,7 @@
 import "server-only";
 
 import lexiconJson from "../data/tcm-deficiency-element-lexicon.source.json" with { type: "json" };
+import { rationaleMentionsFinding } from "./m03-rationale-coverage.server";
 import { diagnosticsCriteriaFor, primaryManifestationTerms, verifySecondaryByCriteria, withoutClauses, type CriteriaVerdict } from "./m03-secondary-syndrome-consistency.server";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 
@@ -290,6 +291,34 @@ function therapyItemTargets(item: string, failed: ReadonlySet<DeficiencyType>): 
   return [...failed].some((type) => THERAPY_PATTERNS.get(type)!.test(item));
 }
 
+/**
+ * 分句里归属词（为/属/乃/系/皆/均/示/由/因、支持/说明）前面的病历表现：「食欲下降、大便稀溏为脾气虚弱」→「食欲下降、大便稀溏」。
+ * 前半本身写了这一证素、不足四个字，或没有归属词（「脾运不健则化源不足」）时返回 undefined。
+ */
+export function findingsBeforeAttribution(clause: string, failed: ReadonlySet<DeficiencyType>, entailment: Entailment): string | undefined {
+  const hits = [clause.search(/[为属乃系皆均示由因]/u), clause.search(/支持|说明/u)].filter((index) => index > 0);
+  if (hits.length === 0) return undefined;
+  const prefix = clause.slice(0, Math.min(...hits)).replace(/[进一步亦也则故而提，,、\s]+$/u, "").trim();
+  if (prefix.replace(/[、，,\s]/gu, "").length < 4 || hasFailedMention(prefix, failed, entailment)) return undefined;
+  return prefix;
+}
+
+/**
+ * 把留下的表现并成一句「…，是否兼X尚待核实」，放在流派那句之前（没有就放句末）。依据其余部分已经讲到的表现（舌淡白、脉细弱、
+ * 心悸已归到主证）不再放进这一句；全都讲到了就不加。
+ */
+function withPendingFindings(value: string, findings: readonly string[], pendingItem: string): string {
+  const items = [...new Set(findings.flatMap((item) => item.split(/[、，,]/u)).map((item) => item.trim()).filter(Boolean))]
+    .filter((item) => !rationaleMentionsFinding(value, item));
+  if (items.length === 0) return value;
+  const sentence = `${items.join("、")}，${pendingItem}尚待核实。`;
+  const parts = value.split(/(?<=[。；;])/u);
+  const lensAt = parts.findIndex((part) => RATIONALE_LENS.test(part));
+  const body = (lensAt >= 0 ? parts.slice(0, lensAt) : parts).join("").replace(/[，,；;]$/u, "");
+  const tail = lensAt >= 0 ? parts.slice(lensAt).join("") : "";
+  return `${body}${body && !/[。；;]$/u.test(body) ? "；" : ""}${sentence}${tail}`;
+}
+
 /** 证据标签：判据够数的节点标为《中医诊断学》该条辨证要点。 */
 export function diagnosticsCriteriaEvidence(entryName: string, confidence: "中" | "低" = "中"): { evidenceLevel: "kb_entry"; source: string; confidence: "中" | "低" } {
   return { evidenceLevel: "kb_entry", source: `《中医诊断学》${entryName}辨证要点`, confidence };
@@ -408,13 +437,22 @@ export function applyElementSupportDecision(tcmContent: string, decision: Elemen
     }
   }
 
-  // 辨证依据、总体病机：删写了这一证素的分句（删到太短就不删）。
+  // 辨证依据、总体病机：删写了这一证素的分句（删到太短就不删）。辨证依据里，分句前半是病历表现、后半才归到这一证素时
+  //（「神疲乏力、面色少华、舌淡白、脉细弱为气血亏虚」），表现留下、归属改成待核实，不连表现一起删（2026-10-27：甲方病历 3
+  // 本地三次都把舌淡白、脉细弱连同「为气血亏虚」整句删掉，评审判辨证依据未引舌脉）。
+  const firstFailed = [...failed][0];
+  const firstUnit = decision.verdicts.find((item) => item.unit.type === firstFailed);
+  const pendingItem = text(uncertaintyFor(firstFailed, firstUnit?.verdict.entry || firstUnit?.unit.entryName || LEXICON.types[firstFailed].genericEntry).item);
   for (const [key, minimum] of [["tcmDiagnosticRationale", 20], ["overallPathogenesis", 10]] as const) {
     const value = text(overview[key]);
     if (!value) continue;
     const clauses = value.split(/[，,。；;]/u).map((item) => item.trim()).filter((clause) => clause && hasFailedMention(clause, failed, entailment));
     if (clauses.length === 0) continue;
-    const next = withoutClauses(value, clauses);
+    const kept = key === "tcmDiagnosticRationale"
+      ? clauses.map((clause) => findingsBeforeAttribution(clause, failed, entailment)).filter((item): item is string => Boolean(item))
+      : [];
+    let next = withoutClauses(value, clauses);
+    if (kept.length > 0) next = withPendingFindings(next, kept, pendingItem);
     if (next.length >= minimum && next !== value) { overview[key] = next; changed = true; }
   }
 

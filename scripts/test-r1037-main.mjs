@@ -284,6 +284,49 @@ await check("6.6 依据没讲到主症时单凭这一项也重写，主症排在
   assert.equal(coverage.rationaleMentionsChiefSymptom("经量多、色紫红", "月经周期提前"), false);
 });
 
+await check("6.7 证素核对撤下名外证素时，分句前半的病历表现（含舌脉）留下、归属改成待核实；没有归属词或前半太短的照旧整句删（甲方病历 3 本地三次连舌脉一起删掉）", async () => {
+  const element = await jiti.import("../src/lib/m03-element-support.server.ts");
+  const root = () => ({
+    overview: { tcmDiseaseName: "头痛", primarySyndrome: "血虚头痛", secondarySyndromes: [],
+      tcmDiagnosticRationale: "产后头痛隐隐、遇劳加重，故属血虚头痛；神疲乏力、面色少华、舌淡白、脉细弱为气血亏虚失养；食欲下降、大便稀溏为脾气虚弱、运化失司。从扶阳学派看阴阳实据，本例未见阳虚阴盛实据，以下按常规辨证处理。",
+      overallPathogenesis: "产后血虚，清窍失养" },
+    pathogenesis: { natureDifferentiation: { items: ["血虚", "气虚"] }, uncertainties: [],
+      chain: [{ pathogenesis: "血虚不能上荣清窍", therapyDirection: "养血" }, { pathogenesis: "脾气虚弱，运化失司", therapyDirection: "健脾益气" }] },
+    therapy: { overallMethod: "养血疏风，健脾益气" },
+  });
+  const units = element.elementCheckUnits(root());
+  assert.ok(units.length > 0);
+  const failed = { verdicts: units.map((unit) => ({ unit, verdict: { verdict: "fail", entry: unit.entryName, specific: 0, category: 0, listed: 0, distinct: 0 } })) };
+  const out = JSON.parse(element.applyElementSupportDecision(JSON.stringify(root()), failed, "养血疏风"));
+  const rationale = out.overview.tcmDiagnosticRationale;
+  assert.match(rationale, /舌淡白、脉细弱/, "舌脉留下");
+  assert.match(rationale, /食欲下降、大便稀溏/);
+  assert.match(rationale, /是否兼.{1,4}虚尚待核实。从扶阳学派看/, "待核实一句放在流派那句之前");
+  assert.doesNotMatch(rationale, /气血亏虚失养|脾气虚弱/);
+  // 依据其余部分已讲到的表现不再放进待核实一句（舌脉已归到主证）。
+  const explained = root();
+  explained.overview.tcmDiagnosticRationale = "产后头痛隐隐，伴心悸、舌淡白、脉细弱，为血虚不能上荣，故属血虚头痛；心悸、舌淡白、脉细弱进一步支持气血亏虚；食欲下降、大便稀溏为脾气虚弱。";
+  const explainedOut = JSON.parse(element.applyElementSupportDecision(JSON.stringify(explained), failed, "养血疏风")).overview.tcmDiagnosticRationale;
+  assert.match(explainedOut, /；食欲下降、大便稀溏，是否兼.{1,4}虚尚待核实。$/);
+  assert.equal(explainedOut.match(/舌淡白/g)?.length, 1);
+  assert.equal(element.findingsBeforeAttribution("舌淡白、脉细弱进一步支持气血亏虚", new Set(["气虚"]), new Map([["血虚", "any"]])), "舌淡白、脉细弱");
+  assert.equal(element.findingsBeforeAttribution("示气血亏虚", new Set(["气虚"]), new Map([["血虚", "any"]])), undefined);
+  assert.equal(element.findingsBeforeAttribution("脾运不健则化源不足而气虚", new Set(["气虚"]), new Map([["血虚", "any"]])), undefined, "没有归属词");
+});
+
+await check("6.8 方义「以X易之」而X本在原方组成里（消风散有地黄：「以生地黄易之」，本地甲方病历 9）：去掉这一小句；「之」前面有被去掉的药（「去原方熟地之滋腻，以生地黄易之」）时照留（对照）", async () => {
+  const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
+  const analysisOf = (name, herbs, analysis) => projectDeliveredReasoning({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{ name, formulaAnalysis: analysis, herbs: herbs.map((herb) => ({ name: herb })) }] },
+    nonPharma: { precautions: [] },
+  }).formula.candidates[0].formulaAnalysis;
+  const xiaofengHerbs = ["荆芥", "防风", "蝉蜕", "牛蒡子", "苦参", "知母", "石膏", "生地黄", "当归", "苍术", "黑芝麻", "川木通", "甘草"];
+  assert.equal(analysisOf("消风散加减", xiaofengHerbs, "本方以消风散为基础加减，以生地黄易之。荆芥、防风为君。"), "本方以消风散为基础加减。荆芥、防风为君。");
+  const control = "本方以桃红四物汤为基础加减，去原方熟地之滋腻，以生地黄易之。桃仁、红花为君。";
+  assert.equal(analysisOf("桃红四物汤加减", ["桃仁", "红花", "当归", "川芎", "白芍", "生地黄"], control), control);
+});
+
 // ---------- 7 居家穴位保健 ----------
 const pool = JSON.parse(fs.readFileSync("src/data/tcm-home-acupressure-points.source.json", "utf8"));
 const oldCare = JSON.parse(fs.readFileSync("src/data/tcm-home-acupoint-care.source.json", "utf8"));
