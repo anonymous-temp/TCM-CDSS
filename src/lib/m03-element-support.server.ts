@@ -291,16 +291,35 @@ function therapyItemTargets(item: string, failed: ReadonlySet<DeficiencyType>): 
   return [...failed].some((type) => THERAPY_PATTERNS.get(type)!.test(item));
 }
 
+const ATTRIBUTION_CHAR = /[为属乃系皆均示由因]/u;
+const ATTRIBUTION_WORD = /支持|说明/u;
+
 /**
  * 分句里归属词（为/属/乃/系/皆/均/示/由/因、支持/说明）前面的病历表现：「食欲下降、大便稀溏为脾气虚弱」→「食欲下降、大便稀溏」。
  * 前半本身写了这一证素、不足四个字，或没有归属词（「脾运不健则化源不足」）时返回 undefined。
  */
 export function findingsBeforeAttribution(clause: string, failed: ReadonlySet<DeficiencyType>, entailment: Entailment): string | undefined {
-  const hits = [clause.search(/[为属乃系皆均示由因]/u), clause.search(/支持|说明/u)].filter((index) => index > 0);
+  const hits = [clause.search(ATTRIBUTION_CHAR), clause.search(ATTRIBUTION_WORD)].filter((index) => index > 0);
   if (hits.length === 0) return undefined;
   const prefix = clause.slice(0, Math.min(...hits)).replace(/[进一步亦也则故而提，,、\s]+$/u, "").trim();
   if (prefix.replace(/[、，,\s]/gu, "").length < 4 || hasFailedMention(prefix, failed, entailment)) return undefined;
   return prefix;
+}
+
+/**
+ * 分句以归属词开头、且是这一句的最后一个分句时，前面紧挨、以逗号相连、带顿号的表现分句（自身没有归属词、没写这一证素）。
+ * 后面还接着「故属…证」的不算：那串表现仍在为主证作证（「脉弦细、舌淡红苔薄白，示血虚而气机不畅，故属心虚胆怯证」）。
+ */
+function findingsClauseBefore(value: string, clause: string, failed: ReadonlySet<DeficiencyType>, entailment: Entailment): string | undefined {
+  if (clause.search(ATTRIBUTION_CHAR) !== 0 && clause.search(ATTRIBUTION_WORD) !== 0) return undefined;
+  const at = value.indexOf(clause);
+  if (at <= 0 || !/[，,]\s*$/u.test(value.slice(0, at))) return undefined;
+  if (!/^\s*(?:[。；;]|$)/u.test(value.slice(at + clause.length))) return undefined;
+  const before = value.slice(0, at).replace(/[，,]\s*$/u, "");
+  const segment = before.slice(Math.max(...[...before.matchAll(/[，,。；;]/gu)].map((match) => (match.index ?? -1)), -1) + 1).trim();
+  if (!segment.includes("、") || segment.replace(/[、\s]/gu, "").length < 4) return undefined;
+  if (ATTRIBUTION_CHAR.test(segment) || ATTRIBUTION_WORD.test(segment) || hasFailedMention(segment, failed, entailment)) return undefined;
+  return segment;
 }
 
 /**
@@ -448,10 +467,18 @@ export function applyElementSupportDecision(tcmContent: string, decision: Elemen
     if (!value) continue;
     const clauses = value.split(/[，,。；;]/u).map((item) => item.trim()).filter((clause) => clause && hasFailedMention(clause, failed, entailment));
     if (clauses.length === 0) continue;
-    const kept = key === "tcmDiagnosticRationale"
-      ? clauses.map((clause) => findingsBeforeAttribution(clause, failed, entailment)).filter((item): item is string => Boolean(item))
-      : [];
-    let next = withoutClauses(value, clauses);
+    const kept: string[] = [];
+    const removed = [...clauses];
+    if (key === "tcmDiagnosticRationale") {
+      for (const clause of clauses) {
+        const own = findingsBeforeAttribution(clause, failed, entailment);
+        if (own) { kept.push(own); continue; }
+        // 归属单独成一个分句（「遇劳加重、神疲乏力、精神不振，为气虚失养」）：前面紧挨的表现分句一并移进待核实一句，不留一串没有归属的表现。
+        const orphan = findingsClauseBefore(value, clause, failed, entailment);
+        if (orphan) { kept.push(orphan); removed.push(orphan); }
+      }
+    }
+    let next = withoutClauses(value, removed);
     if (kept.length > 0) next = withPendingFindings(next, kept, pendingItem);
     if (next.length >= minimum && next !== value) { overview[key] = next; changed = true; }
   }

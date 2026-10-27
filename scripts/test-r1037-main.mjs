@@ -309,6 +309,11 @@ await check("6.7 证素核对撤下名外证素时，分句前半的病历表现
   const explainedOut = JSON.parse(element.applyElementSupportDecision(JSON.stringify(explained), failed, "养血疏风")).overview.tcmDiagnosticRationale;
   assert.match(explainedOut, /；食欲下降、大便稀溏，是否兼.{1,4}虚尚待核实。$/);
   assert.equal(explainedOut.match(/舌淡白/g)?.length, 1);
+  // 归属单独成分句（「…，为气虚失养」）：前面那串表现一并移进待核实，不留一串没有归属的表现。
+  const split = root();
+  split.overview.tcmDiagnosticRationale = "产后头痛隐隐，故属血虚头痛；遇劳加重、神疲乏力、精神不振，为气虚失养；睡眠差为血不养心。";
+  const splitOut = JSON.parse(element.applyElementSupportDecision(JSON.stringify(split), failed, "养血疏风")).overview.tcmDiagnosticRationale;
+  assert.match(splitOut, /^产后头痛隐隐，故属血虚头痛；睡眠差为血不养心。遇劳加重、神疲乏力、精神不振，是否兼.{1,4}虚尚待核实。$/);
   assert.equal(element.findingsBeforeAttribution("舌淡白、脉细弱进一步支持气血亏虚", new Set(["气虚"]), new Map([["血虚", "any"]])), "舌淡白、脉细弱");
   assert.equal(element.findingsBeforeAttribution("示气血亏虚", new Set(["气虚"]), new Map([["血虚", "any"]])), undefined);
   assert.equal(element.findingsBeforeAttribution("脾运不健则化源不足而气虚", new Set(["气虚"]), new Map([["血虚", "any"]])), undefined, "没有归属词");
