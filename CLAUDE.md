@@ -2307,6 +2307,67 @@ Material: `~/runlogs/r1018/work/r1036/` (`inventory.py`, `api49.json`, `measure.
 - **Rollback:** image `tcm-cdss:20261027-ee283ec-prebuilt` (or `…949f729…`) with the `docker-compose.yml.pre-*` backups in the release directory.
 
 
+### 10/27 round 25: the user's follow-ups on the 10.26 evaluation, the open items, model-chosen home acupoints (2026-10-27)
+
+The user asked for six things:
+- confirm that the current version does not raise the customer's red banner;
+- confirm where 「孕期女性」 is recorded and how the customer can check their integration;
+- say which item 流派 is;
+- check that home acupoint care is reasoned for the case rather than a template;
+- note that the customer has been told about the `{"ValueKind":3}` vitals;
+- fix every open item and ship another version.
+
+Material: `~/runlogs/r1018/work/r1037/` (`PLAN.md`, `replay/`, `probe/` (`rationale-rewrite.mjs` re-extracts facts and replays the rewrite on saved outputs), `acupoint/extract.py` + `build.py`, `cp/cp.py` 45 counter-proofs, all caught, `out/`, `judge/`). Suite `test:r1037-main`.
+
+**What the customer's data showed.**
+- **婚育史 is never sent.** All 18 requests for 病历1 (three runs × six routes) carry only 现病史/既往史/过敏史/个人史/家族史/辅助检查; the collect text's labels are the same. Across every archived request since 10/13, no request has a 婚育史 or 月经史 field. Their HIS form shows 「婚育史：适龄婚育，配偶体健，怀孕」 (screenshot 01).
+- **Our side had a gap too:** even if sent, the bare list item 「怀孕」 read as unknown. `assessPregnancyState` now reads a list item that is exactly 怀孕/妊娠(中) as current pregnancy when a sentence-level delimiter precedes it and a delimiter follows (「、」 before it does not count, so 「否认停经、妊娠」 stays a denial; 否认/未/曾 and 「怀孕3次」 are untouched). The interface doc now lists 婚育史 and 月经史 as `symptoms` keys. Gate replay over 20,923 records: 0 changed — nobody writes it that way in the corpus.
+- **流派** is the first row of their score table, 「流派与方案」: 病历1/2 「✔温病（不适配，未执行）」, 病历3 「❌（扶阳）无法执行」. Section (一) of the body is empty. 病历3 (32F) always went out as `unrestricted`; the only 扶阳 request (clinic 60003589, 10/26 07:17Z) was our interface doc's own curl example (28F 「产后2月余，头痛反复发作1月」), a single `question` call answered 200 with a normal follow-up question, after which their side sent nothing.
+- **Red banner.** Replaying their 26 archived red-flag requests verbatim on 9004dcd: red flag only on 上腹部持续性剧痛 and 突发剧烈胸痛 (their own emergency tests), none on the evaluation records.
+
+**Fixes** (each pinned in `test:r1037-main`, every assertion with a counter-proof):
+- **Stopped medicines with a duration or 「自行」.** `affirmedCurrentMedicationText` took the leftover of 「近一周自行停用」「已停用半年」 (「近一周自行」「半年」) as the stopped drug's name, so the drug before it stayed current. The leftover now drops spans and 自行/擅自; a restart clause later in the sentence (再次服用/恢复服用) brings the drug back. Replay: only C098 changes (rivaroxaban self-stopped a week no longer counts as current anticoagulation; the 自行停用 precaution still covers it).
+- **Recorded current bleeding** (`recordedCurrentBleedingForTreatment`, feeds `activeBleedingInGroundingText`, so the contract, M03/M04 prompts and anchoring all agree): current non-negated 咯血/咳血/痰中带血, or current antithrombotic use plus a current bleeding sign (经量增多、牙龈/鼻出血、皮下瘀斑、血尿、便血、黑便). C098 no longer depends on the facts quote; C070 (warfarin, INR 3.5, heavier menses) keeps blood movers out. Only for herb handling — the gate and red flags are unchanged. The diagnose route now uses the same predicate instead of `hasActiveBleedingRedFlag(gate.redFlags)`. The M04 rule lists every herb the KB files as 活血化瘀 by name (降香、郁金 included; toxic, blood-breaking and controlled herbs by class), because the model used 降香 as 君药 for C098 reading it as a 化瘀止血 herb.
+- **Wording when bleeding is only something to exclude** (`activeBleedingWording`): if every bleeding term in the red flags sits inside 「需排除：…」 and the record has none, the M03/M04 rules say 「出血尚未排除」 (C068).
+- **药引/辅料 without a gram dose** (竹沥、姜汁 in mL or 适量) that are not 君药 are taken out of the herb table at finalize with the reason 「药引/辅料，如需使用请医生另定用量（多为兑服）」. Before, one such row sent C048's whole prescription to the non-dose page.
+- **Adult with a pediatric-only Western name** (`deterministicWesternNameCorrection`): 反复(上/下)呼吸道感染 at 18+ becomes 急性上呼吸道感染 with current respiratory symptoms, else 乏力待查 / 上呼吸道感染待查; the name check's keep-hypothesis path skips these names.
+- **`gi_alarm` category boundary.** Narrowing the prompt definition (v28) did not move C069 (10 samples: 5 → 4 filed under gi_alarm). Grounding now re-files a `gi_alarm` finding whose quotes contain no term from the governed gi_alarm detection lists (and no organ stem from its GI cancer list + 癌/瘤, for 「胃窦腺癌」) as `other_critical`: the advisory reads 「当前异常表现需优先复核」, urgency unchanged. GI1–3 probes stay gi_alarm 4/4.
+- **Rationale coverage** (`m03-rationale-coverage.server.ts`, `CDSS_M03_RATIONALE_COVERAGE`). A small task rewrites the TCM rationale as 「表现→病机」 per group when it misses findings. It is accepted only if it covers every missing item, loses at most one item the original covered, names no syndrome other than primary/secondary, keeps the lineage sentence, and is ≤320 chars. It runs before the secondary/claim/element checks so they see the final text.
+  - **Triggers:** two or more checklist findings missing (one when the checklist has ≤3); or any main symptom of the chief complaint missing. The main symptoms are `chiefComplaintFindings`: facts-layer terms that appear in the chief complaint or share a three-character run with it (主诉「月经周期缩短」, fact 「月经周期提前」), because real chief-complaint fields are sometimes a name or a diagnosis list. A main symptom counts as mentioned when two of its characters appear in order within six characters (胃痛/胃脘胀痛, 牙痛/牙持续性胀痛) or reversed and adjacent (多汗/汗多). Customer case 10 had one run without 月经周期缩短 in its rationale.
+  - **The checklist** now puts recorded tongue and pulse first (read through `isUnrecordedInspectionFieldValue`; 「脉象难配合」 is not a finding), because the c10 review failed 病历3 for a rationale that never cited 舌淡白、脉细弱.
+  - **The foreign-syndrome check was wrong at first:** it compared each whole 「…证」 span, so 16 of 19 rewrites were rejected for 「无兼证」「以下按常规辨证」「可佐证」「属湿热中阻之主证」 or a secondary written as 「痰浊阻肺兼证」. `syndromeNameInSpan` now takes the name inside the span (「X之兼证」 → X证; cut after the last connector; one-character, negation-led and 「支持本证」-type spans are not names), the lineage sentence is skipped, and names already in the original rationale, the disease name (心悸证) or the record are not foreign. Offline: 19 saved candidates 3 → 18 accepted; with the chief-symptom trigger, 43 of 142 saved cases need a rewrite and 42 are accepted (the rejection invented 「吐泻耗伤津液证」).
+- **The element check no longer deletes findings along with the element** (`m03-element-support.server.ts`). The accepted rewrites explained 食欲下降/便溏 as 「脾气虚弱」 and 神疲/舌淡白/脉细弱 as 「气血亏虚」. When the element check then failed 脾气虚 on criteria (it varies: pass in one run, fail in three), it deleted every rationale clause naming it, and the tongue/pulse went with them. All three local runs of customer case 3 were judged 「辨证依据未引舌脉」. When a failed clause starts with findings before an attribution word (为/属/乃/系/皆/均/示/由/因, 支持/说明), the findings stay. They are gathered into one 「…，是否兼X尚待核实。」 sentence before the lineage sentence, leaving out findings the rest of the rationale already explains (`findingsBeforeAttribution`).
+- **方义 「以X易之」 with no antecedent.** The opening-clause rewrite left 「本方以消风散为基础加减，以生地黄易之」 (customer case 9). A pronoun swap with no preceding 「去…」 clause is dropped when the catalog lists the herb itself or its unprocessed base name (地黄 covers 生地黄, 熟地黄 does not). 「去原方熟地之滋腻，以生地黄易之」 stays.
+- **Home acupoint care chosen by the model** (`home-acupoint-authoring.server.ts`, `CDSS_HOME_ACUPOINT_AUTHORING`). Before: 71 prescriptions, 18 distinct texts, one paragraph verbatim in 15. Now a governed pool (`tcm-home-acupressure-points.source.json`, 34 points; standard location and 主治 verbatim from the local 十三五 textbook corpus with line numbers; the 13 old patient locations reused verbatim) and a small task that picks 1–3 points with a reason tied to the case's complaints. The server keeps only pool names, drops pregnancy-excluded points/regions and points already on clinician cards (all-on-cards keeps them rather than falling back), uses the spec's technique/duration/cautions, and only uses the model's points where the template itself would have produced something (same safety gates; children keep the spec paragraph). The call starts when the prescribe route starts and is awaited in `m04CandidateTransform`. Text format: 「按揉X、Y。取穴：X在…；Y在…。手法：…。X：理由；Y：理由。」. Measured: 88 of 98 outputs model-chosen, 81 distinct texts.
+- **Review renderer** (`~/runlogs/r1018/scripts/panel.py`): no longer prints the interface value `decisionBranch=syndrome`, the timing line or empty care fields; the qwen judge failed 3 c10 runs on 工程用语 for those.
+
+**Measured** (local route harness in the customer request shape unless marked; qwen3.8-max judge with the 10/17 briefs and the 1.1 rubric; the review renderer change above applies from r25c on).
+
+| Set | Result |
+|---|---|
+| Customer 10 × 3, r25b (before the chief-symptom rule) | every column ≤1 per run; the three 工程用语 fails were the renderer |
+| Customer 10 × 3, r25c (31681bf) | r1 中医诊断 2, r2 饮片 2 — 病历3 lost tongue/pulse in 3 of 3 (the element-check interaction above), 病历9 「以生地黄易之」 |
+| Customer 10 × 3, r25e (75737cd) | every column ≤1 per run (one 西医 fail: 病历5 「乏力待查」); 病历3 tongue/pulse back 3/3 |
+| Held-out 32, r25b / r25c | every block ≥96.6 / every block 100 except 红旗与剂量档 96.9 |
+| 100-case set, page shape (9004dcd code), 1.1 rubric | every row 94.7–100 (H 味数 94.7, Y 97, FACT 98); red lines 0; deterministic: red flags 28/28, no over-call 48/48 |
+| Interface 49 | K 中成药 100% |
+| Rationale rewrites | offline: foreign-name fix 3/19 → 18/19 accepted; with the chief rule 43/142 saved cases need one, 42 accepted. r25c: 6 rewrites in 62 chains, all accepted, p50 1.7 s. 病历10 mentions 月经周期 in 3/3 after the fallback (0/3 before) |
+| Stage medians, local | diagnose 11.0 → 12.4 s (c10), 11.6 → 12.6 s (held32), r25b → r25c; only 6 of 62 chains ran a rewrite, so most of it is machine load |
+
+**In production (85cbf1b, deployed 2026-10-27 about 14:06 Beijing; tag `20261027-85cbf1b-prebuilt`, same release directory and `20260927-dsrepair` override).** 9004dcd went out at about 11:44 and 31681bf at 13:21 before it. Each passed `verify:deployed-image` (commit, digest, strictReady, both families) and `regress:prod-smoke` (0 failures; M03 P95 18.4–18.9 s, M04 P95 13.4–15.1 s).
+- **Red banner:** the customer's 26 archived red-flag requests replayed verbatim on 31681bf and 85cbf1b: 26/26 200, red flag only on 上腹部持续性剧痛 and 突发剧烈胸痛, identical to 9004dcd.
+- **Customer 10 on production (85cbf1b, hospital-a/b, follow-up skipped):** all stages 200; disease, syndrome and formula match the standard answers; no red flag; judged: 中医诊断 1 (病历3 辨病依据 without 产后), every other column 0.
+- **The 11 records of the 10.26 evaluation:** all stages 200, no red flag, every herb dosed.
+- **Probes:** 「婚育史：…，怀孕」 → the prescription lists 「已记录妊娠、哺乳或备孕阳性/可疑状态」 under adoption checks with 孕期慎用 notes; the interface doc's 扶阳 curl example runs end to end (lineage `not-applicable`, 「本例无阳虚阴盛实据」).
+- **Rate limit:** `regress:prod-smoke` uses hospital-a's window; a customer-10 run right after it lost 3 calls to 429. Run the next set on hospital-b or wait ten minutes.
+- **Rollback:** image `tcm-cdss:20261027-31681bf-prebuilt` (or `…9004dcd…`, `…4cca525…`) with the `docker-compose.yml.pre-*` backups in the release directory. Container logs before each replacement are in `~/telemetry-archive/container-pre-*.log.gz` on the host. Host disk 12–15G during this round (default 12G floor held).
+
+**Left as is.**
+- **Home acupoint care is not given** for external/acute natures (感冒, 瘾疹·风热; 9/28 customer decision) or for natures outside the 2013 spec's nine constitutions (血虚, 胃火). 5 of the 11 evaluation records have none. Extending model-chosen points to those needs a source decision, not code.
+- **病历5's Western name** is 「乏力待查」 when fatigue is recorded and no current infection; one of six judged runs wanted a 「反复感冒」-direction name. Customer only objected to the pediatric name.
+- **Model judgement seen by the reviews:** 病历10 「排卵障碍相关异常子宫出血」 once (the name check has no AUB-O criteria row); 病历2 酸枣仁 added to 安神定志丸 once; 病历3 辨病依据 without 产后 once; 病历4's rationale cites the tongue but not 脉弦细 (a single missing item does not trigger the rewrite).
+- **The chief-complaint fallback** also fires on narrative chief-complaint fields of public records (「宝宝拉肚子了」「上海市人」: 25 of ~100 S-set outputs) — the rewrite then either fails acceptance or adds the colloquial wording.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
