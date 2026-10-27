@@ -148,6 +148,25 @@ await check("6.1 辨证依据漏讲两项以上已记录表现才重写；两字
   assert.equal(coverage.rationaleMentionsFinding("脾虚便溏", "大便稀溏"), true);
 });
 
+await check("6.3 辨证依据清单把病历记录的舌象、脉象排在最前（甲方病历 3、11「证候分析不全面」，依据没引舌淡白、脉细弱）；未记录的不列", async () => {
+  const checklist = await jiti.import("../src/lib/rationale-findings-checklist.ts");
+  const types = await jiti.import("../src/lib/diagnosis-types.ts");
+  const state = types.normalizeCaseStateInput({ chiefComplaint: "头痛2+月", patient: { sex: "女", age: 32 }, symptoms: { 现病史: "产后头痛，隐痛，神疲乏力，食欲下降。" }, tongue: "舌淡白，苔薄白", pulse: "脉细弱" });
+  state.clinicalFacts = { affirmedSymptoms: [{ term: "神疲乏力", quote: "神疲乏力" }, { term: "食欲下降", quote: "食欲下降" }] };
+  const items = checklist.rationaleFindingsChecklist(state);
+  assert.deepEqual(items.slice(0, 2).map((item) => item.replace(/[,，]/g, "")), ["舌淡白苔薄白", "脉细弱"]);
+  assert.match(checklist.rationaleFindingsChecklistNotice(state), /舌象、脉象也要写进推理/);
+  const none = types.normalizeCaseStateInput({ chiefComplaint: "头痛", patient: { sex: "女", age: 32 }, symptoms: { 现病史: "头痛" }, tongue: "未记录", pulse: "" });
+  none.clinicalFacts = { affirmedSymptoms: [] };
+  assert.deepEqual(checklist.rationaleFindingsChecklist(none), []);
+  // 没能看到（患儿不配合）不是所见，不列（C079 被逼着解释「脉象难配合」）。
+  const child = types.normalizeCaseStateInput({ chiefComplaint: "腹泻1天", patient: { sex: "男", age: 2 }, symptoms: { 现病史: "腹泻" }, tongue: "舌淡红，苔薄白", pulse: "脉象难配合" });
+  child.clinicalFacts = { affirmedSymptoms: [] };
+  assert.deepEqual(checklist.rationaleFindingsChecklist(child).map((item) => item.replace(/[,，]/g, "")), ["舌淡红苔薄白"]);
+  // 依据只罗列症状、没引舌脉时算漏讲。
+  assert.deepEqual(coverage.missingRationaleFindings("产后头痛隐痛，故属血虚头痛；神疲乏力为气血不足；食欲下降为脾虚。", items), ["舌淡白,苔薄白", "脉细弱"]);
+});
+
 // 本地假模型：按请求里的任务回不同的 JSON。
 async function withStubModel(reply, run) {
   const bodies = [];
@@ -207,6 +226,22 @@ await check("6.2 重写稿补上全部漏讲项、原稿已讲到的最多丢一
     await coverage.completeRationaleCoverage(tcmHalf(shortRationale), { recordText: record3, findings: ["心悸", "头晕", "神疲乏力", "遇劳加重"] });
     assert.equal(bodies.length, 0);
   });
+});
+
+await check("6.4 外来证名只看「…证」片段里的证名本身：「无兼证」「以下按常规辨证」「可佐证」「属湿热中阻之主证」「属痰浊阻肺兼证」（兼证有它）不算；主证兼证以外的证名、改头换面的证名照旧算", () => {
+  const input = { rationale: "发热、脉浮数，属邪在卫分。", primary: "湿热中阻证", secondary: ["痰浊阻肺证"] };
+  for (const ok of [
+    "吐泻交作，属湿热中阻之主证；咳白痰属痰浊阻肺兼证。另无兼证，可佐证气机不畅，不另立证，可与他证相别。",
+    "吐泻交作，故属湿热中阻主证。从温病卫气营血看，本例属卫分证，以下按常规辨证处理。",
+    "发热脉浮数属卫分证，吐泻为湿热中阻证。",
+    "吐泻为湿热中阻证。从六经方证看，本例咽中如有炙脔与半夏厚朴汤证相合，以下按常规辨证处理。",
+  ]) assert.deepEqual(coverage.foreignSyndromeNames(ok, input), [], ok.slice(0, 16));
+  assert.deepEqual(coverage.foreignSyndromeNames("吐泻交作属湿热中阻证；胁胀属肝郁脾虚证。", input), ["肝郁脾虚证"]);
+  assert.deepEqual(coverage.foreignSyndromeNames("吐泻交作，故属脾肾阳虚之兼证。", input), ["脾肾阳虚证"], "「X之兼证」取 X");
+  assert.deepEqual(coverage.foreignSyndromeNames("头晕心悸，属兼证痰浊阻肺证之象；咽部堵塞感为痰气郁结于咽的主证表现。", input), []);
+  assert.deepEqual(coverage.foreignSyndromeNames("吐泻交作，故属脾肾阳虚兼证。", input), ["脾肾阳虚证"]);
+  assert.equal(coverage.syndromeNameInSpan("以下按常规辨证"), undefined);
+  assert.equal(coverage.syndromeNameInSpan("故属阳虚水泛主证"), "阳虚水泛证");
 });
 
 // ---------- 7 居家穴位保健 ----------

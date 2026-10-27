@@ -62,8 +62,42 @@ function lineageLensSentence(rationale: string): string | undefined {
 }
 
 const SYNDROME_NAME = /[一-鿿]{2,8}证/gu;
+/** 证名前常见的连接字：「属/为/于…」之后才是证名本身；「立/辨/按/与」之后是「另立证」「常规辨证」「与他证相别」这类说法。 */
+const SYNDROME_SPAN_CONNECTOR = /[属为是系乃之的于即故示与及或立成按据从见辨证]/gu;
 
-function buildMessages(input: { recordText: string; disease: string; primary: string; secondary: string[]; rationale: string; findings: string[]; missing: string[] }) {
+/**
+ * 「…证」片段里真正的证名（2026-10-27：重写稿 19 份里 16 份被「无兼证」「以下按常规辨证」「可佐证」「属湿热中阻之主证」
+ * 「属痰浊阻肺兼证」这类片段判成了外来证名）。「X之证」「X的主证」取 X；其余去掉证字前的「主/兼」；再从最后一个连接字之后取。
+ * 只剩一个字（他证、主证）、以「无/非/另…」起头（另无兼证）或以「佐/印/论」结尾（佐证、印证）的是说法不是证名，返回 undefined。
+ */
+export function syndromeNameInSpan(span: string): string | undefined {
+  const possessive = /^(.*)[之的][主兼]?证$/u.exec(span);
+  const head = possessive ? possessive[1] : span.replace(/[主兼]?证$/u, "");
+  let cut = 0;
+  for (const match of head.matchAll(SYNDROME_SPAN_CONNECTOR)) cut = (match.index ?? 0) + 1;
+  const core = head.slice(cut);
+  // 以「无/非/未/另/他/本/此/该」起头的是「另无兼证」「本证」这类说法；证名里的「不」（脾不统血、心肾不交）不能当否定词。
+  if (core.length < 2 || /[佐印论]$/u.test(core) || /^[无非未另他本此该]/u.test(core)) return undefined;
+  return `${core}证`;
+}
+
+/** 重写稿里主证、兼证以外的证名；流派那句（原样保留、另行核对）不看，原依据里已经讲过的说法不算外来。 */
+export function foreignSyndromeNames(candidate: string, input: { rationale: string; primary: string; secondary: string[] }): string[] {
+  const allowed = [input.primary, ...input.secondary].map((name) => compact(name)).filter(Boolean);
+  const original = compact(input.rationale);
+  const body = candidate.split(/(?<=[。；;])/u)
+    .filter((part) => !/以下按常规辨证处理|^从[^，,。]{1,16}看/u.test(part.trim()))
+    .join("");
+  const names = [...body.matchAll(SYNDROME_NAME)]
+    .map((match) => syndromeNameInSpan(compact(match[0])))
+    .filter((name): name is string => Boolean(name));
+  return [...new Set(names)].filter((name) => {
+    if (allowed.some((item) => item.endsWith(name) || name.endsWith(item) || item.includes(name))) return false;
+    return !original.includes(name.slice(0, -1));
+  });
+}
+
+export function buildRationaleCoverageMessages(input: { recordText: string; disease: string; primary: string; secondary: string[]; rationale: string; findings: string[]; missing: string[] }) {
   const lens = lineageLensSentence(input.rationale);
   return [
     {
@@ -78,7 +112,7 @@ function buildMessages(input: { recordText: string; disease: string; primary: st
         `原辨证依据：${input.rationale}`,
         `病历记录的这些表现必须逐项讲到：${input.findings.join("、")}（原依据漏了：${input.missing.join("、")}）。`,
         "重写要求：",
-        "1. 不超过250字；先一句讲主诉主症为什么属于主证，再按「表现→病机」逐组讲清每一项属于哪一病机（如「大便稀溏、小便清长为脾肾阳气不足、运化失司」），不只罗列表现再接一句结论；有兼证时另用一句讲兼证依据。",
+        "1. 不超过250字；先一句讲主诉主症为什么属于主证，再按「表现→病机」逐组讲清每一项属于哪一病机（舌象、脉象也要写进去，说明它们支持哪一病机）（如「大便稀溏、小便清长为脾肾阳气不足、运化失司」），不只罗列表现再接一句结论；有兼证时另用一句讲兼证依据。",
         "2. 主证能解释的表现说明怎样解释；主证解释不了的写它的病机归属，但不立新证、不出现主证与兼证以外的证名。",
         "3. 只写病历里有的表现，用病历原话，不补写病历没有的症状、舌脉或检查；不改证名，不写治法、方药，不写「未记录」以外的系统用语。",
         lens ? `4. 原依据里流派那一句原样放在最后：${lens}` : "4. 不写流派。",
@@ -89,18 +123,18 @@ function buildMessages(input: { recordText: string; disease: string; primary: st
 
 export type RewriteRejection = "length" | "missing" | "lost" | "foreign_syndrome" | "lineage";
 export let lastRewriteRejection: RewriteRejection | undefined;
-function acceptedRewrite(candidate: string, input: { rationale: string; findings: string[]; missing: string[]; primary: string; secondary: string[] }): string | undefined {
+export let lastForeignSyndromeNames: string[] = [];
+export function acceptedRationaleRewrite(candidate: string, input: { rationale: string; findings: string[]; missing: string[]; primary: string; secondary: string[] }): string | undefined {
   const value = candidate.trim().replace(/\s+/gu, "");
   lastRewriteRejection = undefined;
+  lastForeignSyndromeNames = [];
   if (value.length < 40 || value.length > MAX_RATIONALE_CHARS) { lastRewriteRejection = "length"; return undefined; }
   // 漏讲的必须都补上；原稿已讲到的最多丢一项（清单九项时要求一字不漏，九项全写进去的稿子大多超长或漏一项，实测一例都采不上）。
   if (missingRationaleFindings(value, input.missing).length > 0) { lastRewriteRejection = "missing"; return undefined; }
   const covered = input.findings.filter((finding) => !input.missing.includes(finding));
   if (missingRationaleFindings(value, covered).length > 1) { lastRewriteRejection = "lost"; return undefined; }
-  const allowed = [input.primary, ...input.secondary].map((name) => compact(name));
-  const foreign = [...value.matchAll(SYNDROME_NAME)].map((match) => compact(match[0]))
-    .filter((name) => !allowed.some((item) => item.endsWith(name) || name.endsWith(item) || item.includes(name)));
-  if (foreign.length > 0) { lastRewriteRejection = "foreign_syndrome"; return undefined; }
+  const foreign = foreignSyndromeNames(value, input);
+  if (foreign.length > 0) { lastRewriteRejection = "foreign_syndrome"; lastForeignSyndromeNames = foreign.slice(0, 3); return undefined; }
   const lens = lineageLensSentence(input.rationale);
   if (lens && !value.includes(lens.replace(/\s+/gu, ""))) { lastRewriteRejection = "lineage"; return undefined; }
   return value;
@@ -130,7 +164,7 @@ export async function completeRationaleCoverage(
   if (!config.configured) return content;
   const secondary = Array.isArray(overview.secondarySyndromes) ? overview.secondarySyndromes.map(text).filter(Boolean) : [];
   const input = { recordText: context.recordText, disease: text(overview.tcmDiseaseName), primary, secondary, rationale, findings, missing };
-  const messages = buildMessages(input);
+  const messages = buildRationaleCoverageMessages(input);
   const rewritten = await memoizedSmallTask<string | undefined>("m03_rationale_coverage", smallTaskMemoKey([config.model, messages]), async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -146,7 +180,7 @@ export async function completeRationaleCoverage(
       }, { signal: controller.signal }));
       let parsed: Json | undefined;
       try { parsed = record(JSON.parse(response.choices[0]?.message?.content || "")); } catch { parsed = undefined; }
-      const value = acceptedRewrite(text(parsed?.rationale), input);
+      const value = acceptedRationaleRewrite(text(parsed?.rationale), input);
       return { value, cacheable: Boolean(value) };
     } catch {
       return { value: undefined, cacheable: false };
