@@ -2412,6 +2412,63 @@ The user asked for the remaining gaps on our side to be closed while the custome
 - **Bell's palsy window** (24 h per College of Optometrists vs our 48 h pathway) is an owner decision; **delirium named 痴呆** still has no 神昏 section in the corpus; **Bell's palsy stroke flags from the facts model** unchanged.
 - **Decisions still pending from the owner:** HIS `candidateStatus: invalid` with patent/Western medicines; home acupoint care for external/blood-deficiency natures; 病历2 五味安神颗粒.
 
+### 10/27 round 27: every customer complaint as a regression check — ledger, scanner, the classes that still recurred (2026-10-27)
+
+The user asked for the customer's problems never to reappear: research online, follow the project's logic and constraints, then iterate, deploy and test. Material: `~/runlogs/r1018/work/r1039/` (`ledger/ledger.json` 138 entries, `ledger/ledger-scan.py`, `probe/replay-req.mjs`, `replay/sanitizer-schema.mjs`, `cp/cp.py`, `measure.sh`, `out/`, `judge/`). Suite `test:r1039-main`.
+
+**The ledger.** A sub-agent read every customer document (7/15, 8/03, 8/04–8/10 replies, 8/20 C01–C19, 9.24/9.27, 9/28, 10.12, 10.26, the acceptance standard) and our replies, and wrote one entry per distinct problem class with the customer's verbatim wording, the output fields, a detection rule and our recorded fix: 138 entries, 120 checkable by program, 18 by a clinician-style reviewer; 127 marked fixed in our documents, 4 open, 1 owner decision, 6 on the customer's side. `ledger-scan.py` implements the program-checkable rules over saved outputs (regress-customer-shape / page-chain), including cross-run checks (same record, mutually exclusive 治法 within one disease+syndrome group, sentences repeated across syndromes).
+
+**What "fixed" still let through (before arm: 50 customer API records × 2 replayed with their own answers + round 26's same-day c10 ×3, held-out 32 ×2, 100-case set).**
+- **One herb sending the whole page to no-dose** (the customer re-calls prescribe each time; today 00000239's 13-year-old cough case, plus C068 and C098 in the 100-case set). Two causes:
+  - The opposing-direction pruner protected herbs of the formula M03 had locked even after the candidate had declassified itself to 自拟方; the route's final T1 check exempts only the candidate's own formula names, so 白芷/皂角刺 (仙方活命饮, under a heat-clearing method) were neither removed nor accepted. `m04CandidateOpposingDirectionIndices` (diagnosis-stage-contract) is now the one predicate: the pruner protects a baseline herb only when the final check would also exempt it, and the identity floor applies only to a candidate that still claims the formula. Five captured C068 rejections all pass after pruning.
+  - The male-patient population filter in `sanitizeUngroundedRedFlagNegations` emptied `formula.modificationReview.droppedReasons[].message` (a server rule sentence mentioning 孕妇/哺乳) → `too_small_*` schema failure → "stage" → non-dose. Review metadata is no longer sanitized, a single-value field is never emptied by the population filter, and a remainder of only punctuation counts as emptied (male precaution lists used to keep a lone 「。」). Replay over 1,158 saved result × patient combinations: schema breakage 2 → 0.
+- **The report said one thing and the structured result another.** The prescription Markdown was never re-rendered after the delivered-surface projection: 42/90 prescriptions had a different 方义 in the text (「本方以本方案合本方案加减」 against 「本方为自拟方」; 银翘散 「以…为基础加减」 against 「本方用银翘散原方」), 11 kept 「本方案」. The page's download report and API Markdown use this text (8/20: 「医生页面已过滤但下载/API仍泄漏」). From 「# 候选方药」 on, the text is now re-rendered from the projected payload; the preamble the route adds after rendering (safety banner, children's dosing notes, information notice) is kept.
+- **Wording the customer named:** quality lead lines (「本次候选已完成确定性核查…未能被系统自动对应到已锁定治法」, 47/90) now read 「本方药味、剂量、配伍与人群禁忌已逐项核对…」; M05 「整体状态复评/复评问题」 → 评估, 「需医生复核后采纳」 → 「需医生核对后使用」, 「处方可作为候选方案审阅」 → 「处方供医生审阅」; 「不影响医生审阅候选方案」 → 本方; 「处方身份说明：M03 原锁定」 → 「处方说明：辨证阶段推荐」; `lineageAdaptation.safetyDeference` → 「急危重风险处置与用药安全核对优先于流派偏好」; treatment-card `operatorRequirement` loses 「具备相应资质」 (69 cards; `operatorRequirementWording`); combined caution labels drop 「月经期」 for men, children and 60+ (`herbBoundaryPopulationLabel`, 49); the current-medication rule sentence no longer says 「最好间隔1小时左右」 (no official fixed interval exists: HA Hong Kong, Kaohsiung VGH pharmacists).
+- **虚劳 got only 食疗** (10.26 record 5, round 24 left it): the 《推拿学》 虚劳 card has points and operation steps but opened with the disease 治则, which `treatmentCardUndeliverable` reads as "治则 only". With operation steps the card now opens with 手法, and the textbook's 「根据五脏的不同配以五脏的背俞穴」 selects back-shu points by the organs in the signed syndrome (肺脾两虚 → 肺俞、脾俞; `tuinaBackShuForSyndrome`). `test:r1019-cards` 11.1/8.3 moved to this doctrine.
+- **黄芩 in 病历3** (血虚头痛, record 便溏、小便清长; 10.26 「黄芩不宜」) in 3 of 3 runs: the round-24 prompt line did not hold. `herbColdDeficiencyCautionConflict` reads the textbook 【使用注意】 「脾胃虚寒者忌用/不宜」 (41 herbs) against the record (便溏 class + a cold sign, no heat sign, no heat/fire in the syndrome; word lists in `tcm-herb-record-caution.source.json` `coldDeficiency`). For this kind only, a herb of the chosen formula is no longer exempt: the prompt names it, and finalize removes it singly (never the sole 君) with the textbook reason in `notApplicable`. 便溏-type cautions (当归 「大便溏泻者忌服」) keep the round-19 annotate-only behaviour.
+- **人参+党参 / 太子参+西洋参** in 3 prescriptions (10.12 「不要人参党参同用」, prompt only until now): finalize keeps the higher-role one of the 补气药 「参」 herbs.
+- **「宁心安神」 as a 治法 item** when neither syndrome nor disease involves 心/神 (`withoutIncidentalSedationMethod`, same predicate as the incidental-sedative herb filter).
+
+**Checked and holding:** P0 audit 0 on 100 API replays; no mutually exclusive 治法 in any of 63 disease+syndrome groups (red line); Western basis present in every non-limited result; ≥2 TCM disease differentials except the known 黧黑斑 synonym case.
+
+- **Found by the after-arm scan and fixed before the build:** a 21-year-old man with 肠痈 got 「异位妊娠」 as a TCM disease differential (textbook-listed for 肠痈): male patients no longer get differentials that exist only in 《中医妇科学》 (`textbookDiseaseOnlyGynecologic`, the same department rule the disease pick uses; the surface top-up obeys it too). C061 kept 兼证 「寒凝胞宫证」 while its rationale said 「故不归寒凝或湿热」: a rule-out clause (不归/不属/不考虑/不支持/可排除/故非 followed by two consecutive characters of the secondary) now withdraws it like 「非独立」.
+- **Patent medicines for neutral syndromes:** with a syndrome name that says neither cold nor heat (外感风邪证), the direction check reads the signed 治法, and if that is neutral too, the decoction's composition (≥⅓ heat-clearing herbs and no warming ones, or the reverse; `decoctionThermalByComposition`). Mixed decoctions stay undecided, so the before-arm 桂枝颗粒 case (川芎茶调散 herbs plus 芩连栀翘) is still not filtered.
+
+**Measured** (same day; before = production code 6e003af/d64a0983 — the API replay generated this round, c10/held32/p100 from round 26's same-day `fin` arm; after = this round's code before the C015/C061 fixes):
+
+| Ledger scanner hits | API 100 | customer 10 × 3 | held-out 32 × 2 | 100-case set |
+|---|---|---|---|---|
+| Report 方义 ≠ structured 方义 | 45 → 0 | 12 → 0 | 17 → 0 | 33 → 0 |
+| 「本例辨证组方/本方案」 in the report | 30 → 0 | 3 → 0 | 9 → 0 | 30 → 0 |
+| Engineering words in visible text | 500 → 1* | 139 → 0 | 283 → 0 | 496 → 1* |
+| Treatment-card 「资质」 wording | 69 → 0 | 27 → 0 | 52 → 0 | 52 → 0 |
+| Female-only text for men/children | 17 → 0 | 3 → 0 | 20 → 0 | 11 → 1 (C015, fixed after) |
+| Duplicate 参 / bitter-cold herb against 脾胃虚寒 | 0/0 → 0/0 | 0/3 → 0/0 | 0/2 → 0/2† | 7/0 → 0/0 |
+| No-dose page | 0 → 0 | 0 → 0 | 0 → 0 | 2 → 0 |
+
+\* the model's own 「复评出血量」 in a doctor-facing differential. † S131 栀子, whose textbook caution is 「慎用」 (kept by design).
+
+- Customer 10 × 3: disease, syndrome and formula identical across the three runs and equal to the standard answers in 10/10; no red flag on any; 病历3 without 黄芩 in 3/3 (the model now follows the case-specific prompt line); 病历5 has a 推拿 card in 3/3.
+- Held-out 32 × 2: disease and syndrome identical to the before arm in 32/32.
+- 100-case set: red flag where expected 28/28, none where none expected 48/48, dose where expected 39/39, D4 boundary cases dosed 32/33 → 33/33, P0 audit 0 on every set, ≥2 differentials 100/100; herb-count preference 71/75 → 69/75 (no prescription lost a herb to the new pruning; model variance, different cases). Medians: diagnose 13.3 → 12.8 s, prescribe 10.7 → 10.2 s.
+- API replay medians: diagnose 13.9 → 11.5 s (first 19), prescribe 10.5 → 10.1 s.
+
+- qwen3.8-max with the 10/17 briefs: customer 10 × 3 every column ≤ 1 per run (one 西医 fail: 病历5 run 3 「乏力待查」, the round-25 judgement call; the before arm had one 工程用语 fail); held-out 32 × 2 every block ≥ 98.3% (S158 adds 蝉蜕/钩藤 for 夜啼 — model). 1.1 rubric on 62 API replays (before arm): every row 94–100%; its failures were the 旋覆代赭汤 naming (fixed), a neutral-syndrome patent medicine, and model-written claims.
+
+**In production (8527746, deployed 2026-10-28 about 01:45 Beijing; tag `20261027-8527746-prebuilt`, same release directory and `20260927-dsrepair` override).** `verify:release` green (293 suites); `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 17.0 s, M04 P95 15.1 s). Probes:
+- today's 00000239 K17 prescribe request replayed twice: dosed both times (「二陈汤加味」), no 「本方案」, the lead note in clinical wording;
+- customer-shape (hospital-b): 旋覆代赭汤 record, 虚劳 records (推拿 card + 食疗), today's 90000405 cough, 病历3 (no 黄芩), 病历5 — every stage 200, report 方义 equal to the structured one;
+- page shape (hospital-a, paced): C068 and C098 dosed (both no-dose pages before), C015 no 异位妊娠, C032 dosed.
+- Rollback: image `tcm-cdss:20261027-6e003af-prebuilt` with `docker-compose.yml.pre-8527746`. Container log before the replacement: `~/telemetry-archive/container-pre-6e003af-*.log.gz`. Host: our 31681bf image and the 6e003af build context were removed to reach the 12 GB floor (logged in `~/telemetry-archive/cleanup-20261027.txt`).
+- Local build: the first prebuild ran the root disk out of space (build tree 3.8 GB + deploy worktree 1.4 GB + a 2 GB swap file on root). It succeeded with the swap file on /home (1.2 GB, removed after) and the measurement worktree removed; lowest free space 2.3 GB root / 1.4 GB home.
+
+**Left as is.**
+- C015 keeps a single TCM disease differential after 异位妊娠 is dropped (the model wrote only two; the filter runs after the M03 top-up). Moving the sex filter before the top-up would restore the second one.
+- C061-type 兼证 that the rationale does not explicitly rule out stay with the criteria check (热敷缓解 supports cold).
+- Same-record variance on the customer's odd test records (「XXX天」): syndrome differs between fresh generations in 11 of 50 API records; production reuse returns the same result for identical input. 「外邪犯表，胃气不和证」 (comma-joined name) appears on that record.
+- Herb-count preference 69/75 (model variance; the customer calls it a suggestion).
+- Owner decisions unchanged: HIS `candidateStatus`, home acupoint care for external/blood-deficiency natures, 五味安神颗粒, Bell's palsy window.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
