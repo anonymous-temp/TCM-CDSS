@@ -327,7 +327,7 @@ const SAFETY_PRUNE_MIN_RETAINED = 3;
  *   1) 人群/过敏/活动性出血冲突：m04GenerationSpecialPopulationIssue 对单味判 HIGH；
  *   2) 方内十八反：findTcmHerbPairIncompatibilities，删两味中地位较低的一味；
  *   3) 须由医生单独定量的管制或濒危药材（dosePassesSafetySanityCeiling 对这两类一律不放行）：还有别的君药时连君药也拿出。
- * 不删君药（君药决定全方走向，交给修复轮重选）；删后不足 3 味不删（交给修复轮）。方义随删掉的药改写，删了什么写进「慎用与不适用」。
+ * 唯一的君药不删（君药决定全方走向，交给修复轮重选），还有别的君药时与其余药味同样剔除；删后不足 3 味不删（交给修复轮）。方义随删掉的药改写，删了什么写进「慎用与不适用」。
  * 必须排在核对与签名之前（finalizeM04CandidateContent）：签名绑定的是剔除后的最终候选。
  */
 export function dropSafetyConflictingM04CandidateHerbs(content: string, clinicalContext: string): string {
@@ -358,9 +358,14 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
         removed.push({ name, reason: "须由医生单独定量的管制或濒危药材，未列入本方，如需使用请医生另行开具" });
         return false;
       }
-      if (roleOf(value) === "君") return true;
       const issue = m04GenerationSpecialPopulationIssue([{ name }], clinicalContext);
       if (!issue) return true;
+      // 君药与管制药材同一口径：还有别的君药时拿掉这一味，它是唯一的君药时不拿（交给修复轮重选）。生产探针 C098（疑似肺栓塞、
+      // 病历记录咯血丝）：丹参与桔梗同为君，丹参因活动性出血不入方，此前整方退成非剂量页（2026-10-27 第二十四轮）。
+      if (roleOf(value) === "君") {
+        if (emperorsLeft <= 1) return true;
+        emperorsLeft -= 1;
+      }
       const code = issue.replace(/^herb_\d+_special_population_high_risk_/u, "");
       removed.push({ name, reason: SAFETY_PRUNE_POPULATION_LABELS[code] || "本例特殊人群不宜" });
       return false;

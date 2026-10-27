@@ -469,4 +469,17 @@ await check("8.19 出血类红旗连附在后面的原文引文一起认：疑�
   assert.equal(safety.hasActiveBleedingRedFlag(["现有资料提示需立即急诊评估（需排除：急性肺栓塞伴休克/低氧血症），原文依据：“今天突然胸痛气促”"]), false);
 });
 
+await check("8.20 定稿剔除：与本例安全边界冲突的君药，还有别的君药时同样剔除（生产探针 C098：丹参与桔梗同为君、病历记录咯血丝，此前整方退成非剂量页）；唯一的君药照旧不删", () => {
+  const content = (herbs) => `前文\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [{ name: "自拟方", herbs, formulaAnalysis: herbs.map((herb) => `${herb.name}为${herb.role}`).join("，") + "。" }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const candidateOf = (text) => JSON.parse(text.slice(text.indexOf("<!-- DIAGNOSIS_JSON_START -->") + 29, text.indexOf("<!-- DIAGNOSIS_JSON_END -->"))).formula.candidates[0];
+  const bleeding = "今日解黑便2次，头晕乏力。";
+  const coChief = [{ name: "丹参", role: "君", dose: "10g" }, { name: "桔梗", role: "君", dose: "6g" }, { name: "黄芪", role: "臣", dose: "15g" }, { name: "三七", role: "佐", dose: "3g" }, { name: "白及", role: "佐", dose: "6g" }, { name: "甘草", role: "使", dose: "6g" }];
+  const pruned = candidateOf(pruningModule.dropSafetyConflictingM04CandidateHerbs(content(coChief), bleeding));
+  assert.deepEqual(pruned.herbs.map((herb) => herb.name), ["桔梗", "黄芪", "三七", "白及", "甘草"]);
+  assert.match(pruned.notApplicable, /丹参（出血或抗凝状态不宜）/);
+  assert.equal(contract.m04GenerationSpecialPopulationIssue(pruned.herbs, bleeding), undefined, "剔除后不再有人群冲突");
+  const sole = [{ name: "丹参", role: "君", dose: "10g" }, { name: "桔梗", role: "臣", dose: "6g" }, { name: "黄芪", role: "臣", dose: "15g" }, { name: "甘草", role: "使", dose: "6g" }];
+  assert.ok(candidateOf(pruningModule.dropSafetyConflictingM04CandidateHerbs(content(sole), bleeding)).herbs.some((herb) => herb.name === "丹参"), "唯一的君药不删");
+});
+
 console.log(`r1036-main: ${cases} checks`);
