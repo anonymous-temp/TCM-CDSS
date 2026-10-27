@@ -2194,6 +2194,119 @@ The user chose D4 as recommended, with one constraint: no interface or field cha
 - 少腹逐瘀汤 for placental abruption (A-eme-0246) stays a non-dose page: its 君 herbs are 活血化瘀 under an active bleeding red flag, and the repair round did not change the formula.
 - Repair-exhausted dose findings on a sole 君 still give a non-dose page; D4 prunes only non-君 herbs (and a regulated 君 when another 君 remains).
 
+### 10/26–10/27 round 24: all customer cases, placental abruption, the 10.26 evaluation (2026-10-27)
+
+The user asked for three things:
+- re-run every customer test case on the current version and fix what it finds, by class;
+- think through and fix placental abruption getting 少腹逐瘀汤 (its chief herbs are blood movers);
+- work through the customer's 10.26 medical evaluation (`【2026-10-26】灵犀中医医学评测.docx`, 11 records, 33 screenshots).
+
+Material: `~/runlogs/r1018/work/r1036/` (`inventory.py`, `api49.json`, `measure.sh`, `out/*-base` and `*-new`, `judge/`, `cp/cp.py` 33 counter-proofs, `replay/gate.mjs`, `eval1026/` with the document, screenshots, `rf-replay.mjs`, `build-rf.py`). Suite `test:r1036-main`; class fixture `lexicalized-sign-negation-stops-at-comma`.
+
+**Customer cases.** By 10/26 the customer had sent more than the 10 standard cases. The set used here:
+- 49 distinct records from the request archive (their own API traffic since 10/12, replayed with their original follow-up answers);
+- their 100-case page-shape test set;
+- the 10 standard cases × 3;
+- the 32 held-out cases.
+
+**Measured** (local route harness, same day, e8928bfc vs the round-24 code; qwen3.8-max with the same scripts both sides):
+
+| Set | Before → after |
+|---|---|
+| Customer API records (49, replayed with their own follow-up answers), 1.1 rubric | T 89.8 → 98.0, R 97.8 → 100, Q 95.8 → 100, L 97.9 → 100, W 97.6 → 100; S, P, Y 98 both; K 95.8 → 93.1 (27/29) |
+| 100-case page-shape set, deterministic | red flags 28/28 and no over-calls 48/48 in both; D4 boundary cases dosed 31/33 → 33/33; boundary hints 23/24 → 24/24; herb-count preference 63/74 → 67/74; diagnose p50/p90 14.8/23.5 → 13.0/16.3 s, prescribe 12.3/19.8 → 11.4/14.2 s |
+| 100-case set, qwen | red lines 1 → 0; SAFE 93 → 99 (the base run was judged with the pre-D4 rubric, which failed dosed red-flag cases); Q 98 → 100, K 87.2 → 91.4, W 96.5 → 100, H 87.5 → 90.7; other rows 98–100 in both |
+| Customer 10 × 3 | every column ≤ 1 failure per run in both arms; disease, syndrome and formula identical across runs (病历9 alternates 消风散 / 消风散加减); no red flag on 1/2/7/9 |
+| Held-out 32 | every block 100 except 复诊与注意事项 31/32 (S128, the allergy line below); red-flag/dose 29/32 → 32/32 is the D4 rubric, not code |
+| Abruption A-eme-0246 | 治法 化瘀止痛，止血固摄; 三七、蒲黄 as chief, 花蕊石、仙鹤草, no 延胡索/川芎/五灵脂 |
+
+**Placental abruption (and active bleeding in general).** The textbook row the anchoring picked was 少腹逐瘀汤 (延胡索、川芎、五灵脂 as chief herbs) for an abruption with active bleeding.
+- The bleeding red-flag set behind `hasActiveBleedingRedFlag` now covers what the facts layer writes (腹腔内出血, 蛛网膜下腔出血, 失血性休克, 下消化道活动性出血…), but not 「出血风险/倾向」.
+- With active bleeding, M03 gets 「止血为先」 (《血证论》「止血为第一要法」; 《中医内科学》 治火、治气、治血) and M04 gets: no blood-moving herbs as chief; 化瘀止血 herbs (三七、蒲黄、花蕊石) are allowed; 茜草 only for blood heat.
+- Textbook anchoring takes a case-safety argument: it does not copy a row's 活血化瘀 method or direction, and a direction naming a barred formula becomes 「按已锁定病机与治法辨证组方」.
+- `herbBarredForCase` (diagnosis-stage-contract) is the one predicate for a herb this case must not get. It is passed as a callback to `formulaCompilationContractIssue` in all three call sites, so the contract accepts a transparently declassified 「本例辨证组方」 when the locked formula contains such herbs.
+- M04 is told which herbs of the locked or textbook formula are barred for this case (`formula-base-herbs-barred.server.ts`).
+
+**Other classes from the full re-run** (each pinned in `test:r1036-main` with a counter-proof):
+- 18 herb-function category keys were unreachable after the canonical-name switch (延胡索、土鳖虫、益智仁…); lookup now goes canonical → raw → alias → governed identity.
+- 生地黄 above its ChP route dose is capped like other ordinary herbs instead of sending the page to non-dose.
+- After finalize drops a herb, precautions naming it are dropped and the usage line is regenerated (C018 「方中含吴茱萸」).
+- A model-written 兼证 opposite in cold/heat to the primary (K04 风热犯肺证 + 风寒表证) or entailed by it (肾阴虚证 + 虚热证) is withdrawn before the criteria check.
+- Gate negation: a preposed 「无」 only negates a lexicalized sign (无汗、无汗出、无汗而喘、无痰、无苔); what follows the comma is a new statement. Two missed red flags in the corpus (神志昏蒙, 抽搐) now fire. The sanitizer keeps the narrower 10/19 set (无汗/无痰/无苔), because there the conservative reading of 「无汗出、发热」 is that both are denied.
+- 心肾不交证 implies 阴虚火, so a neutral 心神不宁证 is not renamed onto it.
+- Denials of recorded findings also strip a leading 有/出现 (「未诉有痛风史」).
+- Card sentences 「肾阳虚，可加灸」 are read as a condition like 「肾阳虚者可加灸」.
+- Auricular cards are excluded in pregnancy (the card itself says 妊娠期禁用).
+- M04 gets a herb-count check line (targets 8–9 / 12–13 / 16–17).
+
+**The 10.26 evaluation.** Eleven records, all tested on 2c7e00e / fd9dde2 / 79c8aab (before D4 and rounds 22–23). Each record was traced to the customer's own archived requests and to our archived M02/M03/M04 outputs (`eval1026/ANALYSIS.md`):
+
+- **Western diagnosis 「无依据」 (all eleven).** Their panel reads only `primary.supportingFacts` / `limitations` / `suggestedChecks`, which have been empty since V2.35 (their 10.12 request; the complaint then was a pasted symptom list). `supportingFacts` now carries one item, the model's `clinicalRationale` (prompt: key recorded facts → why they fit → what still needs excluding, ≤100字). `restoreDiagnoseSupportingFacts` recognises that single item (`isDeliveredWesternBasisOnly`) and restores record clauses as before, so modification triggers stay grounded in the record.
+- **Western names.** A TCM 脏腑 concept became an organ disease (腰痛+肾阴虚 → 「慢性肾脏病待查」), and a pediatric-only name was used for a 78-year-old (「反复上呼吸道感染」). The Western prompt and the name check's case D now cover both: an organ-disease name with no finding from that organ, and a pediatric-only name in an adult, go to the symptom-level name.
+- **Red-flag banner (records 1, 3, 4, 9, 10, some runs only).** The banner text is the customer's; which field drives it is unknown. Replaying their exact red-flags requests on 2c7e00e, 79c8aab, production and the new code (3–4 independent extractions each, `eval1026/rf-replay.mjs`): none of these records gets a red flag, and the response is the same shape as for record 2, which had no banner. Their M03/M04 were reused results, identical between banner and no-banner runs. What did vary between runs was the facts layer's disposition on a record re-sent after the 5-minute cache had expired (record 10: 「宜先由专科尽快评估」 in 1–2 of 4 draws). Two things follow:
+  - facts are now persisted per record (`clinical-facts-store.server.ts`, same switch, directory and retention as stage results; re-signed on read; tenant and source fingerprint must match). The same record now gets the same red-flags answer, M02, M03 and M04 as on its first visit;
+  - their "same record" reruns were not byte-identical: the HIS wrote the tongue as 「苔薄白」 once and 「苔薄，苔白」 the next time, and once added two denials to 个人史. The stage-result fingerprint now merges split tongue and pulse descriptors.
+  - Record 1 「孕期女性」: their record has 婚育史 「怀孕」, but 婚育史 is in none of the three requests (collect, red-flags, diagnose). We never knew she was pregnant.
+- **Urticaria.** 「严重过敏或气道受累线索需立即复核」 fired on the bare words 风团/荨麻疹 (record 9 denies chest tightness, dyspnoea, abdominal pain and throat tightness). Skin signs now need a non-negated involvement companion (WAO 2020: respiratory, circulatory/end-organ, or severe GI); airway signs still fire alone. Corpus replay: 77 advisories gone, all urticaria without systemic involvement; 「风团发作时出现呕吐」 and 「自觉憋闷」 keep theirs.
+- **治则 (record 2).** A deficiency syndrome whose 治法 starts with a 治标 method (镇惊定志, 止血, 止痛…) is 标本兼治. Replay over 294 saved diagnoses: 6 changed, all 心虚胆怯证.
+- **Rationale.** Record 2's rationale explained 精神差/食欲下降 as 「心脾两虚、气血不足」 under 心虚胆怯证; record 3's skipped 纳差、便溏、小便清长. The element-support check (round 15) now also reads asserting clauses of the rationale (not lineage-lens sentences, not negated clauses; markers in the lexicon source). The TCM half gets a per-case checklist of the record's affirmed findings to account for (`rationale-findings-checklist.ts`).
+- **兼证 contradicted by its own rationale (record 10).** 兼证 「心火亢盛证」 with 「夜寐不宁系火热扰心所致，非独立病证」 in the rationale. A rationale clause that denies independence and names two characters of the secondary withdraws it (`declared_not_independent`).
+- **Prescription (records 2, 3, 5).** The M04 prompt now says:
+  - the 君 herb carries the first item of the 治法;
+  - a 君 herb that cannot go into a decoction is replaced by a safe herb of the same efficacy;
+  - bitter-cold herbs are dropped from a base formula when the record shows deficiency-cold signs without heat (黄芩 in 加味四物汤 with 便溏、小便清长);
+  - when only one herb carries the first method, one modification strengthens it;
+  - 方义 names the organs of a two-organ syndrome.
+  The prompt does not name toxic herbs (`test:formula-provenance` pins that).
+- **方名 vs 方义.** 「柴胡疏肝散」 with 「以柴胡疏肝散为基础加减」. `candidateIsOriginalFormula` compares identity sets with the catalog composition (生姜/大枣 ignored). Equal → 方义 opens 「本方用X原方」. Different → the name gets 「加减」. Unknown → no change.
+- **Patent medicines (records 8, 10).** 穿黄清热胶囊 and 龙血竭胶囊 for 蛇串疮; 乳癖康胶囊 (found through 乳房胀痛 from a follow-up answer) and 固经丸 (阴虚血热) for 月经先期·肝郁血热.
+  - `patentMedicineCoversMainProblem`: the label's 「用于」 part must reach the chief complaint, TCM disease, Western name or signed syndrome. A label that names other specific diseases is not enough on syndrome similarity alone.
+  - `deficiency_indication_for_excess`: a deficiency-syndrome label for a pure-excess case, unless the 治法 itself tonifies.
+  - Syndrome-matched patent medicines are listed first.
+  - Replay over 99 saved patent-medicine rows: 8 dropped, all read.
+- **Follow-up (record 10).** Menstrual diseases get a cycle-based sentence instead of 「N周后复诊评估月经」. The priority-evaluation sentence no longer nests 「需排除X（需排除…）」.
+- **中医治疗 (record 5).** Only 食疗 for 虚劳. In the catalog pass the main chain node now qualifies by disease name when the textbook has a plan for that disease (it used to need a matching node tag); a project the model bound to a wrong node is still never rebound. The 《推拿学》 虚劳 card itself stays undeliverable (below), so record 5 still gets only 食疗 in `tcmTreatments`.
+- **Lineage (record 3, 「扶阳 无法执行」).** All three of its diagnose requests carry `tcmLineagePreference: "unrestricted"`. The only 扶阳 request that day was a different patient (咽痛, 33F), which got a red flag on 79c8aab.
+
+**Found while measuring, fixed in the same round.**
+- 方义 lost its 君 sentence (the abruption case: 「…不用延胡索、川芎，以三七、蒲黄为君」 became 「…花蕊石、仙鹤草为臣」). Two causes:
+  - the 去/易/不用 exemption covered only the first herb of a 、-list;
+  - after a foreign-only clause was removed, the next clause was deleted as its "continuation" even when it assigned a role to herbs in the prescription.
+  Both fixed: the exemption follows the list, and a following clause that gives a 君臣佐使 role to the prescription's own herbs is kept. 「助当归安其心神」 is still deleted with the foreign herb, because there 当归 is only the object.
+- Kept on purpose: round 19 (`test:r1019-cards` 11.1) treats the 《推拿学》 虚劳 card (治则 plus a bare list of 手法) as undeliverable. Changing that would reverse a reviewed decision, so record 5 still gets only 食疗 in `tcmTreatments`. Its home acupoint care (气海、关元) is in `nonPharma.acupointCare`.
+- Not mapped: 虚劳 → the 《针灸治疗学》 慢性疲劳综合征 section. The textbook places CFS within 虚劳, not the reverse, and that section requires six months of severe fatigue.
+
+**Left as is / for the customer.**
+- Which field drives their red banner. Every response we returned for the banner runs is the same shape as for runs without one.
+- 婚育史 is not sent in collect, red-flags or diagnose, so pregnancy recorded only there never reaches us.
+- The red-flags call still sends `{"ValueKind":3}` vitals. Production recovers them from the question call of the same case id a few seconds earlier.
+- `tcmLineagePreference` was `unrestricted` on every request for record 3.
+- 「随证加减是根据可能情况进行建议吗？」: yes. 「若…」 rows are standby modifications from the textbook for changes not yet present; findings already recorded are written without 「若」.
+- Record 5's Western name now comes out as 「上呼吸道感染待查」. That is no longer the pediatric diagnosis, but a symptom-level name for the current complaint (乏力待查) would fit better; the name check allows the subsequence form.
+
+**Found on production after the first deploy (ddb7431), fixed in a follow-up commit** (`test:r1036-main` 8.16–8.18, counter-proofs logged in `cp/counterproofs.json`):
+- **Allergy line said 「病历记录您对海鲜过敏」 for a record that denies food allergy** (held-out S128: urticaria after seafood). Since round 21 the record-reading task counts a reaction after eating as an allergy, which is right for avoidance but not for wording. `allergenStatedInRecord` (quote carries an allergy cue from `recordCues`) splits the line: stated → 「病历记录您对X过敏或不耐受」, reaction-only → 「本次进食X后发病，可能对X过敏」. Both stay hard constraints; the M04 prompt uses the same split.
+- **Follow-up 「先完成评估（需排除异常子宫出血（需排除…），再按…」** (customer record 10 on production). The focus was read with `/需排除：(.+?)）/`, which stops inside an item's own parentheses. `exclusionFocusIn` takes the matching closing parenthesis; `focusWithoutNestedExclusion` also accepts an unclosed one. A first counter-proof was masked by the second fix, so the test pins the extracted focus too.
+- **治法 was a copied textbook paragraph** (异位妊娠·气血亏脱证: 「益气止血固脱。此证为腹腔内出血所致，首应及时手术止血治疗。术后再辅以益气养血，活血化瘀治疗」; 19 of 724 saved diagnoses). `textbookAnchorableMethod` anchors only the leading method items of the first sentence and does not anchor alternatives (「辛温解表，宣肺化痰；辛凉解表，清肺化痰」) or conditional cells (者 before the last item). 17 of 2,495 textbook rows change; 「偏X者」 rows still go through the branch selector.
+- **Tried and reverted: reading bleeding red flags without their quote.** C098 (suspected PE, 「需排除：急性肺栓塞伴休克/低氧血症），原文依据：“…咯血丝”」) fell to a non-dose page once on production: the quote's 咯血 counts as active bleeding, and the model still made 丹参 the chief herb. Dropping the quote from `hasActiveBleedingRedFlag` (only C098's runs change over 386 saved red-flag lists) gave, on the next production run, a dosed 丹参、川芎、桃仁、红花、牛膝 for a patient with recorded hemoptysis who is about to be anticoagulated. The quote is a recorded bleed; the conservative reading stays, and `test:r1036-main` 8.19 pins it. The remaining risk is the model ignoring the active-bleeding rule in one run (the local run complied and was dosed).
+
+- **A conflicting herb in a co-chief position kept the whole page non-dose** (C098 on the reverted build: 丹参 and 桔梗 both 君, recorded hemoptysis). `dropSafetyConflictingM04CandidateHerbs` already removed a controlled/endangered chief when another chief remained; population conflicts now follow the same rule (`test:r1036-main` 8.20). A sole conflicting chief is still left to the repair round.
+
+- **Two of our own M04 rules pulled against each other** (C098, 3 of 3 production runs on 949f729/ee283ec): M03 wrote 「化瘀通络，宣肺平喘，宁络止血」, 「君药承担治法第一项」 pushed 丹参 into the sole chief position, and the active-bleeding rule barred it. With active bleeding (same predicate as the contract) the 止血 item of the method now goes first (`hemostasisFirstMethod`, applied in `withDeterministicFormulaReferences` to the anchored or the model's method; order only, nothing added). `test:r1036-main` 8.21.
+
+**Found by the final measurement, not fixed (for the next round).**
+- C068: a red flag that only lists 「需排除：…腹腔内出血」 applies the active-bleeding rules (intended), but the rule text says 「本例有活动性出血红旗」, so the 方义 writes 「因活动性出血不宜活血化瘀」 for a record without bleeding. Fix: a second wording when every bleeding term sits inside 「需排除：…」.
+- C069: the facts layer filed 「一级亲属乳腺癌史＋新发无痛性肿块」 under `gi_alarm`, so the advisory reads 「上消化道警示征象需优先复核」; the facts schema has no malignancy-warning category outside the GI tract. Needs a category plus parity measurement (open-language rule), not a label patch.
+- C070 (owner decision): warfarin with INR 3.5 and heavier menses keeps 川芎、丹参、鸡血藤 with a 慎用 note, because the facts wrote 「出血风险」, which the bleeding set excludes, and the anticoagulant herb rules are caution-tier. Recommended: anticoagulant + recorded current bleeding or supratherapeutic INR → the active-bleeding herb bar.
+- C098, the deeper cause: whether recorded hemoptysis counts as active bleeding depends on the facts model quoting 「…咯血丝」 in its PE red flag. With 「今天突然胸痛气促」 as the quote (4cca525, 3 of 3) the case is dosed with 丹参、川芎、牛膝、鸡血藤 and no hemostatic method. Facts are now persisted per record and build, so one build answers the same way every time, but builds differ. Recommended: read current, non-negated 咯血/咳血/痰中带血 in the record as active bleeding for herb purposes (closed set, class fixture, corpus replay both ways).
+- Customer record 5's Western name came out 「反复上呼吸道感染待查」 in one production run (the name check found no broader name and kept the hypothesis with 待查); record 3's rationale skipped 纳差/便溏 in one run; record 10 carries 兼证 心火亢盛证 in about half the runs (it passes the criteria check).
+
+**In production (4cca525, deployed 2026-10-27 about 09:05 Beijing; tag `20261027-4cca525-prebuilt`, same release directory and `20260927-dsrepair` override).** Five deploys this round: ddb7431 (07:40), dd2b21e (follow-up classes), 949f729 (revert of the quote change), ee283ec (co-chief pruning), 4cca525 (hemostasis first). Each passed `verify:deployed-image` (commit, digest, strictReady, both families) and `regress:prod-smoke` (0 failures; M03 P95 15.3–22.4 s, M04 P95 14.8–17.3 s).
+- **Probes on production:** the 11 records of the 10.26 evaluation all complete, every Western diagnosis carries its basis, record 2 is 标本兼治 with 龙齿 as chief, record 9 has no anaphylaxis advisory, record 10's follow-up is cycle-based; ectopic-pregnancy 治法 is 「益气止血固脱」; abruption A-eme-0246 gets 三七 as chief with no blood movers; S128's allergy line says 「可能对海鲜过敏」.
+- **Host disk:** 2.5G at the start. With the user's approval: our 6175105 image, `evimed-result-replay:5ae53861dc26`, `evimed-ovlab:v0.5.2` with its stopped container, `open-science-runtime:…-01e965e99a11` with its two exited containers (→ 11G). Later deploys freed only our own images and build contexts; other projects wrote the host back down to 5–8G within two hours. Every deploy used the 8G floor (script default stays 12). Logged in `~/telemetry-archive/cleanup-20261027.txt` on the host; container logs before each replacement are in `~/telemetry-archive/container-pre-*.log.gz` except before dd2b21e.
+- **Rollback:** image `tcm-cdss:20261027-ee283ec-prebuilt` (or `…949f729…`) with the `docker-compose.yml.pre-*` backups in the release directory.
+
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
