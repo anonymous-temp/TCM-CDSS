@@ -21,3 +21,15 @@ export const ACTIVE_BLEEDING_M04_RULE =
   "【活动性出血】本例有活动性出血红旗：《中药学》活血化瘀药（川芎、丹参、红花、桃仁、延胡索、牛膝、益母草、五灵脂、没药、乳香等）不得入方，开方核对会拦下；" +
   "治以止血为先（《血证论》「惟以止血为第一要法」），确需化瘀时用化瘀止血药（三七、蒲黄、花蕊石；茜草性寒、功效写「凉血」，只在证属血热时用）。锁定方或教材代表方的君药属活血化瘀药时，去掉这几味、" +
   "candidate.name 写「本例辨证组方」，formulaAnalysis 第一句写明参照哪首方、去了哪几味（活动性出血不宜活血化瘀）。";
+
+/**
+ * 活动性出血时治法里的止血一项排在最前（《血证论》「惟以止血为第一要法」）。模型写成「化瘀通络，宣肺平喘，宁络止血」时，
+ * 开方阶段「君药承担治法第一项」把化瘀药推上君位，与本例「活血化瘀药不入方」相撞，修复轮收不住、整页退成非剂量
+ *（2026-10-27 第二十四轮生产探针 C098 肺栓塞咯血丝，连续 3 次）。只调次序，不增删治法；治法里没有止血一项时原样返回。
+ */
+export function hemostasisFirstMethod(method: string): string {
+  const items = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
+  const index = items.findIndex((item) => item.includes("止血"));
+  if (index <= 0) return method;
+  return [items[index], ...items.filter((_, position) => position !== index)].join("，");
+}

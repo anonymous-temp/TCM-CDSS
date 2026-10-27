@@ -482,4 +482,17 @@ await check("8.20 定稿剔除：与本例安全边界冲突的君药，还有�
   assert.ok(candidateOf(pruningModule.dropSafetyConflictingM04CandidateHerbs(content(sole), bleeding)).herbs.some((herb) => herb.name === "丹参"), "唯一的君药不删");
 });
 
+await check("8.21 活动性出血：治法里的止血一项排在最前（C098「化瘀通络，宣肺平喘，宁络止血」→「宁络止血，化瘀通络，宣肺平喘」），开方阶段君药承担止血而非化瘀；没有出血不动、治法里没有止血一项不动", () => {
+  assert.equal(bleedingRules.hemostasisFirstMethod("化瘀通络，宣肺平喘，宁络止血"), "宁络止血，化瘀通络，宣肺平喘");
+  assert.equal(bleedingRules.hemostasisFirstMethod("化瘀止血，养血固冲"), "化瘀止血，养血固冲");
+  assert.equal(bleedingRules.hemostasisFirstMethod("宣肺平喘，化痰止咳"), "宣肺平喘，化痰止咳");
+  const diagnose = (method) => ({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { tcmDiseaseName: "喘证", primarySyndrome: "瘀阻肺络证", primarySyndromeResolution: "bounded", recommendedFormulaDirection: "按已锁定病机与治法辨证组方" },
+    therapy: { overallPrinciple: "急则治标", overallMethod: method, subTherapies: [] },
+    pathogenesis: { chain: [], locationDifferentiation: { items: ["肺"] } } });
+  const safetyBleeding = { activeBleeding: true, barredHerb: (herb) => contract.herbBarredForCase(herb, BLEEDING) };
+  assert.equal(provenance.withDeterministicFormulaReferences(diagnose("化瘀通络，宣肺平喘，宁络止血"), BLEEDING, undefined, safetyBleeding).therapy.overallMethod, "宁络止血，化瘀通络，宣肺平喘");
+  assert.equal(provenance.withDeterministicFormulaReferences(diagnose("化瘀通络，宣肺平喘，宁络止血"), QUIET).therapy.overallMethod, "化瘀通络，宣肺平喘，宁络止血", "没有出血不动");
+});
+
 console.log(`r1036-main: ${cases} checks`);

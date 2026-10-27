@@ -1,3 +1,4 @@
+import { hemostasisFirstMethod } from "./active-bleeding-treatment";
 import { textbookFormulaNames, textbookNearestRow, textbookRowForSyndrome, therapyWithoutUnsupportedSymptomItems } from "./tcm-textbook-syndromes";
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { jingfangPatternForSignedSyndrome } from "./jingfang-patterns";
@@ -1644,11 +1645,18 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     const lineageKept = Boolean(textbookRow) &&
       lineageChosenFormulaDirectionKept(reasoning, String(reasoning.overview?.recommendedFormulaDirection || ""), lineagePreference);
     const bleedingBarsRowMethod = Boolean(caseSafety?.activeBleeding) && bloodMovingWithoutHemostasis(recordRowMethod);
-    const anchoredMethod = lineageKept
+    const textbookOrLineageMethod = lineageKept
       ? lineageKeptTherapy(reasoning, String(reasoning.overview?.recommendedFormulaDirection || ""))
       : textbookRow && secondary.length === 0 && recordRowMethod && !bleedingBarsRowMethod
         ? supportedByRecord(withSymptomDirectedClause(recordRowMethod, String(reasoning.therapy?.overallMethod || "")))
         : "";
+    // 活动性出血：止血一项排在最前（hemostasisFirstMethod）；锚定的与模型自己写的治法同一口径。
+    const bleedingOrderedMethod = caseSafety?.activeBleeding
+      ? hemostasisFirstMethod(textbookOrLineageMethod || String(reasoning.therapy?.overallMethod || ""))
+      : "";
+    const anchoredMethod = bleedingOrderedMethod && bleedingOrderedMethod !== String(reasoning.therapy?.overallMethod || "")
+      ? bleedingOrderedMethod
+      : textbookOrLineageMethod;
     return lineageDecisionsMatchingDirection(withoutForeignLineageLensSentence({
       ...reasoning,
       overview: {
