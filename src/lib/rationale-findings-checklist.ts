@@ -61,7 +61,23 @@ export function chiefComplaintFindings(state: CaseState, maxItems = 4): string[]
     terms.push(term);
     if (terms.length >= maxItems) break;
   }
+  // 事实层这一次没抽到主症（同一份病历 10，「月经周期提前」时有时无）：退用主诉第一句去掉病程后的原话，
+  // 要求至少四个字（「杨立」「经初潮」这类不取）且现病史里有三个字连着相同（病名清单式主诉一般对不上现病史）。
+  if (terms.length === 0) {
+    const phrase = chiefComplaintPhrase(chief);
+    const history = String((state.symptoms as Record<string, unknown> | undefined)?.presentHistory || "").normalize("NFKC");
+    if (phrase.length >= 4 && sharesThreeCharacterRun(history, phrase)) terms.push(phrase);
+  }
   return terms;
+}
+
+/** 病程写法：「半年余」「2+月」「3天」「数周」「1小时」（「尿量多半年」的「多」不算病程）。 */
+const COURSE_SPAN = /[近约已]?[\d一二两三四五六七八九十半几数+＋]+\s*个?\s*小?[时天日周月年][余多]?以?来?/gu;
+
+/** 主诉第一句、「伴」或括号之前、去掉病程：「月经周期缩短半年余，加重1月」→「月经周期缩短」。 */
+export function chiefComplaintPhrase(chiefComplaint: string): string {
+  const first = String(chiefComplaint || "").normalize("NFKC").split(/[，,；;。\n]/u)[0] || "";
+  return first.split(/[（(伴]/u)[0].replace(COURSE_SPAN, "").replace(/\s+/gu, "").trim();
 }
 
 export function rationaleFindingsChecklistNotice(state: CaseState): string {

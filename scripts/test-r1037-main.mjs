@@ -256,6 +256,14 @@ await check("6.5 主诉里的主症：事实层词条出现在主诉里，或与
   const named = types.normalizeCaseStateInput({ chiefComplaint: "杨立，男，12岁，因活动后头晕、乏力就诊", patient: { sex: "男", age: 12 }, symptoms: { 现病史: "活动后头晕、乏力5年。" } });
   named.clinicalFacts = { affirmedSymptoms: [{ term: "头晕", quote: "头晕" }, { term: "乏力", quote: "乏力" }] };
   assert.deepEqual(checklist.chiefComplaintFindings(named), ["头晕", "乏力"]);
+  // 事实层这一次没抽到主症：退用主诉原话（至少四个字、现病史里对得上）。
+  const noFact = types.normalizeCaseStateInput({ chiefComplaint: "月经周期缩短半年余，加重1月", patient: { sex: "女", age: 35 }, symptoms: { 现病史: "月经周期提前至二十二天即来潮，经量较前明显增多。" } });
+  noFact.clinicalFacts = { affirmedSymptoms: [{ term: "经量增多", quote: "经量较前明显增多" }] };
+  assert.deepEqual(checklist.chiefComplaintFindings(noFact), ["月经周期缩短"]);
+  const nameOnly = types.normalizeCaseStateInput({ chiefComplaint: "杨立，男，12岁", patient: { sex: "男", age: 12 }, symptoms: { 现病史: "杨立近5年活动后头晕。" } });
+  nameOnly.clinicalFacts = { affirmedSymptoms: [] };
+  assert.deepEqual(checklist.chiefComplaintFindings(nameOnly), []);
+  assert.equal(checklist.chiefComplaintPhrase("尿频、尿量多半年"), "尿频、尿量多");
 });
 
 await check("6.6 依据没讲到主症时单凭这一项也重写，主症排在漏项最前；主症换了写法（「胃痛」与「胃脘胀痛」、「多汗」与「汗多」）算讲到，不发请求", async () => {
