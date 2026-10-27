@@ -1,4 +1,4 @@
-import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, isTextbookConditionalModification, m04HerbOpposingDirectionIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, isTextbookConditionalModification, m04HerbOpposingDirectionIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
@@ -353,6 +353,12 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
       const name = nameOf(value);
       if (!name) return true;
       const regulatory = clinicianDoseHerbClass(name);
+      // 药引/辅料（竹沥、姜汁、黄酒、白蜜…，clinicianDoseHerbClass = food_or_vehicle）写成「30ml」「适量」时没有克数，合同按缺剂量整方驳回
+      //（第二十五轮甲方 100 例 C048：双合汤带竹沥，整页退成非剂量）。不是君药就单味拿出、写明用量由医师另定；写了克数的照留。
+      if (regulatory === "food_or_vehicle" && roleOf(value) !== "君" && !normalizeComparableDose(String(recordValue(value)?.dose || ""))) {
+        removed.push({ name, reason: "药引/辅料，如需使用请医生另定用量（多为兑服）" });
+        return false;
+      }
       if ((regulatory === "controlled_or_toxic" || regulatory === "endangered_or_banned") && (roleOf(value) !== "君" || emperorsLeft > 1)) {
         if (roleOf(value) === "君") emperorsLeft -= 1;
         removed.push({ name, reason: "须由医生单独定量的管制或濒危药材，未列入本方，如需使用请医生另行开具" });

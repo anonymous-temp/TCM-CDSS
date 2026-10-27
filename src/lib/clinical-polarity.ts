@@ -1131,6 +1131,7 @@ export function affirmedCurrentMedicationText(value: string | null | undefined):
   };
   for (const sentence of normalized.split(/[。；;\n]+/).map((item) => item.trim()).filter(Boolean)) {
     const sentenceKeepsHistoricalMedicationCurrent = MEDICATION_CURRENT_CONTINUATION.test(sentence);
+    let lastStoppedEvent: ActiveMedicationEvent | undefined;
     const sentenceHasScopedEvent = /(?:前者|后者|两者|二者|均|都|全部|上述(?:药物|用药)?)[^。；;\n]{0,10}(?:停用|停服|停药|服用|口服|使用)/.test(sentence);
     // Keep the Chinese list delimiter inside a clause so "否认A、B" retains one negation scope.
     for (const rawClause of sentence.split(/[，,]+/).map((item) => item.trim()).filter(Boolean)) {
@@ -1184,6 +1185,10 @@ export function affirmedCurrentMedicationText(value: string | null | undefined):
         const residual = clause
         .replace(stop[0], "")
         .replace(/(?:\d+|[一二两三四五六七八九十半]+)\s*(?:天|日|周|月|年)前/g, "")
+        // 停用的时长与「自行/擅自」不是药名：「阿司匹林，已停用半年」「利伐沙班，近一周自行停用」此前把「半年」「近一周自行」
+        // 当成被停的药，前一味仍算在用（2026-10-27 C098：自行停用一周的利伐沙班被当成当前抗凝）。
+        .replace(/(?:近|约|已经?|有)?(?:\d+|[一二两三四五六七八九十半几]+)\s*(?:个)?\s*(?:天|日|周|星期|月|年)(?:余|多)?(?:来|以来)?/g, "")
+        .replace(/(?:自行|擅自|自己|患者)/g, "")
         .replace(/后\s*$/, "")
         .replace(/^(?:此前|之前|当时|现时|目前|当前|现在|后来|之后|随后|后|药物|用药)?\s*/, "")
         .replace(/了\s*$/, "")
@@ -1192,8 +1197,15 @@ export function affirmedCurrentMedicationText(value: string | null | undefined):
         if (stoppedIdentity) {
           removeScoped([{ identity: stoppedIdentity, text: residual }]);
         } else {
-          activeEvents.pop();
+          lastStoppedEvent = activeEvents.pop();
         }
+        continue;
+      }
+
+      // 「长期服用阿司匹林，停用1周后再次服用」：没写药名的停用拿掉了前一味，同一句里随后的「再次服用」把它接回来。
+      if (lastStoppedEvent && MEDICATION_RESTART_CUE.test(clause) && !medicationEventIdentity(clause.replace(MEDICATION_RESTART_CUE, "").trim())) {
+        upsert(`${lastStoppedEvent.text}，${clause}`);
+        lastStoppedEvent = undefined;
         continue;
       }
 

@@ -1,0 +1,531 @@
+{
+ "schemaVersion": "tcm-home-acupressure-points-v1",
+ "note": "居家按揉候选穴（2026-10-27 第二十五轮）：模型按本例证候与表现从这里选 1～3 个并写理由，服务端校验名单、孕期禁用穴与部位、医师项目已用穴位，定位与手法只用本表与技术规范原文。标准定位、主治逐字取自本地十三五教材语料（corpusRef 行号，生成时逐条核对）；患者定位：已在用的 13 穴逐字沿用，其余按标准定位与指寸折量改写。",
+ "generatedBy": "~/runlogs/r1018/work/r1037/acupoint/build.py",
+ "methods": {
+  "finger": "用拇指或中指指腹按住穴位，轻柔缓和地打圈按揉，以感到酸胀为度",
+  "palm": "用掌根按在穴位上，轻柔缓和地打圈按揉",
+  "dose": "每个穴位2～3分钟，每天1～2次",
+  "sourceText": "《老年人中医药健康管理服务技术规范》（2013）平和质：「用大拇指或中指指腹按压穴位，做轻柔缓和的环旋活动，以穴位感到酸胀为度，按揉2～3分钟。每天操作1～2次。」气虚质：「用掌根着力于穴位，做轻柔缓和的环旋活动，每个穴位按揉2～3分钟，每天操作1～2次。」"
+ },
+ "palmRegions": [
+  "abdomen"
+ ],
+ "moxibustionPoints": [
+  "气海",
+  "关元",
+  "命门"
+ ],
+ "points": [
+  {
+   "name": "百会",
+   "region": "head",
+   "selfReachable": true,
+   "standardLocation": "前发际正中直上5寸（图15-1-5、图15-1-6）。",
+   "indications": "（1）头痛，目痛，眩晕，耳鸣，鼻塞。（2）中风，神昏，癫狂痫，惊风，痴呆。（3）脱肛，阴挺。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "20.百会* Bǎihuì（GV20）督脉、足太阳经交会穴",
+    "locationLine": 67069,
+    "indicationsLine": 67073
+   },
+   "patientLocation": "头顶正中，两耳尖向上连线与头部正中线的交点处",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "印堂",
+   "region": "face",
+   "selfReachable": true,
+   "standardLocation": "两眉毛内侧端中间的凹陷中（图15-1-7）。",
+   "indications": "（1）头痛，眩晕。（2）失眠。（3）鼻渊，鼻衄。（4）小儿惊风。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "29.印堂 Yìntáng（GV29）",
+    "locationLine": 67159,
+    "indicationsLine": 67161
+   },
+   "patientLocation": "两眉毛内侧端连线的中点凹陷处",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "太阳",
+   "region": "face",
+   "selfReachable": true,
+   "standardLocation": "眉梢与目外眦之间，向后约一横指的凹陷处（图16-1-3）。",
+   "indications": "头痛，齿痛，目疾，面痛。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "3.太阳* Tàiyáng（EX-HN5）",
+    "locationLine": 67565,
+    "indicationsLine": 67567
+   },
+   "patientLocation": "眉梢与外眼角之间，向后约一横指的凹陷处，左右各一",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "风池",
+   "region": "neck",
+   "selfReachable": true,
+   "standardLocation": "枕骨之下，胸锁乳突肌上端与斜方肌上端之间的凹陷中（图13-2-3）。",
+   "indications": "（1）耳鸣，耳聋，目赤肿痛，鼻衄，鼻塞。（2）头痛，眩晕，中风，癫狂痫。（3）发热。（4）颈项强痛。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "20.风池* Fēngchí（GB20）足少阳经、阳维脉交会穴",
+    "locationLine": 66436,
+    "indicationsLine": 66439
+   },
+   "patientLocation": "后脑勺下方，后颈两条大筋外侧与耳后突起的骨头之间的凹陷处，左右各一",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "迎香",
+   "region": "face",
+   "selfReachable": true,
+   "standardLocation": "鼻翼外缘中点旁，鼻唇沟中（图4-2-7）。",
+   "indications": "鼻渊，鼻衄，口眼斜，面痒，面肿。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "20.迎香* Yíngxiāng（LI20）手阳明经、足阳明经交会穴",
+    "locationLine": 63926,
+    "indicationsLine": 63928
+   },
+   "patientLocation": "鼻翼外缘中点旁、鼻唇沟（法令纹）里，左右各一",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "合谷",
+   "region": "upper_limb",
+   "selfReachable": true,
+   "standardLocation": "第2掌骨桡侧的中点处（图4-2-2）。",
+   "indications": "（1）头痛，齿痛，目赤肿痛，咽喉肿痛，鼻衄，耳聋，口眼斜，口噤。（2）恶寒发热，无汗，多汗。（3）滞产，经闭，痛经。（4）中风失语，上肢不遂。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "4.合谷* Hégǔ（LI4）原穴",
+    "locationLine": 63788,
+    "indicationsLine": 63790
+   },
+   "patientLocation": "手背虎口处，拇指与食指两根掌骨之间、靠近食指一侧的中点",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "内关",
+   "region": "upper_limb",
+   "selfReachable": true,
+   "standardLocation": "腕掌侧远端横纹上2寸，掌长肌腱与桡侧腕屈肌腱之间（图11-2-3）。",
+   "indications": "（1）心悸，心痛，胸闷。（2）胃痛，呕吐，呃逆。（3）癫狂痫。（4）肘臂挛痛。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "6.内关* Nèiguān（PC6）络穴，八脉交会穴（通阴维脉）",
+    "locationLine": 65943,
+    "indicationsLine": 65945
+   },
+   "patientLocation": "手掌朝上，手腕横纹往上约两横指（食指、中指并拢的宽度），手腕中间两条筋之间",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "神门",
+   "region": "upper_limb",
+   "selfReachable": true,
+   "standardLocation": "掌侧远端横纹尺侧端，尺侧腕屈肌腱的桡侧缘（图7-2-3）。",
+   "indications": "心痛，心烦，惊悸，痴呆，健忘，失眠，癫狂，惊痫。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "7.神门* Shénmén（HT7）输穴，原穴",
+    "locationLine": 64734,
+    "indicationsLine": 64737
+   },
+   "patientLocation": "手掌朝上，手腕横纹靠小指一侧的末端，那条筋内侧的凹陷处",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "列缺",
+   "region": "upper_limb",
+   "selfReachable": true,
+   "standardLocation": "腕掌侧远端横纹上1.5寸，拇短伸肌腱与拇长展肌腱之间，拇长展肌腱沟的凹陷中（图3-2-3）。",
+   "indications": "（1）咳嗽，气喘。（2）齿痛，咽喉肿痛，口眼斜。（3）头痛，颈项强痛。（4）半身不遂，手腕疼痛无力。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "7.列缺* Lièquē（LU7）络穴，八脉交会穴（通任脉）",
+    "locationLine": 63637,
+    "indicationsLine": 63639
+   },
+   "patientLocation": "两手虎口交叉，一手食指按在另一手腕后靠拇指一侧的骨突上，食指尖所到的凹陷处",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "曲池",
+   "region": "upper_limb",
+   "selfReachable": true,
+   "standardLocation": "尺泽与肱骨外上髁连线的中点处（图4-2-3、图4-2-4）。",
+   "indications": "（1）咽喉肿痛，齿痛，目疾。（2）瘾疹，湿疹，瘰疬。（3）热病，惊痫。（4）手臂肿痛，上肢不遂。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "11.曲池* Qūchí（LI11）合穴",
+    "locationLine": 63854,
+    "indicationsLine": 63856
+   },
+   "patientLocation": "屈肘时，肘横纹外侧端与肘外侧骨突连线的中点",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "外关",
+   "region": "upper_limb",
+   "selfReachable": true,
+   "standardLocation": "腕背侧远端横纹上2寸，尺骨与桡骨间隙中点（图12-2-2）。",
+   "indications": "（1）耳鸣，耳聋；热病，瘰疬。（2）胸胁痛，上肢痿痹。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "5.外关* Wàiguān（TE5）络穴，八脉交会穴（通阳维脉）",
+    "locationLine": 66077,
+    "indicationsLine": 66079
+   },
+   "patientLocation": "手背朝上，手腕背面横纹往上约两横指、两根前臂骨之间",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "支沟",
+   "region": "upper_limb",
+   "selfReachable": true,
+   "standardLocation": "腕背侧远端横纹上3寸，尺骨与桡骨间隙中点（图12-2-2）。",
+   "indications": "（1）耳鸣，耳聋，暴喑。（2）便秘，呕吐。（3）热病。（4）瘰疬。（5）胸胁痛。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "6.支沟* Zhīgōu（TE6）经穴",
+    "locationLine": 66088,
+    "indicationsLine": 66090
+   },
+   "patientLocation": "前臂背面，手腕背面横纹往上约四横指、两根前臂骨之间",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "膻中",
+   "region": "chest",
+   "selfReachable": true,
+   "standardLocation": "横平第4肋间隙，前正中线上（图15-2-6）。",
+   "indications": "（1）胸闷，心痛，咳嗽，气喘。（2）产后乳少。（3）噎膈。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "17.膻中* Dànzhōng（CV17）心包募穴；八会穴（气会）；任脉、足太阴",
+    "locationLine": 67318,
+    "indicationsLine": 67320
+   },
+   "patientLocation": "胸部正中线上，与第4肋间隙相平处（男性大致在两乳头连线的中点）",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "期门",
+   "region": "chest",
+   "selfReachable": true,
+   "standardLocation": "第6肋间隙，前正中线旁开4寸（图14-2-6）。",
+   "indications": "（1）胁下积聚，气喘，呃逆，胸胁胀痛。（2）呕吐，腹胀，泄泻。（3）乳痈。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "14.期门* Qīmén（LR14）肝募穴，足厥阴经、足太阴经、阴维脉交会穴",
+    "locationLine": 66837,
+    "indicationsLine": 66840
+   },
+   "patientLocation": "胸部：男性在乳头正下方、从乳头所在的肋间隙再往下数两个肋间隙处；女性不以乳房位置为准，从锁骨中点垂直向下，数到同一个（第6）肋间隙处",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "中脘",
+   "region": "abdomen",
+   "selfReachable": true,
+   "standardLocation": "脐中上4寸，前正中线上（图15-2-5）。",
+   "indications": "胃痛，腹胀，腹中积聚，泄泻，便秘，呕吐，食欲不振，呕吐，黄疸。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "12.中脘* Zhōngwǎn（CV12）胃募穴；八会穴（腑会）；任脉、手太阳经",
+    "locationLine": 67283,
+    "indicationsLine": 67286
+   },
+   "patientLocation": "上腹部正中线上，胸骨下端与肚脐连线的中点",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "天枢",
+   "region": "abdomen",
+   "selfReachable": true,
+   "standardLocation": "横平脐中，前正中线旁开2寸（图5-2-6）。",
+   "indications": "（1）腹痛，腹胀，肠鸣，泄泻，便秘。（2）月经不调，痛经。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "25.天枢* Tiānshū（ST25）大肠募穴",
+    "locationLine": 64179,
+    "indicationsLine": 64181
+   },
+   "patientLocation": "肚脐左右两旁各约三横指（食指、中指、无名指并拢的宽度）处",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "气海",
+   "region": "abdomen",
+   "selfReachable": true,
+   "standardLocation": "脐中下1.5寸，前正中线上（图15-2-5）。",
+   "indications": "（1）疝气，小便不利，遗尿，遗精，阳痿；月经不调，带下，阴挺，恶露不尽。（2）泄泻，腹中绞痛。（3）虚脱，虚劳羸瘦。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "6.气海* Qìhǎi（CV6）",
+    "locationLine": 67234,
+    "indicationsLine": 67236
+   },
+   "patientLocation": "肚脐正下方约两横指处",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "关元",
+   "region": "abdomen",
+   "selfReachable": true,
+   "standardLocation": "脐中下3寸，前正中线上（图15-2-5）。",
+   "indications": "（1）癃闭，尿频，遗精，阳痿，月经不调，痛经，经闭，崩漏，带下，阴挺，恶露不尽，不孕。（2）疝气，小腹疼痛。（3）腹泻。（4）虚劳羸瘦。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "4.关元* Guānyuán（CV4）小肠募穴，任脉、足三阴经交会穴",
+    "locationLine": 67217,
+    "indicationsLine": 67219
+   },
+   "patientLocation": "肚脐正下方约四横指处",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "肺俞",
+   "region": "back",
+   "selfReachable": false,
+   "standardLocation": "第3胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+   "indications": "（1）咳嗽，气喘，肺痨，咳血，潮热，盗汗。（2）小儿龟背。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "13.肺俞* Fèishū（BL13）肺之背俞穴",
+    "locationLine": 65130,
+    "indicationsLine": 65132
+   },
+   "patientLocation": "背部，低头时颈后最突出的骨头往下数到第3节胸椎，其下方左右各约两横指处（需家人帮忙按揉）",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "脾俞",
+   "region": "back",
+   "selfReachable": false,
+   "standardLocation": "第11胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+   "indications": "（1）腹胀，呕吐，泄泻。（2）水肿，黄疸。（3）多食善饥，身瘦。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "20.脾俞* Píshū（BL20）脾之背俞穴",
+    "locationLine": 65198,
+    "indicationsLine": 65200
+   },
+   "patientLocation": "背部，两侧肩胛骨下角连线相平的胸椎再往下数4节，其下方左右各约两横指处（需家人帮忙按揉）",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "肾俞",
+   "region": "lumbosacral",
+   "selfReachable": true,
+   "standardLocation": "第2腰椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+   "indications": "（1）耳鸣，耳聋。（2）遗尿，遗精，阳痿，早泄，月经不调，带下，不孕。（3）多食善饥，身瘦。（4）腰痛。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "23.肾俞* Shènshū（BL23）肾之背俞穴",
+    "locationLine": 65226,
+    "indicationsLine": 65228
+   },
+   "patientLocation": "后腰部，与肚脐大致相对的那节腰椎下方，后正中线左右各约两横指处",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "命门",
+   "region": "lumbosacral",
+   "selfReachable": true,
+   "standardLocation": "第2腰椎棘突下凹陷中，后正中线上（图15-1-4）。",
+   "indications": "（1）腰痛，少腹痛，脊强。（2）赤白带下，阳痿。（3）下肢痿痹。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "4.命门* Mìngmén（GV4）",
+    "locationLine": 66927,
+    "indicationsLine": 66929
+   },
+   "patientLocation": "后腰正中的脊柱上，摸到腰带（两侧髂骨最高点）水平的那节脊椎，再向上数两节，其上方的凹陷处（大致与肚脐相对，最好请家人帮忙触摸确认）",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "足三里",
+   "region": "lower_limb",
+   "selfReachable": true,
+   "standardLocation": "犊鼻下3寸，犊鼻与解溪连线上（图5-2-8）",
+   "indications": "（1）胃痛，呕吐，呃逆，腹胀，腹痛，肠鸣，泄泻，便秘。（2）热病，癫狂。（3）乳痈。（4）虚劳羸瘦。（5）膝足肿痛。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "36.足三里* Zúsānlǐ（ST36）合穴，胃下合穴",
+    "locationLine": 64262,
+    "indicationsLine": 64266
+   },
+   "patientLocation": "小腿前外侧，膝盖外侧下方凹陷往下约四横指、小腿骨前缘外侧约一横指处",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "丰隆",
+   "region": "lower_limb",
+   "selfReachable": true,
+   "standardLocation": "外踝尖上8寸，胫骨前肌的外缘（图5-2-8）。",
+   "indications": "（1）腹痛，腹胀，便秘。（2）咳嗽，哮喘，痰多，咽喉肿痛，胸痛。（3）头痛，眩晕，癫狂。（4）下肢不遂、痿痹。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "40.丰隆* Fēnglóng（ST40）络穴",
+    "locationLine": 64309,
+    "indicationsLine": 64312
+   },
+   "patientLocation": "小腿前外侧，膝盖外侧下方凹陷与外踝尖连线的中点、小腿骨前缘外侧约两横指处",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "阴陵泉",
+   "region": "lower_limb",
+   "selfReachable": true,
+   "standardLocation": "胫骨内侧髁下缘与胫骨内侧缘之间的凹陷中（图6-2-3）。",
+   "indications": "（1）腹痛，腹胀，泄泻。（2）妇人阴中痛，痛经，小便不利，遗尿，遗精。（3）水肿。（4）腰膝肿痛。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "9.阴陵泉* Yīnlíngquán（SP9）合穴",
+    "locationLine": 64519,
+    "indicationsLine": 64522
+   },
+   "patientLocation": "小腿内侧，膝盖下方小腿骨内侧突起下缘的凹陷处",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "三阴交",
+   "region": "lower_limb",
+   "selfReachable": true,
+   "standardLocation": "内踝尖上3寸，胫骨内侧缘后际（图6-2-3）。",
+   "indications": "（1）月经不调，崩漏，带下，阴挺，不孕，滞产。（2）遗精，阳痿，遗尿，小便不利，疝气。（3）腹胀，肠鸣，泄泻。（4）下肢痿痹。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "6.三阴交* Sānyīnjiāo（SP6）足太阴经、足少阴经、足厥阴经交会穴",
+    "locationLine": 64486,
+    "indicationsLine": 64488
+   },
+   "patientLocation": "小腿内侧，内踝尖往上约四横指、小腿骨内侧边缘后方",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "血海",
+   "region": "lower_limb",
+   "selfReachable": true,
+   "standardLocation": "髌底内侧端上2寸，股内侧肌隆起处（图6-2-4）。",
+   "indications": "（1）月经不调，经闭，崩漏。（2）湿疹，风疹。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "10.血海* Xuèhǎi（SP10）",
+    "locationLine": 64535,
+    "indicationsLine": 64537
+   },
+   "patientLocation": "屈膝时，大腿内侧、膝盖骨内上缘往上约三横指的肌肉隆起处",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "太溪",
+   "region": "lower_limb",
+   "selfReachable": true,
+   "standardLocation": "内踝尖与跟腱之间的凹陷中（图10-2-3）。",
+   "indications": "（1）遗精，阳痿，月经不调。（2）咳嗽，气喘，咳血，胸痛。咽喉肿痛，齿痛。（3）消渴，便秘。（4）腰背痛，下肢冷痛。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "3.太溪* Tàixī（KI3）输穴，原穴",
+    "locationLine": 65661,
+    "indicationsLine": 65663
+   },
+   "patientLocation": "脚内侧，内踝尖与脚后跟上方那根大筋之间的凹陷处",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "太冲",
+   "region": "lower_limb",
+   "selfReachable": true,
+   "standardLocation": "第1、2跖骨间，跖骨底结合部前方凹陷中，或触及动脉搏动（图14-2-2）。",
+   "indications": "（1）目赤肿痛，咽干，咽痛。（2）阴疝，前阴痛，少腹肿，遗尿，癃闭，月经不调。（3）黄疸，胁痛，腹胀，呕逆。（4）小儿惊风。（5）下肢痿痹，足跗肿痛。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "3.太冲* Tàichōng（LR3）输穴，原穴",
+    "locationLine": 66752,
+    "indicationsLine": 66754
+   },
+   "patientLocation": "脚背，大脚趾与第二脚趾之间往脚背方向推到尽头的凹陷处",
+   "patientLocationSource": "tcm-home-acupoint-care.source.json（逐字沿用）"
+  },
+  {
+   "name": "涌泉",
+   "region": "lower_limb",
+   "selfReachable": true,
+   "standardLocation": "屈足卷趾时足心最凹陷中（图10-2-2）。",
+   "indications": "（1）发热，心烦，惊风。（2）咽喉肿痛，咳嗽，气喘。（3）便秘，小便不利。（4）足心热，腰脊痛。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "1.涌泉* Yǒngquán（KI1）井穴",
+    "locationLine": 65631,
+    "indicationsLine": 65634
+   },
+   "patientLocation": "脚底，脚趾向下弯曲时脚掌前部出现的最凹陷处",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "照海",
+   "region": "lower_limb",
+   "selfReachable": true,
+   "standardLocation": "内踝尖下1寸，内踝下缘边际凹陷中（图10-2-3）。",
+   "indications": "（1）失眠，目赤肿痛，咽干，咽痛。（2）月经不调，赤白带下，阴挺，癃闭，疝气。（3）癫痫。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "6.照海* Zhàohǎi（KI6）八脉交会穴（通阴脉）",
+    "locationLine": 65691,
+    "indicationsLine": 65693
+   },
+   "patientLocation": "脚内侧，内踝尖正下方约一横指的凹陷处",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "公孙",
+   "region": "lower_limb",
+   "selfReachable": true,
+   "standardLocation": "第1跖骨底的前下缘赤白肉际处（图6-2-2）。",
+   "indications": "（1）胃痛，呕吐，腹痛，腹胀，泄泻。（2）心烦。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "4.公孙* Gōngsūn（SP4）络穴，八脉交会穴（通冲脉）",
+    "locationLine": 64468,
+    "indicationsLine": 64470
+   },
+   "patientLocation": "脚内侧，大脚趾后方那块长骨（第1跖骨）底部的前下方，脚掌与脚背皮肤交界处",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "内庭",
+   "region": "lower_limb",
+   "selfReachable": true,
+   "standardLocation": "第2、3趾间，趾蹼缘后方赤白肉际处（图5-2-9）。",
+   "indications": "（1）齿痛，咽喉肿痛，鼻衄，口眼斜。（2）腹胀，泄泻，食欲不振。（3）热病。（4）足背肿痛。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "44.内庭* Nèitíng（ST44）荥穴",
+    "locationLine": 64353,
+    "indicationsLine": 64355
+   },
+   "patientLocation": "脚背，第2、3脚趾缝的后方，趾蹼边缘处",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  },
+  {
+   "name": "承山",
+   "region": "lower_limb",
+   "selfReachable": true,
+   "standardLocation": "腓肠肌两肌腹与肌腱交角处。当伸直小腿或足跟上提时，腓肠肌肌腹下出现尖角凹陷中（图9-2-8）。",
+   "indications": "（1）痔疾，便秘。（2）腰背痛，小腿拘急疼痛。",
+   "corpusRef": {
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "head": "57.承山* Chéngshān（BL57）",
+    "locationLine": 65480,
+    "indicationsLine": 65482
+   },
+   "patientLocation": "小腿后面正中，伸直小腿或踮起脚跟时，小腿肚肌肉下方出现的尖角凹陷处",
+   "patientLocationSource": "按标准定位与骨度/指寸折量（一横指约1寸，两横指约1.5寸，三横指约2寸，四横指约3寸）改写"
+  }
+ ]
+}

@@ -1,5 +1,6 @@
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { compileHomeAcupointCare } from "./home-acupoint-care.server";
+import { renderAuthoredHomeAcupointCare, type AuthoredHomeAcupoint, type HomeAcupointAuthoringInput } from "./home-acupoint-authoring.server";
 import { acupointPregnancySensitive, resolveAcupoint } from "./tcm-acupoints";
 import {
   TCM_TREATMENT_PROJECTS,
@@ -1550,6 +1551,52 @@ function homeAcupointCareForCase(
   prior: ClinicalReasoningResultV2,
   caseState: Partial<TreatmentCaseContext> | undefined,
   recommendations: ReadonlyArray<{ projectCode: string; suggestedSitesOrPoints?: string[] }>,
+  authored?: AuthoredHomeAcupoint,
+): string | null {
+  const template = homeAcupointTemplateForCase(prior, caseState, recommendations);
+  // 技术规范段落给得出（安全门、年龄、妊娠、项目禁忌都过了）而且是成人时，用模型按本例选的穴（home-acupoint-authoring.server.ts）；
+  // 模型那份不可用或穴位都已在医师项目里时仍用段落。艾灸只在段落本身也给艾灸时写。
+  if (!template || !authored) return template;
+  const ageYears = caseState ? treatmentPatientAgeYears(caseState) : undefined;
+  if (ageYears == null || ageYears < 18) return template;
+  return renderAuthoredHomeAcupointCare(authored, {
+    clinicianPointText: recommendations.flatMap((item) => item.suggestedSitesOrPoints || []).join("、"),
+    moxibustionAllowed: template.includes("艾灸"),
+  }) || template;
+}
+
+/**
+ * 模型选穴的输入（路由在开方一开始就发出请求，与 M04 生成并行）：技术规范段落在本例给得出、且是成人时才有；
+ * 段落给不出（红旗、儿童、妊娠阳性或可疑、项目禁忌、证候对不上体质）时返回 undefined，不发请求。
+ */
+export function homeAcupointAuthoringInputForCase(
+  prior: ClinicalReasoningResultV2 | null | undefined,
+  caseState: Partial<TreatmentCaseContext> | undefined,
+  findings: readonly string[],
+): HomeAcupointAuthoringInput | undefined {
+  if (!prior || !caseState) return undefined;
+  const ageYears = treatmentPatientAgeYears(caseState);
+  if (ageYears == null || ageYears < 18) return undefined;
+  const template = homeAcupointTemplateForCase(prior, caseState, []);
+  if (!template) return undefined;
+  const overview = prior.overview;
+  return {
+    disease: String(overview?.tcmDiseaseName || ""),
+    primarySyndrome: String(overview?.primarySyndrome || ""),
+    secondarySyndromes: (overview?.secondarySyndromes || []).map((item) => String(item || "")).filter(Boolean),
+    method: String(prior.therapy?.overallMethod || ""),
+    findings: [...new Set(findings.map((item) => item.trim()).filter(Boolean))].slice(0, 12),
+    ageYears,
+    sex: String((caseState as { patient?: { sex?: unknown } }).patient?.sex || ""),
+    pregnancyUnresolved: homeCarePregnancyUnresolved(caseState),
+    moxibustionAllowed: template.includes("艾灸"),
+  };
+}
+
+function homeAcupointTemplateForCase(
+  prior: ClinicalReasoningResultV2,
+  caseState: Partial<TreatmentCaseContext> | undefined,
+  recommendations: ReadonlyArray<{ projectCode: string; suggestedSitesOrPoints?: string[] }>,
 ): string | null {
   if (!caseState) return null;
   const temperature = Number.parseFloat(String(caseState.vitals?.T ?? "").replace(/[^\d.]/g, ""));
@@ -1761,6 +1808,7 @@ export function applyTcmTreatmentCapabilityPriority(
   content: string,
   caseState?: Partial<TreatmentCaseContext>,
   prior?: ClinicalReasoningResultV2 | null,
+  options?: { authoredHomeAcupoint?: AuthoredHomeAcupoint },
 ): string {
   const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
   const endMarker = "<!-- DIAGNOSIS_JSON_END -->";
@@ -1797,9 +1845,9 @@ export function applyTcmTreatmentCapabilityPriority(
     // 编出来是两张仅评估卡和一张只有治则的推拿卡，交付时全被去掉；居家穴位保健却按这三张卡算「医师已在灸、已在按」，于是也是 null，
     // 三次生成中医治疗一栏全空）。居家保健去重与注意事项核对都只看会交付的卡。
     const deliverable = recommendations.filter((item) => !treatmentCardUndeliverable(item));
-    // 穴位保健不收模型文字（会绕过禁忌核对），只由服务端从受治理清单确定性编译；
-    // 清单未经中医师终审、红旗或非全剂量方案时为 null（见 home-acupoint-care.server.ts）。
-    reasoning.nonPharma.acupointCare = prior ? homeAcupointCareForCase(prior, caseState, deliverable) : null;
+    // 穴位保健不收 M04 模型自己写的文字（会绕过禁忌核对）：成人由小模型从受治理穴位表里按本例选穴、写理由，服务端校验后排版
+    //（home-acupoint-authoring.server.ts，路由预先发出、这里传入）；其余由技术规范段落确定性编译。红旗、不出剂量等安全门下为 null。
+    reasoning.nonPharma.acupointCare = prior ? homeAcupointCareForCase(prior, caseState, deliverable, options?.authoredHomeAcupoint) : null;
     // 注意事项提到的治疗项目必须是本次确实给出的（2026-10-14 独立评审：写「耳穴及针刺治疗须由专业医师操作」，本例并没有针刺）。
     // 模型写注意事项时看到的是自己提名的项目，随后服务端按机构能力与禁忌重排、增删；提到已不在清单里的项目的那一条整条丢掉。
     // 居家穴位保健里的艾灸、按揉也算给出了（「艾灸时注意防烫」说的是它）。

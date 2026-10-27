@@ -33,7 +33,9 @@ export const BACKSTOP_RED_FLAG_CATEGORIES = {
   // 会静默丢弃。于是**整个上消化道警示征象类别在语义回补层结构性失明**，
   // 而语义层的全部意义正是接住确定性层漏掉的口语表述。
   // （2026-08-16：确定性层与词表已加 gi_alarm，本表没跟上——同一修复只做了一半。）
-  gi_alarm: "上消化道警示征象（吞咽/进食梗阻、恶性肿瘤病史伴消化道症状、不明原因消瘦）",
+  // 消化道以外的肿块（乳房、甲状腺、淋巴结、体表）不属本类（2026-10-27 第二十五轮，甲方 100 例 C069：「母亲乳腺癌史＋左乳无痛性结节」
+  // 被归到这里，提示写成「上消化道警示征象需优先复核」）。那类有确定性的专科路径（乳房肿块两周内乳腺专科）；不够即时的写 clarify，不套本类。
+  gi_alarm: "上消化道警示征象（吞咽/进食梗阻、恶性肿瘤病史伴消化道症状、不明原因消瘦；乳房、甲状腺、淋巴结等消化道以外的肿块不属本类）",
   bleeding: "其他急性出血（咯血/阴道流血/外伤出血/出血不止）",
   acute_abdomen: "急腹症（急性剧烈腹痛/腹胀）",
   respiratory: "急性呼吸困难/端坐呼吸",
@@ -163,7 +165,7 @@ export type RedFlagFinding = {
 };
 
 export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v20";
-export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v27";
+export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v28";
 
 // 劳力/活动诱发的慢性基线症状限定词（“平路气短”“活动后气促”“劳力性胸闷”）：在已知慢性心肺肾
 // 疾病或慢性病程框架下，这类限定描述的是基线功能状态而非急性事件；静息/夜间/端坐/新发/突发/
@@ -956,6 +958,34 @@ export function reanchorClinicalFactQuotes(facts: ClinicalFacts, sourceText: str
 }
 
 /** 护栏 2:原文 grounding + positive 本地极性复核。 */
+/**
+ * T6 上消化道警示类目的边界（2026-10-27 第二十五轮，甲方 100 例 C069）：类目叫「上消化道警示征象」，标签也这么写，
+ * 但模型会把消化道以外的恶性肿瘤线索（「母亲有乳腺癌史」＋左乳无痛性结节）也归到这里——提示词写明不属本类之后，
+ * 同一份病历 10 次抽取仍有 4 次（改前 5 次），因为 18 类里没有更贴切的。引文（含升级引文）里一个受治理的消化道词
+ *（本类 detection 的消化道恶性肿瘤、当前消化道症状、警示所见、体重下降与消化道语境各表）都没有时，改记 other_critical：
+ * 处置档位不变，只是不再写成「上消化道警示征象」。词表与确定性门禁 hasUpperGiAlarmFeatureSignal 同源。
+ */
+const GI_ALARM_DETECTION_TERMS: string[] = (() => {
+  const rule = (redFlagTriageJson.categoryRules as Array<{ id: string; detection?: Record<string, unknown> }>).find((item) => item.id === "gi_alarm");
+  const detection = rule?.detection || {};
+  return ["gastrointestinalMalignancy", "currentDigestiveSymptoms", "alarmDigestiveFindings", "weightLossTerms", "weightLossDigestiveContext"]
+    .flatMap((key) => (Array.isArray(detection[key]) ? detection[key] as unknown[] : []))
+    .filter((term): term is string => typeof term === "string" && term.length >= 2);
+})();
+// 病理写法（「胃窦腺癌」「食管鳞癌」）不含「胃癌」「食管癌」字样：器官词取本类消化道恶性肿瘤表去掉「癌」，后接四字内的癌、瘤也算。
+const GI_MALIGNANCY_ORGAN_FORM = (() => {
+  const rule = (redFlagTriageJson.categoryRules as Array<{ id: string; detection?: Record<string, unknown> }>).find((item) => item.id === "gi_alarm");
+  const stems = (Array.isArray(rule?.detection?.gastrointestinalMalignancy) ? rule!.detection!.gastrointestinalMalignancy as unknown[] : [])
+    .filter((term): term is string => typeof term === "string").map((term) => term.replace(/癌$/u, "")).filter(Boolean);
+  return stems.length > 0 ? new RegExp(`(?:${stems.join("|")})[^，,。；;]{0,4}(?:癌|瘤)`, "u") : undefined;
+})();
+function giAlarmFindingWithoutDigestiveQuote(finding: RedFlagFinding): boolean {
+  if (finding.category !== "gi_alarm") return false;
+  const quoted = [finding.quote, ...(finding.escalationEvidenceQuotes || [])].join("；");
+  if (GI_MALIGNANCY_ORGAN_FORM?.test(quoted)) return false;
+  return !GI_ALARM_DETECTION_TERMS.some((term) => quoted.includes(term));
+}
+
 export function groundClinicalFacts(facts: ClinicalFacts, sourceText: string): ClinicalFacts {
   const scopeQuote = facts.encounterScope?.quote || "";
   const encounterScope = facts.encounterScope && sourceText.includes(scopeQuote) && (
@@ -1015,6 +1045,7 @@ export function groundClinicalFacts(facts: ClinicalFacts, sourceText: string): C
     if (isAsymptomaticSevereHypertensionFinding(finding, sourceText)) {
       return { ...finding, urgency: "urgent" as const, triageBasis: "urgent_review" as const };
     }
+    if (giAlarmFindingWithoutDigestiveQuote(finding)) return { ...finding, category: "other_critical" as const };
     if (finding.category !== "gi_bleed" || finding.subject !== "patient" || finding.status !== "positive") {
       return finding;
     }

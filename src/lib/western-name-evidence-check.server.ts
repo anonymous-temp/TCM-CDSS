@@ -7,6 +7,8 @@ import { westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
 import { westernCriteriaEntry, westernCriteriaPromptValue, westernCriteriaReference, westernNameWithoutCourseOrSideQualifier } from "./western-diagnostic-criteria.server";
 import { resolveIcd10Diagnosis } from "./icd10-diagnosis-coding.server";
 import { quoteGroundedInText } from "./verbatim-quote";
+import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
+import { clinicalEventTemporalScopeAt } from "./clinical-polarity";
 
 /**
  * 参考西医诊断名与病历已记录内容的一致性核对（2026-10-14）。
@@ -266,6 +268,7 @@ export function parseWesternNameCorrection(
   const currentEntry = westernCriteriaEntry(current);
   const testDefined = !currentEntry || currentEntry.requiredTests.length > 0;
   const keepHypothesis = type === "D" && /待查$/u.test(name) && !/待查$/u.test(current) && !courseDefined && testDefined &&
+    !pediatricOnlyWesternName(current) &&
     !namesSameDiseaseFamily(name, current) &&
     current.length >= 2 && current.length <= 24 && !INVALID_SUPPORTED_NAME_FORM.test(current);
   // A、B 类给的上一级只是去掉了病程限定或侧别（「急性尿潴留」→「尿潴留待查」）时，上一级本身有依据，不再挂「待查」（验收集 X-D-0204）。
@@ -679,9 +682,37 @@ async function westernNameCheckPass(
  *    表里有「急性X」就写它，没有就去掉「慢性」。「X待查」以前一律不核对，病程门槛因此从未生效。
  *  · 「新生儿X」而患儿已超过 28 天：C071 2 月龄写「新生儿败血症」。满 1 岁写「小儿X」，不满 1 岁写「婴儿X」。
  */
+/**
+ * 只为儿童制定诊断标准的病名用于成人（2026-10-27 甲方 10.26 测评病历 5：78 岁「反复上呼吸道感染」，甲方原话「西医诊断中此诊断多用于儿童，
+ * 成人无明确诊断标准」）。依据：中华医学会儿科学分会呼吸学组《反复呼吸道感染的临床概念和处理原则》（2008）与《儿童反复呼吸道感染临床诊治管理
+ * 专家共识》（2017）都按 0～14 岁分年龄段定义。第二十四轮已在提示词与病名核对的 D 类里写明，但核对拿不准时走「原病名待查」，交付成
+ *「反复上呼吸道感染待查」（生产一次）。这里确定性改名：本次有急性呼吸道感染表现写「急性上呼吸道感染」，没有时写症状层面名称。
+ */
+const PEDIATRIC_ONLY_WESTERN_NAME = /^反复(?:上|下)?呼吸道感染/u;
+const CURRENT_RESPIRATORY_INFECTION_SIGN = /发热|咽痛|鼻塞|流涕|喷嚏|咳嗽/u;
+const ADULT_FATIGUE_SYMPTOM = /乏力|疲乏|神疲|倦怠/u;
+function currentAffirmedMention(text: string, pattern: RegExp): boolean {
+  for (const match of text.matchAll(new RegExp(pattern.source, "gu"))) {
+    const index = match.index ?? -1;
+    if (index < 0 || clauseLocalMentionPolarityAt(text, index) !== "affirmed") continue;
+    if (clinicalEventTemporalScopeAt(text, index, match[0].length) !== "current") continue;
+    return true;
+  }
+  return false;
+}
+export function pediatricOnlyWesternName(name: string): boolean {
+  return PEDIATRIC_ONLY_WESTERN_NAME.test(name.trim().replace(/待查$/u, ""));
+}
+
 export function deterministicWesternNameCorrection(name: string, recordText: string, patientAge?: number): WesternNameCorrection | undefined {
   const trimmed = name.trim();
   const core = trimmed.replace(/待查$/u, "");
+  if (pediatricOnlyWesternName(core) && typeof patientAge === "number" && Number.isFinite(patientAge) && patientAge >= 18) {
+    const supportedName = currentAffirmedMention(recordText, CURRENT_RESPIRATORY_INFECTION_SIGN)
+      ? "急性上呼吸道感染"
+      : currentAffirmedMention(recordText, ADULT_FATIGUE_SYMPTOM) ? "乏力待查" : "上呼吸道感染待查";
+    return { type: "D", supportedName, quote: chiefComplaintLine(recordText) || core, reason: "反复呼吸道感染的诊断标准只为儿童制定" };
+  }
   if (/^慢性/u.test(core)) {
     const entry = westernCriteriaEntry(core);
     const child = typeof patientAge === "number" && Number.isFinite(patientAge) && patientAge < 18;

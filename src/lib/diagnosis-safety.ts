@@ -5240,13 +5240,56 @@ export function registerActiveBleedingRedFlags(texts: readonly string[], redFlag
   }
 }
 /** 开方核对只拿得到接地正文：先看路由登记的闸门红旗，再用本闸门的确定性红旗检测跑一遍。按正文记忆，避免逐味重复计算。 */
+/**
+ * 病历自己记载的当前出血（只用于「活血化瘀药不入方、治法止血为先」，不进安全门、不改红旗）。两类，闭集：
+ *   · 当前咯血、咳血、痰中带血——C098 疑似肺栓塞「咯血丝」：此前要看事实层的红旗引文有没有引到这一句，同一份病历换个构建
+ *     就从「活血药不入方」变成开出丹参、川芎、牛膝、鸡血藤（2026-10-27 第二十四轮生产探针，连续 3 次）；
+ *   · 正在用抗凝或抗血小板药，同时记载当前出血表现（经量增多、牙龈或鼻出血、皮下瘀斑、血尿、便血、黑便）——C070 华法林、
+ *     INR 3.5、「经血量较以往增加」，此前开出川芎、丹参、鸡血藤，只标慎用。《中药学》活血化瘀药：「月经过多以及其他出血证…不宜」。
+ * 否认、既往（「既往咯血史」）、已停药（「利伐沙班近一周自行停用」）都不算。
+ */
+const RECORDED_HEMOPTYSIS = /咯血|咳血|痰中带血|痰带血丝|血痰/u;
+const ANTICOAGULATED_BLEEDING_SIGN = /月经过多|经(?:血)?量(?:较[^，,。；;]{0,6})?(?:增多|增加|偏多|过多)|牙龈出血|齿衄|鼻出血|鼻衄|皮下(?:出血|瘀斑|瘀点)|血尿|尿血|便血|黑便/u;
+function currentRecordedMention(text: string, pattern: RegExp): boolean {
+  for (const match of text.matchAll(new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`))) {
+    const index = match.index ?? -1;
+    if (index < 0 || clauseLocalMentionPolarityAt(text, index) !== "affirmed") continue;
+    if (clinicalEventTemporalScopeAt(text, index, match[0].length) !== "current") continue;
+    return true;
+  }
+  return false;
+}
+export function recordedCurrentBleedingForTreatment(text: string): boolean {
+  if (currentRecordedMention(text, RECORDED_HEMOPTYSIS)) return true;
+  const medication = affirmedCurrentMedicationText(extractMedicationEvidenceText(text)) || "";
+  return ANTITHROMBOTIC_MEDICATION.test(medication) && currentRecordedMention(text, ANTICOAGULATED_BLEEDING_SIGN);
+}
+
+/**
+ * 出血的说法（只决定 M03/M04 提示里怎么措辞，处理一样）：红旗里的出血只出现在「需排除：…」那一串里、病历本身又没记载当前出血时，
+ * 是「出血尚未排除」（C068 盆腔炎「需排除：…异位妊娠破裂或流产伴腹腔内出血」，方义却写「因活动性出血不宜活血化瘀」）。
+ */
+export type ActiveBleedingWording = "recorded" | "to_exclude";
+export function activeBleedingWording(text: string, redFlags: readonly string[]): ActiveBleedingWording {
+  if (recordedCurrentBleedingForTreatment(text)) return "recorded";
+  const state = text.trim() ? normalizeCaseStateInput({ chiefComplaint: "", symptoms: { 现病史: text } }) : undefined;
+  if (state && hasActiveBleedingRedFlag(detectProgrammaticRedFlags(state))) return "recorded";
+  const bleedingFlags = redFlags.filter((flag) => hasActiveBleedingRedFlag([flag]));
+  if (bleedingFlags.length === 0) return "recorded";
+  const outsideExclusion = (flag: string) => {
+    const focus = exclusionFocusIn(flag);
+    return focus ? flag.replace(`需排除：${focus}`, "") : flag;
+  };
+  return bleedingFlags.every((flag) => !hasActiveBleedingRedFlag([outsideExclusion(flag)])) ? "to_exclude" : "recorded";
+}
+
 export function activeBleedingInGroundingText(text: string): boolean {
   if (!text.trim()) return false;
   if (registeredActiveBleedingTexts.has(text)) return true;
   const cached = activeBleedingTextMemo.get(text);
   if (cached !== undefined) return cached;
   const state = normalizeCaseStateInput({ chiefComplaint: "", symptoms: { 现病史: text } });
-  const result = state ? hasActiveBleedingRedFlag(detectProgrammaticRedFlags(state)) : false;
+  const result = (state ? hasActiveBleedingRedFlag(detectProgrammaticRedFlags(state)) : false) || recordedCurrentBleedingForTreatment(text);
   if (activeBleedingTextMemo.size > 2000) activeBleedingTextMemo.clear();
   activeBleedingTextMemo.set(text, result);
   return result;

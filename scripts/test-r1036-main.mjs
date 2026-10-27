@@ -85,9 +85,10 @@ await check("2.4 提示词：活动性出血时辨证阶段写「止血为先」
   assert.match(bleedingRules.ACTIVE_BLEEDING_M03_RULE, /不立活血化瘀、破血逐瘀为主法/);
   assert.match(bleedingRules.ACTIVE_BLEEDING_M04_RULE, /活血化瘀药.*不得入方/);
   const diagnose = fs.readFileSync("src/app/api/diagnosis/diagnose/route.ts", "utf8");
-  assert.match(diagnose, /if \(hasActiveBleedingRedFlag\(gated\.safetyGate\?\.redFlags \|\| \[\]\)\) stageInstructions \+= `\\n\\n\$\{ACTIVE_BLEEDING_M03_RULE\}`;/);
+  // 第二十五轮起辨证路由与开方核对同一判据（activeBleedingInGroundingText），措辞按 activeBleedingWording 分「活动性出血」「出血尚未排除」。
+  assert.match(diagnose, /if \(activeBleedingInGroundingText\(bleedingContext\)\) \{\n\s*stageInstructions \+= `\\n\\n\$\{activeBleedingM03Rule\(activeBleedingWording\(bleedingContext, gated\.safetyGate\?\.redFlags \|\| \[\]\)\)\}`;/);
   const prescribe = fs.readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
-  assert.match(prescribe, /if \(activeBleedingInGroundingText\(structuredClinicalContext\)\) promptSuffixes\.push\(ACTIVE_BLEEDING_M04_RULE\);/);
+  assert.match(prescribe, /if \(activeBleedingInGroundingText\(structuredClinicalContext\)\) promptSuffixes\.push\(activeBleedingM04Rule\(activeBleedingWording\(structuredClinicalContext, gated\.safetyGate\?\.redFlags \|\| \[\]\)\)\);/);
   assert.match(prescribe, /formulaBaseHerbsBarredForCase\(signedPriorReasoning, structuredClinicalContext\)/);
   assert.match(prescribe, /formulaCompilationContractIssue\(reasoning, signedPriorReasoning, false, true, \(herb\) => herbBarredForCase\(herb, structuredClinicalContext\)\)/);
 });

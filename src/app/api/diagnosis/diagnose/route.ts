@@ -2,7 +2,7 @@ import { prefetchDiagnoseInputs, prefetchPrescribeInputsFromSignedDiagnose, tapF
 import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
 import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
-import { rationaleFindingsChecklistNotice } from "@/lib/rationale-findings-checklist";
+import { rationaleFindingsChecklist, rationaleFindingsChecklistNotice } from "@/lib/rationale-findings-checklist";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
 import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars, promptSectionHeaders } from "@/lib/prompt-budget";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
@@ -15,11 +15,12 @@ import { reconcileSecondarySyndromes } from "@/lib/m03-secondary-syndrome-consis
 import { applyElementSupportDecision, decideElementSupport } from "@/lib/m03-element-support.server";
 import { promoteCriticalSecondarySyndrome } from "@/lib/m03-critical-syndrome";
 import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals, patientClaimRecordText } from "@/lib/m03-patient-claim-check.server";
+import { completeRationaleCoverage } from "@/lib/m03-rationale-coverage.server";
 import { completeTcmDiseaseDifferentials, prefetchTcmDifferentialTopUp } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { semanticRedFlagsForBanner } from "@/lib/banner-semantic-red-flags.server";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, commaContinuedDenialReadingNotice, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, pregnancyAdviceRelevant, renderSafetyLimitedDiagnosisContract, reproductiveAdviceRelevant, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText, hasActiveBleedingRedFlag, registerActiveBleedingRedFlags } from "@/lib/diagnosis-safety";
-import { ACTIVE_BLEEDING_M03_RULE } from "@/lib/active-bleeding-treatment";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, commaContinuedDenialReadingNotice, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, pregnancyAdviceRelevant, renderSafetyLimitedDiagnosisContract, reproductiveAdviceRelevant, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText, activeBleedingInGroundingText, activeBleedingWording, registerActiveBleedingRedFlags } from "@/lib/diagnosis-safety";
+import { activeBleedingM03Rule } from "@/lib/active-bleeding-treatment";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03SharedPatientContext } from "@/lib/m03-context-packets";
@@ -198,7 +199,11 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   // 本次闸门（含事实层）的出血类红旗按接地正文登记，教材锚定与开方核对凭正文判断时读得到（接地正文里生命体征不带项名）。
   registerActiveBleedingRedFlags([clinicalGroundingText(safeState)], gated.safetyGate?.redFlags || []);
   // 活动性出血红旗：治法先止血，不立活血化瘀为主法（第二十三轮，胎盘早剥锁定少腹逐瘀汤）。依据与写法见 active-bleeding-treatment。
-  if (hasActiveBleedingRedFlag(gated.safetyGate?.redFlags || [])) stageInstructions += `\n\n${ACTIVE_BLEEDING_M03_RULE}`;
+  // 与开方核对、教材锚定同一判据（activeBleedingInGroundingText：登记的红旗 + 确定性红旗 + 病历记载的当前出血）。
+  const bleedingContext = clinicalGroundingText(safeState);
+  if (activeBleedingInGroundingText(bleedingContext)) {
+    stageInstructions += `\n\n${activeBleedingM03Rule(activeBleedingWording(bleedingContext, gated.safetyGate?.redFlags || []))}`;
+  }
   if (redFlagAnalysis) {
     stageInstructions += `\n\n【急危重线索并存】服务器确定性判定本例存在红旗：${(gated.safetyGate?.redFlags || []).join("；") || "见安全提示"}。请照常完成辨病辨证；在 management 中把急诊/转诊评估列为第一优先级并给出具体处置指引，不得因红旗拒绝输出辨证结论，也不得淡化红旗。`;
   }
@@ -303,7 +308,10 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
           // 核对确认不解释、候选里有能解释的病时，中医半按就诊原因重抽一次，再把上面的收口在新稿上重走一遍（其余病例原样）。
           m03TcmHalfTransform: async (tcmContent: string, transformSignal: AbortSignal, redraw?: (instruction: string) => Promise<string | undefined>) => {
             const finishTcmHalf = async (content: string) => {
-              const completed = await completeTcmDiseaseDifferentials(content, differentialTopUpContext, transformSignal);
+              // 辨证依据漏讲已记录表现时先按病历重写这一段（m03-rationale-coverage.server.ts，只在漏两项以上时发请求），
+              // 后面的兼证、证素、本例说法核对都在重写稿上做。
+              const covered = await completeRationaleCoverage(content, { recordText: patientClaimRecord, findings: rationaleFindingsChecklist(safeState) }, transformSignal);
+              const completed = await completeTcmDiseaseDifferentials(covered, differentialTopUpContext, transformSignal);
               const [reconciled, claimRemovals, elementDecision] = await Promise.all([
                 reconcileSecondarySyndromes(completed, { recordText: trustedInputText(safeState) }, transformSignal),
                 decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),

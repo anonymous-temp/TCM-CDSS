@@ -1,3 +1,5 @@
+import herbCategoriesJson from "../data/tcm-herb-function-categories.json";
+import { clinicianDoseHerbClass, getTcmHerbGenerationSafetyProfile, getTcmHerbRiskProfile } from "./tcm-knowledge";
 /**
  * 活动性出血红旗时的治法与用药（第二十三轮，用户要求处理：胎盘早剥被开少腹逐瘀汤，君药延胡索、川芎是活血化瘀药）。
  *
@@ -17,8 +19,27 @@ export const ACTIVE_BLEEDING_M03_RULE =
   "也不推荐以活血化瘀药为君的方；妊娠病例并遵《中医妇科学》「妊娠期间凡峻下、滑利、祛瘀、破血……均应慎用或禁用」。" +
   "辨病辨证照常写，证名可如实写出瘀象，治法与方向按上述原则。";
 
+/**
+ * 本系统按《中药学》（第十版）归为活血化瘀药的饮片（tcm-herb-function-categories.json，开方核对就按这张表拦）。提示词里此前只举了
+ * 十来个例子加「等」，模型按旧版教材把降香当化瘀止血药作君（第二十五轮 C098 肺栓塞咯血丝，整方退成非剂量页）。全表列出；
+ * 管制、有毒、濒危的不点名（它们本来就由医师单独定量，不进系统剂量）。
+ */
+const BLOOD_MOVING_HERBS_FOR_PROMPT = Object.entries((herbCategoriesJson as { categories: Record<string, string[]> }).categories)
+  .filter(([name, categories]) => {
+    if (!categories.includes("活血化瘀药")) return false;
+    if (clinicianDoseHerbClass(name)?.match(/^(?:controlled_or_toxic|endangered_or_banned)$/)) return false;
+    // 有毒、破血逐瘀的不点名，提示里按类写；知识库查不到风险条目的写法（表里的「斑鳌」）也不列。
+    const risk = getTcmHerbRiskProfile(name);
+    return Boolean(risk) && !risk.includes("BLOOD_BREAKING") && getTcmHerbGenerationSafetyProfile(name).toxicity.length === 0;
+  })
+  .map(([name]) => name);
+// 原规则举过的十味照旧放在最前（桃仁带「破血」风险标记，按上面的筛法会被略去）。
+const RULE_EXAMPLES_BEFORE_ROUND_25 = "川芎、丹参、红花、桃仁、延胡索、牛膝、益母草、五灵脂、没药、乳香";
+const BLOOD_MOVING_HERBS_LISTED = [...new Set([...RULE_EXAMPLES_BEFORE_ROUND_25.split("、"), ...BLOOD_MOVING_HERBS_FOR_PROMPT])];
+
 export const ACTIVE_BLEEDING_M04_RULE =
-  "【活动性出血】本例有活动性出血红旗：《中药学》活血化瘀药（川芎、丹参、红花、桃仁、延胡索、牛膝、益母草、五灵脂、没药、乳香等）不得入方，开方核对会拦下；" +
+  "【活动性出血】本例有活动性出血红旗：《中药学》活血化瘀药不得入方，开方核对会拦下；本系统按《中药学》（第十版）归为活血化瘀药的有：" +
+  `${BLOOD_MOVING_HERBS_LISTED.join("、")}，以及破血逐瘀类药（降香、郁金虽有化瘀止血或止血之功，也在此列）；` +
   "治以止血为先（《血证论》「惟以止血为第一要法」），确需化瘀时用化瘀止血药（三七、蒲黄、花蕊石；茜草性寒、功效写「凉血」，只在证属血热时用）。锁定方或教材代表方的君药属活血化瘀药时，去掉这几味、" +
   "candidate.name 写「本例辨证组方」，formulaAnalysis 第一句写明参照哪首方、去了哪几味（活动性出血不宜活血化瘀）。";
 
@@ -32,4 +53,20 @@ export function hemostasisFirstMethod(method: string): string {
   const index = items.findIndex((item) => item.includes("止血"));
   if (index <= 0) return method;
   return [items[index], ...items.filter((_, position) => position !== index)].join("，");
+}
+
+/**
+ * 红旗里的出血只是「需排除」的情况、病历没记载当前出血时（activeBleedingWording = to_exclude），处理照旧（排除之前按出血处理），
+ * 只是措辞写「出血尚未排除」：C068 盆腔炎方义写成「因活动性出血不宜活血化瘀」，评审判病历里没有的出血（2026-10-27）。
+ */
+const TO_EXCLUDE_LEAD = "【出血尚未排除】本例红旗要求排除的出血（如腹腔内、颅内出血）尚未排除，排除之前按出血处理：";
+const TO_EXCLUDE_TAIL = "依据、治法与方义里写「出血尚未排除」，不要写成本例已有活动性出血。";
+export function activeBleedingM03Rule(wording: "recorded" | "to_exclude" = "recorded"): string {
+  if (wording === "recorded") return ACTIVE_BLEEDING_M03_RULE;
+  return ACTIVE_BLEEDING_M03_RULE.replace("【活动性出血】本例有活动性出血红旗：", TO_EXCLUDE_LEAD) + TO_EXCLUDE_TAIL;
+}
+export function activeBleedingM04Rule(wording: "recorded" | "to_exclude" = "recorded"): string {
+  if (wording === "recorded") return ACTIVE_BLEEDING_M04_RULE;
+  return ACTIVE_BLEEDING_M04_RULE.replace("【活动性出血】本例有活动性出血红旗：", TO_EXCLUDE_LEAD)
+    .replace("（活动性出血不宜活血化瘀）", "（出血尚未排除，不宜活血化瘀）") + TO_EXCLUDE_TAIL;
 }
