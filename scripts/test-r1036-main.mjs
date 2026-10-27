@@ -463,11 +463,10 @@ await check("8.18 教材治法栏只锚打头那串治法短语：异位妊娠·
   assert.match(out.therapy.overallMethod, /^益气止血固脱/);
 });
 
-await check("8.19 出血类红旗认红旗本身、不认附在后面的原文引文：「需排除：急性肺栓塞伴休克/低氧血症），原文依据：“…咯血丝”」不算活动性出血（生产探针 C098 因此退成非剂量页）；红旗本身写出血的照算", () => {
-  assert.equal(safety.hasActiveBleedingRedFlag(["现有资料提示需立即急诊评估（需排除：急性肺栓塞伴休克/低氧血症），原文依据：“今天突然胸痛气促，活动后明显，咯血丝”"]), false);
-  assert.equal(safety.hasActiveBleedingRedFlag(["现有资料提示需立即急诊评估（需排除：支气管扩张伴大咯血），原文依据：“今晨咯鲜血约100ml”"]), true);
+await check("8.19 出血类红旗连附在后面的原文引文一起认：疑似肺栓塞「原文依据：“…咯血丝”」照样按活动性出血处理（活血化瘀药不入方）——只认红旗本身时生产探针 C098 开出丹参、川芎、桃仁、红花、牛膝；红旗本身写出血的照算、不写出血也不引出血的不算", () => {
+  assert.equal(safety.hasActiveBleedingRedFlag(["现有资料提示需立即急诊评估（需排除：急性肺栓塞伴休克/低氧血症），原文依据：“今天突然胸痛气促，活动后明显，咯血丝”"]), true);
   assert.equal(safety.hasActiveBleedingRedFlag(["现有资料提示需立即急诊评估（需排除：异位妊娠破裂伴腹腔内出血），原文依据：“停经7周，突发下腹剧痛”"]), true);
-  assert.equal(safety.hasActiveBleedingRedFlag(["当前呕血、咖啡样呕吐物、黑便或便血提示活动性消化道出血风险，需立即评估循环状态并急诊处置"]), true);
+  assert.equal(safety.hasActiveBleedingRedFlag(["现有资料提示需立即急诊评估（需排除：急性肺栓塞伴休克/低氧血症），原文依据：“今天突然胸痛气促”"]), false);
 });
 
 console.log(`r1036-main: ${cases} checks`);

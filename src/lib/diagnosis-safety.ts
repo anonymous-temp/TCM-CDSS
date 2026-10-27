@@ -5213,12 +5213,10 @@ export function febrileChestTightnessDeferralApplies(state: CaseState): boolean 
 // 第二十三轮实测补全：事实层的处置去向写「需排除：…腹腔内出血」「…蛛网膜下腔出血」「…失血性休克」「下消化道活动性出血」，
 // 原先这五个短语一个也认不出（异位妊娠破裂开了乳香、没药，雷击样头痛开了牛膝、益母草）。「出血风险/出血倾向」不是出血。
 const ACTIVE_BLEEDING_RED_FLAG = /活动性[^，。；、]{0,8}出血|消化道[^，。；、（）]{0,8}出血(?!风险|倾向)|重度血小板减少|咯血|呕血|便血|黑便|阴道(?:流|出)血|腹腔内出血|颅内出血|脑出血|蛛网膜下腔出血|失血性休克|出血性休克|大出血/u;
-// 事实层的红旗句后面附「原文依据：“…”」：认的是红旗本身（要排除的情况），不是引文。C098 疑似肺栓塞「需排除：急性肺栓塞伴休克/低氧血症」，
-// 引文里有「咯血丝」，此前整句匹配到「咯血」就当活动性出血，丹参作君药被判人群冲突、整方退成非剂量页（2026-10-27 第二十四轮生产探针；
-// 已存 386 组红旗回放只有这一例的 7 次运行改变）。肺栓塞本身是瘀，《中药学》的禁忌是出血「而无瘀血现象者」。
-const RED_FLAG_QUOTED_EVIDENCE = /[，,；;]?\s*原文依据[:：]\s*“[^”]*”/gu;
+// 事实层红旗句后面附的「原文依据：“…”」一并认：引文是病历记录的当前表现。C098 疑似肺栓塞，引文「咯血丝」——去掉引文只认
+// 红旗本身时，生产探针里模型开出丹参、川芎、桃仁、红花、牛膝（2026-10-27 第二十四轮试过又撤回，见 test:r1036-main 8.19）。
 export function hasActiveBleedingRedFlag(redFlags: readonly string[]): boolean {
-  return redFlags.some((flag) => ACTIVE_BLEEDING_RED_FLAG.test(flag.replace(RED_FLAG_QUOTED_EVIDENCE, "")));
+  return redFlags.some((flag) => ACTIVE_BLEEDING_RED_FLAG.test(flag));
 }
 const activeBleedingTextMemo = new Map<string, boolean>();
 const registeredActiveBleedingTexts = new Map<string, number>();
