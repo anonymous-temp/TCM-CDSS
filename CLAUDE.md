@@ -2368,6 +2368,50 @@ Material: `~/runlogs/r1018/work/r1037/` (`PLAN.md`, `replay/`, `probe/` (`ration
 - **Model judgement seen by the reviews:** 病历10 「排卵障碍相关异常子宫出血」 once (the name check has no AUB-O criteria row); 病历2 酸枣仁 added to 安神定志丸 once; 病历3 辨病依据 without 产后 once; 病历4's rationale cites the tongue but not 脉弦细 (a single missing item does not trigger the rewrite).
 - **The chief-complaint fallback** also fires on narrative chief-complaint fields of public records (「宝宝拉肚子了」「上海市人」: 25 of ~100 S-set outputs) — the rewrite then either fails acceptance or adds the colloquial wording.
 
+### 10/27 round 26: model variance handled by algorithm — follow-up consensus, tongue/pulse after checks, guideline windows (2026-10-27)
+
+The user asked for the remaining gaps on our side to be closed while the customer works through theirs, with the unstable-output items researched online and solved by model/algorithm means rather than added keyword rules. Material: `~/runlogs/r1018/work/r1038/` (`variance.py` field-by-field agreement across repeated generations, `measure-*.sh`, `research/` (`guideline-windows.json` 60 rows with verbatim quotes and URLs, fetched pages, `build-guideline-windows.py`), `probe/reattribute.mjs`, `replay/gate.mjs`, `cp/cp.py`, `out/`, `judge/`). Suite `test:r1038-main`; class fixture `denial-run-stops-at-unassessed-item`.
+
+**Measure the variance first.** Same record, fresh generation (reuse off), old code (85cbf1b), customer 10 × 3 and held-out 32 × 2: disease, syndrome and 治则 identical in 10/10 and 32/32, 兼证 10/10 and 31/32, Western 9/10 and 31/32, formula 9/10 and 28/32. The large one was M02: whether a question is asked at all flipped in 5 of 10 customer cases (6 of 10 over 4 runs: 11/40 proceed — 5 the model's own "nothing to ask", 6 its question removed by the narrow checks or the deterministic finalizer). 治法 differs only in the optional trailing symptom item (利咽止咳 vs 利咽止痛; 7/32), left as is. Research (`research/` summary in the round notes): temperature 0 is not deterministic on hosted APIs (batch invariance; Thinking Machines 2025, Atil et al. 2024); DeepSeek has no `seed`, DashScope's is best effort; self-consistency/Medprompt-style voting helps when the decision is away from 50/50, a 2-of-2 AND rule maps p to p² and is the least stable; omission errors are reduced by required slots and checklist verification, not by a separate extraction step (Asgari et al. 2025); count constraints need generate-verify-patch.
+
+**M02 two-sample consensus** (`sampleQuestionPlanOnce` in `diagnosis-api.ts`, question route; `CDSS_M02_QUESTION_CONSENSUS=false` disables). A second, non-streamed sample of the same system and user prompt (temperature 0.3) starts with the streamed call; each plan goes through the same split / narrow checks / deterministic finalizer, the first plan that keeps a model-written question wins, and `proceed` (or the basic-inquiry fallback) only when neither does. The second sample is awaited at most 4 s after the first plan is reviewed. Telemetry `m02_plan_outcome` (model decision, removals, `consensus: primary|second|none|unavailable`). Customer 10 × 4: flipping cases 6 → 1, proceed 11/40 → 3/40; M02 p50 +0.2 s, p90 +0.7 s. `test:m02-contract` now allows exactly this one extra non-streamed call and pins that it carries the same messages.
+
+**Tongue and pulse in the syndrome rationale** (`m03-rationale-coverage.server.ts`).
+- A recorded tongue or pulse missing from `tcmDiagnosticRationale` triggers the coverage rewrite on its own (`keyFindings` = `recordedTonguePulse`); other findings keep the round-25 threshold. Customer case 4 had left out 脉弦细 in 1 of 3 runs.
+- `reattributeStrandedKeyFindings`, after the element-support withdrawal **and** the patient-claim removals: when a recorded tongue/pulse is left only inside the 「…，是否兼X尚待核实。」 sentence (customer case 3: 舌淡白、脉细弱 moved there with 脾气虚) or is gone entirely (customer case 10: the claim check deleted the clause that cited 脉濡滑), the same small task rewrites once with the constraint; acceptance adds: the pending sentence stays, X does not appear outside it, the key findings are cited outside it.
+
+**Guideline evaluation windows** (`guidelineEvaluationWindow`, `priority-evaluation-windows.source.json` `guidelineWindows`). 55 rows from NICE (NG128, NG127, NG158, NG148, NG98, NG12, NG201, NG126, NG19, NG136, CG95, NG33, CG57), KDIGO via NG148, EULAR, UKKA, Society for Endocrinology, College of Optometrists, RCOphth, ASH, RACS, RCH Melbourne, NHS England — each quote fetched and matched against the saved page. When a model-written 「需排除：X」 names a row, the window is the tighter of the row and the model's (never looser); pathway entries are untouched; guideline "immediately/same day" maps to within_24h (today stays reserved for red-flag clearance under D4). Conditional rows (KDIGO stage, potassium bands, smear-positive TB) match only names that state the condition; Bell's palsy (24 h by one source vs our 48 h pathway) is not in the table — owner decision.
+
+**Deterministic fixes.**
+- A comma denial run stops at an unassessed item (「无皮疹，是否抽搐尚未询问，面色苍白」; round 21 leftover): `isUnassessedEnumerationItem` reuses the unassessed triggers. Gate replay over 20,923 records: 0 changed.
+- Medication frequency (`MEDICATION_FREQUENCY`): 60mg/d, 1片/d, 2次/d, q8h/qn/hs (B013 「硝苯地平控释片60mg/d」 no longer 「缺少剂量/频次」).
+
+**Measured** (local route harness, customer request shape unless noted; base = 85cbf1b clinical code, fin = this round; same day).
+
+| | base | fin |
+|---|---|---|
+| Customer 10 × 3: identical across runs — disease / syndrome / 兼证 / 治则 | 10/10 each | 10/10 each |
+| Customer 10 × 3: Western / formula / M02 ask-or-proceed | 9/10 / 9/10 / 5/10 | 10/10 / 9/10 / 7/10 |
+| M02 proceed rate, the nine customer cases other than 病历1 (pooled over all runs) | 13/63 (21%) | 4/90 (4%) |
+| Held-out 32 × 2: disease / syndrome / 兼证 / Western identical | 32 / 32 / 31 / 31 | 32 / 31 / 31 / 28 (wording granularity, S044 model) |
+| Recorded tongue/pulse not cited outside a pending sentence (c10 + held32) | 5/100 | 0/100 |
+| Medians c10 / held32: question, diagnose, prescribe | 4.1/4.4, 12.0/11.6, 10.9/11.1 s | 4.2/4.4, 11.0/10.6, 9.5/10.0 s |
+| 100-case page set: red flag where expected / none where none / dose where expected / herb-count preference | 28/28 / 48/48 / 38/39 / 70/74 (r25) | 28/28 / 48/48 / 39/39 / 71/75 |
+
+- Gate replay (old vs new, 20,923 records): 6 changed, all `medication_details` no longer raised for per-day dose forms; nothing else.
+- Follow-up windows on the 100-case set: AKI (C034) and sudden deafness (C057) 48 h → 24 h by the guideline table; the rest unchanged or facts-model variance.
+- qwen3.8-max with the 10/17 briefs, both arms judged this round: customer 10 × 3 every column ≤ 1 per run in both arms (base: 中医诊断 1, 病历10 rationale without the pulse — the class fixed here; fin: 西医 1, 病历7 rationale more specific than the exams). Held-out 32 × 2: base every block ≥ 96.6 (煎服法: 滑石 先煎 per ChP, judged 包煎); fin every block ≥ 98.3. One fin 工程用语 fail was the deliver1017 review renderer printing `decisionBranch`; the renderer no longer prints it.
+- 20 counter-proofs in `cp/cp.py`, all caught (one equivalent mutation removed: the pathway skip has no tighter row today).
+
+**In production (6e003af, deployed 2026-10-27 about 20:00 Beijing; tag `20261027-6e003af-prebuilt`, same release directory and `20260927-dsrepair` override).** `verify:release` green; `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 17.4 s, M04 P95 12.1 s). Customer 10 on hospital-b (regenerated): all stages 200, disease/syndrome/formula as the standard answers, 9 of 10 ask a question (病历1, a complete record, proceeds). Probes: B032 (Scr 64→233) 「请在24小时内…（需排除急性肾损伤…）」 (48 h in round 21); B006 24 h; B013 no 「缺少剂量/频次」. Rollback: image `tcm-cdss:20261027-85cbf1b-prebuilt` (or `…31681bf…`) with `docker-compose.yml.pre-6e003af`. Host 11 → 13 GB after removing our 9004dcd/4cca525 images and the 85cbf1b build context (`~/telemetry-archive/cleanup-20261027.txt`); container log before the replacement in `~/telemetry-archive/container-pre-85cbf1b-*.log.gz`. The local prebuild ran from a `/var/tmp` worktree with a copied `node_modules` (/home had 0.8 GB).
+
+**Left as is.**
+- **Herb count** still misses by 1–2 in 4 of 75 preference cases (C032, C062, C096 养心汤 base 13 > 10, C097). Generate-verify-patch needs the M04 repair loop to accept a count trigger; the customer's 8/05 rule forbids server trimming. Not done.
+- **治法 trailing symptom item** varies between runs (7/32); both forms are valid.
+- **C068** (red flag, bleeding to exclude) became a non-dose page in one run: repair-exhausted with a 活血 co-chief — the known repair-exhaustion class.
+- **Bell's palsy window** (24 h per College of Optometrists vs our 48 h pathway) is an owner decision; **delirium named 痴呆** still has no 神昏 section in the corpus; **Bell's palsy stroke flags from the facts model** unchanged.
+- **Decisions still pending from the owner:** HIS `candidateStatus: invalid` with patent/Western medicines; home acupoint care for external/blood-deficiency natures; 病历2 五味安神颗粒.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
