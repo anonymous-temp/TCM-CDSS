@@ -132,6 +132,26 @@ export function allergensFromScreen(present: ReadonlyArray<{ conceptId: string; 
   });
 }
 
+/**
+ * 过敏是「病历写明的」还是「按本次进食后的反应读出的疑似」：引文里有过敏陈述词（过敏、不耐受、sIgE…，同 recordCues）算写明，
+ * 否则是读病历小任务按「进食后出现风团」读出的。两种写给患者的话不同——疑似的不能说「病历记录您对X过敏」
+ * （2026-10-27 第二十四轮留出集 S128：进食海鲜后风团，过敏史「否认食物过敏史」，注意事项却写「病历记录您对海鲜过敏」）。
+ * 两种都照样是硬约束（饮食、食疗、饮片、中成药都避开）。
+ */
+export function allergenStatedInRecord(allergen: Pick<RecordedAllergen, "quote">): boolean {
+  return DATA.recordCues.some((cue) => allergen.quote.includes(cue));
+}
+
+/** 「病历记录您对A过敏或不耐受；本次进食B后发病，可能对B过敏」——前后两半按 allergenStatedInRecord 分。 */
+export function allergenRecordPhrase(allergens: ReadonlyArray<RecordedAllergen>, label: (entry: RecordedAllergen) => string): string {
+  const stated = allergens.filter(allergenStatedInRecord).map(label);
+  const suspected = allergens.filter((entry) => !allergenStatedInRecord(entry)).map(label);
+  return [
+    stated.length > 0 ? `病历记录您对${stated.join("、")}过敏或不耐受` : "",
+    suspected.length > 0 ? `本次进食${suspected.join("、")}后发病，可能对${suspected.join("、")}过敏` : "",
+  ].filter(Boolean).join("；");
+}
+
 export function mergeRecordedAllergens(...lists: ReadonlyArray<ReadonlyArray<RecordedAllergen>>): RecordedAllergen[] {
   const merged = new Map<string, RecordedAllergen>();
   for (const item of lists.flat()) {

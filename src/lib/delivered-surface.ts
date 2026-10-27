@@ -40,7 +40,7 @@ import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
 import { withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
 import { assessPregnancyState } from "./clinical-state";
-import { allergenAvoidPhrase, allergenHerbMatch, allergenMatchesInText } from "./allergen-profile";
+import { allergenAvoidPhrase, allergenHerbMatch, allergenMatchesInText, allergenRecordPhrase } from "./allergen-profile";
 import { priorityEvaluationFirstStep, priorityEvaluationFollowUpNode, quoteWithoutDeniedLeadingItems, type DoseWithheldFollowupKind, type PriorityEvaluationTarget } from "./diagnosis-safety";
 
 /**
@@ -244,8 +244,8 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
   }
   if (item.kind === "drug_allergy") return `病历记录有药物过敏（${item.phrases.join("；")}），请勿再用该药及同类药物；就诊开药或自行购药时，请主动告诉医生和药师。`;
   if (item.kind === "food_allergy") {
-    const labels = item.classes.map((entry) => entry.labelZh.replace(/（[^）]*）/u, "")).join("、");
-    return `病历记录您对${labels}过敏或不耐受，饮食、食疗和用药请避开${allergenAvoidPhrase(item.classes.map((entry) => entry.classId))}；服药后如出现皮疹、瘙痒、口唇肿胀或呼吸不畅，请停药并立即就医。`;
+    const recorded = allergenRecordPhrase(item.classes, (entry) => entry.labelZh.replace(/（[^）]*）/u, ""));
+    return `${recorded}，饮食、食疗和用药请避开${allergenAvoidPhrase(item.classes.map((entry) => entry.classId))}；服药后如出现皮疹、瘙痒、口唇肿胀或呼吸不畅，请停药并立即就医。`;
   }
   if (item.kind === "gout_diet") return "痛风需低嘌呤饮食：少吃海鲜、动物内脏和浓肉汤，戒酒（尤其啤酒），每天多饮水。";
   if (item.kind === "trigger_foods") return `本次发病与进食${item.foods.join("、")}有关，服药期间及以后请避免${item.foods.join("、")}。`;

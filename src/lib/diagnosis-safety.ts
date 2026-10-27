@@ -5213,8 +5213,12 @@ export function febrileChestTightnessDeferralApplies(state: CaseState): boolean 
 // 第二十三轮实测补全：事实层的处置去向写「需排除：…腹腔内出血」「…蛛网膜下腔出血」「…失血性休克」「下消化道活动性出血」，
 // 原先这五个短语一个也认不出（异位妊娠破裂开了乳香、没药，雷击样头痛开了牛膝、益母草）。「出血风险/出血倾向」不是出血。
 const ACTIVE_BLEEDING_RED_FLAG = /活动性[^，。；、]{0,8}出血|消化道[^，。；、（）]{0,8}出血(?!风险|倾向)|重度血小板减少|咯血|呕血|便血|黑便|阴道(?:流|出)血|腹腔内出血|颅内出血|脑出血|蛛网膜下腔出血|失血性休克|出血性休克|大出血/u;
+// 事实层的红旗句后面附「原文依据：“…”」：认的是红旗本身（要排除的情况），不是引文。C098 疑似肺栓塞「需排除：急性肺栓塞伴休克/低氧血症」，
+// 引文里有「咯血丝」，此前整句匹配到「咯血」就当活动性出血，丹参作君药被判人群冲突、整方退成非剂量页（2026-10-27 第二十四轮生产探针；
+// 已存 386 组红旗回放只有这一例的 7 次运行改变）。肺栓塞本身是瘀，《中药学》的禁忌是出血「而无瘀血现象者」。
+const RED_FLAG_QUOTED_EVIDENCE = /[，,；;]?\s*原文依据[:：]\s*“[^”]*”/gu;
 export function hasActiveBleedingRedFlag(redFlags: readonly string[]): boolean {
-  return redFlags.some((flag) => ACTIVE_BLEEDING_RED_FLAG.test(flag));
+  return redFlags.some((flag) => ACTIVE_BLEEDING_RED_FLAG.test(flag.replace(RED_FLAG_QUOTED_EVIDENCE, "")));
 }
 const activeBleedingTextMemo = new Map<string, boolean>();
 const registeredActiveBleedingTexts = new Map<string, number>();
@@ -6734,17 +6738,38 @@ export function priorityEvaluationFollowupTarget(state: CaseState): PriorityEval
   return rank(gateTarget.window) <= rank(restriction.window) ? gateTarget : restriction;
 }
 
+/**
+ * 「（需排除：X）」里的 X。X 自带括号时取到与外层左括号配对的右括号为止：按第一个「）」截，会把
+ * 「异常子宫出血（需排除子宫内膜病变、凝血功能障碍或内分泌疾病）」截成缺右括号的半句，复诊计划就成了
+ * 「先完成评估（需排除异常子宫出血（需排除子宫内膜病变…），再按…」（2026-10-27 第二十四轮生产探针，甲方测评病历 10）。
+ */
+export function exclusionFocusIn(text: string): string | undefined {
+  const lead = "需排除：";
+  const start = text.indexOf(lead);
+  if (start < 0) return undefined;
+  let depth = 0;
+  for (let index = start + lead.length; index < text.length; index += 1) {
+    const ch = text[index];
+    if (ch === "（" || ch === "(") depth += 1;
+    else if (ch === "）" || ch === ")") {
+      if (depth === 0) return text.slice(start + lead.length, index).trim() || undefined;
+      depth -= 1;
+    }
+  }
+  return text.slice(start + lead.length).trim() || undefined;
+}
+
 function gatePriorityEvaluationTarget(state: CaseState, gate: SafetyGate): PriorityEvaluationTarget | undefined {
   const item = (gate.missingItems || []).find((entry) => entry.includes("优先完成临床评估"));
   if (!item) return undefined;
-  const focus = item.match(/需排除：(.+?)）；处方前/u)?.[1]?.trim() || "";
+  const focus = exclusionFocusIn(item) || "";
   const defaultWindow = priorityEvaluationWindowTable.defaultWindow as PriorityEvaluationWindowId;
   const rank = (window: FollowupWindowId) => FOLLOWUP_WINDOW_ORDER.indexOf(window);
   const entries = collectPriorityEvaluationEntries(state, trustedInputText(state));
   if (entries.length === 0) return { focus, window: defaultWindow };
   const most = entries.reduce((best, next) => rank(next.window || defaultWindow) < rank(best.window || defaultWindow) ? next : best);
   return {
-    focus: most.focus ?? (most.text.match(/需排除：(.+?)）/u)?.[1]?.trim() || focus),
+    focus: most.focus ?? (exclusionFocusIn(most.text) || focus),
     window: most.window || defaultWindow,
     ...(most.pathway ? { pathway: most.pathway } : {}),
   };
@@ -8117,7 +8142,7 @@ function withoutExclusionAlreadyInVisit(visit: string, text: string): string {
 
 function focusWithoutNestedExclusion(focus: string | undefined): string {
   const text = String(focus || "").trim();
-  const inner = text.match(/[（(](?:需)?(?:排除|除外)([^（）()]+)[）)]/u)?.[1];
+  const inner = text.match(/[（(](?:需)?(?:排除|除外)([^（）()]+)(?:[）)]|$)/u)?.[1];
   if (inner) return inner.trim();
   return text.replace(/[（(][^（）()]*[）)]/gu, "").trim();
 }

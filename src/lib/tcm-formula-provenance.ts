@@ -1308,6 +1308,37 @@ type TextbookConditionalBranch = { condition: string; method: string; formula?: 
  * 教材按阴阳/气血偏颇分列治法与代表方的一行（「偏肾阴虚者，宜滋阴益肾；偏阳虚者，宜温肾固摄」「偏肾阴虚者，用知柏地黄丸；
  * 偏肾阳虚者，用鹿茸补涩丸」，《中医内科学》尿浊·肾虚不固证）。治法句的每一段都是「偏…者…」时才算；方名按段对上。
  */
+/**
+ * 教材治法栏能直接锚进「治法」的部分：一串治法短语（「辛温解表，宣肺散寒」）。教材有的格子后面接着讲处置或分情况
+ * （异位妊娠·气血亏脱证「益气止血固脱。此证为腹腔内出血所致，首应及时手术止血治疗。术后再辅以益气养血，活血化瘀治疗」），
+ * 整格照抄后治法栏成了一段叙述，活动性出血的病例还写进了「活血化瘀」（2026-10-27 第二十四轮生产探针 A-eme-0028/0342、
+ * 本机同样）。规则：只取第一句里打头的那串治法短语；第一句本身是分情况写的（「者」不在最后一项）、或后面某句另是一串治法
+ * （「辛温解表，宣肺化痰；辛凉解表，清肺化痰」是二选一）时不锚定，保留模型写的治法。「偏X者…；偏Y者…」由
+ * textbookConditionalBranches 另行按病性选段，不走这里。
+ */
+const TEXTBOOK_METHOD_ITEM_MAX = 8;
+function textbookMethodItem(item: string): boolean {
+  if (/^以/u.test(item)) return item.length <= 5;
+  return item.length <= TEXTBOOK_METHOD_ITEM_MAX && !/[者宜当如或等先再]|治疗|手术/u.test(item);
+}
+function textbookMethodItems(sentence: string): string[] {
+  return sentence.split(/[，,、]/u).map((item) => item.trim()).filter(Boolean);
+}
+export function textbookAnchorableMethod(therapy: string): string {
+  const body = String(therapy || "").trim().replace(/[。；;]+$/u, "");
+  const sentences = body.split(/[。；;]/u).map((part) => part.trim()).filter(Boolean);
+  if (sentences.length === 0) return "";
+  if (sentences.slice(1).some((sentence) => textbookMethodItems(sentence).every(textbookMethodItem))) return "";
+  const items = textbookMethodItems(sentences[0]);
+  if (items.slice(0, -1).some((item) => item.includes("者"))) return "";
+  const kept: string[] = [];
+  for (const item of items) {
+    if (!textbookMethodItem(item)) break;
+    kept.push(item);
+  }
+  return kept.length === items.length && sentences.length === 1 ? body : kept.join("，");
+}
+
 function textbookConditionalBranches(row: { therapy: string; formulaText?: string; formulas: string[] }): TextbookConditionalBranch[] | undefined {
   const parse = (text: string, lead: RegExp) => String(text || "").split(/[；;。]/u).map((part) => part.trim()).filter(Boolean)
     .map((part) => {
@@ -1593,7 +1624,7 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     const conditionalBranches = textbookRow ? textbookConditionalBranches(textbookRow) : undefined;
     const rowMethod = conditionalBranches
       ? signedConditionalBranch(reasoning, conditionalBranches)?.method || ""
-      : textbookRow?.therapy.replace(/[。；;]+$/g, "") || "";
+      : textbookRow ? textbookAnchorableMethod(textbookRow.therapy) : "";
     // 教材治法按这一证的典型表现写（内痔·湿热下注证「清热利湿止血」、乳岩·气血两亏证「补益气血，宁心安神」）：本例病历没有
     // 对应表现、甚至写明「无便血」「神志清楚」时，那一项不锚定，其余照用；整行都去掉时不锚定，保留模型写的治法（2026-10-19，
     // Claude 评审验收主集 M 治则治法栏）。接上的模型那一句（withSymptomDirectedClause）同一口径核对——前一轮未核对时锚进去的

@@ -14,7 +14,7 @@ import { catalogSharedComposition } from "./tcm-formula-provenance";
 import { getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
 import { dietRestrictionForSyndromeText, recordedTriggerFoods } from "./tcm-therapy-phrasing";
 import { discontinuedMedicationLabel, type RequiredPrecaution } from "./required-precautions";
-import { allergenAvoidPhrase, allergensFromScreen, mergeRecordedAllergens, recordedAllergensInText } from "./allergen-profile";
+import { allergenAvoidPhrase, allergenStatedInRecord, allergensFromScreen, mergeRecordedAllergens, recordedAllergensInText } from "./allergen-profile";
 
 export type { RequiredPrecaution } from "./required-precautions";
 
@@ -299,7 +299,13 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "drug_allergy") return `${order}病历记录有药物过敏（${item.phrases.join("；")}）：写明请勿再用该药及同类药物，就诊开药或自行购药时主动告诉医生和药师；推荐的中成药、西药不得含该药或同类药。`;
     if (item.kind === "food_allergy") {
       const labels = item.classes.map((entry) => entry.labelZh).join("、");
-      return `${order}病历记录对${labels}过敏或不耐受（${item.classes.map((entry) => `「${entry.quote}」`).join("；")}）：这是硬约束——饮食建议、食疗方不得推荐含${labels}的食物，处方、加减和中成药不得含${labels}来源的药材或成份（如鸡子黄、蜜炙饮片、淡豆豉）；注意事项写明请避开${allergenAvoidPhrase(item.classes.map((entry) => entry.classId))}，出现皮疹、瘙痒、口唇肿胀或呼吸不畅立即就医。`;
+      const stated = item.classes.filter(allergenStatedInRecord);
+      const suspected = item.classes.filter((entry) => !allergenStatedInRecord(entry));
+      const recorded = [
+        stated.length > 0 ? `病历记录对${stated.map((entry) => entry.labelZh).join("、")}过敏或不耐受（${stated.map((entry) => `「${entry.quote}」`).join("；")}）` : "",
+        suspected.length > 0 ? `本次进食${suspected.map((entry) => entry.labelZh).join("、")}后发病（${suspected.map((entry) => `「${entry.quote}」`).join("；")}），疑似过敏，病历未写明过敏史——写给患者时说「可能过敏」，不要说「病历记录您对…过敏」` : "",
+      ].filter(Boolean).join("；");
+      return `${order}${recorded}：这是硬约束——饮食建议、食疗方不得推荐含${labels}的食物，处方、加减和中成药不得含${labels}来源的药材或成份（如鸡子黄、蜜炙饮片、淡豆豉）；注意事项写明请避开${allergenAvoidPhrase(item.classes.map((entry) => entry.classId))}，出现皮疹、瘙痒、口唇肿胀或呼吸不畅立即就医。`;
     }
     return `${order}${item.disease}是细菌感染：写明须到医院由医生决定抗菌药物治疗，以及寒战高热、红肿迅速扩大等须立即就医的表现。`;
   });

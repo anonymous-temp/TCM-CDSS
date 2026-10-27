@@ -410,4 +410,64 @@ await check("8.15 方义：「去/易/不用」管到顿号连着的整串药名
   assert.match(afterForeign, /以三七、蒲黄为君/, "被删外来药分句之后点了本方药的分句留下");
 });
 
+await check("8.16 过敏一条：病历写明的说「病历记录您对X过敏」，读病历按「进食后发病」读出的说「可能对X过敏」（留出集 S128：海鲜后风团、过敏史「否认食物过敏史」）；两种都照样避开、M04 提示同一分法", async () => {
+  const allergen = await jiti.import("../src/lib/allergen-profile.ts");
+  const required = await jiti.import("../src/lib/required-precautions.server.ts");
+  const stated = { classId: "egg", labelZh: "蛋类", kind: "allergy", quote: "鸡蛋过敏" };
+  const suspected = { classId: "seafood", labelZh: "海鲜", kind: "allergy", quote: "进食大量海鲜并饮啤酒后，夜间全身出现大片红色风团" };
+  const prescribe = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{ name: "四君子汤加减", herbs: [], decoction: { doseCount: "7剂", course: "7日", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日1剂，水煎分2次温服", followUpNode: "完成7剂（7日）后复诊", followUpAfterDoses: 7, followUpAfterDays: 7 } }], patentAndWestern: [] },
+    nonPharma: { diet: "宜清淡。", precautions: [], tcmTreatments: [] }, management: { followupSafetyNet: "请服完7剂药后（约7天后）复诊。" } };
+  const line = (classes) => (surface.projectDeliveredReasoning(prescribe, { requiredPrecautions: [{ kind: "food_allergy", classes }] }).nonPharma.precautions.find((entry) => /过敏/.test(entry)) || "");
+  const onlySuspected = line([suspected]);
+  assert.ok(!onlySuspected.includes("病历记录"), onlySuspected);
+  assert.match(onlySuspected, /可能对海鲜过敏.*请避开海鲜/);
+  assert.match(line([stated]), /^病历记录您对蛋类过敏或不耐受/);
+  const both = line([stated, suspected]);
+  assert.match(both, /病历记录您对蛋类过敏或不耐受；本次进食海鲜后发病，可能对海鲜过敏/);
+  const prompt = required.requiredPrecautionsPromptSection([{ kind: "food_allergy", classes: [suspected] }]);
+  assert.ok(!/病历记录对海鲜过敏/.test(prompt) && /疑似过敏/.test(prompt) && /这是硬约束/.test(prompt), prompt);
+  assert.equal(allergen.allergenStatedInRecord({ quote: "吃虾后起风团" }), false);
+  assert.equal(allergen.allergenStatedInRecord({ quote: "过敏史：海鲜过敏" }), true);
+});
+
+await check("8.17 复诊第一句：待排除项自带括号（「异常子宫出血（需排除子宫内膜病变…）」）时按配对括号取，不截成半句、不套两层括号（生产探针甲方测评病历 10：「先完成评估（需排除异常子宫出血（需排除…），再按…」）", async () => {
+  const types = await jiti.import("../src/lib/diagnosis-types.ts");
+  const raw = "患者信息：性别女，年龄32岁\n主诉：月经提前1周、量多3个月\n现病史：月经先期，量多色紫红质稠，夹血块，心烦易怒，口苦\n舌象：舌红，苔黄\n脉象：脉滑";
+  const state = types.normalizeCaseStateInput({ id: "r1036-817", phase: "collect", patient: { sex: "女", age: 32 }, chiefComplaint: "月经提前1周、量多3个月",
+    symptoms: { presentHistory: "月经先期，量多色紫红质稠，夹血块，心烦易怒，口苦" }, questionRounds: 0, maxQuestionRounds: 1, conversation: [{ role: "user", content: raw }], tongue: "舌红，苔黄", pulse: "脉滑" });
+  const facts = { semanticStatus: "checked", reviewStatus: "single_pass", redFlags: [],
+    disposition: { setting: "urgent_specialist", mustNotMiss: [{ condition: "异常子宫出血（需排除子宫内膜病变、凝血功能障碍或内分泌疾病）", plausibility: "likely", evidenceQuotes: ["量多色紫红质稠"], timeWindow: "within_2w" }] } };
+  const target = safety.priorityEvaluationFollowupTarget({ ...state, clinicalFacts: facts });
+  assert.equal(target?.focus, "异常子宫出血（需排除子宫内膜病变、凝血功能障碍或内分泌疾病）", "按配对括号取全");
+  const text = safety.priorityEvaluationFirstStep(target, { doses: 7, days: 7 });
+  assert.equal(text, "请在2周内到相关专科就诊，先完成评估（需排除子宫内膜病变、凝血功能障碍或内分泌疾病）；医生确认可以服药后，服完7剂药（约7天后）再复诊。");
+  assert.equal(safety.exclusionFocusIn("宜24小时内…（需排除：病毒性心肌炎、肺炎）；处方前需完成评估"), "病毒性心肌炎、肺炎");
+  // 已被截断的半句（缺右括号）也不套两层括号。
+  assert.doesNotMatch(safety.priorityEvaluationFirstStep({ focus: "异常子宫出血（需排除子宫内膜病变、凝血功能障碍或内分泌疾病", window: "within_2w" }), /（需排除[^）]*（/);
+});
+
+await check("8.18 教材治法栏只锚打头那串治法短语：异位妊娠·气血亏脱证不再把「此证为腹腔内出血所致…术后再辅以…活血化瘀治疗」整段抄进治法（生产探针 A-eme-0028/0342）；二选一、分情况写的格子不锚定；普通格子逐字照旧", () => {
+  assert.equal(provenance.textbookAnchorableMethod("益气止血固脱。此证为腹腔内出血所致，首应及时手术止血治疗。术后再辅以益气养血，活血化瘀治疗"), "益气止血固脱");
+  assert.equal(provenance.textbookAnchorableMethod("辛温解表，宣肺化痰；辛凉解表，清肺化痰"), "");
+  assert.equal(provenance.textbookAnchorableMethod("实证当清热利湿，凉血止血。虚证宜滋补肾阴，清热止血"), "");
+  assert.equal(provenance.textbookAnchorableMethod("阳明腑实，阴液亏虚者，治宜攻下腑实，滋阴增液。阳明腑实，气液两虚者，治宜攻下腑实，补益气阴"), "");
+  assert.equal(provenance.textbookAnchorableMethod("健脾化湿，清热解毒，以增强机体抵抗力、延缓癌变过程等"), "健脾化湿，清热解毒");
+  for (const plain of ["辛温解表，宣肺散寒", "温脾补肾，以化水饮", "活血化瘀，和络止痛。"]) assert.equal(provenance.textbookAnchorableMethod(plain), plain.replace(/。$/, ""));
+  const ectopic = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { tcmDiseaseName: "异位妊娠", primarySyndrome: "气血亏脱证", primarySyndromeResolution: "bounded", recommendedFormulaDirection: "四物汤加减" },
+    therapy: { overallPrinciple: "急则治标", overallMethod: "益气固脱，止血", subTherapies: [] },
+    pathogenesis: { chain: [], locationDifferentiation: { items: ["胞宫"] } } };
+  const out = provenance.withDeterministicFormulaReferences(ectopic, BLEEDING, undefined, { activeBleeding: true, barredHerb: (herb) => contract.herbBarredForCase(herb, BLEEDING) });
+  assert.doesNotMatch(out.therapy.overallMethod, /此证为|手术|活血化瘀/, out.therapy.overallMethod);
+  assert.match(out.therapy.overallMethod, /^益气止血固脱/);
+});
+
+await check("8.19 出血类红旗认红旗本身、不认附在后面的原文引文：「需排除：急性肺栓塞伴休克/低氧血症），原文依据：“…咯血丝”」不算活动性出血（生产探针 C098 因此退成非剂量页）；红旗本身写出血的照算", () => {
+  assert.equal(safety.hasActiveBleedingRedFlag(["现有资料提示需立即急诊评估（需排除：急性肺栓塞伴休克/低氧血症），原文依据：“今天突然胸痛气促，活动后明显，咯血丝”"]), false);
+  assert.equal(safety.hasActiveBleedingRedFlag(["现有资料提示需立即急诊评估（需排除：支气管扩张伴大咯血），原文依据：“今晨咯鲜血约100ml”"]), true);
+  assert.equal(safety.hasActiveBleedingRedFlag(["现有资料提示需立即急诊评估（需排除：异位妊娠破裂伴腹腔内出血），原文依据：“停经7周，突发下腹剧痛”"]), true);
+  assert.equal(safety.hasActiveBleedingRedFlag(["当前呕血、咖啡样呕吐物、黑便或便血提示活动性消化道出血风险，需立即评估循环状态并急诊处置"]), true);
+});
+
 console.log(`r1036-main: ${cases} checks`);
