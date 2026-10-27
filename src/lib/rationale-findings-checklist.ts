@@ -38,6 +38,32 @@ export function rationaleFindingsChecklist(state: CaseState, maxItems = 12): str
   return terms;
 }
 
+/**
+ * 主诉里的主症：事实层「明确存在」、引文在病历原文里、且词条出现在主诉中的表现（清单为免重复正好把它们去掉了）。
+ * 2026-10-27：甲方病历 10 有一次依据只讲经量、经色，没讲主症「月经周期缩短」，评审按甲方 10.12「不能遗漏主症」判不通过。
+ * 取事实层词条而不是直接切主诉：真实病历的主诉栏常写成姓名、日期、病名清单（「杨立，男，12岁…」「1990年10月经初潮」）。
+ * 词条换了说法也算（病历 10 主诉「月经周期缩短」，事实层记「月经周期提前」：两者有三个字连着相同）。
+ */
+function sharesThreeCharacterRun(chief: string, term: string): boolean {
+  for (let at = 0; at + 3 <= term.length; at += 1) if (chief.includes(term.slice(at, at + 3))) return true;
+  return false;
+}
+
+export function chiefComplaintFindings(state: CaseState, maxItems = 4): string[] {
+  const source = clinicalGroundingText(state);
+  const chief = String(state.chiefComplaint || "").normalize("NFKC");
+  const terms: string[] = [];
+  for (const item of state.clinicalFacts?.affirmedSymptoms || []) {
+    const term = String(item?.term || "").trim();
+    const quote = String(item?.quote || "").trim();
+    if (term.length < 2 || !quote || !source.includes(quote) || !(chief.includes(term) || sharesThreeCharacterRun(chief, term))) continue;
+    if (terms.some((existing) => existing.includes(term) || term.includes(existing))) continue;
+    terms.push(term);
+    if (terms.length >= maxItems) break;
+  }
+  return terms;
+}
+
 export function rationaleFindingsChecklistNotice(state: CaseState): string {
   const terms = rationaleFindingsChecklist(state);
   if (terms.length < 2) return "";

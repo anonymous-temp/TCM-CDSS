@@ -240,8 +240,40 @@ await check("6.4 外来证名只看「…证」片段里的证名本身：「无
   assert.deepEqual(coverage.foreignSyndromeNames("吐泻交作，故属脾肾阳虚之兼证。", input), ["脾肾阳虚证"], "「X之兼证」取 X");
   assert.deepEqual(coverage.foreignSyndromeNames("头晕心悸，属兼证痰浊阻肺证之象；咽部堵塞感为痰气郁结于咽的主证表现。", input), []);
   assert.deepEqual(coverage.foreignSyndromeNames("吐泻交作，故属脾肾阳虚兼证。", input), ["脾肾阳虚证"]);
+  // 病名接「证」、病历原话接「证」、「支持本证」「不列证」不算外来证名。
+  assert.deepEqual(coverage.foreignSyndromeNames("心悸阵作属心悸证范畴；舌红支持本证，不列证。", { ...input, disease: "心悸" }), []);
+  assert.deepEqual(coverage.foreignSyndromeNames("心悸阵作属心悸证范畴。", input), ["心悸证"], "病名不在时照算");
   assert.equal(coverage.syndromeNameInSpan("以下按常规辨证"), undefined);
   assert.equal(coverage.syndromeNameInSpan("故属阳虚水泛主证"), "阳虚水泛证");
+});
+
+await check("6.5 主诉里的主症：事实层词条出现在主诉里，或与主诉有三个字连着相同（病历 10「月经周期缩短」对事实层「月经周期提前」）；主诉栏是姓名、病名清单时不取", async () => {
+  const checklist = await jiti.import("../src/lib/rationale-findings-checklist.ts");
+  const types = await jiti.import("../src/lib/diagnosis-types.ts");
+  const state = types.normalizeCaseStateInput({ chiefComplaint: "月经周期缩短半年余，加重1月", patient: { sex: "女", age: 35 }, symptoms: { 现病史: "月经周期提前至二十二天即来潮，经量较前明显增多，心烦易怒。" } });
+  state.clinicalFacts = { affirmedSymptoms: [{ term: "月经周期提前", quote: "月经周期提前至二十二天即来潮" }, { term: "经量增多", quote: "经量较前明显增多" }, { term: "心烦易怒", quote: "心烦易怒" }] };
+  assert.deepEqual(checklist.chiefComplaintFindings(state), ["月经周期提前"]);
+  const named = types.normalizeCaseStateInput({ chiefComplaint: "杨立，男，12岁，因活动后头晕、乏力就诊", patient: { sex: "男", age: 12 }, symptoms: { 现病史: "活动后头晕、乏力5年。" } });
+  named.clinicalFacts = { affirmedSymptoms: [{ term: "头晕", quote: "头晕" }, { term: "乏力", quote: "乏力" }] };
+  assert.deepEqual(checklist.chiefComplaintFindings(named), ["头晕", "乏力"]);
+});
+
+await check("6.6 依据没讲到主症时单凭这一项也重写，主症排在漏项最前；主症换了写法（「胃痛」与「胃脘胀痛」、「多汗」与「汗多」）算讲到，不发请求", async () => {
+  const half = (rationale) => JSON.stringify({ overview: { tcmDiseaseName: "月经先期", primarySyndrome: "阳盛血热证", secondarySyndromes: [], tcmDiagnosticRationale: rationale } });
+  const original = "经量多、色紫红质稠、血块多，为热灼血分、迫血妄行，故属阳盛血热证；心烦易怒为肝郁化火。";
+  const rewritten = "月经周期提前、经量多、色紫红质稠、血块多，为热扰冲任、迫血妄行，故属阳盛血热证；心烦易怒为肝郁化火、扰动冲任。";
+  await withStubModel(() => JSON.stringify({ rationale: rewritten }), async (bodies) => {
+    const out = JSON.parse(await coverage.completeRationaleCoverage(half(original), { recordText: "月经周期缩短半年余", findings: ["经量增多", "心烦易怒", "色紫红", "血块增多"], chiefFindings: ["月经周期提前"] }));
+    assert.equal(out.overview.tcmDiagnosticRationale, rewritten);
+    assert.equal(bodies.length, 1, "清单其余四项都讲到了，只漏主症也要重写");
+    assert.match(bodies[0].messages[1].content, /原依据漏了：月经周期提前）/);
+  });
+  await withStubModel(() => "{}", async (bodies) => {
+    await coverage.completeRationaleCoverage(half("胃脘胀痛、得嗳气则舒，为肝气犯胃，故属肝气犯胃证；动则汗多为气虚。"), { recordText: "胃痛半月", findings: ["嗳气"], chiefFindings: ["胃痛", "多汗"] });
+    assert.equal(bodies.length, 0);
+  });
+  assert.equal(coverage.rationaleMentionsChiefSymptom("右下牙持续性胀痛", "牙痛"), true);
+  assert.equal(coverage.rationaleMentionsChiefSymptom("经量多、色紫红", "月经周期提前"), false);
 });
 
 // ---------- 7 居家穴位保健 ----------

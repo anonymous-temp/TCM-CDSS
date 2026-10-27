@@ -2,7 +2,7 @@ import { prefetchDiagnoseInputs, prefetchPrescribeInputsFromSignedDiagnose, tapF
 import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
 import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
-import { rationaleFindingsChecklist, rationaleFindingsChecklistNotice } from "@/lib/rationale-findings-checklist";
+import { chiefComplaintFindings, rationaleFindingsChecklist, rationaleFindingsChecklistNotice } from "@/lib/rationale-findings-checklist";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
 import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars, promptSectionHeaders } from "@/lib/prompt-budget";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
@@ -310,7 +310,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
             const finishTcmHalf = async (content: string) => {
               // 辨证依据漏讲已记录表现时先按病历重写这一段（m03-rationale-coverage.server.ts，只在漏两项以上时发请求），
               // 后面的兼证、证素、本例说法核对都在重写稿上做。
-              const covered = await completeRationaleCoverage(content, { recordText: patientClaimRecord, findings: rationaleFindingsChecklist(safeState) }, transformSignal);
+              const covered = await completeRationaleCoverage(content, { recordText: patientClaimRecord, findings: rationaleFindingsChecklist(safeState), chiefFindings: chiefComplaintFindings(safeState) }, transformSignal);
               const completed = await completeTcmDiseaseDifferentials(covered, differentialTopUpContext, transformSignal);
               const [reconciled, claimRemovals, elementDecision] = await Promise.all([
                 reconcileSecondarySyndromes(completed, { recordText: trustedInputText(safeState) }, transformSignal),

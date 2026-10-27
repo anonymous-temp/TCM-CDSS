@@ -51,6 +51,28 @@ export function missingRationaleFindings(rationale: string, findings: readonly s
   return findings.filter((finding) => !rationaleMentionsFinding(rationale, finding));
 }
 
+/**
+ * 依据有没有讲到主症（2026-10-27：甲方病历 10 有一次依据只讲经量、经色，没讲主症「月经周期缩短」，评审按甲方 10.12「不能遗漏主症」
+ * 判不通过）。主症里任意两个字按先后在依据里相距不超过 6 个字（「胃痛」与「胃脘胀痛」、「牙痛」与「牙持续性胀痛」），
+ * 或两个字倒过来紧挨着（「多汗」与「汗多」）。只在一个字也对不上时才算漏讲（病历 10「月经周期缩短」对「经量多、色紫红」）。
+ */
+export function rationaleMentionsChiefSymptom(rationale: string, phrase: string): boolean {
+  const body = compact(rationale);
+  const term = compact(phrase);
+  if (term.length < 2) return true;
+  for (let first = 0; first < term.length - 1; first += 1) {
+    for (let second = first + 1; second < term.length; second += 1) {
+      if (term[first] === term[second]) continue;
+      if (body.includes(`${term[second]}${term[first]}`)) return true;
+      for (let at = body.indexOf(term[first]); at >= 0; at = body.indexOf(term[first], at + 1)) {
+        const next = body.indexOf(term[second], at + 1);
+        if (next > at && next - at <= 6) return true;
+      }
+    }
+  }
+  return false;
+}
+
 /** 漏了两项以上（清单只有两三项时漏一项）才重写。 */
 export function rationaleNeedsCoverageRewrite(missing: readonly string[], findings: readonly string[]): boolean {
   return missing.length >= 2 || (missing.length >= 1 && findings.length <= 3);
@@ -68,7 +90,8 @@ const SYNDROME_SPAN_CONNECTOR = /[属为是系乃之的于即故示与及或立�
 /**
  * 「…证」片段里真正的证名（2026-10-27：重写稿 19 份里 16 份被「无兼证」「以下按常规辨证」「可佐证」「属湿热中阻之主证」
  * 「属痰浊阻肺兼证」这类片段判成了外来证名）。「X之证」「X的主证」取 X；其余去掉证字前的「主/兼」；再从最后一个连接字之后取。
- * 只剩一个字（他证、主证）、以「无/非/另…」起头（另无兼证）或以「佐/印/论」结尾（佐证、印证）的是说法不是证名，返回 undefined。
+ * 只剩一个字（他证、主证）、以「无/非/另…」「不列/不立」起头（另无兼证、不列证）或以「佐/印/论/本/此」结尾（佐证、支持本证）的
+ * 是说法不是证名，返回 undefined。
  */
 export function syndromeNameInSpan(span: string): string | undefined {
   const possessive = /^(.*)[之的][主兼]?证$/u.exec(span);
@@ -77,14 +100,15 @@ export function syndromeNameInSpan(span: string): string | undefined {
   for (const match of head.matchAll(SYNDROME_SPAN_CONNECTOR)) cut = (match.index ?? 0) + 1;
   const core = head.slice(cut);
   // 以「无/非/未/另/他/本/此/该」起头的是「另无兼证」「本证」这类说法；证名里的「不」（脾不统血、心肾不交）不能当否定词。
-  if (core.length < 2 || /[佐印论]$/u.test(core) || /^[无非未另他本此该]/u.test(core)) return undefined;
+  if (core.length < 2 || /[佐印论本此该他]$/u.test(core) || /^[无非未另他本此该]/u.test(core) || /^不[列立成属]/u.test(core)) return undefined;
   return `${core}证`;
 }
 
-/** 重写稿里主证、兼证以外的证名；流派那句（原样保留、另行核对）不看，原依据里已经讲过的说法不算外来。 */
-export function foreignSyndromeNames(candidate: string, input: { rationale: string; primary: string; secondary: string[] }): string[] {
+/** 重写稿里主证、兼证以外的证名；流派那句（原样保留、另行核对）不看，原依据、病名、病历里已有的说法不算外来。 */
+export function foreignSyndromeNames(candidate: string, input: { rationale: string; primary: string; secondary: string[]; disease?: string; recordText?: string }): string[] {
   const allowed = [input.primary, ...input.secondary].map((name) => compact(name)).filter(Boolean);
-  const original = compact(input.rationale);
+  // 病名接「证」（心悸证、哮病证、绝经前后诸证）与病历原话接「证」不是新立的证候。
+  const original = compact(`${input.rationale}${input.disease || ""}${input.recordText || ""}`);
   const body = candidate.split(/(?<=[。；;])/u)
     .filter((part) => !/以下按常规辨证处理|^从[^，,。]{1,16}看/u.test(part.trim()))
     .join("");
@@ -113,7 +137,7 @@ export function buildRationaleCoverageMessages(input: { recordText: string; dise
         `病历记录的这些表现必须逐项讲到：${input.findings.join("、")}（原依据漏了：${input.missing.join("、")}）。`,
         "重写要求：",
         "1. 不超过250字；先一句讲主诉主症为什么属于主证，再按「表现→病机」逐组讲清每一项属于哪一病机（舌象、脉象也要写进去，说明它们支持哪一病机）（如「大便稀溏、小便清长为脾肾阳气不足、运化失司」），不只罗列表现再接一句结论；有兼证时另用一句讲兼证依据。",
-        "2. 主证能解释的表现说明怎样解释；主证解释不了的写它的病机归属，但不立新证、不出现主证与兼证以外的证名。",
+        "2. 主证能解释的表现说明怎样解释；主证解释不了的写它的病机归属，但不立新证、不出现主证与兼证以外的证名。这些要求本身不写进依据：不写「不立新证」「无兼证」「主证解释不了」「主诉主症」一类的话。",
         "3. 只写病历里有的表现，用病历原话，不补写病历没有的症状、舌脉或检查；不改证名，不写治法、方药，不写「未记录」以外的系统用语。",
         lens ? `4. 原依据里流派那一句原样放在最后：${lens}` : "4. 不写流派。",
       ].join("\n"),
@@ -124,7 +148,7 @@ export function buildRationaleCoverageMessages(input: { recordText: string; dise
 export type RewriteRejection = "length" | "missing" | "lost" | "foreign_syndrome" | "lineage";
 export let lastRewriteRejection: RewriteRejection | undefined;
 export let lastForeignSyndromeNames: string[] = [];
-export function acceptedRationaleRewrite(candidate: string, input: { rationale: string; findings: string[]; missing: string[]; primary: string; secondary: string[] }): string | undefined {
+export function acceptedRationaleRewrite(candidate: string, input: { rationale: string; findings: string[]; missing: string[]; primary: string; secondary: string[]; disease?: string; recordText?: string }): string | undefined {
   const value = candidate.trim().replace(/\s+/gu, "");
   lastRewriteRejection = undefined;
   lastForeignSyndromeNames = [];
@@ -146,10 +170,11 @@ export function acceptedRationaleRewrite(candidate: string, input: { rationale: 
  */
 export async function completeRationaleCoverage(
   content: string,
-  context: { recordText: string; findings: readonly string[] },
+  context: { recordText: string; findings: readonly string[]; chiefFindings?: readonly string[] },
   signal?: AbortSignal,
 ): Promise<string> {
-  if (!rationaleCoverageEnabled() || signal?.aborted || context.findings.length < 2) return content;
+  const chiefFindings = [...(context.chiefFindings || [])];
+  if (!rationaleCoverageEnabled() || signal?.aborted || (context.findings.length < 2 && chiefFindings.length === 0)) return content;
   let root: Json | undefined;
   try { root = record(JSON.parse(content)); } catch { return content; }
   const overview = record(root?.overview);
@@ -157,9 +182,11 @@ export async function completeRationaleCoverage(
   const rationale = text(overview.tcmDiagnosticRationale);
   const primary = text(overview.primarySyndrome);
   if (!rationale || !primary) return content;
-  const findings = [...context.findings];
-  const missing = missingRationaleFindings(rationale, findings);
-  if (!rationaleNeedsCoverageRewrite(missing, findings)) return content;
+  // 主症没讲到时单凭这一项也重写，排在漏项最前；其余照「漏两项以上」。
+  const chiefMissing = chiefFindings.filter((item) => !rationaleMentionsChiefSymptom(rationale, item));
+  const findings = [...new Set([...chiefFindings, ...context.findings])];
+  const missing = [...chiefMissing, ...missingRationaleFindings(rationale, context.findings.filter((item) => !chiefFindings.includes(item)))];
+  if (chiefMissing.length === 0 && (context.findings.length < 2 || !rationaleNeedsCoverageRewrite(missing, findings))) return content;
   const config = getControlledTerminologyModelConfig();
   if (!config.configured) return content;
   const secondary = Array.isArray(overview.secondarySyndromes) ? overview.secondarySyndromes.map(text).filter(Boolean) : [];
@@ -188,7 +215,7 @@ export async function completeRationaleCoverage(
       clearTimeout(timer);
     }
   }, undefined, signal);
-  console.info("[tcm-cdss:telemetry] m03_rationale_coverage", { findings: findings.length, missing: missing.length, rewritten: Boolean(rewritten), rejected: rewritten ? undefined : lastRewriteRejection });
+  console.info("[tcm-cdss:telemetry] m03_rationale_coverage", { findings: findings.length, missing: missing.length, chiefMissing: chiefMissing.length, rewritten: Boolean(rewritten), rejected: rewritten ? undefined : lastRewriteRejection });
   if (!rewritten) return content;
   overview.tcmDiagnosticRationale = rewritten;
   return JSON.stringify(root);
