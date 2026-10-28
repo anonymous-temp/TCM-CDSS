@@ -318,7 +318,10 @@ await check("AI-03 不在病例检索池里的提名：按药名查全部本地�
   const [otcPool, rxPool] = planner.medicinePlannerTestHooks.retrieveCandidatePools(plannerCase);
   const pooled = new Set([...otcPool, ...rxPool].map((item) => item.name));
   const all = [...LOCAL_PRESCRIPTION_PATENT_MEDICINE_ENTRIES];
-  const fits = all.find((entry) => !pooled.has(entry.name) && /心悸/.test(entry.indication) && !/注射/.test(entry.name));
+  // 说明书写的证落在本例（心脾两虚证）以外脏腑的不算「适应证覆盖」（第二十八轮 labelSyndromeNamesOtherOrgan：三参益气口服液「肝肾不足」）。
+  const { medicineFunctionClause, labelSyndromePhrase, labelSyndromeNamesOtherOrgan } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
+  const otherOrgan = (entry) => labelSyndromeNamesOtherOrgan(labelSyndromePhrase(entry.indication.slice(medicineFunctionClause(entry.indication).length)), "心脾两虚证");
+  const fits = all.find((entry) => !pooled.has(entry.name) && /心悸/.test(entry.indication) && !/注射/.test(entry.name) && !otherOrgan(entry));
   const unrelated = all.find((entry) => !pooled.has(entry.name) && /骨折|跌打/.test(entry.indication) && !/心悸|失眠/.test(entry.indication));
   assert.ok(fits && unrelated, "fixture 需要一个适应证含心悸、一个骨伤科的处方中成药");
   assert.equal(findLocalPatentMedicineLabel(fits.name)?.name, fits.name);
