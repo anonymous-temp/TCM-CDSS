@@ -2469,6 +2469,53 @@ The user asked for the customer's problems never to reappear: research online, f
 - Herb-count preference 69/75 (model variance; the customer calls it a suggestion).
 - Owner decisions unchanged: HIS `candidateStatus`, home acupoint care for external/blood-deficiency natures, 五味安神颗粒, Bell's palsy window.
 
+### 10/28 round 28: round 27's leftovers and the customer cases retested in their own request shape (2026-10-28)
+
+The user asked for every leftover of round 27 to be researched online and fixed, and for the customer's cases to be run again to find what else is wrong before delivery. Material: `~/runlogs/r1018/work/r1040/` (`p100c.json` = the customer's 100-case set converted to the customer API shape by `to-cust.py`, `measure.sh`, `replay/gate.mjs` + `replay/medicine-label.mjs`, `cp/cp.py` (runs on an rsync copy in `/var/tmp/r1040-cp`, so it can run during a measurement), `probe/`, `out/`, `judge/`). Suite `test:r1040-main`.
+
+**New test coverage.** The 100-case set had only been run in the page shape. In the customer API shape (`symptoms` with Chinese keys, tongue/pulse/vitals separate, `herbCountPreference` top level) it found two defects the page shape hides (C018, C089 below).
+
+**Fixed, by class** (each with a test and a counter-proof; 19 mutations, all caught).
+- **Male patients' TCM differentials** (round 27 leftover C015): the gynecology-only filter ran only on the delivered surface, after the M03 top-up had counted two differentials. `tcmDifferentialDiseaseFitsPatient` is now the one predicate for counting retained rows, the top-up's textbook candidates and the surface fallback.
+- **Bell's palsy window** (owner decision left open since round 23): `peripheralFacialPalsyWindow` — 24 h when onset (chief-complaint course, else 「N天前」 in the record) is ≤72 h or unreadable, 48 h after. AAO-HNS 2013: oral steroids within 72 h of onset; York pathway (NICE CKS summary): consider prednisolone for presentation within 72 h. Data in `priority-evaluation-windows.source.json` (`steroidWindowHours`, `windowInsideSteroidWindow`, `steroidWindowNote`).
+- **Patent medicines whose label names a syndrome on other organs** (病历2 五味安神颗粒 「适用于心脾两虚证」 for 心虚胆怯证; deferred since round 21): `labelSyndromeNamesOtherOrgan` — organ groups (肝胆 and 脾胃 one group each) of the label syndrome and of the signed syndrome each have one the other lacks. A wider label (二至丸 肝肾阴虚 for 肾阴虚证) is kept. The old coverage comment that accepted 心脾两虚 for 心虚胆怯 is gone.
+- **Neutral syndrome, heat-clearing decoction, warm patent medicine** (桂枝颗粒 next to 芩连栀翘 in 芎菊上清丸, round 27 qwen finding): `decoctionThermalByComposition` also reads cold when ≥3 heat-clearing herbs and no interior-warming herbs (温里/补阳/温化寒痰); acrid-warm exterior-releasing herbs in a 疏风清热 formula no longer make it "mixed". Replay over 289 saved patent-medicine rows: 10 changed (五味安神颗粒 5, 桂枝颗粒 4, 参苓白术散 for 肺阴亏损 1).
+- **Proposed 兼证 skipped the structural check** (风热犯肺证 got 兼风寒表证 and 治法 「辛温解表」): the claims/group path now goes through `structurallyAdmissibleSecondaryDecision`, i.e. the same `secondaryStructurallyInvalid` as model-written secondaries.
+- **A pregnancy denial under 「既往史：」 read as historical** (p100c C018: three reproductive items listed and asked again): for negative statements `isHistoricalContext` ignores record section labels; a positive 「妊娠」 under 既往史 is still past obstetric history. Gate replay over 21,029 records: only C018 changed for this.
+- **Red-flag M03 boundary said 「本次不显示具体用量」** while D4 gives dose (customer API record, GI bleed): `m03RedFlagBoundaryReason()` follows `redFlagDoseAuthorizationAllowed()`; the legacy wording stays for `withhold`.
+- **Wording**: modification population cautions use `herbBoundaryPopulationLabel` (72-year-old man: no 月经期); model-written 「复评」 → 「再次评估」 in `clinicalWordingForSyntheticPhrases`; 「以泡沫多为主症」 no longer counts as a generic-description lead, so an unrecorded 「无涩痛」 becomes 「未诉涩痛」.
+- **Found by the new arm and fixed before the build:**
+  - the M03 candidate block still listed 异位妊娠 as a textbook differential for a man (the rationale then wrote 「与异位妊娠的停经出血相区分」); the block's names and gist go through the same `tcmDifferentialDiseaseFitsPatient`;
+  - a single-herb patent medicine whose whole composition is already in the decoction is a duplicate (人参口服液 next to 安神定志丸 with 人参; listed as model judgement since round 18);
+  - 「清阳不升」「中气下陷」 count as deficiency for patent medicines (same reading as 治则), and a label whose syndrome names only pathogenic factors (热火湿痰饮瘀毒风寒, no deficiency word) is not offered for a pure deficiency syndrome unless the signed method itself attacks (清眩丸 「用于风热头晕目眩」 for 清阳不升证). 燥 and 滞 are not counted: 「肠燥便秘」 stays compatible with 阴虚秘 (round 18 control).
+
+**Researched and left.**
+- **Herb-count preference** (69/75): every miss is the model writing 1–2 herbs below the floor; no finalize pruning involved, and none of the misses has a present-symptom modification to promote. A count-triggered candidate patch would need the M04 repair loop to accept a non-T1 trigger and to keep the pre-patch candidate when the patch fails (the generate-verify-patch literature agrees verification must be programmatic, revision bounded). Not done before delivery; the customer calls the count a suggestion.
+- **HIS `candidateStatus: invalid` with patent/Western medicines**: the customer has never called `his-scheme` (0 of 480 archived requests), so it does not affect them; left as an owner decision.
+- **Home acupoint care for external and pure blood-deficiency natures**: the customer-chosen source (2013 technical specification, nine constitutions) has no such constitution; unchanged.
+- **Acute stroke without imaging and blood-moving herbs** (p100c C023): no TCM guideline found that bars 活血化瘀 before CT (TCM literature even studies it in ICH); adoption is already blocked by the red flag; not changed.
+
+**Measured** (local route harness; base = production code f9bc4a68, final = 08ba1a4; the customer's 100 cases in their API shape are new coverage, so their review has no before arm; qwen3.8-max with the same scripts as rounds 26–27):
+
+| | Before | After |
+|---|---|---|
+| 100 cases, customer API shape: ≥2 TCM disease differentials / pregnancy not re-asked after a denial / herb-count preference | 99/100 / 2/3 / 69/75 | 100/100 / 3/3 / 70/75 |
+| Same: red flag where expected / dose where expected / D4 boundary cases dosed | 28/28 / 39/39 / 33/33 | 28/28 / 39/39 / 33/33 |
+| 100 cases, page shape (before = round 27 after arm) | red 28/28, no over-call 48/48, ≥2 differentials 100/100, herb count 69/75 | 28/28, 48/48, 100/100, 71/75 |
+| Customer 10 × 3: disease, syndrome, formula identical across runs and equal to the standard answers | 10/10 | 10/10; no red flag on any; 病历2 no longer gets 五味安神颗粒 (or 人参口服液) |
+| qwen, customer 10 × 3, 8 columns | every column ≤1 per run (one 西医: 病历5 「乏力待查」) | same (one 西医: 病历5) |
+| qwen 1.1 rubric, 62 customer API replays (before = round 27 after arm) | T 93.5, R 98.4, Q 96.8, K 90.6, L 96.8, W 98.1, others 100 | T 98.4, K 97.0, others 100 |
+| qwen 1.1 rubric, 100 cases customer shape | — | T 97, Q 98, K 97.2, L 99, others 100 |
+
+- Replays: gate over 21,029 records — 18 Bell's palsy windows 48 → 24 h (onset ≤3 days) and C018 needs_information → ready, nothing else; patent-medicine direction over 415 saved rows — 16 changed (五味安神颗粒 5, 桂枝颗粒 4, 清眩丸/四正丸 for 清阳不升证 6, 参苓白术散 for 肺阴亏损 1); duplication over 283 rows — 7 changed, all 人参口服液 next to 人参.
+- Counter-proofs: 24 mutations, all caught.
+- Remaining qwen findings are model-written: 「未诉内出血休克表现」 next to a recorded BP 88/56 (C062), a primary 肝郁气滞证 whose own rationale says 「暂不立肝郁证」 (C073), 抗感口服液 matched from a sore throat three weeks ago (C080), 「局部疼痛活动受限」 not in a record that says only 「肌肉拉伤」.
+- Latency: the local runs overlapped with other sessions' test jobs and my own replays (stage medians 1–6 s higher), but the per-call model durations in the logs were unchanged; production smoke after the deploy: M03 P95 18.0 s, M04 P95 12.9 s.
+- One shard of the API run was OOM-killed when the gate replay ran next to it (other sessions were also running vitest/tsc); the missing cases were rerun. Do not run the 1.8 GB gate replay next to a measurement.
+
+**In production (08ba1a4, deployed 2026-10-28 about 10:30 Beijing; tag `20261028-08ba1a4-prebuilt`, same release directory and `20260927-dsrepair` override).** `verify:release` green (288 suites registered); `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 18.0 s, M04 P95 12.9 s). Probes, customer shape on hospital-b: 病历2-type record no patent medicine; 流涕 record no 桂枝颗粒; 风热犯肺 record no 兼证 and no 辛温解表; GI-bleed red flag 「风险解除前本方不能正式采纳」; C018 no reproductive items; C023 no 月经期; Bell's palsy 2 days 「24小时内到神经内科或面瘫门诊」. Page shape on hospital-a: C015 differentials 腹痛、胃痛 and no 异位妊娠 anywhere. Container log before the replacement: `~/telemetry-archive/container-pre-8527746-*.log.gz`. Rollback: image `tcm-cdss:20261027-8527746-prebuilt` with `docker-compose.yml.pre-08ba1a4`.
+- **Local build:** root had 4.2 GB, /home under 1 GB (other sessions' /tmp work). The build tree was put on root with a plain copy of `node_modules` (a /var/tmp copy of `prebuild-local.sh` with `cp -a` instead of `cp -al`, because the source worktree is on /home); the webpack cache alone was 2.2 GB and root fell to 294 MB before it was deleted. Next time delete `.next/cache` as soon as `PREBUILD_OK` prints, or free more space first.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
