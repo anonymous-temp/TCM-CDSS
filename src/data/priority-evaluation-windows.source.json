@@ -93,6 +93,9 @@
       "clearance": "医生确认为周围性面瘫后",
       "withoutRegimenTail": "医生确认为周围性面瘫后再按医生安排服药与复诊",
       "afterStep": "闭眼不全时注意保护眼睛（白天戴眼镜、夜间涂眼膏或戴眼罩）；如出现肢体无力、言语不清或剧烈头痛，请立即急诊就医。",
+      "steroidWindowHours": 72,
+      "windowInsideSteroidWindow": "within_24h",
+      "steroidWindowNote": "第二十八轮（2026-10-28）：起病到就诊不超过 72 小时、或病历读不出起病时间时改为 24 小时内评估，让激素能在起病 72 小时内开始；超过 72 小时仍为 48 小时内。依据：AAO-HNS 2013 Bell's palsy 指南「Clinicians should prescribe oral steroids within 72 hours of symptom onset for Bell's palsy patients 16 years and older」（https://www.entnet.org//sites/default/files/October2013_BellsGuidelineFactSheet.pdf）；York 基层路径（NICE CKS 摘要）「For people presenting within 72 hours of the onset of symptoms, consider prescribing prednisolone.」（https://hnyppr.org.uk/web/york/w/bells-palsy-pathway）。",
       "source": "第二十三轮（2026-10-26）红旗规则逐类审查：额纹也受累（额纹消失、抬眉不能）或闭眼不全是下运动神经元型（Bell 面瘫）的特征，额纹保留才提示中枢性、需排除卒中；激素在起病 72 小时内开始；闭眼不全需保护角膜（NICE CKS Bell's palsy 及各地基层路径摘要）。"
     },
     "early_pregnancy_pain_bleeding": {

@@ -5158,7 +5158,7 @@ function vitalsRecordedAndStableByNews2(measurements: CurrentVitalMeasurements):
 const PERIPHERAL_FACIAL_PALSY = priorityEvaluationWindowTable.peripheralFacialPalsyOnly;
 /**
  * 只有周围性面瘫（额纹也受累或闭眼不全），没有肢体、言语、吞咽、视觉、意识等其他缺损、也没有写额纹保留：
- * 不按「意识或神经功能异常」报红旗，改 48 小时内评估（第二十三轮红旗规则逐类审查；回放 X-H-0062「2天前受风后出现左侧面部麻木，
+ * 不按「意识或神经功能异常」报红旗，改 24/48 小时内评估（第二十三轮红旗规则逐类审查；回放 X-H-0062「2天前受风后出现左侧面部麻木，
  * 额纹消失，眼裂变大，鼻唇沟变浅，口角下垂」）。判据与依据在 priority-evaluation-windows.source.json peripheralFacialPalsyOnly。
  */
 export function peripheralFacialPalsyOnly(text: string): boolean {
@@ -5168,6 +5168,39 @@ export function peripheralFacialPalsyOnly(text: string): boolean {
   if (hasAnyTerm(normalized, PERIPHERAL_FACIAL_PALSY.foreheadSparingSigns)) return false;
   if (hasAnyTerm(normalized, PERIPHERAL_FACIAL_PALSY.otherNeurologicDeficits)) return false;
   return !hasSuddenHeadacheSignal(normalized);
+}
+
+/**
+ * 周围性面瘫起病到就诊的小时数：主诉里的病程（「口角歪斜2天」「突发口眼歪斜1h」），主诉没写时取现病史里第一个「N天/小时前」。
+ * 读不出返回 undefined。
+ */
+const FACIAL_PALSY_ONSET_SPAN = /(\d+(?:\.\d+)?|[一二两三四五六七八九十半数几]+)\s*(?:个)?(?:余|多)?\s*(小时|h|H|天|日|周|星期|个?月|年)(?![号\d])/u;
+export function facialPalsyOnsetHours(state: CaseState): number | undefined {
+  const toHours = (match: RegExpExecArray | null): number | undefined => {
+    if (!match) return undefined;
+    const value = courseNumberValue(match[1]);
+    if (value == null) return undefined;
+    const unit = match[2];
+    return unit === "小时" || unit === "h" || unit === "H" ? value
+      : unit === "天" || unit === "日" ? value * 24
+      : unit === "周" || unit === "星期" ? value * 24 * 7
+      : unit === "年" ? value * 24 * 365
+      : value * 24 * 30;
+  };
+  const complaint = normalizeClinicalText(String(state.chiefComplaint || ""));
+  const fromComplaint = toHours(FACIAL_PALSY_ONSET_SPAN.exec(complaint));
+  if (fromComplaint != null) return fromComplaint;
+  const record = normalizeClinicalText(trustedInputText(state));
+  return toHours(new RegExp(`${FACIAL_PALSY_ONSET_SPAN.source}前`, "u").exec(record));
+}
+/**
+ * 周围性面瘫评估时限：起病不超过 72 小时、或读不出起病时间时为 24 小时内（激素宜在起病 72 小时内开始），其余为通道默认的 48 小时内。
+ * 依据见 priority-evaluation-windows.source.json pathways.peripheral_facial_palsy.steroidWindowNote。
+ */
+export function peripheralFacialPalsyWindow(state: CaseState): PriorityEvaluationWindowId {
+  const entry = priorityEvaluationWindowTable.pathways.peripheral_facial_palsy as { window: string; steroidWindowHours: number; windowInsideSteroidWindow: string };
+  const hours = facialPalsyOnsetHours(state);
+  return (hours == null || hours <= entry.steroidWindowHours ? entry.windowInsideSteroidWindow : entry.window) as PriorityEvaluationWindowId;
 }
 
 const PEDIATRIC_CHEST_PAIN = priorityEvaluationWindowTable.pediatricChestPainNonCardiac;
@@ -5560,7 +5593,7 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   // 理由按实际命中的那一项写（2026-10-19 Claude 评审 H 集：十余例没有任何头痛记录的卒中、抽搐、脊髓病例，
   // 不给剂量的理由都写「突发剧烈头痛、意识或神经功能异常」，读起来像病人有剧烈头痛）。后半句不变，按「神经系统急症」归类的地方照旧认得。
   const suddenHeadacheSignal = hasSuddenHeadacheSignal(text);
-  // 只有周围性面瘫不报神经红旗（改 48 小时内评估，见 peripheralFacialPalsyOnly）。
+  // 只有周围性面瘫不报神经红旗（改 24/48 小时内评估，见 peripheralFacialPalsyOnly、peripheralFacialPalsyWindow）。
   const neurologicEmergencySignal = hasNeurologicEmergencySignal(text) && !peripheralFacialPalsyOnly(text);
   if (suddenHeadacheSignal || neurologicEmergencySignal) {
     redFlags.push(suddenHeadacheSignal && neurologicEmergencySignal
@@ -7222,10 +7255,10 @@ function collectPriorityEvaluationEntries(state: CaseState, semanticSourceText: 
   }
   // 专门路径（乳腺专科超声、急诊血气血酮）：语义层已列了同一个病时不另起一条，把路径挂到那一条上；
   // 模型给的时限更急就用模型的（2026-10-26 生产探针 C069：语义层也写了乳腺癌，复诊退回「到相关专科」）。
-  const attachPathway = (pathway: PriorityEvaluationPathway, text: string, applies: boolean) => {
+  const attachPathway = (pathway: PriorityEvaluationPathway, text: string, applies: boolean, windowOverride?: PriorityEvaluationWindowId) => {
     if (!applies) return;
     const entry = priorityEvaluationWindowTable.pathways[pathway];
-    const window = entry.window as PriorityEvaluationWindowId;
+    const window = windowOverride ?? entry.window as PriorityEvaluationWindowId;
     const existing = entries.find((item) => item.text.includes(entry.focus));
     if (!existing) {
       entries.push({ text, window, pathway, focus: entry.focus });
@@ -7239,8 +7272,9 @@ function collectPriorityEvaluationEntries(state: CaseState, semanticSourceText: 
     unevaluatedBreastMassText(semanticSourceText, authoritativePatientAgeYears(state), patientSexText(state)));
   attachPathway("febrile_chest_tightness", "发热伴胸闷（或气促），暂无不稳定征象，宜24小时内到医院完成心电图、肌钙蛋白与血氧检查（需排除：病毒性心肌炎、肺炎）；处方前需完成评估",
     febrileChestTightnessDeferralApplies(state) || (pediatricChestPainNonCardiac(state) && currentFeverRecorded(state)));
-  attachPathway("peripheral_facial_palsy", "周围性面瘫（额纹受累或闭眼不全，未见其他神经缺损），宜48小时内到神经内科或面瘫门诊评估是否需要口服激素（需排除：中枢性面瘫）；处方前需完成评估",
-    peripheralFacialPalsyOnly(trustedInputText(state)));
+  const facialPalsyWindow = peripheralFacialPalsyWindow(state);
+  attachPathway("peripheral_facial_palsy", `周围性面瘫（额纹受累或闭眼不全，未见其他神经缺损），宜${facialPalsyWindow === "within_24h" ? "24" : "48"}小时内到神经内科或面瘫门诊评估是否需要口服激素（需排除：中枢性面瘫）；处方前需完成评估`,
+    peripheralFacialPalsyOnly(trustedInputText(state)), facialPalsyWindow);
   // 妊娠伴腹痛或阴道出血：20 周以前（或孕周没写）走早孕评估，20 周以后走产科急诊（早产临产、胎盘早剥）。
   const pregnancyPainOrBleeding = pregnancyAssessmentPathwayApplies(state, semanticSourceText);
   const latePregnancy = (recordedGestationalWeeks(semanticSourceText) ?? 0) >= 20;

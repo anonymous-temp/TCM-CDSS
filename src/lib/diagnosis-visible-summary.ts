@@ -11,7 +11,7 @@ import { reviewAuthoredFormulaAnalysis } from "./formula-analysis-review";
 import { namedFormulaDecoctionProfile } from "./formula-decoction-profile";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { NARROWER_THAN_GROUP_CANONICAL, NARROWER_TERM_SYNONYMS, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
+import { NARROWER_THAN_GROUP_CANONICAL, NARROWER_TERM_SYNONYMS, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, redFlagDoseAuthorizationAllowed, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
 import { assessPregnancyState } from "./clinical-state";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
@@ -125,9 +125,20 @@ export function applyM03DecisionSpecificityPolicy(content: string, state?: CaseS
   // 剂量授权是**另一根轴**：红旗病例的剂量仍由 CDSS_REDFLAG_DOSE_AUTHORIZATION 收回
   // （derivePrescriptionPermission 给 non_dose_only），本函数不授权任何剂量。
   const reason = activeRedFlag
-    ? "急危重风险未排除：以下辨证、病机与治法结论供医生参考，请先完成急诊或转诊评估并记录排除或处置依据；本次不显示具体用量，正式采纳须在风险处置之后。"
+    ? m03RedFlagBoundaryReason()
     : "完整度未达C级：以下结论基于现有信息形成，属有界建议；补充病程、伴随表现及必要四诊可提高确定性，正式采纳前请医生核对未知项。";
   return annotateM03DecisionSpecificityBoundary(content, { reason, mustCollect, activeRedFlag, pregnancyWarning: pregnancyRedFlagWarningStage(state) });
+}
+
+/**
+ * 红旗病例辨证结论的边界说法。剂量一致化（D4）以后红旗病例照给剂量、红旗解除前不能正式采纳：不能再写「本次不显示具体用量」
+ *（第二十八轮甲方接口病例 api-1a822c88d975：开方页有剂量，辨证页的不确定项写着不显示用量）。剂量仍收回的旧口径
+ *（CDSS_REDFLAG_DOSE_AUTHORIZATION=withhold 或 CDSS_DOSE_CONSISTENCY=false）照旧。锚点词「急危重风险未排除」不变。
+ */
+export function m03RedFlagBoundaryReason(): string {
+  return redFlagDoseAuthorizationAllowed()
+    ? "急危重风险未排除：以下辨证、病机与治法结论供医生参考，请先完成急诊或转诊评估并记录排除或处置依据；风险解除前本方不能正式采纳。"
+    : "急危重风险未排除：以下辨证、病机与治法结论供医生参考，请先完成急诊或转诊评估并记录排除或处置依据；本次不显示具体用量，正式采纳须在风险处置之后。";
 }
 
 /**
@@ -203,7 +214,9 @@ export function annotateM03DecisionSpecificityBoundary(
 ): string {
   const { reason, mustCollect, activeRedFlag, pregnancyWarning } = boundary;
   const UNCERTAINTY_ITEM = "辨证与方剂具体度边界";
-  const redFlagFirst = "急危重风险未排除：请优先完成急诊或转诊评估并记录排除或处置依据；以下辨证与治法结论供医生参考，正式采纳与具体用量须在风险处置之后。";
+  const redFlagFirst = redFlagDoseAuthorizationAllowed()
+    ? "急危重风险未排除：请优先完成急诊或转诊评估并记录排除或处置依据；以下辨证与治法结论供医生参考，正式采纳须在风险处置之后。"
+    : "急危重风险未排除：请优先完成急诊或转诊评估并记录排除或处置依据；以下辨证与治法结论供医生参考，正式采纳与具体用量须在风险处置之后。";
   // 复诊计划写给患者（9/28 甲方）：红旗档的这一句此前是给医生的流程话（「当前应优先完成急危重风险评估」，2026-10-18 验收主集
   // 评审判「给医生看的流程用语」）。说法改成患者能照做的，意思不变：先去医院排除急危重情况，加重即急诊。
   const redFlagSafetyNet = RED_FLAG_SAFETY_NET;
@@ -251,7 +264,9 @@ export function annotateM03DecisionSpecificityBoundary(
             {
               item: UNCERTAINTY_ITEM,
               reason,
-              affects: "本次辨证、病机与治法结论供医生参考；正式采纳与具体用量需先完成上述事项。",
+              affects: activeRedFlag && redFlagDoseAuthorizationAllowed()
+                ? "本次辨证、病机与治法结论供医生参考；正式采纳需先完成上述事项。"
+                : "本次辨证、病机与治法结论供医生参考；正式采纳与具体用量需先完成上述事项。",
             },
             ...existing,
           ].slice(0, 12);
@@ -1206,7 +1221,9 @@ export function withoutDenialsOfRecordedFindings(text: string, clinicalContext: 
 // 「无菌性脓尿」「无排卵」「无症状性」是医学术语（D 集 X-D-0062、3246）。
 // 「无从判定」「无热惊厥」「发作无热」也是固定说法（症状写法是「无发热」）（D 集 X-D-5154、5494、0750）。
 const FIXED_WU_COLLOCATION_TAIL = /^(?:休止|由|光泽|伦次|声(?![音嘶])|物(?!质)|发(?![热作病生育])|痛性|菌|排卵|症状|从|热(?:惊厥|发作|反复|象|性))/u;
-const GENERIC_DESCRIPTION_LEAD = /(?<![日正异寻])常(?![规见])|多(?![次年日天发月])|一般|往往|通常|每每|皆|典型/u;
+// 「多为主」是「以泡沫多为主症」这类量词谓语，不是「多见/多为」的泛述（第二十八轮甲方接口病例：「以小便泡沫多为主症、尿时无涩痛」
+// 因「多」被当成泛述，未记录的「无涩痛」没有改成「未诉涩痛」）。
+const GENERIC_DESCRIPTION_LEAD = /(?<![日正异寻])常(?![规见])|多(?![次年日天发月]|为主)|一般|往往|通常|每每|皆|典型/u;
 const CHECK_CLAUSE = /核实|待查|询问|追问|与否|是否|有无|需查|应查/u;
 const TEST_FINDING_CONTEXT = /检查|查体|体检|心电图|ECG|导联|P波|QRS|ST段|T波|造影|CT|MRI|磁共振|超声|彩超|B超|X线|胸片|平片|病理|活检|镜下|镜检|培养|涂片|脑脊液|血常规|尿常规|化验|检验|影像|描述|组织|细胞|浸润|阴影|占位|病灶|资料|依据/u;
 const MEASUREMENT_TERM = /^(?:血[钙钾钠镁磷糖脂压氧]|眼压|体温|心率|血象|尿[糖蛋]白?|肝功|肾功)/u;

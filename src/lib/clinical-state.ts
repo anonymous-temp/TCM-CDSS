@@ -279,8 +279,14 @@ function isExplicitCurrentGestation(matchText: string): boolean {
   return /(?:已妊娠|妊娠中|怀孕中|已经怀孕|确认怀孕|孕\d+(?:\+?)(?:周|月)?|(?:妊娠|怀孕)\d+(?:\+?)(?:周|月|天|日)|孕(?:早|中|晚)期|妊娠(?:早|中|晚)期)/.test(matchText);
 }
 
-function isHistoricalContext(text: string, index: number, matchText: string): boolean {
-  const before = clauseBefore(text, index);
+/** 病历字段名（「既往史：」「个人史：」…）：只说这句写在哪一栏，不说它说的是过去。 */
+const RECORD_SECTION_LABEL = /(?:既往史|个人史|婚育史|月经史|月经婚育史|月经及婚育史)[：:]/gu;
+
+function isHistoricalContext(text: string, index: number, matchText: string, status?: ClinicalStateStatus): boolean {
+  // 否认（「否认妊娠」「未孕」「已停止哺乳」）说的是现在没有，写在「既往史：」一栏里也是（第二十八轮甲方 100 例接口形状 C018：
+  //「既往史：孕期情况：明确否认妊娠」判成既往，于是妊娠、哺乳、备孕三项都列为待补、又追问一次）。只去掉栏名，句里自己的
+  //「既往」「曾经」照算既往。肯定的「妊娠」写在既往史栏里仍按栏名判既往（「既往史：妊娠2次」是孕产史）。
+  const before = status === "negative" ? clauseBefore(text, index).replace(RECORD_SECTION_LABEL, "") : clauseBefore(text, index);
   const after = text.slice(index + matchText.length, index + matchText.length + 8);
   if (/^产\d/.test(after)) return true;
   // A section label such as "既往史：" describes where the fact was entered, not necessarily
@@ -326,7 +332,7 @@ function collectMatches(
         status,
         evidence: match[0],
         index,
-        historicalContext: status === "historical" || isHistoricalContext(text, index, match[0]),
+        historicalContext: status === "historical" || isHistoricalContext(text, index, match[0], status),
       });
     }
   }

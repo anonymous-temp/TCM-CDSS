@@ -581,6 +581,26 @@ export function secondaryStructurallyInvalid(primary: string, secondary: string,
   return undefined;
 }
 
+/**
+ * 要补的兼证与模型自写兼证过同一道结构判据（寒热相反、主证已包含、依据自称非独立；secondaryStructurallyInvalid）。
+ * 此前只有模型自写的那一栏过这一道，补兼证这条路（依据里的兼夹说法、找第二组）没有：甲方接口病例「风热犯肺证」被补成「兼风寒表证」、
+ * 治法末尾多出「辛温解表」（第二十七轮 qwen 评审 api-641286fcfcbf）。不成立时与辨证要点不够数同样处理：依据里自称兼夹的那几句删掉，否则不动。
+ */
+export function structurallyAdmissibleSecondaryDecision(
+  decision: SecondaryConsistencyDecision | undefined,
+  claimDecision: SecondaryConsistencyDecision | undefined,
+  context: { primarySyndrome: string; rationale: string; pathogenesis: string; claims: readonly string[] },
+): { decision: SecondaryConsistencyDecision | undefined; rejected?: ReturnType<typeof secondaryStructurallyInvalid> } {
+  if (decision?.decision !== "add") return { decision };
+  const rejected = secondaryStructurallyInvalid(context.primarySyndrome, decision.secondarySyndrome, `${context.rationale}${context.pathogenesis}`);
+  if (!rejected) return { decision };
+  const removable = context.claims.filter((clause) => secondaryPatternClaims(clause).length > 0 || declaresSecondaryMechanism(clause));
+  return {
+    decision: claimDecision?.decision === "remove" ? claimDecision : removable.length > 0 ? { decision: "remove", clauses: removable } : undefined,
+    rejected,
+  };
+}
+
 /** 撤下模型自写的兼证：兼证栏去掉它，治法里只属于它的项去掉，依据与病机里「兼X」的字样去掉。纯函数，供测试。 */
 export function withdrawSecondarySyndrome(root: Json, name: string, primaryTextbookMethod = ""): boolean {
   const overview = record(root.overview);
@@ -719,6 +739,9 @@ export async function reconcileSecondarySyndromes(
       : Promise.resolve(undefined),
   ]);
   let decision: SecondaryConsistencyDecision | undefined = claimDecision?.decision === "add" ? claimDecision : groupDecision || claimDecision;
+  const structural = structurallyAdmissibleSecondaryDecision(decision, claimDecision, { primarySyndrome, rationale, pathogenesis, claims });
+  decision = structural.decision;
+  const structurallyInvalidAddition = structural.rejected;
   // 立之前按辨证要点核一遍（两条路同一判据）。不够数：依据里自称兼夹的那几句删掉（第一条路原本的「删说法」），否则不动。
   let criteria: CriteriaVerdict | undefined;
   if (decision?.decision === "add" && criteriaCheckEnabled()) {
@@ -735,6 +758,7 @@ export async function reconcileSecondarySyndromes(
     applied,
     ...(groupCheck ? { group: groupDecision ? "add" : "none", fit: fit === undefined ? null : Math.round(fit * 100) / 100 } : {}),
     ...(criteria ? { criteria: `${criteria.entry || "?"}:${criteria.verdict}:${criteria.specific}/${criteria.category}/${criteria.distinct}` } : {}),
+    ...(structurallyInvalidAddition ? { structural: structurallyInvalidAddition } : {}),
   });
   return applied ? JSON.stringify(root) : tcmContent;
 }

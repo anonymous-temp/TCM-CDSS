@@ -260,12 +260,13 @@ await check("3.2 儿童胸痛没有心源性警示不按急性冠脉报红旗，
   assert.equal(gated(record({ cc: "胸痛2天", sex: "男", age: 40, text: "咳嗽2天，咳时胸痛。" })).safetyGate.status, "red_flag", "成人不受影响");
 });
 
-await check("3.3 只有周围性面瘫（额纹消失、闭眼不全）不报神经红旗，48 小时内评估；伴肢体无力、言语不清或额纹保留照报", () => {
+await check("3.3 只有周围性面瘫（额纹消失、闭眼不全）不报神经红旗，24/48 小时内评估；伴肢体无力、言语不清或额纹保留照报", () => {
   const bell = gated(record({ cc: "口角歪斜2天", age: 20, text: "2天前受风后出现左侧面部麻木,额纹消失,眼裂变大,鼻唇沟变浅，口角下垂歪向左侧。" }));
   assert.equal(bell.safetyGate.redFlags.length, 0, bell.safetyGate.redFlags.join("；"));
   const target = safety.priorityEvaluationFollowupTarget(bell);
   assert.equal(target?.pathway, "peripheral_facial_palsy");
-  assert.match(safety.priorityEvaluationFirstStep(target), /48小时内.*72小时内/);
+  // 第二十八轮：起病 2 天仍在激素 72 小时窗口内，评估时限为 24 小时（peripheralFacialPalsyWindow；超过 72 小时仍为 48 小时，见 test:r1040-main 2.1）。
+  assert.match(safety.priorityEvaluationFirstStep(target), /24小时内.*72小时内/);
   for (const text of ["2天前出现口角歪斜，额纹消失，伴右侧肢体无力。", "今晨突发口角歪斜，额纹存在，言语不清。", "今晨突发口角歪斜，言语不清。"]) {
     assert.equal(gated(record({ cc: "口角歪斜", sex: "男", age: 66, text })).safetyGate.status, "red_flag", text);
   }

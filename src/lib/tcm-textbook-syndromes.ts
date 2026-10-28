@@ -535,6 +535,14 @@ export function textbookDiseaseOnlyGynecologic(diseaseName: string): boolean {
 }
 
 /**
+ * 这个病名能不能列进本例的中医病名鉴别：男性不列只属妇科的病。中医半收口时数「留得下的鉴别」、补写小任务的教材候选、
+ * 交付面兜底补齐都用这一个判据（第二十八轮：此前只有交付面过滤，C015 男性肠痈的模型鉴别「异位妊娠」在补写之后才被删掉，只剩一项）。
+ */
+export function tcmDifferentialDiseaseFitsPatient(diseaseName: string, patient?: { sex?: string }): boolean {
+  return !(/男/u.test(String(patient?.sex || "")) && textbookDiseaseOnlyGynecologic(diseaseName));
+}
+
+/**
  * 教材里该病的定义首句（按病名取节，未成年先儿科），教材没有这一节或没有定义句时为空串。
  * 供病名与就诊原因的核对（m03-visit-reason-check）给核对器看「这个病是什么」。
  */

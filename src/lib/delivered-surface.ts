@@ -24,7 +24,7 @@ import { drugNamesInAllergyPhrases } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
-import { textbookDifferentialsForDisease, textbookDiseaseOnlyGynecologic, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
+import { tcmDifferentialDiseaseFitsPatient, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
@@ -591,6 +591,9 @@ const SYNTHETIC_PHRASES: ReadonlyArray<[RegExp, string]> = [
   [/[，,]?\s*(?:已)?按有界建议展示/g, "，尚需进一步明确"],
   [/可逐字回溯的本例依据/g, "病历依据"],
   [/当前工作证候/g, "当前证候"],
+  // 「复评」是甲方点名的流程用语（8/20 C 类、10.12 工程用语）；模型写在鉴别「下一步检查」里的「复评意识、体温」换成临床写法
+  //（第二十八轮甲方 100 例接口形状 C033）。
+  [/复评/g, "再次评估"],
 ];
 
 /**
@@ -608,7 +611,7 @@ const SERVER_NOTES: readonly RegExp[] = [
 
 /** 把系统句式换成临床写法；没有命中时原样返回（逐字节不变）。 */
 export function clinicalWordingForSyntheticPhrases(value: string): string {
-  if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|受控目录|症状层|可逐字回溯|有界建议|工作证候/.test(value)) return value;
+  if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|受控目录|症状层|可逐字回溯|有界建议|工作证候|复评/.test(value)) return value;
   let text = value.replace(BOUNDED_ADVICE_NOTE, "");
   for (const note of SERVER_NOTES) text = text.replace(note, "");
   text = text.trim();
@@ -889,9 +892,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
   // 中医鉴别诊断每例必出（甲方 10.12 测评 2.3「中医鉴别诊断未生成」），且至少两项（甲方验收「鉴别诊断覆盖率」，2026-10-19）：
   // 模型没写、写的病名被归一丢掉、或只剩一项而补写小任务也没补上时，用教材【鉴别诊断】对该病列出的病证补齐，要点是教材原文。
   // 补写小任务（tcm-disease-differential-authoring）才按本例写区分要点，这里只是它没写出时的兜底。有限结论（证候未形成）不补。
-  const maleOnlyFilter = /男/u.test(options?.patientSex || "")
-    ? (name: string) => !textbookDiseaseOnlyGynecologic(name)
-    : () => true;
+  const maleOnlyFilter = (name: string) => tcmDifferentialDiseaseFitsPatient(name, { sex: options?.patientSex });
   if (overview && Array.isArray(overview.tcmDiseaseDifferentials)) {
     overview.tcmDiseaseDifferentials = records(overview.tcmDiseaseDifferentials).filter((item) => maleOnlyFilter(String(item.diseaseName || "")));
   }

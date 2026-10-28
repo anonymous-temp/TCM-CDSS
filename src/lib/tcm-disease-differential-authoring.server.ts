@@ -5,7 +5,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { MIN_TCM_DIFFERENTIALS, WESTERN_DISEASE_FORM, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
-import { textbookCandidatesForCase, textbookDiseaseNamesForCase, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
+import { tcmDifferentialDiseaseFitsPatient, textbookCandidatesForCase, textbookDiseaseNamesForCase, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
 
 /**
  * 中医鉴别（病名级、证候级）不足两项时，只补写缺的那几项（2026-10-14 起补写病名级为空的；2026-10-19 第九轮改为补到两项）。
@@ -122,7 +122,7 @@ const record = (value: unknown): Json | undefined => value && typeof value === "
  * 模型写的病名鉴别里能留在交付结果里的行：病名归一得了（不是西医病名）、不与本病同名，按归一后的病名去重。
  * 与 normalizeM03TcmDiseaseDifferentialNames 同一个判据，所以这里数出来的就是交付时留下的。
  */
-export function retainableDiseaseDifferentialRows(rows: unknown, diseaseName: string): Array<{ row: Json; name: string }> {
+export function retainableDiseaseDifferentialRows(rows: unknown, diseaseName: string, patient?: { sex?: string }): Array<{ row: Json; name: string }> {
   const seen = new Set<string>();
   const out: Array<{ row: Json; name: string }> = [];
   for (const raw of Array.isArray(rows) ? rows : []) {
@@ -130,7 +130,7 @@ export function retainableDiseaseDifferentialRows(rows: unknown, diseaseName: st
     const name = text(row?.diseaseName);
     if (!row || !name) continue;
     const resolved = resolveTcmDiseaseDifferentialName(name, diseaseName);
-    if (resolved.action === "drop" || seen.has(resolved.name)) continue;
+    if (resolved.action === "drop" || seen.has(resolved.name) || !tcmDifferentialDiseaseFitsPatient(resolved.name, patient)) continue;
     seen.add(resolved.name);
     out.push({ row, name: resolved.name });
   }
@@ -316,9 +316,10 @@ export async function authorTcmSyndromeDifferentials(
 }
 
 /** 教材对本病列出的鉴别病名里，能留在交付结果里的（过同一个归一判据）、不在 taken 里的。 */
-function textbookDiseaseCandidates(diseaseName: string, taken: ReadonlySet<string>): Array<{ name: string; text: string }> {
+function textbookDiseaseCandidates(diseaseName: string, taken: ReadonlySet<string>, patient?: { sex?: string }): Array<{ name: string; text: string }> {
   return textbookDifferentialsForDisease(diseaseName, 50)
-    .filter((item) => !taken.has(item.name) && resolveTcmDiseaseDifferentialName(item.name, diseaseName).action === "keep")
+    .filter((item) => !taken.has(item.name) && resolveTcmDiseaseDifferentialName(item.name, diseaseName).action === "keep" &&
+      tcmDifferentialDiseaseFitsPatient(item.name, patient))
     .map((item) => ({ name: item.name, text: item.text }));
 }
 
@@ -368,7 +369,7 @@ function planTopUp(overview: Json | undefined, context: TopUpContext): TopUpPlan
   const diseaseName = text(overview?.tcmDiseaseName);
   if (!overview || !diseaseName) return undefined;
   const primary = text(overview.primarySyndrome);
-  const diseaseRows = retainableDiseaseDifferentialRows(overview.tcmDiseaseDifferentials, diseaseName);
+  const diseaseRows = retainableDiseaseDifferentialRows(overview.tcmDiseaseDifferentials, diseaseName, context.patient);
   const syndromeRows = retainableSyndromeDifferentialRows(overview.tcmDifferentials, primary);
   const needDisease = Math.max(0, MIN_TCM_DIFFERENTIALS - diseaseRows.length);
   // 证候鉴别：模型已经写了至少一项才补；整栏留空的（常伴「资料不足以鉴别」的说明）不替它改口。
@@ -379,7 +380,7 @@ function planTopUp(overview: Json | undefined, context: TopUpContext): TopUpPlan
   const recordText = context.recordText;
   if (needDisease > 0) {
     const taken = new Set([diseaseName, ...diseaseRows.map((item) => item.name)]);
-    const candidates = textbookDiseaseCandidates(diseaseName, taken);
+    const candidates = textbookDiseaseCandidates(diseaseName, taken, context.patient);
     plan.diseaseInput = {
       recordText, diseaseName, syndrome: primary, candidates, existing: diseaseRows.map((item) => item.name), need: needDisease,
       nameList: nameListEnabled() && candidates.length < needDisease ? governedDiseaseNameList(diseaseName, context.patient) : [],

@@ -585,9 +585,19 @@ export function classIsPathogenSpecific(classPath: string): boolean {
 /** decoctionThermal：本次汤剂按组成的寒温（medicineThermalByComposition 同一判据），证名与治法都不分寒热时用它定方向（编译时才有）。 */
 export type SignedDirection = { names: string; method: string; decoctionThermal?: "cold" | "warm" };
 
-/** 汤剂按组成的寒温：清热类药占三分之一以上且没有温里散寒类为 cold，反之为 warm，其余不定。 */
+/**
+ * 汤剂按组成的寒温：清热类药占三分之一以上且没有温里散寒类为 cold，反之为 warm，其余不定。
+ * 另：清热类药有三味以上、又没有温里/补阳/温化寒痰药时也按 cold——疏风清热一类的方子（芎菊上清丸：黄芩、栀子、连翘、黄连配
+ * 羌活、白芷、防风、荆芥）里的辛温发散药是解表用的，不是温里，此前按「寒温并见」弃权，外感风邪证配了桂枝颗粒（风寒表虚）
+ *（第二十七、二十八轮甲方接口病例 api-163c9273efa3 与「XXX天」一例，qwen 评审判中成药与汤剂方向相悖）。
+ */
+const INTERIOR_WARM_HERB_CATEGORIES: ReadonlySet<string> = new Set(["温里药", "补阳药", "温化寒痰药"]);
 export function decoctionThermalByComposition(herbs: readonly string[]): "cold" | "warm" | undefined {
-  return medicineThermalByComposition(herbs);
+  const byShare = medicineThermalByComposition(herbs);
+  if (byShare) return byShare;
+  const cold = herbs.filter((herb) => getTcmHerbFunctionCategories(herb).some((category) => COLD_HERB_CATEGORIES.has(category))).length;
+  const interiorWarm = herbs.filter((herb) => getTcmHerbFunctionCategories(herb).some((category) => INTERIOR_WARM_HERB_CATEGORIES.has(category))).length;
+  return cold >= 3 && interiorWarm === 0 ? "cold" : undefined;
 }
 
 export function signedDirectionOf(prior: Pick<ClinicalReasoningResultV2, "overview" | "therapy"> | null | undefined): SignedDirection | undefined {
@@ -598,7 +608,35 @@ export function signedDirectionOf(prior: Pick<ClinicalReasoningResultV2, "overvi
   return names || method ? { names, method } : undefined;
 }
 
-export type MedicineDirectionConflict = "tonic_for_excess" | "attack_for_deficiency" | "cold_for_cold_case" | "warm_for_heat_case" | "excess_indication_for_deficiency" | "deficiency_indication_for_excess";
+export type MedicineDirectionConflict = "tonic_for_excess" | "attack_for_deficiency" | "cold_for_cold_case" | "warm_for_heat_case" | "excess_indication_for_deficiency" | "deficiency_indication_for_excess" | "label_syndrome_other_organ";
+
+/**
+ * 证名里的脏腑，按「肝胆」「脾胃」各算一组（表里同病常合称，肝胆湿热之于肝经郁热、脾胃虚弱之于脾虚证都是同一处），
+ * 其余各自一组；「表」「经」不是脏腑，不计。
+ */
+const SYNDROME_ORGAN_GROUPS: ReadonlyArray<{ group: string; pattern: RegExp }> = [
+  { group: "肝胆", pattern: /[肝胆]/u },
+  { group: "脾胃", pattern: /[脾胃]/u },
+  { group: "心", pattern: /心/u },
+  { group: "肺", pattern: /肺/u },
+  { group: "肾", pattern: /肾/u },
+  { group: "肠", pattern: /肠/u },
+  { group: "膀胱", pattern: /膀胱/u },
+];
+function syndromeOrganGroups(text: string): Set<string> {
+  return new Set(SYNDROME_ORGAN_GROUPS.filter((item) => item.pattern.test(text)).map((item) => item.group));
+}
+/**
+ * 说明书「用于/适用于」写明的证与本例证候（主证＋兼证）各有对方没有的脏腑：五味安神颗粒「适用于心脾两虚证」之于心悸·心虚胆怯证
+ *（甲方 10.12 病历 2；本例在心、胆，说明书的证在心、脾）。说明书的证包含本例的脏腑（二至丸「肝肾阴虚」之于肾阴虚证、
+ * 归脾类「心脾两虚」之于心血虚）不算——那是说明书写得更宽，不是另一处的病。两边都写出脏腑才判，任何一边读不出脏腑都弃权。
+ */
+export function labelSyndromeNamesOtherOrgan(labelSyndrome: string, caseNames: string): boolean {
+  const label = syndromeOrganGroups(labelSyndrome);
+  const own = syndromeOrganGroups(caseNames);
+  if (label.size === 0 || own.size === 0) return false;
+  return [...label].some((group) => !own.has(group)) && [...own].some((group) => !label.has(group));
+}
 
 const DEFICIENT_NAME = /虚|亏|不足|失养|不固|不摄|怯|衰|脱/u;
 const EXCESS_NAME = /热|火|湿|痰|饮|瘀|滞|郁|积|毒|风|寒|燥|亢|扰|犯|乘|旺|束|蕴|阻|结|闭/u;
@@ -672,7 +710,8 @@ export function labelSyndromePhrase(usedFor: string): string {
  * 主要问题 = 主诉、中医病名、西医诊断、已签名的证。三条任一成立即算说到：
  *  · 受治理概念表（medicine-clinical-concepts，与检索同一份）在主要问题与「用于」部分之间有病证或问题概念相合；
  *  · 「用于」部分写着中医病名、西医诊断（去「待查」）或主诉里的症状；
- *  · 说明书写的证与本例的证有两个以上相同的字（肝胆湿热对肝经郁热，心脾两虚对心虚胆怯）。
+ *  · 说明书写的证与本例的证有两个以上相同的字（肝胆湿热对肝经郁热）。脏腑不同的（心脾两虚对心虚胆怯）由方向核对的
+ *    label_syndrome_other_organ 排除，见 labelSyndromeNamesOtherOrgan。
  * 说明书查不到的返回 undefined（不判）。
  */
 export function patentMedicineCoversMainProblem(indication: string, main: {
@@ -744,6 +783,7 @@ export function patentMedicineDirectionConflict(
     const labelExcess = [...labelSyndrome.replace(/[阴血气阳精津]虚(?:血|内)?[热火]/gu, "")].filter((character) => EXCESS_NAME.test(character));
     if (!labelExcess.some((character) => names.includes(character))) return "deficiency_indication_for_excess";
   }
+  if (labelSyndrome && labelSyndromeNamesOtherOrgan(labelSyndrome, names)) return "label_syndrome_other_organ";
   // 寒热：本例证名只有寒（或只有热），治法也没有反向字样。证名不分寒热（外感风邪证、风邪犯表证）时看已签名的治法：
   // 只有清热一边的按热、只有温散一边的按寒（第二十七轮接口回放：外感风邪证、治法疏风清热，汤剂黄芩栀子连翘黄连，推荐桂枝颗粒）。
   const neutralNames = !/寒/u.test(names) && !/热|火|暑/u.test(names);

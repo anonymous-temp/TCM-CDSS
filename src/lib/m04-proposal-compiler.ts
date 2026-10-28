@@ -8,7 +8,7 @@ import {
   type ClinicalReasoningResultV2,
 } from "./diagnosis-types";
 import { sanitizeUnverifiedClinicalNarrative } from "./customer-evidence";
-import { stripHerbBoundaryTail } from "./candidate-boundary-text";
+import { herbBoundaryPopulationLabel, stripHerbBoundaryTail } from "./candidate-boundary-text";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
 import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairCautions, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
@@ -2277,7 +2277,10 @@ export function compileM04Proposal(
           specialDecoctionPhrase(item.herbName.trim()),
           conceptionTier ? conceptionHerbNote(item.herbName.trim(), conceptionTier) || "" : "",
           // 慎用级人群提示（D4）：本例病历记有该人群时写明（转氨酶升高加补骨脂 → 「补骨脂肝功能不全者慎用…」）。
+          // 人群写法与每味药的人群提示同一个函数（herbBoundaryPopulationLabel）：男性、儿童、60 岁以上不写「月经期」
+          //（第二十八轮甲方 100 例 C023：72 岁男性加桃仁写「桃仁出血倾向/月经期/抗凝状态者慎用」）。
           ...recordedPopulationCautions(item.herbName, modificationGroundingText)
+            .map((population) => herbBoundaryPopulationLabel(population, caseState ? { reproductive: reproductiveAdviceRelevant(caseState), ageYears: authoritativePatientAgeYears(caseState) ?? null } : undefined))
             .map((population) => `${item.herbName.trim()}${population}者慎用，本例病历有相应记录，请医生核对后再加`),
         ].filter(Boolean).join("；")
         : "",
