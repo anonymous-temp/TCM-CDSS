@@ -146,7 +146,15 @@ export function patentMedicineDuplication(
     return { reason: "decoction_emperor_herb", herbs: [...new Set(emperor.map((herb) => herb.identity))] };
   }
   const shared = [...new Set(herbs.filter((herb) => composition.has(herb.identity)).map((herb) => herb.identity))];
-  return shared.length >= 2 ? { reason: "decoction_shared_herbs", herbs: shared } : undefined;
+  if (shared.length >= 2) return { reason: "decoction_shared_herbs", herbs: shared };
+  // 成药的组成（调和之品不计）整个都在汤剂里：单味成药（人参口服液＝人参）配一张已有人参的方，是同一味药吃两遍
+  //（第二十八轮甲方标准病历 2：安神定志丸加减有人参，又推荐人参口服液；第十八轮记为模型选药问题未处理）。
+  const ownIngredients = [...composition].filter((herb) => !HARMONIZING_ADJUNCTS.has(herb));
+  const inDecoction = new Set(herbs.map((herb) => herb.identity));
+  if (ownIngredients.length > 0 && ownIngredients.every((herb) => inDecoction.has(herb))) {
+    return { reason: "decoction_shared_herbs", herbs: ownIngredients };
+  }
+  return undefined;
 }
 
 /**

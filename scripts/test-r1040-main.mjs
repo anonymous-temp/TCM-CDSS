@@ -114,6 +114,16 @@ await check("3.1 心脾两虚证的成药不给心虚胆怯证；给心脾两虚
   assert.equal(medicines.labelSyndromeNamesOtherOrgan("脾胃虚弱", "肝郁气滞证"), true);
 });
 
+const duplication = await jiti.import("../src/lib/patent-medicine-duplication.server.ts");
+await check("3.3 单味成药的组成整个都在汤剂里（人参口服液配有人参的安神定志丸）算重复；只共一味、成药另有别的药的不算", () => {
+  const decoction = [{ name: "龙齿", role: "君" }, { name: "人参", role: "臣" }, { name: "茯神", role: "臣" }, { name: "茯苓", role: "佐" }, { name: "远志", role: "佐" }, { name: "石菖蒲", role: "使" }];
+  const hit = duplication.patentMedicineDuplication({ type: "中成药", name: "人参口服液", positioning: "需医生评估", route: "口服" }, decoction);
+  assert.equal(hit?.reason, "decoction_shared_herbs");
+  assert.deepEqual(hit?.herbs, ["人参"]);
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "人参口服液", positioning: "需医生评估", route: "口服" }, decoction.filter((herb) => herb.name !== "人参")), undefined);
+  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "归脾丸", positioning: "需医生评估", route: "口服" }, [{ name: "人参", role: "臣" }, { name: "龙齿", role: "君" }]), undefined);
+});
+
 // ---------- 4 补兼证与模型自写兼证同一道结构判据 ----------
 // 第二十七轮 qwen 评审 api-641286fcfcbf：风热犯肺证被补写路径补成「兼风寒表证」，治法末尾多出「辛温解表」。
 await check("4.1 补写路径要补的兼证寒热与主证相反、已被主证包含时不补；正常的兼证照补", () => {
