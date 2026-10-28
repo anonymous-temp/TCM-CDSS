@@ -638,7 +638,9 @@ export function labelSyndromeNamesOtherOrgan(labelSyndrome: string, caseNames: s
   return [...label].some((group) => !own.has(group)) && [...own].some((group) => !label.has(group));
 }
 
-const DEFICIENT_NAME = /虚|亏|不足|失养|不固|不摄|怯|衰|脱/u;
+// 「清阳不升」「中气下陷」是气虚的证名写法（与治则推导同一口径，第十八轮）：此前不算虚证，清阳不升证配了风热的清眩丸
+//（第二十八轮甲方接口回放 api-4edea85d4ad5，qwen 评审判中成药与证候病性相反）。
+const DEFICIENT_NAME = /虚|亏|不足|失养|不固|不摄|怯|衰|脱|不升|下陷/u;
 const EXCESS_NAME = /热|火|湿|痰|饮|瘀|滞|郁|积|毒|风|寒|燥|亢|扰|犯|乘|旺|束|蕴|阻|结|闭/u;
 /** 治法里有补、润、养、固这类字样：证名再实也不是纯攻（风燥伤肺·润燥止咳用养阴药不算相反）。 */
 const METHOD_HAS_TONIC = /补|益|养|滋|润|生津|固|扶|填|培|温阳|助阳|壮|健脾|健胃/u;
@@ -774,6 +776,10 @@ export function patentMedicineDirectionConflict(
   }
   const usedFor = medicine.indication ? medicine.indication.slice(clause.length) : "";
   if (usedFor && INDICATION_EXCESS.test(usedFor) && caseDeficient && !caseExcess) return "excess_indication_for_deficiency";
+  // 说明书写的证只有邪实（风热、湿热、肝火、热毒…，不带任何虚字）、本例证名是纯虚证：与上一条同一方向，只是说明书没写「实」字。
+  const labelOnlyExcess = labelSyndromePhrase(usedFor);
+  if (labelOnlyExcess && EXCESS_NAME.test(labelOnlyExcess) && !DEFICIENT_NAME.test(labelOnlyExcess) && !INDICATION_DEFICIENCY.test(labelOnlyExcess) &&
+    caseDeficient && !caseExcess && method && !METHOD_HAS_ATTACK.test(method.replace(/升清|清阳|清窍/gu, ""))) return "excess_indication_for_deficiency";
   // 说明书写的证是虚证（「用于阴虚血热，月经先期」）、本例是纯实证（肝郁血热、阳盛血热）：方向相反
   //（2026-10-26 甲方测评病历 10「固经丸适合阴虚血热，此病历为实热」）。说明书的证里另有与本例相同的邪实要素时
   //（加味逍遥丸「肝郁血虚」对肝郁血热，都有「郁」）不算相反。虚热、虚火（阴虚血热）是虚证的热象，不算邪实。

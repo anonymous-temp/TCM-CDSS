@@ -133,6 +133,15 @@ await check("3.3 单味成药的组成整个都在汤剂里（人参口服液配
   assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "归脾丸", positioning: "需医生评估", route: "口服" }, [{ name: "人参", role: "臣" }, { name: "龙齿", role: "君" }]), undefined);
 });
 
+await check("3.4 清阳不升、中气下陷算虚证；说明书只写邪实（风热头晕目眩）的成药不给纯虚证；治法本身攻邪时不算相反", () => {
+  const qingxuan = "散风清热。用于风热头晕目眩，偏正头痛，鼻塞牙痛。";
+  const conflict = (names, method) => medicines.patentMedicineDirectionConflict({ clause: medicines.medicineFunctionClause(qingxuan), herbs: [], indication: qingxuan }, { names, method });
+  assert.equal(conflict("清阳不升证", "升清降浊，和胃止呕，宣通清窍"), "excess_indication_for_deficiency");
+  assert.equal(conflict("中气下陷证", "补中益气，升阳举陷"), "excess_indication_for_deficiency");
+  assert.equal(conflict("风热上扰证", "疏风清热，清利头目"), undefined);
+  assert.equal(conflict("气虚证", "益气，疏风清热"), undefined);
+});
+
 // ---------- 4 补兼证与模型自写兼证同一道结构判据 ----------
 // 第二十七轮 qwen 评审 api-641286fcfcbf：风热犯肺证被补写路径补成「兼风寒表证」，治法末尾多出「辛温解表」。
 await check("4.1 补写路径要补的兼证寒热与主证相反、已被主证包含时不补；正常的兼证照补", () => {
