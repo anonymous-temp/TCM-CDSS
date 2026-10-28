@@ -481,11 +481,14 @@ export function buildTextbookCandidateContext(input: TextbookCaseInput): string 
     ? { maxDiseases: 4, maxRowsPerDisease: 12 }
     : {});
   if (candidates.length === 0) return "";
+  // 鉴别病名与鉴别要点也按本例性别取（与补写鉴别、交付兜底同一判据 tcmDifferentialDiseaseFitsPatient）：男性肠痈的辨病依据曾写
+  //「与异位妊娠的停经出血相区分」（第二十八轮页面形状 C015）。
+  const fittingDifferentials = (names: readonly string[]) => names.filter((name) => tcmDifferentialDiseaseFitsPatient(name, { sex: input.sex }));
   const lines = candidates.flatMap((item) => [
-    `◆ ${item.disease}（《${item.book}》）${item.differentials.length > 0 ? `｜教材鉴别病名：${item.differentials.slice(0, 4).join("、")}` : ""}`,
+    `◆ ${item.disease}（《${item.book}》）${fittingDifferentials(item.differentials).length > 0 ? `｜教材鉴别病名：${fittingDifferentials(item.differentials).slice(0, 4).join("、")}` : ""}`,
     // 教材给的鉴别要点原文（去重、截短）：辨病依据与中医鉴别里的区分点照它写（2026-10-19 甲方标准病历 6：腰痛与背痛、尻痛教材按部位区分，
     // 模型两次写成「未诉放射痛」）。
-    ...textbookDifferentialGist(item.disease, item.book, item.differentials.slice(0, 4)),
+    ...textbookDifferentialGist(item.disease, item.book, fittingDifferentials(item.differentials).slice(0, 4)),
     ...textbookDiagnosisGist(item.disease, item.book),
     ...item.rows.map((row) =>
       `  - ${row.syndromeName}｜主症：${cut(row.manifestations, 90)}｜治法：${row.therapy}｜代表方：${formulaLabel(row)}`),

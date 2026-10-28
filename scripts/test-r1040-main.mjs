@@ -46,6 +46,15 @@ await check("1.1 男性：异位妊娠不算留得下的病名鉴别（于是会
   assert.equal(textbook.tcmDifferentialDiseaseFitsPatient("胃痛", { sex: "男" }), true);
 });
 
+await check("1.2 辨证提示里的教材鉴别病名与鉴别要点也按性别取：男性肠痈不给异位妊娠，女性照给", () => {
+  const block = (sex) => textbook.buildTextbookCandidateContext({ chiefComplaint: "转移性右下腹痛12小时", presentHistory: "脐周痛转移至右下腹，伴发热。", sex, ageYears: 21, preferredDiseases: ["肠痈"] });
+  const male = block("男");
+  const female = block("女");
+  assert.match(female, /异位妊娠/u);
+  assert.doesNotMatch(male, /异位妊娠/u);
+  assert.match(male, /◆ 肠痈/u);
+});
+
 // ---------- 2 周围性面瘫的评估时限按激素窗口 ----------
 // AAO-HNS 2013：起病 72 小时内口服激素；York 基层路径（NICE CKS 摘要）：起病 72 小时内就诊者考虑泼尼松龙。
 const facialState = (chiefComplaint, history = "受风后出现左侧面部麻木，额纹消失，眼裂变大，鼻唇沟变浅，口角下垂。") => types.normalizeCaseStateInput({
