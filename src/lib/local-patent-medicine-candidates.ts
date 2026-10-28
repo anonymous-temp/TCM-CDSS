@@ -696,6 +696,7 @@ function medicineThermalByComposition(herbs: readonly string[]): "cold" | "warm"
  *（润肠丸）。本例证名是纯虚证（阴虚秘）时它与证候虚实相反（2026-10-24 甲方 100 例 C014 中成药评审不合格）。只认带「实」字的写法。
  */
 const INDICATION_EXCESS = /实(?:热|火|证|寒)/u;
+const LABEL_PATHOGEN = /热|火|湿|痰|饮|瘀|毒|风|寒/u;
 const INDICATION_DEFICIENCY = /[阴阳气血精津]虚|两虚|亏虚|不足|虚弱|虚损|虚寒/u;
 
 /** 说明书「用于」部分写的证：「X所致」的 X，否则第一个逗号前的一句（「阴虚血热，月经先期」→ 阴虚血热）；不像证名的返回空。 */
@@ -777,8 +778,9 @@ export function patentMedicineDirectionConflict(
   const usedFor = medicine.indication ? medicine.indication.slice(clause.length) : "";
   if (usedFor && INDICATION_EXCESS.test(usedFor) && caseDeficient && !caseExcess) return "excess_indication_for_deficiency";
   // 说明书写的证只有邪实（风热、湿热、肝火、热毒…，不带任何虚字）、本例证名是纯虚证：与上一条同一方向，只是说明书没写「实」字。
+  // 只认外邪与病理产物（热火湿痰饮瘀毒风寒）：「肠燥便秘」的燥、「气滞」的滞虚证也有，不算（第十八轮对照：肠燥便秘之于阴虚秘不判）。
   const labelOnlyExcess = labelSyndromePhrase(usedFor);
-  if (labelOnlyExcess && EXCESS_NAME.test(labelOnlyExcess) && !DEFICIENT_NAME.test(labelOnlyExcess) && !INDICATION_DEFICIENCY.test(labelOnlyExcess) &&
+  if (labelOnlyExcess && LABEL_PATHOGEN.test(labelOnlyExcess) && !DEFICIENT_NAME.test(labelOnlyExcess) && !INDICATION_DEFICIENCY.test(labelOnlyExcess) &&
     caseDeficient && !caseExcess && method && !METHOD_HAS_ATTACK.test(method.replace(/升清|清阳|清窍/gu, ""))) return "excess_indication_for_deficiency";
   // 说明书写的证是虚证（「用于阴虚血热，月经先期」）、本例是纯实证（肝郁血热、阳盛血热）：方向相反
   //（2026-10-26 甲方测评病历 10「固经丸适合阴虚血热，此病历为实热」）。说明书的证里另有与本例相同的邪实要素时
