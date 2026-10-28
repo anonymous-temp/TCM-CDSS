@@ -31,6 +31,7 @@ const medicines = await jiti.import("../src/lib/local-patent-medicine-candidates
 const secondary = await jiti.import("../src/lib/m03-secondary-syndrome-consistency.server.ts");
 const summary = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const boundary = await jiti.import("../src/lib/candidate-boundary-text.ts");
+const jitiCompiler = await jiti.import("../src/lib/m04-proposal-compiler.ts");
 
 // ---------- 1 男性的中医病名鉴别：只属妇科的病在补写之前就不算数 ----------
 // 甲方 100 例 C015（21 岁男性肠痈）：模型写了「异位妊娠」「腹痛」两项，交付面删掉异位妊娠后只剩一项——补写小任务在 M03 收口时
@@ -91,6 +92,17 @@ await check("2b.1 否认妊娠写在既往史栏里仍是现在的否认；肯�
 // 甲方 10.12 标准病历 2（心悸·心虚胆怯证）推荐五味安神颗粒：说明书「适用于心脾两虚证」。说明书的证更宽（包含本例脏腑）不算。
 const wuwei = "养心安神，健脾和中。适用于心脾两虚证，症见心烦，急燥易怒，心悸，口干，易汗出，睡眠多梦易醒，神疲乏力，食欲不振，肌肉酸楚。";
 const direction = (names, method) => ({ names, method });
+await check("3.2 汤剂有三味以上清热药、没有温里药时按寒：外感风邪证（疏风解表）配芩连栀翘的汤剂，不给桂枝颗粒；全是辛温解表药的不按寒、有温里药的不按寒", () => {
+  const xiongju = ["川芎", "菊花", "防风", "荆芥穗", "薄荷", "羌活", "白芷", "蔓荆子", "藁本", "桔梗", "黄芩", "栀子", "连翘", "黄连", "甘草"];
+  assert.equal(medicines.decoctionThermalByComposition(xiongju), "cold");
+  assert.notEqual(medicines.decoctionThermalByComposition(["荆芥", "防风", "羌活", "独活", "川芎", "柴胡", "前胡", "桔梗", "枳壳", "茯苓", "甘草"]), "cold");
+  assert.equal(medicines.decoctionThermalByComposition(["黄芩", "栀子", "连翘", "附子", "干姜", "甘草"]), undefined);
+  const guizhi = "解肌发表，调和营卫。用于外感风寒表虚证，症见头痛发热，汗出恶风，鼻塞干呕。";
+  const conflict = medicines.patentMedicineDirectionConflict({ clause: medicines.medicineFunctionClause(guizhi), herbs: ["桂枝", "白芍", "生姜", "大枣", "甘草"], indication: guizhi },
+    { names: "外感风邪证", method: "疏风解表，宣肺通窍", decoctionThermal: medicines.decoctionThermalByComposition(xiongju) });
+  assert.equal(conflict, "warm_for_heat_case");
+});
+
 await check("3.1 心脾两虚证的成药不给心虚胆怯证；给心脾两虚证、心血虚证照给；肝肾阴虚的成药给肾阴虚证照给", () => {
   const conflict = (indication, names, method = "") => medicines.patentMedicineDirectionConflict({ clause: medicines.medicineFunctionClause(indication), herbs: [], indication }, direction(names, method));
   assert.equal(conflict(wuwei, "心虚胆怯证", "镇惊定志，养心安神"), "label_syndrome_other_organ");
@@ -98,6 +110,7 @@ await check("3.1 心脾两虚证的成药不给心虚胆怯证；给心脾两虚
   assert.equal(conflict(wuwei, "心血虚证", "养血安神"), undefined);
   assert.equal(conflict("补益肝肾，滋阴止血。用于肝肾阴虚，眩晕耳鸣，咽干鼻燥，腰膝酸痛，月经量多。", "肾阴虚证", "滋补肾阴"), undefined);
   assert.equal(medicines.labelSyndromeNamesOtherOrgan("肝胆湿热", "肝经郁热证"), false);
+  assert.equal(medicines.labelSyndromeNamesOtherOrgan("肝郁气滞", "胆郁痰扰证"), false);
   assert.equal(medicines.labelSyndromeNamesOtherOrgan("脾胃虚弱", "肝郁气滞证"), true);
 });
 
@@ -127,6 +140,39 @@ await check("5.1 「多为主」是量词谓语：其后未记录的「无涩痛
 await check("6.1 男性、60 岁以上的人群提示不写「月经期」，育龄女性照写", () => {
   assert.equal(boundary.herbBoundaryPopulationLabel("出血倾向/月经期/抗凝状态", { reproductive: false, ageYears: 72 }), "出血倾向/抗凝状态");
   assert.equal(boundary.herbBoundaryPopulationLabel("出血倾向/月经期/抗凝状态", { reproductive: true, ageYears: 30 }), "出血倾向/月经期/抗凝状态");
+});
+
+await check("6.2 编译器：72 岁男性服华法林、加桃仁的慎用提示不写「月经期」；30 岁女性照写", () => {
+  const compiler = jitiCompiler;
+  const prior = types.ReasoningV2Schema.parse({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { tcmDiseaseName: "胸痹", primarySyndrome: "心血瘀阻证", overallPathogenesis: "瘀阻心脉，不通则痛", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+    pathogenesis: { chain: [{ nodeId: "P1", patientFact: "胸闷刺痛", syndromeEvidence: "胸闷刺痛，痛有定处", pathogenesis: "瘀阻心脉", therapyDirection: "活血通络" }] },
+    therapy: { overallPrinciple: "实则泻之", overallMethod: "活血化瘀，通脉止痛", subTherapies: [{ therapy: "活血化瘀", targetPathogenesis: "瘀阻心脉", priority: "主要" }] },
+    formula: { candidates: [], patentAndWestern: [], modifications: [] },
+  });
+  const compile = (caseState) => compiler.compileM04Proposal({
+    candidate: {
+      name: "自拟方", applicable: "胸闷刺痛。", notApplicable: "",
+      herbs: [
+        { name: "丹参", dose: "15g", role: "君", function: "活血化瘀" }, { name: "川芎", dose: "10g", role: "臣", function: "活血行气" },
+        { name: "赤芍", dose: "10g", role: "臣", function: "凉血散瘀" }, { name: "炙甘草", dose: "6g", role: "使", function: "调和诸药" },
+      ].map((herb) => ({ ...herb, targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, processing: null, isToxic: false, decoctionRequirement: null })),
+      formulaAnalysis: "丹参活血为君，川芎、赤芍为臣，炙甘草为使。",
+      decoction: { doseCount: "7剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "7日复诊" },
+    },
+    patentAndWestern: [],
+    modifications: [{ trigger: "胸闷刺痛", targetRef: "P1", actionType: "add", herbName: "桃仁", dose: "9g", reason: "活血通络" }],
+    nonPharma: { diet: "宜清淡。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: [], tcmTreatments: [] },
+  }, prior, caseState);
+  const note = (sex, age) => compile(types.normalizeCaseStateInput({
+    chiefComplaint: "胸闷刺痛1月", patient: { sex, age },
+    symptoms: { 现病史: "胸闷刺痛，痛有定处。房颤病史，长期口服华法林。" },
+  })).formula.modifications.find((item) => item.herbName === "桃仁")?.riskNote || "";
+  const man = note("男", 72);
+  assert.match(man, /桃仁[^；]*抗凝状态者慎用/u, man);
+  assert.doesNotMatch(man, /月经期/u, man);
+  assert.match(note("女", 30), /月经期/u);
 });
 
 // ---------- 7 「复评」换成临床写法 ----------
