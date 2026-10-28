@@ -239,13 +239,17 @@ await check("6.3 证名、病名不涉心神时治法里单列的「宁心安神
 
 // ---------- 7 中成药与汤剂药性相反 ----------
 const patentMedicine = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
-await check("7.1 证名不分寒热（外感风邪证）时按已签名治法定寒热：治法只清热时不推辛温的桂枝颗粒；治法也不分时按汤剂组成（清热药过三分之一、无温散药）；寒热都有的汤剂不判（对照）", () => {
+await check("7.1 证名不分寒热（外感风邪证）时按已签名治法定寒热：治法只清热时不推辛温的桂枝颗粒；治法也不分时按汤剂组成（清热药过三分之一、无温散药，或三味以上清热药、无温里药）；温里药与清热药并用的不判（对照）", () => {
   const guizhi = { clause: "解肌发表，调和营卫", herbs: ["桂枝", "白芍", "生姜", "大枣", "甘草"] };
   assert.equal(patentMedicine.patentMedicineDirectionConflict(guizhi, { names: "外感风邪证", method: "疏风清热，宣肺利咽" }), "warm_for_heat_case");
   const coldDecoction = patentMedicine.decoctionThermalByComposition(["黄芩", "栀子", "连翘", "黄连", "甘草", "桔梗"]);
   assert.equal(coldDecoction, "cold");
   assert.equal(patentMedicine.patentMedicineDirectionConflict(guizhi, { names: "外感风邪证", method: "疏风解表", decoctionThermal: coldDecoction }), "warm_for_heat_case");
-  const mixed = patentMedicine.decoctionThermalByComposition(["川芎", "荆芥穗", "防风", "羌活", "白芷", "黄芩", "栀子", "连翘", "黄连", "甘草"]);
+  // 第二十八轮改口径：辛温解表药配芩连栀翘（芎菊上清丸一类）是疏风清热，三味以上清热药、没有温里药即按寒（test:r1040-main 3.2）；
+  // 温里药（附子、干姜）与清热药并用的才算寒热都有、不判。
+  const exteriorWithHeatClearing = patentMedicine.decoctionThermalByComposition(["川芎", "荆芥穗", "防风", "羌活", "白芷", "黄芩", "栀子", "连翘", "黄连", "甘草"]);
+  assert.equal(patentMedicine.patentMedicineDirectionConflict(guizhi, { names: "外感风邪证", method: "疏风解表", decoctionThermal: exteriorWithHeatClearing }), "warm_for_heat_case");
+  const mixed = patentMedicine.decoctionThermalByComposition(["黄芩", "栀子", "连翘", "附子", "干姜", "甘草"]);
   assert.equal(patentMedicine.patentMedicineDirectionConflict(guizhi, { names: "外感风邪证", method: "疏风解表", decoctionThermal: mixed }), undefined, "寒热都有的汤剂不判");
   assert.equal(patentMedicine.patentMedicineDirectionConflict(guizhi, { names: "外感风邪证", method: "疏风解表" }), undefined, "治法与汤剂都不定：不判");
 });
