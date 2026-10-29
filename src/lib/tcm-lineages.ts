@@ -536,3 +536,26 @@ export function displayableLineageAdaptation(adaptation: unknown): LineageAdapta
     safetyBoundary: safetyDeference || SAFETY_DEFERENCE_TEXT,
   };
 }
+
+/**
+ * 辨证依据里流派视角那一句（第十八轮起，选了流派时提示词要求末尾写一句）的认法，收成这一处（2026-10-29 第三十轮）。
+ * 此前两处各认各的：依据重写（m03-rationale-coverage）只认「以下按常规辨证处理」与「从…看」，不认「扶阳学派看阴阳实据，本例…」
+ * 这种以派名起头、流派适用时不带「以下按常规辨证处理」的写法，重写稿按「不写流派」把它丢了（甲方 10/29 实测：选了扶阳的风寒感冒，
+ * 依据里没有扶阳那一句）；去掉别派眼目句（tcm-formula-provenance）只认派名起头。
+ */
+export const LINEAGE_LENS_SUBJECT: Readonly<Record<string, string>> = {
+  "classical-formula": "经方", "warm-disease": "温病", "nourish-yin-danxi": "丹溪", "warm-tonify": "温补", "support-yang": "扶阳",
+};
+
+/** 以派名起头的眼目句（「扶阳学派看…」「按温病思路重…」）的派名；不是这种写法时返回 undefined。 */
+export function lineageLensSubject(sentence: string, subjects: readonly string[] = Object.values(LINEAGE_LENS_SUBJECT)): string | undefined {
+  const match = new RegExp(`^(?:按|从)?(${subjects.join("|")})(?:学派|思路|派)?(?:看|重)`, "u").exec(String(sentence || "").trim());
+  return match?.[1];
+}
+
+/** 流派视角那一句：派名起头的眼目句，或「从…看，…」「…，以下按常规辨证处理」。 */
+export function isLineageLensSentence(sentence: string): boolean {
+  const text = String(sentence || "").trim();
+  return /以下按常规辨证处理|^从[^，,。]{1,16}看/u.test(text) || lineageLensSubject(text) !== undefined;
+}
+

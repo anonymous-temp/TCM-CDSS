@@ -17,6 +17,7 @@ import {
   PULSE_VESSEL_NOUN_LOOKBEHIND_SOURCE,
   recentChildbirthMentioned,
   recordExcludesPregnancyPotential,
+  REPRODUCTIVE_STATE_MIN_AGE_YEARS,
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
 import priorityEvaluationWindowTable from "../data/priority-evaluation-windows.source.json";
@@ -6287,6 +6288,75 @@ export function pregnancyAdviceRelevant(state: CaseState): boolean {
   return YOUNG_ADOLESCENT_PREGNANCY_CONTEXT.test(normalizeClinicalText(trustedInputText(state)));
 }
 
+/**
+ * 未满 REPRODUCTIVE_STATE_MIN_AGE_YEARS（10 岁，与 pregnancyScreenRequired 同一下限）的患儿，病历却写着本人的婚育、月经记录
+ *（2026-10-29 第三十轮，甲方实测：1 岁女童个人史「月经周期 13天，有痛经史」、婚育史「配偶体健，备孕」）。此前注意事项照备孕一档写了
+ *「备孕期间服药，如月经逾期请先验孕」，辨证依据按清单逐项交代成「痛经史为既往宿疾」，而记录与年龄的矛盾一句没提。
+ * 返回这些记录所在的逗号分句（病历原文），没有时返回空数组。读法：
+ *  · 母亲、出生史、婴幼儿喂养的分句先去掉（maternalStateText，同一判据）；
+ *  · 备孕/未避孕、妊娠、哺乳用各自的状态判据（阳性或可疑）逐句读；婚姻、月经、孕产次按受治理的闭集（REPRODUCTIVE_HISTORY_MENTION），
+ *    提及处在本分句内被否认、未问及或说的是别人的不算（clauseLocalMentionPolarityAt）；「月经未潮」这类说还没来月经的不算；
+ *  · 主诉说的就是性早熟、乳房发育或阴道出血时，月经类记录是这次就诊的内容，不算矛盾（婚育、备孕仍算）。
+ * 只用来提示医生核实、并让辨证与注意事项不采用这些记录；剂量照登记年龄按儿童年龄分数法折算（偏少的方向）。
+ */
+const REPRODUCTIVE_HISTORY_MENTION = /配偶|丈夫|爱人|已婚|再婚|离异|月经|经期|经量|经色|痛经|末次月经|初潮|孕\s*\d+\s*产\s*\d+|G\s*\d+\s*P\s*\d+/giu;
+/** 说配偶本人的词：语境判据会把这一句读成「别人的事」（配偶体健），它恰恰说明患者有配偶，只看前面有没有否认。 */
+const SPOUSE_MENTION = /^(?:配偶|丈夫|爱人)$/u;
+const MENSTRUAL_MENTION = /月经|经期|经量|经色|痛经|末次月经|初潮/u;
+const NOT_YET_MENSTRUATING = /(?:月经|初潮)\s*(?:尚)?未(?:来)?潮|未(?:见)?初潮|尚无月经/u;
+const PUBERTY_VISIT = /性早熟|乳房[^，,。；;]{0,4}(?:发育|增大|变大|隆起|硬结)|阴道[^，,。；;]{0,4}(?:出血|流血)|初潮|月经[^，,。；;]{0,4}来潮/u;
+/** 栏目名（「婚育月经史：」「个人史，月经史」这种只写了栏目名的模板占位）不是记录本身。 */
+const RECORD_SECTION_LABEL = /(?:既往|个人|婚育|月经|生育|家族|婚姻)(?:月经|婚育|生育)?史\s*[:：]?/gu;
+/**
+ * 月经类记录只对未满 8 岁的算矛盾：女童 8 岁前出现第二性征、10 岁前月经初潮属性早熟（《中枢性性早熟诊断与治疗专家共识（2022）》），
+ * 8–9 岁写着月经是要看的病，不是录错（回放：社区病历「9 岁，乳房变大一段时间，近期月经突然来潮」）。
+ */
+const MENSTRUAL_RECORD_MAX_AGE_YEARS = 8;
+export function ageImplausibleReproductiveStatements(state: CaseState): string[] {
+  const age = authoritativePatientAgeYears(state);
+  if (age == null || age >= REPRODUCTIVE_STATE_MIN_AGE_YEARS) return [];
+  const pubertyVisit = PUBERTY_VISIT.test(normalizeClinicalText(String(state.chiefComplaint || fieldText(state, "zhushu") || "")));
+  const text = maternalStateText(state, normalizeClinicalText(trustedInputText(state)));
+  const found: string[] = [];
+  for (const raw of text.split(/[。；;\n]/u)) {
+    const sentence = raw.trim();
+    if (!sentence) continue;
+    for (const part of sentence.split(/[，,]/u)) {
+      const clause = part.replace(RECORD_SECTION_LABEL, "").trim();
+      if (!clause) continue;
+      const stateHit = [assessConceptionState(clause), assessPregnancyState(clause), assessLactationState(clause)].some(isPositiveOrPossibleClinicalState);
+      const historyHit = !NOT_YET_MENSTRUATING.test(clause) && [...clause.matchAll(REPRODUCTIVE_HISTORY_MENTION)].some((match) => {
+        if (MENSTRUAL_MENTION.test(match[0]) && (pubertyVisit || age >= MENSTRUAL_RECORD_MAX_AGE_YEARS)) return false;
+        const at = match.index ?? 0;
+        if (SPOUSE_MENTION.test(match[0])) return !/(?:无|未|没有|否认|丧)\s*$/u.test(clause.slice(0, at));
+        return clauseLocalMentionPolarityAt(clause, at + match[0].length - 1) === "affirmed";
+      });
+      if ((stateHit || historyHit) && !found.includes(clause)) found.push(clause);
+    }
+  }
+  return found.slice(0, 4);
+}
+
+function ageLabelForNotice(age: number): string {
+  return age < 1 ? `${Math.max(1, Math.round(age * 12))}个月` : `${Math.floor(age)}岁`;
+}
+
+/** 写进安全闸门提示（advisories）的那一句：记录了什么、与几岁不符、请核实。 */
+export function ageImplausibleReproductiveAdvisory(state: CaseState): string | undefined {
+  const statements = ageImplausibleReproductiveStatements(state);
+  const age = authoritativePatientAgeYears(state);
+  if (statements.length === 0 || age == null) return undefined;
+  return `病历记录的「${statements.join("，")}」与患者年龄（${ageLabelForNotice(age)}）不符，可能录入有误，请核实；辨证与注意事项未采用这些记录`;
+}
+
+/** 给辨证、开方模型的同一提示（M03 两半与 M04 的提示词末尾）。 */
+export function ageImplausibleReproductiveNotice(state: CaseState): string {
+  const statements = ageImplausibleReproductiveStatements(state);
+  const age = authoritativePatientAgeYears(state);
+  if (statements.length === 0 || age == null) return "";
+  return `\n\n【病历与年龄核对】病历记录的「${statements.join("，")}」与患者年龄（${ageLabelForNotice(age)}）不符，疑为录入有误：不作为辨病、辨证、用药与注意事项的依据，辨证依据与注意事项里也不提这几项。`;
+}
+
 export function pregnancyScreenRequired(state: CaseState): boolean {
   const sex = patientSexText(state);
   if (!/女/.test(sex)) return false;
@@ -6298,7 +6368,7 @@ export function pregnancyScreenRequired(state: CaseState): boolean {
     // 60 岁以下继续 fail-closed；60 岁及以上不再生成无临床价值的常规生殖状态追问。
     // 下限同理（2026-09-26 实测：3 岁女童病例被要求填写妊娠/哺乳/备孕状态）。取 10 岁而不是
     // 月经初潮的常见年龄：初潮最早可在 8–9 岁，10 岁及以上仍然追问，宁可多问一句。
-    (age != null && (age >= 60 || age < 10));
+    (age != null && (age >= 60 || age < REPRODUCTIVE_STATE_MIN_AGE_YEARS));
   return !physiologicallyNotAtRisk;
 }
 
@@ -7425,6 +7495,9 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   if (unreadableVitals.length > 0) {
     advisories.push(`本次请求的生命体征（${unreadableVitals.join("、")}）未能读取，红旗检查未使用这些数值，请核对生命体征后再提交`);
   }
+  // 未满 10 岁的病历写着本人的婚育、月经记录：如实告诉医生，辨证与注意事项不采用（ageImplausibleReproductiveStatements）。
+  const reproductiveAgeConflict = ageImplausibleReproductiveAdvisory(state);
+  if (reproductiveAgeConflict) advisories.push(reproductiveAgeConflict);
   const semanticUnavailable = semanticScreeningUnavailableItem(state);
   if (semanticUnavailable) addMissing("semantic_screen_unavailable", semanticUnavailable);
   if (priorityEvaluationItems.length > 0) {

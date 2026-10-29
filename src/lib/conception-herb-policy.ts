@@ -67,7 +67,7 @@ export function pregnancyUnknownReproductiveAgeFemale(groundingText: string): bo
 }
 
 export function chpPregnancyHerbTier(groundingText: string): ChpPregnancyHerbTier | undefined {
-  if (conceptionWithoutPregnancyOrLactation(groundingText)) return "conception";
+  if (conceptionWithoutPregnancyOrLactation(groundingText, labeledAgeYears(String(groundingText || "").normalize("NFKC")))) return "conception";
   if (pregnancyUnknownReproductiveAgeFemale(groundingText)) return "pregnancy_unknown";
   return undefined;
 }

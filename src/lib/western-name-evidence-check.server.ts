@@ -128,7 +128,11 @@ function courseNumber(token: string): number | undefined {
   return undefined;
 }
 
-type CourseSpan = { lower: number; upper: number; index: number; length: number };
+/**
+ * upperExclusive：「2月余」「10余天」「3个多月」是「满 N、不到 N+1」——上界本身取不到（2026-10-29 甲方「失眠…2月余」：上界 90 天
+ * 与慢性失眠障碍的 90 天门槛相等，按「上界 < 门槛」判成够不上未满，交付了「慢性失眠障碍」）。确数（「3个月」）上界就是它本身。
+ */
+type CourseSpan = { lower: number; upper: number; upperExclusive: boolean; index: number; length: number };
 
 function courseSpans(text: string): CourseSpan[] {
   const spans: CourseSpan[] = [];
@@ -153,7 +157,7 @@ function courseSpans(text: string): CourseSpan[] {
       lower = value * days;
       upper = approx ? (value >= 10 && value % 10 === 0 ? value + 10 : value + 1) * days : lower;
     }
-    spans.push({ lower, upper, index: match.index || 0, length: whole.length });
+    spans.push({ lower, upper, upperExclusive: approx && amount !== "半" && amount !== "数" && amount !== "几", index: match.index || 0, length: whole.length });
   }
   return spans;
 }
@@ -166,10 +170,20 @@ function chiefComplaintLine(recordText: string): string {
   return line.length <= 60 ? line : "";
 }
 
-export function recordCourseDays(recordText: string): { lower: number; upper: number } | undefined {
+export function recordCourseDays(recordText: string): { lower: number; upper: number; upperExclusive: boolean } | undefined {
   const spans = courseSpans(chiefComplaintLine(recordText));
   if (spans.length === 0) return undefined;
-  return { lower: Math.max(...spans.map((span) => span.lower)), upper: Math.max(...spans.map((span) => span.upper)) };
+  const upper = Math.max(...spans.map((span) => span.upper));
+  return {
+    lower: Math.max(...spans.map((span) => span.lower)),
+    upper,
+    upperExclusive: spans.filter((span) => span.upper === upper).every((span) => span.upperExclusive),
+  };
+}
+
+/** 病程确定够不上门槛（天）：上界取不到时等于门槛也算够不上。 */
+export function recordCourseBelowThreshold(course: { upper: number; upperExclusive: boolean }, thresholdDays: number): boolean {
+  return course.upperExclusive ? course.upper <= thresholdDays : course.upper < thresholdDays;
 }
 
 /** 核对理由里写的门槛（「需持续超6个月」「未达成人6个月门槛」）；理由里说病历病程的（「病程仅5天」）不算。 */
@@ -718,7 +732,7 @@ export function deterministicWesternNameCorrection(name: string, recordText: str
     const child = typeof patientAge === "number" && Number.isFinite(patientAge) && patientAge < 18;
     const threshold = child ? entry?.courseThresholdDays?.under18 ?? entry?.courseThresholdDays?.adult : entry?.courseThresholdDays?.adult;
     const course = recordCourseDays(recordText);
-    if (entry && threshold && course && course.upper < threshold) {
+    if (entry && threshold && course && recordCourseBelowThreshold(course, threshold)) {
       const base = core.replace(/^慢性/u, "");
       const acute = `急性${base}`;
       const supportedName = westernCriteriaEntry(acute)?.name === acute ? acute : base;

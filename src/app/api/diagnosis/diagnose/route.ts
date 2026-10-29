@@ -19,7 +19,7 @@ import { completeRationaleCoverage, reattributeStrandedKeyFindings } from "@/lib
 import { completeTcmDiseaseDifferentials, prefetchTcmDifferentialTopUp } from "@/lib/tcm-disease-differential-authoring.server";
 import { applyDiagnoseContractSignature, buildDiagnoseContractSignatureContext, contractBindingIdentity, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { semanticRedFlagsForBanner } from "@/lib/banner-semantic-red-flags.server";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, commaContinuedDenialReadingNotice, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, pregnancyAdviceRelevant, renderSafetyLimitedDiagnosisContract, reproductiveAdviceRelevant, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText, activeBleedingInGroundingText, activeBleedingWording, registerActiveBleedingRedFlags } from "@/lib/diagnosis-safety";
+import { ageImplausibleReproductiveNotice, authoritativePatientAgeYears, buildSafetyAdvisoryBanner, commaContinuedDenialReadingNotice, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, pregnancyAdviceRelevant, renderSafetyLimitedDiagnosisContract, reproductiveAdviceRelevant, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, trustedInputText, activeBleedingInGroundingText, activeBleedingWording, registerActiveBleedingRedFlags } from "@/lib/diagnosis-safety";
 import { activeBleedingM03Rule } from "@/lib/active-bleeding-treatment";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
@@ -193,6 +193,8 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   }
   // 否认后逗号接着写的裸词，规则读法与事实模型都读成「没有」时，明告生成模型（commaContinuedDenialReadingNotice；2026-10-25 A056）。
   stageInstructions += commaContinuedDenialReadingNotice(safeState);
+  // 未满 10 岁而病历写着本人的婚育、月经记录：不作辨证依据（ageImplausibleReproductiveNotice；2026-10-29 甲方 1 岁女童「配偶体健，备孕」）。
+  stageInstructions += ageImplausibleReproductiveNotice(safeState);
   if (limitedInformation) {
     stageInstructions += "\n\n【有限信息推理】请使用患者已经提供的信息完成辨病辨证；降低相应结论置信度，并把真正影响判断的未知项写入本半负责的 limitations 或 uncertainties。不得因年龄、性别、生命体征、舌脉、过敏史或当前用药未提供而拒绝输出 M03，也不得臆造缺失事实。";
   }

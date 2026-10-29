@@ -23,6 +23,7 @@ import {
 import { affirmedClinicalText } from "./clinical-polarity";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
+import { pediatricDoseRuleForAgeYears, pediatricDoseRuleForStageWords } from "./pediatric-dose-rule";
 import { narrativePediatricAgeConflict, pregnancyAdviceRelevant, pregnancyScreenRequired, reproductiveAdviceRelevant, unevaluatedBreastMass } from "./diagnosis-safety";
 import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, caseCourse, dietAdviceAvoidsRichFood, facialSoreRecorded, dietAdviceAvoidsTea, syndromeHasHeatNature, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, syndromeLabelFitsSigned, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
 import governanceSourceRegistryJson from "../data/clinical-governance-source-registry.json" with { type: "json" };
@@ -866,6 +867,13 @@ function treatmentCurrentFacts(caseState?: Partial<TreatmentCaseContext>): strin
     .join("；");
 }
 
+const INFANT_TODDLER_STAGES = new Set(["neonate", "infant", "toddler"]);
+/** 新生儿、乳婴儿、幼儿（儿童剂量分档表，未满 3 周岁）；没有数值年龄时看病历的年龄段词。 */
+function infantOrToddler(age: number | undefined, caseFacts: string): boolean {
+  const rule = age != null ? pediatricDoseRuleForAgeYears(age) : pediatricDoseRuleForStageWords(caseFacts);
+  return Boolean(rule && INFANT_TODDLER_STAGES.has(rule.stage));
+}
+
 function treatmentPatientAgeYears(caseState?: Partial<TreatmentCaseContext>): number | undefined {
   // 病历写明患儿年龄、登记年龄却是成人时，按病历的儿童年龄出卡（与剂量层同一判据 narrativePediatricAgeConflict，2026-10-18 起剂量层已按它
   // 先核实年龄；治疗卡此前仍按登记的成人年龄出，婴儿拿到成人的艾灸与针刺写法）。
@@ -952,6 +960,11 @@ export function tcmTreatmentProjectExclusionReason(
     "acupuncture", "guasha", "bloodletting", "fire_cautery", "needle_knife", "hook_cutting", "thread_embedding",
   ]).has(projectCode)) {
     return "婴幼儿湿疹不常规推荐针刺、刮痧或侵入性皮肤项目";
+  }
+  // 婴幼儿不拔罐：《刺法灸法学》（十三五）拔罐法禁忌证「婴幼儿…不宜拔罐」，注意事项「妊娠妇女及婴幼儿慎用拔罐方法」
+  //（2026-10-29 甲方实测：1 岁女童咳嗽给了拔罐卡）。婴幼儿＝儿童剂量分档的新生儿、乳婴儿、幼儿（未满 3 周岁），同一张分档表。
+  if (projectCode === "cupping" && infantOrToddler(age, caseFacts)) {
+    return "婴幼儿不宜拔罐（《刺法灸法学》拔罐法禁忌证）";
   }
 
   const diabeticFoot = /糖尿病足|足部?溃疡|足溃疡|足坏疽|足部感染/.test(facts);

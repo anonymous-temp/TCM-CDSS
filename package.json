@@ -365,7 +365,8 @@
     "test:r1038-main": "node scripts/test-r1038-main.mjs",
     "test:r1039-main": "node scripts/test-r1039-main.mjs",
     "test:r1040-main": "node scripts/test-r1040-main.mjs",
-    "test:r1041-main": "node scripts/test-r1041-main.mjs"
+    "test:r1041-main": "node scripts/test-r1041-main.mjs",
+    "test:r1042-main": "node scripts/test-r1042-main.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

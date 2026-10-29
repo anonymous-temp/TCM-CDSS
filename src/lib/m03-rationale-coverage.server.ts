@@ -3,6 +3,7 @@ import "server-only";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
+import { isLineageLensSentence } from "./tcm-lineages";
 
 /**
  * 辨证依据漏讲已记录表现时，按病历把这一段重写一遍（2026-10-27 第二十五轮，甲方 10.26 测评「证候分析不全面」三份：病历 3 产后头痛
@@ -83,7 +84,7 @@ export function rationaleNeedsCoverageRewrite(missing: readonly string[], findin
 
 /** 流派视角那一句（「从…看，…」「…看…，本例…，以下按常规辨证处理」）：重写稿必须原样保留。 */
 function lineageLensSentence(rationale: string): string | undefined {
-  return rationale.split(/(?<=[。；;])/u).map((part) => part.trim()).find((part) => /以下按常规辨证处理|^从[^，,。]{1,16}看/u.test(part));
+  return rationale.split(/(?<=[。；;])/u).map((part) => part.trim()).find(isLineageLensSentence);
 }
 
 const SYNDROME_NAME = /[一-鿿]{2,8}证/gu;
@@ -113,7 +114,7 @@ export function foreignSyndromeNames(candidate: string, input: { rationale: stri
   // 病名接「证」（心悸证、哮病证、绝经前后诸证）与病历原话接「证」不是新立的证候。
   const original = compact(`${input.rationale}${input.disease || ""}${input.recordText || ""}`);
   const body = candidate.split(/(?<=[。；;])/u)
-    .filter((part) => !/以下按常规辨证处理|^从[^，,。]{1,16}看/u.test(part.trim()))
+    .filter((part) => !isLineageLensSentence(part))
     .join("");
   const names = [...body.matchAll(SYNDROME_NAME)]
     .map((match) => syndromeNameInSpan(compact(match[0])))
@@ -152,7 +153,10 @@ export type RewriteRejection = "length" | "missing" | "lost" | "foreign_syndrome
 export let lastRewriteRejection: RewriteRejection | undefined;
 export let lastForeignSyndromeNames: string[] = [];
 export function acceptedRationaleRewrite(candidate: string, input: { rationale: string; findings: string[]; missing: string[]; primary: string; secondary: string[]; disease?: string; recordText?: string }): string | undefined {
-  const value = candidate.trim().replace(/\s+/gu, "");
+  // 原依据里流派那一句，重写稿没带上时原样接回末尾（2026-10-29：提示词要求原样放最后，模型偶尔照「表现→病机」写完就收尾）。
+  const lensSentence = lineageLensSentence(input.rationale)?.replace(/\s+/gu, "");
+  const written = candidate.trim().replace(/\s+/gu, "");
+  const value = lensSentence && written && !written.includes(lensSentence) ? `${written.replace(/[，,；;]$/u, "。").replace(/([^。])$/u, "$1。")}${lensSentence}` : written;
   lastRewriteRejection = undefined;
   lastForeignSyndromeNames = [];
   if (value.length < 40 || value.length > MAX_RATIONALE_CHARS) { lastRewriteRejection = "length"; return undefined; }

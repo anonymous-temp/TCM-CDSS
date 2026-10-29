@@ -1,6 +1,6 @@
 import { cleanedMedicationNameCandidate, recordedDrugAllergyPhrases, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
-import { clauseLocalMentionPolarityAt, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
+import { authoritativePatientAgeYears, clauseLocalMentionPolarityAt, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import {
   findLocalPatentMedicineLabel,
@@ -143,7 +143,7 @@ export function requiredPrecautionsForCase(
     allergensFromScreen(state.clinicalFacts?.discriminatorScreen?.status === "checked" ? state.clinicalFacts.discriminatorScreen.present : undefined),
   );
   if (allergens.length > 0) items.push({ kind: "food_allergy", classes: allergens });
-  if (conceptionWithoutPregnancyOrLactation(grounding)) items.push({ kind: "conception_pregnancy_check" });
+  if (conceptionWithoutPregnancyOrLactation(grounding, authoritativePatientAgeYears(state))) items.push({ kind: "conception_pregnancy_check" });
   else if (pregnancyAdviceRelevant(state) && assessPregnancyState(grounding).status === "unknown" &&
     assessLactationState(grounding).status === "unknown" && !recentChildbirthMentioned(grounding)) {
     // 本次月经逾期未至的（停经本身不算可疑妊娠——闭经、多囊不能一概收回剂量，见 assessPregnancyState），

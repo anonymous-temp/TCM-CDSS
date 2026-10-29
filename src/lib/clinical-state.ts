@@ -652,7 +652,19 @@ export function recordExcludesPregnancyPotential(text: string, ageYears?: number
     (ageYears != null && ageYears >= 50 && /(?:已|现已)停经/.test(text));
 }
 
-export function conceptionWithoutPregnancyOrLactation(text: string): boolean {
+/**
+ * 本人的妊娠、哺乳、备孕状态从几岁起才有意义（2026-10-29 第三十轮）。安全闸门的孕哺追问（pregnancyScreenRequired）、
+ * 备孕这一档（conceptionWithoutPregnancyOrLactation）与病历婚育记录的年龄核对（ageImplausibleReproductiveStatements）用这一个下限。
+ * 取 10 岁而不是月经初潮的常见年龄：初潮最早可在 8–9 岁，10 岁及以上照常追问，宁可多问一句。
+ */
+export const REPRODUCTIVE_STATE_MIN_AGE_YEARS = 10;
+
+/**
+ * ageYears：已知年龄时，未满 REPRODUCTIVE_STATE_MIN_AGE_YEARS 的不属于这一档（甲方 2026-10-29：1 岁女童的婚育史写着「配偶体健，备孕」，
+ * 注意事项照这一档写了「备孕期间服药，如月经逾期请先验孕」）。不传年龄时只看文字（与此前相同）。
+ */
+export function conceptionWithoutPregnancyOrLactation(text: string, ageYears?: number): boolean {
+  if (ageYears != null && Number.isFinite(ageYears) && ageYears < REPRODUCTIVE_STATE_MIN_AGE_YEARS) return false;
   return isPositiveOrPossibleClinicalState(assessConceptionState(text)) &&
     !isPositiveOrPossibleClinicalState(assessPregnancyState(text)) &&
     !isPositiveOrPossibleClinicalState(assessLactationState(text));

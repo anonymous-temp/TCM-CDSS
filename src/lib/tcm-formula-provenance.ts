@@ -16,6 +16,7 @@ import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbDos
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { formulaFunctionsPositivelyAligned, lineageFormulaSyndromeSupportedNames, lockableFormulaCatalogFunctions, lockedFormulaNamesIncludeModelTrustedOnly, normalizedFormulaIdentity, signedTherapyMethodIds, trustedModelFormulaIdentityNames } from "./tcm-formula-indications";
 import { lineageAffinitiesForFormula } from "./tcm-formula-lineage-affinity";
+import { LINEAGE_LENS_SUBJECT, lineageLensSubject } from "./tcm-lineages";
 import { formulaInCommonTier, formulaLockTierEnabled } from "./tcm-formula-tier";
 import {
   compositionLogicForFormulaNames,
@@ -1451,17 +1452,13 @@ export function lineageDecisionsMatchingDirection<T extends ClinicalReasoningRes
  *「温病看卫气营血层次，舌红等温热见证，以下按常规辨证处理」——照抄了提示词的示例）。只认「〈派名〉（学派/思路/派）看/重…」这一句式，
  * 派名不是所选流派的整句去掉；辨证正文里出现的卫气营血、六经等术语不动。不限定流派时不处理。
  */
-const LINEAGE_LENS_SUBJECT: Readonly<Record<string, string>> = {
-  "classical-formula": "经方", "warm-disease": "温病", "nourish-yin-danxi": "丹溪", "warm-tonify": "温补", "support-yang": "扶阳",
-};
 export function withoutForeignLineageLensSentence<T extends ClinicalReasoningResultV2>(reasoning: T, lineagePreference?: string): T {
   const own = LINEAGE_LENS_SUBJECT[String(lineagePreference || "")];
   const rationale = reasoning.overview?.tcmDiagnosticRationale;
   if (!own || typeof rationale !== "string") return reasoning;
-  const foreign = Object.values(LINEAGE_LENS_SUBJECT).filter((name) => name !== own).join("|");
-  const lens = new RegExp(`^(?:按|从)?(?:${foreign})(?:学派|思路|派)?(?:看|重)`, "u");
+  const foreign = Object.values(LINEAGE_LENS_SUBJECT).filter((name) => name !== own);
   const sentences = rationale.split(/(?<=[。；;])/u);
-  const kept = sentences.filter((sentence) => !lens.test(sentence.trim()));
+  const kept = sentences.filter((sentence) => lineageLensSubject(sentence, foreign) === undefined);
   if (kept.length === sentences.length) return reasoning;
   return { ...reasoning, overview: { ...reasoning.overview, tcmDiagnosticRationale: kept.join("").trim() } } as T;
 }

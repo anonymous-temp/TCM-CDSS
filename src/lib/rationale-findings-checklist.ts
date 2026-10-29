@@ -1,6 +1,7 @@
 import type { CaseState } from "./diagnosis-types";
-import { clinicalGroundingText } from "./diagnosis-safety";
+import { ageImplausibleReproductiveStatements, clinicalGroundingText } from "./diagnosis-safety";
 import { isUnrecordedInspectionFieldValue } from "./clinical-state";
+import { lineageLabel, resolveLineageCode } from "./tcm-lineages";
 
 /**
  * 辨证依据要逐一交代去向的已记录表现（2026-10-26 甲方测评病历 3「辨证依据简单，不全面」）。
@@ -23,14 +24,28 @@ export function recordedTonguePulse(state: CaseState): string[] {
     .filter((value) => value.length >= 2 && !/配合/u.test(value));
 }
 
+/**
+ * 与年龄不符的婚育、月经记录（ageImplausibleReproductiveStatements）不进清单（2026-10-29：1 岁女童的「有痛经史」进了清单，
+ * 依据只好写「痛经史为既往宿疾，不参与本次辨证」）。
+ */
+function inAgeImplausibleRecord(conflicting: readonly string[], term: string, quote: string): boolean {
+  const compactQuote = quote.normalize("NFKC").replace(/\s+/gu, "");
+  return conflicting.some((clause) => {
+    const compactClause = clause.replace(/\s+/gu, "");
+    return compactClause.includes(compactQuote) || compactQuote.includes(compactClause) || compactClause.includes(term);
+  });
+}
+
 export function rationaleFindingsChecklist(state: CaseState, maxItems = 12): string[] {
   const source = clinicalGroundingText(state);
   const chief = String(state.chiefComplaint || "").normalize("NFKC");
+  const conflicting = ageImplausibleReproductiveStatements(state);
   const terms: string[] = recordedTonguePulse(state).slice(0, 2);
   for (const item of state.clinicalFacts?.affirmedSymptoms || []) {
     const term = String(item?.term || "").trim();
     const quote = String(item?.quote || "").trim();
     if (term.length < 2 || !quote || !source.includes(quote)) continue;
+    if (inAgeImplausibleRecord(conflicting, term, quote)) continue;
     if (chief.includes(term)) continue;
     if (terms.some((existing) => existing.includes(term) || term.includes(existing))) continue;
     terms.push(term);
@@ -54,10 +69,12 @@ export function chiefComplaintFindings(state: CaseState, maxItems = 4): string[]
   const source = clinicalGroundingText(state);
   const chief = String(state.chiefComplaint || "").normalize("NFKC");
   const terms: string[] = [];
+  const conflicting = ageImplausibleReproductiveStatements(state);
   for (const item of state.clinicalFacts?.affirmedSymptoms || []) {
     const term = String(item?.term || "").trim();
     const quote = String(item?.quote || "").trim();
     if (term.length < 2 || !quote || !source.includes(quote) || !(chief.includes(term) || sharesThreeCharacterRun(chief, term))) continue;
+    if (inAgeImplausibleRecord(conflicting, term, quote)) continue;
     if (terms.some((existing) => existing.includes(term) || term.includes(existing))) continue;
     terms.push(term);
     if (terms.length >= maxItems) break;
@@ -81,8 +98,22 @@ export function chiefComplaintPhrase(chiefComplaint: string): string {
   return first.split(/[（(伴]/u)[0].replace(COURSE_SPAN, "").replace(/\s+/gu, "").trim();
 }
 
+/**
+ * 医生选了流派时，清单这一段末尾再提一句：依据最后那一句流派眼目句照写（2026-10-29 第三十轮：选了扶阳的风寒感冒，逐项交代清单排在提示词
+ * 最末，模型照清单写完就收尾，本机 10 次里 6 次没有流派那一句；关掉清单时 2/2 都有）。
+ */
+function lineageLensReminder(state: CaseState): string {
+  const code = resolveLineageCode(String(state.tcmLineagePreference || ""));
+  if (code === "unrestricted") return "";
+  return `写完这些之后，末尾仍按上文要求加一句「${lineageLabel(code)}」的辨证眼目看本例的话，不要因为逐项交代而省掉。`;
+}
+
 export function rationaleFindingsChecklistNotice(state: CaseState): string {
   const terms = rationaleFindingsChecklist(state);
-  if (terms.length < 2) return "";
-  return `\n\n【辨证依据要交代的已记录表现】本例病历记录了：${terms.join("、")}。overview.tcmDiagnosticRationale 要逐项说明它们各属哪一病机（舌象、脉象也要写进推理，说明它们支持哪一病机；主证能解释的说明如何解释；主证解释不了的写明其病机归属，够成组时按规则立兼证，不够时不立证、不进治法），不要只挑其中两三项；只写病历里有的，不补写。`;
+  // 清单不足两项时不列清单，流派那一句照样提醒（1 岁女童选了扶阳，清单为空，本机 4 次都没写流派句）。
+  if (terms.length < 2) {
+    const reminder = lineageLensReminder(state);
+    return reminder ? `\n\n【辨证依据末句】overview.tcmDiagnosticRationale ${reminder.replace(/^写完这些之后，/u, "")}` : "";
+  }
+  return `\n\n【辨证依据要交代的已记录表现】本例病历记录了：${terms.join("、")}。overview.tcmDiagnosticRationale 要逐项说明它们各属哪一病机（舌象、脉象也要写进推理，说明它们支持哪一病机；主证能解释的说明如何解释；主证解释不了的写明其病机归属，够成组时按规则立兼证，不够时不立证、不进治法），不要只挑其中两三项；只写病历里有的，不补写。${lineageLensReminder(state)}`;
 }
