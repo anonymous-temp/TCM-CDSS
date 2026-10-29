@@ -4990,31 +4990,46 @@ export function m04SafetyContractIssue(
   // 随症加减里只有三类属安全承重：夹带未经审方的剂量（自由文本变成绕过审方的剂量通道）、
   // 加入知识库未收载的药味、以及加入方向未成立的高影响药味。措辞与接地问题属建议层。
   for (const [modificationIndex, modification] of (reasoning.formula?.modifications || []).entries()) {
-    const action = normalizeFormulaModificationAction(modification.action);
-    const herbName = formulaModificationHerbName(modification);
-    if (!action || !herbName) return `modification_${modificationIndex}_incomplete`;
-    if (!modificationDoseWithinPharmacopoeia(modification.doseOrHandling, herbName, action)) {
-      return `modification_${modificationIndex}_unaudited_dose`;
-    }
-    const fields = [modification.trigger, modification.targetPathogenesis, action, herbName,
-      modification.reason, modification.riskNote]
-      .filter((value): value is string => typeof value === "string")
-      .join("；")
-      .replace(/\s/g, "");
-    if (/(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百半]+)(?:mg|g|毫克|克)(?![\/／](?:L|升))/i.test(fields)) {
-      return `modification_${modificationIndex}_unaudited_dose`;
-    }
-    if (action === "加" && isKnownHerbName && !isKnownHerbName(herbName)) return `modification_${modificationIndex}_unknown_herb`;
-    // 教材条件式加减（药味在该条教材加减里）不拿当前主证的方向去核——条件说的就是证候起了变化；与编译器同一口径。
-    if (action === "加" && priorReasoning && !isTextbookConditionalModification(modification.trigger, herbName, priorReasoning)) {
-      const highImpactIssue = unsupportedHighImpactHerbIssue([{
-        name: herbName,
-        function: [modification.reason, modification.targetPathogenesis]
-          .filter((value): value is string => typeof value === "string")
-          .join("；"),
-      }], priorReasoning);
-      if (highImpactIssue) return `modification_${modificationIndex}_${highImpactIssue}`;
-    }
+    const issue = m04ModificationSafetyIssue(modification, priorReasoning, isKnownHerbName);
+    if (issue) return `modification_${modificationIndex}_${issue}`;
+  }
+  return undefined;
+}
+
+/**
+ * 一条随症加减在开方安全底线（m04SafetyContractIssue）里会被拒的原因（incomplete / unaudited_dose / unknown_herb /
+ * herb_0_unsupported_high_impact_*）；没有则 undefined。
+ *
+ * 底线与成品前删行（m04-modification-safety 的 dropUnsupportedM04ModificationDirections）读这一个判据（2026-10-29 第三十一轮）。
+ * 此前删行只删「方向对立」的（m04HerbOpposingDirectionIssue，未成立但不对立的方向放行），底线却连「方向未成立」也拒：
+ * 1 岁女童肺胃气逆证，模型写「若咽痛…加黄芩」，删行没删、修复两轮仍在，底线按 heat_clear 未成立拒掉，**整张处方退成不给剂量**。
+ * 加减是可选的条件建议，一条不成立就去掉这一条，不让它连累整方。
+ */
+export type M04ModificationLike = { trigger?: unknown; targetPathogenesis?: unknown; action?: unknown; herbName?: unknown; doseOrHandling?: unknown; reason?: unknown; riskNote?: unknown };
+export function m04ModificationSafetyIssue(
+  modification: M04ModificationLike,
+  priorReasoning: M03ReasoningLike | null | undefined,
+  isKnownHerbName?: (name: string) => boolean,
+): string | undefined {
+  const action = normalizeFormulaModificationAction(modification.action);
+  const herbName = formulaModificationHerbName(modification);
+  if (!action || !herbName) return "incomplete";
+  if (!modificationDoseWithinPharmacopoeia(modification.doseOrHandling, herbName, action)) return "unaudited_dose";
+  const fields = [modification.trigger, modification.targetPathogenesis, action, herbName,
+    modification.reason, modification.riskNote]
+    .filter((value): value is string => typeof value === "string")
+    .join("；")
+    .replace(/\s/g, "");
+  if (/(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百半]+)(?:mg|g|毫克|克)(?![\/／](?:L|升))/i.test(fields)) return "unaudited_dose";
+  if (action === "加" && isKnownHerbName && !isKnownHerbName(herbName)) return "unknown_herb";
+  // 教材条件式加减（药味在该条教材加减里）不拿当前主证的方向去核——条件说的就是证候起了变化；与编译器同一口径。
+  if (action === "加" && priorReasoning && !isTextbookConditionalModification(modification.trigger, herbName, priorReasoning)) {
+    return unsupportedHighImpactHerbIssue([{
+      name: herbName,
+      function: [modification.reason, modification.targetPathogenesis]
+        .filter((value): value is string => typeof value === "string")
+        .join("；"),
+    }], priorReasoning);
   }
   return undefined;
 }

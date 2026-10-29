@@ -1,9 +1,9 @@
-import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04CandidateOpposingDirectionIndices, isTextbookConditionalModification, m04HerbOpposingDirectionIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04CandidateOpposingDirectionIndices, m04HerbOpposingDirectionIssue, m04ModificationSafetyIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
 import { formulaAnalysisAfterHerbRemoval } from "./formula-analysis-review";
-import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbFunctionCategories } from "./tcm-knowledge";
+import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbFunctionCategories, isKnownTcmHerbName } from "./tcm-knowledge";
 import { precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { herbAnyRecordCautionConflict, herbRecordCautionIsHard } from "./herb-record-caution";
 
@@ -71,8 +71,8 @@ export function dropUnsupportedM04ModificationDirections(
       // Conditional rows are optional advice, not part of the audited current-dose candidate.
       // A trigger that is not already present in signed M03 cannot be made true by wording; drop
       // that row before review instead of spending a model round repairing non-clinical metadata.
-      // Dose-bearing/unknown-herb/high-impact additions remain governed by the existing hard
-      // contract below and are never made acceptable by this deletion-only transform.
+      // Rows the safety floor would reject (dose text, unknown herb, unsupported high-impact
+      // direction) are dropped below by the floor's own predicate — deletion only, never accepted.
       const trigger = typeof modification.trigger === "string" ? modification.trigger.trim() : "";
       const candidateHerbNames = (Array.isArray(firstCandidate?.herbs) ? firstCandidate.herbs : [])
         .map((herb) => String(recordValue(herb)?.name || "").trim()).filter(Boolean);
@@ -86,14 +86,9 @@ export function dropUnsupportedM04ModificationDirections(
         if (fields.action === "加" && candidateHerbIdentities.has(identity)) return false;
         if (fields.action !== "加" && identity && !candidateHerbIdentities.has(identity)) return false;
       }
-      if (!fields || fields.action !== "加") return true;
-      // 教材条件式加减（药在该条教材加减里）不拿当前主证的方向去核，与编译器、最终合同同一判据（2026-10-22 留出集 S044：
-      // 外邪犯胃证的教材加减「若见壮热口渴，便秘尿赤者，可加黄芩、黄连、栀子」编译时放行，到这里因「清热与主证方向相反」被删光）。
-      if (isTextbookConditionalModification(trigger, fields.herbName, prior)) return true;
-      const declaredDirection = [modification.reason, modification.targetPathogenesis]
-        .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
-        .join("；");
-      return !m04HerbOpposingDirectionIssue({ name: fields.herbName, function: declaredDirection }, prior);
+      // 开方安全底线会拒的行在这里就去掉（与底线同一判据 m04ModificationSafetyIssue：剂量文字、未收载药味、方向未成立的高影响药；
+      // 教材条件式加减不核方向）。此前这里只删「方向对立」的，「方向未成立」的留到底线被拒，一条加减让整方退成不给剂量（第三十一轮）。
+      return !m04ModificationSafetyIssue(modification, prior, isKnownTcmHerbName);
     });
     if (retained.length === modifications.length) return content;
     formula.modifications = retained;

@@ -110,8 +110,12 @@ await check("2.2 对照：所加的药不在那条教材加减里（加石膏）
   assert.deepEqual(out.formula.modifications, []);
 });
 await check("2.3 定稿过滤与最终合同用同一个导出判据（isTextbookConditionalModification）", () => {
+  // 2026-10-29 第三十一轮起，定稿删行与开方安全底线共用 m04ModificationSafetyIssue，教材条件式加减的豁免在它里面。
   const source = readFileSync("src/lib/m04-modification-safety.ts", "utf8");
-  assert.match(source, /isTextbookConditionalModification\(trigger, fields\.herbName, prior\)/);
+  assert.match(source, /m04ModificationSafetyIssue\(modification, prior, isKnownTcmHerbName\)/);
+  const contractSource = readFileSync("src/lib/diagnosis-stage-contract.ts", "utf8");
+  const predicate = contractSource.slice(contractSource.indexOf("export function m04ModificationSafetyIssue("), contractSource.indexOf("export function isCompleteM04Reasoning("));
+  assert.match(predicate, /isTextbookConditionalModification\(modification\.trigger, herbName, priorReasoning\)/);
   assert.equal(typeof contract.isTextbookConditionalModification, "function");
 });
 

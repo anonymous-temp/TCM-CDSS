@@ -72,6 +72,17 @@ function protocolData(): ProtocolData | null {
   return cachedData;
 }
 
+/**
+ * 耳穴卡写了用针的刺激法（毫针、埋针、电针）时的操作要点（2026-10-29 第三十一轮）。此前耳穴卡挂着体针的「补泻手法、进针深度以现场查体为准」，
+ * 而耳针不讲补泻。依据《针灸学》（十三五，梁繁荣、王华主编）耳针法「进针和行针」：「针刺深度以0.1～0.3cm为宜，可刺入皮下或软骨浅层……
+ * 刺激强度和手法依患者病情、体质、证型、耐受度等综合考虑」（本地教材原文第 114942 行）。只用压丸、贴压的耳穴卡不用针，这句不写。
+ */
+/** 耳穴的用针做法（毫针、埋针、揿针、电针）。成人卡写耳针操作要点、小儿卡去掉用针做法（auricularMethodsForChild），读这一个判据。 */
+const EAR_NEEDLING_PRESENT = /毫针|埋针|揿针|电针/;
+export function earNeedleBoundary(cardContent: string): string {
+  return EAR_NEEDLING_PRESENT.test(cardContent) ? "用毫针时刺入深度以0.1～0.3cm为宜，可达皮下或软骨浅层；刺激强度依病情、体质与耐受调整。" : "";
+}
+
 export function textbookNondrugPlansEnabled(): boolean {
   return process.env.CDSS_NONDRUG_TEXTBOOK_PLANS !== "false";
 }
@@ -1607,9 +1618,9 @@ export function operationClausesForAge(text: string, ageYears: number | undefine
 const EAR_NEEDLE_METHOD = /(?:或用?|也可用?|亦可用?|、)?(?:毫针(?:浅)?刺(?:法)?|埋针(?:法)?|揿针(?:法)?|电针[^，,。；;、或]*)(?:、|或用?)?/g;
 const EAR_NEEDLE_PARAMETER = /^(?:用)?(?:强|中等|中|轻|弱)?刺激$|留针|行针|运针/;
 export function auricularMethodsForChild(text: string): string {
-  if (!text || !/毫针|埋针|揿针|电针/.test(text)) return text;
+  if (!text || !EAR_NEEDLING_PRESENT.test(text)) return text;
   return text.split(/(?<=[。；;])/).map((sentence) => {
-    if (!/毫针|埋针|揿针|电针/.test(sentence)) return sentence;
+    if (!EAR_NEEDLING_PRESENT.test(sentence)) return sentence;
     const ending = sentence.match(/[。；;]\s*$/)?.[0]?.trim() || "";
     const clauses = sentence.replace(/[。；;]\s*$/, "").split(/[，,]/).map((clause) => clause.trim()).filter(Boolean);
     let pressInserted = false;
@@ -2007,7 +2018,8 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     items: [],
     scheduleSuggestion: cutText(schedule, 560),
     // 「补泻手法、进针深度」只对用针的项目成立（拔罐、灸法卡上也挂着这句——2026-10-14 复核时发现）。
-    techniqueBoundary: cutText(`${technique} ${contraindications}${code === "acupuncture" || (code === "auricular" && !childEar) ? "补泻手法、进针深度以现场查体为准。" : ""}`.trim(), 980) ||
+    // 耳穴卡不写体针的「补泻手法」：写了毫针、埋针、电针的写耳针的刺入深度与刺激强度，只用压丸的不写（第三十一轮，earNeedleBoundary）。
+    techniqueBoundary: cutText(`${technique} ${contraindications}${code === "acupuncture" ? "补泻手法、进针深度以现场查体为准。" : code === "auricular" && !childEar ? earNeedleBoundary(contentHead) : ""}`.trim(), 980) ||
       "操作参数以现场评估为准。",
     protocolSource: cutText(`${citation}${secondary && code === "acupuncture" ? `；《${data.sources[secondary.book]?.title}》同名节（教材原文第${secondary.line}行）` : ""}${web ? `；${web.citation}` : ""}`, 980),
     syndromeLabels,
