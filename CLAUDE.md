@@ -2574,12 +2574,36 @@ The customer tested on 08ba1a4 the same day (15 chains, 8 records, all 200; revi
 - Gate replay over 21,084 records: 5 changed, all the 1-year-old's calls (advisory added, conception tier off). Delivered-surface replay over 3,025 stored results: 209 changed, all wording (Western rationale 199, cards 3, resolution reasons 5, TCM rationale 2).
 
 **Left as is.**
-- The two old-arm non-dose pages are model variance, but their shape is a known class: a modification row whose claim fails `unsupported_high_impact_heat_clear` exhausts repair and sends the whole page to non-dose. Dropping just that modification row at finalize would be the class fix (not done; production saw none that day).
+- The two old-arm non-dose pages are model variance, but their shape is a known class: a modification row whose claim fails `unsupported_high_impact_heat_clear` exhausts repair and sends the whole page to non-dose. Dropping just that modification row at finalize would be the class fix (done in round 31).
 - Needling cards for a 1-year-old stay (textbook pediatric note: 浅刺、不留针、不能配合者改用小儿推拿).
 - An auricular card can carry the needling line 「补泻手法、进针深度以现场查体为准」 (production probe, 扶阳 风寒 case); pre-existing card text.
 
 **In production (6217641, deployed 2026-10-29 about 20:35 Beijing; tag `20261029-6217641-prebuilt`, same release directory and `20260927-dsrepair` override).** `verify:release` green (290 suites + 4 fresh-artifact suites; the first run stopped on `test:r1019-western-r3`, which deep-equals the course span and needed the new `upperExclusive` field). `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 19.9 s, M04 P95 14.5 s). Container logs were archived before the replacement. Probes on hospital-b with the customer's records (regenerated): the 1-year-old gets the age advisory, a 扶阳 lens sentence, no cupping card and no 备孕 line; the 扶阳 cold case has its lens sentence; the 46-year-old's cough cards carry no template text; 「失眠…2月余」 is 失眠障碍; the vertigo rationale has no tier words. Rollback: image `tcm-cdss:20261029-6876a81-prebuilt` with `docker-compose.yml.pre-6217641`. Host 14 → 9.7 GB during the deploy (other projects writing); our 8527746 image and the 8527746/08ba1a4 build contexts were removed (11 GB), logged in `~/telemetry-archive/cleanup-20261029.txt` on the host.
 - **Local build:** root had 5.1 GB and 5 GB of memory plus 1 GB of swap were free, so no temporary swap was needed; a watcher would have dropped `.next/cache` below 350 MB free (it never fired, lowest 1.5 GB). The build tree is on root with a plain `cp -a` of `node_modules` (`~/runlogs/r1018/work/r1042/prebuild-cpa.sh`); the 2.2 GB cache was deleted right after `PREBUILD_OK`.
+
+### 10/29 round 31: the two leftovers of round 30 (2026-10-29)
+
+The user asked for both round-30 leftovers to be fixed, tested and shipped. Material: `~/runlogs/r1018/work/r1043/` (`cp/cp.py` + `counterproofs.json`, `replay/mods.mjs`, `measure.sh`, `out/`). Suite `test:r1043-main` (6 checks; 11 mutations, all caught).
+
+- **One modification row sent the whole prescription to a non-dose page.** The finalize filter (`dropUnsupportedM04ModificationDirections`) dropped only rows whose direction *opposes* the signed therapy (`m04HerbOpposingDirectionIssue`, i.e. waive=true), while the M04 safety floor (`m04SafetyContractIssue`) rejects every *unsupported* high-impact direction, dose text and unknown herb. A row such as 「若咽痛明显，加黄芩（清热泻火）」 on 肺胃气逆证 survived finalize, survived two repair rounds, and the floor turned the page non-dose (round 30's old arm, 1 of 2 non-dose pages). Both now read one exported predicate, `m04ModificationSafetyIssue(modification, prior, isKnownHerbName)`; finalize drops just the rows the floor would reject (deletion only; textbook conditional modifications keep their exemption from the direction check). Two guards masked each other in the first counter-proof: an unknown herb with a dose fails the pharmacopoeia dose check first, so the test row for the unknown-herb branch carries no dose.
+  - **Replay with the route's own prior.** The prescribe route checks against `prescribeWorkingPriorReasoning` (Western supporting facts restored from the record), and so does finalize. A first replay that used the delivered M03 (supporting facts emptied) reported 4 rows dropped in 2 saved prescriptions; with the working prior the replay over 728 delivered prescriptions (1,836 modification rows) changed 0.
+- **Auricular cards carried body-acupuncture wording.** 「补泻手法、进针深度以现场查体为准」 was appended to every adult auricular card. Cards whose content uses needles (毫针/埋针/揿针/电针 — the same `EAR_NEEDLING_PRESENT` predicate that `auricularMethodsForChild` uses to strip needling for children) now say 「用毫针时刺入深度以0.1～0.3cm为宜，可达皮下或软骨浅层；刺激强度依病情、体质与耐受调整」 (《针灸学》十三五 耳针法, local corpus line 114942: 「针刺深度以0.1～0.3cm为宜，可刺入皮下或软骨浅层……刺激强度和手法依患者病情、体质、证型、耐受度等综合考虑」); press-seed-only cards and children's cards carry nothing. Acupuncture cards keep their line.
+
+**Measured** (local route harness, customer request shape, same day; round 30 = r1042's arms on 6217641's code):
+
+| | Round 30 | Round 31 |
+|---|---|---|
+| Customer's 10/29 chains ×2: modification rejections in the logs / non-dose pages / modification rows / empty 加减 | 6 / 0 / 80 / 1 | 0 / 0 / 82 / 0 |
+| Auricular cards carrying 「补泻手法」 (today ×2, customer 10 ×2, held-out 32) | 18 / 13 / 17 | 0 / 0 / 0 |
+| Customer 10 ×2 / held-out 32: disease and syndrome equal the standard answers | 20/20 / 29/29 | 20/20 / 29/29 |
+| Prescribe median (today, customer 10, held-out) | 10.7 / 11.0 / 10.9 s | 10.9 / 10.6 / 10.5 s |
+
+**In production (293fd81, deployed 2026-10-29 about 21:58 Beijing; tag `20261029-293fd81-prebuilt`, same release directory and `20260927-dsrepair` override).** `verify:release` green (291 suites + 4 fresh-artifact suites; the first run stopped on `test:repair-guidance`, which requires a repair hint for every returned reason code — the shared predicate first returned bare `incomplete`/`unaudited_dose`/`unknown_herb` and now returns the floor's full `modification_N_*` codes). `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 18.2 s, M04 P95 13.6 s). Container log archived before the replacement. Probes on hospital-b with the customer's 10/29 records (regenerated): all four chains dosed with their 加减 rows; the 1-year-old's auricular card is press-seed only with no needling line; the 扶阳 cold and vertigo cases' auricular cards carry the ear-needling sentence; acupuncture cards keep 「补泻手法、进针深度以现场查体为准」. Rollback: image `tcm-cdss:20261029-6217641-prebuilt` with `docker-compose.yml.pre-293fd81`. Host 20 GB free after the deploy; nothing removed.
+- **Local build:** the first prebuild was OOM-killed (other sessions' jobs); a 768 MB temporary swap file on root got it through (lowest root free 720 MB). Cache and swap file removed right after `PREBUILD_OK`.
+
+**Left as is.**
+- Modification rows the floor would reject are now dropped, not repaired; a prescription whose every 加减 row fails keeps an empty 加减 (none in the measured runs).
+- Children's needling cards keep the textbook pediatric note (round 30).
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
