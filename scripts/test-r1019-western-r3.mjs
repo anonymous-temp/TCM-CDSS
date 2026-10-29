@@ -60,14 +60,15 @@ const criteriaFile = JSON.parse(fs.readFileSync(path.join(process.env.R1019_SRC 
   const s077 = "食少、乏力1年余\n患者1年多前因重症肺炎住院治疗近1个月，出院后一直未能恢复，吃得少";
   const s055 = "大便干结5天\n平素嗜食辛辣。5天未解大便，腹胀，口干口臭";
   await check("1.1 主诉病程：1年余、2+月、两个多月、半月、十余年、数月、「10年，加重3天」取最长；「3天1次」是频次；主诉没写时长时不猜", () => {
+    // upperExclusive（2026-10-29 第三十轮）：「余/多/+」的上界取不到，「半月」「数月」「10年」取得到。
     const days = (text) => nameCheck.recordCourseDays(text);
-    assert.deepEqual(days("食少、乏力1年余"), { lower: 365, upper: 730 });
-    assert.deepEqual(days("头痛2+月"), { lower: 60, upper: 90 });
-    assert.deepEqual(days("两个多月"), { lower: 60, upper: 90 });
-    assert.deepEqual(days("胃痛半月"), { lower: 15, upper: 15 });
-    assert.deepEqual(days("反复咳嗽10年，加重3天"), { lower: 3650, upper: 3650 });
+    assert.deepEqual(days("食少、乏力1年余"), { lower: 365, upper: 730, upperExclusive: true });
+    assert.deepEqual(days("头痛2+月"), { lower: 60, upper: 90, upperExclusive: true });
+    assert.deepEqual(days("两个多月"), { lower: 60, upper: 90, upperExclusive: true });
+    assert.deepEqual(days("胃痛半月"), { lower: 15, upper: 15, upperExclusive: false });
+    assert.deepEqual(days("反复咳嗽10年，加重3天"), { lower: 3650, upper: 3650, upperExclusive: false });
     assert.equal(days("十余年").lower, 3650);
-    assert.deepEqual(days("数月"), { lower: 60, upper: 270 });
+    assert.deepEqual(days("数月"), { lower: 60, upper: 270, upperExclusive: false });
     assert.deepEqual(days("大便3天1次"), undefined);
     assert.equal(days("主诉：胸闷1周\n现病史：10年前行阑尾切除术").lower, 7);
     assert.equal(days("乏力\n患者10年前行阑尾切除术"), undefined, "主诉没写时长");
