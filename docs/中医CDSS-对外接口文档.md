@@ -2,8 +2,8 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V2.51 |
-| 发布日期 | 2026-10-27 |
+| 文档版本 | V2.52 |
+| 发布日期 | 2026-10-29 |
 | 服务版本 | `tcm-cdss-20260828-lineage-modification-contract-r1` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
@@ -659,9 +659,10 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/collect" \
 | `m02Plan.schemaVersion` | 结构版本 | string | 固定 `tcm-cdss-m02-plan-v1` |
 | `m02Plan.decision` | 追问决策 | string | `ask`（需追问）/ `proceed`（无需追问）。**V2.36 起生产环境会返回 `proceed`**：病历已足够、没有值得问的题时，以及安全闸门已判急危重时（此时 `rationale` 说明应先按急症处置），`questions` 为空数组，调用方直接进入辨证即可 |
 | `m02Plan.rationale` | 决策理由 | string | 决策理由 |
-| `m02Plan.questions` | 追问列表 | array | 追问列表，`decision=proceed` 时为空数组。**V2.35 起一轮只有 1 题**（事实层判为 urgent 的急症线索需要澄清时另有 1 题急症筛查题，排在第一）；选项是能直接写进病历的事实句 |
+| `m02Plan.questions` | 追问列表 | array | 追问列表，`decision=proceed` 时为空数组。**一轮恒为 1 题**（V2.36 起；急症线索需要澄清时，这一题就是急症筛查题。V2.35 曾在急症筛查题之外另出 1 题）；选项是能直接写进病历的事实句 |
 | `m02Plan.questions[].id` | 问题标识 | string | 问题标识 |
 | `m02Plan.questions[].question` | 问题文本 | string | 问题文本 |
+| `m02Plan.questions[].options` | 选项 | array | 每项 `{id, label, answer, kind, recordValue, requiresDetail}`：`label` 为按钮文字，`answer` / `recordValue` 为选中后写进病历的事实句；`kind` 为 `clinical_fact`（临床事实）/ `other`（其他，需医生补充，`requiresDetail` 为 `true`）/ `unknown`（本次未取得）。医生选择后把 `answer` 作为 user 消息放进 `conversation` 即可 |
 | `completeness` | 病历完整度 | object | `{level, redFlag, infoGain, managementImpact, answerability}`，`level` 取 A/B/C。**V2.18 起由服务端按病历字段计算**，与各阶段门控使用同一口径；此前由模型自评，而系统门控另按病历重算，两者可能不一致 |
 
 **错误码**
@@ -705,10 +706,18 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
   "m02Plan": {
     "schemaVersion": "tcm-cdss-m02-plan-v1",
     "decision": "ask",
-    "rationale": "头痛性质、诱因与伴随症状尚不明确，需补充以支持辨证",
+    "rationale": "头痛性质尚不明确，需补充以支持辨证",
     "questions": [
-      { "id": "q1", "question": "头痛为胀痛、刺痛还是空痛？有无固定部位？" },
-      { "id": "q2", "question": "近期饮食、二便情况如何？" }
+      {
+        "id": "q1",
+        "question": "头痛更接近哪一种？",
+        "options": [
+          { "id": "a", "label": "空痛、劳累后加重", "answer": "头部空痛，劳累后加重", "kind": "clinical_fact", "recordValue": "头部空痛，劳累后加重", "requiresDetail": false },
+          { "id": "b", "label": "刺痛、痛处固定", "answer": "头部刺痛，痛处固定", "kind": "clinical_fact", "recordValue": "头部刺痛，痛处固定", "requiresDetail": false },
+          { "id": "q1_other", "label": "其他（请补充）", "answer": "医生补充的具体情况", "kind": "other", "requiresDetail": true },
+          { "id": "unknown", "label": "本次未取得", "answer": "本次未取得该信息", "kind": "unknown", "requiresDetail": false }
+        ]
+      }
     ]
   }
 }
@@ -1201,10 +1210,12 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/prescribe" \
 
 | 序号 | 内容 |
 |---|---|
-| 1 | 审方状态标记 `<!-- TCM_CDSS_RXAUDIT_STATUS:... -->` |
-| 2 | 审方关联标记 `<!-- TCM_CDSS_RXAUDIT_CORRELATION:... -->` |
-| 3 | 审方范围、录入质量提示、用药风险分级 |
-| 4 | 随访计划 |
+| 1 | 结构化随访时间轴帧（见下文 `followup_timeline`，解析不出条目时不出现） |
+| 2 | 审方状态标记 `<!-- TCM_CDSS_RXAUDIT_STATUS:... -->`（外部审方已停用，恒为 `DISABLED`） |
+| 3 | 审方关联标记 `<!-- TCM_CDSS_RXAUDIT_CORRELATION:... -->` |
+| 4 | 「处方安全总评」：最高提示强度、综合风险判断、评级依据、医生需确认事项、待核实信息 |
+| 5 | 「随访管理方案」：首次复诊时间、复诊评估重点、疗效评价标准、注意事项、无效或加重的处置预案，以及「整体状态评估」问题表 |
+| 6 | 「生活管理」 |
 
 #### 结构化随访时间轴（`followup_timeline`）
 
@@ -1341,11 +1352,29 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/assess" \
 
 | 字段 | 中文名 | 类型 | 说明 |
 |---|---|---|---|
-| `available` | 结果是否可用 | boolean | 筛查结果是否可用 |
+| `available` | 结果是否可用 | boolean | 语义复核已完成并签名时为 `true` |
 | `semanticStatus` | 语义筛查状态 | string | `checked` / `unavailable` / `skipped_deterministic_critical_vital` |
-| `redFlags` | 命中红旗项 | array | 命中的红旗项 |
-| `advisories` | 建议项 | array | 建议项 |
-| `clinicalFacts` | 临床事实 | object | 提取的临床事实 |
+| `redFlags` | 命中红旗项 | string[] | 本次命中的红旗，与 `safetyGate.redFlags` 内容相同；**空数组表示没有红旗**。V2.52 起响应带上此字段（此前文档列了、响应里没有，见下方说明） |
+| `advisories` | 提示项 | string[] | 需要留意、但不构成红旗的提示，与 `safetyGate.advisories` 内容相同；可为空数组 |
+| `safetyGate` | 安全闸门结论 | object | 见下表 |
+| `prescriptionPermission` | 剂量呈现模式 | object | `candidateMode`（`full_dose` / `limited_dose` / `non_dose_only` / `blocked`）、`formalAdoption`（`blocked` 表示红旗解除前不可采纳） |
+| `operationalCompleteness` | 病历完整度 | object | `{level, redFlag, infoGain, managementImpact, answerability}`，`level` 取 A/B/C |
+| `clinicalFacts` | 临床事实（内部记录） | object | 语义复核的工作记录，**请原样保留，不要据此显示红旗**。其中的 `redFlags` 列的是复核查过的风险类目，也包括病历里明确否认的（`status` 为 `negative`，如「否认疫区旅居史」）、只需补问的（`clarify`）和常规的（`routine`）；哪些构成红旗由安全闸门判定，结论在上面的 `redFlags` 与 `safetyGate` |
+| `latencyMs` | 耗时 | number | 毫秒 |
+
+**`safetyGate`**
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `status` | 闸门状态 | string | `red_flag`（有红旗）/ `needs_information`（剂量级处方前需补充信息）/ `ready` |
+| `redFlags` | 红旗 | string[] | 每条为一句完整说明（含需排除的情况与原文依据） |
+| `advisories` | 提示项 | string[] | 不构成红旗的提示 |
+| `missingItems` | 待补充项 | string[] | 剂量级处方前需补充或复核的信息 |
+| `missingItemCodes` | 待补充项代码 | string[] | 与 `missingItems` 一一对应的代码 |
+| `candidateMode` | 剂量呈现模式 | string | 同 `prescriptionPermission.candidateMode` |
+| `allowDosePrescription` | 剂量直接可用 | boolean | 不等于「能否出现剂量」，请以 `candidateMode` 判断（见 §4.8 中 `safetyGate.candidateMode` 的说明） |
+
+**怎么判断红旗（V2.52 更正）。** 以 `safetyGate.status` 为 `red_flag`（等价于 `redFlags` 不为空）为准，显示的文字取 `redFlags`；`advisories` 作一般提示显示。`clinicalFacts.redFlags` 不是红旗清单：同一份病历多写一句「否认疫区旅居史」，复核就会在那里记一条 `negative`，`safetyGate` 不变。V2.51 及以前本表把 `redFlags`、`advisories` 列为顶层字段，响应里实际只在 `safetyGate` 下有，按本表取顶层会取不到。
 
 **查询参数 `prefetch=diagnose`（V2.25 起，可选）。** 医生答完追问、准备进入辨病辨证（M03）时，若先用**即将提交给 M03 的同一份病例**调用 `POST /api/diagnosis/red-flags?prefetch=diagnose`，服务端在完成本次筛查的同时，预先准备 M03 开始生成前需要的检索与语义输入；随后的 M03 请求病例内容不变时直接取用，病例有改动则照常重新计算，结果不受影响。本参数不改变本接口的返回内容。适用场景：接入方页面在医生选完追问答案、点击提交之前（例如停止操作 1 秒左右）就发起这一调用；系统自带的诊疗页面已默认这样做。线上：追问回答后的 M03 首次调用本身要先完成一次语义安全筛查（约 3–5 秒），提前调用后这部分不再计入 M03 的等待时间。
 
@@ -1869,8 +1898,8 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 
 ### 5.3 风险与随访（M05 响应）
 
-M05 响应为 Markdown 文本流，不采用结构化字段，内容依次为：审方范围、录入质量提示、
-用药风险分级、随访计划。流中另含一帧结构化随访时间轴（**响应**帧，非入参）：
+M05 响应为 Markdown 文本流，不采用结构化字段，内容依次为：处方安全总评、随访管理方案（含整体状态评估问题表）、
+生活管理（各节内容见 §4.6）。流中另含一帧结构化随访时间轴（**响应**帧，非入参）：
 
 | 内容 | 字段路径 |
 |---|---|
@@ -2495,6 +2524,7 @@ V2.25 起响应包含 `classicEvidence`：经典条文语料逐项的 `name`（�
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.52 | 2026-10-29 | **更正文档与响应不一致的地方；字段名、枚举与调用顺序不变。** ① **红旗筛查（§4.7）**：出参表此前把 `redFlags`、`advisories` 列为顶层字段，响应里实际只在 `safetyGate` 下有；本版起响应顶层带上这两个字段（内容与 `safetyGate.redFlags` / `safetyGate.advisories` 相同），出参表补上 `safetyGate`、`prescriptionPermission`、`operationalCompleteness`、`latencyMs`。**红旗以 `safetyGate.status` 为 `red_flag`（即 `redFlags` 不为空）为准**；`clinicalFacts` 是语义复核的内部记录，其中 `redFlags` 也记病历里明确否认的风险（`status` 为 `negative`，如「否认疫区旅居史」），不能据此显示红旗。② **追问（§4.3）**：一轮恒为 1 题的说明与 V2.36 的实际行为对齐；补上 `questions[].options` 的结构，响应示例改为 1 题。③ **风险随访（§4.6、§5.3）**：正文各节按实际输出列出（处方安全总评、随访管理方案、生活管理）。④ **内容**：病历写了「藿香正气水」这类以「水」等剂型结尾的药名时，`safetyGate.missingItems` 写「已提及当前用药但缺少剂量/频次」，不再写「缺少药名」；注意事项与方义里病历所写、本页所推荐的药名不再按药味表改字（药味表有广藿香时，「藿香正气水」曾被写成「广藿香正气水」）；辨证结果 `management` 里的红旗处置一句不再出现「服务器红旗」，改写为「急危重征象」。 | 否：新增的顶层 `redFlags` / `advisories` 与 `safetyGate` 下的同名字段内容相同；此前按 `clinicalFacts.redFlags` 显示红旗的，请改按 `safetyGate.status` / `redFlags`。 |
 | V2.51 | 2026-10-28 | **接口路径、字段名、结构、枚举与调用顺序都不变，集成方不需要改代码；以下是写进现有字段的内容变化。** ① **男性的中医病名鉴别**：只属妇科的病（如异位妊娠）在补齐鉴别之前就不计入，`overview.tcmDiseaseDifferentials` 仍补足两项（此前删掉后只剩一项）。② **周围性面瘫的评估时限**：起病不超过 72 小时、或病历读不出起病时间时，`safetyGate` 优先评估项与复诊首句写「24 小时内到神经内科或面瘫门诊」，让口服激素能在起病 72 小时内开始；超过 72 小时仍为 48 小时内（依据 AAO-HNS 2013 Bell 面瘫指南、NICE CKS）。③ **中成药**：说明书「用于/适用于」写明的证与本例证候落在不同脏腑时不推（如「适用于心脾两虚证」的五味安神颗粒之于心虚胆怯证；说明书的证更宽、包含本例脏腑的不在此列）；证名、治法都不分寒热时，汤剂里有三味以上清热药且没有温里药，按偏寒核对，不再推风寒类中成药（如桂枝颗粒）；「清阳不升」「中气下陷」这类证名按虚证核对，说明书只写邪实（如「用于风热头晕目眩」的清眩丸）的不推；成药的组成整个都在本方汤剂里（人参口服液之于方中已有人参）时不推，避免同一味药重复服用。④ **兼证**：辨证阶段补出的兼证与模型自写的兼证过同一道结构核对，与主证寒热相反（风热犯肺证兼风寒表证）或已被主证包含的不补，治法也不再多出相反的一项。⑤ **妊娠状态**：「否认妊娠」写在 `symptoms` 的「既往史」里也按当前否认处理，`safetyGate.missingItemCodes` 不再列 `pregnancy_unknown` / `lactation_unknown` / `conception_unknown`，也不再追问。⑥ **红旗病例的辨证边界**：剂量照给（V2.46 起）时，`pathogenesis.uncertainties` 与红旗处置说明写「风险解除前本方不能正式采纳」，不再写「本次不显示具体用量」。⑦ **措辞**：随证加减的人群慎用提示与逐味提示同一写法（男性、儿童与 60 岁以上不写「月经期」）；模型写的「复评」交付为「再次评估」；依据里未记录的「无X」改「未诉X」时不再被「以…多为主症」这类写法挡住。 | 否 |
 | V2.50 | 2026-10-27 | **接口路径、字段名、结构、枚举与调用顺序都不变，集成方不需要改代码；以下是写进现有字段的内容变化。** ① **开方不再因一味药整页退成无剂量**：与本例治法方向相反的非君药（候选不再声称原方名时也算）、《中药学》写明「脾胃虚寒者忌用/不宜」而本例病历有便溏且有虚寒表现、无热象的苦寒药（如黄芩），在定稿时单味拿出，`notApplicable` 写明「按本例情况已去除：X（原因）」，其余药味照常给剂量；同属补气的参类（人参、党参、太子参、西洋参）只留一味。`formula.modificationReview` 的说明文字不再被删空（此前男性患者偶发整张处方退成无剂量页）。② **开方正文与结构化结果一致**：开方响应的 Markdown 正文从「# 候选方药」起按最终结构化结果重新生成，方名标题、方义与 `formula.candidates[]` 首选方逐字一致（此前约一半正文方义是改写前的版本，偶见「本方以本方案合本方案加减」）。③ **方名**：方名写成自拟方、组成却正是辨证阶段锁定的成方时（逐味相同或保留数达到该方的组成下限），`name` 写原方名或「X加减」，`formulaSource` 写原书。④ **措辞**：质量说明、M05「处方安全总评」「整体状态评估」、信息完整性边界、治疗卡 `operatorRequirement`、流派段的安全让位说明不再出现「确定性核查」「系统未能自动对应」「候选方案」「复评」「资质」「药事审方」等用语；男性、儿童与 60 岁以上患者的逐味提示不再写「月经期」；现用药提示不再写「最好间隔1小时左右」（没有统一的官方间隔），改为「与本方如何错开服用由医生决定」。⑤ **中医治疗**：《推拿学》写了取穴与操作步骤的病种（虚劳、腰痛、不寐…）出推拿卡，背俞穴按本例证名里的脏选取（肺脾两虚→肺俞、脾俞）。⑥ **治法与中成药**：证名、病名都不涉心神时，治法里单列的「宁心安神」一项不再出现；证名不分寒热时，中成药按已签名治法与汤剂组成的寒温核对方向，不推与之相反的药。 | 否 |
 | V2.49 | 2026-10-27 | **接口路径、字段名、结构、枚举与调用顺序都不变，集成方不需要改代码；以下是写进现有字段的行为变化。** ① **追问是否出题更稳定**：同一份病历多次生成时，`decision` 曾在「出一道题」与「无需追问」之间来回切换（甲方 10 例各生成 4 次，6 例出现切换）。现在每次出题同时独立生成两份出题计划，各自经过同一套核对（病历已写明、一题两问、选项同值），任一份留下了针对本例的题就出这道题，两份都没有才返回 `proceed`；同样 4 次生成只剩 1 例切换。② **复诊计划的评估时限按指南病名收紧**：需先完成评估再服药的病例，`followupSafetyNet` 与 M05 首次复诊里的时限此前由模型判断，短暂性脑缺血、深静脉血栓、急性肾损伤、马尾综合征等常比指南慢一档。现在模型写出的要排除的病对上指南时限表（55 行，逐行附 NICE、KDIGO 等指南原文与链接）时，取指南与模型较紧的一档，只收紧不放宽。③ **辨证依据**：病历记录了舌象、脉象而 `tcmDiagnosticRationale` 没讲到时也会补写进主证的推理。④ **用药频次**：「硝苯地平控释片60mg/d」「1片/d」「2次/d」「q8h」这类写法读作已写明频次，不再提示「缺少剂量/频次」。⑤ **否认的范围**：「无皮疹，是否抽搐尚未询问，面色苍白」里的「无」只管到「是否抽搐尚未询问」之前，面色苍白不再被读成否认。另在 §3.12 写明 `x-cdss-regenerate` 对哪些接口起作用。 | 否 |
