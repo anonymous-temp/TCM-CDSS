@@ -60,7 +60,7 @@ const retainedHerbs = (rows, prior = lungStomachPrior, herbs) =>
   unwrap(modSafety.dropUnsupportedM04ModificationDirections(wrap(prescription(rows, herbs)), prior)).formula.modifications.map((item) => item.herbName);
 
 await check("1.1 方向未成立的加减（肺胃气逆证加黄芩清热）：底线拒，成品前也去掉；此前成品前只删方向对立的，这一条留到底线，整方退成不给剂量", () => {
-  assert.equal(contract.m04ModificationSafetyIssue(heatRow, lungStomachPrior, () => true), "herb_0_unsupported_high_impact_heat_clear");
+  assert.equal(contract.m04ModificationSafetyIssue(heatRow, 0, lungStomachPrior, () => true), "modification_0_herb_0_unsupported_high_impact_heat_clear");
   // 旧的删行判据（只看方向对立）放行它：两处判据不一就是整页退成不给剂量的原因。
   assert.equal(contract.m04HerbOpposingDirectionIssue({ name: "黄芩", function: `${heatRow.reason}；${heatRow.targetPathogenesis}` }, lungStomachPrior), undefined);
   assert.deepEqual(retainedHerbs([heatRow, phlegmRow]), ["半夏"]);
@@ -72,9 +72,9 @@ await check("1.2 底线会拒的其他加减同样单条去掉（理由里夹剂
   const unknownHerb = { ...phlegmRow, herbName: "神仙草", doseOrHandling: null, reason: "化痰" };
   const kept = retainedHerbs([doseInText, unknownHerb, phlegmRow]);
   assert.deepEqual(kept, ["半夏"]);
-  assert.equal(contract.m04ModificationSafetyIssue(doseInText, lungStomachPrior), "unaudited_dose");
-  assert.equal(contract.m04ModificationSafetyIssue(unknownHerb, lungStomachPrior, knowledge.isKnownTcmHerbName), "unknown_herb");
-  assert.equal(contract.m04ModificationSafetyIssue(phlegmRow, lungStomachPrior, () => true), undefined);
+  assert.equal(contract.m04ModificationSafetyIssue(doseInText, 0, lungStomachPrior), "modification_0_unaudited_dose");
+  assert.equal(contract.m04ModificationSafetyIssue(unknownHerb, 1, lungStomachPrior, knowledge.isKnownTcmHerbName), "modification_1_unknown_herb");
+  assert.equal(contract.m04ModificationSafetyIssue(phlegmRow, 2, lungStomachPrior, () => true), undefined);
 });
 
 // 第十四轮 S044（同 test:r1026-main 的夹具）：外邪犯胃证的教材加减（若见壮热口渴，便秘尿赤，加黄芩、黄连）不核方向。
@@ -106,7 +106,7 @@ await check("1.3 对照：教材条件式加减（外邪犯胃证「若见壮热
 await check("1.4 开方安全底线逐条加减用的就是这个判据（不另写一份）", () => {
   const source = readFileSync("src/lib/diagnosis-stage-contract.ts", "utf8");
   const floor = source.slice(source.indexOf("export function m04SafetyContractIssue("), source.indexOf("export function m04ModificationSafetyIssue("));
-  assert.match(floor, /m04ModificationSafetyIssue\(modification, priorReasoning, isKnownHerbName\)/);
+  assert.match(floor, /m04ModificationSafetyIssue\(modification, modificationIndex, priorReasoning, isKnownHerbName\)/);
   assert.doesNotMatch(floor, /unsupportedHighImpactHerbIssue\(\[\{\s*name: herbName/);
 });
 

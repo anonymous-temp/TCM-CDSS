@@ -64,7 +64,7 @@ export function dropUnsupportedM04ModificationDirections(
     const candidateHerbIdentities = new Set((Array.isArray(firstCandidate?.herbs) ? firstCandidate.herbs : [])
       .map((herb) => canonicalTcmHerbIdentity(recordValue(herb)?.name))
       .filter(Boolean));
-    const retained = modifications.filter((value) => {
+    const retained = modifications.filter((value, modificationIndex) => {
       const modification = recordValue(value);
       if (!modification) return true;
       if (isTransientAcuteExteriorSleepModification(modification, prior)) return false;
@@ -88,7 +88,7 @@ export function dropUnsupportedM04ModificationDirections(
       }
       // 开方安全底线会拒的行在这里就去掉（与底线同一判据 m04ModificationSafetyIssue：剂量文字、未收载药味、方向未成立的高影响药；
       // 教材条件式加减不核方向）。此前这里只删「方向对立」的，「方向未成立」的留到底线被拒，一条加减让整方退成不给剂量（第三十一轮）。
-      return !m04ModificationSafetyIssue(modification, prior, isKnownTcmHerbName);
+      return !m04ModificationSafetyIssue(modification, modificationIndex, prior, isKnownTcmHerbName);
     });
     if (retained.length === modifications.length) return content;
     formula.modifications = retained;
