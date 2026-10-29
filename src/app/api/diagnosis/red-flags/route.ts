@@ -6,6 +6,16 @@ import { precomputeAnsweredPath } from "@/lib/no-answer-precompute.server";
 import { prefetchDiagnoseInputs } from "@/lib/stage-prefetch.server";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
+/**
+ * 接口文档 §4.7 出参表里的顶层 `redFlags` / `advisories`：与 `safetyGate.redFlags` / `safetyGate.advisories` 同一份内容。
+ * 文档自 2026-08-07 起列着这两个字段，响应里一直没有；甲方按「命中红旗项」去找 `redFlags`，取到的是
+ * `clinicalFacts.redFlags`（语义复核的工作记录，连病历里明确否认的风险也记一条），否认「疫区旅居史」就亮了红色横幅
+ *（2026-10-29 甲方同一病例两次请求，`safetyGate` 逐字相同）。
+ */
+function documentedRedFlagFields(gate: { redFlags?: string[]; advisories?: string[] } | undefined) {
+  return { redFlags: gate?.redFlags || [], advisories: gate?.advisories || [] };
+}
+
 function prescriptionPermissionView(state: ReturnType<typeof withSafetyGate>) {
   const permission = derivePrescriptionPermission(state);
   return {
@@ -32,6 +42,7 @@ async function handlePost(req: Request) {
     return Response.json({
       available: true,
       semanticStatus: "skipped_deterministic_critical_vital",
+      ...documentedRedFlagFields(deterministicGate),
       clinicalFacts: parsed.caseState.clinicalFacts || null,
       safetyGate: deterministicGate,
       operationalCompleteness: deterministic.completeness,
@@ -46,6 +57,7 @@ async function handlePost(req: Request) {
       clinicalFactsReviewSettled(enriched.clinicalFacts.reviewStatus) &&
       Boolean(enriched.clinicalFacts.attestation),
     semanticStatus: enriched.clinicalFacts?.semanticStatus || "unavailable",
+    ...documentedRedFlagFields(gated.safetyGate),
     clinicalFacts: enriched.clinicalFacts || null,
     safetyGate: gated.safetyGate,
     operationalCompleteness: gated.completeness,

@@ -476,6 +476,18 @@ function withoutRepeatedTopicLines(lines: readonly unknown[]): unknown[] {
 }
 
 /**
+ * 本例病历里写的药（required-precautions 算出的病历药名、现用药、自服药、自行停用的药）与本页推荐的成药西药，全名。
+ * 两处用：注意事项去掉病历与推荐里都没有的药名（取基础名比对），药味表改写药名时不改这些药名里的字（2026-10-29「广藿香正气水」）。
+ */
+function knownMedicineNames(requiredPrecautions: readonly RequiredPrecaution[] | undefined, formula: Record<string, unknown> | undefined): string[] {
+  return [
+    ...(requiredPrecautions || []).flatMap((item) => item.kind === "recorded_drug_names" || item.kind === "current_medications" ? item.names
+      : item.kind === "self_medication" ? [item.name] : item.kind === "self_discontinued_medication" ? item.names : []),
+    ...records(formula?.patentAndWestern).map((item) => String(item.name || "")),
+  ].map((name) => String(name || "").trim()).filter(Boolean);
+}
+
+/**
  * 去掉注意事项里点名、却不在病历与推荐药里的成药、西药（knownDrugs 是去剂型的基础名）。见调用处。
  */
 function withoutUnrecordedMedicineMentions(line: string, knownDrugs: readonly string[]): string {
@@ -594,6 +606,10 @@ const SYNTHETIC_PHRASES: ReadonlyArray<[RegExp, string]> = [
   // 「复评」是甲方点名的流程用语（8/20 C 类、10.12 工程用语）；模型写在鉴别「下一步检查」里的「复评意识、体温」换成临床写法
   //（第二十八轮甲方 100 例接口形状 C033）。
   [/复评/g, "再次评估"],
+  // 「目前无服务器红旗提示」：辨证提示词曾写「承接服务器红旗」，模型照抄进红旗处置一句（10/14–10/29 留存的辨证、开方结果里 830 处，
+  // 2026-10-29 甲方病例）。提示词已改，已生成的与模型偶尔仍写的换成临床说法。
+  // 只认「服务器/服务端」：「呼吸系统红旗」「神经系统红旗」说的是器官系统，不换（2026-10-29 回放 1,808 份留存结果时抓到）。
+  [/(?:服务器|服务端)(?:的)?红旗(?:提示)?/g, "急危重征象"],
 ];
 
 /**
@@ -611,7 +627,7 @@ const SERVER_NOTES: readonly RegExp[] = [
 
 /** 把系统句式换成临床写法；没有命中时原样返回（逐字节不变）。 */
 export function clinicalWordingForSyntheticPhrases(value: string): string {
-  if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|受控目录|症状层|可逐字回溯|有界建议|工作证候|复评/.test(value)) return value;
+  if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|服务器|受控目录|症状层|可逐字回溯|有界建议|工作证候|复评/.test(value)) return value;
   let text = value.replace(BOUNDED_ADVICE_NOTE, "");
   for (const note of SERVER_NOTES) text = text.replace(note, "");
   text = text.trim();
@@ -1218,7 +1234,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     if (typeof candidate.formulaAnalysis === "string") {
       const herbRows = records(candidate.herbs);
       const tableNames = herbRows.map((herb) => String(herb.name || "")).filter(Boolean);
-      const aligned = withoutChartAssertionClauses(withMentionsAlignedToTableNames(withoutProcessParentheticals(candidate.formulaAnalysis).text, tableNames).text).text;
+      const analysisText = withoutProcessParentheticals(candidate.formulaAnalysis).text;
+      const medicineNames = [...knownMedicineNames(options?.requiredPrecautions, formula), ...labelledMedicineNamesIn(analysisText)];
+      const aligned = withoutChartAssertionClauses(withMentionsAlignedToTableNames(analysisText, tableNames, medicineNames).text).text;
       const harmonized = withoutUnsupportedHarmonizingClaims(aligned, tableNames,
         (name) => `${herbFunctionKnowledgeForDisplay(name)}；${getTcmHerbFunctionText(name)}`).text;
       candidate.formulaAnalysis = withRoleOnlyHerbsExplained(withoutStrayLeadingRoleVerb(harmonized).text, herbRows).text;
@@ -1517,11 +1535,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 「X、Y等同类…中成药」只去掉举例的药名，留下说一类药的话；其余去掉那一小句（连同它的「以免…」），整条只剩它时整条去掉。
     // 病历里的药名由 required-precautions 算出（recorded_drug_names）；没有传入本例必写项目时不核（调用方没给病历）。
     if (options?.requiredPrecautions) {
-      const knownDrugs = [
-        ...options.requiredPrecautions.flatMap((item) => item.kind === "recorded_drug_names" || item.kind === "current_medications" ? item.names
-          : item.kind === "self_medication" ? [item.name] : item.kind === "self_discontinued_medication" ? item.names : []),
-        ...records(formula?.patentAndWestern).map((item) => String(item.name || "")),
-      ].map((name) => patentMedicineBaseName(name.trim())).filter((name) => name.length >= 2);
+      const knownDrugs = knownMedicineNames(options.requiredPrecautions, formula)
+        .map((name) => patentMedicineBaseName(name)).filter((name) => name.length >= 2);
       precautions = precautions
         .map((line) => typeof line === "string" ? withoutUnrecordedMedicineMentions(line, knownDrugs) : line)
         .filter((line) => typeof line !== "string" || /[\u4e00-\u9fff]{4,}/u.test(line));
@@ -1641,7 +1656,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 与方义同一个取法（withMentionsAlignedToTableNames，2026-10-19 甲方标准病历 6 第三轮复测）。先改名，下面的煎法核对才对得上药味表。
     const tableHerbNames = records(records(formula?.candidates)[0]?.herbs).map((herb) => String(herb.name || "")).filter(Boolean);
     if (tableHerbNames.length > 0) {
-      precautions = precautions.map((line) => typeof line === "string" ? withMentionsAlignedToTableNames(line, tableHerbNames).text : line);
+      const medicineNames = knownMedicineNames(options?.requiredPrecautions, formula);
+      precautions = precautions.map((line) => typeof line === "string"
+        ? withMentionsAlignedToTableNames(line, tableHerbNames, [...medicineNames, ...labelledMedicineNamesIn(line)]).text : line);
     }
     // 注意事项里说某味药先煎/后下/包煎…，而药表与煎服法给这味药的是别的煎法或没有特殊煎法：以药表与煎服法为准，去掉那一小句
     //（2026-10-19 验收主集 RobustSDT-single_0595：注意事项「人参须先煎久煎」，药表是另煎）。

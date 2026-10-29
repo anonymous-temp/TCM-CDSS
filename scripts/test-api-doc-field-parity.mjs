@@ -171,6 +171,67 @@ check("DOC-06 完整链路示例里的 JSON 必须可解析且非占位", () => 
   }
 });
 
+// ── 红旗筛查（§4.7）：出参表与真实路由响应对账 ──
+// 2026-10-29：§4.7 自 8/07 起列着顶层 `redFlags` / `advisories`，响应里从来没有（只在 `safetyGate` 下）；甲方按「命中红旗项」
+// 取到的是 `clinicalFacts.redFlags`（语义复核记下的否认项也在里面），否认「疫区旅居史」就报了红色横幅。本套件原先只对 M03/M04 夹具，
+// 这个接口不在里面——「文档写了实现里没有的路径」第四次。这里直接调真实路由（事实层关掉，不发网络请求），按文档表逐行取值。
+Object.assign(process.env, {
+  NODE_ENV: "test", CDSS_REQUIRE_API_AUTH: "true", CDSS_API_TOKEN: "doc-parity-redflags-token",
+  CDSS_API_CLIENT_ID: "doc-parity-client", CDSS_API_CUSTOMER_IDS: "doc-parity-customer",
+  CDSS_DEFAULT_CUSTOMER_ID: "doc-parity-customer", CDSS_CUSTOMER_ID: "doc-parity-customer",
+  CDSS_CUSTOMER_JIT_ENABLED: "false", CDSS_CLINICAL_FACTS_BACKSTOP: "false",
+  REASONING_CONTRACT_SIGNING_KEY: "doc-parity-reasoning-key-at-least-32-characters",
+  CDSS_STAGE_RESULT_REUSE: "false", CDSS_REQUEST_ARCHIVE: "false",
+});
+globalThis.fetch = async () => { throw new Error("doc parity: unexpected network call"); };
+const { createJiti } = await import("jiti");
+const jiti = createJiti(import.meta.url, { alias: {
+  "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+} });
+const { POST: redFlagsRoute } = await jiti.import("../src/app/api/diagnosis/red-flags/route.ts");
+async function redFlagsResponse(caseState) {
+  const response = await redFlagsRoute(new Request("http://localhost/api/diagnosis/red-flags", {
+    method: "POST", headers: { "content-type": "application/json", "x-cdss-customer-id": "doc-parity-customer" },
+    body: JSON.stringify({ caseState }),
+  }));
+  assert.equal(response.status, 200, `red-flags 路由返回 ${response.status}`);
+  return response.json();
+}
+const ordinaryRedFlags = await redFlagsResponse({ id: "doc-parity-rf-1", chiefComplaint: "发热、头昏、胸闷、恶心1天",
+  patient: { sex: "女", age: 35 }, symptoms: { 现病史: "1天前于高温环境工作后出现发热，伴恶心欲呕。", 个人史: "否认疫区旅居史" },
+  vitals: { T: "37.8", P: "80", R: "20", BP: "118/75" } });
+const criticalRedFlags = await redFlagsResponse({ id: "doc-parity-rf-2", chiefComplaint: "突发胸痛1小时",
+  patient: { sex: "男", age: 60 }, symptoms: { 现病史: "1小时前突发胸痛，伴大汗" }, vitals: { T: "36.5", P: "130", R: "28", BP: "70/40", SpO2: "85%" } });
+
+/** §4.7 两张出参表（顶层与 `safetyGate`）第一列的字段名。 */
+function redFlagsDocumentedFields() {
+  const section = doc.slice(doc.indexOf("### 4.7 红旗筛查"), doc.indexOf("### 4.8"));
+  const output = section.slice(section.indexOf("**出参**"));
+  const gateAt = output.indexOf("**`safetyGate`**");
+  const rows = (text) => [...text.matchAll(/^\| `([A-Za-z][A-Za-z0-9_]*)` \|/gm)].map((match) => match[1]);
+  return { top: rows(gateAt >= 0 ? output.slice(0, gateAt) : output), gate: gateAt >= 0 ? rows(output.slice(gateAt).split("\n\n**")[0]) : [] };
+}
+
+check("DOC-07 红旗筛查出参表的每个字段都在真实响应里，真实响应的每个顶层字段都在表里", () => {
+  const { top, gate } = redFlagsDocumentedFields();
+  assert.ok(top.includes("redFlags") && top.includes("safetyGate") && gate.includes("status"), `§4.7 出参表结构疑似被改动：${top.join(",")} / ${gate.join(",")}`);
+  for (const [label, payload] of [["一般病例", ordinaryRedFlags], ["危急生命体征（跳过语义复核）", criticalRedFlags]]) {
+    const missing = [...top.filter((key) => payload[key] === undefined), ...gate.filter((key) => payload.safetyGate?.[key] === undefined).map((key) => `safetyGate.${key}`)];
+    assert.deepEqual(missing, [], `${label}：文档列了、响应里取不到：${missing.join("、")}`);
+    const undocumented = Object.keys(payload).filter((key) => !top.includes(key));
+    assert.deepEqual(undocumented, [], `${label}：响应顶层有、§4.7 出参表没列：${undocumented.join("、")}`);
+  }
+});
+
+check("DOC-08 红旗筛查顶层 redFlags / advisories 与 safetyGate 同一份内容", () => {
+  for (const payload of [ordinaryRedFlags, criticalRedFlags]) {
+    assert.deepEqual(payload.redFlags, payload.safetyGate.redFlags);
+    assert.deepEqual(payload.advisories, payload.safetyGate.advisories || []);
+  }
+  assert.equal(criticalRedFlags.safetyGate.status, "red_flag", "危急生命体征对照必须真的命中红旗，否则上面一条测不到非空的情形");
+  assert.ok(criticalRedFlags.redFlags.length > 0);
+});
+
 if (failures.length > 0) {
   console.error("接口文档字段一致性 FAILED:");
   for (const failure of failures) console.error(` - ${failure}`);

@@ -43,7 +43,7 @@ import {
   structuredRedFlagEvidenceFromFacts,
   type BackstopRedFlagCategory,
 } from "./clinical-facts";
-import { CLINICAL_EXAM_NEGATION_VERB_SOURCE, affirmedCurrentMedicationText, clinicalEventTemporalScopeAt } from "./clinical-polarity";
+import { CLINICAL_EXAM_NEGATION_VERB_SOURCE, affirmedCurrentMedicationText, clinicalEventTemporalScopeAt, recordedMedicationMentions } from "./clinical-polarity";
 import { ensureActionableFollowupSafetyNet } from "./followup-safety-net";
 import { buildThreePartLimitedStateCopyForSurface, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 import { clinicalFieldRequiresExplicitPrescriptionState, clinicalRequiredFieldLabel } from "./clinical-governance-tables";
@@ -6488,6 +6488,20 @@ function allergyHistoryNeedsClarification(text: string): boolean {
 /** 用药记录里写了具体药名（常见药名、剂型构词或西药词尾）。 */
 const NAMED_MEDICATION = /(?:阿司匹林|华法林|二甲双胍|胰岛素|硝苯地平|缬沙坦|氯吡格雷|褪黑素|左甲状腺素|[\u4e00-\u9fa5A-Za-z]{2,}(?<![一二两三四五六七八九十半几数\d])(?:片|胶囊|颗粒|丸|口服液|注射液|缓释片|控释片)|[\u4e00-\u9fa5]{1,6}(?:西林|霉素|沙星|洛芬|普利|沙坦|他汀|地平|双胍|格列[\u4e00-\u9fa5]{1,2}|唑仑|西泮|洛尔|替丁|拉唑|噻嗪))/u;
 
+/**
+ * 用药记录写到了具体药名：剂型构词与常见药名（NAMED_MEDICATION），或注意事项一栏取药名的同一个读法（recordedMedicationMentions：
+ * 给药动词之后的名字，带引号的取引号里的）取到的名字带药典剂型结尾、或在病历里加了引号。2026-10-29 甲方病例
+ *「自行服用“藿香正气水”后症状稍缓」：剂型表里没有「水」，这里写「缺少药名」，注意事项却已按药名写了「您已自服藿香正气水」。
+ * 不要求剂型或引号时，回放 2.1 万份病历里病机分析的叙述（「服用激素导致…」「需服泻下药才能排出」）也被当成药名；
+ * 药物类别（感冒药、降压药、激素）照旧算没写药名。剂型是有限闭集（《中国药典》制剂通则的常见剂型）。
+ */
+const RECORDED_MEDICATION_FORM_ENDING = /(?:片|胶囊|颗粒|冲剂|丸|散|丹|膏|口服液|合剂|糖浆|酊|露|水|液|滴剂|喷雾剂|气雾剂|凝胶|栓|贴)$/u;
+function medicationTextNamesDrug(text: string): boolean {
+  if (NAMED_MEDICATION.test(text)) return true;
+  return recordedMedicationMentions(text).names.some((name) => RECORDED_MEDICATION_FORM_ENDING.test(name) ||
+    [`“${name}”`, `"${name}"`, `「${name}」`, `『${name}』`].some((quoted) => text.normalize("NFKC").includes(quoted.normalize("NFKC"))));
+}
+
 function medicationHistoryNeedsClarification(text: string): boolean {
   const normalized = stringifyClinicalValue(text).trim();
   if (!normalized) return false;
@@ -7391,7 +7405,7 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   if (clinicalFieldRequiresExplicitPrescriptionState("medication_history") && !isKnownClinicalText(medicationText)) addMissing("medication_unknown", `${clinicalRequiredFieldLabel("medication_history", "当前用药")}（明确有/无及药物清单）`);
   // 写了药名、只缺剂量频次时不说「缺少药名」（2026-10-24 C045：病历写着二甲双胍，评审判复述不准）。
   else if (medicationHistoryNeedsClarification(medicationText)) {
-    addMissing("medication_details", NAMED_MEDICATION.test(medicationText) ? "已提及当前用药但缺少剂量/频次" : "已提及当前用药但缺少药名/剂量/频次");
+    addMissing("medication_details", medicationTextNamesDrug(medicationText) ? "已提及当前用药但缺少剂量/频次" : "已提及当前用药但缺少药名/剂量/频次");
   }
   if (hasInvalidBp) addMissing("blood_pressure_invalid", "血压数值需复核（收缩压应高于舒张压）");
   const invalidVitalFindings = invalidEnteredVitalFindings(state).filter((finding) => !(finding.name === "血压" && hasInvalidBp));

@@ -474,11 +474,24 @@ export function withRecountedHerbCountWords(text: string, candidateHerbs: readon
  *  · 只凭未经复核的中等置信别名对上的不改（「玉屏风」里的「屏风」）。
  * 改过之后，后面的外来药判断与功效核对按药味表这一味来看（鹿角胶性温补阳，「滋阴…退虚热」由功效核对去掉）。
  */
-export function withMentionsAlignedToTableNames(text: string, candidateHerbs: readonly string[]): { text: string; changed: boolean } {
+/**
+ * medicineNames：本例病历里写的、本页推荐的成药西药名（及说明书目录认得的药名）。药名里的药味字不按药味表改写——
+ * 2026-10-29 甲方病例：药味表有广藿香，注意事项「您已自服藿香正气水」被改成「广藿香正气水」，那是另一个药名。
+ */
+export function withMentionsAlignedToTableNames(text: string, candidateHerbs: readonly string[], medicineNames: readonly string[] = []): { text: string; changed: boolean } {
   const tableNames = [...new Set(candidateHerbs.map(stripAnnotation).filter(Boolean))];
   if (tableNames.length === 0) return { text, changed: false };
+  const shielded: Span[] = [];
+  // 本身就是饮片名的不挡（说明书目录里有「黄芩片」「黄连片」这样的成药名，方义里的「黄芩片」仍按药味表写成黄芩；
+  // 2026-10-29 回放 1,808 份留存结果时抓到 5 例方义由此改不回来）。
+  for (const name of new Set(medicineNames.map((item) => String(item || "").trim()).filter((item) => item.length >= 3 && !isKnownTcmHerbName(item)))) {
+    for (let at = text.indexOf(name); at >= 0; at = text.indexOf(name, at + name.length)) {
+      shielded.push({ start: at, end: at + name.length, token: name });
+    }
+  }
   const replacements: Array<{ start: number; end: number; name: string }> = [];
   for (const mention of formulaAnalysisHerbMentions(text)) {
+    if (insideAny(mention.start, shielded)) continue;
     const token = mention.token;
     if (tableNames.includes(token)) continue;
     // 饮片切制规格「片」（2026-10-20 第八轮，X-G-0811/1737/2146/0679/0629：方义写「黄芩片」「酒黄连片」「鹿茸片」，药味表是「黄芩」「黄连」「鹿茸」）：
