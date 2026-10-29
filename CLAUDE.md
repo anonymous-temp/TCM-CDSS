@@ -2543,6 +2543,44 @@ The user forwarded two red-flags requests for the same case (2115682236370923520
 Rollback: image `tcm-cdss:20261028-08ba1a4-prebuilt` with `docker-compose.yml.pre-6876a81`.
 - **Local build:** the first prebuild was OOM-killed (swap already full from other sessions). A 1 GB temporary swap file on root plus a watcher that drops `.next/cache` below 250 MB free got it through. Root still fell to 218 MB right after `PREBUILD_OK`, because the 2.2 GB webpack cache is written last. The cache and the swap file were removed at once.
 
+### 10/29 round 30: the leftovers of the customer's 10/29 test, by class (2026-10-29)
+
+The customer tested on 08ba1a4 the same day (15 chains, 8 records, all 200; reviewed in round 29's material `~/runlogs/r1018/work/r1041/today/`). Round 29's deploy fixed most of what they hit; the user asked for the rest to be fixed and shipped. Material: `~/runlogs/r1018/work/r1042/` (`today.json` = their 15 chains with their own answers, `measure.sh`, `compare.py`, `replay/` (`gate.mjs`, `surface.mjs`, `western.mjs`), `probe/`, `cp/cp.py` + `counterproofs.json`, `out/`). Suite `test:r1042-main` (15 checks; 39 mutations, all caught).
+
+**Fixed, by class.**
+- **A child's record with adult reproductive entries** (1-year-old girl: 个人史 「月经周期 13天，有痛经史」, 婚育史 「配偶体健，备孕」). The conception tier had no age bound, so the page said 「备孕期间服药，如月经逾期请先验孕」, the rationale checklist made the model explain 「痛经史为既往宿疾」, and nobody flagged the contradiction.
+  - `REPRODUCTIVE_STATE_MIN_AGE_YEARS = 10` (clinical-state) is the one floor: `pregnancyScreenRequired`, `conceptionWithoutPregnancyOrLactation(text, ageYears)` (tier via `labeledAgeYears` of the grounding text, required precautions via `authoritativePatientAgeYears`) and the new reader.
+  - `ageImplausibleReproductiveStatements(state)` (diagnosis-safety): under 10, comma clauses of the record (mother/birth/feeding clauses removed by `maternalStateText`, section labels such as 「婚育月经史：」 stripped) that the conception/pregnancy/lactation assessors read as positive or possible, or that name a spouse (配偶/丈夫/爱人, unless negated), marriage or 孕N产N; menstrual entries count only under 8 and not when the chief complaint is a puberty visit (性早熟, breast development, vaginal bleeding, 初潮/月经来潮) — 《中枢性性早熟诊断与治疗专家共识（2022）》: menarche before 10 is precocious puberty, a disease to see, not an entry error.
+  - Consumers: a `safetyGate.advisories` line (「病历记录的「…」与患者年龄（1岁）不符，可能录入有误，请核实；辨证与注意事项未采用这些记录」), a 【病历与年龄核对】 paragraph in the M03 and M04 prompts, and `rationaleFindingsChecklist`/`chiefComplaintFindings` skip those facts. Dose still follows the registered age (pediatric fraction, the safe direction); the gate's pregnancy/lactation reading is unchanged.
+  - Replay found two false positives in the first cut, both fixed: a 9-year-old precocious-puberty visit (「乳房变大一段时间，近期月经突然来潮」) and the customer's template placeholder 「个人史，月经史」.
+- **Cupping for infants and toddlers.** 《刺法灸法学》（十三五）拔罐法禁忌证 「婴幼儿…不宜拔罐」, 注意事项 「妊娠妇女及婴幼儿慎用拔罐方法」. `tcmTreatmentProjectExclusionReason` excludes cupping for the neonate/infant/toddler stages of the pediatric dose table (under 3). Needling and auricular cards keep their pediatric notes.
+- **「2月余」 is below a 3-month threshold.** Approximate course spans (余/多/+) have an exclusive upper bound (`recordCourseDays().upperExclusive`, `recordCourseBelowThreshold`), so 「失眠…2月余」 + 「慢性失眠障碍」 becomes 失眠障碍 (ICSD-3 / 《中国失眠症诊断和治疗指南》: chronic ≥3 months). Replay over 1,416 saved diagnoses: only that case changed.
+- **Template text on treatment cards.** The delivered surface drops catalog clauses 「…由（现场/具备资质的）医师复核（后确定）」 and scope sentences containing both 适用于 and 不适用 (「适用于成人普通急性/亚急性咳嗽…；流感…不适用」). 「孕期禁忌穴位和操作由医师现场决定」「距离和热度由医师控制」 stay.
+- **Tier words in the Western rationale.** 「作症状层面工作诊断」「作为当前工作诊断」「的工作判断」 → 初步诊断/判断 (keeping 的), 「暂以症状层面诊断」 → 症状诊断, clause-final 「症状层面」 → 症状诊断, 「仅达症状层」 → 症状. The prompt lead-in 「事实模式→工作判断」 is now 「已记录事实→为什么是这个诊断」.
+  - **Do not put a wording ban in that prompt.** The first version added 「不写“工作诊断”“症状层面”这类分级用语」 to the Western rationale instruction; the TCM half (same prompt) then dropped the lineage lens sentence in 6 of 6 runs (2 of 3 with the old prompt). Wording is fixed on the delivered surface instead; `test:r1042-main` 5.1 pins the absence of the ban.
+- **The lineage lens sentence.** Two predicates disagreed: the rationale rewrite recognised only 「以下按常规辨证处理」/「从…看」, the foreign-lens filter only 「〈派名〉学派看…」. `isLineageLensSentence` / `lineageLensSubject` / `LINEAGE_LENS_SUBJECT` now live in `tcm-lineages.ts`; a coverage rewrite that drops the lens gets it appended back. The bigger cause was the prompt order: the 【辨证依据要交代的已记录表现】 checklist is the last thing in the M03 prompt, and the model ended the rationale after the checklist (local, 扶阳 风寒 case: lens 0/6 with coverage on, 2/2 with it off). The checklist now ends with a reminder naming the chosen school, and when the checklist is empty a 【辨证依据末句】 paragraph carries the reminder alone (the 1-year-old: 0/4 → 3/3).
+
+**Measured** (local route harness, the customer's own 15 chains with their own answers, ×2 per arm; old = 03ee8b4d = production 6876a81's clinical code):
+
+| | Old | New |
+|---|---|---|
+| 1-year-old: 备孕/验孕 precaution, 痛经 in rationale, cupping card | 1/2, 2/2, 1/1 (one run non-dose) | 0, 0, 0; age advisory 2/2 + 3/3 targeted |
+| Lens sentence, 扶阳 风寒 / 风热 / 温病 暑湿 | 3/4 / 4/4 / 3/4 | 4/4 / 4/4 / 3/4 (the miss kept only the tail 「未见入营入血之舌绛、斑疹」) |
+| Card text 「复核后确定」「适用于成人…」 | 2 cards | 0 |
+| Non-dose pages | 2/30 (a 加减 herb's unsupported heat-clearing claim exhausting repair; one herb over its sanity ceiling) | 0/30 |
+| Disease / syndrome identical across arms | 15/15 records | |
+
+- Customer 10 × 2 and held-out 32 on the new code: disease and syndrome equal the standard answers 20/20 and 29/29; no non-dose page; red flags only on the three expected held-out cases.
+- Gate replay over 21,084 records: 5 changed, all the 1-year-old's calls (advisory added, conception tier off). Delivered-surface replay over 3,025 stored results: 209 changed, all wording (Western rationale 199, cards 3, resolution reasons 5, TCM rationale 2).
+
+**Left as is.**
+- The two old-arm non-dose pages are model variance, but their shape is a known class: a modification row whose claim fails `unsupported_high_impact_heat_clear` exhausts repair and sends the whole page to non-dose. Dropping just that modification row at finalize would be the class fix (not done; production saw none that day).
+- Needling cards for a 1-year-old stay (textbook pediatric note: 浅刺、不留针、不能配合者改用小儿推拿).
+- An auricular card can carry the needling line 「补泻手法、进针深度以现场查体为准」 (production probe, 扶阳 风寒 case); pre-existing card text.
+
+**In production (6217641, deployed 2026-10-29 about 20:35 Beijing; tag `20261029-6217641-prebuilt`, same release directory and `20260927-dsrepair` override).** `verify:release` green (290 suites + 4 fresh-artifact suites; the first run stopped on `test:r1019-western-r3`, which deep-equals the course span and needed the new `upperExclusive` field). `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 19.9 s, M04 P95 14.5 s). Container logs were archived before the replacement. Probes on hospital-b with the customer's records (regenerated): the 1-year-old gets the age advisory, a 扶阳 lens sentence, no cupping card and no 备孕 line; the 扶阳 cold case has its lens sentence; the 46-year-old's cough cards carry no template text; 「失眠…2月余」 is 失眠障碍; the vertigo rationale has no tier words. Rollback: image `tcm-cdss:20261029-6876a81-prebuilt` with `docker-compose.yml.pre-6217641`. Host 14 → 9.7 GB during the deploy (other projects writing); our 8527746 image and the 8527746/08ba1a4 build contexts were removed (11 GB), logged in `~/telemetry-archive/cleanup-20261029.txt` on the host.
+- **Local build:** root had 5.1 GB and 5 GB of memory plus 1 GB of swap were free, so no temporary swap was needed; a watcher would have dropped `.next/cache` below 350 MB free (it never fired, lowest 1.5 GB). The build tree is on root with a plain `cp -a` of `node_modules` (`~/runlogs/r1018/work/r1042/prebuild-cpa.sh`); the 2.2 GB cache was deleted right after `PREBUILD_OK`.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
