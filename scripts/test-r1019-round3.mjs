@@ -323,7 +323,8 @@ await check("6.13 西医鉴别拆分：「腰椎感染/结核」→ 腰椎感染
   assert.ok(!/而[，,；;。]/.test(result.text), result.text);
   const reasoning = rx(["饮食清淡。"]);
   reasoning.formula.candidates[0].formulaAnalysis = "本方以左归丸为基础加减。鹿角胶、龟甲胶为佐，血肉有情，一温一润，助阴液化生而，龟胶偏润以制鹿胶之温。";
-  assert.equal(surface.projectDeliveredReasoning(reasoning).formula.candidates[0].formulaAnalysis, "本方以左归丸为基础加减。鹿角胶、龟甲胶为佐，血肉有情，一温一润，助阴液化生，龟胶偏润以制鹿胶之温。");
+  // 夹具的药味表里还有方义没写的药（10/31 起按表补一句），这里只看这一句。
+  assert.ok(surface.projectDeliveredReasoning(reasoning).formula.candidates[0].formulaAnalysis.startsWith("本方以左归丸为基础加减。鹿角胶、龟甲胶为佐，血肉有情，一温一润，助阴液化生，龟胶偏润以制鹿胶之温。"));
 });
 
 // ───── 8 目录锁不住的教材代表方 ─────

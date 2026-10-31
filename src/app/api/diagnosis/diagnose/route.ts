@@ -30,6 +30,9 @@ import { pickTextbookDiseasesForCase } from "@/lib/textbook-disease-pick.server"
 import { pickJingfangPatternsForCase } from "@/lib/jingfang-pattern-pick.server";
 import { checkDiseaseExplainsVisitReason, tcmHalfDiseaseName, visitReasonRedrawInstruction } from "@/lib/m03-visit-reason-check.server";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
+import { checkLineageLensInContent, withLensFrom } from "@/lib/m03-lens-consistency.server";
+import { finalizeWesternPrimaryName } from "@/lib/western-name-standard.server";
+import { completeMethodCoverage, withVerifiedMethodItemFrom } from "@/lib/m03-method-coverage.server";
 
 type ParsedStageRequest = Extract<Awaited<ReturnType<typeof readCustomerBoundCaseStateRequest>>, { ok: true }>;
 
@@ -314,10 +317,13 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
               // 后面的兼证、证素、本例说法核对都在重写稿上做。
               const covered = await completeRationaleCoverage(content, { recordText: patientClaimRecord, findings: rationaleFindingsChecklist(safeState), chiefFindings: chiefComplaintFindings(safeState), keyFindings: recordedTonguePulse(safeState) }, transformSignal);
               const completed = await completeTcmDiseaseDifferentials(covered, differentialTopUpContext, transformSignal);
-              const [reconciled, claimRemovals, elementDecision] = await Promise.all([
+              // 流派视角句不另下诊断、不与病历相反；治法补上漏掉的成组主症（都是一个模型提名、另一厂商的模型复核才动）。与下面的核对互不相干，一起并行，不占关键路径。
+              const [reconciled, claimRemovals, elementDecision, lensChecked, methodCovered] = await Promise.all([
                 reconcileSecondarySyndromes(completed, { recordText: trustedInputText(safeState) }, transformSignal),
                 decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),
                 decideElementSupport(completed, { recordText: trustedInputText(safeState) }, transformSignal),
+                checkLineageLensInContent(completed, { recordText: patientClaimRecord, lineage: safeState.tcmLineagePreference }, transformSignal),
+                completeMethodCoverage(completed, { recordText: patientClaimRecord }, transformSignal),
               ]);
               // 证素撤下、本例说法删片段之后，病历记录的舌脉只剩在「是否兼X尚待核实」那一句里或整段不见了时，按主证重写一次依据
               //（m03-rationale-coverage，其余病例不发请求）。
@@ -327,7 +333,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
                 transformSignal,
               );
               // 脱证落在兼证栏时提为主证（m03-critical-syndrome，急则治标），在其余核对之后、教材锚定之前。
-              return promoteCriticalSecondarySyndrome(reattributed);
+              return promoteCriticalSecondarySyndrome(withVerifiedMethodItemFrom(withLensFrom(reattributed, completed, lensChecked), methodCovered));
             };
             const disease = tcmHalfDiseaseName(tcmContent);
             const [visit, finished] = await Promise.all([
@@ -353,7 +359,12 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
               ),
               decidePatientClaimRemovals(westernContent, { recordText: patientClaimRecord }, "western", transformSignal),
             ]);
-            return applyPatientClaimRemovalsToContent(aligned, "western", claimRemovals);
+            // 主诊断的写法收尾：症状层面的名字关联已确诊慢性病，查不到编码的归到 ICD 同义写法（western-name-standard.server.ts）。
+            return finalizeWesternPrimaryName(
+              applyPatientClaimRemovalsToContent(aligned, "western", claimRemovals),
+              { recordText: trustedInputText(safeState), redFlag: redFlagAnalysis },
+              transformSignal,
+            );
           },
         }
       : {}),

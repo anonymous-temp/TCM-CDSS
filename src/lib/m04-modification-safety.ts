@@ -1,11 +1,15 @@
-import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04CandidateOpposingDirectionIndices, m04HerbOpposingDirectionIssue, m04ModificationSafetyIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, textbookModificationsThin, m04CandidateOpposingDirectionIndices, m04HerbOpposingDirectionIssue, m04ModificationSafetyIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
 import { formulaAnalysisAfterHerbRemoval } from "./formula-analysis-review";
 import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbFunctionCategories, isKnownTcmHerbName } from "./tcm-knowledge";
 import { precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
+import { formulaTextbookCommentary } from "./formula-textbook-commentary";
+import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { herbAnyRecordCautionConflict, herbRecordCautionIsHard } from "./herb-record-caution";
+
+const SAME_SOURCE_HERB_GROUPS = (sameSourceHerbs as { groups: ReadonlyArray<{ id: string; herbs: string[]; reason: string }> }).groups;
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -76,7 +80,7 @@ export function dropUnsupportedM04ModificationDirections(
       const trigger = typeof modification.trigger === "string" ? modification.trigger.trim() : "";
       const candidateHerbNames = (Array.isArray(firstCandidate?.herbs) ? firstCandidate.herbs : [])
         .map((herb) => String(recordValue(herb)?.name || "").trim()).filter(Boolean);
-      if (!trigger || !finalModificationTriggerGrounded(trigger, prior, candidateHerbNames)) return false;
+      if (!trigger || !finalModificationTriggerGrounded(trigger, prior, candidateHerbNames, { textbookThin: textbookModificationsThin(modifications.map((row) => recordValue(row) || {}), prior) })) return false;
       const fields = normalizedFormulaModificationFields(modification);
       // 最终出口再核一次「加的药已在方中 / 减的药不在方中」（2026-09-29 甲方测评 2.2：腰痛例建议加熟地黄，
       // 而熟地黄已在原方）。编译期 normalizeModifications 按**当时**的药味核过，但 candidate 定向修复会
@@ -419,6 +423,23 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
       const drops = ginsengs.filter((value) => value !== keep && roleOf(value) !== "君");
       for (const value of drops) removed.push({ name: nameOf(value), reason: `与${nameOf(keep)}同属补气的参类，不重复使用` });
       retained = retained.filter((value) => !drops.includes(value));
+    }
+    // 同一来源、同一方向的药只留一味（tcm-same-source-herbs.source.json），方剂目录原方本来就含两味的不动。
+    {
+      const baseName = String(candidate.name || "").replace(/(?:加减|加味|化裁)$/u, "");
+      const baseIngredients = new Set(executableFormulaCompilationReferences([baseName]).flatMap((reference) => reference.ingredients).map((item) => canonicalTcmHerbIdentity(item)));
+      for (const group of SAME_SOURCE_HERB_GROUPS) {
+        const inGroup = retained.filter((value) => group.herbs.includes(canonicalTcmHerbIdentity(nameOf(value)) || nameOf(value)));
+        // 目录组成常不列煎时加的姜（厚朴温中汤目录只有干姜，方解写「干姜、生姜温脾暖胃」），方解写了也算原方有。
+        const commentary = formulaTextbookCommentary(baseName) || "";
+        const inBase = inGroup.filter((value) => baseIngredients.has(canonicalTcmHerbIdentity(nameOf(value))) || commentary.includes(nameOf(value)));
+        if (inGroup.length < 2 || inBase.length >= 2) continue;
+        const rank = (value: unknown) => (SAFETY_PRUNE_ROLE_RANK[roleOf(value)] ?? 2) * 10 + group.herbs.indexOf(canonicalTcmHerbIdentity(nameOf(value)) || nameOf(value));
+        const keep = [...inGroup].sort((a, b) => rank(a) - rank(b))[0];
+        const drops = inGroup.filter((value) => value !== keep && roleOf(value) !== "君");
+        for (const value of drops) removed.push({ name: nameOf(value), reason: `与${nameOf(keep)}${group.reason}` });
+        retained = retained.filter((value) => !drops.includes(value));
+      }
     }
     if (removed.length === 0 || retained.length < SAFETY_PRUNE_MIN_RETAINED) return content;
     candidate.herbs = retained;

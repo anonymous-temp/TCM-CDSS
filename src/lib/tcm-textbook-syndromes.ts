@@ -20,6 +20,7 @@ import { textbookModificationIsIncidentalSleep } from "./incidental-sleep-modifi
  */
 
 export interface TextbookSyndromeRow {
+  group?: string;
   id: string;
   book: string;
   bookKey: string;
@@ -219,7 +220,7 @@ function buildDiseases(): TextbookDisease[] {
     };
     entry.aliases = [...new Set([...entry.aliases, ...strings(raw.diseaseAliases), ...strings(raw.westernEquivalents), ...strings(raw.tcmEquivalents)])];
     entry.rows.push({
-      id: text(raw.id), book: text(raw.book), bookKey, department: text(raw.department), disease,
+      id: text(raw.id), group: text(raw.group) || undefined, book: text(raw.book), bookKey, department: text(raw.department), disease,
       syndrome: bareSyndrome || text(raw.syndrome), syndromeName,
       manifestations: text(raw.manifestations), tongue: text(raw.tongue), pulse: text(raw.pulse),
       therapy: fixTextbookOcr(text(raw.therapy)), formulas, formulaJoin: text(raw.formulaJoin) || "single",
@@ -265,6 +266,8 @@ const DISEASES = buildDiseases();
 const ROW_BY_ID = new Map(DISEASES.flatMap((disease) => disease.rows.map((row) => [row.id, row] as const)));
 
 export interface TextbookCaseInput {
+  /** 开方阶段的病历全文：教材加减里舌脉与本次记录相反的条目不给模型（编译时同一判据也会删，先给了模型就白占一行）。 */
+  recordText?: string;
   chiefComplaint?: string;
   presentHistory?: string;
   tongue?: string;
@@ -609,10 +612,23 @@ export function usableTextbookModifications(row: TextbookSyndromeRow): TextbookS
 }
 
 /** 开方提示词里的教材方药段：已定证型的代表方组成与教材加减。 */
+/** 证名查不到行时，把这张方在教材里列的加减给开方阶段看（只有加减，方与治法不动）。 */
+export function buildFormulaModificationContext(diseaseName: string, syndromeName: string, formulaNames: readonly string[], recordText = ""): string {
+  if (textbookRowForSyndrome(diseaseName, syndromeName)) return "";
+  const row = textbookRowForFormula(diseaseName, formulaNames);
+  if (!row) return "";
+  const lines = usableTextbookModifications(row)
+    .filter((item) => !recordText || !modificationConditionTonguePulseConflict(item.condition, recordText))
+    .slice(0, 8).map((item) => `若${item.condition.replace(/^若/, "")}，加${item.herbs.join("、")}`);
+  return lines.length > 0 ? `【教材加减】（这张方在${textbookRowProvenance(row)}下的加减）${lines.join("；")}。写 modifications 时优先用这里的条件与药味。` : "";
+}
+
 export function buildTextbookFormulaContext(diseaseName: string, syndromeName: string, input: TextbookCaseInput = {}): string {
   const row = textbookRowForSyndrome(diseaseName, syndromeName, input);
   if (!row) return "";
-  const modifications = usableTextbookModifications(row).slice(0, 8).map((item) => `若${item.condition.replace(/^若/, "")}，加${item.herbs.join("、")}`);
+  const modifications = usableTextbookModifications(row)
+    .filter((item) => !input.recordText || !modificationConditionTonguePulseConflict(item.condition, input.recordText))
+    .slice(0, 8).map((item) => `若${item.condition.replace(/^若/, "")}，加${item.herbs.join("、")}`);
   return [
     `【教材方药】${row.disease}·${row.syndromeName}（《${row.book}》）：治法 ${row.therapy}；代表方 ${formulaLabel(row)}${row.composition.length > 0 ? `（${row.composition.join("、")}）` : ""}。`
       + `辨证阶段已定用该代表方：candidate.name 写“${formulaLabel(row)}加减”，candidate.herbs 以该方组成为主体（保留其大部分药味），再按本例病机加减，增减合计不超过 4 味；不要另起一张方。`,
@@ -638,19 +654,33 @@ export function conditionalModificationWithoutTextbook(
   diseaseName: string,
   syndromeName: string,
   trigger: string,
-  /** 处方药味。教材这一证的加减药都已在方中（教材加减已并入主方）时，按「教材没有可用加减」处理（2026-10-19 留出例 S067 石淋、S046 呃逆：
-   *  模型照提示改写本证常见变化的条件式加减，被判「触发条件不能回溯」，随证加减一栏是空的）。不给时照旧。 */
+  /** 处方药味。教材这一证的加减药都已在方中（教材加减已并入主方）时，按「教材没有可用加减」处理（2026-10-19 留出例 S067 石淋、S044 模型照提示改写本证常见变化的条件式加减，被判「触发条件不能回溯」，随证加减一栏是空的）。不给时照旧。 */
   candidateHerbNames: readonly string[] = [],
+  /** 教材条目不够用时（本证教材行列的加减留下不足两条，见 m04-proposal-compiler）也接受模型写的条件句。 */
+  options: { textbookThin?: boolean } = {},
 ): boolean {
   const row = textbookRowForSyndrome(diseaseName, syndromeName);
   const inCandidate = (herb: string) => candidateHerbNames.some((name) => name.includes(herb) || herb.includes(name));
   const rowModifications = row ? usableTextbookModifications(row) : [];
   const textbookUsable = Boolean(row && rowModifications.some((item) => item.herbs.length === 0 || item.herbs.some((herb) => !inCandidate(herb))));
-  if (row && rowModifications.length > 0 && (candidateHerbNames.length === 0 || textbookUsable)) return false;
+  if (!options.textbookThin && row && rowModifications.length > 0 && (candidateHerbNames.length === 0 || textbookUsable)) return false;
+  return modelConditionalTriggerShape(trigger);
+}
+
+/**
+ * 模型写的条件句本身是否合格：说的是「若 + 具体症状」。
+ * 不合格的三种（2026-10-31，甲方 10.29 测评「肺卫不固，无阴虚之象，随症加减考虑加用麦冬」）：流程与泛指；另立一个证候（「若兼有阴虚」）——
+ * 兼证由辨证阶段按判据定，加减不能绕过去补一个；写舌象脉象（「而见舌红、脉细数」）——舌脉是本次已记录或未记录的事实，不是将来可能出现的症状。
+ * 教材条件不走这里：教材写的是证候变化，由教材负责。
+ */
+export function modelConditionalTriggerShape(trigger: string): boolean {
   const text = (typeof trigger === "string" ? trigger : "").normalize("NFKC").trim().replace(/[。；;，,\s]+$/u, "");
   if (!/^若/u.test(text)) return false;
   const condition = text.replace(/^若(?:兼见|兼有|见|兼|伴有?|出现)?/u, "");
   if (condition.length < 2 || condition.length > 28) return false;
+  if (/[舌苔脉]/u.test(condition)) return false;
+  // 只认虚损要素的构词（气虚、血亏、阴不足、津已伤），寒热症状（恶寒甚、口渴多饮）照常是症状。
+  if (/[气血阴阳津精](?:[虚亏]|不足|已伤)/u.test(condition)) return false;
   // 条件必须说的是症状本身：流程、泛指、涉及人或检查的说法都不算。
   return !/复诊|接诊|核实|症状|病情|诸症|上述|必要|酌情|未缓解|无效|效果|出现时|加重时|以后|日后|患者|医[生师]|同意|检查|化验|结果|需要/u.test(condition);
 }
@@ -660,13 +690,71 @@ export function conditionalModificationWithoutTextbook(
  * 给了药名时还要求该药在这条加减的药味里。对上时返回教材原句与出处，供开方阶段写入依据。
  * 教材条件是「可预见的变化」，不要求病历里已经出现；这是它与「逐字引用已记录表现」并列的第二种合格触发。
  */
+/**
+ * 条件里写的舌象、脉象与本次已记录的相反（2026-10-31，甲方 10.29 测评：肺卫不固证舌淡、脉细弱，教材「若兼有阴虚，而见舌红、脉细数，加麦冬、五味子」）。
+ * 舌脉是这次已经看过的，不是将来可能出现的症状；教材的这条说的是另一种情形。舌色（淡/红/绛/紫暗）、苔色（白/黄/灰黑）、脉率（数/迟）是封闭的几个维度，
+ * 两边都写了同一维度且取值不同才算相反；只有一边写了不算。
+ */
+const RECORD_TONGUE = /舌(?:质|象|体)?[：:]?\s*([^，,。；;、\n苔]{1,5})/u;
+const RECORD_COATING = /苔(?:质|色)?[：:]?\s*([^，,。；;、\n]{1,5})/u;
+const RECORD_PULSE = /脉(?:象)?[：:]?\s*([^。；;\n]{1,8})/u;
+const tongueColorOf = (value: string): string | undefined => {
+  if (/淡红/u.test(value)) return "淡红";
+  if (/绛/u.test(value)) return "绛";
+  if (/[紫暗黯]/u.test(value)) return "紫暗";
+  if (/红/u.test(value)) return "红";
+  if (/淡/u.test(value)) return "淡";
+  return undefined;
+};
+const coatingColorOf = (value: string): string | undefined => (/黄/u.test(value) ? "黄" : /[灰黑]/u.test(value) ? "灰黑" : /白/u.test(value) ? "白" : undefined);
+const pulseRateOf = (value: string): string | undefined => (/数/u.test(value) ? "数" : /[迟缓]/u.test(value) ? "迟" : undefined);
+export function modificationConditionTonguePulseConflict(trigger: string, recordText: string): boolean {
+  const conflict = (pattern: RegExp, read: (value: string) => string | undefined) => {
+    const inCondition = trigger.match(pattern)?.[1];
+    const inRecord = recordText.match(pattern)?.[1];
+    if (!inCondition || !inRecord) return false;
+    const [left, right] = [read(inCondition), read(inRecord)];
+    return Boolean(left && right && left !== right);
+  };
+  if (conflict(RECORD_TONGUE, tongueColorOf) || conflict(RECORD_COATING, coatingColorOf)) return true;
+  // 脉率：条件写了数/迟，已记录的脉象有脉而没有这个率（脉细弱之于脉细数）。
+  const conditionPulse = trigger.match(RECORD_PULSE)?.[1];
+  const recordPulse = recordText.match(RECORD_PULSE)?.[1];
+  if (conditionPulse && recordPulse && pulseRateOf(conditionPulse) && pulseRateOf(conditionPulse) !== pulseRateOf(recordPulse)) return true;
+  return false;
+}
+
+/**
+ * 证名不在教材表里、但这张方在：同方在教材里的加减就是这张方的加减（2026-10-31，甲方 10.29 测评：心脾气血两虚证用归脾汤，查不到行，
+ * 模型自己写「若心慌较重，加白芍、当归」；教材不寐·心脾两虚证的归脾汤写的是「偏血虚者，加熟地黄、芍药、阿胶」）。
+ * 同病优先，其次任一病；只取确实列了加减的行。
+ */
+export function textbookRowForFormula(diseaseName: string, formulaNames: readonly string[]): TextbookSyndromeRow | undefined {
+  const names = new Set(formulaNames.map((name) => compact(String(name || ""))).filter((name) => name.length >= 2));
+  if (names.size === 0) return undefined;
+  const usable = (row: TextbookSyndromeRow) => row.modifications.length > 0 && row.formulas.some((name) => names.has(compact(name)));
+  for (const disease of diseasesNamed(diseaseName)) {
+    const hit = disease.rows.find(usable);
+    if (hit) return hit;
+  }
+  for (const disease of DISEASES) {
+    const hit = disease.rows.find(usable);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
 export function textbookModificationMatch(
   diseaseName: string,
   syndromeName: string,
   trigger: string,
   herbName?: string,
-): { book: string; disease: string; syndromeName: string; condition: string; raw: string } | undefined {
-  const row = textbookRowForSyndrome(diseaseName, syndromeName);
+  /** 同一味药的判定（2026-10-31）：教材写「乌贼骨」，编译时药名已归一成「海螵蛸」，只比字面就认不出这条教材加减，整行被判「触发条件不能回溯」。 */
+  sameHerb?: (textbookName: string, herbName: string) => boolean,
+  /** 证名查不到教材行时，用这张方在教材里的行（textbookRowForFormula）。 */
+  formulaNames: readonly string[] = [],
+): { book: string; disease: string; syndromeName: string; condition: string; raw: string; herbs: readonly string[] } | undefined {
+  const row = textbookRowForSyndrome(diseaseName, syndromeName) || textbookRowForFormula(diseaseName, formulaNames);
   if (!row) return undefined;
   const wanted = compact(trigger).replace(/^(?:若|如|如果|兼见|兼有|兼|见|伴有?|出现)/, "").replace(/(?:者|时)$/, "");
   if (wanted.length < 2) return undefined;
@@ -678,8 +766,11 @@ export function textbookModificationMatch(
     const longer = condition.length <= wanted.length ? wanted : condition;
     const overlap = grams.length > 0 ? grams.filter((gram) => longer.includes(gram)).length / grams.length : 0;
     if (!(condition === wanted || condition.includes(wanted) || wanted.includes(condition) || overlap >= 0.6)) continue;
-    if (herb && !item.herbs.some((name) => { const candidate = compact(name); return candidate === herb || candidate.includes(herb) || herb.includes(candidate); })) continue;
-    return { book: row.book, disease: row.disease, syndromeName: row.syndromeName, condition: item.condition, raw: item.raw };
+    if (herb && !item.herbs.some((name) => {
+      const candidate = compact(name);
+      return candidate === herb || candidate.includes(herb) || herb.includes(candidate) || Boolean(sameHerb?.(name, herbName as string));
+    })) continue;
+    return { book: row.book, disease: row.disease, syndromeName: row.syndromeName, condition: item.condition, raw: item.raw, herbs: item.herbs };
   }
   return undefined;
 }

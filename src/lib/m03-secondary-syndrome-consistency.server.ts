@@ -440,7 +440,7 @@ export type CriteriaVerdict = { verdict: "pass" | "fail" | "unknown"; entry?: st
 export function evaluateCriteriaMatches(
   entry: CriteriaEntry,
   matches: ReadonlyArray<{ item: string; quote: string | null }>,
-  context: { recordText: string; primaryTerms: readonly string[] },
+  context: { recordText: string; primaryTerms: readonly string[]; breadth?: boolean },
 ): CriteriaVerdict {
   const specificSet = new Set(entry.specific);
   const categorySet = new Set(criteriaCategoryItems(entry));
@@ -483,6 +483,10 @@ export function evaluateCriteriaMatches(
       (specific + sharedSpecific >= needSpecific && category >= 3);
   } else if (entry.category) pass = specific >= Math.min(2, entry.specific.length) && distinct >= 2;
   else pass = specific >= Math.min(2, entry.specific.length) && distinct >= 3;
+  // 证素核对的宽路径（2026-10-31，甲方 10.29 测评：面色萎黄、爪甲色淡、头晕目眩、毛发枯槁「明确的气血两虚表现」被判血虚不够数）：
+  //《中医诊断学》血虚证辨证要点只列「面、睑、唇、舌色淡白，脉细」，萎黄、爪甲色淡、头晕眼花都在它的【证候表现】里。证候表现独立成组三条以上，
+  // 这一证素就算有据。只用于证素（虚性要素是否有病历支持），立兼证仍按辨证要点。
+  if (!pass && context.breadth && !entry.components?.length && distinct >= 3) pass = true;
   return { verdict: pass ? "pass" : "fail", entry: entry.name, specific, category, listed, distinct, quotes: [...seenQuotes] };
 }
 
@@ -507,22 +511,47 @@ function parseCriteriaMatches(content: unknown, items: readonly string[]): Array
   });
 }
 
-/** 一个兼证名按辨证要点核一遍。查不到条目或小任务失败为 unknown。 */
+const CRITERIA_ORGAN_CHARS = /[心肝脾肺肾胃胆肠]/gu;
+
+/**
+ * 判据表里没有的合称（肺胃热盛证、心肝火旺证）按脏腑拆开：每个脏腑取表里同时写这个脏腑和这种病性的条目（肺热炽盛证、胃热炽盛证），取最短的一条。
+ * 此前查不到条目就跳过核对，模型写什么留什么（2026-10-31 甲方 10.29 测评：肾阴亏虚证兼肺胃热盛证，舌红少津、苔薄、脉细数无力，「虚热之象」）。
+ */
+export function compoundCriteriaEntries(name: string): CriteriaEntry[] {
+  const clean = compact(name).replace(/证$/u, "");
+  const organs = [...new Set(clean.match(CRITERIA_ORGAN_CHARS) || [])];
+  const natureChars = [...clean.replace(CRITERIA_ORGAN_CHARS, "").replace(/[盛炽壅蕴]/gu, "")];
+  if (organs.length === 0 || natureChars.length === 0) return [];
+  const entries = organs.map((organ) => [...CRITERIA_ENTRIES.values()]
+    .filter((entry) => entry.name.includes(organ) && natureChars.some((char) => entry.name.includes(char)))
+    .sort((left, right) => left.name.length - right.name.length)[0]);
+  return entries.every(Boolean) ? entries : [];
+}
+
+/** 一个兼证名按辨证要点核一遍。查不到条目或小任务失败为 unknown。breadth：证素核对用的宽路径（见 evaluateCriteriaMatches）。 */
 export async function verifySecondaryByCriteria(
   name: string,
-  context: { recordText: string; primaryTerms: readonly string[] },
+  context: { recordText: string; primaryTerms: readonly string[]; breadth?: boolean },
   signal?: AbortSignal,
 ): Promise<CriteriaVerdict> {
+  const unknown: CriteriaVerdict = { verdict: "unknown", specific: 0, category: 0, listed: 0, distinct: 0 };
   const entry = diagnosticsCriteriaFor(name);
-  if (!entry || entry.specific.length === 0 && entry.manifestations.length === 0) return { verdict: "unknown", specific: 0, category: 0, listed: 0, distinct: 0 };
-  const items = criteriaItemsFor(entry);
-  const recordText = context.recordText.slice(0, MAX_RECORD_CHARS);
-  const matches = await smallJsonTask("m03_secondary_criteria", [
-    { role: "system", content: CRITERIA_MATCH_SYSTEM },
-    { role: "user", content: JSON.stringify({ syndrome: entry.name, keyPoints: entry.keyPointsText, items, record: recordText }) },
-  ], 700, (content) => parseCriteriaMatches(content, items), signal);
-  if (!matches) return { verdict: "unknown", entry: entry.name, specific: 0, category: 0, listed: 0, distinct: 0 };
-  return evaluateCriteriaMatches(entry, matches, context);
+  const verifyEntry = async (target: CriteriaEntry): Promise<CriteriaVerdict> => {
+    const items = criteriaItemsFor(target);
+    const recordText = context.recordText.slice(0, MAX_RECORD_CHARS);
+    const matches = await smallJsonTask("m03_secondary_criteria", [
+      { role: "system", content: CRITERIA_MATCH_SYSTEM },
+      { role: "user", content: JSON.stringify({ syndrome: target.name, keyPoints: target.keyPointsText, items, record: recordText }) },
+    ], 700, (content) => parseCriteriaMatches(content, items), signal);
+    return matches ? evaluateCriteriaMatches(target, matches, context) : { ...unknown, entry: target.name };
+  };
+  if (entry && (entry.specific.length > 0 || entry.manifestations.length > 0)) return verifyEntry(entry);
+  const parts = compoundCriteriaEntries(name);
+  if (parts.length === 0) return unknown;
+  const verdicts = await Promise.all(parts.map(verifyEntry));
+  if (verdicts.some((item) => item.verdict === "unknown")) return unknown;
+  const failing = verdicts.find((item) => item.verdict === "fail");
+  return failing ?? verdicts[0];
 }
 
 /** 主证教材证型自己的表现（主症短语 + 舌 + 脉），用来判兼证的支持表现是否独立。 */

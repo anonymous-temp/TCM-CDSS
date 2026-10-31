@@ -216,7 +216,7 @@ assert.equal(textbook.textbookRowForSyndrome("不存在的病", "热证"), undef
   const textbookRow = { trigger: "若见口苦，大便不畅，舌苔黄腻，脉滑数", targetRef: "P1", actionType: "add", herbName: "黄连", dose: "3g", reason: "清热燥湿", symptomPathogenesis: "痰浊化热" };
   assert.ok(highImpactHerbDirectionIssue("黄连", "清热燥湿；健脾燥湿，化痰降逆", prior), "夹具：黄连对当前痰浊证确实触发方向核对");
   const kept = compileM04Proposal(proposal([textbookRow]), prior).formula.modifications;
-  assert.deepEqual(kept.map((item) => item.herbName), ["黄连"], "教材条件式加减保留");
+  assert.equal(kept[0].herbName, "黄连", "教材条件式加减保留（10/31 起不足两条时按教材补，模型写的在前）");
   assert.match(kept[0].evidence.source, /《中医内科学》头痛·痰浊头痛加减/);
   // 对照一：同一味药、触发改成病历已记录的表现（不是教材条件）→ 仍按方向核对丢弃。
   // 2026-10-19 第六轮起，模型的加减全被剔除时按教材行补 1–2 条（textbookFallbackModifications）：这里只核被剔除的那条确实不在，

@@ -592,6 +592,14 @@ export type SignedDirection = { names: string; method: string; decoctionThermal?
  *（第二十七、二十八轮甲方接口病例 api-163c9273efa3 与「XXX天」一例，qwen 评审判中成药与汤剂方向相悖）。
  */
 const INTERIOR_WARM_HERB_CATEGORIES: ReadonlySet<string> = new Set(["温里药", "补阳药", "温化寒痰药"]);
+/** 单味药的寒温方向（按知识库功效分类）。 */
+export function herbThermalSide(herb: string): "cold" | "warm" | undefined {
+  const categories = getTcmHerbFunctionCategories(herb);
+  if (categories.some((category) => COLD_HERB_CATEGORIES.has(category))) return "cold";
+  if (categories.some((category) => INTERIOR_WARM_HERB_CATEGORIES.has(category))) return "warm";
+  return undefined;
+}
+
 export function decoctionThermalByComposition(herbs: readonly string[]): "cold" | "warm" | undefined {
   const byShare = medicineThermalByComposition(herbs);
   if (byShare) return byShare;

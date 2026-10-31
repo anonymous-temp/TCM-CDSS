@@ -1,4 +1,4 @@
-import { herbFunctionKnowledgeForDisplay, isKnownTcmHerbName } from "./tcm-knowledge";
+import { getTcmHerbDoseLimit, herbFunctionKnowledgeForDisplay, isKnownTcmHerbName } from "./tcm-knowledge";
 import { compositionIdentityName, formulaNameComponents, formulaNameIsVerbPhrase, isKnownFormulaNameFragment } from "./tcm-formula-provenance";
 import { textbookDistinctHerbKey, textbookEntryName } from "./herb-textbook-identity";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
@@ -1251,6 +1251,13 @@ export function reviewAuthoredFormulaAnalysis(
       mentionedOwn.add(identity || mention.token);
       continue;
     }
+    // 本方药味的简称：《方剂学》写银翘散用「竹叶」，方中写「淡竹叶」。此前「竹叶」被当成方外药，连句删掉，甲方 10.29 测评第二次方义只剩
+    //「淡豆豉、淡竹叶为佐，豆豉宣郁透热，甘草为使」。只认没有单独用量记载的名字（竹叶）：附子与白附子各有药典用量，是两味药。
+    const ownLongForm = [...ownRaw].find((own) => own.length > mention.token.length && own.endsWith(mention.token));
+    if (ownLongForm && !getTcmHerbDoseLimit(mention.token)) {
+      mentionedOwn.add(identityOf(ownLongForm) || ownLongForm);
+      continue;
+    }
     // 「去延胡索、川芎、五灵脂」「以三七易延胡索、五灵脂」：去、易、不用管到顿号连着的整串药名，不只是第一味
     //（2026-10-27 第二十四轮：胎盘早剥一例方义「…易延胡索、五灵脂为君」被当成外来药连「为君」一起删掉）。
     let listStart = mention.start;
@@ -1733,4 +1740,33 @@ export function herbFunctionFromFormulaAnalysis(analysis: string, herb: string):
     sentenceStart = sentenceEnd;
   }
   return "";
+}
+
+
+/**
+ * 方义里没有讲到的药味补一句（2026-10-31，甲方 10.29 测评「第二次未分析淡竹叶」；历史 1073 张方义约 5% 有漏）。
+ * 只补缺的那一味，用药味表自己的角色与功效，写在总括句之前；已讲到（含别名、简称）的不动，重复调用结果不变。
+ */
+export function withEveryHerbExplained(
+  analysis: string,
+  herbs: ReadonlyArray<{ name?: unknown; role?: unknown; function?: unknown }>,
+): string {
+  if (typeof analysis !== "string" || !analysis.trim()) return analysis;
+  const mentioned = new Set(formulaAnalysisHerbMentions(analysis).map((span) => identityOf(span.token)));
+  const mentionTokens = formulaAnalysisHerbMentions(analysis).map((span) => span.token);
+  const missing = herbs.flatMap((herb) => {
+    const name = typeof herb.name === "string" ? stripAnnotation(herb.name) : "";
+    if (!name || analysis.includes(name) || mentioned.has(identityOf(name))) return [];
+    // 简称（竹叶←淡竹叶）与上面的药名判定同一条：没有单独用量记载的后缀写法算讲到了。
+    if (mentionTokens.some((token) => name.endsWith(token) && !getTcmHerbDoseLimit(token))) return [];
+    const role = typeof herb.role === "string" ? herb.role.trim() : "";
+    const action = typeof herb.function === "string" ? herb.function.trim().replace(/[。；;，,]+$/u, "") : "";
+    if (!action) return [];
+    return [`${name}${/^[君臣佐使]$/u.test(role) ? `为${role}` : ""}，${action}。`];
+  });
+  if (missing.length === 0) return analysis;
+  const summaryAt = analysis.search(/(?:全方|诸药|综观|合而|共奏|共收)[^。]*。?\s*$/u);
+  if (summaryAt <= 0) return `${analysis.replace(/\s+$/u, "")}${/[。！]$/u.test(analysis.trim()) ? "" : "。"}${missing.join("")}`;
+  const head = analysis.slice(0, summaryAt).replace(/[，,；;\s]+$/u, "");
+  return `${head}${/[。！]$/u.test(head) ? "" : "。"}${missing.join("")}${analysis.slice(summaryAt)}`;
 }

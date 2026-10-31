@@ -4553,7 +4553,9 @@ const normalizedModificationProposal = compileM04Proposal({
     { trigger: "夜醒增多时", targetRef: "P1", actionType: "移除", herbName: "远志", reason: "不在当前处方的药味不能移除" },
   ],
 }, stable);
-assert.equal(normalizedModificationProposal?.formula?.modifications.length, 1, "controlled aliases normalize while malformed optional modifications are dropped");
+// 10/31 起不足两条时按教材或条件句补到两条（第二行是补的）；格式坏的行仍然进不来。
+assert.ok(!normalizedModificationProposal?.formula?.modifications.some((row) => row.herbName === "模型臆造草" || row.action === "减"), "controlled aliases normalize while malformed optional modifications are dropped");
+assert.equal(normalizedModificationProposal?.formula?.modifications.length, 2);
 assert.equal(normalizedModificationProposal?.formula?.modifications[0].action, "加");
 assert.equal(normalizedModificationProposal?.formula?.modifications[0].herbName, "茯神");
 assert.ok((normalizedModificationProposal?.formula?.modificationReview?.droppedCount || 0) >= 1, "dropped optional modifications must be disclosed");
@@ -4781,7 +4783,8 @@ const invalidNodeModificationProposal = compileM04Proposal({
   modifications: [{ trigger: "症状变化时", targetRef: "P9", actionType: "add", herbName: "茯神", reason: "宁心安神" }],
 }, stable);
 assert.ok(invalidNodeModificationProposal, "an invalid optional modification must not invalidate the core prescription");
-assert.deepEqual(invalidNodeModificationProposal?.formula?.modifications, [], "optional modifications may only reference a governed M03 pathogenesis node");
+// 10/31 起教材条目可补到两条（病机节点由服务端取），模型写的这条不进来。
+assert.ok(!invalidNodeModificationProposal?.formula?.modifications.some((row) => row.herbName === "茯神"), "optional modifications may only reference a governed M03 pathogenesis node");
 const incompleteMedicineProposal = compileM04Proposal({
   ...wrappedProposal,
   patentAndWestern: [{

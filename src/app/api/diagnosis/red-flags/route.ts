@@ -1,4 +1,5 @@
 import { clinicalFactsReviewSettled } from "@/lib/clinical-facts";
+import { deliveredClinicalFactsForApiCaller } from "@/lib/delivered-clinical-facts";
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { derivePrescriptionPermission, evaluateSafetyGate, hasDeterministicCriticalVitalRedFlag, withSafetyGate } from "@/lib/diagnosis-safety";
@@ -24,6 +25,11 @@ function prescriptionPermissionView(state: ReturnType<typeof withSafetyGate>) {
   };
 }
 
+/** 带令牌头的是接口调用方，页面只带登录 cookie（页面要回传带签名的完整事实，见 delivered-clinical-facts.ts）。 */
+function isApiCaller(req: Request): boolean {
+  return Boolean(req.headers.get("x-cdss-api-token")) || /^Bearer\s/i.test(req.headers.get("authorization") || "");
+}
+
 async function handlePost(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
@@ -43,7 +49,9 @@ async function handlePost(req: Request) {
       available: true,
       semanticStatus: "skipped_deterministic_critical_vital",
       ...documentedRedFlagFields(deterministicGate),
-      clinicalFacts: parsed.caseState.clinicalFacts || null,
+      clinicalFacts: isApiCaller(req)
+        ? deliveredClinicalFactsForApiCaller(parsed.caseState.clinicalFacts, deterministicGate)
+        : parsed.caseState.clinicalFacts || null,
       safetyGate: deterministicGate,
       operationalCompleteness: deterministic.completeness,
       prescriptionPermission: prescriptionPermissionView(deterministic),
@@ -58,7 +66,9 @@ async function handlePost(req: Request) {
       Boolean(enriched.clinicalFacts.attestation),
     semanticStatus: enriched.clinicalFacts?.semanticStatus || "unavailable",
     ...documentedRedFlagFields(gated.safetyGate),
-    clinicalFacts: enriched.clinicalFacts || null,
+    clinicalFacts: isApiCaller(req)
+      ? deliveredClinicalFactsForApiCaller(enriched.clinicalFacts, gated.safetyGate)
+      : enriched.clinicalFacts || null,
     safetyGate: gated.safetyGate,
     operationalCompleteness: gated.completeness,
     prescriptionPermission: prescriptionPermissionView(gated),

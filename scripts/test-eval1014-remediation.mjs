@@ -2119,7 +2119,8 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
     const out = surface.projectDeliveredReasoning(rx({ name: "宣痹汤加减", formulaAnalysis: "黄柏苦寒清下焦湿热，二药相合清利湿热，共为君；黄芪补气，当归养血，二药相合气血双补。", herbs: [{ name: "黄柏", role: "君", function: "清热燥湿", dose: "10g" }, { name: "黄芪", role: "臣", function: "补气", dose: "15g" }, { name: "当归", role: "臣", function: "补血活血", dose: "10g" }, { name: "赤小豆", role: "佐", function: "佐药，本方中的具体配伍作用需医生结合方义复核", dose: "15g" }] },
       { tcmTreatments: [{ projectCode: "acupuncture", techniqueBoundary: "外伤后头痛先行急诊评估；不输出进针方向和深度。", scheduleSuggestion: "每日1次。" }] }));
     const candidate = out.formula.candidates[0];
-    assert.equal(candidate.formulaAnalysis, "黄柏苦寒清下焦湿热，清利湿热，共为君；黄芪补气，当归养血，二药相合气血双补。");
+    // 10/31 起每味都要讲到：方义没写的赤小豆按药味表补一句（withEveryHerbExplained）。
+    assert.equal(candidate.formulaAnalysis, "黄柏苦寒清下焦湿热，清利湿热，共为君；黄芪补气，当归养血，二药相合气血双补。赤小豆为佐，利水消肿。");
     assert.equal(candidate.herbs[3].function, "利水消肿");
     assert.doesNotMatch(out.nonPharma.tcmTreatments[0].techniqueBoundary, /不输出/);
   });

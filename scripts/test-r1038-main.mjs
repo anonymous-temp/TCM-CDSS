@@ -97,7 +97,7 @@ await check("4.2 路由在证素撤下与本例说法删片段之后才核舌脉
   const fs = await import("node:fs");
   const route = fs.readFileSync(new URL("../src/app/api/diagnosis/diagnose/route.ts", import.meta.url), "utf8");
   assert.match(route, /reattributeStrandedKeyFindings\(\s*applyPatientClaimRemovalsToContent\(applyElementSupportDecision\(reconciled, elementDecision\), "tcm", claimRemovals\),/u);
-  assert.match(route, /return promoteCriticalSecondarySyndrome\(reattributed\);/u);
+  assert.match(route, /checkLineageLensInContent\(completed,[\s\S]{0,240}completeMethodCoverage\(completed,[\s\S]{0,1200}return promoteCriticalSecondarySyndrome\(withVerifiedMethodItemFrom\(withLensFrom\(reattributed, completed, lensChecked\), methodCovered\)\);/u);
 });
 
 // ---------- 5 追问两份采样取共识 ----------

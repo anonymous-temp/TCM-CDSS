@@ -389,7 +389,7 @@ check("7.7 接线：开方路由把核对注入 m04CandidateTransform；流层�
   const api = readFileSync("src/lib/diagnosis-api.ts", "utf8");
   const route = readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
   // 第二十五轮起同一处还等居家穴位保健的选穴结果（两件并行），方义核对照旧注入这里。
-  assert.match(route, /m04CandidateTransform: async \(content, transformSignal\) => \{\n\s*const \[checked, authored\] = await Promise\.all\(\[checkFormulaAnalysisClaimsInContent\(content, transformSignal\), homeAcupointAuthoring\]\);/);
+  assert.match(route, /m04CandidateTransform: async \(content, transformSignal\) => \{\n\s*const \[checked, fitted, authored\] = await Promise\.all\(\[\s*checkFormulaAnalysisClaimsInContent\(content, transformSignal\),\s*dropMisfitModifications\(content, transformSignal\),\s*homeAcupointAuthoring,?\s*\]\);/);
   const calls = [...api.matchAll(/(\w+) = await transformM04Candidate\(\1\);/g)].map((match) => match[1]);
   assert.equal(new Set(calls).size, 3, JSON.stringify(calls));
   assert.deepEqual(new Set(calls), new Set(["authoritativeContent", "resolvedRetryContent", "secondResolved"]));

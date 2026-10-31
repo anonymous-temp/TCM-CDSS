@@ -251,7 +251,7 @@ export async function decideElementSupport(
   if (units.length === 0) return undefined;
   const primaryTerms = primaryManifestationTerms(textbookRowForSyndrome(text(overview.tcmDiseaseName), text(overview.primarySyndrome)));
   const entailment = entailedDeficiencies(namedSyndromes(root));
-  const verify = (entryName: string) => verifySecondaryByCriteria(entryName, { recordText: context.recordText, primaryTerms }, signal);
+  const verify = (entryName: string) => verifySecondaryByCriteria(entryName, { recordText: context.recordText, primaryTerms, breadth: true }, signal);
   const results = await Promise.all(units.map(async (unit) => {
     const genericEntry = LEXICON.types[unit.type].genericEntry;
     const withGeneric = unit.entryName !== genericEntry && !entailment.has(unit.type);
@@ -365,6 +365,12 @@ function uncertaintyFor(type: DeficiencyType, entryName: string): Json {
  * 把核对结果落到中医半上（纯函数，供测试）。在兼证核对之后调用：那一步补上的兼证若已涵盖某类，这一类不再撤。
  * 返回新的 JSON 文本；没有改动时原样返回。
  */
+const COMPOSITE_DEFICIENCY_ENTRIES: ReadonlyArray<{ types: DeficiencyType[]; name: string }> = [
+  { types: ["气虚", "血虚"], name: "气血两虚证" },
+  { types: ["气虚", "阴虚"], name: "气阴两虚证" },
+  { types: ["阴虚", "阳虚"], name: "阴阳两虚证" },
+];
+
 export function applyElementSupportDecision(tcmContent: string, decision: ElementDecision | undefined, primaryTextbookMethod?: string): string {
   if (!decision || decision.verdicts.length === 0) return tcmContent;
   let root: Json | undefined;
@@ -388,6 +394,22 @@ export function applyElementSupportDecision(tcmContent: string, decision: Elemen
         node.evidence = diagnosticsCriteriaEvidence(verdict.entry || unit.entryName, confidence || "中");
         changed = true;
       }
+    }
+  }
+  // 教材按气血阴阳分组的病（虚劳：「临证常采取复合证辨治」）：主证是一类虚，另一类也按要点或证候表现有据时，主证写《中医诊断学》的复合证名
+  //（甲方 10.29 测评：气血两虚表现明确，诊断心气虚证「欠合理」）。治法补上这一类，方向不动。其他病不改名：标准病历 3 血虚头痛的脾气虚只作依据。
+  const primaryRow = textbookRowForSyndrome(text(overview.tcmDiseaseName), text(overview.primarySyndrome));
+  const primaryGroup = primaryRow?.group as DeficiencyType | undefined;
+  if (primaryGroup && ALL_TYPES.includes(primaryGroup)) {
+    const other = passed.find((item) => item.unit.type !== primaryGroup);
+    const composite = other ? COMPOSITE_DEFICIENCY_ENTRIES.find((entry) => entry.types.includes(primaryGroup) && entry.types.includes(other.unit.type))?.name : undefined;
+    if (other && composite && diagnosticsCriteriaFor(composite)) {
+      overview.primarySyndrome = composite;
+      const therapyRoot = record(root.therapy);
+      const verb = LEXICON.types[other.unit.type].therapyVerbs[0];
+      const currentMethod = text(therapyRoot?.overallMethod);
+      if (therapyRoot && currentMethod && verb && !currentMethod.includes(verb)) therapyRoot.overallMethod = `${currentMethod}，${verb}`;
+      changed = true;
     }
   }
   // 撤下前先看哪些类别在病机链或病性轴里确实还写着（兼证核对补上的兼证若已涵盖，就不算）。

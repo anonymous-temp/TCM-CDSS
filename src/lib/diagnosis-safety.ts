@@ -297,6 +297,28 @@ function flattenClinicalInput(value: unknown): string[] {
   return Object.values(value as Record<string, unknown>).flatMap(flattenClinicalInput);
 }
 
+/** 结构化生命体征写进病历文本时带指标名与单位；键不认识时只给值。 */
+const VITAL_LINE_LABELS: ReadonlyArray<{ keys: RegExp; label: string; unit: string }> = [
+  { keys: /^(?:t|temp|temperature|体温)$/i, label: "体温", unit: "℃" },
+  { keys: /^(?:p|hr|pulse|heartrate|脉搏|心率)$/i, label: "脉搏", unit: "次/分" },
+  { keys: /^(?:r|rr|respiration|呼吸)$/i, label: "呼吸", unit: "次/分" },
+  { keys: /^(?:bp|bloodpressure|血压)$/i, label: "血压", unit: "mmHg" },
+  { keys: /^(?:spo2|血氧|血氧饱和度)$/i, label: "血氧饱和度", unit: "%" },
+];
+function labeledVitalLines(vitals: unknown): string[] {
+  if (vitals == null || typeof vitals !== "object" || Array.isArray(vitals)) {
+    return flattenClinicalInput(vitals).map((value) => `生命体征：${value}`);
+  }
+  return Object.entries(vitals as Record<string, unknown>).flatMap(([key, value]) => {
+    const values = flattenClinicalInput(value);
+    const rule = VITAL_LINE_LABELS.find((item) => item.keys.test(key.trim()));
+    return values.map((item) => {
+      if (!rule || !/^-?\d/.test(item)) return `生命体征：${item}`;
+      return `生命体征：${rule.label} ${item}${/^-?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?$/.test(item) ? rule.unit : ""}`;
+    });
+  });
+}
+
 export function isLimitedDiagnosisText(text: string | undefined): boolean {
   // 服务端前置区（安全警示横幅 + 质量批注）位于首个 "## " 标题之前，措辞里天然含
   // 「急危重」「补充…确认」这类词。有限诊断的判定对象是**正文**——真正的降级页自身就以
@@ -419,10 +441,13 @@ export function trustedInputText(state: CaseState): string {
     state.tongueImageDesc ? `舌象图像复核：${stringifyClinicalValue(state.tongueImageDesc)}` : "",
     state.pulse ? `脉象：${stringifyClinicalValue(state.pulse)}` : "",
     state.faceNote ? `面象：${stringifyClinicalValue(state.faceNote)}` : "",
-    // 只取值、不带指标名，是有意保留的现状（2026-10-14 实测）：改成「生命体征：体温 35.5℃」后，语义事实层对低体温病例
-    //（76 岁、甲减停药、35.5℃、嗜睡、反应迟钝）判急症的比例从 5/5 降到 2/5——语义层的输入文本一改，安全判断就会漂。
-    // 要改这里，先按 regress:facts-class-parity 的办法整类量过再动。体征问题由追问层按结构化 vitals 判断（m02 vitalsDetail）。
-    ...flattenClinicalInput(state.vitals).map((value) => `生命体征：${value}`),
+    // 带指标名（2026-10-31 第三十二轮）：只取值时事实层读到的是「生命体征：26」，看不出是呼吸还是别的（1 岁半患儿的呼吸 26 被判成
+    // 生命体征不稳）。10/14 曾因低体温嗜睡例判急症比例下降而撤回带名写法；同日起该类已有确定性兜底（hypothermia-with-consciousness-change），
+    // 数值本身也由代码判（withoutCodeClearedVitalFindings），这条依赖已不存在。改这里前仍须 regress:facts-class-parity 整类量。
+    // HIS 栏已写生命体征时它才是当前读数，顶层 vitals 可能是上一轮留下的：这时不带指标名，免得闸门把旧值当成新读到的读数。
+    ...(Object.keys(state.hisRecord?.fields || {}).some((key) => /^vitals/i.test(key))
+      ? flattenClinicalInput(state.vitals).map((value) => `生命体征：${value}`)
+      : labeledVitalLines(state.vitals)),
     state.pastHistory ? `既往史：${stringifyClinicalValue(state.pastHistory)}` : "",
     state.medicationHistory ? `用药史：${stringifyClinicalValue(state.medicationHistory)}` : "",
     state.allergyHistory ? `过敏史：${stringifyClinicalValue(state.allergyHistory)}` : "",
@@ -6950,7 +6975,7 @@ function gatePriorityEvaluationTarget(state: CaseState, gate: SafetyGate): Prior
   const focus = exclusionFocusIn(item) || "";
   const defaultWindow = priorityEvaluationWindowTable.defaultWindow as PriorityEvaluationWindowId;
   const rank = (window: FollowupWindowId) => FOLLOWUP_WINDOW_ORDER.indexOf(window);
-  const entries = collectPriorityEvaluationEntries(state, trustedInputText(state));
+  const entries = collectPriorityEvaluationEntries(withoutCodeClearedVitalFindings(state), trustedInputText(state));
   if (entries.length === 0) return { focus, window: defaultWindow };
   const most = entries.reduce((best, next) => rank(next.window || defaultWindow) < rank(best.window || defaultWindow) ? next : best);
   return {
@@ -7417,7 +7442,27 @@ export function guidelineEvaluationWindow(focus: string): GuidelineWindowRow | u
     .sort((a, b) => PRIORITY_EVALUATION_WINDOWS.indexOf(a.window) - PRIORITY_EVALUATION_WINDOWS.indexOf(b.window))[0];
 }
 
-export function evaluateSafetyGate(state: CaseState): SafetyGate {
+/**
+ * 数值由代码判（2026-10-31）：事实层把一个数值读成「生命体征不稳」，而代码按年龄段核过的当前读数都在提示线以内时，这条不进入闸门。
+ * 只认引文里带数字、没有合成升级理由的 vital_instability，且它是这份病历唯一的紧急发现；读不到任何数值时不动。
+ */
+export function withoutCodeClearedVitalFindings(state: CaseState): CaseState {
+  const facts = state.clinicalFacts;
+  if (!facts?.redFlags?.some((finding) => finding.category === "vital_instability")) return state;
+  // 同一病历还有别的紧急发现时不清：黑便 + BP 94/60 + P 112 单看每个读数都没过提示线，合起来是休克前兆（语料回放 21,149 例里唯一变化的一例）。
+  if (facts.redFlags.some((finding) => finding.category !== "vital_instability" && finding.subject === "patient" &&
+    (finding.status === "positive" || finding.status === "possible") && (finding.urgency === "urgent" || finding.urgency === "emergency"))) return state;
+  const measured = currentVitalMeasurements(state);
+  const hasReading = measured.bloodPressure != null || measured.temperature != null || measured.pulse != null ||
+    measured.respiration != null || measured.spo2 != null;
+  if (!hasReading || measuredVitalAdvisories(state).length > 0 || hasDeterministicCriticalVitalRedFlag(state)) return state;
+  const redFlags = facts.redFlags.filter((finding) =>
+    !(finding.category === "vital_instability" && !finding.escalationRationale && /\d/.test(finding.quote)));
+  return redFlags.length === facts.redFlags.length ? state : { ...state, clinicalFacts: { ...facts, redFlags } };
+}
+
+export function evaluateSafetyGate(input: CaseState): SafetyGate {
+  const state = withoutCodeClearedVitalFindings(input);
   const missingItems: string[] = [];
   const missingItemCodes: SafetyMissingItemCode[] = [];
   const addMissing = (code: SafetyMissingItemCode, label: string) => {

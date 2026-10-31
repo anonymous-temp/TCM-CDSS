@@ -14,10 +14,11 @@ const compact = (value: string) => value.normalize("NFKC").replace(/\s+/g, "");
 export function quoteGroundedInText(
   quote: string,
   text: string,
-  options: { minChars?: number; maxChars?: number } = {},
+  options: { minChars?: number; maxChars?: number; minPartChars?: number } = {},
 ): boolean {
-  const { minChars = 4, maxChars = 60 } = options;
-  const whole = compact(quote);
+  const { minChars = 4, maxChars = 60, minPartChars = 3 } = options;
+  // 模型摘录常连病历的栏目名一起抄（「既往史：有高血压病史5年」），而送核对的病历正文是不带栏目名的。
+  const whole = compact(quote).replace(/^(?:主诉|现病史|既往史|过敏史|个人史|婚育史|月经史|家族史|辅助检查|用药史|体格检查)[：:]/u, "");
   if (whole.length < minChars || whole.length > maxChars) return false;
   const source = compact(text);
   if (source.includes(whole)) return true;
@@ -25,5 +26,5 @@ export function quoteGroundedInText(
   if (alignQuoteToSource(quote, text)) return true;
   const parts = whole.split(/[；;，,。]+/u).map((part) => part.trim()).filter(Boolean);
   if (parts.length < 2) return false;
-  return parts.every((part) => part.length >= 3 && source.includes(part));
+  return parts.every((part) => part.length >= minPartChars && source.includes(part));
 }

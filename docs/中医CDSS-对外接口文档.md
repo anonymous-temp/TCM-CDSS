@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V2.54 |
+| 文档版本 | V2.55 |
 | 发布日期 | 2026-10-29 |
 | 服务版本 | `tcm-cdss-20260828-lineage-modification-contract-r1` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
@@ -530,6 +530,8 @@ gzip -c m05-request.json | curl -X POST "$BASE_URL/api/diagnosis/assess" \
 5. **限流**：每个 Token + 客户每 10 分钟 60 次模型调用（§3.8），一条完整链路约 5 次；超限返回 `429` 与 `Retry-After`，按秒数退避后重试，不要计为用例失败。
    并发测试请分开使用不同客户编号。
 6. **页面与接口**：舌象、脉象不是必填（§3.3.1），医生页面只需性别与主诉即可开始；追问可跳过，跳过后分析照常继续。
+7. **`regenerate` 只用于测波动（V2.55 补充）**：日常联调和正式使用不要带 `x-cdss-regenerate: 1` / `?regenerate=1`。带上它，同一病历每次都重新生成（M03 约 13 s，不带时命中预计算不到 1 s），方义、加减等措辞每次会有差别；不带时同一病历结果逐字相同。
+8. **面板内容来源（V2.55 补充）**：本接口不返回「检验检查」栏；「复诊计划」对应 `reasoningDiagnose.management.followupSafetyNet` 与 M05；中成药、西药对应 `formula.patentAndWestern[]`。贵方面板若另有成药、复诊等内容来源，核对时请分开。
 
 ---
 
@@ -1042,7 +1044,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 
 **随证加减 `formula.modifications[]`**
 
-加减是给接诊医生的随证加减建议，通常 2–3 条，触发条件有三种（V2.35）：① 已定证型在规划教材里的加减条件（「若恶寒甚」），药味取自该条教材加减；② 病历已记录、主方未直接针对的伴随症状（逐字引用）；③ 教材该证没有列加减时，按本证常见兼症写的「若＋具体症状」。「加」的行带药典范围内的建议剂量；所加药味不与方中药味相反（十八反）。
+加减是给接诊医生的随证加减建议，**通常 2–3 条（V2.55 起，教材或模型能给出时不少于 2 条）**，触发条件有三种（V2.35）：① 已定证型在规划教材里的加减条件（「若恶寒甚」），药味取自该条教材加减；② 病历已记录、主方未直接针对的伴随症状（逐字引用）；③ 教材该证没有列加减时，按本证常见兼症写的「若＋具体症状」。「加」的行带药典范围内的建议剂量；所加药味不与方中药味相反（十八反）。
 
 | 字段 | 中文名 | 类型 | 说明 |
 |---|---|---|---|
@@ -1359,7 +1361,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/assess" \
 | `safetyGate` | 安全闸门结论 | object | 见下表 |
 | `prescriptionPermission` | 剂量呈现模式 | object | `candidateMode`（`full_dose` / `limited_dose` / `non_dose_only` / `blocked`）、`formalAdoption`（`blocked` 表示红旗解除前不可采纳） |
 | `operationalCompleteness` | 病历完整度 | object | `{level, redFlag, infoGain, managementImpact, answerability}`，`level` 取 A/B/C |
-| `clinicalFacts` | 临床事实（内部记录） | object | 语义复核的工作记录，**请原样保留，不要据此显示红旗**。其中的 `redFlags` 列的是复核查过的风险类目，也包括病历里明确否认的（`status` 为 `negative`，如「否认疫区旅居史」）、只需补问的（`clarify`）和常规的（`routine`）；哪些构成红旗由安全闸门判定，结论在上面的 `redFlags` 与 `safetyGate` |
+| `clinicalFacts` | 临床事实 | object | 语义复核结果。**V2.55 起接口调用方拿到的 `clinicalFacts.redFlags` 只在 `safetyGate.status` 为 `red_flag` 时非空**，内容是本次的急危重项；其余情况为空数组，需优先评估、待补问的线索看 `advisories` 与 `safetyGate.missingItems`。回传时可原样带上，也可不传，不影响判断。 |
 | `latencyMs` | 耗时 | number | 毫秒 |
 
 **`safetyGate`**
@@ -1374,7 +1376,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/assess" \
 | `candidateMode` | 剂量呈现模式 | string | 同 `prescriptionPermission.candidateMode` |
 | `allowDosePrescription` | 剂量直接可用 | boolean | 不等于「能否出现剂量」，请以 `candidateMode` 判断（见 §4.8 中 `safetyGate.candidateMode` 的说明） |
 
-**怎么判断红旗（V2.52 更正）。** 以 `safetyGate.status` 为 `red_flag`（等价于 `redFlags` 不为空）为准，显示的文字取 `redFlags`；`advisories` 作一般提示显示。`clinicalFacts.redFlags` 不是红旗清单：同一份病历多写一句「否认疫区旅居史」，复核就会在那里记一条 `negative`，`safetyGate` 不变。V2.51 及以前本表把 `redFlags`、`advisories` 列为顶层字段，响应里实际只在 `safetyGate` 下有，按本表取顶层会取不到。
+**怎么判断红旗（V2.55）。** 以 `safetyGate.status` 为 `red_flag` 为准（等价于顶层 `redFlags` 不为空，也等价于 `clinicalFacts.redFlags` 不为空，三者保证一致），显示的文字取 `redFlags`；`advisories` 作一般提示显示。V2.54 及以前 `clinicalFacts.redFlags` 还记着否认项和待补问项（同一份病历多写一句「否认疫区旅居史」就多一条 `negative`），按它是否非空显示红旗会误报，V2.55 起不再有这个差别。
 
 **查询参数 `prefetch=diagnose`（V2.25 起，可选）。** 医生答完追问、准备进入辨病辨证（M03）时，若先用**即将提交给 M03 的同一份病例**调用 `POST /api/diagnosis/red-flags?prefetch=diagnose`，服务端在完成本次筛查的同时，预先准备 M03 开始生成前需要的检索与语义输入；随后的 M03 请求病例内容不变时直接取用，病例有改动则照常重新计算，结果不受影响。本参数不改变本接口的返回内容。适用场景：接入方页面在医生选完追问答案、点击提交之前（例如停止操作 1 秒左右）就发起这一调用；系统自带的诊疗页面已默认这样做。线上：追问回答后的 M03 首次调用本身要先完成一次语义安全筛查（约 3–5 秒），提前调用后这部分不再计入 M03 的等待时间。
 
@@ -2524,6 +2526,7 @@ V2.25 起响应包含 `classicEvidence`：经典条文语料逐项的 `name`（�
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.55 | 2026-10-31 | **只改内容；字段名、枚举与调用顺序不变。** ① 红旗筛查（§4.7）：`clinicalFacts.redFlags` 非空当且仅当 `safetyGate.status` 为 `red_flag`。② 随证加减通常 2–3 条，教材条目优先；条件里的舌脉与本次记录相反的不用；证名不在教材表时用这张方在教材里的加减。③ 方义按《方剂学》方解写每味药在这张方里的作用，每味都讲到；原方煎时加姜枣而药味表没列的，在 `decoction.method` 说明。④ 西医诊断：症状层面的诊断，病历写明已确诊的慢性病能解释主症时写该病（高血压病史+头晕 → 高血压病）；「慢性失眠障碍」写「慢性失眠」。⑤ 生姜、干姜等同源药不并用（原方两味都有的除外）。 |
 | V2.54 | 2026-10-29 | **只改内容；字段名、枚举与调用顺序不变。** ① 随证加减里有一条不成立（所加药的功效方向本例未成立、理由里夹了剂量、药名未收载）时，只去掉 `formula.modifications` 里的这一条，处方照常给剂量；此前这一条会让整张处方变成不给剂量的页面。② 耳穴卡（`tcmTreatments[]` 中 `projectCode` 为 `auricular`）的 `techniqueBoundary` 不再写体针的「补泻手法、进针深度以现场查体为准」：卡片写了毫针、埋针等用针做法时改写耳针的刺入深度与刺激强度（《针灸学》耳针法），只用压丸、贴压的不写。 | 否 |
 | V2.53 | 2026-10-29 | **只改内容；字段名、枚举与调用顺序不变。** ① 未满 10 岁的患儿，病历却写着本人的婚育、月经记录（如 1 岁女童写「配偶体健，备孕」「月经周期13天，有痛经史」）时，`safetyGate.advisories` 多一条「病历记录的「…」与患者年龄（…）不符，可能录入有误，请核实」；这些记录不再用于辨证依据，注意事项不再写备孕、验孕一类提示；剂量照登记年龄按儿童年龄分数法折算。8–9 岁写着月经、或就诊原因就是性早熟、阴道出血的不在此列。② 未满 3 岁不再给拔罐项目（《刺法灸法学》拔罐法禁忌证「婴幼儿…不宜拔罐」）。③ 西医病名「慢性X」按病程门槛核对时，「2月余」「10余天」这类约数按「不到下一个整数」算：如「失眠2月余」不再写「慢性失眠障碍」（需满 3 个月），写「失眠障碍」。④ 中医治疗项目的 `techniqueBoundary` 不再出现「…由现场医师复核后确定」「适用于成人普通急性/亚急性咳嗽…不适用」这类模板说明；西医依据里的「工作诊断」「症状层面工作诊断」改为「初步诊断」。⑤ 选了流派的病例，辨证依据末尾的流派视角那一句不再在依据补写时丢失。 | 否 |
 | V2.52 | 2026-10-29 | **更正文档与响应不一致的地方；字段名、枚举与调用顺序不变。** ① **红旗筛查（§4.7）**：出参表此前把 `redFlags`、`advisories` 列为顶层字段，响应里实际只在 `safetyGate` 下有；本版起响应顶层带上这两个字段（内容与 `safetyGate.redFlags` / `safetyGate.advisories` 相同），出参表补上 `safetyGate`、`prescriptionPermission`、`operationalCompleteness`、`latencyMs`。**红旗以 `safetyGate.status` 为 `red_flag`（即 `redFlags` 不为空）为准**；`clinicalFacts` 是语义复核的内部记录，其中 `redFlags` 也记病历里明确否认的风险（`status` 为 `negative`，如「否认疫区旅居史」），不能据此显示红旗。② **追问（§4.3）**：一轮恒为 1 题的说明与 V2.36 的实际行为对齐；补上 `questions[].options` 的结构，响应示例改为 1 题。③ **风险随访（§4.6、§5.3）**：正文各节按实际输出列出（处方安全总评、随访管理方案、生活管理）。④ **内容**：病历写了「藿香正气水」这类以「水」等剂型结尾的药名时，`safetyGate.missingItems` 写「已提及当前用药但缺少剂量/频次」，不再写「缺少药名」；注意事项与方义里病历所写、本页所推荐的药名不再按药味表改字（药味表有广藿香时，「藿香正气水」曾被写成「广藿香正气水」）；辨证结果 `management` 里的红旗处置一句不再出现「服务器红旗」，改写为「急危重征象」。 | 否：新增的顶层 `redFlags` / `advisories` 与 `safetyGate` 下的同名字段内容相同；此前按 `clinicalFacts.redFlags` 显示红旗的，请改按 `safetyGate.status` / `redFlags`。 |

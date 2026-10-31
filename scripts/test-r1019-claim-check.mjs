@@ -211,9 +211,9 @@ await check("W1 辨证路由：中医半与兼证一致并行、西医半与病�
   // 2026-10-24 第十七轮：外面再套一层脱证提为主证（promoteCriticalSecondarySyndrome），落在三件核对之后。
   // 2026-10-27 第二十六轮：三件核对落定之后、提脱证之前，再补一次舌脉（reattributeStrandedKeyFindings，见 test:r1038-main 4.2）。
   assert.match(route, /reattributeStrandedKeyFindings\(\s*applyPatientClaimRemovalsToContent\(applyElementSupportDecision\(reconciled, elementDecision\), "tcm", claimRemovals\),/u);
-  assert.match(route, /return promoteCriticalSecondarySyndrome\(reattributed\);/u);
+  assert.match(route, /return promoteCriticalSecondarySyndrome\(withVerifiedMethodItemFrom\(withLensFrom\(reattributed, completed, lensChecked\), methodCovered\)\);/u);
   assert.match(route, /Promise\.all\(\[\s*alignWesternPrimaryAndName\([\s\S]{0,400}decidePatientClaimRemovals\(westernContent,[^)]*"western"/u);
-  assert.match(route, /return applyPatientClaimRemovalsToContent\(aligned, "western", claimRemovals\)/u);
+  assert.match(route, /finalizeWesternPrimaryName\(\s*applyPatientClaimRemovalsToContent\(aligned, "western", claimRemovals\)/u);
   assert.match(route, /patientClaimRecordText\(trustedInputText\(safeState\), safeState\.patient, safeState\.vitals\)/u);
   assert.match(route, /redFlags: \[\.\.\.gated\.safetyGate\.redFlags, \.\.\.semanticBannerFlags\]/u);
 });

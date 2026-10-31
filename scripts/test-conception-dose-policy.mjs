@@ -171,7 +171,9 @@ check("4.1 备孕档：方中孕妇慎用药（桃仁）在该味核对说明里
 });
 check("4.2 备孕档：加减里加药典孕妇禁用的三棱整条不列，加慎用的益母草照列并在说明里写明；非备孕病例两条都照列（对照）", () => {
   const formula = compile(conceptionCase).formula;
-  assert.deepEqual(formula.modifications.map((item) => item.herbName), ["益母草"]);
+  // 10/31 起不足两条时按教材补（路路通），三棱仍不列。
+  assert.equal(formula.modifications[0].herbName, "益母草");
+  assert.ok(!formula.modifications.some((item) => item.herbName === "三棱"));
   assert.match(formula.modifications[0].riskNote, /孕妇慎用/);
   assert.ok(formula.modificationReview.droppedReasons.some((item) => item.code === "special_population_conflict"));
   const control = compile(plainCase).formula;

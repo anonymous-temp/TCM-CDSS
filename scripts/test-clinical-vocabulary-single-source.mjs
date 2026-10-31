@@ -26,6 +26,9 @@ const CJK = "\\u4e00-\\u9fa5";
  * 新增条目需要同时说明为什么该词表无法归入受治理来源。
  */
 const ALLOWLIST = new Map([
+  ["src/lib/formula-textbook-commentary.ts", "切《方剂学》方解段落的结构标记（沿革句、煎时加姜枣的写法），是教材行文的形态，不是临床术语判据（2026-10-31）"],
+  ["src/lib/m03-lens-consistency.server.ts", "否定词的形态守卫（非/不属/未/无…），闭集，只决定一个分句是否算肯定地下诊断（2026-10-31）"],
+  ["src/lib/verbatim-quote.ts", "病历栏目名闭集，只用于去掉模型摘录开头抄来的栏目名（2026-10-31）"],
   ["src/lib/diagnosis-safety.ts", "确定性安全层(红旗/危急值)的保守下限词表。它是安全底线而非临床语义判断,且必须独立于任何可被上游数据变更影响的来源——受治理词表若漏收一个急症词,红旗就会静默失效。迁移前需先为安全词表建立带 sourceRef 的独立受治理来源与双向回归钉。"],
   ["src/lib/clinical-state.ts", "临床状态极性词汇(否认/未见/可能)。属于**语言学**层而非中医术语层,受治理词表不覆盖。待建 tcm-polarity-lexicon.source.json 后迁移。"],
   ["src/lib/clinical-polarity.ts", "同上:极性/否定的语言学词表。"],

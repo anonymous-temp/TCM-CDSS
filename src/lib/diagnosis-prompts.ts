@@ -1,4 +1,6 @@
+import { trustedInputText } from "./diagnosis-safety";
 // src/lib/diagnosis-prompts.ts
+import { formulaCommentaryPromptBlock } from "./formula-textbook-commentary";
 import { isM02PromptRedFlagFact } from "./clinical-facts";
 import herbFunctionCategoriesJson from "../data/tcm-herb-function-categories.json" with { type: "json" };
 import type { CaseState } from "./diagnosis-types";
@@ -29,7 +31,7 @@ import {
 } from "./tcm-classic-inference";
 import { buildM04ClassicSafetyContext } from "./tcm-classic-context.server";
 import { governedTreatmentPrinciplePromptContext } from "./clinical-governance-tables";
-import { buildTextbookCandidateContext, buildTextbookFormulaContext, textbookRowForSyndrome, type TextbookCaseInput } from "./tcm-textbook-syndromes";
+import { buildTextbookCandidateContext, buildFormulaModificationContext, buildTextbookFormulaContext, textbookRowForSyndrome, type TextbookCaseInput } from "./tcm-textbook-syndromes";
 import { buildJingfangCandidateContext, type JingfangPick } from "./jingfang-patterns";
 
 const UNTRUSTED_CLINICAL_DATA_INSTRUCTION = [
@@ -968,12 +970,21 @@ export function buildPrescribePrompt(caseState: CaseState, extras: M04PromptExtr
     !lockedFormulaNames.some((name) => textbookRow!.formulas.includes(name));
   const textbookFormulaContext = diagnoseReasoning && !lockedOutsideTextbookRow
     ? [
-        buildTextbookFormulaContext(diagnoseReasoning.overview.tcmDiseaseName || "", diagnoseReasoning.overview.primarySyndrome || ""),
+        buildTextbookFormulaContext(diagnoseReasoning.overview.tcmDiseaseName || "", diagnoseReasoning.overview.primarySyndrome || "", { recordText: trustedInputText(caseState) }),
         textbookNonDecoction.length > 0
           ? `教材方中不入煎的药味：${textbookNonDecoction.join("、")}（溶服或冲服，本次不编制用量）。不要写进 candidate.herbs，由医师另行决定是否使用。`
           : "",
       ].filter(Boolean).join("\n")
     : "";
+  // 《方剂学》方解（2026-10-31）：方义里一味药「在这张方里」起什么作用，通用功效给不了（甲方 10.29 测评：银翘散的淡竹叶写成「导热下行」，
+  // 那是它的通用功效；方解写的是「芦根、竹叶清热生津」）。只给已定的基础方。
+  const formulaModificationContext = diagnoseReasoning && !textbookRow
+    ? buildFormulaModificationContext(diagnoseReasoning.overview.tcmDiseaseName || "", diagnoseReasoning.overview.primarySyndrome || "", lockedFormulaNames, trustedInputText(caseState))
+    : "";
+  const formulaCommentaryContext = formulaCommentaryPromptBlock([
+    ...lockedFormulaNames,
+    ...(textbookRow && !lockedOutsideTextbookRow ? textbookRow.formulas : []),
+  ]);
   const structuredDiagnosis = diagnoseReasoning
     ? promptDataText(JSON.stringify({
         stage: "diagnose",
@@ -1106,7 +1117,7 @@ ${caseState.herbCountPreference ? `\n【饮片味数】\n${herbCountPreferenceIn
 
 【M03后方剂精确检索记录（只用于核对既有选择；M04 不得据此改方名）】
 ${m03FormulaRetrievalContext}
-${textbookFormulaContext ? `\n${textbookFormulaContext}\n` : ""}
+${textbookFormulaContext ? `\n${textbookFormulaContext}\n` : ""}${formulaModificationContext ? `\n${formulaModificationContext}\n` : ""}${formulaCommentaryContext ? `\n${formulaCommentaryContext}\n` : ""}
 ${classicSafetyContext}
 
 ${kbShortlistContext ? `${kbShortlistContext}\n\n` : ""}${extras.similarCasesContext ? `${extras.similarCasesContext}\n\n` : ""}【M04药味可引用病机节点】

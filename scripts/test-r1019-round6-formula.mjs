@@ -94,9 +94,10 @@ await check("1.2 模型的加减全部剔除、教材行列有加减时按教材
   assert.match(rows[0].evidence.source, /^《中医内科学》呕吐·外邪犯胃证加减：/u);
   const issue = contract.m04SemanticIssue(filled, "", prior, undefined, true, true) || "";
   assert.doesNotMatch(issue, /^modification_/u, issue);
-  // 对照：模型的加减留下一条时不补。
+  // 对照：模型留下一条时补到两条（10/31 甲方 10.29 测评「仅生成1个不足」）；模型写的那条在前。
   const own = compileM04Proposal(proposalOf("藿香正气散加减", herbs, [mod("若见壮热口渴，便秘尿赤", "黄芩", "清热燥湿", "add", "6g")]), prior);
-  assert.deepEqual(own.formula.modifications.map((row) => [row.herbName, row.doseOrHandling]), [["黄芩", "6g"]]);
+  assert.deepEqual(own.formula.modifications[0].herbName, "黄芩");
+  assert.equal(own.formula.modifications.length, 2);
   // 对照：教材这一行的加减药都在方中（清胃散加大黄、石膏、知母），模型也没写——保持为空。
   assert.deepEqual(compileM04Proposal(proposalOf("清胃散加减", QINGWEI), toothPrior).formula.modifications, []);
 });

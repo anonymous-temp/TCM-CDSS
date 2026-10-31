@@ -423,7 +423,7 @@ await check("7.5 小模型按本例选穴：请求里有本例诊断、表现与
   });
   const route = fs.readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
   assert.match(route, /const homeAcupointAuthoring = homeAcupointInput \? authorHomeAcupointCare\(homeAcupointInput, signal\)/);
-  assert.match(route, /Promise\.all\(\[checkFormulaAnalysisClaimsInContent\(content, transformSignal\), homeAcupointAuthoring\]\)/);
+  assert.match(route, /Promise\.all\(\[\s*checkFormulaAnalysisClaimsInContent\(content, transformSignal\),\s*dropMisfitModifications\(content, transformSignal\),\s*homeAcupointAuthoring,?\s*\]\)/);
   assert.match(route, /\{ authoredHomeAcupoint \}\)/);
 });
 

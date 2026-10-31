@@ -17,13 +17,15 @@
  */
 
 import { RED_FLAG_SAFETY_NET_VISIT } from "./diagnosis-visible-summary";
+import { formulaGuideHerbsFromCommentary } from "./formula-textbook-commentary";
+import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { compositionIdentityName, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { drugNamesInAllergyPhrases } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
-import { conciseHerbFunctionLabel, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
+import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { tcmDifferentialDiseaseFitsPatient, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
@@ -689,6 +691,21 @@ export function candidateIsOriginalFormula(name: string, herbs: readonly Record<
   return present.size === ingredients.size && [...ingredients].every((id) => present.has(id));
 }
 
+const SAME_SOURCE_HERB_GROUPS = (sameSourceHerbs as { groups: ReadonlyArray<{ herbs: string[] }> }).groups;
+
+/** 目录原方有生姜、大枣作引而本方没有列：写进用法的一句（重复调用不再追加，由调用处判断）。 */
+export function omittedGuideHerbNote(name: unknown, herbs: readonly Record<string, unknown>[]): string | undefined {
+  const trimmed = String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
+  if (!trimmed || /合/u.test(trimmed) || SELF_COMPOSED_NAME.test(trimmed) || trimmed === "自拟方") return undefined;
+  const ingredients = (formulaCompilationReferences([trimmed])[0]?.ingredients || []).map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, "")));
+  const present = new Set(herbs.map((herb) => compositionIdentityName(String(herb.name || ""))));
+  const guides = formulaGuideHerbsFromCommentary(trimmed);
+  // 方里已有同源的干姜时不再提生姜（黄芪建中汤：生姜刚因与干姜同源去掉，用法里又说「可酌加」就自相矛盾）。
+  const sameSourcePresent = (herb: string) => SAME_SOURCE_HERB_GROUPS.some((group) => group.herbs.includes(herb) && group.herbs.some((other) => other !== herb && present.has(compositionIdentityName(other))));
+  const omitted = ["生姜", "大枣"].filter((herb) => (ingredients.includes(compositionIdentityName(herb)) || guides.includes(herb)) && !present.has(compositionIdentityName(herb)) && !sameSourcePresent(herb));
+  return omitted.length > 0 ? `原方以${omitted.join("、")}为引，煎时可酌加` : undefined;
+}
+
 /**
  * 交付给调用方的西医诊断依据/**
  * 交付给调用方的西医诊断依据（10.26 甲方测评「西医诊断无依据」）：模型写的 clinicalRationale，一句话，
@@ -1237,6 +1254,12 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     if (typeof candidate.formulaAnalysis === "string" && typeof candidate.name === "string") {
       candidate.formulaAnalysis = withOpeningMatchingFormulaName(candidate.formulaAnalysis, candidate.name, original === true).text;
     }
+    // 原方的姜枣引药（甲方 10.29 测评：归脾汤原方「加姜、枣，水煎服」，处方不便列时在用法里说明）。
+    const guideNote = omittedGuideHerbNote(candidate.name, records(candidate.herbs));
+    const candidateDecoction = record(candidate.decoction);
+    if (guideNote && candidateDecoction && typeof candidateDecoction.method === "string" && !/[姜枣]/u.test(candidateDecoction.method)) {
+      candidateDecoction.method = `${candidateDecoction.method.replace(/[。；;\s]+$/u, "")}；${guideNote}`;
+    }
     // 方义里的药名按药味表写（朱茯神→茯神，withMentionsAlignedToTableNames；编译时审过一次，交付面按最终药味表再对一次）；
     // 去掉阴性净化器写进方义的病历断言小句；只点了角色的药补上药味表里它的功效。
     // 不是调和药的药说成「调和诸药」的去掉（withoutUnsupportedHarmonizingClaims，与功效栏同一判据 herbHarmonizesFormula）。
@@ -1246,8 +1269,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       const analysisText = withoutProcessParentheticals(candidate.formulaAnalysis).text;
       const medicineNames = [...knownMedicineNames(options?.requiredPrecautions, formula), ...labelledMedicineNamesIn(analysisText)];
       const aligned = withoutChartAssertionClauses(withMentionsAlignedToTableNames(analysisText, tableNames, medicineNames).text).text;
-      const harmonized = withoutUnsupportedHarmonizingClaims(aligned, tableNames,
-        (name) => `${herbFunctionKnowledgeForDisplay(name)}；${getTcmHerbFunctionText(name)}`).text;
+      const harmonized = withEveryHerbExplained(withoutUnsupportedHarmonizingClaims(aligned, tableNames,
+        (name) => `${herbFunctionKnowledgeForDisplay(name)}；${getTcmHerbFunctionText(name)}`).text, herbRows);
       candidate.formulaAnalysis = withRoleOnlyHerbsExplained(withoutStrayLeadingRoleVerb(harmonized).text, herbRows).text;
     }
     // 方义说「去原方中…之品」而处方其实保留了原方全部药味（2026-10-17：甲方标准病历 1、4、10，三次生成里 4 次，独立评审判陈述失实）。
@@ -2296,6 +2319,7 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
   if (projected.stage === "diagnose") {
     deliveredDiagnose(projected, options);
     const therapy = record(projected.therapy);
+    if (therapy) delete therapy.verifiedMethodItem;
     const mindInScope = signedScopeInvolvesMind(projected as SignedScopeLike);
     if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(therapy.overallMethod, mindInScope));
     const overviewRecord = record(projected.overview);
