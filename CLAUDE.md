@@ -2605,6 +2605,52 @@ The user asked for both round-30 leftovers to be fixed, tested and shipped. Mate
 - Modification rows the floor would reject are now dropped, not repaired; a prescription whose every 加减 row fails keeps an empty 加减 (none in the measured runs).
 - Children's needling cards keep the textbook pediatric note (round 30).
 
+### 10/31 round 32: the customer's 10.29 evaluation — what their panel reads, proposer + verifier, modification floor (2026-10-31)
+
+The customer's document (`【2026-10-29】灵犀中医医学评测.docx`) scored 15 records × 20 items. The user decided: change `clinicalFacts.redFlags` directly; they will take the panel-source questions to the customer themselves; 淡竹叶 follows the 《方剂学》 wording; do both new narrow checks; solve the rest by algorithm rather than word patches. Material: `~/runlogs/r1018/work/r1044/` (`eval1029/`, `c15.json` = their 34 distinct records with their own answers, `measure.sh`, `compare.py`, `judge*.sh`, `cp/cp.py` 68 mutations, `replay/`, `probe/`). Suite `test:r1044-main` (41 checks).
+
+**Provenance first.** Every complaint was searched against the 10/28–10/30 archived responses. Their panel's 推荐西成药, 检验检查, 复诊计划 text and the banner sentence 「暂不提供后续诊疗建议」 are **not ours** (they never show our `patentAndWestern`). 100% of their M02/M03/M04 requests since 10/29 carry `regenerate=1`, which bypasses reuse and the no-answer precompute: that is most of their "same record, different output" and of their ~13 s M03. Interface doc §3.12 now says so; the user is raising these with the customer.
+
+**Fixed, by class.**
+- **Banner.** Of 49 red-flags responses (10/26–10/30), `clinicalFacts.redFlags` was non-empty 19 times with one real `red_flag`, because denials and clarify items live there. API callers (`x-cdss-api-token` / Bearer) now get it non-empty **iff** `safetyGate.status === "red_flag"` (`delivered-clinical-facts.ts`, synthesized from `gate.redFlags` for deterministic-only red flags). The page keeps the signed record; the internal two-readers check still sees denials. Interface doc §4.7.
+- **Vital numbers.** The facts model read a toddler's RR 26 as instability. `withoutCodeClearedVitalFindings` drops a `vital_instability` finding whose quote has a number, without an escalation rationale, when the code's age-banded check clears every reading **and** it is the only urgent finding (黑便 + BP 94/60 + P 112 keeps it; found by the gate replay). `trustedInputText` now labels vitals (「呼吸 26次/分」), except when the HIS field already holds vitals: a stale top-level `vitals` must stay unparseable to the gate (`test:safety-mutations`). This reverses the 10/14 revert, which rested on rf-lowtemp; that case now has a deterministic floor. A/B on 8 records × 5: gate identical in 40/40, rf-lowtemp red 5/5 both arms.
+- **Not done, on purpose: facts urgency prompt.** With the projection, none of their four "过度红旗" records has a banner or a gate red flag, so a prompt change would only risk the safety layer.
+- **Modifications.** Floor of 2 rows (`MIN_DELIVERED_MODIFICATIONS`): model rows → textbook rows → shape-valid conditionals. Before: 9 of 130 outputs had fewer than 2 in the three customer/held-out sets. Same herb by identity (教材 乌贼骨 = 海螵蛸; literal comparison dropped the row). A textbook entry that pairs a cold herb with a warm one is not split into the cold herb alone (脾胃虚寒 + 黄连 from 「加黄连、炒吴茱萸、乌贼骨、煅瓦楞子」; two-herb entries such as 交泰丸 are added together). A condition whose tongue/pulse contradicts the record is rejected in the compiler and **removed from the prompt** (肺卫不固, 舌淡脉细弱: 「若兼有阴虚，而见舌红、脉细数，加麦冬」; compiled-only left the model's slot wasted). When the syndrome has no textbook row, the row of the same formula supplies them (`textbookRowForFormula`, 心脾气血两虚证 → 归脾汤 under 不寐). `m04-modification-fit.server.ts` asks two vendors whether a model-written herb fits its symptom; it flagged little, so most of 白芍's fix is the same-formula row. `CDSS_M04_MODIFICATION_FIT`.
+- **Formula analysis.** 《方剂学》 commentary goes into the M04 prompt as 【方解依据】 (`formula-textbook-commentary.ts`, 230 formulas). 竹叶 was treated as a foreign herb and its clause deleted; a suffix short form of an own herb with no dose record of its own is now that herb. `withEveryHerbExplained` adds a line for any table herb the analysis misses (5% of 1,073 stored). Guide herbs: `omittedGuideHerbNote` writes 「原方以生姜、大枣为引，煎时可酌加」 in the usage line from the catalog or the commentary (「引用生姜、大枣」), not for 生姜 when 干姜 is present. Same-source herbs: `tcm-same-source-herbs.source.json` keeps one unless the catalog or commentary has both (厚朴温中汤).
+- **Proposer + cross-vendor verifier (`cross-model-small-task.server.ts`).** Two free votes multiply two samples and lose true findings (round 26's AND lesson): the same 咳嗽痰多 record got 「化痰」 from one model and nothing from the other. Now deepseek proposes, qwen answers yes/no on that one claim, and the proposer enumerates first because field order is reasoning order: `m03-method-coverage` lists every symptom group with `coveredBy`, `m03-lens-consistency` lists every judgement with `against`. Asked directly, 「湿重于热」 got no finding twice; enumerated, it was found. Verifier prompts state the clinical convention; the first strict wording rejected 化痰 and 高血压病.
+- **Anchoring overwrote the verified item.** Traces showed 化痰 proposed and verified, then gone: `withDeterministicFormulaReferences` replaces 治法 with the textbook text. `therapy.verifiedMethodItem` carries it through anchoring and is deleted on the delivered surface.
+- **Western.** A symptom-level or generic 综合征 name asks whether a chronic disease stated in the record is a common cause of the chief complaint (高血压病史 + 头晕 → 高血压; 冠心病 for 乏力 refused). 慢性失眠障碍 → 慢性失眠 (`western-name-preferred.source.json`). ICD synonyms are only sought for names outside ICD and the criteria table (围绝经期综合征 had become 女性更年期综合征). Model quotes often copy the section label; `quoteGroundedInText` strips it, or the link never reached the verifier.
+- **Syndromes.** A compound name outside the criteria table is checked organ by organ (肺胃热盛 → 肺热炽盛 + 胃热炽盛; before it was skipped). Deficiency elements use a breadth path (≥3 manifestations, 面色萎黄、爪甲色淡、毛发枯槁 against 血虚证's narrow key points); 立兼证 still uses key points. Grouped diseases (虚劳) name the composite when a second type passes.
+
+**Latency.** The new checks first ran serially after the others (M03 about +2.5 s). They do not depend on those results, so they now run in the same `Promise.all`; `withVerifiedMethodItemFrom` applies only the verified item, `withLensFrom` replaces the sentence only if it is still there.
+
+**Measured** (same day; old = a8d00b32 = production 293fd81's clinical code; qwen3.8-max).
+
+| | Old | New |
+|---|---|---|
+| Customer's 34 records × 2: fewer than 2 modifications / tongue-pulse conflict rows / 生姜+干姜 / 高血压+眩晕 unlinked | 1 / 6 / 2 / 2 | 0 / 0 / 0 / 0 |
+| Customer's 34 records × 2: gate `red_flag` | 2 | 0 (no red flag expected) |
+| Customer 10 × 3: fewer than 2 modifications | 4 | 0 |
+| Customer 10 × 3: disease, syndrome vs old arm | | 30/30, 30/30 |
+| Medians M03 / M04, customer 10 | 11.4 / 10.7 s | 10.6 / 10.2 s |
+| Medians M03 / M04, 34 records | 16.2 / 11.4 s | 16.4 / 11.8 s |
+| 21,149-record gate replay | | 2 changed before the "only urgent finding" guard; that guard removes them |
+
+- New arm, qwen: customer 10 × 3, 0 failures in all 8 columns, with the 10.29 criteria added to the brief; held-out 32, every block 100 except 煎服法 96.6 (S131 滑石 先煎 per ChP, the known judge disagreement); customer's 34 records on the 1.1 rubric, 100% on every row. **That rubric is saturated and cannot show this round's effect; the deterministic rows above are the evidence.** The old arm's reviews were not finished: qwen slowed to about 2 per minute, so they were cut.
+- 100-case page set (new arm): red flags 28/28, boundary dose 33/33, M03 complete 100/100, differentials ≥2 100/100. 9 of 100 still have fewer than 2 modifications, when neither textbook nor model gives a usable row.
+- Same-record variance did not improve: 34 records × 2 syndrome identical 33 → 32, 治法 22 → 20. Most of what the customer saw is `regenerate`.
+
+**Left as is.**
+- 心气虚证 still appears occasionally for the 气血两虚 record (1 of 8 local runs; 0 of 2 on production) when the element check does not pass; the promotion to a composite name fires only then.
+- 淡竹叶 is usually written 「清热除烦」 or 「清热生津」; the customer's 「治上焦如羽」 reading is not the textbook's, so the user will explain the wording.
+- 白芍-type model judgement: the fit check rarely fires.
+- 「失眠障碍」 stays for courses under 3 months; ICSD-3 「短期失眠」 was not forced.
+
+**In production (ed52175, deployed 2026-11-01 about 00:25 Beijing; tag `20261031-ed52175-prebuilt`, same release directory and `20260927-dsrepair` override).** `verify:release` green (293 suites + 4); `verify:deployed-image` passed; `regress:prod-smoke` 0 failures. Probes on hospital-b: records with denials and the toddler's RR 26 → `clinicalFacts.redFlags` empty; 呕血 → 2 entries with `red_flag`. 10 of the customer's 34 records: all stages 200, 治法 includes 化痰, Western 高血压, 2+ modifications, no 麦冬/黄连 rows. Cold M03 about 14 s, M04 about 12 s. Rollback: image `tcm-cdss:20261029-293fd81-prebuilt` with `docker-compose.yml.pre-ed52175`. Container log before the replacement is in `~/telemetry-archive`.
+- **The deploy's packaging step took over 9 minutes on the host,** and my `timeout 580` killed the local script mid-build (image built, container not replaced). Run the deploy with `setsid nohup`, not a foreground timeout; rerunning it was safe.
+- **`ps | grep "[x]yz"` in a kill loop matches the shell running it when the command text contains the literal form** (exit 144). Kill by PID from a separate command.
+- **Local build:** root had 3.7 GB after removing my worktrees. `prebuild-cpa.sh` in the round directory copies `node_modules` once from the main checkout and uses `rsync --link-dest`, which saves about 1.4 GB over the round-30 version.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
