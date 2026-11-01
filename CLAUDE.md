@@ -2677,9 +2677,9 @@ The user pointed out that round 32's fixes (乌贼骨/海螵蛸, 竹叶, 舌脉 
 | 方义 word damage (血通, 益智, 制半夏…) | 12 | 0 |
 | Model-written method item not delivered | 54 | 39 |
 | Placeholder pages | 2 | 0 |
-| Rows borrowed from another disease | 12 outputs | 0 |
+| Rows borrowed from another disease | 16 | 0 |
 | 生姜+干姜 | 3 | 0 |
-| Fewer than 2 distinct conditions (synthetic + public) | 12/118 | 6/115 |
+| Fewer than 2 distinct conditions (synthetic + public) | 12/120 | 6/120 |
 | Class rubric K1 / K2 / K3 / K5 / K6 | 96.1 / 97.4 / 92.1 / 89.5 / 90.1 | 97.2 / 98.6 / 94.4 / 90.2 / 95.1 |
 | K4 method coverage / K7 syndrome / K9 Western | 98.0 / 92.8 / 98.6 | 94.4 / 90.9 / 97.8 |
 | Medians M03 / M04, customer's 34 | 15.1 / 10.2 s | 16.0 / 11.0 s |
