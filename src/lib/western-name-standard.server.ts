@@ -75,7 +75,7 @@ const LINK_VERIFY_SYSTEM = [
 export function establishedDiseaseQualifies(candidate: { name: string; quote: string }, recordText: string): boolean {
   if (!isCleanWesternDiagnosisName(candidate.name) || /待查$/u.test(candidate.name)) return false;
   if (!quoteGroundedInText(candidate.quote, recordText)) return false;
-  return candidate.quote.includes(candidate.name.replace(/病$/u, ""));
+  return candidate.quote.includes(candidate.name.replace(/病$/u, "").replace(/^[12一二]型/u, ""));
 }
 
 const NAME_SYSTEM = [
