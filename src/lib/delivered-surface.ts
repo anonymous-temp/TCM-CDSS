@@ -2330,6 +2330,12 @@ export function withoutIncidentalSedationMethod(method: string, mindInScope: boo
   return kept.length > 0 && kept.length < items.length ? kept.join("，") : method;
 }
 
+/** 总治法至多五项（接口文档 V2.56）：教材的项在前，多出来的是后补的，去掉排在最后的。 */
+export function withinMethodItemCap(method: string): string {
+  const items = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
+  return items.length > 5 ? items.slice(0, 5).join("，") : method;
+}
+
 export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSurfaceOptions): T {
   const object = record(reasoning);
   if (!object || object.schemaVersion !== "tcm-cdss-reasoning-v2") return reasoning;
@@ -2339,9 +2345,9 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
     const therapy = record(projected.therapy);
     if (therapy) delete therapy.verifiedMethodItem;
     const mindInScope = signedScopeInvolvesMind(projected as SignedScopeLike);
-    if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(therapy.overallMethod, mindInScope));
+    if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(therapy.overallMethod, mindInScope)));
     const overviewRecord = record(projected.overview);
-    if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(overviewRecord.overallTherapy, mindInScope));
+    if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(overviewRecord.overallTherapy, mindInScope)));
     const management = record(projected.management);
     if (management && typeof management.followupSafetyNet === "string" && options?.doseWithheld) {
       management.followupSafetyNet = followupWhenDoseWithheld(management.followupSafetyNet, options.doseWithheld, options.doseWithheldKind);
