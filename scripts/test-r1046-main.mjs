@@ -519,6 +519,12 @@ await check("5.11 现病史写着患病多年：症状层面的名字也问已�
   globalThis.fetch = realFetch;
 });
 
+await check("5.12 「以生地黄易生地黄」不留", async () => {
+  const surface = await jiti.import("../src/lib/delivered-surface.ts");
+  assert.equal(surface.withoutSelfSwapClause("俱为佐药；去炒黑芝麻，以生地黄易生地黄。甘草为使"), "俱为佐药；去炒黑芝麻。甘草为使");
+  assert.equal(surface.withoutSelfSwapClause("去熟地，以生地黄易熟地黄。"), "去熟地，以生地黄易熟地黄。");
+});
+
 await check("5.9 数「X味」时「全方保留」不挡第一味；「兼制青皮」的制是动词", async () => {
   const review = await jiti.import("../src/lib/formula-analysis-review.ts");
   const herbs = ["黄芪", "桂枝", "白芍", "炙甘草", "大枣", "饴糖"];

@@ -1308,7 +1308,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         const identity = compositionIdentityName(name);
         if (identity) present.set(identity, [...(present.get(identity) || []), name]);
       }
-      candidate.formulaAnalysis = withoutFalseNamedRemovalClaims(candidate.formulaAnalysis, present);
+      candidate.formulaAnalysis = withoutSelfSwapClause(withoutFalseNamedRemovalClaims(candidate.formulaAnalysis, present));
     }
     // 开头一句说「加X」而X本来就在原方组成里（含生用写法：消风散原方有地黄，方义写「加生地黄」「以生地黄易原方地黄并加用」，
     // 2026-10-17 甲方标准病历 9 两次生成）：去掉这个不实的加药说法，其余照留。原方组成查不到时不动。
@@ -1857,6 +1857,11 @@ function presentSameForm(name: string, present: ReadonlyMap<string, readonly str
 }
 
 /** 方义里点名去掉某几味药（「去桑皮之重复而留其泻肺之意」），而这几味按组成身份都在处方里：这一小句不实，去掉。 */
+/** 名字对齐后两边成了同一味（「去炒黑芝麻，以生地黄易生地黄」，第三十四轮 病历 9）：这一小句不留。 */
+export function withoutSelfSwapClause(analysis: string): string {
+  return analysis.replace(/[，,；;]?\s*(?:并|且)?以([\u4e00-\u9fff]{2,6})易\1(?=[。，,；;]|$)/gu, "");
+}
+
 function withoutFalseNamedRemovalClaims(analysis: string, present: ReadonlyMap<string, readonly string[]>): string {
   return analysis.split(/(?<=。)/u).map((sentence) => {
     // 带问号的句子是模型的自问自答，由 withoutQuestionChatter 整段处理，这里不动。
