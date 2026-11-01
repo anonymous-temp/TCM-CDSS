@@ -422,7 +422,7 @@ await check("6.5 M03 外部检索也有软上限；关闭写法可用", async ()
   delete process.env.PRIMARY_DIAGNOSE_EXTERNAL_EVIDENCE_SOFT_DEADLINE_MS;
 });
 
-await check("4.6 教材两味一组：带出来的那一味用自己的功效作理由；模型自己写了就用模型的；同一条件的行排在一起", () => {
+await check("4.6 教材两味一组：带出来的那一味只写教材这条说的话（同用的药、针对的情况）；模型自己写了就用模型的", () => {
   const prior = { stage: "diagnose", overview: { tcmDiseaseName: "感冒", primarySyndrome: "风寒束表证", recommendedFormulaNames: [] }, pathogenesis: { chain: [{ nodeId: "P1" }] } };
   const row = textbook.textbookRowForSyndrome("感冒", "风寒束表证");
   const index = row.modifications.findIndex((item) => item.herbs.includes("麻黄") && item.herbs.includes("桂枝"));
@@ -432,7 +432,10 @@ await check("4.6 教材两味一组：带出来的那一味用自己的功效作
   const one = compiler.normalizeModificationsForTest([{ ...base, trigger: "若恶寒甚", herbName: "桂枝" }], prior);
   const partner = one.find((item) => item.herbName === "麻黄");
   assert.ok(partner, JSON.stringify(one));
-  assert.doesNotMatch(partner.reason, /桂枝/u);
+  assert.match(partner.reason, /^与桂枝同用，针对/u);
+  assert.doesNotMatch(partner.reason, /辛温解表|发散风寒/u);
+  const review = compiler.m04CompilerTestHooks.normalizeModifications([{ ...base, trigger: "若恶寒甚", herbName: "桂枝" }], prior);
+  assert.equal(review.submittedCount, review.items.length, "两味展开后提交数按行算，不会出现提交比保留少");
   const both = compiler.normalizeModificationsForTest([{ ...base, trigger: "若恶寒甚", herbName: "桂枝" }, { ...base, trigger: "若恶寒甚", herbName: "麻黄", reason: "麻黄发汗散寒" }], prior);
   assert.equal(both.find((item) => item.herbName === "麻黄").reason, "麻黄发汗散寒");
 });
@@ -548,4 +551,17 @@ await check("5.8 方义多算一味共为君：表随方义；表里的君在方
   assert.equal(promoted.herbs.find((one) => one.name === "茯苓").role, "君");
   const demoting = hooks.withAnalysisConsistentCandidate({ ...base, formulaAnalysis: "人参为君，白术、茯苓为臣，山药为佐。" }, prior);
   assert.equal(demoting.herbs.find((one) => one.name === "白术").role, "君");
+});
+
+const knowledge = await jiti.import("../src/lib/tcm-knowledge.ts");
+await check("4.6b 苍耳子功用不再带「清热解毒」；加入有毒的药时行内写明", () => {
+  const text = knowledge.getTcmHerbFunctionText("苍耳子");
+  assert.doesNotMatch(text, /清热解毒/u);
+  assert.match(text, /通鼻窍/u);
+  const prior = { stage: "diagnose", overview: { tcmDiseaseName: "感冒", primarySyndrome: "风寒束表证", recommendedFormulaNames: [] }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "风寒束表" }] } };
+  const row = compiler.topUpModificationRow({ trigger: "若鼻塞重", herbName: "苍耳子", dose: "6g", reason: "通鼻窍" }, { prior, candidateHerbNames: ["荆芥"], existingTriggers: [] });
+  assert.ok(row, "苍耳子这一行应当保留");
+  assert.match(row.riskNote, /苍耳子有毒/u);
+  const plain = compiler.topUpModificationRow({ trigger: "若鼻塞重", herbName: "辛夷", dose: "6g", reason: "通鼻窍" }, { prior, candidateHerbNames: ["荆芥"], existingTriggers: [] });
+  assert.doesNotMatch(plain?.riskNote || "", /有毒/u);
 });

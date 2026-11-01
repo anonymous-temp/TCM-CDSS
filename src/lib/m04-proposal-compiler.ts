@@ -1149,14 +1149,23 @@ function expandTextbookEntryRow(item: unknown, prior?: ClinicalReasoningResultV2
   if (entry.herbs.length === 2) {
     const partner = entry.herbs.find((name) => !sameHerbIdentity(name, herbName));
     // 理由是模型为第一味写的，不能照抄给另一味（病历 1「若恶寒甚：加麻黄」理由写成「桂枝辛温解表」，第三十四轮）：写这一味自己的功效。
-    if (partner) rows.push({ ...item, trigger, herbName: partner, herb: undefined, dose: undefined, reason: partnerReason(partner), [PARTNER_ROW]: true });
+    if (partner) rows.push({ ...item, trigger, herbName: partner, herb: undefined, dose: undefined, reason: partnerReason(herbName, entry.condition), [PARTNER_ROW]: true });
   }
   return rows;
 }
 
 const PARTNER_ROW = "__partnerRow";
-function partnerReason(herbName: string): string {
-  return getTcmHerbFunctionText(herbName).split(/[；;。]/u)[0].trim().slice(0, 30) || "同条教材加减并用";
+/**
+ * 只写教材这一条本身说的话：同用的药和针对的情况。知识库功用文本的首句不能当理由——
+ * 它常是分类名（苍术「化湿药」）或混入错条（苍耳子「清热解毒」，生产病历 1，第三十四轮部署后评审）。
+ */
+function partnerReason(firstHerb: string, condition: string): string {
+  return `与${firstHerb}同用，针对${condition.replace(/^(?:若|如果|如)/u, "").replace(/[者时，。；]+$/u, "")}`.slice(0, 40);
+}
+
+/** 加入有毒的药时写在这一行里：注意事项只逐味写方中原有的药（苍耳子 10g 加减行曾无任何提示，第三十四轮）。 */
+function toxicAdditionNote(herbName: string): string {
+  return getTcmHerbGenerationSafetyProfile(herbName).toxicity.length > 0 ? `${herbName}有毒，不可自行加量或久服` : "";
 }
 
 const MODIFICATION_PROCESSING_PREFIX = /^(?:蜜炙|麸炒|土炒|米炒|醋制|酒制|盐制|姜制|醋炒|酒炒|盐炒|姜炒|炒|炙|煅|焦|生|蜜|盐|酒|醋|姜)$/u;
@@ -1299,7 +1308,8 @@ function normalizeModifications(
   // 钳到契约上限：submittedCount 的 `.max(30)` 没有 catch，31 条**可选**随症加减会让整份
   // M04 提案落到 T1 硬拒且无修复引导——直接违反本文件上方写下的不变量（畸形的可选行不得
   // 作废一份完整的核心处方）。真实提交量另走日志，不进契约。
-  return { items, submittedCount: Math.min(value.length, MODIFICATION_REVIEW_COUNT_LIMIT), droppedReasons };
+  // 按展开后的行数算：一条教材两味会展开成两行，按模型写的行数算会出现「提交 3、保留 4、丢弃 0，却写丢了 2 条」。
+  return { items, submittedCount: Math.min(expanded.length, MODIFICATION_REVIEW_COUNT_LIMIT), droppedReasons };
 }
 
 /** 测试用：规整后的加减行。 */
@@ -2236,7 +2246,7 @@ export function topUpModificationRow(
     herbName,
     doseOrHandling: modificationAddDose(herbName, dose, pediatric),
     reason: row.reason.trim() || "随证调整治疗重点",
-    riskNote: specialDecoctionPhrase(herbName),
+    riskNote: [specialDecoctionPhrase(herbName), toxicAdditionNote(herbName)].filter(Boolean).join("；"),
     evidence: { evidenceLevel: "model_inference", source: MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, confidence: "低" },
   };
   // 开方安全底线逐行用的判据：底线会拒的（理由里夹了剂量等）这里就不进，不让一条补写的行连累整方。
@@ -2467,6 +2477,7 @@ export function compileM04Proposal(
       riskNote: item.actionType === "add"
         ? [
           specialDecoctionPhrase(item.herbName.trim()),
+          toxicAdditionNote(item.herbName.trim()),
           conceptionTier ? conceptionHerbNote(item.herbName.trim(), conceptionTier) || "" : "",
           // 慎用级人群提示（D4）：本例病历记有该人群时写明（转氨酶升高加补骨脂 → 「补骨脂肝功能不全者慎用…」）。
           // 人群写法与每味药的人群提示同一个函数（herbBoundaryPopulationLabel）：男性、儿童、60 岁以上不写「月经期」
@@ -2643,4 +2654,4 @@ export function compileM04JsonObjectContent(
 }
 
 /** 测试用：单味药的核验级别与理由（医生在页面上看到的那一行）。 */
-export const m04CompilerTestHooks = { compileHerbVerification, casePrecautions, withoutIncidentalSedatives, withWithheldBaseIngredientNote, withAnalysisConsistentCandidate, mergeSameIdentityHerbRows };
+export const m04CompilerTestHooks = { normalizeModifications, compileHerbVerification, casePrecautions, withoutIncidentalSedatives, withWithheldBaseIngredientNote, withAnalysisConsistentCandidate, mergeSameIdentityHerbRows };
