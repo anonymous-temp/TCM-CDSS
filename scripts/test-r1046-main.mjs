@@ -255,6 +255,10 @@ await check("3.1 模型原写的项用「只有写错才去掉」的问法；提
   assert.ok(items.includes("化痰"));
   assert.ok(items.length <= 3);
   assert.ok(systems.some((one) => /核对初拟治法里的一项/.test(one)));
+  // 模型没写别的项时，提名补的也至多两项。
+  smallMemo.resetSmallTaskMemoForTests();
+  const onlyNamed = JSON.parse(await coverage.completeMethodCoverage(JSON.stringify({ overview: { tcmDiseaseName: "咳嗽", primarySyndrome: "风寒袭肺证" }, therapy: { overallMethod: row.therapy } }), { recordText: "咳嗽三天，痰多色白质稀，鼻塞，流清涕，咽痒，咽干", chiefComplaint: "咳嗽三天" }));
+  assert.equal(String(onlyNamed.therapy.verifiedMethodItem).split("，").length, 2);
   // 提名的提示词里没有模型写的治法：证名一写出来就能先发，收口时同一请求命中。
   const before = systems.length;
   coverage.prefetchMethodCoverage({ tcmDiseaseName: "咳嗽", primarySyndrome: "风寒袭肺证" }, { recordText: "咳嗽三天，痰多色白质稀，鼻塞，流清涕，咽痒，咽干", chiefComplaint: "咳嗽三天" });
@@ -329,7 +333,7 @@ await check("4.5 不同的条件不足两个时补写：每行过编译同一套
       ? JSON.stringify({ rows: [
           { trigger: "若腹胀明显", herbName: "枳壳", dose: "10g", reason: "行气消胀" },
           { trigger: "若腹胀明显", herbName: "厚朴", dose: "10g", reason: "同一条件不算新条件" },
-          { trigger: "若嗳气频作", herbName: "乌头", dose: "3g", reason: "与半夏十八反" },
+          { trigger: "若颈部结块", herbName: "海藻", dose: "10g", reason: "软坚散结，与甘草十八反" },
           { trigger: "若食少", herbName: "鸡内金", dose: "500g", reason: "超量" },
           { trigger: "若舌红", herbName: "麦冬", dose: "10g", reason: "写舌象" },
           { trigger: "若食积", herbName: "焦山楂", dose: "10g", reason: "消食化积" },
@@ -357,15 +361,16 @@ const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
 const phi = await jiti.import("../src/lib/phi-sanitizer.ts");
 
 // ───── 6 第三十三轮审计留下的 ─────
-await check("6.1 证素撤下不动流派句与否认句（扶阳句里的阳虚实据；舌质淡红示血虚未甚）", async () => {
+await check("6.1 证素撤下不动流派句与否认句（扶阳句里的阳虚实据；舌质淡红示血虚未甚）；断言句照撤", () => {
   const content = JSON.stringify({
-    overview: { primarySyndrome: "寒凝血瘀证", secondarySyndromes: [], tcmDiagnosticRationale: "小腹冷痛为寒凝。舌质淡红示血虚未甚。神疲乏力、面色少华，为气血亏虚。扶阳学派看阴阳实据，本例畏寒肢冷属阳虚阴盛之象，与扶阳抑阴思路相符。" },
-    therapy: { overallMethod: "温经散寒" }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "寒凝", therapyDirection: "温经散寒" }], uncertainties: [] },
+    overview: { primarySyndrome: "寒凝血瘀证", secondarySyndromes: [], tcmDiagnosticRationale: "小腹冷痛、经色紫暗，为寒凝血瘀。舌质淡红示血虚未甚。神疲乏力、面色少华，为肝血不足。扶阳学派看阴阳实据，本例面色少华属血虚之象，与扶阳抑阴思路相符。" },
+    therapy: { overallMethod: "温经散寒" }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "寒凝血瘀，兼肝血不足", therapyDirection: "温经散寒" }], uncertainties: [] },
   });
-  const decision = { verdicts: [{ unit: { type: "blood", entryName: "血虚证" }, verdict: { status: "fail", entry: "血虚证" } }] };
-  const out = JSON.parse(element.applyElementSupportDecision(content, decision));
-  const rationale = out.overview.tcmDiagnosticRationale;
+  const decision = { verdicts: [{ unit: { type: "血虚", entryName: "血虚证" }, verdict: { verdict: "fail", entry: "血虚证", specific: 0, category: 0, listed: 0, distinct: 0 } }] };
+  const rationale = JSON.parse(element.applyElementSupportDecision(content, decision)).overview.tcmDiagnosticRationale;
   assert.match(rationale, /舌质淡红示血虚未甚/u);
+  assert.match(rationale, /本例面色少华属血虚之象/u);
+  assert.doesNotMatch(rationale, /为肝血不足/u);
 });
 
 await check("6.2 总治法丢了、分治法还在：按分治法写总治法", () => {
@@ -411,6 +416,7 @@ await check("6.5 M03 外部检索也有软上限；关闭写法可用", async ()
 
 await check("5.1 片段带句读时不把前后两句连起来（第三十三轮 W45）", () => {
   assert.doesNotMatch(claim.withoutClaimSpan("脉细滑数示阴虚火动，兼有壅滞，大便干为津亏", "兼有壅滞，"), /火动大便干/u);
+  assert.doesNotMatch(claim.withoutClaimSpan("脉细滑数示阴虚火动兼有壅滞，大便干为津亏", "兼有壅滞，"), /火动大便干/u);
 });
 
 await check("5.2 撤兼证连「故」一起去掉，不留「…，故。」", () => {
