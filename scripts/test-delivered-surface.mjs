@@ -216,11 +216,11 @@ for (const [source, expected] of [
       herbs: ["龙胆", "黄芩", "栀子", "泽泻", "车前子", "川木通", "生地黄", "当归", "柴胡", "甘草"].map((name) => ({ name, dose: "6g" })),
     };
     const named = projectDeliveredReasoning(combined).formula.candidates[0];
-    assert.equal(named.name, "龙胆泻肝汤加减", "处方全是龙胆泻肝汤的药，方名只写这一张");
+    assert.equal(named.name, "龙胆泻肝汤", "处方全是龙胆泻肝汤的药且逐味相同，方名只写这一张、不写加减（第三十三轮）");
     // 出处写原书（方剂目录里有的按目录），不写教材。
     assert.match(named.formulaSource.source, /^龙胆泻肝汤：《[^》]+》/);
     assert.doesNotMatch(named.formulaSource.source, /中医外科学/, "目录收了的方，出处是原书");
-    assert.equal(named.formulaAnalysis, "本方以龙胆泻肝汤为基础加减。龙胆为君。");
+    assert.equal(named.formulaAnalysis, "本方用龙胆泻肝汤原方。龙胆为君。");
     const unrelated = structuredClone(combined);
     unrelated.formula.candidates[0].herbs = ["党参", "白术", "茯苓", "甘草"].map((name) => ({ name, dose: "6g" }));
     assert.equal(projectDeliveredReasoning(unrelated).formula.candidates[0].name, "自拟方", "组成不是该方时不改名");

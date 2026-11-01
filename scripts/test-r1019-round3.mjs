@@ -346,11 +346,9 @@ await check("8.1 M03 推荐方向是教材代表方而目录锁不住（加味�
 
 await check("8.2 教材这一证的加减药都已并入主方时（呃逆·胃火上逆证的柿蒂、大黄、厚朴），模型写的「若＋具体表现」条件式加减算合格触发；还有没用上的教材加减时照旧不算（对照）", async () => {
   const tb = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
-  const absorbed = ["竹叶", "石膏", "麦冬", "半夏", "柿蒂", "大黄", "厚朴", "甘草"];
-  assert.equal(tb.conditionalModificationWithoutTextbook("呃逆", "胃火上逆证", "若口干口渴较甚", absorbed), true);
-  assert.equal(tb.conditionalModificationWithoutTextbook("呃逆", "胃火上逆证", "若口干口渴较甚"), false);
-  assert.equal(tb.conditionalModificationWithoutTextbook("呃逆", "胃火上逆证", "若口干口渴较甚", absorbed.filter((name) => name !== "厚朴")), false);
-  assert.equal(contract.finalModificationTriggerGrounded("若口干口渴较甚", { overview: { tcmDiseaseName: "呃逆", primarySyndrome: "胃火上逆证" } }, absorbed), true);
+  // 第三十三轮起教材有条目也可以写（条件句形状合格即可，交付前过跨厂商核对），不再分「药都已并入主方」。
+  assert.equal(tb.conditionalModificationWithoutTextbook("若口干口渴较甚"), true);
+  assert.equal(contract.finalModificationTriggerGrounded("若口干口渴较甚", { overview: { tcmDiseaseName: "呃逆", primarySyndrome: "胃火上逆证" } }), true);
 });
 
 console.log(JSON.stringify({ suite: "r1019-round3", cases, failures: process.exitCode ? "see above" : 0 }));

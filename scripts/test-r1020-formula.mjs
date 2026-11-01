@@ -188,8 +188,8 @@ await check("4.1 痢疾·休息痢：教材「临床可加槟榔、木香、枳�
   assert.deepEqual(row.modifications, []);
   assert.ok(!tb.buildTextbookFormulaContext("痢疾", "休息痢").includes("若临床"));
   assert.equal(tb.textbookModificationMatch("痢疾", "休息痢", "若临床"), undefined);
-  assert.equal(tb.conditionalModificationWithoutTextbook("痢疾", "休息痢", "若脓血便较多", ["人参", "白术"]), true);
-  assert.equal(tb.conditionalModificationWithoutTextbook("痢疾", "休息痢", "若临床", ["人参", "白术"]), true, "条件式路径本身不管这一条（泛称由下面的交付面兜底）");
+  assert.equal(tb.conditionalModificationWithoutTextbook("若脓血便较多"), true);
+  assert.equal(tb.conditionalModificationWithoutTextbook("若临床"), true, "条件式路径本身不管这一条（泛称由下面的交付面兜底）");
 });
 await check("4.1b 全表扫描：原表里条件是泛称的 34 条，载入后一条不剩；其余行的教材加减条数不变（对照：感冒·风寒束表证 6 条）", () => {
   const generic = [];
@@ -350,14 +350,14 @@ await check("8.1 S132 湿疮·血虚风燥证：教材唯一的加减是「瘙�
   assert.equal(row.modifications.length, 1);
   assert.deepEqual(tb.usableTextbookModifications(row), []);
   assert.ok(!tb.buildTextbookFormulaContext("湿疮", "血虚风燥证").includes("【教材加减】"));
-  assert.equal(tb.conditionalModificationWithoutTextbook("湿疮", "血虚风燥证", "若皮损渗液", ["当归", "生地黄"]), true);
+  assert.equal(tb.conditionalModificationWithoutTextbook("若皮损渗液"), true);
 });
 await check("8.1b 对照：条目里有不是安神药的（血证·肾虚火旺证心烦失眠加黄连）、证名病名涉心神（不寐·心脾两虚证）、有别的条目（积滞·食积化热）的行，教材加减原样可用；模型条件式路径对「教材有可用加减」仍关闭", () => {
   for (const [disease, syndrome, expected] of [["血证", "肾虚火旺证", 1], ["不寐", "心脾两虚证", 4], ["积滞", "食积化热证", 8], ["感冒", "风寒束表证", 6]]) {
     const row = tb.textbookRowForSyndrome(disease, syndrome);
     assert.equal(tb.usableTextbookModifications(row).length, expected, `${disease}·${syndrome}`);
   }
-  assert.equal(tb.conditionalModificationWithoutTextbook("感冒", "风寒束表证", "若咳嗽痰黄", ["荆芥", "防风"]), false);
+  assert.equal(tb.conditionalModificationWithoutTextbook("若咳嗽痰黄"), true, "第三十三轮：教材有条目时模型的条件句也算");
   assert.ok(tb.buildTextbookFormulaContext("感冒", "风寒束表证").includes("若恶寒甚，加麻黄、桂枝"));
 });
 

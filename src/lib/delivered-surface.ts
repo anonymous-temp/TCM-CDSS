@@ -26,7 +26,7 @@ import { drugNamesInAllergyPhrases } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
-import { tcmDifferentialDiseaseFitsPatient, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
+import { tcmDifferentialDiseaseFitsPatient, textbookDifferentialsForDisease, textbookFormulaComposition, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
@@ -685,7 +685,9 @@ export function candidateIsOriginalFormula(name: string, herbs: readonly Record<
   if (!trimmed || /(?:加减|化裁|加味)$/u.test(trimmed) || /合/u.test(trimmed) || SELF_COMPOSED_NAME.test(trimmed) || trimmed === "自拟方") return undefined;
   const reference = formulaCompilationReferences([trimmed])[0];
   const optional = new Set(["生姜", "大枣"].map((herb) => compositionIdentityName(herb)));
-  const ingredients = new Set((reference?.ingredients || []).map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, ""))).filter((id) => id && !optional.has(id)));
+  // 目录查不到组成（同名方多个出处锁不住）时用教材这张方的组成。
+  const listed = reference?.ingredients?.length ? reference.ingredients : textbookFormulaComposition(trimmed);
+  const ingredients = new Set(listed.map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, ""))).filter((id) => id && !optional.has(id)));
   if (ingredients.size === 0) return undefined;
   const present = new Set(herbs.map((herb) => compositionIdentityName(String(herb.name || ""))).filter((id) => id && !optional.has(id)));
   return present.size === ingredients.size && [...ingredients].every((id) => present.has(id));
@@ -1248,6 +1250,13 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     }
     // 方名与组成一致（2026-10-26 甲方测评「方名（柴胡疏肝散-柴胡疏肝散加减）」）：方名不带「加减」时，组成与方剂目录的原方逐味相同
     // 才是原方，方义开头写「本方用X原方」；组成不同的方名补「加减」，方义照旧「以X为基础加减」。目录查不到组成的不动。
+    // 写了「加减」、组成却与原方逐味相同（第三十三轮 12/152「方名标加减与实际不符」）：去掉「加减」。
+    if (typeof candidate.name === "string" && /加减$/u.test(candidate.name.trim())) {
+      const base = candidate.name.trim().replace(/加减$/u, "");
+      // 方义自己说了改动（「去原方熟地…以生地黄易之」）时不动：目录写法与教材常有出入，这时不能既说原方又说去了什么。
+      const claimsEdits = typeof candidate.formulaAnalysis === "string" && /去原方|去[^，,。；;]{1,8}之|易之|以[^，,。；;]{1,6}易/u.test(candidate.formulaAnalysis);
+      if (!claimsEdits && candidateIsOriginalFormula(base, records(candidate.herbs)) === true) candidate.name = base;
+    }
     const original = typeof candidate.name === "string" ? candidateIsOriginalFormula(candidate.name, records(candidate.herbs)) : undefined;
     if (original === false && typeof candidate.name === "string") candidate.name = `${candidate.name.trim()}加减`;
     // 方义开头与最终方名一致（自拟方 / 以某方为基础），三种写法同一个判据（withOpeningMatchingFormulaName）。
@@ -1257,7 +1266,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 原方的姜枣引药（甲方 10.29 测评：归脾汤原方「加姜、枣，水煎服」，处方不便列时在用法里说明）。
     const guideNote = omittedGuideHerbNote(candidate.name, records(candidate.herbs));
     const candidateDecoction = record(candidate.decoction);
-    if (guideNote && candidateDecoction && typeof candidateDecoction.method === "string" && !/[姜枣]/u.test(candidateDecoction.method)) {
+    if (guideNote && candidateDecoction && typeof candidateDecoction.method === "string" && !/(?:生姜|煨姜|大枣|姜枣|姜、枣|红枣)/u.test(candidateDecoction.method)) {
       candidateDecoction.method = `${candidateDecoction.method.replace(/[。；;\s]+$/u, "")}；${guideNote}`;
     }
     // 方义里的药名按药味表写（朱茯神→茯神，withMentionsAlignedToTableNames；编译时审过一次，交付面按最终药味表再对一次）；

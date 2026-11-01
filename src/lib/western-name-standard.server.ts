@@ -66,7 +66,7 @@ function parseLink(content: unknown): Established | undefined {
 
 const LINK_VERIFY_SYSTEM = [
   "你是全科主治医师。门诊写诊断的习惯：已确诊的慢性病能解释这次主症时，西医诊断直接写这个病，不写症状（高血压病史的老人以头晕就诊，诊断写高血压病）。",
-  "判断这次主诉主症是不是这个慢性病的常见表现。不要求是唯一解释，也不要求先排除别的原因；只有这个病一般不引起这个症状时才答 false（高血压病之于咳嗽、冠心病之于消瘦）。",
+  "判断这次主诉主症是不是这个慢性病的常见表现。不要求是唯一解释，不要求先排除别的原因，慢性病当前控制得好（如血压控制尚可）也算；只有这个病一般不引起这个症状时才答 false（高血压病之于咳嗽、冠心病之于消瘦）。",
   "只输出 JSON：{\"confirmed\":true} 或 {\"confirmed\":false}",
 ].join("\n");
 
@@ -135,7 +135,7 @@ export async function standardIcdSynonym(name: string, signal?: AbortSignal): Pr
 /** 西医半收尾。redFlag 病例、解析不了时原样返回。 */
 export async function finalizeWesternPrimaryName(
   westernContent: string,
-  context: { recordText: string; redFlag?: boolean },
+  context: { recordText: string; redFlag?: boolean; chiefComplaint?: string },
   signal?: AbortSignal,
 ): Promise<string> {
   if (!westernNameStandardEnabled()) return westernContent;
@@ -159,7 +159,7 @@ export async function finalizeWesternPrimaryName(
       ? {
           messages: [
             { role: "system", content: LINK_VERIFY_SYSTEM },
-            { role: "user", content: JSON.stringify({ current: name, proposed: candidate.name, quote: candidate.quote, chiefComplaint: context.recordText.split("\n").slice(0, 3).join(" ").slice(0, 200) }) },
+            { role: "user", content: JSON.stringify({ current: name, proposed: candidate.name, quote: candidate.quote, chiefComplaint: context.chiefComplaint || context.recordText.split("\n").slice(0, 3).join(" ").slice(0, 200) }) },
           ],
           maxTokens: 40,
           parse: parseConfirmed,

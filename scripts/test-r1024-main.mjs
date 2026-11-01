@@ -211,15 +211,15 @@ await check("4.1 教材两条加减的药（大黄、石膏、知母）都已在
   const herbs = reasoning.formula.modifications.map((item) => item.herbName);
   assert.ok(herbs.includes("白茅根"), JSON.stringify(reasoning.formula.modifications));
 });
-await check("4.2 教材条目补不够两条时用模型的条件句（10/31 起下限两条；大黄教材兜底不自动补）", async () => {
+await check("4.2 模型的条件句保留在前；教材条目在后面补（第三十三轮起按不同条件数补，证候变化写法的条件也可以补）", async () => {
   const reasoning = compiler.compileM04Proposal(toothProposal(["黄连", "升麻", "生地黄", "牡丹皮", "当归", "石膏", "知母"]), tooth);
   const herbs = reasoning.formula.modifications.map((item) => item.herbName);
-  assert.deepEqual(herbs, ["白茅根"], JSON.stringify(reasoning.formula.modifications));
+  assert.equal(herbs[0], "白茅根", JSON.stringify(reasoning.formula.modifications));
   assert.equal(reasoning.formula.modifications[0].evidence.evidenceLevel, "model_inference");
 });
 await check("4.3 规整阶段的判据带上了方中药名", async () => {
   const source = readFileSync(new URL("../src/lib/m04-proposal-compiler.ts", import.meta.url), "utf8");
-  assert.match(source, /modificationTriggerGroundedInM03\(trigger, prior, \[\.\.\.prescribedNameByIdentity\.values\(\)\]\)/);
+  assert.match(source, /modificationTriggerGroundedInM03\(trigger, prior\)/);
 });
 
 console.log("5 兼证判据与治法合并");

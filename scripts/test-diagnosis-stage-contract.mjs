@@ -4555,7 +4555,7 @@ const normalizedModificationProposal = compileM04Proposal({
 }, stable);
 // 10/31 起不足两条时按教材或条件句补到两条（第二行是补的）；格式坏的行仍然进不来。
 assert.ok(!normalizedModificationProposal?.formula?.modifications.some((row) => row.herbName === "模型臆造草" || row.action === "减"), "controlled aliases normalize while malformed optional modifications are dropped");
-assert.equal(normalizedModificationProposal?.formula?.modifications.length, 2);
+assert.ok((normalizedModificationProposal?.formula?.modifications.length || 0) >= 2, "第三十三轮起编译时备到三个不同条件，至少两行");
 assert.equal(normalizedModificationProposal?.formula?.modifications[0].action, "加");
 assert.equal(normalizedModificationProposal?.formula?.modifications[0].herbName, "茯神");
 assert.ok((normalizedModificationProposal?.formula?.modificationReview?.droppedCount || 0) >= 1, "dropped optional modifications must be disclosed");

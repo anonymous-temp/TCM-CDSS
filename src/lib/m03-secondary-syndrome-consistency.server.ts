@@ -3,7 +3,7 @@ import secondaryStructureJson from "../data/tcm-secondary-syndrome-structure.sou
 
 import { affirmedClinicalSourceClauses } from "./clinical-polarity";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
-import { textbookManifestationTerms, textbookRowForSyndrome, type TextbookSyndromeRow } from "./tcm-textbook-syndromes";
+import { isTextbookDiseaseName, textbookManifestationTerms, textbookRowForSyndrome, textbookRowsNamed, type TextbookSyndromeRow } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { claimsSecondaryPattern, declaresSecondaryMechanism, deniesSeparateSecondaryPattern, mechanismClaimsUncoveredBy, ruleOutCueIndex, therapyItemsOnlyFor, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
@@ -520,12 +520,62 @@ const CRITERIA_ORGAN_CHARS = /[心肝脾肺肾胃胆肠]/gu;
 export function compoundCriteriaEntries(name: string): CriteriaEntry[] {
   const clean = compact(name).replace(/证$/u, "");
   const organs = [...new Set(clean.match(CRITERIA_ORGAN_CHARS) || [])];
-  const natureChars = [...clean.replace(CRITERIA_ORGAN_CHARS, "").replace(/[盛炽壅蕴]/gu, "")];
+  const natureChars = [...new Set(clean.replace(CRITERIA_ORGAN_CHARS, "").replace(/[盛炽壅蕴]/gu, ""))];
   if (organs.length === 0 || natureChars.length === 0) return [];
-  const entries = organs.map((organ) => [...CRITERIA_ENTRIES.values()]
-    .filter((entry) => entry.name.includes(organ) && natureChars.some((char) => entry.name.includes(char)))
-    .sort((left, right) => left.name.length - right.name.length)[0]);
-  return entries.every(Boolean) ? entries : [];
+  // 按共有的病性字数取条目，其次取多余字最少的（「痰热郁肺」取痰热壅肺证、「肺胃热盛」取肺热炽盛证，不再因为最短和共有一个「热」字落到风热犯肺证）。
+  const need = Math.ceil(natureChars.length / 2);
+  const pick = (organ: string) => [...CRITERIA_ENTRIES.values()]
+    .filter((entry) => entry.name.includes(organ))
+    .map((entry) => {
+      const core = entry.name.replace(/证$/u, "").replace(CRITERIA_ORGAN_CHARS, "").replace(/[盛炽壅蕴]/gu, "");
+      return { entry, shared: natureChars.filter((char) => core.includes(char)).length, extra: [...core].filter((char) => !natureChars.includes(char)).length };
+    })
+    .filter((item) => item.shared >= need)
+    .sort((left, right) => right.shared - left.shared || left.extra - right.extra || left.entry.name.length - right.entry.name.length)[0]?.entry;
+  const entries = organs.map(pick);
+  return entries.every(Boolean) ? entries as CriteriaEntry[] : [];
+}
+
+/**
+ * 没有脏腑、判据表也没有的证名（交付证名 241 次里 126 次查不到）按证素合成一个条目：气阴两虚 = 气虚 + 阴虚，痰瘀互结 = 痰 + 血瘀，寒凝血瘀 = 寒 + 血瘀，
+ * 风热犯表 = 风 + 热（第三十三轮）。判法与判据表自带的组合证（湿热、痰热）相同：至少 3 条独立表现，每个组成证素至少 1 条。证素对应表在 secondary-structure 数据里。
+ */
+const ELEMENT_ENTRIES = (secondaryStructureJson as unknown as { criteriaElements?: ReadonlyArray<{ pattern: string; entry: string }> }).criteriaElements || [];
+const ELEMENT_TWO_DEFICIENT = new RegExp((secondaryStructureJson as unknown as { criteriaTwoDeficientPattern: string }).criteriaTwoDeficientPattern, "u");
+export function elementCompositeCriteriaEntry(name: string): CriteriaEntry | undefined {
+  let rest = compact(name).replace(/证$/u, "").replace(CRITERIA_ORGAN_CHARS, "");
+  // 「气阴两虚」「气血两亏」：两字各带虚。
+  const twoDeficient = rest.match(ELEMENT_TWO_DEFICIENT);
+  if (twoDeficient) rest = `${twoDeficient[1]}虚${twoDeficient[2]}虚`;
+  const components: string[] = [];
+  for (const { pattern, entry } of ELEMENT_ENTRIES) {
+    const regex = new RegExp(pattern, "u");
+    if (regex.test(rest)) {
+      rest = rest.replace(regex, "");
+      if (!components.includes(entry) && CRITERIA_ENTRIES.has(entry)) components.push(entry);
+    }
+  }
+  if (components.length === 0) return undefined;
+  if (components.length === 1) return CRITERIA_ENTRIES.get(components[0]);
+  return {
+    name: compact(name),
+    line: 0,
+    keyPointsText: "",
+    specific: [],
+    category: null,
+    categoryEntries: [],
+    manifestations: [...new Set(components.flatMap((component) => CRITERIA_ENTRIES.get(component)?.manifestations || []))],
+    components,
+  };
+}
+
+/** 证名在教材证型表里的行（任一病）：判据表和证素都对不上时，用这一证自己的表现当条目，至少 3 条独立表现才算。 */
+function textbookCriteriaEntry(name: string): CriteriaEntry | undefined {
+  const row = textbookRowsNamed(name)[0];
+  const manifestations = row ? textbookManifestationTerms(row) : [];
+  return row && manifestations.length >= 3
+    ? { name: row.syndromeName, line: 0, keyPointsText: "", specific: [], category: null, categoryEntries: [], manifestations }
+    : undefined;
 }
 
 /** 一个兼证名按辨证要点核一遍。查不到条目或小任务失败为 unknown。breadth：证素核对用的宽路径（见 evaluateCriteriaMatches）。 */
@@ -547,7 +597,12 @@ export async function verifySecondaryByCriteria(
   };
   if (entry && (entry.specific.length > 0 || entry.manifestations.length > 0)) return verifyEntry(entry);
   const parts = compoundCriteriaEntries(name);
-  if (parts.length === 0) return unknown;
+  if (parts.length === 0) {
+    const fallback = elementCompositeCriteriaEntry(name) || textbookCriteriaEntry(name);
+    if (fallback) return verifyEntry(fallback);
+    console.info("[tcm-cdss:telemetry] m03_secondary_criteria_miss", { name: compact(name).slice(0, 12) });
+    return unknown;
+  }
   const verdicts = await Promise.all(parts.map(verifyEntry));
   if (verdicts.some((item) => item.verdict === "unknown")) return unknown;
   const failing = verdicts.find((item) => item.verdict === "fail");
@@ -578,11 +633,13 @@ const YANG_DEFICIENT_PRIMARY = anyOf(secondaryStructureJson.yangDeficiencyPrimar
  *   · 主证已经包含：兼证去掉「证」字后是主证名的一部分，或阴虚主证下的「虚热/虚火」、阳虚主证下的「虚寒」。
  * 证名词是封闭的病性字样（不靠模型），与辨证要点核对（verifySecondaryByCriteria）互不替代：这里只拦结构上自相矛盾或重复的。
  */
-export function secondaryStructurallyInvalid(primary: string, secondary: string, rationaleText = ""): "cold_heat_conflict" | "entailed_by_primary" | "declared_not_independent" | undefined {
+export function secondaryStructurallyInvalid(primary: string, secondary: string, rationaleText = ""): "cold_heat_conflict" | "entailed_by_primary" | "declared_not_independent" | "not_a_syndrome" | undefined {
   const p = compact(primary).replace(/证$/u, "");
   const sRaw = compact(secondary);
   const s = sRaw.replace(/证$/u, "");
   if (!p || !s) return undefined;
+  // 兼证栏写的是病名不是证（第三十三轮：便秘·阴虚秘兼「月经先期」）：别的病由鉴别或加减说，不是证候。
+  if (!sRaw.endsWith("证") && isTextbookDiseaseName(s)) return "not_a_syndrome";
   // 依据自己说这组表现「非独立病证」「不另立」，兼证栏却写了它（2026-10-26 甲方测评病历 10：兼证心火亢盛证，
   // 依据末句「夜寐不宁系火热扰心所致，非独立病证」，判「辨证依据与证候矛盾」）。兼证默认不立，按依据撤下兼证。
   // 那一分句须说到兼证名里至少两个字（「火热扰心」对「心火亢盛」），别的兼夹因素的否认句不算。

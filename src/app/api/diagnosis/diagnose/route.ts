@@ -323,7 +323,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
                 decidePatientClaimRemovals(completed, { recordText: patientClaimRecord }, "tcm", transformSignal),
                 decideElementSupport(completed, { recordText: trustedInputText(safeState) }, transformSignal),
                 checkLineageLensInContent(completed, { recordText: patientClaimRecord, lineage: safeState.tcmLineagePreference }, transformSignal),
-                completeMethodCoverage(completed, { recordText: patientClaimRecord }, transformSignal),
+                completeMethodCoverage(completed, { recordText: patientClaimRecord, chiefComplaint: safeState.chiefComplaint || "" }, transformSignal),
               ]);
               // 证素撤下、本例说法删片段之后，病历记录的舌脉只剩在「是否兼X尚待核实」那一句里或整段不见了时，按主证重写一次依据
               //（m03-rationale-coverage，其余病例不发请求）。
@@ -362,7 +362,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
             // 主诊断的写法收尾：症状层面的名字关联已确诊慢性病，查不到编码的归到 ICD 同义写法（western-name-standard.server.ts）。
             return finalizeWesternPrimaryName(
               applyPatientClaimRemovalsToContent(aligned, "western", claimRemovals),
-              { recordText: trustedInputText(safeState), redFlag: redFlagAnalysis },
+              { recordText: trustedInputText(safeState), redFlag: redFlagAnalysis, chiefComplaint: safeState.chiefComplaint || "" },
               transformSignal,
             );
           },

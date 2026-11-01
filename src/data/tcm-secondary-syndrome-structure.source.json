@@ -72,5 +72,60 @@
     "阳虚",
     "阳衰",
     "阳气虚"
-  ]
+  ],
+  "criteriaElements": [
+    {
+      "pattern": "气虚|气亏|气弱|不固|气陷",
+      "entry": "气虚证"
+    },
+    {
+      "pattern": "血虚|血亏|血少",
+      "entry": "血虚证"
+    },
+    {
+      "pattern": "阴虚|阴亏|津亏|津伤|阴伤|伤阴",
+      "entry": "阴虚证"
+    },
+    {
+      "pattern": "阳虚|阳衰|阳亏",
+      "entry": "阳虚证"
+    },
+    {
+      "pattern": "气滞|气郁|郁结|气机不畅",
+      "entry": "气滞证"
+    },
+    {
+      "pattern": "血瘀|瘀血|瘀阻|瘀滞|瘀",
+      "entry": "血瘀证"
+    },
+    {
+      "pattern": "痰",
+      "entry": "痰证"
+    },
+    {
+      "pattern": "饮",
+      "entry": "饮证"
+    },
+    {
+      "pattern": "寒",
+      "entry": "寒证"
+    },
+    {
+      "pattern": "热|火",
+      "entry": "热证"
+    },
+    {
+      "pattern": "湿",
+      "entry": "湿淫证"
+    },
+    {
+      "pattern": "风",
+      "entry": "风淫证"
+    },
+    {
+      "pattern": "燥",
+      "entry": "燥淫证"
+    }
+  ],
+  "criteriaTwoDeficientPattern": "^([气血阴阳])([气血阴阳])(?:两虚|两亏|俱虚|亏虚|不足)"
 }

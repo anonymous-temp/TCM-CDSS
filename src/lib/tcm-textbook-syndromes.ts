@@ -35,6 +35,7 @@ export interface TextbookSyndromeRow {
   formulas: string[];
   formulaJoin: string;
   composition: string[];
+  compositionByFormula?: Array<{ formula: string; herbs: string[] }>;
   modifications: Array<{ condition: string; herbs: string[]; raw: string }>;
 }
 
@@ -611,29 +612,77 @@ export function usableTextbookModifications(row: TextbookSyndromeRow): TextbookS
   return row.modifications.filter((item) => !textbookModificationIsIncidentalSleep(item, scope));
 }
 
+/**
+ * 教材加减条目编号（2026-11-01 第三十三轮）：提示词里每条带编号（E3），模型选中时写编号，服务端按编号取条件与药味。
+ * 此前模型把条件和药名抄回来，服务端再按字面把它对回教材（乌贼骨与海螵蛸对不上、条件差几个字对不上，都整行丢掉）。编号在这一行内固定：过滤不改号。
+ */
+function textbookEntryPromptLines(row: TextbookSyndromeRow, recordText?: string): string[] {
+  const usable = new Set(usableTextbookModifications(row));
+  return row.modifications
+    .map((item, index) => ({ item, id: `E${index + 1}` }))
+    .filter(({ item }) => usable.has(item) && (!recordText || !modificationConditionTonguePulseConflict(item.condition, recordText)))
+    .slice(0, 8)
+    .map(({ item, id }) => `${id} 若${item.condition.replace(/^若/, "")}，加${item.herbs.join("、")}`);
+}
+
+/** 按编号取本证（或这张方）教材行的加减条目。编号无效时 undefined，这一行当模型自写处理。 */
+export function textbookEntryById(
+  diseaseName: string,
+  syndromeName: string,
+  formulaNames: readonly string[],
+  id: unknown,
+): { condition: string; herbs: readonly string[] } | undefined {
+  const at = /^E(\d{1,2})$/u.exec(String(id || "").trim())?.[1];
+  if (!at) return undefined;
+  const row = textbookRowForSyndrome(diseaseName, syndromeName) || textbookRowForFormula(diseaseName, formulaNames, syndromeName);
+  const entry = row?.modifications[Number(at) - 1];
+  return entry && entry.herbs.length > 0 ? { condition: entry.condition, herbs: entry.herbs } : undefined;
+}
+
 /** 开方提示词里的教材方药段：已定证型的代表方组成与教材加减。 */
 /** 证名查不到行时，把这张方在教材里列的加减给开方阶段看（只有加减，方与治法不动）。 */
 export function buildFormulaModificationContext(diseaseName: string, syndromeName: string, formulaNames: readonly string[], recordText = ""): string {
   if (textbookRowForSyndrome(diseaseName, syndromeName)) return "";
-  const row = textbookRowForFormula(diseaseName, formulaNames);
+  const row = textbookRowForFormula(diseaseName, formulaNames, syndromeName);
   if (!row) return "";
-  const lines = usableTextbookModifications(row)
-    .filter((item) => !recordText || !modificationConditionTonguePulseConflict(item.condition, recordText))
-    .slice(0, 8).map((item) => `若${item.condition.replace(/^若/, "")}，加${item.herbs.join("、")}`);
-  return lines.length > 0 ? `【教材加减】（这张方在${textbookRowProvenance(row)}下的加减）${lines.join("；")}。写 modifications 时优先用这里的条件与药味。` : "";
+  const lines = textbookEntryPromptLines(row, recordText);
+  return lines.length > 0 ? `【教材加减】（这张方在${textbookRowProvenance(row)}下的加减）${lines.join("；")}。写 modifications 时优先用这里的条目，选中的在该行写 textbookEntry。` : "";
 }
 
 export function buildTextbookFormulaContext(diseaseName: string, syndromeName: string, input: TextbookCaseInput = {}): string {
   const row = textbookRowForSyndrome(diseaseName, syndromeName, input);
   if (!row) return "";
-  const modifications = usableTextbookModifications(row)
-    .filter((item) => !input.recordText || !modificationConditionTonguePulseConflict(item.condition, input.recordText))
-    .slice(0, 8).map((item) => `若${item.condition.replace(/^若/, "")}，加${item.herbs.join("、")}`);
+  const modifications = textbookEntryPromptLines(row, input.recordText);
   return [
     `【教材方药】${row.disease}·${row.syndromeName}（《${row.book}》）：治法 ${row.therapy}；代表方 ${formulaLabel(row)}${row.composition.length > 0 ? `（${row.composition.join("、")}）` : ""}。`
       + `辨证阶段已定用该代表方：candidate.name 写“${formulaLabel(row)}加减”，candidate.herbs 以该方组成为主体（保留其大部分药味），再按本例病机加减，增减合计不超过 4 味；不要另起一张方。`,
     modifications.length > 0 ? `【教材加减】${modifications.join("；")}。` : "",
   ].filter(Boolean).join("\n");
+}
+
+/** 教材写的这张方的组成（合方行按方拆开的 compositionByFormula；只认这张方单列的）。 */
+export function textbookFormulaComposition(formulaName: string): readonly string[] {
+  const wanted = compact(formulaName);
+  for (const disease of DISEASES) {
+    for (const row of disease.rows) {
+      const hit = row.compositionByFormula?.find((item) => compact(item.formula) === wanted && item.herbs.length > 0);
+      if (hit) return hit.herbs;
+    }
+  }
+  return [];
+}
+
+/** 这个名字是教材的一个病（节名）。 */
+export function isTextbookDiseaseName(name: string): boolean {
+  const wanted = compact(name);
+  return DISEASES.some((disease) => [disease.disease, ...disease.aliases].map(compact).includes(wanted));
+}
+
+/** 证名（去掉「证」字比）在教材证型表里的行，不限病。 */
+export function textbookRowsNamed(syndromeName: string): TextbookSyndromeRow[] {
+  const wanted = compact(syndromeName).replace(/证$/u, "");
+  if (wanted.length < 2) return [];
+  return DISEASES.flatMap((disease) => disease.rows.filter((row) => compact(row.syndromeName).replace(/证$/u, "") === wanted));
 }
 
 export function textbookTableStats(): { diseases: number; rows: number } {
@@ -648,22 +697,10 @@ export function textbookTableStats(): { diseases: number; rows: number } {
  * 放开的只是「触发条件可以是模型写的条件句」，其余边界不变：药味须在标准药材资料内、用量在药典范围内、
  * 不与方中药味相反、不与本例已定治法方向相悖（这一类不豁免方向核对）。
  * 仍不接受的写法：不以「若」开头；说的是流程或泛指而不是具体症状（复诊时、症状变化时、必要时、效果不佳、需要时…）。
- * 教材该证有加减时不走这条路——那时只认教材条件与已记录表现。
+ * 第三十三轮起教材该证有加减时也走这条路：此前只认教材条件与已记录表现，「若腰膝酸软→枸杞子」这类合理的行 155 份处方里被丢 39 行，
+ * 又要靠条目够不够两条来回放开（textbookThin）。模型自写的行不豁免方向核对，并在交付前过一次跨厂商核对（m04-modification-fit）。
  */
-export function conditionalModificationWithoutTextbook(
-  diseaseName: string,
-  syndromeName: string,
-  trigger: string,
-  /** 处方药味。教材这一证的加减药都已在方中（教材加减已并入主方）时，按「教材没有可用加减」处理（2026-10-19 留出例 S067 石淋、S044 模型照提示改写本证常见变化的条件式加减，被判「触发条件不能回溯」，随证加减一栏是空的）。不给时照旧。 */
-  candidateHerbNames: readonly string[] = [],
-  /** 教材条目不够用时（本证教材行列的加减留下不足两条，见 m04-proposal-compiler）也接受模型写的条件句。 */
-  options: { textbookThin?: boolean } = {},
-): boolean {
-  const row = textbookRowForSyndrome(diseaseName, syndromeName);
-  const inCandidate = (herb: string) => candidateHerbNames.some((name) => name.includes(herb) || herb.includes(name));
-  const rowModifications = row ? usableTextbookModifications(row) : [];
-  const textbookUsable = Boolean(row && rowModifications.some((item) => item.herbs.length === 0 || item.herbs.some((herb) => !inCandidate(herb))));
-  if (!options.textbookThin && row && rowModifications.length > 0 && (candidateHerbNames.length === 0 || textbookUsable)) return false;
+export function conditionalModificationWithoutTextbook(trigger: string): boolean {
   return modelConditionalTriggerShape(trigger);
 }
 
@@ -697,7 +734,7 @@ export function modelConditionalTriggerShape(trigger: string): boolean {
  */
 const RECORD_TONGUE = /舌(?:质|象|体)?[：:]?\s*([^，,。；;、\n苔]{1,5})/u;
 const RECORD_COATING = /苔(?:质|色)?[：:]?\s*([^，,。；;、\n]{1,5})/u;
-const RECORD_PULSE = /脉(?:象)?[：:]?\s*([^。；;\n]{1,8})/u;
+const RECORD_PULSE = /(?<![静动经血通])脉(?:象)?[：:]?\s*([^。；;\n]{1,8})/u;
 const tongueColorOf = (value: string): string | undefined => {
   if (/淡红/u.test(value)) return "淡红";
   if (/绛/u.test(value)) return "绛";
@@ -710,10 +747,9 @@ const coatingColorOf = (value: string): string | undefined => (/黄/u.test(value
 const pulseRateOf = (value: string): string | undefined => (/数/u.test(value) ? "数" : /[迟缓]/u.test(value) ? "迟" : undefined);
 export function modificationConditionTonguePulseConflict(trigger: string, recordText: string): boolean {
   const conflict = (pattern: RegExp, read: (value: string) => string | undefined) => {
-    const inCondition = trigger.match(pattern)?.[1];
-    const inRecord = recordText.match(pattern)?.[1];
-    if (!inCondition || !inRecord) return false;
-    const [left, right] = [read(inCondition), read(inRecord)];
+    // 取第一处读得出取值的（「舌痛。舌淡苔白」的「舌痛」读不出舌色，不能挡住后面的「舌淡」）。
+    const firstValue = (text: string) => [...text.matchAll(new RegExp(pattern.source, "gu"))].map((match) => read(match[1])).find(Boolean);
+    const [left, right] = [firstValue(trigger), firstValue(recordText)];
     return Boolean(left && right && left !== right);
   };
   if (conflict(RECORD_TONGUE, tongueColorOf) || conflict(RECORD_COATING, coatingColorOf)) return true;
@@ -729,19 +765,36 @@ export function modificationConditionTonguePulseConflict(trigger: string, record
  * 模型自己写「若心慌较重，加白芍、当归」；教材不寐·心脾两虚证的归脾汤写的是「偏血虚者，加熟地黄、芍药、阿胶」）。
  * 同病优先，其次任一病；只取确实列了加减的行。
  */
-export function textbookRowForFormula(diseaseName: string, formulaNames: readonly string[]): TextbookSyndromeRow | undefined {
-  const names = new Set(formulaNames.map((name) => compact(String(name || ""))).filter((name) => name.length >= 2));
+const FORMULA_DOSAGE_FORM = /(?:汤|丸|散|饮|丹|膏|颗粒|胶囊|口服液|片)$/u;
+const formulaBaseName = (name: string) => compact(name).replace(FORMULA_DOSAGE_FORM, "");
+/** 证名去掉「证」字后共有的字数：借别的病的行时，至少要说的是同一类证。 */
+function syndromeCharOverlap(left: string, right: string): number {
+  const other = new Set(compact(right).replace(/证$/u, ""));
+  return new Set([...compact(left).replace(/证$/u, "")].filter((char) => other.has(char))).size;
+}
+export function textbookRowForFormula(diseaseName: string, formulaNames: readonly string[], syndromeName = "", options: { sameDiseaseOnly?: boolean } = {}): TextbookSyndromeRow | undefined {
+  const names = new Set(formulaNames.map((name) => formulaBaseName(String(name || ""))).filter((name) => name.length >= 2));
   if (names.size === 0) return undefined;
-  const usable = (row: TextbookSyndromeRow) => row.modifications.length > 0 && row.formulas.some((name) => names.has(compact(name)));
+  const usable = (row: TextbookSyndromeRow) => row.modifications.length > 0 && row.formulas.some((name) => names.has(formulaBaseName(name)));
   for (const disease of diseasesNamed(diseaseName)) {
     const hit = disease.rows.find(usable);
     if (hit) return hit;
   }
+  if (options.sameDiseaseOnly) return undefined;
+  // 别的病的行（第三十三轮：外感高热借了烧伤·火毒伤津证、消渴借了肺胀·阳虚水泛证的加减）：证要说的是同一类，至少共有两个字；取共有字最多的。
+  // 只借内科或本科的（第三十三轮：成人痹证借了儿科硬肿症的「若硬肿甚」）。
+  const ownDepartment = diseasesNamed(diseaseName)[0]?.department;
+  let best: TextbookSyndromeRow | undefined;
+  let bestOverlap = 1;
   for (const disease of DISEASES) {
-    const hit = disease.rows.find(usable);
-    if (hit) return hit;
+    if (disease.department !== "内科" && disease.department !== ownDepartment) continue;
+    for (const row of disease.rows) {
+      if (!usable(row)) continue;
+      const overlap = syndromeCharOverlap(syndromeName, row.syndromeName);
+      if (overlap > bestOverlap) { best = row; bestOverlap = overlap; }
+    }
   }
-  return undefined;
+  return best;
 }
 
 export function textbookModificationMatch(
@@ -753,9 +806,10 @@ export function textbookModificationMatch(
   sameHerb?: (textbookName: string, herbName: string) => boolean,
   /** 证名查不到教材行时，用这张方在教材里的行（textbookRowForFormula）。 */
   formulaNames: readonly string[] = [],
-): { book: string; disease: string; syndromeName: string; condition: string; raw: string; herbs: readonly string[] } | undefined {
-  const row = textbookRowForSyndrome(diseaseName, syndromeName) || textbookRowForFormula(diseaseName, formulaNames);
+): { book: string; disease: string; syndromeName: string; condition: string; raw: string; herbs: readonly string[]; crossDisease: boolean } | undefined {
+  const row = textbookRowForSyndrome(diseaseName, syndromeName) || textbookRowForFormula(diseaseName, formulaNames, syndromeName);
   if (!row) return undefined;
+  const crossDisease = !diseasesNamed(diseaseName).some((disease) => disease.rows.includes(row));
   const wanted = compact(trigger).replace(/^(?:若|如|如果|兼见|兼有|兼|见|伴有?|出现)/, "").replace(/(?:者|时)$/, "");
   if (wanted.length < 2) return undefined;
   const herb = herbName ? compact(herbName) : "";
@@ -766,11 +820,12 @@ export function textbookModificationMatch(
     const longer = condition.length <= wanted.length ? wanted : condition;
     const overlap = grams.length > 0 ? grams.filter((gram) => longer.includes(gram)).length / grams.length : 0;
     if (!(condition === wanted || condition.includes(wanted) || wanted.includes(condition) || overlap >= 0.6)) continue;
+    // 判同一味药有 sameHerb 就只用它（附子不是白附子）；没给时才退回字面包含。
     if (herb && !item.herbs.some((name) => {
       const candidate = compact(name);
-      return candidate === herb || candidate.includes(herb) || herb.includes(candidate) || Boolean(sameHerb?.(name, herbName as string));
+      return candidate === herb || (sameHerb ? sameHerb(name, herbName as string) : candidate.includes(herb) || herb.includes(candidate));
     })) continue;
-    return { book: row.book, disease: row.disease, syndromeName: row.syndromeName, condition: item.condition, raw: item.raw, herbs: item.herbs };
+    return { book: row.book, disease: row.disease, syndromeName: row.syndromeName, condition: item.condition, raw: item.raw, herbs: item.herbs, crossDisease };
   }
   return undefined;
 }

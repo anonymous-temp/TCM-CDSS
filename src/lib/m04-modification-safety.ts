@@ -1,4 +1,4 @@
-import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, textbookModificationsThin, m04CandidateOpposingDirectionIndices, m04HerbOpposingDirectionIssue, m04ModificationSafetyIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04CandidateOpposingDirectionIndices, m04HerbOpposingDirectionIssue, m04ModificationSafetyIssue, signedTextbookFormulaIngredients, m04GenerationSpecialPopulationIssue, normalizeComparableDose } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
@@ -78,9 +78,7 @@ export function dropUnsupportedM04ModificationDirections(
       // Rows the safety floor would reject (dose text, unknown herb, unsupported high-impact
       // direction) are dropped below by the floor's own predicate — deletion only, never accepted.
       const trigger = typeof modification.trigger === "string" ? modification.trigger.trim() : "";
-      const candidateHerbNames = (Array.isArray(firstCandidate?.herbs) ? firstCandidate.herbs : [])
-        .map((herb) => String(recordValue(herb)?.name || "").trim()).filter(Boolean);
-      if (!trigger || !finalModificationTriggerGrounded(trigger, prior, candidateHerbNames, { textbookThin: textbookModificationsThin(modifications.map((row) => recordValue(row) || {}), prior) })) return false;
+      if (!trigger || !finalModificationTriggerGrounded(trigger, prior)) return false;
       const fields = normalizedFormulaModificationFields(modification);
       // 最终出口再核一次「加的药已在方中 / 减的药不在方中」（2026-09-29 甲方测评 2.2：腰痛例建议加熟地黄，
       // 而熟地黄已在原方）。编译期 normalizeModifications 按**当时**的药味核过，但 candidate 定向修复会

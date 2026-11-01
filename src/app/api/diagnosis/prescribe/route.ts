@@ -527,7 +527,7 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     m04CandidateTransform: async (content, transformSignal) => {
       const [checked, fitted, authored] = await Promise.all([
         checkFormulaAnalysisClaimsInContent(content, transformSignal),
-        dropMisfitModifications(content, transformSignal),
+        dropMisfitModifications(content, { recordText: structuredClinicalContext }, transformSignal),
         homeAcupointAuthoring,
       ]);
       authoredHomeAcupoint = authored;

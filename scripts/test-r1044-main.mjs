@@ -154,12 +154,6 @@ await check("2.2 条件句的形状：症状变化可以；舌脉与另立证候
   assert.equal(textbook.modelConditionalTriggerShape("若口渴多饮"), true);
 });
 
-await check("2.3 教材留下不足两条时模型条件句算合格；够两条时不算", () => {
-  const prior = priorOf("胃痛", "脾胃虚寒证");
-  const one = [{ trigger: "泛酸", herbName: "海螵蛸" }];
-  assert.equal(contract.textbookModificationsThin(one, prior), true);
-  assert.equal(contract.textbookModificationsThin([{ trigger: "泛酸", herbName: "海螵蛸" }, { trigger: "泛酸", herbName: "煅瓦楞子" }], prior), false);
-});
 
 await check("2.4 条件写的舌脉与本次已记录相反：不用（教材行也一样）", () => {
   const record = "舌淡，苔薄白，脉细弱";
@@ -269,16 +263,6 @@ await check("4.3 流派句按摘录删分句", () => {
   assert.match(out, /暑湿初起/);
 });
 
-await check("4.4 治法补项的提名要合格：2–4 字、没写过、两条逐字摘录、方中有这项功效", () => {
-  const context = { method: "疏风散寒，宣肺止咳", recordText: "咳嗽痰多，色白质稀，晨起明显。", formulaNames: ["二陈汤"], rowComposition: ["半夏", "陈皮", "茯苓", "甘草"] };
-  assert.equal(method.methodItemQualifies({ item: "化痰", quotes: ["咳嗽痰多", "色白质稀"] }, context), true);
-  assert.equal(method.methodItemQualifies({ item: "化痰", quotes: ["咳嗽痰多"] }, context), false, "摘录不足两条");
-  assert.equal(method.methodItemQualifies({ item: "化痰", quotes: ["咳嗽痰多", "病历没有的话"] }, context), false, "摘录不逐字");
-  assert.equal(method.methodItemQualifies({ item: "化痰", quotes: ["咳嗽痰多，色白质稀"] }, context), true, "一条里写了两项也算两条");
-  assert.equal(method.methodItemQualifies({ item: "止咳", quotes: ["咳嗽痰多", "色白质稀"] }, context), false, "已经写过");
-  assert.equal(method.methodItemQualifies({ item: "活血化瘀", quotes: ["咳嗽痰多", "色白质稀"] }, context), false, "方中没有这项功效");
-});
-
 await check("4.5 治法核对先逐组列：只取没人管的组，排序保留", () => {
   const groups = method.parseUncoveredGroups(JSON.stringify({ groups: [
     { findings: ["咳嗽"], coveredBy: "宣肺止咳", item: "" },
@@ -286,7 +270,7 @@ await check("4.5 治法核对先逐组列：只取没人管的组，排序保留
     { findings: ["鼻塞"], coveredBy: null, item: "通窍" },
     { findings: ["乏力"], coveredBy: "益气", item: "补气" },
   ] }));
-  assert.deepEqual(groups.map((group) => group.item), ["化痰", "通窍"]);
+  assert.deepEqual(groups.filter((group) => group.item).map((group) => group.item), ["化痰", "通窍"]);
   assert.equal(method.parseUncoveredGroups("not json"), undefined);
   assert.deepEqual(method.parseUncoveredGroups("[]"), []);
 });
@@ -439,9 +423,10 @@ await check("6.5 加减下限：不足两条时按教材补，至多补到要的
   const stub = (item) => [{ herbName: item.herbName, doseOrHandling: item.dose, trigger: item.trigger }];
   const prior = { stage: "diagnose", overview: { tcmDiseaseName: "不寐", primarySyndrome: "心脾气血两虚证", recommendedFormulaNames: ["归脾汤"] }, pathogenesis: { chain: [{ nodeId: "P1" }] } };
   const rows = compiler.textbookFallbackModifications(prior, ["人参", "白术"], stub, 2);
-  assert.ok(rows.length >= 1 && rows.length <= 2, `得到 ${rows.length} 条`);
+  assert.ok(rows.length >= 1 && rows.length <= 4, `得到 ${rows.length} 条`);
+  assert.ok(compiler.distinctModificationConditions(rows) <= 2);
   assert.equal(compiler.textbookFallbackModifications({ ...prior, overview: { ...prior.overview, recommendedFormulaNames: [] } }, ["人参"], stub, 2).length, 0);
-  assert.ok(compiler.textbookFallbackModifications(prior, ["人参", "白术"], stub, 1).length <= 1);
+  assert.ok(compiler.distinctModificationConditions(compiler.textbookFallbackModifications(prior, ["人参", "白术"], stub, 1)) <= 1);
 });
 
 console.log(`\n${cases} checks`);

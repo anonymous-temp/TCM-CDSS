@@ -4,6 +4,7 @@ import { textbookDistinctHerbKey, textbookEntryName } from "./herb-textbook-iden
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import doctrinePhrasesJson from "../data/tcm-formula-doctrine-phrases.source.json";
 import herbClaimConceptsJson from "../data/tcm-herb-claim-concepts.source.json";
+import herbUsageNamesJson from "../data/tcm-herb-usage-names.json";
 
 /**
  * 模型写的方解怎么审（2026-09-29，甲方 9.24/9.27 医学测评第 6 条）。
@@ -111,6 +112,33 @@ function isUnrelatedAmbiguousAlias(token: string): boolean {
   const unrelated = candidates.length > 0 && candidates.every((candidate) => ![...token].some((char) => candidate.includes(char)));
   unrelatedAliasCache.set(token, unrelated);
   return unrelated;
+}
+
+/**
+ * 自由文本里，一个词算不算「点了一味方外药」（2026-11-01 第三十三轮）。
+ * 把《方剂学》方解原文拿来自检：139 首里 62 首被判含方外药、连句删改。根因是别名表 6461 条里 4672 条来自未复核的中草药数据集
+ *（unique_source_backed：血通→千年健、能消→威灵仙、重药→鱼腥草、旁通→蒺藜），又是在没有分词的文本上滑窗匹配，于是「活血通络」「能消水肿」都成了药名，
+ * 「牛膝活血通经」被剪成「牛膝活经」。这一类名字可以用来归一药味表，不能用来删模型写的话。
+ * 只有两条都成立才算：名字可靠（药典正名、人工裁定、或在教材与方剂目录的组成里真的作为药名出现过，表由 build-herb-usage-names.mjs 生成；炮制字头去掉后还得是两字以上的名字）；位置像药名（句首，或紧跟连接、配伍用字）——
+ * 前面贴着实词的是词组的一部分（「宁神益智」「四君子」）。判不准时不算方外药：方义多留一个词的代价，远小于把对的句子删残。
+ */
+const HERB_USAGE_NAMES = new Set<string>((herbUsageNamesJson as { names: string[] }).names);
+const HERB_PROCESSING_PREFIX = /^(?:蜜炙|麸炒|土炒|醋制|酒制|盐制|姜制|炒|炙|煅|制|生|焦|炮)/u;
+const HERB_POSITION_LEAD = /[、，,。；;：:（(和与及同配伍合佐臣君使以用加助兼并且而入取选重若如去除减易代共由因于为中有含又更再另亦则故更将把]/u;
+export function herbWordReliableInFreeText(token: string): boolean {
+  const reliable = (name: string) => {
+    const status = resolveGovernedTcmHerbIdentity(name).status;
+    if (status === "unique_source_backed") return HERB_USAGE_NAMES.has(name);
+    return status !== "unmapped" || Boolean(getTcmHerbDoseLimit(name)) || HERB_USAGE_NAMES.has(name);
+  };
+  if (reliable(token)) return true;
+  const stripped = token.replace(HERB_PROCESSING_PREFIX, "");
+  return stripped !== token && stripped.length >= 2 && reliable(stripped);
+}
+export function mentionInHerbPosition(text: string, start: number): boolean {
+  if (start <= 0) return true;
+  const previous = text[start - 1];
+  return !/[一-鿿]/u.test(previous) || HERB_POSITION_LEAD.test(previous);
 }
 
 /** 最长匹配识别文中的药名（跳过方名与书名片段、与所指药味毫不相干的歧义别名）。 */
@@ -494,6 +522,8 @@ export function withMentionsAlignedToTableNames(text: string, candidateHerbs: re
     if (insideAny(mention.start, shielded)) continue;
     const token = mention.token;
     if (tableNames.includes(token)) continue;
+    // 「并制半夏之毒」「以制附子之燥」：这里的「制」是动词，不是炮制字头，去掉就成了「并半夏之毒」（第三十三轮：半夏厚朴汤一类方义 5/84）。
+    if (/^制/u.test(token) && /^(?:之|毒|燥|寒|热|烈|腻|性)/u.test(text.slice(mention.end, mention.end + 1))) continue;
     // 饮片切制规格「片」（2026-10-20 第八轮，X-G-0811/1737/2146/0679/0629：方义写「黄芩片」「酒黄连片」「鹿茸片」，药味表是「黄芩」「黄连」「鹿茸」）：
     // 模型把药典的饮片名（黄芩片）抄进方义，服务端把药味表的名字归成基原药名（黄芩）、炮制栏记「切片」，方义里的写法没有跟着归一。
     // 去掉末尾的「片」后与药味表同名、或只差前面的炮制字时，按药味表的写法改（下面的判据对去片后的名字照用）。
@@ -1251,6 +1281,15 @@ export function reviewAuthoredFormulaAnalysis(
       mentionedOwn.add(identity || mention.token);
       continue;
     }
+    // 品种未定的属名，候选里有本方的药（芍药之于白芍、贝母之于浙贝母、沙参之于北沙参）：就是这味药。
+    const ambiguity = resolveGovernedTcmHerbIdentity(mention.token);
+    const ownByGenus = ambiguity.status === "ambiguous"
+      ? (ambiguity.candidates || []).find((candidate) => ownRaw.has(candidate) || ownIdentities.has(identityOf(candidate)))
+      : undefined;
+    if (ownByGenus) {
+      mentionedOwn.add(identityOf(ownByGenus) || ownByGenus);
+      continue;
+    }
     // 本方药味的简称：《方剂学》写银翘散用「竹叶」，方中写「淡竹叶」。此前「竹叶」被当成方外药，连句删掉，甲方 10.29 测评第二次方义只剩
     //「淡豆豉、淡竹叶为佐，豆豉宣郁透热，甘草为使」。只认没有单独用量记载的名字（竹叶）：附子与白附子各有药典用量，是两味药。
     const ownLongForm = [...ownRaw].find((own) => own.length > mention.token.length && own.endsWith(mention.token));
@@ -1271,6 +1310,7 @@ export function reviewAuthoredFormulaAnalysis(
     const before = text.slice(Math.max(0, listStart - 6), listStart);
     const after = text.slice(mention.end, mention.end + 6);
     if (EXEMPT_PREFIX.test(before) || EXEMPT_SUFFIX.test(after)) continue;
+    if (!herbWordReliableInFreeText(mention.token) || !mentionInHerbPosition(text, mention.start)) continue;
     foreign.push(mention);
   }
   const foreignHerbs = [...new Set(foreign.map((item) => item.token))];

@@ -1041,7 +1041,9 @@ export function m03DoseLevelInstructionFindings(
   if (typeof value === "string") {
     const findings: Array<{ path: string; kind: "herb_dose" | "regimen" }> = [];
     if (containsKnownHerbDose(value, sourceText)) findings.push({ path, kind: "herb_dose" });
-    if (M03_REGIMEN_INSTRUCTION.test(value.normalize("NFKC"))) findings.push({ path, kind: "regimen" });
+    // 病历自己写的旧处方（「每日1剂」「水煎服」）模型照引不是开方（第三十三轮：公开病历 2/50 因此修复三轮、160 秒后落占位页）。
+    const regimen = value.normalize("NFKC").match(M03_REGIMEN_INSTRUCTION)?.[0];
+    if (regimen && !(sourceText && sourceText.normalize("NFKC").replace(/\s+/gu, "").includes(regimen.replace(/\s+/gu, "").replace(/[，,。；;]$/u, "")))) findings.push({ path, kind: "regimen" });
     return findings;
   }
   if (Array.isArray(value)) {
@@ -2639,15 +2641,6 @@ export function sameHerbIdentity(left: string, right: string): boolean {
   return Boolean(a) && a === canonicalTcmHerbIdentity(right);
 }
 
-/** 交付行里教材条目是否不足两条：不足时模型的条件句也算合格（编译器放开第三类触发的同一判据）。 */
-export function textbookModificationsThin(
-  modifications: ReadonlyArray<{ trigger?: unknown; herbName?: unknown; name?: unknown; herb?: unknown }>,
-  prior: M03ReasoningLike | null | undefined,
-): boolean {
-  if (!prior) return false;
-  return modifications.filter((row) => isTextbookConditionalModification(row.trigger, String(row.herbName ?? row.herb ?? row.name ?? ""), prior)).length < 2;
-}
-
 /** M03 定下的基础方（证名查不到教材行时，教材加减按这张方找）。 */
 function priorFormulaNames(prior: M03ReasoningLike): string[] {
   const names = (prior.overview as { recommendedFormulaNames?: unknown } | undefined)?.recommendedFormulaNames;
@@ -2655,24 +2648,23 @@ function priorFormulaNames(prior: M03ReasoningLike): string[] {
 }
 
 export function isTextbookConditionalModification(trigger: unknown, herbName: string, prior: M03ReasoningLike): boolean {
-  return Boolean(textbookModificationMatch(
+  // 借别的病的行不算本证教材条目：条件说的不是这一证的变化，要过方向核对（第三十三轮）。
+  const match = textbookModificationMatch(
     String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""), String(trigger || ""), herbName, sameHerbIdentity,
     priorFormulaNames(prior),
-  ));
+  );
+  return Boolean(match) && !match?.crossDisease;
 }
 
 export function finalModificationTriggerGrounded(
   trigger: string,
   prior?: M03ReasoningLike | null,
-  candidateHerbNames: readonly string[] = [],
-  /** 本证教材条目留下不足两条时，模型按本证常见兼症写的条件句也算（编译器同一判据，见 textbookModificationsThin）。 */
-  options: { textbookThin?: boolean } = {},
 ): boolean {
   if (!prior) return false;
   // 已定证型在教材里的一条加减（「若恶寒甚」）是合格的条件句触发，不要求病历里已经出现。
   if (textbookModificationMatch(String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""), trigger, undefined, undefined, priorFormulaNames(prior))) return true;
-  // 教材没有给这一证列加减（或列的加减药都已在方中）时，模型按本证常见兼症写的条件式加减（与编译器同一判据）。
-  if (conditionalModificationWithoutTextbook(String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""), trigger, candidateHerbNames, options)) return true;
+  // 模型按本证常见兼症写的条件式加减（与编译器同一判据）。
+  if (conditionalModificationWithoutTextbook(trigger)) return true;
   if (/(?:^|[，,；;])\s*(?:若|如|当|一旦)|复诊时|接诊时核实|症状变化时|出现时|加重时|未缓解时|以后出现/.test(trigger)) return false;
   const normalizedTrigger = normalizedModificationTrigger(trigger);
   if (normalizedTrigger.length < 2) return false;
@@ -4719,7 +4711,7 @@ export function m04SemanticIssue(
     if (!action) return `modification_${modificationIndex}_action`;
     const herbName = formulaModificationHerbName(modification);
     if (!herbName) return `modification_${modificationIndex}_herb`;
-    if (!finalModificationTriggerGrounded(String(modification.trigger), priorReasoning, [...prescribedHerbs], { textbookThin: textbookModificationsThin(reasoning.formula?.modifications || [], priorReasoning) })) {
+    if (!finalModificationTriggerGrounded(String(modification.trigger), priorReasoning)) {
       return `modification_${modificationIndex}_trigger_ungrounded`;
     }
     if (!modificationDoseWithinPharmacopoeia(modification.doseOrHandling, herbName, action)) {

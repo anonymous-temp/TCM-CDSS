@@ -17,9 +17,10 @@ async function runOne<T>(
   timeoutMs: number,
   parse: (content: unknown) => T | undefined,
   signal?: AbortSignal,
+  temperature = 0,
 ): Promise<T | undefined> {
   if (signal?.aborted || !config.configured) return undefined;
-  return memoizedSmallTask<T | undefined>(namespace, smallTaskMemoKey([config.model, messages]), async () => {
+  return memoizedSmallTask<T | undefined>(namespace, smallTaskMemoKey([config.model, temperature, messages]), async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const abort = () => controller.abort();
@@ -27,7 +28,7 @@ async function runOne<T>(
     try {
       const response = await observeModelTask({ task: namespace, stage, model: config.model }, () => createTextModelClient(config).chat.completions.create({
         model: config.model,
-        temperature: 0,
+        temperature,
         max_tokens: maxTokens,
         stream: false,
         response_format: { type: "json_object" },
@@ -104,6 +105,43 @@ export async function proposeThenVerifyFirst<P>(
   }));
   const at = verdicts.findIndex((verdict) => verdict === true);
   return at >= 0 ? proposals[at] : undefined;
+}
+
+/**
+ * 提名抽两次取并集，每条提名由另一厂商的模型复核，复核说对的留下（按提名顺序，至多 limit 项）。
+ * 单次提名波动大：同一份咳嗽痰多病历，同一个模型一次答「化痰没人管」、一次把痰也算在「宣肺止咳」头上。漏提名没有第二次机会，错提名有复核挡着，所以提名取并集。
+ * 两次都用 deepseek-flash（约 1 秒，第二次带一点温度）：试过让 qwen3.8-flash 也提名，p50 2.7 秒，M03、M04 各慢约 2 秒，还多提名没道理的（纳差算「若纳呆」相反）。
+ */
+export async function proposeTwiceThenVerifyAll<P>(
+  namespace: string,
+  stage: "diagnose" | "prescribe",
+  propose: { messages: Messages; maxTokens: number; parse: (content: unknown) => P[] | undefined },
+  sameProposal: (proposal: P) => string,
+  verify: (proposal: P) => { messages: Messages; maxTokens: number; parse: (content: unknown) => boolean | undefined } | undefined,
+  limit: number,
+  timeoutMs: number,
+  signal?: AbortSignal,
+): Promise<P[]> {
+  const primary = getControlledTerminologyModelConfig();
+  const [first, second] = await Promise.all([
+    runOne(namespace, stage, primary, propose.messages, propose.maxTokens, timeoutMs, propose.parse, signal),
+    runOne(`${namespace}_second`, stage, primary, propose.messages, propose.maxTokens, timeoutMs, propose.parse, signal, 0.4),
+  ]);
+  const seen = new Set<string>();
+  const proposals = [...(first || []), ...(second || [])].filter((proposal) => {
+    const key = sameProposal(proposal);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (proposals.length === 0) return [];
+  const verdicts = await Promise.all(proposals.map((proposal) => {
+    const request = verify(proposal);
+    return request
+      ? runOne(`${namespace}_verify`, stage, textModelConfigForModel(CROSS_CHECK_MODEL()), request.messages, request.maxTokens, timeoutMs, request.parse, signal)
+      : Promise.resolve(undefined);
+  }));
+  return proposals.filter((_, index) => verdicts[index] === true).slice(0, limit);
 }
 
 /** 复核答案里的 yes/no：{"confirmed":true|false}。 */

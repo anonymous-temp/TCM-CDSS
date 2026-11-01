@@ -179,7 +179,7 @@ for (const [written, expected] of [["头痛", "头痛"], ["虚劳", "虚劳"], [
   assert.equal(finalModificationTriggerGrounded("若复诊时出现失眠", prior), false);
   const context = textbook.buildTextbookFormulaContext("感冒", "风寒束表证");
   assert.match(context, /【教材方药】感冒·风寒束表证/);
-  assert.match(context, /【教材加减】若恶寒甚，加麻黄、桂枝/);
+  assert.match(context, /【教材加减】E1 若恶寒甚，加麻黄、桂枝/);
 }
 
 // 去掉「证」只剩一个字的证名也能按病找到教材行（吐酸·热证；此前返回空，方名与加减都拿不到教材依据）。
@@ -227,8 +227,9 @@ assert.equal(textbook.textbookRowForSyndrome("不存在的病", "热证"), undef
   assert.ok(fallbackOnly(factTriggered), `剔除后只剩教材补的条目：${JSON.stringify(factTriggered.map((item) => [item.trigger, item.herbName]))}`);
   // 对照二：教材条件、但药不在该条教材加减里（把枳壳写成枳实）→ 不算教材加减。
   const wrongHerb = compileM04Proposal(proposal([{ ...textbookRow, trigger: "若痰湿中阻，胸脘满闷甚", herbName: "枳实", reason: "行气消痞" }]), prior).formula.modifications;
-  assert.ok(!wrongHerb.some((item) => item.herbName === "枳实"), "药名必须在该条教材加减里");
-  assert.ok(fallbackOnly(wrongHerb), `剔除后只剩教材补的条目：${JSON.stringify(wrongHerb.map((item) => [item.trigger, item.herbName]))}`);
+  // 第三十三轮起模型的条件句合格，这一行留下，但不算教材条目（出处不写教材、证据低，交付前过跨厂商核对）。
+  const wrongRow = wrongHerb.find((item) => item.herbName === "枳实");
+  assert.ok(!wrongRow || wrongRow.evidence?.evidenceLevel === "model_inference", "药不在该条教材加减里就不算教材条目");
 }
 
 // ── 7b2. 教材没有给这一证列加减时：模型写的条件式加减在边界内接受 ─────────────────────────────
@@ -237,11 +238,11 @@ assert.equal(textbook.textbookRowForSyndrome("不存在的病", "热证"), undef
 {
   const row = textbook.textbookRowForSyndrome("湿疮", "脾虚湿蕴证");
   assert.ok(row && row.modifications.length === 0, "夹具：湿疮·脾虚湿蕴证在教材对照表里没有加减");
-  const ok = (trigger) => textbook.conditionalModificationWithoutTextbook("湿疮", "脾虚湿蕴证", trigger);
+  const ok = (trigger) => textbook.conditionalModificationWithoutTextbook(trigger);
   for (const trigger of ["若瘙痒较甚，夜间难眠", "若渗液较多", "若兼见纳呆腹胀", "若大便溏薄"]) assert.equal(ok(trigger), true, trigger);
   for (const trigger of ["复诊时若出现失眠", "若复诊时瘙痒加重", "若症状加重", "若必要时", "若效果不佳", "瘙痒较甚", "若病情变化", "若"]) assert.equal(ok(trigger), false, trigger);
   // 教材该证有加减时不走这条路：只认教材条件与已记录表现。
-  assert.equal(textbook.conditionalModificationWithoutTextbook("感冒", "风寒束表证", "若咳嗽较甚，痰稀色白"), false);
+  assert.equal(textbook.conditionalModificationWithoutTextbook("若咳嗽较甚，痰稀色白"), true, "第三十三轮：教材有条目时模型的条件句也算");
 
   const { compileM04Proposal } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
   const { finalModificationTriggerGrounded: finalGrounded } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");

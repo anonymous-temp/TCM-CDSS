@@ -1654,10 +1654,11 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     const orderedOrAnchoredMethod = bleedingOrderedMethod && bleedingOrderedMethod !== String(reasoning.therapy?.overallMethod || "")
       ? bleedingOrderedMethod
       : textbookOrLineageMethod;
-    // 治法覆盖核对（m03-method-coverage）补的一项经过跨模型复核，教材锚定换回原文时接在后面，不然「化痰」补了也留不住。
+    // 治法覆盖核对（m03-method-coverage）补的几项经过跨模型复核，教材锚定换回原文时接在后面，不然「化痰」补了也留不住。
     const verifiedItem = String((reasoning.therapy as { verifiedMethodItem?: unknown } | undefined)?.verifiedMethodItem || "").trim();
-    const anchoredMethod = orderedOrAnchoredMethod && verifiedItem && !orderedOrAnchoredMethod.includes(verifiedItem)
-      ? `${orderedOrAnchoredMethod.replace(/[，,。；;\s]+$/u, "")}，${verifiedItem}`
+    const verifiedAbsent = verifiedItem.split(/[，,]/u).map((item) => item.trim()).filter((item) => item && !orderedOrAnchoredMethod.includes(item));
+    const anchoredMethod = orderedOrAnchoredMethod && verifiedAbsent.length > 0
+      ? `${orderedOrAnchoredMethod.replace(/[，,。；;\s]+$/u, "")}，${verifiedAbsent.join("，")}`
       : orderedOrAnchoredMethod;
     return lineageDecisionsMatchingDirection(withoutForeignLineageLensSentence({
       ...reasoning,

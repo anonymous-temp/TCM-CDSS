@@ -1,4 +1,5 @@
-import { conditionalModificationWithoutTextbook, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
+import sameSourceHerbsJson from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
+import { conditionalModificationWithoutTextbook, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { incidentalSleepSedativeModification, incidentalSleepTriggerModification, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
 
 import { z } from "zod";
@@ -518,6 +519,8 @@ export const M04ProposalSchema = z.object({
     symptomPathogenesis: z.preprocess(unwrapSingleText, z.string().min(2).max(80).optional()),
     actionType: z.enum(["add", "remove", "adjust"]),
     herbName: z.string().min(1).max(120),
+    // 选自【教材加减】时的条目编号（E3）：服务端按编号取教材的条件，不再按字面把模型抄回来的话对回教材（第三十三轮）。
+    textbookEntry: z.string().max(8).optional(),
     // 加味的建议剂量（2026-10-13，甲方 10.12 测评：加减没有剂量，还带一句「请在药味工作台确定剂量」）。
     // 模型写单一数值加 g；服务端按药典范围核对（越界夹到边界，儿童再按年龄分数折算），不合格式则按范围取常用量。
     dose: z.string().max(20).optional(),
@@ -752,15 +755,9 @@ const MODIFICATION_FACT_CONCEPTS = [
 export function modificationTriggerGroundedInM03(
   trigger: string,
   prior?: ClinicalReasoningResultV2 | null,
-  /**
-   * 方中药味。教材这一证的加减药都已在方中时，模型写的条件式加减照样可用（conditionalModificationWithoutTextbook）。
-   * 2026-10-21 第十二轮：规整阶段调用这里时没给药名，那条豁免只在后面的编译阶段生效，模型的条件式加减在规整阶段就被判
-   *「触发条件不能回溯」丢光——甲方病历 7（牙痛·胃火上炎，清胃散已含大黄、石膏、知母）约每 3 次 1 次加减为空。
-   */
-  candidateHerbNames: readonly string[] = [],
 ): boolean {
   return Boolean(resolveModificationTriggerSource(trigger, prior)) || Boolean(textbookModificationForPrior(trigger, prior))
-    || modelConditionalModificationForPrior(trigger, prior, candidateHerbNames);
+    || modelConditionalModificationForPrior(trigger, prior);
 }
 
 /**
@@ -803,16 +800,30 @@ export function modificationHerbIncompatibleWithCandidate(herbName: string, cand
 export function modelConditionalModificationForPrior(
   trigger: string,
   prior?: ClinicalReasoningResultV2 | null,
-  candidateHerbNames: readonly string[] = [],
-  options: { textbookThin?: boolean } = {},
 ): boolean {
   if (!prior || prior.stage !== "diagnose") return false;
-  return conditionalModificationWithoutTextbook(prior.overview.tcmDiseaseName || "", prior.overview.primarySyndrome || "", trigger, candidateHerbNames, options);
+  return conditionalModificationWithoutTextbook(trigger);
 }
 
 /** 触发条件是已定证型在教材里的一条加减（tcm-textbook-syndromes.textbookModificationMatch）。 */
+const SAME_SOURCE_GROUPS = (sameSourceHerbsJson as { groups: ReadonlyArray<{ herbs: string[] }> }).groups;
+function sameSourceHerbInCandidate(herbName: string, candidateHerbNames: readonly string[]): boolean {
+  return SAME_SOURCE_GROUPS.some((group) => group.herbs.some((name) => sameHerbIdentity(name, herbName)) &&
+    candidateHerbNames.some((other) => !sameHerbIdentity(other, herbName) && group.herbs.some((name) => sameHerbIdentity(name, other))));
+}
+
 /** 交付的随证加减不少于这么多条（教材与模型都给不出时除外）。 */
 const MIN_DELIVERED_MODIFICATIONS = 2;
+/**
+ * 编译时往上备到这么多个不同的条件：交付前的跨厂商核对（m04-modification-fit）还可能删行。
+ * 「至少两条」按不同的条件算：同一条件拆成两味药（「若潮热甚：加白薇」「若潮热甚：加秦艽」）是一条加减（第三十三轮 12/152 份这样凑够两行）。
+ */
+const MODIFICATION_CONDITION_TARGET = 3;
+const MAX_MODEL_MODIFICATION_ROWS = 4;
+const MAX_DELIVERED_MODIFICATION_ROWS = 4;
+export function distinctModificationConditions(rows: ReadonlyArray<{ trigger?: unknown }>): number {
+  return new Set(rows.map((row) => String(row.trigger || "").normalize("NFKC").replace(/[\s，,。；;、]/gu, "").replace(/^(?:若|如果|如)/u, "")).filter(Boolean)).size;
+}
 
 export function textbookModificationForPrior(
   trigger: string,
@@ -1122,6 +1133,24 @@ export function addModificationReasonSaysRemove(herbName: string, reason: string
   return new RegExp(`暂去|去之|删去|去掉(?:此|本|该)药|(?:此|本|该)药(?:暂)?去|去${escaped}`, "u").test(reason);
 }
 
+/**
+ * 模型写了教材条目编号：条件用教材原文（不再按字面把模型的转述对回教材）。这味药须在该条里，否则编号作废、这行当模型自写。
+ * 两味一组的条目（交泰丸「肉桂、黄连」）是成方配对，只写了一味时把另一味一起带上（第三十三轮：单列黄连、单列肉桂）。
+ */
+function expandTextbookEntryRow(item: unknown, prior?: ClinicalReasoningResultV2 | null): unknown[] {
+  if (!isRecord(item) || prior?.stage !== "diagnose") return [item];
+  const entry = textbookEntryById(prior.overview.tcmDiseaseName || "", prior.overview.primarySyndrome || "", prior.overview.recommendedFormulaNames || [], item.textbookEntry);
+  const herbName = unwrapSingleText(item.herbName ?? item.herb ?? item["药味"] ?? item["药名"]);
+  if (!entry || !herbName || !entry.herbs.some((name) => sameHerbIdentity(name, herbName))) return [item];
+  const trigger = `若${entry.condition.replace(/^(?:若|如果|如)/u, "")}`;
+  const rows: unknown[] = [{ ...item, trigger }];
+  if (entry.herbs.length === 2) {
+    const partner = entry.herbs.find((name) => !sameHerbIdentity(name, herbName));
+    if (partner) rows.push({ ...item, trigger, herbName: partner, herb: undefined, dose: undefined });
+  }
+  return rows;
+}
+
 function normalizeModifications(
   value: unknown,
   prior?: ClinicalReasoningResultV2 | null,
@@ -1136,7 +1165,16 @@ function normalizeModifications(
       : [],
   );
   const droppedReasons: ModificationDropCode[] = [];
-  const normalizedItems = value.flatMap((item) => {
+  // 模型把一组两味都写了时，带上另一味会重复，同条件同药只留一行（否则占满行数上限，后面补不进别的条件）。
+  const seenRows = new Set<string>();
+  const expanded = value.flatMap((item) => expandTextbookEntryRow(item, prior)).filter((item) => {
+    if (!isRecord(item)) return true;
+    const key = `${unwrapSingleText(item.trigger ?? item["触发条件"]) || ""}|${modificationHerbIdentity(canonicalTcmHerbIdentity(unwrapSingleText(item.herbName ?? item.herb ?? item["药味"] ?? item["药名"]) || ""))}|${String(item.actionType ?? item.action ?? "")}`;
+    if (seenRows.has(key)) return false;
+    seenRows.add(key);
+    return true;
+  });
+  const normalizedItems = expanded.flatMap((item) => {
     const drop = (reason: ModificationDropCode) => {
       droppedReasons.push(reason);
       return [];
@@ -1162,7 +1200,7 @@ function normalizeModifications(
       return drop("contains_unaudited_dose");
     }
     // 条件句的形状合格就先留下：教材条目够不够用要等编译阶段（compileModification）才知道。
-    if (!modificationTriggerGroundedInM03(trigger, prior, [...prescribedNameByIdentity.values()]) && !modelConditionalTriggerShape(trigger)) return drop("trigger_not_current_fact");
+    if (!modificationTriggerGroundedInM03(trigger, prior) && !modelConditionalTriggerShape(trigger)) return drop("trigger_not_current_fact");
     const normalizedHerbName = canonicalTcmHerbIdentity(herbName.trim());
     // 随症加减是可选决策支持，不能让一条模型臆造的药味、病机引用或动作拖垮
     // 已通过核心契约的候选处方。服务端只保留知识库可识别且与当前上下文一致的行。
@@ -1198,17 +1236,22 @@ function normalizeModifications(
       ...(symptomPathogenesis ? { symptomPathogenesis } : { symptomPathogenesis: undefined }),
     }];
   });
-  if (normalizedItems.length > 4) {
+  if (normalizedItems.length > MAX_MODEL_MODIFICATION_ROWS) {
     droppedReasons.push(...Array.from(
-      { length: normalizedItems.length - 4 },
+      { length: normalizedItems.length - MAX_MODEL_MODIFICATION_ROWS },
       () => "bounded_limit" as const,
     ));
   }
-  const items = normalizedItems.slice(0, 4);
+  const items = normalizedItems.slice(0, MAX_MODEL_MODIFICATION_ROWS);
   // 钳到契约上限：submittedCount 的 `.max(30)` 没有 catch，31 条**可选**随症加减会让整份
   // M04 提案落到 T1 硬拒且无修复引导——直接违反本文件上方写下的不变量（畸形的可选行不得
   // 作废一份完整的核心处方）。真实提交量另走日志，不进契约。
   return { items, submittedCount: Math.min(value.length, MODIFICATION_REVIEW_COUNT_LIMIT), droppedReasons };
+}
+
+/** 测试用：规整后的加减行。 */
+export function normalizeModificationsForTest(value: unknown, prior: ClinicalReasoningResultV2): Array<{ trigger: string; herbName: string }> {
+  return normalizeModifications(value, prior).items as unknown as Array<{ trigger: string; herbName: string }>;
 }
 
 function summarizeModificationReview(
@@ -1766,23 +1809,32 @@ export function textbookFallbackModifications<T extends { doseOrHandling: string
   prior: ClinicalReasoningResultV2,
   candidateHerbNames: readonly string[],
   compile: (item: M04Proposal["modifications"][number]) => T[],
+  /** 要补几个不同的条件。 */
   limit = 2,
+  existingTriggers: readonly string[] = [],
+  maxRows = MAX_DELIVERED_MODIFICATION_ROWS,
 ): T[] {
+  // 自动补只用本病的行；别的病的行只给模型看，用不用由模型定（第三十三轮：血虚寒凝的痹证被自动补上硬肿症的「若硬肿甚」）。
   const row = textbookRowForSyndrome(String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || "")) ||
-    textbookRowForFormula(String(prior.overview?.tcmDiseaseName || ""), prior.overview?.recommendedFormulaNames || []);
+    textbookRowForFormula(String(prior.overview?.tcmDiseaseName || ""), prior.overview?.recommendedFormulaNames || [], String(prior.overview?.primarySyndrome || ""), { sameDiseaseOnly: true });
+  const seenConditions = (trigger: string) => distinctModificationConditions([...existingTriggers.map((value) => ({ trigger: value })), { trigger }]) === distinctModificationConditions(existingTriggers.map((value) => ({ trigger: value })));
   const targetRef = prior.pathogenesis?.chain?.[0]?.nodeId;
   if (!row || !targetRef || row.modifications.length === 0) return [];
   const present = new Set(candidateHerbNames.map((name) => modificationHerbIdentity(name)));
   const out: T[] = [];
-  for (const entry of row.modifications) {
-    if (out.length >= limit) break;
+  let addedConditions = 0;
+  // 一味一行的条目先补，两味一组的占两行放后面：行数有上限，先多凑不同的条件。
+  for (const entry of [...row.modifications].sort((left, right) => Number(left.herbs.length === 2) - Number(right.herbs.length === 2))) {
+    if (addedConditions >= limit || out.length >= maxRows) break;
     const condition = String(entry.condition || "").trim().replace(/^(?:若|如果|如)/u, "").replace(/(?:者|时)$/u, "");
     if (condition.length < 2 || condition.length > 24 || TEXTBOOK_CONDITION_NOT_OBSERVABLE.test(condition)) continue;
     // 条件得是一种变化（症状或证候的变化），不是教材的泛称（「临床可加」「方中…」「症状较严重者」）、不夹药名方名
     //（「若气血虚甚者，重用黄芪」「常用人参、黄芪…」）。泛称是有限闭集。
     const trigger = `若${condition}`;
-    const terms = modificationConditionSymptomTerms(trigger).filter((term) => !TEXTBOOK_CONDITION_GENERIC_TERM.test(term));
-    if (terms.length === 0 || formulaAnalysisHerbMentions(condition).length > 0) continue;
+    if (seenConditions(trigger)) continue;
+    // 条件写的是证候变化（「阳虚甚」「热偏重」）也可以补：与本例相不相反由交付前的核对判。此前要求切得出症状词，教材 4983 条里 780 条因此补不上，
+    // 模型把一条拆成两行时第二个条件就没了（第三十三轮 12/152）。泛称与夹着药名方名的仍不要。
+    if (TEXTBOOK_CONDITION_GENERIC_TERM.test(condition) || formulaAnalysisHerbMentions(condition).length > 0) continue;
     const compileHerb = (written: string): T | undefined => {
       const herbName = canonicalTcmHerbIdentity(String(written || "").trim());
       if (!herbName || !isKnownTcmHerbName(herbName)) return undefined;
@@ -1805,13 +1857,14 @@ export function textbookFallbackModifications<T extends { doseOrHandling: string
     if (entry.herbs.length <= 2) {
       // 两味一组的（「夜梦纷纭，时醒时寐，加肉桂、黄连」即交泰丸）：方中没有的几味都过得了才补、一起补，不拆开只补一味。
       const rows = absent.map(compileHerb);
-      if (rows.some((row) => !row) || out.length + rows.length > limit) continue;
+      if (rows.some((row) => !row) || out.length + rows.length > maxRows) continue;
       out.push(...(rows as T[]));
+      addedConditions += 1;
     } else {
       // 三味以上并列的（「口干舌燥者，加沙参、天花粉、玄参、知母」）是可选的几味：取第一味过得了的。
       for (const written of absent) {
         const row = compileHerb(written);
-        if (row) { out.push(row); break; }
+        if (row) { out.push(row); addedConditions += 1; break; }
       }
     }
   }
@@ -2223,7 +2276,7 @@ export function compileM04Proposal(
     .filter(Boolean);
   type ProposalModification = M04Proposal["modifications"][number];
   const candidateIdentities = new Set(candidateHerbNames.map((name) => modificationHerbIdentity(name)));
-  const compileModification = (item: ProposalModification, dropReasons: ModificationDropCode[] = directionDropReasons, textbookThin = false) => {
+  const compileModification = (item: ProposalModification, dropReasons: ModificationDropCode[] = directionDropReasons) => {
     // 减、调整的药得还在最终药味里（编译时可能去掉了顺带的安神药、合并了同身份的行）：成方合同按最终药味核，对不上就整份修复。
     if (item.actionType !== "add" && !candidateIdentities.has(modificationHerbIdentity(item.herbName))) {
       dropReasons.push("action_conflicts_with_candidate");
@@ -2245,7 +2298,8 @@ export function compileM04Proposal(
     // 方向核对只管「针对本例现有表现」的加减。教材加减是条件式的（「若见口苦、苔黄腻，加黄连、竹茹」）：
     // 条件说的正是证候起了变化，药的方向随条件走，不该拿当前主证去核——此前痰浊头痛的这条教材加减
     // 因「清热与主证方向不符」被整条丢掉（2026-10-13，合成集加减为空 12 例里的一类）。
-    if (!textbookSource && item.actionType === "add" && highImpactHerbDirectionIssue(item.herbName, declaredDirection, prior)) {
+    // 借别的病的行不享受这个豁免：那条条件说的不是这一证的变化（第三十三轮：肺脾两虚借哮病·肺虚证「若阳虚甚…加附子」）。
+    if ((!textbookSource || textbookSource.crossDisease) && item.actionType === "add" && highImpactHerbDirectionIssue(item.herbName, declaredDirection, prior)) {
       dropReasons.push("direction_conflict");
       return [];
     }
@@ -2262,7 +2316,7 @@ export function compileM04Proposal(
       return [];
     }
     const triggerSource = textbookSource ? undefined : resolveModificationTriggerSource(item.trigger, prior);
-    const modelConditional = !textbookSource && !triggerSource && modelConditionalModificationForPrior(item.trigger, prior, candidateHerbNames, { textbookThin });
+    const modelConditional = !textbookSource && !triggerSource && modelConditionalModificationForPrior(item.trigger, prior);
     if (!textbookSource && !triggerSource && !modelConditional) {
       dropReasons.push("trigger_not_current_fact");
       return [];
@@ -2274,6 +2328,11 @@ export function compileM04Proposal(
     }
     if (caseState && modificationConditionOutsidePopulation(item.trigger, caseState)) {
       dropReasons.push("trigger_outside_population");
+      return [];
+    }
+    // 拟加的药与方中某味同源同向（方中已有干姜又加生姜）：方中药味定稿时同一张表只留一味，加减这边此前没过（第三十三轮 5/142）。
+    if (item.actionType === "add" && sameSourceHerbInCandidate(item.herbName, candidateHerbNames)) {
+      dropReasons.push("action_conflicts_with_candidate");
       return [];
     }
     // 拟加的药不得与方中任何一味相反（十八反）。此前只有「可替换药味」做了这项排除，加味本身没有。
@@ -2326,7 +2385,7 @@ export function compileM04Proposal(
       // 证据等级按来源（2026-10-22 第十五轮）：教材该证的加减是标准资料（出处由证据清洗按教材表逐字核验）；
       // 病历原文触发是病例内推理；教材没有、模型按本证常见兼症写的条件句是病例内推理、低。
       // 此前一律写 model_inference，教材出处又带书名号，被证据清洗降成「证据不足」并清空出处（已存 567 条里 499 条）。
-      evidence: textbookSource
+      evidence: textbookSource && !textbookSource.crossDisease
         ? {
             evidenceLevel: "kb_entry" as const,
             source: `${textbookRowProvenance(textbookSource)}加减：${textbookSource.raw}`,
@@ -2334,34 +2393,37 @@ export function compileM04Proposal(
           }
         : {
             evidenceLevel: "model_inference" as const,
-            source: triggerSource ? `患者原文：${triggerSource.sourceQuote}` : MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE,
+            source: triggerSource ? `患者原文：${triggerSource.sourceQuote}`
+              : textbookSource ? `参照同方在${textbookSource.disease}·${textbookSource.syndromeName}下的加减`
+                : MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE,
             confidence: triggerSource ? "中" as const : "低" as const,
           },
     }];
   };
   const modelModifications = proposal.modifications.flatMap((item) => compileModification(item));
-  // 随证加减至少两条（2026-10-31，甲方 10.29 测评「仅生成 1 个不足以满足临床」；历史 1073 张处方 118 张 ≤1 条）。
-  // 不足时先按本证教材条目补（textbookFallbackModifications，同一套判据），教材也补不够时用模型自己写的、形状合格的条件句
-  //（教材条目留下不足两条，第三类触发才放开，见 finalModificationTriggerGrounded 的同一判据）。只增不改模型留下的行。
-  const withTextbook = modelModifications.length >= MIN_DELIVERED_MODIFICATIONS
-    ? modelModifications
-    : [...modelModifications, ...textbookFallbackModifications(
+  // 随证加减至少两个不同的条件（2026-10-31，甲方 10.29 测评「仅生成 1 个不足以满足临床」；历史 1073 张处方 118 张 ≤1 条）。
+  // 编译时备到 MODIFICATION_CONDITION_TARGET 个（交付前的跨厂商核对还可能删行），从本证教材条目补（textbookFallbackModifications，同一套判据）。只增不改模型留下的行。
+  const conditionsShort = MODIFICATION_CONDITION_TARGET - distinctModificationConditions(modelModifications);
+  const withConditionals: typeof modelModifications = conditionsShort > 0 && modelModifications.length < MAX_DELIVERED_MODIFICATION_ROWS
+    ? [...modelModifications, ...textbookFallbackModifications(
         prior,
         [...candidateHerbNames, ...modelModifications.map((row) => row.herbName)],
         (item) => compileModification(item, []),
-        MIN_DELIVERED_MODIFICATIONS - modelModifications.length,
-      )];
-  const withConditionals = [...withTextbook];
-  if (withConditionals.length < MIN_DELIVERED_MODIFICATIONS) {
-    for (const item of proposal.modifications) {
-      if (withConditionals.length >= MIN_DELIVERED_MODIFICATIONS) break;
-      if (withConditionals.some((row) => sameHerbIdentity(row.herbName, item.herbName))) continue;
-      const rows = compileModification(item, [], true);
-      if (rows.length === 0) continue;
-      withConditionals.push(...rows);
-      const at = directionDropReasons.indexOf("trigger_not_current_fact");
-      if (at >= 0) directionDropReasons.splice(at, 1);
-    }
+        conditionsShort,
+        modelModifications.map((row) => row.trigger),
+        MAX_DELIVERED_MODIFICATION_ROWS - modelModifications.length,
+      )]
+    : modelModifications;
+  // 教材只有这一个条件、模型也只写了它：把这一条里的另一味补上，至少是两行（不再有别的条件可补）。
+  if (withConditionals.length > 0 && withConditionals.length < MIN_DELIVERED_MODIFICATIONS) {
+    withConditionals.push(...textbookFallbackModifications(
+      prior,
+      [...candidateHerbNames, ...withConditionals.map((row) => row.herbName)],
+      (item) => compileModification(item, []),
+      1,
+      [],
+      MIN_DELIVERED_MODIFICATIONS - withConditionals.length,
+    ));
   }
   const compiledModifications = withoutMutuallyIncompatibleAdditions(withConditionals, candidateHerbNames, directionDropReasons);
   const m03FormulaNames = Array.isArray(prior.overview.recommendedFormulaNames)
