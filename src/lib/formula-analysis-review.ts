@@ -471,6 +471,13 @@ export function withRecountedHerbCountWords(text: string, candidateHerbs: readon
       const after = sentence.slice(offset + match.length);
       if (after.startsWith("子") || COUNT_WORD_IN_FORMULA_NAME.test(after)) return match;
       const stated = numeral === "两" ? 2 : CHINESE_NUMERAL.indexOf(numeral);
+      // 数量词紧跟一串顿号并列的药（「…炙甘草、大枣、饴糖五味」）：说的就是这一串，按这一串数（第三十三轮 B07 去掉生姜后写成五味，实有六味）。
+      const listed = (sentence.slice(0, offset).split(/[，,；;]/u).pop() || "").split("、").map(headIdentity);
+      if (listed.length >= 2 && listed.every(Boolean) && new Set(listed).size === listed.length && listed.length <= 9) {
+        if (listed.length === stated) return match;
+        changed = true;
+        return `${CHINESE_NUMERAL[listed.length]}${unit}`;
+      }
       // 本句数量词之前按分号分段：当前段里从后往前数的任意几味，或从当前段往前整段整段地加，等于原数就不动
       //（「白芍、当归…；白术、茯苓…，四味共为臣」跨分号指前后两段四味）。
       const segments = sentence.slice(0, offset).split(/[；;]/u).map(subjectsOf);
