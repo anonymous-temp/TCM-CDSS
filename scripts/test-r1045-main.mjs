@@ -126,6 +126,21 @@ await check("2.2c 治法核对：两次提名都有的项复核没通过时换�
   const shared = readFileSync("src/lib/cross-model-small-task.server.ts", "utf8");
   assert.match(shared, /verdict !== true && options\.recheckAgreed && inFirst\.has\(key\) && inSecond\.has\(key\)/u);
 });
+await check("2.2d 已被说到的不再补：两字一节都在治法里算说到；锚定时逐项判", () => {
+  assert.equal(provenance.methodItemAlreadyCovered("调经止血", "清热凉血调经，止血"), true);
+  assert.equal(provenance.methodItemAlreadyCovered("凉血止血", "清热凉血调经，止血"), true);
+  assert.equal(provenance.methodItemAlreadyCovered("化痰", "疏风散寒，宣肺止咳"), false);
+  assert.equal(provenance.methodItemAlreadyCovered("制酸降逆", "温中健脾，和胃止痛"), false);
+  assert.equal(method.methodItemQualifies({ item: "调经止血", quotes: [], fromModel: true }, { method: "清热凉血调经，止血", recordText: "" }), false);
+  const base = {
+    stage: "diagnose",
+    overview: { tcmDiseaseName: "咳嗽", primarySyndrome: "风寒袭肺证", overallTherapy: "x", recommendedFormulaDirection: "三拗汤合止嗽散加减", secondarySyndromes: [] },
+    pathogenesis: { chain: [], locationDifferentiation: { items: ["肺"] } },
+    therapy: { overallMethod: "x", verifiedMethodItem: "止咳化痰，化痰止咳" },
+  };
+  const out = provenance.withDeterministicFormulaReferences(base, "咳嗽痰多");
+  assert.equal((out.therapy.overallMethod.match(/化痰/gu) || []).length, 1, out.therapy.overallMethod);
+});
 await check("2.3 补的几项都带过教材锚定；重复的不接；并行结果也接几项", () => {
   const base = {
     stage: "diagnose",

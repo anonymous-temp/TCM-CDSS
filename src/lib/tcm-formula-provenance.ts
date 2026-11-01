@@ -1326,6 +1326,19 @@ function textbookMethodItem(item: string): boolean {
 function textbookMethodItems(sentence: string): string[] {
   return sentence.split(/[，,、]/u).map((item) => item.trim()).filter(Boolean);
 }
+/**
+ * 补的治法项是否已被现有治法说到：两字一节，每一节都已在治法里（「调经止血」之于「清热凉血调经，止血」）。
+ * 第三十三轮生产上甲方病历 10 补成「清热凉血调经，止血，调经止血，凉血止血」。
+ */
+export function methodItemAlreadyCovered(item: string, method: string): boolean {
+  const text = item.trim();
+  if (!text) return true;
+  if (method.includes(text)) return true;
+  if (text.length % 2 !== 0) return false;
+  const pairs = text.match(/[\s\S]{2}/gu) || [];
+  return pairs.every((pair) => method.includes(pair));
+}
+
 export function textbookAnchorableMethod(therapy: string): string {
   const body = String(therapy || "").trim().replace(/[。；;]+$/u, "");
   const sentences = body.split(/[。；;]/u).map((part) => part.trim()).filter(Boolean);
@@ -1656,10 +1669,11 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
       : textbookOrLineageMethod;
     // 治法覆盖核对（m03-method-coverage）补的几项经过跨模型复核，教材锚定换回原文时接在后面，不然「化痰」补了也留不住。
     const verifiedItem = String((reasoning.therapy as { verifiedMethodItem?: unknown } | undefined)?.verifiedMethodItem || "").trim();
-    const verifiedAbsent = verifiedItem.split(/[，,]/u).map((item) => item.trim()).filter((item) => item && !orderedOrAnchoredMethod.includes(item));
-    const anchoredMethod = orderedOrAnchoredMethod && verifiedAbsent.length > 0
-      ? `${orderedOrAnchoredMethod.replace(/[，,。；;\s]+$/u, "")}，${verifiedAbsent.join("，")}`
-      : orderedOrAnchoredMethod;
+    // 逐项接：前一项接上后，后一项可能已被说到（调经止血、凉血止血）。
+    const anchoredMethod = verifiedItem.split(/[，,]/u).map((item) => item.trim()).filter(Boolean).reduce(
+      (method, item) => (!method || methodItemAlreadyCovered(item, method) ? method : `${method.replace(/[，,。；;\s]+$/u, "")}，${item}`),
+      orderedOrAnchoredMethod,
+    );
     return lineageDecisionsMatchingDirection(withoutForeignLineageLensSentence({
       ...reasoning,
       overview: {

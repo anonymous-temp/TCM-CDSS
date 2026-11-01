@@ -1,7 +1,7 @@
 import "server-only";
 
 import { parseConfirmed, proposeTwiceThenVerifyAll } from "./cross-model-small-task.server";
-import { textbookAnchorableMethod } from "./tcm-formula-provenance";
+import { methodItemAlreadyCovered, textbookAnchorableMethod } from "./tcm-formula-provenance";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { quoteGroundedInText } from "./verbatim-quote";
 
@@ -84,7 +84,7 @@ export function methodItemQualifies(
   proposal: Uncovered,
   context: { method: string; recordText: string },
 ): boolean {
-  if (!METHOD_ITEM.test(proposal.item) || context.method.includes(proposal.item)) return false;
+  if (!METHOD_ITEM.test(proposal.item) || methodItemAlreadyCovered(proposal.item, context.method)) return false;
   if (proposal.fromModel) return true;
   // 模型常把同一组写成一条（「咯痰色白质稀，量多易咯」）：按句读切开数。
   const findings = proposal.quotes.flatMap((quote) => quote.split(/[，,、；;]/u)).map((part) => part.trim()).filter((part) => part.length >= 2);
@@ -149,8 +149,8 @@ export function withVerifiedMethodItemFrom(target: string, source: string): stri
     if (!to || !toTherapy || !item) return target;
     toTherapy.verifiedMethodItem = item;
     const method = text(toTherapy.overallMethod);
-    const absent = methodItems(item).filter((one) => !method.includes(one));
-    if (method && absent.length > 0) toTherapy.overallMethod = `${method.replace(/[，,。；;\s]+$/u, "")}，${absent.join("，")}`;
+    const merged = methodItems(item).reduce((text_, one) => (!text_ || methodItemAlreadyCovered(one, text_) ? text_ : `${text_.replace(/[，,。；;\s]+$/u, "")}，${one}`), method);
+    if (merged !== method) toTherapy.overallMethod = merged;
     const toOverview = record(to.overview);
     if (toOverview && typeof toOverview.overallTherapy === "string") toOverview.overallTherapy = toTherapy.overallMethod;
     return JSON.stringify(to);
