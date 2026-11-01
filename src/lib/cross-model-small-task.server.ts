@@ -121,6 +121,7 @@ export async function proposeTwiceThenVerifyAll<P>(
   limit: number,
   timeoutMs: number,
   signal?: AbortSignal,
+  options: { recheckAgreed?: boolean } = {},
 ): Promise<P[]> {
   const primary = getControlledTerminologyModelConfig();
   const [first, second] = await Promise.all([
@@ -128,6 +129,8 @@ export async function proposeTwiceThenVerifyAll<P>(
     runOne(`${namespace}_second`, stage, primary, propose.messages, propose.maxTokens, timeoutMs, propose.parse, signal, 0.4),
   ]);
   const seen = new Set<string>();
+  const inSecond = new Set((second || []).map(sameProposal));
+  const inFirst = new Set((first || []).map(sameProposal));
   const proposals = [...(first || []), ...(second || [])].filter((proposal) => {
     const key = sameProposal(proposal);
     if (seen.has(key)) return false;
@@ -135,11 +138,16 @@ export async function proposeTwiceThenVerifyAll<P>(
     return true;
   });
   if (proposals.length === 0) return [];
-  const verdicts = await Promise.all(proposals.map((proposal) => {
+  const verdicts = await Promise.all(proposals.map(async (proposal) => {
     const request = verify(proposal);
-    return request
-      ? runOne(`${namespace}_verify`, stage, textModelConfigForModel(CROSS_CHECK_MODEL()), request.messages, request.maxTokens, timeoutMs, request.parse, signal)
-      : Promise.resolve(undefined);
+    if (!request) return undefined;
+    const verdict = await runOne(`${namespace}_verify`, stage, textModelConfigForModel(CROSS_CHECK_MODEL()), request.messages, request.maxTokens, timeoutMs, request.parse, signal);
+    // 两次提名都有这一项，复核却说不对时，换另一家再问一次（复核单次也有波动：「痰多色白质稀」两次都提「化痰」，复核一次答对一次答错）。
+    const key = sameProposal(proposal);
+    if (verdict !== true && options.recheckAgreed && inFirst.has(key) && inSecond.has(key)) {
+      return runOne(`${namespace}_recheck`, stage, primary, request.messages, request.maxTokens, timeoutMs, request.parse, signal);
+    }
+    return verdict;
   }));
   return proposals.filter((_, index) => verdicts[index] === true).slice(0, limit);
 }

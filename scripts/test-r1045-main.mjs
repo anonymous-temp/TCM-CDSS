@@ -120,6 +120,12 @@ await check("2.2b 待复核的项：模型原写而教材没有的排前面；me
   assert.deepEqual(out.map((item) => item.item), ["制酸降逆", "通络", "制酸降逆", "健脾止泻"]);
   assert.equal(out[0].fromModel, true);
 });
+await check("2.2c 治法核对：两次提名都有的项复核没通过时换另一家再问（删行的核对不这样）", () => {
+  assert.match(readFileSync("src/lib/m03-method-coverage.server.ts", "utf8"), /recheckAgreed: true/u);
+  assert.doesNotMatch(readFileSync("src/lib/m04-modification-fit.server.ts", "utf8"), /recheckAgreed/u);
+  const shared = readFileSync("src/lib/cross-model-small-task.server.ts", "utf8");
+  assert.match(shared, /verdict !== true && options\.recheckAgreed && inFirst\.has\(key\) && inSecond\.has\(key\)/u);
+});
 await check("2.3 补的几项都带过教材锚定；重复的不接；并行结果也接几项", () => {
   const base = {
     stage: "diagnose",

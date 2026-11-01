@@ -124,7 +124,7 @@ export async function completeMethodCoverage(content: string, context: { recordT
       const groups = parseUncoveredGroups(value);
       return groups && methodCoverageCandidates(groups, method, modelMethod);
     },
-  }, (candidate) => candidate.item, (candidate) => (methodItemQualifies(candidate, qualifyContext) ? verifyOne(candidate) : undefined), room, TIMEOUT_MS, signal);
+  }, (candidate) => candidate.item, (candidate) => (methodItemQualifies(candidate, qualifyContext) ? verifyOne(candidate) : undefined), room, TIMEOUT_MS, signal, { recheckAgreed: true });
   const items = [...new Set(proposals.map((proposal) => proposal.item))];
   if (items.length === 0) return content;
   // 教材锚定随后会把治法换回教材原文，这几项要带过去（tcm-formula-provenance 接上后，交付面去掉这个键）。
