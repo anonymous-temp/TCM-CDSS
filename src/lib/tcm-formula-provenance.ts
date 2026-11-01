@@ -569,8 +569,10 @@ export function isCoreSafetyHerbName(value: unknown): boolean {
 }
 
 function requiredFormulaAnchors(formulaName: string, variant: FormulaVariant, ingredients: string[]): string[] {
+  // 四味方容许缺排在最后的那一味（见 compilationReference），前三味都是锚点。
+  const fourHerbLead = ingredients.length === 4 ? ingredients.slice(0, 3) : [];
   const configured = (variant.requiredIngredients || []).map(normalizeHerbName).filter(Boolean);
-  if (configured.length > 0) return configured;
+  if (configured.length > 0) return [...new Set([...configured, ...fourHerbLead])];
   const normalizedFormulaName = normalizeFormulaName(formulaName);
   // Identify name-bearing herbs from both the raw source token and its canonical alias. Doing this
   // only after alias normalization loses anchors such as 代赭 -> 代赭石 because “旋覆代赭汤” does
@@ -587,7 +589,7 @@ function requiredFormulaAnchors(formulaName: string, variant: FormulaVariant, in
     )),
   ])];
   const safetyCritical = ingredients.filter((ingredient) => isCoreSafetyHerbName(ingredient));
-  return [...new Set([...named, ...safetyCritical, ingredients[0]].filter(Boolean))];
+  return [...new Set([...named, ...safetyCritical, ingredients[0], ...fourHerbLead].filter(Boolean))];
 }
 
 const normalizedCatalog = new Map<string, { name: string; variants: FormulaVariant[] }>();
@@ -764,9 +766,7 @@ function compilationReference(
     // 四味方按比例一味都不能少，白虎汤去粳米（临床常以他药代之）、又加芦根天花粉，方名就成了自拟方，与辨证阶段的「白虎汤加减」对不上（第三十三轮 D03）。
     // 四味方容许缺排在最后的那一味（方书多列在末位的佐使药）；前三味都要在，四物汤把白芍写成赤芍、麻黄汤缺桂枝仍不算。三味及以下仍要齐（第十八轮 左金丸）。
     minimumPreservedIngredientCount: ingredients.length === 4 ? 3 : Math.min(ingredients.length, Math.max(1, Math.ceil(ingredients.length * formulaCompositionFloorFraction()))),
-    requiredIngredients: ingredients.length === 4
-      ? [...new Set([...requiredFormulaAnchors(formulaName, variant, ingredients), ...ingredients.slice(0, 3)])]
-      : requiredFormulaAnchors(formulaName, variant, ingredients),
+    requiredIngredients: requiredFormulaAnchors(formulaName, variant, ingredients),
     origin,
   };
 }
