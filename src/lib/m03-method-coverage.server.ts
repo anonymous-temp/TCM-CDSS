@@ -1,6 +1,7 @@
 import "server-only";
 
 import { parseConfirmed, proposeTwiceThenVerifyAll, verifyProposals } from "./cross-model-small-task.server";
+import { isUnstableM03CoreText } from "./diagnosis-stage-contract";
 import { methodItemAlreadyCovered, textbookAnchorableMethod } from "./tcm-formula-provenance";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { quoteGroundedInText } from "./verbatim-quote";
@@ -97,13 +98,14 @@ export function methodCoverageCandidates(groups: readonly { item: string; quotes
 
 /**
  * 提名是否合格（纯函数，供测试）：2–6 字的治法短语、将要交付的治法没写、至少一条逐字摘录。方药管不管得到由复核回答，开方阶段照治法组方。
+ * 写的不是治法（提名把「起病诱因不详」摘成「不详」）不算：这样一项会让整句治法被判不稳定，整页退成未形成结论（第三十四轮 甲方「恶心、头晕伴流涕XXX天」）。
  * 模型自己没写、由提名补的项，还要成组：至少两条表现，或一条写得具体的，或这条表现就在主诉里。只有一条顺带表现（大便干 → 清热通便）补进去，方里多半没有对应的药（第三十三轮 A02、D03）。
  */
 export function methodItemQualifies(
   proposal: Uncovered,
   context: { method: string; recordText: string; chiefComplaint?: string },
 ): boolean {
-  if (!METHOD_ITEM.test(proposal.item) || methodItemAlreadyCovered(proposal.item, context.method)) return false;
+  if (!METHOD_ITEM.test(proposal.item) || isUnstableM03CoreText(proposal.item) || methodItemAlreadyCovered(proposal.item, context.method)) return false;
   if (proposal.fromModel) return true;
   // 模型常把同一组写成一条（「咯痰色白质稀，量多易咯」）：按句读切开数。
   const findings = proposal.quotes.flatMap((quote) => quote.split(/[，,、；;]/u)).map((part) => part.trim()).filter((part) => part.length >= 2)

@@ -376,6 +376,15 @@ await check("6.2 总治法丢了、分治法还在：按分治法写总治法", 
   assert.equal(root.therapy.overallMethod, "理气和胃，升清止晕");
 });
 
+await check("6.2b 总治法里混进「不详」：只去这一项；提名写「不详」不算治法", () => {
+  const body = JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { primarySyndrome: "痰湿中阻证" }, westernDiagnosis: {}, pathogenesis: { chain: [{ nodeId: "P1", therapyDirection: "和胃降逆" }] }, therapy: { overallPrinciple: "标本兼治", overallMethod: "化痰祛湿，健脾和胃，不详" } });
+  const content = `<!-- DIAGNOSIS_JSON_START -->\n${body}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const out = visible.applyM03AdvisoryQualityBoundaries(content, "头晕");
+  const root = JSON.parse(out.slice(out.indexOf("START -->") + 9, out.indexOf("<!-- DIAGNOSIS_JSON_END")));
+  assert.equal(root.therapy.overallMethod, "化痰祛湿，健脾和胃");
+  assert.equal(coverage.methodItemQualifies({ item: "不详", quotes: ["诱因不详"] }, { method: "化痰祛湿", recordText: "起病诱因不详", chiefComplaint: "起病诱因不详" }), false);
+});
+
 await check("6.3 证-方方向提示只留寒热相反、且不是辨证阶段定的方", () => {
   const source = readFileSync("src/lib/diagnosis-visible-summary.ts", "utf8");
   assert.match(source, /conflict\.axis !== "thermal" \|\| direction\.includes\(base\) \|\| seen\.has\(base\)/u);

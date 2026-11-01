@@ -1274,6 +1274,12 @@ export function applyM03AdvisoryQualityBoundaries(content: string, clinicalConte
     const chain = recordList(pathogenesis.chain);
     // 总治法整段没了、病机链的分治法还在（第三十四轮：甲方「恶心、头晕伴流涕」2/93，首轮 JSON 解析失败转工具调用重试后 therapy 丢失，整页退成「未形成结论」）：
     // 按病机链的分治法写总治法，不为缺这一句丢掉一份完整的辨证。
+    // 总治法里有一项不是治法（「不详」「待定」）时只去掉这一项，不让它把整句判成不稳定。
+    const methodText = markdownCell(therapy.overallMethod);
+    if (methodText && isUnstableM03CoreText(methodText)) {
+      const stable = methodText.split(/[，,、；;]/u).map((item) => item.trim()).filter((item) => item && !isUnstableM03CoreText(item));
+      therapy.overallMethod = stable.join("，");
+    }
     if (!markdownCell(therapy.overallMethod).trim()) {
       const directions = [...new Set(chain.map((node) => markdownCell(node.therapyDirection).trim()).filter(Boolean))];
       if (directions.length > 0) {
