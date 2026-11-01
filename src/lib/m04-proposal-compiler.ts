@@ -1148,9 +1148,15 @@ function expandTextbookEntryRow(item: unknown, prior?: ClinicalReasoningResultV2
   const rows: unknown[] = [{ ...item, trigger }];
   if (entry.herbs.length === 2) {
     const partner = entry.herbs.find((name) => !sameHerbIdentity(name, herbName));
-    if (partner) rows.push({ ...item, trigger, herbName: partner, herb: undefined, dose: undefined });
+    // 理由是模型为第一味写的，不能照抄给另一味（病历 1「若恶寒甚：加麻黄」理由写成「桂枝辛温解表」，第三十四轮）：写这一味自己的功效。
+    if (partner) rows.push({ ...item, trigger, herbName: partner, herb: undefined, dose: undefined, reason: partnerReason(partner), [PARTNER_ROW]: true });
   }
   return rows;
+}
+
+const PARTNER_ROW = "__partnerRow";
+function partnerReason(herbName: string): string {
+  return getTcmHerbFunctionText(herbName).split(/[；;。]/u)[0].trim().slice(0, 30) || "同条教材加减并用";
 }
 
 const MODIFICATION_PROCESSING_PREFIX = /^(?:蜜炙|麸炒|土炒|米炒|醋制|酒制|盐制|姜制|醋炒|酒炒|盐炒|姜炒|炒|炙|煅|焦|生|蜜|盐|酒|醋|姜)$/u;
@@ -1179,6 +1185,15 @@ function withDistinctConditionsFirst<T>(rows: readonly T[]): T[] {
   return [...first, ...rest.filter((row) => !isAdjust(row)), ...rest.filter(isAdjust)];
 }
 
+function withSameConditionAdjacent<T extends { trigger?: unknown }>(rows: readonly T[]): T[] {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = String(row.trigger || "");
+    groups.set(key, [...(groups.get(key) || []), row]);
+  }
+  return [...groups.values()].flat();
+}
+
 function normalizeModifications(
   value: unknown,
   prior?: ClinicalReasoningResultV2 | null,
@@ -1195,7 +1210,11 @@ function normalizeModifications(
   const droppedReasons: ModificationDropCode[] = [];
   // 模型把一组两味都写了时，带上另一味会重复，同条件同药只留一行（否则占满行数上限，后面补不进别的条件）。
   const seenRows = new Set<string>();
-  const expanded = value.flatMap((item) => expandTextbookEntryRow(item, prior)).filter((item) => {
+  // 模型自己把两味都写了时用它写的理由：带出来的那一行让位。
+  const rowKey = (item: Record<string, unknown>) => `${unwrapSingleText(item.trigger ?? item["触发条件"]) || ""}|${modificationHerbIdentity(canonicalTcmHerbIdentity(unwrapSingleText(item.herbName ?? item.herb ?? item["药味"] ?? item["药名"]) || ""))}`;
+  const allExpanded = value.flatMap((item) => expandTextbookEntryRow(item, prior));
+  const ownRows = new Set(allExpanded.filter((item) => isRecord(item) && !item[PARTNER_ROW]).map((item) => rowKey(item as Record<string, unknown>)));
+  const expanded = allExpanded.filter((item) => !(isRecord(item) && item[PARTNER_ROW] && ownRows.has(rowKey(item)))).filter((item) => {
     if (!isRecord(item)) return true;
     const key = `${unwrapSingleText(item.trigger ?? item["触发条件"]) || ""}|${modificationHerbIdentity(canonicalTcmHerbIdentity(unwrapSingleText(item.herbName ?? item.herb ?? item["药味"] ?? item["药名"]) || ""))}|${String(item.actionType ?? item.action ?? "")}`;
     if (seenRows.has(key)) return false;
@@ -1950,7 +1969,8 @@ export function modificationTargetPathogenesis(
   // 症状写在该节点的患者事实/辨证依据里，就是这个节点自己的表现——用节点病机主干；
   // 与节点毫无交集（兼症被强行挂到最近的节点）才写「兼见某症」。
   const nodeOwnText = [node?.pathogenesis, node?.syndromeEvidence, node?.patientFact].filter(Boolean).join("；");
-  if (trunk && overlaps(item.trigger, nodeOwnText)) {
+  // 「若…」说的是眼下没有的变化，不是这个节点自己的表现：只共一个二字词（若气虚夹湿 ∩ 心胆气虚）不算，写「兼见…」（第三十四轮 病历 2）。
+  if (trunk && !/^若/u.test(item.trigger.trim()) && overlaps(item.trigger, nodeOwnText)) {
     return trunk.length <= 40 ? trunk : trunk.split(/[，,]/)[0];
   }
   // 触发条件本身以「若」「兼见」「如」开头时先去掉，否则写成「兼见若兼见心悸怔忡」（2026-10-17 留出集独立评审，教材加减条件原样带「若」）。
@@ -2500,7 +2520,8 @@ export function compileM04Proposal(
       MIN_DELIVERED_MODIFICATIONS - withConditionals.length,
     ));
   }
-  const compiledModifications = withoutMutuallyIncompatibleAdditions(withConditionals, candidateHerbNames, directionDropReasons);
+  // 同一条件的几行排在一起（先留不同条件之后顺序被打散，评审读成「第 1、3 条条件重复」）。
+  const compiledModifications = withSameConditionAdjacent(withoutMutuallyIncompatibleAdditions(withConditionals, candidateHerbNames, directionDropReasons));
   const m03FormulaNames = Array.isArray(prior.overview.recommendedFormulaNames)
     ? prior.overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
     : [];

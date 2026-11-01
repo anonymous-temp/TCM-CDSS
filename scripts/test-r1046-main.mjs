@@ -422,6 +422,27 @@ await check("6.5 M03 外部检索也有软上限；关闭写法可用", async ()
   delete process.env.PRIMARY_DIAGNOSE_EXTERNAL_EVIDENCE_SOFT_DEADLINE_MS;
 });
 
+await check("4.6 教材两味一组：带出来的那一味用自己的功效作理由；模型自己写了就用模型的；同一条件的行排在一起", () => {
+  const prior = { stage: "diagnose", overview: { tcmDiseaseName: "感冒", primarySyndrome: "风寒束表证", recommendedFormulaNames: [] }, pathogenesis: { chain: [{ nodeId: "P1" }] } };
+  const row = textbook.textbookRowForSyndrome("感冒", "风寒束表证");
+  const index = row.modifications.findIndex((item) => item.herbs.includes("麻黄") && item.herbs.includes("桂枝"));
+  assert.ok(index >= 0, JSON.stringify(row.modifications));
+  const id = `E${index + 1}`;
+  const base = { actionType: "add", targetRef: "P1", reason: "桂枝辛温解表，助荆防发散风寒", textbookEntry: id };
+  const one = compiler.normalizeModificationsForTest([{ ...base, trigger: "若恶寒甚", herbName: "桂枝" }], prior);
+  const partner = one.find((item) => item.herbName === "麻黄");
+  assert.ok(partner, JSON.stringify(one));
+  assert.doesNotMatch(partner.reason, /桂枝/u);
+  const both = compiler.normalizeModificationsForTest([{ ...base, trigger: "若恶寒甚", herbName: "桂枝" }, { ...base, trigger: "若恶寒甚", herbName: "麻黄", reason: "麻黄发汗散寒" }], prior);
+  assert.equal(both.find((item) => item.herbName === "麻黄").reason, "麻黄发汗散寒");
+});
+
+await check("4.7 条件式的行不挂到节点病机上（只共一个二字词不算）", () => {
+  const clean = (value, fallback) => value || fallback;
+  assert.equal(compiler.modificationTargetPathogenesis({ trigger: "若气虚夹湿", targetRef: "P1", reason: "x" }, { pathogenesis: "心胆气虚，决断失司" }, clean), "兼见气虚夹湿");
+  assert.equal(compiler.modificationTargetPathogenesis({ trigger: "气虚乏力", targetRef: "P1", reason: "x" }, { pathogenesis: "心胆气虚，决断失司" }, clean), "心胆气虚，决断失司");
+});
+
 // ───── 5 文本 ─────
 
 await check("5.2 撤兼证连「故」一起去掉，不留「…，故。」", () => {
