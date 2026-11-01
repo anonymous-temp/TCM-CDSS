@@ -525,6 +525,13 @@ await check("5.12 「以生地黄易生地黄」不留", async () => {
   assert.equal(surface.withoutSelfSwapClause("去熟地，以生地黄易熟地黄。"), "去熟地，以生地黄易熟地黄。");
 });
 
+await check("5.13 总治法至多五项；几项都说安神只留第一项；其余不动", async () => {
+  const surface = await jiti.import("../src/lib/delivered-surface.ts");
+  assert.equal(surface.withinMethodItemCap("益气健脾，生津止渴，养血安神，安神定悸，养心安神"), "益气健脾，生津止渴，养血安神");
+  assert.equal(surface.withinMethodItemCap("一二，三四，五六，七八，九十，甲乙"), "一二，三四，五六，七八，九十");
+  assert.equal(surface.withinMethodItemCap("理气止痛，活血止痛"), "理气止痛，活血止痛");
+});
+
 await check("5.9 数「X味」时「全方保留」不挡第一味；「兼制青皮」的制是动词", async () => {
   const review = await jiti.import("../src/lib/formula-analysis-review.ts");
   const herbs = ["黄芪", "桂枝", "白芍", "炙甘草", "大枣", "饴糖"];

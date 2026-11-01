@@ -2338,7 +2338,10 @@ export function withoutIncidentalSedationMethod(method: string, mindInScope: boo
 /** 总治法至多五项（接口文档 V2.56）：教材的项在前，多出来的是后补的，去掉排在最后的。 */
 export function withinMethodItemCap(method: string): string {
   const items = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
-  return items.length > 5 ? items.slice(0, 5).join("，") : method;
+  // 几项都在说安神（「养血安神，安神定悸，养心安神」，第三十四轮 甲方「失眠多梦心悸」回放）：留第一项。
+  const sedation = items.filter((item) => item.includes("安神"));
+  const kept = sedation.length > 1 ? items.filter((item) => !item.includes("安神") || item === sedation[0]) : items;
+  return kept.length > 5 ? kept.slice(0, 5).join("，") : kept.length < items.length ? kept.join("，") : method;
 }
 
 export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSurfaceOptions): T {
