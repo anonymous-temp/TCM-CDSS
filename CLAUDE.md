@@ -2716,6 +2716,42 @@ The user asked for every leftover of round 33 to be researched and closed, the s
 - **A rule that was simply wrong: the 证-方方向 note.** 26 of about 400 outputs carried 「标准目录归属…确定性比对」, nearly all false (三仁汤「属虚」, 七味白术散 against its own textbook row). It now fires only for thermal opposition on a formula M03 did not choose, in clinical wording.
 - **`慢性失眠障碍`** came back through `clinical-terminology.ts` after round 32 mapped it away. Engineering words in visible text were swept (规则校验, 签名证候, 模型超时, 审方, 确定性, 置信度).
 
+**After the first deploy (found on production, fixed in the same round).**
+- **Partner rows (a textbook entry with two herbs, the model wrote one) quoted the first clause of the KB function text.** That text is often a category name (苍术 「化湿药」) or holds a wrong entry: customer case 1 said 苍耳子 「清热解毒」. `partnerReason` now writes 「与辛夷同用，针对鼻塞流涕重」, what the textbook entry itself says; 苍耳子's stray clause went into the corrections table with the textbook line.
+- Added toxic herbs carry 「X有毒，不可自行加量或久服」 in the row (`toxicAdditionNote`); `submittedCount` counts expanded rows (it could say submitted 3, retained 4, dropped 0, with a 2-row drop reason); 「婴儿X」 at 3–17 y becomes 「小儿X」; 「老年人者慎用」 lost its 者.
+- **Judging competes with production.** Both use the same Bailian account. With qwen judges running, forced M03 took 37–39 s because facts extraction aborted at its deadline; alone it took 13–15 s. Do not judge during a production measurement.
+
+**Measured** (old = ed52175, round 33 = a4d18deb, new = 512984be; 155 outputs, one qwen3.8-max judge; the fixes after 512984be were not re-judged).
+
+| | Old | Round 33 | New |
+|---|---|---|---|
+| Outputs with a damaged 治法/方义/方名/加减/药味 | 78 | 64 | 38 |
+| 治法 raw → delivered 改对 / 改坏 | 13 / 35 | 33 / 22 | 39 / 6 |
+| 方义 改坏 | 30 | 15 | 16 |
+| K1 / K2 / K3 | 96.1 / 97.4 / 92.1 | 97.2 / 98.6 / 94.4 | 98.1 / 98.1 / 98.1 |
+| K4 method coverage / K5 / K6 | 98.0 / 89.5 / 90.1 | 94.4 / 90.2 / 95.1 | 96.1 / 94.8 / 98.1 |
+| K7 syndrome / K9 Western | 92.8 / 98.6 | 90.9 / 97.8 | 91.6 / 97.9 |
+
+- **Full regression, 1,085 chains** (142 customer records rebuilt from the archive, customer 10 × 3, 100 cases in both shapes, 71 synthetic, 50 public, 34 of the customer's 10.29 records, held-out 32 × 2, customer history 52, synthetic 190, special population 137, primary care 144, lineage 72): dose over the ChP ceiling, over 2×, 十八反 including 加减, pregnancy-prohibited, child-toxic and organ all 0; 1,080 dosed. The 5 others: a child of unknown age (expected), 3 repair-exhausted or truncated generations (a redraw doses them) and one upstream failure. Fewer than two TCM differentials: 3 of 1,083. A second run of 299 chains on near-final code: 0 on the same audit, 299 dosed.
+- **Variance.** Fresh draws of the 100 cases on one build: disease 95, syndrome 86, formula 83, Western 82, herbs 21 of 100 identical. Replay: 42 records identical in all stages except signatures, timestamps and 6 candidate IDs in `terminologyMappings`. On production, customer cases 1–4 repeated on one tenant: all 20 stage calls identical, stage times 90–920 ms.
+- **Between clinics M04 can differ on purpose.** M03 replays across tenants; the M04 prompt carries the clinic's drug inventory, so a different inventory is a different prompt. On production hospital-a and hospital-b gave different herb tables for the same record. Without inventories, locally, both tenants replay.
+- **Latency.** Cold medians, same window: M03 11.7 → 10.4 s (synthetic), 13.6 → 11.9 s (web); M04 10.6 → 10.5, 10.7 → 10.2 s; M02 4.5 → 4.1 s. Production with `regenerate=1`, 12 s pause after the question: M03 0.4–0.6 s, M04 0.2 s median, 1.7 s max.
+- **qwen on the final production build, customer 10:** 9 of 10 reviewed, 0 failures in all 8 columns, no hard error, disease and syndrome equal the standard answers in 10/10, no red flag. Held-out 32 × 2 (z2): every block ≥97% except merged 饮片 ~94.8 (S131 滑石 先煎 per ChP; S144/S158 model). 1.1 rubric, z2: 100 cases customer shape every row ≥96.9; customer API 75 / 67: T 94.7 / 95.2, K 91.9 / 100, Q 100 / 95.2, others ≥95; special population 126 of 137: T 93.7, R 95.2, K 90.2, Q and L 96.0, others ≥98. Primary care, lineage, synthetic 190, history and the page-shape 100 were generated and audited but not judged: qwen ran at about 2 cases a minute (about 6 hours left), and the 1.1 rubric is saturated anyway.
+
+**Left as is.**
+- **Different wording can still flip.** The memo only covers identical content (after whitespace and punctuation). Voting would double tokens and only help near-duplicates.
+- **Adult acute fever has no textbook section** (only 内伤发热, 产后发热 and 儿科 发热), so a short high fever can be named 内伤发热: 3 of 1,085 here, plus a probe (2 days, 39.5 ℃). 《针灸治疗学》 has a 高热 section (肺卫 / 气分 / 营血, >39 ℃), but adding it changes the disease list and covers only part of the class; left for a round that can measure it.
+- **The record-reading notice can call a tongue finding denied.** 「心肺无异常发现，舌质红绛」 gave 「舌质红绛病历已否认」 (1 of about 1,400): `OWN_PREDICATE_ITEM` does not cover 舌/苔/脉 items. Adding them to that predicate is the fix; it also feeds `recordedFindingReading`, so it needs the sanitizer replay.
+- Rows with the same condition and adjacent 加减 items are cleaned up, but the judge still sees mechanism labels copied across rows (S-pregnancy-004) and vague textbook conditions (「若比类风性善行而数变」).
+- K7 91.6 and same-class compound syndromes: model judgement, and the customer's 「兼证 only with grouped evidence」 rule stands.
+
+**In production (9d13a26, deployed 2026-11-02 about 07:50 Beijing; tag `20261102-9d13a26-prebuilt`, same release directory and `20260927-dsrepair` override).** 7dce0d0 and 8c7278d went out before it the same night; the probes between them found the items above. `verify:release` green (294 suites + 4). `verify:deployed-image` passed all three times (commit, digest, strictReady, both families) and `regress:prod-smoke` had 0 failures (M03 P95 17.3 s, M04 P95 12.2 s). Probes on hospital-a: 呕血 red flag + dose, pregnancy, warfarin, 「…XXX天」 not limited, 白虎加人参汤, 慢性失眠 (半年), 七味白术散 without the 证-方 note. `force` redraws (M03 13–15 s). Memo directory `/app/runtime-data/model-calls`, 5 MB after the night's runs, 362 hits in 30 minutes. Rollback: image `tcm-cdss:20261102-8c7278d-prebuilt` (or `20261102-7dce0d0…`, `20261101-48b4947…`) with the `docker-compose.yml.pre-*` backups in the release directory; the memo alone: `CDSS_MODEL_CALL_MEMO=false`; old `regenerate` meaning: `CDSS_REGENERATE_REDRAW=true`.
+
+**Building on this machine when memory is short.** `next build` was OOM-killed at 「Collecting page data」 with other sessions running (5.3 GB available + 0.8 GB swap): the worker reached 5–6 GB anon RSS and the kill also took another session's browser. What worked, in a copy of the config inside the build tree only (the source digest does not cover it, and the output is the same): `experimental.cpus: 1`, `experimental.webpackMemoryOptimizations: true`, memory-type webpack cache per `01-app/02-guides/memory-usage.md`, `typescript.ignoreBuildErrors` (the gate already ran `tsc`), heap 3584 MB. 3072 MB dies in compile. Compile takes about 50 s and needs about 1.3 GB of root disk. See `~/runlogs/r1018/work/r1046/prebuild-cpa.sh`.
+- `build-source-digest.mjs` prints JSON; take `.digest`. `tail -1` gave 「}」, which was baked into a build.
+- A retry loop left running deleted a finished build; a watcher that cleans up on a marker line deleted `node_modules` under a running build when a stale loop wrote the marker. Run one build at a time with no loop. A shebang script's `comm` is its own name, so `ps` filters on `bash` miss it.
+- Never put a swap file on /home here: other sessions filled the rest and `npm` died silently with an empty log.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
