@@ -476,6 +476,28 @@ await check("5.10 兼证：特异表现写全三条即成组；只对上两条�
   assert.equal(secondary.evaluateCriteriaMatches(entry, hit([a, b]), { recordText, primaryTerms: [] }).verdict, "fail");
 });
 
+await check("5.11 现病史写着患病多年：症状层面的名字也问已确诊慢性病", async () => {
+  Object.assign(process.env, modelConfigEnv);
+  smallMemo.resetSmallTaskMemoForTests();
+  const standard = await jiti.import("../src/lib/western-name-standard.server.ts");
+  const asked = [];
+  globalThis.fetch = async (_input, init) => {
+    const system = JSON.parse(init.body).messages[0].content;
+    asked.push(system);
+    const content = /当前西医诊断只写到症状/.test(system)
+      ? JSON.stringify({ established: { name: "2型糖尿病", quote: "患糖尿病十余年", rationale: "血糖控制不佳" } })
+      : JSON.stringify({ confirmed: true });
+    return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content } }] }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const western = JSON.stringify({ westernDiagnosis: { primary: { name: "糖尿病待查", clinicalRationale: "x" }, candidates: [], differentials: [] } });
+  const out = JSON.parse(await standard.finalizeWesternPrimaryName(western, { recordText: "诉患糖尿病十余年不愈，口渴乏力", chiefComplaint: "患糖尿病十余年不愈" }));
+  assert.equal(out.westernDiagnosis.primary.name, "2型糖尿病");
+  asked.length = 0;
+  await standard.finalizeWesternPrimaryName(JSON.stringify({ westernDiagnosis: { primary: { name: "咳嗽待查", clinicalRationale: "x" }, candidates: [], differentials: [] } }), { recordText: "咳嗽三天", chiefComplaint: "咳嗽三天" });
+  assert.ok(!asked.some((one) => /当前西医诊断只写到症状/.test(one)));
+  globalThis.fetch = realFetch;
+});
+
 await check("5.9 数「X味」时「全方保留」不挡第一味；「兼制青皮」的制是动词", async () => {
   const review = await jiti.import("../src/lib/formula-analysis-review.ts");
   const herbs = ["黄芪", "桂枝", "白芍", "炙甘草", "大枣", "饴糖"];
