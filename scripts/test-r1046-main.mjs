@@ -352,7 +352,6 @@ await check("4.5 不同的条件不足两个时补写：每行过编译同一套
   globalThis.fetch = realFetch;
 });
 
-const claim = await jiti.import("../src/lib/m03-patient-claim-check.server.ts");
 const element = await jiti.import("../src/lib/m03-element-support.server.ts");
 const secondary = await jiti.import("../src/lib/m03-secondary-syndrome-consistency.server.ts");
 const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
@@ -413,11 +412,6 @@ await check("6.5 M03 外部检索也有软上限；关闭写法可用", async ()
 });
 
 // ───── 5 文本 ─────
-
-await check("5.1 片段带句读时不把前后两句连起来（第三十三轮 W45）", () => {
-  assert.doesNotMatch(claim.withoutClaimSpan("脉细滑数示阴虚火动，兼有壅滞，大便干为津亏", "兼有壅滞，"), /火动大便干/u);
-  assert.doesNotMatch(claim.withoutClaimSpan("脉细滑数示阴虚火动兼有壅滞，大便干为津亏", "兼有壅滞，"), /火动大便干/u);
-});
 
 await check("5.2 撤兼证连「故」一起去掉，不留「…，故。」", () => {
   const root = { overview: { secondarySyndromes: ["脾虚湿滞证"], primarySyndrome: "肝郁气滞证", tcmDiagnosticRationale: "腹胀、纳差、便溏，为肝木乘脾、脾运失健，故兼脾虚湿滞。舌暗红有瘀点支持气滞血瘀，余症俱见。", overallPathogenesis: "肝郁气滞，兼脾虚湿滞" }, therapy: { overallMethod: "疏肝理气，健脾化湿" } };

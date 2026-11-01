@@ -270,9 +270,7 @@ function longestSharedRun(a: string, b: string): number {
  * 删这一项（「长期典型劳力相关胸闷胸痛史、明确冠心病诊断」只删前一项）；否则删它所在的逗号分句，
  * 连带一个相邻逗号（分句是括号里唯一的内容时连括号一起删）。删后没有汉字了就原样返回（不把字段删空）。片段不在文中时原样返回。
  */
-export function withoutClaimSpan(value: string, rawSpan: string): string {
-  // 片段带着句读时（「兼有壅滞，」）只算字：把句读一起删，前后两句就连成了「…阴虚火动大便干」（第三十三轮 W45）。
-  const span = rawSpan.replace(/^[，,。；;、\s]+|[，,。；;、\s]+$/gu, "");
+export function withoutClaimSpan(value: string, span: string): string {
   const at = span ? value.indexOf(span) : -1;
   if (at < 0) return value;
   const end = at + span.length;
