@@ -25,7 +25,7 @@ export function westernNameStandardEnabled(): boolean {
 }
 
 // 现病史里写「患糖尿病十余年」「宿患消渴」「确诊高血压」同样是已确诊的病（第三十三轮网上病例：糖尿病十余年写成「糖尿病待查」，宿患消渴写成「下尿路症状待查」）。
-const PAST_DISEASE_MENTION = /病史|既往|宿患|素患|素有|确诊|患[\u4e00-\u9fff]{1,10}[\d一二三四五六七八九十数]+余?[年月]/u;
+const PAST_DISEASE_MENTION = new RegExp((preferredNames as { establishedDiseaseMention: string }).establishedDiseaseMention, "u");
 
 type Json = Record<string, unknown>;
 const record = (value: unknown): Json | undefined => value && typeof value === "object" && !Array.isArray(value) ? value as Json : undefined;
