@@ -2,7 +2,9 @@ import "server-only";
 
 import { parseConfirmed, proposeTwiceThenVerifyAll } from "./cross-model-small-task.server";
 import { herbClaimReferenceText } from "./m04-formula-analysis-claim-check.server";
+import { distinctModificationConditions, topUpModificationRow } from "./m04-proposal-compiler";
 import { quoteGroundedInText } from "./verbatim-quote";
+import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 
 /**
  * 随证加减每一行与本例对不对得上（2026-10-31 起；第三十三轮扩到教材条目和条件与病历的关系）。
@@ -12,6 +14,7 @@ import { quoteGroundedInText } from "./verbatim-quote";
  */
 const TIMEOUT_MS = 4_000;
 const MIN_ROWS_AFTER_FIT = 2;
+const MIN_DISTINCT_CONDITIONS = 2;
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
 
@@ -131,4 +134,90 @@ export function withModificationsFrom(target: string, source: string): string {
   if (!to || !toFormula || !fromFormula || !Array.isArray(fromFormula.modifications)) return target;
   toFormula.modifications = fromFormula.modifications;
   return `${target.slice(0, to.start + START_MARKER.length)}\n${JSON.stringify(to.root, null, 2)}\n${target.slice(to.end)}`;
+}
+
+const TOP_UP_SYSTEM = [
+  "你是中医主治医师。证型、治法、方药已定，现在写备用的随证加减。",
+  "写 3 条不同的条件，每条一味药：trigger 写「若+具体症状」，是本例眼下没有、之后可能出现的变化（不写舌脉，不写「气虚」「阴虚」这类证候名）；herbName 是不在 herbs 里的一味常用饮片；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个症。",
+  "药的寒热补泻要与证型一致。不要写病历已经否认的症状，也不要写 existing 里已有的条件。",
+  "只输出 JSON：{\"rows\":[{\"trigger\":\"\",\"herbName\":\"\",\"dose\":\"\",\"reason\":\"\"}]}",
+].join("\n");
+
+const TOP_UP_VERIFY_SYSTEM = [
+  "你是中医主治医师。下面这条随证加减要留给本例备用。默认答 true，只有这味药管不到这个症、或与本证方向相反、或这个条件与病历相反时答 false。",
+  "只输出 JSON：{\"confirmed\":true} 或 {\"confirmed\":false}",
+].join("\n");
+
+type TopUpRow = { trigger: string; herbName: string; dose: string; reason: string };
+
+function parseTopUp(content: unknown): TopUpRow[] | undefined {
+  if (typeof content !== "string" || !content.trim()) return undefined;
+  try {
+    const list = record(JSON.parse(content))?.rows;
+    if (!Array.isArray(list)) return undefined;
+    return list.flatMap((entry) => {
+      const row = record(entry);
+      const trigger = text(row?.trigger);
+      const herbName = text(row?.herbName);
+      return trigger && herbName ? [{ trigger, herbName, dose: text(row?.dose), reason: text(row?.reason) }] : [];
+    }).slice(0, 4);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 不同的条件不足两个时补写（第三十四轮）。甲方 10.29 测评「仅生成 1 个不足以满足临床」；教材没有这一证（中性证名、自拟方）、模型又没写时，编译阶段没东西可补：
+ * 接口 142 份里 12 份不足两个条件，3 份一条都没有。其余病例不发请求。一个模型写，另一厂商的模型复核，每行再过编译阶段同一套判据（topUpModificationRow）。
+ */
+export async function topUpModificationConditions(
+  content: string,
+  context: { recordText: string; prior: ClinicalReasoningResultV2 | null | undefined; caseState?: CaseState },
+  signal?: AbortSignal,
+): Promise<string> {
+  if (!modificationFitEnabled() || !context.prior) return content;
+  const start = content.indexOf(START_MARKER);
+  const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
+  if (start < 0 || end < 0) return content;
+  let root: Json | undefined;
+  try { root = record(JSON.parse(content.slice(start + START_MARKER.length, end).trim())); } catch { return content; }
+  const formula = record(root?.formula);
+  const candidate = record(Array.isArray(formula?.candidates) ? formula.candidates[0] : undefined);
+  if (!root || !formula || !candidate || !Array.isArray(candidate.herbs)) return content;
+  const rows = Array.isArray(formula.modifications) ? formula.modifications.map(record).filter((row): row is Json => Boolean(row)) : [];
+  const existing = rows.map((row) => text(row.trigger));
+  if (distinctModificationConditions(rows) >= MIN_DISTINCT_CONDITIONS) return content;
+  const herbs = candidate.herbs.map((herb) => text(record(herb)?.name)).filter(Boolean);
+  const syndrome = text(record(root.overview)?.primarySyndrome);
+  const method = text(record(root.therapy)?.overallMethod);
+  const added = await proposeTwiceThenVerifyAll<TopUpRow>("m04_modification_top_up", "prescribe", {
+    messages: [
+      { role: "system", content: TOP_UP_SYSTEM },
+      { role: "user", content: JSON.stringify({ syndrome, method, herbs, existing, record: context.recordText.slice(0, 2_400) }) },
+    ],
+    maxTokens: 400,
+    parse: parseTopUp,
+  }, (row) => `${row.trigger}|${row.herbName}`, (row) => ({
+    messages: [
+      { role: "system", content: TOP_UP_VERIFY_SYSTEM },
+      { role: "user", content: JSON.stringify({ syndrome, method, herbs, row, record: context.recordText.slice(0, 1_500) }) },
+    ],
+    maxTokens: 40,
+    parse: parseConfirmed,
+  }), 8, TIMEOUT_MS, signal);
+  const delivered = [...rows];
+  const triggers = [...existing];
+  const taken = [...herbs, ...rows.map((row) => text(row.herbName))];
+  for (const row of added) {
+    if (distinctModificationConditions(delivered) >= MIN_DISTINCT_CONDITIONS + 1 || delivered.length >= 4) break;
+    const compiled = topUpModificationRow(row, { prior: context.prior, caseState: context.caseState, candidateHerbNames: taken, existingTriggers: triggers });
+    if (!compiled) continue;
+    delivered.push(compiled);
+    triggers.push(row.trigger);
+    taken.push(row.herbName);
+  }
+  if (delivered.length === rows.length) return content;
+  formula.modifications = delivered;
+  console.info("[tcm-cdss:telemetry] m04_modification_top_up", { before: rows.length, after: delivered.length });
+  return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(root, null, 2)}\n${content.slice(end)}`;
 }

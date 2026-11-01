@@ -139,6 +139,6 @@ export function formulaSyndromeConflictNotice(conflicts: readonly FormulaSyndrom
     cold: "偏寒", heat: "偏热", deficiency: "属虚", excess: "属实",
   };
   const items = conflicts.map((item) =>
-    `${item.formulaName}(标准目录归属${sideLabel[item.formulaSide] || item.formulaSide}) 与本例证候(${sideLabel[item.syndromeSide] || item.syndromeSide})在${axisLabel[item.axis]}上相反`);
-  return `⚠️ **证-方方向核对**：${items.join("；")}。该判定由本地标准目录确定性比对得出,不代表一定错误(异病同治、反治法均可成立),但请医生确认选方与辨证的对应关系后再采纳。`;
+    `${item.formulaName}${sideLabel[item.formulaSide] || item.formulaSide}，本例证候${sideLabel[item.syndromeSide] || item.syndromeSide}，${axisLabel[item.axis]}相反`);
+  return `⚠️ **证-方方向核对**：${items.join("；")}。不代表一定错误（异病同治、反治法均可成立），请医生确认选方与辨证的对应关系后再采纳。`;
 }

@@ -651,7 +651,7 @@ const unavailableGate = evaluateSafetyGate(unavailableSemanticState);
 assert.equal(unavailableGate.status, "needs_information", "semantic failure must not masquerade as a completed safety screen");
 assert.equal(unavailableGate.allowDiagnosis, true, "semantic failure must not deadlock M03");
 assert.equal(unavailableGate.allowDosePrescription, false, "semantic failure must lock dose-level output");
-assert.match(unavailableGate.missingItems.join("、"), /语义红旗筛查未完成.*模型超时/);
+assert.match(unavailableGate.missingItems.join("、"), /语义红旗筛查未完成.*服务超时/);
 assert.equal(canForceProceedPastSafetyGate(unavailableGate), true, "semantic failure remains visible but cannot deadlock the doctor-facing workflow");
 assert.equal(hardDoseSafetyBoundaryReasons(unavailableSemanticState).length, 0, "model availability is not a clinical dose boundary");
 cases += 1;

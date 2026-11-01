@@ -1411,11 +1411,11 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
   };
   const wrapPair = (payload) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(payload)}\n<!-- DIAGNOSIS_JSON_END -->`;
   const withPair = syncForPair(wrapPair(base), "prescribe");
-  assert.match(withPair, /配伍禁忌提示（确定性检测）/, "十八反对必须在渲染层出警示段");
+  assert.match(withPair, /配伍禁忌提示/, "十八反对必须在渲染层出警示段");
   assert.match(withPair, /海藻 × 甘草|甘草 × 海藻/, "警示必须点名具体药对");
   const noPair = structuredClone(base);
   noPair.formula.candidates[0].herbs = [{ name: "陈皮", dose: "6g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1" }];
-  assert.doesNotMatch(syncForPair(wrapPair(noPair), "prescribe"), /配伍禁忌提示（确定性检测）/, "无配伍对时不得凭空出现警示段");
+  assert.doesNotMatch(syncForPair(wrapPair(noPair), "prescribe"), /配伍禁忌提示/, "无配伍对时不得凭空出现警示段");
 }
 
 // ─── GB-SYN-01 国标证候名双显（甲方评测 2026-08-04 根修） ────────────────────

@@ -315,6 +315,39 @@ await check("4.4 加味保留炮制写法（煅瓦楞子、焦山楂）；未识
   assert.equal(contract.canonicalTcmHerbIdentity("煅瓦楞子"), "瓦楞子");
 });
 
+await check("4.5 不同的条件不足两个时补写：每行过编译同一套判据；已够两个条件不发请求", async () => {
+  Object.assign(process.env, modelConfigEnv);
+  smallMemo.resetSmallTaskMemoForTests();
+  const fit = await jiti.import("../src/lib/m04-modification-fit.server.ts");
+  const prior = { stage: "diagnose", overview: { tcmDiseaseName: "胃痛", primarySyndrome: "胃气不和证" }, therapy: { overallMethod: "理气和胃" }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "胃气不和", therapyDirection: "理气和胃" }] } };
+  const root = (modifications) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ overview: prior.overview, therapy: prior.therapy, formula: { candidates: [{ herbs: [{ name: "陈皮" }, { name: "半夏" }, { name: "甘草" }] }], modifications } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  let calls = 0;
+  globalThis.fetch = async (_input, init) => {
+    calls += 1;
+    const system = JSON.parse(init.body).messages[0].content;
+    const content = /写备用的随证加减/.test(system)
+      ? JSON.stringify({ rows: [
+          { trigger: "若腹胀明显", herbName: "枳壳", dose: "10g", reason: "行气消胀" },
+          { trigger: "若腹胀明显", herbName: "厚朴", dose: "10g", reason: "同一条件不算新条件" },
+          { trigger: "若嗳气频作", herbName: "乌头", dose: "3g", reason: "与半夏十八反" },
+          { trigger: "若食少", herbName: "鸡内金", dose: "500g", reason: "超量" },
+          { trigger: "若舌红", herbName: "麦冬", dose: "10g", reason: "写舌象" },
+          { trigger: "若食积", herbName: "焦山楂", dose: "10g", reason: "消食化积" },
+        ] })
+      : JSON.stringify({ confirmed: true });
+    return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content } }] }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const out = await fit.topUpModificationConditions(root([]), { recordText: "胃胀三天", prior, caseState: undefined });
+  const body = JSON.parse(out.slice(out.indexOf("START -->") + 9, out.indexOf("<!-- DIAGNOSIS_JSON_END")));
+  assert.deepEqual(body.formula.modifications.map((row) => row.herbName), ["枳壳", "焦山楂"]);
+  assert.equal(body.formula.modifications[0].evidence.confidence, "低");
+  calls = 0;
+  const enough = root([{ trigger: "若腹胀", herbName: "枳壳" }, { trigger: "若嗳气", herbName: "旋覆花" }]);
+  assert.equal(await fit.topUpModificationConditions(enough, { recordText: "胃胀三天", prior }), enough);
+  assert.equal(calls, 0);
+  globalThis.fetch = realFetch;
+});
+
 // ───── 5 文本 ─────
 const claim = await jiti.import("../src/lib/m03-patient-claim-check.server.ts");
 const element = await jiti.import("../src/lib/m03-element-support.server.ts");

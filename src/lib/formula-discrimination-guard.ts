@@ -117,7 +117,7 @@ export function counterEvidenceNotice(items: readonly FormulaCounterEvidence[]):
   const lines = items.map((item) =>
     `${item.formulaName}：本例出现「${item.matchedAgainstTerms.join("、")}」，` +
     `属该方鉴别点（${item.discriminators.join("；") || "标准方剂鉴别对照"}）的**对立侧**特征`);
-  return `⚠️ **方剂鉴别反证**：${lines.join("；")}。依据为本地标准方剂鉴别对照的确定性比对，` +
+  return `⚠️ **方剂鉴别反证**：${lines.join("；")}。依据为标准方剂鉴别对照，` +
     `不代表一定错误（可能存在兼夹或先后缓急的考量），但请医生确认后再采纳。`;
 }
 

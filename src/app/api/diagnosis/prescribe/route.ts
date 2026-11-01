@@ -41,7 +41,7 @@ import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-determinis
 import { compactEvidenceContextForPrompt, m04EvidencePromptBudgetChars, m04ExternalEvidenceSoftDeadlineMs, promptSectionHeaders } from "@/lib/prompt-budget";
 import { declassifyAndDropOpposingM04CandidateHerbs } from "@/lib/m04-modification-safety";
 import { checkFormulaAnalysisClaimsInContent } from "@/lib/m04-formula-analysis-claim-check.server";
-import { dropMisfitModifications, withModificationsFrom } from "@/lib/m04-modification-fit.server";
+import { dropMisfitModifications, withModificationsFrom, topUpModificationConditions } from "@/lib/m04-modification-fit.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
 import { memoizedScopeText } from "@/lib/model-call-memo.server";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
@@ -540,7 +540,8 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
       ]);
       authoredHomeAcupoint = authored;
       // 两件核对都在同一份内容上并行，方义与加减互不相干：取方义核对的结果，把加减行换成核对后的。
-      return withModificationsFrom(checked, fitted);
+      // 核对之后不同的条件不足两个时补写（教材没有这一证、模型也没写时，其余病例不发请求）。
+      return topUpModificationConditions(withModificationsFrom(checked, fitted), { recordText: structuredClinicalContext, prior: signedPriorReasoning, caseState: safeState }, transformSignal);
     },
     prescribeSignatureContext: buildPrescribeContractSignatureContext({ ...gated, reasoningDiagnose: deliveredSignedPriorReasoning }),
     // 医生点「重新生成候选方药」时前端原样重发同一份 caseState 与同一份已签名 M03，

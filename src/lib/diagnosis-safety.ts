@@ -6721,11 +6721,11 @@ function semanticScreeningUnavailableItem(state: CaseState): string | undefined 
   }
   if (state.clinicalFacts?.semanticStatus !== "unavailable") return undefined;
   const reasonLabels = {
-    disabled: "语义模型已禁用",
+    disabled: "未启用",
     aborted: "请求中止",
-    timeout: "模型超时",
-    model_error: "模型调用失败",
-    invalid_output: "模型输出无效",
+    timeout: "服务超时",
+    model_error: "服务调用失败",
+    invalid_output: "结果无效",
     signing_unavailable: "可信签名不可用",
   } as const;
   const reason = state.clinicalFacts.unavailableReason;
@@ -8025,7 +8025,7 @@ export function buildSafetyLimitedDiagnosisReasoning(
     .slice(0, 12)
     .map((item) => ({
       item,
-      reason: redFlag ? "当前应优先完成急诊或专科评估" : "当前资料或模型结果不足以形成稳定结论",
+      reason: redFlag ? "当前应优先完成急诊或专科评估" : "当前资料不足以形成稳定结论",
       affects: "中医证候、病机与剂量级候选方药",
     }));
 
@@ -8811,14 +8811,14 @@ export function buildDeterministicRiskFollowupPayload(
   const highest = redFlagWithDose || hasStrongRisk ? "强提示" : hasReviewRisk ? "一般提示" : "说明性提示";
   const overall = redFlagWithDose
     ? `存在未解除的急危重红旗（${gate.redFlags.join("；") || "急危重分流提示"}），需先完成急诊或专科处置`
-    : hasStrongRisk ? "较高风险，需调整或核对后使用" : hasReviewRisk ? "中等风险，需医生核对后使用" : "当前未识别确定性高危用药冲突，仍需医生最终确认";
+    : hasStrongRisk ? "较高风险，需调整或核对后使用" : hasReviewRisk ? "中等风险，需医生核对后使用" : "当前未发现明确的高危用药冲突，仍需医生最终确认";
   const doctorAction = redFlagWithDose
     ? "红旗解除前不得采纳本方；请先按急诊或转诊流程处置，排除急危重情况、确认可以服药后再采纳。"
     : hasStrongRisk
     ? "候选处方命中强提示或审方未完成，请调整剂量/药味、完善复核或请药师复核后再采纳。"
     : hasReviewRisk
       ? "处方供医生审阅，请结合过敏史、现用药、特殊人群状态和院内规则核对后使用。"
-      : "当前无确定性强提示；仍需医生按病情、说明书和院内药事规则最终确认。";
+      : "当前无强提示；仍需医生按病情、说明书和院内药事规则最终确认。";
   // 随访管理方案写进病历、交给患者（2026-09-28 甲方）：栏目名不变，内容一律写给患者本人——
   // 什么时候复诊、服药期间留意什么、出现什么提前来、出现什么立即去急诊。
   // 安全总评（上方「处方安全总评」）仍是给医生的确定性结论，不在此列。

@@ -3733,7 +3733,7 @@ assert.equal(compiledProposal?.formula?.candidates[0].herbs[0].verificationTier,
 assert.equal(compiledProposal?.formula?.candidates[0].herbs[0].doseSource, "governed_boundary", "verified herb doses identify the governed boundary source");
 // 措辞 2026-08-12 去内部口径词（甲方：知识库不对用户展示）——判据仍是「说清为什么定到这一档」，
 // 只是不再用「受治理剂量边界」这种内部说法。数值区间必须仍在，否则这条说明就空了。
-assert.match(compiledProposal?.formula?.candidates[0].herbs[0].verificationReasons?.[0] || "", /标准区间完成规则校验/, "verification metadata must explain why the tier was assigned");
+assert.match(compiledProposal?.formula?.candidates[0].herbs[0].verificationReasons?.[0] || "", /标准区间内/, "verification metadata must explain why the tier was assigned");
 assert.match(compiledProposal?.formula?.candidates[0].herbs[0].verificationReasons?.[0] || "", /\d+-\d+g/, "核验说明必须带上具体剂量区间");
 assert.equal(compiledProposal?.formula?.modifications[0].targetPathogenesis, "心血不足");
 assert.equal(compiledProposal?.formula?.modifications[0].action, "加");

@@ -23,6 +23,7 @@ import {
   modificationDoseWithinPharmacopoeia,
   doseWithinConservativeModelLimit,
   conditionDeclaresHighImpactDirection,
+  m04ModificationSafetyIssue,
   highImpactHerbDirectionIssue,
   sameHerbIdentity,
   m04GenerationSpecialPopulationIssue,
@@ -161,7 +162,7 @@ function compileHerbVerification(name: string, dose: string, method: string, mod
     // 医生看得到这一条，不能写内部口径词（甲方 2026-08-12）。
     verificationReasons: [pediatric
       ? `剂量已按儿童折算上限 ${pediatricDoseCeilingG(doseLimit.max, pediatric, name)}g（成人 ${doseLimit.min}-${doseLimit.max}g × ${pediatric.fractionText}）完成规则校验`
-      : `剂量已按 ${doseLimit.min}-${doseLimit.max}g 的标准区间完成规则校验`],
+      : `剂量在 ${doseLimit.min}-${doseLimit.max}g 的标准区间内`],
     isToxic: false,
   };
 }
@@ -2158,6 +2159,70 @@ function withAnalysisConsistentCandidate(
   return { ...aligned, herbs: withoutIncidentalSedatives(aligned, prior) };
 }
 
+/**
+ * 一行加减除方向与来源之外的判据（第三十四轮抽出来：编译与补写共用，不各写一份）。
+ * 条件与本例相抵或不可能出现；拟加的药与方中同源同向、十八反，或与病历记录的过敏、人群、【使用注意】相抵。
+ */
+function modificationAddBlock(
+  item: { actionType: string; trigger: string; herbName: string },
+  context: { caseState?: CaseState; candidateHerbNames: readonly string[]; recordText: string; syndromeText: string; groundingText: string; allergens: ReturnType<typeof recordedAllergensInText> },
+): ModificationDropCode | undefined {
+  const add = item.actionType === "add";
+  // 拟加的药，教材【使用注意】写明与本例已记录的情况相抵（甲方病历 3：「若头晕耳鸣、虚烦少寐：加熟地黄」，病历食欲下降、大便稀溏，
+  //《中药学》熟地黄「食少便溏者忌服」）。教材加减同样不列：教材的条件是证候变化，没有替这位患者的脾胃作主。
+  if (add && context.recordText && herbRecordCautionConflict(item.herbName, context.recordText, context.syndromeText)) return "record_caution_conflict";
+  // 条件与本例相抵或本例不可能出现（教材加减同样适用：教材条件是「可预见的变化」，不是病历已否认的、或这个人不会有的症状）。
+  if (context.recordText && modificationConditionContradictsRecord(item.trigger, context.recordText)) return "trigger_contradicts_record";
+  if (context.caseState && modificationConditionOutsidePopulation(item.trigger, context.caseState)) return "trigger_outside_population";
+  // 拟加的药与方中某味同源同向（方中已有干姜又加生姜）：方中药味定稿时同一张表只留一味，加减这边此前没过（第三十三轮 5/142）。
+  if (add && sameSourceHerbInCandidate(item.herbName, context.candidateHerbNames)) return "action_conflicts_with_candidate";
+  // 拟加的药不得与方中任何一味相反（十八反）。此前只有「可替换药味」做了这项排除，加味本身没有。
+  if (add && modificationHerbIncompatibleWithCandidate(item.herbName, context.candidateHerbNames)) return "action_conflicts_with_candidate";
+  // 病历记录的食物等过敏：与过敏原同源的饮片（avoid 档）不作为加味（第二十一轮）。
+  if (add && context.allergens.length > 0 && allergenHerbMatch(item.herbName, context.allergens)?.action === "avoid") return "allergen_conflict";
+  // 与本例人群或状态冲突的饮片不作为加味：与方中药味同一个判据（m04GenerationSpecialPopulationIssue）——备孕或妊娠状态未记录时的药典孕妇禁用药、
+  // 妊娠/哺乳/儿童/出血或抗凝/肝肾功能不全等人群的高风险药、活动性出血时的活血化瘀药。此前加减只查了备孕这一档：
+  // 剂量一致化（第二十三轮 D4）后红旗、妊娠、抗凝病例也给剂量，方中药味经合同与定稿剔除，拟加的药却没有任何拦截。
+  if (add && context.groundingText && m04GenerationSpecialPopulationIssue([{ name: item.herbName }], context.groundingText)) return "special_population_conflict";
+  return undefined;
+}
+
+/**
+ * 补写的条件式加减能不能进（第三十四轮 m04-modification-fit 的补写）：形状、药名、剂量、不重复方中与已有条件、方向（条件写明了才随条件走）、其余判据与编译同一个函数。
+ * 能进时返回交付形状的一行，否则 undefined。
+ */
+export function topUpModificationRow(
+  row: { trigger: string; herbName: string; dose: string; reason: string },
+  context: { prior: ClinicalReasoningResultV2; caseState?: CaseState; candidateHerbNames: readonly string[]; existingTriggers: readonly string[] },
+): Record<string, unknown> | undefined {
+  const { prior, caseState, candidateHerbNames } = context;
+  const herbName = modificationDisplayHerbName(row.herbName.trim(), canonicalTcmHerbIdentity(row.herbName.trim()));
+  if (!modelConditionalTriggerShape(row.trigger) || !isKnownTcmHerbName(canonicalTcmHerbIdentity(herbName))) return undefined;
+  if (distinctModificationConditions([...context.existingTriggers.map((trigger) => ({ trigger })), { trigger: row.trigger }]) === distinctModificationConditions(context.existingTriggers.map((trigger) => ({ trigger })))) return undefined;
+  if (candidateHerbNames.some((name) => modificationHerbIdentity(name) === modificationHerbIdentity(herbName))) return undefined;
+  const dose = /^\d{1,3}(?:\.\d)?\s*(?:g|克)$/i.test(row.dose.trim()) ? `${parseFloat(row.dose)}g` : undefined;
+  if (!dose || !modificationDoseWithinPharmacopoeia(dose, herbName, "加")) return undefined;
+  const issue = highImpactHerbDirectionIssue(herbName, row.reason, prior);
+  if (issue && !conditionDeclaresHighImpactDirection(row.trigger, issue)) return undefined;
+  const recordText = caseState ? clinicalGroundingText(caseState) : "";
+  const allergens = caseState ? recordedAllergensInText(recordText, clauseLocalMentionPolarityAt) : [];
+  const syndromeText = [prior.overview?.primarySyndrome, ...(prior.overview?.secondarySyndromes || [])].filter(Boolean).join("；");
+  if (modificationAddBlock({ actionType: "add", trigger: row.trigger, herbName }, { caseState, candidateHerbNames, recordText, syndromeText, groundingText: recordText, allergens })) return undefined;
+  const pediatric = caseState ? pediatricDoseRuleFromGroundingText(recordText) : undefined;
+  const compiled = {
+    trigger: row.trigger,
+    targetPathogenesis: String(prior.pathogenesis?.chain?.[0]?.pathogenesis || prior.overview?.primarySyndrome || "随证调整"),
+    action: "加",
+    herbName,
+    doseOrHandling: modificationAddDose(herbName, dose, pediatric),
+    reason: row.reason.trim() || "随证调整治疗重点",
+    riskNote: specialDecoctionPhrase(herbName),
+    evidence: { evidenceLevel: "model_inference", source: MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, confidence: "低" },
+  };
+  // 开方安全底线逐行用的判据：底线会拒的（理由里夹了剂量等）这里就不进，不让一条补写的行连累整方。
+  return m04ModificationSafetyIssue(compiled, 0, prior, isKnownTcmHerbName) ? undefined : compiled;
+}
+
 export function compileM04Proposal(
   value: unknown,
   prior: ClinicalReasoningResultV2 | null | undefined,
@@ -2351,48 +2416,15 @@ export function compileM04Proposal(
       dropReasons.push("incidental_sedative");
       return [];
     }
-    // 拟加的药，教材【使用注意】写明与本例已记录的情况相抵（甲方病历 3：「若头晕耳鸣、虚烦少寐：加熟地黄」，病历食欲下降、大便稀溏，
-    //《中药学》熟地黄「食少便溏者忌服」）。教材加减同样不列：教材的条件是证候变化，没有替这位患者的脾胃作主。
-    if (item.actionType === "add" && modificationRecordText &&
-      herbRecordCautionConflict(item.herbName, modificationRecordText, modificationSyndromeText)) {
-      dropReasons.push("record_caution_conflict");
-      return [];
-    }
     const triggerSource = textbookSource ? undefined : resolveModificationTriggerSource(item.trigger, prior);
     const modelConditional = !textbookSource && !triggerSource && modelConditionalModificationForPrior(item.trigger, prior);
     if (!textbookSource && !triggerSource && !modelConditional) {
       dropReasons.push("trigger_not_current_fact");
       return [];
     }
-    // 条件与本例相抵或本例不可能出现（教材加减同样适用：教材条件是「可预见的变化」，不是病历已否认的、或这个人不会有的症状）。
-    if (modificationRecordText && modificationConditionContradictsRecord(item.trigger, modificationRecordText)) {
-      dropReasons.push("trigger_contradicts_record");
-      return [];
-    }
-    if (caseState && modificationConditionOutsidePopulation(item.trigger, caseState)) {
-      dropReasons.push("trigger_outside_population");
-      return [];
-    }
-    // 拟加的药与方中某味同源同向（方中已有干姜又加生姜）：方中药味定稿时同一张表只留一味，加减这边此前没过（第三十三轮 5/142）。
-    if (item.actionType === "add" && sameSourceHerbInCandidate(item.herbName, candidateHerbNames)) {
-      dropReasons.push("action_conflicts_with_candidate");
-      return [];
-    }
-    // 拟加的药不得与方中任何一味相反（十八反）。此前只有「可替换药味」做了这项排除，加味本身没有。
-    if (item.actionType === "add" && modificationHerbIncompatibleWithCandidate(item.herbName, candidateHerbNames)) {
-      dropReasons.push("action_conflicts_with_candidate");
-      return [];
-    }
-    // 病历记录的食物等过敏：与过敏原同源的饮片（avoid 档）不作为加味（第二十一轮）。
-    if (recordedAllergens.length > 0 && item.actionType === "add" && allergenHerbMatch(item.herbName, recordedAllergens)?.action === "avoid") {
-      dropReasons.push("allergen_conflict");
-      return [];
-    }
-    // 与本例人群或状态冲突的饮片不作为加味：与方中药味同一个判据（m04GenerationSpecialPopulationIssue）——备孕或妊娠状态未记录时的药典孕妇禁用药、
-    // 妊娠/哺乳/儿童/出血或抗凝/肝肾功能不全等人群的高风险药、活动性出血时的活血化瘀药。此前加减只查了备孕这一档：
-    // 剂量一致化（第二十三轮 D4）后红旗、妊娠、抗凝病例也给剂量，方中药味经合同与定稿剔除，拟加的药却没有任何拦截。
-    if (item.actionType === "add" && modificationGroundingText && m04GenerationSpecialPopulationIssue([{ name: item.herbName }], modificationGroundingText)) {
-      dropReasons.push("special_population_conflict");
+    const blocked = modificationAddBlock(item, { caseState, candidateHerbNames, recordText: modificationRecordText, syndromeText: modificationSyndromeText, groundingText: modificationGroundingText, allergens: recordedAllergens });
+    if (blocked) {
+      dropReasons.push(blocked);
       return [];
     }
     const actionVerb = item.actionType === "add" ? "加" : item.actionType === "remove" ? "减" : "调整";

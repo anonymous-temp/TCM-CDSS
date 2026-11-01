@@ -1272,6 +1272,15 @@ export function applyM03AdvisoryQualityBoundaries(content: string, clinicalConte
     // 该字段仍然是可选的：模型给不出稳定病名时留空，不构成门禁。
 
     const chain = recordList(pathogenesis.chain);
+    // 总治法整段没了、病机链的分治法还在（第三十四轮：甲方「恶心、头晕伴流涕」2/93，首轮 JSON 解析失败转工具调用重试后 therapy 丢失，整页退成「未形成结论」）：
+    // 按病机链的分治法写总治法，不为缺这一句丢掉一份完整的辨证。
+    if (!markdownCell(therapy.overallMethod).trim()) {
+      const directions = [...new Set(chain.map((node) => markdownCell(node.therapyDirection).trim()).filter(Boolean))];
+      if (directions.length > 0) {
+        therapy.overallMethod = directions.slice(0, 3).join("，");
+        console.warn("[tcm-cdss:telemetry] m03_overall_method_from_chain", { nodes: directions.length });
+      }
+    }
     if (primary) {
       const fallback = chiefComplaintFallbackDiagnosis(clinicalContext);
       const fallbackFacts = affirmedClinicalSourceClauses(stripClinicalTransportPrefix(fallback.fact || ""))
@@ -4160,7 +4169,7 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
     ? deferred.names.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
     : [];
   if (names.length === 0) return [];
-  return [`**未锁定经典方方向**：本次分析曾检索到 ${names.map(markdownCell).join("、")}，但该方与本例签名证候尚无可核验的直接对应关系，因此未予锁定为候选处方；仅供医生进行方证鉴别。`];
+  return [`**未锁定经典方方向**：本次分析曾检索到 ${names.map(markdownCell).join("、")}，但该方与本例证候尚无可核验的直接对应关系，因此未予锁定为候选处方；仅供医生进行方证鉴别。`];
 }
 
   // 甲方评测(2026-08-03)要求鉴别诊断给到病名级：辨病鉴别(相邻中医病名)在前、证候鉴别在后，
@@ -4415,7 +4424,7 @@ function renderPrescribeWarningProjection(
         if (pairs.length === 0) return [] as string[];
         return [
           "",
-          "### ⚠️ 配伍禁忌提示（确定性检测）",
+          "### ⚠️ 配伍禁忌提示",
           ...pairs.map((pair) => `- **${pair.leftDrug} × ${pair.rightDrug}**：命中${pair.category || "十八反十九畏"}（${pair.basis || "本地配伍规则"}）。是否同用须由医师专项权衡并说明理由，采纳前必须经药师逐对复核；本提示为本地规则确定性生成，不可关闭。`),
         ];
       })(),
@@ -4429,7 +4438,17 @@ function renderPrescribeWarningProjection(
         ].filter((value): value is string => typeof value === "string" && Boolean(value.trim()));
         const overviewRecord = recordValue(reasoning.overview);
         const syndrome = typeof overviewRecord?.primarySyndrome === "string" ? overviewRecord.primarySyndrome : "";
-        const notice = formulaSyndromeConflictNotice(formulaSyndromeConflicts(formulaNames, syndrome));
+        // 只提示寒热相反、且不是辨证阶段自己定的方（第三十四轮：400 份输出里 26 份带这句，几乎全是误报——三仁汤「属虚」、逍遥散对肝郁气滞「虚实相反」、
+        // 七味白术散对消渴气阴亏虚「寒热相反」，后者正是教材代表方。目录的虚实归属不可靠，虚实夹杂又是常态）。
+        const direction = String(overviewRecord?.recommendedFormulaDirection || "");
+        const seen = new Set<string>();
+        const conflicts = formulaSyndromeConflicts(formulaNames, syndrome).filter((conflict) => {
+          const base = conflict.formulaName.replace(/(?:加减|化裁|加味)$/u, "");
+          if (conflict.axis !== "thermal" || direction.includes(base) || seen.has(base)) return false;
+          seen.add(base);
+          return true;
+        });
+        const notice = formulaSyndromeConflictNotice(conflicts);
         return notice ? ["", notice] : [];
       })(),
       "",

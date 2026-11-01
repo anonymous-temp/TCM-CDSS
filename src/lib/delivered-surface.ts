@@ -574,6 +574,12 @@ const OBJECT = "([^，,。；;：:（）()\\n]{1,60}?)";
 
 /** 净化器与鉴别归一写出的系统句式 → 临床写法。顺序有意义：长句式在前。 */
 const SYNTHETIC_PHRASES: ReadonlyArray<[RegExp, string]> = [
+  // 模型写进推理说明的「置信度」是评估用语，医生读不出意思（第三十四轮扫描 33 处）。
+  [/[，,]?并降低置信度/g, ""],
+  [/故置信度(?:较)?低/g, "故尚不能确定"],
+  [/故置信度(?:中等|一般)/g, "故尚需核实"],
+  [/置信度(?:较)?低/g, "把握不大"],
+  [/置信度(?:中等|一般)/g, "尚需核实"],
   [new RegExp(`病历尚未确认${OBJECT}是否已排除[；;，,]\\s*病历已记录该表现存在[，,]\\s*请医生核对后再采纳`, "g"), "有$1"],
   [new RegExp(`病历已记录否认${OBJECT}[，,]\\s*[^，,。；;\\n]{1,30}?的一般情况需医生核实`, "g"), "否认$1"],
   [new RegExp(`病历已记录本次${OBJECT}未见明显异常[；;，,]\\s*是否复查由医生结合病情判断`, "g"), "本次$1未见明显异常"],
@@ -638,7 +644,7 @@ const SERVER_NOTES: readonly RegExp[] = [
 
 /** 把系统句式换成临床写法；没有命中时原样返回（逐字节不变）。 */
 export function clinicalWordingForSyntheticPhrases(value: string): string {
-  if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|服务器|受控目录|症状层|可逐字回溯|有界建议|工作证候|工作诊断|工作判断|复评/.test(value)) return value;
+  if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|服务器|受控目录|症状层|可逐字回溯|有界建议|工作证候|工作诊断|工作判断|复评|置信度/.test(value)) return value;
   let text = value.replace(BOUNDED_ADVICE_NOTE, "");
   for (const note of SERVER_NOTES) text = text.replace(note, "");
   text = text.trim();
