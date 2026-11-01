@@ -86,7 +86,9 @@ export function westernCriteriaEntry(name: string): WesternCriteriaEntry | undef
   const withoutPopulation = withoutLeadingQualifier(trimmed, qualifiers.population);
   return entries.get(trimmed) || entries.get(withoutLeadingQualifier(trimmed, qualifiers.course)) ||
     entries.get(withoutLeadingQualifier(trimmed, qualifiers.side)) || entries.get(withoutPopulation) ||
-    entries.get(withoutLeadingQualifier(withoutPopulation, qualifiers.course));
+    entries.get(withoutLeadingQualifier(withoutPopulation, qualifiers.course)) ||
+    // 交付写「慢性失眠」（ICSD-3），表里按「慢性失眠障碍」收载。
+    entries.get(`${trimmed}障碍`);
 }
 
 /**

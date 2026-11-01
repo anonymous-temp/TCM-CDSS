@@ -50,7 +50,7 @@ const lungStomachPrior = {
   therapy: { overallPrinciple: "实则泻之", overallMethod: "宣肃肺气，和胃降逆", subTherapies: [{ therapy: "宣肃肺气", targetPathogenesis: "肺失宣肃", priority: "主要", evidence }] },
   formula: null, nonPharma: null, lineageAdaptation: null,
 };
-const heatRow = { trigger: "若咽痛明显、咽部红肿", targetPathogenesis: "热邪上壅咽喉", action: "加", herbName: "黄芩", doseOrHandling: "6g", reason: "清热泻火，利咽" };
+const heatRow = { trigger: "若咽痛明显", targetPathogenesis: "热邪上壅咽喉", action: "加", herbName: "黄芩", doseOrHandling: "6g", reason: "清热泻火，利咽" };
 const phlegmRow = { trigger: "若痰多色白", targetPathogenesis: "痰浊阻肺", action: "加", herbName: "半夏", doseOrHandling: "6g", reason: "燥湿化痰，降逆止呕" };
 const prescription = (modifications, herbs = ["紫菀", "款冬花", "白前", "前胡", "竹茹"]) => ({
   schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
@@ -64,6 +64,8 @@ await check("1.1 方向未成立的加减（肺胃气逆证加黄芩清热）：
   // 旧的删行判据（只看方向对立）放行它：两处判据不一就是整页退成不给剂量的原因。
   assert.equal(contract.m04HerbOpposingDirectionIssue({ name: "黄芩", function: `${heatRow.reason}；${heatRow.targetPathogenesis}` }, lungStomachPrior), undefined);
   assert.deepEqual(retainedHerbs([heatRow, phlegmRow]), ["半夏"]);
+  // 第三十四轮：条件自己写明了方向（咽部红肿）时方向随条件走，与教材条件式加减同一道理。
+  assert.deepEqual(retainedHerbs([{ ...heatRow, trigger: "若咽痛明显、咽部红肿" }, phlegmRow]), ["黄芩", "半夏"]);
 });
 
 await check("1.2 底线会拒的其他加减同样单条去掉（理由里夹剂量、未收载的药味），成立的照留；留下的每一条底线都不拒", () => {
@@ -97,10 +99,11 @@ const externalAttackPrior = {
   },
   therapy: { overallPrinciple: "实则泻之", overallMethod: "疏邪解表，化浊和中，降逆止呕", subTherapies: [] },
 };
-await check("1.3 对照：教材条件式加减（外邪犯胃证「若见壮热口渴，便秘尿赤」加黄芩、黄连）照留；同一条件加不在教材里的石膏仍去掉", () => {
+await check("1.3 对照：教材条件式加减（外邪犯胃证「若见壮热口渴，便秘尿赤」加黄芩、黄连）照留；教材外的药，条件自己写明方向才留（第三十四轮），否则去掉", () => {
   const textbook = { trigger: "若见壮热口渴，便秘尿赤", targetPathogenesis: "外邪入里化热", action: "加", herbName: "黄芩", doseOrHandling: "9g", reason: "清泄里热" };
   const herbs = ["广藿香", "紫苏叶", "白芷", "半夏曲", "厚朴", "陈皮", "大腹皮", "茯苓", "白术", "桔梗", "炙甘草"];
-  assert.deepEqual(retainedHerbs([textbook, { ...textbook, herbName: "石膏", doseOrHandling: "20g", reason: "清热泻火" }], externalAttackPrior, herbs), ["黄芩"]);
+  assert.deepEqual(retainedHerbs([textbook, { ...textbook, herbName: "石膏", doseOrHandling: "20g", reason: "清热泻火" }], externalAttackPrior, herbs), ["黄芩", "石膏"]);
+  assert.deepEqual(retainedHerbs([textbook, { ...textbook, trigger: "若腹胀明显", herbName: "石膏", doseOrHandling: "20g", reason: "清热泻火" }], externalAttackPrior, herbs), ["黄芩"]);
 });
 
 await check("1.4 开方安全底线逐条加减用的就是这个判据（不另写一份）", () => {

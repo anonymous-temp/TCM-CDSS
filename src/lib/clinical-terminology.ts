@@ -223,7 +223,7 @@ export function resolveTcmDiseaseName(value: unknown): TcmDiseaseResolution | un
 //「2型糖尿病」。失眠、睡眠呼吸暂停、不宁腿保留子串写法：带把握度尾巴（「慢性-失眠障碍倾向」）与包在鉴别句子里的
 //（「…需排除阻塞性睡眠呼吸暂停」）要归到同一身份，含这几个词的名称说的就是这个病。
 const WESTERN_DIAGNOSIS_RULES: readonly TerminologyRule[] = [
-  { pattern: /(?:慢性|非器质性).*失眠|失眠.*(?:慢性|非器质性)/, canonical: "慢性失眠障碍" },
+  { pattern: /(?:慢性|非器质性).*失眠|失眠.*(?:慢性|非器质性)/, canonical: "慢性失眠" },
   { pattern: /失眠(?:障碍|综合征|症)?/, canonical: "失眠障碍" },
   { pattern: /^(?:原发性)?高血压(?:病)?$/, canonical: "高血压" },
   { pattern: /^(?:2型|二型)糖尿病$/, canonical: "2型糖尿病" },

@@ -154,6 +154,15 @@ export function m03EvidencePromptBudgetChars(): number {
  * 让 EviMed 不再单独拉长 M04 前置。`PRIMARY_PRESCRIBE_EXTERNAL_EVIDENCE_SOFT_DEADLINE_MS=off`
  * 恢复「等到检索返回为止」。钳制 500–15000。
  */
+export function m03ExternalEvidenceSoftDeadlineMs(): number | undefined {
+  // 同 M04（第三十四轮）：作答后冷算时外部检索是 M03 前置里最慢的一条（甲方 34 份 p50 3.3 s、p90 4.1 s，其余前置 2.3 s），
+  // 检索到的文献 66/81 次被相关性过滤掉（第十九轮）。到点不等，检索照常跑完进缓存。
+  const raw = (process.env.PRIMARY_DIAGNOSE_EXTERNAL_EVIDENCE_SOFT_DEADLINE_MS || "").trim().toLowerCase();
+  if (raw === "off" || raw === "false" || raw === "none") return undefined;
+  const value = Number(raw || 2_500);
+  return Number.isFinite(value) ? Math.min(15_000, Math.max(500, Math.round(value))) : 2_500;
+}
+
 export function m04ExternalEvidenceSoftDeadlineMs(): number | undefined {
   const raw = (process.env.PRIMARY_PRESCRIBE_EXTERNAL_EVIDENCE_SOFT_DEADLINE_MS || "").trim().toLowerCase();
   if (raw === "off" || raw === "false" || raw === "none") return undefined;

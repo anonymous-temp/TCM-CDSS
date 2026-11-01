@@ -85,7 +85,7 @@ await check("2.2 只在作答后、接口令牌请求、复用开启时触发；
     pre.precomputeAnsweredPath(request({ "x-cdss-api-token": "t", "x-cdss-customer-id": "hospital-a" }), answered); await settle();
     assert.equal(calls.filter((url) => url.endsWith("/api/diagnosis/diagnose")).length, 1, JSON.stringify(calls));
     calls.length = 0;
-    pre.precomputeAnsweredPath(request({ "x-cdss-api-token": "t", "x-cdss-regenerate": "1" }), answered); await settle();
+    pre.precomputeAnsweredPath(request({ "x-cdss-api-token": "t", "x-cdss-regenerate": "force" }), answered); await settle();
     pre.precomputeAnsweredPath(request({ cookie: "tcm_cdss_ui_access=x" }), answered); await settle();
     pre.precomputeAnsweredPath(request({ "x-cdss-api-token": "t" }), unanswered); await settle();
     process.env.CDSS_STAGE_RESULT_REUSE = "false";

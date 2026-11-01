@@ -715,6 +715,13 @@ export function conditionalModificationWithoutTextbook(trigger: string): boolean
  * 兼证由辨证阶段按判据定，加减不能绕过去补一个；写舌象脉象（「而见舌红、脉细数」）——舌脉是本次已记录或未记录的事实，不是将来可能出现的症状。
  * 教材条件不走这里：教材写的是证候变化，由教材负责。
  */
+export function conditionWithoutTonguePulseClauses(trigger: string): string {
+  if (!/^若/u.test(trigger) || !/[舌苔脉]/u.test(trigger)) return trigger;
+  const clauses = trigger.replace(/^若/u, "").split(/[，,、；;]/u).map((clause) => clause.trim()).filter(Boolean);
+  const kept = clauses.filter((clause) => !/[舌苔脉]/u.test(clause));
+  return kept.length > 0 && kept.length < clauses.length ? `若${kept.join("、")}` : trigger;
+}
+
 export function modelConditionalTriggerShape(trigger: string): boolean {
   const text = (typeof trigger === "string" ? trigger : "").normalize("NFKC").trim().replace(/[。；;，,\s]+$/u, "");
   if (!/^若/u.test(text)) return false;

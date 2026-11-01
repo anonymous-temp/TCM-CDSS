@@ -38,23 +38,31 @@ export async function buildCdssEvidenceContext(
      * 线上 M04 的规划器腿约 1.7–2.2s、EviMed 腿 3.6–5.1s，多等的 2–3s 换来的多是与本例无关的条目。
      */
     externalSoftDeadlineMs?: number;
+    /**
+     * 外部检索这一段的留底（第三十四轮）：软等待是按时钟定的，同一份病历这次赶上、下次没赶上，提示词就不同，后面全跟着变。
+     * 路由传入按病历留底的函数（本文件会进浏览器包，留底实现不能在这里 import）：同一份病历第二次起用第一次带进提示词的那一段，赶没赶上都算定了。
+     */
+    externalEvidenceMemo?: (compute: () => Promise<string>) => Promise<string>;
   },
 ): Promise<string> {
   const localContext = buildTcmKnowledgeContext(caseState, stage);
-  const externalPromise = buildExternalEvidenceContext(caseState, stage, signal);
   const softDeadline = options?.externalSoftDeadlineMs;
-  const externalEvidenceContext = softDeadline != null && Number.isFinite(softDeadline)
-    ? await new Promise<string>((resolve) => {
-        const timer = setTimeout(() => {
-          console.info("[tcm-cdss:timing] external_evidence_soft_deadline", { stage, softDeadlineMs: softDeadline });
-          resolve("");
-        }, Math.max(0, softDeadline));
-        externalPromise.then(
-          (value) => { clearTimeout(timer); resolve(value); },
-          () => { clearTimeout(timer); resolve(""); },
-        );
-      })
-    : await externalPromise;
+  const computeExternal = (): Promise<string> => {
+    const externalPromise = buildExternalEvidenceContext(caseState, stage, signal);
+    return softDeadline != null && Number.isFinite(softDeadline)
+      ? new Promise<string>((resolve) => {
+          const timer = setTimeout(() => {
+            console.info("[tcm-cdss:timing] external_evidence_soft_deadline", { stage, softDeadlineMs: softDeadline });
+            resolve("");
+          }, Math.max(0, softDeadline));
+          externalPromise.then(
+            (value) => { clearTimeout(timer); resolve(value); },
+            () => { clearTimeout(timer); resolve(""); },
+          );
+        })
+      : externalPromise;
+  };
+  const externalEvidenceContext = await (options?.externalEvidenceMemo ? options.externalEvidenceMemo(computeExternal) : computeExternal());
   const formulaProvenanceContext = stage === "prescribe" ? buildFormulaProvenanceContext(caseState) : "";
   // 方剂检索段由阶段提示词自己拼（buildDiagnosePrompt / buildPrescribePrompt），这里不再重复。
   // 曾经两处各拼一份，而提示词那份**不带 recallHint**：口语主诉下它返回「未命中受控经典方主治索引，

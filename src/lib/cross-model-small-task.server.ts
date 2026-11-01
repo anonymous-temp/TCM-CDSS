@@ -152,6 +152,22 @@ export async function proposeTwiceThenVerifyAll<P>(
   return proposals.filter((_, index) => verdicts[index] === true).slice(0, limit);
 }
 
+/** 一批已有的说法直接问复核（不再提名）：返回与 proposals 同序的答案。 */
+export function verifyProposals<P>(
+  namespace: string,
+  stage: "diagnose" | "prescribe",
+  proposals: readonly P[],
+  verify: (proposal: P) => { messages: Messages; maxTokens: number; parse: (content: unknown) => boolean | undefined },
+  timeoutMs: number,
+  signal?: AbortSignal,
+): Promise<Array<boolean | undefined>> {
+  return Promise.all(proposals.map(async (proposal) => {
+    const request = verify(proposal);
+    const verdict = await runOne(`${namespace}_verify`, stage, textModelConfigForModel(CROSS_CHECK_MODEL()), request.messages, request.maxTokens, timeoutMs, request.parse, signal);
+    return verdict === true ? true : runOne(`${namespace}_recheck`, stage, getControlledTerminologyModelConfig(), request.messages, request.maxTokens, timeoutMs, request.parse, signal);
+  }));
+}
+
 /** 复核答案里的 yes/no：{"confirmed":true|false}。 */
 export function parseConfirmed(content: unknown): boolean | undefined {
   if (typeof content !== "string" || !content.trim()) return undefined;

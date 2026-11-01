@@ -1,5 +1,5 @@
 import sameSourceHerbsJson from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
-import { conditionalModificationWithoutTextbook, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
+import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { incidentalSleepSedativeModification, incidentalSleepTriggerModification, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
 
 import { z } from "zod";
@@ -22,6 +22,7 @@ import {
   doseInGrams,
   modificationDoseWithinPharmacopoeia,
   doseWithinConservativeModelLimit,
+  conditionDeclaresHighImpactDirection,
   highImpactHerbDirectionIssue,
   sameHerbIdentity,
   m04GenerationSpecialPopulationIssue,
@@ -1151,6 +1152,32 @@ function expandTextbookEntryRow(item: unknown, prior?: ClinicalReasoningResultV2
   return rows;
 }
 
+const MODIFICATION_PROCESSING_PREFIX = /^(?:蜜炙|麸炒|土炒|米炒|醋制|酒制|盐制|姜制|醋炒|酒炒|盐炒|姜炒|炒|炙|煅|焦|生|蜜|盐|酒|醋|姜)$/u;
+function modificationDisplayHerbName(written: string, identity: string): string {
+  return written !== identity && written.endsWith(identity) && MODIFICATION_PROCESSING_PREFIX.test(written.slice(0, -identity.length)) ? written : identity;
+}
+
+/**
+ * 超过行数上限时先留不同的条件（第三十四轮 D01：教材一条里的两味「若咽喉肿痛→山豆根、玄参」「若口渴→天花粉、知母」占满四行，模型写的「若发热甚→黄芩」被挤掉）。
+ * 只改取舍顺序，不改行本身；同一条件的第二行里，加味排在「调整（加重方中已有的药）」前面。
+ */
+function withDistinctConditionsFirst<T>(rows: readonly T[]): T[] {
+  const triggerOf = (row: T) => String((row as { trigger?: unknown }).trigger || "");
+  const seen = new Set<string>();
+  const first: T[] = [];
+  const rest: T[] = [];
+  for (const row of rows) {
+    const key = triggerOf(row).replace(/^若/u, "").replace(/[\s，,。；;：:]/gu, "");
+    if (seen.has(key)) rest.push(row);
+    else {
+      seen.add(key);
+      first.push(row);
+    }
+  }
+  const isAdjust = (row: T) => (row as { actionType?: unknown }).actionType === "adjust";
+  return [...first, ...rest.filter((row) => !isAdjust(row)), ...rest.filter(isAdjust)];
+}
+
 function normalizeModifications(
   value: unknown,
   prior?: ClinicalReasoningResultV2 | null,
@@ -1181,9 +1208,13 @@ function normalizeModifications(
     };
     if (!isRecord(item)) return drop("malformed");
     const actionType = normalizeModificationAction(item.actionType ?? item.action ?? item["动作"]);
-    const trigger = unwrapSingleText(item.trigger ?? item["触发条件"]);
+    const rawTrigger = unwrapSingleText(item.trigger ?? item["触发条件"]);
     const targetRef = unwrapSingleText(item.targetRef ?? item["病机引用"]);
     const herbName = unwrapSingleText(item.herbName ?? item.herb ?? item["药味"] ?? item["药名"]);
+    // 模型写的条件夹了舌脉（「若头晕较甚、苔厚腻」）：舌脉这次已经看过，不算将来的变化，去掉那一段留症状；教材条件、病历原话不动。
+    const trigger = rawTrigger && prior?.stage === "diagnose" && !textbookModificationForPrior(rawTrigger, prior, herbName ?? undefined) && !modificationTriggerGroundedInM03(rawTrigger, prior)
+      ? conditionWithoutTonguePulseClauses(rawTrigger)
+      : rawTrigger;
     const reason = unwrapSingleText(item.reason ?? item["理由"]);
     // 可选说明字段越界只丢这一个字段，不连累整条加减、更不连累整份提案（schema 是 2–80 字）。
     const rawSymptomPathogenesis = unwrapSingleText(item.symptomPathogenesis ?? item["本症病机"]);
@@ -1230,7 +1261,9 @@ function normalizeModifications(
       trigger,
       targetRef,
       actionType,
-      herbName: normalizedHerbName,
+      // 加味保留炮制写法（煅瓦楞子、炒白术、焦山楂）：行里没有单独的炮制栏，归一成基原药等于把炮制丢了（第三十四轮改坏审计）。
+      // 下游判据都按身份比（canonicalTcmHerbIdentity 会去掉这些前缀），只是显示。
+      herbName: actionType === "add" ? modificationDisplayHerbName(herbName.trim(), normalizedHerbName) : normalizedHerbName,
       dose,
       reason,
       ...(symptomPathogenesis ? { symptomPathogenesis } : { symptomPathogenesis: undefined }),
@@ -1242,7 +1275,7 @@ function normalizeModifications(
       () => "bounded_limit" as const,
     ));
   }
-  const items = normalizedItems.slice(0, MAX_MODEL_MODIFICATION_ROWS);
+  const items = withDistinctConditionsFirst(normalizedItems).slice(0, MAX_MODEL_MODIFICATION_ROWS);
   // 钳到契约上限：submittedCount 的 `.max(30)` 没有 catch，31 条**可选**随症加减会让整份
   // M04 提案落到 T1 硬拒且无修复引导——直接违反本文件上方写下的不变量（畸形的可选行不得
   // 作废一份完整的核心处方）。真实提交量另走日志，不进契约。
@@ -2069,7 +2102,7 @@ function withWithheldBaseIngredientNote(analysis: string, formulaNames: readonly
 /**
  * 药味表与方义对齐（2026-10-19 甲方标准病历的独立评审）：
  *  · 角色：方义给某味药定的角色与药味表不一，且只是臣、佐、使之间不一（君药两边一致）时，药味表随方义（病历 2：药味表「酸枣仁…佐」
- *   「茯苓…臣」，方义「茯神、制远志、酸枣仁三药为臣」「茯苓…佐助中焦运化」）。牵涉君药的不改，记一条遥测；
+ *   「茯苓…臣」，方义「茯神、制远志、酸枣仁三药为臣」「茯苓…佐助中焦运化」）。表里的君方义都认、方义又多算一味共为君时也随方义；其余牵涉君药的不改，记一条遥测；
  *    方内结构类（调和、引经）的药不改成臣。角色读法见 formulaAnalysisRoleAssignments。
  *  · 特殊煎法：没有出处的标注去掉（肉豆蔻「后下」，见 withoutUnsupportedDecoctionLabels），煎服行按药味表取，两处一致。
  *  · 方义开头一句对原方的增删说法不实的改掉（「去煅石膏，加知母以清热生津」，见 withoutFalseBaseFormulaEdits）。
@@ -2085,6 +2118,8 @@ function withAnalysisConsistentCandidate(
     : new Map<string, "君" | "臣" | "佐" | "使">();
   let realigned = 0;
   let emperorConflicts = 0;
+  const tableEmperorsAgree = candidate.herbs.some((herb) => herb.role === "君") && candidate.herbs.every((herb) => herb.role !== "君" ||
+    roles.get(herb.name.replace(/[（(][^）)]*[）)]/g, "").replace(/\s+/g, "").trim()) === "君");
   const herbs = candidate.herbs.map((herb) => {
     const tableName = herb.name.replace(/[（(][^）)]*[）)]/g, "").replace(/\s+/g, "").trim();
     const declared = typeof herb.decoctionRequirement === "string" && herb.decoctionRequirement.trim()
@@ -2093,6 +2128,12 @@ function withAnalysisConsistentCandidate(
     const withDecoction = declared === herb.decoctionRequirement ? herb : { ...herb, decoctionRequirement: declared || undefined };
     const role = roles.get(tableName);
     if (!role || role === herb.role) return withDecoction;
+    // 方义把表里的臣、佐药也算君（「人参、白术、茯苓三味为君」，《方剂学》参苓白术散即如此；表里茯苓是臣）：
+    // 表里已有的君药方义都认，只是多了一味共为君，表随方义。其余牵涉君药的（表里的君在方义里成了臣）不改，记遥测。
+    if (role === "君" && herb.role !== "君" && tableEmperorsAgree && getTcmHerbGenerationSafetyProfile(herb.name).toxicity.length === 0) {
+      realigned += 1;
+      return { ...withDecoction, role };
+    }
     if (role === "君" || herb.role === "君") {
       emperorConflicts += 1;
       return withDecoction;
@@ -2299,7 +2340,9 @@ export function compileM04Proposal(
     // 条件说的正是证候起了变化，药的方向随条件走，不该拿当前主证去核——此前痰浊头痛的这条教材加减
     // 因「清热与主证方向不符」被整条丢掉（2026-10-13，合成集加减为空 12 例里的一类）。
     // 借别的病的行不享受这个豁免：那条条件说的不是这一证的变化（第三十三轮：肺脾两虚借哮病·肺虚证「若阳虚甚…加附子」）。
-    if ((!textbookSource || textbookSource.crossDisease) && item.actionType === "add" && highImpactHerbDirectionIssue(item.herbName, declaredDirection, prior)) {
+    // 模型写的条件若自己写明了方向（若畏寒肢冷→干姜），同样随条件走（conditionDeclaresHighImpactDirection）；没写明的（若咽痛→黄芩）照旧核对。
+    const directionIssue = (!textbookSource || textbookSource.crossDisease) && item.actionType === "add" ? highImpactHerbDirectionIssue(item.herbName, declaredDirection, prior) : undefined;
+    if (directionIssue && (textbookSource || !conditionDeclaresHighImpactDirection(item.trigger, directionIssue))) {
       dropReasons.push("direction_conflict");
       return [];
     }

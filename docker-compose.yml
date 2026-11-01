@@ -89,6 +89,12 @@ services:
       # 同一份病历的辨证/开方结果加密落盘留存（缺省 30 天；指纹含代码版本与模型名，发版后旧结果不再回放）。
       CDSS_STAGE_RESULT_STORE_PATH: /app/runtime-data/stage-results
       CDSS_STAGE_RESULT_PERSIST_DAYS: ${CDSS_STAGE_RESULT_PERSIST_DAYS:-30}
+      # 同内容的模型调用只算一次（加密落盘，键是发给模型的内容，不含代码版本：发版后提示词没变的调用照旧回放）。false 关闭。
+      CDSS_MODEL_CALL_MEMO: ${CDSS_MODEL_CALL_MEMO:-true}
+      CDSS_MODEL_CALL_MEMO_PATH: /app/runtime-data/model-calls
+      CDSS_MODEL_CALL_MEMO_DAYS: ${CDSS_MODEL_CALL_MEMO_DAYS:-30}
+      # x-cdss-regenerate: 1 恢复旧口径（每次重抽）时设 true；缺省只有 force 才重抽。
+      CDSS_REGENERATE_REDRAW: ${CDSS_REGENERATE_REDRAW:-false}
       # 追问：没有值得问的题时是否如实返回 decision=proceed（调用方确认能处理后再开）；出题时是否按「不回答」预先计算。
       CDSS_M02_PROCEED_WHEN_SETTLED: ${CDSS_M02_PROCEED_WHEN_SETTLED:-false}
       CDSS_M02_PRECOMPUTE_NO_ANSWER: ${CDSS_M02_PRECOMPUTE_NO_ANSWER:-true}

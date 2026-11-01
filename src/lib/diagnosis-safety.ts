@@ -7890,7 +7890,7 @@ export function limitedDiagnosisReasonCopy(
       };
     case "not_attempted_upstream_down":
       return {
-        reason: "模型推理服务暂时不可用，本轮未能完成辨病辨证",
+        reason: "模型推理服务本轮未能在时限内完成（上游错误或超时），未能完成辨病辨证",
         limitation: "本次为上游服务故障，不是病历信息不足",
         nextAction: "稍后重新运行辨病辨证分析；已录入病历无需修改",
       };

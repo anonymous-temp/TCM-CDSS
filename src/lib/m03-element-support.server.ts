@@ -303,6 +303,8 @@ export function findingsBeforeAttribution(clause: string, failed: ReadonlySet<De
   if (hits.length === 0) return undefined;
   const prefix = clause.slice(0, Math.min(...hits)).replace(/[进一步亦也则故而提，,、\s]+$/u, "").trim();
   if (prefix.replace(/[、，,\s]/gu, "").length < 4 || hasFailedMention(prefix, failed, entailment)) return undefined;
+  // 前半是在下判断不是在列表现（「故病位涉脾胃、病性属脾气虚」，第三十三轮 A09 曾写出「病性，是否兼脾气虚尚待核实」）。
+  if (/病位|病性|证属|辨证/u.test(prefix)) return undefined;
   return prefix;
 }
 
@@ -487,7 +489,11 @@ export function applyElementSupportDecision(tcmContent: string, decision: Elemen
   for (const [key, minimum] of [["tcmDiagnosticRationale", 20], ["overallPathogenesis", 10]] as const) {
     const value = text(overview[key]);
     if (!value) continue;
-    const clauses = value.split(/[，,。；;]/u).map((item) => item.trim()).filter((clause) => clause && hasFailedMention(clause, failed, entailment));
+    // 流派视角句与否认句不是在说本例有这一证素，不动（第三十三轮 c23：扶阳句里「本例畏寒肢冷…属阳虚阴盛之象」被删得只剩「与扶阳抑阴思路相符」；W35「舌质淡红示血虚未甚」）。
+    const candidates = key === "tcmDiagnosticRationale"
+      ? value.split(/[。；;]/u).flatMap((sentence) => (RATIONALE_LENS.test(sentence) ? [] : sentence.split(/[，,]/u))).filter((clause) => !RATIONALE_NEGATION.test(clause))
+      : value.split(/[，,。；;]/u);
+    const clauses = candidates.map((item) => item.trim()).filter((clause) => clause && hasFailedMention(clause, failed, entailment));
     if (clauses.length === 0) continue;
     const kept: string[] = [];
     const removed = [...clauses];

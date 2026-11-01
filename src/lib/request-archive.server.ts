@@ -19,6 +19,8 @@
  *   日文件；请求行与响应行带同一个 exchangeId 对上（响应行 kind="response"，请求行没有 kind）。调用方中途断开时
  *   留下已收到的部分并标 aborted；单条超过 4MB 只留前 4MB 并标 truncated；服务端自己发起的预先计算不留。
  */
+import { runWithModelCallMemo } from "./model-call-memo.server";
+import { regenerateFreshRequested } from "./stage-result-coalescing.server";
 import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { INTERNAL_PRECOMPUTE_HEADER, isInternalPrecomputeRequest } from "./internal-precompute";
 import { appendFile, mkdir, readdir, stat } from "node:fs/promises";
@@ -281,7 +283,8 @@ export function withClinicalResponseArchive(
     const route = requestArchiveEnabled() && requestArchiveKey() ? archivedRouteOf(req.url) : undefined;
     if (route) exchangeIds.set(req, randomUUID());
     const startedAt = Date.now();
-    const response = await handler(req);
+    // 同内容同答案的作用域从这里开始：只有临床路由有，健康检查与部署探针永远真实调用（model-call-memo.server.ts）。
+    const response = await runWithModelCallMemo({ fresh: regenerateFreshRequested(req) }, () => handler(req));
     if (!route) return response;
     try {
       if (req.headers.has(INTERNAL_PRECOMPUTE_HEADER) && await isInternalPrecomputeRequest(req.headers)) return response;

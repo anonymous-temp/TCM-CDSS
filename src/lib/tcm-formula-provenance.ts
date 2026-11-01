@@ -761,7 +761,9 @@ function compilationReference(
     formulaName,
     source: variant.source,
     ingredients,
-    minimumPreservedIngredientCount: Math.min(ingredients.length, Math.max(1, Math.ceil(ingredients.length * formulaCompositionFloorFraction()))),
+    // 四味方按比例一味都不能少，白虎汤去粳米（临床常以他药代之）、又加芦根天花粉，方名就成了自拟方，与辨证阶段的「白虎汤加减」对不上（第三十三轮 D03）。
+    // 四味方容许缺一味；锚点药（方名药、核心安全药、首味）仍由 requiredIngredients 保证。三味及以下仍要齐（第十八轮 左金丸）。
+    minimumPreservedIngredientCount: ingredients.length === 4 ? 3 : Math.min(ingredients.length, Math.max(1, Math.ceil(ingredients.length * formulaCompositionFloorFraction()))),
     requiredIngredients: requiredFormulaAnchors(formulaName, variant, ingredients),
     origin,
   };

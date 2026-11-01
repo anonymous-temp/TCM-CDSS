@@ -1066,7 +1066,7 @@ function recordMentionsNegatedTerm(record: string, term: string): boolean {
 export function unrecordedNegativesAsNotReported(text: string, clinicalContext: string): string {
   const record = clinicalContext.normalize("NFKC").replace(/\s+/g, "");
   if (!record) return text;
-  // 「无…结果/报告/记录」说的是缺这份资料，不是否认症状，照原样留。
+  // 「无…结果/报告/记录」说的是缺这份资料，不是否认症状，照原样留。「钡透无异常」说的是检查结论，也不是病人否认（第三十三轮 W27 曾改成「钡透未诉异常」）。
   // 查病历时去掉「之…表现/特征/症状/象」：「无善惊易恐之表现」查的是善惊易恐（病历写着它就不改）。
   // 「无典型辐射状血管网」查的是辐射状血管网（D 集 X-D-0379：病历写着「呈辐射状血管网」，却改成了「未诉典型辐射状血管网」）。
   const core = (term: string) => term.replace(/之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状|象)$/u, "").replace(/^(?:典型|明显|明确|特征性)(?:的)?/u, "");
@@ -1077,7 +1077,7 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
     /(?:示|表明|说明|可知)[^，,。；;]*$/u.test(whole.slice(0, offset)) || /为$/u.test(whole.slice(0, offset)) || /^[\u4e00-\u9fff]{1,3}[象性](?:之|$)/u.test(term) ||
     notAPatientDenial(offset, whole, term);
   const out = text.replace(UNRECORDED_NEGATIVE, (match, term: string, offset: number, whole: string) =>
-    inferred(offset, whole, term) || recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) ? match : `未诉${term}`)
+    inferred(offset, whole, term) || recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) || /^(?:明显|特殊|其他)?异常$/u.test(term) ? match : `未诉${term}`)
     // 「无气从少腹上冲胸咽之奔豚特征」：对象后面接「之…特征/表现/症状」时上面那条够不着（2026-10-19 甲方标准病历 2 第 3 次生成）。
     .replace(UNRECORDED_NEGATIVE_FEATURE, (match, term: string, offset: number, whole: string) =>
       inferred(offset, whole, term) || recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`)

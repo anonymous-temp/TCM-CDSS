@@ -1,3 +1,4 @@
+import conditionalDirectionSigns from "../data/tcm-conditional-direction-signs.source.json";
 import { conditionalModificationWithoutTextbook, textbookModificationMatch, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
@@ -3264,6 +3265,18 @@ export function signedTextbookFormulaIngredients(prior: M03ReasoningLike | null 
   return textbookBaseIngredients(row, locked);
 }
 
+/**
+ * 模型写的条件式加减，条件自己写明了这味药的方向（若畏寒肢冷→干姜）：与教材条件式加减同一道理，方向随条件走。闭集见 tcm-conditional-direction-signs.source.json。
+ * issue 是 unsupportedHighImpactHerbIssue 的返回值，里面的每个方向条件都要写到。
+ */
+export function conditionDeclaresHighImpactDirection(trigger: unknown, issue: string): boolean {
+  const text = typeof trigger === "string" ? trigger.trim() : "";
+  if (!/^若/u.test(text)) return false;
+  const concepts = Object.keys(conditionalDirectionSigns.signs).filter((concept) => issue.includes(concept));
+  return concepts.length > 0 && concepts.every((concept) =>
+    (conditionalDirectionSigns.signs as Record<string, string[]>)[concept].some((sign) => text.includes(sign)));
+}
+
 export function highImpactHerbDirectionIssue(
   herbName: string,
   declaredFunction: string,
@@ -5051,7 +5064,7 @@ export function m04ModificationSafetyIssue(
         .filter((value): value is string => typeof value === "string")
         .join("；"),
     }], priorReasoning);
-    if (highImpactIssue) return `modification_${modificationIndex}_${highImpactIssue}`;
+    if (highImpactIssue && !conditionDeclaresHighImpactDirection(modification.trigger, highImpactIssue)) return `modification_${modificationIndex}_${highImpactIssue}`;
   }
   return undefined;
 }

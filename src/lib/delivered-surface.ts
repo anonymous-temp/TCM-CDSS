@@ -2320,7 +2320,7 @@ function withSourceBasedHerbEvidence(reasoning: Json): void {
 export function withoutIncidentalSedationMethod(method: string, mindInScope: boolean): string {
   if (mindInScope) return method;
   const items = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
-  const kept = items.filter((item) => !/^(?:养心|宁心|清心|镇惊|重镇|镇静)?(?:安神|宁神|宁心)(?:定志|助眠)?$/u.test(item));
+  const kept = items.filter((item) => !/^(?:养心|宁心|清心|镇惊|重镇|镇静)?(?:安神|宁神|宁心)(?:定志|助眠|益智|止眩)?$/u.test(item));
   return kept.length > 0 && kept.length < items.length ? kept.join("，") : method;
 }
 

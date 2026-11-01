@@ -4,7 +4,7 @@ import { textbookDietPromptSection } from "@/lib/tcm-nondrug-textbook-plan.serve
 import { prescribeWorkingPriorReasoning } from "@/lib/prescribe-working-reasoning";
 import { prefetchAssessFollowupFromDraftCandidate, prefetchAssessFollowupFromSignedPrescribe, tapFinalStageContent } from "@/lib/stage-prefetch.server";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
-import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
+import { coalesceStageResponse, stageRequestFingerprint, regenerateFreshRequested } from "@/lib/stage-result-coalescing.server";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
 import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
@@ -16,7 +16,7 @@ import { formulaBaseHerbsBarredForCase } from "@/lib/formula-base-herbs-barred.s
 import { activeBleedingM04Rule } from "@/lib/active-bleeding-treatment";
 import { herbRecordCautionPromptSection, textbookBaseIngredients } from "@/lib/herb-record-caution";
 import { textbookRowForSyndrome } from "@/lib/tcm-textbook-syndromes";
-import { ageImplausibleReproductiveNotice, authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, registerActiveBleedingRedFlags, activeBleedingInGroundingText, activeBleedingWording } from "@/lib/diagnosis-safety";
+import { ageImplausibleReproductiveNotice, authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, registerActiveBleedingRedFlags, activeBleedingInGroundingText, activeBleedingWording, trustedInputText } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
@@ -43,6 +43,7 @@ import { declassifyAndDropOpposingM04CandidateHerbs } from "@/lib/m04-modificati
 import { checkFormulaAnalysisClaimsInContent } from "@/lib/m04-formula-analysis-claim-check.server";
 import { dropMisfitModifications, withModificationsFrom } from "@/lib/m04-modification-fit.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
+import { memoizedScopeText } from "@/lib/model-call-memo.server";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
 /** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
@@ -74,8 +75,8 @@ async function handlePost(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   // 同一租户、同一病例内容（含已签名 M03）的请求只算一次：进行中并入、已完成复用；调用方断开
-  // 不中止计算（stage-result-coalescing.server.ts）。显式重新生成：x-cdss-regenerate: 1 或 ?regenerate=1。
-  const regenerate = req.headers.get("x-cdss-regenerate") === "1" || new URL(req.url).searchParams.get("regenerate") === "1";
+  // 不中止计算（stage-result-coalescing.server.ts）。显式重抽：x-cdss-regenerate: force 或 ?regenerate=force。
+  const regenerate = regenerateFreshRequested(req);
   return coalesceStageResponse({
     stage: "prescribe",
     key: stageRequestFingerprint("prescribe", parsed.customer, parsed.caseState),
@@ -278,6 +279,13 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
         externalSoftDeadlineMs: softDeadline == null
           ? undefined
           : Math.max(0, softDeadline - (Date.now() - orchestrationStartedAt)),
+        externalEvidenceMemo: (compute) => memoizedScopeText("external_evidence_prescribe", [
+          trustedInputText(safeState),
+          signedPriorReasoning?.overview?.tcmDiseaseName,
+          signedPriorReasoning?.overview?.primarySyndrome,
+          signedPriorReasoning?.westernDiagnosis?.primary?.name,
+          signedPriorReasoning?.therapy?.overallMethod,
+        ], compute),
       });
     })
       .then((value) => { preModelTimings.evidence = Date.now() - orchestrationStartedAt; return value; }),
@@ -444,7 +452,7 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     action: "complete_before_prescription",
     missingItems: ["模型服务恢复后重新生成候选方药"],
     redFlags: [],
-    reasons: ["模型推理服务暂时不可用（上游错误、限流或超时），本轮未完成候选方药生成。这不是处方合同或病历信息不足；已录入内容与辨病辨证结论无需修改，请稍后重新生成。"],
+    reasons: ["模型推理服务本轮未能在时限内完成（上游错误、限流或超时），本轮未完成候选方药生成。这不是处方合同或病历信息不足；已录入内容与辨病辨证结论无需修改，请稍后重新生成。"],
   };
   const deadlineGate: SafetyGate = {
     status: "needs_information",

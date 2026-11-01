@@ -1,10 +1,10 @@
 import { prefetchDiagnoseInputs, prefetchPrescribeInputsFromSignedDiagnose, tapFinalStageContent } from "@/lib/stage-prefetch.server";
 import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
-import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
+import { coalesceStageResponse, stageRequestFingerprint, regenerateFreshRequested } from "@/lib/stage-result-coalescing.server";
 import { chiefComplaintFindings, rationaleFindingsChecklist, rationaleFindingsChecklistNotice, recordedTonguePulse } from "@/lib/rationale-findings-checklist";
 import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
-import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars, promptSectionHeaders } from "@/lib/prompt-budget";
+import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars, promptSectionHeaders, m03ExternalEvidenceSoftDeadlineMs } from "@/lib/prompt-budget";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
 import { normalizeCaseTextForFormulaRecall } from "@/lib/formula-recall-normalization.server";
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
@@ -29,10 +29,11 @@ import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothe
 import { pickTextbookDiseasesForCase } from "@/lib/textbook-disease-pick.server";
 import { pickJingfangPatternsForCase } from "@/lib/jingfang-pattern-pick.server";
 import { checkDiseaseExplainsVisitReason, tcmHalfDiseaseName, visitReasonRedrawInstruction } from "@/lib/m03-visit-reason-check.server";
+import { memoizedScopeText } from "@/lib/model-call-memo.server";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 import { checkLineageLensInContent, withLensFrom } from "@/lib/m03-lens-consistency.server";
 import { finalizeWesternPrimaryName } from "@/lib/western-name-standard.server";
-import { completeMethodCoverage, withVerifiedMethodItemFrom } from "@/lib/m03-method-coverage.server";
+import { completeMethodCoverage, prefetchMethodCoverage, withVerifiedMethodItemFrom } from "@/lib/m03-method-coverage.server";
 
 type ParsedStageRequest = Extract<Awaited<ReturnType<typeof readCustomerBoundCaseStateRequest>>, { ok: true }>;
 
@@ -47,8 +48,8 @@ async function handlePost(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   // 同一租户、同一病例内容的请求只算一次：进行中并入、已完成复用；调用方断开不中止计算
-  // （stage-result-coalescing.server.ts）。显式重新生成：x-cdss-regenerate: 1 或 ?regenerate=1。
-  const regenerate = req.headers.get("x-cdss-regenerate") === "1" || new URL(req.url).searchParams.get("regenerate") === "1";
+  // （stage-result-coalescing.server.ts）。显式重抽：x-cdss-regenerate: force 或 ?regenerate=force。
+  const regenerate = regenerateFreshRequested(req);
   return coalesceStageResponse({
     stage: "diagnose",
     key: stageRequestFingerprint("diagnose", parsed.customer, parsed.caseState),
@@ -145,7 +146,10 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   const preModelTimings: Record<string, number> = {};
   const preModelMark = (name: string) => { preModelTimings[name] = Date.now() - orchestrationStartedAt; };
   preModelMark("facts");
-  const evidenceContextPromise = buildCdssEvidenceContext(safeState, "diagnose", undefined, signal)
+  const evidenceContextPromise = buildCdssEvidenceContext(safeState, "diagnose", undefined, signal, {
+    externalSoftDeadlineMs: m03ExternalEvidenceSoftDeadlineMs(),
+    externalEvidenceMemo: (compute) => memoizedScopeText("external_evidence_diagnose", trustedInputText(safeState), compute),
+  })
     .then((value) => { preModelMark("evidence"); return value; })
     .catch(() => "");
   // 两个增补层互不依赖，并发跑；任一不可用都静默退回确定性行为。
@@ -256,7 +260,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
     action: "complete_before_prescription" as const,
     missingItems: ["模型服务恢复后重新生成"],
     redFlags: [],
-    reasons: ["模型推理服务暂时不可用（上游返回错误或超时），本轮未能完成辨病辨证。这不是病历信息不足——已录入内容无需修改，请稍后点击「重新生成」重试；若持续失败请联系系统管理员。"],
+    reasons: ["模型推理服务本轮未能在时限内完成（上游返回错误或超时），未能完成辨病辨证。这不是病历信息不足——已录入内容无需修改，请稍后点击「重新生成」重试；若持续失败请联系系统管理员。"],
   };
   preModelMark("promptReady");
   console.info("[tcm-cdss:timing] m03_pre_model", preModelTimings);
@@ -301,8 +305,10 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
       ? {
           m03ParallelHalfPrompts: m03HalfPrompts,
           // 中医半的 overview 一闭合就预发补写请求（后文还有三成以上要写），收口时同一请求直接命中。
-          onInitialM03Overview: (overview: Record<string, unknown>) =>
-            prefetchTcmDifferentialTopUp(overview, differentialTopUpContext),
+          onInitialM03Overview: (overview: Record<string, unknown>) => {
+            prefetchTcmDifferentialTopUp(overview, differentialTopUpContext);
+            prefetchMethodCoverage(overview, { recordText: patientClaimRecord, chiefComplaint: safeState.chiefComplaint || "" });
+          },
           // 中医半的病名级、证候级鉴别保留下来不足两项时，只补写缺的那几项（其余病例不发请求）。
           // 辨证依据或病机写了兼夹病机、兼证栏却为空时，补成兼证或删掉那几个分句（其余病例不发请求）。
           // 同一份输入上并行核对「关于本例的说法有无病历依据」（m03-patient-claim-check.server.ts）：先落兼证一致的结果，再删无据片段

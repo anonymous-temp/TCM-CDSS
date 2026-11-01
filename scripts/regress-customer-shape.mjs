@@ -58,7 +58,7 @@ if (!BASE) {
 async function post(route, body, extraHeaders = {}) {
   // 评测缺省每次都重新生成（否则同一病例第二次起拿到的是复用结果，量不出生成本身）；REGENERATE=0 时不带这个头，
   // 用来看调用方真实会遇到的行为（出题时预先计算、跳过后直接复用）。
-  const headers = { "content-type": "application/json", "x-cdss-api-token": TOKEN, "x-cdss-customer-id": CUSTOMER, ...(REGENERATE ? { "x-cdss-regenerate": "1" } : {}), ...extraHeaders };
+  const headers = { "content-type": "application/json", "x-cdss-api-token": TOKEN, "x-cdss-customer-id": CUSTOMER, ...(REGENERATE ? { "x-cdss-regenerate": process.env.REGENERATE_VALUE || "force" } : {}), ...extraHeaders };
   const started = Date.now();
   try {
     const url = `${BASE || "http://127.0.0.1"}/api/diagnosis/${route}`;
@@ -74,7 +74,7 @@ async function post(route, body, extraHeaders = {}) {
 function stream(result) {
   let content = "";
   let ended = false;
-  const errors = [];
+  const errors = result.error ? [result.error] : [];
   for (const line of result.raw.split("\n")) {
     if (!line.trim()) continue;
     try {

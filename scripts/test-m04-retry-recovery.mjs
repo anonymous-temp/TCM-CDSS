@@ -92,7 +92,7 @@ check("D 账本身份 = 同病例 + 同一份已签名 M03；任一变化即另�
 check("D7 M04 上游传输失败必须使用专用降级页，不得误报为合同截断", () => {
   const source = readFileSync(new URL("../src/app/api/diagnosis/prescribe/route.ts", import.meta.url), "utf8");
   assert.match(source, /upstreamUnavailableFallback:/);
-  assert.match(source, /模型推理服务暂时不可用/);
+  assert.match(source, /模型推理服务本轮未能在时限内完成/);
   assert.match(source, /不是处方合同或病历信息不足/);
 });
 

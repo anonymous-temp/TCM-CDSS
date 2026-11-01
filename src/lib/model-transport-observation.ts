@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
+import { memoizedModelFetch } from "./model-call-memo.server";
 
 type TransportObservation = { callId: string; attempts: number; observed: boolean };
 const observation = new AsyncLocalStorage<TransportObservation>();
@@ -19,5 +20,5 @@ export const observedModelFetch: typeof fetch = (input, init) => {
     state.observed = true;
     state.attempts += 1;
   }
-  return globalThis.fetch(input, init);
+  return memoizedModelFetch(input, init);
 };

@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:
 import { join } from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { STREAM_REPLACE_MARKER } from "./diagnosis-stream-protocol";
+import { currentModelCallMemoScope, forgetModelCallsInScope } from "./model-call-memo.server";
 
 /**
  * 同一病历的 M03/M04 请求只算一次（2026-09-29，甲方 9.24/9.27 测评「内容输出不稳定」「未诊断却给了处方」）。
@@ -18,7 +19,7 @@ import { STREAM_REPLACE_MARKER } from "./diagnosis-stream-protocol";
  *   · 同指纹的请求**进行中** → 并入同一次计算，先补发已产出的帧、再实时转发后续帧；
  *   · 同指纹的结果**已完成且可复用**（30 分钟内、不是降级/中断/上游故障页）→ 直接回放；
  *   · 计算与任何一个调用方的连接**解耦**：调用方断开不中止计算，算完照样入缓存，下一次重试直接拿到。
- * 请求头 `x-cdss-regenerate: 1`（或 `?regenerate=1`）显式要求重新生成时绕过复用。
+ * 请求头 `x-cdss-regenerate: force`（或 `?regenerate=force`）显式要求重抽时绕过复用（见 regenerateFreshRequested）。
  *
  * **换绑（2026-10-12 线上实测）**：指纹有意不含病例编号（HIS 同一病历重推常换编号），但 M03/M04
  * 的合同签名绑定病例编号与就诊编号。原实现把旧编号的签名原样回放给新编号，下游 M05 验签必然
@@ -29,6 +30,18 @@ import { STREAM_REPLACE_MARKER } from "./diagnosis-stream-protocol";
  */
 
 export type CoalescedStage = "question" | "diagnose" | "prescribe";
+
+/**
+ * 「重新生成」的口径（2026-11-01 第三十四轮）。甲方 10/29 起每个 M02/M03/M04 请求都带 `regenerate=1`，同一份病历每次重抽一遍，
+ * 这是他们看到「同病历结果不同」和 M03 约 13 秒的主因。现在 `1` 不再重抽：同一版本内同一份病历直接回放，
+ * 换版本后提示词没变的模型调用也回放（model-call-memo.server.ts）。
+ * 真要重抽一次（量波动、医生确实想换一版）用 `x-cdss-regenerate: force` 或 `?regenerate=force`。
+ * `CDSS_REGENERATE_REDRAW=true` 恢复旧口径：`1` 等于 `force`。
+ */
+export function regenerateFreshRequested(req: Request): boolean {
+  const value = req.headers.get("x-cdss-regenerate") || new URL(req.url).searchParams.get("regenerate") || "";
+  return value === "force" || (value === "1" && process.env.CDSS_REGENERATE_REDRAW === "true");
+}
 
 type Entry = {
   key: string;
@@ -198,7 +211,7 @@ function finalContentFromLines(lines: readonly string[]): { content: string; end
 //   · 目录由 CDSS_STAGE_RESULT_STORE_PATH 指定（未设置即不落盘，行为与此前完全相同）；
 //   · 加密与请求留存同一做法：AES-256-GCM，密钥由 CASE_SNAPSHOT_ENCRYPTION_KEY 派生（轮换后旧文件读不出，按未命中处理）；
 //   · 指纹含代码版本与模型名（generationIdentity），发版后旧结果不会被回放；
-//   · 显式重新生成（x-cdss-regenerate: 1）不读留存，算完覆盖写入。
+//   · 显式重抽（x-cdss-regenerate: force）不读留存，算完覆盖写入。
 const PERSIST_KEY_CONTEXT = "tcm-cdss-stage-result-v1";
 
 function persistDir(): string | undefined {
@@ -375,6 +388,7 @@ export async function coalesceStageResponse(input: {
   /** 把可复用的最终正文按本次请求重新签名；返回 undefined 表示换绑不了，本次照常重算。 */
   rebindFinalContent?: (finalContent: string) => string | undefined;
 }): Promise<Response> {
+  const memoScope = currentModelCallMemoScope();
   if (!stageResultReuseEnabled()) return input.compute(new AbortController().signal);
   const now = Date.now();
   evictExpired(now);
@@ -446,6 +460,7 @@ export async function coalesceStageResponse(input: {
   } catch (error) {
     clearTimeout(hardLimit);
     entries.delete(input.key);
+    void forgetModelCallsInScope(memoScope);
     markReady();
     markFinished();
     throw error;
@@ -456,6 +471,7 @@ export async function coalesceStageResponse(input: {
   if (response.status !== 200 || !response.body) {
     clearTimeout(hardLimit);
     entries.delete(input.key);
+    void forgetModelCallsInScope(memoScope);
     markFinished();
     return response;
   }
@@ -468,8 +484,11 @@ export async function coalesceStageResponse(input: {
     entry.finishedAt = Date.now();
     const final = finalContentFromLines(entry.lines);
     entry.cacheable = final.ended && !final.errored && input.cacheable(final.content);
-    if (!entry.cacheable) entries.delete(input.key);
-    else void writePersisted(entry);
+    if (!entry.cacheable) {
+      entries.delete(input.key);
+      // 降级结果不能被模型调用这一层固定下来：这次用过的答案作废，下次重试才可能不同。
+      void forgetModelCallsInScope(memoScope);
+    } else void writePersisted(entry);
     entry.rawChunks = [];
     for (const subscriber of entry.subscribers) {
       try { subscriber.close(); } catch { /* subscriber already gone */ }

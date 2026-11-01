@@ -103,12 +103,14 @@ await check("2.1 提名合格：2–6 字、将要交付的治法没写、一条
   assert.equal(method.methodItemQualifies({ item: "这一项治法写得太长了不行", quotes: ["痰多色白质稀"] }, context), false);
   assert.equal(method.methodItemQualifies({ item: "制酸降逆", quotes: [], fromModel: true }, context), true, "模型原写的项不要摘录，由复核判");
 });
-await check("2.2 对着将要交付的治法问：有教材行且无兼证时问教材治法，模型原写的项作为可用措辞给出", async () => {
+await check("2.2 对着将要交付的治法问：有教材行时问教材治法，模型原写的项单独复核", async () => {
   const original = process.env.CDSS_M03_METHOD_COVERAGE;
   process.env.CDSS_M03_METHOD_COVERAGE = "true";
   const source = readFileSync("src/lib/m03-method-coverage.server.ts", "utf8");
-  assert.match(source, /const method = \(row && textbookAnchorableMethod\(row\.therapy\)\) \|\| modelMethod/u);
-  assert.match(source, /syndrome: text\(overview\.primarySyndrome\), method, modelMethod, record/u);
+  assert.match(source, /return \(row && textbookAnchorableMethod\(row\.therapy\)\) \|\| modelMethod/u);
+  assert.match(source, /const method = methodToDeliver\(text\(overview\.tcmDiseaseName\), syndrome, modelMethod\)/u);
+  // 第三十四轮：提名不看模型的治法（证名写出来就能先发），模型原写的项单独问。
+  assert.match(source, /JSON\.stringify\(\{ syndrome, method, record:/u);
   process.env.CDSS_M03_METHOD_COVERAGE = original;
 });
 await check("2.2b 待复核的项：模型原写而教材没有的排前面；method 外的 coveredBy 算没人管；method 里的不算", () => {

@@ -1,5 +1,6 @@
 // src/lib/diagnosis-api.ts
 import { explicitPromptCacheMessages } from "./model-prompt-cache";
+import { memoizedModelFetch } from "./model-call-memo.server";
 //
 // Architecture:
 //   M01 (collect) + M02 (question) + M03 (diagnose) + M04 (prescribe) + M05 (assess)
@@ -309,7 +310,7 @@ export async function fetchWithConnectTimeout(
     attemptController.abort();
   }, Math.min(connectTimeoutMs, remaining));
   try {
-    return await fetch(url, { ...init, signal: attemptController.signal });
+    return await memoizedModelFetch(url, { ...init, signal: attemptController.signal });
   } catch (error) {
     if (timedOut && error instanceof DOMException && error.name === "AbortError") {
       throw new Error("模型连接超时，推理模型尚未开始返回流式内容，请稍后重试");

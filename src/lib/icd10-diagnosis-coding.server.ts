@@ -33,6 +33,7 @@ const GOVERNED_CLINICAL_ALIASES: Readonly<Record<string, string>> = {
   慢性阻塞性肺疾病: "J44.900",
   慢性阻塞性肺病: "J44.900",
   慢性失眠障碍: "G47.000",
+  慢性失眠: "G47.000",
   失眠障碍: "G47.000",
   便秘症状: "K59.000",
   ...GOVERNED_SYMPTOM_ALIASES,

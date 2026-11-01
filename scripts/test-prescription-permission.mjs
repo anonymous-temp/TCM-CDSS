@@ -751,7 +751,7 @@ const { POST: diagnosePost } = await jiti.import("../src/app/api/diagnosis/diagn
 const historicalDiagnoseText = await (await diagnosePost(routeRequest("/api/diagnosis/diagnose", singlePassHistoricalState))).text();
 assert.doesNotMatch(historicalDiagnoseText, /仅含既往|本次当前活动性治疗目标|就诊目标以既往背景为主|以既往、已缓解或稳定背景为主/,
   "「仅既往」不得再让 M03 走有限合同、横幅或提示词下调");
-assert.match(historicalDiagnoseText, /模型推理服务暂时不可用|OPENAI_API_KEY not configured/, "M03 应推进到生成层（本夹具无模型密钥）");
+assert.match(historicalDiagnoseText, /模型推理服务本轮未能在时限内完成|OPENAI_API_KEY not configured/, "M03 应推进到生成层（本夹具无模型密钥）");
 
 const historicalLimitedM03 = signDiagnoseReasoning(
   buildSafetyLimitedDiagnosisReasoning(roundTrippedScopeState, {

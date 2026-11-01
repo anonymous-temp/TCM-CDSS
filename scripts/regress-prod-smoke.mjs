@@ -50,13 +50,13 @@ const check = (name, ok, detail) => {
 /**
  * 调用一个阶段路由,返回 { status, markdown, structured }。NDJSON 契约见接口文档 §3。
  * M03/M04 自 V2.28 起对同一病例只算一次（30 分钟内回放）：样本时延必须来自真实模型编排，
- * 所以采样调用默认带 `x-cdss-regenerate: 1`；只有显式 `regenerate:false` 的调用才走复用路径。
+ * 所以采样调用默认带 `x-cdss-regenerate: force`；只有显式 `regenerate:false` 的调用才走复用路径。
  */
 async function callStage(path, caseState, { regenerate = true } = {}) {
   const startedAt = Date.now();
   const response = await fetch(`${BASE_URL}/api/diagnosis/${path}`, {
     method: "POST",
-    headers: regenerate ? { ...HEADERS, "x-cdss-regenerate": "1" } : HEADERS,
+    headers: regenerate ? { ...HEADERS, "x-cdss-regenerate": "force" } : HEADERS,
     body: JSON.stringify({ caseState }),
   });
   const stageResult = response.headers.get("x-cdss-stage-result");

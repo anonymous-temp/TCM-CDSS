@@ -93,7 +93,7 @@ export const MEDICINE_CLINICAL_CONCEPTS: readonly MedicineClinicalConcept[] = [
   { key: "复发性阿弗他溃疡", axis: "problem", casePattern: /复发性阿弗他溃疡|反复口腔溃疡/, indicationPattern: /复发性阿弗他溃疡|复发性口腔溃疡/, weight: 3 },
   { key: "慢性鼻窦炎", axis: "problem", casePattern: /慢性鼻窦炎|鼻流浊涕|鼻塞.{0,12}黄白色分泌物/, indicationPattern: /慢性鼻窦炎|鼻窦炎/, weight: 3 },
   { key: "甲状腺结节", axis: "problem", casePattern: /甲状腺结节|TI-RADS/, indicationPattern: /甲状腺结节|甲状腺肿物/, weight: 3 },
-  { key: "失眠障碍", axis: "problem", casePattern: /失眠障碍|反复失眠/, indicationPattern: /失眠障碍|失眠症/, weight: 3 },
+  { key: "失眠障碍", axis: "problem", casePattern: /失眠障碍|反复失眠|慢性失眠/, indicationPattern: /失眠障碍|失眠症/, weight: 3 },
 ] as const;
 
 function medicineConceptGovernedId(index: number): string {

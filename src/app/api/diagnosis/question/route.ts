@@ -24,7 +24,7 @@ import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { reviewM02QuestionPlan } from "@/lib/m02-question-review.server";
 import { prefetchDiagnoseInputs } from "@/lib/stage-prefetch.server";
 import { precomputeNoAnswerPath } from "@/lib/no-answer-precompute.server";
-import { coalesceStageResponse, stageRequestFingerprint } from "@/lib/stage-result-coalescing.server";
+import { coalesceStageResponse, stageRequestFingerprint, regenerateFreshRequested } from "@/lib/stage-result-coalescing.server";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 
 async function handlePost(req: Request) {
@@ -49,8 +49,8 @@ async function handlePost(req: Request) {
   // 同一份病历只出一次题（2026-10-21，「同样的输入两次推理的结果要一样」）：与 M03/M04 同一套复用
   //（stage-result-coalescing.server.ts：同租户、同病历内容、同版本同模型，进行中合流、完成后回放、加密落盘 30 天）。
   // 温度 0 也不保证逐字相同——实测甲方 10 例 + 留出 32 例两次独立出题只有 22/42 相同；题不同，医生的回答就不同，
-  // 后面的诊断随之改变。上游故障时的服务端兜底题不存，下次照常重出。显式重新生成：x-cdss-regenerate: 1 或 ?regenerate=1。
-  const regenerate = req.headers.get("x-cdss-regenerate") === "1" || new URL(req.url).searchParams.get("regenerate") === "1";
+  // 后面的诊断随之改变。上游故障时的服务端兜底题不存，下次照常重出。显式重抽：x-cdss-regenerate: force 或 ?regenerate=force。
+  const regenerate = regenerateFreshRequested(req);
   const degradedContents = new Set<string>();
   return coalesceStageResponse({
     stage: "question",

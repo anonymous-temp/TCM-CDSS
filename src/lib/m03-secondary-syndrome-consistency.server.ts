@@ -710,7 +710,8 @@ export function withdrawSecondarySyndrome(root: Json, name: string, primaryTextb
   const core = compact(name).replace(/证$/u, "");
   if (core.length >= 2) {
     const escaped = core.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const claim = new RegExp(`[，,；;]?(?:兼|夹)(?:有|见|夹)?[\\u4e00-\\u9fff]{0,4}?${escaped}(?:之象|之候|之证|证)?`, "gu");
+    // 「…为肝木乘脾，故兼脾虚湿滞。」连「故」一起去掉，只去「兼…」会留下「…，故。」（第三十三轮 C02、W33、W39、W46）。
+    const claim = new RegExp(`(?:[，,；;]?(?:故|因而|因此|遂))?[，,；;]?(?:兼|夹)(?:有|见|夹)?[\\u4e00-\\u9fff]{0,4}?${escaped}(?:之象|之候|之证|证)?`, "gu");
     for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"] as const) {
       const value = text(overview[key]);
       const next = value.replace(claim, "").replace(/^[，,；;]+/u, "");

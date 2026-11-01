@@ -1002,7 +1002,7 @@ assert.ok(colloquialNegativeFacts.every((fact) => !fact.includes(",")), "NFKC pu
 assert.equal(colloquialNegativeFacts.filter((fact) => /肚子上边就胀|老打嗝/.test(fact)).length, 1, "a complete exact chart sentence subsumes redundant provider-split fragments");
 const overstatedWesternContent = groundedMixedPolarityWesternSupportContent.replace(
   '"name": "慢性失眠障碍倾向"',
-  '"name": "慢性失眠障碍"',
+  '"name": "慢性失眠"',
 );
 const declassifiedWesternContent = declassifyUnsupportedM03WesternPrimary(overstatedWesternContent, mixedPolarityWesternContext);
 const declassifiedWestern = JSON.parse(
@@ -1026,7 +1026,7 @@ assert.deepEqual(
   ["夜间出汗伴入睡困难1个月"],
   "final grounding preserves the deterministic symptom downgrade instead of restoring normal vitals, denials, or unrelated chart padding",
 );
-assert.ok(declassifiedWestern.westernDiagnosis.differentials.some((item) => item.name === "慢性失眠障碍"), "the rejected concrete disease remains visible as a differential instead of being silently discarded");
+assert.ok(declassifiedWestern.westernDiagnosis.differentials.some((item) => item.name === "慢性失眠"), "the rejected concrete disease remains visible as a differential instead of being silently discarded");
 assert.equal(m03SemanticIssue(declassifiedWestern, mixedPolarityWesternContext), undefined, "safe diagnostic declassification must still pass every deterministic M03 contract before re-review");
 const respiratoryFormalReasoning = structuredClone(stable);
 respiratoryFormalReasoning.westernDiagnosis.primary.name = "慢性支气管炎";

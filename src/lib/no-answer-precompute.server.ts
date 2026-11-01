@@ -1,6 +1,6 @@
 import type { CaseState } from "./diagnosis-types";
 import { INTERNAL_PRECOMPUTE_HEADER, internalPrecomputeToken } from "./internal-precompute";
-import { stageResultReuseEnabled } from "./stage-result-coalescing.server";
+import { regenerateFreshRequested, stageResultReuseEnabled } from "./stage-result-coalescing.server";
 
 /**
  * 追问发出的同时，按「不回答」把辨证和开方先算出来（2026-10-13）。
@@ -138,12 +138,12 @@ export function answeredCaseState(caseState: CaseState): Record<string, unknown>
  * 辨证约 13 秒、开方约 11 秒。红旗筛查与辨证之间没有任何医生操作，于是在红旗筛查收到作答后的病例时，就按同一病例
  * 经回环先算辨证和开方；调用方随后发来的辨证请求指纹相同（指纹不含流程字段）就并入正在算的那一份，体感少掉红旗筛查这几秒。
  *
- * 不做的情形：没有作答（未追问或跳过，出题时已按「不回答」预先算过）；页面请求（只带登录 cookie）；请求带 x-cdss-regenerate（评测要求重新生成，
+ * 不做的情形：没有作答（未追问或跳过，出题时已按「不回答」预先算过）；页面请求（只带登录 cookie）；请求带 x-cdss-regenerate: force（要求重抽，
  * 预先算的一份用不上，只会让生产多算一遍）；结果复用关闭；`CDSS_REDFLAGS_PRECOMPUTE=false`。
  */
 export function precomputeAnsweredPath(req: Request, caseState: CaseState): void {
   if (!precomputeEnabled() || process.env.CDSS_REDFLAGS_PRECOMPUTE === "false") return;
-  if (req.headers.get("x-cdss-regenerate") === "1" || new URL(req.url).searchParams.get("regenerate") === "1") return;
+  if (regenerateFreshRequested(req)) return;
   // 只给接口调用方（HIS 带令牌头）：页面作答后的病例形状与它随后发出的辨证请求不同，先算的一份并不上，白占一路并发。
   if (!req.headers.get("x-cdss-api-token") && !/^Bearer\s/i.test(req.headers.get("authorization") || "")) return;
   if (!(caseState.chiefComplaint || "").trim()) return;
