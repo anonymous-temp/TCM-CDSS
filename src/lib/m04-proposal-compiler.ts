@@ -2484,7 +2484,7 @@ export function compileM04Proposal(
           //（第二十八轮甲方 100 例 C023：72 岁男性加桃仁写「桃仁出血倾向/月经期/抗凝状态者慎用」）。
           ...recordedPopulationCautions(item.herbName, modificationGroundingText)
             .map((population) => herbBoundaryPopulationLabel(population, caseState ? { reproductive: reproductiveAdviceRelevant(caseState), ageYears: authoritativePatientAgeYears(caseState) ?? null } : undefined))
-            .map((population) => `${item.herbName.trim()}${population}者慎用，本例病历有相应记录，请医生核对后再加`),
+            .map((population) => `${item.herbName.trim()}${population}${/[人期态娠]$/u.test(population) ? "" : "者"}慎用，本例病历有相应记录，请医生核对后再加`),
         ].filter(Boolean).join("；")
         : "",
       ...(substitutions.length > 0 ? { substitutions } : {}),

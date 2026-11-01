@@ -565,3 +565,11 @@ await check("4.6b 苍耳子功用不再带「清热解毒」；加入有毒的�
   const plain = compiler.topUpModificationRow({ trigger: "若鼻塞重", herbName: "辛夷", dose: "6g", reason: "通鼻窍" }, { prior, candidateHerbNames: ["荆芥"], existingTriggers: [] });
   assert.doesNotMatch(plain?.riskNote || "", /有毒/u);
 });
+
+await check("4.6c 婴儿X用在 3 岁及以上写小儿X；人群提示不写「老年人者」", async () => {
+  const check = await jiti.import("../src/lib/western-name-evidence-check.server.ts");
+  assert.equal(check.deterministicWesternNameCorrection("婴儿腹泻", "腹泻2周", 5)?.supportedName, "小儿腹泻");
+  assert.equal(check.deterministicWesternNameCorrection("婴儿腹泻", "腹泻2周", 2), undefined);
+  const source = readFileSync("src/lib/m04-proposal-compiler.ts", "utf8");
+  assert.match(source, /\/\[人期态娠\]\$\/u\.test\(population\) \? "" : "者"/u);
+});

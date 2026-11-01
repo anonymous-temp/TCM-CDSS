@@ -758,6 +758,15 @@ export function deterministicWesternNameCorrection(name: string, recordText: str
       reason: "患儿已超出新生儿期（出生28天内）",
     };
   }
+  // 「婴儿X」「婴幼儿X」用在 3 岁及以上（第三十四轮生产探针：5 岁写「婴儿腹泻」）：与上面新生儿同一思路，只改年龄限定。
+  if (/婴幼儿|婴儿/u.test(trimmed) && typeof patientAge === "number" && Number.isFinite(patientAge) && patientAge >= 3 && patientAge < 18) {
+    return {
+      type: "B",
+      supportedName: trimmed.replace(/婴幼儿|婴儿/gu, "小儿"),
+      quote: chiefComplaintLine(recordText) || trimmed,
+      reason: "患儿已超出婴幼儿期（3岁以下）",
+    };
+  }
   return undefined;
 }
 
