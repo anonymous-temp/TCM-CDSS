@@ -198,7 +198,7 @@ await check("6.2 编译器：72 岁男性服华法林、加桃仁的慎用提示
     symptoms: { 现病史: "胸闷刺痛，痛有定处。房颤病史，长期口服华法林。" },
   })).formula.modifications.find((item) => item.herbName === "桃仁")?.riskNote || "";
   const man = note("男", 72);
-  assert.match(man, /桃仁[^；]*抗凝状态者慎用/u, man);
+  assert.match(man, /桃仁[^；]*抗凝状态慎用/u, man);
   assert.doesNotMatch(man, /月经期/u, man);
   assert.match(note("女", 30), /月经期/u);
 });
