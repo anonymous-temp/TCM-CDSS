@@ -57,6 +57,17 @@ await check("1.1 作用域外（健康检查、部署探针）永远真实调用
   assert.equal(calls.length, 2);
 });
 
+await check("1.1b 开关关闭时路由作用域也不生效（本机与测试默认如此，生产默认开）", async () => {
+  memo.resetModelCallMemoForTests();
+  const calls = stub((n) => jsonResponse(okJson(`答${n}`)));
+  process.env.CDSS_MODEL_CALL_MEMO = "false";
+  await inScope(() => call("关闭时"));
+  await settle();
+  await inScope(() => call("关闭时"));
+  process.env.CDSS_MODEL_CALL_MEMO = "true";
+  assert.equal(calls.length, 2);
+});
+
 await check("1.2 作用域内同内容回放原始响应，只调一次", async () => {
   memo.resetModelCallMemoForTests();
   const calls = stub((n) => jsonResponse(okJson(`答${n}`)));
