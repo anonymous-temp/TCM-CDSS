@@ -348,7 +348,6 @@ await check("4.5 不同的条件不足两个时补写：每行过编译同一套
   globalThis.fetch = realFetch;
 });
 
-// ───── 5 文本 ─────
 const claim = await jiti.import("../src/lib/m03-patient-claim-check.server.ts");
 const element = await jiti.import("../src/lib/m03-element-support.server.ts");
 const secondary = await jiti.import("../src/lib/m03-secondary-syndrome-consistency.server.ts");
@@ -356,6 +355,50 @@ const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const western = await jiti.import("../src/lib/western-name-evidence-check.server.ts");
 const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
 const phi = await jiti.import("../src/lib/phi-sanitizer.ts");
+
+// ───── 6 第三十三轮审计留下的 ─────
+await check("6.1 证素撤下不动流派句与否认句（扶阳句里的阳虚实据；舌质淡红示血虚未甚）", async () => {
+  const content = JSON.stringify({
+    overview: { primarySyndrome: "寒凝血瘀证", secondarySyndromes: [], tcmDiagnosticRationale: "小腹冷痛为寒凝。舌质淡红示血虚未甚。神疲乏力、面色少华，为气血亏虚。扶阳学派看阴阳实据，本例畏寒肢冷属阳虚阴盛之象，与扶阳抑阴思路相符。" },
+    therapy: { overallMethod: "温经散寒" }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "寒凝", therapyDirection: "温经散寒" }], uncertainties: [] },
+  });
+  const decision = { verdicts: [{ unit: { type: "blood", entryName: "血虚证" }, verdict: { status: "fail", entry: "血虚证" } }] };
+  const out = JSON.parse(element.applyElementSupportDecision(content, decision));
+  const rationale = out.overview.tcmDiagnosticRationale;
+  assert.match(rationale, /舌质淡红示血虚未甚/u);
+});
+
+await check("6.2 总治法丢了、分治法还在：按分治法写总治法", () => {
+  const body = JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { primarySyndrome: "胃气不和证" }, westernDiagnosis: {}, pathogenesis: { chain: [{ nodeId: "P1", therapyDirection: "理气和胃" }, { nodeId: "P2", therapyDirection: "理气和胃" }, { nodeId: "P3", therapyDirection: "升清止晕" }] }, therapy: { overallPrinciple: "实则泻之" } });
+  const content = `<!-- DIAGNOSIS_JSON_START -->\n${body}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const out = visible.applyM03AdvisoryQualityBoundaries(content, "胃胀");
+  const root = JSON.parse(out.slice(out.indexOf("START -->") + 9, out.indexOf("<!-- DIAGNOSIS_JSON_END")));
+  assert.equal(root.therapy.overallMethod, "理气和胃，升清止晕");
+});
+
+await check("6.3 证-方方向提示只留寒热相反、且不是辨证阶段定的方", () => {
+  const source = readFileSync("src/lib/diagnosis-visible-summary.ts", "utf8");
+  assert.match(source, /conflict\.axis !== "thermal" \|\| direction\.includes\(base\) \|\| seen\.has\(base\)/u);
+  const consistency = readFileSync("src/lib/formula-syndrome-consistency.ts", "utf8");
+  assert.doesNotMatch(consistency, /确定性比对|标准目录归属/u);
+});
+
+await check("6.4 慢性失眠按 ICSD-3 写；查判据表、编码照旧能查到", async () => {
+  const terminology = await jiti.import("../src/lib/clinical-terminology.ts");
+  assert.equal(terminology.canonicalWesternDiagnosisName("慢性失眠障碍"), "慢性失眠");
+  const criteria = await jiti.import("../src/lib/western-diagnostic-criteria.server.ts");
+  assert.equal(criteria.westernCriteriaEntry("慢性失眠")?.name, "慢性失眠障碍");
+});
+
+await check("6.5 M03 外部检索也有软上限；关闭写法可用", async () => {
+  const budget = await jiti.import("../src/lib/prompt-budget.ts");
+  assert.equal(budget.m03ExternalEvidenceSoftDeadlineMs(), 2500);
+  process.env.PRIMARY_DIAGNOSE_EXTERNAL_EVIDENCE_SOFT_DEADLINE_MS = "off";
+  assert.equal(budget.m03ExternalEvidenceSoftDeadlineMs(), undefined);
+  delete process.env.PRIMARY_DIAGNOSE_EXTERNAL_EVIDENCE_SOFT_DEADLINE_MS;
+});
+
+// ───── 5 文本 ─────
 
 await check("5.1 片段带句读时不把前后两句连起来（第三十三轮 W45）", () => {
   assert.doesNotMatch(claim.withoutClaimSpan("脉细滑数示阴虚火动，兼有壅滞，大便干为津亏", "兼有壅滞，"), /火动大便干/u);
