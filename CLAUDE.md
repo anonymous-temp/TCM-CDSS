@@ -2688,9 +2688,13 @@ The user pointed out that round 32's fixes (乌贼骨/海螵蛸, 竹叶, 舌脉 
 - Regression: customer 10 × 3 disease and syndrome 30/30 equal to round 32; held-out 32/32; 100-case page set red flags 28/28, boundary dose 33/33, M03 complete 100/100, disease 94/100 and syndrome 82/100 equal to round 32 (no M03 prompt change; generation variance, but 1 in 5 syndromes differing is high).
 - 改坏 still counts 165 → 147 overall; 加减 stays at 33 because the audit counts every dropped model row, and 西医/辨病依据 are mostly standing doctrine.
 
-**Left as is.** Roles in 方义 vs the table (「三味为君」, 3 cases). 治法 can pick up near-duplicates (凉血止痛, 消肿止痛). `reasonCode: upstream_model_unavailable` is still what a repair timeout reports. Literal comparisons in the survey's lower tiers (`withdrawSecondarySyndrome` exact core name, `withoutFalseNamedRemovalClaims`) were not touched.
+**Found on production, fixed before the last deploy.** Customer record 10 came out 「清热凉血调经，止血，调经止血，凉血止血」: an item whose two-character pieces are all in the method is no longer added (`methodItemAlreadyCovered`).
 
-**In production.** See the deploy line below.
+**Left as is.** Roles in 方义 vs the table (「三味为君」, 3 cases). 治法 can still gain items that are not literal duplicates but add little (「清热生津」 on 瘾疹). `reasonCode: upstream_model_unavailable` is still what a repair timeout reports. Literal comparisons in the survey's lower tiers (`withdrawSecondarySyndrome` exact core name, `withoutFalseNamedRemovalClaims`) were not touched.
+
+**In production (48b4947, deployed 2026-11-01 about 20:30 Beijing; tag `20261101-48b4947-prebuilt`, same release directory and `20260927-dsrepair` override).** 672bf8f and 11c2cd0 went out earlier the same day. `verify:release` green (293 suites + 4); `verify:deployed-image` passed; `regress:prod-smoke` 0 failures (M03 P95 18.3 s, M04 P95 12.1 s). The first `verify:deployed-image` right after the deploy failed on a connect timeout from this machine (host, nginx and container were all fine); the rerun passed. Customer 10 on hospital-a, regenerate: all stages 200, disease and syndrome equal the standard answers, no red flag, no 兼证, median M03 12.9 s, M04 14.4 s (round 32's probe: about 14 s and 12 s). Probes on hospital-b: 咳嗽痰多 keeps 化痰, 泛酸 keeps 制酸降逆, 高血压 + 眩晕 links, 痰湿蕴肺 keeps 二陈平胃散合三子养亲汤, the two old-prescription records complete in 17–18 s instead of 160 s. Rollback: image `tcm-cdss:20261101-11c2cd0-prebuilt` (or `…20261031-ed52175…`) with the `docker-compose.yml.pre-*` backups in the release directory. Container logs before each replacement are in `~/telemetry-archive` on the host.
+- **Local build:** one OOM kill with other sessions' jobs running; it went through with a 1 GB temporary swap file on root and `.next/cache` deleted right after `PREBUILD_OK`.
+- **`pkill -f <pattern>` killed my own shell again** (exit 144) when the command text held the pattern. Collect PIDs with `ps | grep "[x]"` into a file in one command and kill from it.
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
