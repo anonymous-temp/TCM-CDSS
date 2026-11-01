@@ -328,7 +328,7 @@ for (const guard of ["submittedDifferentials.length > 0 && displayableDifferenti
   // 超限会让整份 M04 拒收，所以生成侧的钳制常量必须与它同源。
   const compilerSource = readFileSync("src/lib/m04-proposal-compiler.ts", "utf8");
   assert.ok(
-    /submittedCount: Math\.min\(value\.length, MODIFICATION_REVIEW_COUNT_LIMIT\)/.test(compilerSource),
+    /submittedCount: Math\.min\(expanded\.length, MODIFICATION_REVIEW_COUNT_LIMIT\)/.test(compilerSource),
     "submittedCount 未钳到契约上限：31 条可选随症加减会把整份 M04 判成硬拒且无修复引导",
   );
 }
