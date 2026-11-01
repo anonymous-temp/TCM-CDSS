@@ -479,8 +479,10 @@ export function evaluateCriteriaMatches(
     const needCategory = entry.specific.length >= 2 ? 1 : 2;
     // 与主证同脏：该脏的特异表现两边共有（扣掉了），兼的其实是病性（阳虚、气虚…）。病性那一类症状至少 3 条、
     // 特异表现病历里确实有（独立的加共有的够数）时立——心血瘀阻兼心阳虚，阳虚是另一组证据。
+    // 特异表现三条以上都写到了（脾气虚证的纳少、腹胀、便溏）：要点说的就是这一组，不再要求另有共见类（第三十三轮 C02 兼脾虚被撤，治法却留着健脾）。
     pass = (specific >= needSpecific && category >= needCategory) ||
-      (specific + sharedSpecific >= needSpecific && category >= 3);
+      (specific + sharedSpecific >= needSpecific && category >= 3) ||
+      (entry.specific.length >= 3 && specific >= 3);
   } else if (entry.category) pass = specific >= Math.min(2, entry.specific.length) && distinct >= 2;
   else pass = specific >= Math.min(2, entry.specific.length) && distinct >= 3;
   // 证素核对的宽路径（2026-10-31，甲方 10.29 测评：面色萎黄、爪甲色淡、头晕目眩、毛发枯槁「明确的气血两虚表现」被判血虚不够数）：

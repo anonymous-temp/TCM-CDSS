@@ -466,6 +466,16 @@ await check("5.7 「后时有咳嗽」不是姓名；真姓名照旧脱敏", () 
   assert.ok(!lexemes.includes("后"));
 });
 
+await check("5.10 兼证：特异表现写全三条即成组；只对上两条、没有共见类仍不够", () => {
+  const entry = secondary.diagnosticsCriteriaFor("脾气虚证");
+  assert.ok(entry && entry.specific.length >= 3);
+  const [a, b, c] = entry.specific;
+  const recordText = `${a}，${b}，${c}`;
+  const hit = (items) => items.map((item) => ({ item, quote: item }));
+  assert.equal(secondary.evaluateCriteriaMatches(entry, hit([a, b, c]), { recordText, primaryTerms: [] }).verdict, "pass");
+  assert.equal(secondary.evaluateCriteriaMatches(entry, hit([a, b]), { recordText, primaryTerms: [] }).verdict, "fail");
+});
+
 await check("5.9 数「X味」时「全方保留」不挡第一味；「兼制青皮」的制是动词", async () => {
   const review = await jiti.import("../src/lib/formula-analysis-review.ts");
   const herbs = ["黄芪", "桂枝", "白芍", "炙甘草", "大枣", "饴糖"];
