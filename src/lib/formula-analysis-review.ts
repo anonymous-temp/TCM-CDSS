@@ -524,6 +524,8 @@ export function withMentionsAlignedToTableNames(text: string, candidateHerbs: re
     if (tableNames.includes(token)) continue;
     // 「并制半夏之毒」「以制附子之燥」：这里的「制」是动词，不是炮制字头，去掉就成了「并半夏之毒」（第三十三轮：半夏厚朴汤一类方义 5/84）。
     if (/^制/u.test(token) && /^(?:之|毒|燥|寒|热|烈|腻|性)/u.test(text.slice(mention.end, mention.end + 1))) continue;
+    // 「兼制青皮辛散之性」「以制半夏」：前面是连接或虚词时「制」也是动词（第三十三轮 A02 曾改成「兼青皮辛散之性」）。
+    if (/^制/u.test(token) && /[兼并以佐又能可而且反]$/u.test(text.slice(0, mention.start))) continue;
     // 饮片切制规格「片」（2026-10-20 第八轮，X-G-0811/1737/2146/0679/0629：方义写「黄芩片」「酒黄连片」「鹿茸片」，药味表是「黄芩」「黄连」「鹿茸」）：
     // 模型把药典的饮片名（黄芩片）抄进方义，服务端把药味表的名字归成基原药名（黄芩）、炮制栏记「切片」，方义里的写法没有跟着归一。
     // 去掉末尾的「片」后与药味表同名、或只差前面的炮制字时，按药味表的写法改（下面的判据对去片后的名字照用）。

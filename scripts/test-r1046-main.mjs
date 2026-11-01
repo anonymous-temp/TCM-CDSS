@@ -466,6 +466,13 @@ await check("5.7 「后时有咳嗽」不是姓名；真姓名照旧脱敏", () 
   assert.ok(!lexemes.includes("后"));
 });
 
+await check("5.9 数「X味」时「全方保留」不挡第一味；「兼制青皮」的制是动词", async () => {
+  const review = await jiti.import("../src/lib/formula-analysis-review.ts");
+  const herbs = ["黄芪", "桂枝", "白芍", "炙甘草", "大枣", "饴糖"];
+  assert.match(review.withRecountedHerbCountWords("全方保留黄芪、桂枝、白芍、炙甘草、大枣、饴糖五味，加干姜。", herbs).text, /饴糖六味/u);
+  assert.equal(review.withMentionsAlignedToTableNames("白芍为佐，兼制青皮辛散之性。", ["白芍", "青皮"]).text, "白芍为佐，兼制青皮辛散之性。");
+});
+
 await check("5.8 方义多算一味共为君：表随方义；表里的君在方义里成了臣、或该味有毒的，不改", () => {
   const herb = (name, role) => ({ name, role, targetKind: "pathogenesis" });
   const hooks = compiler.m04CompilerTestHooks;
