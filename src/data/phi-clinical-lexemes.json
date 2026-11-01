@@ -4,7 +4,7 @@
     "tcm-disease-lexicon.json": "66c612518569ca97cdce2de79de820dc23785184e5f1fabb932398cd4ae5b11f",
     "tcm-location-lexicon.json": "2b790ee22f9a4f0e39cd52210754e7245bdf15a304c9420e613e1bd1194149f0",
     "tcm-inspection-lexicon.json": "aaac75e52dca885722527b2aa0394c2607ceb1208ed86dded0315db12f75cd67",
-    "phi-clinical-lexical-grammar.source.json": "14599b705a1f4a3fbd0f8081a870c9c00708003da39263f36e13c289a7a20859",
+    "phi-clinical-lexical-grammar.source.json": "4829f711245b2cf32ea74f297fb247124fec58cf8b184f081dfbf730a4adf5b1",
     "tcm-knowledge.json": "0759b8d0863f6c89267530238555dc953b57c523d69e720da260e6123823c779",
     "tcm-herb-function-categories.json": "64d50aa0bc64eb21a67aed3b822c9eaff8c183e917d351427c47679532c65223"
   },
@@ -747,7 +747,6 @@
     "后头",
     "后头部",
     "后屡",
-    "后常",
     "后手",
     "后指",
     "后掌",

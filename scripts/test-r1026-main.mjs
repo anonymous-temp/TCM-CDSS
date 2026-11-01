@@ -104,8 +104,8 @@ await check("2.1 外邪犯胃证的教材加减（壮热口渴、便秘尿赤加
   const out = unwrap(modSafety.dropUnsupportedM04ModificationDirections(wrap(huoxiangPrescription(textbookRows)), externalAttackPrior));
   assert.deepEqual(out.formula.modifications.map((item) => item.herbName), ["黄芩", "黄连"]);
 });
-await check("2.2 对照：所加的药不在那条教材加减里（加石膏），照旧按方向删", () => {
-  const rows = [{ ...textbookRows[0], herbName: "石膏", doseOrHandling: "20g", reason: "清热泻火" }];
+await check("2.2 对照：所加的药不在教材加减里、条件也没写明这个方向（第三十四轮起写明了才随条件走），照旧按方向删", () => {
+  const rows = [{ ...textbookRows[0], trigger: "若腹胀明显", herbName: "石膏", doseOrHandling: "20g", reason: "清热泻火" }];
   const out = unwrap(modSafety.dropUnsupportedM04ModificationDirections(wrap(huoxiangPrescription(rows)), externalAttackPrior));
   assert.deepEqual(out.formula.modifications, []);
 });

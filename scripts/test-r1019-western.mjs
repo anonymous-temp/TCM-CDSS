@@ -64,7 +64,7 @@ const completion = (payload) => new Response(JSON.stringify({
     assert.equal(canonicalWesternDiagnosisName("二型糖尿病"), "2型糖尿病");
     assert.equal(canonicalWesternDiagnosisName("阻塞性睡眠呼吸暂停低通气综合征"), "阻塞性睡眠呼吸暂停");
     assert.equal(canonicalWesternDiagnosisName("OSAHS"), "阻塞性睡眠呼吸暂停");
-    assert.equal(canonicalWesternDiagnosisName("慢性-失眠障碍倾向"), "慢性失眠障碍");
+    assert.equal(canonicalWesternDiagnosisName("慢性-失眠障碍倾向"), "慢性失眠");
     assert.equal(canonicalWesternDiagnosisName("劳力性呼吸困难待查：需排除阻塞性睡眠呼吸暂停"), "阻塞性睡眠呼吸暂停");
   });
 }

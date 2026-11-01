@@ -32,7 +32,7 @@ const MAX_UNITS = 2;
 
 type TypeConfig = { genericEntry: string; organEntrySuffix: string; keyPoints: string; therapyVerbs: string[]; therapyWord: string };
 const LEXICON = lexiconJson as unknown as {
-  rationaleClauseFilter: { lineageLensMarkers: string[]; assertionMarkers: string[]; negationMarkers: string[] };
+  rationaleClauseFilter: { lineageLensMarkers: string[]; assertionMarkers: string[]; negationMarkers: string[]; judgementMarkers: string[] };
   organs: Record<string, string>;
   mentions: Array<{ pattern: string; types: DeficiencyType[] }>;
   types: Record<DeficiencyType, TypeConfig>;
@@ -184,6 +184,7 @@ function natureTerms(root: Json): string[] {
 const RATIONALE_LENS = new RegExp(LEXICON.rationaleClauseFilter.lineageLensMarkers.join("|"), "u");
 const RATIONALE_ASSERTION = new RegExp(LEXICON.rationaleClauseFilter.assertionMarkers.join("|"), "u");
 const RATIONALE_NEGATION = new RegExp(LEXICON.rationaleClauseFilter.negationMarkers.join("|"), "u");
+const RATIONALE_JUDGEMENT = new RegExp(LEXICON.rationaleClauseFilter.judgementMarkers.join("|"), "u");
 export function rationaleAssertionClauses(rationale: string): string {
   return String(rationale || "").split(/[。；;]/u)
     .flatMap((sentence) => RATIONALE_LENS.test(sentence) ? [] : sentence.split(/[，,]/u))
@@ -304,7 +305,7 @@ export function findingsBeforeAttribution(clause: string, failed: ReadonlySet<De
   const prefix = clause.slice(0, Math.min(...hits)).replace(/[进一步亦也则故而提，,、\s]+$/u, "").trim();
   if (prefix.replace(/[、，,\s]/gu, "").length < 4 || hasFailedMention(prefix, failed, entailment)) return undefined;
   // 前半是在下判断不是在列表现（「故病位涉脾胃、病性属脾气虚」，第三十三轮 A09 曾写出「病性，是否兼脾气虚尚待核实」）。
-  if (/病位|病性|证属|辨证/u.test(prefix)) return undefined;
+  if (RATIONALE_JUDGEMENT.test(prefix)) return undefined;
   return prefix;
 }
 

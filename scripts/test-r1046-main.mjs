@@ -385,11 +385,13 @@ await check("5.5 改名后推理说明的框架句：后面还跟着描述时断
   assert.equal(western.rationaleAlignedWithRenamedPrimary("符合慢性支气管炎临床诊断；尚缺肺功能", "慢性支气管炎", "D"), "考虑慢性支气管炎可能；尚缺肺功能");
 });
 
-await check("5.6 四味方容许缺一味（白虎汤去粳米）；锚点药仍必须在；三味方仍要齐", () => {
+await check("5.6 四味方容许缺末位一味（白虎汤去粳米）；前三味仍必须在；三味方仍要齐", () => {
   const baihu = provenance.formulaCompilationReferences(["白虎汤"])[0];
   assert.equal(baihu.ingredients.length, 4);
   assert.equal(baihu.minimumPreservedIngredientCount, 3);
   assert.ok(baihu.requiredIngredients.includes("石膏"));
+  assert.ok(!baihu.requiredIngredients.includes("粳米"));
+  assert.ok(provenance.formulaCompilationReferences(["四物汤"])[0].requiredIngredients.includes("白芍"));
   assert.equal(provenance.formulaCompilationReferences(["小陷胸汤"])[0].minimumPreservedIngredientCount, 3);
   assert.equal(provenance.formulaCompilationReferences(["桂枝汤"])[0].minimumPreservedIngredientCount, 4);
 });
