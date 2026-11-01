@@ -236,6 +236,16 @@ await check("4.2 按证素合成：气阴两虚、痰瘀互结、寒凝血瘀要
   assert.deepEqual(secondary.elementCompositeCriteriaEntry("寒凝血瘀证").components, ["血瘀证", "寒证"]);
   assert.equal(secondary.elementCompositeCriteriaEntry("血虚证").name, "血虚证");
 });
+await check("4.2b 独立表现 4 条以上且对上一条要点算成组；只对上 3 条或一条要点都没有的不算", () => {
+  const entry = secondary.diagnosticsCriteriaFor("血瘀证");
+  const record = "胁下刺痛，痛处固定不移，夜间痛甚，月经色紫暗，夹有血块，面色黧黑。";
+  const context = { recordText: record, primaryTerms: [] };
+  const match = (item, quote) => ({ item, quote });
+  const six = [match("疼痛", "胁下刺痛"), match("固定不移", "痛处固定不移"), match("在夜间痛甚", "夜间痛甚"), match("色紫暗", "月经色紫暗"), match("夹有血块", "夹有血块"), match("瘀血色脉征主要有面色黧黑", "面色黧黑")];
+  assert.equal(secondary.evaluateCriteriaMatches(entry, six, context).verdict, "pass");
+  assert.equal(secondary.evaluateCriteriaMatches(entry, six.slice(0, 3), context).verdict, "fail");
+  assert.equal(secondary.evaluateCriteriaMatches(entry, six.slice(1, 6), context).verdict, "fail", "一条要点都没对上");
+});
 await check("4.3 病名不算兼证；带「证」字的照常", () => {
   assert.equal(secondary.secondaryStructurallyInvalid("阴虚秘", "月经先期"), "not_a_syndrome");
   assert.equal(secondary.secondaryStructurallyInvalid("脾胃虚寒证", "肾阳虚证"), undefined);
@@ -251,6 +261,16 @@ await check("5.3 用法里的「酸枣仁」不算已经写了姜枣：归脾汤
   const source = readFileSync("src/lib/delivered-surface.ts", "utf8");
   assert.match(source, /!\/\(\?:生姜\|煨姜\|大枣\|姜枣\|姜、枣\|红枣\)\/u\.test\(candidateDecoction\.method\)/u);
   assert.equal(surface.omittedGuideHerbNote("归脾汤", ["黄芪", "人参", "白术", "当归", "酸枣仁"].map((name) => ({ name }))), "原方以生姜、大枣为引，煎时可酌加");
+});
+await check("5.4 合方里目录查不到、教材单列了组成的方照样算：二陈平胃散合三子养亲汤不会只剩三子养亲汤", () => {
+  const row = textbook.textbookRowForSyndrome("咳嗽", "痰湿蕴肺证");
+  const prescribe = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    overview: { tcmDiseaseName: "咳嗽", primarySyndrome: "痰湿蕴肺证", recommendedFormulaDirection: "二陈平胃散合三子养亲汤加减" },
+    formula: { candidates: [{ name: "三子养亲汤加减", formulaAnalysis: "本方以三子养亲汤为基础加减。法半夏为君。", herbs: row.composition.map((name) => ({ name, dose: "9g" })) }], modifications: [] },
+    nonPharma: { precautions: [] },
+  };
+  assert.equal(surface.projectDeliveredReasoning(prescribe).formula.candidates[0].name, "二陈平胃散合三子养亲汤加减");
 });
 await check("5.2 写了加减、组成就是原方：判得出原方；组成有增减的不判", () => {
   const reference = provenance.formulaCompilationReferences(["四君子汤"])[0];

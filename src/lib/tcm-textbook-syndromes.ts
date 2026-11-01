@@ -35,7 +35,8 @@ export interface TextbookSyndromeRow {
   formulas: string[];
   formulaJoin: string;
   composition: string[];
-  compositionByFormula?: Array<{ formula: string; herbs: string[] }>;
+  /** 合方行里教材单列了组成的方。 */
+  formulaCompositions?: Array<{ formula: string; herbs: string[] }>;
   modifications: Array<{ condition: string; herbs: string[]; raw: string }>;
 }
 
@@ -56,6 +57,7 @@ interface TextbookDisease {
 }
 
 type RawRow = {
+  compositionByFormula?: unknown;
   id?: unknown; book?: unknown; bookKey?: unknown; department?: unknown; disease?: unknown; diseaseAliases?: unknown;
   westernEquivalents?: unknown; tcmEquivalents?: unknown; group?: unknown; syndrome?: unknown; syndromeName?: unknown; syndromeKind?: unknown;
   manifestations?: unknown; tongue?: unknown; pulse?: unknown; therapy?: unknown; formulas?: unknown; formulaJoin?: unknown;
@@ -226,6 +228,9 @@ function buildDiseases(): TextbookDisease[] {
       manifestations: text(raw.manifestations), tongue: text(raw.tongue), pulse: text(raw.pulse),
       therapy: fixTextbookOcr(text(raw.therapy)), formulas, formulaJoin: text(raw.formulaJoin) || "single",
       composition: strings(raw.composition).map(fixTextbookOcr),
+      formulaCompositions: Array.isArray(raw.compositionByFormula)
+        ? (raw.compositionByFormula as Array<{ formula?: unknown; herbs?: unknown }>).map((item) => ({ formula: fixTextbookOcr(String(item.formula || "")), herbs: strings(item.herbs).map(fixTextbookOcr) })).filter((item) => item.formula && item.herbs.length > 0)
+        : undefined,
       modifications: (Array.isArray(raw.modifications) ? raw.modifications : []).flatMap((item) => {
         const record = item && typeof item === "object" ? item as { condition?: unknown; herbs?: unknown; raw?: unknown } : {};
         const herbs = strings(record.herbs).map(fixTextbookOcr);
@@ -660,12 +665,12 @@ export function buildTextbookFormulaContext(diseaseName: string, syndromeName: s
   ].filter(Boolean).join("\n");
 }
 
-/** 教材写的这张方的组成（合方行按方拆开的 compositionByFormula；只认这张方单列的）。 */
+/** 教材写的这张方的组成（合方行按方拆开的；只认这张方单列的）。 */
 export function textbookFormulaComposition(formulaName: string): readonly string[] {
   const wanted = compact(formulaName);
   for (const disease of DISEASES) {
     for (const row of disease.rows) {
-      const hit = row.compositionByFormula?.find((item) => compact(item.formula) === wanted && item.herbs.length > 0);
+      const hit = row.formulaCompositions?.find((item) => compact(item.formula) === wanted);
       if (hit) return hit.herbs;
     }
   }

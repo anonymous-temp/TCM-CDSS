@@ -487,6 +487,9 @@ export function evaluateCriteriaMatches(
   //《中医诊断学》血虚证辨证要点只列「面、睑、唇、舌色淡白，脉细」，萎黄、爪甲色淡、头晕眼花都在它的【证候表现】里。证候表现独立成组三条以上，
   // 这一证素就算有据。只用于证素（虚性要素是否有病历支持），立兼证仍按辨证要点。
   if (!pass && context.breadth && !entry.components?.length && distinct >= 3) pass = true;
+  // 要点是教材的一句话，切出来的条目常对不上写法（血瘀证的要点切成「疼痛」「舌色青紫等」）：第三十三轮刺痛固定、舌有瘀点、脉涩、经血块 6 条独立表现，因为要点只对上 1 条被撤。
+  // 主证解释不了的独立表现有 4 条以上、其中至少 1 条对上要点或共见类，算成组。
+  if (!pass && !entry.components?.length && distinct >= 4 && specific + category >= 1) pass = true;
   return { verdict: pass ? "pass" : "fail", entry: entry.name, specific, category, listed, distinct, quotes: [...seenQuotes] };
 }
 

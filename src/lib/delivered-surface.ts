@@ -1900,7 +1900,7 @@ function textbookCompositionOptions(row: { formulas: readonly string[]; composit
  * 合成集 6 例辨证阶段定了教材代表方、处方也确是那张方，方名却落成「自拟方」，两个阶段方名不一致。
  * 教材行的组成不分属哪张方：合方时它过半只说明「并集过半」，各张都算；目录能分清时按目录各算各的。
  */
-function textbookFormulasCoveredByPrescription(row: { formulas: string[]; composition: string[] }, herbNames: readonly string[]): string[] {
+function textbookFormulasCoveredByPrescription(row: { formulas: string[]; composition: string[]; formulaCompositions?: ReadonlyArray<{ formula: string; herbs: readonly string[] }> }, herbNames: readonly string[]): string[] {
   // 方名承载药不在处方里的方不算（与交付方名同一判据 formulaNameIdentityHerbsMissing：知柏地黄丸而方中无知母、黄柏）。
   const formulas = row.formulas.filter((name) => formulaNameIdentityHerbsMissing(name, herbNames).length === 0);
   if (formulas.length < row.formulas.length) return formulas.length > 0 ? textbookFormulasCoveredByPrescription({ ...row, formulas }, herbNames) : [];
@@ -1919,7 +1919,10 @@ function textbookFormulasCoveredByPrescription(row: { formulas: string[]; compos
   // 目录里没有这个名字、只有剂型不同的同名方（四妙散—四妙丸，governedDosageFormVariantComposition）：按那份组成算覆盖，合方名里不丢这一首
   //（2026-10-20 第八轮，S145「四妙散合宣痹汤」处方有黄柏、薏苡仁、牛膝，方名只剩「宣痹汤加减」）。基准是另一首方的组成，门槛取 75%。
   const byVariant = row.formulas.filter((name) => formulaCompilationReferences([name]).length === 0 && share(governedDosageFormVariantComposition(name)) >= 0.75);
-  if (byCatalog.length > 0 || byVariant.length > 0) return row.formulas.filter((name) => byCatalog.includes(name) || byVariant.includes(name));
+  // 目录没有、教材这一行把组成单列了的方（二陈平胃散合三子养亲汤）：按教材那份算。此前合方里只有一张目录查得到时另一张就被丢掉，方名只剩「三子养亲汤加减」（第三十三轮 4 例）。
+  const byRow = row.formulas.filter((name) => formulaCompilationReferences([name]).length === 0 &&
+    covered(row.formulaCompositions?.find((item) => item.formula === name)?.herbs || []));
+  if (byCatalog.length > 0 || byVariant.length > 0 || byRow.length > 0) return row.formulas.filter((name) => byCatalog.includes(name) || byVariant.includes(name) || byRow.includes(name));
   if (!covered(row.composition)) return [];
   // 编译目录核不了、方名目录（各版本）核得了的，也要过半（M 集 test-482「化坚二陈丸加减」只剩黄连、甘草，按教材行合集算过了半，目录覆盖 0.33）。
   const catalogCovered = (name: string) => formulaCompilationReferences([name]).length > 0 || (formulaNameCatalogCoverage(name, herbNames) ?? 1) >= 0.5;

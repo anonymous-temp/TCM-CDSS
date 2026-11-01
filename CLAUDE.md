@@ -2651,6 +2651,47 @@ The customer's document (`【2026-10-29】灵犀中医医学评测.docx`) scored
 - **`ps | grep "[x]yz"` in a kill loop matches the shell running it when the command text contains the literal form** (exit 144). Kill by PID from a separate command.
 - **Local build:** root had 3.7 GB after removing my worktrees. `prebuild-cpa.sh` in the round directory copies `node_modules` once from the main checkout and uses `rsync --link-dest`, which saves about 1.4 GB over the round-30 version.
 
+### 11/1 round 33: rules that decided clinical content by string match (2026-11-01)
+
+The user pointed out that round 32's fixes (乌贼骨/海螵蛸, 竹叶, 舌脉 conditions, 化痰 overwritten, compound names skipped) were all string or table matching, and that more testing would keep finding the same class. Measured first, then fixed by class. Material: `~/runlogs/r1018/work/r1045/` (`cases/` 71 synthetic + 50 public records, each with oracles written before running; `scan/`; `judge-k.mjs` class rubric; `judge-d.mjs` change audit; `tally2.py`; `cmp.py`; `cp/cp.py` 41 mutations, all caught). Suite `test:r1045-main`.
+
+**New measuring tools, now the sensitive ones (the 1.1 rubric is saturated).**
+- **Model output vs delivered:** `scripts/audit/capture-model-output.mjs` (`node --import`, `TRACE_DIR`, `TRACE_CASES`) saves each model call's output; `scripts/audit/model-vs-delivered.py` diffs raw M03/M04 against the delivered fields, plus oracles and independent readers. Trace attribution: the fingerprint misses when the prompt does not carry the record verbatim; the audit also matches M04 by herb overlap. r1 and r2 of one key overlap in time, so raw is picked by best match.
+- **Textbook self-test (in the gate, ratchet ≤29):** the rules run on 《方剂学》 commentary × that formula's composition. Before: 62/139 commentaries had clauses deleted.
+
+**What was wrong, and the fix.**
+- **治法.** Anchoring replaced the model's method with the textbook's; `verifiedMethodItem` only protected items the check had added, and the check compared against the model's own text, so a model-written 化痰 counted as covered and was then overwritten. 55/155 outputs lost a model-written item (制酸降逆, 温化寒饮, 清胃泻火). `completeMethodCoverage` now asks against the method that will be delivered (the textbook's whenever a row exists, also when a secondary is still present: a parallel check may withdraw it). Candidates are the model's items missing from it, plus items from two proposer samples (`proposeTwiceThenVerifyAll`: deepseek twice, temperature 0 and 0.4); qwen verifies each, an item both samples proposed gets a second opinion. Verifier wording defaults to true with four false cases: the first wording said true 9/150. Up to two items, five in total. qwen as a proposer was tried: p50 2.7 s, M03/M04 about 2 s slower, and worse proposals.
+- **Verifier payload.** The check sent `recordText.split("\n").slice(0, n)` as the chief complaint, which is the patient header. Both this check and the Western chronic-disease link now get the real chief complaint (C06 高血压 + 眩晕 had been rejected 2/2).
+- **方义.** `formulaAnalysisHerbMentions` slides over text with no segmentation, and 4672 of 6461 aliases are `unique_source_backed`, an unreviewed dataset: 血通→千年健, 能消→威灵仙, 重药→鱼腥草. 「牛膝活血通经」 became 「牛膝活经」. A mention now counts as foreign only if the name is reliable (not that status, or in `tcm-herb-usage-names.json`, built by `build-herb-usage-names.mjs` from textbook and catalog compositions; processing prefix must leave two characters) **and** it sits in herb position (start, or after a connector): 「宁神益智」 is not 益智. Doing this inside `formulaAnalysisHerbMentions` would change other readers, so only the foreign decision uses it. 属名 candidates count as own (芍药 ⇒ 白芍). 「并制半夏之毒」: 制 followed by 之/毒/燥… is a verb and is not stripped.
+- **加减.** Prompt entries carry IDs (E3, stable under filtering); `textbookEntry` selects them and the condition comes from the table, not from matching the model's echo. Two-herb entries bring their partner, deduped. The floor counts distinct conditions (`distinctModificationConditions`): 12/152 reached 「two rows」 with one condition. Compile fills to three conditions, cap four rows, single-herb entries first. Model conditionals are allowed next to textbook rows (`textbookThin` is gone); 39 rows in 155 had been dropped for that. `m04-modification-fit` now checks every row against the record (contradiction needs a verbatim quote, misfit only on model or borrowed rows and only while two rows remain). `modificationConditionTonguePulseConflict` stays as the fast prompt filter: it caught 6 of 22 probe contradictions on its own. Same-source additions are dropped. Borrowed rows (another disease's row for the same formula) need same-class syndrome (≥2 shared characters), 内科 or the same department, get no direction exemption, are labelled `model_inference`, and are never auto-filled: a burn row had been given to 外感发热, 硬肿症 to an adult 痹证.
+- **兼证.** 126/241 delivered names missed the criteria table and were silently kept. `compoundCriteriaEntries` scores shared nature characters then fewest extras (痰热郁肺 → 痰热壅肺证, was 风热犯肺证); `elementCompositeCriteriaEntry` composes 气阴两虚, 痰瘀互结…(table in `tcm-secondary-syndrome-structure.source.json`); then the textbook row by name; a remaining miss logs `m03_secondary_criteria_miss`. A disease name is not a syndrome (「月经先期」). ≥4 independent findings with ≥1 on the key points counts as a group: the key-point splitter produces items like 「舌色青紫等」, and 6 findings of 血瘀 had failed.
+- **Other.** A regimen quoted verbatim from the record is not an instruction (`m03DoseLevelInstructionFindings`): 2/50 public records with an old prescription spent 160 s and landed on the placeholder saying the model service was down. `X加减` whose composition equals X becomes X unless the analysis claims edits. Guide-herb note: `/[姜枣]/` matched 酸枣仁, so 归脾汤 never got it. `textbookRowForFormula` ignores dosage form. Formulas in a combined textbook row with their own composition count even without a catalog entry (`formulaCompositions`; 二陈平胃散合三子养亲汤 had lost its first half). The table's `compositionByFormula` was never loaded, so two older readers keep their dead branch: loading it under that name broke S145.
+
+**Measured** (same day; old = ed52175, new = a4d18deb, one small commit before the final code; first run of 71 synthetic + 50 public + the customer's 34 records; qwen3.8-max).
+
+| | Old | New |
+|---|---|---|
+| Raw → delivered 治法 changes judged 改对 / 改坏 | 13 / 35 | 33 / 22 |
+| 方义 judged 改坏 | 30 | 15 |
+| Outputs with a damaging change in 治法/方义/方名/加减/药味 | 78/155 | 64/155 |
+| 方义 word damage (血通, 益智, 制半夏…) | 12 | 0 |
+| Model-written method item not delivered | 54 | 39 |
+| Placeholder pages | 2 | 0 |
+| Rows borrowed from another disease | 12 outputs | 0 |
+| 生姜+干姜 | 3 | 0 |
+| Fewer than 2 distinct conditions (synthetic + public) | 12/118 | 6/115 |
+| Class rubric K1 / K2 / K3 / K5 / K6 | 96.1 / 97.4 / 92.1 / 89.5 / 90.1 | 97.2 / 98.6 / 94.4 / 90.2 / 95.1 |
+| K4 method coverage / K7 syndrome / K9 Western | 98.0 / 92.8 / 98.6 | 94.4 / 90.9 / 97.8 |
+| Medians M03 / M04, customer's 34 | 15.1 / 10.2 s | 16.0 / 11.0 s |
+
+- K4 and K7 went down. K7: 兼证 withdrawn on thin key points; the ≥4-findings rule came after this run. K4: judged 治法 items with no matching herb (「化痰利咽」 on an unchanged 柴胡疏肝散); the M04 prompt now asks for a herb per item, also after this run. Neither was re-judged.
+- Regression: customer 10 × 3 disease and syndrome 30/30 equal to round 32; held-out 32/32; 100-case page set red flags 28/28, boundary dose 33/33, M03 complete 100/100, disease 94/100 and syndrome 82/100 equal to round 32 (no M03 prompt change; generation variance, but 1 in 5 syndromes differing is high).
+- 改坏 still counts 165 → 147 overall; 加减 stays at 33 because the audit counts every dropped model row, and 西医/辨病依据 are mostly standing doctrine.
+
+**Left as is.** Roles in 方义 vs the table (「三味为君」, 3 cases). 治法 can pick up near-duplicates (凉血止痛, 消肿止痛). `reasonCode: upstream_model_unavailable` is still what a repair timeout reports. Literal comparisons in the survey's lower tiers (`withdrawSecondarySyndrome` exact core name, `withoutFalseNamedRemovalClaims`) were not touched.
+
+**In production.** See the deploy line below.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
