@@ -160,7 +160,7 @@ function parseTopUp(content: unknown): TopUpRow[] | undefined {
       const trigger = text(row?.trigger);
       const herbName = text(row?.herbName);
       return trigger && herbName ? [{ trigger, herbName, dose: text(row?.dose), reason: text(row?.reason) }] : [];
-    }).slice(0, 4);
+    }).slice(0, 6);
   } catch {
     return undefined;
   }
