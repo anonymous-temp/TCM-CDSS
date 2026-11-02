@@ -130,6 +130,10 @@ await check("4.1 方义的药名带上药味表炮制栏的字", () => {
   const herbs = [{ name: "白扁豆", processing: "炒" }, { name: "苦杏仁", processing: "燀" }, { name: "枳壳", processing: "麸炒" }, { name: "黄连", processing: "切片" }, { name: "甘草", processing: null }];
   assert.equal(review.withProcessingFromTable("白扁豆健脾，苦杏仁降气，枳壳行气，黄连清热，甘草调和。", herbs), "炒白扁豆健脾，燀苦杏仁降气，麸炒枳壳行气，黄连清热，甘草调和。");
 });
+await check("4.3 数量词：「故加丹参…，川芎…，郁金…，三药」按三味算", () => {
+  const out = review.reviewAuthoredFormulaAnalysis("本方以生脉散为基础加减。人参大补心气为君；麦冬养阴为臣，五味子收敛为佐。心气推动无力，故加丹参活血化瘀，川芎行气活血，郁金行气解郁，三药共为臣佐，使气旺而血行，全方补气而不滞，行血而不伤正。", ["人参", "麦冬", "五味子", "丹参", "川芎", "郁金"]);
+  assert.match(out.text, /三药共为臣佐/, out.text);
+});
 await check("4.2 已带炮制字不叠、重复调用不变", () => {
   const herbs = [{ name: "白扁豆", processing: "炒" }];
   assert.equal(review.withProcessingFromTable("炒白扁豆健脾", herbs), "炒白扁豆健脾");
@@ -186,6 +190,14 @@ await check("5.2b 同用的那一味没留下时，带出来的行也不留", ()
   assert.equal(compiler.withoutOrphanPartnerRows(rows, ["紫苏子"]).length, 2);
   assert.equal(compiler.withoutOrphanPartnerRows([...rows, { herbName: "紫苏子", reason: "降气" }]).length, 3);
 });
+await check("5.2c 针对病历已记录表现的加减行只拦方向相反的；条件句照旧严格", async () => {
+  const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+  const prior = { stage: "diagnose", overview: { tcmDiseaseName: "水肿", primarySyndrome: "水湿浸渍证", primarySyndromeBasis: ["身体酸困"] }, therapy: { overallMethod: "运脾化湿，通阳利水" }, westernDiagnosis: { primary: { supportingFacts: [] } }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "水湿内停", therapyDirection: "运脾化湿", patientFact: "身体酸困" }] } };
+  assert.equal(contract.modificationRowDirectionIssue("大黄", "泻下通便", "身体酸困", prior), undefined, "词表对不上不算错");
+  assert.ok(contract.modificationRowDirectionIssue("大黄", "泻下通便", "若大便不通", prior), "条件句严格");
+  const warm = { ...prior, therapy: { overallMethod: "温阳散寒" }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "寒凝", therapyDirection: "温阳散寒", patientFact: "身体酸困" }] } };
+  assert.ok(contract.modificationRowDirectionIssue("黄连", "清热燥湿", "身体酸困", warm), "与治法相反的照拦");
+});
 await check("5.3 超过行数时病历写着的症状先留", () => {
   const prior = { stage: "diagnose", overview: { tcmDiseaseName: "胃痞", primarySyndrome: "胃气不和证", primarySyndromeBasis: ["大便干结"] }, westernDiagnosis: { primary: { supportingFacts: ["大便干结"] } }, pathogenesis: { chain: [{ nodeId: "P1", patientFact: "大便干结", syndromeEvidence: "大便干结" }] } };
   const add = (trigger, herbName) => ({ actionType: "add", targetRef: "P1", reason: "理由写够", trigger, herbName });
@@ -208,6 +220,14 @@ await check("5.5 方向未成立且不对立的终审码换成 T2；方向对立
   assert.equal(api.vocabularyOnlyHighImpactReason("m04_candidate_0_herb_0_unsupported_high_impact_blood_move", content(chuanxiong), prior), "m04_candidate_0_herb_0_therapy_vocabulary_unverified_blood_move");
   assert.equal(api.vocabularyOnlyHighImpactReason("m04_candidate_0_herb_0_dose", content(chuanxiong), prior), undefined);
   assert.equal(api.vocabularyOnlyHighImpactReason("m04_candidate_0_herb_5_unsupported_high_impact_blood_move", content(chuanxiong), prior), undefined, "查不到这味不换");
+});
+
+await check("5.6 睡眠心神的表现不止顺带一句时不算顺带", async () => {
+  const sleep = await jiti.import("../src/lib/incidental-sleep-modification.ts");
+  assert.equal(sleep.mindSymptomsProminentInRecord("胃痛3天，睡眠差。"), false);
+  assert.equal(sleep.mindSymptomsProminentInRecord("腰酸，失眠多梦，心悸怔忡。"), true);
+  assert.equal(sleep.mindSymptomsProminentInRecord("胃痛。", "失眠2月"), true);
+  assert.equal(sleep.mindSymptomsProminentInRecord("无失眠，无心悸。"), false);
 });
 
 await check("6.2 《方剂学》方解自己写调和诸药的留下", () => {

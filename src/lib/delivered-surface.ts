@@ -21,7 +21,7 @@ import { formulaGuideHerbsFromCommentary, formulaTextbookCommentary } from "./fo
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { compositionIdentityName, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
-import { signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
+import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { drugNamesInAllergyPhrases } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
@@ -2370,7 +2370,7 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
     deliveredDiagnose(projected, options);
     const therapy = record(projected.therapy);
     if (therapy) delete therapy.verifiedMethodItem;
-    const mindInScope = signedScopeInvolvesMind(projected as SignedScopeLike);
+    const mindInScope = signedScopeInvolvesMind(projected as SignedScopeLike) || mindSymptomsProminentInRecord(options?.recordText || "");
     if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(therapy.overallMethod, mindInScope)));
     const overviewRecord = record(projected.overview);
     if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(overviewRecord.overallTherapy, mindInScope)));

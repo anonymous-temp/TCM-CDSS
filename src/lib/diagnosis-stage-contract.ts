@@ -3287,6 +3287,20 @@ export function highImpactHerbDirectionIssue(
 }
 
 /**
+ * 加减行的方向核对。针对病历已记录的当前表现的行（不是「若…」）只拦与治法相反的：词表对不上治法不算错，这一行本来就是为主证管不到的兼症加的
+ *（第三十五轮 W32：五苓散证病历写着「身体酸困」，模型加薏苡仁渗湿除痹，因为词表说不清方向被删；甲方 10.13 口径是伴随症状进加减）。条件句照旧严格核。
+ */
+export function modificationRowDirectionIssue(
+  herbName: string,
+  declaredFunction: string,
+  trigger: string,
+  prior: M03ReasoningLike | null | undefined,
+): string | undefined {
+  const recorded = !/^\s*(?:若|如|当|一旦)/u.test(trigger) && !conditionalModificationWithoutTextbook(trigger) && finalModificationTriggerGrounded(trigger, prior);
+  return unsupportedHighImpactHerbIssue([{ name: herbName, function: declaredFunction }], prior, false, [], recorded);
+}
+
+/**
  * 单味药的高影响方向判定，入参是**完整候选行**而不是拼接后的功用串。
  *
  * 确定性剔除必须与门禁走同一个入口：门禁读 prescriptionRole/targetPathogenesis（并剥离
@@ -5059,12 +5073,9 @@ export function m04ModificationSafetyIssue(
   if (action === "加" && isKnownHerbName && !isKnownHerbName(herbName)) return `modification_${modificationIndex}_unknown_herb`;
   // 教材条件式加减（药味在该条教材加减里）不拿当前主证的方向去核——条件说的就是证候起了变化；与编译器同一口径。
   if (action === "加" && priorReasoning && !isTextbookConditionalModification(modification.trigger, herbName, priorReasoning)) {
-    const highImpactIssue = unsupportedHighImpactHerbIssue([{
-      name: herbName,
-      function: [modification.reason, modification.targetPathogenesis]
-        .filter((value): value is string => typeof value === "string")
-        .join("；"),
-    }], priorReasoning);
+    const highImpactIssue = modificationRowDirectionIssue(herbName, [modification.reason, modification.targetPathogenesis]
+      .filter((value): value is string => typeof value === "string")
+      .join("；"), String(modification.trigger || ""), priorReasoning);
     if (highImpactIssue && !conditionDeclaresHighImpactDirection(modification.trigger, highImpactIssue)) return `modification_${modificationIndex}_${highImpactIssue}`;
   }
   return undefined;

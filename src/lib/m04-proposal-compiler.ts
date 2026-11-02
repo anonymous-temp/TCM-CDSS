@@ -1,6 +1,6 @@
 import sameSourceHerbsJson from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
-import { incidentalSleepSedativeModification, incidentalSleepTriggerModification, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
+import { incidentalSleepSedativeModification, incidentalSleepTriggerModification, mindSymptomsProminentInRecord, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
 
 import { z } from "zod";
 import {
@@ -25,6 +25,7 @@ import {
   doseWithinConservativeModelLimit,
   conditionDeclaresHighImpactDirection,
   m04ModificationSafetyIssue,
+  modificationRowDirectionIssue,
   highImpactHerbDirectionIssue,
   sameHerbIdentity,
   m04GenerationSpecialPopulationIssue,
@@ -1100,8 +1101,8 @@ export function modificationConditionOutsidePopulation(trigger: string, caseStat
  * 该味在知识库里归安神药类、是佐或使、不在所称方剂的目录组成里，且已签名的证名与病名都不涉心、神、寐、悸、郁。
  * 去掉后方义里讲这味药的小句由方义核对按「方外之药」删去；剩不到三味时原样保留。
  */
-function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2): M04Proposal["candidate"]["herbs"] {
-  if (signedScopeInvolvesMind(prior)) return candidate.herbs;
+function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2, recordText = "", chiefComplaint = ""): M04Proposal["candidate"]["herbs"] {
+  if (signedScopeInvolvesMind(prior) || mindSymptomsProminentInRecord(recordText, chiefComplaint)) return candidate.herbs;
   const baseName = String(candidate.name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
   const base = new Set((formulaCompilationReferences([baseName])[0]?.ingredients || []).map((name) => compositionIdentityName(name.replace(/[（(][^）)]*[）)]/g, ""))));
   const kept = candidate.herbs.filter((herb) => !(
@@ -2164,6 +2165,7 @@ function withWithheldBaseIngredientNote(analysis: string, formulaNames: readonly
 function withAnalysisConsistentCandidate(
   candidate: M04Proposal["candidate"],
   prior: ClinicalReasoningResultV2,
+  caseState?: CaseState,
 ): M04Proposal["candidate"] {
   const analysis = candidate.formulaAnalysis || "";
   const roles = analysis
@@ -2210,7 +2212,7 @@ function withAnalysisConsistentCandidate(
     )
     : candidate.formulaAnalysis;
   const aligned = { ...candidate, herbs, ...(analysis ? { formulaAnalysis: editedAnalysis } : {}) };
-  return { ...aligned, herbs: withoutIncidentalSedatives(aligned, prior) };
+  return { ...aligned, herbs: withoutIncidentalSedatives(aligned, prior, caseState ? clinicalGroundingText(caseState) : "", caseState?.chiefComplaint || "") };
 }
 
 /**
@@ -2302,7 +2304,7 @@ export function compileM04Proposal(
   const medicineExclusionText = caseState ? clinicalGroundingText(caseState) : "";
   const proposal = {
     ...parsed.data,
-    candidate: withAnalysisConsistentCandidate(parsed.data.candidate, prior),
+    candidate: withAnalysisConsistentCandidate(parsed.data.candidate, prior, caseState),
     patentAndWestern: [...new Map(
       [...parsed.data.patentAndWestern, ...trustedMedicines]
         .filter((item) => !medicineCandidateExcludedForCase(String(item.name || ""), medicineExclusionText))
@@ -2460,7 +2462,7 @@ export function compileM04Proposal(
     // 因「清热与主证方向不符」被整条丢掉（2026-10-13，合成集加减为空 12 例里的一类）。
     // 借别的病的行不享受这个豁免：那条条件说的不是这一证的变化（第三十三轮：肺脾两虚借哮病·肺虚证「若阳虚甚…加附子」）。
     // 模型写的条件若自己写明了方向（若畏寒肢冷→干姜），同样随条件走（conditionDeclaresHighImpactDirection）；没写明的（若咽痛→黄芩）照旧核对。
-    const directionIssue = (!textbookSource || textbookSource.crossDisease) && item.actionType === "add" ? highImpactHerbDirectionIssue(item.herbName, declaredDirection, prior) : undefined;
+    const directionIssue = (!textbookSource || textbookSource.crossDisease) && item.actionType === "add" ? modificationRowDirectionIssue(item.herbName, declaredDirection, item.trigger, prior) : undefined;
     if (directionIssue && (textbookSource || !conditionDeclaresHighImpactDirection(item.trigger, directionIssue))) {
       dropReasons.push("direction_conflict");
       return [];
