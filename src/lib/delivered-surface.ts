@@ -2403,7 +2403,9 @@ export function withoutIncidentalSedationMethod(method: string, mindInScope: boo
   if (mindInScope) return method;
   const items = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
   const kept = items.filter((item) => !/^(?:养心|宁心|清心|镇惊|重镇|镇静)?(?:安神|宁神|宁心)(?:定志|助眠|益智|止眩)?$/u.test(item));
-  return kept.length > 0 && kept.length < items.length ? kept.join("，") : method;
+  // 安神和别的法写成一项（「安神止痒」「敛汗安神」，第三十六轮留出例 S076、C007）：留别的法，安神不留。
+  const stripped = kept.map((item) => item.replace(/^(?:安神|宁神)(?=[\u4e00-\u9fff]{2}$)|(?<=^[\u4e00-\u9fff]{2})(?:安神|宁神)$/u, ""));
+  return stripped.length > 0 && (kept.length < items.length || stripped.some((item, index) => item !== kept[index])) ? stripped.join("，") : method;
 }
 
 /** 总治法至多五项（接口文档 V2.56）：教材的项在前，多出来的是后补的，去掉排在最后的。 */

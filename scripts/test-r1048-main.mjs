@@ -154,3 +154,10 @@ await check("9.1 依据说「非独立兼证」时撤下兼证，不要求点名
   assert.equal(secondary.secondaryStructurallyInvalid("心血不足证", "脾虚湿困证", "舌胖齿痕为脾虚水湿内停之象，属兼湿而非独立兼证；综合为心血不足。"), "declared_not_independent");
   assert.equal(secondary.secondaryStructurallyInvalid("心血不足证", "脾虚湿困证", "舌胖齿痕为脾虚水湿内停之象，兼证为脾虚湿困。"), undefined);
 });
+
+await check("10.1 顺带的睡眠差：安神写在一项里也不留；心神在证名里时照留", () => {
+  assert.equal(surface.withoutIncidentalSedationMethod("滋阴固肾，缩尿止频，生津润燥，安神止痒", false), "滋阴固肾，缩尿止频，生津润燥，止痒");
+  assert.equal(surface.withoutIncidentalSedationMethod("清养肺胃，生津润燥，敛汗安神", false), "清养肺胃，生津润燥，敛汗");
+  assert.equal(surface.withoutIncidentalSedationMethod("滋阴固肾，安神止痒", true), "滋阴固肾，安神止痒");
+  assert.equal(surface.withoutIncidentalSedationMethod("滋阴固肾，养心安神", false), "滋阴固肾");
+});
