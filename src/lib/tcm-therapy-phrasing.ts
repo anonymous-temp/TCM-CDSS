@@ -217,11 +217,38 @@ export function deniesSeparateSecondaryPattern(clause: string): boolean {
 
 /** 病历事实核对里写成否定或无关的说法（「腹不胀大」「非时聚时散」「与咳唾呼吸无关」），见 m03-patient-claim-check。 */
 const NEGATIVE_FORM_CLAIM = /不|非|无关|未见|未有|无/u;
-/** 阴性说法的词形（m03-patient-claim-check 把病历没写到的阴性改写成「未诉X」）。 */
-export const EXAM_VERB_HEAD = /^[望闻问触按切查视听]$/u;
-export const NEGATIVE_CLAIM_LEAD = /^(?:(?:本例|患者|病人|该患者)(?:亦|也|并|均|尚|且)?)?(?:无|未见|未有|没有|不伴|非)(?=[\u4e00-\u9fff])/u;
+/** 阴性说法拆成主语和被否认的几项（m03-patient-claim-check 把病历没写到的阴性改写成「未诉X」）。写法认不出时 undefined。 */
+const EXAM_VERB_HEAD = /^[望闻问触按切查视听]$/u;
+const NEGATIVE_CLAIM_LEAD = /^(?:(?:本例|患者|病人|该患者)(?:亦|也|并|均|尚|且)?)?(?:无|未见|未有|没有|不伴|非)(?=[\u4e00-\u9fff])/u;
+export function negativeClaimItems(span: string): { subject: string; items: string[] } | undefined {
+  const value = span.trim();
+  if (!NEGATIVE_FORM_CLAIM.test(value) || /[，,。；;：:]/u.test(value)) return undefined;
+  const subject = /^(本例|患者|病人|该患者)/u.exec(value)?.[0] || "";
+  const body = value.slice(subject.length);
+  const unrelated = /^与([\u4e00-\u9fff、]{2,14})无关$/u.exec(body);
+  const items: string[] = [];
+  if (unrelated) items.push(`与${unrelated[1]}相关`);
+  else {
+    // 「大便无脓血、无里急后重」：顿号的每一项各自是一种写法。
+    for (const part of body.split("、").map((item) => item.trim())) {
+      if (NEGATIVE_CLAIM_LEAD.test(part)) {
+        items.push(part.replace(NEGATIVE_CLAIM_LEAD, ""));
+        continue;
+      }
+      const parts = /^([\u4e00-\u9fff]{1,6}?)(?:无|不)([\u4e00-\u9fff]{1,10})$/u.exec(part);
+      // 否认词后只剩一个字时，前面得是部位（腹不胀）；「按之无形」的「形」不是一个表现。
+      if (parts && (parts[2].length >= 2 || parts[1].length === 1)) items.push(`${EXAM_VERB_HEAD.test(parts[1]) ? "" : parts[1]}${parts[2]}`);
+      else if (items.length > 0 && /^不[\u4e00-\u9fff]{2,}/u.test(part)) items.push(part.slice(1));
+      else if (items.length > 0 && !NEGATIVE_FORM_CLAIM.test(part)) items.push(part);
+      else return undefined;
+    }
+  }
+  return items.length > 0 && items.every((item) => item.length >= 2 && !/[无不未非]/u.test(item)) ? { subject, items } : undefined;
+}
 /** 证名里写了病邪（脾虚湿蕴证的湿）。 */
 export const PATHOGEN_ELEMENT_IN_SYNDROME_NAME = /湿|痰|瘀|饮|热|寒/u;
+/** 依据里自称兼夹的小句（与只解释表现的小句分开）。 */
+export const DECLARES_ACCOMPANYING_PATTERN = /兼|夹|同病|并见|合并/u;
 export function negativeFormClaim(span: string): boolean {
   return NEGATIVE_FORM_CLAIM.test(span);
 }

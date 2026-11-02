@@ -6,7 +6,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { isTextbookDiseaseName, textbookManifestationTerms, textbookRowForSyndrome, textbookRowsNamed, type TextbookSyndromeRow } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
-import { PATHOGEN_ELEMENT_IN_SYNDROME_NAME, claimsSecondaryPattern, declaresSecondaryMechanism, deniesSeparateSecondaryPattern, mechanismClaimsUncoveredBy, ruleOutCueIndex, therapyItemsOnlyFor, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
+import { DECLARES_ACCOMPANYING_PATTERN, PATHOGEN_ELEMENT_IN_SYNDROME_NAME, claimsSecondaryPattern, declaresSecondaryMechanism, deniesSeparateSecondaryPattern, mechanismClaimsUncoveredBy, ruleOutCueIndex, therapyItemsOnlyFor, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
 import criteriaJson from "../data/tcm-diagnostics-syndrome-criteria.json" with { type: "json" };
 
 /**
@@ -760,7 +760,7 @@ export function applySecondaryConsistencyDecision(root: Json, decision: Secondar
     const pathogenesis = text(overview.overallPathogenesis);
     // 只删自称兼夹的那一小句（「故兼有血虚」），解释表现的那一小句（「为营血亏虚、血脉不充」）留着：它有没有依据由证素核对判（m03-element-support），
     // 此前一并删掉，留下「面色少华、月经量少、脉沉细，合为痛痹」（第三十五轮 A16，证素核对其实是通过的）。一句都认不出兼夹字样时按原样删。
-    const declaring = decision.clauses.filter((clause) => /兼|夹|同病|并见|合并/u.test(clause));
+    const declaring = decision.clauses.filter((clause) => DECLARES_ACCOMPANYING_PATTERN.test(clause));
     const clauses = declaring.length > 0 ? declaring : decision.clauses;
     const nextRationale = withoutClauses(rationale, clauses);
     const nextPathogenesis = withoutClauses(pathogenesis, clauses);

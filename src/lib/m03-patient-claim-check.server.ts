@@ -1,5 +1,5 @@
 import "server-only";
-import { EXAM_VERB_HEAD, NEGATIVE_CLAIM_LEAD as NEGATIVE_LEAD, negativeFormClaim } from "./tcm-therapy-phrasing";
+import { negativeClaimItems, negativeFormClaim } from "./tcm-therapy-phrasing";
 
 import {
   CHINESE_NUMERAL_BEFORE_UNIT,
@@ -372,31 +372,9 @@ export function withoutOrphanedAnaphoricTail(before: string, after: string): str
  * 病历肯定写着 X 的不改写（那是假话，照旧删）。形状对不上的返回 undefined。
  */
 export function negativeClaimAsNotReported(span: string, recordText: string): string | undefined {
-  const value = span.trim();
-  if (!negativeFormClaim(value) || /[，,。；;：:]/u.test(value)) return undefined;
-  const subject = /^(本例|患者|病人|该患者)/u.exec(value)?.[0] || "";
-  const body = value.slice(subject.length);
-  const unrelated = /^与([\u4e00-\u9fff、]{2,14})无关$/u.exec(body);
-  const items: string[] = [];
-  if (unrelated) items.push(`与${unrelated[1]}相关`);
-  else {
-    // 「大便无脓血、无里急后重」：顿号的每一项各自是一种写法。
-    for (const part of body.split("、").map((item) => item.trim())) {
-      if (NEGATIVE_LEAD.test(part)) {
-        items.push(part.replace(NEGATIVE_LEAD, ""));
-        continue;
-      }
-      const parts = /^([\u4e00-\u9fff]{1,6}?)(?:无|不)([\u4e00-\u9fff]{1,10})$/u.exec(part);
-      // 否认词后只剩一个字时，前面得是部位（腹不胀）；「按之无形」的「形」不是一个表现。
-      if (parts && (parts[2].length >= 2 || parts[1].length === 1)) items.push(`${EXAM_VERB_HEAD.test(parts[1]) ? "" : parts[1]}${parts[2]}`);
-      else if (items.length > 0 && /^不[\u4e00-\u9fff]{2,}/u.test(part)) items.push(part.slice(1));
-      else if (items.length > 0 && !negativeFormClaim(part)) items.push(part);
-      else return undefined;
-    }
-  }
-  if (items.length === 0 || items.some((item) => item.length < 2 || /[无不未非]/u.test(item))) return undefined;
-  if (items.some((item) => recordAffirmsDeniedFinding(recordText, item))) return undefined;
-  return `${subject}未诉${items.join("、")}`;
+  const parsed = negativeClaimItems(span);
+  if (!parsed || parsed.items.some((item) => recordAffirmsDeniedFinding(recordText, item))) return undefined;
+  return `${parsed.subject}未诉${parsed.items.join("、")}`;
 }
 
 /** 把片段删除落到一半的 JSON 上（纯函数，原地改 root）。片段已不在字段里的跳过；返回实际删了几处。recordText 给了时，病历没写到的阴性说法改写而不删。 */
