@@ -78,6 +78,7 @@ const CANDIDATE_BOOK_PRIORITY: Readonly<Record<string, number>> = { supplement: 
 
 /** 主诉里的常见说法 → 教材病名（有限闭集；只用于把病例对到教材的节，不产生诊断）。 */
 const COMPLAINT_DISEASE_BRIDGE: ReadonlyArray<[string, readonly string[]]> = [
+  ["筋伤", ["肌肉拉伤", "肌肉损伤", "拉伤", "软组织损伤", "伤筋", "筋伤"]],
   ["感冒", ["恶寒发热", "发热恶寒", "鼻塞流涕", "鼻塞", "流涕", "打喷嚏", "伤风", "感冒", "受凉后发热"]],
   ["咳嗽", ["咳嗽", "咳痰", "干咳"]],
   ["喘证", ["气喘", "喘息", "喘促", "气促"]],
@@ -201,6 +202,11 @@ export function textbookFormulaNames(): ReadonlySet<string> {
 
 /** 教材加减条件里的泛称（不是哪一种变化）：「临床可加槟榔」「方中…」「症状较严重者」「病情…」。有限闭集；编译器的教材加减兜底也认同一组。 */
 export const TEXTBOOK_GENERIC_CONDITION = /^(?:临床|方中|症状|病情|诸症|上述|上症)/u;
+/**
+ * 切出来不是一种症状变化的「条件」（第三十六轮甲方 11/2：加减写「若比类“风性善行而数变”」）：教材行文的引子（比类…、除辨证论治外…、本证与…的鉴别、
+ * 在用某方治疗时、此外…），以及切剩的一个字（可、并、重、常）。病历对不上，医生也读不懂，不进候选。
+ */
+const TEXTBOOK_NON_SYMPTOM_CONDITION = /^(?:[，,、]|比类|除辨证论治外|本证|本病|此外|在用|由肺|[^，,。]{0,8}治疗(?:气|时|斑))/u;
 
 function buildDiseases(): TextbookDisease[] {
   const byKey = new Map<string, TextbookDisease>();
@@ -240,7 +246,8 @@ function buildDiseases(): TextbookDisease[] {
         // 「临床可加槟榔、木香、枳实以调气化滞」（痢疾·休息痢）被切成条件「临床」：它不是一种变化，是教材泛泛的用药提示。
         // 留着，提示词里就是「若临床，加槟榔、木香、枳实」，模型照抄成触发条件「若临床」（2026-10-20 第八轮 X-G-0020），
         // 又因教材「有加减」把模型自己的条件式加减挡住。全表 34 条（条件以临床/方中/症状/病情/诸症/上述/上症 开头）。
-        if (TEXTBOOK_GENERIC_CONDITION.test(text(record.condition).replace(/^(?:若|如果|如)/u, "").trim())) return [];
+        const condition = text(record.condition).replace(/^(?:若|如果|如)/u, "").trim();
+        if (TEXTBOOK_GENERIC_CONDITION.test(condition) || TEXTBOOK_NON_SYMPTOM_CONDITION.test(condition) || condition.length < 2) return [];
         return text(record.condition) && herbs.length > 0
           ? [{ condition: fixTextbookOcr(text(record.condition)), herbs, raw: fixTextbookOcr(text(record.raw)) }]
           : [];

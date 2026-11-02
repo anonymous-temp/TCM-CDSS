@@ -1279,7 +1279,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     if (typeof candidate.formulaAnalysis === "string" && /本方案/.test(candidate.formulaAnalysis)) {
       const finalName = typeof candidate.name === "string" ? candidate.name.trim() : "";
       const selfComposed = !finalName || finalName === "自拟方" || SELF_COMPOSED_NAME.test(finalName);
-      const label = finalName.replace(/加减$/u, "");
+      // 方名带「加味」「化裁」时也只取方名本身（第三十六轮甲方 11/2：「本方以二陈汤加味为基础加减」）。
+      const label = finalName.replace(/(?:加减|化裁|加味)$/u, "");
       // 开头点方名的那个分句整句重写：占位替换会把合方名拆坏（「本方以本方案合脾约本方案为基础加减」「本方以本方案化裁」），
       // 逐个词替换救不回来；后文其余的「本方案」改回「本方」。
       const opening = candidate.formulaAnalysis.match(/^([^，,。；;]*本方案[^，,。；;]*)([，,。；;])\s*/);
@@ -1346,6 +1347,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         if (identity) present.set(identity, [...(present.get(identity) || []), name]);
       }
       candidate.formulaAnalysis = withoutSelfSwapClause(withoutFalseNamedRemovalClaims(candidate.formulaAnalysis, present));
+      if (SELF_COMPOSED_NAME.test(String(candidate.name || "").trim()) || String(candidate.name || "").trim() === "自拟方") {
+        candidate.formulaAnalysis = withoutSelfDevisedRemovalClauses(String(candidate.formulaAnalysis));
+      }
     }
     // 开头一句说「加X」而X本来就在原方组成里（含生用写法：消风散原方有地黄，方义写「加生地黄」「以生地黄易原方地黄并加用」，
     // 2026-10-17 甲方标准病历 9 两次生成）：去掉这个不实的加药说法，其余照留。原方组成查不到时不动。
@@ -1921,6 +1925,28 @@ function withoutFalseNamedRemovalClaims(analysis: string, present: ReadonlyMap<s
       return /^(?:加|增)/u.test(rest) ? [rest] : [];
     });
     if (kept.length === clauses.length && kept.every((clause, index) => clause === clauses[index])) return sentence;
+    const joined = kept.join("");
+    return /[，,；;]$/u.test(joined) && /。$/u.test(sentence) ? `${joined.replace(/[，,；;]$/u, "")}。` : joined;
+  }).join("");
+}
+
+/**
+ * 自拟方没有原方可去：「去赤芍、去夏枯草、去菊花，全方共奏…」是修复轮留下的自述（第三十六轮甲方 11/2 左眼结膜赘生物），
+ * 说的药医生在方里也找不到。小句开头是「去 + 药名列表」、只点药名时整句不留；「去湿」「去瘀生新」这类动宾不是药名，不动。
+ */
+function withoutSelfDevisedRemovalClauses(analysis: string): string {
+  return analysis.split(/(?<=。)/u).map((sentence) => {
+    const clauses = sentence.split(/(?<=[，,；;])/u);
+    const kept = clauses.filter((clause) => {
+      const list = clause.replace(/[，,；;。]$/u, "").trim();
+      if (!/^(?:并|且|再)?(?:去掉|去|删去|减去)/u.test(list)) return true;
+      const items = list.split("、").map((item) => item.replace(/^(?:并|且|再)?(?:去掉|去|删去|减去)?(?:原方中?)?/u, "").trim());
+      return !items.every((item) => {
+        const mentions = formulaAnalysisHerbMentions(item);
+        return mentions.length === 1 && mentions[0].token === item;
+      });
+    });
+    if (kept.length === clauses.length) return sentence;
     const joined = kept.join("");
     return /[，,；;]$/u.test(joined) && /。$/u.test(sentence) ? `${joined.replace(/[，,；;]$/u, "")}。` : joined;
   }).join("");

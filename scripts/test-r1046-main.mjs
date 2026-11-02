@@ -467,8 +467,9 @@ await check("5.4 检查结论「钡透无异常」不改写成「未诉异常」
   assert.equal(visible.unrecordedNegativesAsNotReported("无胸痛", "咽中梗阻"), "未诉胸痛");
 });
 
-await check("5.5 改名后推理说明的框架句：后面还跟着描述时断开", () => {
-  assert.equal(western.rationaleAlignedWithRenamedPrimary("符合膝骨关节炎退行性负重痛特点；尚无影像", "膝骨关节炎", "D"), "考虑膝骨关节炎可能，退行性负重痛特点；尚无影像");
+await check("5.5 改名后推理说明的框架句：后面跟的是原病名的描述时随断言去掉，别的内容才断开", () => {
+  assert.equal(western.rationaleAlignedWithRenamedPrimary("符合膝骨关节炎退行性负重痛特点；尚无影像", "膝骨关节炎", "D"), "考虑膝骨关节炎可能；尚无影像");
+  assert.equal(western.rationaleAlignedWithRenamedPrimary("符合膝骨关节炎需进一步影像；尚无影像", "膝骨关节炎", "D"), "考虑膝骨关节炎可能，需进一步影像；尚无影像");
   assert.equal(western.rationaleAlignedWithRenamedPrimary("符合慢性支气管炎临床诊断；尚缺肺功能", "慢性支气管炎", "D"), "考虑慢性支气管炎可能；尚缺肺功能");
 });
 

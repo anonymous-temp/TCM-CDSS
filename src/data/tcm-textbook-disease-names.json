@@ -1,6 +1,6 @@
 {
  "generatedBy": "scripts/build-tcm-textbook-disease-names.mjs",
- "count": 337,
+ "count": 338,
  "names": [
   "癌病",
   "艾滋病",
@@ -117,6 +117,7 @@
   "疥疮",
   "金疳",
   "筋瘤",
+  "筋伤",
   "近视",
   "经间期出血",
   "经期延长",

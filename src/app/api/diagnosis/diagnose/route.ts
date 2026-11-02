@@ -33,6 +33,7 @@ import { memoizedScopeText } from "@/lib/model-call-memo.server";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 import { checkLineageLensInContent, withLensFrom } from "@/lib/m03-lens-consistency.server";
 import { finalizeWesternPrimaryName } from "@/lib/western-name-standard.server";
+import { applyWesternVisitReasonDecision, westernVisitReasonDecision } from "@/lib/western-visit-reason-check.server";
 import { completeMethodCoverage, prefetchMethodCoverage, withVerifiedMethodItemFrom } from "@/lib/m03-method-coverage.server";
 
 type ParsedStageRequest = Extract<Awaited<ReturnType<typeof readCustomerBoundCaseStateRequest>>, { ok: true }>;
@@ -357,17 +358,18 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
           // 同时在西医半自己列出的候选与鉴别里重选主诊断（2026-10-19，western-primary-reselect）：两者并行；换名时对新名称再核对一次。
           // 本例说法核对与上面两件并行，落在它们的结果上（改名后已不在文中的片段跳过）。
           m03WesternHalfTransform: async (westernContent: string, transformSignal: AbortSignal) => {
-            const [aligned, claimRemovals] = await Promise.all([
+            const [aligned, claimRemovals, visitReason] = await Promise.all([
               alignWesternPrimaryAndName(
                 westernContent,
                 { recordText: trustedInputText(safeState), patient: { sex: safeState.patient?.sex, age: safeState.patient?.age }, redFlag: redFlagAnalysis },
                 transformSignal,
               ),
               decidePatientClaimRemovals(westernContent, { recordText: patientClaimRecord }, "western", transformSignal),
+              westernVisitReasonDecision(westernContent, { recordText: trustedInputText(safeState), chiefComplaint: safeState.chiefComplaint || "", redFlag: redFlagAnalysis }, transformSignal),
             ]);
             // 主诊断的写法收尾：症状层面的名字关联已确诊慢性病，查不到编码的归到 ICD 同义写法（western-name-standard.server.ts）。
             return finalizeWesternPrimaryName(
-              applyPatientClaimRemovalsToContent(aligned, "western", claimRemovals, patientClaimRecord),
+              applyWesternVisitReasonDecision(applyPatientClaimRemovalsToContent(aligned, "western", claimRemovals, patientClaimRecord), visitReason),
               { recordText: trustedInputText(safeState), redFlag: redFlagAnalysis, chiefComplaint: safeState.chiefComplaint || "" },
               transformSignal,
             );

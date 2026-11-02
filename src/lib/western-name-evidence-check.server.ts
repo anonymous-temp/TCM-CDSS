@@ -166,6 +166,11 @@ function courseSpans(text: string): CourseSpan[] {
 }
 
 /** 病历主诉那一行：带「主诉」标签的行，否则第一行（甲方传参形状里第一行就是主诉）；太长的不是主诉。 */
+/** 主诉末尾的病程（「3月」「1月余」「XXX天」）：甲方模板里病程常写成 XXX。 */
+export function withoutTrailingCourse(text: string): string {
+  return text.replace(/(?:[0-9一二三四五六七八九十半数余多+]+|X+)(?:个)?(?:小时|天|日|周|星期|月|年|h|d)[余多+]?$/iu, "");
+}
+
 function chiefComplaintLine(recordText: string): string {
   const lines = recordText.split(/\n+/u).map((line) => line.trim()).filter(Boolean);
   const labelled = lines.find((line) => /^主诉\s*[:：]/u.test(line));

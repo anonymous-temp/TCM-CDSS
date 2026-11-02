@@ -1,6 +1,6 @@
 {
  "schemaVersion": "tcm-textbook-syndrome-supplement-v1",
- "note": "教材合集（中医补充数据/灵丹GitHub/TCM Educational Materials.txt）里没有方药的门诊常见病的补充行。证型与主症取自同一合集里《针灸治疗学》该病证节的原文（给出行号），方药经联网核对（给出链接与访问日期）。结构与 tcm-textbook-syndrome-formula-table.json 的 rows/diseases 相同；手工维护，改动后无需重新生成。 2026-10-24 增补：耳鸣耳聋（证候与治法取《中医食疗学》耳鸣、耳聋节原文，方药经两处联网核对一致）；虚脱（证候、辨证、治法与方药全部取《中西医结合外科学》休克的中医辨证论治原文；病名与定义取《针灸治疗学》急症·虚脱节）。 2026-10-24 第十八轮增补：小便不禁（证候取《针灸治疗学》尿失禁节原文；治法与方药取中华中医药学会团体标准 T/CACM 1553—2023《女性压力性尿失禁中医诊疗指南》同证，经检索接口取得的标准正文与两处解读核对；湿热下注、下焦瘀滞两证没有可核对的方药，未收）。 2026-11-02 增补：高热（证型取《针灸治疗学》高热节原文，方药按《方剂学》主治）。",
+ "note": "教材合集（中医补充数据/灵丹GitHub/TCM Educational Materials.txt）里没有方药的门诊常见病的补充行。证型与主症取自同一合集里《针灸治疗学》该病证节的原文（给出行号），方药经联网核对（给出链接与访问日期）。结构与 tcm-textbook-syndrome-formula-table.json 的 rows/diseases 相同；手工维护，改动后无需重新生成。 2026-10-24 增补：耳鸣耳聋（证候与治法取《中医食疗学》耳鸣、耳聋节原文，方药经两处联网核对一致）；虚脱（证候、辨证、治法与方药全部取《中西医结合外科学》休克的中医辨证论治原文；病名与定义取《针灸治疗学》急症·虚脱节）。 2026-10-24 第十八轮增补：小便不禁（证候取《针灸治疗学》尿失禁节原文；治法与方药取中华中医药学会团体标准 T/CACM 1553—2023《女性压力性尿失禁中医诊疗指南》同证，经检索接口取得的标准正文与两处解读核对；湿热下注、下焦瘀滞两证没有可核对的方药，未收）。 2026-11-02 增补：高热（证型取《针灸治疗学》高热节原文，方药按《方剂学》主治）。 2026-11-02 增补：筋伤（证候、治法与方药取《中医骨伤科学》第八章筋伤概论原文）。",
  "diseases": [
   {
    "bookKey": "supplement",
@@ -162,8 +162,9 @@
     }
    ],
    "note": "成人急性高热的教材证型只有《针灸治疗学》这一节（发热在《中医儿科学》、内伤发热在《中医内科学》）：第三十五轮 37 岁高热被算到儿科「发热·温热炽盛证」。证型取本节辨证要点原文，方药按《方剂学》主治。"
-  }
- ],
+  },
+    {"bookKey": "supplement", "book": "中医骨伤科学", "department": "骨伤", "disease": "筋伤", "line": 191758, "definition": "各种暴力或慢性劳损等原因所造成筋的损伤，统称为筋伤。相当于西医学的软组织损伤。", "diseaseAliases": ["伤筋", "肌肉拉伤", "软组织损伤"], "westernEquivalents": ["软组织损伤", "肌肉拉伤"], "tcmEquivalents": [], "differentials": [{"name": "骨折", "text": "《中医骨伤科学》骨折概论：畸形、骨擦音和异常活动是骨折的特征；筋伤无此特征，必要时做X线检查以除外骨折和脱位。"}, {"name": "痹证", "text": "《中医骨伤科学》筋伤概论：急性筋伤有明显外伤史；风湿肿痛多无明显外伤史，局部红肿而无青紫，全身发热。"}], "note": "教材按筋伤三期（初期、中期、后期及慢性）辨证用药，不分证型；这里按教材原文把三期各列一行。2026-11-02 甲方「肌肉拉伤」被写成痹证，原因是教材表里没有筋伤这一病。"}
+  ],
  "rows": [
   {
    "id": "supplement|牙痛|风火牙痛",
@@ -999,6 +1000,9 @@
     "《针灸治疗学》高热节（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt 第12328–12332行）辨证要点；方药按《方剂学》同名方主治与功用。"
    ],
    "accessedAt": "2026-11-02"
-  }
- ]
+  },
+    {"id": "supplement|筋伤|初期", "book": "中医骨伤科学", "bookKey": "supplement", "line": 191941, "department": "骨伤", "disease": "筋伤", "syndrome": "气滞血瘀证", "syndromeName": "气滞血瘀证", "syndromeKind": "syndrome", "manifestations": "急性筋伤初期。受伤处气血瘀滞，脉络不通：局部疼痛，肿胀，瘀血斑，功能障碍。", "tongue": "", "pulse": "", "therapy": "活血化瘀，行气止痛", "formulaText": "桃红四物汤加减。", "formulas": ["桃红四物汤"], "formulaJoin": "single", "modified": true, "composition": ["生地", "当归", "白芍", "川芎", "桃仁", "红花"], "modifications": [], "sources": ["《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第八章筋伤·筋伤概论·诊查要点与药物治疗·内服药物；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。"], "accessedAt": "2026-11-02", "stage": "初期"},
+    {"id": "supplement|筋伤|中期", "book": "中医骨伤科学", "bookKey": "supplement", "line": 191944, "department": "骨伤", "disease": "筋伤", "syndrome": "筋脉拘急证", "syndromeName": "筋脉拘急证", "syndromeKind": "syndrome", "manifestations": "筋伤中期。瘀血渐化，肿胀开始消退，瘀斑转为青紫色，疼痛渐减，筋脉拘急并未完全消除。", "tongue": "", "pulse": "", "therapy": "舒筋活血，和营止痛", "formulaText": "舒筋活血汤加减。", "formulas": ["舒筋活血汤"], "formulaJoin": "single", "modified": true, "composition": ["羌活", "防风", "荆芥", "独活", "当归", "续断", "青皮", "牛膝", "五加皮", "杜仲", "红花", "枳壳"], "modifications": [], "sources": ["《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第八章筋伤·筋伤概论·诊查要点与药物治疗·内服药物；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。"], "accessedAt": "2026-11-02", "stage": "中期"},
+    {"id": "supplement|筋伤|后期", "book": "中医骨伤科学", "bookKey": "supplement", "line": 191948, "department": "骨伤", "disease": "筋伤", "syndrome": "肝肾亏虚证", "syndromeName": "肝肾亏虚证", "syndromeKind": "syndrome", "manifestations": "筋伤后期及慢性筋伤。损伤日久，耗损气血，肝肾亏虚，常兼风寒湿邪：局部疼痛乏力，活动功能障碍，阴雨天加重，或肌肉萎缩，麻木不仁。", "tongue": "", "pulse": "", "therapy": "养血和络，补益肝肾，强壮筋骨，祛风宣痹", "formulaText": "独活寄生汤加减。", "formulas": ["独活寄生汤"], "formulaJoin": "single", "modified": true, "composition": ["独活", "桑寄生", "杜仲", "细辛", "秦艽", "牛膝", "茯苓", "肉桂", "防风", "川芎", "人参", "甘草", "当归", "白芍", "地黄"], "modifications": [], "sources": ["《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第八章筋伤·筋伤概论·诊查要点与药物治疗·内服药物；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。"], "accessedAt": "2026-11-02", "stage": "后期"}
+  ]
 }

@@ -11,6 +11,8 @@ export function rationaleAlignedWithRenamedPrimary(rationale: string, previous: 
   return rationale
     .replace(new RegExp(`(?:符合|支持|指向|诊断为|考虑为|可诊断为|明确为|确诊为)\\s*${escaped}(?:的?(?:表现|诊断|特点|模式)|临床诊断)?(?!可能)`, "gu"), replacement)
     .replace(new RegExp(`暂按\\s*${escaped}\\s*考虑`, "gu"), type === "D" ? `${previous}可能` : replacement)
-    // 后面还跟着描述（「符合膝骨关节炎退行性负重痛特点」）时断开，否则读成「考虑膝骨关节炎可能退行性负重痛特点」。
+    // 后面跟的是原病名自己的描述（「符合膝骨关节炎退行性负重痛特点」「符合心律失常类发作特点」「符合股骨头缺血性坏死早期表现」）：描述随断言一起去掉，
+    // 断开留着是残句（第三十六轮甲方 11/2：「考虑心律失常可能，类发作特点」）。不是这种描述的才断开，否则读成「考虑X可能退行性…」。
+    .replace(new RegExp(`(考虑${escaped}可能|需与${escaped}鉴别)的?[^，,。；;]{0,14}?(?:特点|特征|表现|模式|征象|改变)(?=[，,。；;]|$)`, "gu"), "$1")
     .replace(new RegExp(`(考虑${escaped}可能|需与${escaped}鉴别)的?(?=[\\u4e00-\\u9fff])`, "gu"), "$1，");
 }
