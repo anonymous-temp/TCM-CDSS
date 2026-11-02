@@ -115,7 +115,7 @@ await check("3.3 ICD 上一级不算同义写法；改名后推理说明不留�
   assert.equal(standard.icdNameDropsQualifier("支气管哮喘急性发作", "支气管哮喘"), true);
   assert.equal(standard.icdNameDropsQualifier("高血压病", "高血压"), false, "只差一字的是同义写法");
   assert.equal(standard.icdNameDropsQualifier("眩晕综合征", "前庭功能紊乱"), false);
-  assert.equal(western.rationaleAlignedWithRenamedPrimary("长期胀痛，符合紧张型头痛的慢性病程与部位特点；需排除贫血。", "紧张型头痛", "D"), "长期胀痛，考虑紧张型头痛可能，慢性病程与部位特点；需排除贫血。");
+  assert.equal(western.rationaleAlignedWithRenamedPrimary("长期胀痛，符合紧张型头痛的慢性病程与部位特点；需排除贫血。", "紧张型头痛", "D"), "长期胀痛，考虑紧张型头痛可能；需排除贫血。");
   const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", westernDiagnosis: { primary: { name: "慢性支气管炎", clinicalRationale: "咳嗽半年，符合慢性支气管炎。", supportingFacts: [], limitations: [], suggestedChecks: [] }, differentials: [] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
   const out = visible.declassifyUnsupportedM03WesternPrimary(content, "主诉：咳嗽半年。");
   assert.match(out, /考虑慢性支气管炎可能/);
