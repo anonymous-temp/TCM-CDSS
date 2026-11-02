@@ -248,6 +248,7 @@ case "$cmd" in
   *"config --format json"*) printf '%s\\n' "$FAKE_EXPECTED" ;;
   *"stat -c %a"*) printf '%s' "$FAKE_BASELINE" ;;
   *".Config.Env"*) printf '%s\\n' "$FAKE_RUNNING" ;;
+  *"MemAvailable"*) printf '%s' "\${FAKE_MEM_KB:-0}" ;;
   *"df -BG"*) printf '%s' "\${FAKE_DISK_GB:-0}" ;;
   *".State.Status"*) printf '%s\\n' "$FAKE_STATE" ;;
   *".Config.Image"*) printf '%s\\n' "$FAKE_PREVIOUS_IMAGE" ;;
@@ -362,11 +363,11 @@ check(() => {
 
 // 新容器重启循环：自动换回替换前的镜像并返回非零；稳定的不回滚。
 check(() => {
-  const crash = runDeploy({ FAKE_STATE: "restarting 3", FAKE_DISK_GB: "100", FAKE_PREVIOUS_IMAGE: "tcm-cdss:previous-tag", DEPLOY_STABILITY_POLL_SECONDS: "0" });
+  const crash = runDeploy({ FAKE_STATE: "restarting 3", FAKE_DISK_GB: "100", FAKE_MEM_KB: "9000000", FAKE_PREVIOUS_IMAGE: "tcm-cdss:previous-tag", DEPLOY_STABILITY_POLL_SECONDS: "0" });
   assert.equal(crash.status, 1, crash.stderr);
   assert.match(crash.stderr, /未稳定运行/);
   assert.ok(crash.remote.includes("IMAGE_TAG='previous-tag'"), "rollback must bring back the image that was running before");
-  const stable = runDeploy({ FAKE_STATE: "running 0", FAKE_DISK_GB: "100", FAKE_PREVIOUS_IMAGE: "tcm-cdss:previous-tag", DEPLOY_STABILITY_POLL_SECONDS: "0" });
+  const stable = runDeploy({ FAKE_STATE: "running 0", FAKE_DISK_GB: "100", FAKE_MEM_KB: "9000000", FAKE_PREVIOUS_IMAGE: "tcm-cdss:previous-tag", DEPLOY_STABILITY_POLL_SECONDS: "0" });
   assert.equal(stable.remote.includes("IMAGE_TAG='previous-tag'"), false, "a stable container must not be rolled back");
 });
 
