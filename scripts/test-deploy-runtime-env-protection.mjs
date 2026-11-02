@@ -359,7 +359,8 @@ check(() => {
   assert.ok(run.remote.indexOf("docker-compose.yml.pre-") < run.remote.indexOf("RSYNC"), "the compose backup must precede source sync");
 });
 
-check("a crash-looping new container rolls back to the previous image and fails the deploy; a stable one does not", () => {
+// 新容器重启循环：自动换回替换前的镜像并返回非零；稳定的不回滚。
+check(() => {
   const crash = runDeploy({ FAKE_STATE: "restarting 3", FAKE_PREVIOUS_IMAGE: "tcm-cdss:previous-tag", DEPLOY_STABILITY_POLL_SECONDS: "0" });
   assert.equal(crash.status, 1, crash.stderr);
   assert.match(crash.stderr, /未稳定运行/);

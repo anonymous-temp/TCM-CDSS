@@ -198,8 +198,8 @@ done
 if [ "$STABLE" -lt 3 ]; then
   echo "!! 新容器未稳定运行（$STATE）：自动回滚到 ${PREVIOUS_IMAGE:-<无>}" >&2
   if [ -n "$PREVIOUS_IMAGE" ] && [ "$PREVIOUS_IMAGE" != "tcm-cdss:$TAG" ]; then
-    ROLLBACK_ENV="IMAGE_TAG='${PREVIOUS_IMAGE#tcm-cdss:}' APP_BIND_IP=127.0.0.1 APP_PORT='$APP_PORT' CDSS_MODEL_RATE_LIMIT_PER_10_MIN='$RATE_LIMIT'"
-    $SSH "$USER@$HOST" "cd '$NEW_DIR' && $CLEAN_COMPOSE_ENV $ROLLBACK_ENV docker compose $COMPOSE_ARGS up -d" >&2 || true
+    COMPOSE_ENV="IMAGE_TAG='${PREVIOUS_IMAGE#tcm-cdss:}' APP_BIND_IP=127.0.0.1 APP_PORT='$APP_PORT' CDSS_MODEL_RATE_LIMIT_PER_10_MIN='$RATE_LIMIT'"
+    $SSH "$USER@$HOST" "cd '$NEW_DIR' && $CLEAN_COMPOSE_ENV $COMPOSE_ENV docker compose $COMPOSE_ARGS up -d" >&2 || true
   fi
   exit 1
 fi
