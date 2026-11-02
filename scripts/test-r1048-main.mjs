@@ -96,7 +96,9 @@ await check("6.1 教材加减里切出来不是症状变化的条件不进候选
   assert.ok(!conditions.some((item) => /比类/u.test(item)), conditions.join("|"));
   const bian = textbook.textbookRowForSyndrome("男性不育症", "气血两虚证")?.modifications.map((item) => item.condition) || [];
   assert.ok(!bian.some((item) => /除辨证论治外/u.test(item)), bian.join("|"));
-  assert.ok(!conditions.some((item) => item.replace(/^若/u, "").length < 2));
+  // 切剩一个字的条件（可）
+  const single = textbook.textbookRowForSyndrome("喘证", "水凌心肺证")?.modifications.map((item) => item.condition) || [];
+  assert.ok(!single.some((item) => item.replace(/^(?:若|如果|如)/u, "").trim().length < 2), single.join("|"));
 });
 
 await check("7.1 兼证键缺失时交付空数组（接口文档写明）", () => {
