@@ -213,7 +213,7 @@ await check("W1 辨证路由：中医半与兼证一致并行、西医半与病�
   assert.match(route, /reattributeStrandedKeyFindings\(\s*applyPatientClaimRemovalsToContent\(applyElementSupportDecision\(reconciled, elementDecision\), "tcm", claimRemovals, patientClaimRecord\),/u);
   assert.match(route, /return promoteCriticalSecondarySyndrome\(withVerifiedMethodItemFrom\(withLensFrom\(reattributed, completed, lensChecked\), methodCovered\)\);/u);
   assert.match(route, /Promise\.all\(\[\s*alignWesternPrimaryAndName\([\s\S]{0,400}decidePatientClaimRemovals\(westernContent,[^)]*"western"/u);
-  assert.match(route, /finalizeWesternPrimaryName\(\s*applyPatientClaimRemovalsToContent\(aligned, "western", claimRemovals, patientClaimRecord\)/u);
+  assert.match(route, /finalizeWesternPrimaryName\(\s*applyWesternVisitReasonDecision\(applyPatientClaimRemovalsToContent\(aligned, "western", claimRemovals, patientClaimRecord\), visitReason\)/u);
   assert.match(route, /patientClaimRecordText\(trustedInputText\(safeState\), safeState\.patient, safeState\.vitals\)/u);
   assert.match(route, /redFlags: \[\.\.\.gated\.safetyGate\.redFlags, \.\.\.semanticBannerFlags\]/u);
 });
