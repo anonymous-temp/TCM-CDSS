@@ -1762,7 +1762,8 @@ export function withoutUnsupportedSummaryEffects(
   let text = analysis;
   for (const pattern of SUMMARY_EFFECT_LISTS) {
     text = text.replace(pattern, (whole: string, lead: string, list: string, tail: string, offset: number, source: string) => {
-      const parts = list.split(/([、，,和及并以])/u);
+      // 「和」不当分隔：理气和络、调和营卫、和胃止呕里它是动词（第三十六轮「共奏理气和络、通窍止痛」被切成「共奏络、通窍止痛」）。
+      const parts = list.split(/([、，,及并以])/u);
       const items = parts.filter((_, index) => index % 2 === 0);
       const bad = items.filter((item) => item.trim().length >= 2 && unsupportedItem(item.trim()));
       if (bad.length === 0) return whole;

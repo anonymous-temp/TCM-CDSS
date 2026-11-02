@@ -161,3 +161,11 @@ await check("10.1 顺带的睡眠差：安神写在一项里也不留；心神�
   assert.equal(surface.withoutIncidentalSedationMethod("滋阴固肾，安神止痒", true), "滋阴固肾，安神止痒");
   assert.equal(surface.withoutIncidentalSedationMethod("滋阴固肾，养心安神", false), "滋阴固肾");
 });
+
+const analysisReview = await jiti.import("../src/lib/formula-analysis-review.ts");
+
+await check("11.1 总括功效按整项判，不把「理气和络」从「和」切开", () => {
+  const out = analysisReview.withoutUnsupportedSummaryEffects("诸药相合，共奏理气和络、通窍止痛之功。", ["天麻", "钩藤", "牛膝"], () => "平肝息风，通窍止痛");
+  assert.doesNotMatch(out.text, /共奏络/u);
+  assert.match(out.text, /通窍止痛/u);
+});
