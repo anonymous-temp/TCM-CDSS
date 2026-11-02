@@ -149,6 +149,11 @@ await check("4.0 三字方名前面是助词时不是方名；方名承载药不
   assert.equal(rows[0]?.herbName, "盐益智仁", JSON.stringify(rows));
 });
 
+await check("4.0b 方义里抄来的「本例辨证组方」写自拟方", () => {
+  const base = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {}, formula: { candidates: [{ name: "天王补心丹加减", herbs: [{ name: "地黄" }, { name: "麦冬" }], formulaAnalysis: "本方参照天王补心丹加减，故去辰砂，改以本例辨证组方。地黄为君。麦冬为臣。" }] } };
+  assert.doesNotMatch(surface.projectDeliveredReasoning(base).formula.candidates[0].formulaAnalysis, /本例辨证组方/);
+});
+
 await check("4.1 方义的药名带上药味表炮制栏的字", () => {
   const herbs = [{ name: "白扁豆", processing: "炒" }, { name: "苦杏仁", processing: "燀" }, { name: "枳壳", processing: "麸炒" }, { name: "黄连", processing: "切片" }, { name: "甘草", processing: null }];
   assert.equal(review.withProcessingFromTable("白扁豆健脾，苦杏仁降气，枳壳行气，黄连清热，甘草调和。", herbs), "炒白扁豆健脾，燀苦杏仁降气，麸炒枳壳行气，黄连清热，甘草调和。");

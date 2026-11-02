@@ -1359,6 +1359,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       candidate.formulaAnalysis = withoutQuestionChatter(candidate.formulaAnalysis);
     }
     if (typeof candidate.name === "string" && SELF_COMPOSED_NAME.test(candidate.name.trim())) candidate.name = "自拟方";
+    // 模型把提示词里的「本例辨证组方」抄进方义（「故去辰砂，改以本例辨证组方」，第三十五轮甲方 100 例 C035）。
+    if (typeof candidate.formulaAnalysis === "string") candidate.formulaAnalysis = candidate.formulaAnalysis.replace(/本例辨证组方/gu, "自拟方");
     // 「适用于与本例锁定证候…及病机链一致的情况」是每例相同的模板句，不带内容。
     if (typeof candidate.applicable === "string") candidate.applicable = "";
     // 逐味人群提示只列本例可能属于的人群：按候选药味从同一份知识库重写尾段（尾段的写法只在 candidate-boundary-text 一处）。
