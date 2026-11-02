@@ -281,7 +281,7 @@ function withTwoCharacterRunsJoined(method: string): string {
     let run = 0;
     while (index + run < phrases.length && /^[\u4e00-\u9fff]{2}$/u.test(phrases[index + run])) run += 1;
     if (run < 2) { out.push(current); continue; }
-    for (let at = 0; at < run; at += 2) out.push(phrases[index + at] + (phrases[index + at + 1] || ""));
+    for (let at = 0; at < run; at += 2) out.push(phrases[index + at] + (at + 1 < run ? phrases[index + at + 1] : ""));
     index += run - 1;
   }
   return out.length === written.length ? method : out.join("，");

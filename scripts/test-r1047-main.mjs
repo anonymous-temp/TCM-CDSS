@@ -372,6 +372,7 @@ await check("8.7 治法里同一个目的只写一次", () => {
   assert.equal(phrasing.withoutRedundantTherapyPhrases("清热凉血调经，固冲调经"), "清热凉血，固冲调经");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("清热凉血调经，疏肝理气"), "清热凉血调经，疏肝理气", "没有同目的的项不动");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("补气，回阳，醒神，醒神，宁心"), "补气回阳，醒神宁心");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("补气，回阳，醒神，醒神宁心"), "补气回阳，醒神宁心", "两字项连写不越过这一段");
 });
 
 await check("8.8 土、煨也是炮制：入药味表留在炮制栏，方义跟着写", () => {
@@ -451,4 +452,17 @@ await check("8.19 词里的不、无不算又一层否认", () => {
   assert.deepEqual(phrasing.negativeClaimItems("无肢体无力")?.items, ["肢体无力"]);
   assert.equal(phrasing.negativeClaimItems("腹不不胀"), undefined);
   assert.equal(claim.negativeClaimAsNotReported("无半身不遂、口舌歪斜", "头痛3月。"), "未诉半身不遂、口舌歪斜");
+});
+
+await check("8.20 加减的教材编号写法不对不作废整张处方", () => {
+  assert.equal(compiler.normalizeTextbookEntryId(3), "E3");
+  assert.equal(compiler.normalizeTextbookEntryId("E2（选自【教材加减】时写该条编号，自写的行不写这个键）"), "E2");
+  assert.equal(compiler.normalizeTextbookEntryId(null), undefined);
+  assert.equal(compiler.normalizeTextbookEntryId("教材"), undefined);
+  const shape = compiler.M04ProposalSchema.shape.modifications;
+  const row = { trigger: "若咳嗽", targetRef: "P1", targetPathogenesis: "肺失宣肃", actionType: "add", herbName: "紫菀", reason: "润肺止咳" };
+  for (const textbookEntry of [null, 3, "E2（选自【教材加减】时写该条编号）"]) {
+    const parsed = shape.safeParse([{ ...row, textbookEntry }]);
+    assert.ok(parsed.success, JSON.stringify(parsed.error?.issues?.[0] || {}));
+  }
 });

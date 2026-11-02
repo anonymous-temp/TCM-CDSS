@@ -463,6 +463,12 @@ const PatentAndWesternProposalSchema = z.object({
   riskNote: z.string().min(1).max(1000),
 });
 
+export function normalizeTextbookEntryId(value: unknown): string | undefined {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return `E${value}`;
+  if (typeof value !== "string") return undefined;
+  return /[Ee]\s*(\d{1,3})/u.exec(value) ? `E${/[Ee]\s*(\d{1,3})/u.exec(value)?.[1]}` : undefined;
+}
+
 export const M04ProposalSchema = z.object({
   schemaVersion: z.literal("tcm-cdss-m04-proposal-v1"),
   candidate: z.object({
@@ -524,7 +530,8 @@ export const M04ProposalSchema = z.object({
     actionType: z.enum(["add", "remove", "adjust"]),
     herbName: z.string().min(1).max(120),
     // 选自【教材加减】时的条目编号（E3）：服务端按编号取教材的条件，不再按字面把模型抄回来的话对回教材（第三十三轮）。
-    textbookEntry: z.string().max(8).optional(),
+    // 模型有时写成数字、null 或把提示词的说明抄进来：认得出编号就用，认不出当没写（第三十五轮 C018：这一个键写错，整张处方退回重写再超时，成了不给剂量）。
+    textbookEntry: z.preprocess(normalizeTextbookEntryId, z.string().max(8).optional()),
     // 加味的建议剂量（2026-10-13，甲方 10.12 测评：加减没有剂量，还带一句「请在药味工作台确定剂量」）。
     // 模型写单一数值加 g；服务端按药典范围核对（越界夹到边界，儿童再按年龄分数折算），不合格式则按范围取常用量。
     dose: z.string().max(20).optional(),
