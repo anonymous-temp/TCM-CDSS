@@ -17,7 +17,7 @@
  */
 
 import { RED_FLAG_SAFETY_NET_VISIT } from "./diagnosis-visible-summary";
-import { formulaGuideHerbsFromCommentary } from "./formula-textbook-commentary";
+import { formulaGuideHerbsFromCommentary, formulaTextbookCommentary } from "./formula-textbook-commentary";
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { compositionIdentityName, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
@@ -1300,8 +1300,10 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       const analysisText = withoutProcessParentheticals(candidate.formulaAnalysis).text;
       const medicineNames = [...knownMedicineNames(options?.requiredPrecautions, formula), ...labelledMedicineNamesIn(analysisText)];
       const aligned = withoutChartAssertionClauses(withMentionsAlignedToTableNames(analysisText, tableNames, medicineNames).text).text;
+      // 《方剂学》方解自己写这味药「调和诸药」的算（益胃汤「冰糖濡养肺胃，调和诸药，为佐使药」，第三十五轮 A15 曾把这句教材原话删掉）。
+      const commentarySentences = (formulaTextbookCommentary(String(candidate.name || "")) || "").split(/[。；;]/u);
       const harmonized = withEveryHerbExplained(withoutUnsupportedHarmonizingClaims(aligned, tableNames,
-        (name) => `${herbFunctionKnowledgeForDisplay(name)}；${getTcmHerbFunctionText(name)}`).text, herbRows);
+        (name) => `${herbFunctionKnowledgeForDisplay(name)}；${getTcmHerbFunctionText(name)}；${commentarySentences.filter((sentence) => sentence.includes(name) && /调和/u.test(sentence)).join("；")}`).text, herbRows);
       candidate.formulaAnalysis = withProcessingFromTable(withRoleOnlyHerbsExplained(withoutStrayLeadingRoleVerb(harmonized).text, herbRows).text, herbRows);
     }
     // 方义说「去原方中…之品」而处方其实保留了原方全部药味（2026-10-17：甲方标准病历 1、4、10，三次生成里 4 次，独立评审判陈述失实）。
