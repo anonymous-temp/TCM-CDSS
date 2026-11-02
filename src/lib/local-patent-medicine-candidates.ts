@@ -616,6 +616,11 @@ export function signedDirectionOf(prior: Pick<ClinicalReasoningResultV2, "overvi
   return names || method ? { names, method } : undefined;
 }
 
+/** 说明书写活血化瘀、又没写止血（活动性出血时不列，见 patentMedicineMovesBloodDuringBleeding）。 */
+export function medicineLabelMovesBlood(indication: string): boolean {
+  return /活血|破血|逐瘀|祛瘀|化瘀/u.test(indication) && !/止血/u.test(indication);
+}
+
 export type MedicineDirectionConflict = "tonic_for_excess" | "attack_for_deficiency" | "cold_for_cold_case" | "warm_for_heat_case" | "excess_indication_for_deficiency" | "deficiency_indication_for_excess" | "label_syndrome_other_organ";
 
 /**

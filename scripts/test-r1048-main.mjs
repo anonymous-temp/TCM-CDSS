@@ -169,3 +169,11 @@ await check("11.1 总括功效按整项判，不把「理气和络」从「和�
   assert.doesNotMatch(out.text, /共奏络/u);
   assert.match(out.text, /通窍止痛/u);
 });
+
+const duplication = await jiti.import("../src/lib/patent-medicine-duplication.server.ts");
+
+await check("12.1 活动性出血时说明书写活血化瘀的内服成药不列；写明止血的、没有出血的照常", () => {
+  assert.equal(duplication.patentMedicineMovesBloodDuringBleeding({ type: "中成药", name: "七生力片", route: "口服" }, true), true);
+  assert.equal(duplication.patentMedicineMovesBloodDuringBleeding({ type: "中成药", name: "七生力片", route: "口服" }, false), false);
+  assert.equal(duplication.patentMedicineMovesBloodDuringBleeding({ type: "中成药", name: "一清胶囊", route: "口服" }, true), false);
+});

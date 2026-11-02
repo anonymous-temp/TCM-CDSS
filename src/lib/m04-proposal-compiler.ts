@@ -35,7 +35,7 @@ import {
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
-import { authoritativePatientAgeYears, clinicalGroundingText, clauseLocalMentionPolarityAt, pregnancyAdviceRelevant, reproductiveAdviceRelevant, sourceDocumentsNegation } from "./diagnosis-safety";
+import { activeBleedingInGroundingText, authoritativePatientAgeYears, clinicalGroundingText, clauseLocalMentionPolarityAt, pregnancyAdviceRelevant, reproductiveAdviceRelevant, sourceDocumentsNegation } from "./diagnosis-safety";
 import modificationRelevanceJson from "../data/tcm-modification-relevance.source.json";
 import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
@@ -43,7 +43,7 @@ import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { fillMedicineRowFromInstructionRecord, type InstructionRecordPool } from "./instruction-record-pool";
 import { formulaAnalysisHerbMentions, formulaAnalysisRoleAssignments, withoutFalseBaseFormulaEdits } from "./formula-analysis-review";
 import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
-import { patentMedicineDuplication, patentMedicineOpposesSignedDirection, selfTakenMedicationCompositions, signedDirectionOf, withoutRepeatedMedicineNames, withoutSameClassAnalgesics, withoutSameClassMedicines } from "./patent-medicine-duplication.server";
+import { patentMedicineDuplication, patentMedicineMovesBloodDuringBleeding, patentMedicineOpposesSignedDirection, selfTakenMedicationCompositions, signedDirectionOf, withoutRepeatedMedicineNames, withoutSameClassAnalgesics, withoutSameClassMedicines } from "./patent-medicine-duplication.server";
 import { decoctionThermalByComposition, findLocalPatentMedicineLabel, herbThermalSide, patentMedicineCoversMainProblem, patentMedicineMatchesSignedSyndrome } from "./local-patent-medicine-candidates";
 import { herbRecordCautionConflict, herbRecordCautionConflicts, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
 import { assessPregnancyState } from "./clinical-state";
@@ -2365,7 +2365,8 @@ export function compileM04Proposal(
   const medicinesBeforeDuplication = proposal.patentAndWestern.length;
   proposal.patentAndWestern = withoutSameClassMedicines(withoutRepeatedMedicineNames(withoutSameClassAnalgesics(proposal.patentAndWestern
     .filter((item) => !patentMedicineDuplication(item, duplicationHerbs, selfMedications))
-    .filter((item) => !patentMedicineOpposesSignedDirection(item, signedDirection)))));
+    .filter((item) => !patentMedicineOpposesSignedDirection(item, signedDirection))
+    .filter((item) => !patentMedicineMovesBloodDuringBleeding(item, Boolean(caseState) && activeBleedingInGroundingText(clinicalGroundingText(caseState!)))))));
   const duplicateMedicinesDropped = medicinesBeforeDuplication - proposal.patentAndWestern.length;
   if (modificationIssue(proposal, prior)) return undefined;
   const cleanNarrative = (value: string | undefined, fallback: string) =>

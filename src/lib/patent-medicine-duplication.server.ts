@@ -10,6 +10,7 @@ import {
   patentMedicineBaseName,
   patentMedicineCompositionIdentities,
   patentMedicineDirectionConflict,
+  medicineLabelMovesBlood,
   productNameStem,
   signedDirectionOf,
   type MedicineDirectionConflict,
@@ -371,6 +372,18 @@ export function withoutSameClassMedicines<T extends MedicineRow & Parameters<typ
 
 export { signedDirectionOf };
 export type { MedicineDirectionConflict, SignedDirection };
+
+/**
+ * 有活动性出血或抗凝下出血时，说明书写活血化瘀的内服中成药不列（第三十六轮甲方 100 例 C070：华法林、INR 3.5、经量增多，
+ * 汤剂的活血药已按同一判据不用，中成药却推荐七生力片「活血化瘀，益气通络」）。三七、云南白药这类写明止血的不在此列。
+ */
+export function patentMedicineMovesBloodDuringBleeding(medicine: MedicineRow, activeBleeding: boolean): boolean {
+  if (!activeBleeding || medicine.type !== "中成药") return false;
+  const name = String(medicine.name || "").trim();
+  if (!name || medicineRouteGroup(name, medicine.route) !== "systemic") return false;
+  const indication = findLocalPatentMedicineLabel(name)?.indication || "";
+  return medicineLabelMovesBlood(indication);
+}
 
 /**
  * 内服中成药的方向与已签名证候明确相反时返回原因码，否则 undefined（判据与词表见 local-patent-medicine-candidates 的
