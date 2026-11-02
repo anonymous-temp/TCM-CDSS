@@ -118,7 +118,8 @@ await check("3.4 定稿剔除：药引/辅料（竹沥、姜汁）写成毫升�
 // ---------- 4 成人用了儿科病名 ----------
 await check("4.1 成人的「反复（上）呼吸道感染」确定性改名：本次有急性呼吸道感染表现写急性上呼吸道感染，否则写症状层面（甲方测评病历 5）；儿童不动；核对的 D 类不再留「原病名待查」", () => {
   const r5 = "主诉：反复上呼吸道感染1年余\n现病史：患者1年余前开始出现反复“上呼吸道感染”，近1年发作约9次。平素伴乏力、气短、自汗。";
-  assert.equal(western.deterministicWesternNameCorrection("反复上呼吸道感染待查", r5, 78)?.supportedName, "乏力待查");
+  // 第三十五轮：主诉就是反复感冒时写主诉本身，乏力只是它的伴随（评审多次判「乏力待查」与主诉不符）。
+  assert.equal(western.deterministicWesternNameCorrection("反复上呼吸道感染待查", r5, 78)?.supportedName, "反复感冒待查");
   assert.equal(western.deterministicWesternNameCorrection("反复上呼吸道感染", "主诉：反复感冒2年，本次咽痛、流涕2天\n现病史：2天前受凉后咽痛、流涕。", 40)?.supportedName, "急性上呼吸道感染");
   assert.equal(western.deterministicWesternNameCorrection("反复呼吸道感染", r5, 6), undefined);
   const source = fs.readFileSync("src/lib/western-name-evidence-check.server.ts", "utf8");
