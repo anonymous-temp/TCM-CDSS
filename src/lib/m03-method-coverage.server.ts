@@ -65,6 +65,7 @@ const VERIFY_SYSTEM = [
  * 模型自己写的项另一种问法（第三十四轮）。第三十三轮量到：提名与模型原写的项共用一个问法时，复核答 false 六成（145/234），丢掉的有 化痰（主诉痰多）、
  * 疏肝理气（方含香附、脉弦）、利咽（主诉咽中梗阻）、行气开结——方药是照着这些项开的，治法没了，方义与药味反而对不上治法。
  * 这些项是模型看完整份病历写的，举证责任反过来：只有写错才去掉，不问「值不值得补」。
+ * 字段顺序就是思考顺序（第三十五轮）：只答 true/false 时 50/404 项被否掉（呕吐酸水的和胃降逆、咽干的生津利咽）；先摘病历再下结论，同样十项里否掉的只剩真没有依据的。
  */
 const VERIFY_OWN_SYSTEM = [
   "你是中医主治医师。证型与治法已定，现在核对初拟治法里的一项该不该留下。默认答 true，只有下面几种情况答 false：",
@@ -72,7 +73,8 @@ const VERIFY_OWN_SYSTEM = [
   "二、与证型的寒热虚实方向相反；",
   "三、是在治另一个证候，而病历没有成组的相应表现；",
   "四、针对的表现病历根本没有。",
-  "只输出 JSON：{\"confirmed\":true} 或 {\"confirmed\":false}",
+  "先在 why 里摘病历里与这一项相关的表现（不超过20字，一条也没有才写“无”），再下结论。",
+  "只输出 JSON：{\"why\":\"…\",\"confirmed\":true} 或 {\"why\":\"…\",\"confirmed\":false}",
 ].join("\n");
 
 const METHOD_ITEM = /^[一-龥]{2,6}$/u;
@@ -130,7 +132,7 @@ function verifyRequest(candidate: Uncovered, syndrome: string, method: string, c
       { role: "system" as const, content: candidate.fromModel ? VERIFY_OWN_SYSTEM : VERIFY_SYSTEM },
       { role: "user" as const, content: JSON.stringify({ syndrome, method, proposed: candidate.item, findings: candidate.quotes, chiefComplaint: context.chiefComplaint || "", record: context.recordText.slice(0, 1_500) }) },
     ],
-    maxTokens: 40,
+    maxTokens: candidate.fromModel ? 90 : 40,
     parse: parseConfirmed,
   };
 }

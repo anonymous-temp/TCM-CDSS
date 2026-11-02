@@ -42,3 +42,14 @@ export function formulaCommentaryPromptBlock(names: readonly string[]): string {
     ...lines,
   ].join("\n");
 }
+
+/**
+ * 《方剂学》方解把这几味共同列为君药（参苓白术散「人参、白术、茯苓…共为君」、消风散四味为君）：君药超过两味时据此判断是不是原方的配伍。
+ * 君药一般一两味，超过两味又不是方解写的才算写错（第三十五轮 W20：「人参、白术、茯苓」表随方义改成三味君药，合同判超限，整页没有剂量）。
+ */
+export function textbookNamesTheseAsEmperors(formulaName: string, herbNames: readonly string[]): boolean {
+  const base = String(formulaName || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
+  const text = COMMENTARIES[base]?.commentary || "";
+  if (!text || herbNames.length === 0) return false;
+  return text.split(/[。；;]/u).some((sentence) => /为君|君药/u.test(sentence) && herbNames.every((name) => sentence.includes(name)));
+}

@@ -1170,6 +1170,28 @@ function m03ReasoningFromStructuredContent(content: string): ReturnType<typeof n
   }
 }
 
+/**
+ * 终审码是「方向未成立」、而同一味药按方向对立的判据（waive）不命中时，这是词表对不上，不是开反了：换成修复轮用的同一个 T2 码（therapy_vocabulary_unverified）。
+ * 只认这一个码形；方向对立或别的码一律返回 undefined，照旧拒绝。
+ */
+export function vocabularyOnlyHighImpactReason(reason: string, content: string, prior: unknown): string | undefined {
+  const match = /^m04_candidate_(\d+)_herb_(\d+)_unsupported_high_impact_((?:heat_clear|yang_warm|blood_move|purge|orifice_open|mass_soften))/u.exec(reason);
+  if (!match) return undefined;
+  const start = content.indexOf("<!-- DIAGNOSIS_JSON_START -->");
+  const end = start >= 0 ? content.indexOf("<!-- DIAGNOSIS_JSON_END -->", start) : -1;
+  if (start < 0 || end < 0) return undefined;
+  try {
+    const reasoning = JSON.parse(content.slice(start + "<!-- DIAGNOSIS_JSON_START -->".length, end).trim()) as { formula?: { candidates?: Array<{ herbs?: unknown[]; formulaNames?: string[] }> } };
+    const candidate = reasoning.formula?.candidates?.[Number(match[1])];
+    const herb = candidate?.herbs?.[Number(match[2])];
+    if (!candidate || !herb) return undefined;
+    const opposing = unsupportedHighImpactHerbFindings([herb] as Parameters<typeof unsupportedHighImpactHerbFindings>[0], prior as Parameters<typeof unsupportedHighImpactHerbFindings>[1], true, candidate.formulaNames || [], true);
+    return opposing.length === 0 ? `m04_candidate_${match[1]}_herb_${match[2]}_therapy_vocabulary_unverified_${match[3]}` : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function structuredRejectionReason(
   content: string,
   expectedStage: "diagnose" | "prescribe",
@@ -4992,11 +5014,15 @@ async function callPrimaryTextModelStream(
             const declassificationPermission = m04FinalizeDeclassificationPermission(transparentFormulaDeclassificationAccepted, authoritativeContent);
             const reason = structuredRejectionReason(authoritativeContent, "prescribe", finishReason,
               opts.structuredClinicalContext, opts.structuredPriorReasoning, declassificationPermission);
-            if (!reason || !qualityAnnotationCopy(reason)) return false;
+            if (!reason) return false;
+            // 「方向未成立」只是词表对不上、并不与证候相反（方向对立的判据不命中）：与修复轮同一分级（therapy_vocabulary_unverified，T2），带批注给剂量。
+            // 第三十五轮甲方接口病例「恶心、头晕伴流涕」：川芎作君，方名降级后这一条成了整页没有剂量的唯一原因，合同问题为空。
+            const annotatedReason = vocabularyOnlyHighImpactReason(reason, authoritativeContent, opts.structuredPriorReasoning) || reason;
+            if (!qualityAnnotationCopy(annotatedReason)) return false;
             const floorAccepted = validatedStructuredReasoning(authoritativeContent, "prescribe", opts.structuredClinicalContext,
               opts.structuredPriorReasoning, true, declassificationPermission, advisoryM04RiskAccepted, true);
             if (!floorAccepted) return false;
-            noteM04QualityTierAcceptance(reason);
+            noteM04QualityTierAcceptance(annotatedReason);
             console.warn("[tcm-cdss:model] M04 quality-tier finding accepted at finalize", { reason });
             return true;
           };

@@ -251,7 +251,8 @@ export function withoutRedundantTherapyPhrases(method: string): string {
   const text = withTwoCharacterRunsJoined(String(method || ""));
   const parts = text.split(/([，,、；;])/u);
   const phrases = parts.filter((_, index) => index % 2 === 0);
-  const chars = (phrase: string) => new Set([...phrase.replace(/熄/gu, "息").replace(/[^\u4e00-\u9fff]/gu, "")]);
+  // 补与益在治法里同义（「补气健脾，健脾益气」，第三十五轮 W16）。
+  const chars = (phrase: string) => new Set([...phrase.replace(/熄/gu, "息").replace(/补/gu, "益").replace(/[^\u4e00-\u9fff]/gu, "")]);
   const sets = phrases.map(chars);
   // 两个四字治法只差第一个字（「和血通络，活血通络」「补气养血，益气养血」）：意思相同，留前一个（2026-10-19 Claude 评审 M 集 SD-451922 判冗杂）。
   // 补益类两字头只是说法不同、对象相同（「滋养肝肾，补益肝肾」，第三十五轮 C06：教材治法与模型写的项拼在一起）也算。
@@ -260,6 +261,8 @@ export function withoutRedundantTherapyPhrases(method: string): string {
   const drop = phrases.map((phrase, index) => {
     if (phrases.some((other, at) => at < index && nearSynonym(other.trim(), phrase.trim()))) return true;
     const own = sets[index];
+    // 两字项整个出现在另一项里（「益气，益气扶正」）。
+    if (own.size === 2 && phrases.some((other, at) => at !== index && other.trim().length > phrase.trim().length && other.includes(phrase.trim()))) return true;
     if (own.size < 3) return false;
     return phrases.some((other, at) => at !== index && sets[at].size >= own.size && (sets[at].size > own.size || at < index) &&
       [...own].every((character) => sets[at].has(character)));

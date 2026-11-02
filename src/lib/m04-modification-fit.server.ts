@@ -2,7 +2,7 @@ import "server-only";
 
 import { parseConfirmed, proposeTwiceThenVerifyAll } from "./cross-model-small-task.server";
 import { herbClaimReferenceText } from "./m04-formula-analysis-claim-check.server";
-import { distinctModificationConditions, topUpModificationRow } from "./m04-proposal-compiler";
+import { distinctModificationConditions, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
 import { quoteGroundedInText } from "./verbatim-quote";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 
@@ -38,7 +38,8 @@ const SYSTEM = [
 const VERIFY_SYSTEM = [
   "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症或与本证方向相反）。",
   "只判这一条。理由成立答 true。条件只是病历没提到、或者只是另有更好的药，答 false。",
-  "只输出 JSON：{\"confirmed\":true} 或 {\"confirmed\":false}",
+  "先在 why 里写这条理由依据的病历原文或药的功效（不超过20字），再下结论。",
+  "只输出 JSON：{\"why\":\"…\",\"confirmed\":true} 或 {\"why\":\"…\",\"confirmed\":false}",
 ].join("\n");
 
 type Finding = { line: number; verdict: "contradicts" | "misfit"; quote: string };
@@ -104,7 +105,7 @@ export async function dropMisfitModifications(content: string, context: { record
       { role: "system", content: VERIFY_SYSTEM },
       { role: "user", content: JSON.stringify({ syndrome, method, record: context.recordText.slice(0, 2_400), row: payload(rows[finding.line], finding.line), verdict: finding.verdict, quote: finding.quote }) },
     ],
-    maxTokens: 40,
+    maxTokens: 90,
     parse: parseConfirmed,
   } : undefined, rows.length, TIMEOUT_MS, signal);
   if (findings.length === 0) return content;
@@ -113,7 +114,10 @@ export async function dropMisfitModifications(content: string, context: { record
   for (const finding of findings) {
     if (finding.verdict === "misfit" && rows.length - bad.size > MIN_ROWS_AFTER_FIT) bad.add(finding.line);
   }
-  formula.modifications = rows.filter((_, index) => !bad.has(index));
+  const candidateHerbs = Array.isArray(record(Array.isArray(formula.candidates) ? formula.candidates[0] : undefined)?.herbs)
+    ? (record((formula.candidates as unknown[])[0])?.herbs as unknown[]).map((herb) => text(record(herb)?.name)).filter(Boolean)
+    : [];
+  formula.modifications = withoutOrphanPartnerRows(rows.filter((_, index) => !bad.has(index)), candidateHerbs);
   console.info("[tcm-cdss:telemetry] m04_modification_fit", { dropped: bad.size, checked: rows.length, verdicts: findings.map((finding) => finding.verdict) });
   return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(root, null, 2)}\n${content.slice(end)}`;
 }

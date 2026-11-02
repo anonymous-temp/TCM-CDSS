@@ -368,7 +368,18 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
         removed.push({ name, reason: "药引/辅料，如需使用请医生另定用量（多为兑服）" });
         return false;
       }
-      if ((regulatory === "controlled_or_toxic" || regulatory === "endangered_or_banned") && (roleOf(value) !== "君" || emperorsLeft > 1)) {
+      if (regulatory === "controlled_or_toxic" || regulatory === "endangered_or_banned") {
+        // 唯一的君药也拿出，方中第一味臣药升为君（第三十五轮甲方 100 例 C055：羚羊角为君，系统不给它定量，修复轮又换不掉，整页没有剂量）。没有臣药时不拿，交给修复轮。
+        if (roleOf(value) === "君" && emperorsLeft <= 1) {
+          const heir = herbs.find((other) => roleOf(other) === "臣" && !clinicianDoseHerbClass(nameOf(other)));
+          if (!heir) return true;
+          const row = recordValue(heir);
+          if (row) {
+            row.role = "君";
+            if (typeof row.prescriptionRole === "string") row.prescriptionRole = row.prescriptionRole.replace(/^臣药/u, "君药");
+          }
+          emperorsLeft += 1;
+        }
         if (roleOf(value) === "君") emperorsLeft -= 1;
         removed.push({ name, reason: "须由医生单独定量的管制或濒危药材，未列入本方，如需使用请医生另行开具" });
         return false;

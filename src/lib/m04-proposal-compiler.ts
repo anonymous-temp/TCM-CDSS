@@ -15,6 +15,7 @@ import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } f
 import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairCautions, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
 import { compositionIdentityName, formulaCompilationReferences, formulaEditClaimBaseIngredients, formulaManualDoseIngredients, formulaNameVariantIngredients } from "./tcm-formula-provenance";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
+import { textbookNamesTheseAsEmperors } from "./formula-textbook-commentary";
 import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
 import {
@@ -1159,6 +1160,15 @@ const PARTNER_ROW = "__partnerRow";
  * 只写教材这一条本身说的话：同用的药和针对的情况。知识库功用文本的首句不能当理由——
  * 它常是分类名（苍术「化湿药」）或混入错条（苍耳子「清热解毒」，生产病历 1，第三十四轮部署后评审）。
  */
+/** 「与X同用」的行，X 这一行没留下时也不留（第三十五轮 C05：紫苏子因方向被删，带出来的炙麻黄留着，理由还写「与紫苏子同用」）。 */
+export function withoutOrphanPartnerRows<T extends { reason?: unknown; herbName?: unknown }>(rows: readonly T[], candidateHerbNames: readonly string[] = []): T[] {
+  const names = new Set([...rows.map((row) => String(row.herbName || "")), ...candidateHerbNames].map((name) => modificationHerbIdentity(canonicalTcmHerbIdentity(name))));
+  return rows.filter((row) => {
+    const partner = /^与([\u4e00-\u9fff]{2,8})同用，针对/u.exec(String(row.reason || ""))?.[1];
+    return !partner || names.has(modificationHerbIdentity(canonicalTcmHerbIdentity(partner)));
+  });
+}
+
 function partnerReason(firstHerb: string, condition: string): string {
   return `与${firstHerb}同用，针对${condition.replace(/^(?:若|如果|如)/u, "").replace(/[者时，。；]+$/u, "")}`.slice(0, 40);
 }
@@ -2163,6 +2173,8 @@ function withAnalysisConsistentCandidate(
   let emperorConflicts = 0;
   const tableEmperorsAgree = candidate.herbs.some((herb) => herb.role === "君") && candidate.herbs.every((herb) => herb.role !== "君" ||
     roles.get(herb.name.replace(/[（(][^）)]*[）)]/g, "").replace(/\s+/g, "").trim()) === "君");
+  // 随方义改君药后不能超过合同的上限（两味，或《方剂学》方解自己列的那几味），否则一句话把整页剂量拖没（第三十五轮 W20）。
+  const analysisEmperors = candidate.herbs.filter((herb) => roles.get(herb.name.replace(/[（(][^）)]*[）)]/g, "").replace(/\s+/g, "").trim()) === "君" || herb.role === "君").map((herb) => herb.name);
   const herbs = candidate.herbs.map((herb) => {
     const tableName = herb.name.replace(/[（(][^）)]*[）)]/g, "").replace(/\s+/g, "").trim();
     const declared = typeof herb.decoctionRequirement === "string" && herb.decoctionRequirement.trim()
@@ -2173,7 +2185,7 @@ function withAnalysisConsistentCandidate(
     if (!role || role === herb.role) return withDecoction;
     // 方义把表里的臣、佐药也算君（「人参、白术、茯苓三味为君」，《方剂学》参苓白术散即如此；表里茯苓是臣）：
     // 表里已有的君药方义都认，只是多了一味共为君，表随方义。其余牵涉君药的（表里的君在方义里成了臣）不改，记遥测。
-    if (role === "君" && herb.role !== "君" && tableEmperorsAgree && getTcmHerbGenerationSafetyProfile(herb.name).toxicity.length === 0) {
+    if (role === "君" && herb.role !== "君" && tableEmperorsAgree && getTcmHerbGenerationSafetyProfile(herb.name).toxicity.length === 0 && (analysisEmperors.length <= 2 || textbookNamesTheseAsEmperors(String(candidate.name || ""), analysisEmperors))) {
       realigned += 1;
       return { ...withDecoction, role };
     }
@@ -2518,7 +2530,7 @@ export function compileM04Proposal(
           },
     }];
   };
-  const modelModifications = proposal.modifications.flatMap((item) => compileModification(item));
+  const modelModifications = withoutOrphanPartnerRows(proposal.modifications.flatMap((item) => compileModification(item)), candidateHerbNames);
   // 随证加减至少两个不同的条件（2026-10-31，甲方 10.29 测评「仅生成 1 个不足以满足临床」；历史 1073 张处方 118 张 ≤1 条）。
   // 编译时备到 MODIFICATION_CONDITION_TARGET 个（交付前的跨厂商核对还可能删行），从本证教材条目补（textbookFallbackModifications，同一套判据）。只增不改模型留下的行。
   const conditionsShort = MODIFICATION_CONDITION_TARGET - distinctModificationConditions(modelModifications);

@@ -27,6 +27,7 @@ const review = await jiti.import("../src/lib/formula-analysis-review.ts");
 const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const compiler = await jiti.import("../src/lib/m04-proposal-compiler.ts");
 const textbook = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
+const commentaryModule = await jiti.import("../src/lib/formula-textbook-commentary.ts");
 const phrasing = await jiti.import("../src/lib/tcm-therapy-phrasing.ts");
 const modSafety = await jiti.import("../src/lib/m04-modification-safety.ts");
 
@@ -136,6 +137,8 @@ await check("5.1 同源药只有一味在原方时留原方那一味", () => {
 await check("7.1 治法：说法不同对象相同的补益项算重复；切碎的两字项并回；同字头后半不重写", () => {
   assert.equal(phrasing.withoutRedundantTherapyPhrases("平肝潜阳，清火息风，滋养肝肾，补益肝肾"), "平肝潜阳，清火息风，滋养肝肾");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("滋养肝肾，疏肝解郁"), "滋养肝肾，疏肝解郁");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("调和营卫，益气，益气扶正"), "调和营卫，益气扶正");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("补气健脾，消痞止痛，健脾益气"), "补气健脾，消痞止痛");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("清热，益气，生津，止渴，清热通便"), "清热益气通便，生津止渴");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("宣肺散寒，止咳平喘，温化寒痰，温化寒饮"), "宣肺散寒，止咳平喘，温化寒痰饮");
 });
@@ -156,6 +159,25 @@ await check("5.2 教材配对带出来的药方中已有时不占行；属名算
   const none = hooks.normalizeModifications([{ ...base, trigger: "若恶寒甚", herbName: "桂枝" }], prior);
   assert.equal(none.items.length, 2, "方中没有时两味都列");
 });
+await check("5.1b 管制药材是唯一的君药：拿出，第一味臣药升君；没有臣药时不拿", () => {
+  const content = (herbs) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "prescribe", formula: { candidates: [{ name: "自拟方", herbs: herbs.map(([name, role]) => ({ name, role, prescriptionRole: `${role}药：平肝` })), formulaAnalysis: "羚羊角为君。" }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const out = modSafety.dropSafetyConflictingM04CandidateHerbs(content([["羚羊角", "君"], ["钩藤", "臣"], ["桑叶", "臣"], ["菊花", "佐"], ["甘草", "使"]]), "目痛4小时。");
+  const parsed = JSON.parse(out.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+  const herbs = parsed.formula.candidates[0].herbs;
+  assert.equal(herbs.some((herb) => herb.name === "羚羊角"), false);
+  assert.equal(herbs.find((herb) => herb.name === "钩藤").role, "君");
+  assert.equal(herbs.find((herb) => herb.name === "钩藤").prescriptionRole, "君药：平肝");
+  assert.equal(herbs.find((herb) => herb.name === "桑叶").role, "臣");
+  assert.match(parsed.formula.candidates[0].notApplicable, /羚羊角/);
+  const keep = modSafety.dropSafetyConflictingM04CandidateHerbs(content([["羚羊角", "君"], ["菊花", "佐"], ["桑叶", "佐"], ["甘草", "使"]]), "目痛4小时。");
+  assert.match(keep, /羚羊角/);
+});
+await check("5.2b 同用的那一味没留下时，带出来的行也不留", () => {
+  const rows = [{ herbName: "炙麻黄", reason: "与紫苏子同用，针对气喘" }, { herbName: "茯苓", reason: "健脾" }];
+  assert.deepEqual(compiler.withoutOrphanPartnerRows(rows, ["党参"]).map((row) => row.herbName), ["茯苓"]);
+  assert.equal(compiler.withoutOrphanPartnerRows(rows, ["紫苏子"]).length, 2);
+  assert.equal(compiler.withoutOrphanPartnerRows([...rows, { herbName: "紫苏子", reason: "降气" }]).length, 3);
+});
 await check("5.3 超过行数时病历写着的症状先留", () => {
   const prior = { stage: "diagnose", overview: { tcmDiseaseName: "胃痞", primarySyndrome: "胃气不和证", primarySyndromeBasis: ["大便干结"] }, westernDiagnosis: { primary: { supportingFacts: ["大便干结"] } }, pathogenesis: { chain: [{ nodeId: "P1", patientFact: "大便干结", syndromeEvidence: "大便干结" }] } };
   const add = (trigger, herbName) => ({ actionType: "add", targetRef: "P1", reason: "理由写够", trigger, herbName });
@@ -163,11 +185,34 @@ await check("5.3 超过行数时病历写着的症状先留", () => {
   assert.ok(rows.some((row) => row.herbName === "火麻仁"), JSON.stringify(rows.map((row) => row.trigger)));
 });
 
+await check("5.4 君药超过两味：《方剂学》方解自己这样列的不算写错，别的照旧", () => {
+  const commentary = commentaryModule;
+  assert.equal(commentary.textbookNamesTheseAsEmperors("参苓白术散加减", ["人参", "白术", "茯苓"]), true);
+  assert.equal(commentary.textbookNamesTheseAsEmperors("消风散", ["荆芥", "防风", "蝉蜕", "牛蒡子"]), true);
+  assert.equal(commentary.textbookNamesTheseAsEmperors("参苓白术散", ["人参", "白术", "山药"]), false);
+  assert.equal(commentary.textbookNamesTheseAsEmperors("自拟方", ["人参", "白术", "茯苓"]), false);
+});
+await check("5.5 方向未成立且不对立的终审码换成 T2；方向对立、别的码不换", async () => {
+  const api = await jiti.import("../src/lib/diagnosis-api.ts");
+  const prior = { stage: "diagnose", overview: { primarySyndrome: "外感风邪证", recommendedFormulaNames: [] }, therapy: { overallMethod: "疏风解表" }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "风邪外袭", therapyDirection: "疏风解表" }] } };
+  const content = (herb) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ formula: { candidates: [{ formulaNames: [], herbs: [herb] }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const chuanxiong = { name: "川芎", role: "君", function: "祛风止痛", prescriptionRole: "君药：疏风解表", targetPathogenesis: "风邪外袭" };
+  assert.equal(api.vocabularyOnlyHighImpactReason("m04_candidate_0_herb_0_unsupported_high_impact_blood_move", content(chuanxiong), prior), "m04_candidate_0_herb_0_therapy_vocabulary_unverified_blood_move");
+  assert.equal(api.vocabularyOnlyHighImpactReason("m04_candidate_0_herb_0_dose", content(chuanxiong), prior), undefined);
+  assert.equal(api.vocabularyOnlyHighImpactReason("m04_candidate_0_herb_5_unsupported_high_impact_blood_move", content(chuanxiong), prior), undefined, "查不到这味不换");
+});
+
 await check("6.2 《方剂学》方解自己写调和诸药的留下", () => {
   const herbs = [{ name: "沙参" }, { name: "麦冬" }, { name: "地黄" }, { name: "玉竹" }, { name: "冰糖" }];
   const base = { stage: "prescribe", overview: {}, formula: { candidates: [{ name: "益胃汤", herbs, formulaAnalysis: "麦冬、地黄养阴为君，沙参、玉竹为臣，冰糖为使，濡养肺胃、调和诸药。" }] } };
   const out = surface.projectDeliveredReasoning(base);
   assert.match(out.formula.candidates[0].formulaAnalysis, /调和诸药/, out.formula.candidates[0].formulaAnalysis);
+});
+
+await check("7.2 核对模型原写的治法项：先摘病历再下结论", async () => {
+  const fs = await import("node:fs");
+  const source = fs.readFileSync("src/lib/m03-method-coverage.server.ts", "utf8");
+  assert.match(source, /先在 why 里摘病历/);
 });
 
 await check("6.1 判断词收尾的半截分句去掉", () => {
