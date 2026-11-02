@@ -1756,7 +1756,8 @@ function sanitizeUngroundedNegationText(
           ...unsettled.notices,
           supportedNotices.join("；"),
           wholeItems.documented.length > 0 ? `病历已记录否认${wholeItems.documented.join("、")}` : "",
-          wholeItems.items.length > 0 ? `病历尚未确认${wholeItems.items.join("、")}是否存在` : "",
+          // 逐项一句，与词表项同一写法（交付面把相邻的并成「未诉A、B」）。
+          ...wholeItems.items.map((item) => `病历尚未确认${item}是否存在`),
           wholeItems.leftTerms.length > 0 ? unknownTermNotice(source, wholeItems.leftTerms) : "",
         ].filter(Boolean);
         // 否认词前面的话不是否认（「咽痛发热、无恶寒而口渴」的咽痛发热）：整条否认删掉时也留着，否则下一句「为风热袭表」没了主语（第三十五轮 D01）。

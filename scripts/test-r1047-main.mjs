@@ -37,10 +37,10 @@ const sanitize = (text, record = COUGH) => safety.sanitizeUngroundedRedFlagNegat
 
 await check("1.1 否认列表里病历没写到的项按原样全留（词表外的也留、次序不变）", () => {
   const out = sanitize("无喘息气促、胸部膨满，与肺胀相区分。");
-  assert.match(out, /喘息气促、胸部膨满是否存在/);
+  assert.match(out, /病历尚未确认喘息气促是否存在；病历尚未确认胸部膨满是否存在/);
   assert.match(out, /与肺胀相区分/);
-  assert.match(sanitize("无慢性咳喘、胸满气促史，与肺胀相区分。"), /慢性咳喘、胸满气促史是否存在/);
-  assert.match(sanitize("无咯血、潮热、消瘦，与肺痨相区分。"), /咯血、潮热、消瘦是否存在/);
+  assert.match(sanitize("无慢性咳喘、胸满气促史，与肺胀相区分。"), /慢性咳喘是否存在；病历尚未确认胸满气促史是否存在/);
+  assert.equal(surface.clinicalWordingForSyntheticPhrases(sanitize("无咯血、潮热、消瘦，与肺痨相区分。")), "未诉咯血、潮热、消瘦，与肺痨相区分。", "顺序不变");
 });
 await check("1.2 病历肯定写着的项不算没写到：只删它，其余项留下", () => {
   const out = sanitize("无胸闷、胸部膨满，与肺胀相区分。");
