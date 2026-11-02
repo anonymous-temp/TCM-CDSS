@@ -1242,6 +1242,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         for (const name of [...new Set(claimed)]) {
           const reference = formulaCompilationReferences([name])[0];
           if (!reference?.ingredients?.length) continue;
+          // 方名承载的药不在方里不能叫这个名（第三十五轮 A16：川乌因孕妇禁用去掉后写「乌头汤加减」）。
+          if (formulaNameIdentityHerbsMissing(name, herbNames).length > 0) continue;
           const ingredients = [...new Set(reference.ingredients.map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, ""))).filter(Boolean))];
           const kept = ingredients.filter((id) => present.has(id)).length;
           if (kept < Math.max(reference.minimumPreservedIngredientCount || 0, Math.ceil(ingredients.length * 0.6))) continue;

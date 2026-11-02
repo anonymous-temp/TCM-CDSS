@@ -318,13 +318,15 @@ export function formulaNameIsVerbPhrase(name: string, rightContext: string): boo
 function isUnambiguousGovernedFormulaClaim(value: string, start: number, end: number, name: string): boolean {
   const rightContext = value.slice(end);
   if (formulaNameIsVerbPhrase(name, rightContext)) return false;
+  // 三字方名前面是助词时是动宾短语：「桂枝温通阳气、助化痰饮」的化痰饮不是那首方（第三十五轮 A24 成了「助本方」）。
+  if (name.length <= 3 && /[助能可兼并以且而善]$/u.test(value.slice(0, start))) return false;
   if (!name.endsWith("散") || name.length >= 4) return true;
   if (end === value.length || /^[\s，,。；;：:、（）()【】\[\]“”"']/.test(rightContext)) return true;
   if (FORMULA_CLAIM_MODIFIER.test(rightContext)) return true;
   return FORMULA_CLAIM_LEFT_CONTEXT.test(value.slice(Math.max(0, start - 4), start));
 }
 
-function governedFormulaClaimRanges(value: string): Array<{ start: number; end: number }> {
+export function governedFormulaClaimRanges(value: string): Array<{ start: number; end: number }> {
   const ranges: Array<{ start: number; end: number }> = [];
   for (let endIndex = 0; endIndex < value.length; endIndex += 1) {
     if (!FORMULA_DOSAGE_FORM_CHARACTERS.has(value[endIndex])) continue;

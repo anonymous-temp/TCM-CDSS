@@ -1181,7 +1181,11 @@ function toxicAdditionNote(herbName: string): string {
 
 const MODIFICATION_PROCESSING_PREFIX = /^(?:蜜炙|麸炒|土炒|米炒|醋制|酒制|盐制|姜制|醋炒|酒炒|盐炒|姜炒|炒|炙|煅|焦|生|蜜|盐|酒|醋|姜)$/u;
 function modificationDisplayHerbName(written: string, identity: string): string {
-  return written !== identity && written.endsWith(identity) && MODIFICATION_PROCESSING_PREFIX.test(written.slice(0, -identity.length)) ? written : identity;
+  if (written === identity) return identity;
+  if (written.endsWith(identity) && MODIFICATION_PROCESSING_PREFIX.test(written.slice(0, -identity.length))) return written;
+  // 炮制字加别名写法（盐益智仁：规范名是益智）：去掉炮制字后仍是这味药，照模型写的（第三十五轮 A12）。
+  const prefix = /^(?:蜜炙|麸炒|土炒|米炒|醋制|酒制|盐制|姜制|醋炒|酒炒|盐炒|姜炒|炒|炙|煅|焦|生|蜜|盐|酒|醋|姜)/u.exec(written)?.[0];
+  return prefix && written.length - prefix.length >= 2 && canonicalTcmHerbIdentity(written.slice(prefix.length)) === identity ? written : identity;
 }
 
 /**

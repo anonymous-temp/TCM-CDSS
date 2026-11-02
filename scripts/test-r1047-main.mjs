@@ -28,6 +28,7 @@ const visible = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const compiler = await jiti.import("../src/lib/m04-proposal-compiler.ts");
 const textbook = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
 const commentaryModule = await jiti.import("../src/lib/formula-textbook-commentary.ts");
+const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
 const phrasing = await jiti.import("../src/lib/tcm-therapy-phrasing.ts");
 const modSafety = await jiti.import("../src/lib/m04-modification-safety.ts");
 
@@ -127,6 +128,15 @@ await check("3.4 慢性X病程不够但病历写着X：写X；病历没写时仍
   assert.match(named, /"name": "支气管炎"/);
   const symptom = visible.declassifyUnmetFormalM03WesternPrimary(content("慢性支气管炎"), "主诉：咳嗽半年。");
   assert.match(symptom, /"name": "咳嗽症状"/);
+});
+
+await check("4.0 三字方名前面是助词时不是方名；方名承载药不在方里不还原；炮制字加别名照写", () => {
+  assert.equal(provenance.governedFormulaClaimRanges("桂枝温通阳气、助化痰饮").length, 0);
+  assert.equal(provenance.governedFormulaClaimRanges("本方取化痰饮之意").length, 1, "别的位置仍是方名");
+  const base = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: { recommendedFormulaNames: ["乌头汤"] }, formula: { candidates: [{ name: "自拟方", declassifiedFromFormulaNames: ["乌头汤"], herbs: ["桂枝", "白芍", "黄芪", "当归", "细辛", "炙甘草"].map((name) => ({ name })), formulaAnalysis: "本方为自拟方。桂枝为君。" }] } };
+  assert.equal(surface.projectDeliveredReasoning(base).formula.candidates[0].name, "自拟方");
+  const rows = compiler.normalizeModificationsForTest([{ actionType: "add", targetRef: "P1", reason: "固精缩尿", trigger: "若夜尿频多", herbName: "盐益智仁" }], { stage: "diagnose", overview: { tcmDiseaseName: "腰痛", primarySyndrome: "肾虚证" }, pathogenesis: { chain: [{ nodeId: "P1" }] } });
+  assert.equal(rows[0]?.herbName, "盐益智仁", JSON.stringify(rows));
 });
 
 await check("4.1 方义的药名带上药味表炮制栏的字", () => {
