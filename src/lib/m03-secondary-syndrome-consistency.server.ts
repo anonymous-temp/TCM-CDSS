@@ -608,6 +608,18 @@ export async function verifySecondaryByCriteria(
     console.info("[tcm-cdss:telemetry] m03_secondary_criteria_miss", { name: compact(name).slice(0, 12) });
     return unknown;
   }
+  // 一个脏腑的虚证加一个病邪（脾虚湿蕴证）：只按脾气虚证核，湿那一半的表现都不算（第三十五轮 W46：渗液、舌胖、便溏）。两边合起来按组合证判：至少 3 条，各至少 1 条。
+  const element = elementCompositeCriteriaEntry(name);
+  if (parts.length === 1 && element && element.name !== parts[0].name && !element.components?.includes(parts[0].name) && /湿|痰|瘀|饮|热|寒/u.test(compact(name))) {
+    const elementNames = element.components?.length ? element.components.filter((item) => !/虚证$/u.test(item)) : [element.name];
+    if (elementNames.length > 0 && !/虚证$/u.test(elementNames[0])) {
+      return verifyEntry({
+        name: compact(name), line: 0, keyPointsText: "", specific: [], category: null, categoryEntries: [],
+        manifestations: [...new Set([parts[0], ...elementNames.map((item) => CRITERIA_ENTRIES.get(item)).filter((item): item is CriteriaEntry => Boolean(item))].flatMap((item) => [...item.specific, ...item.manifestations]))],
+        components: [parts[0].name, ...elementNames],
+      });
+    }
+  }
   const verdicts = await Promise.all(parts.map(verifyEntry));
   if (verdicts.some((item) => item.verdict === "unknown")) return unknown;
   const failing = verdicts.find((item) => item.verdict === "fail");

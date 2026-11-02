@@ -432,7 +432,8 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
         const commentary = formulaTextbookCommentary(baseName) || "";
         const inBase = inGroup.filter((value) => baseIngredients.has(canonicalTcmHerbIdentity(nameOf(value))) || commentary.includes(nameOf(value)));
         if (inGroup.length < 2 || inBase.length >= 2) continue;
-        const rank = (value: unknown) => (SAFETY_PRUNE_ROLE_RANK[roleOf(value)] ?? 2) * 10 + group.herbs.indexOf(canonicalTcmHerbIdentity(nameOf(value)) || nameOf(value));
+        // 只有一味在原方里时留原方那一味（第三十五轮 c12：黄芪建中汤原方是生姜，模型又写了干姜，曾按药表次序留干姜、删生姜，方义里的生姜跟着没了）。
+        const rank = (value: unknown) => (inBase.includes(value) ? 0 : 100) + (SAFETY_PRUNE_ROLE_RANK[roleOf(value)] ?? 2) * 10 + group.herbs.indexOf(canonicalTcmHerbIdentity(nameOf(value)) || nameOf(value));
         const keep = [...inGroup].sort((a, b) => rank(a) - rank(b))[0];
         const drops = inGroup.filter((value) => value !== keep && roleOf(value) !== "君");
         for (const value of drops) removed.push({ name: nameOf(value), reason: `与${nameOf(keep)}${group.reason}` });

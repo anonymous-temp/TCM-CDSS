@@ -7,7 +7,10 @@ import { westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
 import { westernCriteriaEntry, westernCriteriaPromptValue, westernCriteriaReference, westernNameWithoutCourseOrSideQualifier } from "./western-diagnostic-criteria.server";
 import { resolveIcd10Diagnosis } from "./icd10-diagnosis-coding.server";
 import { quoteGroundedInText } from "./verbatim-quote";
-import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
+import { rationaleAlignedWithRenamedPrimary } from "./western-rationale-alignment";
+
+export { rationaleAlignedWithRenamedPrimary };
+import { clauseLocalMentionPolarityAt, recordMentionPolarityAt } from "./diagnosis-safety";
 import { clinicalEventTemporalScopeAt } from "./clinical-polarity";
 
 /**
@@ -242,6 +245,27 @@ export function decisiveFindingVetoesD(decisive: unknown, meetsCriteria: unknown
 }
 
 /** 模型输出 → 可采信的改名（否则 undefined）。引文必须逐字在病历里；名称必须合规且与原名不同。 */
+/**
+ * 病历肯定写着这个诊断（原词，或更具体的写法：「慢性浅表性胃炎」写着「慢性胃炎」），不是否认、不是别人的（家族史）、也不是「可疑/待排」。
+ * 只用同一小句里按字序出现、中间至多隔 4 字的写法，「慢性咳嗽，胃炎」不算。
+ */
+const UNCERTAIN_NEAR_DIAGNOSIS = /可疑|疑似|待排|待查|可能|\?|？|除外|排除/u;
+export function recordStatesWesternDiagnosis(name: string, recordText: string): boolean {
+  const core = name.trim().replace(/待查$/u, "").normalize("NFKC");
+  if (core.length < 3) return false;
+  const source = recordText.normalize("NFKC");
+  const pattern = new RegExp([...core].map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[^，,。；;：:、\\n]{0,4}"), "gu");
+  for (const match of source.matchAll(pattern)) {
+    const at = match.index ?? 0;
+    const clauseStart = Math.max(...["，", ",", "。", "；", ";", "\n"].map((mark) => source.lastIndexOf(mark, at - 1))) + 1;
+    const clauseEnds = ["，", ",", "。", "；", ";", "\n"].map((mark) => source.indexOf(mark, at + match[0].length)).filter((index) => index >= 0);
+    const clause = source.slice(clauseStart, clauseEnds.length > 0 ? Math.min(...clauseEnds) : source.length);
+    if (UNCERTAIN_NEAR_DIAGNOSIS.test(clause)) continue;
+    if (recordMentionPolarityAt(source, at) === "affirmed") return true;
+  }
+  return false;
+}
+
 export function parseWesternNameCorrection(
   content: unknown,
   recordText: string,
@@ -258,6 +282,8 @@ export function parseWesternNameCorrection(
   // 而没有说它不够），就是自相矛盾——拿不准保持原样（2026-10-19 第九轮，D 集 23 例把有造影/活检/典型体征的病名换成「X待查」）。
   // 只管 D：A–C 说的是病历已记录的内容与病名相反，decisive 与之无关。
   if (type === "D" && decisiveFindingVetoesD(decisive, meetsCriteria, recordText)) return undefined;
+  // 病历自己写着这个病（既往确诊或检查结论）：「病历写明的既往确诊」本来就判 consistent，模型仍有漏（第三十五轮 c12：「慢性浅表性胃炎病史3年」交付「慢性胃炎待查」）。
+  if (type === "D" && recordStatesWesternDiagnosis(currentName, recordText)) return undefined;
   const name = typeof supportedName === "string" ? supportedName.trim() : "";
   const quoted = typeof quote === "string" ? quote.trim() : "";
   const why = typeof reason === "string" ? reason.trim().replace(/[。；;]+$/u, "") : "";
@@ -435,23 +461,6 @@ export function withoutSexIncompatibleWesternNames(westernContent: string, sex: 
  * 把采信的改名写进西医半的输出：主诊断换名，原病名留在候选（A–C 标明不支持它的那句病历原文）与鉴别（核对给出的理由）里。
  * 只动这三处；解析不了或没有主诊断时原样返回。
  */
-/**
- * 改了病名后，推理说明里仍把原病名当结论的说法一并改（2026-10-22 第十五轮）。
- * 病名核对只改 primary.name，推理说明照旧写「符合缺铁性贫血」「支持绝经后骨质疏松症」，页面「西医诊断：贫血 / 推理说明：…符合缺铁性贫血」
- * 自相矛盾（已存输出里被改名的 74 例中 28 例）。D 类（缺确诊所需的检查或病程）改成「考虑X可能」，与「X待查」和鉴别里的「尚未取得确诊所需的检查」一致；
- * 其余几类（病历与原病名相反、说重了）改成「需与X鉴别」。只改「符合/支持/指向/诊断为/考虑为/明确为/确诊为X」与「暂按X考虑」这几种断言式，有限闭集。
- */
-export function rationaleAlignedWithRenamedPrimary(rationale: string, previous: string, type: WesternNameCorrection["type"]): string {
-  if (!rationale || !previous || !rationale.includes(previous)) return rationale;
-  const escaped = previous.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const replacement = type === "D" ? `考虑${previous}可能` : `需与${previous}鉴别`;
-  return rationale
-    .replace(new RegExp(`(?:符合|支持|指向|诊断为|考虑为|可诊断为|明确为|确诊为)\\s*${escaped}(?:的?(?:表现|诊断|特点|模式)|临床诊断)?(?!可能)`, "gu"), replacement)
-    .replace(new RegExp(`暂按\\s*${escaped}\\s*考虑`, "gu"), type === "D" ? `${previous}可能` : replacement)
-    // 后面还跟着描述（「符合膝骨关节炎退行性负重痛特点」）时断开，否则读成「考虑膝骨关节炎可能退行性负重痛特点」。
-    .replace(new RegExp(`(考虑${escaped}可能|需与${escaped}鉴别)(?=[\\u4e00-\\u9fff])`, "gu"), "$1，");
-}
-
 export function applyWesternNameCorrection(westernContent: string, correction: WesternNameCorrection): string {
   let parsed: unknown;
   try { parsed = JSON.parse(westernContent); } catch { return westernContent; }
@@ -734,7 +743,7 @@ export function deterministicWesternNameCorrection(name: string, recordText: str
     const child = typeof patientAge === "number" && Number.isFinite(patientAge) && patientAge < 18;
     const threshold = child ? entry?.courseThresholdDays?.under18 ?? entry?.courseThresholdDays?.adult : entry?.courseThresholdDays?.adult;
     const course = recordCourseDays(recordText);
-    if (entry && threshold && course && recordCourseBelowThreshold(course, threshold)) {
+    if (entry && threshold && course && recordCourseBelowThreshold(course, threshold) && !recordStatesWesternDiagnosis(core, recordText)) {
       const base = core.replace(/^慢性/u, "");
       const acute = `急性${base}`;
       const supportedName = westernCriteriaEntry(acute)?.name === acute ? acute : base;

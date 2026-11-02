@@ -230,14 +230,33 @@ export function claimsSecondaryPattern(clause: string): boolean {
  * 「息风化痰，活血通络，熄风化痰止痛」）：教材治法与模型按本例补的半句拼在一起时常见。按字面判：一个短语的字（熄=息）全都出现在
  * 另一个不短于它的短语里，就是重复，去掉它；字相同时留先出现的。两个四字短语只差第一个字的（「和血通络」「活血通络」）也算重复。
  */
+const TONIFYING_HEAD = /^(?:滋养|补益|滋补|补养|培补|调补|滋培)$/u;
+/** 教材治法按字切开成一串两字项（「清热，益气，生津，止渴」，第三十五轮 D03）：两两并回四字短语。只并连续的两字项，单出来的一项留着。 */
+function withTwoCharacterRunsJoined(method: string): string {
+  const parts = method.split(/([，,、；;])/u);
+  const phrases = parts.filter((_, index) => index % 2 === 0).map((phrase) => phrase.trim());
+  const out: string[] = [];
+  for (let index = 0; index < phrases.length; index += 1) {
+    const current = phrases[index];
+    let run = 0;
+    while (index + run < phrases.length && /^[\u4e00-\u9fff]{2}$/u.test(phrases[index + run])) run += 1;
+    if (run < 2) { out.push(current); continue; }
+    for (let at = 0; at < run; at += 2) out.push(phrases[index + at] + (phrases[index + at + 1] || ""));
+    index += run - 1;
+  }
+  return out.length === phrases.length ? method : out.join("，");
+}
+
 export function withoutRedundantTherapyPhrases(method: string): string {
-  const text = String(method || "");
+  const text = withTwoCharacterRunsJoined(String(method || ""));
   const parts = text.split(/([，,、；;])/u);
   const phrases = parts.filter((_, index) => index % 2 === 0);
   const chars = (phrase: string) => new Set([...phrase.replace(/熄/gu, "息").replace(/[^\u4e00-\u9fff]/gu, "")]);
   const sets = phrases.map(chars);
   // 两个四字治法只差第一个字（「和血通络，活血通络」「补气养血，益气养血」）：意思相同，留前一个（2026-10-19 Claude 评审 M 集 SD-451922 判冗杂）。
-  const nearSynonym = (left: string, right: string) => left.length === 4 && right.length === 4 && left !== right && left.slice(1) === right.slice(1);
+  // 补益类两字头只是说法不同、对象相同（「滋养肝肾，补益肝肾」，第三十五轮 C06：教材治法与模型写的项拼在一起）也算。
+  const nearSynonym = (left: string, right: string) => left.length === 4 && right.length === 4 && left !== right &&
+    (left.slice(1) === right.slice(1) || (left.slice(2) === right.slice(2) && TONIFYING_HEAD.test(left.slice(0, 2)) && TONIFYING_HEAD.test(right.slice(0, 2))));
   const drop = phrases.map((phrase, index) => {
     if (phrases.some((other, at) => at < index && nearSynonym(other.trim(), phrase.trim()))) return true;
     const own = sets[index];
@@ -274,7 +293,8 @@ export function mergedSameHeadTherapyPhrases(method: string): string {
     if (partners.length !== 1) return;
     const tails = [phrase.slice(2), phrases[partners[0]].slice(2)];
     const ordered = [...tails.filter((tail) => !PURPOSE_TAIL.test(tail)), ...tails.filter((tail) => PURPOSE_TAIL.test(tail))];
-    merged.set(index, `${phrase.slice(0, 2)}${ordered.join("")}`);
+    // 两个后半共用一个字头（温化寒痰、温化寒饮）：写一次（温化寒痰饮）。
+    merged.set(index, `${phrase.slice(0, 2)}${ordered[0][0] === ordered[1][0] ? `${ordered[0]}${ordered[1].slice(1)}` : ordered.join("")}`);
     used.add(partners[0]);
   });
   if (merged.size === 0) return method;

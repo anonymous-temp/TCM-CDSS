@@ -1152,7 +1152,8 @@ function affirmationMentionKind(source: string, term: string): { kind: "clear" |
  * 病历读法（negationReachesMentionDirectly）与读法核对提示（commaContinuedDenialReadingNotice）共用这一处
  *（2026-10-25 第二十轮：「无明显发热，食欲下降」曾读成否认食欲下降——读法用的是只看字数的裸词判据，提示用的是这一条）。
  */
-const OWN_PREDICATE_ITEM = /[有伴见感觉作]|(?:差|少|多|可|调|佳|好|难|困难|不利|不畅|不适|欠佳|明显|重|轻|甚|剧|频|稀|干|黄|赤|红|淡|白|胀|紧|减退|增多|减少|加重|缓解|正常|下降|升高|降低|增加|不振|减弱|亢进|异常)$/u;
+// 舌象、脉象是查到的所见，不是否认列举的延续（「心肺无异常发现，舌质红绛」曾读成否认舌象，第三十四轮 1/1400）。
+const OWN_PREDICATE_ITEM = /[有伴见感觉作]|(?:差|少|多|可|调|佳|好|难|困难|不利|不畅|不适|欠佳|明显|重|轻|甚|剧|频|稀|干|黄|赤|红|淡|白|胀|紧|减退|增多|减少|加重|缓解|正常|下降|升高|降低|增加|不振|减弱|亢进|异常)$|^[舌苔脉]/u;
 /**
  * 闸门判否认的这一处，是不是可以当作「病历否认了它」来读：否认词与它在同一逗号小句里（「无发热」「无发热、呕吐」），
  * 或它是否认列举在逗号后延续的裸词——这一小句里只有它自己，且与否认那一小句之间至多隔一个同样的短裸词小句
@@ -1421,6 +1422,44 @@ const LEXICALIZED_NEGATED_SIGN = /^无(?:汗出?|痰|苔)(?:而[^，,、。；;]
  * 否认词前面紧挨着「均/皆/俱/都/亦/也」，或否认词后面已经没有汉字时，是后置否认，管整句。
  * `probe` 是与 `clause` 等长、已抹掉固定说法的探针。
  */
+/**
+ * 否认列表里病历没写到的项，整项按模型原来的写法与次序取出（第三十五轮）。只拆前置否认词后面的列举：项里带着病历肯定或否认过的词（settledTerms）的不算，
+ * 那些仍按词单独处理；否认词前的部位并入第一项（「咽部无灼热」→「咽部灼热」），前面别的话留在句首（「痛处固定无游走」不丢「痛处固定」）。
+ * 后置否认（「胸痛、呕吐均无」）或拆不出来时退回只按词处理（leftTerms）。
+ */
+const DENIAL_ITEM_SPLIT = /[、及和与或]|以及/u;
+const DENIAL_HEAD_SUBJECT = /^(?:本例|患者|病人|该患者|病程中|目前|现|且|并|亦|也|但|而|其|尚|均|平素|近期|故)+$/u;
+const DENIAL_HEAD_SITE = /^[\u4e00-\u9fff]{1,2}部?$/u;
+function assertedHeadBeforeDenial(clause: string, negatedSpan: string): string {
+  const at = clause.indexOf(negatedSpan);
+  if (at <= 0) return "";
+  const head = clause.slice(0, at).replace(/^\s*(?:[-*]>?\s*|>\s*|#{1,6}\s*)?(?:[^：:|]{1,24}[：:]\s*)?/u, "").replace(/[、，,\s]+$/u, "").trim();
+  return !head || DENIAL_HEAD_SUBJECT.test(head) || DENIAL_HEAD_SITE.test(head) ? "" : `${head}，`;
+}
+function unknownDeniedItems(clause: string, negatedSpan: string, unknown: readonly string[], settledTerms: readonly string[], source: string): { head: string; items: string[]; leftTerms: string[]; documented: string[] } {
+  const asTerms = { head: "", items: [], leftTerms: [...unknown], documented: [] as string[] };
+  const cue = new RegExp(`^(?:${CLINICAL_NEGATION_CUE.source})`, "u").exec(negatedSpan);
+  const at = clause.indexOf(negatedSpan);
+  if (!cue || at < 0) return asTerms;
+  const head = clause.slice(0, at).replace(/^\s*(?:[-*]>?\s*|>\s*|#{1,6}\s*)?(?:[^：:|]{1,24}[：:]\s*)?/u, "").replace(/[、，,\s]+$/u, "").trim();
+  const object = negatedSpan.slice(cue[0].length).replace(/(?:等(?:热象|寒象|表现|症状|征象|不适)?|之?(?:表现|症状|特征))$/u, "").trim();
+  // 带判断的不是列举（「无发热故非外感」）；再有否认词的整段退回按词处理（「无头痛无呕吐」）。
+  if (!object || /[，,。；;：:（）()]|故|而|但|则|为|属|示/u.test(object) || new RegExp(CLINICAL_NEGATION_CUE.source, "u").test(object)) return asTerms;
+  const parts = object.split(DENIAL_ITEM_SPLIT).map((item) => item.trim()).filter((item) => item.length >= 2);
+  if (parts.length === 0) return asTerms;
+  // 词表外的项同样看病历：病历否认过的照录否认，肯定写着的不说它没写（与词表内的项同一处理）。
+  const open = parts.filter((item) => !settledTerms.some((term) => item.includes(term)));
+  const documented = open.filter((item) => !unknown.some((term) => item.includes(term)) && sourceDocumentsNegation(source, item));
+  const whole = open.filter((item) => !documented.includes(item) && (unknown.some((term) => item.includes(term)) || !sourceDocumentsAffirmation(source, item)));
+  const leftTerms = unknown.filter((term) => !whole.some((item) => item.includes(term)));
+  if (whole.length === 0) return { ...asTerms, documented };
+  if (head && !DENIAL_HEAD_SUBJECT.test(head)) {
+    if (DENIAL_HEAD_SITE.test(head)) whole[0] = `${head}${whole[0]}`;
+    else return { head: `${head}，`, items: whole, leftTerms, documented };
+  }
+  return { head: "", items: whole, leftTerms, documented };
+}
+
 function clauseNegationScope(clause: string, probe: string): string {
   const cue = new RegExp(CLINICAL_NEGATION_CUE.source, "g");
   const matches = [...probe.matchAll(cue)];
@@ -1706,13 +1745,22 @@ function sanitizeUngroundedNegationText(
           CLINICAL_NEGATION_FACT_TERMS.filter((term) => clause.includes(term) && !unknown.includes(term) &&
             (!contradictedPositive.includes(term) || Boolean(qualifiedDocumentedDenial(source, term))) && !unsettled.terms.has(term)),
         ).notices;
+        // 模型否认的是一整列（「无喘息气促、胸部膨满及慢性肺系病史」）：只认词表就只剩词表里的「气促」，别的项和原来的次序都丢了，
+        // 「与肺胀相区分」成了空话（第三十五轮，独立评审辨病依据 21 处改坏的主因）。病历既没肯定也没否认的项按模型写的整项留下，
+        // 词表外的项同样算「未确认」——本来就没有依据说它有或没有。
+        const wholeItems = unknownDeniedItems(clause, negatedSpan, unknown, CLINICAL_NEGATION_FACT_TERMS.filter((term) =>
+          negatedSpan.includes(term) && !unknown.includes(term)), source);
         const remaining = [
           contradictionMode === "affirm" && contradictedPositive.length > 0 ? `病历已记录${contradictedPositive.join("、")}阳性` : "",
           ...unsettled.notices,
           supportedNotices.join("；"),
-          unknown.length > 0 ? unknownTermNotice(source, unknown) : "",
+          wholeItems.documented.length > 0 ? `病历已记录否认${wholeItems.documented.join("、")}` : "",
+          wholeItems.items.length > 0 ? `病历尚未确认${wholeItems.items.join("、")}是否存在` : "",
+          wholeItems.leftTerms.length > 0 ? unknownTermNotice(source, wholeItems.leftTerms) : "",
         ].filter(Boolean);
-        return `${prefix}${remaining.length > 0 ? remaining.join("；") : DROPPED_NEGATION_CLAUSE}`;
+        // 否认词前面的话不是否认（「咽痛发热、无恶寒而口渴」的咽痛发热）：整条否认删掉时也留着，否则下一句「为风热袭表」没了主语（第三十五轮 D01）。
+        const headKept = wholeItems.head || assertedHeadBeforeDenial(clause, negatedSpan);
+        return `${prefix}${remaining.length > 0 ? `${headKept}${remaining.join("；")}` : headKept ? headKept.replace(/，$/u, "") : DROPPED_NEGATION_CLAUSE}`;
       }
     }
     const unsupportedNormality = CLINICAL_NORMALITY_TERMS.filter(

@@ -17,7 +17,7 @@
  */
 
 import { RED_FLAG_SAFETY_NET_VISIT } from "./diagnosis-visible-summary";
-import { formulaGuideHerbsFromCommentary } from "./formula-textbook-commentary";
+import { formulaGuideHerbsFromCommentary, formulaTextbookCommentary } from "./formula-textbook-commentary";
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { compositionIdentityName, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
@@ -25,7 +25,7 @@ import { signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-slee
 import { drugNamesInAllergyPhrases } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
-import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
+import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { tcmDifferentialDiseaseFitsPatient, textbookDifferentialsForDisease, textbookFormulaComposition, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
@@ -733,6 +733,13 @@ export function isDeliveredWesternBasisOnly(supportingFacts: readonly unknown[],
   return Boolean(basis) && supportingFacts.length === 1 && typeof supportingFacts[0] === "string" && supportingFacts[0].trim() === basis;
 }
 
+/** 分句收在判断词上、判断的内容已经不在了（闭集：提示、表明、说明、属、故、为；两到十二字）。 */
+const DANGLING_PREDICATE_CLAUSE = /(^|[，,；;。])[^，,；;。（）()]{0,10}(?:提示|表明|说明|故|属|为)(?=[，,；;。]|$)/gu;
+export function withoutDanglingPredicateClauses(text: string): string {
+  const next = text.replace(DANGLING_PREDICATE_CLAUSE, (match, lead: string) => (lead === "。" ? "。" : ""));
+  return next === text ? text : next.replace(/^[，,；;。\s]+/u, "").replace(/[，,；;]+(?=。|$)/gu, "").replace(/([，,；;])[，,；;]+/gu, "$1");
+}
+
 export function deliveredWesternDiagnosisName(name: unknown, coding?: unknown): string {
   const label = typeof name === "string" ? name.trim() : "";
   if (!label || PLACEHOLDER_WESTERN_NAME.test(label)) return label;
@@ -743,9 +750,12 @@ export function deliveredWesternDiagnosisName(name: unknown, coding?: unknown): 
   if (!core) return label;
   const code = typeof record(coding)?.code === "string" ? String(record(coding)!.code) : "";
   const symptomLevel = /^R/i.test(code) || /症状$/.test(core);
+  // 「乏力症状」是服务端规范症状级诊断时写的（normalizeDiagnoseConfidenceAndLabels）：模型原本写「乏力待查」也会经它变成这样，
+  // 交付时不能只去掉「症状」两字留下裸症状（第三十五轮 A15、A09：主诊断只写「乏力」「咳嗽咳痰」；甲方口径是症状层面写「X待查」）。
+  const namedSymptom = /症状$/.test(core);
   core = core.replace(/症状$/, "");
   if (/待查$/.test(core)) return core;
-  return causeUnknown && symptomLevel ? `${core}待查` : core;
+  return (causeUnknown && symptomLevel) || namedSymptom ? `${core}待查` : core;
 }
 
 /**
@@ -927,6 +937,12 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
   }
   // 病历记着两方说法不同时，辨病依据点明并列入待核实（recordedAccountConflict）；依据里已经说到的不重复。
   const accountConflict = recordedAccountConflict(options?.recordText);
+  // 撤兼证、删片段后留下的半截话（「二者成组提示；」，第三十五轮 F03）：分句以判断词收尾、后面什么也没有了，这一小句一并去掉。
+  if (overview) {
+    for (const key of ["tcmDiseaseRationale", "tcmDiagnosticRationale"] as const) {
+      if (typeof overview[key] === "string") overview[key] = withoutDanglingPredicateClauses(overview[key] as string);
+    }
+  }
   if (overview && accountConflict && !isLimitedDiagnose(reasoning) && typeof overview.tcmDiseaseRationale === "string" &&
     !/(?:不一致|不同|有出入|有差异|矛盾|相左)/u.test(overview.tcmDiseaseRationale)) {
     overview.tcmDiseaseRationale = `${overview.tcmDiseaseRationale.trim().replace(/[。；;，,]$/u, "")}；病历记录「${accountConflict}」，所据病程与表现待核实。`;
@@ -1284,9 +1300,11 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       const analysisText = withoutProcessParentheticals(candidate.formulaAnalysis).text;
       const medicineNames = [...knownMedicineNames(options?.requiredPrecautions, formula), ...labelledMedicineNamesIn(analysisText)];
       const aligned = withoutChartAssertionClauses(withMentionsAlignedToTableNames(analysisText, tableNames, medicineNames).text).text;
+      // 《方剂学》方解自己写这味药「调和诸药」的算（益胃汤「冰糖濡养肺胃，调和诸药，为使药」，第三十五轮 A15 曾把这句教材原话删掉）。
+      const commentarySentences = (formulaTextbookCommentary(String(candidate.name || "")) || "").split(/[。；;]/u);
       const harmonized = withEveryHerbExplained(withoutUnsupportedHarmonizingClaims(aligned, tableNames,
-        (name) => `${herbFunctionKnowledgeForDisplay(name)}；${getTcmHerbFunctionText(name)}`).text, herbRows);
-      candidate.formulaAnalysis = withRoleOnlyHerbsExplained(withoutStrayLeadingRoleVerb(harmonized).text, herbRows).text;
+        (name) => `${herbFunctionKnowledgeForDisplay(name)}；${getTcmHerbFunctionText(name)}；${commentarySentences.filter((sentence) => sentence.includes(name) && /调和/u.test(sentence)).join("；")}`).text, herbRows);
+      candidate.formulaAnalysis = withProcessingFromTable(withRoleOnlyHerbsExplained(withoutStrayLeadingRoleVerb(harmonized).text, herbRows).text, herbRows);
     }
     // 方义说「去原方中…之品」而处方其实保留了原方全部药味（2026-10-17：甲方标准病历 1、4、10，三次生成里 4 次，独立评审判陈述失实）。
     // 方名能在方剂目录里查到组成、且组成逐味都在处方里时，去掉这句「去…」以及紧跟的「保留…/留其主体」；查不到组成时不动。

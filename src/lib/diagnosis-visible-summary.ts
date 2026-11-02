@@ -9,6 +9,7 @@ import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesis
 // 剂量写法判据复用 M04 那条已导出的，不写第二份。
 import { reviewAuthoredFormulaAnalysis } from "./formula-analysis-review";
 import { namedFormulaDecoctionProfile } from "./formula-decoction-profile";
+import { rationaleAlignedWithRenamedPrimary } from "./western-rationale-alignment";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
 import { NARROWER_THAN_GROUP_CANONICAL, NARROWER_TERM_SYNONYMS, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, redFlagDoseAuthorizationAllowed, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
@@ -1241,6 +1242,10 @@ function notAPatientDenial(offset: number, whole: string, term: string): boolean
   if (TEST_FINDING_CONTEXT.test(`${nearBefore}${term}`)) return true;
   const lead = clause.replace(/^[\s（(]+/u, "");
   if (/^(?:本例|患者|病人|该患)/u.test(lead)) return false;
+  // 「与痈初起光软无头相区分」「与癃闭之尿少无尿痛相区分」：「与…」这半句写的是被鉴别的那个病（第三十五轮 A22、C11 曾改成「光软未诉头」「尿少未诉尿痛」）。
+  if (/^(?:可|故|而|亦|并)?与[\u4e00-\u9fff]/u.test(lead)) return true;
+  // 「痿证无口舌歪斜」：分句以「X证/X病」打头，写的是那个病（表里的名字是「痿病」，上面的表对不上这种写法）。
+  if (/^[\u4e00-\u9fff]{1,3}[证病](?=[^\u4e00-\u9fff]|$)/u.test(lead)) return true;
   if (GENERIC_DESCRIPTION_LEAD.test(clause)) return true;
   if (textbookDiseaseNames.some((name) => lead.startsWith(name) && lead.length > name.length)) return true;
   // 教材表以外的国标病名（口僻、厥证…）：分句开头 2–4 个字正好是一个受控中医病名。
@@ -2832,7 +2837,6 @@ export function groundStructuredPatientFacts(
         /(?:症状|不适)$/.test(westernPrimary.name.trim()) &&
         typeof westernPrimary.clinicalRationale === "string" &&
         Boolean(fallback.fact) &&
-        westernPrimary.clinicalRationale.startsWith(`${fallback.fact}支持症状级工作诊断；`) &&
         semanticItems(westernPrimary.limitations).includes(serverDowngradeMarker);
       const groundedFacts = (Array.isArray(westernPrimary.supportingFacts) ? westernPrimary.supportingFacts : []).flatMap((fact) => {
         if (typeof fact !== "string") return [];
@@ -3029,7 +3033,11 @@ export function declassifyUnsupportedM03WesternPrimary(content: string, clinical
     primary.status = "证据有限";
     primary.confidence = "低";
     primary.supportingFacts = [fallback.fact];
-    primary.clinicalRationale = `${fallback.fact}支持症状级工作诊断；原具体疾病的病程阈值或必备条件尚未全部取得，因此暂不作为主诊断。`;
+    // 模型写的依据还在就用它，只把原病名的断言改成「考虑X可能」（第三十五轮 W04：整段病历 +「病程阈值或必备条件尚未全部取得」交付给了医生）。
+    const modelRationale = markdownCell(primary.clinicalRationale);
+    primary.clinicalRationale = modelRationale && previousName
+      ? rationaleAlignedWithRenamedPrimary(modelRationale, previousName, "D")
+      : `${fallback.fact}支持症状级工作诊断；原具体疾病的病程阈值或必备条件尚未全部取得，因此暂不作为主诊断。`;
     primary.limitations = uniqueClinicalFacts([
       ...semanticItems(primary.limitations),
       "现有资料不足以满足原具体疾病的完整诊断标准，当前仅保留症状性工作诊断",

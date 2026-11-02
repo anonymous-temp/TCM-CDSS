@@ -16,6 +16,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { recordedFindingReading, recordMentionPolarityAt } from "./diagnosis-safety";
+import { recordAffirmsDeniedFinding } from "./diagnosis-visible-summary";
 import { alignQuoteToSource } from "./source-quote-alignment";
 
 /**
@@ -364,8 +365,44 @@ export function withoutOrphanedAnaphoricTail(before: string, after: string): str
   return after;
 }
 
-/** 把片段删除落到一半的 JSON 上（纯函数，原地改 root）。片段已不在字段里的跳过；返回实际删了几处。 */
-export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, removals: readonly PatientClaimRemoval[]): number {
+/**
+ * 病历没写到的阴性说法改成「未诉X」，不删（第三十五轮）。模型写「无喘息气促」「进食无阻塞」「腹不胀大」是在做鉴别，错的只是把没问到的事说成没有；
+ * 整项删掉后「与肺胀相区分」就没了依据（独立评审 21 处辨病依据改坏，大半是这一类）。只认三种词形：「无/未见/没有/不伴 + X」，「A + 无/不 + B」
+ *（A 是一个检查动作时不带，「望无胀形」→「未诉胀形」），「非 + X」。「与X无关」说的是没有这层关系，写「未诉与X相关」。
+ * 病历肯定写着 X 的不改写（那是假话，照旧删）。形状对不上的返回 undefined。
+ */
+const EXAM_VERB_HEAD = /^[望闻问触按切查视听]$/u;
+const NEGATIVE_LEAD = /^(?:(?:本例|患者|病人|该患者)(?:亦|也|并|均|尚|且)?)?(?:无|未见|未有|没有|不伴|非)(?=[\u4e00-\u9fff])/u;
+export function negativeClaimAsNotReported(span: string, recordText: string): string | undefined {
+  const value = span.trim();
+  if (!negativeFormClaim(value) || /[，,。；;：:]/u.test(value)) return undefined;
+  const subject = /^(本例|患者|病人|该患者)/u.exec(value)?.[0] || "";
+  const body = value.slice(subject.length);
+  const unrelated = /^与([\u4e00-\u9fff、]{2,14})无关$/u.exec(body);
+  const items: string[] = [];
+  if (unrelated) items.push(`与${unrelated[1]}相关`);
+  else {
+    // 「大便无脓血、无里急后重」：顿号的每一项各自是一种写法。
+    for (const part of body.split("、").map((item) => item.trim())) {
+      if (NEGATIVE_LEAD.test(part)) {
+        items.push(part.replace(NEGATIVE_LEAD, ""));
+        continue;
+      }
+      const parts = /^([\u4e00-\u9fff]{1,6}?)(?:无|不)([\u4e00-\u9fff]{1,10})$/u.exec(part);
+      // 否认词后只剩一个字时，前面得是部位（腹不胀）；「按之无形」的「形」不是一个表现。
+      if (parts && (parts[2].length >= 2 || parts[1].length === 1)) items.push(`${EXAM_VERB_HEAD.test(parts[1]) ? "" : parts[1]}${parts[2]}`);
+      else if (items.length > 0 && /^不[\u4e00-\u9fff]{2,}/u.test(part)) items.push(part.slice(1));
+      else if (items.length > 0 && !negativeFormClaim(part)) items.push(part);
+      else return undefined;
+    }
+  }
+  if (items.length === 0 || items.some((item) => item.length < 2 || /[无不未非]/u.test(item))) return undefined;
+  if (items.some((item) => recordAffirmsDeniedFinding(recordText, item))) return undefined;
+  return `${subject}未诉${items.join("、")}`;
+}
+
+/** 把片段删除落到一半的 JSON 上（纯函数，原地改 root）。片段已不在字段里的跳过；返回实际删了几处。recordText 给了时，病历没写到的阴性说法改写而不删。 */
+export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, removals: readonly PatientClaimRemoval[], recordText = ""): number {
   if (removals.length === 0) return 0;
   const slots = new Map(fieldSlots(root, half).map((slot) => [slot.id, slot]));
   let applied = 0;
@@ -374,7 +411,8 @@ export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, re
     if (!slot) continue;
     const current = slot.read();
     if (!current.includes(span)) continue;
-    const next = withoutClaimSpan(current, span);
+    const rewritten = recordText ? negativeClaimAsNotReported(span, recordText) : undefined;
+    const next = rewritten ? current.replace(span, rewritten) : withoutClaimSpan(current, span);
     if (next !== current) {
       slot.write(next);
       applied += 1;
@@ -384,12 +422,12 @@ export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, re
 }
 
 /** 内容（一半的 JSON 串）上落实删除；解析失败或没删任何东西时原样返回。 */
-export function applyPatientClaimRemovalsToContent(content: string, half: PatientClaimHalf, removals: readonly PatientClaimRemoval[]): string {
+export function applyPatientClaimRemovalsToContent(content: string, half: PatientClaimHalf, removals: readonly PatientClaimRemoval[], recordText = ""): string {
   if (removals.length === 0) return content;
   let root: Json | undefined;
   try { root = record(JSON.parse(content)); } catch { return content; }
   if (!root) return content;
-  return applyPatientClaimRemovals(root, half, removals) > 0 ? JSON.stringify(root) : content;
+  return applyPatientClaimRemovals(root, half, removals, recordText) > 0 ? JSON.stringify(root) : content;
 }
 
 /**

@@ -120,6 +120,12 @@ export function icdSynonymEligible(bareName: string): boolean {
 }
 
 /** 同义的 ICD 写法（两边给同一条且在候选闭集里）。保留「待查」。 */
+export function icdNameDropsQualifier(name: string, candidate: string): boolean {
+  let at = 0;
+  for (const character of name) if (character === candidate[at]) at += 1;
+  return at === candidate.length && name.length - candidate.length >= 2;
+}
+
 export async function standardIcdSynonym(name: string, signal?: AbortSignal): Promise<string | undefined> {
   const bare = name.replace(/待查$/u, "");
   if (!icdSynonymEligible(bare)) return undefined;
@@ -130,6 +136,8 @@ export async function standardIcdSynonym(name: string, signal?: AbortSignal): Pr
     { role: "user", content: JSON.stringify({ name: bare, candidates }) },
   ], { maxTokens: 80, timeoutMs: TIMEOUT_MS }, parseSame, signal);
   if (!pair || !pair[0].same || pair[0].same !== pair[1].same || !candidates.includes(pair[0].same)) return undefined;
+  // 候选比原名少了限定（支气管哮喘急性发作→支气管哮喘，第三十五轮 W03）是上一级，不是同义写法：分期、并发症不能这样丢。
+  if (icdNameDropsQualifier(bare, pair[0].same)) return undefined;
   return `${pair[0].same}${/待查$/u.test(name) ? "待查" : ""}`;
 }
 

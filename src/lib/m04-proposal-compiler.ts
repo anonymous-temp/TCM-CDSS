@@ -1223,7 +1223,15 @@ function normalizeModifications(
   const rowKey = (item: Record<string, unknown>) => `${unwrapSingleText(item.trigger ?? item["触发条件"]) || ""}|${modificationHerbIdentity(canonicalTcmHerbIdentity(unwrapSingleText(item.herbName ?? item.herb ?? item["药味"] ?? item["药名"]) || ""))}`;
   const allExpanded = value.flatMap((item) => expandTextbookEntryRow(item, prior));
   const ownRows = new Set(allExpanded.filter((item) => isRecord(item) && !item[PARTNER_ROW]).map((item) => rowKey(item as Record<string, unknown>)));
-  const expanded = allExpanded.filter((item) => !(isRecord(item) && item[PARTNER_ROW] && ownRows.has(rowKey(item)))).filter((item) => {
+  // 教材一条两味、模型只写了一味时带出来的另一味，若方中已有就不再占一行（第三十五轮：方中有辛夷，教材「加辛夷、苍耳子」多出一行「调整辛夷」，评审读成重复开药；
+  // 写的是品种未定的属名时同理：教材「加芍药、玉竹」，方中已有白芍）。不算丢弃，这一行本来不是模型写的。模型自己写「加」方中已有的药仍按加重处理。
+  const partnerAlreadyInFormula = (item: Record<string, unknown>) => {
+    const name = unwrapSingleText(item.herbName ?? item.herb) || "";
+    if (prescribedHerbNames.has(modificationHerbIdentity(canonicalTcmHerbIdentity(name)))) return true;
+    const genus = resolveGovernedTcmHerbIdentity(name);
+    return genus.status === "ambiguous" && (genus.candidates || []).some((candidate) => prescribedHerbNames.has(modificationHerbIdentity(candidate)));
+  };
+  const expanded = allExpanded.filter((item) => !(isRecord(item) && item[PARTNER_ROW] && (ownRows.has(rowKey(item)) || partnerAlreadyInFormula(item)))).filter((item) => {
     if (!isRecord(item)) return true;
     const key = `${unwrapSingleText(item.trigger ?? item["触发条件"]) || ""}|${modificationHerbIdentity(canonicalTcmHerbIdentity(unwrapSingleText(item.herbName ?? item.herb ?? item["药味"] ?? item["药名"]) || ""))}|${String(item.actionType ?? item.action ?? "")}`;
     if (seenRows.has(key)) return false;
@@ -1304,7 +1312,11 @@ function normalizeModifications(
       () => "bounded_limit" as const,
     ));
   }
-  const items = withDistinctConditionsFirst(normalizedItems).slice(0, MAX_MODEL_MODIFICATION_ROWS);
+  // 超过行数时病历已写着的症状先留（第三十五轮：病历有「大便干」，「大便秘结→火麻仁」排在后面被挤掉，留下的却是还没发生的「若…」）。
+  const recordedFirst = (rows: typeof normalizedItems) => prior?.stage === "diagnose"
+    ? [...rows.filter((row) => resolveModificationTriggerSource(row.trigger, prior)), ...rows.filter((row) => !resolveModificationTriggerSource(row.trigger, prior))]
+    : [...rows];
+  const items = withDistinctConditionsFirst(recordedFirst(normalizedItems)).slice(0, MAX_MODEL_MODIFICATION_ROWS);
   // 钳到契约上限：submittedCount 的 `.max(30)` 没有 catch，31 条**可选**随症加减会让整份
   // M04 提案落到 T1 硬拒且无修复引导——直接违反本文件上方写下的不变量（畸形的可选行不得
   // 作废一份完整的核心处方）。真实提交量另走日志，不进契约。

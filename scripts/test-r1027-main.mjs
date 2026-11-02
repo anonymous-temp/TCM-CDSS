@@ -235,7 +235,7 @@ await check("2.4 路由：两个阶段的证据清洗都传入受治理出处核
   }
   const diagnose = readFileSync("src/app/api/diagnosis/diagnose/route.ts", "utf8");
   assert.match(diagnose, /decideElementSupport\(completed, \{ recordText: trustedInputText\(safeState\) \}, transformSignal\)/);
-  assert.match(diagnose, /applyPatientClaimRemovalsToContent\(applyElementSupportDecision\(reconciled, elementDecision\), "tcm", claimRemovals\)/);
+  assert.match(diagnose, /applyPatientClaimRemovalsToContent\(applyElementSupportDecision\(reconciled, elementDecision\), "tcm", claimRemovals, patientClaimRecord\)/);
 });
 
 const diagnoseForSurface = () => {

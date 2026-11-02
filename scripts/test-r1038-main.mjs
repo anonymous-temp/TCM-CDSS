@@ -96,7 +96,7 @@ await check("4.1 舌脉只剩在「是否兼X尚待核实」一句里才重写�
 await check("4.2 路由在证素撤下与本例说法删片段之后才核舌脉（删片段时连舌脉一起删掉的那一类也要补）", async () => {
   const fs = await import("node:fs");
   const route = fs.readFileSync(new URL("../src/app/api/diagnosis/diagnose/route.ts", import.meta.url), "utf8");
-  assert.match(route, /reattributeStrandedKeyFindings\(\s*applyPatientClaimRemovalsToContent\(applyElementSupportDecision\(reconciled, elementDecision\), "tcm", claimRemovals\),/u);
+  assert.match(route, /reattributeStrandedKeyFindings\(\s*applyPatientClaimRemovalsToContent\(applyElementSupportDecision\(reconciled, elementDecision\), "tcm", claimRemovals, patientClaimRecord\),/u);
   assert.match(route, /checkLineageLensInContent\(completed,[\s\S]{0,240}completeMethodCoverage\(completed,[\s\S]{0,1200}return promoteCriticalSecondarySyndrome\(withVerifiedMethodItemFrom\(withLensFrom\(reattributed, completed, lensChecked\), methodCovered\)\);/u);
 });
 

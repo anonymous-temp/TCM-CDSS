@@ -573,6 +573,31 @@ export function withMentionsAlignedToTableNames(text: string, candidateHerbs: re
 }
 
 /**
+ * 方义里的药名带上药味表「炮制」栏的字（第三十五轮）。编译把「炒白扁豆」拆成药名白扁豆 + 炮制炒，上面的对齐按药名改写后方义只剩「白扁豆」，
+ * 药味表显示的却是「白扁豆（炒）」，独立评审判与处方不一致、丢了蜜炙润肺这层意思（燀苦杏仁、蜜紫菀、麸炒枳壳、姜厚朴、生甘草…）。
+ * 只认炮制字头（闭集）；切片、捣碎、另煎这类不是药名的一部分。提到的正好是药味表这个名字时才补，别的写法（苦杏仁之于杏仁）不动。
+ */
+const PROCESSING_NAME_PREFIX = /^(?:麸炒|土炒|米炒|蜜炙|醋炙|酒炙|盐炙|姜炙|醋炒|酒炒|盐炒|姜炒|炒|炙|煅|焦|生|蜜|盐|酒|醋|姜|燀|炮|制)$/u;
+export function withProcessingFromTable(text: string, herbs: ReadonlyArray<{ name?: unknown; processing?: unknown }>): string {
+  const prefixOf = new Map<string, string>();
+  for (const herb of herbs) {
+    const name = String(herb.name || "").trim();
+    const prefix = String(herb.processing || "").trim();
+    if (name && PROCESSING_NAME_PREFIX.test(prefix) && !name.startsWith(prefix)) prefixOf.set(name, prefix);
+  }
+  if (prefixOf.size === 0) return text;
+  let out = text;
+  for (const mention of [...formulaAnalysisHerbMentions(text)].sort((left, right) => right.start - left.start)) {
+    const prefix = prefixOf.get(mention.token);
+    if (!prefix) continue;
+    // 「并制半夏之毒」：前面紧挨的字本身就是这个炮制字头时不叠。
+    if (text.slice(Math.max(0, mention.start - prefix.length), mention.start) === prefix) continue;
+    out = `${out.slice(0, mention.start)}${prefix}${out.slice(mention.start)}`;
+  }
+  return out;
+}
+
+/**
  * 拿煎法当「调和药性」的手段（2026-10-19 甲方病历 6：「全方无使药，以胶类烊化、菟丝子包煎调和药性」，评审：用煎法来解释调和药性说不通）。
  * 闭集构词：「以……（烊化/包煎/先煎/后下/另煎/冲服/兑服/久煎）……调和」。命中的那一段（分号或句号之间）整段去掉；
  * 去掉后方义不再讲本方时不改。
