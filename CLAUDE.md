@@ -2752,6 +2752,50 @@ The user asked for every leftover of round 33 to be researched and closed, the s
 - A retry loop left running deleted a finished build; a watcher that cleans up on a marker line deleted `node_modules` under a running build when a stale loop wrote the marker. Run one build at a time with no loop. A shebang script's `comm` is its own name, so `ps` filters on `bash` miss it.
 - Never put a swap file on /home here: other sessions filled the rest and `npm` died silently with an empty log.
 
+### 11/2 round 35: the audit's remaining items, acceptance on every customer record (2026-11-02)
+
+The user asked for everything fixable in the round-34 audit list to be fixed and accepted on every record the customer has sent. Material: `~/runlogs/r1018/work/r1047/` (`sets/`, `gen.sh`, `t.sh`, `audit.py`, `verdicts.py`, `showdiff.py`, `probe/`, `replay/`, `cp/`). Suite `test:r1047-main` (about 70 checks, counter-proofs in `cp/`). Interface doc V2.58.
+
+**What changed, by class.**
+- **Rewriting a denial no longer loses or invents content.** Unrecorded denied items stay, one 「未诉X」 each, including items outside the fact vocabulary; a list whose items each carry 无 keeps the record-denied ones (`unknownDeniedItems`); `sourceDocumentsNegation` searches the raw sentence, because masking turned 肢体无力 into something it could not find. The patient-claim check rewrites an unrecorded negative to 「未诉X」 instead of deleting it; inference (提示…无X) and lists with record-affirmed items are left alone. Fixed 无 words (无权, 无源, 无主, 无制, 无依, 无养, 无助) are not denials.
+- **Renames do not decide for the model.** `textbookNearestRow` vetoes a row that adds cold, heat or deficiency, or an organ, that the model's name, method and locations did not write. It was renaming 风邪外袭证 + 「寒热未定」 to 风寒束表证 and then anchoring 辛温解表. Replay over 409 raw diagnoses: 7 changed, all read.
+- **Modifications.** A conditional row is blocked only when it opposes the signed method (`modificationRowDirectionIssue`); the fit check judges the rest. `direction_conflict` over 276 chains fell to 4. Partner rows, orphan rows, processing kept in the row name, 炭 herbs keep their name.
+- **Herbs.** 温化寒痰 and 祛风散寒 are not warming identities for the opposition check (`highImpactTriggerNarrowedOut` on the opposing pool): 半夏 and 旋覆花 next to heat clearing were being deleted. While a candidate's name still claims the M03-locked formula and it is not declassified, that formula's herbs are exempt at the stream step, where `formulaNames` is still empty. 土/煨 are processing prefixes. 心悸 alone is not incidental sleep.
+- **Method column.** Own-item verification asks for evidence first (`{"why","confirmed"}`), which reversed most false rejections. Orders and workflow items never enter (`NOT_A_TREATMENT_METHOD`); a repeated purpose tail is written once; two-character items do not join across a run (「醒神醒神宁心」); two purpose tails do not share a character (「调经止痛血」).
+- **Western.** A disease the record states keeps its name (`recordStatesWesternDiagnosis`); the adult 反复上呼吸道感染 chief complaint is 反复感冒待查; ICD synonyms no longer add 肿瘤 to 肿物 or swap one character (脓毒症/脓毒病).
+- **One bad key voided a prescription.** `modifications[].textbookEntry` written as a number, null or the prompt's own explanation failed the schema, then the regeneration timed out, giving a non-dose page (C018). `normalizeTextbookEntryId` now reads it or ignores it.
+- New adult disease 高热 in the textbook supplement (three rows; 3 of 1,085 acute fevers had been named 内伤发热). Compound syndrome criteria and aliases extended.
+
+**Measured.** Final full run on 705a369f; three later commits were checked on 26 targeted chains, because the shared DeepSeek key could not fund a second full run. 276 chains: every record the customer has sent through the API (146, which includes the 34 of 10.29), their 10 standard cases × 3 and their 100-case set.
+
+| | Result |
+|---|---|
+| Dose over ChP ceiling / over 2× / 十八反 incl. 加减 / pregnancy-prohibited / child-toxic / organ / active-bleed 活血 | 0 / 0 / 0 / 0 / 0 / 0 / 0 |
+| Dosed | 275/276; the one non-dose page was C018 (fixed after, dosed on production) |
+| Red-flag cases dosed | 56/56 |
+| ≥2 TCM disease differentials | 275/276 |
+| Customer 10 × 3, qwen, failures per column | r1 中医诊断 1; r2 治则 1, 复诊 1; r3 0; all ≤1, no red flag on 1/2/7/9 |
+| Customer 10, production | 10/10 disease and syndrome equal the standard answers; all stages 200 |
+| Gate replay, 17,955 records | 0 changed |
+| Medians M03 / M04 | 12–16 s / 11 s |
+
+The change audit **did not reach zero**. Outputs with at least one change judged 改坏, of those with any raw→delivered change: f1 → f2 cust-conv 21/49 → 21/50, cust-noconv 25/57 → 21/53, p100c 45/96 → 40/95. 辨证依据 fell from 38 to 22 across the sets; 加减 is 28. Reading the remainder:
+- customer doctrine the judge disagrees with: 兼证/证素 need grouped evidence, cap of 4 modification rows, 自拟方 naming, 高血压 linked to 眩晕, sedatives for incidental sleep;
+- judge errors: 土白术 held in the `processing` column, 银翘散 without 芦根 (the catalog's own composition), findings that are in fields the judge panel omitted;
+- model variance, such as 病历10 「经量尚属常度」 in one run of three.
+
+**Left as is.**
+- 杏苏散 lost 前胡 and 生姜 on one record: the candidate is declassified for composition, pruned, and the surface restores the name afterwards. `verifyFormulaCompilationComponents` rejecting it was not traced.
+- 产后头痛待查 can become 头痛待查 (not from the name check or ICD step).
+- 生姜 is kept over 干姜 in 黄芪建中汤 for 脾胃虚寒.
+- The 1.1 rubric is saturated and was not used to decide anything.
+
+**A production outage in this round.** fa4cfcf crash-looped for several minutes (`Cannot find module next/dist/compiled/find-up`) until a manual rollback to 9d13a26. An earlier `ln -sf` of mine, run while `/var/tmp/r1047/new/node_modules` already was a symlink, wrote `node_modules/node_modules` inside the main checkout; the file trace then carried only 7 MB. `require.resolve('next')` still passed and the deploy script reported 部署完成. Now `prebuild-local.sh` boots the standalone server and requires `Ready in`, and the deploy script requires three consecutive `running 0` reads and otherwise restores the previous image and exits non-zero (`test:deploy-runtime-env-protection`). Use `ln -sfn` for directory symlinks.
+
+**In production (da50c0c, tag `20261102-da50c0c-prebuilt`, same release directory and `20260927-dsrepair` override).** `verify:deployed-image` passed (commit, digest, strictReady, both families) and `regress:prod-smoke` had 0 failures. Probes on hospital-a: C018 dosed, C062 and C075 red flag + dose, 风邪外袭证 and 心神不宁证 keep their names and methods. Rollback: image `tcm-cdss:20261102-9d13a26-prebuilt` with `docker-compose.yml.pre-da50c0c`.
+
+**Running it again.** `TAG=… REPO=… SETS="cust-conv cust-noconv c10 p100c" bash gen.sh`, then `audit.py`, `p0-audit.mjs`, `ledger-scan.py`, `judge.sh`, `judge-qwen-cust.mjs c10`, `judge-qwen-p.mjs`. A full run on this set costs about 75 CNY on the DeepSeek key, which is shared with EviMed RSI; check `/user/balance` first and tell that session.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
