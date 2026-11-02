@@ -1432,7 +1432,8 @@ const DENIAL_HEAD_SUBJECT = /^(?:本例|患者|病人|该患者|病程中|目前
 const DENIAL_HEAD_SITE = /^[\u4e00-\u9fff]{1,2}部?$/u;
 function assertedHeadBeforeDenial(clause: string, negatedSpan: string): string {
   const at = clause.indexOf(negatedSpan);
-  if (at <= 0) return "";
+  // 只认列举里前面的项（「咽痛发热、无恶寒」）；贴着否认词的（「痫证发作无发热」）多半是在写另一个病，随否认一起去掉。
+  if (at <= 0 || !/[、，,]\s*$/u.test(clause.slice(0, at))) return "";
   const head = clause.slice(0, at).replace(/^\s*(?:[-*]>?\s*|>\s*|#{1,6}\s*)?(?:[^：:|]{1,24}[：:]\s*)?/u, "").replace(/[、，,\s]+$/u, "").trim();
   return !head || DENIAL_HEAD_SUBJECT.test(head) || DENIAL_HEAD_SITE.test(head) ? "" : `${head}，`;
 }
