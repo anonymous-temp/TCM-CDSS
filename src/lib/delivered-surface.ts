@@ -2415,6 +2415,9 @@ export function projectDeliveredReasoning<T>(reasoning: T, options?: DeliveredSu
   const projected = structuredClone(object);
   if (projected.stage === "diagnose") {
     deliveredDiagnose(projected, options);
+    // 模型偶尔不写这个键（第三十六轮 30 份里 3 份）：接口文档写明无兼证时是空数组，强类型集成方读不到键会报错。
+    const declaredOverview = record(projected.overview);
+    if (declaredOverview && !Array.isArray(declaredOverview.secondarySyndromes)) declaredOverview.secondarySyndromes = [];
     const therapy = record(projected.therapy);
     if (therapy) delete therapy.verifiedMethodItem;
     const mindInScope = signedScopeInvolvesMind(projected as SignedScopeLike) || mindSymptomsProminentInRecord(options?.recordText || "");

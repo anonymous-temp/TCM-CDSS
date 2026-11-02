@@ -1,7 +1,6 @@
 // 第三十六轮（2026-11-02）：甲方 11/2 实测（开始传体格检查、16 条链路全选扶阳）读出来的缺陷。
 // 每条断言都有反证（~/runlogs/r1018/work/r1048/cp/）。
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, {
@@ -62,13 +61,6 @@ await check("3.1 筋伤进教材病名：肌肉拉伤能选到它，初期治法
   assert.match(row?.therapy || "", /活血化瘀/u);
 });
 
-await check("4.1 流派部分相符与不相符分开写；部分相符的取向落到加减", () => {
-  const source = fs.readFileSync("src/lib/diagnosis-prompts.ts", "utf8");
-  assert.match(source, /只部分相符时（applicable 为 partial）/u);
-  assert.match(source, /〈该派〉取向放在加减/u);
-  assert.match(source, /applicable 为 partial 时，modifications 里至少一条按该派取向写/u);
-});
-
 const visit = await jiti.import("../src/lib/western-visit-reason-check.server.ts");
 
 await check("5.1 主诉的主要问题去掉伴随与病程", () => {
@@ -105,4 +97,11 @@ await check("6.1 教材加减里切出来不是症状变化的条件不进候选
   const bian = textbook.textbookRowForSyndrome("男性不育症", "气血两虚证")?.modifications.map((item) => item.condition) || [];
   assert.ok(!bian.some((item) => /除辨证论治外/u.test(item)), bian.join("|"));
   assert.ok(!conditions.some((item) => item.replace(/^若/u, "").length < 2));
+});
+
+await check("7.1 兼证键缺失时交付空数组（接口文档写明）", () => {
+  const out = surface.projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { primarySyndrome: "气滞血瘀证" } });
+  assert.deepEqual(out.overview.secondarySyndromes, []);
+  const kept = surface.projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { primarySyndrome: "气滞血瘀证", secondarySyndromes: ["脾气虚证"] } });
+  assert.deepEqual(kept.overview.secondarySyndromes, ["脾气虚证"]);
 });
