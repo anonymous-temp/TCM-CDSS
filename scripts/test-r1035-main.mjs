@@ -186,8 +186,9 @@ await check("2.3b D4 定稿剔除：须医生单独定量的管制或濒危药�
   const pruned = candidateOf(pruning.dropSafetyConflictingM04CandidateHerbs(content(herbs), context));
   assert.deepEqual(pruned.herbs.map((herb) => herb.name), ["钩藤", "桑叶", "菊花", "白芍", "甘草"]);
   assert.match(pruned.notApplicable, /羚羊角（须由医生单独定量的管制或濒危药材，未列入本方，如需使用请医生另行开具）/);
-  const sole = [{ name: "羚羊角", role: "君", dose: "3g" }, ...herbs.slice(2)];
-  assert.ok(candidateOf(pruning.dropSafetyConflictingM04CandidateHerbs(content(sole), context)).herbs.some((herb) => herb.name === "羚羊角"), "唯一君药不拿");
+  // 第三十五轮：唯一君药有臣药可升时也拿出（test:r1047-main 5.1b）；没有臣药时不拿。
+  const sole = [{ name: "羚羊角", role: "君", dose: "3g" }, ...herbs.slice(4)];
+  assert.ok(candidateOf(pruning.dropSafetyConflictingM04CandidateHerbs(content(sole), context)).herbs.some((herb) => herb.name === "羚羊角"), "没有臣药可升的唯一君药不拿");
 });
 
 await check("2.4 D4：开方定稿在核对与签名之前做安全剔除（finalizeM04CandidateContent）", () => {
