@@ -154,6 +154,15 @@ await check("4.0b 方义里抄来的「本例辨证组方」写自拟方", () =>
   assert.doesNotMatch(surface.projectDeliveredReasoning(base).formula.candidates[0].formulaAnalysis, /本例辨证组方/);
 });
 
+await check("4.0c 模型写滑石包煎时药味表写滑石粉；写先煎或没写煎法的不动", () => {
+  const prior = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseName: "淋证", primarySyndrome: "膀胱湿热证", primarySyndromeBasis: ["尿频尿急"], recommendedFormulaNames: [] }, pathogenesis: { chain: [{ nodeId: "P1", patientFact: "尿频尿急", pathogenesis: "湿热下注", therapyDirection: "清热利湿" }] }, therapy: { overallMethod: "清热利湿通淋", overallPrinciple: "实则泻之" }, westernDiagnosis: { primary: { name: "尿路感染", supportingFacts: ["尿频尿急"] }, differentials: [] } };
+  const herb = (name, role, extra = {}) => ({ name, dose: "12g", role, targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "清热利湿", processing: null, decoctionRequirement: null, ...extra });
+  const proposal = (hua) => ({ candidate: { name: "自拟方", applicable: "湿热。", notApplicable: "虚寒者不宜。", herbs: [herb("车前子", "君"), herb("瞿麦", "臣"), herb("萹蓄", "臣"), hua, { ...herb("甘草", "使"), targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", function: "调和诸药" }], formulaAnalysis: "车前子清热利湿为君，瞿麦、萹蓄为臣，滑石利尿通淋为佐，甘草为使。", decoction: { doseCount: "7剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日1剂，水煎分两次温服", followUpNode: "服完7剂复诊" } }, patentAndWestern: [], modifications: [], nonPharma: { diet: "饮食清淡。", lifestyle: "规律作息。", emotion: "保持心情舒畅。", tcmTreatments: [], precautions: ["多饮水。"] } });
+  const names = (hua) => compiler.compileM04Proposal(proposal(hua), prior).formula.candidates[0].herbs.map((row) => row.name);
+  assert.ok(names(herb("滑石", "佐", { decoctionRequirement: "包煎" })).includes("滑石粉"));
+  assert.ok(names(herb("滑石", "佐", { decoctionRequirement: "先煎" })).includes("滑石"));
+});
+
 await check("4.1 方义的药名带上药味表炮制栏的字", () => {
   const herbs = [{ name: "白扁豆", processing: "炒" }, { name: "苦杏仁", processing: "燀" }, { name: "枳壳", processing: "麸炒" }, { name: "黄连", processing: "切片" }, { name: "甘草", processing: null }];
   assert.equal(review.withProcessingFromTable("白扁豆健脾，苦杏仁降气，枳壳行气，黄连清热，甘草调和。", herbs), "炒白扁豆健脾，燀苦杏仁降气，麸炒枳壳行气，黄连清热，甘草调和。");

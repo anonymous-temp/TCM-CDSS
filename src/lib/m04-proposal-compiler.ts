@@ -2185,10 +2185,12 @@ function withAnalysisConsistentCandidate(
   const analysisEmperors = candidate.herbs.filter((herb) => roles.get(herb.name.replace(/[（(][^）)]*[）)]/g, "").replace(/\s+/g, "").trim()) === "君" || herb.role === "君").map((herb) => herb.name);
   const herbs = candidate.herbs.map((herb) => {
     const tableName = herb.name.replace(/[（(][^）)]*[）)]/g, "").replace(/\s+/g, "").trim();
-    const declared = typeof herb.decoctionRequirement === "string" && herb.decoctionRequirement.trim()
-      ? withoutUnsupportedDecoctionLabels(herb.name, herb.decoctionRequirement)
-      : herb.decoctionRequirement;
-    const withDecoction = declared === herb.decoctionRequirement ? herb : { ...herb, decoctionRequirement: declared || undefined };
+    // 模型写滑石包煎：药典 滑石块先煎、滑石粉包煎，模型说的是粉。写成滑石粉，不把「包煎」当没有依据去掉再改回先煎（第三十五轮 S145：药味表先煎，方义、注意事项写包煎）。
+    const asPowder = herb.name === "滑石" && /包煎/u.test(String(herb.decoctionRequirement || "")) ? { ...herb, name: "滑石粉" } : herb;
+    const declared = typeof asPowder.decoctionRequirement === "string" && asPowder.decoctionRequirement.trim()
+      ? withoutUnsupportedDecoctionLabels(asPowder.name, asPowder.decoctionRequirement)
+      : asPowder.decoctionRequirement;
+    const withDecoction = declared === asPowder.decoctionRequirement ? asPowder : { ...asPowder, decoctionRequirement: declared || undefined };
     const role = roles.get(tableName);
     if (!role || role === herb.role) return withDecoction;
     // 方义把表里的臣、佐药也算君（「人参、白术、茯苓三味为君」，《方剂学》参苓白术散即如此；表里茯苓是臣）：
