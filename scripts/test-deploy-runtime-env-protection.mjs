@@ -66,7 +66,7 @@ check(() => assert.match(deploySource, /CLEAN_COMPOSE_ENV="env -i PATH=/,
   "compose interpolation must run with an empty inherited environment"));
 check(() => {
   const composeCalls = deploySource.match(/docker compose \$COMPOSE_ARGS[^\n]*/g) || [];
-  assert.equal(composeCalls.length, 2, "exactly two compose invocations (config + up)");
+  assert.equal(composeCalls.length, 3, "exactly three compose invocations (config + up + rollback when the new container is not stable)");
   for (const line of deploySource.split("\n").filter((l) => l.includes("docker compose $COMPOSE_ARGS"))) {
     assert.ok(line.includes("$CLEAN_COMPOSE_ENV $COMPOSE_ENV docker compose"), `compose must run under env -i: ${line.trim()}`);
   }
@@ -248,6 +248,8 @@ case "$cmd" in
   *"config --format json"*) printf '%s\\n' "$FAKE_EXPECTED" ;;
   *"stat -c %a"*) printf '%s' "$FAKE_BASELINE" ;;
   *".Config.Env"*) printf '%s\\n' "$FAKE_RUNNING" ;;
+  *".State.Status"*) printf '%s\\n' "$FAKE_STATE" ;;
+  *".Config.Image"*) printf '%s\\n' "$FAKE_PREVIOUS_IMAGE" ;;
 esac
 exit 0
 `);
@@ -355,6 +357,15 @@ check(() => {
   assert.ok(run.remote.includes(`cp -p '/srv/release/docker-compose.yml' '/srv/release/docker-compose.yml.pre-${head.slice(0, 7)}'`),
     "the pre-deploy compose must be backed up (rollback = old image + old compose)");
   assert.ok(run.remote.indexOf("docker-compose.yml.pre-") < run.remote.indexOf("RSYNC"), "the compose backup must precede source sync");
+});
+
+check("a crash-looping new container rolls back to the previous image and fails the deploy; a stable one does not", () => {
+  const crash = runDeploy({ FAKE_STATE: "restarting 3", FAKE_PREVIOUS_IMAGE: "tcm-cdss:previous-tag", DEPLOY_STABILITY_POLL_SECONDS: "0" });
+  assert.equal(crash.status, 1, crash.stderr);
+  assert.match(crash.stderr, /未稳定运行/);
+  assert.ok(crash.remote.includes("IMAGE_TAG='previous-tag'"), "rollback must bring back the image that was running before");
+  const stable = runDeploy({ FAKE_STATE: "running 0", FAKE_PREVIOUS_IMAGE: "tcm-cdss:previous-tag", DEPLOY_STABILITY_POLL_SECONDS: "0" });
+  assert.equal(stable.remote.includes("IMAGE_TAG='previous-tag'"), false, "a stable container must not be rolled back");
 });
 
 console.log(JSON.stringify({ suite: "deploy-runtime-env-protection", checks, failures: 0 }));

@@ -50,5 +50,10 @@ env -i PATH="$PATH" HOME="$HOME" NEXT_TELEMETRY_DISABLED=1 \
 # 产物自检：standalone 的 node_modules 必须是真实目录且能解析 next，否则镜像一启动就 MODULE_NOT_FOUND。
 [ -d "$BUILD/.next/standalone/node_modules" ] && [ ! -L "$BUILD/.next/standalone/node_modules" ] || { echo "!! standalone/node_modules 不是真实目录，产物无法在镜像中运行" >&2; exit 1; }
 ( cd "$BUILD/.next/standalone" && node -e "require.resolve('next')" ) || { echo "!! standalone 产物解析不到 next，拒绝产出" >&2; exit 1; }
+# 真的启动一次：只查「解析得到 next」拦不住缺模块（2026-11-02：node_modules 里有条指向自身的符号链接，追踪只带上 7MB，require.resolve('next') 照样过，容器重启循环）。
+SMOKE_LOG="$(mktemp)"
+( cd "$BUILD/.next/standalone" && PORT="${PREBUILD_SMOKE_PORT:-38931}" HOSTNAME=127.0.0.1 timeout 25 node server.js > "$SMOKE_LOG" 2>&1 ) || true
+grep -q "Ready in" "$SMOKE_LOG" || { echo "!! standalone 产物起不来，拒绝产出：" >&2; tail -5 "$SMOKE_LOG" >&2; rm -f "$SMOKE_LOG"; exit 1; }
+rm -f "$SMOKE_LOG"
 printf 'COMMIT=%s\nDIGEST=%s\nSTAMP=%s\n' "$COMMIT" "$DIGEST" "$STAMP" > "$BUILD/.prebuilt-meta"
 echo "PREBUILD_OK $BUILD"

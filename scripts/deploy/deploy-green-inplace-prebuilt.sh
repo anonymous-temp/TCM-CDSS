@@ -182,7 +182,27 @@ $SSH "$USER@$HOST" "set -e
 $SSH "$USER@$HOST" "docker image inspect 'tcm-cdss:$TAG' >/dev/null" || { echo "!! 运行层打包失败：镜像 tcm-cdss:$TAG 不存在" >&2; exit 1; }
 
 echo "=== 原地替换 $CONTAINER ==="
+PREVIOUS_IMAGE="$($SSH "$USER@$HOST" "docker inspect --format '{{.Config.Image}}' '$CONTAINER' 2>/dev/null || true")"
 $SSH "$USER@$HOST" "cd '$NEW_DIR' && $CLEAN_COMPOSE_ENV $COMPOSE_ENV docker compose $COMPOSE_ARGS up -d"
+
+# 容器必须真的起来（2026-11-02：产物缺模块，容器重启循环，脚本照样报「部署完成」，生产中断到人工回滚）。
+# 连续 3 次看到 running 且重启数为 0 才算过；否则自动换回替换前的镜像并返回非零。
+STABLE=0
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  sleep "${DEPLOY_STABILITY_POLL_SECONDS:-5}"
+  STATE="$($SSH "$USER@$HOST" "docker inspect --format '{{.State.Status}} {{.RestartCount}}' '$CONTAINER' 2>/dev/null || true")"
+  if [ "$STATE" = "running 0" ]; then STABLE=$((STABLE + 1)); else STABLE=0; fi
+  [ "$STABLE" -ge 3 ] && break
+  case "$STATE" in "running 0") ;; *" 0") ;; *) break ;; esac
+done
+if [ "$STABLE" -lt 3 ]; then
+  echo "!! 新容器未稳定运行（$STATE）：自动回滚到 ${PREVIOUS_IMAGE:-<无>}" >&2
+  if [ -n "$PREVIOUS_IMAGE" ] && [ "$PREVIOUS_IMAGE" != "tcm-cdss:$TAG" ]; then
+    ROLLBACK_ENV="IMAGE_TAG='${PREVIOUS_IMAGE#tcm-cdss:}' APP_BIND_IP=127.0.0.1 APP_PORT='$APP_PORT' CDSS_MODEL_RATE_LIMIT_PER_10_MIN='$RATE_LIMIT'"
+    $SSH "$USER@$HOST" "cd '$NEW_DIR' && $CLEAN_COMPOSE_ENV $ROLLBACK_ENV docker compose $COMPOSE_ARGS up -d" >&2 || true
+  fi
+  exit 1
+fi
 
 RUNNING="$($SSH "$USER@$HOST" "docker inspect --format '{{.Config.Image}}' '$CONTAINER' 2>/dev/null || true")"
 [ "$RUNNING" = "tcm-cdss:$TAG" ] || { echo "!! 部署未生效：容器实际镜像为 ${RUNNING:-<无>}，期望 tcm-cdss:$TAG" >&2; exit 1; }
