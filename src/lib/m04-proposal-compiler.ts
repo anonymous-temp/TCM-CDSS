@@ -1993,7 +1993,8 @@ export function modificationTargetPathogenesis(
   const mostlyCopiedFromNode = (value: string): boolean => {
     const own = bigrams(value);
     const nodeSet = bigrams(node?.pathogenesis || "");
-    return own.size > 0 && [...own].filter((gram) => nodeSet.has(gram)).length * 2 >= own.size;
+    const firstClause = (text: string) => compactNarrative(text.split(/[，,；;。]/u)[0] || "");
+    return own.size > 0 && ([...own].filter((gram) => nodeSet.has(gram)).length * 2 >= own.size || (firstClause(value).length >= 4 && firstClause(value) === firstClause(node?.pathogenesis || "")));
   };
   const authored = (item.symptomPathogenesis || "").trim();
   // 模型写的本症病机常用不同的词解释同一症状（小便清长 → 肾气不固，膀胱失约），字面不必与触发症状重合；
