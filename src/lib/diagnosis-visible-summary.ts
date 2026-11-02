@@ -2837,7 +2837,9 @@ export function groundStructuredPatientFacts(
         /(?:症状|不适)$/.test(westernPrimary.name.trim()) &&
         typeof westernPrimary.clinicalRationale === "string" &&
         Boolean(fallback.fact) &&
-        westernPrimary.clinicalRationale.startsWith(`${fallback.fact}支持症状级工作诊断；`) &&
+        // 推理说明第三十五轮起留模型写的；降级那一步还在鉴别里留了原病名这一行，按它认。
+        (westernPrimary.clinicalRationale.startsWith(`${fallback.fact}支持症状级工作诊断；`) ||
+          recordList(western?.differentials).some((item) => item.reason === DECLASSIFIED_PRIMARY_DIFFERENTIAL_REASON)) &&
         semanticItems(westernPrimary.limitations).includes(serverDowngradeMarker);
       const groundedFacts = (Array.isArray(westernPrimary.supportingFacts) ? westernPrimary.supportingFacts : []).flatMap((fact) => {
         if (typeof fact !== "string") return [];
@@ -2999,6 +3001,7 @@ export function groundStructuredPatientFacts(
  * label and promotes a symptom-level description derived from the chart's chief complaint. This is
  * deliberately followed by another independent review before the result can be signed.
  */
+const DECLASSIFIED_PRIMARY_DIFFERENTIAL_REASON = "现有病程或检查尚不足以确诊，暂列鉴别诊断";
 export function declassifyUnsupportedM03WesternPrimary(content: string, clinicalContext: string): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -3024,7 +3027,7 @@ export function declassifyUnsupportedM03WesternPrimary(content: string, clinical
       differentials.unshift({
         name: previousName,
         // 写给医生的临床说法（2026-10-19 Claude 评审 H 集 H-tri-2009：模板句「是否满足该疾病的病程阈值…」原样进了西医鉴别）。
-        reason: "现有病程或检查尚不足以确诊，暂列鉴别诊断",
+        reason: DECLASSIFIED_PRIMARY_DIFFERENTIAL_REASON,
         distinguishingPoints: "需结合病程、查体及必要检查核实是否符合该病的诊断标准",
         nextCheck: suggestedChecks[0] || "结合病程演变、查体及必要检查复核诊断标准",
       });
