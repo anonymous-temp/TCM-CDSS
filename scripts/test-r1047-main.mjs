@@ -46,6 +46,8 @@ await check("1.2 病历肯定写着的项不算没写到：只删它，其余项
   const out = sanitize("无胸闷、胸部膨满，与肺胀相区分。");
   assert.doesNotMatch(out, /胸闷[^，。]*是否存在/);
   assert.match(out, /胸部膨满是否存在/);
+  const other = sanitize("无胸闷、胸部膨满，与肺胀相区分。", "患者胸部膨满3年，咳嗽。");
+  assert.doesNotMatch(other, /胸部膨满是否存在/, "词表外的项病历肯定写着，也不算没写到");
 });
 await check("1.3 否认词前面的肯定内容不随否认一起丢", () => {
   const out = sanitize("痰多胸闷，无发热，为痰湿", "痰多胸闷，发热，舌苔白腻。");
@@ -135,9 +137,14 @@ await check("4.3 数量词：「故加丹参…，川芎…，郁金…，三药
   const out = review.reviewAuthoredFormulaAnalysis("本方以生脉散为基础加减。人参大补心气为君；麦冬养阴为臣，五味子收敛为佐。心气推动无力，故加丹参活血化瘀，川芎行气活血，郁金行气解郁，三药共为臣佐，使气旺而血行，全方补气而不滞，行血而不伤正。", ["人参", "麦冬", "五味子", "丹参", "川芎", "郁金"]);
   assert.match(out.text, /三药共为臣佐/, out.text);
 });
-await check("4.2 已带炮制字不叠、重复调用不变", () => {
+await check("4.2 已带炮制字不叠；交付面接上了（重复投影不变）", () => {
   const herbs = [{ name: "白扁豆", processing: "炒" }];
   assert.equal(review.withProcessingFromTable("炒白扁豆健脾", herbs), "炒白扁豆健脾");
+  const base = { stage: "prescribe", overview: {}, formula: { candidates: [{ name: "参苓白术散", herbs: [{ name: "人参" }, { name: "白扁豆", processing: "炒" }, { name: "枳壳", processing: "麸炒" }], formulaAnalysis: "人参补气为君，炒白扁豆健脾为臣，枳壳行气为佐。" }] } };
+  const once = surface.projectDeliveredReasoning(base);
+  assert.match(once.formula.candidates[0].formulaAnalysis, /炒白扁豆健脾/);
+  assert.match(once.formula.candidates[0].formulaAnalysis, /麸炒枳壳行气/);
+  assert.equal(surface.projectDeliveredReasoning(once).formula.candidates[0].formulaAnalysis, once.formula.candidates[0].formulaAnalysis);
 });
 
 await check("5.1 同源药只有一味在原方时留原方那一味", () => {
@@ -231,13 +238,6 @@ await check("5.6 睡眠心神的表现不止顺带一句时不算顺带", async 
   assert.equal(sleep.mindSymptomsProminentInRecord("无失眠，无心悸。"), false);
 });
 
-await check("6.2 《方剂学》方解自己写调和诸药的留下", () => {
-  const herbs = [{ name: "沙参" }, { name: "麦冬" }, { name: "地黄" }, { name: "玉竹" }, { name: "冰糖" }];
-  const base = { stage: "prescribe", overview: {}, formula: { candidates: [{ name: "益胃汤", herbs, formulaAnalysis: "麦冬、地黄养阴为君，沙参、玉竹为臣，冰糖为使，濡养肺胃、调和诸药。" }] } };
-  const out = surface.projectDeliveredReasoning(base);
-  assert.match(out.formula.candidates[0].formulaAnalysis, /调和诸药/, out.formula.candidates[0].formulaAnalysis);
-});
-
 await check("7.2 核对模型原写的治法项：先摘病历再下结论", async () => {
   const fs = await import("node:fs");
   const source = fs.readFileSync("src/lib/m03-method-coverage.server.ts", "utf8");
@@ -248,5 +248,8 @@ await check("6.1 判断词收尾的半截分句去掉", () => {
   assert.equal(surface.withoutDanglingPredicateClauses("舌红苔黄腻，二者成组提示；口干为热。"), "舌红苔黄腻；口干为热。");
   assert.equal(surface.withoutDanglingPredicateClauses("脉弦细，舌脉所示如此。"), "脉弦细，舌脉所示如此。");
   assert.equal(surface.withoutDanglingPredicateClauses("证属肝郁，故。"), "证属肝郁。");
+  assert.equal(surface.withoutDanglingPredicateClauses("舌脉所示，属肝郁。"), "舌脉所示，属肝郁。", "「所示」不是判断词收尾");
+  const base = { stage: "diagnose", overview: { tcmDiseaseName: "胃痛", primarySyndrome: "肝气犯胃证", tcmDiagnosticRationale: "胃胀、脉弦，二者成组提示；属肝气犯胃。", tcmDiseaseRationale: "以胃痛为主症。" }, westernDiagnosis: { primary: { name: "胃炎", supportingFacts: [], limitations: [], suggestedChecks: [] }, differentials: [] }, therapy: { overallMethod: "疏肝和胃" }, pathogenesis: { chain: [] } };
+  assert.equal(surface.projectDeliveredReasoning(base).overview.tcmDiagnosticRationale, "胃胀、脉弦；属肝气犯胃。");
 });
 

@@ -590,8 +590,6 @@ export function withProcessingFromTable(text: string, herbs: ReadonlyArray<{ nam
   for (const mention of [...formulaAnalysisHerbMentions(text)].sort((left, right) => right.start - left.start)) {
     const prefix = prefixOf.get(mention.token);
     if (!prefix) continue;
-    // 「并制半夏之毒」：前面紧挨的字本身就是这个炮制字头时不叠。
-    if (text.slice(Math.max(0, mention.start - prefix.length), mention.start) === prefix) continue;
     out = `${out.slice(0, mention.start)}${prefix}${out.slice(mention.start)}`;
   }
   return out;
