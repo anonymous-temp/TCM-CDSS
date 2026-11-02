@@ -439,6 +439,9 @@ await check("8.16 医嘱流程不进治法栏", async () => {
   assert.equal(phrasing.withoutRedundantTherapyPhrases("疏风解表，止痒，忌口避敏"), "疏风解表，止痒");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("健脾益肾，评估发育"), "健脾益肾");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("完善检查"), "完善检查", "只有这一项时不清空");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("疏肝解郁，调摄作息"), "疏肝解郁");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("活血化瘀，调经止痛，调经止血"), "活血化瘀，调经止痛止血", "两个说目的的不共用字头");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("温化寒痰，温化寒饮"), "温化寒痰饮");
 });
 
 await check("8.17 ICD 同义不多下肿瘤判断、不换一个字", async () => {

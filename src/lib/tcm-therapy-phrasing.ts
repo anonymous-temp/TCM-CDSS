@@ -288,7 +288,7 @@ function withTwoCharacterRunsJoined(method: string): string {
 }
 
 /** 医嘱、流程不是治法（「忌口避敏」「评估发育」「完善检查」「核查用药」，第三十五轮甲方 100 例）。 */
-export const NOT_A_TREATMENT_METHOD = /忌|禁|戒|评估|检查|完善|核查|核实|监测|复查|就医|转诊|随访/u;
+export const NOT_A_TREATMENT_METHOD = /忌|禁|戒|评估|检查|完善|核查|核实|监测|复查|就医|转诊|随访|调摄|作息|升糖|降糖/u;
 /** 长的一项和后面的四字项收在同一个目的上（「清热凉血调经，固冲调经」）：目的写一次（教材治法与模型写的项拼起来时常见，第三十五轮甲方标准病历 10）。 */
 function withoutRepeatedPurposeTail(method: string): string {
   const parts = method.split(/([，,、；;])/u);
@@ -351,7 +351,9 @@ export function mergedSameHeadTherapyPhrases(method: string): string {
     const tails = [phrase.slice(2), phrases[partners[0]].slice(2)];
     const ordered = [...tails.filter((tail) => !PURPOSE_TAIL.test(tail)), ...tails.filter((tail) => PURPOSE_TAIL.test(tail))];
     // 两个后半共用一个字头（温化寒痰、温化寒饮）：写一次（温化寒痰饮）。
-    merged.set(index, `${phrase.slice(0, 2)}${ordered[0][0] === ordered[1][0] ? `${ordered[0]}${ordered[1].slice(1)}` : ordered.join("")}`);
+    // 两个都是说目的的（调经止痛、调经止血）不共用：「调经止痛血」不通（第三十五轮 C070）。
+    const shareHead = ordered[0][0] === ordered[1][0] && !(PURPOSE_TAIL.test(ordered[0]) && PURPOSE_TAIL.test(ordered[1]));
+    merged.set(index, `${phrase.slice(0, 2)}${shareHead ? `${ordered[0]}${ordered[1].slice(1)}` : ordered.join("")}`);
     used.add(partners[0]);
   });
   if (merged.size === 0) return method;
