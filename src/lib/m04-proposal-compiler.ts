@@ -2347,6 +2347,10 @@ export function compileM04Proposal(
     ...signedDirectionOf(prior)!,
     decoctionThermal: decoctionThermalByComposition(proposal.candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name) || herb.name)),
   };
+  // 活动性出血或抗凝下出血时，说明书写活血化瘀的内服成药不列（汤剂的活血药已按同一判据不用；第三十六轮 C070 七生力片）。
+  if (caseState && activeBleedingInGroundingText(clinicalGroundingText(caseState))) {
+    proposal.patentAndWestern = proposal.patentAndWestern.filter((item) => !patentMedicineMovesBloodDuringBleeding(item, true));
+  }
   // 中成药说明书「用于」部分说不到本例主要问题的不列；对证的中成药排在前面（2026-10-26 甲方测评病历 8：
   // 蛇串疮推荐穿黄清热胶囊、龙血竭胶囊，对证的龙胆泻肝丸反排在最后）。判据见 patentMedicineCoversMainProblem。
   const mainProblem = {
@@ -2365,8 +2369,7 @@ export function compileM04Proposal(
   const medicinesBeforeDuplication = proposal.patentAndWestern.length;
   proposal.patentAndWestern = withoutSameClassMedicines(withoutRepeatedMedicineNames(withoutSameClassAnalgesics(proposal.patentAndWestern
     .filter((item) => !patentMedicineDuplication(item, duplicationHerbs, selfMedications))
-    .filter((item) => !patentMedicineOpposesSignedDirection(item, signedDirection))
-    .filter((item) => !patentMedicineMovesBloodDuringBleeding(item, Boolean(caseState) && activeBleedingInGroundingText(clinicalGroundingText(caseState!)))))));
+    .filter((item) => !patentMedicineOpposesSignedDirection(item, signedDirection)))));
   const duplicateMedicinesDropped = medicinesBeforeDuplication - proposal.patentAndWestern.length;
   if (modificationIssue(proposal, prior)) return undefined;
   const cleanNarrative = (value: string | undefined, fallback: string) =>
