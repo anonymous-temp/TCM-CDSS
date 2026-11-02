@@ -217,6 +217,11 @@ export function deniesSeparateSecondaryPattern(clause: string): boolean {
 
 /** 病历事实核对里写成否定或无关的说法（「腹不胀大」「非时聚时散」「与咳唾呼吸无关」），见 m03-patient-claim-check。 */
 const NEGATIVE_FORM_CLAIM = /不|非|无关|未见|未有|无/u;
+/** 阴性说法的词形（m03-patient-claim-check 把病历没写到的阴性改写成「未诉X」）。 */
+export const EXAM_VERB_HEAD = /^[望闻问触按切查视听]$/u;
+export const NEGATIVE_CLAIM_LEAD = /^(?:(?:本例|患者|病人|该患者)(?:亦|也|并|均|尚|且)?)?(?:无|未见|未有|没有|不伴|非)(?=[\u4e00-\u9fff])/u;
+/** 证名里写了病邪（脾虚湿蕴证的湿）。 */
+export const PATHOGEN_ELEMENT_IN_SYNDROME_NAME = /湿|痰|瘀|饮|热|寒/u;
 export function negativeFormClaim(span: string): boolean {
   return NEGATIVE_FORM_CLAIM.test(span);
 }

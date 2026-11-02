@@ -1,5 +1,5 @@
 import "server-only";
-import { negativeFormClaim } from "./tcm-therapy-phrasing";
+import { EXAM_VERB_HEAD, NEGATIVE_CLAIM_LEAD as NEGATIVE_LEAD, negativeFormClaim } from "./tcm-therapy-phrasing";
 
 import {
   CHINESE_NUMERAL_BEFORE_UNIT,
@@ -371,8 +371,6 @@ export function withoutOrphanedAnaphoricTail(before: string, after: string): str
  *（A 是一个检查动作时不带，「望无胀形」→「未诉胀形」），「非 + X」。「与X无关」说的是没有这层关系，写「未诉与X相关」。
  * 病历肯定写着 X 的不改写（那是假话，照旧删）。形状对不上的返回 undefined。
  */
-const EXAM_VERB_HEAD = /^[望闻问触按切查视听]$/u;
-const NEGATIVE_LEAD = /^(?:(?:本例|患者|病人|该患者)(?:亦|也|并|均|尚|且)?)?(?:无|未见|未有|没有|不伴|非)(?=[\u4e00-\u9fff])/u;
 export function negativeClaimAsNotReported(span: string, recordText: string): string | undefined {
   const value = span.trim();
   if (!negativeFormClaim(value) || /[，,。；;：:]/u.test(value)) return undefined;

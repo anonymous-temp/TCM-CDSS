@@ -6,7 +6,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { isTextbookDiseaseName, textbookManifestationTerms, textbookRowForSyndrome, textbookRowsNamed, type TextbookSyndromeRow } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
-import { claimsSecondaryPattern, declaresSecondaryMechanism, deniesSeparateSecondaryPattern, mechanismClaimsUncoveredBy, ruleOutCueIndex, therapyItemsOnlyFor, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
+import { PATHOGEN_ELEMENT_IN_SYNDROME_NAME, claimsSecondaryPattern, declaresSecondaryMechanism, deniesSeparateSecondaryPattern, mechanismClaimsUncoveredBy, ruleOutCueIndex, therapyItemsOnlyFor, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
 import criteriaJson from "../data/tcm-diagnostics-syndrome-criteria.json" with { type: "json" };
 
 /**
@@ -610,7 +610,7 @@ export async function verifySecondaryByCriteria(
   }
   // 一个脏腑的虚证加一个病邪（脾虚湿蕴证）：只按脾气虚证核，湿那一半的表现都不算（第三十五轮 W46：渗液、舌胖、便溏）。两边合起来按组合证判：至少 3 条，各至少 1 条。
   const element = elementCompositeCriteriaEntry(name);
-  if (parts.length === 1 && element && element.name !== parts[0].name && !element.components?.includes(parts[0].name) && /湿|痰|瘀|饮|热|寒/u.test(compact(name))) {
+  if (parts.length === 1 && element && element.name !== parts[0].name && !element.components?.includes(parts[0].name) && PATHOGEN_ELEMENT_IN_SYNDROME_NAME.test(compact(name))) {
     const elementNames = element.components?.length ? element.components.filter((item) => !/虚证$/u.test(item)) : [element.name];
     if (elementNames.length > 0 && !/虚证$/u.test(elementNames[0])) {
       return verifyEntry({
