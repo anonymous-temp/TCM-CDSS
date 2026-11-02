@@ -3287,8 +3287,9 @@ export function highImpactHerbDirectionIssue(
 }
 
 /**
- * 加减行的方向核对。针对病历已记录的当前表现的行（不是「若…」）只拦与治法相反的：词表对不上治法不算错，这一行本来就是为主证管不到的兼症加的
- *（第三十五轮 W32：五苓散证病历写着「身体酸困」，模型加薏苡仁渗湿除痹，因为词表说不清方向被删；甲方 10.13 口径是伴随症状进加减）。条件句照旧严格核。
+ * 加减行的方向核对。针对病历已记录的当前表现的行（不是「若…」），写的理由本身不带高影响方向时只拦与治法相反的：药的别的功效词表对不上治法不算错，
+ * 这一行本来就是为主证管不到的兼症加的（第三十五轮 W32：五苓散证病历写着「身体酸困」，加薏苡仁渗湿除痹被删；甲方 10.13 口径是伴随症状进加减）。
+ * 理由自己写了清热、泻下这类方向而治法与病历没有（胸脘满闷→黄连「清热燥湿」）照旧拦；条件句照旧严格核。
  */
 export function modificationRowDirectionIssue(
   herbName: string,
@@ -3296,8 +3297,12 @@ export function modificationRowDirectionIssue(
   trigger: string,
   prior: M03ReasoningLike | null | undefined,
 ): string | undefined {
+  const herb = [{ name: herbName, function: declaredFunction }];
+  const strict = unsupportedHighImpactHerbIssue(herb, prior);
+  if (!strict) return undefined;
   const recorded = !/^\s*(?:若|如|当|一旦)/u.test(trigger) && !conditionalModificationWithoutTextbook(trigger) && finalModificationTriggerGrounded(trigger, prior);
-  return unsupportedHighImpactHerbIssue([{ name: herbName, function: declaredFunction }], prior, false, [], recorded);
+  if (!recorded || [...tcmTherapyConcepts(declaredFunction)].some((concept) => HIGH_IMPACT_THERAPY_CONCEPTS.has(concept))) return strict;
+  return unsupportedHighImpactHerbIssue(herb, prior, false, [], true);
 }
 
 /**

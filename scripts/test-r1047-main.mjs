@@ -221,8 +221,10 @@ await check("5.2b 同用的那一味没留下时，带出来的行也不留", ()
 await check("5.2c 针对病历已记录表现的加减行只拦方向相反的；条件句照旧严格", async () => {
   const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
   const prior = { stage: "diagnose", overview: { tcmDiseaseName: "水肿", primarySyndrome: "水湿浸渍证", primarySyndromeBasis: ["身体酸困"] }, therapy: { overallMethod: "运脾化湿，通阳利水" }, westernDiagnosis: { primary: { supportingFacts: [] } }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "水湿内停", therapyDirection: "运脾化湿", patientFact: "身体酸困" }] } };
-  assert.equal(contract.modificationRowDirectionIssue("大黄", "泻下通便", "身体酸困", prior), undefined, "词表对不上不算错");
-  assert.ok(contract.modificationRowDirectionIssue("大黄", "泻下通便", "若大便不通", prior), "条件句严格");
+  assert.equal(contract.modificationRowDirectionIssue("薏苡仁", "渗湿除痹", "身体酸困", prior), undefined, "理由不带高影响方向，药的别的功效不算");
+  assert.ok(contract.highImpactHerbDirectionIssue("大黄", "润肠", prior), "夹具：严格判据对这味药确实命中");
+  assert.equal(contract.modificationRowDirectionIssue("大黄", "润肠", "身体酸困", prior), undefined, "记录行：理由不带方向时放行");
+  assert.ok(contract.modificationRowDirectionIssue("大黄", "泻下通便", "身体酸困", prior), "理由自己写了泻下，治法没有：拦");
   const warm = { ...prior, therapy: { overallMethod: "温阳散寒" }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "寒凝", therapyDirection: "温阳散寒", patientFact: "身体酸困" }] } };
   assert.ok(contract.modificationRowDirectionIssue("黄连", "清热燥湿", "身体酸困", warm), "与治法相反的照拦");
 });
