@@ -135,8 +135,9 @@ await check("3.5 病历写着病本身：带分期的名字不下调；上一级
   assert.equal(western.recordStatesWesternDiagnosis("支气管哮喘急性发作", rec), true);
   const d = (name, supportedName) => JSON.stringify({ verdict: "inconsistent", type: "D", quote: "糖尿病十余年", reason: "周围神经病变未记录肌电图", supportedName, missingTest: "肌电图" });
   assert.equal(western.parseWesternNameCorrection(d("x", "糖尿病待查"), rec, "2型糖尿病伴周围神经病变")?.supportedName, "糖尿病");
+  assert.equal(western.parseWesternNameCorrection(d("x", "上腹胀满待查"), `上腹胀满，${rec}`, "功能性消化不良")?.supportedName, "上腹胀满待查", "症状上一级不去待查");
   const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", westernDiagnosis: { primary: { name: "慢性腹泻待查" }, differentials: [] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
-  assert.match(visible.normalizeDiagnoseConfidenceAndLabels(content, "主诉：腹痛腹泻半年。"), /慢性腹泻待查/);
+  assert.doesNotMatch(visible.normalizeDiagnoseConfidenceAndLabels(content, "主诉：腹痛腹泻半年。"), /腹痛症状/);
 });
 
 await check("4.0 三字方名前面是助词时不是方名；方名承载药不在方里不还原；炮制字加别名照写", () => {

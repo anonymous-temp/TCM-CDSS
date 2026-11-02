@@ -326,7 +326,8 @@ export function parseWesternNameCorrection(
   // 留住首要考虑——与 keepHypothesis 同一口径。只管不带「待查」的名称；带「待查」的照上面的规则。
   const supportedCore = compact(symptomSupported.replace(/待查$/u, ""));
   // 给的上一级「X待查」而病历写着 X（2型糖尿病伴周围神经病变 → 糖尿病待查，病历「糖尿病十余年」）：X 是确诊的，不写待查（第三十五轮 W30）。
-  if (/待查$/u.test(symptomSupported) && recordStatesWesternDiagnosis(symptomSupported, recordText) && symptomSupported.replace(/待查$/u, "").length >= 3) {
+  if (/待查$/u.test(symptomSupported) && recordStatesWesternDiagnosis(symptomSupported, recordText) && symptomSupported.replace(/待查$/u, "").length >= 3 &&
+    isCharacterSubsequence(compact(symptomSupported.replace(/待查$/u, "")), compact(current))) {
     symptomSupported = symptomSupported.replace(/待查$/u, "");
   }
   const supported = type === "D" && !/待查$/u.test(symptomSupported) &&
