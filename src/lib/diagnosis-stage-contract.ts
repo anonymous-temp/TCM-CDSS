@@ -4329,7 +4329,7 @@ function crossStageReasoningIssue(
       .map((herb, herbIndex) => ({ herb, herbIndex }))
       .filter(({ herb }) => herb.role === "君");
     if (emperorHerbs.length === 0) return `candidate_${candidateIndex}_emperor_missing`;
-    if (emperorHerbs.length > 2 && !textbookNamesTheseAsEmperors(String(candidate.name || ""), emperorHerbs.map(({ herb }) => herb.name))) return `candidate_${candidateIndex}_emperor_excess`;
+    if (emperorHerbs.length > 2 && !textbookNamesTheseAsEmperors(String(candidate.name || ""), emperorHerbs.map(({ herb }) => String(herb.name || "")))) return `candidate_${candidateIndex}_emperor_excess`;
     const primaryTherapy = primaryPathogenesisTherapyConcepts(prior);
     const requiresDirectKnowledgeAlignment = !trustedWorkbenchEdit && (
       candidate.constructionType === "self_devised" ||
