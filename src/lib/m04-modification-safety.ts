@@ -254,7 +254,12 @@ export function dropUnsupportedM04CandidateHerbs(
     const contractOpposing = m04CandidateOpposingDirectionIndices(
       herbs.map((value) => recordValue(value) || {}) as Parameters<typeof m04CandidateOpposingDirectionIndices>[0],
       prior,
-      candidate.formulaNames,
+      // 流层这一步候选的 formulaNames 还是空的（compile 只写方名，出处在这之后才补）：方名写着 M03 锁定的那张方、又没被剥名时算在声称它，
+      // 不然杏苏散自己的前胡、生姜，左金丸自己的吴茱萸都被当方向对立删掉，方名却留着（第三十五轮甲方病历）。
+      [
+        ...(Array.isArray(candidate.formulaNames) ? candidate.formulaNames : []),
+        ...(candidate.identityDeclassified === true || candidate.constructionType === "self_devised" ? [] : lockedNames.filter((name) => String(candidate.name || "").includes(name))),
+      ],
     );
     const retained = herbs.filter((value, index) => {
       const herb = recordValue(value);

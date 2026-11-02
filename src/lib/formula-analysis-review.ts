@@ -1665,6 +1665,8 @@ export function withoutUnsupportedHarmonizingClaims(
       const predicate = text.slice(segment.subjectEnd, segment.end);
       for (const match of predicate.matchAll(claim)) {
         const start = segment.subjectEnd + (match.index ?? 0);
+        // 「陈皮佐以理气，使甘草调和诸药」：调和诸药的是紧挨着的甘草，不是这一段的主语陈皮（第三十五轮甲方病历曾剩「使甘草。」）。
+        if (candidateHerbs.some((name) => text.slice(0, start).endsWith(name) && herbHarmonizesFormula(name, knowledgeFor(name)))) continue;
         cuts.push({ start, end: start + match[0].length });
       }
     }

@@ -742,7 +742,7 @@ export function deterministicWesternNameCorrection(name: string, recordText: str
     const supportedName = currentAffirmedMention(recordText, CURRENT_RESPIRATORY_INFECTION_SIGN)
       ? "急性上呼吸道感染"
       // 主诉就是反复感冒时写主诉本身（第三十五轮：甲方标准病历 5 写「乏力待查」，评审判与主诉不符；乏力只是它的伴随）。
-      : /反复(?:感冒|上感)/u.test(chiefComplaintLine(recordText)) ? "反复感冒待查"
+      : /反复(?:感冒|上感|(?:上)?呼吸道感染)/u.test(chiefComplaintLine(recordText)) ? "反复感冒待查"
       : currentAffirmedMention(recordText, ADULT_FATIGUE_SYMPTOM) ? "乏力待查" : "上呼吸道感染待查";
     return { type: "D", supportedName, quote: chiefComplaintLine(recordText) || core, reason: "反复呼吸道感染的诊断标准只为儿童制定" };
   }

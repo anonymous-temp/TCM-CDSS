@@ -384,6 +384,7 @@ await check("8.8 土、煨也是炮制：入药味表留在炮制栏，方义跟
 await check("8.9 成人反复感冒的主诉写主诉本身", () => {
   const record = "主诉：反复感冒1年\n现病史：反复感冒，易疲乏，自汗。";
   assert.equal(western.deterministicWesternNameCorrection("反复上呼吸道感染", record, 78)?.supportedName, "反复感冒待查");
+  assert.equal(western.deterministicWesternNameCorrection("反复上呼吸道感染", "主诉：反复上呼吸道感染1年余\n现病史：气短乏力。", 66)?.supportedName, "反复感冒待查");
   assert.equal(western.deterministicWesternNameCorrection("反复上呼吸道感染", "主诉：乏力1年\n现病史：既往常感冒，乏力。", 78)?.supportedName, "乏力待查");
 });
 
@@ -465,4 +466,27 @@ await check("8.20 加减的教材编号写法不对不作废整张处方", () =>
     const parsed = shape.safeParse([{ ...row, textbookEntry }]);
     assert.ok(parsed.success, JSON.stringify(parsed.error?.issues?.[0] || {}));
   }
+});
+
+await check("8.21 方名写着锁定方、未剥名时，这张方自己的药不算方向对立", async () => {
+  const modSafety = await jiti.import("../src/lib/m04-modification-safety.ts");
+  const prior = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { primarySyndrome: "风寒咳嗽", tcmDiseaseName: "咳嗽", recommendedFormulaNames: ["杏苏散"], recommendedFormulaDirection: "杏苏散加减" }, therapy: { overallMethod: "疏风散寒，宣肃肺气" }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "风寒袭肺", therapyDirection: "疏风散寒，宣肃肺气" }] } };
+  const herb = (name, role, fn) => ({ name, role, function: fn, targetKind: "pathogenesis_node", targetRef: "P1", prescriptionRole: `${role}药：疏风散寒` });
+  const herbs = [herb("紫苏叶", "君", "辛温解表"), herb("苦杏仁", "君", "降气止咳"), herb("前胡", "臣", "疏风解表，降气化痰"), herb("生姜", "佐", "温胃散寒，降逆止呕"), herb("甘草", "使", "调和诸药")];
+  const wrap = (candidate) => `<!-- DIAGNOSIS_JSON_START -->${JSON.stringify({ stage: "prescribe", formula: { candidates: [{ herbs, formulaAnalysis: "紫苏叶为君，前胡为臣，生姜为佐。", formulaNames: [], ...candidate }] } })}<!-- DIAGNOSIS_JSON_END -->`;
+  const names = (content) => JSON.parse(content.slice(content.indexOf("-->") + 3, content.lastIndexOf("<!--"))).formula.candidates[0].herbs.map((item) => item.name);
+  assert.deepEqual(names(modSafety.declassifyAndDropOpposingM04CandidateHerbs(wrap({ name: "杏苏散加减" }), prior)), herbs.map((item) => item.name));
+  assert.ok(!names(modSafety.declassifyAndDropOpposingM04CandidateHerbs(wrap({ name: "杏苏散加减", constructionType: "self_devised", identityDeclassified: true }), prior)).includes("前胡"), "已剥名的照旧剔");
+});
+
+await check("8.22 使甘草调和诸药留着；别的药写调和诸药照删", () => {
+  const herbs = ["陈皮", "甘草"];
+  const know = (name) => name === "甘草" ? "补脾益气，调和诸药" : "理气健脾";
+  assert.match(review.withoutUnsupportedHarmonizingClaims("陈皮佐以理气，使甘草调和诸药。", herbs, know).text, /使甘草调和诸药/);
+  assert.doesNotMatch(review.withoutUnsupportedHarmonizingClaims("陈皮理气，调和诸药。", herbs, know).text, /调和诸药/);
+});
+
+await check("8.23 依据写「暂不作阳虚论」算排除", () => {
+  assert.ok(phrasing.ruleOutCueIndex("畏寒肢冷不明显，暂不作阳虚论。") >= 0);
+  assert.equal(phrasing.ruleOutCueIndex("畏寒肢冷，属阳虚。"), -1);
 });
