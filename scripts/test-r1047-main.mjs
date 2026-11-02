@@ -445,8 +445,10 @@ await check("8.17 ICD 同义不多下肿瘤判断、不换一个字", async () =
   assert.ok(!standard.icdSynonymCandidates("产褥期脓毒症").includes("产褥期脓毒病"));
 });
 
-await check("8.18 教材同方多一味时不说原方", () => {
-  const herbs = ["金银花", "连翘", "薄荷", "牛蒡子", "荆芥", "淡豆豉", "桔梗", "淡竹叶", "甘草"].map((name) => ({ name }));
-  assert.equal(surface.candidateIsOriginalFormula("银翘散", herbs), false);
-  assert.equal(surface.candidateIsOriginalFormula("银翘散", ["金银花", "连翘", "薄荷", "荆芥穗", "淡豆豉", "桔梗", "牛蒡子", "甘草", "竹叶", "芦根"].map((name) => ({ name }))), true);
+
+await check("8.19 词里的不、无不算又一层否认", () => {
+  assert.deepEqual(phrasing.negativeClaimItems("无半身不遂、口舌歪斜")?.items, ["半身不遂", "口舌歪斜"]);
+  assert.deepEqual(phrasing.negativeClaimItems("无肢体无力")?.items, ["肢体无力"]);
+  assert.equal(phrasing.negativeClaimItems("腹不不胀"), undefined);
+  assert.equal(claim.negativeClaimAsNotReported("无半身不遂、口舌歪斜", "头痛3月。"), "未诉半身不遂、口舌歪斜");
 });

@@ -696,11 +696,7 @@ export function candidateIsOriginalFormula(name: string, herbs: readonly Record<
   const ingredients = new Set(listed.map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, ""))).filter((id) => id && !optional.has(id)));
   if (ingredients.size === 0) return undefined;
   const present = new Set(herbs.map((herb) => compositionIdentityName(String(herb.name || ""))).filter((id) => id && !optional.has(id)));
-  // 目录和教材各按一个出处（银翘散教材多一味芦根）：和哪一张一味不差都算原方，缺了教材那一味不算。
-  const taught = new Set(textbookFormulaComposition(trimmed).map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, ""))).filter((id) => id && !optional.has(id)));
-  const sameAs = (listedIds: ReadonlySet<string>) => present.size === listedIds.size && [...listedIds].every((id) => present.has(id));
-  if (taught.size > 0 && sameAs(taught)) return true;
-  return sameAs(ingredients) && [...taught].every((id) => present.has(id));
+  return present.size === ingredients.size && [...ingredients].every((id) => present.has(id));
 }
 
 const SAME_SOURCE_HERB_GROUPS = (sameSourceHerbs as { groups: ReadonlyArray<{ herbs: string[] }> }).groups;

@@ -270,10 +270,10 @@ assert.equal(textbook.textbookRowForSyndrome("不存在的病", "热证"), undef
   assert.deepEqual(kept.map((item) => [item.trigger, item.herbName, item.doseOrHandling]), [["若渗液较多", "薏苡仁", "15g"]]);
   assert.equal(kept[0].evidence.source, "按本证常见兼症变化拟定的备用加减");
   assert.equal(finalGrounded("若渗液较多", prior), true, "最终合同同一判据");
-  // 边界零：这一类不豁免方向核对——脾虚湿蕴证里加清热药（白鲜皮）照旧丢弃。
+  // 边界零（第三十五轮改）：条件句只拦与治法相反的。脾虚湿蕴证的「若瘙痒较甚→白鲜皮」不相反，留下；贴不贴合由 m04-modification-fit 核。相反的见 test:r1043-main 1.1。
   assert.deepEqual(
-    compileM04Proposal(proposal([{ ...row1, trigger: "若瘙痒较甚，夜间难眠", herbName: "白鲜皮", dose: "10g", reason: "清热燥湿，祛风止痒" }]), prior).formula.modifications,
-    [], "与本例治法方向相悖的加味丢弃",
+    compileM04Proposal(proposal([{ ...row1, trigger: "若瘙痒较甚，夜间难眠", herbName: "白鲜皮", dose: "10g", reason: "清热燥湿，祛风止痒" }]), prior).formula.modifications.map((item) => item.herbName),
+    ["白鲜皮"],
   );
   assert.equal(finalGrounded("复诊时若出现失眠", prior), false);
   // 边界一：与方中药味相反的加味不保留，哪怕条件句合格。判据单独钉（编译路径里海藻还会先被方向核对拦下，证明不了这一条）。

@@ -129,7 +129,7 @@ export function icdNameDropsQualifier(name: string, candidate: string): boolean 
 /** 同义 ICD 写法的候选。「肿物」「肿块」没说是不是肿瘤，换成「良性肿瘤」是多下了一层判断（第三十五轮甲方病历：结膜良性肿物 → 结膜良性肿瘤）；只差一个字的写法（产褥期脓毒症 / 产褥期脓毒病）通行的说法不换（C065）。 */
 export function icdSynonymCandidates(bare: string): string[] {
   const oneCharacterApart = (candidate: string) => candidate.length === bare.length && [...candidate].filter((character, at) => character !== bare[at]).length === 1;
-  return icdLexicalCandidates(bare).filter((candidate) => !oneCharacterApart(candidate) && !(/肿物|肿块|包块|占位|结节/u.test(bare) && /瘤|癌/u.test(candidate)));
+  return icdLexicalCandidates(bare).filter((candidate) => !oneCharacterApart(candidate) && !(preferredNames.massTermsNotNamedTumor.some((term) => bare.includes(term)) && /瘤|癌/u.test(candidate)));
 }
 
 export async function standardIcdSynonym(name: string, signal?: AbortSignal): Promise<string | undefined> {

@@ -1119,7 +1119,7 @@ export function textbookNearestRow(
   //  · 模型的证名与治法里一个病性字都没有——它有意写了中性证名（只记录「腰部疼痛2周」，写「经络不通证」、通络止痛），
   //    教材「湿热腰痛」的主症「腰部疼痛…」只是复述了主诉，不能据此改成湿热再带出清热利湿与四妙丸；
   //  · 病历与哪一行的主症都对不上，改名只凭字面相近。
-  const modelWords = `${syndromeName}${method}`;
+  const modelWords = `${syndromeNatureText(syndromeName)}${method}`;
   const modelNatureWords = modelWords.match(TEXTBOOK_NATURE_WORDS) || [];
   // 证名不写病性字、意思里却带着病性的（心肾不交＝阴虚火旺，「…不固」＝虚）按带着的病性看（第二十四轮甲方 api-f076：模型有意写了
   // 中性的「心神不宁证」并在依据里说明虚实未定，被改成「心肾不交证」后治法锚成「滋阴降火」、治则推成「虚则补之」，与依据自相矛盾）。

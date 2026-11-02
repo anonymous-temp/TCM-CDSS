@@ -248,7 +248,8 @@ export function negativeClaimItems(span: string): { subject: string; items: stri
       else return undefined;
     }
   }
-  return items.length > 0 && items.every((item) => item.length >= 2 && !/[无不未非]/u.test(item)) ? { subject, items } : undefined;
+  // 半身不遂、肢体无力这类词里的「不」「无」不是又一层否认（第三十五轮 aug-headache：「无半身不遂、口舌歪斜」改写不了，整段删后「与中风相区分」没了依据）。
+  return items.length > 0 && items.every((item) => item.length >= 2 && !/未|非|无(?!力|华|神|味)|不(?!遂|利|清|宁|寐|振|适|畅|固|足|安|仁|眠)/u.test(item)) ? { subject, items } : undefined;
 }
 /** 证名里写了病邪（脾虚湿蕴证的湿）。 */
 export const PATHOGEN_ELEMENT_IN_SYNDROME_NAME = /湿|痰|瘀|饮|热|寒/u;

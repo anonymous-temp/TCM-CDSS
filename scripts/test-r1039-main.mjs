@@ -68,14 +68,15 @@ const c068Content = (candidate) => wrap({ schemaVersion: "tcm-cdss-reasoning-v2"
   formulaAnalysis: "金银花为君，清热解毒；赤芍、天花粉、浙贝母为臣；防风、白芷、陈皮、皂角刺为佐；甘草为使。", herbs: c068Herbs, ...candidate,
 }] } });
 
-await check("1.1 候选已是自拟方时，M03 锁定方的原方药味不再豁免：终审会按方向对立拒的白芷、皂角刺单味剔除，剔后终审判据为空（C068）", () => {
-  const content = c068Content({ name: "本例辨证组方", formulaNames: [], constructionType: "self_devised" });
-  const before = contract.m04CandidateOpposingDirectionIndices(c068Herbs, c068Prior, []);
-  assert.deepEqual([...before].map((index) => c068Herbs[index].name).sort(), ["白芷", "皂角刺"].sort(), "fixture: 终审会拒这两味");
+await check("1.1 候选已是自拟方时，M03 锁定方的原方药味不再豁免：终审会按方向对立拒的（白芷、干姜）单味剔除，剔后终审判据为空（C068）；皂角刺第三十五轮起不算温里，留下", () => {
+  const withWarmHerb = [...c068Herbs, herb("干姜", "佐", "温中散寒", "P3", "湿热下注冲任，秽浊下泄")];
+  const content = c068Content({ name: "本例辨证组方", formulaNames: [], constructionType: "self_devised", herbs: withWarmHerb, formulaAnalysis: "金银花为君，清热解毒；赤芍、天花粉、浙贝母为臣；防风、白芷、陈皮、皂角刺、干姜为佐；甘草为使。" });
+  const before = contract.m04CandidateOpposingDirectionIndices(withWarmHerb, c068Prior, []);
+  assert.deepEqual([...before].map((index) => withWarmHerb[index].name).sort(), ["白芷", "干姜"].sort(), "fixture: 终审拒这两味");
   const pruned = unwrap(modificationSafety.declassifyAndDropOpposingM04CandidateHerbs(content, c068Prior)).formula.candidates[0];
-  assert.deepEqual(pruned.herbs.map((item) => item.name), ["金银花", "赤芍", "天花粉", "浙贝母", "防风", "陈皮", "甘草"]);
+  assert.deepEqual(pruned.herbs.map((item) => item.name), c068Herbs.map((item) => item.name).filter((name) => name !== "白芷"));
   assert.equal(contract.m04CandidateOpposingDirectionIndices(pruned.herbs, c068Prior, pruned.formulaNames).size, 0, "剔后终审不再按方向拒");
-  assert.doesNotMatch(pruned.formulaAnalysis, /白芷|皂角刺/, "方义随剔除改写");
+  assert.doesNotMatch(pruned.formulaAnalysis, /干姜/, "方义随剔除改写");
 });
 
 await check("1.2 对照：候选仍声称仙方活命饮时终审本就按原方组成豁免，同一张方一味不删；终审的判据与剔药的判据同为一个函数", () => {

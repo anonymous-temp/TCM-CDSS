@@ -59,13 +59,14 @@ const prescription = (modifications, herbs = ["紫菀", "款冬花", "白前", "
 const retainedHerbs = (rows, prior = lungStomachPrior, herbs) =>
   unwrap(modSafety.dropUnsupportedM04ModificationDirections(wrap(prescription(rows, herbs)), prior)).formula.modifications.map((item) => item.herbName);
 
-await check("1.1 方向未成立的加减（肺胃气逆证加黄芩清热）：底线拒，成品前也去掉；此前成品前只删方向对立的，这一条留到底线，整方退成不给剂量", () => {
-  assert.equal(contract.m04ModificationSafetyIssue(heatRow, 0, lungStomachPrior, () => true), "modification_0_herb_0_unsupported_high_impact_heat_clear");
-  // 旧的删行判据（只看方向对立）放行它：两处判据不一就是整页退成不给剂量的原因。
-  assert.equal(contract.m04HerbOpposingDirectionIssue({ name: "黄芩", function: `${heatRow.reason}；${heatRow.targetPathogenesis}` }, lungStomachPrior), undefined);
-  assert.deepEqual(retainedHerbs([heatRow, phlegmRow]), ["半夏"]);
+await check("1.1 条件句加减：方向只是没写进治法的留下（第三十五轮：若胃痛较甚→延胡索这类被删了十来条，贴不贴合由 m04-modification-fit 核）；与治法相反的底线拒、成品前也去掉，两处同一判据", () => {
+  assert.equal(contract.m04ModificationSafetyIssue(heatRow, 0, lungStomachPrior, () => true), undefined);
+  assert.deepEqual(retainedHerbs([heatRow, phlegmRow]), ["黄芩", "半夏"]);
+  const coldPrior = { ...lungStomachPrior, therapy: { ...lungStomachPrior.therapy, overallMethod: "辛温解表，宣肺散寒" }, pathogenesis: { ...lungStomachPrior.pathogenesis, chain: lungStomachPrior.pathogenesis.chain.map((node) => ({ ...node, therapyDirection: "辛温解表，宣肺散寒" })) } };
+  assert.equal(contract.m04ModificationSafetyIssue(heatRow, 0, coldPrior, () => true), "modification_0_herb_0_unsupported_high_impact_heat_clear");
+  assert.deepEqual(retainedHerbs([heatRow, phlegmRow], coldPrior), ["半夏"]);
   // 第三十四轮：条件自己写明了方向（咽部红肿）时方向随条件走，与教材条件式加减同一道理。
-  assert.deepEqual(retainedHerbs([{ ...heatRow, trigger: "若咽痛明显、咽部红肿" }, phlegmRow]), ["黄芩", "半夏"]);
+  assert.deepEqual(retainedHerbs([{ ...heatRow, trigger: "若咽痛明显、咽部红肿" }, phlegmRow], coldPrior), ["黄芩", "半夏"]);
 });
 
 await check("1.2 底线会拒的其他加减同样单条去掉（理由里夹剂量、未收载的药味），成立的照留；留下的每一条底线都不拒", () => {
