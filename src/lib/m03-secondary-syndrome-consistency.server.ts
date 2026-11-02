@@ -758,8 +758,12 @@ export function applySecondaryConsistencyDecision(root: Json, decision: Secondar
   if (decision.decision === "remove") {
     const rationale = text(overview.tcmDiagnosticRationale);
     const pathogenesis = text(overview.overallPathogenesis);
-    const nextRationale = withoutClauses(rationale, decision.clauses);
-    const nextPathogenesis = withoutClauses(pathogenesis, decision.clauses);
+    // 只删自称兼夹的那一小句（「故兼有血虚」），解释表现的那一小句（「为营血亏虚、血脉不充」）留着：它有没有依据由证素核对判（m03-element-support），
+    // 此前一并删掉，留下「面色少华、月经量少、脉沉细，合为痛痹」（第三十五轮 A16，证素核对其实是通过的）。一句都认不出兼夹字样时按原样删。
+    const declaring = decision.clauses.filter((clause) => /兼|夹|同病|并见|合并/u.test(clause));
+    const clauses = declaring.length > 0 ? declaring : decision.clauses;
+    const nextRationale = withoutClauses(rationale, clauses);
+    const nextPathogenesis = withoutClauses(pathogenesis, clauses);
     // 删到只剩寥寥几字就不删（依据空了比矛盾更糟）。
     if (rationale && nextRationale.length < 20) return false;
     if (pathogenesis && nextPathogenesis.length < 10) return false;

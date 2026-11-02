@@ -1,6 +1,6 @@
 {
  "generatedBy": "scripts/build-tcm-textbook-disease-names.mjs",
- "count": 336,
+ "count": 337,
  "names": [
   "癌病",
   "艾滋病",
@@ -81,6 +81,7 @@
   "肛漏",
   "肛痈",
   "高风内障",
+  "高热",
   "股骨头骨骺炎",
   "股骨头缺血性坏死",
   "股肿",

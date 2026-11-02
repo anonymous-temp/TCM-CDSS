@@ -118,6 +118,14 @@ await check("3.3 ICD 上一级不算同义写法；改名后推理说明不留�
   assert.doesNotMatch(out, /病程阈值/);
 });
 
+await check("3.4 慢性X病程不够但病历写着X：写X；病历没写时仍退到症状", () => {
+  const content = (name) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", westernDiagnosis: { primary: { name, clinicalRationale: "符合慢性支气管炎。", supportingFacts: [], limitations: [], suggestedChecks: [] }, differentials: [] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const named = visible.declassifyUnmetFormalM03WesternPrimary(content("慢性支气管炎"), "主诉：咳嗽半年。查胸片示支气管炎。");
+  assert.match(named, /"name": "支气管炎"/);
+  const symptom = visible.declassifyUnmetFormalM03WesternPrimary(content("慢性支气管炎"), "主诉：咳嗽半年。");
+  assert.match(symptom, /"name": "咳嗽症状"/);
+});
+
 await check("4.1 方义的药名带上药味表炮制栏的字", () => {
   const herbs = [{ name: "白扁豆", processing: "炒" }, { name: "苦杏仁", processing: "燀" }, { name: "枳壳", processing: "麸炒" }, { name: "黄连", processing: "切片" }, { name: "甘草", processing: null }];
   assert.equal(review.withProcessingFromTable("白扁豆健脾，苦杏仁降气，枳壳行气，黄连清热，甘草调和。", herbs), "炒白扁豆健脾，燀苦杏仁降气，麸炒枳壳行气，黄连清热，甘草调和。");

@@ -2837,6 +2837,8 @@ export function groundStructuredPatientFacts(
         /(?:症状|不适)$/.test(westernPrimary.name.trim()) &&
         typeof westernPrimary.clinicalRationale === "string" &&
         Boolean(fallback.fact) &&
+        // 降级那一步把症状依据写成这一句（第三十五轮起推理说明留模型写的，不再能按句首认）；换了病历重算时对不上，走下面的常规路径。
+        semanticItems(westernPrimary.supportingFacts)[0] === fallback.fact &&
         semanticItems(westernPrimary.limitations).includes(serverDowngradeMarker);
       const groundedFacts = (Array.isArray(westernPrimary.supportingFacts) ? westernPrimary.supportingFacts : []).flatMap((fact) => {
         if (typeof fact !== "string") return [];
@@ -3392,6 +3394,13 @@ export function declassifyUnmetFormalM03WesternPrimary(content: string, clinical
     // “否认既往确诊哮喘” or “未见舒张试验阳性” from preserving an unsupported label.
     const affirmedContext = affirmedClinicalText(clinicalContext) || "";
     if (hasEstablishedDiagnosis(affirmedContext, guard.label) || guard.criteria(affirmedContext)) return content;
+    // 慢性的病程不够，但病历写着去掉限定后的病（胸片示支气管炎，第三十五轮 W04）：写这个病，不退到症状。
+    const unqualified = name.replace(/^慢性/u, "");
+    if (primary && unqualified !== name && unqualified.length >= 2 && affirmedContext.includes(unqualified)) {
+      primary.name = unqualified;
+      if (typeof primary.clinicalRationale === "string") primary.clinicalRationale = rationaleAlignedWithRenamedPrimary(primary.clinicalRationale, name, "D");
+      return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
+    }
     return declassifyUnsupportedM03WesternPrimary(content, clinicalContext);
   } catch {
     return content;
