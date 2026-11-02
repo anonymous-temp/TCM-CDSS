@@ -2837,8 +2837,7 @@ export function groundStructuredPatientFacts(
         /(?:症状|不适)$/.test(westernPrimary.name.trim()) &&
         typeof westernPrimary.clinicalRationale === "string" &&
         Boolean(fallback.fact) &&
-        // 降级那一步把症状依据写成这一句（第三十五轮起推理说明留模型写的，不再能按句首认）；换了病历重算时对不上，走下面的常规路径。
-        semanticItems(westernPrimary.supportingFacts)[0] === fallback.fact &&
+        westernPrimary.clinicalRationale.startsWith(`${fallback.fact}支持症状级工作诊断；`) &&
         semanticItems(westernPrimary.limitations).includes(serverDowngradeMarker);
       const groundedFacts = (Array.isArray(westernPrimary.supportingFacts) ? westernPrimary.supportingFacts : []).flatMap((fact) => {
         if (typeof fact !== "string") return [];
