@@ -316,3 +316,137 @@ await check("6.1 判断词收尾的半截分句去掉", () => {
   assert.equal(surface.projectDeliveredReasoning(base).overview.tcmDiagnosticRationale, "胃胀、脉弦；属肝气犯胃。");
 });
 
+
+// 甲方全部病历验收（f1）审计里剩下的服务端缺陷。
+const stage = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+const priorOf = (primary, method) => ({ overview: { primarySyndrome: primary, overallTherapy: method, tcmDiseaseName: "腹痛" }, therapy: { overallMethod: method }, pathogenesis: { chain: [] } });
+
+await check("8.1 中性证名不改成模型没写的寒热虚", () => {
+  assert.equal(textbook.textbookNearestRow("感冒", "风邪外袭证", "疏风散邪，通窍止痛", "流涕，鼻塞，头痛"), undefined);
+  assert.equal(textbook.textbookNearestRow("不寐", "心神不宁证", "宁心安神，养血调肝", "失眠多梦，心悸"), undefined);
+  assert.equal(textbook.textbookNearestRow("感冒", "风寒表证", "辛温解表，宣肺散寒", "恶寒重，发热轻，无汗，鼻塞流清涕")?.syndromeName, "风寒束表证", "写了寒的照旧归一");
+  assert.equal(textbook.textbookNearestRow("阳痿", "肾阳不足证", "温肾壮阳", "阳事不举，腰膝酸软，畏寒肢冷")?.syndromeName, "命门火衰证", "火衰是阳衰，不算多下了热");
+});
+
+await check("8.2 条件句加减只拦与治法相反的", () => {
+  const liver = priorOf("肝气犯胃证", "疏肝解郁，理气止痛");
+  assert.equal(stage.modificationRowDirectionIssue("延胡索", "活血行气止痛", "若胃痛较甚", liver), undefined);
+  const cold = priorOf("风寒束表证", "辛温解表，宣肺散寒");
+  assert.match(stage.modificationRowDirectionIssue("黄芩", "清热燥湿", "若咽痛明显", cold) || "", /heat_clear/);
+  assert.ok(stage.modificationRowDirectionIssue("延胡索", "活血行气止痛", "胃痛较甚", liver), "不是条件句、又写了高影响方向的照判");
+});
+
+await check("8.3 半夏、旋覆花的温化寒痰不算温里，附子照判", () => {
+  const heat = priorOf("中焦气滞证", "理气和中，降逆止呕，清热止痛");
+  assert.equal(stage.m04HerbOpposingDirectionIssue({ name: "姜半夏", function: "降逆止呕" }, heat), undefined);
+  assert.equal(stage.m04HerbOpposingDirectionIssue({ name: "旋覆花", function: "降逆止呕" }, heat), undefined);
+  assert.match(stage.m04HerbOpposingDirectionIssue({ name: "附子", function: "回阳救逆" }, heat) || "", /yang_warm/);
+});
+
+await check("8.4 固定说法的「无」不是否认", () => {
+  const record = "便血，乏力，舌淡。";
+  for (const text of ["脾虚气弱、统摄无权而血溢肠腑", "气血生化无源，故乏力", "心神无主，故惊悸", "筋脉无养，故拘急"]) {
+    assert.equal(visible.unrecordedNegativesAsNotReported(text, record), text);
+  }
+  assert.equal(visible.unrecordedNegativesAsNotReported("无主诉以外的不适，无恶寒", record), "未诉主诉以外的不适，未诉恶寒", "无主诉不是固定说法");
+  assert.equal(safety.maskNonNegatingWuWords("统摄无权，便血").includes("无"), false);
+  assert.equal(safety.maskNonNegatingWuWords("无便血").includes("无"), true);
+});
+
+await check("8.5 「提示…无X」是判断，不改成未诉，也不算编造的病人事实", () => {
+  assert.equal(phrasing.negativeClaimItems("提示里无实热壅盛与阴伤之象"), undefined);
+  assert.ok(phrasing.negativeClaimItems("大便无脓血"), "病人的阴性说法照旧拆");
+  const root = { overview: { tcmDiagnosticRationale: "二便如常，提示里无实热壅盛之象，病位在上。" } };
+  claim.applyPatientClaimRemovals(root, "tcm", [{ field: "tcmDiagnosticRationale", span: "提示里无实热壅盛之象" }], "二便如常");
+  assert.match(root.overview.tcmDiagnosticRationale, /提示里无实热壅盛之象/);
+});
+
+await check("8.6 「发热而无口渴」不断成「发热而，」，概括句不进列举", () => {
+  const out = safety.sanitizeUngroundedRedFlagNegations("本例发热而无口渴、面赤等实热之象，属表寒。", { patient: {}, chiefComplaint: "发热", symptoms: "发热，脉浮紧。", conversation: [] });
+  assert.doesNotMatch(out, /而，/);
+  assert.doesNotMatch(out, /实热之象是否存在/);
+  assert.match(out, /属表寒/);
+});
+
+await check("8.7 治法里同一个目的只写一次", () => {
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("清热凉血调经，固冲调经"), "清热凉血，固冲调经");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("清热凉血调经，疏肝理气"), "清热凉血调经，疏肝理气", "没有同目的的项不动");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("补气，回阳，醒神，醒神，宁心"), "补气回阳，醒神宁心");
+});
+
+await check("8.8 土、煨也是炮制：入药味表留在炮制栏，方义跟着写", () => {
+  assert.match(review.withProcessingFromTable("以白术为君，肉豆蔻温脾。", [{ name: "白术", processing: "土" }, { name: "肉豆蔻", processing: "煨" }]), /土白术[\s\S]*煨肉豆蔻/);
+  const draft = compiler.normalizeM04DraftCandidate({ herbs: [{ name: "土白术", dose: "10g", role: "君" }, { name: "煨肉豆蔻", dose: "6g", role: "臣" }, { name: "土茯苓", dose: "15g", role: "佐" }] });
+  assert.deepEqual(draft.herbs.map((herb) => [herb.name, herb.processing || null]), [["白术", "土"], ["肉豆蔻", "煨"], ["土茯苓", null]]);
+});
+
+await check("8.9 成人反复感冒的主诉写主诉本身", () => {
+  const record = "主诉：反复感冒1年\n现病史：反复感冒，易疲乏，自汗。";
+  assert.equal(western.deterministicWesternNameCorrection("反复上呼吸道感染", record, 78)?.supportedName, "反复感冒待查");
+  assert.equal(western.deterministicWesternNameCorrection("反复上呼吸道感染", "主诉：乏力1年\n现病史：既往常感冒，乏力。", 78)?.supportedName, "乏力待查");
+});
+
+await check("8.10 肯定写着的项不跟着前面的「不X」改成未诉", () => {
+  assert.equal(phrasing.negativeClaimItems("本例发热不恶寒、口渴汗出、舌红苔黄腻"), undefined);
+  assert.deepEqual(phrasing.negativeClaimItems("无恶寒、发热")?.items, ["恶寒", "发热"], "无 打头的裸项照旧接着否认");
+  const root = { overview: { tcmDiagnosticRationale: "本例发热不恶寒、口渴汗出、舌红苔黄腻，属气分。" } };
+  claim.applyPatientClaimRemovals(root, "tcm", [{ field: "tcmDiagnosticRationale", span: "本例发热不恶寒、口渴汗出、舌红苔黄腻" }], "发热，口渴汗出，舌红苔黄腻。");
+  assert.match(root.overview.tcmDiagnosticRationale, /舌红苔黄腻/);
+});
+
+await check("8.11 心悸不算顺带的睡眠差", async () => {
+  const sleep = await jiti.import("../src/lib/incidental-sleep-modification.ts");
+  assert.equal(sleep.mindSymptomsProminentInRecord("乏力，心悸，手抖。"), true);
+  assert.equal(sleep.mindSymptomsProminentInRecord("乏力，否认心悸。"), false);
+});
+
+await check("8.12 医嘱不当治法项", async () => {
+  const coverage = await jiti.import("../src/lib/m03-method-coverage.server.ts");
+  const base = { method: "解表散邪", recordText: "食海鲜后风团，瘙痒明显，过敏史明确。", chiefComplaint: "风团" };
+  assert.equal(coverage.methodItemQualifies({ item: "忌口避敏", quotes: ["食海鲜后风团", "过敏史明确"] }, base), false);
+  assert.equal(coverage.methodItemQualifies({ item: "祛风止痒", quotes: ["风团", "瘙痒明显"] }, base), true);
+});
+
+await check("8.13 连写重复、悬空的顿号与悬空的药味角色去掉", () => {
+  assert.equal(surface.withoutDanglingPredicateClauses("自述正常，但化验单显示高血糖；但化验单显示高血糖，提示不一致。"), "自述正常，但化验单显示高血糖，提示不一致。");
+  assert.equal(surface.withoutDanglingPredicateClauses("舌红示热毒偏盛、。口唇肿胀。"), "舌红示热毒偏盛。口唇肿胀。");
+  const made = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {}, formula: { candidates: [{ name: "自拟方", herbs: [{ name: "黄连", role: "君" }, { name: "白芍", role: "佐" }], formulaAnalysis: "黄连为君，清热；白芍柔肝为佐；为佐制之品。全方清热。" }] } };
+  assert.doesNotMatch(surface.projectDeliveredReasoning(made).formula.candidates[0].formulaAnalysis, /为佐制之品/);
+});
+
+await check("8.14 每项自带否认词的列举，病历也否认的项照录", () => {
+  const state = { patient: {}, chiefComplaint: "双膝红肿", symptoms: "无发热寒战，无皮疹，无晨僵，无肢体无力，无言语障碍。", conversation: [] };
+  const out = safety.sanitizeUngroundedRedFlagNegations("夜间加重；无发热寒战、无皮疹、无晨僵，提示非痹。", state);
+  assert.match(out, /晨僵/);
+  assert.match(out, /皮疹/);
+  const out2 = safety.sanitizeUngroundedRedFlagNegations("神志清楚、无肢体无力、无言语障碍，提示未及神明。", state);
+  assert.match(out2, /言语障碍/);
+  assert.match(out2, /肢体无力/);
+  assert.doesNotMatch(out2, /尚未确认肢体无力/);
+  const out3 = safety.sanitizeUngroundedRedFlagNegations("无发热寒战、无皮疹、无晨僵，提示非痹。", { ...state, symptoms: "无发热寒战，无晨僵。" });
+  assert.match(out3, /否认[^；]*晨僵/);
+  assert.match(out3, /尚未确认皮疹/);
+});
+
+await check("8.15 改名不替模型多下脏腑", () => {
+  assert.equal(textbook.textbookNearestRow("腹痛", "中焦气滞证", "理气和胃，缓急止痛", "上腹痛3天，舌淡红，苔白，脉弦，面色一般，上腹痛3天，上腹痛3天", ["胃", "中焦"]), undefined);
+  assert.equal(textbook.textbookNearestRow("胃痛", "肝气犯胃型", "疏肝解郁，理气和胃", "胃脘胀痛连胁，嗳气", ["肝", "胃"])?.syndromeName, "肝气犯胃证", "写了肝的照旧归一");
+});
+
+await check("8.16 医嘱流程不进治法栏", async () => {
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("疏风解表，止痒，忌口避敏"), "疏风解表，止痒");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("健脾益肾，评估发育"), "健脾益肾");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("完善检查"), "完善检查", "只有这一项时不清空");
+});
+
+await check("8.17 ICD 同义不多下肿瘤判断、不换一个字", async () => {
+  const standard = await jiti.import("../src/lib/western-name-standard.server.ts");
+  assert.ok(!standard.icdSynonymCandidates("结膜良性肿物").some((name) => /瘤|癌/u.test(name)));
+  assert.ok(!standard.icdSynonymCandidates("产褥期脓毒症").includes("产褥期脓毒病"));
+});
+
+await check("8.18 教材同方多一味时不说原方", () => {
+  const herbs = ["金银花", "连翘", "薄荷", "牛蒡子", "荆芥", "淡豆豉", "桔梗", "淡竹叶", "甘草"].map((name) => ({ name }));
+  assert.equal(surface.candidateIsOriginalFormula("银翘散", herbs), false);
+  assert.equal(surface.candidateIsOriginalFormula("银翘散", ["金银花", "连翘", "薄荷", "荆芥穗", "淡豆豉", "桔梗", "牛蒡子", "甘草", "竹叶", "芦根"].map((name) => ({ name }))), true);
+});

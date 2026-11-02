@@ -36,8 +36,10 @@ const SLEEP_TRIGGER = /眠|寐|夜啼|夜醒|易醒|早醒|多梦|睡/u;
  */
 const MIND_SYMPTOMS: readonly string[] = ["失眠", "不寐", "多梦", "梦多", "寐浅", "夜寐不宁", "入睡困难", "易醒", "早醒", "夜寐不安", "寐差", "眠差", "心悸", "怔忡", "心慌", "心烦", "健忘"];
 export function mindSymptomsProminentInRecord(recordText: string, chiefComplaint = ""): boolean {
-  const affirmed = (text: string, term: string) => new RegExp(`(?<![无否未没不])${term}`, "u").test(text);
+  const affirmed = (text: string, term: string) => new RegExp(`(?<!否认|[无否未没不])${term}`, "u").test(text);
   if (MIND_SYMPTOMS.some((term) => affirmed(chiefComplaint, term))) return true;
+  // 心悸、怔忡、惊悸不是顺带的睡眠差，安神本来就对着它（第三十五轮 C032、C028：心悸手抖的病人，酸枣仁、龙骨、远志被当顺带删了）。
+  if (["心悸", "怔忡", "惊悸"].some((term) => affirmed(recordText, term))) return true;
   return MIND_SYMPTOMS.filter((term) => affirmed(recordText, term)).length >= 2;
 }
 const SEDATIVE_REASON = /安神|宁神|宁心|镇静|助眠/u;

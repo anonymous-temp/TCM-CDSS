@@ -696,7 +696,11 @@ export function candidateIsOriginalFormula(name: string, herbs: readonly Record<
   const ingredients = new Set(listed.map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, ""))).filter((id) => id && !optional.has(id)));
   if (ingredients.size === 0) return undefined;
   const present = new Set(herbs.map((herb) => compositionIdentityName(String(herb.name || ""))).filter((id) => id && !optional.has(id)));
-  return present.size === ingredients.size && [...ingredients].every((id) => present.has(id));
+  // 目录和教材各按一个出处（银翘散教材多一味芦根）：和哪一张一味不差都算原方，缺了教材那一味不算。
+  const taught = new Set(textbookFormulaComposition(trimmed).map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, ""))).filter((id) => id && !optional.has(id)));
+  const sameAs = (listedIds: ReadonlySet<string>) => present.size === listedIds.size && [...listedIds].every((id) => present.has(id));
+  if (taught.size > 0 && sameAs(taught)) return true;
+  return sameAs(ingredients) && [...taught].every((id) => present.has(id));
 }
 
 const SAME_SOURCE_HERB_GROUPS = (sameSourceHerbs as { groups: ReadonlyArray<{ herbs: string[] }> }).groups;
@@ -735,8 +739,23 @@ export function isDeliveredWesternBasisOnly(supportingFacts: readonly unknown[],
 
 /** 分句收在判断词上、判断的内容已经不在了（闭集：提示、表明、说明、属、故、为；两到十二字）。 */
 const DANGLING_PREDICATE_CLAUSE = /(^|[，,；;。])[^，,；;。（）()]{0,10}(?:提示|表明|说明|故|属|为)(?=[，,；;。]|$)/gu;
+/** 紧挨着的两个小句一字不差（检查结果的说明照录病历整句后，模型原来的后半句还在：C040「但携带本周化验单…；但携带本周化验单…」）。 */
+function withoutRepeatedAdjacentClause(text: string): string {
+  const parts = text.split(/([，,；;。])/u);
+  const out: string[] = [];
+  for (let at = 0; at < parts.length; at += 2) {
+    const clause = parts[at].trim();
+    if (clause.length >= 4 && out.length >= 2 && out[out.length - 2].trim() === clause) { out[out.length - 1] = parts[at + 1] || out[out.length - 1]; continue; }
+    out.push(parts[at]);
+    if (at + 1 < parts.length) out.push(parts[at + 1]);
+  }
+  return out.join("");
+}
+
 export function withoutDanglingPredicateClauses(text: string): string {
-  const next = text.replace(DANGLING_PREDICATE_CLAUSE, (match, lead: string) => (lead === "。" ? "。" : ""));
+  const next = withoutRepeatedAdjacentClause(text.replace(DANGLING_PREDICATE_CLAUSE, (match, lead: string) => (lead === "。" ? "。" : "")))
+    // 删掉一个顿号项之后留下的「热毒偏盛、。」（第三十五轮 C006）。
+    .replace(/、(?=[。；;，,]|$)/gu, "");
   return next === text ? text : next.replace(/^[，,；;。\s]+/u, "").replace(/[，,；;]+(?=。|$)/gu, "").replace(/([，,；;])[，,；;]+/gu, "$1");
 }
 
@@ -1306,7 +1325,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       const commentarySentences = (formulaTextbookCommentary(String(candidate.name || "")) || "").split(/[。；;]/u);
       const harmonized = withEveryHerbExplained(withoutUnsupportedHarmonizingClaims(aligned, tableNames,
         (name) => `${herbFunctionKnowledgeForDisplay(name)}；${getTcmHerbFunctionText(name)}；${commentarySentences.filter((sentence) => sentence.includes(name) && /调和/u.test(sentence)).join("；")}`).text, herbRows);
-      candidate.formulaAnalysis = withProcessingFromTable(withRoleOnlyHerbsExplained(withoutStrayLeadingRoleVerb(harmonized).text, herbRows).text, herbRows);
+      // 「…；吴茱萸辛开郁结，为佐制之品。」药被去掉后主语没了，只剩「为佐制之品」（第三十五轮 C018）。
+      candidate.formulaAnalysis = tidyPunctuation(withProcessingFromTable(withRoleOnlyHerbsExplained(withoutStrayLeadingRoleVerb(harmonized).text, herbRows).text, herbRows)
+        .replace(/(^|[；;。])\s*为[君臣佐使][\u4e00-\u9fff]{0,6}(?=[；;。]|$)/gu, "$1"));
     }
     // 方义说「去原方中…之品」而处方其实保留了原方全部药味（2026-10-17：甲方标准病历 1、4、10，三次生成里 4 次，独立评审判陈述失实）。
     // 方名能在方剂目录里查到组成、且组成逐味都在处方里时，去掉这句「去…」以及紧跟的「保留…/留其主体」；查不到组成时不动。

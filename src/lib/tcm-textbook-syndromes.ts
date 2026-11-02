@@ -1123,8 +1123,15 @@ export function textbookNearestRow(
   const modelNatureWords = modelWords.match(TEXTBOOK_NATURE_WORDS) || [];
   // 证名不写病性字、意思里却带着病性的（心肾不交＝阴虚火旺，「…不固」＝虚）按带着的病性看（第二十四轮甲方 api-f076：模型有意写了
   // 中性的「心神不宁证」并在依据里说明虚实未定，被改成「心肾不交证」后治法锚成「滋阴降火」、治则推成「虚则补之」，与依据自相矛盾）。
-  const addsNature = (row: TextbookSyndromeRow) => (top === 0 || modelNatureWords.length === 0) &&
-    (syndromeNatureText(row.syndromeName).match(TEXTBOOK_NATURE_WORDS) || []).some((word) => !modelWords.includes(word));
+  // 寒、热、虚是定性的判断，模型的证名与治法都没写这一类时，字面再近、主症再像也不替它下（第三十五轮甲方病历：「风邪外袭证，疏风散邪」，依据写着
+  //「寒热属性暂不能定」，改成风寒束表证后治法成了辛温解表；「心神不宁证，宁心安神，养血调肝」改成心肾不交证，治法成了滋阴降火）。
+  const decidedNatureClass = (word: string) => /^(?:虚|亏|不足|衰)$/u.test(word) ? "虚" : /^(?:热|火)$/u.test(word) ? "热" : word === "寒" ? "寒" : undefined;
+  const modelDecidedClasses = new Set(modelNatureWords.map(decidedNatureClass));
+  const addsNature = (row: TextbookSyndromeRow) => {
+    const added = (syndromeNatureText(row.syndromeName).replace(/火衰/gu, "阳衰").match(TEXTBOOK_NATURE_WORDS) || []).filter((word) => !modelWords.includes(word));
+    if (added.some((word) => decidedNatureClass(word) && !modelDecidedClasses.has(decidedNatureClass(word)))) return true;
+    return (top === 0 || modelNatureWords.length === 0) && added.length > 0;
+  };
   // 也不得丢掉模型写的病位（2026-10-17，甲方标准病历 5）：模型写「肺脾两虚证」，教材虚劳只有单脏的「肺气虚证」
   //「脾气虚证」，按字面相近改成「肺气虚证」后，辨证依据成了「两脏各有成组表现，故为肺气虚证」，治法也跟着锚成「补益肺气」。
   // 两脏合称不是单脏证型的同义写法。只在教材这一行自己写了脏腑、却缺模型写的某一脏时否决；
@@ -1139,6 +1146,10 @@ export function textbookNearestRow(
     if (rowOrgans.size === 0) return modelOrgans.size >= 2;
     return [...modelOrgans].some((organ) => !rowOrgans.has(organ));
   };
+  // 也不替模型多下一个脏腑（第三十五轮 C093：「中焦气滞证」，病位写脾胃，改成肝郁气滞证后治法锚成疏肝解郁，病历没有肝郁的依据）。模型没写病位时不判。
+  const modelOrganWords = new Set(compact(`${syndromeName}${modelLocations.join("")}`).match(TEXTBOOK_ORGAN_WORDS) || []);
+  const addsOrgan = (row: TextbookSyndromeRow) => modelLocations.length > 0 &&
+    (compact(row.syndromeName).match(TEXTBOOK_ORGAN_WORDS) || []).some((organ) => !modelOrganWords.has(organ));
   // 病性因素同理（2026-10-19）：模型写「气虚血瘀证」「阴虚阳亢证」，改成教材单因素的「血瘀…」「肝阳上亢证」就丢了一个因素，
   // 不是同义写法——≥300 条验收里评审最常判的就是「遗漏气虚/阴虚」。虚/亏/不足/衰、火/热各算一类，不因写法不同否决。
   // 「命门火衰」即肾阳衰，按「阳 + 虚」算（肾阳不足证 → 命门火衰证 是同义归一）。
@@ -1169,7 +1180,7 @@ export function textbookNearestRow(
   if (!first || first.combined < 1.3) return undefined;
   if (second && first.combined - second.combined < 0.2) return undefined;
   // 只否决胜出的那一行，不先把行剔掉再排：剔掉竞争者会让原本「认不准」的近似行变成明显第一。
-  if (addsNature(first.row) || dropsOrgan(first.row) || dropsNature(first.row)) return undefined;
+  if (addsNature(first.row) || dropsOrgan(first.row) || dropsNature(first.row) || addsOrgan(first.row)) return undefined;
   return first.row;
 }
 

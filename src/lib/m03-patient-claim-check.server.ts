@@ -1,5 +1,5 @@
 import "server-only";
-import { negativeClaimItems, negativeFormClaim } from "./tcm-therapy-phrasing";
+import { negativeClaimItems, negativeFormClaim, negativeInferenceClaim } from "./tcm-therapy-phrasing";
 
 import {
   CHINESE_NUMERAL_BEFORE_UNIT,
@@ -386,7 +386,9 @@ export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, re
     const slot = slots.get(field);
     if (!slot) continue;
     const current = slot.read();
-    if (!current.includes(span)) continue;
+    if (!current.includes(span) || negativeInferenceClaim(span)) continue;
+    // 片段里夹着病历肯定写着的项：整段删会连它们一起丢（「发热不恶寒、口渴汗出、舌红苔黄腻」），这种留模型原话。
+    if (recordText && span.includes("、") && span.split("、").some((part) => part.length >= 3 && recordText.includes(part.trim()))) continue;
     const rewritten = recordText ? negativeClaimAsNotReported(span, recordText) : undefined;
     const next = rewritten ? current.replace(span, rewritten) : withoutClaimSpan(current, span);
     if (next !== current) {

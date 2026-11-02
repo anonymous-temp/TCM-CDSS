@@ -905,7 +905,7 @@ function unknownTermNotice(source: string, terms: readonly string[]): string {
 export function maskNonNegatingWuWords(text: string): string {
   // 问句「有无X」「有没有X」里的「无」「没有」也不是否认（unassessedMentionAt，2026-10-25 第二十轮）。
   return text
-    .replace(/无(?=(?:华|泽|光泽|血色)|(?:神|味|力)(?=[，,。；;、）)\s]|$))/gu, "＿")
+    .replace(/无(?=(?:华|泽|光泽|血色|权|源)|(?:神|味|力|主|制|依|养)(?=[，,。；;、）)\s]|$))/gu, "＿")
     .replace(/有(无|没有|否(?!认))/gu, (_, word: string) => `有${"＿".repeat(word.length)}`)
     // 「无法行走」「无法入睡」是不能（症状本身），「漫无目的」「无精打采」是成语；「无法（完全）排除/否认X」是排除不了（可能有），不在此列。
     .replace(/无(?=法(?!(?:完全|彻底|明确|轻易|简单)?(?:排除|除外|否认)))|(?<=漫)无(?=目的)|无(?=精打采)/gu, "＿");
@@ -920,7 +920,8 @@ export function sourceDocumentsNegation(source: string, term: string): boolean {
     const sentenceOffset = sentenceMatch.index ?? 0;
     const sentence = maskNonNegatingWuWords(rawSentence);
     for (const equivalent of equivalents) {
-      let termIndex = sentence.indexOf(equivalent);
+      // 在原文里找词：遮蔽会把「肢体无力」的「无」也换掉，这个词就再也找不到（第三十五轮 aug-H：「无肢体无力」读不出否认，成了「未诉肢体无力」）。
+      let termIndex = rawSentence.indexOf(equivalent);
       while (termIndex >= 0) {
         // 「大出血」里含着「出血」两个字。若这次出现整个落在某个**下位词**里，
         // 那么被否认的是那个下位词，不是本词——否则上面的收窄会被子串匹配绕开
@@ -930,7 +931,7 @@ export function sourceDocumentsNegation(source: string, term: string): boolean {
         // 问句里的表现、答句说「没有」：是记载的否认（questionAnswerPolarityAt）。
         if (!occurrenceIsInsideNarrowerTerm(sentence, termIndex, equivalent.length, term) && questionAnswerPolarityAt(normalized, sentenceOffset + termIndex) === "negative") return true;
         if (occurrenceIsInsideNarrowerTerm(sentence, termIndex, equivalent.length, term) || isExcludedClinicalAssertionAt(sentence, termIndex)) {
-          termIndex = sentence.indexOf(equivalent, termIndex + equivalent.length);
+          termIndex = rawSentence.indexOf(equivalent, termIndex + equivalent.length);
           continue;
         }
         if (hasImmediateBareNegator(sentence, termIndex)) return true;
@@ -967,7 +968,7 @@ export function sourceDocumentsNegation(source: string, term: string): boolean {
           const trailing = after.slice(postfixNegation[0].length);
           if (trailing === "" || /^[，,、：:）)]/.test(trailing)) return true;
         }
-        termIndex = sentence.indexOf(equivalent, termIndex + equivalent.length);
+        termIndex = rawSentence.indexOf(equivalent, termIndex + equivalent.length);
       }
     }
   }
@@ -1443,9 +1444,11 @@ function unknownDeniedItems(clause: string, negatedSpan: string, unknown: readon
   const at = clause.indexOf(negatedSpan);
   if (!cue || at < 0) return asTerms;
   const head = clause.slice(0, at).replace(/^\s*(?:[-*]>?\s*|>\s*|#{1,6}\s*)?(?:[^：:|]{1,24}[：:]\s*)?/u, "").replace(/[、，,\s]+$/u, "").trim();
-  const object = negatedSpan.slice(cue[0].length).replace(/(?:等(?:热象|寒象|表现|症状|征象|不适)?|之?(?:表现|症状|特征))$/u, "").trim();
+  // 「无发热寒战、无皮疹、无晨僵」每项自带否认词：先去掉，才认得出病历也否认的「晨僵」（第三十五轮 hist：只留下词表里的项，「无晨僵」「无言语障碍」丢了）。
+  const leadingCue = new RegExp(`^(?:${CLINICAL_NEGATION_CUE.source})`, "u");
+  const object = negatedSpan.slice(cue[0].length).split("、").map((item) => item.trim().replace(leadingCue, "")).join("、").replace(/(?:等[\u4e00-\u9fff]{0,10}之(?:象|征)|等(?:热象|寒象|表现|症状|征象|不适)?|之?(?:表现|症状|特征))$/u, "").trim();
   // 带判断的不是列举（「无发热故非外感」）；再有否认词的整段退回按词处理（「无头痛无呕吐」）。
-  if (!object || /[，,。；;：:（）()]|故|而|但|则|为|属|示/u.test(object) || new RegExp(CLINICAL_NEGATION_CUE.source, "u").test(object)) return asTerms;
+  if (!object || /[，,。；;：:（）()]|故|而|但|则|为|属|示/u.test(object) || new RegExp(CLINICAL_NEGATION_CUE.source, "u").test(maskNonNegatingWuWords(object))) return asTerms;
   const parts = object.split(DENIAL_ITEM_SPLIT).map((item) => item.trim()).filter((item) => item.length >= 2);
   if (parts.length === 0) return asTerms;
   // 词表外的项同样看病历：病历否认过的照录否认，肯定写着的不说它没写（与词表内的项同一处理）。
@@ -1456,7 +1459,8 @@ function unknownDeniedItems(clause: string, negatedSpan: string, unknown: readon
   if (whole.length === 0) return { ...asTerms, documented };
   if (head && !DENIAL_HEAD_SUBJECT.test(head)) {
     if (DENIAL_HEAD_SITE.test(head)) whole[0] = `${head}${whole[0]}`;
-    else return { head: `${head}，`, items: whole, leftTerms, documented };
+    // 「发热而无口渴」的「而」连着后面，不能断成「发热而，未诉口渴」。
+    else return { head: /[而且并但却又]$/u.test(head) ? head : `${head}，`, items: whole, leftTerms, documented };
   }
   return { head: "", items: whole, leftTerms, documented };
 }

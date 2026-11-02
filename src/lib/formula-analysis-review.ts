@@ -577,7 +577,7 @@ export function withMentionsAlignedToTableNames(text: string, candidateHerbs: re
  * 药味表显示的却是「白扁豆（炒）」，独立评审判与处方不一致、丢了蜜炙润肺这层意思（燀苦杏仁、蜜紫菀、麸炒枳壳、姜厚朴、生甘草…）。
  * 只认炮制字头（闭集）；切片、捣碎、另煎这类不是药名的一部分。提到的正好是药味表这个名字时才补，别的写法（苦杏仁之于杏仁）不动。
  */
-const PROCESSING_NAME_PREFIX = /^(?:煨|麸炒|土炒|米炒|蜜炙|醋炙|酒炙|盐炙|姜炙|醋炒|酒炒|盐炒|姜炒|炒|炙|煅|焦|生|蜜|盐|酒|醋|姜|燀|炮|制)$/u;
+const PROCESSING_NAME_PREFIX = /^(?:煨|土|麸炒|土炒|米炒|蜜炙|醋炙|酒炙|盐炙|姜炙|醋炒|酒炒|盐炒|姜炒|炒|炙|煅|焦|生|蜜|盐|酒|醋|姜|燀|炮|制)$/u;
 export function withProcessingFromTable(text: string, herbs: ReadonlyArray<{ name?: unknown; processing?: unknown }>): string {
   const prefixOf = new Map<string, string>();
   for (const herb of herbs) {

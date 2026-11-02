@@ -4,6 +4,7 @@ import { parseConfirmed, proposeTwiceThenVerifyAll, verifyProposals } from "./cr
 import { isUnstableM03CoreText } from "./diagnosis-stage-contract";
 import { methodItemAlreadyCovered, textbookAnchorableMethod } from "./tcm-formula-provenance";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { NOT_A_TREATMENT_METHOD } from "./tcm-therapy-phrasing";
 import { quoteGroundedInText } from "./verbatim-quote";
 
 /**
@@ -108,6 +109,8 @@ export function methodItemQualifies(
   context: { method: string; recordText: string; chiefComplaint?: string },
 ): boolean {
   if (!METHOD_ITEM.test(proposal.item) || isUnstableM03CoreText(proposal.item) || methodItemAlreadyCovered(proposal.item, context.method)) return false;
+  // 「忌口避敏」是医嘱不是治法（第三十五轮 C052）。
+  if (NOT_A_TREATMENT_METHOD.test(proposal.item)) return false;
   if (proposal.fromModel) return true;
   // 模型常把同一组写成一条（「咯痰色白质稀，量多易咯」）：按句读切开数。
   const findings = proposal.quotes.flatMap((quote) => quote.split(/[，,、；;]/u)).map((part) => part.trim()).filter((part) => part.length >= 2)

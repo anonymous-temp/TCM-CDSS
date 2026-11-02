@@ -220,9 +220,13 @@ const NEGATIVE_FORM_CLAIM = /不|非|无关|未见|未有|无/u;
 /** 阴性说法拆成主语和被否认的几项（m03-patient-claim-check 把病历没写到的阴性改写成「未诉X」）。写法认不出时 undefined。 */
 const EXAM_VERB_HEAD = /^[望闻问触按切查视听]$/u;
 const NEGATIVE_CLAIM_LEAD = /^(?:(?:本例|患者|病人|该患者)(?:亦|也|并|均|尚|且)?)?(?:无|未见|未有|没有|不伴|非)(?=[\u4e00-\u9fff])/u;
+/** 「提示里无实热壅盛之象」是从记录推出的判断，不是病人否认了什么：既不改成「未诉」，也不算编造的病人事实（与 unrecordedNegativesAsNotReported 的 inferred 同一口径）。 */
+export function negativeInferenceClaim(span: string): boolean {
+  return /(?:示|表明|说明|可知)[^，,。；;]*(?:无|未见|不)/u.test(span);
+}
 export function negativeClaimItems(span: string): { subject: string; items: string[] } | undefined {
   const value = span.trim();
-  if (!NEGATIVE_FORM_CLAIM.test(value) || /[，,。；;：:]/u.test(value)) return undefined;
+  if (!NEGATIVE_FORM_CLAIM.test(value) || /[，,。；;：:]/u.test(value) || negativeInferenceClaim(value)) return undefined;
   const subject = /^(本例|患者|病人|该患者)/u.exec(value)?.[0] || "";
   const body = value.slice(subject.length);
   const unrelated = /^与([\u4e00-\u9fff、]{2,14})无关$/u.exec(body);
@@ -239,7 +243,8 @@ export function negativeClaimItems(span: string): { subject: string; items: stri
       // 否认词后只剩一个字时，前面得是部位（腹不胀）；「按之无形」的「形」不是一个表现。
       if (parts && (parts[2].length >= 2 || parts[1].length === 1)) items.push(`${EXAM_VERB_HEAD.test(parts[1]) ? "" : parts[1]}${parts[2]}`);
       else if (items.length > 0 && /^不[\u4e00-\u9fff]{2,}/u.test(part)) items.push(part.slice(1));
-      else if (items.length > 0 && !NEGATIVE_FORM_CLAIM.test(part)) items.push(part);
+      // 前面是「无X」时后面的裸项才接着否认；「发热不恶寒、口渴汗出、舌红苔黄腻」后面是肯定写的（第三十五轮 C002 曾成「未诉舌红苔黄腻」）。
+      else if (items.length > 0 && !NEGATIVE_FORM_CLAIM.test(part) && NEGATIVE_CLAIM_LEAD.test(body)) items.push(part);
       else return undefined;
     }
   }
@@ -266,7 +271,9 @@ const TONIFYING_HEAD = /^(?:滋养|补益|滋补|补养|培补|调补|滋培)$/u
 /** 教材治法按字切开成一串两字项（「清热，益气，生津，止渴」，第三十五轮 D03）：两两并回四字短语。只并连续的两字项，单出来的一项留着。 */
 function withTwoCharacterRunsJoined(method: string): string {
   const parts = method.split(/([，,、；;])/u);
-  const phrases = parts.filter((_, index) => index % 2 === 0).map((phrase) => phrase.trim());
+  const written = parts.filter((_, index) => index % 2 === 0).map((phrase) => phrase.trim());
+  // 同一项写了两遍时先去重（教材治法与模型写的都有「醒神」：C028 拼成了「醒神醒神宁心」）。
+  const phrases = written.filter((phrase, at) => written.indexOf(phrase) === at);
   const out: string[] = [];
   for (let index = 0; index < phrases.length; index += 1) {
     const current = phrases[index];
@@ -276,11 +283,25 @@ function withTwoCharacterRunsJoined(method: string): string {
     for (let at = 0; at < run; at += 2) out.push(phrases[index + at] + (phrases[index + at + 1] || ""));
     index += run - 1;
   }
-  return out.length === phrases.length ? method : out.join("，");
+  return out.length === written.length ? method : out.join("，");
+}
+
+/** 医嘱、流程不是治法（「忌口避敏」「评估发育」「完善检查」「核查用药」，第三十五轮甲方 100 例）。 */
+export const NOT_A_TREATMENT_METHOD = /忌|禁|戒|评估|检查|完善|核查|核实|监测|复查|就医|转诊|随访/u;
+/** 长的一项和后面的四字项收在同一个目的上（「清热凉血调经，固冲调经」）：目的写一次（教材治法与模型写的项拼起来时常见，第三十五轮甲方标准病历 10）。 */
+function withoutRepeatedPurposeTail(method: string): string {
+  const parts = method.split(/([，,、；;])/u);
+  const items = parts.filter((_, index) => index % 2 === 0).map((item) => item.trim());
+  return parts.map((part, index) => {
+    if (index % 2 === 1 || part.trim().length < 6) return part;
+    const tail = part.trim().slice(-2);
+    return PURPOSE_TAIL.test(tail) && items.some((item) => item.length === 4 && item.endsWith(tail)) ? part.trim().slice(0, -2) : part;
+  }).join("");
 }
 
 export function withoutRedundantTherapyPhrases(method: string): string {
-  const text = withTwoCharacterRunsJoined(String(method || ""));
+  const treatments = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter((item) => item && !NOT_A_TREATMENT_METHOD.test(item));
+  const text = withoutRepeatedPurposeTail(withTwoCharacterRunsJoined(treatments.length > 0 && treatments.length < String(method || "").split(/[，,、；;]/u).filter((item) => item.trim()).length ? treatments.join("，") : String(method || "")));
   const parts = text.split(/([，,、；;])/u);
   const phrases = parts.filter((_, index) => index % 2 === 0);
   // 补与益在治法里同义（「补气健脾，健脾益气」，第三十五轮 W16）。

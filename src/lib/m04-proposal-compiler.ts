@@ -1179,9 +1179,11 @@ function toxicAdditionNote(herbName: string): string {
   return getTcmHerbGenerationSafetyProfile(herbName).toxicity.length > 0 ? `${herbName}有毒，不可自行加量或久服` : "";
 }
 
-const MODIFICATION_PROCESSING_PREFIX = /^(?:蜜炙|麸炒|土炒|米炒|醋制|酒制|盐制|姜制|醋炒|酒炒|盐炒|姜炒|炒|炙|煅|焦|生|蜜|盐|酒|醋|姜)$/u;
+const MODIFICATION_PROCESSING_PREFIX = /^(?:蜜炙|麸炒|土炒|米炒|醋制|酒制|盐制|姜制|醋炒|酒炒|盐炒|姜炒|炒|炙|煅|焦|生|蜜|盐|酒|醋|姜|煨|土)$/u;
 function modificationDisplayHerbName(written: string, identity: string): string {
   if (written === identity) return identity;
+  // 炭药是另一种用法（若出血较多→侧柏炭），名字不能归回生品（第三十五轮 C016）。
+  if (/炭$/u.test(written) && written.length >= 3) return written;
   if (written.endsWith(identity) && MODIFICATION_PROCESSING_PREFIX.test(written.slice(0, -identity.length))) return written;
   // 炮制字加别名写法（盐益智仁：规范名是益智）：去掉炮制字后仍是这味药，照模型写的（第三十五轮 A12）。
   const prefix = /^(?:蜜炙|麸炒|土炒|米炒|醋制|酒制|盐制|姜制|醋炒|酒炒|盐炒|姜炒|炒|炙|煅|焦|生|蜜|盐|酒|醋|姜)/u.exec(written)?.[0];
@@ -1440,7 +1442,7 @@ function normalizeHerb(
     const canonicalName = canonicalTcmHerbIdentity(normalizedCurrentName);
     if (canonicalName && isKnownTcmHerbName(canonicalName)) {
       if (canonicalName !== normalizedCurrentName) {
-        const processingPrefix = normalizedCurrentName.match(/^(蜜炙|麸炒|土炒|米炒|醋制|酒制|盐制|姜制|醋炒|酒炒|盐炒|姜炒|炒|炙|制|煅|炮|焦)(.+)$/)?.[1];
+        const processingPrefix = normalizedCurrentName.match(/^(蜜炙|麸炒|土炒|米炒|醋制|酒制|盐制|姜制|醋炒|酒炒|盐炒|姜炒|炒|炙|制|煅|炮|焦|煨|土)(.+)$/)?.[1];
         if (processingPrefix) {
           const existing = unwrapSingleText(herb.processing ?? herb["炮制"] ?? herb["规格"]);
           herb.processing = [...new Set([existing, processingPrefix].filter((item): item is string => Boolean(item)))].join("、");

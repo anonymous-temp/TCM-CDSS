@@ -3227,6 +3227,9 @@ function unsupportedHighImpactHerbScan(
     const opposingPool = declaredConcepts && declaredConcepts.size === 0 && tcmTherapyConcepts(getTcmHerbFunctionCategories(herbName).join("；")).size > 0
       ? new Set([...tcmTherapyConcepts(getTcmHerbFunctionCategories(herbName).join("；")), ...tcmTherapyConcepts(getTcmHerbRiskProfile(herbName))])
       : herbTherapyConcepts(herbName);
+    // 分类里的「温化寒痰」、功用里的「祛风散寒」不是温里（HIGH_IMPACT_HERB_TRIGGER_OVERRIDES）：半夏、旋覆花配清热是常法（小柴胡汤、半夏泻心汤、小陷胸汤），
+    // 按身份算成温阳就成了「与清热对立」（第三十五轮甲方病历：腹痛呕吐伴发热，治法有清热，姜半夏被删、方义丢了降逆止呕）。声明了这个方向的照判。
+    for (const concept of highImpactTriggerNarrowedOut(herbName, declaredConcepts)) opposingPool.delete(concept);
     // 对立方向的判定要求**该药自己那一侧未被锁定**：M03 自己锁了寒温并用（清上温下、
     // 平调寒热——半夏泻心汤类）时，required 同时含 heat_clear 与 yang_warm，此时温药的
     // 温性是方义本身，不是「与锁定方向对立」。不加这条，widen 后的方向全集会让所有
@@ -3300,7 +3303,9 @@ export function modificationRowDirectionIssue(
   const herb = [{ name: herbName, function: declaredFunction }];
   const strict = unsupportedHighImpactHerbIssue(herb, prior);
   if (!strict) return undefined;
-  const recorded = !/^\s*(?:若|如|当|一旦)/u.test(trigger) && !conditionalModificationWithoutTextbook(trigger) && finalModificationTriggerGrounded(trigger, prior);
+  // 条件句是备用的（第三十五轮甲方病历：若胃痛较甚→延胡索、若畏风明显→桂枝被删了十来条）：只拦与治法相反的，方向是否贴合本例由 m04-modification-fit 按条核。
+  if (/^\s*若/u.test(trigger) || conditionalModificationWithoutTextbook(trigger)) return unsupportedHighImpactHerbIssue(herb, prior, false, [], true);
+  const recorded = !/^\s*(?:如|当|一旦)/u.test(trigger) && finalModificationTriggerGrounded(trigger, prior);
   if (!recorded || [...tcmTherapyConcepts(declaredFunction)].some((concept) => HIGH_IMPACT_THERAPY_CONCEPTS.has(concept))) return strict;
   return unsupportedHighImpactHerbIssue(herb, prior, false, [], true);
 }
