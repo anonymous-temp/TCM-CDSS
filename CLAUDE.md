@@ -2778,6 +2778,7 @@ The user asked for everything fixable in the round-34 audit list to be fixed and
 | Customer 10, production | 10/10 disease and syndrome equal the standard answers; all stages 200 |
 | Gate replay, 17,955 records | 0 changed |
 | Medians M03 / M04 | 12–16 s / 11 s |
+| 1.1 rubric, cust-conv 77 + cust-noconv 32 (stopped there; qwen ran about 2 cases a minute) | lowest rows T 93.5 / 96.9, K 91.4 / 100, W 97.0 / 96.4; the rest ≥97.4 |
 
 The change audit **did not reach zero**. Outputs with at least one change judged 改坏, of those with any raw→delivered change: f1 → f2 cust-conv 21/49 → 21/50, cust-noconv 25/57 → 21/53, p100c 45/96 → 40/95. 辨证依据 fell from 38 to 22 across the sets; 加减 is 28. Reading the remainder:
 - customer doctrine the judge disagrees with: 兼证/证素 need grouped evidence, cap of 4 modification rows, 自拟方 naming, 高血压 linked to 眩晕, sedatives for incidental sleep;
