@@ -643,6 +643,7 @@ const DEFICIENT_HEAT_SECONDARY = wholeNameOf(secondaryStructureJson.deficientHea
 const DEFICIENT_COLD_SECONDARY = wholeNameOf(secondaryStructureJson.deficientColdSecondaryNames);
 const YIN_DEFICIENT_PRIMARY = anyOf(secondaryStructureJson.yinDeficiencyPrimaryTerms);
 const YANG_DEFICIENT_PRIMARY = anyOf(secondaryStructureJson.yangDeficiencyPrimaryTerms);
+const NO_SEPARATE_SECONDARY = anyOf(secondaryStructureJson.noSeparateSecondaryPhrases);
 /**
  * 模型自写的兼证与主证在结构上不成立（第二十四轮，甲方 10/26 K04「风热犯肺证」兼「风寒表证」、治法里还加了「散寒」；甲方标准病历 6
  * 一次生成「肾阴虚证」兼「虚热证」）：
@@ -657,6 +658,8 @@ export function secondaryStructurallyInvalid(primary: string, secondary: string,
   if (!p || !s) return undefined;
   // 兼证栏写的是病名不是证（第三十三轮：便秘·阴虚秘兼「月经先期」）：别的病由鉴别或加减说，不是证候。
   if (!sRaw.endsWith("证") && isTextbookDiseaseName(s)) return "not_a_syndrome";
+  // 依据自己一句说没有独立的兼证（「属兼湿而非独立兼证」，第三十六轮甲方 11/2），不点名也算：兼证栏写的就是它。
+  if (NO_SEPARATE_SECONDARY.test(rationaleText.normalize("NFKC"))) return "declared_not_independent";
   // 依据自己说这组表现「非独立病证」「不另立」，兼证栏却写了它（2026-10-26 甲方测评病历 10：兼证心火亢盛证，
   // 依据末句「夜寐不宁系火热扰心所致，非独立病证」，判「辨证依据与证候矛盾」）。兼证默认不立，按依据撤下兼证。
   // 那一分句须说到兼证名里至少两个字（「火热扰心」对「心火亢盛」），别的兼夹因素的否认句不算。

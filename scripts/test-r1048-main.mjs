@@ -1,6 +1,7 @@
 // 第三十六轮（2026-11-02）：甲方 11/2 实测（开始传体格检查、16 条链路全选扶阳）读出来的缺陷。
 // 每条断言都有反证（~/runlogs/r1018/work/r1048/cp/）。
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, {
@@ -106,4 +107,50 @@ await check("7.1 兼证键缺失时交付空数组（接口文档写明）", () 
   assert.deepEqual(out.overview.secondarySyndromes, []);
   const kept = surface.projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { primarySyndrome: "气滞血瘀证", secondarySyndromes: ["脾气虚证"] } });
   assert.deepEqual(kept.overview.secondarySyndromes, ["脾气虚证"]);
+});
+
+const repair = await jiti.import("../src/lib/structured-clinical-repair.ts");
+
+await check("8.1 定向修复末尾多的括号去掉；别的语法错误照旧算失败", () => {
+  const candidate = { herbs: [{ name: "桑寄生" }], referenceCaseUse: { adoptedCaseIds: [] } };
+  const good = JSON.stringify({ candidate });
+  assert.ok(repair.spliceM04CandidatePatch({ modifications: [] }, good));
+  const out = repair.spliceM04CandidatePatch({ modifications: [] }, `${good}}`);
+  assert.deepEqual(JSON.parse(out).candidate, candidate);
+  assert.equal(repair.spliceM04CandidatePatch({}, good.slice(0, -2)), undefined);
+  assert.equal(repair.spliceM04CandidatePatch({}, `${good}}}}}`), undefined, "多到不像手滑的不救");
+});
+
+await check("8.2 修复轮 JSON 用不了算修复机会用尽；连接失败不算", () => {
+  const source = fs.readFileSync("src/lib/diagnosis-api.ts", "utf8");
+  const at = source.indexOf('console.warn("[tcm-cdss:model] structured retry request failed"');
+  assert.ok(at > 0);
+  const block = source.slice(at, at + 700);
+  assert.match(block, /opts\.structuredStage === "prescribe" && retry\.reason === "retry_invalid_json"\) m04RepairLoopEarlyExit = true/u);
+});
+
+await check("2.4 自拟方：「去X者」开头的整句连解释一起不留", () => {
+  const out = projected({ name: "自拟方", formulaAnalysis: "本方为自拟方。川芎、丹参为君，通络散结。去柴胡、马勃、炒牛蒡子者，本例无卫分表证，故精简以合十味之限。全方共奏通络之功。" });
+  assert.ok(!/柴胡|精简/u.test(out.formulaAnalysis), out.formulaAnalysis);
+  assert.match(out.formulaAnalysis, /全方共奏通络之功/u);
+});
+
+await check("5.4 换成名单里的病时说明不写「按此诊断」", () => {
+  const content = JSON.stringify({ westernDiagnosis: { primary: { name: "甲病" }, candidates: [{ name: "乙病", likelihood: "中" }], differentials: [] } });
+  const out = JSON.parse(visit.applyWesternVisitReasonDecision(content, { checkedName: "甲病", name: "乙病", lead: "腹痛" })).westernDiagnosis;
+  assert.match(out.primary.clinicalRationale, /考虑乙病/u);
+  assert.equal(out.candidates[0].likelihood, "中");
+});
+
+await check("5.5 主诉有几个问题时能解释其中一个就算：提名和复核两边都这样问", () => {
+  const source = fs.readFileSync("src/lib/western-visit-reason-check.server.ts", "utf8");
+  assert.match(source, /能解释其中一个就算解释得了/u);
+  assert.match(source, /能解释其中一个也答 false/u);
+});
+
+const secondary = await jiti.import("../src/lib/m03-secondary-syndrome-consistency.server.ts");
+
+await check("9.1 依据说「非独立兼证」时撤下兼证，不要求点名；只说「兼证」不算", () => {
+  assert.equal(secondary.secondaryStructurallyInvalid("心血不足证", "脾虚湿困证", "舌胖齿痕为脾虚水湿内停之象，属兼湿而非独立兼证；综合为心血不足。"), "declared_not_independent");
+  assert.equal(secondary.secondaryStructurallyInvalid("心血不足证", "脾虚湿困证", "舌胖齿痕为脾虚水湿内停之象，兼证为脾虚湿困。"), undefined);
 });

@@ -122,12 +122,28 @@ export function m04CandidatePatchBase(rawProposal: string): Record<string, unkno
 }
 
 /**
+ * 模型常在末尾多写一两个 }（第三十六轮甲方 C097：定向修复两次都是 `…{"adoptedCaseIds":[]}}}}`，多一个 }）。
+ * 只去掉末尾多出来的括号；其余语法错误照旧按解析失败。
+ */
+function parseWithExtraTrailingClosers(text: string): unknown {
+  let current = text.trim();
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return JSON.parse(current);
+    } catch (error) {
+      if (attempt >= 3 || !current.endsWith("}")) throw error;
+      current = current.slice(0, -1).trimEnd();
+    }
+  }
+}
+
+/**
  * 把模型返回的 candidate 拼回底稿，其余字段逐字保留。模型即使多输出了其它顶层字段也一律忽略——
  * 定向修复从不允许它改动中成药/西药、加减或非药物调护。候选没有药味不算修复，返回 undefined。
  */
 export function spliceM04CandidatePatch(base: Record<string, unknown>, patchJson: string): string | undefined {
   try {
-    const candidate = recordValue(recordValue(JSON.parse(patchJson))?.candidate);
+    const candidate = recordValue(recordValue(parseWithExtraTrailingClosers(patchJson))?.candidate);
     if (!candidate || !Array.isArray(candidate.herbs) || candidate.herbs.length === 0) return undefined;
     return JSON.stringify({ ...base, candidate });
   } catch {

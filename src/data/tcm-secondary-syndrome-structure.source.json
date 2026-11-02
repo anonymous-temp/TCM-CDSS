@@ -127,5 +127,6 @@
       "entry": "燥淫证"
     }
   ],
-  "criteriaTwoDeficientPattern": "^([气血阴阳])([气血阴阳])(?:两虚|两亏|俱虚|亏虚|不足)"
+  "criteriaTwoDeficientPattern": "^([气血阴阳])([气血阴阳])(?:两虚|两亏|俱虚|亏虚|不足)",
+  "noSeparateSecondaryPhrases": ["非独立兼证", "非独立的兼证", "不另立兼证", "不单列兼证", "不独立成兼证"]
 }

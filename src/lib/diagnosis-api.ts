@@ -4432,6 +4432,10 @@ async function callPrimaryTextModelStream(
               reason: retry.reason,
               status: retry.status,
             });
+            // 模型答了、答的 JSON 用不了：修复机会同样用尽（与 fixpoint 同义），已通过单味核对的候选走带批注受理。
+            // 此前这种情况不算「完成一轮修复」，整页退成非剂量（第三十六轮 C097，甲方 11/2 左眼结膜赘生物、10/27 咳嗽同形）。
+            // 连接失败不在此列（reason 不是 retry_invalid_json）。
+            if (opts.structuredStage === "prescribe" && retry.reason === "retry_invalid_json") m04RepairLoopEarlyExit = true;
           } else if (retry.ok) {
             // A repair can itself return the wrong envelope (most often a complete reasoning-v2
             // object instead of the M04 minimal proposal). That is still a repairable M04 contract

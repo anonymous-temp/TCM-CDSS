@@ -40,11 +40,11 @@ export function visitReasonCheckApplies(primaryName: string, chiefComplaint: str
 
 const PROPOSE_SYSTEM = `你只判断一件事：西医主诊断能不能解释病人这次来看的问题。给你 chiefComplaint（主诉）、current（主诊断）、listed（候选与鉴别）和 record（病历）。
 先写 relation：主诉的问题和这个诊断是什么关系（是它的表现、并发症、后果，或它是主诉的常见原因，就写出来）。
-是这几种关系之一的，explains 为 true，哪怕诊断还不确定。只有主诉的问题和这个诊断毫无关系、这个诊断解释的是病历别处的内容（过敏史、既往史、别的部位的查体）时，explains 才为 false。
+是这几种关系之一的，explains 为 true，哪怕诊断还不确定；主诉有几个问题时，能解释其中一个就算解释得了。只有主诉的问题和这个诊断毫无关系、这个诊断解释的是病历别处的内容（过敏史、既往史、别的部位的查体）时，explains 才为 false。
 explains 为 false 时，在 listed 里找能解释主诉的病名写进 betterName，没有就写空字符串。不要写 listed 以外的病名。
 只输出 JSON：{"relation":"≤30字","explains":true|false,"betterName":""}`;
 
-const VERIFY_SYSTEM = `给你主诉 chiefComplaint 和西医诊断 current。判断：这个诊断确实解释不了这个主诉吗？该诊断的表现、并发症或后果里包含主诉的问题，或它是主诉的常见原因，就算解释得了，答 false；两者毫无关系才答 true。先写理由。只输出 JSON：{"why":"≤30字","confirmed":true|false}`;
+const VERIFY_SYSTEM = `给你主诉 chiefComplaint 和西医诊断 current。判断：这个诊断确实解释不了这个主诉吗？该诊断的表现、并发症或后果里包含主诉的问题，或它是主诉的常见原因，就算解释得了，答 false；主诉有几个问题时，能解释其中一个也答 false；两者毫无关系才答 true。先写理由。只输出 JSON：{"why":"≤30字","confirmed":true|false}`;
 
 export type WesternVisitReasonDecision = { checkedName: string; name: string; lead: string };
 
@@ -111,7 +111,9 @@ export function applyWesternVisitReasonDecision(westernContent: string, decision
     if (!root || !western || !primary || String(primary.name || "").trim() !== decision.checkedName) return westernContent;
     const previous = decision.checkedName;
     primary.name = decision.name;
-    primary.clinicalRationale = `本次就诊的问题是${decision.lead}，先按此诊断；病历另记录的表现提示${previous}，它解释不了本次主诉，单独考虑。`;
+    primary.clinicalRationale = decision.name === decision.lead
+      ? `本次就诊的问题是${decision.lead}，先按此诊断；病历另记录的表现提示${previous}，它解释不了本次主诉，单独考虑。`
+      : `本次就诊的问题是${decision.lead}，考虑${decision.name}；病历另记录的表现提示${previous}，它解释不了本次主诉，单独考虑。`;
     const others = (key: string) => (Array.isArray(western[key]) ? western[key] as unknown[] : [])
       .filter((item) => { const name = record(item)?.name; return name !== previous && name !== decision.name; });
     const adopted = (Array.isArray(western.candidates) ? western.candidates as unknown[] : []).find((item) => record(item)?.name === decision.name);

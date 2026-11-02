@@ -1935,21 +1935,27 @@ function withoutFalseNamedRemovalClaims(analysis: string, present: ReadonlyMap<s
  * 说的药医生在方里也找不到。小句开头是「去 + 药名列表」、只点药名时整句不留；「去湿」「去瘀生新」这类动宾不是药名，不动。
  */
 function withoutSelfDevisedRemovalClauses(analysis: string): string {
-  return analysis.split(/(?<=。)/u).map((sentence) => {
+  return analysis.split(/(?<=。)/u).filter((sentence) => {
+    // 「去X者，…」是一整句解释为什么去：连解释一起不留（「去柴胡、马勃、炒牛蒡子者，本例无卫分表证，故精简」）。
+    const head = sentence.split(/[，,；;。]/u)[0];
+    return !(head.endsWith("者") && removalClauseOfOnlyHerbNames(head));
+  }).map((sentence) => {
     const clauses = sentence.split(/(?<=[，,；;])/u);
-    const kept = clauses.filter((clause) => {
-      const list = clause.replace(/[，,；;。]$/u, "").trim();
-      if (!/^(?:并|且|再)?(?:去掉|去|删去|减去)/u.test(list)) return true;
-      const items = list.split("、").map((item) => item.replace(/^(?:并|且|再)?(?:去掉|去|删去|减去)?(?:原方中?)?/u, "").trim());
-      return !items.every((item) => {
-        const mentions = formulaAnalysisHerbMentions(item);
-        return mentions.length === 1 && mentions[0].token === item;
-      });
-    });
+    const kept = clauses.filter((clause) => !removalClauseOfOnlyHerbNames(clause.replace(/[，,；;。]$/u, "")));
     if (kept.length === clauses.length) return sentence;
     const joined = kept.join("");
     return /[，,；;]$/u.test(joined) && /。$/u.test(sentence) ? `${joined.replace(/[，,；;]$/u, "")}。` : joined;
   }).join("");
+}
+
+function removalClauseOfOnlyHerbNames(clause: string): boolean {
+  const list = clause.trim();
+  if (!/^(?:并|且|再)?(?:去掉|去|删去|减去)/u.test(list)) return false;
+  return list.split("、").every((item) => {
+    const name = item.replace(/^(?:并|且|再)?(?:去掉|去|删去|减去)?(?:原方中?)?/u, "").replace(/者$/u, "").trim();
+    const mentions = formulaAnalysisHerbMentions(name);
+    return mentions.length === 1 && mentions[0].token === name;
+  });
 }
 
 /** 只剩泛称的触发条件（临床/方中/症状/病情/诸症/上述/上症，后面至多一个程度词）：不是哪一种变化。同一组泛称见 TEXTBOOK_GENERIC_CONDITION。 */
