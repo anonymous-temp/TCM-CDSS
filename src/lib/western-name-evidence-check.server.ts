@@ -251,7 +251,8 @@ export function decisiveFindingVetoesD(decisive: unknown, meetsCriteria: unknown
  */
 const UNCERTAIN_NEAR_DIAGNOSIS = /可疑|疑似|待排|待查|可能|\?|？|除外|排除/u;
 export function recordStatesWesternDiagnosis(name: string, recordText: string): boolean {
-  const core = name.trim().replace(/待查$/u, "").normalize("NFKC");
+  // 分期、并发症写在后面的按病本身看（支气管哮喘急性发作：病历写着支气管哮喘），第三十五轮 W03。
+  const core = name.trim().replace(/待查$/u, "").normalize("NFKC").replace(/(?:急性发作|急性加重|慢性迁延期|伴[\u4e00-\u9fff]+|合并[\u4e00-\u9fff]+)$/u, "");
   if (core.length < 3) return false;
   const source = recordText.normalize("NFKC");
   const pattern = new RegExp([...core].map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[^，,。；;：:、\\n]{0,4}"), "gu");
@@ -317,13 +318,17 @@ export function parseWesternNameCorrection(
   const named = keepHypothesis ? `${current}待查` : qualifierOnly ? name.replace(/待查$/u, "") : name;
   // 停在单个症状上的名称一律带「待查」（「乏力」→「乏力待查」）；只去掉病程限定或侧别的上一级（「尿潴留」）本身有依据，不加。
   const bareSymptom = !qualifierOnly && !/待查$/u.test(named) && symptomLevelWesternName(named);
-  const symptomSupported = bareSymptom ? `${named}待查` : named;
+  let symptomSupported = bareSymptom ? `${named}待查` : named;
   // D 类说的是「缺确诊所需的检查或病程」，给出的名称只能是同一个病往宽处说：原名去掉限定（脊髓型颈椎病→颈椎病、
   // 急性化脓性扁桃体炎→急性扁桃体炎，按字序是原名的子序列）、症状层名称，或病历自己写着的说法（主诉「牙痛3天」→牙痛）。
   // 核对把另一个病当成「上一级」交回时（附睾结核→附睾炎、甲状腺癌骨转移→甲状腺瘤、肾包虫病→肾囊肿、糖尿病→消渴病、
   // 慢性非萎缩性胃炎→功能性消化不良；2026-10-19 第九轮终测 D 集），换名就成了另一个没有依据的诊断：改写「原病名待查」，
   // 留住首要考虑——与 keepHypothesis 同一口径。只管不带「待查」的名称；带「待查」的照上面的规则。
   const supportedCore = compact(symptomSupported.replace(/待查$/u, ""));
+  // 给的上一级「X待查」而病历写着 X（2型糖尿病伴周围神经病变 → 糖尿病待查，病历「糖尿病十余年」）：X 是确诊的，不写待查（第三十五轮 W30）。
+  if (/待查$/u.test(symptomSupported) && recordStatesWesternDiagnosis(symptomSupported, recordText) && symptomSupported.replace(/待查$/u, "").length >= 3) {
+    symptomSupported = symptomSupported.replace(/待查$/u, "");
+  }
   const supported = type === "D" && !/待查$/u.test(symptomSupported) &&
     !isCharacterSubsequence(supportedCore, compact(current)) && !symptomLevelWesternName(supportedCore) &&
     !compact(recordText).includes(supportedCore) && current.length >= 2 && !INVALID_SUPPORTED_NAME_FORM.test(current)

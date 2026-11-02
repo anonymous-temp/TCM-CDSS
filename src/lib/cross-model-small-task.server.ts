@@ -121,7 +121,7 @@ export async function proposeTwiceThenVerifyAll<P>(
   limit: number,
   timeoutMs: number,
   signal?: AbortSignal,
-  options: { recheckAgreed?: boolean } = {},
+  options: { recheckAgreed?: boolean; needsBothSamples?: (proposal: P) => boolean } = {},
 ): Promise<P[]> {
   const primary = getControlledTerminologyModelConfig();
   const [first, second] = await Promise.all([
@@ -135,7 +135,7 @@ export async function proposeTwiceThenVerifyAll<P>(
     const key = sameProposal(proposal);
     if (seen.has(key)) return false;
     seen.add(key);
-    return true;
+    return !options.needsBothSamples?.(proposal) || (inFirst.has(key) && inSecond.has(key));
   });
   if (proposals.length === 0) return [];
   const verdicts = await Promise.all(proposals.map(async (proposal) => {

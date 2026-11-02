@@ -3741,7 +3741,8 @@ export function normalizeDiagnoseConfidenceAndLabels(content: string, clinicalCo
     //    错名还会带 ICD 编码进 HIS。且 prepare 每轮修复都重跑，模型改回去也会被再改一次，赢不了。
     // ③ 真的改名时，原标签必须进鉴别并写明理由——合法的降级通路
     //    （declassifyUnsupportedM03WesternPrimary）就是这么做的，这里原本什么都不留。
-    if (!isAmbiguousM03WesternPrimaryLabel(normalized) && isSymptomLevelWorkingLabel(normalized)) {
+    // 模型写「慢性腹泻待查」这样带病程限定的不算裸症状，不按主诉第一个症状改（第三十五轮 W20 成了「腹痛待查」）。
+    if (!isAmbiguousM03WesternPrimaryLabel(normalized) && isSymptomLevelWorkingLabel(normalized) && !/^(?:慢性|急性|反复)/u.test(normalized)) {
       const fallback = chiefComplaintFallbackDiagnosis(clinicalContext);
       // 只按**主诉主症**规范化。「被主诉提到过」不等于「是主症」——
       // 「大便老解不出来，四五天一次，肚子还胀」里腹胀是兼症，主症是便秘，

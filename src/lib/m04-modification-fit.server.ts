@@ -107,7 +107,10 @@ export async function dropMisfitModifications(content: string, context: { record
     ],
     maxTokens: 90,
     parse: parseConfirmed,
-  } : undefined, rows.length, TIMEOUT_MS, signal);
+  } : undefined, rows.length, TIMEOUT_MS, signal, {
+    // 「药管不到这个症」比「条件与病历相反」更看读法：两次提名都这么说才去问复核（第三十五轮：病历有大便干，「大便秘结→玄参」因一次提名被删）。
+    needsBothSamples: (finding) => finding.verdict === "misfit",
+  });
   if (findings.length === 0) return content;
   const contradicted = new Set(findings.filter((finding) => finding.verdict === "contradicts").map((finding) => finding.line));
   const bad = new Set(contradicted);

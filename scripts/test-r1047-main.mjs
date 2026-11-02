@@ -130,6 +130,15 @@ await check("3.4 慢性X病程不够但病历写着X：写X；病历没写时仍
   assert.match(symptom, /"name": "咳嗽症状"/);
 });
 
+await check("3.5 病历写着病本身：带分期的名字不下调；上一级待查去掉待查；带病程限定的不按主诉改", () => {
+  const rec = "主诉：反复咳喘6年。曾诊断为“支气管哮喘”。糖尿病十余年。";
+  assert.equal(western.recordStatesWesternDiagnosis("支气管哮喘急性发作", rec), true);
+  const d = (name, supportedName) => JSON.stringify({ verdict: "inconsistent", type: "D", quote: "糖尿病十余年", reason: "周围神经病变未记录肌电图", supportedName, missingTest: "肌电图" });
+  assert.equal(western.parseWesternNameCorrection(d("x", "糖尿病待查"), rec, "2型糖尿病伴周围神经病变")?.supportedName, "糖尿病");
+  const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", westernDiagnosis: { primary: { name: "慢性腹泻待查" }, differentials: [] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  assert.match(visible.normalizeDiagnoseConfidenceAndLabels(content, "主诉：腹痛腹泻半年。"), /慢性腹泻待查/);
+});
+
 await check("4.0 三字方名前面是助词时不是方名；方名承载药不在方里不还原；炮制字加别名照写", () => {
   assert.equal(provenance.governedFormulaClaimRanges("桂枝温通阳气、助化痰饮").length, 0);
   assert.equal(provenance.governedFormulaClaimRanges("本方取化痰饮之意").length, 1, "别的位置仍是方名");
@@ -215,6 +224,19 @@ await check("5.2c 针对病历已记录表现的加减行只拦方向相反的�
   assert.ok(contract.modificationRowDirectionIssue("大黄", "泻下通便", "若大便不通", prior), "条件句严格");
   const warm = { ...prior, therapy: { overallMethod: "温阳散寒" }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "寒凝", therapyDirection: "温阳散寒", patientFact: "身体酸困" }] } };
   assert.ok(contract.modificationRowDirectionIssue("黄连", "清热燥湿", "身体酸困", warm), "与治法相反的照拦");
+});
+await check("5.2d 没写若的症状补若按条件句走；便干是通便方向的条件", async () => {
+  const prior = { stage: "diagnose", overview: { tcmDiseaseName: "眩晕", primarySyndrome: "痰湿中阻证", primarySyndromeBasis: [] }, westernDiagnosis: { primary: { supportingFacts: [] } }, pathogenesis: { chain: [{ nodeId: "P1", patientFact: "头晕" }] } };
+  const rows = compiler.normalizeModificationsForTest([{ actionType: "add", targetRef: "P1", reason: "润肠通便", trigger: "大便偏干", herbName: "瓜蒌" }], prior);
+  assert.equal(rows[0]?.trigger, "若大便偏干", JSON.stringify(rows));
+  const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+  assert.equal(contract.conditionDeclaresHighImpactDirection("若便干难解", "herb_0_unsupported_high_impact_purge"), true);
+  assert.equal(contract.conditionDeclaresHighImpactDirection("若恶风明显", "herb_0_unsupported_high_impact_yang_warm"), true);
+});
+await check("5.2e 模型自写行「管不到这个症」要两次提名都这么说", async () => {
+  const fs = await import("node:fs");
+  assert.match(fs.readFileSync("src/lib/m04-modification-fit.server.ts", "utf8"), /needsBothSamples: \(finding\) => finding\.verdict === "misfit"/);
+  assert.match(fs.readFileSync("src/lib/cross-model-small-task.server.ts", "utf8"), /options\.needsBothSamples\?\.\(proposal\)/);
 });
 await check("5.3 超过行数时病历写着的症状先留", () => {
   const prior = { stage: "diagnose", overview: { tcmDiseaseName: "胃痞", primarySyndrome: "胃气不和证", primarySyndromeBasis: ["大便干结"] }, westernDiagnosis: { primary: { supportingFacts: ["大便干结"] } }, pathogenesis: { chain: [{ nodeId: "P1", patientFact: "大便干结", syndromeEvidence: "大便干结" }] } };

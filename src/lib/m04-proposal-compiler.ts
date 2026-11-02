@@ -1283,7 +1283,9 @@ function normalizeModifications(
       return drop("contains_unaudited_dose");
     }
     // 条件句的形状合格就先留下：教材条目够不够用要等编译阶段（compileModification）才知道。
-    if (!modificationTriggerGroundedInM03(trigger, prior) && !modelConditionalTriggerShape(trigger)) return drop("trigger_not_current_fact");
+    // 没写「若」的症状（「大便偏干」）M03 依据里没引到时补上「若」按条件句走，病历写着的交付面写成「本例已见」（第三十五轮 W12：病历有大便偏干，这行被丢）。
+    const conditionalForm = !modificationTriggerGroundedInM03(trigger, prior) && !/^\s*若/u.test(trigger) && modelConditionalTriggerShape(`若${trigger}`) ? `若${trigger}` : trigger;
+    if (!modificationTriggerGroundedInM03(conditionalForm, prior) && !modelConditionalTriggerShape(conditionalForm)) return drop("trigger_not_current_fact");
     const normalizedHerbName = canonicalTcmHerbIdentity(herbName.trim());
     // 随症加减是可选决策支持，不能让一条模型臆造的药味、病机引用或动作拖垮
     // 已通过核心契约的候选处方。服务端只保留知识库可识别且与当前上下文一致的行。
@@ -1299,7 +1301,7 @@ function normalizeModifications(
       if (!prescribedName) return drop("action_conflicts_with_candidate");
       return [{
         ...item,
-        trigger,
+        trigger: conditionalForm,
         targetRef,
         actionType: "adjust" as const,
         herbName: prescribedName,
@@ -1310,7 +1312,7 @@ function normalizeModifications(
     }
     return [{
       ...item,
-      trigger,
+      trigger: conditionalForm,
       targetRef,
       actionType,
       // 加味保留炮制写法（煅瓦楞子、炒白术、焦山楂）：行里没有单独的炮制栏，归一成基原药等于把炮制丢了（第三十四轮改坏审计）。

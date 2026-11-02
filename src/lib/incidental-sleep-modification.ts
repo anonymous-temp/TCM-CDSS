@@ -34,7 +34,7 @@ const SLEEP_TRIGGER = /眠|寐|夜啼|夜醒|易醒|早醒|多梦|睡/u;
  * 睡眠或心神的表现在病历里不止顺带一句（第三十五轮 c25：心悸怔忡、失眠多梦，方中酸枣仁与治法「宁心安神」都被当顺带去掉；评审判方义与症状脱节）：
  * 肯定写着两种以上，或写在主诉里。甲方 10.12 点名的是「睡眠差」这样顺带一提的情况，这条不动它。
  */
-const MIND_SYMPTOMS: readonly string[] = ["失眠", "不寐", "多梦", "入睡困难", "易醒", "早醒", "夜寐不安", "寐差", "眠差", "心悸", "怔忡", "心慌", "心烦", "健忘"];
+const MIND_SYMPTOMS: readonly string[] = ["失眠", "不寐", "多梦", "梦多", "寐浅", "夜寐不宁", "入睡困难", "易醒", "早醒", "夜寐不安", "寐差", "眠差", "心悸", "怔忡", "心慌", "心烦", "健忘"];
 export function mindSymptomsProminentInRecord(recordText: string, chiefComplaint = ""): boolean {
   const affirmed = (text: string, term: string) => new RegExp(`(?<![无否未没不])${term}`, "u").test(text);
   if (MIND_SYMPTOMS.some((term) => affirmed(chiefComplaint, term))) return true;
