@@ -441,7 +441,8 @@ try {
   //（《中医内科学》不寐·心脾两虚证）、三条把握度说明换成临床写法、服务端「辨证推理质量边界」不确定项不交付。
   // 2026-10-27 第二十四轮再更新：唯一差异是症状依据栏放了一句诊断依据（clinicalRationale，10.26 甲方测评「西医诊断无依据」）；
   // 把这一栏清空后指纹与上一版（sha256:3388f539…）逐字相同。
-  assert.equal(m03ClinicalDecisionHash(signed), "sha256:6efb30e0dfa31dde7ce67feeca57be319f9d1848806f2bcdc5e735ca1c87780a", "the settled projection must preserve the final clinical payload");
+  // 2026-11-02 第三十五轮再更新：逐字段比对，唯一差异是西医名「心悸症状」交付写「心悸待查」（原来只去掉「症状」两字）。
+  assert.equal(m03ClinicalDecisionHash(signed), "sha256:7cc728ed5f1d94017c21aa0bd2ba2460c7be968d85fc145cdbe925edcc56197d", "the settled projection must preserve the final clinical payload");
   assert.deepEqual(signed.westernDiagnosis.primary.supportingFacts, [signed.westernDiagnosis.primary.clinicalRationale], "交付的辨证结果症状依据栏只放一句诊断依据");
   assert.deepEqual(signed.westernDiagnosis.primary.limitations, [], "交付的辨证结果不带待查依据");
   assert.deepEqual(signed.westernDiagnosis.primary.suggestedChecks, [], "交付的辨证结果不带检查建议");
