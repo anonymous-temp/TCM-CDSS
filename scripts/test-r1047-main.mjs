@@ -74,6 +74,7 @@ await check("2.2 病历肯定写着的、肯定说法、写不成词形的不改
   assert.equal(claim.negativeClaimAsNotReported("右侧疼痛", "患者胃痛。"), undefined);
   assert.equal(claim.negativeClaimAsNotReported("无矢气全无", "患者胃痛。"), undefined);
   assert.equal(claim.negativeClaimAsNotReported("按之无形", "患者胃痛。"), undefined);
+  assert.equal(claim.negativeClaimAsNotReported("病势轻浅不传变", "患者胃痛。"), undefined, "前半是判断，不是一个部位或动作");
 });
 await check("2.3 落到字段上：阴性改写，肯定照删", () => {
   const root = { overview: { tcmDiseaseRationale: "以心下痞为主症，望无胀形，痛如针刺，故归胃痞。" } };

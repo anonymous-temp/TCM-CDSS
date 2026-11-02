@@ -235,7 +235,7 @@ export function negativeClaimItems(span: string): { subject: string; items: stri
         items.push(part.replace(NEGATIVE_CLAIM_LEAD, ""));
         continue;
       }
-      const parts = /^([\u4e00-\u9fff]{1,6}?)(?:无|不)([\u4e00-\u9fff]{1,10})$/u.exec(part);
+      const parts = /^([\u4e00-\u9fff]{1,3}?)(?:无|不)([\u4e00-\u9fff]{1,10})$/u.exec(part);
       // 否认词后只剩一个字时，前面得是部位（腹不胀）；「按之无形」的「形」不是一个表现。
       if (parts && (parts[2].length >= 2 || parts[1].length === 1)) items.push(`${EXAM_VERB_HEAD.test(parts[1]) ? "" : parts[1]}${parts[2]}`);
       else if (items.length > 0 && /^不[\u4e00-\u9fff]{2,}/u.test(part)) items.push(part.slice(1));
