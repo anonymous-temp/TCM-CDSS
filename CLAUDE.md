@@ -2797,6 +2797,44 @@ The change audit **did not reach zero**. Outputs with at least one change judged
 
 **Running it again.** `TAG=… REPO=… SETS="cust-conv cust-noconv c10 p100c" bash gen.sh`, then `audit.py`, `p0-audit.mjs`, `ledger-scan.py`, `judge.sh`, `judge-qwen-cust.mjs c10`, `judge-qwen-p.mjs`. A full run on this set costs about 75 CNY on the DeepSeek key, which is shared with EviMed RSI; check `/user/balance` first and tell that session.
 
+### 11/2 round 36: what the customer's 11/2 test showed, golden baseline, final acceptance (2026-11-02)
+
+The user reported that the customer now sends 婚育史 and 月经史, left the HIS adoption status, home acupoint care and clinician sign-off as they are, and asked for everything else, especially customer-raised items, to be checked and every verification run. Material: `~/runlogs/r1018/work/r1048/` (`sets/cust-new.json` = records the archive holds beyond round 35's sets, `view1102.py`, `chk.py`, `accept.sh`, `gen.sh`, `cp/`). Suite `test:r1048-main`.
+
+**What the archive says about the customer's side.** No `{"ValueKind":3}` since 10/29. 婚育史 is sent on most records (月经 usually written inside it). On 11/2 they started sending `symptoms.体格检查`, which is read as record text, and all 16 chains chose 扶阳 (`support-yang`).
+
+**Fixed, by class.**
+- **Non-dose page from a stray closer.** A candidate patch ending in one extra `}` failed `JSON.parse`, the round did not count as a completed repair (`completedRepairAttempts: 0`), and the acceptable-with-annotation path refused it: C097, and most likely the customer's 11/2 and 10/27 non-dose pages, which show the same page but whose raw output was not kept. `spliceM04CandidatePatch` now removes up to three trailing closers, and `retry_invalid_json` counts as repair exhausted. Connection failures still do not.
+- **Western primary that does not explain the visit** (`western-visit-reason-check.server.ts`, `CDSS_WESTERN_VISIT_REASON_CHECK`). 主诉「肌肉拉伤」 with an allergy history and a nasal exam got 过敏性鼻炎 in 3 of 3 although the prompt already forbids it. deepseek proposes, qwen verifies, in parallel with the name check. It asks only when the name shares no two characters with the lead of the chief complaint; a cause, complication or consequence counts as explaining, and so does explaining one of several complaints (the first wording renamed 失眠障碍 to a drug-toxicity name for 「夜间频醒、白天跌倒」). Not on red flags. The old name stays in the differentials.
+- **筋伤** is a textbook disease now (three stages from 《中医骨伤科学》 第八章). It had no row, so muscle strains became 痹证.
+- **Text the server left wrong:** 「去赤芍、去菊花」 in a self-devised 方义 (nothing to remove from), including whole 「去X者，…」 sentences; 「本方以二陈汤加味为基础加减」; 「考虑心律失常可能，类发作特点」 (the descriptor now goes with the assertion); textbook conditions that are not a symptom change (「若比类“风性善行而数变”」, 「除辨证论治外…」, single characters such as 「可」); a 兼证 next to a rationale saying 「非独立兼证」 without naming it; `secondarySyndromes` missing when the model omits it (now `[]`, as the interface doc says).
+
+**Tried and reverted.** Making the lineage `partial` sentence say 「取向放在加减」 and requiring a school-direction modification: on 6 cases × 6 lineages `partial` rose to 24 of 30, including plainly unfit pairs, with hollow sentences such as 「阴虚秘…扶阳取向放在加减」. The rows themselves were ordinary textbook rows. The customer's own table counts an honest 「不适配，未执行」 as a pass.
+
+**Measured (final acceptance on d0f607e, 541 chains: 161 customer API records including the 15 new ones, customer 10 × 3, the 34 of 10.29, 100 cases in both shapes, history 52, held-out 32 × 2; qwen3.8-max).** Three later commits (compound 安神 items, the 和 split in summary effects, blood-moving patent medicines during bleeding) passed the gate and production probes but not a full rerun.
+
+| | Result |
+|---|---|
+| Dosed | 540/541; the other is a child of unknown age (expected) |
+| Dose over ChP / over 2× / 十八反 incl. 加减 / pregnancy-prohibited / child-toxic / organ / active-bleed 活血 | 0 / 0 / 0 / 0 / 0 / 0 / 0 |
+| Red-flag cases dosed | 109/109 |
+| ≥2 TCM disease differentials | 539/541 |
+| Customer 10 × 3, failures per column | r1 西医 1, r2 and r3 0; no red flag on any; disease, syndrome and formula identical across runs |
+| Held-out 32 × 2 | every block ≥96.6% |
+| 1.1 rubric, all 295 (cust-new 15, cust-conv 77, cust-noconv 69, c15 34, p100c 100) | lowest T 93.3 (cust-new, 15 cases), K 93.8 / 94.3; every other row ≥97.1 |
+| Change audit, outputs with a change judged 改坏 | cust-conv 21/50 → 14/51, cust-noconv 21/53 → 21/54, p100c 40/95 → 40/94, hist 13/44, c15 5/20 |
+| Local medians M03 / M04 | 12–15 s / 10.5–11.5 s; production cold M03 8–10 s, M04 11–13 s |
+
+The audit is still not zero; reading the remainder gives the same split as round 35 (doctrine, judge errors, model variance), plus judge misreadings: textbook 治法 such as 「疏风清热和络」 counted as a split, 棕榈 + `processing: 煅炭` counted as losing 炭.
+
+**Golden baseline (`regress:tcm-cdss`, local prebuilt in production mode, first full run since 10/13):** 398 calls, 222 cases, 20 failures, none from this round. 14 pin old doctrine (dose-level locks before D4, signature mismatch blocking before 10/12, BP 190/122 as a red flag before 10/19). 5 are the facts layer stricter than the fixture (syncope, 50 ml hemoptysis, RR 25). 1 is the local unauthorized-request limiter. The harness was not rewritten.
+
+**Left as is.** 参芍片 for 心血不足 (K, 2); 丹皮酚软膏 row labelled with the wrong problem (C006); a card plan for 肝肾 on a 清阳不升 眩晕 (W, 2); 28-year-old man with 「情志与月经」 under uncertainties, and a 1-year-old with 「需先排除妊娠」 (her record says 备孕); M04 with 0 modifications for that same record; 3.5-year-old BP 120/80 from a template default goes to specialist evaluation (S162), clinically defensible if measured.
+
+**In production (db01f7f, deployed 2026-11-03 about 00:30 Beijing; tag `20261102-db01f7f-prebuilt`, same release directory and `20260927-dsrepair` override).** d0f607e, dbdebd4 and 62b243b went out before it the same night. `verify:deployed-image` and `regress:prod-smoke` passed each time (last: M03 P95 17.2 s, M04 P95 13.2 s). Rollback: image `tcm-cdss:20261102-62b243b-prebuilt` with `docker-compose.yml.pre-db01f7f`.
+
+**Local build notes.** Two OOM kills with swap full; once the temporary swap file plus the build tree filled root (ENOSPC; 1.2 GB swap on 2 GB free). It went through when other sessions quieted (4–5 GB available). Delete the build tree's `node_modules` after `PREBUILD_OK`. Foreground `timeout` on `verify:release` cut it at 160/296; run it detached.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
