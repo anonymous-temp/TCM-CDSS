@@ -1990,13 +1990,20 @@ export function modificationTargetPathogenesis(
     for (const gram of bigrams(left)) if (rightSet.has(gram)) return true;
     return false;
   };
+  const mostlyCopiedFromNode = (value: string): boolean => {
+    const own = bigrams(value);
+    const nodeSet = bigrams(node?.pathogenesis || "");
+    return own.size > 0 && [...own].filter((gram) => nodeSet.has(gram)).length * 2 >= own.size;
+  };
   const authored = (item.symptomPathogenesis || "").trim();
   // 模型写的本症病机常用不同的词解释同一症状（小便清长 → 肾气不固，膀胱失约），字面不必与触发症状重合；
   // 只要求：够短、不含剂量、不是把节点整段照抄回来。
   if (
     authored.length >= 4 && authored.length <= 40 &&
     !/\d+(?:\.\d+)?\s*(?:g|克|mg|毫克)/i.test(authored) &&
-    compactNarrative(authored) !== compactNarrative(node?.pathogenesis || "")
+    compactNarrative(authored) !== compactNarrative(node?.pathogenesis || "") &&
+    // 条件句的本症病机大半照抄节点（「若便溏加重→干姜」写「肺气亏虚，卫表不固」，第三十五轮甲方病历 5）：说的是将来的变化，不用节点的话，写「兼见…」。
+    !(/^若/u.test(item.trigger.trim()) && mostlyCopiedFromNode(authored))
   ) {
     const cleaned = cleanNarrative(authored, "");
     if (cleaned) return cleaned;

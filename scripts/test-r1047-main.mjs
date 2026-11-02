@@ -255,6 +255,13 @@ await check("5.2e 模型自写行「管不到这个症」要两次提名都这�
   assert.match(fs.readFileSync("src/lib/m04-modification-fit.server.ts", "utf8"), /needsBothSamples: \(finding\) => finding\.verdict === "misfit"/);
   assert.match(fs.readFileSync("src/lib/cross-model-small-task.server.ts", "utf8"), /options\.needsBothSamples\?\.\(proposal\)/);
 });
+await check("5.2f 条件句的本症病机照抄节点时写兼见；自己写的、记录行不动", () => {
+  const clean = (value, fallback) => value || fallback;
+  const node = { pathogenesis: "肺气亏虚，卫表不固，外邪屡犯" };
+  assert.equal(compiler.modificationTargetPathogenesis({ trigger: "若大便稀溏加重", targetRef: "P1", reason: "x", symptomPathogenesis: "肺气亏虚，卫外不固，腠理疏松" }, node, clean), "兼见大便稀溏加重");
+  assert.equal(compiler.modificationTargetPathogenesis({ trigger: "若大便稀溏加重", targetRef: "P1", reason: "x", symptomPathogenesis: "脾阳不足，运化失司" }, node, clean), "脾阳不足，运化失司");
+  assert.equal(compiler.modificationTargetPathogenesis({ trigger: "乏力气短", targetRef: "P1", reason: "x", symptomPathogenesis: "肺气亏虚，卫外不固" }, node, clean), "肺气亏虚，卫外不固");
+});
 await check("5.3 超过行数时病历写着的症状先留", () => {
   const prior = { stage: "diagnose", overview: { tcmDiseaseName: "胃痞", primarySyndrome: "胃气不和证", primarySyndromeBasis: ["大便干结"] }, westernDiagnosis: { primary: { supportingFacts: ["大便干结"] } }, pathogenesis: { chain: [{ nodeId: "P1", patientFact: "大便干结", syndromeEvidence: "大便干结" }] } };
   const add = (trigger, herbName) => ({ actionType: "add", targetRef: "P1", reason: "理由写够", trigger, herbName });
