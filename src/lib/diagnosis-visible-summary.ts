@@ -354,12 +354,18 @@ function classicAnchorLabel(value: unknown): string {
 type ClinicalResolutionValue = "resolved" | "bounded" | "unresolved";
 
 function exactClinicalSourceQuotes(value: string, clinicalContext: string): string[] {
-  const exact = (candidate: string): string | undefined => {
+  // 回填可能是按句号/分号切开后逐段对上的几段原文（patientFactSourceQuote 以「；」连接），逐段返回，每段都是病历原文。
+  const exactPieces = (candidate: string): string[] => {
     const quote = patientFactSourceQuote(candidate, clinicalContext)?.trim();
-    return quote && clinicalContext.includes(quote) ? quote : undefined;
+    if (!quote) return [];
+    // 逐段对上的几段各自返回（一段肯定、一段否认时由调用方按段取舍），哪怕连起来恰好也是病历原文。
+    const pieces = quote.split("；").map((piece) => piece.trim()).filter(Boolean);
+    if (pieces.length > 1 && pieces.every((piece) => clinicalContext.includes(piece))) return pieces;
+    return clinicalContext.includes(quote) ? [quote] : [];
   };
-  const whole = exact(value);
-  if (whole) return [whole];
+  const exact = (candidate: string): string | undefined => exactPieces(candidate)[0];
+  const whole = exactPieces(value);
+  if (whole.length > 0) return whole;
   // A provider may join two real chart clauses into a newly worded sentence. That sentence is not
   // a source quote even though each component is individually supported. Split only on hard/comma
   // clause boundaries, re-ground every part, and retain the exact chart sentences. Unsupported
@@ -826,7 +832,8 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
     const groundedQuote = (value: unknown): string => {
       if (typeof value !== "string" || !value.trim()) return "";
       if (!clinicalContext) return value.trim();
-      return exactClinicalSourceQuotes(value, clinicalContext)[0] || "";
+      // 各段都是原文；多段时整体保留（「舌淡红，苔薄白；脉浮紧」），不只留第一段。
+      return exactClinicalSourceQuotes(value, clinicalContext).join("；");
     };
 
     const overview = reasoning.overview && typeof reasoning.overview === "object" && !Array.isArray(reasoning.overview)
@@ -2951,11 +2958,11 @@ export function groundStructuredPatientFacts(
       if (!therapyText) return drop("therapy_unstable");
       if (pathogenesisText !== node.pathogenesis || therapyText !== node.therapyDirection) trimmedHedges += 1;
       if (!clinicalContext) return [{ ...node, pathogenesis: pathogenesisText, therapyDirection: therapyText }];
-      const patientFactQuote = stripClinicalTransportPrefix(
-        exactClinicalSourceQuotes(node.patientFact, clinicalContext)[0] || "",
-      );
+      // 患者事实只取一段原文（合同要求逐字是病历的一句）；证候依据可以是几段（舌、脉各一段），以「；」连接。
+      const patientFactQuote = stripClinicalTransportPrefix(exactClinicalSourceQuotes(node.patientFact, clinicalContext)[0] || "");
       const syndromeEvidenceQuote = typeof node.syndromeEvidence === "string"
-        ? stripClinicalTransportPrefix(exactClinicalSourceQuotes(node.syndromeEvidence, clinicalContext)[0] || "")
+        ? exactClinicalSourceQuotes(node.syndromeEvidence, clinicalContext)
+          .map((quote) => stripClinicalTransportPrefix(quote)).filter(Boolean).join("；")
         : "";
       // These fields have different semantics: patientFact is the observed manifestation and
       // syndromeEvidence is the four-examination/diagnostic evidence used to infer the mechanism.

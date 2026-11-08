@@ -24,7 +24,9 @@ export function quoteGroundedInText(
   if (source.includes(whole)) return true;
   // 只差写法（标点、引号、全半角、计量单位前的中文数词、四诊字段写法、拉丁字母单错）的引文同样出自病历（第二十一轮）。
   if (alignQuoteToSource(quote, text)) return true;
-  const parts = whole.split(/[；;，,。]+/u).map((part) => part.trim()).filter(Boolean);
+  // 省略号连接的两段（「孕8周，恶心、呕吐2周……发病以来体重略降」，第三十七轮甲方 11.05 病历11：两次核对都说妊娠剧吐证据不足，
+  // 其中一次的摘录带省略号被判不出自病历，两次不一致，降级没发生）按两段原文各自比对。
+  const parts = whole.split(/[；;，,。]+|…+|\.{3,}/u).map((part) => part.trim()).filter(Boolean);
   if (parts.length < 2) return false;
   return parts.every((part) => part.length >= minPartChars && source.includes(part));
 }

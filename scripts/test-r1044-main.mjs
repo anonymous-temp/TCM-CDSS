@@ -300,21 +300,21 @@ await check("4.8 摘录带栏目名、舌脉两字片段", async () => {
   assert.equal(quote.quoteGroundedInText("舌质红，苔黄腻；脉数", record, { minPartChars: 2 }), true);
 });
 
-await check("4.9 治法补的一项经复核后，教材锚定接在后面；没有复核的不接；交付面去掉这个键", async () => {
+await check("4.9 治法补的一项经复核后，教材锚定接在后面；没有复核的不接；交付面去掉这个键（第三十七轮起补的项是四字治法）", async () => {
   const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
-  const base = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseName: "咳嗽", primarySyndrome: "风寒袭肺证", secondarySyndromes: [], recommendedFormulaDirection: "三拗汤合止嗽散加减" }, therapy: { overallMethod: "疏风散寒，宣肺止咳，化痰" }, pathogenesis: { chain: [] } };
-  const kept = provenance.withDeterministicFormulaReferences({ ...base, therapy: { ...base.therapy, verifiedMethodItem: "化痰" } }, "咳嗽痰多");
-  assert.match(kept.therapy.overallMethod, /化痰$/);
+  const base = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseName: "咳嗽", primarySyndrome: "风寒袭肺证", secondarySyndromes: [], recommendedFormulaDirection: "三拗汤合止嗽散加减" }, therapy: { overallMethod: "疏风散寒，宣肺止咳，宣肺化痰" }, pathogenesis: { chain: [] } };
+  const kept = provenance.withDeterministicFormulaReferences({ ...base, therapy: { ...base.therapy, verifiedMethodItem: "宣肺化痰" } }, "咳嗽痰多");
+  assert.match(kept.therapy.overallMethod, /宣肺化痰$/);
   assert.equal(kept.overview.overallTherapy, kept.therapy.overallMethod);
   const plain = provenance.withDeterministicFormulaReferences(base, "咳嗽痰多");
-  assert.doesNotMatch(plain.therapy.overallMethod, /化痰/, "模型自己多写的项锚定时仍去掉");
+  assert.doesNotMatch(plain.therapy.overallMethod, /宣肺化痰/, "模型自己多写的项锚定时仍去掉");
   const twice = provenance.withDeterministicFormulaReferences(kept, "咳嗽痰多");
   assert.equal(twice.therapy.overallMethod, kept.therapy.overallMethod, "重复锚定不重复接");
   const inRow = provenance.withDeterministicFormulaReferences({ ...base, therapy: { ...base.therapy, verifiedMethodItem: "宣肺止咳" } }, "咳嗽痰多");
   assert.equal((inRow.therapy.overallMethod.match(/宣肺止咳/g) || []).length, 1, "教材治法里已有的不再接");
   const delivered = surface.projectDeliveredReasoning(kept);
   assert.equal(delivered.therapy.verifiedMethodItem, undefined);
-  assert.match(delivered.therapy.overallMethod, /化痰/);
+  assert.match(delivered.therapy.overallMethod, /宣肺化痰/);
 });
 
 await check("4.10 并行核对的结果落到被别的核对改过的内容上：治法只接这一项；视角句还在才换", () => {

@@ -329,7 +329,8 @@ check("没有原典证据的标志性运用行在加载时整行丢弃（不能�
 // 覆盖棘轮：每个流派「已核对 + 常用层」可被排序的方剂数不得低于 10/12 整改后的实测值，
 // 防止扶阳这类流派悄悄回到「选了等于没选」。阈值见 LINEAGE_COVERAGE_FLOOR。
 // 10/12 整改前：扶阳 0 / 丹溪 8 / 温补 19 / 温病 24 / 经方 118。
-const LINEAGE_COVERAGE_FLOOR = { "classical-formula": 120, "warm-disease": 37, "nourish-yin-danxi": 8, "warm-tonify": 29, "support-yang": 5 };
+// warm-disease 37→36（第三十七轮）：耳聋左慈丸原记出处《重订广温热论》（温病书）有误，按《饲鹤亭集方》订正后不再按书归温病。
+const LINEAGE_COVERAGE_FLOOR = { "classical-formula": 120, "warm-disease": 36, "nourish-yin-danxi": 8, "warm-tonify": 29, "support-yang": 5 };
 check("覆盖棘轮：每个流派可被排序的常用层方剂数不低于整改后实测值", () => {
   const counts = Object.fromEntries([...SCHOOL_CODES].map((code) => [code, new Set()]));
   for (const entry of governedCatalog.entries) {

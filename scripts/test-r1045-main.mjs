@@ -94,12 +94,13 @@ await check("1.7 教材方解自检（只许降）：方解原文 × 这张方�
 });
 
 // ── 2. 治法 ──────────────────────────────────────────────
-await check("2.1 提名合格：2–6 字、将要交付的治法没写、一条逐字摘录就够；不再要求方中药味字面有这个词", () => {
+await check("2.1 提名合格：四字治法（第三十七轮起，两字的「化痰」不收）、将要交付的治法没写、一条逐字摘录就够；不再要求方中药味字面有这个词", () => {
   const context = { method: "疏风散寒，宣肺止咳", recordText: "咳嗽，痰多色白质稀，泛吐酸水" };
-  assert.equal(method.methodItemQualifies({ item: "化痰", quotes: ["痰多色白质稀"] }, context), true);
+  assert.equal(method.methodItemQualifies({ item: "降气化痰", quotes: ["痰多色白质稀"] }, context), true);
+  assert.equal(method.methodItemQualifies({ item: "化痰", quotes: ["痰多色白质稀"] }, context), false);
   assert.equal(method.methodItemQualifies({ item: "温化寒饮", quotes: ["痰多色白质稀"] }, context), true);
   assert.equal(method.methodItemQualifies({ item: "宣肺止咳", quotes: ["痰多色白质稀"] }, context), false);
-  assert.equal(method.methodItemQualifies({ item: "化痰", quotes: ["胸闷气短"] }, context), false);
+  assert.equal(method.methodItemQualifies({ item: "降气化痰", quotes: ["胸闷气短"] }, context), false);
   assert.equal(method.methodItemQualifies({ item: "这一项治法写得太长了不行", quotes: ["痰多色白质稀"] }, context), false);
   assert.equal(method.methodItemQualifies({ item: "制酸降逆", quotes: [], fromModel: true }, context), true, "模型原写的项不要摘录，由复核判");
 });

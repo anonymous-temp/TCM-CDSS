@@ -389,3 +389,14 @@ export function therapyItemsOnlyFor(method: string, secondaryName: string, prima
     !primaryWords.some((pattern) => pattern.test(item)) &&
     !(primaryTextbookMethod && primaryTextbookMethod.includes(item)));
 }
+
+/**
+ * 交付治法每一项的写法（2026-11-08 第三十七轮，甲方 11.05 测评：病历1「辛温解表，宣肺散寒，通络止痛，化痰」不符合临床习惯、
+ * 病历2「…利咽止咳，清热化痰生津」不规范、病历14「治法冗杂」）。门诊治法逐项是四字短语（GB/T 16751.3 的治法条目绝大多数是四字），
+ * 总共二到三项。两字项（化痰、止泻）是没写完的对症词，五六字项多是两项粘在一起（清热化痰生津、滋阴降火清热）。
+ * 补写治法（m03-method-coverage）只收四字项，交付面按同一判据收口（delivered-surface clinicalMethodItems）。
+ */
+export const DELIVERED_METHOD_ITEM_CAP = 3;
+export function isStandardMethodItem(item: string): boolean {
+  return /^[\u4e00-\u9fff]{4}$/u.test(String(item || "").trim());
+}

@@ -41,8 +41,24 @@
    "date": "2026-10-12",
    "detail": "扶阳学派郑钦安自制方（潜阳丹、补坎益离丹、姜附茯半汤、姜桂汤〔《医理真传》·扶上阳方〕，据《医理真传》《医法圆通》原文）与温补学派孙一奎自制方壮原汤（据《赤水玄珠》卷五四库本）按原文组成入目录；附子剂量与炮制仍按药典与处方后审方。"
   },
-  {"ref": "ADJ-WEB-20261019-XIAOFENG", "name": "消风散石膏生煅订正（教材与原书核对）", "date": "2026-10-19", "detail": "《方剂学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt 第 49612–49614 行）消风散《外科正宗》组成「当归　生地　防风　蝉蜕　知母　苦参　胡麻　荆芥　苍术　牛蒡子　石膏各一钱　甘草　木通各五分」，石膏为生用；目录记作煅石膏（市售颗粒的写法），药典煅石膏只外用，系统因此把它当作不编用量的味，模型照提示不列石膏，甲方标准病历 9（瘾疹·风热犯表，发热口渴）三次复测两次判方中缺石膏。只改这一味的炮制，其余药味记录不动。"},
-  {"ref": "ADJ-WEB-20261019-HUAGAN", "name": "化肝煎出处订正（国家经典名方目录核对）", "date": "2026-10-19", "detail": "化肝煎受治理条目的出处记作《成方切用》（清代方书转载），国家《古代经典名方目录》（第一批）与本地名录均作《景岳全书》卷五十一新方八阵。M 集 Claude 评审 TCMChat-test-40、BEST4SDT-112 两例判出处有误。只订正出处，组成不动。"}
+  {
+   "ref": "ADJ-WEB-20261019-XIAOFENG",
+   "name": "消风散石膏生煅订正（教材与原书核对）",
+   "date": "2026-10-19",
+   "detail": "《方剂学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt 第 49612–49614 行）消风散《外科正宗》组成「当归　生地　防风　蝉蜕　知母　苦参　胡麻　荆芥　苍术　牛蒡子　石膏各一钱　甘草　木通各五分」，石膏为生用；目录记作煅石膏（市售颗粒的写法），药典煅石膏只外用，系统因此把它当作不编用量的味，模型照提示不列石膏，甲方标准病历 9（瘾疹·风热犯表，发热口渴）三次复测两次判方中缺石膏。只改这一味的炮制，其余药味记录不动。"
+  },
+  {
+   "ref": "ADJ-WEB-20261019-HUAGAN",
+   "name": "化肝煎出处订正（国家经典名方目录核对）",
+   "date": "2026-10-19",
+   "detail": "化肝煎受治理条目的出处记作《成方切用》（清代方书转载），国家《古代经典名方目录》（第一批）与本地名录均作《景岳全书》卷五十一新方八阵。M 集 Claude 评审 TCMChat-test-40、BEST4SDT-112 两例判出处有误。只订正出处，组成不动。"
+  },
+  {
+   "ref": "ADJ-WEB-20261108-PROVENANCE",
+   "name": "荆防败毒散、耳聋左慈丸组成与出处订正，补收菟丝子散（甲方 11.05 测评核对）",
+   "date": "2026-11-08",
+   "detail": "①荆防败毒散：目录记的是深圳地方标准 13 味（含生姜、薄荷），原书《摄生众妙方》卷八为 11 味（羌活、独活、柴胡、前胡、枳壳、茯苓、防风、荆芥、桔梗、川芎各一钱五分，甘草五分），本地《方剂学》第 47037 行同（「荆防败毒散即败毒散去人参、生姜、薄荷」）；甲方病历1「选方说明为荆防败毒散原方，但实际处方中的生姜、薄荷应该去掉」。②耳聋左慈丸：甲方病历4 指出《重订广温热论》出处有误，按《饲鹤亭集方》与中国药典成药处方改为六味地黄加磁石、柴胡八味。③菟丝子散：目录无此方，教材《中医儿科学》遗尿·下元虚寒证所指为《太平圣惠方》卷五十八（菟丝子、牡蛎、肉苁蓉、附子、五味子、鸡内金），同名异方多，不取得方名锁定资格；甲方病历13 出处被写成《中医儿科学》。"
+  }
  ],
  "removals": [
   {
@@ -14691,7 +14707,167 @@
    "collationNote": "《金匮要略》杂疗方第二十三原文方，目录此前未收（2026-10-12 按《伤寒论》113 方、《金匮要略》正文方全量对照补收）。组成取本地宋本原文并以维基文库交叉核对；古方原量不换算为现代处方剂量，只留作回源。",
    "evidenceUrl": "https://zh.wikisource.org/wiki/金匱要略"
   },
-  {"action": "rewrite", "adjudicationRef": "ADJ-WEB-20261019-XIAOFENG", "name": "消风散", "displayName": "消风散", "source": "《外科正宗》", "ingredients": ["当归", "地黄", "防风", "蝉蜕", "知母", "苦参", "炒黑芝麻", "荆芥", "麸炒苍术", "炒牛蒡子", "石膏", "甘草", "川木通"], "recordedComposition": "当归　生地　防风　蝉蜕　知母　苦参　胡麻　荆芥　苍术　牛蒡子　石膏各一钱　甘草　木通各五分", "sectionBoundary": "《外科正宗》卷四·疥疮论·消风散", "dosageForm": "汤剂", "indications": [], "properNameInSource": true, "properNameNote": "是", "administration": "internal", "replacesEntry": "消风散（《外科正宗》，石膏记作煅石膏）", "peonyCollation": "不涉及", "collationNote": "原书与《方剂学》教材均作石膏（生用），水煎内服；目录的煅石膏是市售颗粒剂的写法，药典煅石膏只外用。只订正石膏一味的炮制。", "evidenceUrl": "https://www.suntenglobal.com/_en/News-Datain.php?id=558", "replaceSourceOf": {"name": "消风散", "source": "《外科正宗》"}},
-  {"action": "rewrite", "adjudicationRef": "ADJ-WEB-20261019-HUAGAN", "name": "化肝煎", "displayName": "化肝煎", "source": "《景岳全书》", "ingredients": ["青皮", "陈皮", "白芍", "泽泻", "栀子", "丹皮"], "recordedComposition": "青皮　陈皮各二钱　芍药二钱　丹皮　栀子（炒）　泽泻各一钱半　土贝母二三钱", "sectionBoundary": "《景岳全书》卷五十一·新方八阵·寒阵·化肝煎", "dosageForm": "汤剂", "indications": [], "properNameInSource": true, "properNameNote": "沿用条目原有资格", "administration": "internal", "replacesEntry": "化肝煎（《成方切用》）", "peonyCollation": "不涉及（沿用条目原有组成）", "collationNote": "出处订正：化肝煎是张景岳自制新方，国家《古代经典名方目录》（第一批）与本地名录均作《景岳全书》，《成方切用》（清·吴仪洛）是后世转载。只订正出处，组成沿用原条目（原书另有土贝母，未增补）。", "evidenceUrl": "urn:tcm-cdss:official-classic-formula:化肝煎", "replaceSourceOf": {"name": "化肝煎", "source": "《成方切用》"}}
+  {
+   "action": "rewrite",
+   "adjudicationRef": "ADJ-WEB-20261019-XIAOFENG",
+   "name": "消风散",
+   "displayName": "消风散",
+   "source": "《外科正宗》",
+   "ingredients": [
+    "当归",
+    "地黄",
+    "防风",
+    "蝉蜕",
+    "知母",
+    "苦参",
+    "炒黑芝麻",
+    "荆芥",
+    "麸炒苍术",
+    "炒牛蒡子",
+    "石膏",
+    "甘草",
+    "川木通"
+   ],
+   "recordedComposition": "当归　生地　防风　蝉蜕　知母　苦参　胡麻　荆芥　苍术　牛蒡子　石膏各一钱　甘草　木通各五分",
+   "sectionBoundary": "《外科正宗》卷四·疥疮论·消风散",
+   "dosageForm": "汤剂",
+   "indications": [],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "消风散（《外科正宗》，石膏记作煅石膏）",
+   "peonyCollation": "不涉及",
+   "collationNote": "原书与《方剂学》教材均作石膏（生用），水煎内服；目录的煅石膏是市售颗粒剂的写法，药典煅石膏只外用。只订正石膏一味的炮制。",
+   "evidenceUrl": "https://www.suntenglobal.com/_en/News-Datain.php?id=558",
+   "replaceSourceOf": {
+    "name": "消风散",
+    "source": "《外科正宗》"
+   }
+  },
+  {
+   "action": "rewrite",
+   "adjudicationRef": "ADJ-WEB-20261019-HUAGAN",
+   "name": "化肝煎",
+   "displayName": "化肝煎",
+   "source": "《景岳全书》",
+   "ingredients": [
+    "青皮",
+    "陈皮",
+    "白芍",
+    "泽泻",
+    "栀子",
+    "丹皮"
+   ],
+   "recordedComposition": "青皮　陈皮各二钱　芍药二钱　丹皮　栀子（炒）　泽泻各一钱半　土贝母二三钱",
+   "sectionBoundary": "《景岳全书》卷五十一·新方八阵·寒阵·化肝煎",
+   "dosageForm": "汤剂",
+   "indications": [],
+   "properNameInSource": true,
+   "properNameNote": "沿用条目原有资格",
+   "administration": "internal",
+   "replacesEntry": "化肝煎（《成方切用》）",
+   "peonyCollation": "不涉及（沿用条目原有组成）",
+   "collationNote": "出处订正：化肝煎是张景岳自制新方，国家《古代经典名方目录》（第一批）与本地名录均作《景岳全书》，《成方切用》（清·吴仪洛）是后世转载。只订正出处，组成沿用原条目（原书另有土贝母，未增补）。",
+   "evidenceUrl": "urn:tcm-cdss:official-classic-formula:化肝煎",
+   "replaceSourceOf": {
+    "name": "化肝煎",
+    "source": "《成方切用》"
+   }
+  },
+  {
+   "action": "rewrite",
+   "adjudicationRef": "ADJ-WEB-20261108-PROVENANCE",
+   "name": "耳聋左慈丸",
+   "displayName": "耳聋左慈丸",
+   "source": "《饲鹤亭集方》",
+   "ingredients": [
+    "熟地黄",
+    "山茱萸",
+    "山药",
+    "泽泻",
+    "茯苓",
+    "牡丹皮",
+    "煅磁石",
+    "柴胡"
+   ],
+   "recordedComposition": "六味地黄丸加磁石、柴胡（药典成药：煅磁石、熟地黄、山茱萸(制)、牡丹皮、山药、茯苓、泽泻、竹叶柴胡）",
+   "sectionBoundary": "《饲鹤亭集方》",
+   "dosageForm": "丸剂",
+   "indications": [],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "耳聋左慈丸（《重订广温热论》）",
+   "peonyCollation": "不涉及",
+   "collationNote": "甲方 11.05 测评病历4：「《重订广温热论》无原文，建议核实出处，与目前主流《中国药典》或同仁堂之类所用中成药组成权威来源（中国中医药报引述的）《饲鹤亭集方》」，原文「耳聋左慈丸，治肾水不足，虚火上升，头眩目晕，耳鸣耳聋等症。六味加磁石三两，柴胡一两一钱」。出处与组成按《饲鹤亭集方》、中国药典成药处方（煅磁石、熟地黄、山茱萸(制)、牡丹皮、山药、茯苓、泽泻、竹叶柴胡）及两处二手来源（meandqi 方剂库、同仁堂说明书页）一致；《饲鹤亭集方》正文未取到原书页。原目录九味（含石菖蒲、五味子）出处记《重订广温热论》，本地《中药学》亦引此名，为同名异方，不再作该方名的组成。",
+   "evidenceUrl": "https://m.jianke.com/product/9790.html",
+   "replaceSourceOf": {
+    "name": "耳聋左慈丸",
+    "source": "《重订广温热论》"
+   }
+  },
+  {
+   "action": "rewrite",
+   "adjudicationRef": "ADJ-WEB-20261108-PROVENANCE",
+   "name": "荆防败毒散",
+   "displayName": "荆防败毒散",
+   "source": "《摄生众妙方》",
+   "ingredients": [
+    "荆芥",
+    "防风",
+    "羌活",
+    "独活",
+    "川芎",
+    "柴胡",
+    "前胡",
+    "桔梗",
+    "枳壳",
+    "茯苓",
+    "甘草"
+   ],
+   "recordedComposition": "羌活、独活、柴胡、前胡、枳壳、茯苓、防风、荆芥、桔梗、川芎 各一钱五分，甘草 五分。右用水一钟半，煎至八分，温服。",
+   "sectionBoundary": "《摄生众妙方》卷八",
+   "dosageForm": "",
+   "indications": [],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "荆防败毒散（《摄生众妙方》，深圳地标13味）",
+   "peonyCollation": "不涉及",
+   "collationNote": "原方无生姜、薄荷（方剂学：败毒散去人参、生姜、薄荷，加荆芥、防风）；古方原量不换算。",
+   "evidenceUrl": "https://thetcm.org/cn/kb/formulas/%E8%8D%8A%E9%98%B2%E6%95%97%E6%AF%92%E6%95%A3/",
+   "replaceSourceOf": {
+    "name": "荆防败毒散",
+    "source": "《摄生众妙方》"
+   }
+  },
+  {
+   "action": "add",
+   "adjudicationRef": "ADJ-WEB-20261108-PROVENANCE",
+   "name": "菟丝子散",
+   "displayName": "菟丝子散",
+   "source": "《太平圣惠方》卷五十八",
+   "ingredients": [
+    "菟丝子",
+    "牡蛎",
+    "肉苁蓉",
+    "附子",
+    "五味子",
+    "鸡内金"
+   ],
+   "recordedComposition": "菟丝子2两（酒浸3日，晒干，别捣为末），牡蛎1两（烧为粉），肉苁蓉2两（酒浸1宿，刮去皮，炙干），附子1两（炮裂，去皮脐），五味子1两，鸡膍胵中黄皮2两（微炙）",
+   "sectionBoundary": "《太平圣惠方》卷五十八",
+   "dosageForm": "散剂",
+   "indications": [
+    "小便多，或不禁"
+   ],
+   "properNameInSource": false,
+   "properNameNote": "同名异方，不取得方名锁定资格",
+   "administration": "internal",
+   "replacesEntry": "",
+   "peonyCollation": "不涉及",
+   "collationNote": "《太平圣惠方》有多首菟丝子散；教材（《中医儿科学》遗尿·下元虚寒）所指为卷五十八此方。鸡膍胵中黄皮即鸡内金。",
+   "evidenceUrl": "http://zhongyaofangji.com/t/tusizisan.html"
+  }
  ]
 }

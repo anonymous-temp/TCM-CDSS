@@ -4,7 +4,7 @@ import { parseConfirmed, proposeTwiceThenVerifyAll, verifyProposals } from "./cr
 import { isUnstableM03CoreText } from "./diagnosis-stage-contract";
 import { methodItemAlreadyCovered, textbookAnchorableMethod } from "./tcm-formula-provenance";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
-import { NOT_A_TREATMENT_METHOD } from "./tcm-therapy-phrasing";
+import { DELIVERED_METHOD_ITEM_CAP, NOT_A_TREATMENT_METHOD, isStandardMethodItem } from "./tcm-therapy-phrasing";
 import { quoteGroundedInText } from "./verbatim-quote";
 
 /**
@@ -27,7 +27,7 @@ const text = (value: unknown): string => typeof value === "string" ? value.trim(
 
 const SYSTEM = [
   "你是中医主治医师。证型与治法已定。把病历里这次的现症按组列出来（主诉主症一组，它本身的性质如痰量痰色、反酸单算一组；其余伴随症状各一组；舌脉不列）。",
-  "每组写：findings 病历逐字摘录（至少两条，只有一条就照抄那一条）；coveredBy 只能从 method 里选一项，这一项的功效要直接针对这组表现（解表散寒不管痰，止咳不管痰，痰量多要化痰一类），没有就写 null；item 只在 coveredBy 为 null 时写，是 2–6 字的治法（如“化痰”“制酸降逆”“温化寒饮”），modelMethod 里有合适的项就用它的原话。",
+  "每组写：findings 病历逐字摘录（至少两条，只有一条就照抄那一条）；coveredBy 只能从 method 里选一项，这一项的功效要直接针对这组表现（解表散寒不管痰，止咳不管痰，痰量多要化痰一类），没有就写 null；item 只在 coveredBy 为 null 时写，是一个四字治法（如“宣肺化痰”“制酸降逆”“温化寒饮”，不写两字的“化痰”“止泻”），modelMethod 里有合适的四字项就用它的原话。",
   "按与主诉主症的关系排序，主症本身的性质放最前。只输出 JSON：{\"groups\":[{\"findings\":[\"\"],\"coveredBy\":null,\"item\":\"\"}]}",
 ].join("\n");
 
@@ -79,10 +79,13 @@ const VERIFY_OWN_SYSTEM = [
 ].join("\n");
 
 const METHOD_ITEM = /^[一-龥]{2,6}$/u;
-/** 总共至多补三项，其中模型没写、由提名补的至多两项。 */
-const MAX_ADDED_ITEMS = 3;
-const MAX_NAMED_ITEMS = 2;
-const MAX_METHOD_ITEMS = 5;
+/**
+ * 治法总项数与交付面同一上限（DELIVERED_METHOD_ITEM_CAP，三项；第三十七轮甲方 11.05「治法冗杂」「不符合临床习惯」——此前上限五项）。
+ * 教材治法已有三项时不再补。由提名补的至多一项。
+ */
+const MAX_ADDED_ITEMS = 2;
+const MAX_NAMED_ITEMS = 1;
+const MAX_METHOD_ITEMS = DELIVERED_METHOD_ITEM_CAP;
 const methodItems = (method: string) => method.split(/[，,、；;。]/u).map((item) => item.trim()).filter(Boolean);
 
 /**
@@ -109,6 +112,8 @@ export function methodItemQualifies(
   context: { method: string; recordText: string; chiefComplaint?: string },
 ): boolean {
   if (!METHOD_ITEM.test(proposal.item) || isUnstableM03CoreText(proposal.item) || methodItemAlreadyCovered(proposal.item, context.method)) return false;
+  // 只收四字治法（第三十七轮）：两字的「化痰」「止泻」交付面也不留，补了只多一次复核。
+  if (!isStandardMethodItem(proposal.item)) return false;
   // 「忌口避敏」是医嘱不是治法（第三十五轮 C052）。
   if (NOT_A_TREATMENT_METHOD.test(proposal.item)) return false;
   if (proposal.fromModel) return true;

@@ -1,6 +1,6 @@
 {
  "schemaVersion": "tcm-textbook-syndrome-supplement-v1",
- "note": "教材合集（中医补充数据/灵丹GitHub/TCM Educational Materials.txt）里没有方药的门诊常见病的补充行。证型与主症取自同一合集里《针灸治疗学》该病证节的原文（给出行号），方药经联网核对（给出链接与访问日期）。结构与 tcm-textbook-syndrome-formula-table.json 的 rows/diseases 相同；手工维护，改动后无需重新生成。 2026-10-24 增补：耳鸣耳聋（证候与治法取《中医食疗学》耳鸣、耳聋节原文，方药经两处联网核对一致）；虚脱（证候、辨证、治法与方药全部取《中西医结合外科学》休克的中医辨证论治原文；病名与定义取《针灸治疗学》急症·虚脱节）。 2026-10-24 第十八轮增补：小便不禁（证候取《针灸治疗学》尿失禁节原文；治法与方药取中华中医药学会团体标准 T/CACM 1553—2023《女性压力性尿失禁中医诊疗指南》同证，经检索接口取得的标准正文与两处解读核对；湿热下注、下焦瘀滞两证没有可核对的方药，未收）。 2026-11-02 增补：高热（证型取《针灸治疗学》高热节原文，方药按《方剂学》主治）。 2026-11-02 增补：筋伤（证候、治法与方药取《中医骨伤科学》第八章筋伤概论原文）。",
+ "note": "教材合集（中医补充数据/灵丹GitHub/TCM Educational Materials.txt）里没有方药的门诊常见病的补充行。证型与主症取自同一合集里《针灸治疗学》该病证节的原文（给出行号），方药经联网核对（给出链接与访问日期）。结构与 tcm-textbook-syndrome-formula-table.json 的 rows/diseases 相同；手工维护，改动后无需重新生成。 2026-10-24 增补：耳鸣耳聋（证候与治法取《中医食疗学》耳鸣、耳聋节原文，方药经两处联网核对一致）；虚脱（证候、辨证、治法与方药全部取《中西医结合外科学》休克的中医辨证论治原文；病名与定义取《针灸治疗学》急症·虚脱节）。 2026-10-24 第十八轮增补：小便不禁（证候取《针灸治疗学》尿失禁节原文；治法与方药取中华中医药学会团体标准 T/CACM 1553—2023《女性压力性尿失禁中医诊疗指南》同证，经检索接口取得的标准正文与两处解读核对；湿热下注、下焦瘀滞两证没有可核对的方药，未收）。 2026-11-02 增补：高热（证型取《针灸治疗学》高热节原文，方药按《方剂学》主治）。 2026-11-02 增补：筋伤（证候、治法与方药取《中医骨伤科学》第八章筋伤概论原文）。 2026-11-08 第三十七轮增补：乳蛾、喉痹、鼻鼽、鼻渊（本地教材合集没有《中医耳鼻咽喉科学》；证型、主症与治法取网上转录的教材与指南原文（医学教育网、光明中医函授《中医喉科学》、世中联《变应性鼻炎》指南草案等，逐行给出链接），代表方经两处以上来源一致，组成取受治理方剂目录同名方；甲方 11.05 病历2 扁桃体肿大的咽痛发热被写成感冒，原因是表里没有乳蛾）。",
  "diseases": [
   {
    "bookKey": "supplement",
@@ -163,8 +163,155 @@
    ],
    "note": "成人急性高热的教材证型只有《针灸治疗学》这一节（发热在《中医儿科学》、内伤发热在《中医内科学》）：第三十五轮 37 岁高热被算到儿科「发热·温热炽盛证」。证型取本节辨证要点原文，方药按《方剂学》主治。"
   },
-    {"bookKey": "supplement", "book": "中医骨伤科学", "department": "骨伤", "disease": "筋伤", "line": 191758, "definition": "各种暴力或慢性劳损等原因所造成筋的损伤，统称为筋伤。相当于西医学的软组织损伤。", "diseaseAliases": ["伤筋", "肌肉拉伤", "软组织损伤"], "westernEquivalents": ["软组织损伤", "肌肉拉伤"], "tcmEquivalents": [], "differentials": [{"name": "骨折", "text": "《中医骨伤科学》骨折概论：畸形、骨擦音和异常活动是骨折的特征；筋伤无此特征，必要时做X线检查以除外骨折和脱位。"}, {"name": "痹证", "text": "《中医骨伤科学》筋伤概论：急性筋伤有明显外伤史；风湿肿痛多无明显外伤史，局部红肿而无青紫，全身发热。"}], "note": "教材按筋伤三期（初期、中期、后期及慢性）辨证用药，不分证型；这里按教材原文把三期各列一行。2026-11-02 甲方「肌肉拉伤」被写成痹证，原因是教材表里没有筋伤这一病。"}
-  ],
+  {
+   "bookKey": "supplement",
+   "book": "中医骨伤科学",
+   "department": "骨伤",
+   "disease": "筋伤",
+   "line": 191758,
+   "definition": "各种暴力或慢性劳损等原因所造成筋的损伤，统称为筋伤。相当于西医学的软组织损伤。",
+   "diseaseAliases": [
+    "伤筋",
+    "肌肉拉伤",
+    "软组织损伤"
+   ],
+   "westernEquivalents": [
+    "软组织损伤",
+    "肌肉拉伤"
+   ],
+   "tcmEquivalents": [],
+   "differentials": [
+    {
+     "name": "骨折",
+     "text": "《中医骨伤科学》骨折概论：畸形、骨擦音和异常活动是骨折的特征；筋伤无此特征，必要时做X线检查以除外骨折和脱位。"
+    },
+    {
+     "name": "痹证",
+     "text": "《中医骨伤科学》筋伤概论：急性筋伤有明显外伤史；风湿肿痛多无明显外伤史，局部红肿而无青紫，全身发热。"
+    }
+   ],
+   "note": "教材按筋伤三期（初期、中期、后期及慢性）辨证用药，不分证型；这里按教材原文把三期各列一行。2026-11-02 甲方「肌肉拉伤」被写成痹证，原因是教材表里没有筋伤这一病。"
+  },
+  {
+   "bookKey": "supplement",
+   "book": "中医耳鼻咽喉科学",
+   "department": "耳鼻喉口齿",
+   "disease": "乳蛾",
+   "line": 0,
+   "definition": "咽喉部一侧或两侧喉核红肿突起，形如乳头，或如蚕蛾，表面或有黄白色脓样分泌物，咽痛不适者，为乳蛾，又名喉蛾。",
+   "diseaseAliases": [
+    "喉蛾",
+    "风热乳蛾",
+    "虚火乳蛾",
+    "石蛾",
+    "急乳蛾",
+    "慢乳蛾"
+   ],
+   "westernEquivalents": [
+    "急性扁桃体炎",
+    "慢性扁桃体炎"
+   ],
+   "tcmEquivalents": [],
+   "differentials": [
+    {
+     "name": "喉痹",
+     "text": "A+医学百科喉痹节鉴别项：喉痹以咽部病变为主，喉核红肿不明显；乳蛾病变主要在喉核（页面转述，非逐字）。"
+    },
+    {
+     "name": "白喉",
+     "text": "医学教育网中医师承「风热乳蛾的问诊」鉴别项：白喉起病较缓，热度低于风热乳蛾，咽部可见白膜覆盖。"
+    },
+    {
+     "name": "虚火乳蛾",
+     "text": "医学教育网中医师承鉴别项：虚火乳蛾病程长或反复发作，症状轻，无发热或低热，疼痛较轻，脓点少或有少量脓点（与风热乳蛾相鉴别）。"
+    }
+   ],
+   "note": "定义项未取得可逐字引用的教材原文（光明中医函授《中医喉科学》只有「乳蛾者，蚕蛹也。说明此病特征，在咽两旁有肿物如蚕蛹然」）。急乳蛾=风热外袭证/肺胃热盛证（med66 医学教育网转录），慢乳蛾=虚火证。国家规划教材《中医耳鼻咽喉科学》不在本地语料，也未取得其原文页；证型文字来自网络转录。 定义取中医诊断学（本地教材合集第80897行）。"
+  },
+  {
+   "bookKey": "supplement",
+   "book": "中医耳鼻咽喉科学",
+   "department": "耳鼻喉口齿",
+   "disease": "喉痹",
+   "line": 0,
+   "definition": "喉痹是指以咽部红肿疼痛，或干燥、异物感，或咽痒不适，吞咽不利等为主要临床表现的疾病。",
+   "diseaseAliases": [
+    "风热喉痹",
+    "虚火喉痹",
+    "急喉痹",
+    "慢喉痹"
+   ],
+   "westernEquivalents": [
+    "急性咽炎",
+    "慢性咽炎"
+   ],
+   "tcmEquivalents": [],
+   "differentials": [
+    {
+     "name": "乳蛾",
+     "text": "A+医学百科喉痹节鉴别项：喉痹以咽部病变为主，喉核红肿不明显；乳蛾病变主要在喉核（页面转述，非逐字）。"
+    }
+   ],
+   "note": "定义项未取得逐字原文；A+医学百科喉痹页另有脾胃虚弱、脾肾阳虚、痰凝血瘀三证（见 unverified）。证候文字三证取本地《针灸治疗学》咽喉肿痛节。 定义取汉典“喉痹”条（https://www.zdic.net/hans/喉痹）。"
+  },
+  {
+   "bookKey": "supplement",
+   "book": "中医耳鼻咽喉科学",
+   "department": "耳鼻喉口齿",
+   "disease": "鼻鼽",
+   "line": 12095,
+   "definition": "鼻鼽是指突然和反复发作的以鼻痒、打喷嚏、流清涕、鼻塞等为主要特征的鼻病。呈季节性、阵发性发作，亦可常年发病。",
+   "diseaseAliases": [
+    "鼽嚏",
+    "过敏性鼻炎"
+   ],
+   "westernEquivalents": [
+    "变应性鼻炎",
+    "过敏性鼻炎",
+    "血管运动性鼻炎",
+    "嗜酸性粒细胞增多性非变应性鼻炎"
+   ],
+   "tcmEquivalents": [],
+   "differentials": [
+    {
+     "name": "感冒",
+     "text": "本地教材合集行80855：若伴见恶寒发热、鼻塞等，多属风寒表证；若常流清涕，量多，经久不愈，多为鼻鼽，多因阳气虚弱所致。行81304：反复阵发性清涕，量多如注，伴鼻痒、喷嚏频作者，多属鼻鼽，是肺气虚，卫表不固，风寒乘虚侵入所致。"
+    },
+    {
+     "name": "鼻渊",
+     "text": "本地《针灸治疗学》行12095/12124：鼻鼽以鼻痒、打喷嚏、流清涕、鼻塞为主，鼻渊以鼻流腥臭浊涕、鼻塞、嗅觉减退为主症。"
+    }
+   ],
+   "note": "定义取本地《针灸治疗学》鼻鼽节，「→」是语料中「、」的替代符，已还原。证型四条取 WFCMS《国际中医临床实践指南 变应性鼻炎》征求意见草案（非定稿）。"
+  },
+  {
+   "bookKey": "supplement",
+   "book": "中医耳鼻咽喉科学",
+   "department": "耳鼻喉口齿",
+   "disease": "鼻渊",
+   "line": 12124,
+   "definition": "鼻渊是以鼻流腥臭浊涕、鼻塞、嗅觉减退为主症的病证，重者又称“鼻漏”。",
+   "diseaseAliases": [
+    "鼻漏",
+    "脑漏"
+   ],
+   "westernEquivalents": [
+    "急性鼻炎",
+    "慢性鼻炎",
+    "急性鼻窦炎",
+    "慢性鼻窦炎",
+    "副鼻窦炎"
+   ],
+   "tcmEquivalents": [],
+   "differentials": [
+    {
+     "name": "鼻鼽",
+     "text": "本地《针灸治疗学》：鼻渊以鼻流浊涕、嗅觉减退为主，鼻鼽以鼻痒、喷嚏、清涕为主，呈阵发性发作。"
+    }
+   ],
+   "note": "定义取本地《针灸治疗学》鼻渊节（行12124），「→」已还原为「、」。A+医学百科另列肾阴不足等虚证，只有药味无方名，未收。"
+  }
+ ],
  "rows": [
   {
    "id": "supplement|牙痛|风火牙痛",
@@ -1001,8 +1148,874 @@
    ],
    "accessedAt": "2026-11-02"
   },
-    {"id": "supplement|筋伤|初期", "book": "中医骨伤科学", "bookKey": "supplement", "line": 191941, "department": "骨伤", "disease": "筋伤", "syndrome": "气滞血瘀证", "syndromeName": "气滞血瘀证", "syndromeKind": "syndrome", "manifestations": "急性筋伤初期。受伤处气血瘀滞，脉络不通：局部疼痛，肿胀，瘀血斑，功能障碍。", "tongue": "", "pulse": "", "therapy": "活血化瘀，行气止痛", "formulaText": "桃红四物汤加减。", "formulas": ["桃红四物汤"], "formulaJoin": "single", "modified": true, "composition": ["生地", "当归", "白芍", "川芎", "桃仁", "红花"], "modifications": [], "sources": ["《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第八章筋伤·筋伤概论·诊查要点与药物治疗·内服药物；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。"], "accessedAt": "2026-11-02", "stage": "初期"},
-    {"id": "supplement|筋伤|中期", "book": "中医骨伤科学", "bookKey": "supplement", "line": 191944, "department": "骨伤", "disease": "筋伤", "syndrome": "筋脉拘急证", "syndromeName": "筋脉拘急证", "syndromeKind": "syndrome", "manifestations": "筋伤中期。瘀血渐化，肿胀开始消退，瘀斑转为青紫色，疼痛渐减，筋脉拘急并未完全消除。", "tongue": "", "pulse": "", "therapy": "舒筋活血，和营止痛", "formulaText": "舒筋活血汤加减。", "formulas": ["舒筋活血汤"], "formulaJoin": "single", "modified": true, "composition": ["羌活", "防风", "荆芥", "独活", "当归", "续断", "青皮", "牛膝", "五加皮", "杜仲", "红花", "枳壳"], "modifications": [], "sources": ["《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第八章筋伤·筋伤概论·诊查要点与药物治疗·内服药物；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。"], "accessedAt": "2026-11-02", "stage": "中期"},
-    {"id": "supplement|筋伤|后期", "book": "中医骨伤科学", "bookKey": "supplement", "line": 191948, "department": "骨伤", "disease": "筋伤", "syndrome": "肝肾亏虚证", "syndromeName": "肝肾亏虚证", "syndromeKind": "syndrome", "manifestations": "筋伤后期及慢性筋伤。损伤日久，耗损气血，肝肾亏虚，常兼风寒湿邪：局部疼痛乏力，活动功能障碍，阴雨天加重，或肌肉萎缩，麻木不仁。", "tongue": "", "pulse": "", "therapy": "养血和络，补益肝肾，强壮筋骨，祛风宣痹", "formulaText": "独活寄生汤加减。", "formulas": ["独活寄生汤"], "formulaJoin": "single", "modified": true, "composition": ["独活", "桑寄生", "杜仲", "细辛", "秦艽", "牛膝", "茯苓", "肉桂", "防风", "川芎", "人参", "甘草", "当归", "白芍", "地黄"], "modifications": [], "sources": ["《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第八章筋伤·筋伤概论·诊查要点与药物治疗·内服药物；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。"], "accessedAt": "2026-11-02", "stage": "后期"}
-  ]
+  {
+   "id": "supplement|筋伤|初期",
+   "book": "中医骨伤科学",
+   "bookKey": "supplement",
+   "line": 191941,
+   "department": "骨伤",
+   "disease": "筋伤",
+   "syndrome": "气滞血瘀证",
+   "syndromeName": "气滞血瘀证",
+   "syndromeKind": "syndrome",
+   "manifestations": "急性筋伤初期。受伤处气血瘀滞，脉络不通：局部疼痛，肿胀，瘀血斑，功能障碍。",
+   "tongue": "",
+   "pulse": "",
+   "therapy": "活血化瘀，行气止痛",
+   "formulaText": "桃红四物汤加减。",
+   "formulas": [
+    "桃红四物汤"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "生地",
+    "当归",
+    "白芍",
+    "川芎",
+    "桃仁",
+    "红花"
+   ],
+   "modifications": [],
+   "sources": [
+    "《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第八章筋伤·筋伤概论·诊查要点与药物治疗·内服药物；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。"
+   ],
+   "accessedAt": "2026-11-02",
+   "stage": "初期"
+  },
+  {
+   "id": "supplement|筋伤|中期",
+   "book": "中医骨伤科学",
+   "bookKey": "supplement",
+   "line": 191944,
+   "department": "骨伤",
+   "disease": "筋伤",
+   "syndrome": "筋脉拘急证",
+   "syndromeName": "筋脉拘急证",
+   "syndromeKind": "syndrome",
+   "manifestations": "筋伤中期。瘀血渐化，肿胀开始消退，瘀斑转为青紫色，疼痛渐减，筋脉拘急并未完全消除。",
+   "tongue": "",
+   "pulse": "",
+   "therapy": "舒筋活血，和营止痛",
+   "formulaText": "舒筋活血汤加减。",
+   "formulas": [
+    "舒筋活血汤"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "羌活",
+    "防风",
+    "荆芥",
+    "独活",
+    "当归",
+    "续断",
+    "青皮",
+    "牛膝",
+    "五加皮",
+    "杜仲",
+    "红花",
+    "枳壳"
+   ],
+   "modifications": [],
+   "sources": [
+    "《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第八章筋伤·筋伤概论·诊查要点与药物治疗·内服药物；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。"
+   ],
+   "accessedAt": "2026-11-02",
+   "stage": "中期"
+  },
+  {
+   "id": "supplement|筋伤|后期",
+   "book": "中医骨伤科学",
+   "bookKey": "supplement",
+   "line": 191948,
+   "department": "骨伤",
+   "disease": "筋伤",
+   "syndrome": "肝肾亏虚证",
+   "syndromeName": "肝肾亏虚证",
+   "syndromeKind": "syndrome",
+   "manifestations": "筋伤后期及慢性筋伤。损伤日久，耗损气血，肝肾亏虚，常兼风寒湿邪：局部疼痛乏力，活动功能障碍，阴雨天加重，或肌肉萎缩，麻木不仁。",
+   "tongue": "",
+   "pulse": "",
+   "therapy": "养血和络，补益肝肾，强壮筋骨，祛风宣痹",
+   "formulaText": "独活寄生汤加减。",
+   "formulas": [
+    "独活寄生汤"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "独活",
+    "桑寄生",
+    "杜仲",
+    "细辛",
+    "秦艽",
+    "牛膝",
+    "茯苓",
+    "肉桂",
+    "防风",
+    "川芎",
+    "人参",
+    "甘草",
+    "当归",
+    "白芍",
+    "地黄"
+   ],
+   "modifications": [],
+   "sources": [
+    "《中医骨伤科学》（本地教材合集 中医补充数据/灵丹GitHub/TCM Educational Materials.txt）第八章筋伤·筋伤概论·诊查要点与药物治疗·内服药物；组成取受治理方剂目录（tcm-formula-governed-catalog.json）同名方。"
+   ],
+   "accessedAt": "2026-11-02",
+   "stage": "后期"
+  },
+  {
+   "id": "supplement|乳蛾|风热外袭证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 0,
+   "department": "耳鼻喉口齿",
+   "disease": "乳蛾",
+   "syndrome": "风热外袭证",
+   "syndromeName": "风热外袭证",
+   "syndromeKind": "syndrome",
+   "manifestations": "咽部疼痛逐渐加剧，吞咽不便，当吞咽或咳嗽时疼痛加剧，咽喉干燥灼热感，喉核红肿，连及周围咽部；并见发热恶寒，头痛，鼻塞，体倦怠，咳嗽有痰。舌边尖红，苔薄白或微黄，脉浮数。",
+   "tongue": "舌边尖红，苔薄白或微黄",
+   "pulse": "脉浮数",
+   "therapy": "疏风清热，消肿利咽",
+   "formulaText": "疏风清热汤加减。",
+   "formulas": [
+    "疏风清热汤"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "荆芥",
+    "防风",
+    "炒牛蒡子",
+    "甘草",
+    "连翘",
+    "金银花",
+    "桑白皮",
+    "赤芍",
+    "桔梗",
+    "玄参",
+    "天花粉",
+    "浙贝母",
+    "黄芩片"
+   ],
+   "modifications": [
+    {
+     "condition": "咳嗽痰多",
+     "herbs": [
+      "苦杏仁",
+      "瓜蒌仁"
+     ],
+     "remove": [],
+     "raw": "若咳嗽痰多者，加北杏12克、瓜蒌仁12克"
+    }
+   ],
+   "sources": [
+    "https://www.med66.com/new/40a185aa2009/2009916liuhon17521.shtml",
+    "https://www.med66.com/zhongyiyishi/shicheng/fudao/si2109021533.shtml",
+    "http://www.a-hospital.com/w/乳蛾",
+    "https://m.baidu.com/bh/m/detail/ar_2027958792745802512",
+    "核对：疏风清热汤：med66 两页（风热乳蛾、中医师承）+ A+医学百科乳蛾 + 百度健康乳蛾，四页一致；银翘散为中医儿科学（gmzyjx）与光明中医函授《中医喉科学》（桑菊饮/银翘散）所列备选"
+   ],
+   "accessedAt": "2026-11-08",
+   "syndromeAliases": [
+    "风热外侵，肺经有热",
+    "肺经风热",
+    "风热乳蛾"
+   ]
+  },
+  {
+   "id": "supplement|乳蛾|肺胃热盛证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 0,
+   "department": "耳鼻喉口齿",
+   "disease": "乳蛾",
+   "syndrome": "肺胃热盛证",
+   "syndromeName": "肺胃热盛证",
+   "syndromeKind": "syndrome",
+   "manifestations": "咽部疼痛剧烈，痛连耳根及颌下，吞咽困难，喉核红肿较甚，表面或有黄白色脓点或连成伪膜，颌下有臖核，高热，渴饮，口臭。舌质红，苔黄厚，脉洪大而数。",
+   "tongue": "舌质红，苔黄厚",
+   "pulse": "脉洪大而数",
+   "therapy": "清热解毒，利咽消肿",
+   "formulaText": "清咽利膈汤加减。",
+   "formulas": [
+    "清咽利膈汤"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "连翘",
+    "栀子",
+    "黄芩片",
+    "薄荷",
+    "荆芥",
+    "防风",
+    "炒牛蒡子",
+    "玄明粉",
+    "甘草",
+    "金银花",
+    "玄参",
+    "大黄",
+    "桔梗",
+    "黄连片"
+   ],
+   "modifications": [
+    {
+     "condition": "大便秘结",
+     "herbs": [
+      "大黄"
+     ],
+     "remove": [],
+     "raw": "若大便秘结者，加大黄10克（后下）"
+    },
+    {
+     "condition": "持续高热",
+     "herbs": [
+      "石膏",
+      "水牛角"
+     ],
+     "remove": [],
+     "raw": "持续高热者，加石膏30克、水牛角60克（先煎）"
+    },
+    {
+     "condition": "脓点白腐多",
+     "herbs": [
+      "马勃",
+      "鱼腥草"
+     ],
+     "remove": [],
+     "raw": "脓点白腐多者，加马勃10克、鱼腥草15克"
+    }
+   ],
+   "sources": [
+    "https://www.med66.com/new/40a185aa2009/2009916liuhon17521.shtml",
+    "https://www.med66.com/zhongyiyishi/shicheng/fudao/si2109021533.shtml",
+    "http://www.a-hospital.com/w/乳蛾",
+    "https://www.gmzyjx.com/books/ek/ek-ekgl07-0.10.0.0.0/",
+    "https://williamkpchan.neocities.org/中醫喉科學.pdf",
+    "核对：清咽利膈汤：med66 两页 + A+医学百科乳蛾（肺胃热盛，清咽利膈汤或普济消毒饮加减）+ 中医儿科学（加减清咽利膈汤）+ 光明中医函授《中医喉科学》风热乳蛾（热毒严重，清咽利膈汤等），五页一致"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|乳蛾|肺肾阴虚证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 0,
+   "department": "耳鼻喉口齿",
+   "disease": "乳蛾",
+   "syndrome": "肺肾阴虚证",
+   "syndromeName": "肺肾阴虚证",
+   "syndromeKind": "syndrome",
+   "manifestations": "局部充血为晦暗型，分泌物粘稠。全身症状则五心烦躁，咽干口燥，如要引饮则喜欢凉饮。大便干结，午后低热等等。脉细数，舌质红绛或无舌苔。",
+   "tongue": "舌质红绛或无舌苔",
+   "pulse": "脉细数",
+   "therapy": "滋养肺肾",
+   "formulaText": "百合固金汤加减。",
+   "formulas": [
+    "百合固金汤"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "地黄",
+    "熟地黄",
+    "麦冬",
+    "川贝母",
+    "百合",
+    "当归",
+    "白芍",
+    "甘草",
+    "玄参",
+    "桔梗"
+   ],
+   "modifications": [],
+   "sources": [
+    "https://williamkpchan.neocities.org/中醫喉科學.pdf",
+    "https://m.baidu.com/bh/m/detail/ar_2027958792745802512",
+    "https://www.gmzyjx.com/books/ek/ek-ekgl07-0.10.0.0.0/",
+    "http://www.a-hospital.com/w/乳蛾",
+    "核对：百合固金汤：光明中医函授《中医喉科学》慢性乳蛾「肺气虚怯者…常用代表方以百合固金汤作核心」+ 百度健康乳蛾「肺肾阴虚：咽痒微痛、喉核肿大，用百合固金汤滋养肺肾」，两页；备选知柏地黄丸：中医儿科学（虚火上炎）+ A+医学百科乳蛾（肾阴虚，知柏地黄汤），养阴清肺汤：A+医学百科（肺阴不足）"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|喉痹|风热外袭证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 12157,
+   "department": "耳鼻喉口齿",
+   "disease": "喉痹",
+   "syndrome": "风热外袭证",
+   "syndromeName": "风热外袭证",
+   "syndromeKind": "syndrome",
+   "manifestations": "咽部红肿疼痛，吞咽不适，伴发热，汗出，头痛，咳嗽，小便黄。舌质红，苔薄白或微黄，脉浮数。",
+   "tongue": "舌质红，苔薄白或微黄",
+   "pulse": "脉浮数",
+   "therapy": "疏风散邪，宣肺利咽",
+   "formulaText": "疏风清热汤加减。",
+   "formulas": [
+    "疏风清热汤"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "荆芥",
+    "防风",
+    "炒牛蒡子",
+    "甘草",
+    "连翘",
+    "金银花",
+    "桑白皮",
+    "赤芍",
+    "桔梗",
+    "玄参",
+    "天花粉",
+    "浙贝母",
+    "黄芩片"
+   ],
+   "modifications": [],
+   "sources": [
+    "http://www.a-hospital.com/w/喉痹",
+    "https://williamkpchan.neocities.org/中醫喉科學.pdf",
+    "核对：疏风清热汤：A+医学百科喉痹（外邪侵袭，风热用疏风清热汤加减）+ 光明中医函授《中医喉科学》风热喉痹之三（银翘散或疏风清热汤），两页；银翘散/桑菊饮：光明喉科学风热喉痹之一（桑菊饮、银翘散之类）"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|喉痹|肺胃热盛证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 12158,
+   "department": "耳鼻喉口齿",
+   "disease": "喉痹",
+   "syndrome": "肺胃热盛证",
+   "syndromeName": "肺胃热盛证",
+   "syndromeKind": "syndrome",
+   "manifestations": "咽部红肿，灼热疼痛，吞咽困难，高热，口渴喜饮，口气臭秽，大便秘结，小便黄赤。舌红，苔黄，脉数有力。",
+   "tongue": "舌红，苔黄",
+   "pulse": "脉数有力",
+   "therapy": "清泻肺胃，消肿利咽",
+   "formulaText": "清咽利膈汤加减。",
+   "formulas": [
+    "清咽利膈汤"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "连翘",
+    "栀子",
+    "黄芩片",
+    "薄荷",
+    "荆芥",
+    "防风",
+    "炒牛蒡子",
+    "玄明粉",
+    "甘草",
+    "金银花",
+    "玄参",
+    "大黄",
+    "桔梗",
+    "黄连片"
+   ],
+   "modifications": [],
+   "sources": [
+    "http://www.a-hospital.com/w/喉痹",
+    "https://williamkpchan.neocities.org/中醫喉科學.pdf",
+    "核对：清咽利膈汤：A+医学百科喉痹（邪毒传里，上攻咽喉，清咽利隔汤加减）+ 光明中医函授《中医喉科学》风热喉痹之一（实热，清咽利膈汤之类），两页"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|喉痹|肺肾阴虚证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 12159,
+   "department": "耳鼻喉口齿",
+   "disease": "喉痹",
+   "syndrome": "肺肾阴虚证",
+   "syndromeName": "肺肾阴虚证",
+   "syndromeKind": "syndrome",
+   "manifestations": "咽干微肿，疼痛，午后或入夜尤甚，或咽部异物感，干咳痰少而稠，手足心热。舌红，少苔，脉细数。",
+   "tongue": "舌红，少苔",
+   "pulse": "脉细数",
+   "therapy": "滋养阴液，降火利咽",
+   "formulaText": "养阴清肺汤加减。",
+   "formulas": [
+    "养阴清肺汤"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "地黄",
+    "麦冬",
+    "甘草",
+    "玄参",
+    "浙贝母",
+    "牡丹皮",
+    "薄荷",
+    "白芍"
+   ],
+   "modifications": [],
+   "sources": [
+    "http://www.a-hospital.com/w/喉痹",
+    "https://williamkpchan.neocities.org/中醫喉科學.pdf",
+    "核对：养阴清肺汤：A+医学百科喉痹（脏腑阴虚，偏肺阴虚用养阴清肺汤加减）+ 光明中医函授《中医喉科学》虚火喉痹（肺怯金虚，百合固金汤、养阴清肺汤之类），两页；六味地黄丸（偏肾阴虚）仅 A+医学百科，知柏八味汤见光明喉科学（肾虚火旺），目录无「知柏地黄汤」，以知柏地黄丸代"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|鼻鼽|肺气虚寒证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 12100,
+   "department": "耳鼻喉口齿",
+   "disease": "鼻鼽",
+   "syndrome": "肺气虚寒证",
+   "syndromeName": "肺气虚寒证",
+   "syndromeKind": "syndrome",
+   "manifestations": "发作性鼻痒难耐、喷嚏频作、清涕量多，鼻粘膜肿胀、色淡，可伴鼻塞、嗅觉减退，多遇冷风发作。常素体恶风恶寒，易感冒，倦怠乏力，气短自汗。舌质淡，苔薄白或滑，脉虚弱，或见浮象。",
+   "tongue": "舌质淡，苔薄白或滑",
+   "pulse": "脉虚弱，或见浮象",
+   "therapy": "温肺散寒，益气固表",
+   "formulaText": "温肺止流丹加减。",
+   "formulas": [
+    "温肺止流丹"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "人参",
+    "荆芥",
+    "细辛",
+    "诃子",
+    "甘草",
+    "桔梗",
+    "鱼脑骨"
+   ],
+   "modifications": [
+    {
+     "condition": "鼻部症状较重",
+     "herbs": [
+      "苍耳子",
+      "辛夷",
+      "薄荷",
+      "白芷"
+     ],
+     "remove": [],
+     "raw": "鼻部症状较重者，可酌加苍耳子、辛夷、薄荷、白芷"
+    },
+    {
+     "condition": "风寒盛，营卫不和",
+     "herbs": [
+      "桂枝",
+      "白芍",
+      "生姜",
+      "大枣",
+      "甘草"
+     ],
+     "remove": [],
+     "raw": "风寒盛，营卫不和者，可酌加桂枝、芍药、生姜、大枣、甘草"
+    },
+    {
+     "condition": "鼻、眼和（或）咽喉部瘙痒感严重，喷嚏尤多",
+     "herbs": [
+      "蜈蚣",
+      "全蝎",
+      "地龙",
+      "蝉蜕"
+     ],
+     "remove": [],
+     "raw": "鼻、眼和（或）咽喉部瘙痒感严重，喷嚏尤多者，可酌加蜈蚣、全蝎、地龙、蝉蜕"
+    }
+   ],
+   "sources": [
+    "https://www.wfcms.org/public/filespath/files/025fd7a2b071aefeecb2677078fa4948.pdf",
+    "http://www.a-hospital.com/w/鼻鼽",
+    "本地教材合集《针灸治疗学》鼻鼽节（行12100）",
+    "核对：温肺止流丹、玉屏风散：WFCMS 草案 5.1.1.2 两方均列「强推荐」；温肺止流丹另有 A+医学百科鼻鼽（肺气虚寒，温肺止流丹加减）。⚠ 草案标「征求意见草案」，非定稿"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|鼻鼽|肺经伏热证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 0,
+   "department": "耳鼻喉口齿",
+   "disease": "鼻鼽",
+   "syndrome": "肺经伏热证",
+   "syndromeName": "肺经伏热证",
+   "syndromeKind": "syndrome",
+   "manifestations": "发作性鼻痒，喷嚏连作，清涕量多，间有粘稠涕，鼻塞、嗅觉减退；鼻黏膜偏红、肿胀。口干，小便黄，大便或干结。舌红，苔薄白或薄黄，脉数。",
+   "tongue": "舌红，苔薄白或薄黄",
+   "pulse": "脉数",
+   "therapy": "清热祛风，通窍达嚏",
+   "formulaText": "辛夷清肺饮加减。",
+   "formulas": [
+    "辛夷清肺饮"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "辛夷",
+    "黄芩片",
+    "栀子",
+    "麦冬",
+    "百合",
+    "石膏",
+    "知母",
+    "甘草",
+    "枇杷叶",
+    "升麻"
+   ],
+   "modifications": [
+    {
+     "condition": "伏热较盛",
+     "herbs": [
+      "知母",
+      "黄柏",
+      "牡丹皮"
+     ],
+     "remove": [],
+     "raw": "伏热较盛者，可酌加知母、黄柏、牡丹皮"
+    }
+   ],
+   "sources": [
+    "https://www.wfcms.org/public/filespath/files/025fd7a2b071aefeecb2677078fa4948.pdf",
+    "核对：辛夷清肺饮：仅 WFCMS 草案 5.1.2.2（强推荐，证据级别 C）一页标准；另 山东大学耳鼻喉眼学报2018（王永钦《中医耳鼻咽喉口腔科学》）鼻渊肺经蕴热型用同方，方证可互参。单一来源，未获第二独立页面"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|鼻鼽|脾气虚弱证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 12101,
+   "department": "耳鼻喉口齿",
+   "disease": "鼻鼽",
+   "syndrome": "脾气虚弱证",
+   "syndromeName": "脾气虚弱证",
+   "syndromeKind": "syndrome",
+   "manifestations": "鼻塞较重，清涕量多，清稀或黏白，可见鼻痒、喷嚏连作；嗅觉减退；鼻黏膜色淡或灰暗、肿胀。纳差便溏，倦怠乏力，神疲气短。舌淡或淡胖，边有齿痕，苔薄白或白，脉细弱或濡缓。",
+   "tongue": "舌淡或淡胖，边有齿痕，苔薄白或白",
+   "pulse": "脉细弱或濡缓",
+   "therapy": "益气健脾，升阳化湿",
+   "formulaText": "补中益气汤加减。",
+   "formulas": [
+    "补中益气汤"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "黄芪",
+    "炙甘草",
+    "人参",
+    "当归",
+    "陈皮",
+    "升麻",
+    "柴胡",
+    "白术"
+   ],
+   "modifications": [
+    {
+     "condition": "发作期",
+     "herbs": [
+      "细辛",
+      "五味子",
+      "辛夷",
+      "白芷"
+     ],
+     "remove": [],
+     "raw": "发作期可酌加细辛、五味子、辛夷、白芷"
+    },
+    {
+     "condition": "清涕不止",
+     "herbs": [
+      "乌梅",
+      "诃子"
+     ],
+     "remove": [],
+     "raw": "清涕不止可酌加乌梅、诃子"
+    }
+   ],
+   "sources": [
+    "https://www.wfcms.org/public/filespath/files/025fd7a2b071aefeecb2677078fa4948.pdf",
+    "http://www.a-hospital.com/w/鼻鼽",
+    "核对：补中益气汤：WFCMS 草案 5.1.3.2（强推荐）+ A+医学百科鼻鼽（脾气虚弱，补中益气汤加减）；参苓白术散为 WFCMS 同条备选"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|鼻鼽|肾阳亏虚证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 12102,
+   "department": "耳鼻喉口齿",
+   "disease": "鼻鼽",
+   "syndrome": "肾阳亏虚证",
+   "syndromeName": "肾阳亏虚证",
+   "syndromeKind": "syndrome",
+   "manifestations": "常年性发作性鼻痒、清涕，可见喷嚏连作、鼻塞、嗅觉减退；鼻黏膜苍白或紫暗，肿胀。畏寒肢冷，腰膝酸软，小便清长。舌淡，苔薄白或白，脉沉细或见弱象。",
+   "tongue": "舌淡，苔薄白或白",
+   "pulse": "脉沉细或见弱象",
+   "therapy": "补肾益气，温阳固表",
+   "formulaText": "金匮肾气丸加减。",
+   "formulas": [
+    "金匮肾气丸"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "熟地黄",
+    "山药",
+    "山萸肉",
+    "牡丹皮",
+    "泽泻",
+    "茯苓",
+    "桂枝",
+    "炮附片"
+   ],
+   "modifications": [
+    {
+     "condition": "病程较久，阳弱血瘀甚",
+     "herbs": [
+      "当归尾",
+      "赤芍",
+      "川芎"
+     ],
+     "remove": [],
+     "raw": "病程较久，阳弱血瘀甚者，可酌加当归尾、赤芍、川芎"
+    }
+   ],
+   "sources": [
+    "https://www.wfcms.org/public/filespath/files/025fd7a2b071aefeecb2677078fa4948.pdf",
+    "http://www.a-hospital.com/w/鼻鼽",
+    "核对：金匮肾气丸：WFCMS 草案 5.1.4.2（强推荐）+ A+医学百科鼻鼽（肾阳虚弱，金匮肾气丸加减）；右归丸为 WFCMS 同条另一强推荐方"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|鼻渊|肺经风热证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 12129,
+   "department": "耳鼻喉口齿",
+   "disease": "鼻渊",
+   "syndrome": "肺经风热证",
+   "syndromeName": "肺经风热证",
+   "syndromeKind": "syndrome",
+   "manifestations": "多见于发病初期，鼻塞，鼻涕量多，色白或微黄，发热恶寒，头痛，咳嗽。苔薄白，脉浮数。",
+   "tongue": "苔薄白",
+   "pulse": "脉浮数",
+   "therapy": "疏风清热",
+   "formulaText": "银翘散加减。",
+   "formulas": [
+    "银翘散"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "金银花",
+    "连翘",
+    "荆芥",
+    "薄荷",
+    "桔梗",
+    "淡豆豉",
+    "炒牛蒡子",
+    "甘草",
+    "淡竹叶"
+   ],
+   "modifications": [],
+   "sources": [
+    "https://health.baidu.com/m/detail/ar_4838931707544141858",
+    "https://health.baidu.com/m/detail/ar_13156671323399367722",
+    "https://www.haodf.com/neirong/wenzhang/5944611855.html",
+    "http://www.a-hospital.com/w/鼻渊",
+    "https://ebhyxbwk.njournal.sdu.edu.cn/fileup/1673-3770/HTML/2018-3-27.htm",
+    "本地教材合集《针灸治疗学》鼻渊节",
+    "核对：银翘散：百度健康两页（ar_1315…、ar_4838…，治宜疏风清热，银翘散加减）+ 好大夫 haodf（风热袭表，苍耳子散合银翘散），三页；辛夷清肺饮：山东大学学报引王永钦教材（肺经蕴热型，慢鼻渊）"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|鼻渊|胆腑郁热证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 12130,
+   "department": "耳鼻喉口齿",
+   "disease": "鼻渊",
+   "syndrome": "胆腑郁热证",
+   "syndromeName": "胆腑郁热证",
+   "syndromeKind": "syndrome",
+   "manifestations": "鼻涕浓浊，量多，色黄或黄绿，或有腥臭味，头痛鼻塞，口苦咽干，心烦易怒，小便黄赤。舌红，苔黄，脉弦数。",
+   "tongue": "舌红，苔黄",
+   "pulse": "脉弦数",
+   "therapy": "清泄胆热",
+   "formulaText": "龙胆泻肝汤加减。",
+   "formulas": [
+    "龙胆泻肝汤"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "龙胆",
+    "酒黄芩",
+    "栀子",
+    "泽泻",
+    "川木通",
+    "酒当归",
+    "地黄",
+    "柴胡",
+    "盐车前子",
+    "甘草"
+   ],
+   "modifications": [],
+   "sources": [
+    "https://health.baidu.com/m/detail/ar_4838931707544141858",
+    "https://health.baidu.com/m/detail/ar_13156671323399367722",
+    "https://www.haodf.com/neirong/wenzhang/5944611855.html",
+    "http://www.a-hospital.com/w/鼻渊",
+    "https://ebhyxbwk.njournal.sdu.edu.cn/fileup/1673-3770/HTML/2018-3-27.htm",
+    "本地教材合集《针灸治疗学》鼻渊节",
+    "核对：龙胆泻肝汤：百度健康两页（治宜清泄胆热，龙胆泻肝汤加减）+ haodf（肝胆湿热证，龙胆泻肝汤）+ A+医学百科鼻渊胆腑郁热（含龙胆草、黄芩、柴胡、栀子、泽泻、当归、生地药味），三页以上"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|鼻渊|脾胃湿热证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 12131,
+   "department": "耳鼻喉口齿",
+   "disease": "鼻渊",
+   "syndrome": "脾胃湿热证",
+   "syndromeName": "脾胃湿热证",
+   "syndromeKind": "syndrome",
+   "manifestations": "多见于鼻渊后期，鼻塞重而持续，流涕缠绵不愈，鼻涕黄浊而量多，嗅觉减退，头昏闷或重胀，胸脘痞闷，纳呆食少。苔黄腻，脉滑数。",
+   "tongue": "苔黄腻",
+   "pulse": "脉滑数",
+   "therapy": "清热利湿",
+   "formulaText": "甘露消毒丹加减。",
+   "formulas": [
+    "甘露消毒丹"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "滑石粉",
+    "茵陈",
+    "黄芩片",
+    "石菖蒲",
+    "木通",
+    "川贝母",
+    "射干",
+    "连翘",
+    "白豆蔻",
+    "广藿香",
+    "薄荷"
+   ],
+   "modifications": [],
+   "sources": [
+    "https://health.baidu.com/m/detail/ar_4838931707544141858",
+    "https://health.baidu.com/m/detail/ar_13156671323399367722",
+    "https://www.haodf.com/neirong/wenzhang/5944611855.html",
+    "http://www.a-hospital.com/w/鼻渊",
+    "https://ebhyxbwk.njournal.sdu.edu.cn/fileup/1673-3770/HTML/2018-3-27.htm",
+    "本地教材合集《针灸治疗学》鼻渊节",
+    "核对：甘露消毒丹：百度健康两页（治宜清热利湿，甘露消毒丹加减）+ haodf（脾胃湿热证，甘露消毒丹），三页"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|鼻渊|肺气虚寒证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 0,
+   "department": "耳鼻喉口齿",
+   "disease": "鼻渊",
+   "syndrome": "肺气虚寒证",
+   "syndromeName": "肺气虚寒证",
+   "syndromeKind": "syndrome",
+   "manifestations": "白黏涕多，畏风乏力。",
+   "tongue": "",
+   "pulse": "",
+   "therapy": "温补肺气",
+   "formulaText": "温肺止流丹加减。",
+   "formulas": [
+    "温肺止流丹"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "人参",
+    "荆芥",
+    "细辛",
+    "诃子",
+    "甘草",
+    "桔梗",
+    "鱼脑骨"
+   ],
+   "modifications": [],
+   "sources": [
+    "https://health.baidu.com/m/detail/ar_4838931707544141858",
+    "https://health.baidu.com/m/detail/ar_13156671323399367722",
+    "https://www.haodf.com/neirong/wenzhang/5944611855.html",
+    "http://www.a-hospital.com/w/鼻渊",
+    "https://ebhyxbwk.njournal.sdu.edu.cn/fileup/1673-3770/HTML/2018-3-27.htm",
+    "本地教材合集《针灸治疗学》鼻渊节",
+    "核对：温肺止流丹：百度健康两页 + 山东大学学报引王永钦教材（肺虚邪滞型，温肺止流丹加减），三页"
+   ],
+   "accessedAt": "2026-11-08"
+  },
+  {
+   "id": "supplement|鼻渊|脾虚湿困证",
+   "book": "中医耳鼻咽喉科学",
+   "bookKey": "supplement",
+   "line": 0,
+   "department": "耳鼻喉口齿",
+   "disease": "鼻渊",
+   "syndrome": "脾虚湿困证",
+   "syndromeName": "脾虚湿困证",
+   "syndromeKind": "syndrome",
+   "manifestations": "白黏涕多，腹胀便溏。",
+   "tongue": "",
+   "pulse": "",
+   "therapy": "健脾利湿",
+   "formulaText": "参苓白术散加减。",
+   "formulas": [
+    "参苓白术散"
+   ],
+   "formulaJoin": "single",
+   "modified": true,
+   "composition": [
+    "莲子",
+    "薏苡仁",
+    "砂仁",
+    "桔梗",
+    "炙甘草",
+    "炒白扁豆",
+    "茯苓",
+    "人参",
+    "白术",
+    "山药"
+   ],
+   "modifications": [],
+   "sources": [
+    "https://health.baidu.com/m/detail/ar_4838931707544141858",
+    "https://health.baidu.com/m/detail/ar_13156671323399367722",
+    "https://www.haodf.com/neirong/wenzhang/5944611855.html",
+    "http://www.a-hospital.com/w/鼻渊",
+    "https://ebhyxbwk.njournal.sdu.edu.cn/fileup/1673-3770/HTML/2018-3-27.htm",
+    "本地教材合集《针灸治疗学》鼻渊节",
+    "核对：参苓白术散：百度健康两页 + 山东大学学报引王永钦教材（脾虚湿滞型，参苓白术散加减），三页"
+   ],
+   "accessedAt": "2026-11-08"
+  }
+ ]
 }

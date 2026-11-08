@@ -1,0 +1,44 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "residual-deficit-variant-character",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-11-08",
+ "trigger": "甲方 11.05 第三轮测评病历15：70 岁男性，现病史「半年前…脑梗死，经治疗后遗留右侧半身不遂、手足麻木、口眼歪斜及言语謇涩…无新发言语不清」，体格检查「右侧口眼㖞斜」。查体这一处没有时间，按当前局灶缺损报了「意识或神经功能异常，需优先排除神经系统急症」红旗；评审「过度红旗预警，辨病明确分析出为中风恢复期」，甲方面板因红旗不显示方药。",
+ "layerAttribution": {
+  "layer": "deterministic_focal_deficit_identity",
+  "mechanism": "diagnosis-safety.sameDeficitChronicElsewhere：没写自己时间的一处缺损，若同一缺损在病历别处写明慢性病程或后遗症框架，按同一慢性缺损看。判「同一缺损」的 focalDeficitIdentity 只归一了「语言/言语」「蹇/謇」，「㖞/喎/歪」是同一字的异体，被当成两个缺损。",
+  "exception": "冻结令允许的构词式守卫：异体字归一（㖞、喎→歪），有限闭集；口眼喎斜补进面瘫这一组写法。不新增症状、不放宽任何急性线索与否定判定。",
+  "sources": "闸门回放 ~/runlogs/r1018/work/r1049/replay/gate.json（旧码 838c2c0 对新码，全语料与各评测集、甲方 10/12 以来全部请求）。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "查体用异体字写的后遗缺损与用正字写的门禁结果必须相同（都不报警）。",
+  "pairs": [
+   {
+    "subject": "脑梗死后半年，遗留右侧口眼歪斜、言语謇涩，规律康复中，无新发症状。查体：右侧口眼㖞斜。",
+    "sibling": "脑梗死后半年，遗留右侧口眼歪斜、言语謇涩，规律康复中，无新发症状。查体：右侧口眼歪斜。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "中风后遗症2年，遗留左侧口眼歪斜，病情稳定。查体：左侧口眼喎斜，伸舌居中。",
+    "sibling": "中风后遗症2年，遗留左侧口眼歪斜，病情稳定。查体：左侧口眼歪斜，伸舌居中。",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "controls": {
+  "note": "没有后遗框架、或写了今日新发的照旧报警。",
+  "mustStillFlag": [
+   { "text": "今日晨起突发右侧口眼㖞斜、言语不清2小时。", "flag": "神经" },
+   { "text": "头晕1天。查体：右侧口眼喎斜，右上肢无力。", "flag": "神经" }
+  ],
+  "mustStayReady": []
+ },
+ "measurements": {
+  "before": "subject 2/2 报警（异体字不算同一缺损）；sibling 0/2",
+  "after": "subject 与兄弟句相同（0/2）；controls 2/2 仍报警"
+ }
+}

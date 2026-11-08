@@ -525,7 +525,9 @@
       "封髓丹@《古今名医方论》 → 《御药院方》:3味",
       "崔氏八味丸@《医方考》 → 《金匮要略》:8味",
       "消风散@《外科正宗》 → 《外科正宗》:13味",
-      "化肝煎@《成方切用》 → 《景岳全书》:6味"
+      "化肝煎@《成方切用》 → 《景岳全书》:6味",
+      "耳聋左慈丸@《重订广温热论》 → 《饲鹤亭集方》:8味",
+      "荆防败毒散@《摄生众妙方》 → 《摄生众妙方》:11味"
     ],
     "collationAdded": [
       "一物瓜蒂汤",
@@ -605,6 +607,7 @@
       "茯苓戎盐汤",
       "茯苓杏仁甘草汤",
       "菊花汤〔《外台秘要》卷三十三·妊娠四月〕",
+      "菟丝子散",
       "菟丝子鸡子黄涂方〔《医心方》卷七·原书无专名〕",
       "葱白汤〔《外台秘要》卷三十三·妊娠七月〕",
       "葵子汤〔《外台秘要》卷三十三·妊娠八月〕",
@@ -629,7 +632,7 @@
     ],
     "varietyFlexibleFormulaCount": 122,
     "varietyUndeterminedFormulaCount": 62,
-    "governedFormulaCount": 3017,
+    "governedFormulaCount": 3018,
     "prescriptionLockEligibleCount": 2939,
     "identityLockEligibleCount": 2939,
     "doseCompilationEligibleCount": 2529,
@@ -257191,23 +257194,22 @@
       "blockingReasons": []
     },
     {
-      "id": "TCM-FORMULA-8BBCB11CA0C4",
+      "id": "TCM-FORMULA-93BC2AE7CA33",
       "name": "耳聋左慈丸",
       "aliases": [],
       "sourceName": "耳聋左慈丸",
-      "source": "《重订广温热论》",
-      "sourceOriginal": "《重订广温热论》",
-      "prescriptionOriginal": null,
+      "source": "《饲鹤亭集方》",
+      "sourceOriginal": "《饲鹤亭集方》",
+      "prescriptionOriginal": "六味地黄丸加磁石、柴胡（药典成药：煅磁石、熟地黄、山茱萸(制)、牡丹皮、山药、茯苓、泽泻、竹叶柴胡）",
       "ingredients": [
         "熟地黄",
-        "山萸肉",
+        "山茱萸",
         "山药",
         "泽泻",
         "茯苓",
         "牡丹皮",
         "煅磁石",
-        "石菖蒲",
-        "五味子"
+        "柴胡"
       ],
       "dosageForm": "丸剂",
       "sourceClass": "official_local_formula_standard",
@@ -257225,8 +257227,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 46
+        },
+        {
+          "title": "目录校勘组成重录：甲方11.05测评病历4：「《重订广温热论》无原文，建议核实出处，与目前主流《中国药典》或同仁堂之类所用中成药组成权威来源（中国中医药报引述的）《饲鹤亭集方》」，原文「耳聋左慈丸，治肾水不足，虚火上升，头眩目晕，耳鸣耳聋等症。六味加磁石三两，柴胡一两一钱」。出处与组成按《饲鹤亭集方》、中国药典成药处方（煅磁石、熟地黄、山茱萸(制)、牡丹皮、山药、茯苓、泽泻、竹叶柴胡）及两处二手来源（meandqi方剂库、同仁堂说明书页）一致；《饲鹤亭集方》正文未取到原书页。原目录九味（含石菖蒲、五味子）出处记《重订广温热论》，本地《中药学》亦引此名，为同名异方，不再作该方名的组成。",
+          "url": "https://m.jianke.com/product/9790.html",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "耳聋左慈丸",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "熟地黄",
@@ -257235,9 +257247,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "山萸肉",
+          "rawName": "山茱萸",
           "canonicalName": "山茱萸",
-          "linkageStatus": "source_backed_clinical_extension",
+          "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
@@ -257272,14 +257284,8 @@
           "preparation": "煅"
         },
         {
-          "rawName": "石菖蒲",
-          "canonicalName": "石菖蒲",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "五味子",
-          "canonicalName": "五味子",
+          "rawName": "柴胡",
+          "canonicalName": "柴胡",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         }
@@ -257308,7 +257314,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "耳聋左慈丸",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -273330,19 +273335,17 @@
       "sourceName": "荆防败毒散",
       "source": "《摄生众妙方》",
       "sourceOriginal": "《摄生众妙方》",
-      "prescriptionOriginal": null,
+      "prescriptionOriginal": "羌活、独活、柴胡、前胡、枳壳、茯苓、防风、荆芥、桔梗、川芎各一钱五分，甘草五分。右用水一钟半，煎至八分，温服。",
       "ingredients": [
         "荆芥",
         "防风",
         "羌活",
         "独活",
         "川芎",
-        "生姜",
-        "薄荷",
         "柴胡",
         "前胡",
         "桔梗",
-        "麸炒枳壳",
+        "枳壳",
         "茯苓",
         "甘草"
       ],
@@ -273363,8 +273366,18 @@
           "url": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
           "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
           "sourcePage": 14
+        },
+        {
+          "title": "目录校勘组成重录：原方无生姜、薄荷（方剂学：败毒散去人参、生姜、薄荷，加荆芥、防风）；古方原量不换算。",
+          "url": "https://thetcm.org/cn/kb/formulas/%E8%8D%8A%E9%98%B2%E6%95%97%E6%AF%92%E6%95%A3/",
+          "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
+      "adjudicatedIndications": [],
+      "displayName": "荆防败毒散",
+      "collationIdentityLockAllowed": true,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
       "ingredientLinks": [
         {
           "rawName": "荆芥",
@@ -273397,18 +273410,6 @@
           "autoResolvable": true
         },
         {
-          "rawName": "生姜",
-          "canonicalName": "生姜",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "薄荷",
-          "canonicalName": "薄荷",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
           "rawName": "柴胡",
           "canonicalName": "柴胡",
           "linkageStatus": "exact_standard_name",
@@ -273427,11 +273428,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "麸炒枳壳",
+          "rawName": "枳壳",
           "canonicalName": "枳壳",
-          "linkageStatus": "source_backed_preparation_form",
-          "autoResolvable": true,
-          "preparation": "麸炒"
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         },
         {
           "rawName": "茯苓",
@@ -273483,7 +273483,6 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
-      "displayName": "荆防败毒散",
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
@@ -275502,6 +275501,113 @@
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
+    },
+    {
+      "id": "TCM-FORMULA-4341D16A9F18",
+      "name": "菟丝子散",
+      "aliases": [],
+      "source": "《太平圣惠方》卷五十八",
+      "sourceOriginal": "《太平圣惠方》卷五十八",
+      "prescriptionOriginal": "菟丝子2两（酒浸3日，晒干，别捣为末），牡蛎1两（烧为粉），肉苁蓉2两（酒浸1宿，刮去皮，炙干），附子1两（炮裂，去皮脐），五味子1两，鸡膍胵中黄皮2两（微炙）",
+      "ingredients": [
+        "菟丝子",
+        "牡蛎",
+        "肉苁蓉",
+        "附子",
+        "五味子",
+        "鸡内金"
+      ],
+      "dosageForm": "散剂",
+      "sourceClass": "verified_reference_catalog",
+      "sourceCatalog": "adjudicated_catalog_collation",
+      "adjudicatedIndications": [
+        "小便多，或不禁"
+      ],
+      "displayName": "菟丝子散",
+      "collationIdentityLockAllowed": false,
+      "collationRetrievalAllowed": true,
+      "collationAdministration": "internal",
+      "verification": [
+        {
+          "title": "目录校勘新增：《太平圣惠方》卷五十八｜《太平圣惠方》有多首菟丝子散；教材（《中医儿科学》遗尿·下元虚寒）所指为卷五十八此方。鸡膍胵中黄皮即鸡内金。",
+          "url": "http://zhongyaofangji.com/t/tusizisan.html",
+          "sourceRef": "ADJ-COLLATION-20260809"
+        }
+      ],
+      "curatedSyndromeTags": [],
+      "ingredientLinks": [
+        {
+          "rawName": "菟丝子",
+          "canonicalName": "菟丝子",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "牡蛎",
+          "canonicalName": "牡蛎",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "肉苁蓉",
+          "canonicalName": "肉苁蓉",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "附子",
+          "canonicalName": "附子",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "五味子",
+          "canonicalName": "五味子",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "鸡内金",
+          "canonicalName": "鸡内金",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        }
+      ],
+      "indications": [
+        "小便多，或不禁"
+      ],
+      "syndromeTags": [],
+      "curatedSyndromeRelations": [],
+      "natureTags": [],
+      "locationTags": [],
+      "symptomTags": [],
+      "diseaseTags": [],
+      "syndromeTagRejection": "",
+      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "governanceStatus": "project_reference_verified",
+      "retrievalEligible": true,
+      "identityLockEligible": false,
+      "prescriptionLockEligible": false,
+      "doseCompilationEligible": false,
+      "requiresPatientSpecificDoseCompilation": true,
+      "requiresPostPrescriptionAudit": true,
+      "identityBlockingReasons": [
+        "collation_proper_name_or_route_denies_identity_lock"
+      ],
+      "doseBlockingReasons": [],
+      "controlledToxicIngredientNames": [],
+      "endangeredOrBannedIngredientNames": [],
+      "controlledToxicNotice": "",
+      "unresolvedDoseIngredientNames": [],
+      "corruptIngredientNames": [],
+      "missingDoseBoundaryIngredientNames": [],
+      "manualDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
+      "blockingReasons": [
+        "collation_proper_name_or_route_denies_identity_lock"
+      ]
     },
     {
       "id": "TCM-FORMULA-DA2D14B6902A",

@@ -5,6 +5,9 @@ import { herbClaimReferenceText } from "./m04-formula-analysis-claim-check.serve
 import { distinctModificationConditions, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
 import { quoteGroundedInText } from "./verbatim-quote";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
+import modificationRelevance from "../data/tcm-modification-relevance.source.json" with { type: "json" };
+
+const MECHANISM_HALVES = new Set((modificationRelevance as { mechanismHalvesNotFindings?: string[] }).mechanismHalvesNotFindings || []);
 
 /**
  * 随证加减每一行与本例对不对得上（2026-10-31 起；第三十三轮扩到教材条目和条件与病历的关系）。
@@ -31,18 +34,19 @@ const SYSTEM = [
   "每行写 verdict：",
   "contradicts：这个条件与病历已记录的情况相反，本例在现在的证候下不会这样（病历便溏对“若大便干结”、舌淡脉弱对“若舌红脉数”、口不渴对“若口渴”、多食易饥对“若食少”）。病历没提到的症状不算相反；quote 摘病历逐字原文。",
   "misfit：只在 kind 为 model 的行判。这味药的主要功效管不到这个症，或与本证方向相反（虚寒证单加苦寒药、阴虚证单加温燥药），或这个条件不是本病会出现的变化。不因为有更好的选择就判 misfit。",
+  "unrelated：两种 kind 都判。条件说的情况与本例已记录的表现都无关——不是本例已有某个症状的加重或演变，也不是主诉主症的变化，而是另一组本例一条相关表现都没有的情况（如胃痛病例「若兼头晕目眩」而病历没有头晕；咳嗽病例「若兼有瘀血」而病历没有任何瘀象）。条件里的症状本例已有（程度不同也算）、或是本例主症常见的加重，不算 unrelated。quote 留空。",
   "ok：其余。",
   "只输出 JSON：{\"rows\":[{\"line\":0,\"verdict\":\"ok\",\"quote\":\"\"}]}",
 ].join("\n");
 
 const VERIFY_SYSTEM = [
-  "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症或与本证方向相反）。",
+  "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症或与本证方向相反；unrelated：条件说的情况与本例已记录的表现都无关，既不是已有症状的加重或演变，也不是主诉主症的变化）。",
   "只判这一条。理由成立答 true。条件只是病历没提到、或者只是另有更好的药，答 false。",
   "先在 why 里写这条理由依据的病历原文或药的功效（不超过20字），再下结论。",
   "只输出 JSON：{\"why\":\"…\",\"confirmed\":true} 或 {\"why\":\"…\",\"confirmed\":false}",
 ].join("\n");
 
-type Finding = { line: number; verdict: "contradicts" | "misfit"; quote: string };
+type Finding = { line: number; verdict: "contradicts" | "misfit" | "unrelated"; quote: string };
 
 function parse(content: unknown): Finding[] | undefined {
   if (typeof content !== "string" || !content.trim()) return undefined;
@@ -52,7 +56,7 @@ function parse(content: unknown): Finding[] | undefined {
     return list.flatMap((entry) => {
       const row = record(entry);
       const verdict = text(row?.verdict);
-      return row && Number.isInteger(row.line) && (verdict === "contradicts" || verdict === "misfit")
+      return row && Number.isInteger(row.line) && (verdict === "contradicts" || verdict === "misfit" || verdict === "unrelated")
         ? [{ line: row.line as number, verdict: verdict as Finding["verdict"], quote: text(row.quote) }]
         : [];
     });
@@ -74,7 +78,22 @@ export function modificationFindingQualifies(finding: Finding, rows: readonly Js
   const row = rows[finding.line];
   if (!row || row.action !== "加") return false;
   if (finding.verdict === "misfit") return isModelWritten(row, disease);
+  // 与本例记录无关的条件（第三十七轮甲方 11.05 病历13「随症加减与患者病情无关…偶尔也能遇到根据疾病本身推荐」、病历10「香附、艾叶与患者病症不符」）：
+  // 教材条目也判。条件里有本例已记录的症状时不算（「若恶寒甚」之于恶寒）。
+  if (finding.verdict === "unrelated") return !conditionMentionsRecordedFinding(text(row.trigger), recordText);
   return Boolean(finding.quote) && quoteGroundedInText(finding.quote, recordText, { minChars: 2 });
+}
+
+/**
+ * 条件里是否点到了病历已记录的表现（两字以上的症状词，按逗号顿号切开、去掉「若/兼/见/较甚/明显/者」这类外壳后逐字在病历里）。
+ * 点到了就不判「无关」：「无关」只给条件里一条本例表现都没有的行。纯函数，供测试。
+ */
+export function conditionMentionsRecordedFinding(trigger: string, recordText: string): boolean {
+  const parts = String(trigger || "").replace(/^(?:本例已见|若|如|兼见|兼有|兼|伴)/u, "").split(/[，,、；;或及与和]/u)
+    .map((part) => part.replace(/^(?:兼见|兼有|兼|伴有|伴|见|出现|症见|若)/u, "").replace(/(?:较甚|较重|甚者|甚|明显|加重|较多|多|重|者)$/u, "").trim())
+    .filter((part) => part.length >= 2);
+  // 四字以上的条件也看头两字、末两字（「鼻塞流涕」之于「鼻塞、流清涕」）；病机词（内蕴、凝滞、郁热这类）不算症状。
+  return parts.some((part) => recordText.includes(part) || (part.length >= 4 && [part.slice(0, 2), part.slice(-2)].some((half) => !MECHANISM_HALVES.has(half) && recordText.includes(half))));
 }
 
 /** 交付前去掉复核确认不该留的行。 */
@@ -109,10 +128,10 @@ export async function dropMisfitModifications(content: string, context: { record
     parse: parseConfirmed,
   } : undefined, rows.length, TIMEOUT_MS, signal, {
     // 「药管不到这个症」比「条件与病历相反」更看读法：两次提名都这么说才去问复核（第三十五轮：病历有大便干，「大便秘结→玄参」因一次提名被删）。
-    needsBothSamples: (finding) => finding.verdict === "misfit",
+    needsBothSamples: (finding) => finding.verdict === "misfit" || finding.verdict === "unrelated",
   });
   if (findings.length === 0) return content;
-  const contradicted = new Set(findings.filter((finding) => finding.verdict === "contradicts").map((finding) => finding.line));
+  const contradicted = new Set(findings.filter((finding) => finding.verdict === "contradicts" || finding.verdict === "unrelated").map((finding) => finding.line));
   const bad = new Set(contradicted);
   for (const finding of findings) {
     if (finding.verdict === "misfit" && rows.length - bad.size > MIN_ROWS_AFTER_FIT) bad.add(finding.line);
@@ -145,7 +164,7 @@ export function withModificationsFrom(target: string, source: string): string {
 
 const TOP_UP_SYSTEM = [
   "你是中医主治医师。证型、治法、方药已定，现在写备用的随证加减。",
-  "写 3 条不同的条件，每条一味药：trigger 写「若+具体症状」，是本例眼下没有、之后可能出现的变化（不写舌脉，不写「气虚」「阴虚」这类证候名）；herbName 是不在 herbs 里的一味常用饮片；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个症。",
+  "写 3 条不同的条件，每条一味药：trigger 写「若+具体症状」，是本例已记录的某个症状加重、或主诉主症常见的进一步变化（不写与本例记录无关的另一组证候，不写舌脉，不写「气虚」「阴虚」这类证候名）；herbName 是不在 herbs 里的一味常用饮片；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个症。",
   "药的寒热补泻要与证型一致。不要写病历已经否认的症状，也不要写 existing 里已有的条件。",
   "只输出 JSON：{\"rows\":[{\"trigger\":\"\",\"herbName\":\"\",\"dose\":\"\",\"reason\":\"\"}]}",
 ].join("\n");

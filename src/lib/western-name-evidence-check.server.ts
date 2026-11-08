@@ -772,6 +772,18 @@ export function deterministicWesternNameCorrection(name: string, recordText: str
       }
     }
   }
+  // 心肌梗死的 ST 段分型是心电图定的（第四版心肌梗死全球统一定义：STEMI/NSTEMI 按心电图分；MSD：心肌坏死标志物＋缺血临床背景）。
+  // 病历没有心电图与肌钙蛋白时写不分型的「急性冠脉综合征待查」：急危重的方向不变，只是不把没有依据的分型写成已确诊
+  //（2026-11-08 第三十七轮，甲方 11.05 病历16：胸痛 2 小时，交付「急性ST段抬高型心肌梗死」，评审「无心电图依据」）。
+  if (/(?:非)?ST段抬高型?(?:急性)?心肌梗死|STEMI/iu.test(core) && !/心电图|ECG|EKG|ST段|肌钙蛋白|TnI|TnT|cTn/iu.test(recordText)) {
+    return {
+      type: "D",
+      supportedName: "急性冠脉综合征待查",
+      quote: chiefComplaintLine(recordText) || core,
+      reason: "ST段分型与心肌梗死的确立需心电图与心肌坏死标志物，病历均未记录",
+      missingTest: "心电图、肌钙蛋白",
+    };
+  }
   if (/新生儿/u.test(trimmed) && typeof patientAge === "number" && Number.isFinite(patientAge) && patientAge > 28 / 365) {
     return {
       type: "B",

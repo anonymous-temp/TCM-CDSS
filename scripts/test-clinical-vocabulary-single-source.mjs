@@ -105,6 +105,12 @@ const ALLOWLIST = new Map([
   ["src/lib/tcm-disease-differential-normalization.ts",
     "中医病名鉴别归一（2026-09-29）：仅有病名后缀修饰（可能/待排/待鉴别）的词形判据；病名归属读受治理 GB/T 15657 词表" +
     "（resolveTcmDiseaseName）与教材原句对照表（tcm-western-disease-crosswalk.json，逐条带书名行号），不在代码里写病名清单。"],
+  ["src/lib/herb-processing-forms.ts",
+    "炮制品选择（2026-11-08 第三十七轮）：规则、炮制前缀与方名后缀都在 tcm-herb-processing-forms.source.json（逐条带《中药炮制学》行号）；" +
+    "代码里只剩方名「加减/化裁/加味」后缀这一个构词式守卫（与 formula-analysis-review、delivered-surface 同一写法）。属语言学层。"],
+  ["src/lib/m04-modification-fit.server.ts",
+    "随证加减核对（2026-11-08 第三十七轮）：条件句的外壳（若/兼/伴…前缀、较甚/明显…后缀）是汉语功能词，与 tcm-therapy-phrasing 同属语言学层；" +
+    "病机词表在 tcm-modification-relevance.source.json（mechanismHalvesNotFindings）。症状本身不在代码里列，按病历原文比对。"],
   ["src/lib/tcm-therapy-phrasing.ts",
     "治法表述归一层。命中的是**语气虚词**（兼以/佐以/为主/为法）与繁简字对——汉语功能词，" +
     "GB/T 16751.3 里本来就没有也不该有，与 clinical-polarity.ts 同属语言学层。" +

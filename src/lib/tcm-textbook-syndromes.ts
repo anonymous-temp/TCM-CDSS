@@ -1,3 +1,4 @@
+import subtypeSource from "../data/tcm-textbook-disease-subtypes.source.json" with { type: "json" };
 import textbookTableJson from "../data/tcm-textbook-syndrome-formula-table.json" with { type: "json" };
 import supplementJson from "../data/tcm-textbook-syndrome-supplement.source.json" with { type: "json" };
 import { affirmedClinicalSourceClauses, clinicalClausePolarity } from "./clinical-polarity";
@@ -499,12 +500,15 @@ export function buildTextbookCandidateContext(input: TextbookCaseInput): string 
   if (candidates.length === 0) return "";
   // 鉴别病名与鉴别要点也按本例性别取（与补写鉴别、交付兜底同一判据 tcmDifferentialDiseaseFitsPatient）：男性肠痈的辨病依据曾写
   //「与异位妊娠的停经出血相区分」（第二十八轮页面形状 C015）。
-  const fittingDifferentials = (names: readonly string[]) => names.filter((name) => tcmDifferentialDiseaseFitsPatient(name, { sex: input.sex }));
+  // 按部位分节的病（血证）只列讲到本例那一型的鉴别病（鼻衄不列血淋，第三十七轮甲方 11.05 病历8）。
+  const subtypeOf = (disease: string) => textbookDiseaseSubtype(disease, input.chiefComplaint || "", input.recordText || input.presentHistory || "");
+  const fittingDifferentials = (names: readonly string[], disease = "") => names.filter((name) => tcmDifferentialDiseaseFitsPatient(name, { sex: input.sex }) &&
+    textbookDifferentialFitsSubtype(disease, subtypeOf(disease), name));
   const lines = candidates.flatMap((item) => [
-    `◆ ${item.disease}（《${item.book}》）${fittingDifferentials(item.differentials).length > 0 ? `｜教材鉴别病名：${fittingDifferentials(item.differentials).slice(0, 4).join("、")}` : ""}`,
+    `◆ ${item.disease}${subtypeOf(item.disease) ? `（本例属${subtypeOf(item.disease)}）` : ""}（《${item.book}》）${fittingDifferentials(item.differentials, item.disease).length > 0 ? `｜教材鉴别病名：${fittingDifferentials(item.differentials, item.disease).slice(0, 4).join("、")}` : ""}`,
     // 教材给的鉴别要点原文（去重、截短）：辨病依据与中医鉴别里的区分点照它写（2026-10-19 甲方标准病历 6：腰痛与背痛、尻痛教材按部位区分，
     // 模型两次写成「未诉放射痛」）。
-    ...textbookDifferentialGist(item.disease, item.book, fittingDifferentials(item.differentials).slice(0, 4)),
+    ...textbookDifferentialGist(item.disease, item.book, fittingDifferentials(item.differentials, item.disease).slice(0, 4)),
     ...textbookDiagnosisGist(item.disease, item.book),
     ...item.rows.map((row) =>
       `  - ${row.syndromeName}｜主症：${cut(row.manifestations, 90)}｜治法：${row.therapy}｜代表方：${formulaLabel(row)}`),
@@ -1065,14 +1069,49 @@ export function textbookFormulaLabel(row: TextbookSyndromeRow): string {
  * 教材对某个病要求鉴别的病证及其原文要点（去掉开头重复的病名，截到两句以内）。
  * 病名鉴别为空时用它补齐：内容是教材原文，不是服务端写的话。
  */
+const DISEASE_SUBTYPES = (subtypeSource as { diseases: Record<string, Record<string, string[]>> }).diseases;
+
+/** 「血证（鼻衄）」→ { disease: 血证, subtype: 鼻衄 }；没写分型返回原名。 */
+export function splitTextbookDiseaseSubtype(name: string): { disease: string; subtype?: string } {
+  const match = String(name || "").trim().match(/^(.+?)[（(]([^）)]+)[）)]$/u);
+  if (match && DISEASE_SUBTYPES[match[1]]?.[match[2]]) return { disease: match[1], subtype: match[2] };
+  return { disease: String(name || "").trim() };
+}
+
+/**
+ * 按部位分节的病（血证）本例是哪一型：主诉里先找，主诉没有时找病历全文，只有一型对得上才算（tcm-textbook-disease-subtypes.source.json）。
+ */
+export function textbookDiseaseSubtype(diseaseName: string, chiefComplaint: string, recordText = ""): string | undefined {
+  const groups = DISEASE_SUBTYPES[splitTextbookDiseaseSubtype(diseaseName).disease];
+  if (!groups) return undefined;
+  for (const text of [chiefComplaint, recordText]) {
+    const hits = Object.entries(groups).filter(([, forms]) => forms.some((form) => String(text || "").includes(form))).map(([group]) => group);
+    if (hits.length === 1) return hits[0];
+    if (hits.length > 1) return undefined;
+  }
+  return undefined;
+}
+
+/** 教材鉴别病是否讲的是本型：原文提到本型的写法就算；只提到别的型时不算；都没提到时不判（算）。 */
+export function textbookDifferentialFitsSubtype(diseaseName: string, subtype: string | undefined, differentialName: string): boolean {
+  const base = splitTextbookDiseaseSubtype(diseaseName).disease;
+  const groups = DISEASE_SUBTYPES[base];
+  if (!groups || !subtype || !groups[subtype]) return true;
+  const entry = DISEASES.find((item) => item.disease === base);
+  const text = `${differentialName}${entry?.differentialTexts?.[differentialName] || ""}`;
+  if (groups[subtype].some((form) => text.includes(form))) return true;
+  return !Object.entries(groups).some(([group, forms]) => group !== subtype && forms.some((form) => text.includes(form)));
+}
+
 export function textbookDifferentialsForDisease(diseaseName: string, limit = 2): Array<{ name: string; text: string; book: string }> {
-  const wanted = compact(diseaseName).replace(/类病$/u, "");
+  const { disease: baseName, subtype } = splitTextbookDiseaseSubtype(diseaseName);
+  const wanted = compact(baseName).replace(/类病$/u, "");
   if (!wanted) return [];
   const disease = DISEASES
     .filter((item) => compact(item.disease) === wanted)
     .sort((left, right) => (CANDIDATE_BOOK_PRIORITY[left.bookKey] || 0) - (CANDIDATE_BOOK_PRIORITY[right.bookKey] || 0))[0];
   if (!disease) return [];
-  return disease.differentials.flatMap((name) => {
+  return disease.differentials.filter((name) => textbookDifferentialFitsSubtype(baseName, subtype, name)).flatMap((name) => {
     // 病名里可能带正则元字符（「β受体…」、括注），按字面去掉段首的病名。
     const raw = (disease.differentialTexts[name] || "").replace(new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`), "").trim();
     const sentences = raw.split(/(?<=。)/).slice(0, 2).join("").trim();

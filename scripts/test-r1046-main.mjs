@@ -243,7 +243,7 @@ const smallMemo = await jiti.import("../src/lib/small-task-memo.server.ts");
 const textbook = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
 const modelConfigEnv = { OPENAI_API_KEY: "k", OPENAI_BASE_URL: "https://api.deepseek.com", CONTROLLED_TERMINOLOGY_MODEL: "deepseek-flash", BAILIAN_QWEN_API_KEY: "k", BAILIAN_QWEN_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1", AI_TEXT_PROVIDER: "bailian-qwen", BAILIAN_QWEN_MODEL: "qwen3.8-flash", PRIMARY_STRUCTURED_FALLBACK_MODEL: "qwen3.8-flash" };
 
-await check("3.1 模型原写的项用「只有写错才去掉」的问法；提名至多两项；教材治法原有的项不动", async () => {
+await check("3.1 模型原写的项用「只有写错才去掉」的问法；第三十七轮起总项数与交付面同一上限（三项），提名至多一项、只收四字项；教材治法原有的项不动", async () => {
   Object.assign(process.env, modelConfigEnv);
   smallMemo.resetSmallTaskMemoForTests();
   const row = textbook.textbookRowForSyndrome("咳嗽", "风寒袭肺证");
@@ -254,7 +254,7 @@ await check("3.1 模型原写的项用「只有写错才去掉」的问法；提
     const system = request.messages[0].content;
     systems.push(system);
     const content = /把病历里这次的现症按组列出来/.test(system)
-      ? JSON.stringify({ groups: [{ findings: ["痰多色白质稀"], coveredBy: null, item: "化痰" }, { findings: ["鼻塞", "流清涕"], coveredBy: null, item: "通窍" }, { findings: ["咽痒", "咽干"], coveredBy: null, item: "利咽" }] })
+      ? JSON.stringify({ groups: [{ findings: ["痰多色白质稀"], coveredBy: null, item: "宣肺化痰" }, { findings: ["鼻塞", "流清涕"], coveredBy: null, item: "宣通鼻窍" }, { findings: ["咽痒", "咽干"], coveredBy: null, item: "利咽止痒" }] })
       : JSON.stringify({ confirmed: true });
     return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content } }] }), { status: 200, headers: { "content-type": "application/json" } });
   };
@@ -262,14 +262,13 @@ await check("3.1 模型原写的项用「只有写错才去掉」的问法；提
   const out = JSON.parse(await coverage.completeMethodCoverage(content, { recordText: "咳嗽三天，痰多色白质稀，鼻塞，流清涕，咽痒，咽干", chiefComplaint: "咳嗽三天" }));
   assert.ok(systems.length > 0, `没发请求: ${JSON.stringify(out.therapy)}`);
   const items = String(out.therapy.verifiedMethodItem).split("，");
-  assert.equal(items[0], "健脾和胃");
-  assert.ok(items.includes("化痰"));
-  assert.ok(items.length <= 3);
+  // 教材治法两项（疏风散寒，宣肺止咳）+ 模型原写的一项已满三项：提名不再补。
+  assert.deepEqual(items, ["健脾和胃"]);
   assert.ok(systems.some((one) => /核对初拟治法里的一项/.test(one)));
-  // 模型没写别的项时，提名补的也至多两项。
+  // 模型没写别的项时，提名补的至多一项（教材两项 + 一项 = 三项）。
   smallMemo.resetSmallTaskMemoForTests();
   const onlyNamed = JSON.parse(await coverage.completeMethodCoverage(JSON.stringify({ overview: { tcmDiseaseName: "咳嗽", primarySyndrome: "风寒袭肺证" }, therapy: { overallMethod: row.therapy } }), { recordText: "咳嗽三天，痰多色白质稀，鼻塞，流清涕，咽痒，咽干", chiefComplaint: "咳嗽三天" }));
-  assert.equal(String(onlyNamed.therapy.verifiedMethodItem).split("，").length, 2);
+  assert.deepEqual(String(onlyNamed.therapy.verifiedMethodItem).split("，"), ["宣肺化痰"]);
   // 提名的提示词里没有模型写的治法：证名一写出来就能先发，收口时同一请求命中。
   const before = systems.length;
   coverage.prefetchMethodCoverage({ tcmDiseaseName: "咳嗽", primarySyndrome: "风寒袭肺证" }, { recordText: "咳嗽三天，痰多色白质稀，鼻塞，流清涕，咽痒，咽干", chiefComplaint: "咳嗽三天" });
@@ -280,13 +279,15 @@ await check("3.1 模型原写的项用「只有写错才去掉」的问法；提
 
 await check("3.2 第三十三轮量到的：同一件事不重复（化痰止咳 后面不再加 化痰）", () => {
   assert.equal(coverage.methodItemQualifies({ item: "化痰", quotes: [], fromModel: true }, { method: "疏风散寒，化痰止咳", recordText: "" }), false);
-  assert.equal(coverage.methodItemQualifies({ item: "利咽", quotes: [], fromModel: true }, { method: "疏风散寒，化痰止咳", recordText: "" }), true);
+  assert.equal(coverage.methodItemQualifies({ item: "利咽止痒", quotes: [], fromModel: true }, { method: "疏风散寒，化痰止咳", recordText: "" }), true);
+  // 两字项不收（第三十七轮甲方 11.05 病历1「…通络止痛，化痰」）。
+  assert.equal(coverage.methodItemQualifies({ item: "利咽", quotes: [], fromModel: true }, { method: "疏风散寒，化痰止咳", recordText: "" }), false);
   // 提名补的项要成组：一条顺带表现不够，两条或在主诉里才算。
   const context = { method: "疏风散寒", recordText: "咳嗽三天，痰多色白，大便干", chiefComplaint: "咳嗽三天，痰多色白" };
   assert.equal(coverage.methodItemQualifies({ item: "清热通便", quotes: ["大便干"] }, context), false);
-  assert.equal(coverage.methodItemQualifies({ item: "化痰", quotes: ["痰多色白"] }, context), true);
-  assert.equal(coverage.methodItemQualifies({ item: "润肠", quotes: ["大便干", "咳嗽三天"] }, context), true);
-  assert.equal(coverage.methodItemQualifies({ item: "润肠", quotes: ["大便干", "没有的话"] }, context), false);
+  assert.equal(coverage.methodItemQualifies({ item: "宣肺化痰", quotes: ["痰多色白"] }, context), true);
+  assert.equal(coverage.methodItemQualifies({ item: "润肠通便", quotes: ["大便干", "咳嗽三天"] }, context), true);
+  assert.equal(coverage.methodItemQualifies({ item: "润肠通便", quotes: ["大便干", "没有的话"] }, context), false);
 });
 
 // ───── 4 加减 ─────

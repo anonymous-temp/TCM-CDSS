@@ -575,7 +575,7 @@ const FOCAL_NEUROLOGIC_CONCEPT_GROUPS: readonly (readonly string[])[] = [
     // 同上：四肢、双下肢的活动不利（双下肢急性起病需排除脊髓、马尾与吉兰-巴雷）。单侧「左/右下肢活动不利」不收：
     // 那多是腰椎间盘突出、膝骨关节病的运动受限，不是本组的局灶缺损。
     "四肢活动不利", "双下肢活动不利"],
-  ["口角歪斜", "口眼歪斜", "口眼㖞斜", "口舌歪斜", "嘴角歪", "嘴歪", "嘴巴歪", "脸歪", "面部歪斜"],
+  ["口角歪斜", "口眼歪斜", "口眼㖞斜", "口眼喎斜", "口舌歪斜", "嘴角歪", "嘴歪", "嘴巴歪", "脸歪", "面部歪斜"],
   ["偏盲"],
 ];
 const FOCAL_NEUROLOGIC_TERMS = [...new Set(FOCAL_NEUROLOGIC_CONCEPT_GROUPS.flat())];
@@ -4594,9 +4594,13 @@ function focalDeficitOwnChronicCourseAt(text: string, index: number, matchText: 
 function focalDeficitTermAt(text: string, index: number): string {
   return FOCAL_NEUROLOGIC_TERMS.filter((term) => text.startsWith(term, index)).sort((a, b) => b.length - a.length)[0] ?? "";
 }
-/** 同一缺损的写法归一：「语言不利」=「言语不利」，「蹇」=「謇」。只用于判断两处说的是不是同一个缺损。 */
+/**
+ * 同一缺损的写法归一：「语言不利」=「言语不利」，「蹇」=「謇」，「㖞/喎」=「歪」。只用于判断两处说的是不是同一个缺损。
+ *「㖞」（2026-11-08 第三十七轮，甲方 11.05 病历15）：现病史写「脑梗死…遗留右侧半身不遂、手足麻木、口眼歪斜」，体格检查写「右侧口眼㖞斜」，
+ * 两处异体字被当成两个缺损，查体那一处没有时间、按新发卒中报了红旗，下游整页按急症处理。类夹具 residual-deficit-variant-character。
+ */
 function focalDeficitIdentity(term: string): string {
-  return term.replace(/^语言/u, "言语").replace(/蹇/gu, "謇");
+  return term.replace(/^语言/u, "言语").replace(/蹇/gu, "謇").replace(/[㖞喎]/gu, "歪");
 }
 /** 缺损词前同一小句 8 字内写的侧别（左/右/双/四肢）；没写返回空串。 */
 function focalDeficitSideAt(text: string, index: number): string {

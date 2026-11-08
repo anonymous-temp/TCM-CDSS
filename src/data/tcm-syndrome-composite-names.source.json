@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "note": "教材单脏/单因素证名与辨证依据结论不一致时交付的国标合称（2026-11-08 第三十七轮，甲方 11.05：病历3 依据讲心气不足、脾运失健、气血生化不足而证名只写「心血不足」，评审「明显的气血两虚（心脾两虚）」；病历10 依据讲脾虚湿盛而证名「脾虚证」；病历11 依据讲脾胃气虚而证名「胃虚证」）。只在模型自己的病位病性分析里列了另一脏腑（且该脏腑那一条依据有两项以上病历原文）或另一病理因素（且病历肯定记载两项以上该因素的表现）时用；合称须是 GB/T 16751.2-2021 证名（运行时用 resolveNationalStandardTcmSyndromeTerm 核对）。方与治法仍按原教材行，不随名改。",
+  "rules": [
+    { "primary": ["心血不足证", "心血虚证"], "addLocation": "脾", "requiresNature": ["气虚", "血虚"], "composite": "心脾两虚证" },
+    { "primary": ["胃虚证", "胃气虚证"], "addLocation": "脾", "requiresNature": ["气虚"], "composite": "脾胃气虚证" },
+    { "primary": ["肺气虚证"], "addLocation": "脾", "requiresNature": ["气虚"], "composite": "肺脾气虚证" },
+    { "primary": ["心气虚证"], "addLocation": "肺", "requiresNature": ["气虚"], "composite": "心肺气虚证" },
+    { "primary": ["肾阴虚证"], "addLocation": "肝", "requiresNature": ["阴虚"], "composite": "肝肾阴虚证" },
+    { "primary": ["肾阳虚证"], "addLocation": "脾", "requiresNature": ["阳虚"], "composite": "脾肾阳虚证" },
+    { "primary": ["脾虚证", "脾气虚证"], "addNature": ["湿"], "natureSigns": ["苔腻", "苔白腻", "苔厚腻", "苔滑", "肢体困重", "身体困重", "头身困重", "身重", "头重如裹", "脘痞", "脘闷", "口黏"], "composite": "脾虚湿困证" }
+  ]
+}

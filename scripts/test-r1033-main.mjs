@@ -120,7 +120,8 @@ await check("2.3 链将删空：证候依据列没落地时，用同一半已落
     (event) => events.push(event),
   );
   assert.equal(chain.length, 1);
-  assert.equal(chain[0].syndromeEvidence, "舌象：舌淡红，苔白");
+  // 第三十七轮起回填最小一段原文（不带字段名）。
+  assert.equal(chain[0].syndromeEvidence, "舌淡红，苔白");
   assert.equal(events[0].salvaged, 1);
   assert.deepEqual(events[0].dropped, { syndrome_evidence_ungrounded: 1 });
   assert.ok(!JSON.stringify(events).includes("上腹痛"), "记账不得带病历原文");

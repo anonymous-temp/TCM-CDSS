@@ -13,7 +13,7 @@ import { herbBoundaryPopulationLabel, stripHerbBoundaryTail } from "./candidate-
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
 import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairCautions, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
-import { compositionIdentityName, formulaCompilationReferences, formulaEditClaimBaseIngredients, formulaManualDoseIngredients, formulaNameVariantIngredients } from "./tcm-formula-provenance";
+import { compositionIdentityName, formulaCompilationReferences, formulaEditClaimBaseIngredients, formulaManualDoseIngredients, formulaNameComponents, formulaNameVariantIngredients } from "./tcm-formula-provenance";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { textbookNamesTheseAsEmperors } from "./formula-textbook-commentary";
 import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
@@ -1108,10 +1108,18 @@ export function modificationConditionOutsidePopulation(trigger: string, caseStat
  * 该味在知识库里归安神药类、是佐或使、不在所称方剂的目录组成里，且已签名的证名与病名都不涉心、神、寐、悸、郁。
  * 去掉后方义里讲这味药的小句由方义核对按「方外之药」删去；剩不到三味时原样保留。
  */
-function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2, recordText = "", chiefComplaint = ""): M04Proposal["candidate"]["herbs"] {
+export function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2, recordText = "", chiefComplaint = ""): M04Proposal["candidate"]["herbs"] {
   if (signedScopeInvolvesMind(prior) || mindSymptomsProminentInRecord(recordText, chiefComplaint)) return candidate.herbs;
   const baseName = String(candidate.name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
-  const base = new Set((formulaCompilationReferences([baseName])[0]?.ingredients || []).map((name) => compositionIdentityName(name.replace(/[（(][^）)]*[）)]/g, ""))));
+  // 合方（「菟丝子散合桑螵蛸散加减」）按每一张组成方的组成算，辨证阶段推荐的方向与教材这一行的组成也算
+  //（2026-11-08 第三十七轮，甲方 11.05 病历13：整名查不到目录，桑螵蛸散的远志、煅龙骨被当成顺带安神药去掉，方名随后只剩「菟丝子散加减」）。
+  const direction = String(prior.overview.recommendedFormulaDirection || "").replace(/(?:加减|化裁|加味)$/u, "");
+  const names = [...new Set([baseName, ...formulaNameComponents(baseName), ...formulaNameComponents(direction), ...(prior.overview.recommendedFormulaNames || [])].filter(Boolean))];
+  const textbookRow = textbookRowForSyndrome(prior.overview.tcmDiseaseName || "", prior.overview.primarySyndrome || "");
+  const base = new Set([
+    ...formulaCompilationReferences(names).flatMap((reference) => reference.ingredients || []),
+    ...(textbookRow?.composition || []),
+  ].map((name) => compositionIdentityName(String(name).replace(/[（(][^）)]*[）)]/g, ""))));
   const kept = candidate.herbs.filter((herb) => !(
     (herb.role === "佐" || herb.role === "使") &&
     SEDATIVE_CATEGORY.test(getTcmHerbFunctionText(herb.name)) &&

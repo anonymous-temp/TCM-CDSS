@@ -36,7 +36,7 @@ type EngineeringJargonEntry = {
   severity: string;
 };
 
-type TreatmentPrincipleEntry = CanonicalEntry & {
+export type TreatmentPrincipleEntry = CanonicalEntry & {
   examples: readonly string[];
   relationPolicy: string;
   permitsPrioritization?: boolean;

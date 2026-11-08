@@ -665,6 +665,13 @@ export function withoutFalseBaseFormulaEdits(
   const first = end >= 0 ? analysis.slice(0, end) : analysis;
   const rest = end >= 0 ? analysis.slice(end) : "";
   const clauses = first.split(/([，,；;]|、(?=(?:并|再|另)?加))/u);
+  // 别的小句里点名去掉的原方药味（「故去姜半夏」）：不点名的「并去本方中偏于峻补之品」只有在原方缺的药都已点名时才算没去别的。
+  const namedRemoved = new Set<string>();
+  for (let index = 0; index < clauses.length; index += 2) {
+    const removalHead = clauses[index].match(/^\s*(?:故|并|且)?(?:去掉|去|删去|减去)(?:原方中?|本方中?)?(.*)$/u);
+    if (!removalHead) continue;
+    for (const mention of formulaAnalysisHerbMentions(removalHead[1])) namedRemoved.add(rawFormIdentity(mention.token));
+  }
   const out: string[] = [];
   for (let index = 0; index < clauses.length; index += 2) {
     const clause = clauses[index];
@@ -689,7 +696,7 @@ export function withoutFalseBaseFormulaEdits(
       const nextClause = clauses[index + 2] || "";
       const falseRemoval = /^\s*(?:以|改以|改用|换用|代以)[^，,；;]*(?:易|代|替)/u.test(nextClause)
         ? undefined
-        : removalClaimContradictedByPrescription(body, /原方/u.test(removal[1]), baseByIdentity, prescribedHerbs);
+        : removalClaimContradictedByPrescription(body, /原方/u.test(removal[1]), baseByIdentity, prescribedHerbs, namedRemoved);
       if (falseRemoval !== undefined) {
         // 留下的加药半句再按加药说法核一遍（「去其峻消之性而加山楂」：山楂本在保和丸里）。
         if (falseRemoval) {
@@ -755,6 +762,8 @@ function removalClaimContradictedByPrescription(
   refersToBase: boolean,
   baseByIdentity: ReadonlyMap<string, string>,
   prescribedHerbs: readonly string[],
+  /** 同一句里别处已点名去掉的原方药味身份。 */
+  namedRemoved: ReadonlySet<string> = new Set(),
 ): string | undefined {
   let tailStart = body.length;
   for (const match of body.matchAll(ADDITION_TAIL)) {
@@ -780,8 +789,11 @@ function removalClaimContradictedByPrescription(
     });
     return samePresent ? tail : undefined;
   }
-  // 没点药名：说的是原方、且原方组成逐味都在方中才算不实；组成太少（不足三味）不判。
-  if (!(refersToBase || /^(?:其|之)/u.test(object)) || baseByIdentity.size < 3 || ![...baseByIdentity.keys()].every((identity) => present.has(identity))) return undefined;
+  // 没点药名：说的是原方（「去原方…」「去其…」「去本方中…之品」）、且原方组成逐味都在方中，或原方缺的药都已在别处点名去掉
+  //（2026-11-08 第三十七轮，甲方 11.05 病历11：「故去姜半夏，另以生姜易之，并去本方中偏于峻补之品」——除半夏外一味没去），才算不实；组成太少（不足三味）不判。
+  const refers = refersToBase || /^(?:其|之|本方中?|方中)/u.test(object);
+  const missing = [...baseByIdentity.keys()].filter((identity) => !present.has(identity));
+  if (!refers || baseByIdentity.size < 3 || !missing.every((identity) => namedRemoved.has(identity))) return undefined;
   return tail;
 }
 

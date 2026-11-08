@@ -266,7 +266,8 @@ await check("3.2 证据标签：成方组成里的药味为标准资料（出处
     herbs: ["茯苓", "茯神", "远志", "人参", "石菖蒲", "龙齿", "白芍"].map((name) => ({ name, dose: "10g", role: "佐", evidence: { evidenceLevel: "model_inference", source: "基于本例证候、病机、治法与候选药味的配伍分析", confidence: "中" } })),
   }], modifications: [], patentAndWestern: [] } };
   const herbs = surface.projectDeliveredReasoning(reasoning).formula.candidates[0].herbs;
-  const level = (name) => herbs.find((herb) => herb.name === name).evidence;
+  // 第三十七轮起命名方原文的炮制写进药名（安神定志丸：龙齿煅用 → 煅龙齿），按药名结尾找。
+  const level = (name) => herbs.find((herb) => herb.name === name || herb.name.endsWith(name)).evidence;
   assert.deepEqual(level("龙齿"), { evidenceLevel: "kb_entry", source: "安神定志丸：《医学心悟》卷四", confidence: "中" });
   assert.equal(level("人参").evidenceLevel, "kb_entry");
   assert.equal(level("白芍").evidenceLevel, "model_inference", "原方没有的加味药不标");

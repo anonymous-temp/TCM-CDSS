@@ -885,9 +885,9 @@ export function describeM03GroundingConflict(reasoning: M03ReasoningLike, clinic
  * （归一化 / 四诊字段紧凑写法 / 拉丁字母单错），逐字命中却被上面判否的不在这里翻案；对上的原文位置
  * 必须与引文同极性，且不是他人、条件或未评估的提及。返回病历原文片段。
  */
-function alignedPatientFactQuote(value: string, clinicalContext: string): string | undefined {
+function patientFactQuoteAlignment(value: string, clinicalContext: string) {
   const valueNegated = isNegatedClinicalClause(value.trim());
-  const aligned = alignQuoteToSource(value, clinicalContext, {
+  return alignQuoteToSource(value, clinicalContext, {
     excludedAt: (text, index) => {
       const polarity = recordMentionPolarityAt(text, index);
       if (polarity === "excluded") return true;
@@ -899,10 +899,41 @@ function alignedPatientFactQuote(value: string, clinicalContext: string): string
       return polarity === "negated" || isNegatedClinicalClause(text.slice(clauseStart, clauseEnd));
     },
   });
+}
+
+function alignedPatientFactQuote(value: string, clinicalContext: string): string | undefined {
+  const aligned = patientFactQuoteAlignment(value, clinicalContext);
   return aligned && aligned.status !== "exact" ? aligned.span : undefined;
 }
 
+/**
+ * 引文本身就是病历原文（或只差写法）时，回填的就是这一小段，不扩成整句（2026-11-08 第三十七轮，甲方 11.05 测评「病机分析」17/17 不通过）。
+ * 旧实现先按概念组找「第一处含这个概念的句子」：模型写「恶寒重、发热轻，伴无汗」，回填成主诉「恶寒、发热伴头痛、身痛1天」；
+ * 「鼻塞、流清涕、喷嚏、咽痒、咳嗽」回填成整段现病史。三条病位依据被扩成同一句，随后按「依据相同」整条删掉，
+ * 剩下一条再按「依据只有1条」降为有界、置信度降为低，并写上「病位…的病历依据有1条」——模型原文三条依据、已确定。
+ * 这里先按最小单位对：整条能对上就用整条；否则按句号/分号切开，每段都能对上才用（各段仍是原文）。极性守卫与写法对齐沿用 alignQuoteToSource。
+ */
+function smallestPatientFactQuote(value: string, clinicalContext: string): string | undefined {
+  if (!isGenericPatientEvidencePolarityAligned(value, clinicalContext)) return undefined;
+  const segments = value.split(/[。；;\n]+/u).map((item) => item.trim()).filter((item) => item.length >= 2);
+  // 整条只在本身是一句（没有句号、分号）时对：两句拼起来的引文按句逐段对，免得一句肯定、一句否认（「…老打嗝；没吐过血」）整条对上后被当成一段肯定引文。
+  if (segments.length < 2) {
+    const whole = patientFactQuoteAlignment(value, clinicalContext);
+    return whole?.span;
+  }
+  const spans: string[] = [];
+  for (const segment of segments) {
+    if (!isGenericPatientEvidencePolarityAligned(segment, clinicalContext)) return undefined;
+    const aligned = patientFactQuoteAlignment(segment, clinicalContext);
+    if (!aligned) return undefined;
+    if (!spans.includes(aligned.span)) spans.push(aligned.span);
+  }
+  return spans.join("；");
+}
+
 export function patientFactSourceQuote(value: string, clinicalContext: string): string | undefined {
+  const smallest = smallestPatientFactQuote(value, clinicalContext);
+  if (smallest) return smallest;
   const quote = legacyPatientFactSourceQuote(value, clinicalContext);
   if (quote) return quote;
   if (!isGenericPatientEvidencePolarityAligned(value, clinicalContext)) return undefined;

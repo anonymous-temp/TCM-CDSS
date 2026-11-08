@@ -236,7 +236,9 @@ await check("6.2 千帕写的血压按 7.5 换算（H 集 H-tri-2808「BP21/12kP
 // ───── 7 教材行不跨病借用 ─────
 await check("7.1 教材表里没有这个病的节时，不按证名借别的病的行（H 集 鼻渊→黄疸、面痛→血证/中风、耳鸣→血证）；国标同一个病的别名照旧找回（头风病→头痛，对照）", async () => {
   const tb = await jiti.import("../src/lib/tcm-textbook-syndromes.ts");
-  for (const [disease, syndrome] of [["鼻渊", "胆腑郁热证"], ["面痛", "风痰阻络证"], ["面痛", "胃火炽盛证"]]) {
+  // 鼻渊第三十七轮起在补充表里有自己的节（胆腑郁热证→龙胆泻肝汤），找到的是本病的行，不再是借来的。
+  assert.equal(tb.textbookRowForSyndrome("鼻渊", "胆腑郁热证")?.disease, "鼻渊");
+  for (const [disease, syndrome] of [["面痛", "风痰阻络证"], ["面痛", "胃火炽盛证"]]) {
     assert.equal(tb.textbookRowForSyndrome(disease, syndrome), undefined, `${disease}·${syndrome}`);
   }
   assert.equal(tb.textbookRowForSyndrome("头风病", "瘀血头痛证")?.disease, "头痛");
@@ -683,7 +685,8 @@ await check("16.30 病名写成教材某病下的一型（「石淋·湿热蕴�
   const row = t.textbookRowForSyndrome("石淋", "湿热蕴结证");
   assert.equal(row?.disease, "淋证");
   assert.deepEqual(row?.formulas, ["石韦散"]);
-  assert.equal(t.textbookRowForSyndrome("鼻渊", "胆腑郁热证"), undefined);
+  // 鼻渊第三十七轮起有自己的节：找到本病的行，不借别的病。
+  assert.equal(t.textbookRowForSyndrome("鼻渊", "胆腑郁热证")?.disease, "鼻渊");
   assert.equal(t.textbookRowForSyndrome("虚劳", "肺脾两虚证"), undefined);
 });
 

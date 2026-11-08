@@ -905,7 +905,8 @@ const checkAsync = async (name, run) => {
     assert.equal(plan.cardSentencesMatchedToSyndrome(text, ["感冒"], "风热犯表证"), text);
   });
   check("7.22 方义：不带「原方」的删药说法同样核对；模型自问自答（带问号的小句及其后的更正）不留", () => {
-    const jing = ["荆芥", "防风", "羌活", "独活", "柴胡", "前胡", "川芎", "枳壳", "茯苓", "桔梗", "甘草", "生姜", "薄荷"];
+    // 第三十七轮：荆防败毒散按原书《摄生众妙方》11 味订正（目录原为深圳地标 13 味，含生姜、薄荷）。
+    const jing = ["荆芥", "防风", "羌活", "独活", "柴胡", "前胡", "川芎", "枳壳", "茯苓", "桔梗", "甘草"];
     const analysisFor = (name, herbs, formulaAnalysis) => projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {},
       formula: { candidates: [{ name, herbs: herbs.map((herb) => ({ name: herb, dose: "9g" })), formulaAnalysis }] }, nonPharma: null }).formula.candidates[0].formulaAnalysis;
     // 两例组成都与目录原方逐味相同：开头为「本方用某方原方」（第二十四轮）。
@@ -2006,7 +2007,8 @@ check("15.24 兼证口径写进辨证提示词：独立于主证、成组出现�
 {
   const surface = await jiti.import("../src/lib/delivered-surface.ts");
   check("16.6 药味功效栏里知识库与核对词典都不给的说法去掉（桔梗「载药下行」、益智「益气」；益智的知识库功用经教材核对剔除益气、安神），有依据的照留；整栏没依据时换成知识库功效短语（对照：当归「补血活血」不动）", () => {
-    const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [{ name: "缩泉丸加减", decoction: { method: "水煎服" }, herbs: [
+    // 方名不写成方（第三十七轮起命名方原文的炮制会写进药名，缩泉丸的益智仁成盐益智仁），这里只测功效栏。
+    const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [{ name: "自拟方", decoction: { method: "水煎服" }, herbs: [
       { name: "桔梗", role: "使", function: "宣肺利咽，载药下行", dose: "6g" },
       { name: "益智仁", role: "君", function: "温脾止泻，益气", dose: "10g" },
       { name: "当归", role: "臣", function: "补血活血", dose: "10g" },

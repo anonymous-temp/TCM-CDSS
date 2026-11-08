@@ -287,6 +287,32 @@ function governedFormulaCompilationRow(value: string): GovernedFormulaCompilatio
   return candidates.length === 1 ? candidates[0] : undefined;
 }
 
+/**
+ * 命名方原文写在组成里的炮制（「白术一两（土炒），山药一两（炒），白芍五钱（酒炒）」，以及构建期链接上标注的 preparation：黑芥穗→荆芥穗「炒炭」）。
+ * 返回 [药味身份, 原文炮制词或原文药名]；只读受治理目录，不推断（2026-11-08 第三十七轮，甲方 11.05 完带汤写原方却用白术、山药）。
+ */
+export function governedFormulaOriginalPreparations(name: string): Array<{ identity: string; preparation?: string; rawName?: string }> {
+  const governed = governedFormulaCompilationRow(String(name || "").trim());
+  if (!governed) return [];
+  const row = governed as GovernedFormulaCompilationRow & { prescriptionOriginal?: unknown; ingredientLinks?: Array<{ rawName: string; canonicalName?: string; preparation?: string }> };
+  const out: Array<{ identity: string; preparation?: string; rawName?: string }> = [];
+  const original = typeof row.prescriptionOriginal === "string" ? row.prescriptionOriginal : "";
+  for (const part of original.split(/[，,、；;。]/u)) {
+    const match = part.trim().match(/^([\u4e00-\u9fff]{1,6}?)(?:[\d.一二三四五六七八九十百半两钱分厘]+(?:两|钱|分|厘|克|g))?\s*[（(]([^）)]{1,6})[）)]/u);
+    if (!match) continue;
+    const identity = compositionIdentityName(match[1]);
+    if (identity) out.push({ identity, preparation: match[2].trim() });
+  }
+  for (const link of row.ingredientLinks || []) {
+    const raw = String(link.rawName || "").trim();
+    const canonical = String(link.canonicalName || "").trim();
+    if (raw && canonical && raw !== canonical && typeof link.preparation === "string" && link.preparation.trim()) {
+      out.push({ identity: compositionIdentityName(canonical), rawName: raw });
+    }
+  }
+  return out;
+}
+
 function cleanFormulaDisplayName(value: string): string {
   return value
     .replace(/[（(]?\s*《[^》]{2,80}》\s*[）)]?/g, "")

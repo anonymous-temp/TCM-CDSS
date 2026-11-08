@@ -147,6 +147,21 @@ export async function standardIcdSynonym(name: string, signal?: AbortSignal): Pr
   return `${pair[0].same}${/待查$/u.test(name) ? "待查" : ""}`;
 }
 
+/**
+ * 沿用病历已写明的慢性病作诊断时，推理说明先写出病历原话，诊断标准要某项检查而病历没有时写明（2026-11-08 第三十七轮，甲方 11.05 病历5：
+ * 既往「慢性浅表性胃炎病史2年」被沿用为本次诊断，推理说明只讲症状吻合，评审「西医诊断浅表性胃炎，无胃镜证据」）。
+ */
+export function establishedRationale(established: { name: string; quote: string; rationale: string }, recordText: string): string {
+  const subsequence = (needle: string, hay: string) => { let at = 0; for (const char of hay) if (char === needle[at]) at += 1; return at === needle.length; };
+  const entry = ((criteriaJson as unknown as { entries?: Array<{ name: string; requiredTests?: string[] }> }).entries || [])
+    .filter((item) => item.name && subsequence(item.name, established.name))
+    .sort((left, right) => right.name.length - left.name.length)[0];
+  const missing = (entry?.requiredTests || []).map((test) => test.replace(/[（(].*$/u, "").trim()).filter((test) => test.length >= 2 && !recordText.includes(test.slice(0, 2)));
+  const lead = established.quote ? `病历记载「${established.quote}」，本次按既往诊断考虑` : "";
+  const tail = missing.length > 0 && missing.length === (entry?.requiredTests || []).length ? `；病历未附${missing.join("、")}结果，诊断沿用既往记录` : "";
+  return [lead, established.rationale.replace(/[。；;]+$/u, "")].filter(Boolean).join("；") + tail + "。";
+}
+
 /** 西医半收尾。redFlag 病例、解析不了时原样返回。 */
 export async function finalizeWesternPrimaryName(
   westernContent: string,
@@ -186,7 +201,7 @@ export async function finalizeWesternPrimaryName(
   const next = established?.name ?? (preferred ? `${preferred}${/待查$/u.test(name) ? "待查" : ""}` : await standardIcdSynonym(name, signal));
   if (!next || next === name) return westernContent;
   primary.name = next;
-  if (established?.rationale) primary.clinicalRationale = established.rationale;
+  if (established?.rationale) primary.clinicalRationale = establishedRationale(established, context.recordText);
   // 原名留在候选与鉴别（医生还看得到这个方向）；同义归一不留，是同一个病。
   if (established) {
     for (const key of ["candidates", "differentials"] as const) {
