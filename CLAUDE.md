@@ -2855,6 +2855,33 @@ The customer's third medical evaluation (`【2026-11-05】灵犀中医医学评�
 - **西医.** STEMI/NSTEMI without ECG or troponin → 急性冠脉综合征待查; an established diagnosis in the history keeps its name with the record quote in the rationale; the two name-check passes agree when they propose the same name even if one calls it C and the other D (compared before D's own rename rule, through `western-name-preferred.source.json`), and when they only disagree on the replacement the common conclusion is D's 「原病名待查」 (record 11: 妊娠剧吐 → 妊娠呕吐 / 妊娠剧吐待查).
 - **加减.** Rows unrelated to the record are judged (one proposal + the other vendor's check) and dropped, then topped up to two conditions.
 - **Chain patient fact** keeps the joined quote when it is itself verbatim (a regression of the smallest-span change found by `test:stream-safety`).
+- **Found by the acceptance run and production probes, fixed before the last deploy:**
+  - the location axis gets the same prompt rule and reason as nature (DeepSeek wrote `bounded` for location in 50–75% of the customer API records although every location had its own basis; the reason read 「病位“肺、胃”的病历依据有2条」, 157 of 374 saved outputs);
+  - with active bleeding, 治法 drops items that say 活血/破血/逐瘀 (`methodForActiveBleeding`; record 17 had 「活血化瘀」 from a 瘀血内阻 secondary in 3 of 6 runs while the herbs were already clean); 化瘀止痛/化瘀通络 stay;
+  - 「暗红色便」 forms join the 便血 group in both safety layers (C020: warfarin, INR 4.8, BP 96/60, HR 108 had no deterministic red flag; its only flag came from the facts layer, which was unavailable in one run while qwen judging shared the Bailian account). Fixture `dark-red-stool-word-forms`; gate replay over 21,276 records: one change, C020;
+  - the name check also proposed 「妊娠期一过性恶心呕吐」 on a production probe; the preferred-name table (applied to every final Western name) maps it to 妊娠呕吐.
+
+**Measured** (local route harness, customer request shape; acceptance arm 6f5c8f7 = everything above except the last three items).
+
+| | Result |
+|---|---|
+| 426 chains (customer's 17 × 2, 26 variants × 2, customer 10 × 3, held-out 32 × 2, 100 cases, customer API 69 + 77) | 426/426 dosed; dose over ChP / over 2× / 十八反 incl. 加减 / pregnancy-prohibited / child-toxic / organ / active-bleed 活血: all 0; 71 red-flag cases dosed with adoption blocked; ≥2 TCM disease differentials 426/426 |
+| Customer's 17 records × 2, first run of the round (1ce4d83) → acceptance arm | location resolved 11/32 → 30/34, low-confidence location 21 → 4, nature resolved 21/32 → 28/34; nature basis over 60 characters 15/34 (88e1d4e) → 0/34; 治法 over 3 items or with 2-character items 0 |
+| Customer 10 × 3 | disease and syndrome equal the standard answers 10/10, identical across runs, no red flag, all dosed |
+| Location rule, 30 records of the 100-case set, same day | location resolved 15 → 18, nature 7 → 10; disease identical 29/30 |
+| qwen3.8-max, 10/17 briefs | customer 10 × 3: every column ≤1 failure per run; held-out 32 × 2: every block ≥96.6% |
+| qwen3.8-max, 1.1 rubric, customer's 17 records × 2 | 病机分析 34/34 (customer: 0/17), 依据可追溯 33/34, 治则治法 33/34, every other row 100% |
+| Production smoke (c7c48509) | 0 failures, M03 P95 18.1 s, M04 P95 17.4 s |
+
+Two client-side oddities on the production probe were the network from this machine, not the service: record 8 `fetch failed` never reached nginx; record 10's 78 s M03 had an nginx upstream time of 16.2 s.
+
+**Left as is.**
+- Record 2 stays 喉痹 when the record has only 「慢性扁桃体炎史」 and no tonsil exam: the textbook boundary is 喉核肿大 → 乳蛾; a pick rule plus a prompt sentence for "chronic disease flaring at the same site" moved the pick (乳蛾 second) but not M03 in 3 of 3, so both were reverted. The Western name is now 急性咽炎, consistent with 喉痹.
+- Record 8 still adds 「纳差 → 焦山楂/炒麦芽」: the fit check judges only strong direction conflicts (虚寒 + 苦寒, 阴虚 + 温燥), not a mildly warm digestive herb for an incidental finding.
+- Location and nature are still `bounded` in about 40% of the sparse 100-case records after the location rule; the reason now says what is pending instead of "依据有N条".
+- Record 11's syndrome varies between fresh generations (脾胃气虚证 / 胃虚证 兼痰湿证); production replays identical content.
+
+**In production (c7c48509, tag `20261108-c7c4850-prebuilt`, deployed 2026-11-08 about 22:40 Beijing; same release directory and `20260927-dsrepair` override).** 3b5b69aa, 6d6424a8 and 93397611 went out before it the same evening; each passed `verify:deployed-image` (commit, digest, strictReady, both families) and `regress:prod-smoke` (0 failures). Probes on hospital-b: record 11 妊娠呕吐 2/2, record 13 菟丝子散《太平圣惠方》卷五十八, record 17 治法 「益气止血固脱」, record 4 「滋阴降火」, C020 deterministic GI-bleed red flag. Rollback: image `tcm-cdss:20261108-9339761-prebuilt` (or `…20261102-db01f7f…`, the last image before this round) with the `docker-compose.yml.pre-*` backups.
 
 **Do this next time.** Run measurements from a frozen `git worktree add --detach` copy: the first measurement this round ran from the main checkout while it was being edited, so its sets mixed code versions. While the gate runs from the main checkout, make further edits in a separate dev worktree and fast-forward afterwards.
 
