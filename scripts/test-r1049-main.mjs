@@ -491,3 +491,33 @@ await check("17.1 「神疲嗜睡、头晕乏力」在病历里中间隔着别�
   // 整段本身是原文时照旧整段（不拆）
   assert.equal(contract.patientFactSourceQuote("神疲嗜睡、食欲不振", record), "神疲嗜睡、食欲不振");
 });
+
+// ───── 18 活动性出血：治法里不留活血化瘀 ─────
+await check("18.1 活动性出血：治法里明说活血、破血、逐瘀而不兼止血的项去掉（化瘀止痛、化瘀通络、化瘀止血留），止血排最前；全是这类时不动", async () => {
+  const bleeding = await jiti.import("../src/lib/active-bleeding-treatment.ts");
+  assert.equal(bleeding.methodForActiveBleeding("益气止血固脱，化瘀止痛，活血化瘀"), "益气止血固脱，化瘀止痛");
+  assert.equal(bleeding.methodForActiveBleeding("化瘀止血，益气固脱，活血化瘀"), "化瘀止血，益气固脱");
+  assert.equal(bleeding.methodForActiveBleeding("益气固脱，止血化瘀"), "止血化瘀，益气固脱");
+  assert.equal(bleeding.methodForActiveBleeding("活血化瘀，通络止痛"), "通络止痛");
+  assert.equal(bleeding.methodForActiveBleeding("活血化瘀，破血逐瘀"), "活血化瘀，破血逐瘀");
+  assert.equal(bleeding.activeBloodMovingMethodItem("活血止血"), false);
+  assert.equal(bleeding.activeBloodMovingMethodItem("化瘀通络"), false);
+  // 接在教材锚定那一步：模型写的治法与治法覆盖补的项同一口径；没有出血不动
+  const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+  const diagnose = (method, verifiedMethodItem) => ({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { tcmDiseaseName: "喘证", primarySyndrome: "瘀阻肺络证", primarySyndromeResolution: "bounded", recommendedFormulaDirection: "按已锁定病机与治法辨证组方" },
+    therapy: { overallPrinciple: "急则治标", overallMethod: method, subTherapies: [], ...(verifiedMethodItem ? { verifiedMethodItem } : {}) },
+    pathogenesis: { chain: [], locationDifferentiation: { items: ["肺"] } } });
+  const BLEED = "主诉：咯血1天\n现病史：咳嗽，痰中带血丝，色鲜红。";
+  const safety = { activeBleeding: true, barredHerb: () => false };
+  assert.equal(provenance.withDeterministicFormulaReferences(diagnose("宣肺平喘，活血化瘀，宁络止血"), BLEED, undefined, safety).therapy.overallMethod, "宁络止血，宣肺平喘");
+  assert.equal(provenance.withDeterministicFormulaReferences(diagnose("宁络止血，宣肺平喘", "活血化瘀"), BLEED, undefined, safety).therapy.overallMethod, "宁络止血，宣肺平喘");
+  assert.equal(provenance.withDeterministicFormulaReferences(diagnose("宣肺平喘，活血化瘀"), "主诉：胸闷1天", undefined).therapy.overallMethod, "宣肺平喘，活血化瘀");
+  // 教材行锚定后接回治法覆盖补的项：补的「活血化瘀」同样不接（异位妊娠·气血亏脱证，教材治法益气止血固脱）
+  const ectopic = { ...diagnose("益气止血固脱", "活血化瘀"), overview: { tcmDiseaseName: "异位妊娠", primarySyndrome: "气血亏脱证", primarySyndromeResolution: "bounded", recommendedFormulaDirection: "按已锁定病机与治法辨证组方" } };
+  const ECTOPIC = "主诉：停经45天，右下腹痛伴阴道流血2小时\n现病史：面色苍白，四肢厥冷，冷汗。";
+  const anchored = provenance.withDeterministicFormulaReferences(ectopic, ECTOPIC, undefined, safety).therapy.overallMethod;
+  assert.match(anchored, /止血/u);
+  assert.doesNotMatch(anchored, /活血化瘀/u, anchored);
+  assert.match(provenance.withDeterministicFormulaReferences({ ...ectopic, therapy: { ...ectopic.therapy, verifiedMethodItem: "回阳救逆" } }, ECTOPIC, undefined, safety).therapy.overallMethod, /回阳救逆/u, "别的补项照接");
+});

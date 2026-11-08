@@ -1,4 +1,4 @@
-import { hemostasisFirstMethod } from "./active-bleeding-treatment";
+import { activeBloodMovingMethodItem, bloodMovingWithoutHemostasis, methodForActiveBleeding } from "./active-bleeding-treatment";
 import { textbookFormulaNames, textbookNearestRow, textbookRowForSyndrome, therapyWithoutUnsupportedSymptomItems } from "./tcm-textbook-syndromes";
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { jingfangPatternForSignedSyndrome } from "./jingfang-patterns";
@@ -1620,10 +1620,6 @@ export function withSymptomDirectedClause(rowMethod: string, modelMethod: string
  *   · barredHerb：教材代表方或锁定方的组成里有本例不宜的药时，不把方向改成那首方，保留模型写的方向。
  */
 export type FormulaReferenceCaseSafety = { activeBleeding: boolean; barredHerb: (herb: string) => boolean };
-const BLOOD_MOVING_METHOD = /活血|化瘀|逐瘀|祛瘀|散瘀|破血|破瘀/u;
-function bloodMovingWithoutHemostasis(method: string): boolean {
-  return BLOOD_MOVING_METHOD.test(method) && !/止血/u.test(method);
-}
 /**
  * 方向里的方对本例是不是「去掉不宜的药就不成其方」：本例不宜的药占该方组成的三分之一以上或达 3 味，或活动性出血时方名本身就是
  * 逐瘀、活血、化瘀、破血一类（少腹逐瘀汤、会厌逐瘀汤）。只去一两味次要药的（四物汤去川芎、仙方活命饮去乳香没药）不算，方名照留，
@@ -1701,9 +1697,9 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
       : textbookRow && secondary.length === 0 && recordRowMethod && !bleedingBarsRowMethod
         ? supportedByRecord(withSymptomDirectedClause(recordRowMethod, String(reasoning.therapy?.overallMethod || "")))
         : "";
-    // 活动性出血：止血一项排在最前（hemostasisFirstMethod）；锚定的与模型自己写的治法同一口径。
+    // 活动性出血：止血一项排在最前、活血化瘀一类不兼止血的项去掉（methodForActiveBleeding）；锚定的与模型自己写的治法同一口径。
     const bleedingOrderedMethod = caseSafety?.activeBleeding
-      ? hemostasisFirstMethod(textbookOrLineageMethod || String(reasoning.therapy?.overallMethod || ""))
+      ? methodForActiveBleeding(textbookOrLineageMethod || String(reasoning.therapy?.overallMethod || ""))
       : "";
     const orderedOrAnchoredMethod = bleedingOrderedMethod && bleedingOrderedMethod !== String(reasoning.therapy?.overallMethod || "")
       ? bleedingOrderedMethod
@@ -1711,7 +1707,8 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     // 治法覆盖核对（m03-method-coverage）补的几项经过跨模型复核，教材锚定换回原文时接在后面，不然「化痰」补了也留不住。
     const verifiedItem = String((reasoning.therapy as { verifiedMethodItem?: unknown } | undefined)?.verifiedMethodItem || "").trim();
     // 逐项接：前一项接上后，后一项可能已被说到（调经止血、凉血止血）。
-    const anchoredMethod = verifiedItem.split(/[，,]/u).map((item) => item.trim()).filter(Boolean).reduce(
+    const anchoredMethod = verifiedItem.split(/[，,]/u).map((item) => item.trim()).filter(Boolean)
+      .filter((item) => !(caseSafety?.activeBleeding && activeBloodMovingMethodItem(item))).reduce(
       (method, item) => (!method || methodItemAlreadyCovered(item, method) ? method : `${method.replace(/[，,。；;\s]+$/u, "")}，${item}`),
       orderedOrAnchoredMethod,
     );

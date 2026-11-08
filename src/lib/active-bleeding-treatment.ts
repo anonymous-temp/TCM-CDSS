@@ -48,6 +48,31 @@ export const ACTIVE_BLEEDING_M04_RULE =
  * 开方阶段「君药承担治法第一项」把化瘀药推上君位，与本例「活血化瘀药不入方」相撞，修复轮收不住、整页退成非剂量
  *（2026-10-27 第二十四轮生产探针 C098 肺栓塞咯血丝，连续 3 次）。只调次序，不增删治法；治法里没有止血一项时原样返回。
  */
+/** 治法项是活血化瘀一类而不兼止血（「化瘀止血」「止血化瘀」不算）。开方核对禁活血化瘀药的同一判据，落在治法上。 */
+const BLOOD_MOVING_METHOD = /活血|化瘀|逐瘀|祛瘀|散瘀|破血|破瘀/u;
+export function bloodMovingWithoutHemostasis(method: string): boolean {
+  return BLOOD_MOVING_METHOD.test(method) && !/止血/u.test(method);
+}
+
+/** 治法项明说活血、破血、逐瘀（不兼止血）。「化瘀通络」「化瘀止痛」不在此列：化瘀止血药（三七、蒲黄）可以承担，开方核对也允许这类药。 */
+const ACTIVE_BLOOD_MOVING_METHOD_ITEM = /活血|破血|逐瘀|破瘀/u;
+function activeBloodMovingMethodItem(item: string): boolean {
+  return ACTIVE_BLOOD_MOVING_METHOD_ITEM.test(item) && !/止血/u.test(item);
+}
+
+/**
+ * 活动性出血时的治法：明说活血、破血、逐瘀而不兼止血的项去掉（全是这类时不动，交给医生），止血一项排在最前（hemostasisFirstMethod）。
+ * 2026-11-08 第三十七轮：异位妊娠破裂（甲方 11.05 病历17）立了瘀血内阻兼证后，治法接上「活血化瘀」，药里活血药已按出血剔除，
+ * 治法却还写着活血化瘀（本轮 6 次里 3 次）。
+ */
+export function methodForActiveBleeding(method: string): string {
+  const items = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
+  const kept = items.filter((item) => !activeBloodMovingMethodItem(item));
+  return hemostasisFirstMethod(kept.length > 0 && kept.length < items.length ? kept.join("，") : method);
+}
+
+export { activeBloodMovingMethodItem };
+
 export function hemostasisFirstMethod(method: string): string {
   const items = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
   const index = items.findIndex((item) => item.includes("止血"));
