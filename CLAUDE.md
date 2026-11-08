@@ -2835,6 +2835,29 @@ The audit is still not zero; reading the remainder gives the same split as round
 
 **Local build notes.** Two OOM kills with swap full; once the temporary swap file plus the build tree filled root (ENOSPC; 1.2 GB swap on 2 GB free). It went through when other sessions quieted (4–5 GB available). Delete the build tree's `node_modules` after `PREBUILD_OK`. Foreground `timeout` on `verify:release` cut it at 160/296; run it detached.
 
+### 11/5–11/8 round 37: the customer's 11.05 evaluation (17 records), by class (2026-11-08)
+
+The customer's third medical evaluation (`【2026-11-05】灵犀中医医学评测.docx`, 17 records × 20 items) failed 病机分析 on all 17 and red flags, TCM diagnosis, diagnostic basis, Western diagnosis and 随症加减 below their lines. The user asked for each problem listed per record (ours vs the customer's), researched, and fixed by class. Material: `~/runlogs/r1018/work/r1049/` (`eval1105/` document, screenshots and the archived requests/responses per record, `sets/e1105.json` = their 17 records with their own answers, `sets/e1105v.json` = 26 variants, `chk1105.py`, `accept.sh`, `cp/`, `REPORT-draft.md`). Suite `test:r1049-main`; class fixtures for the gate changes.
+
+**Not ours (archive evidence).** Records 15–17 「未出方」: every prescribe call returned 200 with a dosed prescription (28–35 KB, `formalAdoption=blocked`); their panel does not show it on red flags. Records 10/11/13/14: the second request carried `tcmLineagePreference: support-yang` (first: `unrestricted`) although their notes say no lineage was chosen; that is also why record 13's formula differed between runs. 推荐西成药 / 检验检查 / 「暂不提供后续诊疗建议」 are not our fields (same as 10.29).
+
+**Fixed, by class.**
+- **病机分析 (17/17).** Three server causes, each measured on the customer's own records:
+  - quotes were grounded to the first chart sentence containing the same concept, so three location bases collapsed into one and were downgraded to 「依据只有1条」/低. Grounding now takes the smallest verbatim span (`smallestPatientFactQuote`), and a segment whose 、/， items are each verbatim keeps those items instead of the whole sentence;
+  - DeepSeek wrote `bounded` for nature in 20 of 52 halves although every element had a recorded finding; the prompt now says each element gets its own verbatim segment and resolved is the default when every element has one; when the model still chooses bounded with a grounded basis, the server's reason names the item it put in `uncertainties` instead of claiming 「缺少可逐字回溯的本例依据」;
+  - the cold/heat dimension list missed 畏寒/肢冷/不温/五心烦热/潮热 and 口干/咽干.
+- **治法.** Delivered items are four-character methods, at most max(3, textbook items); two-character fragments and same-family later items dropped; two same-head items whose tails are the same removal (降火/清热, 化瘀/祛瘀) keep the finer one instead of 「滋阴降火清热」.
+- **证名.** When the model's own location/nature analysis groups two organs or a damp pattern, the name is the GB/T composite (心脾两虚证, 脾虚湿困证; `tcm-syndrome-composite-names.source.json`), and M04 maps it back to the original textbook row. A secondary that is a sibling row of the primary in the same textbook disease is withdrawn (乳蛾 风热外袭证 + 肺胃热盛证).
+- **血证** is delivered with its subtype (「血证（鼻衄）」) and subtype-bound differentials; **乳蛾/喉痹/鼻鼽/鼻渊** textbook rows were added (definitions verbatim from the local 《中医诊断学》 line 80897 where available).
+- **饮片炮制.** Herb names carry their processing by 《中药炮制学》 rules or the named formula's original preparation (便溏 → 土炒白术/麸炒山药, 收敛固涩 → 煅牡蛎/煅龙骨; `tcm-herb-processing-forms.source.json`); toxic herbs are untouched.
+- **出处/原方.** Catalog collation: 荆防败毒散《摄生众妙方》卷八 11 herbs, 耳聋左慈丸《饲鹤亭集方》, 菟丝子散《太平圣惠方》卷五十八 (reviewed, not name-lockable; `reviewedNonLockableFormulaRows` lets a textbook representative formula use it when its composition agrees). 「原方」 is written only when the table matches the catalog, guide herbs included.
+- **红旗.** 「口眼㖞斜」 normalises to 歪 so a stable post-stroke residual is not a new stroke (record 15); 「神疲嗜睡」-style fatigue wording no longer counts as altered mental state on its weak anchor alone, and a 「发热」 quote with a normal reading is rejected. With a red flag unresolved, 治则 leads with 急则治标 and `patentAndWestern` recommends nothing (reason stated); the prescription is still returned.
+- **西医.** STEMI/NSTEMI without ECG or troponin → 急性冠脉综合征待查; an established diagnosis in the history keeps its name with the record quote in the rationale; the two name-check passes agree when they propose the same name even if one calls it C and the other D (compared before D's own rename rule, through `western-name-preferred.source.json`), and when they only disagree on the replacement the common conclusion is D's 「原病名待查」 (record 11: 妊娠剧吐 → 妊娠呕吐 / 妊娠剧吐待查).
+- **加减.** Rows unrelated to the record are judged (one proposal + the other vendor's check) and dropped, then topped up to two conditions.
+- **Chain patient fact** keeps the joined quote when it is itself verbatim (a regression of the smallest-span change found by `test:stream-safety`).
+
+**Do this next time.** Run measurements from a frozen `git worktree add --detach` copy: the first measurement this round ran from the main checkout while it was being edited, so its sets mixed code versions. While the gate runs from the main checkout, make further edits in a separate dev worktree and fast-forward afterwards.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
