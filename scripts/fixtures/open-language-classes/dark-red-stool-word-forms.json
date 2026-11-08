@@ -1,0 +1,49 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "dark-red-stool-word-forms",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-11-08",
+ "trigger": "第三十七轮验收 p100c C020：华法林、INR4.8、Hb91g/L、BP 96/60mmHg、HR 108，「今日排暗红色便两次，站立头晕」。事实层这一次不可用（semantic_screen_unavailable），确定性层零红旗。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "POSITIVE_FACT_EQUIVALENT_GROUPS 的便血组只收「便血/血便/大便带血/排便带血/解血便」，「暗红色便」「大便暗红」不在组内；事实层 OVERT_GI_BLEED_LANGUAGE 同样缺。",
+  "exception": "冻结令允许的构词式守卫：「暗红色便/暗红色大便/大便暗红/大便呈暗红色/大便颜色暗红」五个闭集词形，加入便血概念组与事实层同源正则；活动性判定（伴随症、反复、近期时间窗、量）与否定照旧。",
+  "sources": "门禁回放见 ~/runlogs/r1018/work/r1049/replay（新旧两棵树逐条读改变）。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "新词形与既有「便血」写法在同一伴随症与时间窗下门禁结果相同。",
+  "pairs": [
+   {
+    "subject": "今日排暗红色便两次，站立头晕。",
+    "sibling": "今日便血两次，站立头晕。",
+    "siblingExpect": "flagged"
+   },
+   {
+    "subject": "今日大便暗红两次，伴头晕乏力、面色苍白。",
+    "sibling": "今日便血两次，伴头晕乏力、面色苍白。",
+    "siblingExpect": "flagged"
+   }
+  ]
+ },
+ "controls": {
+  "note": "否认、陈旧的写法不报。",
+  "mustStillFlag": [
+   {
+    "text": "今晨解暗红色大便3次，面色苍白。",
+    "flag": "消化道出血"
+   }
+  ],
+  "mustStayReady": [
+   "否认暗红色便、黑便，胃脘隐痛。",
+   "三年前曾排暗红色便，经肠镜诊为痔疮，现无便血。"
+  ]
+ },
+ "measurements": {
+  "before": "subject 0/2 报警",
+  "after": "subject 2/2 与兄弟句相同；controls 不变"
+ }
+}
