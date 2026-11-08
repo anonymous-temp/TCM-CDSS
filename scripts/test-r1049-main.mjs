@@ -450,9 +450,32 @@ await check("16.1 妊娠剧吐：C 给「妊娠期恶心呕吐」、D 给的同�
   assert.equal(agreed.correction.proposedName, undefined);
   const cShort = parse({ verdict: "inconsistent", type: "C", quote: "发病以来体重略降", reason: "仅体重略降，无脱水、酮症记录，程度不足", supportedName: "妊娠呕吐", decisive: "", meetsCriteria: false });
   assert.equal(check.agreedWesternNameCorrection(cShort, d).correction?.supportedName, "妊娠呕吐");
-  // 原本给的名称不同（另一个病）仍不一致
+  // 原本给的名称不同（另一个病），不给原名时仍不一致
   const other = parse({ verdict: "inconsistent", type: "C", quote: "发病以来体重略降", reason: "仅体重略降，无脱水、酮症记录，程度不足", supportedName: "急性胃肠炎", decisive: "", meetsCriteria: false });
   assert.equal(check.agreedWesternNameCorrection(other, d).agreement, "type_differs");
+});
+
+await check("16.2 两次都说原名说过头、换成的名称各不相同（C「妊娠呕吐」、D「妊娠期一过性恶心呕吐」）：取 D 改出的「原病名待查」；没有 D、或 D 改出的不是「原病名待查」时不改", async () => {
+  const check = await jiti.import("../src/lib/western-name-evidence-check.server.ts");
+  const record = "主诉：孕8周，恶心、呕吐2周\n现病史：患者孕8周，2周前无明显诱因出现恶心、呕吐，食入即吐，发病以来体重略降，小便正常，大便溏";
+  const parse = (body) => check.parseWesternNameCorrection(JSON.stringify(body), record, "妊娠剧吐", { patientAge: 28 });
+  const c = parse({ verdict: "inconsistent", type: "C", quote: "发病以来体重略降", reason: "仅体重略降，无脱水、酮症记录，程度不足", supportedName: "妊娠呕吐", decisive: "", meetsCriteria: false });
+  const d = parse({ verdict: "inconsistent", type: "D", quote: "孕8周，恶心、呕吐2周", reason: "无尿酮体、电解质结果，未达剧吐程度", supportedName: "妊娠期一过性恶心呕吐", decisive: "", meetsCriteria: false });
+  assert.equal(d.supportedName, "妊娠剧吐待查");
+  const merged = check.agreedWesternNameCorrection(c, d, "妊娠剧吐");
+  assert.equal(merged.agreement, "agreed_hypothesis");
+  assert.equal(merged.correction.supportedName, "妊娠剧吐待查");
+  assert.equal(merged.correction.type, "D");
+  assert.equal(merged.correction.proposedName, undefined);
+  assert.equal(check.agreedWesternNameCorrection(d, c, "妊娠剧吐").correction?.supportedName, "妊娠剧吐待查");
+  // 不给原名（旧调用）、没有 D、或 D 给的是更宽一层的病名时不改
+  assert.equal(check.agreedWesternNameCorrection(c, d).agreement, "type_differs");
+  const a = parse({ verdict: "inconsistent", type: "A", quote: "发病以来体重略降", reason: "体重略降，病历记录小便正常，与脱水不符", supportedName: "妊娠呕吐", decisive: "", meetsCriteria: false });
+  const c2 = parse({ verdict: "inconsistent", type: "C", quote: "发病以来体重略降", reason: "仅体重略降，无脱水、酮症记录，程度不足", supportedName: "妊娠期恶心呕吐待查", decisive: "", meetsCriteria: false });
+  if (a && c2) assert.equal(check.agreedWesternNameCorrection(a, c2, "妊娠剧吐").agreement, "type_differs");
+  const dBroad = { supportedName: "消化不良待查", quote: "餐后饱胀", reason: "病程仅半个月", type: "D" };
+  const cOther = { supportedName: "上腹痛待查", quote: "餐后饱胀", reason: "程度不足", type: "C" };
+  assert.equal(check.agreedWesternNameCorrection(dBroad, cOther, "功能性消化不良").agreement, "type_differs");
 });
 
 // ───── 17 引文：一段对不上时逐项对，不扩成整句 ─────

@@ -232,6 +232,13 @@ const corr = (extra = {}) => ({ supportedName: "消化不良待查", quote: "餐
       answerByOrder(dyspepsia(), dyspepsia({ type: "C", reason: "指标只够较轻一层", supportedName: "上腹痛待查" }));
       assert.equal(nameOf(await align("功能性消化不良")), "功能性消化不良");
     });
+    await check("2.4b 两次都说原名说过头、换成的名称不同（D 给另一个病被改成「原病名待查」，C 给症状待查）：交付「原病名待查」（11/08 第三十七轮）；红旗病例同样（「原病名待查」不移开首要考虑，heldOnRedFlag 照常采信）", async () => {
+      telemetry.length = 0;
+      answerByOrder(dyspepsia({ supportedName: "慢性胃炎" }), dyspepsia({ type: "C", reason: "指标只够较轻一层", supportedName: "上腹痛待查" }));
+      assert.equal(nameOf(await align("功能性消化不良")), "功能性消化不良待查");
+      assert.equal(telemetry.at(-1)?.agreement, "agreed_hypothesis");
+      assert.equal(nameOf(await align("功能性消化不良", { redFlag: true })), "功能性消化不良待查");
+    });
     await check("2.5 红旗病例的既有口径不变：两次一致的 D 不采信；两次一致的 A（病历记录与病名相反）照常采信", async () => {
       answerByOrder(dyspepsia(), dyspepsia());
       assert.equal(nameOf(await align("功能性消化不良", { redFlag: true })), "功能性消化不良");

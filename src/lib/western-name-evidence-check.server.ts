@@ -541,7 +541,7 @@ function agreementRequired(): boolean {
   return process.env.CDSS_WESTERN_NAME_CHECK_AGREEMENT !== "false";
 }
 
-export type WesternNameAgreement = "off" | "none" | "agreed" | "agreed_merged" | "one_only" | "type_differs" | "name_differs";
+export type WesternNameAgreement = "off" | "none" | "agreed" | "agreed_merged" | "agreed_hypothesis" | "one_only" | "type_differs" | "name_differs";
 
 /**
  * D 类两次给的名称只是同一个病说到不同的宽度（「哮喘待查」与「支气管哮喘待查」、「骨质疏松待查」与「绝经后骨质疏松症待查」、
@@ -576,6 +576,7 @@ function preferredWesternNameForm(name: string): string {
 export function agreedWesternNameCorrection(
   first: WesternNameCorrection | undefined,
   second: WesternNameCorrection | undefined,
+  currentName = "",
 ): { correction?: WesternNameCorrection; agreement: Exclude<WesternNameAgreement, "off"> } {
   if (!first && !second) return { agreement: "none" };
   if (!first || !second) return { agreement: "one_only" };
@@ -586,7 +587,17 @@ export function agreedWesternNameCorrection(
     // 比的是两次原本给的名称：D 的改名规则会把「妊娠期恶心呕吐」换成「妊娠剧吐待查」，而轻一层的名称正是 C 允许的写法。
     // 一致时交付这个名称，类别仍记 D（红旗病例按 D 的口径不采信，heldOnRedFlag）。
     const proposed = (item: WesternNameCorrection) => compact(preferredWesternNameForm(item.proposedName || item.supportedName));
-    if (proposed(first) !== proposed(second)) return { agreement: "type_differs" };
+    if (proposed(first) !== proposed(second)) {
+      // 两次都说原名说过头、只是换成什么各说各的（C「妊娠呕吐」、D「妊娠期一过性恶心呕吐」，第三十七轮病历11 复测）：取 D 改出的
+      //「原病名待查」——留住首要考虑、写明未确诊，是两次结论的公共部分。D 改出的是别的名称时仍不改。
+      const d = first.type === "D" ? first : second.type === "D" ? second : undefined;
+      if (d && currentName && compact(d.supportedName) === compact(`${currentName}待查`)) {
+        const { proposedName: _unused, ...rest } = d;
+        void _unused;
+        return { agreement: "agreed_hypothesis", correction: rest };
+      }
+      return { agreement: "type_differs" };
+    }
     const weaker = first.type === "D" ? first : second.type === "D" ? second : first;
     const other = weaker === first ? second : first;
     const supportedName = preferredWesternNameForm(weaker.type === "D" && weaker.proposedName ? other.supportedName : weaker.supportedName);
@@ -706,7 +717,7 @@ export async function westernNameCheckOutcome(
     },
   ];
   const [first, second] = await Promise.all([run(messages), run(reversedMessages)]);
-  const { correction, agreement } = agreedWesternNameCorrection(first, second);
+  const { correction, agreement } = agreedWesternNameCorrection(first, second, diagnosisName);
   return { correction, first, second, agreement };
 }
 
