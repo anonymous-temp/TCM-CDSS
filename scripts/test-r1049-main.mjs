@@ -521,3 +521,17 @@ await check("18.1 活动性出血：治法里明说活血、破血、逐瘀而�
   assert.doesNotMatch(anchored, /活血化瘀/u, anchored);
   assert.match(provenance.withDeterministicFormulaReferences({ ...ectopic, therapy: { ...ectopic.therapy, verifiedMethodItem: "回阳救逆" } }, ECTOPIC, undefined, safety).therapy.overallMethod, /回阳救逆/u, "别的补项照接");
 });
+
+await check("15.3 模型自定病位为有界、每个病位都有逐字依据时，不写「依据有N条」：写 uncertainties 里说病位的那一项，没有时说个别病位待核实；有病位缺依据时照旧", () => {
+  const record = "饭后1小时腹胀嗳气，工作紧张时加重。舌淡红，苔薄白。脉弦。";
+  const base = (details, uncertainties = []) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { primarySyndrome: "肝胃不和证", primarySyndromeResolution: "resolved", primarySyndromeBasis: ["饭后1小时腹胀嗳气"] }, westernDiagnosis: {},
+    pathogenesis: { locationDifferentiation: { items: ["胃", "肝"], details, resolution: "bounded" }, natureDifferentiation: { items: [], resolution: "unresolved" }, symptomClusters: [], chain: [], uncertainties },
+  })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const loc = (content) => { const out = summary.sanitizeOptionalPathogenesisClassifications(content, record); return JSON.parse(out.slice(out.indexOf("START -->") + 9, out.indexOf("<!-- DIAGNOSIS_JSON_END"))).pathogenesis.locationDifferentiation; };
+  const both = [{ location: "胃", basis: "饭后1小时腹胀嗳气" }, { location: "肝", basis: "工作紧张时加重" }];
+  assert.equal(loc(base(both)).resolution, "bounded");
+  assert.equal(loc(base(both)).resolutionReason, "病位“胃、肝”已有病历依据，其中个别病位尚待复诊核实");
+  assert.equal(loc(base(both, [{ item: "肝郁程度", reason: "未记录胁痛", affects: "病位判断" }])).resolutionReason, "病位“胃、肝”已有病历依据，肝郁程度尚待核实");
+  assert.match(loc(base([{ location: "胃", basis: "饭后1小时腹胀嗳气" }])).resolutionReason, /仅有1条/u);
+});

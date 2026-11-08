@@ -907,10 +907,15 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       if (finalResolution === "resolved") delete location.resolutionReason;
       else {
         const locationLabel = joinClinicalClauses([...itemSet], "、") || "未定";
+        // 模型自己定为有界、而每个病位都有逐字可回溯的依据：不写「依据有N条」（N 条就是全部病位，读来像依据不足，2026-11-08 第三十七轮
+        // 甲方 11.05「病机分析：机械句式、结论与推理不一致」）。写模型在 uncertainties 里点名的那一项；没点名时只说个别病位待核实。
+        const pendingLocation = fullyGrounded ? natureUncertaintyItem(pathogenesis?.uncertainties, locationLabel, "病位") : "";
         location.resolutionReason = typeof location.resolutionReason === "string" && location.resolutionReason.trim()
           ? location.resolutionReason.trim()
           : finalResolution === "bounded"
-            ? `病位“${locationLabel}”仅有${(location.details as unknown[]).length}条互相独立且可逐字回溯的本例依据`
+            ? fullyGrounded
+              ? `病位“${locationLabel}”已有病历依据，${pendingLocation ? `${pendingLocation}尚待核实` : "其中个别病位尚待复诊核实"}`
+              : `病位“${locationLabel}”仅有${(location.details as unknown[]).length}条互相独立且可逐字回溯的本例依据`
             : "本例记录中没有可稳定归属的病位及其依据";
         lowerEvidenceConfidence(location.evidence);
       }
@@ -977,15 +982,15 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
   }
 }
 
-/** 模型写进 pathogenesis.uncertainties、说的是病性的那一项（item 或 affects 提到病性或某个病性词）；没有返回空串。 */
-function natureUncertaintyItem(rawUncertainties: unknown, natureLabel: string): string {
+/** 模型写进 pathogenesis.uncertainties、说的是这一轴的那一项（item 或 affects 提到「病性」/「病位」或这一轴的某个词）；没有返回空串。 */
+function natureUncertaintyItem(rawUncertainties: unknown, natureLabel: string, axisWord = "病性"): string {
   const labels = natureLabel.split("、").map((label) => label.trim()).filter((label) => label.length >= 2);
   for (const row of Array.isArray(rawUncertainties) ? rawUncertainties : []) {
     if (!row || typeof row !== "object" || Array.isArray(row)) continue;
     const item = typeof (row as Record<string, unknown>).item === "string" ? String((row as Record<string, unknown>).item).trim() : "";
     const affects = typeof (row as Record<string, unknown>).affects === "string" ? String((row as Record<string, unknown>).affects) : "";
     if (!item || item.length > 12) continue;
-    if (/病性/u.test(affects) || labels.some((label) => item.includes(label) || affects.includes(label))) return item;
+    if (affects.includes(axisWord) || labels.some((label) => item.includes(label) || affects.includes(label))) return item;
   }
   return "";
 }
