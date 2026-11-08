@@ -2885,6 +2885,51 @@ Two client-side oddities on the production probe were the network from this mach
 
 **Do this next time.** Run measurements from a frozen `git worktree add --detach` copy: the first measurement this round ran from the main checkout while it was being edited, so its sets mixed code versions. While the gate runs from the main checkout, make further edits in a separate dev worktree and fast-forward afterwards.
 
+### 11/8 round 38: the leftovers of round 37, by class (2026-11-08)
+
+The user asked for every leftover of round 37 to be researched and solved where possible, effect first; medical-convention questions can be explained to the customer. Material: `~/runlogs/r1018/work/r1050/` (`probe/` — `scan-history.mjs`, `fit8.mjs`/`fit5.mjs`/`fitctl.mjs`, `view.py`; `replay/tp-conflict.mjs`; `cp/cp.py` + `summary.txt`; `accept.sh`, `gen.sh`, `judge-only.sh`, `pb.sh`, `pb-when-free.sh`). Suite `test:r1050-main` (21 checks).
+
+**Fixed, by class.**
+- **A chronic disease stated in the past history, flaring at the same site** (`history-stated-textbook-disease.ts`, `CDSS_HISTORY_STATED_DISEASE`). Record 2 (既往「慢性扁桃体炎史2年」, 咽痛发热) was 喉痹 in 3/3 last round. Two causes, both measured: the closed-set pick never sees 既往史 (its request has only chief complaint and present history), and `promoteBestFitPickedDisease` put 喉痹 ahead of 乳蛾 because the record has no tonsil exam and 喉痹's 「咽部红肿疼痛」 matches the text better than 乳蛾's 「喉核红肿」 (`test:r1050-main` 1.4 pins both orders). Now:
+  - a Western disease in 既往史 that the textbook lists among a TCM disease's `westernEquivalents` (乳蛾 ← 急性/慢性扁桃体炎) counts when the mention is the patient's own and affirmed (the gate's ConText reading), its core name (without 急性/慢性) has ≥3 characters, and the chief complaint's main symptom is in that disease's definition. "Main symptom" is the first two-character run of the chief complaint's first clause that appears in some textbook definition; with any run, 「双脚水肿1个月，乏力1周」 + 糖尿病 went to 消渴 and 「胸闷心悸气短」 + 冠心病 to 心衰 (the table lists 冠心病 only under 心衰);
+  - a unique match goes first in the pick (`pickTextbookDiseasesForCase`), is not demoted by row fit (`pinnedDisease`), and the TCM half gets a 【既往确诊病与本次主诉】 paragraph; if the TCM half still writes a textbook neighbour of it (互为教材鉴别病名, 乳蛾 ↔ 喉痹) it is redrawn once (telemetry `m03_history_stated_disease`). The redraw never fired in the 441-chain acceptance run: the first draw already followed;
+  - scan over 2,030 records of every customer and acceptance set: 24 hits, all read (乳蛾, 眩晕 ← 高血压/梅尼埃, 哮病 ← 支气管哮喘, 胸痹 ← 陈旧性心梗, 胃痛 ← 十二指肠溃疡, 肺痨 ← 肺结核);
+  - `chiefComplaintLeadSegment` now lives in this module; `m03-visit-reason-check` re-exports it (one definition; the vocabulary gate caught the copy).
+- **Modifications see the added herb's 药性 and 使用注意.** `build-herb-textbook-references.py` now keeps each herb's 【药性】 line (433 of 533 herbs; nothing else in the file changed); `modificationFitRowPayload` gives both vendors `property` and `caution`.
+  - misfit names "a warm herb added for a non-chief finding in an excess-heat syndrome". Record 8 「本例已见纳差 → 焦山楂」: kept 3/3 on the old code, dropped 3/3 on the new; control (痰热 cough, 痰多 → 陈皮, 纳差 → 炒麦芽) kept 3/3;
+  - a new `caution` verdict needs a verbatim record quote of the symptom the caution names (`cautionNamesRecordedSymptom`: a shared two-character run). Giving the checker the caution text in the misfit criterion instead dropped 陈皮 from the 痰热 control (陈皮 「内有实热…慎用」, though 清金化痰汤 contains 橘红);
+  - misfit rows are now dropped down to one row (was two): `topUpModificationConditions` runs right after and refills to two conditions. Customer standard case 5 「若气喘 → 炙麻黄」 (自汗, 肺气虚) was proposed and confirmed misfit by both vendors and still kept because the table had only two rows.
+- **Tongue/pulse conflict of a modification condition** (`modificationConditionTonguePulseConflict`) gains coating amount (少苔/无苔/剥 vs a coating with colour or 厚腻) and pulse shape (洪大 vs 细微). Record 8 (苔黄燥、脉洪数) had kept 「若阴伤较甚…舌红苔少，脉细数」. The first cut used the whole pulse-exclusivity table and read 督脉/赤脉/生脉散 as pulses (2,753 of 33,892 condition × record pairs changed); the final version (shape pair only, vessel words excluded, 苔少津 is not 少苔) changes 1,174 pairs, 205 distinct conditions, all read: yin-damage, 苔腻 and 脉洪大 shift rows against records that contradict them.
+- **Incidental sedatives** (`mindSymptomsProminentInRecord`). Round 35's exemption ("two mind symptoms, or 心悸") brought back exactly what the customer named on 10.12: standard case 3 (血虚头痛, 「伴头晕、心悸…睡眠差」) got 酸枣仁/首乌藤 and case 10 (血热月经先期, 「伴心烦易怒…夜寐不宁」) 合欢皮 in 4 of 6 acceptance runs. Prominent now means: in the chief complaint, palpitation in the present-history lead (before 「伴」; the compiler passes the present history), or ≥3 distinct concepts (sleep, dreams, palpitation, irritability, memory). Round 35's c25, C032, C028 stay exempt.
+- **Text the server left wrong.** 「无积滞之脘腹胀满」 (record 12) becomes 「未诉脘腹胀满等积滞表现」 when no listed symptom is recorded; the slot before 之 must be a disease or mechanism word and the list must not be a disease (「无矢气之肠结」 describes 肠结 — the round-19 suite caught the first cut). 「兼见见…」 in a modification's target. Precautions that lose two unrecorded medicine names joined by 或 no longer read 「服用或等中成药前」 (`withoutUnrecordedMedicineMentions`). 「口渴饮冷」 and 「渴喜冷饮」 are one group in `tcm-modification-relevance.source.json`, so case 7's textbook row is delivered as 「本例已见口渴饮冷」.
+- **Unexplained bounded axes.** When tongue and pulse are both recorded (`recordHasTongueAndPulse`), every location / nature element has its own verbatim basis and the model's uncertainties name nothing for that axis, a model-written `bounded` is delivered as `resolved`. Sparse records keep `bounded` with the named pending item. `test:r1049-main` 15.3 now uses a record without pulse.
+- **Entailed secondary** (record 4): 精亏/精不足/精亏虚/精亏损 join `yinDeficiencyPrimaryTerms`, so 肾精亏损证 + 阴虚火旺证 is withdrawn like 肾阴虚证 + 虚热证 (the textbook 肾精亏损证 row lists 虚烦失眠、舌红少苔、脉细数; 耳聋左慈丸 「治肾水不足，虚火上升」).
+
+**Counter-proofs.** 33 mutations (`cp/cp.py`). The first pass missed 3, all masked by another guard (the record happened to contain 「表现」; the regex look-behind already blocks 「示无」; 腹胀 is itself a governed disease name). Each got an isolating test case and was caught afterwards. Batch 7 (found by the c10 review during acceptance): 7.4's first mutation renamed the wrong key, 7.5 has two redundant guards and is caught when both are reverted.
+
+**Measured** (local route harness, customer request shape; acceptance arm 1040c4e9 = everything above except batch 7; batch 7 was checked by regenerating customer 10 × 3 and customer 17 × 2 on c77c942c; qwen3.8-max).
+
+| | Result |
+|---|---|
+| 441 chains (customer 17 × 2, 26 variants × 2, customer 10 × 3, held-out 32 × 2, 100 cases, customer API 69 + 77 + 15 newest) | 441/441 dosed; dose over ChP / over 2× / 十八反 incl. 加减 / pregnancy-prohibited / child-toxic / organ / active-bleed 活血: all 0; 73 red-flag cases dosed with adoption blocked; ≥2 TCM disease and syndrome differentials 441/441 |
+| Customer 17 × 2: 病位 / 病性 resolved | 33/34 / 33/34 (round 37 acceptance: 30/34 / 28/34); variants 50/52 / 49/52 |
+| Record 2 / 4 / 8 / 12 | 乳蛾·风热外袭证 2/2 (+9/9 in probes; round 37 喉痹 3/3); no 兼证 2/2 + 3/3; no 焦山楂 and no contradicting tongue/pulse row; 「亦无积滞之…」 gone |
+| Customer 10 × 3, deterministic, acceptance arm → c77c942c | incidental sedatives 4 → 0; 麻黄 in case 5 1 → 0; 「兼见见」 1 → 0; 「若口渴饮冷」 6 → 0; disease and syndrome equal the standard answers and identical across runs 10/10, no 兼证 |
+| Customer 10 × 3, qwen, failures per column | acceptance arm: 饮片 1/2/2 (the classes above), 西医 1; c77c942c: run 1 0, run 2 注意事项 1 (the 「服用或等」 line, fixed in 69ee2e51), run 3 中医诊断 1, 饮片 1 (病历2 酸枣仁 under 心虚胆怯证 — a 心 syndrome, model) — every column ≤1 |
+| Held-out 32 × 2, qwen | every block 100% |
+| 1.1 rubric: customer 17 × 2 / variants 26 × 2 | 依据可追溯 33/34, every other row 100% / every row 100% |
+| 1.1 rubric, the sets round 37 did not judge: customer API 69 (no conversation) / 77 (with) / 15 newest / 100 cases | T 98.6, R 98.5, Q 98.6, K 97.1, rest 100 / T 98.7, rest 100 / T 93.3, R 93.3, rest 100 (one model claim 「眦部」, one 加减) / T 97, K 95.5, rest 100 |
+| Stage medians (machine shared with other sessions' jobs) | diagnose 14–17 s, prescribe 11–12 s |
+
+**Left as is.**
+- 病历2 run 3 adds 酸枣仁 to 安神定志丸 (心虚胆怯证 is a 心 syndrome, so the incidental-sedative rule does not apply); seen in round 25 too.
+- A model-written Western basis that lists symptoms (病历4 one run of three).
+- Sparse records keep `bounded` where a pending item is named; that is the honest answer when tongue/pulse are missing.
+- Record 11's syndrome varies between fresh generations (脾胃气虚证 / 胃虚证兼痰湿证); production replays identical content.
+
+**In production (69ee2e51, tag `20261108-69ee2e5-prebuilt`, deployed 2026-11-09 about 02:50 Beijing; same release directory and `20260927-dsrepair` override).** c77c942c went out about 40 minutes before it (02:15). Both passed `verify:deployed-image` (commit, digest, strictReady, both families) and `regress:prod-smoke` (0 failures; M03 P95 16.8 / 17.3 s, M04 P95 13.9 / 16.0 s). Probes on hospital-b: record 2 乳蛾·风热外袭证, record 4 no 兼证, record 8 no 焦山楂, standard cases 3/10 without sedatives, case 5 without 麻黄, case 7 「本例已见口渴饮冷」, case 2's precautions intact. Rollback: image `tcm-cdss:20261108-c77c942-prebuilt` (or `…c7c4850…`) with `docker-compose.yml.pre-69ee2e5`. Host 21 GB free.
+- **Local build:** two OOM kills while other sessions' EviMed replays held the swap; it went through with a 1 GB temporary swap file on root once ≥4 GB RAM was free (`pb-when-free.sh` waits for that). /home gets no swap file.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
