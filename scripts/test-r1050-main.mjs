@@ -128,8 +128,13 @@ await check("3.1 「亦无积滞之脘腹胀满、嗳腐吞酸」病历没写 �
 await check("3.2 不改：症状病历写到过的、「之」后是表现/象的、推断句、写别的病的", () => {
   assert.equal(summary.unrecordedNegativesAsNotReported("无脾虚之神疲乏力、大便溏薄。", record12), "无脾虚之神疲乏力、大便溏薄。");
   assert.equal(summary.unrecordedNegativesAsNotReported("无积滞之象。", record12), "无积滞之象。");
+  // 「之」后是「表现」的交给原有那条（改成「未诉积滞之表现」），这条不改写成「未诉表现等积滞表现」
+  assert.equal(summary.unrecordedNegativesAsNotReported("无积滞之表现。", record12), "未诉积滞之表现。");
   assert.equal(summary.unrecordedNegativesAsNotReported("示无积滞之腹胀。", record12), "示无积滞之腹胀。");
   assert.equal(summary.unrecordedNegativesAsNotReported("与积滞相区分：积滞无脾虚之神疲乏力。", record12), "与积滞相区分：积滞无脾虚之神疲乏力。");
+  // 「之」后是病名、「之」前不是病名或病机：写的是那个病（第十九轮 H 集「无矢气之肠结」）
+  assert.equal(summary.unrecordedNegativesAsNotReported("无矢气之肠结", record12), "无矢气之肠结");
+  assert.equal(summary.unrecordedNegativesAsNotReported("本例无口渴之消渴。", record12), "本例无口渴之消渴。");
 });
 
 // ───── 4 舌脉都记录、依据齐全、不确定项没点名时，没有理由的「有界」按已确定交付 ─────

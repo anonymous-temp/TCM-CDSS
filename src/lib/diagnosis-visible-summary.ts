@@ -1066,6 +1066,8 @@ const NONDIAGNOSTIC_WESTERN_SUPPORT = /^(?:不限定|未限定|既往体健|无�
 // 2026-10-18：「示无里热」「提示里无湿热积滞」「里和无损」是辨证推断，不是患者没提到的症状（甲方标准病历 1/3/9 三次生成都出现
 //「示未诉里热」「里未诉湿热积滞」「里和未诉损」）。「无」前面是 示/里/内 的、「无损」，都不改。
 const UNRECORDED_NEGATIVE_FEATURE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰苔华味法论需妨效碍形名根以所不可非明定常度端故损权源制依养助]|主(?!诉)|神(?!疲|志|昏|情)|关(?!节))([\u4e00-\u9fff]{2,12}?)(?=之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状))/gu;
+// 病机字（有限闭集）：「之」前的那一段带这些字之一才算病机（积滞、湿热、肝郁、血瘀、阴虚火旺…）。
+const MECHANISM_WORD = /[积滞湿热寒瘀痰虚郁火风燥毒饮亢逆陷脱闭结]/u;
 // 「无 + 病名或病机（2–6 字）+ 之 + 症状列举」到分句末（第三十八轮）。病名/病机这一段与症状都不能再含「无」「之」。
 const MECHANISM_OF_FINDINGS_NEGATIVE = /(?<![有毫并尚全已绝暂若虽示里内])无((?:(?![无之])[\u4e00-\u9fff]){2,6}?)之((?:(?![无之])[\u4e00-\u9fff]){2,10}(?:、(?:(?![无之])[\u4e00-\u9fff]){2,10}){0,4})(?=[，,。；;）)]|$)/gu;
 // 对象里不能再有「无」：「无脓无屑」曾整段当成一个对象改成「未诉脓无屑」（2026-10-19 验收集 X-C-0192）。
@@ -1143,6 +1145,9 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
   const withMechanismFindings = text.replace(MECHANISM_OF_FINDINGS_NEGATIVE, (match, mechanism: string, list: string, offset: number, whole: string) => {
     const items = list.split("、").map((item) => item.trim());
     if (items.some((item) => item.length < 2) || /(?:表现|特征|症状|象)$/u.test(list) || inferred(offset, whole, items[0])) return match;
+    // 「之」前得是病名或病机（积滞、湿热、肝郁…），「之」后不能是病名：「无矢气之肠结」写的是肠结这个病没有矢气（第十九轮 H 集），不是本例的阴性。
+    const isDiseaseName = (name: string) => textbookDiseaseNames.includes(name) || isGovernedTcmDiseaseName(name);
+    if (items.some(isDiseaseName) || !(isDiseaseName(mechanism) || MECHANISM_WORD.test(mechanism))) return match;
     if (items.some((item) => recordMentionsNegatedTerm(record, item))) return match;
     return `未诉${items.join("、")}等${mechanism}表现`;
   });
