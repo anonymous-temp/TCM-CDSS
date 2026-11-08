@@ -900,9 +900,13 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       const detailedLocations = new Set((location.details as Array<{ location: string }>).map((detail) => detail.location));
       const fullyGrounded = itemSet.size > 0 && [...itemSet].every((item) => detailedLocations.has(item));
       const requested = resolutionValue(location.resolution);
+      // 舌脉都记录了、每个病位都有逐字依据、模型也没在不确定项里点出这一轴的哪一项待核实：模型写的「有界」没有理由，按已确定交付
+      //（第三十八轮；甲方 11.05「病位病性低置信」，DeepSeek 不说明就写有界）。舌脉缺一项、或点名了待核实项的仍按有界。
+      const unexplainedBounded = requested === "bounded" && fullyGrounded && recordHasTongueAndPulse(clinicalContext) &&
+        !natureUncertaintyItem(pathogenesis?.uncertainties, [...itemSet].join("、"), "病位");
       const finalResolution: ClinicalResolutionValue = itemSet.size === 0
         ? "unresolved"
-        : requested === "resolved" && fullyGrounded ? "resolved" : "bounded";
+        : (requested === "resolved" || unexplainedBounded) && fullyGrounded ? "resolved" : "bounded";
       location.resolution = finalResolution;
       if (finalResolution === "resolved") delete location.resolutionReason;
       else {
@@ -936,9 +940,19 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       nature.basis = groundedBasis || "";
       const hasClassification = ["items", "rootDeficiency", "branchExcess"].some((key) => (nature[key] as unknown[]).length > 0);
       const requested = resolutionValue(nature.resolution);
+      const natureElements = [...new Set([
+        ...(nature.items as string[]),
+        ...(nature.rootDeficiency as string[]),
+        ...(nature.branchExcess as string[]),
+      ])];
+      // 同病位：舌脉都记录了、依据按病性逐段摘了原文（段数不少于病性个数）、不确定项没点到这一轴时，没有理由的「有界」按已确定交付。
+      const basisSegments = String(groundedBasis || "").split(/[；;]/u).map((segment) => segment.trim()).filter((segment) => segment.length >= 2);
+      const unexplainedBounded = requested === "bounded" && Boolean(groundedBasis) && natureElements.length > 0 &&
+        basisSegments.length >= natureElements.length && recordHasTongueAndPulse(clinicalContext) &&
+        !natureUncertaintyItem(pathogenesis?.uncertainties, natureElements.join("、"));
       const finalResolution: ClinicalResolutionValue = !hasClassification
         ? "unresolved"
-        : requested === "resolved" && Boolean(groundedBasis) ? "resolved" : "bounded";
+        : (requested === "resolved" || unexplainedBounded) && Boolean(groundedBasis) ? "resolved" : "bounded";
       nature.resolution = finalResolution;
       if (finalResolution === "resolved") delete nature.resolutionReason;
       else {
@@ -980,6 +994,18 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
   } catch {
     return content;
   }
+}
+
+/**
+ * 病历里舌象与脉象都写了具体所见（「舌红，苔薄黄」「脉浮数」「脉象：弦」）。「舌脉未查」「脉象难配合」这类不算。
+ * 只给「没有理由的有界改为已确定」用：舌脉缺一项时病性病位本来就可能待复诊补，模型写有界是对的。
+ */
+const TONGUE_FINDING = /舌(?:质|体|象|诊)?[：:\s]*(?:边尖|尖|边)?(?:淡|红|绛|暗|紫|胖|瘦|嫩|老|裂|齿痕|青)|苔(?:质)?[：:\s]*(?:薄|厚|白|黄|腻|燥|润|少|剥|滑|灰|黑)|少苔|无苔/u;
+const PULSE_FINDING = /脉(?:象|诊)?[：:\s]*(?:浮|沉|迟|数|细|弦|滑|涩|濡|弱|缓|紧|洪|虚|实|结|代|促|微|芤|革|牢|伏|散|短|长|平|和)/u;
+const UNRECORDED_INSPECTION = /舌[^，,。；;\n]{0,4}(?:未|不详|未查|未见记录)|脉[^，,。；;\n]{0,4}(?:未|不详|未查|难配合|未见记录)/u;
+export function recordHasTongueAndPulse(clinicalContext: string): boolean {
+  const record = String(clinicalContext || "").normalize("NFKC");
+  return TONGUE_FINDING.test(record) && PULSE_FINDING.test(record) && !UNRECORDED_INSPECTION.test(record);
 }
 
 /** 模型写进 pathogenesis.uncertainties、说的是这一轴的那一项（item 或 affects 提到「病性」/「病位」或这一轴的某个词）；没有返回空串。 */
@@ -1040,6 +1066,8 @@ const NONDIAGNOSTIC_WESTERN_SUPPORT = /^(?:不限定|未限定|既往体健|无�
 // 2026-10-18：「示无里热」「提示里无湿热积滞」「里和无损」是辨证推断，不是患者没提到的症状（甲方标准病历 1/3/9 三次生成都出现
 //「示未诉里热」「里未诉湿热积滞」「里和未诉损」）。「无」前面是 示/里/内 的、「无损」，都不改。
 const UNRECORDED_NEGATIVE_FEATURE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰苔华味法论需妨效碍形名根以所不可非明定常度端故损权源制依养助]|主(?!诉)|神(?!疲|志|昏|情)|关(?!节))([\u4e00-\u9fff]{2,12}?)(?=之[\u4e00-\u9fff]{0,6}(?:特征|表现|症状))/gu;
+// 「无 + 病名或病机（2–6 字）+ 之 + 症状列举」到分句末（第三十八轮）。病名/病机这一段与症状都不能再含「无」「之」。
+const MECHANISM_OF_FINDINGS_NEGATIVE = /(?<![有毫并尚全已绝暂若虽示里内])无((?:(?![无之])[\u4e00-\u9fff]){2,6}?)之((?:(?![无之])[\u4e00-\u9fff]){2,10}(?:、(?:(?![无之])[\u4e00-\u9fff]){2,10}){0,4})(?=[，,。；;）)]|$)/gu;
 // 对象里不能再有「无」：「无脓无屑」曾整段当成一个对象改成「未诉脓无屑」（2026-10-19 验收集 X-C-0192）。
 // 「无神」「无关」是固定词，但「无神疲乏力」「无关节痛」是对症状的否认（2026-10-19 Claude 评审 M 集 SD-468043、SD-482122：原样留成「无X」）。
 const UNRECORDED_NEGATIVE = /(?<![有毫并尚全已绝暂若虽示里内])无(?![汗力痰苔华味法论需妨效碍形名根以所不可非明定常度端故损权源制依养助]|主(?!诉)|神(?!疲|志|昏|情)|关(?!节))((?:(?!无)[\u4e00-\u9fff]){2,16}?)(?=[、，,。；;：:）)]|等|及|和|或|与|为(?:主|特点)|示|提示|表明|说明|故|$)/gu;
@@ -1109,7 +1137,16 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
   const inferred = (offset: number, whole: string, term = "") =>
     /(?:示|表明|说明|可知)[^，,。；;]*$/u.test(whole.slice(0, offset)) || /为$/u.test(whole.slice(0, offset)) || /^[\u4e00-\u9fff]{1,3}[象性](?:之|$)/u.test(term) ||
     notAPatientDenial(offset, whole, term);
-  const out = text.replace(UNRECORDED_NEGATIVE, (match, term: string, offset: number, whole: string) =>
+  // 「亦无积滞之脘腹胀满、嗳腐吞酸」：「无」后面先是另一个病或病机（积滞），再「之」接一列症状。说的是本例没有那些症状——病历没写过时
+  // 照样是没问到的阴性（第三十八轮，甲方 11.05 病历12 辨证依据，qwen 评审「依据可追溯」判不过）。改成「未诉脘腹胀满、嗳腐吞酸等积滞表现」：
+  // 症状一项一项查病历，有一项写到过（肯定或否定）就整段不动；「之」后是「表现/特征/象」的归下面那条，「与…相区分」这类写别的病的不动。
+  const withMechanismFindings = text.replace(MECHANISM_OF_FINDINGS_NEGATIVE, (match, mechanism: string, list: string, offset: number, whole: string) => {
+    const items = list.split("、").map((item) => item.trim());
+    if (items.some((item) => item.length < 2) || /(?:表现|特征|症状|象)$/u.test(list) || inferred(offset, whole, items[0])) return match;
+    if (items.some((item) => recordMentionsNegatedTerm(record, item))) return match;
+    return `未诉${items.join("、")}等${mechanism}表现`;
+  });
+  const out = withMechanismFindings.replace(UNRECORDED_NEGATIVE, (match, term: string, offset: number, whole: string) =>
     inferred(offset, whole, term) || recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) || /^(?:明显|特殊|其他)?异常$/u.test(term) ? match : `未诉${term}`)
     // 「无气从少腹上冲胸咽之奔豚特征」：对象后面接「之…特征/表现/症状」时上面那条够不着（2026-10-19 甲方标准病历 2 第 3 次生成）。
     .replace(UNRECORDED_NEGATIVE_FEATURE, (match, term: string, offset: number, whole: string) =>

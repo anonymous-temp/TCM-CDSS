@@ -32,6 +32,7 @@ import {
 import { buildM04ClassicSafetyContext } from "./tcm-classic-context.server";
 import { governedTreatmentPrinciplePromptContext } from "./clinical-governance-tables";
 import { buildTextbookCandidateContext, buildFormulaModificationContext, buildTextbookFormulaContext, textbookRowForSyndrome, type TextbookCaseInput } from "./tcm-textbook-syndromes";
+import { historyStatedDiseaseNotice, historyStatedDiseasesForCase, uniqueHistoryStatedDisease, withHistoryStatedDiseaseFirst } from "./history-stated-textbook-disease";
 import { buildJingfangCandidateContext, type JingfangPick } from "./jingfang-patterns";
 
 const UNTRUSTED_CLINICAL_DATA_INSTRUCTION = [
@@ -759,10 +760,14 @@ export function buildDiagnosePrompt(caseState: CaseState, retrieval: M03FormulaR
     retrieval.syndromeHypothesisRerank,
   );
   const sevenStageContext = buildM03SevenStageContext(caseState);
+  // 既往确诊病对照（第三十八轮）：既往史写明的西医病按教材对到中医病名、本次主诉正是它的主症时，排在候选最前并附说明段。
+  const historyStated = historyStatedDiseasesForCase(caseState);
+  const historyStatedUnique = uniqueHistoryStatedDisease(historyStated);
   const textbookCandidateContext = buildTextbookCandidateContext({
     ...textbookCaseInput(caseState),
-    preferredDiseases: retrieval.textbookDiseasePicks,
-  });
+    preferredDiseases: withHistoryStatedDiseaseFirst(retrieval.textbookDiseasePicks || [], historyStated),
+    pinnedDisease: historyStatedUnique?.disease,
+  }) + historyStatedDiseaseNotice(historyStatedUnique ? [historyStatedUnique] : []);
   // 经方方证候选（《伤寒论》《金匮要略》方证；规则写在段内，没有选出方证时为空串，不增加任何提示词）。
   const jingfangCandidateContext = buildJingfangCandidateContext(retrieval.jingfangPatternPicks, getLineageCard(caseState.tcmLineagePreference).code);
 

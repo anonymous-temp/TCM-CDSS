@@ -7,6 +7,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { textbookDiseaseNamesForCase, textbookDiseaseWesternEquivalents } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
+import { historyStatedDiseasesForCase, withHistoryStatedDiseaseFirst } from "./history-stated-textbook-disease";
 
 /**
  * 教材病名闭集选择（2026-10-13，甲方 10.12 测评整改）。
@@ -129,7 +130,15 @@ export function buildTextbookDiseasePickRequest(caseState: CaseState): {
   return { messages, allowed };
 }
 
+/**
+ * 闭集选病，再按既往确诊病对照排序（第三十八轮）：既往史写明的西医病对到的教材病名、本次主诉正是它的主症时排在最前。
+ * 选病请求本身只看主诉与现病史（只加既往史在 112 例上没有收益，见上），这一条只用教材写明的西医对应病名，不是开放判断。
+ */
 export async function pickTextbookDiseasesForCase(caseState: CaseState, signal?: AbortSignal): Promise<string[]> {
+  return withHistoryStatedDiseaseFirst(await pickTextbookDiseasesByModel(caseState, signal), historyStatedDiseasesForCase(caseState));
+}
+
+async function pickTextbookDiseasesByModel(caseState: CaseState, signal?: AbortSignal): Promise<string[]> {
   if (!enabled() || signal?.aborted) return [];
   const config = getControlledTerminologyModelConfig();
   if (!config.configured) return [];

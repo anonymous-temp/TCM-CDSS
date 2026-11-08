@@ -1,7 +1,7 @@
 import "server-only";
 
 import { parseConfirmed, proposeTwiceThenVerifyAll } from "./cross-model-small-task.server";
-import { herbClaimReferenceText } from "./m04-formula-analysis-claim-check.server";
+import { herbClaimReferenceText, herbPropertyReferenceText } from "./m04-formula-analysis-claim-check.server";
 import { distinctModificationConditions, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
 import { quoteGroundedInText } from "./verbatim-quote";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
@@ -33,14 +33,14 @@ const SYSTEM = [
   "你是中医主治医师，逐行核对随证加减。每行是「若某情况，加某药」，「若」说的是本例现在没有、之后可能出现的变化。",
   "每行写 verdict：",
   "contradicts：这个条件与病历已记录的情况相反，本例在现在的证候下不会这样（病历便溏对“若大便干结”、舌淡脉弱对“若舌红脉数”、口不渴对“若口渴”、多食易饥对“若食少”）。病历没提到的症状不算相反；quote 摘病历逐字原文。",
-  "misfit：只在 kind 为 model 的行判。这味药的主要功效管不到这个症，或与本证方向相反（虚寒证单加苦寒药、阴虚证单加温燥药），或这个条件不是本病会出现的变化。不因为有更好的选择就判 misfit。",
+  "misfit：只在 kind 为 model 的行判。这味药的主要功效管不到这个症，或与本证方向相反（虚寒证单加苦寒药、阴虚证单加温燥药；实热、火热证为非主诉的次要表现加温性药，如胃热炽盛证「纳差」加焦山楂——property 是《中药学》药性，次要表现由主证病机所致、主方清其病机即可），或这个条件不是本病会出现的变化。不因为有更好的选择就判 misfit。",
   "unrelated：两种 kind 都判。条件说的情况与本例已记录的表现都无关——不是本例已有某个症状的加重或演变，也不是主诉主症的变化，而是另一组本例一条相关表现都没有的情况（如胃痛病例「若兼头晕目眩」而病历没有头晕；咳嗽病例「若兼有瘀血」而病历没有任何瘀象）。条件里的症状本例已有（程度不同也算）、或是本例主症常见的加重，不算 unrelated。quote 留空。",
   "ok：其余。",
   "只输出 JSON：{\"rows\":[{\"line\":0,\"verdict\":\"ok\",\"quote\":\"\"}]}",
 ].join("\n");
 
 const VERIFY_SYSTEM = [
-  "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症或与本证方向相反；unrelated：条件说的情况与本例已记录的表现都无关，既不是已有症状的加重或演变，也不是主诉主症的变化）。",
+  "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症或与本证方向相反，含实热证为非主诉的次要表现加温性药；unrelated：条件说的情况与本例已记录的表现都无关，既不是已有症状的加重或演变，也不是主诉主症的变化）。",
   "只判这一条。理由成立答 true。条件只是病历没提到、或者只是另有更好的药，答 false。",
   "先在 why 里写这条理由依据的病历原文或药的功效（不超过20字），再下结论。",
   "只输出 JSON：{\"why\":\"…\",\"confirmed\":true} 或 {\"why\":\"…\",\"confirmed\":false}",
@@ -120,7 +120,7 @@ export async function dropMisfitModifications(content: string, context: { record
   const syndrome = text(overview?.primarySyndrome);
   const method = text(record(root.therapy)?.overallMethod);
   const disease = text(overview?.tcmDiseaseName);
-  const payload = (row: Json, line: number) => ({ line, kind: isModelWritten(row, disease) ? "model" : "textbook", condition: text(row.trigger), herb: text(row.herbName), reference: herbClaimReferenceText(text(row.herbName)).slice(0, 160) });
+  const payload = (row: Json, line: number) => ({ line, kind: isModelWritten(row, disease) ? "model" : "textbook", condition: text(row.trigger), herb: text(row.herbName), reference: herbClaimReferenceText(text(row.herbName)).slice(0, 160), property: herbPropertyReferenceText(text(row.herbName)) || null });
   const findings = await proposeTwiceThenVerifyAll<Finding>("m04_modification_fit", "prescribe", {
     messages: [
       { role: "system", content: SYSTEM },

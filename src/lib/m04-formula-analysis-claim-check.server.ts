@@ -39,7 +39,7 @@ export function formulaAnalysisClaimCheckEnabled(): boolean {
 }
 
 type TextbookReferences = {
-  herbs?: Record<string, { function?: string; parent?: string }>;
+  herbs?: Record<string, { function?: string; parent?: string; property?: string }>;
   formulaCommentaries?: Record<string, { commentary?: string; features?: string }>;
 };
 const TEXTBOOK = textbookReferencesJson as unknown as TextbookReferences;
@@ -94,6 +94,17 @@ export function herbClaimReferenceText(herb: string): string {
   ].filter(Boolean).join("；");
   referenceCache.set(identity, reference);
   return reference;
+}
+
+/**
+ * 《中药学》【药性】的性味一句（「酸、甘，微温」，去掉归经；2026-11-08 第三十八轮）。随证加减核对看所加药的寒热：
+ * 甲方 11.05 病历8 胃热鼻衄的「纳差 → 焦山楂」，焦山楂微温。炮制品按饮片身份取原药（焦山楂 → 山楂），附药取所附正药；教材没有时为空串。
+ */
+export function herbPropertyReferenceText(herb: string): string {
+  const identity = identityOf(herb);
+  const names = [herb, identity, ...[herb, identity].map((name) => TEXTBOOK.herbs?.[name]?.parent || "")].filter(Boolean);
+  const found = names.map((name) => TEXTBOOK.herbs?.[name]?.property || "").find(Boolean) || "";
+  return found.split(/[。；]/u)[0].trim();
 }
 
 /**

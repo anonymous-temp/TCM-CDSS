@@ -56,6 +56,11 @@ def parse_herbs(lines: list[str]) -> dict[str, dict]:
                     text = candidate.replace("【功效】", "").strip(" 　")
                     if name and text:
                         herbs.setdefault(name, {"function": text, "line": index + offset + 1})
+                        # 【药性】（「酸、甘，微温。归脾、胃、肝经。」，2026-11-08 第三十八轮）：随证加减核对看所加药的寒热（m04-modification-fit）。
+                        nature = line.replace("【药性】", "").strip(" 　")
+                        if nature and "property" not in herbs[name]:
+                            herbs[name]["property"] = nature
+                            herbs[name]["propertyLine"] = index + 1
                     break
             # 【用法用量】与【使用注意】在同一味正文里、下一味【药性】之前（2026-10-19：饮片使用注意与病历对照 herb-record-caution.ts；
             # 特殊煎法标注的依据 herb-decoction-rules.ts）。

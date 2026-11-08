@@ -29,6 +29,8 @@ import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothe
 import { pickTextbookDiseasesForCase } from "@/lib/textbook-disease-pick.server";
 import { pickJingfangPatternsForCase } from "@/lib/jingfang-pattern-pick.server";
 import { checkDiseaseExplainsVisitReason, tcmHalfDiseaseName, visitReasonRedrawInstruction } from "@/lib/m03-visit-reason-check.server";
+import { historyStatedDiseaseRedrawInstruction, historyStatedDiseasesForCase, uniqueHistoryStatedDisease, writtenDiseaseIsTextbookNeighbour } from "@/lib/history-stated-textbook-disease";
+import { textbookDiseaseDifferentialNames } from "@/lib/tcm-textbook-syndromes";
 import { memoizedScopeText } from "@/lib/model-call-memo.server";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 import { checkLineageLensInContent, withLensFrom } from "@/lib/m03-lens-consistency.server";
@@ -269,6 +271,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   // 病历读法核对（commaContinuedDenialReadingNotice）也给核对器：它与生成模型读的是同一句歧义写法。
   const patientClaimRecord = [patientClaimRecordText(trustedInputText(safeState), safeState.patient, safeState.vitals), commaContinuedDenialReadingNotice(safeState).trim()].filter(Boolean).join("\n");
   const differentialTopUpContext = { recordText: trustedInputText(safeState), patient: { sex: safeState.patient?.sex, age: safeState.patient?.age } };
+  const historyStatedUnique = uniqueHistoryStatedDisease(historyStatedDiseasesForCase(safeState));
   const visitReasonInput = {
     chiefComplaint: safeState.chiefComplaint || "",
     presentHistory: [safeState.hisRecord?.fields?.xianbingshi, safeState.symptoms?.presentHistory, safeState.symptoms?.现病史]
@@ -343,10 +346,22 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
               return promoteCriticalSecondarySyndrome(withVerifiedMethodItemFrom(withLensFrom(reattributed, completed, lensChecked), methodCovered));
             };
             const disease = tcmHalfDiseaseName(tcmContent);
+            // 既往确诊病对照（第三十八轮）：辨证半写成了既往确诊病在教材里的邻近病（乳蛾 ↔ 喉痹）时，按既往病的发作重写一次。
+            // 触发是确定性的（教材写明的西医对应 + 主诉主症 + 教材鉴别病名），不另发核对请求；与收口并行，不占关键路径。
+            const historyRedraw = historyStatedUnique && redraw && writtenDiseaseIsTextbookNeighbour(disease, historyStatedUnique, textbookDiseaseDifferentialNames)
+              ? redraw(historyStatedDiseaseRedrawInstruction(disease, historyStatedUnique))
+              : undefined;
             const [visit, finished] = await Promise.all([
               checkDiseaseExplainsVisitReason({ ...visitReasonInput, disease, picks: textbookDiseasePicks }, transformSignal),
               finishTcmHalf(tcmContent),
             ]);
+            if (visit.status !== "not_covered" && historyRedraw && historyStatedUnique) {
+              const redrawn = await historyRedraw;
+              const redrawnDisease = redrawn ? tcmHalfDiseaseName(redrawn) : "";
+              const adopted = Boolean(redrawn && redrawnDisease === historyStatedUnique.disease);
+              console.info("[tcm-cdss:telemetry] m03_history_stated_disease", { disease, stated: historyStatedUnique.disease, redrawnDisease: redrawnDisease || null, adopted });
+              return adopted && redrawn ? finishTcmHalf(redrawn) : finished;
+            }
             if (visit.status !== "not_covered" || !redraw) return finished;
             const redrawn = await redraw(visitReasonRedrawInstruction(disease, visit));
             const redrawnDisease = redrawn ? tcmHalfDiseaseName(redrawn) : "";

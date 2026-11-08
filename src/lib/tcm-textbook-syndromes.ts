@@ -300,6 +300,11 @@ export interface TextbookCaseInput {
    * 名字必须逐字等于教材病名，其余忽略。没有时候选完全由主诉词表与症状重合度决定。
    */
   preferredDiseases?: readonly string[];
+  /**
+   * 既往确诊病对到的教材病名（history-stated-textbook-disease，第三十八轮）：排在 preferredDiseases 第一时，不被「另一个病的
+   * 证型行与本例更贴合」顶下去——病历2 没写喉核查体，喉痹的「咽部红肿疼痛」比乳蛾的「喉核红肿」更贴字面，按行贴合会把乳蛾挤到第二。
+   */
+  pinnedDisease?: string;
 }
 
 export interface TextbookCandidateDisease {
@@ -449,7 +454,7 @@ export function textbookCandidatesForCase(
   // 鉴别对象，中医鉴别诊断写的是两种皮肤病（独立评审）。选择落空（超时、未配置、点到的病不在本科别）时仍用字面候选。
   const all = [...byDisease.values()];
   const picked = all.filter((item) => preferred.includes(item.disease));
-  if (!wanted) promoteBestFitPickedDisease(picked, preferred);
+  if (!wanted && !(input.pinnedDisease && preferred[0] === input.pinnedDisease)) promoteBestFitPickedDisease(picked, preferred);
   return (picked.length > 0 ? picked : all)
     .sort((left, right) => right.score - left.score || left.disease.localeCompare(right.disease))
     .map(({ bookKey, ...item }) => { void bookKey; return item; })
@@ -570,6 +575,31 @@ export function textbookDiseaseWesternEquivalents(names: readonly string[]): Rec
     if (equivalents.length > 0) out[name] = equivalents;
   }
   return out;
+}
+
+/** 既往确诊病对照（history-stated-textbook-disease）用：每个教材病名的定义首句与写明的西医对应病名。没有西医对应或没有定义句的不列。 */
+export interface TextbookDiseaseCrosswalkEntry { disease: string; definition: string; westernEquivalents: readonly string[] }
+let crosswalkCache: TextbookDiseaseCrosswalkEntry[] | undefined;
+export function textbookDiseaseHistoryCrosswalk(): readonly TextbookDiseaseCrosswalkEntry[] {
+  if (crosswalkCache) return crosswalkCache;
+  const byName = new Map<string, TextbookDiseaseCrosswalkEntry>();
+  for (const disease of DISEASES) {
+    const equivalents = disease.westernEquivalents || [];
+    const definition = compact(disease.definition.split(/(?<=。)/u)[0] || "");
+    if (equivalents.length === 0 || !definition) continue;
+    const prior = byName.get(disease.disease);
+    byName.set(disease.disease, prior
+      ? { disease: disease.disease, definition: prior.definition || definition, westernEquivalents: [...new Set([...prior.westernEquivalents, ...equivalents])] }
+      : { disease: disease.disease, definition, westernEquivalents: [...new Set(equivalents)] });
+  }
+  crosswalkCache = [...byName.values()];
+  return crosswalkCache;
+}
+
+/** 教材该病【鉴别诊断】列出的病名（各书合并）。 */
+export function textbookDiseaseDifferentialNames(diseaseName: string): string[] {
+  const wanted = compact(diseaseName).replace(/类病$/u, "");
+  return [...new Set(DISEASES.filter((disease) => compact(disease.disease) === wanted).flatMap((disease) => disease.differentials))];
 }
 
 /** 这个病名在教材里只出现在《中医妇科学》（异位妊娠、痛经、带下病…）：男性患者的鉴别里不列（第二十七轮 C015：21 岁男性肠痈的鉴别写了异位妊娠）。 */
