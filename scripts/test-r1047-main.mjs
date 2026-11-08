@@ -252,7 +252,11 @@ await check("5.2d 没写若的症状补若按条件句走；便干是通便方�
 });
 await check("5.2e 模型自写行「管不到这个症」要两次提名都这么说", async () => {
   const fs = await import("node:fs");
-  assert.match(fs.readFileSync("src/lib/m04-modification-fit.server.ts", "utf8"), /needsBothSamples: \(finding\) => finding\.verdict === "misfit"/);
+  // 11/08 第三十七轮：判据收进导出函数 modificationFindingNeedsBothSamples（「无关」不再要两次，见 test:r1049-main 10.2）；这里核「药管不到」仍要两次、且确实接到 needsBothSamples。
+  const fitSource = fs.readFileSync("src/lib/m04-modification-fit.server.ts", "utf8");
+  assert.match(fitSource, /needsBothSamples: modificationFindingNeedsBothSamples/);
+  const fit = await jiti.import("../src/lib/m04-modification-fit.server.ts");
+  assert.equal(fit.modificationFindingNeedsBothSamples({ verdict: "misfit" }), true);
   assert.match(fs.readFileSync("src/lib/cross-model-small-task.server.ts", "utf8"), /options\.needsBothSamples\?\.\(proposal\)/);
 });
 await check("5.2f 条件句的本症病机照抄节点时写兼见；自己写的、记录行不动", () => {

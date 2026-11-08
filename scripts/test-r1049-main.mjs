@@ -21,6 +21,7 @@ const check = async (name, run) => {
 
 const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const summary = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+const visible = summary;
 const surface = await jiti.import("../src/lib/delivered-surface.ts");
 const phrasing = await jiti.import("../src/lib/tcm-therapy-phrasing.ts");
 const coverage = await jiti.import("../src/lib/m03-method-coverage.server.ts");
@@ -399,4 +400,36 @@ await check("14.1 同字头两项的后半是同一祛除（降火/清热、化�
   assert.equal(phrasing.mergedSameHeadTherapyPhrases("清热解毒，清热利湿"), "清热解毒利湿");
   // 对象相同但不是两个祛除动作（凉血与止血）：照旧合写，不丢一项
   assert.equal(phrasing.mergedSameHeadTherapyPhrases("清热凉血，清热止血"), "清热凉血止血");
+});
+
+// ───── 15 病性：模型自定有界时的说法、寒热依据的维度 ─────
+const natureCase = (nature, uncertainties = []) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
+  schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { primarySyndrome: "肾阳虚证", primarySyndromeResolution: "resolved", primarySyndromeBasis: ["畏寒、肢冷"] }, westernDiagnosis: {},
+  pathogenesis: { locationDifferentiation: { items: [], details: [], resolution: "unresolved" }, natureDifferentiation: nature, symptomClusters: [], chain: [], uncertainties },
+  therapy: { overallPrinciple: "虚则补之", overallMethod: "温补肾阳" },
+})}\n<!-- DIAGNOSIS_JSON_END -->`;
+const natureOut = (content, fn, record) => {
+  const out = fn(content, record);
+  return JSON.parse(out.slice(out.indexOf("START -->") + 9, out.indexOf("<!-- DIAGNOSIS_JSON_END"))).pathogenesis.natureDifferentiation;
+};
+const coldRecord = "双膝关节隐痛2年，伴腰膝酸软、畏寒、肢冷。舌淡，苔白。脉沉细。";
+await check("15.1 模型自定病性为有界、依据逐字可回溯时，不说「缺少依据」：写它在 uncertainties 里点名的那一项，没点名时说个别要素待核实；依据对不上原文时照旧", () => {
+  const nature = { items: ["阳虚", "寒凝"], rootDeficiency: ["阳虚"], branchExcess: ["寒凝"], basis: "畏寒、肢冷", resolution: "bounded" };
+  const named = natureOut(natureCase({ ...nature }, [{ item: "寒凝程度", reason: "未记录疼痛喜温", affects: "病性寒凝" }]), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
+  assert.equal(named.resolution, "bounded");
+  assert.equal(named.resolutionReason, "病性“阳虚、寒凝”已有病历依据，寒凝程度尚待核实");
+  const byAffects = natureOut(natureCase({ ...nature }, [{ item: "疼痛性质", reason: "未记录", affects: "病性判断" }]), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
+  assert.equal(byAffects.resolutionReason, "病性“阳虚、寒凝”已有病历依据，疼痛性质尚待核实");
+  const unnamed = natureOut(natureCase({ ...nature }), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
+  assert.equal(unnamed.resolutionReason, "病性“阳虚、寒凝”已有病历依据，其中个别要素尚待复诊核实");
+  const ungrounded = natureOut(natureCase({ ...nature, basis: "四肢厥逆" }), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
+  assert.match(ungrounded.resolutionReason, /缺少可逐字回溯/u);
+});
+await check("15.2 寒热病性的依据维度认得畏寒、肢冷、五心烦热、口干：「畏寒、肢冷；脉沉细」两维不降档；只有舌一维照旧降", () => {
+  const resolvedCold = { items: ["阳虚", "寒凝"], rootDeficiency: ["阳虚"], branchExcess: ["寒凝"], basis: "畏寒、肢冷；脉沉细", resolution: "resolved", evidence: { evidenceLevel: "model_inference", source: "本例", confidence: "中" } };
+  assert.equal(natureOut(natureCase(resolvedCold), visible.applyM03AdvisoryQualityBoundaries, coldRecord).resolution, "resolved");
+  const heat = { items: ["阴虚", "虚火"], rootDeficiency: ["阴虚"], branchExcess: ["虚火"], basis: "五心烦热；口干", resolution: "resolved", evidence: { evidenceLevel: "model_inference", source: "本例", confidence: "中" } };
+  assert.equal(natureOut(natureCase(heat), visible.applyM03AdvisoryQualityBoundaries, "五心烦热，口干。").resolution, "resolved");
+  const tongueOnly = { ...resolvedCold, basis: "舌淡，苔白" };
+  assert.equal(natureOut(natureCase(tongueOnly), visible.applyM03AdvisoryQualityBoundaries, coldRecord).resolution, "bounded");
 });

@@ -942,10 +942,15 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
           ...(nature.rootDeficiency as string[]),
           ...(nature.branchExcess as string[]),
         ])], "、") || "未定";
+        // 模型自己定为有界、而依据是逐字可回溯的：不能再说「缺少依据」（2026-11-08 第三十七轮，甲方 11.05 病机分析「结论与推理不一致」）。
+        // 写模型在 uncertainties 里点名的那一项；没点名时只说个别要素待核实。
+        const pendingItem = groundedBasis ? natureUncertaintyItem(pathogenesis?.uncertainties, natureLabel) : "";
         nature.resolutionReason = typeof nature.resolutionReason === "string" && nature.resolutionReason.trim()
           ? nature.resolutionReason.trim()
           : finalResolution === "bounded"
-            ? `病性“${natureLabel}”缺少可逐字回溯的本例依据，暂不能标记为已解决`
+            ? groundedBasis
+              ? `病性“${natureLabel}”已有病历依据，${pendingItem ? `${pendingItem}尚待核实` : "其中个别要素尚待复诊核实"}`
+              : `病性“${natureLabel}”缺少可逐字回溯的本例依据，暂不能标记为已解决`
             : "本例记录中没有可稳定归纳的病性及其依据";
         lowerEvidenceConfidence(nature.evidence);
       }
@@ -972,6 +977,19 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
   }
 }
 
+/** 模型写进 pathogenesis.uncertainties、说的是病性的那一项（item 或 affects 提到病性或某个病性词）；没有返回空串。 */
+function natureUncertaintyItem(rawUncertainties: unknown, natureLabel: string): string {
+  const labels = natureLabel.split("、").map((label) => label.trim()).filter((label) => label.length >= 2);
+  for (const row of Array.isArray(rawUncertainties) ? rawUncertainties : []) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const item = typeof (row as Record<string, unknown>).item === "string" ? String((row as Record<string, unknown>).item).trim() : "";
+    const affects = typeof (row as Record<string, unknown>).affects === "string" ? String((row as Record<string, unknown>).affects) : "";
+    if (!item || item.length > 12) continue;
+    if (/病性/u.test(affects) || labels.some((label) => item.includes(label) || affects.includes(label))) return item;
+  }
+  return "";
+}
+
 const M03_LOCATION_QUALITY_DIMENSIONS = [
   /舌|苔/,
   /脉/,
@@ -983,17 +1001,19 @@ const M03_LOCATION_QUALITY_DIMENSIONS = [
   /胃口|食欲|进食|纳差|不欲食/,
 ] as const;
 
+// 寒热病性的独立证据维度。2026-11-08 第三十七轮（甲方 11.05「病位病性低置信」）：最常见的寒热感写法（畏寒、肢冷、四肢不温、
+// 五心烦热、潮热）与津液写法（口干、咽干）不在表里，「畏寒、肢冷，脉沉细」只数到脉一项、被降成有界。同一维度的写法归一组，不加新维度。
 const M03_COLD_HEAT_QUALITY_DIMENSIONS = [
-  /面色|两颧|目赤|精神|神志/,
+  /面色|两颧|颧红|面红|目赤|精神|神志/,
   /口鼻气|气息|呼吸急促/,
   /舌|苔/,
   /脉/,
   /胸|腹|心下|喜按|拒按/,
   /小便|排尿|尿色|尿量|尿频|尿急/,
-  /口渴|不渴|欲饮|不欲饮|喜冷饮|喜热饮/,
+  /口渴|不渴|欲饮|不欲饮|喜冷饮|喜热饮|口干|咽干|口燥/,
   /大便|排便|便秘|便溏|下利|泄泻/,
-  /恶寒|恶热|怕冷|怕热|发热|寒热/,
-  /汗出|无汗|自汗|盗汗|大汗/,
+  /恶寒|恶热|怕冷|怕热|发热|寒热|畏寒|畏冷|形寒|肢冷|厥冷|不温|潮热|烦热|五心|手足心热|身热/,
+  /汗出|无汗|自汗|盗汗|大汗|冷汗/,
 ] as const;
 
 function m03QualityDimensionCount(text: string, dimensions: readonly RegExp[]): number {
