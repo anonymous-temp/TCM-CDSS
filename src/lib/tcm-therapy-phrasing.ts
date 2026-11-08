@@ -1,3 +1,4 @@
+import { governedTreatmentMethodOccurrencesInText, type TreatmentPrincipleEntry } from "./clinical-governance-tables";
 /**
  * 治法表述的**确定性归一**（L2 规则层）。
  *
@@ -337,6 +338,21 @@ export function withoutRedundantTherapyPhrases(method: string): string {
  * 其余（益气、化瘀、解毒、生津…）按原顺序在前——「健脾益气和胃」「活血化瘀通窍」「清热解毒生津」。三项及以上同头的不合（太长）。
  */
 const PURPOSE_TAIL = /^(?:助运|止痛|止咳|平喘|安神|宁神|通络|通窍|止血|止泻|止呕|通便|消肿|利咽|明目|调经|止带|止痒|和胃|和中|润肺|润肠|降逆|开窍|散结|定志|固表|止汗|缩尿)$/u;
+const REMOVAL_VERB = /^[化祛散除消泻降清泄涤逐]$/u;
+const HEAT_OBJECT = /^[热火]$/u;
+/** 两字后半同为「祛除类动词 + 同一对象」（降火/清热、化瘀/祛瘀、化痰/涤痰、散寒/祛寒）。 */
+function sameRemovalTail(left: string, right: string): boolean {
+  if (left.length !== 2 || right.length !== 2 || left === right) return false;
+  if (!REMOVAL_VERB.test(left[0]) || !REMOVAL_VERB.test(right[0])) return false;
+  return left[1] === right[1] || (HEAT_OBJECT.test(left[1]) && HEAT_OBJECT.test(right[1]));
+}
+
+/** 一项治法整项就是受控词表里的一条（正名或别名）时返回该条。 */
+function wholeGovernedMethodEntry(item: string): TreatmentPrincipleEntry | undefined {
+  return governedTreatmentMethodOccurrencesInText(item).map(({ entry }) => entry)
+    .find((entry) => entry.canonical === item || (entry.aliases || []).includes(item));
+}
+
 export function mergedSameHeadTherapyPhrases(method: string): string {
   const parts = String(method || "").split(/([，,、；;])/u);
   const phrases = parts.filter((_, index) => index % 2 === 0).map((phrase) => phrase.trim());
@@ -349,6 +365,15 @@ export function mergedSameHeadTherapyPhrases(method: string): string {
     const partners = phrases.flatMap((other, at) => at > index && !used.has(at) && other.length === 4 && other.slice(0, 2) === phrase.slice(0, 2) && other !== phrase ? [at] : []);
     if (partners.length !== 1) return;
     const tails = [phrase.slice(2), phrases[partners[0]].slice(2)];
+    // 两个后半说的是同一件事（都是祛除类动词、对象相同，火与热算一个）：「滋阴降火，滋阴清热」「活血化瘀，活血祛瘀」不拼成六字
+    //（「滋阴降火清热」，2026-11-08 第三十七轮甲方 11.05 病历4 复测：兼证带来的滋阴降火与补全治法给的滋阴清热）。
+    // 留受控词表里编号更细的一项（滋阴降火 4.11.3.8.7 细于 滋阴清热 4.11.3.8），分不出时留前一项。
+    if (sameRemovalTail(tails[0], tails[1])) {
+      const depth = (item: string) => String(wholeGovernedMethodEntry(item)?.standardNumber || "").split(".").filter(Boolean).length;
+      merged.set(index, depth(phrases[partners[0]]) > depth(phrase) ? phrases[partners[0]] : phrase);
+      used.add(partners[0]);
+      return;
+    }
     const ordered = [...tails.filter((tail) => !PURPOSE_TAIL.test(tail)), ...tails.filter((tail) => PURPOSE_TAIL.test(tail))];
     // 两个后半共用一个字头（温化寒痰、温化寒饮）：写一次（温化寒痰饮）。
     // 两个都是说目的的（调经止痛、调经止血）不共用：「调经止痛血」不通（第三十五轮 C070）。

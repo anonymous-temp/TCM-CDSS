@@ -114,6 +114,16 @@ await check("3.1 现病史写明脑梗遗留口眼歪斜、查体写「右侧口
   assert.ok(safety.detectProgrammaticRedFlags(strokeCase("右侧口眼㖞斜", "今日晨起突发右侧口眼㖞斜、言语不清2小时。")).length > 0);
 });
 
+await check("3.2 红旗判别读者：「医生查见新出现的意识改变」只有疲乏写法的嗜睡（伴神疲嗜睡）不采信，有意识字样的照采；「本次发热」引文的体温读数正常时不采信", async () => {
+  const screen = await jiti.import("../src/lib/redflag-discriminator-screen.server.ts");
+  const record = "患者孕8周，恶心呕吐2周，伴神疲嗜睡、头晕乏力。生命体征：体温 36.5℃。另一患者嗜睡，呼之可应，体温38.6℃。";
+  const parse = (items) => screen.parseRedflagDiscriminatorScreen(JSON.stringify({ present: items }), ["objective-altered-mental-state", "ctx-fever"], record);
+  assert.deepEqual(parse([{ id: "objective-altered-mental-state", quote: "伴神疲嗜睡" }]), []);
+  assert.equal(parse([{ id: "objective-altered-mental-state", quote: "嗜睡，呼之可应" }]).length, 1);
+  assert.deepEqual(parse([{ id: "ctx-fever", quote: "体温 36.5℃" }]), []);
+  assert.equal(parse([{ id: "ctx-fever", quote: "体温38.6℃" }]).length, 1);
+});
+
 // ───── 4 红旗未解除：治则、成药 ─────
 await check("4.1 红旗未解除时治则先写急则治标；标本兼治不留；没有红旗不动", () => {
   assert.equal(surface.principleWhenRedFlag("标本兼治", true), "急则治标");
@@ -297,6 +307,15 @@ await check("9.2 闭集选病看得到体格检查与教材写明的西医对应
   assert.ok(user.textbookDiseaseNames.includes("乳蛾") && user.textbookDiseaseNames.includes("喉痹"));
 });
 
+await check("9.3 兼证是同一教材病下与主证并列的另一型时撤回（乳蛾：风热外袭证 + 肺胃热盛证）；教材专设的兼证组（感冒夹湿）与别的病的证不在此列", async () => {
+  const secondary = await jiti.import("../src/lib/m03-secondary-syndrome-consistency.server.ts");
+  assert.equal(secondary.secondaryStructurallyInvalid("风热外袭证", "肺胃热盛证", "", "乳蛾"), "sibling_textbook_type");
+  assert.equal(secondary.secondaryStructurallyInvalid("风热外袭证", "肺胃热盛证", ""), undefined, "不给病名不判");
+  const coldDamp = textbook.textbookRowForSyndrome("感冒", "风寒束表证") && textbook.textbookRowsNamed("夹湿").find((row) => row.disease === "感冒");
+  if (coldDamp) assert.notEqual(secondary.secondaryStructurallyInvalid("风寒束表证", coldDamp.syndromeName, "", "感冒"), "sibling_textbook_type");
+  assert.notEqual(secondary.secondaryStructurallyInvalid("心血不足证", "肝郁气滞证", "", "心悸"), "sibling_textbook_type");
+});
+
 // ───── 10 加减与病情无关 ─────
 await check("10.1 「无关」只给条件里一条本例表现都没有的行：腹痛未记录的「若寒湿凝滞腹痛」可判；「若恶寒甚」之于恶寒、「若头项强痛」之于头痛连及项背不判", () => {
   assert.equal(fit.conditionMentionsRecordedFinding("若寒湿凝滞腹痛", "带下量多，肢体困重，大便溏薄"), false);
@@ -307,6 +326,12 @@ await check("10.1 「无关」只给条件里一条本例表现都没有的行�
     { action: "加", trigger: "若恶寒甚", herbName: "麻黄", evidence: { evidenceLevel: "kb_entry", source: "《中医内科学》感冒·风寒束表证加减：…" } }];
   assert.equal(fit.modificationFindingQualifies({ line: 0, verdict: "unrelated", quote: "" }, rows, "带下量多，肢体困重", "带下过多"), true);
   assert.equal(fit.modificationFindingQualifies({ line: 1, verdict: "unrelated", quote: "" }, rows, record1, "感冒"), false);
+});
+
+await check("10.2 「无关」与「相反」一次提名加另一厂商复核即可；「药管不到」仍要两次提名都说到", () => {
+  assert.equal(fit.modificationFindingNeedsBothSamples({ verdict: "unrelated" }), false);
+  assert.equal(fit.modificationFindingNeedsBothSamples({ verdict: "contradicts" }), false);
+  assert.equal(fit.modificationFindingNeedsBothSamples({ verdict: "misfit" }), true);
 });
 
 // ───── 11 西医 ─────
@@ -351,4 +376,27 @@ await check("12.2 加减理由去无依据功效时不留残句：「散寒湿�
   };
   const out = surface.projectDeliveredReasoning(reasoning);
   assert.ok(!/^湿|，湿以/u.test(out.formula.modifications[0].reason), out.formula.modifications[0].reason);
+});
+
+// ───── 13 校勘补收的不可锁定条目作出处 ─────
+await check("13.1 合方行的代表方在目录里只有校勘补收、不可锁定的条目时，出处取该条目（菟丝子散《太平圣惠方》卷五十八），组成对不上时不取；可锁定条目照旧", async () => {
+  const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+  const row = textbook.textbookRowForSyndrome("遗尿", "下元虚寒证");
+  assert.equal(provenance.textbookFormulaOriginalSource("菟丝子散", row.composition, { compositionIsUnion: true }), "《太平圣惠方》卷五十八");
+  assert.equal(provenance.textbookFormulaOriginalSource("菟丝子散", ["黄连", "黄芩", "栀子"], { compositionIsUnion: true }), undefined);
+  assert.equal(provenance.textbookFormulaOriginalSource("菟丝子散", ["菟丝子", "肉苁蓉", "五味子", "附子"]), "《太平圣惠方》卷五十八");
+  assert.equal(provenance.textbookFormulaOriginalSource("桑螵蛸散", row.composition, { compositionIsUnion: true }), "《本草衍义》");
+});
+
+// ───── 14 同字头两项治法说的是同一件事 ─────
+await check("14.1 同字头两项的后半是同一祛除（降火/清热、化瘀/祛瘀、化痰/涤痰）：留编号更细的一项，不拼成六字；后半不同的照旧合写", async () => {
+  const phrasing = await jiti.import("../src/lib/tcm-therapy-phrasing.ts");
+  assert.equal(phrasing.mergedSameHeadTherapyPhrases("补肾填精，滋阴清热，滋阴降火"), "补肾填精，滋阴降火");
+  assert.equal(phrasing.mergedSameHeadTherapyPhrases("补肾填精，滋阴降火，滋阴清热"), "补肾填精，滋阴降火");
+  assert.equal(phrasing.mergedSameHeadTherapyPhrases("活血化瘀，活血祛瘀"), "活血化瘀");
+  assert.equal(phrasing.mergedSameHeadTherapyPhrases("活血化瘀，活血行气"), "活血化瘀行气");
+  assert.equal(phrasing.mergedSameHeadTherapyPhrases("健脾和胃，健脾益气"), "健脾益气和胃");
+  assert.equal(phrasing.mergedSameHeadTherapyPhrases("清热解毒，清热利湿"), "清热解毒利湿");
+  // 对象相同但不是两个祛除动作（凉血与止血）：照旧合写，不丢一项
+  assert.equal(phrasing.mergedSameHeadTherapyPhrases("清热凉血，清热止血"), "清热凉血止血");
 });

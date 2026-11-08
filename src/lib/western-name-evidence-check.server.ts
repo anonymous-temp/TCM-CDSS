@@ -564,7 +564,15 @@ export function agreedWesternNameCorrection(
 ): { correction?: WesternNameCorrection; agreement: Exclude<WesternNameAgreement, "off"> } {
   if (!first && !second) return { agreement: "none" };
   if (!first || !second) return { agreement: "one_only" };
-  if (first.type !== second.type) return { agreement: "type_differs" };
+  // 2026-11-08 第三十七轮（甲方 11.05 病历11「妊娠剧吐」）：两次都改成同一个名称、只是理由类别一次判 C 一次判 D 时，
+  // 结论（改成哪个名）是一致的，按一致处理；类别取 D（「尚缺依据」比「记录相反」弱，行文保留「考虑原名可能」）。
+  // 名称不同且类别不同，仍算不一致；宽窄合并仍只给两次都是 D 的情形。
+  if (first.type !== second.type) {
+    if (compact(first.supportedName) !== compact(second.supportedName)) return { agreement: "type_differs" };
+    const weaker = first.type === "D" ? first : second.type === "D" ? second : first;
+    const other = weaker === first ? second : first;
+    return agreedWesternNameCorrection(weaker, { ...other, type: weaker.type });
+  }
   let supportedName = first.supportedName;
   let merged = false;
   if (compact(first.supportedName) !== compact(second.supportedName)) {

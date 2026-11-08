@@ -174,6 +174,15 @@ for (const entry of governedFormulaCompilationRows) {
   governedFormulaCompilationCandidatesByNormalizedName.set(key, candidates);
 }
 
+// 校勘渠道补收、但同名异方多而不给方名锁定的条目（菟丝子散《太平圣惠方》卷五十八）：不进编译与锁定，只在教材代表方找出处时用
+//（textbookFormulaOriginalSource）。2026-11-08 第三十七轮，甲方 11.05 病历13「方剂出处《中医儿科学》？？」。
+const reviewedNonLockableFormulaRows = new Map<string, GovernedFormulaCompilationRow[]>();
+for (const entry of governedFormulaCatalogJson.entries as ReadonlyArray<GovernedFormulaCompilationRow & { collationRetrievalAllowed?: boolean }>) {
+  if (entry.identityLockEligible || entry.collationRetrievalAllowed !== true) continue;
+  const key = normalizeFormulaName(entry.name);
+  reviewedNonLockableFormulaRows.set(key, [...(reviewedNonLockableFormulaRows.get(key) || []), entry]);
+}
+
 const GOVERNED_FORMULA_NAMES = new Set([
   ...Object.keys(catalog.officialClassicFormulas),
   ...Object.keys(catalog.formulas),
@@ -3012,6 +3021,15 @@ export function textbookFormulaOriginalSource(
     if (official && usable(official.variant.source) && agrees(official.variant.ingredients)) return official.variant.source;
     const reference = formulaCompilationReferences([name])[0];
     if (reference && usable(reference.source) && agrees(reference.ingredients)) return reference.source;
+    // 校勘补收的不可锁定条目：教材组成成形时与它共两味；合方行（组成是并集）时它的药除一味外都在并集里（鸡内金这类佐药教材常不列）。
+    if (index === 0 && wanted.size >= 3) {
+      const reviewed = (reviewedNonLockableFormulaRows.get(name) || []).filter((entry) => {
+        const ids = identities(entry.ingredients);
+        if (ids.size < 3) return false;
+        return options.compositionIsUnion ? [...ids].filter((id) => wanted.has(id)).length >= ids.size - 1 : agrees(entry.ingredients);
+      });
+      if (reviewed.length === 1) return reviewed[0].source;
+    }
     if (!judged) continue;
     const exact = catalogSourceForExactComposition(name, textbookComposition);
     if (exact) return exact;

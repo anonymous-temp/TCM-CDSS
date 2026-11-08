@@ -651,11 +651,19 @@ const NO_SEPARATE_SECONDARY = anyOf(secondaryStructureJson.noSeparateSecondaryPh
  *   · 主证已经包含：兼证去掉「证」字后是主证名的一部分，或阴虚主证下的「虚热/虚火」、阳虚主证下的「虚寒」。
  * 证名词是封闭的病性字样（不靠模型），与辨证要点核对（verifySecondaryByCriteria）互不替代：这里只拦结构上自相矛盾或重复的。
  */
-export function secondaryStructurallyInvalid(primary: string, secondary: string, rationaleText = ""): "cold_heat_conflict" | "entailed_by_primary" | "declared_not_independent" | "not_a_syndrome" | undefined {
+export function secondaryStructurallyInvalid(primary: string, secondary: string, rationaleText = "", disease = ""): "cold_heat_conflict" | "entailed_by_primary" | "declared_not_independent" | "not_a_syndrome" | "sibling_textbook_type" | undefined {
   const p = compact(primary).replace(/证$/u, "");
   const sRaw = compact(secondary);
   const s = sRaw.replace(/证$/u, "");
   if (!p || !s) return undefined;
+  // 兼证是同一教材病下与主证并列的另一型（乳蛾：风热外袭证与肺胃热盛证是轻重两型）：教材分型是互为替代的，一主一兼等于两型并存
+  //（2026-11-08 第三十七轮，甲方 11.05 病历2 复测）。教材专设的「兼证」组（感冒夹湿、夹暑这类）不在此列。
+  if (disease) {
+    const primaryRow = textbookRowForSyndrome(disease, primary);
+    const secondaryRow = textbookRowForSyndrome(disease, secondary);
+    if (primaryRow && secondaryRow && primaryRow !== secondaryRow &&
+      !/兼|夹/u.test(String(secondaryRow.group || ""))) return "sibling_textbook_type";
+  }
   // 兼证栏写的是病名不是证（第三十三轮：便秘·阴虚秘兼「月经先期」）：别的病由鉴别或加减说，不是证候。
   if (!sRaw.endsWith("证") && isTextbookDiseaseName(s)) return "not_a_syndrome";
   // 依据自己一句说没有独立的兼证（「属兼湿而非独立兼证」，第三十六轮甲方 11/2），不点名也算：兼证栏写的就是它。
@@ -695,10 +703,10 @@ export function secondaryStructurallyInvalid(primary: string, secondary: string,
 export function structurallyAdmissibleSecondaryDecision(
   decision: SecondaryConsistencyDecision | undefined,
   claimDecision: SecondaryConsistencyDecision | undefined,
-  context: { primarySyndrome: string; rationale: string; pathogenesis: string; claims: readonly string[] },
+  context: { primarySyndrome: string; rationale: string; pathogenesis: string; claims: readonly string[]; disease?: string },
 ): { decision: SecondaryConsistencyDecision | undefined; rejected?: ReturnType<typeof secondaryStructurallyInvalid> } {
   if (decision?.decision !== "add") return { decision };
-  const rejected = secondaryStructurallyInvalid(context.primarySyndrome, decision.secondarySyndrome, `${context.rationale}${context.pathogenesis}`);
+  const rejected = secondaryStructurallyInvalid(context.primarySyndrome, decision.secondarySyndrome, `${context.rationale}${context.pathogenesis}`, context.disease);
   if (!rejected) return { decision };
   const removable = context.claims.filter((clause) => secondaryPatternClaims(clause).length > 0 || declaresSecondaryMechanism(clause));
   return {
@@ -804,7 +812,7 @@ export async function reconcileSecondarySyndromes(
     let structural = 0;
     const structuralReasons: string[] = [];
     for (const name of secondary) {
-      const reason = secondaryStructurallyInvalid(primarySyndrome, text(name), `${rationale}${pathogenesis}`);
+      const reason = secondaryStructurallyInvalid(primarySyndrome, text(name), `${rationale}${pathogenesis}`, text(overview.tcmDiseaseName));
       if (reason && withdrawSecondarySyndrome(root, text(name), textbookRow?.therapy || "")) {
         structural += 1;
         structuralReasons.push(reason);
@@ -850,7 +858,7 @@ export async function reconcileSecondarySyndromes(
       : Promise.resolve(undefined),
   ]);
   let decision: SecondaryConsistencyDecision | undefined = claimDecision?.decision === "add" ? claimDecision : groupDecision || claimDecision;
-  const structural = structurallyAdmissibleSecondaryDecision(decision, claimDecision, { primarySyndrome, rationale, pathogenesis, claims });
+  const structural = structurallyAdmissibleSecondaryDecision(decision, claimDecision, { primarySyndrome, rationale, pathogenesis, claims, disease: text(overview.tcmDiseaseName) });
   decision = structural.decision;
   const structurallyInvalidAddition = structural.rejected;
   // 立之前按辨证要点核一遍（两条路同一判据）。不够数：依据里自称兼夹的那几句删掉（第一条路原本的「删说法」），否则不动。

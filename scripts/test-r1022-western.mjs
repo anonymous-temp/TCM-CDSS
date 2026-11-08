@@ -17,7 +17,7 @@
 //
 // 反证（原地改一个字符串，记录追加到 ~/runlogs/r1018/work/r1022/counterproofs.txt，前缀 10/west）：
 //   1.2/2.2 把 one_only 分支改成 correction: first ?? second ⇒ 变红
-//   1.3/2.4 删掉类型比较 ⇒ 变红
+//   1.3/2.4 删掉类型比较 ⇒ 变红（11/08：名称相同时按一致；改回「类型不同即不一致」⇒ 1.3/2.4 变红）
 //   1.4/2.3 删掉名称比较 ⇒ 变红
 //   1.6/1.7/2.6 weakerCommonWesternName 恒返回 undefined ⇒ 变红；取较长的核心名（而不是较短的）⇒ 1.6 变红
 //   2.1/3.x agreementRequired 恒为 false ⇒ 2.2 变红（单次时只看第一次）
@@ -83,9 +83,21 @@ const corr = (extra = {}) => ({ supportedName: "消化不良待查", quote: "餐
     assert.deepEqual(agreed(undefined, corr()), { agreement: "one_only" });
     assert.deepEqual(agreed(undefined, undefined), { agreement: "none" });
   });
-  await check("1.3 类型不同（同一名称）：不改名，标 type_differs", () => {
-    assert.deepEqual(agreed(corr({ type: "D" }), corr({ type: "C" })), { agreement: "type_differs" });
-    assert.deepEqual(agreed(corr({ type: "A" }), corr({ type: "B" })), { agreement: "type_differs" });
+  await check("1.3 类型不同：名称也不同则不改名（type_differs）；名称相同则按一致处理，类别取 D、无 D 时取第一次（11/08 改：结论一致即一致）", () => {
+    assert.deepEqual(agreed(corr({ type: "D", supportedName: "消化不良待查" }), corr({ type: "C", supportedName: "上腹痛待查" })), { agreement: "type_differs" });
+    assert.deepEqual(agreed(corr({ type: "A", supportedName: "关节痛待查" }), corr({ type: "B", supportedName: "关节炎" })), { agreement: "type_differs" });
+    const cd = agreed(corr({ type: "C", supportedName: "妊娠呕吐", quote: "第一次" }), corr({ type: "D", supportedName: "妊娠呕吐", quote: "第二次", missingTest: "尿酮体" }));
+    assert.equal(cd.agreement, "agreed");
+    assert.equal(cd.correction?.type, "D");
+    assert.equal(cd.correction?.supportedName, "妊娠呕吐");
+    assert.equal(cd.correction?.missingTest, "尿酮体");
+    const dc = agreed(corr({ type: "D", supportedName: "妊娠呕吐", quote: "第一次" }), corr({ type: "C", supportedName: "妊娠呕吐", quote: "第二次" }));
+    assert.equal(dc.correction?.type, "D");
+    assert.equal(dc.correction?.quote, "第一次");
+    const ab = agreed(corr({ type: "A", supportedName: "关节痛待查", quote: "第一次" }), corr({ type: "B", supportedName: "关节痛待查", quote: "第二次" }));
+    assert.equal(ab.agreement, "agreed");
+    assert.equal(ab.correction?.type, "A");
+    assert.equal(ab.correction?.quote, "第一次");
   });
   await check("1.4 名称不同（同一类型）：不改名，标 name_differs（含「X待查」与「Y待查」）", () => {
     assert.deepEqual(agreed(corr({ supportedName: "消化不良待查" }), corr({ supportedName: "上腹痛待查" })), { agreement: "name_differs" });
@@ -210,8 +222,14 @@ const corr = (extra = {}) => ({ supportedName: "消化不良待查", quote: "餐
         delete process.env.CDSS_WESTERN_NAME_CHECK_NAME_MERGE;
       }
     });
-    await check("2.4 名称相同但类型不同（D 与 C）：不改名", async () => {
+    await check("2.4 名称相同但类型不同（D 与 C）：按一致改名（11/08 改）；红旗病例按 D 的口径不采信；名称也不同则不改", async () => {
       answerByOrder(dyspepsia(), dyspepsia({ type: "C", reason: "指标只够较轻一层" }));
+      assert.equal(nameOf(await align("功能性消化不良")), "消化不良待查");
+      answerByOrder(dyspepsia({ type: "C", reason: "指标只够较轻一层" }), dyspepsia());
+      assert.equal(nameOf(await align("功能性消化不良")), "消化不良待查");
+      answerByOrder(dyspepsia(), dyspepsia({ type: "C", reason: "指标只够较轻一层" }));
+      assert.equal(nameOf(await align("功能性消化不良", { redFlag: true })), "功能性消化不良");
+      answerByOrder(dyspepsia(), dyspepsia({ type: "C", reason: "指标只够较轻一层", supportedName: "上腹痛待查" }));
       assert.equal(nameOf(await align("功能性消化不良")), "功能性消化不良");
     });
     await check("2.5 红旗病例的既有口径不变：两次一致的 D 不采信；两次一致的 A（病历记录与病名相反）照常采信", async () => {

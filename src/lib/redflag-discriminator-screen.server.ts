@@ -39,7 +39,16 @@ const DEFINITIONS = (() => {
   return map;
 })();
 
-const QUOTE_ANCHORS = new Map(Object.entries((source as { quoteAnchors?: { byConcept?: Record<string, string[]> } }).quoteAnchors?.byConcept || {}));
+type QuoteAnchorSource = { byConcept?: Record<string, string[]>; weakAnchors?: Record<string, string[]>; fatigueFraming?: string[] };
+const QUOTE_ANCHOR_SOURCE = ((source as { quoteAnchors?: QuoteAnchorSource }).quoteAnchors || {}) as QuoteAnchorSource;
+const QUOTE_ANCHORS = new Map(Object.entries(QUOTE_ANCHOR_SOURCE.byConcept || {}));
+const WEAK_ANCHORS = new Map(Object.entries(QUOTE_ANCHOR_SOURCE.weakAnchors || {}));
+const FATIGUE_FRAMING = QUOTE_ANCHOR_SOURCE.fatigueFraming || [];
+/** 引文里写的体温读数（℃）；没有返回 undefined。 */
+function quotedTemperature(quote: string): number | undefined {
+  const match = quote.normalize("NFKC").match(/(\d{2}(?:\.\d)?)\s*(?:℃|°C|度)/u);
+  return match ? Number(match[1]) : undefined;
+}
 const NEGATION_INTRINSIC = new Set((source as { negationIntrinsicConcepts?: { conceptIds?: string[] } }).negationIntrinsicConcepts?.conceptIds || []);
 
 export function buildRedflagDiscriminatorRequest(recordText: string, patient: DiscriminatorPatient): {
@@ -104,6 +113,14 @@ export function parseRedflagDiscriminatorScreen(content: unknown, concepts: read
     // 界限能落在字面上的判别项（源表 quoteAnchors）：引文须出现规定字样之一。
     const anchors = QUOTE_ANCHORS.get(conceptId);
     if (anchors && !anchors.some((anchor) => aligned.span.includes(anchor))) continue;
+    // 只靠弱字样（嗜睡）成立、而引文是疲乏写法（神疲嗜睡）时不采信；体温读数正常的「发热」引文不采信（源表 quoteAnchors 说明，第三十七轮）。
+    const weak = WEAK_ANCHORS.get(conceptId) || [];
+    if (anchors && weak.length > 0 && !anchors.some((anchor) => !weak.includes(anchor) && aligned.span.includes(anchor)) &&
+      FATIGUE_FRAMING.some((word) => aligned.span.includes(word))) continue;
+    if (conceptId === "ctx-fever") {
+      const temperature = quotedTemperature(aligned.span);
+      if (temperature !== undefined && temperature < 37.3) continue;
+    }
     const polarity = clauseLocalMentionPolarityAt(recordText, Math.max(aligned.start, aligned.end - 1));
     if (polarity === "excluded" || (polarity === "negated" && !absenceFinding)) continue;
     if (!absenceFinding && !quoteHasCurrentOccurrence(recordText, aligned.span)) continue;

@@ -97,6 +97,15 @@ export function conditionMentionsRecordedFinding(trigger: string, recordText: st
 }
 
 /** 交付前去掉复核确认不该留的行。 */
+/**
+ * 哪类发现要两次提名都说到才去问复核。「药管不到这个症」比「条件与病历相反」更看读法：两次都这么说才问
+ *（第三十五轮：病历有大便干，「大便秘结→玄参」因一次提名被删）。「与本例无关」一次提名加另一厂商复核即可
+ *（两次都要提名时，第二次草草全答 ok 就把甲方点名的「若寒湿凝滞腹痛」留下了，第三十七轮实测）。
+ */
+export function modificationFindingNeedsBothSamples(finding: { verdict: string }): boolean {
+  return finding.verdict === "misfit";
+}
+
 export async function dropMisfitModifications(content: string, context: { recordText: string }, signal?: AbortSignal): Promise<string> {
   if (!modificationFitEnabled()) return content;
   const start = content.indexOf(START_MARKER);
@@ -127,8 +136,7 @@ export async function dropMisfitModifications(content: string, context: { record
     maxTokens: 90,
     parse: parseConfirmed,
   } : undefined, rows.length, TIMEOUT_MS, signal, {
-    // 「药管不到这个症」比「条件与病历相反」更看读法：两次提名都这么说才去问复核（第三十五轮：病历有大便干，「大便秘结→玄参」因一次提名被删）。
-    needsBothSamples: (finding) => finding.verdict === "misfit" || finding.verdict === "unrelated",
+    needsBothSamples: modificationFindingNeedsBothSamples,
   });
   if (findings.length === 0) return content;
   const contradicted = new Set(findings.filter((finding) => finding.verdict === "contradicts" || finding.verdict === "unrelated").map((finding) => finding.line));
