@@ -5,6 +5,9 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { textbookDiseaseDefinition } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
+import { chiefComplaintLeadSegment } from "./history-stated-textbook-disease";
+
+export { chiefComplaintLeadSegment };
 
 /**
  * 中医病名是否解释了本次就诊原因（2026-10-25 第十九轮）。
@@ -63,16 +66,6 @@ export interface VisitReasonInput {
   /** 闭集选病的结果（按它给出的先后）。 */
   picks: readonly string[];
   ageYears?: number;
-}
-
-/**
- * 主诉的主段：第一个「伴/伴有/兼/兼有/合并」或括号之前的部分（构词式闭集）。「发热2天，伴腹胀、纳差」→「发热2天，」；
- *「感冒后发热2周（伴自幼遗尿）」→「感冒后发热2周」；没有这些连接时是整条主诉。
- */
-export function chiefComplaintLeadSegment(chiefComplaint: string): string {
-  const text = compact(chiefComplaint);
-  const at = text.search(/[（(]|伴有?|兼有?|合并/u);
-  return at > 0 ? text.slice(0, at) : text;
 }
 
 /**

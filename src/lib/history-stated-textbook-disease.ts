@@ -38,12 +38,17 @@ export interface HistoryStatedDiseaseInput {
 
 const compact = (value: string) => value.normalize("NFKC").replace(/\s+/g, "");
 
-/** 主诉主段：第一个「伴/兼/合并」或括号之前（与 m03-visit-reason-check 的 chiefComplaintLeadSegment 同一写法；那个模块是 server-only）。 */
-function chiefLead(chiefComplaint: string): string {
+/**
+ * 主诉的主段：第一个「伴/伴有/兼/兼有/合并」或括号之前的部分（构词式闭集）。「发热2天，伴腹胀、纳差」→「发热2天，」；
+ *「感冒后发热2周（伴自幼遗尿）」→「感冒后发热2周」；没有这些连接时是整条主诉。
+ * 病名须解释就诊原因（m03-visit-reason-check）、西医病名就诊原因核对与这里共用这一处（第三十八轮前那两处各写一份）。
+ */
+export function chiefComplaintLeadSegment(chiefComplaint: string): string {
   const text = compact(chiefComplaint);
   const at = text.search(/[（(]|伴有?|兼有?|合并/u);
   return at > 0 ? text.slice(0, at) : text;
 }
+const chiefLead = chiefComplaintLeadSegment;
 
 /**
  * 主诉第一个症状分句里的两字片段，按出现先后：去掉时程、数字与「反复/加重/发作」一类病程词后的连续汉字两两相邻
