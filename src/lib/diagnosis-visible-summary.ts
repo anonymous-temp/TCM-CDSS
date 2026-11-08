@@ -2983,7 +2983,10 @@ export function groundStructuredPatientFacts(
       if (pathogenesisText !== node.pathogenesis || therapyText !== node.therapyDirection) trimmedHedges += 1;
       if (!clinicalContext) return [{ ...node, pathogenesis: pathogenesisText, therapyDirection: therapyText }];
       // 患者事实只取一段原文（合同要求逐字是病历的一句）；证候依据可以是几段（舌、脉各一段），以「；」连接。
-      const patientFactQuote = stripClinicalTransportPrefix(exactClinicalSourceQuotes(node.patientFact, clinicalContext)[0] || "");
+      // 几段连起来本身就是病历原文（「晨起疲乏；食欲欠佳；大便溏薄」）时整段保留；不连续时只取第一段。
+      const factPieces = exactClinicalSourceQuotes(node.patientFact, clinicalContext);
+      const joinedFact = factPieces.join("；");
+      const patientFactQuote = stripClinicalTransportPrefix(factPieces.length > 1 && clinicalContext.includes(joinedFact) ? joinedFact : factPieces[0] || "");
       const syndromeEvidenceQuote = typeof node.syndromeEvidence === "string"
         ? exactClinicalSourceQuotes(node.syndromeEvidence, clinicalContext)
           .map((quote) => stripClinicalTransportPrefix(quote)).filter(Boolean).join("；")
