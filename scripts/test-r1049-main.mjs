@@ -433,3 +433,24 @@ await check("15.2 寒热病性的依据维度认得畏寒、肢冷、五心烦�
   const tongueOnly = { ...resolvedCold, basis: "舌淡，苔白" };
   assert.equal(natureOut(natureCase(tongueOnly), visible.applyM03AdvisoryQualityBoundaries, coldRecord).resolution, "bounded");
 });
+
+// ───── 16 名称核对：一次 C 一次 D 时按两次原本给的名称比 ─────
+await check("16.1 妊娠剧吐：C 给「妊娠期恶心呕吐」、D 给的同名被 D 的改名规则换成「妊娠剧吐待查」——按原本给的名称比，一致；同一病的两种写法（妊娠呕吐/妊娠期恶心呕吐）按规范写法归一；交付名称是规范写法，类别记 D", async () => {
+  const check = await jiti.import("../src/lib/western-name-evidence-check.server.ts");
+  const record = "主诉：孕8周，恶心、呕吐2周\n现病史：患者孕8周，2周前无明显诱因出现恶心、呕吐，食入即吐，发病以来体重略降，小便正常，大便溏";
+  const parse = (body) => check.parseWesternNameCorrection(JSON.stringify(body), record, "妊娠剧吐", { patientAge: 28 });
+  const c = parse({ verdict: "inconsistent", type: "C", quote: "发病以来体重略降", reason: "仅体重略降，无脱水、酮症记录，程度不足", supportedName: "妊娠期恶心呕吐", decisive: "", meetsCriteria: false });
+  const d = parse({ verdict: "inconsistent", type: "D", quote: "孕8周，恶心、呕吐2周", reason: "无尿酮体、电解质结果，未达剧吐程度", supportedName: "妊娠期恶心呕吐", missingTest: "尿酮体", decisive: "", meetsCriteria: false });
+  assert.equal(d.supportedName, "妊娠剧吐待查");
+  assert.equal(d.proposedName, "妊娠期恶心呕吐");
+  const agreed = check.agreedWesternNameCorrection(c, d);
+  assert.equal(agreed.agreement, "agreed");
+  assert.equal(agreed.correction.supportedName, "妊娠呕吐");
+  assert.equal(agreed.correction.type, "D");
+  assert.equal(agreed.correction.proposedName, undefined);
+  const cShort = parse({ verdict: "inconsistent", type: "C", quote: "发病以来体重略降", reason: "仅体重略降，无脱水、酮症记录，程度不足", supportedName: "妊娠呕吐", decisive: "", meetsCriteria: false });
+  assert.equal(check.agreedWesternNameCorrection(cShort, d).correction?.supportedName, "妊娠呕吐");
+  // 原本给的名称不同（另一个病）仍不一致
+  const other = parse({ verdict: "inconsistent", type: "C", quote: "发病以来体重略降", reason: "仅体重略降，无脱水、酮症记录，程度不足", supportedName: "急性胃肠炎", decisive: "", meetsCriteria: false });
+  assert.equal(check.agreedWesternNameCorrection(other, d).agreement, "type_differs");
+});

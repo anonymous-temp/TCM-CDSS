@@ -1,4 +1,5 @@
 import "server-only";
+import westernNamePreferred from "../data/western-name-preferred.source.json" with { type: "json" };
 
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
@@ -68,6 +69,11 @@ export type WesternNameCorrection = {
   adoptedFromList?: true;
   /** D 类：核对给出的缺失检查或病程（只在合规时出现），写进原病名那条鉴别的「建议核实」。 */
   missingTest?: string;
+  /**
+   * D 类：核对原本给的名称被 D 的改名规则换掉时（只许同一病往宽处说，「妊娠期恶心呕吐」不是「妊娠剧吐」的上一级 → 「妊娠剧吐待查」），
+   * 记下原本给的名称（只在与 supportedName 不同时出现）。两次核对一次 C、一次 D 时据它判两次是否给了同一个名称（agreedWesternNameCorrection）。
+   */
+  proposedName?: string;
   /**
    * D 类、缺的是病程（只在为真时出现）：unmet 病历记录的病程没满门槛；far_below 不到门槛的四分之一（5 天对 6 个月），这时原病名
    * 不再留在候选与鉴别里——急性起病几天的便秘列「功能性便秘」作鉴别，复核判不切实际（2026-10-19 留出例 S055、甲方病历 4）。
@@ -365,6 +371,7 @@ export function parseWesternNameCorrection(
     ...(emergencyName === true ? { currentIsEmergency: true as const } : {}),
     ...(adoptedFromList && !bareSymptom ? { adoptedFromList: true as const } : {}),
     ...(type === "D" && typeof missingTest === "string" && isCleanMissingTest(missingTest) ? { missingTest: missingTest.trim() } : {}),
+    ...(type === "D" && compact(supported) !== compact(name) ? { proposedName: name } : {}),
     ...(course ? { course } : {}),
     ...(course && courseNextCheck ? { courseNextCheck } : {}),
   };
@@ -558,6 +565,14 @@ export function weakerCommonWesternName(first: string, second: string): string |
  * 取第一次的引文、理由与缺失检查；其余字段取保守的一侧：
  * 任一次说原名属急危重症则按急危重症处理（红旗病例上因此不被改写）；病程远不到门槛只有两次都这么说才删原病名，否则按“未满”。
  */
+const PREFERRED_WESTERN_NAMES = (westernNamePreferred as { names: Record<string, string> }).names;
+/** 同一病的两种写法按受治理的规范写法归一（western-name-preferred.source.json；交付时 western-name-standard 用同一张表）。 */
+function preferredWesternNameForm(name: string): string {
+  const bare = name.replace(/待查$/u, "");
+  const preferred = PREFERRED_WESTERN_NAMES[bare];
+  return preferred ? `${preferred}${/待查$/u.test(name) ? "待查" : ""}` : name;
+}
+
 export function agreedWesternNameCorrection(
   first: WesternNameCorrection | undefined,
   second: WesternNameCorrection | undefined,
@@ -568,10 +583,16 @@ export function agreedWesternNameCorrection(
   // 结论（改成哪个名）是一致的，按一致处理；类别取 D（「尚缺依据」比「记录相反」弱，行文保留「考虑原名可能」）。
   // 名称不同且类别不同，仍算不一致；宽窄合并仍只给两次都是 D 的情形。
   if (first.type !== second.type) {
-    if (compact(first.supportedName) !== compact(second.supportedName)) return { agreement: "type_differs" };
+    // 比的是两次原本给的名称：D 的改名规则会把「妊娠期恶心呕吐」换成「妊娠剧吐待查」，而轻一层的名称正是 C 允许的写法。
+    // 一致时交付这个名称，类别仍记 D（红旗病例按 D 的口径不采信，heldOnRedFlag）。
+    const proposed = (item: WesternNameCorrection) => compact(preferredWesternNameForm(item.proposedName || item.supportedName));
+    if (proposed(first) !== proposed(second)) return { agreement: "type_differs" };
     const weaker = first.type === "D" ? first : second.type === "D" ? second : first;
     const other = weaker === first ? second : first;
-    return agreedWesternNameCorrection(weaker, { ...other, type: weaker.type });
+    const supportedName = preferredWesternNameForm(weaker.type === "D" && weaker.proposedName ? other.supportedName : weaker.supportedName);
+    const { proposedName: _proposed, ...weakerRest } = weaker;
+    void _proposed;
+    return agreedWesternNameCorrection({ ...weakerRest, supportedName }, { ...other, type: weaker.type, supportedName });
   }
   let supportedName = first.supportedName;
   let merged = false;
