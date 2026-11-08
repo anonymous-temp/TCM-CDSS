@@ -130,6 +130,11 @@ await check("3.2 不改：症状病历写到过的、「之」后是表现/象�
   assert.equal(summary.unrecordedNegativesAsNotReported("无积滞之象。", record12), "无积滞之象。");
   // 「之」后是「表现」的交给原有那条（改成「未诉积滞之表现」），这条不改写成「未诉表现等积滞表现」
   assert.equal(summary.unrecordedNegativesAsNotReported("无积滞之表现。", record12), "未诉积滞之表现。");
+  const bare = "主诉：食欲减退1月。舌淡红，苔薄白，脉无力";
+  assert.equal(summary.unrecordedNegativesAsNotReported("无积滞之表现。", bare), "未诉积滞之表现。");
+  // 推断句：同一分句里「示…」之后的「无X之Y」是判断，不是本例阴性
+  assert.equal(summary.unrecordedNegativesAsNotReported("舌淡示脾虚而无积滞之脘腹胀满。", bare), "舌淡示脾虚而无积滞之脘腹胀满。");
+  assert.equal(summary.unrecordedNegativesAsNotReported("脾虚而无积滞之脘腹胀满。", bare), "脾虚而未诉脘腹胀满等积滞表现。");
   assert.equal(summary.unrecordedNegativesAsNotReported("示无积滞之腹胀。", record12), "示无积滞之腹胀。");
   assert.equal(summary.unrecordedNegativesAsNotReported("与积滞相区分：积滞无脾虚之神疲乏力。", record12), "与积滞相区分：积滞无脾虚之神疲乏力。");
   // 「之」后是病名、「之」前不是病名或病机：写的是那个病（第十九轮 H 集「无矢气之肠结」）
@@ -176,6 +181,8 @@ await check("4.3 舌脉判据：「脉象：弦」「少苔」算记录；「脉
   assert.equal(summary.recordHasTongueAndPulse("舌红少苔，脉象：弦细"), true);
   assert.equal(summary.recordHasTongueAndPulse("舌淡红，苔薄白，脉象难配合"), false);
   assert.equal(summary.recordHasTongueAndPulse("舌淡红，苔薄白"), false);
+  // 舌质写明未查、只记了苔：不算舌脉齐全
+  assert.equal(summary.recordHasTongueAndPulse("舌质未查，苔薄黄，脉弦"), false);
 });
 
 // ───── 5 主证已含的兼证（甲方 11.05 病历4：肾精亏损证兼阴虚火旺证）─────
