@@ -1108,8 +1108,8 @@ export function modificationConditionOutsidePopulation(trigger: string, caseStat
  * 该味在知识库里归安神药类、是佐或使、不在所称方剂的目录组成里，且已签名的证名与病名都不涉心、神、寐、悸、郁。
  * 去掉后方义里讲这味药的小句由方义核对按「方外之药」删去；剩不到三味时原样保留。
  */
-export function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2, recordText = "", chiefComplaint = ""): M04Proposal["candidate"]["herbs"] {
-  if (signedScopeInvolvesMind(prior) || mindSymptomsProminentInRecord(recordText, chiefComplaint)) return candidate.herbs;
+export function withoutIncidentalSedatives(candidate: M04Proposal["candidate"], prior: ClinicalReasoningResultV2, recordText = "", chiefComplaint = "", presentHistory = ""): M04Proposal["candidate"]["herbs"] {
+  if (signedScopeInvolvesMind(prior) || mindSymptomsProminentInRecord(recordText, chiefComplaint, presentHistory)) return candidate.herbs;
   const baseName = String(candidate.name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
   // 合方（「菟丝子散合桑螵蛸散加减」）按每一张组成方的组成算，辨证阶段推荐的方向与教材这一行的组成也算
   //（2026-11-08 第三十七轮，甲方 11.05 病历13：整名查不到目录，桑螵蛸散的远志、煅龙骨被当成顺带安神药去掉，方名随后只剩「菟丝子散加减」）。
@@ -2037,8 +2037,9 @@ export function modificationTargetPathogenesis(
   if (trunk && !/^若/u.test(item.trigger.trim()) && overlaps(item.trigger, nodeOwnText)) {
     return trunk.length <= 40 ? trunk : trunk.split(/[，,]/)[0];
   }
-  // 触发条件本身以「若」「兼见」「如」开头时先去掉，否则写成「兼见若兼见心悸怔忡」（2026-10-17 留出集独立评审，教材加减条件原样带「若」）。
-  const trigger = item.trigger.replace(/^[^：:]{1,8}[：:]/, "").trim().replace(/^(?:若|如|兼见|伴见|兼|伴)+/u, "").trim().slice(0, 20);
+  // 触发条件本身以「若」「兼见」「如」开头时先去掉，否则写成「兼见若兼见心悸怔忡」（2026-10-17 留出集独立评审，教材加减条件原样带「若」）；
+  // 「若见…」去掉「若」后剩的「见」也去掉（第三十八轮甲方病历3 复测：「兼见见神疲乏力」）。
+  const trigger = item.trigger.replace(/^[^：:]{1,8}[：:]/, "").trim().replace(/^(?:若见|如见|兼见|伴见|若|如|兼|伴|见|出现)+/u, "").trim().slice(0, 20);
   return trigger ? `兼见${trigger}` : (trunk || item.targetRef);
 }
 
@@ -2245,7 +2246,9 @@ function withAnalysisConsistentCandidate(
     )
     : candidate.formulaAnalysis;
   const aligned = { ...candidate, herbs, ...(analysis ? { formulaAnalysis: editedAnalysis } : {}) };
-  return { ...aligned, herbs: withoutIncidentalSedatives(aligned, prior, caseState ? clinicalGroundingText(caseState) : "", caseState?.chiefComplaint || "") };
+  const presentHistory = [caseState?.hisRecord?.fields?.xianbingshi, caseState?.symptoms?.presentHistory, (caseState?.symptoms as Record<string, unknown> | undefined)?.["现病史"]]
+    .find((value): value is string => typeof value === "string" && Boolean(value.trim())) || "";
+  return { ...aligned, herbs: withoutIncidentalSedatives(aligned, prior, caseState ? clinicalGroundingText(caseState) : "", caseState?.chiefComplaint || "", presentHistory) };
 }
 
 /**

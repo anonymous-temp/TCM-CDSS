@@ -1,7 +1,7 @@
 import "server-only";
 
 import { parseConfirmed, proposeTwiceThenVerifyAll } from "./cross-model-small-task.server";
-import { herbClaimReferenceText, herbPropertyReferenceText } from "./m04-formula-analysis-claim-check.server";
+import { herbCautionReferenceText, herbClaimReferenceText, herbPropertyReferenceText } from "./m04-formula-analysis-claim-check.server";
 import { distinctModificationConditions, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
 import { quoteGroundedInText } from "./verbatim-quote";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
@@ -12,11 +12,13 @@ const MECHANISM_HALVES = new Set((modificationRelevance as { mechanismHalvesNotF
 /**
  * 随证加减每一行与本例对不对得上（2026-10-31 起；第三十三轮扩到教材条目和条件与病历的关系）。
  * 条件与病历相反，规则判不完：舌脉那几个维度之外，便溏对大便干结、口不渴对口渴、痰白对痰黄、多食对食少都要读懂，22 组相反条件字面规则只抓到 6 组；
- * 药对不对症按功效字面比对错删居多（离线 563 张处方）。一个模型逐行列两次判断取并集（教材本证条目只判条件，模型自写的和借别的病的行连药一起判），每条由另一厂商的模型只对被点名的那一行答对错，说对才删。条件相反的一定删；药不对症的只在删后还剩至少两行时删，免得加减一栏被删空。
+ * 药对不对症按功效字面比对错删居多（离线 563 张处方）。一个模型逐行列两次判断取并集（教材本证条目只判条件，模型自写的和借别的病的行连药一起判），每条由另一厂商的模型只对被点名的那一行答对错，说对才删。条件相反的一定删；药不对症的只在删后还剩至少一行时删（之后的补写会补足两个条件），免得加减一栏被删空。
  * 超时、失败按原样交付。开关：CDSS_M04_MODIFICATION_FIT=false。
  */
 const TIMEOUT_MS = 4_000;
-const MIN_ROWS_AFTER_FIT = 2;
+// 药不对症的行删到只剩一行为止（第三十八轮：原为两行。核对之后紧接着有补写 topUpModificationConditions，不足两个条件会补上；
+// 留着两行下限时，甲方标准病历5 的「若气喘加炙麻黄」两次提名、复核都确认不对症，却因为加减只有两行留了下来）。
+const MIN_ROWS_AFTER_FIT = 1;
 const MIN_DISTINCT_CONDITIONS = 2;
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -34,19 +36,20 @@ const SYSTEM = [
   "每行写 verdict：",
   "contradicts：这个条件与病历已记录的情况相反，本例在现在的证候下不会这样（病历便溏对“若大便干结”、舌淡脉弱对“若舌红脉数”、口不渴对“若口渴”、多食易饥对“若食少”）。病历没提到的症状不算相反；quote 摘病历逐字原文。",
   "misfit：只在 kind 为 model 的行判。这味药的主要功效管不到这个症，或与本证方向相反（虚寒证单加苦寒药、阴虚证单加温燥药；实热、火热证为非主诉的次要表现加温性药，如胃热炽盛证「纳差」加焦山楂——property 是《中药学》药性，次要表现由主证病机所致、主方清其病机即可），或这个条件不是本病会出现的变化。不因为有更好的选择就判 misfit。",
+  "caution：两种 kind 都判。每一行先读 caution（《中药学》使用注意原文）：它点名慎用或忌用的某个症状（自汗、盗汗、便溏、失眠、出血…）本例病历写着，就判 caution，不论这一行的条件写的是什么（如麻黄 caution「表虚自汗、阴虚盗汗…慎用」，病历写「自汗」）。只看症状，「内有实热者慎用」这类说的是证候，不算；quote 摘病历里那个症状的逐字原文。",
   "unrelated：两种 kind 都判。条件说的情况与本例已记录的表现都无关——不是本例已有某个症状的加重或演变，也不是主诉主症的变化，而是另一组本例一条相关表现都没有的情况（如胃痛病例「若兼头晕目眩」而病历没有头晕；咳嗽病例「若兼有瘀血」而病历没有任何瘀象）。条件里的症状本例已有（程度不同也算）、或是本例主症常见的加重，不算 unrelated。quote 留空。",
   "ok：其余。",
   "只输出 JSON：{\"rows\":[{\"line\":0,\"verdict\":\"ok\",\"quote\":\"\"}]}",
 ].join("\n");
 
 const VERIFY_SYSTEM = [
-  "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症或与本证方向相反，含实热证为非主诉的次要表现加温性药；unrelated：条件说的情况与本例已记录的表现都无关，既不是已有症状的加重或演变，也不是主诉主症的变化）。",
+  "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症或与本证方向相反，含实热证为非主诉的次要表现加温性药；caution：这味药的使用注意点名慎用或忌用的那个症状，本例病历写着；unrelated：条件说的情况与本例已记录的表现都无关，既不是已有症状的加重或演变，也不是主诉主症的变化）。",
   "只判这一条。理由成立答 true。条件只是病历没提到、或者只是另有更好的药，答 false。",
   "先在 why 里写这条理由依据的病历原文或药的功效（不超过20字），再下结论。",
   "只输出 JSON：{\"why\":\"…\",\"confirmed\":true} 或 {\"why\":\"…\",\"confirmed\":false}",
 ].join("\n");
 
-type Finding = { line: number; verdict: "contradicts" | "misfit" | "unrelated"; quote: string };
+type Finding = { line: number; verdict: "contradicts" | "misfit" | "unrelated" | "caution"; quote: string };
 
 function parse(content: unknown): Finding[] | undefined {
   if (typeof content !== "string" || !content.trim()) return undefined;
@@ -56,7 +59,7 @@ function parse(content: unknown): Finding[] | undefined {
     return list.flatMap((entry) => {
       const row = record(entry);
       const verdict = text(row?.verdict);
-      return row && Number.isInteger(row.line) && (verdict === "contradicts" || verdict === "misfit" || verdict === "unrelated")
+      return row && Number.isInteger(row.line) && (verdict === "contradicts" || verdict === "misfit" || verdict === "unrelated" || verdict === "caution")
         ? [{ line: row.line as number, verdict: verdict as Finding["verdict"], quote: text(row.quote) }]
         : [];
     });
@@ -81,7 +84,21 @@ export function modificationFindingQualifies(finding: Finding, rows: readonly Js
   // 与本例记录无关的条件（第三十七轮甲方 11.05 病历13「随症加减与患者病情无关…偶尔也能遇到根据疾病本身推荐」、病历10「香附、艾叶与患者病症不符」）：
   // 教材条目也判。条件里有本例已记录的症状时不算（「若恶寒甚」之于恶寒）。
   if (finding.verdict === "unrelated") return !conditionMentionsRecordedFinding(text(row.trigger), recordText);
+  // 使用注意点名的症状本例写着（第三十八轮甲方标准病历5：自汗，加减「若气喘加炙麻黄」，麻黄「表虚自汗…慎用」）：摘录要逐字在病历里，
+  // 并且摘录与这味药的使用注意原文共有一个两字词——说的是同一个症状，不是证候层面的「内有实热」。
+  if (finding.verdict === "caution") return cautionNamesRecordedSymptom(herbCautionReferenceText(text(row.herbName)), finding.quote, recordText);
   return Boolean(finding.quote) && quoteGroundedInText(finding.quote, recordText, { minChars: 2 });
+}
+
+/** 使用注意原文与病历摘录共有一个两字词，且摘录逐字在病历里（纯函数，供测试）。 */
+export function cautionNamesRecordedSymptom(caution: string, quote: string, recordText: string): boolean {
+  const cleaned = String(quote || "").trim();
+  if (!caution || cleaned.length < 2 || !quoteGroundedInText(cleaned, recordText, { minChars: 2 })) return false;
+  for (let index = 0; index + 2 <= cleaned.length; index += 1) {
+    const pair = cleaned.slice(index, index + 2);
+    if (/^[\u4e00-\u9fff]{2}$/u.test(pair) && caution.includes(pair)) return true;
+  }
+  return false;
 }
 
 /**
@@ -115,6 +132,7 @@ export function modificationFitRowPayload(row: Record<string, unknown>, line: nu
     herb: text(row.herbName),
     reference: herbClaimReferenceText(text(row.herbName)).slice(0, 160),
     property: herbPropertyReferenceText(text(row.herbName)) || null,
+    caution: herbCautionReferenceText(text(row.herbName)) || null,
   };
 }
 
@@ -151,7 +169,7 @@ export async function dropMisfitModifications(content: string, context: { record
     needsBothSamples: modificationFindingNeedsBothSamples,
   });
   if (findings.length === 0) return content;
-  const contradicted = new Set(findings.filter((finding) => finding.verdict === "contradicts" || finding.verdict === "unrelated").map((finding) => finding.line));
+  const contradicted = new Set(findings.filter((finding) => finding.verdict === "contradicts" || finding.verdict === "unrelated" || finding.verdict === "caution").map((finding) => finding.line));
   const bad = new Set(contradicted);
   for (const finding of findings) {
     if (finding.verdict === "misfit" && rows.length - bad.size > MIN_ROWS_AFTER_FIT) bad.add(finding.line);

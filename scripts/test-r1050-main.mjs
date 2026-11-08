@@ -212,3 +212,37 @@ await check("6.2 不判相反：督脉/赤脉/生脉散不是脉象，「舌苔�
   assert.equal(textbook.modificationConditionTonguePulseConflict("若苔黄腻，加黄芩", "舌红，苔黄，脉滑数"), false);
   assert.equal(textbook.modificationConditionTonguePulseConflict("若脉细", "舌红，苔黄"), false);
 });
+
+// ───── 7 c10 复测发现（第三十八轮验收途中）─────
+const sleep = await jiti.import("../src/lib/incidental-sleep-modification.ts");
+const compiler = await jiti.import("../src/lib/m04-proposal-compiler.ts");
+await check("7.1 睡眠、心神表现只在「伴…」里各提一两项是顺带的（甲方 10.12 点名：标准病历3 血虚头痛加酸枣仁、病历10 血热月经先期加安神药）；写在主诉、写在起病描述里、或有三项以上才算主要表现", () => {
+  const p3 = "两个多月前患者生产后出现头痛，呈隐痛，时发时止，遇疲劳加重，伴头晕、心悸、神疲乏力。发病以来患者神疲、面色少华，食欲下降，睡眠差，小便清长。";
+  const p10 = "近半年来月经周期逐渐缩短，经量增多，色深红，伴心烦易怒、口干欲饮冷、夜寐不宁、晨起口苦。发病以来睡眠欠佳。";
+  const many = "半年前出现月经紊乱，伴烘热面赤、汗出、五心烦热、心悸怔忡、烦躁易怒、失眠多梦及记忆力减退。";
+  const leadEvent = "午餐延迟后突然心悸、出汗、反应迟钝，家属称使用降糖药后未进食。";
+  assert.equal(sleep.mindSymptomsProminentInRecord(`患者年龄：32岁\n患者性别：女\n头痛2+月\n${p3}`, "头痛2+月"), false);
+  assert.equal(sleep.mindSymptomsProminentInRecord(`月经周期缩短半年余\n${p10}`, "月经周期缩短半年余", p10), false);
+  assert.equal(sleep.mindSymptomsProminentInRecord(`月经紊乱伴烘热汗出半年\n${many}`, "月经紊乱伴烘热汗出半年", many), true);
+  assert.equal(sleep.mindSymptomsProminentInRecord(`患者年龄：73岁\n出冷汗、手抖20分钟\n${leadEvent}`, "出冷汗、手抖20分钟"), true);
+  assert.equal(sleep.mindSymptomsProminentInRecord("主诉：失眠3月\n现病史：入睡困难。", "失眠3月"), true);
+  // 有「现病史：」标签时从标签取起病描述
+  assert.equal(sleep.mindSymptomsProminentInRecord(`主诉：头痛2月\n现病史：${p3}`, "头痛2月"), false);
+});
+
+await check("7.2 加减「对应病机」不写成「兼见见神疲乏力」（条件「若见…」去掉「若」后剩的「见」一并去掉）", () => {
+  const out = compiler.modificationTargetPathogenesis({ trigger: "若见神疲乏力，遇劳加重", targetRef: "P1", reason: "" }, { pathogenesis: "营血亏虚，脑失所养", syndromeEvidence: "头痛隐隐" }, (value, fallback) => value || fallback);
+  assert.equal(out, "兼见神疲乏力，遇劳加重");
+  assert.equal(compiler.modificationTargetPathogenesis({ trigger: "若兼见心悸怔忡", targetRef: "P1", reason: "" }, { pathogenesis: "肝郁气滞" }, (value, fallback) => value || fallback), "兼见心悸怔忡");
+});
+
+await check("7.3 使用注意点名的症状本例写着才算（麻黄「表虚自汗…慎用」对病历「自汗」）；证候层面的「内有实热」、病历没有的摘录都不算", () => {
+  const ephedra = claim.herbCautionReferenceText("炙麻黄");
+  assert.match(ephedra, /表虚自汗/u);
+  const record = "平素伴易疲乏、短气自汗、声音低怯，食欲下降。";
+  assert.equal(fit.cautionNamesRecordedSymptom(ephedra, "短气自汗", record), true);
+  assert.equal(fit.cautionNamesRecordedSymptom(ephedra, "声音低怯", record), false);
+  assert.equal(fit.cautionNamesRecordedSymptom(ephedra, "夜间盗汗", record), false);
+  const tangerine = claim.herbCautionReferenceText("陈皮");
+  assert.equal(fit.cautionNamesRecordedSymptom(tangerine, "痰多色黄", "咳嗽，痰多色黄质黏"), false);
+});

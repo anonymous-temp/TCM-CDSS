@@ -35,12 +35,44 @@ const SLEEP_TRIGGER = /眠|寐|夜啼|夜醒|易醒|早醒|多梦|睡/u;
  * 肯定写着两种以上，或写在主诉里。甲方 10.12 点名的是「睡眠差」这样顺带一提的情况，这条不动它。
  */
 const MIND_SYMPTOMS: readonly string[] = ["失眠", "不寐", "多梦", "梦多", "寐浅", "夜寐不宁", "入睡困难", "易醒", "早醒", "夜寐不安", "寐差", "眠差", "心悸", "怔忡", "心慌", "心烦", "健忘"];
-export function mindSymptomsProminentInRecord(recordText: string, chiefComplaint = ""): boolean {
+/**
+ * 同一件事的几种写法算一项（第三十八轮）：睡不好、多梦、心悸、心烦、健忘各是一项。
+ * 「伴…心悸、睡眠差」只是两项伴随表现，甲方 10.12 点名的标准病历 3（血虚头痛加酸枣仁）、病历 10（血热月经先期加安神药）就是这种。
+ */
+const MIND_CONCEPT_OF: Readonly<Record<string, string>> = {
+  失眠: "sleep", 不寐: "sleep", 寐浅: "sleep", 夜寐不宁: "sleep", 入睡困难: "sleep", 易醒: "sleep", 早醒: "sleep", 夜寐不安: "sleep", 寐差: "sleep", 眠差: "sleep",
+  多梦: "dream", 梦多: "dream", 心悸: "palpitation", 怔忡: "palpitation", 心慌: "palpitation", 心烦: "irritability", 健忘: "memory",
+};
+/**
+ * 现病史在第一个「伴」之前的那一段（起病的主要表现）。给了现病史原文就用它；只有病历文本时，有「现病史：」标签从标签取，
+ * 没有标签（clinicalGroundingText 的排法：年龄、性别、主诉各一行，接着是现病史）就跳过年龄、性别与主诉那几行取下一行。
+ */
+function presentHistoryLead(recordText: string, chiefComplaint: string, presentHistory: string): string {
+  let line = presentHistory.trim();
+  if (!line) {
+    const at = recordText.indexOf("现病史");
+    if (at >= 0) line = recordText.slice(at + 3).replace(/^[：:]/u, "").split(/\n/u)[0];
+    else {
+      const chief = chiefComplaint.trim();
+      line = recordText.split(/\n/u).map((item) => item.trim())
+        .find((item) => item && !/^(?:患者年龄|患者性别|主诉)/u.test(item) && item !== chief) || "";
+    }
+  }
+  const cut = line.search(/伴有?|兼有?/u);
+  return cut >= 0 ? line.slice(0, cut) : line;
+}
+/**
+ * 睡眠或心神的表现在本例不是顺带一提（第三十五轮 c25：心悸怔忡、失眠多梦，方中酸枣仁与治法「宁心安神」都被当顺带去掉；
+ * C032、C028：心悸是这次发作本身）。三种情况算：写在主诉里；心悸一类写在现病史「伴」之前的起病描述里；肯定写着三项以上（按上面的分项）。
+ * 第三十五轮的写法是「两种以上，或心悸」——标准病历 3「伴头晕、心悸、神疲乏力…睡眠差」、病历 10「伴心烦易怒…夜寐不宁」都因此算成主要表现，
+ * 甲方点名不该加的安神药又回到了方里（第三十八轮 c10 复测）。
+ */
+export function mindSymptomsProminentInRecord(recordText: string, chiefComplaint = "", presentHistory = ""): boolean {
   const affirmed = (text: string, term: string) => new RegExp(`(?<!否认|[无否未没不])${term}`, "u").test(text);
   if (MIND_SYMPTOMS.some((term) => affirmed(chiefComplaint, term))) return true;
-  // 心悸、怔忡、惊悸不是顺带的睡眠差，安神本来就对着它（第三十五轮 C032、C028：心悸手抖的病人，酸枣仁、龙骨、远志被当顺带删了）。
-  if (["心悸", "怔忡", "惊悸"].some((term) => affirmed(recordText, term))) return true;
-  return MIND_SYMPTOMS.filter((term) => affirmed(recordText, term)).length >= 2;
+  const lead = presentHistoryLead(recordText, chiefComplaint, presentHistory);
+  if (["心悸", "怔忡", "惊悸", "心慌"].some((term) => affirmed(lead, term))) return true;
+  return new Set(MIND_SYMPTOMS.filter((term) => affirmed(recordText, term)).map((term) => MIND_CONCEPT_OF[term])).size >= 3;
 }
 const SEDATIVE_REASON = /安神|宁神|宁心|镇静|助眠/u;
 /**

@@ -39,7 +39,7 @@ export function formulaAnalysisClaimCheckEnabled(): boolean {
 }
 
 type TextbookReferences = {
-  herbs?: Record<string, { function?: string; parent?: string; property?: string }>;
+  herbs?: Record<string, { function?: string; parent?: string; property?: string; caution?: string }>;
   formulaCommentaries?: Record<string, { commentary?: string; features?: string }>;
 };
 const TEXTBOOK = textbookReferencesJson as unknown as TextbookReferences;
@@ -105,6 +105,13 @@ export function herbPropertyReferenceText(herb: string): string {
   const names = [herb, identity, ...[herb, identity].map((name) => TEXTBOOK.herbs?.[name]?.parent || "")].filter(Boolean);
   const found = names.map((name) => TEXTBOOK.herbs?.[name]?.property || "").find(Boolean) || "";
   return found.split(/[。；]/u)[0].trim();
+}
+
+/** 《中药学》【使用注意】（「本品发汗宣肺力强，凡表虚自汗、阴虚盗汗及肺肾虚喘者均当慎用。」）；取法同药性。没有时为空串。 */
+export function herbCautionReferenceText(herb: string): string {
+  const identity = identityOf(herb);
+  const names = [herb, identity, ...[herb, identity].map((name) => TEXTBOOK.herbs?.[name]?.parent || "")].filter(Boolean);
+  return (names.map((name) => TEXTBOOK.herbs?.[name]?.caution || "").find(Boolean) || "").trim().slice(0, 80);
 }
 
 /**
