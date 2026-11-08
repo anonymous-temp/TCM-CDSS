@@ -106,6 +106,18 @@ export function modificationFindingNeedsBothSamples(finding: { verdict: string }
   return finding.verdict === "misfit";
 }
 
+/** 提名与复核看到的一行：条件、药、药的功效参考，以及《中药学》药性（第三十八轮：看所加药的寒热与本证是否相反）。纯函数，供测试。 */
+export function modificationFitRowPayload(row: Record<string, unknown>, line: number, disease = "") {
+  return {
+    line,
+    kind: isModelWritten(row, disease) ? "model" : "textbook",
+    condition: text(row.trigger),
+    herb: text(row.herbName),
+    reference: herbClaimReferenceText(text(row.herbName)).slice(0, 160),
+    property: herbPropertyReferenceText(text(row.herbName)) || null,
+  };
+}
+
 export async function dropMisfitModifications(content: string, context: { recordText: string }, signal?: AbortSignal): Promise<string> {
   if (!modificationFitEnabled()) return content;
   const start = content.indexOf(START_MARKER);
@@ -120,7 +132,7 @@ export async function dropMisfitModifications(content: string, context: { record
   const syndrome = text(overview?.primarySyndrome);
   const method = text(record(root.therapy)?.overallMethod);
   const disease = text(overview?.tcmDiseaseName);
-  const payload = (row: Json, line: number) => ({ line, kind: isModelWritten(row, disease) ? "model" : "textbook", condition: text(row.trigger), herb: text(row.herbName), reference: herbClaimReferenceText(text(row.herbName)).slice(0, 160), property: herbPropertyReferenceText(text(row.herbName)) || null });
+  const payload = (row: Json, line: number) => modificationFitRowPayload(row, line, disease);
   const findings = await proposeTwiceThenVerifyAll<Finding>("m04_modification_fit", "prescribe", {
     messages: [
       { role: "system", content: SYSTEM },

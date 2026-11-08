@@ -523,7 +523,8 @@ await check("18.1 活动性出血：治法里明说活血、破血、逐瘀而�
 });
 
 await check("15.3 模型自定病位为有界、每个病位都有逐字依据时，不写「依据有N条」：写 uncertainties 里说病位的那一项，没有时说个别病位待核实；有病位缺依据时照旧", () => {
-  const record = "饭后1小时腹胀嗳气，工作紧张时加重。舌淡红，苔薄白。脉弦。";
+  // 第三十八轮起：舌脉都记录、每个病位都有依据、不确定项没点名时，没理由的有界按已确定交付（test:r1050-main 4.x）。这里的病历不写脉，仍是有界。
+  const record = "饭后1小时腹胀嗳气，工作紧张时加重。舌淡红，苔薄白。";
   const base = (details, uncertainties = []) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { primarySyndrome: "肝胃不和证", primarySyndromeResolution: "resolved", primarySyndromeBasis: ["饭后1小时腹胀嗳气"] }, westernDiagnosis: {},
     pathogenesis: { locationDifferentiation: { items: ["胃", "肝"], details, resolution: "bounded" }, natureDifferentiation: { items: [], resolution: "unresolved" }, symptomClusters: [], chain: [], uncertainties },

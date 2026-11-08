@@ -817,7 +817,7 @@ export function modelConditionalTriggerShape(trigger: string): boolean {
  */
 const RECORD_TONGUE = /舌(?:质|象|体)?[：:]?\s*([^，,。；;、\n苔]{1,5})/u;
 const RECORD_COATING = /苔(?:质|色)?[：:]?\s*([^，,。；;、\n]{1,5})/u;
-const RECORD_PULSE = /(?<![静动经血通])脉(?:象)?[：:]?\s*([^。；;\n]{1,8})/u;
+const RECORD_PULSE = /(?<![静动经血通督任冲带络生赤])脉(?:象)?[：:]?\s*([^。；;\n]{1,8})/u;
 const tongueColorOf = (value: string): string | undefined => {
   if (/淡红/u.test(value)) return "淡红";
   if (/绛/u.test(value)) return "绛";
@@ -840,7 +840,34 @@ export function modificationConditionTonguePulseConflict(trigger: string, record
   const conditionPulse = trigger.match(RECORD_PULSE)?.[1];
   const recordPulse = recordText.match(RECORD_PULSE)?.[1];
   if (conditionPulse && recordPulse && pulseRateOf(conditionPulse) && pulseRateOf(conditionPulse) !== pulseRateOf(recordPulse)) return true;
+  // 脉形、力度、浮沉（第三十八轮：甲方 11.05 病历8 脉洪数，教材条件「若阴伤较甚…脉细数」——至数相同，洪与细相反）：与脉象单选题同一张相反表。
+  // 只比脉形这一对（洪大 / 细微）：力度、浮沉两对在急变条件（「脉微欲绝」的喘脱、厥脱行）上会把整组危象加减都判成相反，那些行该由「与本例无关」去判。
+  if (conditionPulse && recordPulse && pulseShapeOpposed(conditionPulse, recordPulse)) return true;
+  // 苔量：条件说少苔/无苔/剥苔，病历的苔写着颜色或厚腻（苔黄燥、苔白厚）；或反过来条件说厚腻、病历是少苔无苔（同一病历8：苔黄燥对「舌红苔少」）。
+  const conditionCoating = coatingAmountOf(trigger);
+  const recordCoating = coatingAmountOf(recordText);
+  if (conditionCoating && recordCoating && conditionCoating !== recordCoating) return true;
   return false;
+}
+
+const PULSE_SHAPE_BROAD = /洪|大/u;
+const PULSE_SHAPE_THIN = /细|微/u;
+function pulseShapeOpposed(left: string, right: string): boolean {
+  const side = (value: string) => {
+    const broad = PULSE_SHAPE_BROAD.test(value) && !/大便|大小/u.test(value);
+    const thin = PULSE_SHAPE_THIN.test(value);
+    return broad === thin ? undefined : broad ? "broad" : "thin";
+  };
+  const [a, b] = [side(left.split(/[，,]/u)[0]), side(right.split(/[，,]/u)[0])];
+  return Boolean(a && b && a !== b);
+}
+
+/** 苔量两端（有限闭集）：scanty = 少苔/苔少/无苔/剥苔/光剥/镜面舌；present = 苔带颜色或厚、腻。都没写或两端都沾时为 undefined。 */
+function coatingAmountOf(text: string): "scanty" | "present" | undefined {
+  const value = String(text || "");
+  const scanty = /少苔|苔少(?!津)|无苔|苔剥|剥苔|光剥|镜面/u.test(value);
+  const present = /苔[^，,。；;、\n]{0,3}(?:白|黄|灰|黑|厚|腻)/u.test(value);
+  return scanty === present ? undefined : scanty ? "scanty" : "present";
 }
 
 /**
