@@ -455,12 +455,12 @@ await check("16.1 妊娠剧吐：C 给「妊娠期恶心呕吐」、D 给的同�
   assert.equal(check.agreedWesternNameCorrection(other, d).agreement, "type_differs");
 });
 
-await check("16.2 两次都说原名说过头、换成的名称各不相同（C「妊娠呕吐」、D「妊娠期一过性恶心呕吐」）：取 D 改出的「原病名待查」；没有 D、或 D 改出的不是「原病名待查」时不改", async () => {
+await check("16.2 两次都说原名说过头、换成的名称各不相同（C「妊娠呕吐」、D「早孕反应」）：取 D 改出的「原病名待查」；没有 D、或 D 改出的不是「原病名待查」时不改", async () => {
   const check = await jiti.import("../src/lib/western-name-evidence-check.server.ts");
   const record = "主诉：孕8周，恶心、呕吐2周\n现病史：患者孕8周，2周前无明显诱因出现恶心、呕吐，食入即吐，发病以来体重略降，小便正常，大便溏";
   const parse = (body) => check.parseWesternNameCorrection(JSON.stringify(body), record, "妊娠剧吐", { patientAge: 28 });
   const c = parse({ verdict: "inconsistent", type: "C", quote: "发病以来体重略降", reason: "仅体重略降，无脱水、酮症记录，程度不足", supportedName: "妊娠呕吐", decisive: "", meetsCriteria: false });
-  const d = parse({ verdict: "inconsistent", type: "D", quote: "孕8周，恶心、呕吐2周", reason: "无尿酮体、电解质结果，未达剧吐程度", supportedName: "妊娠期一过性恶心呕吐", decisive: "", meetsCriteria: false });
+  const d = parse({ verdict: "inconsistent", type: "D", quote: "孕8周，恶心、呕吐2周", reason: "无尿酮体、电解质结果，未达剧吐程度", supportedName: "早孕反应", decisive: "", meetsCriteria: false });
   assert.equal(d.supportedName, "妊娠剧吐待查");
   const merged = check.agreedWesternNameCorrection(c, d, "妊娠剧吐");
   assert.equal(merged.agreement, "agreed_hypothesis");
@@ -534,4 +534,12 @@ await check("15.3 模型自定病位为有界、每个病位都有逐字依据�
   assert.equal(loc(base(both)).resolutionReason, "病位“胃、肝”已有病历依据，其中个别病位尚待复诊核实");
   assert.equal(loc(base(both, [{ item: "肝郁程度", reason: "未记录胁痛", affects: "病位判断" }])).resolutionReason, "病位“胃、肝”已有病历依据，肝郁程度尚待核实");
   assert.match(loc(base([{ location: "胃", basis: "饭后1小时腹胀嗳气" }])).resolutionReason, /仅有1条/u);
+});
+
+await check("16.3 西医主诊断收尾按规范写法归一：「妊娠期恶心呕吐」「妊娠期一过性恶心呕吐」都交付「妊娠呕吐」（待查后缀保留）", async () => {
+  const standard = await jiti.import("../src/lib/western-name-standard.server.ts");
+  const name = async (value) => JSON.parse(await standard.finalizeWesternPrimaryName(JSON.stringify({ westernDiagnosis: { primary: { name: value, clinicalRationale: "" }, candidates: [], differentials: [] } }), { recordText: "孕8周，恶心、呕吐2周", redFlag: false })).westernDiagnosis.primary.name;
+  assert.equal(await name("妊娠期一过性恶心呕吐"), "妊娠呕吐");
+  assert.equal(await name("妊娠期恶心呕吐"), "妊娠呕吐");
+  assert.equal(await name("妊娠期恶心呕吐待查"), "妊娠呕吐待查");
 });
