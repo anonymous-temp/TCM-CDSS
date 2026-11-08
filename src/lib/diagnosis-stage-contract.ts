@@ -917,16 +917,29 @@ function smallestPatientFactQuote(value: string, clinicalContext: string): strin
   if (!isGenericPatientEvidencePolarityAligned(value, clinicalContext)) return undefined;
   const segments = value.split(/[。；;\n]+/u).map((item) => item.trim()).filter((item) => item.length >= 2);
   // 整条只在本身是一句（没有句号、分号）时对：两句拼起来的引文按句逐段对，免得一句肯定、一句否认（「…老打嗝；没吐过血」）整条对上后被当成一段肯定引文。
-  if (segments.length < 2) {
-    const whole = patientFactQuoteAlignment(value, clinicalContext);
-    return whole?.span;
-  }
+  // 一段对不上时，再按顿号、逗号拆成各项逐项对（「神疲嗜睡、头晕乏力」在病历里中间隔着别的症状）：各项都是原文就用这几项，
+  // 不退回整句病历（2026-11-08 第三十七轮：病性依据被扩成整段现病史，甲方 11.05「病机分析」批注机械）。有一项对不上就整段算对不上。
+  const alignSegment = (segment: string): string[] | undefined => {
+    const aligned = patientFactQuoteAlignment(segment, clinicalContext);
+    if (aligned) return [aligned.span];
+    const items = segment.split(/[、，,]+/u).map((item) => item.trim()).filter(Boolean);
+    if (items.length < 2 || items.some((item) => !/[\u4e00-\u9fff].*[\u4e00-\u9fff]/u.test(item))) return undefined;
+    const spans: string[] = [];
+    for (const item of items) {
+      if (!isGenericPatientEvidencePolarityAligned(item, clinicalContext)) return undefined;
+      const itemAligned = patientFactQuoteAlignment(item, clinicalContext);
+      if (!itemAligned) return undefined;
+      spans.push(itemAligned.span);
+    }
+    return spans;
+  };
+  if (segments.length < 2) return alignSegment(value)?.join("；");
   const spans: string[] = [];
   for (const segment of segments) {
     if (!isGenericPatientEvidencePolarityAligned(segment, clinicalContext)) return undefined;
-    const aligned = patientFactQuoteAlignment(segment, clinicalContext);
+    const aligned = alignSegment(segment);
     if (!aligned) return undefined;
-    if (!spans.includes(aligned.span)) spans.push(aligned.span);
+    for (const span of aligned) if (!spans.includes(span)) spans.push(span);
   }
   return spans.join("；");
 }

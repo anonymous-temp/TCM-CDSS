@@ -454,3 +454,17 @@ await check("16.1 妊娠剧吐：C 给「妊娠期恶心呕吐」、D 给的同�
   const other = parse({ verdict: "inconsistent", type: "C", quote: "发病以来体重略降", reason: "仅体重略降，无脱水、酮症记录，程度不足", supportedName: "急性胃肠炎", decisive: "", meetsCriteria: false });
   assert.equal(check.agreedWesternNameCorrection(other, d).agreement, "type_differs");
 });
+
+// ───── 17 引文：一段对不上时逐项对，不扩成整句 ─────
+await check("17.1 「神疲嗜睡、头晕乏力」在病历里中间隔着别的症状：逐项对上原文（神疲嗜睡；头晕乏力），不扩成整段现病史；有一项不是原文时整段不算；改写过的说法仍走原来的整句回溯", async () => {
+  const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+  const record = "现病史：患者孕8周，2周前出现恶心、呕吐，食入即吐，伴神疲嗜睡、食欲不振、口淡乏味、头晕乏力；发病以来大便溏\n舌象：舌淡，苔薄白\n脉象：脉滑无力";
+  assert.equal(contract.patientFactSourceQuote("神疲嗜睡、头晕乏力；食入即吐；舌淡，苔薄白；脉滑无力", record), "神疲嗜睡；头晕乏力；食入即吐；舌淡，苔薄白；脉滑无力");
+  assert.equal(contract.patientFactSourceQuote("神疲嗜睡、头晕乏力", record), "神疲嗜睡；头晕乏力");
+  // 有一项不是原文：不留半截项目（「神疲嗜睡」），交给原来的回溯（整句）
+  const partial = contract.patientFactSourceQuote("神疲嗜睡、腹痛", record);
+  assert.notEqual(partial, "神疲嗜睡");
+  assert.match(partial, /伴神疲嗜睡、食欲不振/u);
+  // 整段本身是原文时照旧整段（不拆）
+  assert.equal(contract.patientFactSourceQuote("神疲嗜睡、食欲不振", record), "神疲嗜睡、食欲不振");
+});
