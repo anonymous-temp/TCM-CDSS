@@ -253,3 +253,11 @@ await check("7.4 教材条件「若口渴饮冷」而病历写「渴喜冷饮」
   assert.equal(compiler.modificationConditionAlreadyPresent("若口渴饮冷甚", record), undefined);
   assert.equal(compiler.modificationConditionAlreadyPresent("若口渴饮冷", "牙痛3天，口不渴，不喜冷饮"), undefined);
 });
+
+await check("7.5 注意事项里去掉病历与推荐都没有的成药名时，「或」连着的举例一并去干净（甲方标准病历2：「服用人参口服液或归脾丸等中成药前…」不再剩「服用或等中成药」）", async () => {
+  const surface = await jiti.import("../src/lib/delivered-surface.ts");
+  assert.equal(surface.withoutUnrecordedMedicineMentions("服用人参口服液或归脾丸等中成药前请先告知医生，避免与汤药功效重复。", []), "服用中成药前请先告知医生，避免与汤药功效重复。");
+  assert.equal(surface.withoutUnrecordedMedicineMentions("不要再服三黄丸、清宁丸等同类泻火通便中成药。", []), "不要再服同类泻火通便中成药。");
+  // 推荐里有的药名留着
+  assert.equal(surface.withoutUnrecordedMedicineMentions("服用归脾丸等中成药前请先告知医生。", ["归脾"]), "服用归脾丸等中成药前请先告知医生。");
+});

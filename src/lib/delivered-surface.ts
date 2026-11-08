@@ -495,7 +495,7 @@ function knownMedicineNames(requiredPrecautions: readonly RequiredPrecaution[] |
 /**
  * 去掉注意事项里点名、却不在病历与推荐药里的成药、西药（knownDrugs 是去剂型的基础名）。见调用处。
  */
-function withoutUnrecordedMedicineMentions(line: string, knownDrugs: readonly string[]): string {
+export function withoutUnrecordedMedicineMentions(line: string, knownDrugs: readonly string[]): string {
   const unknown = labelledMedicineNamesIn(line).filter((name) => {
     const stem = patentMedicineBaseName(name);
     return !knownDrugs.some((known) => known === stem || known.includes(stem) || stem.includes(known));
@@ -505,9 +505,10 @@ function withoutUnrecordedMedicineMentions(line: string, knownDrugs: readonly st
   let out = line;
   // 「不要再服三黄丸、清宁丸等同类泻火通便中成药」：只去掉举例的药名（与它的顿号），说一类药的话照留。
   for (const name of unknown) {
-    out = out.replace(new RegExp(`${escape(name)}[、和及与]?(?=[^，,。；;]*?等[^，,。；;]{0,10}?(?:中成药|成药|制剂|药物|药品|补品))`, "gu"), "");
+    out = out.replace(new RegExp(`${escape(name)}[、和及与或]?(?=[^，,。；;]*?等[^，,。；;]{0,10}?(?:中成药|成药|制剂|药物|药品|补品))`, "gu"), "");
   }
-  out = out.replace(/(服用|服|吃|用|如)等(?=[^，,。；;]{0,10}?(?:中成药|成药|制剂|药物|药品|补品))/gu, "$1")
+  // 连词也可能留在前面（「服用人参口服液或归脾丸等中成药」去掉两个药名后剩「服用或等」，第三十八轮甲方标准病历2）。
+  out = out.replace(/(服用|服|吃|用|如)[、和及与或]*等(?=[^，,。；;]{0,10}?(?:中成药|成药|制剂|药物|药品|补品))/gu, "$1")
     // 举例的药名去掉后「同类」没有了所指（「不要再服养心定悸口服液等同类中成药」，留出例 S018）：说成功效相近的。
     .replace(/(服用|服|吃|用)同类(?:的)?(?=中成药|成药|制剂|药物|药品)/gu, "$1功效相近的");
   const rest = unknown.filter((name) => out.includes(name));
