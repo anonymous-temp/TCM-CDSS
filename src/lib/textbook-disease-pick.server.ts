@@ -4,7 +4,7 @@ import type { CaseState } from "./diagnosis-types";
 import { sanitizeFreeTextForModel } from "./diagnosis-safety";
 import { REPRODUCTIVE_RECORD_KEYS } from "./followup-conversation";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
-import { textbookDiseaseNamesForCase } from "./tcm-textbook-syndromes";
+import { textbookDiseaseNamesForCase, textbookDiseaseWesternEquivalents } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 
@@ -59,8 +59,11 @@ function recordText(caseState: CaseState): string {
     .filter(([key, value]) => REPRODUCTIVE_RECORD_KEYS.includes(key) && typeof value === "string" && value.trim())
     .map(([key, value]) => `${key}：${String(value).slice(0, 120)}`)
     .join("\n");
+  // 体征也定病名（扁桃体肿大即喉核肿大，属乳蛾；第三十七轮甲方 11.05 病历2 的「扁桃体肿大」只写在体格检查里，选病看不到）。
+  const examValue = (caseState.symptoms as Record<string, unknown> | undefined)?.["体格检查"];
+  const exam = typeof examValue === "string" && examValue.trim() ? `体格检查：${examValue.trim().slice(0, 120)}` : "";
   return sanitizeFreeTextForModel(
-    [`主诉：${caseState.chiefComplaint || ""}`, `现病史：${present}`.slice(0, MAX_RECORD_CHARS), reproductive].filter(Boolean).join("\n"),
+    [`主诉：${caseState.chiefComplaint || ""}`, `现病史：${present}`.slice(0, MAX_RECORD_CHARS), exam, reproductive].filter(Boolean).join("\n"),
   );
 }
 
@@ -107,7 +110,7 @@ export function buildTextbookDiseasePickRequest(caseState: CaseState): {
         "1. 只能逐字复制清单里的病名，不得改写、不得给出清单外的名字。",
         "2. 以主诉（本次就诊的主要不适）为准选病名；伴随症状不单独立病。",
         `3. 最多 ${MAX_PICKS} 个，最可能的排在最前；只有一个明确归属时只给一个；清单里确实没有合适的就返回空数组。`,
-        "4. 清单里的西医病名与中医病名都可以选，优先选中医病名。",
+        "4. 清单里的西医病名与中医病名都可以选，优先选中医病名；westernEquivalents 给出部分中医病名对应的西医病名，病历用西医说法写的表现（如扁桃体肿大）据此对到中医病名。",
         "5. 「反复感冒、容易感冒」而本次没有恶寒发热、鼻塞流涕等外感表现的，说的是体质虚弱，选虚劳，不选感冒。",
         "只输出 JSON：{\"diseases\":[\"病名\"]}，不要解释。",
       ].join("\n"),
@@ -118,6 +121,8 @@ export function buildTextbookDiseasePickRequest(caseState: CaseState): {
         patient: { sex: caseState.patient?.sex || null, age: ageYears ?? null },
         record: recordText(caseState),
         textbookDiseaseNames: names,
+        // 清单里部分病名在教材里写明的西医对应病名，只作对照（病历用西医说法写的表现据此对到中医病名）；输出仍只写清单里的病名。
+        westernEquivalents: textbookDiseaseWesternEquivalents(names),
       }),
     },
   ];

@@ -231,6 +231,12 @@ await check("7.1 模型自己的病位分析列了脾、那一条依据有两项
   assert.deepEqual(reasoning.overview.tcmDifferentials.map((row) => row.syndrome), ["心阳不振证"]);
 });
 
+await check("7.1b 换成合称后开方阶段照样找回原教材行（带下过多·脾虚湿困证 → 脾虚证·完带汤；心悸·心脾两虚证 → 心血不足证·归脾汤）；别的病里同名合称不借", () => {
+  assert.ok(textbook.textbookRowForSyndrome("带下过多", "脾虚湿困证")?.formulas.includes("完带汤"));
+  assert.ok(textbook.textbookRowForSyndrome("心悸", "心脾两虚证")?.formulas.includes("归脾汤"));
+  assert.equal(textbook.textbookRowForSyndrome("胃痛", "心脾两虚证"), undefined);
+});
+
 await check("7.2 反证面：脾那一条只有一项、或已立兼证、或证名不在表里时不改", () => {
   assert.equal(surface.compositeSyndromeRename(compositeCase([{ location: "脾", basis: "食欲不振" }]), record3), undefined);
   assert.equal(surface.compositeSyndromeRename(compositeCase([{ location: "脾", basis: "食欲不振、食后腹胀" }], { secondarySyndromes: ["脾气虚证"] }), record3), undefined);
@@ -248,7 +254,7 @@ await check("7.3 脾虚证 + 病性列了湿、病历两项湿象：脾虚湿困
 });
 
 // ───── 8 血证分型 ─────
-await check("8.1 血证写到具体一型：主诉鼻出血为鼻衄；鉴别只留讲到鼻衄的（经行衄血），不留血淋；交付病名「血证（鼻衄）」", () => {
+await check("8.1 血证写到具体一型：主诉鼻出血为鼻衄；鉴别只留讲到鼻衄的（经行衄血），不留血淋；交付病名「血证（鼻衄）」", async () => {
   assert.equal(textbook.textbookDiseaseSubtype("血证", "反复鼻出血3天"), "鼻衄");
   assert.equal(textbook.textbookDiseaseSubtype("血证", "", "既往牙龈出血，近日鼻出血"), undefined);
   assert.equal(textbook.textbookDifferentialFitsSubtype("血证", "鼻衄", "血淋"), false);
@@ -263,6 +269,14 @@ await check("8.1 血证写到具体一型：主诉鼻出血为鼻衄；鉴别只
   const out = surface.projectDeliveredReasoning(reasoning, { recordText: "主诉：反复鼻出血3天\n现病史：鼻出血，血色鲜红。" });
   assert.equal(out.overview.tcmDiseaseName, "血证（鼻衄）");
   assert.ok(!out.overview.tcmDiseaseDifferentials.some((row) => row.diseaseName === "血淋"));
+  // 结构化载荷再规范化时不归一回「血证」（clinical-terminology.canonicalTcmDiseaseName）；分型表外的括注照旧归一。
+  const terminology = await jiti.import("../src/lib/clinical-terminology.ts");
+  assert.equal(terminology.canonicalTcmDiseaseName("血证（鼻衄）", { overview: {} }), "血证（鼻衄）");
+  assert.notEqual(terminology.canonicalTcmDiseaseName("血证（感冒）", { overview: {} }), "血证（感冒）");
+  // 模型把分型名单写成病名（「鼻衄」）：按血证这一节找行，交付写全「血证（鼻衄）」。
+  assert.equal(textbook.textbookRowForSyndrome("鼻衄", "胃热炽盛证")?.disease, "血证");
+  const bare = surface.projectDeliveredReasoning({ ...reasoning, overview: { ...reasoning.overview, tcmDiseaseName: "鼻衄" } }, { recordText: "主诉：反复鼻出血3天" });
+  assert.equal(bare.overview.tcmDiseaseName, "血证（鼻衄）");
   // 改名后教材行照样查得到（下游按病名找行）。
   assert.equal(textbook.textbookRowForSyndrome("血证（鼻衄）", "胃热炽盛证")?.group, "鼻衄");
 });
@@ -272,6 +286,15 @@ await check("9.1 乳蛾、喉痹、鼻鼽、鼻渊进教材病名：乳蛾风热
   const row = textbook.textbookRowForSyndrome("乳蛾", "风热外袭证");
   assert.ok(row?.formulas.includes("疏风清热汤"));
   for (const name of ["乳蛾", "喉痹", "鼻鼽", "鼻渊"]) assert.ok(textbook.isTextbookDiseaseName(name), name);
+});
+
+await check("9.2 闭集选病看得到体格检查与教材写明的西医对应病名（扁桃体肿大 → 乳蛾 → 急性扁桃体炎）；病名清单不变", async () => {
+  const pick = await jiti.import("../src/lib/textbook-disease-pick.server.ts");
+  const request = pick.buildTextbookDiseasePickRequest(types.normalizeCaseStateInput({ id: "r1049-2", chiefComplaint: "咽痛、发热2天", patient: { sex: "女", age: 32 }, symptoms: { 现病史: "咽部红肿疼痛，吞咽时加重", 体格检查: "扁桃体肿大" } }));
+  const user = JSON.parse(request.messages[1].content);
+  assert.match(user.record, /体格检查：扁桃体肿大/u);
+  assert.ok(user.westernEquivalents["乳蛾"]?.includes("急性扁桃体炎"));
+  assert.ok(user.textbookDiseaseNames.includes("乳蛾") && user.textbookDiseaseNames.includes("喉痹"));
 });
 
 // ───── 10 加减与病情无关 ─────

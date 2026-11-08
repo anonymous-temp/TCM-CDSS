@@ -1,4 +1,5 @@
 import subtypeSource from "../data/tcm-textbook-disease-subtypes.source.json" with { type: "json" };
+import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
 import textbookTableJson from "../data/tcm-textbook-syndrome-formula-table.json" with { type: "json" };
 import supplementJson from "../data/tcm-textbook-syndrome-supplement.source.json" with { type: "json" };
 import { affirmedClinicalSourceClauses, clinicalClausePolarity } from "./clinical-polarity";
@@ -54,6 +55,8 @@ interface TextbookDisease {
   definition: string;
   /** 教材【诊断依据】各条原文。 */
   diagnosisPoints: string[];
+  /** 教材或补充表写明的西医对应病名（只供闭集选病对照，不当病名用）。 */
+  westernEquivalents?: string[];
   rows: TextbookSyndromeRow[];
 }
 
@@ -229,6 +232,7 @@ function buildDiseases(): TextbookDisease[] {
       aliases: [], differentials: [], differentialTexts: {}, definition: "", diagnosisPoints: [], rows: [],
     };
     entry.aliases = [...new Set([...entry.aliases, ...strings(raw.diseaseAliases), ...strings(raw.westernEquivalents), ...strings(raw.tcmEquivalents)])];
+    entry.westernEquivalents = [...new Set([...(entry.westernEquivalents || []), ...strings(raw.westernEquivalents)])];
     entry.rows.push({
       id: text(raw.id), group: text(raw.group) || undefined, book: text(raw.book), bookKey, department: text(raw.department), disease,
       syndrome: bareSyndrome || text(raw.syndrome), syndromeName,
@@ -260,6 +264,7 @@ function buildDiseases(): TextbookDisease[] {
     const entry = byKey.get(`${text(raw.bookKey)}|${text(raw.disease)}`);
     if (!entry) continue;
     entry.aliases = [...new Set([...entry.aliases, ...strings(raw.diseaseAliases), ...strings(raw.westernEquivalents), ...strings(raw.tcmEquivalents)])];
+    entry.westernEquivalents = [...new Set([...(entry.westernEquivalents || []), ...strings(raw.westernEquivalents)])];
     const differentialRows = (Array.isArray(raw.differentials) ? raw.differentials : [])
       .map((item) => ({ name: text((item as { name?: unknown })?.name), text: text((item as { text?: unknown })?.text) }))
       .filter((item) => item.name.length >= 2 && item.name.length <= 8 && !/[与和及、]/.test(item.name));
@@ -505,7 +510,7 @@ export function buildTextbookCandidateContext(input: TextbookCaseInput): string 
   const fittingDifferentials = (names: readonly string[], disease = "") => names.filter((name) => tcmDifferentialDiseaseFitsPatient(name, { sex: input.sex }) &&
     textbookDifferentialFitsSubtype(disease, subtypeOf(disease), name));
   const lines = candidates.flatMap((item) => [
-    `◆ ${item.disease}${subtypeOf(item.disease) ? `（本例属${subtypeOf(item.disease)}）` : ""}（《${item.book}》）${fittingDifferentials(item.differentials, item.disease).length > 0 ? `｜教材鉴别病名：${fittingDifferentials(item.differentials, item.disease).slice(0, 4).join("、")}` : ""}`,
+    `◆ ${item.disease}（《${item.book}》）${fittingDifferentials(item.differentials, item.disease).length > 0 ? `｜教材鉴别病名：${fittingDifferentials(item.differentials, item.disease).slice(0, 4).join("、")}` : ""}`,
     // 教材给的鉴别要点原文（去重、截短）：辨病依据与中医鉴别里的区分点照它写（2026-10-19 甲方标准病历 6：腰痛与背痛、尻痛教材按部位区分，
     // 模型两次写成「未诉放射痛」）。
     ...textbookDifferentialGist(item.disease, item.book, fittingDifferentials(item.differentials, item.disease).slice(0, 4)),
@@ -540,7 +545,10 @@ export function textbookDiseaseNamesForCase(input: Pick<TextbookCaseInput, "sex"
 }
 
 function diseasesNamed(diseaseName: string, ageYears?: number): TextbookDisease[] {
-  const wanted = compact(diseaseName).replace(/类病$/u, "");
+  // 「血证（鼻衄）」与单写的分型名「鼻衄」都按血证这一节找（分型表 tcm-textbook-disease-subtypes，第三十七轮）。
+  const split = splitTextbookDiseaseSubtype(diseaseName);
+  const parent = split.subtype ? split.disease : subtypeParentDisease(diseaseName);
+  const wanted = compact(parent || diseaseName).replace(/类病$/u, "");
   if (wanted.length < 2) return [];
   const order = bookOrderFor(ageYears);
   const exact = DISEASES.filter((disease) => [disease.disease, ...disease.aliases].map(compact).includes(wanted));
@@ -549,6 +557,19 @@ function diseasesNamed(diseaseName: string, ageYears?: number): TextbookDisease[
     return name.length >= 2 && (wanted.includes(name) || name.includes(wanted));
   });
   return loose.sort((left, right) => order.indexOf(left.bookKey) - order.indexOf(right.bookKey) || left.disease.localeCompare(right.disease));
+}
+
+/**
+ * 闭集选病对照用：清单里各中医病名在教材或补充表里写明的西医对应病名（乳蛾 → 急性扁桃体炎、慢性扁桃体炎）。
+ * 选病请求原本只有病名，病历写「扁桃体肿大」「慢性扁桃体炎史」时选不到乳蛾（第三十七轮甲方 11.05 病历2）。没有对应的不列。
+ */
+export function textbookDiseaseWesternEquivalents(names: readonly string[]): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const name of names) {
+    const equivalents = [...new Set(DISEASES.filter((disease) => disease.disease === name).flatMap((disease) => disease.westernEquivalents || []))].slice(0, 4);
+    if (equivalents.length > 0) out[name] = equivalents;
+  }
+  return out;
 }
 
 /** 这个病名在教材里只出现在《中医妇科学》（异位妊娠、痛经、带下病…）：男性患者的鉴别里不列（第二十七轮 C015：21 岁男性肠痈的鉴别写了异位妊娠）。 */
@@ -593,6 +614,15 @@ export function textbookRowForSyndrome(diseaseName: string, syndromeName: string
   for (const disease of named) {
     const exact = disease.rows.find((row) => syndromeCore(row.syndromeName) === target || syndromeCore(row.syndrome) === target);
     if (exact) return exact;
+  }
+  // 交付的国标合称（心脾两虚证、脾虚湿困证…）是从本病的教材证名换来的（delivered-surface compositeSyndromeRename，第三十七轮）：
+  // 按换名表找回原教材行，开方阶段的教材组成、加减与方证对应照旧（不找回时完带汤失去「教材证—方」依据，整页退成无剂量页）。
+  for (const rule of COMPOSITE_SYNDROME_RULES) {
+    if (syndromeCore(rule.composite) !== target) continue;
+    for (const disease of named) {
+      const original = disease.rows.find((row) => rule.primary.some((name) => syndromeCore(name) === syndromeCore(row.syndromeName) || syndromeCore(name) === syndromeCore(row.syndrome)));
+      if (original) return original;
+    }
   }
   // 病名本身是教材某病下的一型（「石淋」是淋证的一型，不是一节）、表里没有以它为名的节：用那一行（2026-10-19 Claude 评审留出例 S067：
   // 模型写「石淋·湿热蕴结证」，查不到行，选方落到外科同名证的五神汤；上一轮写「淋证·石淋」时是石韦散）。只认内科类（优先级≤1）、
@@ -1069,7 +1099,14 @@ export function textbookFormulaLabel(row: TextbookSyndromeRow): string {
  * 教材对某个病要求鉴别的病证及其原文要点（去掉开头重复的病名，截到两句以内）。
  * 病名鉴别为空时用它补齐：内容是教材原文，不是服务端写的话。
  */
+const COMPOSITE_SYNDROME_RULES = (compositeSyndromeSource as { rules: Array<{ primary: string[]; composite: string }> }).rules;
 const DISEASE_SUBTYPES = (subtypeSource as { diseases: Record<string, Record<string, string[]>> }).diseases;
+
+/** 单写的分型名（「鼻衄」）所属的病（血证）；不是分型名返回 undefined。 */
+export function subtypeParentDisease(name: string): string | undefined {
+  const trimmed = String(name || "").trim();
+  return Object.entries(DISEASE_SUBTYPES).find(([, groups]) => Object.prototype.hasOwnProperty.call(groups, trimmed))?.[0];
+}
 
 /** 「血证（鼻衄）」→ { disease: 血证, subtype: 鼻衄 }；没写分型返回原名。 */
 export function splitTextbookDiseaseSubtype(name: string): { disease: string; subtype?: string } {

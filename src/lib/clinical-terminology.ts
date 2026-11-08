@@ -1,3 +1,4 @@
+import diseaseSubtypeSource from "../data/tcm-textbook-disease-subtypes.source.json" with { type: "json" };
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm } from "./clinical-governance-tables";
 import tcmDiseaseLexiconJson from "../data/tcm-disease-lexicon.json" with { type: "json" };
@@ -285,10 +286,15 @@ function textbookTcmDiseaseName(value: unknown): string | undefined {
   return name && TEXTBOOK_DISEASE_NAMES.has(name) ? name : undefined;
 }
 
+const TEXTBOOK_DISEASE_SUBTYPES = (diseaseSubtypeSource as { diseases: Record<string, Record<string, string[]>> }).diseases;
+
 export function canonicalTcmDiseaseName(
   value: unknown,
   context: TerminologyReasoning,
 ): string | undefined {
+  // 按部位分节的病写到具体一型（「血证（鼻衄）」，交付面 delivered-surface 写的，第三十七轮）：病名与分型都在分型表里时原样保留，不归一回「血证」。
+  const subtype = typeof value === "string" ? value.trim().match(/^(.+?)（([^）]+)）$/u) : null;
+  if (subtype && TEXTBOOK_DISEASE_SUBTYPES[subtype[1]]?.[subtype[2]]) return value as string;
   const textbook = textbookTcmDiseaseName(value);
   if (textbook) return textbookSectionDeliveryName(textbook);
   const resolved = resolveTcmDiseaseName(value);

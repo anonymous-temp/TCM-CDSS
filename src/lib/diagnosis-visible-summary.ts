@@ -1416,8 +1416,12 @@ export function applyM03AdvisoryQualityBoundaries(content: string, clinicalConte
 
     const location = recordValue(pathogenesis.locationDifferentiation);
     if (location?.resolution === "resolved") {
-      const basis = recordList(location.details).map((item) => markdownCell(item.basis)).filter(Boolean).join("；");
-      if (m03QualityDimensionCount(basis, M03_LOCATION_QUALITY_DIMENSIONS) < 2) {
+      const bases = recordList(location.details).map((item) => markdownCell(item.basis)).filter(Boolean);
+      const basis = bases.join("；");
+      // 两个以上病位各有自己的病历原文依据（「咳嗽、咳黄黏痰」之于肺、「咽部红肿疼痛」之于咽喉）就不是单一依据：病位靠的是各脏腑本身的症状，
+      // 问诊维度表（舌脉、二便、寒热、汗、眠、纳）里没有咳嗽、咽痛、心悸这些主症（2026-11-08 第三十七轮，甲方 11.05「病位病性低置信」17/17）。
+      const distinctLocations = new Set(recordList(location.details).filter((item) => markdownCell(item.basis)).map((item) => markdownCell(item.location)).filter(Boolean));
+      if (new Set(bases).size < 2 || distinctLocations.size < 2 ? m03QualityDimensionCount(basis, M03_LOCATION_QUALITY_DIMENSIONS) < 2 : false) {
         location.resolution = "bounded";
         location.resolutionReason = "病位归纳目前只有单一证据维度支持，已按有界建议展示。";
         lowerEvidenceConfidence(location.evidence);

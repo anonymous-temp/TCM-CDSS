@@ -27,7 +27,7 @@ import { drugNamesInAllergyPhrases } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
-import { splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookDiseaseSubtype, textbookFormulaComposition, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
+import { splitTextbookDiseaseSubtype, subtypeParentDisease, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookDiseaseSubtype, textbookFormulaComposition, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
@@ -980,7 +980,9 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
   if (overview && typeof overview.tcmDiseaseName === "string") overview.tcmDiseaseName = overview.tcmDiseaseName.replace(/类病$/u, "");
   // 按部位分节的病写到具体一型：「血证（鼻衄）」，鉴别病只留讲到这一型的（第三十七轮甲方 11.05 病历8；tcm-textbook-disease-subtypes）。
   if (overview && typeof overview.tcmDiseaseName === "string" && options?.recordText && !isLimitedDiagnose(reasoning)) {
-    const split = splitTextbookDiseaseSubtype(overview.tcmDiseaseName);
+    // 模型把分型名单写成病名（「鼻衄」）时按所属的病（血证）写全。
+    const parent = subtypeParentDisease(overview.tcmDiseaseName);
+    const split = parent ? { disease: parent, subtype: overview.tcmDiseaseName.trim() } : splitTextbookDiseaseSubtype(overview.tcmDiseaseName);
     const chief = /主诉[：:]\s*([^\n]+)/u.exec(options.recordText)?.[1] || "";
     const subtype = split.subtype || textbookDiseaseSubtype(split.disease, chief, options.recordText);
     if (subtype) {
