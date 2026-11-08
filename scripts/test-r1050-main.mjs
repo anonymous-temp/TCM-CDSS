@@ -246,3 +246,10 @@ await check("7.3 使用注意点名的症状本例写着才算（麻黄「表虚
   const tangerine = claim.herbCautionReferenceText("陈皮");
   assert.equal(fit.cautionNamesRecordedSymptom(tangerine, "痰多色黄", "咳嗽，痰多色黄质黏"), false);
 });
+
+await check("7.4 教材条件「若口渴饮冷」而病历写「渴喜冷饮」：同一组写法，交付成「本例已见口渴饮冷」；带程度词、病历否认的不改", () => {
+  const record = "牙痛3天\n患者3天前进食辛辣后出现右侧牙齿疼痛，伴牙龈红肿，口臭、口干、渴喜冷饮，大便秘结。";
+  assert.equal(compiler.modificationConditionAlreadyPresent("若口渴饮冷", record)?.trigger, "本例已见口渴饮冷");
+  assert.equal(compiler.modificationConditionAlreadyPresent("若口渴饮冷甚", record), undefined);
+  assert.equal(compiler.modificationConditionAlreadyPresent("若口渴饮冷", "牙痛3天，口不渴，不喜冷饮"), undefined);
+});
