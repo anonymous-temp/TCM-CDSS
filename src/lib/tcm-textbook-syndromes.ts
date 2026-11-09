@@ -1195,12 +1195,12 @@ const COMPOSITE_SYNDROME_RULES = (compositeSyndromeSource as { rules: Array<{ pr
 const DISEASE_SUBTYPES = (subtypeSource as { diseases: Record<string, Record<string, string[]>> }).diseases;
 /** 教材鉴别病属于哪一型的那一段（tcm-textbook-disease-subtypes.source.json differentialSections）。 */
 const DIFFERENTIAL_SECTIONS = ((subtypeSource as unknown as { differentialSections?: Record<string, Record<string, string[]>> }).differentialSections) || {};
-type SubtypeContrast = { differential: string; names: Record<string, string> };
+type SubtypeContrast = { differential?: string; text?: string; names: Record<string, string> };
 const SUBTYPE_CONTRASTS = ((subtypeSource as unknown as { subtypeContrasts?: Record<string, SubtypeContrast[]> }).subtypeContrasts) || {};
 /** 本型的教材对照型（鼻衄 → 吐血，要点取吐血段「吐血与鼻腔、口腔及咽喉出血」原文）。 */
-function subtypeContrastsFor(disease: string, subtype: string | undefined): Array<{ name: string; differential: string }> {
+function subtypeContrastsFor(disease: string, subtype: string | undefined): Array<{ name: string; differential?: string; text?: string }> {
   if (!subtype) return [];
-  return (SUBTYPE_CONTRASTS[disease] || []).flatMap((item) => item.names[subtype] ? [{ name: item.names[subtype], differential: item.differential }] : []);
+  return (SUBTYPE_CONTRASTS[disease] || []).flatMap((item) => item.names[subtype] ? [{ name: item.names[subtype], differential: item.differential, text: item.text }] : []);
 }
 function differentialSectionsFor(disease: string, differentialName: string): string[] | undefined {
   const sections = DIFFERENTIAL_SECTIONS[disease];
@@ -1291,13 +1291,13 @@ export function textbookDifferentialsForDisease(diseaseName: string, limit = 2):
     .sort((left, right) => (CANDIDATE_BOOK_PRIORITY[left.bookKey] || 0) - (CANDIDATE_BOOK_PRIORITY[right.bookKey] || 0))[0];
   if (!disease) return [];
   // 按分段属于本型的教材鉴别病，再加教材里拿本型作对照的另一型（鼻衄 → 吐血，要点取吐血段原文；subtypeContrasts）。
-  const listed = disease.differentials.filter((name) => textbookDifferentialFitsSubtype(baseName, subtype, name)).map((name) => ({ name, key: name }));
+  const listed = disease.differentials.filter((name) => textbookDifferentialFitsSubtype(baseName, subtype, name)).map((name) => ({ name, key: name, inline: "" }));
   const contrasts = subtypeContrastsFor(baseName, subtype)
-    .filter((item) => !listed.some((entry) => entry.name === item.name) && disease.differentialTexts[item.differential])
-    .map((item) => ({ name: item.name, key: item.differential }));
-  return [...listed, ...contrasts].flatMap(({ name, key }) => {
+    .filter((item) => !listed.some((entry) => entry.name === item.name) && (item.text || (item.differential && disease.differentialTexts[item.differential])))
+    .map((item) => ({ name: item.name, key: item.differential || "", inline: item.text || "" }));
+  return [...listed, ...contrasts].flatMap(({ name, key, inline }) => {
     // 病名里可能带正则元字符（「β受体…」、括注），按字面去掉段首的病名。
-    const raw = (disease.differentialTexts[key] || "").replace(new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`), "").trim();
+    const raw = inline || (disease.differentialTexts[key] || "").replace(new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`), "").trim();
     const sentences = raw.split(/(?<=。)/).slice(0, 2).join("").trim();
     const textValue = sentences.length > 110 ? `${sentences.slice(0, 108)}…` : sentences;
     return textValue.length >= 8 ? [{ name, text: textValue, book: disease.book }] : [];

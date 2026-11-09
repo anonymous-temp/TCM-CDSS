@@ -791,7 +791,8 @@ export function withoutMutuallyIncompatibleAdditions<T extends { action?: string
   for (const item of items) {
     const herb = typeof item.herbName === "string" ? item.herbName.trim() : "";
     if (item.action === "加" && herb) {
-      if (modificationHerbIncompatibleWithCandidate(herb, present)) {
+      // 同源同向的药（瓜蒌与瓜蒌子、干姜与生姜）也不在两条加减里各加一味（tcm-same-source-herbs.source.json；第四十轮，此前只核方中药味）。
+      if (modificationHerbIncompatibleWithCandidate(herb, present) || sameSourceHerbInCandidate(herb, present)) {
         dropReasons?.push("action_conflicts_with_candidate");
         continue;
       }

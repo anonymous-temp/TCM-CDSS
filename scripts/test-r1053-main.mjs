@@ -192,8 +192,11 @@ const normalization = await jiti.import("../src/lib/tcm-disease-differential-nor
 const authoring = await jiti.import("../src/lib/tcm-disease-differential-authoring.server.ts");
 await check("10.1 鼻衄的教材对照型「吐血」可交付（要点取吐血段原文）、经行衄血按分段照留；「血证」不是血证（鼻衄）的鉴别；不分型时照旧", () => {
   const list = textbook.textbookDifferentialsForDisease("血证（鼻衄）", 50);
-  assert.deepEqual(list.map((item) => item.name), ["经行衄血", "吐血"]);
+  assert.deepEqual(list.map((item) => item.name), ["经行衄血", "吐血", "外伤鼻衄", "齿衄"]);
   assert.match(list[1].text, /鼻腔、口腔及咽喉出血/u);
+  // 男性按性别过滤后仍有两项以上（鼻衄的诊断条文写明排除外伤，齿衄按出血部位区分）
+  assert.ok(list.filter((item) => textbook.tcmDifferentialDiseaseFitsPatient(item.name, { sex: "男" })).length >= 2);
+  assert.equal(normalization.resolveTcmDiseaseDifferentialName("齿衄", "血证（鼻衄）").action, "keep");
   assert.equal(normalization.resolveTcmDiseaseDifferentialName("吐血", "血证（鼻衄）").action, "keep");
   assert.equal(normalization.resolveTcmDiseaseDifferentialName("经行衄血", "血证（鼻衄）").action, "keep");
   assert.equal(normalization.resolveTcmDiseaseDifferentialName("血证", "血证（鼻衄）").action, "drop");
@@ -239,4 +242,11 @@ await check("11.1 停经45天右下腹撕裂样痛伴阴道流血：「方中有
   assert.ok(ectopic.some((line) => /方中有孕期慎用的药/u.test(line)), ectopic.join(" / "));
   const plain = compile(state({ chiefComplaint: "乏力1月", patient: { sex: "女", age: 32 }, symptoms: { 现病史: "乏力1月，面色苍白。" } }));
   assert.ok(plain.some((line) => /如已怀孕或备孕/u.test(line)), plain.join(" / "));
+});
+
+// ───── 12 加减之间也不重复同源的药 ─────
+await check("12.1 同一张处方的两条加减不各加瓜蒌子与瓜蒌（11.05 病历2 复测）；方中已有瓜蒌皮时不再加瓜蒌；无关的药照留", () => {
+  const rows = [{ action: "加", herbName: "苦杏仁" }, { action: "加", herbName: "瓜蒌子" }, { action: "加", herbName: "瓜蒌" }, { action: "加", herbName: "射干" }];
+  assert.deepEqual(compiler.withoutMutuallyIncompatibleAdditions(rows, ["荆芥", "金银花", "桔梗", "甘草"]).map((row) => row.herbName), ["苦杏仁", "瓜蒌子", "射干"]);
+  assert.deepEqual(compiler.withoutMutuallyIncompatibleAdditions([{ action: "加", herbName: "瓜蒌" }], ["瓜蒌皮", "桔梗"]), []);
 });
