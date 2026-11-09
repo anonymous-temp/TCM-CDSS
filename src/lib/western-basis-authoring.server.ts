@@ -100,7 +100,8 @@ export function westernBasisRecitalRatio(sentence: string, recordText: string): 
 /** 句中的数字都出自病历（计量单位前的中文数词按阿拉伯数字比，同一归一化）。 */
 function numbersGrounded(sentence: string, recordText: string, allowed = ""): boolean {
   const source = `${normalizedQuoteText(recordText)}｜${normalizedQuoteText(allowed)}`;
-  const numbers = normalizedQuoteText(sentence).match(/\d+(?:\.\d+)?/gu) || [];
+  // 紧跟拉丁字母的数字是名称的一部分（维生素B12、HLA-B27），不是本例的读数。
+  const numbers = normalizedQuoteText(sentence).match(/(?<![A-Za-z\d.])\d+(?:\.\d+)?/gu) || [];
   return numbers.every((number) => source.includes(number));
 }
 
@@ -161,16 +162,19 @@ export function westernBasisIssue(proposal: WesternBasisProposal, context: Weste
   const core = westernNameCore(context.name);
   if (!core || !sentence.includes(core)) return "text_misses_name";
   if (!/待查|待排/u.test(compact(context.name)) && /待查|待排/u.test(sentence)) return "text_contradicts_name";
-  const { criteria, negatives } = groundedWesternBasisItems(proposal, context);
+  const { criteria } = groundedWesternBasisItems(proposal, context);
   if (criteria.length === 0) return "no_grounded_criteria";
   const nameGrams = bigrams(core);
-  if (criteria.some((item) => sharedBigrams(sentence, `${item.point}${item.quote}`, nameGrams) === 0)) return "text_misses_criteria";
+  // 成句写的是本例所见（要点原文出自要点表，照抄进成句就成了病历没有的体征：「肺部无异常体征」，第三十九轮实链盲评 6 份）。
+  // 列了三条、成句写了两条的照常（要求逐条都写会把 6/95 份合格依据挡掉）：至少一半的要点在成句里有本例所见。
+  const reflected = criteria.filter((item) => sharedBigrams(sentence, item.quote, nameGrams) > 0).length;
+  if (reflected < Math.ceil(criteria.length / 2)) return "text_misses_criteria";
   if (!proposal.level || sharedBigrams(sentence, proposal.level, nameGrams) < 2) return "text_misses_level";
   if (proposal.exclude.some((name) => compact(name) === compact(context.name) || compact(name) === core)) return "exclude_is_primary";
   if (proposal.exclude.some((name) => !sentence.includes(compact(name)))) return "text_misses_exclude";
   const declared = new Set([compact(context.name), core, ...proposal.exclude.map(compact)]);
-  // 病历自己否认的病（「否认高血压、甲状腺疾病史」）出现在阴性所见里不算另提一个病。
-  const deniedText = compact(negatives.map((item) => item.quote).join("；"));
+  // 病历自己写到的病（「否认高血压、甲状腺疾病史」「既往冠心病」）出现在成句里不算另提一个病。
+  const deniedText = compact(context.recordText);
   if (context.listedNames.some((name) => {
     const listed = compact(name);
     return listed.length >= 3 && sentence.includes(listed) && !declared.has(listed) && !core.includes(listed) &&
@@ -214,11 +218,11 @@ const SYSTEM = `你给一个西医诊断写诊断依据，给医生看。给你 
 依据要如实：支持这个诊断的是什么，还缺什么。确诊必需的检查病历里没有时，写明「尚缺…，需…确认」，不要说依据临床表现即可诊断。
 按下面的顺序填，前面几项是最后那句话的提纲：
 1. summary：一句话概括本例问题的特点（≤25字），用急性/慢性、反复/持续、诱因、部位这类定性说法，不要逐条罗列症状。定性词要有病历依据：病程不足3个月不写「慢性」，只写了一次发作不写「反复」，病历没写年龄性别就不写。
-2. criteria：本例满足的诊断要点，1–3条。point 写要点本身（criteria 不为空时只能用其中的要点，沿用它的说法；为空时写该病公认的诊断要点）；quote 是病历里支持这一点的一段原文，逐字照抄、不增不减（≤30字）。
+2. criteria：本例满足的诊断要点，1–3条，只列病历里确有原文支持的要点。point 写要点本身（criteria 不为空时只能用其中的要点，沿用它的说法；为空时写该病公认的诊断要点）；quote 是病历里支持这一点的一段原文，逐字照抄、不增不减（≤30字）。病历没有原文支持的要点不列，也不写进 text。
 3. negatives：病历里写明的、有鉴别意义的否认或正常结果，0–2条，quote 逐字照抄病历里那句否认或正常结果（如「无呕血、黑便」「心电图未见异常」）。病历没写否认就留空数组，不要把阳性症状放进来。
-4. level：诊断为什么写到这一级（≤40字）：是哪项检查或客观所见确立的；按临床表现即可诊断的病写明依据临床表现诊断；还缺确诊检查或病程未满的，写缺什么。
+4. level：诊断为什么写到这一级（≤40字）：是哪项检查或客观所见确立的；没有确诊检查的，写尚缺什么检查、病程未满多久或尚需排除什么。功能性疾病、原发性疾病这类排除性诊断，写「尚需排除器质性病变」，不写「可诊断」「可确诊」。
 5. exclude：还需排除的病，0–2个，写规范病名。
-6. text：把上面各项写成一句话（60–120字），这就是医生读到的诊断依据：先写 summary，再点出满足的要点，再写阴性所见（没有就不写这一部分），再写 level，最后写「需与/需排除…」。句中要逐字出现诊断名 name。
+6. text：把上面各项写成一句话（60–120字），这就是医生读到的诊断依据：先写 summary，再写本例的所见如何满足要点（用 quote 里的本例所见来写，不要把要点原文当成本例所见），再写阴性所见（没有就不写这一部分），再写 level，最后写「需与/需排除…」。句中要逐字出现诊断名 name。
 text 是临床表述：不逐条复述病史，不用「」引病历原文，不写「病历载」「病历未记录相关阴性」「无明确否认项」这类讲病历本身的话，不写病历里没有的检查结果或数字，不写中医证候。name 不带「待查」时句中不出现「待查」。
 只输出 JSON：{"summary":"","criteria":[{"point":"","quote":""}],"negatives":[{"point":"","quote":""}],"level":"","exclude":[""],"text":""}`;
 

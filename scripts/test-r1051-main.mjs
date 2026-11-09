@@ -77,6 +77,12 @@ await check("1.5 句中数字要出自病历；诊断要点表的门槛数字（
   assert.equal(issue(q, { criteria }), undefined);
 });
 
+await check("1.5b 紧跟拉丁字母的数字是名称（维生素B12、HLA-B27），不算本例读数", () => {
+  const p = good();
+  p.text = p.text.replace("需排除慢性胃炎、消化性溃疡", "需排除慢性胃炎、消化性溃疡，必要时查维生素B12");
+  assert.equal(issue(p), undefined);
+});
+
 await check("1.6 不写中医证候（「…证」「中医」）；「证据」「确证」不算", () => {
   const p = good();
   p.text = p.text.replace("；未诉报警征象", "，属肝胃不和证；未诉报警征象");
@@ -128,12 +134,11 @@ await check("1.9 需排除的病要写进成句；需排除的不能是主诊断
   assert.equal(issue(q), "exclude_is_primary");
 });
 
-await check("1.10 成句提到候选/鉴别里的别的病却没列为需排除 → 不合格；病历自己否认的病（阴性所见原文里）不算", () => {
+await check("1.10 成句提到候选/鉴别里的别的病却没列为需排除、病历也没写到它 → 不合格；病历自己写到（否认）的病不算", () => {
   const p = good();
-  p.text = p.text.replace("；未诉报警征象", "，胆囊结石亦可引起；未诉报警征象");
-  assert.equal(issue(p), "text_names_undeclared_disease");
+  p.text = p.text.replace("；未诉报警征象", "，胆汁反流性胃炎亦可引起；未诉报警征象");
+  assert.equal(issue(p, { listedNames: ["慢性胃炎", "消化性溃疡", "胆汁反流性胃炎"] }), "text_names_undeclared_disease");
   const q = good();
-  q.negatives = [{ point: "无胆道病史", quote: "否认胆囊结石病史" }];
   q.text = q.text.replace("；未诉报警征象", "；否认胆囊结石病史");
   assert.equal(issue(q), undefined);
 });
@@ -151,8 +156,15 @@ await check("1.12 成句要写到层级（为什么写到这一级）与每条�
   p.level = "需肠镜与血常规评估贫血原因";
   assert.equal(issue(p), "text_misses_level");
   const q = good();
-  q.criteria = [{ point: "上腹痛或餐后饱胀不适", quote: "上腹胀痛2月" }, { point: "胆道病史", quote: "否认胆囊结石病史" }];
+  // 至少一半的要点在成句里有本例所见：三条只写了一条不算，三条写了两条算。
+  q.criteria = [{ point: "上腹痛或餐后饱胀不适", quote: "上腹胀痛2月" }, { point: "胆道病史", quote: "否认胆囊结石病史" }, { point: "体重", quote: "无消瘦" }];
   assert.equal(issue(q), "text_misses_criteria");
+  q.criteria = [{ point: "上腹痛或餐后饱胀不适", quote: "上腹胀痛2月" }, { point: "餐后加重", quote: "餐后明显" }, { point: "胆道病史", quote: "否认胆囊结石病史" }];
+  assert.equal(issue(q), undefined);
+  // 只照抄了要点原文、没写本例所见（要点表原文当成本例体征）也不算覆盖。
+  const r = good();
+  r.criteria = [{ point: "上腹痛或餐后饱胀不适", quote: "无消瘦" }];
+  assert.equal(issue(r), "text_misses_criteria");
 });
 
 await check("1.13 待查写法按核心名查要点表；模型输出解析：没有 text 不算", () => {
