@@ -1,6 +1,6 @@
 import { cleanedMedicationNameCandidate, recordedDrugAllergyPhrases, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
-import { authoritativePatientAgeYears, clauseLocalMentionPolarityAt, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
+import { authoritativePatientAgeYears, clauseLocalMentionPolarityAt, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import {
   findLocalPatentMedicineLabel,
@@ -148,7 +148,11 @@ export function requiredPrecautionsForCase(
     assessLactationState(grounding).status === "unknown" && !recentChildbirthMentioned(grounding)) {
     // 本次月经逾期未至的（停经本身不算可疑妊娠——闭经、多囊不能一概收回剂量，见 assessPregnancyState），
     // 那一句写成先验孕，比「如已怀孕请告知」更具体（2026-10-19 Claude 评审 M 集 RobustSDT-0697：末次月经 10/21 至今未至、脉滑）。
-    items.push({ kind: currentMensesOverdue(grounding) ? "menses_overdue_pregnancy_check" : "reproductive_status_unknown" });
+    // 停经伴腹痛或阴道出血、已按早孕/异位妊娠急症转诊的（pregnancyPainOrBleedingSignal，与闸门产科红旗、24 小时早孕评估通道同一判据），
+    // 复诊已写到急诊做血 hCG 与超声，不再另写「服药前请先验孕」（第四十轮，11.05 病历17 停经45天、右下腹撕裂样痛、诊断异位妊娠）。
+    if (!pregnancyPainOrBleedingSignal(state, grounding)) {
+      items.push({ kind: currentMensesOverdue(grounding) ? "menses_overdue_pregnancy_check" : "reproductive_status_unknown" });
+    }
   }
   // 年龄相关的服药注意：提示词一直要求「75 岁以上高龄或 6 岁以下幼儿写一条」，模型时写时漏（2026-10-17 留出集 4 例患儿没有）。
   // 儿童取未满 12 岁——儿科剂量按年龄折算的年龄段（pediatric-dose-rule），这些孩子的家长都需要这一句。

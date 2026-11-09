@@ -4,7 +4,7 @@ import source from "../data/redflag-discriminators.source.json";
 import { quoteHasCurrentOccurrence } from "./clinical-facts";
 import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
 import { observeModelTask } from "./cdss-model-task-telemetry";
-import { discriminatorTextConceptsForPatient, type DiscriminatorPatient, type DiscriminatorScreen } from "./redflag-discriminators";
+import { DISCRIMINATOR_WEAK_ANCHORS, discriminatorTextConceptsForPatient, isFatigueFramed, type DiscriminatorPatient, type DiscriminatorScreen } from "./redflag-discriminators";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { alignQuoteToSource } from "./source-quote-alignment";
 import { allergenScreenConcepts } from "./allergen-profile";
@@ -39,11 +39,11 @@ const DEFINITIONS = (() => {
   return map;
 })();
 
-type QuoteAnchorSource = { byConcept?: Record<string, string[]>; weakAnchors?: Record<string, string[]>; fatigueFraming?: string[] };
+type QuoteAnchorSource = { byConcept?: Record<string, string[]> };
 const QUOTE_ANCHOR_SOURCE = ((source as { quoteAnchors?: QuoteAnchorSource }).quoteAnchors || {}) as QuoteAnchorSource;
 const QUOTE_ANCHORS = new Map(Object.entries(QUOTE_ANCHOR_SOURCE.byConcept || {}));
-const WEAK_ANCHORS = new Map(Object.entries(QUOTE_ANCHOR_SOURCE.weakAnchors || {}));
-const FATIGUE_FRAMING = QUOTE_ANCHOR_SOURCE.fatigueFraming || [];
+// 弱字样与疲乏写法读精简表（与闸门兜底提示同一份，redflag-discriminators.ts）。
+const WEAK_ANCHORS = DISCRIMINATOR_WEAK_ANCHORS;
 /** 引文里写的体温读数（℃）；没有返回 undefined。 */
 function quotedTemperature(quote: string): number | undefined {
   const match = quote.normalize("NFKC").match(/(\d{2}(?:\.\d)?)\s*(?:℃|°C|度)/u);
@@ -116,7 +116,7 @@ export function parseRedflagDiscriminatorScreen(content: unknown, concepts: read
     // 只靠弱字样（嗜睡）成立、而引文是疲乏写法（神疲嗜睡）时不采信；体温读数正常的「发热」引文不采信（源表 quoteAnchors 说明，第三十七轮）。
     const weak = WEAK_ANCHORS.get(conceptId) || [];
     if (anchors && weak.length > 0 && !anchors.some((anchor) => !weak.includes(anchor) && aligned.span.includes(anchor)) &&
-      FATIGUE_FRAMING.some((word) => aligned.span.includes(word))) continue;
+      isFatigueFramed(aligned.span)) continue;
     if (conceptId === "ctx-fever") {
       const temperature = quotedTemperature(aligned.span);
       if (temperature !== undefined && temperature < 37.3) continue;

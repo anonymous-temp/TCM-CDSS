@@ -248,9 +248,10 @@ await check("7.1b 换成合称后开方阶段照样找回原教材行（带下�
   assert.equal(textbook.textbookRowForSyndrome("胃痛", "心脾两虚证"), undefined);
 });
 
-await check("7.2 反证面：脾那一条只有一项、或已立兼证、或证名不在表里时不改", () => {
+// 第四十轮：兼证正好是合称的另一部分（「心血不足证」兼「脾气虚证」）时合成心脾两虚证（test:r1053-main 7.1）；与合称无关的兼证仍不改。
+await check("7.2 反证面：脾那一条只有一项、或已立与合称无关的兼证、或证名不在表里时不改", () => {
   assert.equal(surface.compositeSyndromeRename(compositeCase([{ location: "脾", basis: "食欲不振" }]), record3), undefined);
-  assert.equal(surface.compositeSyndromeRename(compositeCase([{ location: "脾", basis: "食欲不振、食后腹胀" }], { secondarySyndromes: ["脾气虚证"] }), record3), undefined);
+  assert.equal(surface.compositeSyndromeRename(compositeCase([{ location: "脾", basis: "食欲不振、食后腹胀" }], { secondarySyndromes: ["痰湿阻滞证"] }), record3), undefined);
   assert.equal(surface.compositeSyndromeRename(compositeCase([{ location: "脾", basis: "食欲不振、食后腹胀" }], { primarySyndrome: "心虚胆怯证" }), record3), undefined);
 });
 

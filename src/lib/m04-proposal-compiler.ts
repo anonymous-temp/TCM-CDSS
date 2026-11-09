@@ -1,5 +1,5 @@
 import sameSourceHerbsJson from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
-import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
+import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, standbyHerbOpposesSyndromePole, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { incidentalSleepSedativeModification, incidentalSleepTriggerModification, mindSymptomsProminentInRecord, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
 
 import { z } from "zod";
@@ -35,7 +35,7 @@ import {
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
-import { activeBleedingInGroundingText, authoritativePatientAgeYears, clinicalGroundingText, clauseLocalMentionPolarityAt, pregnancyAdviceRelevant, reproductiveAdviceRelevant, sourceDocumentsNegation } from "./diagnosis-safety";
+import { activeBleedingInGroundingText, authoritativePatientAgeYears, negationGroundingEquivalents, clinicalGroundingText, clauseLocalMentionPolarityAt, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, sourceDocumentsNegation } from "./diagnosis-safety";
 import modificationRelevanceJson from "../data/tcm-modification-relevance.source.json";
 import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
@@ -229,6 +229,8 @@ function normalizedPrecautionKey(value: string): string {
 const REPRODUCTIVE_ADVICE_LINE = /怀孕|备孕|妊娠|孕期|孕妇|哺乳/;
 /** 「如已怀孕或备孕请先告知医生」这类假设小句。 */
 const PREGNANCY_CONDITIONAL_CLAUSE = /如(?:已|已经|有|果|在)?(?:怀孕|妊娠)|如(?:正在)?备孕|或备孕/;
+/** 只剩「（请先）告知医生／由医生确认后（方可继续）服用」、没有说是什么药什么事的条目。 */
+const CONTENTLESS_DOCTOR_CONFIRMATION = /^(?:请)?(?:先|服药前|在服药前)?(?:告知|咨询)医生(?:[，,](?:由|经)?医生确认后?(?:方可|再)?(?:继续)?(?:服用|服药|用药))?[。]?$|^(?:由|经)医生确认后?(?:方可|再)?(?:继续)?(?:服用|服药|用药)[。]?$/u;
 /** 讲怎么服这张方的条目（温服、饭后服、先煎、服药后观察…）。只说「继续服用原有药物」的不算。 */
 const PRESCRIPTION_ADMINISTRATION_LINE = /温服|冷服|顿服|煎服|先煎|后下|包煎|烊化|本方|汤药|服药(?:后|期间|时)|饭[前后]服|空腹服|每剂/;
 
@@ -244,8 +246,11 @@ const PRESCRIPTION_ADMINISTRATION_LINE = /温服|冷服|顿服|煎服|先煎|后
 function casePrecautions(precautions: readonly string[], caseState: CaseState | undefined): string[] {
   if (!caseState) return [...precautions];
   if (!pregnancyAdviceRelevant(caseState)) precautions = precautions.filter((item) => !REPRODUCTIVE_ADVICE_LINE.test(item));
-  else if (assessPregnancyState(clinicalGroundingText(caseState)).status === "positive") {
-    precautions = precautions.map((item) => withoutClauses(item, PREGNANCY_CONDITIONAL_CLAUSE)).filter(Boolean);
+  else if (assessPregnancyState(clinicalGroundingText(caseState)).status === "positive" || pregnancyPainOrBleedingSignal(caseState)) {
+    // 已确认妊娠，或停经伴腹痛、阴道出血已按早孕/异位妊娠急症转诊的（与闸门产科红旗同一判据；第四十轮 11.05 病历17）：不写「如已怀孕/备孕」的假设小句。
+    // 去掉假设小句后只剩「请先告知医生，由医生确认后方可继续服用」这种没有内容的话时整条不留（同轮病历11 本机复测）。
+    precautions = precautions.map((item) => withoutClauses(item, PREGNANCY_CONDITIONAL_CLAUSE))
+      .filter((item) => item && !CONTENTLESS_DOCTOR_CONFIRMATION.test(item));
   }
   if (caseState.safetyGate?.status === "red_flag") precautions = precautions.filter((item) => !PRESCRIPTION_ADMINISTRATION_LINE.test(item));
   // 写给某一年龄段的条目只写给这个年龄段（2026-10-17：24 岁体健的感冒患者注意事项里写「高龄或体弱者起身宜缓，防跌倒」，独立评审判套话）。
@@ -1044,9 +1049,20 @@ export function modificationConditionAlreadyPresent(trigger: string, recordText:
     // 切词用的，会把「大便秘结」「小便不利」当成病机；这里要求病历里肯定、逐字写到这个说法，病机说法（肾阴亏虚）不会逐字出现在患者原话里。
     if (!part || part.length > 6) return undefined;
     if (part.length < 2 && !MODIFICATION_RELEVANCE.equivalents[part]) return undefined;
-    const forms = degree ? [rawPart.replace(new RegExp(`^(?:${MODIFICATION_RELEVANCE.termLeadPrefixes.join("|")})`, "u"), "").replace(/(?:者|时)$/u, "")] : (MODIFICATION_RELEVANCE.equivalents[part] || [part]);
-    const hit = forms.map((form) => (form ? { form, sentence: affirmingRecordSentence(recordText, form) } : undefined)).find((item) => item?.sentence);
-    if (!hit?.sentence) return undefined;
+    const formsOf = (term: string) => [...new Set([...(MODIFICATION_RELEVANCE.equivalents[term] || [term]), ...negationGroundingEquivalents(term)])];
+    const hitOf = (forms: readonly string[]) => forms.map((form) => (form ? { form, sentence: affirmingRecordSentence(recordText, form) } : undefined)).find((item) => item?.sentence);
+    const forms = degree ? [rawPart.replace(new RegExp(`^(?:${MODIFICATION_RELEVANCE.termLeadPrefixes.join("|")})`, "u"), "").replace(/(?:者|时)$/u, "")] : formsOf(part);
+    const hit = hitOf(forms);
+    if (!hit?.sentence) {
+      // 两个二字症状连写（「若纳呆腹胀」）：两半各自在病历里写到才算（第四十轮，11.05 病历3）。
+      const halves = !degree && part.length === 4 ? [part.slice(0, 2), part.slice(2)].map((half) => ({ half, hit: hitOf(formsOf(half)) })) : [];
+      if (halves.length === 0 || halves.some((item) => !item.hit?.sentence)) return undefined;
+      for (const { half, hit: halfHit } of halves) {
+        quotes.push(halfHit!.sentence!.split(/[，,]/u).find((clause) => clause.includes(halfHit!.form)) || halfHit!.sentence!);
+        written.push(half);
+      }
+      continue;
+    }
     // 引文只取含这个症状的那一小句（逗号分开），不整句贴。
     quotes.push(hit.sentence.split(/[，,]/u).find((clause) => clause.includes(hit.form)) || hit.sentence);
     written.push(degree ? forms[0] : part);
@@ -2266,6 +2282,11 @@ function modificationAddBlock(
   // 条件与本例相抵或本例不可能出现（教材加减同样适用：教材条件是「可预见的变化」，不是病历已否认的、或这个人不会有的症状）。
   if (context.recordText && modificationConditionContradictsRecord(item.trigger, context.recordText)) return "trigger_contradicts_record";
   if (context.caseState && modificationConditionOutsidePopulation(item.trigger, context.caseState)) return "trigger_outside_population";
+  // 备用加减（「若…」，条件还没在病历里出现）的药与本例证候寒热相反（下元虚寒证「若兼有郁热，加栀子、黄柏」）：不交付，教材条目也一样。
+  // 第四十轮，11.05 病历13 复测：甲方「随症加减与患者病情无关」——这类行说的是证候翻转到另一极，不是这位患者可预见的变化。
+  // 寒热只认证名单极（寒热错杂、证名解出两极时不判）；病历已有的条件（交付时写「本例已见」）不受影响。
+  if (add && /^\s*若/u.test(item.trigger) && !(context.recordText && modificationConditionAlreadyPresent(item.trigger, context.recordText)) &&
+    standbyHerbOpposesSyndromePole(item.herbName, context.syndromeText)) return "direction_conflict";
   // 拟加的药与方中某味同源同向（方中已有干姜又加生姜）：方中药味定稿时同一张表只留一味，加减这边此前没过（第三十三轮 5/142）。
   if (add && sameSourceHerbInCandidate(item.herbName, context.candidateHerbNames)) return "action_conflicts_with_candidate";
   // 拟加的药不得与方中任何一味相反（十八反）。此前只有「可替换药味」做了这项排除，加味本身没有。

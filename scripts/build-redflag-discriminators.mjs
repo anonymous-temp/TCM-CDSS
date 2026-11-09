@@ -35,6 +35,9 @@ const output = {
   version: source.version,
   sourceLabels: SOURCE_LABELS,
   contextConceptIds: source.contextConcepts.map((item) => item.conceptId),
+  // 只靠弱字样（嗜睡）成立的判别、且所在分句是疲乏写法（神疲嗜睡）时不采信：判别读者与闸门兜底提示读同一份词（第四十轮）。
+  weakAnchors: source.quoteAnchors?.weakAnchors || {},
+  fatigueFraming: source.quoteAnchors?.fatigueFraming || [],
   rows,
 };
 const text = `${JSON.stringify(output)}\n`;

@@ -1403,7 +1403,8 @@ function groundedDisposition(facts: ClinicalFacts | undefined, sourceText: strin
     : undefined;
   return {
     setting: disposition.setting,
-    conditions: [...new Set(ordered.map((item) => item.condition))].slice(0, 3),
+    // 模型有时把「需排除」写进待排除项（「需排除凝血功能障碍…」），各出口套进「（需排除：X）」「先完成评估（需排除X）」就重复了（第四十轮，11.05 病历8）。
+    conditions: [...new Set(ordered.map((item) => item.condition.replace(/^(?:(?:需|应|须)?(?:排除|除外)[：:]?\s*)+/u, "").trim() || item.condition))].slice(0, 3),
     quote: ordered[0].evidenceQuotes[0],
     ...(disposition.missingInfo ? { missingInfo: disposition.missingInfo } : {}),
     ...(timeWindow ? { timeWindow } : {}),

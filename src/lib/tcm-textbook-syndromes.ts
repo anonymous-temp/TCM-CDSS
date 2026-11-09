@@ -2,10 +2,13 @@ import subtypeSource from "../data/tcm-textbook-disease-subtypes.source.json" wi
 import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
 import textbookTableJson from "../data/tcm-textbook-syndrome-formula-table.json" with { type: "json" };
 import supplementJson from "../data/tcm-textbook-syndrome-supplement.source.json" with { type: "json" };
+import modificationRelevanceSource from "../data/tcm-modification-relevance.source.json" with { type: "json" };
 import { affirmedClinicalSourceClauses, clinicalClausePolarity } from "./clinical-polarity";
 import { resolveTcmDiseaseName, textbookSectionDeliveryName } from "./clinical-terminology";
 import { POSITIVE_FACT_EQUIVALENT_GROUPS, sourceDocumentsNegation } from "./diagnosis-safety";
 import { textbookModificationIsIncidentalSleep } from "./incidental-sleep-modification";
+import { governedSyndromeLabelAxes } from "./clinical-vocabulary";
+import { herbThermalSide } from "./tcm-knowledge";
 
 /**
  * 教材「病—证—治法—代表方—加减」对照表的运行时读取（2026-10-13，甲方 10.12 测评）。
@@ -265,13 +268,14 @@ function buildDiseases(): TextbookDisease[] {
     if (!entry) continue;
     entry.aliases = [...new Set([...entry.aliases, ...strings(raw.diseaseAliases), ...strings(raw.westernEquivalents), ...strings(raw.tcmEquivalents)])];
     entry.westernEquivalents = [...new Set([...(entry.westernEquivalents || []), ...strings(raw.westernEquivalents)])];
-    const differentialRows = (Array.isArray(raw.differentials) ? raw.differentials : [])
-      .map((item) => ({ name: text((item as { name?: unknown })?.name), text: text((item as { text?: unknown })?.text) }))
-      .filter((item) => item.name.length >= 2 && item.name.length <= 8 && !/[与和及、]/.test(item.name));
+    const allDifferentialRows = (Array.isArray(raw.differentials) ? raw.differentials : [])
+      .map((item) => ({ name: text((item as { name?: unknown })?.name), text: text((item as { text?: unknown })?.text) }));
+    const differentialRows = allDifferentialRows.filter((item) => item.name.length >= 2 && item.name.length <= 8 && !/[与和及、]/.test(item.name));
     entry.definition = text(raw.definition);
     entry.diagnosisPoints = strings(raw.diagnosisPoints);
     entry.differentials = differentialRows.map((item) => item.name);
-    entry.differentialTexts = Object.fromEntries(differentialRows.filter((item) => item.text).map((item) => [item.name, item.text]));
+    // 原文按教材的段名都留（「吐血与鼻腔、口腔及咽喉出血」不是病名、不进鉴别病名单，但分型对照要取它的原文，第四十轮）。
+    entry.differentialTexts = Object.fromEntries(allDifferentialRows.filter((item) => item.name && item.text).map((item) => [item.name, item.text]));
   }
   // 节名是西医病名、教材写明其属某个中医病的（血栓闭塞性脉管炎 → 脱疽）：交付用中医病名，按中医病名也要查得到这一节。
   for (const entry of byKey.values()) {
@@ -613,8 +617,17 @@ export function textbookDiseaseOnlyGynecologic(diseaseName: string): boolean {
  * 交付面兜底补齐都用这一个判据（第二十八轮：此前只有交付面过滤，C015 男性肠痈的模型鉴别「异位妊娠」在补写之后才被删掉，只剩一项）。
  */
 export function tcmDifferentialDiseaseFitsPatient(diseaseName: string, patient?: { sex?: string }): boolean {
-  return !(/男/u.test(String(patient?.sex || "")) && textbookDiseaseOnlyGynecologic(diseaseName));
+  if (!/男/u.test(String(patient?.sex || ""))) return true;
+  if (textbookDiseaseOnlyGynecologic(diseaseName)) return false;
+  // 病名本身是月经、带下、妊娠、产后的病（「经行衄血」列在内科血证节、不只属妇科，第四十轮 11.05 病历8 男性复测）：词取随证加减同一份
+  // femaleReproductiveTerms / pregnancyLactationTerms（tcm-modification-relevance.source.json）。
+  const name = String(diseaseName || "");
+  return !FEMALE_ONLY_DISEASE_TERMS.some((term) => name.includes(term));
 }
+const FEMALE_ONLY_DISEASE_TERMS: readonly string[] = [
+  ...(modificationRelevanceSource as { femaleReproductiveTerms: string[] }).femaleReproductiveTerms,
+  ...(modificationRelevanceSource as { pregnancyLactationTerms: string[] }).pregnancyLactationTerms,
+];
 
 /**
  * 教材里该病的定义首句（按病名取节，未成年先儿科），教材没有这一节或没有定义句时为空串。
@@ -677,6 +690,26 @@ export function textbookRowForSyndrome(diseaseName: string, syndromeName: string
   return wanted && wanted === resolveTcmDiseaseName(owners[0].disease)?.canonical ? owners[0] : undefined;
 }
 
+/** 证名（主证、兼证）解出的寒热单极；两极都有或都没有时 undefined。 */
+export function signedSyndromeThermalPole(syndromeText: string): "cold" | "heat" | undefined {
+  let cold = false;
+  let heat = false;
+  for (const name of String(syndromeText || "").split(/[；;，,、]/u).map((item) => item.trim()).filter(Boolean)) {
+    const natures = governedSyndromeLabelAxes(name).natures;
+    if (natures.includes("cold") || natures.includes("yang_deficiency")) cold = true;
+    if (natures.includes("heat") || natures.includes("fire_heat")) heat = true;
+  }
+  return cold === heat ? undefined : cold ? "cold" : "heat";
+}
+/**
+ * 备用加减的药与证候寒热相反（下元虚寒证「若兼有郁热，加栀子、黄柏」）：编译器不交付、开方提示词不列（第四十轮，11.05 病历13）。
+ */
+export function standbyHerbOpposesSyndromePole(herbName: string, syndromeText: string): boolean {
+  const pole = signedSyndromeThermalPole(syndromeText);
+  const side = pole ? herbThermalSide(herbName) : undefined;
+  return (pole === "cold" && side === "cold") || (pole === "heat" && side === "warm");
+}
+
 /**
  * 教材这一证的加减里，编译器真会留下的条目。被「睡眠差随主病而来、不另加安神药」规则不列的（本证不涉心神、条件只说睡不好、药全是安神药）
  * 不算：湿疮·血虚风燥证教材只有一条「瘙痒不能入眠者，加珍珠母、夜交藤、酸枣仁」，提示词里列着它、编译器又把它挡掉，
@@ -697,6 +730,8 @@ function textbookEntryPromptLines(row: TextbookSyndromeRow, recordText?: string)
   return row.modifications
     .map((item, index) => ({ item, id: `E${index + 1}` }))
     .filter(({ item }) => usable.has(item) && (!recordText || !modificationConditionTonguePulseConflict(item.condition, recordText)))
+    // 药全都与本证寒热相反的备用条（下元虚寒证「若兼有郁热，加栀子、黄柏」）不列：编译器也不交付（standbyHerbOpposesSyndromePole）。
+    .filter(({ item }) => !(item.herbs.length > 0 && item.herbs.every((herb) => standbyHerbOpposesSyndromePole(herb, row.syndromeName))))
     .slice(0, 8)
     .map(({ item, id }) => `${id} 若${item.condition.replace(/^若/, "")}，加${item.herbs.join("、")}`);
 }
@@ -1158,6 +1193,25 @@ export function textbookFormulaLabel(row: TextbookSyndromeRow): string {
  */
 const COMPOSITE_SYNDROME_RULES = (compositeSyndromeSource as { rules: Array<{ primary: string[]; composite: string }> }).rules;
 const DISEASE_SUBTYPES = (subtypeSource as { diseases: Record<string, Record<string, string[]>> }).diseases;
+/** 教材鉴别病属于哪一型的那一段（tcm-textbook-disease-subtypes.source.json differentialSections）。 */
+const DIFFERENTIAL_SECTIONS = ((subtypeSource as unknown as { differentialSections?: Record<string, Record<string, string[]>> }).differentialSections) || {};
+type SubtypeContrast = { differential: string; names: Record<string, string> };
+const SUBTYPE_CONTRASTS = ((subtypeSource as unknown as { subtypeContrasts?: Record<string, SubtypeContrast[]> }).subtypeContrasts) || {};
+/** 本型的教材对照型（鼻衄 → 吐血，要点取吐血段「吐血与鼻腔、口腔及咽喉出血」原文）。 */
+function subtypeContrastsFor(disease: string, subtype: string | undefined): Array<{ name: string; differential: string }> {
+  if (!subtype) return [];
+  return (SUBTYPE_CONTRASTS[disease] || []).flatMap((item) => item.names[subtype] ? [{ name: item.names[subtype], differential: item.differential }] : []);
+}
+function differentialSectionsFor(disease: string, differentialName: string): string[] | undefined {
+  const sections = DIFFERENTIAL_SECTIONS[disease];
+  if (!sections) return undefined;
+  const name = String(differentialName || "").trim();
+  if (!name) return undefined;
+  if (sections[name]) return sections[name];
+  // 归一后的短名（温病发斑 → 温病）按教材那一项找。
+  const key = Object.keys(sections).find((item) => item.startsWith(name) || name.startsWith(item));
+  return key ? sections[key] : undefined;
+}
 
 /** 单写的分型名（「鼻衄」）所属的病（血证）；不是分型名返回 undefined。 */
 export function subtypeParentDisease(name: string): string | undefined {
@@ -1170,6 +1224,20 @@ export function splitTextbookDiseaseSubtype(name: string): { disease: string; su
   const match = String(name || "").trim().match(/^(.+?)[（(]([^）)]+)[）)]$/u);
   if (match && DISEASE_SUBTYPES[match[1]]?.[match[2]]) return { disease: match[1], subtype: match[2] };
   return { disease: String(name || "").trim() };
+}
+
+/**
+ * 病名按本例写到具体一型（「血证」→「血证（鼻衄）」；模型单写分型名「鼻衄」时按所属的病写全）。定不了型时原样返回。
+ * 交付面与补写鉴别的小任务用这同一个函数（第四十轮：补写按「血证」数鉴别，交付按「血证（鼻衄）」过滤，补写以为够了、交付时全被滤掉）。
+ */
+export function diseaseNameWithRecordSubtype(diseaseName: string, recordText: string): string {
+  const name = String(diseaseName || "").trim();
+  if (!name) return name;
+  const parent = subtypeParentDisease(name);
+  const split = parent ? { disease: parent, subtype: name } : splitTextbookDiseaseSubtype(name);
+  const chief = /主诉[：:]\s*([^\n]+)/u.exec(recordText || "")?.[1] || "";
+  const subtype = split.subtype || textbookDiseaseSubtype(split.disease, chief, recordText || "");
+  return subtype ? `${split.disease}（${subtype}）` : name;
 }
 
 /**
@@ -1186,11 +1254,28 @@ export function textbookDiseaseSubtype(diseaseName: string, chiefComplaint: stri
   return undefined;
 }
 
+/**
+ * 分型病（血证（鼻衄））的鉴别里，教材按分段写明属于本型的病名（经行衄血之于鼻衄）、或拿本型作对照的另一型（吐血之于鼻衄）：
+ * 这些是教材原文给的可交付病名，鉴别病名归一时按教材保留（第四十轮：「吐血」「经行衄血」不合「以痛/疮/痹…收尾」的构词口子，被丢掉，鼻衄鉴别为空）。
+ */
+export function subtypeTextbookDifferentialName(currentDisease: string, name: string): boolean {
+  const { disease: base, subtype } = splitTextbookDiseaseSubtype(currentDisease);
+  const trimmed = String(name || "").trim();
+  if (!subtype || !trimmed || /[与、和及]/u.test(trimmed)) return false;
+  if (subtypeContrastsFor(base, subtype).some((item) => item.name === trimmed)) return true;
+  const sections = DIFFERENTIAL_SECTIONS[base]?.[trimmed];
+  return Boolean(sections && sections.includes(subtype));
+}
+
 /** 教材鉴别病是否讲的是本型：原文提到本型的写法就算；只提到别的型时不算；都没提到时不判（算）。 */
 export function textbookDifferentialFitsSubtype(diseaseName: string, subtype: string | undefined, differentialName: string): boolean {
   const base = splitTextbookDiseaseSubtype(diseaseName).disease;
   const groups = DISEASE_SUBTYPES[base];
   if (!groups || !subtype || !groups[subtype]) return true;
+  if (subtypeContrastsFor(base, subtype).some((item) => item.name === String(differentialName || "").trim())) return true;
+  // 教材分段写明属哪一型的，按分段判；原文顺带提到别的型不算（温病发斑一段写了「鼻衄、齿衄」，讲的是紫斑）。
+  const sections = differentialSectionsFor(base, differentialName);
+  if (sections) return sections.includes(subtype);
   const entry = DISEASES.find((item) => item.disease === base);
   const text = `${differentialName}${entry?.differentialTexts?.[differentialName] || ""}`;
   if (groups[subtype].some((form) => text.includes(form))) return true;
@@ -1205,9 +1290,14 @@ export function textbookDifferentialsForDisease(diseaseName: string, limit = 2):
     .filter((item) => compact(item.disease) === wanted)
     .sort((left, right) => (CANDIDATE_BOOK_PRIORITY[left.bookKey] || 0) - (CANDIDATE_BOOK_PRIORITY[right.bookKey] || 0))[0];
   if (!disease) return [];
-  return disease.differentials.filter((name) => textbookDifferentialFitsSubtype(baseName, subtype, name)).flatMap((name) => {
+  // 按分段属于本型的教材鉴别病，再加教材里拿本型作对照的另一型（鼻衄 → 吐血，要点取吐血段原文；subtypeContrasts）。
+  const listed = disease.differentials.filter((name) => textbookDifferentialFitsSubtype(baseName, subtype, name)).map((name) => ({ name, key: name }));
+  const contrasts = subtypeContrastsFor(baseName, subtype)
+    .filter((item) => !listed.some((entry) => entry.name === item.name) && disease.differentialTexts[item.differential])
+    .map((item) => ({ name: item.name, key: item.differential }));
+  return [...listed, ...contrasts].flatMap(({ name, key }) => {
     // 病名里可能带正则元字符（「β受体…」、括注），按字面去掉段首的病名。
-    const raw = (disease.differentialTexts[name] || "").replace(new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`), "").trim();
+    const raw = (disease.differentialTexts[key] || "").replace(new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`), "").trim();
     const sentences = raw.split(/(?<=。)/).slice(0, 2).join("").trim();
     const textValue = sentences.length > 110 ? `${sentences.slice(0, 108)}…` : sentences;
     return textValue.length >= 8 ? [{ name, text: textValue, book: disease.book }] : [];

@@ -9,7 +9,7 @@ import { formulaCounterEvidence } from "./formula-discrimination-guard";
 import { matchingMedicineClinicalConcepts } from "./medicine-clinical-concepts";
 import { catalogSharedComposition, executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import { parseMedicationLabelUsage } from "./medication-label-usage";
-import { getTcmHerbFunctionCategories, isKnownTcmHerbName } from "./tcm-knowledge";
+import { COLD_HERB_CATEGORIES, getTcmHerbFunctionCategories, herbThermalSide, INTERIOR_WARM_HERB_CATEGORIES, isKnownTcmHerbName } from "./tcm-knowledge";
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 
 export type LocalPatentMedicineEntry = {
@@ -591,14 +591,8 @@ export type SignedDirection = { names: string; method: string; decoctionThermal?
  * 羌活、白芷、防风、荆芥）里的辛温发散药是解表用的，不是温里，此前按「寒温并见」弃权，外感风邪证配了桂枝颗粒（风寒表虚）
  *（第二十七、二十八轮甲方接口病例 api-163c9273efa3 与「XXX天」一例，qwen 评审判中成药与汤剂方向相悖）。
  */
-const INTERIOR_WARM_HERB_CATEGORIES: ReadonlySet<string> = new Set(["温里药", "补阳药", "温化寒痰药"]);
-/** 单味药的寒温方向（按知识库功效分类）。 */
-export function herbThermalSide(herb: string): "cold" | "warm" | undefined {
-  const categories = getTcmHerbFunctionCategories(herb);
-  if (categories.some((category) => COLD_HERB_CATEGORIES.has(category))) return "cold";
-  if (categories.some((category) => INTERIOR_WARM_HERB_CATEGORIES.has(category))) return "warm";
-  return undefined;
-}
+// 单味药的寒温方向与两组功效分类在 tcm-knowledge（第四十轮：加减核对也读它，判据不另写一份）。
+export { herbThermalSide };
 
 export function decoctionThermalByComposition(herbs: readonly string[]): "cold" | "warm" | undefined {
   const byShare = medicineThermalByComposition(herbs);
@@ -677,7 +671,6 @@ const MEDICINE_ATTACK = /清热解毒|泻火|泻下|攻下|通腑|逐水|破血|
 const MEDICINE_COLD = /清热|泻火|凉血|泄热|解毒|清肝|清胃|清肺|清心|苦寒/u;
 const MEDICINE_WARM = /温中|温肾|温阳|散寒|助阳|回阳|温经|温补|辛温|祛寒|驱寒/u;
 const MEDICINE_RELEASE_EXTERIOR = /解表|发表|发汗|解肌|散风|疏风|宣肺/u;
-const COLD_HERB_CATEGORIES: ReadonlySet<string> = new Set(["清热药", "清热泻火药", "清热解毒药", "清热燥湿药", "清热凉血药", "清虚热药"]);
 const WARM_HERB_CATEGORIES: ReadonlySet<string> = new Set(["温里药", "补阳药", "发散风寒药", "祛风寒湿药", "温化寒痰药"]);
 
 /** 成份里有没有补虚药（中药学分类「补虚药」）；甘草、大枣是调和之品，不计。 */

@@ -27,7 +27,7 @@ import { drugNamesInAllergyPhrases } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
-import { splitTextbookDiseaseSubtype, subtypeParentDisease, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookDiseaseSubtype, textbookFormulaComposition, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
+import { diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookFormulaComposition, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
@@ -982,13 +982,12 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
   if (overview && typeof overview.tcmDiseaseName === "string") overview.tcmDiseaseName = overview.tcmDiseaseName.replace(/类病$/u, "");
   // 按部位分节的病写到具体一型：「血证（鼻衄）」，鉴别病只留讲到这一型的（第三十七轮甲方 11.05 病历8；tcm-textbook-disease-subtypes）。
   if (overview && typeof overview.tcmDiseaseName === "string" && options?.recordText && !isLimitedDiagnose(reasoning)) {
-    // 模型把分型名单写成病名（「鼻衄」）时按所属的病（血证）写全。
-    const parent = subtypeParentDisease(overview.tcmDiseaseName);
-    const split = parent ? { disease: parent, subtype: overview.tcmDiseaseName.trim() } : splitTextbookDiseaseSubtype(overview.tcmDiseaseName);
-    const chief = /主诉[：:]\s*([^\n]+)/u.exec(options.recordText)?.[1] || "";
-    const subtype = split.subtype || textbookDiseaseSubtype(split.disease, chief, options.recordText);
+    // 模型把分型名单写成病名（「鼻衄」）时按所属的病（血证）写全（diseaseNameWithRecordSubtype，与补写鉴别的小任务同一个函数）。
+    const subtyped = diseaseNameWithRecordSubtype(overview.tcmDiseaseName, options.recordText);
+    const split = splitTextbookDiseaseSubtype(subtyped);
+    const subtype = split.subtype;
     if (subtype) {
-      overview.tcmDiseaseName = `${split.disease}（${subtype}）`;
+      overview.tcmDiseaseName = subtyped;
       if (Array.isArray(overview.tcmDiseaseDifferentials)) {
         overview.tcmDiseaseDifferentials = records(overview.tcmDiseaseDifferentials)
           .filter((item) => textbookDifferentialFitsSubtype(split.disease, subtype, String(item.diseaseName || "")));
@@ -1121,20 +1120,46 @@ const COMPOSITE_SYNDROME_RULES = (compositeSyndromeSource as { rules: CompositeS
 /**
  * 证名跟着辨证依据走（tcm-syndrome-composite-names.source.json 的说明）：模型自己的病位分析里另一脏腑那一条依据有两项以上病历原文
  *（「脾：食欲不振、食后腹胀」），或病性里列了湿且病历肯定记载两项以上湿象，教材单脏证名换成国标合称；依据与鉴别里的旧证名同步换。
- * 已有兼证的不动（兼证已表达另一组）。返回改名；没改返回 undefined。
+ * 兼证正好就是合称里的另一脏腑或另一因素（「心血不足证」兼「脾气虚证」→ 心脾两虚证；「脾虚证」兼「湿阻证」→ 脾虚湿困证）时合成合称、
+ * 去掉这条兼证：兼证已过辨证要点核对，不再要求病位依据条数（第四十轮，11.05 病历3 复测一次得心脾两虚证、一次得「心血不足证＋脾气虚证」）。
+ * 别的兼证（两条以上，或与合称无关）不动。返回改名；没改返回 undefined。
  */
 export function compositeSyndromeRename(reasoning: Json, recordText: string): { from: string; to: string } | undefined {
   const overview = record(reasoning.overview);
   const pathogenesis = record(reasoning.pathogenesis);
   const primary = typeof overview?.primarySyndrome === "string" ? overview.primarySyndrome.trim() : "";
   if (!overview || !pathogenesis || !primary || !recordText) return undefined;
-  if (Array.isArray(overview.secondarySyndromes) && overview.secondarySyndromes.some((item) => typeof item === "string" && item.trim())) return undefined;
+  const secondaries = Array.isArray(overview.secondarySyndromes)
+    ? overview.secondarySyndromes.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim())
+    : [];
+  if (secondaries.length > 1) return undefined;
+  const secondary = secondaries[0];
   const nature = record(pathogenesis.natureDifferentiation);
   const natures = [nature?.items, nature?.rootDeficiency, nature?.branchExcess].flatMap((list) => Array.isArray(list) ? list.filter((item): item is string => typeof item === "string") : []).join("、");
   const details = records(record(pathogenesis.locationDifferentiation)?.details);
   const groundedFindings = (basis: unknown) => String(basis || "").split(/[、，,；;。]/u).map((item) => item.trim()).filter((item) => item.length >= 2 && recordText.includes(item));
   for (const rule of COMPOSITE_SYNDROME_RULES) {
     if (!rule.primary.includes(primary)) continue;
+    if (secondary) {
+      const secondaryIsTheOtherPart = (rule.addLocation !== undefined && secondary.includes(rule.addLocation) && /虚|不足|亏/u.test(secondary)) ||
+        (rule.addNature !== undefined && rule.addNature.some((item) => secondary.includes(item)));
+      if (!secondaryIsTheOtherPart) continue;
+      const secondaryNatures = `${natures}、${secondary}`;
+      if (rule.requiresNature && !rule.requiresNature.every((item) => secondaryNatures.includes(item))) continue;
+      if (!resolveNationalStandardTcmSyndromeTerm(rule.composite)) continue;
+      overview.primarySyndrome = rule.composite;
+      overview.secondarySyndromes = [];
+      for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"] as const) {
+        if (typeof overview[key] === "string") {
+          overview[key] = (overview[key] as string).split(`，兼${secondary}`).join("").split(`兼${secondary}`).join("")
+            .split(primary).join(rule.composite).split(secondary).join(rule.composite);
+        }
+      }
+      if (Array.isArray(overview.tcmDifferentials)) {
+        overview.tcmDifferentials = overview.tcmDifferentials.filter((row) => String(record(row)?.syndrome || "").trim() !== rule.composite);
+      }
+      return { from: `${primary}兼${secondary}`, to: rule.composite };
+    }
     if (rule.requiresNature && !rule.requiresNature.every((item) => natures.includes(item))) continue;
     if (rule.addLocation) {
       const own = details.filter((detail) => typeof detail.location === "string" && detail.location.includes(rule.addLocation!) && !rule.primary.some((name) => name.startsWith(String(detail.location))));
@@ -2235,15 +2260,17 @@ function withoutFalseAdditionClaims(analysis: string, catalogIds: ReadonlySet<st
 // 「配伍（重心）/部分/成分」同样是说删了原方的东西；只在原方药味逐味都在处方里时才去，查不到组成时不动。
 // 「去原方之峻消」「去原方之燥烈」：去掉的是原方的某种药性（2026-10-19 H 集 X-H-0331 保和丸七味俱在），同样是说删了原方的东西。
 const REMOVAL_CLAIM_ENDING = "(?:之品|之药|药味|诸药|之味|的?配伍(?:重心)?|部分|成分|之(?:峻|燥|寒|温|滋|腻)[\\u4e00-\\u9fff]{0,2})";
-const REMOVAL_CLAIM_CLAUSE = new RegExp(`(?:^|[，,。；;])\\s*(?:并|且)?(?:去|删去|减去|去掉)(?:原方|其)?[^，,。；;]{0,20}${REMOVAL_CLAIM_ENDING}`, "u");
-function withoutRemovalClaims(analysis: string): string {
+// 宾语明写「原方/本方」的整小句不看结尾（第四十轮，11.05 病历8：模型写了半句「去原方中与本证无涉之偏，」，玉女煎五味其实都在方中）。
+const REMOVAL_CLAIM_BODY = `(?:去|删去|减去|去掉)(?:(?:原方|其)?[^，,。；;]{0,20}?${REMOVAL_CLAIM_ENDING}|(?:原方|本方)[^，,。；;]{0,20}?(?=[，,。；;]|$))`;
+const REMOVAL_CLAIM_CLAUSE = new RegExp(`(?:^|[，,。；;])\\s*(?:并|且)?${REMOVAL_CLAIM_BODY}`, "u");
+export function withoutRemovalClaims(analysis: string): string {
   return analysis.split(/(?<=。)/).map((sentence) => {
     const clauses = sentence.split(/(?<=[，,；;])/);
     const kept: string[] = [];
     let dropping = false;
     for (const clause of clauses) {
       const body = clause.replace(/^\s*(?:并|且)?/u, "");
-      const claim = body.match(new RegExp(`^(?:去|删去|减去|去掉)(?:原方|其)?[^，,。；;]{0,20}?${REMOVAL_CLAIM_ENDING}(?:后|而)?`, "u"));
+      const claim = body.match(new RegExp(`^${REMOVAL_CLAIM_BODY}(?:后|而)?`, "u"));
       // 点了药名的（「去原方熟地之滋腻，以生地黄易之」）交给按药名、按炮制写法核对的 withoutFalseNamedRemovalClaims：
       // 这里按组成身份算「都在方中」，熟地黄与生地黄是同一身份，会把换药说成删药。
       if (claim && formulaAnalysisHerbMentions(claim[0]).length > 0) {
@@ -2579,6 +2606,13 @@ export function clinicalMethodItems(method: string, cap = DELIVERED_METHOD_ITEM_
   const keptEntries: TreatmentPrincipleEntry[][] = [];
   for (const item of items) {
     if (kept.includes(item)) continue;
+    // 后一项的头两字就是前一项的尾两字（「活血化瘀，化瘀通络」，第四十轮 11.05 病历15）：是同一项写了两遍，接成一项（活血化瘀通络）。
+    const joinAt = item.length === 4 ? kept.findIndex((prior) => prior.length >= 4 && prior.slice(-2) === item.slice(0, 2)) : -1;
+    if (joinAt >= 0) {
+      kept[joinAt] = `${kept[joinAt]}${item.slice(2)}`;
+      keptEntries[joinAt] = governedTreatmentMethodOccurrencesInText(kept[joinAt]).map(({ entry }) => entry);
+      continue;
+    }
     const own = wholeEntry(item);
     if (own && keptEntries.some((prior) => prior.length > 0 && treatmentMethodCoveredBy(own, prior))) continue;
     kept.push(item);

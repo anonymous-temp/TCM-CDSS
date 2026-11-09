@@ -2244,3 +2244,14 @@ export function tcmHerbGenerationSafetyBoundaryText(herb: string): string {
   ];
   return parts.join("；");
 }
+
+/** 清热类功效分类（寒）与温里、补阳、温化寒痰类（温）：单味药的寒温方向按它判。中成药方向底线、汤剂按组成定寒温、加减核对共用。 */
+export const COLD_HERB_CATEGORIES: ReadonlySet<string> = new Set(["清热药", "清热泻火药", "清热解毒药", "清热燥湿药", "清热凉血药", "清虚热药"]);
+export const INTERIOR_WARM_HERB_CATEGORIES: ReadonlySet<string> = new Set(["温里药", "补阳药", "温化寒痰药"]);
+/** 单味药的寒温方向（按知识库功效分类）。 */
+export function herbThermalSide(herb: string): "cold" | "warm" | undefined {
+  const categories = getTcmHerbFunctionCategories(herb);
+  if (categories.some((category) => COLD_HERB_CATEGORIES.has(category))) return "cold";
+  if (categories.some((category) => INTERIOR_WARM_HERB_CATEGORIES.has(category))) return "warm";
+  return undefined;
+}

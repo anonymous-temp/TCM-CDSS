@@ -3,7 +3,7 @@ import abbreviationsJson from "../data/western-diagnosis-abbreviations.source.js
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import icd10IndexJson from "../data/icd10-diagnosis-index.json" with { type: "json" };
 import { governedTcmDiseaseCode, resolveTcmDiseaseName, textbookSectionDeliveryName } from "./clinical-terminology";
-import { textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
+import { splitTextbookDiseaseSubtype, subtypeTextbookDifferentialName, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
 
 /**
  * 中医病名鉴别栏只收中医病名（2026-09-29，甲方 9.24/9.27 测评 1.1：风寒感冒例的中医鉴别写了「流感」）。
@@ -93,9 +93,12 @@ export type TcmDiseaseDifferentialNameResolution =
   | { action: "rename"; name: string; from: string }
   | { action: "drop"; from: string };
 
-export function resolveTcmDiseaseDifferentialName(rawName: string, currentDisease = ""): TcmDiseaseDifferentialNameResolution {
+export function resolveTcmDiseaseDifferentialName(rawName: string, currentDiseaseWritten = ""): TcmDiseaseDifferentialNameResolution {
   const name = rawName.trim();
   if (!name) return { action: "drop", from: rawName };
+  // 分型病（血证（鼻衄））：与本病同名按所属的病比（「血证」不是血证（鼻衄）的鉴别）；教材按分段写明的本型鉴别病名照留。
+  if (subtypeTextbookDifferentialName(currentDiseaseWritten, name)) return { action: "keep", name };
+  const currentDisease = splitTextbookDiseaseSubtype(currentDiseaseWritten).disease;
   // 教材的节名是可交付的规范病名（clinical-terminology.canonicalTcmDiseaseName 同一口径）：原样保留，
   // 不归一到国标条目（「头痛」→「头风病」），也不因国标没有收录而丢掉（教材的鉴别病名如「奔豚」「热疮」）。
   const textbookName = name.replace(/类病$/u, "");
@@ -106,7 +109,7 @@ export function resolveTcmDiseaseDifferentialName(rawName: string, currentDiseas
       ? { action: "drop", from: name }
       : delivered === name ? { action: "keep", name } : { action: "rename", name: delivered, from: name };
   }
-  if (textbookListedTcmDifferential(name, currentDisease.trim().replace(/类病$/u, ""))) return { action: "keep", name };
+  if (textbookListedTcmDifferential(name, currentDiseaseWritten.trim().replace(/类病$/u, ""))) return { action: "keep", name };
   const currentCanonical = governedCanonical(currentDisease);
   const direct = governedCanonical(name);
   if (direct) {

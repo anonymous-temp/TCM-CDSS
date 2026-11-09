@@ -21,7 +21,7 @@ import {
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
 import priorityEvaluationWindowTable from "../data/priority-evaluation-windows.source.json";
-import { evaluateDiscriminators, redFeatureChecklistForPatient, type DiscriminatorOutcome } from "./redflag-discriminators";
+import { evaluateDiscriminators, isFatigueFramed, redFeatureChecklistForPatient, WEAK_CONSCIOUSNESS_TERMS, type DiscriminatorOutcome } from "./redflag-discriminators";
 import emergencyDiagnosisNames from "../data/emergency-diagnosis-names.source.json";
 import { generalizeOccupation, shouldRedactNarrativeNameCandidate, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
 import { determineCompletenessLevel, normalizeCaseStateInput } from "./diagnosis-types";
@@ -681,8 +681,8 @@ export const NARROWER_THAN_GROUP_CANONICAL: ReadonlySet<string> = new Set([
   "大便干结", "大便干燥", "未解大便", "眩晕",
 ]);
 
-/** 否定方向可替换的等价说法：只含真同义，绝不含下位词。 */
-function negationGroundingEquivalents(term: string): readonly string[] {
+/** 否定方向可替换的等价说法：只含真同义，绝不含下位词。加减「本例已见X」也按它认病历写到的同义说法（第四十轮）。 */
+export function negationGroundingEquivalents(term: string): readonly string[] {
   if (NARROWER_THAN_GROUP_CANONICAL.has(term)) return [term];
   const group = POSITIVE_FACT_EQUIVALENT_GROUPS.find((item) => item.includes(term));
   if (!group) return [term];
@@ -3561,24 +3561,24 @@ function isPostfixNegatedAt(text: string, index: number, termLength: number): bo
 }
 
 function hasTerm(text: string, term: string): boolean {
-  let index = text.indexOf(term);
-  while (index !== -1) {
-    if (isExcludedClinicalAssertionAt(text, index)) {
-      index = text.indexOf(term, index + term.length);
-      continue;
-    }
-    const postNegated = isPostfixNegatedAt(text, index, term.length);
-    const historicalResolved = isHistoricalOrResolvedAt(text, index, term.length);
-    const anaphoricRecurrence = hasAnaphoricRecurrenceAfter(text, index, term);
-    // A comma normally continues an explicit negative symptom list. It becomes a positive boundary
-    // only when the new entity carries its own action cue ("排黑色便") or a concrete duration/count
-    // ("呕血1次", "便血2日"). This preserves sensitivity without turning routine comma-separated
-    // denials into a wall of false red flags.
-    const commaSeparatedTimedPositive = hasCommaSeparatedPositiveEvidence(text, index, term);
-    if (((!isNegatedAt(text, index) || commaSeparatedTimedPositive) && !postNegated && !historicalResolved) || anaphoricRecurrence) return true;
-    index = text.indexOf(term, index + term.length);
+  for (let index = text.indexOf(term); index !== -1; index = text.indexOf(term, index + term.length)) {
+    if (termOccurrencePositiveAt(text, index, term)) return true;
   }
   return false;
+}
+
+/** 这一处 term 是否算作现有的、患者本人的、未被否认的记载（hasTerm 逐处的判法；兜底提示的「嗜睡」也用它，第四十轮）。 */
+function termOccurrencePositiveAt(text: string, index: number, term: string): boolean {
+  if (isExcludedClinicalAssertionAt(text, index)) return false;
+  const postNegated = isPostfixNegatedAt(text, index, term.length);
+  const historicalResolved = isHistoricalOrResolvedAt(text, index, term.length);
+  const anaphoricRecurrence = hasAnaphoricRecurrenceAfter(text, index, term);
+  // A comma normally continues an explicit negative symptom list. It becomes a positive boundary
+  // only when the new entity carries its own action cue ("排黑色便") or a concrete duration/count
+  // ("呕血1次", "便血2日"). This preserves sensitivity without turning routine comma-separated
+  // denials into a wall of false red flags.
+  const commaSeparatedTimedPositive = hasCommaSeparatedPositiveEvidence(text, index, term);
+  return ((!isNegatedAt(text, index) || commaSeparatedTimedPositive) && !postNegated && !historicalResolved) || anaphoricRecurrence;
 }
 
 function hasAnaphoricRecurrenceAfter(text: string, index: number, term: string): boolean {
@@ -4478,17 +4478,37 @@ function sensoryDeficitIsChronicPeripheralAt(text: string, index: number, matchT
   return chronicCourse && peripheralDistribution;
 }
 
+/**
+ * 只有已确立事件的残留缺损（陈旧卒中后遗症）：兜底提示不报。
+ * 逐处判法与红旗同一个（hasCurrentFocalNeurologicDeficit：残留框架、一个月以上病程、同一缺损别处已写病程或后遗、历史时间框定都不算当前缺损），
+ * 另须至少一处明写后遗/遗留/恢复期（病因不明的慢性无力仍提示）。第四十轮之前这里要求每一处都带残留字样：
+ * 11.05 病历15 主诉「右侧肢体无力、言语不清半年」与「半年前突发…」两处没有残留字样，红旗已不报、兜底提示仍报「意识水平改变…局灶神经功能异常」。
+ */
 function hasOnlyStableResidualNeurologicDeficit(text: string): boolean {
   const normalized = normalizeClinicalText(text);
   if (hasNeurologicEmergencySignal(normalized)) return false;
-  let sawResidual = false;
+  if (hasCurrentFocalNeurologicDeficit(normalized)) return false;
   for (const match of normalized.matchAll(new RegExp(FOCAL_NEUROLOGIC_PATTERN.source, "g"))) {
     const index = match.index ?? -1;
     if (index < 0 || isExcludedClinicalAssertionAt(normalized, index) || isNegatedAt(normalized, index)) continue;
-    if (!neuroResidualFramingAt(normalized, index, match[0])) return false;
-    sawResidual = true;
+    if (neuroResidualFramingAt(normalized, index, match[0])) return true;
   }
-  return sawResidual;
+  return false;
+}
+
+/**
+ * 「嗜睡」写在疲乏句里（「神疲嗜睡」「困倦嗜睡、乏力」）是倦怠，不是意识改变：与红旗判别读者同一份词（redflag-discriminators.ts，第四十轮）。
+ * 只看这一处所在的逗号分句；逐处的否认、既往、他人判法与 hasTerm 同一个（termOccurrencePositiveAt）。
+ */
+function hasSomnolenceBeyondFatigueFraming(text: string): boolean {
+  for (const term of WEAK_CONSCIOUSNESS_TERMS) {
+    for (let index = text.indexOf(term); index >= 0; index = text.indexOf(term, index + term.length)) {
+      if (!termOccurrencePositiveAt(text, index, term)) continue;
+      const { start, end } = clinicalSubClauseBoundsAt(text, index, term.length);
+      if (!isFatigueFramed(text.slice(start, end))) return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -6060,11 +6080,11 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
     addAdvisory("syncope", "晕厥、黑矇或意识丧失相关信息需优先复核当前状态、诱因、伤情及心电风险");
   }
   if (
-    hasAnyTerm(text, [
+    (hasAnyTerm(text, [
       ...governedRedFlagCategory("neuro").symptoms,
       ...FOCAL_NEUROLOGIC_TERMS,
-      "昏迷", "昏睡", "嗜睡", "谵妄", "呼之不应", "抽搐", "惊厥",
-    ]) &&
+      "昏迷", "昏睡", "谵妄", "呼之不应", "抽搐", "惊厥",
+    ]) || hasSomnolenceBeyondFatigueFraming(text)) &&
     !hasStablePostAcuteNeurologicContext(text) &&
     !hasOnlyStableResidualNeurologicDeficit(text)
   ) {
@@ -6115,10 +6135,19 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
     // 腹痛、阴道出血与「育龄女性停经伴出血或腹痛」读 pregnancyPainOrBleedingSignal（与 24 小时早孕评估通道、循环不稳定红旗同一判据）；
     // 育龄女性停经那一支只认出血与腹痛，不认头晕——闭经病例常伴头晕。「停经超过2年」是绝经，「月经推迟3-10天」说的是平时周期，都不收。
     // 已确认妊娠时头晕、晕厥与产科危险伴随也提示。
+    // 头晕单独不算循环症状（第四十轮，11.05 病历11：孕8周恶阻、明写「无腹痛及阴道流血」、血压脉搏正常，因「头晕」被提示「需优先排除产科急症」）：
+    // 记录了血压和脉搏且都不在循环不稳定线以内（earlyPregnancyInstabilitySigns，与早孕循环不稳定红旗同一阈值）时不提示；没记录生命体征仍提示。
+    const measured = currentVitalMeasurements(state);
+    const dizzinessRule = priorityEvaluationWindowTable.pregnancyDizzinessCounts;
+    const weeks = recordedGestationalWeeks(maternalStateText(state, text));
+    const dizzinessCounts = !measured.bloodPressure || measured.pulse == null || earlyPregnancyInstabilitySigns(state, text).length > 0 ||
+      measured.bloodPressure.systolic >= dizzinessRule.systolicAtLeast || measured.bloodPressure.diastolic >= dizzinessRule.diastolicAtLeast ||
+      (weeks !== undefined && weeks >= dizzinessRule.gestationalWeeksAtLeast);
     if (
       pregnancyPainOrBleedingSignal(state, text) ||
       (isPositiveOrPossibleClinicalState(assessPregnancyState(maternalStateText(state, text))) &&
-        hasAnyTerm(text, ["腹痛", "头晕", "晕厥", ...needsPregnancyContext, ...obstetric.dangerCompanions]))
+        (hasAnyTerm(text, ["腹痛", "晕厥", ...needsPregnancyContext, ...obstetric.dangerCompanions]) ||
+          (dizzinessCounts && hasAnyTerm(text, ["头晕"]))))
     ) {
       addAdvisory("obstetric", "妊娠相关腹痛、出血或循环症状需优先排除产科急症");
     }
@@ -8465,7 +8494,8 @@ function withoutExclusionAlreadyInVisit(visit: string, text: string): string {
 }
 
 function focusWithoutNestedExclusion(focus: string | undefined): string {
-  const text = String(focus || "").trim();
+  // 事实层有时把「需排除」写进待排除项本身（「需排除：需排除凝血功能障碍…」），套进模板成了「需排除需排除…」（第四十轮，11.05 病历8）。
+  const text = String(focus || "").trim().replace(/^(?:(?:需|应|须)?(?:排除|除外)[：:]?\s*)+/u, "").trim();
   const inner = text.match(/[（(](?:需)?(?:排除|除外)([^（）()]+)(?:[）)]|$)/u)?.[1];
   if (inner) return inner.trim();
   return text.replace(/[（(][^（）()]*[）)]/gu, "").trim();

@@ -5,7 +5,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { MIN_TCM_DIFFERENTIALS, WESTERN_DISEASE_FORM, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
-import { tcmDifferentialDiseaseFitsPatient, textbookCandidatesForCase, textbookDiseaseNamesForCase, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
+import { diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookCandidatesForCase, textbookDiseaseNamesForCase, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
 
 /**
  * 中医鉴别（病名级、证候级）不足两项时，只补写缺的那几项（2026-10-14 起补写病名级为空的；2026-10-19 第九轮改为补到两项）。
@@ -131,6 +131,9 @@ export function retainableDiseaseDifferentialRows(rows: unknown, diseaseName: st
     if (!row || !name) continue;
     const resolved = resolveTcmDiseaseDifferentialName(name, diseaseName);
     if (resolved.action === "drop" || seen.has(resolved.name) || !tcmDifferentialDiseaseFitsPatient(resolved.name, patient)) continue;
+    // 分型病只数讲到本型的（交付面同一个判据 textbookDifferentialFitsSubtype）：血证（鼻衄）不数紫斑段的温病发斑、丹毒。
+    const { disease: base, subtype } = splitTextbookDiseaseSubtype(diseaseName);
+    if (subtype && !textbookDifferentialFitsSubtype(base, subtype, resolved.name)) continue;
     seen.add(resolved.name);
     out.push({ row, name: resolved.name });
   }
@@ -366,7 +369,7 @@ type TopUpPlan = {
  *（memoizedSmallTask 按请求内容合流，在途的也合）。
  */
 function planTopUp(overview: Json | undefined, context: TopUpContext): TopUpPlan | undefined {
-  const diseaseName = text(overview?.tcmDiseaseName);
+  const diseaseName = diseaseNameWithRecordSubtype(text(overview?.tcmDiseaseName), context.recordText);
   if (!overview || !diseaseName) return undefined;
   const primary = text(overview.primarySyndrome);
   const diseaseRows = retainableDiseaseDifferentialRows(overview.tcmDiseaseDifferentials, diseaseName, context.patient);
@@ -389,7 +392,7 @@ function planTopUp(overview: Json | undefined, context: TopUpContext): TopUpPlan
   if (needSyndrome > 0) {
     const taken = new Set([primary, ...syndromeRows.map((item) => item.name)].map(syndromeCore));
     plan.syndromeInput = {
-      recordText, diseaseName, syndrome: primary, candidates: textbookSyndromeCandidates(diseaseName, recordText, taken),
+      recordText, diseaseName, syndrome: primary, candidates: textbookSyndromeCandidates(splitTextbookDiseaseSubtype(diseaseName).disease, recordText, taken),
       existing: syndromeRows.map((item) => item.name), need: needSyndrome,
     };
   }

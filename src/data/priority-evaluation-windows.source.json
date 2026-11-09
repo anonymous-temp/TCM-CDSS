@@ -151,6 +151,13 @@
       "temperature": [[35.0, 3], [36.0, 1], [38.0, 0], [39.0, 1], [99, 2]]
     }
   },
+  "pregnancyDizzinessCounts": {
+    "purpose": "孕妇只写头晕时产科兜底提示算不算（第四十轮，11.05 病历11：孕8周恶阻、无腹痛出血、血压脉搏正常仍提示「需优先排除产科急症」）。血压或脉搏没记录、到了循环不稳定线（earlyPregnancyInstability）、血压达到妊娠高血压线、或孕满 20 周时算。",
+    "systolicAtLeast": 140,
+    "diastolicAtLeast": 90,
+    "gestationalWeeksAtLeast": 20,
+    "source": "NICE NG133（Hypertension in pregnancy）：收缩压≥140 或舒张压≥90 mmHg 即为妊娠期高血压；子痫前期定义为孕 20 周后新发高血压伴蛋白尿或器官受累，头痛、视物模糊等是其症状。语料回放 A-eme-0393（孕34周、血压150/95、尿蛋白+、头晕）须保留提示。"
+  },
   "earlyPregnancyInstability": {
     "purpose": "妊娠（阳性或可疑）伴腹痛或阴道出血、同时有循环不稳定时报红旗，红旗解除前不可采纳、复诊第一步当天急诊。只差循环不稳定一项时走 24 小时通道 early_pregnancy_pain_bleeding。",
     "systolicAtMost": 90,

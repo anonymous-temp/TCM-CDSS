@@ -32,6 +32,21 @@ type Row = {
 };
 const ROWS = (table as unknown as { rows: Row[] }).rows;
 const SOURCE_LABELS = (table as unknown as { sourceLabels: Record<string, string> }).sourceLabels;
+/**
+ * 弱字样与疲乏写法（第四十轮）：「嗜睡」单独写是意识改变，写在疲乏句里（「神疲嗜睡」「困倦嗜睡、乏力」）是倦怠，不是意识障碍。
+ * 判别读者（redflag-discriminator-screen.server.ts）与闸门的兜底提示（diagnosis-safety narrativeFallbackAdvisories）读这同一份词，
+ * 词在源表 quoteAnchors（weakAnchors / fatigueFraming）。11.05 病历11「伴神疲嗜睡」读者已不采信，兜底提示却仍报「意识水平改变」。
+ */
+const ANCHOR_TABLE = table as unknown as { weakAnchors?: Record<string, string[]>; fatigueFraming?: string[] };
+export const DISCRIMINATOR_WEAK_ANCHORS: ReadonlyMap<string, readonly string[]> = new Map(Object.entries(ANCHOR_TABLE.weakAnchors || {}));
+export const FATIGUE_FRAMING_WORDS: readonly string[] = ANCHOR_TABLE.fatigueFraming || [];
+/** 所在分句写的是疲乏（神疲、困倦、乏力…）。 */
+export function isFatigueFramed(clause: string): boolean {
+  return FATIGUE_FRAMING_WORDS.some((word) => clause.includes(word));
+}
+/** 意识改变的弱字样（嗜睡）。 */
+export const WEAK_CONSCIOUSNESS_TERMS: readonly string[] = DISCRIMINATOR_WEAK_ANCHORS.get("objective-altered-mental-state") || [];
+
 export const CONTEXT_FEVER = "ctx-fever";
 export const CONTEXT_INFECTION = "ctx-infection-suspected";
 
