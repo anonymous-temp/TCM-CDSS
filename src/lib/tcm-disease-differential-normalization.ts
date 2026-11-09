@@ -3,7 +3,7 @@ import abbreviationsJson from "../data/western-diagnosis-abbreviations.source.js
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import icd10IndexJson from "../data/icd10-diagnosis-index.json" with { type: "json" };
 import { governedTcmDiseaseCode, resolveTcmDiseaseName, textbookSectionDeliveryName } from "./clinical-terminology";
-import { splitTextbookDiseaseSubtype, subtypeTextbookDifferentialName, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
+import { diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, subtypeTextbookDifferentialName, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
 
 /**
  * 中医病名鉴别栏只收中医病名（2026-09-29，甲方 9.24/9.27 测评 1.1：风寒感冒例的中医鉴别写了「流感」）。
@@ -147,7 +147,7 @@ const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
 
 /** M03 载荷投影：逐条归一 overview.tcmDiseaseDifferentials[].diseaseName，归一不了的条目丢弃。 */
-export function normalizeM03TcmDiseaseDifferentialNames(content: string): string {
+export function normalizeM03TcmDiseaseDifferentialNames(content: string, recordText = ""): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -159,7 +159,8 @@ export function normalizeM03TcmDiseaseDifferentialNames(content: string): string
       : undefined;
     const rows = Array.isArray(overview?.tcmDiseaseDifferentials) ? overview.tcmDiseaseDifferentials : [];
     if (!overview || rows.length === 0) return content;
-    const currentDisease = typeof overview.tcmDiseaseName === "string" ? overview.tcmDiseaseName : "";
+    // 分型病按本例的型判（血证 → 血证（鼻衄））：与交付面、补写鉴别同一个函数；否则「吐血」「齿衄」被当成本病同名丢掉（第四十轮）。
+    const currentDisease = diseaseNameWithRecordSubtype(typeof overview.tcmDiseaseName === "string" ? overview.tcmDiseaseName : "", recordText);
     let changed = false;
     const seen = new Set<string>();
     const kept = rows.flatMap((raw) => {

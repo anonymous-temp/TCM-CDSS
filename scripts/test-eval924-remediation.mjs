@@ -306,7 +306,8 @@ await check("6.4b 西医鉴别名共用部位补全：颅内占位/肿瘤 不再
 
 await check("6.5 接线：M03 后处理链里必须真的调用病名鉴别归一，且其输出喂给下一步（源码级，反证由变异钉住）", () => {
   const source = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
-  assert.match(source, /const tcmDifferentialNamed = phase\("tcm_disease_differentials", normalizeM03TcmDiseaseDifferentialNames\(westernProjection\)\);/);
+  // 第四十轮起第二个参数是病历文本（分型病按本例的型判，test:r1053-main 10.4）。
+  assert.match(source, /const tcmDifferentialNamed = phase\("tcm_disease_differentials", normalizeM03TcmDiseaseDifferentialNames\(westernProjection, clinicalContext\)\);/);
   assert.match(source, /alignNormalizedM03WesternClinicalRationale\(tcmDifferentialNamed\)/, "归一结果必须继续往下传，不能算完就丢");
 });
 

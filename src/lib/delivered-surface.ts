@@ -1008,7 +1008,8 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
     // 名字与补写小任务、辨证阶段归一走同一个判据（resolveTcmDiseaseDifferentialName）：西医病名（瘾疹节的丘疹性荨麻疹）不贴。
     const diseaseName = overview.tcmDiseaseName;
     const presentNames = new Set(presentDifferentials.map((item) => typeof item.diseaseName === "string" ? item.diseaseName.replace(/类病$/u, "") : ""));
-    const textbookDifferentials = textbookDifferentialsForDisease(diseaseName, presentDifferentials.length === 0 ? 2 : 50)
+    // 先按本例过滤（男性不列月经病、已列的不重复）再截取：第四十轮之前一项都没有时只取教材前两项，男性鼻衄取到经行衄血、吐血，滤掉一项就只剩一项。
+    const textbookDifferentials = textbookDifferentialsForDisease(diseaseName, 50)
       .flatMap((item) => {
         const resolved = resolveTcmDiseaseDifferentialName(item.name, diseaseName);
         return resolved.action === "drop" ? [] : [{ ...item, name: resolved.name }];

@@ -250,3 +250,25 @@ await check("12.1 同一张处方的两条加减不各加瓜蒌子与瓜蒌（11
   assert.deepEqual(compiler.withoutMutuallyIncompatibleAdditions(rows, ["荆芥", "金银花", "桔梗", "甘草"]).map((row) => row.herbName), ["苦杏仁", "瓜蒌子", "射干"]);
   assert.deepEqual(compiler.withoutMutuallyIncompatibleAdditions([{ action: "加", herbName: "瓜蒌" }], ["瓜蒌皮", "桔梗"]), []);
 });
+
+await check("10.3 辨证阶段的病名归一按本例的型判：血证 + 病历鼻出血 → 「吐血」「齿衄」照留（不当成本病同名）；交付面男性一项都没有时补到两项", () => {
+  const wrap = (reasoning) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const reasoning = { stage: "diagnose", overview: { tcmDiseaseName: "血证", tcmDiseaseDifferentials: [{ diseaseName: "吐血" }, { diseaseName: "齿衄" }] } };
+  const out = normalization.normalizeM03TcmDiseaseDifferentialNames(wrap(reasoning), "主诉：反复鼻出血3天\n现病史：反复鼻出血，血色鲜红。");
+  assert.match(out, /吐血/u); assert.match(out, /齿衄/u);
+  const unsubtyped = normalization.normalizeM03TcmDiseaseDifferentialNames(wrap(reasoning), "");
+  assert.doesNotMatch(unsubtyped, /"diseaseName":"吐血"/u);
+  const projected = surface.projectDeliveredReasoning({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { tcmDiseaseName: "血证", primarySyndrome: "胃热炽盛证", tcmDiseaseDifferentials: [] }, pathogenesis: {}, therapy: {}, westernDiagnosis: { primary: {} },
+  }, { recordText: "主诉：反复鼻出血3天\n现病史：反复鼻出血。", patientSex: "男" });
+  const names = projected.overview.tcmDiseaseDifferentials.map((item) => item.diseaseName);
+  assert.equal(names.length, 2, names.join(","));
+  assert.ok(!names.includes("经行衄血"), names.join(","));
+});
+
+await check("10.4 接线：辨证收口把病历文本交给病名归一（否则分型病按「血证」判，吐血、齿衄被丢）", async () => {
+  const fs = await import("node:fs");
+  const source = fs.readFileSync(`${process.cwd()}/src/lib/diagnosis-api.ts`, "utf8");
+  assert.match(source, /normalizeM03TcmDiseaseDifferentialNames\(westernProjection, clinicalContext\)/u);
+});

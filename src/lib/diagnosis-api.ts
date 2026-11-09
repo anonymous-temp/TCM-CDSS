@@ -607,7 +607,7 @@ export async function prepareDiagnoseStructuredContent(
   const singlePrimary = phase("single_primary", declassifyAmbiguousM03WesternPrimary(formalCriteriaBound, clinicalContext));
   const westernProjection = phase("western_differentials", normalizeM03WesternDifferentials(singlePrimary, clinicalContext, patientAgeYears));
   // 中医病名鉴别栏只收中医病名：西医病名按教材对照归一（流行性感冒→时行感冒），归一不了的丢弃。
-  const tcmDifferentialNamed = phase("tcm_disease_differentials", normalizeM03TcmDiseaseDifferentialNames(westernProjection));
+  const tcmDifferentialNamed = phase("tcm_disease_differentials", normalizeM03TcmDiseaseDifferentialNames(westernProjection, clinicalContext));
   const westernRationaleAligned = phase("western_rationale", alignNormalizedM03WesternClinicalRationale(tcmDifferentialNamed));
   const tcmRationaleAligned = phase("tcm_rationale", alignNormalizedM03TcmDiagnosticRationale(westernRationaleAligned));
   const principleBound = phase("treatment_principle", applyDeterministicTreatmentPrinciple(tcmRationaleAligned));
