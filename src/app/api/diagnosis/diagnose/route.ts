@@ -36,6 +36,7 @@ import { withClinicalResponseArchive } from "@/lib/request-archive.server";
 import { checkLineageLensInContent, withLensFrom } from "@/lib/m03-lens-consistency.server";
 import { finalizeWesternPrimaryName } from "@/lib/western-name-standard.server";
 import { applyWesternVisitReasonDecision, westernVisitReasonDecision } from "@/lib/western-visit-reason-check.server";
+import { authorWesternBasis, withAuthoredWesternBasis } from "@/lib/western-basis-authoring.server";
 import { completeMethodCoverage, prefetchMethodCoverage, withVerifiedMethodItemFrom } from "@/lib/m03-method-coverage.server";
 
 type ParsedStageRequest = Extract<Awaited<ReturnType<typeof readCustomerBoundCaseStateRequest>>, { ok: true }>;
@@ -372,7 +373,10 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
           // 西医半一返回就核对病名与病历已记录内容是否矛盾或说得过细（约 0.8 秒，与中医半并行）；采信则只改病名这一项。红旗病例不用「过细」一类。
           // 同时在西医半自己列出的候选与鉴别里重选主诊断（2026-10-19，western-primary-reselect）：两者并行；换名时对新名称再核对一次。
           // 本例说法核对与上面两件并行，落在它们的结果上（改名后已不在文中的片段跳过）。
+          // 诊断依据在病名定稿之后按诊断要点单独写（western-basis-authoring，第三十九轮）：先按核对前的病名起一份与核对并行，病名没变直接用。
           m03WesternHalfTransform: async (westernContent: string, transformSignal: AbortSignal) => {
+            const basisContext = { recordText: trustedInputText(safeState), chiefComplaint: safeState.chiefComplaint || "", redFlag: redFlagAnalysis };
+            const basisDraft = authorWesternBasis(westernContent, basisContext, transformSignal).catch(() => undefined);
             const [aligned, claimRemovals, visitReason] = await Promise.all([
               alignWesternPrimaryAndName(
                 westernContent,
@@ -383,11 +387,12 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
               westernVisitReasonDecision(westernContent, { recordText: trustedInputText(safeState), chiefComplaint: safeState.chiefComplaint || "", redFlag: redFlagAnalysis }, transformSignal),
             ]);
             // 主诊断的写法收尾：症状层面的名字关联已确诊慢性病，查不到编码的归到 ICD 同义写法（western-name-standard.server.ts）。
-            return finalizeWesternPrimaryName(
+            const finalized = await finalizeWesternPrimaryName(
               applyWesternVisitReasonDecision(applyPatientClaimRemovalsToContent(aligned, "western", claimRemovals, patientClaimRecord), visitReason),
               { recordText: trustedInputText(safeState), redFlag: redFlagAnalysis, chiefComplaint: safeState.chiefComplaint || "" },
               transformSignal,
             );
+            return withAuthoredWesternBasis(finalized, basisContext, basisDraft, transformSignal);
           },
         }
       : {}),

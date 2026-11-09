@@ -168,6 +168,21 @@ export function verifyProposals<P>(
   }));
 }
 
+/**
+ * 只问 deepseek-flash 一次的结构化写作小任务（西医诊断依据，2026-11-09 第三十九轮）：内容由服务端逐项核对（引文、覆盖、病名），
+ * 不需要第二家答对错。失败、超时或解析不了返回 undefined。
+ */
+export function primaryModelJsonTask<T>(
+  namespace: string,
+  stage: "diagnose" | "prescribe",
+  messages: Messages,
+  options: { maxTokens: number; timeoutMs: number },
+  parse: (content: unknown) => T | undefined,
+  signal?: AbortSignal,
+): Promise<T | undefined> {
+  return runOne(namespace, stage, getControlledTerminologyModelConfig(), messages, options.maxTokens, options.timeoutMs, parse, signal);
+}
+
 /** 复核答案里的 yes/no：{"confirmed":true|false}。 */
 export function parseConfirmed(content: unknown): boolean | undefined {
   if (typeof content !== "string" || !content.trim()) return undefined;

@@ -729,7 +729,8 @@ export function omittedGuideHerbNote(name: unknown, herbs: readonly Record<strin
 export function deliveredWesternBasis(western: unknown): string | undefined {
   const rationale = record(record(western)?.primary)?.clinicalRationale ?? record(western)?.clinicalRationale;
   if (typeof rationale !== "string") return undefined;
-  const text = rationale.replace(/\s+/g, " ").trim();
+  // 紧挨着的两个小句一字不差的只留一个（生产 10/27–11/02 产后头痛一例连续 6 次「否认突发最剧烈头痛；否认突发最剧烈头痛」）。
+  const text = withoutRepeatedAdjacentClause(rationale.replace(/\s+/g, " ").trim());
   if (!text) return undefined;
   return text.length > 300 ? `${text.slice(0, 299)}…` : text;
 }
