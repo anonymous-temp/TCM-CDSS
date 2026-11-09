@@ -374,8 +374,9 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
           // 同时在西医半自己列出的候选与鉴别里重选主诊断（2026-10-19，western-primary-reselect）：两者并行；换名时对新名称再核对一次。
           // 本例说法核对与上面两件并行，落在它们的结果上（改名后已不在文中的片段跳过）。
           // 诊断依据在病名定稿之后按诊断要点单独写（western-basis-authoring，第三十九轮）：先按核对前的病名起一份与核对并行，病名没变直接用。
+          // 病历用带年龄、性别标签行的接地语料：甲方形状里性别年龄常只在结构化字段（实测 8/113 份因「女性」被判病历没写性别）。
           m03WesternHalfTransform: async (westernContent: string, transformSignal: AbortSignal) => {
-            const basisContext = { recordText: trustedInputText(safeState), chiefComplaint: safeState.chiefComplaint || "", redFlag: redFlagAnalysis };
+            const basisContext = { recordText: clinicalGroundingText(safeState), chiefComplaint: safeState.chiefComplaint || "", redFlag: redFlagAnalysis };
             const basisDraft = authorWesternBasis(westernContent, basisContext, transformSignal).catch(() => undefined);
             const [aligned, claimRemovals, visitReason] = await Promise.all([
               alignWesternPrimaryAndName(
