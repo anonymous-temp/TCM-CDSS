@@ -2930,6 +2930,47 @@ The user asked for every leftover of round 37 to be researched and solved where 
 **In production (69ee2e51, tag `20261108-69ee2e5-prebuilt`, deployed 2026-11-09 about 02:50 Beijing; same release directory and `20260927-dsrepair` override).** c77c942c went out about 40 minutes before it (02:15). Both passed `verify:deployed-image` (commit, digest, strictReady, both families) and `regress:prod-smoke` (0 failures; M03 P95 16.8 / 17.3 s, M04 P95 13.9 / 16.0 s). Probes on hospital-b: record 2 乳蛾·风热外袭证, record 4 no 兼证, record 8 no 焦山楂, standard cases 3/10 without sedatives, case 5 without 麻黄, case 7 「本例已见口渴饮冷」, case 2's precautions intact. Rollback: image `tcm-cdss:20261108-c77c942-prebuilt` (or `…c7c4850…`) with `docker-compose.yml.pre-69ee2e5`. Host 21 GB free.
 - **Local build:** two OOM kills while other sessions' EviMed replays held the swap; it went through with a 1 GB temporary swap file on root once ≥4 GB RAM was free (`pb-when-free.sh` waits for that). /home gets no swap file.
 
+### 11/9 round 39: the Western diagnosis basis, written after the name is final (2026-11-09)
+
+The user asked about the round-38 leftover 「病历4：西医依据写成症状罗列」 (one run in three). It is the customer's own 10.12 complaint (「诊断依据不要症状罗列」); since 10.26 the delivered basis is one sentence in `primary.supportingFacts`, and the customer's panel shows it under the label 「症状依据」. After research the user approved the proposal: write the basis after the Western name is final, against the diagnostic criteria, and check it item by item. Material: `~/runlogs/r1018/work/r1051/` (`basis/` production rationales since 10/27, `probe/` — `pairs.py` (the customer's 53 archived diagnose request/response pairs), `offline.mjs`/`offline7.mjs`/`reeval.mjs`, `judge-basis.mjs`/`judge-live.mjs`/`tally.py`; `gen.sh` same-day arms; `cp/cp.py` 36 mutations). Suite `test:r1051-main` (24 checks).
+
+**What was measured first.** 462 production basis sentences since 10/27: pure symptom lists were rare; the usual shape was 「复述病历 → 符合X → 需排除Y」, two thirds recital, the reasoning reduced to 「符合X」. Causes:
+- the prompt asked to 「点名关键已记录事实」 first, the schema puts the record-copying `supportingFacts` list right before `clinicalRationale`, and the cap was 100 字;
+- the model never sees the criteria table (only the name check does);
+- the sentence is written before the name check, the visit-reason check and the deterministic renames, so it can describe a name that no longer stands (round 15: 28 of 74 renamed outputs still said 「符合缺铁性贫血」);
+- nothing checks it.
+Research: 首次病程记录 requires 病例特点 to be an analysis with pertinent negatives and 拟诊讨论 to give 诊断依据 and 鉴别; a 58k-record QC study found 拟诊讨论 without 鉴别点 (37.8%) and 诊断依据 defects (26.0%) the most common faults; Revised-IDEA (JGIM 2021) scores an interpretive summary with semantic qualifiers plus an explanation of the lead diagnosis; ConfiDx / EGDR / DiReCT map criteria to evidence spans.
+
+**What changed.**
+- `western-basis-authoring.server.ts` (`CDSS_WESTERN_BASIS_AUTHORING`): at the end of the Western-half transform, after `finalizeWesternPrimaryName`, deepseek-flash fills an outline in reasoning order — `summary` (semantic qualifiers, no list), `criteria` (point from the criteria row when there is one, verbatim record quote), `negatives` (verbatim denials or normal results), `level` (what established it, or what is missing), `exclude` — and the sentence last. A draft on the pre-check name starts in parallel with the name check and is used when the name did not change (`primaryModelJsonTask`, new in `cross-model-small-task.server.ts`).
+- The server checks, and on any failure keeps the model's own sentence: length 30–160; the final name (core without 待查) is in the sentence; 待查 only when the name has it; criteria quotes align to the record and not to a denied mention (judged at the quote's start; a quote that opens with its own denial is a whole record sentence); criteria points share wording with the criteria row; at least half of the quotes are reflected in the sentence (the patient's finding, not the criterion wording); level and exclusions are in the sentence; no TCM 证 wording; no 「病历…」 meta wording; no age or sex the record lacks; 「体征」 only with a recorded exam (生命体征 is not one); 「未满N」 only from the row's `durationThreshold`; digits from the record, the name or the criteria row (digits after a Latin letter are names: B12, HLA-B27); not more than 60% verbatim record runs. Ungrounded single negatives or criteria are dropped, not fatal.
+- The accepted sentence then goes through the existing patient-claim check (`decidePatientClaimRemovals`, only this sentence; smallest-unit removal; back to the model's sentence when under 30 characters remain). The checker is injectable for tests.
+- The record text is `clinicalGroundingText` (labelled age and sex lines): in the customer's shape sex often lives only in the structured field, and the first live run rejected 8 of 113 for 「女性」.
+- The delivered basis drops an adjacent identical clause (production repeated 「否认突发最剧烈头痛；否认突发最剧烈头痛」 six times on one record; the producing step was not found).
+- Interface doc V2.62; suggest the customer rename their panel label 「症状依据」 to 「诊断依据」.
+
+**Iterations, each judged blind by qwen3.8-max (0–2: recital / reasoning missing criteria, negatives or level / all three plus exclusions; hard errors; preference).**
+
+| Version | Set | Accepted | Score old → new | Hard errors old / new | Preferred old / new |
+|---|---|---|---|---|---|
+| v2 | customer 53 archived pairs (offline) | 49 | 1.10 → 1.31 | 24 / 18 | 19 / 26 |
+| v4 (honest gaps, no meta wording, qualifiers need evidence) | same | 48 | 1.10 → 1.50 | 24 / 10 | 10 / 38 |
+| live arms (5486864a vs production code, 113 chains, same day) | c10 × 3, held-out 32, 11.05 17, 10.29 34 | 98/113 | 1.03 → 1.49 | 19 / 24 | 31 / 77 |
+| v6 (patient's own findings, no 可诊断 for exclusion diagnoses) | 95 live records with equal names (offline) | 84 | 1.07 → 1.52 | 17 / 21 | 25 / 58 |
+| v9 = final code (claim check, exam and course checks) | same | 82 | 1.10 → 1.52 | 16 / 11 | 25 / 54 |
+
+The first live run showed what the offline set did not: the new sentence rationalised a name it was told was final (STEMI without an ECG 「依据典型临床表现诊断」) and copied criteria wording as findings (URTI row 「肺部常无异常体征」 with no lung exam). Telling the model to state what is missing, writing the patient's own findings, the claim check and the two structural checks fixed those classes.
+
+**Live arm facts (5486864a vs production code, same day).** Disease identical 113/113, syndrome 110/113 (generation variance), all chains 200; diagnose median within 0.6 s (15.7–17.0 vs 16.0–16.7 s).
+
+**Left as is.**
+- About 14% of sentences fail a check and fall back to the model's own sentence (the old style).
+- Remaining new-arm hard errors are medical judgement in the sentence (「血常规需完善以确认」 for a clinical URTI diagnosis, FSH/E2 direction, 「尚缺空腹血糖」 with a recorded value) and wording such as 「符合X待查的临床表现」.
+- The producing step of the duplicated 「否认突发最剧烈头痛」 was not traced; the delivered surface removes it.
+
+**In production (a2d837af, tag `20261109-a2d837a-prebuilt`, deployed 2026-11-09 about 12:55 Beijing; same release directory and `20260927-dsrepair` override).** Gate green on a2d837af (gate4 was OOM-killed by other sessions and rerun). `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 22.2 s, M04 P95 16.5 s). Customer 10 on hospital-b, forced regeneration: all 200, disease and syndrome equal the standard answers, diagnose median 16.9 s; 13 of 15 authored bases accepted in the container log; record 4 reads 「情绪诱发的胃脘胀痛半月，符合消化不良待查…尚缺胃镜等检查，需排除器质性疾病」. Container log before the replacement: `~/telemetry-archive/container-pre-69ee2e5-*.log.gz` on the host. Rollback: image `tcm-cdss:20261108-69ee2e5-prebuilt` with the compose backup in the release directory, or `CDSS_WESTERN_BASIS_AUTHORING=false` in the override.
+- **Local build:** other sessions held memory at 1.3–2 GB free for over an hour; it went through with two temporary 1 GB swap files on root and the waiter threshold lowered to 1.4 GB (`pb-when-free-low.sh`); both swap files were removed after `PREBUILD_OK`.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
