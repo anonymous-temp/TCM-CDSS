@@ -104,6 +104,16 @@ function numbersGrounded(sentence: string, recordText: string, allowed = ""): bo
   return numbers.every((number) => source.includes(number));
 }
 
+/**
+ * 性别、年龄段要有病历依据（v4 盲评：病历没写性别年龄，依据写了「中年男性」「年龄≥50岁」）。
+ * 性别看病历里有没有男/女；「青年/中年/老年」要病历写了年龄（N岁、年龄：N）。
+ */
+export function demographicNotInRecord(sentence: string, recordText: string): boolean {
+  const record = compact(recordText);
+  for (const sex of ["男", "女"]) if (sentence.includes(sex) && !record.includes(sex)) return true;
+  return /[青中老]年/u.test(sentence) && !/\d+岁|年龄[：:]?\d+/u.test(record);
+}
+
 /** 中医证候（「…证」，证据/证实/证明、确证/佐证/验证除外）或「中医」字样。 */
 function namesTcmSyndrome(sentence: string): boolean {
   return sentence.includes("中医") || /[一-龥](?<![确佐验])证(?![据实明])/u.test(sentence);
@@ -169,6 +179,7 @@ export function westernBasisIssue(proposal: WesternBasisProposal, context: Weste
   if (namesTcmSyndrome(proposal.text)) return "text_names_tcm";
   // 给医生读的临床表述不讲病历本身（「病历载」「病历未记录相关阴性」，v2 盲评 16 份新依据的硬伤里 7 份是这种说明腔）。
   if (sentence.includes("病历")) return "text_meta";
+  if (demographicNotInRecord(sentence, context.recordText)) return "demographic_not_in_record";
   // 数字出自病历；诊断名本身（2型糖尿病）与要点表的门槛（≥5次、4周）里的数字也算。
   if (!numbersGrounded(proposal.text, context.recordText, `${context.name}｜${context.criteria ? criteriaTableText(context.criteria) : ""}`)) return "number_not_in_record";
   if (westernBasisRecitalRatio(proposal.text, context.recordText) > 0.6) return "recital";

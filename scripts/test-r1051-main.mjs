@@ -93,6 +93,16 @@ await check("1.6b 成句不讲病历本身（「病历载」「病历未记录�
   assert.equal(issue(p), "text_meta");
 });
 
+await check("1.6c 性别、年龄段要有病历依据（病历没写就不写「中年男性」）", () => {
+  const p = good();
+  p.text = p.text.replace("慢性餐后上腹胀痛", "中年男性，慢性餐后上腹胀痛");
+  assert.equal(issue(p), undefined, "病历写了男、45岁");
+  assert.equal(basis.demographicNotInRecord("中年男性，上腹胀痛", "上腹胀痛2月"), true);
+  assert.equal(basis.demographicNotInRecord("中年患者，上腹胀痛", "患者女，上腹胀痛2月"), true);
+  assert.equal(basis.demographicNotInRecord("中年女性，上腹胀痛", "患者女，52岁，上腹胀痛2月"), false);
+  assert.equal(issue(p, { recordText: RECORD.replace("患者男，45岁。", "") }), "demographic_not_in_record");
+});
+
 await check("1.7 成句大半是照抄病历的连续片段 → recital", () => {
   const p = good();
   p.text = "上腹胀痛2月，餐后明显，嗳气后减轻。无呕血、黑便，无消瘦。胃镜未做，暂作消化不良待查。";

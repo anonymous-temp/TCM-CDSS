@@ -316,7 +316,11 @@ const completion = (payload) => new Response(JSON.stringify({
 {
   await check("8.1 西医半收口接的是重选+核对", () => {
     const route = fs.readFileSync(path.join(SRC, "app/api/diagnosis/diagnose/route.ts"), "utf8");
-    const transform = route.slice(route.indexOf("m03WesternHalfTransform:"), route.indexOf("m03WesternHalfTransform:") + 400);
+    // 截到西医半收口函数结束（下一个键 truncateFallback:）；第三十九轮起收口里先起一份诊断依据，固定 400 字的窗口不够。
+    const start = route.indexOf("m03WesternHalfTransform:");
+    const end = route.indexOf("truncateFallback:", start);
+    assert.ok(start > 0 && end > start);
+    const transform = route.slice(start, end);
     assert.match(transform, /alignWesternPrimaryAndName\(\s*westernContent/);
   });
   const reselect = await lib("western-primary-reselect.server.ts");
