@@ -110,6 +110,22 @@ await check("1.6c 性别、年龄段要有病历依据（病历没写就不写�
   assert.equal(issue(p, { recordText: RECORD.replace("患者男，45岁。", "") }), "demographic_not_in_record");
 });
 
+await check("1.6d 写到「体征」要病历记过查体（生命体征不算）；「未满N」的病程门槛要出自要点表", () => {
+  assert.equal(basis.examFindingNotInRecord("肺部无异常体征，符合急性上呼吸道感染", "咳嗽2天。生命体征：T 37.5℃"), true);
+  assert.equal(basis.examFindingNotInRecord("肺部无异常体征，符合急性上呼吸道感染", "咳嗽2天。查体：双肺呼吸音清"), false);
+  assert.equal(basis.examFindingNotInRecord("生命体征平稳，符合急性上呼吸道感染", "咳嗽2天"), false);
+  const criteria = { name: "功能性消化不良", clinicallyDiagnosable: false, requiredTests: [], durationThreshold: "症状出现至少6个月", definingFeatures: ["上腹痛"], quote: "", url: "", siteName: "", title: "", retrievedAt: "" };
+  assert.equal(basis.courseThresholdNotInCriteria("病程未满6个月，暂作消化不良待查", criteria), false);
+  assert.equal(basis.courseThresholdNotInCriteria("病程未满3年，暂作消化不良待查", criteria), true);
+  assert.equal(basis.courseThresholdNotInCriteria("病程未满6个月，暂作消化不良待查", undefined), true);
+  const p = good();
+  p.text = p.text.replace("；未诉报警征象", "，腹部无阳性体征；未诉报警征象");
+  assert.equal(issue(p), "exam_not_in_record");
+  const q = good();
+  q.text = q.text.replace("未做胃镜", "病程未满1年、未做胃镜");
+  assert.equal(issue(q), "course_threshold_not_in_criteria");
+});
+
 await check("1.7 成句大半是照抄病历的连续片段 → recital", () => {
   const p = good();
   p.text = "上腹胀痛2月，餐后明显，嗳气后减轻。无呕血、黑便，无消瘦。胃镜未做，暂作消化不良待查。";
@@ -134,13 +150,12 @@ await check("1.9 需排除的病要写进成句；需排除的不能是主诊断
   assert.equal(issue(q), "exclude_is_primary");
 });
 
-await check("1.10 成句提到候选/鉴别里的别的病却没列为需排除、病历也没写到它 → 不合格；病历自己写到（否认）的病不算", () => {
+await check("1.10 成句里提到本例候选/鉴别里的其他病（如「不能归入接触性皮炎」）不作废；需排除的病最多收 4 个", () => {
   const p = good();
-  p.text = p.text.replace("；未诉报警征象", "，胆汁反流性胃炎亦可引起；未诉报警征象");
-  assert.equal(issue(p, { listedNames: ["慢性胃炎", "消化性溃疡", "胆汁反流性胃炎"] }), "text_names_undeclared_disease");
-  const q = good();
-  q.text = q.text.replace("；未诉报警征象", "；否认胆囊结石病史");
-  assert.equal(issue(q), undefined);
+  p.text = p.text.replace("；未诉报警征象", "，胆囊结石亦可引起；未诉报警征象");
+  assert.equal(issue(p), undefined);
+  const parsed = basis.parseWesternBasisProposal(JSON.stringify({ ...good(), exclude: ["甲", "乙", "丙", "丁", "戊"] }));
+  assert.equal(parsed.exclude.length, 4);
 });
 
 await check("1.11 有诊断要点表时要点只能取自表（与表文字无共同词的那条去掉）", () => {
@@ -218,6 +233,22 @@ await check("2.5 诊断路由：依据在病名收尾（finalizeWesternPrimaryNa
   const applyAt = body.indexOf("withAuthoredWesternBasis(finalized");
   assert.ok(draftAt > 0 && draftAt < alignAt, "先起的一份要在核对之前发出");
   assert.ok(finalizeAt > 0 && applyAt > finalizeAt, "落到内容要在病名收尾之后");
+});
+
+await check("2.6 新写的依据再过本例说法核对：删掉病历没有的说法（删最小单位）；删完太短就退回原句；核对传入的是只有这一句的内容", async () => {
+  const p = good();
+  p.text = p.text.replace("；未诉报警征象", "，伴口苦；未诉报警征象");
+  const seen = [];
+  const claimCheck = async (content) => { seen.push(content); return [{ field: "primary.clinicalRationale", span: "伴口苦" }]; };
+  const out = await basis.withAuthoredWesternBasis(western(), { ...context, claimRecordText: RECORD, claimCheck }, Promise.resolve({ name: NAME, proposal: p }));
+  assert.doesNotMatch(rationaleOf(out), /口苦/u);
+  assert.match(rationaleOf(out), /暂作消化不良待查/u);
+  assert.deepEqual(Object.keys(JSON.parse(seen[0]).westernDiagnosis.primary), ["clinicalRationale"]);
+  const wipe = async () => [{ field: "primary.clinicalRationale", span: p.text.slice(0, -12) }];
+  const fallback = await basis.withAuthoredWesternBasis(western(), { ...context, claimRecordText: RECORD, claimCheck: wipe }, Promise.resolve({ name: NAME, proposal: p }));
+  assert.equal(rationaleOf(fallback), "原依据");
+  const none = await basis.withAuthoredWesternBasis(western(), { ...context, claimRecordText: RECORD, claimCheck: async () => [] }, Promise.resolve({ name: NAME, proposal: good() }));
+  assert.equal(rationaleOf(none), good().text);
 });
 
 // ───── 3 交付面 ─────

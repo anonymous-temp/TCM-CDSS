@@ -1,6 +1,7 @@
 import "server-only";
 
 import { primaryModelJsonTask } from "./cross-model-small-task.server";
+import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals } from "./m03-patient-claim-check.server";
 import { recordMentionPolarityAt } from "./diagnosis-safety";
 import { alignQuoteToSource, normalizedQuoteText } from "./source-quote-alignment";
 import { quoteGroundedInText } from "./verbatim-quote";
@@ -115,6 +116,24 @@ export function demographicNotInRecord(sentence: string, recordText: string): bo
   return /[青中老]年/u.test(sentence) && !/\d+岁|年龄[：:]?\d+/u.test(record);
 }
 
+/**
+ * 写到「体征」要病历里记过查体（「生命体征」不算查体）。要点表「肺部常无异常体征」被写成本例所见，而病历没有肺部查体
+ *（第三十九轮实链盲评 v6：84 份里 6 份；本例说法核对抓不到这种否定式查体说法）。
+ */
+export function examFindingNotInRecord(sentence: string, recordText: string): boolean {
+  if (!compact(sentence).replace(/生命体征/gu, "").includes("体征")) return false;
+  const record = compact(recordText).replace(/生命体征/gu, "");
+  return !["体征", "查体", "体格检查"].some((word) => record.includes(word));
+}
+
+/** 「未满N…」的病程门槛要出自要点表的病程门槛（v6：「病程未满3年」「未满1年」是编出来的门槛）。 */
+export function courseThresholdNotInCriteria(sentence: string, criteria?: WesternCriteriaEntry): boolean {
+  const thresholds = [...normalizedQuoteText(sentence).matchAll(/未满(\d+)/gu)].map((match) => match[1]);
+  if (thresholds.length === 0) return false;
+  const source = normalizedQuoteText(criteria?.durationThreshold || "");
+  return thresholds.some((value) => !source || !source.includes(value));
+}
+
 /** 中医证候（「…证」，证据/证实/证明、确证/佐证/验证除外）或「中医」字样。 */
 function namesTcmSyndrome(sentence: string): boolean {
   return sentence.includes("中医") || /[一-龥](?<![确佐验])证(?![据实明])/u.test(sentence);
@@ -172,18 +191,12 @@ export function westernBasisIssue(proposal: WesternBasisProposal, context: Weste
   if (!proposal.level || sharedBigrams(sentence, proposal.level, nameGrams) < 2) return "text_misses_level";
   if (proposal.exclude.some((name) => compact(name) === compact(context.name) || compact(name) === core)) return "exclude_is_primary";
   if (proposal.exclude.some((name) => !sentence.includes(compact(name)))) return "text_misses_exclude";
-  const declared = new Set([compact(context.name), core, ...proposal.exclude.map(compact)]);
-  // 病历自己写到的病（「否认高血压、甲状腺疾病史」「既往冠心病」）出现在成句里不算另提一个病。
-  const deniedText = compact(context.recordText);
-  if (context.listedNames.some((name) => {
-    const listed = compact(name);
-    return listed.length >= 3 && sentence.includes(listed) && !declared.has(listed) && !core.includes(listed) &&
-      ![...declared].some((item) => item.includes(listed)) && !deniedText.includes(listed);
-  })) return "text_names_undeclared_disease";
   if (namesTcmSyndrome(proposal.text)) return "text_names_tcm";
   // 给医生读的临床表述不讲病历本身（「病历载」「病历未记录相关阴性」，v2 盲评 16 份新依据的硬伤里 7 份是这种说明腔）。
   if (sentence.includes("病历")) return "text_meta";
   if (demographicNotInRecord(sentence, context.recordText)) return "demographic_not_in_record";
+  if (examFindingNotInRecord(sentence, context.recordText)) return "exam_not_in_record";
+  if (courseThresholdNotInCriteria(proposal.text, context.criteria)) return "course_threshold_not_in_criteria";
   // 数字出自病历；诊断名本身（2型糖尿病）与要点表的门槛（≥5次、4周）里的数字也算。
   if (!numbersGrounded(proposal.text, context.recordText, `${context.name}｜${context.criteria ? criteriaTableText(context.criteria) : ""}`)) return "number_not_in_record";
   if (westernBasisRecitalRatio(proposal.text, context.recordText) > 0.6) return "recital";
@@ -205,7 +218,7 @@ export function parseWesternBasisProposal(content: unknown): WesternBasisProposa
       criteria: items(parsed.criteria, 3),
       negatives: items(parsed.negatives, 2),
       level: text(parsed.level),
-      exclude: (Array.isArray(parsed.exclude) ? parsed.exclude : []).map(text).filter(Boolean).slice(0, 2),
+      exclude: (Array.isArray(parsed.exclude) ? parsed.exclude : []).map(text).filter(Boolean).slice(0, 4),
       text: text(parsed.text),
     };
     return proposal.text ? proposal : undefined;
@@ -220,7 +233,7 @@ const SYSTEM = `你给一个西医诊断写诊断依据，给医生看。给你 
 1. summary：一句话概括本例问题的特点（≤25字），用急性/慢性、反复/持续、诱因、部位这类定性说法，不要逐条罗列症状。定性词要有病历依据：病程不足3个月不写「慢性」，只写了一次发作不写「反复」，病历没写年龄性别就不写。
 2. criteria：本例满足的诊断要点，1–3条，只列病历里确有原文支持的要点。point 写要点本身（criteria 不为空时只能用其中的要点，沿用它的说法；为空时写该病公认的诊断要点）；quote 是病历里支持这一点的一段原文，逐字照抄、不增不减（≤30字）。病历没有原文支持的要点不列，也不写进 text。
 3. negatives：病历里写明的、有鉴别意义的否认或正常结果，0–2条，quote 逐字照抄病历里那句否认或正常结果（如「无呕血、黑便」「心电图未见异常」）。病历没写否认就留空数组，不要把阳性症状放进来。
-4. level：诊断为什么写到这一级（≤40字）：是哪项检查或客观所见确立的；没有确诊检查的，写尚缺什么检查、病程未满多久或尚需排除什么。功能性疾病、原发性疾病这类排除性诊断，写「尚需排除器质性病变」，不写「可诊断」「可确诊」。
+4. level：诊断为什么写到这一级（≤40字）：是哪项检查或客观所见确立的；没有确诊检查的，写尚缺什么检查或尚需排除什么。病程门槛只用 criteria.durationThreshold 里给的，并且要与病历记录的病程对照属实；criteria 没给病程门槛就不写「病程未满…」。功能性疾病、原发性疾病这类排除性诊断，写「尚需排除器质性病变」，不写「可诊断」「可确诊」。
 5. exclude：还需排除的病，0–2个，写规范病名。
 6. text：把上面各项写成一句话（60–120字），这就是医生读到的诊断依据：先写 summary，再写本例的所见如何满足要点（用 quote 里的本例所见来写，不要把要点原文当成本例所见），再写阴性所见（没有就不写这一部分），再写 level，最后写「需与/需排除…」。句中要逐字出现诊断名 name。
 text 是临床表述：不逐条复述病史，不用「」引病历原文，不写「病历载」「病历未记录相关阴性」「无明确否认项」这类讲病历本身的话，不写病历里没有的检查结果或数字，不写中医证候。name 不带「待查」时句中不出现「待查」。
@@ -274,7 +287,14 @@ export async function authorWesternBasis(
  */
 export async function withAuthoredWesternBasis(
   westernContent: string,
-  context: { recordText: string; chiefComplaint: string; redFlag?: boolean },
+  context: {
+    recordText: string;
+    chiefComplaint: string;
+    redFlag?: boolean;
+    claimRecordText?: string;
+    /** 测试注入；缺省用本例说法核对（m03-patient-claim-check）。 */
+    claimCheck?: (content: string, recordText: string, signal?: AbortSignal) => Promise<Array<{ field: string; span: string }>>;
+  },
   draft: Promise<AuthoredWesternBasis | undefined> | undefined,
   signal?: AbortSignal,
 ): Promise<string> {
@@ -298,7 +318,18 @@ export async function withAuthoredWesternBasis(
     const target = record(western?.primary);
     if (!root || !target) return westernContent;
     target.clinicalRationale = authored.proposal.text.replace(/\s+/gu, " ").trim();
-    return JSON.stringify(root);
+    const replaced = JSON.stringify(root);
+    if (!context.claimRecordText) return replaced;
+    // 新写的这一句再过一遍本例说法核对（与西医半其余字段同一套：两次核对 + 复核，删最小单位）：盲评里新依据的硬伤多是
+    // 把要点表原文或常识当成本例所见（「肺部无异常体征」而病历无肺部查体）。只核对这一句，其余字段收口前已核对过。
+    const onlyBasis = JSON.stringify({ westernDiagnosis: { primary: { clinicalRationale: target.clinicalRationale } } });
+    const check = context.claimCheck || ((content: string, recordText: string, abort?: AbortSignal) => decidePatientClaimRemovals(content, { recordText }, "western", abort));
+    const removals = await check(onlyBasis, context.claimRecordText, signal).catch(() => []);
+    if (removals.length === 0) return replaced;
+    const cleaned = applyPatientClaimRemovalsToContent(replaced, "western", removals, context.claimRecordText);
+    const after = text(record(record(record(JSON.parse(cleaned))?.westernDiagnosis)?.primary)?.clinicalRationale);
+    console.info("[tcm-cdss:telemetry] western_basis_claim_check", { removals: removals.length, kept: compact(after).length >= 30 });
+    return compact(after).length >= 30 ? cleaned : westernContent;
   } catch {
     return westernContent;
   }
