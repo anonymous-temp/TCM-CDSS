@@ -369,6 +369,10 @@ await check("3.4 白术功用兼写健脾与利水、病历有便溏：交付土
   assert.equal(processing.processedHerbName("白术", { purposeText: "健脾益气，渗利水湿", recordText: record }), "土炒白术");
   assert.equal(processing.processedHerbName("白术", { purposeText: "利水消肿", recordText: record }), undefined);
   assert.equal(processing.processedHerbName("白术", { purposeText: "健脾益气，渗利水湿", recordText: "大便调。" }), undefined);
+  // 便溏的其他写法（线上 new40 m20「大便偏溏」仍用生白术）：偏溏、不成形、便稀照算；「大便成形」不算。
+  assert.equal(processing.processedHerbName("白术", { purposeText: "健脾益气以助统血", recordText: "睡眠可，大便偏溏、每日1次。" }), "土炒白术");
+  assert.equal(processing.processedHerbName("山药", { purposeText: "补脾养胃", recordText: "纳差，大便不成形。" }), "麸炒山药");
+  assert.equal(processing.processedHerbName("白术", { purposeText: "健脾益气", recordText: "纳可，大便成形，日1次。" }), undefined);
 });
 
 await check("7.3 教材加减写炮制品名（炒麦芽）、知识库没有单列剂量：按生品的药典剂量给量、核量；有毒的生品不借", async () => {
@@ -426,6 +430,15 @@ await check("11.5 发绀：引文须有发绀、紫绀、青紫之类字样；�
   const record = "患儿发热1天，嗜睡，四肢末梢稍凉。";
   const parsed = screen.parseRedflagDiscriminatorScreen(JSON.stringify({ present: [{ id: "blue", quote: "四肢末梢稍凉" }, { id: "cyanosis", quote: "四肢末梢稍凉" }] }), ["blue", "cyanosis"], record) || [];
   assert.equal(parsed.length, 0, JSON.stringify(parsed));
+});
+
+await check("11.9 哭声微弱、尖直或持续不止：引文须写出哭声本身的性质；鹅口疮患儿「伴烦躁哭闹、吮乳时啼哭」不采信，「哭声尖直、无法安抚」照采信", () => {
+  const record = "患儿8月龄，口腔白屑3天，伴烦躁哭闹、吮乳时啼哭、拒食。精神反应好。";
+  const parsed = screen.parseRedflagDiscriminatorScreen(JSON.stringify({ present: [{ id: "weak-high-pitched-cry", quote: "伴烦躁哭闹、吮乳时啼哭" }] }), ["weak-high-pitched-cry"], record) || [];
+  assert.equal(parsed.length, 0, JSON.stringify(parsed));
+  const real = "患儿3月龄，发热1天，哭声尖直，持续哭闹无法安抚，吃奶差。";
+  const kept = screen.parseRedflagDiscriminatorScreen(JSON.stringify({ present: [{ id: "weak-high-pitched-cry", quote: "哭声尖直，持续哭闹无法安抚" }] }), ["weak-high-pitched-cry"], real) || [];
+  assert.equal(kept.length, 1, JSON.stringify(kept));
 });
 
 await check("11.6 中医鉴别同一个病的两种写法只列一次（痫证/痫病、大行赤眼即天行赤眼），与本病同名的不列", () => {
