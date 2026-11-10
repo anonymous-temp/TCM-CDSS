@@ -1,0 +1,1372 @@
+{
+ "schemaVersion": "herb-purpose-processing-v1",
+ "generatedBy": "scripts/build-herb-purpose-processing.py",
+ "source": {
+  "file": "src/data/tcm-herb-textbook-references.json",
+  "book": "《中药学》钟赣生主编，全国中医药行业高等教育“十三五”规划教材，各药【功效】与附药「功能」句；正药另取【用法用量】【使用注意】，附药取功能之后的用法句"
+ },
+ "note": "prefix 是饮片规格前缀（\"\" 为生品）；purposes 是原句里该规格对应的用途；weak=true 的是「多…用」「可…用」一类倾向性说法，运行时不据此改名。internalMustProcess 是教材写明内服须炮制的药。",
+ "herbs": [
+  {
+   "herb": "丹参",
+   "forms": [
+    {
+     "prefix": "酒",
+     "purposes": [
+      "活血化瘀"
+     ],
+     "weak": false,
+     "quote": "活血化瘀宜酒炙用",
+     "field": "usage",
+     "line": 156900
+    }
+   ]
+  },
+  {
+   "herb": "乌梅",
+   "forms": [
+    {
+     "prefix": "炭",
+     "purposes": [
+      "止泻",
+      "止血"
+     ],
+     "weak": false,
+     "quote": "止泻、止血宜炒炭用",
+     "field": "usage",
+     "line": 159228
+    }
+   ]
+  },
+  {
+   "herb": "京大戟",
+   "forms": [],
+   "internalMustProcess": {
+    "quote": "内服醋炙用，以减低毒性",
+    "field": "usage",
+    "line": 154706
+   }
+  },
+  {
+   "herb": "代赭石",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "平肝潜阳",
+      "重镇降逆"
+     ],
+     "weak": false,
+     "quote": "平肝潜阳、重镇降逆宜生用",
+     "field": "usage",
+     "line": 158007
+    },
+    {
+     "prefix": "煅",
+     "purposes": [
+      "止血"
+     ],
+     "weak": false,
+     "quote": "止血宜煅用",
+     "field": "usage",
+     "line": 158007
+    }
+   ]
+  },
+  {
+   "herb": "何首乌",
+   "forms": [
+    {
+     "prefix": "制",
+     "purposes": [
+      "补肝肾",
+      "益精血",
+      "乌须发",
+      "强筋骨",
+      "化浊降脂"
+     ],
+     "weak": false,
+     "quote": "制何首乌：补肝肾，益精血，乌须发，强筋骨，化浊降脂",
+     "field": "function",
+     "line": 158920
+    },
+    {
+     "prefix": "",
+     "purposes": [
+      "解毒",
+      "消痈",
+      "截疟",
+      "润肠通便"
+     ],
+     "weak": false,
+     "quote": "生何首乌：解毒，消痈，截疟，润肠通便",
+     "field": "function",
+     "line": 158920
+    },
+    {
+     "prefix": "制",
+     "purposes": [
+      "补益"
+     ],
+     "weak": false,
+     "quote": "制用偏于补益",
+     "field": "caution",
+     "line": 158928
+    },
+    {
+     "prefix": "",
+     "purposes": [
+      "滑肠通便"
+     ],
+     "weak": false,
+     "quote": "生用滑肠通便",
+     "field": "caution",
+     "line": 158928
+    }
+   ]
+  },
+  {
+   "herb": "侧柏叶",
+   "forms": [
+    {
+     "prefix": "炭",
+     "purposes": [
+      "止血"
+     ],
+     "weak": true,
+     "quote": "止血多炒炭用",
+     "field": "usage",
+     "line": 156540
+    },
+    {
+     "prefix": "",
+     "purposes": [
+      "化痰止咳"
+     ],
+     "weak": false,
+     "quote": "化痰止咳宜生用",
+     "field": "usage",
+     "line": 156540
+    }
+   ]
+  },
+  {
+   "herb": "僵蚕",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "散风热"
+     ],
+     "weak": false,
+     "quote": "散风热宜生用",
+     "field": "usage",
+     "line": 158180
+    }
+   ]
+  },
+  {
+   "herb": "六神曲",
+   "forms": [
+    {
+     "prefix": "焦",
+     "purposes": [
+      "消食"
+     ],
+     "weak": false,
+     "quote": "消食宜炒焦用",
+     "field": "usage",
+     "line": 156276
+    }
+   ]
+  },
+  {
+   "herb": "升麻",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "发表透疹",
+      "清热解毒"
+     ],
+     "weak": false,
+     "quote": "发表透疹、清热解毒宜生用",
+     "field": "usage",
+     "line": 153494
+    },
+    {
+     "prefix": "蜜",
+     "purposes": [
+      "升阳举陷"
+     ],
+     "weak": false,
+     "quote": "升阳举陷宜蜜炙用",
+     "field": "usage",
+     "line": 153494
+    }
+   ]
+  },
+  {
+   "herb": "半夏",
+   "forms": [
+    {
+     "prefix": "法",
+     "purposes": [
+      "燥湿化痰"
+     ],
+     "weak": false,
+     "quote": "法半夏长于燥湿化痰，主治痰多咳喘，痰饮眩悸，风痰眩晕，痰厥头痛",
+     "field": "usage",
+     "line": 157255
+    },
+    {
+     "prefix": "姜",
+     "purposes": [
+      "温中化痰",
+      "降逆止呕"
+     ],
+     "weak": false,
+     "quote": "姜半夏长于温中化痰，降逆止呕，主治痰饮呕吐，胃脘痞满",
+     "field": "usage",
+     "line": 157255
+    },
+    {
+     "prefix": "清",
+     "purposes": [
+      "燥湿化痰"
+     ],
+     "weak": false,
+     "quote": "清半夏长于燥湿化痰，主治湿痰咳嗽，胃脘痞满，痰涎凝聚，咯吐不出",
+     "field": "usage",
+     "line": 157255
+    }
+   ],
+   "internalMustProcess": {
+    "quote": "内服一般炮制后用，3～9g",
+    "field": "usage",
+    "line": 157255
+   }
+  },
+  {
+   "herb": "地榆",
+   "forms": [
+    {
+     "prefix": "炭",
+     "purposes": [
+      "止血"
+     ],
+     "weak": true,
+     "quote": "止血多炒炭用",
+     "field": "usage",
+     "line": 156510
+    },
+    {
+     "prefix": "",
+     "purposes": [
+      "解毒敛疮"
+     ],
+     "weak": true,
+     "quote": "解毒敛疮多生用",
+     "field": "usage",
+     "line": 156510
+    }
+   ]
+  },
+  {
+   "herb": "大黄",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "攻下"
+     ],
+     "weak": false,
+     "quote": "欲攻下者宜生用",
+     "field": "usage",
+     "line": 154593
+    },
+    {
+     "prefix": "酒",
+     "purposes": [
+      "清上焦血分热毒"
+     ],
+     "weak": false,
+     "quote": "酒大黄善清上焦血分热毒，用于目赤咽肿，齿龈肿痛",
+     "field": "usage",
+     "line": 154593
+    }
+   ]
+  },
+  {
+   "herb": "天南星",
+   "forms": [],
+   "internalMustProcess": {
+    "quote": "内服制用，3～9g",
+    "field": "usage",
+    "line": 157274
+   }
+  },
+  {
+   "herb": "川乌",
+   "forms": [],
+   "internalMustProcess": {
+    "quote": "制川乌煎服，1.5～3g，宜先煎、久煎",
+    "field": "usage",
+    "line": 154858
+   }
+  },
+  {
+   "herb": "常山",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "涌吐"
+     ],
+     "weak": true,
+     "quote": "涌吐可生用",
+     "field": "usage",
+     "line": 159500
+    },
+    {
+     "prefix": "酒",
+     "purposes": [
+      "截疟"
+     ],
+     "weak": false,
+     "quote": "截疟宜酒制用",
+     "field": "usage",
+     "line": 159500
+    }
+   ]
+  },
+  {
+   "herb": "枇杷叶",
+   "forms": [
+    {
+     "prefix": "蜜",
+     "purposes": [
+      "止咳"
+     ],
+     "weak": false,
+     "quote": "止咳宜蜜炙用",
+     "field": "usage",
+     "line": 157693
+    },
+    {
+     "prefix": "",
+     "purposes": [
+      "止呕"
+     ],
+     "weak": false,
+     "quote": "止呕宜生用",
+     "field": "usage",
+     "line": 157693
+    }
+   ]
+  },
+  {
+   "herb": "柴胡",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "疏散退热"
+     ],
+     "weak": false,
+     "quote": "疏散退热宜生用",
+     "field": "usage",
+     "line": 153479
+    }
+   ]
+  },
+  {
+   "herb": "桑叶",
+   "forms": [
+    {
+     "prefix": "蜜",
+     "purposes": [
+      "肺燥咳嗽"
+     ],
+     "weak": false,
+     "quote": "故肺燥咳嗽宜蜜制用",
+     "field": "usage",
+     "line": 153436
+    }
+   ]
+  },
+  {
+   "herb": "桑白皮",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "泻肺利水",
+      "平肝清火"
+     ],
+     "weak": false,
+     "quote": "泻肺利水、平肝清火宜生用",
+     "field": "usage",
+     "line": 157706
+    },
+    {
+     "prefix": "蜜",
+     "purposes": [
+      "肺虚咳喘"
+     ],
+     "weak": false,
+     "quote": "肺虚咳喘宜蜜炙用",
+     "field": "usage",
+     "line": 157706
+    }
+   ]
+  },
+  {
+   "herb": "槐花",
+   "forms": [
+    {
+     "prefix": "炭",
+     "purposes": [
+      "止血"
+     ],
+     "weak": true,
+     "quote": "止血多炒炭用",
+     "field": "usage",
+     "line": 156523
+    },
+    {
+     "prefix": "",
+     "purposes": [
+      "清热泻火"
+     ],
+     "weak": false,
+     "quote": "清热泻火宜生用",
+     "field": "usage",
+     "line": 156523
+    }
+   ]
+  },
+  {
+   "herb": "款冬花",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "外感暴咳"
+     ],
+     "weak": false,
+     "quote": "外感暴咳宜生用",
+     "field": "usage",
+     "line": 157663
+    },
+    {
+     "prefix": "蜜",
+     "purposes": [
+      "内伤久咳"
+     ],
+     "weak": false,
+     "quote": "内伤久咳蜜炙用",
+     "field": "usage",
+     "line": 157663
+    }
+   ]
+  },
+  {
+   "herb": "牛膝",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "活血通经",
+      "利尿通淋",
+      "引血下行"
+     ],
+     "weak": false,
+     "quote": "活血通经、利尿通淋、引血（火）下行宜生用",
+     "field": "usage",
+     "line": 156978
+    },
+    {
+     "prefix": "酒",
+     "purposes": [
+      "补肝肾",
+      "强筋骨"
+     ],
+     "weak": false,
+     "quote": "补肝肾、强筋骨宜酒炙用",
+     "field": "usage",
+     "line": 156978
+    }
+   ]
+  },
+  {
+   "herb": "牡丹皮",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "清热凉血"
+     ],
+     "weak": false,
+     "quote": "清热凉血宜生用",
+     "field": "usage",
+     "line": 154443
+    },
+    {
+     "prefix": "酒",
+     "purposes": [
+      "活血化瘀"
+     ],
+     "weak": false,
+     "quote": "活血化瘀宜酒炙用",
+     "field": "usage",
+     "line": 154443
+    },
+    {
+     "prefix": "炭",
+     "purposes": [
+      "止血"
+     ],
+     "weak": false,
+     "quote": "止血宜炒炭用",
+     "field": "usage",
+     "line": 154443
+    }
+   ]
+  },
+  {
+   "herb": "牡蛎",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "潜阳补阴",
+      "重镇安神",
+      "软坚散结"
+     ],
+     "weak": false,
+     "quote": "潜阳补阴、重镇安神、软坚散结生用",
+     "field": "usage",
+     "line": 157978
+    },
+    {
+     "prefix": "煅",
+     "purposes": [
+      "收敛固涩",
+      "制酸止痛"
+     ],
+     "weak": false,
+     "quote": "收敛固涩、制酸止痛煅用",
+     "field": "usage",
+     "line": 157978
+    }
+   ]
+  },
+  {
+   "herb": "瓦楞子",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "消痰化瘀",
+      "软坚散结"
+     ],
+     "weak": false,
+     "quote": "消痰化瘀、软坚散结宜生用",
+     "field": "usage",
+     "line": 157585
+    },
+    {
+     "prefix": "煅",
+     "purposes": [
+      "制酸止痛"
+     ],
+     "weak": false,
+     "quote": "制酸止痛宜煅用",
+     "field": "usage",
+     "line": 157585
+    }
+   ]
+  },
+  {
+   "herb": "甘草",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "清热解毒"
+     ],
+     "weak": false,
+     "quote": "清热解毒宜生用",
+     "field": "usage",
+     "line": 158418
+    },
+    {
+     "prefix": "蜜",
+     "purposes": [
+      "补中缓急",
+      "益气复脉"
+     ],
+     "weak": false,
+     "quote": "补中缓急、益气复脉宜蜜炙用",
+     "field": "usage",
+     "line": 158418
+    }
+   ]
+  },
+  {
+   "herb": "白扁豆",
+   "forms": [
+    {
+     "prefix": "炒",
+     "purposes": [
+      "健脾化湿",
+      "止泻止带"
+     ],
+     "weak": false,
+     "quote": "健脾化湿、止泻止带宜炒用",
+     "field": "usage",
+     "line": 158399
+    },
+    {
+     "prefix": "",
+     "purposes": [
+      "和中消暑"
+     ],
+     "weak": false,
+     "quote": "和中消暑宜生用",
+     "field": "usage",
+     "line": 158399
+    }
+   ]
+  },
+  {
+   "herb": "白术",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "燥湿利水"
+     ],
+     "weak": false,
+     "quote": "燥湿利水宜生用",
+     "field": "usage",
+     "line": 158371
+    },
+    {
+     "prefix": "炒",
+     "purposes": [
+      "补气健脾"
+     ],
+     "weak": false,
+     "quote": "补气健脾宜炒用",
+     "field": "usage",
+     "line": 158371
+    },
+    {
+     "prefix": "焦",
+     "purposes": [
+      "健脾止泻"
+     ],
+     "weak": false,
+     "quote": "健脾止泻宜炒焦用",
+     "field": "usage",
+     "line": 158371
+    }
+   ]
+  },
+  {
+   "herb": "白芍",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "平抑肝阳",
+      "敛阴止汗"
+     ],
+     "weak": true,
+     "quote": "平抑肝阳、敛阴止汗多生用",
+     "field": "usage",
+     "line": 158895
+    }
+   ]
+  },
+  {
+   "herb": "白茅根",
+   "forms": [
+    {
+     "prefix": "炭",
+     "purposes": [
+      "止血"
+     ],
+     "weak": true,
+     "quote": "止血多炒炭用",
+     "field": "usage",
+     "line": 156553
+    },
+    {
+     "prefix": "",
+     "purposes": [
+      "清热利尿"
+     ],
+     "weak": false,
+     "quote": "清热利尿宜生用",
+     "field": "usage",
+     "line": 156553
+    }
+   ]
+  },
+  {
+   "herb": "白附子",
+   "forms": [],
+   "internalMustProcess": {
+    "quote": "煎服，3～6g，一般宜炮制后用",
+    "field": "usage",
+    "line": 157292
+   }
+  },
+  {
+   "herb": "百合",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "清心安神"
+     ],
+     "weak": false,
+     "quote": "清心安神宜生用",
+     "field": "usage",
+     "line": 158983
+    },
+    {
+     "prefix": "蜜",
+     "purposes": [
+      "润肺止咳"
+     ],
+     "weak": false,
+     "quote": "润肺止咳宜蜜炙用",
+     "field": "usage",
+     "line": 158983
+    }
+   ]
+  },
+  {
+   "herb": "百部",
+   "forms": [
+    {
+     "prefix": "蜜",
+     "purposes": [
+      "久咳"
+     ],
+     "weak": false,
+     "quote": "久咳宜蜜炙用",
+     "field": "usage",
+     "line": 157643
+    },
+    {
+     "prefix": "",
+     "purposes": [
+      "杀虫灭虱"
+     ],
+     "weak": false,
+     "quote": "杀虫灭虱宜生用",
+     "field": "usage",
+     "line": 157643
+    }
+   ]
+  },
+  {
+   "herb": "知母",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "清热泻火"
+     ],
+     "weak": false,
+     "quote": "本品清热泻火宜生用",
+     "field": "usage",
+     "line": 153623
+    },
+    {
+     "prefix": "盐",
+     "purposes": [
+      "滋阴降火"
+     ],
+     "weak": false,
+     "quote": "滋阴降火宜盐水炙用",
+     "field": "usage",
+     "line": 153623
+    }
+   ]
+  },
+  {
+   "herb": "石决明",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "平肝",
+      "清肝"
+     ],
+     "weak": false,
+     "quote": "平肝、清肝宜生用",
+     "field": "usage",
+     "line": 157945
+    }
+   ]
+  },
+  {
+   "herb": "石榴皮",
+   "forms": [
+    {
+     "prefix": "炭",
+     "purposes": [
+      "止血"
+     ],
+     "weak": true,
+     "quote": "止血多炒炭用",
+     "field": "usage",
+     "line": 159289
+    }
+   ]
+  },
+  {
+   "herb": "磁石",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "镇惊安神",
+      "平肝潜阳"
+     ],
+     "weak": false,
+     "quote": "镇惊安神、平肝潜阳宜生用",
+     "field": "usage",
+     "line": 157804
+    },
+    {
+     "prefix": "煅",
+     "purposes": [
+      "纳气平喘"
+     ],
+     "weak": false,
+     "quote": "纳气平喘宜醋淬后用",
+     "field": "usage",
+     "line": 157804
+    }
+   ]
+  },
+  {
+   "herb": "稻芽",
+   "forms": [
+    {
+     "prefix": "炒",
+     "purposes": [
+      "消食"
+     ],
+     "weak": false,
+     "quote": "炒稻芽偏于消食，用于不饥食少",
+     "field": "usage",
+     "line": 156302
+    },
+    {
+     "prefix": "焦",
+     "purposes": [
+      "化积滞"
+     ],
+     "weak": false,
+     "quote": "焦稻芽善化积滞，用于积滞不化",
+     "field": "usage",
+     "line": 156302
+    }
+   ]
+  },
+  {
+   "herb": "竹茹",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "清化热痰"
+     ],
+     "weak": false,
+     "quote": "生用偏于清化热痰",
+     "field": "usage",
+     "line": 157434
+    },
+    {
+     "prefix": "姜",
+     "purposes": [
+      "和胃止呕"
+     ],
+     "weak": false,
+     "quote": "姜汁炙用偏于和胃止呕",
+     "field": "usage",
+     "line": 157434
+    }
+   ]
+  },
+  {
+   "herb": "紫菀",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "外感暴咳"
+     ],
+     "weak": false,
+     "quote": "外感暴咳宜生用",
+     "field": "usage",
+     "line": 157653
+    },
+    {
+     "prefix": "蜜",
+     "purposes": [
+      "肺虚久咳"
+     ],
+     "weak": false,
+     "quote": "肺虚久咳蜜炙用",
+     "field": "usage",
+     "line": 157653
+    }
+   ]
+  },
+  {
+   "herb": "红大戟",
+   "forms": [],
+   "internalMustProcess": {
+    "quote": "内服醋炙用，以减低毒性",
+    "field": "usage",
+    "line": 154713
+   }
+  },
+  {
+   "herb": "续断",
+   "forms": [
+    {
+     "prefix": "炒",
+     "purposes": [
+      "止崩漏"
+     ],
+     "weak": false,
+     "quote": "止崩漏宜炒用",
+     "field": "usage",
+     "line": 158638
+    }
+   ]
+  },
+  {
+   "herb": "罂粟壳",
+   "forms": [
+    {
+     "prefix": "蜜",
+     "purposes": [
+      "止咳"
+     ],
+     "weak": false,
+     "quote": "止咳宜蜜炙用",
+     "field": "usage",
+     "line": 159261
+    },
+    {
+     "prefix": "醋",
+     "purposes": [
+      "止泻",
+      "止痛"
+     ],
+     "weak": false,
+     "quote": "止泻、止痛宜醋炒用",
+     "field": "usage",
+     "line": 159261
+    }
+   ]
+  },
+  {
+   "herb": "芫花",
+   "forms": [],
+   "internalMustProcess": {
+    "quote": "内服醋炙用，以减低毒性",
+    "field": "usage",
+    "line": 154722
+   }
+  },
+  {
+   "herb": "茜草",
+   "forms": [
+    {
+     "prefix": "炭",
+     "purposes": [
+      "止血"
+     ],
+     "weak": false,
+     "quote": "止血炒炭用",
+     "field": "usage",
+     "line": 156613
+    }
+   ]
+  },
+  {
+   "herb": "葛根",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "解肌退热",
+      "生津止渴",
+      "透疹",
+      "通经活络",
+      "解酒毒"
+     ],
+     "weak": false,
+     "quote": "解肌退热、生津止渴、透疹、通经活络、解酒毒宜生用",
+     "field": "usage",
+     "line": 153511
+    },
+    {
+     "prefix": "煨",
+     "purposes": [
+      "升阳止泻"
+     ],
+     "weak": false,
+     "quote": "升阳止泻宜煨用",
+     "field": "usage",
+     "line": 153511
+    }
+   ]
+  },
+  {
+   "herb": "蒲黄",
+   "forms": [
+    {
+     "prefix": "炭",
+     "purposes": [
+      "止血"
+     ],
+     "weak": true,
+     "quote": "止血多炒炭用",
+     "field": "usage",
+     "line": 156627
+    },
+    {
+     "prefix": "",
+     "purposes": [
+      "化瘀",
+      "利尿"
+     ],
+     "weak": true,
+     "quote": "化瘀、利尿多生用",
+     "field": "usage",
+     "line": 156627
+    }
+   ]
+  },
+  {
+   "herb": "薏苡仁",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "清利湿热"
+     ],
+     "weak": false,
+     "quote": "清利湿热宜生用",
+     "field": "usage",
+     "line": 155423
+    },
+    {
+     "prefix": "炒",
+     "purposes": [
+      "健脾止泻"
+     ],
+     "weak": false,
+     "quote": "健脾止泻宜炒用",
+     "field": "usage",
+     "line": 155423
+    }
+   ]
+  },
+  {
+   "herb": "诃子",
+   "forms": [
+    {
+     "prefix": "煨",
+     "purposes": [
+      "涩肠止泻"
+     ],
+     "weak": false,
+     "quote": "涩肠止泻宜煨用",
+     "field": "usage",
+     "line": 159275
+    },
+    {
+     "prefix": "",
+     "purposes": [
+      "敛肺清热",
+      "利咽开音"
+     ],
+     "weak": false,
+     "quote": "敛肺清热、利咽开音宜生用",
+     "field": "usage",
+     "line": 159275
+    }
+   ]
+  },
+  {
+   "herb": "豨莶草",
+   "forms": [
+    {
+     "prefix": "制",
+     "purposes": [
+      "风湿痹痛",
+      "半身不遂"
+     ],
+     "weak": false,
+     "quote": "治风湿痹痛、半身不遂宜制用",
+     "field": "usage",
+     "line": 155097
+    },
+    {
+     "prefix": "",
+     "purposes": [
+      "风疹湿疮",
+      "痈肿疮毒"
+     ],
+     "weak": false,
+     "quote": "治风疹湿疮、痈肿疮毒宜生用",
+     "field": "usage",
+     "line": 155097
+    }
+   ]
+  },
+  {
+   "herb": "贯众",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "清热解毒",
+      "驱虫"
+     ],
+     "weak": false,
+     "quote": "清热解毒、驱虫宜生用",
+     "field": "usage",
+     "line": 153983
+    },
+    {
+     "prefix": "炭",
+     "purposes": [
+      "止血"
+     ],
+     "weak": false,
+     "quote": "止血宜炒炭用",
+     "field": "usage",
+     "line": 153983
+    }
+   ]
+  },
+  {
+   "herb": "金银花",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "疏散风热",
+      "清泄里热"
+     ],
+     "weak": false,
+     "quote": "疏散风热、清泄里热以生品为佳",
+     "field": "usage",
+     "line": 153890
+    }
+   ]
+  },
+  {
+   "herb": "附子",
+   "forms": [],
+   "internalMustProcess": {
+    "quote": "生品外用，内服须经炮制",
+    "field": "caution",
+    "line": 155810
+   }
+  },
+  {
+   "herb": "马兜铃",
+   "forms": [
+    {
+     "prefix": "蜜",
+     "purposes": [
+      "肺虚久咳"
+     ],
+     "weak": false,
+     "quote": "肺虚久咳蜜炙用",
+     "field": "usage",
+     "line": 157676
+    }
+   ]
+  },
+  {
+   "herb": "麻黄",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "发汗解表"
+     ],
+     "weak": false,
+     "quote": "本品发汗解表宜生用",
+     "field": "usage",
+     "line": 153146
+    }
+   ]
+  },
+  {
+   "herb": "黄柏",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "清热燥湿",
+      "泻火解毒"
+     ],
+     "weak": false,
+     "quote": "清热燥湿、泻火解毒宜生用",
+     "field": "usage",
+     "line": 153818
+    },
+    {
+     "prefix": "盐",
+     "purposes": [
+      "滋阴降火"
+     ],
+     "weak": false,
+     "quote": "滋阴降火宜盐炙用",
+     "field": "usage",
+     "line": 153818
+    },
+    {
+     "prefix": "炭",
+     "purposes": [
+      "止血"
+     ],
+     "weak": true,
+     "quote": "止血多炒炭用",
+     "field": "usage",
+     "line": 153818
+    }
+   ]
+  },
+  {
+   "herb": "黄芩",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "清热泻火",
+      "解毒"
+     ],
+     "weak": false,
+     "quote": "清热泻火、解毒宜生用",
+     "field": "usage",
+     "line": 153786
+    },
+    {
+     "prefix": "炒",
+     "purposes": [
+      "安胎"
+     ],
+     "weak": true,
+     "quote": "安胎多炒用",
+     "field": "usage",
+     "line": 153786
+    },
+    {
+     "prefix": "酒",
+     "purposes": [
+      "清上焦热"
+     ],
+     "weak": false,
+     "quote": "清上焦热酒炙用",
+     "field": "usage",
+     "line": 153786
+    },
+    {
+     "prefix": "炭",
+     "purposes": [
+      "止血"
+     ],
+     "weak": false,
+     "quote": "止血宜炒炭用",
+     "field": "usage",
+     "line": 153786
+    }
+   ]
+  },
+  {
+   "herb": "黄芪",
+   "forms": [
+    {
+     "prefix": "蜜",
+     "purposes": [
+      "益气补中"
+     ],
+     "weak": false,
+     "quote": "益气补中宜蜜炙用",
+     "field": "usage",
+     "line": 158354
+    }
+   ]
+  },
+  {
+   "herb": "黄连",
+   "forms": [
+    {
+     "prefix": "酒",
+     "purposes": [
+      "清上焦火热"
+     ],
+     "weak": false,
+     "quote": "酒黄连善清上焦火热，多用于目赤肿痛、口舌生疮",
+     "field": "usage",
+     "line": 153804
+    },
+    {
+     "prefix": "姜",
+     "purposes": [
+      "清胃和胃止呕"
+     ],
+     "weak": false,
+     "quote": "姜黄连善清胃和胃止呕，多用治寒热互结，湿热中阻，痞满呕吐",
+     "field": "usage",
+     "line": 153804
+    }
+   ]
+  },
+  {
+   "herb": "龙骨",
+   "forms": [
+    {
+     "prefix": "",
+     "purposes": [
+      "镇惊安神",
+      "平肝潜阳"
+     ],
+     "weak": false,
+     "quote": "镇惊安神、平肝潜阳生用",
+     "field": "usage",
+     "line": 157819
+    },
+    {
+     "prefix": "煅",
+     "purposes": [
+      "收敛固涩"
+     ],
+     "weak": false,
+     "quote": "收敛固涩宜煅用",
+     "field": "usage",
+     "line": 157819
+    }
+   ]
+  }
+ ]
+}

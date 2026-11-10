@@ -879,7 +879,8 @@ const checkAsync = async (name, run) => {
     const out = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {},
       formula: { candidates: [{ name: "右归丸", herbs: youGui.map((name) => ({ name, dose: "9g" })), formulaAnalysis: "本方以右归丸为基础加减，去原方温燥之品后以附子、肉桂为君，温补肾阳。" }] }, nonPharma: null }).formula.candidates[0].formulaAnalysis;
     // 组成与目录原方逐味相同：开头为「本方用右归丸原方」（第二十四轮）。
-    assert.equal(out, "本方用右归丸原方，以附子、肉桂为君，温补肾阳。");
+    // 第四十二轮起裸写的附子按《中药学》「生品外用，内服须经炮制」交付制附子，注意事项里的药名随药表一起改。
+    assert.equal(out, "本方用右归丸原方，以制附子、肉桂为君，温补肾阳。");
     // 药味取自甲方标准病历 8 的实际处方（龙胆泻肝汤全方 + 牡丹皮）。
     const longdan = ["龙胆", "黄芩", "栀子", "泽泻", "川木通", "车前子", "地黄", "牡丹皮", "当归", "柴胡", "甘草"];
     const tail = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {},

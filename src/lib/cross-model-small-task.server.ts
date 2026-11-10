@@ -183,6 +183,17 @@ export function primaryModelJsonTask<T>(
   return runOne(namespace, stage, getControlledTerminologyModelConfig(), messages, options.maxTokens, options.timeoutMs, parse, signal);
 }
 
+/** 一条已有的说法只问另一家（qwen3.8-flash）一次答对错（西医诊断确立程度，第四十二轮）。失败、超时返回 undefined。 */
+export function crossVendorConfirm(
+  namespace: string,
+  stage: "diagnose" | "prescribe",
+  messages: Messages,
+  options: { maxTokens: number; timeoutMs: number },
+  signal?: AbortSignal,
+): Promise<boolean | undefined> {
+  return runOne(`${namespace}_verify`, stage, textModelConfigForModel(CROSS_CHECK_MODEL()), messages, options.maxTokens, options.timeoutMs, parseConfirmed, signal);
+}
+
 /** 复核答案里的 yes/no：{"confirmed":true|false}。 */
 export function parseConfirmed(content: unknown): boolean | undefined {
   if (typeof content !== "string" || !content.trim()) return undefined;

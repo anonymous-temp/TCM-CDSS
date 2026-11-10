@@ -39,6 +39,12 @@ function recordHasResult(recordText: string, group: readonly string[]): boolean 
   });
 }
 
+/** 病历里已有这一项检查（按同项写法表认）的肯定、非待查记载（第四十二轮：西医确立程度核对据此不问已查过的病）。 */
+export function recordHasTestResultFor(testName: string, recordText: string): boolean {
+  const group = groupFor(testName);
+  return Boolean(group && recordHasResult(recordText, group));
+}
+
 export function withoutMissingClaimsForRecordedTests(text: string, recordText: string): string {
   const source = String(text || "");
   if (!source || !recordText || !/尚缺|缺少|未完善|未查|未行|未做|需完善|尚未/u.test(source)) return source;

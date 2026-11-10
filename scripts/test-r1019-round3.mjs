@@ -114,7 +114,8 @@ const rx = (precautionLines, herbs = [{ name: "陈皮", role: "君", function: "
 await check("5.1 有毒药逐味点到：只写了吴茱萸，附子补一句；都写到了不补（对照）", () => {
   const herbs = [{ name: "附子", role: "君", function: "温肾", dose: "6g" }, { name: "吴茱萸", role: "佐", function: "温中", dose: "3g" }];
   const out = surface.projectDeliveredReasoning(rx(["方中吴茱萸有小毒，服后如出现恶心、头晕等不适，请及时告知医生。"], herbs));
-  assert.ok(out.nonPharma.precautions.some((line) => /方中附子在药典中标注有毒/.test(line)));
+  // 第四十二轮起裸写的附子按《中药学》「生品外用，内服须经炮制」交付制附子，注意事项里的药名随药表一起改。
+  assert.ok(out.nonPharma.precautions.some((line) => /方中制附子在药典中标注有毒/.test(line)));
   assert.ok(!out.nonPharma.precautions.some((line) => /方中[^。]*吴茱萸[^。]*在药典中标注有毒/.test(line)));
   const both = surface.projectDeliveredReasoning(rx(["方中附子有毒须先煎，吴茱萸有小毒，出现口唇发麻请停药就医。"], herbs));
   assert.equal(both.nonPharma.precautions.length, 1);
@@ -122,7 +123,8 @@ await check("5.1 有毒药逐味点到：只写了吴茱萸，附子补一句；
 await check("5.2 「方中有木香、当归等药。」残句不留；带提示的「方中有附子，须先煎…」照留（对照）", () => {
   const herbs = ["木香", "当归", "附子"].map((name) => ({ name, role: "臣", function: "x", dose: "6g" }));
   const out = surface.projectDeliveredReasoning(rx(["饮食清淡。", "方中有木香、当归等药。", "方中有附子，须先煎，如出现口唇发麻请停药就医。"], herbs));
-  assert.deepEqual(out.nonPharma.precautions, ["饮食清淡。", "方中有附子，须先煎，如出现口唇发麻请停药就医。"]);
+  // 第四十二轮起裸写的附子按《中药学》「生品外用，内服须经炮制」交付制附子，注意事项里的药名随药表一起改。
+  assert.deepEqual(out.nonPharma.precautions, ["饮食清淡。", "方中有制附子，须先煎，如出现口唇发麻请停药就医。"]);
 });
 await check("5.3 自行停药：「高血压病史8年，1个月前自行停药」算出一项并补规则句；遵医嘱停药、否认不算（对照）", () => {
   assert.deepEqual(polarity.selfDiscontinuedMedication("高血压病史8年，1个月前自行停药"), { condition: "高血压", names: [] });
@@ -209,7 +211,8 @@ await check("6.4 注意事项：药类英文缩写换中文（ARB→沙坦类降
   assert.equal(abbr.nonPharma.precautions[0], "正在服用的沙坦类降压药请告知医生。");
   const herbs = [{ name: "人参", role: "君", function: "大补元气", dose: "6g", decoctionRequirement: "另煎" }, { name: "附子", role: "臣", function: "温阳", dose: "6g", decoctionRequirement: "先煎、久煎" }];
   const out = surface.projectDeliveredReasoning(rx(["人参须先煎久煎，饮食清淡。", "附子须先煎久煎，如出现口唇发麻请停药就医。"], herbs));
-  assert.deepEqual(out.nonPharma.precautions.slice(0, 2), ["饮食清淡。", "附子须先煎久煎，如出现口唇发麻请停药就医。"]);
+  // 第四十二轮起裸写的附子按《中药学》「生品外用，内服须经炮制」交付制附子，注意事项里的药名随药表一起改。
+  assert.deepEqual(out.nonPharma.precautions.slice(0, 2), ["饮食清淡。", "制附子须先煎久煎，如出现口唇发麻请停药就医。"]);
 });
 
 await check("6.5 不给剂量的病例，复诊提示不以「服完本次的药」为节点：红旗先急诊/专科，其余先就诊评估；给剂量的照旧（对照）；幂等", () => {

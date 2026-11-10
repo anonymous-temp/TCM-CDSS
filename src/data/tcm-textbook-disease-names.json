@@ -1,6 +1,6 @@
 {
  "generatedBy": "scripts/build-tcm-textbook-disease-names.mjs",
- "count": 342,
+ "count": 343,
  "names": [
   "癌病",
   "艾滋病",
@@ -330,6 +330,7 @@
   "早泄",
   "针眼",
   "真睛破损",
+  "真心痛",
   "癥瘕",
   "中风",
   "注意力缺陷多动障碍",

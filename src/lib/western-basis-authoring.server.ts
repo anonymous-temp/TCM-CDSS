@@ -1,12 +1,15 @@
 import "server-only";
 
-import { primaryModelJsonTask } from "./cross-model-small-task.server";
+import { crossVendorConfirm, primaryModelJsonTask } from "./cross-model-small-task.server";
 import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals } from "./m03-patient-claim-check.server";
 import { recordMentionPolarityAt } from "./diagnosis-safety";
 import { alignQuoteToSource, normalizedQuoteText } from "./source-quote-alignment";
+import { recordHasTestResultFor } from "./recorded-test-claims";
+import emergencyDiagnosisNames from "../data/emergency-diagnosis-names.source.json" with { type: "json" };
+import establishmentCheckSource from "../data/western-establishment-check.source.json" with { type: "json" };
 import { quoteGroundedInText } from "./verbatim-quote";
 import { westernCriteriaEntry, type WesternCriteriaEntry } from "./western-diagnostic-criteria.server";
-import { listedWesternDiagnosisNames } from "./western-name-evidence-check.server";
+import { applyWesternNameCorrection, listedWesternDiagnosisNames, recordStatesWesternDiagnosis } from "./western-name-evidence-check.server";
 
 /**
  * 西医诊断依据在病名定稿之后、按该病的诊断要点单独写（2026-11-09 第三十九轮）。
@@ -42,6 +45,8 @@ export type WesternBasisProposal = {
   summary: string;
   criteria: WesternBasisItem[];
   negatives: WesternBasisItem[];
+  /** 这一级诊断现在是否已确立（第四十二轮）：yes / no；模型没答为空串。 */
+  established: "yes" | "no" | "";
   level: string;
   exclude: string[];
   text: string;
@@ -217,6 +222,7 @@ export function parseWesternBasisProposal(content: unknown): WesternBasisProposa
       summary: text(parsed.summary),
       criteria: items(parsed.criteria, 3),
       negatives: items(parsed.negatives, 2),
+      established: parsed.established === "yes" || parsed.established === true ? "yes" : parsed.established === "no" || parsed.established === false ? "no" : "",
       level: text(parsed.level),
       exclude: (Array.isArray(parsed.exclude) ? parsed.exclude : []).map(text).filter(Boolean).slice(0, 4),
       text: text(parsed.text),
@@ -233,11 +239,12 @@ const SYSTEM = `你给一个西医诊断写诊断依据，给医生看。给你 
 1. summary：一句话概括本例问题的特点（≤25字），用急性/慢性、反复/持续、诱因、部位这类定性说法，不要逐条罗列症状。定性词要有病历依据：病程不足3个月不写「慢性」，只写了一次发作不写「反复」，病历没写年龄性别就不写。
 2. criteria：本例满足的诊断要点，1–3条，只列病历里确有原文支持的要点。point 写要点本身（criteria 不为空时只能用其中的要点，沿用它的说法；为空时写该病公认的诊断要点）；quote 是病历里支持这一点的一段原文，逐字照抄、不增不减（≤30字）。病历没有原文支持的要点不列，也不写进 text。
 3. negatives：病历里写明的、有鉴别意义的否认或正常结果，0–2条，quote 逐字照抄病历里那句否认或正常结果（如「无呕血、黑便」「心电图未见异常」）。病历没写否认就留空数组，不要把阳性症状放进来。
-4. level：诊断为什么写到这一级（≤40字）：是哪项检查或客观所见确立的；没有确诊检查的，写尚缺什么检查或尚需排除什么。病程门槛只用 criteria.durationThreshold 里给的，并且要与病历记录的病程对照属实；criteria 没给病程门槛就不写「病程未满…」。功能性疾病、原发性疾病这类排除性诊断，写「尚需排除器质性病变」，不写「可诊断」「可确诊」。
-5. exclude：还需排除的病，0–2个，写规范病名。
-6. text：把上面各项写成一句话（60–120字），这就是医生读到的诊断依据：先写 summary，再写本例的所见如何满足要点（用 quote 里的本例所见来写，不要把要点原文当成本例所见），再写阴性所见（没有就不写这一部分），再写 level，最后写「需与/需排除…」。句中要逐字出现诊断名 name。
+4. established：这个诊断名本身现在是否已确立，yes 或 no。只看诊断名本身，不看病因、分型、严重程度或并发症：门诊按公认标准凭症状、体征与常规化验即可临床诊断的（以症状、体征或病程定义的症状性、综合征性诊断，常见急性感染与急症的临床诊断），即使还需检查明确病因、病原、部位或排除并发症，也写 yes；病历写明既往已确诊的写 yes。只有确诊这个病名必须依赖病历里没有的检查（病原学、脑脊液、影像、内镜、病理、心电图与心肌标志物、规范血糖检测等），或必须满足而病历未满足的病程门槛（criteria.durationThreshold），或它是需先排除器质性疾病才能下的排除性诊断（功能性、神经症一类）时，写 no。
+5. level：诊断为什么写到这一级（≤40字）：是哪项检查或客观所见确立的；没有确诊检查的，写尚缺什么检查或尚需排除什么。病程门槛只用 criteria.durationThreshold 里给的，并且要与病历记录的病程对照属实；criteria 没给病程门槛就不写「病程未满…」。功能性疾病、原发性疾病这类排除性诊断，写「尚需排除器质性病变」，不写「可诊断」「可确诊」。
+6. exclude：还需排除的病，0–2个，写规范病名。
+7. text：把上面各项写成一句话（60–120字），这就是医生读到的诊断依据：先写 summary，再写本例的所见如何满足要点（用 quote 里的本例所见来写，不要把要点原文当成本例所见），再写阴性所见（没有就不写这一部分），再写 level，最后写「需与/需排除…」。句中要逐字出现诊断名 name。
 text 是临床表述：不逐条复述病史，不用「」引病历原文，不写「病历载」「病历未记录相关阴性」「无明确否认项」这类讲病历本身的话，不写病历里没有的检查结果或数字，不写中医证候。name 不带「待查」时句中不出现「待查」。
-只输出 JSON：{"summary":"","criteria":[{"point":"","quote":""}],"negatives":[{"point":"","quote":""}],"level":"","exclude":[""],"text":""}`;
+只输出 JSON：{"summary":"","criteria":[{"point":"","quote":""}],"negatives":[{"point":"","quote":""}],"established":"","level":"","exclude":[""],"text":""}`;
 
 function westernPrimaryOf(westernContent: string): { name: string; listed: string[] } | undefined {
   try {
@@ -285,16 +292,20 @@ export async function authorWesternBasis(
  * 落到最终西医内容上：提纲是按最终病名写的、核对全过，才换掉 clinicalRationale；否则原样返回。
  * draft 是用核对前的病名先起的那一份：病名没变就直接用，变了按最终病名再写一次。
  */
+type WesternBasisApplyContext = {
+  recordText: string;
+  chiefComplaint: string;
+  redFlag?: boolean;
+  claimRecordText?: string;
+  /** 测试注入；缺省用本例说法核对（m03-patient-claim-check）。 */
+  claimCheck?: (content: string, recordText: string, signal?: AbortSignal) => Promise<Array<{ field: string; span: string }>>;
+  /** 测试注入；缺省问 qwen3.8-flash（crossVendorConfirm）。 */
+  establishmentConfirm?: (messages: Array<{ role: "system" | "user"; content: string }>, signal?: AbortSignal) => Promise<boolean | undefined>;
+};
+
 export async function withAuthoredWesternBasis(
   westernContent: string,
-  context: {
-    recordText: string;
-    chiefComplaint: string;
-    redFlag?: boolean;
-    claimRecordText?: string;
-    /** 测试注入；缺省用本例说法核对（m03-patient-claim-check）。 */
-    claimCheck?: (content: string, recordText: string, signal?: AbortSignal) => Promise<Array<{ field: string; span: string }>>;
-  },
+  context: WesternBasisApplyContext,
   draft: Promise<AuthoredWesternBasis | undefined> | undefined,
   signal?: AbortSignal,
 ): Promise<string> {
@@ -308,6 +319,88 @@ export async function withAuthoredWesternBasis(
     console.info("[tcm-cdss:telemetry] western_basis_authoring", { accepted: false, reason: "unavailable" });
     return westernContent;
   }
+  const withBasis = await withAuthoredBasisText(westernContent, primary, authored, context, reused, signal);
+  return withEstablishmentDowngrade(withBasis, primary.name, authored.proposal, context, signal);
+}
+
+/**
+ * 依据自己说还没确立、病名却写成确诊名时，病名改为「X待查」（第四十二轮；线上盲评 new40：依据写「病程未满6个月，尚不能确诊」，病名仍是
+ * 功能性消化不良；「尚缺脑脊液检查…确立诊断」，病名仍是化脓性脑膜炎伴脓毒性休克；40 年前治过、这次没有病原学，病名写丝虫病）。
+ * 依据与病名是两步各下各的结论；这里让依据提纲里的 established 管住病名：
+ *  · 提纲答 no，另一家（qwen3.8-flash）对这一条再答一次「尚不能确立」，两家一致才改；
+ *  · 病名已带待查/待排/可能/疑似、病历写明既往已确诊（recordStatesWesternDiagnosis）、要点表注明可凭临床诊断且没有病程门槛的，不问；
+ *  · 改法走病名核对 D 类同一条路（applyWesternNameCorrection：候选首位改名，推理说明「符合X」改「考虑X可能」）。
+ * 任一步失败按已确立处理（原样交付）。开关：CDSS_WESTERN_ESTABLISHMENT_CHECK=false。
+ */
+export function westernEstablishmentCheckEnabled(): boolean {
+  return process.env.CDSS_WESTERN_ESTABLISHMENT_CHECK !== "false";
+}
+
+const ESTABLISHMENT_SYSTEM = `判断一个西医诊断名本身按病历现有信息是否还不能确立。给你 name（诊断名）、criteria（该病的诊断要点，可能为空）、record（病历）、claim（写依据时给出的理由）。
+只看诊断名本身，不看病因、病原、分型、部位、严重程度或并发症。答 confirmed=true（尚不能确立）只限三种：确诊这个病名必须依赖病历里没有的检查（病原学、脑脊液、影像、内镜、病理、心电图与心肌标志物、规范血糖检测等）；必须满足的病程门槛病历未满足；它是须先排除器质性疾病才能下的排除性诊断（功能性疾病、神经症一类）。
+以下答 confirmed=false：门诊按公认标准凭症状、体征与常规化验即可临床诊断的病（以症状、体征或病程定义的症状性、综合征性诊断，常见急性感染与急症的临床诊断），即使还要查病因、病原、部位或排除并发症；病历写明既往已确诊；病历已有确诊必需的检查结果。claim 里写「需排除…」「明确病因」「评估严重程度」不等于病名不能确立。
+先写 why（≤40字，说清缺的是确诊这个病名必需的哪一项，或为什么已确立），再写 confirmed。只输出 JSON：{"why":"","confirmed":false}`;
+
+const EMERGENCY_NAME_STEMS = (emergencyDiagnosisNames as { names: Array<{ stem: string }> }).names.map((item) => item.stem);
+const ESTABLISHMENT_WORDS = establishmentCheckSource as { courseReasonWords: string[]; exclusionDiagnosisWords: string[] };
+/**
+ * 只有这几类病名才问「是否尚未确立」（离线 173 例：不加这一层时，提名与复核一致把凭临床即可诊断的病也降成待查，
+ * 如短期失眠、急性鼻窦炎、典型症状加空腹血糖 9.8 的 2 型糖尿病）：
+ *  · 要点表写明确诊须靠某些检查（clinicallyDiagnosable=false），且病历里这些检查一项结果都没有；
+ *  · 要点表有病程门槛，且依据给的理由说的正是病程；
+ *  · 急危重病名表里的病（脑膜炎、蛛网膜下腔出血、急性冠脉综合征、异位妊娠…，确诊都靠检查）；
+ *  · 排除性诊断（功能性、神经症一类）。
+ */
+export function establishmentQuestionable(name: string, entry: ReturnType<typeof westernBasisCriteriaEntry>, level: string, recordText: string): boolean {
+  if (entry && entry.clinicallyDiagnosable === false) {
+    // 一条要点常列几种可选检查（「空腹血糖、OGTT 2小时血糖、随机血糖或糖化血红蛋白（达到诊断切点）」）：逐项拆开认。
+    const tests = entry.requiredTests.flatMap((test) => test.replace(/[（(][^）)]*[）)]/gu, "").split(/[、，,；;或及和]/u)).map((item) => item.trim()).filter((item) => item.length >= 2);
+    return !tests.some((test) => recordHasTestResultFor(test, recordText));
+  }
+  if (entry?.durationThreshold) return ESTABLISHMENT_WORDS.courseReasonWords.some((word) => level.includes(word));
+  if (EMERGENCY_NAME_STEMS.some((stem) => name.includes(stem))) return true;
+  return ESTABLISHMENT_WORDS.exclusionDiagnosisWords.some((word) => name.includes(word));
+}
+
+export async function withEstablishmentDowngrade(
+  westernContent: string,
+  name: string,
+  proposal: WesternBasisProposal,
+  context: Pick<WesternBasisApplyContext, "recordText" | "establishmentConfirm">,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (!westernEstablishmentCheckEnabled() || proposal.established !== "no") return westernContent;
+  const current = westernPrimaryOf(westernContent);
+  if (!current || compact(current.name) !== compact(name)) return westernContent;
+  // 已带待查/待排/可能（westernNameCore 去得掉的写法）、疑似或症状级名称的不问。
+  if (westernNameCore(name) !== compact(name) || /^疑似|症状$/u.test(compact(name))) return westernContent;
+  if (recordStatesWesternDiagnosis(name, context.recordText)) return westernContent;
+  const entry = westernBasisCriteriaEntry(name);
+  if (!establishmentQuestionable(name, entry, proposal.level, context.recordText)) return westernContent;
+  const messages = [
+    { role: "system" as const, content: ESTABLISHMENT_SYSTEM },
+    { role: "user" as const, content: JSON.stringify({
+      name,
+      criteria: entry ? { clinicallyDiagnosable: entry.clinicallyDiagnosable, requiredTests: entry.requiredTests, durationThreshold: entry.durationThreshold } : null,
+      record: context.recordText.slice(0, 3_000),
+      claim: proposal.level,
+    }) },
+  ];
+  const confirm = context.establishmentConfirm || ((request: typeof messages, abort?: AbortSignal) => crossVendorConfirm("western_establishment", "diagnose", request, { maxTokens: 160, timeoutMs: TIMEOUT_MS }, abort));
+  const confirmed = await confirm(messages, signal).catch(() => undefined);
+  console.info("[tcm-cdss:telemetry] western_establishment_check", { proposed: "no", confirmed: confirmed ?? null });
+  if (confirmed !== true) return westernContent;
+  return applyWesternNameCorrection(westernContent, { supportedName: `${name}待查`, quote: "", reason: proposal.level, type: "D" });
+}
+
+async function withAuthoredBasisText(
+  westernContent: string,
+  primary: { name: string; listed: string[] },
+  authored: AuthoredWesternBasis,
+  context: WesternBasisApplyContext,
+  reused: boolean,
+  signal?: AbortSignal,
+): Promise<string> {
   const entry = westernBasisCriteriaEntry(primary.name);
   const issue = westernBasisIssue(authored.proposal, { name: primary.name, recordText: context.recordText, listedNames: primary.listed, criteria: entry });
   console.info("[tcm-cdss:telemetry] western_basis_authoring", { accepted: !issue, reason: issue || null, criteriaTable: Boolean(entry), reusedDraft: reused });

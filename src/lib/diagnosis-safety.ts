@@ -7123,7 +7123,49 @@ export type PriorityEvaluationPathway = keyof typeof priorityEvaluationWindowTab
 /** 复诊时限：事实模型的四档之外，多一档「当天」只给红旗未解除但给了剂量的病例（D4）。 */
 export type FollowupWindowId = PriorityEvaluationWindowId | "today";
 const FOLLOWUP_WINDOW_ORDER: readonly FollowupWindowId[] = ["today", ...PRIORITY_EVALUATION_WINDOWS];
-export type PriorityEvaluationTarget = { focus: string; window: FollowupWindowId; pathway?: PriorityEvaluationPathway };
+export type PriorityEvaluationTarget = {
+  focus: string;
+  window: FollowupWindowId;
+  pathway?: PriorityEvaluationPathway;
+  /** 待排除项正是本例已下（未带「待查」）的西医诊断时（第四十二轮）：不再说「需排除X」，说「已考虑X，完成尚缺的检查并评估轻重」。 */
+  established?: { name: string; pending?: string; originalFocus: string };
+};
+
+const ESTABLISHED_QUALIFIER = /^(?:急性|慢性|亚急性|重症|轻症|原发性|继发性)|(?:期|型|病)$/gu;
+function establishedCore(value: string): string {
+  return value.normalize("NFKC").replace(/[（(][^）)]*[）)]/gu, "").replace(ESTABLISHED_QUALIFIER, "").replace(ESTABLISHED_QUALIFIER, "").trim();
+}
+
+/**
+ * 复诊第一句的「需排除X」与已下的西医诊断对账（第四十二轮；线上盲评 new40：西医已诊断细菌性痢疾，复诊写「需排除急性细菌性痢疾或
+ * 侵袭性肠道感染」；已诊断乙肝肝硬化失代偿期，复诊写「需排除肝硬化失代偿」）。待排除项来自安全门，是事实模型在诊断之前写的，
+ * 诊断确立之后两处没有比对。这里只做比对：西医主诊断不带「待查」、且待排除项里有一项（「或」连接的几种说法算同一项）与它是同一个病
+ * （去掉急性/慢性、分期分型字样后一方包含另一方，至少三个字），就标成 established，待排除的其余各项照留；尚缺的检查取诊断依据里的「尚缺…」。
+ * 只处理没有专门通道的评估（乳房肿块两周、DKA 24 小时、红旗当天这些通道的说法不动）。主诊断带「待查」、读不到名字时原样返回。
+ */
+export function priorityTargetWithEstablishedDiagnosis(
+  target: PriorityEvaluationTarget | string | undefined,
+  western: { name?: unknown; basis?: unknown } | undefined,
+): PriorityEvaluationTarget | string | undefined {
+  if (target === undefined) return target;
+  const resolved = typeof target === "string" ? { focus: target, window: priorityEvaluationWindowTable.defaultWindow as PriorityEvaluationWindowId } : target;
+  if (resolved.pathway || resolved.established || !resolved.focus) return target;
+  const name = typeof western?.name === "string" ? western.name.trim() : "";
+  if (!name || /待查|待排|可能|疑似/u.test(name)) return target;
+  const core = establishedCore(name);
+  if (core.length < 3) return target;
+  const focus = focusWithoutNestedExclusion(resolved.focus);
+  const items = focus.split(/[、，,；;]/u).map((item) => item.trim()).filter(Boolean);
+  const sameDisease = (item: string) => item.split(/或|及|和|与|\//u).some((alternative) => {
+    const other = establishedCore(alternative);
+    return other.length >= 3 && (core.includes(other) || other.includes(core));
+  });
+  if (!items.some(sameDisease)) return target;
+  const rest = items.filter((item) => !sameDisease(item));
+  const basis = typeof western?.basis === "string" ? western.basis : "";
+  const pending = basis.normalize("NFKC").match(/尚缺([^，,。；;]{2,30}?)(?:结果)?(?=[，,。；;]|$)/u)?.[1]?.trim();
+  return { ...resolved, focus: rest.join("、"), established: { name, ...(pending ? { pending } : {}), originalFocus: resolved.focus } };
+}
 
 /**
  * 时限取各来源里最紧的一档：事实模型对「宜先专科评估」各项给的 timeWindow、乳房肿块的疑似肿瘤路径（两周内）、
@@ -8587,7 +8629,7 @@ export function deriveFirstReviewTiming(state: CaseState, hasStrongRisk: boolean
  * 现在一份计划、两种写法：先评估（时限、去哪、做什么）→ 医生确认可以服药 → 服完 N 剂复诊。regimen 取方剂的 followUpAfterDoses/Days，
  * 复诊计划第一句（priorityEvaluationFirstStep）与煎服法复诊节点（priorityEvaluationFollowUpNode）都由 priorityEvaluationPlan 拼出。
  */
-type PriorityEvaluationPlan = { window: string; visit: string; nodeVisit: string; clearance: string; withoutRegimenTail?: string; afterStep?: string };
+type PriorityEvaluationPlan = { window: string; visit: string; nodeVisit: string; clearance: string; withoutRegimenTail?: string; afterStep?: string; lead?: string };
 const PRIORITY_WINDOW_LABELS = new Map(priorityEvaluationWindowTable.windows.map((entry) => [entry.id, entry.label]));
 const PRIORITY_WINDOW_LABEL_PATTERN = priorityEvaluationWindowTable.windows.map((entry) => entry.label).join("|");
 function priorityEvaluationTarget(target: PriorityEvaluationTarget | string): PriorityEvaluationTarget {
@@ -8625,6 +8667,18 @@ function priorityEvaluationPlan(input: PriorityEvaluationTarget | string): Prior
       ...("afterStep" in pathway && typeof pathway.afterStep === "string" ? { afterStep: pathway.afterStep } : {}),
     };
   }
+  if (target.established) {
+    // 已确立的诊断：说已考虑、补做尚缺的检查、评估轻重；其余待排除项照写在括号里。
+    const rest = focusWithoutNestedExclusion(target.focus);
+    const check = target.established.pending ? `完成${target.established.pending}并` : "";
+    return {
+      window,
+      lead: `已考虑${target.established.name}，`,
+      visit: `到相关专科就诊，${check}评估病情轻重${rest ? `（需排除${rest}）` : ""}`,
+      nodeVisit: "到相关专科评估病情",
+      clearance: "医生确认可以服药后",
+    };
+  }
   // 事实层写的待排除项自带括号说明时（「异常子宫出血（需排除子宫内膜病变、凝血功能障碍或内分泌疾病）」），
   // 只取括号里真正要排除的那些，不套成「需排除异常子宫出血（需排除…）」两层括号（2026-10-26 甲方测评病历 10 本机复测）。
   const focus = focusWithoutNestedExclusion(target.focus);
@@ -8642,10 +8696,11 @@ export function priorityEvaluationFirstStep(target: PriorityEvaluationTarget | s
   const plan = priorityEvaluationPlan(target);
   const counts = regimenCounts(regimen);
   const after = plan.afterStep ? plan.afterStep : "";
-  if (counts) return `请在${plan.window}${plan.visit}；${plan.clearance}，服完${counts.doses}剂药（约${counts.days}天后）再复诊。${after}`;
-  if (plan.withoutRegimenTail) return `请在${plan.window}${plan.visit}，${plan.withoutRegimenTail}。${after}`;
-  return priorityEvaluationTarget(target).focus
-    ? `请在${plan.window}${plan.visit}，再按医生安排服药与复诊。`
+  const lead = plan.lead || "";
+  if (counts) return `${lead}请在${plan.window}${plan.visit}；${plan.clearance}，服完${counts.doses}剂药（约${counts.days}天后）再复诊。${after}`;
+  if (plan.withoutRegimenTail) return `${lead}请在${plan.window}${plan.visit}，${plan.withoutRegimenTail}。${after}`;
+  return priorityEvaluationTarget(target).focus || plan.lead
+    ? `${lead}请在${plan.window}${plan.visit}，再按医生安排服药与复诊。`
     : `请在${plan.window}${plan.visit}后，再按医生安排服药与复诊。`;
 }
 /** 煎服法的复诊节点前面补上评估这一步（与 priorityEvaluationFirstStep 同一份计划）。已补过的原样返回。 */
@@ -8658,7 +8713,11 @@ export function priorityEvaluationFollowUpNode(target: PriorityEvaluationTarget 
 export function patientFacingFirstReview(state: CaseState, hasStrongRisk: boolean): string {
   // 安全门要求先完成临床评估的病例：首次复诊先说去评估（与辨证、开方页复诊计划的第一句同一判据，2026-10-24）。
   // 红旗给了剂量（D4）时这一步排在最前：先当天急诊或专科排除急危重情况，审方强提示的「调整确认」放在其后由医生处理。
-  const priorityTarget = priorityEvaluationFollowupTarget(state);
+  const signedWestern = (state.reasoningPrescribe?.westernDiagnosis || state.reasoningDiagnose?.westernDiagnosis)?.primary;
+  const priorityTarget = priorityTargetWithEstablishedDiagnosis(priorityEvaluationFollowupTarget(state), {
+    name: signedWestern?.name,
+    basis: signedWestern?.clinicalRationale || signedWestern?.supportingFacts?.[0],
+  }) as PriorityEvaluationTarget | undefined;
   if (hasStrongRisk && priorityTarget?.pathway !== "red_flag_clearance") return "处方需经医生调整确认后再服用；确认用药后，请在1-3天内复诊。";
   const decoction = primaryPrescribeCandidate(state)?.decoction;
   if (priorityTarget !== undefined) {
