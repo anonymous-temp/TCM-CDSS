@@ -3014,6 +3014,124 @@ The user asked for a point-by-point reply to the customer's 11.05 evaluation (so
 
 **In production (2c7e6dbf, tag `20261109-2c7e6db-prebuilt`, same release directory and `20260927-dsrepair` override).** Rollback: image `tcm-cdss:20261109-fdfa31f-prebuilt` (or `…a2d837a…`) with the compose backups in the release directory. The last local prebuild needed a temporary 1 GB swap file on root and a 3 GB memory threshold (`pb-when-free-low.sh`); the swap file was removed after `PREBUILD_OK`.
 
+### 11/10 round 41: the review report's ten classes fixed at the root (2026-11-10)
+
+On 11/10 a review was run that only read and changed nothing (`~/runlogs/r1018/work/r1054/甲方历轮问题回顾与下一轮风险-20261110.md`). Its finding: the problems the customer had named were solved on the records they were found on, but the same classes came back on new records. The user then asked for all ten recommended fixes, plus deployment and testing. Acceptance does not use the customer's old records. It uses `sets/new40.json`: 40 new records written by a separate agent, covering diseases and ages the customer had not tested, with expectations written before any run. Each output was reviewed blind by Claude subagents (`review/BRIEF.md`, X/Y arms randomized).
+
+Material: `~/runlogs/r1018/work/r1055/`:
+- `PLAN.md`, `probe/`, `research/`;
+- `replay/gate.mjs` (old tree `/var/tmp/r1055-old`);
+- `cp/cp.py` (counter-proofs);
+- `gen.sh` (local arms), `run-prod.py` (paced production runs);
+- `classscan.py` and `recheck.py` (class scan and re-check of named items, both reading r1054's panels).
+
+Suite: `test:r1055-main`. Class fixtures: `chest-tightness-cue-of-other-item-or-habitual-trigger`, `mucopurulent-stool-not-gi-hemorrhage`.
+
+**What was wrong, and the fix, by class.**
+- **病机 confidence and boilerplate.**
+  - **Location axis.** When every location had its own verbatim basis, a model-written `bounded` used to stay `bounded` with a count sentence (「病位“肺、胃”的病历依据有2条」). Now that case is delivered `resolved` (`diagnosis-visible-summary.ts`, `unexplainedBounded`). Synonymous locations count as one location (`canonicalTcmLocationTerm`).
+  - **Nature axis.** The same rule now applies without requiring tongue and pulse.
+  - **Count sentences.** Every 「依据有N条」-type sentence is gone, from both reasons and confidence.
+  - **One-dimension cold/heat downgrade.** This used to fire blindly. Now the record is read for the other dimensions first (`tcm-cold-heat-signs.source.json`: 12 dimensions from 《中医诊断学》 寒热辨证, judged per clause with `clauseLocalMentionPolarityAt`). If support is found, it is added to the basis. If not, the reason names the single sign 「寒热属性目前只见于「…」，尚待核实」.
+  - **Deficiency heat.** 虚热/阴虚火旺 count as root deficiency, not branch excess (标实 + 虚则补之 contradiction).
+  - **Uncertainty item.** It reads 「辨证所需信息尚不完整」, or 「急危重风险尚未排除」 on a red flag. The old system names are filtered out.
+- **血证 subtype.** It is now taken from the earliest **affirmed** mention (chief complaint, then 现病史, then the whole record), read with `recordMentionPolarityAt`. Denied, unassessed, historical (既往/曾/N年前) and tongue 瘀斑 mentions no longer choose 紫斑 or 尿血. More written forms were added to `tcm-textbook-disease-subtypes.source.json`.
+- **Original formula, processing, guide herbs.**
+  - **Processing in the herb name.** The processing column is merged into the delivered herb name (土炒白术, 酒炙/盐炙, 当归身/尾, 炭), and 方义 mentions follow (`processedNameFromColumn`).
+  - **Original preparations.** `scripts/build-formula-original-text.py` derives `tcm-formula-original-text.json` (878 formulas) from the local classic corpora: the original preparation of each herb (炙甘草, 炒酸枣仁…) and its guide herbs (生姜/大枣). `CONVENTIONAL_ORIGINAL_PREPARATIONS` covers 甘草/黄芪 炙 and 酸枣仁 炒, the conventions the corpus does not spell out.
+  - **「原方」.** It is written only when the table matches the original, guide herbs included. Otherwise the guide herbs are named in the usage line.
+- **Textbook formula 出处.** Five textbook representative formulas carried a textbook as 出处 (加味清胃散, 逍遥蒌贝散, 泻心导赤散, 补虚汤, 参蛤散; customer 11.05 病历13 「《中医儿科学》？？」).
+  - `scripts/build-textbook-formula-sources.py` takes the original book from the local textbooks' formula appendices, line by line, keeping a source only when it reduces to one non-textbook book. It adds 89 web-checked entries (`tcm-textbook-formula-sources-web.source.json`, each with URL or corpus line and quote). Result: 632 formulas with a source.
+  - `textbookFormulaOriginalSource` uses this table only when the catalog has no source, and only when the composition agrees (same-name, different formula). A formula still unknown gets no textbook name.
+  - 济生肾气丸's source is now 《济生方》（原名加味肾气丸）.
+- **Two over-called red flags** (deterministic, class fixtures, replay below).
+  - Chest tightness: a frequency word (频作/频发/频繁) modifies only the item right before it (`changeCueHeadsSiblingSymptom`). A habitual emotional trigger (每逢/每因… + emotion word, chronic course, no exertion in the clause; `habitualEmotionalWorsening`) is not an acute worsening.
+  - Mucopurulent stool (痢疾 「黏液脓血便，赤白相兼」) is not active GI bleeding in either bleed path (`mucopurulentStoolAt`). It gets its own advisory: 「黏液脓血便需优先完善粪常规与粪培养…」. The reading counts only when the match itself contains 便/痢 or the nearest preceding subject in the sentence is stool. 痰中带脓血, 带下赤白相兼 and 肛门/肛旁流脓血 do not count, and neither does 「不夹杂脓血」 (`mucopurulentMentionIsStool`, `MUCOPURULENT_LOCAL_DENIAL`; the first cut gave all four the stool advisory in the replay). Six or more stools a day in the mention's sentence (one of the two Truelove–Witts criteria for severe ulcerative colitis) tighten the window to 24 h without a red flag.
+  - Discriminator quote anchors (data only): non-blanching rash needs 不褪色/瘀点/瘀斑/紫癜 in the quote (typical varicella had been read as one), neck stiffness needs 强直/抵抗/脑膜刺激 (「颈软」 had been read as one), and cyanosis needs 发绀/紫绀/青紫 (「四肢末梢稍凉」 had been read as one).
+- **Treatment-card wording.**
+  - OCR forms of 㨰法, 施法于 and 伏免→伏兔 are fixed (`textbookOcrFixed`).
+  - 小儿推拿 is not given at 14 or older (`techniqueContraindications`).
+  - 灸 sentences are dropped when the signed method is yin-nourishing or heat-clearing (`moxibustionUnsuitableForSyndrome`).
+  - The system phrases 「门诊项目频次参考」 and 「先按红旗处置」 were rewritten.
+- **Modifications.**
+  - Partner rows give the reason from the herb's verified function plus 「助X治…」, instead of 「与X同用，针对」.
+  - Dose-less 「调整」 rows are dropped while two conditions remain.
+  - A processed added herb (炒麦芽) is dosed and checked against its base herb's ChP range, unless the base herb is toxic.
+  - Population cautions on modification rows need a pharmacopoeia basis and a patient who can belong to the population (8-month boy, m24: 「佩兰孕期慎用，本例有孕期记录」 came from 「母亲孕期体健」).
+- **Western basis.**
+  - 「尚缺X」 is removed when the record already has X (`recorded-test-claims.ts`, with test-name groups in `clinical-test-name-groups.source.json`; the same groups feed the exam-result notice).
+  - 「无新发X」 is a qualified denial, not 「否认X」.
+  - An established-diagnosis link moves the old name to the candidates, not to the differentials.
+- **Method items.**
+  - Delivered items are governed four-character methods (`governedFourCharacterMethodTerms`). 「X、Y」 joins become one governed term or stay two items.
+  - A same-head pair keeps one item.
+  - Textbook text is left verbatim.
+- **Red-flag care, cautions, pending items.**
+  - **Red-flag care.** On a red flag, diet and exercise say 「急危重情况尚未排除，请先到急诊就医…」, the usage line opens 「急诊排除急危重情况、经医生确认后方可服用」, and 少量多餐/温服/喝粥 precautions are dropped.
+  - **Pregnancy cautions.** They are shown only with a ChP label or a pharmacopoeia basis (`boundaryRuleShown`). 止血药 lose 「出血倾向」.
+  - **Contradictory uncertainties.** An uncertainty that asks about a denied finding is dropped.
+  - **Preschool children** get play-type exercise, not 八段锦.
+  - **Duplicated evidence.** A chain evidence segment repeated over 40 characters is removed.
+- **Other items.**
+  - The secondary-rule note no longer appears when no secondary was set.
+  - TCM differentials are deduplicated after name normalization, and the disease itself is never a differential.
+  - The anorectal "needs inspection" note is skipped when the record documents the inspection.
+  - 「去A、以B易之」 is split so that a true clause survives.
+  - 火麻仁 is 捣碎.
+  - 三黄片 next to a decoction with 大黄 counts as duplication (a potent shared herb).
+  - Medication readers: a bare next-sentence 「已停药」, a completed course and 自服 make a drug past, and 「至今仍在服」 keeps it current for precautions.
+  - Element support (`m03-element-support.server.ts`): the root and branch filters run independently, negated element mentions are not withdrawn as claims, and 「示」 is an assertion marker (10.26 病历2 「示气血不足」).
+
+**Measured** (local route harness, customer request shape. Baseline = production 2c7e6dbf. "After" = 322c0aff, the first commit of this round; the later fixes were checked on targeted cases and on production.)
+
+| | Baseline | After |
+|---|---|---|
+| new40 blind review: column failures / records with no failure | 50 / 9 | 38 / 16 |
+| Joined 治法 items (r1054 class scan) | 9 | 2 (both textbook verbatim) |
+| Count/boilerplate axis reasons | 11 | 0 |
+| System wording on cards | 17 | 0 |
+| Textbook named as 出处 | 4 | 0 |
+| 血证 without subtype | 2 | 0 |
+| Named items from r1054 still reproducing (recheck) | — | 2 of 74 |
+
+- Gate replay against production (21,281 records, every change read): 54 changed. 6 lose the chest-tightness red flag, and in each the frequency word belongs to another item (太息频作, 小便频繁, 夜尿频繁, 矢气较频繁, 呃逆频繁). 2 chronic mucopurulent-stool records lose the GI-bleed red flag and get a 3-day evaluation. 46 mucopurulent-stool records get the stool advisory instead of the bleed advisory, or a new or changed window (9 at 24 h). Nothing else changed.
+- Counter-proofs: 73 mutations, all caught. Four were first masked by another guard and got an isolating test: 2.1, 5.1, 7.1 and 8.1, as were the qualified bleed path (5.5), the infant population guard (11.2, now built from the real record shape) and the anal-discharge subject (its two halves mask each other, so they are reverted together).
+- **Production, same 40 new records, blind review (5 Claude reviewers, same brief, X/Y randomized, key in `keys/blind-map2.json`; production 2c7e6db vs 6d6f788).**
+  - ❌ findings 53 → 31; records with no ❌ 5 → 17; 欠妥 findings 114 → 93.
+  - The class scan on the same outputs: system wording 17 → 0, 「与X同用，针对」 boilerplate 11 → 0, spliced 治法 items 9 → 2, 「标实 + 虚则补之」 8 → 3, textbook named as 出处 4 → 0, unsubtyped 血证 2 → 0, 「调整」 rows without a dose 6 → 2.
+- **Named items.** 73 of the 74 items the customer named across 10.26 / 10.29 / 11.05 no longer appear on production. The remaining one is model judgement: a 暑湿 rationale that writes 「湿重于热」, in 1 of 2 runs.
+- **Found by the production probes and fixed in a second deploy (bda3b4d).**
+  - m24 (an 8-month-old with oral thrush, 「精神反应好」) had a NICE NG254 「哭声微弱、尖直或持续不止」 red flag from 「伴烦躁哭闹、吮乳时啼哭」. The cry concept now has quote anchors.
+  - 「大便偏溏」 kept raw 白术. The 便溏 cue group gained 偏溏/溏薄/稀溏/便稀/溏泄/不成形 for the five processing rules that carry it.
+  - Both cases were regenerated on production and are fixed.
+- **Left by the production review (not fixed, per the stop rule).**
+  - The governed catalog's 人参养荣汤 lists 枸杞子 and 首乌藤 instead of 桂心, so 「本方用人参养荣汤原方」 passes a check against a modernized composition.
+  - Formulas with no catalog entry (柴胡葛根汤) are compared with the textbook's modified composition, so 「原方」 is accepted.
+  - The follow-up 「需排除X」 can name the disease the Western diagnosis has already established (细菌性痢疾, 肝硬化失代偿).
+  - Raw 半夏 in internal decoctions (2 of 40).
+  - A model-written 煅 on 石决明 used for 平肝潜阳 is now visible in the herb name.
+  - Model judgement: 内痔 without findings, 真心痛 read as 胸痹, the 子肿 白术散 homonym, Western names firmer than the tests allow (功能性消化不良 under 6 months, 丝虫病, 化脓性脑膜炎 without CSF).
+- **The class scan's day-count check is not a defect.** It flags M03's 「请服完本次的药后复诊」 (24/40). M03 is written before any prescription exists; the days are in the prescription's follow-up node and M05's first review.
+
+**Left as is.**
+- 白术散 for 子肿 can lock a same-name different formula: the catalog has several 白术散 entries, and the lock does not compare composition.
+- Composite naming of 气血两虚 when only the element check passes.
+- m21 keeps a single TCM differential when the textbook lists one usable name.
+- Model judgement: 「湿重于热」 written into a 暑湿 rationale without grouped evidence.
+
+**In production (bda3b4db, deployed 2026-11-11 about 01:23 Beijing; tag `20261110-bda3b4d-prebuilt`; 6d6f7887 went out about 00:03; same release directory and `20260927-dsrepair` override).**
+- **Verification.**
+  - `verify:release` green: 301 suites plus the four fresh-artifact suites.
+  - `verify:deployed-image` passed both times: commit, digest, strictReady, and both model families live. On bda3b4d, `regress:prod-smoke` had 0 failures (M03 P95 15.7 s, M04 P95 15.5 s).
+  - On 6d6f7887, `regress:prod-smoke` had 0 failures (M03 P95 10.2 s, M04 P95 14.9 s). It was run with a preload that retries only connect-phase timeouts (`~/runlogs/r1018/work/r1055/fetch-retry.mjs`), because about one in three new connections from this machine to the host timed out that evening. Two plain runs each died on one such timeout after all samples had been answered.
+- **Rollback.** Image `tcm-cdss:20261110-6d6f788-prebuilt` (or `…20261109-2c7e6db…`) with the `docker-compose.yml.pre-*` backups in the release directory. The second deploy's upload was fast, so the container switched while the 10.29 probe batch was running; part of that set ran on bda3b4d. The container log from before the replacement was **not** archived: neither the deploy script nor I did it.
+- **The local build was the hard part.**
+  - `next build` reaches about 5 GB of anonymous memory. Other sessions held all but 0.6–3.5 GB, and total RAM on this VM moved between 6.2 and 7.8 GB, so physical memory was taken back under the build.
+  - Three attempts were OOM-killed, two of them with 4 GB of temporary swap on root (the swap files were barely used at the kill). One kill also took another session's `orca-ide`.
+  - After that the build ran with `oom_score_adj=1000`, so that any further OOM would kill the build first, and with `config.cache = false` in the build copy (the in-memory webpack cache was held through page-data collection).
+  - It went through once 3.5 GB was free for a minute (`pb-wait2.sh`).
+  - /home had 0.4 GB free. The build tree went on root after the user approved removing other sessions' /tmp entries that had not changed in 24 h and that no process held open (6 GB; list in `tmp-cleanup-20261110.txt`).
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
