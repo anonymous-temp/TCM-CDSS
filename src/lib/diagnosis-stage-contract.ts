@@ -18,7 +18,8 @@ import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName, westernDifferent
 import { canonicalTcmSyndromeTerm, governedTcmLocationsInText, governedTreatmentMethodsInText, governedTreatmentPrinciplesInText, tcmDiagnosticDependencyContexts, treatmentMethodCoveredBy, treatmentPrinciplesInText, westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
 import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy, locationItemsCoverChiefComplaintAnchor, textCarriesChiefComplaintSymptom } from "./tcm-chief-complaint-anchor";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
-import { isPediatricGroundingText, pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
+import { isPediatricGroundingText, labeledAgeYears, pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
+import { boundaryRuleShown } from "./candidate-boundary-text";
 import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
 import { alignQuoteToSource } from "./source-quote-alignment";
 import { allergenHerbMatch, recordedAllergensInText } from "./allergen-profile";
@@ -2671,7 +2672,9 @@ export function modificationDoseWithinPharmacopoeia(doseOrHandling: unknown, her
   if (action !== "加") return false;
   const match = /^(\d{1,3}(?:\.\d)?)g$/.exec(text);
   if (!match) return false;
-  const limit = getTcmHerbDoseLimit(herbName);
+  // 炮制品名（炒麦芽）知识库没有单列剂量时按生品的药典剂量核（与编译器 modificationAddDose 同一口径，非毒性药才这样借）。
+  const processedBase = getTcmHerbDoseLimit(herbName) ? undefined : ordinaryProcessedBaseHerbName(herbName);
+  const limit = getTcmHerbDoseLimit(processedBase && !getTcmHerbGenerationSafetyProfile(processedBase).isToxic ? processedBase : herbName);
   const min = typeof limit?.min === "number" ? limit.min : undefined;
   const max = typeof limit?.max === "number" ? limit.max : undefined;
   if (max == null || !(max > 0)) return false;
@@ -3935,7 +3938,7 @@ export type OrdinaryHistoricalDoseDeviation = {
 const ORDINARY_PROCESSING_PREFIX = /^(?:麸炒|土炒|米炒|蜜炙|炒焦|炒|焦|煅|蜜|炙|酒|醋|盐)/;
 
 /** 「普通炮制前缀 + 药典标准名」的原药名；不是这种构词时返回 undefined。 */
-function ordinaryProcessedBaseHerbName(name: string): string | undefined {
+export function ordinaryProcessedBaseHerbName(name: string): string | undefined {
   const base = name.replace(ORDINARY_PROCESSING_PREFIX, "");
   if (base === name || base.length < 2) return undefined;
   const identity = resolveGovernedTcmHerbIdentity(base);
@@ -4026,8 +4029,13 @@ const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
 export function recordedPopulationCautions(herbName: string, clinicalContext: string): string[] {
   if (!clinicalContext.trim() || !herbName.trim()) return [];
   const populations = new Set<string>();
+  // 孕哺两类只给可能属于的人（10 岁以上女性；病历的母亲孕产史不是患者本人，第四十一轮 m24：8 月龄男婴的加减写「佩兰孕期慎用，本例有孕期记录」），
+  // 且只列有药典依据的慎用（boundaryRuleShown，与逐味提示同一判据：王不留行是下乳药，「哺乳期慎用」是功效分类抽出来的，第四十一轮 m32）。
+  const ageYears = labeledAgeYears(clinicalContext);
+  const reproductive = !/患者性别[：:]\s*男/u.test(clinicalContext) && (ageYears == null || ageYears >= 10);
   for (const rule of getTcmHerbGenerationSafetyProfile(herbName.trim()).populationRules) {
     if (rule.severity !== "MEDIUM") continue;
+    if ((rule.population.includes("孕") || rule.population.includes("哺乳")) && (!reproductive || !boundaryRuleShown(herbName.trim(), rule))) continue;
     const matcher = M04_SPECIAL_POPULATION_MATCHERS.find((item) => item.population.test(rule.population));
     if (matcher && !matcher.denied?.(clinicalContext) && (contextAffirmsTerm(clinicalContext, matcher.patient) || matcher.isPatient?.(clinicalContext))) {
       populations.add(rule.population.trim());

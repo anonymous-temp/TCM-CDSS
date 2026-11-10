@@ -43,6 +43,7 @@ import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBa
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { processedHerbName, withProcessedHerbMentions } from "./herb-processing-forms";
 import { withoutMissingClaimsForRecordedTests } from "./recorded-test-claims";
+import { resolveTcmDiseaseName } from "./clinical-terminology";
 import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
 import { DELIVERED_METHOD_ITEM_CAP, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
 import { governedFourCharacterMethodTerms, governedTreatmentMethodOccurrencesInText, resolveNationalStandardTcmSyndromeTerm, treatmentMethodCoveredBy, type TreatmentPrincipleEntry } from "./clinical-governance-tables";
@@ -978,7 +979,9 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
   //（2026-10-24 甲方 100 例 C016：「暂未接受肛门检查」「未做血常规或肛肠检查」，病名直接写肛裂，评审判把推断当确定事实；西医半已改「痔出血待查」）。
   if (overview && typeof overview.tcmDiseaseName === "string" && /^(?:肛裂|痔|内痔|外痔|混合痔|肛痈|肛漏|息肉痔)$/u.test(overview.tcmDiseaseName.trim()) &&
     typeof overview.tcmDiseaseRationale === "string" && !/(?:视诊|指诊|肛门检查)[^。；;]{0,8}确认/u.test(overview.tcmDiseaseRationale) &&
-    /(?:未|暂未|尚未|没有|未曾)(?:接受|做|行|进行)?[^。；;\n]{0,6}(?:肛门|肛肠|直肠指|肛门指|肛门镜)[^。；;\n]{0,4}(?:检查|诊)/u.test(String(options?.recordText || "").normalize("NFKC"))) {
+    /(?:未|暂未|尚未|没有|未曾)(?:接受|做|行|进行)?[^。；;\n]{0,6}(?:肛门|肛肠|直肠指|肛门指|肛门镜)[^。；;\n]{0,4}(?:检查|诊)/u.test(String(options?.recordText || "").normalize("NFKC")) &&
+    // 病历已有视诊所见（「截石位6点肛管处见一纵行裂口」，只是未做指诊、肛门镜）时病名已有查体依据，不写这句（第四十一轮 m31）。
+    !/(?:截石位|肛门|肛管|肛缘|肛周)[^。；;\n]{0,12}(?:可见|见|视诊)[^。；;\n]{0,12}(?:裂口|裂隙|痔核|肿物|瘘口|溃口|脓肿|红肿|肿块)/u.test(String(options?.recordText || "").normalize("NFKC"))) {
     overview.tcmDiseaseRationale = `${overview.tcmDiseaseRationale.trim().replace(/[。；;，,]$/u, "")}；病历记录尚未做肛门检查，病名是据病史的初步判断，需肛门视诊（必要时指诊）确认。`;
   }
   // 病历记着两方说法不同时，辨病依据点明并列入待核实（recordedAccountConflict）；依据里已经说到的不重复。
@@ -1020,7 +1023,21 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
   // 补写小任务（tcm-disease-differential-authoring）才按本例写区分要点，这里只是它没写出时的兜底。有限结论（证候未形成）不补。
   const maleOnlyFilter = (name: string) => tcmDifferentialDiseaseFitsPatient(name, { sex: options?.patientSex });
   if (overview && Array.isArray(overview.tcmDiseaseDifferentials)) {
-    overview.tcmDiseaseDifferentials = records(overview.tcmDiseaseDifferentials).filter((item) => maleOnlyFilter(String(item.diseaseName || "")));
+    // 同一个病的两种写法只列一次（「痫证」「痫病」按受治理病名归一；教材扫描误字「大行赤眼」即天行赤眼），与本病同名的不列
+    //（第四十一轮独立新病历 m40、m38：鉴别列了「痫证」「痫病」两项、「大行赤眼」与「天行赤眼」两项）。
+    const ocrName = (name: string) => name.replace(/大行赤眼/gu, "天行赤眼");
+    const canonical = (name: string) => resolveTcmDiseaseName(ocrName(name))?.canonical || ocrName(name).replace(/(?:病|证)$/u, "");
+    const own = typeof overview.tcmDiseaseName === "string" ? canonical(overview.tcmDiseaseName) : "";
+    const seenNames = new Set<string>();
+    overview.tcmDiseaseDifferentials = records(overview.tcmDiseaseDifferentials)
+      .filter((item) => maleOnlyFilter(String(item.diseaseName || "")))
+      .map((item) => (typeof item.diseaseName === "string" ? { ...item, diseaseName: ocrName(item.diseaseName) } : item))
+      .filter((item) => {
+        const key = canonical(String(item.diseaseName || ""));
+        if (!key || key === own || seenNames.has(key)) return false;
+        seenNames.add(key);
+        return true;
+      });
   }
   const presentDifferentials = records(overview?.tcmDiseaseDifferentials);
   if (overview && !isLimitedDiagnose(reasoning) && typeof overview.tcmDiseaseName === "string" &&
@@ -2135,7 +2152,9 @@ function withoutFalseNamedRemovalClaims(analysis: string, present: ReadonlyMap<s
   return analysis.split(/(?<=。)/u).map((sentence) => {
     // 带问号的句子是模型的自问自答，由 withoutQuestionChatter 整段处理，这里不动。
     if (/[？?]/u.test(sentence)) return sentence;
-    const clauses = sentence.split(/(?<=[，,；;])/u);
+    // 「去川芎之峻行、以荆芥易荆芥穗」：顿号后接「以…易」的是另一件事，先拆开再各自判（第四十一轮 m35：前半「去川芎」因后半有「易」整句被当成换药留下，
+    // 而川芎在方中）。
+    const clauses = sentence.split(/(?<=[，,；;])|(?<=、)(?=以[\u4e00-\u9fff]{1,6}(?:易|代|换))/u);
     const kept = clauses.flatMap((clause) => {
       const body = clause.replace(/^\s*(?:并|且|再)?/u, "");
       if (!/^(?:去|去掉|删去|减去)/u.test(body)) return [clause];
@@ -2660,7 +2679,8 @@ export function standardMethodItems(item: string): string[] {
   if (whole || trimmed.length !== 6) return [trimmed];
   const head = trimmed.slice(0, 4);
   const tail = trimmed.slice(4);
-  const tailTerm = governedFourCharacterMethodTerms().find((term) => term !== head && term.endsWith(tail) && trimmed.slice(0, 4).includes(term.slice(0, 2)));
+  // 拆出的后一项与前四字同字头（「理气缓急止痛」→ 理气缓急、理气止痛）就是同头两项，按同头规则只留前一项（mergedSameHeadTherapyPhrases 同口径）。
+  const tailTerm = governedFourCharacterMethodTerms().find((term) => term !== head && term.endsWith(tail) && trimmed.slice(0, 4).includes(term.slice(0, 2)) && term.slice(0, 2) !== head.slice(0, 2));
   return tailTerm ? [head, tailTerm] : [head];
 }
 
@@ -2765,7 +2785,7 @@ export function principleWhenRedFlag(principle: string, redFlagActive: boolean):
 }
 
 export const RED_FLAG_MEDICINE_WITHHELD_REASON = "急危重征象尚未排除，暂不推荐另行服用中成药或西药，请先到急诊或专科处置。";
-export const RED_FLAG_DIET_ADVICE = "急危重情况尚未排除，请先到急诊就医；就医前饮食、饮水遵急诊医生安排（可能需要手术、内镜或其他检查时须空腹）。";
+export const RED_FLAG_DIET_ADVICE = "急危重情况尚未排除，请先到急诊就医；就医前饮食、饮水遵急诊医生安排。";
 export const RED_FLAG_EXERCISE_ADVICE = "急危重情况排除前暂停运动保健，避免活动与用力。";
 export const RED_FLAG_DECOCTION_LEAD = "急诊排除急危重情况、经医生确认后方可服用；";
 

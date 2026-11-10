@@ -30,6 +30,7 @@ import {
   sameHerbIdentity,
   m04GenerationSpecialPopulationIssue,
   ordinaryHistoricalDoseDeviation,
+  ordinaryProcessedBaseHerbName,
   recordedPopulationCautions,
 } from "./diagnosis-stage-contract";
 import { getM03TherapyLock } from "./m03-therapy-lock";
@@ -1888,7 +1889,10 @@ export function normalizeM04DraftCandidate(
  *（常用量）。儿童按年龄分数法的逐味上限再封顶。药典没有内服剂量范围的药味不给剂量（由医生定）。
  */
 function modificationAddDose(herbName: string, modelDose: string | undefined, pediatric?: PediatricDoseRule): string | null {
-  const limit = getTcmHerbDoseLimit(herbName);
+  // 教材加减写的炮制品名（炒麦芽、焦山楂）知识库没有单列剂量时，按生品的药典剂量（普通炮制前缀 + 药典名、非毒性药，ordinaryProcessedBaseHerbName；
+  // 第四十一轮 11.05 病历9「若脘胀纳少加炒麦芽」没有剂量）。
+  const processedBase = getTcmHerbDoseLimit(herbName) ? undefined : ordinaryProcessedBaseHerbName(herbName);
+  const limit = getTcmHerbDoseLimit(processedBase && !getTcmHerbGenerationSafetyProfile(processedBase).isToxic ? processedBase : herbName);
   const min = typeof limit?.min === "number" && Number.isFinite(limit.min) ? limit.min : undefined;
   const max = typeof limit?.max === "number" && Number.isFinite(limit.max) ? limit.max : undefined;
   if (min == null || max == null || max <= 0) return null;

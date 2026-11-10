@@ -265,11 +265,13 @@ await check("10.1 「清利湿热，清热利湿」「…和胃化湿…化湿�
   const method = (overallMethod) => surfaceModule.projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: {}, therapy: { overallMethod } }).therapy.overallMethod;
   assert.equal(method("清利湿热，清热利湿"), "清利湿热");
   assert.equal(method("平肝潜阳，和胃化湿，通络止痛，化湿和胃"), "平肝潜阳，和胃化湿，通络止痛");
-  assert.equal(method("息风化痰，活血通络，熄风化痰止痛"), "活血通络，熄风化痰止痛");
+  // 第四十一轮起交付的治法逐项是四字项：拼成的六字项拆回受治理的四字治法（「熄风化痰止痛」→「熄风化痰」，见 test:r1055-main 9.1）。
+  assert.equal(method("息风化痰，活血通络，熄风化痰止痛"), "活血通络，熄风化痰");
   assert.equal(method("养血和络，益气养血"), "养血和络，益气养血");
   // 2026-10-21 第十二轮起，同一个两字动宾开头的两项合一（tcm-therapy-phrasing.mergedSameHeadTherapyPhrases，用户定）：不删其中一项，
   // 两个后半都留下，说目的的「助运」放后。用字不同的意思照旧都在，只是写成一项。
-  assert.equal(method("健脾助运，健脾益气"), "健脾益气助运");
+  // 第四十一轮起同头两项留一项、不再拼成六字项（「健脾益气助运」正是甲方指出的拼接写法）：前项后半只是目的（助运）时留后项。
+  assert.equal(method("健脾助运，健脾益气"), "健脾益气");
 });
 
 // ───── 11 西医鉴别拆分不留碎片 ─────

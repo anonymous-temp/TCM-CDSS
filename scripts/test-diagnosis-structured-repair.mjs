@@ -714,7 +714,9 @@ const sparseSanitized = normalizeDiagnoseConfidenceAndLabels(
 const sparseSanitizedJson = JSON.parse(sparseSanitized.split(startMarker)[1].split(endMarker)[0].trim());
 assert.equal(sparseSanitizedJson.pathogenesis.chain.length, 0, "a sparse model conclusion must remain incomplete until model repair or independent review supplies a grounded chain");
 assert.equal(sparseSanitizedJson.overview.primarySyndromeResolution, "bounded", "an uncorroborated syndrome must remain an explicitly bounded working conclusion");
-assert.match(sparseSanitizedJson.overview.primarySyndromeResolutionReason, /0条.*可逐字回溯.*依据/, "bounded conclusions must explain the concrete source-level evidence gap");
+// 2026-11-10 第四十一轮起理由不写「依据有N条/0条可逐字回溯」这类计数句（r1054 回顾：机械说明），直接说缺的是什么。
+assert.match(sparseSanitizedJson.overview.primarySyndromeResolutionReason, /痰热扰心证.*尚缺直接的病历依据/, "bounded conclusions must explain the concrete source-level evidence gap");
+assert.doesNotMatch(sparseSanitizedJson.overview.primarySyndromeResolutionReason, /\d+条/, "no count sentences in delivered reasons");
 assert.deepEqual(sparseSanitizedJson.overview.primarySyndromeBasis, [], "the contract must not invent supporting patient quotes");
 assert.equal(sparseSanitizedJson.overview.evidence.confidence, "低", "bounded conclusions must not retain inflated evidence confidence");
 

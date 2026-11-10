@@ -283,11 +283,12 @@ await check("4.1 把握度说明里的校验用语换成临床写法；服务端
     { item: "寒热喜恶", reason: "未记录，难以判断有无虚热", affects: "影响是否兼清虚热" },
   ];
   const out = surface.projectDeliveredReasoning(root);
-  assert.equal(out.overview.primarySyndromeResolutionReason, "证型“心虚胆怯证”的病历依据有2条，尚需进一步明确");
-  assert.equal(out.pathogenesis.locationDifferentiation.resolutionReason, "病位“心、胆”的病历依据有2条");
-  assert.equal(out.pathogenesis.natureDifferentiation.resolutionReason, "病性“气滞”的病历依据较少，尚需进一步明确");
+  // 第四十一轮：旧的计数句改写成不带计数的临床说法。
+  assert.equal(out.overview.primarySyndromeResolutionReason, "证型“心虚胆怯证”尚待复诊进一步核实");
+  assert.equal(out.pathogenesis.locationDifferentiation.resolutionReason, "病位“心、胆”尚待复诊进一步核实");
+  assert.equal(out.pathogenesis.natureDifferentiation.resolutionReason, "病性“气滞”尚缺直接的病历依据");
   assert.deepEqual(out.pathogenesis.uncertainties.map((row) => row.item), ["寒热喜恶"]);
-  assert.equal(surface.clinicalWordingForSyntheticPhrases("寒热病性目前缺少两个以上相互独立的证据维度，已按有界建议展示。"), "寒热属性的依据少于两个方面，尚需进一步明确。");
+  assert.equal(surface.clinicalWordingForSyntheticPhrases("寒热病性目前缺少两个以上相互独立的证据维度，已按有界建议展示。"), "寒热属性尚待核实。");
 });
 
 await check("5.1 煎服用法点名要捣碎的药，写在下药时机之后", () => {

@@ -548,7 +548,7 @@ await check("15.3 模型自定病位为有界、每个病位都有逐字依据�
   // 有病位缺依据时有界，说明点名缺依据的病位，不写计数句。
   const partial = loc(base([{ location: "胃", basis: "饭后1小时腹胀嗳气" }]));
   assert.equal(partial.resolution, "bounded");
-  assert.equal(partial.resolutionReason, "病位肝尚缺直接的病历依据");
+  assert.equal(partial.resolutionReason, "病位“肝”尚缺直接的病历依据");
   // 病位栏与依据栏写法不同的同一病位（胃/胃脘）算有依据。
   assert.equal(loc(base([{ location: "胃脘", basis: "饭后1小时腹胀嗳气" }, { location: "肝", basis: "工作紧张时加重" }])).resolution, "resolved");
 });

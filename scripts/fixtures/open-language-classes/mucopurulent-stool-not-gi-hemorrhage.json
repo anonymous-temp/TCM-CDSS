@@ -1,0 +1,50 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "mucopurulent-stool-not-gi-hemorrhage",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-11-10",
+ "trigger": "第四十一轮独立新病历 m11：细菌性痢疾「解黏液脓血便，赤白相兼，每日7-8次，里急后重」被报「活动性消化道出血」。",
+ "layerAttribution": {
+  "layer": "deterministic_gi_bleed_rule",
+  "mechanism": "diagnosis-safety bleedSeverityAffirmed / qualifiedGiBleedingSignal 的出血词「血便」落在「脓血便」里，后面的频次、伴随症被当作出血严重度。",
+  "exception": "冻结令允许的确定性例外：构词守卫。出血词前面紧挨「脓」字（脓血便、便下脓血）时不算出血词（mucopurulentStoolAt）；呕血、黑便、单写的便血、带鲜血照旧。「脓血」「赤白相兼」只在说大便时才算（本身带便/痢，或同句里离它最近的主语是大便；痰中带脓血、带下赤白相兼、肛门流脓血不算，「不夹杂脓血」是否认）；每日 6 次以上（Truelove–Witts 重度两条之一，数值阈值）只把评估时限收紧到 24 小时，不升红旗。",
+  "whyDeterministic": "误报出在承重层自己的出血词匹配上，语义事实层不能取消确定性红旗。",
+  "residual": "溃疡性结肠炎大量便血写成「脓血便量多、头晕」时不报出血红旗，只给黏液脓血便的优先评估（粪常规、粪培养，反复或伴消瘦者肠镜），由事实层与其他出血写法兜底。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句去掉频次、伴随症这些曾被当成出血严重度的写法，门禁结果必须相同（都是黏液脓血便的优先评估、没有红旗）。",
+  "pairs": [
+   {
+    "subject": "进食不洁后腹痛，解黏液脓血便，赤白相兼，每日7-8次，里急后重，伴低热。",
+    "sibling": "进食不洁后腹痛，解黏液脓血便，里急后重。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "腹泻3天，便下脓血，日行十余次，伴腹痛、头晕。",
+    "sibling": "腹泻3天，便下脓血，伴腹痛。",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "controls": {
+  "note": "真出血照报。",
+  "mustStillFlag": [
+   {
+    "text": "解黑便3天伴头晕心悸。",
+    "flag": "出血"
+   },
+   {
+    "text": "便血3天，量多伴头晕。",
+    "flag": "出血"
+   }
+  ]
+ },
+ "measurements": {
+  "before": "subject 报活动性消化道出血",
+  "after": "subject 与兄弟句相同（needs_information、黏液脓血便优先评估、无红旗）；controls 照报。语料回放（21,281 例，对生产 2c7e6dbf）脓血便一项改变 48 例：2 例由出血红旗改为优先评估，46 例出血提示换成或新增黏液脓血便提示（其中 9 例每日 6 次以上给 24 小时）。第一版把痰中带脓血、带下赤白相兼、肛门流脓血、「不夹杂脓血」也读成了脓血便，回放读出后收窄。"
+ }
+}

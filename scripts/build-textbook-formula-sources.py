@@ -79,6 +79,13 @@ def main():
         body = re.split(r"[。；;]", body)[0]
         items = [x.strip() for x in re.split(r"[、，,\s]+", body) if x.strip()]
         items = [re.sub(r"[\d.]+\s*(?:g|克|两|钱|分)?$", "", x) for x in items]
+        # 剂量与煎服写法不是药名（「柴胡各一钱」「各五分」「水煎服」）；药名后缀的炮制字（白术炒、甘草炙）去掉，比对按药名。
+        items = [re.sub(r"各[一二三四五六七八九十半两钱分]+$", "", x) for x in items]
+        items = [re.sub(r"(?<=[\u4e00-\u9fff]{2})(?:炒|炙|制|煨|酒洗|去心)$", "", x) for x in items]
+        items = [re.sub(r"[一二三四五六七八九十半]+(?:斤|两|钱|分)(?:[一二三四五六七八九十半]+(?:钱|分))?$", "", x) for x in items]
+        items = [re.sub(r"(?:去皮|去芦|去毛|去木|去心|取肉|锉|炮|酒蒸|酒洗)$", "", x) for x in items]
+        items = [x for x in items if not re.search(r"^各|煎|服$|杯|为末|细末|为丸|上药|不见火|^[一二三四五六七八九十半]+[两钱分]|^(?:与|以|加)", x)]
+        items = [x for x in items if len(x) >= 2]
         return [x for x in items if 1 <= len(x) <= 6 and re.fullmatch(r"[\u4e00-\u9fff]+", x)][:20]
     for name, entry in out.items():
         for ev in entry.get("evidence", []):

@@ -444,7 +444,10 @@ try {
   // 2026-11-02 第三十五轮再更新：逐字段比对，唯一差异是西医名「心悸症状」交付写「心悸待查」（原来只去掉「症状」两字）。
   // 2026-11-08 第三十七轮再更新：逐字段比对（/tmp 导出新旧 signed 整体比较），唯一差异是 primarySyndromeBasis 由
   // ["心悸健忘、纳差便溏"] 变成模型原写的 ["心悸健忘", "纳差便溏"]——引文按最小的逐字片段对齐，不再扩到病历里含同一概念的整句再合并（甲方 11.05「病位病性低置信」的根因修法）。
-  assert.equal(m03ClinicalDecisionHash(signed), "sha256:3c8eebd0659322149a6f2014e5264bef1e788d6887416b1b63a5b5fe8324a217", "the settled projection must preserve the final clinical payload");
+  // 2026-11-10 第四十一轮再更新：逐字段比对（2c7e6dbf 与本轮各导出 signed 整体比较），唯一临床差异是病性理由
+  // 「病性“气虚、血虚”的病历依据较少，尚需进一步明确」→「病性“气虚、血虚”尚缺直接的病历依据」——本夹具病性 basis 为空，
+  // 旧句说「较少」不实；r1054 回顾要求理由直说缺什么、不写计数与套话。
+  assert.equal(m03ClinicalDecisionHash(signed), "sha256:4a03ce59119ce0b59209b29a38674eb40fcf642ad4a6a7190ef8b1176e1e60ae", "the settled projection must preserve the final clinical payload");
   assert.deepEqual(signed.westernDiagnosis.primary.supportingFacts, [signed.westernDiagnosis.primary.clinicalRationale], "交付的辨证结果症状依据栏只放一句诊断依据");
   assert.deepEqual(signed.westernDiagnosis.primary.limitations, [], "交付的辨证结果不带待查依据");
   assert.deepEqual(signed.westernDiagnosis.primary.suggestedChecks, [], "交付的辨证结果不带检查建议");

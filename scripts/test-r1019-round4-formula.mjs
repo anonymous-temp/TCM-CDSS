@@ -267,7 +267,10 @@ await check("4.3 同名异方（RobustSDT-0061 四七汤）：教材四七汤（
   const out = candidateAfter(prescribeOf({ name: "四七汤加减", herbs: ["半夏", "紫苏叶", "厚朴", "茯苓", "佛手", "香附", "生姜", "大枣"], overview,
     source: "四七汤：《太平惠民和剂局方》", analysis: "本方以四七汤为基础加减，加紫苏叶、厚朴、佛手、香附、生姜、大枣。半夏为君。" }));
   assert.equal(out.formulaAnalysis, "本方以四七汤为基础加减，加佛手、香附。半夏为君。");
-  assert.equal(out.formulaSource.source, "四七汤：《中医内科学》"); // 10/19 第八轮：出处栏只写书名，不写「…证代表方」说明（X-G-0679/0629）
+  // 10/19 第八轮：出处栏只写书名，不写「…证代表方」说明（X-G-0679/0629）。第四十一轮起不写教材名：受治理的《局方》条目
+  // （人参、官桂…）仍不认，出处取教材附录自己写的原书「四七汤（《太平惠民和剂局方》）：苏叶、制半夏、厚朴、茯苓、生姜、大枣」
+  //（教材语料第 237965 行，组成与教材行一致；tcm-textbook-formula-sources.json）。
+  assert.equal(out.formulaSource.source, "四七汤：《太平惠民和剂局方》");
   const xiaoyao = { tcmDiseaseName: "胁痛", primarySyndrome: "肝郁气滞证", recommendedFormulaDirection: "逍遥散加减", recommendedFormulaNames: ["逍遥散"] };
   const control = "本方以逍遥散为基础加减，去薄荷之辛散，加香附、陈皮以增理气。柴胡为君。";
   assert.equal(candidateAfter(prescribeOf({ name: "逍遥散加减", herbs: ["柴胡", "当归", "白芍", "白术", "茯苓", "炙甘草", "香附", "陈皮"], overview: xiaoyao,
@@ -374,7 +377,8 @@ await check("8.1 教材代表方的原书：化肝煎取国家经典名方目录
   assert.match(source("癌病", "气血双亏证", "十全大补丸"), /太平惠民和剂局方/);
   assert.match(source("风热赤眼", "风重于热证", "银翘散"), /温病条辨/);
   assert.doesNotMatch(String(source("内伤发热", "气郁发热证", "加味逍遥散")), /药典/);
-  assert.equal(source("积证", "气滞血阻证", "大七气汤"), undefined);
+  // 同名异方的目录条目照旧不认（下一行），第四十一轮起改取教材附录写的原书（语料第 237889 行「大七气汤（《医学入门》）：青皮、陈皮…」）。
+  assert.equal(source("积证", "气滞血阻证", "大七气汤"), "《医学入门》");
   const comp = textbook.textbookRowForSyndrome("积证", "气滞血阻证").composition;
   assert.equal(provenance.textbookFormulaGovernedEntryIsHomonym("大七气汤", comp), true);
   assert.equal(provenance.textbookFormulaGovernedEntryIsHomonym("银翘散", ["金银花", "连翘", "薄荷", "牛蒡子", "荆芥"]), false);

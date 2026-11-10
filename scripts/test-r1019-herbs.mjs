@@ -462,7 +462,9 @@ check("8.5 自服黄连上清丸（甲方病历 7）：三黄片与它共有大�
   assert.equal(self[0].name, "黄连上清丸");
   const herbs = decoctionOf([["黄连", "君"], ["升麻", "臣"], ["生地黄", "臣"], ["牡丹皮", "佐"], ["当归", "佐"], ["大黄", "佐"]]);
   assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "三黄片" }, herbs, self)?.reason, "self_medication");
-  assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "三黄片" }, herbs, []), undefined, "不看自服药时三黄片只共有大黄一味佐药");
+  // 第四十一轮起共有的药味是大黄这类峻烈药（POTENT_DOUBLING_HERBS）时，一味也算重复：三黄片与含大黄的汤剂同服是大黄叠用，
+  //（r1054 回顾：三黄片+大黄）。自服药一路照旧报 self_medication（上一行）。
+  assert.ok(duplication.patentMedicineDuplication({ type: "中成药", name: "三黄片" }, herbs, []), "不看自服药时三黄片与汤剂共有大黄（峻下药）也算重复");
   assert.equal(duplication.patentMedicineDuplication({ type: "中成药", name: "丁细牙痛胶囊" }, herbs, self), undefined);
 });
 const medicineRow = (name, id) => ({ type: "中成药", name, specification: "1盒", singleDose: "一次1袋", frequency: "一日2次", route: "口服", administrationTiming: null,

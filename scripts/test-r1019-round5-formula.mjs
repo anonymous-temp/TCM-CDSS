@@ -217,7 +217,8 @@ await check("5.1 教材代表方的原书：程氏萆薢分清饮（名录《医
   };
   assert.match(String(source("尿浊", "湿热下注证", "程氏萆薢分清饮")), /医学心悟/u);
   assert.match(String(source("内痔", "气滞血瘀证", "止痛如神汤")), /外科启玄/u);
-  assert.equal(source("呕吐", "肝气犯胃证", "四七汤"), undefined);
+  // 第四十一轮起：目录里的《局方》同名异方条目照旧不认，出处取教材附录自己写的原书（语料第 237965 行，组成与教材行一致）。
+  assert.equal(source("呕吐", "肝气犯胃证", "四七汤"), "《太平惠民和剂局方》");
   assert.match(String(source("风热赤眼", "风重于热证", "银翘散")), /温病条辨/u);
   // 产地字只认闭集：胡黄连、土茯苓是另一味，不与黄连、茯苓相同。
   assert.match(String(provenance.catalogSourceForExactComposition("程氏萆薢分清饮", ["萆薢", "黄柏", "车前子", "石菖蒲", "茯苓", "白术", "莲子心", "丹参"])), /医学心悟/u);

@@ -1001,7 +1001,8 @@ const checkAsync = async (name, run) => {
       techniqueBoundary: "毫针常规刺，中脘、足三里平补平泻；穴位仅为课程索引与门诊病种频次的组合参考。",
     }] } };
     const card = projectDeliveredReasoning(structuredClone(reasoning)).nonPharma.tcmTreatments[0];
-    assert.equal(card.scheduleSuggestion, "门诊项目频次参考为每日1次，每次选穴和疗程须根据症状变化调整。");
+    // 第四十一轮起「门诊项目频次参考为」这句系统口吻也不交付（treatment-schedule-wording），只留频次本身。
+    assert.equal(card.scheduleSuggestion, "每日1次，每次选穴和疗程须根据症状变化调整。");
     assert.equal(card.techniqueBoundary, "毫针常规刺，中脘、足三里平补平泻。");
     assert.doesNotMatch(`${card.scheduleSuggestion}${card.techniqueBoundary}`, /复评|课程索引/);
   });

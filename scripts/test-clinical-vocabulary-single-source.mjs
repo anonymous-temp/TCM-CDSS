@@ -26,6 +26,9 @@ const CJK = "\\u4e00-\\u9fa5";
  * 新增条目需要同时说明为什么该词表无法归入受治理来源。
  */
 const ALLOWLIST = new Map([
+  ["src/lib/candidate-boundary-text.ts", "知识库人群规则 basis 字段的出处标签形态（中国药典/药典20xx/【注意】），判断这条慎用有没有药典依据，是数据来源格式不是临床术语（2026-11-10 第四十一轮）"],
+  ["src/lib/m03-element-support.server.ts", "否定词的形态守卫（无/非/不属/未见/尚无/并非/不是），闭集，只决定证素字样前面是不是否定写法（同 m03-lens-consistency，2026-11-10）"],
+  ["src/lib/recorded-test-claims.ts", "「尚缺/未查/需完善」这类缺项断言的句式标记，闭集，只认模型写的缺项句形态；检查名本身走 clinical-test-name-groups.source.json（2026-11-10）"],
   ["src/lib/formula-textbook-commentary.ts", "切《方剂学》方解段落的结构标记（沿革句、煎时加姜枣的写法），是教材行文的形态，不是临床术语判据（2026-10-31）"],
   ["src/lib/m03-lens-consistency.server.ts", "否定词的形态守卫（非/不属/未/无…），闭集，只决定一个分句是否算肯定地下诊断（2026-10-31）"],
   ["src/lib/verbatim-quote.ts", "病历栏目名闭集，只用于去掉模型摘录开头抄来的栏目名（2026-10-31）"],

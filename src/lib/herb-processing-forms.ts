@@ -73,9 +73,13 @@ export function processedHerbName(
   const rule = RULES.find((item) => item.herb === base);
   if (!rule || !knownWithSameDose(rule.form, base)) return undefined;
   const purpose = String(context.purposeText || "");
-  if (rule.rawPurposeWords.some((word) => purpose.includes(word))) return undefined;
-  if (rule.purposeWords.length > 0 && !rule.purposeWords.some((word) => purpose.includes(word))) return undefined;
-  if (rule.recordCues.length > 0 && !rule.recordCues.some((cue) => recordAffirms(String(context.recordText || ""), cue))) return undefined;
+  const purposeHit = rule.purposeWords.some((word) => purpose.includes(word));
+  if (rule.purposeWords.length > 0 && !purposeHit) return undefined;
+  const cueHit = rule.recordCues.length > 0 && rule.recordCues.some((cue) => recordAffirms(String(context.recordText || ""), cue));
+  if (rule.recordCues.length > 0 && !cueHit) return undefined;
+  // 功用里生品的用途（利水、消肿）与炮制品的用途（健脾、止泻）都写了、病历又有便溏这类线索时，交付炮制品（第四十一轮，独立新病历 m13：
+  // 参苓白术散合防己黄芪汤的白术写「健脾益气，渗利水湿」、病历大便溏薄，仍交付生白术）。只写生品用途的照旧留生品。
+  if (rule.rawPurposeWords.some((word) => purpose.includes(word)) && !(cueHit && purposeHit)) return undefined;
   return rule.form;
 }
 

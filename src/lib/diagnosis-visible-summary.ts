@@ -934,7 +934,7 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
         //（甲方 11.05「病机分析：机械句式」；第四十一轮）。
         const ungroundedLocations = [...itemSet].filter((item) => !locationGrounded(item));
         location.resolutionReason = finalResolution === "bounded"
-          ? `病位${joinClinicalClauses(ungroundedLocations.length > 0 ? ungroundedLocations : [...itemSet], "、")}尚缺直接的病历依据`
+          ? `病位“${joinClinicalClauses(ungroundedLocations.length > 0 ? ungroundedLocations : [...itemSet], "、")}”尚缺直接的病历依据`
           : "本例记录中没有可稳定归属的病位及其依据";
         lowerEvidenceConfidence(location.evidence);
       }

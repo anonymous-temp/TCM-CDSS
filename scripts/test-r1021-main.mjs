@@ -50,7 +50,9 @@ await check("1.1 理中丸加「半夏」又加「附子」：后一条不列，
 
 await check("1.2 编译出口经过这道筛（模型加减与教材兜底加减两条路都走）", () => {
   const source = readFileSync("src/lib/m04-proposal-compiler.ts", "utf8");
-  assert.match(source, /const compiledModifications = withSameConditionAdjacent\(withoutMutuallyIncompatibleAdditions\(withConditionals/);
+  // 第四十一轮在这道筛前面多了一步「去掉无剂量的调整行」（conditionRows 仍由 withConditionals 得来）。
+  assert.match(source, /const compiledModifications = withSameConditionAdjacent\(withoutMutuallyIncompatibleAdditions\((?:withConditionals|conditionRows)/);
+  assert.match(source, /const withoutDoselessAdjust = withConditionals\.filter\(/);
 });
 
 await check("2.1 作答后病例与 HIS 随后的辨证请求同指纹（流程字段不同也一样）；不作答的病例指纹不同（对照）", async () => {

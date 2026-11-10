@@ -64,7 +64,7 @@ export function hasHerbBoundaryTail(text: string): boolean {
  * 依据只是功效分类、关键词、TCMSP 抽取的慎用条不在给医生的提示里列。禁用级（HIGH）照列。
  * 止血药（《中药学》止血药一章：蒲黄、三七、仙鹤草…）的「出血倾向」一段不列：它就是用来止血的；「抗凝状态」照列（相互作用）。
  */
-function boundaryRuleShown(herb: string, rule: HerbBoundaryRule): boolean {
+export function boundaryRuleShown(herb: string, rule: HerbBoundaryRule): boolean {
   if (rule.severity !== "MEDIUM") return true;
   const population = rule.population;
   const basis = String(rule.basis || "");

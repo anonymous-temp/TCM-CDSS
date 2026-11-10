@@ -188,8 +188,20 @@ const RATIONALE_JUDGEMENT = new RegExp(LEXICON.rationaleClauseFilter.judgementMa
 export function rationaleAssertionClauses(rationale: string): string {
   return String(rationale || "").split(/[。；;]/u)
     .flatMap((sentence) => RATIONALE_LENS.test(sentence) ? [] : sentence.split(/[，,]/u))
-    .filter((clause) => RATIONALE_ASSERTION.test(clause) && !RATIONALE_NEGATION.test(clause))
+    .filter((clause) => RATIONALE_ASSERTION.test(clause) && !elementMentionNegated(clause))
     .join("。");
+}
+
+/**
+ * 分句里的否认是不是落在证素上（「无气血不足」「血虚未甚」「非阴虚」）：否认词紧挨证素前（3 字内）或证素后紧跟「未甚/不甚/不显…」。
+ * 分句别处的否认（「舌淡红、苔薄白示气血不足而无热象」的「无热象」）不算——此前整句按否认句放过，心虚胆怯证的依据里留着「示气血不足」
+ *（第四十一轮，甲方 10.26 病历2 复测 1/1）。没有证素的分句按原判据（有否认词即算）。
+ */
+function elementMentionNegated(clause: string): boolean {
+  const mentions = deficiencyMentions(clause);
+  if (mentions.length === 0) return RATIONALE_NEGATION.test(clause);
+  return mentions.every((mention) => /(?:无|非|不属|未见|尚无|并非|不是)[\u4e00-\u9fff]{0,3}$/u.test(clause.slice(Math.max(0, mention.start - 6), mention.start)) ||
+    /^(?:未甚|不甚|未至|不显|未现|不明显)/u.test(clause.slice(mention.end)));
 }
 
 /** 中医半里需要核对的类别（纯函数，供测试）。至多 MAX_UNITS 个，按出现次数多少排。 */
@@ -474,10 +486,14 @@ export function applyElementSupportDecision(tcmContent: string, decision: Elemen
     const keptItems = items.filter((item) => !isFailedTerm(item));
     if (keptItems.length > 0 && keptItems.length < items.length) {
       nature.items = keptItems;
-      for (const key of ["rootDeficiency", "branchExcess"] as const) {
-        if (Array.isArray(nature[key])) nature[key] = (nature[key] as unknown[]).filter((item) => !isFailedTerm(item));
-      }
       changed = true;
+    }
+    // 本虚、标实两栏各自去掉（items 里没写、只在本虚栏写了「气虚」时，此前不去，待核实又问「是否兼气虚」，自相矛盾；第四十一轮 m39）。
+    for (const key of ["rootDeficiency", "branchExcess"] as const) {
+      if (!Array.isArray(nature[key])) continue;
+      const before = nature[key] as unknown[];
+      const after = before.filter((item) => !isFailedTerm(item));
+      if (after.length < before.length) { nature[key] = after; changed = true; }
     }
   }
 
@@ -492,7 +508,7 @@ export function applyElementSupportDecision(tcmContent: string, decision: Elemen
     if (!value) continue;
     // 流派视角句与否认句不是在说本例有这一证素，不动（第三十三轮 c23：扶阳句里「本例畏寒肢冷…属阳虚阴盛之象」被删得只剩「与扶阳抑阴思路相符」；W35「舌质淡红示血虚未甚」）。
     const candidates = key === "tcmDiagnosticRationale"
-      ? value.split(/[。；;]/u).flatMap((sentence) => (RATIONALE_LENS.test(sentence) ? [] : sentence.split(/[，,]/u))).filter((clause) => !RATIONALE_NEGATION.test(clause))
+      ? value.split(/[。；;]/u).flatMap((sentence) => (RATIONALE_LENS.test(sentence) ? [] : sentence.split(/[，,]/u))).filter((clause) => !elementMentionNegated(clause))
       : value.split(/[，,。；;]/u);
     const clauses = candidates.map((item) => item.trim()).filter((clause) => clause && hasFailedMention(clause, failed, entailment));
     if (clauses.length === 0) continue;

@@ -384,9 +384,10 @@ const sourceLevelResolutionJson = JSON.parse(
   sourceLevelResolutionBoundary.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0].trim(),
 );
 assert.doesNotMatch(sourceLevelResolutionBoundary, /有限资料下的工作判断|有限资料下的工作归纳/);
-assert.match(sourceLevelResolutionJson.overview.primarySyndromeResolutionReason, /心脾两虚证.*0条.*可逐字回溯/);
-assert.match(sourceLevelResolutionJson.pathogenesis.locationDifferentiation.resolutionReason, /病位“心”.*0条.*可逐字回溯/);
-assert.match(sourceLevelResolutionJson.pathogenesis.natureDifferentiation.resolutionReason, /病性“虚”.*缺少.*可逐字回溯/);
+// 2026-11-10 第四十一轮起不写「0条可逐字回溯」这类计数句（r1054 回顾：机械说明），直接说缺什么。
+assert.match(sourceLevelResolutionJson.overview.primarySyndromeResolutionReason, /心脾两虚证.*尚缺直接的病历依据/);
+assert.match(sourceLevelResolutionJson.pathogenesis.locationDifferentiation.resolutionReason, /病位“心”.*尚缺直接的病历依据/);
+assert.match(sourceLevelResolutionJson.pathogenesis.natureDifferentiation.resolutionReason, /病性“虚”.*尚缺直接的病历依据/);
 
 {
   // 2026-09-19 线上首例感冒：严格解码被 minItems 逼着「必须给一条」，qwen3.8-flash 把病位 items、

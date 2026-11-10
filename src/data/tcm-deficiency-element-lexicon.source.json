@@ -525,7 +525,7 @@
     "以致"
   ],
   "rationaleClauseFilter": {
-    "note": "辨证依据里只核断言本例证素的分句（m03-element-support.server.ts rationaleAssertionClauses，2026-10-26 第二十四轮）：流派视角句说的是该派看什么，否认句说的是没有。",
+    "note": "辨证依据里只核断言本例证素的分句（m03-element-support.server.ts rationaleAssertionClauses，2026-10-26 第二十四轮）：流派视角句说的是该派看什么，否认句说的是没有。 第四十一轮：「示」（舌淡红、苔薄白示气血不足）也是归属词，与撤回步骤的 ATTRIBUTION_CHAR 同一组。",
     "lineageLensMarkers": [
       "经方",
       "温病",
@@ -544,7 +544,8 @@
       "所致",
       "之象",
       "之征",
-      "故"
+      "故",
+      "示"
     ],
     "judgementMarkers": [
       "病位",

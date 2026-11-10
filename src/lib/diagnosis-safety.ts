@@ -53,6 +53,7 @@ import { activeEmergencyClearanceFindingsFromGate, emergencyClearanceContractIss
 import { sixHealthFollowupTable } from "./tcm-followup-dimensions";
 import redflagTriageLexicon from "../data/redflag-triage-lexicon.json" with { type: "json" };
 import physicalExamClaimLexicon from "../data/physical-exam-claim-lexicon.source.json" with { type: "json" };
+import testNameGroupsJson from "../data/clinical-test-name-groups.source.json" with { type: "json" };
 import {
   PEDIATRIC_CLAUSE_SUBJECT_PATTERN,
   PEDIATRIC_STRUCTURED_WORD_PATTERN,
@@ -1003,7 +1004,10 @@ const EXAM_TERM_SYNONYMS: Readonly<Record<string, readonly string[]>> = {
  * 只照录、不判断新旧：新旧由 sourceDocumentsCurrentNormality 判，这里只负责让医生看到原文。
  */
 function recordedExamResultNotice(source: string, term: string): string {
-  const names = [term, ...(EXAM_TERM_SYNONYMS[term] || [])];
+  // 同一项检查的分项写法也算（「肾功能」之于「肌酐68μmol/L」，clinical-test-name-groups.source.json；第四十一轮 m03：
+  // 病历有肌酐，鉴别写「病历未记录本次肾功能结果」）。
+  const group = (testNameGroupsJson as { groups: string[][] }).groups.find((items) => items.includes(term)) || [];
+  const names = [...new Set([term, ...(EXAM_TERM_SYNONYMS[term] || []), ...group.filter((alias) => alias.length >= 2)])];
   const sentence = normalizeClinicalText(source).split(/[。；;\n]+/)
     .map((item) => item.replace(/^\s*[^：:，,]{1,8}[：:]\s*/u, "").trim())
     // 结果也可以只是一个带单位的读数（「指脉氧饱和度97%」「血红蛋白92g/L」）。
@@ -3775,6 +3779,7 @@ export function hasGiBleedPrioritySignal(text: string): boolean {
       if (index < 0) break;
       cursor = index + term.length;
       if (isExcludedClinicalAssertionAt(normalized, index)) continue;
+      if (mucopurulentStoolAt(normalized, index)) continue;
       const affirmed = (!isNegatedAt(normalized, index) || hasCommaSeparatedPositiveEvidence(normalized, index, term)) &&
         !isPostfixNegatedAt(normalized, index, term.length);
       if (affirmed && !isHistoricalOrResolvedAt(normalized, index, term.length)) return true;
@@ -4168,6 +4173,79 @@ function giBleedConceptTerms(): string[] {
 }
 
 /** 同上，合并成正则交替式。 */
+/**
+ * 「黏液脓血便」「便下脓血」「下痢赤白」：脓血相兼是痢疾、结肠炎的黏液脓血便，不是消化道出血（第四十一轮，独立新病历 m11
+ * 细菌性痢疾「解黏液脓血便，赤白相兼…每日7-8次」被报活动性消化道出血）。出血词前面紧挨「脓」字时不算出血词。
+ * 构词式守卫（冻结令允许的确定性例外）；呕血、黑便、单写的便血照旧。
+ */
+function mucopurulentStoolAt(text: string, index: number): boolean {
+  return /脓$/u.test(text.slice(Math.max(0, index - 1), index)) || /^脓血/u.test(text.slice(index));
+}
+
+/**
+ * 本次有黏液脓血便（肯定、非既往）：不是出血红旗，但要先查粪常规、粪培养；反复发作或伴消瘦、贫血的要肠镜排查炎症性肠病、结直肠肿瘤
+ *（第四十一轮语料回放：「反复腹泻十年…时排脓血粘液便…消瘦」去掉出血红旗后不能一条提示都没有）。
+ */
+const MUCOPURULENT_STOOL_ADVISORY = "黏液脓血便需优先完善粪常规与粪培养；反复发作或伴消瘦、贫血者需肠镜检查";
+// 「脓血」「赤白相兼」说的是哪一样东西，看同一句里离它最近的主语：痰中带脓血、带下赤白相兼都不是大便
+//（第四十一轮回放：咳嗽「有时痰中带脓血」、带下「色赤白相兼」都被给了粪常规提示）。
+// 「肛门部流脓血」「肛旁肿痛流脓血」是肛瘘、肛周脓肿的流脓，不是大便（同轮回放 corpus-1987/16925）。
+const MUCOPURULENT_STOOL_SUBJECT = /大便|便|痢|泻|下利|里急后重/gu;
+const MUCOPURULENT_OTHER_SUBJECT = /痰|咳|唾|涕|带下|白带|阴道|尿|疮|疖|痈|溃|创面|脓疱|乳|肛门|肛旁|肛周|流脓/gu;
+// 「不夹杂脓血」「未见脓血」：共享否定读法不认「不夹杂」这类动宾写法（同轮回放 corpus-7946「泄泻每日3-4次，不夹杂脓血」）。
+const MUCOPURULENT_LOCAL_DENIAL = /(?:不|无|未|没有|未见|否认)(?:夹杂|夹有|夹|带有|带|见|伴有|伴|含有|含|有)?(?:黏液|粘液)?(?:及|和|或)?$/u;
+function mucopurulentMentionIsStool(text: string, index: number, matched: string): boolean {
+  if (/便|痢/u.test(matched)) return true;
+  const sentenceStart = Math.max(text.lastIndexOf("。", index - 1), text.lastIndexOf("；", index - 1), text.lastIndexOf(";", index - 1), text.lastIndexOf("\n", index - 1)) + 1;
+  const before = text.slice(sentenceStart, index);
+  const last = (pattern: RegExp) => Math.max(-1, ...[...before.matchAll(pattern)].map((m) => (m.index ?? 0) + m[0].length));
+  const stoolAt = last(MUCOPURULENT_STOOL_SUBJECT);
+  return stoolAt >= 0 && stoolAt >= last(MUCOPURULENT_OTHER_SUBJECT);
+}
+function currentMucopurulentStoolMentions(text: string): Array<{ index: number; text: string }> {
+  const normalized = normalizeClinicalText(text);
+  const out: Array<{ index: number; text: string }> = [];
+  for (const match of normalized.matchAll(/(?:黏液|粘液)?脓血(?:便|粘液便|黏液便)?|便下脓血|下痢赤白|赤白相兼/gu)) {
+    const index = match.index ?? 0;
+    if (!mucopurulentMentionIsStool(normalized, index, match[0])) continue;
+    if (MUCOPURULENT_LOCAL_DENIAL.test(normalized.slice(Math.max(0, index - 8), index))) continue;
+    if (isExcludedClinicalAssertionAt(normalized, index)) continue;
+    if (isNegatedAt(normalized, index) && !hasCommaSeparatedPositiveEvidence(normalized, index, match[0])) continue;
+    if (isHistoricalOrResolvedAt(normalized, index, match[0].length)) continue;
+    out.push({ index, text: normalized });
+  }
+  return out;
+}
+function hasCurrentMucopurulentStool(text: string): boolean {
+  return currentMucopurulentStoolMentions(text).length > 0;
+}
+/**
+ * 黏液脓血便所在句写的每日次数（取最大；「每日7-8次」「日十余次」「每天下痢8-9次」）。每日 6 次以上是 Truelove–Witts
+ * 重度溃疡性结肠炎的两条之一（另一条是全身中毒表现：心率>90、体温>37.8℃、Hb<105g/L、血沉>30）——
+ * 不升红旗（全身表现要当面查），只把评估时限收紧到 24 小时（数值阈值例外）。
+ */
+const CHINESE_SMALL_NUMBER: Record<string, number> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+function smallCount(token: string): number {
+  if (/^\d+$/u.test(token)) return Number(token);
+  if (token === "十") return 10;
+  if (/^十[一二三四五六七八九]$/u.test(token)) return 10 + CHINESE_SMALL_NUMBER[token[1]];
+  if (/^[二三四五六七八九]十[一二三四五六七八九]?$/u.test(token)) return CHINESE_SMALL_NUMBER[token[0]] * 10 + (token[2] ? CHINESE_SMALL_NUMBER[token[2]] : 0);
+  return CHINESE_SMALL_NUMBER[token] ?? NaN;
+}
+function mucopurulentStoolsPerDay(text: string): number {
+  let max = 0;
+  for (const mention of currentMucopurulentStoolMentions(text)) {
+    const { start, end } = clinicalClauseBounds(mention.text, mention.index);
+    const sentence = mention.text.slice(start, end);
+    for (const m of sentence.matchAll(/(?:每日|每天|一日|一天|日)\s*(?:约|大便|下痢|腹泻|解便|排便|泻)?\s*(\d+|[一二两三四五六七八九十]{1,3})(?:\s*[-~～至到、]\s*(\d+|[一二三四五六七八九十]{1,3}))?\s*(?:余|多)?\s*次/gu)) {
+      const value = Math.max(smallCount(m[1]), m[2] ? smallCount(m[2]) : 0);
+      if (Number.isFinite(value)) max = Math.max(max, value);
+    }
+  }
+  return max;
+}
+const SEVERE_MUCOPURULENT_STOOL_ENTRY = "黏液脓血便每日6次以上，宜24小时内到医院完成血常规、粪常规与粪培养，并查心率、体温（需排除：重症溃疡性结肠炎、重症细菌性痢疾）；处方前需完成评估";
+
 function giBleedConceptAlternation(): string {
   return governedTermAlternation(giBleedConceptTerms());
 }
@@ -4726,6 +4804,18 @@ function changeCueHeadsSiblingSymptom(text: string, cueIndex: number, termIndex:
   return false;
 }
 
+/**
+ * 「每逢心情郁闷或与家人争吵后乳房胀痛及胸闷加重」：习惯性的情志诱发（每逢/每因/每当 + 情志词），病程写明数月以上、同一小句没有劳力诱因，
+ * 说的是反复发作的诱因，不是本次急性加重（第四十一轮，独立新病历 m22 经行乳房胀痛被报急性冠脉）。没有「每…」只写「情绪激动时胸闷加重」的照旧算。
+ */
+function habitualEmotionalWorsening(clause: string, cueIndex: number, fullText: string): boolean {
+  const before = clause.slice(0, Math.max(0, cueIndex));
+  return /每(?:逢|因|遇|当|次|于)/u.test(before) &&
+    /情志|情绪|心情|郁闷|生气|争吵|恼怒|郁怒|不畅|抑郁|紧张|焦虑/u.test(before) &&
+    !CARDIAC_EXERTIONAL_TRIGGER_PATTERN.test(clause) && !/劳累|劳力|活动|运动|体力|上楼|爬楼|快走/u.test(clause) &&
+    CARDIAC_CHRONIC_COURSE_PATTERN.test(fullText);
+}
+
 function cardiacAcuteChangeAttachedAt(text: string, index: number, matchText: string): boolean {
   const { start, end } = clinicalSubClauseBoundsAt(text, index, matchText.length);
   CARDIAC_ACUTE_ANY_CUE_PATTERN.lastIndex = 0;
@@ -4734,6 +4824,7 @@ function cardiacAcuteChangeAttachedAt(text: string, index: number, matchText: st
     if (cueIndex >= index && cueIndex < index + matchText.length) continue;
     const isChangeVerb = CARDIAC_ACUTE_CHANGE_ONLY_PATTERN.test(match[0]);
     if (isChangeVerb && changeCueHeadsSiblingSymptom(text.slice(start, end), cueIndex - start, index - start)) continue;
+    if (isChangeVerb && habitualEmotionalWorsening(text.slice(start, end), cueIndex - start, text)) continue;
     if (neuroAcuteCueUsableAt(text, cueIndex, match[0], index, isChangeVerb)) return true;
   }
   if (start > 0) {
@@ -4826,6 +4917,7 @@ function hasScopedAcuteChestTightnessSignal(text: string): boolean {
       const termAt = scoped.indexOf(term);
       for (const match of scoped.matchAll(scopedCue)) {
         if (CARDIAC_ACUTE_CHANGE_ONLY_PATTERN.test(match[0]) && changeCueHeadsSiblingSymptom(scoped, match.index ?? 0, termAt)) continue;
+        if (CARDIAC_ACUTE_CHANGE_ONLY_PATTERN.test(match[0]) && habitualEmotionalWorsening(scoped, match.index ?? 0, normalized)) continue;
         return true;
       }
     }
@@ -5564,6 +5656,7 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
       const start = match.index ?? -1;
       if (start < 0) continue;
       if (isExcludedClinicalAssertionAt(text, start)) continue;
+      if (mucopurulentStoolAt(text, start)) continue;
       if (isNegatedAt(text, start) && !hasCommaSeparatedPositiveEvidence(text, start, match[0])) continue;
       if (isHistoricalOrResolvedAt(text, start, match[0].length)) continue;
       // 「服用铁剂后大便发黑，无头晕乏力，复查便潜血阴性」——伴随症整句被否认，
@@ -5607,6 +5700,7 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
         const found = text.slice(bleedAt).match(bleedHere);
         if (!found) continue;
         const span = text.slice(start, bleedAt + found[0].length);
+        if (mucopurulentStoolAt(text, bleedAt)) continue;
         if (isNegatedAt(text, start) && !hasCommaSeparatedPositiveEvidence(text, start, span)) break;
         if (isNegatedAt(text, bleedAt) && !hasCommaSeparatedPositiveEvidence(text, bleedAt, found[0])) continue;
         if (isHistoricalOrResolvedAt(text, start, span.length)) continue;
@@ -6097,8 +6191,11 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
   ) {
     addAdvisory("neuro", "意识水平改变、抽搐或局灶神经功能异常需优先复核起病时间、当前意识、发作持续时间及卒中/癫痫等急症风险");
   }
-  if (hasAnyTerm(text, giBleedConceptTerms()) || hasCoffeeGroundEmesis(text)) {
+  // 黏液脓血便（痢疾）不是消化道出血（mucopurulentStoolAt，与红旗同一判据）：把「脓血」挡开再找出血词。
+  if (hasAnyTerm(text.replace(/脓血/gu, "脓液"), giBleedConceptTerms()) || hasCoffeeGroundEmesis(text)) {
     addAdvisory("gi_bleed", "消化道出血相关表现需优先复核出血量、持续性、循环状态及血红蛋白");
+  } else if (hasCurrentMucopurulentStool(text)) {
+    addAdvisory("gi_bleed", MUCOPURULENT_STOOL_ADVISORY);
   }
   if (hasAnyTerm(text, ["咯血", "阴道流血", "外伤出血", "出血不止", "大量出血"])) {
     addAdvisory("bleeding", "出血相关表现需优先复核出血量、活动性及循环状态");
@@ -7498,6 +7595,14 @@ function collectPriorityEvaluationEntries(state: CaseState, semanticSourceText: 
     // （其条目自带原文引用与升级说明，信息量更高）；语义层缺席或单条漏检时本确定性项兜底，
     // needs_information 的承诺从此不押在模型可用性上。
     entries.push({ text: "消化道出血相关表现需优先复核出血量、持续性、循环状态及血红蛋白；处方前需完成评估" });
+  } else if (
+    hasCurrentMucopurulentStool(semanticSourceText) &&
+    !(state.clinicalFacts?.semanticStatus === "checked" &&
+      groundedPatientTriageCategories(state.clinicalFacts, semanticSourceText).has("gi_bleed"))
+  ) {
+    entries.push(mucopurulentStoolsPerDay(semanticSourceText) >= 6
+      ? { text: SEVERE_MUCOPURULENT_STOOL_ENTRY, window: "within_24h", focus: "重症溃疡性结肠炎、重症细菌性痢疾" }
+      : { text: `${MUCOPURULENT_STOOL_ADVISORY}；处方前需完成评估` });
   }
   // 指南脓毒症高危数值项：当天评估（不升红旗，见 redflag-discriminators.source.json gatePolicy）。
   for (const item of discriminatorOutcomeForState(state).priority) {

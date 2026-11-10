@@ -57,7 +57,7 @@ await check("1.1 病位每项都有病历原文依据即已明确（与舌脉、
   assert.equal(both.resolution, "resolved");
   const one = loc([{ location: "肺", basis: "伴鼻塞、流涕、偶咳" }]);
   assert.equal(one.resolution, "bounded");
-  assert.equal(one.resolutionReason, "病位皮毛尚缺直接的病历依据");
+  assert.equal(one.resolutionReason, "病位“皮毛”尚缺直接的病历依据");
   assert.equal(one.evidence?.confidence ?? "低", "低");
 });
 
@@ -146,6 +146,7 @@ await check("4.1 目录没有的教材代表方按教材方剂索引或联网核
 
 // ───── 5 两处过度红旗 ─────
 const gate = (input) => safety.evaluateSafetyGate(types.normalizeCaseStateInput(input));
+const withGate = (input) => safety.withSafetyGate(types.normalizeCaseStateInput(input));
 await check("5.1 情志性胁痛「伴胸闷、腹胀、嗳气频作」：频作说的是嗳气，不报急性冠脉；「胸闷频作」「胸闷、气短加重」照报", () => {
   const base = { chiefComplaint: "右胁肋胀痛2周", patient: { sex: "女", age: 45 }, vitals: { T: "36.5", P: "72", R: "18", BP: "116/74" } };
   const liver = gate({ ...base, symptoms: { 现病史: "与家人争吵后出现右胁肋部胀痛，情绪不畅时加重，伴胸闷、腹胀、嗳气频作，纳少。" } });
@@ -178,6 +179,7 @@ await check("6.1 卡片系统用语改成临床说法：门诊项目频次参考
 
 await check("6.2 推拿卡扫描丢字补回（以法作用于 → 以滚法作用于；伏免 → 伏兔）；14 岁以上不印「小儿推拿」那段禁忌", () => {
   assert.equal(cards.textbookOcrFixed("以法作用于大腿后侧，点揉伏免"), "以滚法作用于大腿后侧，点揉伏兔");
+  assert.equal(cards.textbookOcrFixed("医师施法于居髎、风市"), "医师施滚法于居髎、风市");
   assert.doesNotMatch(cards.techniqueContraindications("tuina", 45), /小儿推拿/u);
   assert.match(cards.techniqueContraindications("tuina", 6), /小儿推拿/u);
 });
@@ -238,6 +240,8 @@ await check("9.1 治法逐项四字：拼成的六字项拆回（疏风清热化
   assert.equal(surface.clinicalMethodItems("清热凉血调经，清肝泻火"), "清热凉血调经，清肝泻火");
   assert.equal(phrasing.mergedSameHeadTherapyPhrases("健脾和胃，健脾益气"), "健脾益气");
   assert.equal(surface.clinicalMethodItems("益气扶正，活血化瘀，化瘀通络"), "益气扶正，活血通络");
+  // 同字头拼成的六字项拆开不出两个同头项（理气缓急止痛 → 理气缓急）。
+  assert.equal(surface.clinicalMethodItems("清热利湿通淋，理气缓急止痛"), "清热利湿通淋，理气缓急");
 });
 
 // ───── 10 急症调护、慎用栏、待核实与病历、其余小类 ─────
@@ -297,3 +301,155 @@ await check("10.6 待核实栏的条目名写给医生看（急危重风险尚�
   const out = unwrap(summary.annotateM03DecisionSpecificityBoundary(content, { reason: "测试", mustCollect: "测试", activeRedFlag: true }));
   assert.equal(out.pathogenesis.uncertainties[0].item, "急危重风险尚未排除");
 });
+
+await check("5.3 习惯性情志诱发的胸闷加重（每逢心情郁闷…胸闷加重，病程半年，与活动无关）不报急性冠脉；没有「每」字的「情绪激动时胸闷加重」、劳力诱发的照报", () => {
+  const base = { chiefComplaint: "经前乳房胀痛半年", patient: { sex: "女", age: 33 }, vitals: { T: "36.5", P: "74", R: "18", BP: "114/72" } };
+  const habitual = gate({ ...base, symptoms: { 现病史: "半年前情志不畅后每于经前出现乳房胀痛，伴胸闷胁胀。每逢心情郁闷或与家人争吵后乳房胀痛及胸闷加重，胸闷与劳累、活动无关，无胸痛。" } });
+  assert.ok(!habitual.redFlags.some((item) => /冠脉|心血管/u.test(item)), JSON.stringify(habitual.redFlags));
+  const acute = gate({ ...base, chiefComplaint: "胸闷3天", symptoms: { 现病史: "3天来情绪激动时胸闷加重。" } });
+  assert.ok(acute.redFlags.some((item) => /冠脉|心血管/u.test(item)), JSON.stringify(acute.redFlags));
+  const exertional = gate({ ...base, symptoms: { 现病史: "半年来每逢劳累、生气后胸闷加重。" } });
+  assert.ok(exertional.redFlags.some((item) => /冠脉|心血管/u.test(item)), JSON.stringify(exertional.redFlags));
+});
+
+await check("5.4 颈项强直：引文须有强直、抵抗、脑膜刺激征之类字样；「颈软」不采信", () => {
+  const record = "患儿发热1天，伴流涕。查体：咽红，颈软，心肺未见异常。";
+  const parsed = screen.parseRedflagDiscriminatorScreen(JSON.stringify({ present: [{ id: "neck-stiffness", quote: "颈软" }] }), ["neck-stiffness"], record) || [];
+  assert.equal(parsed.length, 0, JSON.stringify(parsed));
+  const stiff = "患儿发热1天，精神差。查体：颈项强直，克氏征阳性。";
+  const kept = screen.parseRedflagDiscriminatorScreen(JSON.stringify({ present: [{ id: "neck-stiffness", quote: "颈项强直" }] }), ["neck-stiffness"], stiff) || [];
+  assert.equal(kept.length, 1, JSON.stringify(kept));
+});
+
+await check("5.5 痢疾的黏液脓血便（赤白相兼）不是活动性消化道出血；黑便、便血伴头晕照报", () => {
+  const base = { patient: { sex: "女", age: 26 }, vitals: { T: "37.9", P: "92", R: "18", BP: "112/72" } };
+  const dysentery = gate({ ...base, chiefComplaint: "腹痛、脓血便2天", symptoms: { 现病史: "进食凉拌菜后腹痛，继而解黏液脓血便，赤白相兼，每日7-8次，里急后重，伴低热、口渴。无头晕、心悸。" } });
+  assert.ok(!dysentery.redFlags.some((item) => /消化道出血/u.test(item)), JSON.stringify(dysentery.redFlags));
+  const melena = gate({ ...base, chiefComplaint: "黑便3天", symptoms: { 现病史: "解黑便3天伴头晕心悸。" } });
+  assert.ok(melena.redFlags.some((item) => /消化道出血/u.test(item)), JSON.stringify(melena.redFlags));
+  // 「反复」修饰的脓血便（限定语一路）同样不算出血；给的是黏液脓血便的优先评估。
+  const chronic = gate({ ...base, chiefComplaint: "反复脓血便3年", symptoms: { 现病史: "反复解脓血便，里急后重三年，最近20天加重。" } });
+  assert.ok(!chronic.redFlags.some((item) => /消化道出血/u.test(item)), JSON.stringify(chronic.redFlags));
+  assert.ok(chronic.advisories.some((item) => /黏液脓血便需优先完善粪常规/u.test(item)), JSON.stringify(chronic.advisories));
+  // 只有限定语一路能命中的写法（「大量」直接修饰脓血便，无头晕等伴随症）。
+  const large = gate({ ...base, chiefComplaint: "腹泻2天", symptoms: { 现病史: "进食不洁后腹泻2天，解大量黏液脓血便，日十余次，里急后重。" } });
+  assert.ok(!large.redFlags.some((item) => /消化道出血/u.test(item)), JSON.stringify(large.redFlags));
+  const largeBlood = gate({ ...base, chiefComplaint: "便血2天", symptoms: { 现病史: "进食不洁后2天，解大量血便，日十余次。" } });
+  assert.ok(largeBlood.redFlags.some((item) => /消化道出血/u.test(item)), JSON.stringify(largeBlood.redFlags));
+  const hematochezia = gate({ ...base, chiefComplaint: "便血3天", symptoms: { 现病史: "便血3天，量多伴头晕。" } });
+  assert.ok(hematochezia.redFlags.some((item) => /消化道出血/u.test(item)), JSON.stringify(hematochezia.redFlags));
+});
+
+await check("5.6 「脓血」「赤白相兼」只在说大便时才算黏液脓血便；每日6次以上评估时限收紧到24小时（Truelove–Witts）", () => {
+  const base = { patient: { sex: "女", age: 40 }, vitals: { T: "36.8", P: "80", R: "18", BP: "118/76" } };
+  const view = (cc, text) => { const s = withGate({ ...base, chiefComplaint: cc, symptoms: { 现病史: text } }); return { adv: (s.safetyGate.advisories || []).filter((a) => /黏液脓血便/u.test(a)), target: safety.priorityEvaluationFollowupTarget(s) }; };
+  // 痰中带脓血、带下赤白相兼：不给粪常规提示。
+  assert.deepEqual(view("咳嗽吐痰半年", "咳嗽吐痰，痰黄绿色，有时痰中带脓血，咽干口渴。").adv, []);
+  assert.deepEqual(view("带下量多2周", "近两周带下量多，色赤白相兼，质稠，阴部瘙痒。").adv, []);
+  // 「大便质稀，夹有脓血」：主语在前一小句，照算。
+  const stool = view("脓血便反复发作10余年", "大便质稀，夹有脓血，每日8、9次，便前腹痛。");
+  assert.equal(stool.adv.length, 1);
+  assert.equal(stool.target?.window, "within_24h", JSON.stringify(stool.target));
+  assert.match(stool.target?.focus || "", /重症溃疡性结肠炎/u);
+  const many = view("大便痢下20多天", "近3天每天下痢8-9次，夹杂粘液和脓血，形体消瘦。");
+  assert.equal(many.target?.window, "within_24h", JSON.stringify(many.target));
+  const few = view("腹痛、脓血便2天", "进食凉拌菜后腹痛，继而解黏液脓血便，赤白相兼，每日3-4次，里急后重。");
+  assert.equal(few.adv.length, 1);
+  assert.notEqual(few.target?.window, "within_24h", JSON.stringify(few.target));
+  // 肛瘘、肛周脓肿的流脓不是大便；「不夹杂脓血」是否认。
+  assert.deepEqual(view("肛门部流脓血4个月", "肛门部流脓血已有4个月，局部肿痛。").adv, []);
+  assert.deepEqual(view("泄泻3月", "泄泻每日3-4次，不夹杂脓血，伴腰膝酸软。").adv, []);
+  assert.equal(view("肛门流脓2年", "肛门流脓溢液2年余，伴便下脓血粘液。").adv.length, 1);
+  const tenPlus = view("腹泻3天", "腹泻3天，日十余次，为黏液脓血便，里急后重。");
+  assert.equal(tenPlus.target?.window, "within_24h", JSON.stringify(tenPlus.target));
+});
+
+await check("3.4 白术功用兼写健脾与利水、病历有便溏：交付土炒白术；只写利水消肿的照旧生白术", () => {
+  const record = "大便溏薄，每日2次。";
+  assert.equal(processing.processedHerbName("白术", { purposeText: "健脾益气，渗利水湿", recordText: record }), "土炒白术");
+  assert.equal(processing.processedHerbName("白术", { purposeText: "利水消肿", recordText: record }), undefined);
+  assert.equal(processing.processedHerbName("白术", { purposeText: "健脾益气，渗利水湿", recordText: "大便调。" }), undefined);
+});
+
+await check("7.3 教材加减写炮制品名（炒麦芽）、知识库没有单列剂量：按生品的药典剂量给量、核量；有毒的生品不借", async () => {
+  const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+  assert.equal(contract.modificationDoseWithinPharmacopoeia("10g", "炒麦芽", "加"), true);
+  assert.equal(contract.modificationDoseWithinPharmacopoeia("200g", "炒麦芽", "加"), false);
+  assert.equal(contract.ordinaryProcessedBaseHerbName("炒麦芽"), "麦芽");
+});
+
+
+// ───── 11 独立新病历盲评找到的服务端缺陷 ─────
+const polarity = await jiti.import("../src/lib/clinical-polarity.ts");
+await check("11.1 用药读法：下一句「半年前自行停药」停的是前一味；「1周前…口服X5天」、「曾自服X1周」是用过；「…治疗至今」是正在用", () => {
+  assert.equal(polarity.medicationStoppedInNextSentence("口服“甲巯咪唑”治疗1年半后甲功恢复正常。半年前自行停药，未再复查。", "甲巯咪唑"), true);
+  assert.equal(polarity.medicationStoppedInNextSentence("长期口服二甲双胍。停药则血糖升高。", "二甲双胍"), false);
+  assert.equal(polarity.medicationOnlyPastMentions("1周前因急性支气管炎口服阿莫西林克拉维酸钾5天。未用其他药物。", "阿莫西林克拉维酸钾"), "ever");
+  assert.equal(polarity.medicationOnlyPastMentions("曾自服左氧氟沙星1周，症状稍减后复发。", "左氧氟沙星"), "ever");
+  assert.equal(polarity.medicationOnlyPastMentions("口服氨氯地平5mg qd至今。", "氨氯地平"), undefined);
+});
+
+await check("11.2 加减行的孕哺慎用提示：男童、婴儿不写；下乳的王不留行不写「哺乳期慎用」（依据不是药典）", async () => {
+  const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+  const infant = "患者年龄：8个月\n患者性别：男\n现病史：母亲孕期体健，口腔白屑3天。";
+  assert.ok(!contract.recordedPopulationCautions("佩兰", infant).some((p) => /孕|哺乳/u.test(p)), JSON.stringify(contract.recordedPopulationCautions("佩兰", infant)));
+  // 药典孕妇慎用的桃仁：病历里的「母亲孕期」不是患儿本人。
+  assert.ok(!contract.recordedPopulationCautions("桃仁", infant).some((p) => /孕/u.test(p)), JSON.stringify(contract.recordedPopulationCautions("桃仁", infant)));
+  // 原病历写法（m24：家族史「母亲孕期体健」、婚育史「未婚」）：旧代码给牛膝（药典孕妇慎用）写「孕期/妊娠」，只靠人群判据拦下。
+  const m24 = safety.clinicalGroundingText(types.normalizeCaseStateInput({
+    chiefComplaint: "口腔白屑3天", patient: { sex: "男", age: 0.6667 },
+    symptoms: { 现病史: "患儿8月龄，3天前口腔颊黏膜出现白色乳凝块样斑点，伴烦躁哭闹。", 婚育史: "未婚", 家族史: "父母体健，母亲孕期体健，否认家族遗传病史" },
+  }));
+  assert.deepEqual(contract.recordedPopulationCautions("牛膝", m24).filter((p) => /孕|哺乳/u.test(p)), [], JSON.stringify(contract.recordedPopulationCautions("牛膝", m24)));
+  const woman = safety.clinicalGroundingText(types.normalizeCaseStateInput({
+    chiefComplaint: "腰痛1周", patient: { sex: "女", age: 30 }, symptoms: { 现病史: "腰痛1周，现妊娠12周。" },
+  }));
+  assert.ok(contract.recordedPopulationCautions("牛膝", woman).some((p) => /孕/u.test(p)), JSON.stringify(contract.recordedPopulationCautions("牛膝", woman)));
+  const lactating = "患者年龄：26岁\n患者性别：女\n现病史：产后1月，哺乳期，左乳肿痛2天。";
+  assert.ok(!contract.recordedPopulationCautions("王不留行", lactating).some((p) => /哺乳/u.test(p)), JSON.stringify(contract.recordedPopulationCautions("王不留行", lactating)));
+});
+
+await check("11.3 病历有分项结果（肌酐68）时，「肾功能」不写「病历未记录本次肾功能结果」", () => {
+  const record = "辅助检查：尿蛋白±，肌酐68μmol/L，彩超未见占位。";
+  const out = safety.sanitizeUngroundedRedFlagNegations("肾功能正常，尿蛋白仅±", { chiefComplaint: "尿血2周", symptoms: { presentHistory: "小便带血2周", auxiliaryExam: record }, patient: { sex: "女", age: "56" } });
+  assert.doesNotMatch(out, /病历未记录本次肾功能结果/u, out);
+});
+
+await check("11.4 「去川芎之峻行、以荆芥易荆芥穗」：川芎在方中，前半不留，换药的后半照留", () => {
+  const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {}, formula: { candidates: [{ name: "当归饮子加减", herbs: [{ name: "当归" }, { name: "川芎" }, { name: "荆芥" }, { name: "防风" }], formulaAnalysis: "本方以当归饮子为基础加减，去川芎之峻行、以荆芥易荆芥穗。当归为君。" }] } };
+  const out = surface.projectDeliveredReasoning(reasoning, { recordText: "主诉：瘙痒" });
+  assert.doesNotMatch(out.formula.candidates[0].formulaAnalysis, /去川芎/u);
+  assert.match(out.formula.candidates[0].formulaAnalysis, /以荆芥易荆芥穗/u);
+});
+
+await check("11.5 发绀：引文须有发绀、紫绀、青紫之类字样；「四肢末梢稍凉」不采信", () => {
+  const record = "患儿发热1天，嗜睡，四肢末梢稍凉。";
+  const parsed = screen.parseRedflagDiscriminatorScreen(JSON.stringify({ present: [{ id: "blue", quote: "四肢末梢稍凉" }, { id: "cyanosis", quote: "四肢末梢稍凉" }] }), ["blue", "cyanosis"], record) || [];
+  assert.equal(parsed.length, 0, JSON.stringify(parsed));
+});
+
+await check("11.6 中医鉴别同一个病的两种写法只列一次（痫证/痫病、大行赤眼即天行赤眼），与本病同名的不列", () => {
+  const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseName: "急惊风", primarySyndrome: "热毒炽盛证", tcmDiseaseDifferentials: [
+    { diseaseName: "痫证", reason: "均可抽搐", distinguishingPoints: "x", typicalManifestation: "", nextCheck: null },
+    { diseaseName: "痫病", reason: "均可抽搐", distinguishingPoints: "y", typicalManifestation: "", nextCheck: null },
+    { diseaseName: "大行赤眼", reason: "z", distinguishingPoints: "z", typicalManifestation: "", nextCheck: null },
+    { diseaseName: "天行赤眼", reason: "z", distinguishingPoints: "z", typicalManifestation: "", nextCheck: null }] }, therapy: {}, pathogenesis: { chain: [] } };
+  const names = surface.projectDeliveredReasoning(reasoning, { recordText: "主诉：发热1天" }).overview.tcmDiseaseDifferentials.map((row) => row.diseaseName);
+  assert.deepEqual(names, ["痫证", "天行赤眼"]);
+});
+
+await check("11.7 肛裂病历已有视诊所见（截石位见裂口、未做指诊）：不写「尚未做肛门检查…初步判断」；只写未做肛门检查的照写", () => {
+  const base = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseName: "肛裂", primarySyndrome: "血热肠燥证", tcmDiseaseRationale: "便时肛门撕裂样疼痛、滴鲜血，符合肛裂。" }, therapy: {}, pathogenesis: { chain: [] } };
+  const seen = surface.projectDeliveredReasoning(structuredClone(base), { recordText: "体格检查：截石位6点肛管处见一纵行裂口；因疼痛未行指诊及肛门镜检查" });
+  assert.doesNotMatch(seen.overview.tcmDiseaseRationale, /初步判断/u);
+  const unseen = surface.projectDeliveredReasoning(structuredClone(base), { recordText: "现病史：便血1周，暂未接受肛门检查" });
+  assert.match(unseen.overview.tcmDiseaseRationale, /初步判断/u);
+});
+
+await check("11.8 证素否认要落在证素本身：「舌淡红、苔薄白示气血不足而无热象」是断言气血不足；「血虚未甚」「无气血不足」才是否认", async () => {
+  const element = await jiti.import("../src/lib/m03-element-support.server.ts");
+  assert.match(element.rationaleAssertionClauses("舌淡红、苔薄白示气血不足而无热象，脉弦细"), /气血不足/u);
+  assert.doesNotMatch(element.rationaleAssertionClauses("舌质淡红示血虚未甚，故属心虚胆怯"), /血虚/u);
+  assert.doesNotMatch(element.rationaleAssertionClauses("舌脉如常，故无气血不足之象"), /气血不足/u);
+});
+

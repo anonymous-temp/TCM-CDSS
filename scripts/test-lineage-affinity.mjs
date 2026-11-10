@@ -330,7 +330,9 @@ check("没有原典证据的标志性运用行在加载时整行丢弃（不能�
 // 防止扶阳这类流派悄悄回到「选了等于没选」。阈值见 LINEAGE_COVERAGE_FLOOR。
 // 10/12 整改前：扶阳 0 / 丹溪 8 / 温补 19 / 温病 24 / 经方 118。
 // warm-disease 37→36（第三十七轮）：耳聋左慈丸原记出处《重订广温热论》（温病书）有误，按《饲鹤亭集方》订正后不再按书归温病。
-const LINEAGE_COVERAGE_FLOOR = { "classical-formula": 120, "warm-disease": 36, "nourish-yin-danxi": 8, "warm-tonify": 29, "support-yang": 5 };
+// 2026-11-10 第四十一轮：经方 120 → 119。济生肾气丸的目录出处从《金匮要略》订正为《济生方》（原名加味肾气丸，严用和），
+// 它本来就不是仲景方，靠错出处挂在经方书规则下；温补派的标志性运用行同步改键，不受影响。
+const LINEAGE_COVERAGE_FLOOR = { "classical-formula": 119, "warm-disease": 36, "nourish-yin-danxi": 8, "warm-tonify": 29, "support-yang": 5 };
 check("覆盖棘轮：每个流派可被排序的常用层方剂数不低于整改后实测值", () => {
   const counts = Object.fromEntries([...SCHOOL_CODES].map((code) => [code, new Set()]));
   for (const entry of governedCatalog.entries) {

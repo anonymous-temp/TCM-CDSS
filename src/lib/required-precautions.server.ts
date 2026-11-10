@@ -1,4 +1,4 @@
-import { cleanedMedicationNameCandidate, recordedDrugAllergyPhrases, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
+import { cleanedMedicationNameCandidate, recordedDrugAllergyPhrases, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, MEDICATION_STILL_TAKING, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
 import { authoritativePatientAgeYears, clauseLocalMentionPolarityAt, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
@@ -216,7 +216,9 @@ export function requiredPrecautionsForCase(
     .filter((label) => !listed.some((name) => label === "激素" ? CORTICOSTEROID_MEDICATION.test(name) : IMMUNOSUPPRESSIVE_MEDICATION.test(name)));
   const shown = [...listed, ...classes].slice(0, 6);
   const givenNames = new Set(recorded.given.map(cleanedOf));
-  const given = shown.filter((name) => timeline.get(name) !== "current" &&
+  // 写着「至今/仍在/继续」的（「予异烟肼…规范抗结核治疗至今」，第四十一轮 m07）是正在用，不按「用过」请患者说明。
+  const stillTaking = (name: string) => grounded.normalize("NFKC").split(/[。；;\n]+/u).some((sentence) => sentence.includes(name) && MEDICATION_STILL_TAKING.test(sentence));
+  const given = shown.filter((name) => timeline.get(name) !== "current" && !stillTaking(name) &&
     ((givenNames.has(name) && !formallyTaken.has(name)) || pastOnly.get(name) === "ever" || timeline.get(name) === "ask" || classes.includes(name)));
   // 激素、免疫抑制剂「不要自行停用」只说全身用药：外用的低效激素乳膏不在此列。
   // 病历写着「外用 / 外涂 / 外搽 / 外敷」的药按外用写（2026-10-24 甲方 100 例 C051：「外用低效激素间断使用」被写成「正在服用的低效激素」）。

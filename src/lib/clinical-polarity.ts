@@ -762,8 +762,14 @@ export function recordedMedicationMentions(text: string | null | undefined): { n
 export function medicationStoppedInNextSentence(text: string, name: string): boolean {
   const sentences = String(text || "").normalize("NFKC").split(/[。；;\n]+/u);
   return sentences.some((sentence, index) => sentence.includes(name) && index + 1 < sentences.length &&
-    STOPPED_PREVIOUS_MEDICATION.test(sentences[index + 1]) && !sentences.slice(index + 1).some((later) => later.includes(name)));
+    (STOPPED_PREVIOUS_MEDICATION.test(sentences[index + 1]) || BARE_STOP_SENTENCE.test(sentences[index + 1].trim())) &&
+    !sentences.slice(index + 1).some((later) => later.includes(name)));
 }
+/**
+ * 下一句开头就是不带宾语的停药（「半年前自行停药，未再复查」，第四十一轮独立新病历 m06：甲巯咪唑写成「正在服用」）：前面可有时间、「自行/擅自」，
+ * 条件写法（「停药则复发」）不算。
+ */
+const BARE_STOP_SENTENCE = /^(?:(?:近|约|已|于)?(?:\d+|[一二两三四五六七八九十半几]+)\s*(?:个)?(?:天|日|周|星期|月|年)(?:余|多)?前[，,]?\s*)?(?:后|遂|随后|此后|之后)?(?:自行|擅自|自己)?(?:停药|停用|停服)(?!则|即|就|便|复发|反复|加重|发作)/u;
 
 /**
  * 病历里这个药后来停了，或只在「曾…」的往事里出现过（2026-10-19 Claude 评审 M 集）：
@@ -773,7 +779,10 @@ export function medicationStoppedInNextSentence(text: string, name: string): boo
  *   （「既往曾接受醋酸泼尼松（…口服）及α骨化醇片（…）治疗」——逗号把「曾」和后一个药隔开了，按小句看不到）。
  */
 // 「曾换用/曾改用/曾试用」也是往事（H 集 H-tri-5786「曾换用齐拉西酮、丁二酸洛沙平、喹硫平等药物…疗效不明显」写成了正在服用，2026-10-19）。
-const PAST_MEDICATION_CUE = /曾(?:经)?(?:接受|服用|口服|予|用|使用|应用|多次|间断|换用|改用|试用|加用)|既往曾/u;
+// 「曾自服左氧氟沙星1周」（第四十一轮 m34）也是往事。
+const PAST_MEDICATION_CUE = /曾(?:经)?(?:接受|服用|口服|予|用|使用|应用|多次|间断|换用|改用|试用|加用|自服|自行服用|自行口服)|既往曾/u;
+/** 「1周前因急性支气管炎口服阿莫西林克拉维酸钾5天」：N天/周前起、写明服了几天的一个疗程，已经服完（第四十一轮 m24）。 */
+const COMPLETED_COURSE = /(?:\d+|[一二两三四五六七八九十半几]+)\s*(?:个)?(?:天|日|周|星期|月)前[^。；;\n]{0,30}(?:口服|服用|服|使用|用)[^。；;\n]{0,24}?(?:\d+|[一二两三四五六七八九十几]+)\s*(?:天|日|周|剂)(?![^。；;\n]{0,6}(?:至今|仍|继续|现))/u;
 const CURRENT_MEDICATION_CUE = /现|目前|仍|至今|一直|长期|规律|继续|正在|近期|近来/u;
 const RESTART_MEDICATION_CUE = /加用|再次|重新|恢复|又(?:开始)?|继续/u;
 /**
@@ -830,7 +839,12 @@ export function medicationOnlyPastMentions(text: string, name: string): "past" |
     const lead = before + clause.slice(0, clause.indexOf(name));
     return PAST_MEDICATION_CUE.test(lead) && !CURRENT_MEDICATION_CUE.test(clause) ? lead.match(PAST_MEDICATION_CUE)![0] : undefined;
   });
-  if (cues.some((cue) => !cue)) return undefined;
+  if (cues.some((cue) => !cue)) {
+    // 写明服了几天、N天/周前的疗程（已服完）：按用过算，请患者说明现在是否还在用。
+    const sentences = String(text || "").normalize("NFKC").split(/[。；;\n]+/u).filter((sentence) => sentence.includes(name));
+    if (sentences.length > 0 && sentences.every((sentence) => COMPLETED_COURSE.test(sentence) && !CURRENT_MEDICATION_CUE.test(sentence.replace(/近(?:\d+|[一二两三四五六七八九十半几]+)/gu, "")))) return "ever";
+    return undefined;
+  }
   return cues.some((cue) => /既往/u.test(cue!)) || mentions.some(({ before }) => /既往(?:曾|接受)/u.test(before.slice(-12))) ? "past" : "ever";
 }
 
@@ -1298,3 +1312,6 @@ export function recordedDrugAllergyPhrases(text: string | null | undefined): str
   }
   return phrases.slice(0, 2);
 }
+
+/** 用药仍在继续的写法（「至今」「仍在服」「继续口服」「目前仍」）：句里写了这类话，前面的停药/疗程结束不作数（required-precautions 的已提及用药）。 */
+export const MEDICATION_STILL_TAKING = /至今|仍在|仍服|继续(?:服用|口服|使用)|目前仍/u;

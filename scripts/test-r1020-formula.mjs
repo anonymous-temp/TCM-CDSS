@@ -221,7 +221,8 @@ await check("4.2 交付面兜底：已缓存或模型写出的「若临床」加
 await check("5.1 教材代表方、目录没有逐味相同的原书时，出处只写教材书名：夹具 X-G-0679「加味逍遥散：《中医内科学》内伤发热·气郁发热证代表方」→「加味逍遥散：《中医内科学》」；再投影不变", () => {
   assert.match(F.g0679.prescribe.formula.candidates[0].formulaSource.source, /代表方/);
   const projected = surface.projectDeliveredReasoning(F.g0679.prescribe);
-  assert.equal(projected.formula.candidates[0].formulaSource.source, "加味逍遥散：《中医内科学》");
+  // 第四十一轮起不写教材名：取教材附录自己写的原书（语料第 47422 行「加味逍遥散（《内科摘要》）」，组成与教材行一致）。
+  assert.equal(projected.formula.candidates[0].formulaSource.source, "加味逍遥散：《内科摘要》");
   assert.deepEqual(surface.projectDeliveredReasoning(projected).formula.candidates[0].formulaSource, projected.formula.candidates[0].formulaSource);
 });
 await check("5.2 对照：目录有原书的方（辛夷清肺饮《外科正宗》卷四）出处不动；组成不过半（不按这首方写出处）时旧写法也不碰", () => {
@@ -387,7 +388,8 @@ await check("8.4 S145：开方阶段方名只写了「宣痹汤加减」、辨�
   const projected = surface.projectDeliveredReasoning(F.s145.prescribe);
   const candidate = projected.formula.candidates[0];
   assert.equal(candidate.name, "四妙散合宣痹汤加减");
-  assert.equal(candidate.formulaSource.source, "四妙散：《中医外科学》；宣痹汤：《温病条辨》");
+  // 第四十一轮起四妙散不写教材名：四妙丸出《成方便读》（语料第 50086 行），散剂同方。
+  assert.equal(candidate.formulaSource.source, "四妙散：《成方便读》；宣痹汤：《温病条辨》");
   assert.match(candidate.formulaAnalysis, /^本方以四妙散合宣痹汤为基础加减/);
   assert.deepEqual(surface.projectDeliveredReasoning(projected), projected);
 });

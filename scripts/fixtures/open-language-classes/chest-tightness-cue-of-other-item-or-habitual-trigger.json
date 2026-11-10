@@ -1,0 +1,51 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "chest-tightness-cue-of-other-item-or-habitual-trigger",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-11-10",
+ "trigger": "第四十一轮（r1054 回顾 n03、独立新病历 m22）：情志性胁痛「伴胸闷、腹胀、嗳气频作」与经行乳房胀痛「每逢心情郁闷或与家人争吵后乳房胀痛及胸闷加重，胸闷与劳累、活动无关」都被报「急性或加重胸闷已出现，需先排除急性冠脉综合征」。",
+ "layerAttribution": {
+  "layer": "deterministic_cardiac_rule",
+  "mechanism": "diagnosis-safety.hasScopedAcuteChestTightnessSignal / cardiacAcuteChangeAttachedAt 把同一小句里的变化线索都算到胸闷头上：频度词「频作/频发/频繁」紧跟的是列举里另一项（嗳气、太息、呃逆、小便）；「每逢…郁闷/争吵后…加重」说的是反复发作的诱因而不是本次加重。",
+  "exception": "冻结令允许的确定性例外：构词与闭集守卫。频度词只修饰它前面紧挨的那一项（changeCueHeadsSiblingSymptom）；习惯性情志诱发要同时满足「每逢/每因/每当/每次/每于」+ 情志词 + 病程写明数月以上 + 同一小句无劳力、活动诱因（habitualEmotionalWorsening）。列举末尾的「加重」照旧算整组，没有「每」字的「情绪激动时胸闷加重」照旧报。",
+  "whyDeterministic": "误报出在承重层自己的规则上；语义事实层只能追加风险、不能取消确定性红旗。",
+  "residual": "「胸闷时作时止，每逢阴雨天加重」这类非情志的习惯性诱因不在这一组，仍按加重报。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "兄弟句把胸闷换成不涉心血管的症状，门禁结果必须相同。",
+  "pairs": [
+   {
+    "subject": "与家人争吵后出现右胁肋部胀痛，伴胸闷、腹胀、嗳气频作，纳少。",
+    "sibling": "与家人争吵后出现右胁肋部胀痛，伴腹胀、嗳气频作，纳少。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "腹胀不适一个多月，伴胸闷、呃逆频繁、口干苦。",
+    "sibling": "腹胀不适一个多月，伴口干、呃逆频繁、口苦。",
+    "siblingExpect": "clean"
+   },
+   {
+    "subject": "经前乳房胀痛半年，每逢心情郁闷或与家人争吵后乳房胀痛及胸闷加重，胸闷与劳累、活动无关，无胸痛。",
+    "sibling": "经前乳房胀痛半年，每逢心情郁闷或与家人争吵后乳房胀痛加重，无胸痛。",
+    "siblingExpect": "clean"
+   }
+  ]
+ },
+ "controls": {
+  "note": "胸闷本身的频作、列举末尾的加重、没有「每」字的情志加重、劳力诱发都照报。",
+  "mustStillFlag": [
+   { "text": "近1周胸闷频作，伴乏力。", "flag": "心" },
+   { "text": "近1周胸闷、气短加重。", "flag": "心" },
+   { "text": "3天来情绪激动时胸闷加重。", "flag": "心" },
+   { "text": "半年来每逢劳累、生气后胸闷加重。", "flag": "心" }
+  ]
+ },
+ "measurements": {
+  "before": "subject 3/3 报急性冠脉",
+  "after": "subject 0/3、与兄弟句相同；controls 4/4 照旧报警。语料回放（21,281 例）频度词一项改变 6 例，全是频作/频繁说的另一项（太息、小便、夜尿、矢气、呃逆）。"
+ }
+}
