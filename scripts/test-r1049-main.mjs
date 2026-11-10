@@ -85,7 +85,7 @@ await check("1.2 三条病位依据各自成立：病位、病性保持模型判
 await check("2.1 交付治法：两字项不留、同族后补项去掉、总数不超过上限（教材项数大于三项时按教材）；同字头合写的五六字项不拆", () => {
   assert.equal(surface.clinicalMethodItems("辛温解表，宣肺散寒，通络止痛，化痰"), "辛温解表，宣肺散寒，通络止痛");
   assert.equal(surface.clinicalMethodItems("芳香化湿，解表散寒，止泻，温化寒湿"), "芳香化湿，解表散寒");
-  assert.equal(surface.clinicalMethodItems("健脾益气助运，理气和胃"), "健脾益气助运，理气和胃");
+  assert.equal(surface.clinicalMethodItems("健脾益气助运，理气和胃"), "健脾益气，理气和胃"); // 第四十一轮：拼成的六字项拆回四字
   assert.equal(surface.clinicalMethodItems("辛凉解表，疏风清热，利咽止咳，清热化痰生津"), "辛凉解表，疏风清热，利咽止咳");
   assert.equal(surface.clinicalMethodItems("养血和络，补益肝肾，强壮筋骨，祛风宣痹", 4), "养血和络，补益肝肾，强壮筋骨，祛风宣痹");
   // 只有短项时原样（不删空）。
@@ -268,7 +268,10 @@ await check("7.3 脾虚证 + 病性列了湿、病历两项湿象：脾虚湿困
 // ───── 8 血证分型 ─────
 await check("8.1 血证写到具体一型：主诉鼻出血为鼻衄；鉴别只留讲到鼻衄的（经行衄血），不留血淋；交付病名「血证（鼻衄）」", async () => {
   assert.equal(textbook.textbookDiseaseSubtype("血证", "反复鼻出血3天"), "鼻衄");
-  assert.equal(textbook.textbookDiseaseSubtype("血证", "", "既往牙龈出血，近日鼻出血"), undefined);
+  // 第四十一轮：取本次（非既往）最先写到的肯定提及；既往牙龈出血不算本次的型。
+  assert.equal(textbook.textbookDiseaseSubtype("血证", "", "既往牙龈出血，近日鼻出血"), "鼻衄");
+  assert.equal(textbook.textbookDiseaseSubtype("血证", "尿色鲜红3天", "无鼻衄、齿衄，小便色鲜红"), "尿血");
+  assert.equal(textbook.textbookDiseaseSubtype("血证", "头晕", "舌有瘀斑"), undefined);
   assert.equal(textbook.textbookDifferentialFitsSubtype("血证", "鼻衄", "血淋"), false);
   assert.equal(textbook.textbookDifferentialFitsSubtype("血证", "鼻衄", "经行衄血"), true);
   const reasoning = {
@@ -396,11 +399,11 @@ await check("14.1 同字头两项的后半是同一祛除（降火/清热、化�
   assert.equal(phrasing.mergedSameHeadTherapyPhrases("补肾填精，滋阴清热，滋阴降火"), "补肾填精，滋阴降火");
   assert.equal(phrasing.mergedSameHeadTherapyPhrases("补肾填精，滋阴降火，滋阴清热"), "补肾填精，滋阴降火");
   assert.equal(phrasing.mergedSameHeadTherapyPhrases("活血化瘀，活血祛瘀"), "活血化瘀");
-  assert.equal(phrasing.mergedSameHeadTherapyPhrases("活血化瘀，活血行气"), "活血化瘀行气");
-  assert.equal(phrasing.mergedSameHeadTherapyPhrases("健脾和胃，健脾益气"), "健脾益气和胃");
-  assert.equal(phrasing.mergedSameHeadTherapyPhrases("清热解毒，清热利湿"), "清热解毒利湿");
+  assert.equal(phrasing.mergedSameHeadTherapyPhrases("活血化瘀，活血行气"), "活血化瘀"); // 第四十一轮：不拼六字
+  assert.equal(phrasing.mergedSameHeadTherapyPhrases("健脾和胃，健脾益气"), "健脾益气"); // 第四十一轮：不拼六字
+  assert.equal(phrasing.mergedSameHeadTherapyPhrases("清热解毒，清热利湿"), "清热解毒");
   // 对象相同但不是两个祛除动作（凉血与止血）：照旧合写，不丢一项
-  assert.equal(phrasing.mergedSameHeadTherapyPhrases("清热凉血，清热止血"), "清热凉血止血");
+  assert.equal(phrasing.mergedSameHeadTherapyPhrases("清热凉血，清热止血"), "清热凉血");
 });
 
 // ───── 15 病性：模型自定有界时的说法、寒热依据的维度 ─────
@@ -418,21 +421,28 @@ await check("15.1 模型自定病性为有界、依据逐字可回溯时，不�
   const nature = { items: ["阳虚", "寒凝"], rootDeficiency: ["阳虚"], branchExcess: ["寒凝"], basis: "畏寒、肢冷", resolution: "bounded" };
   const named = natureOut(natureCase({ ...nature }, [{ item: "寒凝程度", reason: "未记录疼痛喜温", affects: "病性寒凝" }]), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
   assert.equal(named.resolution, "bounded");
-  assert.equal(named.resolutionReason, "病性“阳虚、寒凝”已有病历依据，寒凝程度尚待核实");
+  assert.equal(named.resolutionReason, "病性“阳虚、寒凝”中寒凝程度尚待核实"); // 第四十一轮：不写「已有病历依据」这类说明句
   const byAffects = natureOut(natureCase({ ...nature }, [{ item: "疼痛性质", reason: "未记录", affects: "病性判断" }]), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
-  assert.equal(byAffects.resolutionReason, "病性“阳虚、寒凝”已有病历依据，疼痛性质尚待核实");
+  assert.equal(byAffects.resolutionReason, "病性“阳虚、寒凝”中疼痛性质尚待核实");
   const unnamed = natureOut(natureCase({ ...nature }), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
-  assert.equal(unnamed.resolutionReason, "病性“阳虚、寒凝”已有病历依据，其中个别要素尚待复诊核实");
+  assert.equal(unnamed.resolutionReason, "病性“阳虚、寒凝”中个别要素尚缺直接的病历依据");
   const ungrounded = natureOut(natureCase({ ...nature, basis: "四肢厥逆" }), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
-  assert.match(ungrounded.resolutionReason, /缺少可逐字回溯/u);
+  assert.match(ungrounded.resolutionReason, /尚缺直接的病历依据/u);
 });
 await check("15.2 寒热病性的依据维度认得畏寒、肢冷、五心烦热、口干：「畏寒、肢冷；脉沉细」两维不降档；只有舌一维照旧降", () => {
   const resolvedCold = { items: ["阳虚", "寒凝"], rootDeficiency: ["阳虚"], branchExcess: ["寒凝"], basis: "畏寒、肢冷；脉沉细", resolution: "resolved", evidence: { evidenceLevel: "model_inference", source: "本例", confidence: "中" } };
   assert.equal(natureOut(natureCase(resolvedCold), visible.applyM03AdvisoryQualityBoundaries, coldRecord).resolution, "resolved");
   const heat = { items: ["阴虚", "虚火"], rootDeficiency: ["阴虚"], branchExcess: ["虚火"], basis: "五心烦热；口干", resolution: "resolved", evidence: { evidenceLevel: "model_inference", source: "本例", confidence: "中" } };
   assert.equal(natureOut(natureCase(heat), visible.applyM03AdvisoryQualityBoundaries, "五心烦热，口干。").resolution, "resolved");
+  // 第四十一轮：依据栏只摘了舌象、病历本身另有畏寒肢冷时，读病历补足依据，仍按已确定；病历也只有舌象时才有界，并点名缺什么。
   const tongueOnly = { ...resolvedCold, basis: "舌淡，苔白" };
-  assert.equal(natureOut(natureCase(tongueOnly), visible.applyM03AdvisoryQualityBoundaries, coldRecord).resolution, "bounded");
+  const augmented = natureOut(natureCase(tongueOnly), visible.applyM03AdvisoryQualityBoundaries, coldRecord);
+  assert.equal(augmented.resolution, "resolved");
+  assert.match(augmented.basis, /畏寒/u);
+  const sparse = natureOut(natureCase(tongueOnly), visible.applyM03AdvisoryQualityBoundaries, "双膝关节隐痛2年。舌淡，苔白。");
+  assert.equal(sparse.resolution, "bounded");
+  assert.match(sparse.resolutionReason, /^寒热属性目前只见于「舌淡」/u);
+  assert.doesNotMatch(sparse.resolutionReason, /少于两个方面|只有一个方面|依据有\d条/u);
 });
 
 // ───── 16 名称核对：一次 C 一次 D 时按两次原本给的名称比 ─────
@@ -532,10 +542,15 @@ await check("15.3 模型自定病位为有界、每个病位都有逐字依据�
   })}\n<!-- DIAGNOSIS_JSON_END -->`;
   const loc = (content) => { const out = summary.sanitizeOptionalPathogenesisClassifications(content, record); return JSON.parse(out.slice(out.indexOf("START -->") + 9, out.indexOf("<!-- DIAGNOSIS_JSON_END"))).pathogenesis.locationDifferentiation; };
   const both = [{ location: "胃", basis: "饭后1小时腹胀嗳气" }, { location: "肝", basis: "工作紧张时加重" }];
-  assert.equal(loc(base(both)).resolution, "bounded");
-  assert.equal(loc(base(both)).resolutionReason, "病位“胃、肝”已有病历依据，其中个别病位尚待复诊核实");
-  assert.equal(loc(base(both, [{ item: "肝郁程度", reason: "未记录胁痛", affects: "病位判断" }])).resolutionReason, "病位“胃、肝”已有病历依据，肝郁程度尚待核实");
-  assert.match(loc(base([{ location: "胃", basis: "饭后1小时腹胀嗳气" }])).resolutionReason, /仅有1条/u);
+  // 第四十一轮：每个病位都有病历原文依据就按已确定，舌脉记没记、模型点没点名待核实项都不改变（点名的项留在待核实栏）。
+  assert.equal(loc(base(both)).resolution, "resolved");
+  assert.equal(loc(base(both, [{ item: "肝郁程度", reason: "未记录胁痛", affects: "病位判断" }])).resolution, "resolved");
+  // 有病位缺依据时有界，说明点名缺依据的病位，不写计数句。
+  const partial = loc(base([{ location: "胃", basis: "饭后1小时腹胀嗳气" }]));
+  assert.equal(partial.resolution, "bounded");
+  assert.equal(partial.resolutionReason, "病位肝尚缺直接的病历依据");
+  // 病位栏与依据栏写法不同的同一病位（胃/胃脘）算有依据。
+  assert.equal(loc(base([{ location: "胃脘", basis: "饭后1小时腹胀嗳气" }, { location: "肝", basis: "工作紧张时加重" }])).resolution, "resolved");
 });
 
 await check("16.3 西医主诊断收尾按规范写法归一：「妊娠期恶心呕吐」「妊娠期一过性恶心呕吐」都交付「妊娠呕吐」（待查后缀保留）", async () => {

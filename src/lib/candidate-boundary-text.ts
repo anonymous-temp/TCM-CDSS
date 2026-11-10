@@ -8,8 +8,10 @@
  * 生成与剥离放在同一个文件里：尾段长什么样只有这里知道，编译器与出处富化都调同一个剥离函数。
  */
 import modificationRelevanceJson from "../data/tcm-modification-relevance.source.json";
+import { chpPregnancyLabel } from "./conception-herb-policy";
+import { getTcmHerbFunctionCategories } from "./tcm-knowledge";
 
-export type HerbBoundaryRule = { population: string; severity: "LOW" | "MEDIUM" | "HIGH" };
+export type HerbBoundaryRule = { population: string; severity: "LOW" | "MEDIUM" | "HIGH"; basis?: string };
 export type HerbBoundaryProfile = { herb: string; isToxic: boolean; toxicity: readonly string[]; populationRules: readonly HerbBoundaryRule[] };
 
 const HERB_BOUNDARY_MARKER = "各药毒性与特殊人群提示：";
@@ -56,13 +58,34 @@ export function hasHerbBoundaryTail(text: string): boolean {
 }
 
 /** 单味药的提示；没有毒性也没有中高等级人群规则时返回 undefined。给了 audience 时只列本例可能属于的人群。 */
+/**
+ * 慎用级的孕哺提示只列有药典依据的（第四十一轮 r1054 回顾：孕妇方写「砂仁、木香、陈皮属孕期慎用药」，安胎止呕的方子自相矛盾）：
+ * 孕期一档按《中国药典》2020 一部孕妇禁用/慎用名单（tcm-chp-pregnancy-herb-labels）或规则依据写明药典；哺乳期一档依据写明药典。
+ * 依据只是功效分类、关键词、TCMSP 抽取的慎用条不在给医生的提示里列。禁用级（HIGH）照列。
+ * 止血药（《中药学》止血药一章：蒲黄、三七、仙鹤草…）的「出血倾向」一段不列：它就是用来止血的；「抗凝状态」照列（相互作用）。
+ */
+function boundaryRuleShown(herb: string, rule: HerbBoundaryRule): boolean {
+  if (rule.severity !== "MEDIUM") return true;
+  const population = rule.population;
+  const basis = String(rule.basis || "");
+  // 「中药数据规范（药典、中华本草、中药学）功效归类」只是功效分类的出处说明，不算药典【注意】原文。
+  const pharmacopoeiaText = /中国药典|药典\s*20\d\d|【注意】/u.test(basis);
+  if (population.includes("孕") || population.includes("妊娠")) return Boolean(chpPregnancyLabel(herb)) || pharmacopoeiaText;
+  if (population.includes("哺乳")) return pharmacopoeiaText;
+  return true;
+}
+function populationLabelForHerb(herb: string, population: string): string {
+  if (!population.includes("出血倾向") || !getTcmHerbFunctionCategories(herb).some((category) => category === "止血药" || category.endsWith("止血药"))) return population;
+  return population.split("/").filter((part) => !part.includes("出血倾向")).join("/");
+}
+
 export function herbBoundaryNote(profile: HerbBoundaryProfile, audience?: HerbBoundaryAudience): string | undefined {
   const parts = [
     ...(profile.isToxic && profile.toxicity.length > 0 ? [`毒性：${profile.toxicity.join("、")}`] : []),
     ...SEVERITY_WORDING.flatMap(([severity, wording]) => {
       const populations = [...new Set(profile.populationRules
-        .filter((rule) => rule.severity === severity && herbBoundaryPopulationRelevant(rule.population.trim(), audience))
-        .map((rule) => herbBoundaryPopulationLabel(rule.population.trim(), audience))
+        .filter((rule) => rule.severity === severity && herbBoundaryPopulationRelevant(rule.population.trim(), audience) && boundaryRuleShown(profile.herb, rule))
+        .map((rule) => herbBoundaryPopulationLabel(populationLabelForHerb(profile.herb, rule.population.trim()), audience))
         .filter(Boolean))];
       return populations.length > 0 ? [`${populations.join("、")}${wording}`] : [];
     }),

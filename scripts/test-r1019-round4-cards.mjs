@@ -492,7 +492,7 @@ check("11.7 按证型配了穴时治法写已签名的那一条（S131 脾虚湿
   assert.match(spleen.treatmentContent, /^治法：健脾利湿止痒。取皮损局部和足太阴经穴为主。本例属脾虚湿蕴/, spleen.treatmentContent);
   assert.doesNotMatch(spleen.treatmentContent, /清热利湿，润燥息风/);
   const untailored = acupuncture({ diseaseNames: ["湿疮"], signedSyndromeText: "湿瘀互结证", signedMethod: "利湿化瘀", currentFacts: "皮损肥厚" });
-  assert.match(untailored.treatmentContent, /^按病取基本穴/, untailored.treatmentContent);
+  assert.match(untailored.treatmentContent, /^取/, untailored.treatmentContent);
   const tremor = acupuncture({ diseaseNames: ["颤证"], signedSyndromeText: "气血亏虚证", signedMethod: "益气养血，濡养筋脉", currentFacts: "震颤，乏力，心悸" });
   assert.match(tremor.treatmentContent, /^治法：益气养血，濡养筋脉。以督脉、足厥阴、足少阳经穴为主。/, tremor.treatmentContent);
 });

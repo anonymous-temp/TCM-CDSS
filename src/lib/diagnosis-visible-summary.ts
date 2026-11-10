@@ -1,5 +1,6 @@
 import { chineseDurationNumber, discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote, stableM03CoreTextWithoutHedges } from "./diagnosis-stage-contract";
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
+import coldHeatSignsJson from "../data/tcm-cold-heat-signs.source.json" with { type: "json" };
 import { pediatricDoseRuleForAgeYears } from "./pediatric-dose-rule";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement, SPECIAL_DECOCTION_ORDER, specialDecoctionOrderIndexes, withOneOfDecoctionResolved, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
@@ -12,7 +13,7 @@ import { namedFormulaDecoctionProfile } from "./formula-decoction-profile";
 import { rationaleAlignedWithRenamedPrimary } from "./western-rationale-alignment";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { NARROWER_THAN_GROUP_CANONICAL, NARROWER_TERM_SYNONYMS, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, redFlagDoseAuthorizationAllowed, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
+import { NARROWER_THAN_GROUP_CANONICAL, NARROWER_TERM_SYNONYMS, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, clauseLocalMentionPolarityAt, redFlagDoseAuthorizationAllowed, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
 import { assessPregnancyState } from "./clinical-state";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
@@ -214,7 +215,9 @@ export function annotateM03DecisionSpecificityBoundary(
   boundary: { reason: string; mustCollect: string; activeRedFlag: boolean; pregnancyWarning?: "early" | "unspecified" },
 ): string {
   const { reason, mustCollect, activeRedFlag, pregnancyWarning } = boundary;
-  const UNCERTAINTY_ITEM = "辨证与方剂具体度边界";
+  // 待核实栏的条目名写给医生看（第四十一轮 r1054 回顾：「辨证与方剂具体度边界」是系统讲自己档位的话）。旧名照样认出并替换，幂等。
+  const UNCERTAINTY_ITEM = activeRedFlag ? "急危重风险尚未排除" : "辨证所需信息尚不完整";
+  const UNCERTAINTY_ITEM_NAMES = new Set(["辨证与方剂具体度边界", "急危重风险尚未排除", "辨证所需信息尚不完整"]);
   const redFlagFirst = redFlagDoseAuthorizationAllowed()
     ? "急危重风险未排除：请优先完成急诊或转诊评估并记录排除或处置依据；以下辨证与治法结论供医生参考，正式采纳须在风险处置之后。"
     : "急危重风险未排除：请优先完成急诊或转诊评估并记录排除或处置依据；以下辨证与治法结论供医生参考，正式采纳与具体用量须在风险处置之后。";
@@ -260,7 +263,7 @@ export function annotateM03DecisionSpecificityBoundary(
           : undefined;
         if (pathogenesis) {
           const existing = (Array.isArray(pathogenesis.uncertainties) ? pathogenesis.uncertainties : [])
-            .filter((row) => !(row && typeof row === "object" && (row as Record<string, unknown>).item === UNCERTAINTY_ITEM));
+            .filter((row) => !(row && typeof row === "object" && UNCERTAINTY_ITEM_NAMES.has(String((row as Record<string, unknown>).item))));
           pathogenesis.uncertainties = [
             {
               item: UNCERTAINTY_ITEM,
@@ -809,8 +812,12 @@ export function normalizeM03StructuralDuplicates(content: string): string {
 }
 
 function lowerEvidenceConfidence(value: unknown): void {
+  setEvidenceConfidence(value, "低");
+}
+
+function setEvidenceConfidence(value: unknown, level: "低" | "中"): void {
   if (!value || typeof value !== "object" || Array.isArray(value)) return;
-  (value as Record<string, unknown>).confidence = "低";
+  (value as Record<string, unknown>).confidence = level;
 }
 
 /**
@@ -858,10 +865,14 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       if (finalResolution === "resolved") delete overview.primarySyndromeResolutionReason;
       else {
         const groundedBasisCount = (overview.primarySyndromeBasis as string[]).length;
+        // 不写「仅有N条依据」这类计数句（第四十一轮）：有依据时点名模型写的待核实项，没有依据时说缺直接依据。
+        const pendingSyndromeItem = groundedBasisCount > 0 ? natureUncertaintyItem(reasoning.pathogenesis && typeof reasoning.pathogenesis === "object" ? (reasoning.pathogenesis as Record<string, unknown>).uncertainties : undefined, syndrome, "证") : "";
         overview.primarySyndromeResolutionReason = typeof overview.primarySyndromeResolutionReason === "string" && overview.primarySyndromeResolutionReason.trim()
           ? overview.primarySyndromeResolutionReason.trim()
           : finalResolution === "bounded"
-            ? `证型“${syndrome}”仅有${groundedBasisCount}条可逐字回溯的本例依据，尚未达到稳定结论所需证据`
+            ? groundedBasisCount > 0
+              ? `证型“${syndrome}”${pendingSyndromeItem ? `的${pendingSyndromeItem}尚待核实` : "尚待复诊进一步核实"}`
+              : `证型“${syndrome}”尚缺直接的病历依据，尚需进一步明确`
             : "本例记录尚未形成可供判断的证型名称与可回溯依据";
         lowerEvidenceConfidence(overview.evidence);
       }
@@ -898,29 +909,33 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       }
       const itemSet = new Set(location.items as string[]);
       const detailedLocations = new Set((location.details as Array<{ location: string }>).map((detail) => detail.location));
-      const fullyGrounded = itemSet.size > 0 && [...itemSet].every((item) => detailedLocations.has(item));
+      // 病位栏与依据栏写法不同的同一病位（皮毛/肌表、胃/胃脘，按受治理病位词表；脾胃之于脾、胃这类包含关系）算有依据：
+      // 此前逐字比，「肺、皮毛」配「肌表←躯干部出现红色斑丘疹」被判皮毛无依据而整轴有界（第四十一轮，r1054 回顾 n25、n27）。
+      const sameLocation = (a: string, b: string) => {
+        if (a === b) return true;
+        const ca = canonicalTcmLocationTerm(a)?.id, cb = canonicalTcmLocationTerm(b)?.id;
+        if (ca && cb) return ca === cb;
+        return a.length >= 1 && b.length >= 1 && (a.includes(b) || b.includes(a));
+      };
+      const locationGrounded = (item: string) => [...detailedLocations].some((detail) => sameLocation(item, detail));
+      const fullyGrounded = itemSet.size > 0 && [...itemSet].every(locationGrounded);
       const requested = resolutionValue(location.resolution);
-      // 舌脉都记录了、每个病位都有逐字依据、模型也没在不确定项里点出这一轴的哪一项待核实：模型写的「有界」没有理由，按已确定交付
-      //（第三十八轮；甲方 11.05「病位病性低置信」，DeepSeek 不说明就写有界）。舌脉缺一项、或点名了待核实项的仍按有界。
-      const unexplainedBounded = requested === "bounded" && fullyGrounded && recordHasTongueAndPulse(clinicalContext) &&
-        !natureUncertaintyItem(pathogenesis?.uncertainties, [...itemSet].join("、"), "病位");
+      // 每个病位都有逐字依据：按已确定交付，模型写的「有界」不改变结论；它点名的待核实项照旧留在「待核实」栏
+      //（第四十一轮，r1054 回顾：甲方 11/4–11/6 自己的 25 份里 21 份病位/病性标「初步判断、可信度低」，病位靠的是主症本身——咳嗽之于肺、
+      // 腹痛之于胃——与舌脉记没记、某症状的性质是否待问无关）。第三十八轮只在舌脉齐全、模型没点名时才这样做。
+      const unexplainedBounded = requested === "bounded" && fullyGrounded;
       const finalResolution: ClinicalResolutionValue = itemSet.size === 0
         ? "unresolved"
         : (requested === "resolved" || unexplainedBounded) && fullyGrounded ? "resolved" : "bounded";
       location.resolution = finalResolution;
       if (finalResolution === "resolved") delete location.resolutionReason;
       else {
-        const locationLabel = joinClinicalClauses([...itemSet], "、") || "未定";
-        // 模型自己定为有界、而每个病位都有逐字可回溯的依据：不写「依据有N条」（N 条就是全部病位，读来像依据不足，2026-11-08 第三十七轮
-        // 甲方 11.05「病机分析：机械句式、结论与推理不一致」）。写模型在 uncertainties 里点名的那一项；没点名时只说个别病位待核实。
-        const pendingLocation = fullyGrounded ? natureUncertaintyItem(pathogenesis?.uncertainties, locationLabel, "病位") : "";
-        location.resolutionReason = typeof location.resolutionReason === "string" && location.resolutionReason.trim()
-          ? location.resolutionReason.trim()
-          : finalResolution === "bounded"
-            ? fullyGrounded
-              ? `病位“${locationLabel}”已有病历依据，${pendingLocation ? `${pendingLocation}尚待核实` : "其中个别病位尚待复诊核实"}`
-              : `病位“${locationLabel}”仅有${(location.details as unknown[]).length}条互相独立且可逐字回溯的本例依据`
-            : "本例记录中没有可稳定归属的病位及其依据";
+        // 有界只剩一种：有的病位没有病历原文依据。说明里点名是哪几个病位缺依据，不写「依据有N条」「只有一个方面」这类计数句
+        //（甲方 11.05「病机分析：机械句式」；第四十一轮）。
+        const ungroundedLocations = [...itemSet].filter((item) => !locationGrounded(item));
+        location.resolutionReason = finalResolution === "bounded"
+          ? `病位${joinClinicalClauses(ungroundedLocations.length > 0 ? ungroundedLocations : [...itemSet], "、")}尚缺直接的病历依据`
+          : "本例记录中没有可稳定归属的病位及其依据";
         lowerEvidenceConfidence(location.evidence);
       }
     }
@@ -931,6 +946,14 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
     if (nature) {
       for (const key of ["items", "rootDeficiency", "branchExcess"] as const) {
         nature[key] = semanticItems(nature[key]);
+      }
+      // 虚热、虚火（「虚火上扰」「虚热内扰」）是阴虚所生的热，属本虚，不是标实（第四十一轮 r1054 回顾：标实栏写「虚热」，
+      // 治则写虚则补之，读来自相矛盾）。只挪栏位，不增删病性。
+      const deficiencyHeat = (item: string) => /^虚(?:热|火)|阴虚(?:火旺|内热)/u.test(item);
+      const movedToRoot = (nature.branchExcess as string[]).filter(deficiencyHeat);
+      if (movedToRoot.length > 0) {
+        nature.branchExcess = (nature.branchExcess as string[]).filter((item) => !deficiencyHeat(item));
+        nature.rootDeficiency = [...new Set([...(nature.rootDeficiency as string[]), ...movedToRoot])];
       }
       // 病性栏放的是属性词(气虚/血瘀/寒/热)。写成机理句(胃失和降、气机郁滞)的条目是填错栏位:
       // 同一临床内容已经完整保留在 overallPathogenesis 与 pathogenesis.chain 中。这里只删除
@@ -945,11 +968,11 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
         ...(nature.rootDeficiency as string[]),
         ...(nature.branchExcess as string[]),
       ])];
-      // 同病位：舌脉都记录了、依据按病性逐段摘了原文（段数不少于病性个数）、不确定项没点到这一轴时，没有理由的「有界」按已确定交付。
+      // 同病位：依据按病性逐段摘了原文（段数不少于病性个数）时按已确定交付；模型点名的待核实项留在「待核实」栏（第四十一轮，同上）。
+      // 寒热属性另有一道核对：病性栏写了寒或热，依据要有两个以上维度（applyM03AdvisoryQualityBoundaries，读病历本身的寒热见证）。
       const basisSegments = String(groundedBasis || "").split(/[；;]/u).map((segment) => segment.trim()).filter((segment) => segment.length >= 2);
       const unexplainedBounded = requested === "bounded" && Boolean(groundedBasis) && natureElements.length > 0 &&
-        basisSegments.length >= natureElements.length && recordHasTongueAndPulse(clinicalContext) &&
-        !natureUncertaintyItem(pathogenesis?.uncertainties, natureElements.join("、"));
+        basisSegments.length >= natureElements.length;
       const finalResolution: ClinicalResolutionValue = !hasClassification
         ? "unresolved"
         : (requested === "resolved" || unexplainedBounded) && Boolean(groundedBasis) ? "resolved" : "bounded";
@@ -961,17 +984,15 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
           ...(nature.rootDeficiency as string[]),
           ...(nature.branchExcess as string[]),
         ])], "、") || "未定";
-        // 模型自己定为有界、而依据是逐字可回溯的：不能再说「缺少依据」（2026-11-08 第三十七轮，甲方 11.05 病机分析「结论与推理不一致」）。
-        // 写模型在 uncertainties 里点名的那一项；没点名时只说个别要素待核实。
+        // 有界时说明缺的是哪一项：模型在 uncertainties 里点名的那一项，否则说依据未逐项覆盖（不写计数句，第四十一轮）。
         const pendingItem = groundedBasis ? natureUncertaintyItem(pathogenesis?.uncertainties, natureLabel) : "";
-        nature.resolutionReason = typeof nature.resolutionReason === "string" && nature.resolutionReason.trim()
-          ? nature.resolutionReason.trim()
-          : finalResolution === "bounded"
-            ? groundedBasis
-              ? `病性“${natureLabel}”已有病历依据，${pendingItem ? `${pendingItem}尚待核实` : "其中个别要素尚待复诊核实"}`
-              : `病性“${natureLabel}”缺少可逐字回溯的本例依据，暂不能标记为已解决`
-            : "本例记录中没有可稳定归纳的病性及其依据";
-        lowerEvidenceConfidence(nature.evidence);
+        nature.resolutionReason = finalResolution === "bounded"
+          ? groundedBasis
+            ? `病性“${natureLabel}”${pendingItem ? `中${pendingItem}尚待核实` : "中个别要素尚缺直接的病历依据"}`
+            : `病性“${natureLabel}”尚缺直接的病历依据`
+          : "本例记录中没有可稳定归纳的病性及其依据";
+        if (groundedBasis && finalResolution === "bounded") setEvidenceConfidence(nature.evidence, "中");
+        else lowerEvidenceConfidence(nature.evidence);
       }
     }
 
@@ -1021,17 +1042,6 @@ function natureUncertaintyItem(rawUncertainties: unknown, natureLabel: string, a
   return "";
 }
 
-const M03_LOCATION_QUALITY_DIMENSIONS = [
-  /舌|苔/,
-  /脉/,
-  /大便|排便|便秘|便溏|下利|泄泻/,
-  /小便|排尿|尿色|尿量|尿频|尿急/,
-  /恶寒|恶热|怕冷|怕热|发热|寒热/,
-  /汗出|无汗|自汗|盗汗|大汗/,
-  /睡眠|入睡|早醒|夜醒|失眠/,
-  /胃口|食欲|进食|纳差|不欲食/,
-] as const;
-
 // 寒热病性的独立证据维度。2026-11-08 第三十七轮（甲方 11.05「病位病性低置信」）：最常见的寒热感写法（畏寒、肢冷、四肢不温、
 // 五心烦热、潮热）与津液写法（口干、咽干）不在表里，「畏寒、肢冷，脉沉细」只数到脉一项、被降成有界。同一维度的写法归一组，不加新维度。
 const M03_COLD_HEAT_QUALITY_DIMENSIONS = [
@@ -1049,6 +1059,53 @@ const M03_COLD_HEAT_QUALITY_DIMENSIONS = [
 
 function m03QualityDimensionCount(text: string, dimensions: readonly RegExp[]): number {
   return dimensions.filter((pattern) => pattern.test(text)).length;
+}
+
+type ColdHeatPole = "cold" | "heat";
+const COLD_HEAT_SIGN_DIMENSIONS = (coldHeatSignsJson as { dimensions: Array<{ dimension: string; cold: string; heat: string }> }).dimensions
+  .map((row) => ({
+    dimension: row.dimension,
+    cold: row.cold ? new RegExp(row.cold, "gu") : null,
+    heat: row.heat ? new RegExp(row.heat, "gu") : null,
+  }));
+
+/** 病性栏写到的寒热属性：寒/凉 → 寒，热/火/温 → 热（「寒热错杂」两者都有）。 */
+export function coldHeatPolesOfNatureLabels(labels: string): ColdHeatPole[] {
+  const text = String(labels || "");
+  return [
+    ...(/[寒凉]/u.test(text) ? ["cold" as const] : []),
+    ...(/[热火温]/u.test(text) ? ["heat" as const] : []),
+  ];
+}
+
+/**
+ * 病历里支持某一寒热属性的见证：按维度（面色、寒热感、胸腹喜恶、口渴、痰涕涎、小便、大便、神志、舌、脉）归组，
+ * 只认肯定的提及（否认、未问及、他人的不算）。返回维度集合与所在分句原文。
+ */
+export function recordColdHeatSupport(recordText: string, pole: ColdHeatPole): { dimensions: Set<string>; quotes: string[]; terms: string[] } {
+  const text = String(recordText || "").normalize("NFKC");
+  const dimensions = new Set<string>();
+  const quotes: string[] = [];
+  const terms: string[] = [];
+  for (const row of COLD_HEAT_SIGN_DIMENSIONS) {
+    const pattern = row[pole];
+    if (!pattern) continue;
+    pattern.lastIndex = 0;
+    for (const match of text.matchAll(pattern)) {
+      const at = match.index ?? 0;
+      // 只看所在逗号分句的读法（clauseLocalMentionPolarityAt）：「无畏寒，无肢冷，舌淡」的舌淡是肯定的；补依据只加不删，宁可少认。
+      if (clauseLocalMentionPolarityAt(text, at) !== "affirmed") continue;
+      dimensions.add(row.dimension);
+      if (!terms.includes(match[0])) terms.push(match[0]);
+      const left = Math.max(text.lastIndexOf("，", at), text.lastIndexOf(",", at), text.lastIndexOf("。", at), text.lastIndexOf("；", at), text.lastIndexOf("\n", at), text.lastIndexOf("：", at));
+      const rightCandidates = ["，", ",", "。", "；", "\n"].map((mark) => text.indexOf(mark, at)).filter((index) => index >= 0);
+      const right = rightCandidates.length > 0 ? Math.min(...rightCandidates) : text.length;
+      const quote = text.slice(left + 1, right).trim();
+      if (quote && quote.length <= 30 && !quotes.includes(quote)) quotes.push(quote);
+      break;
+    }
+  }
+  return { dimensions, quotes, terms };
 }
 
 const NONDIAGNOSTIC_WESTERN_SUPPORT = /^(?:不限定|未限定|既往体健|无特殊病史|无用药史|无过敏史|纳可|纳眠可|二便正常|大小便正常|口不渴(?:，?二便正常)?|面色正常|神清)$/;
@@ -1481,19 +1538,10 @@ export function applyM03AdvisoryQualityBoundaries(content: string, clinicalConte
       lowerEvidenceConfidence(overview.evidence);
     }
 
+    // 病位：每个病位都有自己的病历原文依据就是已确定（sanitizeOptionalPathogenesisClassifications 已保证），不再按问诊维度表
+    //（舌脉、二便、寒热、汗、眠、纳）数「几个方面」——病位靠主症本身：胞睑肿胀之于胞睑、拒食之于脾胃（第四十一轮，r1054 回顾
+    //「病位判断目前只有一个方面的依据」出现在眼科、儿科厌食这类主症就是部位的病历上）。
     const location = recordValue(pathogenesis.locationDifferentiation);
-    if (location?.resolution === "resolved") {
-      const bases = recordList(location.details).map((item) => markdownCell(item.basis)).filter(Boolean);
-      const basis = bases.join("；");
-      // 两个以上病位各有自己的病历原文依据（「咳嗽、咳黄黏痰」之于肺、「咽部红肿疼痛」之于咽喉）就不是单一依据：病位靠的是各脏腑本身的症状，
-      // 问诊维度表（舌脉、二便、寒热、汗、眠、纳）里没有咳嗽、咽痛、心悸这些主症（2026-11-08 第三十七轮，甲方 11.05「病位病性低置信」17/17）。
-      const distinctLocations = new Set(recordList(location.details).filter((item) => markdownCell(item.basis)).map((item) => markdownCell(item.location)).filter(Boolean));
-      if (new Set(bases).size < 2 || distinctLocations.size < 2 ? m03QualityDimensionCount(basis, M03_LOCATION_QUALITY_DIMENSIONS) < 2 : false) {
-        location.resolution = "bounded";
-        location.resolutionReason = "病位归纳目前只有单一证据维度支持，已按有界建议展示。";
-        lowerEvidenceConfidence(location.evidence);
-      }
-    }
     const nature = recordValue(pathogenesis.natureDifferentiation);
     if (nature?.resolution === "resolved") {
       const labels = [
@@ -1502,11 +1550,23 @@ export function applyM03AdvisoryQualityBoundaries(content: string, clinicalConte
         ...semanticItems(nature.branchExcess),
       ].join("；");
       const basis = markdownCell(nature.basis);
-      if (/寒|热|火|温|凉/.test(labels) &&
-          m03QualityDimensionCount(basis, M03_COLD_HEAT_QUALITY_DIMENSIONS) < 2) {
-        nature.resolution = "bounded";
-        nature.resolutionReason = "寒热病性目前缺少两个以上相互独立的证据维度，已按有界建议展示。";
-        lowerEvidenceConfidence(nature.evidence);
+      const poles = coldHeatPolesOfNatureLabels(labels);
+      // 病性写了寒或热、依据栏不到两个维度时，读病历本身的寒热见证（《中医诊断学》寒证、热证的证候表现，按维度归组），
+      // 够两个维度就把这些原文补进依据、仍按已确定交付；不够才有界，并点名缺什么（第四十一轮，r1054 回顾 n23：病历写了四肢欠温、
+      // 喜温喜按、小便清、大便溏薄、舌淡，依据栏只摘了舌象，被判「寒热属性的依据少于两个方面」）。
+      if (poles.length > 0 && m03QualityDimensionCount(basis, M03_COLD_HEAT_QUALITY_DIMENSIONS) < 2) {
+        const support = poles.map((pole) => recordColdHeatSupport(clinicalContext, pole));
+        if (support.every((item) => item.dimensions.size >= 2)) {
+          const quotes = [...new Set(support.flatMap((item) => item.quotes))].filter((quote) => !basis.includes(quote));
+          nature.basis = [basis, ...quotes].filter(Boolean).join("；");
+        } else {
+          const seen = [...new Set(support.flatMap((item) => item.quotes))];
+          nature.resolution = "bounded";
+          nature.resolutionReason = seen.length > 0
+            ? `寒热属性目前只见于「${[...new Set(support.flatMap((item) => item.terms))].slice(0, 3).join("、")}」${recordHasTongueAndPulse(clinicalContext) ? "" : "，舌脉未完整记录"}，尚待核实`
+            : `寒热属性尚缺直接的病历依据${recordHasTongueAndPulse(clinicalContext) ? "" : "（舌脉未完整记录）"}，尚待核实`;
+          setEvidenceConfidence(nature.evidence, "中");
+        }
       }
     }
 

@@ -569,6 +569,19 @@ export function governedTreatmentMethodOccurrencesInText(
     left.index - right.index || right.entry.canonical.length - left.entry.canonical.length);
 }
 
+let governedFourCharacterMethods: string[] | undefined;
+/** 受治理治法词表里全部四字写法（规范名与别名）。交付治法把拼成的六字项拆回四字项时用（delivered-surface standardMethodItems）。 */
+export function governedFourCharacterMethodTerms(): readonly string[] {
+  if (governedFourCharacterMethods) return governedFourCharacterMethods;
+  const terms = new Set<string>();
+  for (const entry of treatmentPrincipleEntries) {
+    if (entry.termClass === "category_heading" || entry.relationPolicy !== "method_requires_case_binding") continue;
+    for (const term of [entry.canonical, ...entry.aliases]) if (/^[\u4e00-\u9fff]{4}$/u.test(String(term || "").trim())) terms.add(String(term).trim());
+  }
+  governedFourCharacterMethods = [...terms];
+  return governedFourCharacterMethods;
+}
+
 /**
  * 治法族标识：GB/T 16751.3 层级编号去掉末段。同族 = 同一治法大方向。
  *

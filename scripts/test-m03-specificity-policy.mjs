@@ -89,8 +89,9 @@ const state = (level, status) => ({
 const parsed = (value) => JSON.parse(value.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
 
 // 投影是否触发：标注边界会写入这一条可见的不确定项；未触发时内容逐字节原样返回。
-const BOUNDARY_ITEM = "辨证与方剂具体度边界";
-const boundaryAnnotated = (result) => result.pathogenesis.uncertainties.some((row) => row.item === BOUNDARY_ITEM);
+// 第四十一轮：条目名改成写给医生的话（红旗：急危重风险尚未排除；其余：辨证所需信息尚不完整），旧名「辨证与方剂具体度边界」不再出现。
+const BOUNDARY_ITEMS = new Set(["急危重风险尚未排除", "辨证所需信息尚不完整"]);
+const boundaryAnnotated = (result) => result.pathogenesis.uncertainties.some((row) => BOUNDARY_ITEMS.has(row.item)) && !result.pathogenesis.uncertainties.some((row) => row.item === "辨证与方剂" + "具体度边界");
 
 assert.equal(applyM03DecisionSpecificityPolicy(content, state("C", "ready")), content, "C-level ready cases retain full specificity");
 
@@ -261,7 +262,7 @@ const adviseKeptFields = (state, label) => {
   assert.equal(result.westernDiagnosis.differentials.length, 1, `${label}: 西医鉴别不得清空`);
   // 边界必须显式存在，而且是「有界」而不是「未形成结论」。
   assert.equal(result.overview.primarySyndromeResolution, "bounded", `${label}: 肯定级结论降为 bounded`);
-  assert.ok(result.pathogenesis.uncertainties.some((row) => row.item === "辨证与方剂具体度边界"),
+  assert.ok(result.pathogenesis.uncertainties.some((row) => BOUNDARY_ITEMS.has(row.item)),
     `${label}: 必须写入可见的不确定项`);
   assert.ok(result.westernDiagnosis.primary.limitations.length >= 2, `${label}: 边界必须进西医 limitations`);
   return result;
@@ -293,7 +294,7 @@ assert.match(adviseVisible, /外感风邪证/, "可见正文保留具体证候")
 const onceAnnotated = applyM03DecisionSpecificityPolicy(content, state("B", "ready"));
 const twiceAnnotated = applyM03DecisionSpecificityPolicy(onceAnnotated, state("B", "ready"));
 const twiceReasoning = parsed(twiceAnnotated);
-assert.equal(twiceReasoning.pathogenesis.uncertainties.filter((row) => row.item === "辨证与方剂具体度边界").length, 1,
+assert.equal(twiceReasoning.pathogenesis.uncertainties.filter((row) => BOUNDARY_ITEMS.has(row.item)).length, 1,
   "重复投影不得重复追加不确定项");
 assert.equal(twiceReasoning.management.mustCollect.filter((item) => /必要四诊/.test(item)).length, 1,
   "重复投影不得重复追加补采项");

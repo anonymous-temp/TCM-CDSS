@@ -193,8 +193,8 @@ await check("7.1 治法：说法不同对象相同的补益项算重复；切碎
   assert.equal(phrasing.withoutRedundantTherapyPhrases("滋养肝肾，疏肝解郁"), "滋养肝肾，疏肝解郁");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("调和营卫，益气，益气扶正"), "调和营卫，益气扶正");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("补气健脾，消痞止痛，健脾益气"), "补气健脾，消痞止痛");
-  assert.equal(phrasing.withoutRedundantTherapyPhrases("清热，益气，生津，止渴，清热通便"), "清热益气通便，生津止渴");
-  assert.equal(phrasing.withoutRedundantTherapyPhrases("宣肺散寒，止咳平喘，温化寒痰，温化寒饮"), "宣肺散寒，止咳平喘，温化寒痰饮");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("清热，益气，生津，止渴，清热通便"), "清热益气，生津止渴"); // 第四十一轮：同头两项不拼六字
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("宣肺散寒，止咳平喘，温化寒痰，温化寒饮"), "宣肺散寒，止咳平喘，温化寒痰"); // 第四十一轮：同头两项不再拼成六字，留前一项
 });
 
 await check("5.2 教材配对带出来的药方中已有时不占行；属名算方中那味；模型自己写的照按加重", () => {
@@ -444,8 +444,8 @@ await check("8.16 医嘱流程不进治法栏", async () => {
   assert.equal(phrasing.withoutRedundantTherapyPhrases("健脾益肾，评估发育"), "健脾益肾");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("完善检查"), "完善检查", "只有这一项时不清空");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("疏肝解郁，调摄作息"), "疏肝解郁");
-  assert.equal(phrasing.withoutRedundantTherapyPhrases("活血化瘀，调经止痛，调经止血"), "活血化瘀，调经止痛止血", "两个说目的的不共用字头");
-  assert.equal(phrasing.withoutRedundantTherapyPhrases("温化寒痰，温化寒饮"), "温化寒痰饮");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("活血化瘀，调经止痛，调经止血"), "活血化瘀，调经止痛", "第四十一轮：同头两项不拼六字，留前一项");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("温化寒痰，温化寒饮"), "温化寒痰");
 });
 
 await check("8.17 ICD 同义不多下肿瘤判断、不换一个字", async () => {

@@ -9,6 +9,8 @@ import formulaCatalogJson from "../data/tcm-formula-sources.json" with { type: "
 import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.json" with { type: "json" };
 import governedFormulaCatalogJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
 import coreHerbsJson from "../data/tcm-formula-core-herbs.json" with { type: "json" };
+import formulaOriginalTextJson from "../data/tcm-formula-original-text.json" with { type: "json" };
+import textbookFormulaSourcesJson from "../data/tcm-textbook-formula-sources.json" with { type: "json" };
 import herbSubstitutionPolicyJson from "../data/tcm-herb-identity-substitution-policy.source.json" with { type: "json" };
 import formulaRoleBindingsJson from "../data/tcm-formula-role-bindings.source.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2, EvidenceRef } from "./diagnosis-types";
@@ -300,9 +302,27 @@ function governedFormulaCompilationRow(value: string): GovernedFormulaCompilatio
  * 命名方原文写在组成里的炮制（「白术一两（土炒），山药一两（炒），白芍五钱（酒炒）」，以及构建期链接上标注的 preparation：黑芥穗→荆芥穗「炒炭」）。
  * 返回 [药味身份, 原文炮制词或原文药名]；只读受治理目录，不推断（2026-11-08 第三十七轮，甲方 11.05 完带汤写原方却用白术、山药）。
  */
+type FormulaOriginalText = { book: string; file: string; line: number; preparations: Record<string, string>; guideHerbs: string[] };
+const FORMULA_ORIGINAL_TEXT = (formulaOriginalTextJson as { formulas: Record<string, FormulaOriginalText> }).formulas;
+const TEXTBOOK_FORMULA_SOURCES = (textbookFormulaSourcesJson as { formulas: Record<string, { source: string; composition?: string[] }> }).formulas;
+/**
+ * 原书写法里会随方写进药名的炮制（第四十一轮，r1054 回顾：方义称「归脾汤原方」，药味表却是甘草、酸枣仁，原书是「甘草（炙）」
+ *「酸枣仁（炒，去壳）」）。只收方剂学教材也照写的几味：甘草炙、黄芪炙、酸枣仁炒；其余原书炮制（当归微炒、山药微炒）教材通行方不写，不改。
+ */
+const CONVENTIONAL_ORIGINAL_PREPARATIONS: Record<string, string> = { 甘草: "炙", 黄芪: "炙", 酸枣仁: "炒" };
+
+/** 方剂原书（本地古籍语料逐字摘取，tcm-formula-original-text.json）：书名、行号、原文炮制与煎服法里的姜枣药引。 */
+export function formulaOriginalText(name: string): FormulaOriginalText | undefined {
+  const trimmed = String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
+  return trimmed ? FORMULA_ORIGINAL_TEXT[trimmed] : undefined;
+}
+
 export function governedFormulaOriginalPreparations(name: string): Array<{ identity: string; preparation?: string; rawName?: string }> {
+  const fromOriginalText = Object.entries(formulaOriginalText(name)?.preparations || {})
+    .filter(([herb, preparation]) => CONVENTIONAL_ORIGINAL_PREPARATIONS[herb] === preparation)
+    .map(([herb, preparation]) => ({ identity: compositionIdentityName(herb) || herb, preparation }));
   const governed = governedFormulaCompilationRow(String(name || "").trim());
-  if (!governed) return [];
+  if (!governed) return fromOriginalText;
   const row = governed as GovernedFormulaCompilationRow & { prescriptionOriginal?: unknown; ingredientLinks?: Array<{ rawName: string; canonicalName?: string; preparation?: string }> };
   const out: Array<{ identity: string; preparation?: string; rawName?: string }> = [];
   const original = typeof row.prescriptionOriginal === "string" ? row.prescriptionOriginal : "";
@@ -319,6 +339,7 @@ export function governedFormulaOriginalPreparations(name: string): Array<{ ident
       out.push({ identity: compositionIdentityName(canonical), rawName: raw });
     }
   }
+  for (const entry of fromOriginalText) if (!out.some((item) => item.identity === entry.identity)) out.push(entry);
   return out;
 }
 
@@ -3039,8 +3060,19 @@ export function textbookFormulaOriginalSource(
     const books = new Set(near.map((variant) => variant.source.match(/《([^》]+)》/u)?.[1] || variant.source));
     if (near.length > 0 && books.size === 1) return near[0].source;
   }
-  return undefined;
+  // 目录里找不到时，用教材方剂索引写明的原书（「加味清胃散（《张氏医通》）」）或联网核对过的出处（tcm-textbook-formula-sources.json，
+  // 第四十一轮 r1054 回顾：此前这里返回空，出处栏写成了《中医内科学》《中医儿科学》）。
+  const tableEntry = TEXTBOOK_FORMULA_SOURCES[normalized] || TEXTBOOK_FORMULA_SOURCES[String(formulaName || "").trim()];
+  if (!tableEntry?.source) return undefined;
+  // 表里记了原文组成时，与问的组成对一下（同名异方不署这本书）：教材组成成形时共两味，合方行（组成是并集）时表里的药除一味外都在并集里。
+  const recorded = identities(tableEntry.composition || []);
+  if (recorded.size >= 3 && wanted.size >= 3) {
+    const shared = [...recorded].filter((id) => wanted.has(id)).length;
+    if (options.compositionIsUnion ? shared < recorded.size - 1 : shared < 2) return undefined;
+  }
+  return tableEntry.source;
 }
+
 
 /**
  * 教材代表方的受治理条目是不是同名异方：教材有成形的组成，而该条目与它不共两味（textbookFormulaOriginalSource 的同一判据）。

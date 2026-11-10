@@ -202,14 +202,11 @@ export async function finalizeWesternPrimaryName(
   if (!next || next === name) return westernContent;
   primary.name = next;
   if (established?.rationale) primary.clinicalRationale = establishedRationale(established, context.recordText);
-  // 原名留在候选与鉴别（医生还看得到这个方向）；同义归一不留，是同一个病。
+  // 原名留在候选（医生还看得到这个方向）；同义归一不留，是同一个病。不放进鉴别：「眩晕综合征」是症状本身，不是要与高血压鉴别的另一个病，
+  // 此前写成鉴别首条「（以此症就诊，已确诊的慢性病可以解释；仍需排除其他原因）」，评审读成系统说明（第四十一轮 r1054 回顾）。
   if (established) {
-    for (const key of ["candidates", "differentials"] as const) {
-      const list = Array.isArray(western[key]) ? western[key] as Json[] : [];
-      if (!list.some((item) => text(record(item)?.name) === previous)) {
-        western[key] = [{ name: previous, ...(key === "differentials" ? { distinguishingPoints: "以此症就诊，已确诊的慢性病可以解释，仍需排除其他原因", nextCheck: "结合查体与必要检查" } : { keyEvidence: [] }) }, ...list];
-      }
-    }
+    const list = Array.isArray(western.candidates) ? western.candidates as Json[] : [];
+    if (!list.some((item) => text(record(item)?.name) === previous)) western.candidates = [{ name: previous, keyEvidence: [] }, ...list];
   }
   console.info("[tcm-cdss:telemetry] western_name_standard", { kind: established ? "established_link" : "icd_synonym" });
   return JSON.stringify(root);

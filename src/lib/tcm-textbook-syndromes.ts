@@ -5,7 +5,7 @@ import supplementJson from "../data/tcm-textbook-syndrome-supplement.source.json
 import modificationRelevanceSource from "../data/tcm-modification-relevance.source.json" with { type: "json" };
 import { affirmedClinicalSourceClauses, clinicalClausePolarity } from "./clinical-polarity";
 import { resolveTcmDiseaseName, textbookSectionDeliveryName } from "./clinical-terminology";
-import { POSITIVE_FACT_EQUIVALENT_GROUPS, sourceDocumentsNegation } from "./diagnosis-safety";
+import { POSITIVE_FACT_EQUIVALENT_GROUPS, recordMentionPolarityAt, sourceDocumentsNegation } from "./diagnosis-safety";
 import { textbookModificationIsIncidentalSleep } from "./incidental-sleep-modification";
 import { governedSyndromeLabelAxes } from "./clinical-vocabulary";
 import { herbThermalSide } from "./tcm-knowledge";
@@ -205,6 +205,23 @@ export function textbookFormulaNames(): ReadonlySet<string> {
     for (const name of strings(raw.formulas).map(fixTextbookOcr)) if (name.length >= 3) textbookFormulaNameSet.add(name);
   }
   return textbookFormulaNameSet;
+}
+
+let textbookTherapyItemSet: Set<string> | undefined;
+/**
+ * 教材各证治法栏里逐字出现过的每一项（「益气止血固脱」「清暑祛湿解表」）。交付治法按四字项收口时，教材原文的长项照留
+ *（第四十一轮 r1054 回顾：拼出来的六字项要改，教材本来就这么写的不改）。
+ */
+export function textbookTherapyItems(): ReadonlySet<string> {
+  if (textbookTherapyItemSet) return textbookTherapyItemSet;
+  textbookTherapyItemSet = new Set();
+  for (const raw of RAW_ROWS) {
+    for (const item of fixTextbookOcr(text(raw.therapy)).split(/[，,、；;。]/u)) {
+      const trimmed = item.trim();
+      if (/^[\u4e00-\u9fff]{4,8}$/u.test(trimmed)) textbookTherapyItemSet.add(trimmed);
+    }
+  }
+  return textbookTherapyItemSet;
 }
 
 /** 教材加减条件里的泛称（不是哪一种变化）：「临床可加槟榔」「方中…」「症状较严重者」「病情…」。有限闭集；编译器的教材加减兜底也认同一组。 */
@@ -1241,17 +1258,41 @@ export function diseaseNameWithRecordSubtype(diseaseName: string, recordText: st
 }
 
 /**
- * 按部位分节的病（血证）本例是哪一型：主诉里先找，主诉没有时找病历全文，只有一型对得上才算（tcm-textbook-disease-subtypes.source.json）。
+ * 按部位分节的病（血证）本例是哪一型（tcm-textbook-disease-subtypes.source.json）。
+ * 只认肯定的提及（「无鼻衄」「否认黑便」不算）；主诉里最先写到的那一型为准，主诉没有时看现病史，再看全文，同样取最先写到的
+ * （第四十一轮，r1054 回顾：此前要求全文只命中一型，病历顺带否认别的出血就放弃分型，尿血、齿衄、便血三份新病历都只交付「血证」）。
  */
 export function textbookDiseaseSubtype(diseaseName: string, chiefComplaint: string, recordText = ""): string | undefined {
   const groups = DISEASE_SUBTYPES[splitTextbookDiseaseSubtype(diseaseName).disease];
   if (!groups) return undefined;
-  for (const text of [chiefComplaint, recordText]) {
-    const hits = Object.entries(groups).filter(([, forms]) => forms.some((form) => String(text || "").includes(form))).map(([group]) => group);
-    if (hits.length === 1) return hits[0];
-    if (hits.length > 1) return undefined;
+  const record = String(recordText || "");
+  const chief = String(chiefComplaint || "") || /主诉[：:]\s*([^\n]+)/u.exec(record)?.[1] || "";
+  const present = /现病史[：:]\s*([^\n]+)/u.exec(record)?.[1] || "";
+  for (const text of [chief, present, record]) {
+    const found = earliestAffirmedSubtype(text, groups);
+    if (found) return found;
   }
   return undefined;
+}
+
+function earliestAffirmedSubtype(rawText: string, groups: Record<string, string[]>): string | undefined {
+  const text = String(rawText || "").normalize("NFKC");
+  let best: { group: string; at: number; length: number } | undefined;
+  for (const [group, forms] of Object.entries(groups)) {
+    for (const form of forms) {
+      for (let at = text.indexOf(form); at >= 0; at = text.indexOf(form, at + 1)) {
+        // 舌象里的瘀点、瘀斑不是皮肤紫斑。
+        if (group === "紫斑" && /舌[^，,。；;]{0,3}$/u.test(text.slice(Math.max(0, at - 4), at))) continue;
+        if (recordMentionPolarityAt(text, at) !== "affirmed") continue;
+        // 既往的出血不是本次的型（「既往牙龈出血，近日鼻出血」是鼻衄）。
+        const clauseStart = Math.max(...["，", ",", "。", "；", ";", "\n"].map((mark) => text.lastIndexOf(mark, at - 1))) + 1;
+        if (/既往|曾(?:有|患|经|发)?|以往|往年|\d+\s*年前|多年前/u.test(text.slice(clauseStart, at))) continue;
+        if (!best || at < best.at || (at === best.at && form.length > best.length)) best = { group, at, length: form.length };
+        break;
+      }
+    }
+  }
+  return best?.group;
 }
 
 /**

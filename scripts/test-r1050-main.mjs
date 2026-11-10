@@ -163,18 +163,16 @@ await check("4.1 舌脉都记录、每个病位都有逐字依据、不确定项
   assert.equal(out.nature.resolution, "resolved");
 });
 
-await check("4.2 仍按有界：病历缺脉、不确定项点名了这一轴、病性依据段数少于病性个数", () => {
+await check("4.2 第四十一轮起：依据齐备就按已确定，与舌脉记没记、模型点没点名待核实项无关；病性依据段数少于病性个数、或病位缺依据时仍有界", () => {
   const noPulse = axes(axisCase(locationBounded, natureBounded), "饭后1小时腹胀嗳气，工作紧张时加重，口苦。舌红，苔薄黄。");
-  assert.equal(noPulse.location.resolution, "bounded");
-  assert.equal(noPulse.nature.resolution, "bounded");
+  assert.equal(noPulse.location.resolution, "resolved");
+  assert.equal(noPulse.nature.resolution, "resolved");
   const named = axes(axisCase(locationBounded, natureBounded, [{ item: "肝郁程度", reason: "未记录胁痛", affects: "病位判断" }, { item: "热象轻重", reason: "", affects: "病性" }]), fullRecord);
-  assert.equal(named.location.resolution, "bounded");
-  assert.match(named.location.resolutionReason, /肝郁程度尚待核实/u);
-  assert.equal(named.nature.resolution, "bounded");
+  assert.equal(named.location.resolution, "resolved");
+  assert.equal(named.nature.resolution, "resolved");
   const thinBasis = axes(axisCase(locationBounded, { ...natureBounded, basis: "口苦" }), fullRecord);
   assert.equal(thinBasis.nature.resolution, "bounded");
-  const unrecordedPulse = axes(axisCase(locationBounded, natureBounded), "饭后1小时腹胀嗳气，工作紧张时加重，口苦。舌红，苔薄黄。脉象未查。");
-  assert.equal(unrecordedPulse.location.resolution, "bounded");
+  assert.doesNotMatch(String(thinBasis.nature.resolutionReason || ""), /依据有\d条|少于两个方面|只有一个方面/u);
 });
 
 await check("4.3 舌脉判据：「脉象：弦」「少苔」算记录；「脉象难配合」不算", () => {

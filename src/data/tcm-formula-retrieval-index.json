@@ -3,7 +3,7 @@
   "governanceTable": "T8",
   "sourceCatalog": {
     "file": "tcm-formula-governed-catalog.json",
-    "sha256": "9220abd01577b915048ff626860ec222ef7a2029fb45afbd17c9649f0fb41c18"
+    "sha256": "01c3713984fb3ea0469191da7153cb3c6d4998012f2c0b0dbfac5779570f0eae"
   },
   "conceptSource": {
     "file": "tcm-formula-retrieval-concepts.json",
@@ -4117,7 +4117,7 @@
         "TCM-FORMULA-8199D766B72C"
       ],
       "TCM-SYNDROME-3F724C486AF9": [
-        "TCM-FORMULA-37097FB68F8B",
+        "TCM-FORMULA-F03AE0265BD6",
         "TCM-FORMULA-AA746855FDAD"
       ],
       "TCM-SYNDROME-3FD064B12EDC": [
@@ -5785,7 +5785,7 @@
         "TCM-FORMULA-5EE004163319",
         "TCM-FORMULA-A238C7F4868C",
         "TCM-FORMULA-BDFDDA9B4518",
-        "TCM-FORMULA-37097FB68F8B",
+        "TCM-FORMULA-F03AE0265BD6",
         "TCM-FORMULA-2234A4C2271C",
         "TCM-FORMULA-C89DB7DA2844",
         "TCM-FORMULA-1607B824403B",

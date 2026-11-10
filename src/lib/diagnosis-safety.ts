@@ -818,7 +818,9 @@ function hasImmediateBareNegator(text: string, index: number): boolean {
  */
 function documentedQualifiedDenial(source: string, term: string): string | undefined {
   const normalized = normalizeClinicalText(source);
-  const qualifiers = "(?:持续|突发|突然|急性|反复|阵发性?|间断|明显|大量|剧烈|进行性|严重|轻微|最)";
+  // 「无新发言语不清」否认的是新出现的那一种（脑梗死后遗症本来就有言语謇涩），不能说成「否认言语不清」
+  //（第四十一轮 r1054 回顾，甲方 11.05 病历15 两次都是）。新发/新出现/再发/再次 只进这一处改写措辞的读法，不进安全门。
+  const qualifiers = "(?:持续|突发|突然|急性|反复|阵发性?|间断|明显|大量|剧烈|进行性|严重|轻微|最|新发|新出现|再发|再次)";
   const candidates = [
     new RegExp(`${qualifiers}{1,3}${term}`, "g"),
     ...groupHyponymsOf(term).map((variant) => new RegExp(variant, "g")),
@@ -4716,7 +4718,12 @@ function changeCueHeadsSiblingSymptom(text: string, cueIndex: number, termIndex:
   const sameSegmentAsTerm = termIndex >= segmentStart && termIndex < segmentEnd;
   if (sameSegmentAsTerm) return false;
   // 只看段首：段首到线索之间没有别的字（允许空白）才算「修饰后面的那个症状」。
-  return /^\s*$/u.test(text.slice(segmentStart, cueIndex)) && segmentStart > 0;
+  if (/^\s*$/u.test(text.slice(segmentStart, cueIndex)) && segmentStart > 0) return true;
+  // 频度词紧跟列举里另一项自己的症状词（「伴胸闷、腹胀、嗳气频作」的频作说的是嗳气，第四十一轮 r1054 回顾 n03：情志性胁痛被报急性冠脉）：
+  // 频作、频发、频繁只修饰它前面那一项。列举末尾的「加重」照旧算整组（「胸闷、气短、喘息、活动后加重」，回放 corpus-6119）。
+  if (segmentStart > 0 && termIndex < segmentStart && /[\u4e00-\u9fff]{2,}\s*$/u.test(text.slice(segmentStart, cueIndex)) &&
+    /^(?:频作|频发|频繁)/u.test(text.slice(cueIndex))) return true;
+  return false;
 }
 
 function cardiacAcuteChangeAttachedAt(text: string, index: number, matchText: string): boolean {

@@ -393,7 +393,7 @@ check("10.3 S102 痰湿月经后期：分套治法「温经散寒，补血调经
   assert.match(plan.therapyClausesForSyndrome(therapy, "血寒证"), /^温经散寒/);
   assert.match(plan.therapyClausesForSyndrome(therapy, "血虚证"), /补血调经/);
   const damp = acupuncture({ diseaseNames: ["月经后期"], signedSyndromeText: "痰湿证", currentFacts: "1年来月经45～60天一行，经量少，白带量多" });
-  assert.match(damp?.treatmentContent || "", /^按病取基本穴：取任脉及足阳明、太阴经穴为主/, damp?.treatmentContent);
+  assert.match(damp?.treatmentContent || "", /^取任脉及足阳明、太阴经穴为主/, damp?.treatmentContent);
   assert.doesNotMatch(damp.treatmentContent, /温经散寒|补血/);
   const cold = acupuncture({ diseaseNames: ["月经后期"], signedSyndromeText: "血寒证", currentFacts: "月经推后，小腹冷痛，得热痛减" });
   assert.match(cold?.treatmentContent || "", /温经散寒/, "血寒照印（对照）");
@@ -579,7 +579,7 @@ check("11.6 S067 石淋：教材淋证节的「石淋」证名不带病性字，
   assert.ok(["秩边", "水道", "委阳"].every((point) => names(stone).includes(point)), names(stone).join("、"));
   assert.match(stone.treatmentContent, /本例属石淋/);
   const none = acupuncture({ diseaseNames: ["淋证"], westernNames: [], signedSyndromeText: "肾阴亏虚证", currentFacts: "小便频急，腰酸" });
-  assert.equal(none?.treatmentContent, "按病取基本穴：取膀胱的背俞穴、募穴为主。", none?.treatmentContent);
+  assert.equal(none?.treatmentContent, "取膀胱的背俞穴、募穴为主。", none?.treatmentContent);
   // 字面规则只给证名不带病性字的分型：已签名「气虚证」不因字面包含而对上中风的「气虚络瘀」「气虚血瘀」（缺「瘀」，对照）。
   const stroke = acupuncture({ diseaseNames: ["中风"], westernNames: [], signedSyndromeText: "气虚证", currentFacts: "右侧半身不遂，肢体软弱，偏身麻木，气短乏力，面色淡白" });
   assert.ok(!(stroke?.points || []).some((point) => /瘀/.test(point.syndromeLabel || "")), (stroke?.points || []).map((point) => `${point.name}:${point.syndromeLabel || ""}`).join("、"));

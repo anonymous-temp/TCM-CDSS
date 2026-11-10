@@ -285,9 +285,9 @@ await check("5.4 撤下模型自写的兼证：兼证栏、只属于它的治法
   assert.match(root.overview.tcmDiagnosticRationale, /病性属痰湿/);
 });
 await check("5.5 同头治法两项合一；三项同头、不同头、不足四字的不合", async () => {
-  assert.equal(phrasing.withoutRedundantTherapyPhrases("燥湿化痰，理气止咳，健脾和胃，健脾益气"), "燥湿化痰，理气止咳，健脾益气和胃");
-  assert.equal(phrasing.withoutRedundantTherapyPhrases("滋养肝肾，平肝潜阳，活血通窍，活血化瘀"), "滋养肝肾，平肝潜阳，活血化瘀通窍");
-  assert.equal(phrasing.withoutRedundantTherapyPhrases("清肠化湿，调气和血，清热解毒，清热生津"), "清肠化湿，调气和血，清热解毒生津");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("燥湿化痰，理气止咳，健脾和胃，健脾益气"), "燥湿化痰，理气止咳，健脾益气"); // 第四十一轮：不拼六字，留不说目的的一项
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("滋养肝肾，平肝潜阳，活血通窍，活血化瘀"), "滋养肝肾，平肝潜阳，活血化瘀");
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("清肠化湿，调气和血，清热解毒，清热生津"), "清肠化湿，调气和血，清热解毒");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("清热利湿，清热解毒，清热凉血"), "清热利湿，清热解毒，清热凉血");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("疏肝理气，健脾和胃"), "疏肝理气，健脾和胃");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("和血通络，活血通络"), "和血通络", "原有的同义去重照旧");

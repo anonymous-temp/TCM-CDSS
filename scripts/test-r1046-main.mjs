@@ -433,7 +433,9 @@ await check("4.6 教材两味一组：带出来的那一味只写教材这条说
   const one = compiler.normalizeModificationsForTest([{ ...base, trigger: "若恶寒甚", herbName: "桂枝" }], prior);
   const partner = one.find((item) => item.herbName === "麻黄");
   assert.ok(partner, JSON.stringify(one));
-  assert.match(partner.reason, /^与桂枝同用，针对/u);
+  // 第四十一轮：写这味药自己的核对过的主功用 + 助哪一味治什么，不再是「与X同用，针对…」套话。
+  assert.match(partner.reason, /^发汗解表，宣肺平喘，助桂枝治恶寒甚/u, partner.reason);
+  assert.doesNotMatch(partner.reason, /同用，针对/u);
   assert.doesNotMatch(partner.reason, /辛温解表|发散风寒/u);
   const review = compiler.m04CompilerTestHooks.normalizeModifications([{ ...base, trigger: "若恶寒甚", herbName: "桂枝" }], prior);
   assert.equal(review.submittedCount, review.items.length, "两味展开后提交数按行算，不会出现提交比保留少");

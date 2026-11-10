@@ -86,7 +86,7 @@ await check("2.1 复诊第一句不写「需排除需排除」（11.05 病历8�
 
 // ───── 3 治法：后一项的头两字就是前一项的尾两字 ─────
 await check("3.1 「活血化瘀，化瘀通络」接成「活血化瘀通络」（11.05 病历15）；不相接的两项不动", () => {
-  assert.equal(surface.clinicalMethodItems("益气扶正，活血化瘀，化瘀通络"), "益气扶正，活血化瘀通络");
+  assert.equal(surface.clinicalMethodItems("益气扶正，活血化瘀，化瘀通络"), "益气扶正，活血通络"); // 第四十一轮：不接成六字，换成受治理的活血通络
   assert.equal(surface.clinicalMethodItems("补益肝肾，舒筋活络，散寒止痛"), "补益肝肾，舒筋活络，散寒止痛");
 });
 

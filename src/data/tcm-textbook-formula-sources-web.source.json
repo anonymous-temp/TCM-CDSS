@@ -1,0 +1,1510 @@
+{
+ "schemaVersion": 1,
+ "adjudicationRef": "ADJ-WEB-20261110-TEXTBOOK-SOURCES",
+ "note": "教材代表方中本地教材语料方剂索引没有写明出处、或几处写法不一致的 88 首，联网与本地古籍语料逐首核对（2026-11-10 第四十一轮）。每条至少一句原文摘句（网址或古籍文件行号）；同名异方按教材行给的组成取。凉膈清肠散、地榆槐角汤两首查不到原书，不收。",
+ "formulas": [
+  {
+   "name": "栝蒌薤白半夏汤",
+   "source": "《金匮要略》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/499-金匮要略方论.txt:510",
+     "quote": "胸痹不得卧，心痛彻背者，栝蒌薤白半夏汤"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/499-金匮要略方论.txt:513",
+     "quote": "栝蒌实（一枚，捣） 薤白（三两） 半夏（半斤） 白酒（一斗）"
+    }
+   ],
+   "note": "教材行组成为本方（瓜蒌、薤白、半夏、白酒）与涤痰汤之并集；本方四味与《金匮要略·胸痹心痛短气病》原方一致。"
+  },
+  {
+   "name": "参附龙骨牡蛎汤",
+   "source": "经验方",
+   "kind": "experience_formula",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:233812",
+     "quote": "代表方：参附龙骨牡蛎汤。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:233813",
+     "quote": "本方由人参、炮附子、煅龙骨、煅牡蛎、生姜、大枣等组成。"
+    }
+   ],
+   "note": "十三五《中医内科学》(张伯礼) 心衰·喘脱危证 names 参附龙骨牡蛎汤 and its own appendix (附录：中医内科常用方剂) lists it as 参附龙牡汤（验方） with the same six herbs; 中西医结合外科学 appendix also says 经验方. No classical book with this name/composition fo"
+  },
+  {
+   "name": "柴胡舒肝散",
+   "source": "《医学统旨》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/632-证治准绳·类方.txt:5787",
+     "quote": "柴胡疏肝散\\x（《统旨》）"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/632-证治准绳·类方.txt:5788",
+     "quote": "柴胡 陈皮（醋炒者二钱） 川芎 芍药 枳壳（麸炒，各一钱半） 甘草（炙，五分） 香附（一钱半）"
+    }
+   ],
+   "note": "柴胡舒肝散即柴胡疏肝散（《类证治裁》两名互用）。教材行组成为柴胡疏肝散与胃苓汤并集，柴胡、陈皮、川芎、枳壳、芍药、炙甘草、香附七味相符。原书《医学统旨》（叶文龄）由《证治准绳·类方》引录、《景岳全书·古方八阵》收载；若只写现存书可作《景岳全书》。 项目方剂目录对柴胡疏肝散用《景岳全书》，如需一致可改作《景岳全书》。"
+  },
+  {
+   "name": "龙胆泻肝丸",
+   "source": "《医方集解》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/087-医方集解.txt:6341",
+     "quote": "<篇名>龙胆泻肝汤"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/087-医方集解.txt:6348",
+     "quote": "龙胆草（酒炒） 黄芩（炒） 栀子（酒炒） 泽泻 木通 车前子 当归（酒洗） 生"
+    }
+   ],
+   "note": "中成药名，方即龙胆泻肝汤（汪昂《医方集解》注引《局方》，今本《局方》无此方，故通常以《医方集解》为出处）。教材行未列组成，无法核对；另有东垣同名七味方（无黄芩、栀子、甘草，《兰室秘藏》），与通用十味方不同。"
+  },
+  {
+   "name": "柴芍六君子汤",
+   "source": "《医宗金鉴》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/157-幼科心法要诀.txt:1054",
+     "quote": "柴芍六君子汤"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/157-幼科心法要诀.txt:1055",
+     "quote": "人参 白术（土炒） 茯苓 陈皮 半夏（姜制） 甘草（炙） 柴胡 白芍（炒） 钓藤钩"
+    }
+   ],
+   "note": "出《医宗金鉴·幼科心法要诀》慢惊风。中医眼科学附录所列组成（人参、白术、茯苓、陈皮、半夏、炙甘草、柴胡、白芍、钩藤）与原方一致。"
+  },
+  {
+   "name": "三妙散",
+   "source": "《医学正传》卷五",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/583-医学正传.txt:4983",
+     "quote": "三妙丸\\x 治湿热下流，两脚麻木，或如火烙之热。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/583-医学正传.txt:4984",
+     "quote": "黄柏（四两，切片，酒拌略炒） 苍术（六两，米泔浸一、二宿，细切焙干） 川牛膝（去芦，二两）"
+    }
+   ],
+   "note": "中西医结合内科学 RA 湿热痹阻证 writes 三妙散, but its appendix (中西医结合内科学常用方剂) has no 三妙散 entry, only 三妙丸(《医学正传》) 苍术 黄柏 川牛膝 — so the internal 三妙丸 is meant. Rejected 同名异方: 三妙散《医宗金鉴·外科心法要诀》 (槟榔、苍术、黄柏, 干撒/外搽, external). "
+  },
+  {
+   "name": "大剂参附汤",
+   "source": "《正体类要》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/247-正体类要.txt:46",
+     "quote": "吐泻手足俱冷，指甲青者，脾肾虚寒之甚也，急用大剂参附汤。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/247-正体类要.txt:1046",
+     "quote": "人参（四钱） 附子（炮去皮脐，三钱）"
+    }
+   ],
+   "note": "“大剂参附汤”即参附汤（人参、附子）加大剂量，《正体类要》原文即用“大剂参附汤”之称并注“阳气脱陷者，倍用之”。参附汤另有《济生续方》《校注妇人良方》等早期记载，教材多注《正体类要》。教材行未列组成。"
+  },
+  {
+   "name": "育阴通络汤",
+   "source": "经验方",
+   "kind": "experience_formula",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:137989",
+     "quote": "方剂:育阴通络汤加减。"
+    },
+    {
+     "url": "https://www.qjxzyy.com/display.php?id=1711",
+     "quote": "①推荐方药：育阴通络汤加减。生地黄、山萸肉、钩藤后下、天麻、丹参、白芍等。"
+    }
+   ],
+   "note": "Textbook (中西医结合内科学 脑出血 阴虚风动证) gives no composition in our corpus, so the textbook's exact herbs are not established. The formula appears as a recommended 方药 for 阴虚风动证 in the 国家中医药管理局 中风病(脑梗死)中医诊疗方案 (h"
+  },
+  {
+   "name": "局方至宝丹",
+   "source": "《太平惠民和剂局方》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/059-太平惠民和剂局方.txt:45",
+     "quote": "<篇名>至宝丹"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/059-太平惠民和剂局方.txt:47",
+     "quote": "内容：疗猝中急风不语，中恶气绝，中诸物毒暗风，中热疫毒，阴阳二毒，山岚瘴气"
+    }
+   ],
+   "note": "即至宝丹，“局方”二字即指出处。教材行未列组成。"
+  },
+  {
+   "name": "定振汤",
+   "source": "经验方",
+   "kind": "experience_formula",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:138166",
+     "quote": "方剂:定振汤加减。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/632-证治准绳·类方.txt:7675",
+     "quote": "秘方定振丸\\x 治老人战动，皆因风气所致，及血虚而振。"
+    }
+   ],
+   "note": "No classical formula named 定振汤 found (ancient corpus has only 秘方定振丸《证治准绳·类方》第五册·颤振: 天麻 秦艽 全蝎 细辛 熟地黄 生地黄 当归 川芎 芍药 防风 荆芥 白术 黄芪 威灵仙). Modern clinical papers (曙光医院; 广州中医药大学 thesis/辽宁中医杂志2008, whose abstra"
+  },
+  {
+   "name": "代抵挡丸",
+   "source": "《证治准绳》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/632-证治准绳·类方.txt:5175",
+     "quote": "代抵当丸\\x 行瘀血。（自制。）"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/632-证治准绳·类方.txt:5176",
+     "quote": "大黄（川产如锦纹者，去皮及黑心，四两） 芒硝（一两，如欲稳，以玄明粉代） 桃仁（麸炒黄，去皮"
+    }
+   ],
+   "note": "“挡”为“当”之讹。王肯堂《证治准绳·类方》蓄血门自注“自制”：大黄、芒硝、桃仁、当归尾、生地黄、穿山甲、桂，与教材附录组成一致。区别于《伤寒论》抵当丸（水蛭、虻虫、桃仁、大黄）。"
+  },
+  {
+   "name": "六味地黄汤",
+   "source": "《小儿药证直诀》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/133-小儿药证直诀.txt:1173",
+     "quote": "<篇名>地黄丸"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/133-小儿药证直诀.txt:1176",
+     "quote": "熟地黄（八钱） 山萸肉 干山药（各四钱） 泽泻 牡丹皮 白茯苓（去皮各三钱）"
+    }
+   ],
+   "note": "六味地黄丸（原名地黄丸）作汤剂用；出钱乙《小儿药证直诀》。教材行未列组成。"
+  },
+  {
+   "name": "固阳汤",
+   "source": "《万病回春》卷三",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:143069",
+     "quote": "方药：保元汤合固阳汤加减。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/647-万病回春.txt:3599",
+     "quote": "固阳汤\\x 治阳症归阴，阴囊缩入，手足厥冷，腹痛胀，汗冷出，脉或反洪弦。"
+    }
+   ],
+   "note": "Textbook (十三五《中西医结合外科学》何清湖 休克·厥逆证, 治法 益气固脱、阴阳双补) gives no composition, and its appendix 方剂名录 has no 固阳汤 (it lists 保元汤《博爱心鉴》 and 固阴煎《景岳全书》). The parallel 低血容量性休克·厥逆型 in the same book uses 保元饮和固阴煎, so 固"
+  },
+  {
+   "name": "四味回阳汤",
+   "source": "《景岳全书》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/637-景岳全书.txt:30358",
+     "quote": "四味回阳饮\\x 治元阳虚脱，危在顷刻者。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/637-景岳全书.txt:30359",
+     "quote": "人参（一、二两） 制附子（二、三钱） 炙甘草（一、二钱） 炮干姜（二、三钱）"
+    }
+   ],
+   "note": "即四味回阳饮（《景岳全书·新方八阵·热阵》）。同一教材同节“寒厥证”写作四味回阳饮，低血容量性休克节写作“四味回阳汤”，属同方异写。"
+  },
+  {
+   "name": "保元饮",
+   "source": "《博爱心鉴》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:143111",
+     "quote": "方药：①保元饮和固阴煎加减；"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:150874",
+     "quote": "保元汤（《博爱心鉴》）人参 黄芪 肉桂 甘草 生姜"
+    }
+   ],
+   "note": "No formula named 保元饮 found in the ancient corpus or online; the same textbook's appendix lists only 保元汤（《博爱心鉴》）(人参 黄芪 肉桂 甘草 生姜), so 保元饮 is taken as 保元汤 of 魏直(桂岩)《博爱心鉴》. 《医方考》 gives 人参 黄芪 炙甘草 肉桂 quotin"
+  },
+  {
+   "name": "沙参麦门冬汤",
+   "source": "《温病条辨》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/526-温病条辨.txt:820",
+     "quote": "燥伤肺胃阴分，或热或咳者，沙参麦冬汤主之。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/526-温病条辨.txt:823",
+     "quote": "沙参（三钱） 玉竹（二钱） 生甘草（一钱） 冬桑叶（一钱五分） 麦冬（三钱） 生扁豆（一钱五分） 花"
+    }
+   ],
+   "note": "即沙参麦冬汤（《温病条辨·上焦篇·秋燥》）。教材行未列组成。"
+  },
+  {
+   "name": "黎洞丸",
+   "source": "《医宗金鉴》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/246-正骨心法要旨.txt:661",
+     "quote": "黎洞丸\\x 治跌打损伤，瘀血奔心，昏晕不省，及一切无名肿毒，昏困欲死等证。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/246-正骨心法要旨.txt:662",
+     "quote": "京牛黄 冰片 麝香（各二钱五分） 阿魏 雄黄（各一两） 川大黄 儿茶 天竺黄 三七 瓜儿血竭"
+    }
+   ],
+   "note": "出《医宗金鉴·正骨心法要旨》（主治“瘀血奔心，昏晕不省”，切合脑挫裂伤昏愦期）。稍早《外科全生集》（1740）已载同名方，但无麝香；《医宗金鉴》为含麝香十三味通行方之出处。教材行未列组成，无法逐味核对。"
+  },
+  {
+   "name": "救呆至神汤",
+   "source": "《石室秘录》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/587-石室秘录.txt:812",
+     "quote": "呆病郁抑不舒，愤怒而成者有之。羞恚而成者有之。方用人参一两，柴"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/587-石室秘录.txt:815",
+     "quote": "两，神曲五钱，茯苓三两，郁金五钱，水十碗，煎一碗灌之。（〔批〕救呆至神汤。）"
+    }
+   ],
+   "note": "陈士铎《石室秘录》治呆病方：人参、柴胡、当归、白芍、半夏、甘草、生枣仁、天南星、附子、菖蒲、神曲、茯苓、郁金。教材行未列组成。"
+  },
+  {
+   "name": "逍遥蒌贝散",
+   "source": "经验方",
+   "kind": "experience_formula",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "url": "https://www.toutiao.com/w/1742777757812736/",
+     "quote": "逍遥蒌贝散是山西中医学院教授、外科教研室主任赵尚华先生发明的方剂。"
+    },
+    {
+     "url": "https://www.toutiao.com/w/1742777757812736/",
+     "quote": "柴胡、当归、白芍、茯苓、白术、瓜蒌、贝母、半夏、南星、生牡蛎、山慈姑。"
+    }
+   ],
+   "note": "十三五《中医外科学》附录注“经验方”（本地语料作“逍遥萎贝散（经验方）”），组成柴胡、当归、白芍、茯苓、白术、瓜蒌、贝母、半夏、南星、生牡蛎、山慈姑（a-hospital 同）。网络二手资料称系山西中医学院赵尚华所创（逍遥散合《外科心法要诀》蒌贝散化裁），未见本人著作，故显示“经验方”。"
+  },
+  {
+   "name": "柴胡疏肝汤",
+   "source": "《医学统旨》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/637-景岳全书.txt:33831",
+     "quote": "柴胡疏肝散\\x 治胁肋疼痛，寒热往来。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/637-景岳全书.txt:33832",
+     "quote": "陈皮（醋炒） 柴胡（各二钱） 川芎 枳壳（麸炒） 芍药（各一钱半） 甘草（炙，五分） 香附（一钱半）"
+    }
+   ],
+   "note": "即柴胡疏肝散作汤剂（《类证治裁》柴胡疏肝汤七味相同）。中西医结合外科学附录无“柴胡疏肝汤”条，只有柴胡疏肝散（注《景岳全书》）。最早见叶文龄《医学统旨》（1534），由《证治准绳·类方》胁痛门引录（注“《统旨》”）、《景岳全书·古方八阵·散阵》收载；与“柴胡舒肝散”条取同一出处。项目方剂目录对柴胡疏肝散用《景岳全书》，如需一致可改作《景岳全书》。"
+  },
+  {
+   "name": "脾约麻仁丸",
+   "source": "《伤寒论》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/457-伤寒论.txt:764",
+     "quote": "其脾为约，麻子仁丸主之。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/457-伤寒论.txt:766",
+     "quote": "麻子仁（二升） 芍药（半斤） 枳实（炙，半斤） 大黄（去皮，一斤） 浓朴（炙，去皮，一尺）"
+    }
+   ],
+   "note": "即麻子仁丸（脾约丸），出《伤寒论》第247条；“脾约麻仁丸”之名见《太平惠民和剂局方》，组成同。教材行未列组成。"
+  },
+  {
+   "name": "十全大补丸",
+   "source": "《太平惠民和剂局方》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/059-太平惠民和剂局方.txt:4961",
+     "quote": "<篇名>十全大补汤"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/059-太平惠民和剂局方.txt:4967",
+     "quote": "人参 肉桂（去粗皮，不见火） 川芎 地黄（洗，酒蒸，焙） 茯苓（焙） 白术（焙）"
+    }
+   ],
+   "note": "即十全大补汤之丸剂；方出《太平惠民和剂局方》。教材行未列组成。"
+  },
+  {
+   "name": "宫外孕Ⅱ号方",
+   "source": "山西医学院附属第一医院经验方",
+   "kind": "experience_formula",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/303-李翰卿.txt:1774",
+     "quote": "确立了由丹参、赤芍、桃仁、三棱、莪术组成的宫外孕Ⅱ号方"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:126909",
+     "quote": "宫外孕Ⅱ号方（山西医科大学第一医院）：赤芍丹参 桃仁 三棱 莪术"
+    }
+   ],
+   "note": "20世纪50–70年代山西医学院第一附属医院（现山西医科大学第一医院）与山西省中医研究所李翰卿等“宫外孕非手术疗法科研组”所创。教材写法不一（“山西医科大学第一医院”或误作“山西中医学院第一附属医院经验方”）。"
+  },
+  {
+   "name": "宫外孕I号方",
+   "source": "山西医学院附属第一医院经验方",
+   "kind": "experience_formula",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/303-李翰卿.txt:1724",
+     "quote": "最后形成由丹参、赤芍、桃仁组成的治疗宫外孕破损的主方，即宫外孕Ⅰ号方。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:126910",
+     "quote": "宫外孕Ⅰ号方（山西医科大学第一医院）：赤芍丹参 桃仁"
+    }
+   ],
+   "note": "同宫外孕Ⅰ号方（拉丁字母 I 写法）。山西医学院第一附属医院与李翰卿等科研组所创。"
+  },
+  {
+   "name": "驱虫粉合参苓白术散",
+   "source": "驱虫粉：经验方；参苓白术散：《太平惠民和剂局方》",
+   "kind": "experience_formula",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:172175",
+     "quote": "主方：驱虫粉（验方）合参苓白术散（《太平惠民和剂局方》）加减。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:173515",
+     "quote": "驱虫粉（验方）使君子生大黄"
+    }
+   ],
+   "note": "合方名。驱虫粉为验方（使君子、大黄，教材行另加鹤虱），参苓白术散出《太平惠民和剂局方》。kind 按驱虫粉记 experience_formula；如需分别显示，用 perComponent。"
+  },
+  {
+   "name": "宫外孕Ⅰ号方",
+   "source": "山西医学院附属第一医院经验方",
+   "kind": "experience_formula",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/303-李翰卿.txt:1724",
+     "quote": "最后形成由丹参、赤芍、桃仁组成的治疗宫外孕破损的主方，即宫外孕Ⅰ号方。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:126910",
+     "quote": "宫外孕Ⅰ号方（山西医科大学第一医院）：赤芍丹参 桃仁"
+    }
+   ],
+   "note": "山西医学院第一附属医院（现山西医科大学第一医院）与山西省中医研究所李翰卿等“宫外孕非手术疗法科研组”所创；由活络效灵丹加减演变而成。"
+  },
+  {
+   "name": "革薢渗湿汤",
+   "source": "《疡科心得集》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/225-疡科心得集.txt:2764",
+     "quote": "（新方）\\x萆 渗湿汤\\x 治湿热下注， 疮漏蹄等证。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/225-疡科心得集.txt:2765",
+     "quote": "萆 苡仁 黄柏 赤苓 丹皮 泽泻 滑石 通草"
+    }
+   ],
+   "note": "即萆薢渗湿汤（“革”为“萆”之讹；本地古籍文本“薢”字缺为空格）。高秉钧《疡科心得集》自注“新方”。原方八味为萆薢、薏苡仁、黄柏、赤茯苓、丹皮、泽泻、滑石、通草；待办中教材组成（龙胆草、黄芩、萆薢、生苡仁、茵陈、白鲜皮、六一散）与原方只部分重合，属教材加减或与龙胆泻肝汤合用之并集。"
+  },
+  {
+   "name": "革薢化毒汤",
+   "source": "《疡科心得集》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/225-疡科心得集.txt:2605",
+     "quote": "（新方）\\x萆 化毒汤\\x 治湿热气血实者。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/225-疡科心得集.txt:2606",
+     "quote": "萆 归尾 丹皮 牛膝 防己 木瓜 苡仁 秦艽"
+    }
+   ],
+   "note": "即萆薢化毒汤（“革”为“萆”之讹）。原方萆薢、当归尾、丹皮、牛膝、防己、木瓜、薏苡仁、秦艽八味全部见于教材组成；其余赤芍、桃仁、大黄、川芎、苏木、枳壳、瓜蒌仁、槟榔属同行活血散瘀汤。"
+  },
+  {
+   "name": "葛根苓连汤",
+   "source": "《伤寒论》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/457-伤寒论.txt:143",
+     "quote": "喘而汗出者，葛根黄芩黄连汤主之。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/457-伤寒论.txt:145",
+     "quote": "葛根（半斤） 甘草（炙，二两） 黄芩（三两） 黄连（三两）"
+    }
+   ],
+   "note": "即葛根黄芩黄连汤（“苓”为“芩”之讹）。待办中给出的教材组成（萆薢、薏苡仁、土茯苓、牡丹皮、泽泻、黄柏、滑石、通草）属萆薢渗湿汤，并非本方，故不作组成核对。"
+  },
+  {
+   "name": "清解汤",
+   "source": "《医学衷中参西录》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/584-医学衷中参西录.txt:3879",
+     "quote": "<篇名>1．清解汤"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/584-医学衷中参西录.txt:3882",
+     "quote": "薄荷叶（四钱） 蝉蜕（三钱，去足土） 生石膏（六钱，捣细） 甘草（一钱五分）"
+    }
+   ],
+   "note": "张锡纯方（民国，1918–1934）。教材行组成中的薄荷叶、蝉蜕、生石膏、甘草四味与原方完全一致，其余茯苓、泽泻、木通、猪苓、栀子、枳壳、车前子为同行另一方（大分清饮）之药。kind 记 classical 指出自具名原著。同名异方：《重订通俗伤寒论》《辨证录》等亦有清解汤，组成不同。"
+  },
+  {
+   "name": "程氏草薢分清饮",
+   "source": "《医学心悟》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/601-医学心悟.txt:5678",
+     "quote": "<篇名>萆厘清饮"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/601-医学心悟.txt:5680",
+     "quote": "属性：川萆 （二钱） 黄柏（炒褐色） 石菖蒲（各五分） 茯苓 白术（各一钱） 莲子心（七分） 丹参"
+    }
+   ],
+   "note": "即程氏萆薢分清饮（“草”为“萆”之讹；本地古籍文本“萆薢”之“薢”缺字、“分”误作“厘”）。原方萆薢、黄柏、石菖蒲、茯苓、白术、莲子心、丹参、车前子八味均在教材组成内（教材另加苍术、怀牛膝）。区别于《杨氏家藏方》萆薢分清散（萆薢、益智仁、石菖蒲、乌药）。"
+  },
+  {
+   "name": "二地鳖甲煎",
+   "source": "《男科纲目》",
+   "kind": "modern_monograph",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "url": "https://m.haodf.com/neirong/wenzhang/5697539912.html",
+     "quote": "1．二地鳖甲煎（《男科纲目》）"
+    },
+    {
+     "url": "https://m.haodf.com/neirong/wenzhang/5697539912.html",
+     "quote": "【组成】生熟地各10g、沙苑子10g、茯苓10g、枸杞子10g、巴戟天10g、生鳖甲（先煎）20g、龟板（先煎）20g、丹皮参10g、白芷10g、杜仲10g、桑寄生10g。"
+    }
+   ],
+   "note": "Modern formula of 徐福松 (江苏省中医院, 《男科纲目》1993). Two published versions: 《男科纲目》 (haodf repost: 生熟地 沙苑子 茯苓 枸杞子 巴戟天 生鳖甲 龟板 丹皮参[=丹皮、丹参] 白芷 杜仲 桑寄生) and a '《徐福松方》' version (sohu: 生地 熟地 菟丝子 茯苓 枸杞子 五味子 金樱子 生鳖甲 牡蛎"
+  },
+  {
+   "name": "茵陈赤豆汤",
+   "source": "经验方",
+   "kind": "experience_formula",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:213476",
+     "quote": "方药：二妙散合茵陈赤豆汤加减。常用苍术、黄柏、茵陈、赤小"
+    },
+    {
+     "url": "http://m.zhongyoo.com/pianfang/1501.html",
+     "quote": "茵陈赤小豆汤治血栓性静脉炎"
+    }
+   ],
+   "note": "Composition on the 偏方 page (茵陈赤小豆汤 for 血栓性静脉炎, with a case report) equals the textbook list (十三五《中医外科学》陈红风 青蛇毒 湿热瘀阻证: 茵陈 赤小豆 薏苡仁 泽泻 炒黄柏 苦参 防己 佩兰 木通 白蔻 + 苍术 黄柏). No named originator or book found; the "
+  },
+  {
+   "name": "人参健脾丸",
+   "source": "《北京市中药成方选集》",
+   "kind": "modern_monograph",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:214117",
+     "quote": "方药：人参健脾丸合参苓白术散加减。常用人参、白术、茯苓、陈"
+    },
+    {
+     "url": "https://bydrug.pharmcube.com/news/detail/d130bef8990f752ae417cb27a202e9c1",
+     "quote": "人参健脾丸的处方来源于明代《景岳全书》，收录于1961年编制的《北京市中药成方选集》中。"
+    }
+   ],
+   "note": "The 11-herb 人参健脾丸 (人参 白术 茯苓 山药 陈皮 木香 砂仁 黄芪 当归 酸枣仁 远志) matches the textbook's non-参苓白术散 herbs. Earliest verifiable record is the 1961 《北京市中药成方选集》 (per 同仁堂 release; book itself not seen). Claims of a cl"
+  },
+  {
+   "name": "除风清脾饮",
+   "source": "《审视瑶函》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2674",
+     "quote": "除风清脾饮"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2675",
+     "quote": "广陈皮 连翘 防风 知母 元明粉 黄芩 玄参 黄连 荆芥穗 大黄 桔梗 生地（各等分）"
+    }
+   ],
+   "note": "教材附录组成（陈皮、连翘、防风、知母、玄明粉、黄芩、玄参、黄连、荆芥穗、大黄、桔梗、生地黄）与原方一致。"
+  },
+  {
+   "name": "当归活血饮",
+   "source": "《审视瑶函》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2975",
+     "quote": "当归活血饮"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2976",
+     "quote": "苍术（制） 当归身 川芎 苏薄荷 黄 熟地黄 防风 川羌活 甘草（减半） 白芍药（各等分）"
+    }
+   ],
+   "note": "同名异方：《幼幼集成》当归活血饮（当归尾、红花、黄芩、连翘、黄芪、人参、地骨皮、牛蒡子、甘草，治痘疮抓破出血）不同。教材所用为《审视瑶函》方（当归身、白芍、熟地、川芎、黄芪、苍术、防风、羌活、甘草、薄荷；本地古籍文本“黄芪”之“芪”缺字）。"
+  },
+  {
+   "name": "归芍红花散",
+   "source": "《审视瑶函》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2658",
+     "quote": "归芍红花散\\x（治眼胞肿硬。内生疙瘩。）"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2659",
+     "quote": "当归 大黄 栀子仁 黄芩 红花（以上俱酒洗微炒） 赤芍药"
+    }
+   ],
+   "note": "教材附录组成（当归、大黄、栀子仁、黄芩、红花、赤芍、甘草、白芷、防风、生地黄、连翘）与原方一致。"
+  },
+  {
+   "name": "止泪补肝散",
+   "source": "《银海精微》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/292-银海精微.txt:1126",
+     "quote": "止泪补肝散\\x 治肝虚迎风泪出不止"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/292-银海精微.txt:1127",
+     "quote": "蒺藜 当归 熟地黄 白芍药 川芎 木贼 防风 夏枯草（血虚者不用）"
+    }
+   ],
+   "note": "组成与教材附录所列一致（蒺藜、当归、熟地黄、白芍等）。《张氏医通》《医宗金鉴·眼科心法要诀》亦载，均晚于《银海精微》。"
+  },
+  {
+   "name": "竹叶泻经汤",
+   "source": "《原机启微》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/325-原机启微.txt:594",
+     "quote": "竹叶泻经汤\\x 治眼目瘾涩，稍觉"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/325-原机启微.txt:596",
+     "quote": "柴胡 栀子 羌活 升麻 炙草（各五分） 赤芍药 草决明 茯苓 车前子（各四分） 黄芩"
+    }
+   ],
+   "note": "倪维德《原机启微》（1370）方，《审视瑶函》《证治准绳》转载。原方含黄连、大黄、青竹叶、泽泻，与教材附录组成一致。"
+  },
+  {
+   "name": "修肝散",
+   "source": "《银海精微》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/292-银海精微.txt:1075",
+     "quote": "修肝散"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/292-银海精微.txt:1076",
+     "quote": "防风 羌活 当归 生地黄 黄芩 栀子 赤芍药 大黄 甘草 蒺藜（各一两）"
+    }
+   ],
+   "note": "教材注《银海精微》，但教材所列组成（防风、羌活、薄荷、麻黄、菊花、栀子、连翘、大黄、赤芍、当归、苍术、木贼、甘草）与本地《银海精微》所载两处修肝散正文（含生地、黄芩、蒺藜，无麻黄、菊花、苍术、木贼）不一致，仅与其歌诀部分药味相合，书中同名方版本不一；出处按教材与书名保留，组成未能逐味核实。"
+  },
+  {
+   "name": "滋阴退翳汤",
+   "source": "《眼科临床笔记》",
+   "kind": "modern_monograph",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:228531",
+     "quote": "123. 【滋阴退翳汤】（《眼科临床笔记》）：知母 生地黄 玄"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:228532",
+     "quote": "参麦冬蒺藜菊花木贼菟丝子蝉蜕青箱子甘草"
+    }
+   ],
+   "note": "现代眼科著作《眼科临床笔记》方（作者未能在线核实）。依据为中医眼科学教材附录所注出处与组成，原书未直接查阅。"
+  },
+  {
+   "name": "退赤散",
+   "source": "《审视瑶函》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2024",
+     "quote": "退赤散"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2025",
+     "quote": "桑白皮（蜜制） 甘草 牡丹皮（酒洗） 黄芩（酒炒） 天花粉 桔梗 赤芍药 归尾 栝"
+    }
+   ],
+   "note": "同名异方：《银海精微》退赤散（黄芩、黄连、白芷、当归、赤芍、栀子、桑白皮等）、《证治准绳·类方》退赤散（大黄、黄芩、黄连、白芷、赤芍、当归、栀子）、《秘传眼科龙木论》退赤散（生地、木通、甘草、栀子）均不同；教材所用含天花粉、瓜蒌仁、麦冬者为《审视瑶函》方。"
+  },
+  {
+   "name": "散风除湿活血汤",
+   "source": "《中医眼科临床实践》",
+   "kind": "modern_monograph",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:228520",
+     "quote": "119. 【散风除湿活血汤】（《中医眼科临床实践》）：羌活 独"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:228521",
+     "quote": "活防风当归川芎赤芍鸡血藤前胡苍术白术忍冬藤"
+    }
+   ],
+   "note": "庞赞襄《中医眼科临床实践》（现代专著）。依据为教材附录所注出处，原书未直接查阅。"
+  },
+  {
+   "name": "加减地黄丸",
+   "source": "《原机启微》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/325-原机启微.txt:749",
+     "quote": "加减地黄丸\\x 治症上同。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/325-原机启微.txt:750",
+     "quote": "生地黄 熟地黄（各半斤） 牛膝 当归（各三两） 枳壳（二两） 杏仁 羌活 防风（各一两）"
+    }
+   ],
+   "note": "组成与教材附录一致。同名异方：《审视瑶函》另一加减地黄丸含石斛等，《外科大成》亦有同名方，均不同。"
+  },
+  {
+   "name": "四顺清凉饮子",
+   "source": "《审视瑶函》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2338",
+     "quote": "四顺清凉饮子"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2339",
+     "quote": "当归身 龙胆草（酒洗，炒） 黄芩 桑皮（蜜制） 车前子 生地黄 赤芍 枳壳（各八分）"
+    }
+   ],
+   "note": "同名异方：《三因极一病证方论》《小儿卫生总微论方》等之四顺清凉饮（子）为大黄、当归、芍药、甘草等少数药味，与眼科十六味方不同。"
+  },
+  {
+   "name": "海藏地黄散",
+   "source": "《审视瑶函》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2455",
+     "quote": "海藏地黄散\\x 治大小男妇，心肝壅热，目赤肿痛，生赤翳，或白膜遮睛"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2457",
+     "quote": "大黄（煨） 熟地黄 玄参 沙苑蒺藜 防风 谷精草 黄连（酒洗，炒） 白蒺藜（杵去"
+    }
+   ],
+   "note": "方名冠“海藏”（王好古），本地语料仅见于《审视瑶函》，教材亦注《审视瑶函》；组成与教材附录一致（教材附录另列黄连以外诸味）。"
+  },
+  {
+   "name": "加味修肝散",
+   "source": "《银海精微》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/292-银海精微.txt:879",
+     "quote": "加味修肝散"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/292-银海精微.txt:880",
+     "quote": "羌活 防风 桑螵蛸 栀子 薄荷 当归 赤芍药 甘草 麻黄 连翘 菊花 木贼"
+    }
+   ],
+   "note": "该处十七味与教材附录组成完全一致；书中另有数处同名方药味略少。"
+  },
+  {
+   "name": "银花复明汤",
+   "source": "《中医眼科临床实践》",
+   "kind": "modern_monograph",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:228501",
+     "quote": "111. 【银花复明汤】（《中医眼科临床实践》）：金银花蒲公"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:228502",
+     "quote": "英桑白皮天花粉黄苓黄连龙胆生地黄知母大黄玄明"
+    }
+   ],
+   "note": "庞赞襄《中医眼科临床实践》（现代专著）。依据为教材附录所注出处，原书未直接查阅。"
+  },
+  {
+   "name": "四物五子丸",
+   "source": "《证治准绳》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/632-证治准绳·类方.txt:13576",
+     "quote": "四物五子丸\\x 治心肾不足，眼目昏暗。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/632-证治准绳·类方.txt:13577",
+     "quote": "当归（酒浸） 川芎 熟地黄 白芍药 枸杞子 覆盆子 地肤子 菟丝子（酒浸，炒）"
+    }
+   ],
+   "note": "教材注《审视瑶函》（1644），但同组成同主治已见《证治准绳·类方》（1602）。《普济方》三仁五子丸（出《永类钤方》）条下注“澹寥（寮）方加川芎白…用地肤子。名四物五子丸”，提示最早或出《澹寮方》，但其全方未见，故取有完整原文的《证治准绳》。"
+  },
+  {
+   "name": "明目地黄丸",
+   "source": "《审视瑶函》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:3483",
+     "quote": "明目地黄丸\\x 治肾虚目暗不明。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:3484",
+     "quote": "熟地黄（焙干，四两） 生地黄（酒洗） 山药 泽泻 山茱萸 （去核酒洗） 牡丹皮（酒洗）"
+    }
+   ],
+   "note": "同名异方甚多：《局方》（见《证治准绳》）明目地黄丸为生熟地、牛膝、石斛、枳壳、杏仁、防风；《万病回春》方含知母、黄柏等；均不同。教材所用（熟地、生地、山药、泽泻、山茱萸、丹皮、柴胡、茯神、当归身、五味子）为《审视瑶函》方，其前身为李东垣益阴肾气丸（茯苓、当归尾）。"
+  },
+  {
+   "name": "驱风上清散",
+   "source": "《审视瑶函》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:1927",
+     "quote": "驱风上清散\\x 治风热上攻，眉棱骨痛。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:1928",
+     "quote": "酒黄芩（二钱） 白芷（钱半） 羌活 防风 柴胡梢（各一钱） 川芎（一钱二分） 荆芥（八分） 甘草"
+    }
+   ],
+   "note": "组成与教材附录一致。"
+  },
+  {
+   "name": "防风羌活汤",
+   "source": "《审视瑶函》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:1945",
+     "quote": "防风羌活汤\\x 治眉棱骨痛，而风寒在脑，或感痰湿，及脑昏痛，宜此。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:1946",
+     "quote": "防风 川羌活 半夏（姜制） 黄芩（酒洗） 南星（姜制） 北细辛 白术（土炒） 甘草（"
+    }
+   ],
+   "note": "同名异方：《医宗金鉴·外科心法要诀》《伤寒大白》等之防风羌活汤组成不同。教材附录本条排版错乱（仅可见“半夏白术黄苓”），与《审视瑶函》治眉棱骨痛之方（防风、羌活、半夏、黄芩、南星、细辛、白术、甘草、川芎）相合，且切合“风痰上犯证”。 另：《古今医统大全》（1556）已载治眉棱痛风寒痰湿之防风羌活汤八味（无川芎），《审视瑶函》九味加川芎；因教材附录组成残缺，沿用教材所注《审视瑶函》。"
+  },
+  {
+   "name": "散热消毒饮子",
+   "source": "《审视瑶函》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2152",
+     "quote": "散热消毒饮子"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2153",
+     "quote": "牛蒡子（研炒） 羌活 黄连 黄芩 苏薄荷 防风 连翘（各等分）"
+    }
+   ],
+   "note": "组成与教材附录一致。"
+  },
+  {
+   "name": "平肝清火汤",
+   "source": "《审视瑶函》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2720",
+     "quote": "平肝清火汤\\x（治黑睛胀大。虚者服。）"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2721",
+     "quote": "车前子 连翘（各一钱） 枸杞子 柴胡 夏枯草 白芍 生地黄 当归（各钱半）"
+    }
+   ],
+   "note": "组成与中医眼科学附录（生地黄、连翘、白芍、柴胡、夏枯草、枸杞子、当归、车前子，注《审视瑶函》）一致。"
+  },
+  {
+   "name": "祛瘀汤",
+   "source": "经验方",
+   "kind": "experience_formula",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:228455",
+     "quote": "90.【祛瘀汤】（《中医眼科学讲义》1964年）：川芎 当归尾"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:228456",
+     "quote": "桃仁赤芍生地黄墨旱莲泽兰丹参仙鹤草郁金"
+    }
+   ],
+   "note": "Earliest attestation is the 1964 national textbook 《中医眼科学讲义》 (广州中医学院主编, 上海科学技术出版社 1964.08), itself not an acceptable source; no named creator found online, and no 祛瘀汤 with this composition in the anci"
+  },
+  {
+   "name": "经效散",
+   "source": "《世医得效方》卷十六",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/069-世医得效方.txt:20743",
+     "quote": "因撞刺生翳，疼痛无时，经久不安者。复被物撞之，兼为风热所攻，转加"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/069-世医得效方.txt:20746",
+     "quote": "大黄 当归 芍药（各半两） 北柴胡（一两，去芦） 粉草 连翘（各一分） 犀角"
+    }
+   ],
+   "note": "教材注《审视瑶函》，但同名同主治（撞刺生翳）、同七味（柴胡、犀角、赤芍、当归、大黄、连翘、甘草）之方已载《世医得效方》卷十六眼科（1337），《审视瑶函》系转录（作当归尾、甘草梢）。同名异方：《圣济总录》经效散为贯众一味治肠风下血。"
+  },
+  {
+   "name": "桃仁四物汤",
+   "source": "《医垒元戎》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/580-医垒元戎.txt:353",
+     "quote": "秘涩者加大黄 桃仁 若滑涩者加官桂 附子"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/617-古今医统大全.txt:21772",
+     "quote": "（《元戎》）\\x桃仁四物汤\\x 治血涩秘结不通。"
+    }
+   ],
+   "note": "Textbook composition NOT established: the 中医骨伤科学 body names the formula without herbs and the local corpus has no 骨伤 appendix. 同名异方: (a) 《医垒元戎》 四物汤 '藏秘涩者加大黄、桃仁' (古今医统 cites it as 《元戎》桃仁四物汤: 桃仁 当归 川芎 生"
+  },
+  {
+   "name": "皂角通关散",
+   "source": "经验方",
+   "kind": "experience_formula",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "url": "http://www.a-hospital.com/w/挤压综合征",
+     "quote": "方用化瘀通淋汤，或桃仁四物汤加皂角通关散（皂角、知母、黄柏、小葱、路路通）。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:187178",
+     "quote": "方用桃仁四物汤合皂角通关散加琥珀"
+    }
+   ],
+   "note": "No classical or monograph origin found. Composition from A+医学百科 挤压综合征 page (same text on yixue.com), not from the textbook appendix, and the textbook's own label (经验方 or other) was not seen. NOT the 通"
+  },
+  {
+   "name": "大黄白茅根汤",
+   "source": "经验方",
+   "kind": "experience_formula",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "url": "http://www.a-hospital.com/w/挤压综合征",
+     "quote": "方用大黄白茅根汤加味（大黄、黄芪、芒硝、白茅根、桃仁）"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:187180",
+     "quote": "方用大黄白茅根汤合五苓"
+    }
+   ],
+   "note": "No classical formula of this name found (searches return only 白茅根汤 of 《圣济总录》/《医学衷中参西录》, different compositions; none in ancient corpus). The listed herbs are the '加味' form on A+医学百科's crush-syndrome p"
+  },
+  {
+   "name": "龟鹿二仙胶汤",
+   "source": "《医便》卷一",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "url": "http://www.a-hospital.com/w/龟鹿二仙胶",
+     "quote": "《医便》卷一"
+    },
+    {
+     "url": "http://www.a-hospital.com/w/龟鹿二仙胶",
+     "quote": "龟版（去弦，洗净，捶碎）2.5千克 人参450克 枸杞子900克"
+    }
+   ],
+   "note": "龟鹿二仙胶 (also 龟鹿二仙膏) 《医便》卷一 (王三才, 明): 鹿角、龟板、人参、枸杞子, matched by 《医方考》 (1584, local corpus). The 骨伤 textbook names 龟鹿二仙胶汤 without herbs; assumed to be this formula taken as decoction. Project catalog list"
+  },
+  {
+   "name": "通圣消毒散",
+   "source": "《重订通俗伤寒论》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/475-重订通俗伤寒论.txt:5681",
+     "quote": "重则用通"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/475-重订通俗伤寒论.txt:5682",
+     "quote": "圣消毒散加减。（荆芥、防风、川芎、白芷各一钱、银花、连翘、牛蒡、薄荷、焦栀"
+    }
+   ],
+   "note": "见俞根初原著、何廉臣等重订之《重订通俗伤寒论》“大头伤寒”节，温病学教材所列组成（荆芥、防风、川芎、白芷、银花、连翘、牛蒡、薄荷、焦栀、滑石、风化硝、生锦纹、桔梗、甘草，另犀角、大青叶、葱白、豆豉、芦笋、浮萍）与之一致。同名异方：《证治准绳·疡医》通圣消毒散（防风、荆芥、连翘、赤芍、麻黄、石膏、朴硝等二十一味）、《古今医统大全》引《集成》方，均不同。"
+  },
+  {
+   "name": "余氏清心凉膈散",
+   "source": "《疫疹一得》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/525-疫疹一得.txt:1344",
+     "quote": "凉膈散\\x（《局方》）治心火上盛，中焦燥实，烦躁口渴，"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/525-疫疹一得.txt:1346",
+     "quote": "连翘 生栀子 黄芩 薄荷 桔梗 甘草 生石膏 竹叶"
+    }
+   ],
+   "note": "“余氏”指余师愚。其方首载余师愚《疫疹一得》（1794），书中仍称“凉膈散”（注《局方》），实为凉膈散去硝黄加石膏、桔梗；“余氏清心凉膈散”之名由王孟英《温热经纬》（1852）而来，温病学教材注“引《温热经纬》”。原方连翘、栀子、黄芩、薄荷、桔梗、甘草、石膏、竹叶八味与教材组成前八味一致，其余象牙屑、珍珠、青黛、冰片、壁钱、牛黄、焙指甲属同行锡类散。若希望沿用教材写法可作《温热经纬》。"
+  },
+  {
+   "name": "星蒌承气汤",
+   "source": "王永炎经验方",
+   "kind": "modern_monograph",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "url": "https://www.wfcms.org/show/55/4313.html",
+     "quote": "针对中风病急性期痰热证、痰热腑实证而设计、研究的化痰通腑汤与清开灵注射液静脉滴注疗法"
+    },
+    {
+     "url": "https://www.syfjxzz.com/rc-pub/front/front-article/download/135414750/lowqualitypdf/%E6%98%9F%E8%92%8C%E6%89%BF%E6%B0%97%E6%B9%AF%E3%81%AE%E8%84%B3%E5%8D%92%E4%B8%AD%E5%90%88%E4%BD%B5%E7%97%87%E6%B2%BB%E7%99%82%E3%81%AB%E3%81%8A%E3%81%91%E3%82%8B%E8%96%AC%E5%8A%B9%E7%89%A9%E8%B3%AA%E3%81%8A%E3%82%88%E3%81%B3%E4%BD%9C%E7%94%A8%E6%A9%9F%E5%BA%8F%E7%A0%94%E7%A9%B6%E3%81%AE%E9%80%B2%E5%B1%95.pdf",
+     "quote": "王永炎院士结合多年的临床经验提出了化痰通腑疗法"
+    }
+   ],
+   "note": "Created by 王永炎 (化痰通腑法, early 1980s; first called 化痰通腑汤/饮). Composition seen in a 2026 中国实验方剂学杂志 review (secondary, PDF text; layout spaces removed in the 2nd/3rd quotes) and in textbooks citing 《临床中医内"
+  },
+  {
+   "name": "菖蒲郁金汤",
+   "source": "《温病全书》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:108711",
+     "quote": "【方药】菖蒲郁金汤（《温病全书》）。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:108712",
+     "quote": "鲜石菖蒲三钱　广郁金一钱　炒栀子三钱　青连翘二钱　灯心二钱　鲜竹叶三钱　粉丹皮二钱　淡竹沥（冲）五钱　细木通钱半　紫金片（冲）五分"
+    }
+   ],
+   "note": "《温病条辨》无此方（本地古籍语料《温病条辨》检索不到），教材另一处注《温病条辨》属误注。《温病全书》原书未能查阅，作者与成书年代（清末或民国）网络来源说法不一，未核实；组成依温病学教材。kind 暂记 classical。"
+  },
+  {
+   "name": "双合汤",
+   "source": "《万病回春》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/647-万病回春.txt:4424",
+     "quote": "双合汤"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/647-万病回春.txt:4425",
+     "quote": "当归 川芎 白芍 生地黄 陈皮 半夏（姜汁炒） 茯苓（去皮，各一钱） 桃仁（去皮，八"
+    }
+   ],
+   "note": "龚廷贤《万病回春》（1587）方：桃红四物汤合二陈汤加白芥子，入竹沥、姜汁；同人《寿世保元》亦载。《杂病源流犀烛》（1773）系后出转载。教材附录（两种注法）组成均与《万病回春》原方一致。"
+  },
+  {
+   "name": "牛黄清心丸",
+   "source": "《痘疹世医心法》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:48952",
+     "quote": "【附方】牛黄清心丸 （《痘疹世医心法》） 　辰砂一钱半（4.5g）　 黄连五钱（15g） 　黄芩　山栀仁各三钱（各9g）　 郁金二钱（6g）　 牛黄二分半（0.75g）"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:126962",
+     "quote": "牛黄清心丸（《痘疹世医心法》）：牛黄 黄芩 黄连栀子 郁金 朱砂"
+    }
+   ],
+   "note": "同名异方：《太平惠民和剂局方》牛黄清心丸为二十余味大方（牛黄、麝香、羚羊角、人参、白术等）。教材三行（脑出血痰热内闭、妊娠高血压痰火上扰、肺炎喘嗽邪陷厥阴）所用为万全《痘疹世医心法》六味方（又称万氏牛黄清心丸）；原书未在本地语料中，组成经《绛雪园古方选注》转录与教材附录核对一致。"
+  },
+  {
+   "name": "加味四物汤",
+   "source": "《金匮翼》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/205-金匮翼.txt:3490",
+     "quote": "属性：血虚头痛者，血虚脉空，自鱼尾上攻头痛者是也。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/205-金匮翼.txt:3498",
+     "quote": "生地（二钱） 当归（一钱） 蔓荆（五分） 黄芩（一钱，酒炒） 白芍（一钱，酒炒） 炙草"
+    }
+   ],
+   "note": "同名异方，两行出处不同：①中西医结合内科学·头痛·血虚头痛 用《金匮翼》血虚头痛条下“新定”方（生地、当归、白芍、川芎、菊花、蔓荆子、黄芩、甘草；原书未立名，“加味四物汤”为教材所称）；②中西医结合妇产科学·产后尿潴留·血瘀证 用《医宗金鉴·妇科心法要诀》产后淋闭方（四物加蒲黄、瞿麦、桃仁、牛膝、滑石、甘草梢、木香、木通）。见 perRow。"
+  },
+  {
+   "name": "开郁散",
+   "source": "《洞天奥旨》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:150762",
+     "quote": "开郁散（《洞天奥旨》）柴胡 当归 白芍 白术 茯苓 香附 郁金 天葵草 全蝎白芥子 炙甘草"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:215757",
+     "quote": "开郁散（《外科秘录》）"
+    }
+   ],
+   "note": "陈士铎《洞天奥旨》（1694）方；该书又名《外科秘录》，教材两种写法指同一书。原书不在本地语料、网络未检到原文，组成依教材附录（白芍、当归、白术、柴胡、香附、郁金、全蝎、天葵草、白芥子、茯苓、炙甘草）。同名异方：《古方汇精》开郁散为郁金、明矾，治癫痫，不同。"
+  },
+  {
+   "name": "止痛如神汤",
+   "source": "《外科启玄》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/240-外科启玄.txt:4431",
+     "quote": "属性：\\x止痛如神汤\\x 即秦艽苍术汤加减。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/240-外科启玄.txt:4434",
+     "quote": "秦艽（去苗） 桃仁（去尖皮另研） 皂角子（烧存性各一钱研） 苍术（泔浸炒） 防风（各"
+    }
+   ],
+   "note": "申斗垣《外科启玄》（1604）方，自注由东垣秦艽苍术汤加减；《医宗金鉴·外科心法要诀》（1742）转载，十味相同。"
+  },
+  {
+   "name": "育阴汤",
+   "source": "《百灵妇科》",
+   "kind": "modern_monograph",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:120321",
+     "quote": "方药：育阴汤（《百灵妇科》）去海螵蛸、牡蛎，加当归、菟丝子。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:127050",
+     "quote": "育阴汤（《百灵妇科》）：熟地黄 白芍 山药 续断桑寄生 杜仲 山茱萸 阿胶 牛膝 龟甲牡蛎 海螵蛸"
+    }
+   ],
+   "note": "韩百灵《百灵妇科》（现代妇科专著）方。同名异方：《重订通俗伤寒论》七鲜育阴汤（鲜生地等七鲜药）不同，闭经肝肾阴虚证所用为韩百灵方。原书未直接查阅，依据教材附录。"
+  },
+  {
+   "name": "苍附导痰汤",
+   "source": "《叶天士女科诊治秘方》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:120629",
+     "quote": "方药：苍附导痰汤（《叶天士女科诊治秘方》）合桃红四物汤（《医宗金鉴》）。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:120215",
+     "quote": "方药：苍附导痰丸（《叶天士女科诊治秘方》）。"
+    }
+   ],
+   "note": "即苍附导痰丸作汤剂。教材通注《叶天士女科诊治秘方》（又题《叶氏女科证治》，1817）。同组成（苍术、香附、枳壳、陈皮、茯苓、胆星、甘草，姜汁神曲为丸）亦见《竹林女科证治》，叶氏书多承竹林寺女科之文，但本地文本无刊年，无法判定先后，故沿用通行出处。教材行未列组成。"
+  },
+  {
+   "name": "生铁落饮",
+   "source": "《医学心悟》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/601-医学心悟.txt:5799",
+     "quote": "<篇名>生铁落饮"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/601-医学心悟.txt:5801",
+     "quote": "属性：天冬（去心） 麦冬（去心） 贝母（各三钱） 胆星 橘红 远志肉 石菖蒲 连翘 茯苓"
+    }
+   ],
+   "note": "程国彭《医学心悟》方；“《医学心语》”为讹写。同名异方：《素问·病能论》生铁洛（落）饮仅生铁落一味。教材行未列组成。"
+  },
+  {
+   "name": "化瘀止崩汤",
+   "source": "经验方",
+   "kind": "experience_formula",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:123658",
+     "quote": "方药：化瘀止崩汤（《中医妇科学》（第6版））。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:126922",
+     "quote": "化瘀止崩汤（《中医妇科学》）：炒蒲黄 五灵脂益母草 南沙参 当归 川芎 三七粉"
+    }
+   ],
+   "note": "Only attestation is the planning textbook 中医妇科学 (6th ed.); web searches found no named creator or earlier monograph, and no match in the ancient corpus. 罗元恺's documented 崩漏 formula is 二稔汤, not this on"
+  },
+  {
+   "name": "夺命散",
+   "source": "《妇人大全良方》卷十八",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/128-妇人大全良方.txt:12797",
+     "quote": "<篇名>产后血晕方论第五"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/128-妇人大全良方.txt:12799",
+     "quote": "属性：治产后血晕，血入心经，语言颠倒，健忘失志及产后百病。"
+    }
+   ],
+   "note": "本地文本该条方名脱落，但卷次、主治与组成（没药、血竭）同教材所注《妇人大全良方》夺命散。同名异方：《济生方》夺命散含水蛭等，治跌打损伤瘀血，不同。"
+  },
+  {
+   "name": "宫颈抗癌汤",
+   "source": "《现代中西医妇科学》",
+   "kind": "modern_monograph",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:126908",
+     "quote": "宫颈抗癌汤（《现代中西医妇科学》）：黄柏 茵陈薏苡仁 土茯苓 赤芍 牡丹皮 蒲公英半枝莲 黄药子 白花蛇舌草 败酱草 紫草"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:124758",
+     "quote": "方药：宫颈抗癌汤（《现代中医妇科学》）。"
+    }
+   ],
+   "note": "Citation-based only, LOW confidence. The textbook body cites 《现代中医妇科学》 and its appendix 《现代中西医妇科学》; search summaries indicate 《现代中西医妇科学》 exists (马其江、桑海莉、岳小方, 中国科学技术出版社 2006) but this was not seen verb"
+  },
+  {
+   "name": "芫花散",
+   "source": "《妇科玉尺》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/611-妇科玉尺.txt:926",
+     "quote": "芫花散\\x 治妊娠非娠。是得鬼胎。形如抱瓮者。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/611-妇科玉尺.txt:927",
+     "quote": "芫花（醋炒） 吴萸 秦艽 白僵蚕 柴胡 川乌 巴戟"
+    }
+   ],
+   "note": "沈金鳌《妇科玉尺》（属《沈氏尊生书》，故教材另写《沈氏尊生书》）。同名芫花散甚多（《太平圣惠方》《圣济总录》等），《妇人大全良方》《古今医鉴》治鬼胎者仅芫花根一味，均与此七味方不同。"
+  },
+  {
+   "name": "四草止血方",
+   "source": "经验方",
+   "kind": "experience_formula",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:126082",
+     "quote": "方药：四草止血方（《中西医结合妇产科学》）。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:126999",
+     "quote": "四草止血方（《中西医结合妇产科学》）：炒蒲黄香附 五灵脂 马鞭草 柴胡 白芍 女贞子旱莲草 夏枯草 仙鹤草 甘草"
+    }
+   ],
+   "note": "Only attestation is the planning textbook 中西医结合妇产科学. Related but different: 尤昭玲's 四草汤 (仙鹤草、马鞭草、旱莲草、鹿衔草) shares three of the four 草; the textbook formula adds 夏枯草 plus 失笑散/二至丸/四逆散-type herbs. No named "
+  },
+  {
+   "name": "龙骨散",
+   "source": "《杂病源流犀烛》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:165217",
+     "quote": "主方：龙骨散（《杂病源流犀烛》）。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:165218",
+     "quote": "常用药：龙骨、枯矾外用，干撒脐部。"
+    }
+   ],
+   "note": "沈金鳌《杂病源流犀烛》（1773）方，原书不在本地语料，未能直接查阅。同名异方：《证治准绳·幼科》等治脐疮之龙骨散为龙骨、轻粉、黄连（或加枯矾），《景岳全书》龙骨散治血崩，均不同；教材脐湿所用为龙骨、枯矾二味外用方。"
+  },
+  {
+   "name": "养脏汤",
+   "source": "《医宗金鉴》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/157-幼科心法要诀.txt:575",
+     "quote": "痛木香丸，肢冷甲青唇口黑，养脏温中或保全。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/157-幼科心法要诀.txt:584",
+     "quote": "养脏散"
+    }
+   ],
+   "note": "出《医宗金鉴·幼科心法要诀》内钓门，原名养脏散（当归、沉香、木香、肉桂、川芎、丁香）。同名异方：《太平惠民和剂局方》真人（纯阳真人）养脏汤为涩肠止泻方，不同。待办中教材组成以香附代沉香，其余五味相同。"
+  },
+  {
+   "name": "阿胶汤",
+   "source": "《医宗金鉴》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/175-妇科心法要诀.txt:1394",
+     "quote": "胎漏下血多因热，四物阿胶栀侧芩"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/175-妇科心法要诀.txt:1397",
+     "quote": "多属血热，宜阿胶汤清之。其方即四物汤加阿胶、黑栀、侧柏叶、黄芩也。"
+    }
+   ],
+   "note": "出《医宗金鉴·妇科心法要诀》胎漏：四物汤加阿胶、黑栀子、侧柏叶、黄芩，与教材组成八味完全一致。同名异方甚多：《伤寒论》黄连阿胶汤、《小儿药证直诀》阿胶散、《医宗金鉴》另一阿胶汤（阿胶、熟地、艾叶、川芎、当归、杜仲、白术）等均不同。"
+  },
+  {
+   "name": "黄芪汤",
+   "source": "《济阴纲目》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/198-济阴纲目.txt:9237",
+     "quote": "黄 汤\\x 治产后虚汗不止。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/198-济阴纲目.txt:9238",
+     "quote": "黄 （二钱） 白术 防风 熟地黄 牡蛎（ 为粉） 白茯苓 麦门冬（去心） 甘草（炙，各五分）"
+    }
+   ],
+   "note": "武之望《济阴纲目》（1620）方：黄芪、白术、防风、熟地、牡蛎、茯苓、麦冬、甘草，加大枣，与教材九味一致（本地文本“芪”字缺）。前身为《经效产宝》方（经《妇人大全良方》《证治准绳·女科》转载，用生地黄、无甘草）。同名异方：《金匮要略》黄芪芍桂苦酒汤、《金匮翼》黄芪汤等不同。"
+  },
+  {
+   "name": "五虎汤",
+   "source": "《霉疮秘录》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:150766",
+     "quote": "五虎汤（《霉疮秘录》）全蝎 僵蚕 穿山甲 蜈蚣 斑蝥 生大黄"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/灵丹GitHub/TCM Educational Materials.txt:215824",
+     "quote": "五虎汤（《霉疮秘录》）"
+    }
+   ],
+   "note": "陈司成《霉疮秘录》（1632）方，原书不在本地语料、网络未检到原文。教材附录组成为全蝎、僵蚕、穿山甲、蜈蚣、斑蝥、生大黄；待办中的教材行组成（僵蚕、蜈蚣、全蝎、生大黄、土茯苓、牛膝）为教材加减用法。同名异方：《医宗金鉴》五虎汤（麻杏石甘加细茶，治喘）不同。"
+  },
+  {
+   "name": "脏连丸",
+   "source": "《医方集宜》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/071-医方集宜.txt:19960",
+     "quote": "脏连丸"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/071-医方集宜.txt:19962",
+     "quote": "用正川黄连十斤累珠者尤佳不用刀锉不可火炒炒则不效生捣为细末入雄猪大肠内两头紧"
+    }
+   ],
+   "note": "黄连、猪大肠二味之脏连丸，本地语料最早见于丁凤《医方集宜》（1554），后《外科正宗》（1617，黄连八两、猪大脏一尺二寸）、《医宗金鉴·外科心法要诀》转载。教材注《证治准绳》，但本地《证治准绳》疡医、类方均未检到此方。如需沿用通行写法可作《外科正宗》。同名异方：《外科大成》（加槐花）、《古今医统》（加槐花、枳壳等九味）、《血证论》（六味地黄加黄连）均不同。"
+  },
+  {
+   "name": "槐角丸",
+   "source": "《疡医大全》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/223-疡医大全.txt:22723",
+     "quote": "\\x槐角丸\\x"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/223-疡医大全.txt:22724",
+     "quote": "槐角子 槐花（各八两） 槟榔（四两） 黄芩（三两） 刺 皮（两个，酒浸焙）"
+    }
+   ],
+   "note": "教材组成（槐角、槐花、槟榔、黄芩、刺猬皮）为顾世澄《疡医大全》槐角丸（本地文本“猬”字缺）。同组成更早见《万氏秘传外科心法》，名“五味槐角丸”。同名异方：《太平惠民和剂局方》槐角丸（槐角、地榆、当归、防风、黄芩、枳壳；《丹溪心法》同）不同。"
+  },
+  {
+   "name": "泻肺汤",
+   "source": "《审视瑶函》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2763",
+     "quote": "属性：金疳起如玉粒。"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/293-审视瑶函.txt:2768",
+     "quote": "泻肺汤"
+    }
+   ],
+   "note": "同名异方：《金匮要略》葶苈大枣泻肺汤、《审视瑶函》另一泻肺汤（羌活、玄参、黄芩、桔梗、地骨皮、大黄、芒硝，治暴赤客热外障）均不同。金疳肺经燥热证所用为《审视瑶函·金疳》条下六味方。"
+  },
+  {
+   "name": "独参汤",
+   "source": "《十药神书》",
+   "kind": "classical",
+   "compositionChecked": false,
+   "evidence": [
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/278-增订十药神书.txt:156",
+     "quote": "<篇名>丙字独参汤"
+    },
+    {
+     "file": "/home/coder/workspace/中医CDSS/中医补充数据/TCM-Ancient-Books-master/278-增订十药神书.txt:158",
+     "quote": "属性：止血后，此药补之。"
+    }
+   ],
+   "note": "葛可久《十药神书》（元，1348）丙字号方，人参一味；本地语料为清代增订本。《景岳全书》《伤寒大全》等为后出。待办中教材组成（人参、黄芪、炙甘草）为同行合用他方之并集，独参汤本方仅人参。"
+  },
+  {
+   "name": "五生饮",
+   "source": "《世医得效方》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 237919,
+     "quote": "五生饮（《世医得效方》）：生南星、生半夏、生白附子、川乌、黑豆。"
+    }
+   ],
+   "note": "教材另处写《医学六要》（明代），《世医得效方》（元代）在前、组成相同。"
+  },
+  {
+   "name": "复方大柴胡汤",
+   "source": "《中西医结合治疗急腹症》",
+   "kind": "modern_monograph",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 150872,
+     "quote": "复方大柴胡汤（《中西医结合治疗急腹症》）柴胡 黄芩 枳壳 川楝子 延胡索 白芍生大黄 木香 蒲公英"
+    }
+   ]
+  },
+  {
+   "name": "四妙散",
+   "source": "《成方便读》",
+   "kind": "classical",
+   "compositionChecked": true,
+   "evidence": [
+    {
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 50086,
+     "quote": "2.四妙丸 （《成方便读》） 　黄柏　苍术　牛膝　薏苡仁各八两（各240g）"
+    }
+   ],
+   "note": "四妙散即四妙丸作散剂，原方出《成方便读》。"
+  }
+ ]
+}

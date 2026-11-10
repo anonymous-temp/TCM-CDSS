@@ -1177,6 +1177,7 @@ export function cardSentencesMatchedToSyndrome(
   diseaseNames: readonly string[],
   signedSyndromeText: string,
   course?: "acute" | "chronic",
+  signedMethodText = "",
 ): string {
   const syndrome = String(signedSyndromeText || "");
   if (!rawText || !syndrome.trim()) return rawText;
@@ -1185,7 +1186,9 @@ export function cardSentencesMatchedToSyndrome(
   const text = rawText.replace(/(^|[。；;]\s*)([\u4e00-\u9fff]{2,6})[，,](?=\s*(?:可|宜))/gu, (whole, lead: string, label: string) =>
     syndromeConcepts(label).natures.size > 0 && !namesAcupoint(label) && !/[者时后外刺针穴取用食煮治疗]/u.test(label) ? `${lead}${label}者` : whole);
   const diseases = diseaseNames.map((name) => name.trim()).filter((name) => name.length >= 2);
-  const noMoxibustion = syndromeHasHeatNature(syndrome);
+  // 证名不带寒热字、治法是滋阴降火一类的（肾精亏损证、治法「补肾填精，滋阴降火」）同样不说加灸：与整张灸法卡不出同一判据
+  //（moxibustionUnsuitableForSyndrome；第四十一轮 r1054 回顾 11.05 病历4：针刺卡写「太溪、肾俞可加温灸」）。
+  const noMoxibustion = syndromeHasHeatNature(syndrome) || moxibustionUnsuitableForSyndrome(syndrome, signedMethodText);
   namesAcupoint("");
   // 「灸」只认施灸的说法：书名、出处括注里的「灸」（《刺法灸法学》）和「针灸」一词不算。施灸的小句只去那一小句
   //（「留针15分钟，灸5分钟。」→「留针15分钟。」）。此前整句判、句句都带出处里的「灸」，全删光后整段原样退回（2026-10-18 留出例 S002）。
@@ -1511,10 +1514,17 @@ const TECHNIQUE_NAME_BY_PROJECT: Record<string, string> = {
 };
 
 /** 该项目的技术禁忌（国家中医药管理局护理方案与技术规范，逐条核对过引文，见来源快照）。 */
-function techniqueContraindications(code: string): string {
+export function techniqueContraindications(code: string, patientAgeYears?: number | null): string {
   const name = TECHNIQUE_NAME_BY_PROJECT[code];
   const item = name ? WEB.techniqueSafety.find((entry) => entry.technique === name) : undefined;
-  return item ? `禁忌：${item.contraindications}。` : "";
+  if (!item) return "";
+  // 推拿禁忌原文分成人与「小儿推拿：…」两段：14 岁以上不印小儿那一段（第四十一轮 r1054 回顾：成人推拿卡出现「小儿推拿」26 份）。
+  // 年龄未知时照旧两段都印。
+  const adult = typeof patientAgeYears === "number" && patientAgeYears >= 14;
+  const text = adult
+    ? item.contraindications.split(/(?<=。)/u).filter((segment) => !/^小儿推拿[：:]/u.test(segment.trim())).join("").replace(/。$/u, "")
+    : item.contraindications;
+  return text ? `禁忌：${text}。` : "";
 }
 
 /**
@@ -1666,8 +1676,18 @@ const GENERIC_SYMPTOM_HALVES: ReadonlySet<string> = new Set(["疼痛", "不适",
  * 教材扫描文本里的错字（闭集，每条都对过原书上下文）：生成物保留扫描原文，出卡时改正，与 tcm-textbook-syndromes 的 TEXTBOOK_OCR_FIXES 同一做法。
  * 「顽同性头痛」即「顽固性头痛」（《针灸治疗学》头痛节其他治疗·耳针，第 8995 行；2026-10-19 Claude 评审 H-tri-10297、9376）。
  */
-const NONDRUG_TEXTBOOK_OCR_FIXES: ReadonlyArray<readonly [string, string]> = [["顽同性", "顽固性"]];
-function textbookOcrFixed(text: string): string {
+// 教材扫描丢字：《推拿学》的「㨰法」（扩展 A 区字）在语料里整字丢失，成了「以法作用于」「、法、」「用法在」（第四十一轮 r1054 回顾：
+// 推拿卡缺字 11 份）；补成通行写法「滚法」（扩展 A 区字在甲方面板字体里可能不显示）。「伏免」是伏兔穴的形近误字。有限闭集。
+const NONDRUG_TEXTBOOK_OCR_FIXES: ReadonlyArray<readonly [string, string]> = [
+  ["顽同性", "顽固性"],
+  ["以法作用", "以滚法作用"],
+  ["以法施", "以滚法施"],
+  ["用法在", "用滚法在"],
+  ["、法、", "、滚法、"],
+  ["：法、", "：滚法、"],
+  ["伏免", "伏兔"],
+];
+export function textbookOcrFixed(text: string): string {
   return NONDRUG_TEXTBOOK_OCR_FIXES.reduce((value, [wrong, right]) => value.split(wrong).join(right), String(text || ""));
 }
 
@@ -1932,7 +1952,7 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
     ? tailored || variantTherapyFits || !meridianSentence
       ? /^取/.test(therapyForCase) ? `${cutText(therapyForCase, 80)}。` : `治法：${cutText(therapyForCase, 80)}。`
       // 「（本例证型在教材中没有对应的配穴）」是系统在讲自己查表的结果，不是给医生的治疗内容（2026-10-19 终评 S067 等 8 例点名）：只写按病取的主穴。
-      : `按病取基本穴：${cutText(meridianSentence, 70)}。`
+      : /^取/u.test(meridianSentence) ? `${cutText(meridianSentence, 70)}。` : `取穴：${cutText(meridianSentence, 70)}。`
     : `${projectName}${cutText(operationClausesForAge(withoutFacialPointBloodletting(withoutBloodlettingWhenUnsuitable(
       withSyndromeMatchedClauses(projectContent, input), input), base.points), input.patientAgeYears), 240)}`;
   const variantOperation = textbookOcrFixed(variant?.operation || primary.operation);
@@ -2008,8 +2028,8 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
   // 耳穴技术规范的「留置3～7天」说的是压丸贴压；疗程栏已按来源写了换贴间隔或留针时长（「隔日换贴1次」「留针1小时」）时不再并列这一句，
   // 免得两栏互相矛盾（2026-10-19 第五轮甲方病历 7、8）。
   const contraindications = code === "auricular" && /换贴|更换|留针|留置/u.test(schedule)
-    ? techniqueContraindications(code).replace(/留置3～7天，?/u, "")
-    : techniqueContraindications(code);
+    ? techniqueContraindications(code, input.patientAgeYears).replace(/留置3～7天，?/u, "")
+    : techniqueContraindications(code, input.patientAgeYears);
 
   return {
     kind: "acupoint",
@@ -2061,15 +2081,16 @@ function tuinaPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan |
   return {
     kind: "acupoint",
     treatmentContent: cutText(
-      `${entry.operation.length > 0 ? "" : principle}手法：${uniq(entry.manipulations).slice(0, 8).join("、") || "见操作"}。${backShu.note}${modification ? `本例证候与教材「${modification.label}」相符：${cutText(modification.content, 200)}` : ""}`,
+      textbookOcrFixed(`${entry.operation.length > 0 ? "" : principle}手法：${uniq(entry.manipulations.map((item) => (item === "法" ? "滚法" : item))).slice(0, 8).join("、") || "见操作"}。${backShu.note}${modification ? `本例证候与教材「${modification.label}」相符：${cutText(modification.content, 200)}` : ""}`),
       1150,
     ),
     points: sites.slice(0, POINT_LIMIT).map((name) => ({ name, role: "base_point" as const })),
     items: [],
+    // 不写「教材按手法逐项给出…未单列每周次数」这种讲资料本身的话（第四十一轮 r1054 回顾：系统用语）；只写教材给了的时长，没给的按耐受定。
     scheduleSuggestion: tuinaWeb
-      ? `${tuinaWeb.schedule}。教材按手法逐项给出操作时长（如每穴约1分钟、反复3～5遍）。`
-      : "教材按手法逐项给出操作时长（如每穴约1分钟、反复3～5遍），未单列每周次数；疗程与间隔按耐受确定，每次操作完毕观察反应。",
-    techniqueBoundary: cutText(`${entry.operation.slice(0, 3).join(" ")} ${techniqueContraindications("tuina")}`, 980) || "手法与力度以现场查体为准。",
+      ? `${tuinaWeb.schedule}。每穴约1分钟，每种手法反复3～5遍。`
+      : "每穴约1分钟，每种手法反复3～5遍；疗程与间隔按耐受确定，每次操作完毕观察反应。",
+    techniqueBoundary: cutText(textbookOcrFixed(`${entry.operation.slice(0, 3).join(" ")} ${techniqueContraindications("tuina", input.patientAgeYears)}`), 980) || "手法与力度以现场查体为准。",
     protocolSource: cutText(`${bookCitation(data, "tuina", entry.disease, entry.line)}${tuinaWeb ? `；${tuinaWeb.citation}` : ""}`, 980),
     syndromeLabels: modification ? [modification.label] : [],
     syndromeTailored: Boolean(modification),

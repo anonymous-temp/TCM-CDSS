@@ -450,7 +450,7 @@ const checkAsync = async (name, run) => {
     assert.ok(frail, "应有针刺方案");
     assert.doesNotMatch(frail.techniqueBoundary, /刺络|拔罐|放血/, frail.techniqueBoundary);
     assert.doesNotMatch(frail.treatmentContent, /疏风清热/, "没有按本例证型配穴时，不写按病的治法");
-    assert.match(frail.treatmentContent, /^按病取基本穴/);
+    assert.match(frail.treatmentContent, /^取/);
     const sturdy = acupuncture(itch("风热血热证", "疏风清热，凉血止痒", "风热郁于肌肤"), caseOf("全身皮肤瘙痒1周", "全身皮肤瘙痒，遇热加重，皮肤潮红，无破损", 30));
     assert.match(sturdy.techniqueBoundary, /刺络拔罐/, sturdy.techniqueBoundary);
     for (const [label, state, prior] of [

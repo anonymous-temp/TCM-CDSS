@@ -18,7 +18,7 @@ import {
 } from "./local-patent-medicine-candidates";
 import { requiredPrecautionsForCase } from "./required-precautions.server";
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
-import { isKnownTcmHerbName } from "./tcm-knowledge";
+import { getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
 import { skinTopicalMedication } from "./delivered-surface";
 import { MEDICINE_CLINICAL_CONCEPTS, matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
 
@@ -117,6 +117,9 @@ export function selfTakenMedicationCompositions(caseState: CaseState | undefined
 }
 
 /** 推荐的一行中成药与本方汤剂或患者自服药重复时给出依据；不重复、查不到组成、西药或「替代方案」时为 undefined。 */
+/** 峻下、发汗力强的药（与有毒药同列）：汤剂与成药都含时同吃即加量。有限闭集，按《中药学》峻下逐水药、攻下药与麻黄。 */
+const POTENT_DOUBLING_HERBS = new Set(["大黄", "芒硝", "番泻叶", "芦荟", "麻黄", "甘遂", "大戟", "芫花", "牵牛子", "巴豆"]);
+
 export function patentMedicineDuplication(
   medicine: { type?: unknown; name?: unknown; positioning?: unknown; route?: unknown },
   decoctionHerbs: readonly DecoctionHerb[],
@@ -148,6 +151,9 @@ export function patentMedicineDuplication(
   }
   const shared = [...new Set(herbs.filter((herb) => composition.has(herb.identity)).map((herb) => herb.identity))];
   if (shared.length >= 2) return { reason: "decoction_shared_herbs", herbs: shared };
+  // 共有的一味是峻下或有毒的药（三黄片含大黄，汤剂里也有大黄；第四十一轮 r1054 回顾 11.05 病历8）：一味也算重复，同吃即加量。
+  const potent = shared.filter((herb) => POTENT_DOUBLING_HERBS.has(herb) || getTcmHerbGenerationSafetyProfile(herb).isToxic);
+  if (potent.length > 0) return { reason: "decoction_shared_herbs", herbs: potent };
   // 成药的组成（调和之品不计）整个都在汤剂里：单味成药（人参口服液＝人参）配一张已有人参的方，是同一味药吃两遍
   //（第二十八轮甲方标准病历 2：安神定志丸加减有人参，又推荐人参口服液；第十八轮记为模型选药问题未处理）。
   const ownIngredients = [...composition].filter((herb) => !HARMONIZING_ADJUNCTS.has(herb));

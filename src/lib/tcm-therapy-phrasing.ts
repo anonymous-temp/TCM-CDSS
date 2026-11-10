@@ -374,11 +374,11 @@ export function mergedSameHeadTherapyPhrases(method: string): string {
       used.add(partners[0]);
       return;
     }
-    const ordered = [...tails.filter((tail) => !PURPOSE_TAIL.test(tail)), ...tails.filter((tail) => PURPOSE_TAIL.test(tail))];
-    // 两个后半共用一个字头（温化寒痰、温化寒饮）：写一次（温化寒痰饮）。
-    // 两个都是说目的的（调经止痛、调经止血）不共用：「调经止痛血」不通（第三十五轮 C070）。
-    const shareHead = ordered[0][0] === ordered[1][0] && !(PURPOSE_TAIL.test(ordered[0]) && PURPOSE_TAIL.test(ordered[1]));
-    merged.set(index, `${phrase.slice(0, 2)}${shareHead ? `${ordered[0]}${ordered[1].slice(1)}` : ordered.join("")}`);
+    // 不再拼成六字（「健脾益气和胃」，第四十一轮 r1054 回顾：甲方读成不规范的拼合项）：两项同头时留不说目的的那一项
+    //（健脾益气，不留健脾和胃），都不是或都是说目的的留前一项。
+    const second = phrases[partners[0]];
+    const keepSecond = PURPOSE_TAIL.test(tails[0]) && !PURPOSE_TAIL.test(tails[1]);
+    merged.set(index, keepSecond ? second : phrase);
     used.add(partners[0]);
   });
   if (merged.size === 0) return method;

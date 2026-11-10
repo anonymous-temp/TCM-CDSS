@@ -572,7 +572,9 @@ check("审方已核验的煎法补充表覆盖火麻仁与蜂蜜", async () => {
   const { requiredDecoctionRequirement } = await load("src/lib/herb-decoction-rules.ts");
   // 实测：审方分别提「火麻仁 应包煎」「蜂蜜 应烊化」，而本地知识库这两味没有煎法字段，
   // 于是我方无法在出方时先标注，只能等审方回头提——M05「可预防问题」正是拦这个形态。
-  assert.match(String(requiredDecoctionRequirement("火麻仁") || ""), /包煎/);
+  // 2026-11-10 第四十一轮：火麻仁按药典与《中药炮制学》改为「捣碎」，不包煎（外部审方 9/25 已移除）；仍须有煎法字段。
+  assert.match(String(requiredDecoctionRequirement("火麻仁") || ""), /捣碎/);
+  assert.doesNotMatch(String(requiredDecoctionRequirement("火麻仁") || ""), /包煎/);
   assert.match(String(requiredDecoctionRequirement("蜂蜜") || ""), /烊化/);
   // 既有条目不得被这次补充改动
   assert.match(String(requiredDecoctionRequirement("苦杏仁") || ""), /后下/);

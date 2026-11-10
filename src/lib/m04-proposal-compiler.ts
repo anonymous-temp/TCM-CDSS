@@ -12,7 +12,7 @@ import { sanitizeUnverifiedClinicalNarrative } from "./customer-evidence";
 import { herbBoundaryPopulationLabel, stripHerbBoundaryTail } from "./candidate-boundary-text";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
-import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairCautions, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
+import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, verifiedHerbFunctionEntry, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairCautions, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
 import { compositionIdentityName, formulaCompilationReferences, formulaEditClaimBaseIngredients, formulaManualDoseIngredients, formulaNameComponents, formulaNameVariantIngredients } from "./tcm-formula-provenance";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { textbookNamesTheseAsEmperors } from "./formula-textbook-commentary";
@@ -1183,7 +1183,7 @@ function expandTextbookEntryRow(item: unknown, prior?: ClinicalReasoningResultV2
   if (entry.herbs.length === 2) {
     const partner = entry.herbs.find((name) => !sameHerbIdentity(name, herbName));
     // 理由是模型为第一味写的，不能照抄给另一味（病历 1「若恶寒甚：加麻黄」理由写成「桂枝辛温解表」，第三十四轮）：写这一味自己的功效。
-    if (partner) rows.push({ ...item, trigger, herbName: partner, herb: undefined, dose: undefined, reason: partnerReason(herbName, entry.condition), [PARTNER_ROW]: true });
+    if (partner) rows.push({ ...item, trigger, herbName: partner, herb: undefined, dose: undefined, reason: partnerReason(herbName, partner, entry.condition), [PARTNER_ROW]: true });
   }
   return rows;
 }
@@ -1197,13 +1197,23 @@ const PARTNER_ROW = "__partnerRow";
 export function withoutOrphanPartnerRows<T extends { reason?: unknown; herbName?: unknown }>(rows: readonly T[], candidateHerbNames: readonly string[] = []): T[] {
   const names = new Set([...rows.map((row) => String(row.herbName || "")), ...candidateHerbNames].map((name) => modificationHerbIdentity(canonicalTcmHerbIdentity(name))));
   return rows.filter((row) => {
-    const partner = /^与([\u4e00-\u9fff]{2,8})同用，针对/u.exec(String(row.reason || ""))?.[1];
+    const match = /^与([\u4e00-\u9fff]{2,8})同用，针对/u.exec(String(row.reason || "")) || /助([\u4e00-\u9fff]{2,8})治/u.exec(String(row.reason || ""));
+    const partner = match?.[1];
     return !partner || names.has(modificationHerbIdentity(canonicalTcmHerbIdentity(partner)));
   });
 }
 
-function partnerReason(firstHerb: string, condition: string): string {
-  return `与${firstHerb}同用，针对${condition.replace(/^(?:若|如果|如)/u, "").replace(/[者时，。；]+$/u, "")}`.slice(0, 40);
+/**
+ * 带出来的另一味的理由：写这味药自己的功用（核对过的功用词典的主功用，其次知识库功用文本剔除错条后的前两项，不取「化湿药」这类分类名），
+ * 再说助哪一味治什么（第四十一轮 r1054 回顾：「与辛夷同用，针对鼻塞流涕重」56 份，评审读成套话）。
+ */
+function partnerReason(firstHerb: string, partner: string, condition: string): string {
+  const verified = verifiedHerbFunctionEntry(partner)?.primary || [];
+  const display = String(getTcmHerbFunctionDisplayText(partner) || "").split(/[，,、；;。]/u).map((item) => item.trim())
+    .filter((item) => item.length >= 2 && !/药$/u.test(item));
+  const functions = (verified.length > 0 ? verified : display).slice(0, 2);
+  const target = condition.replace(/^(?:若|如果|如)/u, "").replace(/[者时，。；]+$/u, "");
+  return `${functions.length > 0 ? `${functions.join("，")}，` : ""}助${firstHerb}治${target}`.slice(0, 40);
 }
 
 /** 加入有毒的药时写在这一行里：注意事项只逐味写方中原有的药（苍耳子 10g 加减行曾无任何提示，第三十四轮）。 */
@@ -2572,7 +2582,8 @@ export function compileM04Proposal(
           //（第二十八轮甲方 100 例 C023：72 岁男性加桃仁写「桃仁出血倾向/月经期/抗凝状态者慎用」）。
           ...recordedPopulationCautions(item.herbName, modificationGroundingText)
             .map((population) => herbBoundaryPopulationLabel(population, caseState ? { reproductive: reproductiveAdviceRelevant(caseState), ageYears: authoritativePatientAgeYears(caseState) ?? null } : undefined))
-            .map((population) => `${item.herbName.trim()}${population}${/[人期态娠]$/u.test(population) ? "" : "者"}慎用，本例病历有相应记录，请医生核对后再加`),
+            // 不写「本例病历有相应记录」这类讲系统核对的话（第四十一轮 r1054 回顾：系统用语），直接说本例有哪一项。
+            .map((population) => `${item.herbName.trim()}${population}${/[人期态娠]$/u.test(population) ? "" : "者"}慎用；本例有${population.replace(/者$/u, "")}的记录，加用前请医生核对`),
         ].filter(Boolean).join("；")
         : "",
       ...(substitutions.length > 0 ? { substitutions } : {}),
@@ -2619,8 +2630,14 @@ export function compileM04Proposal(
       MIN_DELIVERED_MODIFICATIONS - withConditionals.length,
     ));
   }
+  // 「加」的药本就在方中、改成的「调整」行没有剂量（第四十一轮 r1054 回顾：甲方读成「调整白术」没有药名剂量，13 份）：
+  // 去掉这些行后仍有两个以上不同条件时不交付它们；不够两个时保留（宁可有一行加量提示，不让加减不足两条）。
+  const withoutDoselessAdjust = withConditionals.filter((row) => row.action !== "调整");
+  const conditionRows = withoutDoselessAdjust.length < withConditionals.length && distinctModificationConditions(withoutDoselessAdjust) >= MIN_DELIVERED_MODIFICATIONS
+    ? withoutDoselessAdjust
+    : withConditionals;
   // 同一条件的几行排在一起（先留不同条件之后顺序被打散，评审读成「第 1、3 条条件重复」）。
-  const compiledModifications = withSameConditionAdjacent(withoutMutuallyIncompatibleAdditions(withConditionals, candidateHerbNames, directionDropReasons));
+  const compiledModifications = withSameConditionAdjacent(withoutMutuallyIncompatibleAdditions(conditionRows, candidateHerbNames, directionDropReasons));
   const m03FormulaNames = Array.isArray(prior.overview.recommendedFormulaNames)
     ? prior.overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
     : [];
