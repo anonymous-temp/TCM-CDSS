@@ -1112,6 +1112,8 @@ export function processedNameFromColumn(name: string, processing: string): strin
   else if (/^土(?:炒)?$/u.test(p)) candidates.push(`土${name}`, `土炒${name}`);
   else if (/^(?:炒黄|微炒|清炒)$/u.test(p)) candidates.push(`炒${name}`);
   else if (p === "炒焦") candidates.push(`焦${name}`, `炒${name}`);
+  // 炮制栏写「炮」（第四十二轮 new40 m17：药表仍显示裸「附子」）：炮附子，知识库不认时试药典饮片名炮附片。
+  else if (p === "炮") candidates.push(`炮${name}`, ...(name.endsWith("子") ? [`炮${name.slice(0, -1)}片`] : []));
   else if (PREPARATION_PREFIXES.has(p)) candidates.push(`${p}${name}`, ...(p === "麸炒" ? [`炒${name}`] : []), ...(p === "蜜" ? [`炙${name}`] : []));
   else return undefined;
   const baseLimit = getTcmHerbDoseLimit(name);

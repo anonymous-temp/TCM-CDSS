@@ -135,6 +135,8 @@ await check("2.7 命名方原书写了炮制的那一味不按用途改；有毒
   ], { name: "归脾汤加减" }), { recordText: "主诉：心悸" });
   assert.equal(out.formula.candidates[0].herbs[0].name, "炙甘草", "归脾汤原书甘草炙，照原书");
   assert.equal(out.formula.candidates[0].herbs[1].name, "制附子", "内服须炮制的有毒药，炮制栏并进药名");
+  const pao = surface.projectDeliveredReasoning(prescription([{ name: "附子", processing: "炮", dose: "6g", role: "君", function: "补火助阳", isToxic: true }], { name: "右归丸加减" }), { recordText: "主诉：腰冷" });
+  assert.equal(pao.formula.candidates[0].herbs[0].name, "炮附子", "炮制栏「炮」并进药名（知识库认得、有剂量上限的写法）");
   const heavy = surface.projectDeliveredReasoning(prescription([{ name: "川乌", processing: "制", dose: "6g", role: "君", function: "祛风除湿", isToxic: true }], { name: "乌头汤加减" }), { recordText: "主诉：关节痛" });
   assert.equal(heavy.formula.candidates[0].herbs[0].name, "川乌", "6g 超出制川乌上限 3g，不并");
 });
