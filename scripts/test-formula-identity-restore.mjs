@@ -27,8 +27,9 @@ const prior = {
   stage: "diagnose",
   overview: { primarySyndrome: "风热犯表证", recommendedFormulaNames: ["银翘散"], formulaSelectionMode: "single" },
 };
-// 银翘散受治理组成(牛蒡子为炮制变体,身份等同)
-const herbs = () => ["金银花", "连翘", "薄荷", "荆芥", "桔梗", "牛蒡子", "淡豆豉", "淡竹叶", "甘草"]
+// 银翘散加减(线上真实产出的形态:略淡豆豉、加芦根)。此前这里是九味全方、牛蒡子未标炮制,因目录照调剂标准写「炒牛蒡子」而被判加减;
+// 第四十二轮目录按《温病条辨》原文写牛蒡子后,九味全方就是原方(方名「银翘散」),所以改用真正的加减方来测方名恢复。
+const herbs = () => ["金银花", "连翘", "薄荷", "荆芥", "桔梗", "牛蒡子", "淡竹叶", "芦根", "甘草"]
   .map((name) => ({ name, dose: "10g" }));
 
 const reasoningFor = (name, formulaNames = [], extra = {}) => ({
