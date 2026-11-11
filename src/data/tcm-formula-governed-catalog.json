@@ -161,7 +161,7 @@
       "枳实消痞丸@东垣 → 《兰室秘藏》:10味",
       "射干麻黄汤@《金匮要略》 → 《金匮要略》:9味",
       "木香顺气散@《沈氏尊生书》 → 《沈氏尊生书》:10味",
-      "不换金正气散@《太平惠民和剂局方》 → 《太平惠民和剂局方》:6味",
+      "不换金正气散@《太平惠民和剂局方》 → 《太平惠民和剂局方》:8味",
       "木香槟榔丸@《赤水玄珠》 → 《儒门事亲》:10味",
       "清心莲子饮@《医方考》 → 《太平惠民和剂局方》:9味",
       "理中安蛔汤@《类证治裁》 → 《类证治裁》:6味",
@@ -364,7 +364,7 @@
       "大陷胸丸@仲景 → 《伤寒论》:6味",
       "安荣散@《本事方》 → 《普济本事方》:8味",
       "小半夏加茯苓汤@《金匮》 → 《金匮要略》:3味",
-      "常山饮@《局方》 → 《太平惠民和剂局方》:6味",
+      "常山饮@《局方》 → 《太平惠民和剂局方》:8味",
       "干姜人参半夏丸@金匮 → 《金匮要略》:3味",
       "干霍乱吐方@《三因》 → 《三因极一病证方论》:2味",
       "归柴饮@景岳 → 《景岳全书》:3味",
@@ -541,7 +541,7 @@
       "松节散@《三因极一病证方论》 → 《三因极一病证方论》:2味",
       "治黑骨温二方@《三因极一病证方论》 → 《三因极一病证方论》:8味",
       "温脾丸@《三因极一病证方论》 → 《三因极一病证方论》:11味",
-      "真应散@《三因极一病证方论》 → 《三因极一病证方论》:2味",
+      "真应散@《三因极一病证方论》 → 《三因极一病证方论》:4味",
       "蛇黄丹@《三因极一病证方论》 → 《三因极一病证方论》:5味",
       "附子理中汤@《三因极一病证方论》 → 《三因极一病证方论》:5味",
       "普济消毒饮@《东垣试效方》 → 《东垣试效方》:14味",
@@ -583,7 +583,7 @@
       "开肺解毒汤@《医方简义》 → 《医方简义》:8味",
       "御邪汤@《医方简义》 → 《医方简义》:9味",
       "拈痛散@《医方简义》 → 《医方简义》:7味",
-      "振阳汤@《医方简义》 → 《医方简义》:10味",
+      "振阳汤@《医方简义》 → 《医方简义》:11味",
       "柴胡生化汤@《医方简义》 → 《医方简义》:8味",
       "正经汤@《医方简义》 → 《医方简义》:10味",
       "治疟安胎饮@《医方简义》 → 《医方简义》:9味",
@@ -596,7 +596,7 @@
       "犀角大清汤@《医方简义》 → 《医方简义》:9味",
       "琥珀茯苓丸@《医方简义》 → 《医方简义》:20味",
       "琥珀黑龙丹@《医方简义》 → 《医方简义》:10味",
-      "生津饮@《医方简义》 → 《医方简义》:11味",
+      "生津饮@《医方简义》 → 《医方简义》:12味",
       "疏斑汤@《医方简义》 → 《医方简义》:11味",
       "痢疾第三方@《医方简义》 → 《医方简义》:11味",
       "益肝煎@《医方简义》 → 《医方简义》:9味",
@@ -607,7 +607,7 @@
       "芳香饮@《医方简义》 → 《医方简义》:12味",
       "调元汤@《医方简义》 → 《医方简义》:9味",
       "资寿解语汤@《医方简义》 → 《医方简义》:8味",
-      "镇肝汤@《医方简义》 → 《医方简义》:8味",
+      "镇肝汤@《医方简义》 → 《医方简义》:9味",
       "陈无择琥珀散@《医方简义》 → 《医方简义》:8味",
       "香连八物汤@《医方简义》 → 《医方简义》:8味",
       "严氏实脾散@《医方考》 → 《医方考》:10味",
@@ -629,7 +629,7 @@
       "顺风匀气散@《医方集解》 → 《医方集解》:10味",
       "飞龙夺命丹@《医方集解》 → 《医方集解》:10味",
       "麻黄白术汤@《医方集解》 → 《医方集解》:21味",
-      "保真汤@《十药神书》 → 《十药神书》:20味",
+      "保真汤@《十药神书》 → 《十药神书》:22味",
       "托里温中汤@《卫生宝鉴》 → 《卫生宝鉴》:10味",
       "保安煎@《古方汇精》 → 《古方汇精》:12味",
       "八珍养血丸@《古方汇精》 → 《古方汇精》:13味",
@@ -763,7 +763,7 @@
       "百解绿蜡丸@《惠直堂经验方》 → 《惠直堂经验方》:11味",
       "祛风药酒方@《惠直堂经验方》 → 《惠直堂经验方》:18味",
       "第三方@《惠直堂经验方》 → 《惠直堂经验方》:11味",
-      "第二方@《惠直堂经验方》 → 《惠直堂经验方》:11味",
+      "第二方@《惠直堂经验方》 → 《惠直堂经验方》:12味",
       "紫金膏@《惠直堂经验方》 → 《惠直堂经验方》:18味",
       "紫金藤散@《惠直堂经验方》 → 《惠直堂经验方》:1味",
       "缠喉风方@《惠直堂经验方》 → 《惠直堂经验方》:1味",
@@ -818,7 +818,7 @@
       "仓廪散@《普济方》 → 《普济方》:11味",
       "八珍益母汤@《景岳全书》 → 《景岳全书》:9味",
       "小营煎@《景岳全书》 → 《景岳全书》:6味",
-      "解肝煎@《景岳全书》 → 《景岳全书》:7味",
+      "解肝煎@《景岳全书》 → 《景岳全书》:8味",
       "艾附暖宫丸@《沈氏尊生书》 → 《沈氏尊生书》:10味",
       "滑胎易产神效八味散@《洪氏集验方》 → 《洪氏集验方》:8味",
       "还少丹@《洪氏集验方》 → 《洪氏集验方》:14味",
@@ -1053,7 +1053,7 @@
       "黄连汤〔《外台秘要》卷三十三·妊娠二月〕"
     ],
     "varietyFlexibleFormulaCount": 126,
-    "varietyUndeterminedFormulaCount": 67,
+    "varietyUndeterminedFormulaCount": 66,
     "governedFormulaCount": 3018,
     "prescriptionLockEligibleCount": 2929,
     "identityLockEligibleCount": 2929,
@@ -2551,7 +2551,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:成方切用:一阴煎"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《景岳》→《景岳全书》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：生地（二钱）熟地（三、五钱）芍药（二钱）麦冬（二钱）甘草（一钱）牛膝（一钱半）丹参（二钱））。原文用牛膝，目录误作杜仲；条件加味不列。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：生地（二钱）熟地（三、五钱）芍药（二钱）麦冬（二钱）甘草（一钱）牛膝（一钱半）丹参（二钱））。原文用牛膝，目录误作杜仲；条件加味不列。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：生地（二钱）熟地（三、五钱）芍药（二钱）麦冬（二钱）甘草（一钱）牛膝（一钱半）丹参（二钱））。原文用牛膝，目录误作杜仲；条件加味不列。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：生地（二钱）熟地（三、五钱）芍药（二钱）麦冬（二钱）甘草（一钱）牛膝（一钱半）丹参（二钱））。原文用牛膝，目录误作杜仲；条件加味不列。",
+          "title": "目录校勘组成重录：出处书名规范化：《景岳》→《景岳全书》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：生地（二钱）熟地（三、五钱）芍药（二钱）麦冬（二钱）甘草（一钱）牛膝（一钱半）丹参（二钱））。原文用牛膝，目录误作杜仲；条件加味不列。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：生地（二钱）熟地（三、五钱）芍药（二钱）麦冬（二钱）甘草（一钱）牛膝（一钱半）丹参（二钱））。原文用牛膝，目录误作杜仲；条件加味不列。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：生地（二钱）熟地（三、五钱）芍药（二钱）麦冬（二钱）甘草（一钱）牛膝（一钱半）丹参（二钱））。原文用牛膝，目录误作杜仲；条件加味不列。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：生地（二钱）熟地（三、五钱）芍药（二钱）麦冬（二钱）甘草（一钱）牛膝（一钱半）丹参（二钱））。原文用牛膝，目录误作杜仲；条件加味不列。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：生地（二钱）熟地（三、五钱）芍药（二钱）麦冬（二钱）甘草（一钱）牛膝（一钱半）丹参（二钱））。原文用牛膝，目录误作杜仲；条件加味不列。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：生地（二钱）熟地（三、五钱）芍药（二钱）麦冬（二钱）甘草（一钱）牛膝（一钱半）丹参（二钱））。原文用牛膝，目录误作杜仲；条件加味不列。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：生地（二钱）熟地（三、五钱）芍药（二钱）麦冬（二钱）甘草（一钱）牛膝（一钱半）丹参（二钱））。原文用牛膝，目录误作杜仲；条件加味不列。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：生地（二钱）熟地（三、五钱）芍药（二钱）麦冬（二钱）甘草（一钱）牛膝（一钱半）丹参（二钱））。原文用牛膝，目录误作杜仲；条件加味不列。",
           "url": "urn:tcm-cdss:book-title-normalization:景岳→景岳全书",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -3583,10 +3583,10 @@
       "prescriptionOriginal": "丁香京三棱（炮）木香广术（各一钱。炮）缩砂仁益智仁丁皮甘松（去土，各三钱）（甘草二钱，炙）香附子（五钱，炒去毛）",
       "ingredients": [
         "丁香",
-        "三棱",
+        "京三棱",
         "木香",
-        "莪术",
-        "砂仁",
+        "广术",
+        "缩砂仁",
         "益智仁",
         "丁香皮",
         "甘松",
@@ -3623,9 +3623,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "三棱",
+          "rawName": "京三棱",
           "canonicalName": "三棱",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -3635,15 +3635,16 @@
           "autoResolvable": true
         },
         {
-          "rawName": "莪术",
+          "rawName": "广术",
           "canonicalName": "莪术",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "莪术",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
-          "rawName": "砂仁",
+          "rawName": "缩砂仁",
           "canonicalName": "砂仁",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -5511,7 +5512,7 @@
         "安息香",
         "沉香",
         "藿香",
-        "青皮",
+        "青橘皮",
         "陈皮",
         "槟榔",
         "诃子",
@@ -5590,9 +5591,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "青皮",
+          "rawName": "青橘皮",
           "canonicalName": "青皮",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "青皮",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -6270,13 +6272,13 @@
       "sourceOriginal": "《瑞竹堂经验方》",
       "prescriptionOriginal": "黑牵牛（一斤，取头末一十两，生用）大腹子（一斤，扁者，取七两末，生用，如尖者是槟榔）京三棱（五两，炮）广木香（五两，面裹煨干为度）雷丸（五两，炮）蓬莪术（煨，三两）",
       "ingredients": [
-        "牵牛子",
+        "黑牵牛",
         "大腹子",
         "三棱",
         "木香",
         "雷丸",
         "莪术",
-        "皂荚"
+        "皂角"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -6300,9 +6302,10 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "牵牛子",
+          "rawName": "黑牵牛",
           "canonicalName": "牵牛子",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "牵牛子",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -6336,14 +6339,13 @@
           "autoResolvable": true
         },
         {
-          "rawName": "皂荚",
-          "canonicalName": null,
-          "linkageStatus": "ambiguous",
-          "autoResolvable": false,
-          "candidates": [
-            "大皂角",
-            "猪牙皂"
-          ]
+          "rawName": "皂角",
+          "adjudicatedIngredient": "大皂角",
+          "adjudicationEvidence": "推断:方用'好紫色皂角,去皮弦',乃皂荚常规用法;未标'牙皂',故非猪牙皂,当为皂荚。（T9正名为大皂角,皂荚系其通用名,归一到受控词表）",
+          "adjudicationBasis": "皂角",
+          "canonicalName": "大皂角",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -6373,32 +6375,13 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [
-        "皂荚"
-      ],
+      "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "牵牛子"
+        "皂角",
+        "黑牵牛"
       ],
-      "varietyUndeterminedIngredients": [
-        {
-          "name": "皂荚",
-          "candidates": [
-            "大皂角",
-            "猪牙皂"
-          ]
-        }
-      ],
-      "varietyFlexibleIngredients": [
-        {
-          "recordedName": "皂荚",
-          "acceptedNames": [
-            "大皂角",
-            "猪牙皂",
-            "皂荚"
-          ],
-          "reason": "catalog_records_bare_genus"
-        }
-      ],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
       "blockingReasons": []
     },
     {
@@ -7538,14 +7521,14 @@
         "桃仁",
         "红花",
         "黄芩",
-        "牡丹皮",
+        "丹皮",
         "僵蚕",
         "蝉蜕",
         "金银花",
         "泽兰",
         "益母草",
         "栀子",
-        "甘草",
+        "生甘草",
         "柴胡"
       ],
       "dosageForm": null,
@@ -7600,9 +7583,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "牡丹皮",
+          "rawName": "丹皮",
           "canonicalName": "牡丹皮",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -7642,10 +7625,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "甘草",
+          "rawName": "生甘草",
           "canonicalName": "甘草",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "生品"
         },
         {
           "rawName": "柴胡",
@@ -7901,8 +7885,8 @@
         "槟榔",
         "当归",
         "陈皮",
-        "苦杏仁",
-        "肉桂",
+        "杏仁",
+        "桂心",
         "茯苓",
         "炙甘草",
         "附子",
@@ -7959,16 +7943,17 @@
           "autoResolvable": true
         },
         {
-          "rawName": "苦杏仁",
+          "rawName": "杏仁",
           "canonicalName": "苦杏仁",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
-          "rawName": "肉桂",
+          "rawName": "桂心",
           "canonicalName": "肉桂",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "去粗皮内层"
         },
         {
           "rawName": "茯苓",
@@ -8147,10 +8132,10 @@
         "硫黄",
         "水银",
         "硇砂",
-        "赤芍",
+        "赤芍药",
         "当归",
         "三棱",
-        "莪术",
+        "蓬莪术",
         "红花",
         "地黄",
         "蒲黄",
@@ -8201,9 +8186,9 @@
           "linkageStatus": "unmapped"
         },
         {
-          "rawName": "赤芍",
+          "rawName": "赤芍药",
           "canonicalName": "赤芍",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -8219,9 +8204,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "莪术",
+          "rawName": "蓬莪术",
           "canonicalName": "莪术",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "莪术",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -12467,7 +12453,9 @@
         "甘草",
         "法半夏",
         "苍术",
-        "陈皮"
+        "陈皮",
+        "生姜",
+        "大枣"
       ],
       "dosageForm": "散剂",
       "sourceClass": "official_local_formula_standard",
@@ -12532,6 +12520,18 @@
         {
           "rawName": "陈皮",
           "canonicalName": "陈皮",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "生姜",
+          "canonicalName": "生姜",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "大枣",
+          "canonicalName": "大枣",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         }
@@ -12692,7 +12692,7 @@
         "藿香",
         "木香",
         "升麻",
-        "砂仁",
+        "缩砂仁",
         "地黄",
         "当归",
         "黄连",
@@ -12744,9 +12744,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "砂仁",
+          "rawName": "缩砂仁",
           "canonicalName": "砂仁",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -13292,8 +13292,8 @@
         "白术",
         "附子",
         "槟榔",
-        "茯苓",
-        "草果",
+        "白茯苓",
+        "草果仁",
         "木香",
         "木瓜",
         "干姜",
@@ -13345,16 +13345,17 @@
           "autoResolvable": true
         },
         {
-          "rawName": "茯苓",
+          "rawName": "白茯苓",
           "canonicalName": "茯苓",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
-          "rawName": "草果",
+          "rawName": "草果仁",
           "canonicalName": "草果",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "仁"
         },
         {
           "rawName": "木香",
@@ -21318,7 +21319,7 @@
         "白蔹",
         "白薇",
         "朴硝",
-        "天花粉",
+        "花粉",
         "大黄",
         "芙蓉花叶"
       ],
@@ -21397,9 +21398,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "天花粉",
+          "rawName": "花粉",
           "canonicalName": "天花粉",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -22682,7 +22683,7 @@
       "prescriptionOriginal": "补骨脂（四两酒炒）北五味（或用肉豆蔻代之面炒）吴茱萸（制）木香（二两）干姜（四五两炒）汤浸，蒸饼丸，桐子大。每服六七十丸，甚者百余丸。白滚汤，或米汤，或人参汤俱可下。腹痛多呕者，加胡椒二两，更妙。",
       "ingredients": [
         "补骨脂",
-        "五味子",
+        "北五味",
         "吴茱萸",
         "木香",
         "干姜"
@@ -22715,9 +22716,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "五味子",
+          "rawName": "北五味",
           "canonicalName": "五味子",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -24743,7 +24744,7 @@
         "茯苓",
         "当归",
         "肉桂",
-        "白芍",
+        "芍药",
         "法半夏",
         "陈皮",
         "枳壳",
@@ -24811,7 +24812,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芍",
+          "rawName": "芍药",
+          "adjudicatedIngredient": "白芍",
+          "adjudicationEvidence": "《太平惠民和剂局方》方解\"白芍敛营和血\"；多来源一致",
+          "adjudicationBasis": "web",
           "canonicalName": "白芍",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
@@ -24912,7 +24916,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "芍药"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": [],
@@ -25515,7 +25521,7 @@
       "ingredients": [
         "熟地黄",
         "山药",
-        "白扁豆",
+        "扁豆",
         "炙甘草",
         "茯苓",
         "白芍",
@@ -25557,9 +25563,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白扁豆",
+          "rawName": "扁豆",
           "canonicalName": "白扁豆",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "白扁豆",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -28674,7 +28681,7 @@
         "人参",
         "柴胡",
         "当归",
-        "白芍",
+        "芍药",
         "知母",
         "桑白皮",
         "白术",
@@ -28728,8 +28735,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芍",
-          "canonicalName": "白芍",
+          "rawName": "芍药",
+          "adjudicatedIngredient": "赤芍",
+          "adjudicationEvidence": "推断：疮疹热毒，配伍知母地骨皮清热，用赤芍凉血散瘀",
+          "adjudicationBasis": "芍药",
+          "canonicalName": "赤芍",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
@@ -28840,7 +28850,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "芍药"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -30224,7 +30236,7 @@
       "prescriptionOriginal": "若牙黄入肉不出，重则丧命，轻则烂成锢疾。用人尿洗净，又浸一二时，待牙黄出后，以鳖甲、龟板炙为末，麻油调敷，即愈。",
       "ingredients": [
         "鳖甲",
-        "龟甲"
+        "龟板"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -30254,9 +30266,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "龟甲",
+          "rawName": "龟板",
           "canonicalName": "龟甲",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         }
       ],
@@ -31603,7 +31615,7 @@
       "sourceOriginal": "《医方简义》",
       "prescriptionOriginal": "代赭石（二钱）旋覆花（一钱五分）东洋参（二钱）姜半夏（一钱五分）赤茯苓（三钱）荆芥炭（一钱）炙甘草（五分）如气实而满者。去参。加牡蛎（三四钱）",
       "ingredients": [
-        "赭石",
+        "代赭石",
         "旋覆花",
         "东洋参",
         "姜半夏",
@@ -31635,9 +31647,9 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "赭石",
+          "rawName": "代赭石",
           "canonicalName": "赭石",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -31711,7 +31723,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "代赭石"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -32730,7 +32744,7 @@
         "厚朴",
         "陈皮",
         "山药",
-        "白扁豆",
+        "扁豆",
         "猪苓",
         "泽泻",
         "干姜",
@@ -32777,9 +32791,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白扁豆",
+          "rawName": "扁豆",
           "canonicalName": "白扁豆",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "白扁豆",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -33245,7 +33260,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:087-医方集解.txt:侯氏黑散"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《金匮》→《金匮要略》（简称无歧义）｜ADJ-ORIG-20261110：按原方组成表订正（金匮要略原文：菊花（四十分）白术（十分）细辛（三分）茯苓（三分）牡蛎（三分）桔梗（八分）防风（十分）人参（三分）矾石（三分）黄芩（五分）当归（三分）干姜（）。原文十四味（右十四味），目录漏细辛、牡蛎、矾石、黄芩。｜ADJ-ORIG-20261110：按原方组成表订正（金匮要略原文：菊花（四十分）白术（十分）细辛（三分）茯苓（三分）牡蛎（三分）桔梗（八分）防风（十分）人参（三分）矾石（三分）黄芩（五分）当归（三分）干姜（）。原文十四味（右十四味），目录漏细辛、牡蛎、矾石、黄芩。｜ADJ-ORIG-20261110：按原方组成表订正（金匮要略原文：菊花（四十分）白术（十分）细辛（三分）茯苓（三分）牡蛎（三分）桔梗（八分）防风（十分）人参（三分）矾石（三分）黄芩（五分）当归（三分）干姜（）。原文十四味（右十四味），目录漏细辛、牡蛎、矾石、黄芩。｜ADJ-ORIG-20261110：按原方组成表订正（金匮要略原文：菊花（四十分）白术（十分）细辛（三分）茯苓（三分）牡蛎（三分）桔梗（八分）防风（十分）人参（三分）矾石（三分）黄芩（五分）当归（三分）干姜（）。原文十四味（右十四味），目录漏细辛、牡蛎、矾石、黄芩。｜ADJ-ORIG-20261110：按原方组成表订正（金匮要略原文：菊花（四十分）白术（十分）细辛（三分）茯苓（三分）牡蛎（三分）桔梗（八分）防风（十分）人参（三分）矾石（三分）黄芩（五分）当归（三分）干姜（）。原文十四味（右十四味），目录漏细辛、牡蛎、矾石、黄芩。｜ADJ-ORIG-20261110：按原方组成表订正（金匮要略原文：菊花（四十分）白术（十分）细辛（三分）茯苓（三分）牡蛎（三分）桔梗（八分）防风（十分）人参（三分）矾石（三分）黄芩（五分）当归（三分）干姜（）。原文十四味（右十四味），目录漏细辛、牡蛎、矾石、黄芩。",
+          "title": "目录校勘组成重录：出处书名规范化：《金匮》→《金匮要略》（简称无歧义）｜ADJ-ORIG-20261110：按原方组成表订正（金匮要略原文：菊花（四十分）白术（十分）细辛（三分）茯苓（三分）牡蛎（三分）桔梗（八分）防风（十分）人参（三分）矾石（三分）黄芩（五分）当归（三分）干姜（）。原文十四味（右十四味），目录漏细辛、牡蛎、矾石、黄芩。｜ADJ-ORIG-20261110：按原方组成表订正（金匮要略原文：菊花（四十分）白术（十分）细辛（三分）茯苓（三分）牡蛎（三分）桔梗（八分）防风（十分）人参（三分）矾石（三分）黄芩（五分）当归（三分）干姜（）。原文十四味（右十四味），目录漏细辛、牡蛎、矾石、黄芩。｜ADJ-ORIG-20261110：按原方组成表订正（金匮要略原文：菊花（四十分）白术（十分）细辛（三分）茯苓（三分）牡蛎（三分）桔梗（八分）防风（十分）人参（三分）矾石（三分）黄芩（五分）当归（三分）干姜（）。原文十四味（右十四味），目录漏细辛、牡蛎、矾石、黄芩。｜ADJ-ORIG-20261110：按原方组成表订正（金匮要略原文：菊花（四十分）白术（十分）细辛（三分）茯苓（三分）牡蛎（三分）桔梗（八分）防风（十分）人参（三分）矾石（三分）黄芩（五分）当归（三分）干姜（）。原文十四味（右十四味），目录漏细辛、牡蛎、矾石、黄芩。｜ADJ-ORIG-20261110：按原方组成表订正（金匮要略原文：菊花（四十分）白术（十分）细辛（三分）茯苓（三分）牡蛎（三分）桔梗（八分）防风（十分）人参（三分）矾石（三分）黄芩（五分）当归（三分）干姜（）。原文十四味（右十四味），目录漏细辛、牡蛎、矾石、黄芩。｜ADJ-ORIG-20261110：按原方组成表订正（金匮要略原文：菊花（四十分）白术（十分）细辛（三分）茯苓（三分）牡蛎（三分）桔梗（八分）防风（十分）人参（三分）矾石（三分）黄芩（五分）当归（三分）干姜（）。原文十四味（右十四味），目录漏细辛、牡蛎、矾石、黄芩。｜ADJ-ORIG-",
           "url": "urn:tcm-cdss:book-title-normalization:金匮→金匮要略",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -33721,7 +33736,7 @@
       "sourceOriginal": "《验方新编》",
       "prescriptionOriginal": "治筋骨损伤，无分经络，定痛散血，立见神效，白头地龙二十四条（童便制），石蟹三只（酒制），土狗十二个（葱汁制），水蛭六条（醋制），地鳖虫三百六十个（姜汁制）。上各浸制为末，加乳香、没药、血竭各一两，天雷石醋制七次一两，须预制去火毒，米糊为丸弹子大，作三十丸。每丸可救一人，胡桃、红花煎酒、磨化送下。",
       "ingredients": [
-        "地龙",
+        "白头地龙",
         "石蟹",
         "蝼蛄",
         "水蛭",
@@ -33755,9 +33770,10 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "地龙",
+          "rawName": "白头地龙",
           "canonicalName": "地龙",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "地龙",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -34327,7 +34343,7 @@
         "当归",
         "川芎",
         "厚朴",
-        "艾叶",
+        "蕲艾",
         "菟丝子",
         "川贝母",
         "枳壳",
@@ -34380,9 +34396,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "艾叶",
+          "rawName": "蕲艾",
           "canonicalName": "艾叶",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -34498,7 +34514,9 @@
         "五味子",
         "地骨皮",
         "熟地黄",
-        "柴胡"
+        "柴胡",
+        "生姜",
+        "大枣"
       ],
       "dosageForm": "汤剂",
       "sourceClass": "official_local_formula_standard",
@@ -34650,6 +34668,18 @@
           "canonicalName": "柴胡",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
+        },
+        {
+          "rawName": "生姜",
+          "canonicalName": "生姜",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "大枣",
+          "canonicalName": "大枣",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -34705,7 +34735,7 @@
         "麦冬",
         "五味子",
         "桔梗",
-        "紫苏梗",
+        "苏梗",
         "黄芩",
         "知母",
         "贝母",
@@ -34759,9 +34789,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "紫苏梗",
+          "rawName": "苏梗",
           "canonicalName": "紫苏梗",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -37673,11 +37703,11 @@
       "prescriptionOriginal": "白术（炒）白茯苓青皮（去穰，炒）白芷陈皮（去白）台乌药人参（各一钱）甘草（五分）",
       "ingredients": [
         "白术",
-        "茯苓",
+        "白茯苓",
         "青皮",
         "白芷",
         "陈皮",
-        "乌药",
+        "台乌药",
         "人参",
         "甘草"
       ],
@@ -37709,9 +37739,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "茯苓",
+          "rawName": "白茯苓",
           "canonicalName": "茯苓",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -37733,9 +37763,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "乌药",
+          "rawName": "台乌药",
           "canonicalName": "乌药",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "乌药",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -38214,9 +38245,9 @@
         "白术",
         "丹参",
         "当归",
-        "阿胶",
+        "陈阿胶",
         "茯神",
-        "茯苓",
+        "云茯苓",
         "白芍",
         "远志",
         "川芎",
@@ -38277,9 +38308,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "阿胶",
+          "rawName": "陈阿胶",
           "canonicalName": "阿胶",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "阿胶",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -38290,9 +38322,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "茯苓",
+          "rawName": "云茯苓",
           "canonicalName": "茯苓",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "茯苓",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -39902,7 +39935,7 @@
       "ingredients": [
         "荆芥穗",
         "薄荷",
-        "僵蚕",
+        "炒僵蚕",
         "桔梗",
         "甘草",
         "防风"
@@ -39949,10 +39982,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "僵蚕",
+          "rawName": "炒僵蚕",
           "canonicalName": "僵蚕",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "炒"
         },
         {
           "rawName": "桔梗",
@@ -40019,7 +40053,7 @@
       "ingredients": [
         "地黄",
         "黄芪",
-        "甘草",
+        "生甘草",
         "白芷",
         "当归",
         "穿山甲"
@@ -40058,10 +40092,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "甘草",
+          "rawName": "生甘草",
           "canonicalName": "甘草",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "生品"
         },
         {
           "rawName": "白芷",
@@ -41483,7 +41518,7 @@
         "柴胡",
         "郁金",
         "茯苓",
-        "紫苏子",
+        "苏子",
         "白芥子",
         "白芍",
         "荆芥",
@@ -41532,9 +41567,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "紫苏子",
+          "rawName": "苏子",
           "canonicalName": "紫苏子",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -43211,7 +43246,7 @@
         "白术",
         "茯苓",
         "白芥子",
-        "石菖蒲",
+        "菖蒲",
         "附子",
         "法半夏"
       ],
@@ -43267,7 +43302,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "石菖蒲",
+          "rawName": "菖蒲",
+          "adjudicatedIngredient": "石菖蒲",
+          "adjudicationEvidence": "药典2020只有石菖蒲(3～10g)，教材引李时珍“服食入药须用石菖蒲，余皆不堪”；《大小诸证方论》同书补气化痰方直接写“石菖蒲”。",
+          "adjudicationBasis": "联网原文核对ADJ-WEB-20260930（IB，L3）",
           "canonicalName": "石菖蒲",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
@@ -43320,9 +43358,21 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "菖蒲"
+      ],
       "varietyUndeterminedIngredients": [],
-      "varietyFlexibleIngredients": [],
+      "varietyFlexibleIngredients": [
+        {
+          "recordedName": "石菖蒲",
+          "acceptedNames": [
+            "石菖蒲",
+            "菖蒲",
+            "藏菖蒲"
+          ],
+          "reason": "adjudication_evidence_is_inferential:same_book_parallel"
+        }
+      ],
       "blockingReasons": []
     },
     {
@@ -43337,7 +43387,7 @@
         "桃仁",
         "秦艽",
         "续断",
-        "木香",
+        "广木香",
         "砂仁",
         "牡丹皮",
         "威灵仙",
@@ -43395,9 +43445,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "木香",
+          "rawName": "广木香",
           "canonicalName": "木香",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "木香",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -43740,13 +43791,13 @@
         "人参",
         "当归",
         "黄芪",
-        "白芍",
+        "芍药",
         "川芎",
         "防风",
         "甘草",
-        "瓜蒌",
+        "栝蒌",
         "白芷",
-        "肉桂",
+        "官桂",
         "桔梗",
         "金银花"
       ],
@@ -43790,8 +43841,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芍",
-          "canonicalName": "白芍",
+          "rawName": "芍药",
+          "adjudicatedIngredient": "赤芍",
+          "adjudicationEvidence": "推断：脑背痈疽恶疮，托毒活血，宜用赤芍凉血散瘀消肿",
+          "adjudicationBasis": "芍药",
+          "canonicalName": "赤芍",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
@@ -43814,10 +43868,12 @@
           "autoResolvable": true
         },
         {
-          "rawName": "瓜蒌",
+          "rawName": "栝蒌",
           "canonicalName": "瓜蒌",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "doseCanonicalName": "瓜蒌",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "异体字"
         },
         {
           "rawName": "白芷",
@@ -43826,9 +43882,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "肉桂",
+          "rawName": "官桂",
           "canonicalName": "肉桂",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -43874,7 +43930,10 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "官桂",
+        "芍药"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -48179,7 +48238,7 @@
         "前胡",
         "荆芥",
         "白芷",
-        "甘草",
+        "甘草节",
         "赤芍",
         "陈皮",
         "郁金",
@@ -48239,10 +48298,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "甘草",
+          "rawName": "甘草节",
           "canonicalName": "甘草",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "节"
         },
         {
           "rawName": "赤芍",
@@ -49861,7 +49921,7 @@
         "淡附子",
         "党参",
         "炮姜",
-        "香附",
+        "制香附",
         "泽泻",
         "白芍",
         "天仙藤",
@@ -49906,9 +49966,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "香附",
+          "rawName": "制香附",
           "canonicalName": "香附",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "香附",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -49989,7 +50050,7 @@
         "枸杞子",
         "五味子",
         "车前子",
-        "楮实子",
+        "楮实",
         "川椒",
         "熟地黄",
         "当归",
@@ -50004,7 +50065,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:087-医方集解.txt:加减驻景丸"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《易简》→《易简方》（简称无歧义）｜ADJ-ORIG-20261110：按原方组成表订正（易简方原文：加减驻景丸（《易简》）治肝肾气虚，两目昏暗（目为肝窍，瞳子神光属肾，故肝肾虚则目昏暗也）。）。《医方集解》明确题注《易简》，完整转录八味且含酒浸菟丝子八两，后文亦论菟丝之功；目录漏菟丝子，应据直接转引原方补全。｜ADJ-ORIG-20261110：按原方组成表订正（易简方原文：加减驻景丸（《易简》）治肝肾气虚，两目昏暗（目为肝窍，瞳子神光属肾，故肝肾虚则目昏暗也）。）。《医方集解》明确题注《易简》，完整转录八味且含酒浸菟丝子八两，后文亦论菟丝之功；目录漏菟丝子，应据直接转引原方补全。｜ADJ-ORIG-20261110：按原方组成表订正（易简方原文：加减驻景丸（《易简》）治肝肾气虚，两目昏暗（目为肝窍，瞳子神光属肾，故肝肾虚则目昏暗也）。）。《医方集解》明确题注《易简》，完整转录八味且含酒浸菟丝子八两，后文亦论菟丝之功；目录漏菟丝子，应据直接转引原方补全。｜ADJ-ORIG-20261110：按原方组成表订正（易简方原文：加减驻景丸（《易简》）治肝肾气虚，两目昏暗（目为肝窍，瞳子神光属肾，故肝肾虚则目昏暗也）。）。《医方集解》明确题注《易简》，完整转录八味且含酒浸菟丝子八两，后文亦论菟丝之功；目录漏菟丝子，应据直接转引原方补全。｜ADJ-ORIG-20261110：按原方组成表订正（易简方原文：加减驻景丸（《易简》）治肝肾气虚，两目昏暗（目为肝窍，瞳子神光属肾，故肝肾虚则目昏暗也）。）。《医方集解》明确题注《易简》，完整转录八味且含酒浸菟丝子八两，后文亦论菟丝之功；目录漏菟丝子，应据直接转引原方补全。｜ADJ-ORIG-20261110：按原方组成表订正（易简方原文：加减驻景丸（《易简》）治肝肾气虚，两目昏暗（目为肝窍，瞳子神光属肾，故肝肾虚则目昏暗也）。）。《医方集解》明确题注《易简》，完整转录八味且含酒浸菟丝子八两，后文亦论菟丝之功；目录漏菟丝子，应据直接转引原方补全。",
+          "title": "目录校勘组成重录：出处书名规范化：《易简》→《易简方》（简称无歧义）｜ADJ-ORIG-20261110：按原方组成表订正（易简方原文：加减驻景丸（《易简》）治肝肾气虚，两目昏暗（目为肝窍，瞳子神光属肾，故肝肾虚则目昏暗也）。）。《医方集解》明确题注《易简》，完整转录八味且含酒浸菟丝子八两，后文亦论菟丝之功；目录漏菟丝子，应据直接转引原方补全。｜ADJ-ORIG-20261110：按原方组成表订正（易简方原文：加减驻景丸（《易简》）治肝肾气虚，两目昏暗（目为肝窍，瞳子神光属肾，故肝肾虚则目昏暗也）。）。《医方集解》明确题注《易简》，完整转录八味且含酒浸菟丝子八两，后文亦论菟丝之功；目录漏菟丝子，应据直接转引原方补全。｜ADJ-ORIG-20261110：按原方组成表订正（易简方原文：加减驻景丸（《易简》）治肝肾气虚，两目昏暗（目为肝窍，瞳子神光属肾，故肝肾虚则目昏暗也）。）。《医方集解》明确题注《易简》，完整转录八味且含酒浸菟丝子八两，后文亦论菟丝之功；目录漏菟丝子，应据直接转引原方补全。｜ADJ-ORIG-20261110：按原方组成表订正（易简方原文：加减驻景丸（《易简》）治肝肾气虚，两目昏暗（目为肝窍，瞳子神光属肾，故肝肾虚则目昏暗也）。）。《医方集解》明确题注《易简》，完整转录八味且含酒浸菟丝子八两，后文亦论菟丝之功；目录漏菟丝子，应据直接转引原方补全。｜ADJ-ORIG-20261110：按原方组成表订正（易简方原文：加减驻景丸（《易简》）治肝肾气虚，两目昏暗（目为肝窍，瞳子神光属肾，故肝肾虚则目昏暗也）。）。《医方集解》明确题注《易简》，完整转录八味且含酒浸菟丝子八两，后文亦论菟丝之功；目录漏菟丝子，应据直接转引原方补全。｜ADJ-ORIG-20261110：按原方组成表订正（易简方原文：加减驻景丸（《易简》）治肝肾气虚，两目昏暗（目为肝窍，瞳子神光属肾，故肝肾虚则目昏暗也）。）。《医方集解》明确题注《易简》，完整转录八味且含酒浸菟丝子八两，后文亦论菟丝之功；目录漏菟丝子，应据直接转引原方补全。｜ADJ-ORIG-20261110：按原方组成表订正（易",
           "url": "urn:tcm-cdss:book-title-normalization:易简→易简方",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -50035,9 +50096,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "楮实子",
+          "rawName": "楮实",
           "canonicalName": "楮实子",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "楮实子",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -55386,7 +55448,7 @@
         "人参",
         "白术",
         "枳实",
-        "牡丹皮",
+        "丹皮",
         "鳖甲",
         "神曲",
         "山楂",
@@ -55398,11 +55460,11 @@
         "两头尖",
         "蒲公英",
         "金银花",
-        "甘草",
+        "生甘",
         "槟榔",
         "防风",
         "川芎",
-        "薄荷",
+        "薄荷叶",
         "乳香",
         "没药",
         "赤石脂",
@@ -55464,9 +55526,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "牡丹皮",
+          "rawName": "丹皮",
           "canonicalName": "牡丹皮",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -55536,9 +55598,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "甘草",
+          "rawName": "生甘",
           "canonicalName": "甘草",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "甘草",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -55560,9 +55623,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "薄荷",
+          "rawName": "薄荷叶",
           "canonicalName": "薄荷",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -55888,7 +55951,7 @@
         "青皮",
         "陈皮",
         "白芍",
-        "牡丹皮",
+        "丹皮",
         "栀子",
         "泽泻",
         "土贝母"
@@ -55933,9 +55996,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "牡丹皮",
+          "rawName": "丹皮",
           "canonicalName": "牡丹皮",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -57060,7 +57123,7 @@
         "黄芪",
         "川芎",
         "防风",
-        "白芷",
+        "香白芷",
         "肉桂",
         "甘草",
         "桔梗",
@@ -57118,9 +57181,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芷",
+          "rawName": "香白芷",
           "canonicalName": "白芷",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "白芷",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -57937,7 +58001,7 @@
         "小茴香",
         "桑椹",
         "附子",
-        "山药"
+        "淮山药"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -58020,9 +58084,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "山药",
+          "rawName": "淮山药",
           "canonicalName": "山药",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "山药",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         }
       ],
@@ -59716,13 +59781,13 @@
         "附子",
         "炙甘草",
         "人参",
-        "熟地黄",
+        "熟地",
         "川芎",
         "细辛",
         "桃仁",
         "红花",
         "肉桂",
-        "白芍"
+        "芍药"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -59806,9 +59871,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "熟地黄",
+          "rawName": "熟地",
           "canonicalName": "熟地黄",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -59842,7 +59907,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芍",
+          "rawName": "芍药",
+          "adjudicatedIngredient": "白芍",
+          "adjudicationEvidence": "白芍（酒炒）一钱半。",
+          "adjudicationBasis": "《医方集解》",
           "canonicalName": "白芍",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
@@ -59881,7 +59949,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "芍药"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -62544,11 +62614,11 @@
         "生姜",
         "地黄",
         "旋覆花",
-        "白芍",
+        "白芍药",
         "人参",
         "川芎",
         "细辛",
-        "陈皮",
+        "橘皮",
         "甘草",
         "桔梗"
       ],
@@ -62598,9 +62668,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芍",
+          "rawName": "白芍药",
           "canonicalName": "白芍",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -62622,9 +62692,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "陈皮",
+          "rawName": "橘皮",
           "canonicalName": "陈皮",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -64383,7 +64453,7 @@
         "鹿茸",
         "人参",
         "炙黄芪",
-        "当归",
+        "当归身",
         "炙甘草",
         "生姜",
         "龙眼肉"
@@ -64430,10 +64500,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "当归",
+          "rawName": "当归身",
           "canonicalName": "当归",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "身"
         },
         {
           "rawName": "炙甘草",
@@ -69221,7 +69292,7 @@
         "樟脑",
         "花椒",
         "槟榔",
-        "白矾",
+        "枯矾",
         "雄黄",
         "水银",
         "核桃仁"
@@ -69270,10 +69341,12 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白矾",
+          "rawName": "枯矾",
           "canonicalName": "白矾",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "doseCanonicalName": "白矾",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "煅制，枯矾"
         },
         {
           "rawName": "雄黄",
@@ -69317,6 +69390,7 @@
         "ingredient_identity_requires_resolution"
       ],
       "controlledToxicIngredientNames": [
+        "枯矾",
         "雄黄"
       ],
       "endangeredOrBannedIngredientNames": [],
@@ -69329,6 +69403,7 @@
         "雄黄"
       ],
       "manualDoseIngredientNames": [
+        "枯矾",
         "雄黄"
       ],
       "clinicianDoseIngredientNames": [
@@ -69546,7 +69621,7 @@
       "sourceOriginal": "《验方新编》",
       "prescriptionOriginal": "凡吐血症，切不可吃药，误用寒凉之药，固不得法，而骤投滋补之剂，亦非所宜。惟有童便一味最良。或服自己小便更妙，名曰回龙汤，可以除根。戒房劳，忌食羊肉、鸡、酒、葱、蒜、姜、椒辛辣发物。每日早起，先将隔宿小便溺去，再将第二次小便用洁净大碗盛之，其色白，其味淡，即乘热吃下，随以南枣二枚，口含咀嚼，自不恶心。如小便黄浊者不可吃。即用开水一碗，少加白糖待温饮之，闭目静坐，其小便必然清如泉水，日日饮之，不可间断，久服常服。不惟吐血可以除根，而精神身体益加强壮，其功最大，奇验奇灵，诚吐血症第一良方也。",
       "ingredients": [
-        "大枣"
+        "南枣"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -69570,9 +69645,10 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "大枣",
+          "rawName": "南枣",
           "canonicalName": "大枣",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "大枣",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         }
       ],
@@ -70189,7 +70265,7 @@
         "黄柏",
         "薄荷",
         "硼砂",
-        "黄连",
+        "川连",
         "射干",
         "山豆根",
         "僵蚕",
@@ -70246,9 +70322,9 @@
           "linkageStatus": "unmapped"
         },
         {
-          "rawName": "黄连",
+          "rawName": "川连",
           "canonicalName": "黄连",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -70534,7 +70610,7 @@
         "茯苓",
         "厚朴",
         "姜半夏",
-        "香附",
+        "制香附",
         "丁香",
         "莱菔子"
       ],
@@ -70596,9 +70672,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "香附",
+          "rawName": "制香附",
           "canonicalName": "香附",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "香附",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -72178,7 +72255,7 @@
       "sourceOriginal": "《验方新编》",
       "prescriptionOriginal": "寻取韭菜地内蚯蚓捣烂，和麝香，冰片涂喉间外面即愈。如无冰片、麝香，只用蚯蚓（即曲蟮）捣烂敷之亦可。",
       "ingredients": [
-        "地龙",
+        "蚯蚓",
         "冰片"
       ],
       "dosageForm": null,
@@ -72203,9 +72280,9 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "地龙",
+          "rawName": "蚯蚓",
           "canonicalName": "地龙",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -72695,7 +72772,7 @@
       "sourceOriginal": "《惠直堂经验方》",
       "prescriptionOriginal": "莲肉炒为末。粥饭调食。数次即愈。",
       "ingredients": [
-        "莲子"
+        "莲肉"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -72719,9 +72796,10 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "莲子",
+          "rawName": "莲肉",
           "canonicalName": "莲子",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "莲子",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         }
       ],
@@ -76790,11 +76868,11 @@
       "prescriptionOriginal": "威灵仙（苦葶苈同入）黄耆（续断同入）苍术（橘皮同入）乌药（去木，与黄松节同入）",
       "ingredients": [
         "威灵仙",
-        "葶苈子",
+        "苦葶苈",
         "黄芪",
         "续断",
         "苍术",
-        "陈皮",
+        "橘皮",
         "乌药",
         "黄松节",
         "木瓜"
@@ -76827,9 +76905,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "葶苈子",
+          "rawName": "苦葶苈",
           "canonicalName": "葶苈子",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -76851,9 +76929,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "陈皮",
+          "rawName": "橘皮",
           "canonicalName": "陈皮",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -79493,7 +79571,7 @@
         "鹿角霜",
         "阳起石",
         "韭菜子",
-        "肉苁蓉",
+        "淡肉苁蓉",
         "五味子",
         "茯苓",
         "附片",
@@ -79546,9 +79624,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "肉苁蓉",
+          "rawName": "淡肉苁蓉",
           "canonicalName": "肉苁蓉",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "肉苁蓉",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -83366,7 +83445,7 @@
       "sourceOriginal": "《验方新编》",
       "prescriptionOriginal": "治跌打损伤，香瓜子一钱，生半夏一钱，明雄一钱（水飞），西砂仁一钱，当归头一钱（酒洗），土鳖二钱（新瓦上焙干），巴豆霜一钱，乳香二钱，真血竭二钱，没药二钱，共研细末，瓷瓶贮存，黄蜡封固。遇患者，用好烧酒冲服八厘，小儿服三厘，能开口即可救活。受伤处用烧酒调敷。配药须忌用火炒。歌曰：此方八仙传授，世上千金难寻。不论断筋折骨，一服八厘保安宁。须臾便得活命。",
       "ingredients": [
-        "甜瓜子",
+        "香瓜子",
         "半夏",
         "雄黄",
         "砂仁",
@@ -83399,9 +83478,10 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "甜瓜子",
+          "rawName": "香瓜子",
           "canonicalName": "甜瓜子",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "甜瓜子",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -83956,10 +84036,10 @@
       "prescriptionOriginal": "绵纹川大黄五斤。切薄片。滴烧酒一斤。白蜜四两。拌匀。",
       "ingredients": [
         "大黄",
-        "乌梅",
-        "薄荷",
+        "乌梅肉",
+        "薄荷叶",
         "枳壳",
-        "木香",
+        "广木香",
         "陈皮",
         "胆南星",
         "文蛤",
@@ -84004,15 +84084,17 @@
           "autoResolvable": true
         },
         {
-          "rawName": "乌梅",
+          "rawName": "乌梅肉",
           "canonicalName": "乌梅",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "doseCanonicalName": "乌梅",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "去核取肉，同药材"
         },
         {
-          "rawName": "薄荷",
+          "rawName": "薄荷叶",
           "canonicalName": "薄荷",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -84022,9 +84104,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "木香",
+          "rawName": "广木香",
           "canonicalName": "木香",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "木香",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -87796,7 +87879,7 @@
       "prescriptionOriginal": "地榆一斤，水十碗煎三碗，再用生甘草、金银花各二两同煎至一碗，服一剂即消。极为神效。",
       "ingredients": [
         "地榆",
-        "甘草",
+        "生甘草",
         "金银花"
       ],
       "dosageForm": null,
@@ -87829,10 +87912,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "甘草",
+          "rawName": "生甘草",
           "canonicalName": "甘草",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "生品"
         },
         {
           "rawName": "金银花",
@@ -88118,8 +88202,8 @@
         "当归",
         "独活",
         "甘草",
-        "白芍",
-        "肉桂",
+        "芍药",
+        "桂心",
         "细辛",
         "远志",
         "吴茱萸",
@@ -88134,7 +88218,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:三因极一病证方论:大岩蜜汤"
         },
         {
-          "title": "目录校勘组成重录：出处订正：《千金》→《备急千金要方》（SG，证据A）｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。",
+          "title": "目录校勘组成重录：出处订正：《千金》→《备急千金要方》（SG，证据A）｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。｜ADJ-ORIG-20261110：按原方组成表订正（备急千金要方原文：干地黄当归独活甘草芍药桂心细辛小草（各二两）吴茱萸（一升）干姜（三两））。目录「干熟地黄」不符，原文干地黄；其余药味相同。小草为远志苗，按row记远志。｜ADJ",
           "url": "https://jicheng.tw/tcm/book/備急千金要方/index.html",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -88171,16 +88255,20 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芍",
-          "canonicalName": "白芍",
+          "rawName": "芍药",
+          "adjudicatedIngredient": "赤芍",
+          "adjudicationEvidence": "方义推断：治产后血痛，原方用生干地黄，需活血定痛，赤芍散瘀更合",
+          "adjudicationBasis": "芍药",
+          "canonicalName": "赤芍",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         },
         {
-          "rawName": "肉桂",
+          "rawName": "桂心",
           "canonicalName": "肉桂",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "去粗皮内层"
         },
         {
           "rawName": "细辛",
@@ -88242,7 +88330,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "芍药"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -89870,7 +89960,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:成方切用:大温中饮"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《景岳》→《景岳全书》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：熟地（三、五、七钱）冬白术（三、五钱）当归（三、五钱，如泄泻者，不宜用，或以山药代之）人参（二、三钱，甚者一两，或不用亦可）炙甘草（一钱）柴胡（二、三）。目录把泄泻时条件加味防风、细辛并入，并漏甘草、柴胡、麻黄、肉桂；原文九味。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：熟地（三、五、七钱）冬白术（三、五钱）当归（三、五钱，如泄泻者，不宜用，或以山药代之）人参（二、三钱，甚者一两，或不用亦可）炙甘草（一钱）柴胡（二、三）。目录把泄泻时条件加味防风、细辛并入，并漏甘草、柴胡、麻黄、肉桂；原文九味。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：熟地（三、五、七钱）冬白术（三、五钱）当归（三、五钱，如泄泻者，不宜用，或以山药代之）人参（二、三钱，甚者一两，或不用亦可）炙甘草（一钱）柴胡（二、三）。目录把泄泻时条件加味防风、细辛并入，并漏甘草、柴胡、麻黄、肉桂；原文九味。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：熟地（三、五、七钱）冬白术（三、五钱）当归（三、五钱，如泄泻者，不宜用，或以山药代之）人参（二、三钱，甚者一两，或不用亦可）炙甘草（一钱）柴胡（二、三）。目录把泄泻时条件加味防风、细辛并入，并漏甘草、柴胡、麻黄、肉桂；原文九味。",
+          "title": "目录校勘组成重录：出处书名规范化：《景岳》→《景岳全书》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：熟地（三、五、七钱）冬白术（三、五钱）当归（三、五钱，如泄泻者，不宜用，或以山药代之）人参（二、三钱，甚者一两，或不用亦可）炙甘草（一钱）柴胡（二、三）。目录把泄泻时条件加味防风、细辛并入，并漏甘草、柴胡、麻黄、肉桂；原文九味。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：熟地（三、五、七钱）冬白术（三、五钱）当归（三、五钱，如泄泻者，不宜用，或以山药代之）人参（二、三钱，甚者一两，或不用亦可）炙甘草（一钱）柴胡（二、三）。目录把泄泻时条件加味防风、细辛并入，并漏甘草、柴胡、麻黄、肉桂；原文九味。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：熟地（三、五、七钱）冬白术（三、五钱）当归（三、五钱，如泄泻者，不宜用，或以山药代之）人参（二、三钱，甚者一两，或不用亦可）炙甘草（一钱）柴胡（二、三）。目录把泄泻时条件加味防风、细辛并入，并漏甘草、柴胡、麻黄、肉桂；原文九味。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：熟地（三、五、七钱）冬白术（三、五钱）当归（三、五钱，如泄泻者，不宜用，或以山药代之）人参（二、三钱，甚者一两，或不用亦可）炙甘草（一钱）柴胡（二、三）。目录把泄泻时条件加味防风、细辛并入，并漏甘草、柴胡、麻黄、肉桂；原文九味。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：熟地（三、五、七钱）冬白术（三、五钱）当归（三、五钱，如泄泻者，不宜用，或以山药代之）人参（二、三钱，甚者一两，或不用亦可）炙甘草（一钱）柴胡（二、三）。目录把泄泻时条件加味防风、细辛并入，并漏甘草、柴胡、麻黄、肉桂；原文九味。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：熟地（三、五、七钱）冬白术（三、五钱）当归（三、五钱，如泄泻者，不宜用，或以山药代之）人参（二、三钱，甚者一两，或不用亦可）炙甘",
           "url": "urn:tcm-cdss:book-title-normalization:景岳→景岳全书",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -90001,7 +90091,7 @@
         "阿胶",
         "牡蛎",
         "丹参",
-        "龟甲",
+        "败龟板",
         "菟丝子",
         "远志",
         "龙眼肉",
@@ -90096,9 +90186,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "龟甲",
+          "rawName": "败龟板",
           "canonicalName": "龟甲",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "龟甲",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -90172,7 +90263,7 @@
       "ingredients": [
         "枳壳",
         "栀子",
-        "瓜蒌",
+        "栝蒌",
         "陈皮",
         "天花粉",
         "厚朴",
@@ -90215,10 +90306,12 @@
           "autoResolvable": true
         },
         {
-          "rawName": "瓜蒌",
+          "rawName": "栝蒌",
           "canonicalName": "瓜蒌",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "doseCanonicalName": "瓜蒌",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "异体字"
         },
         {
           "rawName": "陈皮",
@@ -96365,8 +96458,8 @@
         "沉香",
         "琥珀",
         "巴戟天",
-        "胡芦巴",
-        "小茴香",
+        "葫芦巴",
+        "茴香",
         "补骨脂",
         "杜仲",
         "肉桂",
@@ -96413,15 +96506,16 @@
           "autoResolvable": true
         },
         {
-          "rawName": "胡芦巴",
+          "rawName": "葫芦巴",
           "canonicalName": "胡芦巴",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "胡芦巴",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
-          "rawName": "小茴香",
+          "rawName": "茴香",
           "canonicalName": "小茴香",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -97123,7 +97217,7 @@
         "豨莶草",
         "钩藤",
         "柴胡",
-        "郁金",
+        "广郁金",
         "牛膝"
       ],
       "dosageForm": null,
@@ -97221,9 +97315,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "郁金",
+          "rawName": "广郁金",
           "canonicalName": "郁金",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "郁金",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -98161,7 +98256,7 @@
         "朱砂",
         "肉苁蓉",
         "补骨脂",
-        "巴戟天",
+        "巴戟",
         "龙骨",
         "鹿角霜",
         "血竭"
@@ -98225,9 +98320,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "巴戟天",
+          "rawName": "巴戟",
           "canonicalName": "巴戟天",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -98516,7 +98611,7 @@
       "sourceOriginal": "《惠直堂经验方》",
       "prescriptionOriginal": "红枣煮熟去皮核。加轻粉樟冰捣烂。厚敷头上。戴毡帽。三日后去帽。疮自愈。",
       "ingredients": [
-        "大枣",
+        "红枣",
         "轻粉",
         "樟脑"
       ],
@@ -98542,9 +98637,9 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "大枣",
+          "rawName": "红枣",
           "canonicalName": "大枣",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -104587,7 +104682,7 @@
         "黄芩",
         "麦冬",
         "柴胡",
-        "紫苏叶",
+        "苏叶",
         "山豆根",
         "半夏",
         "乌药",
@@ -104635,9 +104730,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "紫苏叶",
+          "rawName": "苏叶",
           "canonicalName": "紫苏叶",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -111104,7 +111199,7 @@
         "白芍",
         "甘草",
         "川芎",
-        "苦杏仁",
+        "杏仁",
         "防风",
         "附子",
         "生姜"
@@ -111179,9 +111274,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "苦杏仁",
+          "rawName": "杏仁",
           "canonicalName": "苦杏仁",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -113359,10 +113454,10 @@
         "防风",
         "川芎",
         "当归",
-        "天花粉",
+        "花粉",
         "金银花",
         "白蒺藜",
-        "薏苡仁",
+        "米仁",
         "威灵仙",
         "栀子",
         "黄芩",
@@ -113425,9 +113520,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "天花粉",
+          "rawName": "花粉",
           "canonicalName": "天花粉",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -113443,9 +113538,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "薏苡仁",
+          "rawName": "米仁",
           "canonicalName": "薏苡仁",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -114769,7 +114864,9 @@
         "草果",
         "炙甘草",
         "高良姜",
-        "乌梅"
+        "乌梅",
+        "生姜",
+        "大枣"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -114780,7 +114877,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:087-医方集解.txt:常山饮"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《局方》→《太平惠民和剂局方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去仁，一斤））。目录含槟榔、贝母（实为他方常山饮），不是局方常山饮；局方为知母、川常山、草果、炙甘草、良姜、乌梅，姜枣为药引。｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去仁，一斤））。目录含槟榔、贝母（实为他方常山饮），不是局方常山饮；局方为知母、川常山、草果、炙甘草、良姜、乌梅，姜枣为药引。｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去仁，一斤））。目录含槟榔、贝母（实为他方常山饮），不是局方常山饮；局方为知母、川常山、草果、炙甘草、良姜、乌梅，姜枣为药引。｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去仁，一斤））。目录含槟榔、贝母（实为他方常山饮），不是局方常山饮；局方为知母、川常山、草果、炙甘草、良姜、乌梅，姜枣为药引。｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去仁，一斤））。目录含槟榔、贝母（实为他方常山饮），不是局方常山饮；局方为知母、川常山、草果、炙甘草、良姜、乌梅，姜枣为药引。｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去仁，一斤））。目录含槟榔、贝母（实为他方常山饮），不是局方常山饮；局方为知母、川常山、草果、炙甘草、良姜、乌梅，姜枣为药引。",
+          "title": "目录校勘组成重录：出处书名规范化：《局方》→《太平惠民和剂局方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去仁，一斤））。目录含槟榔、贝母（实为他方常山饮），不是局方常山饮；局方为知母、川常山、草果、炙甘草、良姜、乌梅，姜枣为药引。｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去仁，一斤））。目录含槟榔、贝母（实为他方常山饮），不是局方常山饮；局方为知母、川常山、草果、炙甘草、良姜、乌梅，姜枣为药引。｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去仁，一斤））。目录含槟榔、贝母（实为他方常山饮），不是局方常山饮；局方为知母、川常山、草果、炙甘草、良姜、乌梅，姜枣为药引。｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去仁，一斤））。目录含槟榔、贝母（实为他方常山饮），不是局方常山饮；局方为知母、川常山、草果、炙甘草、良姜、乌梅，姜枣为药引。｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去仁，一斤））。目录含槟榔、贝母（实为他方常山饮），不是局方常山饮；局方为知母、川常山、草果、炙甘草、良姜、乌梅，姜枣为药引。｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去仁，一斤））。目录含槟榔、贝母（实为他方常山饮），不是局方常山饮；局方为知母、川常山、草果、炙甘草、良姜、乌梅，姜枣为药引。｜ADJ-ORIG-20261110：按原方组成表订正（太平惠民和剂局方原文：知母川常山草果甘草（炙，各二斤）良姜（二十两）乌梅（去",
           "url": "urn:tcm-cdss:book-title-normalization:局方→太平惠民和剂局方",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -114825,6 +114922,18 @@
         {
           "rawName": "乌梅",
           "canonicalName": "乌梅",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "生姜",
+          "canonicalName": "生姜",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "大枣",
+          "canonicalName": "大枣",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         }
@@ -116651,7 +116760,7 @@
         "熟地黄",
         "天冬",
         "麦冬",
-        "淫羊藿",
+        "仙灵脾",
         "当归",
         "枸杞子"
       ],
@@ -116703,9 +116812,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "淫羊藿",
+          "rawName": "仙灵脾",
           "canonicalName": "淫羊藿",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -118530,9 +118639,9 @@
         "牛蒡子",
         "黄芩",
         "连翘",
-        "金银花",
+        "银花",
         "赤小豆",
-        "甘草",
+        "生甘草",
         "马勃"
       ],
       "dosageForm": null,
@@ -118581,9 +118690,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "金银花",
+          "rawName": "银花",
           "canonicalName": "金银花",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -118593,10 +118702,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "甘草",
+          "rawName": "生甘草",
           "canonicalName": "甘草",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "生品"
         },
         {
           "rawName": "马勃",
@@ -120299,7 +120409,7 @@
       "ingredients": [
         "党参",
         "白术",
-        "茯苓",
+        "白茯苓",
         "当归",
         "炒酸枣仁",
         "陈皮",
@@ -120344,9 +120454,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "茯苓",
+          "rawName": "白茯苓",
           "canonicalName": "茯苓",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -125532,7 +125642,7 @@
       "prescriptionOriginal": "藿香（二钱）紫苏（钱五分）苍术（钱二分）赤苓（三钱）白芷（一钱）陈皮（钱五分）川朴（一钱，姜制）乌梅（四个，打碎）槟榔（一钱）半夏（钱五分，姜制）桔梗（一钱）引加生姜（三片）大枣（三枚，）水三杯，煎成一杯，温服。",
       "ingredients": [
         "藿香",
-        "紫苏叶",
+        "紫苏",
         "苍术",
         "赤茯苓",
         "白芷",
@@ -125573,7 +125683,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "紫苏叶",
+          "rawName": "紫苏",
+          "adjudicatedIngredient": "紫苏叶",
+          "adjudicationEvidence": "推断：清《大小诸证方论》治时行瘟症初起，配藿香、白芷等解表化湿，紫苏叶擅发散风寒，宜用于表证。",
+          "adjudicationBasis": "紫苏",
           "canonicalName": "紫苏叶",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
@@ -125664,7 +125777,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "紫苏"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -125900,7 +126015,7 @@
       "ingredients": [
         "附子",
         "木香",
-        "僵蚕",
+        "白僵蚕",
         "白花蛇",
         "橘红",
         "天麻",
@@ -125921,7 +126036,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:医方考:惊气丸"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《本事方》→《普济本事方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：附子（炮，去皮脐）南木香白僵蚕（去丝嘴，炒）花蛇（酒浸，去皮、骨，炙）橘红天麻（去芦）麻黄（去根节，各半两）干蝎（一两，去毒）紫苏子（一两淘洗））。目录误将干蝎写成干葛、紫苏子写成紫苏叶；原文为干蝎（全蝎）、紫苏子；金银薄荷汤送服为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：附子（炮，去皮脐）南木香白僵蚕（去丝嘴，炒）花蛇（酒浸，去皮、骨，炙）橘红天麻（去芦）麻黄（去根节，各半两）干蝎（一两，去毒）紫苏子（一两淘洗））。目录误将干蝎写成干葛、紫苏子写成紫苏叶；原文为干蝎（全蝎）、紫苏子；金银薄荷汤送服为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：附子（炮，去皮脐）南木香白僵蚕（去丝嘴，炒）花蛇（酒浸，去皮、骨，炙）橘红天麻（去芦）麻黄（去根节，各半两）干蝎（一两，去毒）紫苏子（一两淘洗））。目录误将干蝎写成干葛、紫苏子写成紫苏叶；原文为干蝎（全蝎）、紫苏子；金银薄荷汤送服为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：附子（炮，去皮脐）南木香白僵蚕（去丝嘴，炒）花蛇（酒浸，去皮、骨，炙）橘红天麻（去芦）麻黄（去根节，各半两）干蝎（一两，去毒）紫苏子（一两淘洗））。目录误将干蝎写成干葛、紫苏子写成紫苏叶；原文为干蝎（全蝎）、紫苏子；金银薄荷汤送服为引。",
+          "title": "目录校勘组成重录：出处书名规范化：《本事方》→《普济本事方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：附子（炮，去皮脐）南木香白僵蚕（去丝嘴，炒）花蛇（酒浸，去皮、骨，炙）橘红天麻（去芦）麻黄（去根节，各半两）干蝎（一两，去毒）紫苏子（一两淘洗））。目录误将干蝎写成干葛、紫苏子写成紫苏叶；原文为干蝎（全蝎）、紫苏子；金银薄荷汤送服为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：附子（炮，去皮脐）南木香白僵蚕（去丝嘴，炒）花蛇（酒浸，去皮、骨，炙）橘红天麻（去芦）麻黄（去根节，各半两）干蝎（一两，去毒）紫苏子（一两淘洗））。目录误将干蝎写成干葛、紫苏子写成紫苏叶；原文为干蝎（全蝎）、紫苏子；金银薄荷汤送服为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：附子（炮，去皮脐）南木香白僵蚕（去丝嘴，炒）花蛇（酒浸，去皮、骨，炙）橘红天麻（去芦）麻黄（去根节，各半两）干蝎（一两，去毒）紫苏子（一两淘洗））。目录误将干蝎写成干葛、紫苏子写成紫苏叶；原文为干蝎（全蝎）、紫苏子；金银薄荷汤送服为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：附子（炮，去皮脐）南木香白僵蚕（去丝嘴，炒）花蛇（酒浸，去皮、骨，炙）橘红天麻（去芦）麻黄（去根节，各半两）干蝎（一两，去毒）紫苏子（一两淘洗））。目录误将干蝎写成干葛、紫苏子写成紫苏叶；原文为干蝎（全蝎）、紫苏子；金银薄荷汤送服为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：附子（炮，去皮脐）南木香白僵蚕（去丝嘴，炒）花蛇（酒浸，去皮、骨，炙）橘红天麻（去芦）麻黄（去根节，各半两）干蝎（一两，去毒）紫苏子（一两淘洗））。目录误将干蝎写成干葛、紫苏子写成紫苏叶；原文为干蝎（全蝎）、紫苏子；金银薄荷汤送服为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：附子（炮，去皮脐）南木香白僵蚕（去丝嘴，炒）",
           "url": "urn:tcm-cdss:book-title-normalization:本事方→普济本事方",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -125946,9 +126061,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "僵蚕",
+          "rawName": "白僵蚕",
           "canonicalName": "僵蚕",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -127685,7 +127800,7 @@
         "沉香",
         "丁香",
         "益智仁",
-        "小茴香",
+        "茴香",
         "陈皮",
         "木香",
         "炙甘草",
@@ -127733,9 +127848,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "小茴香",
+          "rawName": "茴香",
           "canonicalName": "小茴香",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -128161,9 +128276,9 @@
         "人参",
         "草豆蔻",
         "干姜",
-        "白芍",
+        "白芍药",
         "炙甘草",
-        "肉桂",
+        "官桂",
         "吴茱萸",
         "陈皮",
         "白术",
@@ -128217,9 +128332,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芍",
+          "rawName": "白芍药",
           "canonicalName": "白芍",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -128229,9 +128344,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "肉桂",
+          "rawName": "官桂",
           "canonicalName": "肉桂",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -128291,7 +128406,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "官桂"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -128813,7 +128930,7 @@
         "牡丹皮",
         "山药",
         "生姜皮",
-        "大枣"
+        "南枣"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -128918,9 +129035,10 @@
           "medicinalPart": "皮"
         },
         {
-          "rawName": "大枣",
+          "rawName": "南枣",
           "canonicalName": "大枣",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "大枣",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         }
       ],
@@ -129099,9 +129217,9 @@
       "prescriptionOriginal": "琥珀五钱辰砂三钱雄黄七钱（香麻油煎十二时，再用水萝卜汁煮）胆星二两一钱僵蚕四钱（炒，去嘴足）全蝎三钱（研末，用石榴一枚剜空，以无灰酒调末填入盖定，坐文火上徐徐搅动成膏，取出冷用）牛黄一钱麝香五分天竺黄七钱赤茯苓一两",
       "ingredients": [
         "琥珀",
-        "朱砂",
+        "辰砂",
         "雄黄",
-        "胆南星",
+        "胆星",
         "炒僵蚕",
         "全蝎",
         "天竺黄",
@@ -129137,9 +129255,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "朱砂",
+          "rawName": "辰砂",
           "canonicalName": "朱砂",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -129149,9 +129267,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "胆南星",
+          "rawName": "胆星",
           "canonicalName": "胆南星",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -129204,7 +129322,7 @@
       "identityBlockingReasons": [],
       "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [
-        "朱砂",
+        "辰砂",
         "雄黄"
       ],
       "endangeredOrBannedIngredientNames": [],
@@ -129212,11 +129330,11 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [
-        "朱砂",
+        "辰砂",
         "雄黄"
       ],
       "manualDoseIngredientNames": [
-        "朱砂",
+        "辰砂",
         "雄黄"
       ],
       "clinicianDoseIngredientNames": [
@@ -130917,14 +131035,15 @@
       "ingredients": [
         "鹿角霜",
         "肉苁蓉",
-        "牛膝",
+        "怀牛膝",
         "枸杞子",
         "远志",
         "菟丝子",
         "茯神",
         "补骨脂",
         "杜仲",
-        "豨莶草"
+        "豨莶草",
+        "大枣"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -130962,9 +131081,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "牛膝",
+          "rawName": "怀牛膝",
           "canonicalName": "牛膝",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -131009,6 +131128,12 @@
           "canonicalName": "豨莶草",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
+        },
+        {
+          "rawName": "大枣",
+          "canonicalName": "大枣",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -131044,7 +131169,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "怀牛膝"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -131739,7 +131866,7 @@
         "防风",
         "白术",
         "当归",
-        "白芍",
+        "芍药",
         "肉桂",
         "杏仁",
         "川芎",
@@ -131809,7 +131936,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芍",
+          "rawName": "芍药",
+          "adjudicatedIngredient": "白芍",
+          "adjudicationEvidence": "推断：清代《成方切用》，方中芍药配当归养血和营，主治风虚冷湿而无热象，故用白芍。",
+          "adjudicationBasis": "芍药",
           "canonicalName": "白芍",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
@@ -131868,7 +131998,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "芍药"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -133296,8 +133428,8 @@
       "prescriptionOriginal": "车前子（二两半）白槟榔火麻子（微炒去壳）牛膝（酒浸）郁李仁（汤泡去皮另研）菟丝子（制）干山药（二两）枳壳（麸炒）防风独活（一两）大黄（五钱半生半熟）炼蜜丸，桐子大。",
       "ingredients": [
         "车前子",
-        "槟榔",
-        "火麻仁",
+        "白槟榔",
+        "火麻子",
         "牛膝",
         "郁李仁",
         "菟丝子",
@@ -133335,15 +133467,16 @@
           "autoResolvable": true
         },
         {
-          "rawName": "槟榔",
+          "rawName": "白槟榔",
           "canonicalName": "槟榔",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
-          "rawName": "火麻仁",
+          "rawName": "火麻子",
           "canonicalName": "火麻仁",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "火麻仁",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -135592,8 +135725,8 @@
         "黄芩",
         "知母",
         "黄柏",
-        "龙胆",
-        "天花粉",
+        "龙胆草",
+        "花粉",
         "桔梗",
         "昆布",
         "柴胡",
@@ -135601,9 +135734,9 @@
         "连翘",
         "炙甘草",
         "三棱",
-        "莪术",
+        "广术",
         "葛根",
-        "当归",
+        "归尾",
         "芍药",
         "黄连"
       ],
@@ -135647,15 +135780,15 @@
           "autoResolvable": true
         },
         {
-          "rawName": "龙胆",
+          "rawName": "龙胆草",
           "canonicalName": "龙胆",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
-          "rawName": "天花粉",
+          "rawName": "花粉",
           "canonicalName": "天花粉",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -135701,9 +135834,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "莪术",
+          "rawName": "广术",
           "canonicalName": "莪术",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "莪术",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -135713,10 +135847,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "当归",
+          "rawName": "归尾",
           "canonicalName": "当归",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "尾"
         },
         {
           "rawName": "芍药",
@@ -137135,7 +137270,7 @@
       "prescriptionOriginal": "枳壳焦楂肉麦芽赤茯苓苏梗（各二两）桔梗（三两）甘草（八钱）当归赤芍（各一两五钱）丹皮广皮砂仁（各一两）",
       "ingredients": [
         "枳壳",
-        "山楂",
+        "焦楂肉",
         "麦芽",
         "赤茯苓",
         "苏梗",
@@ -137175,9 +137310,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "山楂",
+          "rawName": "焦楂肉",
           "canonicalName": "山楂",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "山楂",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -142094,7 +142230,7 @@
         "木香",
         "大腹皮",
         "人参",
-        "肉桂",
+        "桂心",
         "赤茯苓",
         "青皮",
         "前胡",
@@ -142143,10 +142279,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "肉桂",
+          "rawName": "桂心",
           "canonicalName": "肉桂",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "去粗皮内层"
         },
         {
           "rawName": "赤茯苓",
@@ -142241,7 +142378,7 @@
         "半夏",
         "青皮",
         "陈皮",
-        "茯苓",
+        "白茯苓",
         "白术",
         "三棱",
         "莪术",
@@ -142317,9 +142454,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "茯苓",
+          "rawName": "白茯苓",
           "canonicalName": "茯苓",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -145017,16 +145154,16 @@
       "ingredients": [
         "大黄",
         "红花",
-        "牡丹皮",
+        "丹皮",
         "木耳",
         "当归",
         "地黄",
         "桃仁",
         "白芥子",
-        "龟甲",
+        "龟板",
         "乳香",
         "没药",
-        "三七",
+        "三七根",
         "骨碎补",
         "松香"
       ],
@@ -145064,9 +145201,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "牡丹皮",
+          "rawName": "丹皮",
           "canonicalName": "牡丹皮",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -145099,9 +145236,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "龟甲",
+          "rawName": "龟板",
           "canonicalName": "龟甲",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -145117,9 +145254,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "三七",
+          "rawName": "三七根",
           "canonicalName": "三七",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "三七",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -145550,8 +145688,8 @@
       "sourceOriginal": "《惠直堂经验方》",
       "prescriptionOriginal": "胡桃肉（一两）红枣（一两）透骨子（即凤仙子五钱）松萝茶（一钱）黑沙糖（三钱）酒二碗煎一碗。露一夜。热服。以绵被蒙头取汗。以脚心有汗为度。重者二服。其被本人自取。埋土中。面红面黑下疳并治。",
       "ingredients": [
-        "核桃仁",
-        "大枣",
+        "胡桃肉",
+        "红枣",
         "急性子",
         "松萝茶",
         "红糖"
@@ -145578,15 +145716,15 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "核桃仁",
+          "rawName": "胡桃肉",
           "canonicalName": "核桃仁",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
-          "rawName": "大枣",
+          "rawName": "红枣",
           "canonicalName": "大枣",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -152367,7 +152505,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:成方切用:柴陈煎"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《景岳》→《景岳全书》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：柴胡（二、三钱）陈皮（一钱半）半夏（二钱）茯苓（二钱）甘草（一钱）生姜（三、五、七片））。目录漏茯苓；景岳全书原文六味含茯苓。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：柴胡（二、三钱）陈皮（一钱半）半夏（二钱）茯苓（二钱）甘草（一钱）生姜（三、五、七片））。目录漏茯苓；景岳全书原文六味含茯苓。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：柴胡（二、三钱）陈皮（一钱半）半夏（二钱）茯苓（二钱）甘草（一钱）生姜（三、五、七片））。目录漏茯苓；景岳全书原文六味含茯苓。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：柴胡（二、三钱）陈皮（一钱半）半夏（二钱）茯苓（二钱）甘草（一钱）生姜（三、五、七片））。目录漏茯苓；景岳全书原文六味含茯苓。",
+          "title": "目录校勘组成重录：出处书名规范化：《景岳》→《景岳全书》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：柴胡（二、三钱）陈皮（一钱半）半夏（二钱）茯苓（二钱）甘草（一钱）生姜（三、五、七片））。目录漏茯苓；景岳全书原文六味含茯苓。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：柴胡（二、三钱）陈皮（一钱半）半夏（二钱）茯苓（二钱）甘草（一钱）生姜（三、五、七片））。目录漏茯苓；景岳全书原文六味含茯苓。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：柴胡（二、三钱）陈皮（一钱半）半夏（二钱）茯苓（二钱）甘草（一钱）生姜（三、五、七片））。目录漏茯苓；景岳全书原文六味含茯苓。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：柴胡（二、三钱）陈皮（一钱半）半夏（二钱）茯苓（二钱）甘草（一钱）生姜（三、五、七片））。目录漏茯苓；景岳全书原文六味含茯苓。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：柴胡（二、三钱）陈皮（一钱半）半夏（二钱）茯苓（二钱）甘草（一钱）生姜（三、五、七片））。目录漏茯苓；景岳全书原文六味含茯苓。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：柴胡（二、三钱）陈皮（一钱半）半夏（二钱）茯苓（二钱）甘草（一钱）生姜（三、五、七片））。目录漏茯苓；景岳全书原文六味含茯苓。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：柴胡（二、三钱）陈皮（一钱半）半夏（二钱）茯苓（二钱）甘草（一钱）生姜（三、五、七片））。目录漏茯苓；景岳全书原文六味含茯苓。｜ADJ-ORIG-20261110：按原方组成表订正（景岳全书原文：柴胡（二、三钱）陈皮（一钱半）半夏（二钱）茯苓（二钱）甘草（一钱）生姜（三、五、七片））。目录漏茯苓；景岳全书原文六味含茯苓。",
           "url": "urn:tcm-cdss:book-title-normalization:景岳→景岳全书",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -154963,7 +155101,7 @@
       "prescriptionOriginal": "桂枝十八铢（去皮）芍药十八铢甘草十八铢生姜一两二铢大枣四枚（擘）麻黄十八铢（去节）石膏二十四铢（碎，绵裹）",
       "ingredients": [
         "桂枝",
-        "白芍",
+        "芍药",
         "甘草",
         "生姜",
         "大枣",
@@ -155000,7 +155138,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芍",
+          "rawName": "芍药",
+          "adjudicatedIngredient": "白芍",
+          "adjudicationEvidence": "桂枝汤合越婢汤，基方白芍",
+          "adjudicationBasis": "inheritance",
           "canonicalName": "白芍",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
@@ -155068,7 +155209,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "芍药"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -155434,7 +155577,7 @@
       "ingredients": [
         "桂枝",
         "大黄",
-        "白芍",
+        "芍药",
         "生姜",
         "炙甘草",
         "大枣"
@@ -155473,7 +155616,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芍",
+          "rawName": "芍药",
+          "adjudicatedIngredient": "白芍",
+          "adjudicationEvidence": "桂枝汤加味，基方白芍",
+          "adjudicationBasis": "inheritance",
           "canonicalName": "白芍",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
@@ -155529,7 +155675,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "芍药"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -166311,7 +166459,7 @@
         "当归",
         "栀子",
         "阿胶",
-        "牡丹皮",
+        "丹皮",
         "茜草",
         "益母草",
         "柴胡",
@@ -166366,9 +166514,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "牡丹皮",
+          "rawName": "丹皮",
           "canonicalName": "牡丹皮",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -169621,8 +169769,8 @@
         "木香",
         "荜澄茄",
         "枳壳",
-        "砂仁",
-        "豆蔻",
+        "缩砂仁",
+        "白豆蔻仁",
         "青皮",
         "陈皮",
         "莪术",
@@ -169631,7 +169779,7 @@
         "法半夏",
         "莱菔子",
         "茯苓",
-        "香附",
+        "香附子",
         "白术",
         "乌药"
       ],
@@ -169683,15 +169831,16 @@
           "autoResolvable": true
         },
         {
-          "rawName": "砂仁",
+          "rawName": "缩砂仁",
           "canonicalName": "砂仁",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
-          "rawName": "豆蔻",
+          "rawName": "白豆蔻仁",
           "canonicalName": "豆蔻",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "豆蔻",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -169743,9 +169892,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "香附",
+          "rawName": "香附子",
           "canonicalName": "香附",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -169813,9 +169962,9 @@
         "八角茴香",
         "小茴香",
         "鹿茸",
-        "莲子",
-        "蚕沙",
-        "肉苁蓉",
+        "莲肉",
+        "晚蚕砂",
+        "苁蓉",
         "菟丝子",
         "牛膝",
         "川楝子",
@@ -169890,21 +170039,23 @@
           "autoResolvable": true
         },
         {
-          "rawName": "莲子",
+          "rawName": "莲肉",
           "canonicalName": "莲子",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "莲子",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
-          "rawName": "蚕沙",
+          "rawName": "晚蚕砂",
           "canonicalName": "蚕沙",
           "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
-          "rawName": "肉苁蓉",
+          "rawName": "苁蓉",
           "canonicalName": "肉苁蓉",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "肉苁蓉",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -169987,7 +170138,7 @@
       ],
       "clinicianDoseIngredientNames": [
         "乳香",
-        "蚕沙"
+        "晚蚕砂"
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
@@ -174416,7 +174567,7 @@
       "prescriptionOriginal": "蜜（一盅）皮硝（一盅，两）大黄（一钱）黄酒（一盅）",
       "ingredients": [
         "蜂蜜",
-        "芒硝",
+        "皮硝",
         "大黄",
         "黄酒"
       ],
@@ -174453,9 +174604,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "芒硝",
+          "rawName": "皮硝",
           "canonicalName": "芒硝",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "芒硝",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -178110,7 +178262,7 @@
         "茯苓",
         "陈皮",
         "白芥子",
-        "天花粉",
+        "花粉",
         "苏子",
         "肉豆蔻"
       ],
@@ -178166,9 +178318,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "天花粉",
+          "rawName": "花粉",
           "canonicalName": "天花粉",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -178931,7 +179083,7 @@
         "天冬",
         "南沙参",
         "知母",
-        "黄芩",
+        "条芩",
         "防风",
         "白术",
         "橘红",
@@ -178983,9 +179135,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "黄芩",
+          "rawName": "条芩",
           "canonicalName": "黄芩",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "黄芩",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -179941,7 +180094,7 @@
       "sourceOriginal": "《验方新编》",
       "prescriptionOriginal": "凡疮疖初起，用明矾、雄黄各半，研极细末，掺膏药上贴之，即愈。",
       "ingredients": [
-        "白矾",
+        "明矾",
         "雄黄"
       ],
       "dosageForm": null,
@@ -179966,9 +180119,9 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "白矾",
+          "rawName": "明矾",
           "canonicalName": "白矾",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -180973,7 +181126,7 @@
       "sourceOriginal": "《验方新编》",
       "prescriptionOriginal": "用灯芯以口涎润湿擦之，有小虫入灯芯内，即以火化之，多擦数次自愈。",
       "ingredients": [
-        "灯心草"
+        "灯芯"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -180997,9 +181150,10 @@
       "collationAdministration": "historical_only",
       "ingredientLinks": [
         {
-          "rawName": "灯心草",
+          "rawName": "灯芯",
           "canonicalName": "灯心草",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "灯心草",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         }
       ],
@@ -181153,11 +181307,11 @@
       "prescriptionOriginal": "土槿皮（五钱）白芨（二钱五分）白芷（二钱五分）荜茇（二钱五分）白藓皮（五钱）明雄黄（一钱五分）斑蝥（八分）百部（二钱五分）",
       "ingredients": [
         "土槿皮",
-        "白及",
+        "白芨",
         "白芷",
         "荜茇",
         "白鲜皮",
-        "雄黄",
+        "明雄黄",
         "百部"
       ],
       "dosageForm": null,
@@ -181188,9 +181342,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白及",
+          "rawName": "白芨",
           "canonicalName": "白及",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -181212,9 +181366,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "雄黄",
+          "rawName": "明雄黄",
           "canonicalName": "雄黄",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -181246,17 +181400,17 @@
       "identityBlockingReasons": [],
       "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [
-        "雄黄"
+        "明雄黄"
       ],
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [
-        "雄黄"
+        "明雄黄"
       ],
       "manualDoseIngredientNames": [
-        "雄黄"
+        "明雄黄"
       ],
       "clinicianDoseIngredientNames": [
         "土槿皮"
@@ -190158,20 +190312,20 @@
         "茅香",
         "藿香",
         "白术",
-        "白及",
+        "白芨",
         "白蔹",
         "川芎",
         "沙参",
         "防风",
         "藁本",
-        "山柰",
+        "三奈子",
         "天花粉",
         "木贼",
         "甘松",
-        "楮实子",
-        "牵牛子",
-        "僵蚕",
-        "白芷",
+        "楮桃儿",
+        "黑牵牛",
+        "白僵蚕",
+        "香白芷",
         "绿豆",
         "肥皂角"
       ],
@@ -190231,9 +190385,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白及",
+          "rawName": "白芨",
           "canonicalName": "白及",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -190271,9 +190425,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "山柰",
+          "rawName": "三奈子",
           "canonicalName": "山柰",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -190295,27 +190449,30 @@
           "autoResolvable": true
         },
         {
-          "rawName": "楮实子",
+          "rawName": "楮桃儿",
           "canonicalName": "楮实子",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "楮实子",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
-          "rawName": "牵牛子",
+          "rawName": "黑牵牛",
           "canonicalName": "牵牛子",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "牵牛子",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
-          "rawName": "僵蚕",
+          "rawName": "白僵蚕",
           "canonicalName": "僵蚕",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
-          "rawName": "白芷",
+          "rawName": "香白芷",
           "canonicalName": "白芷",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "白芷",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -190368,10 +190525,10 @@
         "沙参"
       ],
       "clinicianDoseIngredientNames": [
-        "牵牛子",
         "绿豆",
         "茅香",
-        "零陵香"
+        "零陵香",
+        "黑牵牛"
       ],
       "varietyUndeterminedIngredients": [
         {
@@ -198087,9 +198244,9 @@
       "sourceOriginal": "《医方简义》",
       "prescriptionOriginal": "栝蒌仁（炒四钱）海石（一钱）栀子炭（三钱）杏仁（光三钱）煅石膏（二钱）黄芩（炒一钱）茜草（一钱）生牡蛎（四钱）加青果二枚。竹叶二十片。如因寒者加苏子（二钱）。如因暑者加青蒿（一钱）鲜荷一片。。如因风者。加生莱菔子（一钱）桔梗（一钱）。如因湿者。加滑石。。如因燥者。加生地麦冬（各三钱）。如因火者。加犀角羚羊之类。。余皆仿此。",
       "ingredients": [
-        "瓜蒌子",
+        "栝蒌仁",
         "海浮石",
-        "栀子",
+        "栀子炭",
         "杏仁",
         "石膏",
         "黄芩",
@@ -198121,9 +198278,10 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "瓜蒌子",
+          "rawName": "栝蒌仁",
           "canonicalName": "瓜蒌子",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "瓜蒌子",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -198133,10 +198291,12 @@
           "autoResolvable": true
         },
         {
-          "rawName": "栀子",
+          "rawName": "栀子炭",
           "canonicalName": "栀子",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "doseCanonicalName": "栀子",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "炒炭"
         },
         {
           "rawName": "杏仁",
@@ -198862,7 +199022,7 @@
         "金银花",
         "泽兰",
         "橘红",
-        "龙胆",
+        "龙胆草",
         "黄连",
         "黄芩",
         "连翘",
@@ -198925,9 +199085,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "龙胆",
+          "rawName": "龙胆草",
           "canonicalName": "龙胆",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -202782,9 +202942,9 @@
         "玄参",
         "薄荷",
         "黄芩",
-        "蒺藜",
+        "白蒺藜",
         "紫苏",
-        "豆蔻",
+        "白蔻仁",
         "甘草",
         "橘红"
       ],
@@ -202834,9 +202994,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "蒺藜",
+          "rawName": "白蒺藜",
           "canonicalName": "蒺藜",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -202845,9 +203005,10 @@
           "linkageStatus": "unmapped"
         },
         {
-          "rawName": "豆蔻",
+          "rawName": "白蔻仁",
           "canonicalName": "豆蔻",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "豆蔻",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -203565,7 +203726,7 @@
           "sourcePage": 25
         },
         {
-          "title": "目录校勘组成重录：组成订正（SF）：补入柴胡；删去郁金。目录12味缺『柴胡』：教材类页面的方解（栀子、黄连、柴胡、白芍、蒲公英、金钱草、瓜蒌清泻肝火；郁金、延胡索、川楝子理气；大黄通腑）与课件列表（13味，含枳壳、木香）都有柴胡。另有两点存疑：①木香、枳壳只见于课件列表，教材方解句未点名（黄疸加减里另有『加茵陈、枳壳』）；②教材写『瓜蒌/栝蒌』而非『瓜蒌皮』。correctedIngredients=目录+柴胡，木香/枳壳/瓜蒌皮保留目录写法，待取得教｜ADJ-ORIG-20261110：按原方组成表订正（中医内科学原文：方中栀子、黄连、柴胡、白芍、蒲公英、金钱草、瓜蒌清泻肝火，郁金、延胡索、川栋子理气解郁止痛，大黄利胆通腑泻热。心烦失眠者，加丹参、炒枣仁；黄）。目录漏了自带原文里的郁金，栝蒌写成瓜蒌皮；按标准自带原文十三味订正，药名写基础名。教材方解句只举十一味，枳壳、木香两说并存。｜ADJ-ORIG-20261110：按原方组成表订正（中医内科学原文：方中栀子、黄连、柴胡、白芍、蒲公英、金钱草、瓜蒌清泻肝火，郁金、延胡索、川栋子理气解郁止痛，大黄利胆通腑泻热。心烦失眠者，加丹参、炒枣仁；黄）。目录漏了自带原文里的郁金，栝蒌写成瓜蒌皮；按标准自带原文十三味订正，药名写基础名。教材方解句只举十一味，枳壳、木香两说并存。｜ADJ-ORIG-20261110：按原方组成表订正（中医内科学原文：方中栀子、黄连、柴胡、白芍、蒲公英、金钱草、瓜蒌清泻肝火，郁金、延胡索、川栋子理气解郁止痛，大黄利胆通腑泻热。心烦失眠者，加丹参、炒枣仁；黄）。目录漏了自带原文里的郁金，栝蒌写成瓜蒌皮；按标准自带原文十三味订正，药名写基础名。教材方解句只举十一味，枳壳、木香两说并存。",
+          "title": "目录校勘组成重录：组成订正（SF）：补入柴胡；删去郁金。目录12味缺『柴胡』：教材类页面的方解（栀子、黄连、柴胡、白芍、蒲公英、金钱草、瓜蒌清泻肝火；郁金、延胡索、川楝子理气；大黄通腑）与课件列表（13味，含枳壳、木香）都有柴胡。另有两点存疑：①木香、枳壳只见于课件列表，教材方解句未点名（黄疸加减里另有『加茵陈、枳壳』）；②教材写『瓜蒌/栝蒌』而非『瓜蒌皮』。correctedIngredients=目录+柴胡，木香/枳壳/瓜蒌皮保留目录写法，待取得教｜ADJ-ORIG-20261110：按原方组成表订正（中医内科学原文：方中栀子、黄连、柴胡、白芍、蒲公英、金钱草、瓜蒌清泻肝火，郁金、延胡索、川栋子理气解郁止痛，大黄利胆通腑泻热。心烦失眠者，加丹参、炒枣仁；黄）。目录漏了自带原文里的郁金，栝蒌写成瓜蒌皮；按标准自带原文十三味订正，药名写基础名。教材方解句只举十一味，枳壳、木香两说并存。｜ADJ-ORIG-20261110：按原方组成表订正（中医内科学原文：方中栀子、黄连、柴胡、白芍、蒲公英、金钱草、瓜蒌清泻肝火，郁金、延胡索、川栋子理气解郁止痛，大黄利胆通腑泻热。心烦失眠者，加丹参、炒枣仁；黄）。目录漏了自带原文里的郁金，栝蒌写成瓜蒌皮；按标准自带原文十三味订正，药名写基础名。教材方解句只举十一味，枳壳、木香两说并存。｜ADJ-ORIG-20261110：按原方组成表订正（中医内科学原文：方中栀子、黄连、柴胡、白芍、蒲公英、金钱草、瓜蒌清泻肝火，郁金、延胡索、川栋子理气解郁止痛，大黄利胆通腑泻热。心烦失眠者，加丹参、炒枣仁；黄）。目录漏了自带原文里的郁金，栝蒌写成瓜蒌皮；按标准自带原文十三味订正，药名写基础名。教材方解句只举十一味，枳壳、木香两说并存。｜ADJ-ORIG-20261110：按原方组成表订正（中医内科学原文：方中栀子、黄连、柴胡、白芍、蒲公英、金钱草、瓜蒌清泻肝火，郁金、延胡索、川栋子理气解郁止痛，大黄利胆通腑泻热。心烦失眠者，加丹参、炒枣仁；黄）。目录漏了自带原文里的郁金，栝蒌写成瓜蒌皮；按标",
           "url": "https://cm.39.net/079/3/121133.html",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -207353,7 +207514,7 @@
         "黄柏",
         "麦芽",
         "吴茱萸",
-        "肉桂",
+        "桂心",
         "干姜",
         "细辛",
         "附子",
@@ -207402,10 +207563,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "肉桂",
+          "rawName": "桂心",
           "canonicalName": "肉桂",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "去粗皮内层"
         },
         {
           "rawName": "干姜",
@@ -208791,9 +208953,9 @@
       "sourceOriginal": "《瑞竹堂经验方》",
       "prescriptionOriginal": "白芍药（二两）人参（一两）白茯苓（去皮）阿胶（锉碎，面炒）当归地黄（生熟皆可）半夏（生用）鹿茸（盐炙）黄耆（盐炙）五味子（以上各一两）",
       "ingredients": [
-        "白芍",
+        "白芍药",
         "人参",
-        "茯苓",
+        "白茯苓",
         "阿胶",
         "当归",
         "地黄",
@@ -208827,9 +208989,9 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "白芍",
+          "rawName": "白芍药",
           "canonicalName": "白芍",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -208839,9 +209001,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "茯苓",
+          "rawName": "白茯苓",
           "canonicalName": "茯苓",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -208936,7 +209098,7 @@
         "柴胡",
         "黄芩",
         "当归",
-        "天冬",
+        "天门冬",
         "地骨皮",
         "五味子",
         "黄连",
@@ -208996,9 +209158,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "天冬",
+          "rawName": "天门冬",
           "canonicalName": "天冬",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -209950,9 +210112,9 @@
         "大豆黄卷",
         "干姜",
         "吴茱萸",
-        "火麻仁",
+        "麻子仁",
         "麦芽",
-        "肉桂"
+        "桂心"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -210006,9 +210168,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "火麻仁",
+          "rawName": "麻子仁",
           "canonicalName": "火麻仁",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "火麻仁",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -210018,10 +210181,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "肉桂",
+          "rawName": "桂心",
           "canonicalName": "肉桂",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "去粗皮内层"
         }
       ],
       "indications": [
@@ -213869,7 +214033,7 @@
         "桔梗",
         "防风",
         "薄荷",
-        "甘草",
+        "生甘草",
         "射干",
         "重楼"
       ],
@@ -213931,10 +214095,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "甘草",
+          "rawName": "生甘草",
           "canonicalName": "甘草",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "生品"
         },
         {
           "rawName": "射干",
@@ -215265,9 +215430,9 @@
         "水牛角",
         "大青叶",
         "黄芩",
-        "黄连",
-        "黄柏",
-        "甘草",
+        "川连",
+        "川柏",
+        "生甘草",
         "栀子",
         "玄参",
         "升麻"
@@ -215314,22 +215479,24 @@
           "autoResolvable": true
         },
         {
-          "rawName": "黄连",
+          "rawName": "川连",
           "canonicalName": "黄连",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
-          "rawName": "黄柏",
+          "rawName": "川柏",
           "canonicalName": "黄柏",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "黄柏",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
-          "rawName": "甘草",
+          "rawName": "生甘草",
           "canonicalName": "甘草",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "生品"
         },
         {
           "rawName": "栀子",
@@ -215502,7 +215669,7 @@
         "玄参",
         "连翘",
         "射干",
-        "麦冬",
+        "麦门冬",
         "沉香",
         "芒硝",
         "柴胡",
@@ -215555,9 +215722,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "麦冬",
+          "rawName": "麦门冬",
           "canonicalName": "麦冬",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -219291,7 +219458,7 @@
         "地骨皮",
         "炙甘草",
         "麻黄",
-        "苦杏仁",
+        "杏仁",
         "罂粟壳",
         "半夏",
         "薄荷",
@@ -219370,9 +219537,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "苦杏仁",
+          "rawName": "杏仁",
           "canonicalName": "苦杏仁",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -219733,7 +219900,7 @@
         "当归",
         "地榆",
         "丹参",
-        "熟地黄",
+        "熟地",
         "葛根",
         "甘草",
         "黄连"
@@ -219789,9 +219956,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "熟地黄",
+          "rawName": "熟地",
           "canonicalName": "熟地黄",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -221022,7 +221189,7 @@
       "ingredients": [
         "人参",
         "鹿角尖",
-        "龟甲",
+        "龟板",
         "白术",
         "茯苓",
         "当归",
@@ -221068,9 +221235,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "龟甲",
+          "rawName": "龟板",
           "canonicalName": "龟甲",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -223061,7 +223228,7 @@
         "当归",
         "五灵脂",
         "川芎",
-        "高良姜",
+        "良姜",
         "熟地黄",
         "百草霜",
         "硫黄",
@@ -223109,9 +223276,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "高良姜",
+          "rawName": "良姜",
           "canonicalName": "高良姜",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "高良姜",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -226648,16 +226816,17 @@
       "prescriptionOriginal": "生地黄鲜生地天冬麦冬（去心各一两）菊花淡竹叶霜桑叶佩兰叶（各三钱）生石膏（五钱）川柏淡秋石（各五分）生葳蕤（五钱）加青果五枚。水五大碗。煎至一大碗。去渣频频而饮。切勿大口而服。故曰饮子。如嗽咳者。本方加薄荷桔梗（各一钱五分）内伤重者。本方加藕汁梨汁人乳汁各一大钟。炖热。和匀而饮。如上燥而有余邪者。又加苇茎一两。同本药熬就。和入藕汁梨汁人乳汁而饮可也。（苇茎即活水芦根是也）",
       "ingredients": [
         "地黄",
-        "鲜地黄",
+        "鲜生地",
         "天冬",
         "麦冬",
         "菊花",
         "淡竹叶",
-        "桑叶",
-        "佩兰",
+        "霜桑叶",
+        "佩兰叶",
         "石膏",
         "黄柏",
-        "玉竹"
+        "玉竹",
+        "青果"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -226687,9 +226856,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "鲜地黄",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "rawName": "鲜生地",
+          "canonicalName": "鲜地黄",
+          "doseCanonicalName": "地黄",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "天冬",
@@ -226716,15 +226887,17 @@
           "autoResolvable": true
         },
         {
-          "rawName": "桑叶",
+          "rawName": "霜桑叶",
           "canonicalName": "桑叶",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "桑叶",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
-          "rawName": "佩兰",
+          "rawName": "佩兰叶",
           "canonicalName": "佩兰",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "佩兰",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -226742,6 +226915,12 @@
         {
           "rawName": "玉竹",
           "canonicalName": "玉竹",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "青果",
+          "canonicalName": "青果",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         }
@@ -226765,19 +226944,15 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
+      "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [],
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [
-        "鲜地黄"
-      ],
+      "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
@@ -229246,7 +229421,7 @@
       "prescriptionOriginal": "#h3疔疮方鲥鱼鳞。生取下。磁瓶收贮。用时以湿贴患处。觉冷愈。又方大鲫鱼头切下。生煅烟尽存性。番木鳖麻油煎至浮。麸拌炒去油。为末。各等分。研细末。掺疮口上。外贴膏药。未成脓者即消。已成脓者即溃。二三次愈。疮疖皆可用。",
       "ingredients": [
         "鲫鱼头",
-        "马钱子"
+        "番木鳖"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -229275,9 +229450,9 @@
           "linkageStatus": "unmapped"
         },
         {
-          "rawName": "马钱子",
+          "rawName": "番木鳖",
           "canonicalName": "马钱子",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         }
       ],
@@ -229306,14 +229481,14 @@
         "ingredient_controlled_toxic_requires_manual_prescription"
       ],
       "controlledToxicIngredientNames": [
-        "马钱子"
+        "番木鳖"
       ],
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [
-        "马钱子"
+        "番木鳖"
       ],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
@@ -230364,7 +230539,7 @@
         "芜荑",
         "雷丸",
         "当归",
-        "龟甲",
+        "龟板",
         "鳖甲",
         "蝉蜕",
         "蚕蜕",
@@ -230413,9 +230588,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "龟甲",
+          "rawName": "龟板",
           "canonicalName": "龟甲",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -232620,11 +232795,11 @@
       "ingredients": [
         "藕节",
         "赤茯苓",
-        "茯苓",
+        "白茯苓",
         "赤茯神",
         "茯神",
         "柏子仁",
-        "益智"
+        "益智仁"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -232663,9 +232838,9 @@
           "medicinalPart": "赤色部位"
         },
         {
-          "rawName": "茯苓",
+          "rawName": "白茯苓",
           "canonicalName": "茯苓",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -232689,9 +232864,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "益智",
+          "rawName": "益智仁",
           "canonicalName": "益智",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         }
       ],
@@ -233550,7 +233725,7 @@
         "神曲",
         "白术",
         "人参",
-        "茯苓",
+        "白茯苓",
         "猪苓",
         "泽泻",
         "木香",
@@ -233598,9 +233773,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "茯苓",
+          "rawName": "白茯苓",
           "canonicalName": "茯苓",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -241134,7 +241309,7 @@
         "酒当归",
         "防风",
         "白芷",
-        "甘草",
+        "甘草节",
         "贝母",
         "天花粉",
         "乳香",
@@ -241196,10 +241371,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "甘草",
+          "rawName": "甘草节",
           "canonicalName": "甘草",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "节"
         },
         {
           "rawName": "贝母",
@@ -241443,7 +241619,9 @@
       "prescriptionOriginal": "白石英（四两，通明者，以生绢袋盛，用雄猪肚一个，以药入线缝定，煮熟取药出，再换猪肚一个如前法煮，三煮了，取药出控干研）",
       "ingredients": [
         "白石英",
-        "桑白皮"
+        "桑白皮",
+        "生姜",
+        "大枣"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -241481,6 +241659,18 @@
         {
           "rawName": "桑白皮",
           "canonicalName": "桑白皮",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "生姜",
+          "canonicalName": "生姜",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "大枣",
+          "canonicalName": "大枣",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         }
@@ -244742,7 +244932,7 @@
           "sourceRef": "CORRUPT-HERB-REPAIR-20260725"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《本事》→《普济本事方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：硇砂（研）京三棱（锉末）干姜（炮）白芷（不见火）巴豆（出油，各半两）大黄（别末）干漆（各一两，锉，炒令烟尽）木香青皮（去白）胡椒（各一分）槟）。目录漏干漆、槟榔、肉豆蔻三味；原文十二味（题硇砂丸）。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：硇砂（研）京三棱（锉末）干姜（炮）白芷（不见火）巴豆（出油，各半两）大黄（别末）干漆（各一两，锉，炒令烟尽）木香青皮（去白）胡椒（各一分）槟）。目录漏干漆、槟榔、肉豆蔻三味；原文十二味（题硇砂丸）。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：硇砂（研）京三棱（锉末）干姜（炮）白芷（不见火）巴豆（出油，各半两）大黄（别末）干漆（各一两，锉，炒令烟尽）木香青皮（去白）胡椒（各一分）槟）。目录漏干漆、槟榔、肉豆蔻三味；原文十二味（题硇砂丸）。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：硇砂（研）京三棱（锉末）干姜（炮）白芷（不见火）巴豆（出油，各半两）大黄（别末）干漆（各一两，锉，炒令烟尽）木香青皮（去白）胡椒（各一分）槟）。目录漏干漆、槟榔、肉豆蔻三味；原文十二味（题硇砂丸）。",
+          "title": "目录校勘组成重录：出处书名规范化：《本事》→《普济本事方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：硇砂（研）京三棱（锉末）干姜（炮）白芷（不见火）巴豆（出油，各半两）大黄（别末）干漆（各一两，锉，炒令烟尽）木香青皮（去白）胡椒（各一分）槟）。目录漏干漆、槟榔、肉豆蔻三味；原文十二味（题硇砂丸）。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：硇砂（研）京三棱（锉末）干姜（炮）白芷（不见火）巴豆（出油，各半两）大黄（别末）干漆（各一两，锉，炒令烟尽）木香青皮（去白）胡椒（各一分）槟）。目录漏干漆、槟榔、肉豆蔻三味；原文十二味（题硇砂丸）。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：硇砂（研）京三棱（锉末）干姜（炮）白芷（不见火）巴豆（出油，各半两）大黄（别末）干漆（各一两，锉，炒令烟尽）木香青皮（去白）胡椒（各一分）槟）。目录漏干漆、槟榔、肉豆蔻三味；原文十二味（题硇砂丸）。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：硇砂（研）京三棱（锉末）干姜（炮）白芷（不见火）巴豆（出油，各半两）大黄（别末）干漆（各一两，锉，炒令烟尽）木香青皮（去白）胡椒（各一分）槟）。目录漏干漆、槟榔、肉豆蔻三味；原文十二味（题硇砂丸）。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：硇砂（研）京三棱（锉末）干姜（炮）白芷（不见火）巴豆（出油，各半两）大黄（别末）干漆（各一两，锉，炒令烟尽）木香青皮（去白）胡椒（各一分）槟）。目录漏干漆、槟榔、肉豆蔻三味；原文十二味（题硇砂丸）。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：硇砂（研）京三棱（锉末）干姜（炮）白芷（不见火）巴豆（出油，各半两）大黄（别末）干漆（各一两，锉，炒令烟尽）木香青皮（去白）胡椒（各一分）槟）。目录漏干漆、槟榔、肉豆蔻三味；原文十二味（题硇砂丸）。｜A",
           "url": "urn:tcm-cdss:book-title-normalization:本事→普济本事方",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -245242,9 +245432,9 @@
       "sourceOriginal": "《瑞竹堂经验方》",
       "prescriptionOriginal": "治消疔黄走胤不止。（史相方。）",
       "ingredients": [
-        "赤芍",
+        "赤芍药",
         "当归",
-        "栀子",
+        "山栀子",
         "甘草",
         "牵牛子",
         "大黄",
@@ -245274,9 +245464,9 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "赤芍",
+          "rawName": "赤芍药",
           "canonicalName": "赤芍",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -245286,9 +245476,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "栀子",
+          "rawName": "山栀子",
           "canonicalName": "栀子",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -246096,7 +246286,7 @@
         "远志",
         "僵蚕",
         "硼砂",
-        "川贝母",
+        "真川贝",
         "马勃",
         "牛黄",
         "人中黄",
@@ -246170,9 +246360,10 @@
           "linkageStatus": "unmapped"
         },
         {
-          "rawName": "川贝母",
+          "rawName": "真川贝",
           "canonicalName": "川贝母",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "川贝母",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -247155,7 +247346,7 @@
         "川芎",
         "天仙藤",
         "杜仲",
-        "续断",
+        "川断",
         "沙苑子",
         "延胡索",
         "肉桂",
@@ -247206,9 +247397,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "续断",
+          "rawName": "川断",
           "canonicalName": "续断",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "续断",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -247358,12 +247550,12 @@
       "ingredients": [
         "地黄",
         "当归",
-        "枸杞子",
+        "枸杞",
         "丹参",
-        "熟地黄",
+        "熟地",
         "茯神",
         "地骨皮",
-        "牡丹皮",
+        "丹皮",
         "川芎",
         "白芍",
         "女贞子",
@@ -247409,9 +247601,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "枸杞子",
+          "rawName": "枸杞",
           "canonicalName": "枸杞子",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -247421,9 +247613,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "熟地黄",
+          "rawName": "熟地",
           "canonicalName": "熟地黄",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -247440,9 +247632,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "牡丹皮",
+          "rawName": "丹皮",
           "canonicalName": "牡丹皮",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -250373,7 +250565,7 @@
       "prescriptionOriginal": "此散去瘀搜脓生肌，盖先去瘀则肉自生也。木香、轻粉各一钱，黄丹、枯矾各五钱，共为细末，以腊月猪胆汁和匀仍装入胆内，悬挂一百日阴干，再研细用。",
       "ingredients": [
         "木香",
-        "白矾",
+        "枯矾",
         "猪胆"
       ],
       "dosageForm": null,
@@ -250406,10 +250598,12 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白矾",
+          "rawName": "枯矾",
           "canonicalName": "白矾",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "doseCanonicalName": "白矾",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "煅制，枯矾"
         },
         {
           "rawName": "猪胆",
@@ -250437,14 +250631,18 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
-      "controlledToxicIngredientNames": [],
+      "doseBlockingReasons": [
+        "ingredient_controlled_toxic_requires_manual_prescription"
+      ],
+      "controlledToxicIngredientNames": [
+        "枯矾"
+      ],
       "endangeredOrBannedIngredientNames": [],
-      "controlledToxicNotice": "",
+      "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
@@ -255176,7 +255374,8 @@
         "威灵仙",
         "炙甘草",
         "知母",
-        "鳖甲"
+        "鳖甲",
+        "生姜"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -255264,6 +255463,12 @@
         {
           "rawName": "鳖甲",
           "canonicalName": "鳖甲",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "生姜",
+          "canonicalName": "生姜",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         }
@@ -256047,7 +256252,7 @@
         "车前子",
         "党参",
         "厚朴",
-        "当归",
+        "当归身",
         "赤茯苓",
         "苍术",
         "神曲",
@@ -256112,10 +256317,11 @@
           "autoResolvable": true
         },
         {
-          "rawName": "当归",
+          "rawName": "当归身",
           "canonicalName": "当归",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "身"
         },
         {
           "rawName": "赤茯苓",
@@ -259121,7 +259327,7 @@
         "乳香",
         "没药",
         "松脂",
-        "乌药",
+        "天台乌药",
         "木鳖子",
         "当归",
         "赤芍",
@@ -259168,9 +259374,10 @@
           "linkageStatus": "unmapped"
         },
         {
-          "rawName": "乌药",
+          "rawName": "天台乌药",
           "canonicalName": "乌药",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "乌药",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -259618,7 +259825,7 @@
       "sourceOriginal": "《验方新编》",
       "prescriptionOriginal": "精制元明粉五钱（依法炼制，必要拣选明亮洁净牙硝），漂净朱砂一钱（用水漂净，晒干听用），真硼砂五钱（选通明透亮有微黄者），顶上梅花大冰片八分，先将硼砂用瓷乳钵乳极细末，忌用铁器，再将元明粉加入，共乳极细，然后将朱砂，冰片合入，又乳千数下，研得极细，如同眼药一样，用紧口瓷瓶收贮，加蜡封口，勿令泄气为要。",
       "ingredients": [
-        "玄明粉",
+        "元明粉",
         "朱砂",
         "硼砂",
         "冰片"
@@ -259645,9 +259852,10 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "玄明粉",
+          "rawName": "元明粉",
           "canonicalName": "玄明粉",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "玄明粉",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -259727,10 +259935,10 @@
       "sourceOriginal": "《验方新编》",
       "prescriptionOriginal": "治干疥燥痒。川椒、轻粉、樟脑、雄黄、枯矾、水银各二钱，同研至水银不见星，大枫子净肉，另捣如泥，拌匀药末，加柏子仁油一两，如无，或猪油、麻油糊药，以两掌合搓如圆眼大。先以鼻吸其气入腹，次捻碎、遍搽患处，数次自愈。",
       "ingredients": [
-        "花椒",
+        "川椒",
         "樟脑",
         "雄黄",
-        "白矾",
+        "枯矾",
         "大风子"
       ],
       "dosageForm": null,
@@ -259755,9 +259963,9 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "花椒",
+          "rawName": "川椒",
           "canonicalName": "花椒",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -259772,10 +259980,12 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白矾",
+          "rawName": "枯矾",
           "canonicalName": "白矾",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "doseCanonicalName": "白矾",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "煅制，枯矾"
         },
         {
           "rawName": "大风子",
@@ -259805,6 +260015,7 @@
       "identityBlockingReasons": [],
       "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [
+        "枯矾",
         "雄黄"
       ],
       "endangeredOrBannedIngredientNames": [],
@@ -259815,6 +260026,7 @@
         "雄黄"
       ],
       "manualDoseIngredientNames": [
+        "枯矾",
         "雄黄"
       ],
       "clinicianDoseIngredientNames": [
@@ -262401,7 +262613,7 @@
           "sourceRef": "CORRUPT-HERB-REPAIR-20260725"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《本事方》→《普济本事方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：羚羊角（镑）茯神（去木，各一两）芎䓖防风（去钗股）半夏（汤洗七次）白芷（不见火）甘草（炙，各半两）枳壳（去穰，细锉，麸炒）附子（炮，去皮脐，各三）。目录组成是子痫羚羊角散（世医得效方系），本书羚羊角散治头旋：羚羊角、茯神、川芎、防风、半夏、白芷、炙甘草、枳壳、附子，生姜为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：羚羊角（镑）茯神（去木，各一两）芎䓖防风（去钗股）半夏（汤洗七次）白芷（不见火）甘草（炙，各半两）枳壳（去穰，细锉，麸炒）附子（炮，去皮脐，各三）。目录组成是子痫羚羊角散（世医得效方系），本书羚羊角散治头旋：羚羊角、茯神、川芎、防风、半夏、白芷、炙甘草、枳壳、附子，生姜为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：羚羊角（镑）茯神（去木，各一两）芎䓖防风（去钗股）半夏（汤洗七次）白芷（不见火）甘草（炙，各半两）枳壳（去穰，细锉，麸炒）附子（炮，去皮脐，各三）。目录组成是子痫羚羊角散（世医得效方系），本书羚羊角散治头旋：羚羊角、茯神、川芎、防风、半夏、白芷、炙甘草、枳壳、附子，生姜为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：羚羊角（镑）茯神（去木，各一两）芎䓖防风（去钗股）半夏（汤洗七次）白芷（不见火）甘草（炙，各半两）枳壳（去穰，细锉，麸炒）附子（炮，去皮脐，各三）。目录组成是子痫羚羊角散（世医得效方系），本书羚羊角散治头旋：羚羊角、茯神、川芎、防风、半夏、白芷、炙甘草、枳壳、附子，生姜为引。",
+          "title": "目录校勘组成重录：出处书名规范化：《本事方》→《普济本事方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：羚羊角（镑）茯神（去木，各一两）芎䓖防风（去钗股）半夏（汤洗七次）白芷（不见火）甘草（炙，各半两）枳壳（去穰，细锉，麸炒）附子（炮，去皮脐，各三）。目录组成是子痫羚羊角散（世医得效方系），本书羚羊角散治头旋：羚羊角、茯神、川芎、防风、半夏、白芷、炙甘草、枳壳、附子，生姜为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：羚羊角（镑）茯神（去木，各一两）芎䓖防风（去钗股）半夏（汤洗七次）白芷（不见火）甘草（炙，各半两）枳壳（去穰，细锉，麸炒）附子（炮，去皮脐，各三）。目录组成是子痫羚羊角散（世医得效方系），本书羚羊角散治头旋：羚羊角、茯神、川芎、防风、半夏、白芷、炙甘草、枳壳、附子，生姜为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：羚羊角（镑）茯神（去木，各一两）芎䓖防风（去钗股）半夏（汤洗七次）白芷（不见火）甘草（炙，各半两）枳壳（去穰，细锉，麸炒）附子（炮，去皮脐，各三）。目录组成是子痫羚羊角散（世医得效方系），本书羚羊角散治头旋：羚羊角、茯神、川芎、防风、半夏、白芷、炙甘草、枳壳、附子，生姜为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：羚羊角（镑）茯神（去木，各一两）芎䓖防风（去钗股）半夏（汤洗七次）白芷（不见火）甘草（炙，各半两）枳壳（去穰，细锉，麸炒）附子（炮，去皮脐，各三）。目录组成是子痫羚羊角散（世医得效方系），本书羚羊角散治头旋：羚羊角、茯神、川芎、防风、半夏、白芷、炙甘草、枳壳、附子，生姜为引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：羚羊角（镑）茯神（去木，各一两）芎䓖防风（去钗股）半夏（汤洗七次）白芷（不见火）甘草（炙，各半两）枳壳（去穰，细锉，麸炒）附子（炮，去皮脐，各三）。目录组成是子痫羚羊角散（世医得效方系），本书羚羊角",
           "url": "urn:tcm-cdss:book-title-normalization:本事方→普济本事方",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -263506,7 +263718,7 @@
       "prescriptionOriginal": "鱼螵蛸（即黄鱼胶一斤蛤粉炒）沙苑蒺藜（八两马乳浸一日隔汤煮一炷香时）",
       "ingredients": [
         "鱼鳔胶",
-        "沙苑子"
+        "沙苑蒺藜"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -263535,9 +263747,10 @@
           "linkageStatus": "unmapped"
         },
         {
-          "rawName": "沙苑子",
+          "rawName": "沙苑蒺藜",
           "canonicalName": "沙苑子",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "沙苑子",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         }
       ],
@@ -263936,7 +264149,7 @@
         "蝉蜕",
         "僵蚕",
         "当归",
-        "蜈蚣",
+        "天龙",
         "大黄",
         "石蝎蚆草",
         "老蜘蛛"
@@ -264001,9 +264214,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "蜈蚣",
+          "rawName": "天龙",
           "canonicalName": "蜈蚣",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -264334,7 +264547,7 @@
         "山茱萸",
         "麦冬",
         "玄参",
-        "紫苏子",
+        "苏子",
         "甘草",
         "牛膝",
         "沙参",
@@ -264387,9 +264600,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "紫苏子",
+          "rawName": "苏子",
           "canonicalName": "紫苏子",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -264712,12 +264925,12 @@
       "prescriptionOriginal": "黄耆天门冬川大黄紫苏叶赤茯桑白皮生干地黄（各一两）杏仁蒺藜枳壳（各一钱）当归甘草（各半两）",
       "ingredients": [
         "黄芪",
-        "天冬",
-        "大黄",
+        "天门冬",
+        "川大黄",
         "紫苏叶",
         "茯苓",
         "桑白皮",
-        "地黄",
+        "生干地黄",
         "杏仁",
         "蒺藜",
         "枳壳",
@@ -264756,15 +264969,15 @@
           "autoResolvable": true
         },
         {
-          "rawName": "天冬",
+          "rawName": "天门冬",
           "canonicalName": "天冬",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
-          "rawName": "大黄",
+          "rawName": "川大黄",
           "canonicalName": "大黄",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -264786,9 +264999,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "地黄",
+          "rawName": "生干地黄",
           "canonicalName": "地黄",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "地黄",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -266001,7 +266215,7 @@
       "ingredients": [
         "熟地黄",
         "山药",
-        "白扁豆",
+        "扁豆",
         "白术",
         "干姜",
         "甘草",
@@ -266041,9 +266255,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白扁豆",
+          "rawName": "扁豆",
           "canonicalName": "白扁豆",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "白扁豆",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -266344,7 +266559,7 @@
       "sourceOriginal": "《验方新编》",
       "prescriptionOriginal": "牙皂（去净弦）一两，陈神曲五钱，共研末，再用陈神曲五钱，打糊为丸如芡实肉大。每服二丸，淡姜汤下，二服除根。",
       "ingredients": [
-        "猪牙皂",
+        "牙皂",
         "神曲",
         "生姜"
       ],
@@ -266370,9 +266585,9 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "猪牙皂",
+          "rawName": "牙皂",
           "canonicalName": "猪牙皂",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -266423,7 +266638,7 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "猪牙皂",
+        "牙皂",
         "神曲"
       ],
       "varietyUndeterminedIngredients": [],
@@ -268500,7 +268715,7 @@
       "sourceOriginal": "《惠直堂经验方》",
       "prescriptionOriginal": "破故纸（炒）肉苁蓉（酒洗）巴豆杜仲（盐水炒）续断（酒洗各二钱）青盐（一钱）",
       "ingredients": [
-        "补骨脂",
+        "破故纸",
         "肉苁蓉",
         "巴豆",
         "杜仲",
@@ -268529,9 +268744,9 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "补骨脂",
+          "rawName": "破故纸",
           "canonicalName": "补骨脂",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -273690,7 +273905,7 @@
         "厚朴",
         "茯苓",
         "炙甘草",
-        "花椒",
+        "川椒",
         "小茴香"
       ],
       "dosageForm": null,
@@ -273751,9 +273966,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "花椒",
+          "rawName": "川椒",
           "canonicalName": "花椒",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -275118,7 +275333,7 @@
       "prescriptionOriginal": "菟丝子（酒蒸或五六两或七八两）莲肉（去心）白术茯苓（四两）杜仲（酒炒三两）山药（二两）五味（酒蒸一两）炙草（五钱）上用山药末，以陈酒煮糊为丸，桐子大，空心白滚汤，或酒下百余丸。",
       "ingredients": [
         "菟丝子",
-        "莲子",
+        "莲肉",
         "白术",
         "茯苓",
         "杜仲",
@@ -275154,9 +275369,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "莲子",
+          "rawName": "莲肉",
           "canonicalName": "莲子",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "莲子",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -278720,7 +278936,7 @@
         "栀子",
         "鳖甲",
         "芒硝",
-        "苦杏仁",
+        "杏仁",
         "巴豆"
       ],
       "dosageForm": null,
@@ -278787,9 +279003,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "苦杏仁",
+          "rawName": "杏仁",
           "canonicalName": "苦杏仁",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -281419,9 +281635,9 @@
       "sourceOriginal": "《瑞竹堂经验方》",
       "prescriptionOriginal": "治头发脱落洗发。甘菊花（二两）蔓荆子（一两）干柏叶（一两）川芎（一两）桑白皮（一两，净）白芷（一两）细辛（去苗，一两）旱莲草（一两，根梗花叶并用）",
       "ingredients": [
-        "菊花",
+        "甘菊花",
         "蔓荆子",
-        "侧柏叶",
+        "干柏叶",
         "川芎",
         "桑白皮",
         "白芷",
@@ -281450,9 +281666,10 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "菊花",
+          "rawName": "甘菊花",
           "canonicalName": "菊花",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "菊花",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -281462,9 +281679,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "侧柏叶",
+          "rawName": "干柏叶",
           "canonicalName": "侧柏叶",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "侧柏叶",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -284326,10 +284544,10 @@
       "prescriptionOriginal": "治小儿热毒斑疹，头痛壮热，心神烦闷。",
       "ingredients": [
         "葛根",
-        "麦冬",
+        "麦门冬",
         "人参",
         "石膏",
-        "升麻",
+        "川升麻",
         "甘草",
         "茯苓",
         "赤芍"
@@ -284362,9 +284580,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "麦冬",
+          "rawName": "麦门冬",
           "canonicalName": "麦冬",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -284380,9 +284598,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "升麻",
+          "rawName": "川升麻",
           "canonicalName": "升麻",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "升麻",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -289697,7 +289916,7 @@
         "蛇含石",
         "天南星",
         "白附子",
-        "朱砂",
+        "辰砂",
         "麝香"
       ],
       "dosageForm": null,
@@ -289739,9 +289958,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "朱砂",
+          "rawName": "辰砂",
           "canonicalName": "朱砂",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -289777,7 +289996,7 @@
         "ingredient_endangered_or_banned_requires_legal_eligibility"
       ],
       "controlledToxicIngredientNames": [
-        "朱砂"
+        "辰砂"
       ],
       "endangeredOrBannedIngredientNames": [
         "麝香"
@@ -289786,11 +290005,11 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [
-        "朱砂",
+        "辰砂",
         "麝香"
       ],
       "manualDoseIngredientNames": [
-        "朱砂",
+        "辰砂",
         "麝香"
       ],
       "clinicianDoseIngredientNames": [
@@ -290169,7 +290388,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:绛雪园古方选注:《圣济》蜂房汤"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《圣济》→《圣济总录》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（圣济总录原文：蜂房（一枚炙劈碎）豉（四十九粒）蜀椒（去目并合口二七粒））。目录四味（猪牙皂荚、露蜂房、蜀椒、细辛）实为《圣济总录》同卷另一首无方名「治风蚛牙齿疼痛方」；原书「治牙齿痛有虫。蜂房汤方」为蜂房、豉、蜀椒三味，改为本方。｜ADJ-ORIG-20261110：按原方组成表订正（圣济总录原文：蜂房（一枚炙劈碎）豉（四十九粒）蜀椒（去目并合口二七粒））。目录四味（猪牙皂荚、露蜂房、蜀椒、细辛）实为《圣济总录》同卷另一首无方名「治风蚛牙齿疼痛方」；原书「治牙齿痛有虫。蜂房汤方」为蜂房、豉、蜀椒三味，改为本方。｜ADJ-ORIG-20261110：按原方组成表订正（圣济总录原文：蜂房（一枚炙劈碎）豉（四十九粒）蜀椒（去目并合口二七粒））。目录四味（猪牙皂荚、露蜂房、蜀椒、细辛）实为《圣济总录》同卷另一首无方名「治风蚛牙齿疼痛方」；原书「治牙齿痛有虫。蜂房汤方」为蜂房、豉、蜀椒三味，改为本方。｜ADJ-ORIG-20261110：按原方组成表订正（圣济总录原文：蜂房（一枚炙劈碎）豉（四十九粒）蜀椒（去目并合口二七粒））。目录四味（猪牙皂荚、露蜂房、蜀椒、细辛）实为《圣济总录》同卷另一首无方名「治风蚛牙齿疼痛方」；原书「治牙齿痛有虫。蜂房汤方」为蜂房、豉、蜀椒三味，改为本方。｜ADJ-ORIG-20261110：按原方组成表订正（圣济总录原文：蜂房（一枚炙劈碎）豉（四十九粒）蜀椒（去目并合口二七粒））。目录四味（猪牙皂荚、露蜂房、蜀椒、细辛）实为《圣济总录》同卷另一首无方名「治风蚛牙齿疼痛方」；原书「治牙齿痛有虫。蜂房汤方」为蜂房、豉、蜀椒三味，改为本方。｜ADJ-ORIG-20261110：按原方组成表订正（圣济总录原文：蜂房（一枚炙劈碎）豉（四十九粒）蜀椒（去目并合口二七粒））。目录四味（猪牙皂荚、露蜂房、蜀椒、细辛）实为《圣济总录》同卷另一首无方名「治风蚛牙齿疼痛方」；原书「治牙齿痛有虫。蜂房汤方」为蜂房、豉、蜀椒三味，改为本方。",
+          "title": "目录校勘组成重录：出处书名规范化：《圣济》→《圣济总录》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（圣济总录原文：蜂房（一枚炙劈碎）豉（四十九粒）蜀椒（去目并合口二七粒））。目录四味（猪牙皂荚、露蜂房、蜀椒、细辛）实为《圣济总录》同卷另一首无方名「治风蚛牙齿疼痛方」；原书「治牙齿痛有虫。蜂房汤方」为蜂房、豉、蜀椒三味，改为本方。｜ADJ-ORIG-20261110：按原方组成表订正（圣济总录原文：蜂房（一枚炙劈碎）豉（四十九粒）蜀椒（去目并合口二七粒））。目录四味（猪牙皂荚、露蜂房、蜀椒、细辛）实为《圣济总录》同卷另一首无方名「治风蚛牙齿疼痛方」；原书「治牙齿痛有虫。蜂房汤方」为蜂房、豉、蜀椒三味，改为本方。｜ADJ-ORIG-20261110：按原方组成表订正（圣济总录原文：蜂房（一枚炙劈碎）豉（四十九粒）蜀椒（去目并合口二七粒））。目录四味（猪牙皂荚、露蜂房、蜀椒、细辛）实为《圣济总录》同卷另一首无方名「治风蚛牙齿疼痛方」；原书「治牙齿痛有虫。蜂房汤方」为蜂房、豉、蜀椒三味，改为本方。｜ADJ-ORIG-20261110：按原方组成表订正（圣济总录原文：蜂房（一枚炙劈碎）豉（四十九粒）蜀椒（去目并合口二七粒））。目录四味（猪牙皂荚、露蜂房、蜀椒、细辛）实为《圣济总录》同卷另一首无方名「治风蚛牙齿疼痛方」；原书「治牙齿痛有虫。蜂房汤方」为蜂房、豉、蜀椒三味，改为本方。｜ADJ-ORIG-20261110：按原方组成表订正（圣济总录原文：蜂房（一枚炙劈碎）豉（四十九粒）蜀椒（去目并合口二七粒））。目录四味（猪牙皂荚、露蜂房、蜀椒、细辛）实为《圣济总录》同卷另一首无方名「治风蚛牙齿疼痛方」；原书「治牙齿痛有虫。蜂房汤方」为蜂房、豉、蜀椒三味，改为本方。｜ADJ-ORIG-20261110：按原方组成表订正（圣济总录原文：蜂房（一枚炙劈碎）豉（四十九粒）蜀椒（去目并合口二七粒））。目录四味（猪牙皂荚、露蜂房、蜀椒、细辛）实为《圣济总录》同卷另一首无方名「治风蚛牙齿疼痛方」；原书「治牙齿痛有虫。蜂房汤方」为蜂房、豉、蜀椒三味，改为本方。｜AD",
           "url": "urn:tcm-cdss:book-title-normalization:圣济→圣济总录",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -290658,14 +290877,14 @@
         "当归",
         "川芎",
         "防风",
-        "茯苓",
+        "白茯苓",
         "炙甘草",
         "石决明",
-        "赤芍",
-        "栀子",
+        "赤芍药",
+        "山栀子",
         "白蒺藜",
         "黄芩",
-        "菊花",
+        "甘菊花",
         "苍术",
         "地黄",
         "熟地黄",
@@ -290731,9 +290950,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "茯苓",
+          "rawName": "白茯苓",
           "canonicalName": "茯苓",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -290749,15 +290968,15 @@
           "autoResolvable": true
         },
         {
-          "rawName": "赤芍",
+          "rawName": "赤芍药",
           "canonicalName": "赤芍",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
-          "rawName": "栀子",
+          "rawName": "山栀子",
           "canonicalName": "栀子",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -290773,9 +290992,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "菊花",
+          "rawName": "甘菊花",
           "canonicalName": "菊花",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "菊花",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -290862,7 +291082,7 @@
       "prescriptionOriginal": "治无名肿毒，火毒瘟肿。寒水石，皮硝、大黄各二两，共研极细，初夏预取蝌蚪，瓦缸收贮封口，埋土中三尺，至秋化水，每用一碗，和药成团，阴干再研细。每用水调敷贴肿处，或蜜调敷。",
       "ingredients": [
         "寒水石",
-        "芒硝",
+        "皮硝",
         "大黄",
         "蝌蚪"
       ],
@@ -290894,9 +291114,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "芒硝",
+          "rawName": "皮硝",
           "canonicalName": "芒硝",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "芒硝",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -299446,7 +299667,8 @@
         "茯苓",
         "紫苏叶",
         "白芍",
-        "砂仁"
+        "砂仁",
+        "生姜"
       ],
       "dosageForm": null,
       "sourceClass": "official_local_formula_standard",
@@ -299517,6 +299739,12 @@
         {
           "rawName": "砂仁",
           "canonicalName": "砂仁",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
+        },
+        {
+          "rawName": "生姜",
+          "canonicalName": "生姜",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
         }
@@ -300362,7 +300590,7 @@
       "prescriptionOriginal": "羯羊胆汁和白蜜等分，蒸熟研成膏，点之，一日泪止，二日肿消，三日痛定，神效。",
       "ingredients": [
         "羊胆",
-        "蜂蜜"
+        "白蜜"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -300391,10 +300619,11 @@
           "linkageStatus": "unmapped"
         },
         {
-          "rawName": "蜂蜜",
+          "rawName": "白蜜",
           "canonicalName": "蜂蜜",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "doseCanonicalName": "蜂蜜",
+          "linkageStatus": "ambiguous",
+          "autoResolvable": false
         }
       ],
       "indications": [
@@ -300431,7 +300660,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "白蜜"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -301575,7 +301806,7 @@
         "甘草",
         "砂仁",
         "白豆蔻",
-        "檀香",
+        "白檀香",
         "厚朴",
         "藿香",
         "苍术"
@@ -301638,9 +301869,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "檀香",
+          "rawName": "白檀香",
           "canonicalName": "檀香",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -303287,7 +303518,7 @@
       "prescriptionOriginal": "贝母栝蒌南星（炮）荆芥防风羌活黄柏黄芩黄连白术陈皮半夏（汤泡七次）薄荷甘草（炙）威灵仙天花粉加姜煎。",
       "ingredients": [
         "贝母",
-        "瓜蒌",
+        "栝蒌",
         "制天南星",
         "荆芥",
         "防风",
@@ -303334,10 +303565,12 @@
           "autoResolvable": true
         },
         {
-          "rawName": "瓜蒌",
+          "rawName": "栝蒌",
           "canonicalName": "瓜蒌",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "doseCanonicalName": "瓜蒌",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "异体字"
         },
         {
           "rawName": "制天南星",
@@ -304414,7 +304647,7 @@
         "半夏",
         "黄芩",
         "葛根",
-        "白芍",
+        "芍药",
         "生姜",
         "甘李根皮"
       ],
@@ -304478,7 +304711,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芍",
+          "rawName": "芍药",
+          "adjudicatedIngredient": "白芍",
+          "adjudicationEvidence": "推断:方用疏肝养血,芍药配当归养肝血,宜白芍",
+          "adjudicationBasis": "芍药",
           "canonicalName": "白芍",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
@@ -304529,7 +304765,8 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "甘李根皮"
+        "甘李根皮",
+        "芍药"
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
@@ -307094,7 +307331,7 @@
       "prescriptionOriginal": "地鳖虫十个（酒炙），蚯蚓十条（焙研），自然铜（醋煅七次）、乳香（去油）、没药（去油）各五分，红花、血竭各三分，共为细末，骨碎补五钱，苏木三钱酒煎，调前末冲服，三服即愈，如伤重者，先饮童便一碗破瘀。",
       "ingredients": [
         "土鳖虫",
-        "地龙",
+        "蚯蚓",
         "自然铜",
         "乳香",
         "没药",
@@ -307131,9 +307368,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "地龙",
+          "rawName": "蚯蚓",
           "canonicalName": "地龙",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -307819,7 +308056,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:087-医方集解.txt:辛夷散"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《严氏》→《济生方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：辛夷仁细辛（洗去土叶）藁本（去芦）升麻川芎木通（去节）防风（去芦）羌活（去芦）甘草（炙）白芷（各等分））。济生方辛夷散原文十味各等分，目录漏藁本、羌活；茶清调服为送服。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：辛夷仁细辛（洗去土叶）藁本（去芦）升麻川芎木通（去节）防风（去芦）羌活（去芦）甘草（炙）白芷（各等分））。济生方辛夷散原文十味各等分，目录漏藁本、羌活；茶清调服为送服。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：辛夷仁细辛（洗去土叶）藁本（去芦）升麻川芎木通（去节）防风（去芦）羌活（去芦）甘草（炙）白芷（各等分））。济生方辛夷散原文十味各等分，目录漏藁本、羌活；茶清调服为送服。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：辛夷仁细辛（洗去土叶）藁本（去芦）升麻川芎木通（去节）防风（去芦）羌活（去芦）甘草（炙）白芷（各等分））。济生方辛夷散原文十味各等分，目录漏藁本、羌活；茶清调服为送服。",
+          "title": "目录校勘组成重录：出处书名规范化：《严氏》→《济生方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：辛夷仁细辛（洗去土叶）藁本（去芦）升麻川芎木通（去节）防风（去芦）羌活（去芦）甘草（炙）白芷（各等分））。济生方辛夷散原文十味各等分，目录漏藁本、羌活；茶清调服为送服。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：辛夷仁细辛（洗去土叶）藁本（去芦）升麻川芎木通（去节）防风（去芦）羌活（去芦）甘草（炙）白芷（各等分））。济生方辛夷散原文十味各等分，目录漏藁本、羌活；茶清调服为送服。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：辛夷仁细辛（洗去土叶）藁本（去芦）升麻川芎木通（去节）防风（去芦）羌活（去芦）甘草（炙）白芷（各等分））。济生方辛夷散原文十味各等分，目录漏藁本、羌活；茶清调服为送服。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：辛夷仁细辛（洗去土叶）藁本（去芦）升麻川芎木通（去节）防风（去芦）羌活（去芦）甘草（炙）白芷（各等分））。济生方辛夷散原文十味各等分，目录漏藁本、羌活；茶清调服为送服。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：辛夷仁细辛（洗去土叶）藁本（去芦）升麻川芎木通（去节）防风（去芦）羌活（去芦）甘草（炙）白芷（各等分））。济生方辛夷散原文十味各等分，目录漏藁本、羌活；茶清调服为送服。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：辛夷仁细辛（洗去土叶）藁本（去芦）升麻川芎木通（去节）防风（去芦）羌活（去芦）甘草（炙）白芷（各等分））。济生方辛夷散原文十味各等分，目录漏藁本、羌活；茶清调服为送服。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：辛夷仁细辛（洗去土叶）藁本（去芦）升麻川芎木通（去节）防风（去芦）羌活（去芦）甘草（炙）白芷（各等分））。济生",
           "url": "urn:tcm-cdss:book-title-normalization:严氏→济生方",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -308355,10 +308592,10 @@
         "青皮",
         "香附",
         "苍术",
-        "牵牛子",
+        "黑丑",
         "延胡索",
         "八角茴香",
-        "高良姜",
+        "良姜",
         "肉桂",
         "五灵脂",
         "吴茱萸"
@@ -308411,9 +308648,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "牵牛子",
+          "rawName": "黑丑",
           "canonicalName": "牵牛子",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -308430,9 +308667,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "高良姜",
+          "rawName": "良姜",
           "canonicalName": "高良姜",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "高良姜",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -308486,7 +308724,7 @@
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
         "五灵脂",
-        "牵牛子"
+        "黑丑"
       ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
@@ -308824,7 +309062,7 @@
       "ingredients": [
         "滑石",
         "甘草",
-        "朱砂"
+        "辰砂"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -308860,9 +309098,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "朱砂",
+          "rawName": "辰砂",
           "canonicalName": "朱砂",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         }
       ],
@@ -308893,14 +309131,14 @@
         "ingredient_controlled_toxic_requires_manual_prescription"
       ],
       "controlledToxicIngredientNames": [
-        "朱砂"
+        "辰砂"
       ],
       "endangeredOrBannedIngredientNames": [],
       "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [
-        "朱砂"
+        "辰砂"
       ],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [],
@@ -311968,7 +312206,7 @@
         "当归",
         "熟地黄",
         "酸枣仁",
-        "白芍",
+        "芍药",
         "茯神",
         "炙甘草",
         "陈皮",
@@ -312014,7 +312252,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白芍",
+          "rawName": "芍药",
+          "adjudicatedIngredient": "白芍",
+          "adjudicationEvidence": "推断:养血安神疏肝,与熟地当归配伍,宜白芍养血柔肝",
+          "adjudicationBasis": "芍药",
           "canonicalName": "白芍",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
@@ -312079,7 +312320,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "芍药"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -314266,7 +314509,7 @@
         "山药",
         "牛膝",
         "山茱萸",
-        "茯苓",
+        "白茯苓",
         "舶上茴香",
         "菟丝子",
         "续断"
@@ -314313,9 +314556,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "茯苓",
+          "rawName": "白茯苓",
           "canonicalName": "茯苓",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -316830,9 +317073,9 @@
       "prescriptionOriginal": "白术（二两荷叶包蒸三次）广皮（八钱）山楂（五钱）川连（五钱吴茱萸拌炒去萸）炙甘草（八钱）黄芩（酒炒七钱）木香（一钱）枳实（八钱麸炒）苍术（二两茅山者佳米泔浸晒三次盐水拌匀）茯苓（一两人乳拌蒸）人参（七钱）半夏（八钱白矾汤姜同煮）当归（一两酒洗）白芍（一两酒拌炒）经霜桑叶（四两去筋）",
       "ingredients": [
         "白术",
-        "陈皮",
+        "广皮",
         "山楂",
-        "黄连",
+        "川连",
         "炙甘草",
         "黄芩",
         "木香",
@@ -316873,9 +317116,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "陈皮",
+          "rawName": "广皮",
           "canonicalName": "陈皮",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "陈皮",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -316885,9 +317129,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "黄连",
+          "rawName": "川连",
           "canonicalName": "黄连",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -316989,7 +317233,9 @@
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "广皮"
+      ],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
       "blockingReasons": []
@@ -317361,10 +317607,10 @@
       "prescriptionOriginal": "治肾囊风、阴痒。狼毒、川椒、硫黄、槟榔、枯矾、五倍子、大枫子、蛇床子各三钱，共研极细，煎滚麻油一钟，投猪胆汁一合，和匀，调膏搽之。",
       "ingredients": [
         "狼毒",
-        "花椒",
+        "川椒",
         "硫黄",
         "槟榔",
-        "白矾",
+        "枯矾",
         "五倍子",
         "大风子",
         "蛇床子",
@@ -317398,9 +317644,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "花椒",
+          "rawName": "川椒",
           "canonicalName": "花椒",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -317416,10 +317662,12 @@
           "autoResolvable": true
         },
         {
-          "rawName": "白矾",
+          "rawName": "枯矾",
           "canonicalName": "白矾",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
+          "doseCanonicalName": "白矾",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "煅制，枯矾"
         },
         {
           "rawName": "五倍子",
@@ -317468,6 +317716,7 @@
       "identityBlockingReasons": [],
       "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [
+        "枯矾",
         "硫黄"
       ],
       "endangeredOrBannedIngredientNames": [],
@@ -317479,6 +317728,7 @@
         "硫黄"
       ],
       "manualDoseIngredientNames": [
+        "枯矾",
         "狼毒",
         "硫黄"
       ],
@@ -322432,7 +322682,8 @@
         "琥珀",
         "青黛",
         "磁石",
-        "法半夏"
+        "法半夏",
+        "姜汁"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -322502,6 +322753,11 @@
           "canonicalName": "法半夏",
           "linkageStatus": "exact_standard_name",
           "autoResolvable": true
+        },
+        {
+          "rawName": "姜汁",
+          "canonicalName": null,
+          "linkageStatus": "unmapped"
         }
       ],
       "indications": [
@@ -322536,6 +322792,7 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
+        "姜汁",
         "琥珀",
         "青黛",
         "龙骨"
@@ -334879,7 +335136,7 @@
       "sourceOriginal": "《验方新编》",
       "prescriptionOriginal": "用小刀剃破，以鸭胆子研末搽之，数日自落。",
       "ingredients": [
-        "鸦胆子"
+        "鸭胆子"
       ],
       "dosageForm": null,
       "sourceClass": "verified_reference_catalog",
@@ -334903,9 +335160,9 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "鸦胆子",
+          "rawName": "鸭胆子",
           "canonicalName": "鸦胆子",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         }
       ],
@@ -335510,7 +335767,7 @@
       "prescriptionOriginal": "半夏（姜制）胆星（一斤）青皮陈皮（去白）莱菔子（生用）苏子（沉水者，炒）山楂（炒）麦芽（炒）神曲（炒）葛根杏仁（去皮尖，炒）香附（制。各一两。）姜汁和，蒸饼糊丸。一方半夏、南星各一斤，白矾皂角生姜各一斤，同煮至南星无白点为度，去皂角、姜，切，同晒干用。",
       "ingredients": [
         "半夏",
-        "胆南星",
+        "胆星",
         "青皮",
         "陈皮",
         "莱菔子",
@@ -335557,9 +335814,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "胆南星",
+          "rawName": "胆星",
           "canonicalName": "胆南星",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -336014,7 +336271,7 @@
         "人参",
         "天麻",
         "白芷",
-        "紫苏叶",
+        "苏叶",
         "木瓜",
         "青皮",
         "炙甘草",
@@ -336074,9 +336331,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "紫苏叶",
+          "rawName": "苏叶",
           "canonicalName": "紫苏叶",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_high_confidence",
           "autoResolvable": true
         },
         {
@@ -336692,7 +336949,7 @@
         "白芷",
         "荆芥穗",
         "石膏",
-        "薄荷",
+        "薄荷叶",
         "天麻",
         "川芎",
         "防风",
@@ -336745,9 +337002,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "薄荷",
+          "rawName": "薄荷叶",
           "canonicalName": "薄荷",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -337979,9 +338236,9 @@
       "sourceOriginal": "《古方汇精》",
       "prescriptionOriginal": "香附子苡仁（各四两）茅山苍术赤茯苓蛀神曲（各二两）麦芽（一两五钱）砂仁广木香枳壳（各一两）甘草（八钱）上药各取净末。水泛丸。每服二钱。淡姜汤下。",
       "ingredients": [
-        "香附",
+        "香附子",
         "薏苡仁",
-        "苍术",
+        "茅山苍术",
         "赤茯苓",
         "神曲",
         "麦芽",
@@ -338012,9 +338269,9 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "香附",
+          "rawName": "香附子",
           "canonicalName": "香附",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -338024,9 +338281,10 @@
           "autoResolvable": true
         },
         {
-          "rawName": "苍术",
+          "rawName": "茅山苍术",
           "canonicalName": "苍术",
-          "linkageStatus": "exact_standard_name",
+          "doseCanonicalName": "苍术",
+          "linkageStatus": "source_backed_clinical_extension",
           "autoResolvable": true
         },
         {
@@ -339111,7 +339369,7 @@
       "prescriptionOriginal": "藿香梗（三钱）川连（一钱）淡吴萸（一钱）茯神（三钱）苍术（一钱）厚朴（一钱）天仙藤（一钱）炒车前（二钱）",
       "ingredients": [
         "藿香",
-        "黄连",
+        "川连",
         "吴茱萸",
         "茯神",
         "苍术",
@@ -339149,9 +339407,9 @@
           "autoResolvable": true
         },
         {
-          "rawName": "黄连",
+          "rawName": "川连",
           "canonicalName": "黄连",
-          "linkageStatus": "exact_standard_name",
+          "linkageStatus": "unique_source_backed",
           "autoResolvable": true
         },
         {
@@ -341277,7 +341535,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:成方切用:鳖甲饮"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《严氏》→《济生方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。",
+          "title": "目录校勘组成重录：出处书名规范化：《严氏》→《济生方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原文：鳖甲（醋炙）白术黄耆（去芦）草果仁槟榔芎䓖橘红白芍药甘草（炙）厚朴（姜制，炒））。原书鳖甲饮子十味含芎䓖，目录漏收川芎。｜ADJ-ORIG-20261110：按原方组成表订正（严氏济生方原",
           "url": "urn:tcm-cdss:book-title-normalization:严氏→济生方",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -345007,7 +345265,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:087-医方集解.txt:麻黄人参芍药汤"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《东垣》→《脾胃论》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（去其外寒）炙甘草（补其脾）白芍药黄耆（以上各一）。脾胃论原文九味，目录漏当归身。｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（去其外寒）炙甘草（补其脾）白芍药黄耆（以上各一）。脾胃论原文九味，目录漏当归身。｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（去其外寒）炙甘草（补其脾）白芍药黄耆（以上各一）。脾胃论原文九味，目录漏当归身。｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（去其外寒）炙甘草（补其脾）白芍药黄耆（以上各一）。脾胃论原文九味，目录漏当归身。｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（去其外寒）炙甘草（补其脾）白芍药黄耆（以上各一）。脾胃论原文九味，目录漏当归身。｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（去其外寒）炙甘草（补其脾）白芍药黄耆（以上各一）。脾胃论原文九味，目录漏当归身。",
+          "title": "目录校勘组成重录：出处书名规范化：《东垣》→《脾胃论》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（去其外寒）炙甘草（补其脾）白芍药黄耆（以上各一）。脾胃论原文九味，目录漏当归身。｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（去其外寒）炙甘草（补其脾）白芍药黄耆（以上各一）。脾胃论原文九味，目录漏当归身。｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（去其外寒）炙甘草（补其脾）白芍药黄耆（以上各一）。脾胃论原文九味，目录漏当归身。｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（去其外寒）炙甘草（补其脾）白芍药黄耆（以上各一）。脾胃论原文九味，目录漏当归身。｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（去其外寒）炙甘草（补其脾）白芍药黄耆（以上各一）。脾胃论原文九味，目录漏当归身。｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（去其外寒）炙甘草（补其脾）白芍药黄耆（以上各一）。脾胃论原文九味，目录漏当归身。｜ADJ-ORIG-20261110：按原方组成表订正（脾胃论原文：人参（益三焦元气不足而实其表也）麦门冬（以上各三分）桂枝（以补表虚）当归身（和血养血，各五分）麻黄（",
           "url": "urn:tcm-cdss:book-title-normalization:东垣→脾胃论",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
@@ -347695,7 +347953,7 @@
           "url": "urn:tcm-cdss:tcmoc-books:087-医方集解.txt:黄汤"
         },
         {
-          "title": "目录校勘组成重录：出处书名规范化：《本事》→《普济本事方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：治口干烦躁生津液，不思食。）。原文黄耆汤七味，无天冬、人参；姜、枣、乌梅为煎药引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：治口干烦躁生津液，不思食。）。原文黄耆汤七味，无天冬、人参；姜、枣、乌梅为煎药引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：治口干烦躁生津液，不思食。）。原文黄耆汤七味，无天冬、人参；姜、枣、乌梅为煎药引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：治口干烦躁生津液，不思食。）。原文黄耆汤七味，无天冬、人参；姜、枣、乌梅为煎药引。",
+          "title": "目录校勘组成重录：出处书名规范化：《本事》→《普济本事方》（本地原文命中）｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：治口干烦躁生津液，不思食。）。原文黄耆汤七味，无天冬、人参；姜、枣、乌梅为煎药引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：治口干烦躁生津液，不思食。）。原文黄耆汤七味，无天冬、人参；姜、枣、乌梅为煎药引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：治口干烦躁生津液，不思食。）。原文黄耆汤七味，无天冬、人参；姜、枣、乌梅为煎药引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：治口干烦躁生津液，不思食。）。原文黄耆汤七味，无天冬、人参；姜、枣、乌梅为煎药引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：治口干烦躁生津液，不思食。）。原文黄耆汤七味，无天冬、人参；姜、枣、乌梅为煎药引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：治口干烦躁生津液，不思食。）。原文黄耆汤七味，无天冬、人参；姜、枣、乌梅为煎药引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：治口干烦躁生津液，不思食。）。原文黄耆汤七味，无天冬、人参；姜、枣、乌梅为煎药引。｜ADJ-ORIG-20261110：按原方组成表订正（普济本事方原文：治口干烦躁生津液，不思食。）。原文黄耆汤七味，无天冬、人参；姜、枣、乌梅为煎药引。",
           "url": "urn:tcm-cdss:book-title-normalization:本事→普济本事方",
           "sourceRef": "ADJ-COLLATION-20260809"
         }

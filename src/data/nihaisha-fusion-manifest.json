@@ -1,6 +1,6 @@
 {
   "schemaVersion": "nihaisha-fusion-manifest-v1",
-  "generatedAt": "2026-11-10",
+  "generatedAt": "2026-11-11",
   "sources": [
     {
       "path": "参考/nihaisha-nishi-tcm-main/references/pdf-evidence/evidence-cards.jsonl",
@@ -32,7 +32,7 @@
     },
     {
       "path": "src/data/tcm-formula-governed-catalog.json",
-      "sha256": "0ac0e9aff03238ed4730793b8dae606033f95be55877a6d79b44fabb90843f2a",
+      "sha256": "3bdbe038de9d0567c372942df77f89bd6e41e8e1ccd2c2c0f4bf63d5663b0b0b",
       "records": 3018
     }
   ],
@@ -155,7 +155,7 @@
       "bytes": 310434
     },
     "tcm-formula-composition-rules.json": {
-      "sha256": "6f413d843380ede96d8ce5c13e1e00b10fa17004185416f7cc350b65a709eaa6",
+      "sha256": "4e27dfe32bfa9128686fe4f3d5920f726f776437562e1850a7f7b900d9eb7c7f",
       "bytes": 88363
     },
     "tcm-textual-modification-rules.json": {

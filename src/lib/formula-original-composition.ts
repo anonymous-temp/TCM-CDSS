@@ -50,16 +50,27 @@ const TABLE = originalCompositionsJson as unknown as {
   substitutions: Array<{ original: string; substitutes: string[]; reason: string }>;
   equivalentHerbNames: string[][];
   bookAliases: Record<string, string>;
+  formulaNameModifierSuffixes: string[];
+  preparationPrefixes: string[];
   entries: OriginalFormula[];
   textbookCitations: Record<string, Record<string, string>>;
 };
+
+const escapeForPattern = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+const NAME_MODIFIER_SUFFIX = new RegExp(`(?:${TABLE.formulaNameModifierSuffixes.map(escapeForPattern).join("|")})$`, "u");
+const PREPARATION_PREFIX = new RegExp(`^(?:${TABLE.preparationPrefixes.map(escapeForPattern).join("|")})(?=[一-鿿]{2,})`, "u");
+
+/** 药名去掉通行的炮制前缀（炙甘草→甘草、土炒白术→白术）；前缀表在原方组成表的生成物里。 */
+export function withoutPreparationPrefix(name: string): string {
+  return String(name || "").replace(PREPARATION_PREFIX, "");
+}
 
 /** 方名查找键：去掉出处括注、空白标点与「加减/化裁/加味」后缀。 */
 export function originalFormulaNameKey(name: string): string {
   return String(name || "")
     .replace(/[（(]?\s*《[^》]{1,80}》[^）)]{0,12}[）)]?/gu, "")
     .replace(/[\s·•，,。；;：:（）()【】\[\]“”"']/gu, "")
-    .replace(/(?:加减方?|化裁方?|加味方?)$/u, "")
+    .replace(NAME_MODIFIER_SUFFIX, "")
     .trim();
 }
 

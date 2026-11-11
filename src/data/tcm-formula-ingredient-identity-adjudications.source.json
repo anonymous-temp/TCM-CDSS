@@ -359,14 +359,6 @@
    "confidence": "medium"
   },
   {
-   "formulaName": "黄汤",
-   "rawIngredient": "芍药",
-   "resolvedIngredient": "赤芍",
-   "evidence": "《普济本事方》卷五：“黄汤……赤芍药……”。",
-   "basis": "《普济本事方》",
-   "confidence": "high"
-  },
-  {
    "formulaName": "火郁汤",
    "rawIngredient": "芍药",
    "resolvedIngredient": "白芍",
@@ -800,15 +792,6 @@
    "batch": "ADJ-20260726-HERB-VARIETY-B2"
   },
   {
-   "formulaName": "大全宝光散",
-   "rawIngredient": "芍药",
-   "resolvedIngredient": "赤芍",
-   "evidence": "方义推断：外洗治目赤烂眼，配伍黄连清热，取赤芍凉血活血消赤痛",
-   "basis": "芍药",
-   "confidence": "medium",
-   "batch": "ADJ-20260726-HERB-VARIETY-B2"
-  },
-  {
    "formulaName": "大山芋丸",
    "rawIngredient": "芍药",
    "resolvedIngredient": "白芍",
@@ -850,15 +833,6 @@
    "resolvedIngredient": "白芍",
    "evidence": "推断+安神养血，配地黄当归补血，宜白芍",
    "basis": "芍药",
-   "confidence": "medium",
-   "batch": "ADJ-20260726-HERB-VARIETY-B2"
-  },
-  {
-   "formulaName": "常山饮",
-   "rawIngredient": "贝母",
-   "resolvedIngredient": "川贝母",
-   "evidence": "推断+宋代《局方》，贝母多指川贝母，化痰散结",
-   "basis": "贝母",
    "confidence": "medium",
    "batch": "ADJ-20260726-HERB-VARIETY-B2"
   },
@@ -921,15 +895,6 @@
    "rawIngredient": "皂角",
    "resolvedIngredient": "大皂角",
    "evidence": "推断：元代《瑞竹堂经验方》无‘牙皂’直书；皂角去皮弦微烧入丸，古代多指皂荚，猪牙皂以开窍吹鼻为常用。（T9 正名为大皂角,皂荚系其通用名,归一到受控词表）",
-   "basis": "皂角",
-   "confidence": "medium",
-   "batch": "ADJ-20260726-HERB-VARIETY-B2"
-  },
-  {
-   "formulaName": "救五绝方",
-   "rawIngredient": "皂角",
-   "resolvedIngredient": "猪牙皂",
-   "evidence": "推断：清代《惠直堂经验方》，皂角为末吹鼻开窍急救，猪牙皂开窍力峻，传统急救多用之，故定猪牙皂。",
    "basis": "皂角",
    "confidence": "medium",
    "batch": "ADJ-20260726-HERB-VARIETY-B2"
@@ -1022,15 +987,6 @@
    "evidence": "推断：黄芪建中汤中芍药配甘草缓急止痛，经典用白芍",
    "basis": "芍药",
    "confidence": "high",
-   "batch": "ADJ-20260726-HERB-VARIETY-B2"
-  },
-  {
-   "formulaName": "火疮方",
-   "rawIngredient": "紫苏",
-   "resolvedIngredient": "紫苏叶",
-   "evidence": "推断：配伍荆芥、薄荷疏风解毒，取叶轻扬发散止痒，清代《验方新编》中紫苏多作叶用",
-   "basis": "紫苏",
-   "confidence": "medium",
    "batch": "ADJ-20260726-HERB-VARIETY-B2"
   },
   {

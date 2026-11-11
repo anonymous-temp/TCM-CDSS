@@ -1,4 +1,4 @@
-import { originalFormula, type OriginalFormula } from "./formula-original-composition";
+import { originalFormula, withoutPreparationPrefix, type OriginalFormula } from "./formula-original-composition";
 import { compositionLogicForFormulaNames, type FormulaCompositionLogic } from "./tcm-classic-inference";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
@@ -31,7 +31,7 @@ export function dispensingBaseName(raw: string): string {
 }
 
 function baseIdentity(name: string): string {
-  return dispensingBaseName(name).replace(/^(?:炙|蜜炙|炒|麸炒|土炒|煅|酒|盐|醋|姜|煨|焦)(?=[一-鿿]{2,})/u, "");
+  return withoutPreparationPrefix(dispensingBaseName(name));
 }
 
 /** 原书写明、通行的炮制换成饮片名（土炒→土炒白术，炒→炒山药，酒→酒白芍，炙→炙甘草，炭→荆芥穗炭）；知识库不认或剂量边界不同的不换。 */

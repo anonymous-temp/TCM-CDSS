@@ -1,0 +1,6 @@
+{
+ "schemaVersion": "western-establishment-check-v1",
+ "note": "西医病名确立程度核对（western-basis-authoring.server.ts withEstablishmentDowngrade，2026-11-11 第四十二轮）只问四类病名，其中两类按这里的词判：courseReasonWords——要点表有病程门槛时，依据给的理由要说的是病程（「病程未满6个月」），说缺别的检查的不问（离线：短期失眠因「尚缺多导睡眠监测」被降成待查）；exclusionDiagnosisWords——须先排除器质性疾病才能下的排除性诊断。",
+ "courseReasonWords": ["病程", "未满", "未达", "门槛"],
+ "exclusionDiagnosisWords": ["功能性", "神经症", "神经官能症"]
+}

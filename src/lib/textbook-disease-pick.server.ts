@@ -1,7 +1,8 @@
 import "server-only";
 
 import type { CaseState } from "./diagnosis-types";
-import { sanitizeFreeTextForModel } from "./diagnosis-safety";
+import { evaluateSafetyGate, sanitizeFreeTextForModel, trustedInputText } from "./diagnosis-safety";
+import { trueHeartPainSignal, withTrueHeartPainFirst } from "./true-heart-pain";
 import { REPRODUCTIVE_RECORD_KEYS } from "./followup-conversation";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { textbookDiseaseNamesForCase, textbookDiseaseWesternEquivalents } from "./tcm-textbook-syndromes";
@@ -135,7 +136,8 @@ export function buildTextbookDiseasePickRequest(caseState: CaseState): {
  * 选病请求本身只看主诉与现病史（只加既往史在 112 例上没有收益，见上），这一条只用教材写明的西医对应病名，不是开放判断。
  */
 export async function pickTextbookDiseasesForCase(caseState: CaseState, signal?: AbortSignal): Promise<string[]> {
-  return withHistoryStatedDiseaseFirst(await pickTextbookDiseasesByModel(caseState, signal), historyStatedDiseasesForCase(caseState));
+  const picks = withHistoryStatedDiseaseFirst(await pickTextbookDiseasesByModel(caseState, signal), historyStatedDiseasesForCase(caseState));
+  return withTrueHeartPainFirst(picks, trueHeartPainSignal(trustedInputText(caseState), (caseState.safetyGate || evaluateSafetyGate(caseState)).redFlags || []));
 }
 
 async function pickTextbookDiseasesByModel(caseState: CaseState, signal?: AbortSignal): Promise<string[]> {

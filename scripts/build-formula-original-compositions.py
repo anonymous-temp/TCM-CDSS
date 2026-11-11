@@ -273,6 +273,9 @@ def build(source):
         "substitutions": source.get("substitutions", []),
         "equivalentHerbNames": source.get("equivalentHerbNames", []),
         "bookAliases": aliases,
+        # 两张给读者用的小词表（运行时不在代码里手写）：方名后的化裁后缀（查表时去掉）、通行的炮制前缀（比药味身份时去掉）。
+        "formulaNameModifierSuffixes": ["加减方", "加减", "化裁方", "化裁", "加味方", "加味"],
+        "preparationPrefixes": ["蜜炙", "麸炒", "土炒", "炙", "炒", "煅", "酒", "盐", "醋", "姜", "煨", "焦"],
         "entries": entries,
         "textbookCitations": textbook_citations(aliases),
     }

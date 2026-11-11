@@ -13,6 +13,7 @@ src = json.load(open(D + 'tcm-formula-original-compositions.source.json'))
 SUBST = {s['original']: s['substitutes'][0] for s in src.get('substitutions', [])}
 TOXIC_DEFAULT = {'半夏': '法半夏', '附子': '附片', '川乌': '制川乌', '草乌': '制草乌', '天南星': '制天南星', '白附子': '制白附子'}
 HEAD = {e['id']: e for e in json.load(open(W + 'catalog-head.json'))['entries']}
+ADJ = {(a['formulaName'], a['rawIngredient']): a['resolvedIngredient'] for a in json.load(open(D + 'tcm-formula-ingredient-identity-adjudications.source.json'))['entries']}
 rows = {}
 for r in src['rows']:
     for b in [r['book']] + r.get('citedBooks', []):
@@ -46,6 +47,26 @@ def write_collation():
             same = [o for o in old_ing if (n in o and not (n == '附子' and '白附' in o)) or (n == '附子' and o in ('附片', '炮附片', '黑顺片', '淡附片', '白附片'))]
             return same[0] if same else base
         ing = [RENAME.get(toxic_form(x), toxic_form(x)) for x in ing]
+        # 原文只写「芍药」「皂角」「紫苏」「菖蒲」这类品种未分的古名、且逐方品种裁定表（tcm-formula-ingredient-identity-adjudications）
+        # 对这首方有裁定的：目录保留原文写法，品种仍由裁定表按方解析（白芍/赤芍方向相反，不能在订正时顺手定成一种）。
+        for (fname, raw), resolved in ADJ.items():
+            if fname != e['name'] or raw in ing: continue
+            hit = next((it for it in row['ingredients'] if it.get('written') == raw), None)
+            if not hit: continue
+            for cand in (hit['herb'], resolved):
+                if cand in ing: ing[ing.index(cand)] = raw; break
+        # 旧目录就是按原文写法收的、且药名身份已链到同一味药的（西黄→牛黄、真川贝→川贝母、官桂→肉桂）：沿用旧写法，
+        # 不因订正换一个同药异名（既有的按名裁定、棘轮与历史断言都按旧写法定位）。单字残片不沿用。
+        old_links = {l['rawName']: l.get('canonicalName') for l in HEAD.get(c['catalogId'], {}).get('ingredientLinks', []) or []}
+        for it in row['ingredients']:
+            w = it.get('written') or ''
+            if len(w) >= 2 and w in old_ing and w not in ing and it['herb'] in ing and old_links.get(w) == it['herb']:
+                ing[ing.index(it['herb'])] = w
+        # 旧目录把原书的药引（生姜、大枣、薄荷…）列在组成里的，订正后照旧列在最后：目录组成是编译基准，药引仍要让开方模型看到；
+        # 对账不计药引位置。
+        for g in row.get('guideHerbs') or []:
+            kept = next((o for o in old_ing if o == g['herb'] or (len(g['herb']) >= 2 and g['herb'] in o)), None)
+            if kept and kept not in ing and g['herb'] not in ing: ing.append(kept)
         seen = []; [seen.append(x) for x in ing if x and x not in seen]; ing = seen
         if len(ing) < 1: skipped.append((c['name'], c['book'], 'empty')); continue
         ev = row['evidence'][0]

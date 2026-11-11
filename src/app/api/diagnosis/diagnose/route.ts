@@ -30,6 +30,7 @@ import { pickTextbookDiseasesForCase } from "@/lib/textbook-disease-pick.server"
 import { pickJingfangPatternsForCase } from "@/lib/jingfang-pattern-pick.server";
 import { checkDiseaseExplainsVisitReason, tcmHalfDiseaseName, visitReasonRedrawInstruction } from "@/lib/m03-visit-reason-check.server";
 import { historyStatedDiseaseRedrawInstruction, historyStatedDiseasesForCase, uniqueHistoryStatedDisease, writtenDiseaseIsTextbookNeighbour } from "@/lib/history-stated-textbook-disease";
+import { checkDiseaseAgainstDiagnosisPoints, diseasePointsRedrawInstruction } from "@/lib/m03-disease-points-check.server";
 import { textbookDiseaseDifferentialNames } from "@/lib/tcm-textbook-syndromes";
 import { memoizedScopeText } from "@/lib/model-call-memo.server";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
@@ -352,15 +353,30 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
             const historyRedraw = historyStatedUnique && redraw && writtenDiseaseIsTextbookNeighbour(disease, historyStatedUnique, textbookDiseaseDifferentialNames)
               ? redraw(historyStatedDiseaseRedrawInstruction(disease, historyStatedUnique))
               : undefined;
-            const [visit, finished] = await Promise.all([
+            // 病名与教材诊断要点的核对（第四十二轮，m03-disease-points-check；缺省关）：与就诊原因核对、收口并行，只在就诊原因核对没有重抽时用。
+            const [visit, finished, points] = await Promise.all([
               checkDiseaseExplainsVisitReason({ ...visitReasonInput, disease, picks: textbookDiseasePicks }, transformSignal),
               finishTcmHalf(tcmContent),
+              checkDiseaseAgainstDiagnosisPoints({
+                disease,
+                recordText: clinicalGroundingText(safeState),
+                chiefComplaint: visitReasonInput.chiefComplaint,
+                candidates: [...new Set([...textbookDiseasePicks, ...textbookDiseaseDifferentialNames(disease)])],
+                ageYears: visitReasonInput.ageYears,
+              }, transformSignal),
             ]);
             if (visit.status !== "not_covered" && historyRedraw && historyStatedUnique) {
               const redrawn = await historyRedraw;
               const redrawnDisease = redrawn ? tcmHalfDiseaseName(redrawn) : "";
               const adopted = Boolean(redrawn && redrawnDisease === historyStatedUnique.disease);
               console.info("[tcm-cdss:telemetry] m03_history_stated_disease", { disease, stated: historyStatedUnique.disease, redrawnDisease: redrawnDisease || null, adopted });
+              return adopted && redrawn ? finishTcmHalf(redrawn) : finished;
+            }
+            if (visit.status !== "not_covered" && points.status === "mismatch" && redraw) {
+              const redrawn = await redraw(diseasePointsRedrawInstruction(disease, points));
+              const redrawnDisease = redrawn ? tcmHalfDiseaseName(redrawn) : "";
+              const adopted = Boolean(redrawn && redrawnDisease && redrawnDisease !== disease);
+              console.info("[tcm-cdss:telemetry] m03_disease_points_check", { disease, kind: points.kind, better: points.better, redrawnDisease: redrawnDisease || null, adopted });
               return adopted && redrawn ? finishTcmHalf(redrawn) : finished;
             }
             if (visit.status !== "not_covered" || !redraw) return finished;

@@ -181,10 +181,11 @@ await check("5.3 交付面：药名带上炮制（processing 栏写的并进药�
   assert.match(once.formula.candidates[0].formulaAnalysis, /土炒白术为臣/u);
   assert.equal(once.formula.modifications[0].herbName, "煅牡蛎");
   assert.match(once.formula.modifications[0].riskNote, /煅牡蛎先煎/u);
-  // 有毒药不并炮制进药名（附子、半夏的规格与剂量由毒性药规则管）；教材条目原文写的炮制（煅瓦楞子）照写。
+  // 第四十二轮起（用户定）：《中药学》写明内服须炮制的有毒药（附子、半夏…）把炮制栏并进药名，剂量须在该饮片的药典上限内；
+  // 其余有毒药仍不并。教材条目原文写的炮制（煅瓦楞子）照写。
   const toxic = surface.projectDeliveredReasoning({ ...reasoning, formula: { ...reasoning.formula, candidates: [{ name: "四逆汤", herbs: [{ name: "附子", role: "君", processing: "制", isToxic: true }, { name: "干姜", role: "臣" }], formulaAnalysis: "附子为君。" }],
     modifications: [{ trigger: "若泛酸", action: "加", herbName: "瓦楞子", doseOrHandling: "15g", reason: "制酸止痛", riskNote: "", evidence: { evidenceLevel: "kb_entry", source: "《中医内科学》胃痛加减：泛酸者，加煅瓦楞子、海螵蛸", confidence: "中" } }] } }, { recordText: "胃痛" });
-  assert.equal(toxic.formula.candidates[0].herbs[0].name, "附子");
+  assert.equal(toxic.formula.candidates[0].herbs[0].name, "制附子");
   assert.equal(toxic.formula.modifications[0].herbName, "煅瓦楞子");
   const twice = surface.projectDeliveredReasoning(once, { recordText: "伴神疲乏力，大便溏薄。" });
   assert.deepEqual(twice.formula.candidates[0].herbs.map((herb) => herb.name), herbs);

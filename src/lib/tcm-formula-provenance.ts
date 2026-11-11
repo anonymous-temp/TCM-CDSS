@@ -360,7 +360,7 @@ export function originalHerbSatisfiedBy(original: string, other: string): boolea
  * 只读原方组成表（deliver=true 的那几味）。受治理目录条目的调剂品名（深圳标准的姜天麻、黄芩片、盐杜仲、朱茯神、煅石决明）不是原方炮制，
  * 此前从目录链接字段带出来、被当成原方写进了药名（第四十二轮，根因一：天麻钩藤饮原书是「生决明」）。
  */
-export function governedFormulaOriginalPreparations(name: string, context: OriginalFormulaContext = {}): Array<{ identity: string; preparation?: string; rawName?: string }> {
+export function governedFormulaOriginalPreparations(name: string, context: OriginalFormulaContext = {}): Array<{ identity: string; preparation?: string }> {
   const entry = originalFormulaFor(name, context);
   if (!entry) return [];
   return entry.herbs
@@ -3059,7 +3059,14 @@ export function textbookFormulaOriginalSource(
   // 方的身份是方名加出处：教材这一行自己写了这首方的出处（「白术散（《全生指迷方》）」）时就是那本书，不再按组成去别的书里找同名方
   //（第四十二轮：此前只按方名找到《小儿药证直诀》白术散，两方共两味就算「相合」）。
   const citedBook = textbookRowFormulaBook(options.textbookRowId, normalized);
-  if (citedBook) return `《${citedBook}》`;
+  if (citedBook) {
+    // 同一本书在目录或名录里有带卷次的写法（《金匮翼》卷五）时沿用它，否则只写书名。
+    const specific = [
+      formulaCompilationReferences([normalized])[0]?.source,
+      options.compositionIsUnion ? undefined : catalogSourceForExactComposition(normalized, textbookComposition),
+    ].find((source) => source && canonicalFormulaBook(source) === citedBook);
+    return specific || `《${citedBook}》`;
+  }
   const identities = (ingredients: readonly string[]) => new Set(ingredients.map(textbookIngredientIdentity).filter(Boolean));
   const wanted = identities(textbookComposition);
   // 「相合」只用来排除同名异方（四七汤《局方》人参、官桂、半夏、甘草与教材只共一味半夏；大七气汤《三因方》半夏、茯苓、厚朴、紫苏叶
@@ -3180,13 +3187,14 @@ export function formulaNameWithIdentityHerbsPresent(
  * 方义说「去X」「加X」时对的是原书：消风散的受治理条目取自深圳地方标准，写的是煅石膏，《外科正宗》原方是石膏
  *（甲方标准病历 9，评审：「原方用的是石膏，不是煅石膏」）。查不到原书条目时为空。
  */
-export function originalBookFormulaIngredients(formulaName: string): string[] {
+export function originalBookFormulaIngredients(formulaName: string, context: OriginalFormulaContext = {}): string[] {
   const normalized = normalizeFormulaName(String(formulaName || ""));
   if (!normalized) return [];
-  // 原方组成表有这首方时以它为准（只算药味表里的药；煎服法里的姜枣药引不算——处方把药引列进药味表，方义说「加生姜、大枣」不算错）。
+  // 原方组成表有这首方时以它为准。煎剂（汤、饮、煎、散）连同原书煎服法里的药引一起算原方已有：四七汤原书「姜七片、枣一个」同煎，
+  // 方义说「加生姜、大枣」不实。丸、丹、膏没有煎服药引，按丸剂方名来对时不算（十全大补丸「加大枣」照留，TCMChat-test-418）。
   // 表里没有时才用国家目录、名录同书条目。
-  const original = originalFormulaFor(normalized);
-  if (original) return original.herbs.map((item) => item.herb);
+  const original = originalFormulaFor(normalized, context);
+  if (original) return [...original.herbs.map((item) => item.herb), ...(/[丸丹膏]$/u.test(normalized) ? [] : original.guides)];
   const official = normalizedOfficialClassics.get(normalized);
   if (official) return [...official.variant.ingredients];
   const reference = formulaCompilationReferences([formulaName])[0];
@@ -3202,8 +3210,8 @@ export function originalBookFormulaIngredients(formulaName: string): string[] {
  * 只认两边都有的，方义里真加的药不会被当成原方已有（2026-10-19 M 集 TCMChat-test-418：「十全大补丸…加黄芪、大枣」，
  * 黄芪本是原方药味，评审判配伍表述错误；此前查不到组成，方义核对整句放过）。都查不到时为空。
  */
-export function formulaEditClaimBaseIngredients(formulaName: string): string[] {
-  const own = [...originalBookFormulaIngredients(formulaName), ...(formulaCompilationReferences([formulaName])[0]?.ingredients || [])];
+export function formulaEditClaimBaseIngredients(formulaName: string, context: OriginalFormulaContext = {}): string[] {
+  const own = [...originalBookFormulaIngredients(formulaName, context), ...(formulaCompilationReferences([formulaName])[0]?.ingredients || [])];
   if (own.length > 0) return own;
   const normalized = normalizeFormulaName(String(formulaName || ""));
   if (!/[汤丸散饮]$/u.test(normalized)) return [];

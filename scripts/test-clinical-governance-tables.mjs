@@ -605,7 +605,8 @@ assert.equal(
 );
 assert.equal(formulas.entries.find((item) => item.name === "延龄丹")?.ingredients.includes("藁本"), true);
 assert.equal(formulas.entries.find((item) => item.name === "真应散")?.ingredients.includes("大枣"), true);
-assert.equal(formulas.entries.find((item) => item.name === "碧雪丹")?.ingredients.includes("西黄"), true);
+// 第四十二轮按《古方汇精》原文订正为十六味（原文写「西牛黄」），药名写牛黄；原断言钉的是这味药补回，按同一味药认。
+assert.equal(formulas.entries.find((item) => item.name === "碧雪丹")?.ingredients.some((name) => name === "西黄" || name === "牛黄"), true);
 // 「治服石虚热水肿方」（《外台》卷二十）2026-09-30 联网核对：一节三个外洗/外敷方并成一份，属章节合抄伪方，已删除（原断言钉的是其中的巴豆补回）。
 assert.equal(formulas.entries.some((item) => item.name === "治服石虚热水肿方"), false, "章节合抄伪方不得留在受控目录");
 // 解析残片修复（2026-09-30）：大补元煎原带「人参少则用」「多则用」「熟地少则用」三个非药名；原书八味补齐、残片清除。

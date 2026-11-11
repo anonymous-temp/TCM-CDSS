@@ -657,6 +657,16 @@ export function textbookDiseaseDefinition(diseaseName: string, ageYears?: number
   return entry ? entry.definition.split(/(?<=。)/u)[0].trim().slice(0, 120) : "";
 }
 
+/**
+ * 教材里该病的定义与诊断要点原文（按病名取节，未成年先儿科），供病名与诊断要点的核对（m03-disease-points-check，第四十二轮）。
+ * 取第一本有诊断要点的书；都没有时为空。
+ */
+export function textbookDiseaseDiagnosisPoints(diseaseName: string, ageYears?: number): { book: string; definition: string; points: string[] } | undefined {
+  const entry = diseasesNamed(diseaseName, ageYears).find((disease) => disease.diagnosisPoints.some((point) => point.trim().length >= 6));
+  if (!entry) return undefined;
+  return { book: entry.book, definition: entry.definition.split(/(?<=。)/u)[0].trim().slice(0, 160), points: entry.diagnosisPoints.map((point) => point.trim()).filter((point) => point.length >= 6).slice(0, 6) };
+}
+
 const syndromeCore = (value: string) => compact(value).replace(/(?:证候|证型|证|型)$/u, "");
 
 /** 已定病名与证名对应的教材行；对不上返回 undefined。证名比较忽略末尾的「证/型」。任何一本教材里该病有这个证名都算对上。 */

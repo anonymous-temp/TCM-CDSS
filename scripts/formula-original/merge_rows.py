@@ -107,6 +107,13 @@ def main():
                     if k not in ('name', 'book', 'variant'): merged[key][k] = v
             elif item.get('ingredients'): merged[key] = {k: v for k, v in item.items()}
     rows = [merged[k] for k in sorted(merged)]
+    # 原文写品种未分的古名（芍药、皂角、紫苏、菖蒲）、逐方品种裁定表对这首方有裁定的：药味身份跟裁定表走（同一张表也管目录）。
+    adj = {(a['formulaName'], a['rawIngredient']): a['resolvedIngredient'] for a in json.load(open('/var/tmp/r1057/wt/src/data/tcm-formula-ingredient-identity-adjudications.source.json'))['entries']}
+    for r in rows:
+        for it in r['ingredients']:
+            res = adj.get((r['name'], it.get('written')))
+            if res and res != it['herb'] and not any(o is not it and o['herb'] == res for o in r['ingredients']):
+                it['herb'] = res; it['note'] = ((it.get('note') or '') + ' 品种按逐方裁定表').strip()
     for r in rows:
         _h = {it['herb'] for it in r['ingredients']}
         r['guideHerbs'] = [g for g in (r.get('guideHerbs') or []) if g['herb'] not in _h]
