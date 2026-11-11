@@ -9884,7 +9884,7 @@
      "written": "木鳖肉",
      "herb": "木鳖子",
      "dose": "一两",
-     "preparation": "炒",
+     "preparation": "焦",
      "preparationRaw": "炒焦黄",
      "note": "四味同炒焦黄"
     },
@@ -9892,7 +9892,7 @@
      "written": "半夏",
      "herb": "半夏",
      "dose": "一两",
-     "preparation": "炒",
+     "preparation": "焦",
      "preparationRaw": "炒焦黄",
      "note": "四味同炒焦黄"
     },
@@ -9900,7 +9900,7 @@
      "written": "草乌",
      "herb": "草乌",
      "dose": "三钱",
-     "preparation": "炒",
+     "preparation": "焦",
      "preparationRaw": "炒焦黄",
      "note": "四味同炒焦黄"
     },
@@ -9908,7 +9908,7 @@
      "written": "陈小粉",
      "herb": "陈小粉",
      "dose": "二两",
-     "preparation": "炒",
+     "preparation": "焦",
      "preparationRaw": "炒焦黄",
      "note": "四味同炒焦黄；原名保留，不擅改为天花粉"
     }
@@ -11614,8 +11614,8 @@
     {
      "written": "山栀子",
      "herb": "栀子",
-     "preparation": "炒",
-     "preparationRaw": "炒",
+     "preparation": "炭",
+     "preparationRaw": "炒黑",
      "note": "炒黑"
     },
     {
@@ -27584,29 +27584,29 @@
     {
      "written": "黄芩",
      "herb": "黄芩",
-     "preparation": "炒",
-     "preparationRaw": "炒",
+     "preparation": "炭",
+     "preparationRaw": "炒黑",
      "note": "炒黑一钱"
     },
     {
      "written": "槐角",
      "herb": "槐角",
-     "preparation": "炒",
-     "preparationRaw": "炒",
+     "preparation": "炭",
+     "preparationRaw": "炒黑",
      "note": "炒黑三钱"
     },
     {
      "written": "地榆",
      "herb": "地榆",
-     "preparation": "炒",
-     "preparationRaw": "炒",
+     "preparation": "炭",
+     "preparationRaw": "炒黑",
      "note": "炒黑二钱"
     },
     {
      "written": "荆芥",
      "herb": "荆芥",
-     "preparation": "炒",
-     "preparationRaw": "炒",
+     "preparation": "炭",
+     "preparationRaw": "炒黑",
      "note": "炒黑一钱"
     },
     {
@@ -40151,7 +40151,7 @@
     {
      "written": "陈土",
      "herb": "陈土",
-     "preparation": "炒",
+     "preparation": "焦",
      "preparationRaw": "炒焦",
      "note": "陈土（炒焦，四两），疑为陈壁土，原文未写明",
      "dose": "四两"
@@ -65223,8 +65223,8 @@
     {
      "written": "芫花",
      "herb": "芫花",
-     "preparation": "炒",
-     "preparationRaw": "炒",
+     "preparation": "炭",
+     "preparationRaw": "炒黑",
      "note": "好醋拌匀，炒黑不令焦"
     },
     {
@@ -66486,8 +66486,8 @@
     {
      "written": "干姜",
      "herb": "干姜",
-     "preparation": "炒",
-     "preparationRaw": "炒",
+     "preparation": "炭",
+     "preparationRaw": "炒黑",
      "note": "炒黑",
      "dose": "五钱"
     },
@@ -89184,8 +89184,8 @@
     {
      "written": "山栀子",
      "herb": "栀子",
-     "preparation": "炒",
-     "preparationRaw": "炒",
+     "preparation": "炭",
+     "preparationRaw": "炒黑",
      "note": "炒黑"
     },
     {
@@ -113913,8 +113913,8 @@
     {
      "written": "山栀仁",
      "herb": "栀子",
-     "preparation": "炒",
-     "preparationRaw": "炒",
+     "preparation": "炭",
+     "preparationRaw": "炒黑",
      "note": "炒黑"
     },
     {
@@ -118763,8 +118763,8 @@
     {
      "written": "山栀",
      "herb": "栀子",
-     "preparation": "炒",
-     "preparationRaw": "炒",
+     "preparation": "炭",
+     "preparationRaw": "炒黑",
      "note": "炒黑"
     },
     {
@@ -164577,8 +164577,8 @@
     {
      "written": "山栀子",
      "herb": "栀子",
-     "preparation": "炒",
-     "preparationRaw": "炒",
+     "preparation": "炭",
+     "preparationRaw": "炒黑",
      "note": "炒黑",
      "dose": "二两"
     },
@@ -194948,8 +194948,8 @@
     {
      "written": "干漆",
      "herb": "干漆",
-     "preparation": "炒",
-     "preparationRaw": "炒",
+     "preparation": "焦",
+     "preparationRaw": "炒焦",
      "note": "炒焦"
     },
     {

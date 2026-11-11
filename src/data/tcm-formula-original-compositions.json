@@ -7596,22 +7596,22 @@
     {
      "herb": "木鳖子",
      "written": "木鳖肉",
-     "preparation": "炒"
+     "preparation": "焦"
     },
     {
      "herb": "半夏",
      "written": "半夏",
-     "preparation": "炒"
+     "preparation": "焦"
     },
     {
      "herb": "草乌",
      "written": "草乌",
-     "preparation": "炒"
+     "preparation": "焦"
     },
     {
      "herb": "陈小粉",
      "written": "陈小粉",
-     "preparation": "炒"
+     "preparation": "焦"
     }
    ],
    "guides": [],
@@ -8883,7 +8883,7 @@
     {
      "herb": "栀子",
      "written": "山栀子",
-     "preparation": "炒"
+     "preparation": "炭"
     },
     {
      "herb": "黄连",
@@ -20801,25 +20801,25 @@
     {
      "herb": "黄芩",
      "written": "黄芩",
-     "preparation": "炒",
+     "preparation": "炭",
      "deliver": true
     },
     {
      "herb": "槐角",
      "written": "槐角",
-     "preparation": "炒",
+     "preparation": "炭",
      "deliver": true
     },
     {
      "herb": "地榆",
      "written": "地榆",
-     "preparation": "炒",
+     "preparation": "炭",
      "deliver": true
     },
     {
      "herb": "荆芥",
      "written": "荆芥",
-     "preparation": "炒",
+     "preparation": "炭",
      "deliver": true
     },
     {
@@ -30238,7 +30238,7 @@
     {
      "herb": "陈土",
      "written": "陈土",
-     "preparation": "炒"
+     "preparation": "焦"
     },
     {
      "herb": "茯苓",
@@ -48637,7 +48637,7 @@
     {
      "herb": "芫花",
      "written": "芫花",
-     "preparation": "炒"
+     "preparation": "炭"
     },
     {
      "herb": "京大戟",
@@ -49557,7 +49557,7 @@
     {
      "herb": "干姜",
      "written": "干姜",
-     "preparation": "炒"
+     "preparation": "炭"
     },
     {
      "herb": "香附",
@@ -66343,7 +66343,7 @@
     {
      "herb": "栀子",
      "written": "山栀子",
-     "preparation": "炒"
+     "preparation": "炭"
     },
     {
      "herb": "黄芩",
@@ -84800,7 +84800,7 @@
     {
      "herb": "栀子",
      "written": "山栀仁",
-     "preparation": "炒",
+     "preparation": "炭",
      "deliver": true
     },
     {
@@ -88458,7 +88458,7 @@
     {
      "herb": "栀子",
      "written": "山栀",
-     "preparation": "炒"
+     "preparation": "炭"
     },
     {
      "herb": "青黛",
@@ -122248,7 +122248,7 @@
     {
      "herb": "栀子",
      "written": "山栀子",
-     "preparation": "炒"
+     "preparation": "炭"
     },
     {
      "herb": "白蒺藜",
@@ -144800,7 +144800,7 @@
     {
      "herb": "干漆",
      "written": "干漆",
-     "preparation": "炒"
+     "preparation": "焦"
     },
     {
      "herb": "石膏",

@@ -380,6 +380,7 @@
     "test:r1055-main": "node scripts/test-r1055-main.mjs",
     "test:r1056-main": "node scripts/test-r1056-main.mjs",
     "test:r1057-main": "node scripts/test-r1057-main.mjs",
+    "test:r1058-main": "node scripts/test-r1058-main.mjs",
     "build:formula-original-compositions": "python3 scripts/build-formula-original-compositions.py",
     "report:formula-original-reconciliation": "node scripts/report-formula-original-reconciliation.mjs"
   },

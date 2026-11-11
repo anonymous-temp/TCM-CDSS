@@ -725,18 +725,36 @@ const SAME_SOURCE_HERB_GROUPS = (sameSourceHerbs as { groups: ReadonlyArray<{ he
  * 只读原方组成表（第四十二轮）：此前把受治理目录组成、《方剂学》方解、original-text 表三处按方名并起来，书不同也并
  *（人参养荣汤的《局方》药引被接在深圳标准的组成后面）。表里没有这首方时不写。
  */
-export function omittedGuideHerbNote(name: unknown, herbs: readonly Record<string, unknown>[], context: OriginalFormulaContext = {}): string | undefined {
+export function omittedGuideHerbNote(name: unknown, herbs: readonly Record<string, unknown>[], context: OriginalFormulaContext = {}, analysis = ""): string | undefined {
   const trimmed = String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
   if (!trimmed || /合/u.test(trimmed) || SELF_COMPOSED_NAME.test(trimmed) || trimmed === "自拟方") return undefined;
   const entry = originalFormulaFor(trimmed, context);
   if (!entry) return undefined;
+  // 方义明说去掉的药引不再在用法里劝加（第四十三轮 new40 m08：方义「去原方药引生姜、大枣」，用法又写「原方以生姜、大枣为引，煎时可酌加」）。
+  const removed = herbsNamedAsRemoved(analysis);
   const present = herbs.map((herb) => String(herb.name || "").trim()).filter(Boolean);
   const listed = [...entry.herbs.map((item) => item.herb), ...entry.guides];
   // 方里已有同源的干姜时不再提生姜（黄芪建中汤：生姜刚因与干姜同源去掉，用法里又说「可酌加」就自相矛盾）。
   const sameSourcePresent = (herb: string) => SAME_SOURCE_HERB_GROUPS.some((group) => group.herbs.includes(herb) && group.herbs.some((other) => other !== herb && present.some((name) => originalHerbMatches(other, name))));
   const omitted = ["生姜", "大枣"].filter((herb) =>
-    listed.some((name) => originalHerbMatches(herb, name)) && !present.some((name) => originalHerbMatches(herb, name)) && !sameSourcePresent(herb));
+    listed.some((name) => originalHerbMatches(herb, name)) && !present.some((name) => originalHerbMatches(herb, name)) && !sameSourcePresent(herb)
+    && !removed.some((name) => originalHerbMatches(herb, name)));
   return omitted.length > 0 ? `原方以${omitted.join("、")}为引，煎时可酌加` : undefined;
+}
+
+/**
+ * 方义里「去X、Y」点名去掉的药（换药「去X易Y」「去X而以Y」不算去）。对象到「而/并/加/增」或小句末为止，
+ * 与 withoutFalseNamedRemovalClaims 同一读法。
+ */
+export function herbsNamedAsRemoved(analysis: string): string[] {
+  const out: string[] = [];
+  for (const clause of String(analysis || "").split(/[，,。；;]/u)) {
+    const body = clause.replace(/^\s*(?:并|且|再)?/u, "");
+    if (!/^(?:去|去掉|删去|减去)/u.test(body) || /[易改换代]|而以/u.test(body)) continue;
+    const claim = body.match(/^(?:去|去掉|删去|减去)(?:原方中?|其)?([^，,。；;]{1,16}?)(?=、?(?:而|并|加|增)|$)/u);
+    for (const mention of formulaAnalysisHerbMentions(claim?.[1] || "")) if (mention.token) out.push(mention.token);
+  }
+  return [...new Set(out)];
 }
 
 /**
@@ -1594,7 +1612,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       candidate.formulaAnalysis = withOpeningMatchingFormulaName(candidate.formulaAnalysis, candidate.name, original === true).text;
     }
     // 原方的姜枣引药（甲方 10.29 测评：归脾汤原方「加姜、枣，水煎服」，处方不便列时在用法里说明）。
-    const guideNote = omittedGuideHerbNote(candidate.name, records(candidate.herbs), originalContext);
+    const guideNote = omittedGuideHerbNote(candidate.name, records(candidate.herbs), originalContext, typeof candidate.formulaAnalysis === "string" ? candidate.formulaAnalysis : "");
     const candidateDecoction = record(candidate.decoction);
     if (guideNote && candidateDecoction && typeof candidateDecoction.method === "string" && !/(?:生姜|煨姜|大枣|姜枣|姜、枣|红枣)/u.test(candidateDecoction.method)) {
       candidateDecoction.method = `${candidateDecoction.method.replace(/[。；;\s]+$/u, "")}；${guideNote}`;
