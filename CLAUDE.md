@@ -3132,6 +3132,59 @@ Suite: `test:r1055-main`. Class fixtures: `chest-tightness-cue-of-other-item-or-
   - It went through once 3.5 GB was free for a minute (`pb-wait2.sh`).
   - /home had 0.4 GB free. The build tree went on root after the user approved removing other sessions' /tmp entries that had not changed in 24 h and that no process held open (6 GB; list in `tmp-cleanup-20261110.txt`).
 
+### 11/11 round 42: round 41's leftovers except catalog compositions (2026-11-11)
+
+The production blind review of round 41 left six items. The user asked for root-cause solutions after research, then said 「根因一先不动，先把其余的做了，都按你推荐的来，然后测好后部署交付」: the governed catalog's wrong original compositions (人参养荣汤, 柴胡葛根汤, 白术散 homonym) are **not** part of this round. Material: `~/runlogs/r1018/work/r1056/` (`probe/` offline checks and their JSON, `replay/processing.mjs`, `cp/cp.py`, `gen.sh`, `chk.py`, `out/`). Suite `test:r1056-main`.
+
+**Root causes found while researching** (all six items, including the deferred one):
+- **Catalog compositions.** 545 governed entries come from the Shenzhen dispensing-code standard SZJG/T 38.2-2011: dispensing names (姜天麻, 煅石决明, 黄芩片) and some modernized compositions under an original-book source (人参养荣汤 with 枸杞子/首乌藤, no 桂心). 「原方」 was checked against that same table. The correct originals are in the local corpus (《局方》 line 5450) and in a mis-keyed sibling entry 「人参养营汤」. 188 of 301 comparable entries differ from a same-book original, mostly in writing noise. **Deferred by the user.**
+- **煅石决明 was not the model's.** The M04 model copies dispensing names from the catalog composition it is shown; 《中药学》 says 「平肝、清肝宜生用」.
+- **生半夏** came from bare 半夏 in modification rows (textbook 加减 「加半夏」), and the round-37 processing rules skipped every toxic herb.
+- **「需排除X」 when X was diagnosed**: the follow-up exclusion comes from the facts layer, written before the Western diagnosis; nothing reconciled the two.
+- **Western names firmer than their basis**: 3 of 4 cases had a basis saying 「尚不能确诊」/「尚缺脑脊液检查…确立诊断」 while the name was definitive; the name and the basis were two independent conclusions.
+- **内痔**: the textbook diagnosis points say 「血液与大便不相混合」; the record said 「与大便相混」. Nothing compared a TCM disease with its diagnosis points. **真心痛** had no textbook section, so the pick could only offer 胸痹.
+
+**What changed.**
+- **Herb forms by textbook purpose** (`herb-processing-forms.ts` `purposeProcessedHerbName`; table `tcm-herb-purpose-processing.json` from `scripts/build-herb-purpose-processing.py`, cut from the 《中药学》 usage/caution/function lines in `tcm-herb-textbook-references.json`: 60 herbs, every row with its sentence and line).
+  - Must-process herbs (「内服一般炮制后用」「内服制用」「内服须经炮制」: 半夏, 天南星, 白附子, 附子, 川乌, 京大戟…) written bare get a processed form chosen by the herb's own function (姜半夏 「降逆止呕」, otherwise 法半夏; 制附子, 制川乌). The dose must fit that form's ChP max (川乌 6 g stays as written: 制川乌 max 3 g). This reverses round 37's 「毒性药不动」 for these herbs only (user decision); the processing column of such a herb is merged into its name the same way (附子 + 制 → 制附子).
+  - A written form changes only when a whole, non-generic purpose phrase of another form is in the herb's own function text and nothing supports the current form (煅石决明 「平肝潜阳」 → 石决明; 盐黄柏 「清热燥湿」 → 黄柏). Catalog dispensing names yield to this rule; original-text preparations (`governedFormulaOriginalPreparations` with a preparation) still win.
+  - Adding processing to a non-toxic raw herb needs a 3+ character purpose phrase in the herb's own `function` (牛膝 「补肝肾，强筋骨」 → 酒牛膝); role and target-pathogenesis text is not read (it often carries formula-level words: the first cut turned 黄芪 「补气固表」 into 炙黄芪 via 「益气」 in 47 saved prescriptions). The nine round-37 herbs keep their record-cue rules. `「多…用」「可…用」` statements are not used.
+  - Replay of the delivered surface over 473 saved prescriptions: 65 changed, every pattern read.
+- **Follow-up vs established diagnosis** (`priorityTargetWithEstablishedDiagnosis` in `diagnosis-safety.ts`): when an exclusion item (「或」 alternatives count as one item) is the page's own non-待查 Western primary (cores compared after dropping 急性/慢性/期), the plan reads 「已考虑X，请在…内到相关专科就诊，完成〈依据里的尚缺…〉并评估病情轻重」; other exclusions stay in brackets. Pathway targets (breast, DKA, red flag) are untouched. One function for the diagnose page, prescribe page, decoction node and M05 first review; the old-style sentence from a stored diagnose page is replaced, not duplicated.
+- **Western establishment** (`western-basis-authoring.server.ts`): the basis outline now answers `established` before `level`. When it says no, another vendor (`crossVendorConfirm`, qwen3.8-flash, evidence first) confirms, and the name becomes 「X待查」 through the D-type path (`applyWesternNameCorrection`; 「符合X」 → 「考虑X可能」). It is asked only for four classes (`establishmentQuestionable`; words in `western-establishment-check.source.json`): criteria rows that need tests the record has none of (required-test entries split per listed test), course thresholds when the stated reason is the course, the closed emergency-name list, and exclusion diagnoses (功能性/神经症). Offline on 173 saved diagnoses: without the gate 25–38 renames with 6–13 wrong (clinically diagnosable diseases such as 短期失眠, 急性鼻窦炎, typical symptoms with FPG 9.8 diabetes); with it 12, all of the intended class. Switch `CDSS_WESTERN_ESTABLISHMENT_CHECK=false`.
+- **TCM disease vs textbook diagnosis points** (`m03-disease-points-check.server.ts`, `textbookDiseaseDiagnosisPoints`): deepseek proposes a contradiction or a missing required sign with verbatim quotes, qwen verifies; the point must be verbatim in the textbook points, the record quote must align and not be someone else's or unasked; a missing sign counts only for points that describe a sign or exam finding (`tcm-disease-points-check.source.json`). A direct contradiction may leave the better disease unnamed (classification names such as 血证 are not offered by the checker; candidates are shown with the record's subtype, 「血证（便血）」). Then the TCM half is redrawn once (same path as the visit-reason check). Offline on 173: first wording 5 triggers (4 right), final 2 (both right), about 0.9 s in parallel. Switch `CDSS_M03_DISEASE_POINTS_CHECK=false`.
+- **真心痛**: section and seven rows from 《中西医结合内科学》 心肌梗死 (lines 130534–130561; the chapter says 「本病可归属于“真心痛”范畴」) in the textbook supplement; definition and differential from the 《中医内科学》 胸痹 section. `true-heart-pain.ts` pins it first in the disease pick and the M03 candidate block, with a notice, when the record affirms chest pain + persistence (持续不缓解, 含服无明显缓解) + a collapse sign (大汗淋漓, 皮肤湿冷, 面色苍白…; `tcm-true-heart-pain-signs.source.json`) and the gate has an acute cardiac red flag.
+
+**Measured** (local route harness, customer request shape, frozen worktree on ab61db9a; round 41 = its own local `*-new` arm on the same records; 155 chains: new40, new36, the customer's 10 × 3, 11.05's 17, held-out 32).
+
+| | Round 41 | Round 42 |
+|---|---|---|
+| Follow-up 「需排除X」 that is the page's own Western diagnosis (new40 / new36) | 6 / 2 | 0 / 0 |
+| Bare must-process herb in a prescription (new40 / new36) | 4 / 4 | 1 / 1, all 附子 with a 「炮」 column (merged into 炮附子 by 4baa0c5b) |
+| 煅石决明 written for 平肝潜阳 (new40 / new36) | 1 / 2 | 0 / 0 |
+| m02 内痔 (no hemorrhoid signs) / m39 胸痹 (persistent pain, sweating, cold skin) / m12 功能性消化不良 at 3 months / m40 化脓性脑膜炎 without CSF | as reviewed | 血证（便血） / 真心痛 / 功能性消化不良待查 / 化脓性脑膜炎伴脓毒性休克待查 |
+| Disease, syndrome identical to round 41 (new40, new36, 11.05) | | 37/40 and 39/40, 35/36 and 35/36, 16/17 and 15/17 |
+
+- P0 audit over all 155: dosed 155/155; dose over ChP / over 2× / 十八反 incl. 加减 / pregnancy-prohibited / child-toxic / organ / active-bleed blood movers all 0; 9 red-flag cases dosed with adoption blocked; fewer than 2 TCM disease differentials 1/155.
+- Customer 10 × 3: disease and syndrome equal the standard answers in 10/10, identical across the three runs, no red flag; 病历2's Western name is now 心脏神经症待查 (no ECG in the record).
+- Held-out 32: disease 29/29, syndrome 29/29 against the reference answers.
+- In the run, the establishment check renamed 10 (2 more declined by the verifier): 心脏神经症 (customer case 2, all three runs; no ECG), 功能性消化不良 (m12, 3 months), 化脓性脑膜炎 (m40, no CSF), 小儿厌食症 (1 month), 异位妊娠破裂 (no hCG/ultrasound), 阴道炎, 慢性功能性便秘 (「半年」 read as under 6 months, borderline). The points check redrew once: held-out S188 (T 35.2, P 42, BP 82/48, drowsy) 眩晕 → 厥证·阳气衰微证, 四逆汤.
+- Counter-proofs: 57 mutations (`cp/cp.py`), all caught on the committed code. Five first missed because one guard masked another in the fixtures (a stub that throws was swallowed by `.catch`; the four-class gate masked the 待查 and record-stated guards); each got an isolating case.
+
+- qwen3.8-max with the 10/17 briefs: customer 10 × 3, one failure in one column (run 2, 辅助中药饮片, below), every other column 0, no red flag on 1/2/7/9, disease/syndrome/formula identical across runs; held-out 32 every block 100%.
+
+**In production (4baa0c5b, tag `20261110-4baa0c5-prebuilt`, deployed 2026-11-11 about 08:05 Beijing; same release directory and `20260927-dsrepair` override).**
+- `verify:release` green (302 suites + 4 fresh-artifact suites). `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 18.3 s, M04 P95 13.9 s). The container log before the replacement is in `~/telemetry-archive/container-pre-4baa0c5-*.log.gz` on the host.
+- Probes (paced, regenerated): m39 and 11.05 e05-16 → 真心痛; m11/m14 follow-ups 「已考虑细菌性痢疾…」「已考虑乙型肝炎后肝硬化失代偿期…」; m13 +法半夏, m21 姜半夏, m29 石决明; m40 化脓性脑膜炎伴脓毒性休克待查; m02 not 内痔 (痢疾 on this draw). Model-dependent items varied from the local run: m12 stayed 功能性消化不良, m40's TCM disease was 急惊风 again (the points check did not fire on this draw). Customer 10: every stage 200, standard disease and syndrome, no red flag.
+- Rollback: image `tcm-cdss:20261110-bda3b4d-prebuilt` with the `docker-compose.yml.pre-*` backup in the release directory; the new checks alone: `CDSS_WESTERN_ESTABLISHMENT_CHECK=false`, `CDSS_M03_DISEASE_POINTS_CHECK=false`.
+- Local build: OOM-killed once at 53 s (swap full from other sessions; `oom_score_adj=1000` made it the victim). It went through with a 1.5 GB temporary swap file on root and a 3.8 GB free-memory threshold; the swap file was removed right after.
+
+**Found, not fixed.**
+- **Usage line misses special steps of modifications that apply now.** Customer case 7 (run 2): 「本例已见…加石膏30g（先煎）」 while the decoction line names only 大黄 后下.
+- **Western-titled textbook sections delivered as the TCM disease** (流行性乙型脑炎 for m40 on one local draw; round 41 m27 流行性腮腺炎 instead of 痄腮): their first definition sentence does not say 「属中医学“X”范畴」, so `build-tcm-textbook-disease-names.mjs` cannot map them.
+- **Deterministic chest-pain rule.** 「胸骨后压榨样疼痛…向左肩放射…大汗淋漓」 alone raises no deterministic red flag; in m39 the flag came from a separate 「胸闷」 sentence and from the facts layer. A gate change needs its own corpus replay.
+- Catalog compositions (root cause 1, deferred).
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
