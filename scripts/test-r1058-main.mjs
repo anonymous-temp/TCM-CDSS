@@ -76,5 +76,25 @@ await check("2.1 方义明说去掉的药引，用法里不再劝加；没说去
   assert.deepEqual(surface.herbsNamedAsRemoved("去生姜加干姜以温中。"), ["生姜"]);
 });
 
+const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+const original = await jiti.import("../src/lib/formula-original-composition.ts");
+
+await check("3.1 教材署的书在原方组成表里没有这首方时，不拿教材常用药判同名异方：瘾疹·风热犯表证「消风散（《医宗金鉴》）」仍锁目录《外科正宗》消风散、出处不改署（甲方标准病历 9）", () => {
+  const rowId = "waike|瘾疹|风热犯表证";
+  assert.equal(original.textbookRowFormulaBook(rowId, "消风散"), "医宗金鉴", "前提：教材这一行署《医宗金鉴》");
+  assert.equal(original.originalFormula("消风散", "医宗金鉴"), undefined, "前提：表里没有《医宗金鉴》消风散");
+  assert.equal(provenance.textbookCitedFormulaIsGovernedHomonym("消风散", rowId), false);
+  const commonHerbs = ["荆芥", "防风", "牛蒡子", "蝉蜕", "金银花", "连翘", "苦参", "知母", "生地黄", "甘草"];
+  assert.equal(provenance.textbookFormulaOriginalSource("消风散", commonHerbs, { textbookRowId: rowId })?.includes("医宗金鉴"), false);
+  const locked = provenance.withDeterministicFormulaReferences({
+    stage: "diagnose",
+    overview: { tcmDiseaseName: "瘾疹", primarySyndrome: "风热犯表证", recommendedFormulaDirection: "消风散加减", recommendedFormulaNames: [] },
+    therapy: { overallMethod: "疏风清热止痒" },
+  });
+  assert.deepEqual(locked.overview.recommendedFormulaNames, ["消风散"]);
+  // 对照：表里有教材写的那本书、且组成真不同的同名方照旧判同名异方（白术散《全生指迷方》）。
+  assert.equal(provenance.textbookCitedFormulaIsGovernedHomonym("白术散", "fuke|子肿|脾虚证"), true);
+});
+
 if (failures > 0) console.error(`\n${failures} check(s) failed`);
 else console.log("\nall checks passed");

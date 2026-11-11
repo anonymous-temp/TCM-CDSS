@@ -1703,9 +1703,8 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     const textbookRowForLock = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
     const governedEntryIsOtherBooksHomonym = (name: string): boolean => {
       if (!textbookRowForLock || !textbookRowForLock.formulas.includes(name)) return false;
-      const own = textbookRowForLock.formulaCompositions?.find((item) => item.formula === name)?.herbs
-        || (textbookRowForLock.formulas.length === 1 ? textbookRowForLock.composition : []);
-      return textbookCitedFormulaIsGovernedHomonym(name, textbookRowForLock.id, own);
+      // 只按原方组成表里教材写的那本书的原方判（教材常用药不参与，第四十三轮消风散）。
+      return textbookCitedFormulaIsGovernedHomonym(name, textbookRowForLock.id);
     };
     const identityGovernedNames = identifiedNames.filter((name) => formulaCompilationReferences([name]).length === 1 && !governedEntryIsOtherBooksHomonym(name));
     const incompleteCombined = identifiedMode === "combined" && identityGovernedNames.length !== identifiedNames.length;
@@ -3058,7 +3057,7 @@ export function textbookFormulaOriginalSource(
   if (!normalized) return undefined;
   // 方的身份是方名加出处：教材这一行自己写了这首方的出处（「白术散（《全生指迷方》）」）时就是那本书，不再按组成去别的书里找同名方
   //（第四十二轮：此前只按方名找到《小儿药证直诀》白术散，两方共两味就算「相合」）。
-  const citedBook = textbookCitedBookGoverningIdentity(normalized, options.textbookRowId, options.compositionIsUnion ? [] : textbookComposition);
+  const citedBook = textbookCitedBookGoverningIdentity(normalized, options.textbookRowId);
   if (citedBook) {
     // 同一本书在目录或名录里有带卷次的写法（《金匮翼》卷五）时沿用它，否则只写书名。
     const specific = [
@@ -3121,19 +3120,24 @@ export function textbookFormulaOriginalSource(
 
 /**
  * 教材行写了这首方的出处、且与受治理目录同名条目不是同一本书时，两者是不是同名异方（第四十二轮，方的身份 = 方名 + 出处）。
- * 按原方组成表里教材写的那本书的组成比（表里没有时按教材这张方的组成）：共有的药不到较小一方的六成就是同名异方
+ * 按原方组成表里教材写的那本书的组成比：共有的药不到较小一方的六成就是同名异方
  *（《全生指迷方》白术散 白术、茯苓、大腹皮、生姜皮、陈皮 与目录《小儿药证直诀》白术散只共白术、茯苓两味）。生姜、大枣不计。
- * 教材没写出处、两边是同一本书、或组成不成形无从比较时返回 undefined（不由这条判）。
+ * 教材没写出处、两边是同一本书、表里没有教材写的那本书的这首方、或组成不成形无从比较时返回 undefined（不由这条判）。
+ * 教材这张方的组成（常用药）不参与：它是加减过的，第四十三轮实测拿它比把消风散《医宗金鉴》判成了《外科正宗》消风散的同名异方。
  */
-function textbookCitedFormulaHomonymVerdict(formulaName: string, textbookRowId: string | undefined, textbookComposition: readonly string[]): boolean | undefined {
+function textbookCitedFormulaHomonymVerdict(formulaName: string, textbookRowId: string | undefined): boolean | undefined {
   const reference = formulaCompilationReferences([formulaName])[0];
   const citedBook = reference ? textbookRowFormulaBook(textbookRowId, formulaName) : undefined;
   if (!reference || !citedBook || canonicalFormulaBook(reference.source) === citedBook) return undefined;
   const cited = originalFormula(formulaName, citedBook);
-  if (cited && cited === originalFormula(formulaName, reference.source)) return false;
+  // 表里没有教材写的那本书的这首方时不判（第四十三轮）：教材这张方的组成是「常用药」（已加减过），不能当那本书的原方去比。
+  // 瘾疹·风热犯表证「消风散（《医宗金鉴》）」的常用药加了金银花、连翘、去了石膏等，与目录《外科正宗》消风散一比就成了「同名异方」，
+  // 辨证阶段于是不锁消风散，开方另起一张方、出处改署《医宗金鉴》——《医宗金鉴》消风散正是照录《外科正宗》的同一首方（甲方标准病历 9）。
+  if (!cited) return undefined;
+  if (cited === originalFormula(formulaName, reference.source)) return false;
   const adjuncts = new Set(["生姜", "大枣"].map((herb) => compositionIdentityName(herb)));
   const identitySet = (names: readonly string[]) => new Set(names.map((name) => textbookIngredientIdentity(name)).filter((id) => id && !adjuncts.has(id)));
-  const citedIds = identitySet(cited ? cited.herbs.map((item) => item.herb) : textbookComposition);
+  const citedIds = identitySet(cited.herbs.map((item) => item.herb));
   const governedIds = identitySet(reference.ingredients);
   if (citedIds.size < 2 || governedIds.size < 2) return undefined;
   const shared = [...citedIds].filter((id) => governedIds.has(id)).length;
@@ -3145,17 +3149,17 @@ function textbookCitedFormulaHomonymVerdict(formulaName: string, textbookRowId: 
  * 教材之间对同一首方的出处说法常不一致（玉屏风散《丹溪心法》/《究原方》，六君子汤《校注妇人良方》/《医学正传》，全表 675 处、
  * 同名异方只有 16 处）：组成对得上的不算两首方，身份仍按目录条目的书——系统给开方模型的编译基准就是那一条。
  */
-function textbookCitedBookGoverningIdentity(formulaName: string, textbookRowId: string | undefined, textbookComposition: readonly string[] = []): string | undefined {
+function textbookCitedBookGoverningIdentity(formulaName: string, textbookRowId: string | undefined): string | undefined {
   const cited = textbookRowFormulaBook(textbookRowId, formulaName);
   if (!cited) return undefined;
   const reference = formulaCompilationReferences([formulaName])[0];
   if (!reference || canonicalFormulaBook(reference.source) === cited) return cited;
-  return textbookCitedFormulaHomonymVerdict(formulaName, textbookRowId, textbookComposition) === true ? cited : undefined;
+  return textbookCitedFormulaHomonymVerdict(formulaName, textbookRowId) === true ? cited : undefined;
 }
 
 /** 锁定时用：教材行写的出处与目录同名条目不是同一本书、且组成对不上（同名异方）。 */
-export function textbookCitedFormulaIsGovernedHomonym(formulaName: string, textbookRowId: string | undefined, textbookComposition: readonly string[]): boolean {
-  return textbookCitedFormulaHomonymVerdict(formulaName, textbookRowId, textbookComposition) === true;
+export function textbookCitedFormulaIsGovernedHomonym(formulaName: string, textbookRowId: string | undefined): boolean {
+  return textbookCitedFormulaHomonymVerdict(formulaName, textbookRowId) === true;
 }
 
 /**
@@ -3168,7 +3172,7 @@ export function textbookFormulaGovernedEntryIsHomonym(
   options: { compositionIsUnion?: boolean; textbookRowId?: string } = {},
 ): boolean {
   const reference = formulaCompilationReferences([formulaName])[0];
-  const byCitedBook = textbookCitedFormulaHomonymVerdict(formulaName, options.textbookRowId, options.compositionIsUnion ? [] : textbookComposition);
+  const byCitedBook = textbookCitedFormulaHomonymVerdict(formulaName, options.textbookRowId);
   if (byCitedBook !== undefined) return byCitedBook;
   if (!reference || options.compositionIsUnion) return false;
   const wanted = new Set(textbookComposition.map(textbookIngredientIdentity).filter(Boolean));

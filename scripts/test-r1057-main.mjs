@@ -132,7 +132,7 @@ await check("2.4 白术散：教材署《全生指迷方》，目录同名条目
   const rowId = "fuke|子肿|脾虚证";
   const textbookHerbs = ["白术", "茯苓", "大腹皮", "生姜皮", "陈皮"];
   assert.equal(original.textbookRowFormulaBook(rowId, "白术散"), "全生指迷方");
-  assert.equal(provenance.textbookCitedFormulaIsGovernedHomonym("白术散", rowId, textbookHerbs), true);
+  assert.equal(provenance.textbookCitedFormulaIsGovernedHomonym("白术散", rowId), true);
   assert.equal(provenance.textbookFormulaGovernedEntryIsHomonym("白术散", textbookHerbs, { textbookRowId: rowId }), true);
   assert.equal(provenance.textbookFormulaOriginalSource("白术散", textbookHerbs, { textbookRowId: rowId }), "《全生指迷方》");
   const entry = provenance.originalFormulaFor("白术散", { textbookRowId: rowId });
@@ -149,7 +149,7 @@ await check("2.4 白术散：教材署《全生指迷方》，目录同名条目
   assert.match(context, /白术散（《全生指迷方》）原方：/u);
   assert.match(context, /教材常用药/u);
   // 对照：同一本书的条目不算同名异方（六味地黄丸《小儿药证直诀》）。
-  assert.equal(provenance.textbookCitedFormulaIsGovernedHomonym("六味地黄丸", undefined, ["熟地黄", "山茱萸", "山药", "泽泻", "牡丹皮", "茯苓"]), false);
+  assert.equal(provenance.textbookCitedFormulaIsGovernedHomonym("六味地黄丸", undefined), false);
 });
 
 // ───── 3 只读这张表 ─────
@@ -314,7 +314,7 @@ await check("7.3 教材行署的书与目录条目不是同一本书、组成对
   assert.equal(entry?.book, "医方集解");
   const herbs = ["龙胆", "黄芩", "栀子", "泽泻", "车前子", "川木通", "生地黄", "当归", "柴胡", "甘草"];
   assert.equal(surface.candidateIsOriginalFormula("龙胆泻肝汤", H(herbs), { textbookRowId: rowId }), true);
-  assert.equal(provenance.textbookCitedFormulaIsGovernedHomonym("龙胆泻肝汤", rowId, []), false);
+  assert.equal(provenance.textbookCitedFormulaIsGovernedHomonym("龙胆泻肝汤", rowId), false);
   // 显式给了书的仍只认那本书。
   assert.equal(provenance.originalFormulaFor("龙胆泻肝汤", { book: "《兰室秘藏》" })?.book, "兰室秘藏");
 });
