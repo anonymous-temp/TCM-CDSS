@@ -13,6 +13,8 @@ src = json.load(open(D + 'tcm-formula-original-compositions.source.json'))
 SUBST = {s['original']: s['substitutes'][0] for s in src.get('substitutions', [])}
 TOXIC_DEFAULT = {'半夏': '法半夏', '附子': '附片', '川乌': '制川乌', '草乌': '制草乌', '天南星': '制天南星', '白附子': '制白附子'}
 HEAD = {e['id']: e for e in json.load(open(W + 'catalog-head.json'))['entries']}
+PREPARED_NAME = re.compile(r'^(?:炒|炙|煅|酒|盐|醋|姜|制|焦|麸|土|蜜|煨|燀|烫|炮|生|熟)|(?:片|粉|炭|霜)$')
+EQUIV = [set(g) for g in src.get('equivalentHerbNames', [])]
 ADJ = {(a['formulaName'], a['rawIngredient']): a['resolvedIngredient'] for a in json.load(open(D + 'tcm-formula-ingredient-identity-adjudications.source.json'))['entries']}
 rows = {}
 for r in src['rows']:
@@ -62,6 +64,13 @@ def write_collation():
             w = it.get('written') or ''
             if len(w) >= 2 and w in old_ing and w not in ing and it['herb'] in ing and old_links.get(w) == it['herb']:
                 ing[ing.index(it['herb'])] = w
+        # 旧目录用的是原方表登记的同药异写（荆芥—荆芥穗）：沿用旧写法（方的编译基准、锚点与既有处方都按旧写法认）。
+        for it in row['ingredients']:
+            h = it['herb']
+            if h not in ing: continue
+            grp = next((g for g in EQUIV if h in g), None)
+            kept = next((o for o in old_ing if grp and o in grp and o != h and o not in ing and not PREPARED_NAME.match(o)), None)   # 调剂炮制品名（炒僵蚕）不沿用
+            if kept: ing[ing.index(h)] = kept
         # 旧目录把原书的药引（生姜、大枣、薄荷…）列在组成里的，订正后照旧列在最后：目录组成是编译基准，药引仍要让开方模型看到；
         # 对账不计药引位置。
         for g in row.get('guideHerbs') or []:

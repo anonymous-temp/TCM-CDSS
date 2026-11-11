@@ -312,7 +312,7 @@ export type OriginalFormulaContext = { book?: string | null; textbookRowId?: str
 export function originalFormulaFor(name: string, context: OriginalFormulaContext = {}): OriginalFormula | undefined {
   const base = String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
   if (!base) return undefined;
-  const cited = canonicalFormulaBook(context.book) || textbookRowFormulaBook(context.textbookRowId, base);
+  const cited = canonicalFormulaBook(context.book) || textbookCitedBookGoverningIdentity(base, context.textbookRowId);
   if (cited) return originalFormula(base, cited);
   const governed = governedFormulaCompilationRow(base);
   if (governed?.source) return originalFormula(base, governed.source);
@@ -3058,7 +3058,7 @@ export function textbookFormulaOriginalSource(
   if (!normalized) return undefined;
   // 方的身份是方名加出处：教材这一行自己写了这首方的出处（「白术散（《全生指迷方》）」）时就是那本书，不再按组成去别的书里找同名方
   //（第四十二轮：此前只按方名找到《小儿药证直诀》白术散，两方共两味就算「相合」）。
-  const citedBook = textbookRowFormulaBook(options.textbookRowId, normalized);
+  const citedBook = textbookCitedBookGoverningIdentity(normalized, options.textbookRowId, options.compositionIsUnion ? [] : textbookComposition);
   if (citedBook) {
     // 同一本书在目录或名录里有带卷次的写法（《金匮翼》卷五）时沿用它，否则只写书名。
     const specific = [
@@ -3138,6 +3138,19 @@ function textbookCitedFormulaHomonymVerdict(formulaName: string, textbookRowId: 
   if (citedIds.size < 2 || governedIds.size < 2) return undefined;
   const shared = [...citedIds].filter((id) => governedIds.has(id)).length;
   return shared < Math.ceil(0.6 * Math.min(citedIds.size, governedIds.size));
+}
+
+/**
+ * 教材行写的出处什么时候决定这首方的身份：目录没有这首方，或目录同名条目与它是同一本书，或是另一本书的同名异方（白术散）。
+ * 教材之间对同一首方的出处说法常不一致（玉屏风散《丹溪心法》/《究原方》，六君子汤《校注妇人良方》/《医学正传》，全表 675 处、
+ * 同名异方只有 16 处）：组成对得上的不算两首方，身份仍按目录条目的书——系统给开方模型的编译基准就是那一条。
+ */
+function textbookCitedBookGoverningIdentity(formulaName: string, textbookRowId: string | undefined, textbookComposition: readonly string[] = []): string | undefined {
+  const cited = textbookRowFormulaBook(textbookRowId, formulaName);
+  if (!cited) return undefined;
+  const reference = formulaCompilationReferences([formulaName])[0];
+  if (!reference || canonicalFormulaBook(reference.source) === cited) return cited;
+  return textbookCitedFormulaHomonymVerdict(formulaName, textbookRowId, textbookComposition) === true ? cited : undefined;
 }
 
 /** 锁定时用：教材行写的出处与目录同名条目不是同一本书、且组成对不上（同名异方）。 */

@@ -371,13 +371,17 @@ await check("8.4 反证：主治法本身是攻下时仍走攻下档；补益档
 
 // ── 9 方名反查 / 出处 ──────────────────────────────────────────────────────
 const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
-await check("9.1 反查命名只用常用层：0070 的十味组成不再被冷僻的益气培元饮（目录只录6味）冠名「加味」，改回六味地黄丸加味；关闭分层开关则复现旧行为（反证）", async () => {
+await check("9.1 反查命名只用常用层：0070 的十味组成不被冷僻的益气培元饮冠名「加味」，是六味地黄丸加味；关闭分层开关则冷僻方能被认出（反证）", async () => {
   const herbs = ["熟地黄", "杜仲", "牡丹皮", "茯苓", "山药", "泽泻", "山茱萸", "续断", "枸杞子", "菟丝子"].map((name) => ({ name }));
   const tiered = provenance.identifyGovernedFormulaByComposition(herbs);
   assert.match(tiered?.displayName || "", /六味地黄丸/, `常用层内命名：${tiered?.displayName}`);
+  // 反证（第四十二轮改写）：当初 0070 被冠名，是因为目录里益气培元饮只录了前 6 味；这条目录已按《古方汇精》原文补全为十二味，
+  // 0070 的十味不再是它的「加味」。分层开关仍要证明抓得住：拿它的十二味原方来认——常用层内不冠这个冷僻方名，关掉分层就认成它。
+  const obscure = ["熟地黄", "杜仲", "牡丹皮", "茯苓", "山药", "泽泻", "柴胡", "当归", "山茱萸", "枸杞子", "白芍", "甘草"].map((name) => ({ name }));
+  assert.doesNotMatch(provenance.identifyGovernedFormulaByComposition(obscure)?.displayName || "", /益气培元饮/, "常用层内不冠冷僻方名");
   await withEnv("CDSS_FORMULA_LOCK_TIER", "false", () => {
-    const untiered = provenance.identifyGovernedFormulaByComposition(herbs);
-    assert.match(untiered?.displayName || "", /益气培元饮/, `旧行为应复现（证明断言抓得住）：${untiered?.displayName}`);
+    const untiered = provenance.identifyGovernedFormulaByComposition(obscure);
+    assert.match(untiered?.displayName || "", /益气培元饮/, `关闭分层应认成冷僻方（证明断言抓得住）：${untiered?.displayName}`);
   });
 });
 
