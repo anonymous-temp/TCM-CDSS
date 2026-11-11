@@ -82,9 +82,12 @@ await check("1.2 生成物与输入逐行对应（行数、药味、药引）；
     assert.deepEqual(entry.herbs.map((item) => item.herb), row.ingredients.map((item) => item.herb), row.name);
     assert.deepEqual(entry.guides, (row.guideHerbs || []).map((item) => item.herb), row.name);
   });
+  const tiers = new Set(["original_text", "national_catalog", "fangjixue", "textbook_appendix", "modern_source"]);
   for (const entry of table.entries) {
     assert.ok(!/SZJG|中药方剂编码规则|深圳/u.test(entry.book), `深圳标准不是原方出处：${entry.name}`);
+    assert.ok(tiers.has(entry.tier), `来源层级只有五种，深圳标准与教材常用药不在其中：${entry.name} ${entry.tier}`);
   }
+  for (const row of source.rows) assert.ok(tiers.has(row.tier), `${row.name} ${row.tier}`);
   assert.ok(table.entries.length >= 2300, `表行数 ${table.entries.length}`);
 });
 
@@ -96,6 +99,7 @@ await check("2.1 人参养荣汤：照抄深圳标准的组成（枸杞子、首
   assert.equal(surface.candidateIsOriginalFormula("人参养荣汤", H(jufang)), true);
   assert.equal(surface.candidateIsOriginalFormula("人参养荣汤", H([...jufang, "生姜", "大枣"])), true, "药引列进药味表仍是原方");
   assert.equal(surface.candidateIsOriginalFormula("人参养荣汤", H([...jufang, "枸杞子"])), false, "多出原方没有的药不是原方");
+  assert.equal(surface.candidateIsOriginalFormula("人参养荣汤", H(jufang.filter((name) => name !== "肉桂"))), false, "少了原方的肉桂（没有多出别的药）也不是原方");
   assert.match(surface.omittedGuideHerbNote("人参养荣汤", H(jufang)) || "", /生姜、大枣/u);
   const entry = original.originalFormula("人参养荣汤", "《太平惠民和剂局方》");
   assert.ok(entry && entry.herbs.some((item) => item.herb === "肉桂" && item.written === "桂心"));
@@ -234,6 +238,8 @@ await check("6.1 开方提示词的方剂目录编译基准只写基础药名与
   assert.ok(names.includes("天麻") && names.includes("石决明") && names.includes("黄芩"), names.join("、"));
   // 有毒的药不按原书改回生品名。
   assert.equal(display.dispensingBaseName("制川乌"), "制川乌");
+  // 目录写炮制规格、正名是生品名的有毒药（炮附片/黑顺片→附子，制白附子→白附子，醋甘遂→甘遂）：不换。
+  for (const name of ["炮附片", "黑顺片", "制白附子", "醋甘遂", "制马钱子"]) assert.equal(display.dispensingBaseName(name), name, name);
   assert.equal(display.dispensingBaseName("姜半夏"), "姜半夏");
   assert.equal(display.dispensingBaseName("熟地黄"), "熟地黄");
   assert.equal(display.dispensingBaseName("黄芩片"), "黄芩");
@@ -295,6 +301,22 @@ await check("7.2 给了出处就只认那本书：别的书的同名方不借；
   assert.ok(qian.herbs.some((item) => item.herb === "人参") && zhimi.herbs.some((item) => item.herb === "大腹皮"));
   // 受治理目录的白术散是钱乙方：不给上下文时按目录条目的出处取。
   assert.equal(provenance.originalFormulaFor("白术散"), qian);
+  // 不给出处、表里几本书都有这个方名：不猜。
+  assert.ok(new Set(original.originalFormulasNamed("白术散").map((entry) => entry.book)).size >= 2);
+  assert.equal(original.originalFormula("白术散"), undefined);
+});
+
+await check("7.3 教材行署的书与目录条目不是同一本书、组成对得上（同一首方的不同出处说法）：身份仍按目录条目的书，不因教材署名改判加减", () => {
+  // 外科湿疮·湿热蕴肤证的教材行给龙胆泻肝汤署《兰室秘藏》（七味），目录条目是《医方集解》（十味）：不是同名异方。
+  const rowId = "waike|湿疮|湿热蕴肤证";
+  assert.equal(original.textbookRowFormulaBook(rowId, "龙胆泻肝汤"), "兰室秘藏");
+  const entry = provenance.originalFormulaFor("龙胆泻肝汤", { textbookRowId: rowId });
+  assert.equal(entry?.book, "医方集解");
+  const herbs = ["龙胆", "黄芩", "栀子", "泽泻", "车前子", "川木通", "生地黄", "当归", "柴胡", "甘草"];
+  assert.equal(surface.candidateIsOriginalFormula("龙胆泻肝汤", H(herbs), { textbookRowId: rowId }), true);
+  assert.equal(provenance.textbookCitedFormulaIsGovernedHomonym("龙胆泻肝汤", rowId, []), false);
+  // 显式给了书的仍只认那本书。
+  assert.equal(provenance.originalFormulaFor("龙胆泻肝汤", { book: "《兰室秘藏》" })?.book, "兰室秘藏");
 });
 
 console.log(JSON.stringify({ suite: "r1057-main", failures }));

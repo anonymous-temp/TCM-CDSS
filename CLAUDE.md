@@ -3151,7 +3151,7 @@ The round-41 review left four root causes; the team took the others (r1056, on m
 - **Homonyms are not locked.** When the textbook row cites a book other than the governed entry's and the two share under 60% of the smaller composition, the governed entry is not locked in M03 (`textbookCitedFormulaIsGovernedHomonym`), the 出处 is the cited book, and M04 gets that book's original in `buildTextbookFormulaContext` next to 「教材常用药」.
 - **Herb comparison for 「原方」 and reconciliation only** (`originalHerbMatches`, never for dose or safety): same identity, registered equivalent writing, an undivided ancient name vs one of its varieties (芍药—白芍), a one-character origin prefix or form suffix (木通—川木通, 滑石—滑石粉). 白芍 vs 赤芍 and 苍术 vs 白术 are different.
 - **Delivered original preparations are unchanged in scope**: 甘草炙, 黄芪炙, 酸枣仁炒 and what the national classic catalog writes; 「酒洗」 and other ancient preparations are recorded but not delivered. A catalog dispensing name is not an original preparation (天麻钩藤饮 no longer yields 煅石决明/盐杜仲; 四妙丸 盐黄柏 only by the r1056 purpose rule). Formula names that start with a herb name are protected from herb renames (龙胆泻肝汤).
-- **What the model sees** (`formula-baseline-display.ts`): the M04 compilation baseline, the M03 recall card, the deterministic fallback and `compositionLogic` (M04 prompt, prescription JSON, HIS) print base herb names plus original preparations. Toxic herbs keep their processed catalog name (姜半夏, 制川乌). `test:r1057-main` 6.1 found the `compositionLogic` leak (「组成：姜天麻…煅石决明」).
+- **What the model sees** (`formula-baseline-display.ts`): the M04 compilation baseline, the M03 recall card, the deterministic fallback and `compositionLogic` (M04 prompt, prescription JSON, HIS) print base herb names plus original preparations. Toxic herbs keep their processed catalog name (姜半夏, 制川乌, 炮附片, 制白附子, 醋甘遂): a counter-proof showed the first guard compared toxicity labels only, so 炮附片/黑顺片 were shown to the model as 附子. `test:r1057-main` 6.1 found the `compositionLogic` leak (「组成：姜天麻…煅石决明」).
 
 **Catalog × table reconciliation** (`formula-original-reconciliation.ts`, `npm run report:formula-original-reconciliation`). 2,896 governed entries have an original of the same name and book. Every difference was judged against the original text (decision briefs in `scripts/formula-original/`; common-tier formulas reviewed separately with the original, the 《方剂学》 reading and the old entry side by side):
 - **459 catalog entries corrected** through the collation channel (`ADJ-ORIG-20261110`): 416 project-supplement entries (many had compositions cut off at 7–9 herbs), 42 Shenzhen-standard entries (人参养荣汤, 艾附暖宫丸, 附子理中汤, 四七汤, 加味五苓散, 胃苓汤…), 1 national-catalog entry. Collation keeps the catalog's existing same-drug spellings (银翘散 stays 荆芥; 荆芥/荆芥穗 are registered as one drug) and guide herbs, keeps processed names for toxic herbs, and leaves ambiguous ancient names that have a per-formula variety adjudication (芍药) to that table. 抵圣丸's 出处 was wrong, not its composition (《博济方》 → 《三因方》).
@@ -3166,11 +3166,14 @@ The round-41 review left four root causes; the team took the others (r1056, on m
 - Older fixtures that rested on truncated catalog entries were rewritten, not the code: `test:eval924-remediation` 9.1 (益气培元饮 was 6 of 12 herbs), `test:formula-traceability` (调经方 was 3 of 7), `test:r1019-round4-formula` 4.3's premise (四七汤《局方》 is now the real 四七汤).
 - The edit-claim base counts a decoction's original guide herbs (四七汤 「加生姜、大枣」 is not an addition); pills do not (十全大补丸).
 
+**Verified.** `verify:release` green on the merged tree (307 suites + the fresh-artifact suites). Counter-proofs: 32 mutations in `~/runlogs/r1018/work/r1057/cp/cp.py`, all caught; five were missed on the first pass (one was the toxic-name guard above, the others got an isolating assertion). The affected older suites were rerun one by one before the full gate, because the gate is fail-fast.
+
 **Left as is.**
 - 49 (name, book) targets with no findable original text; the catalog entries stay, without 「原方」.
 - 人参养荣汤 and 人参养营汤 remain two catalog entries; the table merges the two writings.
 - A handful of textbook-appendix and modern-source rows rest on one web transcription (`tier` says so).
-- Not measured on live generation: this round changed data and deterministic readers; no model-facing run was made beyond the prompt-content tests.
+- Not measured on live generation: this round changed data and deterministic readers; no model-facing run was made beyond the prompt-content tests. The first deploy of this branch should be followed by the customer-10 and new40 runs, since 459 compile baselines and what M04 sees as the baseline changed.
+- 朱茯神 with no table entry for the formula is shown as 茯苓 (the herb identity table maps it there); with a table entry it is 茯神 (天麻钩藤饮).
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 

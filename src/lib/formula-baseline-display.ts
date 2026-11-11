@@ -22,11 +22,12 @@ export function dispensingBaseName(raw: string): string {
   const canonical = String(resolution.doseCanonicalName || resolution.canonicalName || "").replace(/[（(][^）)]*[）)]/gu, "").trim();
   if (!canonical || canonical === name) return name;
   if (!isKnownTcmHerbName(canonical)) return name;
-  // 换名不得丢掉剂量边界与毒性提示：原名有药典用量而正名没有、或两者毒性标注不同的，不换。
+  // 有毒的药不换：目录写的是炮制规格（炮附片、黑顺片、制白附子、醋甘遂、制马钱子），换成正名就成了生品名。
+  if (getTcmHerbGenerationSafetyProfile(name).isToxic || getTcmHerbGenerationSafetyProfile(canonical).isToxic) return name;
+  // 换名不得丢掉剂量边界：原名有药典用量而正名没有的，不换。
   const rawLimit = getTcmHerbDoseLimit(name);
   const baseLimit = getTcmHerbDoseLimit(canonical);
   if (rawLimit && !baseLimit) return name;
-  if (getTcmHerbGenerationSafetyProfile(name).isToxic !== getTcmHerbGenerationSafetyProfile(canonical).isToxic) return name;
   return canonical;
 }
 
