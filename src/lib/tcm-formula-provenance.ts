@@ -312,7 +312,7 @@ export type OriginalFormulaContext = { book?: string | null; textbookRowId?: str
 export function originalFormulaFor(name: string, context: OriginalFormulaContext = {}): OriginalFormula | undefined {
   const base = String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
   if (!base) return undefined;
-  const cited = canonicalFormulaBook(context.book) || textbookCitedBookGoverningIdentity(base, context.textbookRowId);
+  const cited = canonicalFormulaBook(context.book) || textbookCitedBookGoverningIdentity(base, context.textbookRowId ?? undefined);
   if (cited) return originalFormula(base, cited);
   const governed = governedFormulaCompilationRow(base);
   if (governed?.source) return originalFormula(base, governed.source);
