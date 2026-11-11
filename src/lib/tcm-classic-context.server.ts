@@ -1,6 +1,6 @@
 import { classicEvidenceForFormulaNames } from "./tcm-classic-evidence.server";
+import { compositionLogicWithBaselineNames } from "./formula-baseline-display";
 import {
-  compositionLogicForFormulaNames,
   formulaDiscriminationPaths,
   textualModificationsForFormulaNames,
 } from "./tcm-classic-inference";
@@ -14,7 +14,7 @@ export function buildM04ClassicSafetyContext(
 ): string {
   const paths = formulaDiscriminationPaths(formulaNames, clinicalText);
   const evidence = classicEvidenceForFormulaNames(formulaNames);
-  const composition = compositionLogicForFormulaNames(formulaNames);
+  const composition = compositionLogicWithBaselineNames(formulaNames);
   const modifications = textualModificationsForFormulaNames(formulaNames, clinicalText);
   const issues = formulaContraindicationIssues(formulaNames, clinicalText);
   if (

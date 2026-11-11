@@ -16,18 +16,6 @@ export function formulaTextbookCommentary(name: string): string | undefined {
   return entry?.commentary ? commentaryBody(entry.commentary) : undefined;
 }
 
-/**
- * 《方剂学》方解写明煎时加的姜枣（「引用生姜、大枣」「煎加姜、枣」「煎服时，少加生姜、大枣」）。这些方的药味表里没有姜枣，
- * 目录组成也没有（归脾汤十味），原方的用法却是「加姜、枣，水煎服」（甲方 10.29 测评）。
- */
-export function formulaGuideHerbsFromCommentary(name: string): string[] {
-  const base = String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
-  const text = COMMENTARIES[base]?.commentary || "";
-  const hit = text.match(/(?:引用|煎加|煎时加|少加)\s*(生姜、大枣|生姜|大枣|姜、枣|姜枣)/u)?.[1];
-  if (!hit) return [];
-  return /[、枣]/u.test(hit) && /姜/u.test(hit) ? ["生姜", "大枣"] : [hit];
-}
-
 /** M04 提示词里的【方解依据】：至多两张方。查不到时返回空串。 */
 export function formulaCommentaryPromptBlock(names: readonly string[]): string {
   const lines = [...new Set(names.map((name) => String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "")).filter(Boolean))]

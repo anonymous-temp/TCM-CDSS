@@ -17,17 +17,17 @@
  */
 
 import { RED_FLAG_SAFETY_NET_VISIT } from "./diagnosis-visible-summary";
-import { formulaGuideHerbsFromCommentary, formulaTextbookCommentary } from "./formula-textbook-commentary";
+import { formulaTextbookCommentary } from "./formula-textbook-commentary";
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
-import { compositionIdentityName, formulaOriginalText, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource } from "./tcm-formula-provenance";
+import { compositionIdentityName, originalFormulaFor, originalHerbMatches, originalHerbSatisfiedBy, formulaManualDoseIngredients, type OriginalFormulaContext, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { drugNamesInAllergyPhrases } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
-import { diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookFormulaComposition, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
+import { diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
@@ -689,39 +689,53 @@ const PLACEHOLDER_WESTERN_NAME = /^(?:当前未形成可复核的西医工作诊
  *（「功能性消化不良，病因待查」自相矛盾：既已定病，又说病因待查）。
  */
 /**
- * 不带「加减」的单方名，处方是不是原方：组成身份与方剂目录（编译目录）该方的组成逐味相同（生姜、大枣两味不计）。
- * 带后缀、合方、自拟方或目录查不到组成的返回 undefined（不判）。
+ * 不带「加减」的单方名，处方是不是原方：组成身份与**原方组成表**里这首方（方名+出处）的药味逐味相同。
+ * 带后缀、合方、自拟方、或表里没有这首方的返回 undefined（不判，也就不写「原方」）。
+ *
+ * 只读原方组成表（第四十二轮，根因一）：此前比的是受治理目录的组成，查不到再用教材行的组成——目录里 545 条是深圳调剂标准
+ *（人参养荣汤被改成含枸杞子、首乌藤而无肉桂），教材行的组成是「常用药」（柴胡葛根汤教材十一味，《外科正宗》原方十味），
+ * 处方照抄了它们就被判成「原方」。
+ *  · 原方药味表里的生姜、大枣本方没列仍算原方（用法里另有一句说明）；原方煎服法里的药引本方列不列都算；
+ *  · 本方多出原方药味、药引里都没有的药不算原方（荆防败毒散原书无生姜、薄荷，处方列了就不是原方）；
+ *  · 原方里系统不编用量的药（朱砂、铅丹一类，另有「原方中的X毒性较大，本方未用」一句）与法定替代（犀角用水牛角）不影响判断。
  */
-export function candidateIsOriginalFormula(name: string, herbs: readonly Record<string, unknown>[]): boolean | undefined {
+export function candidateIsOriginalFormula(name: string, herbs: readonly Record<string, unknown>[], context: OriginalFormulaContext = {}): boolean | undefined {
   const trimmed = String(name || "").trim();
   if (!trimmed || /(?:加减|化裁|加味)$/u.test(trimmed) || /合/u.test(trimmed) || SELF_COMPOSED_NAME.test(trimmed) || trimmed === "自拟方") return undefined;
-  const reference = formulaCompilationReferences([trimmed])[0];
-  const guides = new Set(["生姜", "大枣"].map((herb) => compositionIdentityName(herb)));
-  // 目录查不到组成（同名方多个出处锁不住）时用教材这张方的组成。
-  const listed = reference?.ingredients?.length ? reference.ingredients : textbookFormulaComposition(trimmed);
-  const listedIds = new Set(listed.map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, ""))).filter(Boolean));
-  // 原方列了生姜、大枣作引、本方没列，仍算原方（用法里另有「原方以生姜、大枣为引」一句）；本方多出原方没有的生姜、大枣不算原方
-  //（2026-11-08 第三十七轮，甲方 11.05 病历1：荆防败毒散原书无生姜、薄荷，处方列了却写「本方用荆防败毒散原方」）。
-  const ingredients = new Set([...listedIds].filter((id) => !guides.has(id)));
-  if (ingredients.size === 0) return undefined;
-  const present = new Set(herbs.map((herb) => compositionIdentityName(String(herb.name || ""))).filter((id) => id && !(guides.has(id) && listedIds.has(id))));
-  return present.size === ingredients.size && [...ingredients].every((id) => present.has(id));
+  const entry = originalFormulaFor(trimmed, context);
+  if (!entry) return undefined;
+  const isAdjunct = (herb: string) => ["生姜", "大枣"].some((adjunct) => originalHerbMatches(adjunct, herb));
+  const withheld = formulaManualDoseIngredients(trimmed);
+  const present = [...new Set(herbs.map((herb) => String(herb.name || "").trim()).filter(Boolean))];
+  const base = entry.herbs.map((item) => item.herb);
+  // 正文组成，以及原书自注、通行本的异文（各算一种原方写法）。
+  const readings = [base, ...(entry.alternates || []).map((alternate) => [...base.filter((herb) => !alternate.remove.includes(herb)), ...alternate.add])];
+  if (base.filter((herb) => !isAdjunct(herb) && !withheld.some((name) => originalHerbMatches(herb, name))).length === 0) return undefined;
+  return readings.some((reading) => {
+    const required = reading.filter((herb) => !isAdjunct(herb) && !withheld.some((name) => originalHerbMatches(herb, name)));
+    if (!required.every((herb) => present.some((name) => originalHerbSatisfiedBy(herb, name)))) return false;
+    return present.every((name) => [...reading, ...entry.guides].some((herb) => originalHerbSatisfiedBy(herb, name)));
+  });
 }
 
 const SAME_SOURCE_HERB_GROUPS = (sameSourceHerbs as { groups: ReadonlyArray<{ herbs: string[] }> }).groups;
 
-/** 目录原方有生姜、大枣作引而本方没有列：写进用法的一句（重复调用不再追加，由调用处判断）。 */
-export function omittedGuideHerbNote(name: unknown, herbs: readonly Record<string, unknown>[]): string | undefined {
+/**
+ * 原方有生姜、大枣（药味表里列的，或煎服法里作引的）而本方没有列：写进用法的一句（重复调用不再追加，由调用处判断）。
+ * 只读原方组成表（第四十二轮）：此前把受治理目录组成、《方剂学》方解、original-text 表三处按方名并起来，书不同也并
+ *（人参养荣汤的《局方》药引被接在深圳标准的组成后面）。表里没有这首方时不写。
+ */
+export function omittedGuideHerbNote(name: unknown, herbs: readonly Record<string, unknown>[], context: OriginalFormulaContext = {}): string | undefined {
   const trimmed = String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
   if (!trimmed || /合/u.test(trimmed) || SELF_COMPOSED_NAME.test(trimmed) || trimmed === "自拟方") return undefined;
-  const ingredients = (formulaCompilationReferences([trimmed])[0]?.ingredients || []).map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, "")));
-  const present = new Set(herbs.map((herb) => compositionIdentityName(String(herb.name || ""))));
-  // 原书煎服法写的姜枣药引也算（「生姜五片，枣子一枚」，tcm-formula-original-text.json；第四十一轮：实脾饮、异功散的原方都有姜枣，
-  // 目录组成与教材方解都没写，用法里没有提）。
-  const guides = [...new Set([...formulaGuideHerbsFromCommentary(trimmed), ...(formulaOriginalText(trimmed)?.guideHerbs || [])])];
+  const entry = originalFormulaFor(trimmed, context);
+  if (!entry) return undefined;
+  const present = herbs.map((herb) => String(herb.name || "").trim()).filter(Boolean);
+  const listed = [...entry.herbs.map((item) => item.herb), ...entry.guides];
   // 方里已有同源的干姜时不再提生姜（黄芪建中汤：生姜刚因与干姜同源去掉，用法里又说「可酌加」就自相矛盾）。
-  const sameSourcePresent = (herb: string) => SAME_SOURCE_HERB_GROUPS.some((group) => group.herbs.includes(herb) && group.herbs.some((other) => other !== herb && present.has(compositionIdentityName(other))));
-  const omitted = ["生姜", "大枣"].filter((herb) => (ingredients.includes(compositionIdentityName(herb)) || guides.includes(herb)) && !present.has(compositionIdentityName(herb)) && !sameSourcePresent(herb));
+  const sameSourcePresent = (herb: string) => SAME_SOURCE_HERB_GROUPS.some((group) => group.herbs.includes(herb) && group.herbs.some((other) => other !== herb && present.some((name) => originalHerbMatches(other, name))));
+  const omitted = ["生姜", "大枣"].filter((herb) =>
+    listed.some((name) => originalHerbMatches(herb, name)) && !present.some((name) => originalHerbMatches(herb, name)) && !sameSourcePresent(herb));
   return omitted.length > 0 ? `原方以${omitted.join("、")}为引，煎时可酌加` : undefined;
 }
 
@@ -1117,7 +1131,7 @@ export function processedNameFromColumn(name: string, processing: string): strin
  *（命名方原文的炮制优先，其次《中药炮制学》按病历与这味药在方中的功用选）。加减行另看所引教材条目原文写的炮制（「加…煅龙骨、煅牡蛎」）。
  * 方义、煎服法、注意事项、加减理由里的生品名同步换掉。改出来的名字都是知识库认得、剂量边界不变的饮片名。
  */
-function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurfaceOptions): void {
+function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurfaceOptions, originalContext: OriginalFormulaContext = {}): void {
   const formula = record(reasoning.formula);
   const recordText = options?.recordText || "";
   const renames = new Map<string, string>();
@@ -1151,6 +1165,7 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
         purposeText: [herb.function, herb.prescriptionRole, herb.targetPathogenesis].filter((item) => typeof item === "string").join("；"),
         recordText,
         formulaName,
+        formulaContext: originalContext,
       }));
     }
   }
@@ -1258,10 +1273,12 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
   const formula = record(reasoning.formula);
   const priorOverview = record(reasoning.overview);
   const textbookRow = textbookRowForSyndrome(String(priorOverview?.tcmDiseaseName || ""), String(priorOverview?.primarySyndrome || ""));
+  // 方的身份是方名加出处：教材行写了代表方出处的，原方按那本书认（原方组成表）。
+  const originalContext: OriginalFormulaContext = { textbookRowId: textbookRow?.id };
   const direction = typeof priorOverview?.recommendedFormulaDirection === "string" ? priorOverview.recommendedFormulaDirection.trim() : "";
   // 炮制品写进药名（2026-11-08 第三十七轮，甲方 11.05：便溏用生白术、完带汤原方写白术山药、汗出加减用生牡蛎；面板只显示药名，
   // processing 栏它不读，「没看到白术、山药等的炮制品，是默认使用生品吗」）。见 deliveredProcessedHerbNames。
-  deliveredProcessedHerbNames(reasoning, options);
+  deliveredProcessedHerbNames(reasoning, options, originalContext);
   for (const candidate of records(formula?.candidates)) {
     // 内服方的药味功效栏不印「外用＋功效」小句（补骨脂「外用消风祛斑」，留出例 S054）：模型照抄知识库原文时也会带上。
     // 外洗、外敷、熏洗类方子不动。
@@ -1492,7 +1509,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
           const ingredients = [...new Set(reference.ingredients.map((herb) => compositionIdentityName(herb.replace(/[（(][^）)]*[）)]/g, ""))).filter(Boolean))];
           const kept = ingredients.filter((id) => present.has(id)).length;
           if (kept < Math.max(reference.minimumPreservedIngredientCount || 0, Math.ceil(ingredients.length * 0.6))) continue;
-          const original = candidateIsOriginalFormula(name, records(candidate.herbs)) === true;
+          const original = candidateIsOriginalFormula(name, records(candidate.herbs), originalContext) === true;
           candidate.name = original ? name : `${name}加减`;
           const sourceRecord = record(candidate.formulaSource);
           if (sourceRecord && reference.source) sourceRecord.source = `${name}：${reference.source}`;
@@ -1525,16 +1542,16 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       const base = candidate.name.trim().replace(/加减$/u, "");
       // 方义自己说了改动（「去原方熟地…以生地黄易之」）时不动：目录写法与教材常有出入，这时不能既说原方又说去了什么。
       const claimsEdits = typeof candidate.formulaAnalysis === "string" && /去原方|去[^，,。；;]{1,8}之|易之|以[^，,。；;]{1,6}易/u.test(candidate.formulaAnalysis);
-      if (!claimsEdits && candidateIsOriginalFormula(base, records(candidate.herbs)) === true) candidate.name = base;
+      if (!claimsEdits && candidateIsOriginalFormula(base, records(candidate.herbs), originalContext) === true) candidate.name = base;
     }
-    const original = typeof candidate.name === "string" ? candidateIsOriginalFormula(candidate.name, records(candidate.herbs)) : undefined;
+    const original = typeof candidate.name === "string" ? candidateIsOriginalFormula(candidate.name, records(candidate.herbs), originalContext) : undefined;
     if (original === false && typeof candidate.name === "string") candidate.name = `${candidate.name.trim()}加减`;
     // 方义开头与最终方名一致（自拟方 / 以某方为基础），三种写法同一个判据（withOpeningMatchingFormulaName）。
     if (typeof candidate.formulaAnalysis === "string" && typeof candidate.name === "string") {
       candidate.formulaAnalysis = withOpeningMatchingFormulaName(candidate.formulaAnalysis, candidate.name, original === true).text;
     }
     // 原方的姜枣引药（甲方 10.29 测评：归脾汤原方「加姜、枣，水煎服」，处方不便列时在用法里说明）。
-    const guideNote = omittedGuideHerbNote(candidate.name, records(candidate.herbs));
+    const guideNote = omittedGuideHerbNote(candidate.name, records(candidate.herbs), originalContext);
     const candidateDecoction = record(candidate.decoction);
     if (guideNote && candidateDecoction && typeof candidateDecoction.method === "string" && !/(?:生姜|煨姜|大枣|姜枣|姜、枣|红枣)/u.test(candidateDecoction.method)) {
       candidateDecoction.method = `${candidateDecoction.method.replace(/[。；;\s]+$/u, "")}；${guideNote}`;
@@ -2215,8 +2232,8 @@ function textbookSourceNote(row: { book: string }): string {
 }
 
 /** 教材行的组成是否几张方的并集（合方行没有分方组成）：出处按组成认方时用（textbookFormulaOriginalSource）。 */
-function textbookCompositionOptions(row: { formulas: readonly string[]; compositionByFormula?: readonly unknown[] }): { compositionIsUnion: boolean } {
-  return { compositionIsUnion: row.formulas.length > 1 && !(row.compositionByFormula?.length) };
+function textbookCompositionOptions(row: { id?: string; formulas: readonly string[]; compositionByFormula?: readonly unknown[] }): { compositionIsUnion: boolean; textbookRowId?: string } {
+  return { compositionIsUnion: row.formulas.length > 1 && !(row.compositionByFormula?.length), textbookRowId: row.id };
 }
 
 /**

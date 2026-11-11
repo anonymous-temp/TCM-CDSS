@@ -122,7 +122,12 @@ await check("2.3 方名剂型在编译目录里查不到（十全大补丸；目
   const base = provenance.formulaEditClaimBaseIngredients("十全大补丸");
   assert.ok(base.includes("黄芪") && base.includes("肉桂"), JSON.stringify(base));
   assert.ok(!base.includes("大枣"), "名录里十全大补丸各版本都没有大枣");
-  assert.deepEqual(provenance.formulaEditClaimBaseIngredients("补中益气汤"), provenance.formulaCompilationReferences(["补中益气汤"])[0].ingredients);
+  // 本就查得到的方不借别的剂型：基准是这首方自己的原方组成（原方组成表，第四十二轮）与受治理编译组成，没有别的来源的药。
+  const ownBase = provenance.formulaEditClaimBaseIngredients("补中益气汤");
+  const ownGoverned = provenance.formulaCompilationReferences(["补中益气汤"])[0].ingredients;
+  const ownOriginal = provenance.originalFormulaFor("补中益气汤").herbs.map((item) => item.herb);
+  assert.ok(ownGoverned.every((name) => ownBase.includes(name)), JSON.stringify(ownBase));
+  assert.ok(ownBase.every((name) => ownGoverned.includes(name) || ownOriginal.includes(name)), JSON.stringify(ownBase));
   const herbs = ["黄芪", "熟地黄", "人参", "白术", "当归", "白芍", "茯苓", "川芎", "炙甘草", "大枣"];
   assert.equal(edits("十全大补丸", herbs, "本方以十全大补丸为基础加减，去肉桂之温燥，加黄芪、大枣以增补气生血之力。黄芪、熟地黄为君。"),
     "本方以十全大补丸为基础加减，去肉桂之温燥，加大枣以增补气生血之力。黄芪、熟地黄为君。");

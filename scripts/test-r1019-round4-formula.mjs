@@ -140,7 +140,8 @@ await check("1.5 教材改名的两道判据各自单独成立：① 只认推�
   assert.deepEqual(project(once), once, "幂等");
   // 对照：方中有北沙参时照常改回教材代表方。
   const withGlehnia = candidateAfter(prescribeOf({ name: "自拟方", herbs: ["北沙参", "麦冬", "玉竹", "天花粉", "桑叶", "白扁豆", "甘草"], overview: cough, analysis: "本方为自拟方。麦冬、玉竹为君。" }));
-  assert.equal(withGlehnia.name, "沙参麦冬汤加减");
+  // 第四十二轮：这七味与原方组成表里《温病条辨》沙参麦冬汤逐味相同，是原方，不再带「加减」（此前目录条目扣掉了品种未定的沙参，比不出原方）。
+  assert.equal(withGlehnia.name, "沙参麦冬汤");
 });
 
 // ───── 2 方义开头与方名同一判据 ─────

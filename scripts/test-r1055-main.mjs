@@ -129,7 +129,7 @@ await check("3.2 方义里炮制栏写法的药名随药表改（酒炙黄芩→
 await check("3.3 原书炮制（归脾汤甘草炙）随方写进药名；原书未炙的（异功散）不改；原书煎服法的姜枣药引在用法里说明", () => {
   assert.equal(processing.processedHerbName("甘草", { formulaName: "归脾汤" }), "炙甘草");
   assert.equal(processing.processedHerbName("甘草", { formulaName: "异功散" }), undefined);
-  assert.deepEqual(provenance.formulaOriginalText("归脾汤").guideHerbs, ["生姜", "大枣"]);
+  assert.deepEqual(provenance.originalFormulaFor("归脾汤").guides, ["生姜", "大枣"]);
   assert.match(surface.omittedGuideHerbNote("异功散", [{ name: "人参" }, { name: "白术" }, { name: "茯苓" }, { name: "陈皮" }, { name: "甘草" }]) || "", /生姜、大枣/u);
   assert.equal(surface.omittedGuideHerbNote("四君子汤", [{ name: "人参" }, { name: "白术" }, { name: "茯苓" }, { name: "炙甘草" }]), undefined);
 });

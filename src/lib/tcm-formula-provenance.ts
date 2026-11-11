@@ -9,7 +9,6 @@ import formulaCatalogJson from "../data/tcm-formula-sources.json" with { type: "
 import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.json" with { type: "json" };
 import governedFormulaCatalogJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
 import coreHerbsJson from "../data/tcm-formula-core-herbs.json" with { type: "json" };
-import formulaOriginalTextJson from "../data/tcm-formula-original-text.json" with { type: "json" };
 import textbookFormulaSourcesJson from "../data/tcm-textbook-formula-sources.json" with { type: "json" };
 import herbSubstitutionPolicyJson from "../data/tcm-herb-identity-substitution-policy.source.json" with { type: "json" };
 import formulaRoleBindingsJson from "../data/tcm-formula-role-bindings.source.json" with { type: "json" };
@@ -20,8 +19,9 @@ import { formulaFunctionsPositivelyAligned, lineageFormulaSyndromeSupportedNames
 import { lineageAffinitiesForFormula } from "./tcm-formula-lineage-affinity";
 import { LINEAGE_LENS_SUBJECT, lineageLensSubject } from "./tcm-lineages";
 import { formulaInCommonTier, formulaLockTierEnabled } from "./tcm-formula-tier";
+import { compositionLogicWithBaselineNames } from "./formula-baseline-display";
+import { canonicalFormulaBook, originalFormula, originalHerbAcceptedSubstitutes, originalHerbNamesEquivalent, textbookRowFormulaBook, type OriginalFormula } from "./formula-original-composition";
 import {
-  compositionLogicForFormulaNames,
   formulaDiscriminationPaths,
   textualModificationsForFormulaNames,
 } from "./tcm-classic-inference";
@@ -298,49 +298,74 @@ function governedFormulaCompilationRow(value: string): GovernedFormulaCompilatio
   return candidates.length === 1 ? candidates[0] : undefined;
 }
 
-/**
- * 命名方原文写在组成里的炮制（「白术一两（土炒），山药一两（炒），白芍五钱（酒炒）」，以及构建期链接上标注的 preparation：黑芥穗→荆芥穗「炒炭」）。
- * 返回 [药味身份, 原文炮制词或原文药名]；只读受治理目录，不推断（2026-11-08 第三十七轮，甲方 11.05 完带汤写原方却用白术、山药）。
- */
-type FormulaOriginalText = { book: string; file: string; line: number; preparations: Record<string, string>; guideHerbs: string[] };
-const FORMULA_ORIGINAL_TEXT = (formulaOriginalTextJson as { formulas: Record<string, FormulaOriginalText> }).formulas;
 const TEXTBOOK_FORMULA_SOURCES = (textbookFormulaSourcesJson as { formulas: Record<string, { source: string; composition?: string[] }> }).formulas;
-/**
- * 原书写法里会随方写进药名的炮制（第四十一轮，r1054 回顾：方义称「归脾汤原方」，药味表却是甘草、酸枣仁，原书是「甘草（炙）」
- *「酸枣仁（炒，去壳）」）。只收方剂学教材也照写的几味：甘草炙、黄芪炙、酸枣仁炒；其余原书炮制（当归微炒、山药微炒）教材通行方不写，不改。
- */
-const CONVENTIONAL_ORIGINAL_PREPARATIONS: Record<string, string> = { 甘草: "炙", 黄芪: "炙", 酸枣仁: "炒" };
 
-/** 方剂原书（本地古籍语料逐字摘取，tcm-formula-original-text.json）：书名、行号、原文炮制与煎服法里的姜枣药引。 */
-export function formulaOriginalText(name: string): FormulaOriginalText | undefined {
-  const trimmed = String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
-  return trimmed ? FORMULA_ORIGINAL_TEXT[trimmed] : undefined;
+/**
+ * 这张方在「原方组成表」里的条目（第四十二轮，根因一）。方的身份是方名加出处：
+ *  · 调用方给了出处（context.book），或教材行写了这首方的出处（context.textbookRowId，「白术散（《全生指迷方》）」）：只取那本书的条目，
+ *    表里没有那本书的这首方就是没有，不借别的书的同名方（《小儿药证直诀》白术散是另一首）；
+ *  · 否则按受治理目录这个方名的条目的出处取；目录没有这个方名时，取表里这个方名唯一的一条。
+ * 「原方」措辞、加减后缀、药引、原方炮制、出处都从这里取；返回 undefined 时这几件事都不做（不写「原方」）。
+ */
+export type OriginalFormulaContext = { book?: string | null; textbookRowId?: string | null };
+
+export function originalFormulaFor(name: string, context: OriginalFormulaContext = {}): OriginalFormula | undefined {
+  const base = String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
+  if (!base) return undefined;
+  const cited = canonicalFormulaBook(context.book) || textbookRowFormulaBook(context.textbookRowId, base);
+  if (cited) return originalFormula(base, cited);
+  const governed = governedFormulaCompilationRow(base);
+  if (governed?.source) return originalFormula(base, governed.source);
+  return originalFormula(base);
 }
 
-export function governedFormulaOriginalPreparations(name: string): Array<{ identity: string; preparation?: string; rawName?: string }> {
-  const fromOriginalText = Object.entries(formulaOriginalText(name)?.preparations || {})
-    .filter(([herb, preparation]) => CONVENTIONAL_ORIGINAL_PREPARATIONS[herb] === preparation)
-    .map(([herb, preparation]) => ({ identity: compositionIdentityName(herb) || herb, preparation }));
-  const governed = governedFormulaCompilationRow(String(name || "").trim());
-  if (!governed) return fromOriginalText;
-  const row = governed as GovernedFormulaCompilationRow & { prescriptionOriginal?: unknown; ingredientLinks?: Array<{ rawName: string; canonicalName?: string; preparation?: string }> };
-  const out: Array<{ identity: string; preparation?: string; rawName?: string }> = [];
-  const original = typeof row.prescriptionOriginal === "string" ? row.prescriptionOriginal : "";
-  for (const part of original.split(/[，,、；;。]/u)) {
-    const match = part.trim().match(/^([\u4e00-\u9fff]{1,6}?)(?:[\d.一二三四五六七八九十百半两钱分厘]+(?:两|钱|分|厘|克|g))?\s*[（(]([^）)]{1,6})[）)]/u);
-    if (!match) continue;
-    const identity = compositionIdentityName(match[1]);
-    if (identity) out.push({ identity, preparation: match[2].trim() });
+const VARIETY_PREFIX = /^[川浙怀北南淡石白赤生干鲜广杭云建绵真明金大小]/u;
+const SPECIFICATION_SUFFIX = /(?:粉|片|肉|叶)$/u;
+
+/**
+ * 原方表的一味药与目录、处方里的一味药是不是同一味（比「原方」与全表对账用，不用于剂量与安全）：
+ *  · 组成身份相同（去炮制、归一异名）；
+ *  · 一边是品种未分的古名、另一边是它的一个品种（芍药—白芍/赤芍，贝母—浙贝母/川贝母，受治理药名身份表的歧义组）；
+ *  · 只差一个产地、品种字或规格字（木通—川木通，牛膝—川牛膝，沙参—北沙参，竹叶—淡竹叶，紫苏—紫苏叶，滑石—滑石粉）；
+ *  · 原方表登记的同药异写（草决明—决明子，桂心—肉桂）。
+ * 白芍与赤芍、苍术与白术、生地黄与熟地黄不是同一味。
+ */
+export function originalHerbMatches(original: string, other: string): boolean {
+  const bare = (name: string) => normalizeHerbName(String(name || "").replace(/[（(][^）)]*[）)]/gu, ""));
+  const left = bare(original);
+  const right = bare(other);
+  if (!left || !right) return false;
+  if (left === right || compositionIdentityName(left) === compositionIdentityName(right)) return true;
+  if (originalHerbNamesEquivalent(left, right)) return true;
+  const candidatesOf = (name: string) => {
+    const resolution = resolveGovernedTcmHerbIdentity(name);
+    return resolution.status === "ambiguous" ? (resolution.candidates || []).map((candidate) => compositionIdentityName(candidate)) : [];
+  };
+  if (candidatesOf(left).includes(compositionIdentityName(right)) || candidatesOf(right).includes(compositionIdentityName(left))) return true;
+  const [longer, shorter] = left.length >= right.length ? [left, right] : [right, left];
+  if (shorter.length >= 2 && longer.length === shorter.length + 1) {
+    if (longer.endsWith(shorter) && VARIETY_PREFIX.test(longer)) return true;
+    if (longer.startsWith(shorter) && SPECIFICATION_SUFFIX.test(longer)) return true;
   }
-  for (const link of row.ingredientLinks || []) {
-    const raw = String(link.rawName || "").trim();
-    const canonical = String(link.canonicalName || "").trim();
-    if (raw && canonical && raw !== canonical && typeof link.preparation === "string" && link.preparation.trim()) {
-      out.push({ identity: compositionIdentityName(canonical), rawName: raw });
-    }
-  }
-  for (const entry of fromOriginalText) if (!out.some((item) => item.identity === entry.identity)) out.push(entry);
-  return out;
+  return false;
+}
+
+/** 处方或目录里的一味药是否满足原方的这一味：同一味，或原方表登记的法定、通行替代（犀角→水牛角）。 */
+export function originalHerbSatisfiedBy(original: string, other: string): boolean {
+  return originalHerbMatches(original, other) || originalHerbAcceptedSubstitutes(original).some((substitute) => originalHerbMatches(substitute, other));
+}
+
+/**
+ * 命名方原书写明、交付时随方写进药名的炮制（完带汤「白术一两（土炒），山药一两（炒），白芍五钱（酒炒）」，归脾汤「甘草（炙）」「酸枣仁（炒）」）。
+ * 只读原方组成表（deliver=true 的那几味）。受治理目录条目的调剂品名（深圳标准的姜天麻、黄芩片、盐杜仲、朱茯神、煅石决明）不是原方炮制，
+ * 此前从目录链接字段带出来、被当成原方写进了药名（第四十二轮，根因一：天麻钩藤饮原书是「生决明」）。
+ */
+export function governedFormulaOriginalPreparations(name: string, context: OriginalFormulaContext = {}): Array<{ identity: string; preparation?: string; rawName?: string }> {
+  const entry = originalFormulaFor(name, context);
+  if (!entry) return [];
+  return entry.herbs
+    .filter((item) => item.deliver && item.preparation)
+    .map((item) => ({ identity: compositionIdentityName(item.herb), preparation: item.preparation }));
 }
 
 function cleanFormulaDisplayName(value: string): string {
@@ -1673,7 +1698,16 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     const direction = caseSafety && directionBarredForCase(preferred, reasoning, caseSafety) ? "按已锁定病机与治法辨证组方" : preferred;
     const identifiedNames = identifyKnownFormulaNames(direction);
     const identifiedMode = formulaSelectionMode(direction, identifiedNames);
-    const identityGovernedNames = identifiedNames.filter((name) => formulaCompilationReferences([name]).length === 1);
+    // 方的身份是方名加出处（第四十二轮）：教材这一证的代表方写了出处、而目录里同名条目是另一本书的另一首方时，不按方名锁那一条
+    //（子肿·脾虚证「白术散（《全生指迷方》）」锁成了《小儿药证直诀》白术散）；方向里仍写教材方名，开方按教材写的那本书的原方组成组方。
+    const textbookRowForLock = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
+    const governedEntryIsOtherBooksHomonym = (name: string): boolean => {
+      if (!textbookRowForLock || !textbookRowForLock.formulas.includes(name)) return false;
+      const own = textbookRowForLock.formulaCompositions?.find((item) => item.formula === name)?.herbs
+        || (textbookRowForLock.formulas.length === 1 ? textbookRowForLock.composition : []);
+      return textbookCitedFormulaIsGovernedHomonym(name, textbookRowForLock.id, own);
+    };
+    const identityGovernedNames = identifiedNames.filter((name) => formulaCompilationReferences([name]).length === 1 && !governedEntryIsOtherBooksHomonym(name));
     const incompleteCombined = identifiedMode === "combined" && identityGovernedNames.length !== identifiedNames.length;
     const recommendedFormulaNames = incompleteCombined ? [] : identityGovernedNames;
     // 教材代表方在目录里锁不住（同名方多个出处、或目录未收）时，方向仍写教材方名：开方阶段按教材组成与本例病机
@@ -3018,10 +3052,14 @@ export function textbookFormulaOriginalSource(
   formulaName: string,
   textbookComposition: readonly string[],
   /** 教材行列了几张方而组成没有分方（合方行的组成是几张方的并集）：不据组成判同名异方，也不按组成在名录里找。 */
-  options: { compositionIsUnion?: boolean } = {},
+  options: { compositionIsUnion?: boolean; textbookRowId?: string } = {},
 ): string | undefined {
   const normalized = normalizeFormulaName(String(formulaName || ""));
   if (!normalized) return undefined;
+  // 方的身份是方名加出处：教材这一行自己写了这首方的出处（「白术散（《全生指迷方》）」）时就是那本书，不再按组成去别的书里找同名方
+  //（第四十二轮：此前只按方名找到《小儿药证直诀》白术散，两方共两味就算「相合」）。
+  const citedBook = textbookRowFormulaBook(options.textbookRowId, normalized);
+  if (citedBook) return `《${citedBook}》`;
   const identities = (ingredients: readonly string[]) => new Set(ingredients.map(textbookIngredientIdentity).filter(Boolean));
   const wanted = identities(textbookComposition);
   // 「相合」只用来排除同名异方（四七汤《局方》人参、官桂、半夏、甘草与教材只共一味半夏；大七气汤《三因方》半夏、茯苓、厚朴、紫苏叶
@@ -3075,15 +3113,43 @@ export function textbookFormulaOriginalSource(
 
 
 /**
+ * 教材行写了这首方的出处、且与受治理目录同名条目不是同一本书时，两者是不是同名异方（第四十二轮，方的身份 = 方名 + 出处）。
+ * 按原方组成表里教材写的那本书的组成比（表里没有时按教材这张方的组成）：共有的药不到较小一方的六成就是同名异方
+ *（《全生指迷方》白术散 白术、茯苓、大腹皮、生姜皮、陈皮 与目录《小儿药证直诀》白术散只共白术、茯苓两味）。生姜、大枣不计。
+ * 教材没写出处、两边是同一本书、或组成不成形无从比较时返回 undefined（不由这条判）。
+ */
+function textbookCitedFormulaHomonymVerdict(formulaName: string, textbookRowId: string | undefined, textbookComposition: readonly string[]): boolean | undefined {
+  const reference = formulaCompilationReferences([formulaName])[0];
+  const citedBook = reference ? textbookRowFormulaBook(textbookRowId, formulaName) : undefined;
+  if (!reference || !citedBook || canonicalFormulaBook(reference.source) === citedBook) return undefined;
+  const cited = originalFormula(formulaName, citedBook);
+  if (cited && cited === originalFormula(formulaName, reference.source)) return false;
+  const adjuncts = new Set(["生姜", "大枣"].map((herb) => compositionIdentityName(herb)));
+  const identitySet = (names: readonly string[]) => new Set(names.map((name) => textbookIngredientIdentity(name)).filter((id) => id && !adjuncts.has(id)));
+  const citedIds = identitySet(cited ? cited.herbs.map((item) => item.herb) : textbookComposition);
+  const governedIds = identitySet(reference.ingredients);
+  if (citedIds.size < 2 || governedIds.size < 2) return undefined;
+  const shared = [...citedIds].filter((id) => governedIds.has(id)).length;
+  return shared < Math.ceil(0.6 * Math.min(citedIds.size, governedIds.size));
+}
+
+/** 锁定时用：教材行写的出处与目录同名条目不是同一本书、且组成对不上（同名异方）。 */
+export function textbookCitedFormulaIsGovernedHomonym(formulaName: string, textbookRowId: string | undefined, textbookComposition: readonly string[]): boolean {
+  return textbookCitedFormulaHomonymVerdict(formulaName, textbookRowId, textbookComposition) === true;
+}
+
+/**
  * 教材代表方的受治理条目是不是同名异方：教材有成形的组成，而该条目与它不共两味（textbookFormulaOriginalSource 的同一判据）。
  * 交付面据此不再署那一条的书（四七汤、大七气汤）。
  */
 export function textbookFormulaGovernedEntryIsHomonym(
   formulaName: string,
   textbookComposition: readonly string[],
-  options: { compositionIsUnion?: boolean } = {},
+  options: { compositionIsUnion?: boolean; textbookRowId?: string } = {},
 ): boolean {
   const reference = formulaCompilationReferences([formulaName])[0];
+  const byCitedBook = textbookCitedFormulaHomonymVerdict(formulaName, options.textbookRowId, options.compositionIsUnion ? [] : textbookComposition);
+  if (byCitedBook !== undefined) return byCitedBook;
   if (!reference || options.compositionIsUnion) return false;
   const wanted = new Set(textbookComposition.map(textbookIngredientIdentity).filter(Boolean));
   if (wanted.size < 3) return false;
@@ -3117,6 +3183,10 @@ export function formulaNameWithIdentityHerbsPresent(
 export function originalBookFormulaIngredients(formulaName: string): string[] {
   const normalized = normalizeFormulaName(String(formulaName || ""));
   if (!normalized) return [];
+  // 原方组成表有这首方时以它为准（只算药味表里的药；煎服法里的姜枣药引不算——处方把药引列进药味表，方义说「加生姜、大枣」不算错）。
+  // 表里没有时才用国家目录、名录同书条目。
+  const original = originalFormulaFor(normalized);
+  if (original) return original.herbs.map((item) => item.herb);
   const official = normalizedOfficialClassics.get(normalized);
   if (official) return [...official.variant.ingredients];
   const reference = formulaCompilationReferences([formulaName])[0];
@@ -3300,7 +3370,7 @@ export function enrichReasoning(
       classicEvidence: (classicEvidenceResolver
         ? classicEvidenceResolver(resolvedFormulaNames)
         : candidate.classicEvidence || []).slice(0, CANDIDATE_CLASSIC_EVIDENCE_LIMIT),
-      compositionLogic: compositionLogicForFormulaNames(resolvedFormulaNames),
+      compositionLogic: compositionLogicWithBaselineNames(resolvedFormulaNames),
       // 必须先 slice 到契约上限：`textualModifications` 的 `.max(6).catch([])` 语义是
       // **整段清空而非截断**，超限的后果是医生一条条文加减线索都看不到，且与「没有命中」
       // 不可区分。紧邻的 classicEvidence 早就为此加了 slice（见 CANDIDATE_CLASSIC_EVIDENCE_LIMIT），

@@ -377,7 +377,10 @@
     "test:r1050-main": "node scripts/test-r1050-main.mjs",
     "test:r1051-main": "node scripts/test-r1051-main.mjs",
     "test:r1053-main": "node scripts/test-r1053-main.mjs",
-    "test:r1055-main": "node scripts/test-r1055-main.mjs"
+    "test:r1055-main": "node scripts/test-r1055-main.mjs",
+    "test:r1057-main": "node scripts/test-r1057-main.mjs",
+    "build:formula-original-compositions": "python3 scripts/build-formula-original-compositions.py",
+    "report:formula-original-reconciliation": "node scripts/report-formula-original-reconciliation.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

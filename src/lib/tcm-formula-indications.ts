@@ -1,4 +1,5 @@
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { formulaBaselineDisplayNames, originalFormulaForCatalogEntry } from "./formula-baseline-display";
 import { jingfangRelationFormulaIdentityNames } from "./jingfang-patterns";
 import governedFormulaJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
 import modernCaseFormulaIndexJson from "../data/tcm-modern-case-formula-index.json" with { type: "json" };
@@ -1038,7 +1039,7 @@ function renderFormulaCandidates(
     ];
     return [
       `- [${candidate.id}] ${candidate.name}｜出处：${candidate.source}`,
-      `  基础组成：${candidate.ingredients.join("、")}`,
+      `  基础组成：${[...new Set(formulaBaselineDisplayNames(candidate.ingredients, originalFormulaForCatalogEntry(candidate.name, candidate.source)))].join("、")}`,
       `  目录主治：${candidate.indications.join("；").slice(0, 260)}`,
       `  ${phaseLabel}命中：${candidate.matchedConcepts.join("、")}｜事实：${candidate.matchedPatientFacts.join("；") || "由已签名结构化辨证字段精确召回"}`,
       // 逐条重复「仅作检索关联，必须结合本例事实临床核对」会把同一句对冲复制 N 遍，与区块开头的

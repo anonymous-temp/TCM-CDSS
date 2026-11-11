@@ -1,0 +1,1846 @@
+{
+ "schemaVersion": 1,
+ "note": "受治理方剂目录条目与原方组成表（同名同书）按药味身份不一致、但有理由保留的差异清单。其余差异必须走订正通道把目录改成原方。category：original_herb_not_dispensed（原方含今不用或系统不编制的药）、catalog_follows_current_edition（目录取通行改订本，原书异文已记在原方表 alternates）、table_tier_low（原方表这条只有教材索引行/现代转录，不足以改目录）等。每条 reason 写依据。test:formula-original-compositions 钉：未列入本清单的差异为零；本清单没有过期项。",
+ "accepted": [
+  {
+   "name": "二石散",
+   "book": "三因极一病证方论",
+   "extraInCatalog": [
+    "凝水石"
+   ],
+   "missingInCatalog": [
+    "寒水石"
+   ],
+   "category": "other",
+   "reason": "row 把原书「白石脂」并成了赤石脂（与自身note矛盾）；改回按字面的白石脂。凝水石=寒水石、栝蒌根=天花粉同药，不再有差异。"
+  },
+  {
+   "name": "外食散",
+   "book": "三因极一病证方论",
+   "extraInCatalog": [
+    "染坯"
+   ],
+   "missingInCatalog": [
+    "好染坯"
+   ],
+   "category": "other",
+   "reason": "目录「染坯」，原文「好染坯」，同一不明药（好为修饰词），药味一致。"
+  },
+  {
+   "name": "无忧散",
+   "book": "三因极一病证方论",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "牛胆"
+   ],
+   "category": "vehicle_or_excipient",
+   "reason": "原方药味只有「腊月黄牛胆（以天南星为末入胆内…）」，即牛胆制的胆南星，牛胆是制天南星的赋形/炮制物；人参仅煎汤调服。目录列天南星、人参，可接受。"
+  },
+  {
+   "name": "桂苓丸",
+   "book": "三因极一病证方论",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "干姜"
+   ],
+   "category": "other",
+   "reason": "干生姜=干姜，同药，药味一致；原文六味与目录同。"
+  },
+  {
+   "name": "猪膏汤",
+   "book": "三因极一病证方论",
+   "extraInCatalog": [
+    "天门冬汁",
+    "生姜汁",
+    "青蒿汁"
+   ],
+   "missingInCatalog": [
+    "天冬",
+    "青蒿"
+   ],
+   "category": "other",
+   "reason": "原文天门冬汁、青蒿汁、生姜汁为取汁入药，目录照原文写法，药味身份相同（天冬、青蒿、生姜）。"
+  },
+  {
+   "name": "盐津丸",
+   "book": "三因极一病证方论",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "巴豆"
+   ],
+   "category": "other",
+   "reason": "原文蒜膏中入「去皮江子七粒」，江子即巴豆（大毒），目录有意不列；原方表已注明。"
+  },
+  {
+   "name": "真应散",
+   "book": "三因极一病证方论",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "款冬花散"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有款冬花散，订正时有意不列入目录。目录写成单味「款冬花」，原文是「官局款冬花散二钱」（另一首复方成药）入白石英末，加桑白皮二寸，生姜三片、枣子一个为引；款冬花散不是单味款冬花，复方不展开，目录改为白石英、桑白皮。"
+  },
+  {
+   "name": "苎根汤",
+   "book": "三因极一病证方论",
+   "extraInCatalog": [
+    "野苎根",
+    "金银"
+   ],
+   "missingInCatalog": [
+    "苎麻根",
+    "金",
+    "银"
+   ],
+   "category": "other",
+   "reason": "原文「野苧根」「金银（各一两）」（金、银两味），目录照原书写法合写，药味相同。"
+  },
+  {
+   "name": "茱萸膏",
+   "book": "三因极一病证方论",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "生姜汁"
+   ],
+   "category": "other",
+   "reason": "原文「宿姜汁（八两）」即生姜汁，目录取生姜，药味相同。"
+  },
+  {
+   "name": "铁弹丸",
+   "book": "三因极一病证方论",
+   "extraInCatalog": [
+    "脑麝"
+   ],
+   "missingInCatalog": [
+    "麝香",
+    "龙脑"
+   ],
+   "category": "other",
+   "reason": "原文「脑麝（各一分）」为龙脑、麝香两味，目录合写为脑麝，药味一致；虎胫骨等禁用药目录原样保留不属本批裁决。"
+  },
+  {
+   "name": "实脾饮",
+   "book": "严氏济生方",
+   "extraInCatalog": [
+    "炮姜"
+   ],
+   "missingInCatalog": [
+    "干姜"
+   ],
+   "category": "other",
+   "reason": "原书名实脾散（水肿门），十味：厚朴（姜制炒）、白术、木瓜、木香、草果仁、大腹子、附子（炮）、白茯苓、干姜（炮）、甘草（炙），生姜五片、枣子一枚为引，与教材索引行一致。目录姜厚朴、炒草果仁、炮附片、炮姜、炙甘草是同药的炮制品名，大腹子即槟榔，炮姜即干姜炮，药味身份全同，不改。"
+  },
+  {
+   "name": "益气导溺汤",
+   "book": "中医妇科治疗学",
+   "extraInCatalog": [
+    "南沙参"
+   ],
+   "missingInCatalog": [
+    "党参"
+   ],
+   "category": "row_low_tier",
+   "reason": "row 只有教材方剂索引行（党参），未找到卓雨农《中医妇科治疗学》原文；方名名录同书条目作「泡参、白术、扁豆、云苓、桂枝、炙升麻、甜桔梗、通草、台乌」，是原书四川写法，旧目录南沙参即泡参（四川称南沙参为泡参）。两边各有依据、都不是原文，不推翻目录。"
+  },
+  {
+   "name": "大陷胸丸",
+   "book": "伤寒论",
+   "extraInCatalog": [
+    "白蜜"
+   ],
+   "missingInCatalog": [],
+   "category": "vehicle_or_excipient",
+   "reason": "原表把甘遂放进药引，实为方内药味（别捣甘遂末一钱匕）；改入药味后目录只剩白蜜，是煮服赋形，不列是对的。"
+  },
+  {
+   "name": "柴胡加龙骨牡蛎汤",
+   "book": "伤寒论",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "铅丹"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "宋本与《方剂学》均十二味含铅丹一两半；铅丹有毒，系统不为其编制，目录有意不列，其余十一味一致。"
+  },
+  {
+   "name": "安老汤",
+   "book": "傅青主女科",
+   "extraInCatalog": [
+    "木耳炭"
+   ],
+   "missingInCatalog": [
+    "黑木耳"
+   ],
+   "category": "other",
+   "reason": "药味一致：原文黑芥穗即目录芥穗炭（荆芥穗炒炭），木耳炭即黑木耳炭，阿胶蛤粉炒即阿胶珠，其余为炮制写法差异。"
+  },
+  {
+   "name": "诃子散",
+   "book": "兰室秘藏",
+   "extraInCatalog": [
+    "御米壳"
+   ],
+   "missingInCatalog": [
+    "罂粟壳"
+   ],
+   "category": "other",
+   "reason": "御米壳即罂粟壳，同一味药，仅写法不同。"
+  },
+  {
+   "name": "定痫丸",
+   "book": "医学心悟",
+   "extraInCatalog": [
+    "蒸茯神"
+   ],
+   "missingInCatalog": [],
+   "category": "other",
+   "reason": "药味一致：原文十五味（含茯苓、茯神、辰砂、真琥珀）与目录同，蒸川贝母、蒸茯神、酒丹参等仅炮制写法差异；竹沥、姜汁、甘草熬膏为赋形，原方与目录都不列。"
+  },
+  {
+   "name": "补天大造丸",
+   "book": "医学心悟",
+   "extraInCatalog": [
+    "鹿角胶",
+    "龟甲胶"
+   ],
+   "missingInCatalog": [
+    "鹿角",
+    "龟甲"
+   ],
+   "category": "other",
+   "reason": "原文鹿角一斤熬膏、龟板八两同熬膏，以龟鹿胶和药，目录写鹿角胶、龟甲胶为同一制品（教材索引亦作龟甲胶、鹿角胶）；其余十二味一致，仅炮制写法差异。"
+  },
+  {
+   "name": "柴胡清骨散",
+   "book": "医宗金鉴",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "童便"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "金鉴杂病注文与方歌「韭白髓胆童便煎」列有童便（人尿），今不入调剂；其余十一味（秦艽、知母、炙甘草、胡黄连、鳖甲、青蒿、柴胡、地骨皮、韭白、猪脊髓、猪胆汁）与旧目录一致。"
+  },
+  {
+   "name": "陀僧膏",
+   "book": "医宗金鉴",
+   "extraInCatalog": [
+    "南佗僧"
+   ],
+   "missingInCatalog": [
+    "密陀僧"
+   ],
+   "category": "other",
+   "reason": "外用膏药，十四味与金鉴原文逐味一致，差别只是写法：南佗僧即密陀僧（原文「南陀僧」）、孩儿茶即儿茶、川大黄即大黄。外用方目录沿用标准写法，不改名（旧目录「佗」为别字，若要统一名称宜在别名表处理）。"
+  },
+  {
+   "name": "香贝养荣汤加减",
+   "book": "医宗金鉴",
+   "extraInCatalog": [
+    "党参",
+    "山药",
+    "赤芍",
+    "黄芪"
+   ],
+   "missingInCatalog": [
+    "人参",
+    "桔梗",
+    "茯苓",
+    "陈皮"
+   ],
+   "category": "other",
+   "reason": "目录条目本名带「加减」，是深圳标准收录的化裁方（去人参、茯苓、陈皮、桔梗，加黄芪、党参、山药、赤芍），不与《医宗金鉴》香贝养荣汤原方求同。"
+  },
+  {
+   "name": "生津饮",
+   "book": "医方简义",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "秋石"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有秋石，订正时有意不列入目录。原文十二味，目录缺玉竹（生葳蕤）、石膏、黄柏（川柏）、秋石；淡秋石（人尿制品）今不入药，不列入，其余收入；青果五枚为煎服加味，不入药味。"
+  },
+  {
+   "name": "至宝丹方",
+   "book": "医方简义",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "牛黄",
+    "金箔",
+    "银箔",
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有牛黄、金箔、银箔、麝香，订正时有意不列入目录。原文十一味，目录只录6味。牛黄、麝香为禁用/濒危，金箔、银箔为封衣类，今不编制，故不列入；补龙脑薄荷（原书写法，保持原写）。"
+  },
+  {
+   "name": "资寿解语汤",
+   "book": "医方简义",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "姜汁",
+    "竹沥"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有姜汁、竹沥，订正时有意不列入目录。医方简义原文八味药（羌活、泡淡附子、防风、煨天麻、羚羊角、枣仁、肉桂、炙甘草）；目录漏炙甘草。竹沥（冲入）、姜汁（冲）是冲服药引，不入煎，不列。"
+  },
+  {
+   "name": "陈无择琥珀散",
+   "book": "医方简义",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "牛黄"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有牛黄，订正时有意不列入目录。原文九味，目录只有五味，漏琥珀、远志、石菖蒲。牛黄为不予编制的品种，原方有而不列；原书为细末、淡姜汤送服。"
+  },
+  {
+   "name": "省风汤",
+   "book": "医方考",
+   "extraInCatalog": [
+    "生白附"
+   ],
+   "missingInCatalog": [
+    "木香",
+    "白附子"
+   ],
+   "category": "other",
+   "reason": "生白附即白附子（生用），同一味药，仅写法不同。"
+  },
+  {
+   "name": "虎骨酒",
+   "book": "医方考",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "曲"
+   ],
+   "category": "vehicle_or_excipient",
+   "reason": "虎骨为禁用品，目录有意不编制；曲、糯米为酿酒用赋形，目录不列曲。"
+  },
+  {
+   "name": "酒煮黄连丸",
+   "book": "医方考",
+   "extraInCatalog": [
+    "好酒"
+   ],
+   "missingInCatalog": [
+    "黄酒"
+   ],
+   "category": "vehicle_or_excipient",
+   "reason": "好酒是煮黄连用的酒（煮干，为末作丸），是炮制辅料，目录不列。"
+  },
+  {
+   "name": "韭汁酒",
+   "book": "医方考",
+   "extraInCatalog": [
+    "清酒"
+   ],
+   "missingInCatalog": [
+    "黄酒"
+   ],
+   "category": "other",
+   "reason": "清酒与韭菜汁等分和服，是酒（黄酒类）的另一写法，目录照原文写清酒。"
+  },
+  {
+   "name": "扶桑丸",
+   "book": "医方集解",
+   "extraInCatalog": [
+    "巨胜子"
+   ],
+   "missingInCatalog": [
+    "黑芝麻"
+   ],
+   "category": "other",
+   "reason": "仅写法不同：巨胜子原文自注即黑脂麻，白蜜即蜂蜜，药味一致。"
+  },
+  {
+   "name": "牛黄丸",
+   "book": "医方集解",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "水银",
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "原文药味行有麝香，制丸法另入水银（煮枣肉和水银五分）；麝香、水银为目录有意不列的贵重/剧毒药，其余8味与目录一致；荆芥、姜汤为送服药引。"
+  },
+  {
+   "name": "猪膏酒",
+   "book": "医方集解",
+   "extraInCatalog": [
+    "黄酒"
+   ],
+   "missingInCatalog": [
+    "酒"
+   ],
+   "category": "other",
+   "reason": "仅写法不同：原文「酒」，目录写黄酒，同为酒。"
+  },
+  {
+   "name": "舟车丸",
+   "book": "医方集解",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "轻粉"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有轻粉，订正时有意不列入目录。目录只有5味；原文九味，缺青皮、橘红、木香、轻粉。轻粉为剧毒药，今不入目录组成，故ingredients不含轻粉。《方剂学》舟车丸出《太平圣惠方》，与本书写法不同，不用。"
+  },
+  {
+   "name": "防己饮",
+   "book": "医方集解",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "犀角"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "原文末味犀角，今为禁用/濒危药，目录以其余9味列出（其后「热加黄芩」等为随证加减，不入基本组成）。"
+  },
+  {
+   "name": "抑阳酒连散加减",
+   "book": "原机启微",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "防己"
+   ],
+   "category": "other",
+   "reason": "目录条目本名带「加减」，是深圳标准收录的化裁方，较《原机启微》抑阳酒连散原方（十五味，含防己三分）少防己；化裁方不与原方求同。"
+  },
+  {
+   "name": "石斛夜光丸",
+   "book": "原机启微",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "羚羊角"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "原机启微原文二十五味含乌犀、羚羊角（教材索引亦列水牛角、羚羊角）；旧目录以水牛角代乌犀（登记替代），羚羊角为限用濒危药不列；其余二十三味与原文逐味一致。"
+  },
+  {
+   "name": "三黄宝蜡丸",
+   "book": "古方汇精",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "铅粉",
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有铅粉、麝香，订正时有意不列入目录。原文十三味（天竺黄至山羊血，全书同段核对无误）；目录只收七味，漏雄黄、儿茶、当归尾、琥珀、水粉、麝香。水粉（铅粉）、麝香今不编制（铅制品/濒危），不写入目录，其余补入。"
+  },
+  {
+   "name": "坎宫锭",
+   "book": "古方汇精",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有麝香，订正时有意不列入目录。原文药味行十味，另「生大黄五钱、卤醋、健猪胆二枚熬稠膏作锭」，大黄、猪胆为正药（醋、蜜、芙蓉汁为介质）；目录漏川贝母、冰片、京墨、猪胆。真麝香五分今不编制，不写入目录；目录已有的西黄、辰砂保留。"
+  },
+  {
+   "name": "太乙紫金丹",
+   "book": "古方汇精",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "朱砂",
+    "红毛大戟",
+    "雄黄"
+   ],
+   "category": "other",
+   "reason": "原文红毛大戟注明「杭州紫大戟为上」，即今红大戟（紫大戟），同一味药，仅写法不同。"
+  },
+  {
+   "name": "急救回春散二十",
+   "book": "古方汇精",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "牛黄"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有牛黄，订正时有意不列入目录。原文十一味（远志至西黄），党参、白术、真橘红为送服煎汤；目录漏冰片（一分）与西黄（五厘）。西黄即牛黄，今不编制，不写入目录；冰片补入。"
+  },
+  {
+   "name": "止血定痛散三",
+   "book": "古方汇精",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "象皮"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有象皮，订正时有意不列入目录。原文八味，象皮「无象皮用真象牙五钱代之」；目录漏珍珠、象皮。象皮为保护动物制品今不编制，不写入目录，珍珠补入；象牙只是替代品不并入。"
+  },
+  {
+   "name": "泻毒饮",
+   "book": "古方汇精",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "金汁"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有金汁，订正时有意不列入目录。原文六味后「加金汁半酒杯。辰砂一分。冲服」；目录漏冲服的辰砂（朱砂）与金汁。金汁（粪清）今不编制，不写入目录，朱砂补入。"
+  },
+  {
+   "name": "滋元饮",
+   "book": "古方汇精",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "虎骨"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有虎骨，订正时有意不列入目录。原文十一味（桑枝、桂枝木、五味子各五钱），南枣为制丸辅料；目录漏五味子、桂枝、桑枝。虎骨为禁用药，今不编制，不写入目录。"
+  },
+  {
+   "name": "玉红膏",
+   "book": "古方汇精",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "轻粉"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有轻粉，订正时有意不列入目录。原文：当归、白芷、紫草、甘草，麻油煎，下白蜡，次下血竭，再下轻粉，均为本方药。目录漏血竭；轻粉为剧毒药今不编制，不写入目录。"
+  },
+  {
+   "name": "解毒丸七",
+   "book": "古方汇精",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "原方末列麝香一分，系统不编制麝香，目录有意不列。"
+  },
+  {
+   "name": "跌伤接骨方一",
+   "book": "古方汇精",
+   "extraInCatalog": [
+    "活蟹"
+   ],
+   "missingInCatalog": [
+    "蟹"
+   ],
+   "category": "other",
+   "reason": "目录「活蟹」即原文大活蟹，同一味药，仅写法不同。"
+  },
+  {
+   "name": "通脉化痰饮",
+   "book": "古方汇精",
+   "extraInCatalog": [
+    "生姜汁"
+   ],
+   "missingInCatalog": [],
+   "category": "other",
+   "reason": "目录「生姜汁」即原文「生姜汁」（row 以基础名生姜记），两味与原方一致，仅写法差异。"
+  },
+  {
+   "name": "银苎酒",
+   "book": "古方汇精",
+   "extraInCatalog": [
+    "黄酒"
+   ],
+   "missingInCatalog": [
+    "酒"
+   ],
+   "category": "other",
+   "reason": "目录苎根、黄酒与原文苧根、酒同物，仅写法差异（酒为煎煮溶媒，原文列入药味）；目录不改。"
+  },
+  {
+   "name": "莨菪酒硝石饮",
+   "book": "史记",
+   "extraInCatalog": [
+    "黄酒"
+   ],
+   "missingInCatalog": [
+    "酒"
+   ],
+   "category": "other",
+   "reason": "目录黄酒、莨菪、硝石即原文酒、莨砀药、消石，仅写法差异；史记原文无此方名。"
+  },
+  {
+   "name": "凉营清气汤",
+   "book": "喉痧症治概要",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "金汁"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "丁甘仁原方（《全国名医验案类编》引、《丁甘仁医案》教材行同）末有「金汁一两冲服」，系统不编制金汁；犀角尖以水牛角代（登记替代）；鲜竹叶目录作淡竹叶、茅芦根各一两即白茅根与芦根，属通行写法。其余与原方一致。"
+  },
+  {
+   "name": "石韦散",
+   "book": "外台秘要",
+   "extraInCatalog": [
+    "冬葵果"
+   ],
+   "missingInCatalog": [
+    "冬葵子"
+   ],
+   "category": "other",
+   "reason": "葵子即冬葵子，现行药典品名冬葵果；滑石粉即滑石、盐车前子即车前子，均为调剂品名。《外台》石苇散五味（石苇、瞿麦、滑石、车前子、葵子）与《方剂学》【组成】及旧目录一致，目录不改。"
+  },
+  {
+   "name": "紫雪",
+   "book": "外台秘要",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "麝香",
+    "黄金"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有麝香、黄金，订正时有意不列入目录。《外台》脚气门紫雪：十三味（黄金、寒水石、石膏、磁石、滑石、玄参、羚羊角、犀角、升麻、沉香、丁子香、青木香、甘草炙）外，煎汁后入「硝石四升，芒硝亦可，用朴硝精者十斤」，再入朱砂、麝香，《方剂学》同。旧目录缺硝石、芒硝两味主药（现行药典紫雪散亦含芒硝、硝石），属明显缺药，故改。黄金、麝香为今天不用/不为编制之药不列；犀角写水牛角；青木香今禁用，按通行写木香；朴硝精者即芒硝；甘草原文与《方剂学》均为炙"
+  },
+  {
+   "name": "紫雪丹",
+   "book": "外台秘要",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "黄金"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有黄金，订正时有意不列入目录。目录十四味缺原文的羚羊角、犀角（目录此条甚至未用水牛角代），其余与外台紫雪原文对应（丁香＝丁子香，木香＝青木香，芒硝＝朴硝）。黄金百两今不用，目录不列，不写入；羚羊角、犀角（水牛角代）按原文补上。"
+  },
+  {
+   "name": "太乙膏",
+   "book": "外科正宗",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "轻粉"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有轻粉，订正时有意不列入目录。《外科正宗》加味太一膏（太乙膏）原文与歌诀「太一膏中桂芷归…将军木鳖兼轻粉」均有肉桂、土木鳖（木鳖子）；教材索引行同。旧目录缺肉桂，并把土木鳖错作马钱子（番木鳖，毒性大得多），属明显错，故改。轻粉有毒、旧目录本不列，不写入；当归身写当归，生地写地黄，东丹即铅丹，麻油为熬膏用油，沿旧目录保留。"
+  },
+  {
+   "name": "阳和解凝膏",
+   "book": "外科证治全生集",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "黄丹"
+   ],
+   "category": "other",
+   "reason": "外用膏剂，目录沿用标准写法：原文另有官桂（与肉桂同一身份）、炒透桃丹（黄丹/铅丹，收膏用，有毒不列）、大麻油（熬膏基质）；牛蒡原文为鲜梗叶根、白凤仙梗目录作透骨草，均为外用膏调剂写法，不为对齐原书改动。"
+  },
+  {
+   "name": "又方",
+   "book": "大小诸证方论",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "朱砂"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有朱砂，订正时有意不列入目录。原书「惊风皆由于气虚，宜用压风汤」九味，目录漏陈皮；丹砂（朱砂）今不入煎剂目录，不列入，原方含丹砂三分。"
+  },
+  {
+   "name": "又治脾泄丸（散）方",
+   "book": "大小诸证方论",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "陈土"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有陈土，订正时有意不列入目录。原文十味，目录缺甘草、砂仁、建莲肉；陈土（炒焦）为土类，今不编制，不列入。方后加人参末/党参为加减，不计。"
+  },
+  {
+   "name": "风寒湿合病治方",
+   "book": "大小诸证方论",
+   "extraInCatalog": [
+    "生姜汁"
+   ],
+   "missingInCatalog": [],
+   "category": "other",
+   "reason": "外贴膏方：原书「生姜汁」与表中herb「生姜」是同一味的汁用写法，目录写生姜汁并无药物差异；方后「再加羌活、乳香、没药末」为可选加味，不并入。"
+  },
+  {
+   "name": "化木汤",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [
+    "野蓝菊花根"
+   ],
+   "missingInCatalog": [
+    "野菊花"
+   ],
+   "category": "other",
+   "reason": "野蓝菊花根即野菊花根，row 归一为野菊花，目录照原文写法；药味一致，仅写法不同。"
+  },
+  {
+   "name": "化痞消积膏",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "铅丹"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "原文『将粗药入油熬枯去渣，入红丹…收膏』：真麻油是熬膏基质，不是药味，移入 guideHerbs；剩余差异只有红丹（铅丹）。"
+  },
+  {
+   "name": "吐狂血方",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [
+    "姜汁",
+    "藕汁"
+   ],
+   "missingInCatalog": [
+    "藕"
+   ],
+   "category": "other",
+   "reason": "藕汁即藕捣汁、姜汁即生姜汁，row 归一为藕、生姜，目录照原文写汁；药味一致，仅写法不同。"
+  },
+  {
+   "name": "哭来笑去散",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [
+    "硝"
+   ],
+   "missingInCatalog": [
+    "芒硝"
+   ],
+   "category": "other",
+   "reason": "原文只写『硝（五钱）』，未分朴硝/芒硝，row 的芒硝是归一的推断，目录照原文写『硝』；药味一致。"
+  },
+  {
+   "name": "回生丹",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "金箔"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有金箔，订正时有意不列入目录。原文十四味，目录漏了朱砂、珍珠、天竺黄、钩藤；金箔（黄金）不入方，不列。"
+  },
+  {
+   "name": "壬水金丹",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "犀角",
+    "羚羊角",
+    "金箔"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有犀角、羚羊角、金箔，订正时有意不列入目录。目录13味漏文蛤、胆星、贝母、檀香、茯苓、郁金、钟乳粉等；原文共约二十余味。血琥珀即原文真血琥珀（琥珀），角沉香与沉香同一饮片。原文犀角、羚羊角为禁用/濒危药、金箔仅为衣，不写入；朱砂为衣目录原有，保留。"
+  },
+  {
+   "name": "太玄丹",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [
+    "白犀角"
+   ],
+   "missingInCatalog": [
+    "水牛角"
+   ],
+   "category": "other",
+   "reason": "差异仅是原文「白犀角」与表里按犀角→水牛角登记替代写成的水牛角；目录保留原书写法白犀角，其余七味完全相同，两边不改。"
+  },
+  {
+   "name": "夹棍神效方",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [
+    "好陈酒"
+   ],
+   "missingInCatalog": [
+    "炭灰",
+    "酒"
+   ],
+   "category": "vehicle_or_excipient",
+   "reason": "目录皮硝、好陈酒与原文相符（酒五斤煎药液、皮硝五两）；表里多出的炭灰是烧桑木后炉内炭灰搅入外洗药液，属燃料副产物而非处方药味，目录不列是对的。"
+  },
+  {
+   "name": "快斑红蜡丸",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "人中黄",
+    "人屎",
+    "犀角"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有人中黄、人屎、犀角，订正时有意不列入目录。目录七味漏元参、白茯苓、荆芥穗、牛蒡子、甘草等；原文共15味。犀角（禁用/濒危）、人屎、人中黄（今不用）不写入；薄荷灯心汤是送服引。"
+  },
+  {
+   "name": "救痫丸",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "虎睛",
+    "虎骨"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有虎睛、虎骨，订正时有意不列入目录。目录缺珍珠四分与辰砂（朱砂，二钱为衣）。原文虎骨、虎睛为禁用药，不写入；神曲糊丸为辅料。"
+  },
+  {
+   "name": "救荒丹",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "糯米"
+   ],
+   "category": "vehicle_or_excipient",
+   "reason": "目录黑豆、火麻仁、牛皮胶与原文相合；表里多出的糯米粥只是制丸辅料，不入处方。"
+  },
+  {
+   "name": "日精月华丹",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "三黄汤",
+    "蜂蜜",
+    "金箔"
+   ],
+   "category": "vehicle_or_excipient",
+   "reason": "目录十七味与原文主药相同；黄丹即铅丹，只是写法；表里多列的三黄汤（煅淬炉甘石的药液，原文未列组成）、炼蜜（制丸）、金箔（为衣）均为炮制液或赋形辅料，目录不列正确。"
+  },
+  {
+   "name": "毓麟膏",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "黄蜡"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有黄蜡，订正时有意不列入目录。目录八味漏当归二两、熟地二两、砂仁一两及收膏后入的紫石英（煅醋淬）、赤石脂（煅）、龙骨（煅）；黄占（蜡）二两与飞丹为收膏基质，不入。"
+  },
+  {
+   "name": "水火既济膏",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "红丹"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有红丹，订正时有意不列入目录。目录漏蟢蛛、头发（同入锅熬）及离火后入的乳香、没药（各四分）；红丹（铅丹）为收膏基质且今不编制，不入；槐枝为搅拌工具。"
+  },
+  {
+   "name": "水芝丸",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "神曲"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有神曲，订正时有意不列入目录。目录取了猪肚蒸莲子（又方）并加苍术，漏了同方的白茯苓、陈皮、厚朴（麸炒）、小茴香各三两；神曲糊丸只是粘合辅料，不入。"
+  },
+  {
+   "name": "治漏方",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [
+    "胎发"
+   ],
+   "missingInCatalog": [
+    "血余"
+   ],
+   "category": "other",
+   "reason": "原文为“生男胎发”，与目录“胎发”和表中归名“血余”指同一材料；填药、收口两个阶段也已在表中注明，属于药名归一差异。"
+  },
+  {
+   "name": "治癣效方",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [
+    "白信"
+   ],
+   "missingInCatalog": [
+    "信石"
+   ],
+   "category": "other",
+   "reason": "原书药味行确写“白信”，目录忠实采用原名，表将其归为信石，五味并无增减；方后土大黄根是先行擦洗用物，不并入五味药末。"
+  },
+  {
+   "name": "治癣方",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "斑蝥"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有斑蝥，订正时有意不列入目录。原书八味行完整列有斑蝥、百部，目录截漏末二味；补百部，斑蝥按简报剧毒药例外保留在原方表、不补入调剂目录。"
+  },
+  {
+   "name": "治诸疟效方",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "桃脑"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有桃脑，订正时有意不列入目录。原文药味含甘草、生姜、木枣，目录漏甘草（生姜、大枣为引不另列）；桃脑（七个向东者）身份不明，不入目录。"
+  },
+  {
+   "name": "渊然真人夺命丹",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "轻粉",
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有轻粉、麝香，订正时有意不列入目录。原文明确朱砂“为衣”，且可用金箔代，应从表的药味移至制剂说明；目录另漏寒水石、蜈蚣、蜗牛、蟾酥，修表后仍需补齐，轻粉、麝香按简报不列入改后调剂组成。"
+  },
+  {
+   "name": "煮鸭方",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [
+    "雄鸭"
+   ],
+   "missingInCatalog": [
+    "鸭"
+   ],
+   "category": "other",
+   "reason": "原文明言“大雄鸭一只”，目录“雄鸭”比表中基础归名“鸭”更具体，但指同一药食材料；喂蛇后食鸭的用法已记录，无组成增减。"
+  },
+  {
+   "name": "班龙灵龟化痔丸",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "穿山甲",
+    "象牙屑"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有穿山甲、象牙屑，订正时有意不列入目录。原文十四味中，当归、生地、熟地、槐角、侧柏叶、白莲花均被目录漏录，应补齐；穿山甲及象牙屑按简报濒危药例外仅保留原方记录，炼蜜、白蜡、黄蜡为制丸辅料。"
+  },
+  {
+   "name": "琥珀滋生丸",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "牛黄"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有牛黄，订正时有意不列入目录。原表把灯草研磨辅料、朱砂丸衣和姜汁、陈米饮送服介质当药味或药引，需改正，并补清随证灯心汤的药引位置；益母草八两煎膏为实用药料，目录漏录，修表后仍须补益母草，牛黄按简报不列改后调剂组成。"
+  },
+  {
+   "name": "男妇吐衄不止方",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "童便"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有童便，订正时有意不列入目录。益母草童便方之后另起“又方”才是藕汁、萝卜汁方，目录误合二方，应去后两项；童便按简报不列调剂组成，原方表仍保留原书记录。"
+  },
+  {
+   "name": "痘后回毒膏",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "铅丹"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "原文“飞丹（二两）收成膏”属原方实际成膏药料，原表归为铅丹可靠；目录唯一所缺铅丹属于简报明列不编调剂组成的剧毒药，保留差异。"
+  },
+  {
+   "name": "百解绿蜡丸",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "人中黄",
+    "牛黄",
+    "犀角"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有人中黄、牛黄、犀角，订正时有意不列入目录。原表漏记方后灯心薄荷汤药引，且人中黄应承“各五钱”，需补齐；目录仍漏天花粉、滑石、威灵仙、大黄、槟榔，“麻汁”误截炮制用升麻汁，应去掉，牛黄、犀角及人中黄按简报不用药例外不列改后调剂组成。"
+  },
+  {
+   "name": "神仙粥",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [
+    "米醋"
+   ],
+   "missingInCatalog": [
+    "醋"
+   ],
+   "category": "other",
+   "reason": "原文“入老醋半小盏”，表归基础名“醋”，目录取“米醋”，本条仅是食醋品名粒度差异，无增减；饱胀不思食时去糯米是原书条件用法，不改变基本组成。"
+  },
+  {
+   "name": "紫金膏",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "麻油"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有麻油，订正时有意不列入目录。原文完整制膏段还载吴茱萸等煎汁药、姜葱取汁及矾红乳香等后入药，目录只摘七味，应补齐实用药料；麻油另记膏基不新增调剂药味，闹杨花、矾红严格保留缓存原字，未推定现代异名。"
+  },
+  {
+   "name": "豆腐疔方",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [
+    "白梅干"
+   ],
+   "missingInCatalog": [
+    "白梅"
+   ],
+   "category": "other",
+   "reason": "原文正作「白梅干（三个去核）」，表以基础名白梅记载，目录保留干品称呼；两边同为白梅干，非增减药味。"
+  },
+  {
+   "name": "通乳方",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [
+    "猪前蹄"
+   ],
+   "missingInCatalog": [
+    "猪蹄"
+   ],
+   "category": "other",
+   "reason": "首方原文明列木通及「猪前蹄（一个）」，煮烂并汁食用；表归为猪蹄，目录保留前蹄部位限定，药味相同。"
+  },
+  {
+   "name": "金锁比天膏",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "穿山甲"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有穿山甲，订正时有意不列入目录。原表只摘煎油前药味，漏离火后下的牙皂、五灵脂、大黄、白胶香，且把麻油基质当药味，应修全；目录误列甘草并漏豨莶草、蟾皮及上述四味，须校正，穿山甲属本任务明确不供调剂的原药，修订目录不列。"
+  },
+  {
+   "name": "镇神丹",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "虎睛"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有虎睛，订正时有意不列入目录。原文十四味中目录漏远志、虎睛、龙骨、白芥子、柏子仁；须补远志、龙骨、白芥子、柏子仁四味，虎睛属虎类原药，原方表照记而目录不列。"
+  },
+  {
+   "name": "雄鸭酒",
+   "book": "惠直堂经验方",
+   "extraInCatalog": [
+    "雄鸭"
+   ],
+   "missingInCatalog": [
+    "鸭"
+   ],
+   "category": "other",
+   "reason": "原文「鸭一只（绿头雄者退洗去杂候用）」明确要求雄鸭，目录雄鸭与表中鸭及其雄性注释相同；其余七味一致，属于名称粒度差异。"
+  },
+  {
+   "name": "千金地黄汤",
+   "book": "成方切用",
+   "extraInCatalog": [
+    "枸杞子汁",
+    "生姜汁"
+   ],
+   "missingInCatalog": [
+    "大黄",
+    "枸杞子",
+    "栀子",
+    "茯苓"
+   ],
+   "category": "other",
+   "reason": "枸杞子汁、生姜汁即原文枸杞子、生姜取汁入药，与 row 的枸杞子、生姜是同一味药，仅写法不同。"
+  },
+  {
+   "name": "当归汤",
+   "book": "成方切用",
+   "extraInCatalog": [
+    "参芦",
+    "甘草头"
+   ],
+   "missingInCatalog": [
+    "人参芦",
+    "甘草"
+   ],
+   "category": "other",
+   "reason": "本书三味为当归、甘草头、参芦，目录逐味相同；参芦即人参芦，甘草头与表中甘草的基础名归并造成程序假差异，保留目录原文部位写法。"
+  },
+  {
+   "name": "敦阜丸",
+   "book": "成方切用",
+   "extraInCatalog": [
+    "巴霜"
+   ],
+   "missingInCatalog": [
+    "巴豆霜"
+   ],
+   "category": "other",
+   "reason": "巴霜即巴豆霜，同一味药，仅写法不同。"
+  },
+  {
+   "name": "清膈煎",
+   "book": "成方切用",
+   "extraInCatalog": [
+    "海石"
+   ],
+   "missingInCatalog": [
+    "海浮石"
+   ],
+   "category": "other",
+   "reason": "本书六味为陈皮、贝母、胆星、海石、木通、白芥子，目录相同；海石即海浮石、胆星即胆南星，属于药名归并造成的假差异。方后童便等均为随证加用。"
+  },
+  {
+   "name": "真人活命饮",
+   "book": "成方切用",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "穿山甲"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有穿山甲，订正时有意不列入目录。本书正文在天花粉后尚有乳香、没药、皂角刺、穿山甲，目录漏了四味；目录应补前三味。穿山甲属于本任务规定不编制的原方药，保留原方表及差异说明，不加入目录改后清单；好酒为煎药辅料。"
+  },
+  {
+   "name": "竹沥汤",
+   "book": "成方切用",
+   "extraInCatalog": [
+    "生姜汁",
+    "生葛汁"
+   ],
+   "missingInCatalog": [
+    "葛根"
+   ],
+   "category": "other",
+   "reason": "本书三味为竹沥、生葛汁、生姜汁，目录与原方相同；原方表以葛根、生姜作为基础名，程序把汁剂名当成额外药味，是写法差异。"
+  },
+  {
+   "name": "栀子金花丸",
+   "book": "景岳全书",
+   "extraInCatalog": [
+    "大黄",
+    "天花粉",
+    "知母",
+    "金银花"
+   ],
+   "missingInCatalog": [],
+   "category": "other",
+   "reason": "目录组成是现行《中国药典》成方制剂栀子金花丸（八味，含大黄、金银花、知母、天花粉），通行的是这一首；《景岳全书》栀子金花丸为大金花丸去大黄倍栀子（黄连、黄芩、黄柏、栀子四味）。目录保留药典通行组成，出处所标《景岳全书》只是方名来源；原方表按景岳原文，系统只对四味原方称「原方」。"
+  },
+  {
+   "name": "四黄膏",
+   "book": "朱仁康临床经验集",
+   "extraInCatalog": [
+    "大黄"
+   ],
+   "missingInCatalog": [
+    "土大黄"
+   ],
+   "category": "row_low_tier",
+   "reason": "原书配方作土大黄（蓼科，非大黄），深圳标准写作大黄；外用膏，原方表只有现代转录网页为证，不足以改目录，差异保留；麻油、黄蜡是基质，已从药味移出。"
+  },
+  {
+   "name": "天王补心丹",
+   "book": "校注妇人良方",
+   "extraInCatalog": [
+    "朱砂粉"
+   ],
+   "missingInCatalog": [],
+   "category": "other",
+   "reason": "《校注妇人良方》天王补心丹十三味与目录除朱砂外一致（远志/制远志、当归酒浸/酒当归、生地黄/地黄为写法差）；原书「用朱砂为衣」，《方剂学》用法同，各本教材索引行均把朱砂（辰砂）列入组成，目录列朱砂粉是丸衣的展开列示，沿用不改；竹叶煎汤送下为药引。"
+  },
+  {
+   "name": "疮药方",
+   "book": "洪氏集验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "轻粉"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "原文烧灰后明确“入轻粉”，row 记录无误；轻粉属于本任务允许目录省列的剧毒旧药，保留原方记录，不补入调剂目录。"
+  },
+  {
+   "name": "琥珀抱龙丸",
+   "book": "活幼心书",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "金箔"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有金箔，订正时有意不列入目录。《活幼心书》琥珀抱龙丸十二味，南星「锉碎用腊黄牛胆酿，经一夏用」即胆南星，row 原记天南星，改为胆南星；旧目录写制南星（姜矾制天南星，性温燥），与原书牛胆制品（苦凉，清热化痰息风）不是同一饮片，按「原书牛胆制的写胆南星」改目录。金箔（原方另有，入丸配药）属不编制的黄金类药，目录不列；其余十味与目录一致，教材索引行同列十二味。"
+  },
+  {
+   "name": "清络饮",
+   "book": "温病条辨",
+   "extraInCatalog": [
+    "丝瓜络"
+   ],
+   "missingInCatalog": [
+    "丝瓜皮"
+   ],
+   "category": "catalog_follows_modern_standard_substitution",
+   "reason": "《温病条辨》原方用丝瓜皮（鲜）、鲜竹叶心；丝瓜皮今无饮片，深圳标准以丝瓜络代、竹叶心写淡竹叶心。目录保留标准写法（改成丝瓜皮系统无法编制剂量），系统只对含丝瓜皮的写法称「原方」。"
+  },
+  {
+   "name": "至宝丹",
+   "book": "灵苑方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "金箔"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "《苏沈良方》转录《灵苑》至宝丹十味，除金箔外与目录一致（犀角→水牛角为已登记替代，龙脑即冰片）；金箔（《方剂学》作金银箔）属不编制的黄金类药，目录不列。含禁用药的丸剂，目录沿用标准写法。"
+  },
+  {
+   "name": "大良膏",
+   "book": "瑞竹堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "黄丹"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "大良膏正文明确黄丹三两、水飞，属实际入药；黄丹即铅丹，为本任务允许省列的剧毒旧药，原方表保留而不补入目录。"
+  },
+  {
+   "name": "徐神翁神效地仙丹",
+   "book": "瑞竹堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "半两钱"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有半两钱，订正时有意不列入目录。目录只录前四味，漏自然铜、白芷、地龙、没药、乳香、莴苣种、黄瓜种、梢瓜种、木鳖子；原文末「半两钱（二文）」为古钱，今不入药不为其编制，不列入（original_herb_not_dispensed）；仙术汤为送服汤，主治句提及，不拆入。"
+  },
+  {
+   "name": "木香楝子散",
+   "book": "瑞竹堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "青木香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有青木香，订正时有意不列入目录。原文五味主药含石菖蒲、青木香、荔枝核，目录漏列；应补石菖蒲、荔枝核，青木香据本地教材所记已取消药用标准不恢复调剂，麝香亦不补入，茴香另存服药药引，已去弃的巴豆不列。"
+  },
+  {
+   "name": "海青膏",
+   "book": "瑞竹堂经验方",
+   "extraInCatalog": [
+    "乌鱼骨"
+   ],
+   "missingInCatalog": [
+    "海螵蛸"
+   ],
+   "category": "other",
+   "reason": "乌鱼骨即海螵蛸，目录与原方表是同一味药，写法不同；白沙蜜为熬膏基质，不列药味。组成无实质差异，目录不改。"
+  },
+  {
+   "name": "灵光还睛膏",
+   "book": "瑞竹堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "轻粉"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有轻粉，订正时有意不列入目录。目录漏当归、乌鱼骨（海螵蛸）、白丁香、硇砂；轻粉（汞制剂，剧毒）今不为其编制，不列入（original_herb_not_dispensed）；川黄连童便浸、炉甘石蘸黄连汁为制法，白沙蜜为膏基质。"
+  },
+  {
+   "name": "神效回生膏",
+   "book": "瑞竹堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "杏仁",
+    "枸杞",
+    "柳枝",
+    "桃枝",
+    "桑枝",
+    "榆枝",
+    "槐枝",
+    "蓖麻子",
+    "赤芍",
+    "黄柏"
+   ],
+   "category": "other",
+   "reason": "原文前六味写「槐、柳、桃、榆、桑、枸杞」，方后注明用树条嫩者；前五味改作槐枝、柳枝、桃枝、榆枝、桑枝与目录一致，枸杞枝系统无此药名，原方表记作枸杞并注明取枝，与目录「枸杞枝」是同一物，差异保留。"
+  },
+  {
+   "name": "返魂丹",
+   "book": "瑞竹堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "轻粉",
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有轻粉、麝香，订正时有意不列入目录。原文十一味，目录漏没药、轻粉、麝香；轻粉、麝香为不予编制之药不列入，葱白为裹药引不列。"
+  },
+  {
+   "name": "龙虎丹",
+   "book": "瑞竹堂经验方",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "虎骨"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有虎骨，订正时有意不列入目录。原法九蒸九曝后取出南星入末，猪心是炮制载体，应从 row 药味移除；目录仍漏天南星，故继续校正，并按简报不把原文虎骨写入校正清单。"
+  },
+  {
+   "name": "八宝丹",
+   "book": "疡医大全",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "牛黄",
+    "象皮",
+    "轻粉"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有牛黄、象皮、轻粉，订正时有意不列入目录。《疡医大全》痈疽门生肌丹散膏方八宝丹原文八味：珍珠、牛黄、象皮、琥珀、龙骨（煅）、轻粉、冰片、芦甘石（煅），与教材附录《疡科大全》八宝丹逐味一致；旧目录（牛黄、琥珀、珍珠、冰片、乳香、朱砂、滑石粉）多乳香、朱砂、滑石粉，缺龙骨、炉甘石，不是本书这首。外用散但目录明显错，按原方校正；原方另有牛黄、象皮（濒危）、轻粉（汞剂）不列入目录。"
+  },
+  {
+   "name": "五疳保童丸",
+   "book": "绛雪园古方选注",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "正文为蟾蜍、皂角、海蛤粉、麝香四味，陈神曲仅用于稀糊制丸，应移出 row 药味；皂角与皂荚只是异名，余下仅缺麝香，按简报不为其编制，目录不改。"
+  },
+  {
+   "name": "抱龙丸",
+   "book": "绛雪园古方选注",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "牛黄",
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有牛黄、麝香，订正时有意不列入目录。金箔仅作丸衣，应移出 row 药味；正文十味中目录还漏全蝎、天竺黄、赤茯苓，应继续补齐这三味，牛黄、麝香按简报不写入目录校正清单。"
+  },
+  {
+   "name": "清凉攻毒散",
+   "book": "绛雪园古方选注",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "犀角"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有犀角，订正时有意不列入目录。原书清凉攻毒散正文十一味，目录截漏生地、红花、牡丹皮、地丁以及犀角；补前四味，犀角为禁用原药仅保留历史记录而不写入校正清单，灯草及大黄为另方或加减不并入。"
+  },
+  {
+   "name": "犀角汤",
+   "book": "绛雪园古方选注",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "犀角"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有犀角，订正时有意不列入目录。原书犀角汤十一味正文及煎法已核，目录截漏沉香、芒硝、柴胡、木通、炙甘草，应补齐；犀角为禁用原药保留原文记录，按简报不写入目录校正清单。"
+  },
+  {
+   "name": "疏肝清胃丸",
+   "book": "绛雪园古方选注",
+   "extraInCatalog": [
+    "鼠粪"
+   ],
+   "missingInCatalog": [
+    "乳香",
+    "山慈菇",
+    "没药",
+    "瓜蒌",
+    "甘草",
+    "茜草",
+    "豭鼠粪",
+    "陈皮"
+   ],
+   "category": "other",
+   "reason": "鼠粪即豭鼠粪（雄鼠粪），同一味药的两种写法；原文其余十七味目录已全。"
+  },
+  {
+   "name": "里东丸",
+   "book": "绛雪园古方选注",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "古文钱",
+    "墨",
+    "穿山甲",
+    "麝香",
+    "黄麻灰"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有古文钱、墨、穿山甲、麝香、黄麻灰，订正时有意不列入目录。原文末句「朱砂为衣」是丸衣赋形，原方表误作药味，移出；其余十四味与原文一致。目录只有四味，缺的普通药地龙、当归、乳香、自然铜、枫香脂补入；穿山甲、麝香属禁用/濒危不编制，黄麻灰、古文钱、京墨非今用饮片，均不列入。"
+  },
+  {
+   "name": "阳毒内消散",
+   "book": "药奁启秘",
+   "extraInCatalog": [
+    "醋龟甲"
+   ],
+   "missingInCatalog": [
+    "穿山甲"
+   ],
+   "category": "other",
+   "reason": "外用散剂（含麝香、轻粉、铜绿等），按外用/含禁用药口径目录沿用深圳标准写法不改。原方表只有教材索引行（出处署《药奁启秘》，现代剂量），药味同目录，差异只在原方炒甲片（穿山甲，禁用）目录写醋龟甲；该替代无依据，但穿山甲本身不编制，留待人工复核，不据此改目录。"
+  },
+  {
+   "name": "柴胡达原饮",
+   "book": "重订通俗伤寒论",
+   "extraInCatalog": [
+    "荷叶梗"
+   ],
+   "missingInCatalog": [
+    "荷梗"
+   ],
+   "category": "other",
+   "reason": "原文十味（柴胡、生枳壳、川朴、青皮、炙草、黄芩、苦桔梗、草果、槟榔、荷叶梗）与目录逐味一致；荷叶梗即荷梗，麸炒枳壳、姜厚朴、炒草果仁、黄芩片是调剂品名，不改。"
+  },
+  {
+   "name": "柴胡陷胸汤",
+   "book": "重订通俗伤寒论",
+   "extraInCatalog": [
+    "生姜汁"
+   ],
+   "missingInCatalog": [],
+   "category": "other",
+   "reason": "国家经典名方目录条目，目录八味（柴胡、姜半夏、小川连、苦桔梗、黄芩、瓜蒌子、小枳实、生姜汁）与原文及《方剂学》【组成】逐味一致；小川连即黄连、苦桔梗即桔梗、小枳实即枳实、栝蒌仁即瓜蒌子，生姜汁原文四滴分冲，目录沿用国家目录原写法，不改。"
+  },
+  {
+   "name": "九痛丸",
+   "book": "金匮要略",
+   "extraInCatalog": [
+    "生野狼牙"
+   ],
+   "missingInCatalog": [
+    "狼牙"
+   ],
+   "category": "other",
+   "reason": "药味一致；原文生狼牙（炙香），目录写生野狼牙，是同一药的调剂写法，不改。"
+  },
+  {
+   "name": "大黄蟅虫丸",
+   "book": "金匮要略",
+   "extraInCatalog": [
+    "炒虻虫",
+    "炒蛴螬"
+   ],
+   "missingInCatalog": [
+    "虻虫",
+    "蛴螬"
+   ],
+   "category": "other",
+   "reason": "《金匮要略方论》大黄䗪虫丸十二味（大黄蒸、黄芩、甘草、桃仁、杏仁、芍药、干地黄、干漆、虻虫、水蛭、蛴螬、䗪虫），炼蜜为丸、酒饮服，与教材索引行一致。目录熟大黄（大黄蒸）、烫水蛭、炒虻虫、炒蛴螬、炒苦杏仁、黄芩片为炮制/调剂品名，土鳖虫即䗪虫，药味身份全同，不改。"
+  },
+  {
+   "name": "奔豚汤",
+   "book": "金匮要略",
+   "extraInCatalog": [
+    "甘李根皮"
+   ],
+   "missingInCatalog": [
+    "李根皮"
+   ],
+   "category": "other",
+   "reason": "药味一致；原文甘李根白皮（一升），目录作甘李根皮，是同一药的简称，不改。"
+  },
+  {
+   "name": "王不留行散",
+   "book": "金匮要略",
+   "extraInCatalog": [
+    "桑东南根白皮"
+   ],
+   "missingInCatalog": [
+    "桑白皮"
+   ],
+   "category": "other",
+   "reason": "药味一致；原文桑东南根白皮，原方表按通行名归一为桑白皮，目录保留原文写法，同一药，不改。"
+  },
+  {
+   "name": "生姜半夏汤",
+   "book": "金匮要略",
+   "extraInCatalog": [
+    "生姜汁"
+   ],
+   "missingInCatalog": [],
+   "category": "other",
+   "reason": "药味一致；原文生姜汁一升，原方表归一为生姜，目录写生姜汁，只是写法差异，不改。"
+  },
+  {
+   "name": "鳖甲煎丸",
+   "book": "金匮要略",
+   "extraInCatalog": [
+    "鼠妇虫"
+   ],
+   "missingInCatalog": [
+    "鼠妇"
+   ],
+   "category": "other",
+   "reason": "原文二十三味与《方剂学》【组成】及教材索引行逐味一致，目录二十三味全有：醋鳖甲（鳖甲炙）、射干（乌扇）、鼠妇虫（鼠妇）、凌霄花（紫葳）、法半夏、土鳖虫（䗪虫）、阿胶珠（阿胶炙）、制蜂房（蜂窝炙）、硝石（赤硝）等只是品名/炮制写法；煅灶下灰、清酒为制剂辅料。不改。"
+  },
+  {
+   "name": "军中第一仙方",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "人指甲灰",
+    "陈松香"
+   ],
+   "missingInCatalog": [
+    "人指甲",
+    "松香"
+   ],
+   "category": "other",
+   "reason": "原文四味为人指甲灰、血余炭、陈松香、生狗头，目录逐项相符；原方表将人指甲灰归人指甲、陈松香归松香，属于原文品名与基础名之别。狗头火煅存性已在表中记录。"
+  },
+  {
+   "name": "吐血验方",
+   "book": "验方新编",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "童便"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有童便，订正时有意不列入目录。首段为童便并随嚼南枣，下一段另标「又，吐血经验方」，马桶碱与黑枣属于后方，不能合并；目录改组仅保留大枣，黑枣不重复计味，童便按简报不编入目录药味，原方表仍保留其原文记录。"
+  },
+  {
+   "name": "咽喉冰硼散",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "陈胆星"
+   ],
+   "missingInCatalog": [
+    "胆南星"
+   ],
+   "category": "other",
+   "reason": "原文九味中的陈胆星五分与目录相同，原方表归名胆南星；其余药味相符，属于药名写法差异。"
+  },
+  {
+   "name": "喉风外治方",
+   "book": "验方新编",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有麝香，订正时有意不列入目录。首方为蚯蚓和麝香、冰片外涂，目录巴豆、细辛及牙皂分别来自后两首又方，应删除；原方麝香仍留原方表，按简报不编入改后的目录，改组列地龙、冰片。"
+  },
+  {
+   "name": "增补大保红药丹",
+   "book": "验方新编",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有麝香，订正时有意不列入目录。原方固定七味，目录仅录肉桂、木香，须补三七、土鳖虫、朱砂、冰片；真麝子（麝香）仍保留原方表，按简报不编入改后目录，各部位「加」的引药不并入固定组成。"
+  },
+  {
+   "name": "大苦参丸",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "栀仁",
+    "白附"
+   ],
+   "missingInCatalog": [
+    "栀子",
+    "白附子"
+   ],
+   "category": "other",
+   "reason": "原文十九味包含白附、栀仁，目录照录，原方表分别规范为白附子、栀子；药味身份相同，无实质增减，原文未分品种的贝母继续保留原名。"
+  },
+  {
+   "name": "打死无气方",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "胎发"
+   ],
+   "missingInCatalog": [
+    "血余炭"
+   ],
+   "category": "other",
+   "reason": "原文明列胎发一撮并注烧存性，原方表按烧制毛发归血余炭，目录保留原料名胎发；十四味身份相同，仅原料与炮制品名写法不同。"
+  },
+  {
+   "name": "拔疔红膏",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "嫩松香"
+   ],
+   "missingInCatalog": [
+    "松香"
+   ],
+   "category": "other",
+   "reason": "拔疔红膏首方五味与目录相符，蓖麻仁、嫩松香、黄丹分别对应原方表蓖麻子、松香、铅丹；这些是去壳用仁、修饰词和异名差异，后续又方未混入。"
+  },
+  {
+   "name": "接骨膏",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "黄香"
+   ],
+   "missingInCatalog": [
+    "松香"
+   ],
+   "category": "other",
+   "reason": "目录「黄香」即松香（松脂），原文作黄香，row 记为松香，同一味药；药味一致。"
+  },
+  {
+   "name": "救死活命丹",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "鸡子"
+   ],
+   "missingInCatalog": [
+    "鸡子黄"
+   ],
+   "category": "other",
+   "reason": "原文先列“鸡子一个”，后明言“去白用黄，共药四味”；目录鸡子是这一原料的简写，表中鸡子黄明确实际取用部位，四味来源相同，保留差异说明即可。"
+  },
+  {
+   "name": "整骨麻药方",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "闹羊花"
+   ],
+   "missingInCatalog": [
+    "羊踯躅"
+   ],
+   "category": "other",
+   "reason": "原文药味行为麻黄、胡茄子、姜黄、川乌、草乌、闹羊花六味；目录逐字沿用闹羊花，表中羊踯躅为其归并名，六味并无增减。茶调送下、甘草汤解药均不另计本方药味。"
+  },
+  {
+   "name": "时疫痧气霍乱良方",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "福珍酒",
+    "辣蓼草"
+   ],
+   "missingInCatalog": [
+    "辣蓼",
+    "黄酒"
+   ],
+   "category": "other",
+   "reason": "原文正列辣蓼草、宣木瓜、福珍酒，并注“即好黄酒亦可”；目录沿用原名，表作辣蓼、木瓜、黄酒是归并写法，同一外洗方用料，无实质增减。酒在此为定量外洗煎液用料，非送服酒。"
+  },
+  {
+   "name": "春合口药粉方",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "胎发灰"
+   ],
+   "missingInCatalog": [
+    "血余炭"
+   ],
+   "category": "other",
+   "reason": "原文六味中确有胎发灰，并注“若无胎发，乱发亦可”；目录保留原名，表按烧制毛发归血余炭，同物写法差异，无须改目录。"
+  },
+  {
+   "name": "杖伤卫心丹",
+   "book": "验方新编",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有麝香，订正时有意不列入目录。原文确含内服与外用配套用料，但猪板油、白蜡用于成膏，移出药味并留注；目录仍漏外用药松香，应补入，原文麝香保留在表中，按禁用/不编制药处理，不加入目录校订清单。"
+  },
+  {
+   "name": "治一切金疮方",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "古锻石",
+    "新锻石"
+   ],
+   "missingInCatalog": [
+    "石灰"
+   ],
+   "category": "other",
+   "reason": "原文为“古石灰、新石灰”并列，目录作古锻石、新锻石，均为石灰的旧名及新陈区别；表按同一基础药合并，丝瓜、韭菜亦一致，无药味遗漏。"
+  },
+  {
+   "name": "治产母乳痈神验方",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "绍兴酒"
+   ],
+   "missingInCatalog": [],
+   "category": "vehicle_or_excipient",
+   "reason": "原文“以酒送米入口毕”明确绍兴酒用于送服，按行格式规则移出药味、在注中保留一杯及可用本地黄酒的说明；目录所列绍兴酒是送服用料，不据此更改目录。"
+  },
+  {
+   "name": "治刀斧斩神效秘方",
+   "book": "验方新编",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "黄丹"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有黄丹，订正时有意不列入目录。原文黄丹、樟脑研末贮藏后才用蜜调敷，蜜为调敷辅料，移出药味；目录葱白、大黄、生姜来自下一段另治青紫内伤的方，应去除，黄丹仍据原文保留在表而不列入目录校订清单。"
+  },
+  {
+   "name": "治头面黄水肥疮方",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "飞丹"
+   ],
+   "missingInCatalog": [
+    "黄丹"
+   ],
+   "category": "other",
+   "reason": "目录「飞丹」即黄丹，同一味药（row 以黄丹记）。药味一致。"
+  },
+  {
+   "name": "治烂弦眼神方",
+   "book": "验方新编",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "麝香"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有麝香，订正时有意不列入目录。原文首方仅苦瓜、梅花冰片、真麝香；黑羊胆、桑叶、蜂蜜及猪胆、炉甘石、草乌分属两条“又方”，目录误并，应按首方校订，原方麝香保留在表但不列入目录校订清单。"
+  },
+  {
+   "name": "治脑漏神方",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "生漆丝棉"
+   ],
+   "missingInCatalog": [
+    "擦生漆丝棉"
+   ],
+   "category": "other",
+   "reason": "原文“擦生漆丝棉”指擦过生漆的丝棉，并允无丝棉时用揩漆布；目录“生漆丝棉”为同一材料的省称，连同白鹁鸽翎毛、冰片三味一致，不是增减。"
+  },
+  {
+   "name": "治重舌经验方",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "米醋"
+   ],
+   "missingInCatalog": [
+    "醋"
+   ],
+   "category": "other",
+   "reason": "原文陈醋一碗与五灵脂一两煎后含漱，目录米醋是醋的品类写法，表以基础名醋收录；原书未限定制醋原料，此处无可据以判定的药味差异，目录保留。"
+  },
+  {
+   "name": "消风玉容散",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "炒盐"
+   ],
+   "missingInCatalog": [
+    "食盐"
+   ],
+   "category": "other",
+   "reason": "原文六味与目录相符；炒盐五钱在表拆为食盐加炒法，白菊花归菊花、白芷梢归白芷、绿豆粉归绿豆，均为品名或炮制表示差异。"
+  },
+  {
+   "name": "甘露汤",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "干糖"
+   ],
+   "missingInCatalog": [
+    "干钖糖"
+   ],
+   "category": "other",
+   "reason": "目录「干糖」即原文「干钖糖」（钖为饧之误写，饴糖），同一味药。"
+  },
+  {
+   "name": "疔毒走黄经验方",
+   "book": "验方新编",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "犀角",
+    "羚羊角"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有犀角、羚羊角，订正时有意不列入目录。原文药味行共十三味，目录截断于当归，漏甘草、赤芍、黄连、紫苏子、防己、大黄六味，应补齐；犀角、羚羊角仍留原方表作历史记录，按本任务不将今天不用的二角列入目录改后清单。"
+  },
+  {
+   "name": "神效生肌散",
+   "book": "验方新编",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "轻粉",
+    "黄丹"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有轻粉、黄丹，订正时有意不列入目录。原文明用腊月猪胆汁和药，阴干再研，并未弃去胆汁，目录漏了这一制剂用药；轻粉、黄丹保留在原方表中，按本任务不列入今天调剂的改后清单。"
+  },
+  {
+   "name": "绣球丸",
+   "book": "验方新编",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "水银",
+    "轻粉"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有水银、轻粉，订正时有意不列入目录。原文把柏子仁油放在“糊药”制法中，并允许猪油、麻油代用，应从 row 药味移至制法说明；目录也应去掉该赋形油，轻粉、水银仍存原方表而不写入今天调剂的改后清单。"
+  },
+  {
+   "name": "肚腹水泻方",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "石榴皮"
+   ],
+   "missingInCatalog": [
+    "陈石榴"
+   ],
+   "category": "other",
+   "reason": "目录「石榴皮」即原文「陈石榴（酒炒）」，所用为石榴皮，同一味药；红枣、煨姜为引，目录列入药味无妨。"
+  },
+  {
+   "name": "肿痛围药方",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "淡附"
+   ],
+   "missingInCatalog": [
+    "附子"
+   ],
+   "category": "other",
+   "reason": "目录「淡附」即淡附子，row 以附子记，同一味药；药味一致。"
+  },
+  {
+   "name": "葱归肿汤",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "葱头"
+   ],
+   "missingInCatalog": [
+    "葱白"
+   ],
+   "category": "other",
+   "reason": "原书题“葱归溻肿汤”，五味及洗涤用法与目录对应；葱头为原文用名，row 归一葱白，仅名称表达不同。"
+  },
+  {
+   "name": "蚕蛾散",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "晚蚕蛾",
+    "陈锻石"
+   ],
+   "missingInCatalog": [
+    "石灰",
+    "蚕蛾"
+   ],
+   "category": "other",
+   "reason": "已核晚蚕蛾、白芷、当归头、陈石灰四味等分原文；晚蚕蛾／蚕蛾、陈锻石／石灰是用名及旧字差异，下行晚蚕焙末又方不应合并。"
+  },
+  {
+   "name": "金疮铁扇散",
+   "book": "验方新编",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "象皮"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有象皮，订正时有意不列入目录。原方六项明确有枯白矾，目录遗漏；花龙骨／龙骨、陈锻石／石灰是名称差异，黄连只用于伤处发肿的条件性另治，不并入；象皮留原方表，按濒危动物药不写入目录改后清单。"
+  },
+  {
+   "name": "金蟾散",
+   "book": "验方新编",
+   "extraInCatalog": [
+    "干虾蟆",
+    "皂角子"
+   ],
+   "missingInCatalog": [
+    "皂荚子",
+    "蟾蜍"
+   ],
+   "category": "other",
+   "reason": "已核三味同装砂缸煅灰的原文，目录干虾蟆、皂角子与 row 蟾蜍、皂荚子为用名对应，没有增减药；末后太乙膏为另贴成方，不合入散剂。"
+  },
+  {
+   "name": "银粉散",
+   "book": "验方新编",
+   "extraInCatalog": [],
+   "missingInCatalog": [
+    "水银",
+    "轻粉",
+    "铅粉"
+   ],
+   "category": "original_herb_not_dispensed",
+   "reason": "目录已按原方订正；原方另有水银、轻粉、铅粉，订正时有意不列入目录。原文“砂枯去砂，留锡”说明朱砂是制备后去弃的炮制辅料，不能留作散剂药味，须修 row 并删目录此项；水粉／铅粉为同物，水银、铅粉、轻粉仍保留原方表，按本任务不写入今天调剂的改后清单。"
+  }
+ ]
+}

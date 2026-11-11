@@ -9,6 +9,7 @@ import type { AssistedNegationClauses } from "./clinical-polarity";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 import { getLineageCard, getLineageQuestionStrategy } from "./tcm-lineages";
 import { executableFormulaCompilationReferences, formulaCompilationReferences, formulaManualDoseIngredients } from "./tcm-formula-provenance";
+import { formulaBaselineDisplayNames, originalFormulaForCatalogEntry } from "./formula-baseline-display";
 import {
   findTcmHerbPairIncompatibilities,
   getTcmHerbDoseLimit,
@@ -915,7 +916,12 @@ export function buildPrescribePrompt(caseState: CaseState, extras: M04PromptExtr
   const lockedFormulaNames = diagnoseReasoning?.overview.recommendedFormulaNames || [];
   const formulaCompilationContext = executableFormulaCompilationReferences(
     diagnoseReasoning?.overview.recommendedFormulaNames || [],
-  ).map((item) => {
+  ).map((reference) => {
+    // 给模型看的基准药名：饮片基础名加原方炮制，不带调剂品名（深圳标准的姜天麻、黄芩片、煅石决明…），见 formula-baseline-display。
+    const original = originalFormulaForCatalogEntry(reference.formulaName, reference.source);
+    const display = formulaBaselineDisplayNames(reference.ingredients, original);
+    const displayOf = new Map(reference.ingredients.map((name, index) => [name, display[index]] as const));
+    const item = { ...reference, ingredients: [...new Set(display)], requiredIngredients: [...new Set(reference.requiredIngredients.map((name) => displayOf.get(name) || name))] };
     const doseBoundaries = item.ingredients.map((name) => {
       const limit = getTcmHerbDoseLimit(name);
       if (!limit || limit.min == null || limit.max == null) return `${name}：未覆盖，不能猜剂量`;
@@ -926,7 +932,10 @@ export function buildPrescribePrompt(caseState: CaseState, extras: M04PromptExtr
       `- 方名：${item.formulaName}`,
       `  出处：${item.source}`,
       `  基准药味：${item.ingredients.join("、")}`,
-      `  组成身份下限：至少保留上述 ${item.minimumPreservedIngredientCount}/${item.ingredients.length} 味，且必须包含锚点药味 ${item.requiredIngredients.join("、")}；需要删减更多时不得继续沿用该方名`,
+      ...(original && original.guides.length > 0
+        ? [`  原方药引（原书煎服法里另加，不在药味表）：${original.guides.join("、")}。药味表可列可不列。`]
+        : []),
+      `  组成身份下限：至少保留上述 ${item.minimumPreservedIngredientCount}/${reference.ingredients.length} 味，且必须包含锚点药味 ${item.requiredIngredients.join("、")}；需要删减更多时不得继续沿用该方名`,
       `  历史常用量参考（仅用于模型优先落在保守区间，不代表现行药典核验）：${doseBoundaries}`,
       `  生成前逐味安全边界：${item.ingredients.map((name) => `${name}〔${tcmHerbGenerationSafetyBoundaryText(name)}〕`).join("；")}`,
       // 古方原组成里的毒性/管制味已从基准药味中扣除（系统不为其编制用量）。必须显式告知模型

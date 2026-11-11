@@ -1,7 +1,7 @@
 import processingSource from "../data/tcm-herb-processing-forms.source.json" with { type: "json" };
 import { recordedFindingReading } from "./diagnosis-safety";
-import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
-import { compositionIdentityName, governedFormulaOriginalPreparations } from "./tcm-formula-provenance";
+import { knownWithSameDose, originalPreparedHerbName } from "./formula-baseline-display";
+import { compositionIdentityName, governedFormulaOriginalPreparations, identifyKnownFormulaNames, type OriginalFormulaContext } from "./tcm-formula-provenance";
 
 /**
  * 同一味药炮制前后功用不同时交付哪种饮片（2026-11-08 第三十七轮，甲方 11.05 病历11/12「便溏用生白术」、病历10「完带汤写原方却用白术、山药」、
@@ -24,48 +24,25 @@ const PREPARED_PREFIX = new RegExp(`^(?:${[...SOURCE.preparedPrefixes].sort((a, 
 const PREPARED_CHAR_CLASS = [...new Set(SOURCE.preparedPrefixes.join(""))].join("");
 const FORMULA_SUFFIX_CLASS = SOURCE.formulaNameSuffixes.join("");
 
-/**
- * 改出来的饮片名要知识库认得、剂量边界与原药相同；有毒的药不在这里改（附子、半夏一类的炮制规格与剂量由毒性药规则与医生定，
- * 改名会让注意事项里按药名写的毒性提示对不上）。
- */
-function knownWithSameDose(form: string, base: string): boolean {
-  if (!isKnownTcmHerbName(form)) return false;
-  if (getTcmHerbGenerationSafetyProfile(base).isToxic || getTcmHerbGenerationSafetyProfile(form).isToxic) return false;
-  const formLimit = getTcmHerbDoseLimit(form);
-  const baseLimit = getTcmHerbDoseLimit(base);
-  if (!formLimit) return false;
-  return !baseLimit || (formLimit.min === baseLimit.min && formLimit.max === baseLimit.max);
-}
-
 function recordAffirms(recordText: string, cue: string): boolean {
   if (!recordText.includes(cue)) return false;
   const reading = recordedFindingReading(recordText, cue);
   return reading === "affirmed" || reading === "conflicting";
 }
 
-/** 原方原文写的炮制换成饮片名：土炒→土炒白术，炒→炒山药，酒炒→酒白芍，制→制苍术。 */
-function preparedNameFromOriginal(base: string, preparation: string): string | undefined {
-  const candidates = [
-    `${preparation}${base}`,
-    preparation.endsWith("炒") && preparation.length === 2 ? `${preparation[0]}${base}` : "",
-    preparation === "蜜炙" ? `炙${base}` : "",
-  ].filter(Boolean);
-  return candidates.find((name) => knownWithSameDose(name, base));
-}
-
 export function processedHerbName(
   name: string,
-  context: { purposeText?: string; recordText?: string; formulaName?: string },
+  context: { purposeText?: string; recordText?: string; formulaName?: string; formulaContext?: OriginalFormulaContext },
 ): string | undefined {
   const base = String(name || "").trim();
   if (!base || PREPARED_PREFIX.test(base)) return undefined;
   const identity = compositionIdentityName(base);
   if (context.formulaName) {
-    for (const entry of governedFormulaOriginalPreparations(context.formulaName.replace(/(?:加减|化裁|加味)$/u, ""))) {
+    for (const entry of governedFormulaOriginalPreparations(context.formulaName.replace(/(?:加减|化裁|加味)$/u, ""), context.formulaContext)) {
       if (entry.identity !== identity) continue;
       if (entry.rawName && entry.rawName !== base && knownWithSameDose(entry.rawName, base)) return entry.rawName;
       if (entry.preparation) {
-        const prepared = preparedNameFromOriginal(base, entry.preparation);
+        const prepared = originalPreparedHerbName(base, entry.preparation);
         if (prepared) return prepared;
       }
     }
@@ -83,11 +60,24 @@ export function processedHerbName(
   return rule.form;
 }
 
-/** 文本里这味药的生品名换成交付的饮片名（前面已带炮制字、或是方名的一部分时不换）。 */
+/**
+ * 文本里这味药的生品名换成交付的饮片名（前面已带炮制字、或是方名的一部分时不换）。
+ * 方名以药名开头的（龙胆泻肝汤、黄芪建中汤、当归四逆汤）整个方名不动：此前只看药名后一个字是不是剂型字，
+ *「龙胆」改「酒龙胆」时「龙胆泻肝汤」被改成了「酒龙胆泻肝汤」（第四十二轮，原方炮制改读原方组成表后暴露）。
+ */
 export function withProcessedHerbMentions(text: string, renames: ReadonlyMap<string, string>): string {
   let out = String(text || "");
+  if (renames.size === 0 || !out) return out;
+  const formulaNames = [...new Set(identifyKnownFormulaNames(out))]
+    .filter((name) => [...renames.keys()].some((from) => name.includes(from)))
+    .sort((left, right) => right.length - left.length);
+  const held: string[] = [];
+  for (const name of formulaNames) {
+    out = out.split(name).join(`\u0000${held.length}\u0000`);
+    held.push(name);
+  }
   for (const [from, to] of renames) {
     out = out.replace(new RegExp(`(?<![${PREPARED_CHAR_CLASS}])${from}(?![${FORMULA_SUFFIX_CLASS}])`, "gu"), to);
   }
-  return out;
+  return out.replace(/\u0000(\d+)\u0000/gu, (_match, index: string) => held[Number(index)] ?? "");
 }

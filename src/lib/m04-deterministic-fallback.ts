@@ -1,4 +1,5 @@
 import { isPediatricPatient, NON_DOSE_PRESCRIPTION_MARKER, pediatricDoseRuleForCase } from "./diagnosis-safety";
+import { formulaBaselineDisplayNames, originalFormulaForCatalogEntry } from "./formula-baseline-display";
 import type { CaseState } from "./diagnosis-types";
 import { assessLactationState, assessPregnancyState, isPositiveOrPossibleClinicalState, recentChildbirthMentioned } from "./clinical-state";
 import { cdssReasonCodeMarker } from "./cdss-reason-codes";
@@ -93,7 +94,9 @@ export function buildDeterministicFormulaReferenceFallback(
     : typeof prior?.therapy?.overallPrinciple === "string" ? prior.therapy.overallPrinciple : "";
 
   const sections = references.map((reference) => {
-    const rows = reference.ingredients.map((name, index) => {
+    // 药名写饮片基础名加原方炮制，不带调剂品名（formula-baseline-display）。
+    const displayNames = [...new Set(formulaBaselineDisplayNames(reference.ingredients, originalFormulaForCatalogEntry(reference.formulaName, reference.source)))];
+    const rows = displayNames.map((name, index) => {
       const clinicianClass = clinicianDoseHerbClass(name);
       const regulatoryBlocked = clinicianClass === "controlled_or_toxic" || clinicianClass === "endangered_or_banned";
       const limit = getTcmHerbDoseLimit(name);

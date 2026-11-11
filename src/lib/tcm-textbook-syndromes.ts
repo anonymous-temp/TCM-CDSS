@@ -9,6 +9,8 @@ import { POSITIVE_FACT_EQUIVALENT_GROUPS, recordMentionPolarityAt, sourceDocumen
 import { textbookModificationIsIncidentalSleep } from "./incidental-sleep-modification";
 import { governedSyndromeLabelAxes } from "./clinical-vocabulary";
 import { herbThermalSide } from "./tcm-knowledge";
+import { originalFormula, textbookRowFormulaBook } from "./formula-original-composition";
+import { originalPreparedHerbName } from "./formula-baseline-display";
 
 /**
  * 教材「病—证—治法—代表方—加减」对照表的运行时读取（2026-10-13，甲方 10.12 测评）。
@@ -781,23 +783,22 @@ export function buildTextbookFormulaContext(diseaseName: string, syndromeName: s
   const row = textbookRowForSyndrome(diseaseName, syndromeName, input);
   if (!row) return "";
   const modifications = textbookEntryPromptLines(row, input.recordText);
+  // 教材行的组成是教材的「常用药」（已经加减过），不是原方。教材写了代表方出处、原方组成表里有那本书这首方时，把原方组成一并给出
+  //（第四十二轮：柴胡葛根汤教材常用药十一味，《外科正宗》原方十味；白术散教材署《全生指迷方》，与目录《小儿药证直诀》白术散是两首方）。
+  const originals = row.formulas.flatMap((formula) => {
+    const book = textbookRowFormulaBook(row.id, formula);
+    const entry = book ? originalFormula(formula, book) : undefined;
+    if (!entry) return [];
+    const herbs = entry.herbs.map((item) => (item.deliver && item.preparation ? originalPreparedHerbName(item.herb, item.preparation) : undefined) || item.herb);
+    return [`${formula}（《${entry.book}》）原方：${herbs.join("、")}${entry.guides.length > 0 ? `；药引 ${entry.guides.join("、")}` : ""}`];
+  });
   return [
-    `【教材方药】${row.disease}·${row.syndromeName}（《${row.book}》）：治法 ${row.therapy}；代表方 ${formulaLabel(row)}${row.composition.length > 0 ? `（${row.composition.join("、")}）` : ""}。`
-      + `辨证阶段已定用该代表方：candidate.name 写“${formulaLabel(row)}加减”，candidate.herbs 以该方组成为主体（保留其大部分药味），再按本例病机加减，增减合计不超过 4 味；不要另起一张方。`,
+    `【教材方药】${row.disease}·${row.syndromeName}（《${row.book}》）：治法 ${row.therapy}；代表方 ${formulaLabel(row)}${row.composition.length > 0 ? `（教材常用药：${row.composition.join("、")}）` : ""}。`
+      + (originals.length > 0 ? `${originals.join("。")}。` : "")
+      + `辨证阶段已定用该代表方：candidate.name 写“${formulaLabel(row)}加减”，candidate.herbs 以该方组成为主体（保留其大部分药味），再按本例病机加减，增减合计不超过 4 味；不要另起一张方。`
+      + (originals.length > 0 ? "方义里说「原方」「去某药」「加某药」时对的是上面的原方组成，不是教材常用药。" : ""),
     modifications.length > 0 ? `【教材加减】${modifications.join("；")}。` : "",
   ].filter(Boolean).join("\n");
-}
-
-/** 教材写的这张方的组成（合方行按方拆开的；只认这张方单列的）。 */
-export function textbookFormulaComposition(formulaName: string): readonly string[] {
-  const wanted = compact(formulaName);
-  for (const disease of DISEASES) {
-    for (const row of disease.rows) {
-      const hit = row.formulaCompositions?.find((item) => compact(item.formula) === wanted);
-      if (hit) return hit.herbs;
-    }
-  }
-  return [];
 }
 
 /** 这个名字是教材的一个病（节名）。 */
