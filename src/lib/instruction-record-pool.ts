@@ -38,6 +38,18 @@ function recordFields(body: string): Map<string, string> {
   return fields;
 }
 
+/**
+ * 说明书字段里「尚不明确」「未载明」这类占位（禁忌一栏写「尚不明确」，与注意事项拼在一起成了「尚不明确。1、忌辛辣…」，
+ * 第四十四轮回看 10 份风险说明以「尚不明确。」开头）：去掉占位那一段，余下照原文。整段只是占位时返回空。
+ */
+const LABEL_PLACEHOLDER = /(?:尚不明确|尚不清楚|不明确|尚未明确|未载明|暂无|尚无)/u;
+export function withoutLabelPlaceholders(value: string | undefined): string | undefined {
+  if (!value) return value;
+  const parts = value.split(/(?<=[。；;])/u).map((part) => part.trim()).filter(Boolean);
+  const kept = parts.filter((part) => !new RegExp(`^${LABEL_PLACEHOLDER.source}[。；;，,]?$`, "u").test(part));
+  return kept.join("").replace(new RegExp(`^${LABEL_PLACEHOLDER.source}[。；;，,]\\s*`, "u"), "").replace(new RegExp(`(?:^|[；;])\\s*${LABEL_PLACEHOLDER.source}\\s*(?=[；;]|$)`, "gu"), "").trim();
+}
+
 /** 从提示词文本解析模型可选的全部说明书条目。同一 ID 出现多次时取第一次（与模型读到的顺序一致）。 */
 export function instructionRecordPoolFromText(text: string): InstructionRecordPool {
   const pool = new Map<string, EvidenceBoundMedicineProposal>();
@@ -53,6 +65,7 @@ export function instructionRecordPoolFromText(text: string): InstructionRecordPo
     const local = evidenceId.startsWith("LOCAL-INST-");
     const usage = parseMedicationLabelUsage(fields.get("用法") || fields.get("用法用量"));
     const risk = compact([fields.get("禁忌/注意"), fields.get("特殊人群"), fields.get("相互作用")]
+      .map((value) => withoutLabelPlaceholders(value))
       .filter((value): value is string => Boolean(value && value.trim())).join("；"), 800);
     pool.set(evidenceId, {
       // LOCAL-INST 只收中成药；EVID-INST 两类都有，以模型写的 type 为准（见 fillMedicineRowFromInstructionRecord）。

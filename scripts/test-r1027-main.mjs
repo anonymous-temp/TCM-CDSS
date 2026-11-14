@@ -123,7 +123,8 @@ await check("1.4 不够数：节点只删那一分句与治法项，病性轴、
   // 按所核的条目写（肝血虚证），辨证要点取《中医诊断学》原文。
   assert.deepEqual(out.pathogenesis.uncertainties[0], {
     item: "是否兼肝血虚",
-    reason: "肝血虚的辨证要点（眩晕、视力减退、肢体麻木与血虚症状共见）在本例尚未成组出现",
+    // 第四十四轮：写成「本例未见…成组出现」（要点与「未见」同一小句，舌脉净化不再改要点原文；有核对引文时写出本例已见的几项）。
+    reason: "本例未见肝血虚的辨证要点（眩晕、视力减退、肢体麻木与血虚症状共见）成组出现",
     affects: "望诊、问诊核实后再定是否兼顾养血",
   });
 });
@@ -147,7 +148,8 @@ await check("1.5 不够数：只剩依附分句的节点整条撤下；带汗出
   assert.deepEqual(out.pathogenesis.chain.map((n) => n.patientFact), ["经血暴下", "自汗"], "头晕那条只剩「兼失濡润」，撤下；自汗那条带鉴别点，不撤");
   assert.equal(out.pathogenesis.chain[1].pathogenesis, "血虚，兼失濡养", "不撤也删不动时原样留着");
   assert.equal(out.pathogenesis.uncertainties[0].item, "是否兼血虚", "类别总条目按类别写");
-  assert.match(out.pathogenesis.uncertainties[0].reason, /^血虚的辨证要点（面、睑、唇、舌色淡白，脉细）/u);
+  // 第四十四轮：要点里的逗号换成顿号、与「未见」同一小句（舌脉净化不改要点原文）。
+  assert.match(out.pathogenesis.uncertainties[0].reason, /^本例(?:虽见[^，]+，)?未见血虚的辨证要点（面、睑、唇、舌色淡白、脉细）成组出现$/u);
 });
 
 await check("1.7 不够数：名外虚性证素写成首节点（实证主证）时，链上还有别的节点就撤下它；只有一个节点时不撤", () => {

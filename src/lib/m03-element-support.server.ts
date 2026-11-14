@@ -362,16 +362,23 @@ export function diagnosticsCriteriaEvidence(entryName: string, confidence: "中"
  * 不确定项按所核的条目写（「是否兼脾气虚」），不按类别写：主证肾气虚证、多写的是脾气不足时，「是否兼气虚」与主证自相矛盾
  *（2026-10-22 实测 S-renal-006）。脏腑条目的辨证要点取《中医诊断学》原文；类别总条目取本表 keyPoints（阳虚证原文本地语料缺字）。
  */
-function uncertaintyFor(type: DeficiencyType, entryName: string): Json {
+function uncertaintyFor(type: DeficiencyType, entryName: string, seen: readonly string[] = []): Json {
   const config = LEXICON.types[type];
   const generic = entryName === config.genericEntry;
   const label = generic ? type : entryName.replace(/证$/u, "");
-  const keyPoints = generic
+  // 要点里的逗号换成顿号：整段要点与「未见」同在一个小句里，舌脉净化把它读成对本例的否认语境，不把要点原文里的「脉细」改成「脉象待核实」
+  //（第四十四轮回看：15 份这一条里有一处成了「脉象待核实」）。
+  const keyPoints = (generic
     ? config.keyPoints
-    : (diagnosticsCriteriaFor(entryName)?.keyPointsText || config.keyPoints).replace(/(?:等)?为主要表现/u, "").replace(/[。；;，,\s]+$/u, "");
+    : (diagnosticsCriteriaFor(entryName)?.keyPointsText || config.keyPoints).replace(/(?:等)?为主要表现/u, "").replace(/[。；;，,\s]+$/u, ""))
+    .replace(/[，,；;]/gu, "、");
+  // 写本例已见的那几项（核对引文里的短句），不是每例同一句套话（第四十四轮甲方澄清后回看：15 份同一句式）。
+  const shown = [...new Set(seen.map((quote) => quote.trim()).filter((quote) => quote.length >= 2 && quote.length <= 10))].slice(0, 3);
   return {
     item: `是否兼${label}`,
-    reason: `${label}的辨证要点（${keyPoints}）在本例尚未成组出现`,
+    reason: shown.length > 0
+      ? `本例虽见${shown.join("、")}，未见${label}的辨证要点（${keyPoints}）成组出现`
+      : `本例未见${label}的辨证要点（${keyPoints}）成组出现`,
     affects: `望诊、问诊核实后再定是否兼顾${config.therapyWord}`,
   };
 }
@@ -532,7 +539,7 @@ export function applyElementSupportDecision(tcmContent: string, decision: Elemen
   const uncertainties = Array.isArray(pathogenesis.uncertainties) ? pathogenesis.uncertainties : [];
   for (const type of failed) {
     const unit = decision.verdicts.find((item) => item.unit.type === type);
-    const entry = uncertaintyFor(type, unit?.verdict.entry || unit?.unit.entryName || LEXICON.types[type].genericEntry);
+    const entry = uncertaintyFor(type, unit?.verdict.entry || unit?.unit.entryName || LEXICON.types[type].genericEntry, unit?.verdict.quotes || []);
     if (!records(uncertainties).some((item) => text(item.item) === entry.item)) uncertainties.unshift(entry);
   }
   pathogenesis.uncertainties = uncertainties;

@@ -16,7 +16,7 @@ import { formulaBaseHerbsBarredForCase } from "@/lib/formula-base-herbs-barred.s
 import { activeBleedingM04Rule } from "@/lib/active-bleeding-treatment";
 import { herbRecordCautionPromptSection, textbookBaseIngredients } from "@/lib/herb-record-caution";
 import { textbookRowForSyndrome } from "@/lib/tcm-textbook-syndromes";
-import { ageImplausibleReproductiveNotice, authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, registerActiveBleedingRedFlags, activeBleedingInGroundingText, activeBleedingWording, trustedInputText } from "@/lib/diagnosis-safety";
+import { ageImplausibleReproductiveNotice, auxiliaryReportForeignPersonNotice, authoritativePatientAgeYears, pregnancyAdviceRelevant, reproductiveAdviceRelevant, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, doseWithheldFollowupKind, priorityEvaluationFollowupTarget, isEmergencyLimitedDiagnosis, markdownNdjsonResponse, mergePrescriptionReviewItems, NON_DOSE_PRESCRIPTION_MARKER, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate, registerActiveBleedingRedFlags, activeBleedingInGroundingText, activeBleedingWording, trustedInputText } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
@@ -334,6 +334,9 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   // 未满 10 岁而病历写着本人的婚育、月经记录：不作用药与注意事项的依据（与辨证同一句，ageImplausibleReproductiveNotice）。
   const reproductiveAgeNotice = ageImplausibleReproductiveNotice(safeState).trim();
   if (reproductiveAgeNotice) promptSuffixes.push(reproductiveAgeNotice);
+  // 辅助检查里贴着别人的报告（第四十四轮）：不作用药依据（与辨证同一句，auxiliaryReportForeignPersonNotice）。
+  const foreignReportNotice = auxiliaryReportForeignPersonNotice(safeState).trim();
+  if (foreignReportNotice) promptSuffixes.push(foreignReportNotice);
   // 备孕/未避孕（owner 2026-10-14）：照常给剂量；药典孕妇禁用的饮片不得入方（合同按特殊人群驱动修复），慎用的用则写明。
   // 合同与编译器读同一个判据（chpPregnancyHerbTier）与同一份接地文本。
   const pregnancyHerbTier = chpPregnancyHerbTier(groundingText);

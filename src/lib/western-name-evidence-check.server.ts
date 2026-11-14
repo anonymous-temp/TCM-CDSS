@@ -11,7 +11,8 @@ import { quoteGroundedInText } from "./verbatim-quote";
 import { rationaleAlignedWithRenamedPrimary } from "./western-rationale-alignment";
 
 export { rationaleAlignedWithRenamedPrimary };
-import { clauseLocalMentionPolarityAt, recordMentionPolarityAt } from "./diagnosis-safety";
+import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
+import { recordStatesWesternDiagnosis } from "./recorded-test-claims";
 import { clinicalEventTemporalScopeAt } from "./clinical-polarity";
 
 /**
@@ -256,27 +257,8 @@ export function decisiveFindingVetoesD(decisive: unknown, meetsCriteria: unknown
 }
 
 /** 模型输出 → 可采信的改名（否则 undefined）。引文必须逐字在病历里；名称必须合规且与原名不同。 */
-/**
- * 病历肯定写着这个诊断（原词，或更具体的写法：「慢性浅表性胃炎」写着「慢性胃炎」），不是否认、不是别人的（家族史）、也不是「可疑/待排」。
- * 只用同一小句里按字序出现、中间至多隔 4 字的写法，「慢性咳嗽，胃炎」不算。
- */
-const UNCERTAIN_NEAR_DIAGNOSIS = /可疑|疑似|待排|待查|可能|\?|？|除外|排除/u;
-export function recordStatesWesternDiagnosis(name: string, recordText: string): boolean {
-  // 分期、并发症写在后面的按病本身看（支气管哮喘急性发作：病历写着支气管哮喘），第三十五轮 W03。
-  const core = name.trim().replace(/待查$/u, "").normalize("NFKC").replace(/(?:急性发作|急性加重|慢性迁延期|伴[\u4e00-\u9fff]+|合并[\u4e00-\u9fff]+)$/u, "");
-  if (core.length < 3) return false;
-  const source = recordText.normalize("NFKC");
-  const pattern = new RegExp([...core].map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[^，,。；;：:、\\n]{0,4}"), "gu");
-  for (const match of source.matchAll(pattern)) {
-    const at = match.index ?? 0;
-    const clauseStart = Math.max(...["，", ",", "。", "；", ";", "\n"].map((mark) => source.lastIndexOf(mark, at - 1))) + 1;
-    const clauseEnds = ["，", ",", "。", "；", ";", "\n"].map((mark) => source.indexOf(mark, at + match[0].length)).filter((index) => index >= 0);
-    const clause = source.slice(clauseStart, clauseEnds.length > 0 ? Math.min(...clauseEnds) : source.length);
-    if (UNCERTAIN_NEAR_DIAGNOSIS.test(clause)) continue;
-    if (recordMentionPolarityAt(source, at) === "affirmed") return true;
-  }
-  return false;
-}
+/** 判据移到 recorded-test-claims（交付面也要用，不能引 server-only 模块）；这里照旧导出，调用方不变。 */
+export { recordStatesWesternDiagnosis };
 
 export function parseWesternNameCorrection(
   content: unknown,

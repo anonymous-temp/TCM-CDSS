@@ -7002,13 +7002,72 @@ function hasReducedEgfr(text: string): boolean {
 export function narrativePediatricAgeConflict(state: CaseState): number | undefined {
   const registered = numberFromClinicalText(patientAgeText(state));
   if (registered == null || registered < 18) return undefined;
-  const text = [state.chiefComplaint, trustedInputText(state)].filter(Boolean).join("。");
+  // 辅助检查一栏里的年龄是报告上的人（第四十四轮：甲方把别人的报告解读「6岁女童」「38岁男性」贴进 30 岁男性的辅助检查，
+  // 判成年龄冲突、不给剂量、复诊写「请补充孩子的准确年龄」）。与本人不符的报告另有提示（auxiliaryReportForeignPersons）。
+  let text = [state.chiefComplaint, trustedInputText(state)].filter(Boolean).join("。");
+  for (const aux of auxiliaryExamFieldTexts(state)) text = text.split(aux).join("");
   const forward = /(?:患儿|婴儿|新生儿|男婴|女婴|宝宝|小儿|男孩|女孩|男童|女童)[，,、\s]*(\d{1,3})\s*(个月|月龄|天|日|岁)(?![前来余后内])/u.exec(text);
   const backward = /(\d{1,2})\s*岁(?:的)?(?:患儿|男孩|女孩|男童|女童|小儿)/u.exec(text);
   const years = forward
     ? Number(forward[1]) / (/(?:个月|月龄)/u.test(forward[2]) ? 12 : /(?:天|日)/u.test(forward[2]) ? 365 : 1)
     : backward ? Number(backward[1]) : undefined;
   return years != null && years < 18 ? years : undefined;
+}
+
+/** 辅助检查一栏的原文（甲方传参形状里是 symptoms 的「辅助检查」键，HIS 字段 fuzhuJiancha）。 */
+function auxiliaryExamFieldTexts(state: CaseState): string[] {
+  const fromSymptoms = Object.entries((state.symptoms || {}) as Record<string, unknown>)
+    .filter(([key]) => /辅助检查|检查结果|实验室检查/u.test(key)).map(([, value]) => stringifyClinicalValue(value));
+  const fromHis = Object.entries(state.hisRecord?.fields || {})
+    .filter(([key]) => /fuzhuJiancha|辅助检查/u.test(key)).map(([, value]) => stringifyClinicalValue(value));
+  return [...fromSymptoms, ...fromHis].map((value) => value.trim()).filter((value) => value.length >= 2);
+}
+
+const AUX_PERSON_AFTER_AGE = /(\d{1,3})\s*(岁|个月)(?:的)?(男性|女性|男童|女童|男孩|女孩|男婴|女婴|患儿|老年男性|老年女性)/gu;
+const AUX_PERSON_BEFORE_AGE = /(男性|女性|男童|女童|男孩|女孩|患儿)[，,、\s]*(\d{1,3})\s*(岁|个月)/gu;
+
+/**
+ * 辅助检查里写着另一个人的年龄、性别（「6岁女童」「38岁男性」），与本人登记的年龄（相差 2 岁以上）或性别不符：可能误贴了别人的报告。
+ * 返回原文写法（至多 3 条）；本人信息不全或都相符时返回空。只看辅助检查一栏：主诉、现病史里的「患儿」另由年龄冲突判。
+ */
+export function auxiliaryReportForeignPersons(state: CaseState): string[] {
+  const age = authoritativePatientAgeYears(state);
+  const sex = patientSexText(state);
+  const own: "男" | "女" | undefined = /女/u.test(sex) ? "女" : /男/u.test(sex) ? "男" : undefined;
+  if (age == null && !own) return [];
+  const found: string[] = [];
+  for (const aux of auxiliaryExamFieldTexts(state)) {
+    const mentions = [
+      ...[...aux.normalize("NFKC").matchAll(AUX_PERSON_AFTER_AGE)].map((match) => ({ phrase: match[0], amount: Number(match[1]), unit: match[2], person: match[3] })),
+      ...[...aux.normalize("NFKC").matchAll(AUX_PERSON_BEFORE_AGE)].map((match) => ({ phrase: match[0], amount: Number(match[2]), unit: match[3], person: match[1] })),
+    ];
+    for (const mention of mentions) {
+      const years = mention.unit === "个月" ? mention.amount / 12 : mention.amount;
+      const personSex = /女/u.test(mention.person) ? "女" : /男/u.test(mention.person) ? "男" : undefined;
+      const child = /童|孩|婴|患儿/u.test(mention.person);
+      const ageMismatch = age != null && (Math.abs(years - age) > 2 || (child && age >= 18));
+      const sexMismatch = own != null && personSex != null && personSex !== own;
+      if ((ageMismatch || sexMismatch) && !found.includes(mention.phrase)) found.push(mention.phrase);
+    }
+  }
+  return found.slice(0, 3);
+}
+
+/** 写进安全闸门提示（advisories）的那一句。 */
+export function auxiliaryReportForeignPersonAdvisory(state: CaseState): string | undefined {
+  const persons = auxiliaryReportForeignPersons(state);
+  if (persons.length === 0) return undefined;
+  const age = authoritativePatientAgeYears(state);
+  const sex = patientSexText(state);
+  const own = [age != null ? `${Math.floor(age)}岁` : "", /女/u.test(sex) ? "女" : /男/u.test(sex) ? "男" : ""].filter(Boolean).join("，");
+  return `辅助检查中写着「${persons.join("」「")}」，与本人（${own}）不符，可能误贴了他人的报告，请核对；辨证与用药未采用这部分内容`;
+}
+
+/** 给辨证、开方模型的同一提示。 */
+export function auxiliaryReportForeignPersonNotice(state: CaseState): string {
+  const persons = auxiliaryReportForeignPersons(state);
+  if (persons.length === 0) return "";
+  return `\n\n【辅助检查核对】辅助检查中写着「${persons.join("」「")}」，与本人的年龄或性别不符，疑为误贴了他人的报告：其中的检查结果与解读不作为本例辨病、辨证、用药的依据，也不据此要求补充年龄。`;
 }
 
 /**
@@ -7786,6 +7845,9 @@ export function evaluateSafetyGate(input: CaseState): SafetyGate {
   // 未满 10 岁的病历写着本人的婚育、月经记录：如实告诉医生，辨证与注意事项不采用（ageImplausibleReproductiveStatements）。
   const reproductiveAgeConflict = ageImplausibleReproductiveAdvisory(state);
   if (reproductiveAgeConflict) advisories.push(reproductiveAgeConflict);
+  // 辅助检查里贴着别人的报告（年龄、性别与本人不符）：如实告诉医生，不当作本人年龄冲突（auxiliaryReportForeignPersons）。
+  const foreignReport = auxiliaryReportForeignPersonAdvisory(state);
+  if (foreignReport) advisories.push(foreignReport);
   const semanticUnavailable = semanticScreeningUnavailableItem(state);
   if (semanticUnavailable) addMissing("semantic_screen_unavailable", semanticUnavailable);
   if (priorityEvaluationItems.length > 0) {
@@ -8743,7 +8805,9 @@ const PATIENT_MEDICATION_NOTE = "请不要自行叠加中药或中成药；复�
 
 function patientUrgentCareLine(signs: readonly string[] | undefined): string {
   const usable = uniqueFollowupText([...(signs || [])], 6).filter((item) => !isRecordCompletenessStatement(item));
-  return `如出现${(usable.length >= 2 ? usable : GENERIC_URGENT_SIGNS).join("、")}，请立即到急诊就医。`;
+  // 模型写的条目自己带「出现/突然出现」时，接在「如出现」后面成了「如出现突然出现新的肢体无力」（第四十四轮回看）：去掉句首的「出现」，「突然」留着。
+  const signsText = (usable.length >= 2 ? usable : GENERIC_URGENT_SIGNS).map((item) => item.replace(/^(突然)?出现/u, "$1")).join("、");
+  return `如出现${signsText}，请立即到急诊就医。`;
 }
 
 function hasStructuredDoseCandidate(state: CaseState): boolean {

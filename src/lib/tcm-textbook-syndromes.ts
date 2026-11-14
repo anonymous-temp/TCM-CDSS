@@ -786,7 +786,7 @@ export function buildFormulaModificationContext(diseaseName: string, syndromeNam
   const row = textbookRowForFormula(diseaseName, formulaNames, syndromeName);
   if (!row) return "";
   const lines = textbookEntryPromptLines(row, recordText);
-  return lines.length > 0 ? `【教材加减】（这张方在${textbookRowProvenance(row)}下的加减）${lines.join("；")}。写 modifications 时优先用这里的条目，选中的在该行写 textbookEntry。` : "";
+  return lines.length > 0 ? `【教材加减】（这张方在${textbookRowProvenance(row)}下的加减）${lines.join("；")}。条件所说的表现本例已有的条目，写 modifications 时优先用，选中的在该行写 textbookEntry，trigger 写病历原话。` : "";
 }
 
 export function buildTextbookFormulaContext(diseaseName: string, syndromeName: string, input: TextbookCaseInput = {}): string {
@@ -807,7 +807,7 @@ export function buildTextbookFormulaContext(diseaseName: string, syndromeName: s
       + (originals.length > 0 ? `${originals.join("。")}。` : "")
       + `辨证阶段已定用该代表方：candidate.name 写“${formulaLabel(row)}加减”，candidate.herbs 以该方组成为主体（保留其大部分药味），再按本例病机加减，增减合计不超过 4 味；不要另起一张方。`
       + (originals.length > 0 ? "方义里说「原方」「去某药」「加某药」时对的是上面的原方组成，不是教材常用药。" : ""),
-    modifications.length > 0 ? `【教材加减】${modifications.join("；")}。` : "",
+    modifications.length > 0 ? `【教材加减】${modifications.join("；")}。只用条件所说的表现本例已有的条目。` : "",
   ].filter(Boolean).join("\n");
 }
 

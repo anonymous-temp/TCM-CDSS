@@ -2,7 +2,7 @@ import "server-only";
 
 import { parseConfirmed, proposeTwiceThenVerifyAll } from "./cross-model-small-task.server";
 import { herbCautionReferenceText, herbClaimReferenceText, herbPropertyReferenceText } from "./m04-formula-analysis-claim-check.server";
-import { distinctModificationConditions, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
+import { distinctModificationConditions, standbyModificationsDelivered, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
 import { quoteGroundedInText } from "./verbatim-quote";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import modificationRelevance from "../data/tcm-modification-relevance.source.json" with { type: "json" };
@@ -32,7 +32,7 @@ const record = (value: unknown): Json | undefined => value && typeof value === "
 const text = (value: unknown): string => typeof value === "string" ? value.trim() : "";
 
 const SYSTEM = [
-  "你是中医主治医师，逐行核对随证加减。每行是「若某情况，加某药」，「若」说的是本例现在没有、之后可能出现的变化。",
+  "你是中医主治医师，逐行核对随证加减。每行是「某情况，加某药」：条件以「若」起头的说的是本例现在没有、之后可能出现的变化，不带「若」的是病历已记录的表现。",
   "每行写 verdict：",
   "contradicts：这个条件与病历已记录的情况相反，本例在现在的证候下不会这样（病历便溏对“若大便干结”、舌淡脉弱对“若舌红脉数”、口不渴对“若口渴”、多食易饥对“若食少”）。病历没提到的症状不算相反；quote 摘病历逐字原文。",
   "misfit：只在 kind 为 model 的行判。这味药的主要功效管不到这个症，或与本证方向相反（虚寒证单加苦寒药、阴虚证单加温燥药；实热、火热证为非主诉的次要表现加温性药，如胃热炽盛证「纳差」加焦山楂——property 是《中药学》药性，次要表现由主证病机所致、主方清其病机即可），或这个条件不是本病会出现的变化。不因为有更好的选择就判 misfit。",
@@ -201,6 +201,14 @@ export function withModificationsFrom(target: string, source: string): string {
 }
 
 const TOP_UP_SYSTEM = [
+  "你是中医主治医师。证型、治法、方药已定，现在为本例补写随证加减。随证加减是给这位患者这次就用的，不写「若…」这种以后才可能出现的备用条件。",
+  "先读 record，找出病历里已经记录、主方 herbs 没有直接照顾到的伴随表现（主诉主症以外的症状，如纳差、便溏、口干、咽痛、眠差、咳痰）。每个这样的表现写一条，最多 3 条：trigger 逐字摘病历里这个表现的原话（2–12 字，不加「若」，不写舌脉，不写证候名）；herbName 是不在 herbs 里的一味常用饮片；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个表现；symptomPathogenesis 用一句话（≤20字）写这个表现本身的病机。",
+  "主病直接引起的伴随表现不另加药（因疼痛或瘙痒而眠差、因发热而纳差，主病好了自然好）。药的寒热补泻要与证型一致。病历否认的、existing 里已有的不写。病历里找不到这样的表现就少写或输出空数组，不要编。",
+  "只输出 JSON：{\"rows\":[{\"trigger\":\"\",\"herbName\":\"\",\"dose\":\"\",\"reason\":\"\",\"symptomPathogenesis\":\"\"}]}",
+].join("\n");
+
+/** CDSS_STANDBY_MODIFICATIONS=true（回到第四十三轮口径）时的补写：备用的「若…」加减。 */
+const STANDBY_TOP_UP_SYSTEM = [
   "你是中医主治医师。证型、治法、方药已定，现在写备用的随证加减。",
   "写 3 条不同的条件，每条一味药：trigger 写「若+具体症状」，是本例已记录的某个症状加重、或主诉主症常见的进一步变化（不写与本例记录无关的另一组证候，不写舌脉，不写「气虚」「阴虚」这类证候名）；herbName 是不在 herbs 里的一味常用饮片；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个症。",
   "药的寒热补泻要与证型一致。不要写病历已经否认的症状，也不要写 existing 里已有的条件。",
@@ -208,11 +216,11 @@ const TOP_UP_SYSTEM = [
 ].join("\n");
 
 const TOP_UP_VERIFY_SYSTEM = [
-  "你是中医主治医师。下面这条随证加减要留给本例备用。默认答 true，只有这味药管不到这个症、或与本证方向相反、或这个条件与病历相反时答 false。",
+  "你是中医主治医师。下面这条随证加减针对本例病历里已有的一个表现，这次就用。默认答 true；只有这味药管不到这个表现、与本证方向相反、这个表现病历里其实是否认的，或它只是主病直接引起、治好主病自然缓解的表现时答 false。",
   "只输出 JSON：{\"confirmed\":true} 或 {\"confirmed\":false}",
 ].join("\n");
 
-type TopUpRow = { trigger: string; herbName: string; dose: string; reason: string };
+type TopUpRow = { trigger: string; herbName: string; dose: string; reason: string; symptomPathogenesis?: string };
 
 function parseTopUp(content: unknown): TopUpRow[] | undefined {
   if (typeof content !== "string" || !content.trim()) return undefined;
@@ -223,7 +231,8 @@ function parseTopUp(content: unknown): TopUpRow[] | undefined {
       const row = record(entry);
       const trigger = text(row?.trigger);
       const herbName = text(row?.herbName);
-      return trigger && herbName ? [{ trigger, herbName, dose: text(row?.dose), reason: text(row?.reason) }] : [];
+      const symptomPathogenesis = text(row?.symptomPathogenesis);
+      return trigger && herbName ? [{ trigger, herbName, dose: text(row?.dose), reason: text(row?.reason), ...(symptomPathogenesis ? { symptomPathogenesis } : {}) }] : [];
     }).slice(0, 6);
   } catch {
     return undefined;
@@ -256,7 +265,7 @@ export async function topUpModificationConditions(
   const method = text(record(root.therapy)?.overallMethod);
   const added = await proposeTwiceThenVerifyAll<TopUpRow>("m04_modification_top_up", "prescribe", {
     messages: [
-      { role: "system", content: TOP_UP_SYSTEM },
+      { role: "system", content: standbyModificationsDelivered() ? STANDBY_TOP_UP_SYSTEM : TOP_UP_SYSTEM },
       { role: "user", content: JSON.stringify({ syndrome, method, herbs, existing, record: context.recordText.slice(0, 2_400) }) },
     ],
     maxTokens: 400,

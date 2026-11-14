@@ -16,7 +16,7 @@
  * 守得对；不对的只是把守的过程原样念给了医生听。
  */
 
-import { RED_FLAG_SAFETY_NET_VISIT } from "./diagnosis-visible-summary";
+import { RED_FLAG_SAFETY_NET_VISIT, recordHasTongueAndPulse } from "./diagnosis-visible-summary";
 import { formulaTextbookCommentary } from "./formula-textbook-commentary";
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
@@ -24,7 +24,7 @@ import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormu
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { drugNamesInAllergyPhrases } from "./clinical-polarity";
-import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationConditionAlreadyPresent, precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
+import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
@@ -42,7 +42,8 @@ import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concep
 import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBaseName, patentMedicineLabelIsTonic, tonicMedicineCategory, TOPICAL_MEDICATION_FORM } from "./local-patent-medicine-candidates";
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { internalMustProcessHerb, processedHerbName, purposeProcessedHerbName, withProcessedHerbMentions } from "./herb-processing-forms";
-import { withoutMissingClaimsForRecordedTests } from "./recorded-test-claims";
+import { westernBasisWithoutEstablishmentContradiction, withoutMissingClaimsForRecordedTests, withoutUnrecordedTestCitations } from "./recorded-test-claims";
+import { withoutLabelPlaceholders } from "./instruction-record-pool";
 import { resolveTcmDiseaseName } from "./clinical-terminology";
 import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
 import { DELIVERED_METHOD_ITEM_CAP, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
@@ -648,8 +649,45 @@ const SERVER_NOTES: readonly RegExp[] = [
   /[（(](?:按已签名证候反查受控目录锁定|原选另含未通过受控目录核验的方)[^）)]*[）)]/g,
 ];
 
+/**
+ * 红旗病例辨证结论的边界句（diagnosis-visible-summary 写进证候把握度说明、待核实项与红旗处置三处）。甲方 11/14 澄清病机数据按接口原文核对，
+ * 「并记录排除或处置依据」「风险解除前本方不能正式采纳」是讲系统流程的话（第四十四轮回看 9 份）。交付时换成临床写法，锚点「急危重风险未排除」不变。
+ * 固定句、有限闭集。
+ */
+const RED_FLAG_BOUNDARY_WORDING: ReadonlyArray<readonly [RegExp, string]> = [
+  [/急危重风险未排除[:：]以下辨证、病机与治法结论供医生参考，请先完成急诊或转诊评估并记录排除或处置依据；(?:风险解除前本方不能正式采纳|本次不显示具体用量，正式采纳须在风险处置之后)。/gu, "急危重风险未排除，请先完成急诊或转诊评估；以下辨证供医生参考。"],
+  [/急危重风险未排除[:：]请优先完成急诊或转诊评估并记录排除或处置依据；以下辨证与治法结论供医生参考，正式采纳(?:与具体用量)?须在风险处置之后。/gu, "急危重风险未排除，请优先完成急诊或转诊评估；以下辨证与治法供医生参考。"],
+  [/本次辨证、病机与治法结论供医生参考；正式采纳(?:与具体用量)?需先完成上述事项。/gu, "辨证与治法待急诊评估后再确认。"],
+];
+
+/** 待核实项自己说这件事已经定了（「已明」「已排除」「已明确」）、又没有任何仍待核实的说法。纯函数，供测试。 */
+export function uncertaintyAlreadySettled(row: { item?: unknown; reason?: unknown }): boolean {
+  const text = `${typeof row.item === "string" ? row.item : ""}；${typeof row.reason === "string" ? row.reason : ""}`;
+  if (!/已明(?!显)|已排除|已除外|已明确|已确定|已确认|无需(?:再)?核实/u.test(text)) return false;
+  return !/是否|待|尚|需|有无|未明|不明|未记录|未诉|未见|不清|缺/u.test(text.replace(/已明(?!显)|已排除|已除外|已明确|已确定|已确认|无需(?:再)?核实/gu, ""));
+}
+
+/** 中成药/西药一行的定位（受控四值）对应的与汤剂关系说明。 */
+const MEDICINE_POSITIONING_RELATIONSHIP: Readonly<Record<string, string>> = {
+  联合治疗: "可与本方汤剂同期服用，两者间隔约1小时",
+  替代方案: "不便煎服汤剂时可替代本方汤剂，不与汤剂同服",
+  短期对症: "症状明显时短期服用，症状缓解即停",
+  需医生评估: "是否与本方汤剂同用由医生评估",
+};
+
+/** 说明书注意事项里的疗程句（「服药2周症状无缓解，应去医院就诊」）：作这一行的使用边界。没有时返回空串。 */
+export function labelCourseBoundary(riskNote: string): string {
+  const sentence = String(riskNote || "").split(/[。；;]|\d+[、.．]/u)
+    .map((item) => item.trim())
+    .find((item) => /(?:服药|用药)\s*(?:\d+|[一二两三四五六七八九十])\s*(?:天|日|周|个月)[^，,]*?(?:无|未)(?:明显)?(?:缓解|改善|好转)/u.test(item));
+  return sentence ? `${sentence.replace(/[，,]\s*$/u, "")}。` : "";
+}
+
 /** 把系统句式换成临床写法；没有命中时原样返回（逐字节不变）。 */
 export function clinicalWordingForSyntheticPhrases(value: string): string {
+  if (/记录排除或处置依据|正式采纳(?:与具体用量)?需先完成上述事项/u.test(value)) {
+    for (const [pattern, replacement] of RED_FLAG_BOUNDARY_WORDING) value = value.replace(pattern, replacement);
+  }
   if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|服务器|受控目录|症状层|可逐字回溯|有界建议|工作证候|工作诊断|工作判断|复评|置信度/.test(value)) return value;
   let text = value.replace(BOUNDED_ADVICE_NOTE, "");
   for (const note of SERVER_NOTES) text = text.replace(note, "");
@@ -939,6 +977,11 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
   if (options?.recordText && pathogenesisForUncertainty && Array.isArray(pathogenesisForUncertainty.uncertainties)) {
     pathogenesisForUncertainty.uncertainties = records(pathogenesisForUncertainty.uncertainties).filter((row) => !uncertaintyAsksDeniedFinding(String(row.item || ""), options.recordText || ""));
   }
+  // 待核实栏里写着「已明」「已排除」的条目（模型写「有汗无汗已明…表虚表实鉴别已排除」，第四十四轮回看）：自己说已经定了，就不是待核实的事，不留。
+  // 只认整条都在说已定、没有「是否/待/尚/需」这类仍待核实的词。
+  if (pathogenesisForUncertainty && Array.isArray(pathogenesisForUncertainty.uncertainties)) {
+    pathogenesisForUncertainty.uncertainties = records(pathogenesisForUncertainty.uncertainties).filter((row) => !uncertaintyAlreadySettled(row));
+  }
   // 鉴别的「建议核实」模型写成字符串 null 的，按空值交付（2026-10-17 留出例 S132「建议核实：null」）。
   const overviewForNulls = record(reasoning.overview);
   for (const row of [
@@ -987,7 +1030,11 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
     // 说「尚缺X检查」而病历已有X结果的那几项先删掉（withoutMissingClaimsForRecordedTests，第四十一轮 r1054 回顾 n12）；改的是 clinicalRationale 本身，
     // 读回时 isDeliveredWesternBasisOnly 与这一句仍逐字相同。
     if (typeof primary.clinicalRationale === "string" && options?.recordText) {
-      primary.clinicalRationale = withoutMissingClaimsForRecordedTests(primary.clinicalRationale, options.recordText);
+      primary.clinicalRationale = westernBasisWithoutEstablishmentContradiction(
+        withoutUnrecordedTestCitations(withoutMissingClaimsForRecordedTests(primary.clinicalRationale, options.recordText), options.recordText),
+        typeof primary.name === "string" ? primary.name : "",
+        options.recordText,
+      );
     }
     const basis = deliveredWesternBasis(western);
     primary.supportingFacts = basis ? [basis] : [];
@@ -1721,8 +1768,11 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 说明书各段拼接留下的「；；」「。；」「。。」：收成一个标点（第五轮方名代理统计 741 条里 17 条）。
     if (typeof medicine.riskNote === "string") medicine.riskNote = medicine.riskNote.replace(/([；;。])(?:\s*[；;。])+/gu, "$1");
     // 「说明书用法字段已与本候选的说明书条目及指纹绑定」「与中药饮片方案不默认联用…」是系统说明，不是用药信息。
-    if (typeof medicine.usageBoundary === "string") medicine.usageBoundary = "";
-    if (typeof medicine.relationship === "string") medicine.relationship = "";
+    // 第四十四轮（甲方 11/14：中成药按接口原始数据核对）起不再交付空串：使用边界取说明书里「服药N天/周…无缓解…就诊」那一句，
+    // 与汤剂的关系按这一行的定位写成一句临床说明（定位是受控四值）。说明书没有疗程句时使用边界仍为空。
+    if (typeof medicine.usageBoundary === "string") medicine.usageBoundary = labelCourseBoundary(typeof medicine.riskNote === "string" ? medicine.riskNote : "");
+    if (typeof medicine.relationship === "string") medicine.relationship = MEDICINE_POSITIONING_RELATIONSHIP[String(medicine.positioning || "")] || "";
+    if (typeof medicine.riskNote === "string") medicine.riskNote = withoutLabelPlaceholders(medicine.riskNote) || medicine.riskNote;
   }
   const nonPharma = record(reasoning.nonPharma);
   if (nonPharma && Array.isArray(nonPharma.precautions)) {
@@ -2107,16 +2157,18 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     }
   }
   // 辨证阶段已采纳的患者原话（主证依据与各病机节点的患者事实）：随证加减的触发条件说的症状这里已有，就不是「若」出现的变化。
-  const recordedFacts = [
-    ...(options?.recordText ? [options.recordText] : []),
-    ...(Array.isArray(priorOverview?.primarySyndromeBasis) ? priorOverview.primarySyndromeBasis : []),
-    ...records(record(reasoning.pathogenesis)?.chain).map((node) => node.patientFact),
-  ].filter((item): item is string => typeof item === "string" && Boolean(item.trim())).join("。");
+  const recordedFacts = modificationPresenceFactsFor(options?.recordText || "", { overview: priorOverview as { primarySyndromeBasis?: unknown } | undefined, pathogenesis: { chain: records(record(reasoning.pathogenesis)?.chain) } });
+  // 备用加减（「若X」而病历里没有X）不交付（第四十四轮，2026-11-14 用户：甲方页面默认勾选、没有确认的地方，评审按患者实际病情判）。
+  // 编译阶段已按同一判据不列；这里兜住补写、核对之后的行与旧缓存。病历原文拿不到时（没传 recordText）不动，免得把已见的也删了。
+  if (formula && Array.isArray(formula.modifications) && options?.recordText && !standbyModificationsDelivered()) {
+    formula.modifications = records(formula.modifications).filter((item) =>
+      !(typeof item.trigger === "string" && /^\s*(?:若|如果?|倘若|假如)/u.test(item.trigger) && !presentModificationCondition(item.trigger, recordedFacts)));
+  }
   for (const modification of records(formula?.modifications)) {
     // 触发条件是病历已有的症状（「若抽搐」而病历已有抽搐，2026-10-20 第八轮 X-G-0570、X-G-0617）：条件式「若X」是给还没出现的变化备的，
-    // 现症写成「若」是把事实当假设。改成「本例已见X」；依据是模型自拟的备用加减时一并换成病历原句。判据与改写见 modificationConditionAlreadyPresent。
+    // 现症写成「若」是把事实当假设。改成「本例已见X」；依据是模型自拟的备用加减时一并换成病历原句。判据与改写见 presentModificationCondition。
     if (recordedFacts && typeof modification.trigger === "string" && /^\s*(?:若|如果?)/u.test(modification.trigger)) {
-      const present = modificationConditionAlreadyPresent(modification.trigger, recordedFacts);
+      const present = presentModificationCondition(modification.trigger, recordedFacts);
       if (present) {
         modification.trigger = present.trigger;
         const evidence = record(modification.evidence);
@@ -2593,7 +2645,7 @@ export function dietOnlyPrecautionCoveredBy(line: string, diet: string): boolean
  */
 const DOSE_WITHHELD_FOLLOWUP: Record<DoseWithheldFollowupKind, string> = {
   red_flag: "请今天就到医院急诊或专科就诊，由医生评估、排除急重情况后再定后续治疗，在此之前不要自行服用中药。",
-  pregnancy: "请在3天内到产科或中医妇科面诊，由医生确认孕周和孕期用药安全后再开方，在此之前不要自行服用中药；如出现阴道流血或腹痛加重，请立即就医。",
+  pregnancy: "请在3天内到产科或中医妇科面诊，由医生确认孕周和孕期用药安全后再开方，在此之前不要自行服用中药；如出现阴道流血或腹痛，请立即就医。",
   lactation: "请在3天内到医院面诊，由医生确认哺乳情况和孩子的月龄、选用哺乳期可用的药后再开方，在此之前不要自行服用中药。",
   anticoagulant: "请带上正在服用的抗凝或抗血小板药，在3天内请开这些药的医生评估与中药合用的出血风险；如医生同意服用中药，服药后1周内复查凝血指标（服华法林者查INR）；如出现牙龈或鼻腔出血、皮肤瘀斑、黑便或尿色发红，请立即就医。",
   pediatric_age: "请补充孩子的准确年龄（出生日期），由医生当天按年龄确定用量后再开方，在此之前不要自行给孩子服用中药。",
@@ -2669,6 +2721,34 @@ export function followupWithDoseCount(text: string, doses: unknown, days: unknow
 }
 
 /**
+ * 证候层的把握度（第四十四轮，甲方 11/14 澄清：病机数据按接口原文核对；回看 165 份里 52 份证候「有界」、概览置信度「低」）。
+ * 病位、病性两轴都已按逐段病历依据定为 resolved（applyM03AdvisoryQualityBoundaries 的投影），病历舌象、脉象都有具体所见，
+ * 又不是急危重风险未排除的病例时，模型写的「有界」多半是在说证候之外的细节（「晨僵时长未记录」「兼夹判断受限」）。
+ * 这时证候按已确定交付，概览置信度为「中」；模型写的理由不丢，挪进待核实栏（与第三十八轮病位、病性两轴同一口径）。
+ */
+function withSyndromeResolutionFromAxes(reasoning: Json, recordText: string): void {
+  const overview = record(reasoning.overview);
+  const pathogenesis = record(reasoning.pathogenesis);
+  if (!overview || !pathogenesis || isLimitedDiagnose(reasoning)) return;
+  if (overview.primarySyndromeResolution !== "bounded") return;
+  const reason = typeof overview.primarySyndromeResolutionReason === "string" ? overview.primarySyndromeResolutionReason.trim() : "";
+  if (/急危重风险未排除|完整度未达C级/u.test(reason)) return;
+  if (record(pathogenesis.locationDifferentiation)?.resolution !== "resolved" || record(pathogenesis.natureDifferentiation)?.resolution !== "resolved") return;
+  if (!recordHasTongueAndPulse(recordText)) return;
+  overview.primarySyndromeResolution = "resolved";
+  delete overview.primarySyndromeResolutionReason;
+  const evidence = record(overview.evidence);
+  if (evidence && evidence.confidence === "低") evidence.confidence = "中";
+  if (reason) {
+    const uncertainties = Array.isArray(pathogenesis.uncertainties) ? pathogenesis.uncertainties : [];
+    const item = reason.split(/[，,；;。]/u)[0].slice(0, 30) || "证候细节";
+    if (!records(uncertainties).some((row) => String(row.reason || "") === reason)) {
+      pathogenesis.uncertainties = [...uncertainties, { item, reason, affects: "证候细节与随证加减" }].slice(0, 12);
+    }
+  }
+}
+
+/**
  * 证据标签按来源（2026-10-22 第十五轮）。外部复核要求每个病机节点标明「直接事实 / 合理推断 / 证据不足」；
  * 接口的证据枚举本来就能表达（kb_entry 标准资料 / model_inference 病例内推理 / insufficient 证据不足 + confidence），
  * 但此前病机链、分治法、药味的证据是服务端填的同一个常量（已存输出 100% 为「病例内推理 / 中」），不携带信息。
@@ -2689,7 +2769,10 @@ function withSourceBasedReasoningEvidence(reasoning: Json): void {
   const row = textbookRowForSyndrome(String(overview.tcmDiseaseName || ""), String(overview.primarySyndrome || ""));
   const first = chain[0];
   const firstEvidence = record(first?.evidence);
-  if (row && first && !(firstEvidence?.evidenceLevel === "kb_entry" && DIAGNOSTICS_CRITERIA_SOURCE.test(String(firstEvidence.source || "")))) {
+  // 交付的证名是合称（心脾两虚证）、教材行是它的单证（心悸·心血不足证）时不标这一行：出处写的证名与交付的证名对不上，读的人以为是另一个证
+  //（第四十四轮回看 4 份）。这时保留原有标签。
+  const rowNamesDeliveredSyndrome = Boolean(row) && compactText(row!.syndromeName).replace(/证$/u, "") === compactText(overview.primarySyndrome).replace(/证$/u, "");
+  if (row && rowNamesDeliveredSyndrome && first && !(firstEvidence?.evidenceLevel === "kb_entry" && DIAGNOSTICS_CRITERIA_SOURCE.test(String(firstEvidence.source || "")))) {
     first.evidence = { evidenceLevel: "kb_entry", source: textbookRowProvenance(row), confidence: overview.primarySyndromeResolution === "unresolved" ? "低" : "中" };
   }
   for (const item of records(record(reasoning.therapy)?.subTherapies)) {
@@ -2982,6 +3065,7 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
     }
   }
   else return reasoning;
+  if (projected.stage === "diagnose" && options?.recordText) withSyndromeResolutionFromAxes(projected, options.recordText);
   withSourceBasedReasoningEvidence(projected);
   if (projected.stage === "prescribe") withSourceBasedHerbEvidence(projected);
   // 贫血分度与病历 Hb 读数对齐：病名、编码显示、推理、鉴别、处置与开方各栏同一口径（recordAnemiaGrade）。

@@ -4,7 +4,7 @@ import { crossVendorConfirm, primaryModelJsonTask } from "./cross-model-small-ta
 import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals } from "./m03-patient-claim-check.server";
 import { recordMentionPolarityAt } from "./diagnosis-safety";
 import { alignQuoteToSource, normalizedQuoteText } from "./source-quote-alignment";
-import { recordHasTestResultFor } from "./recorded-test-claims";
+import { recordHasTestResultFor, westernBasisWithoutEstablishmentContradiction } from "./recorded-test-claims";
 import emergencyDiagnosisNames from "../data/emergency-diagnosis-names.source.json" with { type: "json" };
 import establishmentCheckSource from "../data/western-establishment-check.source.json" with { type: "json" };
 import { quoteGroundedInText } from "./verbatim-quote";
@@ -198,7 +198,9 @@ export function westernBasisIssue(proposal: WesternBasisProposal, context: Weste
   if (proposal.exclude.some((name) => !sentence.includes(compact(name)))) return "text_misses_exclude";
   if (namesTcmSyndrome(proposal.text)) return "text_names_tcm";
   // 给医生读的临床表述不讲病历本身（「病历载」「病历未记录相关阴性」，v2 盲评 16 份新依据的硬伤里 7 份是这种说明腔）。
-  if (sentence.includes("病历")) return "text_meta";
+  if (sentence.includes("病历") || /未记录|未见记录|无记录/u.test(sentence)) return "text_meta";
+  // 一句里既说诊断已确立、又说尚缺检查确认（第四十四轮，甲方 11.05 复测 05-1）：与交付面同一判据，有矛盾就不用这一句。
+  if (westernBasisWithoutEstablishmentContradiction(proposal.text, context.name, context.recordText) !== proposal.text) return "text_contradicts_establishment";
   if (demographicNotInRecord(sentence, context.recordText)) return "demographic_not_in_record";
   if (examFindingNotInRecord(sentence, context.recordText)) return "exam_not_in_record";
   if (courseThresholdNotInCriteria(proposal.text, context.criteria)) return "course_threshold_not_in_criteria";
@@ -240,9 +242,10 @@ const SYSTEM = `你给一个西医诊断写诊断依据，给医生看。给你 
 2. criteria：本例满足的诊断要点，1–3条，只列病历里确有原文支持的要点。point 写要点本身（criteria 不为空时只能用其中的要点，沿用它的说法；为空时写该病公认的诊断要点）；quote 是病历里支持这一点的一段原文，逐字照抄、不增不减（≤30字）。病历没有原文支持的要点不列，也不写进 text。
 3. negatives：病历里写明的、有鉴别意义的否认或正常结果，0–2条，quote 逐字照抄病历里那句否认或正常结果（如「无呕血、黑便」「心电图未见异常」）。病历没写否认就留空数组，不要把阳性症状放进来。
 4. established：这个诊断名本身现在是否已确立，yes 或 no。只看诊断名本身，不看病因、分型、严重程度或并发症：门诊按公认标准凭症状、体征与常规化验即可临床诊断的（以症状、体征或病程定义的症状性、综合征性诊断，常见急性感染与急症的临床诊断），即使还需检查明确病因、病原、部位或排除并发症，也写 yes；病历写明既往已确诊的写 yes。只有确诊这个病名必须依赖病历里没有的检查（病原学、脑脊液、影像、内镜、病理、心电图与心肌标志物、规范血糖检测等），或必须满足而病历未满足的病程门槛（criteria.durationThreshold），或它是需先排除器质性疾病才能下的排除性诊断（功能性、神经症一类）时，写 no。
-5. level：诊断为什么写到这一级（≤40字）：是哪项检查或客观所见确立的；没有确诊检查的，写尚缺什么检查或尚需排除什么。病程门槛只用 criteria.durationThreshold 里给的，并且要与病历记录的病程对照属实；criteria 没给病程门槛就不写「病程未满…」。功能性疾病、原发性疾病这类排除性诊断，写「尚需排除器质性病变」，不写「可诊断」「可确诊」。
+5. level：诊断为什么写到这一级（≤40字）：是哪项检查或客观所见确立的；没有确诊检查的，写尚缺什么检查或尚需排除什么。病历写明既往已确诊、本次没有复查的，写「既往已确诊X，本次未复查Y」，不要同时写「诊断已确立」和「尚缺…确认」。病程门槛只用 criteria.durationThreshold 里给的，并且要与病历记录的病程对照属实；criteria 没给病程门槛就不写「病程未满…」。功能性疾病、原发性疾病这类排除性诊断，写「尚需排除器质性病变」，不写「可诊断」「可确诊」。
 6. exclude：还需排除的病，0–2个，写规范病名。
 7. text：把上面各项写成一句话（60–120字），这就是医生读到的诊断依据：先写 summary，再写本例的所见如何满足要点（用 quote 里的本例所见来写，不要把要点原文当成本例所见），再写阴性所见（没有就不写这一部分），再写 level，最后写「需与/需排除…」。句中要逐字出现诊断名 name。
+name 是「症状＋待查」（如「心悸待查」「胸痛待查」）时，按《病历书写基本规范》对待查病例列出可能性较大的诊断的要求，text 写出最可能的一两个病（从 listed 里取，写「考虑X可能」）。
 text 是临床表述：不逐条复述病史，不用「」引病历原文，不写「病历载」「病历未记录相关阴性」「无明确否认项」这类讲病历本身的话，不写病历里没有的检查结果或数字，不写中医证候。name 不带「待查」时句中不出现「待查」。
 只输出 JSON：{"summary":"","criteria":[{"point":"","quote":""}],"negatives":[{"point":"","quote":""}],"established":"","level":"","exclude":[""],"text":""}`;
 
