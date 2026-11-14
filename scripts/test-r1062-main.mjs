@@ -74,6 +74,14 @@ await check("1.3 加减核对的「不是症状体征」提名交给另一家复
   assert.equal(fit.modificationFindingQualifies({ line: 1, verdict: "not_finding", quote: "" }, rows, "常熬夜"), false, "行号越界不算");
 });
 
+await check("1.4 补写的加减不为顺带的睡眠差加安神药", () => {
+  const prior = { stage: "diagnose", overview: { tcmDiseaseName: "头痛", primarySyndrome: "血虚头痛", primarySyndromeBasis: [] }, therapy: { overallMethod: "养血疏风止痛" }, pathogenesis: { chain: [] } };
+  const caseState = types.normalizeCaseStateInput({ id: "r1062-sleep", chiefComplaint: "头痛2月", patient: { sex: "女", age: 30 }, symptoms: { 现病史: "产后头痛，伴头晕、神疲乏力，食欲下降，睡眠差，大便稀溏" } });
+  const row = (trigger, herbName, reason) => compiler.topUpModificationRow({ trigger, herbName, dose: "9g", reason }, { prior, caseState, candidateHerbNames: ["当归", "川芎"], existingTriggers: [] });
+  assert.equal(row("睡眠差", "酸枣仁", "养心安神，改善睡眠"), undefined);
+  assert.ok(row("食欲下降", "陈皮", "理气健脾开胃"), "对照：纳差加陈皮照留");
+});
+
 await check("2.1 待核实项理由开头重复项目的那一段去掉", () => {
   const pathogenesis = { uncertainties: [
     { item: "缺食欲、二便与寒热记录", reason: "缺食欲、二便与寒热记录，脾虚程度待定", affects: "证候" },

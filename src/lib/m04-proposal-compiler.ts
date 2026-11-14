@@ -2471,6 +2471,9 @@ export function topUpModificationRow(
   const present = standby ? undefined : presentModificationCondition(row.trigger, modificationPresenceFactsFor(recordText, prior));
   if (standby ? !modelConditionalTriggerShape(row.trigger) : !present) return undefined;
   if (modificationTriggerIsNormalState(row.trigger)) return undefined;
+  // 补写的行同样不为顺带的睡眠差加安神药（与编译阶段同一判据；2026-11-14 第四十五轮甲方标准病历3「本例已见睡眠差：加酸枣仁」，甲方 10.26 点过名）。
+  if (incidentalSleepTriggerModification({ trigger: row.trigger, herbName, reason: row.reason }, prior) &&
+    !mindSymptomsProminentInRecord(recordText, caseState?.chiefComplaint || "", "")) return undefined;
   if (!isKnownTcmHerbName(canonicalTcmHerbIdentity(herbName))) return undefined;
   const trigger = present ? present.trigger : row.trigger;
   const sameCondition = (left: string, right: string) => distinctModificationConditions([{ trigger: left.replace(/^本例已见/u, "") }, { trigger: right.replace(/^本例已见/u, "") }]) === 1;
