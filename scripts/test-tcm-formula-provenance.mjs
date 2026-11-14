@@ -1032,12 +1032,14 @@ for (const [label, needle] of [
   // 2026-10-13：加减优先照教材该证的加减写（条件句），其次才是病历已记录、主方未直接针对的伴随症状；
   // 由主病直接引起的伴随症状不另加药（甲方 10.12 测评：见「睡眠差」就加酸枣仁）。
   ["modification targets uncovered accompanying symptom", "主方未直接针对的伴随症状"],
-  ["modification prefers textbook additions", "优先从中选"],
+  // 第四十四轮：教材加减只用条件所说的表现本例已有的条目（备用加减不交付，见 test:r1060-main）；有这样的条目时仍优先照教材选药。
+  ["modification prefers textbook additions", "优先照教材选药"],
   ["no reflexive herb for a symptom caused by the main disease", "由主病直接引起的伴随症状不另加药"],
   // 2026-10-13：触发条件的合格写法是三种——教材条件、已记录表现、教材没有加减时的「若＋具体症状」；流程话仍不接受。
   ["modification trigger forms", "trigger 的合格写法"],
   ["no process phrases as triggers", "不得写“复诊时出现、症状变化时、必要时、效果不佳时”这类流程话"],
-  ["textbook modifications are mandatory when listed", "有【教材加减】时 modifications 不得为空"],
+  // 第四十四轮：随证加减这次就用，不写备用加减（替代 10/13 的「有【教材加减】时不得为空」；那一条逼出了备用「若…」行）。
+  ["no standby modifications", "**不写备用加减**"],
   ["modification action field", "动作（actionType=add/remove/adjust 加 herbName）"],
   ["modification risk note field", "风险说明由服务端统一附加，模型不得自行输出"],
   ["no fabricated modification", "不得编造病历没有的症状"],

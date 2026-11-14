@@ -4,6 +4,7 @@ import lexiconJson from "../data/tcm-deficiency-element-lexicon.source.json" wit
 import { rationaleMentionsFinding } from "./m03-rationale-coverage.server";
 import { diagnosticsCriteriaFor, primaryManifestationTerms, verifySecondaryByCriteria, withoutClauses, type CriteriaVerdict } from "./m03-secondary-syndrome-consistency.server";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { compositeSyndromeRename } from "./delivered-surface";
 
 /**
  * 证素核对（2026-10-22 第十五轮）。
@@ -205,8 +206,8 @@ function elementMentionNegated(clause: string): boolean {
 }
 
 /** 中医半里需要核对的类别（纯函数，供测试）。至多 MAX_UNITS 个，按出现次数多少排。 */
-export function elementCheckUnits(root: Json): ElementUnit[] {
-  const entailment = entailedDeficiencies(namedSyndromes(root));
+export function elementCheckUnits(root: Json, alsoNamed: readonly string[] = []): ElementUnit[] {
+  const entailment = entailedDeficiencies([...namedSyndromes(root), ...alsoNamed]);
   const byType = new Map<DeficiencyType, { organs: Set<string>; mentions: number }>();
   // 辨证依据里解释伴随表现时写出的名外证素（「精神差、食欲下降，为心脾两虚、气血不足」，心虚胆怯证下）同样要核：
   // 甲方 10.26 测评病历 2 判「辨证依据错误」。未通过时连同该分句一起撤下（applyElementSupportDecision 本就处理依据）。
@@ -260,10 +261,15 @@ export async function decideElementSupport(
   try { root = record(JSON.parse(tcmContent)); } catch { return undefined; }
   const overview = record(root?.overview);
   if (!root || !overview || !text(overview.primarySyndrome) || text(overview.primarySyndromeResolution) === "unresolved") return undefined;
-  const units = elementCheckUnits(root);
+  // 交付面会把教材单证换成国标合称（心血不足证 + 病位心、脾 → 心脾两虚证，delivered-surface compositeSyndromeRename）：按换成之后的证名判涵盖。
+  // 此前按换名前的证名核，「心气亏虚则鼓动无力而心悸气短」被当作名外证素撤下，交付时证名已是心脾两虚证，总体病机只剩「劳则更甚；…」
+  //（第四十四轮，甲方 11/12 复测「心悸、气短、乏力3月」）。
+  const renamed = compositeSyndromeRename(structuredClone(root), context.recordText);
+  const alsoNamed = renamed ? [renamed.to] : [];
+  const units = elementCheckUnits(root, alsoNamed);
   if (units.length === 0) return undefined;
   const primaryTerms = primaryManifestationTerms(textbookRowForSyndrome(text(overview.tcmDiseaseName), text(overview.primarySyndrome)));
-  const entailment = entailedDeficiencies(namedSyndromes(root));
+  const entailment = entailedDeficiencies([...namedSyndromes(root), ...alsoNamed]);
   const verify = (entryName: string) => verifySecondaryByCriteria(entryName, { recordText: context.recordText, primaryTerms, breadth: true }, signal);
   const results = await Promise.all(units.map(async (unit) => {
     const genericEntry = LEXICON.types[unit.type].genericEntry;

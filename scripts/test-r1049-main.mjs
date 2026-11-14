@@ -169,6 +169,7 @@ await check("5.2 命名方原文写的炮制优先（完带汤：白术土炒、
 });
 
 await check("5.3 交付面：药名带上炮制（processing 栏写的并进药名）；加减行按所引教材原文取煅牡蛎；方义同步；重复投影不变", () => {
+  process.env.CDSS_STANDBY_MODIFICATIONS = "true"; // 第四十四轮：本条用备用「若…」行钉别的判据（回退口径），新口径见 test:r1060-main
   const reasoning = {
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: { tcmDiseaseName: "心悸", primarySyndrome: "心血不足证" },
     formula: { candidates: [{ name: "归脾汤加减", herbs: [{ name: "白术", role: "臣", function: "健脾益气" }, { name: "龙骨", role: "佐", processing: "煅" }, { name: "黄芪", role: "君", function: "补气" }], formulaAnalysis: "黄芪为君；白术为臣，健脾益气；龙骨为佐。" }],
@@ -194,6 +195,7 @@ await check("5.3 交付面：药名带上炮制（processing 栏写的并进药�
 
 // ───── 6 原方 ─────
 await check("6.1 荆防败毒散按原书 11 味：处方多出生姜、薄荷不算原方；与原书相同才算", () => {
+  delete process.env.CDSS_STANDBY_MODIFICATIONS;
   const eleven = ["荆芥", "防风", "羌活", "独活", "川芎", "柴胡", "前胡", "桔梗", "枳壳", "茯苓", "甘草"];
   assert.equal(surface.candidateIsOriginalFormula("荆防败毒散", [...eleven, "生姜", "薄荷"].map((name) => ({ name }))), false);
   assert.equal(surface.candidateIsOriginalFormula("荆防败毒散", eleven.map((name) => ({ name }))), true);

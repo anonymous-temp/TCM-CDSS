@@ -24,7 +24,7 @@ import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormu
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { drugNamesInAllergyPhrases } from "./clinical-polarity";
-import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered } from "./m04-proposal-compiler";
+import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, withoutRepeatedAddedHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
@@ -658,6 +658,8 @@ const RED_FLAG_BOUNDARY_WORDING: ReadonlyArray<readonly [RegExp, string]> = [
   [/急危重风险未排除[:：]以下辨证、病机与治法结论供医生参考，请先完成急诊或转诊评估并记录排除或处置依据；(?:风险解除前本方不能正式采纳|本次不显示具体用量，正式采纳须在风险处置之后)。/gu, "急危重风险未排除，请先完成急诊或转诊评估；以下辨证供医生参考。"],
   [/急危重风险未排除[:：]请优先完成急诊或转诊评估并记录排除或处置依据；以下辨证与治法结论供医生参考，正式采纳(?:与具体用量)?须在风险处置之后。/gu, "急危重风险未排除，请优先完成急诊或转诊评估；以下辨证与治法供医生参考。"],
   [/本次辨证、病机与治法结论供医生参考；正式采纳(?:与具体用量)?需先完成上述事项。/gu, "辨证与治法待急诊评估后再确认。"],
+  // 必采项（management.mustCollect）里的那一条。
+  [/^完成急危重风险评估并记录排除或处置依据$/gu, "完成急诊或转诊评估，排除急危重情况"],
 ];
 
 /** 待核实项自己说这件事已经定了（「已明」「已排除」「已明确」）、又没有任何仍待核实的说法。纯函数，供测试。 */
@@ -2191,6 +2193,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 触发条件残缺到只剩泛称的加减不留（「若临床」：教材「临床可加槟榔、木香」被切成条件，2026-10-20 第八轮 X-G-0020）。源头已在教材表载入时去掉
     //（tcm-textbook-syndromes TEXTBOOK_GENERIC_CONDITION），这里兜住已缓存的结果与模型自己写出的同类触发。
     formula.modifications = records(formula.modifications).filter((item) => !GENERIC_ONLY_TRIGGER.test(String(item.trigger || "")));
+    // 同一味药只加一次（编译与补写之后都可能重复，见 withoutRepeatedAddedHerbs）。
+    formula.modifications = withoutRepeatedAddedHerbs(records(formula.modifications));
     const seen = new Set<string>();
     formula.modifications = records(formula.modifications).filter((item) => {
       const key = `${String(item.trigger || "").replace(/^若/u, "").replace(/[\s，,。；;：:]/gu, "")}|${String(item.action || "")}|${compositionIdentityName(String(item.herbName || "")) || String(item.herbName || "")}`;

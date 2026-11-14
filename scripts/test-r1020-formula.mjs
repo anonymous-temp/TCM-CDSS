@@ -312,10 +312,20 @@ await check("7.2 交付面：夹具 X-G-0617「若胃脘胀痛而便闭：加大
   const payload = structuredClone(F.g0617.prescribe);
   payload.formula.modifications[1].trigger = "若胃脘痛而便闭";
   payload.formula.modifications[1].evidence = { evidenceLevel: "model_inference", source: comp.MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, confidence: "中" };
+  // 第四十四轮起备用加减（条件本例没有的「若…」）不交付；回退开关 CDSS_STANDBY_MODIFICATIONS=true 下照旧（见 test:r1060-main）。
+  process.env.CDSS_STANDBY_MODIFICATIONS = "true";
+  try {
+    const legacy = surface.projectDeliveredReasoning(structuredClone(payload), { recordText: F.g0617.input.symptoms["现病史"] });
+    assert.deepEqual(legacy.formula.modifications.map((m) => m.trigger), ["若脘腹胀甚", "本例已见胃脘痛而便闭", "若呃逆较甚"]);
+  } finally {
+    delete process.env.CDSS_STANDBY_MODIFICATIONS;
+  }
   const projected = surface.projectDeliveredReasoning(payload, { recordText: F.g0617.input.symptoms["现病史"] });
-  assert.deepEqual(projected.formula.modifications.map((m) => m.trigger), ["若脘腹胀甚", "本例已见胃脘痛、便闭", "若呃逆较甚"]);
-  assert.match(projected.formula.modifications[1].evidence.source, /^患者原文：/);
-  assert.match(projected.formula.modifications[1].evidence.source, /便闭/);
+  assert.ok(projected.formula.modifications.every((m) => !/^若/u.test(m.trigger)), "交付的都是本例已有表现的加减");
+  assert.ok(projected.formula.modifications.some((m) => m.trigger === "本例已见胃脘痛而便闭"));
+  const present = projected.formula.modifications.find((m) => m.trigger === "本例已见胃脘痛而便闭");
+  assert.match(present.evidence.source, /^患者原文：/);
+  assert.match(present.evidence.source, /便闭/);
   assert.deepEqual(surface.projectDeliveredReasoning(projected, { recordText: F.g0617.input.symptoms["现病史"] }), projected);
   const noRecord = surface.projectDeliveredReasoning(payload);
   assert.equal(noRecord.formula.modifications[1].trigger, "若胃脘痛而便闭", "没有病历原文、辨证阶段的引文也没写到时不改");
@@ -324,7 +334,15 @@ await check("7.2b 对照：教材条件（带程度的「若恶寒甚」）而�
   const payload = structuredClone(F.g0679.prescribe);
   payload.formula.modifications[0].trigger = "若热象较甚";
   const projected = surface.projectDeliveredReasoning(payload, { recordText: "低热，热势常随情绪波动而起伏，精神抑郁。" });
-  assert.equal(projected.formula.modifications[0].trigger, "若热象较甚");
+  // 第四十四轮：条件本例没有的备用加减不交付（回退开关下照旧留「若热象较甚」）。
+  assert.ok(!projected.formula.modifications.some((m) => m.trigger === "若热象较甚"));
+  process.env.CDSS_STANDBY_MODIFICATIONS = "true";
+  try {
+    const legacy = surface.projectDeliveredReasoning(structuredClone(payload), { recordText: "低热，热势常随情绪波动而起伏，精神抑郁。" });
+    assert.equal(legacy.formula.modifications[0].trigger, "若热象较甚");
+  } finally {
+    delete process.env.CDSS_STANDBY_MODIFICATIONS;
+  }
   const textbook = structuredClone(F.g0679.prescribe);
   textbook.formula.modifications[0].trigger = "若精神抑郁";
   textbook.formula.modifications[0].evidence = { evidenceLevel: "model_inference", source: "《中医内科学》内伤发热·气郁发热加减：若精神抑郁者加香附", confidence: "中" };
@@ -338,10 +356,10 @@ await check("7.3 M04 提示词：病历已记录的症状不写成「若……�
   const end = source.indexOf("- 判断合格兼症的方法", start);
   assert.ok(start > 0 && end > start);
   const bullet = source.slice(start, end);
-  assert.match(bullet, /病历已经记录的症状不写成“若……”/);
-  assert.match(bullet, /直接放进主方 candidate\.herbs/);
-  assert.match(bullet, /trigger 逐字写病历已记录的表现、不带“若”/);
-  assert.match(bullet, /本例眼下还没有出现、之后可能出现的变化/);
+  // 第四十四轮：随证加减这次就用——只写本例已有的表现，trigger 写病历原话不带「若」，不写备用加减。
+  assert.match(bullet, /\*\*不写备用加减\*\*/);
+  assert.match(bullet, /trigger 逐字写病历里这个表现的原话（2–12 字，不带“若”/);
+  assert.match(bullet, /条件本例没有的条目不选/);
   assert.ok(!bullet.includes("本例可能出现或已经出现的变化"));
 });
 

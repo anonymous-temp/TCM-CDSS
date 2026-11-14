@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createJiti } from "jiti";
+// 第四十四轮（2026-11-14）起随证加减缺省只给本例已有表现的加减（备用「若…」不交付，见 test:r1060-main）。本套件里加减那几条钉的是
+// 教材条件式加减免方向核对与教材兜底的判据（两种口径下都生效），按回退口径（CDSS_STANDBY_MODIFICATIONS=true）跑。
+process.env.CDSS_STANDBY_MODIFICATIONS = "true";
 
 // 教材「病—证—治法—代表方—加减」对照表的运行时用法（tcm-textbook-syndromes.ts，2026-10-13）。
 // 甲方医生按规划教材对照结果；此前病名、证名、方名由模型自由书写，同一病例重新生成 3 次方名只有一半病例一致，

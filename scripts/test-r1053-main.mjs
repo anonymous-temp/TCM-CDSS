@@ -143,6 +143,7 @@ await check("7.1 「心血不足证」兼「脾气虚证」→ 心脾两虚证�
 
 // ───── 8 备用加减与证候寒热相反 ─────
 await check("8.1 下元虚寒证的「若兼有郁热，加栀子」不交付、提示词不列；同向的「若畏寒肢冷较甚，加肉桂」照留；寒热错杂不判", () => {
+  process.env.CDSS_STANDBY_MODIFICATIONS = "true"; // 第四十四轮：本条用备用「若…」行钉别的判据（回退口径），新口径见 test:r1060-main
   assert.equal(textbook.standbyHerbOpposesSyndromePole("栀子", "下元虚寒证"), true);
   assert.equal(textbook.standbyHerbOpposesSyndromePole("肉桂", "下元虚寒证"), false);
   assert.equal(textbook.standbyHerbOpposesSyndromePole("栀子", "寒热错杂证"), false);
@@ -180,6 +181,7 @@ await check("8.1 下元虚寒证的「若兼有郁热，加栀子」不交付、
 
 // ───── 9 「本例已见」认同义写法与连写的两个症状 ─────
 await check("9.1 「若纳呆腹胀」对「食欲不振、食后腹胀」写成本例已见（11.05 病历3）；病历只写一半时不算；下位词不由总称证明", () => {
+  delete process.env.CDSS_STANDBY_MODIFICATIONS;
   const record = "伴神疲懒言、失眠多梦、健忘、食欲不振、食后腹胀、面色少华。";
   assert.match(compiler.modificationConditionAlreadyPresent("若纳呆腹胀", record)?.trigger || "", /^本例已见纳呆、腹胀$/u);
   assert.equal(compiler.modificationConditionAlreadyPresent("若纳呆腹胀", "伴腹胀，纳可。"), undefined);

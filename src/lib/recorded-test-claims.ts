@@ -129,7 +129,11 @@ const MISSING_FOR_SUBLEVEL = /病因|部位|病原|分型|程度|分级|分期|�
 export function westernBasisWithoutEstablishmentContradiction(text: string, name: string, recordText: string): string {
   if (typeof text !== "string" || !text) return text;
   const missing = MISSING_FOR_CONFIRMATION.exec(text);
-  if (!missing || MISSING_FOR_SUBLEVEL.test(missing[2])) return text;
+  if (!missing) return text;
+  // 缺的检查是为病因、部位这一层（「尚缺鼻内镜检查确认出血部位」）：小句里点了下一层就不算矛盾。
+  const clauseEnd = text.slice(missing.index).search(/[，,。；;]/u);
+  const missingClause = clauseEnd < 0 ? text.slice(missing.index) : text.slice(missing.index, missing.index + clauseEnd);
+  if (MISSING_FOR_SUBLEVEL.test(missingClause)) return text;
   const established = ESTABLISHED_PHRASE.exec(text);
   if (!established || established.index > missing.index) return text;
   const core = String(name || "").trim().replace(/待查$/u, "");

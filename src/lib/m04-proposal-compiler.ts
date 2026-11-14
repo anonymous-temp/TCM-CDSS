@@ -930,6 +930,7 @@ type ModificationDropCode =
   | "contains_unaudited_dose"
   | "trigger_not_current_fact"
   | "trigger_not_present"
+  | "trigger_not_symptom"
   | "unknown_herb"
   | "invalid_target"
   | "action_conflicts_with_candidate"
@@ -947,6 +948,7 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   contains_unaudited_dose: "条件性加减夹带了未经审方的具体剂量",
   trigger_not_current_fact: "触发条件不能回溯到本次病历已确认的当前事实",
   trigger_not_present: "条件所说的表现本例眼下没有，是备用加减，不列入本次加减",
+  trigger_not_symptom: "条件写的是饮食、睡眠、二便一般或正常这类情况，不是需要加减的表现",
   unknown_herb: "该药味不在标准药材资料的收录范围",
   invalid_target: "所引病机不属于本次已确认的病机",
   action_conflicts_with_candidate: "增减动作与当前处方药味状态冲突",
@@ -1069,6 +1071,13 @@ export function modificationConditionAlreadyPresent(trigger: string, recordText:
       // 两个二字症状连写（「若纳呆腹胀」）：两半各自在病历里写到才算（第四十轮，11.05 病历3）。
       const halves = !degree && part.length === 4 ? [part.slice(0, 2), part.slice(2)].map((half) => ({ half, hit: hitOf(formsOf(half)) })) : [];
       if (halves.length === 0 || halves.some((item) => !item.hit?.sentence)) return undefined;
+      // 一半是部位（「肢体麻木」的「肢体」，没有表症状的字）时不是两个症状：两半在病历同一句里才算已见，写回原来的四字（第四十四轮：「本例已见肢体、麻木」）。
+      if (halves.some((item) => !SYMPTOM_PREDICATE_CHARS.test(item.half))) {
+        if (halves[0].hit!.sentence !== halves[1].hit!.sentence) return undefined;
+        quotes.push(halves[0].hit!.sentence!.split(/[，,]/u).find((clause) => clause.includes(halves[1].hit!.form)) || halves[0].hit!.sentence!);
+        written.push(part);
+        continue;
+      }
       for (const { half, hit: halfHit } of halves) {
         quotes.push(halfHit!.sentence!.split(/[，,]/u).find((clause) => clause.includes(halfHit!.form)) || halfHit!.sentence!);
         written.push(half);
@@ -1081,6 +1090,9 @@ export function modificationConditionAlreadyPresent(trigger: string, recordText:
   }
   return { trigger: `本例已见${written.join("、")}`, quote: [...new Set(quotes)].join("；") };
 }
+
+/** 表「怎么样」的字（有限闭集）：只有部位、没有这类字的片段不是一个症状。 */
+const SYMPTOM_PREDICATE_CHARS = /[痛疼胀满闷痞热寒冷凉烦渴干苦黏腻汗咳喘哕呕吐泻秘溏结稀黄赤红紫暗肿痒麻重困乏倦怠眩晕悸惊怒郁梦眠寐频涩急坠酸软鸣聋燥裂瘦萎厥逆饥呆嗳呃堵塞淡清浊臭少多差减]/u;
 
 /** 症状后紧贴的程度词（「恶寒重」「咳嗽较剧」）或前置的程度词（「剧烈头痛」）。「加重」不算：那是病情变化，不是程度。 */
 const DEGREE_AFTER = "(?:较|偏|尤|甚为|尤为)?(?:剧烈|严重|明显|显著|难忍|较重|较剧|较甚|甚|重|剧)";
@@ -1127,6 +1139,33 @@ export function modificationPresenceFactsFor(recordText: string, prior: { overvi
     ...(Array.isArray(prior?.overview?.primarySyndromeBasis) ? prior.overview.primarySyndromeBasis : []),
     ...(prior?.pathogenesis?.chain || []).map((node) => node.patientFact),
   ].filter((item): item is string => typeof item === "string" && Boolean(item.trim())).join("。");
+}
+
+/**
+ * 触发条件说的是正常或一般情况（「饮食睡眠一般」「纳可」「二便调」「精神尚可」，第四十四轮本机实测甲方标准病历6 两行都写「饮食睡眠一般」）：
+ * 不是需要加减的表现。只认整条以这类词收尾、且没有症状字的写法（有限闭集）。
+ */
+const NORMAL_STATE_TAIL = /(?:一般|尚可|可|正常|调|如常|无殊|无异常|无明显异常|平稳)$/u;
+export function modificationTriggerIsNormalState(trigger: string): boolean {
+  const body = String(trigger || "").normalize("NFKC").trim().replace(/^(?:本例已见|若|如)/u, "").replace(/[。；;，,\s]+$/u, "");
+  if (!body || !NORMAL_STATE_TAIL.test(body)) return false;
+  return !/[痛胀闷痞烦渴干苦汗咳喘呕吐泻秘溏稀黄赤肿痒麻困乏倦眩晕悸梦涩急坠酸软鸣聋燥差少多减退不]/u.test(body.replace(NORMAL_STATE_TAIL, ""));
+}
+
+/**
+ * 同一味药在两行里各加一次（「咳嗽、咳黄黏痰→加瓜蒌子」「大便偏干→加瓜蒌子」，第四十四轮本机实测 11.05 病历2）：一张方里一味药只加一次，
+ * 留第一行；后面那一行的条件说的表现这味药同样照顾到，不另列。按身份比（生地黄 = 地黄）。只看「加」行。
+ */
+export function withoutRepeatedAddedHerbs<T extends { action?: unknown; herbName?: unknown }>(rows: readonly T[]): T[] {
+  const added = new Set<string>();
+  return rows.filter((row) => {
+    if (row.action !== "加") return true;
+    const identity = modificationHerbIdentity(canonicalTcmHerbIdentity(String(row.herbName || "")));
+    if (!identity) return true;
+    if (added.has(identity)) return false;
+    added.add(identity);
+    return true;
+  });
 }
 
 /** 触发条件是假设句（「若…」「如…」）。 */
@@ -2415,6 +2454,7 @@ export function topUpModificationRow(
   const standby = standbyModificationsDelivered();
   const present = standby ? undefined : presentModificationCondition(row.trigger, modificationPresenceFactsFor(recordText, prior));
   if (standby ? !modelConditionalTriggerShape(row.trigger) : !present) return undefined;
+  if (modificationTriggerIsNormalState(row.trigger)) return undefined;
   if (!isKnownTcmHerbName(canonicalTcmHerbIdentity(herbName))) return undefined;
   const trigger = present ? present.trigger : row.trigger;
   const sameCondition = (left: string, right: string) => distinctModificationConditions([{ trigger: left.replace(/^本例已见/u, "") }, { trigger: right.replace(/^本例已见/u, "") }]) === 1;
@@ -2656,6 +2696,10 @@ export function compileM04Proposal(
       dropReasons.push("trigger_not_current_fact");
       return [];
     }
+    if (item.actionType === "add" && modificationTriggerIsNormalState(item.trigger)) {
+      dropReasons.push("trigger_not_symptom");
+      return [];
+    }
     // 只交付本例眼下已有表现的加减（第四十四轮）：「若…」的条件病历里没有的，是备用加减，不列。
     // 教材条件、模型条件同一判据；病历原话触发（triggerSource）本来就是已见。
     if (!triggerSource && !standbyModificationsDelivered() && !modificationRowPresentNow(item.trigger, modificationPresenceFacts)) {
@@ -2749,7 +2793,7 @@ export function compileM04Proposal(
     ? withoutDoselessAdjust
     : withConditionals;
   // 同一条件的几行排在一起（先留不同条件之后顺序被打散，评审读成「第 1、3 条条件重复」）。
-  const compiledModifications = withSameConditionAdjacent(withoutMutuallyIncompatibleAdditions(conditionRows, candidateHerbNames, directionDropReasons));
+  const compiledModifications = withSameConditionAdjacent(withoutRepeatedAddedHerbs(withoutMutuallyIncompatibleAdditions(conditionRows, candidateHerbNames, directionDropReasons)));
   const m03FormulaNames = Array.isArray(prior.overview.recommendedFormulaNames)
     ? prior.overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
     : [];

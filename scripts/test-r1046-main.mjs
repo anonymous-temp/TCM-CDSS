@@ -332,6 +332,7 @@ await check("4.4 加味保留炮制写法（煅瓦楞子、焦山楂）；未识
 });
 
 await check("4.5 不同的条件不足两个时补写：每行过编译同一套判据；已够两个条件不发请求", async () => {
+  process.env.CDSS_STANDBY_MODIFICATIONS = "true"; // 第四十四轮：本条钉的是备用「若…」补写的判据（回退口径），新口径见 test:r1060-main
   Object.assign(process.env, modelConfigEnv);
   smallMemo.resetSmallTaskMemoForTests();
   const fit = await jiti.import("../src/lib/m04-modification-fit.server.ts");
@@ -373,6 +374,7 @@ const phi = await jiti.import("../src/lib/phi-sanitizer.ts");
 
 // ───── 6 第三十三轮审计留下的 ─────
 await check("6.1 证素撤下不动流派句与否认句（扶阳句里的阳虚实据；舌质淡红示血虚未甚）；断言句照撤", () => {
+  delete process.env.CDSS_STANDBY_MODIFICATIONS;
   const content = JSON.stringify({
     overview: { primarySyndrome: "寒凝血瘀证", secondarySyndromes: [], tcmDiagnosticRationale: "小腹冷痛、经色紫暗，为寒凝血瘀。舌质淡红示血虚未甚。神疲乏力、面色少华，为肝血不足。扶阳学派看阴阳实据，本例面色少华属血虚之象，与扶阳抑阴思路相符。" },
     therapy: { overallMethod: "温经散寒" }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "寒凝血瘀，兼肝血不足", therapyDirection: "温经散寒" }], uncertainties: [] },
@@ -559,6 +561,7 @@ await check("5.8 方义多算一味共为君：表随方义；表里的君在方
 
 const knowledge = await jiti.import("../src/lib/tcm-knowledge.ts");
 await check("4.6b 苍耳子功用不再带「清热解毒」；加入有毒的药时行内写明", () => {
+  process.env.CDSS_STANDBY_MODIFICATIONS = "true"; // 第四十四轮：本条钉的是备用「若…」补写的判据（回退口径），新口径见 test:r1060-main
   const text = knowledge.getTcmHerbFunctionText("苍耳子");
   assert.doesNotMatch(text, /清热解毒/u);
   assert.match(text, /通鼻窍/u);
@@ -571,6 +574,7 @@ await check("4.6b 苍耳子功用不再带「清热解毒」；加入有毒的�
 });
 
 await check("4.6c 婴儿X用在 3 岁及以上写小儿X；人群提示不写「老年人者」", async () => {
+  delete process.env.CDSS_STANDBY_MODIFICATIONS;
   const check = await jiti.import("../src/lib/western-name-evidence-check.server.ts");
   assert.equal(check.deterministicWesternNameCorrection("婴儿腹泻", "腹泻2周", 5)?.supportedName, "小儿腹泻");
   assert.equal(check.deterministicWesternNameCorrection("婴儿腹泻", "腹泻2周", 2), undefined);

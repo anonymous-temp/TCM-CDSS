@@ -9,6 +9,10 @@
 //   2 方义删掉方外药名后的残句：「黄柏苦寒清热燥湿燥湿，共为君药」（留出例 S145）——重复词、只剩一味的「共为」。
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
+// 第四十四轮（2026-11-14）起随证加减缺省只给本例已有表现的加减（备用「若…」不交付，见 test:r1060-main）。本套件钉的是条件句加减经过的
+// 各项判据（与病历相抵、人群、教材【使用注意】、成方内已有的药、教材兜底）——这些判据在两种口径下都生效，这里按回退口径
+// （CDSS_STANDBY_MODIFICATIONS=true，备用加减照旧交付）跑，免得每条用例都得另造病历已有的条件。
+process.env.CDSS_STANDBY_MODIFICATIONS = "true";
 
 const jiti = createJiti(import.meta.url, {
   alias: {
