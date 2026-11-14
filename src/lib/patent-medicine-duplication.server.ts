@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import type { CaseState } from "./diagnosis-types";
 import {
   classIsPathogenSpecific,
@@ -21,6 +19,7 @@ import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { getTcmHerbFunctionCategories, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
 import { skinTopicalMedication } from "./delivered-surface";
 import { MEDICINE_CLINICAL_CONCEPTS, matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
+import { westernClassTable } from "./western-drug-lexicon.server";
 
 /**
  * 推荐的中成药与本方汤剂重复（2026-10-19，甲方标准病历三次复评，注意事项一栏每次都因此判不通过）：
@@ -242,26 +241,6 @@ export function withoutRepeatedMedicineNames<T extends { name?: unknown }>(medic
 
 type MedicineRow = { type?: unknown; name?: unknown; route?: unknown; correspondingProblem?: unknown };
 
-type WesternClassTable = { classes: string[]; byProduct: Record<string, number[]>; byGeneric: Record<string, number[]> };
-let westernClassTableCache: WesternClassTable | undefined;
-function westernClassTable(): WesternClassTable {
-  if (westernClassTableCache) return westernClassTableCache;
-  try {
-    // 与成份表同一读法：按 process.cwd()/src/data 懒加载，不打进代码包。
-    const parsed = JSON.parse(readFileSync(path.join(process.cwd(), "src", "data", "western-drug-pharmacology-class.json"), "utf8")) as Partial<WesternClassTable>;
-    westernClassTableCache = {
-      classes: Array.isArray(parsed.classes) ? parsed.classes : [],
-      byProduct: parsed.byProduct && typeof parsed.byProduct === "object" ? parsed.byProduct : {},
-      byGeneric: parsed.byGeneric && typeof parsed.byGeneric === "object" ? parsed.byGeneric : {},
-    };
-  } catch (error) {
-    console.warn("[tcm-cdss:knowledge] western drug class table unavailable", {
-      reason: error instanceof Error ? error.message.slice(0, 120) : "unknown",
-    });
-    westernClassTableCache = { classes: [], byProduct: {}, byGeneric: {} };
-  }
-  return westernClassTableCache;
-}
 
 /**
  * 药名在表里按全名（药品名称）或通用名（五级名称）登记。先查全名；查不到时从尾巴一个字一个字地削（片、胶囊、口服溶液…

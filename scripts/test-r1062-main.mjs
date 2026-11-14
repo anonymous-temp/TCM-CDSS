@@ -43,6 +43,8 @@ const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const alignment = await jiti.import("../src/lib/m03-analysis-alignment.server.ts");
 const plan = await jiti.import("../src/lib/tcm-nondrug-textbook-plan.server.ts");
 const fixes = await jiti.import("../src/lib/nondrug-text-fixes.ts");
+const claimCheck = await jiti.import("../src/lib/m03-patient-claim-check.server.ts");
+const polarity = await jiti.import("../src/lib/clinical-polarity.ts");
 
 const START = "<!-- DIAGNOSIS_JSON_START -->";
 const END = "<!-- DIAGNOSIS_JSON_END -->";
@@ -354,6 +356,69 @@ await check("18.1 停经 N 周、孕早期按孕周读", () => {
   assert.equal(safety.recordedGestationalWeeks("孕34周"), 34, "对照：原有写法");
   assert.equal(safety.recordedGestationalWeeks("未避孕5个月未能怀孕"), undefined);
   assert.equal(safety.recordedGestationalWeeks("停经6个月，小腹坠痛"), undefined, "停经 20 周以上多是闭经，不当孕周");
+});
+
+// ───── 20 第四十五轮终审复核（200 份，r1062/review-fin2）抓到的本轮回归与同类 ─────
+await check("20.1 「用药史」一栏切出的项要认得出是药才进注意事项：西药通用名、带剂型、药类说法；用法碎片、写着用过未用的不收", () => {
+  const listed = (history) => {
+    const state = types.normalizeCaseStateInput({ id: "r1062-hist", chiefComplaint: "心悸", patient: { sex: "男", age: 40 }, symptoms: { 现病史: "心悸1月", 用药史: history } });
+    return required.requiredPrecautionsForCase(safety.withSafetyGate(state), null).find((item) => item.kind === "current_medications")?.names || [];
+  };
+  assert.deepEqual(listed("长期吸入噻托溴铵，偶漏用"), ["噻托溴铵"]);
+  assert.deepEqual(listed("呋塞米、比索洛尔，近一周漏服"), ["呋塞米", "比索洛尔"]);
+  assert.deepEqual(listed("别嘌醇近期不规律；自行服双氯芬酸"), ["别嘌醇", "双氯芬酸"]);
+  assert.ok(!listed("自行购买安眠药，名称剂量不明").some((name) => /名称|剂量/u.test(name)), "「名称」不是药名（「安眠药」这类泛称本来就不按药名列）");
+  assert.deepEqual(listed("吸入性糖皮质激素，家长称经常忘"), ["吸入性糖皮质激素"]);
+  assert.deepEqual(listed("一袋混合药片，处方和剂量不详"), [], "说不出是什么药");
+  assert.deepEqual(listed("服过复方感冒药，名称不详"), [], "用过的不算在用");
+  assert.deepEqual(listed("用过布洛芬"), [], "认得出的药名、写的是用过：不算在用");
+  assert.deepEqual(listed("布洛芬"), ["布洛芬"], "对照");
+  assert.deepEqual(listed("尚未用抗菌药"), []);
+  const { candidate } = polarity.medicationHistoryItemCandidate("今日已自行加用数次");
+  assert.ok(!polarity.MEDICATION_HISTORY_CLASS_WORD.test(candidate), candidate);
+});
+
+await check("20.2 红旗病例待核实「急危重风险尚未排除」：理由去掉重复的开头（措辞替换之后再比）", () => {
+  const reasoning = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: {}, westernDiagnosis: {}, therapy: {},
+    pathogenesis: { chain: [], uncertainties: [{ item: "急危重风险尚未排除", reason: "急危重风险未排除：以下辨证、病机与治法结论供医生参考，请先完成急诊或转诊评估并记录排除或处置依据；风险解除前本方不能正式采纳。", affects: "整体" }] } };
+  const reason = surface.projectDeliveredReasoning(reasoning, {}).pathogenesis.uncertainties[0].reason;
+  assert.ok(!/^急危重风险/u.test(reason), reason);
+  const colon = { uncertainties: [{ item: "缺舌脉记录", reason: "缺舌脉记录：证型边界待四诊补充", affects: "证候" }] };
+  surface.withoutReasonEchoingItem(colon);
+  assert.equal(colon.uncertainties[0].reason, "证型边界待四诊补充", "冒号连着的重复开头也去掉");
+  assert.match(reason, /急诊或转诊评估/u);
+  assert.doesNotMatch(reason, /记录排除或处置依据|正式采纳/u, "先换成临床写法再去重复，不留系统流程话");
+});
+
+await check("20.3 「X的一般情况需医生核实」是内部提示：否认半句留下，这半句去掉", () => {
+  assert.equal(surface.clinicalWordingForSyntheticPhrases("近半年症状平稳，否认新发言语不清，言语不清的一般情况需医生核实；否认跌倒"), "近半年症状平稳，否认新发言语不清；否认跌倒");
+  assert.equal(surface.clinicalWordingForSyntheticPhrases("否认头痛；病历已记录，未诉上腹痛，腹痛的一般情况需医生核实"), "否认头痛；未诉上腹痛");
+});
+
+await check("20.4 「如胸痛加重或出现晕厥、气促，立即呼叫急救」是嘱咐：不改成「病历尚未确认…」；「患者出现晕厥…」照旧核", () => {
+  const state = types.normalizeCaseStateInput({ id: "r1062-pros", chiefComplaint: "胸痛3天", patient: { sex: "男", age: 30 }, symptoms: { 现病史: "胸痛3天，焦虑" } });
+  assert.equal(safety.sanitizeUngroundedRedFlagNegations("如胸痛加重或出现晕厥、气促，立即呼叫急救。", state), "如胸痛加重或出现晕厥、气促，立即呼叫急救。");
+  assert.match(safety.sanitizeUngroundedRedFlagNegations("患者出现晕厥、气促，立即呼叫急救。", state), /尚未确认/u);
+  assert.equal(safety.sanitizeUngroundedRedFlagNegations("如胸痛加重或出现晕厥、气促，本例须立即急诊。", state), "如胸痛加重或出现晕厥、气促，本例须立即急诊。", "句中带「本例」时整句嘱咐那条路不放行，靠「如…加重」起头认出");
+});
+
+await check("20.5 「无痛性」「无意中」不是否认：辨证核对与「无→未诉」改写都不改", () => {
+  assert.equal(summary.unrecordedNegativesAsNotReported("理发时无意发现，病程2周", "头顶脱发2周，理发时发现"), "理发时无意发现，病程2周");
+  const root = { westernDiagnosis: { differentials: [{ name: "乳腺癌", reason: "无痛性乳房肿块须排除恶性", distinguishingPoints: "无发热，须超声" }] } };
+  const applied = claimCheck.applyPatientClaimRemovals(root, "western", [{ field: "differentials[0].reason", span: "无痛性乳房肿块" }, { field: "differentials[0].distinguishingPoints", span: "无发热" }], "左乳肿块1月");
+  assert.equal(root.westernDiagnosis.differentials[0].reason, "无痛性乳房肿块须排除恶性");
+  assert.equal(root.westernDiagnosis.differentials[0].distinguishingPoints, "未诉发热，须超声", "对照：真否认照旧改成未诉（证明走到了改写这一步）");
+  assert.equal(applied, 1);
+  assert.equal(safety.maskNonNegatingWuWords("无意识障碍").startsWith("无"), true, "对照：无意识照旧是否认");
+});
+
+await check("20.6 方义里照抄的组方规则与剂量数据用语去掉：组成身份下限、精简佐使、本地剂量资料、「以合十味之限」", () => {
+  assert.equal(surface.withoutInternalCompositionTalk("本方用养心汤加减。因组成身份下限需保留十一味，本方仅取十味，余一味以精简佐使处理。黄芪为君。"), "本方用养心汤加减。黄芪为君。");
+  assert.equal(surface.withoutInternalCompositionTalk("本方为自拟方，因本方在本地标准剂量资料中暂无可执行的逐味剂量基准，故按本例病机另行组方。"), "本方为自拟方，故按本例病机另行组方。");
+  assert.equal(surface.withoutInternalCompositionTalk("本方以舒筋活血汤为基础加减，去川牛膝、五加皮以合十味之限。"), "本方以舒筋活血汤为基础加减，去川牛膝、五加皮。");
+  assert.equal(surface.withoutInternalCompositionTalk("黄芪补气固表为君。"), "黄芪补气固表为君。", "对照：没有这类话的不动");  const projected = surface.projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {}, westernDiagnosis: {}, pathogenesis: { chain: [], uncertainties: [] }, therapy: {},
+    formula: { candidates: [{ name: "自拟方", herbs: [{ name: "黄芪", dose: "15g", role: "君" }, { name: "当归", dose: "10g", role: "臣" }], formulaAnalysis: "本方为自拟方，因本方在本地标准剂量资料中暂无可执行的逐味剂量基准，故按本例病机另行组方。黄芪为君，当归为臣。" }], modifications: [] }, nonPharma: {} }, {});
+  assert.equal(projected.formula.candidates[0].formulaAnalysis, "本方为自拟方，故按本例病机另行组方。黄芪为君，当归为臣。", "交付投影里生效");
 });
 
 if (failures > 0) console.error(`\n${failures} check(s) failed`);

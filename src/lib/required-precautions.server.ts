@@ -1,4 +1,4 @@
-import { cleanedMedicationNameCandidate, recordedDrugAllergyPhrases, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, MEDICATION_STILL_TAKING, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
+import { cleanedMedicationNameCandidate, medicationHistoryItemCandidate, MEDICATION_HISTORY_CLASS_WORD, recordedDrugAllergyPhrases, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, MEDICATION_STILL_TAKING, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
 import { authoritativePatientAgeYears, clauseLocalMentionPolarityAt, highRiskConditionsForPrecautions, recordedMedicationHistoryList, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
@@ -14,6 +14,7 @@ import { catalogSharedComposition } from "./tcm-formula-provenance";
 import { getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
 import { dietRestrictionForSyndromeText, recordedTriggerFoods } from "./tcm-therapy-phrasing";
 import { discontinuedMedicationLabel, highRiskConditionPromptText, type RequiredPrecaution } from "./required-precautions";
+import { westernDrugNameIn } from "./western-drug-lexicon.server";
 import { allergenAvoidPhrase, allergenStatedInRecord, allergensFromScreen, mergeRecordedAllergens, recordedAllergensInText } from "./allergen-profile";
 
 export type { RequiredPrecaution } from "./required-precautions";
@@ -187,9 +188,23 @@ export function requiredPrecautionsForCase(
     return a === b || a.includes(b) || b.includes(a);
   };
   // 「用药史」一栏本身就是在用药清单（2026-11-14 第四十五轮 C100：「地高辛、呋塞米、华法林、安眠药」没有给药动词，一个都没认出）。
-  for (const raw of [...recorded.names, ...recordedMedicationHistoryList(state)]) {
+  // 这一栏逐项切开后要认得出是药才收：西药通用名表、带剂型或说明书目录一字不差、药类说法（降压药、安眠药、铁剂…）；
+  // 用法与服用情况的碎片（「偶有漏用」「今日已自行加用数次」「名称」）不收，写着用过、未用的不算在用（第四十五轮复核，甲方 100 例 20 余份）。
+  const historyNames = recordedMedicationHistoryList(state).flatMap((item) => {
+    const { candidate, notCurrent } = medicationHistoryItemCandidate(item);
+    if (notCurrent || candidate.length < 2) return [];
+    if (MEDICATION_HISTORY_CLASS_WORD.test(candidate)) return [candidate];
+    if (patentMedicineBaseName(candidate) !== candidate || findLocalPatentMedicineLabel(candidate)?.name.replace(/\s/g, "") === candidate) return [candidate];
+    const western = westernDrugNameIn(candidate);
+    return western ? [candidate.length <= 12 && candidate.includes(western) ? candidate : western] : [];
+  });
+  for (const raw of [...recorded.names, ...historyNames]) {
     const name = cleanedMedicationNameCandidate(raw);
-    if (!name || selfTaken.has(patentMedicineBaseName(name)) || current.some((known) => sameDrug(known, name))) continue;
+    if (!name || selfTaken.has(patentMedicineBaseName(name))) continue;
+    const known = current.findIndex((other) => sameDrug(other, name));
+    // 按给药动词取的名字是用药史那一项的残片（「吸入」后面的「性糖皮质激素」）：换成整项。
+    if (known >= 0 && historyNames.includes(raw) && name.length > current[known].length && name.endsWith(current[known])) current[known] = name;
+    if (known >= 0) continue;
     current.push(name);
   }
   // 取名的几条路各自切词，切出过「控制」「依折麦布片一天」「α骨化醇片(」「包括甲泼尼龙」（2026-10-19 Claude 评审 M 集）：

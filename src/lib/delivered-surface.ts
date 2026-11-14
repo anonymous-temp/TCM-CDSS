@@ -596,6 +596,10 @@ const SYNTHETIC_PHRASES: ReadonlyArray<[RegExp, string]> = [
   [/置信度(?:中等|一般)/g, "尚需核实"],
   [new RegExp(`病历尚未确认${OBJECT}是否已排除[；;，,]\\s*病历已记录该表现存在[，,]\\s*请医生核对后再采纳`, "g"), "有$1"],
   [new RegExp(`病历已记录否认${OBJECT}[，,]\\s*[^，,。；;\\n]{1,30}?的一般情况需医生核实`, "g"), "否认$1"],
+  // 前一句之外的同一句式（「否认新发言语不清，言语不清的一般情况需医生核实」——「病历已记录」已被别的步骤去掉，或模型照抄了这句）：
+  // 「X的一般情况需医生核实」是净化器给医生的内部提示，不是临床写法；否认那半句已经说清，后半句去掉（第四十五轮复核 m18、C061、rt-295488）。
+  [/[，,；;]\s*[^，,。；;\n]{1,30}?的一般情况需医生核实/g, ""],
+  [/病历已记录[，,；;]\s*/g, ""],
   [new RegExp(`病历已记录本次${OBJECT}未见明显异常[；;，,]\\s*是否复查由医生结合病情判断`, "g"), "本次$1未见明显异常"],
   // 对象里可以自带括注（「口腔专科检查（牙髓活力、叩诊等）」），这一式的结尾是固定句，按到它为止取对象。
   [/病历未记录([^，,。；;：:\n]{1,60}?)(?:记录)?[（(]需问诊核实后方可用于排除[）)]/g, "未诉$1"],
@@ -686,7 +690,7 @@ export function withoutReasonEchoingItem(pathogenesis: Json | undefined): void {
     if (!item || !reason) return row;
     const itemCore = core(item);
     if (itemCore.length < 4) return row;
-    const clauses = reason.split(/(?<=[，,；;。])/u);
+    const clauses = reason.split(/(?<=[，,；;。：:])/u);
     let consumed = 0, at = 0;
     while (at < clauses.length && consumed < itemCore.length) {
       consumed += core(clauses[at]).length;
@@ -726,7 +730,7 @@ export function clinicalWordingForSyntheticPhrases(value: string): string {
   if (/记录排除或处置依据|正式采纳(?:与具体用量)?需先完成上述事项/u.test(value)) {
     for (const [pattern, replacement] of RED_FLAG_BOUNDARY_WORDING) value = value.replace(pattern, replacement);
   }
-  if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|服务器|受控目录|症状层|可逐字回溯|有界建议|工作证候|工作诊断|工作判断|复评|置信度|等红旗|已锁定病机/.test(value)) return value;
+  if (!/病历(?:中)?(?:尚未确认|已记录|未记录)|是否存在尚未|完整度未达C级|服务端|服务器|受控目录|症状层|可逐字回溯|有界建议|工作证候|工作诊断|工作判断|复评|置信度|等红旗|已锁定病机|一般情况需医生核实/.test(value)) return value;
   let text = value.replace(BOUNDED_ADVICE_NOTE, "");
   for (const note of SERVER_NOTES) text = text.replace(note, "");
   text = text.trim();
@@ -1770,6 +1774,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       candidate.formulaAnalysis = tidyPunctuation(withProcessingFromTable(withRoleOnlyHerbsExplained(withoutStrayLeadingRoleVerb(harmonized).text, herbRows).text, herbRows)
         .replace(/(^|[；;。])\s*为[君臣佐使][\u4e00-\u9fff]{0,6}(?=[；;。]|$)/gu, "$1"));
     }
+    if (typeof candidate.formulaAnalysis === "string") candidate.formulaAnalysis = withoutInternalCompositionTalk(candidate.formulaAnalysis);
     // 方义说「去原方中…之品」而处方其实保留了原方全部药味（2026-10-17：甲方标准病历 1、4、10，三次生成里 4 次，独立评审判陈述失实）。
     // 方名能在方剂目录里查到组成、且组成逐味都在处方里时，去掉这句「去…」以及紧跟的「保留…/留其主体」；查不到组成时不动。
     if (typeof candidate.formulaAnalysis === "string" && REMOVAL_CLAIM_CLAUSE.test(candidate.formulaAnalysis) && typeof candidate.name === "string") {
@@ -2380,6 +2385,26 @@ function presentSameForm(name: string, present: ReadonlyMap<string, readonly str
 
 /** 方义里点名去掉某几味药（「去桑皮之重复而留其泻肺之意」），而这几味按组成身份都在处方里：这一小句不实，去掉。 */
 /** 名字对齐后两边成了同一味（「去炒黑芝麻，以生地黄易生地黄」，第三十四轮 病历 9）：这一小句不留。 */
+/**
+ * 方义里照抄的组方规则与剂量数据用语（2026-11-14 第四十五轮终审复核：C096「因组成身份下限需保留十一味，本方仅取十味，余一味以精简佐使处理」、
+ * C055「因本方在本地标准剂量资料中暂无可执行的逐味剂量基准」、C041「去川牛膝、五加皮以合十味之限」）。这是提示词里的话，医生读不出意思。
+ * 整句讲组成下限、精简佐使的删整句；讲剂量资料的删那一小句；「以合…之限」删这几个字。没有命中时逐字节不变。
+ */
+export function withoutInternalCompositionTalk(analysis: string): string {
+  if (!/组成身份下限|精简佐使|剂量资料|剂量基准|以合[^，,。；;]{0,8}之限/u.test(analysis)) return analysis;
+  return analysis
+    .split(/(?<=。)/u)
+    .filter((sentence) => !/组成身份下限|精简佐使/u.test(sentence))
+    .map((sentence) => sentence
+      .replace(/以合[^，,。；;]{0,8}之限/gu, "")
+      .split(/(?<=[，,；;])/u)
+      .filter((clause) => !/剂量资料|剂量基准/u.test(clause))
+      .join(""))
+    .join("")
+    .replace(/[，,；;]+(?=。|$)/gu, "")
+    .trim();
+}
+
 export function withoutSelfSwapClause(analysis: string): string {
   return analysis.replace(/[，,；;]?\s*(?:并|且)?以([\u4e00-\u9fff]{2,6})易\1(?=[。，,；;]|$)/gu, "");
 }
@@ -3176,7 +3201,6 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
   }
   else return reasoning;
   if (projected.stage === "diagnose" && options?.recordText) withSyndromeResolutionFromAxes(projected, options.recordText);
-  withoutReasonEchoingItem(record(projected.pathogenesis));
   // 证素核对的待核实项里列着辨证要点原文：本例不可能有的那几项（男性、儿童、老人的滑胎、带下、月经）不列（2026-11-14 第四十五轮：
   // 63 岁男性、91 岁男性的待核实写「滑精、滑胎、带下量多清稀」）。人群按开方同一口径（herbBoundaryAudience.reproductive）。
   if (options?.herbBoundaryAudience && !options.herbBoundaryAudience.reproductive) {
@@ -3198,6 +3222,9 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
     managementForSigns.followupSafetyNet = followupSignsForPopulation(managementForSigns.followupSafetyNet, options.herbBoundaryAudience);
   }
   rewordDeep(projected);
+  // 去理由里的重复放在措辞替换之后：红旗边界句先换成「急危重风险未排除，请先完成急诊或转诊评估…」才对得上项目「急危重风险尚未排除」
+  //（此前在替换前比，理由开头是「急危重风险未排除：以下辨证…」，冒号连着后半句，比不上，红旗病例的待核实照样重复；第四十五轮复核 20 余份）。
+  withoutReasonEchoingItem(record(projected.pathogenesis));
   return projected as T;
 }
 

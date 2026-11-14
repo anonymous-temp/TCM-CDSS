@@ -15,7 +15,7 @@ import {
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
-import { recordedFindingReading, recordMentionPolarityAt } from "./diagnosis-safety";
+import { maskNonNegatingWuWords, recordedFindingReading, recordMentionPolarityAt } from "./diagnosis-safety";
 import { recordAffirmsDeniedFinding } from "./diagnosis-visible-summary";
 import { alignQuoteToSource } from "./source-quote-alignment";
 
@@ -387,6 +387,8 @@ export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, re
     if (!slot) continue;
     const current = slot.read();
     if (!current.includes(span) || negativeInferenceClaim(span)) continue;
+    // 片段里的「无」全是固定说法（无痛性、无意中、面色无华…，maskNonNegatingWuWords）：不是阴性说法，留模型原话（第四十五轮复核 C069、n30）。
+    if (/无/u.test(span) && !/无/u.test(maskNonNegatingWuWords(span))) continue;
     // 片段里夹着病历肯定写着的项：整段删会连它们一起丢（「发热不恶寒、口渴汗出、舌红苔黄腻」），这种留模型原话。
     if (recordText && span.includes("、") && span.split("、").some((part) => part.length >= 3 && recordText.includes(part.trim()))) continue;
     const rewritten = recordText ? negativeClaimAsNotReported(span, recordText) : undefined;

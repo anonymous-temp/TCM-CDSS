@@ -55,10 +55,15 @@ await check("1.1 病位每项都有病历原文依据即已明确（与舌脉、
   })), "伴鼻塞、流涕、偶咳。躯干部出现红色斑丘疹")).pathogenesis.locationDifferentiation;
   const both = loc([{ location: "肺", basis: "伴鼻塞、流涕、偶咳" }, { location: "肌表", basis: "躯干部出现红色斑丘疹" }]);
   assert.equal(both.resolution, "resolved");
+  // 第四十五轮起：没依据、又不在证名里的病位是模型顺手多列的，不列入病位（这里的「皮毛」），剩下的都有依据即已明确。
   const one = loc([{ location: "肺", basis: "伴鼻塞、流涕、偶咳" }]);
-  assert.equal(one.resolution, "bounded");
-  assert.equal(one.resolutionReason, "病位“皮毛”尚缺直接的病历依据");
-  assert.equal(one.evidence?.confidence ?? "低", "低");
+  assert.deepEqual(one.items, ["肺"]);
+  assert.equal(one.resolution, "resolved");
+  // 缺依据的病位在证名里（脾寒气滞证之脾）：照旧有界，点名哪一项。
+  const named = loc([{ location: "肺", basis: "伴鼻塞、流涕、偶咳" }], ["肺", "脾"]);
+  assert.equal(named.resolution, "bounded");
+  assert.equal(named.resolutionReason, "病位“脾”尚缺直接的病历依据");
+  assert.equal(named.evidence?.confidence ?? "低", "低");
 });
 
 await check("1.2 病性写寒、依据栏只摘了舌象：病历另有四肢欠温、喜温喜按、小便清、大便溏薄时读病历补足依据、仍已明确；病历只有舌象时有界并点名", () => {

@@ -1252,7 +1252,7 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
   // 改写后读不通的不改，留模型原话（2026-11-14 第四十五轮，甲方 100 例约 20 份：「未诉痛性乳房肿块」原意无痛性、「非未诉性交而遗」
   //「未诉然阴虚火旺」「未诉多潮热盗汗」）：「无」后是构词（无痛性、无菌、无色、无规律），或前面是「非/之/推/亦非」、后面紧跟虚词（然、多、可、诸、即）。
   const unreadable = (term: string, offset: number, whole: string) =>
-    /^(?:痛性|菌|色|规律|诱因|然|多|可|诸|即|其|性)/u.test(term) || /(?:非|之|推|并非)$/u.test(whole.slice(Math.max(0, offset - 2), offset));
+    /^(?:痛性|菌|色|规律|诱因|然|多|可|诸|即|其|性|意(?:中|间|地|发现)|症状性)/u.test(term) || /(?:非|之|推|并非)$/u.test(whole.slice(Math.max(0, offset - 2), offset));
   const out = withMechanismFindings.replace(UNRECORDED_NEGATIVE, (match, term: string, offset: number, whole: string) =>
     inferred(offset, whole, term) || unreadable(term, offset, whole) || recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) || /^(?:明显|特殊|其他)?异常$/u.test(term) ? match : `未诉${term}`)
     // 「无气从少腹上冲胸咽之奔豚特征」：对象后面接「之…特征/表现/症状」时上面那条够不着（2026-10-19 甲方标准病历 2 第 3 次生成）。
