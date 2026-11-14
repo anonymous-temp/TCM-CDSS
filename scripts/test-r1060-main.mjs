@@ -305,7 +305,8 @@ await check("4.1 证候层：病位、病性两轴已定、舌脉齐全时，模
   assert.equal(out.overview.primarySyndromeResolution, "resolved");
   assert.equal(out.overview.primarySyndromeResolutionReason, undefined);
   assert.equal(out.overview.evidence.confidence, "中");
-  assert.ok(out.pathogenesis.uncertainties.some((row) => row.reason === "关节肿胀、晨僵时长未记录，寒热虚实细节待复诊"));
+  // 第四十五轮起：搬进待核实栏时第一小句作项目、其余作理由（此前整句同时当项目和理由，读来同一句话说两遍）。
+  assert.ok(out.pathogenesis.uncertainties.some((row) => row.item === "关节肿胀、晨僵时长未记录" && row.reason === "寒热虚实细节待复诊"), JSON.stringify(out.pathogenesis.uncertainties));
   const noPulse = surface.projectDeliveredReasoning(diagnose4("关节肿胀未记录"), { recordText: "双膝疼痛2年，舌淡，苔白。" });
   assert.equal(noPulse.overview.primarySyndromeResolution, "bounded");
   const redFlag = surface.projectDeliveredReasoning(diagnose4("急危重风险未排除：以下辨证、病机与治法结论供医生参考，请先完成急诊或转诊评估并记录排除或处置依据；风险解除前本方不能正式采纳。"), { recordText: RECORD4 });

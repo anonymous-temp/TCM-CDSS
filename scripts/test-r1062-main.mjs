@@ -410,6 +410,12 @@ await check("20.5 「无痛性」「无意中」不是否认：辨证核对与�
   assert.equal(root.westernDiagnosis.differentials[0].distinguishingPoints, "未诉发热，须超声", "对照：真否认照旧改成未诉（证明走到了改写这一步）");
   assert.equal(applied, 1);
   assert.equal(safety.maskNonNegatingWuWords("无意识障碍").startsWith("无"), true, "对照：无意识照旧是否认");
+  const S = "<!-- DIAGNOSIS_JSON_START -->", E = "<!-- DIAGNOSIS_JSON_END -->";
+  const wrap = (reasoning) => `${S}\n${JSON.stringify(reasoning)}\n${E}`;
+  const diff = (reason) => ({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseDifferentials: [{ diseaseName: "乳岩", reason, distinguishingPoints: "" }] }, westernDiagnosis: { differentials: [] }, pathogenesis: {}, therapy: {} });
+  const grounded = (reason) => { const out = summary.groundDifferentialNegativeAssertions(wrap(diff(reason)), "左乳无痛性结节1个月，洗澡时触及"); return JSON.parse(out.slice(out.indexOf(S) + S.length, out.indexOf(E))).overview.tcmDiseaseDifferentials[0].reason; };
+  assert.equal(grounded("无痛性单发肿块需排除恶性"), "无痛性单发肿块需排除恶性", "鉴别核对也不把「无痛性」当否认");
+  assert.match(grounded("无乳头溢液"), /病历未记录乳头溢液/u, "对照：病历没写过的真否认照旧提示核实");
 });
 
 await check("20.6 方义里照抄的组方规则与剂量数据用语去掉：组成身份下限、精简佐使、本地剂量资料、「以合十味之限」", () => {
@@ -419,6 +425,11 @@ await check("20.6 方义里照抄的组方规则与剂量数据用语去掉：�
   assert.equal(surface.withoutInternalCompositionTalk("黄芪补气固表为君。"), "黄芪补气固表为君。", "对照：没有这类话的不动");  const projected = surface.projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {}, westernDiagnosis: {}, pathogenesis: { chain: [], uncertainties: [] }, therapy: {},
     formula: { candidates: [{ name: "自拟方", herbs: [{ name: "黄芪", dose: "15g", role: "君" }, { name: "当归", dose: "10g", role: "臣" }], formulaAnalysis: "本方为自拟方，因本方在本地标准剂量资料中暂无可执行的逐味剂量基准，故按本例病机另行组方。黄芪为君，当归为臣。" }], modifications: [] }, nonPharma: {} }, {});
   assert.equal(projected.formula.candidates[0].formulaAnalysis, "本方为自拟方，故按本例病机另行组方。黄芪为君，当归为臣。", "交付投影里生效");
+});
+
+await check("20.7 跟药并列写的自行处理动作不是药名：「自服感冒药、发汗后」「自服奥美拉唑肠溶胶囊1粒及喝热水后」", () => {
+  for (const name of ["发汗", "喝热水", "热水", "姜汤"]) assert.equal(polarity.cleanedMedicationNameCandidate(name), "", name);
+  for (const name of ["奥美拉唑肠溶胶囊", "布洛芬", "藿香正气水"]) assert.equal(polarity.cleanedMedicationNameCandidate(name), name, `对照：${name}`);
 });
 
 if (failures > 0) console.error(`\n${failures} check(s) failed`);

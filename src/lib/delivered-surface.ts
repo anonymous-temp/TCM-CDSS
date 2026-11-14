@@ -2878,7 +2878,9 @@ function withSyndromeResolutionFromAxes(reasoning: Json, recordText: string): vo
     const item = (head || "证候细节").slice(0, 30);
     const remainder = rest.join("，");
     if (!records(uncertainties).some((row) => String(row.reason || "") === reason || String(row.item || "") === item)) {
-      pathogenesis.uncertainties = [...uncertainties, { item, reason: remainder ? `${remainder}，尚待核实` : "尚待核实", affects: "证候细节与随证加减" }].slice(0, 12);
+      // 余下的话自己已经说了待定（「寒热虚实细节待复诊」）时不再补「尚待核实」（第四十五轮终审：读来同一意思说两遍）。
+      const pending = /待|未|尚缺|核实|不明|不详/u.test(remainder);
+      pathogenesis.uncertainties = [...uncertainties, { item, reason: remainder ? (pending ? remainder : `${remainder}，尚待核实`) : "尚待核实", affects: "证候细节与随证加减" }].slice(0, 12);
     }
   }
 }

@@ -15,7 +15,7 @@ import { namedFormulaDecoctionProfile } from "./formula-decoction-profile";
 import { rationaleAlignedWithRenamedPrimary } from "./western-rationale-alignment";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { NARROWER_THAN_GROUP_CANONICAL, NARROWER_TERM_SYNONYMS, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, clauseLocalMentionPolarityAt, redFlagDoseAuthorizationAllowed, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient, recordedGestationalWeeks } from "./diagnosis-safety";
+import { maskNonNegatingWuWords, NARROWER_THAN_GROUP_CANONICAL, NARROWER_TERM_SYNONYMS, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, clauseLocalMentionPolarityAt, redFlagDoseAuthorizationAllowed, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient, recordedGestationalWeeks } from "./diagnosis-safety";
 import { assessPregnancyState } from "./clinical-state";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
@@ -605,7 +605,9 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
         changed = true;
         return "发病季节病历未记录，需核实后方可用于排除";
       }
-      const negative = trimmed.match(NEGATIVE_CLAUSE);
+      // 开头的「无」是固定说法（无痛性肿块、无意中发现，maskNonNegatingWuWords）时不是否认（第四十五轮终审复核 C069：「无痛性单发肿块需排除恶性」
+      // 被改成「病历未记录痛性单发肿块…」，交付成「未诉痛性…」）。掩码等长替换，在掩码后的文本上认否认句式。
+      const negative = maskNonNegatingWuWords(trimmed).match(NEGATIVE_CLAUSE) ? trimmed.match(NEGATIVE_CLAUSE) : null;
       if (!negative) return clause;
       // 列举里每一项各写一个「无」（「无体重下降、无夜间痛」）时，后面几项的「无」也去掉：否则交付成「未诉体重下降、无夜间痛」，
       // 第二项仍是病历没有依据的否认（2026-10-18 甲方标准病历 6 腰椎转移瘤一项）。
