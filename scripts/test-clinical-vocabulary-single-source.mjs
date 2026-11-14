@@ -28,6 +28,8 @@ const CJK = "\\u4e00-\\u9fa5";
 const ALLOWLIST = new Map([
   ["src/lib/candidate-boundary-text.ts", "知识库人群规则 basis 字段的出处标签形态（中国药典/药典20xx/【注意】），判断这条慎用有没有药典依据，是数据来源格式不是临床术语（2026-11-10 第四十一轮）"],
   ["src/lib/m03-element-support.server.ts", "否定词的形态守卫（无/非/不属/未见/尚无/并非/不是），闭集，只决定证素字样前面是不是否定写法（同 m03-lens-consistency，2026-11-10）"],
+  ["src/lib/instruction-record-pool.ts", "说明书字段的整段占位写法（尚不明确/未载明/暂无…）闭集，只用来把占位从风险说明里去掉，不判任何临床内容（2026-11-14 第四十四轮）。迁移计划：说明书解析改读受治理的说明书字段表时一并移入。"],
+  ["src/lib/western-basis-authoring.server.ts", "西医依据写作核对的元话语标记（未记录/未见记录/无记录）闭集，只用来拒收讲病历本身的成句，不判临床内容（2026-11-14 第四十四轮）。"],
   ["src/lib/recorded-test-claims.ts", "「尚缺/未查/需完善」这类缺项断言的句式标记，闭集，只认模型写的缺项句形态；检查名本身走 clinical-test-name-groups.source.json（2026-11-10）"],
   ["src/lib/formula-textbook-commentary.ts", "切《方剂学》方解段落的结构标记（沿革句、煎时加姜枣的写法），是教材行文的形态，不是临床术语判据（2026-10-31）"],
   ["src/lib/m03-lens-consistency.server.ts", "否定词的形态守卫（非/不属/未/无…），闭集，只决定一个分句是否算肯定地下诊断（2026-10-31）"],
