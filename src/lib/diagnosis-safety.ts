@@ -1005,13 +1005,18 @@ const EXAM_TERM_SYNONYMS: Readonly<Record<string, readonly string[]>> = {
  * 病历里关于这项检查结果的那一句（去掉「辅助检查：」这类字段标签），照录给医生看；病历没写这项检查的结果时说「病历未记录本次X结果」。
  * 只照录、不判断新旧：新旧由 sourceDocumentsCurrentNormality 判，这里只负责让医生看到原文。
  */
-function recordedExamResultNotice(source: string, term: string): string {
+export function recordedExamResultNotice(source: string, term: string): string {
   // 同一项检查的分项写法也算（「肾功能」之于「肌酐68μmol/L」，clinical-test-name-groups.source.json；第四十一轮 m03：
   // 病历有肌酐，鉴别写「病历未记录本次肾功能结果」）。
   const group = (testNameGroupsJson as { groups: string[][] }).groups.find((items) => items.includes(term)) || [];
   const names = [...new Set([term, ...(EXAM_TERM_SYNONYMS[term] || []), ...group.filter((alias) => alias.length >= 2)])];
+  // 字段标签只去「辅助检查：」这类栏名；标签本身就是检查名时（「血常规：白细胞7.8×10^9/L」）留着——此前一并去掉，
+  // 剩下的读数里找不到「血常规」，于是写成「病历未记录本次血常规结果」（2026-11-14 第四十五轮 m01，病历明明有血常规）。
   const sentence = normalizeClinicalText(source).split(/[。；;\n]+/)
-    .map((item) => item.replace(/^\s*[^：:，,]{1,8}[：:]\s*/u, "").trim())
+    .map((item) => {
+      const label = item.match(/^\s*([^：:，,]{1,8})[：:]\s*/u);
+      return label && !names.some((name) => label[1].includes(name)) ? item.slice(label[0].length).trim() : item.trim();
+    })
     // 结果也可以只是一个带单位的读数（「指脉氧饱和度97%」「血红蛋白92g/L」）。
     .find((item) => names.some((name) => item.includes(name)) &&
       /(?:正常|异常|升高|降低|阳性|阴性|未见|增高|减低)|\d+(?:\.\d+)?\s*(?:%|mmol|μmol|umol|g\/L|mg|U\/L|×10|次\/分)/u.test(item));
@@ -6142,7 +6147,13 @@ export function recordedGestationalWeeks(text: string): number | undefined {
   const weeks = text.match(/(?:(?<![避不备未])孕|妊娠|怀孕)\s*(?:已|约|近)?\s*(\d{1,2})(?:\s*\+\s*\d)?\s*周/u)?.[1];
   if (weeks) return Number(weeks);
   const months = text.match(/(?:(?<![避不备未])孕|妊娠|怀孕)\s*(?:已|约|近)?\s*(\d{1,2})\s*个(半)?月/u);
-  return months ? Math.round(Number(months[1]) * 4.3 + (months[2] ? 2 : 0)) : undefined;
+  if (months) return Math.round(Number(months[1]) * 4.3 + (months[2] ? 2 : 0));
+  // 复诊提示一侧原有的另一份读法并到这里（2026-11-14 第四十五轮，两份读法各写各的）：「孕早期」按 12 周；「停经6周」「停经45天」按停经时长
+  //（C062 停经 6 周疑异位妊娠破裂，复诊提示写了「破水、胎动减少」）。
+  if (/孕早期|妊娠早期|早孕(?!试验|检测|试纸)/u.test(text)) return 12;
+  const amenorrhea = text.match(/停经\s*(?:已|约|近)?\s*(\d{1,3})\s*(?:\+\s*\d)?\s*(周|天|日|个月)/u);
+  if (amenorrhea) return amenorrhea[2] === "周" ? Number(amenorrhea[1]) : amenorrhea[2] === "个月" ? Math.round(Number(amenorrhea[1]) * 4.3) : Math.round(Number(amenorrhea[1]) / 7);
+  return undefined;
 }
 
 /**
@@ -7125,6 +7136,43 @@ export function diabetesDiagnosisConfirmed(westernName: string): boolean {
 export function diabetesRecorded(state: CaseState): boolean {
   const source = familyHistoryFieldTexts(state).reduce((text, family) => text.split(family).join(""), trustedInputText(state));
   return hasNonNegatedClinicalPattern(source, DIABETES_RECORDED);
+}
+
+/**
+ * 病历「用药史」一栏的药名列表（2026-11-14 第四十五轮，甲方 100 例 C100：「用药史：地高辛、呋塞米、华法林、安眠药，具体剂量待核实」没有给药动词，
+ * 注意事项的取药名办法一个都没认出）。这一栏本身就是在用药的清单：按顿号、逗号拆开，去掉「具体剂量待核实」这类说明；写着已停的不算。
+ */
+export function recordedMedicationHistoryList(state: CaseState): string[] {
+  const field = String(authoritativeFieldOrFallback(state, "yongyaoshi", state.medicationHistory) || "").normalize("NFKC");
+  if (!field.trim()) return [];
+  // 写了停用的按现用药读法取仍在用的那部分；纯列表（没有给药动词，读法认不出）整栏就是在用药。
+  const current = /停用|已停|停药|停服/u.test(field) ? affirmedCurrentMedicationText(field) || "" : field;
+  return [...new Set(current.split(/[、，,；;。\n/]|和|及/u)
+    .map((item) => item.replace(/(?:具体|用法|剂量|频次)[^、，,；;。]*$/u, "").replace(/^(?:长期|规律|平素|目前|现|正在)?(?:口服|服用|使用|服|用)/u, "")
+      // 「复合维生素偶服」「降压药每日1次」：药名后面的用药频次去掉。
+      .replace(/(?:偶服|偶尔服用?|间断服用?|不规律服用?|规律服用?|每日\d+次|每天\d+次|\d+(?:mg|g|片|粒)\/?[次日d]*).*$/u, "")
+      .replace(/[（(][^）)]*[）)]/gu, "").trim())
+    // 「未服药」「无」「否认用药」这类不是药名（第四十五轮 C024：注意事项写成「正在服用的未服药请告知医生」）。
+    .filter((item) => item.length >= 2 && item.length <= 12 && !/^(?:无|否认|不详|未知|待核实|不清|未记录|未|没有|不)/u.test(item) && !/不详|未知|待核实|服药|用药/u.test(item)))];
+}
+
+/**
+ * 写给患者的高危基础情况（required-precautions 的 high_risk_condition）。肾功能不全、心衰、免疫抑制与剂量边界同一判据；
+ * 另加血钾偏高（本次记录 >5.5mmol/L）与正在服地高辛。
+ */
+export function highRiskConditionsForPrecautions(state: CaseState): { conditions: Array<"renal" | "heart_failure" | "hyperkalemia" | "digoxin" | "immunosuppression">; potassium?: string } {
+  const reasons = highRiskDoseBoundaryReasons(state);
+  const conditions: Array<"renal" | "heart_failure" | "hyperkalemia" | "digoxin" | "immunosuppression"> = [];
+  if (reasons.some((reason) => reason.startsWith("慢性肾病"))) conditions.push("renal");
+  if (reasons.some((reason) => reason.startsWith("心力衰竭"))) conditions.push("heart_failure");
+  if (reasons.some((reason) => reason.startsWith("当前免疫抑制"))) conditions.push("immunosuppression");
+  const source = familyHistoryFieldTexts(state).reduce((text, family) => text.split(family).join(""), trustedInputText(state)).normalize("NFKC");
+  const potassium = [...source.matchAll(/(?:血钾|钾|K\+?)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*mmol\/L/giu)]
+    .map((match) => Number(match[1])).find((value) => value > 5.5 && value < 10);
+  if (potassium != null) conditions.push("hyperkalemia");
+  const medicationSource = [authoritativeFieldOrFallback(state, "yongyaoshi", state.medicationHistory), extractMedicationEvidenceText(source)].filter(Boolean).join("；");
+  if (/地高辛/u.test(affirmedCurrentMedicationText(medicationSource) || "")) conditions.push("digoxin");
+  return { conditions, ...(potassium != null ? { potassium: `${potassium}mmol/L` } : {}) };
 }
 
 export function highRiskDoseBoundaryReasons(state: CaseState): string[] {

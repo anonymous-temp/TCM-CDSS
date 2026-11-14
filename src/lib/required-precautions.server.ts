@@ -1,6 +1,6 @@
 import { cleanedMedicationNameCandidate, recordedDrugAllergyPhrases, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, MEDICATION_STILL_TAKING, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
-import { authoritativePatientAgeYears, clauseLocalMentionPolarityAt, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
+import { authoritativePatientAgeYears, clauseLocalMentionPolarityAt, highRiskConditionsForPrecautions, recordedMedicationHistoryList, ANTITHROMBOTIC_MEDICATION, CORTICOSTEROID_MEDICATION, IMMUNOSUPPRESSIVE_MEDICATION, antithromboticIndicationRecorded, clinicalGroundingText, currentVitalMeasurements, derivePrescriptionPermission, diabetesDiagnosisConfirmed, diabetesRecorded, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, severeHypertensionTargetOrganSign } from "./diagnosis-safety";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import {
   findLocalPatentMedicineLabel,
@@ -13,7 +13,7 @@ import localMedicineIndex from "../data/local-patent-medicine-index.json" with {
 import { catalogSharedComposition } from "./tcm-formula-provenance";
 import { getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
 import { dietRestrictionForSyndromeText, recordedTriggerFoods } from "./tcm-therapy-phrasing";
-import { discontinuedMedicationLabel, type RequiredPrecaution } from "./required-precautions";
+import { discontinuedMedicationLabel, highRiskConditionPromptText, type RequiredPrecaution } from "./required-precautions";
 import { allergenAvoidPhrase, allergenStatedInRecord, allergensFromScreen, mergeRecordedAllergens, recordedAllergensInText } from "./allergen-profile";
 
 export type { RequiredPrecaution } from "./required-precautions";
@@ -186,7 +186,8 @@ export function requiredPrecautionsForCase(
     const a = patentMedicineBaseName(left), b = patentMedicineBaseName(right);
     return a === b || a.includes(b) || b.includes(a);
   };
-  for (const raw of recorded.names) {
+  // 「用药史」一栏本身就是在用药清单（2026-11-14 第四十五轮 C100：「地高辛、呋塞米、华法林、安眠药」没有给药动词，一个都没认出）。
+  for (const raw of [...recorded.names, ...recordedMedicationHistoryList(state)]) {
     const name = cleanedMedicationNameCandidate(raw);
     if (!name || selfTaken.has(patentMedicineBaseName(name)) || current.some((known) => sameDrug(known, name))) continue;
     current.push(name);
@@ -236,10 +237,13 @@ export function requiredPrecautionsForCase(
   if (antithromboticDrugs.length > 0 || antithromboticIndication) {
     items.push({ kind: "antithrombotic_bleeding", drugs: antithromboticDrugs, ...(antithromboticIndication ? { indication: antithromboticIndication } : {}) });
   }
+  // 肾功能不全、心衰、血钾偏高、地高辛、免疫抑制：各写一条给患者的话（2026-11-14 第四十五轮 C100、C036），红旗页也写。
+  const highRisk = highRiskConditionsForPrecautions(state);
+  if (highRisk.conditions.length > 0) items.push({ kind: "high_risk_condition", conditions: highRisk.conditions, ...(highRisk.potassium ? { potassium: highRisk.potassium } : {}) });
   // 糖尿病（病历写着患者本人有，或已签名诊断是糖尿病/消渴）：控糖与监测血糖一条。
   const diabetesConfirmed = diabetesRecorded(state) || diabetesDiagnosisConfirmed(String(prior?.westernDiagnosis?.primary?.name || ""));
   if (diabetesConfirmed || [prior?.westernDiagnosis?.primary?.name, prior?.overview?.tcmDiseaseName].some((value) => /糖尿病|消渴/u.test(String(value || "")))) {
-    items.push({ kind: "diabetes_glucose", confirmed: diabetesConfirmed });
+    items.push({ kind: "diabetes_glucose", confirmed: diabetesConfirmed, ...(currentHypoglycemiaRecorded(grounding) ? { hypoglycemia: true as const } : {}) });
   }
   if (prior) {
     const overview = prior.overview;
@@ -257,6 +261,13 @@ export function requiredPrecautionsForCase(
     .map((name) => String(name || "").trim()).filter((name) => name.length >= 2))];
   if (recordedDrugs.length > 0) items.push({ kind: "recorded_drug_names", names: recordedDrugs });
   return items;
+}
+
+/** 病历记录本次血糖低于 3.9mmol/L，或肯定写着低血糖（发作、反应）。 */
+export function currentHypoglycemiaRecorded(text: string): boolean {
+  const source = String(text || "").normalize("NFKC");
+  if ([...source.matchAll(/(?:血糖|指尖血糖|随机血糖|GLU)\s*[:：]?\s*(?:为|示|测得)?\s*(\d+(?:\.\d+)?)\s*mmol\/L/giu)].some((match) => Number(match[1]) < 3.9)) return true;
+  return /低血糖(?:发作|反应|症状|昏迷)?/u.test(source) && !/(?:无|否认|未见|未发生|没有)[^，,。；;]{0,6}低血糖/u.test(source);
 }
 
 /** 给 M04 模型的一段话：逐项列出本例必须写到的注意事项，模型按本例写，服务端事后逐项核对。 */
@@ -286,6 +297,8 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
     if (item.kind === "self_discontinued_medication") return `${order}病历记录患者${item.irregular ? "未规律服用" : "自行停用了"}${discontinuedMedicationLabel(item)}${item.condition ? `（${item.condition}）` : ""}：写一条请${item.irregular ? "由医生评估后按医嘱规律服用" : "尽快由医生评估后调整用药并规律服用"}，不要自行停药或减量。`;
     if (item.kind === "current_medications") return `${order}病历记录患者${item.given?.length ? "用过或正在使用" : "正在使用"}${item.names.join("、")}：写一条它与本方一起用时要注意的事（告知医生${item.given?.length ? "现在是否还在用" : ""}、是否继续由医生决定；口服药写「与中药间隔约1小时服用」；乳膏、贴剂等外用药只写「正在外用的某药请告知医生」，不写服用、不写间隔；与本方有明确相互作用的写出来${item.topical?.length ? `；${item.topical.join("、")}病历写明是外用，按外用药写` : ""}${item.noSelfStop?.length ? `；${item.noSelfStop.join("、")}不要自行停用或减量` : ""}）。`;
     if (item.kind === "antithrombotic_bleeding") return `${order}${item.drugs.length > 0 ? `病历记录患者正在使用${item.drugs.join("、")}` : `病历记录${item.indication}，通常在服抗凝或抗血小板药`}：本方若用了活血化瘀药（如桃仁、红花、川芎、丹参、三棱、莪术），写一条与${item.drugs.length > 0 ? "这些药" : "抗凝或抗血小板药"}同用可能增加出血、服药期间留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医；本方没有这类药时不写。`;
+    if (item.kind === "high_risk_condition") return `${order}${highRiskConditionPromptText(item)}`;
+    if (item.kind === "diabetes_glucose" && item.hypoglycemia) return `${order}本次是低血糖发作：写一条请按医嘱调整降糖药、按时进餐、随身带糖果，出现心慌、出汗、手抖、头晕时立即吃含糖食物并测血糖，神志不清时立即急诊；不要写「少吃甜食」。`;
     if (item.kind === "diabetes_glucose") return item.confirmed
       ? `${order}患者有糖尿病：写一条服药期间按医嘱继续控制血糖、定期监测血糖，少吃甜食与含糖饮料；饮食建议里不要推荐红枣、蜂蜜、冰糖等含糖多的食物。`
       : `${order}患者口渴多饮、尚未确诊糖尿病：写一条请尽早到医院查空腹血糖和糖化血红蛋白，服药期间少吃甜食与含糖饮料；饮食建议里不要推荐红枣、蜂蜜、冰糖等含糖多的食物。`;

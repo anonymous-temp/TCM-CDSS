@@ -116,7 +116,7 @@ export function recordStatesWesternDiagnosis(name: string, recordText: string): 
 /** 依据句里说「X诊断已确立/成立/明确」的那一段（诊断名在前可有可无）。 */
 const ESTABLISHED_PHRASE = /(?:诊断)(?:已|可)?(?:确立|成立|明确)/u;
 /** 依据句里说「尚缺Y…确认/确诊」：缺的是确诊这个病名所需的检查（不是病因、部位、病原、分型、程度这类下一层）。 */
-const MISSING_FOR_CONFIRMATION = /(但)?(?:尚缺|缺少|尚未行|尚未做|未行|未做)([^，,。；;]{1,40}?)(?:以|来|进一步|等)?(?:确认|确诊|明确诊断)/u;
+const MISSING_FOR_CONFIRMATION = /(但)?(?:尚缺|缺少|尚未行|尚未做|未行|未做|尚需|仍需|有待)([^，,。；;]{1,40}?)(?:以|来|进一步|等)?(?:确认|确诊|明确诊断)/u;
 const MISSING_FOR_SUBLEVEL = /病因|部位|病原|分型|程度|分级|分期|并发|出血点|性质/u;
 
 /**

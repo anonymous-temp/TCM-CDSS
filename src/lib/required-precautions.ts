@@ -87,8 +87,15 @@ export type RequiredPrecaution =
    *（2026-10-19 留出例 S145：病历与推荐药里都没有的「连翘败毒丸」被写成「不要再服」）。与 mobility_limited_exercise 一样只用于核对，不进注意事项。
    */
   | { kind: "recorded_drug_names"; names: string[] }
+  /**
+   * 高危基础情况（2026-11-14 第四十五轮，甲方 100 例 C100：91 岁、慢性肾病 4 期、血钾 5.6、服华法林和地高辛，注意事项只有一句「饮食清淡」；
+   * C036：肌酐 258、血钾 5.8、服厄贝沙坦和呋塞米，方中有附子）。与剂量边界同一份判据（highRiskConditionsForPrecautions），各写一条给患者的话。
+   */
+  | { kind: "high_risk_condition"; conditions: Array<"renal" | "heart_failure" | "hyperkalemia" | "digoxin" | "immunosuppression">; potassium?: string }
   | {
       kind: "diabetes_glucose";
+      /** 本次是低血糖（病历记录血糖低于 3.9mmol/L 或写明低血糖发作）：那一句写低血糖的处置，不写「少吃甜食」（2026-11-14 第四十五轮 C032，血糖 2.4）。 */
+      hypoglycemia?: true;
       /** 病历写着患者本人有糖尿病，或已签名西医诊断是糖尿病（不是「待查」）；只有中医病名消渴、或「糖尿病待查」的为 false：那一句写成尽早查血糖。 */
       confirmed: boolean;
     };
@@ -99,4 +106,34 @@ export function discontinuedMedicationLabel(item: Extract<RequiredPrecaution, { 
   if (item.condition === "高血压") return "降压药";
   if (item.condition === "糖尿病") return "降糖药";
   return item.condition ? `治疗${item.condition}的药` : "原来长期服用的药";
+}
+
+type HighRiskConditionItem = Extract<RequiredPrecaution, { kind: "high_risk_condition" }>;
+/**
+ * 高危基础情况写给患者的话，一种情况一小句（2026-11-14 第四十五轮）。只说病历记录的事实与常规的观察要点（KDIGO：肾功能不全用药按肾功能调整、
+ * 监测血钾；洋地黄中毒的常见表现：恶心呕吐、视物黄绿、心跳过慢），不写剂量。
+ */
+const HIGH_RISK_CONDITION_SENTENCES: Record<HighRiskConditionItem["conditions"][number], (item: HighRiskConditionItem) => string> = {
+  renal: () => "您肾功能明显减退，本方须由医生按肾功能核定后再服，服药期间定期复查肾功能和血钾；尿量明显减少、浮肿加重时请立即就医",
+  heart_failure: () => "您有心力衰竭，服药期间请按医嘱继续原有治疗，每天留意体重和浮肿；气短加重、不能平卧时请立即就医",
+  hyperkalemia: (item) => `本次血钾偏高${item.potassium ? `（${item.potassium}）` : ""}，请遵医嘱尽快复查血钾，不要自行服用补钾药、低钠盐或含钾高的补品`,
+  digoxin: () => "您正在服用地高辛，与中药同服须由医生核定；出现恶心呕吐、视物发黄或发绿、心跳明显变慢时请立即就医",
+  immunosuppression: () => "您正在使用免疫抑制治疗，服药期间如出现发热、咳嗽、尿痛等感染表现请及时就医，并按医嘱复查肝肾功能",
+};
+export function highRiskConditionLine(item: HighRiskConditionItem, missing: readonly HighRiskConditionItem["conditions"][number][] = item.conditions): string {
+  return `${missing.map((condition) => HIGH_RISK_CONDITION_SENTENCES[condition](item)).join("；")}。`;
+}
+export function highRiskConditionPromptText(item: HighRiskConditionItem): string {
+  return `病历记录的高危基础情况，各写一句给患者的话（照下面的意思写，不写剂量）：${highRiskConditionLine(item)}`;
+}
+/** 注意事项里还没写到的那几种情况（按关键词核：肾功能、心衰、血钾、地高辛、免疫抑制或感染）。 */
+export function highRiskConditionsMissing(item: HighRiskConditionItem, lines: readonly string[]): HighRiskConditionItem["conditions"][number][] {
+  const covered: Record<HighRiskConditionItem["conditions"][number], (line: string) => boolean> = {
+    renal: (line) => /肾功能|肾病|肾衰/u.test(line) && /复查|核定|监测|调整/u.test(line),
+    heart_failure: (line) => /心衰|心力衰竭/u.test(line),
+    hyperkalemia: (line) => /血钾|高钾/u.test(line),
+    digoxin: (line) => /地高辛/u.test(line) && /恶心|视物|心跳|心率|核定|医生/u.test(line),
+    immunosuppression: (line) => /免疫抑制/u.test(line) && /感染|发热/u.test(line),
+  };
+  return item.conditions.filter((condition) => !lines.some((line) => covered[condition](line)));
 }

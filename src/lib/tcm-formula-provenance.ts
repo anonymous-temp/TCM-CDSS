@@ -3047,6 +3047,23 @@ function textbookIngredientIdentity(name: string): string {
 /** 现代标准、药典类出处（不是方剂原书）。 */
 const MODERN_STANDARD_SOURCE = /药典|部颁|标准|规范|手册/u;
 
+/**
+ * 出处写成了教材（目录里 13 首方的出处是《中医儿科学》《中医眼科学》这类教材，2026-11-14 第四十五轮：甲方复测病例真心痛
+ * 「参附龙牡救逆汤：《中医儿科学》」，甲方 11.05 已点名「出处写教材」）：教材方剂索引写明了原书的用原书（参附龙牡救逆汤《中医方剂临床手册》），
+ * 否则写「现代经验方」——这些方是现代临床或教材编者拟定的，教材不是原书。不是教材的出处原样返回。
+ */
+const TEXTBOOK_AS_SOURCE = /^《(?:中医(?:内|外|妇|儿|骨伤|眼|耳鼻咽喉|皮肤|急诊|诊断|护理)?科?学|方剂学|中药学|针灸(?:治疗)?学|推拿学|中西医结合(?:内|外|妇|儿)?科?学)》/u;
+export function sourceIsTextbook(source: string): boolean {
+  return TEXTBOOK_AS_SOURCE.test(String(source || "").trim());
+}
+export function deliveredFormulaSource(formulaName: string, source: string): string {
+  const text = String(source || "").trim();
+  if (!sourceIsTextbook(text)) return text;
+  const entry = TEXTBOOK_FORMULA_SOURCES[normalizeFormulaName(String(formulaName || ""))] || TEXTBOOK_FORMULA_SOURCES[String(formulaName || "").trim()];
+  const original = String(entry?.source || "").trim();
+  return original && original.startsWith("《") && !sourceIsTextbook(original) ? original : "现代经验方";
+}
+
 export function textbookFormulaOriginalSource(
   formulaName: string,
   textbookComposition: readonly string[],

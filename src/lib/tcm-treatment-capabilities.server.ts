@@ -24,7 +24,7 @@ import { affirmedClinicalText } from "./clinical-polarity";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
 import { pediatricDoseRuleForAgeYears, pediatricDoseRuleForStageWords } from "./pediatric-dose-rule";
-import { narrativePediatricAgeConflict, pregnancyAdviceRelevant, pregnancyScreenRequired, reproductiveAdviceRelevant, unevaluatedBreastMass } from "./diagnosis-safety";
+import { narrativePediatricAgeConflict, sourceDocumentsAffirmation, pregnancyAdviceRelevant, pregnancyScreenRequired, reproductiveAdviceRelevant, unevaluatedBreastMass } from "./diagnosis-safety";
 import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, caseCourse, dietAdviceAvoidsRichFood, facialSoreRecorded, dietAdviceAvoidsTea, syndromeHasHeatNature, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, syndromeLabelFitsSigned, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
 import governanceSourceRegistryJson from "../data/clinical-governance-source-registry.json" with { type: "json" };
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
@@ -635,7 +635,11 @@ function controlledTreatmentPlan(
     const matchedTemplateTerms = governedTemplate.matchAny
       .filter((term) => claimableText.includes(term))
       .slice(0, 3);
-    const groundedTerms = evidenceTerms.length > 0 ? evidenceTerms : matchedTemplateTerms;
+    // 病历否认的不算本例的表现（2026-11-14 第四十五轮 C011：病历「无…持续呕吐」，卡上写「针对本例腹胀、嗳气、呕吐」）：
+    // 与净化器同一判据（sourceDocumentsAffirmation），已签名的中医病名照算。
+    const diseaseNames = textbookContext?.diseaseNames || [];
+    const affirmedHere = (term: string) => diseaseNames.includes(term) || sourceDocumentsAffirmation(caseFacts, term);
+    const groundedTerms = (evidenceTerms.length > 0 ? evidenceTerms : matchedTemplateTerms).filter(affirmedHere);
     return {
       // 甲方评测(2026-08-04) 第 3 条：治疗内容不再内嵌病机原文。
       // 同一个对象已经带 targetPathogenesis 字段，渲染层单独成行；内嵌等于每个项目块把同一句病机

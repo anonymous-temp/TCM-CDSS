@@ -463,11 +463,15 @@ check("10.6 S086 湿热腰痛：目录模板主穴只是「局部阿是穴（查
 });
 
 check("10.7 病历 7：网络来源写成「发布者《篇名》」——不带「--中国针灸学会官网」这类网页标题后缀、不带域名与网址；来源等级照写", () => {
-  assert.equal(plan.webSourceLabel("中国针灸学会（caam.cn 科普之窗·科普知识）", "牙痛--中国针灸学会官网"), "中国针灸学会（科普之窗·科普知识）《牙痛》");
-  assert.equal(plan.webSourceLabel("健康界转载", "偏头痛非药物防治中国专家共识|偏头痛|药物|防治|-健康界"), "健康界转载《偏头痛非药物防治中国专家共识》");
-  assert.equal(plan.webSourceLabel("甘肃中医药大学附属医院北院针灸科（官网·优势病种）", "面瘫（面神经炎）中医诊疗方案_优势病种_北院针灸科"), "甘肃中医药大学附属医院北院针灸科（官网·优势病种）《面瘫（面神经炎）中医诊疗方案》");
-  assert.equal(plan.webSourceLabel("A+医学百科（《中医外科学》教材电子书转载）", "中医外科学/瘾疹 - A+医学百科"), "A+医学百科（《中医外科学》教材电子书转载）《中医外科学/瘾疹》");
+  assert.equal(plan.webSourceLabel("中国针灸学会（caam.cn 科普之窗·科普知识）", "牙痛--中国针灸学会官网"), "中国针灸学会《牙痛》");
+  assert.equal(plan.webSourceLabel("健康界转载", "偏头痛非药物防治中国专家共识|偏头痛|药物|防治|-健康界"), "《偏头痛非药物防治中国专家共识》");
+  assert.equal(plan.webSourceLabel("甘肃中医药大学附属医院北院针灸科（官网·优势病种）", "面瘫（面神经炎）中医诊疗方案_优势病种_北院针灸科"), "甘肃中医药大学附属医院北院针灸科《面瘫（面神经炎）中医诊疗方案》");
+  assert.equal(plan.webSourceLabel("A+医学百科（《中医外科学》教材电子书转载）", "中医外科学/瘾疹 - A+医学百科"), "《中医外科学》");
   assert.equal(plan.webSourceLabel("国家中医药管理局", "瘾疹（慢性荨麻疹）中医诊疗方案（试行版）"), "国家中医药管理局《瘾疹（慢性荨麻疹）中医诊疗方案（试行版）》", "正式题名不动（对照）");
+  // 第四十五轮：括号里的文号、分号后的转载说明去掉，公文外壳去掉（甲方 100 例 C052、C093）。
+  assert.equal(plan.webSourceLabel("国家中医药管理局（国中医药医政医管便函〔2015〕61号）", "胃疡等19个病种中医护理方案（试行）"), "国家中医药管理局《胃疡等19个病种中医护理方案（试行）》");
+  assert.equal(plan.webSourceLabel("中华中医药学会皮肤科分会（共识）；甘肃省中医院张玉琴医生在好大夫在线转载", "荨麻疹（瘾疹）中医治疗专家共识_荨麻疹_治疗方式 - 好大夫在线"), "中华中医药学会皮肤科分会《荨麻疹（瘾疹）中医治疗专家共识》");
+  assert.equal(plan.webSourceLabel("广东省中医药局办公室（粤中医办函〔2024〕18号），转载于江门市政府网附件", "关于印发《广东省2024年春季流感中医药治未病指引》的通知"), "广东省中医药局办公室《广东省2024年春季流感中医药治未病指引》");
   const ear = plan.textbookTreatmentPlan({ projectCode: "auricular", diseaseNames: ["牙痛"], westernNames: ["牙痛"], signedSyndromeText: "胃火牙痛", currentFacts: "牙痛3天" });
   const text = `${ear?.scheduleSuggestion}${ear?.protocolSource}`;
   assert.match(text, /中国针灸学会（科普之窗·科普知识）《牙痛》/, text);

@@ -3,7 +3,7 @@ import { chpPregnancyLabel } from "./conception-herb-policy";
 import { formulaCompilationReferences } from "./tcm-formula-provenance";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 
-export { chpPregnancyHerbTier, chpPregnancyProhibitedHerbNames } from "./conception-herb-policy";
+export { chpPregnancyCautionHerbNames, chpPregnancyHerbTier, chpPregnancyProhibitedHerbNames } from "./conception-herb-policy";
 
 /**
  * M03 锁定方与教材代表方的组成里，药典孕妇禁用/忌用的药（2026-10-24 探针：35 岁、妊娠状态未记录的癥瘕·气滞血瘀，

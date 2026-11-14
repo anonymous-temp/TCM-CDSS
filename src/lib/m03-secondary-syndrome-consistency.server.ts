@@ -1,4 +1,5 @@
 import "server-only";
+import { recordAnemiaGrade } from "./delivered-surface";
 import secondaryStructureJson from "../data/tcm-secondary-syndrome-structure.source.json" with { type: "json" };
 
 import { affirmedClinicalSourceClauses } from "./clinical-polarity";
@@ -470,6 +471,10 @@ export function evaluateCriteriaMatches(
       if (CRITERIA_ENTRIES.get(component)?.manifestations.includes(match.item)) componentHits.set(component, (componentHits.get(component) || 0) + 1);
     }
   }
+  // 血虚：病历记录本次血红蛋白低于正常（recordAnemiaGrade 同一读法）算一条独立的客观表现（2026-11-14 第四十五轮：甲方 100 例 C087 Hb108、
+  // new40 m20 Hb96、m25 Hb93，面白、舌淡、脉细都在，仍判「血虚的辨证要点未成组出现」）。
+  const anemiaSupports = /血虚/u.test(entry.name) && recordAnemiaGrade(context.recordText, undefined) !== undefined;
+  if (anemiaSupports) seenQuotes.add("血红蛋白偏低");
   const distinct = seenQuotes.size;
   let pass: boolean;
   if (entry.components?.length) pass = distinct >= 3 && entry.components.every((component) => (componentHits.get(component) || 0) >= 1);
@@ -484,7 +489,9 @@ export function evaluateCriteriaMatches(
       (specific + sharedSpecific >= needSpecific && category >= 3) ||
       (entry.specific.length >= 3 && specific >= 3);
   } else if (entry.category) pass = specific >= Math.min(2, entry.specific.length) && distinct >= 2;
-  else pass = specific >= Math.min(2, entry.specific.length) && distinct >= 3;
+  // 没有共见类的要点（血虚证「面、睑、唇、舌色淡白，脉细」）：与主证共有的那一条（脾气虚证也有「舌淡」）不另算独立表现，但要点本身是写着的，
+  // 特异表现连同共有的够三条也算成组（第四十五轮 C087：面色略白、脉细，舌淡与主证共有）。
+  else pass = specific >= Math.min(2, entry.specific.length) && (distinct >= 3 || specific + sharedSpecific >= 3);
   // 证素核对的宽路径（2026-10-31，甲方 10.29 测评：面色萎黄、爪甲色淡、头晕目眩、毛发枯槁「明确的气血两虚表现」被判血虚不够数）：
   //《中医诊断学》血虚证辨证要点只列「面、睑、唇、舌色淡白，脉细」，萎黄、爪甲色淡、头晕眼花都在它的【证候表现】里。证候表现独立成组三条以上，
   // 这一证素就算有据。只用于证素（虚性要素是否有病历支持），立兼证仍按辨证要点。

@@ -320,10 +320,45 @@ export async function withAuthoredWesternBasis(
   if (!reused) authored = await authorWesternBasis(westernContent, context, signal).catch(() => undefined);
   if (!authored) {
     console.info("[tcm-cdss:telemetry] western_basis_authoring", { accepted: false, reason: "unavailable" });
-    return westernContent;
+    return withNameMatchingBasisCertainty(westernContent, context.recordText);
   }
   const withBasis = await withAuthoredBasisText(westernContent, primary, authored, context, reused, signal);
-  return withEstablishmentDowngrade(withBasis, primary.name, authored.proposal, context, signal);
+  return withNameMatchingBasisCertainty(await withEstablishmentDowngrade(withBasis, primary.name, authored.proposal, context, signal), context.recordText);
+}
+
+/**
+ * 交付的依据句自己说这个病名还没确立（「考虑X可能」「可能为X」「X…尚缺/尚需Y确认」），病名却是确诊写法：病名改为「X待查」
+ *（2026-11-14 第四十五轮，甲方 100 例 C029 蛛网膜下腔出血「尚缺头颅CT平扫及腰穿脑脊液分析确认」、C044 急性化脓性关节炎「考虑…可能；但关节液未查」、
+ * C080 急性风湿热、C094 药物性心动过缓，独立复核都判「依据说可能、病名写确诊」）。依据是病名定稿后按这个病名写的，它说没确立就是本系统自己的结论，
+ * 不再另问；缺的是病因、部位、分型、程度这一层（MISSING_FOR_SUBLEVEL 同一判据）的不算。病名已带待查、病历写明既往已确诊的不动。
+ */
+export function basisSaysNameNotEstablished(basis: string, name: string): boolean {
+  const core = westernNameCore(name);
+  if (!core || core.length < 2 || !basis) return false;
+  const text = basis.normalize("NFKC");
+  const escaped = core.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  if (new RegExp(`考虑${escaped}(?:的)?可能|可能为${escaped}|${escaped}(?:的)?可能(?:性)?(?:大|较大)?[，,；;。]`, "u").test(text)) return true;
+  for (const sentence of text.split(/[。；;]/u)) {
+    if (!sentence.includes(core) || /既往已确诊|已确诊/u.test(sentence)) continue;
+    const missing = sentence.slice(sentence.indexOf(core)).match(/(?:尚缺|尚需|有待|仍需|尚未行|尚未做)([^，,。；;]{1,30}?)(?:以|来|进一步|等)?(?:确认|确诊|明确诊断)/u);
+    if (missing && !/病因|部位|病原|分型|程度|分级|分期|并发|出血点|性质/u.test(missing[0])) return true;
+  }
+  return false;
+}
+
+export function withNameMatchingBasisCertainty(westernContent: string, recordText: string): string {
+  try {
+    const western = record(record(JSON.parse(westernContent))?.westernDiagnosis);
+    const primary = record(western?.primary);
+    const name = text(primary?.name);
+    const basis = text(primary?.clinicalRationale);
+    if (!name || westernNameCore(name) !== compact(name) || /^疑似|症状$/u.test(compact(name))) return westernContent;
+    if (recordStatesWesternDiagnosis(name, recordText) || !basisSaysNameNotEstablished(basis, name)) return westernContent;
+    console.info("[tcm-cdss:telemetry] western_name_basis_certainty", { renamed: true });
+    return applyWesternNameCorrection(westernContent, { supportedName: `${name}待查`, quote: "", reason: "依据所述尚未确立", type: "D" });
+  } catch {
+    return westernContent;
+  }
 }
 
 /**

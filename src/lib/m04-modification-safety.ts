@@ -397,7 +397,8 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
         removed.push({ name, reason: `《中药学》「${recordCaution.condition}者${recordCaution.verb}」，本例${recordCaution.recordFindings.join("、")}` });
         return false;
       }
-      const issue = m04GenerationSpecialPopulationIssue([{ name }], clinicalContext);
+      // 角色一并传入：在孕时药典孕妇慎用的饮片不作君臣（第四十五轮），臣位的单味拿出，君位同下面的规则。
+      const issue = m04GenerationSpecialPopulationIssue([{ name, role: roleOf(value) }], clinicalContext);
       if (!issue) return true;
       // 君药与管制药材同一口径：还有别的君药时拿掉这一味，它是唯一的君药时不拿（交给修复轮重选）。生产探针 C098（疑似肺栓塞、
       // 病历记录咯血丝）：丹参与桔梗同为君，丹参因活动性出血不入方，此前整方退成非剂量页（2026-10-27 第二十四轮）。

@@ -1,6 +1,8 @@
 import { chineseDurationNumber, discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote, stableM03CoreTextWithoutHedges } from "./diagnosis-stage-contract";
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import coldHeatSignsJson from "../data/tcm-cold-heat-signs.source.json" with { type: "json" };
+import { formulaTextbookCommentary } from "./formula-textbook-commentary";
+import natureLexiconJson from "../data/tcm-nature-lexicon.json" with { type: "json" };
 import { pediatricDoseRuleForAgeYears } from "./pediatric-dose-rule";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement, SPECIAL_DECOCTION_ORDER, specialDecoctionOrderIndexes, withOneOfDecoctionResolved, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
@@ -13,7 +15,7 @@ import { namedFormulaDecoctionProfile } from "./formula-decoction-profile";
 import { rationaleAlignedWithRenamedPrimary } from "./western-rationale-alignment";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { NARROWER_THAN_GROUP_CANONICAL, NARROWER_TERM_SYNONYMS, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, clauseLocalMentionPolarityAt, redFlagDoseAuthorizationAllowed, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
+import { NARROWER_THAN_GROUP_CANONICAL, NARROWER_TERM_SYNONYMS, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, clauseLocalMentionPolarityAt, redFlagDoseAuthorizationAllowed, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient, recordedGestationalWeeks } from "./diagnosis-safety";
 import { assessPregnancyState } from "./clinical-state";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
@@ -158,17 +160,6 @@ function pregnancyRedFlagWarningStage(state: CaseState): "early" | "unspecified"
   if (assessPregnancyState(groundingText).status !== "positive") return undefined;
   const weeks = recordedGestationalWeeks(groundingText);
   return weeks !== undefined && weeks < 20 ? "early" : "unspecified";
-}
-
-/** 病历写明的孕周（月数按 4.3 周折算；「孕早期/早孕」按 12 周）。写不出返回 undefined。只用来决定复诊提示写不写胎动、破水。 */
-function recordedGestationalWeeks(text: string): number | undefined {
-  const normalized = String(text || "").normalize("NFKC");
-  if (/孕早期|妊娠早期|早孕(?!试验|检测|试纸)/u.test(normalized)) return 12;
-  const match = normalized.match(/(?<![避不备未助试促])(?:孕|妊娠|怀孕)(?:逾|满|近|约|已)?(\d+|[一二两三四五六七八九十]+)\s*(?:\+\d+)?\s*(周|个?月)/u);
-  if (!match) return undefined;
-  const amount = /\d/u.test(match[1]) ? Number(match[1]) : chineseDurationNumber(match[1]);
-  if (amount === undefined || !Number.isFinite(amount)) return undefined;
-  return match[2] === "周" ? amount : amount * 4.3;
 }
 
 /** 孕期需立即就诊的表现（按就诊提示的写法）。病历写明孕 20 周前时不写后两项。 */
@@ -889,18 +880,17 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
             if (!rawDetail || typeof rawDetail !== "object" || Array.isArray(rawDetail)) return [];
             const detail = rawDetail as Record<string, unknown>;
             if (typeof detail.location !== "string" || !detail.location.trim()) return [];
-            const basis = groundedQuote(detail.basis);
+            const basis = withoutNormalFindingSegments(groundedQuote(detail.basis));
             return basis ? [{ location: detail.location.trim(), basis }] : [];
           })
         : [];
-      const basisCounts = new Map<string, number>();
-      groundedDetails.forEach((detail) => {
-        const key = String(detail.basis || "").normalize("NFKC").replace(/[\s，,。；;：:、→-]+/g, "");
-        basisCounts.set(key, (basisCounts.get(key) || 0) + 1);
-      });
+      // 几个病位共用同一句病历原文（「咳嗽伴咽痛3天」之于肺、咽喉）照样算有依据（2026-11-14 第四十五轮：甲方 100 例 C099、C040、
+      // rt-273344，此前共用一句的病位全部丢掉依据，整轴标「初步判断、可信度低」，主诉就是咳嗽咽痛却说病位缺依据）。同一病位重复写的只留一条。
+      const seenLocations = new Set<string>();
       location.details = groundedDetails.filter((detail) => {
-        const key = String(detail.basis || "").normalize("NFKC").replace(/[\s，,。；;：:、→-]+/g, "");
-        return basisCounts.get(key) === 1;
+        if (seenLocations.has(detail.location)) return false;
+        seenLocations.add(detail.location);
+        return true;
       });
       // 模型写了 items 但全是纯标点、同一份输出的 details 却给出了已接地的病位：以 details 的病位
       // 作 items。只在这一种退化形态下投影——不新增病位，模型本就没写 items 的情形保持原判。
@@ -917,16 +907,31 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
         if (ca && cb) return ca === cb;
         return a.length >= 1 && b.length >= 1 && (a.includes(b) || b.includes(a));
       };
-      const locationGrounded = (item: string) => [...detailedLocations].some((detail) => sameLocation(item, detail));
+      // 三焦是脏腑的部位总称：下焦之于肾、膀胱、大小肠、肝，中焦之于脾、胃，上焦之于心、肺。所含的脏腑有依据，这一焦也算有依据（C038）。
+      const BURNER_ORGANS: Readonly<Record<string, readonly string[]>> = {
+        上焦: ["心", "肺", "心包", "咽喉"], 中焦: ["脾", "胃", "脾胃", "肝", "胆"], 下焦: ["肾", "膀胱", "大肠", "小肠", "肠", "肝", "胞宫", "子宫", "精室"],
+      };
+      const locationGrounded = (item: string) => [...detailedLocations].some((detail) => sameLocation(item, detail)) ||
+        (BURNER_ORGANS[item] || []).some((organ) => [...detailedLocations].some((detail) => sameLocation(organ, detail)));
       const fullyGrounded = itemSet.size > 0 && [...itemSet].every(locationGrounded);
       const requested = resolutionValue(location.resolution);
       // 每个病位都有逐字依据：按已确定交付，模型写的「有界」不改变结论；它点名的待核实项照旧留在「待核实」栏
       //（第四十一轮，r1054 回顾：甲方 11/4–11/6 自己的 25 份里 21 份病位/病性标「初步判断、可信度低」，病位靠的是主症本身——咳嗽之于肺、
       // 腹痛之于胃——与舌脉记没记、某症状的性质是否待问无关）。第三十八轮只在舌脉齐全、模型没点名时才这样做。
-      const unexplainedBounded = requested === "bounded" && fullyGrounded;
+      // 有的病位有依据、有的没有：没依据的病位不在证名（主证、兼证）里时，是模型顺手多列的，不列入病位（2026-11-14 第四十五轮）；
+      // 在证名里的照旧按有界交付，由辨证分析对齐那一步补依据或说明。
+      const syndromeNames = [overview?.primarySyndrome, ...(Array.isArray(overview?.secondarySyndromes) ? overview.secondarySyndromes : [])]
+        .map((value) => String(value || "")).join("、");
+      const ungroundedNotNamed = [...itemSet].filter((item) => !locationGrounded(item) && ![...item].some((char) => /[\u4e00-\u9fff]/u.test(char) && syndromeNames.includes(char)));
+      if (ungroundedNotNamed.length > 0 && ungroundedNotNamed.length < itemSet.size) {
+        location.items = (location.items as string[]).filter((item) => !ungroundedNotNamed.includes(item));
+        ungroundedNotNamed.forEach((item) => itemSet.delete(item));
+      }
+      const groundedAfterPrune = itemSet.size > 0 && [...itemSet].every(locationGrounded);
+      const unexplainedBounded = requested === "bounded" && groundedAfterPrune;
       const finalResolution: ClinicalResolutionValue = itemSet.size === 0
         ? "unresolved"
-        : (requested === "resolved" || unexplainedBounded) && fullyGrounded ? "resolved" : "bounded";
+        : (requested === "resolved" || unexplainedBounded) && groundedAfterPrune ? "resolved" : "bounded";
       location.resolution = finalResolution;
       if (finalResolution === "resolved") delete location.resolutionReason;
       else {
@@ -955,11 +960,19 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
         nature.branchExcess = (nature.branchExcess as string[]).filter((item) => !deficiencyHeat(item));
         nature.rootDeficiency = [...new Set([...(nature.rootDeficiency as string[]), ...movedToRoot])];
       }
+      // 病性列了、本虚标实两栏都没放的条目，按受治理病性词表归栏（2026-11-14 第四十五轮：甲方 100 例 C073「气滞（本虚：无；标实：无）」、
+      // rt-171200「外感风邪（标实：无）」，同一行自相矛盾）。虚、亏、不足、脱、陷归本虚；病邪、病理产物、气滞气逆、瘀、血热归标实。只补栏，不增删病性。
+      for (const item of nature.items as string[]) {
+        if ((nature.rootDeficiency as string[]).includes(item) || (nature.branchExcess as string[]).includes(item)) continue;
+        const side = natureItemDeficiencyOrExcess(item);
+        if (side === "root") nature.rootDeficiency = [...(nature.rootDeficiency as string[]), item];
+        else if (side === "branch") nature.branchExcess = [...(nature.branchExcess as string[]), item];
+      }
       // 病性栏放的是属性词(气虚/血瘀/寒/热)。写成机理句(胃失和降、气机郁滞)的条目是填错栏位:
       // 同一临床内容已经完整保留在 overallPathogenesis 与 pathogenesis.chain 中。这里只删除
       // 错栏条目,不改写、不新增任何病性;删空后由下面的 resolution 归一化自动降级为 unresolved。
       nature.items = (nature.items as string[]).filter((item) => !NATURE_MECHANISM_PHRASE.test(item));
-      const groundedBasis = groundedQuote(nature.basis);
+      const groundedBasis = withoutNormalFindingSegments(groundedQuote(nature.basis));
       nature.basis = groundedBasis || "";
       const hasClassification = ["items", "rootDeficiency", "branchExcess"].some((key) => (nature[key] as unknown[]).length > 0);
       const requested = resolutionValue(nature.resolution);
@@ -1021,9 +1034,38 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
  * 病历里舌象与脉象都写了具体所见（「舌红，苔薄黄」「脉浮数」「脉象：弦」）。「舌脉未查」「脉象难配合」这类不算。
  * 只给「没有理由的有界改为已确定」用：舌脉缺一项时病性病位本来就可能待复诊补，模型写有界是对的。
  */
-const TONGUE_FINDING = /舌(?:质|体|象|诊)?[：:\s]*(?:边尖|尖|边)?(?:淡|红|绛|暗|紫|胖|瘦|嫩|老|裂|齿痕|青)|苔(?:质)?[：:\s]*(?:薄|厚|白|黄|腻|燥|润|少|剥|滑|灰|黑)|少苔|无苔/u;
-const PULSE_FINDING = /脉(?:象|诊)?[：:\s]*(?:浮|沉|迟|数|细|弦|滑|涩|濡|弱|缓|紧|洪|虚|实|结|代|促|微|芤|革|牢|伏|散|短|长|平|和)/u;
+const TONGUE_FINDING = /舌(?:质|体|象|诊)?[：:\s]*(?:边尖|尖|边)?(?:干|偏|稍)?(?:淡|红|绛|暗|紫|胖|瘦|嫩|老|裂|齿痕|青)|苔(?:质)?[：:\s]*(?:薄|厚|白|黄|腻|燥|润|少|剥|滑|灰|黑)|少苔|无苔/u;
+const PULSE_FINDING = /脉(?:象|诊)?[：:\s]*(?:浮|沉|迟|数|细|弦|滑|涩|濡|弱|缓|紧|洪|虚|实|结|代|促|微|芤|革|牢|伏|散|短|长|平|和|急|疾)/u;
 const UNRECORDED_INSPECTION = /舌[^，,。；;\n]{0,4}(?:未|不详|未查|未见记录)|脉[^，,。；;\n]{0,4}(?:未|不详|未查|难配合|未见记录)/u;
+/**
+ * 正常所见不作为病位、病性的依据（2026-11-14 第四十五轮，甲方 100 例逐字复核：「舌淡红、苔薄白示阴津不足」「肺←呼吸目前平稳」
+ * 「肺←无明显咳嗽」「气机逆乱←舌淡红，薄白苔」）。依据按「；」分段，每段再按逗号、顿号分项；一段里全是正常所见或否认的，整段去掉，
+ * 只要有一项是异常表现就整段留着。正常所见是有限闭集（淡红舌、薄白苔、平脉/和缓、纳眠可、二便调、神清、呼吸平稳、面色红润）。
+ */
+const NORMAL_FINDING_ITEM = /^(?:舌(?:质|象)?[:：]?\s*淡红(?:舌)?|淡红舌|舌淡红|(?:舌)?苔(?:质)?[:：]?\s*薄白?|薄白苔|苔薄白|脉(?:象)?[:：]?\s*(?:平|和缓|从容|平和)|(?:纳|饮食|食欲|胃纳)(?:眠)?(?:尚)?可|眠(?:尚)?可|睡眠(?:尚)?(?:可|正常)|二便(?:尚)?(?:调|正常|可)|大小便(?:正常|调)|神清(?:语利)?|精神(?:尚)?(?:可|好)|呼吸(?:目前)?(?:平稳|平顺|均匀)|面色(?:红润|正常)|生命体征平稳)$/u;
+export function withoutNormalFindingSegments(basis: string): string {
+  if (!basis) return basis;
+  const segments = basis.split(/[；;]/u).map((segment) => segment.trim()).filter(Boolean);
+  const kept = segments.filter((segment) => {
+    const items = segment.split(/[，,、]/u).map((item) => item.trim().replace(/[。.]$/u, "")).filter(Boolean);
+    return !items.every((item) => NORMAL_FINDING_ITEM.test(item) || /^(?:无|未见|否认|不)/u.test(item));
+  });
+  return kept.join("；");
+}
+
+/** 病性条目归本虚还是标实（tcm-nature-lexicon 的类别）；判不出时 undefined。 */
+const NATURE_LEXICON_ENTRIES = (natureLexiconJson as { entries: Array<{ canonical: string; aliases: string[]; kind: string }> }).entries;
+export function natureItemDeficiencyOrExcess(item: string): "root" | "branch" | undefined {
+  const text = String(item || "").normalize("NFKC").trim();
+  if (!text) return undefined;
+  if (/虚|亏|不足|衰|脱|陷|耗伤|不固/u.test(text)) return "root";
+  const hit = NATURE_LEXICON_ENTRIES.find((entry) => [entry.canonical, ...entry.aliases].some((name) => name.length >= 1 && text.includes(name)));
+  if (!hit) return undefined;
+  if (hit.kind === "deficiency") return "root";
+  if (hit.kind === "disharmony" || hit.kind === "eight_principles") return undefined;
+  return "branch";
+}
+
 export function recordHasTongueAndPulse(clinicalContext: string): boolean {
   const record = String(clinicalContext || "").normalize("NFKC");
   return TONGUE_FINDING.test(record) && PULSE_FINDING.test(record) && !UNRECORDED_INSPECTION.test(record);
@@ -1208,11 +1250,15 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
     if (items.some((item) => recordMentionsNegatedTerm(record, item))) return match;
     return `未诉${items.join("、")}等${mechanism}表现`;
   });
+  // 改写后读不通的不改，留模型原话（2026-11-14 第四十五轮，甲方 100 例约 20 份：「未诉痛性乳房肿块」原意无痛性、「非未诉性交而遗」
+  //「未诉然阴虚火旺」「未诉多潮热盗汗」）：「无」后是构词（无痛性、无菌、无色、无规律），或前面是「非/之/推/亦非」、后面紧跟虚词（然、多、可、诸、即）。
+  const unreadable = (term: string, offset: number, whole: string) =>
+    /^(?:痛性|菌|色|规律|诱因|然|多|可|诸|即|其|性)/u.test(term) || /(?:非|之|推|并非)$/u.test(whole.slice(Math.max(0, offset - 2), offset));
   const out = withMechanismFindings.replace(UNRECORDED_NEGATIVE, (match, term: string, offset: number, whole: string) =>
-    inferred(offset, whole, term) || recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) || /^(?:明显|特殊|其他)?异常$/u.test(term) ? match : `未诉${term}`)
+    inferred(offset, whole, term) || unreadable(term, offset, whole) || recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) || /^(?:明显|特殊|其他)?异常$/u.test(term) ? match : `未诉${term}`)
     // 「无气从少腹上冲胸咽之奔豚特征」：对象后面接「之…特征/表现/症状」时上面那条够不着（2026-10-19 甲方标准病历 2 第 3 次生成）。
     .replace(UNRECORDED_NEGATIVE_FEATURE, (match, term: string, offset: number, whole: string) =>
-      inferred(offset, whole, term) || recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`)
+      inferred(offset, whole, term) || unreadable(term, offset, whole) || recordMentionsNegatedTerm(record, term) ? match : `未诉${term}`)
     // 「口不渴」「口不干」「口不苦」是同一类阴性写法（2026-10-19 甲方标准病历 1：风温鉴别写「本例…口不渴」，病历没记录口渴与否）。
     .replace(/口不(渴|干|苦)|(?<=^|[，,、；;。：:\s])不(渴)(?=[，,、；;。]|$)/gu, (match, mouth: string | undefined, bare: string | undefined, offset: number, whole: string) => {
       const what = mouth || bare || "";
@@ -2469,6 +2515,22 @@ export function applyDeterministicHerbDecoctionRequirements(content: string): st
  * 现在分两段：契约前只写**KB 对齐串**，对不上就留空 / 留原文，让修复轮真正跑起来；
  * 角色兜底句移到路由终审之后的 finalize，只负责「不给医生一个空栏」。
  */
+/** 方解里讲到这味药的那一句（含其后一小句）；没有方解或方解没讲到这味药时 undefined。 */
+function herbCommentaryContext(formulaName: string, herbName: string): string | undefined {
+  const commentary = formulaTextbookCommentary(formulaName);
+  if (!commentary) return undefined;
+  const base = herbName.replace(/^(?:炙|炒|生|制|酒|盐|醋|蜜|麸炒|土炒|煅)/u, "");
+  const clauses = commentary.split(/[，,；;。]/u);
+  const at = clauses.findIndex((clause) => clause.includes(herbName) || (base.length >= 2 && clause.includes(base)));
+  return at >= 0 ? clauses.slice(at, at + 3).join("，") : undefined;
+}
+function sharesTwoCharacterGram(left: string, right: string): boolean {
+  const grams = new Set<string>();
+  for (let index = 0; index + 2 <= right.length; index += 1) grams.add(right.slice(index, index + 2));
+  for (let index = 0; index + 2 <= left.length; index += 1) if (grams.has(left.slice(index, index + 2)) && /^[\u4e00-\u9fff]{2}$/u.test(left.slice(index, index + 2))) return true;
+  return false;
+}
+
 export function applyDeterministicHerbFunctions(
   content: string,
   opts?: { fillRolePlaceholder?: boolean },
@@ -2515,6 +2577,15 @@ export function applyDeterministicHerbFunctions(
         // 高影响方向（清热/活血/温阳/攻下）必须有该药 KB 佐证、毒性药必须提毒性。
         // 过不了就照旧回落 canonicalFunction（先 KB 对齐串、再角色兜底句）。
         const modelFunction = markdownCell(herb.function);
+        // 成方里这味药的作用以《方剂学》方解为准（2026-11-14 第四十五轮，甲方 100 例逐字复核：补阳还五汤君药黄芪写「固表止汗」、
+        // 安冲汤君药人参写「安神益智」——都是药典功效里的另一条，与本方方解对不上）。方解讲到这味药、模型写的功效与方解那几句一个两字词都不共有、
+        // 而按本方治法从知识库对齐出的那条与方解共有时，用对齐的那条。
+        const commentaryContext = herbCommentaryContext(String(candidate.name || ""), name);
+        if (modelFunction && commentaryContext && alignedFunction && !sharesTwoCharacterGram(modelFunction, commentaryContext) &&
+          sharesTwoCharacterGram(alignedFunction, commentaryContext)) {
+          herb.function = alignedFunction;
+          continue;
+        }
         if (modelFunction && herbFunctionMatchesKnowledge(
           name, modelFunction, markdownCell(herb.role), markdownCell(herb.targetPathogenesis),
         )) continue;

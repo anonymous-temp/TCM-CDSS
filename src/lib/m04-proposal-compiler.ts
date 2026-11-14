@@ -948,7 +948,7 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   contains_unaudited_dose: "条件性加减夹带了未经审方的具体剂量",
   trigger_not_current_fact: "触发条件不能回溯到本次病历已确认的当前事实",
   trigger_not_present: "条件所说的表现本例眼下没有，是备用加减，不列入本次加减",
-  trigger_not_symptom: "条件写的是饮食、睡眠、二便一般或正常这类情况，不是需要加减的表现",
+  trigger_not_symptom: "条件写的是正常情况、病名或病历本身的说明，不是需要加减的表现",
   unknown_herb: "该药味不在标准药材资料的收录范围",
   invalid_target: "所引病机不属于本次已确认的病机",
   action_conflicts_with_candidate: "增减动作与当前处方药味状态冲突",
@@ -1133,9 +1133,18 @@ export function presentModificationCondition(trigger: string, recordedFacts: str
 }
 
 /** 判「本例已见」用的材料：病历原文，加辨证阶段采纳的患者原话（主证依据、各病机节点的患者事实）。交付面用同一份。 */
+/**
+ * 判「本例已见」时不读的栏：既往史、个人史、家族史、过敏史、用药史、婚育史（2026-11-14 第四十五轮，甲方 100 例：「本例已见慢性肾病3期：加茯苓」
+ * 「本例已见2型糖尿病控制一般：加葛根」「本例已见焦虑症病史：加香附」，依据都是「既往史：…」那一行）。加减针对的是这次的表现，旧病、习惯、家里人的病不算。
+ * 只去掉以这些栏名开头的那一行（病历按栏一行一栏）；现病史里提到的照旧算。
+ */
+const NON_CURRENT_RECORD_SECTION = /^\s*(?:既往史|既往病史|个人史|家族史|过敏史|药物过敏史|用药史|婚育史|预防接种史)\s*[:：]/u;
+export function currentPresentationText(recordText: string): string {
+  return String(recordText || "").split(/\n/u).filter((line) => !NON_CURRENT_RECORD_SECTION.test(line)).join("\n");
+}
 export function modificationPresenceFactsFor(recordText: string, prior: { overview?: { primarySyndromeBasis?: unknown }; pathogenesis?: { chain?: ReadonlyArray<{ patientFact?: unknown }> } } | null | undefined): string {
   return [
-    recordText,
+    currentPresentationText(recordText),
     ...(Array.isArray(prior?.overview?.primarySyndromeBasis) ? prior.overview.primarySyndromeBasis : []),
     ...(prior?.pathogenesis?.chain || []).map((node) => node.patientFact),
   ].filter((item): item is string => typeof item === "string" && Boolean(item.trim())).join("。");
@@ -1146,8 +1155,15 @@ export function modificationPresenceFactsFor(recordText: string, prior: { overvi
  * 不是需要加减的表现。只认整条以这类词收尾、且没有症状字的写法（有限闭集）。
  */
 const NORMAL_STATE_TAIL = /(?:一般|尚可|可|正常|调|如常|无殊|无异常|无明显异常|平稳)$/u;
+/**
+ * 条件说的不是患者的表现，而是病历本身或就诊经过（「未接受检查」「家属与本人对症状持续时间描述不同」「病人拒绝进一步说明近期饮食与药物」），
+ * 或是病名、分期（「慢性肾病3期」「2型糖尿病控制一般」，2026-11-14 第四十五轮甲方 100 例 C092、C040、C049、C045）。有限闭集：讲病历与就诊经过的词、
+ * 以病名或分期收尾。生活习惯、缓解因素（熬夜、吃糖后好转）由加减核对小任务判（m04-modification-fit 的 not_finding）。
+ */
+const RECORD_META_TRIGGER = /检查|病历|描述|说法|拒绝|未接受|家属|病史|既往|控制(?:一般|欠佳|不佳|尚可|良好)|(?:[0-9一二三四五ⅠⅡⅢⅣⅤ]期|[^疼酸胀]病)$/u;
 export function modificationTriggerIsNormalState(trigger: string): boolean {
   const body = String(trigger || "").normalize("NFKC").trim().replace(/^(?:本例已见|若|如)/u, "").replace(/[。；;，,\s]+$/u, "");
+  if (body && RECORD_META_TRIGGER.test(body)) return true;
   if (!body || !NORMAL_STATE_TAIL.test(body)) return false;
   return !/[痛胀闷痞烦渴干苦汗咳喘呕吐泻秘溏稀黄赤肿痒麻困乏倦眩晕悸梦涩急坠酸软鸣聋燥差少多减退不]/u.test(body.replace(NORMAL_STATE_TAIL, ""));
 }

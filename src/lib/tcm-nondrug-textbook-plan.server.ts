@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import webSourcesJson from "../data/tcm-nondrug-web-sources.source.json" with { type: "json" };
 import webSchedulesJson from "../data/tcm-nondrug-web-schedules.source.json" with { type: "json" };
+import { textbookOcrFixed } from "./nondrug-text-fixes";
+export { textbookOcrFixed } from "./nondrug-text-fixes";
 import syndromeConceptsJson from "../data/tcm-syndrome-label-concepts.source.json" with { type: "json" };
 import natureLexiconJson from "../data/tcm-nature-lexicon.json" with { type: "json" };
 import { resolveTcmDiseaseName } from "./clinical-terminology";
@@ -910,6 +912,11 @@ function pickBasicTreatmentVariant(entry: AcupunctureEntry, input: TextbookPlanI
     if (acute && usual) return pair.acuteCues.test(haystack) ? acute : usual;
   }
   const natureVariants = variants.filter((item) => VARIANT_LABEL_NATURE[item.label]);
+  // 外感证（外邪犯窍、风邪外袭、风寒束表…）不套内伤病按虚实分的两套（2026-11-14 第四十五轮 rt-923584：眩晕·外邪犯窍证，
+  // 针刺卡按实证一套写「平肝潜阳，和胃化痰」取太冲、丰隆）：两套都是内伤的肝阳、痰湿与气血亏虚，与外感不符。
+  if (/外邪|外感|风邪|风寒|风热|犯表|袭表|束表|外袭|表证/u.test(String(input.signedSyndromeText || "").split(/[；;]/u)[0] || "") &&
+    natureVariants.length === 2 && natureVariants.every((item) => /^(?:实证|虚证)$/u.test(item.label)) &&
+    !natureVariants.some((item) => /解表|疏风|祛风|宣肺|散寒|外感|表邪/u.test(item.therapy))) return undefined;
   if (natureVariants.length === 2 && new Set(natureVariants.map((item) => VARIANT_LABEL_NATURE[item.label])).size === 2) {
     const nature = signedCardNature(input.signedSyndromeText, input.signedPrinciple);
     return natureVariants.find((item) => nature && VARIANT_LABEL_NATURE[item.label] === nature);
@@ -1474,18 +1481,23 @@ function webScheduleFor(
  * 「中国针灸学会（caam.cn 科普之窗·科普知识）《牙痛--中国针灸学会官网》」——网页标题当篇名、英文域名进了正文）。
  * 篇名去掉网页标题里的站点后缀（「--站点名」「|关键词|-站点」「_栏目_…」「 - 站点名」）；发布者去掉域名。网址留在来源快照里备查。
  */
+// 2026-11-14 第四十五轮：卡片上还出现过「甘肃省中医院张玉琴医生在好大夫在线转载」「A+医学百科（《中医外科学》教材电子书转载）」
+// 「国家中医药管理局（国中医药医政医管便函〔2015〕61号）」（甲方 100 例 C052、C093）。发布者只留机构名：括号里的文号、编制说明、
+// 转载说明都去掉，分号、逗号后的转载说明去掉；剩下的若是网站（网、百科、好大夫、健康界），不写发布者，只写篇名。
+// 篇名去掉「关于印发…的通知」的公文外壳、「/栏目」后缀。
 export function webSourceLabel(publisher: string, sourceTitle: string): string {
-  const title = String(sourceTitle || "")
-    .split(/--|\||_/)[0]
+  const rawTitle = String(sourceTitle || "")
+    .split(/--|\||_|\//)[0]
     .replace(/\s+-\s+.*$/u, "")
     .trim();
+  const title = (rawTitle.match(/^关于印发[《]?(.+?)[》]?的通知$/u)?.[1] || rawTitle).replace(/^《|》$/gu, "").trim();
   const by = String(publisher || "")
     .replace(/[A-Za-z0-9][A-Za-z0-9.-]*\.(?:cn|com|org|net|gov)(?:\.cn)?\b/g, "")
-    .replace(/[（(]\s*[）)]/g, "")
-    .replace(/[（(]\s+/g, "（")
-    .replace(/\s+[）)]/g, "）")
+    .replace(/[（(][^）)]*[）)]/gu, "")
+    .split(/[；;，,]/u)[0]
     .trim();
-  return title ? `${by}《${title}》` : by;
+  const shownBy = /网|百科|好大夫|健康界|转载|公众号/u.test(by) ? "" : by;
+  return title ? `${shownBy}《${title}》` : shownBy;
 }
 
 function uniq<T>(values: readonly T[]): T[] {
@@ -1678,19 +1690,6 @@ const GENERIC_SYMPTOM_HALVES: ReadonlySet<string> = new Set(["疼痛", "不适",
  */
 // 教材扫描丢字：《推拿学》的「㨰法」（扩展 A 区字）在语料里整字丢失，成了「以法作用于」「、法、」「用法在」（第四十一轮 r1054 回顾：
 // 推拿卡缺字 11 份）；补成通行写法「滚法」（扩展 A 区字在甲方面板字体里可能不显示）。「伏免」是伏兔穴的形近误字。有限闭集。
-const NONDRUG_TEXTBOOK_OCR_FIXES: ReadonlyArray<readonly [string, string]> = [
-  ["顽同性", "顽固性"],
-  ["以法作用", "以滚法作用"],
-  ["以法施", "以滚法施"],
-  ["施法于", "施滚法于"],
-  ["用法在", "用滚法在"],
-  ["、法、", "、滚法、"],
-  ["：法、", "：滚法、"],
-  ["伏免", "伏兔"],
-];
-export function textbookOcrFixed(text: string): string {
-  return NONDRUG_TEXTBOOK_OCR_FIXES.reduce((value, [wrong, right]) => value.split(wrong).join(right), String(text || ""));
-}
 
 /**
  * 痿证节的方案（手足阳明经排刺、补益肢体）只给本例确有肢体痿弱的病历（2026-10-19 Claude 评审 H-tri-5409「四肢肌力、肌张力尚正常」、

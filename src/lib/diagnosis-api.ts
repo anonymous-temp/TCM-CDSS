@@ -532,6 +532,11 @@ type StreamSafetyOptions = {
    */
   m03TcmHalfTransform?: (tcmContent: string, signal: AbortSignal, redraw?: (instruction: string) => Promise<string | undefined>) => Promise<string>;
   /**
+   * 辨证分析与结论对齐（第四十五轮，m03-analysis-alignment.server.ts）：合并、教材锚定之后、签名之前。对不上时才发请求；
+   * 失败、超时或返回空串时原样不动。
+   */
+  m03AnalysisAlignment?: (content: string, signal: AbortSignal) => Promise<string>;
+  /**
    * M04 已编译候选（带 DIAGNOSIS_JSON 哨兵）在合同核对与签名之前的收口（开方路由注入方义药物功效核对，
    * 见 m04-formula-analysis-claim-check.server.ts）。首轮与两处修复轮各调一次；抛错、超时或返回空串时沿用原内容。
    */
@@ -2884,6 +2889,15 @@ async function callPrimaryTextModelStream(
             );
           }
           transformed = settleM03ClinicalOutput(transformed, opts.structuredClinicalContext || "");
+          if (opts.m03AnalysisAlignment) {
+            const aligned = await opts.m03AnalysisAlignment(transformed, upstreamController.signal).catch(() => transformed);
+            if (typeof aligned === "string" && aligned.trim() && aligned !== transformed) {
+              let next = opts.outputTransform ? opts.outputTransform(aligned) : aligned;
+              next = synchronizeVisibleClinicalSummary(next, "diagnose", opts.structuredClinicalContext || "", opts.structuredCaseState);
+              next = settleM03ClinicalOutput(next, opts.structuredClinicalContext || "");
+              if (validatedStructuredReasoning(next, "diagnose", opts.structuredClinicalContext, undefined, true)) transformed = next;
+            }
+          }
           const reasoning = validatedStructuredReasoning(
             transformed,
             "diagnose",

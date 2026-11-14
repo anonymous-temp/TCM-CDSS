@@ -4050,10 +4050,17 @@ export function herbBarredForCase(herb: string, clinicalContext: string): boolea
 }
 
 export function m04GenerationSpecialPopulationIssue(
-  herbs: ReadonlyArray<{ name?: unknown }>,
+  herbs: ReadonlyArray<{ name?: unknown; role?: unknown }>,
   clinicalContext: string,
 ): string | undefined {
   if (!clinicalContext.trim()) return undefined;
+  // 病历记录在孕（妊娠阳性）：药典 2020 标注孕妇慎用的饮片不作君药、臣药（2026-11-14 第四十五轮，用户定：甲方 100 例 C097 孕 12 周腰酸，
+  // 牛膝、枳壳与川芎、延胡索作君臣行气活血）。佐使位的照常给并逐味标注；加减行不带君臣，不受这一条约束。修复轮把它换掉或降为佐使。
+  if (assessPregnancyState(clinicalContext).status === "positive") {
+    for (const [herbIndex, herb] of herbs.entries()) {
+      if (/君|臣/u.test(String(herb.role || "")) && chpPregnancyLabel(herb.name)?.level === "caution") return `herb_${herbIndex}_special_population_high_risk_pregnancy`;
+    }
+  }
   // 儿童禁用药味（药典 2020、十三五教材、国家药监部门通告；数据 tcm-pediatric-dose-rule.source.json）：与知识库里
   // 按人群登记的 HIGH 规则同一出口——修复轮删掉该味，不再靠「模型自觉」。慎用级只在编译器里批注，不驱动修复。
   const pediatricRule = pediatricDoseRuleFromGroundingText(clinicalContext);

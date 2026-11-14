@@ -90,3 +90,6 @@ export function conceptionHerbNote(herbName: string, tier: ChpPregnancyHerbTier 
 export function chpPregnancyProhibitedHerbNames(): string[] {
   return LABELS.prohibited.map((row) => row.name);
 }
+export function chpPregnancyCautionHerbNames(): string[] {
+  return LABELS.caution.map((row) => row.name);
+}

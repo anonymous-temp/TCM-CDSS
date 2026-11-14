@@ -1,3 +1,4 @@
+import { alignAnalysisWithConclusion } from "@/lib/m03-analysis-alignment.server";
 import { prefetchDiagnoseInputs, prefetchPrescribeInputsFromSignedDiagnose, tapFinalStageContent } from "@/lib/stage-prefetch.server";
 import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.server";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
@@ -325,6 +326,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
           // 不够数的撤下并写进不确定项，落在兼证核对之后（那一步补上的兼证若已涵盖，就不撤）、本例说法核对之前。
           // 病名须解释本次就诊原因（m03-visit-reason-check.server.ts，与上面几件并行，只在病名不是选病第一个时发请求）：
           // 核对确认不解释、候选里有能解释的病时，中医半按就诊原因重抽一次，再把上面的收口在新稿上重走一遍（其余病例原样）。
+          m03AnalysisAlignment: (content: string, alignSignal: AbortSignal) => alignAnalysisWithConclusion(content, { recordText: clinicalGroundingText(safeState) }, alignSignal),
           m03TcmHalfTransform: async (tcmContent: string, transformSignal: AbortSignal, redraw?: (instruction: string) => Promise<string | undefined>) => {
             const finishTcmHalf = async (content: string) => {
               // 辨证依据漏讲已记录表现时先按病历重写这一段（m03-rationale-coverage.server.ts，只在漏两项以上时发请求），

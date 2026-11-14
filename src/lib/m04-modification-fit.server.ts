@@ -35,21 +35,22 @@ const SYSTEM = [
   "你是中医主治医师，逐行核对随证加减。每行是「某情况，加某药」：条件以「若」起头的说的是本例现在没有、之后可能出现的变化，不带「若」的是病历已记录的表现。",
   "每行写 verdict：",
   "contradicts：这个条件与病历已记录的情况相反，本例在现在的证候下不会这样（病历便溏对“若大便干结”、舌淡脉弱对“若舌红脉数”、口不渴对“若口渴”、多食易饥对“若食少”）。病历没提到的症状不算相反；quote 摘病历逐字原文。",
-  "misfit：只在 kind 为 model 的行判。这味药的主要功效管不到这个症，或与本证方向相反（虚寒证单加苦寒药、阴虚证单加温燥药；实热、火热证为非主诉的次要表现加温性药，如胃热炽盛证「纳差」加焦山楂——property 是《中药学》药性，次要表现由主证病机所致、主方清其病机即可），或这个条件不是本病会出现的变化。不因为有更好的选择就判 misfit。",
+  "misfit：只在 kind 为 model 的行判。这味药的主要功效管不到这个症，或与本证方向相反（虚寒证单加苦寒药、阴虚证单加温燥药；实热、火热证为非主诉的次要表现加温性药，如胃热炽盛证「纳差」加焦山楂——property 是《中药学》药性，次要表现由主证病机所致、主方清其病机即可），或这个条件不是本病会出现的变化；这个表现是主病直接引起的（高热、热毒内陷致拒食纳差，剧痛致失眠，失血、气脱致头晕），治好主病自然缓解，另加偏性药不当（如热毒证拒食加焦山楂、失血头晕加天麻）；药的功效与这个表现在本证里的病机对不上（气血不足的头晕加平肝息风的天麻，固摄缩尿写桑椹、白术）。不因为有更好的选择就判 misfit。",
   "caution：两种 kind 都判。每一行先读 caution（《中药学》使用注意原文）：它点名慎用或忌用的某个症状（自汗、盗汗、便溏、失眠、出血…）本例病历写着，就判 caution，不论这一行的条件写的是什么（如麻黄 caution「表虚自汗、阴虚盗汗…慎用」，病历写「自汗」）。只看症状，「内有实热者慎用」这类说的是证候，不算；quote 摘病历里那个症状的逐字原文。",
   "unrelated：两种 kind 都判。条件说的情况与本例已记录的表现都无关——不是本例已有某个症状的加重或演变，也不是主诉主症的变化，而是另一组本例一条相关表现都没有的情况（如胃痛病例「若兼头晕目眩」而病历没有头晕；咳嗽病例「若兼有瘀血」而病历没有任何瘀象）。条件里的症状本例已有（程度不同也算）、或是本例主症常见的加重，不算 unrelated。quote 留空。",
+  "not_finding：两种 kind 都判。条件说的不是患者此刻的一个症状、体征或舌脉：生活习惯或诱因（熬夜、久坐、加班、屏幕使用时间长、饮食不节）、缓解因素（吃糖后好转、休息后减轻）、病名或基础病（慢性肾病3期、焦虑症病史）、检查或就诊经过（未接受检查、拒绝说明）、病历里的说明（家属与本人描述不同）、正常情况（睡眠尚可）。quote 留空。",
   "ok：其余。",
   "只输出 JSON：{\"rows\":[{\"line\":0,\"verdict\":\"ok\",\"quote\":\"\"}]}",
 ].join("\n");
 
 const VERIFY_SYSTEM = [
-  "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症或与本证方向相反，含实热证为非主诉的次要表现加温性药；caution：这味药的使用注意点名慎用或忌用的那个症状，本例病历写着；unrelated：条件说的情况与本例已记录的表现都无关，既不是已有症状的加重或演变，也不是主诉主症的变化）。",
+  "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（not_finding：条件说的不是患者的症状、体征或舌脉，而是习惯、诱因、缓解因素、病名、检查或病历说明；contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症或与本证方向相反，含实热证为非主诉的次要表现加温性药；caution：这味药的使用注意点名慎用或忌用的那个症状，本例病历写着；unrelated：条件说的情况与本例已记录的表现都无关，既不是已有症状的加重或演变，也不是主诉主症的变化）。",
   "只判这一条。理由成立答 true。条件只是病历没提到、或者只是另有更好的药，答 false。",
   "先在 why 里写这条理由依据的病历原文或药的功效（不超过20字），再下结论。",
   "只输出 JSON：{\"why\":\"…\",\"confirmed\":true} 或 {\"why\":\"…\",\"confirmed\":false}",
 ].join("\n");
 
-type Finding = { line: number; verdict: "contradicts" | "misfit" | "unrelated" | "caution"; quote: string };
+type Finding = { line: number; verdict: "contradicts" | "misfit" | "unrelated" | "caution" | "not_finding"; quote: string };
 
 function parse(content: unknown): Finding[] | undefined {
   if (typeof content !== "string" || !content.trim()) return undefined;
@@ -59,7 +60,7 @@ function parse(content: unknown): Finding[] | undefined {
     return list.flatMap((entry) => {
       const row = record(entry);
       const verdict = text(row?.verdict);
-      return row && Number.isInteger(row.line) && (verdict === "contradicts" || verdict === "misfit" || verdict === "unrelated" || verdict === "caution")
+      return row && Number.isInteger(row.line) && (verdict === "contradicts" || verdict === "misfit" || verdict === "unrelated" || verdict === "caution" || verdict === "not_finding")
         ? [{ line: row.line as number, verdict: verdict as Finding["verdict"], quote: text(row.quote) }]
         : [];
     });
@@ -86,6 +87,8 @@ export function modificationFindingQualifies(finding: Finding, rows: readonly Js
   if (finding.verdict === "unrelated") return !conditionMentionsRecordedFinding(text(row.trigger), recordText);
   // 使用注意点名的症状本例写着（第三十八轮甲方标准病历5：自汗，加减「若气喘加炙麻黄」，麻黄「表虚自汗…慎用」）：摘录要逐字在病历里，
   // 并且摘录与这味药的使用注意原文共有一个两字词——说的是同一个症状，不是证候层面的「内有实热」。
+  // 条件不是症状体征（习惯、诱因、缓解因素、病名、检查、病历说明；第四十五轮）：两种 kind 都判，由另一厂商复核确认。
+  if (finding.verdict === "not_finding") return true;
   if (finding.verdict === "caution") return cautionNamesRecordedSymptom(herbCautionReferenceText(text(row.herbName)), finding.quote, recordText);
   return Boolean(finding.quote) && quoteGroundedInText(finding.quote, recordText, { minChars: 2 });
 }
@@ -169,7 +172,7 @@ export async function dropMisfitModifications(content: string, context: { record
     needsBothSamples: modificationFindingNeedsBothSamples,
   });
   if (findings.length === 0) return content;
-  const contradicted = new Set(findings.filter((finding) => finding.verdict === "contradicts" || finding.verdict === "unrelated" || finding.verdict === "caution").map((finding) => finding.line));
+  const contradicted = new Set(findings.filter((finding) => finding.verdict === "contradicts" || finding.verdict === "unrelated" || finding.verdict === "caution" || finding.verdict === "not_finding").map((finding) => finding.line));
   const bad = new Set(contradicted);
   for (const finding of findings) {
     if (finding.verdict === "misfit" && rows.length - bad.size > MIN_ROWS_AFTER_FIT) bad.add(finding.line);
@@ -203,6 +206,7 @@ export function withModificationsFrom(target: string, source: string): string {
 const TOP_UP_SYSTEM = [
   "你是中医主治医师。证型、治法、方药已定，现在为本例补写随证加减。随证加减是给这位患者这次就用的，不写「若…」这种以后才可能出现的备用条件。",
   "先读 record，找出病历里已经记录、主方 herbs 没有直接照顾到的伴随表现（主诉主症以外的症状，如纳差、便溏、口干、咽痛、眠差、咳痰）；这样的表现不够两个时，再从本例较突出、主方照顾力度不足的已记录表现里补（如畏寒肢冷明显、腰膝酸软，加一味同向的药增强）。每个表现写一条，凑够 2 条、最多 3 条：trigger 逐字摘病历里这个表现的原话（2–12 字，不加「若」，不写舌脉，不写证候名）；herbName 是不在 herbs 里的一味常用饮片；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个表现；symptomPathogenesis 用一句话（≤20字）写这个表现本身的病机。",
+  "trigger 必须是患者此刻的一个症状、体征（不写生活习惯或诱因如熬夜、久坐、屏幕时间长，不写缓解因素如吃糖后好转，不写病名、病史、检查或就诊经过，不写既往史、个人史里的内容）。",
   "主病直接引起的伴随表现不另加药（因疼痛或瘙痒而眠差、因发热而纳差、外感正邪相争而精神差，主病好了自然好）。药的寒热补泻要与证型一致：外感、痰热、湿热、瘀血这类实证不为次要表现加补益药，虚证不加攻伐药。病历否认的、existing 里已有的不写。病历里找不到这样的表现就少写或输出空数组，不要编。",
   "只输出 JSON：{\"rows\":[{\"trigger\":\"\",\"herbName\":\"\",\"dose\":\"\",\"reason\":\"\",\"symptomPathogenesis\":\"\"}]}",
 ].join("\n");
@@ -216,7 +220,7 @@ const STANDBY_TOP_UP_SYSTEM = [
 ].join("\n");
 
 const TOP_UP_VERIFY_SYSTEM = [
-  "你是中医主治医师。下面这条随证加减针对本例病历里已有的一个表现，这次就用。默认答 true；只有这味药管不到这个表现、与本证方向相反（实证为次要表现加补益药、虚证加攻伐药、寒证加寒凉药、热证加温热药）、这个表现病历里其实是否认的，或它只是主病直接引起、治好主病自然缓解的表现时答 false。",
+  "你是中医主治医师。下面这条随证加减针对本例病历里已有的一个表现，这次就用。默认答 true；只有这味药管不到这个表现、与本证方向相反（实证为次要表现加补益药、虚证加攻伐药、寒证加寒凉药、热证加温热药）、这个表现病历里其实是否认的，或它只是主病直接引起、治好主病自然缓解的表现，或条件根本不是症状体征（习惯、诱因、缓解因素、病名、检查、病历说明）时答 false。",
   "只输出 JSON：{\"confirmed\":true} 或 {\"confirmed\":false}",
 ].join("\n");
 

@@ -20,7 +20,7 @@ import { RED_FLAG_SAFETY_NET_VISIT, recordHasTongueAndPulse } from "./diagnosis-
 import { formulaTextbookCommentary } from "./formula-textbook-commentary";
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
-import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormulaOriginalPreparations, originalFormulaFor, originalHerbMatches, originalHerbSatisfiedBy, formulaManualDoseIngredients, type OriginalFormulaContext, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource } from "./tcm-formula-provenance";
+import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormulaOriginalPreparations, originalFormulaFor, originalHerbMatches, originalHerbSatisfiedBy, formulaManualDoseIngredients, type OriginalFormulaContext, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource, deliveredFormulaSource, sourceIsTextbook } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { drugNamesInAllergyPhrases } from "./clinical-polarity";
@@ -35,7 +35,8 @@ import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDi
 import { herbFunctionClaimUnsupportedPhrases, herbFunctionPhraseRecognized } from "./diagnosis-stage-contract";
 import { deliveredTreatmentCodes, precautionMentionsUndeliveredTreatment, treatmentCardUndeliverable } from "./tcm-treatment-capabilities.server";
 import { dietAdviceAvoidsRichFood, isFoodMedicineHomologyItem, recipeHasRichIngredient, textAntagonizesPrescription, type PrescribedHerbScope } from "./tcm-nondrug-textbook-plan.server";
-import { discontinuedMedicationLabel, type RequiredPrecaution } from "./required-precautions";
+import { textbookOcrFixed } from "./nondrug-text-fixes";
+import { discontinuedMedicationLabel, highRiskConditionLine, highRiskConditionsMissing, type RequiredPrecaution } from "./required-precautions";
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { patentMedicineCompositionIdentities } from "./patent-medicine-duplication.server";
 import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
@@ -128,6 +129,8 @@ function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly str
   // 「请把正在使用的药物名称和用法告诉医生」也算写到了（「正在」后接「使用/服用」）：此前不认，同一页再补一句同样的话（M 集 MTCMB-6、TCMChat-336 等 6 例）。
   if (item.kind === "unnamed_medication") return lines.some((line) => /(?:正在|自行|已|在)(?:使用|服用|服|用|吃)[^，,。；;]{0,8}药|用药情况|药名|药物名称/u.test(line) && /告知|告诉|说明/u.test(line));
   if (item.kind === "antithrombotic_bleeding") return bleedingWatchCovered(lines);
+  if (item.kind === "high_risk_condition") return highRiskConditionsMissing(item, lines).length === 0;
+  if (item.kind === "diabetes_glucose" && item.hypoglycemia) return lines.some((line) => /低血糖/u.test(line) && /含糖|糖果|进食|进餐/u.test(line));
   if (item.kind === "diabetes_glucose") return lines.some((line) => /血糖|控糖/u.test(line) && /监测|测|查|控制|稳定|控糖/u.test(line));
   if (item.kind === "herpes_zoster_antiviral") return lines.some((line) => /抗病毒/u.test(line));
   if (item.kind === "gout_diet") return lines.some((line) => /嘌呤/u.test(line));
@@ -199,6 +202,9 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
       ? `方中${herbs}有活血作用，与正在使用的${item.drugs.slice(0, 3).join("、")}同用可能增加出血风险；服药期间请留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医，并告诉医生您在用这些药。`
       : `您有${item.indication}病史，如正在服用抗凝或抗血小板药（如阿司匹林、氯吡格雷、华法林），请告诉医生；方中${herbs}有活血作用，同用可能增加出血风险，服药期间请留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医。`;
   }
+  if (item.kind === "diabetes_glucose" && item.hypoglycemia) {
+    return "本次是低血糖发作，请按医嘱调整降糖药、按时进餐、随身带糖果；出现心慌、出汗、手抖、头晕时立即吃含糖食物并测血糖，神志不清时立即急诊。";
+  }
   if (item.kind === "diabetes_glucose") {
     // 《中国2型糖尿病防治指南（2020年版）》：规律监测血糖、限制添加糖与含糖饮料。只有中医病名消渴或「糖尿病待查」时不说「您有糖尿病」（M 集 RobustSDT-0141）。
     return item.confirmed
@@ -224,6 +230,7 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
       : `您之前自行停用了${discontinuedMedicationLabel(item)}，请尽快由医生评估后调整用药并规律服用，不要再自行停药或减量。`;
   }
   if (item.kind === "mobility_limited_exercise" || item.kind === "recorded_drug_names") return "";
+  if (item.kind === "high_risk_condition") return highRiskConditionLine(item, highRiskConditionsMissing(item, currentLines));
   if (item.kind === "current_medications") {
     // 是否继续由医生定，不写「不要自行停用」：红旗病例里那句会变成让心率 42、血压 82/48 的患者继续服美托洛尔（2026-10-18 留出集 S188）。
     // 外用药（乳膏、贴剂、栓剂…）不说「服用」，也不套口服药的间隔时间（甲方病历 8：阿昔洛韦乳膏）。
@@ -662,6 +669,31 @@ const RED_FLAG_BOUNDARY_WORDING: ReadonlyArray<readonly [RegExp, string]> = [
   [/^完成急危重风险评估并记录排除或处置依据$/gu, "完成急诊或转诊评估，排除急危重情况"],
 ];
 
+/**
+ * 待核实项的理由开头把项目原样再说一遍（「急危重风险尚未排除——急危重风险未排除，请先完成急诊或转诊评估…」「缺X——缺X，Y待定」）：
+ * 理由去掉重复的那一段；去完为空时写「尚待核实」（2026-11-14 第四十五轮，甲方 100 例 40 份）。比较时忽略「尚」「已」与标点。
+ */
+export function withoutReasonEchoingItem(pathogenesis: Json | undefined): void {
+  if (!pathogenesis || !Array.isArray(pathogenesis.uncertainties)) return;
+  const core = (value: string) => value.normalize("NFKC").replace(/[尚已仍\s，,；;。：:——\-]/gu, "");
+  pathogenesis.uncertainties = records(pathogenesis.uncertainties).map((row) => {
+    const item = typeof row.item === "string" ? row.item.trim() : "";
+    const reason = typeof row.reason === "string" ? row.reason.trim() : "";
+    if (!item || !reason) return row;
+    const itemCore = core(item);
+    if (itemCore.length < 4) return row;
+    const clauses = reason.split(/(?<=[，,；;。])/u);
+    let consumed = 0, at = 0;
+    while (at < clauses.length && consumed < itemCore.length) {
+      consumed += core(clauses[at]).length;
+      at += 1;
+    }
+    if (core(clauses.slice(0, at).join("")) !== itemCore) return row;
+    const rest = clauses.slice(at).join("").replace(/^[，,；;。\s]+/u, "").trim();
+    return { ...row, reason: rest || "尚待核实" };
+  });
+}
+
 /** 待核实项自己说这件事已经定了（「已明」「已排除」「已明确」）、又没有任何仍待核实的说法。纯函数，供测试。 */
 export function uncertaintyAlreadySettled(row: { item?: unknown; reason?: unknown }): boolean {
   const text = `${typeof row.item === "string" ? row.item : ""}；${typeof row.reason === "string" ? row.reason : ""}`;
@@ -710,9 +742,32 @@ const VERBATIM_KEYS = new Set([
   "primarySyndromeBasis", "citation", "excerpt", "coding", "classicEvidence", "pointProvenance", "protocolSource",
 ]);
 
+/**
+ * 交付前的读通检查（2026-11-14 第四十五轮，甲方 100 例逐字复核：约 70 条「文字加工痕迹」——前面各步改写、删句叠出来的读不通的写法）。
+ * 只认几种确定无误的形态，每种只做最小的删改：
+ *  · 「未诉未诉」叠字；两个标点相连（「；；」「，。」「。。」「、、」）；空括号；
+ *  · 自拟方方义里方名都被换成「本方」后的小句（「参照本方与本方之意」「参照本方滋阴润肺…之意」）：整小句去掉；
+ *  · 「教材行」这种讲内部数据的词换成「教材证型」。
+ * 只用于给医生和患者看的文字；VERBATIM_KEYS（病历原文摘录、编码、签名）不动。没有命中时逐字节不变。
+ */
+export function readabilityCleaned(value: string): string {
+  if (!/未诉未诉|[；;，,。、]{2}|[（(]\s*[）)]|参照本方|本方(?:与|合)本方|教材行/u.test(value)) return value;
+  return value
+    .replace(/未诉(?:未诉)+/gu, "未诉")
+    .replace(/[（(]\s*[）)]/gu, "")
+    .replace(/(^|[。；;，,])[^。；;，,]*?(?:参照本方|本方(?:与|合)本方)[^。；;，,]*(?:[，,][^。；;，,]*?之意)?[，,]?/gu, "$1")
+    .replace(/教材行/gu, "教材证型")
+    .replace(/；{2,}|;{2,}/gu, "；")
+    .replace(/，{2,}|,{2,}/gu, "，")
+    .replace(/、{2,}/gu, "、")
+    .replace(/[，,；;]+(?=[。])/gu, "")
+    .replace(/。{2,}/gu, "。")
+    .replace(/^[，,；;。、\s]+/u, "");
+}
+
 function rewordDeep(value: unknown, key = ""): unknown {
   if (VERBATIM_KEYS.has(key)) return value;
-  if (typeof value === "string") return clinicalWordingForSyntheticPhrases(value);
+  if (typeof value === "string") return readabilityCleaned(clinicalWordingForSyntheticPhrases(value));
   if (Array.isArray(value)) return value.map((item) => rewordDeep(item, key));
   const object = record(value);
   if (!object) return value;
@@ -1377,7 +1432,35 @@ export function compositeSyndromeRename(reasoning: Json, recordText: string): { 
   return undefined;
 }
 
+/**
+ * 出处栏不写教材（deliveredFormulaSource）：方的出处、基础方出处、药味依据里「方名：《书名》」三处同一口径（第四十五轮）。
+ */
+function withoutTextbookFormulaSources(reasoning: Json): void {
+  const formula = record(reasoning.formula);
+  for (const candidate of records(formula?.candidates)) {
+    const formulaSource = record(candidate.formulaSource);
+    const named = String(candidate.name || "").replace(/(?:加减|加味)$/u, "");
+    const fix = (value: unknown, name: string): unknown => {
+      if (typeof value !== "string") return value;
+      // 「参附龙牡救逆汤：《中医儿科学》」「《中医儿科学》。」两种写法。
+      // 只换整栏就是一个教材书名的写法；「《中医内科学》X证代表方」说的是教材把它列为代表方，另有判据（第十九轮）。
+      const pair = value.match(/^([^：:]{2,20})[：:]\s*(《[^》]+》)[。]?$/u);
+      if (pair && sourceIsTextbook(pair[2])) return `${pair[1]}：${deliveredFormulaSource(pair[1], pair[2])}`;
+      const bare = value.trim().match(/^(《[^》]+》)([。]?)$/u);
+      if (bare && sourceIsTextbook(bare[1])) return `${deliveredFormulaSource(name, bare[1])}${bare[2]}`;
+      return value;
+    };
+    if (formulaSource) formulaSource.source = fix(formulaSource.source, named);
+    for (const base of records(candidate.baseFormulas)) base.source = fix(base.source, String(base.name || named));
+    for (const herb of records(candidate.herbs)) {
+      const evidence = record(herb.evidence);
+      if (evidence) evidence.source = fix(evidence.source, named);
+    }
+  }
+}
+
 function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions): void {
+  withoutTextbookFormulaSources(reasoning);
   // 开方结果里带着辨证阶段的副本：同一口径再投影一次（调用方回传的是已投影的那份，幂等）。
   deliveredDiagnose(reasoning);
   const formula = record(reasoning.formula);
@@ -1797,6 +1880,10 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     });
     for (const item of records(nonPharma.tcmTreatments)) {
       if (typeof item.operatorRequirement === "string") item.operatorRequirement = operatorRequirementWording(item.operatorRequirement);
+      // 卡片文字统一过一遍教材缺字（㨰法）与来源说明清理（转载、文号、网站名；2026-11-14 第四十五轮 C026、C045、C052、C093）。
+      for (const key of Object.keys(item)) {
+        if (typeof item[key] === "string") item[key] = cardSourceNoteCleaned(textbookOcrFixed(item[key] as string));
+      }
     }
   }
   if (nonPharma) {
@@ -1876,7 +1963,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     }
     // 糖尿病：饮食段推荐的含糖多的食物（红枣、蜂蜜、冰糖…）那一小句去掉（2026-10-19 Claude 评审 M 集 TCM-SD-453850「红枣胡萝卜汤」；
     //《中国2型糖尿病防治指南（2020年版）》医学营养治疗：限制添加糖与含糖饮料）。叫患者少吃、不吃的照留。
-    if ((options?.requiredPrecautions || []).some((item) => item.kind === "diabetes_glucose")) {
+    if ((options?.requiredPrecautions || []).some((item) => item.kind === "diabetes_glucose" && !item.hypoglycemia)) {
       nonPharma.diet = withoutHighSugarRecommendations(String(nonPharma.diet));
     }
   }
@@ -2068,6 +2155,17 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
           { lactationTiers, bleedingHerbs }))
         .filter(Boolean);
       if (added.length > 0) precautions = [...added, ...precautions];
+      // 「方中有孕期需慎用的药。」不点名是哪几味（2026-11-14 第四十五轮：甲方 100 例 C097、new40 m18，m18 七味里一味药典孕妇慎用的都没有）：
+      // 方中有药典标注孕妇禁用、慎用的药时点名，没有时这一句去掉。
+      const unnamedPregnancyLine = /方中(?:有|含)?(?:孕期|孕妇|妊娠期?)[^，,。；;]{0,6}(?:慎用|禁用|忌用)的?(?:药物?|饮片|中药)/u;
+      precautions = precautions.flatMap((line) => {
+        if (typeof line !== "string" || !unnamedPregnancyLine.test(line) || pregnancyLabelledHerbs.some((name) => line.includes(name))) return [line];
+        if (pregnancyLabelledHerbs.length === 0) {
+          const rest = withoutTimingClauses(line, (clause) => unnamedPregnancyLine.test(clause));
+          return /[\u4e00-\u9fff]{4,}/u.test(rest) ? [rest] : [];
+        }
+        return [line.replace(unnamedPregnancyLine, `方中${pregnancyLabelledHerbs.slice(0, 4).join("、")}孕期须慎用`)];
+      });
     }
     // 方中有药典标注有毒（含「有小毒」）的药而注意事项一句没提（2026-10-18 验收主集：附子、半夏、苦杏仁）：补一句。只看最终处方。
     const toxicHerbs = records(records(formula?.candidates)[0]?.herbs)
@@ -2745,9 +2843,13 @@ function withSyndromeResolutionFromAxes(reasoning: Json, recordText: string): vo
   if (evidence && evidence.confidence === "低") evidence.confidence = "中";
   if (reason) {
     const uncertainties = Array.isArray(pathogenesis.uncertainties) ? pathogenesis.uncertainties : [];
-    const item = reason.split(/[，,；;。]/u)[0].slice(0, 30) || "证候细节";
-    if (!records(uncertainties).some((row) => String(row.reason || "") === reason)) {
-      pathogenesis.uncertainties = [...uncertainties, { item, reason, affects: "证候细节与随证加减" }].slice(0, 12);
+    // 项目取理由的第一小句，理由只留其后的部分（2026-11-14 第四十五轮：甲方 100 例 40 份「缺食欲、二便与寒热记录——缺食欲、二便与寒热记录，
+    // 脾虚程度待定」，项目与理由开头一字不差）。只有一小句时理由写「尚待核实」。
+    const [head, ...rest] = reason.split(/[，,；;。]/u).map((part) => part.trim()).filter(Boolean);
+    const item = (head || "证候细节").slice(0, 30);
+    const remainder = rest.join("，");
+    if (!records(uncertainties).some((row) => String(row.reason || "") === reason || String(row.item || "") === item)) {
+      pathogenesis.uncertainties = [...uncertainties, { item, reason: remainder ? `${remainder}，尚待核实` : "尚待核实", affects: "证候细节与随证加减" }].slice(0, 12);
     }
   }
 }
@@ -3070,6 +3172,16 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
   }
   else return reasoning;
   if (projected.stage === "diagnose" && options?.recordText) withSyndromeResolutionFromAxes(projected, options.recordText);
+  withoutReasonEchoingItem(record(projected.pathogenesis));
+  // 证素核对的待核实项里列着辨证要点原文：本例不可能有的那几项（男性、儿童、老人的滑胎、带下、月经）不列（2026-11-14 第四十五轮：
+  // 63 岁男性、91 岁男性的待核实写「滑精、滑胎、带下量多清稀」）。人群按开方同一口径（herbBoundaryAudience.reproductive）。
+  if (options?.herbBoundaryAudience && !options.herbBoundaryAudience.reproductive) {
+    for (const row of records(record(projected.pathogenesis)?.uncertainties)) {
+      if (typeof row.reason !== "string" || !/辨证要点（/u.test(row.reason)) continue;
+      row.reason = row.reason.replace(/辨证要点（([^）]*)）/u, (_match, list: string) =>
+        `辨证要点（${list.split("、").filter((item) => !/胎|带下|月经|经血|经量|经期|崩漏|妇女/u.test(item)).join("、")}）`);
+    }
+  }
   withSourceBasedReasoningEvidence(projected);
   if (projected.stage === "prescribe") withSourceBasedHerbEvidence(projected);
   // 贫血分度与病历 Hb 读数对齐：病名、编码显示、推理、鉴别、处置与开方各栏同一口径（recordAnemiaGrade）。
@@ -3122,6 +3234,17 @@ function withVisibleFormulaSectionsSynced(visible: string, before: Record<string
  * 治疗卡的操作者要求写给医生、患者看的写法：不说「资质」（甲方 2026-08-20「病种模板、政府发布方案、现场医师确认、资质和烫伤风险不是给用户看的」；
  * 第二十七轮回放 69 张卡仍是「由具备相应资质的中医执业人员操作」）。目录原文不动，只在交付面换说法；换不出内容时保留原句（字段不得为空）。
  */
+/**
+ * 卡片正文里的来源说明只留机构与篇名：括号里的转载说明、文号（〔2015〕61号）、网站名去掉（2026-11-14 第四十五轮，甲方 100 例
+ *「（甘肃省中医院张玉琴医生在好大夫在线转载《荨麻疹（瘾疹）中医治疗专家共识》）」「国家中医药管理局（国中医药医政医管便函〔2015〕61号）」）。
+ */
+export function cardSourceNoteCleaned(text: string): string {
+  return String(text || "")
+    .replace(/[（(][^（）()]*(?:转载|便函|〔\d{4}〕\d+号|医学百科|好大夫|健康界)[^（）()]*[）)]/gu, "")
+    .replace(/[^，,；;。（(]{0,30}(?:在好大夫在线|在健康界|在[^，,；;。]{0,8}网)转载/gu, "")
+    .replace(/[；;，,]\s*(?:转载于|原文[^，,；;。]{0,6}存于)[^，,；;。）)]*/gu, "");
+}
+
 export function operatorRequirementWording(text: string): string {
   const reworded = text
     .replace(/具备相应资质的人员/gu, "专业人员")
