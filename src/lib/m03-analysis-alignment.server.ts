@@ -188,8 +188,12 @@ export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, reco
   const oldLens = text(overview.tcmDiagnosticRationale).split(/(?<=[。])/u).find((sentence) => isLineageLensSentence(sentence));
   if (oldLens && !rationale.includes(oldLens.replace(/\s+/gu, "").slice(0, 8))) return reject("lens_lost");
   const namedElements = natureElementsIn([primary, ...secondary].join("、"));
+  // 原分析里已列、模型重写时仍保留的要素（病历有依据、证名没写的标实，如脾气虚证的湿）照留：不新增要素，也不替模型删它认为有据的要素
+  //（第四十五轮本机实测：19 次重写里 12 次因保留了原有的湿、血瘀被拒）。这类要素不再算「对不上」。
+  const originalElements = natureElementsIn([...strings(nature.items), ...strings(nature.rootDeficiency), ...strings(nature.branchExcess)].join("、"));
+  const allowed = new Set([...namedElements, ...originalElements]);
   const items = [...new Set(rewrite.natureItems)];
-  if (items.length === 0 || items.some((item) => [...natureElementsIn(item)].some((id) => !namedElements.has(id)))) return reject("nature_outside_conclusion");
+  if (items.length === 0 || items.some((item) => [...natureElementsIn(item)].some((id) => !allowed.has(id)))) return reject("nature_outside_conclusion");
   if ([...rewrite.rootDeficiency, ...rewrite.branchExcess].some((item) => !items.includes(item))) return reject("columns_outside_items");
   const record_ = compact(recordText);
   const segments = rewrite.natureBasis.split(/[；;]/u).map((segment) => segment.trim()).filter(Boolean);
@@ -208,7 +212,8 @@ export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, reco
     if (typeof nextPathogenesis.summary === "string") nextPathogenesis.summary = rewrite.overallPathogenesis;
   }
   if (rewrite.uncertainties.length > 0) nextPathogenesis.uncertainties = rewrite.uncertainties;
-  const remaining = analysisMisalignments(next, recordText);
+  const remaining = analysisMisalignments(next, recordText)
+    .filter((issue) => issue.code !== "nature_element_unnamed" || ![...originalElements].some((id) => !namedElements.has(id) && issue.detail.includes(LEXICON.find((entry) => groupOf(entry.id) === id)?.canonical || "\u0000")));
   return remaining.length === 0 ? next : reject(`still:${remaining.map((issue) => issue.code).join("+")}`);
 }
 

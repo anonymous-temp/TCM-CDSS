@@ -235,6 +235,12 @@ await check("10.2 交付前读通检查", () => {
   assert.equal(surface.readabilityCleaned("本方用银翘散原方。"), "本方用银翘散原方。", "对照不动");
 });
 
+await check("10.3 「目前无脓毒症等红旗」「按已锁定病机与治法辨证组方」换成临床说法", () => {
+  assert.equal(surface.clinicalWordingForSyntheticPhrases("目前无脓毒症等红旗；若出现呼吸困难须立即急诊评估。"), "目前无脓毒症等危急征象；若出现呼吸困难须立即急诊评估。");
+  assert.equal(surface.clinicalWordingForSyntheticPhrases("按已锁定病机与治法辨证组方"), "按本例病机与治法自拟组方");
+  assert.equal(surface.clinicalWordingForSyntheticPhrases("呼吸系统红旗需优先排查"), "呼吸系统红旗需优先排查", "对照：器官系统红旗不动");
+});
+
 const westernContent = (name, rationale) => JSON.stringify({ westernDiagnosis: { primary: { name, status: "考虑", clinicalRationale: rationale, supportingFacts: [rationale] }, candidates: [{ name, likelihood: "中", keyEvidence: [], againstEvidence: [] }], differentials: [] } });
 
 await check("11.1 依据说没确立、病名写确诊时病名改「X待查」", () => {
