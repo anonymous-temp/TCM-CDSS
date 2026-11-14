@@ -205,6 +205,8 @@ const toothProposal = (herbNames) => ({
   modifications: [{ actionType: "add", trigger: "若牙龈出血", targetRef: "P1", herbName: "白茅根", dose: "15g", reason: "凉血止血" }],
   nonPharma: { diet: "清淡饮食。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: ["忌辛辣。"], tcmTreatments: [] },
 });
+// 第四十四轮起备用加减（条件本例没有的「若…」）缺省不交付；4.1–4.2 钉的是规整阶段带上方中药名之后条件句不被误删，按回退口径跑（新口径见 test:r1060-main）。
+process.env.CDSS_STANDBY_MODIFICATIONS = "true";
 await check("4.1 教材两条加减的药（大黄、石膏、知母）都已在方中：模型条件式加减「若牙龈出血加白茅根」保留", async () => {
   const reasoning = compiler.compileM04Proposal(toothProposal(["黄连", "升麻", "生地黄", "牡丹皮", "当归", "大黄", "石膏", "知母"]), tooth);
   assert.ok(reasoning);
@@ -217,6 +219,7 @@ await check("4.2 模型的条件句保留在前；教材条目在后面补（第
   assert.equal(herbs[0], "白茅根", JSON.stringify(reasoning.formula.modifications));
   assert.equal(reasoning.formula.modifications[0].evidence.evidenceLevel, "model_inference");
 });
+delete process.env.CDSS_STANDBY_MODIFICATIONS;
 await check("4.3 规整阶段的判据带上了方中药名", async () => {
   const source = readFileSync(new URL("../src/lib/m04-proposal-compiler.ts", import.meta.url), "utf8");
   assert.match(source, /modificationTriggerGroundedInM03\(trigger, prior\)/);
