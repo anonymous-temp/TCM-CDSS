@@ -391,6 +391,16 @@ await check("7.1 辅助检查里贴着别人的报告（6岁女童、38岁男性
   assert.equal(safety.narrativePediatricAgeConflict(narrative), 6);
 });
 
+await check("7.1b 规范化之后（辅助检查落在 symptoms.exams）同样认得出：甲方 11/11 原样请求不再报年龄冲突、照常给剂量", async () => {
+  const types = await jiti.import("../src/lib/diagnosis-types.ts");
+  const normalized = types.normalizeCaseStateInput(FOREIGN);
+  assert.ok(normalized.symptoms?.exams, "夹具：规范化后辅助检查在 symptoms.exams");
+  assert.deepEqual(safety.auxiliaryReportForeignPersons(normalized), ["6岁女童", "38岁男性"]);
+  const gate = safety.evaluateSafetyGate(normalized);
+  assert.ok(!(gate.missingItemCodes || []).includes("age_conflict"));
+  assert.ok((gate.advisories || []).some((item) => /可能误贴了他人的报告/u.test(item)));
+});
+
 await check("7.2 路由：辨证与开方的提示词都带上【辅助检查核对】", () => {
   assert.match(readSource("../src/app/api/diagnosis/diagnose/route.ts"), /stageInstructions \+= auxiliaryReportForeignPersonNotice\(safeState\)/u);
   assert.match(readSource("../src/app/api/diagnosis/prescribe/route.ts"), /auxiliaryReportForeignPersonNotice\(safeState\)/u);

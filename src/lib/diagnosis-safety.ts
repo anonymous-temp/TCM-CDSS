@@ -7019,7 +7019,8 @@ export function narrativePediatricAgeConflict(state: CaseState): number | undefi
 /** 辅助检查一栏的原文（甲方传参形状里是 symptoms 的「辅助检查」键，HIS 字段 fuzhuJiancha）。 */
 function auxiliaryExamFieldTexts(state: CaseState): string[] {
   const fromSymptoms = Object.entries((state.symptoms || {}) as Record<string, unknown>)
-    .filter(([key]) => /辅助检查|检查结果|实验室检查/u.test(key)).map(([, value]) => stringifyClinicalValue(value));
+    // 规范化之后甲方的「辅助检查」键落在 symptoms.exams（normalizeCaseStateInput）；未规范化的请求仍是中文键。
+    .filter(([key]) => /辅助检查|检查结果|实验室检查|^exams$|^auxiliaryExams?$/u.test(key)).map(([, value]) => stringifyClinicalValue(value));
   const fromHis = Object.entries(state.hisRecord?.fields || {})
     .filter(([key]) => /fuzhuJiancha|辅助检查/u.test(key)).map(([, value]) => stringifyClinicalValue(value));
   return [...fromSymptoms, ...fromHis].map((value) => value.trim()).filter((value) => value.length >= 2);
