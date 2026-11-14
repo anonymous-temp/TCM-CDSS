@@ -3254,6 +3254,71 @@ The user asked for the r1057 branch (original-composition table, previous sectio
 - **The diagnosis page loads a 46–49 MB JavaScript chunk** that contains the governed catalog (production before this deploy: 46.0 MB `872-*.js`; now 48.7 MB, +2.7 MB for the original table). Pre-existing; some client-reachable module imports the server-side tables.
 - 病历5: the Western basis restating symptoms (round-39 fallback) and a model-written modification row (山药 for 便溏) labelled with the main syndrome's pathogenesis; both predate this round.
 
+### 11/14 round 44: the customer reads 病机/复诊/中成药 from the interface; modifications only for what the patient has now; red flags as a dedicated check (2026-11-14)
+
+The customer clarified on 11/14 that 病机数据、复诊计划、中成药推荐 are checked against our raw interface data (their HIS page does not show or use them), and sent a six-row sheet (05-1, 10-3, 11-2, 16-1, T01, T04). The user then decided: standby 「若…」 modifications cannot be confirmed by anyone (decision support, no interaction, the customer will not change their page), so they must not be delivered; red flags get their own check because the customer's page hides the prescription on a red flag but stores it. Material: `~/runlogs/r1018/work/r1059/` (archive digests) and `~/runlogs/r1018/work/r1060/` (`probe/` west-all.py, rf-all.py, rf-tally.py; `rf-cust.json` = 121 distinct customer red-flags requests; `retest.json` = the 20 records of the customer's 11/11–11/12 retest; `gen.sh`; `scan2.py`; `replay/`; `cp/cp.py`; `deploy/`). Suite `test:r1060-main`; class fixture `wuli-weakness-not-negation`.
+
+**What the archive said about the sheet.**
+- 11-2 / 16-1: every one of our 11/12 responses said 妊娠呕吐 / 急性冠脉综合征待查 (status 考虑). Only the first 11/05 runs (before round 37) said 妊娠剧吐 / 急性ST段抬高型心肌梗死. 「营养及代谢紊乱」 is in none of our responses. The page shows 好医生 (hys). Since round 34 identical content replays, so "a different run was displayed" does not apply to identical content.
+- 「待查」 was never the customer's wording. They asked not to use generic 「病因待查」 (8/20) and not to be more specific than the tests (10.12, acceptance 1.1). 《病历书写基本规范》（卫医政发〔2010〕11号）第十八条（九）: 「对待查病例应列出可能性较大的诊断」, so 「X待查」 plus the missing tests in the basis is the standard form.
+- 05-1, 10-3, T01 were ours (contradictory basis, standby 艾叶 row, pathogenesis data). T04 was not (our M05 said 7 days).
+
+**Fixed, by class.**
+- **Modifications are only for findings the patient has now** (`presentModificationCondition`, `modificationRowPresentNow`, `CDSS_STANDBY_MODIFICATIONS=true` restores the old doctrine; the M04 prompt is not switched back by it).
+  - A 「若X」 row is delivered only when X is affirmed in the record or in the patient quotes M03 adopted (another degree word for the same symptom counts: 恶寒重 for 「若恶寒甚」; 「加重」 does not; a whole verbatim record phrase is kept as written, 「头痛连及项背」); otherwise it is dropped (`trigger_not_present`). Compile, top-up and the delivered surface use the same predicate.
+  - The M04 prompt asks for rows on recorded findings the main formula does not cover, triggers in the record's own words without 「若」, textbook entries only when their condition is present. A textbook entry whose wording differs from the record but whose model trigger is a present record phrase is compiled as a present-finding row (no textbook direction exemption).
+  - Top-up (`topUpModificationConditions`) writes present-finding rows (「本例已见X」, evidence 患者原文, 「针对」 = the finding's own pathogenesis); the standby prompt is kept for the rollback switch.
+  - Also: triggers that are a normal state (「饮食睡眠一般」「纳可」「二便调」) are not modifications (`trigger_not_symptom`); a body-part + symptom term (肢体麻木) is not split into two findings; the same herb is added only once across rows (`withoutRepeatedAddedHerbs`).
+  - Old suites that pin standby rows run under the rollback switch (r1019-herbs, -herbs-r3, -round6-formula, textbook-syndromes, single checks in r1020-formula, r1024, r1046, r1049, r1053, stage-contract).
+- **Western basis.** 「X诊断已确立；但尚缺Y确认」 becomes 「既往已确诊X；本次未复查Y」 when the record states X as a past diagnosis (病史/既往/诊断为…), otherwise 「考虑X；尚缺Y确认」; a missing test for cause, site or severity is not a contradiction (`westernBasisWithoutEstablishmentContradiction`, delivered surface; the basis-authoring check rejects such sentences and 「未记录」 meta wording). A basis citing a test the record lacks (「结合血象」「血常规示…」) loses that phrase (`withoutUnrecordedTestCitations`). `recordStatesWesternDiagnosis` moved to `recorded-test-claims.ts` (the delivered surface needs it; re-exported from the server module). Symptom + 待查 names: the basis names the most likely diseases (规范 第十八条（九）).
+- **History-stated disease → Western name.** The 【既往确诊病与本次主诉】 paragraph now also tells the Western half to write that disease's flare (11.05 病历2: 乳蛾 with 急性咽炎 → 急性扁桃体炎).
+- **Pathogenesis data.**
+  - Red-flag boundary sentences in 把握度说明 / 待核实 / 红旗处置 / mustCollect are reworded (「急危重风险未排除，请先完成急诊或转诊评估；以下辨证供医生参考。」); the anchor stays.
+  - Syndrome layer: when location and nature are both delivered `resolved`, tongue and pulse are recorded and the case is not a red flag, a model-written `bounded` is delivered `resolved`, overview confidence 中, and the model's reason moves into 待核实 (`withSyndromeResolutionFromAxes`).
+  - 待核实 items that say they are settled (「已明」「已排除」) are dropped (`uncertaintyAlreadySettled`).
+  - The element-check uncertainty is case-specific (「本例虽见A、B，未见X的辨证要点（…）成组出现」) and keeps the key points in the 「未见」 clause, so the pulse sanitizer no longer rewrites them to 「脉象待核实」.
+  - The chain head is not labelled with a textbook row whose syndrome name differs from the delivered composite name.
+  - **Element support judges entailment against the composite name the delivered surface will write** (心血不足证 → 心脾两虚证). Before, 「心气亏虚则鼓动无力而心悸气短」 could be withdrawn as an unentailed element.
+  - **「无力」 is not a negation cue** (`maskNonNegatingWuWords`): 「鼓动无力而心悸气短」 was read as a denial of 心悸, contradicted the record, and the sanitizer deleted the clause — total pathogenesis began 「劳则更甚；…」 (customer retest 「心悸、气短、乏力3月」, 1 of 3 local runs). Class fixture `wuli-weakness-not-negation`.
+- **Patent medicines.** Label placeholders (「尚不明确」「未载明」 as a whole segment) do not enter `riskNote`; `usageBoundary` is the label's course sentence (「服药2周症状无缓解，应去医院就诊」) and `relationship` is written from `positioning` instead of empty strings.
+- **Follow-up and red-flag details.** A report pasted into 辅助检查 with another person's age or sex (「6岁女童」「38岁男性」 for a 30-year-old man) is not an age conflict any more (dosed); the gate adds an advisory and both prompts get 【辅助检查核对】 (`auxiliaryReportForeignPersons`). The pregnancy pathway says 「如出现阴道流血或腹痛」 (not 「腹痛加重」); urgent signs no longer read 「如出现突然出现…」. 真心痛 signs include 「大汗」「汗出」 (textbook 「伴有汗出」): the 11/12 ACS record had been named 虚脱·正虚阳脱证.
+
+**Red flags (dedicated check).**
+- All 121 distinct red-flags requests the customer sent since 10/13 (`rf-cust.json`), replayed twice on the production code: the two runs were identical. 13 records got a red flag on the current code:
+  - 10 are emergencies by the record (acute coronary syndrome ×6 records, ruptured ectopic ×2, documented rebound tenderness, an 11-year-old with fever, vomiting and guarding);
+  - 1 is K16 sent with `{"ValueKind":3}` vitals (not recoverable in a replay; production recovers them);
+  - 1 record sent twice is a judgement call: 40-year-old man, burning chest pain after a big meal, duration 「XXX天」, stable vitals. Kept: every chest pain gets an ECG the same day in primary care.
+  - The two post-stroke records (「右侧肢体无力、言语不清半年」) that were red on 11/05 are no longer red.
+- In the archive, the red-flags response and the diagnose/prescribe banners agree for every customer case.
+- Gate replay, production vs this round, 21,381 records: 5 changed, all the record with another person's report (age conflict → advisory). The 「无力」 change moved 24 record readings (record × term), all to the right reading (「左半身麻木无力伴头晕」: 头晕 affirmed), and no gate result.
+- 100-case set, customer shape: red flag where expected 28/28; over-call 1/48 (C089, 「近一周胸痛变化…待问」 plus 「近日感胸口不适」 in a 30-year-old with health anxiety — the production code flags it too; the case focus is 「不得因焦虑标签忽略新发症状」, so it is left).
+- The stored prescriptions of red-flag cases (the customer's page hides them): P0 audit 0 on all 50 red-flag chains; the 11/12 ACS record is 真心痛 instead of 虚脱.
+
+**Measured** (local route harness, customer request shape; new arm = adda5f41, base = round 43's saved outputs on f9e520f/9b1d40b; final arm = 39c44504 on the customer's 11/11–11/12 retest, 11.05 records and c10).
+
+| | Base | New |
+|---|---|---|
+| Standby 「若…」 rows delivered (new40 / e1105 / c10 / held32) | 114 / 48 / 82 / 92 | 0 / 0 / 0 / 0 |
+| Prescriptions whose rows were all standby | 29/40, 14/17, 20/30, 24/32 | 0 |
+| 「针对」 copying the main pathogenesis | 15 / 8 / 10 / 7 | 0 |
+| Patent-medicine `relationship` empty | 3 / 8 / 18 / 20 | 0 |
+| Syndrome `bounded` / overview 低 (new40) | 9 / 8 | 5 / 4 (the rest have no tongue or pulse) |
+| P0 audit (dose, 十八反 incl. 加减, pregnancy, child, organ, active-bleed 活血), 229 chains | — | all 0; 228 dosed (the other: child of unknown age) |
+
+- Rows per prescription after the change: new40 2: 17, 3: 17, 4: 6; 100-case set (sparse records) 0: 7, 1: 21, ≥2: 72. Before the top-up refinement (57ea7b5) two retest records had 0 rows because the proposer found every finding covered; with it (strengthen a prominent finding the formula covers weakly; no tonics for secondary findings of excess syndromes) both get 2–3 present-finding rows.
+- Final arm (47 chains): no red-flag process wording, no truncated pathogenesis, no split 「肢体、麻木」, no standby rows; 「已确立；尚缺」 only where the missing test is for site or severity.
+- Counter-proofs: 40 mutations in `cp/cp.py`, all caught; three were first missed (sublevel guard masked by the confirmation regex, a redundant placeholder filter, a template test that only checked the tail) and each got an isolating assertion.
+
+**Left as is.**
+- 「调整X」 rows without a dose (a present finding whose herb is already in the formula): 6 → 8 on held32.
+- Model-written `correspondingProblem` on patent medicines that names findings not in the record (5/20 on held32); 七味温阳胶囊 for knee 痹证 with 「耳鸣」.
+- 「已考虑鼻出血」 in the follow-up (a symptom-level Western name treated as an established diagnosis).
+- Doses not scaled to the original formula's proportions (customer 11.05 病历10); 乳蛾 风热外袭证 vs the customer's 风热犯肺 (textbook wording).
+- The rollback switch restores delivery of standby rows; the M04 prompt stays present-only.
+
+**In production (bf29efcd, tag `20261114-bf29efc-prebuilt`, deployed 2026-11-14 about 19:48 Beijing; same release directory and `20260927-dsrepair` override).** `verify:release` was run split (lint, `test:deterministic` 305 suites, fresh-artifact suites, typecheck), all green; `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 16.0 s, M04 P95 11.6 s). `origin/main` = bf29efcd. Probes on hospital-b (regenerated, customer shape): the pasted-report record is dosed with the advisory and no age conflict; the 11/12 ACS record is 真心痛·气滞血瘀证; 「心悸、气短、乏力3月」 keeps its whole pathogenesis; 11.05 病历10 gets 腰膝酸软/肢体困重 rows and no 艾叶; 病历5's basis says 既往已确诊、本次未复查胃镜; 病历2 is 乳蛾 with 急性扁桃体炎; no red-flag process wording anywhere. Container log before the replacement: `~/telemetry-archive/container-pre-bf29efc-*.log.gz` on the host. Rollback: image `tcm-cdss:20261111-f9e520f-prebuilt` with the compose backup in the release directory, or `CDSS_STANDBY_MODIFICATIONS=true` in the override for the modification doctrine alone.
+- **Local build:** the first prebuild was OOM-killed at 40 s (3.4 GB available, swap full). It went through with a 1 GB temporary swap file on root and the build tree on /home (sources and `node_modules` hard-linked from the main checkout, untracked files moved aside and restored), webpack cache off; /home ended at 1.0 GB free. `~/runlogs/r1018/work/r1060/deploy/` has the scripts.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
