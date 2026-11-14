@@ -332,16 +332,24 @@ export async function withAuthoredWesternBasis(
  * C080 急性风湿热、C094 药物性心动过缓，独立复核都判「依据说可能、病名写确诊」）。依据是病名定稿后按这个病名写的，它说没确立就是本系统自己的结论，
  * 不再另问；缺的是病因、部位、分型、程度这一层（MISSING_FOR_SUBLEVEL 同一判据）的不算。病名已带待查、病历写明既往已确诊的不动。
  */
+/** 依据句同时写着这个病可凭临床诊断（「临床可诊断」「依据临床表现可临床诊断」「诊断成立」「符合…诊断标准」）。 */
+const CLINICALLY_ESTABLISHED = /可(?:以)?临床诊断|临床(?:即)?可(?:以)?诊断|可凭临床诊断|临床诊断(?:成立|明确)|诊断(?:已)?成立|符合[^，,。；;]{0,12}诊断标准/u;
 export function basisSaysNameNotEstablished(basis: string, name: string): boolean {
   const core = westernNameCore(name);
   if (!core || core.length < 2 || !basis) return false;
   const text = basis.normalize("NFKC");
+  // 同一句又说可凭临床诊断（2026-11-14 第四十五轮甲方标准病历8：「考虑带状疱疹可能，临床可诊断带状疱疹，尚缺病毒学检查确认病原」）：
+  // 依据前后自相矛盾，按已确立看，交给 withNameMatchingBasisCertainty 去掉「考虑X可能」那一小句，不改病名。
+  if (CLINICALLY_ESTABLISHED.test(text)) return false;
   const escaped = core.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   if (new RegExp(`考虑${escaped}(?:的)?可能|可能为${escaped}|${escaped}(?:的)?可能(?:性)?(?:大|较大)?[，,；;。]`, "u").test(text)) return true;
   for (const sentence of text.split(/[。；;]/u)) {
     if (!sentence.includes(core) || /既往已确诊|已确诊/u.test(sentence)) continue;
-    const missing = sentence.slice(sentence.indexOf(core)).match(/(?:尚缺|尚需|有待|仍需|尚未行|尚未做)([^，,。；;]{1,30}?)(?:以|来|进一步|等)?(?:确认|确诊|明确诊断)/u);
-    if (missing && !/病因|部位|病原|分型|程度|分级|分期|并发|出血点|性质/u.test(missing[0])) return true;
+    const after = sentence.slice(sentence.indexOf(core));
+    const missing = after.match(/(?:尚缺|尚需|有待|仍需|尚未行|尚未做)([^，,。；;]{1,30}?)(?:以|来|进一步|等)?(?:确认|确诊|明确诊断)/u);
+    // 缺的是哪一层看整个小句（「尚缺病毒学检查确认病原」的病原在「确认」之后）。
+    const missingClause = missing ? after.slice(after.indexOf(missing[0])).split(/[，,；;]/u)[0] : "";
+    if (missing && !/病因|部位|病原|分型|程度|分级|分期|并发|出血点|性质/u.test(missingClause)) return true;
   }
   return false;
 }
@@ -353,6 +361,14 @@ export function withNameMatchingBasisCertainty(westernContent: string, recordTex
     const name = text(primary?.name);
     const basis = text(primary?.clinicalRationale);
     if (!name || westernNameCore(name) !== compact(name) || /^疑似|症状$/u.test(compact(name))) return westernContent;
+    // 依据自相矛盾（既说可凭临床诊断、又说「考虑X可能」）：病名照留，去掉「考虑X可能」那一小句。
+    const core = westernNameCore(name);
+    if (primary && CLINICALLY_ESTABLISHED.test(basis) && basis.includes(`考虑${core}可能`)) {
+      const cleaned = basis.replace(new RegExp(`考虑${core.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}(?:的)?可能[，,；;]?`, "u"), "");
+      primary.clinicalRationale = cleaned;
+      if (Array.isArray(primary.supportingFacts)) primary.supportingFacts = primary.supportingFacts.map((fact) => fact === basis ? cleaned : fact);
+      return JSON.stringify({ ...JSON.parse(westernContent), westernDiagnosis: { ...western, primary } });
+    }
     if (recordStatesWesternDiagnosis(name, recordText) || !basisSaysNameNotEstablished(basis, name)) return westernContent;
     console.info("[tcm-cdss:telemetry] western_name_basis_certainty", { renamed: true });
     return applyWesternNameCorrection(westernContent, { supportedName: `${name}待查`, quote: "", reason: "依据所述尚未确立", type: "D" });

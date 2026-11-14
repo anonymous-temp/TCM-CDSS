@@ -4058,6 +4058,12 @@ function withoutNonDigestiveMassOrDatedHistory(text: string): string {
  */
 /** 命中的是哪一类上消化道警示征象（红旗理由只写命中的那一类，见 4630 行附近）。 */
 type UpperGiAlarmKind = "obstruction" | "malignancy" | "weight_loss";
+/** 推测、担心、他人说法里的「癌/肿瘤」那一小句去掉（只给肿瘤史判据用）。 */
+const SPECULATIVE_CANCER_CLAUSE = /(?:担心|害怕|怕是|怕得了|怀疑|以为|是不是|会不会|可能是|恐|说)[^，,。；;\n]{0,14}(?:癌|肿瘤|恶性)/u;
+export function withoutSpeculativeCancerClauses(text: string): string {
+  return String(text || "").split(/(?<=[，,。；;\n])/u).map((clause) => SPECULATIVE_CANCER_CLAUSE.test(clause) ? "，" : clause).join("");
+}
+
 function upperGiAlarmFeatureKind(rawText: string): UpperGiAlarmKind | undefined {
   const text = rawText;
   // 伴随表现与体重下降只读当前、消化道部位的写法（见 withoutNonDigestiveMassOrDatedHistory）；肿瘤史本身照旧读全文。
@@ -4093,9 +4099,12 @@ function upperGiAlarmFeatureKind(rawText: string): UpperGiAlarmKind | undefined 
   const GI_CANCER = `(?:${GI_CANCER_SITE})${GI_CANCER_HISTOLOGY}癌(?!胚|抗原)`;
   const digestive = governedTermAlternation(GI_ALARM_DETECTION.currentDigestiveSymptoms);
   const alarmDigestive = governedTermAlternation(GI_ALARM_DETECTION.alarmDigestiveFindings);
-  if (hasPatientHistoryTermWithoutNegation(text, new RegExp(GI_CANCER))
+  // 别人说的、患者担心的「癌」不是病史（2026-11-14 第四十五轮新病历 n29：「母亲说“便血可能是肠癌”，他很紧张」被报「恶性肿瘤病史伴消化道症状」）。
+  // 担心、怀疑、以为、怕、「X说」「可能是」引出的那一小句不读作病史（ConText 的推测、他人陈述两维，有限闭集）。
+  const cancerHistoryText = withoutSpeculativeCancerClauses(text);
+  if (hasPatientHistoryTermWithoutNegation(cancerHistoryText, new RegExp(GI_CANCER))
     && hasPatternWithoutNegation(findingsText, new RegExp(digestive))) return "malignancy";
-  if (hasPatientHistoryTermWithoutNegation(text, new RegExp(CANCER))
+  if (hasPatientHistoryTermWithoutNegation(cancerHistoryText, new RegExp(CANCER))
     && hasPatientHistoryTermWithoutNegation(findingsText, new RegExp(alarmDigestive))) return "malignancy";
   // D
   const weightLossCue = governedTermAlternation(GI_ALARM_DETECTION.unexplainedWeightLossCues);
@@ -4126,9 +4135,16 @@ function upperGiAlarmFeatureKind(rawText: string): UpperGiAlarmKind | undefined 
     }
     return false;
   });
+  // 病历写明是自己控制饮食、节食、减肥减下来的体重（新病历 n28：初中女生「开始控制饮食，晚饭基本不吃」，近 4 月体重下降 3kg），
+  // 不是「不明原因」的体重下降（NICE NG12 的口径是 unexplained）。只管带数值的这一条；写了「不明原因/进行性」的照旧。
+  // 起于几个月前、至今仍在的节食照算（「4月前…开始控制饮食」），所以这里只看否认，不看时态。
+  const intentionalWeightLoss = [...text.matchAll(/控制饮食|节食|减肥|减重|刻意少吃|主动少吃|不吃晚饭|晚饭基本不吃/gu)]
+    .some((match) => !isNegatedAt(text, match.index ?? 0) && !isExcludedClinicalAssertionAt(text, match.index ?? 0));
   for (const match of hasCurrentDigestiveSymptom ? findingsText.matchAll(measuredLoss) : []) {
     const kilograms = Number(match[1]) * (match[2] === "斤" ? 0.5 : 1);
     if (kilograms < SIGNIFICANT_WEIGHT_LOSS_KG) continue;
+    // 主动减重只解释得了不多的下降（5kg 以内）；减得多的照报（回放 corpus-13391：「节食过度」之后两年体重下降 23 公斤伴呕恶反酸）。
+    if (intentionalWeightLoss && kilograms < 5) continue;
     const index = match.index ?? -1;
     if (index < 0 || isExcludedClinicalAssertionAt(findingsText, index)) continue;
     if ((!isNegatedAt(findingsText, index) || hasCommaSeparatedPositiveEvidence(findingsText, index, match[0])) &&
@@ -6152,7 +6168,11 @@ export function recordedGestationalWeeks(text: string): number | undefined {
   //（C062 停经 6 周疑异位妊娠破裂，复诊提示写了「破水、胎动减少」）。
   if (/孕早期|妊娠早期|早孕(?!试验|检测|试纸)/u.test(text)) return 12;
   const amenorrhea = text.match(/停经\s*(?:已|约|近)?\s*(\d{1,3})\s*(?:\+\s*\d)?\s*(周|天|日|个月)/u);
-  if (amenorrhea) return amenorrhea[2] === "周" ? Number(amenorrhea[1]) : amenorrhea[2] === "个月" ? Math.round(Number(amenorrhea[1]) * 4.3) : Math.round(Number(amenorrhea[1]) / 7);
+  if (amenorrhea) {
+    const weeks = amenorrhea[2] === "周" ? Number(amenorrhea[1]) : amenorrhea[2] === "个月" ? Math.round(Number(amenorrhea[1]) * 4.3) : Math.round(Number(amenorrhea[1]) / 7);
+    // 停经很久而没写怀孕的多是闭经（回放 corpus-2480「停经6个月」被读成孕 26 周、改走晚孕通道）：停经只在 20 周以内当孕周读。
+    return weeks < 20 ? weeks : undefined;
+  }
   return undefined;
 }
 

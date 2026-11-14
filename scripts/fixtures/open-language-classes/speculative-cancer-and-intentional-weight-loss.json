@@ -1,0 +1,53 @@
+{
+ "schemaVersion": "cdss-open-language-class-v1",
+ "id": "speculative-cancer-and-intentional-weight-loss",
+ "mode": "deterministic",
+ "paritySchema": "sibling-phrasing",
+ "addedAt": "2026-11-14",
+ "trigger": "第四十五轮新病历（写的人与修的人分开）：n29「母亲说“便血可能是肠癌”，他很紧张」报「恶性肿瘤病史伴消化道症状」；n28 初中女生「开始控制饮食，晚饭基本不吃…近4月体重下降约3kg」报「不明原因体重下降」。",
+ "layerAttribution": {
+  "layer": "deterministic_red_flag_rules",
+  "mechanism": "upperGiAlarmFeatureKind 的肿瘤史判据读全文，不分患者本人病史与家人推测、患者担心；带数值的体重下降不看病历是否写明是主动控制饮食。",
+  "exception": "冻结令允许的有限闭集：推测与他人陈述的引导词（担心、害怕、怀疑、以为、是不是、会不会、可能是、说）引出的含「癌/肿瘤/恶性」的那一小句不读作病史；主动减重的写法（控制饮食、节食、减肥、减重…）在病历里时，只有数值、没写「不明原因/进行性」的体重下降不报。",
+  "sources": "门禁回放见 ~/runlogs/r1018/work/r1062/replay（新旧两棵树逐条读改变）。"
+ },
+ "contexts": [
+  "outpatient_record"
+ ],
+ "parity": {
+  "note": "推测、主动减重的写法与没有这些说法的病历在同一伴随症下结果相同（不报）。",
+  "pairs": [
+   {
+    "subject": "便后滴鲜血3天，母亲说可能是肠癌，他很紧张。",
+    "sibling": "便后滴鲜血3天，他很紧张。",
+    "siblingExpect": "ready"
+   },
+   {
+    "subject": "进入初中后开始控制饮食，晚饭基本不吃，食欲差，近4月体重下降约3kg。",
+    "sibling": "进入初中后食欲差，近4月体重下降约1kg。",
+    "siblingExpect": "ready"
+   }
+  ]
+ },
+ "controls": {
+  "note": "患者本人的胃癌术后史、不明原因的体重下降照报。",
+  "mustStillFlag": [
+   {
+    "text": "胃癌术后2年，近1月上腹胀痛、纳差。",
+    "flag": "上消化道警示征象"
+   },
+   {
+    "text": "近3月食欲差、上腹隐痛，体重下降约6kg。",
+    "flag": "上消化道警示征象"
+   }
+  ],
+  "mustStayReady": [
+   "担心是胃癌，胃脘隐痛半月，纳可。",
+   "家属怀疑是肿瘤，近1周上腹胀。"
+  ]
+ },
+ "measurements": {
+  "before": "subject 2/2 报上消化道警示征象",
+  "after": "subject 0/2，与兄弟句相同；controls 不变"
+ }
+}

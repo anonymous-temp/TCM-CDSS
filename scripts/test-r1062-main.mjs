@@ -253,6 +253,20 @@ await check("11.1 依据说没确立、病名写确诊时病名改「X待查」"
   assert.equal(kept.westernDiagnosis.primary.name, "急性支气管炎");
 });
 
+await check("11.2 依据自相矛盾（既说可凭临床诊断又说考虑X可能）：病名不改，去掉「考虑X可能」；缺的是病原这一层不算未确立", () => {
+  const text = "本例为急性起病的左侧胁肋部疼痛伴簇集性水疱，沿皮节分布，考虑带状疱疹可能，临床可诊断带状疱疹，尚缺病毒学检查确认病原，需排除单纯疱疹。";
+  assert.equal(basis.basisSaysNameNotEstablished(text, "带状疱疹"), false);
+  const out = JSON.parse(basis.withNameMatchingBasisCertainty(westernContent("带状疱疹", text), "左胁痛5天，簇集水疱"));
+  assert.equal(out.westernDiagnosis.primary.name, "带状疱疹");
+  assert.ok(!out.westernDiagnosis.primary.clinicalRationale.includes("考虑带状疱疹可能"), out.westernDiagnosis.primary.clinicalRationale);
+  assert.equal(basis.basisSaysNameNotEstablished("咽痛发热，符合急性扁桃体炎，尚缺血常规确认病原", "急性扁桃体炎"), false, "确认病原是下一层");
+});
+
+await check("19.1 推测里的「癌」不是病史；主动控制饮食减下的体重不是不明原因（门禁）", () => {
+  assert.equal(safety.withoutSpeculativeCancerClauses("便后滴鲜血3天，母亲说可能是肠癌，他很紧张。"), "便后滴鲜血3天，，他很紧张。");
+  assert.equal(safety.withoutSpeculativeCancerClauses("胃癌术后2年，近1月上腹胀痛。"), "胃癌术后2年，近1月上腹胀痛。", "对照：本人病史不动");
+});
+
 await check("12.1 「诊断已确立；但…尚需专科评估确认」改写为考虑", () => {
   const out = claims.westernBasisWithoutEstablishmentContradiction("帕金森病诊断已确立；但未接受神经科专科检查，尚需专科评估确认", "帕金森病", "动作迟缓、静止性震颤1年");
   assert.ok(out.startsWith("考虑帕金森病"), out);
@@ -339,6 +353,7 @@ await check("18.1 停经 N 周、孕早期按孕周读", () => {
   assert.equal(safety.recordedGestationalWeeks("停经45天"), 6);
   assert.equal(safety.recordedGestationalWeeks("孕34周"), 34, "对照：原有写法");
   assert.equal(safety.recordedGestationalWeeks("未避孕5个月未能怀孕"), undefined);
+  assert.equal(safety.recordedGestationalWeeks("停经6个月，小腹坠痛"), undefined, "停经 20 周以上多是闭经，不当孕周");
 });
 
 if (failures > 0) console.error(`\n${failures} check(s) failed`);
