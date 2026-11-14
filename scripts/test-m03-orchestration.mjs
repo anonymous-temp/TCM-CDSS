@@ -447,7 +447,9 @@ try {
   // 2026-11-10 第四十一轮再更新：逐字段比对（2c7e6dbf 与本轮各导出 signed 整体比较），唯一临床差异是病性理由
   // 「病性“气虚、血虚”的病历依据较少，尚需进一步明确」→「病性“气虚、血虚”尚缺直接的病历依据」——本夹具病性 basis 为空，
   // 旧句说「较少」不实；r1054 回顾要求理由直说缺什么、不写计数与套话。
-  assert.equal(m03ClinicalDecisionHash(signed), "sha256:4a03ce59119ce0b59209b29a38674eb40fcf642ad4a6a7190ef8b1176e1e60ae", "the settled projection must preserve the final clinical payload");
+  // 2026-11-14 第四十五轮再更新：逐字段比对（main 与本轮各导出 signed 整体比较），唯一临床差异是病性本虚栏由 [] 补成
+  // ["气虚", "血虚"]——病性列了、本虚标实两栏都没放的条目按受治理病性词表归栏（甲方 100 例「气滞（本虚：无；标实：无）」同一行自相矛盾）。
+  assert.equal(m03ClinicalDecisionHash(signed), "sha256:32999bc3cd9d35deb409742c4b5f7171c34e9bb97d71918b858331b59da27426", "the settled projection must preserve the final clinical payload");
   assert.deepEqual(signed.westernDiagnosis.primary.supportingFacts, [signed.westernDiagnosis.primary.clinicalRationale], "交付的辨证结果症状依据栏只放一句诊断依据");
   assert.deepEqual(signed.westernDiagnosis.primary.limitations, [], "交付的辨证结果不带待查依据");
   assert.deepEqual(signed.westernDiagnosis.primary.suggestedChecks, [], "交付的辨证结果不带检查建议");

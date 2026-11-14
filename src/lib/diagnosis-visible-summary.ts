@@ -888,8 +888,11 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
         : [];
       // 几个病位共用同一句病历原文（「咳嗽伴咽痛3天」之于肺、咽喉）照样算有依据（2026-11-14 第四十五轮：甲方 100 例 C099、C040、
       // rt-273344，此前共用一句的病位全部丢掉依据，整轴标「初步判断、可信度低」，主诉就是咳嗽咽痛却说病位缺依据）。同一病位重复写的只留一条。
+      // 共用的那句至少写了两项表现才行：一句「入睡困难」同时当心、肾的依据仍不算（此前的口径，test:stage-contract 钉住）。
+      const findingCount = (basis: string) => basis.split(/[、，,；;]|伴有?|及|兼|并/u).filter((part) => part.trim().length >= 2).length;
       const seenLocations = new Set<string>();
       location.details = groundedDetails.filter((detail) => {
+        if (findingCount(detail.basis) < 2 && groundedDetails.some((other) => other !== detail && other.basis === detail.basis && other.location !== detail.location)) return false;
         if (seenLocations.has(detail.location)) return false;
         seenLocations.add(detail.location);
         return true;
@@ -921,7 +924,9 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       // 腹痛之于胃——与舌脉记没记、某症状的性质是否待问无关）。第三十八轮只在舌脉齐全、模型没点名时才这样做。
       // 有的病位有依据、有的没有：没依据的病位不在证名（主证、兼证）里时，是模型顺手多列的，不列入病位（2026-11-14 第四十五轮）；
       // 在证名里的照旧按有界交付，由辨证分析对齐那一步补依据或说明。
-      const syndromeNames = [overview?.primarySyndrome, ...(Array.isArray(overview?.secondarySyndromes) ? overview.secondarySyndromes : [])]
+      // 病机本身在用的病位（总体病机「脾失健运，湿困中焦」之脾、病机链各节点）也不算顺手多列：照旧有界，等依据（test:stage-contract 中焦一例）。
+      const syndromeNames = [overview?.primarySyndrome, ...(Array.isArray(overview?.secondarySyndromes) ? overview.secondarySyndromes : []),
+        overview?.overallPathogenesis, ...(Array.isArray(pathogenesis?.chain) ? (pathogenesis.chain as unknown[]).map((node) => (node && typeof node === "object" ? (node as Record<string, unknown>).pathogenesis : "")) : [])]
         .map((value) => String(value || "")).join("、");
       const ungroundedNotNamed = [...itemSet].filter((item) => !locationGrounded(item) && ![...item].some((char) => /[\u4e00-\u9fff]/u.test(char) && syndromeNames.includes(char)));
       if (ungroundedNotNamed.length > 0 && ungroundedNotNamed.length < itemSet.size) {
@@ -964,7 +969,8 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       // 病性列了、本虚标实两栏都没放的条目，按受治理病性词表归栏（2026-11-14 第四十五轮：甲方 100 例 C073「气滞（本虚：无；标实：无）」、
       // rt-171200「外感风邪（标实：无）」，同一行自相矛盾）。虚、亏、不足、脱、陷归本虚；病邪、病理产物、气滞气逆、瘀、血热归标实。只补栏，不增删病性。
       for (const item of nature.items as string[]) {
-        if ((nature.rootDeficiency as string[]).includes(item) || (nature.branchExcess as string[]).includes(item)) continue;
+        // 栏里已有条目写到了它（标实「风寒外束」之于「寒」）不再补：补了读来重复（test:diagnosis-display 风寒束表一例）。
+        if ([...(nature.rootDeficiency as string[]), ...(nature.branchExcess as string[])].some((existing) => existing.includes(item))) continue;
         const side = natureItemDeficiencyOrExcess(item);
         if (side === "root") nature.rootDeficiency = [...(nature.rootDeficiency as string[]), item];
         else if (side === "branch") nature.branchExcess = [...(nature.branchExcess as string[]), item];

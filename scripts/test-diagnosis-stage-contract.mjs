@@ -1653,7 +1653,8 @@ const optionalClassificationContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.str
 })}\n<!-- DIAGNOSIS_JSON_END -->`;
 const sanitizedOptionalClassificationContent = sanitizeOptionalPathogenesisClassifications(optionalClassificationContent, "入睡困难；舌淡；脉细");
 const sanitizedOptionalClassification = JSON.parse(sanitizedOptionalClassificationContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
-assert.deepEqual(sanitizedOptionalClassification.pathogenesis.locationDifferentiation.items, ["心", "肾"]);
+// 第四十五轮起：没依据、又不在证名里的病位（肾）是模型顺手多列的，不列入；证名里有的（心）缺依据照旧有界。
+assert.deepEqual(sanitizedOptionalClassification.pathogenesis.locationDifferentiation.items, ["心"]);
 assert.deepEqual(sanitizedOptionalClassification.pathogenesis.locationDifferentiation.details, []);
 assert.equal(sanitizedOptionalClassification.pathogenesis.locationDifferentiation.resolution, "bounded");
 assert.deepEqual(sanitizedOptionalClassification.pathogenesis.natureDifferentiation.items, ["血虚", "痰", "热"]);
@@ -1772,7 +1773,9 @@ const duplicatedLocationBasis = JSON.parse(
     .split("<!-- DIAGNOSIS_JSON_START -->")[1]
     .split("<!-- DIAGNOSIS_JSON_END -->")[0],
 );
-assert.deepEqual(duplicatedLocationBasis.pathogenesis.locationDifferentiation.details, [], "one copied basis must not be repeated across several disease locations");
+// 第四十五轮改了这一条（甲方 100 例逐字复核：主诉「咳嗽伴咽痛」之于肺、咽喉，共用的那句被判两边都没依据，整轴「初步判断、可信度低」）：
+// 共用的那句写了两项以上表现时，几个病位都算有依据；只有一项（下面「入睡困难」之于心、肾）的照旧不算。
+assert.deepEqual(duplicatedLocationBasis.pathogenesis.locationDifferentiation.details.map((detail) => detail.location), ["心", "脾"], "a shared clause listing two findings may ground two locations");
 
 const unsafeM03Draft = "## 辨病辨证\n拟予黄芪15g，每日1剂，水煎服。\n<!-- DIAGNOSIS_JSON_START -->\n{\"patientFact\":\"既往服用阿司匹林100mg\"}\n<!-- DIAGNOSIS_JSON_END -->";
 const safeM03Draft = sanitizeDiagnoseStreamingDraft(unsafeM03Draft);

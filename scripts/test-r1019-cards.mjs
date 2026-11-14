@@ -474,7 +474,9 @@ check("10.7 病历 7：网络来源写成「发布者《篇名》」——不带
   assert.equal(plan.webSourceLabel("广东省中医药局办公室（粤中医办函〔2024〕18号），转载于江门市政府网附件", "关于印发《广东省2024年春季流感中医药治未病指引》的通知"), "广东省中医药局办公室《广东省2024年春季流感中医药治未病指引》");
   const ear = plan.textbookTreatmentPlan({ projectCode: "auricular", diseaseNames: ["牙痛"], westernNames: ["牙痛"], signedSyndromeText: "胃火牙痛", currentFacts: "牙痛3天" });
   const text = `${ear?.scheduleSuggestion}${ear?.protocolSource}`;
-  assert.match(text, /中国针灸学会（科普之窗·科普知识）《牙痛》/, text);
+  // 第四十五轮起来源里的括注（栏目、文号）去掉，与上面 webSourceLabel 的第一条同一口径。
+  assert.match(text, /中国针灸学会《牙痛》/, text);
+  assert.doesNotMatch(text, /科普之窗/, text);
   assert.doesNotMatch(text, /caam|官网|https?:|--/, text);
   assert.match(ear.protocolSource, /频次来源：.*《牙痛》（B级）/);
 });
