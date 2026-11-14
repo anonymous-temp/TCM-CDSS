@@ -123,6 +123,8 @@ await check("4.1 寒热见证：舌干红、苔薄黄、脉急、口唇干都认
   const support = summary.recordColdHeatSupport("高热39.5℃；舌干红，苔少；脉急；口唇干", "heat");
   assert.ok(support.dimensions.size >= 3, [...support.dimensions].join("、"));
   assert.ok(summary.recordColdHeatSupport("舌红，苔薄黄", "heat").dimensions.has("舌"));
+  assert.ok(summary.recordColdHeatSupport("舌干红，苔少", "heat").dimensions.has("舌"), "舌干红单独认作舌象热");
+  assert.ok(summary.recordColdHeatSupport("脉急", "heat").dimensions.has("脉"), "脉急认作数脉");
   assert.equal(summary.recordColdHeatSupport("舌淡红，苔薄白", "heat").dimensions.size, 0);
   assert.equal(summary.recordHasTongueAndPulse("舌干红，苔少；脉急"), true);
 });
@@ -203,6 +205,7 @@ await check("8.4 证素核对的待核实项不对男性、老人列滑胎、带
 await check("8.2 高危情况逐项核：写到肾功能复查才算肾那一项", () => {
   const item = { kind: "high_risk_condition", conditions: ["renal", "digoxin"] };
   assert.deepEqual(requiredShared.highRiskConditionsMissing(item, ["服药期间定期复查肾功能"]), ["digoxin"]);
+  assert.deepEqual(requiredShared.highRiskConditionsMissing(item, ["饮食宜清淡"]), ["renal", "digoxin"], "没写到时两项都缺");
   assert.deepEqual(requiredShared.highRiskConditionsMissing(item, ["定期复查肾功能", "地高辛与中药同服须医生核定"]), []);
   assert.ok(requiredShared.highRiskConditionLine(item, ["digoxin"]).includes("地高辛"));
 });
@@ -311,7 +314,12 @@ await check("16.3 重写稿逐项核对：对得上才换；有别的证名、�
   assert.deepEqual(accepted.pathogenesis.natureDifferentiation.items, ["痰", "热"]);
   assert.equal(alignment.acceptedAlignmentRewrite(alignedReasoning(), { ...good, rationale: `${good.rationale}亦可见肝火扰心证。` }, alignRecord), undefined, "写到别的证名不换");
   assert.equal(alignment.acceptedAlignmentRewrite(alignedReasoning(), { ...good, natureBasis: "痰多色黄如脓" }, alignRecord), undefined, "依据不在病历里不换");
-  assert.equal(alignment.acceptedAlignmentRewrite(alignedReasoning(), { ...good, natureItems: ["痰", "热", "血瘀"], branchExcess: ["痰", "热", "血瘀"] }, alignRecord), undefined, "病性多出证名没有的要素不换");
+  const rejection = { reason: "" };
+  assert.equal(alignment.acceptedAlignmentRewrite(alignedReasoning(), { ...good, natureItems: ["痰", "热", "血瘀"], branchExcess: ["痰", "热", "血瘀"] }, alignRecord, rejection), undefined, "病性多出证名没有的要素不换");
+  assert.equal(rejection.reason, "nature_outside_conclusion", "在逐项核对这一步就拦下");
+  const basisRejection = { reason: "" };
+  alignment.acceptedAlignmentRewrite(alignedReasoning(), { ...good, natureBasis: "痰多色黄如脓" }, alignRecord, basisRejection);
+  assert.equal(basisRejection.reason, "basis_not_verbatim");
 });
 
 await check("17.1 本次低血糖不写「少吃甜食」那一句", () => {
