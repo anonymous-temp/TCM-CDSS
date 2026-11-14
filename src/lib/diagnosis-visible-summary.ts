@@ -913,7 +913,6 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       };
       const locationGrounded = (item: string) => [...detailedLocations].some((detail) => sameLocation(item, detail)) ||
         (BURNER_ORGANS[item] || []).some((organ) => [...detailedLocations].some((detail) => sameLocation(organ, detail)));
-      const fullyGrounded = itemSet.size > 0 && [...itemSet].every(locationGrounded);
       const requested = resolutionValue(location.resolution);
       // 每个病位都有逐字依据：按已确定交付，模型写的「有界」不改变结论；它点名的待核实项照旧留在「待核实」栏
       //（第四十一轮，r1054 回顾：甲方 11/4–11/6 自己的 25 份里 21 份病位/病性标「初步判断、可信度低」，病位靠的是主症本身——咳嗽之于肺、
