@@ -1,6 +1,6 @@
 import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import { projectM04FinalFacts } from "./m04-final-projection";
-import { projectGroundedHerbFunctions } from "./herb-function-display-source";
+import { isSourceFallbackFunctionDisplay, projectGroundedHerbFunctions } from "./herb-function-display-source";
 import { DELIVERY_REWRITE_RULES, traceProjection, observeTextRewrite } from "./delivery-rewrite-ledger";
 /** Observation only; original clinical transforms and their return values are unchanged. */
 export const DELIVERED_SURFACE_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.surface, leaves: ["applyDeliveredSurfaceToContent","projectDeliveredReasoning","clinicalWordingForSyntheticPhrases","readabilityCleaned"] as const });
@@ -1596,6 +1596,8 @@ const PREPARATION_PREFIXES = new Set(["煅", "麸炒", "炒", "土炒", "蜜", "
 export function processedNameFromColumn(name: string, processing: string): string | undefined {
   const p = processing.replace(/[（）()\s]/gu, "").replace(/^(?:用|宜)/u, "").replace(/品$/u, "");
   if (!p || name.startsWith(p) || /^生/u.test(p)) return undefined;
+  // 药名已是炭药（棕榈炭、大蓟炭）时炮制栏的「煅炭/炒炭」不再并（第四十七轮实测「棕榈炭炭」）。
+  if (/炭$/u.test(p) && /炭$/u.test(name)) return undefined;
   const candidates: string[] = [];
   if (/炭$/u.test(p)) candidates.push(`${name}炭`, `${p.replace(/炭$/u, "")}${name}炭`);
   else if (/^(?:身|尾|头|须)$/u.test(p)) candidates.push(`${name}${p}`);
@@ -1650,7 +1652,8 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
   };
   // Source display lists describe a drug, not this prescription's intended use.
   // Never feed them back into purpose-based preparation selection on a second read.
-  const sourceDisplay = (herb: Json) => finalHerbs.has(herb);
+  const sourceDisplay = (herb: Json) => finalHerbs.has(herb) ||
+    (typeof herb.name === "string" && typeof herb.function === "string" && isSourceFallbackFunctionDisplay(herb.name, herb.function));
   const purposeOf = (herb: Json) => sourceDisplay(herb) ? "" : [herb.function, herb.prescriptionRole, herb.targetPathogenesis].filter((item) => typeof item === "string").join("；");
   // 按用途选规格只看这味药自己的功效栏：角色与病机指向常借用全方的话（「益气固表」写在黄芪的病机指向里，说的是全方）。
   const ownFunction = (herb: Json) => sourceDisplay(herb) ? "" : (typeof herb.function === "string" ? herb.function : "");

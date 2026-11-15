@@ -93,3 +93,24 @@ await check("3.2 新补的便血写法（大便发黑）；否认的不算", () 
   assert.equal(textbook.diseaseNameWithRecordSubtype("血证", "主诉：乏力1周\n现病史：近1周大便发黑，伴头晕。"), "血证（便血）");
   assert.equal(textbook.diseaseNameWithRecordSubtype("血证", "主诉：鼻出血2天\n现病史：鼻出血2天，无大便发黑。"), "血证（鼻衄）");
 });
+
+await check("4.1 炭药名不再并炮制栏的炭（棕榈炭＋煅炭 ≠ 棕榈炭炭）；炮制前缀品没有自己的功效原文时借原药条目原文，不留空", async () => {
+  assert.equal(surface.processedNameFromColumn("棕榈炭", "煅炭"), undefined);
+  const fn = await jiti.import("../src/lib/herb-function-display-source.ts");
+  assert.ok(fn.herbFunctionSourceClauses("炒酸枣仁").length > 0 && fn.herbFunctionSourceClauses("炒酸枣仁").every((source) => /原药条目/u.test(source.sourceRef)));
+  assert.ok(fn.herbFunctionSourceClauses("大蓟炭").length > 0, "炭药借原药");
+  assert.equal(fn.herbFunctionSourceClauses("当归尾").length, 0, "药用部位不借");
+  assert.equal(fn.selectGroundedHerbFunction({ name: "冬葵果", role: "佐", target: "", therapy: "", modelText: "利水通淋" }).text, "利水通淋", "没有原文时保留模型原句");
+});
+await check("4.2 功效栏是原文前三条兜底显示时，交付层不拿它当用途改炮制（四妙丸薏苡仁不变炒薏苡仁）", async () => {
+  const fn = await jiti.import("../src/lib/herb-function-display-source.ts");
+  const fallback = fn.herbFunctionSourceClauses("薏苡仁").slice(0, 3).map((source) => source.text).join("，");
+  assert.equal(fn.isSourceFallbackFunctionDisplay("薏苡仁", fallback), true);
+  assert.equal(fn.isSourceFallbackFunctionDisplay("薏苡仁", "健脾止泻"), false, "模型写的本方用途不算兜底显示");
+  const rx = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {}, therapy: {},
+    formula: { candidates: [{ name: "四妙丸加减", herbs: [{ name: "薏苡仁", dose: "30g", role: "臣", function: fallback }] }], modifications: [] } };
+  const once = surface.projectDeliveredReasoning(rx, { recordText: "主诉：双膝红肿热痛1周" });
+  assert.equal(once.formula.candidates[0].herbs[0].name, "薏苡仁", JSON.stringify(once.formula.candidates[0].herbs[0]));
+  const control = structuredClone(rx); control.formula.candidates[0].herbs[0].function = "健脾止泻";
+  assert.equal(surface.projectDeliveredReasoning(control, { recordText: "主诉：便溏1月" }).formula.candidates[0].herbs[0].name, "炒薏苡仁", "对照：模型写的本方用途照旧按用途改炮制");
+});

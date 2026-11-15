@@ -85,6 +85,15 @@ export function herbFunctionSourceClauses(name: string): readonly SourceSpan[] {
     const toxicity = entry.property?.match(/有(?:大|小)?毒/u)?.[0];
     if (toxicity) add(toxicity, "textbook_function", `《中药学》${key}【药性】:${entry.propertyLine}`, TEXTBOOK.source.sha256, entry.propertyLine);
   }
+  // 炮制品没有自己的功效原文时（炒酸枣仁、酒白芍、炒香附、大蓟炭…，第四十七轮实测功效栏被留空），用《中药学》原药条目的功效原文；
+  // 毒性药、何首乌这类生制功效分域的药不借（见上）。来源仍逐字可查，标出取自原药。
+  // 只借「炮制前缀＋原药名」（炒/酒/盐/蜜/醋/焦/土炒…）或「原药名＋炭」；药用部位（当归尾、当归身）功效本就不同，不借。
+  const charredBase = name.endsWith("炭") ? name.slice(0, -1) : "";
+  const parentName = base !== name && name.endsWith(base) ? base : charredBase && TEXTBOOK.herbs[charredBase] ? charredBase : "";
+  if (!spans.length && !shouwu && parentName && TEXTBOOK.herbs[parentName]?.function && !TEXTBOOK.herbs[parentName].property?.match(/有(?:大|小)?毒/u)) {
+    const parent = TEXTBOOK.herbs[parentName];
+    add(parent.function!, "textbook_function", `《中药学》${parentName}【功效】（原药条目）:${parent.line}`, TEXTBOOK.source.sha256, parent.line, parent.function);
+  }
   // Broad KB category/TCMSP amalgams and role descriptions are intentionally not verbatim evidence.
   return spans;
 }
@@ -94,7 +103,8 @@ export function selectGroundedHerbFunction(input: {
   modelText?: string; preferredSourceIds?: readonly string[];
 }): { text: string; sources: readonly SourceSpan[]; status: "grounded" | "missing" } {
   const available = herbFunctionSourceClauses(input.name);
-  if (!available.length) return { text: "", sources: [], status: "missing" };
+  // 知识库与核对词典都没有这味药的功效原文时（冬葵果等），保留模型写的那句（已过既有宽口径核对），不留空格。
+  if (!available.length) return { text: input.modelText?.trim() || "", sources: [], status: "missing" };
   const model = functionClauses(input.modelText || "");
   const accepted = model.flatMap((text) => available.find((source) => source.text === text) || []);
   const preferred = available.filter((source) => input.preferredSourceIds?.includes(source.id));
@@ -103,6 +113,16 @@ export function selectGroundedHerbFunction(input: {
   const toxicity = available.filter((source) => /^有(?:大|小)?毒$/u.test(source.text));
   const sources = [...new Map([...chosen, ...toxicity].map((source) => [source.id, source])).values()];
   return { text: sources.map((source) => source.text).join("，"), sources, status: "grounded" };
+}
+
+/** 功效栏是「原文前三条」兜底显示（模型句无一对上原文）时为 true：交付层不拿它当本方用途去改炮制（四妙丸里薏苡仁→炒薏苡仁）。 */
+export function isSourceFallbackFunctionDisplay(name: string, functionText: string): boolean {
+  const text = String(functionText || "").trim();
+  if (!text) return false;
+  const available = herbFunctionSourceClauses(name);
+  const fallback = available.slice(0, 3).map((source) => source.text);
+  const withToxicity = [...new Set([...fallback, ...available.filter((source) => /^有(?:大|小)?毒$/u.test(source.text)).map((source) => source.text)])];
+  return fallback.length > 0 && (text === fallback.join("，") || text === withToxicity.join("，"));
 }
 
 /** Explicit pure projection, independent of global switches. Does not change admission knowledge. */
