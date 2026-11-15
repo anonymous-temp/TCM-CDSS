@@ -107,7 +107,9 @@ export function parseAuthoredTcmDiseaseDifferentials(
   const accept = (name: string) => allowed ? (allowed.has(name) ? name : undefined) : (allowedNames as (name: string) => string | undefined)(name);
   return parseAuthoredEntries(content, "diseaseName", (name) => {
     const resolved = accept(name);
-    return resolved && (!recordText || textbookDifferentialSharesChiefComplaint(resolved, recordText)) ? resolved : undefined;
+    // 传入判定函数时由它决定收不收（authorTcmDiseaseDifferentials：教材列出、规范病名清单或与主症相交），这里不再按交集筛第二遍——
+    // 筛第二遍时清单里的病名一个也进不来（第四十七轮终测鉴别不足 2 项的来源之一）。
+    return resolved && (typeof allowedNames === "function" || !recordText || textbookDifferentialSharesChiefComplaint(resolved, recordText)) ? resolved : undefined;
   }, max).map((entry) => recordText ? { ...entry, typicalManifestation: textbookDiseaseTypicalManifestation(entry.diseaseName) } : entry);
 }
 
@@ -229,14 +231,17 @@ export async function authorTcmDiseaseDifferentials(
       const resolved = resolveTcmDiseaseDifferentialName(name, input.diseaseName);
       return resolved.action === "drop" || taken.has(resolved.name) || WESTERN_DISEASE_FORM.test(resolved.name) ? undefined : resolved.name;
     };
+  // 规范病名闭集（nameList）里的名字也收：教材列出的与主症有交集的不够两项时，planTopUp 才把同科规范病名整张给出（主症相交的排前）。
+  // 只认交集时，主诉写法不在主症概念表里（「胃中嘈杂」「口腔白屑」）就一项也补不上，第四十七轮终测鉴别不足 2 项 3→10/100。
+  const governedNames = new Set(input.nameList || []);
   const acceptName = (name: string) => {
     const resolved = resolveName(name);
-    return resolved && (textbookListed.has(resolved) || textbookDifferentialSharesChiefComplaint(resolved, input.recordText)) ? resolved : undefined;
+    return resolved && (textbookListed.has(resolved) || governedNames.has(resolved) || textbookDifferentialSharesChiefComplaint(resolved, input.recordText)) ? resolved : undefined;
   };
   const task = existing.length === 0
     ? `请写出 ${need} 项：临床上最需要与本病鉴别的中医病名，并对着本例病历写出据以区分的要点。`
     : `已写的病名鉴别（alreadyListed：${existing.join("、")}）不足两项。请再补 ${need} 项：临床上最需要与本病鉴别、且不在 alreadyListed 里的中医病名，并对着本例病历写出据以区分的要点。`;
-  const nameList = closed ? [] : (input.nameList || []).filter((name) => !taken.has(name) && !names.includes(name) && textbookDifferentialSharesChiefComplaint(name, input.recordText));
+  const nameList = closed ? [] : (input.nameList || []).filter((name) => !taken.has(name) && !names.includes(name));
   const fromList = nameList.length > 0 ? "tcmDiseaseNameList 是规范的中医病名清单（只能从中选），请从中选取临床上确实容易与本病混淆的（diseaseName 逐字取用）；确实都不合适才另提规范的中医病名。" : "";
   const source = closed
     ? "textbookDifferentials 是教材对本病列出的鉴别病证及原文，请从中选出本例最需要鉴别的；diseaseName 只能逐字取自其中。"
@@ -357,6 +362,16 @@ function governedDiseaseNameList(diseaseName: string, patient?: { sex?: string; 
   return list;
 }
 
+/**
+ * 补鉴别用的规范病名清单：与主诉主症有交集的在前；交集的不够补足时整张同科清单都给（交集的仍排前），由模型按「临床上确实容易混淆」挑。
+ * 第四十七轮只给交集的：主诉写法不在主症概念表里时清单为空，终测 p100c 鉴别不足 2 项 3→10、new40 0→5。
+ */
+function governedNameListForTopUp(diseaseName: string, recordText: string, patient: TopUpContext["patient"], short: number): string[] {
+  const all = governedDiseaseNameList(diseaseName, patient);
+  const sharing = all.filter((name) => textbookDifferentialSharesChiefComplaint(name, recordText));
+  return sharing.length >= short ? sharing : [...sharing, ...all.filter((name) => !sharing.includes(name))];
+}
+
 /** 教材该病下的其他证型（按与本例表现的相近程度排序），不含 taken 里的。 */
 function textbookSyndromeCandidates(diseaseName: string, recordText: string, taken: ReadonlySet<string>): Array<{ name: string; text: string }> {
   const disease = textbookCandidatesForCase({ diseaseName, chiefComplaint: "", presentHistory: recordText }, { maxDiseases: 6, maxRowsPerDisease: 12 })
@@ -403,7 +418,7 @@ function planTopUp(overview: Json | undefined, context: TopUpContext): TopUpPlan
     const candidates = textbookDiseaseCandidates(diseaseName, taken, recordText, context.patient);
     plan.diseaseInput = {
       recordText, diseaseName, syndrome: primary, candidates, existing: diseaseRows.map((item) => item.name), need: needDisease,
-      nameList: nameListEnabled() && candidates.length < needDisease ? governedDiseaseNameList(diseaseName, context.patient).filter((name) => textbookDifferentialSharesChiefComplaint(name, recordText)) : [],
+      nameList: nameListEnabled() && candidates.length < needDisease ? governedNameListForTopUp(diseaseName, recordText, context.patient, needDisease - candidates.length) : [],
     };
   }
   if (needSyndrome > 0) {

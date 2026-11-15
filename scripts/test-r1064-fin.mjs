@@ -132,3 +132,36 @@ await check("5.1 交付总闸里两道靠模型的核对缺省关（0.9 秒上�
   assert.equal(policyNow.invariants, "shadow");
   assert.equal(gates.deliveryGatePolicy({ CDSS_FINAL_PATIENT_FACTS: "shadow" }).facts, "shadow");
 });
+
+// ───── 6 中医鉴别补足：主诉写法不在主症概念表里时，同科规范病名清单仍可补（第四十七轮终测 new40 鉴别不足 2 项 0→5） ─────
+Object.assign(process.env, {
+  AI_TEXT_PROVIDER: "openai-compatible", OPENAI_API_KEY: "test-key", OPENAI_BASE_URL: "https://api.deepseek.com",
+  OPENAI_MODEL: "deepseek-flash", CONTROLLED_TERMINOLOGY_MODEL: "deepseek-flash",
+});
+delete process.env.CDSS_TCM_DIFFERENTIAL_AUTHORING;
+const authoring = await jiti.import("../src/lib/tcm-disease-differential-authoring.server.ts");
+const savedFetch = globalThis.fetch;
+const completion = (payload) => new Response(JSON.stringify({
+  id: "t", object: "chat.completion", model: "deepseek-flash",
+  choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify(payload) }, finish_reason: "stop" }],
+  usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+}), { headers: { "content-type": "application/json" } });
+const differentialEntry = (diseaseName) => ({ diseaseName, reason: "同见胃中不适", typicalManifestation: "", distinguishingPoints: "本例以胃中嘈杂为主，未诉吐酸水", nextCheck: "" });
+let caseSeq = 0;
+await check("6.1 主诉「胃中嘈杂」无教材交集鉴别时，规范病名清单整张给出，模型选的吐酸被收下（鉴别补到两项）", async () => {
+  const recordText = `主诉：胃中嘈杂反复3月\n现病史：胃中空虚似饥、似痛非痛，时作时止，伴嗳气、口苦，舌红苔黄，脉弦。（用例${++caseSeq}）`;
+  const overview = { tcmDiseaseName: "嘈杂", primarySyndrome: "胃热证", tcmDiseaseDifferentials: [{ diseaseName: "胃痞", reason: "同见胃部不适", distinguishingPoints: "本例以嘈杂为主", typicalManifestation: "", nextCheck: null }], tcmDifferentials: [] };
+  const calls = [];
+  globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(String(init?.body || "{}"));
+    calls.push(JSON.parse(body.messages?.[1]?.content || "{}"));
+    return completion({ differentials: [differentialEntry("吐酸")] });
+  };
+  try {
+    const out = JSON.parse(await authoring.completeTcmDiseaseDifferentials(JSON.stringify({ overview, pathogenesis: { chain: [] } }), { recordText, patient: { sex: "女", age: 45 } }));
+    assert.ok(calls.length >= 1, "应发出补写请求");
+    const list = calls[0].tcmDiseaseNameList || [];
+    assert.ok(list.includes("吐酸"), `清单应含吐酸（实际 ${list.length} 项）`);
+    assert.deepEqual(out.overview.tcmDiseaseDifferentials.map((item) => item.diseaseName), ["胃痞", "吐酸"]);
+  } finally { globalThis.fetch = savedFetch; }
+});
