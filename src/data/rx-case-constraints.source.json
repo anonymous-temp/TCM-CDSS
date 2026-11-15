@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "note": "第四十七轮：有限的药品说明书症状/食材类别与生活偏好词表；不新增红旗、极性或时态判断。词语均只触发既有记录极性核对。",
+  "stopSymptoms": [
+    [
+      "心悸",
+      "心慌"
+    ],
+    [
+      "皮疹"
+    ],
+    [
+      "瘙痒"
+    ],
+    [
+      "恶心"
+    ],
+    [
+      "呕吐"
+    ],
+    [
+      "腹泻"
+    ],
+    [
+      "头晕"
+    ],
+    [
+      "头痛"
+    ],
+    [
+      "胸闷"
+    ],
+    [
+      "呼吸困难"
+    ]
+  ],
+  "foodOnlyHerbs": [
+    "猪蹄",
+    "猪心",
+    "猪肺",
+    "猪肉",
+    "瘦肉",
+    "鸡肉",
+    "羊肉",
+    "鸡蛋"
+  ],
+  "vegetarianTerms": [
+    "素食",
+    "不吃荤",
+    "不食荤",
+    "不吃肉",
+    "不食肉"
+  ],
+  "animalFoods": [
+    "瘦肉",
+    "猪肉",
+    "牛肉",
+    "羊肉",
+    "鸡肉",
+    "鸭肉",
+    "猪蹄",
+    "猪肝",
+    "鸡蛋",
+    "鸭蛋",
+    "蛋羹",
+    "蒸蛋",
+    "肉汤",
+    "排骨",
+    "海参"
+  ],
+  "vitaminKFoods": [
+    "菠菜",
+    "西兰花",
+    "羽衣甘蓝",
+    "甘蓝",
+    "生菜",
+    "芥蓝",
+    "芦笋",
+    "绿叶菜",
+    "绿叶蔬菜"
+  ],
+  "warfarinTerms": [
+    "华法林",
+    "warfarin"
+  ],
+  "warfarinAdvice": "服用华法林期间，维生素K应保持平时稳定摄入，勿自行突然增减，并按医嘱复查INR。",
+  "sources": [
+    {
+      "url": "https://www.nhs.uk/medicines/anticoagulants/considerations/",
+      "quote": "you should avoid making frequent changes to the amount of green vegetables you eat if you’re taking warfarin",
+      "scope": "华法林特异饮食；其他抗凝药不套用"
+    },
+    {
+      "url": "https://ods.od.nih.gov/factsheets/VitaminK-HealthProfessional/",
+      "note": "NIH ODS: 华法林使用者保持维生素K摄入稳定；食物列表示例见食物维生素K含量表。"
+    },
+    {
+      "source": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt:116316，隐疹【按语】",
+      "quote": "注意避风寒，忌食鱼腥虾蟹、辛辣等食物，饮食宜清淡，远离过敏源。",
+      "scope": "有海产诱发/过敏记录的瘾疹，不主动推荐鱼腥餐食；不据此把虾蟹过敏改诊为鱼过敏。"
+    }
+  ],
+  "urticariaSeafoodClasses": [
+    "seafood",
+    "fish",
+    "crustacean",
+    "mollusc"
+  ],
+  "urticariaDiseaseNames": [
+    "瘾疹",
+    "隐疹",
+    "荨麻疹"
+  ],
+  "animalFoodClasses": [
+    "fish",
+    "crustacean",
+    "mollusc",
+    "egg",
+    "seafood"
+  ]
+}

@@ -1,11 +1,13 @@
 import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import { projectM04FinalFacts } from "./m04-final-projection";
-import { isSourceFallbackFunctionDisplay, projectGroundedHerbFunctions } from "./herb-function-display-source";
+import { isSourceFallbackFunctionDisplay, projectGroundedHerbFunctions, selectGroundedHerbFunction, functionClauses, herbFunctionSourceClauses } from "./herb-function-display-source";
 import { DELIVERY_REWRITE_RULES, traceProjection, observeTextRewrite } from "./delivery-rewrite-ledger";
 /** Observation only; original clinical transforms and their return values are unchanged. */
 export const DELIVERED_SURFACE_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.surface, leaves: ["applyDeliveredSurfaceToContent","projectDeliveredReasoning","clinicalWordingForSyntheticPhrases","readabilityCleaned"] as const });
 import { diseaseCareItemCovered, withoutDiseaseCareConflicts } from "./western-disease-care";
 import type { CaseState } from "./diagnosis-types";
+import rxConstraints from "../data/rx-case-constraints.source.json";
+import { medicineLabelConflictsWithCase } from "./medicine-candidate-exclusion";
 import therapyPhrasePolicy from "../data/tcm-therapy-phrase-policy.source.json" with { type: "json" };
 import { redFlagActiveFor } from "./clinical-red-flag-context";
 import { smallBaseOverextended, selfDevisedReferenceSource } from "./tcm-formula-provenance";
@@ -38,8 +40,8 @@ import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source
 import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormulaOriginalPreparations, originalFormulaFor, originalHerbMatches, originalHerbSatisfiedBy, formulaManualDoseIngredients, type OriginalFormulaContext, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource, textbookCitedOriginalSource, deliveredFormulaSource, sourceIsTextbook } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
-import { drugNamesInAllergyPhrases } from "./clinical-polarity";
-import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationTriggerNotFinding, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs } from "./m04-proposal-compiler";
+import { drugNamesInAllergyPhrases, medicationStoppedOrOnlyPast, medicationNotTaken } from "./clinical-polarity";
+import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationTriggerNotFinding, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs, withoutMutuallyIncompatibleAdditions } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
@@ -67,11 +69,11 @@ import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
 import { DELIVERED_METHOD_ITEM_CAP, withoutRedundantTherapyPhrases } from "./tcm-therapy-phrasing";
 import { governedFourCharacterMethodTerms, governedTreatmentMethodOccurrencesInText, resolveNationalStandardTcmSyndromeTerm, treatmentMethodCoveredBy, type TreatmentPrincipleEntry } from "./clinical-governance-tables";
 import { assessPregnancyState } from "./clinical-state";
-import { allergenAvoidPhrase, allergenHerbMatch, allergenMatchesInText, allergenRecordPhrase } from "./allergen-profile";
+import { allergenAvoidPhrase, allergenHerbMatch, allergenMatchesInText, allergenRecordPhrase, recordedAllergensInText } from "./allergen-profile";
 import dietRestrictionCategoriesJson from "../data/diet-restriction-food-categories.source.json" with { type: "json" };
 import drugConditionCautionsJson from "../data/western-drug-condition-cautions.source.json" with { type: "json" };
 import { MIN_RECORD_SIGNS, excessElementMentionsIn, methodImpliedExcessElements, namedExcessElements, recordExcessSigns, uncertaintyAnsweredByRecord, uncertaintyAsksListedElement, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording, withMethodImpliedNatureElements } from "./analysis-element-closure";
-import { GENERIC_PRIORITY_FIRST_STEP, previousPriorityFirstStepSentences, priorityEvaluationFirstStep, priorityEvaluationFollowUpNode, priorityTargetWithEstablishedDiagnosis, quoteWithoutDeniedLeadingItems, recordedFindingReading, type DoseWithheldFollowupKind, type PriorityEvaluationTarget } from "./diagnosis-safety";
+import { GENERIC_PRIORITY_FIRST_STEP, previousPriorityFirstStepSentences, priorityEvaluationFirstStep, priorityEvaluationFollowUpNode, priorityTargetWithEstablishedDiagnosis, quoteWithoutDeniedLeadingItems, recordedFindingReading, recordedMedicationHistoryList, type DoseWithheldFollowupKind, type PriorityEvaluationTarget } from "./diagnosis-safety";
 
 /**
  * 投影时可选的本例信息：herbBoundaryAudience 决定逐味人群提示列哪些人群（见 herbBoundaryPopulationRelevant）；
@@ -81,7 +83,7 @@ export type DeliveredSurfaceOptions = {
   /** 两步投影沿用已定红旗状态；仅作展示上下文，不重算安全结论。 */
   safetyGate?: Pick<NonNullable<CaseState["safetyGate"]>, "status">;
   /** 编译、补写与缓存投影使用同一主诉和既定安全门，不从无标题正文猜主诉。 */
-  caseState?: Pick<CaseState, "chiefComplaint" | "safetyGate">;
+  caseState?: CaseState | Pick<CaseState, "chiefComplaint" | "safetyGate">;
   herbBoundaryAudience?: HerbBoundaryAudience;
   requiredPrecautions?: readonly RequiredPrecaution[];
   /**
@@ -1636,6 +1638,9 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
     const decision = purposeProcessedHerbName(name, processing, purposeText, gramsOfDose(herb.dose));
     if (!decision) return false;
     if (decision.prefix === "") {
+      // Existing record/purpose rules have priority over a generic list's raw-drug effect.
+      const recordChoice = processedHerbName(decision.base, { purposeText: purposeOf(herb), recordText });
+      if (recordChoice) return false;
       for (const written of [`${processing}${name}`, `${processing.replace(/(?:炙|用)$/u, "")}${name}`, name]) if (written !== decision.name && written.endsWith(decision.base)) writtenForms.set(written, decision.name);
       if (name !== decision.name) renames.set(name, decision.name);
       herb.name = decision.name;
@@ -1654,9 +1659,27 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
   // Never feed them back into purpose-based preparation selection on a second read.
   const sourceDisplay = (herb: Json) => finalHerbs.has(herb) ||
     (typeof herb.name === "string" && typeof herb.function === "string" && isSourceFallbackFunctionDisplay(herb.name, herb.function));
-  const purposeOf = (herb: Json) => sourceDisplay(herb) ? "" : [herb.function, herb.prescriptionRole, herb.targetPathogenesis].filter((item) => typeof item === "string").join("；");
-  // 按用途选规格只看这味药自己的功效栏：角色与病机指向常借用全方的话（「益气固表」写在黄芪的病机指向里，说的是全方）。
-  const ownFunction = (herb: Json) => sourceDisplay(herb) ? "" : (typeof herb.function === "string" ? herb.function : "");
+  const purposeOf = (herb: Json) => [sourceDisplay(herb) ? "" : herb.function, herb.prescriptionRole, herb.targetPathogenesis].filter((item) => typeof item === "string").join("；");
+  // 来源原文先按本味角色/靶点筛选；不相关的默认展示不能倒推炮制。非原文的明确用意仍按既有教材判据选规格。
+  const ownFunction = (herb: Json) => {
+    const name = String(herb.name || ""), original = String(herb.function || "");
+    const sources = herbFunctionSourceClauses(name);
+    const clauses = functionClauses(original);
+    const verbatim = clauses.length > 0 && clauses.every((clause) => sources.some((source) => source.text === clause));
+    const selected = selectGroundedHerbFunction({ name, role: String(herb.role || ""),
+        target: [herb.prescriptionRole, herb.targetPathogenesis].filter((value) => typeof value === "string").join("；"),
+        therapy: [record(reasoning.therapy)?.overallMethod, record(reasoning.overview)?.primarySyndrome].join("；"), modelText: original,
+        patient: { sex: options?.patientSex, ageYears: options?.herbBoundaryAudience?.ageYears ?? undefined, recordText } });
+    const hasUseContext = [herb.prescriptionRole, herb.targetPathogenesis, record(reasoning.therapy)?.overallMethod, record(reasoning.overview)?.primarySyndrome]
+      .some((value) => typeof value === "string" && value.trim());
+    // A single explicit intended use still governs preparation. With no case target, a single
+    // source clause is also the only stated use; a broad display list carries no such authority.
+    if (clauses.length === 1 && !sourceDisplay(herb) && (!verbatim || !hasUseContext)) return original;
+    // Use the same contextual source selection before and after function projection.
+    // Otherwise the first read uses a broad model list and the next read changes preparation.
+    if (selected.relevant) return selected.text;
+    return verbatim || sourceDisplay(herb) ? "" : original;
+  };
   for (const candidate of records(formula?.candidates)) {
     const formulaName = typeof candidate.name === "string" ? candidate.name : "";
     for (const herb of records(candidate.herbs)) {
@@ -1696,7 +1719,7 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
         if (!originalPrepared) byPurpose(herb, name, "", ownFunction(herb));
         continue;
       }
-      if (!originalPrepared && byPurpose(herb, name, "", ownFunction(herb))) continue;
+      // Recorded processing rules and original preparations precede generic purpose preferences.
       const fromRules = processedHerbName(name, { purposeText: purposeOf(herb), recordText, formulaName, formulaContext: originalContext });
       if (fromRules) rename(herb, fromRules);
       else if (!originalPrepared) byPurpose(herb, name, "", ownFunction(herb));
@@ -1945,6 +1968,17 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     }
   }
   deliveredProcessedHerbNames(reasoning, options, originalContext, finalHerbs);
+  // Resolve preparations against the functions that will actually be delivered, in this same
+  // pass. A model's “健脾益气以资生血” must not defer the 炒白术 decision until the next read.
+  const functionPolicy = m04FinalContentPolicy();
+  if (functionPolicy.enabled && functionPolicy.functions === "on") {
+    const grounded = projectGroundedHerbFunctions(reasoning, { sex: options?.patientSex, ageYears: options?.herbBoundaryAudience?.ageYears ?? undefined, recordText: options?.recordText });
+    const groundedCandidates = records(record(grounded.formula)?.candidates);
+    records(formula?.candidates).forEach((candidate, index) => records(candidate.herbs).forEach((herb, herbIndex) => {
+      herb.function = records(groundedCandidates[index]?.herbs)[herbIndex]?.function ?? herb.function;
+    }));
+    deliveredProcessedHerbNames(reasoning, options, originalContext, finalHerbs);
+  }
   for (const candidate of records(formula?.candidates)) {
     // 名实相符（2026-10-19 M 集 Claude 评审：「乌头汤加减」方中无川乌、「沙参麦冬汤加减」无沙参）：方名承载药不在处方里的那张方
     // 不再用它命名——多为系统不编制用量、要求不写进药味表的毒性或品种未定的味（制川乌、朱砂、沙参）。合方去掉那一张；
@@ -2279,6 +2313,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     // 合方出处各条收尾的句号去掉（「五神汤：《辨证录》卷十三。；萆薢渗湿汤：…」，S143；写法同 formulaSourceLabel）。
     if (source && typeof source.source === "string") source.source = source.source.replace(/[。．.]+(?=\s*[；;]|\s*$)/gu, "");
   }
+  if (formula && Array.isArray(formula.patentAndWestern)) formula.patentAndWestern = records(formula.patentAndWestern).filter((item) =>
+    !medicineLabelConflictsWithCase(findLocalPatentMedicineLabel(String(item.name || "")) || item, options?.recordText || ""));
   for (const medicine of records(formula?.patentAndWestern)) {
     // 说明书各段拼接留下的「；；」「。；」「。。」：收成一个标点（第五轮方名代理统计 741 条里 17 条）。
     if (typeof medicine.riskNote === "string") medicine.riskNote = medicine.riskNote.replace(/([；;。])(?:\s*[；;。])+/gu, "$1");
@@ -2295,7 +2331,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
   const nonPharma = record(reasoning.nonPharma);
   if (nonPharma && Array.isArray(nonPharma.precautions)) {
     // 整句被禁词表或净化清空后只剩标点的条目不下发。
-    nonPharma.precautions = nonPharma.precautions.filter((item) => typeof item === "string" && /[\u4e00-\u9fff]{4,}/u.test(item));
+    nonPharma.precautions = nonPharma.precautions.filter((item) => typeof item === "string" && !(/^未加/u.test(item) && item.includes("【使用注意】")) && /[\u4e00-\u9fff]{4,}/u.test(item));
   }
   if (nonPharma && Array.isArray(nonPharma.tcmTreatments)) {
     // 给不出具体内容的项目不下发（甲方 10.12 测评 5.2「中医治疗具体内容未展示」）：「仅评估」的项目只有项目名和一句
@@ -2348,8 +2384,21 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
       : undefined;
     const onAntithrombotic = (options?.requiredPrecautions || []).some((item) => item.kind === "antithrombotic_bleeding");
     // 病历记录的食物等过敏（第二十一轮，B061）：饮食段、食疗卡不推荐含过敏原的食物（avoid 档；caution 档留给注意事项提示）。
-    const recordedAllergens = (options?.requiredPrecautions || []).flatMap((item) => item.kind === "food_allergy" ? item.classes : []);
-    const mentionsAllergenFood = (text: string) => allergenMatchesInText(text, recordedAllergens).some((match) => match.action === "avoid");
+    const triggerFoods = (options?.requiredPrecautions || []).flatMap((item) => item.kind === "trigger_foods" ? item.foods : []);
+    const urticaria = rxConstraints.urticariaDiseaseNames.some((name) => [record(reasoning.overview)?.tcmDiseaseName, record(record(reasoning.westernDiagnosis)?.primary)?.name].join("；").includes(name));
+    const triggerAllergens = urticaria
+      ? recordedAllergensInText(`过敏史：${triggerFoods.join("、")}`, () => "affirmed") : [];
+    const recordedAllergens = [...(options?.requiredPrecautions || []).flatMap((item) => item.kind === "food_allergy" ? item.classes : []), ...triggerAllergens];
+    const vegetarian = rxConstraints.vegetarianTerms.some((term) => recordedFindingReading(options?.recordText || "", term) === "affirmed");
+    // The authoritative current-medication field can retain a trailing “长期服用” that the name catalogue misses.
+    // Reuse its existing current/past reading for this closed drug name; do not infer use from a narrative mention.
+    const historyWarfarin = Boolean(options?.caseState && "patient" in options.caseState && recordedMedicationHistoryList(options.caseState).some((item) =>
+      rxConstraints.warfarinTerms.some((term) => item.includes(term) && !medicationStoppedOrOnlyPast(item, term) && !medicationNotTaken(item, term))));
+    const warfarin = (options?.requiredPrecautions || []).some((item) => item.kind === "warfarin_herbal") || historyWarfarin;
+    const dietConflict = (text: string) => (vegetarian && (rxConstraints.animalFoods.some((food) => text.includes(food)) || allergenMatchesInText(text, rxConstraints.animalFoodClasses.map((classId) => ({ classId, labelZh: "", kind: "allergy" as const, quote: "" }))).length > 0)) || (warfarin && rxConstraints.vitaminKFoods.some((food) => text.includes(food)));
+    const urticariaSeafood = urticaria && recordedAllergens.some((item) => rxConstraints.urticariaSeafoodClasses.includes(item.classId));
+    // Textbook dietary caution has a broader scope than a proven fish allergy. Use it only to withhold a recommendation.
+    const mentionsAllergenFood = (text: string) => allergenMatchesInText(text, recordedAllergens).length > 0 || (urticariaSeafood && allergenMatchesInText(text, [{ classId: "seafood", kind: "allergy", labelZh: "海鲜", quote: "" }]).length > 0);
     const careTexts = [nonPharma.diet, nonPharma.lifestyle, nonPharma.exercise, nonPharma.emotion, ...(Array.isArray(nonPharma.precautions) ? nonPharma.precautions : [])]
       .map((value) => String(value || ""));
     const fasting = fastingOrdered(careTexts);
@@ -2358,12 +2407,14 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
       if (prescribed) nonPharma.diet = withoutRecommendedFoods(String(nonPharma.diet), (text) => textAntagonizesPrescription(text, prescribed));
       if (onAntithrombotic) nonPharma.diet = withoutRecommendedFoods(String(nonPharma.diet), mentionsBloodActivatingFood);
       if (recordedAllergens.length > 0) nonPharma.diet = withoutRecommendedFoods(String(nonPharma.diet), mentionsAllergenFood);
+      nonPharma.diet = withoutRecommendedFoods(String(nonPharma.diet), dietConflict);
+      if (warfarin && !String(nonPharma.diet).includes(rxConstraints.warfarinAdvice)) nonPharma.diet = [nonPharma.diet, rxConstraints.warfarinAdvice].filter(Boolean).join("；");
     }
     if (Array.isArray(nonPharma.tcmTreatments)) {
       nonPharma.tcmTreatments = records(nonPharma.tcmTreatments).filter((item) => {
         if (item.projectCode !== "diet_therapy") return true;
         const content = String(item.treatmentContent || "");
-        return !(fasting || textAntagonizesPrescription(content, prescribed) || (onAntithrombotic && mentionsBloodActivatingFood(content)) ||
+        return !(fasting || dietConflict(content) || textAntagonizesPrescription(content, prescribed) || (onAntithrombotic && mentionsBloodActivatingFood(content)) ||
           (recordedAllergens.length > 0 && mentionsAllergenFood(content)));
       });
     }
@@ -2746,7 +2797,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     //（tcm-textbook-syndromes TEXTBOOK_GENERIC_CONDITION），这里兜住已缓存的结果与模型自己写出的同类触发。
     formula.modifications = records(formula.modifications).filter((item) => !GENERIC_ONLY_TRIGGER.test(String(item.trigger || "")));
     // 同一味药只加一次（编译与补写之后都可能重复，见 withoutRepeatedAddedHerbs）。
-    formula.modifications = withoutRepeatedAddedHerbs(records(formula.modifications));
+    formula.modifications = withoutRepeatedAddedHerbs(withoutMutuallyIncompatibleAdditions(records(formula.modifications),
+      records(records(formula.candidates)[0]?.herbs).map((herb) => String(herb.name || ""))));
     // 「调整/减」某药而这味药已不在最终药味里（第四十六轮 p100c-C018；定稿也做一次，这里兜住缓存与补写之后的行）。
     formula.modifications = withoutModificationsOnAbsentHerbs(records(formula.modifications),
       records(records(formula.candidates)[0]?.herbs).map((herb) => String(herb.name || "")));
@@ -3849,7 +3901,7 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
     records(record(projected.formula)?.candidates).forEach((candidate, index) => { candidate.formulaAnalysis = previousAnalyses[index]; });
     return projectM04FinalFacts(projected, { record: options?.recordText || "" }) as T;
   }
-  return (projected.stage === "prescribe" && policy.enabled && policy.functions === "on" ? projectGroundedHerbFunctions(projected) : projected) as T;
+  return (projected.stage === "prescribe" && policy.enabled && policy.functions === "on" ? projectGroundedHerbFunctions(projected, { sex: options?.patientSex, ageYears: options?.herbBoundaryAudience?.ageYears ?? undefined, recordText: options?.recordText }) : projected) as T;
 }
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";

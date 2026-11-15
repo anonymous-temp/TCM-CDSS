@@ -137,9 +137,7 @@ export function applyHerbCautionHits(content: string, hits: readonly HerbCaution
   });
   if (!changed) return content;
   if (removed.length) {
-    const nonPharma = record(parsed.root.nonPharma) || {};
-    nonPharma.precautions = [...new Set([...(Array.isArray(nonPharma.precautions) ? nonPharma.precautions : []), ...removed])];
-    parsed.root.nonPharma = nonPharma;
+    for (const candidate of rows(formula.candidates)) candidate.notApplicable = [text(candidate.notApplicable), ...removed].filter(Boolean).join("；");
   }
   return `${content.slice(0, parsed.start + START.length)}\n${JSON.stringify(parsed.root, null, 2)}\n${content.slice(parsed.end)}`;
 }

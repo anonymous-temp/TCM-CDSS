@@ -72,7 +72,7 @@ await check('2.5 主方只注释不删味，已有注释保留；加减整行剔
   const original=root();original.formula.candidates[0].herbs[0].verificationReasons=Array.from({length:8},(_,i)=>i?'旧提示'+i:'已有提示');const content=wrap(original);const hits=await caution.checkHerbCautions(content,{recordText:'现病史：经量较往年明显增多。'},undefined,task(positive));
   const out=unwrap(caution.applyHerbCautionHits(content,hits));assert.equal(out.formula.candidates[0].herbs.length,2);
   assert.equal(out.formula.candidates[0].herbs[0].verificationReasons.length,8);assert.ok(out.formula.candidates[0].herbs[0].verificationReasons.includes('已有提示'));assert.match(out.formula.candidates[0].herbs[0].verificationReasons.join(''),/本例记有.*请医生核对是否保留/);
-  assert.equal(out.formula.modifications.filter(r=>r.action==='加'&&r.herbName==='川芎').length,0);assert.equal(out.formula.modifications.length,2);assert.match(out.nonPharma.precautions.join(''),/未加川芎.*月经过多及出血性疾病/);
+  assert.equal(out.formula.modifications.filter(r=>r.action==='加'&&r.herbName==='川芎').length,0);assert.equal(out.formula.modifications.length,2);/* R47 F2：删加减药的核对记录留在notApplicable，不进入患者注意事项。 */ assert.doesNotMatch(out.nonPharma.precautions.join(''),/未加川芎/);assert.match(out.formula.candidates[0].notApplicable,/未加川芎.*月经过多及出血性疾病/);
 });
 await check('2.6 超时、异常、缺项、重复编号、开关关闭与取消均无动作',async()=>{
   const content=wrap(root()),ctx={recordText:'经量较往年明显增多。'};

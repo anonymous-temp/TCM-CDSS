@@ -1,3 +1,6 @@
+import processingFormsSource from "../data/tcm-herb-processing-forms.source.json";
+import selectionSource from "../data/herb-function-selection.source.json";
+import { assessPregnancyState, recordExcludesPregnancyPotential } from "./clinical-state";
 import textbookJson from "../data/tcm-herb-textbook-references.json";
 import verifiedJson from "../data/tcm-herb-verified-functions.json";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
@@ -41,6 +44,14 @@ function oralFunctionParts(raw: string): string[] {
 }
 
 export function herbFunctionSourceClauses(name: string): readonly SourceSpan[] {
+  // A preparation with its own recorded function domain never borrows the raw drug's effects.
+  type FunctionDomain = { form: string; quote: string; source: string; functionClauses?: string[] };
+  const processing = processingFormsSource as { rules: FunctionDomain[]; functionDomains?: FunctionDomain[] };
+  const processed = [...processing.rules, ...(processing.functionDomains || [])].find((row) => row.form === name && row.functionClauses?.length);
+  if (processed) return (processed.functionClauses || []).filter((text) => processed.quote.includes(text)).map((text) => ({
+    id: `function:${contentDigest([name, processed.source, text])}`, kind: "verified" as const, herbKey: name, text,
+    sourceRef: processed.source, sourceDigest: contentDigest(processed), start: processed.quote.indexOf(text), end: processed.quote.indexOf(text) + text.length,
+  }));
   const key = preciseHerbSourceName(name);
   // The unqualified name does not settle the生/制 use domain.
   const shouwu = /^(生|制)何首乌$/u.exec(name);
@@ -98,21 +109,50 @@ export function herbFunctionSourceClauses(name: string): readonly SourceSpan[] {
   return spans;
 }
 
+export type HerbFunctionPatient = { sex?: string; ageYears?: number; recordText?: string };
+
+function applicableFunction(text: string, patient: HerbFunctionPatient): boolean {
+  const record = patient.recordText || "";
+  // Exact labels supplied by clinicalGroundingText; no age/sex inference from narrative or relatives.
+  const sex = patient.sex || /^患者性别：([男女])$/mu.exec(record)?.[1];
+  const ageLabel = /^患者年龄：(\d+(?:\.\d+)?)岁$/mu.exec(record)?.[1];
+  const age = patient.ageYears ?? (ageLabel ? Number(ageLabel) : undefined);
+  const excluded = (!sex && age === undefined && !record) || sex === "男" || (age !== undefined && age < 12) || recordExcludesPregnancyPotential(record, age);
+  const reproductiveText = selectionSource.reproductiveExclusions.reduce((value, phrase) => value.split(phrase).join(""), text);
+  if (excluded && selectionSource.reproductiveTerms.some((term) => reproductiveText.includes(term))) return false;
+  return !selectionSource.pregnancyTerms.some((term) => text.includes(term)) || (!excluded && assessPregnancyState(record).status === "positive");
+}
+
+/** Retrieval only: original whole clauses are the sole output. Local targets outrank the overall therapy. */
+function functionRelevance(clause: string, context: string): number {
+  const groups = selectionSource.concepts.filter((terms) => terms.some((term) => clause.includes(term)) && terms.some((term) => context.includes(term)));
+  const literal = functionClauses(context).some((part) => part.includes(clause));
+  return groups.length + (literal ? 2 : 0);
+}
+
 export function selectGroundedHerbFunction(input: {
   name: string; role: string; target: string; therapy: string;
-  modelText?: string; preferredSourceIds?: readonly string[];
-}): { text: string; sources: readonly SourceSpan[]; status: "grounded" | "missing" } {
+  modelText?: string; preferredSourceIds?: readonly string[]; patient?: HerbFunctionPatient;
+}): { text: string; sources: readonly SourceSpan[]; status: "grounded" | "missing"; relevant: boolean } {
   const available = herbFunctionSourceClauses(input.name);
-  // 知识库与核对词典都没有这味药的功效原文时（冬葵果等），保留模型写的那句（已过既有宽口径核对），不留空格。
-  if (!available.length) return { text: input.modelText?.trim() || "", sources: [], status: "missing" };
-  const model = functionClauses(input.modelText || "");
-  const accepted = model.flatMap((text) => available.find((source) => source.text === text) || []);
-  const preferred = available.filter((source) => input.preferredSourceIds?.includes(source.id));
-  const relevant = available.filter((source) => `${input.target}${input.therapy}`.includes(source.text));
-  const chosen = accepted.length ? accepted : preferred.length ? preferred : relevant.length ? relevant : available.slice(0, 3);
+  // 无独立功效原文仍标记缺口；只筛选既有模型小句，不借原药来源，不保留人群不适用句。
+  if (!available.length) {
+    const clauses = functionClauses(input.modelText || "").filter((text) => applicableFunction(text, input.patient || {}));
+    const scored = clauses.map((text) => ({ text, score: functionRelevance(text, `${input.target}；${input.role}`) * 4 + functionRelevance(text, input.therapy) }));
+    const max = Math.max(0, ...scored.map((item) => item.score));
+    const selected = max > 0 ? scored.filter((item) => item.score === max).slice(0, 1).map((item) => item.text) : clauses.slice(0, 1);
+    const existingToxicity = clauses.filter((text) => /^有(?:大|小)?毒$/u.test(text));
+    return { text: [...new Set([...selected, ...existingToxicity])].join("，"), sources: [], status: "missing", relevant: max > 0 };
+  }
+  const applicable = available.filter((source) => applicableFunction(source.text, input.patient || {}));
+  const eligible = applicable.filter((source) => !/^有(?:大|小)?毒$/u.test(source.text));
+  const ranked = eligible.map((source) => ({ source, score: functionRelevance(source.text, `${input.target}；${input.role}`) * 4 + functionRelevance(source.text, input.therapy) }));
+  const max = Math.max(0, ...ranked.map((item) => item.score));
+  // A model's verbatim list cannot override this case's use or population. No relevant clause: first applicable clause only.
+  const chosen = max > 0 ? ranked.filter((item) => item.score === max).slice(0, 2).map((item) => item.source) : eligible.slice(0, 1);
   const toxicity = available.filter((source) => /^有(?:大|小)?毒$/u.test(source.text));
   const sources = [...new Map([...chosen, ...toxicity].map((source) => [source.id, source])).values()];
-  return { text: sources.map((source) => source.text).join("，"), sources, status: "grounded" };
+  return { text: sources.map((source) => source.text).join("，"), sources, status: "grounded", relevant: max > 0 };
 }
 
 /** 功效栏是「原文前三条」兜底显示（模型句无一对上原文）时为 true：交付层不拿它当本方用途去改炮制（四妙丸里薏苡仁→炒薏苡仁）。 */
@@ -126,12 +166,13 @@ export function isSourceFallbackFunctionDisplay(name: string, functionText: stri
 }
 
 /** Explicit pure projection, independent of global switches. Does not change admission knowledge. */
-export function projectGroundedHerbFunctions<T>(reasoning: T): T {
+export function projectGroundedHerbFunctions<T>(reasoning: T, patient: HerbFunctionPatient = {}): T {
   const projected = structuredClone(reasoning);
   const root = asRecord(projected), formula = asRecord(root.formula);
   for (const candidate of asRecords(formula.candidates)) for (const herb of asRecords(candidate.herbs)) {
     herb.function = selectGroundedHerbFunction({ name: asText(herb.name), role: asText(herb.role),
-      target: asText(herb.targetPathogenesis), therapy: asText(asRecord(root.therapy).overallMethod), modelText: asText(herb.function) }).text;
+      target: [asText(herb.targetPathogenesis), asText(herb.prescriptionRole), ...asRecords(asRecord(root.pathogenesis).chain).filter((node) => node.nodeId === herb.targetRef).map((node) => [asText(node.pathogenesis), asText(node.therapyDirection)].join("；"))].join("；"),
+      therapy: [asText(asRecord(root.therapy).overallMethod), asText(asRecord(root.overview).primarySyndrome)].join("；"), modelText: asText(herb.function), patient }).text;
   }
   return projected;
 }

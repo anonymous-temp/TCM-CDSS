@@ -137,6 +137,7 @@ export async function planClosedModifications(input: {
     visit(rowOptions.get(row)!);
     if (!complete) { rejected.push({ optionId: rowOptions.get(row)!, reason: "partner_not_accepted" }); continue; }
     const additions = [...component].map((id) => byOption.get(id)!).filter((item) => !selected.includes(item));
+    if (additions.some((item) => selected.some((existing) => conditionFor(existing) === conditionFor(item)))) { rejected.push({ optionId: rowOptions.get(row)!, reason: "condition_already_covered" }); continue; }
     if (selected.length + additions.length > 4) { rejected.push({ optionId: rowOptions.get(row)!, reason: "row_limit" }); continue; }
     selected.push(...additions);
   }
