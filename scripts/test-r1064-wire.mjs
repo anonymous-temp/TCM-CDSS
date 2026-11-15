@@ -8,7 +8,7 @@ const { deliveryGatePolicy } = await jiti.import("../src/lib/delivery-gate-polic
 const gates = await jiti.import("../src/lib/delivery-gates.server.ts");
 const final = await jiti.import("../src/lib/delivery-final-content.server.ts");
 const { createRewriteLedger } = await jiti.import("../src/lib/delivery-rewrite-ledger.ts");
-const { buildTrustedRecordIndex, deliveryHash } = await jiti.import("../src/lib/delivery-trusted-record.server.ts");
+const { buildTrustedRecordIndex } = await jiti.import("../src/lib/delivery-trusted-record.server.ts");
 const { r1064GenerationIdentity } = await jiti.import("../src/lib/r1064-generation-identity.server.ts");
 const outcome = await jiti.import("../src/lib/stage-generation-outcome.server.ts");
 const state = { id: "synthetic-wire", phase: "diagnose", patient: { sex: "女", age: 44 }, chiefComplaint: "食少腹胀两周", symptoms: { 现病史: "近日纳少，饭后腹胀，每日便溏，神疲乏力。" }, tongue: "舌淡红苔薄白" };
@@ -144,7 +144,7 @@ async function streamProbe({ enabled = true, unusable = false, cancel = false, g
     const raw = frames.map(row => row.content || "").join("").match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/);
     const signed = raw ? JSON.parse(raw[1]) : undefined;
     return { frames, io, legacyCalls, legacyOverview, startedAt, signed, validSignature: signatures.verifyDiagnoseReasoningSignature(signed, state) };
-  } finally { globalThis.fetch = fetch; for (const [key, value] of Object.entries(saved)) value === undefined ? delete process.env[key] : process.env[key] = value; }
+  } finally { globalThis.fetch = fetch; for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } }
 }
 await check("W11", "真实两步流：无旧中医请求、无提案泄漏、最终签名、END一次", async () => {
   const { frames, io, legacyCalls, legacyOverview, startedAt, validSignature } = await streamProbe();
@@ -201,7 +201,7 @@ await check("W16", "异步降级不缓存；关闭阶段复用时模型记忆同
     await (await cache.coalesceStageResponse(request)).text(); await (await cache.coalesceStageResponse(request)).text(); assert.equal(calls, 2);
     memo.runWithModelCallMemo({}, () => { outcome.markStageGenerationNonReusable(); assert.equal(memo.currentModelCallMemoScope().forgotten, true); });
   } finally {
-    for (const [key, value] of [["CDSS_STAGE_RESULT_REUSE", saved.reuse], ["CDSS_MODEL_CALL_MEMO", saved.memo], ["CDSS_STAGE_RESULT_STORE_PATH", saved.store]]) value === undefined ? delete process.env[key] : process.env[key] = value;
+    for (const [key, value] of [["CDSS_STAGE_RESULT_REUSE", saved.reuse], ["CDSS_MODEL_CALL_MEMO", saved.memo], ["CDSS_STAGE_RESULT_STORE_PATH", saved.store]]) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
     cache.resetStageResultCacheForTests(); memo.resetModelCallMemoForTests();
   }
 });

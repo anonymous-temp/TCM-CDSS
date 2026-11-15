@@ -18,7 +18,8 @@ function diff(a, b, path = "") {
 }
 let stages = 0, gateChanges = 0;
 for (const file of files) {
-  const value = JSON.parse(readFileSync(file, "utf8")), state = value.input, context = clinicalGroundingText(state);
+  const value = JSON.parse(readFileSync(file, "utf8")), state = value.input;
+  void clinicalGroundingText(state);
   for (const stage of ["diagnose", "prescribe"]) {
     if (typeof value[stage]?.content !== "string") continue;
     stages++;
