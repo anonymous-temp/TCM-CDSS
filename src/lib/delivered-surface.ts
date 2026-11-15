@@ -1502,7 +1502,6 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
     const seenNames = new Set<string>();
     overview.tcmDiseaseDifferentials = records(overview.tcmDiseaseDifferentials)
       .filter((item) => maleOnlyFilter(String(item.diseaseName || "")))
-      .filter((item) => !options?.recordText || textbookDifferentialSharesChiefComplaint(String(item.diseaseName || ""), options.recordText))
       .map((item) => (typeof item.diseaseName === "string" ? { ...item, diseaseName: ocrName(item.diseaseName) } : item))
       .filter((item) => {
         const key = canonical(String(item.diseaseName || ""));
@@ -1510,6 +1509,13 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
         seenNames.add(key);
         return true;
       });
+    // 模型写的鉴别病与本例主诉主症没有交集的（崩漏病例列带下过多，第四十六轮复核 rt-509632、C082）：只在去掉后仍够两项时去掉，
+    // 不够两项时保留（甲方要求至少两个鉴别；服务端补入的鉴别另按同一判据严格过滤）。第四十七轮 PLAN 阶段 0。
+    if (options?.recordText) {
+      const listed = records(overview.tcmDiseaseDifferentials);
+      const sharing = listed.filter((item) => textbookDifferentialSharesChiefComplaint(String(item.diseaseName || ""), options.recordText!));
+      if (sharing.length >= MIN_TCM_DIFFERENTIALS && sharing.length < listed.length) overview.tcmDiseaseDifferentials = sharing;
+    }
   }
   const presentDifferentials = records(overview?.tcmDiseaseDifferentials);
   if (overview && !isLimitedDiagnose(reasoning) && typeof overview.tcmDiseaseName === "string" &&

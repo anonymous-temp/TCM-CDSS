@@ -24,15 +24,18 @@ await check("1.1 主症概念共享且不借伴随症状：咽痛不补郁证，
  assert.equal(tb.textbookDifferentialSharesChiefComplaint("噎膈", chief("持续情绪低落、早醒2个月")), false);
  assert.equal(tb.textbookDifferentialSharesChiefComplaint("噎膈", chief("吞咽困难1月")), true);
 });
-await check("1.2 崩漏不补白带病，按概念接受经血与阴道流血；宁少于两项", () => {
+await check("1.2 崩漏不补白带病，按概念接受经血与阴道流血；服务端补入的宁少于两项、模型写的去掉后不够两项时保留", () => {
  assert.equal(tb.textbookDifferentialSharesChiefComplaint("带下过多", chief("阴道不规则流血20天")), false);
  assert.equal(tb.textbookDifferentialSharesChiefComplaint("崩漏", chief("阴道不规则流血20天")), true);
  assert.equal(tb.textbookDifferentialSharesChiefComplaint("崩漏", chief("白带明显增多2周")), false);
  const raw = JSON.parse(fs.readFileSync("src/data/tcm-textbook-syndrome-formula-table.json", "utf8"));
  assert.equal(tb.textbookDiseaseTypicalManifestation("崩漏"), raw.diseases.find(row => row.disease === "崩漏").definition);
- const out = surface.projectDeliveredReasoning(dx("崩漏", "血瘀证", "桃红四物汤", { tcmDiseaseDifferentials: [differential("带下过多")] }), { recordText: chief("阴道不规则流血20天"), patientSex: "女" });
- assert.ok(!out.overview.tcmDiseaseDifferentials.some(x => /带下|白带/.test(x.diseaseName)));
- assert.ok(out.overview.tcmDiseaseDifferentials.length < 2);
+ // 第四十七轮总指挥订正：模型写的不相干鉴别只在去掉后仍够两项时去掉（甲方要求至少两个鉴别）；服务端补入的仍严格过滤。
+ const out = surface.projectDeliveredReasoning(dx("崩漏", "血瘀证", "桃红四物汤", { tcmDiseaseDifferentials: [differential("带下过多"), differential("经间期出血"), differential("胎漏")] }), { recordText: chief("阴道不规则流血20天"), patientSex: "女" });
+ assert.ok(!out.overview.tcmDiseaseDifferentials.some(x => /带下|白带/.test(x.diseaseName)), JSON.stringify(out.overview.tcmDiseaseDifferentials.map(x => x.diseaseName)));
+ assert.ok(out.overview.tcmDiseaseDifferentials.length >= 2);
+ const kept = surface.projectDeliveredReasoning(dx("崩漏", "血瘀证", "桃红四物汤", { tcmDiseaseDifferentials: [differential("带下过多"), differential("月经过多")] }), { recordText: chief("阴道不规则流血20天"), patientSex: "女" });
+ assert.equal(kept.overview.tcmDiseaseDifferentials.length, 2, "去掉后不够两项时保留模型写的");
 });
 await check("1.3 乳癖典型表现逐字取定义，覆盖模型的乳核表现并幂等", () => {
  const out = surface.projectDeliveredReasoning(dx("乳核", "肝郁痰凝证", "", { tcmDiseaseDifferentials: [differential("乳癖")] }), { recordText: chief("乳房肿块3月") });

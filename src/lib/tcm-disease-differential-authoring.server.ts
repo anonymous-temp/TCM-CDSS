@@ -381,7 +381,9 @@ function planTopUp(overview: Json | undefined, context: TopUpContext): TopUpPlan
   const diseaseName = diseaseNameWithRecordSubtype(text(overview?.tcmDiseaseName), context.recordText);
   if (!overview || !diseaseName) return undefined;
   const primary = text(overview.primarySyndrome);
-  const diseaseRows = retainableDiseaseDifferentialRows(overview.tcmDiseaseDifferentials, diseaseName, context.patient, context.recordText);
+  // 模型自己写的鉴别病不按「与主诉主症有交集」过滤（第四十七轮：那一条只管服务端补入的病；用在模型写的鉴别上，
+  // 200 份回放里鉴别不足 2 个的从 4 份涨到 162 份，违背甲方「至少两个鉴别」）。
+  const diseaseRows = retainableDiseaseDifferentialRows(overview.tcmDiseaseDifferentials, diseaseName, context.patient);
   const syndromeRows = retainableSyndromeDifferentialRows(overview.tcmDifferentials, primary);
   const needDisease = Math.max(0, MIN_TCM_DIFFERENTIALS - diseaseRows.length);
   // 证候鉴别：模型已经写了至少一项才补；整栏留空的（常伴「资料不足以鉴别」的说明）不替它改口。
