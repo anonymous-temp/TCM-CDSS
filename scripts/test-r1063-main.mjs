@@ -423,5 +423,40 @@ await check("7.11 西医主诊断按受控写法归一时保留「待查」（�
   assert.equal(terminology.withCanonicalClinicalTerminology(base("阻塞性睡眠呼吸暂停低通气综合征")).westernDiagnosis.primary.name, "阻塞性睡眠呼吸暂停", "对照");
 });
 
+await check("7.12 慢性肾脏病分期改写不动讲分期标准的句子（「尚未达到慢性肾脏病5期eGFR<15的标准」）；说本例分期的照改（对照）", () => {
+  assert.equal(surface.regradedCkdStageText("eGFR 17，尚未达到慢性肾脏病5期eGFR<15的标准", "4"), "eGFR 17，尚未达到慢性肾脏病5期eGFR<15的标准");
+  assert.equal(surface.regradedCkdStageText("CKD5期（eGFR<15）为透析指征", "4"), "CKD5期（eGFR<15）为透析指征");
+  assert.equal(surface.regradedCkdStageText("eGFR 17，尚未达到慢性肾脏病5期标准", "4"), "eGFR 17，尚未达到慢性肾脏病5期标准", "只有前面的「达到」");
+  assert.equal(surface.regradedCkdStageText("考虑慢性肾脏病5期，需复查", "4"), "考虑慢性肾脏病4期，需复查", "对照");
+});
+
+await check("7.13 方义里改药名为加字的写法（当归 → 当归尾）时，文中已写成「当归尾」的不再加字；裸写的「当归」照改（对照）", async () => {
+  const forms = await jiti.import("../src/lib/herb-processing-forms.ts");
+  const renames = new Map([["当归", "当归尾"]]);
+  assert.equal(forms.withProcessedHerbMentions("当归尾活血通络而不伤血，助当归尾活血祛瘀", renames), "当归尾活血通络而不伤血，助当归尾活血祛瘀");
+  assert.equal(forms.withProcessedHerbMentions("当归活血通络", renames), "当归尾活血通络", "对照");
+});
+
+await check("7.14 辨证依据里单独成段的病机残句（「。温煦失司；」）去掉；有内容的短句照留（对照）", () => {
+  assert.equal(surface.withoutOrphanMechanismFragments("提示非湿热下注。温煦失司；舌脉未记录，暂按肾气不足考虑。"), "提示非湿热下注。舌脉未记录，暂按肾气不足考虑。");
+  assert.equal(surface.withoutOrphanMechanismFragments("病位在肾；舌脉未记录；故属肾气不足证。"), "病位在肾；舌脉未记录；故属肾气不足证。", "对照");
+});
+
+await check("7.15 鉴别列举里的测得体温不改写成「未诉体温…」；病历测得体温都在界值以下时模型的「无发热」照留，不改「尚未确认」；测得过发热的不算（对照）", () => {
+  const st = types.normalizeCaseStateInput({ chiefComplaint: "右膝疼痛2周", patient: { sex: "女", age: 66 }, symptoms: { 现病史: "右膝疼痛，上下楼加重。" }, vitals: { T: "36.4", P: "76", R: "18", BP: "130/80" } });
+  const kept = safety.sanitizeUngroundedRedFlagNegations("无关节红肿、皮温正常，无发热（体温36.4℃）", st);
+  assert.match(kept, /无发热/u, kept);
+  assert.doesNotMatch(kept, /尚未确认发热/u, kept);
+  const febrile = types.normalizeCaseStateInput({ chiefComplaint: "右膝红肿2天", patient: { sex: "女", age: 66 }, symptoms: { 现病史: "右膝红肿，体温最高38.6℃。" }, vitals: { T: "36.8" } });
+  assert.doesNotMatch(safety.sanitizeUngroundedRedFlagNegations("无发热", febrile), /^无发热$/u, "对照：测得过 38.6℃");
+  assert.equal(safety.measuredTemperatureDocumentsNoFever("体温 36.4℃", "发热"), true);
+  assert.equal(safety.measuredTemperatureDocumentsNoFever("现病史：右膝疼痛", "发热"), false, "对照：没有测得体温");
+});
+
+await check("7.16 「无停经史」对病历「本次月经未按时来潮」：算写到过停经，不改成「未诉停经史」", () => {
+  assert.equal(summary.unrecordedNegativesAsNotReported("多发生于月经周期后半段，无停经史，hCG阴性", "现病史：本次月经未按时来潮，下腹痛半天。"), "多发生于月经周期后半段，无停经史，hCG阴性");
+  assert.equal(summary.unrecordedNegativesAsNotReported("本例无停经史", "现病史：下腹痛半天。"), "本例未诉停经史", "对照：病历没写");
+});
+
 if (failures > 0) console.error(`\n${failures} check(s) failed`);
 else console.log("\nAll r1063 main checks passed");

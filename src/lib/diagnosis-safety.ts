@@ -1112,6 +1112,19 @@ export function recordedMaxBodyTemperature(source: string): number | undefined {
   return max;
 }
 const FEVER_TERM_MIN_TEMPERATURE: Readonly<Record<string, number>> = { 发热: 37.3, 发烧: 37.3, 身热: 37.3, 体温升高: 37.3, 低热: 37.3, 高热: 39 };
+/**
+ * 病历测得的体温都在这一词的界值以下（本次 T 36.4℃）：模型写的「无发热」有记载依据，净化器不改成「病历尚未确认发热是否存在」
+ *（第四十六轮复核 n33：交付成「未诉体温36.4℃」）。测得过界值以上的（「最高38.5℃」）不算。数值阈值（开放语言冻结的例外一类）。
+ */
+export function measuredTemperatureDocumentsNoFever(source: string, term: string): boolean {
+  const floor = FEVER_TERM_MIN_TEMPERATURE[term];
+  if (floor === undefined) return false;
+  const measured = recordedMaxBodyTemperature(source);
+  if (measured === undefined || measured >= floor) return false;
+  // 病历别处写过的任何「NN.N℃」（「体温最高38.6℃」不在体温读数的写法里）也要都在界值以下；病历肯定写着发热的不算。
+  const anyReading = [...String(source || "").normalize("NFKC").matchAll(/(\d{2}(?:\.\d)?)\s*(?:℃|°C)/gu)].map((match) => Number(match[1])).filter((value) => value >= 34 && value <= 43);
+  return anyReading.every((value) => value < floor) && !sourceDocumentsAffirmation(source, term);
+}
 
 export function sourceDocumentsAffirmation(source: string, term: string): boolean {
   return affirmationMentionKind(source, term).kind !== "none";
@@ -1761,6 +1774,7 @@ function sanitizeUngroundedNegationText(
       const unknown = CLINICAL_NEGATION_FACT_TERMS.filter(
         (term) => negatedSpan.includes(term) &&
           !sourceDocumentsNegation(source, term) &&
+          !measuredTemperatureDocumentsNoFever(source, term) &&
           !sourceDocumentsAffirmation(source, term) &&
           !qualifiedCompoundDocumented(source, term) &&
           // 「无剧烈头痛」否认的是剧烈头痛，不另出一句「头痛是否存在」（qualified-negation-not-bare-symptom）。
@@ -6309,6 +6323,10 @@ const ABDOMINAL_PAIN_FORM = /腹[部中]?[^，,。；;\n无不未没]{0,2}痛/;
 
 // 「本次月经未按时来潮」「月经未如期来潮」同是停经的写法（第四十六轮新病历 n17：疑异位妊娠破裂，此前产科判据读不出停经）。构词守卫。
 const STOPPED_PERIOD_FORM = /(?:停经|月经(?:逾期|过期|未至|未来潮|未按时来潮|未按期来潮|未如期来潮))(?![^。；;，,\n]{0,6}年)/;
+/** 病历写到停经（「停经」「月经逾期」「本次月经未按时来潮」…）；只认写法、不判否认（交付面判「无停经史」是不是病历没记录过时用）。 */
+export function recordWritesStoppedPeriod(text: string): boolean {
+  return STOPPED_PERIOD_FORM.test(String(text || ""));
+}
 /**
  * 妊娠（阳性或可疑）伴腹痛或阴道出血，或育龄女性停经伴阴道出血或腹痛：先排除异位妊娠、流产（NICE NG126）。
  * 产科提示、24 小时早孕评估通道与「伴循环不稳定」红旗用这同一个判据（第二十三轮回放：C062 停经6周右下腹痛伴阴道出血、

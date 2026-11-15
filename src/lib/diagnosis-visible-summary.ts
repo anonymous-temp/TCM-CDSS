@@ -15,7 +15,7 @@ import { namedFormulaDecoctionProfile } from "./formula-decoction-profile";
 import { rationaleAlignedWithRenamedPrimary } from "./western-rationale-alignment";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { maskNonNegatingWuWords, NARROWER_THAN_GROUP_CANONICAL, NARROWER_TERM_SYNONYMS, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, clauseLocalMentionPolarityAt, redFlagDoseAuthorizationAllowed, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient, recordedGestationalWeeks } from "./diagnosis-safety";
+import { maskNonNegatingWuWords, NARROWER_THAN_GROUP_CANONICAL, NARROWER_TERM_SYNONYMS, POSITIVE_FACT_EQUIVALENT_GROUPS, SERVER_LABELED_GROUNDING_LINE, SKIN_LESION_FORM, clinicalGroundingText, NEGATED_TERM_QUALIFIER_SOURCE, recordedMaxBodyTemperature, clauseLocalMentionPolarityAt, redFlagDoseAuthorizationAllowed, sourceDocumentsAffirmation, sourceDocumentsNegation, syndromeAxisInformationSufficient, recordedGestationalWeeks, recordWritesStoppedPeriod } from "./diagnosis-safety";
 import { assessPregnancyState } from "./clinical-state";
 import { natureLabelSignTerms, recordSignQuotes, textHasSign, uncertaintyAnsweredByRecord, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording } from "./analysis-element-closure";
 import { getM03TherapyLock } from "./m03-therapy-lock";
@@ -639,7 +639,7 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
       if (terms.every(documented)) return clause;
       // 列举里的一项自己又带否定（「本例无发热、切口无渗液」的「切口无渗液」）：它不是被「无」否认的一个表现名，改成「病历未记录切口无渗液」
       // 交付成「未诉切口无渗液」，读成双重否定（第四十六轮复核 C050，病历「无发热渗液」）。构词守卫：与 unrecordedNegativesAsNotReported 的 unreadable 同一口径。
-      if (terms.some((term) => !documented(term) && /无|未|没|阴性|正常|不(?!寐|适|安|宁|遂|利|振|畅|固|足|仁|眠|思|欲|食)/u.test(term))) return clause;
+      if (terms.some((term) => !documented(term) && /无|未|没|阴性|正常|\d|℃|不(?!寐|适|安|宁|遂|利|振|畅|固|足|仁|眠|思|欲|食)/u.test(term))) return clause;
       changed = true;
       // 病历里写着否认的那几项（「无明显诱因」）保留「无」，只把病历没写到的改成「病历未记录」。
       const kept = terms.filter(documented);
@@ -1340,6 +1340,8 @@ function qualifiedGroupForms(term: string): string[] {
 
 function recordMentionsNegatedTerm(record: string, term: string): boolean {
   if (record.includes(term) || recordShowsRashForm(record, term)) return true;
+  // 「无停经史」对病历「本次月经未按时来潮」：停经的别的写法也算写到过（第四十六轮复核 n17，曾改成「未诉停经史」，与病历相反）。
+  if (/^停经(?:史)?$/u.test(term) && recordWritesStoppedPeriod(record)) return true;
   if (qualifiedGroupForms(term).some((form) => record.includes(form))) return true;
   // 「无吸烟史」对病历「不吸烟」：「…史」查的是那件事本身（2026-10-19 Claude 评审甲方病历 5：COPD 鉴别成了「未记录吸烟史」）。
   if (/^[\u4e00-\u9fff]{2,8}史$/u.test(term) && record.includes(term.slice(0, -1))) return true;

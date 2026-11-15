@@ -78,7 +78,9 @@ export function withProcessedHerbMentions(text: string, renames: ReadonlyMap<str
     held.push(name);
   }
   for (const [from, to] of renames) {
-    out = out.replace(new RegExp(`(?<![${PREPARED_CHAR_CLASS}])${from}(?![${FORMULA_SUFFIX_CLASS}])`, "gu"), to);
+    // 改出来的名字是在原名后面加字（当归 → 当归尾）时，文中已写成新名的不再加一遍（第四十六轮复核 rt-767552「当归尾尾」）。
+    const suffix = to.startsWith(from) && to.length > from.length ? to.slice(from.length).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&") : "";
+    out = out.replace(new RegExp(`(?<![${PREPARED_CHAR_CLASS}])${from}(?![${FORMULA_SUFFIX_CLASS}])${suffix ? `(?!${suffix})` : ""}`, "gu"), to);
   }
   return out.replace(/\u0000(\d+)\u0000/gu, (_match, index: string) => held[Number(index)] ?? "");
 }

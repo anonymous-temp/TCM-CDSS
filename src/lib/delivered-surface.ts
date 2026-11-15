@@ -1260,6 +1260,10 @@ export function regradedCkdStageText(text: string, stage: string): string {
   return text.replace(CKD_STAGE_TEXT, (whole: string, name: string, g: string | undefined, digit: string, sub: string | undefined, offset: number) => {
     const written = CHINESE_STAGE[digit] || digit;
     if (written === stage || HYPOTHETICAL_ANEMIA_GRADE_CUE.test(text.slice(Math.max(0, offset - 10), offset))) return whole;
+    // 讲分期标准的句子（「eGFR 17，尚未达到慢性肾脏病5期eGFR<15的标准」）说的是那一期的界值，不是本例分期：不改
+    //（第四十六轮复核 n40：改成「尚未达到慢性肾脏病4期eGFR<15的标准」）。前面是「达到/未达/进入/进展为」或后面紧跟界值比较的不改。
+    if (/(?:达到|未达|未到|进入|进展为|进展至)[^，,。；;]{0,4}$/u.test(text.slice(Math.max(0, offset - 8), offset)) ||
+      /^[^，,。；;]{0,4}?(?:\(|（)?(?:eGFR|GFR)?\s*[<＜≤≥>＞]/u.test(text.slice(offset + whole.length, offset + whole.length + 12))) return whole;
     return `${name}${g || ""}${stage}期`;
   });
 }
@@ -1327,7 +1331,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
   // 前面「属主证可解释的伴随表现」照留。
   const overviewForSecondaryNote = record(reasoning.overview);
   if (overviewForSecondaryNote && typeof overviewForSecondaryNote.tcmDiagnosticRationale === "string") {
-    overviewForSecondaryNote.tcmDiagnosticRationale = withoutSecondaryRuleNote(overviewForSecondaryNote.tcmDiagnosticRationale);
+    overviewForSecondaryNote.tcmDiagnosticRationale = withoutOrphanMechanismFragments(withoutSecondaryRuleNote(overviewForSecondaryNote.tcmDiagnosticRationale));
   }
   // 待核实栏问的是病历已经否认的事（「有无咳嗽咯血」而病历写「无咳嗽、咯血」，第四十一轮 r1054 回顾）：这一条不留。
   // 只认「有无/是否有/是否伴」后面的那几项都被病历否认（recordedFindingReading = denied）；有一项没被否认就整条照留。
@@ -3440,6 +3444,15 @@ export function withoutSecondaryRuleNote(text: string): string {
     .replace(/[，,；;]\s*(?:故|因而|因此|故而)?(?:均)?(?:不另立|未另立|未立|不立|无|未诉)兼证(?:可立)?(?=[。；;]|$)/gu, "")
     .replace(/(^|[。；;])\s*(?:故|因而|因此|故而)?(?:不另立|未另立|未立|不立|无|未诉)兼证(?:可立)?[。；;]?/gu, "$1");
   return out.trim() || text;
+}
+
+/**
+ * 辨证依据里单独成句、只剩一个病机短语的残句（「…尿频尿急。温煦失司；舌脉未记录…」，第四十六轮复核 n26；同类 C043「故属痛痹；温煦失职；」）：
+ * 前面说这一证素的那半句被删掉后留下的。单独一段（句号、分号之间）、≤6 字、没有顿号逗号与归属词、以病机收尾词结尾的整段去掉。构词守卫。
+ */
+const ORPHAN_MECHANISM_SEGMENT = /(^|[。；;])\s*[^。；;、，,故属为示见乃系致]{1,4}(?:失司|失职|失约|失养|失运|不固|无权|不化)\s*[；;](?=\s*\S)/gu;
+export function withoutOrphanMechanismFragments(rationale: string): string {
+  return String(rationale || "").replace(ORPHAN_MECHANISM_SEGMENT, "$1");
 }
 
 /** 待核实项问的是否全是病历已否认的表现（见 deliveredDiagnose）。 */
