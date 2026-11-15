@@ -125,7 +125,8 @@ await check("2.6 交付面：药表、方义、煎服与注意事项里的「煅
   assert.equal(ownOnly.formula.candidates[0].herbs[0].name, "煅石决明", "功效栏没写平肝，病机指向里的「平肝潜阳」不据此改");
   assert.doesNotMatch(out.formula.candidates[0].formulaAnalysis, /煅石决明/u);
   // R1064：终稿源句固定写明结构化角色，保留原炮制与功效要求。
-  assert.match(out.formula.candidates[0].formulaAnalysis, /法半夏为佐药，燥湿化痰/u);
+  // 终表方义第四十七轮终测后缺省关，方义是模型写的那段（裸写的半夏在方义里随药表补成法半夏）。
+  assert.match(out.formula.candidates[0].formulaAnalysis, /法半夏燥湿化痰/u);
   assert.doesNotMatch(out.formula.candidates[0].decoction.method, /煅石决明/u);
   assert.match(out.nonPharma.precautions[0], /法半夏/u);
   assert.equal(out.formula.modifications[0].herbName, "姜半夏");

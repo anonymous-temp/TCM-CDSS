@@ -3558,7 +3558,8 @@ assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.method, /�
 // 「同承接上述病机」），以及与药味表「对应病机」列重复的整句病机引用。
 {
   const analysis = finalizedServerOwnedM04.formula.candidates[0].formulaAnalysis;
-  assert.match(analysis, /^本方/, "R1064：终稿先写方名与组成差异，再列可核功效");
+  // 终表方义第四十七轮终测后缺省关（0.9 秒内 269/269 超时成逐味罗列），方义回到模型写的那段。
+  assert.match(analysis, /^方中/, "方义必须以本方药味配伍的连续临床叙述起笔");
   assert.match(analysis, /人参.*为君/s, "君药必须写明在本方中的作用");
   assert.match(analysis, /川芎.*为臣/s, "臣药必须写明在本方中的作用");
   assert.doesNotMatch(analysis, /\*\*|(?:^|\n)\s*[-#]\s/m,

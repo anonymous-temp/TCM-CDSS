@@ -183,6 +183,8 @@ await check("5.3 交付面：药名带上炮制（processing 栏写的并进药�
   // 借《中药学》原药条目的功效原文（实测功效栏留空），不留空。
   assert.equal(once.formula.candidates[0].herbs[0].role, "臣");
   assert.match(once.formula.candidates[0].herbs[0].function, /补气健脾/u);
+  // 终表方义缺省关（第四十七轮终测后）：模型写的方义里的药名随药表改成炮制品。
+  assert.match(once.formula.candidates[0].formulaAnalysis, /土炒白术为臣/u);
   assert.equal(once.formula.modifications[0].herbName, "煅牡蛎");
   assert.match(once.formula.modifications[0].riskNote, /煅牡蛎先煎/u);
   // 第四十二轮起（用户定）：《中药学》写明内服须炮制的有毒药（附子、半夏…）把炮制栏并进药名，剂量须在该饮片的药典上限内；

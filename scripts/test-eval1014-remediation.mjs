@@ -691,7 +691,9 @@ const checkAsync = async (name, run) => {
       globalThis.fetch = async () => { calls += 1; return completion({ differentials: [{ ...good, diseaseName: textbookNames[0] }] }); };
       const filled = JSON.parse(await authoring.completeTcmDiseaseDifferentials(half([]), { recordText }));
       assert.equal(calls, 1);
-      assert.deepEqual(filled.overview.tcmDiseaseDifferentials, [], "r1064：尿窍流浊不与本例阴道白带主症相交，宁少不凑");
+      // 第四十七轮终测后：与主症相交的不够时用教材为本病列出的鉴别补足（4da6a0b5 的本意；此前解析处又按交集筛了一遍，补进来的教材鉴别被丢掉，
+      // 本条曾把那个结果钉成「宁少不凑」）。test:r1064-fin 6.1。
+      assert.deepEqual(filled.overview.tcmDiseaseDifferentials.map((item) => item.diseaseName), [textbookNames[0]], "教材为本病列出的鉴别可补足");
       assert.equal(filled.overview.primarySyndrome, "脾虚证", "其余字段不动");
       const existing = half([
         { diseaseName: textbookNames[0], reason: "同见白色分泌物", distinguishingPoints: "本例出自阴道，未诉尿痛", typicalManifestation: "尿窍流浊", nextCheck: null },
