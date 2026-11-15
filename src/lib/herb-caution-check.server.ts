@@ -58,7 +58,8 @@ const SYSTEM = [
   "逐条读 condition 与 raw。raw 的生品/制品、内服/外用、无实热等限定必须同时满足；并列项按本条 condition 判断，但相邻限定如脾胃虚寒且食少便溏不得省略。",
   "仅本人的实际病情可答 applies=true；否认、未问、假设、家族史、他人经历、药品不良反应不是本例病情。缺少证候依据时答 false，不能从一个泛症状推断整个证候。",
   "true 时 quote 必须逐字摘病历（保留否定词与主语，不超过160字），mention 为 quote 中真正证明该病情的最小逐字短语。不要把母亲病史或否认句删掉主语/否定词后充当阳性。",
-  '只输出 JSON：{"rows":[{"id":0,"applies":false,"quote":"","mention":""}]}；每个输入 id 恰好一条，不漏项。',
+  "rows 里同一条 condition/raw 只出现一次（已按条件去重，herbs 列出受它约束的饮片）。",
+  '只输出 JSON：{"applies":[{"id":0,"quote":"","mention":""}]}；只列 applies=true 的条目，都不适用时输出 {"applies":[]}。逐条都要读过再决定，不要因为省事少列。',
 ].join("\n");
 
 export async function checkHerbCautions(
@@ -70,18 +71,27 @@ export async function checkHerbCautions(
   if (process.env.CDSS_HERB_CAUTION_CHECK === "false" || signal?.aborted || !context.recordText.trim()) return [];
   const targets = herbCautionTargets(content);
   if (!targets.length) return [];
+  // 提速（第四十七轮实测：逐条回答 20–30 行，单次中位 2.2 秒，补写加减时还要再跑一次）：同一条件只问一次，只回答适用的条目。
+  const conditions: Array<{ id: number; condition: string; raw: string; herbs: string[]; targetIds: number[] }> = [];
+  for (const target of targets) {
+    const key = `${target.item.condition}\u0000${target.item.raw}`;
+    const found = conditions.find((entry) => `${entry.condition}\u0000${entry.raw}` === key);
+    if (found) { if (!found.herbs.includes(target.herb)) found.herbs.push(target.herb); found.targetIds.push(target.id); continue; }
+    conditions.push({ id: conditions.length, condition: target.item.condition, raw: target.item.raw, herbs: [target.herb], targetIds: [target.id] });
+  }
   const parse = (content: unknown): HerbCautionFinding[] | undefined => {
     if (typeof content !== "string") return undefined;
     try {
-      const list = record(JSON.parse(content))?.rows;
-      if (!Array.isArray(list) || list.length !== targets.length) return undefined;
+      const list = record(JSON.parse(content))?.applies;
+      if (!Array.isArray(list)) return undefined;
       const seen = new Set<number>();
       const findings: HerbCautionFinding[] = [];
       for (const value of list) {
         const row = record(value);
-        if (!row || !Number.isInteger(row.id) || !targets[row.id as number] || seen.has(row.id as number) || typeof row.applies !== "boolean") return undefined;
+        if (!row || !Number.isInteger(row.id) || !conditions[row.id as number]) return undefined;
+        if (seen.has(row.id as number)) return undefined;
         seen.add(row.id as number);
-        findings.push({ id: row.id as number, applies: row.applies, quote: text(row.quote), mention: text(row.mention) });
+        findings.push({ id: row.id as number, applies: true, quote: text(row.quote), mention: text(row.mention) });
       }
       return findings;
     } catch { return undefined; }
@@ -89,12 +99,12 @@ export async function checkHerbCautions(
   try {
     const result = await task<HerbCautionFinding[]>("herb_caution_check", "prescribe", [
       { role: "system", content: SYSTEM },
-      { role: "user", content: JSON.stringify({ record: context.recordText, rows: targets }) },
-    ], { maxTokens: Math.min(8_000, Math.max(600, targets.length * 100)), timeoutMs: 4_000 }, parse, signal);
+      { role: "user", content: JSON.stringify({ record: context.recordText, rows: conditions.map(({ id, condition, raw, herbs }) => ({ id, condition, raw, herbs })) }) },
+    ], { maxTokens: Math.min(1_600, 200 + conditions.length * 60), timeoutMs: 4_000 }, parse, signal);
     if (!result || signal?.aborted) return [];
     const second = new Map(result[1].filter((finding) => herbCautionFindingGrounded(finding, context.recordText)).map((finding) => [finding.id, finding]));
     return result[0].filter((finding) => second.has(finding.id) && herbCautionFindingGrounded(finding, context.recordText))
-      .map((finding) => ({ ...targets[finding.id], quote: finding.quote }));
+      .flatMap((finding) => conditions[finding.id].targetIds.map((id) => ({ ...targets[id], quote: finding.quote })));
   } catch { return []; }
 }
 

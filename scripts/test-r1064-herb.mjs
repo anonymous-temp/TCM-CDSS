@@ -17,10 +17,11 @@ const root = () => ({ schemaVersion:'tcm-cdss-reasoning-v2', stage:'prescribe', 
 const finding = (quote='经量较往年明显增多') => ({id:0,applies:true,quote,mention:quote});
 const task = (choose, secondChoose=choose) => async (_ns,_stage,messages,_opts,parse) => {
   const payload = JSON.parse(messages[1].content);
-  const answer = (fn) => parse(JSON.stringify({rows:payload.rows.map((target)=>({id:target.id,applies:false,quote:'',mention:'',...fn(target)}))}));
+  // 第四十七轮提速：模型按去重后的条件（row.herbs 列出受约束的饮片）只回答适用的条目。
+  const answer = (fn) => parse(JSON.stringify({applies:payload.rows.flatMap((row)=>{const r={applies:false,quote:'',mention:'',...fn(row)};return r.applies?[{id:row.id,quote:r.quote,mention:r.mention}]:[];})}));
   return [answer(choose),answer(secondChoose)];
 };
-const positive = (target) => target.herb==='川芎' && target.item.condition==='月经过多' ? {applies:true,quote:'经量较往年明显增多',mention:'经量较往年明显增多'} : {};
+const positive = (row) => row.herbs.includes('川芎') && row.condition==='月经过多' ? {applies:true,quote:'经量较往年明显增多',mention:'经量较往年明显增多'} : {};
 await check('1.1 旧字段内容与顺序无损，新增字段齐全',()=>{
   const copy=structuredClone(refs);for(const herb of Object.values(copy.herbs))for(const field of ['applications','applicationsLine','cautionItems','pregnancy','processingPurposes'])delete herb[field];
   const sorted=(v)=>Array.isArray(v)?v.map(sorted):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,sorted(v[k])])):v;
