@@ -1,7 +1,10 @@
 import "server-only";
 
+import factPolicy from "../data/delivery-facts-policy.source.json";
 import natureLexiconJson from "../data/tcm-nature-lexicon.json" with { type: "json" };
 import { primaryModelJsonTask } from "./cross-model-small-task.server";
+import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
+import { governedAxisElements, governedSyndromeElements } from "./delivery-invariant-governance";
 import { compositeSyndromeRename } from "./delivered-surface";
 import { uncertaintyAnsweredByRecord, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording, withMethodImpliedNatureElements } from "./analysis-element-closure";
 import { foreignSyndromeNames } from "./m03-rationale-coverage.server";
@@ -19,7 +22,7 @@ import { sanitizeOptionalPathogenesisClassifications } from "./diagnosis-visible
  *  · 证名是虚证（气厥虚证、心阳欲脱证），病性写「本虚：无」（C028、C022）。
  * 怎么做：结论（病名、主证、兼证、治法）不动；交付前用确定性判据查分析与结论对不对得上（analysisMisalignments），对不上时让模型按定了的结论
  * 重写分析那几段（辨证依据、病性三栏与依据、总体病机、待核实），服务端逐项核对后才换：病性依据逐段在病历里、依据末句落到交付的证名、
- * 不出现结论以外的证名、病性要素都在结论里、重写后再查一遍要对得上。任何一步不过、超时或失败，原样交付（与今天一样）。
+ * 不出现结论以外的证名、病性要素都在结论里、重写后再查一遍要对得上。任何一步不过、超时或失败，删除违规句/项；必填内容删空交回既有合同，不保留有矛盾的原文。
  * 只在对不上时发请求（第四十五轮方案：不是每例都多一次调用）。开关：CDSS_M03_ANALYSIS_ALIGNMENT=false。
  */
 export function analysisAlignmentEnabled(): boolean {
@@ -33,12 +36,16 @@ const strings = (value: unknown): string[] => Array.isArray(value) ? value.map(t
 
 const LEXICON = (natureLexiconJson as { entries: Array<{ id: string; canonical: string; aliases: string[]; kind: string }> }).entries;
 /** 同一病性要素的不同写法归一组（热与火热、湿与水湿、气滞与气郁）。 */
-const ELEMENT_GROUP: Readonly<Record<string, string>> = { heat: "heat", fire_heat: "heat", damp: "damp", water_damp: "damp" };
+const ELEMENT_GROUP: Readonly<Record<string, string>> = { heat: "heat", fire_heat: "heat", summerheat: "heat", damp: "dampness", water_damp: "dampness", dampness: "dampness", water_dampness: "dampness" };
 const groupOf = (id: string) => ELEMENT_GROUP[id] || id;
 
 /** 证名或病性条目里的病性要素（受治理病性词表；虚性四类按字面另认）。只认两字以上的写法与单字病邪，宁少认，不多认。 */
 export function natureElementsIn(value: string): Set<string> {
   const raw = String(value || "").normalize("NFKC");
+  // Exact governed names take precedence over lexical fragments: 气虚发热 is not an excess heat syndrome.
+  const exact = (factPolicy.syndromeElements as Record<string, string[]>)[raw.trim()];
+  if (exact) return new Set(exact.map(groupOf));
+  if (raw.includes("、")) return new Set(raw.split("、").flatMap((part) => [...natureElementsIn(part)]));
   // 虚寒、虚热、虚火、阴虚火旺是虚证本身的寒热，不另算寒、热这一病邪（脾胃虚寒证的病性写阳虚即可）。
   // 同一串里写了阴虚（阳虚）时，火旺、内热（寒、内寒）是虚证自身的热（寒），归阴虚（阳虚）：「阴虚、火旺」与「阴虚火旺证」同一结论。
   let source = raw.replace(/虚寒|内寒|虚热|虚火|阴虚火旺|火衰/gu, "虚");
@@ -180,7 +187,7 @@ function parse(content: unknown): Rewrite | undefined {
 const compact = (value: string) => value.normalize("NFKC").replace(/[\s，,。；;：:、]/gu, "");
 
 /**
- * 重写稿能不能换上去（纯函数，供测试）。不过时返回 undefined，原样交付。
+ * 重写稿能不能换上去（纯函数，供测试）。不过时返回 undefined，由调用方删违规句/项。
  *  · 辨证依据 40–320 字、写到交付的主证名、不出现结论以外的证名、原有的流派视角句仍在；
  *  · 病性条目都在结论里（natureElementsIn 认得出的要素都是证名里的），本虚、标实两栏是病性条目的分组；
  *  · 病性依据每段都逐字在病历里（去掉空白、标点比）；
@@ -237,10 +244,84 @@ export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, reco
   return remaining.length === 0 ? next : reject(`still:${remaining.map((issue) => issue.code).join("+")}`);
 }
 
+/**
+ * R47 rejection fallback. Whole offending sentences/items are removed; locked conclusions and patient quotations stay.
+ * Omissions cannot be repaired by inventing evidence or erasing all valid analysis; leave contract failure visible.
+ */
+export function withoutMisalignedAnalysis(reasoning: Json, recordText: string): Json {
+  const issues = analysisMisalignments(reasoning, recordText);
+  if (!issues.length) return structuredClone(reasoning);
+  const next = structuredClone(reasoning);
+  const overview = record(next.overview)!;
+  const pathogenesis = record(next.pathogenesis)!;
+  const nature = record(pathogenesis.natureDifferentiation)!;
+  const primary = deliveredPrimary(reasoning, recordText);
+  const secondary = strings(overview.secondarySyndromes);
+  const concluded = conclusionElements([primary, ...secondary].join("、"), text(record(reasoning.therapy)?.overallMethod) || text(overview.overallTherapy));
+  const namedAuthority = governedSyndromeElements([primary, ...secondary]);
+  const forbidden = new Set(namedAuthority.complete ? [...strings(nature.items), ...strings(nature.rootDeficiency), ...strings(nature.branchExcess)]
+    .flatMap((item) => { const governed = governedAxisElements(item); return governed.complete ? governed.ids.map(groupOf) : []; })
+    .filter((id) => !concluded.has(id)) : []);
+  // A missing element/root is an unresolved omission, not proof that every authored sentence is false.
+  // Remove only contradicted material below; leave the omission visible to final contracts/findings.
+  const contradicts = (value: string): boolean => {
+    for (const entry of LEXICON) {
+      if (!forbidden.has(groupOf(entry.id))) continue;
+      for (const mention of [entry.canonical, ...entry.aliases]) {
+        for (let at = value.indexOf(mention); at >= 0; at = value.indexOf(mention, at + mention.length)) {
+          // A named-syndrome mention is handled by the assertion guard below, not as an unscoped element token.
+          if (/^(?:主|兼)?证/u.test(value.slice(at + mention.length))) continue;
+          if (clauseLocalMentionPolarityAt(value, at) === "affirmed") return true;
+        }
+      }
+    }
+    const foreign = foreignSyndromeNames(value, { rationale: "", primary, secondary, disease: text(overview.tcmDiseaseName), recordText });
+    for (const name of foreign) {
+      const core = name.replace(/证$/u, "");
+      for (let at = value.indexOf(core); at >= 0; at = value.indexOf(core, at + core.length)) {
+        const head = value.slice(0, at).trimEnd();
+        const asserted = factPolicy.alignmentAssertionMarkers.some((marker) => head.endsWith(marker)) || value.replace(/[。；;\s]/gu, "") === name;
+        if (!asserted || clauseLocalMentionPolarityAt(value, at) !== "affirmed") continue;
+        return true;
+      }
+    }
+    return false;
+  };
+  const cut = (value: unknown): string => asSentences(text(value)).filter((sentence) => !contradicts(sentence)).join("");
+  for (const key of ["tcmDiagnosticRationale", "overallPathogenesis"]) {
+    if (typeof overview[key] === "string") overview[key] = cut(overview[key]);
+  }
+  for (const key of ["summary", "natureSummary"]) if (typeof pathogenesis[key] === "string") pathogenesis[key] = cut(pathogenesis[key]);
+  for (const key of ["items", "rootDeficiency", "branchExcess"]) nature[key] = strings(nature[key]).filter((item) => {
+    const governed = governedAxisElements(item);
+    return !governed.complete || !governed.ids.some((id) => forbidden.has(groupOf(id)));
+  });
+  delete nature.resolutionReason;
+  nature.resolution = "bounded";
+  if (Array.isArray(pathogenesis.chain)) pathogenesis.chain = pathogenesis.chain.filter((raw) => {
+    const node = record(raw);
+    if (!node) return true;
+    for (const key of ["pathogenesis", "syndromeEvidence", "therapyDirection"]) if (typeof node[key] === "string") node[key] = cut(node[key]);
+    // Remove the whole unexplainable item; retained node IDs remain stable for reference repair.
+    return Boolean(text(node.pathogenesis));
+  });
+  if (Array.isArray(pathogenesis.uncertainties)) pathogenesis.uncertainties = pathogenesis.uncertainties.filter((row) => {
+    const item = record(row);
+    if (!item) return true;
+    const probe = structuredClone(reasoning);
+    record(probe.pathogenesis)!.uncertainties = [item];
+    return !analysisMisalignments(probe, recordText).some((issue) => issue.code === "uncertainty_asks_named_element");
+  });
+  return next;
+}
+function asSentences(value: string): string[] {
+  return value.match(/[^。！？!?；;]+[。！？!?；;]?/gu) || [];
+}
+
 const TIMEOUT_MS = 9_000;
 
-/** 对齐一份已合并的辨证结果（含哨兵的完整内容）。对得上、开关关着、失败或不过核对时原样返回。 */
-export async function alignAnalysisWithConclusion(content: string, context: { recordText: string }, signal?: AbortSignal): Promise<string> {
+/** 对齐一份已合并的辨证结果（含哨兵的完整内容）。对得上、开关关着时原样返回；失败或不过核对时删除违规句/项。 */
+export async function alignAnalysisWithConclusion(content: string, context: { recordText: string }, signal?: AbortSignal, rewriteTask = primaryModelJsonTask): Promise<string> {
   if (!analysisAlignmentEnabled()) return content;
   const START = "<!-- DIAGNOSIS_JSON_START -->";
   const END = "<!-- DIAGNOSIS_JSON_END -->";
@@ -255,7 +336,7 @@ export async function alignAnalysisWithConclusion(content: string, context: { re
   const overview = record(reasoning.overview)!;
   const pathogenesis = record(reasoning.pathogenesis)!;
   const nature = record(pathogenesis.natureDifferentiation)!;
-  const rewrite = await primaryModelJsonTask("m03_analysis_alignment", "diagnose", [
+  const rewrite = await rewriteTask("m03_analysis_alignment", "diagnose", [
     { role: "system", content: SYSTEM },
     { role: "user", content: JSON.stringify({
       record: context.recordText.slice(0, 3_000),
@@ -275,7 +356,11 @@ export async function alignAnalysisWithConclusion(content: string, context: { re
   const rejection = { reason: "" };
   const accepted = rewrite ? acceptedAlignmentRewrite(reasoning, rewrite, context.recordText, rejection) : undefined;
   console.info("[tcm-cdss:telemetry] m03_analysis_alignment", { issues: issues.map((issue) => issue.code), rewritten: Boolean(rewrite), accepted: Boolean(accepted), rejected: rejection.reason || null });
-  if (!accepted) return content;
+  if (!accepted) {
+    const cut = withoutMisalignedAnalysis(reasoning, context.recordText);
+    // Do not run a normalizer that may restore rejected prose. The existing caller revalidates the contract.
+    return `${content.slice(0, start + START.length)}\n${JSON.stringify(cut, null, 2)}\n${content.slice(end)}`;
+  }
   return contentWithAcceptedRewrite(content, accepted, context.recordText);
 }
 

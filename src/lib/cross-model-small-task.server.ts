@@ -1,7 +1,7 @@
 import "server-only";
 
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
-import { createTextModelClient, getControlledTerminologyModelConfig, textModelConfigForModel, textModelRequestTuning } from "./text-model";
+import { createTextModelClient, getControlledTerminologyModelConfig, textModelConfigForModel, textModelRequestTuning, textModelFamily } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 
 const CROSS_CHECK_MODEL = () => process.env.PRIMARY_STRUCTURED_FALLBACK_MODEL?.trim() || "qwen3.8-flash";
@@ -203,4 +203,28 @@ export function parseConfirmed(content: unknown): boolean | undefined {
   } catch {
     return undefined;
   }
+}
+
+export type IndependentModelIdentity = { family: string; model: string; endpointHost: string };
+/** Model family and resolved endpoint must both agree. Two deployments of one vendor are not independent. */
+export function independentModelPair(identities: readonly IndependentModelIdentity[]): boolean {
+  const allowed: Record<string, string> = { deepseek: "api.deepseek.com", qwen: "dashscope.aliyuncs.com" };
+  return identities.length === 2 && identities[0].family !== identities[1].family && identities.every((item) =>
+    textModelFamily(item.model) === item.family && allowed[item.family] === item.endpointHost);
+}
+/** Final delivery checks need a proven vendor pair; legacy helpers keep their previous policy. */
+export async function independentModelJsonTask<T>(
+  namespace: string, stage: "diagnose" | "prescribe", messages: Messages,
+  options: { maxTokens: number; timeoutMs: number }, parse: (content: unknown) => T | undefined, signal?: AbortSignal,
+): Promise<{ identities: IndependentModelIdentity[]; results: [T, T] } | undefined> {
+  const configs = [getControlledTerminologyModelConfig(), textModelConfigForModel(CROSS_CHECK_MODEL())];
+  const identities = configs.map((config) => {
+    let endpointHost = "";
+    try { endpointHost = new URL(config.baseUrl).hostname; } catch { /* invalid config is unavailable */ }
+    return { family: textModelFamily(config.model), model: config.model, endpointHost };
+  });
+  if (!independentModelPair(identities) || configs.some((config) => !config.configured)) return undefined;
+  const results = await Promise.all(configs.map((config, index) => runOne(`${namespace}_${index}`, stage, config, messages,
+    options.maxTokens, options.timeoutMs, parse, signal)));
+  return results[0] !== undefined && results[1] !== undefined ? { identities, results: [results[0], results[1]] } : undefined;
 }

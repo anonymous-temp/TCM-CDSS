@@ -1,0 +1,70 @@
+R47 S1b facts: F integration contract (no route/finalize wiring in this package)
+
+1. Final candidate is {stage:"diagnose"|"prescribe", structured:finalJSON, visibleText?:finalRenderedText}.
+   Build and freeze AFTER every delivery projection/render/cleanup. No signature metadata is necessary in this internal wrapper.
+   buildTrustedRecordIndex(actualCaseState) selects only input partitions; never pass previous reasoning/gold as record.
+
+2. Parallel read-only checks:
+   const record = buildTrustedRecordIndex(state);
+   const final = structuredClone({stage, structured, visibleText});
+   const facts = await checkFinalPatientFacts(final, record, earlierCache, signal, {
+     timeoutMs: remainingDeadlineMs,
+     identities: configuredIndependentProviderIdentities, // optional; required to reuse the explicit cache
+     contextHash: subjectTimePolarityAndFinalConclusionHash,
+   });
+   const input = {m03: finalM03, m04: stage === "prescribe" ? structured : undefined, recordIndex: record};
+   const governedContext = buildDeliveryInvariantGovernance({...input, ageYears: record.ageYears});
+   // Add reviewed element/pending IDs, concept equivalences, frozen circulation reason codes if available.
+   // Missing mappings are explicitly unknown/shadow. The existing name-derived principle function is only a shadow R04 candidate
+   for axis compatibility; supply reviewed gov.principle to enforce it. R11 always stays shadow even with a supplied authority.
+   const findings = scanDeliveryInvariants({...input, governedContext});
+
+   Facts and integrity can share independentModelJsonTask from cross-model-small-task.server.ts.
+   It validates both model family and resolved vendor host; legacy cross-model helpers retain their existing behavior.
+   No successful status can be inferred from unconfigured/same-vendor/timeout/partial coverage results.
+
+3. Fact result paths are JSON Pointer into final (/structured/... or /visibleText); occurrenceId includes exact path.
+   Invariants/repair use the paired root {m03,m04} (/m03/... or /m04/...). Convert these bases explicitly when merging A/B/C edit plans.
+   UTF-16 offsets and complete before-text bind each cut to its snapshot. planMinimalFactCuts also checks whole-candidate hash.
+   applyDeliveryTextCuts(final, approvedFactCuts) is an explicit pure operation, not performed by checkFinalPatientFacts.
+   Before applying, F MUST intersect facts.cuts with A/F's authoritative protected occurrence/range map. Static schema roles in
+   delivery-text cover universal machine/source/safety trees; generic narrative paths can mix model text and server-owned safety
+   sentences (for example generated precautions/redFlagLoop). Those origins cannot be inferred from field names. Reject every cut
+   overlapping a protected range, and keep any resulting unknown/finding unresolved rather than claiming pass.
+   Independent clauses require both models' matching boundary+unitKind; otherwise the minimum complete sentence is removed.
+   A false-only string may become empty. Do not restore it because a contract requires a value.
+   Raw quotations, source citations, deterministic safety output, diagnosis names and dose/name/role locks cannot be cut.
+
+4. findingsToDeliveryRepairRequests(findings,{m03,m04},"enforce") returns limited requests and unresolved findings.
+   Default mode is shadow. Unknown findings and R11 never generate a repair request.
+   Execute only through the existing targeted retry/deadline/quality budget. maxAttempts is ONE for the shared repair closure,
+   not an entitlement to run once for each finding. Coalesce compatible requests first.
+   Formula repairs write formulaAnalysis only, with herb table/conclusions frozen; R12 restores exact non-derived ownership differences;
+   R09 appends missing differentials without rewriting existing entries. References can change only the broken targetRef.
+   deliveryRepairStayedInScope(before,after,request) rejects unrelated changes, altered quotations/safety/citations,
+   changed doses or conclusions, and wrong ownership restores. It supplements existing clinical acceptance checks.
+   R05 requires frozen triggerSource {kind,sourceRef,sourceQuote}; sourceRef must resolve in M03, and sourceQuote plus trigger must
+   occur verbatim in HPI. A formatting failure is not a judgement that a chief-complaint/exam fact was fabricated.
+
+5. Recheck affected gates and existing schema/quality/safety/ownership contracts after the merged repair, then rerender/recheck
+   visible text. Any new text needs facts checked. Empty required fields follow existing incomplete/retry handling.
+   No helper in this package issues clinicalReview, authorizes dosage, or converts a quality finding into a safety verdict.
+   Bind final hashes/signatures only after all agreed changes; cache/archive/emit the same snapshot.
+   Off and shadow apply no final-gate edits. Original tcm/western early patient checker API is unchanged.
+   Alignment's existing enabled path now deletes invalid original prose after rewrite rejection/unavailability;
+   CDSS_M03_ANALYSIS_ALIGNMENT=false still preserves its prior disabled behavior.
+   Rejection fallback deletes confirmed contrary sentences/items and affected nodes, using governed component identities and existing
+   polarity reading. A missing element/root remains an unresolved omission; it neither invents evidence nor erases all otherwise valid
+   analysis. Retained omissions/unknown mappings MUST remain findings, never be recorded as aligned/pass.
+
+6. Cache is explicit/request scoped. Keys include full record and source policy, stage/path/text, the entire structured conclusion
+   context and visible context, caller context hash, prompt and independent provider/model metadata. Only supported/not_patient_fact
+   consensus coverage is reusable. This intentionally invalidates conservatively; no timing improvement is claimed.
+   R12 differences in stage-derived followupSafetyNet and governed-equivalent Western display names are explicit shadow observations,
+   so restoring ownership cannot erase the M04 dose/course-derived revisit plan. All other ownership differences stay enforceable.
+   Source/field budgets never truncate: complete sentences form bounded batches; oversize/late units and absent providers remain unknown.
+   Historical r46c has no new coverage/ledger metadata: offline scans cannot establish live model accuracy or latency.
+
+Offline: flock /tmp/r1064-heavy.lock node --max-old-space-size=1280 scripts/replay-r1064-facts.mjs [output-dir]
+Tests:   flock /tmp/r1064-heavy.lock npm run test:r1064-facts
+Proof:   flock /tmp/r1064-heavy.lock python3 /var/tmp/r1064/cp/facts.py --setup
