@@ -3693,6 +3693,7 @@ async function callPrimaryTextModelStream(
           if (result.kind !== "ready" && result.kind !== "bounded") {
             markStageGenerationNonReusable();
             stageOutcome = "fallback"; stageReasonCode = `m03_two_pass_${result.kind}`;
+            console.warn("[tcm-cdss:telemetry] m03_two_pass_fallback", { kind: result.kind, reasons: "reasons" in result ? result.reasons.slice(0, 12) : [] });
             const fallback = result.kind === "upstream_unavailable" ? opts.upstreamUnavailableFallback : undefined;
             enqueueClient(`${STREAM_REPLACE_MARKER}${fallback || (m03CleanWesternHalf ? opts.truncateFallbackWithWestern?.(m03CleanWesternHalf) : undefined) || opts.truncateFallback || ""}`);
             enqueueClient("[END]"); closeClientStream(); return;
