@@ -2407,7 +2407,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     const vegetarian = rxConstraints.vegetarianTerms.some((term) => recordedFindingReading(options?.recordText || "", term) === "affirmed");
     // The authoritative current-medication field can retain a trailing “长期服用” that the name catalogue misses.
     // Reuse its existing current/past reading for this closed drug name; do not infer use from a narrative mention.
-    const historyWarfarin = Boolean(options?.caseState && "patient" in options.caseState && recordedMedicationHistoryList(options.caseState).some((item) =>
+    const historyWarfarin = Boolean(options?.caseState && "patient" in options.caseState && recordedMedicationHistoryList(options.caseState as CaseState).some((item) =>
       rxConstraints.warfarinTerms.some((term) => item.includes(term) && !medicationStoppedOrOnlyPast(item, term) && !medicationNotTaken(item, term))));
     const warfarin = (options?.requiredPrecautions || []).some((item) => item.kind === "warfarin_herbal") || historyWarfarin;
     const dietConflict = (text: string) => (vegetarian && (rxConstraints.animalFoods.some((food) => text.includes(food)) || allergenMatchesInText(text, rxConstraints.animalFoodClasses.map((classId) => ({ classId, labelZh: "", kind: "allergy" as const, quote: "" }))).length > 0)) || (warfarin && rxConstraints.vitaminKFoods.some((food) => text.includes(food)));
