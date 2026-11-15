@@ -13,6 +13,9 @@
 //（或 CDSS_ENV_FILE=/path/local.env；密钥只在进程内使用，不打印。）
 import fs from "node:fs";
 import path from "node:path";
+import { createJiti } from "jiti";
+const jiti = createJiti(import.meta.url);
+const { isAllowedWesternEvidenceUrl, westernEvidenceTitleMatches, westernEvidenceIsChinese } = await jiti.import("../src/lib/western-evidence-policy.ts");
 
 const OUT = path.resolve("src/data/western-diagnostic-criteria.source.json");
 const [namesFile, ...flags] = process.argv.slice(2);
@@ -96,11 +99,11 @@ async function extract(name, page) {
 
 let added = 0;
 for (const name of names) {
-  if (!refresh && byName.has(name)) continue;
+  if (!refresh && [...byName.values()].some((entry) => entry.name === name || (entry.aliases || []).includes(name))) continue;
   const search = await post(`${BASE}/v1/tools/search`, { query: `${name} 诊断标准`, count: 8, need_content: true });
   const pages = (search.json.results || [])
-    .filter((item) => (item.authority ?? -1) >= 3 && String(item.content || "").length >= 200)
-    .sort((a, b) => (b.rerank_score || 0) - (a.rerank_score || 0))
+    .filter((item) => (item.authority ?? -1) >= 3 && String(item.content || "").length >= 200 && isAllowedWesternEvidenceUrl(item.url) && westernEvidenceTitleMatches(item.title || "", [name]))
+    .sort((a, b) => Number(westernEvidenceIsChinese(b.url, b.title)) - Number(westernEvidenceIsChinese(a.url, a.title)) || (b.rerank_score || 0) - (a.rerank_score || 0))
     .slice(0, 3);
   let entry;
   for (const page of pages) {

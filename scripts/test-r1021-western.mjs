@@ -129,20 +129,23 @@ const verdict = (extra) => JSON.stringify({ verdict: "inconsistent", type: "D", 
 {
   const table = JSON.parse(fs.readFileSync(path.join(SRC, "data/western-diagnostic-criteria.source.json"), "utf8"));
   const entry = (name) => table.entries.find((item) => item.name === name);
-  await check("3.1 阿尔茨海默病：可临床诊断、不要求 PET/脑脊液；原文引自 PubMed 21514250 摘要；订正带改前内容与依据", () => {
+  await check("3.1 阿尔茨海默病：可临床诊断、不要求 PET/脑脊液；原始诊断摘录保留 PubMed 21514250、交付引用走专业来源；订正带改前内容与依据", () => {
     const ad = entry("阿尔茨海默病");
     assert.equal(ad.clinicallyDiagnosable, true);
     assert.deepEqual(ad.requiredTests, []);
     assert.ok(ad.quote.includes("The core clinical criteria for AD dementia will continue to be the cornerstone of the diagnosis in clinical practice"));
-    assert.ok(ad.url.includes("pubmed.ncbi.nlm.nih.gov/21514250"));
+    // 第四十七轮：诊断依据不变；网页引用已换成白名单内的同病专业手册，旧出处保留溯源。
+    assert.ok(ad.originalSource.url.includes("pubmed.ncbi.nlm.nih.gov/21514250"));
+    assert.match(ad.url, /^https:\/\/www\.msdmanuals\.cn\/professional\//u);
     assert.equal(ad.reviewCorrection?.before?.clinicallyDiagnosable, false);
     assert.ok(ad.reviewCorrection.before.requiredTests.length >= 2 && ad.reviewCorrection.basis.length > 40);
   });
   // 2026-10-24 第十七轮加了新生儿败血症、婴儿败血症两行（135 → 137）；第十八轮加急性胰腺炎、急性胆囊炎、急性心肌梗死、急性肺栓塞、
   // 蛛网膜下腔出血五行（137 → 142，基层病例未做化验影像时直接下急症诊断，见 test:r1030-main 7.1）。
   // 第四十六轮加「功能性腹痛」一行（142 → 143，儿童按罗马IV 2 个月，C073 曾按成人 6 个月判，见 test:r1063-text）。
-  await check("3.2 对照：其余条目不变（条目数 143；缺铁性贫血、支气管哮喘、社区获得性肺炎仍要求检查，不可临床诊断）", () => {
-    assert.equal(table.entries.length, 143);
+  await check("3.2 对照：扩表后原有临床要求保留（条目至少 400；缺铁性贫血、支气管哮喘、社区获得性肺炎仍要求检查，不可临床诊断）", () => {
+    assert.ok(table.entries.length >= 400);
+    assert.equal(new Set(table.entries.map((item) => item.name)).size, table.entries.length);
     for (const name of ["缺铁性贫血", "支气管哮喘", "社区获得性肺炎", "多囊卵巢综合征"]) {
       assert.ok(entry(name), name);
       assert.ok(entry(name).requiredTests.length > 0 || entry(name).durationThreshold || entry(name).definingFeatures.length > 0, name);

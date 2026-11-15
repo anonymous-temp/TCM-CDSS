@@ -1,6 +1,7 @@
 import { DELIVERY_REWRITE_RULES, traceProjection, observeTextRewrite } from "./delivery-rewrite-ledger";
 /** Observation only; original clinical transforms and their return values are unchanged. */
 export const DELIVERED_SURFACE_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.surface, leaves: ["applyDeliveredSurfaceToContent","projectDeliveredReasoning","clinicalWordingForSyntheticPhrases","readabilityCleaned"] as const });
+import { diseaseCareItemCovered, withoutDiseaseCareConflicts } from "./western-disease-care";
 /**
  * 交付面：调用方实际收到的结构化结果里，哪些字段不再带内容、哪些服务端生成的措辞要换成临床语言。
  *
@@ -125,6 +126,7 @@ const currentMedicationsNamed = (item: Extract<RequiredPrecaution, { kind: "curr
 
 /** 注意事项里已经写到这一项了吗（说到药名 / 哺乳 / 抗菌治疗即算，不管模型怎么措辞）。 */
 function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly string[]): boolean {
+  if (item.kind === "disease_care") return diseaseCareItemCovered(item, lines);
   // 运动保健一栏的项目，注意事项里不核（见 exerciseForMobilityLimitation）。
   if (item.kind === "mobility_limited_exercise" || item.kind === "recorded_drug_names") return true;
   if (item.kind === "self_discontinued_medication") return lines.some((line) => /停/u.test(line) && /自行|擅自|规律|遵医嘱/u.test(line) &&
@@ -262,6 +264,7 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
       ? `您之前未规律服用${discontinuedMedicationLabel(item)}，请由医生评估后按医嘱规律服用，不要自行停药或减量。`
       : `您之前自行停用了${discontinuedMedicationLabel(item)}，请尽快由医生评估后调整用药并规律服用，不要再自行停药或减量。`;
   }
+  if (item.kind === "disease_care") return item.sentence;
   if (item.kind === "mobility_limited_exercise" || item.kind === "recorded_drug_names") return "";
   if (item.kind === "high_risk_condition") return highRiskConditionLine(item, highRiskConditionsMissing(item, currentLines));
   if (item.kind === "current_medications") {
@@ -2496,7 +2499,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     }
     // 本例必须写到的项目（自服药、产后哺乳、丹毒抗感染）逐项核对，模型漏写的用规则那句补在最前（2026-10-17）。
     // 已写到的不动；补上之后再投影一次就都算写到了，幂等。
-    const required = options?.requiredPrecautions || [];
+    // 病名调护在最终交付处统一补写，不参与这里的常规条数裁剪，避免挤掉原有用药提示。
+    const required = (options?.requiredPrecautions || []).filter((item) => item.kind !== "disease_care");
     if (required.length > 0) {
       const herbIdentities = new Set(records(records(formula?.candidates)[0]?.herbs)
         .map((herb) => compositionIdentityName(String(herb.name || ""))).filter(Boolean));
@@ -3645,6 +3649,13 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
     }
   }
   else if (projected.stage === "prescribe") {
+    // 再投影时先移开上次补入的原句，避免常规条数裁剪把它们计入、挤掉原有用药提醒；最后统一核对补回。
+    const incomingCareSentences = new Set((options?.requiredPrecautions || [])
+      .filter((item) => item.kind === "disease_care").map((item) => item.sentence));
+    const incomingCare = record(projected.nonPharma);
+    if (incomingCare && Array.isArray(incomingCare.precautions) && incomingCareSentences.size > 0) {
+      incomingCare.precautions = incomingCare.precautions.filter((line) => typeof line !== "string" || !incomingCareSentences.has(line));
+    }
     deliveredPrescribe(projected, options);
     options = withEstablishedDiagnosis(projected, options);
     // 红旗未解除时不列中成药、西药（2026-11-08 第三十七轮，甲方 11.05 病历16：急性胸痛 2 小时、疑急性心梗，推荐了参芍片）。
@@ -3732,6 +3743,28 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
   // 去理由里的重复放在措辞替换之后：红旗边界句先换成「急危重风险未排除，请先完成急诊或转诊评估…」才对得上项目「急危重风险尚未排除」
   //（此前在替换前比，理由开头是「急危重风险未排除：以下辨证…」，冒号连着后半句，比不上，红旗病例的待核实照样重复；第四十五轮复核 20 余份）。
   withoutReasonEchoingItem(record(projected.pathogenesis));
+  if (projected.stage === "prescribe") {
+    const careItems = (options?.requiredPrecautions || []).filter((item) => item.kind === "disease_care");
+    const care = record(projected.nonPharma);
+    if (care && careItems.length > 0) {
+      // 最后核对，避免通用调护清理器再删掉已补的必做项。不改诊断、证据或复诊时限。
+      const management = record(projected.management);
+      for (const instructions of [care, management]) {
+        if (!instructions) continue;
+        for (const key of Object.keys(instructions)) {
+          const value = instructions[key];
+          if (typeof value === "string") instructions[key] = withoutDiseaseCareConflicts(value, careItems);
+          else if (Array.isArray(value)) instructions[key] = value.map((line) => typeof line === "string" ? withoutDiseaseCareConflicts(line, careItems) : line).filter(Boolean);
+        }
+      }
+      // 若冲突句与复诊文字在同一段，仍由既有优先评估目标恢复第一步，不从调护表另算期限。
+      if (management && typeof management.followupSafetyNet === "string" && options?.priorityEvaluation !== undefined) {
+        management.followupSafetyNet = followupWhenPriorityEvaluation(management.followupSafetyNet, options.priorityEvaluation);
+      }
+      const lines = Array.isArray(care.precautions) ? care.precautions.filter((line): line is string => typeof line === "string") : [];
+      care.precautions = [...careItems.filter((item) => !diseaseCareItemCovered(item, lines)).map((item) => item.sentence), ...lines];
+    }
+  }
   return projected as T;
 
   }, { ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.projectDeliveredReasoning" });

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { isAllowedWesternEvidenceUrl, westernEvidenceTitleMatches, westernEvidenceIsChinese } from "./western-evidence-policy";
+import { symptomLevelWesternName } from "./western-symptom-name.server";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { textModelConfigForModel } from "./text-model";
 
@@ -73,6 +75,7 @@ export async function webSearchGovernedTerm(
   const name = term.trim();
   if (!webSearchEnabled() || options.signal?.aborted) return [];
   if (name.length < 2 || name.length > 30 || !/^[一-鿿A-Za-z0-9·\-－()（）]+$/u.test(name)) return [];
+  if (symptomLevelWesternName(name)) return [];
   const config = textModelConfigForModel(process.env.CDSS_WEB_SEARCH_MODEL_FAMILY?.trim() || "deepseek-flash");
   if (!config.configured || !config.apiKey) return [];
   const query = `${name} ${suffix}`.trim().slice(0, 128);
@@ -101,5 +104,11 @@ export async function webSearchGovernedTerm(
       clearTimeout(timer);
     }
   }, [], options.signal);
-  return results.filter((item) => item.authority >= minAuthority);
+  return filterWesternSearchResults(results, name, minAuthority);
+}
+
+/** 现场结果二次核：白名单、对题标题，再把中文页排在前面。 */
+export function filterWesternSearchResults(results: readonly WebSearchResult[], name: string, minAuthority = 3): WebSearchResult[] {
+  return results.filter((item) => item.authority >= minAuthority && isAllowedWesternEvidenceUrl(item.url) && westernEvidenceTitleMatches(item.title, [name]))
+    .sort((a, b) => Number(westernEvidenceIsChinese(b.url, b.title)) - Number(westernEvidenceIsChinese(a.url, a.title)) || b.rerankScore - a.rerankScore);
 }
