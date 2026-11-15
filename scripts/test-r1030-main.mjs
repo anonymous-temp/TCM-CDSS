@@ -318,7 +318,7 @@ await check("15.2 病历写「难以入眠/不易入睡」时删去「未诉入�
 });
 
 // ── 16 串派的眼目句 ──
-await check("16.1 扶阳思路下「温病看卫气营血层次…」整句去掉；所选派自己的眼目句、正文里的卫气营血术语、不限定流派都不动", () => {
+await check("16.1 扶阳思路下「温病看卫气营血层次…」整句去掉；所选派自己的眼目句、正文里的卫气营血术语不动；不限定流派时眼目句同样去掉", () => {
   const withRationale = (text) => ({ ...structuredClone(c001), overview: { ...structuredClone(c001).overview, tcmDiagnosticRationale: text } });
   const copied = "寒湿痹阻故疼痛，证属痛痹。温病看卫气营血层次，舌红等温热见证，以下按常规辨证处理。";
   assert.equal(provenance.withoutForeignLineageLensSentence(withRationale(copied), "support-yang").overview.tcmDiagnosticRationale, "寒湿痹阻故疼痛，证属痛痹。");
@@ -326,7 +326,8 @@ await check("16.1 扶阳思路下「温病看卫气营血层次…」整句去�
   assert.equal(provenance.withoutForeignLineageLensSentence(withRationale(own), "support-yang").overview.tcmDiagnosticRationale, own);
   const term = "发热微恶寒，邪在卫分，属卫气营血之卫分证。";
   assert.equal(provenance.withoutForeignLineageLensSentence(withRationale(term), "classical-formula").overview.tcmDiagnosticRationale, term);
-  assert.equal(provenance.withoutForeignLineageLensSentence(withRationale(copied), "unrestricted").overview.tcmDiagnosticRationale, copied);
+  // 第四十六轮：没选流派时模型自写的流派眼目句同样去掉（复核口径「未选流派时不出现流派内容」，new40 m16「从李东垣脾胃学派…看」）。
+  assert.equal(provenance.withoutForeignLineageLensSentence(withRationale(copied), "unrestricted").overview.tcmDiagnosticRationale, "寒湿痹阻故疼痛，证属痛痹。");
 });
 
 console.log(`\n${cases} checks`);
