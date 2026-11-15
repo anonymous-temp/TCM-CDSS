@@ -1,0 +1,148 @@
+{
+ "schemaVersion": "tcm-textbook-section-names-v1",
+ "note": "教材节名的两类订正（2026-11-15 第四十六轮）：① sectionNameFixes：扫描件 OCR 错字与断行误识的节名（大行赤眼=天行赤眼；「巴细胞升高」是猩红热一节里「淋巴细胞升高」断行，三条证型挂错了节），读入证型表时按 to 改名（tcm-textbook-syndromes.ts），病名清单同一取法（scripts/build-tcm-textbook-disease-names.mjs）；② sectionTcmNames：节名是西医病名、教材在该节自己写明中医归属的（「中医称为痄腮」「属于中医“血虚”“虚劳”范畴」），交付时中医病名栏写 tcmName。教材列了几个中医名的取第一个本身是教材病名或国标病名的（病毒性心肌炎「风温、心悸、怔忡…」取心悸，营养性缺铁性贫血「血虚、虚劳」取虚劳，硬肿症「胎寒、五硬」取五硬）；扫描错字照原句录（「瘙瘕」即癥瘕、「烂喉丹痴」即烂喉丹痧）。只列「肝风、抽搐、瘛疭」这类证候或症状名的（抽动障碍）、或节内没有写中医归属的（性早熟、注意力缺陷多动障碍等）不收，节名照旧。",
+ "sectionNameFixes": [
+  {
+   "bookKey": "yanke",
+   "from": "大行赤眼",
+   "to": "天行赤眼",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 222915,
+   "quote": "天行赤眼是指外感疫疠之气，白睛暴发红赤、点片状溢血，常累及",
+   "kind": "ocr"
+  },
+  {
+   "bookKey": "yanke",
+   "from": "大行赤眼暴翳",
+   "to": "天行赤眼暴翳",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 222974,
+   "quote": "天行赤眼暴翳是指因感受疫疠之气，急发白睛红赤，继之黑睛生翳",
+   "kind": "ocr"
+  },
+  {
+   "bookKey": "erke",
+   "from": "巴细胞升高",
+   "to": "猩红热",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 170927,
+   "quote": "第三节猩红热",
+   "kind": "section_split",
+   "note": "「淋巴细胞升高」在扫描件里断行，生成器把下一行「巴细胞升高」当成了节名，第三节猩红热的三条证型（邪侵肺卫、毒炽气营、肺胃阴伤）挂到了它名下。"
+  }
+ ],
+ "sectionTcmNames": [
+  {
+   "bookKey": "erke",
+   "section": "流行性腮腺炎",
+   "tcmName": "痄腮",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 171418,
+   "quote": "发热、耳下腮部肿胀、疼痛为主要临床特征。中医称为痄腮"
+  },
+  {
+   "bookKey": "erke",
+   "section": "流行性乙型脑炎",
+   "tcmName": "暑温",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 171578,
+   "quote": "脱为特征。中医称为“小儿暑温”"
+  },
+  {
+   "bookKey": "erke",
+   "section": "营养性缺铁性贫血",
+   "tcmName": "虚劳",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 167929,
+   "quote": "疗效果良好等特点。属于中医“血虚”“虚劳”范畴"
+  },
+  {
+   "bookKey": "erke",
+   "section": "病毒性心肌炎",
+   "tcmName": "心悸",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 168477,
+   "quote": "专门记载，根据本病的主要临床症状，属于中医学风温、心悸、怔忡"
+  },
+  {
+   "bookKey": "erke",
+   "section": "皮肤黏膜淋巴结综合征",
+   "tcmName": "温病",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 172678,
+   "quote": "、草莓舌、颈淋巴结肿大、手足硬肿为特征，属于中医学温病范畴"
+  },
+  {
+   "bookKey": "erke",
+   "section": "传染性单核细胞增多症",
+   "tcmName": "温病",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 172515,
+   "quote": "象异形淋巴细胞和单核细胞增多为主要特征。属中医学温病范畴"
+  },
+  {
+   "bookKey": "erke",
+   "section": "硬肿症",
+   "tcmName": "五硬",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 164805,
+   "quote": "称新生儿寒冷损伤综合征。本病可归属于中医胎寒、五硬等范畴"
+  },
+  {
+   "bookKey": "erke",
+   "section": "猩红热",
+   "tcmName": "烂喉丹痧",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 170932,
+   "quote": "“烂喉痴”“烂喉丹痴”"
+  },
+  {
+   "bookKey": "waike",
+   "section": "慢性淋巴细胞性甲状腺炎",
+   "tcmName": "瘿病",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 205559,
+   "quote": "对应中医病名，根据其颈前肿大特点，可以归属中医“瘿病”的范畴"
+  },
+  {
+   "bookKey": "waike",
+   "section": "尿石症",
+   "tcmName": "石淋",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 212278,
+   "quote": "3：1。我国长江以南为高发地区之一。本病属于中医学“石淋”的范畴"
+  },
+  {
+   "bookKey": "waike",
+   "section": "前列腺癌",
+   "tcmName": "癥瘕",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 212934,
+   "quote": "速。本病常见于50岁以上的男性，属中医学“瘙瘕”的范畴"
+  },
+  {
+   "bookKey": "waike",
+   "section": "淋巴水肿",
+   "tcmName": "大脚风",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 214035,
+   "quote": "本病属于中医学“大脚风”"
+  },
+  {
+   "bookKey": "waike",
+   "section": "淋病",
+   "tcmName": "花柳毒淋",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 209572,
+   "quote": "要通过性交传染，极少数也可通过间接传染。中医称之为“花柳毒淋”"
+  },
+  {
+   "bookKey": "gushang",
+   "section": "化脓性关节炎",
+   "tcmName": "无头疽",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 194975,
+   "quote": "节和膝关节。化脓性关节炎属中医“无头疽”范畴"
+  }
+ ]
+}

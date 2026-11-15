@@ -108,8 +108,10 @@ await check("2.2 对着将要交付的治法问：有教材行时问教材治法
   const original = process.env.CDSS_M03_METHOD_COVERAGE;
   process.env.CDSS_M03_METHOD_COVERAGE = "true";
   const source = readFileSync("src/lib/m03-method-coverage.server.ts", "utf8");
-  assert.match(source, /return \(row && textbookAnchorableMethod\(row\.therapy\)\) \|\| modelMethod/u);
-  assert.match(source, /const method = methodToDeliver\(text\(overview\.tcmDiseaseName\), syndrome, modelMethod\)/u);
+  // 第四十六轮：「将要交付的治法」与教材锚定同一判据——教材治法里病历没有对应表现的对症项锚定时不要，这里也不算（methodToDeliver 带病历，
+  // test:r1063-analysis 4.3 按行为测）；有教材行时问教材治法、模型原写的项单独复核的口径不变。
+  assert.match(source, /const anchorable = row \? textbookAnchorableMethod\(row\.therapy\) : "";/u);
+  assert.match(source, /const method = methodToDeliver\(text\(overview\.tcmDiseaseName\), syndrome, modelMethod, \{ recordText: context\.recordText, locations \}\)/u);
   // 第三十四轮：提名不看模型的治法（证名写出来就能先发），模型原写的项单独问。
   assert.match(source, /JSON\.stringify\(\{ syndrome, method, record:/u);
   process.env.CDSS_M03_METHOD_COVERAGE = original;
@@ -276,8 +278,10 @@ await check("5.1 病历自己写的旧处方照引不算开方；病历没写的
   assert.equal(contract.m03DoseLevelInstructionFindings({ facts: ["建议每日1剂"] }, "", "$", "咳嗽三天").filter((item) => item.kind === "regimen").length, 1);
 });
 await check("5.3 用法里的「酸枣仁」不算已经写了姜枣：归脾汤照样写原方的姜枣引", () => {
-  const source = readFileSync("src/lib/delivered-surface.ts", "utf8");
-  assert.match(source, /!\/\(\?:生姜\|煨姜\|大枣\|姜枣\|姜、枣\|红枣\)\/u\.test\(candidateDecoction\.method\)/u);
+  // 第四十六轮：用法里已写到哪味药引的判断移进 omittedGuideHerbNote（第五个参数是用法原文，姜枣以外的药引也一并判），不再在调用处用正则。
+  // 这里按函数行为钉：用法写了「酸枣仁」仍要写姜枣引；用法写了「姜枣」时不再写。
+  assert.equal(surface.omittedGuideHerbNote("归脾汤", ["黄芪", "人参", "白术", "当归", "酸枣仁"].map((name) => ({ name })), {}, "", "酸枣仁用前捣碎，水煎两次"), "原方以生姜、大枣为引，煎时可酌加");
+  assert.equal(surface.omittedGuideHerbNote("归脾汤", ["黄芪", "人参", "白术", "当归", "酸枣仁"].map((name) => ({ name })), {}, "", "加姜枣同煎"), undefined);
   assert.equal(surface.omittedGuideHerbNote("归脾汤", ["黄芪", "人参", "白术", "当归", "酸枣仁"].map((name) => ({ name }))), "原方以生姜、大枣为引，煎时可酌加");
 });
 await check("5.4 合方里目录查不到、教材单列了组成的方照样算：二陈平胃散合三子养亲汤不会只剩三子养亲汤", () => {

@@ -137,7 +137,7 @@ await check("3.2 方名写成自拟方、组成却正是辨证阶段锁定或剥
   const out = surface.projectDeliveredReasoning(rx(["旋覆花", "赭石", "半夏", "生姜", "人参", "大枣", "甘草"]), {}).formula.candidates[0];
   assert.equal(out.name, "旋覆代赭汤");
   assert.equal(out.formulaSource.source, "旋覆代赭汤：《伤寒论》");
-  assert.match(out.formulaAnalysis, /^本方用旋覆代赭汤原方/);
+  assert.match(out.formulaAnalysis, /^本方(?:用|药味同)旋覆代赭汤原方/);
   const partial = surface.projectDeliveredReasoning(rx(["旋覆花", "半夏", "茯苓", "陈皮", "甘草"]), {}).formula.candidates[0];
   assert.equal(partial.name, "自拟方", "保留数不到身份下限：不冠方名");
 });

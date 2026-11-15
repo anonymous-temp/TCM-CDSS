@@ -3,6 +3,8 @@ import "server-only";
 import { parseConfirmed, proposeTwiceThenVerifyAll } from "./cross-model-small-task.server";
 import { herbCautionReferenceText, herbClaimReferenceText, herbPropertyReferenceText } from "./m04-formula-analysis-claim-check.server";
 import { distinctModificationConditions, standbyModificationsDelivered, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
+import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { compositionIdentityName } from "./tcm-formula-provenance";
 import { quoteGroundedInText } from "./verbatim-quote";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import modificationRelevance from "../data/tcm-modification-relevance.source.json" with { type: "json" };
@@ -205,7 +207,8 @@ export function withModificationsFrom(target: string, source: string): string {
 
 const TOP_UP_SYSTEM = [
   "你是中医主治医师。证型、治法、方药已定，现在为本例补写随证加减。随证加减是给这位患者这次就用的，不写「若…」这种以后才可能出现的备用条件。",
-  "先读 record，找出病历里已经记录、主方 herbs 没有直接照顾到的伴随表现（主诉主症以外的症状，如纳差、便溏、口干、咽痛、眠差、咳痰）；这样的表现不够两个时，再从本例较突出、主方照顾力度不足的已记录表现里补（如畏寒肢冷明显、腰膝酸软，加一味同向的药增强）。每个表现写一条，凑够 2 条、最多 3 条：trigger 逐字摘病历里这个表现的原话（2–12 字，不加「若」，不写舌脉，不写证候名）；herbName 是不在 herbs 里的一味常用饮片；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个表现；symptomPathogenesis 用一句话（≤20字）写这个表现本身的病机。",
+  "先读 record，找出病历里已经记录、主方 herbs 没有直接照顾到的伴随表现（主诉主症以外的症状，如便溏、口干、咽痛、眠差、咳痰、多汗、小便不利，也包括舌苔、舌质、脉象里提示主方没有照顾到的病邪或寒热，如苔腻→化湿、苔黄→清热、舌有瘀斑→活血；舌淡红、苔薄白、脉缓这类正常所见不写）；这样的表现不够两个时，再从本例较突出、主方照顾力度不足的已记录表现里补（如畏寒肢冷明显、腰膝酸软，加一味同向的药增强）；还不够时，写一条主诉主症的加强：trigger 摘 chiefComplaint 里主症的原话，herbName 优先从 mainSymptomHerbs（教材本证的药与教材加减里点到这一症的药）里选。每个表现写一条，凑够 2 条、最多 3 条：trigger 逐字摘病历里这个表现的原话（2–12 字，不加「若」，不写证候名）；herbName 是不在 herbs 里的一味常用饮片；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个表现；symptomPathogenesis 用一句话（≤20字）写这个表现本身的病机。",
+  "纳差、食少不是主诉、证候又不涉脾胃食积时，不为它加消食药（焦山楂、神曲、麦芽、鸡内金）；病人高热、意识改变、休克、少尿这类急危重表现不作加减条件。",
   "trigger 必须是患者此刻的一个症状、体征（不写生活习惯或诱因如熬夜、久坐、屏幕时间长，不写缓解因素如吃糖后好转，不写病名、病史、检查或就诊经过，不写既往史、个人史里的内容）。",
   "主病直接引起的伴随表现不另加药（因疼痛或瘙痒而眠差、因发热而纳差、外感正邪相争而精神差，主病好了自然好）。药的寒热补泻要与证型一致：外感、痰热、湿热、瘀血这类实证不为次要表现加补益药，虚证不加攻伐药。病历否认的、existing 里已有的不写。病历里找不到这样的表现就少写或输出空数组，不要编。",
   "只输出 JSON：{\"rows\":[{\"trigger\":\"\",\"herbName\":\"\",\"dose\":\"\",\"reason\":\"\",\"symptomPathogenesis\":\"\"}]}",
@@ -244,6 +247,24 @@ function parseTopUp(content: unknown): TopUpRow[] | undefined {
 }
 
 /**
+ * 主诉主症加强行可选的药（第四十六轮：病历只有主症时，补写给不出第二个条件——C040「多尿乏力」两次提名都是空的）：
+ * 教材本证一行的组成里不在本方的药，加上教材本证加减里条件点到主诉主症的那几条的药。名字按组成身份比对，至多 8 味。纯函数，供测试。
+ */
+export function mainSymptomStrengtheningHerbs(prior: ClinicalReasoningResultV2 | null | undefined, chiefComplaint: string, candidateHerbs: readonly string[]): string[] {
+  if (!prior || prior.stage !== "diagnose") return [];
+  const row = textbookRowForSyndrome(String(prior.overview?.tcmDiseaseName || ""), String(prior.overview?.primarySyndrome || ""));
+  if (!row) return [];
+  const taken = new Set(candidateHerbs.map((name) => compositionIdentityName(name)));
+  const complaint = String(chiefComplaint || "").replace(/[\d０-９]+\s*(?:天|日|周|月|年|小时|个月)[余多]?/gu, "");
+  const pairs = new Set([...complaint].map((_char, index) => complaint.slice(index, index + 2)).filter((pair) => /^[\u4e00-\u9fff]{2}$/u.test(pair)));
+  const mentionsMain = (condition: string) => [...pairs].some((pair) => condition.includes(pair));
+  const fromEntries = row.modifications.filter((entry) => mentionsMain(entry.condition)).flatMap((entry) => entry.herbs);
+  return [...new Set([...fromEntries, ...row.composition])]
+    .filter((name) => name && !taken.has(compositionIdentityName(name)))
+    .slice(0, 8);
+}
+
+/**
  * 不同的条件不足两个时补写（第三十四轮）。甲方 10.29 测评「仅生成 1 个不足以满足临床」；教材没有这一证（中性证名、自拟方）、模型又没写时，编译阶段没东西可补：
  * 接口 142 份里 12 份不足两个条件，3 份一条都没有。其余病例不发请求。一个模型写，另一厂商的模型复核，每行再过编译阶段同一套判据（topUpModificationRow）。
  */
@@ -267,10 +288,12 @@ export async function topUpModificationConditions(
   const herbs = candidate.herbs.map((herb) => text(record(herb)?.name)).filter(Boolean);
   const syndrome = text(record(root.overview)?.primarySyndrome);
   const method = text(record(root.therapy)?.overallMethod);
+  const chiefComplaint = text(context.caseState?.chiefComplaint);
+  const mainSymptomHerbs = mainSymptomStrengtheningHerbs(context.prior, chiefComplaint, herbs);
   const added = await proposeTwiceThenVerifyAll<TopUpRow>("m04_modification_top_up", "prescribe", {
     messages: [
       { role: "system", content: standbyModificationsDelivered() ? STANDBY_TOP_UP_SYSTEM : TOP_UP_SYSTEM },
-      { role: "user", content: JSON.stringify({ syndrome, method, herbs, existing, record: context.recordText.slice(0, 2_400) }) },
+      { role: "user", content: JSON.stringify({ syndrome, method, herbs, existing, chiefComplaint, mainSymptomHerbs, record: context.recordText.slice(0, 2_400) }) },
     ],
     maxTokens: 400,
     parse: parseTopUp,

@@ -282,7 +282,11 @@ assert.deepEqual(formulaNamesWithoutExecutableDoseCompilation(["归脾汤"]), []
 
 for (const [name, entry] of Object.entries(formulaCatalog.officialClassicFormulas)) {
   const resolved = resolveFormulaSources(name, herbs(...entry.ingredients));
-  assert.equal(resolved[0]?.source, entry.source, `official classic must resolve against its own governed composition: ${name}`);
+  // 第四十六轮：教材（《方剂学》等）所引原书与国家目录所据之书不同、处方又覆盖了教材那本书的原方组成时，出处写教材的原书并注明目录所据
+  //（一贯煎《续名医类案》，目录据《医方絜度》；textbookCitedOriginalSource）。目录条目仍是解析到的那一条。
+  const official = String(entry.source).replace(/[。．.]+$/u, "");
+  assert.ok(resolved[0]?.source === entry.source || String(resolved[0]?.source || "").endsWith(`（国家古代经典名方目录据${official}）`),
+    `official classic must resolve against its own governed composition: ${name} (${resolved[0]?.source})`);
 }
 
 for (const phrase of [

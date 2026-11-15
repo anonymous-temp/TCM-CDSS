@@ -2,6 +2,7 @@ import subtypeSource from "../data/tcm-textbook-disease-subtypes.source.json" wi
 import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
 import textbookTableJson from "../data/tcm-textbook-syndrome-formula-table.json" with { type: "json" };
 import supplementJson from "../data/tcm-textbook-syndrome-supplement.source.json" with { type: "json" };
+import sectionNamesJson from "../data/tcm-textbook-section-names.source.json" with { type: "json" };
 import modificationRelevanceSource from "../data/tcm-modification-relevance.source.json" with { type: "json" };
 import { affirmedClinicalSourceClauses, clinicalClausePolarity } from "./clinical-polarity";
 import { resolveTcmDiseaseName, textbookSectionDeliveryName } from "./clinical-terminology";
@@ -164,14 +165,27 @@ function bigrams(value: string): string[] {
   return out;
 }
 
+/**
+ * 节名订正（2026-11-15 第四十六轮，tcm-textbook-section-names.source.json sectionNameFixes，逐条带行号与原句）：扫描件把「天行赤眼」识成
+ * 「大行赤眼」（交付的中医病名栏照写，逐字复核 new40 m38），把猩红热一节里断行的「巴细胞升高」当成了节名（三条证型挂错了节）。
+ * 读入证型行与病名信息时按订正后的节名，病名清单（build-tcm-textbook-disease-names.mjs）同一张表。
+ */
+const SECTION_NAME_FIXES = new Map<string, string>(
+  ((sectionNamesJson as { sectionNameFixes?: Array<{ bookKey: string; from: string; to: string }> }).sectionNameFixes || [])
+    .map((fix) => [`${fix.bookKey}|${fix.from}`, fix.to] as [string, string]),
+);
+function withFixedSectionName<T extends { bookKey?: unknown; disease?: unknown }>(raw: T): T {
+  const to = SECTION_NAME_FIXES.get(`${String(raw.bookKey ?? "")}|${String(raw.disease ?? "").trim()}`);
+  return to ? { ...raw, disease: to } : raw;
+}
 const RAW_ROWS = [
   ...((textbookTableJson as { rows?: RawRow[] }).rows || []),
   ...((supplementJson as { rows?: RawRow[] }).rows || []),
-];
+].map(withFixedSectionName);
 const RAW_DISEASES = [
   ...((textbookTableJson as { diseases?: RawDisease[] }).diseases || []),
   ...((supplementJson as { diseases?: RawDisease[] }).diseases || []),
-];
+].map(withFixedSectionName);
 
 /**
  * 教材合集是扫描件，生成器按「不改写任何临床文字」原样保留了 OCR 错字。方名、药名要拿去对目录、对处方、
@@ -297,9 +311,15 @@ function buildDiseases(): TextbookDisease[] {
     entry.differentialTexts = Object.fromEntries(allDifferentialRows.filter((item) => item.name && item.text).map((item) => [item.name, item.text]));
   }
   // 节名是西医病名、教材写明其属某个中医病的（血栓闭塞性脉管炎 → 脱疽）：交付用中医病名，按中医病名也要查得到这一节。
+  // 那个中医病名本身另有教材节（营养性缺铁性贫血 → 虚劳、病毒性心肌炎 → 心悸、尿石症 → 石淋）时不登记成别名：按「虚劳」查的是内科虚劳一节，
+  // 儿科贫血一节的证型不该混进来（第四十六轮，交付用中医病名的表扩到 16 节之后）。
+  const sectionNames = new Set([...byKey.values()].map((entry) => entry.disease));
+  // 那个中医病名是别的病一节里的一型（尿石症 → 石淋，而石淋是内科淋证的一型）也不登记：按「石淋」查要落到淋证·石淋那一行
+  //（第十九轮留出例 S067 的既定口径，test:r1019-round4 16.30）。
+  const rowTypeNames = new Set([...byKey.values()].flatMap((entry) => entry.rows.flatMap((row) => [row.syndromeName, row.syndrome].map((name) => String(name || "").replace(/证$/u, "")))));
   for (const entry of byKey.values()) {
     const delivered = textbookSectionDeliveryName(entry.disease);
-    if (delivered !== entry.disease && !entry.aliases.includes(delivered)) entry.aliases = [...entry.aliases, delivered];
+    if (delivered !== entry.disease && !sectionNames.has(delivered) && !rowTypeNames.has(delivered) && !entry.aliases.includes(delivered)) entry.aliases = [...entry.aliases, delivered];
   }
   return [...byKey.values()];
 }
@@ -652,6 +672,11 @@ const FEMALE_ONLY_DISEASE_TERMS: readonly string[] = [
  * 教材里该病的定义首句（按病名取节，未成年先儿科），教材没有这一节或没有定义句时为空串。
  * 供病名与就诊原因的核对（m03-visit-reason-check）给核对器看「这个病是什么」。
  */
+/** 教材该病定义段全文（不截断；鉴别病名是不是本病所属的那一类时读「属中医学X范畴」，见 differentialIsOwnCategoryOrComposite）。 */
+export function textbookDiseaseDefinitionText(diseaseName: string, ageYears?: number): string {
+  return diseasesNamed(diseaseName, ageYears).map((disease) => disease.definition.trim()).filter(Boolean).join("。");
+}
+
 export function textbookDiseaseDefinition(diseaseName: string, ageYears?: number): string {
   const entry = diseasesNamed(diseaseName, ageYears).find((disease) => disease.definition.trim());
   return entry ? entry.definition.split(/(?<=。)/u)[0].trim().slice(0, 120) : "";

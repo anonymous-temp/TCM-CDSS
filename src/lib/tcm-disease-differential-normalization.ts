@@ -3,7 +3,7 @@ import abbreviationsJson from "../data/western-diagnosis-abbreviations.source.js
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import icd10IndexJson from "../data/icd10-diagnosis-index.json" with { type: "json" };
 import { governedTcmDiseaseCode, resolveTcmDiseaseName, textbookSectionDeliveryName } from "./clinical-terminology";
-import { diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, subtypeTextbookDifferentialName, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
+import { diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, subtypeTextbookDifferentialName, textbookDiseaseDefinitionText, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
 
 /**
  * 中医病名鉴别栏只收中医病名（2026-09-29，甲方 9.24/9.27 测评 1.1：风寒感冒例的中医鉴别写了「流感」）。
@@ -93,9 +93,38 @@ export type TcmDiseaseDifferentialNameResolution =
   | { action: "rename"; name: string; from: string }
   | { action: "drop"; from: string };
 
+/**
+ * 鉴别病名其实是本病自己所属的那一类，或把本病并在里面的合称（2026-11-15 第四十六轮逐字复核）：
+ *  · 教材给本病写了「属中医学X范畴」（紫癜「属中医学血证范畴」）：X 不是本病的鉴别病（new45 n25 鉴别列「血证」）；
+ *  · 鉴别名是本病与另一个病的合称（耳聋对「耳鸣耳聋」，去掉本病名剩下的「耳鸣」本身也是病名；C057）。「时行感冒」去掉「感冒」剩「时行」，
+ *    不是病名，照旧是感冒的鉴别；
+ *  · 用「与、和、及」连写的两个病（教材节名「子宫内膜异位症与子宫腺肌病」，n22）：不是一个病名。
+ */
+export function differentialIsOwnCategoryOrComposite(name: string, currentDisease: string): boolean {
+  const differential = name.trim().replace(/类病$/u, "");
+  const current = currentDisease.trim().replace(/类病$/u, "");
+  if (!differential) return false;
+  if (/[与和及、]/u.test(differential) && differential.split(/[与和及、]/u).every((part) => part.length >= 2)) {
+    // 教材自己就把两个病合写成一节（「胎漏、胎动不安」）、本病是其中之一时同样不是鉴别；与本病无关的合写名也不是一个病名。
+    return true;
+  }
+  if (!current || differential === current) return false;
+  const isDiseaseName = (value: string) => value.length >= 2 && (TEXTBOOK_DISEASE_NAMES.has(value) || Boolean(governedCanonical(value)));
+  const remainder = differential.includes(current) ? differential.replace(current, "") : "";
+  // 合称是教材节名（「耳鸣耳聋」）时，去掉本病名剩下两个字以上的部分就是另一个合写进来的病（耳鸣）。
+  if (remainder && (isDiseaseName(remainder) || (TEXTBOOK_DISEASE_NAMES.has(differential) && remainder.length >= 2 && (differential.startsWith(current) || differential.endsWith(current))))) return true;
+  const definition = textbookDiseaseDefinitionText(current);
+  for (const match of definition.matchAll(/属(?:于)?中医(?:学)?(?:的)?((?:[“"]?[\u4e00-\u9fff]{2,6}[”"]?[、，,]?)+)(?:等)?(?:的)?范畴/gu)) {
+    const categories = match[1].split(/[“”"、，,]/u).map((item) => item.trim()).filter(Boolean);
+    if (categories.includes(differential)) return true;
+  }
+  return false;
+}
+
 export function resolveTcmDiseaseDifferentialName(rawName: string, currentDiseaseWritten = ""): TcmDiseaseDifferentialNameResolution {
   const name = rawName.trim();
   if (!name) return { action: "drop", from: rawName };
+  if (differentialIsOwnCategoryOrComposite(name, splitTextbookDiseaseSubtype(currentDiseaseWritten).disease)) return { action: "drop", from: name };
   // 分型病（血证（鼻衄））：与本病同名按所属的病比（「血证」不是血证（鼻衄）的鉴别）；教材按分段写明的本型鉴别病名照留。
   if (subtypeTextbookDifferentialName(currentDiseaseWritten, name)) return { action: "keep", name };
   const currentDisease = splitTextbookDiseaseSubtype(currentDiseaseWritten).disease;

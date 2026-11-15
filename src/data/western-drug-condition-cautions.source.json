@@ -1,0 +1,176 @@
+{
+  "schemaVersion": "western-drug-condition-cautions-v1",
+  "note": "第四十六轮（2026-11-15）：病历写着在用的西药，与本例已记录的病情相抵（说明书禁用或指南避免）时，注意事项写一条给患者的话（required-precautions.server.ts drug_condition_caution）。逐条带说明书或指南原文与出处；只写病历记录的事实与原文的意思，不写剂量。甲方 100 例 p100c-C034（慢性肾病3期、阿司匹林诱发喘息，自服双氯芬酸，注意事项只写「是否继续由医生决定」）、new45-n40（eGFR 17 仍服二甲双胍，注意事项一句没提）。",
+  "rules": [
+    {
+      "id": "metformin_egfr_below_30",
+      "drugTerms": [
+        "二甲双胍",
+        "格华止"
+      ],
+      "condition": {
+        "egfrBelow": 30
+      },
+      "sentence": "您的肾功能（eGFR {egfr}）已低于二甲双胍可以使用的范围（说明书：eGFR低于30禁用），请尽快就医由医生调整降糖方案，不要自行加量或换药",
+      "source": {
+        "title": "Metformin hydrochloride extended-release tablets, prescribing information (DailyMed setid 96c8a89d-99db-24b1-e053-2a95a90ac2b8)",
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=96c8a89d-99db-24b1-e053-2a95a90ac2b8",
+        "quote": "Severe renal impairment (eGFR below 30 mL/min/1.73 m2)；Discontinue metformin hydrochloride extended-release tablets if the patient's eGFR later falls below 30 mL/minute/1.73 m2"
+      }
+    },
+    {
+      "id": "nsaid_after_aspirin_asthma",
+      "drugTerms": [
+        "双氯芬酸",
+        "布洛芬",
+        "洛索洛芬",
+        "萘普生",
+        "吲哚美辛",
+        "美洛昔康",
+        "塞来昔布",
+        "依托考昔",
+        "尼美舒利",
+        "氟比洛芬",
+        "酮洛芬",
+        "安乃近",
+        "阿司匹林"
+      ],
+      "condition": {
+        "recordedDrugAllergy": [
+          "阿司匹林",
+          "匹林",
+          "非甾体"
+        ],
+        "reactionTerms": [
+          "哮喘",
+          "荨麻疹",
+          "喘",
+          "过敏"
+        ]
+      },
+      "sentence": "您用阿司匹林后出现过{reaction}，{drug}与阿司匹林同属非甾体抗炎药，说明书写明这类患者禁用，请停用并尽快告知医生，止痛另由医生安排",
+      "source": {
+        "title": "Diclofenac sodium delayed-release tablets, prescribing information, CONTRAINDICATIONS (DailyMed setid 363764a0-e0a8-3e3f-e063-6294a90ad672)",
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=363764a0-e0a8-3e3f-e063-6294a90ad672",
+        "quote": "History of asthma, urticaria, or other allergic-type reactions after taking aspirin or other NSAIDs."
+      }
+    },
+    {
+      "id": "nsaid_ckd",
+      "drugTerms": [
+        "双氯芬酸",
+        "布洛芬",
+        "洛索洛芬",
+        "萘普生",
+        "吲哚美辛",
+        "美洛昔康",
+        "塞来昔布",
+        "依托考昔",
+        "尼美舒利",
+        "氟比洛芬",
+        "酮洛芬"
+      ],
+      "condition": {
+        "egfrBelow": 60,
+        "ckdStageAtLeast": 3,
+        "recordTerms": [
+          "肾功能不全",
+          "肾衰竭",
+          "慢性肾衰",
+          "尿毒症"
+        ]
+      },
+      "sentence": "您肾功能已有减退，{drug}这类止痛药可加重肾损害（肾功能减退时应避免或不长期使用），请尽快告知医生由医生决定是否停用、改用其他止痛方法",
+      "source": {
+        "title": "National Kidney Foundation, adapted from KDIGO 2012 CKD guideline: medications and imaging studies risk",
+        "url": "https://www.kidney.org/sites/default/files/02-10-6793_IBE_Meds-ImagingStudiesRiskv10.pdf",
+        "quote": "Analgesics NSAIDS • Avoid when GFR <30 ml/min/1.73 m2 • Prolonged therapy is not recommended when GFR <60 ml/min/1.73 m2"
+      },
+      "labelSource": {
+        "title": "Diclofenac sodium delayed-release tablets, Renal Toxicity",
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=363764a0-e0a8-3e3f-e063-6294a90ad672",
+        "quote": "Avoid the use of diclofenac in patients with advanced renal disease unless the benefits are expected to outweigh the risk of worsening renal function."
+      }
+    }
+  ],
+  "warfarinHerbal": {
+    "drugTerms": [
+      "华法林",
+      "华法令"
+    ],
+    "decreaseHerbs": [
+      "人参",
+      "红参",
+      "西洋参"
+    ],
+    "sentence": "您正在服用华法林，开始或停服本方期间请按医嘱更频繁地复查INR，留意牙龈出血、皮下瘀斑、黑便或血尿{decrease}",
+    "decreaseClause": "；方中{herbs}可能减弱华法林的抗凝作用",
+    "source": {
+      "title": "Warfarin sodium prescribing information, Drug Interactions: Botanical (Herbal) Products and Foods",
+      "url": "https://prescriberpoint.com/therapies/warfarin-sodium-8ad881e",
+      "quote": "More frequent INR monitoring should be performed when starting or stopping botanicals.；Conversely, some botanicals may decrease the effects of warfarin sodium (e.g., co-enzyme Q 10 , St. John's wort, ginseng)."
+    },
+    "note": "说明书没有逐味点名当归、丹参；方中活血药的出血观察另由 antithrombotic_bleeding 按知识库人群规则写。"
+  },
+  "highPotassiumFoods": {
+    "foods": [
+      "香蕉",
+      "橙子",
+      "橙汁",
+      "橘子",
+      "猕猴桃",
+      "芒果",
+      "木瓜",
+      "哈密瓜",
+      "葡萄干",
+      "干果",
+      "红枣",
+      "土豆",
+      "马铃薯",
+      "红薯",
+      "南瓜",
+      "番茄",
+      "西红柿",
+      "菠菜",
+      "竹笋",
+      "蘑菇",
+      "香菇",
+      "海带",
+      "紫菜",
+      "坚果",
+      "黄豆",
+      "黑豆",
+      "红豆",
+      "绿豆",
+      "低钠盐",
+      "鸡汤",
+      "肉汤",
+      "骨头汤"
+    ],
+    "sentence": "少吃香蕉、橙子、土豆、菠菜、干果、浓肉汤等含钾高的食物",
+    "source": {
+      "title": "National Kidney Foundation, Potassium and Your CKD Diet",
+      "url": "https://www.kidney.org/kidney-topics/potassium-your-ckd-diet",
+      "quote": "Banana (1/2 of a whole)；Orange (1 medium-sized)；Potatoes (white and sweet)；Spinach (cooked)；Dried fruits；Nuts and seeds (1 ounce)；Salt substitutes / lite salt"
+    },
+    "note": "高钾（血钾>5.5）时饮食段不推荐这些食物，注意事项的高钾一句加上少吃含钾高的食物。"
+  },
+  "notMedicationFoods": {
+    "foods": [
+      "猪血",
+      "鸭血",
+      "猪肝",
+      "鸡肝",
+      "红枣",
+      "桂圆",
+      "阿胶糕",
+      "红糖水",
+      "姜汤",
+      "梨水",
+      "川贝蒸梨",
+      "蜂蜜水",
+      "淡盐水"
+    ],
+    "note": "病历里患者「吃了」的食物、自制食疗不是在用的药，不进「正在服用的药」一条（第四十六轮 new45-n03：吃了猪血被写成请把猪血连同药盒带去就医；new45-n18 梨水、川贝蒸梨）。"
+  }
+}

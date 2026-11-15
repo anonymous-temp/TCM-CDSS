@@ -129,6 +129,8 @@ export type HomeAcupointCareContext = {
   clinicianMoxibustion?: boolean;
   /** 育龄女性、病历未写明是否妊娠：去掉孕期禁用穴与腹部、腰骶部穴位，不给艾灸（阳性/可疑由 acupressureExclusion 整段排除）。 */
   pregnancyUnresolved?: boolean;
+  /** 本例不宜按揉的穴（未经评估的乳房肿块不取胸前乳房区穴，由调用方按 unevaluatedBreastMass 给出）。 */
+  excludedPoints?: readonly string[];
 };
 
 /**
@@ -175,7 +177,8 @@ export function compileHomeAcupointCare(context: HomeAcupointCareContext): strin
   const pregnancyRule = SOURCE.pregnancyUnresolved;
   const pregnancySafe = (point: AcupointEntry) => !context.pregnancyUnresolved ||
     (!pregnancyRule.excludedPoints.includes(point.name) && !pregnancyRule.excludedRegions.includes(point.region));
-  const pressPoints = entry.acupressure.points.filter((point) => !clinicianText.includes(point.name) && pregnancySafe(point));
+  const pressPoints = entry.acupressure.points.filter((point) => !clinicianText.includes(point.name) && pregnancySafe(point) &&
+    !(context.excludedPoints || []).includes(point.name));
   const knownPoints = [...entry.acupressure.points, ...(entry.extraPoints || [])];
   const moxibustion = entry.moxibustion && !context.pregnancyUnresolved && !context.moxibustionExclusion &&
     !context.moxibustionBurnRisk && !context.clinicianMoxibustion

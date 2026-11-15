@@ -2398,7 +2398,9 @@
      "written": "朱砂"
     }
    ],
-   "guides": [],
+   "guides": [
+    "薄荷"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "三因极一病证方论",
@@ -3600,7 +3602,9 @@
      "written": "川牛膝"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "医学正传",
@@ -4257,7 +4261,9 @@
      "written": "木通"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "三因极一病证方论",
@@ -20425,7 +20431,9 @@
      "written": "甘草"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "医方考",
@@ -22538,7 +22546,9 @@
      "written": "龟板"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "医学正传",
@@ -26302,7 +26312,10 @@
      "written": "肉桂"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜",
+    "大枣"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "医方论",
@@ -29584,7 +29597,9 @@
      "written": "山药"
     }
    ],
-   "guides": [],
+   "guides": [
+    "大枣"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "太平惠民和剂局方",
@@ -57861,7 +57876,9 @@
      "written": "陈皮"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "瑞竹堂经验方",
@@ -58160,7 +58177,9 @@
      "written": "甘草"
     }
    ],
-   "guides": [],
+   "guides": [
+    "葱白"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "三因极一病证方论",
@@ -59890,7 +59909,9 @@
      "written": "槟榔"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "三因极一病证方论",
@@ -61961,7 +61982,9 @@
      "written": "牵牛"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "儒门事亲",
@@ -70500,7 +70523,9 @@
      "written": "大黄"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "温疫论",
@@ -74519,7 +74544,9 @@
      "written": "麝香"
     }
    ],
-   "guides": [],
+   "guides": [
+    "薄荷"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "集验方",
@@ -76091,7 +76118,9 @@
      "written": "枯末"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "验方新编",
@@ -104985,7 +105014,9 @@
      "written": "赤小豆"
     }
    ],
-   "guides": [],
+   "guides": [
+    "薄荷"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "三因极一病证方论",
@@ -107081,7 +107112,10 @@
      "written": "白芷"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜",
+    "葱白"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "仙传外科集验方",
@@ -117496,7 +117530,9 @@
      "preparation": "醋"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "卫生宝鉴",
@@ -126085,7 +126121,9 @@
      "written": "木香"
     }
    ],
-   "guides": [],
+   "guides": [
+    "薄荷"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "医学心悟",
@@ -139363,7 +139401,9 @@
      "written": "白附子"
     }
    ],
-   "guides": [],
+   "guides": [
+    "薄荷"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "三因极一病证方论",
@@ -144048,7 +144088,9 @@
      "written": "龟板"
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "医学正传",
@@ -145461,7 +145503,10 @@
      "deliver": true
     }
    ],
-   "guides": [],
+   "guides": [
+    "生姜",
+    "大枣"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "三因极一病证方论",

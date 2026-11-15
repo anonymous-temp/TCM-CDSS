@@ -4,7 +4,7 @@ import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizedFormulaModificationFields } from "./formula-modification";
 import { formulaAnalysisAfterHerbRemoval } from "./formula-analysis-review";
 import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbFunctionCategories, isKnownTcmHerbName } from "./tcm-knowledge";
-import { precautionWithoutAbsentHerbs } from "./m04-proposal-compiler";
+import { precautionWithoutAbsentHerbs, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs } from "./m04-proposal-compiler";
 import { formulaTextbookCommentary } from "./formula-textbook-commentary";
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { herbAnyRecordCautionConflict, herbRecordCautionIsHard } from "./herb-record-caution";
@@ -457,6 +457,26 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
         retained = retained.filter((value) => !drops.includes(value));
       }
     }
+    // 同一味药的两种炮制品同列（炙甘草与甘草、黄芪与炙黄芪，第四十六轮 p100c-C032）：留地位高的一味（同级留先写的），君药不拿；
+    // 方剂目录原方本来就两种都写的不动（目录组成里有两项身份相同的写法）。生地黄与熟地黄不算同一味（sameDrugDifferentProcessing）。
+    {
+      const baseName = String(candidate.name || "").replace(/(?:加减|加味|化裁)$/u, "");
+      const baseRaw = executableFormulaCompilationReferences([baseName]).flatMap((reference) => reference.ingredients);
+      const baseHasBoth = (left: string, right: string) => baseRaw.some((item) => item === left || canonicalTcmHerbIdentity(item) === canonicalTcmHerbIdentity(left)) &&
+        baseRaw.some((item) => item === right || canonicalTcmHerbIdentity(item) === canonicalTcmHerbIdentity(right));
+      const rank = (value: unknown) => SAFETY_PRUNE_ROLE_RANK[roleOf(value)] ?? 2;
+      for (let guard = 0; guard < 4; guard += 1) {
+        const pair = retained.flatMap((value, index) => retained.slice(index + 1).map((other) => [value, other] as const))
+          .find(([left, right]) => sameDrugDifferentProcessing(nameOf(left), nameOf(right)) && !baseHasBoth(nameOf(left), nameOf(right)));
+        if (!pair) break;
+        const [left, right] = pair;
+        const drop = rank(left) <= rank(right) ? right : left;
+        const keep = drop === left ? right : left;
+        if (roleOf(drop) === "君") break;
+        removed.push({ name: nameOf(drop), reason: `与${nameOf(keep)}是同一味药的不同炮制品，不重复使用` });
+        retained = retained.filter((value) => value !== drop);
+      }
+    }
     if (removed.length === 0 || retained.length < SAFETY_PRUNE_MIN_RETAINED) return content;
     candidate.herbs = retained;
     if (typeof candidate.formulaAnalysis === "string") {
@@ -485,17 +505,23 @@ export function withoutPrecautionsNamingAbsentHerbs(content: string): string {
     const formula = recordValue(reasoning.formula);
     const candidate = recordValue(Array.isArray(formula?.candidates) ? formula?.candidates[0] : undefined);
     const nonPharma = recordValue(reasoning.nonPharma);
-    if (!candidate || !nonPharma || !Array.isArray(nonPharma.precautions) || !Array.isArray(candidate.herbs)) return content;
+    if (!candidate || !Array.isArray(candidate.herbs)) return content;
+    // 「调整/减」某药而这味药已不在最终药味里（定稿剔掉了）：这一行不留（第四十六轮 p100c-C018「调整瓦楞子（加重瓦楞子用量）」，方中并无瓦楞子）。
+    const modifications = Array.isArray(formula?.modifications) ? formula.modifications : [];
+    const keptModifications = withoutModificationsOnAbsentHerbs(modifications, candidate.herbs.map((herb) => String(recordValue(herb)?.name || "")));
     const identities = new Set([
       ...candidate.herbs.map((herb) => canonicalTcmHerbIdentity(String(recordValue(herb)?.name || ""))),
-      ...(Array.isArray(formula?.modifications) ? formula.modifications : []).map((item) => canonicalTcmHerbIdentity(String(recordValue(item)?.herbName || ""))),
+      ...keptModifications.map((item) => canonicalTcmHerbIdentity(String(recordValue(item)?.herbName || ""))),
     ].filter(Boolean));
     if (identities.size === 0) return content;
-    const cleaned = nonPharma.precautions
-      .map((line) => typeof line === "string" ? precautionWithoutAbsentHerbs(line, identities) : line)
+    const precautions = nonPharma && Array.isArray(nonPharma.precautions) ? nonPharma.precautions : undefined;
+    const cleaned = precautions
+      ?.map((line) => typeof line === "string" ? precautionWithoutAbsentHerbs(line, identities) : line)
       .filter((line) => typeof line !== "string" || line.trim().length > 0);
-    if (JSON.stringify(cleaned) === JSON.stringify(nonPharma.precautions)) return content;
-    nonPharma.precautions = cleaned;
+    const precautionsChanged = Boolean(cleaned) && JSON.stringify(cleaned) !== JSON.stringify(precautions);
+    if (!precautionsChanged && keptModifications.length === modifications.length) return content;
+    if (nonPharma && cleaned) nonPharma.precautions = cleaned;
+    if (formula && keptModifications.length !== modifications.length) formula.modifications = keptModifications;
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {
     return content;

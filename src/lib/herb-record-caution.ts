@@ -1,5 +1,6 @@
 import cautionTableJson from "../data/tcm-herb-record-caution.source.json";
 import { affirmedClinicalText } from "./clinical-polarity";
+import { assessLactationState, isPositiveOrPossibleClinicalState } from "./clinical-state";
 import { textbookDistinctHerbKey, textbookHerbCaution, textbookHerbsWithCaution } from "./herb-textbook-identity";
 import { formulaCompilationReferences, governedDosageFormVariantComposition } from "./tcm-formula-provenance";
 
@@ -29,6 +30,8 @@ type CautionTable = {
   poorAppetite: { cautionTerms: string[]; recordTerms: string[] };
   qualifiers: Array<{ cautionTerms: string[]; syndromeTerms: string[] }>;
   coldDeficiency: { cautionTerms: string[]; recordColdTerms: string[]; recordHeatTerms: string[]; signedHeatTerms: string[]; hardVerbs: string[] };
+  additionLooseStoolIgnoresAppetite?: boolean;
+  strongRecordCautions?: Array<{ id: string; cautionTerms: string[]; recordTerms?: string[]; recordState?: "lactation"; deficiencyQualifiers?: string[]; exteriorQualifiers?: string[]; exteriorSyndromeMarkers?: string[] }>;
 };
 
 const TABLE = cautionTableJson as unknown as CautionTable;
@@ -102,7 +105,7 @@ export type HerbRecordCautionConflict = {
  * 一味药与本例病历的便溏类使用注意冲突时给出依据。recordText 是病历全文（接地文本），syndromeText 是已签名的证候与病性。
  * 只看这一味药本身；是不是原方药味由调用方判断（见 herbRecordCautionConflicts）。
  */
-export function herbRecordCautionConflict(herbName: string, recordText: string, syndromeText = ""): HerbRecordCautionConflict | undefined {
+export function herbRecordCautionConflict(herbName: string, recordText: string, syndromeText = "", options: { addition?: boolean } = {}): HerbRecordCautionConflict | undefined {
   const caution = textbookHerbCaution(herbName);
   if (!caution) return undefined;
   const conditions = looseStoolCautionConditions(caution.text);
@@ -116,7 +119,8 @@ export function herbRecordCautionConflict(herbName: string, recordText: string, 
   const processed = /^[制炙]/u.test(String(herbName || "").trim());
   for (const condition of conditions) {
     if (condition.rawOnly && processed) continue;
-    if (condition.needsAppetite && appetiteFindings.length === 0) continue;
+    // 随证加减新加的药按便溏一项判（tcm-herb-record-caution.source.json additionLooseStoolIgnoresAppetite，第四十六轮 new40-m20）。
+    if (condition.needsAppetite && appetiteFindings.length === 0 && !(options.addition && TABLE.additionLooseStoolIgnoresAppetite)) continue;
     if (condition.qualifier && !condition.qualifier.syndromeTerms.some((term) => syndromeText.includes(term))) continue;
     return {
       herb: String(herbName || "").trim(),
@@ -154,6 +158,43 @@ export function herbColdDeficiencyCautionConflict(herbName: string, recordText: 
     condition: table.cautionTerms.find((term) => sentence.includes(term)) || "脾胃虚寒", verb, rawOnly: false, recordFindings: [...loose, ...cold],
     kind: "cold_deficiency",
   };
+}
+
+/** 教材注意里写明「忌服、忌用、不宜、禁用」（不含慎用）的词：与脾胃虚寒一条的硬性忌慎词同一份（tcm-herb-record-caution.source.json coldDeficiency.hardVerbs）。 */
+const STRONG_CAUTION_VERB = alternation(TABLE.coldDeficiency.hardVerbs);
+
+/**
+ * 随证加减新加的药与本例已记录情况相抵的强注意（第四十六轮，2026-11-15）：教材【使用注意】某一句写着「…者忌服/忌用/不宜/禁用」，
+ * 条件是表上的一类（哺乳、月经过多、自汗多汗、便秘），本例病历正写着这一类表现（哺乳按 clinical-state 的哺乳判据）。
+ * 只给加减新加的药用（方中药味不在此列）：加减是可选的一行，有更稳妥的药可换；方中药味由医生权衡。
+ * 词表与出处在 tcm-herb-record-caution.source.json 的 strongRecordCautions。
+ */
+export function herbStrongRecordCautionConflict(herbName: string, recordText: string, syndromeText = ""): HerbRecordCautionConflict | undefined {
+  const caution = textbookHerbCaution(herbName);
+  if (!caution || !recordText) return undefined;
+  const affirmed = affirmedClinicalText(recordText) || "";
+  for (const sentence of String(caution.text || "").split(/[。；;]/u)) {
+    const verb = sentence.match(STRONG_CAUTION_VERB);
+    if (!verb || verb.index == null) continue;
+    const subject = sentence.slice(0, verb.index);
+    for (const group of TABLE.strongRecordCautions || []) {
+      const item = subject.split(ITEM_SEPARATOR).map((part) => part.trim()).find((part) => group.cautionTerms.some((term) => part.includes(term)));
+      if (!item) continue;
+      // 限定词（表虚自汗、气虚多汗）要求已签名证候里有「虚」：风热表证汗出用薄荷不在此列。
+      if ((group.deficiencyQualifiers || []).some((term) => item.includes(term)) && !/虚/u.test(syndromeText)) continue;
+      // 限定词「表邪」（浮小麦「表邪汗出者忌用」）要求证候是表证：气虚自汗用浮小麦正对证（第四十六轮回放 new45-n14）。
+      if ((group.exteriorQualifiers || []).some((term) => item.includes(term)) && !(group.exteriorSyndromeMarkers || []).some((marker) => syndromeText.includes(marker))) continue;
+      const findings = group.recordState === "lactation"
+        ? (isPositiveOrPossibleClinicalState(assessLactationState(recordText)) ? ["哺乳期"] : [])
+        : affirmedTerms(affirmed, group.recordTerms || []);
+      if (findings.length === 0) continue;
+      return {
+        herb: String(herbName || "").trim(), monograph: caution.herb, caution: caution.text, cautionLine: caution.line,
+        condition: item.replace(LEADING_CONNECTIVES, "").replace(/者$/u, ""), verb: verb[0], rawOnly: false, recordFindings: findings,
+      };
+    }
+  }
+  return undefined;
 }
 
 /**

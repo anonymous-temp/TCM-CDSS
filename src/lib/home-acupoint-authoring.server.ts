@@ -55,6 +55,8 @@ export type HomeAcupointAuthoringInput = {
   sex: string;
   /** 妊娠状态未写明的育龄女性：去掉孕期禁用穴与腹部、腰骶部穴位（与技术规范段落同一张表）。 */
   pregnancyUnresolved: boolean;
+  /** 本例不宜按揉的穴（未经评估的乳房肿块：胸前乳房区穴），从候选池去掉。 */
+  excludedPoints?: readonly string[];
   /** 艾灸这一段在技术规范路径里本例是否允许（体质有艾灸方案、无烫伤风险与项目禁忌、未妊娠待查）。 */
   moxibustionAllowed: boolean;
 };
@@ -63,10 +65,11 @@ export type AuthoredHomeAcupoint = {
   moxibustion?: { points: string[]; reason: string };
 };
 
-export function homeAcupointCandidatePool(input: Pick<HomeAcupointAuthoringInput, "pregnancyUnresolved">): PointEntry[] {
+export function homeAcupointCandidatePool(input: Pick<HomeAcupointAuthoringInput, "pregnancyUnresolved" | "excludedPoints">): PointEntry[] {
   const rule = CARE.pregnancyUnresolved;
-  return POOL.points.filter((point) => !input.pregnancyUnresolved ||
-    (!rule.excludedPoints.includes(point.name) && !rule.excludedRegions.includes(point.region)));
+  return POOL.points.filter((point) => (!input.pregnancyUnresolved ||
+    (!rule.excludedPoints.includes(point.name) && !rule.excludedRegions.includes(point.region))) &&
+    !(input.excludedPoints || []).includes(point.name));
 }
 
 function buildMessages(input: HomeAcupointAuthoringInput) {

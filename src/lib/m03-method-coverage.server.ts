@@ -3,7 +3,7 @@ import "server-only";
 import { parseConfirmed, proposeTwiceThenVerifyAll, verifyProposals } from "./cross-model-small-task.server";
 import { isUnstableM03CoreText } from "./diagnosis-stage-contract";
 import { methodItemAlreadyCovered, textbookAnchorableMethod } from "./tcm-formula-provenance";
-import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { textbookRowForSyndrome, therapyWithoutUnsupportedSymptomItems } from "./tcm-textbook-syndromes";
 import { DELIVERED_METHOD_ITEM_CAP, NOT_A_TREATMENT_METHOD, isStandardMethodItem } from "./tcm-therapy-phrasing";
 import { quoteGroundedInText } from "./verbatim-quote";
 
@@ -129,9 +129,17 @@ export function methodItemQualifies(
  * 将要交付的治法：有教材行且能锚定时是教材治法，否则是模型写的。兼证此刻还在也一样（并行的兼证核对可能撤掉它，撤掉后照样锚定；
  * 胁痛·肝郁气滞证兼瘀血阻络证，撤兼证后治法只剩「疏肝理气」）。
  */
-function methodToDeliver(disease: string, syndrome: string, modelMethod: string): string {
+export function methodToDeliver(disease: string, syndrome: string, modelMethod: string, record?: { recordText: string; locations?: readonly string[] }): string {
   const row = textbookRowForSyndrome(disease, syndrome);
-  return (row && textbookAnchorableMethod(row.therapy)) || modelMethod;
+  const anchorable = row ? textbookAnchorableMethod(row.therapy) : "";
+  if (!row || !anchorable) return modelMethod;
+  // 锚定时教材治法里病历没有对应表现的对症项不锚定（tcm-formula-provenance 的 supportedByRecord → therapyWithoutUnsupportedSymptomItems）：
+  // 这里同一判据（第四十六轮复核 n27 夜啼·脾寒气滞证「温脾散寒，理气止痛」，病历没写痛，锚定只留「温脾散寒」；此前这里按两项问，
+  // 以为理气止痛还在，没补，交付只剩一项）。全部去掉时锚定保留模型写的治法，这里同样。
+  const supported = record?.recordText
+    ? therapyWithoutUnsupportedSymptomItems(anchorable, { recordText: record.recordText, diseaseName: disease, syndromeName: syndrome, locations: record.locations, bookKey: row.bookKey })
+    : anchorable;
+  return supported || modelMethod;
 }
 
 function verifyRequest(candidate: Uncovered, syndrome: string, method: string, context: { recordText: string; chiefComplaint?: string }) {
@@ -173,7 +181,7 @@ export function prefetchMethodCoverage(overview: Record<string, unknown>, contex
   const disease = text(overview.tcmDiseaseName);
   const syndrome = text(overview.primarySyndrome);
   if (!disease || !syndrome) return;
-  const method = methodToDeliver(disease, syndrome, "");
+  const method = methodToDeliver(disease, syndrome, "", { recordText: context.recordText });
   const room = method ? roomFor(method) : 0;
   if (room > 0) void namedCoverage(syndrome, method, room, context).catch(() => undefined);
 }
@@ -187,7 +195,10 @@ export async function completeMethodCoverage(content: string, context: { recordT
   const modelMethod = text(therapy?.overallMethod);
   if (!root || !overview || !therapy || !modelMethod) return content;
   const syndrome = text(overview.primarySyndrome);
-  const method = methodToDeliver(text(overview.tcmDiseaseName), syndrome, modelMethod);
+  const locations = Array.isArray(record(record(root.pathogenesis)?.locationDifferentiation)?.items)
+    ? (record(record(root.pathogenesis)?.locationDifferentiation)!.items as unknown[]).map(text).filter(Boolean)
+    : [];
+  const method = methodToDeliver(text(overview.tcmDiseaseName), syndrome, modelMethod, { recordText: context.recordText, locations });
   const room = roomFor(method);
   if (room === 0) return content;
   const qualifyContext = { method, recordText: context.recordText, chiefComplaint: context.chiefComplaint };

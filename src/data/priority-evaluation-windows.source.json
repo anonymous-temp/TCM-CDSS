@@ -3,6 +3,7 @@
   "purpose": "给了剂量、但安全门要求先完成临床评估时，复诊计划第一句的评估时限（diagnosis-safety.priorityEvaluationPlan）。时限由事实模型逐项判断（mustNotMiss.timeWindow），数值兜底与疑似肿瘤路径由确定性层给；同一病例取最紧的一档。",
   "basis": "2026-10-25 第二十轮评审：优先评估一律写「3天内」，疑似肝脓肿（白细胞 17、心率 107）与高血糖伴酮尿也是 3 天，乳腺那一档是按病名正则加的。",
   "windows": [
+    { "id": "immediately", "label": "立即", "meaningZh": "只用于红旗尚未解除、且红旗属正在进行的急危重情况（循环或呼吸不稳、活动性出血、卒中、急性冠脉综合征、过敏性休克、抽搐、产科急症等）的病例：立即到医院急诊，病情危急时拨打 120（第四十六轮；复核员与 NICE CG95/NG127/NG126 对这类情况都写「立即/急诊」，「当天」时限过宽）。事实模型的 timeWindow 不含这一档。" },
     { "id": "today", "label": "当天", "meaningZh": "只用于给了剂量、但红旗尚未解除的病例（用户 2026-10-26 决定 D4）：先到医院急诊或专科排除急危重情况，医生确认后再服药。事实模型的 timeWindow 不含这一档。" },
     { "id": "within_24h", "label": "24小时内", "meaningZh": "病情可能在一两天内恶化：已有全身炎症反应或器官功能受损证据的感染、显著代谢紊乱、新发器官功能异常等，需当天完成评估" },
     { "id": "within_48h", "label": "48小时内", "meaningZh": "不能等过两天：检验或检查结果提示需尽快明确，但没有当天恶化的证据（参照 NICE NG12 very urgent：48 小时内）" },
@@ -45,7 +46,11 @@
       "nodeVisit": "到医院急诊或专科完成评估",
       "clearance": "医生确认可以服药后",
       "withoutRegimenTail": "医生确认可以服药后再按医生安排服药与复诊",
-      "source": "用户 2026-10-26 决定 D4：红旗不再收回剂量，改为给剂量、置顶警示、红旗解除前不可采纳（formalAdoption=blocked），复诊第一步当天急诊或专科排除急危重情况。"
+      "source": "用户 2026-10-26 决定 D4：红旗不再收回剂量，改为给剂量、置顶警示、红旗解除前不可采纳（formalAdoption=blocked），复诊第一步当天急诊或专科排除急危重情况。",
+      "visitImmediate": "到医院急诊就诊（病情危急时拨打120），先排除急危重情况",
+      "nodeVisitImmediate": "到医院急诊完成评估",
+      "dayTierReasonPrefixes": ["上消化道警示征象（", "咯血伴体重下降", "外伤后3天内的骨折", "重度血小板减少"],
+      "immediacyNote": "红旗默认按正在进行的急危重情况写「立即到医院急诊」；只有理由全部属于 dayTierReasonPrefixes（上消化道警示征象、咯血伴体重下降：NICE NG12 疑似肿瘤两周内转诊口径，本系统按红旗当天处理；3 天内外伤骨折：骨科当天处置；重度血小板减少：ASH 2019 新诊断 PLT<20 建议住院）时写「当天」。"
     },
     "pregnancy_review": {
       "window": "within_3d",
@@ -170,7 +175,12 @@
     "glucoseMmolPerL": 11.1,
     "glucoseMgPerDl": 200,
     "urineKetonePlus": 2,
-    "bloodKetoneMmolPerL": 3.0
+    "bloodKetoneMmolPerL": 3.0,
+    "severeSigns": {
+      "respirationAtLeast": 25,
+      "kussmaulTerms": ["呼吸深快", "呼吸深大", "深大呼吸", "呼吸又深又快", "烂苹果味"],
+      "note": "第四十六轮：已达血糖与酮体两项标准、并见意识改变（嗜睡、反应迟钝等，与低体温规则同一组词）、呼吸深快（Kussmaul）或呼吸≥25次/分时报红旗、立即急诊；只达两项标准仍走 24 小时通道。ADA/EASD 2024 高血糖危象共识把意识改变列为重度 DKA 的表现，酸中毒呼吸代偿即深快呼吸（新病历 n02：血糖 26.8、尿酮 3+、嗜睡反应迟钝、呼吸深快，红旗理由却是「上消化道警示征象（不明原因体重下降）」）。"
+    }
   },
   "guidelineWindows": {
     "purpose": "事实模型给「宜先专科评估」各项写的时限（mustNotMiss.timeWindow）常比指南慢一档（第二十一轮：短暂性脑缺血、深静脉血栓、急性肾损伤、马尾综合征风险给了 48 小时）。模型在「需排除：X」里写出的病名对上下表某一行时，时限取这一行与模型给的较紧的一档；只收紧，不放松；专门路径（乳腺、面瘫、妊娠、酮症…）不受影响。",
@@ -1003,5 +1013,86 @@
         "url": "https://www.england.nhs.uk/mental-health/resources/access-waiting-time/"
       }
     ]
+  },
+  "vitalInstability": {
+    "purpose": "成人（≥16 岁、非妊娠）生命体征合起来提示病情危重或循环不稳定时报红旗，理由写实际读数（第四十六轮：甲方 100 例 C013 吐泻伴尿少、P116、BP94/62 未报红旗；C067 经量大增、Hb79、P106、BP98/60 未报；C003 哮喘重度发作 SpO₂90%、R30、P124 红旗理由却写急性冠脉综合征；n03 黑便伴 BP98/60、P108、冷汗末梢凉，红旗理由写成神经系统急症）。",
+    "minAgeYears": 16,
+    "news2EmergencyAtLeast": 7,
+    "news2MinRecordedParameters": 3,
+    "news2ConsciousnessPoints": 3,
+    "news2Source": "Royal College of Physicians. National Early Warning Score (NEWS) 2, 2017, Chart 2「NEWS thresholds and triggers」：aggregate score 7 or more = high clinical risk, emergency response（https://www.rcp.ac.uk/media/2acdezkd/news2-chart-2_news-thresholds-and-triggers_0.pdf）。各项分档沿用 febrileChestTightnessDeferral.news2；新发意识改变（嗜睡、谵妄、意识模糊等，与低体温规则同一组词）计 3 分；吸氧与否未记录按未吸氧计。",
+    "shockIndex": {
+      "systolicAtMost": 100,
+      "pulseAtLeast": 100,
+      "indexAtLeast": 1.0
+    },
+    "shockIndexSource": "收缩压<100mmHg 与心率≥100次/分是 Glasgow-Blatchford 评分的计分项（收缩压 90–99 计 2 分、心率≥100 计 1 分；https://gpnotebook.com/pages/gastroenterology/glasgow-blatchford-bleeding-score-gbs），NICE CG141 上消化道出血首诊用该评分；休克指数（心率/收缩压）≥1.0 为低血容量常用警戒线。本条要求同时有失血、失液或灌注不足的记录，单纯心动过速、偏低血压不报。",
+    "contexts": {
+      "bleeding": {
+        "label": "出血",
+        "terms": [
+          "呕血",
+          "吐血",
+          "黑便",
+          "柏油样便",
+          "便血",
+          "咯血",
+          "大咯血",
+          "阴道出血",
+          "阴道流血",
+          "阴道少量出血",
+          "阴道少许出血",
+          "少量阴道出血",
+          "经量明显增多",
+          "经量增多",
+          "月经量多",
+          "经量多",
+          "换透",
+          "浸透",
+          "出血不止",
+          "血流不止"
+        ]
+      },
+      "fluidLoss": {
+        "label": "吐泻失液",
+        "terms": [
+          "水样便",
+          "腹泻",
+          "呕吐",
+          "吐泻",
+          "尿量明显减少",
+          "尿量减少",
+          "尿少",
+          "少尿",
+          "无尿"
+        ]
+      },
+      "perfusion": {
+        "label": "冷汗、肢冷等灌注不足表现",
+        "terms": [
+          "冷汗",
+          "四肢湿冷",
+          "皮肤湿冷",
+          "末梢偏凉",
+          "末梢凉",
+          "末梢发凉",
+          "四肢冰冷",
+          "四肢厥冷",
+          "皮肤花斑"
+        ]
+      }
+    }
+  },
+  "bronchospasmChestTightness": {
+    "purpose": "已知哮喘或慢阻肺、本次喘息或喘鸣发作时的胸闷，不按急性冠脉综合征报红旗；严重度由生命体征（vitalInstability、血氧与呼吸单项红旗）判（第四十六轮甲方 100 例 C003：接触猫毛后哮喘重度发作，SpO₂90%、R30、P124，红旗理由写成「急性或加重胸闷…排除急性冠脉综合征」）。",
+    "airwayDiseaseTerms": ["支气管哮喘", "哮喘", "慢阻肺", "慢性阻塞性肺疾病", "慢性阻塞性肺病", "COPD"],
+    "wheezeTerms": ["喘鸣", "哮鸣", "喘息", "喘憋", "气喘"],
+    "conditionsNote": "全部成立才适用：肯定记载哮喘或慢阻肺（否认的不算）；本次有喘息、喘鸣等；无胸痛、胸部压迫样不适；无急性冠脉典型伴随；未肯定记载已知心脏病（knownCardiacDisease 与发热胸闷同一张表）。",
+    "source": "GINA 2024 Report, Box 1-1：哮喘以喘息、气短、胸闷、咳嗽等呼吸道症状为特征（chest tightness 是哮喘的典型症状）；急性发作的严重度按说话、呼吸频率、心率、血氧分级（GINA Box 9-4）。"
+  },
+  "colloquialGaitSystemicContext": {
+    "purpose": "「走路发飘」「脚下发飘」这类口语步态词在同一句里与全身乏力、起身时头晕或眼前发黑同时出现时，说的是全身虚弱或体位性头晕，不作为卒中的局灶体征（第四十六轮新病历 n03：上消化道出血伴循环不稳，「近3天自觉全身乏力，走路发飘」被报「意识或神经功能异常」，患者神清）。NICE NG127：无失衡或其他局灶缺损的头晕不太可能是严重神经疾病；能用体位性低血压解释的不按卒中通路。",
+    "gaitTerms": ["走路发飘", "脚下发飘", "走路发软", "走路打晃"],
+    "systemicContextTerms": ["全身乏力", "全身无力", "周身乏力", "浑身无力", "浑身没劲", "四肢乏力", "起身时", "站起时", "站起来时", "蹲下站起", "蹲起时", "眼前发黑", "眼前发花"]
   }
 }

@@ -1,4 +1,5 @@
 import originalCompositionsJson from "../data/tcm-formula-original-compositions.json" with { type: "json" };
+import fangjixueCitationsJson from "../data/tcm-fangjixue-formula-citations.json" with { type: "json" };
 
 /**
  * 原方组成的唯一权威（2026-11-10 第四十二轮，根因一）。
@@ -138,6 +139,34 @@ export function textbookRowFormulaBook(rowId: string | undefined | null, formula
     if (originalFormulaNameKey(name) === key) return book;
   }
   return undefined;
+}
+
+/**
+ * 教材给这首方写的原书（规范书名，按先后：《方剂学》正方与附方的出处 → 各科教材证型行写的出处，按出现多寡）。
+ * 第四十六轮：出处此前在同名方的各书写法里按组成最贴近的取，处方恰好与某本后出书的写法逐味相同时就署了那本书
+ *（桃红四物汤《妇科冰鉴》、一贯煎《医方絜度》）。教材写的书是交付出处的首选（调用方还要核处方是否覆盖那本书的原方组成）。
+ * 《方剂学》表由 scripts/build-fangjixue-formula-citations.py 从本地教材逐行摘取（带行号）。
+ */
+const FANGJIXUE_CITATIONS = ((fangjixueCitationsJson as unknown as { formulas?: Record<string, { book: string }> }).formulas) || {};
+export function textbookCitedFormulaBooks(name: string): string[] {
+  const key = originalFormulaNameKey(name);
+  if (!key) return [];
+  const books: string[] = [];
+  const add = (book: string | undefined) => {
+    const canonical = canonicalFormulaBook(book);
+    if (canonical && !books.includes(canonical)) books.push(canonical);
+  };
+  for (const [formula, entry] of Object.entries(FANGJIXUE_CITATIONS)) if (originalFormulaNameKey(formula) === key) add(entry.book);
+  const counts = new Map<string, number>();
+  for (const cited of Object.values(TABLE.textbookCitations)) {
+    for (const [formula, book] of Object.entries(cited)) {
+      if (originalFormulaNameKey(formula) !== key) continue;
+      const canonical = canonicalFormulaBook(book);
+      if (canonical) counts.set(canonical, (counts.get(canonical) || 0) + 1);
+    }
+  }
+  [...counts.entries()].sort((left, right) => right[1] - left[1]).forEach(([book]) => add(book));
+  return books;
 }
 
 /**

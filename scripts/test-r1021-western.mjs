@@ -140,8 +140,9 @@ const verdict = (extra) => JSON.stringify({ verdict: "inconsistent", type: "D", 
   });
   // 2026-10-24 第十七轮加了新生儿败血症、婴儿败血症两行（135 → 137）；第十八轮加急性胰腺炎、急性胆囊炎、急性心肌梗死、急性肺栓塞、
   // 蛛网膜下腔出血五行（137 → 142，基层病例未做化验影像时直接下急症诊断，见 test:r1030-main 7.1）。
-  await check("3.2 对照：其余条目不变（条目数 142；缺铁性贫血、支气管哮喘、社区获得性肺炎仍要求检查，不可临床诊断）", () => {
-    assert.equal(table.entries.length, 142);
+  // 第四十六轮加「功能性腹痛」一行（142 → 143，儿童按罗马IV 2 个月，C073 曾按成人 6 个月判，见 test:r1063-text）。
+  await check("3.2 对照：其余条目不变（条目数 143；缺铁性贫血、支气管哮喘、社区获得性肺炎仍要求检查，不可临床诊断）", () => {
+    assert.equal(table.entries.length, 143);
     for (const name of ["缺铁性贫血", "支气管哮喘", "社区获得性肺炎", "多囊卵巢综合征"]) {
       assert.ok(entry(name), name);
       assert.ok(entry(name).requiredTests.length > 0 || entry(name).durationThreshold || entry(name).definingFeatures.length > 0, name);

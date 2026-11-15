@@ -589,6 +589,8 @@ const FOCAL_NEUROLOGIC_TERMS = [...new Set(FOCAL_NEUROLOGIC_CONCEPT_GROUPS.flat(
 export const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
   // 「低烧」与「低热」同义（2026-10-17 局部发热守卫回放时发现：「每天低烧、下午掌心发热」原先只靠掌心发热被认成发热）。
   ["发热", "发烧", "高热", "低热", "低烧", "体温升高"],
+  // 黄疸与巩膜、皮肤黄染同一概念（第四十六轮甲方 100 例 C017：病历「进行性巩膜黄染」，西医鉴别写「无进行性黄疸」被改成「未诉进行性黄疸」）。
+  ["黄疸", "巩膜黄染", "皮肤黄染", "皮肤巩膜黄染", "皮肤及巩膜黄染", "目黄", "身目发黄", "身目俱黄", "巩膜发黄"],
   ["头痛", "头疼", "脑袋疼", "脑袋痛", "头部疼痛", "偏头痛"],
   // High-risk bleeding concepts must be grounded across ordinary patient phrasing. In particular,
   // Chinese aspect markers split the canonical surface ("没吐过血" does not literally contain
@@ -1172,7 +1174,9 @@ function affirmationMentionKind(source: string, term: string): { kind: "clear" |
  *（2026-10-25 第二十轮：「无明显发热，食欲下降」曾读成否认食欲下降——读法用的是只看字数的裸词判据，提示用的是这一条）。
  */
 // 舌象、脉象是查到的所见，不是否认列举的延续（「心肺无异常发现，舌质红绛」曾读成否认舌象，第三十四轮 1/1400）。
-const OWN_PREDICATE_ITEM = /[有伴见感觉作]|(?:差|少|多|可|调|佳|好|难|困难|不利|不畅|不适|欠佳|明显|重|轻|甚|剧|频|稀|干|黄|赤|红|淡|白|胀|紧|减退|增多|减少|加重|缓解|正常|下降|升高|降低|增加|不振|减弱|亢进|异常)$|^[舌苔脉]/u;
+// 以身体功能作主语的小句（「小便清长」「大便溏薄」「面色青白」）是自带谓语的陈述，不是否认列举里的裸词（第四十六轮新病历 n27：
+// 「无黏液脓血，小便清长」被读成否认小便清长，病历读法核对把它写进了待核实）。
+const OWN_PREDICATE_ITEM = /[有伴见感觉作]|(?:差|少|多|可|调|佳|好|难|困难|不利|不畅|不适|欠佳|明显|重|轻|甚|剧|频|稀|干|黄|赤|红|淡|白|胀|紧|减退|增多|减少|加重|缓解|正常|下降|升高|降低|增加|不振|减弱|亢进|异常)$|^[舌苔脉]|^(?:小便|大便|二便|面色|口唇|唇色|精神|神志|饮食|食欲|睡眠|夜寐)/u;
 /**
  * 闸门判否认的这一处，是不是可以当作「病历否认了它」来读：否认词与它在同一逗号小句里（「无发热」「无发热、呕吐」），
  * 或它是否认列举在逗号后延续的裸词——这一小句里只有它自己，且与否认那一小句之间至多隔一个同样的短裸词小句
@@ -1452,6 +1456,7 @@ const LEXICALIZED_NEGATED_SIGN = /^无(?:汗出?|痰|苔)(?:而[^，,、。；;]
 const DENIAL_ITEM_SPLIT = /[、及和与或]|以及/u;
 const DENIAL_HEAD_SUBJECT = /^(?:本例|患者|病人|该患者|病程中|目前|现|且|并|亦|也|但|而|其|尚|均|平素|近期|故)+$/u;
 const DENIAL_HEAD_SITE = /^[\u4e00-\u9fff]{1,2}部?$/u;
+const DENIAL_TIME_SCOPE_TAIL = /(?:近\s*[\d一二两三四五六七八九十半几]+\s*(?:个)?(?:天|日|周|星期|月|年)(?:来|以来)?|近期|近日|近来|目前|当前|刻下|此次|本次|发作间期|间歇期)\s*$/u;
 function assertedHeadBeforeDenial(clause: string, negatedSpan: string): string {
   const at = clause.indexOf(negatedSpan);
   // 只认列举里前面的项（「咽痛发热、无恶寒」）；贴着否认词的（「痫证发作无发热」）多半是在写另一个病，随否认一起去掉。
@@ -1503,7 +1508,9 @@ function clauseNegationScope(clause: string, probe: string): string {
   const scope = clause.slice(matches[0].index ?? 0);
   const items = scope.split("、");
   if (LEXICALIZED_NEGATED_SIGN_IN_LIST.test(items[0].trim())) return items[0];
-  const affirmedAt = items.findIndex((item, index) => index > 0 && NEGATION_SCOPE_AFFIRMED_ITEM.test(item.trim()));
+  // 本项自己说的是能做到、正常（「夜间可平卧」「纳可」「二便正常」）也不在否认之下（第四十六轮新病历 m18：「无胸闷气促、夜间可平卧」
+  // 交付成「未诉夜间可平卧」，与病历「夜间可平卧」相反）。构词守卫。
+  const affirmedAt = items.findIndex((item, index) => index > 0 && (NEGATION_SCOPE_AFFIRMED_ITEM.test(item.trim()) || NEGATION_SCOPE_NORMAL_STATEMENT.test(item.trim())));
   return affirmedAt > 0 ? items.slice(0, affirmedAt).join("、") : scope;
 }
 
@@ -1544,6 +1551,7 @@ function differentialSubjectNegation(clause: string, entryName: string): boolean
 }
 
 /** 顿号列举里自带肯定说法的一项：「稍有咳嗽」「伴腹胀」「可见黄痰」。前面的否认词管不到它。 */
+const NEGATION_SCOPE_NORMAL_STATEMENT = /(?<!不)可(?:平卧|入睡|进食|行走|活动|下地|自行)|(?<!不)能(?:平卧|入睡|进食|行走|活动|下地)|(?:尚可|正常|如常|良好|可)$/u;
 const NEGATION_SCOPE_AFFIRMED_ITEM = /^(?:(?:稍|略|微|偶|时|常|仍|又|并|另|尚|还|均)?有(?!无)|伴有?|兼(?:有|见)|并见|可见|见|出现)/u;
 
 export function isProspectiveClinicalSentence(value: string): boolean {
@@ -1786,8 +1794,21 @@ function sanitizeUngroundedNegationText(
           wholeItems.leftTerms.length > 0 ? unknownTermNotice(source, wholeItems.leftTerms) : "",
         ].filter(Boolean);
         // 否认词前面的话不是否认（「咽痛发热、无恶寒而口渴」的咽痛发热）：整条否认删掉时也留着，否则下一句「为风热袭表」没了主语（第三十五轮 D01）。
-        const headKept = wholeItems.head || assertedHeadBeforeDenial(clause, negatedSpan);
-        return `${prefix}${remaining.length > 0 ? `${headKept}${remaining.join("；")}` : headKept ? headKept.replace(/，$/u, "") : DROPPED_NEGATION_CLAUSE}`;
+        // 否认词前面紧贴着的时间范围（「目前无意识丧失」「近2月无发作」）是这条否认的一部分：改写时照留（第四十六轮新病历 m08：
+        // 病历「8年前起反复发作性意识丧失…近14个月未再发作…无抽搐、意识丧失」，模型写「目前无意识丧失」，交付成「否认意识丧失」，
+        // 与同句「反复发作性意识丧失」自相矛盾）。构词守卫：时间状语是有限闭集。
+        const timeScope = clause.slice(0, Math.max(0, clause.indexOf(negatedSpan))).match(DENIAL_TIME_SCOPE_TAIL)?.[0] || "";
+        // 带时间范围、病历也有当前否认记载的（病历先写既往发作、后写目前无），模型这句原样就对，不改写。
+        if (timeScope && unknown.length === 0 && unsettled.notices.length === 0 &&
+            contradictedPositive.every((term) => sourceDocumentsNegation(source, term))) return clause;
+        const headKept = (wholeItems.head || assertedHeadBeforeDenial(clause, negatedSpan)) + timeScope;
+        // 否认范围在顿号列举中途止住时（「无胸闷气促、夜间可平卧」「无汗、稍有咳嗽」），范围之后的项不在否认之下，改写时照留。
+        const spanAt = clause.indexOf(negatedSpan);
+        const tailKept = spanAt >= 0 ? clause.slice(spanAt + negatedSpan.length).replace(/^\s*、\s*/u, "，").replace(/^\s+/u, "") : "";
+        const tailText = tailKept && /[\u4e00-\u9fff]/u.test(tailKept) ? (tailKept.startsWith("，") ? tailKept : tailKept) : "";
+        const rewritten = remaining.length > 0 ? `${headKept}${remaining.join("；")}` : headKept ? headKept.replace(/，$/u, "") : "";
+        if (!rewritten && !tailText) return `${prefix}${DROPPED_NEGATION_CLAUSE}`;
+        return `${prefix}${rewritten}${rewritten ? tailText : tailText.replace(/^，/u, "")}`;
       }
     }
     const unsupportedNormality = CLINICAL_NORMALITY_TERMS.filter(
@@ -2545,7 +2566,7 @@ function parseRespiration(text: string): number | null {
 }
 
 function parseSpo2(text: string): number | null {
-  const match = normalizeClinicalText(text).match(/(?:SpO2|指脉氧|血氧(?:饱和度)?|氧饱和度)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*%?/i);
+  const match = normalizeClinicalText(text).match(/(?:指脉氧\s*(?:SpO[2₂])?|SpO[2₂]|血氧(?:饱和度)?|氧饱和度)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*%?/i);
   if (!match) return null;
   const value = Number(match[1]);
   return Number.isFinite(value) && value >= 50 && value <= 100 ? value : null;
@@ -2556,7 +2577,7 @@ function parseSpo2(text: string): number | null {
 function invalidSpo2Values(text: string): string[] {
   const normalized = normalizeClinicalText(text);
   const out: string[] = [];
-  const pattern = /(?:(?:SpO2|指脉氧|血氧(?:饱和度)?|氧饱和度)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*%?|(?:本次|当前|现在|今日|今天)?\s*(?:复测|复查|再测)[^。；;\n\d]{0,8}(\d+(?:\.\d+)?)\s*%)/gi;
+  const pattern = /(?:(?:指脉氧\s*(?:SpO[2₂])?|SpO[2₂]|血氧(?:饱和度)?|氧饱和度)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*%?|(?:本次|当前|现在|今日|今天)?\s*(?:复测|复查|再测)[^。；;\n\d]{0,8}(\d+(?:\.\d+)?)\s*%)/gi;
   for (const match of normalized.matchAll(pattern)) {
     const raw = match[1] || match[2];
     const value = Number(raw);
@@ -2713,7 +2734,7 @@ function parseContextualRespiration(text: string): number | null {
 function parseContextualSpo2(text: string): number | null {
   return parseContextualNumber(
     text,
-    /(?:(?:SpO2|指脉氧|血氧(?:饱和度)?|氧饱和度)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*%?|(?:本次|当前|现在|今日|今天)?\s*(?:复测|复查|再测)[^。；;\n\d]{0,8}(\d+(?:\.\d+)?)\s*%)/gi,
+    /(?:(?:指脉氧\s*(?:SpO[2₂])?|SpO[2₂]|血氧(?:饱和度)?|氧饱和度)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*%?|(?:本次|当前|现在|今日|今天)?\s*(?:复测|复查|再测)[^。；;\n\d]{0,8}(\d+(?:\.\d+)?)\s*%)/gi,
     (match) => {
       const value = Number(match[1] || match[2]);
       return Number.isFinite(value) && value >= 50 && value <= 100 ? value : null;
@@ -4146,7 +4167,11 @@ function upperGiAlarmFeatureKind(rawText: string): UpperGiAlarmKind | undefined 
   // 起于几个月前、至今仍在的节食照算（「4月前…开始控制饮食」），所以这里只看否认，不看时态。
   const intentionalWeightLoss = [...text.matchAll(/控制饮食|节食|减肥|减重|刻意少吃|主动少吃|不吃晚饭|晚饭基本不吃/gu)]
     .some((match) => !isNegatedAt(text, match.index ?? 0) && !isExcludedClinicalAssertionAt(text, match.index ?? 0));
-  for (const match of hasCurrentDigestiveSymptom ? findingsText.matchAll(measuredLoss) : []) {
+  // 本次血糖已达糖尿病水平（≥11.1 mmol/L）、或多饮与多尿同时记载时，带数值的体重下降由高血糖解释，不是「不明原因」（第四十六轮新病历 n02：
+  // 近 1 月口渴多饮、夜尿多、体重下降 6kg，指尖血糖 26.8、尿酮 3+，红旗理由写成上消化道警示征象）。写了「不明原因/进行性」的照旧。
+  const hyperglycemiaExplainsWeightLoss = currentGlucoseAtLeastDiabeticThreshold(findingsText) ||
+    (hasPatternWithoutNegation(findingsText, /多饮|饮水(?:量)?(?:增多|明显增多|多)|口渴多饮/u) && hasPatternWithoutNegation(findingsText, /多尿|尿多|尿量(?:增多|多)|夜尿(?:增多|多|频)/u));
+  for (const match of hasCurrentDigestiveSymptom && !hyperglycemiaExplainsWeightLoss ? findingsText.matchAll(measuredLoss) : []) {
     const kilograms = Number(match[1]) * (match[2] === "斤" ? 0.5 : 1);
     if (kilograms < SIGNIFICANT_WEIGHT_LOSS_KG) continue;
     // 主动减重只解释得了不多的下降（5kg 以内）；减得多的照报（回放 corpus-13391：「节食过度」之后两年体重下降 23 公斤伴呕恶反酸）。
@@ -4402,7 +4427,30 @@ const TRAILING_ACUTE_NEURO_CUE =
   // 实测「右侧手指麻木反复发作10余年，每年冬季发作」被判成神经系统急症，由既有套件当场抓出。
   + "|(?<!无)(?<!未)(?:新发|突发|突然|再发|(?<!反)复发|快速加重|明显加重|恶化))";
 
-function hasAcuteExtendedStrokeWarning(text: string): boolean {
+const COLLOQUIAL_GAIT_SYSTEMIC = priorityEvaluationWindowTable.colloquialGaitSystemicContext;
+/** 句中同时写了全身乏力、起身时头晕或眼前发黑时，把口语步态词遮掉（见 priority-evaluation-windows.source.json colloquialGaitSystemicContext）。 */
+function withoutSystemicColloquialGait(text: string): string {
+  return text.split(/(?<=[。；;\n])/u).map((sentence) => {
+    if (!COLLOQUIAL_GAIT_SYSTEMIC.systemicContextTerms.some((term) => sentence.includes(term))) return sentence;
+    return COLLOQUIAL_GAIT_SYSTEMIC.gaitTerms.reduce((value, term) => value.split(term).join("＿".repeat(term.length)), sentence);
+  }).join("");
+}
+
+const POSTERIOR_IMBALANCE = "复视|视物重影|行走不稳|站立不稳|共济失调|站立困难|不能站立|无法站立|站不起来|行走偏斜|走路偏斜|向一侧倾倒|不能行走|无法行走";
+const ACUTE_NEURO_LEADING_CUE_SOURCE = String.raw`(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|近\s*(?:\d+|[一二两三四五六七八九十几两]+)\s*(?:分钟|小时|天|日)|本次|当前|目前|新发|突发|突然|再发|(?<!反)复发)`;
+/**
+ * 突发眩晕/头晕伴失衡（站立或行走困难、行走偏斜、复视、共济失调）：后循环卒中的组合（NICE NG127 急性前庭综合征）。
+ * 站立困难、行走偏斜等失衡写法是第四十六轮补的（甲方 100 例 C027）；有限闭集。
+ */
+export function hasAcutePosteriorCirculationCombination(text: string): boolean {
+  const normalized = withoutSystemicColloquialGait(normalizeClinicalText(text));
+  const posteriorCombination = new RegExp(`${ACUTE_NEURO_LEADING_CUE_SOURCE}.{0,24}(?:眩晕|头晕).{0,20}(?:${POSTERIOR_IMBALANCE}|吞咽困难|构音不清)|${ACUTE_NEURO_LEADING_CUE_SOURCE}.{0,24}(?:${POSTERIOR_IMBALANCE}).{0,20}(?:眩晕|头晕)`);
+  return hasPatternWithoutNegation(normalized, posteriorCombination);
+}
+
+function hasAcuteExtendedStrokeWarning(rawText: string): boolean {
+  // 全身乏力、起身时头晕同句的「走路发飘」不是局灶体征（第四十六轮 n03）。
+  const text = withoutSystemicColloquialGait(rawText);
   const acuteCue = /(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|近\s*(?:\d+|[一二两三四五六七八九十几两]+)\s*(?:分钟|小时|天|日)|本次|当前|目前|新发|突发|突然|再发|(?<!反)复发)/;
   const cueRequiredSign = new RegExp(
     "(?:(?:左|右|单|一|偏)侧|半身|偏身)[^。；;\\n]{0,8}(?:麻木|感觉减退|感觉丧失|偏盲)"
@@ -4413,7 +4461,6 @@ function hasAcuteExtendedStrokeWarning(text: string): boolean {
   // 后面的“行走不稳/复视/共济失调”无论持续多久都直接命中红旗。
   // “突然失明/视力骤降”本身已编码急性变化，不再额外要求第二个急性前缀。
   const acuteExtended = new RegExp(`${acuteCue.source}.{0,24}(?:${cueRequiredSign.source})`);
-  const posteriorCombination = new RegExp(`${acuteCue.source}.{0,24}(?:眩晕|头晕).{0,20}(?:复视|视物重影|行走不稳|站立不稳|共济失调|吞咽困难|构音不清)|${acuteCue.source}.{0,24}(?:复视|视物重影|行走不稳|站立不稳|共济失调).{0,20}(?:眩晕|头晕)`);
   // 后置语序：体征在前、急性线索在后。同句内（不跨 。；;）且间隔不超过 20 字。
   const acuteExtendedTrailing = new RegExp(
     `(?:${cueRequiredSign.source})[^。；;\\n]{0,20}${TRAILING_ACUTE_NEURO_CUE}`,
@@ -4421,7 +4468,7 @@ function hasAcuteExtendedStrokeWarning(text: string): boolean {
   return hasPatternWithoutNegation(text, selfAcuteVisualSign) ||
     hasPatternWithoutNegation(text, acuteExtended) ||
     hasPatternWithoutNegation(text, acuteExtendedTrailing) ||
-    hasPatternWithoutNegation(text, posteriorCombination);
+    hasAcutePosteriorCirculationCombination(text);
 }
 
 const NEURO_EVENT_ANCHOR_SOURCE_TEXT = String.raw`脑梗(?:死|塞)?|脑卒中|卒中|中风|脑出血|脑溢血|脑血栓|脑栓塞|TIA|短暂性脑缺血发作|颅脑损伤|脑外伤|脑部手术|偏瘫`;
@@ -5383,6 +5430,70 @@ function vitalsRecordedAndStableByNews2(measurements: CurrentVitalMeasurements):
   return scored.reduce((sum, points) => sum + points, 0) + temperaturePoints < 5;
 }
 
+const VITAL_INSTABILITY = priorityEvaluationWindowTable.vitalInstability;
+type VitalInstabilityContext = keyof typeof VITAL_INSTABILITY.contexts;
+
+/** 成人生命体征合起来提示的不稳定：NEWS2 总分 ≥7，或休克指数 ≥1.0 且有失血/失液/灌注不足记录。返回红旗理由，未达到返回 undefined。 */
+export function vitalInstabilityRedFlag(state: CaseState, text: string): string | undefined {
+  const age = numberFromClinicalText(patientAgeText(withPatientObject(state)));
+  if (age != null && age < VITAL_INSTABILITY.minAgeYears) return undefined;
+  // NEWS2 不用于妊娠；妊娠的循环不稳定另有 earlyPregnancyInstabilitySigns 一条。
+  if (assessPregnancyState(maternalStateText(state, text)).status === "positive") return undefined;
+  const measurements = currentVitalMeasurements(state);
+  const bands = FEBRILE_CHEST_TIGHTNESS.news2;
+  const parts: string[] = [];
+  let score = 0;
+  let recorded = 0;
+  // 理由里只写计了分的读数。
+  const add = (points: number, label: string) => { recorded += 1; score += points; if (points > 0) parts.push(label); };
+  if (measurements.respiration != null) add(news2Points(bands.respiration, measurements.respiration), `呼吸${measurements.respiration}次/分`);
+  if (measurements.spo2 != null) add(news2Points(bands.spo2, measurements.spo2), `血氧${measurements.spo2}%`);
+  const bp = measurements.bloodPressure;
+  if (bp) add(news2Points(bands.systolic, bp.systolic), `血压${bp.systolic}/${bp.diastolic}mmHg`);
+  if (measurements.pulse != null) add(news2Points(bands.pulse, measurements.pulse), `心率${measurements.pulse}次/分`);
+  if (measurements.temperature != null) score += news2Points(bands.temperature, measurements.temperature);
+  const consciousness = currentConsciousnessChangeTerm(text);
+  if (consciousness) { score += VITAL_INSTABILITY.news2ConsciousnessPoints; parts.push(consciousness); }
+  if (recorded >= VITAL_INSTABILITY.news2MinRecordedParameters && score >= VITAL_INSTABILITY.news2EmergencyAtLeast) {
+    return `生命体征提示病情危重（${parts.join("、")}，按 NEWS2 计 ${score} 分），需立即急诊评估呼吸与循环`;
+  }
+  const shock = VITAL_INSTABILITY.shockIndex;
+  if (!bp || measurements.pulse == null) return undefined;
+  if (!(bp.systolic <= shock.systolicAtMost && measurements.pulse >= shock.pulseAtLeast)) return undefined;
+  const index = measurements.pulse / bp.systolic;
+  if (index < shock.indexAtLeast) return undefined;
+  const normalized = normalizeClinicalText(text);
+  // 理由写病历里实际见到的那几项（黑便、吐泻、冷汗…），不写类名。长词先认，短词被长词包住的不再算一次。
+  const seen: string[] = [];
+  for (const key of Object.keys(VITAL_INSTABILITY.contexts) as VitalInstabilityContext[]) {
+    const terms = [...VITAL_INSTABILITY.contexts[key].terms].sort((left, right) => right.length - left.length);
+    for (const term of terms) {
+      if (seen.some((other) => other.includes(term))) continue;
+      if (hasTerm(normalized, term)) seen.push(term);
+    }
+    if (key === "bleeding" && !seen.some((term) => /便|血/u.test(term)) && hasSeparatedMelenaDescription(normalized)) seen.push("黑便");
+  }
+  if (seen.length === 0) return undefined;
+  return `心率${measurements.pulse}次/分、血压${bp.systolic}/${bp.diastolic}mmHg（休克指数${index.toFixed(1)}）伴${seen.join("、")}，提示循环不稳定或低血容量，需立即急诊评估`;
+}
+
+/**
+ * 「大便每日1～2次，色黑发亮」：大便与「色黑」隔着次数、性状写在同一句里（第四十六轮新病历 n03）。受治理的黑便写法都是相连的
+ * （大便色黑、黑色大便），这种分写读不到。构词守卫：同一句里先出现大便/粪便，后面的逗号小句以颜色描述开头（色黑、呈黑色、黑色、发黑、
+ * 色黑发亮、柏油样），小句不带否认。
+ */
+export function hasSeparatedMelenaDescription(text: string): boolean {
+  return normalizeClinicalText(text).split(/[。；;\n]+/u).some((sentence) => {
+    const stool = sentence.search(/大便|粪便|解便|排便/u);
+    if (stool < 0) return false;
+    return sentence.slice(stool).split(/[，,]/u).slice(1).some((clause) => {
+      const trimmed = clause.trim();
+      if (!/^(?:色黑|呈黑色|黑色|发黑|色黑发亮|黑亮|柏油样)/u.test(trimmed)) return false;
+      return !/^(?:无|未|否认|不|没有)/u.test(trimmed);
+    });
+  });
+}
+
 /**
  * 发热病程中的胸闷（可伴气促、呼吸困难），满足全部条件时不按急性心血管事件报红旗，改为 24 小时内评估、照常给剂量
  * （用户 2026-10-26 决定 D1）。条件与依据见 priority-evaluation-windows.source.json febrileChestTightnessDeferral：
@@ -5492,6 +5603,27 @@ export function febrileChestTightnessDeferralApplies(state: CaseState): boolean 
   return vitalsRecordedAndStableByNews2(currentVitalMeasurements(state));
 }
 
+const BRONCHOSPASM_CHEST_TIGHTNESS = priorityEvaluationWindowTable.bronchospasmChestTightness;
+/**
+ * 已知哮喘/慢阻肺本次喘息发作时的胸闷不按急性冠脉综合征报（第四十六轮，判据与依据见
+ * priority-evaluation-windows.source.json bronchospasmChestTightness）。严重的由生命体征红旗命名。
+ */
+export function bronchospasmChestTightness(state: CaseState): boolean {
+  const text = trustedInputText(state);
+  if (!hasAnyTerm(text, ["胸闷"])) return false;
+  if (hasAnyTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) || hasColloquialChestPressureSignal(text)) return false;
+  if (hasAnyTerm(text, ACS_TYPICAL_COMPANIONS)) return false;
+  const affirmedAnywhere = (terms: readonly string[]) => terms.some((term) => {
+    for (let at = text.indexOf(term); at >= 0; at = text.indexOf(term, at + term.length)) {
+      if (recordMentionPolarityAt(text, at) === "affirmed") return true;
+    }
+    return false;
+  });
+  if (!affirmedAnywhere(BRONCHOSPASM_CHEST_TIGHTNESS.airwayDiseaseTerms)) return false;
+  if (affirmedAnywhere(FEBRILE_CHEST_TIGHTNESS.knownCardiacDisease)) return false;
+  return hasAnyTerm(text, [...BRONCHOSPASM_CHEST_TIGHTNESS.wheezeTerms]);
+}
+
 /**
  * 出血类红旗（剂量一致化 D4）：红旗也给剂量后，活动性出血时不能开活血化瘀药——《中药学》第十九章活血化瘀药：
  * 「不宜用于妇女月经过多以及其他出血证而无瘀血现象者」。认的是本闸门自己写的几条出血红旗原句（闭集，代码常量），
@@ -5499,7 +5631,7 @@ export function febrileChestTightnessDeferralApplies(state: CaseState): boolean 
  */
 // 第二十三轮实测补全：事实层的处置去向写「需排除：…腹腔内出血」「…蛛网膜下腔出血」「…失血性休克」「下消化道活动性出血」，
 // 原先这五个短语一个也认不出（异位妊娠破裂开了乳香、没药，雷击样头痛开了牛膝、益母草）。「出血风险/出血倾向」不是出血。
-const ACTIVE_BLEEDING_RED_FLAG = /活动性[^，。；、]{0,8}出血|消化道[^，。；、（）]{0,8}出血(?!风险|倾向)|重度血小板减少|咯血|呕血|便血|黑便|阴道(?:流|出)血|腹腔内出血|颅内出血|脑出血|蛛网膜下腔出血|失血性休克|出血性休克|大出血/u;
+const ACTIVE_BLEEDING_RED_FLAG = /活动性[^，。；、]{0,8}出血|消化道[^，。；、（）]{0,8}出血(?!风险|倾向)|重度血小板减少|咯血|呕血|便血|黑便|阴道[^，。；、]{0,4}(?:流|出)血|经量(?:明显)?(?:增多|过多)|月经量多|腹腔内出血|颅内出血|脑出血|蛛网膜下腔出血|失血性休克|出血性休克|大出血/u;
 // 事实层红旗句后面附的「原文依据：“…”」一并认：引文是病历记录的当前表现。C098 疑似肺栓塞，引文「咯血丝」——去掉引文只认
 // 红旗本身时，生产探针里模型开出丹参、川芎、桃仁、红花、牛膝（2026-10-27 第二十四轮试过又撤回，见 test:r1036-main 8.19）。
 export function hasActiveBleedingRedFlag(redFlags: readonly string[]): boolean {
@@ -5560,14 +5692,27 @@ export type ActiveBleedingWording = "recorded" | "to_exclude";
 export function activeBleedingWording(text: string, redFlags: readonly string[]): ActiveBleedingWording {
   if (recordedCurrentBleedingForTreatment(text)) return "recorded";
   const state = text.trim() ? normalizeCaseStateInput({ chiefComplaint: "", symptoms: { 现病史: text } }) : undefined;
-  if (state && hasActiveBleedingRedFlag(detectProgrammaticRedFlags(state))) return "recorded";
-  const bleedingFlags = redFlags.filter((flag) => hasActiveBleedingRedFlag([flag]));
-  if (bleedingFlags.length === 0) return "recorded";
+  const programmatic = state ? detectProgrammaticRedFlags(state) : [];
+  const bleedingFlags = [...redFlags, ...programmatic].filter((flag) => hasActiveBleedingRedFlag([flag]));
+  if (bleedingFlags.length === 0) return intracranialHemorrhageNotExcluded(text, [...redFlags, ...programmatic]) ? "to_exclude" : "recorded";
   const outsideExclusion = (flag: string) => {
     const focus = exclusionFocusIn(flag);
-    return focus ? flag.replace(`需排除：${focus}`, "") : flag;
+    // 「需优先排除蛛网膜下腔出血等…」这类写在理由里的待排除项同样只是要排除（第四十六轮）。
+    return (focus ? flag.replace(`需排除：${focus}`, "") : flag).replace(/(?:需|须)?(?:优先|立即)?排除[^，。；（）]*?(?:出血|破裂)[^，。；（）]*/gu, "");
   };
   return bleedingFlags.every((flag) => !hasActiveBleedingRedFlag([outsideExclusion(flag)])) ? "to_exclude" : "recorded";
+}
+
+/**
+ * 急性卒中样表现（神经系统急症红旗）而头颅影像尚未排除出血：开方按「出血尚未排除」处理，活血化瘀药不入方（第四十六轮复核 C029、C023：
+ * 未做头颅 CT 的雷击样头痛、急性肢体无力，方中仍有牛膝、益母草、川芎）。与抗血小板药要等 CT 排除颅内出血后才给同一道理（AHA/ASA 2019
+ * 急性缺血性卒中指南：阿司匹林在影像排除出血后给）。病历写了影像已见梗死或未见出血时不算。只用于方药，不进安全门。
+ */
+const NEURO_EMERGENCY_RED_FLAG = /神经系统急症|后循环卒中/u;
+const IMAGING_EXCLUDES_HEMORRHAGE = /(?:CT|MRI|MR|磁共振|影像|头颅)[^。；;\n]{0,24}(?:未见[^。；;\n]{0,6}出血|无[^。；;\n]{0,4}出血|排除[^。；;\n]{0,6}出血|梗死|梗塞|缺血灶|腔隙)/u;
+export function intracranialHemorrhageNotExcluded(text: string, redFlags: readonly string[]): boolean {
+  if (!redFlags.some((flag) => NEURO_EMERGENCY_RED_FLAG.test(flag))) return false;
+  return !IMAGING_EXCLUDES_HEMORRHAGE.test(normalizeClinicalText(text));
 }
 
 export function activeBleedingInGroundingText(text: string): boolean {
@@ -5576,7 +5721,8 @@ export function activeBleedingInGroundingText(text: string): boolean {
   const cached = activeBleedingTextMemo.get(text);
   if (cached !== undefined) return cached;
   const state = normalizeCaseStateInput({ chiefComplaint: "", symptoms: { 现病史: text } });
-  const result = (state ? hasActiveBleedingRedFlag(detectProgrammaticRedFlags(state)) : false) || recordedCurrentBleedingForTreatment(text);
+  const programmatic = state ? detectProgrammaticRedFlags(state) : [];
+  const result = hasActiveBleedingRedFlag(programmatic) || recordedCurrentBleedingForTreatment(text) || intracranialHemorrhageNotExcluded(text, programmatic);
   if (activeBleedingTextMemo.size > 2000) activeBleedingTextMemo.clear();
   activeBleedingTextMemo.set(text, result);
   return result;
@@ -5600,6 +5746,14 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   const respiration = measurements.respiration;
   const spo2 = measurements.spo2;
   const invertedCriticalBp = measurements.invertedCriticalBloodPressure;
+  // 成人生命体征合起来的不稳定（NEWS2 ≥7，或休克指数 ≥1 伴失血/失液/灌注不足）排在最前：理由写实际读数，不再由
+  // 「胸闷」「走路发飘」这类伴随表现的规则替它命名（第四十六轮 C003、n03）。
+  const vitalInstability = vitalInstabilityRedFlag(state, text);
+  if (vitalInstability) redFlags.push(vitalInstability);
+  const ketoacidosisSigns = severeKetoacidosisSigns(state, text);
+  if (ketoacidosisSigns.length > 0) {
+    redFlags.push(`高血糖伴酮体升高（已达糖尿病酮症酸中毒的血糖与酮体标准）并见${ketoacidosisSigns.join("、")}，需立即急诊查血气与电解质，排除糖尿病酮症酸中毒`);
+  }
   if (hasCurrentMentalHealthCrisis(text)) {
     redFlags.push("已出现自杀、自伤或伤害他人的意念/计划/行为线索，需立即进行现场安全评估并联系精神专科或急诊处置，不得仅依赖自动分级");
   }
@@ -5816,7 +5970,8 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   // 判据与依据在 priority-evaluation-windows.source.json febrileChestTightnessDeferral，同一个谓词也给 24 小时通道挂项）。
   const febrileChestTightnessDeferred = febrileChestTightnessDeferralApplies(state);
   const pediatricNonCardiacChestPain = pediatricChestPainNonCardiac(state);
-  const cardiacRiskFlagged = !cardiacClearanceApplies && !chronicPediatricChestSymptom && !febrileChestTightnessDeferred && !pediatricNonCardiacChestPain &&
+  const bronchospasmTightness = bronchospasmChestTightness(state);
+  const cardiacRiskFlagged = !cardiacClearanceApplies && !chronicPediatricChestSymptom && !febrileChestTightnessDeferred && !pediatricNonCardiacChestPain && !bronchospasmTightness &&
     (acuteChestPainSignal || (chestPainSignal && cardiacCompanion) || acuteChestTightnessSignal || (chestTightnessSignal && cardiacCompanion));
   const reportableCardiacRisk = cardiacRiskFlagged;
   if (reportableCardiacRisk) {
@@ -5833,10 +5988,15 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   const neurologicEmergencySignal = hasNeurologicEmergencySignal(text) && !peripheralFacialPalsyOnly(text);
   if (suddenHeadacheSignal || neurologicEmergencySignal) {
     redFlags.push(suddenHeadacheSignal && neurologicEmergencySignal
-      ? "突发剧烈头痛伴意识或神经功能异常，需优先排除神经系统急症"
+      ? "突发剧烈头痛伴意识或神经功能异常，需优先排除蛛网膜下腔出血等神经系统急症"
       : suddenHeadacheSignal
-        ? "突发剧烈头痛，需优先排除神经系统急症"
-        : "意识或神经功能异常，需优先排除神经系统急症");
+        // 雷击样头痛首先要排除的是蛛网膜下腔出血：理由点名（第四十六轮复核：只写「神经系统急症」，事实层超时时开方阶段
+        // 也认不出出血未排除，方中留了牛膝、益母草，p100c-C029）。
+        ? "突发剧烈头痛，需优先排除蛛网膜下腔出血等神经系统急症"
+        // 急性眩晕伴失衡单独命名（「神经系统急症」这半句不变，按它归类的地方照旧认得）。
+        : hasAcutePosteriorCirculationCombination(text) && !hasCurrentFocalNeurologicDeficit(text)
+          ? "突发眩晕伴站立行走困难或复视等失衡表现，需立即排除后循环卒中等神经系统急症"
+          : "意识或神经功能异常，需优先排除神经系统急症");
   } else if (hasMeningealSign(text)) {
     redFlags.push("脑膜刺激征阳性（颈抵抗、克氏征或布氏征），需优先排除脑膜炎、蛛网膜下腔出血等神经系统急症");
   }
@@ -6147,7 +6307,8 @@ function withReaderDisagreementNote(state: CaseState, message: string): string {
 /** 腹痛的构词式：「下腹隐痛」「小腹坠痛」「腹部胀痛」——字面「腹痛」认不出这些（2026-10-24，孕 12 周下腹隐痛没有产科提示）。 */
 const ABDOMINAL_PAIN_FORM = /腹[部中]?[^，,。；;\n无不未没]{0,2}痛/;
 
-const STOPPED_PERIOD_FORM = /(?:停经|月经(?:逾期|过期|未至|未来潮))(?![^。；;，,\n]{0,6}年)/;
+// 「本次月经未按时来潮」「月经未如期来潮」同是停经的写法（第四十六轮新病历 n17：疑异位妊娠破裂，此前产科判据读不出停经）。构词守卫。
+const STOPPED_PERIOD_FORM = /(?:停经|月经(?:逾期|过期|未至|未来潮|未按时来潮|未按期来潮|未如期来潮))(?![^。；;，,\n]{0,6}年)/;
 /**
  * 妊娠（阳性或可疑）伴腹痛或阴道出血，或育龄女性停经伴阴道出血或腹痛：先排除异位妊娠、流产（NICE NG126）。
  * 产科提示、24 小时早孕评估通道与「伴循环不稳定」红旗用这同一个判据（第二十三轮回放：C062 停经6周右下腹痛伴阴道出血、
@@ -7256,13 +7417,28 @@ export function priorityEvaluationFollowupFocus(state: CaseState): string | unde
 
 export type PriorityEvaluationPathway = keyof typeof priorityEvaluationWindowTable.pathways;
 /** 复诊计划第一句的评估对象：要排除什么、最迟多久、走哪条专门路径（2026-10-26 第二十一轮）。 */
-/** 复诊时限：事实模型的四档之外，多一档「当天」只给红旗未解除但给了剂量的病例（D4）。 */
-export type FollowupWindowId = PriorityEvaluationWindowId | "today";
-const FOLLOWUP_WINDOW_ORDER: readonly FollowupWindowId[] = ["today", ...PRIORITY_EVALUATION_WINDOWS];
+/**
+ * 复诊时限：事实模型的四档之外，多一档「当天」只给红旗未解除但给了剂量的病例（D4）；红旗是正在进行的急危重情况时再紧一档「立即」
+ * （第四十六轮，见 priority-evaluation-windows.source.json pathways.red_flag_clearance.immediacyNote）。
+ */
+export type FollowupWindowId = PriorityEvaluationWindowId | "today" | "immediately";
+const FOLLOWUP_WINDOW_ORDER: readonly FollowupWindowId[] = ["immediately", "today", ...PRIORITY_EVALUATION_WINDOWS];
+const RED_FLAG_DAY_TIER_PREFIXES: readonly string[] = priorityEvaluationWindowTable.pathways.red_flag_clearance.dayTierReasonPrefixes;
+/**
+ * 红旗理由里只要有一条不属「当天」档（上消化道警示征象、咯血伴体重下降、3 天内外伤骨折、重度血小板减少），复诊第一步就写「立即到医院急诊」。
+ * 事实层补进来的红旗（「现有资料提示需立即急诊评估…」）也按立即。
+ */
+export function redFlagNeedsImmediateCare(redFlags: readonly string[] | undefined): boolean {
+  const reasons = (redFlags || []).map((reason) => String(reason || "").trim()).filter(Boolean);
+  if (reasons.length === 0) return false;
+  return reasons.some((reason) => !RED_FLAG_DAY_TIER_PREFIXES.some((prefix) => reason.startsWith(prefix)));
+}
 export type PriorityEvaluationTarget = {
   focus: string;
   window: FollowupWindowId;
   pathway?: PriorityEvaluationPathway;
+  /** 另一条通道的后续嘱咐（抗凝通道的「1 周内复查凝血」）：事实层的评估更紧、第一步按它写时，这句不丢（第四十六轮 n33）。 */
+  afterStep?: string;
   /** 待排除项正是本例已下（未带「待查」）的西医诊断时（第四十二轮）：不再说「需排除X」，说「已考虑X，完成尚缺的检查并评估轻重」。 */
   established?: { name: string; pending?: string; originalFocus: string };
 };
@@ -7316,7 +7492,10 @@ export function priorityEvaluationFollowupTarget(state: CaseState): PriorityEval
   if (!restriction) return gateTarget;
   if (!gateTarget) return restriction;
   const rank = (window: FollowupWindowId) => FOLLOWUP_WINDOW_ORDER.indexOf(window);
-  return rank(gateTarget.window) <= rank(restriction.window) ? gateTarget : restriction;
+  if (rank(gateTarget.window) > rank(restriction.window)) return restriction;
+  const restrictionEntry = restriction.pathway ? priorityEvaluationWindowTable.pathways[restriction.pathway] : undefined;
+  const afterStep = restrictionEntry && "afterStep" in restrictionEntry && typeof restrictionEntry.afterStep === "string" ? restrictionEntry.afterStep : undefined;
+  return afterStep ? { ...gateTarget, afterStep } : gateTarget;
 }
 
 /**
@@ -7368,7 +7547,10 @@ export function doseRestrictionFollowupTarget(state: CaseState): PriorityEvaluat
     const entry = priorityEvaluationWindowTable.pathways[pathway];
     return { focus: entry.focus, window: entry.window as FollowupWindowId, pathway };
   };
-  if (gate.status === "red_flag") return pathwayTarget("red_flag_clearance");
+  if (gate.status === "red_flag") {
+    const target = pathwayTarget("red_flag_clearance");
+    return redFlagNeedsImmediateCare(gate.redFlags) ? { ...target, window: "immediately" } : target;
+  }
   if (!doseConsistencyEnabled()) return undefined;
   const maternal = maternalStateText(state, structuredCaseText(state));
   if (isPositiveOrPossibleClinicalState(assessPregnancyState(maternal))) return pathwayTarget("pregnancy_review");
@@ -7391,17 +7573,22 @@ function diabetesRecordedInText(text: string, state: CaseState): boolean {
  */
 const KETOSIS_THRESHOLDS = priorityEvaluationWindowTable.hyperglycemicKetosisThresholds;
 const HISTORICAL_LAB_CUE = /(?:最高|既往|曾|以前|此前|上次|去年|年前|月前)[^。；;\n，,]{0,6}$/u;
-function hyperglycemicKetosisSignal(text: string, diabetesKnown: boolean): boolean {
+/** 本次血糖读数达 11.1 mmol/L（200 mg/dL）以上（DKA 与「高血糖解释体重下降」共用）。 */
+function currentGlucoseAtLeastDiabeticThreshold(text: string): boolean {
   const normalized = normalizeClinicalText(text);
   const current = (index: number) => !HISTORICAL_LAB_CUE.test(normalized.slice(Math.max(0, index - 12), index));
-  let glucoseHigh = diabetesKnown;
   for (const match of normalized.matchAll(/(?:血糖|葡萄糖|GLU)[^。；;\n\d]{0,10}?(\d+(?:\.\d+)?)\s*(mmol\s*\/\s*L|mg\s*\/\s*dL)?/giu)) {
     if (!current(match.index ?? 0)) continue;
     const value = Number(match[1]);
     const mgdl = /mg/iu.test(match[2] || "");
-    if (mgdl ? value >= KETOSIS_THRESHOLDS.glucoseMgPerDl : value >= KETOSIS_THRESHOLDS.glucoseMmolPerL && value < 100) glucoseHigh = true;
+    if (mgdl ? value >= KETOSIS_THRESHOLDS.glucoseMgPerDl : value >= KETOSIS_THRESHOLDS.glucoseMmolPerL && value < 100) return true;
   }
-  if (!glucoseHigh) return false;
+  return false;
+}
+function hyperglycemicKetosisSignal(text: string, diabetesKnown: boolean): boolean {
+  const normalized = normalizeClinicalText(text);
+  const current = (index: number) => !HISTORICAL_LAB_CUE.test(normalized.slice(Math.max(0, index - 12), index));
+  if (!diabetesKnown && !currentGlucoseAtLeastDiabeticThreshold(normalized)) return false;
   for (const match of normalized.matchAll(/(?:尿)?酮体?\s*[（(：:]?\s*(\+{1,4}|[1-4]\s*\+)/gu)) {
     if (!current(match.index ?? 0)) continue;
     const plus = /^\d/u.test(match[1]) ? Number(match[1].replace(/\D/gu, "")) : match[1].length;
@@ -7412,6 +7599,24 @@ function hyperglycemicKetosisSignal(text: string, diabetesKnown: boolean): boole
     if (Number(match[1]) >= KETOSIS_THRESHOLDS.bloodKetoneMmolPerL) return true;
   }
   return false;
+}
+
+/**
+ * 已达 DKA 血糖与酮体两项标准、又见意识改变或酸中毒呼吸（深快呼吸、呼吸≥25次/分）：红旗、立即急诊（第四十六轮，
+ * 依据见 priority-evaluation-windows.source.json hyperglycemicKetosisThresholds.severeSigns）。返回看到的表现，未达到返回 []。
+ */
+export function severeKetoacidosisSigns(state: CaseState, text: string): string[] {
+  if (!hyperglycemicKetosisSignal(text, diabetesRecordedInText(text, state))) return [];
+  const severe = KETOSIS_THRESHOLDS.severeSigns;
+  const normalized = normalizeClinicalText(text);
+  const signs: string[] = [];
+  const consciousness = currentConsciousnessChangeTerm(normalized);
+  if (consciousness) signs.push(consciousness);
+  const kussmaul = severe.kussmaulTerms.find((term) => hasTerm(normalized, term));
+  if (kussmaul) signs.push(kussmaul);
+  const respiration = currentVitalMeasurements(state).respiration;
+  if (!kussmaul && respiration != null && respiration >= severe.respirationAtLeast) signs.push(`呼吸${respiration}次/分`);
+  return signs;
 }
 
 export function doseWithheldFollowupKind(state: CaseState): DoseWithheldFollowupKind | undefined {
@@ -8799,11 +9004,15 @@ function priorityEvaluationPlan(input: PriorityEvaluationTarget | string): Prior
   const window = PRIORITY_WINDOW_LABELS.get(target.window) || "3天内";
   const pathway = target.pathway ? priorityEvaluationWindowTable.pathways[target.pathway] : undefined;
   if (pathway) {
+    // 「立即」档（红旗是正在进行的急危重情况）：就诊句写急诊、病情危急时拨打 120，不写「或专科」。
+    const immediate = target.window === "immediately";
+    const visit = immediate && "visitImmediate" in pathway && typeof pathway.visitImmediate === "string" ? pathway.visitImmediate : pathway.visit;
+    const nodeVisit = immediate && "nodeVisitImmediate" in pathway && typeof pathway.nodeVisitImmediate === "string" ? pathway.nodeVisitImmediate : pathway.nodeVisit;
     return {
-      window, visit: pathway.visit, nodeVisit: pathway.nodeVisit,
-      clearance: withoutExclusionAlreadyInVisit(pathway.visit, pathway.clearance),
-      withoutRegimenTail: withoutExclusionAlreadyInVisit(pathway.visit, pathway.withoutRegimenTail),
-      ...("afterStep" in pathway && typeof pathway.afterStep === "string" ? { afterStep: pathway.afterStep } : {}),
+      window, visit, nodeVisit,
+      clearance: withoutExclusionAlreadyInVisit(visit, pathway.clearance),
+      withoutRegimenTail: withoutExclusionAlreadyInVisit(visit, pathway.withoutRegimenTail),
+      ...("afterStep" in pathway && typeof pathway.afterStep === "string" ? { afterStep: pathway.afterStep } : target.afterStep ? { afterStep: target.afterStep } : {}),
     };
   }
   if (target.established) {
@@ -8816,14 +9025,16 @@ function priorityEvaluationPlan(input: PriorityEvaluationTarget | string): Prior
       visit: `到相关专科就诊，${check}评估病情轻重${rest ? `（需排除${rest}）` : ""}`,
       nodeVisit: "到相关专科评估病情",
       clearance: "医生确认可以服药后",
+      ...(target.afterStep ? { afterStep: target.afterStep } : {}),
     };
   }
+  const carried = target.afterStep ? { afterStep: target.afterStep } : {};
   // 事实层写的待排除项自带括号说明时（「异常子宫出血（需排除子宫内膜病变、凝血功能障碍或内分泌疾病）」），
   // 只取括号里真正要排除的那些，不套成「需排除异常子宫出血（需排除…）」两层括号（2026-10-26 甲方测评病历 10 本机复测）。
   const focus = focusWithoutNestedExclusion(target.focus);
   return focus
-    ? { window, visit: `到相关专科就诊，先完成评估（需排除${focus}）`, nodeVisit: "到相关专科完成评估", clearance: "医生确认可以服药后" }
-    : { window, visit: "到医院完成评估、核实病情", nodeVisit: "到医院完成评估", clearance: "医生确认可以服药后" };
+    ? { window, visit: `到相关专科就诊，先完成评估（需排除${focus}）`, nodeVisit: "到相关专科完成评估", clearance: "医生确认可以服药后", ...carried }
+    : { window, visit: "到医院完成评估、核实病情", nodeVisit: "到医院完成评估", clearance: "医生确认可以服药后", ...carried };
 }
 type FollowupRegimen = { doses?: unknown; days?: unknown };
 function regimenCounts(regimen?: FollowupRegimen): { doses: number; days: number } | undefined {
@@ -8831,22 +9042,48 @@ function regimenCounts(regimen?: FollowupRegimen): { doses: number; days: number
   const days = Number(regimen?.days);
   return Number.isInteger(doses) && Number.isInteger(days) && doses > 0 && days > 0 ? { doses, days } : undefined;
 }
+/** 「请在3天内…」；「立即」档写「请立即…」，不写「请在立即」。 */
+function windowPhrase(label: string): string {
+  return label === "立即" ? "立即" : `在${label}`;
+}
 export function priorityEvaluationFirstStep(target: PriorityEvaluationTarget | string, regimen?: FollowupRegimen): string {
   const plan = priorityEvaluationPlan(target);
   const counts = regimenCounts(regimen);
   const after = plan.afterStep ? plan.afterStep : "";
   const lead = plan.lead || "";
-  if (counts) return `${lead}请在${plan.window}${plan.visit}；${plan.clearance}，服完${counts.doses}剂药（约${counts.days}天后）再复诊。${after}`;
-  if (plan.withoutRegimenTail) return `${lead}请在${plan.window}${plan.visit}，${plan.withoutRegimenTail}。${after}`;
+  const when = windowPhrase(plan.window);
+  if (counts) return `${lead}请${when}${plan.visit}；${plan.clearance}，服完${counts.doses}剂药（约${counts.days}天后）再复诊。${after}`;
+  if (plan.withoutRegimenTail) return `${lead}请${when}${plan.visit}，${plan.withoutRegimenTail}。${after}`;
   return priorityEvaluationTarget(target).focus || plan.lead
-    ? `${lead}请在${plan.window}${plan.visit}，再按医生安排服药与复诊。`
-    : `请在${plan.window}${plan.visit}后，再按医生安排服药与复诊。`;
+    ? `${lead}请${when}${plan.visit}，再按医生安排服药与复诊。`
+    : `请${when}${plan.visit}后，再按医生安排服药与复诊。`;
 }
+/**
+ * 每条专门通道（红旗、妊娠、哺乳、抗凝、专科…）不带剂数时的第一步原句，加上「到相关专科…先完成评估（需排除…）」的通用句式。
+ * 辨证页与开方页可能按不同的评估对象写过第一步（第四十六轮新病历 n33：辨证页写抗凝 3 天，开方页按事实层写 48 小时，
+ * 开方页两句并存、时限前后不一）。换第一步时把这些旧句一并去掉，只留一句。
+ */
+let pathwayFirstStepsMemo: string[] | undefined;
+export function previousPriorityFirstStepSentences(): string[] {
+  if (pathwayFirstStepsMemo) return pathwayFirstStepsMemo;
+  const steps: string[] = [];
+  for (const [key, entry] of Object.entries(priorityEvaluationWindowTable.pathways) as [PriorityEvaluationPathway, { focus: string; window: string }][]) {
+    const windows: FollowupWindowId[] = key === "red_flag_clearance" ? ["today", "immediately"] : [entry.window as FollowupWindowId];
+    for (const window of windows) steps.push(priorityEvaluationFirstStep({ focus: entry.focus, window, pathway: key }));
+  }
+  pathwayFirstStepsMemo = [...new Set(steps)].sort((left, right) => right.length - left.length);
+  return pathwayFirstStepsMemo;
+}
+export const GENERIC_PRIORITY_FIRST_STEP = new RegExp(
+  `(?:已考虑[^。；;]{1,30}，)?请(?:在(?:${PRIORITY_WINDOW_LABEL_PATTERN})|立即)到(?:相关专科|医院)[^。]{0,120}?(?:再按医生安排服药与复诊|再复诊)。`,
+  "gu",
+);
+
 /** 煎服法的复诊节点前面补上评估这一步（与 priorityEvaluationFirstStep 同一份计划）。已补过的原样返回。 */
 export function priorityEvaluationFollowUpNode(target: PriorityEvaluationTarget | string, node: string): string {
   const plan = priorityEvaluationPlan(target);
-  if (!node.trim() || new RegExp(`^先在(?:${PRIORITY_WINDOW_LABEL_PATTERN})`, "u").test(node)) return node;
-  return `先在${plan.window}${plan.nodeVisit}；${plan.clearance}，${node.trim()}`;
+  if (!node.trim() || new RegExp(`^先(?:在(?:${PRIORITY_WINDOW_LABEL_PATTERN})|立即)`, "u").test(node)) return node;
+  return `先${windowPhrase(plan.window)}${plan.nodeVisit}；${plan.clearance}，${node.trim()}`;
 }
 
 export function patientFacingFirstReview(state: CaseState, hasStrongRisk: boolean): string {

@@ -2923,13 +2923,25 @@
      "note": "各半两，别研"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "薄荷",
+     "written": "薄荷"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "三因极一病证方论",
      "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
      "quote": "人参 石菖蒲 川芎 生干地黄（各一两） 细辛（一钱） 防风 朱砂（各半两，别研）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "三因极一病证方论",
+     "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
+     "quote": "上为末。每服一钱，薄荷汤调下，不以时服。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -4613,13 +4625,25 @@
      "dose": "二两"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "姜"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "医学正传",
      "url": "https://jicheng.tw/tcm/book/医学正传/index.html",
      "quote": "黄柏（四两，切片，酒拌略炒） 苍术（六两，米泔浸一、二宿，细切焙干） 川牛膝（去芦，二两）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "医学正传",
+     "url": "https://jicheng.tw/tcm/book/医学正传/index.html",
+     "quote": "上为细末，面糊为丸，如梧桐子大，每服五、七十丸，空心姜、盐汤下，忌鱼腥、荞麦、热面、煎炒等物。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "note": "《医学正传》无「三妙散」，同组成方名「三妙丸」（黄柏、苍术、川牛膝），教材「三妙散」即此；可疑待复核名称。",
@@ -5503,13 +5527,25 @@
      "note": "各半两"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "姜"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "三因极一病证方论",
      "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
      "quote": "白牵牛（略炒，二两） 白术（半两） 桑白皮 陈皮 木通（各半两）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "三因极一病证方论",
+     "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
+     "quote": "上为末。每服二钱，姜汤调下，空腹服，初进一服未觉，再进。此药不损脏气，只导利留滞。疝方大率多用热药，此方唯壅热证宜服之。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -27097,13 +27133,25 @@
      "note": "五钱"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "姜"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "医方考",
      "url": "https://jicheng.tw/tcm/book/醫方考/index.html",
      "quote": "草果仁（三两） 附子（一两） 橘红（一两） 甘草（五钱）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "医方考",
+     "url": "https://jicheng.tw/tcm/book/醫方考/index.html",
+     "quote": "姜煎冷服。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -29872,13 +29920,25 @@
      "dose": "一两"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "姜"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "医学正传",
      "url": "https://jicheng.tw/tcm/book/医学正传/index.html",
      "quote": "苍术（四两，米泔浸） 黄柏（二两，酒浸日干） 川牛膝（一两，去芦） 当归尾（一两，酒洗） 川萆薢（一两） 防己（一两） 龟板（酥炙，一两）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "医学正传",
+     "url": "https://jicheng.tw/tcm/book/医学正传/index.html",
+     "quote": "上为细末，酒煮面糊为丸，如梧桐子大，每服一百丸，空心姜盐汤下。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "note": "《医学正传》无「加味二妙散」，同组成方名「加味三妙丸」（教材转称加味二妙散，出《丹溪心法》）；可疑待复核名称。",
@@ -34885,13 +34945,29 @@
      "herb": "肉桂"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "姜"
+    },
+    {
+     "herb": "大枣",
+     "written": "枣"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "医方论",
      "url": "https://jicheng.tw/tcm/book/醫方論/index.html",
      "quote": "黄耆（蜜炙） 人参 白术（土炒） 茯苓 甘草（蜜炙） 半夏（姜制） 当归（酒洗） 白芍（酒炒） 熟地 川芎 麦冬 肉苁蓉 附子 肉桂"
+    },
+    {
+     "kind": "jicheng",
+     "book": "医方论",
+     "url": "https://jicheng.tw/tcm/book/醫方論/index.html",
+     "quote": "加姜枣煎。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -39286,13 +39362,25 @@
      "note": "各二斤"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "大枣",
+     "written": "枣"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "太平惠民和剂局方",
      "url": "https://jicheng.tw/tcm/book/太平惠民和劑局方/index.html",
      "quote": "莲子肉（去皮） 薏苡仁 缩砂仁 桔梗（炒令深黄色，各一斤） 白扁豆（姜汁浸，去皮，微炒，一斤半） 白茯苓 人参（去芦） 甘草（炒） 白术 山药（各二斤）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "太平惠民和剂局方",
+     "url": "https://jicheng.tw/tcm/book/太平惠民和劑局方/index.html",
+     "quote": "上为细末。每服二钱，枣汤调下，小儿量岁数加减服。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -77850,13 +77938,25 @@
      "note": "去白，一两"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "姜"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "瑞竹堂经验方",
      "url": "https://jicheng.tw/tcm/book/瑞竹堂經驗方/index.html",
      "quote": "黑牵牛（三两） 皂角（二两，去皮弦，火中微烧） 白矾（枯，一两） 半夏曲（炒，一两） 陈皮（去白，一两）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "瑞竹堂经验方",
+     "url": "https://jicheng.tw/tcm/book/瑞竹堂經驗方/index.html",
+     "quote": "上为细末，煮萝卜为丸，如梧桐子大，每服四、五十丸，临卧淡姜汤送下。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -78263,13 +78363,25 @@
      "dose": "一分"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "葱白",
+     "written": "葱"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "三因极一病证方论",
      "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
      "quote": "菊花蒂 川芎 石膏（煅，各一两） 甘草（一分）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "三因极一病证方论",
+     "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
+     "quote": "上日干为末。每服三钱，煎葱汤调下；如觉胸痞，即调此下宽中丸，不计时服。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "note": "菊花蒂按原文字面（菊花花蒂）。",
@@ -80492,13 +80604,25 @@
      "note": "一分，生"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "生姜"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "三因极一病证方论",
      "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
      "quote": "蓬术（煨） 三棱（煨，各一两） 大腹皮（炙，二两） 木香（炮） 槟榔（一分，生）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "三因极一病证方论",
+     "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
+     "quote": "上为末，炒麦糵捣粉为丸，如梧子大。每服二十丸，生姜汤下。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -83303,13 +83427,25 @@
      "note": "各四两"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "生姜"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "儒门事亲",
      "url": "https://jicheng.tw/tcm/book/儒門事親/index.html",
      "quote": "木香 槟榔 青皮 陈皮 广术（烧） 黄连（麸炒，以上各一两） 黄柏 大黄（各三两） 香附子（炒） 牵牛（各四两）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "儒门事亲",
+     "url": "https://jicheng.tw/tcm/book/儒門事親/index.html",
+     "quote": "上为细末，水丸如小豆大。每服三十丸，食后，生姜汤送下。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -94792,13 +94928,25 @@
      "herb": "大黄"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "生姜"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "温疫论",
      "url": "https://jicheng.tw/tcm/book/溫疫論/index.html",
      "quote": "槟榔 芍药 枳实 厚朴 大黄"
+    },
+    {
+     "kind": "jicheng",
+     "book": "温疫论",
+     "url": "https://jicheng.tw/tcm/book/溫疫論/index.html",
+     "quote": "生姜煎服。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -100292,13 +100440,25 @@
      "note": "二钱半"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "薄荷",
+     "written": "薄荷"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "集验方",
      "url": "https://jicheng.tw/tcm/book/集驗方/index.html",
      "quote": "赤茯神 朱砂（各一两） 麦门冬（五钱） 麝香（二钱半）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "集验方",
+     "url": "https://jicheng.tw/tcm/book/集驗方/index.html",
+     "quote": "上为末，蜜和作小饼子，每一饼临睡以薄荷汤下，神效。一老医乃三世小儿科家传，只有四、五药愈病无数。如小儿惊搐多是热证，不宜便用惊风药，只以导赤散加防风、竹叶同煎，用二、三帖，导去心惊邪热，其搐便止，次服灵神膏。（《东医宝鉴·杂病篇》卷十一）",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -102386,13 +102546,25 @@
      "dose": "三钱"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "姜"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "验方新编",
      "url": "https://jicheng.tw/tcm/book/驗方新編/index.html",
      "quote": "石燕米醋炙酥五分，榛子烧焦五钱，枯末三钱，三味共研细末，热酒冲服。服后用棉被盖令出汁为录，药到口即止痛，一服立除。"
+    },
+    {
+     "kind": "jicheng",
+     "book": "验方新编",
+     "url": "https://jicheng.tw/tcm/book/驗方新編/index.html",
+     "quote": "又方：瓦楞子十个，蛤蜊壳十个，二味煅，共为细末，姜汤送下。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "note": "“枯末”无法确认药味身份，written/herb均照缓存保留，须复核底本，禁止猜为其他药。“出汁为录”亦疑讹字，摘句原样保留。",
@@ -141221,13 +141393,25 @@
      "note": "四十九粒，生"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "薄荷",
+     "written": "薄荷"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "三因极一病证方论",
      "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
      "quote": "诃子（四个，炮） 巴戟（炒） 黑牵牛（生，各半两） 甘草（三钱，生） 赤小豆（四十九粒，生）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "三因极一病证方论",
+     "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
+     "quote": "上为末，面糊丸，如绿豆大。每服十丸至十五丸，薄荷汤下。次用水膏药。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -144094,13 +144278,29 @@
      "note": "各三钱"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "姜"
+    },
+    {
+     "herb": "葱白",
+     "written": "葱"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "仙传外科集验方",
      "url": "https://jicheng.tw/tcm/book/仙傳外科集驗方/index.html",
      "quote": "干葛（虚弱老人出血多者，去此，加川芎代） 防风 赤芍 细辛 羌活 桔梗（炒） 甘草 肉桂 白芷（各三钱）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "仙传外科集验方",
+     "url": "https://jicheng.tw/tcm/book/仙傳外科集驗方/index.html",
+     "quote": "上为散，姜、葱煎服。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -158175,13 +158375,25 @@
      "note": "二两。醋浸。冬三日。夏一日。同三棱以去皮巴豆二十个。银器内同炒。令干黄色为度。去巴豆不用"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "生姜"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "卫生宝鉴",
      "url": "https://jicheng.tw/tcm/book/衛生寶鑑/index.html",
      "quote": "木香 青皮（去白） 川茴香（微炒） 枳壳（麸炒） 槟榔（各一两） 京三棱（二两。酒浸。冬三日。夏一日） 广术（二两。醋浸。冬三日。夏一日。同三棱以去皮巴豆二十个。银器内同炒。令干黄色为度。去巴豆不用）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "卫生宝鉴",
+     "url": "https://jicheng.tw/tcm/book/衛生寶鑑/index.html",
+     "quote": "上七味修事毕。为末。水糊丸如豌豆大。每服三十丸。温生姜汤送下。食后。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -169693,13 +169905,25 @@
      "herb": "木香"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "薄荷",
+     "written": "薄荷"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "医学心悟",
      "url": "https://jicheng.tw/tcm/book/医学心悟/index.html",
      "quote": "白附子（炮） 石菖莆（去毛） 远志（去心，甘草水炮炒） 天麻 全蝎（去尾，甘草水洗） 羌活 南星（牛胆制多次更佳，各一两） 木香（五钱）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "医学心悟",
+     "url": "https://jicheng.tw/tcm/book/医学心悟/index.html",
+     "quote": "上为末，面糊丸，龙眼大。每服一丸，薄荷汤下。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "note": "原书名「神仙解语丹」；南星、白附子等各一两，木香五钱；薄荷汤送服（药引汤送，不计）。",
@@ -187469,13 +187693,25 @@
      "note": "生,各半两"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "薄荷",
+     "written": "薄荷"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "三因极一病证方论",
      "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
      "quote": "雄黄（别研） 辰砂 龙骨 麝香（各一钱,别研） 乌蛇（酒浸，炙去皮骨） 白僵蚕（生去丝觜） 天南星（生） 白附子（生,各半两）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "三因极一病证方论",
+     "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
+     "quote": "上为未，炼蜜丸，梧桐子大。如中风涎潮，牙关不开，先用大蒜一瓣，捣烂涂在两牙关外腮上，用豆淋酒化一丸，揩牙龈上即开，续用薄荷酒化下一丸。如丈夫风气，妇人血气，牙关紧急，只用豆淋酒化一丸揩牙；如头风目眩，暗风眼黑欹倒者，急嚼一二丸，薄荷汤下。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"
@@ -193956,13 +194192,25 @@
      "dose": "一两"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "姜"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "医学正传",
      "url": "https://jicheng.tw/tcm/book/医学正传/index.html",
      "quote": "鹿角胶（一斤） 鹿角霜 熟地黄（各半斤） 川牛膝 白茯苓 菟丝子 人参（各二两） 当归身（四两） 白术 杜仲（各二两） 虎胫骨（酥炙） 龟板（酥炙，各一两）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "医学正传",
+     "url": "https://jicheng.tw/tcm/book/医学正传/index.html",
+     "quote": "上为细末，另将鹿角胶用无灰酒三盏烊化，为丸如梧桐子大，每服一百丸，空心姜、盐汤下。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "note": "鹿角胶用无灰酒烊化为丸；虎胫骨今已禁用。",
@@ -195854,13 +196102,29 @@
      "note": "炙，各半两"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "生姜",
+     "written": "姜"
+    },
+    {
+     "herb": "大枣",
+     "written": "枣"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
      "book": "三因极一病证方论",
      "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
      "quote": "桂心（四钱一字） 芍药 麻黄（去节） 杏仁（十二个，去皮尖） 甘草（炙，各半两）"
+    },
+    {
+     "kind": "jicheng",
+     "book": "三因极一病证方论",
+     "url": "https://jicheng.tw/tcm/book/三因極一病證方論/index.html",
+     "quote": "上粗末。每服五钱，水一盏半，煎八分，去滓，食前服；入姜枣煎亦得。",
+     "note": "煎服法（第四十六轮补药引，scripts/formula-original/add_usage_guides.py）"
     }
    ],
    "review": "auto_agree"

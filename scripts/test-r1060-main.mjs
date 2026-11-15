@@ -224,7 +224,8 @@ await check("1.9 证素核对按交付时的合称证名判涵盖：教材单证
   };
   assert.ok(element.elementCheckUnits(root).some((unit) => unit.type === "气虚"), "换名前：心气虚、脾气虚是名外证素");
   assert.ok(!element.elementCheckUnits(root, ["心脾两虚证"]).some((unit) => unit.type === "气虚"), "按合称判：心脾两虚涵盖心、脾气虚");
-  assert.match(readSource("../src/lib/m03-element-support.server.ts"), /const renamed = compositeSyndromeRename\(structuredClone\(root\), context\.recordText\);\n  const alsoNamed = renamed \? \[renamed\.to\] : \[\];/u);
+  // 第四十六轮：合称预判前先按治法补齐病性栏的实邪（与交付面同一顺序，withMethodImpliedNatureElements），预判对象换成补齐后的副本；按合称判涵盖的口径不变。
+  assert.match(readSource("../src/lib/m03-element-support.server.ts"), /const lookahead = structuredClone\(root\);\n  withMethodImpliedNatureElements\(lookahead, context\.recordText\);\n  const renamed = compositeSyndromeRename\(lookahead, context\.recordText\);\n  const alsoNamed = renamed \? \[renamed\.to\] : \[\];/u);
 });
 
 // ───── 2 西医依据 ─────

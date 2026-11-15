@@ -92,7 +92,8 @@ await check("1.5 D4 复诊第一步：红旗当天急诊或专科排除急危重
   };
   const red = plan(GI_BLEED);
   assert.equal(red.target?.pathway, "red_flag_clearance");
-  assert.match(red.text, /^请在当天到医院急诊或专科就诊，先排除急危重情况；医生确认可以服药后，服完7剂药/);
+  // 第四十六轮：消化道出血是正在进行的急危重情况，第一步改为「立即到医院急诊」（当天档留给上消化道警示等，见 test:r1063-main 2.1）。
+  assert.match(red.text, /^请立即到医院急诊就诊（病情危急时拨打120），先排除急危重情况；医生确认可以服药后，服完7剂药/);
   assert.equal(red.text.split("排除急危重情况").length, 2, "首句里「排除急危重情况」只说一次");
   // 辨证阶段写进来的旧红旗句（「请先尽快到医院急诊或相关专科就诊，排除急危重情况；…」）与首句重复，只留后半句（本轮实测 S178/S188/S190）。
   const merged = surface.followupWhenPriorityEvaluation(`${visible.RED_FLAG_SAFETY_NET}\n\n若再次出现剧烈头痛，请立即就医。`, red.target, { doses: 7, days: 7 });
@@ -125,7 +126,7 @@ await check("1.6 D4 复诊阶段：红旗给了剂量时照常出随访方案，
   const payload = safety.buildDeterministicRiskFollowupPayload(state, null);
   const text = JSON.stringify(payload);
   assert.match(text, /红旗解除前不得采纳本方/);
-  assert.match(text, /请在当天到医院急诊或专科就诊/);
+  assert.match(text, /请立即到医院急诊就诊/);
   assert.doesNotMatch(text, /优先完成现场风险处置/);
 });
 

@@ -26,6 +26,7 @@ const CJK = "\\u4e00-\\u9fa5";
  * 新增条目需要同时说明为什么该词表无法归入受治理来源。
  */
 const ALLOWLIST = new Map([
+  ["src/lib/analysis-element-closure.ts", "否定词的形态守卫（无/非/不属/未见/尚无/并非/不是/否认/排除…），闭集，只决定证素字样前面是不是否定写法（与 m03-element-support 同一组，2026-11-15 第四十六轮）。证素与辨证要点取 tcm-analysis-element-closure.source.json 与《中医诊断学》要点表。迁移计划：否定词形态并入 clinical-polarity 的受治理否定词表后改读共享常量。"],
   ["src/lib/m03-analysis-alignment.server.ts", "辨证分析与结论对齐核对（2026-11-14 第四十五轮）：证素词形归并闭集（郁→气滞、瘀→血瘀、积滞→食积，虚/亏/不足/衰作本虚标记）与「支持/故属」这类判断语气标记。证素本身取 tcm-nature-lexicon，这里只把写法归到同一证素，不新增临床判据。迁移计划：词形并入 tcm-nature-lexicon.source.json 的别名列时移出。"],
   ["src/lib/required-precautions.server.ts", "检验项目标签闭集（血糖、指尖血糖、随机血糖、GLU）只用来读本次血糖数值判低血糖（<3.9mmol/L），与 diagnosis-safety 读生命体征标签同类，不判临床语义（2026-11-14 第四十五轮）。迁移计划：建受治理的检验项目标签表时一并移入。"],
   ["src/lib/required-precautions.ts", "规则句覆盖核对字样闭集（肾功能/肾病/肾衰、心衰、血钾…）：只判模型写的注意事项是否已说到规则要求的那一项；要不要写这一项由 diagnosis-safety 的高危边界判据决定（2026-11-14 第四十五轮）。迁移计划：随规则句一起搬到受治理的注意事项表。"],

@@ -20,7 +20,7 @@ import { lineageAffinitiesForFormula } from "./tcm-formula-lineage-affinity";
 import { LINEAGE_LENS_SUBJECT, lineageLensSubject } from "./tcm-lineages";
 import { formulaInCommonTier, formulaLockTierEnabled } from "./tcm-formula-tier";
 import { compositionLogicWithBaselineNames } from "./formula-baseline-display";
-import { canonicalFormulaBook, originalFormula, originalHerbAcceptedSubstitutes, originalHerbNamesEquivalent, textbookRowFormulaBook, type OriginalFormula } from "./formula-original-composition";
+import { canonicalFormulaBook, originalFormula, originalHerbAcceptedSubstitutes, originalHerbNamesEquivalent, textbookCitedFormulaBooks, textbookRowFormulaBook, type OriginalFormula } from "./formula-original-composition";
 import {
   formulaDiscriminationPaths,
   textualModificationsForFormulaNames,
@@ -1486,6 +1486,18 @@ function signedConditionalBranch(reasoning: ClinicalReasoningResultV2, branches:
  * 与 M03/M04 检索的「流派取向」标注同源）、并通过锁方前的承接核验（trustedModelFormulaIdentityNames：常用层 + 与签名治法同类，
  * 或教材/经方方证正向依据）。任一不满足就照旧改回教材代表方——宁可不体现流派，不让锁不上的方名把处方降成自拟方。
  */
+/**
+ * 这几张方里至少有一张按已核对的流派归属属于该派（与 lineageChosenFormulaDirectionKept 同一判据：编译目录条目 × tcm-formula-lineage-affinity）。
+ * 方名在目录里一张也查不到时返回 undefined（不判）。
+ */
+export function formulaNamesCarryLineage(names: readonly string[], lineageCode: string): boolean | undefined {
+  const known = [...new Set(names.flatMap((name) => identifyKnownFormulaNames(String(name || ""))))];
+  const references = formulaCompilationReferences(known);
+  if (references.length === 0) return undefined;
+  return references.some((reference) => lineageAffinitiesForFormula(reference.formulaName, reference.source)
+    .some((affinity) => affinity.adjudicated && affinity.lineageCode === lineageCode));
+}
+
 function lineageChosenFormulaDirectionKept(reasoning: ClinicalReasoningResultV2, direction: string, lineagePreference?: string): boolean {
   const preference = String(lineagePreference || "").trim();
   if (!preference || preference === "unrestricted") return false;
@@ -2724,7 +2736,7 @@ function governedCompilationFormulaSources(
   if (!verification.verified) return [];
   return [{
     formulaName: verification.formulaName,
-    source: verification.source,
+    source: textbookCitedOriginalSource(baseName, herbs.map((herb) => String(herb.name || "")), verification.source) || verification.source,
     matchedIngredientCount: verification.matchedIngredientCount,
     totalIngredientCount: verification.totalIngredientCount,
     minimumPreservedIngredientCount: verification.minimumPreservedIngredientCount,
@@ -2859,7 +2871,8 @@ function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: For
     matched.matchedHerbs.forEach((herb) => matchedHerbs.add(herb));
     resolved.push({
       formulaName: matched.candidate.formulaName,
-      source: matched.candidate.variant.source,
+      // 出处栏写教材承认的原书（处方覆盖它的原方组成时；textbookCitedOriginalSource）：组成核验仍按上面选中的那一版。
+      source: textbookCitedOriginalSource(normalizedName, herbs.map((herb) => String(herb.name || "")), matched.candidate.variant.source) || matched.candidate.variant.source,
       matchedIngredientCount: matched.overlap,
       totalIngredientCount: matched.candidate.variant.ingredients.length,
       minimumPreservedIngredientCount: matched.candidate.variant.minimumPreservedIngredientCount ??
@@ -3062,6 +3075,63 @@ export function deliveredFormulaSource(formulaName: string, source: string): str
   const entry = TEXTBOOK_FORMULA_SOURCES[normalizeFormulaName(String(formulaName || ""))] || TEXTBOOK_FORMULA_SOURCES[String(formulaName || "").trim()];
   const original = String(entry?.source || "").trim();
   return original && original.startsWith("《") && !sourceIsTextbook(original) ? original : "现代经验方";
+}
+
+/**
+ * 处方覆盖了教材所引原书的原方组成时，出处用那本原书（2026-11-15 第四十六轮，逐字复核：桃红四物汤《妇科冰鉴》应为《医垒元戎》/《医宗金鉴》，
+ * 一贯煎《医方絜度》应为《续名医类案》，小半夏加茯苓汤《卫生宝鉴·补遗》应为《金匮要略》）。
+ * 成因：出处按同名方各书写法里组成最贴近的取（名录一首常用方十几条后世转载），后出书的写法恰好与处方逐味相同就署了它；
+ * 方的身份（锁定、编译基准）不变，只是出处栏写这首方教材承认的原书。
+ *  · 教材写的书：《方剂学》（正方、附方）→ 教材方剂索引表 → 各科教材证型行（textbookCitedFormulaBooks）；
+ *  · 现有出处已是其中一本时不动（温胆汤带茯苓《三因》、不带茯苓署《备急千金要方》：两本都是教材写过的，第十三轮既定取法不变）；
+ *  · 按原方组成表里那本书的这首方核：除姜枣与须医生另定用量的药外，原方每一味处方里都有（同一味的判法同「原方」核对）。
+ * 返回出处写法（同一本书在目录或名录里有带卷次的写法时沿用）；不换时返回 undefined。
+ */
+export function textbookCitedOriginalSource(formulaName: string, herbNames: readonly string[], currentSource: string): string | undefined {
+  const base = String(formulaName || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
+  if (!base || /合/u.test(base) || herbNames.length === 0) return undefined;
+  const normalized = normalizeFormulaName(base);
+  const tableEntry = TEXTBOOK_FORMULA_SOURCES[normalized] || TEXTBOOK_FORMULA_SOURCES[base];
+  const cited = [...new Set([
+    ...textbookCitedFormulaBooks(base).slice(0, 1),
+    canonicalFormulaBook(tableEntry?.source),
+    ...textbookCitedFormulaBooks(base).slice(1),
+  ].filter(Boolean))];
+  if (cited.length === 0) return undefined;
+  const current = canonicalFormulaBook(currentSource);
+  // 现有出处里任何一本书是教材写过的就不动（「方出《肘后方》卷二，名见《外台》卷一引《崔氏方》」已写到《外台秘要》）。
+  const currentBooks = [...String(currentSource || "").matchAll(/《[^》]{1,40}》/gu)].map((match) => canonicalFormulaBook(match[0]));
+  if ((current && cited.includes(current)) || currentBooks.some((book) => cited.includes(book))) return undefined;
+  const present = herbNames.map((name) => String(name || "").trim()).filter(Boolean);
+  const isAdjunct = (herb: string) => ["生姜", "大枣"].some((adjunct) => originalHerbMatches(adjunct, herb));
+  const withheld = formulaManualDoseIngredients(base);
+  for (const citedBook of cited) {
+    const entry = originalFormula(base, citedBook);
+    if (!entry) continue;
+    // 教材行的引书可能是扫描错字（「《伤寒沦》」），原方表按它的转引书名收进了同一条：出处写表里这一条自己的书名。
+    const book = entry.book;
+    if (book === current) return undefined;
+    const readings = [entry.herbs.map((item) => item.herb), ...(entry.alternates || []).map((alternate) =>
+      [...entry.herbs.map((item) => item.herb).filter((herb) => !alternate.remove.includes(herb)), ...alternate.add])];
+    const covered = readings.some((reading) => {
+      const required = reading.filter((herb) => !isAdjunct(herb) && !withheld.some((name) => originalHerbMatches(herb, name)));
+      return required.length >= 2 && required.every((herb) => present.some((name) => originalHerbSatisfiedBy(herb, name)));
+    });
+    if (!covered) continue;
+    // 同一本书在目录或名录里有带卷次的写法（《续名医类案》卷十八）时沿用；书名号里必须就是这本书的全名（名录里有「《伤寒沦》」这类错字条目）。
+    const specific = [
+      normalizedOfficialClassics.get(normalized)?.variant.source,
+      formulaCompilationReferences([normalized])[0]?.source,
+      ...(normalizedCatalog.get(normalized)?.variants || []).map((variant) => variant.source),
+    ].find((source) => source && source.match(/《([^》]+)》/u)?.[1] === book && !MODERN_STANDARD_SOURCE.test(source));
+    const label = (specific || `《${book}》`).trim().replace(/[。．.]+$/u, "");
+    // 现有出处是国家《古代经典名方目录》给这首方定的书（一贯煎《医方絜度》、桃红四物汤《妇科冰鉴》：目录取的是载有剂量、可据以制剂的那本书）：
+    // 出处写教材的原书，并注明目录所据，两边都不丢。
+    const official = normalizedOfficialClassics.get(normalized)?.variant.source;
+    const officialLabel = official ? official.trim().replace(/[。．.]+$/u, "") : "";
+    return officialLabel && current === canonicalFormulaBook(officialLabel) ? `${label}（国家古代经典名方目录据${officialLabel}）` : label;
+  }
+  return undefined;
 }
 
 export function textbookFormulaOriginalSource(

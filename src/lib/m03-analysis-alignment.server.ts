@@ -3,8 +3,10 @@ import "server-only";
 import natureLexiconJson from "../data/tcm-nature-lexicon.json" with { type: "json" };
 import { primaryModelJsonTask } from "./cross-model-small-task.server";
 import { compositeSyndromeRename } from "./delivered-surface";
+import { uncertaintyAnsweredByRecord, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording, withMethodImpliedNatureElements } from "./analysis-element-closure";
 import { foreignSyndromeNames } from "./m03-rationale-coverage.server";
 import { isLineageLensSentence } from "./tcm-lineages";
+import { sanitizeOptionalPathogenesisClassifications } from "./diagnosis-visible-summary";
 
 /**
  * 辨证分析与结论对齐（2026-11-14 第四十五轮，「先定结论、再写文字」的服务端一半）。
@@ -70,14 +72,28 @@ const isExcessElement = (id: string) => {
   return Boolean(entry && (EXCESS_KINDS.has(entry.kind) || (entry.kind === "qi_disorder" && /滞|逆/u.test(entry.canonical))));
 };
 
-/** 交付时的证名（delivered-surface 的合称改名在交付面才做，这里按它将要写成的名字核）。 */
+/**
+ * 交付时的证名（delivered-surface 的合称改名在交付面才做，这里按它将要写成的名字核）。交付面先按治法补齐病性栏的实邪
+ *（withMethodImpliedNatureElements：健脾渗湿而病性只写气虚时补上湿），再判合称；这里同一顺序（第四十六轮）。
+ */
 function deliveredPrimary(reasoning: Json, recordText: string): string {
   const primary = text(record(reasoning.overview)?.primarySyndrome);
   try {
-    return compositeSyndromeRename(structuredClone(reasoning), recordText)?.to || primary;
+    const lookahead = structuredClone(reasoning);
+    withMethodImpliedNatureElements(lookahead, recordText);
+    return compositeSyndromeRename(lookahead, recordText)?.to || primary;
   } catch {
     return primary;
   }
+}
+
+/**
+ * 结论里的病性要素：证名（主证、兼证）加上治法在治的（第四十六轮）。治法本身在治的病性不是「证名里没有」：
+ * 经行泄泻·脾虚证教材治法「健脾渗湿」，病性栏写湿与结论一致；此前把它判成「病性栏的湿，证名里没有」，重写稿把湿从病性栏删掉，
+ * 病机链与治法照旧在治湿（第四十六轮重跑 n20）。
+ */
+function conclusionElements(names: string, method: string): Set<string> {
+  return new Set([...natureElementsIn(names), ...natureElementsIn(method)]);
 }
 
 export type AnalysisMisalignment = { code: "syndrome_element_missing" | "nature_element_unnamed" | "deficiency_without_root" | "rationale_other_syndrome" | "uncertainty_asks_named_element"; detail: string };
@@ -92,6 +108,7 @@ export function analysisMisalignments(reasoning: Json, recordText: string): Anal
   const secondary = strings(overview.secondarySyndromes);
   const named = [primary, ...secondary].join("、");
   const namedElements = natureElementsIn(named);
+  const concludedElements = conclusionElements(named, text(record(reasoning.therapy)?.overallMethod) || text(overview.overallTherapy));
   const natureItems = [...new Set([...strings(nature.items), ...strings(nature.rootDeficiency), ...strings(nature.branchExcess)])];
   const natureElements = natureElementsIn(natureItems.join("、"));
   const issues: AnalysisMisalignment[] = [];
@@ -99,9 +116,9 @@ export function analysisMisalignments(reasoning: Json, recordText: string): Anal
   for (const id of namedElements) {
     if (isExcessElement(id) && !natureElements.has(id)) issues.push({ code: "syndrome_element_missing", detail: `证名「${primary}」里的${LEXICON.find((entry) => groupOf(entry.id) === id)?.canonical}，病性栏没有` });
   }
-  // 病性栏的病邪、病理产物，证名（主证、兼证）里没有（气血虚弱证而病性列血瘀）。
+  // 病性栏的病邪、病理产物，证名（主证、兼证）与治法里都没有（气血虚弱证、益气养血而病性列血瘀）。
   for (const id of natureElements) {
-    if (isExcessElement(id) && !namedElements.has(id)) issues.push({ code: "nature_element_unnamed", detail: `病性栏的${LEXICON.find((entry) => groupOf(entry.id) === id)?.canonical}，证名里没有` });
+    if (isExcessElement(id) && !concludedElements.has(id)) issues.push({ code: "nature_element_unnamed", detail: `病性栏的${LEXICON.find((entry) => groupOf(entry.id) === id)?.canonical}，证名里没有` });
   }
   // 证名是虚证，病性栏本虚为空（气厥虚证、心阳欲脱证而「本虚：无」）。
   if (DEFICIENCY_NAME.test(primary.replace(/证$/u, "")) && strings(nature.rootDeficiency).length === 0) issues.push({ code: "deficiency_without_root", detail: `证名「${primary}」是虚证，病性栏本虚为空` });
@@ -131,7 +148,7 @@ const SYSTEM = [
   "你是中医主治医师。下面这份辨证的结论已经定了：病名、主证（primary）、兼证（secondary）、治法（method），不要改结论，也不要另立证。",
   "现在辨证分析的几段文字与结论对不上（problems 列出了哪里对不上）。请只按 record（病历原文）重写这几段，使它们支持并落到这个结论：",
   "1. rationale（辨证依据，≤220字）：把病历里的表现按「表现→病机」逐组解释，最后落到 primary（写出 primary 的证名原字）；不写结论以外的证名；病历没有的表现不写；舌淡红、苔薄白、脉平或脉缓这类正常所见不作为任何病理的依据；current.rationale 末尾若有一句流派视角的话（某某学派/思路看…），原样保留在末尾。",
-  "2. natureItems：结论里的病性要素（如气虚、血虚、阴虚、阳虚、气滞、血瘀、痰、湿、热、寒、风、毒），只列 primary、secondary 里有的；rootDeficiency 放其中的虚性要素，branchExcess 放其中的邪实要素；natureBasis 写病历原文里支持这些病性的片段，逐字摘抄，几段之间用「；」隔开。",
+  "2. natureItems：结论里的病性要素（如气虚、血虚、阴虚、阳虚、气滞、血瘀、痰、湿、热、寒、风、毒），只列 primary、secondary 里有的，以及 method 本身在治的（method 有渗湿、化痰、活血时的湿、痰、血瘀）；rootDeficiency 放其中的虚性要素，branchExcess 放其中的邪实要素；natureBasis 写病历原文里支持这些病性的片段，逐字摘抄，几段之间用「；」隔开。",
   "3. overallPathogenesis（≤100字）：按结论写本例的总体病机。",
   "4. uncertainties：仍待核实的事项（最多3条，每条 item 是待核实的那件事、reason 说为什么、affects 说影响哪一项判断）；不问结论里已经有的要素，不问病历已写明的事。",
   "只输出 JSON：{\"rationale\":\"\",\"natureItems\":[],\"rootDeficiency\":[],\"branchExcess\":[],\"natureBasis\":\"\",\"overallPathogenesis\":\"\",\"uncertainties\":[{\"item\":\"\",\"reason\":\"\",\"affects\":\"\"}]}",
@@ -187,7 +204,7 @@ export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, reco
   if (foreignSyndromeNames(rationale, { rationale: "", primary, secondary, disease: text(overview.tcmDiseaseName), recordText }).length > 0) return reject("rationale_foreign_syndrome");
   const oldLens = text(overview.tcmDiagnosticRationale).split(/(?<=[。])/u).find((sentence) => isLineageLensSentence(sentence));
   if (oldLens && !rationale.includes(oldLens.replace(/\s+/gu, "").slice(0, 8))) return reject("lens_lost");
-  const namedElements = natureElementsIn([primary, ...secondary].join("、"));
+  const namedElements = conclusionElements([primary, ...secondary].join("、"), text(record(reasoning.therapy)?.overallMethod) || text(overview.overallTherapy));
   // 原分析里已列、模型重写时仍保留的要素（病历有依据、证名没写的标实，如脾气虚证的湿）照留：不新增要素，也不替模型删它认为有据的要素
   //（第四十五轮本机实测：19 次重写里 12 次因保留了原有的湿、血瘀被拒）。这类要素不再算「对不上」。
   const originalElements = natureElementsIn([...strings(nature.items), ...strings(nature.rootDeficiency), ...strings(nature.branchExcess)].join("、"));
@@ -211,7 +228,10 @@ export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, reco
     nextOverview.overallPathogenesis = rewrite.overallPathogenesis;
     if (typeof nextPathogenesis.summary === "string") nextPathogenesis.summary = rewrite.overallPathogenesis;
   }
-  if (rewrite.uncertainties.length > 0) nextPathogenesis.uncertainties = rewrite.uncertainties;
+  // 重写稿的待核实项不收三类（第四十六轮）：评论证名本身的（「湿邪是否作为独立病性要素——结论证名未列湿」，m13）、照抄提示段内部说法的、
+  // 问病历已写明的四诊属性的（舌苔厚薄而病历记苔薄）。剩下的才换上去。
+  const uncertainties = rewrite.uncertainties.filter((row) => !uncertaintyDiscussesSyndromeNaming(row) && !uncertaintyLeaksPromptWording(row) && !uncertaintyAnsweredByRecord(row.item, recordText));
+  if (uncertainties.length > 0) nextPathogenesis.uncertainties = uncertainties;
   const remaining = analysisMisalignments(next, recordText)
     .filter((issue) => issue.code !== "nature_element_unnamed" || ![...originalElements].some((id) => !namedElements.has(id) && issue.detail.includes(LEXICON.find((entry) => groupOf(entry.id) === id)?.canonical || "\u0000")));
   return remaining.length === 0 ? next : reject(`still:${remaining.map((issue) => issue.code).join("+")}`);
@@ -256,5 +276,26 @@ export async function alignAnalysisWithConclusion(content: string, context: { re
   const accepted = rewrite ? acceptedAlignmentRewrite(reasoning, rewrite, context.recordText, rejection) : undefined;
   console.info("[tcm-cdss:telemetry] m03_analysis_alignment", { issues: issues.map((issue) => issue.code), rewritten: Boolean(rewrite), accepted: Boolean(accepted), rejected: rejection.reason || null });
   if (!accepted) return content;
-  return `${content.slice(0, start + START.length)}\n${JSON.stringify(accepted, null, 2)}\n${content.slice(end)}`;
+  return contentWithAcceptedRewrite(content, accepted, context.recordText);
+}
+
+/**
+ * 把采信的重写稿换进内容（纯函数，供测试）。病性栏换了条目与依据，把握度与说明按换上的条目重判（第四十六轮：此前沿用重写前的说明，
+ * 病性只剩气滞，说明还写「病性“气滞、津亏”中…」，甲方 100 例 C064、new45 n12「病性定为阳虚，说明却称寒热只见灼热」）。
+ * 与准备阶段同一个判据（sanitizeOptionalPathogenesisClassifications）：依据逐项都摘了就是已确定，否则有界并点名缺哪一条。
+ */
+export function contentWithAcceptedRewrite(content: string, accepted: Json, recordText: string): string {
+  const START = "<!-- DIAGNOSIS_JSON_START -->";
+  const END = "<!-- DIAGNOSIS_JSON_END -->";
+  const start = content.indexOf(START);
+  const end = start >= 0 ? content.indexOf(END, start + START.length) : -1;
+  if (start < 0 || end < 0) return content;
+  const next = structuredClone(accepted);
+  const nature = record(record(next.pathogenesis)?.natureDifferentiation);
+  if (nature) {
+    nature.resolution = "bounded";
+    delete nature.resolutionReason;
+  }
+  const replaced = `${content.slice(0, start + START.length)}\n${JSON.stringify(next, null, 2)}\n${content.slice(end)}`;
+  return sanitizeOptionalPathogenesisClassifications(replaced, recordText);
 }

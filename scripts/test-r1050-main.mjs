@@ -170,8 +170,14 @@ await check("4.2 第四十一轮起：依据齐备就按已确定，与舌脉记
   const named = axes(axisCase(locationBounded, natureBounded, [{ item: "肝郁程度", reason: "未记录胁痛", affects: "病位判断" }, { item: "热象轻重", reason: "", affects: "病性" }]), fullRecord);
   assert.equal(named.location.resolution, "resolved");
   assert.equal(named.nature.resolution, "resolved");
-  const thinBasis = axes(axisCase(locationBounded, { ...natureBounded, basis: "口苦" }), fullRecord);
+  // 第四十六轮：依据栏漏摘、而病历里另有这一条病性的表现时，把病历原文补进依据（natureAxisElementSupport；气滞补「腹胀嗳气」、热补「舌红」），
+  // 补齐后每条都有依据，按已确定交付。依据薄、病历里也没有气滞的表现时照旧有界，说明点名缺哪一条。
+  const completed = axes(axisCase(locationBounded, { ...natureBounded, basis: "口苦" }), fullRecord);
+  assert.equal(completed.nature.resolution, "resolved");
+  assert.match(completed.nature.basis, /腹胀嗳气/u);
+  const thinBasis = axes(axisCase(locationBounded, { ...natureBounded, basis: "口苦" }), "饭后1小时饱胀，工作紧张时加重，口苦。舌红，苔薄黄。");
   assert.equal(thinBasis.nature.resolution, "bounded");
+  assert.match(String(thinBasis.nature.resolutionReason), /“气滞”尚未见到/u);
   assert.doesNotMatch(String(thinBasis.nature.resolutionReason || ""), /依据有\d条|少于两个方面|只有一个方面/u);
 });
 

@@ -265,7 +265,9 @@ await check("7.3 脾虚证 + 病性列了湿、病历两项湿象：脾虚湿困
     _signs: signs,
   });
   assert.equal(surface.compositeSyndromeRename(reasoning(), "带下量多、色白质稀，肢体困重，舌淡，苔白腻。")?.to, "脾虚湿困证");
-  assert.equal(surface.compositeSyndromeRename(reasoning(), "带下量多、色白质稀，舌淡，苔白腻。"), undefined);
+  // 第四十六轮：湿的表现与病性栏补齐共用《中医诊断学》湿淫证证候表现一张表（tcm-analysis-element-closure），「带下量多」本身就是湿象，
+  // 原对照「带下量多…苔白腻」已是两项；对照改成真正只有一项湿象的病历。
+  assert.equal(surface.compositeSyndromeRename(reasoning(), "带下色白质稀，舌淡，苔白腻。"), undefined);
 });
 
 // ───── 8 血证分型 ─────
@@ -421,14 +423,21 @@ const natureOut = (content, fn, record) => {
 };
 const coldRecord = "双膝关节隐痛2年，伴腰膝酸软、畏寒、肢冷。舌淡，苔白。脉沉细。";
 await check("15.1 模型自定病性为有界、依据逐字可回溯时，不说「缺少依据」：写它在 uncertainties 里点名的那一项，没点名时说个别要素待核实；依据对不上原文时照旧", () => {
-  const nature = { items: ["阳虚", "寒凝"], rootDeficiency: ["阳虚"], branchExcess: ["寒凝"], basis: "畏寒、肢冷", resolution: "bounded" };
+  // 第四十六轮：阳虚（畏寒、肢冷）与寒凝（畏寒）在依据里各有自己的表现时每条都有依据，按已确定交付（与第四十一轮病位「每个病位都有逐字依据
+  // 就是已确定、模型点名的待核实项留在待核实栏」同一口径；test:r1063-analysis 2.3）。下面点名待核实项的几例换成有一条病性认不出表现（风）的写法。
+  const supported = natureOut(natureCase({ items: ["阳虚", "寒凝"], rootDeficiency: ["阳虚"], branchExcess: ["寒凝"], basis: "畏寒、肢冷", resolution: "bounded" }, [{ item: "寒凝程度", reason: "未记录疼痛喜温", affects: "病性寒凝" }]), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
+  assert.equal(supported.resolution, "resolved");
+  const nature = { items: ["阳虚", "风"], rootDeficiency: ["阳虚"], branchExcess: ["风"], basis: "畏寒、肢冷", resolution: "bounded" };
   const named = natureOut(natureCase({ ...nature }, [{ item: "寒凝程度", reason: "未记录疼痛喜温", affects: "病性寒凝" }]), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
   assert.equal(named.resolution, "bounded");
-  assert.equal(named.resolutionReason, "病性“阳虚、寒凝”中寒凝程度尚待核实"); // 第四十一轮：不写「已有病历依据」这类说明句
+  assert.equal(named.resolutionReason, "病性“阳虚、风”中寒凝程度尚待核实"); // 第四十一轮：不写「已有病历依据」这类说明句
   const byAffects = natureOut(natureCase({ ...nature }, [{ item: "疼痛性质", reason: "未记录", affects: "病性判断" }]), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
-  assert.equal(byAffects.resolutionReason, "病性“阳虚、寒凝”中疼痛性质尚待核实");
+  assert.equal(byAffects.resolutionReason, "病性“阳虚、风”中疼痛性质尚待核实");
+  // 第四十六轮：模型没点名、而依据里阳虚（畏寒、肢冷）与寒凝（畏寒）各有自己的表现时，每条都有依据，按已确定交付；
+  // 此前写「中个别要素尚缺直接的病历依据」，逐字复核判机械句（C064、C072、n30）。有一条病历里找不到表现时点名那一条（test:r1063-analysis 3.2）。
   const unnamed = natureOut(natureCase({ ...nature }), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
-  assert.equal(unnamed.resolutionReason, "病性“阳虚、寒凝”中个别要素尚缺直接的病历依据");
+  assert.equal(unnamed.resolution, "bounded");
+  assert.equal(unnamed.resolutionReason, "病性“风”的病历依据尚待逐项核实");
   const ungrounded = natureOut(natureCase({ ...nature, basis: "四肢厥逆" }), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
   assert.match(ungrounded.resolutionReason, /尚缺直接的病历依据/u);
 });
@@ -444,7 +453,9 @@ await check("15.2 寒热病性的依据维度认得畏寒、肢冷、五心烦�
   assert.match(augmented.basis, /畏寒/u);
   const sparse = natureOut(natureCase(tongueOnly), visible.applyM03AdvisoryQualityBoundaries, "双膝关节隐痛2年。舌淡，苔白。");
   assert.equal(sparse.resolution, "bounded");
-  assert.match(sparse.resolutionReason, /^寒热属性目前只见于「舌淡」/u);
+  // 第四十六轮：说明写还缺哪几项、已见的放括号，不写「目前只见于」（复核判「依据只有一条」类机械句，C054、C071、m38）。
+  assert.match(sparse.resolutionReason, /^寒热尚需结合.*判断（已见舌淡）$/u);
+  assert.doesNotMatch(sparse.resolutionReason, /只见于/u);
   assert.doesNotMatch(sparse.resolutionReason, /少于两个方面|只有一个方面|依据有\d条/u);
 });
 

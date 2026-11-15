@@ -3,6 +3,7 @@ import { recordAnemiaGrade } from "./delivered-surface";
 import secondaryStructureJson from "../data/tcm-secondary-syndrome-structure.source.json" with { type: "json" };
 
 import { affirmedClinicalSourceClauses } from "./clinical-polarity";
+import { withoutDanglingConclusionLeads } from "./analysis-element-closure";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { isTextbookDiseaseName, textbookManifestationTerms, textbookRowForSyndrome, textbookRowsNamed, type TextbookSyndromeRow } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
@@ -149,7 +150,8 @@ export function withoutClauses(value: string, clauses: readonly string[]): strin
     else if (/^[，,]/u.test(after)) out = `${before}${after.slice(1)}`;
     else out = `${before}${after.replace(/^[。；;]/u, before && !/[。；;]$/u.test(before) ? "。" : "")}`;
   }
-  return out.replace(/^[，,。；;]+/u, "").replace(/([。；;])[，,]+/gu, "$1").trim();
+  // 删掉结论小句后只剩一个结论引语的残句（「…之外候。诸症合参。发声费力…」，第四十六轮重跑 n36）整句去掉。
+  return withoutDanglingConclusionLeads(out.replace(/^[，,。；;]+/u, "").replace(/([。；;])[，,]+/gu, "$1").trim());
 }
 
 // ───── 第二条路：独立成组证据核对 ─────
@@ -435,7 +437,8 @@ const sharesPrimaryManifestation = (quote: string, primaryTerms: readonly string
 };
 
 /** quotes：计入判定的病历摘录（去重、已排除主证同一表现），证素核对给证据标签用。 */
-export type CriteriaVerdict = { verdict: "pass" | "fail" | "unknown"; entry?: string; specific: number; category: number; listed: number; distinct: number; quotes?: string[] };
+/** strict：不靠证素宽路径（breadth）也够数，即按辨证要点成组（第四十六轮：证名带上分析里的证素要按这一档，立兼证同一判据）。 */
+export type CriteriaVerdict = { verdict: "pass" | "fail" | "unknown"; entry?: string; specific: number; category: number; listed: number; distinct: number; quotes?: string[]; strict?: boolean };
 
 /** 小任务给出的对应 → 判定。纯函数，供测试。 */
 export function evaluateCriteriaMatches(
@@ -495,11 +498,13 @@ export function evaluateCriteriaMatches(
   // 证素核对的宽路径（2026-10-31，甲方 10.29 测评：面色萎黄、爪甲色淡、头晕目眩、毛发枯槁「明确的气血两虚表现」被判血虚不够数）：
   //《中医诊断学》血虚证辨证要点只列「面、睑、唇、舌色淡白，脉细」，萎黄、爪甲色淡、头晕眼花都在它的【证候表现】里。证候表现独立成组三条以上，
   // 这一证素就算有据。只用于证素（虚性要素是否有病历支持），立兼证仍按辨证要点。
+  // 主证解释不了的独立表现 4 条以上、其中至少 1 条对上要点或共见类，也按辨证要点成组算（见下）；宽路径之前先记下这一档。
+  const strict = pass || (!entry.components?.length && distinct >= 4 && specific + category >= 1);
   if (!pass && context.breadth && !entry.components?.length && distinct >= 3) pass = true;
   // 要点是教材的一句话，切出来的条目常对不上写法（血瘀证的要点切成「疼痛」「舌色青紫等」）：第三十三轮刺痛固定、舌有瘀点、脉涩、经血块 6 条独立表现，因为要点只对上 1 条被撤。
   // 主证解释不了的独立表现有 4 条以上、其中至少 1 条对上要点或共见类，算成组。
   if (!pass && !entry.components?.length && distinct >= 4 && specific + category >= 1) pass = true;
-  return { verdict: pass ? "pass" : "fail", entry: entry.name, specific, category, listed, distinct, quotes: [...seenQuotes] };
+  return { verdict: pass ? "pass" : "fail", entry: entry.name, specific, category, listed, distinct, quotes: [...seenQuotes], strict };
 }
 
 const CRITERIA_MATCH_SYSTEM = [

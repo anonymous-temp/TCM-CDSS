@@ -2587,6 +2587,32 @@
    "courseNextCheck": "腹痛日记"
   },
   {
+   "name": "功能性腹痛",
+   "clinicallyDiagnosable": true,
+   "requiredTests": [],
+   "durationThreshold": "未满18岁（罗马IV儿童标准）：每月至少4次、持续至少2个月；成人按罗马IV中枢介导的腹痛综合征另行判断，本条不给成人病程门槛",
+   "definingFeatures": [
+    "每月至少4次腹痛，持续至少2个月",
+    "疼痛不限于进食或月经等生理事件",
+    "经适当评估不能用其他疾病解释",
+    "不符合其他功能性胃肠病诊断标准",
+    "排除器质性病因后按症状诊断"
+   ],
+   "quote": "define functional abdominal pain as episodic or continuous pain occurring at least 4 times per month for 2 months, not limited to physiological events such as eating or menses, and unexplained by another medical condition after an appropriate evaluation.",
+   "url": "https://www.ncbi.nlm.nih.gov/sites/books/NBK537298/",
+   "siteName": "National Institutes of Health (NIH) | (.gov)",
+   "title": "Functional Abdominal Pain in Children",
+   "retrievedAt": "2026-10-18",
+   "reviewCorrection": {
+    "basis": "第四十六轮逐字复核 C073：8 岁儿童脐周腹痛 2 个月，西医鉴别写「功能性腹痛需病程6个月以上」——表里只收了「小儿功能性腹痛」，按「功能性腹痛」查不到，核对拿到的是成人口径。儿童写「功能性腹痛」时与「小儿功能性腹痛」同一标准（罗马IV儿童：每月至少4次、持续至少2个月）；成人的中枢介导的腹痛综合征门槛未在此逐字核对，不写成人门槛。"
+   },
+   "reviewedAt": "2026-11-15",
+   "courseThresholdDays": {
+    "under18": 60
+   },
+   "courseNextCheck": "腹痛日记"
+  },
+  {
    "name": "小儿急性上呼吸道感染",
    "clinicallyDiagnosable": true,
    "requiredTests": [],

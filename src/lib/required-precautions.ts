@@ -1,3 +1,4 @@
+import drugConditionJson from "../data/western-drug-condition-cautions.source.json";
 /**
  * 本例注意事项里必须写到的内容（2026-10-17，甲方标准病历 3、7 与留出例 S143 的独立评审）。
  *
@@ -91,13 +92,25 @@ export type RequiredPrecaution =
    * 高危基础情况（2026-11-14 第四十五轮，甲方 100 例 C100：91 岁、慢性肾病 4 期、血钾 5.6、服华法林和地高辛，注意事项只有一句「饮食清淡」；
    * C036：肌酐 258、血钾 5.8、服厄贝沙坦和呋塞米，方中有附子）。与剂量边界同一份判据（highRiskConditionsForPrecautions），各写一条给患者的话。
    */
-  | { kind: "high_risk_condition"; conditions: Array<"renal" | "heart_failure" | "hyperkalemia" | "digoxin" | "immunosuppression">; potassium?: string }
+  | { kind: "high_risk_condition"; conditions: Array<"renal" | "heart_failure" | "hyperkalemia" | "hyperkalemia_diet" | "digoxin" | "immunosuppression">; potassium?: string }
+  /**
+   * 病历写着在用的西药与本例已记录的病情相抵（说明书禁用、指南避免）：二甲双胍与 eGFR<30、非甾体抗炎药与阿司匹林诱发哮喘或肾功能减退
+   *（第四十六轮 p100c-C034、new45-n40）。规则与原文出处在 western-drug-condition-cautions.source.json；这些药不再进「正在服用的药，是否继续由医生决定」一条。
+   */
+  | { kind: "drug_condition_caution"; ruleId: string; drug: string; sentence: string }
+  /**
+   * 正在服华法林而本例要服中药汤剂（第四十六轮 p100c-C100、C020）：说明书写明开始或停用植物药时更频繁监测 INR，人参可减弱华法林作用。
+   * 方中有没有人参类按最终处方在交付面核（decreaseHerbs）。
+   */
+  | { kind: "warfarin_herbal"; drug: string; decreaseHerbs: string[] }
   | {
       kind: "diabetes_glucose";
       /** 本次是低血糖（病历记录血糖低于 3.9mmol/L 或写明低血糖发作）：那一句写低血糖的处置，不写「少吃甜食」（2026-11-14 第四十五轮 C032，血糖 2.4）。 */
       hypoglycemia?: true;
       /** 病历写着患者本人有糖尿病，或已签名西医诊断是糖尿病（不是「待查」）；只有中医病名消渴、或「糖尿病待查」的为 false：那一句写成尽早查血糖。 */
       confirmed: boolean;
+      /** 病历否认糖尿病、本次才查出血糖明显升高（第四十六轮 new45-n02）：不说「您有糖尿病，继续控制血糖」，写成尽快明确诊断与治疗。 */
+      newlyFound?: true;
     };
 
 /** 自行停用的那类药在给患者的话里怎么称呼。 */
@@ -109,6 +122,9 @@ export function discontinuedMedicationLabel(item: Extract<RequiredPrecaution, { 
 }
 
 type HighRiskConditionItem = Extract<RequiredPrecaution, { kind: "high_risk_condition" }>;
+const HIGH_POTASSIUM_DIET_SENTENCE = String((drugConditionJson as { highPotassiumFoods?: { sentence?: string } }).highPotassiumFoods?.sentence || "少吃含钾高的食物");
+/** 含钾高的食物（饮食段推荐时去掉；NKF「Potassium and Your CKD Diet」）。 */
+export const HIGH_POTASSIUM_FOODS: readonly string[] = (drugConditionJson as { highPotassiumFoods?: { foods?: string[] } }).highPotassiumFoods?.foods || [];
 /**
  * 高危基础情况写给患者的话，一种情况一小句（2026-11-14 第四十五轮）。只说病历记录的事实与常规的观察要点（KDIGO：肾功能不全用药按肾功能调整、
  * 监测血钾；洋地黄中毒的常见表现：恶心呕吐、视物黄绿、心跳过慢），不写剂量。
@@ -117,6 +133,8 @@ const HIGH_RISK_CONDITION_SENTENCES: Record<HighRiskConditionItem["conditions"][
   renal: () => "您肾功能明显减退，本方须由医生按肾功能核定后再服，服药期间定期复查肾功能和血钾；尿量明显减少、浮肿加重时请立即就医",
   heart_failure: () => "您有心力衰竭，服药期间请按医嘱继续原有治疗，每天留意体重和浮肿；气短加重、不能平卧时请立即就医",
   hyperkalemia: (item) => `本次血钾偏高${item.potassium ? `（${item.potassium}）` : ""}，请遵医嘱尽快复查血钾，不要自行服用补钾药、低钠盐或含钾高的补品`,
+  // 饮食限钾（第四十六轮 new45-n40：血钾 5.7，饮食段没有限钾）。食物与出处在 western-drug-condition-cautions.source.json highPotassiumFoods（NKF）。
+  hyperkalemia_diet: () => HIGH_POTASSIUM_DIET_SENTENCE,
   digoxin: () => "您正在服用地高辛，与中药同服须由医生核定；出现恶心呕吐、视物发黄或发绿、心跳明显变慢时请立即就医",
   immunosuppression: () => "您正在使用免疫抑制治疗，服药期间如出现发热、咳嗽、尿痛等感染表现请及时就医，并按医嘱复查肝肾功能",
 };
@@ -132,6 +150,7 @@ export function highRiskConditionsMissing(item: HighRiskConditionItem, lines: re
     renal: (line) => /肾功能|肾病|肾衰/u.test(line) && /复查|核定|监测|调整/u.test(line),
     heart_failure: (line) => /心衰|心力衰竭/u.test(line),
     hyperkalemia: (line) => /血钾|高钾/u.test(line),
+    hyperkalemia_diet: (line) => /含钾|钾高的食|高钾食物|限钾/u.test(line),
     digoxin: (line) => /地高辛/u.test(line) && /恶心|视物|心跳|心率|核定|医生/u.test(line),
     immunosuppression: (line) => /免疫抑制/u.test(line) && /感染|发热/u.test(line),
   };

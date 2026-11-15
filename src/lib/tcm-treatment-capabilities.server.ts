@@ -1346,7 +1346,8 @@ export function compileTcmTreatmentRecommendations(
       .filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；");
     // 灸法卡与证候相反时整张不出（2026-10-17 留出例 S067：湿热石淋拿到「常规灸法，多用于膏淋、劳淋」）。此前只去卡里说灸的句子，
     // 整张灸法卡每句都说灸，去完为空又退回原文。
-    if (definition.code === "moxibustion" && moxibustionUnsuitableForSyndrome(signedSyndromeText, prior.therapy?.overallMethod || "")) return [];
+    const signedNatureItems = prior.pathogenesis?.natureDifferentiation?.items || [];
+    if (definition.code === "moxibustion" && moxibustionUnsuitableForSyndrome(signedSyndromeText, prior.therapy?.overallMethod || "", signedNatureItems)) return [];
     // 拔罐、刮痧是以泻为主的操作，纯虚证整张不出（2026-10-18 甲方病历 6：肾阴虚腰痛三次生成都给了拔罐/走罐，教材腰痛节只对寒湿、瘀血腰痛加拔罐）。
     // 虚实夹杂、实证照常。与灸法、刺络用同一个虚实判据。
     if ((definition.code === "cupping" || definition.code === "guasha") && signedSyndromeDeficiencyExcess(signedSyndromeText) === "deficiency") return [];
@@ -1399,7 +1400,7 @@ export function compileTcmTreatmentRecommendations(
     // 写给别的证型的句子、阴虚热证里建议用灸的句子也在这里去掉（cardSentencesMatchedToSyndrome），治疗内容栏同样过这一道。
     const diseaseNamesForCard = [prior.overview.tcmDiseaseName || ""].filter(Boolean);
     const course = caseCourse([prior.westernDiagnosis?.primary?.name || ""], typeof caseState?.chiefComplaint === "string" ? caseState.chiefComplaint : "");
-    const cardSentences = (value: string) => cardSentencesMatchedToSyndrome(value, diseaseNamesForCard, signedSyndromeText, course, prior.therapy?.overallMethod || "");
+    const cardSentences = (value: string) => cardSentencesMatchedToSyndrome(value, diseaseNamesForCard, signedSyndromeText, course, prior.therapy?.overallMethod || "", signedNatureItems);
     // 只用于针刺卡：穴位栏就是本例的取穴处方。推拿卡的操作是一整套教材手法，穴位栏只列主穴，不能按它删步骤。
     const cardPoints = definition.code === "acupuncture" && Array.isArray(plannedTreatment.suggestedSitesOrPoints)
       ? plannedTreatment.suggestedSitesOrPoints.filter((point): point is string => typeof point === "string")
@@ -1538,8 +1539,17 @@ export function treatmentCardUndeliverable(item: { projectCode?: unknown; protoc
   const points = Array.isArray(item.suggestedSitesOrPoints) ? item.suggestedSitesOrPoints.length : 0;
   const pointFree = item.projectCode === "diet_therapy" || item.projectCode === "qigong_daoyin" || item.projectCode === "mind_therapy";
   if (pointFree && points === 0 && item.tailoringStatus === "class_template_only") return true;
+  // 针刺、耳穴、灸、推拿这类按穴操作的卡，穴位栏只有「阿是穴」「循经远端穴（按疼痛部位选择）」这类不点名的写法（第四十六轮逐字复核 new45 n19：
+  // 产后身痛的针刺卡只有「局部阿是穴（查体确认）、循经远端穴（按疼痛部位选择）」，不可操作）。
+  // 只有「阿是穴」的照留：灸、拔罐、痹痛局部针刺施于患处，部位是确定的；说不出哪条经哪个穴的「循经远端穴」「相应部位」才算不可操作。
+  const pointTexts = Array.isArray(item.suggestedSitesOrPoints) ? item.suggestedSitesOrPoints.map((point) => String(point || "")) : [];
+  if (points > 0 && !pointFree && pointTexts.every((point) => GENERIC_POINT_PLACEHOLDER.test(point)) &&
+    pointTexts.some((point) => !LOCAL_TENDER_POINT.test(point))) return true;
   return item.tailoringStatus === "class_template_only" && /^治则[:：]/.test(String(item.treatmentContent || "").trim());
 }
+/** 不点名具体穴位的取穴写法（构词守卫：阿是穴、局部、循经远端、相应部位、按…选择、查体确认）。 */
+const GENERIC_POINT_PLACEHOLDER = /^(?:局部|双侧|患侧)?(?:阿是穴|压痛点)(?:[（(][^）)]*[）)])?$|循经|远端穴|相应(?:部位|穴)|按[^，,]{0,8}(?:选择|选取|选穴)|局部取穴/u;
+const LOCAL_TENDER_POINT = /^(?:局部|双侧|患侧)?(?:阿是穴|压痛点)(?:[（(][^）)]*[）)])?$/u;
 
 // 艾灸的烫伤风险另算：糖尿病与感觉减退者对热不敏感，体温升高时不宜温灸（《护理人员中医技术使用手册》悬灸禁忌）。
 // 只读确定性肯定句（treatmentCaseFacts 已剔除否认与既往），闭集词与数值阈值。
@@ -1606,6 +1616,7 @@ export function homeAcupointAuthoringInputForCase(
     ageYears,
     sex: String((caseState as { patient?: { sex?: unknown } }).patient?.sex || ""),
     pregnancyUnresolved: homeCarePregnancyUnresolved(caseState),
+    excludedPoints: homeCareBreastRegionExclusion(caseState),
     moxibustionAllowed: template.includes("艾灸"),
   };
 }
@@ -1623,6 +1634,9 @@ function homeAcupointTemplateForCase(
   if (ageYears != null && ageYears <= 3 && ((Number.isFinite(temperature) && temperature >= 37.3) || /发热|高热|壮热|身热/.test(
     // 手足心热、五心烦热这类局部或自觉的热不是发热（2026-10-19：3 岁厌食「手足心发热」被当作发热）。
     treatmentCurrentFacts(caseState).replace(/(?:手足心|五心|手心|足心|心口|胸口|局部|关节)[^，,。；;]{0,2}热/g, "")))) return null;
+  // 同理，3 岁以内正在看急性病（主诉病程两周以内）时也不给这段健康保健：按月龄取的四神聪、迎香与本次的腹泻、咳嗽无关
+  //（第四十六轮逐字复核 C079：3 岁伤食泻，穴位保健是「按揉四神聪」）。
+  if (ageYears != null && ageYears <= 3 && caseCourse([prior.westernDiagnosis?.primary?.name || ""], String(caseState.chiefComplaint || "")) === "acute") return null;
   return compileHomeAcupointCare({
     prior,
     safetyGate: caseState.safetyGate,
@@ -1634,7 +1648,16 @@ function homeAcupointTemplateForCase(
     clinicianPointText: recommendations.flatMap((item) => item.suggestedSitesOrPoints || []).join("、"),
     clinicianMoxibustion: recommendations.some((item) => item.projectCode === "moxibustion"),
     pregnancyUnresolved: homeCarePregnancyUnresolved(caseState),
+    excludedPoints: homeCareBreastRegionExclusion(caseState),
   });
+}
+
+/**
+ * 未经影像评估的乳房肿块（unevaluatedBreastMass，与安全门、针刺卡同一判据）：居家按揉也不取胸前乳房区的穴（第四十六轮逐字复核：
+ * 针刺卡已写「乳房肿块性质未明前不在乳房及肿块局部施术」，穴位保健却让患者自己按揉膻中、期门）。
+ */
+export function homeCareBreastRegionExclusion(caseState: Partial<TreatmentCaseContext> | undefined): string[] {
+  return caseState?.patient && unevaluatedBreastMass(caseState as CaseState) ? [...BREAST_REGION_POINTS] : [];
 }
 
 export const ELDERLY_ACUPUNCTURE_AGE_YEARS = 65;
@@ -1668,7 +1691,7 @@ const ELDERLY_CARD_NOTE: Partial<Record<string, string>> = {
  */
 const BROKEN_SKIN_RECORDED = /流脓|窦道|破溃|溃烂|擦伤|渗液|皮损破/;
 /** 胸前乳房周围的穴（足阳明、足太阴、足少阴、任脉在胸部第 2–6 肋间的穴与乳中、乳根）：乳房肿块未经评估时针刺卡不取。 */
-const BREAST_REGION_POINTS = new Set(["乳中", "乳根", "膺窗", "屋翳", "库房", "气户", "天池", "天溪", "食窦", "胸乡", "周荣", "膻中", "神封", "灵墟", "步廊", "神藏", "期门"]);
+export const BREAST_REGION_POINTS = new Set(["乳中", "乳根", "膺窗", "屋翳", "库房", "气户", "天池", "天溪", "食窦", "胸乡", "周荣", "膻中", "神封", "灵墟", "步廊", "神藏", "期门"]);
 /** 卡片文字里点到上面这些穴的句子去掉（「乳根、膻中向肿块方向斜刺」）。 */
 function withoutBreastRegionPointSentences(text: string): string {
   const sentences = text.split(/(?<=[。；;])/u);

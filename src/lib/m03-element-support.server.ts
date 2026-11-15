@@ -2,9 +2,13 @@ import "server-only";
 
 import lexiconJson from "../data/tcm-deficiency-element-lexicon.source.json" with { type: "json" };
 import { rationaleMentionsFinding } from "./m03-rationale-coverage.server";
-import { diagnosticsCriteriaFor, primaryManifestationTerms, verifySecondaryByCriteria, withoutClauses, type CriteriaVerdict } from "./m03-secondary-syndrome-consistency.server";
+import { GROUP_CHECK_FIT_CEILING, applySecondaryConsistencyDecision, diagnosticsCriteriaFor, primaryManifestationTerms, secondaryStructurallyInvalid, textbookPatternFit, verifySecondaryByCriteria, withoutClauses, type CriteriaVerdict } from "./m03-secondary-syndrome-consistency.server";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { compositeSyndromeRename } from "./delivered-surface";
+import { EXCESS_ELEMENTS, excessElement, excessElementMentionsIn, methodImpliedExcessElements, namedExcessElements, natureListsElement, rationaleConclusionClauses, withMethodImpliedNatureElements, withoutDanglingConclusionLeads, type ExcessElementId } from "./analysis-element-closure";
+import { textbookAnchorableMethod } from "./tcm-formula-provenance";
+import { activeBleedingInGroundingText } from "./diagnosis-safety";
+import { resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
 
 /**
  * 证素核对（2026-10-22 第十五轮）。
@@ -234,7 +238,104 @@ export function elementCheckUnits(root: Json, alsoNamed: readonly string[] = [])
 }
 
 /** confidence：够数时节点证据的置信；脏腑条目不够数、该类总条目够数时为「低」（证素成立，脏腑归属是推断）。 */
-export type ElementDecision = { verdicts: Array<{ unit: ElementUnit; verdict: CriteriaVerdict; confidence?: "中" | "低" }> };
+export type ElementDecision = {
+  verdicts: Array<{ unit: ElementUnit; verdict: CriteriaVerdict; confidence?: "中" | "低" }>;
+  /** 实邪证素（第四十六轮）：name = 证名带上（立兼证，交付面再判国标合称）；label = 证据标为辨证要点；withdraw = 从分析里撤下；none = 不动。 */
+  excess?: Array<{ unit: ExcessUnit; verdict: CriteriaVerdict; action: ExcessAction }>;
+};
+
+// ───── 实邪证素（2026-11-15 第四十六轮） ─────
+//
+// 分析里立了一个实邪（病性栏列着、结论句里写着、或病机链一节在治它），证名与教材本证治法都没有它（交付面按治法补病性栏、
+// 判合称那一半见 analysis-element-closure）：按《中医诊断学》该证素条目核对，与兼证同一判据（verifySecondaryByCriteria，主证教材证型自己的表现不算）。
+//  · 按辨证要点成组（strict），且过兼证的闸门（教材吻合度、结构判据、没有已立的兼证、不是活动性出血时的血瘀）：证名带上——立为兼证，治法补一项；
+//    交付面若有国标合称（脾虚证 + 湿 → 脾虚湿困证）再并成一个证名。
+//  · 只按证候表现宽路径够数：证据标为该条辨证要点，证名不动（与虚性证素同一档）。
+//  · 不够数：从病性栏、病机链、总治法、辨证依据与总体病机里撤下，待核实写「是否兼X」。
+// 甲方 11.05 两次点名「分析为脾虚湿蕴，证名只写脾虚证」；逐字复核 C008（气虚邪陷证，分析写湿热内蕴）、n36（痰气互结证，依据「故证属痰气互结兼瘀」）。
+// 热、寒、气滞不在其内（见受治理表的说明）。
+export type ExcessAction = "name" | "label" | "withdraw" | "none";
+export type ExcessUnit = { id: ExcessElementId; label: string; entryName: string; secondaryName?: string; methodItem: string };
+
+/** 要核对的实邪证素（纯函数，供测试）：分析里立了、证名与教材本证治法都没有。至多一个。活动性出血时不核血瘀。 */
+export function excessElementUnits(root: Json, alsoNamed: readonly string[] = [], recordText = ""): ExcessUnit[] {
+  const overview = record(root.overview);
+  const pathogenesis = record(root.pathogenesis);
+  if (!overview || !pathogenesis) return [];
+  const named = namedExcessElements([...namedSyndromes(root), ...alsoNamed]);
+  const row = textbookRowForSyndrome(text(overview.tcmDiseaseName), text(overview.primarySyndrome));
+  // 病历对主证教材证型吻合得好（教材式病历照着主证写，甲方标准病历 0.20–0.50）：主证已解释主要表现，分析里多写的实邪多半是主证自己的表现，
+  // 不立兼证也不撤（与兼证第二条路同一闸门 GROUP_CHECK_FIT_CEILING；第四十六轮回放甲方标准病历 8「肝经郁热证」病性栏写湿热）。
+  if (row && recordText) {
+    const fit = textbookPatternFit(row, recordText);
+    if (fit !== undefined && fit >= GROUP_CHECK_FIT_CEILING) return [];
+  }
+  const rowImplied = methodImpliedExcessElements(row ? textbookAnchorableMethod(row.therapy) : "");
+  // 水湿同源：教材本证在利水（水肿·脾阳虚衰证「健脾温阳利水」）时分析里的「水湿」不另核湿，反过来也一样。
+  if (rowImplied.has("water")) rowImplied.add("damp");
+  if (rowImplied.has("damp")) rowImplied.add("water");
+  const nature = record(pathogenesis.natureDifferentiation);
+  const conclusion = excessElementMentionsIn(rationaleConclusionClauses(text(overview.tcmDiagnosticRationale)).join("。"));
+  const actedOn = new Set<ExcessElementId>();
+  for (const node of records(pathogenesis.chain)) {
+    const treated = methodImpliedExcessElements(text(node.therapyDirection));
+    for (const id of excessElementMentionsIn(text(node.pathogenesis))) if (treated.has(id)) actedOn.add(id);
+  }
+  let analysis = [...records(pathogenesis.chain).map((node) => text(node.pathogenesis)), text(overview.overallPathogenesis), text(overview.tcmDiagnosticRationale),
+    ...["items", "rootDeficiency", "branchExcess"].flatMap((key) => Array.isArray(nature?.[key]) ? (nature![key] as unknown[]).map(text) : [])].join("。");
+  // 「痰湿」是一个病理产物：证名里有痰或有湿时它就已在证名里，不另拆出湿或痰来核（痰气互结证、湿盛困脾证下的痰湿，第四十六轮回放 n36、C085）。
+  const coveredCompound = named.has("phlegm") || named.has("damp");
+  if (coveredCompound) analysis = analysis.split("痰湿").join("");
+  const mentionedIn = (value: string) => excessElementMentionsIn(coveredCompound ? value.split("痰湿").join("") : value);
+  const natureLists = (id: ExcessElementId) => natureListsElement(coveredCompound
+    ? { items: ["items", "rootDeficiency", "branchExcess"].flatMap((key) => Array.isArray(nature?.[key]) ? (nature![key] as unknown[]).map(text).filter((item) => item !== "痰湿") : []) }
+    : nature, id);
+  const conclusionMentions = coveredCompound ? mentionedIn(rationaleConclusionClauses(text(overview.tcmDiagnosticRationale)).join("。")) : conclusion;
+  const bleeding = recordText ? activeBleedingInGroundingText(recordText) : false;
+  const candidates: Array<{ unit: ExcessUnit; weight: number }> = [];
+  for (const element of EXCESS_ELEMENTS) {
+    if (named.has(element.id) || rowImplied.has(element.id)) continue;
+    if (element.id === "stasis" && bleeding) continue;
+    if (!mentionedIn(analysis).has(element.id)) continue;
+    // 分析立住它的程度：病性栏列着、结论句写着、病机链一节在治它，至少一处。
+    const weight = Number(natureLists(element.id)) + Number(conclusionMentions.has(element.id)) + Number(actedOn.has(element.id));
+    if (weight === 0) continue;
+    const compound = element.compound.find((item) => analysis.includes(item.mention));
+    const entryName = compound?.criteriaEntry || element.criteriaEntry;
+    const secondaryName = (compound?.secondaryNames || element.secondaryNames).find((name) => resolveNationalStandardTcmSyndromeTerm(name));
+    // 待核实与病性栏用分析自己的写法（湿热、痰湿），不只写一个「湿」（第四十六轮重跑 C065：分析写湿热，待核实成了「是否兼湿」）。
+    candidates.push({ unit: { id: element.id, label: compound?.mention || element.label, entryName, ...(secondaryName ? { secondaryName } : {}), methodItem: compound?.methodItem || element.methodItem }, weight });
+  }
+  // 湿与水停同时立住时只核湿（同源）；同一条目只核一次；分析立得最实的那一个先核，至多一个。
+  const filtered = candidates.filter((item) => !(item.unit.id === "water" && candidates.some((other) => other.unit.id === "damp")))
+    .filter((item, index, list) => list.findIndex((other) => other.unit.entryName === item.unit.entryName) === index)
+    .sort((left, right) => right.weight - left.weight);
+  return filtered.slice(0, 1).map((item) => item.unit);
+}
+
+/** 一条实邪证素的处置（纯函数，供测试）。gate：立兼证的闸门是否都过（见 excessNameGate）。 */
+export function excessElementAction(verdict: CriteriaVerdict, gate: boolean): ExcessAction {
+  if (verdict.verdict === "unknown") return "none";
+  if (verdict.verdict === "fail") return "withdraw";
+  return verdict.strict && gate ? "name" : "label";
+}
+
+/**
+ * 立兼证的闸门（与第二条路找组同一组判据）：兼证名是国标证名；主证对上教材证型时病历对它的吻合度低于 GROUP_CHECK_FIT_CEILING
+ *（教材式病历照着主证写，甲方标准病历 0.20–0.50）；兼证与主证结构上成立（寒热不相反、不被主证包含、依据没说它不独立、不是同病并列的另一型）。
+ */
+export function excessNameGate(root: Json, unit: ExcessUnit, recordText: string): boolean {
+  const overview = record(root.overview);
+  if (!overview || !unit.secondaryName) return false;
+  const secondary = Array.isArray(overview.secondarySyndromes) ? overview.secondarySyndromes.filter((item) => text(item)) : [];
+  if (secondary.length > 0) return false;
+  const disease = text(overview.tcmDiseaseName);
+  const primary = text(overview.primarySyndrome);
+  const row = textbookRowForSyndrome(disease, primary);
+  const fit = row ? textbookPatternFit(row, recordText) : undefined;
+  if (fit !== undefined && fit >= GROUP_CHECK_FIT_CEILING) return false;
+  return !secondaryStructurallyInvalid(primary, unit.secondaryName, `${text(overview.tcmDiagnosticRationale)}${text(overview.overallPathogenesis)}`, disease);
+}
 
 /**
  * 一个类别的判定：先按脏腑条目核；证名里完全没有这一类证素、脏腑条目又不够数时，再按该类总条目核（两次并行）。
@@ -264,13 +365,22 @@ export async function decideElementSupport(
   // 交付面会把教材单证换成国标合称（心血不足证 + 病位心、脾 → 心脾两虚证，delivered-surface compositeSyndromeRename）：按换成之后的证名判涵盖。
   // 此前按换名前的证名核，「心气亏虚则鼓动无力而心悸气短」被当作名外证素撤下，交付时证名已是心脾两虚证，总体病机只剩「劳则更甚；…」
   //（第四十四轮，甲方 11/12 复测「心悸、气短、乏力3月」）。
-  const renamed = compositeSyndromeRename(structuredClone(root), context.recordText);
+  // 交付面先按治法补齐病性栏的实邪、再判合称（第四十六轮，analysis-element-closure），这里同一顺序。
+  const lookahead = structuredClone(root);
+  withMethodImpliedNatureElements(lookahead, context.recordText);
+  const renamed = compositeSyndromeRename(lookahead, context.recordText);
   const alsoNamed = renamed ? [renamed.to] : [];
   const units = elementCheckUnits(root, alsoNamed);
-  if (units.length === 0) return undefined;
+  const excessUnits = excessElementUnits(root, alsoNamed, context.recordText);
+  if (units.length === 0 && excessUnits.length === 0) return undefined;
   const primaryTerms = primaryManifestationTerms(textbookRowForSyndrome(text(overview.tcmDiseaseName), text(overview.primarySyndrome)));
   const entailment = entailedDeficiencies([...namedSyndromes(root), ...alsoNamed]);
   const verify = (entryName: string) => verifySecondaryByCriteria(entryName, { recordText: context.recordText, primaryTerms, breadth: true }, signal);
+  // 实邪证素与虚性证素的核对并行（各一次小任务）。
+  const excessPromise = Promise.all(excessUnits.map(async (unit) => {
+    const verdict = await verify(unit.entryName);
+    return { unit, verdict, action: excessElementAction(verdict, excessNameGate(root!, unit, context.recordText)) };
+  }));
   const results = await Promise.all(units.map(async (unit) => {
     const genericEntry = LEXICON.types[unit.type].genericEntry;
     const withGeneric = unit.entryName !== genericEntry && !entailment.has(unit.type);
@@ -278,10 +388,18 @@ export async function decideElementSupport(
     return { unit, ...combinedElementVerdict(organ, generic), organ, generic };
   }));
   const describe = (item: CriteriaVerdict) => `${item.entry || "?"}:${item.verdict}:${item.specific}/${item.category}/${item.distinct}`;
-  console.info("[tcm-cdss:telemetry] m03_element_support", {
-    units: results.map((item) => `${item.unit.type}/${item.unit.organs.join("") || "-"}→${describe(item.organ)}${item.generic ? `|${describe(item.generic)}` : ""}`),
-  });
-  return { verdicts: results.map(({ unit, verdict, confidence }) => ({ unit, verdict, ...(confidence ? { confidence } : {}) })) };
+  if (results.length > 0) {
+    console.info("[tcm-cdss:telemetry] m03_element_support", {
+      units: results.map((item) => `${item.unit.type}/${item.unit.organs.join("") || "-"}→${describe(item.organ)}${item.generic ? `|${describe(item.generic)}` : ""}`),
+    });
+  }
+  const excess = await excessPromise;
+  if (excess.length > 0) {
+    console.info("[tcm-cdss:telemetry] m03_excess_element_support", {
+      units: excess.map((item) => `${item.unit.label}→${describe(item.verdict)}${item.verdict.strict ? ":strict" : ""}:${item.action}`),
+    });
+  }
+  return { verdicts: results.map(({ unit, verdict, confidence }) => ({ unit, verdict, ...(confidence ? { confidence } : {}) })), ...(excess.length > 0 ? { excess } : {}) };
 }
 
 const SWEAT_DISCRIMINATOR = /无汗|自汗/u;
@@ -306,8 +424,16 @@ const THERAPY_PATTERNS = new Map<DeficiencyType, RegExp>(ALL_TYPES.map((type) =>
   return [type, new RegExp(alternatives.join("|"), "u")];
 }));
 
-function therapyItemTargets(item: string, failed: ReadonlySet<DeficiencyType>): boolean {
-  return [...failed].some((type) => THERAPY_PATTERNS.get(type)!.test(item));
+function therapyItemTargets(item: string, failed: ReadonlySet<DeficiencyType>, entailment?: Entailment): boolean {
+  return [...failed].some((type) => {
+    if (!THERAPY_PATTERNS.get(type)!.test(item)) return false;
+    // 治法项写明了脏腑、而这个脏腑的这一类虚证名本身就有（脾气虚证下的「健脾益气」）：它在治主证，不是只为名外那一处证素写的
+    //（第四十六轮重跑 new45-n37：肺气虚未成组被撤时，「健脾益气」也因含「益气」被去掉，脾虚湿困证的治法只剩化湿通窍）。
+    const covered = entailment?.get(type);
+    const organs = [...new Set([...item].flatMap((char) => LEXICON.organs[char] ? [LEXICON.organs[char]] : []))];
+    if (covered && organs.length > 0 && (covered === "any" || organs.every((organ) => covered.has(organ)))) return false;
+    return true;
+  });
 }
 
 const ATTRIBUTION_CHAR = /[为属乃系皆均示由因]/u;
@@ -318,10 +444,13 @@ const ATTRIBUTION_WORD = /支持|说明/u;
  * 前半本身写了这一证素、不足四个字，或没有归属词（「脾运不健则化源不足」）时返回 undefined。
  */
 export function findingsBeforeAttribution(clause: string, failed: ReadonlySet<DeficiencyType>, entailment: Entailment): string | undefined {
+  return findingsBeforeAttributionBy(clause, (value) => hasFailedMention(value, failed, entailment));
+}
+function findingsBeforeAttributionBy(clause: string, mentioned: (value: string) => boolean): string | undefined {
   const hits = [clause.search(ATTRIBUTION_CHAR), clause.search(ATTRIBUTION_WORD)].filter((index) => index > 0);
   if (hits.length === 0) return undefined;
   const prefix = clause.slice(0, Math.min(...hits)).replace(/[进一步亦也则故而提，,、\s]+$/u, "").trim();
-  if (prefix.replace(/[、，,\s]/gu, "").length < 4 || hasFailedMention(prefix, failed, entailment)) return undefined;
+  if (prefix.replace(/[、，,\s]/gu, "").length < 4 || mentioned(prefix)) return undefined;
   // 前半是在下判断不是在列表现（「故病位涉脾胃、病性属脾气虚」，第三十三轮 A09 曾写出「病性，是否兼脾气虚尚待核实」）。
   if (RATIONALE_JUDGEMENT.test(prefix)) return undefined;
   return prefix;
@@ -331,7 +460,7 @@ export function findingsBeforeAttribution(clause: string, failed: ReadonlySet<De
  * 分句以归属词开头、且是这一句的最后一个分句时，前面紧挨、以逗号相连、带顿号的表现分句（自身没有归属词、没写这一证素）。
  * 后面还接着「故属…证」的不算：那串表现仍在为主证作证（「脉弦细、舌淡红苔薄白，示血虚而气机不畅，故属心虚胆怯证」）。
  */
-function findingsClauseBefore(value: string, clause: string, failed: ReadonlySet<DeficiencyType>, entailment: Entailment): string | undefined {
+function findingsClauseBefore(value: string, clause: string, mentioned: (value: string) => boolean): string | undefined {
   if (clause.search(ATTRIBUTION_CHAR) !== 0 && clause.search(ATTRIBUTION_WORD) !== 0) return undefined;
   const at = value.indexOf(clause);
   if (at <= 0 || !/[，,]\s*$/u.test(value.slice(0, at))) return undefined;
@@ -339,7 +468,7 @@ function findingsClauseBefore(value: string, clause: string, failed: ReadonlySet
   const before = value.slice(0, at).replace(/[，,]\s*$/u, "");
   const segment = before.slice(Math.max(...[...before.matchAll(/[，,。；;]/gu)].map((match) => (match.index ?? -1)), -1) + 1).trim();
   if (!segment.includes("、") || segment.replace(/[、\s]/gu, "").length < 4) return undefined;
-  if (ATTRIBUTION_CHAR.test(segment) || ATTRIBUTION_WORD.test(segment) || hasFailedMention(segment, failed, entailment)) return undefined;
+  if (ATTRIBUTION_CHAR.test(segment) || ATTRIBUTION_WORD.test(segment) || mentioned(segment)) return undefined;
   return segment;
 }
 
@@ -393,6 +522,119 @@ function uncertaintyFor(type: DeficiencyType, entryName: string, seen: readonly 
  * 把核对结果落到中医半上（纯函数，供测试）。在兼证核对之后调用：那一步补上的兼证若已涵盖某类，这一类不再撤。
  * 返回新的 JSON 文本；没有改动时原样返回。
  */
+/**
+ * 实邪证素的处置落到中医半上（纯函数、就地改，供测试）。在兼证核对之后调用：那一步已立了兼证时不再立第二个（证名带上改为只标证据）。
+ * 撤回与虚性证素同一套做法：病性栏去掉；病机链删写了它的分句与只为它写的治法项，删完不剩独立病机或治法的节点整条撤下（链上至少留一条）；
+ * 总治法去掉只为它写的项（教材主证治法里原有的不动）；辨证依据与总体病机删写了它的分句，前半是病历表现的留下、归到待核实；待核实写「是否兼X」。
+ */
+export function applyExcessElementDecisions(root: Json, excess: NonNullable<ElementDecision["excess"]>, primaryTextbookMethod = ""): boolean {
+  const overview = record(root.overview);
+  const pathogenesis = record(root.pathogenesis);
+  if (!overview || !pathogenesis) return false;
+  const textbookItems = new Set(clausesOf(primaryTextbookMethod).map(compact));
+  let changed = false;
+  for (const { unit, verdict, action } of excess) {
+    if (action === "none") continue;
+    const element = excessElement(unit.id);
+    const mentioned = (value: string) => excessElementMentionsIn(value).has(unit.id);
+    const chain = records(pathogenesis.chain);
+    const nature = record(pathogenesis.natureDifferentiation);
+    const secondary = Array.isArray(overview.secondarySyndromes) ? overview.secondarySyndromes.filter((item) => text(item)) : [];
+    const effective = action === "name" && (secondary.length > 0 || !unit.secondaryName) ? "label" : action;
+    if (effective === "name" || effective === "label") {
+      for (const node of chain) {
+        if (!mentioned(text(node.pathogenesis))) continue;
+        node.evidence = diagnosticsCriteriaEvidence(verdict.entry || unit.entryName, "中");
+        changed = true;
+      }
+    }
+    if (effective === "name") {
+      const treats = methodImpliedExcessElements(text(record(root.therapy)?.overallMethod)).has(unit.id);
+      applySecondaryConsistencyDecision(root, { decision: "add", secondarySyndrome: unit.secondaryName!, method: treats ? "" : unit.methodItem, evidence: verdict.quotes || [] });
+      if (nature && !natureListsElement(nature, unit.id)) {
+        nature.items = [...(Array.isArray(nature.items) ? nature.items : []), unit.label];
+        nature.branchExcess = [...(Array.isArray(nature.branchExcess) ? nature.branchExcess : []), unit.label];
+      }
+      changed = true;
+      continue;
+    }
+    if (effective !== "withdraw") continue;
+    const therapyTargets = (item: string) => element.methodWords.some((word) => item.includes(word)) && !textbookItems.has(compact(item));
+    // 病性栏：写到这一证素的条目去掉（items 至少留一条）。
+    if (nature) {
+      for (const key of ["items", "rootDeficiency", "branchExcess"] as const) {
+        if (!Array.isArray(nature[key])) continue;
+        const before = nature[key] as unknown[];
+        const after = before.filter((item) => !natureListsElement({ items: [item] }, unit.id));
+        if (after.length < before.length && (key !== "items" || after.length > 0)) { nature[key] = after; changed = true; }
+      }
+    }
+    // 病机链。
+    const keptNodes: Json[] = [];
+    chain.forEach((node, index) => {
+      const nodeText = text(node.pathogenesis);
+      if (!mentioned(nodeText)) { keptNodes.push(node); return; }
+      const remaining = clausesOf(nodeText).filter((clause) => !mentioned(clause));
+      const substantive = remaining.filter((clause) => !DEPENDENT_OPENERS.some((opener) => clause.startsWith(opener)) && compact(clause).length >= 4);
+      const keptTherapy = clausesOf(text(node.therapyDirection)).filter((item) => !therapyTargets(item));
+      const holdsDiscriminator = [node.patientFact, node.syndromeEvidence].some((value) => SWEAT_DISCRIMINATOR.test(text(value)));
+      const canDrop = (index > 0 || chain.length >= 2) && !holdsDiscriminator;
+      if (canDrop && (substantive.length === 0 || keptTherapy.length === 0)) { changed = true; return; }
+      if (substantive.length === 0 || keptTherapy.length === 0) { keptNodes.push(node); return; }
+      node.pathogenesis = remaining.join("，");
+      node.therapyDirection = keptTherapy.join("，");
+      keptNodes.push(node);
+      changed = true;
+    });
+    if (keptNodes.length > 0) pathogenesis.chain = keptNodes;
+    // 总治法。
+    const therapy = record(root.therapy);
+    const method = text(therapy?.overallMethod);
+    if (therapy && method) {
+      const items = clausesOf(method);
+      const kept = items.filter((item) => !therapyTargets(item));
+      if (kept.length > 0 && kept.length < items.length) { therapy.overallMethod = kept.join("，"); changed = true; }
+    }
+    // 辨证依据、总体病机。
+    const pendingItem = `是否兼${unit.label}`;
+    for (const [key, minimum] of [["tcmDiagnosticRationale", 20], ["overallPathogenesis", 10]] as const) {
+      const value = text(overview[key]);
+      if (!value) continue;
+      const candidates = key === "tcmDiagnosticRationale"
+        ? value.split(/[。；;]/u).flatMap((sentence) => (RATIONALE_LENS.test(sentence) ? [] : sentence.split(/[，,]/u)))
+        : value.split(/[，,。；;]/u);
+      const clauses = candidates.map((item) => item.trim()).filter((clause) => clause && mentioned(clause));
+      if (clauses.length === 0) continue;
+      const kept: string[] = [];
+      const removed = [...clauses];
+      if (key === "tcmDiagnosticRationale") {
+        for (const clause of clauses) {
+          const own = findingsBeforeAttributionBy(clause, mentioned);
+          if (own) { kept.push(own); continue; }
+          const orphan = findingsClauseBefore(value, clause, mentioned);
+          if (orphan) { kept.push(orphan); removed.push(orphan); }
+        }
+      }
+      let next = withoutDanglingConclusionLeads(withoutClauses(value, removed));
+      if (kept.length > 0) next = withPendingFindings(next, kept, pendingItem);
+      if (next.length >= minimum && next !== value) { overview[key] = next; changed = true; }
+    }
+    // 待核实。
+    const uncertainties = Array.isArray(pathogenesis.uncertainties) ? pathogenesis.uncertainties : [];
+    const shown = [...new Set((verdict.quotes || []).map((quote) => quote.trim()).filter((quote) => quote.length >= 2 && quote.length <= 10))].slice(0, 3);
+    const keyPoints = (diagnosticsCriteriaFor(unit.entryName)?.keyPointsText || "").replace(/(?:等)?为主要表现/u, "").replace(/[。；;，,\s]+$/u, "").replace(/[，,；;]/gu, "、");
+    const entry: Json = {
+      item: pendingItem,
+      reason: `${shown.length > 0 ? `本例虽见${shown.join("、")}，` : "本例"}未见${unit.label}${keyPoints ? `的辨证要点（${keyPoints}）` : "的表现"}成组出现`,
+      affects: `核实后再定是否兼顾${unit.methodItem}`,
+    };
+    if (!records(uncertainties).some((row) => text(row.item) === pendingItem)) uncertainties.unshift(entry);
+    pathogenesis.uncertainties = uncertainties;
+    changed = true;
+  }
+  return changed;
+}
+
 const COMPOSITE_DEFICIENCY_ENTRIES: ReadonlyArray<{ types: DeficiencyType[]; name: string }> = [
   { types: ["气虚", "血虚"], name: "气血两虚证" },
   { types: ["气虚", "阴虚"], name: "气阴两虚证" },
@@ -400,7 +642,7 @@ const COMPOSITE_DEFICIENCY_ENTRIES: ReadonlyArray<{ types: DeficiencyType[]; nam
 ];
 
 export function applyElementSupportDecision(tcmContent: string, decision: ElementDecision | undefined, primaryTextbookMethod?: string): string {
-  if (!decision || decision.verdicts.length === 0) return tcmContent;
+  if (!decision || (decision.verdicts.length === 0 && !decision.excess?.length)) return tcmContent;
   let root: Json | undefined;
   try { root = record(JSON.parse(tcmContent)); } catch { return tcmContent; }
   const overview = record(root?.overview);
@@ -413,6 +655,7 @@ export function applyElementSupportDecision(tcmContent: string, decision: Elemen
     (textbookRowForSyndrome(text(overview.tcmDiseaseName), text(overview.primarySyndrome))?.therapy || "");
   const textbookItems = new Set(clausesOf(textbookMethod).map(compact));
   let changed = false;
+  if (decision.excess?.length) changed = applyExcessElementDecisions(root, decision.excess, textbookMethod) || changed;
 
   const chain = records(pathogenesis.chain);
   // 够数的类别：写了它的节点证据标为该条辨证要点。
@@ -457,7 +700,7 @@ export function applyElementSupportDecision(tcmContent: string, decision: Elemen
     const remaining = clauses.filter((clause) => !hasFailedMention(clause, failed, entailment));
     const substantive = remaining.filter((clause) => !DEPENDENT_OPENERS.some((opener) => clause.startsWith(opener)) && compact(clause).length >= 4);
     const therapyItems = clausesOf(text(node.therapyDirection));
-    const keptTherapy = therapyItems.filter((item) => !therapyItemTargets(item, failed) || textbookItems.has(compact(item)));
+    const keptTherapy = therapyItems.filter((item) => !therapyItemTargets(item, failed, entailment) || textbookItems.has(compact(item)));
     const holdsDiscriminator = [node.patientFact, node.syndromeEvidence].some((value) => SWEAT_DISCRIMINATOR.test(text(value)));
     // 首节点也可以撤，只要链上还有别的节点：主证名里没有、病历又不够数的虚性证素写成了首节点（湿热壅盛证的首节点「脾肾阳虚气化失司…」，
     // 2026-10-22 实测 S-renal-009），它本来就不是主证那一条，撤下后下一条成为首节点（分治法「主要」随之）。只有一个节点时不撤。
@@ -485,7 +728,7 @@ export function applyElementSupportDecision(tcmContent: string, decision: Elemen
   const method = text(therapy?.overallMethod);
   if (therapy && method) {
     const items = clausesOf(method);
-    const kept = items.filter((item) => !therapyItemTargets(item, failed) || textbookItems.has(compact(item)));
+    const kept = items.filter((item) => !therapyItemTargets(item, failed, entailment) || textbookItems.has(compact(item)));
     const next = kept.join("，");
     const repeatsNode = deduplicated.length > 1 && deduplicated.some((node) => compact(text(node.therapyDirection)) === compact(next));
     if (kept.length > 0 && kept.length < items.length && !repeatsNode) { therapy.overallMethod = next; changed = true; }
@@ -532,7 +775,7 @@ export function applyElementSupportDecision(tcmContent: string, decision: Elemen
         const own = findingsBeforeAttribution(clause, failed, entailment);
         if (own) { kept.push(own); continue; }
         // 归属单独成一个分句（「遇劳加重、神疲乏力、精神不振，为气虚失养」）：前面紧挨的表现分句一并移进待核实一句，不留一串没有归属的表现。
-        const orphan = findingsClauseBefore(value, clause, failed, entailment);
+        const orphan = findingsClauseBefore(value, clause, (text_) => hasFailedMention(text_, failed, entailment));
         if (orphan) { kept.push(orphan); removed.push(orphan); }
       }
     }

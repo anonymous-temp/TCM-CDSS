@@ -73,7 +73,8 @@ await check("1.2 病性写寒、依据栏只摘了舌象：病历另有四肢欠
   assert.match(full.basis, /四肢欠温|喜温喜按/u);
   const sparse = unwrap(summary.applyM03AdvisoryQualityBoundaries(wrap(diagnose({ natureDifferentiation: nature, locationDifferentiation: { items: [], details: [], resolution: "unresolved" } })), "主诉：夜间啼哭2周\n舌象：舌质淡，苔薄白")).pathogenesis.natureDifferentiation;
   assert.equal(sparse.resolution, "bounded");
-  assert.match(sparse.resolutionReason, /^寒热属性目前只见于「舌质淡」/u);
+  // 第四十六轮：说明写还缺哪几项、已见的放括号（test:r1063-analysis 3.5），不写「目前只见于」。
+  assert.match(sparse.resolutionReason, /^寒热尚需结合.*判断（已见舌质淡）$/u);
   assert.doesNotMatch(sparse.resolutionReason, /少于两个方面|只有一个方面|依据有\d条/u);
   assert.equal(sparse.evidence.confidence, "中");
 });

@@ -1056,9 +1056,20 @@ export function syndromeHasHeatNature(signedSyndromeText: string): boolean {
   const withoutMixed = text.replace(/寒热错杂|上热下寒|上寒下热|寒热往来|命门火衰|火衰/gu, "");
   return HEAT_NATURE_TERMS.some((term) => withoutMixed.includes(term));
 }
-/** 已签名证候不宜用灸（阴虚、实热、湿热、暑、火）：卡片里说灸的句子去掉，整张灸法卡也不出（见 tcm-treatment-capabilities）。 */
-export function moxibustionUnsuitableForSyndrome(signedSyndromeText: string, signedMethodText = ""): boolean {
+/**
+ * 已签名的病性（pathogenesis.natureDifferentiation.items）是阴虚、虚热或热（第四十六轮逐字复核：证名「肾精亏损证」不带寒热字、治法也不带滋阴，
+ * 病性却列着「阴虚、虚热内扰」，舌红少苔、五心烦热，针刺卡仍写「太溪、肾俞可加温灸」）。病性里同时有阳虚、寒、火衰的（阴阳两虚、寒热错杂）弃权。
+ */
+export function natureItemsForbidMoxibustion(signedNatureItems: readonly unknown[]): boolean {
+  const text = signedNatureItems.filter((item): item is string => typeof item === "string").join("；");
+  if (!text.trim() || /阳虚|阳衰|虚寒|寒|火衰|气虚不固/u.test(text)) return false;
+  return syndromeHasHeatNature(text) || /阴虚|阴亏|虚热|虚火/u.test(text);
+}
+
+/** 已签名证候不宜用灸（阴虚、实热、湿热、暑、火）：卡片里说灸的句子去掉，整张灸法卡也不出（见 tcm-treatment-capabilities）。病性栏同样算（natureItemsForbidMoxibustion）。 */
+export function moxibustionUnsuitableForSyndrome(signedSyndromeText: string, signedMethodText = "", signedNatureItems: readonly unknown[] = []): boolean {
   if (syndromeHasHeatNature(String(signedSyndromeText || ""))) return true;
+  if (natureItemsForbidMoxibustion(signedNatureItems)) return true;
   // 教材按类型命名、证名里不带寒热字的证（淋证的「石淋」「热淋」、痹证的「行痹」）：看已签名的治法。治法是纯清热、泻火、滋阴、凉血、
   // 清利而不带温、散寒、助阳的，同样不宜灸（2026-10-18：留出例 S067 证名「石淋」、治法清热利湿，仍拿到整张灸法卡）。
   const method = String(signedMethodText || "");
@@ -1185,6 +1196,7 @@ export function cardSentencesMatchedToSyndrome(
   signedSyndromeText: string,
   course?: "acute" | "chronic",
   signedMethodText = "",
+  signedNatureItems: readonly unknown[] = [],
 ): string {
   const syndrome = String(signedSyndromeText || "");
   if (!rawText || !syndrome.trim()) return rawText;
@@ -1195,7 +1207,7 @@ export function cardSentencesMatchedToSyndrome(
   const diseases = diseaseNames.map((name) => name.trim()).filter((name) => name.length >= 2);
   // 证名不带寒热字、治法是滋阴降火一类的（肾精亏损证、治法「补肾填精，滋阴降火」）同样不说加灸：与整张灸法卡不出同一判据
   //（moxibustionUnsuitableForSyndrome；第四十一轮 r1054 回顾 11.05 病历4：针刺卡写「太溪、肾俞可加温灸」）。
-  const noMoxibustion = syndromeHasHeatNature(syndrome) || moxibustionUnsuitableForSyndrome(syndrome, signedMethodText);
+  const noMoxibustion = syndromeHasHeatNature(syndrome) || moxibustionUnsuitableForSyndrome(syndrome, signedMethodText, signedNatureItems);
   namesAcupoint("");
   // 「灸」只认施灸的说法：书名、出处括注里的「灸」（《刺法灸法学》）和「针灸」一词不算。施灸的小句只去那一小句
   //（「留针15分钟，灸5分钟。」→「留针15分钟。」）。此前整句判、句句都带出处里的「灸」，全删光后整段原样退回（2026-10-18 留出例 S002）。
@@ -1812,7 +1824,10 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
 
   // 主穴按部位分组的病（痹病、头痛、痿证）：只取本例不适部位那几组；对不上部位时痹病只留阿是穴，头痛、痿证保持全部主穴。
   const regionalScheme = code === "acupuncture" ? REGIONAL_MAIN_POINT_GROUPS[base.entry.disease] : undefined;
-  const matchedRegions = regionalScheme ? matchedRegionalGroups(regionalScheme, input.currentFacts) : [];
+  // 主诉自己点了部位时只按主诉取（第四十六轮逐字复核 new45 n35：左足跟痛 4 月，伴「腰膝酸软」，取到了膝部与腰部的穴；
+  // 肝肾不足的腰膝酸软是全身见证，不是痹痛的部位）。主诉没有点部位时按全部现症取，与此前相同。
+  const complaintRegions = regionalScheme && input.chiefComplaint ? matchedRegionalGroups(regionalScheme, input.chiefComplaint) : [];
+  const matchedRegions = regionalScheme ? (complaintRegions.length > 0 ? complaintRegions : matchedRegionalGroups(regionalScheme, input.currentFacts)) : [];
   const regionalBase = regionalScheme && (matchedRegions.length > 0 || regionalScheme.unmatched === "local_only")
     ? (() => {
         const grouped = new Set(regionalScheme.groups.flatMap((group) => group.points));

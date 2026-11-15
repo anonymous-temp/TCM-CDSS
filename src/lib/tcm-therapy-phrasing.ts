@@ -315,6 +315,9 @@ export function withoutRedundantTherapyPhrases(method: string): string {
     (left.slice(1) === right.slice(1) || (left.slice(2) === right.slice(2) && TONIFYING_HEAD.test(left.slice(0, 2)) && TONIFYING_HEAD.test(right.slice(0, 2))));
   const drop = phrases.map((phrase, index) => {
     if (phrases.some((other, at) => at < index && nearSynonym(other.trim(), phrase.trim()))) return true;
+    // 第四十六轮复核 G 项：同一件事换了个说法又写一遍（n07「化痰祛湿，健脾和胃，燥湿化痰」、C017「利湿退黄，利胆退黄」、
+    // n17「益气止血固脱，升提固脱」）。见 laterItemRepeatsEarlier。
+    if (laterItemRepeatsEarlier(phrases.map((item) => item.trim()), index)) return true;
     const own = sets[index];
     // 两字项整个出现在另一项里（「益气，益气扶正」）。
     if (own.size === 2 && phrases.some((other, at) => at !== index && other.trim().length > phrase.trim().length && other.includes(phrase.trim()))) return true;
@@ -330,6 +333,38 @@ export function withoutRedundantTherapyPhrases(method: string): string {
     kept.push(phrase);
   });
   return mergedSameHeadTherapyPhrases(kept.join("").replace(/^[，,、；;]+/u, ""));
+}
+
+/**
+ * 后一项四字治法是不是把前面已有的事换个说法又写一遍（2026-11-15 第四十六轮，逐字复核 G 项「治法冗杂」）。三种：
+ *  · 两节都已在前面说过，祛除类动词（化、祛、燥、除、渗、利、涤、豁、消、散、泻、降、清、泄、逐）作用于同一病邪算一节：
+ *    「化痰祛湿」之后的「燥湿化痰」、「燥湿健脾」之后的「健脾化湿」；
+ *  · 收在同一个结局上（退黄、固脱、止痛…），前一项更长（教材六字项「益气止血固脱」之后的「升提固脱」），或两项开头同一个动词
+ *    （「利湿退黄」之后的「利胆退黄」）；
+ * 只去后一项（教材治法在前，后面是补写的）。开头动词不同、结局相同的（行气止痛、温中止痛）是两种治法，不算。
+ */
+const REMOVAL_VERB_CHARACTER = /^[化祛燥除渗利涤豁消散泻降清泄逐]$/u;
+const REMOVAL_OBJECT_CHARACTER = /^[湿痰瘀寒热火毒浊]$/u;
+const OUTCOME_TAIL = /^(?:退黄|固脱|救逆|排石|通淋)$/u;
+function normalizedTherapyUnit(unit: string): string {
+  return unit.length === 2 && REMOVAL_VERB_CHARACTER.test(unit[0]) && REMOVAL_OBJECT_CHARACTER.test(unit[1]) ? `*${unit[1] === "火" ? "热" : unit[1]}` : unit;
+}
+function therapyUnits(phrase: string): string[] {
+  return /^[一-鿿]+$/u.test(phrase) && phrase.length % 2 === 0 ? (phrase.match(/[一-鿿]{2}/gu) || []).map(normalizedTherapyUnit) : [];
+}
+export function laterItemRepeatsEarlier(phrases: readonly string[], index: number): boolean {
+  const phrase = phrases[index] || "";
+  if (phrase.length !== 4 || !/^[一-鿿]{4}$/u.test(phrase)) return false;
+  const earlier = phrases.slice(0, index).filter(Boolean);
+  if (earlier.length === 0) return false;
+  const own = therapyUnits(phrase);
+  const prior = new Set(earlier.flatMap(therapyUnits));
+  if (own.length === 2 && own.every((unit) => prior.has(unit))) return true;
+  // 教材六字项的后两字又作下一项的开头（「健脾温阳利水，利水消肿」）：同一个利水写了两遍（四字项接四字项由交付面并成一项，clinicalMethodItems）。
+  if (earlier.some((other) => other.length >= 6 && other.endsWith(phrase.slice(0, 2)))) return true;
+  const tail = phrase.slice(2);
+  if (OUTCOME_TAIL.test(tail)) return earlier.some((other) => other !== phrase && other.endsWith(tail) && (other.length >= 6 || (other.length === 4 && other[0] === phrase[0])));
+  return PURPOSE_TAIL.test(tail) && earlier.some((other) => other.length >= 6 && other.endsWith(tail));
 }
 
 /**

@@ -220,7 +220,8 @@ for (const [source, expected] of [
     // 出处写原书（方剂目录里有的按目录），不写教材。
     assert.match(named.formulaSource.source, /^龙胆泻肝汤：《[^》]+》/);
     assert.doesNotMatch(named.formulaSource.source, /中医外科学/, "目录收了的方，出处是原书");
-    assert.equal(named.formulaAnalysis, "本方用龙胆泻肝汤原方。龙胆为君。");
+    // 第四十六轮改口径：「原方」只核了药味，原方写明而本方没照用的炮制如实写（《医方集解》龙胆泻肝汤黄芩炒，见 originalFormulaDeliveryNotes）。
+    assert.equal(named.formulaAnalysis, "本方药味同龙胆泻肝汤原方（原方黄芩炒用，本方未照用）。龙胆为君。");
     const unrelated = structuredClone(combined);
     unrelated.formula.candidates[0].herbs = ["党参", "白术", "茯苓", "甘草"].map((name) => ({ name, dose: "6g" }));
     assert.equal(projectDeliveredReasoning(unrelated).formula.candidates[0].name, "自拟方", "组成不是该方时不改名");

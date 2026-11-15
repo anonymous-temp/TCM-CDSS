@@ -597,6 +597,367 @@
     }
    ],
    "trigger": "2026-11-02 第三十四轮生产评审病历 1：加减行写苍耳子「清热解毒，通鼻窍」，评审判功效写错；知识库功用文本首句是「清热解毒」，教材为散风湿、通鼻窍，药性温。"
+  },
+  "仙茅": {
+   "aliases": [],
+   "unsupported": [
+    "补气",
+    "理气活血",
+    "清热解毒",
+    "凉血散瘀"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158589,
+     "text": "【功效】 补肾阳，强筋骨，祛寒湿。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158588,
+     "text": "【药性】 辛，热；有毒。归肾、肝、脾经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "白果": {
+   "aliases": [],
+   "unsupported": [
+    "清热解毒"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 157727,
+     "text": "【功效】 敛肺定喘，收涩止带，缩尿。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 157726,
+     "text": "【药性】 甘、苦、涩，平；有毒。归肺、肾经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "白薇": {
+   "aliases": [],
+   "unsupported": [
+    "滋阴补肾",
+    "健脾益气"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 154513,
+     "text": "【功效】 清热凉血，利尿通淋，解毒疗疮。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 154512,
+     "text": "【药性】 苦、咸，寒。归胃、肝、肾经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "女贞子": {
+   "aliases": [],
+   "unsupported": [
+    "补气"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 159085,
+     "text": "【功效】 滋补肝肾，明目乌发。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 159084,
+     "text": "【药性】 甘、苦，凉。归肝、肾经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "千金子": {
+   "aliases": [],
+   "unsupported": [
+    "清热解毒",
+    "清热凉血"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 154784,
+     "text": "【功效】 泻下逐水，破血消癥；外用疗癣蚀疣。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 154783,
+     "text": "【药性】 辛，温；有毒。归肝、肾、大肠经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "土荆皮": {
+   "aliases": [],
+   "unsupported": [
+    "清热解毒"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 159624,
+     "text": "【功效】 杀虫，疗癣，止痒。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 159623,
+     "text": "【药性】 辛，温；有毒。归肺、脾经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "狗脊": {
+   "aliases": [],
+   "unsupported": [
+    "清热解毒"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 155220,
+     "text": "【功效】 祛风湿，补肝肾，强腰膝。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 155219,
+     "text": "【药性】 苦、甘，温。归肝、肾经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "狼毒": {
+   "aliases": [],
+   "unsupported": [
+    "清热解毒"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 154730,
+     "text": "毒；归肺、脾、肝经。功能泻水逐饮，破积杀虫。适"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "硫黄": {
+   "aliases": [],
+   "unsupported": [
+    "凉血解毒"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 159576,
+     "text": "【功效】 外用解毒疗疮、杀虫止痒；内服补火助阳通便。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 159575,
+     "text": "【药性】 酸，温；有毒。归肾、大肠经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "红粉": {
+   "aliases": [],
+   "unsupported": [
+    "清热"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 159707,
+     "text": "【功效】 拔毒，除脓，去腐，生肌。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 159706,
+     "text": "【药性】 辛，热；有大毒。归肺、脾经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "芫花": {
+   "aliases": [],
+   "unsupported": [
+    "清热泻火"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 154718,
+     "text": "【功效】 泻水逐饮，祛痰止咳；外用杀虫疗疮。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 154717,
+     "text": "【药性】 苦、辛，温；有毒。归肺、脾、肾经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "椿皮": {
+   "aliases": [],
+   "unsupported": [
+    "发表散寒"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 159462,
+     "text": "【功效】 清热燥湿，收涩止带，止泻，止血。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 159461,
+     "text": "【药性】 苦、涩，寒。归大肠、胃、肝经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "虎杖": {
+   "aliases": [],
+   "unsupported": [
+    "发表散寒"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 155728,
+     "text": "【功效】 利湿退黄，清热解毒，散瘀止痛，化痰止咳。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 155727,
+     "text": "【药性】 苦，微寒。归肝、胆、肺经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "红大戟": {
+   "aliases": [],
+   "unsupported": [
+    "大补元气"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 154713,
+     "text": "毒；归肺、脾、肾经。功能泻水逐饮，消肿散结。适"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "茺蔚子": {
+   "aliases": [],
+   "unsupported": [
+    "补中益气"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 156952,
+     "text": "微寒；归心包、肝经。功能活血调经，清肝明目。适"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "锁阳": {
+   "aliases": [],
+   "unsupported": [
+    "补阴"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158660,
+     "text": "【功效】 补肾阳，益精血，润肠通便。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158659,
+     "text": "【药性】 甘，温。归肝、肾、大肠经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "红参": {
+   "aliases": [],
+   "unsupported": [
+    "活血散瘀",
+    "活血通经"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 158291,
+     "text": "归脾、肺、心、肾经。功能大补元气，复脉固脱，益气摄血，适用于体虚欲脱，肢冷脉微，气不摄血，崩漏下血。煎"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
+  },
+  "甘遂": {
+   "aliases": [],
+   "unsupported": [
+    "清热解毒",
+    "祛风清热"
+   ],
+   "evidence": [
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 154687,
+     "text": "【功效】 泻水逐饮，消肿散结。"
+    },
+    {
+     "source": "LOCAL-TEXTBOOK",
+     "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+     "line": 154686,
+     "text": "【药性】 苦，寒；有毒。归肺、肾、大肠经。"
+    }
+   ],
+   "trigger": "2026-11-15 第四十六轮：逐字复核把知识库功用文本里的错条当功效标签写出（白果「清热解毒」、白薇「滋阴补肾，健脾益气」、仙茅「补气」）；按《中药学》（十三五）功效与药性逐味核对知识库功用文本，方向与教材相反或教材不给的条目在此剔除（只剔方向相反的：性温热而称清热凉血、性寒而称发表散寒、非补益药而称补气补阴）。"
   }
  }
 }

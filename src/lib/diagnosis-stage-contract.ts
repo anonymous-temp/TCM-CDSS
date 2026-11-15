@@ -2653,6 +2653,9 @@ type M04ReasoningLike = {
 
 function normalizedModificationTrigger(value: string): string {
   return value
+    // 交付写法「本例已见X」（补写的加减、教材条件本例已有时）说的就是病历里的 X（第四十六轮：这个前缀让补写的现有表现加减认不出是病历表现，
+    // 按备用加减的严格方向核对被拦，new45-n07「胸闷：加瓜蒌」）。
+    .replace(/^本例已见/u, "")
     .replace(/^(?:患者|主诉|现病史|问诊补充|当前|目前)[：:\s]*/g, "")
     .replace(/[\s，,。；;：:、（）()【】\[\]“”"']/g, "")
     .trim();
@@ -4056,7 +4059,9 @@ export function m04GenerationSpecialPopulationIssue(
   if (!clinicalContext.trim()) return undefined;
   // 病历记录在孕（妊娠阳性）：药典 2020 标注孕妇慎用的饮片不作君药、臣药（2026-11-14 第四十五轮，用户定：甲方 100 例 C097 孕 12 周腰酸，
   // 牛膝、枳壳与川芎、延胡索作君臣行气活血）。佐使位的照常给并逐味标注；加减行不带君臣，不受这一条约束。修复轮把它换掉或降为佐使。
-  if (assessPregnancyState(clinicalContext).status === "positive") {
+  // 第四十六轮（总指挥定）扩到可疑妊娠（「不能排除妊娠」「可能怀孕」）：与剂量一致化 D4 可疑妊娠给剂量、医生确认才可采纳同一口径。
+  // 妊娠状态没有记录的育龄女性（pregnancy_unknown 档，第十七轮定）不在此列，那一档只避药典孕妇禁用药。
+  if (isPositiveOrPossibleClinicalState(assessPregnancyState(clinicalContext))) {
     for (const [herbIndex, herb] of herbs.entries()) {
       if (/君|臣/u.test(String(herb.role || "")) && chpPregnancyLabel(herb.name)?.level === "caution") return `herb_${herbIndex}_special_population_high_risk_pregnancy`;
     }
@@ -4147,6 +4152,17 @@ const HERB_GUIDING_DIRECTION = /(?:载|引)(?:药|血|火)?(?:上|下)行|引火
  * 君药与配伍面准入，见 test:herb-breadth-surface）。knowledgeText 由调用方给（交付面用知识库原文＋核对词典的展示文本）。
  */
 /** 这段文字是不是落在某个功效概念组里（交付面去掉无依据的词之后，判断剩下的半句还算不算一条功效）。 */
+/**
+ * 去掉无依据的方向词之后剩下的半句，知识文本里有没有依据（第四十六轮：白薇「健脾益气」去掉「益气」剩「健脾」照留，白薇并无健脾之功）：
+ * 知识文本里有这半句，或这半句所在的功效概念组在知识文本里也有。
+ */
+export function herbFunctionPhraseSupported(phrase: string, knowledgeText: string): boolean {
+  if (!phrase || !knowledgeText) return false;
+  if (knowledgeText.includes(phrase)) return true;
+  const groups = [...HERB_FUNCTION_CONCEPT_GROUPS, ...DISPLAY_DIRECTION_GROUPS].filter((group) => group.test(phrase));
+  return groups.length > 0 && groups.every((group) => (DISPLAY_DIRECTION_SUPPORT.get(group.source) || group).test(knowledgeText));
+}
+
 export function herbFunctionPhraseRecognized(phrase: string): boolean {
   return HERB_FUNCTION_CONCEPT_GROUPS.some((group) => group.test(phrase)) || DISPLAY_DIRECTION_GROUPS.some((group) => group.test(phrase));
 }
@@ -4184,6 +4200,11 @@ const DISPLAY_DIRECTION_GROUPS: readonly RegExp[] = [
   /燥湿/,
   /化痰|祛痰|消痰|涤痰|豁痰|除痰/,
   /化湿|祛湿|除湿|胜湿|利湿|渗湿/,
+  // 第四十六轮逐字复核：鹿角「助息虚风」（温肾阳、强筋骨、行血消肿，没有息风之功）、辛夷「疏散风热」（辛温，散风寒、通鼻窍）。
+  // 息风（内风）不同于祛风（外风）：知识库与核对词典要有息风、止痉、定惊、平肝潜阳一类才算。疏散风热是辛凉的说法：库里要有风热、辛凉、清热一类，
+  // 辛温解表药（库里是散风寒、发散风寒药）写成疏散风热就是把药性说反了。
+  /息(?:虚)?风|熄(?:虚)?风|定风/,
+  /疏散风热|散风热|辛凉解表|辛凉透表|疏风清热|祛风清热|宣散风热|疏风散热/,
 ];
 /** 上面几类的支持判据（按正则源文本取；没有的那一类就用它自己）。 */
 const DISPLAY_DIRECTION_SUPPORT: ReadonlyMap<string, RegExp> = new Map([
@@ -4192,6 +4213,8 @@ const DISPLAY_DIRECTION_SUPPORT: ReadonlyMap<string, RegExp> = new Map([
   ["润目", /润目|明目/],
   ["化痰|祛痰|消痰|涤痰|豁痰|除痰", /痰|饮/],
   ["化湿|祛湿|除湿|胜湿|利湿|渗湿", /湿|浊|利水|利尿|渗|水肿/],
+  ["息(?:虚)?风|熄(?:虚)?风|定风", /息风|熄风|止痉|定惊|镇惊|平肝|肝阳|潜阳|搐|定风/],
+  ["疏散风热|散风热|辛凉解表|辛凉透表|疏风清热|祛风清热|宣散风热|疏风散热", /风热|辛凉|清热|清肺|泻火|凉/],
 ]);
 
 export function herbFunctionClaimUnsupportedPhrases(claimedFunction: string, knowledgeText: string): string[] {

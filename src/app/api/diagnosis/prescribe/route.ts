@@ -12,7 +12,7 @@ import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-pa
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { pediatricDoseRuleGuidance, pediatricDoseRuleSummary, pediatricRestrictedHerbNames } from "@/lib/pediatric-dose-rule";
 import { chpPregnancyCautionHerbNames, chpPregnancyHerbTier, chpPregnancyProhibitedHerbNames, formulaBaseHerbsBarredInPregnancy } from "@/lib/conception-herb-policy.server";
-import { assessPregnancyState } from "@/lib/clinical-state";
+import { assessPregnancyState, isPositiveOrPossibleClinicalState } from "@/lib/clinical-state";
 import { formulaBaseHerbsBarredForCase } from "@/lib/formula-base-herbs-barred.server";
 import { activeBleedingM04Rule } from "@/lib/active-bleeding-treatment";
 import { herbRecordCautionPromptSection, textbookBaseIngredients } from "@/lib/herb-record-caution";
@@ -354,8 +354,10 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     promptSuffixes.push(`【妊娠状态未记录】本例为育龄女性，病历没有记录妊娠状态：照常给出剂量。不得使用《中国药典》2020年版孕妇禁用/忌用的饮片（${chpPregnancyProhibitedHerbNames().join("、")}）；孕妇慎用的饮片按辨证需要照用。${tierBarredLine}`);
   }
   // 病历记录在孕（第四十五轮，用户定）：药典孕妇慎用的饮片不作君药、臣药；需要时放在佐使位并逐味标注（合同与剔药同一判据）。
-  if (assessPregnancyState(structuredClinicalContext).status === "positive") {
-    promptSuffixes.push(`【在孕】病历记录患者在孕：《中国药典》2020年版孕妇禁用/忌用的饮片不用；孕妇慎用的饮片（${chpPregnancyCautionHerbNames().slice(0, 30).join("、")}等）不作君药、臣药，确需时只作佐使并少量；行气活血、攻下、滑利的药慎选，优先安胎护胎的配伍。`);
+  // 第四十六轮扩到可疑妊娠（与合同 m04GenerationSpecialPopulationIssue 同一判据 isPositiveOrPossibleClinicalState）。
+  const pregnancyStatus = assessPregnancyState(structuredClinicalContext);
+  if (isPositiveOrPossibleClinicalState(pregnancyStatus)) {
+    promptSuffixes.push(`【在孕】病历记录患者${pregnancyStatus.status === "positive" ? "在孕" : "可能妊娠（尚未排除）"}：《中国药典》2020年版孕妇禁用/忌用的饮片不用；孕妇慎用的饮片（${chpPregnancyCautionHerbNames().slice(0, 30).join("、")}等）不作君药、臣药，确需时只作佐使并少量；行气活血、攻下、滑利的药慎选，优先安胎护胎的配伍。`);
   }
   if (pregnancyHerbTier === "conception") {
     promptSuffixes.push(`【备孕/未避孕】本例记录了备孕或未避孕，未见妊娠、哺乳记录：照常给出剂量。不得使用《中国药典》2020年版孕妇禁用/忌用的饮片（${chpPregnancyProhibitedHerbNames().join("、")}）；孕妇慎用的饮片（如桃仁、红花、牛膝、附子、肉桂、大黄、枳实）非必需不用，用则在注意事项写明使用前确认未妊娠、月经逾期者先验孕。${tierBarredLine}`);

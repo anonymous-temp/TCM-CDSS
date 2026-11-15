@@ -12,7 +12,7 @@ import { sanitizeUnverifiedClinicalNarrative } from "./customer-evidence";
 import { herbBoundaryPopulationLabel, stripHerbBoundaryTail } from "./candidate-boundary-text";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
-import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, verifiedHerbFunctionEntry, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairCautions, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
+import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, verifiedHerbFunctionEntry, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isClinicianDoseHerb, isKnownTcmHerbName, findTcmHerbPairCautions, findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
 import { compositionIdentityName, formulaCompilationReferences, formulaEditClaimBaseIngredients, formulaManualDoseIngredients, formulaNameComponents, formulaNameVariantIngredients } from "./tcm-formula-provenance";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { textbookNamesTheseAsEmperors } from "./formula-textbook-commentary";
@@ -46,7 +46,8 @@ import { formulaAnalysisHerbMentions, formulaAnalysisRoleAssignments, withoutFal
 import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
 import { patentMedicineDuplication, patentMedicineMovesBloodDuringBleeding, patentMedicineOpposesSignedDirection, selfTakenMedicationCompositions, signedDirectionOf, withoutRepeatedMedicineNames, withoutSameClassAnalgesics, withoutSameClassMedicines } from "./patent-medicine-duplication.server";
 import { decoctionThermalByComposition, findLocalPatentMedicineLabel, herbThermalSide, patentMedicineCoversMainProblem, patentMedicineMatchesSignedSyndrome } from "./local-patent-medicine-candidates";
-import { herbRecordCautionConflict, herbRecordCautionConflicts, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
+import { herbRecordCautionConflict, herbRecordCautionConflicts, herbStrongRecordCautionConflict, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
+import { withoutNormalFindingSegments } from "./diagnosis-visible-summary";
 import { assessPregnancyState } from "./clinical-state";
 import { specialDecoctionPhrase, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
 import { withheldBaseIngredientNote } from "./formula-withheld-ingredient-note";
@@ -941,7 +942,10 @@ type ModificationDropCode =
   | "trigger_contradicts_record"
   | "trigger_outside_population"
   | "record_caution_conflict"
-  | "allergen_conflict";
+  | "allergen_conflict"
+  | "incidental_digestive"
+  | "trigger_is_emergency_sign"
+  | "no_dose_basis";
 
 const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>> = {
   malformed: "条目缺少触发事实、病机引用、动作、药名或理由",
@@ -960,6 +964,9 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   trigger_outside_population: "触发条件是本例患者的性别或生育期不会出现的症状",
   record_caution_conflict: "拟加药味的教材【使用注意】与本例已记录的情况相抵",
   allergen_conflict: "拟加药味与病历记录的过敏原同源，不宜加入",
+  incidental_digestive: "纳差随主病而来，治主病即可，不另加消食药",
+  trigger_is_emergency_sign: "这一表现是本例急危重情况的表现，须先急诊处置，不作随证加减",
+  no_dose_basis: "拟加药味没有药典或参考用量可依，不列入加减",
 };
 
 type ModificationRelevanceTable = {
@@ -972,6 +979,9 @@ type ModificationRelevanceTable = {
   equivalents: Record<string, string[]>;
   maleOnlyTerms: string[];
   femaleReproductiveTerms: string[];
+  incidentalAppetite?: { appetiteTerms: string[]; digestiveScopeMarkers: string[]; digestiveCategories: string[] };
+  emergencySignTriggers?: { terms: string[] };
+  ascendingDescendingConflicts?: Array<{ syndromeMarkers: string[]; herbCategories: string[]; exceptHerbs?: string[] }>;
 };
 const MODIFICATION_RELEVANCE = modificationRelevanceJson as unknown as ModificationRelevanceTable;
 const CONDITION_LEAD = new RegExp(MODIFICATION_RELEVANCE.conditionLeadPattern, "u");
@@ -1164,6 +1174,11 @@ const RECORD_META_TRIGGER = /检查|病历|描述|说法|拒绝|未接受|家属
 export function modificationTriggerIsNormalState(trigger: string): boolean {
   const body = String(trigger || "").normalize("NFKC").trim().replace(/^(?:本例已见|若|如)/u, "").replace(/[。；;，,\s]+$/u, "");
   if (body && RECORD_META_TRIGGER.test(body)) return true;
+  // 正常所见（面色红润、舌淡红、苔薄白、脉平、纳眠可、二便调…）不是需要加减的表现（第四十六轮 p100c-C026「面色红润：加菊花」）。
+  // 与辨证依据去正常所见同一个判据（diagnosis-visible-summary withoutNormalFindingSegments）。那个判据把「无/未见/否认/不」开头的项也当正常去掉，
+  // 加减条件里「不寐」「不思饮食」是症状，所以有这类开头的项时不走这一条。
+  const items = body.split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
+  if (items.length > 0 && !items.some((item) => /^(?:无|未|否认|不)/u.test(item)) && !withoutNormalFindingSegments(body).trim()) return true;
   if (!body || !NORMAL_STATE_TAIL.test(body)) return false;
   return !/[痛胀闷痞烦渴干苦汗咳喘呕吐泻秘溏稀黄赤肿痒麻困乏倦眩晕悸梦涩急坠酸软鸣聋燥差少多减退不]/u.test(body.replace(NORMAL_STATE_TAIL, ""));
 }
@@ -1174,12 +1189,15 @@ export function modificationTriggerIsNormalState(trigger: string): boolean {
  */
 export function withoutRepeatedAddedHerbs<T extends { action?: unknown; herbName?: unknown }>(rows: readonly T[]): T[] {
   const added = new Set<string>();
+  const addedNames: string[] = [];
   return rows.filter((row) => {
     if (row.action !== "加") return true;
     const identity = modificationHerbIdentity(canonicalTcmHerbIdentity(String(row.herbName || "")));
     if (!identity) return true;
-    if (added.has(identity)) return false;
+    // 同一味药的另一种炮制品也算同一味（甘草与炙甘草，第四十六轮）。
+    if (added.has(identity) || addedNames.some((name) => sameDrugDifferentProcessing(name, String(row.herbName || "")))) return false;
     added.add(identity);
+    addedNames.push(String(row.herbName || ""));
     return true;
   });
 }
@@ -2422,6 +2440,99 @@ function withAnalysisConsistentCandidate(
 }
 
 /**
+ * 同一基原、不同炮制的同一味药（甘草与炙甘草、黄芪与炙黄芪、法半夏与姜半夏、龙骨与煅龙骨）：组成身份（compositionIdentityName）相同，
+ * 且知识库的首个功效类别相同或缺（第四十六轮复核：new45-n33 方中甘草又加炙甘草，p100c-C032 炙甘草与甘草同列）。
+ * 生地黄与熟地黄组成身份同为地黄，但一清热凉血、一补血（首个类别不同），是成法里的两味药，不算。名字完全相同的不在这里判。
+ */
+export function sameDrugDifferentProcessing(left: string, right: string): boolean {
+  const a = String(left || "").replace(/[（(][^）)]*[）)]/gu, "").trim();
+  const b = String(right || "").replace(/[（(][^）)]*[）)]/gu, "").trim();
+  if (!a || !b || a === b) return false;
+  const identity = compositionIdentityName(a);
+  if (!identity || identity !== compositionIdentityName(b)) return false;
+  const first = (name: string) => getTcmHerbFunctionCategories(name)[0] || getTcmHerbFunctionCategories(identity)[0] || "";
+  const [ca, cb] = [first(a), first(b)];
+  return !ca || !cb || ca === cb;
+}
+
+/**
+ * 「调整」「减」行说的药不在最终药味里时不留（第四十六轮 p100c-C018）。按身份比；同一味药的另一炮制品在方中也算在（调整的是那一味）。纯函数，交付面同用。
+ */
+export function withoutModificationsOnAbsentHerbs<T>(rows: readonly T[], candidateHerbNames: readonly string[]): T[] {
+  const names = candidateHerbNames.map((name) => String(name || "").trim()).filter(Boolean);
+  if (names.length === 0) return [...rows];
+  const present = (herb: string) => names.some((name) => name === herb || canonicalTcmHerbIdentity(name) === canonicalTcmHerbIdentity(herb) || sameDrugDifferentProcessing(name, herb));
+  return rows.filter((row) => {
+    const item = row && typeof row === "object" && !Array.isArray(row) ? row as Record<string, unknown> : undefined;
+    const action = String(item?.action ?? item?.actionType ?? "").trim();
+    if (!/^(?:调整|减|adjust|remove)$/u.test(action)) return true;
+    const herb = String(item?.herbName || "").trim();
+    return !herb || present(herb);
+  });
+}
+
+/**
+ * 偶见纳差不加消食药（第四十六轮，与「睡眠差随主病而来、不另加安神药」同一道理；甲方 11.05 病历8 已扣过「胃热炽盛证 纳差加焦山楂」，
+ * 逐字复核又见于热毒 C084、活动性出血 C020、颅压增高拒食 m40）。条件按顿号逗号拆开每一项都是食欲差、进食少；这一表现不在主诉里；
+ * 已定证名、病名、病机与治法都不涉脾虚失运或食积；拟加的药归消食药类。词表在 tcm-modification-relevance.source.json 的 incidentalAppetite。
+ */
+export function incidentalAppetiteDigestiveModification(
+  item: { trigger: string; herbName: string },
+  prior: {
+    overview?: { primarySyndrome?: string | null; secondarySyndromes?: readonly string[] | null; tcmDiseaseName?: string | null };
+    therapy?: { overallMethod?: string | null };
+    pathogenesis?: { chain?: ReadonlyArray<{ pathogenesis?: string | null }> };
+  } | null | undefined,
+  chiefComplaint = "",
+): boolean {
+  const table = MODIFICATION_RELEVANCE.incidentalAppetite;
+  if (!table) return false;
+  const herb = String(item.herbName || "").trim();
+  if (!herb || !getTcmHerbFunctionCategories(herb).some((category) => table.digestiveCategories.includes(category))) return false;
+  const parts = String(item.trigger || "").normalize("NFKC").replace(/^(?:本例已见|若见?|如见?|兼见|伴见?|出现)/u, "")
+    .split(/[、，,；;]/u).map((part) => part.replace(/(?:明显|较甚|甚|加重|者)$/u, "").trim()).filter(Boolean);
+  const appetite = (part: string) => table.appetiteTerms.some((term) => part.includes(term));
+  if (parts.length === 0 || !parts.every(appetite)) return false;
+  if (table.appetiteTerms.some((term) => String(chiefComplaint || "").includes(term))) return false;
+  // 证名、病名、病机链与总治法里写到脾虚失运或食积（痰浊头痛「脾失健运，痰浊中阻」的纳呆加神曲是对的）才算涉及；胃热炽盛的纳差是热扰胃气，不算。
+  const scope = [prior?.overview?.primarySyndrome, ...(prior?.overview?.secondarySyndromes || []), prior?.overview?.tcmDiseaseName, prior?.therapy?.overallMethod,
+    ...(prior?.pathogenesis?.chain || []).map((node) => node.pathogenesis)].map((value) => String(value || "")).join("；");
+  return !table.digestiveScopeMarkers.some((marker) => scope.includes(marker));
+}
+
+/**
+ * 红旗病例里，作为急危重依据的征象不作加减条件（第四十六轮复核：休克少尿「尿量明显减少：加小蓟」、低氧幼儿「尿量减少：加淡竹叶」、
+ * 颅压增高「拒食：加焦山楂」「喷射性呕吐：加竹茹」、谵妄「昼夜颠倒：加远志」）。只在安全门为红旗时判：条件写到受治理的急危重表现
+ *（tcm-modification-relevance.source.json emergencySignTriggers，有限闭集），或条件里的症状词出现在红旗依据的原文里。
+ */
+export function modificationTriggerIsEmergencySign(trigger: string, caseState?: CaseState): boolean {
+  const gate = caseState?.safetyGate;
+  if (!gate || gate.status !== "red_flag") return false;
+  const body = String(trigger || "").normalize("NFKC").replace(/^(?:本例已见|若|如)/u, "").trim();
+  if (!body) return false;
+  if ((MODIFICATION_RELEVANCE.emergencySignTriggers?.terms || []).some((sign) => body.includes(sign))) return true;
+  // 红旗依据的原文（「原文依据：“…”」）与红旗写的「另见：…」。
+  const quotes = (gate.redFlags || []).flatMap((flag) => [
+    ...[...String(flag).matchAll(/原文依据[：:]\s*“([^”]+)”/gu)].map((match) => match[1]),
+    ...[...String(flag).matchAll(/另见[：:]\s*([^；;。]+)/gu)].map((match) => match[1]),
+  ]);
+  if (quotes.length === 0) return false;
+  return modificationConditionSymptomTerms(body).some((term) => term.length >= 2 && quotes.some((quote) => quote.includes(term) || (quote.trim().length >= 3 && term.includes(quote.trim()))));
+}
+
+/**
+ * 升降相反（第四十六轮复核 p100c-C092、C094：清阳不升的头晕加平肝药）：已定证名写着清阳不升、中气下陷一类，拟加的药是平抑肝阳类（潜降）。
+ * 天麻、钩藤不在此列（《中药学》天麻治眩晕不论虚实），由加减核对小任务判。
+ * 闭集与出处在 tcm-modification-relevance.source.json 的 ascendingDescendingConflicts；只管加减新加的药。
+ */
+export function modificationHerbOpposesAscending(herbName: string, syndromeText: string): boolean {
+  const herb = String(herbName || "").trim();
+  const categories = getTcmHerbFunctionCategories(herb);
+  return (MODIFICATION_RELEVANCE.ascendingDescendingConflicts || []).some((rule) => !(rule.exceptHerbs || []).includes(herb) &&
+    rule.syndromeMarkers.some((marker) => syndromeText.includes(marker)) && categories.some((category) => rule.herbCategories.includes(category)));
+}
+
+/**
  * 一行加减除方向与来源之外的判据（第三十四轮抽出来：编译与补写共用，不各写一份）。
  * 条件与本例相抵或不可能出现；拟加的药与方中同源同向、十八反，或与病历记录的过敏、人群、【使用注意】相抵。
  */
@@ -2432,7 +2543,13 @@ function modificationAddBlock(
   const add = item.actionType === "add";
   // 拟加的药，教材【使用注意】写明与本例已记录的情况相抵（甲方病历 3：「若头晕耳鸣、虚烦少寐：加熟地黄」，病历食欲下降、大便稀溏，
   //《中药学》熟地黄「食少便溏者忌服」）。教材加减同样不列：教材的条件是证候变化，没有替这位患者的脾胃作主。
-  if (add && context.recordText && herbRecordCautionConflict(item.herbName, context.recordText, context.syndromeText)) return "record_caution_conflict";
+  if (add && context.recordText && herbRecordCautionConflict(item.herbName, context.recordText, context.syndromeText, { addition: true })) return "record_caution_conflict";
+  // 教材写明「忌服、忌用、不宜、禁用」的哺乳、月经过多、自汗多汗、便秘这几类，本例写着时不加（第四十六轮：new40-m32 哺乳期加麦芽回乳）。
+  if (add && context.recordText && herbStrongRecordCautionConflict(item.herbName, context.recordText, context.syndromeText)) return "record_caution_conflict";
+  // 红旗病例里作为急危重依据的表现不作加减条件（第四十六轮：休克少尿加小蓟、颅压增高拒食加焦山楂）。
+  if (modificationTriggerIsEmergencySign(item.trigger, context.caseState)) return "trigger_is_emergency_sign";
+  // 清阳不升、中气下陷之证不加平肝息风药（第四十六轮 p100c-C092、C094）。
+  if (add && modificationHerbOpposesAscending(item.herbName, context.syndromeText)) return "direction_conflict";
   // 条件与本例相抵或本例不可能出现（教材加减同样适用：教材条件是「可预见的变化」，不是病历已否认的、或这个人不会有的症状）。
   if (context.recordText && modificationConditionContradictsRecord(item.trigger, context.recordText)) return "trigger_contradicts_record";
   if (context.caseState && modificationConditionOutsidePopulation(item.trigger, context.caseState)) return "trigger_outside_population";
@@ -2443,6 +2560,8 @@ function modificationAddBlock(
     standbyHerbOpposesSyndromePole(item.herbName, context.syndromeText)) return "direction_conflict";
   // 拟加的药与方中某味同源同向（方中已有干姜又加生姜）：方中药味定稿时同一张表只留一味，加减这边此前没过（第三十三轮 5/142）。
   if (add && sameSourceHerbInCandidate(item.herbName, context.candidateHerbNames)) return "action_conflicts_with_candidate";
+  // 方中已有同一味药的另一种炮制品（方中甘草又加炙甘草，第四十六轮 new45-n33）：同一味药不重复加。
+  if (add && context.candidateHerbNames.some((name) => sameDrugDifferentProcessing(name, item.herbName))) return "action_conflicts_with_candidate";
   // 拟加的药不得与方中任何一味相反（十八反）。此前只有「可替换药味」做了这项排除，加味本身没有。
   if (add && modificationHerbIncompatibleWithCandidate(item.herbName, context.candidateHerbNames)) return "action_conflicts_with_candidate";
   // 病历记录的食物等过敏：与过敏原同源的饮片（avoid 档）不作为加味（第二十一轮）。
@@ -2474,6 +2593,8 @@ export function topUpModificationRow(
   // 补写的行同样不为顺带的睡眠差加安神药（与编译阶段同一判据；2026-11-14 第四十五轮甲方标准病历3「本例已见睡眠差：加酸枣仁」，甲方 10.26 点过名）。
   if (incidentalSleepTriggerModification({ trigger: row.trigger, herbName, reason: row.reason }, prior) &&
     !mindSymptomsProminentInRecord(recordText, caseState?.chiefComplaint || "", "")) return undefined;
+  // 偶见纳差不加消食药（与编译阶段同一判据，第四十六轮）。
+  if (incidentalAppetiteDigestiveModification({ trigger: row.trigger, herbName }, prior, caseState?.chiefComplaint || "")) return undefined;
   if (!isKnownTcmHerbName(canonicalTcmHerbIdentity(herbName))) return undefined;
   const trigger = present ? present.trigger : row.trigger;
   const sameCondition = (left: string, right: string) => distinctModificationConditions([{ trigger: left.replace(/^本例已见/u, "") }, { trigger: right.replace(/^本例已见/u, "") }]) === 1;
@@ -2481,7 +2602,10 @@ export function topUpModificationRow(
   if (candidateHerbNames.some((name) => modificationHerbIdentity(name) === modificationHerbIdentity(herbName))) return undefined;
   const dose = /^\d{1,3}(?:\.\d)?\s*(?:g|克)$/i.test(row.dose.trim()) ? `${parseFloat(row.dose)}g` : undefined;
   if (!dose || !modificationDoseWithinPharmacopoeia(dose, herbName, "加")) return undefined;
-  const issue = highImpactHerbDirectionIssue(herbName, row.reason, prior);
+  // 方向与编译、开方核对同一个判据（modificationRowDirectionIssue）：针对病历已有表现的行，理由本身不带高影响方向时只拦与治法相反的。
+  // 此前这里用的是严格判据，开方核对认「本例已见X」时又认不出是病历表现（第四十六轮在 normalizedModificationTrigger 去掉前缀），
+  // 补写提名、复核都确认的「胸闷：加瓜蒌」「白天困倦嗜睡：加石菖蒲」在这一步被拦，加减只剩一条（new45-n07）。
+  const issue = modificationRowDirectionIssue(herbName, [row.reason, row.symptomPathogenesis].filter(Boolean).join("；"), trigger, prior);
   if (issue && !conditionDeclaresHighImpactDirection(trigger, issue)) return undefined;
   const allergens = caseState ? recordedAllergensInText(recordText, clauseLocalMentionPolarityAt) : [];
   const syndromeText = [prior.overview?.primarySyndrome, ...(prior.overview?.secondarySyndromes || [])].filter(Boolean).join("；");
@@ -2709,6 +2833,11 @@ export function compileM04Proposal(
       dropReasons.push("incidental_sedative");
       return [];
     }
+    // 偶见纳差不加消食药（教材条目同样不列：教材本证列「纳差加焦三仙」的，证名病名本身多涉脾胃，不受这一条影响）。
+    if (item.actionType === "add" && incidentalAppetiteDigestiveModification(item, prior, caseState?.chiefComplaint || "")) {
+      dropReasons.push("incidental_digestive");
+      return [];
+    }
     const triggerSource = textbookSource ? undefined : resolveModificationTriggerSource(item.trigger, prior);
     const modelConditional = !textbookSource && !triggerSource && modelConditionalModificationForPrior(item.trigger, prior);
     if (!textbookSource && !triggerSource && !modelConditional) {
@@ -2731,6 +2860,12 @@ export function compileM04Proposal(
       return [];
     }
     const actionVerb = item.actionType === "add" ? "加" : item.actionType === "remove" ? "减" : "调整";
+    // 拟加的药算不出用量（药典与参考用量都没有，琥珀一类）：不列（第四十六轮 p100c-C090「心悸：加琥珀」无剂量、未注冲服）。补写会按别的表现补足条数。
+    const addDose = item.actionType === "add" ? modificationAddDose(item.herbName, item.dose, pediatric) : null;
+    if (item.actionType === "add" && !addDose) {
+      dropReasons.push("no_dose_basis");
+      return [];
+    }
     // 可替换药味（甲方 2026-08-05）。**只对 add 行给**：remove/adjust 针对的是现方已有药味，
     // 「替代」在那里没有语义。候选完全由受治理数据确定性推导（同功效分类 + 药典剂量边界 +
     // 十八反十九畏排除），模型不参与——让模型提名替代药等于让它开药。
@@ -2743,7 +2878,7 @@ export function compileM04Proposal(
       targetPathogenesis: modificationTargetPathogenesis(item, node, cleanNarrative),
       action: actionVerb,
       herbName: item.herbName.trim(),
-      doseOrHandling: item.actionType === "add" ? modificationAddDose(item.herbName, item.dose, pediatric) : null,
+      doseOrHandling: item.actionType === "add" ? addDose : null,
       reason: cleanNarrative(item.reason, "随证调整治疗重点"),
       // 加入的药有特殊煎法时写在这一条里（附子「先煎45–60分钟，至口尝无麻辣感」）：用量栏只收「数字g」，
       // 煎服行只列方中原有的药——此前 11 岁患儿「寒痛甚加附子3g」一条没有任何煎法说明（2026-10-14 独立评审）。

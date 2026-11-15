@@ -880,7 +880,7 @@ const checkAsync = async (name, run) => {
       formula: { candidates: [{ name: "右归丸", herbs: youGui.map((name) => ({ name, dose: "9g" })), formulaAnalysis: "本方以右归丸为基础加减，去原方温燥之品后以附子、肉桂为君，温补肾阳。" }] }, nonPharma: null }).formula.candidates[0].formulaAnalysis;
     // 组成与目录原方逐味相同：开头为「本方用右归丸原方」（第二十四轮）。
     // 第四十二轮起裸写的附子按《中药学》「生品外用，内服须经炮制」交付制附子，注意事项里的药名随药表一起改。
-    assert.equal(out, "本方用右归丸原方，以制附子、肉桂为君，温补肾阳。");
+    assert.equal(out, "本方药味同右归丸原方（原方山药炒用，本方未照用），以制附子、肉桂为君，温补肾阳。" /* 第四十六轮：「原方」只核药味，原方写明、教材另有功用的炮制本方未照用时如实写（originalFormulaDeliveryNotes） */);
     // 药味取自甲方标准病历 8 的实际处方（龙胆泻肝汤全方 + 牡丹皮）。
     const longdan = ["龙胆", "黄芩", "栀子", "泽泻", "川木通", "车前子", "地黄", "牡丹皮", "当归", "柴胡", "甘草"];
     const tail = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {},
@@ -1533,7 +1533,8 @@ const checkAsync = async (name, run) => {
     assert.equal(moxibustionUnsuitableForSyndrome("命门火衰证"), false);
     assert.equal(moxibustionUnsuitableForSyndrome("脾胃虚寒证"), false);
     const src = fs.readFileSync("src/lib/tcm-treatment-capabilities.server.ts", "utf8");
-    assert.match(src, /definition\.code === "moxibustion" && moxibustionUnsuitableForSyndrome\(signedSyndromeText, prior\.therapy\?\.overallMethod \|\| ""\)\) return \[\]/);
+    // 第四十六轮：灸法卡同时看已签名的病性栏（阴虚、虚热；moxibustionUnsuitableForSyndrome 第三个参数），调用处多传一项。
+    assert.match(src, /definition\.code === "moxibustion" && moxibustionUnsuitableForSyndrome\(signedSyndromeText, prior\.therapy\?\.overallMethod \|\| "", signedNatureItems\)\) return \[\]/);
   });
 }
 
@@ -1691,7 +1692,9 @@ const checkAsync = async (name, run) => {
     assert.match(sources("温胆汤加减", ["半夏", "竹茹", "枳实", "陈皮", "甘草", "茯苓"])[0], /三因/);
   });
   check("15.15b 原书条目才按药名身份比，名录转载按原写法比（回放 724 个候选时转载写生地、丹皮、橘皮反而更「贴近」）：清胃散、普济消毒饮、逍遥散、生脉散、小半夏汤仍署原书；左归饮照原书原名开方署《景岳全书》", () => {
-    assert.deepEqual(sources("清胃散加减", ["黄连", "升麻", "生地黄", "牡丹皮", "当归", "大黄", "石膏", "知母"]), ["《兰室秘藏》"]);
+    // 第四十六轮：处方覆盖教材所引原书的原方组成时出处写那本书（textbookCitedOriginalSource）。《方剂学》清胃散出《脾胃论》；
+    // 国家《古代经典名方目录》据《兰室秘藏》，一并注明。仍不署名录里的后世转载（本条原意）。
+    assert.deepEqual(sources("清胃散加减", ["黄连", "升麻", "生地黄", "牡丹皮", "当归", "大黄", "石膏", "知母"]), ["《脾胃论》卷下（国家古代经典名方目录据《兰室秘藏》）"]);
     assert.deepEqual(sources("普济消毒饮加减", ["黄芩", "黄连", "连翘", "板蓝根", "牛蒡子", "薄荷", "升麻", "柴胡", "玄参", "马勃", "桔梗", "陈皮", "甘草"]), ["《东垣试效方》"]);
     assert.match(sources("逍遥散加减", ["柴胡", "当归", "白芍", "白术", "茯苓", "丹参", "牡丹皮", "栀子", "甘草"])[0], /太平惠民和剂局方/);
     assert.deepEqual(sources("生脉散合人参养荣汤加减", ["人参", "黄芪", "麦冬", "五味子", "当归", "熟地黄", "白芍", "白术", "茯苓", "陈皮", "枸杞子", "川芎", "郁金", "炙甘草"])[0], "《医学启源》卷下。");

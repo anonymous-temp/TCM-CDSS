@@ -7,6 +7,7 @@ import controlledToxicPolicyJson from "../data/tcm-controlled-toxic-herb-policy.
 import functionSupplementsJson from "../data/tcm-herb-function-supplements.source.json";
 import verifiedHerbFunctionsJson from "../data/tcm-herb-verified-functions.json";
 import herbFunctionCorrectionsJson from "../data/tcm-herb-function-corrections.source.json";
+import herbTextbookReferencesJson from "../data/tcm-herb-textbook-references.json" with { type: "json" };
 import clinicalSubstitutionJson from "../data/tcm-herb-clinical-substitution-adjudications.source.json";
 import type { CaseState } from "./diagnosis-types";
 import { herbFunctionClauseFitsContext, isHarmonizingOrGuidingFunction } from "./herb-function-context";
@@ -2042,13 +2043,19 @@ export function isExternalUseEfficacyClause(clause: string): boolean {
   return EXTERNAL_USE_EFFICACY.test(clause.trim());
 }
 
-/** 交付面核对模型写的药味功效时用的知识文本：知识库原文（已剔除核对为无依据的条目）＋核对词典的功效与追加项。 */
+/**
+ * 交付面核对模型写的药味功效时用的知识文本：知识库原文（已剔除核对为无依据的条目）＋核对词典的功效与追加项＋《中药学》（十三五）该药【功效】原句。
+ * 教材原句是第四十六轮加的（只作展示核对的佐证，不进准入判据）：新加「息风」一类后，蝉蜕「息风止痉」在知识库功用里没有，教材有。
+ */
 export function herbFunctionKnowledgeForDisplay(herb: string): string {
   const base = getTcmHerbFunctionText(herb).trim();
   const verified = verifiedHerbFunctionEntry(herb);
-  return [base, ...verifiedHerbFunctionAdditions(herb, base), ...(verified?.functions || []), ...Object.values(verified?.roles || {})]
+  const name = String(herb || "").trim();
+  const textbook = HERB_TEXTBOOK_REFERENCES[name] || HERB_TEXTBOOK_REFERENCES[canonicalKnowledgeHerbName(name)];
+  return [base, ...verifiedHerbFunctionAdditions(herb, base), ...(verified?.functions || []), ...Object.values(verified?.roles || {}), textbook?.function || ""]
     .filter(Boolean).join("；");
 }
+const HERB_TEXTBOOK_REFERENCES = ((herbTextbookReferencesJson as unknown as { herbs?: Record<string, { function?: string }> }).herbs) || {};
 
 export function getTcmHerbFunctionDisplayText(
   herb: string,

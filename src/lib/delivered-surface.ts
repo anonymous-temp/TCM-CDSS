@@ -19,12 +19,16 @@
 import { RED_FLAG_SAFETY_NET_VISIT, recordHasTongueAndPulse } from "./diagnosis-visible-summary";
 import { formulaTextbookCommentary } from "./formula-textbook-commentary";
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
+import originalFormDistinctions from "../data/tcm-formula-original-form-distinctions.source.json" with { type: "json" };
+import purposeProcessingTable from "../data/tcm-herb-purpose-processing.json" with { type: "json" };
+import processingFormsTable from "../data/tcm-herb-processing-forms.source.json" with { type: "json" };
+import { withoutPreparationPrefix, type OriginalFormula } from "./formula-original-composition";
 import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
-import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormulaOriginalPreparations, originalFormulaFor, originalHerbMatches, originalHerbSatisfiedBy, formulaManualDoseIngredients, type OriginalFormulaContext, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource, deliveredFormulaSource, sourceIsTextbook } from "./tcm-formula-provenance";
+import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormulaOriginalPreparations, originalFormulaFor, originalHerbMatches, originalHerbSatisfiedBy, formulaManualDoseIngredients, type OriginalFormulaContext, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource, textbookCitedOriginalSource, deliveredFormulaSource, sourceIsTextbook, formulaNamesCarryLineage } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { drugNamesInAllergyPhrases } from "./clinical-polarity";
-import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, withoutRepeatedAddedHerbs } from "./m04-proposal-compiler";
+import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
@@ -32,11 +36,11 @@ import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, herbFunctionKnowledgeForDisplay, isExternalUseEfficacyClause, isKnownTcmHerbName } from "./tcm-knowledge";
-import { herbFunctionClaimUnsupportedPhrases, herbFunctionPhraseRecognized } from "./diagnosis-stage-contract";
+import { herbFunctionClaimUnsupportedPhrases, herbFunctionPhraseRecognized, herbFunctionPhraseSupported } from "./diagnosis-stage-contract";
 import { deliveredTreatmentCodes, precautionMentionsUndeliveredTreatment, treatmentCardUndeliverable } from "./tcm-treatment-capabilities.server";
 import { dietAdviceAvoidsRichFood, isFoodMedicineHomologyItem, recipeHasRichIngredient, textAntagonizesPrescription, type PrescribedHerbScope } from "./tcm-nondrug-textbook-plan.server";
 import { textbookOcrFixed } from "./nondrug-text-fixes";
-import { discontinuedMedicationLabel, highRiskConditionLine, highRiskConditionsMissing, type RequiredPrecaution } from "./required-precautions";
+import { discontinuedMedicationLabel, highRiskConditionLine, highRiskConditionsMissing, type RequiredPrecaution, HIGH_POTASSIUM_FOODS } from "./required-precautions";
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { patentMedicineCompositionIdentities } from "./patent-medicine-duplication.server";
 import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
@@ -51,7 +55,10 @@ import { DELIVERED_METHOD_ITEM_CAP, withoutRedundantTherapyPhrases } from "./tcm
 import { governedFourCharacterMethodTerms, governedTreatmentMethodOccurrencesInText, resolveNationalStandardTcmSyndromeTerm, treatmentMethodCoveredBy, type TreatmentPrincipleEntry } from "./clinical-governance-tables";
 import { assessPregnancyState } from "./clinical-state";
 import { allergenAvoidPhrase, allergenHerbMatch, allergenMatchesInText, allergenRecordPhrase } from "./allergen-profile";
-import { priorityEvaluationFirstStep, priorityEvaluationFollowUpNode, priorityTargetWithEstablishedDiagnosis, quoteWithoutDeniedLeadingItems, recordedFindingReading, type DoseWithheldFollowupKind, type PriorityEvaluationTarget } from "./diagnosis-safety";
+import dietRestrictionCategoriesJson from "../data/diet-restriction-food-categories.source.json" with { type: "json" };
+import drugConditionCautionsJson from "../data/western-drug-condition-cautions.source.json" with { type: "json" };
+import { MIN_RECORD_SIGNS, excessElementMentionsIn, methodImpliedExcessElements, namedExcessElements, recordExcessSigns, uncertaintyAnsweredByRecord, uncertaintyAsksListedElement, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording, withMethodImpliedNatureElements } from "./analysis-element-closure";
+import { GENERIC_PRIORITY_FIRST_STEP, previousPriorityFirstStepSentences, priorityEvaluationFirstStep, priorityEvaluationFollowUpNode, priorityTargetWithEstablishedDiagnosis, quoteWithoutDeniedLeadingItems, recordedFindingReading, type DoseWithheldFollowupKind, type PriorityEvaluationTarget } from "./diagnosis-safety";
 
 /**
  * 投影时可选的本例信息：herbBoundaryAudience 决定逐味人群提示列哪些人群（见 herbBoundaryPopulationRelevant）；
@@ -130,7 +137,14 @@ function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly str
   if (item.kind === "unnamed_medication") return lines.some((line) => /(?:正在|自行|已|在)(?:使用|服用|服|用|吃)[^，,。；;]{0,8}药|用药情况|药名|药物名称/u.test(line) && /告知|告诉|说明/u.test(line));
   if (item.kind === "antithrombotic_bleeding") return bleedingWatchCovered(lines);
   if (item.kind === "high_risk_condition") return highRiskConditionsMissing(item, lines).length === 0;
-  if (item.kind === "diabetes_glucose" && item.hypoglycemia) return lines.some((line) => /低血糖/u.test(line) && /含糖|糖果|进食|进餐/u.test(line));
+  // 模型写「随身带糖果…立即吃含糖食物」不点「低血糖」三个字也算写到（第四十六轮 p100c-C032：规则又补了同一句）。
+  if (item.kind === "diabetes_glucose" && item.hypoglycemia) return lines.some((line) => /低血糖|随身带糖|含糖食物/u.test(line) && /含糖|糖果|进食|进餐/u.test(line));
+  if (item.kind === "diabetes_glucose" && item.newlyFound) return lines.some((line) => /血糖/u.test(line) && /明确诊断|确诊|就医|到医院|就诊/u.test(line) && !/继续控制血糖|您有糖尿病/u.test(line));
+  if (item.kind === "drug_condition_caution") return lines.some((line) => line.includes(medicationBaseName(item.drug)) && /停用|禁用|避免|调整|不宜|不要再/u.test(line) && !/是否继续(?:服用|使用)?由医生决定/u.test(line));
+  // 写到复查 INR 就算（模型照提示写「开始或停服本方期间请按医嘱更频繁复查INR」常不点药名，第四十六轮 new45-n33 规则又补一句）；
+  // 方中有人参类（decreaseHerbs 已按最终药味筛过）时还要点到它会减弱华法林作用。
+  if (item.kind === "warfarin_herbal") return lines.some((line) => /INR/iu.test(line)) &&
+    item.decreaseHerbs.every((herb) => lines.some((line) => line.includes(herb) && /减弱|降低|影响/u.test(line)));
   if (item.kind === "diabetes_glucose") return lines.some((line) => /血糖|控糖/u.test(line) && /监测|测|查|控制|稳定|控糖/u.test(line));
   if (item.kind === "herpes_zoster_antiviral") return lines.some((line) => /抗病毒/u.test(line));
   if (item.kind === "gout_diet") return lines.some((line) => /嘌呤/u.test(line));
@@ -202,6 +216,15 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
       ? `方中${herbs}有活血作用，与正在使用的${item.drugs.slice(0, 3).join("、")}同用可能增加出血风险；服药期间请留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医，并告诉医生您在用这些药。`
       : `您有${item.indication}病史，如正在服用抗凝或抗血小板药（如阿司匹林、氯吡格雷、华法林），请告诉医生；方中${herbs}有活血作用，同用可能增加出血风险，服药期间请留意牙龈出血、皮下瘀斑、黑便或血尿，出现时及时就医。`;
   }
+  if (item.kind === "drug_condition_caution") return `${item.sentence}。`;
+  if (item.kind === "warfarin_herbal") {
+    // 方中有人参类时加一句（说明书：ginseng 可减弱华法林作用）；按最终药味与加减拟加的药比。
+    const decrease = item.decreaseHerbs;
+    return `您正在服用${item.drug}，开始或停服本方期间请按医嘱更频繁地复查INR，留意牙龈出血、皮下瘀斑、黑便或血尿${decrease.length > 0 ? `；方中${decrease.join("、")}可能减弱华法林的抗凝作用` : ""}。`;
+  }
+  if (item.kind === "diabetes_glucose" && item.newlyFound && !item.hypoglycemia) {
+    return "本次检查发现血糖明显升高（以前未诊断糖尿病），请尽快到医院明确诊断，在医生指导下控制血糖；服药期间少吃甜食和含糖饮料，如口渴、多尿加重或精神变差，请立即就医。";
+  }
   if (item.kind === "diabetes_glucose" && item.hypoglycemia) {
     return "本次是低血糖发作，请按医嘱调整降糖药、按时进餐、随身带糖果；出现心慌、出汗、手抖、头晕时立即吃含糖食物并测血糖，神志不清时立即急诊。";
   }
@@ -222,7 +245,8 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
   if (item.kind === "current_medications" && item.urgent) {
     // 只补还没点到名的那几个（模型写了「请把倍博特、血塞通滴丸连同药盒带去就医」而漏了倍他乐克，M 集 MTCMB-85）。
     const names = item.names.filter((name) => !currentLines.some((line) => line.includes(medicationBaseName(name)) && /带|携带|就医|急诊/u.test(line)));
-    return `请把正在使用的${(names.length > 0 ? names : item.names).join("、")}连同药盒带去就医，告诉医生最近一次用药的时间；是否继续使用由医生决定，不要自行加用或停用。`;
+    // 不写「不要自行加用或停用」（第四十六轮 p100c-C006：对引起过敏的感冒药说不要自行停用；非红旗那一句早已只说「由医生决定」）。
+    return `请把正在使用的${(names.length > 0 ? names : item.names).join("、")}连同药盒带去就医，告诉医生最近一次用药的时间；是否继续使用由医生决定。`;
   }
   if (item.kind === "self_discontinued_medication") {
     return item.irregular
@@ -526,6 +550,101 @@ export function withoutUnrecordedMedicineMentions(line: string, knownDrugs: read
   return withoutTimingClauses(out, (clause) => rest.some((name) => clause.includes(name)));
 }
 
+const NOT_MEDICATION_FOOD_NAMES: readonly string[] = (drugConditionCautionsJson as { notMedicationFoods?: { foods?: string[] } }).notMedicationFoods?.foods || [];
+/** 「请把…连同药盒带去就医」「正在服用的…」这类药物清单里去掉食物与自制食疗（词表见 western-drug-condition-cautions.source.json notMedicationFoods）。 */
+export function withoutFoodsInMedicationList(line: string): string {
+  if (!/连同药盒|带去就医|正在(?:服用|使用|用)的/u.test(line)) return line;
+  let out = line;
+  for (const food of NOT_MEDICATION_FOOD_NAMES) {
+    out = out.split(`${food}、`).join("").split(`、${food}`).join("");
+  }
+  return out;
+}
+
+/**
+ * 只剩条件、没有处理办法的残句（构词式闭集）：整条只是一个「（服药期间）如/若…（出现X）」小句；或「方中X等…之品」之后只接「请告知医生」，
+ * 没说要告知什么（原句的后半被删掉了）。
+ */
+export function isDanglingPrecaution(line: string): boolean {
+  const text = String(line || "").trim();
+  if (/^(?:服药期间|用药期间|服药后)?[，,]?(?:如|若|如果|一旦)(?:出现|有|见|发生)?[^，,。；;]{1,24}[。.]?$/u.test(text) &&
+    !/请|立即|及时|就医|就诊|复诊|停|告知|告诉|咨询|减量|观察|注意|避免|不要|勿|须|需|应/u.test(text)) return true;
+  return /^方中[^，,。；;]{1,30}(?:之品|等药|药物)?[，,]\s*(?:请|须|需)?(?:先)?(?:告知|告诉)(?:医生|医师)[。.]?$/u.test(text);
+}
+
+/**
+ * 同一页说同一件事的两条只留一条（第四十六轮）：两条的二字词（不算点到的药名、药味名），较短一条有七成以上在较长一条里，
+ * 且较短一条点到的药名、药味都在较长一条里时，留点到药名更多的那条，一样多时留先出现的（规则补的排在最前）。
+ * 点了不同药名、药味的两条（「方中附子有毒…」「方中细辛有毒…」）不并。
+ */
+export function withoutNearDuplicatePrecautions(lines: readonly unknown[], names: readonly string[]): unknown[] {
+  const entityNames = [...new Set(names.map((name) => String(name || "").trim()).flatMap((name) => [name, patentMedicineBaseName(name)]).filter((name) => name.length >= 2))]
+    .sort((left, right) => right.length - left.length);
+  const entitiesOf = (line: string) => entityNames.filter((name) => line.includes(name));
+  const bigramsOf = (line: string) => {
+    let text = line;
+    for (const name of entityNames) text = text.split(name).join("|");
+    const chars = text.replace(/[^\u4e00-\u9fff|]/gu, "");
+    const set = new Set<string>();
+    for (let index = 0; index + 2 <= chars.length; index += 1) {
+      const pair = chars.slice(index, index + 2);
+      if (!pair.includes("|")) set.add(pair);
+    }
+    return set;
+  };
+  const kept: Array<{ value: unknown; line?: string; entities?: string[]; bigrams?: Set<string> }> = [];
+  for (const value of lines) {
+    if (typeof value !== "string") { kept.push({ value }); continue; }
+    const entities = entitiesOf(value);
+    const bigrams = bigramsOf(value);
+    const twin = kept.findIndex((other) => {
+      if (!other.line || !other.bigrams || !other.entities || bigrams.size < 4 || other.bigrams.size < 4) return false;
+      const [short, long, shortEntities, longEntities] = bigrams.size <= other.bigrams.size
+        ? [bigrams, other.bigrams, entities, other.entities] : [other.bigrams, bigrams, other.entities, entities];
+      const shared = [...short].filter((pair) => long.has(pair)).length;
+      const covers = (inner: string[], outer: string[]) => inner.every((name) => outer.some((other) => other.includes(name) || name.includes(other)));
+      // 较短一条的每个字都在较长一条里：只差说法，不差内容（「服药期间如出现皮疹…」「…出现腹泻…」差一个症状，不并）。
+      const [shortLine, longLine] = bigrams.size <= other.bigrams.size ? [value, other.line] : [other.line, value];
+      const strip = (line: string) => entityNames.reduce((text, name) => text.split(name).join(""), line).replace(/[^\u4e00-\u9fff]/gu, "");
+      const longChars = new Set(strip(longLine));
+      const sameContent = [...strip(shortLine)].every((char) => longChars.has(char));
+      return sameContent && shared / short.size >= 0.8 && (covers(shortEntities, longEntities) || covers(longEntities, shortEntities));
+    });
+    if (twin < 0) { kept.push({ value, line: value, entities, bigrams }); continue; }
+    if (entities.length > (kept[twin].entities || []).length) kept[twin] = { value, line: value, entities, bigrams };
+  }
+  return kept.map((item) => item.value);
+}
+
+/** 顿号并列的药名里，同一味药（同名或同一基原的另一炮制品，sameDrugDifferentProcessing）紧挨着写了两遍：去掉后一个。纯函数，供测试。 */
+export function withoutSameDrugRepeatsInLists(text: string): string {
+  let out = String(text || "");
+  const herbBefore = (at: number) => {
+    for (let length = 5; length >= 2; length -= 1) {
+      const name = out.slice(Math.max(0, at - length), at);
+      if (name.length === length && isKnownTcmHerbName(name)) return name;
+    }
+    return "";
+  };
+  const herbAfter = (at: number) => {
+    for (let length = 5; length >= 2; length -= 1) {
+      const name = out.slice(at, at + length);
+      if (name.length === length && isKnownTcmHerbName(name) && !/[\u4e00-\u9fff]/u.test(out.charAt(at + length) || "") ) return name;
+      if (name.length === length && isKnownTcmHerbName(name) && /[、以为与和及等共]/u.test(out.charAt(at + length))) return name;
+    }
+    return "";
+  };
+  for (let at = out.indexOf("、"); at >= 0; at = out.indexOf("、", at + 1)) {
+    const left = herbBefore(at);
+    const right = left ? herbAfter(at + 1) : "";
+    if (left && right && (left === right || sameDrugDifferentProcessing(left, right))) {
+      out = `${out.slice(0, at)}${out.slice(at + 1 + right.length)}`;
+      at -= 1;
+    }
+  }
+  return out;
+}
+
 /** 哺乳期用药的那一句（说到哺乳，且是请告知医生、慎用禁用、回乳这类话）。 */
 const LACTATION_MEDICATION_ADVICE = /哺乳(?=[\s\S]*(?:告知|告诉|咨询|医生|慎用|禁用|忌用|回乳))|(?:告知|告诉|咨询|医生|慎用|禁用|忌用|回乳)[\s\S]*哺乳/u;
 
@@ -717,6 +836,20 @@ const MEDICINE_POSITIONING_RELATIONSHIP: Readonly<Record<string, string>> = {
   需医生评估: "是否与本方汤剂同用由医生评估",
 };
 
+/** 外用药（软膏、搽剂、外用油、含漱、滴眼滴鼻）的同一四值：不说「服用」，也不套口服的间隔（第四十六轮逐字复核：丹皮酚软膏「症状明显时短期服用」、生发油「同期服用，两者间隔约1小时」）。 */
+const MEDICINE_POSITIONING_RELATIONSHIP_EXTERNAL: Readonly<Record<string, string>> = {
+  联合治疗: "外用，可与本方汤剂同期使用，不必与汤剂错开时间",
+  替代方案: "外用药，不能代替内服汤剂；是否单用由医生评估",
+  短期对症: "症状明显时短期外用，症状缓解即停",
+  需医生评估: "外用，是否与本方汤剂同用由医生评估",
+};
+/** 这一行是外用药：说明书用法写外用、外涂、含漱、滴、喷、塞、贴、熏洗，或剂型是外用剂型（软膏、搽剂…）。栓剂按说明书用法判。 */
+export function medicineRowIsExternal(name: string, route: string): boolean {
+  const usage = String(route || "");
+  if (/口服|内服|吞服|冲服|含服|嚼服/u.test(usage)) return false;
+  return /外用|外涂|外搽|外敷|涂|搽|敷|含漱|漱口|滴眼|滴鼻|滴耳|点眼|喷|贴|塞|熏|洗/u.test(usage) || skinTopicalMedication(name, usage);
+}
+
 /** 说明书注意事项里的疗程句（「服药2周症状无缓解，应去医院就诊」）：作这一行的使用边界。没有时返回空串。 */
 export function labelCourseBoundary(riskNote: string): string {
   const sentence = String(riskNote || "").split(/[。；;]|\d+[、.．]/u)
@@ -758,7 +891,19 @@ const VERBATIM_KEYS = new Set([
  *  · 「教材行」这种讲内部数据的词换成「教材证型」。
  * 只用于给医生和患者看的文字；VERBATIM_KEYS（病历原文摘录、编码、签名）不动。没有命中时逐字节不变。
  */
-export function readabilityCleaned(value: string): string {
+/**
+ * 紧挨着重复的同一小句只留一个（第四十六轮复核：「未发现感染灶，未发现感染灶，未发现感染灶」「病历记录心电图：窦性心律，」连写三遍，
+ * 都是前面几步各替换一次留下的）。小句至少 3 个汉字、分隔符相同时才算，列举「A、A」这类不同分隔的不动。
+ */
+function withoutAdjacentRepeatedClauses(value: string): string {
+  return value.replace(/([^，,；;。、]*[\u4e00-\u9fff][^，,；;。、]*?)([，,；;])(?:\s*\1\2)+/gu, (whole, clause: string, separator: string) =>
+    (clause.match(/[\u4e00-\u9fff]/gu) || []).length >= 3 ? `${clause}${separator}` : whole)
+    .replace(/([，,；;])([^，,；;。、]*[\u4e00-\u9fff][^，,；;。、]*?)(?:[，,；;]\2)+(?=[。]|$)/gu, (whole, separator: string, clause: string) =>
+      (clause.match(/[\u4e00-\u9fff]/gu) || []).length >= 3 ? `${separator}${clause}` : whole);
+}
+
+export function readabilityCleaned(input: string): string {
+  const value = withoutAdjacentRepeatedClauses(input);
   if (!/未诉未诉|[；;，,。、]{2}|[（(]\s*[）)]|参照本方|本方(?:与|合)本方|教材行/u.test(value)) return value;
   return value
     .replace(/未诉(?:未诉)+/gu, "未诉")
@@ -814,11 +959,94 @@ export function candidateIsOriginalFormula(name: string, herbs: readonly Record<
   // 正文组成，以及原书自注、通行本的异文（各算一种原方写法）。
   const readings = [base, ...(entry.alternates || []).map((alternate) => [...base.filter((herb) => !alternate.remove.includes(herb)), ...alternate.add])];
   if (base.filter((herb) => !isAdjunct(herb) && !withheld.some((name) => originalHerbMatches(herb, name))).length === 0) return undefined;
+  // 生熟不同的是两味药（原方干地黄、处方熟地黄，第四十六轮 new45 n38 金匮肾气丸）：组成身份把二者都记作地黄，这里按写法再分一次。
+  if (originalFormMismatch(entry, present)) return false;
   return readings.some((reading) => {
     const required = reading.filter((herb) => !isAdjunct(herb) && !withheld.some((name) => originalHerbMatches(herb, name)));
     if (!required.every((herb) => present.some((name) => originalHerbSatisfiedBy(herb, name)))) return false;
     return present.every((name) => [...reading, ...entry.guides].some((herb) => originalHerbSatisfiedBy(herb, name)));
   });
+}
+
+type OriginalFormDistinctions = {
+  forms: ReadonlyArray<{ herb: string; groups: ReadonlyArray<{ form: string; originalNames: string[]; prescriptionNames: string[] }> }>;
+  parts: ReadonlyArray<{ herb: string; originalNames: string[]; phrase: string; prescriptionNames: string[] }>;
+  preparationPhrases: Record<string, string>;
+  preparationEquivalents: Record<string, string[]>;
+  preparationsNotNoted: string[];
+  decoctionGuideHerbs: string[];
+  actionChangingPreparations: string[];
+  specificationPrefixes: Record<string, string[]>;
+};
+const ORIGINAL_FORMS = originalFormDistinctions as unknown as OriginalFormDistinctions;
+/** 教材写明另有功用的炮制规格（《中药学》用法句、《中药炮制学》炮制品）：饮片名 → 炮制前缀。 */
+const TEXTBOOK_PROCESSING_PREFIXES = (() => {
+  const out = new Map<string, Set<string>>();
+  const add = (herb: string, prefix: string) => { if (herb && prefix) out.set(herb, new Set([...(out.get(herb) || []), prefix])); };
+  for (const entry of (purposeProcessingTable as { herbs?: Array<{ herb: string; forms?: Array<{ prefix?: string }> }> }).herbs || []) {
+    for (const form of entry.forms || []) add(entry.herb, String(form.prefix || ""));
+  }
+  for (const rule of (processingFormsTable as { rules?: Array<{ herb: string; form: string }> }).rules || []) {
+    add(rule.herb, rule.form.endsWith(rule.herb) ? rule.form.slice(0, -rule.herb.length) : "");
+  }
+  return out;
+})();
+const bareHerbName = (name: string) => String(name || "").replace(/[（(][^）)]*[）)]/gu, "").trim();
+
+/** 原方写明生或熟、处方写的是另一种（tcm-formula-original-form-distinctions.source.json 的 forms）。原书只写「地黄」的不判。 */
+function originalFormMismatch(entry: OriginalFormula, present: readonly string[]): boolean {
+  for (const rule of ORIGINAL_FORMS.forms) {
+    for (const item of entry.herbs) {
+      if (!originalHerbMatches(rule.herb, item.herb)) continue;
+      const originalGroup = rule.groups.find((group) => group.originalNames.includes(bareHerbName(item.written)));
+      if (!originalGroup) continue;
+      const used = present.filter((name) => originalHerbMatches(rule.herb, name)).map(bareHerbName);
+      const usedGroups = new Set(used.map((name) => rule.groups.find((group) => group.prescriptionNames.includes(withoutPreparationPrefix(name)) || group.prescriptionNames.includes(name))?.form).filter(Boolean));
+      if (usedGroups.size > 0 && !usedGroups.has(originalGroup.form)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 药味与原方相同时，原方写明而本方没有照用的几项（第四十六轮逐字复核：「本方用X原方」只核了药味）：
+ *  · 原文炮制（凉血地黄汤黄芩、槐角、地榆、荆芥炒黑，八正散大黄面裹煨）：处方药名与炮制栏都没有这一法；
+ *  · 原文的药用部位（凉血地黄汤用归尾）：处方写全当归；
+ *  · 煎服法里的药引（八正散灯心、银翘散鲜苇根汤煎、参苓白术散枣汤调下）：处方没有列。
+ * 返回「黄芩、槐角炒炭」「大黄煨用」「以灯心草为引」这样的短语；没有差别时为空。剂量比例不核（原书多为散剂、丸剂用量）。
+ */
+export function originalFormulaDeliveryNotes(name: string, herbs: readonly Record<string, unknown>[], context: OriginalFormulaContext = {}): string[] {
+  const trimmed = String(name || "").trim();
+  if (!trimmed || /(?:加减|化裁|加味)$/u.test(trimmed) || /合/u.test(trimmed)) return [];
+  const entry = originalFormulaFor(trimmed, context);
+  if (!entry) return [];
+  const rows = herbs.map((herb) => ({ name: bareHerbName(String(herb.name || "")), processing: String(herb.processing || "") })).filter((row) => row.name);
+  const byPhrase = new Map<string, string[]>();
+  const add = (phrase: string, herb: string) => byPhrase.set(phrase, [...(byPhrase.get(phrase) || []), herb]);
+  for (const item of entry.herbs) {
+    const row = rows.find((candidate) => originalHerbMatches(item.herb, candidate.name));
+    if (!row) continue;
+    const part = ORIGINAL_FORMS.parts.find((rule) => originalHerbMatches(rule.herb, item.herb) && rule.originalNames.includes(bareHerbName(item.written)));
+    if (part && !part.prescriptionNames.includes(row.name)) add(part.phrase, "");
+    const preparation = item.preparation || "";
+    const phrase = ORIGINAL_FORMS.preparationPhrases[preparation];
+    if (!preparation || !phrase || ORIGINAL_FORMS.preparationsNotNoted.includes(preparation)) continue;
+    // 只写随方交付的、改变药性的、今有这一规格的（数据文件 preparationScopeBasis）：丸散制备时的焙炒（右归丸枸杞微炒）不写。
+    const base = withoutPreparationPrefix(item.herb);
+    const specification = (ORIGINAL_FORMS.specificationPrefixes[preparation] || []).some((prefix) => TEXTBOOK_PROCESSING_PREFIXES.get(base)?.has(prefix));
+    if (!item.deliver && !ORIGINAL_FORMS.actionChangingPreparations.includes(preparation) && !specification) continue;
+    const markers = ORIGINAL_FORMS.preparationEquivalents[preparation] || [preparation];
+    if (markers.some((marker) => row.name.includes(marker) || row.processing.includes(marker))) continue;
+    add(phrase, withoutPreparationPrefix(item.herb));
+  }
+  const notes = [...byPhrase.entries()].map(([phrase, names]) => {
+    const listed = [...new Set(names.filter(Boolean))];
+    return listed.length > 0 ? `${listed.join("、")}${phrase}` : phrase;
+  });
+  const present = rows.map((row) => row.name);
+  const guides = entry.guides.filter((guide) => !present.some((herb) => originalHerbMatches(guide, herb)));
+  if (guides.length > 0) notes.push(`以${guides.join("、")}为引`);
+  return notes;
 }
 
 const SAME_SOURCE_HERB_GROUPS = (sameSourceHerbs as { groups: ReadonlyArray<{ herbs: string[] }> }).groups;
@@ -828,7 +1056,7 @@ const SAME_SOURCE_HERB_GROUPS = (sameSourceHerbs as { groups: ReadonlyArray<{ he
  * 只读原方组成表（第四十二轮）：此前把受治理目录组成、《方剂学》方解、original-text 表三处按方名并起来，书不同也并
  *（人参养荣汤的《局方》药引被接在深圳标准的组成后面）。表里没有这首方时不写。
  */
-export function omittedGuideHerbNote(name: unknown, herbs: readonly Record<string, unknown>[], context: OriginalFormulaContext = {}, analysis = ""): string | undefined {
+export function omittedGuideHerbNote(name: unknown, herbs: readonly Record<string, unknown>[], context: OriginalFormulaContext = {}, analysis = "", methodText = ""): string | undefined {
   const trimmed = String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
   if (!trimmed || /合/u.test(trimmed) || SELF_COMPOSED_NAME.test(trimmed) || trimmed === "自拟方") return undefined;
   const entry = originalFormulaFor(trimmed, context);
@@ -839,9 +1067,14 @@ export function omittedGuideHerbNote(name: unknown, herbs: readonly Record<strin
   const listed = [...entry.herbs.map((item) => item.herb), ...entry.guides];
   // 方里已有同源的干姜时不再提生姜（黄芪建中汤：生姜刚因与干姜同源去掉，用法里又说「可酌加」就自相矛盾）。
   const sameSourcePresent = (herb: string) => SAME_SOURCE_HERB_GROUPS.some((group) => group.herbs.includes(herb) && group.herbs.some((other) => other !== herb && present.some((name) => originalHerbMatches(other, name))));
-  const omitted = ["生姜", "大枣"].filter((herb) =>
+  // 用法里已经写到的药引不再提（「…加生姜三片」「姜枣为引」「灯心为引」）。
+  const inMethod = (herb: string) => (herb === "生姜" ? /生姜|煨姜|姜枣|姜、枣|姜片/u : herb === "大枣" ? /大枣|红枣|姜枣|姜、枣|(?<!酸)枣(?!仁)/u : new RegExp(herb.slice(0, 2), "u")).test(methodText);
+  // 姜枣以外只写煎药时可以随手加入的药引（ORIGINAL_FORMS.decoctionGuideHerbs）；与生姜、大枣同一味的写法（煨姜）由上面两项代表，不重复。
+  const otherGuides = entry.guides.filter((guide) => ORIGINAL_FORMS.decoctionGuideHerbs.includes(guide) &&
+    !["生姜", "大枣"].some((adjunct) => originalHerbMatches(adjunct, guide)));
+  const omitted = [...new Set(["生姜", "大枣", ...otherGuides])].filter((herb) =>
     listed.some((name) => originalHerbMatches(herb, name)) && !present.some((name) => originalHerbMatches(herb, name)) && !sameSourcePresent(herb)
-    && !removed.some((name) => originalHerbMatches(herb, name)));
+    && !removed.some((name) => originalHerbMatches(herb, name)) && !inMethod(herb));
   return omitted.length > 0 ? `原方以${omitted.join("、")}为引，煎时可酌加` : undefined;
 }
 
@@ -988,6 +1221,86 @@ function regradeAnemiaEverywhere(value: unknown, grade: string, recordText: stri
   return value;
 }
 
+/**
+ * 慢性肾脏病分期按病历当前的 eGFR 读数重算（2026-11-15 第四十六轮，逐字复核 new45 n40：eGFR 17 写成「CKD5期」）。
+ * KDIGO 2012（国内《慢性肾脏病筛查诊断及防治指南》同）：G1 ≥90、G2 60–89、G3a 45–59、G3b 30–44、G4 15–29、G5 <15 mL/(min·1.73m²)。
+ * 只在：能读到本次 eGFR、所有读数落在同一期、病历没有写透析（5D 期另算）、2 岁以上时改写；「既往/曾/最低…」后面的读数不收。
+ * 只改「慢性肾脏病N期」「CKD N期」里的数字；写了 3a/3b 而读数在 3 期内的不动，未分 a/b 的 3 期也不补。冻结规则允许的数值阈值。
+ */
+const EGFR_READING = /(?:eGFR|估算肾小球滤过率|肾小球滤过率|GFR)\s*(?:[(（][^)）]{0,20}[)）])?\s*[:：]?\s*(?:为|约|是)?\s*(\d+(?:\.\d+)?)/giu;
+export function recordCkdStage(recordText: string | undefined, ageYears: number | null | undefined): string | undefined {
+  if (!recordText) return undefined;
+  if (ageYears != null && ageYears < 2) return undefined;
+  const text = recordText.normalize("NFKC");
+  if (/透析/u.test(text)) return undefined;
+  const stages = new Set<string>();
+  for (const match of text.matchAll(EGFR_READING)) {
+    const at = match.index ?? 0;
+    if (HEMOGLOBIN_HISTORY_CUE.test(text.slice(Math.max(0, at - 12), at))) continue;
+    const value = Number(match[1]);
+    if (!Number.isFinite(value) || value <= 0 || value > 200) continue;
+    stages.add(value >= 90 ? "1" : value >= 60 ? "2" : value >= 30 ? "3" : value >= 15 ? "4" : "5");
+  }
+  return stages.size === 1 ? [...stages][0] : undefined;
+}
+const CKD_STAGE_TEXT = /(慢性肾脏病|CKD)\s*(G)?\s*([1-5一二三四五])\s*([abAB])?\s*期/gu;
+const CHINESE_STAGE: Readonly<Record<string, string>> = { 一: "1", 二: "2", 三: "3", 四: "4", 五: "5" };
+/** 一段文字里说本例慢性肾脏病分期的地方按给定分期改写（假设、预防的说法不改，与贫血分度同一口径）。 */
+export function regradedCkdStageText(text: string, stage: string): string {
+  return text.replace(CKD_STAGE_TEXT, (whole: string, name: string, g: string | undefined, digit: string, sub: string | undefined, offset: number) => {
+    const written = CHINESE_STAGE[digit] || digit;
+    if (written === stage || HYPOTHETICAL_ANEMIA_GRADE_CUE.test(text.slice(Math.max(0, offset - 10), offset))) return whole;
+    return `${name}${g || ""}${stage}期`;
+  });
+}
+function regradeCkdEverywhere(value: unknown, stage: string, recordText: string): unknown {
+  if (typeof value === "string") {
+    return new RegExp(CKD_STAGE_TEXT.source, "u").test(value) && !recordText.includes(value.trim()) ? regradedCkdStageText(value, stage) : value;
+  }
+  if (Array.isArray(value)) return value.map((item) => regradeCkdEverywhere(item, stage, recordText));
+  if (value && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    for (const key of Object.keys(object)) if (!VERBATIM_KEYS.has(key)) object[key] = regradeCkdEverywhere(object[key], stage, recordText);
+    return object;
+  }
+  return value;
+}
+
+/**
+ * 流派「部分适用」要有该派实际改变的决定（2026-11-15 第四十六轮逐字复核 C043、C021：温补、经方判 partial，辨证末句却说「以下按常规辨证处理」，
+ * 选的是独活寄生汤、血府逐瘀汤，都不是该派的方）。甲方验收表把如实写「不适配，未执行」算合格。
+ * 判据：本例选的方（开方阶段的处方方名，辨证阶段的推荐方）没有一张按已核对的流派归属属于所选流派（formulaNamesCarryLineage）时，
+ * applicable 写 not-applicable，适用理由里说相符的小句去掉、写明未按该派选方；辨证依据末句里「与…（部分）相符」的小句同样去掉。
+ * 选的方查不到目录条目时不判。适用（applicable）与已是不适用的不动。
+ */
+function withLineageApplicabilityMatchingFormula(projected: Json): void {
+  const lineage = record(projected.lineageAdaptation);
+  if (!lineage || lineage.applicable !== "partial" || typeof lineage.lineageCode !== "string") return;
+  const overview = record(projected.overview);
+  const candidate = records(record(projected.formula)?.candidates)[0];
+  const names = projected.stage === "prescribe"
+    ? [String(candidate?.name || ""), ...(Array.isArray(candidate?.formulaNames) ? candidate!.formulaNames as unknown[] : []).map(String)]
+    : [...(Array.isArray(overview?.recommendedFormulaNames) ? overview!.recommendedFormulaNames as unknown[] : []).map(String), String(overview?.recommendedFormulaDirection || "")];
+  const chosen = names.map((name) => name.trim()).filter((name) => name && !/^(?:自拟方|本例辨证组方)/u.test(name));
+  if (chosen.length === 0 || formulaNamesCarryLineage(chosen, lineage.lineageCode) !== false) return;
+  const label = typeof lineage.label === "string" && lineage.label.trim() ? lineage.label.trim() : "该派";
+  const fitClause = /[，,；;]?[^，,；;。]{0,12}(?:方向|思路|取向)?(?:部分)?相符[^，,；;。]{0,6}/gu;
+  if (typeof lineage.applicabilityReason === "string") {
+    const reason = lineage.applicabilityReason.replace(fitClause, "").replace(/^[，,；;\s]+|[，,；;\s]+$/gu, "").trim();
+    // 交付的方名是自拟方、身份栏里留着参照的成方时，照实写「自拟方，参照X」（重生成 C043：方名自拟方，理由却写「本次选方（乌头汤）」）。
+    const deliveredName = projected.stage === "prescribe" ? String(candidate?.name || "").trim() : "";
+    const referenced = chosen.find((name) => name !== deliveredName) || chosen[0];
+    const formulaLabel = /^(?:自拟方|本例辨证组方)/u.test(deliveredName)
+      ? `自拟方，参照${referenced.replace(/(?:加减|化裁|加味)$/u, "")}`
+      : chosen[0].replace(/(?:加减|化裁|加味)$/u, "");
+    lineage.applicabilityReason = `${reason ? `${reason}；` : ""}本次选方（${formulaLabel}）不在${label}的用方之列，未按该派执行`;
+  }
+  lineage.applicable = "not-applicable";
+  if (overview && typeof overview.tcmDiagnosticRationale === "string") {
+    overview.tcmDiagnosticRationale = overview.tcmDiagnosticRationale.replace(/[，,]\s*与[^，,；;。]{0,16}(?:部分)?相符(?=[，,]\s*以下按常规辨证处理)/gu, "");
+  }
+}
+
 /** 西医鉴别名同样只留名称本身。 */
 function deliveredDifferentialName(name: unknown): unknown {
   if (typeof name !== "string") return name;
@@ -1029,7 +1342,12 @@ export function recordedAccountConflict(recordText: string | undefined): string 
 
 function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): void {
   // 证名跟着辨证依据（第三十七轮）：病历原文在手时才判（开方阶段回传的是已投影的辨证结果，不再判）。
-  if (options?.recordText && !isLimitedDiagnose(reasoning)) compositeSyndromeRename(reasoning, options.recordText);
+  // 治法在治的实邪（渗湿、化痰、活血…），分析也写了、病历有两条以上表现时，病性栏列出它（analysis-element-closure，第四十六轮
+  // new45-n20「水湿内停…健脾渗湿」而病性只有气虚）；随后的国标合称按补齐后的病性栏判（脾虚证 + 湿 → 脾虚湿困证）。
+  if (options?.recordText && !isLimitedDiagnose(reasoning)) {
+    withMethodImpliedNatureElements(reasoning, options.recordText);
+    compositeSyndromeRename(reasoning, options.recordText);
+  }
   // 辨证依据末尾「不另立兼证」「未立兼证」「无兼证可立」（被改成「未诉兼证可立」）是讲辨证规则的话（第四十一轮 r1054 回顾 13 份）：去掉这一小句，
   // 前面「属主证可解释的伴随表现」照留。
   const overviewForSecondaryNote = record(reasoning.overview);
@@ -1046,6 +1364,13 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
   // 只认整条都在说已定、没有「是否/待/尚/需」这类仍待核实的词。
   if (pathogenesisForUncertainty && Array.isArray(pathogenesisForUncertainty.uncertainties)) {
     pathogenesisForUncertainty.uncertainties = records(pathogenesisForUncertainty.uncertainties).filter((row) => !uncertaintyAlreadySettled(row));
+    // 第四十六轮（逐字复核 n27、n39、C098、m02、m13、C043）：待核实项不收这几类——照抄提示段内部说法的（「按否认读」「病历读法」，
+    // 提示词用语外露）、评论证名本身的（「是否作为独立病性要素」「证名未列」）、问病历已写明的四诊属性的（舌苔厚薄而病历记苔薄、
+    // 肢温而查体记皮肤湿冷、里急后重而病历写无里急后重）、问「是否兼X」而病位栏、病性栏已列着X的。判据见 analysis-element-closure。
+    pathogenesisForUncertainty.uncertainties = records(pathogenesisForUncertainty.uncertainties).filter((row) =>
+      !uncertaintyLeaksPromptWording(row) && !uncertaintyDiscussesSyndromeNaming(row) &&
+      !(options?.recordText && uncertaintyAnsweredByRecord(String(row.item || ""), options.recordText)) &&
+      !uncertaintyAsksListedElement(String(row.item || ""), pathogenesisForUncertainty));
   }
   // 鉴别的「建议核实」模型写成字符串 null 的，按空值交付（2026-10-17 留出例 S132「建议核实：null」）。
   const overviewForNulls = record(reasoning.overview);
@@ -1425,7 +1750,10 @@ export function compositeSyndromeRename(reasoning: Json, recordText: string): { 
     if (rule.addNature) {
       if (!rule.addNature.some((item) => natures.includes(item))) continue;
       const signs = (rule.natureSigns || []).filter((sign) => recordText.includes(sign) && ["affirmed", "conflicting"].includes(recordedFindingReading(recordText, sign)));
-      if (new Set(signs).size < 2) continue;
+      // 湿的表现与病性栏补齐用同一张表（tcm-analysis-element-closure 的 recordSigns，《中医诊断学》湿淫证证候表现）：本规则原列的
+      // 苔腻、困重、脘痞之外，面浮肢肿、便溏、脉濡也算（第四十六轮 n20、m23 经行泄泻·脾虚证：浮肿、溏泄、脉濡缓，无苔腻）。
+      const closureSigns = rule.addNature.includes("湿") ? recordExcessSigns(recordText, "damp").length : 0;
+      if (new Set(signs).size < 2 && closureSigns < MIN_RECORD_SIGNS) continue;
     }
     if (!resolveNationalStandardTcmSyndromeTerm(rule.composite)) continue;
     overview.primarySyndrome = rule.composite;
@@ -1479,7 +1807,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
   const direction = typeof priorOverview?.recommendedFormulaDirection === "string" ? priorOverview.recommendedFormulaDirection.trim() : "";
   // 炮制品写进药名（2026-11-08 第三十七轮，甲方 11.05：便溏用生白术、完带汤原方写白术山药、汗出加减用生牡蛎；面板只显示药名，
   // processing 栏它不读，「没看到白术、山药等的炮制品，是默认使用生品吗」）。见 deliveredProcessedHerbNames。
-  deliveredProcessedHerbNames(reasoning, options, originalContext);
+  // 功效栏先定稿、再按功效选炮制规格（第四十六轮：先选规格时看的是模型原话，功效栏随后被换成知识库功效，同一结果再投影一次
+  // 牛膝就按「补肝肾，强筋骨」改成酒牛膝——投影不幂等，辨证页与开方页、复用的旧结果对不上；test:r1019-round4-decoction 3.2）。
   for (const candidate of records(formula?.candidates)) {
     // 内服方的药味功效栏不印「外用＋功效」小句（补骨脂「外用消风祛斑」，留出例 S054）：模型照抄知识库原文时也会带上。
     // 外洗、外敷、熏洗类方子不动。
@@ -1542,7 +1871,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         // 去掉无依据的词后剩下的半句已被同栏另一句包含（「滋阴清热」去「滋阴」剩「清热」，同栏已有「清热燥湿」）时不重复留。
         if (rest !== clause && originalClauses.some((other) => other !== clause && other.length > rest.length && other.includes(rest))) return [];
         if (rest !== clause && (/^[以而并及与和兼助]|[以而并及与和兼助]$/u.test(rest) ||
-          (!herbFunctionPhraseRecognized(rest) && ![...knowledgeItems].some((item) => item.startsWith(rest))))) return [];
+          (!herbFunctionPhraseRecognized(rest) && ![...knowledgeItems].some((item) => item.startsWith(rest))) ||
+          // 剩下的半句自己也要有依据（白薇「健脾益气」去「益气」剩「健脾」，第四十六轮）。
+          (herbFunctionPhraseRecognized(rest) && !herbFunctionPhraseSupported(rest, knowledge)))) return [];
         const fingerprint = [...rest].sort().join("");
         if (seen.has(fingerprint)) return [];
         seen.add(fingerprint);
@@ -1570,6 +1901,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       herb.function = conciseHerbFunctionLabel(withoutUnsupportedHarmonizingClause(name, herb.function,
         `${herbFunctionKnowledgeForDisplay(name)}；${getTcmHerbFunctionText(name)}`));
     }
+  }
+  deliveredProcessedHerbNames(reasoning, options, originalContext);
+  for (const candidate of records(formula?.candidates)) {
     // 名实相符（2026-10-19 M 集 Claude 评审：「乌头汤加减」方中无川乌、「沙参麦冬汤加减」无沙参）：方名承载药不在处方里的那张方
     // 不再用它命名——多为系统不编制用量、要求不写进药味表的毒性或品种未定的味（制川乌、朱砂、沙参）。合方去掉那一张；
     // 一张不剩时与服务端剥名同一形态（自拟方、formulaNames 与 baseFormulas 为空、self_devised），出处栏写自拟方。
@@ -1736,6 +2070,25 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       candidate.formulaAnalysis = `${opening ? (selfComposed ? "本方为自拟方。" : `本方以${label}为基础加减${opening[2]}`) : ""}${rest}`
         .replace(/本方案/g, "本方");
     }
+    // 出处写教材承认的原书（第四十六轮，textbookCitedOriginalSource）：上面几处按目录、名录取的出处是组成最贴近的那本书，
+    // 处方恰好与后出书的写法逐味相同时署成了它（桃红四物汤《妇科冰鉴》、一贯煎《医方絜度》）。处方覆盖教材所引原书的原方组成时换成那本书；
+    // 现有出处已是教材写过的书时不动。出处栏与 baseFormulas 同一取法。
+    {
+      const herbNames = records(candidate.herbs).map((herb) => String(herb.name || "")).filter(Boolean);
+      const sourceRecord = record(candidate.formulaSource);
+      if (sourceRecord && typeof sourceRecord.source === "string" && herbNames.length > 0) {
+        sourceRecord.source = sourceRecord.source.split(/[；;]/u).map((entry) => entry.trim()).filter(Boolean).map((entry) => {
+          const match = entry.match(/^([^：:《]{2,20})[：:](.+)$/u);
+          const better = match ? textbookCitedOriginalSource(match[1].trim(), herbNames, match[2]) : undefined;
+          return better ? `${match![1].trim()}：${better}` : entry;
+        }).join("；");
+      }
+      for (const base of records(candidate.baseFormulas)) {
+        if (typeof base.name !== "string" || typeof base.source !== "string") continue;
+        const better = textbookCitedOriginalSource(base.name, herbNames, base.source);
+        if (better) base.source = better;
+      }
+    }
     // 方名与组成一致（2026-10-26 甲方测评「方名（柴胡疏肝散-柴胡疏肝散加减）」）：方名不带「加减」时，组成与方剂目录的原方逐味相同
     // 才是原方，方义开头写「本方用X原方」；组成不同的方名补「加减」，方义照旧「以X为基础加减」。目录查不到组成的不动。
     // 写了「加减」、组成却与原方逐味相同（第三十三轮 12/152「方名标加减与实际不符」）：去掉「加减」。
@@ -1751,10 +2104,12 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     if (typeof candidate.formulaAnalysis === "string" && typeof candidate.name === "string") {
       candidate.formulaAnalysis = withOpeningMatchingFormulaName(candidate.formulaAnalysis, candidate.name, original === true).text;
     }
-    // 原方的姜枣引药（甲方 10.29 测评：归脾汤原方「加姜、枣，水煎服」，处方不便列时在用法里说明）。
-    const guideNote = omittedGuideHerbNote(candidate.name, records(candidate.herbs), originalContext, typeof candidate.formulaAnalysis === "string" ? candidate.formulaAnalysis : "");
+    // 原方的药引（甲方 10.29 测评：归脾汤原方「加姜、枣，水煎服」，处方不便列时在用法里说明；第四十六轮起姜枣以外的药引也写：
+    // 八正散灯心、银翘散鲜苇根汤煎）。用法里已写到的药引不再加。
     const candidateDecoction = record(candidate.decoction);
-    if (guideNote && candidateDecoction && typeof candidateDecoction.method === "string" && !/(?:生姜|煨姜|大枣|姜枣|姜、枣|红枣)/u.test(candidateDecoction.method)) {
+    const guideNote = omittedGuideHerbNote(candidate.name, records(candidate.herbs), originalContext, typeof candidate.formulaAnalysis === "string" ? candidate.formulaAnalysis : "",
+      typeof candidateDecoction?.method === "string" ? candidateDecoction.method : "");
+    if (guideNote && candidateDecoction && typeof candidateDecoction.method === "string") {
       candidateDecoction.method = `${candidateDecoction.method.replace(/[。；;\s]+$/u, "")}；${guideNote}`;
     }
     // 方义里的药名按药味表写（朱茯神→茯神，withMentionsAlignedToTableNames；编译时审过一次，交付面按最终药味表再对一次）；
@@ -1775,6 +2130,17 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         .replace(/(^|[；;。])\s*为[君臣佐使][\u4e00-\u9fff]{0,6}(?=[；;。]|$)/gu, "$1"));
     }
     if (typeof candidate.formulaAnalysis === "string") candidate.formulaAnalysis = withoutInternalCompositionTalk(candidate.formulaAnalysis);
+    // 「本方用X原方」只核了药味（第四十六轮逐字复核：八正散原方大黄煨、灯心为引，凉血地黄汤原方黄芩等炒黑、用归尾，处方都没有照用）：
+    // 原方写明的炮制、药用部位、药引本方没有照用时，开头改说「本方药味同X原方」，并把没照用的几项写出来（originalFormulaDeliveryNotes）。
+    // 放在方义药名对齐之后：对齐会把「归尾」改成药味表里的「当归」。
+    if (original === true && typeof candidate.formulaAnalysis === "string" && typeof candidate.name === "string") {
+      const label = candidate.name.trim();
+      const notes = originalFormulaDeliveryNotes(label, records(candidate.herbs), originalContext);
+      const opening = `本方用${label}原方`;
+      if (notes.length > 0 && candidate.formulaAnalysis.startsWith(opening)) {
+        candidate.formulaAnalysis = `本方药味同${label}原方（原方${notes.join("，")}，本方未照用）${candidate.formulaAnalysis.slice(opening.length)}`;
+      }
+    }
     // 方义说「去原方中…之品」而处方其实保留了原方全部药味（2026-10-17：甲方标准病历 1、4、10，三次生成里 4 次，独立评审判陈述失实）。
     // 方名能在方剂目录里查到组成、且组成逐味都在处方里时，去掉这句「去…」以及紧跟的「保留…/留其主体」；查不到组成时不动。
     if (typeof candidate.formulaAnalysis === "string" && REMOVAL_CLAIM_CLAUSE.test(candidate.formulaAnalysis) && typeof candidate.name === "string") {
@@ -1831,6 +2197,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     if (typeof candidate.name === "string" && SELF_COMPOSED_NAME.test(candidate.name.trim())) candidate.name = "自拟方";
     // 模型把提示词里的「本例辨证组方」抄进方义（「故去辰砂，改以本例辨证组方」，第三十五轮甲方 100 例 C035）。
     if (typeof candidate.formulaAnalysis === "string") candidate.formulaAnalysis = candidate.formulaAnalysis.replace(/本例辨证组方/gu, "自拟方");
+    // 顿号并列里同一味药的两种写法（「去桃仁、燀桃仁」，第四十六轮 p100c-C065）：只留第一个。
+    if (typeof candidate.formulaAnalysis === "string") candidate.formulaAnalysis = withoutSameDrugRepeatsInLists(candidate.formulaAnalysis);
     // 「适用于与本例锁定证候…及病机链一致的情况」是每例相同的模板句，不带内容。
     if (typeof candidate.applicable === "string") candidate.applicable = "";
     // 逐味人群提示只列本例可能属于的人群：按候选药味从同一份知识库重写尾段（尾段的写法只在 candidate-boundary-text 一处）。
@@ -1865,7 +2233,10 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 第四十四轮（甲方 11/14：中成药按接口原始数据核对）起不再交付空串：使用边界取说明书里「服药N天/周…无缓解…就诊」那一句，
     // 与汤剂的关系按这一行的定位写成一句临床说明（定位是受控四值）。说明书没有疗程句时使用边界仍为空。
     if (typeof medicine.usageBoundary === "string") medicine.usageBoundary = labelCourseBoundary(typeof medicine.riskNote === "string" ? medicine.riskNote : "");
-    if (typeof medicine.relationship === "string") medicine.relationship = MEDICINE_POSITIONING_RELATIONSHIP[String(medicine.positioning || "")] || "";
+    if (typeof medicine.relationship === "string") {
+      const external = medicineRowIsExternal(String(medicine.name || ""), String(medicine.route || ""));
+      medicine.relationship = (external ? MEDICINE_POSITIONING_RELATIONSHIP_EXTERNAL : MEDICINE_POSITIONING_RELATIONSHIP)[String(medicine.positioning || "")] || "";
+    }
     if (typeof medicine.riskNote === "string") medicine.riskNote = withoutLabelPlaceholders(medicine.riskNote) || medicine.riskNote;
   }
   const nonPharma = record(reasoning.nonPharma);
@@ -1974,6 +2345,10 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     //《中国2型糖尿病防治指南（2020年版）》医学营养治疗：限制添加糖与含糖饮料）。叫患者少吃、不吃的照留。
     if ((options?.requiredPrecautions || []).some((item) => item.kind === "diabetes_glucose" && !item.hypoglycemia)) {
       nonPharma.diet = withoutHighSugarRecommendations(String(nonPharma.diet));
+    }
+    // 血钾偏高：饮食段推荐的含钾高的食物去掉（第四十六轮 new45-n40；食物表见 western-drug-condition-cautions.source.json highPotassiumFoods，NKF）。
+    if ((options?.requiredPrecautions || []).some((item) => item.kind === "high_risk_condition" && item.conditions.includes("hyperkalemia"))) {
+      nonPharma.diet = withoutRecommendedFoods(String(nonPharma.diet), (text) => HIGH_POTASSIUM_FOODS.some((food) => text.includes(food)));
     }
   }
   if (nonPharma && Array.isArray(nonPharma.precautions)) {
@@ -2149,7 +2524,11 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         .filter((name) => name && chpPregnancyLabel(name));
       // 方中有哺乳期禁用/慎用药时，「哺乳」一句要逐味点到、档位与药表一致才算写到（只写「如正在哺乳请告知医生」的补规则那句）。
       const lactationNamed = lactationHerbs.length === 0 || current.some((line) => /哺乳/u.test(line) && lactationLineMatchesTiers(line, lactationTiers));
-      const missing = required.filter((item) => item.kind !== "antithrombotic_bleeding" || bleedingHerbs.length > 0)
+      // 华法林一条：人参类按最终药味与加减拟加的药筛（说明书点名 ginseng 减弱华法林作用）。
+      const finalHerbNames = [...candidateHerbNames, ...records(formula?.modifications).filter((row) => row.action === "加").map((row) => String(row.herbName || "").trim()).filter(Boolean)];
+      const requiredForFinal = required.map((item) => item.kind === "warfarin_herbal"
+        ? { ...item, decreaseHerbs: [...new Set(finalHerbNames.filter((name) => item.decreaseHerbs.some((herb) => name.includes(herb))))] } : item);
+      const missing = requiredForFinal.filter((item) => item.kind !== "antithrombotic_bleeding" || bleedingHerbs.length > 0)
         .filter((item) => (item.kind === "postpartum_lactation" && !lactationNamed) ||
           !requiredPrecautionCovered(item, item.kind === "administration_and_diet" ? coverageLines : current));
       // 补哺乳那句规则句时，模型写的哺乳一句换掉，不并存（2026-10-19 甲方病历 3：「患者一年内分娩…方中当归等哺乳期用药请先咨询医生」
@@ -2231,6 +2610,15 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 「方中砂仁、木香、陈皮属孕期慎用药」：只留药典孕妇禁用/慎用名单里的药，一味都不在名单里的整句不留（第四十一轮 r1054 回顾，
     // 孕妇恶阻方里的砂仁、陈皮是安胎止呕的药；逐味提示同一口径，见 candidate-boundary-text boundaryRuleShown）。
     precautions = precautions.flatMap((line) => typeof line === "string" ? withoutUnfoundedPregnancyCautionHerbs(line) : [line]);
+    // 列在「请把…连同药盒带去就医」「正在服用的…」里的食物不是药（第四十六轮 new45-n03「请把猪血、网购补铁剂…连同药盒带去就医」）。
+    precautions = precautions.map((line) => typeof line === "string" ? withoutFoodsInMedicationList(line) : line);
+    // 只有条件、没有处理办法的残句（后半句被前面哪一步删掉了：「服药期间如出现胃脘不适。」「方中柴胡、香附等行气之品，请告知医生。」）不留（第四十六轮 new40-m21、new45-n31）。
+    precautions = precautions.filter((line) => typeof line !== "string" || !isDanglingPrecaution(line.trim()));
+    // 同一页说同一件事的两条（规则补的一句与模型写的一句，第四十六轮 p100c-C032、new45-n23、p100c-C029、p100c-C003）：只留一条。
+    precautions = withoutNearDuplicatePrecautions(precautions, [
+      ...knownMedicineNames(options?.requiredPrecautions, formula),
+      ...records(records(formula?.candidates)[0]?.herbs).map((herb) => String(herb.name || "")),
+    ]);
     precautions = withinPrecautionCap(precautions);
     nonPharma.precautions = precautions;
   }
@@ -2291,7 +2679,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 加减理由里这味药没有的功效（2026-10-19 M 集 BEST4SDT-193 北沙参「益气养阴」、TCM-SD-448967 连翘「清热散结兼通肠腑」）：
     // 与药味功效栏同一判据（herbFunctionClaimUnsupportedPhrases），从小句头尾去掉；夹在中间去不干净的小句整句不留（只剩它时不动）。
     if (typeof modification.reason === "string" && typeof modification.herbName === "string" && modification.reason.trim()) {
-      modification.reason = withoutUnsupportedReasonPhrases(modification.reason, herbFunctionKnowledgeForDisplay(modification.herbName));
+      modification.reason = withoutUnsupportedReasonPhrases(modification.reason, herbFunctionKnowledgeForDisplay(modification.herbName), modification.herbName.trim());
     }
   }
   // 条件与所加的药都相同的加减只留一条（同一条教材加减被模型写了两遍）。条件相同、加的药不同（「加龙胆草、夏枯草」拆成两行）是
@@ -2302,6 +2690,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     formula.modifications = records(formula.modifications).filter((item) => !GENERIC_ONLY_TRIGGER.test(String(item.trigger || "")));
     // 同一味药只加一次（编译与补写之后都可能重复，见 withoutRepeatedAddedHerbs）。
     formula.modifications = withoutRepeatedAddedHerbs(records(formula.modifications));
+    // 「调整/减」某药而这味药已不在最终药味里（第四十六轮 p100c-C018；定稿也做一次，这里兜住缓存与补写之后的行）。
+    formula.modifications = withoutModificationsOnAbsentHerbs(records(formula.modifications),
+      records(records(formula.candidates)[0]?.herbs).map((herb) => String(herb.name || "")));
     const seen = new Set<string>();
     formula.modifications = records(formula.modifications).filter((item) => {
       const key = `${String(item.trigger || "").replace(/^若/u, "").replace(/[\s，,。；;：:]/gu, "")}|${String(item.action || "")}|${compositionIdentityName(String(item.herbName || "")) || String(item.herbName || "")}`;
@@ -2321,16 +2712,19 @@ function leavesObjectFragment(clause: string, rest: string): boolean {
   return clause.endsWith(rest) && /^[寒湿热风燥火痰瘀毒气血阴阳]/u.test(rest);
 }
 
-function withoutUnsupportedReasonPhrases(reason: string, knowledge: string): string {
+function withoutUnsupportedReasonPhrases(reason: string, knowledge: string, herbName = ""): string {
   const unsupported = herbFunctionClaimUnsupportedPhrases(reason, knowledge);
   if (unsupported.length === 0) return reason;
-  const clauses = reason.split(/([，,；;])/u);
+  // 顿号连着的几项功效也逐项看（「辛夷疏散风热、宣通鼻窍」，第四十六轮 rt-621376）；小句以药名起头的，药名之后才是功效。
+  const clauses = reason.split(/([，,；;、])/u);
   const kept: string[] = [];
   for (let index = 0; index < clauses.length; index += 2) {
-    const clause = clauses[index].trim();
+    const whole = clauses[index].trim();
     const separator = clauses[index + 1] || "";
+    const head = herbName && whole.startsWith(herbName) && whole.length > herbName.length ? herbName : "";
+    const clause = whole.slice(head.length);
     if (/^(?:助|使|配|协|以|防|制约|佐|兼顾|针对)/u.test(clause)) {
-      kept.push(clause, separator);
+      kept.push(whole, separator);
       continue;
     }
     let rest = clause;
@@ -2346,9 +2740,9 @@ function withoutUnsupportedReasonPhrases(reason: string, knowledge: string): str
     if (rest !== clause && leavesObjectFragment(clause, rest)) continue;
     if (rest !== clause && (!/[\u4e00-\u9fff]{2,}/u.test(rest) ||
       (rest.length < 3 && !herbFunctionPhraseRecognized(rest) && !knowledge.includes(rest)))) continue;
-    kept.push(rest, separator);
+    kept.push(rest === clause ? whole : `${head}${rest}`, separator);
   }
-  const text = kept.join("").replace(/[，,；;]+$/u, "");
+  const text = kept.join("").replace(/[，,；;、]+$/u, "").replace(/^[，,；;、]+/u, "");
   return text || reason;
 }
 
@@ -2651,9 +3045,21 @@ export function withoutRemovalClaims(analysis: string): string {
  * 依据：《中药学》「疮疡、皮肤病患者应忌食鱼、虾、蟹等腥膻发物」——忌口是辨证的结论，推荐不能与它相反。
  * 食物按点名的词比：「鱼虾蟹」拆成单字，单字只认作食物用的写法（鱼腥草、木鱼不算）。
  */
-const AVOID_FOOD_CLAUSE = /(?:忌食?|禁食|少食|少吃|避免(?:食用|进食|吃)?|不宜(?:多)?(?:食用?|吃)?|勿食|戒)([^。；;，,]{1,20})/gu;
+const AVOID_FOOD_CLAUSE = /(?:忌食?|禁食|少食|少吃|少喝|少饮|避免(?:食用|进食|吃)?|不宜(?:多)?(?:食用?|吃)?|勿食|戒)([^。；;，,]{1,20})/gu;
+/**
+ * 按类说的忌口对到具体食物（第四十六轮：「少食甜黏之品」又推荐蜂蜜，p100c-C004；「少喝汤水」又推荐炖汤，new45-n40）。词表在
+ * diet-restriction-food-categories.source.json；忌口里点到类名时，这一类的具体食物也算点了名。
+ */
+const DIET_RESTRICTION_CATEGORIES = (dietRestrictionCategoriesJson as { categories: ReadonlyArray<{ restrictionTerms: string[]; foods: string[] }> }).categories;
 function avoidedFoods(texts: readonly string[]): string[] {
   const foods = new Set<string>();
+  for (const text of texts) {
+    for (const match of text.matchAll(AVOID_FOOD_CLAUSE)) {
+      for (const category of DIET_RESTRICTION_CATEGORIES) {
+        if (category.restrictionTerms.some((term) => match[1].includes(term))) for (const food of category.foods) foods.add(food);
+      }
+    }
+  }
   for (const text of texts) {
     for (const match of text.matchAll(AVOID_FOOD_CLAUSE)) {
       for (const part of match[1].replace(/等.*$/u, "").split(/[、和及与或]/u)) {
@@ -2676,7 +3082,7 @@ function mentionsFood(text: string, food: string): boolean {
 function withoutContradictingRecommendation(diet: string, foods: readonly string[]): string {
   if (foods.length === 0) return diet;
   const clauses = diet.split(/(?<=[，,；;。])/u);
-  const kept = clauses.filter((clause) => /忌|禁|少食|少吃|避免|不宜|勿|戒/u.test(clause) || !foods.some((food) => mentionsFood(clause, food)));
+  const kept = clauses.filter((clause) => /忌|禁|少食|少吃|少喝|少饮|避免|不宜|勿|戒/u.test(clause) || !foods.some((food) => mentionsFood(clause, food)));
   if (kept.length === clauses.length) return diet;
   const joined = kept.join("").replace(/[，,；;]+$/u, "");
   return joined && !/[。！？]$/u.test(joined) ? `${joined}。` : joined;
@@ -2821,8 +3227,33 @@ export function followupWhenPriorityEvaluation(text: string, focus: PriorityEval
     ? [{ focus: focus.established.originalFocus, window: focus.window }].flatMap((before) => [priorityEvaluationFirstStep(before, regimen), priorityEvaluationFirstStep(before)])
     : [];
   for (const previous of [plain, generic, ...unreconciled]) if (previous !== first && text.includes(previous)) return text.replace(previous, first);
-  if (FINISH_MEDICINE_WITH_COUNT.test(text)) return text.replace(FINISH_MEDICINE_WITH_COUNT, first);
-  return `${first}${text}`;
+  // 前一阶段按另一个评估对象写过的第一步（专门通道原句，或「到相关专科…先完成评估」通用句）：去掉，只留这一句（第四十六轮 n33）。
+  let rest = text;
+  for (const previous of previousPriorityFirstStepSentences()) if (previous !== first && rest.includes(previous)) rest = rest.split(previous).join("");
+  rest = rest.replace(GENERIC_PRIORITY_FIRST_STEP, (sentence) => sentence === first ? sentence : "");
+  if (FINISH_MEDICINE_WITH_COUNT.test(rest)) return rest.replace(FINISH_MEDICINE_WITH_COUNT, first);
+  return `${first}${rest}`;
+}
+
+/**
+ * 复诊计划「若出现A、B、C，请提前复诊或立即就医」里，病历已肯定记载的表现不当作将来的警示条件写（第四十六轮甲方 100 例 C013：
+ * 近 8 小时尿量明显减少已记载，复诊计划仍写「若出现…尿量明显减少」）。读法用 recordedFindingReading（与辨证正文同一份病历读法），
+ * 只删肯定记载的那几项；整组都删光时这一句不留。不认识的项照留。幂等。
+ */
+const FUTURE_CONDITION_LIST = /(若|如|一旦)(出现|再出现|发生|有)?([^，,。；;：:]{2,80}?)([，,])/gu;
+export function withoutRecordedFutureConditions(text: string, recordText: unknown): string {
+  if (typeof recordText !== "string" || !recordText.trim()) return text;
+  return text.split(/(?<=[。；;])/u).map((sentence) => sentence.replace(FUTURE_CONDITION_LIST, (whole, lead: string, verb: string | undefined, list: string, comma: string) => {
+    const items = list.split(/[、]|或者|或|及|以及|和/u).map((item) => item.trim()).filter(Boolean);
+    if (items.length === 0) return whole;
+    const kept = items.filter((item) => {
+      const core = item.replace(/^(?:出现|有|发生)/u, "").replace(/(?:等表现|等情况|等|时)$/u, "").trim();
+      return core.length < 2 || recordedFindingReading(recordText, core) !== "affirmed";
+    });
+    if (kept.length === items.length) return whole;
+    if (kept.length === 0) return "\u0000";
+    return `${lead}${verb || ""}${kept.join("、")}${comma}`;
+  })).map((sentence) => sentence.includes("\u0000") ? "" : sentence).join("");
 }
 
 /**
@@ -2833,8 +3264,19 @@ export function followupWhenPriorityEvaluation(text: string, focus: PriorityEval
  */
 const MENSTRUAL_DISEASE = /^(?:月经(?:先期|后期|先后无定期|先后不定期|过多|过少)|经期延长|经间期出血|崩漏|闭经|痛经|经行[\u4e00-\u9fff]{1,6})$/u;
 const MENSTRUAL_CYCLE_FOLLOWUP = "月经的变化要按月经周期观察：请在下次月经来潮时及经净后复诊，一般连续调理观察3个月经周期。";
-export function followupWithMenstrualCycle(text: string, tcmDiseaseName: unknown): string {
-  if (typeof tcmDiseaseName !== "string" || !MENSTRUAL_DISEASE.test(tcmDiseaseName.trim()) || text.includes(MENSTRUAL_CYCLE_FOLLOWUP)) return text;
+/** 主诉本身是按月经周期出现的表现（经期腹痛、月经量多、经期延长…）：病名是癥瘕、虚劳也按周期复诊（第四十六轮新病历 n22：子宫肌瘤「经期腹痛加重半年」写服完 7 剂复诊）。 */
+const MENSTRUAL_CHIEF_COMPLAINT = /经期|月经|经行|经量|痛经|经间期/u;
+function chiefComplaintFromRecord(recordText: unknown): string {
+  // 接地正文（clinicalGroundingText）是「患者年龄：…」「患者性别：…」两行标签之后，第一行即主诉；带「主诉：」标签的按标签读。
+  if (typeof recordText !== "string") return "";
+  const labeled = recordText.match(/主诉[：:]\s*([^\n]+)/u)?.[1]?.trim();
+  if (labeled) return labeled;
+  return recordText.split("\n").map((line) => line.trim()).find((line) => line && !/^患者(?:年龄|性别)[：:]/u.test(line)) || "";
+}
+export function followupWithMenstrualCycle(text: string, tcmDiseaseName: unknown, recordText?: unknown): string {
+  const byDisease = typeof tcmDiseaseName === "string" && MENSTRUAL_DISEASE.test(tcmDiseaseName.trim());
+  const byComplaint = MENSTRUAL_CHIEF_COMPLAINT.test(chiefComplaintFromRecord(recordText));
+  if ((!byDisease && !byComplaint) || text.includes(MENSTRUAL_CYCLE_FOLLOWUP)) return text;
   const withoutWeeks = text.replace(/[^。；;，,]*?(?:\d+|[一二两三四]|半)(?:周|个月|月)后?复诊[^。；;，,]*?月经[^。；;，,]*[，,。；;]?/u, "");
   const base = withoutWeeks.trim();
   return base ? `${base.replace(/[，,；;]$/u, "。").replace(/([^。])$/u, "$1。")}${MENSTRUAL_CYCLE_FOLLOWUP}` : MENSTRUAL_CYCLE_FOLLOWUP;
@@ -2909,7 +3351,11 @@ function withSourceBasedReasoningEvidence(reasoning: Json): void {
   // 交付的证名是合称（心脾两虚证）、教材行是它的单证（心悸·心血不足证）时不标这一行：出处写的证名与交付的证名对不上，读的人以为是另一个证
   //（第四十四轮回看 4 份）。这时保留原有标签。
   const rowNamesDeliveredSyndrome = Boolean(row) && compactText(row!.syndromeName).replace(/证$/u, "") === compactText(overview.primarySyndrome).replace(/证$/u, "");
-  if (row && rowNamesDeliveredSyndrome && first && !(firstEvidence?.evidenceLevel === "kb_entry" && DIAGNOSTICS_CRITERIA_SOURCE.test(String(firstEvidence.source || "")))) {
+  // 首节点讲的实邪（瘀、湿、痰…）教材这一行的证名与治法都没有（痛经·气血虚弱证的首节点「瘀阻胞宫，不通则痛」）：这一节不是教材那一证，
+  // 不标该行出处（第四十六轮逐字复核 C070「来源又标痛经·气血虚弱证」）。
+  const rowElements = row ? new Set([...namedExcessElements([row.syndromeName]), ...methodImpliedExcessElements(row.therapy)]) : new Set<string>();
+  const firstNodeOutsideRow = [...excessElementMentionsIn(String(first?.pathogenesis || ""))].some((id) => !rowElements.has(id));
+  if (row && rowNamesDeliveredSyndrome && first && !firstNodeOutsideRow && !(firstEvidence?.evidenceLevel === "kb_entry" && DIAGNOSTICS_CRITERIA_SOURCE.test(String(firstEvidence.source || "")))) {
     first.evidence = { evidenceLevel: "kb_entry", source: textbookRowProvenance(row), confidence: overview.primarySyndromeResolution === "unresolved" ? "低" : "中" };
   }
   for (const item of records(record(reasoning.therapy)?.subTherapies)) {
@@ -3038,7 +3484,7 @@ export function exerciseForPreschoolChild(exercise: string, ageYears: number | n
   return /八段锦|太极|易筋经|五禽戏|站桩|导引/u.test(exercise) ? PRESCHOOL_EXERCISE_ADVICE : exercise;
 }
 
-export function clinicalMethodItems(method: string, cap = DELIVERED_METHOD_ITEM_CAP): string {
+export function clinicalMethodItems(method: string, cap = DELIVERED_METHOD_ITEM_CAP, textbookItems: ReadonlySet<string> = new Set()): string {
   const raw = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
   if (raw.length === 0) return method;
   const wholeEntry = (item: string): TreatmentPrincipleEntry | undefined => governedTreatmentMethodOccurrencesInText(item)
@@ -3065,7 +3511,9 @@ export function clinicalMethodItems(method: string, cap = DELIVERED_METHOD_ITEM_
       continue;
     }
     const own = wholeEntry(item);
-    if (own && keptEntries.some((prior) => prior.length > 0 && treatmentMethodCoveredBy(own, prior))) continue;
+    // 本证教材治法栏的项不按上下位并掉（第四十六轮复核 n14 内伤发热·气虚发热证「益气健脾，甘温除热」：甘温除热在 GB/T 16751.3 里属补气一支，
+    // 被「益气健脾」里的「益气」当成已覆盖去掉，主症低热在治法里没了着落）。
+    if (own && !textbookItems.has(item) && keptEntries.some((prior) => prior.length > 0 && treatmentMethodCoveredBy(own, prior))) continue;
     kept.push(item);
     keptEntries.push(governedTreatmentMethodOccurrencesInText(item).map(({ entry }) => entry));
   }
@@ -3105,6 +3553,14 @@ function deliveredMethodItemCap(overview: Record<string, unknown> | undefined): 
   return Math.max(DELIVERED_METHOD_ITEM_CAP, textbookItems);
 }
 
+/** 本证教材治法栏可锚定的那几项（交付治法逐项收口时不按上下位并掉，clinicalMethodItems）。 */
+function deliveredTextbookMethodItems(overview: Record<string, unknown> | undefined): Set<string> {
+  const disease = typeof overview?.tcmDiseaseName === "string" ? overview.tcmDiseaseName : "";
+  const syndrome = typeof overview?.primarySyndrome === "string" ? overview.primarySyndrome : "";
+  const row = disease && syndrome ? textbookRowForSyndrome(disease, syndrome) : undefined;
+  return new Set(row ? textbookAnchorableMethod(row.therapy).split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean) : []);
+}
+
 /** 复诊第一句的待排除项与本页的西医主诊断对账（diagnosis-safety.priorityTargetWithEstablishedDiagnosis）。 */
 function withEstablishedDiagnosis(projected: Json, options?: DeliveredSurfaceOptions): DeliveredSurfaceOptions | undefined {
   if (options?.priorityEvaluation === undefined) return options;
@@ -3132,9 +3588,10 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
     const mindInScope = signedScopeInvolvesMind(projected as SignedScopeLike) || mindSymptomsProminentInRecord(options?.recordText || "");
     const overviewRecord = record(projected.overview);
     const methodCap = deliveredMethodItemCap(overviewRecord);
+    const textbookMethodItems = deliveredTextbookMethodItems(overviewRecord);
     if (therapy && typeof therapy.overallPrinciple === "string") therapy.overallPrinciple = principleWhenRedFlag(therapy.overallPrinciple, redFlagActiveFor(options));
-    if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(therapy.overallMethod, mindInScope))), methodCap);
-    if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(overviewRecord.overallTherapy, mindInScope))), methodCap);
+    if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(therapy.overallMethod, mindInScope))), methodCap, textbookMethodItems);
+    if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(overviewRecord.overallTherapy, mindInScope))), methodCap, textbookMethodItems);
     const management = record(projected.management);
     if (management && typeof management.followupSafetyNet === "string" && options?.doseWithheld) {
       management.followupSafetyNet = followupWhenDoseWithheld(management.followupSafetyNet, options.doseWithheld, options.doseWithheldKind);
@@ -3142,7 +3599,10 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
       management.followupSafetyNet = followupWhenPriorityEvaluation(management.followupSafetyNet, options.priorityEvaluation);
     }
     if (management && typeof management.followupSafetyNet === "string" && !options?.doseWithheld) {
-      management.followupSafetyNet = followupWithMenstrualCycle(management.followupSafetyNet, overviewRecord?.tcmDiseaseName);
+      management.followupSafetyNet = followupWithMenstrualCycle(management.followupSafetyNet, overviewRecord?.tcmDiseaseName, options?.recordText);
+    }
+    if (management && typeof management.followupSafetyNet === "string") {
+      management.followupSafetyNet = withoutRecordedFutureConditions(management.followupSafetyNet, options?.recordText);
     }
   }
   else if (projected.stage === "prescribe") {
@@ -3182,7 +3642,8 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
         management.followupSafetyNet = options?.priorityEvaluation !== undefined
           ? followupWhenPriorityEvaluation(management.followupSafetyNet, options.priorityEvaluation, { doses: decoction?.followUpAfterDoses, days: decoction?.followUpAfterDays })
           : followupWithDoseCount(management.followupSafetyNet, decoction?.followUpAfterDoses, decoction?.followUpAfterDays);
-        management.followupSafetyNet = followupWithMenstrualCycle(String(management.followupSafetyNet), record(projected.overview)?.tcmDiseaseName);
+        management.followupSafetyNet = followupWithMenstrualCycle(String(management.followupSafetyNet), record(projected.overview)?.tcmDiseaseName, options?.recordText);
+        management.followupSafetyNet = withoutRecordedFutureConditions(String(management.followupSafetyNet), options?.recordText);
       }
     }
     // 煎服法的复诊节点也先写评估这一步（priorityEvaluationFollowUpNode，与上面复诊计划同一份计划）。
@@ -3212,11 +3673,15 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
         `辨证要点（${list.split("、").filter((item) => !/胎|带下|月经|经血|经量|经期|崩漏|妇女/u.test(item)).join("、")}）`);
     }
   }
+  withLineageApplicabilityMatchingFormula(projected);
   withSourceBasedReasoningEvidence(projected);
   if (projected.stage === "prescribe") withSourceBasedHerbEvidence(projected);
   // 贫血分度与病历 Hb 读数对齐：病名、编码显示、推理、鉴别、处置与开方各栏同一口径（recordAnemiaGrade）。
   const anemiaGrade = recordAnemiaGrade(options?.recordText, options?.herbBoundaryAudience?.ageYears);
   if (anemiaGrade && options?.recordText) regradeAnemiaEverywhere(projected, anemiaGrade, options.recordText);
+  // 慢性肾脏病分期与病历 eGFR 读数对齐（recordCkdStage），各栏同一口径。
+  const ckdStage = recordCkdStage(options?.recordText, options?.herbBoundaryAudience?.ageYears);
+  if (ckdStage && options?.recordText) regradeCkdEverywhere(projected, ckdStage, options.recordText);
   // 复诊提示里的急症表现只写本例可能出现的（男性、12 岁以下、60 岁及以上、已绝经者不写月经/孕哺类项目，见 followupSignsForPopulation）。
   // 两个阶段的载荷里都带这一栏；辨证阶段的路由没有给人群时（audience 缺省）原样不动。
   const managementForSigns = record(projected.management);

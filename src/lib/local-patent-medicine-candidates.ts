@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import localMedicineIndex from "../data/local-patent-medicine-index.json" with { type: "json" };
+import alcoholPreparationExclusions from "../data/medicine-alcohol-preparation-exclusions.source.json" with { type: "json" };
+import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { affirmativeNegationFormsIn, governedSyndromeLabelAxes } from "./clinical-vocabulary";
@@ -431,6 +433,9 @@ export function retrieveLocalPatentMedicineCandidates(
         indication: entry.indication,
       }, signedDirection);
     })
+    // 第七道（2026-11-15 第四十六轮）：含乙醇的内服成药（药酒）不给病历记录了降糖药、头孢或硝基咪唑类、肝病、戒酒或酒精过敏的患者
+    //（逐字复核：服二甲双胍的糖尿病患者推荐了三两半药酒）。见 alcoholPreparationContraindicatedFor。
+    .filter((entry) => !alcoholPreparationContraindicatedFor(entry, facts))
     .sort((left, right) =>
       right.score - left.score ||
       right.matchedConcepts.length - left.matchedConcepts.length ||
@@ -447,6 +452,23 @@ export function retrieveLocalPatentMedicineCandidates(
   return [...byBaseFormula.values()]
     .slice(0, Math.max(0, limit))
     .map((entry, index) => ({ ...entry, id: `LOCAL-INST-${String(idOffset + index + 1).padStart(3, "0")}` }));
+}
+
+const ALCOHOL_RULES = alcoholPreparationExclusions as {
+  alcoholLabel: string[]; alcoholDosageFormSuffix: string[]; recordTerms: Array<{ key: string; terms: string[] }>;
+};
+/** 含乙醇的内服中成药，且本例阳性事实里有降糖药、头孢或硝基咪唑类、肝病、戒酒或酒精过敏（受治理表 medicine-alcohol-preparation-exclusions）。 */
+export function alcoholPreparationContraindicatedFor(
+  entry: { name: string; usage?: string; precaution?: string; contraindication?: string },
+  positiveFacts: readonly string[],
+): string | undefined {
+  const name = String(entry.name || "").trim();
+  if (!medicineIsInternalUse(name, entry.usage || "")) return undefined;
+  const label = [entry.precaution, entry.contraindication].filter(Boolean).join("；");
+  const alcoholic = ALCOHOL_RULES.alcoholDosageFormSuffix.some((suffix) => name.endsWith(suffix)) || ALCOHOL_RULES.alcoholLabel.some((word) => label.includes(word));
+  if (!alcoholic) return undefined;
+  const facts = positiveFacts.join("；");
+  return ALCOHOL_RULES.recordTerms.find((rule) => rule.terms.some((term) => facts.includes(term)))?.key;
 }
 
 function compact(value: string, limit: number, fallback = "未载明"): string {
@@ -737,9 +759,14 @@ export function patentMedicineCoversMainProblem(indication: string, main: {
     .map((item) => item.replace(/\d+[^，,、]*$|[半一二三四五六七八九十数]+(?:个)?(?:天|日|周|月|年)[余多]?$/u, "").trim())
     .filter((item) => item.length >= 2);
   const mainText = [main.chiefComplaint, disease, western, ...syndromes].filter(Boolean).join("，");
+  // 本例的病与说明书写的病是一长一短两个病名（鹅口疮与口疮，第四十六轮逐字复核：8 月龄鹅口疮推荐了复方珍珠口疮颗粒，说明书写的是
+  // 「心脾湿热证口疮（复发性口腔溃疡）」）：短名不是长名的一部分，是另一个病。教材病名清单里两个名字都在、互相包含而不相同时，
+  // 说明书没有写出本例的病名就算没说到（下面按证、按概念相合也不再算）。
+  if (labelNamesAnotherNestedDisease(usedFor, disease)) return false;
   const concepts = matchingMedicineClinicalConcepts(mainText, usedFor);
   if (concepts.some((concept) => concept.axis === "problem")) return true;
-  if ([disease, western, ...complaintTerms, ...syndromes].some((term) => term && term.length >= 2 && usedFor.includes(term))) return true;
+  if ([western, ...complaintTerms, ...syndromes].some((term) => term && term.length >= 2 && usedFor.includes(term)) ||
+    (disease.length >= 2 && mentionsDiseaseExactly(usedFor, disease))) return true;
   const labelSyndrome = labelSyndromePhrase(usedFor);
   // 说明书在证之后点名了具体的病（乳腺增生、跌打损伤、急性上呼吸道感染…）、而上面没有一个对得上本例：只是证相近不够
   //（乳癖康胶囊「肝气郁结，气滞血瘀所致的乳腺增生」与肝郁血热的月经先期证相近，病不同）。只列症状的（六味地黄丸「肾阴亏损，
@@ -749,6 +776,20 @@ export function patentMedicineCoversMainProblem(indication: string, main: {
   if (concepts.some((concept) => concept.axis === "syndrome")) return true;
   if (labelSyndrome && syndromes.some((syndrome) => [...new Set(syndrome)].filter((character) => /[\u4e00-\u9fff]/u.test(character) && labelSyndrome.includes(character)).length >= 2)) return true;
   return false;
+}
+
+const TEXTBOOK_DISEASE_NAMES: readonly string[] = (textbookDiseaseNamesJson as { names: string[] }).names
+  .filter((name) => /^[\u4e00-\u9fff]{2,6}$/u.test(name));
+/** 文中这个病名出现、且不是作为一个更长的教材病名的一部分出现（「口疮」在「鹅口疮」里不算）。 */
+function mentionsDiseaseExactly(text: string, disease: string): boolean {
+  const longer = TEXTBOOK_DISEASE_NAMES.filter((name) => name !== disease && name.includes(disease));
+  const masked = longer.reduce((value, name) => value.split(name).join("　"), text);
+  return masked.includes(disease);
+}
+/** 说明书「用于」部分写了一个教材病名 X，与本例的教材病名 Y 一长一短互相包含（口疮 / 鹅口疮），且没有写出 Y 本身。 */
+function labelNamesAnotherNestedDisease(usedFor: string, disease: string): boolean {
+  if (!disease || !TEXTBOOK_DISEASE_NAMES.includes(disease) || mentionsDiseaseExactly(usedFor, disease)) return false;
+  return TEXTBOOK_DISEASE_NAMES.some((name) => name !== disease && (disease.includes(name) || name.includes(disease)) && mentionsDiseaseExactly(usedFor, name));
 }
 
 /** 说明书里的具体病名（不是症状）：以增生、炎、病、综合征、结节、瘤、癌、溃疡、感染、损伤、骨折、疮、疹、癣、痔、疝结尾，有限闭集。 */

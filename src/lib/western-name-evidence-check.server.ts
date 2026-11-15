@@ -8,7 +8,7 @@ import { westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
 import { westernCriteriaEntry, westernCriteriaPromptValue, westernCriteriaReference, westernNameWithoutCourseOrSideQualifier } from "./western-diagnostic-criteria.server";
 import { resolveIcd10Diagnosis } from "./icd10-diagnosis-coding.server";
 import { quoteGroundedInText } from "./verbatim-quote";
-import { rationaleAlignedWithRenamedPrimary } from "./western-rationale-alignment";
+import { rationaleAlignedWithCourseRename, rationaleAlignedWithRenamedPrimary } from "./western-rationale-alignment";
 
 export { rationaleAlignedWithRenamedPrimary };
 import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
@@ -470,7 +470,11 @@ export function applyWesternNameCorrection(westernContent: string, correction: W
   const previous = typeof primary?.name === "string" ? primary.name.trim() : "";
   if (!root || !western || !primary || !previous) return westernContent;
   primary.name = correction.supportedName;
-  if (typeof primary.clinicalRationale === "string") primary.clinicalRationale = rationaleAlignedWithRenamedPrimary(primary.clinicalRationale, previous, correction.type);
+  if (typeof primary.clinicalRationale === "string") {
+    primary.clinicalRationale = correction.course && /^病程未满/u.test(correction.reason)
+      ? rationaleAlignedWithCourseRename(primary.clinicalRationale, previous, correction.supportedName, correction.reason)
+      : rationaleAlignedWithRenamedPrimary(primary.clinicalRationale, previous, correction.type);
+  }
   // 「原病名待查」：首要考虑没有换，只是标明未确诊。候选首位改名即可，不再另列原病名，鉴别里也不重复它。
   const hypothesisKept = correction.supportedName === `${previous}待查`;
   // 病程远不到门槛（5 天对 6 个月）：原病名不再留在候选与鉴别里（见 WesternNameCorrection.course）。
@@ -762,6 +766,9 @@ export function pediatricOnlyWesternName(name: string): boolean {
   return PEDIATRIC_ONLY_WESTERN_NAME.test(name.trim().replace(/待查$/u, ""));
 }
 
+/** 只是「器官＋病/疾病」的笼统写法（肾脏病、心脏病、肝病、肺病、胃病）：不是一个可交付的具体病名（构词守卫）。 */
+const GENERIC_ORGAN_DISEASE_NAME = /^[肾肝心肺脾胃胆肠](?:脏)?(?:疾)?病$/u;
+
 export function deterministicWesternNameCorrection(name: string, recordText: string, patientAge?: number): WesternNameCorrection | undefined {
   const trimmed = name.trim();
   const core = trimmed.replace(/待查$/u, "");
@@ -781,7 +788,9 @@ export function deterministicWesternNameCorrection(name: string, recordText: str
     if (entry && threshold && course && recordCourseBelowThreshold(course, threshold) && !recordStatesWesternDiagnosis(core, recordText)) {
       const base = core.replace(/^慢性/u, "");
       const acute = `急性${base}`;
-      const supportedName = westernCriteriaEntry(acute)?.name === acute ? acute : base;
+      // 去掉「慢性」后只剩一个笼统的器官名（慢性肾脏病 → 肾脏病，第四十六轮逐字复核 C036：「“肾脏病”笼统非规范病名」）时不用它，
+      // 写「慢性X待查」：首要考虑不变，只是病程门槛还没满足。去掉后仍是一个具体病名（荨麻疹、咽炎、鼻窦炎）的照旧。
+      const supportedName = westernCriteriaEntry(acute)?.name === acute ? acute : GENERIC_ORGAN_DISEASE_NAME.test(base) ? `${core}待查` : base;
       if (compact(supportedName) !== compact(trimmed)) {
         return {
           type: "D",

@@ -16,3 +16,16 @@ export function rationaleAlignedWithRenamedPrimary(rationale: string, previous: 
     .replace(new RegExp(`(考虑${escaped}可能|需与${escaped}鉴别)的?[^，,。；;]{0,14}?(?:特点|特征|表现|模式|征象|改变)(?=[，,。；;]|$)`, "gu"), "$1")
     .replace(new RegExp(`(考虑${escaped}可能|需与${escaped}鉴别)的?(?=[\\u4e00-\\u9fff])`, "gu"), "$1，");
 }
+
+/**
+ * 按病程改的名（慢性X病程未满门槛 → 急性X，deterministicWesternNameCorrection）：推理说明里「按病程归为慢性X」「符合慢性X」整句与新病名相反，
+ * 换成「按病程（未满N）属急性X」（第四十六轮逐字复核 C052：病名急性荨麻疹，依据写「病程已达2周，按病程归为慢性荨麻疹」）。
+ * 不是这几种断言式时按 D 类的一般写法（rationaleAlignedWithRenamedPrimary）。
+ */
+export function rationaleAlignedWithCourseRename(rationale: string, previous: string, supportedName: string, reason: string): string {
+  if (!rationale || !previous || !rationale.includes(previous)) return rationale;
+  const escaped = previous.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const shortfall = reason.replace(/^病程/u, "");
+  const replaced = rationale.replace(new RegExp(`(?:按病程)?(?:可?归为|归入|诊断为|考虑为|符合|属于?|定为)\\s*${escaped}`, "gu"), `按病程（${shortfall}）属${supportedName}`);
+  return replaced !== rationale ? replaced : rationaleAlignedWithRenamedPrimary(rationale, previous, "D");
+}
