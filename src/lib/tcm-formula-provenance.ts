@@ -1577,13 +1577,21 @@ export function lineageDecisionsMatchingDirection<T extends ClinicalReasoningRes
  *「温病看卫气营血层次，舌红等温热见证，以下按常规辨证处理」——照抄了提示词的示例）。只认「〈派名〉（学派/思路/派）看/重…」这一句式，
  * 派名不是所选流派的整句去掉；辨证正文里出现的卫气营血、六经等术语不动。不限定流派时不处理。
  */
+// 医生没选流派（不限定）时，模型自己写的「从李东垣脾胃学派…看」「某学派看…」一句也不该出现（第四十六轮复核 new40 m16，复核说明判流派项不通过）。
+const ANY_SCHOOL_LENS = /^(?:按|从)?[^，,。；;]{0,12}(?:学派|学说|流派)[^，,。；;]{0,12}(?:看|视角|角度|思路)/u;
 export function withoutForeignLineageLensSentence<T extends ClinicalReasoningResultV2>(reasoning: T, lineagePreference?: string): T {
   const own = LINEAGE_LENS_SUBJECT[String(lineagePreference || "")];
   const rationale = reasoning.overview?.tcmDiagnosticRationale;
-  if (!own || typeof rationale !== "string") return reasoning;
+  if (typeof rationale !== "string") return reasoning;
+  // 只在辨证阶段、确知没选流派时删（开方阶段照抄已签名的辨证依据，这里不动）。
+  const unrestricted = reasoning.stage === "diagnose" &&
+    (lineagePreference === "unrestricted" || (!lineagePreference && !(reasoning as { lineageAdaptation?: unknown }).lineageAdaptation));
+  if (!own && !unrestricted) return reasoning;
   const foreign = Object.values(LINEAGE_LENS_SUBJECT).filter((name) => name !== own);
   const sentences = rationale.split(/(?<=[。；;])/u);
-  const kept = sentences.filter((sentence) => lineageLensSubject(sentence, foreign) === undefined);
+  const kept = sentences.filter((sentence) => unrestricted
+    ? !(lineageLensSubject(sentence) !== undefined || ANY_SCHOOL_LENS.test(sentence.trim()))
+    : lineageLensSubject(sentence, foreign) === undefined);
   if (kept.length === sentences.length) return reasoning;
   return { ...reasoning, overview: { ...reasoning.overview, tcmDiagnosticRationale: kept.join("").trim() } } as T;
 }

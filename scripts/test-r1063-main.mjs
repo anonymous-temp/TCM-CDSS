@@ -458,5 +458,14 @@ await check("7.16 「无停经史」对病历「本次月经未按时来潮」�
   assert.equal(summary.unrecordedNegativesAsNotReported("本例无停经史", "现病史：下腹痛半天。"), "本例未诉停经史", "对照：病历没写");
 });
 
+await check("7.17 没选流派时辨证依据里模型自写的「从…学派…看」一句去掉；选了流派时本派的眼目句照留（对照）", () => {
+  const base = (rationale, lineageAdaptation = null) => ({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseName: "泄泻", primarySyndrome: "脾虚证", tcmDiagnosticRationale: rationale }, lineageAdaptation, pathogenesis: { chain: [] }, therapy: { overallMethod: "健脾益气" } });
+  const text = "久泻乏力为脾气虚弱。从李东垣脾胃学派升阳益气思路看，此属脾虚气陷。";
+  assert.equal(provenance.withoutForeignLineageLensSentence(base(text), "unrestricted").overview.tcmDiagnosticRationale, "久泻乏力为脾气虚弱。");
+  const own = "久泻乏力为脾气虚弱。温补学派看脾肾命门，本例脾虚为主。";
+  assert.equal(provenance.withoutForeignLineageLensSentence(base(own, { applicable: "partial" }), "warm-tonify").overview.tcmDiagnosticRationale, own, "对照：选了温补");
+  assert.equal(provenance.withoutForeignLineageLensSentence({ ...base(text), stage: "prescribe" }, "unrestricted").overview.tcmDiagnosticRationale, text, "对照：开方阶段不动");
+});
+
 if (failures > 0) console.error(`\n${failures} check(s) failed`);
 else console.log("\nAll r1063 main checks passed");
