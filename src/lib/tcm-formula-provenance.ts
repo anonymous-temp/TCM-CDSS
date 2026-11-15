@@ -1,3 +1,6 @@
+import { DELIVERY_REWRITE_RULES, traceProjection, observeTextRewrite } from "./delivery-rewrite-ledger";
+/** Observation only; original clinical transforms and their return values are unchanged. */
+export const FORMULA_PROVENANCE_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.provenance, leaves: ["renamedDiseaseMentions","replaceSelfDevisedFormulaClaims","replaceFormulaIdentityClaims","withDeterministicFormulaReferences"] as const });
 import { activeBloodMovingMethodItem, bloodMovingWithoutHemostasis, methodForActiveBleeding } from "./active-bleeding-treatment";
 import { textbookFormulaNames, textbookNearestRow, textbookRowForSyndrome, therapyWithoutUnsupportedSymptomItems } from "./tcm-textbook-syndromes";
 import { chpPregnancyLabel } from "./conception-herb-policy";
@@ -1496,11 +1499,14 @@ function signedConditionalBranch(reasoning: ClinicalReasoningResultV2, branches:
  * 别处的旧名本身仍是本例的表现，照留。新名不含旧名时（头风病 → 头痛）照旧全换。
  */
 export function renamedDiseaseMentions(text: string, from: string, to: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.provenance, ruleId: "provenance.renamedDiseaseMentions", expected: { kind: "rename", from, to, authority: "governed disease name" } }, text, () => {
   const source = from.trim();
   if (!source || !to || source === to) return text;
   if (!to.includes(source)) return text.split(source).join(to);
   const escaped = source.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   return text.replace(new RegExp(`(?<=(?:属于?|归于?|诊为|辨为|定为|故为|病名为?)\\s*)${escaped}(?!${to.slice(source.length).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")})|${escaped}(?=\\s*(?:范畴|之病))`, "gu"), to);
+
+  });
 }
 
 export function formulaNamesCarryLineage(names: readonly string[], lineageCode: string): boolean | undefined {
@@ -1720,6 +1726,7 @@ function directionBarredForCase(direction: string, reasoning: ClinicalReasoningR
 const BLOOD_MOVING_FORMULA_NAME = /逐瘀|活血|化瘀|破血|祛瘀|破瘀/u;
 
 export function withDeterministicFormulaReferences(input: ClinicalReasoningResultV2, clinicalSourceText?: string, lineagePreference?: string, caseSafety?: FormulaReferenceCaseSafety): ClinicalReasoningResultV2 {
+  return traceProjection("withDeterministicFormulaReferences", input, () => {
   const reasoning = input.stage === "diagnose" ? withTextbookSyndromeName(input) : input;
   if (reasoning.stage === "diagnose") {
     const modelDirection = String(reasoning.overview?.recommendedFormulaDirection || "");
@@ -1837,6 +1844,8 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     };
   }
   return reasoning;
+
+  }, { ...DELIVERY_REWRITE_RULES.provenance, ruleId: "provenance.withDeterministicFormulaReferences" });
 }
 
 /**
@@ -3537,17 +3546,23 @@ export function enrichReasoning(
 // 自拟方没有「原方」可指：编译时补的「原方中的X毒性较大，本方未用。」整句去掉，不随下面的「原方」→「本方案」变成
 // 「本方案中的朱砂粉毒性较大」（说本方里有朱砂；方外药核对随后删掉这个分句，只剩残句「本方未用。」，见 formula-withheld-ingredient-note）。
 function replaceSelfDevisedFormulaClaims(block: string, explicitIdentityNames: string[]): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.provenance, ruleId: "provenance.replaceSelfDevisedFormulaClaims" }, block, () => {
   return replaceGovernedFormulaClaims(
     replaceLiteralFormulaClaims(withoutWithheldBaseIngredientNote(block), explicitIdentityNames, "本例辨证组方"),
     "本例辨证组方",
   ).replace(/原方/g, "本方案");
+
+  });
 }
 
 function replaceFormulaIdentityClaims(value: string, explicitIdentityNames: string[]): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.provenance, ruleId: "provenance.replaceFormulaIdentityClaims" }, value, () => {
   return replaceGovernedFormulaClaims(
     replaceLiteralFormulaClaims(withoutWithheldBaseIngredientNote(value), explicitIdentityNames, "本方案"),
     "本方案",
   ).replace(/原方/g, "本方案");
+
+  });
 }
 
 function professionalCandidateBoundary(value: string, fallback: string): string {

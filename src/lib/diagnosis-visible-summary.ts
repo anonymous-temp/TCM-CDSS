@@ -1,3 +1,6 @@
+import { DELIVERY_REWRITE_RULES, observeTextRewrite } from "./delivery-rewrite-ledger";
+/** Observation only; original clinical transforms and their return values are unchanged. */
+export const VISIBLE_SUMMARY_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.surface, leaves: ["unrecordedNegativesAsNotReported","withoutDenialsOfRecordedFindings","groundDifferentialNegativeAssertions","sanitizeOptionalPathogenesisClassifications","applyM03AdvisoryQualityBoundaries","normalizeM03TcmRationaleEvidenceBoundary","normalizeM03PathogenesisSummaryProjection","alignNormalizedM03WesternClinicalRationale","alignNormalizedM03TcmDiagnosticRationale","normalizeDiagnoseConfidenceAndLabels"] as const });
 import { chineseDurationNumber, discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote, stableM03CoreTextWithoutHedges } from "./diagnosis-stage-contract";
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import coldHeatSignsJson from "../data/tcm-cold-heat-signs.source.json" with { type: "json" };
@@ -588,6 +591,7 @@ function resolutionValue(value: unknown): ClinicalResolutionValue | undefined {
  * prepare 管线（签名之前），三出口与接口消费者同源。
  */
 export function groundDifferentialNegativeAssertions(content: string, clinicalContext: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.groundDifferentialNegativeAssertions" }, content, () => {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0 || !clinicalContext.trim()) return content;
@@ -690,6 +694,8 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
   } catch {
     return content;
   }
+
+  });
 }
 
 export function normalizeM03StructuralDuplicates(content: string): string {
@@ -824,6 +830,7 @@ function setEvidenceConfidence(value: unknown, level: "低" | "中"): void {
  * it never deletes a disease location or nature because it is absent from a finite keyword table.
  */
 export function sanitizeOptionalPathogenesisClassifications(content: string, clinicalContext: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.sanitizeOptionalPathogenesisClassifications" }, content, () => {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -1061,6 +1068,8 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
   } catch {
     return content;
   }
+
+  });
 }
 
 /**
@@ -1381,6 +1390,7 @@ function recordMentionsNegatedTerm(record: string, term: string): boolean {
  * 西医鉴别里句中的「…、无夜间痛；」（甲方标准病历 6 腰椎转移瘤一项）因为不在分句开头而两边都没管。
  */
 export function unrecordedNegativesAsNotReported(text: string, clinicalContext: string, options: { differential?: boolean } = {}): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.negative, ruleId: "m03.negative_missing" }, text, () => {
   const record = clinicalContext.normalize("NFKC").replace(/\s+/g, "");
   if (!record) return text;
   // 鉴别行的要点里，同一分句的顿号列举另有一项写「有…/多有…/常见…」（「起病较对称、无典型静止性震颤、有明确用药或脑血管病史」）：
@@ -1439,6 +1449,8 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
     const items = segment.split("、");
     return items.map((item, index) => index > 0 && item.startsWith("未诉") && items[index - 1].startsWith("未诉") ? item.slice(2) : item).join("、");
   }).join("").replace(/未诉(?:未诉)+/gu, "未诉");
+
+  });
 }
 
 /**
@@ -1503,6 +1515,7 @@ export function recordAffirmsDeniedFinding(clinicalContext: string, rawTerm: str
   return recordAffirmsSplitTwoCharacterTerm(affirmed, term);
 }
 export function withoutDenialsOfRecordedFindings(text: string, clinicalContext: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.denied, ruleId: "m03.denied_recorded" }, text, () => {
   if (!text || !clinicalContext.trim()) return text;
   const parts = text.split(/([，,；;。])/u);
   let offset = 0;
@@ -1557,6 +1570,8 @@ export function withoutDenialsOfRecordedFindings(text: string, clinicalContext: 
     .replace(/[，,；;]+(?=。|$)/gu, "")
     .replace(/([，,；;])[，,；;]+/gu, "$1");
   return result.trim() ? result : "";
+
+  });
 }
 
 /**
@@ -1603,6 +1618,7 @@ function notAPatientDenial(offset: number, whole: string, term: string): boolean
 }
 
 export function applyM03AdvisoryQualityBoundaries(content: string, clinicalContext: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.applyM03AdvisoryQualityBoundaries" }, content, () => {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -1859,6 +1875,8 @@ export function applyM03AdvisoryQualityBoundaries(content: string, clinicalConte
   } catch {
     return content;
   }
+
+  });
 }
 
 const NON_TCM_EVIDENCE_GAP = /(?:缺乏|缺少|未做|未查|尚无|待查|未完善)[^，,。；;]{0,18}(?:CT|MRI|影像|化验|实验室|量表|评分|内镜|彩超|超声|血常规|生化|HbA1c|腹诊|腹部触诊)/i;
@@ -1870,6 +1888,7 @@ const NON_TCM_EVIDENCE_GAP = /(?:缺乏|缺少|未做|未查|尚无|待查|未�
  * supplied; it never invents a syndrome, location, nature or pathogenesis node.
  */
 export function normalizeM03TcmRationaleEvidenceBoundary(content: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.normalizeM03TcmRationaleEvidenceBoundary" }, content, () => {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -1905,6 +1924,8 @@ export function normalizeM03TcmRationaleEvidenceBoundary(content: string): strin
   } catch {
     return content;
   }
+
+  });
 }
 
 /**
@@ -1913,6 +1934,7 @@ export function normalizeM03TcmRationaleEvidenceBoundary(content: string): strin
  * validation without adding or changing any clinical conclusion.
  */
 export function normalizeM03PathogenesisSummaryProjection(content: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.normalizeM03PathogenesisSummaryProjection" }, content, () => {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -1937,6 +1959,8 @@ export function normalizeM03PathogenesisSummaryProjection(content: string): stri
   } catch {
     return content;
   }
+
+  });
 }
 
 /**
@@ -3003,6 +3027,7 @@ export function applyDeterministicCandidateTherapyMatch(content: string, priorRe
  * provider-selected working diagnosis. No new disease, finding, or exclusion is introduced.
  */
 export function alignNormalizedM03WesternClinicalRationale(content: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.alignNormalizedM03WesternClinicalRationale" }, content, () => {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -3037,6 +3062,8 @@ export function alignNormalizedM03WesternClinicalRationale(content: string): str
   } catch {
     return content;
   }
+
+  });
 }
 
 /**
@@ -3073,6 +3100,7 @@ function trimTrailingClinicalPunctuation(value: string): string {
  * readable inference sentence; it does not infer a new syndrome, location, nature or therapy.
  */
 export function alignNormalizedM03TcmDiagnosticRationale(content: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.alignNormalizedM03TcmDiagnosticRationale" }, content, () => {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -3176,6 +3204,8 @@ export function alignNormalizedM03TcmDiagnosticRationale(content: string): strin
   } catch {
     return content;
   }
+
+  });
 }
 
 /** 服务端自产的鉴别理由回落句。措辞刻意不含「本例／患者」——否则会被自己的接地校验再判一次。 */
@@ -4104,6 +4134,7 @@ function documentedExclusionFacts(clinicalContext: string): string[] {
  * the independently reviewed disease differential remains untouched.
  */
 export function normalizeDiagnoseConfidenceAndLabels(content: string, clinicalContext: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.normalizeDiagnoseConfidenceAndLabels" }, content, () => {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -4149,6 +4180,8 @@ export function normalizeDiagnoseConfidenceAndLabels(content: string, clinicalCo
   } catch {
     return content;
   }
+
+  });
 }
 
 /**

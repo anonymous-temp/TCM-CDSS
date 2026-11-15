@@ -1,3 +1,6 @@
+import { DELIVERY_REWRITE_RULES, observeTextRewrite } from "./delivery-rewrite-ledger";
+/** Observation only; original clinical transforms and their return values are unchanged. */
+export const HERB_PROCESSING_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.processing, leaves: ["processedHerbName", "purposeProcessedHerbName", "withProcessedHerbMentions"] as const });
 import processingSource from "../data/tcm-herb-processing-forms.source.json" with { type: "json" };
 import purposeProcessingSource from "../data/tcm-herb-purpose-processing.json" with { type: "json" };
 import { recordedFindingReading } from "./diagnosis-safety";
@@ -36,6 +39,7 @@ export function processedHerbName(
   name: string,
   context: { purposeText?: string; recordText?: string; formulaName?: string; formulaContext?: OriginalFormulaContext },
 ): string | undefined {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.processing, ruleId: "herb.processing.recordPurpose" }, name, () => {
   const base = String(name || "").trim();
   if (!base || PREPARED_PREFIX.test(base)) return undefined;
   const identity = compositionIdentityName(base);
@@ -59,6 +63,7 @@ export function processedHerbName(
   // 参苓白术散合防己黄芪汤的白术写「健脾益气，渗利水湿」、病历大便溏薄，仍交付生白术）。只写生品用途的照旧留生品。
   if (rule.rawPurposeWords.some((word) => purpose.includes(word)) && !(cueHit && purposeHit)) return undefined;
   return rule.form;
+  }, result => result ?? name);
 }
 
 /**
@@ -67,6 +72,8 @@ export function processedHerbName(
  *「龙胆」改「酒龙胆」时「龙胆泻肝汤」被改成了「酒龙胆泻肝汤」（第四十二轮，原方炮制改读原方组成表后暴露）。
  */
 export function withProcessedHerbMentions(text: string, renames: ReadonlyMap<string, string>): string {
+  const rename = renames.size === 1 ? [...renames][0] : undefined;
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.processing, ruleId: "herb.processing.mentions", ...(rename ? { expected: { kind: "rename" as const, from: rename[0], to: rename[1], authority: "governed processing decision supplied by caller" } } : {}) }, text, () => {
   let out = String(text || "");
   if (renames.size === 0 || !out) return out;
   const formulaNames = [...new Set(identifyKnownFormulaNames(out))]
@@ -83,6 +90,8 @@ export function withProcessedHerbMentions(text: string, renames: ReadonlyMap<str
     out = out.replace(new RegExp(`(?<![${PREPARED_CHAR_CLASS}])${from}(?![${FORMULA_SUFFIX_CLASS}])${suffix ? `(?!${suffix})` : ""}`, "gu"), to);
   }
   return out.replace(/\u0000(\d+)\u0000/gu, (_match, index: string) => held[Number(index)] ?? "");
+
+  });
 }
 
 /**
@@ -190,6 +199,7 @@ export function purposeProcessedHerbName(
   purposeText: string,
   grams?: number,
 ): PurposeProcessingDecision | undefined {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.processing, ruleId: "herb.processing.textbookPurpose" }, name, () => {
   const written = String(name || "").trim();
   if (!written) return undefined;
   let base = written;
@@ -234,4 +244,5 @@ export function purposeProcessedHerbName(
     ? (row.forms.find((form) => form.prefix === target && !form.weak)?.quote || row.internalMustProcess?.quote || "")
     : row.internalMustProcess?.quote || "";
   return { name: next, base, prefix: target, quote };
+  }, result => result?.name ?? name);
 }
