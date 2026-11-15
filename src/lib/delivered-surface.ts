@@ -2,6 +2,10 @@ import { DELIVERY_REWRITE_RULES, traceProjection, observeTextRewrite } from "./d
 /** Observation only; original clinical transforms and their return values are unchanged. */
 export const DELIVERED_SURFACE_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.surface, leaves: ["applyDeliveredSurfaceToContent","projectDeliveredReasoning","clinicalWordingForSyntheticPhrases","readabilityCleaned"] as const });
 import { diseaseCareItemCovered, withoutDiseaseCareConflicts } from "./western-disease-care";
+import type { CaseState } from "./diagnosis-types";
+import therapyPhrasePolicy from "../data/tcm-therapy-phrase-policy.source.json" with { type: "json" };
+import { redFlagActiveFor } from "./clinical-red-flag-context";
+import { smallBaseOverextended, selfDevisedReferenceSource } from "./tcm-formula-provenance";
 /**
  * 交付面：调用方实际收到的结构化结果里，哪些字段不再带内容、哪些服务端生成的措辞要换成临床语言。
  *
@@ -32,7 +36,7 @@ import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormu
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { drugNamesInAllergyPhrases } from "./clinical-polarity";
-import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs } from "./m04-proposal-compiler";
+import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationTriggerNotFinding, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
@@ -46,8 +50,8 @@ import { dietAdviceAvoidsRichFood, isFoodMedicineHomologyItem, recipeHasRichIngr
 import { textbookOcrFixed } from "./nondrug-text-fixes";
 import { discontinuedMedicationLabel, highRiskConditionLine, highRiskConditionsMissing, type RequiredPrecaution, HIGH_POTASSIUM_FOODS } from "./required-precautions";
 import { chpPregnancyLabel } from "./conception-herb-policy";
-import { patentMedicineCompositionIdentities } from "./patent-medicine-duplication.server";
 import { currentHypoglycemiaRecorded } from "./required-precautions.server";
+import { patentMedicineCompositionIdentities, patentMedicineDuplication } from "./patent-medicine-duplication.server";
 import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
 import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBaseName, patentMedicineLabelIsTonic, tonicMedicineCategory, TOPICAL_MEDICATION_FORM } from "./local-patent-medicine-candidates";
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
@@ -71,6 +75,8 @@ import { GENERIC_PRIORITY_FIRST_STEP, previousPriorityFirstStepSentences, priori
  * requiredPrecautions 是本例注意事项必须写到的项目（required-precautions.server.ts 由病历算出）。
  */
 export type DeliveredSurfaceOptions = {
+  /** 编译、补写与缓存投影使用同一主诉和既定安全门，不从无标题正文猜主诉。 */
+  caseState?: Pick<CaseState, "chiefComplaint" | "safetyGate">;
   herbBoundaryAudience?: HerbBoundaryAudience;
   requiredPrecautions?: readonly RequiredPrecaution[];
   /**
@@ -2061,6 +2067,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
           ...(Array.isArray(record(reasoning.overview)?.recommendedFormulaNames) ? record(reasoning.overview)!.recommendedFormulaNames as unknown[] : []),
         ].map((name) => String(name || "").trim().replace(/(?:加减|化裁|加味)$/u, "")).filter((name) => name && !/合|本例辨证组方/u.test(name));
         for (const name of [...new Set(claimed)]) {
+          if (smallBaseOverextended(name, herbNames)) continue;
           const reference = formulaCompilationReferences([name])[0];
           if (!reference?.ingredients?.length) continue;
           // 方名承载的药不在方里不能叫这个名（第三十五轮 A16：川乌因孕妇禁用去掉后写「乌头汤加减」）。
@@ -2124,6 +2131,16 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     }
     const original = typeof candidate.name === "string" ? candidateIsOriginalFormula(candidate.name, records(candidate.herbs), originalContext) : undefined;
     if (original === false && typeof candidate.name === "string") candidate.name = `${candidate.name.trim()}加减`;
+    // 名称身份在方名恢复、原方核验后定稿；方义开头仍走已有的同一函数。
+    if (typeof candidate.name === "string" && smallBaseOverextended(candidate.name, records(candidate.herbs).map((herb) => String(herb.name || "")))) {
+      const referenceName = candidate.name.replace(/(?:加减|化裁|加味)$/u, "");
+      const source = selfDevisedReferenceSource(records(candidate.herbs).map((herb) => String(herb.name || "")), [referenceName]);
+      candidate.name = "自拟方";
+      candidate.constructionType = "self_devised";
+      candidate.formulaNames = [];
+      candidate.baseFormulas = [];
+      candidate.formulaSource = { evidenceLevel: "model_inference", source: source || "自拟方", confidence: "中" };
+    }
     // 方义开头与最终方名一致（自拟方 / 以某方为基础），三种写法同一个判据（withOpeningMatchingFormulaName）。
     if (typeof candidate.formulaAnalysis === "string" && typeof candidate.name === "string") {
       candidate.formulaAnalysis = withOpeningMatchingFormulaName(candidate.formulaAnalysis, candidate.name, original === true).text;
@@ -2246,7 +2263,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       }
     }
     const source = record(candidate.formulaSource);
-    if (source && typeof source.source === "string" && /^自拟方/.test(source.source.trim())) source.source = "自拟方";
+    if (source && typeof source.source === "string" && /^自拟方/.test(source.source.trim()) && !(source.source.includes("组方参考") && /《[^》]+》/u.test(source.source))) source.source = "自拟方";
     // 合方出处各条收尾的句号去掉（「五神汤：《辨证录》卷十三。；萆薢渗湿汤：…」，S143；写法同 formulaSourceLabel）。
     if (source && typeof source.source === "string") source.source = source.source.replace(/[。．.]+(?=\s*[；;]|\s*$)/gu, "");
   }
@@ -2680,17 +2697,20 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
   }
   // 辨证阶段已采纳的患者原话（主证依据与各病机节点的患者事实）：随证加减的触发条件说的症状这里已有，就不是「若」出现的变化。
   const recordedFacts = modificationPresenceFactsFor(options?.recordText || "", { overview: priorOverview as { primarySyndromeBasis?: unknown } | undefined, pathogenesis: { chain: records(record(reasoning.pathogenesis)?.chain) } });
+  const triggerContext = { caseState: options?.caseState, recordText: options?.recordText, prior: { overview: { tcmDiseaseName: String(priorOverview?.tcmDiseaseName || "") } }, priorityEvaluation: options?.priorityEvaluation };
+  if (formula && Array.isArray(formula.modifications)) formula.modifications = records(formula.modifications)
+    .filter((item) => !modificationTriggerNotFinding(String(item.trigger || ""), triggerContext));
   // 备用加减（「若X」而病历里没有X）不交付（第四十四轮，2026-11-14 用户：甲方页面默认勾选、没有确认的地方，评审按患者实际病情判）。
   // 编译阶段已按同一判据不列；这里兜住补写、核对之后的行与旧缓存。病历原文拿不到时（没传 recordText）不动，免得把已见的也删了。
   if (formula && Array.isArray(formula.modifications) && options?.recordText && !standbyModificationsDelivered()) {
     formula.modifications = records(formula.modifications).filter((item) =>
-      !(typeof item.trigger === "string" && /^\s*(?:若|如果?|倘若|假如)/u.test(item.trigger) && !presentModificationCondition(item.trigger, recordedFacts)));
+      !(typeof item.trigger === "string" && /^\s*(?:若|如果?|倘若|假如)/u.test(item.trigger) && !presentModificationCondition(item.trigger, recordedFacts, triggerContext)));
   }
   for (const modification of records(formula?.modifications)) {
     // 触发条件是病历已有的症状（「若抽搐」而病历已有抽搐，2026-10-20 第八轮 X-G-0570、X-G-0617）：条件式「若X」是给还没出现的变化备的，
     // 现症写成「若」是把事实当假设。改成「本例已见X」；依据是模型自拟的备用加减时一并换成病历原句。判据与改写见 presentModificationCondition。
     if (recordedFacts && typeof modification.trigger === "string" && /^\s*(?:若|如果?)/u.test(modification.trigger)) {
-      const present = presentModificationCondition(modification.trigger, recordedFacts);
+      const present = presentModificationCondition(modification.trigger, recordedFacts, triggerContext);
       if (present) {
         modification.trigger = present.trigger;
         const evidence = record(modification.evidence);
@@ -2725,6 +2745,10 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
       seen.add(key);
       return true;
     });
+  }
+  if (formula && Array.isArray(formula.patentAndWestern)) {
+    const herbs = records(records(formula.candidates)[0]?.herbs).map((herb) => ({ name: String(herb.name || ""), role: String(herb.role || "") }));
+    formula.patentAndWestern = records(formula.patentAndWestern).filter((medicine) => !patentMedicineDuplication(medicine, herbs, [], records(formula.modifications)));
   }
 }
 
@@ -2910,6 +2934,8 @@ function textbookCompositionOptions(row: { id?: string; formulas: readonly strin
  * 教材行的组成不分属哪张方：合方时它过半只说明「并集过半」，各张都算；目录能分清时按目录各算各的。
  */
 function textbookFormulasCoveredByPrescription(row: { formulas: string[]; composition: string[]; formulaCompositions?: ReadonlyArray<{ formula: string; herbs: readonly string[] }> }, herbNames: readonly string[]): string[] {
+  // 同一小方阈值约束教材锚定和缓存重投影；合方按整体判，不把其中的小方当作单独底方。
+  if (smallBaseOverextended(row.formulas.join("合"), herbNames)) return [];
   // 方名承载药不在处方里的方不算（与交付方名同一判据 formulaNameIdentityHerbsMissing：知柏地黄丸而方中无知母、黄柏）。
   const formulas = row.formulas.filter((name) => formulaNameIdentityHerbsMissing(name, herbNames).length === 0);
   if (formulas.length < row.formulas.length) return formulas.length > 0 ? textbookFormulasCoveredByPrescription({ ...row, formulas }, herbNames) : [];
@@ -3456,6 +3482,8 @@ export function withinMethodItemCap(method: string): string {
 /** 交付治法的一项拆回四字项（见 clinicalMethodItems）。 */
 export function standardMethodItems(item: string): string[] {
   const trimmed = String(item || "").trim();
+  const explicitParts = (therapyPhrasePolicy.longPhraseParts as Record<string, string[]>)[trimmed];
+  if (explicitParts) return explicitParts;
   if (trimmed.length <= 4 || !/^[\u4e00-\u9fff]+$/u.test(trimmed) || textbookTherapyItems().has(trimmed)) return [trimmed];
   const whole = governedTreatmentMethodOccurrencesInText(trimmed).some(({ entry, index }) =>
     index === 0 && [entry.canonical, ...(entry.aliases || [])].includes(trimmed));
@@ -3529,8 +3557,8 @@ export function exerciseForPreschoolChild(exercise: string, ageYears: number | n
 }
 
 export function clinicalMethodItems(method: string, cap = DELIVERED_METHOD_ITEM_CAP, textbookItems: ReadonlySet<string> = new Set()): string {
-  const raw = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
-  if (raw.length === 0) return method;
+  const raw = withoutRedundantTherapyPhrases(String(method || "")).split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
+  if (raw.length === 0) return "";
   const wholeEntry = (item: string): TreatmentPrincipleEntry | undefined => governedTreatmentMethodOccurrencesInText(item)
     .map(({ entry }) => entry)
     .find((entry) => entry.canonical === item || (entry.aliases || []).includes(item));
@@ -3538,7 +3566,7 @@ export function clinicalMethodItems(method: string, cap = DELIVERED_METHOD_ITEM_
   // 教材治法栏逐字有的长项（益气止血固脱、清暑祛湿解表）与整项是受治理治法的照留；其余六字项拆成「前四字 + 词表里以后两字收尾、
   // 且开头两字在原项里的四字治法」（疏风清热化痰 → 疏风清热，清热化痰），找不到就只留前四字。
   const formed = raw.filter((item) => item.length >= 4).flatMap(standardMethodItems);
-  const items = formed.length > 0 ? formed : raw;
+  const items = withoutRedundantTherapyPhrases((formed.length > 0 ? formed : raw).join("，")).split(/[，,、；;]/u).filter(Boolean);
   const kept: string[] = [];
   const keptEntries: TreatmentPrincipleEntry[][] = [];
   for (const item of items) {
@@ -3562,7 +3590,7 @@ export function clinicalMethodItems(method: string, cap = DELIVERED_METHOD_ITEM_
     keptEntries.push(governedTreatmentMethodOccurrencesInText(item).map(({ entry }) => entry));
   }
   const text = kept.slice(0, Math.max(1, cap)).join("，");
-  return text === raw.join("，") ? method : text;
+  return text === String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean).join("，") ? method : text;
 }
 
 /**
@@ -3572,7 +3600,7 @@ export function clinicalMethodItems(method: string, cap = DELIVERED_METHOD_ITEM_
  * 《中医基础理论》标本缓急——病证急重、危及生命时先治其标。
  */
 export function principleWhenRedFlag(principle: string, redFlagActive: boolean): string {
-  if (!redFlagActive) return principle;
+  if (!redFlagActive) return String(principle || "").split(/[，,、；;]/u).map((item) => item.trim()).filter((item) => item && !/^急则治(?:其)?标$/u.test(item)).join("，");
   const items = String(principle || "").split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean)
     .filter((item) => !/^(?:急则治(?:其)?标|标本兼治|缓则治(?:其)?本|治病求本)$/u.test(item));
   return ["急则治标", ...items].slice(0, 2).join("，");
@@ -3590,11 +3618,7 @@ export const RED_FLAG_HYPOGLYCEMIA_DIET_ADVICE = "本次是低血糖：能吞咽
 export const RED_FLAG_EXERCISE_ADVICE = "急危重情况排除前暂停运动保健，避免活动与用力。";
 export const RED_FLAG_DECOCTION_LEAD = "急诊排除急危重情况、经医生确认后方可服用；";
 
-function redFlagActiveFor(options?: DeliveredSurfaceOptions): boolean {
-  if (options?.doseWithheld === "red_flag") return true;
-  const target = options?.priorityEvaluation;
-  return Boolean(target && typeof target === "object" && target.pathway === "red_flag_clearance");
-}
+
 
 function deliveredMethodItemCap(overview: Record<string, unknown> | undefined): number {
   const disease = typeof overview?.tcmDiseaseName === "string" ? overview.tcmDiseaseName : "";
@@ -3646,13 +3670,7 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
     if (declaredOverview && !Array.isArray(declaredOverview.secondarySyndromes)) declaredOverview.secondarySyndromes = [];
     const therapy = record(projected.therapy);
     if (therapy) delete therapy.verifiedMethodItem;
-    const mindInScope = signedScopeInvolvesMind(projected as SignedScopeLike) || mindSymptomsProminentInRecord(options?.recordText || "");
     const overviewRecord = record(projected.overview);
-    const methodCap = deliveredMethodItemCap(overviewRecord);
-    const textbookMethodItems = deliveredTextbookMethodItems(overviewRecord);
-    if (therapy && typeof therapy.overallPrinciple === "string") therapy.overallPrinciple = principleWhenRedFlag(therapy.overallPrinciple, redFlagActiveFor(options));
-    if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(therapy.overallMethod, mindInScope))), methodCap, textbookMethodItems);
-    if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(overviewRecord.overallTherapy, mindInScope))), methodCap, textbookMethodItems);
     const management = record(projected.management);
     if (management && typeof management.followupSafetyNet === "string" && options?.doseWithheld) {
       management.followupSafetyNet = followupWhenDoseWithheld(management.followupSafetyNet, options.doseWithheld, options.doseWithheldKind);
@@ -3733,6 +3751,15 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
     }
   }
   else return reasoning;
+  // 辨证与开方载荷都携带治法；缓存重放和新生成在同一出口收口。
+  const therapy = record(projected.therapy);
+  const overviewRecord = record(projected.overview);
+  const mindInScope = signedScopeInvolvesMind(projected as SignedScopeLike) || mindSymptomsProminentInRecord(options?.recordText || "");
+  const methodCap = deliveredMethodItemCap(overviewRecord);
+  const textbookMethodItems = deliveredTextbookMethodItems(overviewRecord);
+  if (therapy && typeof therapy.overallPrinciple === "string") therapy.overallPrinciple = principleWhenRedFlag(therapy.overallPrinciple, redFlagActiveFor(options));
+  if (therapy && typeof therapy.overallMethod === "string") therapy.overallMethod = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(therapy.overallMethod, mindInScope))), methodCap, textbookMethodItems);
+  if (overviewRecord && typeof overviewRecord.overallTherapy === "string") overviewRecord.overallTherapy = clinicalMethodItems(withinMethodItemCap(withoutRedundantTherapyPhrases(withoutIncidentalSedationMethod(overviewRecord.overallTherapy, mindInScope))), methodCap, textbookMethodItems);
   if (projected.stage === "diagnose" && options?.recordText) withSyndromeResolutionFromAxes(projected, options.recordText);
   // 证素核对的待核实项里列着辨证要点原文：本例不可能有的那几项（男性、儿童、老人的滑胎、带下、月经）不列（2026-11-14 第四十五轮：
   // 63 岁男性、91 岁男性的待核实写「滑精、滑胎、带下量多清稀」）。人群按开方同一口径（herbBoundaryAudience.reproductive）。

@@ -427,8 +427,8 @@ await check("7.5 小模型按本例选穴：请求里有本例诊断、表现与
   });
   const route = fs.readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
   assert.match(route, /const homeAcupointAuthoring = homeAcupointInput \? authorHomeAcupointCare\(homeAcupointInput, signal\)/);
-  // 第四十七轮 C1：教材注意核对加入同一并行组，居家选穴仍不串行。
-  assert.match(route, /Promise\.all\(\[\s*checkFormulaAnalysisClaimsInContent\(content, transformSignal\),\s*dropMisfitModifications\(content, \{ recordText: structuredClinicalContext \}, transformSignal\),\s*homeAcupointAuthoring,\s*checkHerbCautions\(content, \{ recordText: structuredClinicalContext \}, transformSignal\),?\s*\]\)/);
+  // 第四十七轮：教材注意核对加入同一并行组、加减核对带完整分型上下文；居家选穴仍不串行。
+  assert.match(route, /Promise\.all\(\[\s*checkFormulaAnalysisClaimsInContent\(content, transformSignal\),\s*dropMisfitModifications\(content, \{ recordText: structuredClinicalContext, prior: signedPriorReasoning, caseState: safeState \}, transformSignal\),\s*homeAcupointAuthoring,\s*checkHerbCautions\(content, \{ recordText: structuredClinicalContext \}, transformSignal\),?\s*\]\)/);
   assert.match(route, /\{ authoredHomeAcupoint \}\)/);
 });
 

@@ -199,11 +199,12 @@ await check("2.4 D4：开方定稿在核对与签名之前做安全剔除（fina
 });
 
 await check("2.5 D4 随证加减与方中药味同一判据：活动性出血时拟加的红花不列（三七照列）；转氨酶升高时拟加川楝子照列并写明肝功能不全者慎用；对照不写", () => {
+  // 第四十七轮：加减必须针对伴随表现，改用胁肋隐痛；保持三七/川楝子存在的正对照，不能靠删光加减让安全断言空转。
   const compiler = pruningCompiler;
   const prior = types.ReasoningV2Schema.parse({
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
     overview: { tcmDiseaseName: "胃痛", primarySyndrome: "瘀血停胃证", overallPathogenesis: "瘀停胃络，不通则痛", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
-    pathogenesis: { chain: [{ nodeId: "P1", patientFact: "胃脘隐痛", syndromeEvidence: "胃脘隐痛，痛有定处", pathogenesis: "瘀停胃络，不通则痛", therapyDirection: "化瘀通络" }] },
+    pathogenesis: { chain: [{ nodeId: "P1", patientFact: "胃脘隐痛，伴胁肋隐痛", syndromeEvidence: "胃脘隐痛，痛有定处", pathogenesis: "瘀停胃络，不通则痛", therapyDirection: "化瘀通络" }] },
     therapy: { overallPrinciple: "实则泻之", overallMethod: "化瘀通络，和胃止痛", subTherapies: [{ therapy: "化瘀通络", targetPathogenesis: "瘀停胃络", priority: "主要" }] },
     formula: { candidates: [], patentAndWestern: [], modifications: [] },
   });
@@ -219,20 +220,20 @@ await check("2.5 D4 随证加减与方中药味同一判据：活动性出血时
     },
     patentAndWestern: [],
     modifications: [
-      { trigger: "胃脘隐痛", targetRef: "P1", actionType: "add", herbName: "红花", dose: "6g", reason: "活血止痛" },
-      { trigger: "胃脘隐痛", targetRef: "P1", actionType: "add", herbName: "三七", dose: "3g", reason: "化瘀止血" },
-      { trigger: "胃脘隐痛", targetRef: "P1", actionType: "add", herbName: "川楝子", dose: "6g", reason: "行气止痛" },
+      { trigger: "胁肋隐痛", targetRef: "P1", actionType: "add", herbName: "红花", dose: "6g", reason: "活血止痛" },
+      { trigger: "胁肋隐痛", targetRef: "P1", actionType: "add", herbName: "三七", dose: "3g", reason: "化瘀止血" },
+      { trigger: "胁肋隐痛", targetRef: "P1", actionType: "add", herbName: "川楝子", dose: "6g", reason: "行气止痛" },
     ],
     nonPharma: { diet: "宜温热易消化饮食。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: [], tcmTreatments: [] },
   }, prior, caseState);
   const added = (raw) => compile(types.normalizeCaseStateInput(raw)).formula.modifications;
-  const bleeding = added(record({ cc: "胃脘隐痛伴黑便1天", sex: "男", age: 50, text: "胃脘隐痛，痛有定处，今日解黑便2次，头晕乏力。" }));
+  const bleeding = added(record({ cc: "胃脘隐痛伴黑便1天", sex: "男", age: 50, text: "胃脘隐痛，痛有定处，伴胁肋隐痛，今日解黑便2次，头晕乏力。" }));
   assert.ok(!bleeding.some((item) => item.herbName === "红花"), JSON.stringify(bleeding.map((item) => item.herbName)));
-  assert.ok(bleeding.some((item) => item.herbName === "三七"), JSON.stringify(compile(types.normalizeCaseStateInput(record({ cc: "胃脘隐痛伴黑便1天", sex: "男", age: 50, text: "胃脘隐痛，痛有定处，今日解黑便2次，头晕乏力。" }))).formula.modificationReview));
-  const liver = added(record({ cc: "胃脘隐痛1月", sex: "男", age: 50, text: "胃脘隐痛，痛有定处。转氨酶升高半年。" }));
+  assert.ok(bleeding.some((item) => item.herbName === "三七"), JSON.stringify(compile(types.normalizeCaseStateInput(record({ cc: "胃脘隐痛伴黑便1天", sex: "男", age: 50, text: "胃脘隐痛，痛有定处，伴胁肋隐痛，今日解黑便2次，头晕乏力。" }))).formula.modificationReview));
+  const liver = added(record({ cc: "胃脘隐痛1月", sex: "男", age: 50, text: "胃脘隐痛，痛有定处，伴胁肋隐痛。转氨酶升高半年。" }));
   assert.match(liver.find((item) => item.herbName === "川楝子")?.riskNote || "", /川楝子肝功能不全者慎用/, JSON.stringify(liver));
   assert.ok(liver.some((item) => item.herbName === "红花"), "没有出血红旗时红花照列");
-  const control = added(record({ cc: "胃脘隐痛1月", sex: "男", age: 50, text: "胃脘隐痛，痛有定处，肝功能正常。" }));
+  const control = added(record({ cc: "胃脘隐痛1月", sex: "男", age: 50, text: "胃脘隐痛，痛有定处，伴胁肋隐痛，肝功能正常。" }));
   assert.ok(control.some((item) => item.herbName === "川楝子"));
   assert.doesNotMatch(control.find((item) => item.herbName === "川楝子")?.riskNote || "", /肝功能不全/);
 });

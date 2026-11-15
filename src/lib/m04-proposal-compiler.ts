@@ -1,3 +1,5 @@
+import triggerPolicy from "../data/tcm-modification-trigger-policy.source.json" with { type: "json" };
+import { redFlagActiveFor } from "./clinical-red-flag-context";
 import { alignQuoteToSource } from "./source-quote-alignment";
 import sameSourceHerbsJson from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, standbyHerbOpposesSyndromePole, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
@@ -970,7 +972,7 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   contains_unaudited_dose: "条件性加减夹带了未经审方的具体剂量",
   trigger_not_current_fact: "触发条件不能回溯到本次病历已确认的当前事实",
   trigger_not_present: "条件所说的表现本例眼下没有，是备用加减，不列入本次加减",
-  trigger_not_symptom: "条件写的是正常情况、病名、病历本身的说明或只有舌脉，不是需要加减的表现",
+  trigger_not_symptom: triggerPolicy.notFindingExplanation,
   unknown_herb: "该药味不在标准药材资料的收录范围",
   invalid_target: "所引病机不属于本次已确认的病机",
   action_conflicts_with_candidate: "增减动作与当前处方药味状态冲突",
@@ -1148,8 +1150,8 @@ function degreeFormInRecord(forms: readonly string[], recordText: string): { phr
  *  · 条件整句逐字在病历里肯定写到（超过单段六字的现症原话，「饭后胃脘胀满」）。
  * 已见时返回交付写法（「本例已见X」）与病历原句；否则 undefined。recordedFacts 是病历原文加辨证阶段采纳的患者原话。
  */
-export function presentModificationCondition(trigger: string, recordedFacts: string): { trigger: string; quote: string } | undefined {
-  if (!recordedFacts || typeof trigger !== "string") return undefined;
+export function presentModificationCondition(trigger: string, recordedFacts: string, context: ModificationTriggerContext = {}): { trigger: string; quote: string } | undefined {
+  if (!recordedFacts || typeof trigger !== "string" || modificationTriggerNotFinding(trigger, { ...context, recordText: context.recordText || recordedFacts })) return undefined;
   const raw = trigger.normalize("NFKC").trim().replace(/^本例已见/u, "若");
   // 先看整句：条件逐字是病历里肯定写到的一句原话（「头痛连及项背」），照原话写，不按「及」切成两段。
   const body = raw.replace(CONDITION_LEAD, "").replace(/[。；;，,\s]+$/u, "");
@@ -1194,10 +1196,10 @@ const NORMAL_STATE_TAIL = /(?:一般|尚可|可|正常|调|如常|无殊|无异�
 /**
  * 条件说的不是患者的表现，而是病历本身或就诊经过（「未接受检查」「家属与本人对症状持续时间描述不同」「病人拒绝进一步说明近期饮食与药物」），
  * 或是病名、分期（「慢性肾病3期」「2型糖尿病控制一般」，2026-11-14 第四十五轮甲方 100 例 C092、C040、C049、C045）。有限闭集：讲病历与就诊经过的词、
- * 以病名或分期收尾。生活习惯、缓解因素（熬夜、吃糖后好转）由加减核对小任务判（m04-modification-fit 的 not_finding）。
+ * 以病名或分期收尾。第四十七轮构词可判的因素、神态、主症和危重依据统一见 modificationTriggerNotFinding；其余开放语义由 not_finding 跨厂商核对。
  */
-const RECORD_META_TRIGGER = /检查|病历|描述|说法|拒绝|未接受|家属|病史|既往|控制(?:一般|欠佳|不佳|尚可|良好)|(?:[0-9一二三四五ⅠⅡⅢⅣⅤ]期|[^疼酸胀]病)$/u;
-export function modificationTriggerIsNormalState(trigger: string): boolean {
+const RECORD_META_TRIGGER = new RegExp(triggerPolicy.recordMetaPattern, "u");
+function normalOrRecordMetaTrigger(trigger: string): boolean {
   const body = String(trigger || "").normalize("NFKC").trim().replace(/^(?:本例已见|若|如)/u, "").replace(/[。；;，,\s]+$/u, "");
   if (body && RECORD_META_TRIGGER.test(body)) return true;
   // 正常所见（面色红润、舌淡红、苔薄白、脉平、纳眠可、二便调…）不是需要加减的表现（第四十六轮 p100c-C026「面色红润：加菊花」）。
@@ -1207,6 +1209,58 @@ export function modificationTriggerIsNormalState(trigger: string): boolean {
   if (items.length > 0 && !items.some((item) => /^(?:无|未|否认|不)/u.test(item)) && !withoutNormalFindingSegments(body).trim()) return true;
   if (!body || !NORMAL_STATE_TAIL.test(body)) return false;
   return !/[痛胀闷痞烦渴干苦汗咳喘呕吐泻秘溏稀黄赤肿痒麻困乏倦眩晕悸梦涩急坠酸软鸣聋燥差少多减退不]/u.test(body.replace(NORMAL_STATE_TAIL, ""));
+}
+
+/** 加减条件分型只在此处判；编译、补写、核对与交付缓存复用，不以行数下限豁免。 */
+export type ModificationTriggerContext = {
+  caseState?: Pick<CaseState, "chiefComplaint" | "safetyGate">;
+  recordText?: string;
+  prior?: { overview?: { tcmDiseaseName?: string | null } } | null;
+  priorityEvaluation?: unknown;
+};
+const TRIGGER_LEAD = new RegExp(triggerPolicy.triggerLeadPattern, "u");
+const FACTOR_PATTERNS = triggerPolicy.factorPatterns.map((pattern) => new RegExp(pattern, "u"));
+const DEMEANOR_PATTERNS = triggerPolicy.demeanorPatterns.map((pattern) => new RegExp(pattern, "u"));
+const PERFUSION_PATTERNS = triggerPolicy.perfusionPatterns.map((pattern) => new RegExp(pattern, "u"));
+
+export function modificationTriggerNotFinding(trigger: string, context: ModificationTriggerContext = {}): "normal_or_meta" | "factor" | "demeanor" | "main_symptom" | "emergency_sign" | undefined {
+  const body = String(trigger || "").normalize("NFKC").trim().replace(TRIGGER_LEAD, "").replace(/[。；;，,\s]+$/u, "");
+  if (normalOrRecordMetaTrigger(body)) return "normal_or_meta";
+  if (FACTOR_PATTERNS.some((pattern) => pattern.test(body))) return "factor";
+  if (DEMEANOR_PATTERNS.some((pattern) => pattern.test(body))) return "demeanor";
+  const gate = context.caseState?.safetyGate;
+  const red = redFlagActiveFor({ safetyGate: gate, priorityEvaluation: context.priorityEvaluation });
+  const priority = context.priorityEvaluation;
+  const focus = priority && typeof priority === "object" && "focus" in priority ? String(priority.focus || "") : typeof priority === "string" ? priority : "";
+  // 读安全门给出的逐字依据，不从规则说明里的疾病名推断患者有这个症状。
+  const quotes = [
+    ...(gate?.redFlagFindings || []).map((finding) => finding.sourceQuote),
+    ...(gate?.semanticTriage?.evidence || []).flatMap((finding) => [finding.sourceQuote, ...finding.evidenceQuotes]),
+    ...[...(gate?.redFlags || []), ...(gate?.advisories || [])].flatMap((flag) => [
+      ...[...String(flag).matchAll(/原文依据[：:]\s*“([^”]+)”/gu)].map((match) => match[1]),
+      ...[...String(flag).matchAll(/另见[：:]\s*([^；;。]+)/gu)].map((match) => match[1]),
+      ...[...String(flag).matchAll(/相关患者原文[：:]\s*([^。\n]+)/gu)].map((match) => match[1]),
+    ]),
+    focus,
+  ].filter(Boolean);
+  if (red && ((MODIFICATION_RELEVANCE.emergencySignTriggers?.terms || []).some((sign) => body.includes(sign)) || PERFUSION_PATTERNS.some((pattern) => pattern.test(body)))) return "emergency_sign";
+  if ((red || focus || gate?.semanticTriage?.level === "priority_review") && modificationConditionSymptomTerms(body).some((term) => term.length >= 2 && quotes.some((quote) => quote.includes(term) || (quote.trim().length >= 3 && term.includes(quote.trim()))))) return "emergency_sign";
+  const recordText = context.recordText || "";
+  const chief = context.caseState?.chiefComplaint || new RegExp(triggerPolicy.chiefComplaintPattern, "u").exec(recordText)?.[1] || "";
+  const main = chief.split(/[，,、；;。伴及与和]/u)[0].replace(new RegExp(triggerPolicy.durationPattern, "gu"), "").trim();
+  const disease = context.prior?.overview?.tcmDiseaseName || "";
+  const descriptors = triggerPolicy.mainSymptomDescriptors.filter((row) => row.diseases.includes(disease) || row.terms.some((term) => main.includes(term))).flatMap((row) => row.terms);
+  const terms = modificationConditionSymptomTerms(body.replace(new RegExp(triggerPolicy.durationPattern, "gu"), ""));
+  const mainForms = [...new Set([main, ...(MODIFICATION_RELEVANCE.equivalents[main] || []), ...negationGroundingEquivalents(main), ...descriptors])].filter((form) => form.length >= 2);
+  if (terms.length > 0 && mainForms.length > 0 && terms.every((term) => mainForms.some((form) => form.includes(term) || term === form))) return "main_symptom";
+  // 「夜间尿床每周4次」「连声不断」等主症的频次/形态写法，有限描述词表与本病绑定。
+  if (descriptors.includes(body.replace(new RegExp(triggerPolicy.durationPattern, "gu"), "").trim())) return "main_symptom";
+  return undefined;
+}
+
+/** 兼容旧读者；判据仍只有 modificationTriggerNotFinding。 */
+export function modificationTriggerIsNormalState(trigger: string, context: ModificationTriggerContext = {}): boolean {
+  return Boolean(modificationTriggerNotFinding(trigger, context));
 }
 
 /**
@@ -2553,18 +2607,7 @@ export function incidentalAppetiteDigestiveModification(
  *（tcm-modification-relevance.source.json emergencySignTriggers，有限闭集），或条件里的症状词出现在红旗依据的原文里。
  */
 export function modificationTriggerIsEmergencySign(trigger: string, caseState?: CaseState): boolean {
-  const gate = caseState?.safetyGate;
-  if (!gate || gate.status !== "red_flag") return false;
-  const body = String(trigger || "").normalize("NFKC").replace(/^(?:本例已见|若|如)/u, "").trim();
-  if (!body) return false;
-  if ((MODIFICATION_RELEVANCE.emergencySignTriggers?.terms || []).some((sign) => body.includes(sign))) return true;
-  // 红旗依据的原文（「原文依据：“…”」）与红旗写的「另见：…」。
-  const quotes = (gate.redFlags || []).flatMap((flag) => [
-    ...[...String(flag).matchAll(/原文依据[：:]\s*“([^”]+)”/gu)].map((match) => match[1]),
-    ...[...String(flag).matchAll(/另见[：:]\s*([^；;。]+)/gu)].map((match) => match[1]),
-  ]);
-  if (quotes.length === 0) return false;
-  return modificationConditionSymptomTerms(body).some((term) => term.length >= 2 && quotes.some((quote) => quote.includes(term) || (quote.trim().length >= 3 && term.includes(quote.trim()))));
+  return modificationTriggerNotFinding(trigger, { caseState }) === "emergency_sign";
 }
 
 /**
@@ -2653,9 +2696,9 @@ export function topUpModificationRow(
   // 第四十四轮起补写的是本例已有表现的加减：条件得是病历里肯定写到的表现，交付写「本例已见X」，依据是病历原句。
   // CDSS_STANDBY_MODIFICATIONS=true 时仍按旧口径补「若…」备用加减。
   const standby = standbyModificationsDelivered();
-  const present = standby ? undefined : presentModificationCondition(row.trigger, modificationPresenceFactsFor(recordText, prior));
+  const present = standby ? undefined : presentModificationCondition(row.trigger, modificationPresenceFactsFor(recordText, prior), { caseState, prior, recordText });
   if (standby ? !modelConditionalTriggerShape(row.trigger) : !present) return undefined;
-  if (modificationTriggerIsNormalState(row.trigger) || modificationTriggerTonguePulseOnly(row.trigger)) return undefined;
+  if (modificationTriggerIsNormalState(row.trigger, { caseState, prior, recordText }) || modificationTriggerTonguePulseOnly(row.trigger)) return undefined;
   // 补写的行同样不为顺带的睡眠差加安神药（与编译阶段同一判据；2026-11-14 第四十五轮甲方标准病历3「本例已见睡眠差：加酸枣仁」，甲方 10.26 点过名）。
   if (incidentalSleepTriggerModification({ trigger: row.trigger, herbName, reason: row.reason }, prior) &&
     !mindSymptomsProminentInRecord(recordText, caseState?.chiefComplaint || "", "")) return undefined;
@@ -2911,7 +2954,7 @@ export function compileM04Proposal(
       dropReasons.push("trigger_not_current_fact");
       return [];
     }
-    if (item.actionType === "add" && modificationTriggerIsNormalState(item.trigger)) {
+    if (modificationTriggerIsNormalState(item.trigger, { caseState, prior, recordText: modificationRecordText })) {
       dropReasons.push("trigger_not_symptom");
       return [];
     }
@@ -3007,6 +3050,7 @@ export function compileM04Proposal(
     : withConditionals;
   // 同一条件的几行排在一起（先留不同条件之后顺序被打散，评审读成「第 1、3 条条件重复」）。
   const compiledModifications = withSameConditionAdjacent(withoutRepeatedAddedHerbs(withoutMutuallyIncompatibleAdditions(conditionRows, candidateHerbNames, directionDropReasons)));
+  proposal.patentAndWestern = proposal.patentAndWestern.filter((item) => !patentMedicineDuplication(item, compiledHerbs, selfMedications, compiledModifications));
   const m03FormulaNames = Array.isArray(prior.overview.recommendedFormulaNames)
     ? prior.overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
     : [];

@@ -128,6 +128,7 @@ export function patentMedicineDuplication(
   medicine: { type?: unknown; name?: unknown; positioning?: unknown; route?: unknown },
   decoctionHerbs: readonly DecoctionHerb[],
   selfMedications: readonly SelfMedication[] = [],
+  modifications: readonly { action?: unknown; actionType?: unknown; herbName?: unknown }[] = [],
 ): PatentMedicineDuplication | undefined {
   if (medicine.type !== "中成药" || medicine.positioning === "替代方案") return undefined;
   // 外用的（软膏、洗液、贴膏）不与内服汤剂同吃，不算重复。
@@ -146,7 +147,11 @@ export function patentMedicineDuplication(
     }
   }
   if (composition.size === 0) return undefined;
-  const herbs = decoctionHerbs
+  // 当前交付的加味与主方一并比较；减药、调量不增加一味药。所有调用复用下方原有组成判据。
+  const prescriptionHerbs: DecoctionHerb[] = [...decoctionHerbs, ...modifications
+    .filter((row) => row.action === "加" || row.actionType === "add")
+    .map((row) => ({ name: String(row.herbName || "") }))];
+  const herbs = prescriptionHerbs
     .map((herb) => ({ identity: textbookDistinctHerbKey(String(herb.name || "")), role: herb.role }))
     .filter((herb) => herb.identity && !HARMONIZING_ADJUNCTS.has(herb.identity));
   const emperor = herbs.filter((herb) => herb.role === "君" && composition.has(herb.identity));

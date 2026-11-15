@@ -1,3 +1,4 @@
+import therapyPhrasePolicy from "../data/tcm-therapy-phrase-policy.source.json" with { type: "json" };
 import { governedTreatmentMethodOccurrencesInText, type TreatmentPrincipleEntry } from "./clinical-governance-tables";
 /**
  * 治法表述的**确定性归一**（L2 规则层）。
@@ -266,10 +267,9 @@ export function claimsSecondaryPattern(clause: string): boolean {
 
 /**
  * 治法里意思重复的短语只留一个（2026-10-19 Claude 评审 M/H 集「清利湿热，清热利湿」「平肝潜阳，和胃化湿，通络止痛，化湿和胃」
- * 「息风化痰，活血通络，熄风化痰止痛」）：教材治法与模型按本例补的半句拼在一起时常见。按字面判：一个短语的字（熄=息）全都出现在
- * 另一个不短于它的短语里，就是重复，去掉它；字相同时留先出现的。两个四字短语只差第一个字的（「和血通络」「活血通络」）也算重复。
+ * 「息风化痰，活血通络，熄风化痰止痛」）：教材治法与模型按本例补的半句拼在一起时常见。第四十七轮改读受治理同义表的动作与对象，
+ * 完整单元相同才折叠；不再按字符集合、首字差异猜同义。
  */
-const TONIFYING_HEAD = /^(?:滋养|补益|滋补|补养|培补|调补|滋培)$/u;
 /** 教材治法按字切开成一串两字项（「清热，益气，生津，止渴」，第三十五轮 D03）：两两并回四字短语。只并连续的两字项，单出来的一项留着。 */
 function withTwoCharacterRunsJoined(method: string): string {
   const parts = method.split(/([，,、；;])/u);
@@ -289,7 +289,7 @@ function withTwoCharacterRunsJoined(method: string): string {
 }
 
 /** 医嘱、流程不是治法（「忌口避敏」「评估发育」「完善检查」「核查用药」，第三十五轮甲方 100 例）。 */
-export const NOT_A_TREATMENT_METHOD = /忌|禁|戒|评估|检查|完善|核查|核实|监测|复查|就医|转诊|随访|调摄|作息|升糖|降糖/u;
+export const NOT_A_TREATMENT_METHOD = new RegExp(therapyPhrasePolicy.processTerms.join("|"), "u");
 /** 长的一项和后面的四字项收在同一个目的上（「清热凉血调经，固冲调经」）：目的写一次（教材治法与模型写的项拼起来时常见，第三十五轮甲方标准病历 10）。 */
 function withoutRepeatedPurposeTail(method: string): string {
   const parts = method.split(/([，,、；;])/u);
@@ -301,38 +301,41 @@ function withoutRepeatedPurposeTail(method: string): string {
   }).join("");
 }
 
+const SYNONYM_UNITS = new Map(therapyPhrasePolicy.synonymUnits.flatMap((row) => row.terms.map((term) => [term, `${row.action}:${row.object}`] as const)));
+const SYNONYM_TERMS = [...SYNONYM_UNITS.keys()].sort((left, right) => right.length - left.length);
+
+/** 最长匹配明列术语；未收录的片段只按原词比较，不猜动作和对象。 */
+function governedTherapyUnits(phrase: string): Array<{ text: string; key: string }> {
+  const out: Array<{ text: string; key: string }> = [];
+  for (let at = 0; at < phrase.length;) {
+    const term = SYNONYM_TERMS.find((value) => phrase.startsWith(value, at));
+    const text = term || phrase.slice(at, at + 2);
+    out.push({ text, key: term ? SYNONYM_UNITS.get(term)! : text });
+    at += text.length;
+  }
+  return out;
+}
+
 export function withoutRedundantTherapyPhrases(method: string): string {
   const treatments = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter((item) => item && !NOT_A_TREATMENT_METHOD.test(item));
-  const text = withoutRepeatedPurposeTail(withTwoCharacterRunsJoined(treatments.length > 0 && treatments.length < String(method || "").split(/[，,、；;]/u).filter((item) => item.trim()).length ? treatments.join("，") : String(method || "")));
-  const parts = text.split(/([，,、；;])/u);
-  const phrases = parts.filter((_, index) => index % 2 === 0);
-  // 补与益在治法里同义（「补气健脾，健脾益气」，第三十五轮 W16）。
-  const chars = (phrase: string) => new Set([...phrase.replace(/熄/gu, "息").replace(/补/gu, "益").replace(/[^\u4e00-\u9fff]/gu, "")]);
-  const sets = phrases.map(chars);
-  // 两个四字治法只差第一个字（「和血通络，活血通络」「补气养血，益气养血」）：意思相同，留前一个（2026-10-19 Claude 评审 M 集 SD-451922 判冗杂）。
-  // 补益类两字头只是说法不同、对象相同（「滋养肝肾，补益肝肾」，第三十五轮 C06：教材治法与模型写的项拼在一起）也算。
-  const nearSynonym = (left: string, right: string) => left.length === 4 && right.length === 4 && left !== right &&
-    (left.slice(1) === right.slice(1) || (left.slice(2) === right.slice(2) && TONIFYING_HEAD.test(left.slice(0, 2)) && TONIFYING_HEAD.test(right.slice(0, 2))));
-  const drop = phrases.map((phrase, index) => {
-    if (phrases.some((other, at) => at < index && nearSynonym(other.trim(), phrase.trim()))) return true;
-    // 第四十六轮复核 G 项：同一件事换了个说法又写一遍（n07「化痰祛湿，健脾和胃，燥湿化痰」、C017「利湿退黄，利胆退黄」、
-    // n17「益气止血固脱，升提固脱」）。见 laterItemRepeatsEarlier。
-    if (laterItemRepeatsEarlier(phrases.map((item) => item.trim()), index)) return true;
-    const own = sets[index];
-    // 两字项整个出现在另一项里（「益气，益气扶正」）。
-    if (own.size === 2 && phrases.some((other, at) => at !== index && other.trim().length > phrase.trim().length && other.includes(phrase.trim()))) return true;
-    if (own.size < 3) return false;
-    return phrases.some((other, at) => at !== index && sets[at].size >= own.size && (sets[at].size > own.size || at < index) &&
-      [...own].every((character) => sets[at].has(character)));
-  });
-  if (!drop.some(Boolean)) return mergedSameHeadTherapyPhrases(text);
+  const text = withoutRepeatedPurposeTail(withTwoCharacterRunsJoined(treatments.join("，")));
+  const phrases = text.split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
+  const units = phrases.map(governedTherapyUnits);
   const kept: string[] = [];
+  const covered = new Set<string>();
   phrases.forEach((phrase, index) => {
-    if (drop[index]) return;
-    if (kept.length > 0) kept.push(parts[index * 2 - 1] || "，");
-    kept.push(phrase);
+    const own = units[index];
+    // 单独两字项被另一个完整项覆盖（益气，益气扶正）。只比明列概念或完整词。
+    if (phrase.length === 2 && units.some((other, at) => at !== index && phrases[at].length > 2 && own.every((unit) => other.some((item) => item.key === unit.key)))) return;
+    if (own.length > 0 && own.every((unit) => covered.has(unit.key))) return;
+    if (laterItemRepeatsEarlier(kept, kept.length, phrase)) return;
+    // 拼合的长项有一节已在前面写过，去掉这一节，余下仍为完整四字治法才收。
+    const remaining = own.filter((unit) => !covered.has(unit.key)).map((unit) => unit.text).join("");
+    const item = phrase.length >= 6 && remaining.length === 4 ? remaining : phrase;
+    kept.push(item);
+    for (const unit of governedTherapyUnits(item)) covered.add(unit.key);
   });
-  return mergedSameHeadTherapyPhrases(kept.join("").replace(/^[，,、；;]+/u, ""));
+  return mergedSameHeadTherapyPhrases(kept.join("，"));
 }
 
 /**
@@ -343,17 +346,12 @@ export function withoutRedundantTherapyPhrases(method: string): string {
  *    （「利湿退黄」之后的「利胆退黄」）；
  * 只去后一项（教材治法在前，后面是补写的）。开头动词不同、结局相同的（行气止痛、温中止痛）是两种治法，不算。
  */
-const REMOVAL_VERB_CHARACTER = /^[化祛燥除渗利涤豁消散泻降清泄逐]$/u;
-const REMOVAL_OBJECT_CHARACTER = /^[湿痰瘀寒热火毒浊]$/u;
 const OUTCOME_TAIL = /^(?:退黄|固脱|救逆|排石|通淋)$/u;
-function normalizedTherapyUnit(unit: string): string {
-  return unit.length === 2 && REMOVAL_VERB_CHARACTER.test(unit[0]) && REMOVAL_OBJECT_CHARACTER.test(unit[1]) ? `*${unit[1] === "火" ? "热" : unit[1]}` : unit;
-}
 function therapyUnits(phrase: string): string[] {
-  return /^[一-鿿]+$/u.test(phrase) && phrase.length % 2 === 0 ? (phrase.match(/[一-鿿]{2}/gu) || []).map(normalizedTherapyUnit) : [];
+  return governedTherapyUnits(phrase).map((unit) => unit.key);
 }
-export function laterItemRepeatsEarlier(phrases: readonly string[], index: number): boolean {
-  const phrase = phrases[index] || "";
+export function laterItemRepeatsEarlier(phrases: readonly string[], index: number, nextPhrase?: string): boolean {
+  const phrase = nextPhrase ?? phrases[index] ?? "";
   if (phrase.length !== 4 || !/^[一-鿿]{4}$/u.test(phrase)) return false;
   const earlier = phrases.slice(0, index).filter(Boolean);
   if (earlier.length === 0) return false;
@@ -373,13 +371,10 @@ export function laterItemRepeatsEarlier(phrases: readonly string[], index: numbe
  * 其余（益气、化瘀、解毒、生津…）按原顺序在前——「健脾益气和胃」「活血化瘀通窍」「清热解毒生津」。三项及以上同头的不合（太长）。
  */
 const PURPOSE_TAIL = /^(?:助运|止痛|止咳|平喘|安神|宁神|通络|通窍|止血|止泻|止呕|通便|消肿|利咽|明目|调经|止带|止痒|和胃|和中|润肺|润肠|降逆|开窍|散结|定志|固表|止汗|缩尿)$/u;
-const REMOVAL_VERB = /^[化祛散除消泻降清泄涤逐]$/u;
-const HEAT_OBJECT = /^[热火]$/u;
-/** 两字后半同为「祛除类动词 + 同一对象」（降火/清热、化瘀/祛瘀、化痰/涤痰、散寒/祛寒）。 */
+/** 两个动作的同义关系只读受治理对象表（不按相同尾字推断）。 */
 function sameRemovalTail(left: string, right: string): boolean {
-  if (left.length !== 2 || right.length !== 2 || left === right) return false;
-  if (!REMOVAL_VERB.test(left[0]) || !REMOVAL_VERB.test(right[0])) return false;
-  return left[1] === right[1] || (HEAT_OBJECT.test(left[1]) && HEAT_OBJECT.test(right[1]));
+  const key = SYNONYM_UNITS.get(left);
+  return left !== right && Boolean(key) && key === SYNONYM_UNITS.get(right);
 }
 
 /** 一项治法整项就是受控词表里的一条（正名或别名）时返回该条。 */

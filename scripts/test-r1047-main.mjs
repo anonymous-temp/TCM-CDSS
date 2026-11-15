@@ -442,7 +442,8 @@ await check("8.15 改名不替模型多下脏腑", () => {
 await check("8.16 医嘱流程不进治法栏", async () => {
   assert.equal(phrasing.withoutRedundantTherapyPhrases("疏风解表，止痒，忌口避敏"), "疏风解表，止痒");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("健脾益肾，评估发育"), "健脾益肾");
-  assert.equal(phrasing.withoutRedundantTherapyPhrases("完善检查"), "完善检查", "只有这一项时不清空");
+  // 第四十七轮：流程话不入治法，即使是唯一项也删除，不再回填原文。
+  assert.equal(phrasing.withoutRedundantTherapyPhrases("完善检查"), "", "唯一流程项也清空");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("疏肝解郁，调摄作息"), "疏肝解郁");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("活血化瘀，调经止痛，调经止血"), "活血化瘀，调经止痛", "第四十一轮：同头两项不拼六字，留前一项");
   assert.equal(phrasing.withoutRedundantTherapyPhrases("温化寒痰，温化寒饮"), "温化寒痰");
