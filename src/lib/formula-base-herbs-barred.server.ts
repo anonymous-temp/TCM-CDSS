@@ -11,6 +11,7 @@ import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { m04GenerationSpecialPopulationIssue } from "./diagnosis-stage-contract";
 import { specialPopulationConflictLabel } from "./m04-modification-safety";
 import { formulaCompilationReferences } from "./tcm-formula-provenance";
+import { evaluateTextbookFormulaUse } from "./textbook-formula-stage";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 
 export type BarredBaseHerb = { herb: string; formula: string; reason: string };
@@ -31,7 +32,7 @@ export function formulaBaseHerbsBarredForCase(prior: ClinicalReasoningResultV2, 
   for (const reference of formulaCompilationReferences(overview.recommendedFormulaNames || [])) {
     for (const herb of reference.ingredients) add(herb, reference.formulaName);
   }
-  const row = textbookRowForSyndrome(String(overview.tcmDiseaseName || ""), String(overview.primarySyndrome || ""));
+  const row = evaluateTextbookFormulaUse(textbookRowForSyndrome(String(overview.tcmDiseaseName || ""), String(overview.primarySyndrome || "")), clinicalContext, { formulaNames: overview.recommendedFormulaNames })?.row;
   for (const herb of row?.composition || []) add(herb, (row?.formulas || [])[0] || "教材代表方");
   return out;
 }

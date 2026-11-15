@@ -138,7 +138,7 @@ export function retainM04DeliveryCheckpoint(
   });
   const compilationIssue = formulaCompilationContractIssue(
     enriched, input.priorReasoning, false, reasoning.formula?.candidates?.[0]?.identityDeclassified === true,
-    (herb) => herbBarredForCase(herb, input.clinicalContext || ""));
+    (herb) => herbBarredForCase(herb, input.clinicalContext || ""), input.clinicalContext || "");
   const contractIssues = [...new Set([safetyIssue, compilationIssue, ...(input.extraContractIssues || [])]
     .filter((issue): issue is string => Boolean(issue)))];
   // Never replace a completed attested result with a pending or malformed repair. For the same

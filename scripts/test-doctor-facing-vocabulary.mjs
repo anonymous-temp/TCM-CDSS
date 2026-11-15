@@ -36,6 +36,9 @@ const SCAN_ROOTS = ["src/lib", "src/app"];
  * 内部口径词在这里是**必要的**——它正是在告诉模型「这条数据的治理边界是什么」。
  */
 const PROMPT_ONLY_FILES = new Set([
+  // M1 实跑后逐串核读：S2 新模块的中文仅为内部模型提示词，未进入医生文案。
+  "src/lib/m03-tcm-conclusion.ts",                       // 首步结论记录的闭集/引文指令
+  "src/lib/m03-tcm-check-adapters.server.ts",             // 结论核对的提议/确认指令
   "src/lib/diagnosis-prompts.ts",                        // M01–M05 提示词本体
   "src/lib/structured-clinical-repair.ts",               // 修复轮指导语
   "src/lib/controlled-semantic-normalization.server.ts", // 术语归一提示词

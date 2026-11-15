@@ -1,4 +1,6 @@
-import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { textbookDiseaseIndicationTerms, textbookFormulaRowsForDisease, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
+import { evaluateTextbookFormulaUse } from "./textbook-formula-stage";
+import { SERVER_LABELED_GROUNDING_LINE } from "./diagnosis-safety";
 import { formulaBaselineDisplayNames, originalFormulaForCatalogEntry } from "./formula-baseline-display";
 import { jingfangRelationFormulaIdentityNames } from "./jingfang-patterns";
 import governedFormulaJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
@@ -1127,6 +1129,7 @@ export function buildTcmFormulaReasoningContext(
   reasoning: FormulaReasoningProjection | undefined,
   limit = 5,
   lineagePreference?: string,
+  clinicalSourceText = "",
 ): string {
   if (!reasoning) return "【M03后方剂精确检索】无已签名结构化辨证结果，未执行证候/病机召回。";
   // M03 已锁定、且经「信任模型选方」核验（常用层 + 与签名治法二级类相容，trustedModelFormulaIdentityNames）
@@ -1137,7 +1140,7 @@ export function buildTcmFormulaReasoningContext(
     ? ((reasoning as { overview: { recommendedFormulaNames: unknown[] } }).overview.recommendedFormulaNames)
       .filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
     : [];
-  const trustedLocked = trustedModelFormulaIdentityNames(reasoning, lockedNames);
+  const trustedLocked = trustedModelFormulaIdentityNames(reasoning, lockedNames, clinicalSourceText);
   const carriedLocked = lockedNames.filter((name) => trustedLocked.has(normalizedFormulaIdentity(name)));
   const lockedCarryLine = carriedLocked.length > 0
     ? `M03 已锁定方：${carriedLocked.join("、")}（常用方，功效与已签名治法同类，已通过承接核验）。M04 优先承接该方：candidate.name 写「${carriedLocked[0]}加减」，保留服务端给出的基础组成并在其上随证加减。只有本例病机确需另起组方、基础组成大部分不适用时，才写「本例辨证组方」，并在 candidate.applicable 用一句话写明未沿用该方的病例内理由。`
@@ -1169,6 +1172,33 @@ export function normalizedFormulaIdentity(value: string): string {
 }
 
 /**
+ * 方名身份的病种覆盖判据（第四十七轮）。证候标签或同类治法不能证明本方适用于该病。
+ * M03 锁定、流派保留、M04 命名共用；不通过时保留药味，以自拟方及参考出处交付。
+ * 主诉读病历标签，或接地正文跳过服务端标签后的首行；伴随症状不冒充本次主要不适。
+ */
+export function formulaCoversDiseaseOrComplaint(reasoning: unknown, name: string, clinicalSourceText = ""): boolean {
+  const source = reasoning as { overview?: { tcmDiseaseName?: string; primarySyndrome?: string } } | undefined;
+  const disease = source?.overview?.tcmDiseaseName || "";
+  const identity = normalizedFormulaIdentity(name);
+  const exact = textbookRowForSyndrome(disease, source?.overview?.primarySyndrome || "");
+  const decision = evaluateTextbookFormulaUse(exact, clinicalSourceText);
+  if (decision?.formulas.some((formula) => normalizedFormulaIdentity(formula) === identity) ||
+    evaluateTextbookFormulaUse(exact, clinicalSourceText, { formulaNames: [name] })?.formulas.some((formula) => normalizedFormulaIdentity(formula) === identity)) return true;
+  if (exact?.formulas.some((formula) => normalizedFormulaIdentity(formula) === identity) &&
+    !decision?.formulas.some((formula) => normalizedFormulaIdentity(formula) === identity)) return false;
+  const diseaseRows = disease ? textbookFormulaRowsForDisease(disease).filter((row) => row.formulas.some((formula) => normalizedFormulaIdentity(formula) === identity)) : [];
+  if (diseaseRows.length) return diseaseRows.some((row) => evaluateTextbookFormulaUse(row, clinicalSourceText)!.formulas.some((formula) => normalizedFormulaIdentity(formula) === identity));
+  const entry = ENTRIES.find((item) => [item.name, ...item.aliases].some((alias) => normalizedFormulaIdentity(alias) === identity));
+  if (!entry) return false;
+  const indications = [...entry.indications, ...entry.functions].join("；");
+  if (disease && textbookDiseaseIndicationTerms(disease).some((term) => indications.includes(term))) return true;
+  const labeled = clinicalSourceText.match(/(?:^|\n)主诉\s*[:：]([^\n]+)/u)?.[1];
+  const complaint = labeled || clinicalSourceText.split("\n").map((line) => line.trim()).find((line) => line && !SERVER_LABELED_GROUNDING_LINE.test(line)) || "";
+  const chief = affirmedClinicalText(complaint.split(/伴(?:有)?|[（(]/u)[0] || "") || "";
+  return Boolean(chief) && CLINICAL_CONCEPTS.some((concept) => concept.patient.test(chief) && concept.indication.test(indications));
+}
+
+/**
  * M03 锁定的方名里是否有「只靠信任模型选方保留」的（没有受控证候—方剂正向充分性）。
  * 这类方名是模型推荐的方向，不是受控关系核验过的身份：M04 若按本例病机另行组方，不强制修复
  * （formulaCompilationContractIssue 据此放行透明降级）。9/27 本机实测：强制时 M04 组成修复
@@ -1190,16 +1220,17 @@ export function lockedFormulaNamesIncludeModelTrustedOnly(reasoning: unknown, fo
 export function namedFormulaPositiveSufficiencyIssue(
   reasoning: unknown,
   formulaNames: readonly string[],
+  clinicalSourceText = "",
 ): string | undefined {
   if (formulaNames.length === 0) return undefined;
   const candidates = retrieveTcmFormulaCandidatesForReasoning(
     reasoning as FormulaReasoningProjection,
     ENTRIES.length,
   )
-    .filter((entry) => entry.positiveSufficiency);
+    .filter((entry) => entry.positiveSufficiency && formulaCoversDiseaseOrComplaint(reasoning, entry.name, clinicalSourceText));
   const allowed = new Set(candidates.flatMap((entry) =>
     [entry.name, ...entry.aliases].map(normalizedFormulaIdentity)));
-  for (const identity of trustedModelFormulaIdentityNames(reasoning, formulaNames)) allowed.add(identity);
+  for (const identity of trustedModelFormulaIdentityNames(reasoning, formulaNames, clinicalSourceText)) allowed.add(identity);
   const unsupported = formulaNames.find((name) => !allowed.has(normalizedFormulaIdentity(name)));
   return unsupported ? `named_formula_positive_sufficiency_missing:${unsupported}` : undefined;
 }
@@ -1319,13 +1350,13 @@ export function trustModelFormulaSelectionEnabled(): boolean {
  * 功效对齐按受控治法词逐字比对——蛇串疮·肝经郁热证的教材治法「清泄肝火，解毒止痛」与龙胆泻肝汤的目录功效
  *「清泻肝胆实火」对不上词，于是教材代表方被判成「缺少正向充分性」，开方阶段整方退成非剂量页（本机实测）。
  */
-export function textbookRelationFormulaIdentityNames(reasoning: unknown, names: readonly string[]): Set<string> {
+export function textbookRelationFormulaIdentityNames(reasoning: unknown, names: readonly string[], clinicalSourceText = ""): Set<string> {
   const overview = (reasoning as { overview?: { tcmDiseaseName?: unknown; primarySyndrome?: unknown; primarySyndromeResolution?: unknown } } | null | undefined)?.overview;
   if (names.length === 0 || typeof overview?.primarySyndrome !== "string" || overview.primarySyndromeResolution === "unresolved") return new Set();
   const row = textbookRowForSyndrome(typeof overview.tcmDiseaseName === "string" ? overview.tcmDiseaseName : "", overview.primarySyndrome);
   if (!row) return new Set();
   const wanted = new Set(names.map(normalizedFormulaIdentity));
-  return new Set(row.formulas.map(normalizedFormulaIdentity).filter((identity) => wanted.has(identity)));
+  return new Set(evaluateTextbookFormulaUse(row, clinicalSourceText)!.formulas.map(normalizedFormulaIdentity).filter((identity) => wanted.has(identity)));
 }
 
 /**
@@ -1338,7 +1369,7 @@ export function textbookRelationFormulaIdentityNames(reasoning: unknown, names: 
  *（withDeterministicFormulaReferences），方与治法仍然一致。
  * 只在流派路径用（lineageChosenFormulaDirectionKept）：不限定流派时的模型选方仍按原判据。
  */
-export function lineageFormulaSyndromeSupportedNames(reasoning: unknown, names: readonly string[]): Set<string> {
+export function lineageFormulaSyndromeSupportedNames(reasoning: unknown, names: readonly string[], clinicalSourceText = ""): Set<string> {
   const overview = (reasoning as { overview?: { primarySyndrome?: unknown; primarySyndromeResolution?: unknown; secondarySyndromes?: unknown } } | null | undefined)?.overview;
   if (names.length === 0 || typeof overview?.primarySyndrome !== "string" || overview.primarySyndromeResolution === "unresolved") return new Set();
   const secondary = Array.isArray(overview.secondarySyndromes) ? overview.secondarySyndromes : [];
@@ -1352,6 +1383,7 @@ export function lineageFormulaSyndromeSupportedNames(reasoning: unknown, names: 
     if (!entry.identityLockEligible) continue;
     const identities = [entry.name, ...entry.aliases].map(normalizedFormulaIdentity);
     if (!identities.some((identity) => wanted.has(identity))) continue;
+    if (!formulaCoversDiseaseOrComplaint(reasoning, entry.name, clinicalSourceText)) continue;
     const tagged = entry.syndromeTags.some((tag) => signedSyndromeIds.some((id) => formulaMatchSyndromeCompatible(tag, id))) ||
       entry.curatedSyndromeRelations.some((relation) => signedSyndromeIds.some((id) => formulaMatchSyndromeCompatible(relation.syndromeId, id)));
     if (!tagged) continue;
@@ -1368,17 +1400,18 @@ export function lockableFormulaCatalogFunctions(name: string): string[] {
   return entry ? [...entry.functions] : [];
 }
 
-export function trustedModelFormulaIdentityNames(reasoning: unknown, names: readonly string[]): Set<string> {
-  const textbookTrusted = textbookRelationFormulaIdentityNames(reasoning, names);
+export function trustedModelFormulaIdentityNames(reasoning: unknown, names: readonly string[], clinicalSourceText = ""): Set<string> {
+  const textbookTrusted = textbookRelationFormulaIdentityNames(reasoning, names, clinicalSourceText);
   // 经方方证（证名 + 方向正是方证表里的一项）与教材行同为「证名—方」的正向依据（2026-10-19，第八轮 WP-A）。
   for (const identity of jingfangRelationFormulaIdentityNames(reasoning, names)) textbookTrusted.add(identity);
+  for (const identity of textbookTrusted) if (!formulaCoversDiseaseOrComplaint(reasoning, identity, clinicalSourceText)) textbookTrusted.delete(identity);
   if (textbookTrusted.size === names.length && names.length > 0) return textbookTrusted;
-  const modelTrusted = modelTrustedFormulaIdentityNames(reasoning, names);
+  const modelTrusted = modelTrustedFormulaIdentityNames(reasoning, names, clinicalSourceText);
   for (const identity of textbookTrusted) modelTrusted.add(identity);
   return modelTrusted;
 }
 
-function modelTrustedFormulaIdentityNames(reasoning: unknown, names: readonly string[]): Set<string> {
+function modelTrustedFormulaIdentityNames(reasoning: unknown, names: readonly string[], clinicalSourceText = ""): Set<string> {
   if (!trustModelFormulaSelectionEnabled() || names.length === 0) return new Set();
   // 信任的前提是「有可核对的对象」：主证候已形成（不是 unresolved）且签名治法抽得出受控治法词。
   // 两者缺一，就没有任何东西可以证明这个方对证——退回原判据（只认正向充分性），
@@ -1399,6 +1432,7 @@ function modelTrustedFormulaIdentityNames(reasoning: unknown, names: readonly st
     if (!entry.identityLockEligible) continue;
     const identities = [entry.name, ...entry.aliases].map(normalizedFormulaIdentity);
     if (!identities.some((identity) => wanted.has(identity))) continue;
+    if (!formulaCoversDiseaseOrComplaint(reasoning, entry.name, clinicalSourceText)) continue;
     if (!formulaTherapyAlignedWithSigned(entry.functions, signedMethods, entry.functionsProvenance)) continue;
     // 证候层反证只用在「目录功效为空」的方上（没有任何治法层证据可核对时）：目录给它标了证候、
     // 却没有一个与已签名主证/兼证相容（如玉女煎〔胃热阴虚〕对肝火扰心，test:formula-provenance 钉住）
@@ -1439,6 +1473,7 @@ export function missedLockableFormulaCandidates(reasoning: unknown, limit = 3): 
     const signedMethods = signedTherapyMethodIds(reasoning);
     return retrieveTcmFormulaCandidatesForReasoning(reasoning as ClinicalReasoningResultV2, 8)
       .filter((entry) => entry.identityLockEligible && entry.positiveSufficiency)
+      .filter((entry) => formulaCoversDiseaseOrComplaint(reasoning, entry.name))
       // 修复提示词会把这些方名写成「已通过正向充分性核验……逐字抄写」，是三条通路里
       // 对模型影响最强的一条。治法方向对立的方在这里必须先掉队，否则等于指挥模型改错。
       .filter((entry) => formulaTherapyAlignedWithSigned(entry.functions, signedMethods, entry.functionsProvenance))
@@ -1454,7 +1489,7 @@ export function missedLockableFormulaCandidates(reasoning: unknown, limit = 3): 
  * normalizer still recognizes names for provenance, but an unrelated recognized name is safely
  * declassified instead of being allowed to steer M04.
  */
-export function enforceRetrievedM03FormulaSelection(content: string, allowedNames: readonly string[]): string {
+export function enforceRetrievedM03FormulaSelection(content: string, allowedNames: readonly string[], clinicalSourceText = ""): string {
   const preGenerationAllowed = new Set(allowedNames.map((name) => name.replace(/\s+/g, "")));
   const lockEligible = new Set(ENTRIES
     .filter((entry) => entry.identityLockEligible)
@@ -1488,7 +1523,7 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
         const reasoningCandidates = (() => {
           try {
             return retrieveTcmFormulaCandidatesForReasoning(parsed as unknown as ClinicalReasoningResultV2, 8)
-              .filter((entry) => entry.identityLockEligible && entry.positiveSufficiency);
+              .filter((entry) => entry.identityLockEligible && entry.positiveSufficiency && formulaCoversDiseaseOrComplaint(parsed, entry.name, clinicalSourceText));
           } catch {
             return [];
           }
@@ -1512,7 +1547,7 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
           : [];
         // 模型自己选的方按 trustedModelFormulaIdentityNames 放行（与 M04 前复核同一谓词）；
         // 只扩大「模型原选名单」的保留范围，不改变系统自锁与修复候选的判据。
-        const trustedIdentities = trustedModelFormulaIdentityNames(parsed, names);
+        const trustedIdentities = trustedModelFormulaIdentityNames(parsed, names, clinicalSourceText);
         for (const name of names) {
           const identity = normalizedFormulaIdentity(name);
           if (trustedIdentities.has(identity) && lockEligible.has(identity)) allowed.add(name.replace(/\s+/g, ""));

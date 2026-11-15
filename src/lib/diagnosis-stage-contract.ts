@@ -4409,6 +4409,7 @@ function crossStageReasoningIssue(
   visibleContent = "",
   trustedWorkbenchEdit = false,
   waiveTherapyCoverageAnnotated = false,
+  clinicalSourceText = "",
 ): string | undefined {
   void visibleContent;
   if (!prior) return undefined;
@@ -4559,7 +4560,7 @@ function crossStageReasoningIssue(
   // 的永远是同一个码，整方作废——9/28 同一病例 12 分钟内 4 次开方全部 0 味（柴胡疏肝散），
   // 每次都先白跑一轮修复（M04 模型改不了 M03 的锁定）。药味、剂量、配伍等硬门照常执行。
   if (governedPriorNames?.length && !isDeclassifiedSelfDevisedCandidate(candidate)) {
-    const sufficiencyIssue = namedFormulaPositiveSufficiencyIssue(prior, governedPriorNames);
+    const sufficiencyIssue = namedFormulaPositiveSufficiencyIssue(prior, governedPriorNames, clinicalSourceText);
     if (sufficiencyIssue) return sufficiencyIssue;
   }
   const governedMode = prior.overview?.formulaSelectionMode;
@@ -4582,7 +4583,7 @@ function crossStageReasoningIssue(
         return undefined;
       }
       // M03 推荐方向是教材代表方而目录锁不住时，候选照教材命名不算偏离（isSignedTextbookFormulaIdentity，两个产地共用）。
-      if (isSignedTextbookFormulaIdentity(candidate, prior)) return undefined;
+      if (isSignedTextbookFormulaIdentity(candidate, prior, clinicalSourceText)) return undefined;
       // 方名不含病人信息：记下锁定方与候选方名，供生产日志统计这一驳回的来源（2026-10-18：生产 13 小时 11 次、本地主集约 50 次整方重生成）。
       console.info("[tcm-cdss:telemetry] formula_direction_drift", { locked: governedPriorNames, mode: governedMode, candidateNames: candidateFormulaNames, candidateName: String(candidate?.name || "").slice(0, 40) });
       return "formula_direction_drift";
@@ -4733,7 +4734,7 @@ export function m04SemanticIssue(
     if (project.executable !== false || project.clinicianReviewRequired !== true) return `non_pharma_treatment_${index}_execution_boundary`;
     if (project.riskLevel === "specialist" && project.recommendationMode !== "specialist_assessment_only") return `non_pharma_treatment_${index}_specialist_mode`;
   }
-  const stageIssue = crossStageReasoningIssue(reasoning, priorReasoning, visibleContent, trustedWorkbenchEdit, waiveTherapyCoverageAnnotated);
+  const stageIssue = crossStageReasoningIssue(reasoning, priorReasoning, visibleContent, trustedWorkbenchEdit, waiveTherapyCoverageAnnotated, clinicalContext);
   if (stageIssue) return stageIssue;
   if (!Array.isArray(candidates) || candidates.length === 0) return "candidates_empty";
   if (candidates.length !== 1) return "candidate_count";
@@ -5070,7 +5071,7 @@ export function m04SafetyContractIssue(
   if (reasoning?.stage !== "prescribe") return "stage";
   const pediatricDose = pediatricDoseRuleFromGroundingText(clinicalContext || "");
   // 锁定字段漂移与君药绑定：绝对否决。
-  const stageIssue = crossStageReasoningIssue(reasoning, priorReasoning, "", trustedWorkbenchEdit, waiveTherapyCoverageAnnotated);
+  const stageIssue = crossStageReasoningIssue(reasoning, priorReasoning, "", trustedWorkbenchEdit, waiveTherapyCoverageAnnotated, clinicalContext);
   if (stageIssue) return stageIssue;
   const candidates = reasoning.formula?.candidates;
   if (!Array.isArray(candidates) || candidates.length === 0) return "candidates_empty";

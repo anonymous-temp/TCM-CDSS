@@ -117,7 +117,7 @@ await check("2.6 教材锚定：活动性出血时不把治法改回教材的「
   const kept = provenance.withDeterministicFormulaReferences(diagnose("化瘀止血，养血固冲", "本例辨证组方"), BLEEDING, undefined, safetyBleeding);
   assert.equal(kept.therapy.overallMethod, "化瘀止血，养血固冲");
   assert.doesNotMatch(kept.overview.recommendedFormulaDirection, /少腹逐瘀汤/);
-  // 模型自己也写了逐瘀方（会厌逐瘀汤）：方向改为辨证组方；只去一味次要药的四物汤照留。
+  // 模型自己也写了逐瘀方（会厌逐瘀汤）：方向改为辨证组方。第四十七轮四物汤另须满足术后前提。
   const modelBarred = provenance.withDeterministicFormulaReferences(diagnose("化瘀止痛止血", "会厌逐瘀汤加减"), BLEEDING, undefined, safetyBleeding);
   assert.equal(modelBarred.overview.recommendedFormulaDirection, "按已锁定病机与治法辨证组方");
   assert.deepEqual(modelBarred.overview.recommendedFormulaNames, []);
@@ -125,6 +125,9 @@ await check("2.6 教材锚定：活动性出血时不把治法改回教材的「
   // r1064：实跑旧断言失败。异位妊娠这行是术后方，未手术时须切到有出处且过安全层的救脱方向。
   assert.match(siwu.overview.recommendedFormulaDirection, /手术止血/);
   assert.doesNotMatch(siwu.overview.recommendedFormulaDirection, /四物汤/);
+
+  const siwuAfter = provenance.withDeterministicFormulaReferences({ ...diagnose("益气止血固脱", "四物汤加减"), overview: { ...diagnose("", "").overview, tcmDiseaseName: "异位妊娠", primarySyndrome: "气血亏脱证", recommendedFormulaDirection: "四物汤加减" } }, "现病史：已手术止血，术后病情稳定，无活动性出血。");
+  assert.match(siwuAfter.overview.recommendedFormulaDirection, /四物汤/);
   const anchored = provenance.withDeterministicFormulaReferences(diagnose("化瘀止痛", "本例辨证组方"), QUIET);
   assert.match(anchored.therapy.overallMethod, /活血化瘀/);
   assert.match(anchored.overview.recommendedFormulaDirection, /少腹逐瘀汤/);

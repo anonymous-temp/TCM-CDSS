@@ -42,6 +42,7 @@ export function resolveM03TcmAnchor(
   record.anchor = { textbookRowId: candidate.textbookRowId || null, jingfangId: candidate.jingfangId || null, compositeRuleId: candidate.compositeRuleId || null };
   const reduce = () => {
     const decision = selectM03TcmFormulaIdentity({ disease: record.disease.name, syndrome: record.primary.name,
+      clinicalSourceText: ctx.facts.filter((fact) => fact.scope === "current" && fact.polarity === "affirmed").map((fact) => fact.text).join("\n"),
       direction: record.direction, textbookRowId: candidate.textbookRowId, method: record.methods.map((method) => method.text).join("，"),
       factorLabels: [...record.root, ...record.branch].map((unit) => unit.label),
       secondarySyndromes: record.secondary.map((syndrome) => syndrome.name),

@@ -181,5 +181,13 @@
       "fuke|胎漏、胎动不安|血瘀证",
       "waike|阳痿|气血瘀阻证"
     ]
+  },
+  "completionGrammar": {
+    "basis": "M1 原样迁移 dx 的操作完成构词守卫；只核闭集操作词前后的完成形态，不扩展临床极性分类。",
+    "sourceRef": "同文件 entries 的逐行教材前置条件及第四十七轮 dx 5.2 合成对照",
+    "genericBefore": "(?:已|已经)(?:行|接受)?$",
+    "genericAfter": "^已完成",
+    "specificBefore": "(?:已|完成|接受|行)[^，,。；;]{0,10}$",
+    "specificAfter": "^(?:后|术后|已完成|完成)"
   }
 }

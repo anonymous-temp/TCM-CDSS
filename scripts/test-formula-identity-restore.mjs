@@ -25,7 +25,8 @@ const prov = await jiti.import("../src/lib/tcm-formula-provenance.ts");
 const prior = {
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",
-  overview: { primarySyndrome: "风热犯表证", recommendedFormulaNames: ["银翘散"], formulaSelectionMode: "single" },
+  // 第四十七轮：恢复命名也须能核到本病；补齐旧夹具省略的病名，伪造溯源等断言不变。
+  overview: { tcmDiseaseName: "感冒", primarySyndrome: "风热犯表证", recommendedFormulaNames: ["银翘散"], formulaSelectionMode: "single" },
 };
 // 银翘散加减(线上真实产出的形态:略淡豆豉、加芦根)。此前这里是九味全方、牛蒡子未标炮制,因目录照调剂标准写「炒牛蒡子」而被判加减;
 // 第四十二轮目录按《温病条辨》原文写牛蒡子后,九味全方就是原方(方名「银翘散」),所以改用真正的加减方来测方名恢复。
@@ -154,12 +155,11 @@ const expect = (label, actual, want) => { if (actual !== want) failures.push({ l
 // provenance from those non-provider callers merely to compensate for a missing ingress call.
 {
   const apiSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
-  const wrapper = apiSource.slice(
-    apiSource.indexOf("function wrapStructuredJsonObject"),
-    apiSource.indexOf("function m03ReasoningFromStructuredContent"),
-  );
+  const start = apiSource.indexOf("function wrapStructuredJsonObject");
+  const end = apiSource.indexOf("function m03ReasoningFromStructuredContent", start);
+  const wrapper = start >= 0 && end > start ? apiSource.slice(start, end) : "";
   const stripAt = wrapper.indexOf("stripUntrustedM04IdentityMetadata(wrapped)");
-  const restoreAt = wrapper.indexOf("applyRestoredGovernedFormulaIdentity(providerOwned, prior)");
+  const restoreAt = wrapper.indexOf("applyRestoredGovernedFormulaIdentity(providerOwned, prior,");
   expect("provider 入站先去伪溯源再恢复身份", stripAt >= 0 && restoreAt > stripAt, true);
 }
 

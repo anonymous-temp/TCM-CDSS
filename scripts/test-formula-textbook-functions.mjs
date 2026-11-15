@@ -81,13 +81,14 @@ check("alignment: same controlled method or ancestor/descendant lineage; sibling
 });
 
 check("trust: 完带汤 is kept for 带下/脾虚湿盛 cases; 导赤散 is still dropped for 阳黄", () => {
-  const reasoning = (syndrome, method, name) => ({ overview: { recommendedFormulaDirection: `${name}加减`, primarySyndrome: syndrome, primarySyndromeResolution: "bounded" }, therapy: { overallMethod: method } });
-  const trusted = (syndrome, method, name) => indications.trustedModelFormulaIdentityNames(reasoning(syndrome, method, name), [name]).size > 0;
-  assert.equal(trusted("脾虚湿盛证", "健脾益气，化湿止带", "完带汤"), true, "名医原方完带汤：此前因证候标注反证被剥");
-  assert.equal(trusted("肝郁脾虚，湿浊带下证", "疏肝健脾，化湿止带", "完带汤"), true);
-  assert.equal(trusted("湿热黄疸证", "清热利湿退黄", "茵陈蒿汤"), true);
-  assert.equal(trusted("心脾两虚证", "补益心脾，养心安神", "归脾汤"), true);
-  assert.equal(trusted("湿热内蕴证", "清热利湿退黄，通腑泄热", "导赤散"), false);
+  // 第四十七轮：具名身份正例须给出原病例的病种，断言不变。
+  const reasoning = (disease, syndrome, method, name) => ({ overview: { tcmDiseaseName: disease, recommendedFormulaDirection: `${name}加减`, primarySyndrome: syndrome, primarySyndromeResolution: "bounded" }, therapy: { overallMethod: method } });
+  const trusted = (disease, syndrome, method, name) => indications.trustedModelFormulaIdentityNames(reasoning(disease, syndrome, method, name), [name]).size > 0;
+  assert.equal(trusted("带下过多", "脾虚湿盛证", "健脾益气，化湿止带", "完带汤"), true, "名医原方完带汤：此前因证候标注反证被剥");
+  assert.equal(trusted("带下过多", "肝郁脾虚，湿浊带下证", "疏肝健脾，化湿止带", "完带汤"), true);
+  assert.equal(trusted("黄疸", "湿热黄疸证", "清热利湿退黄", "茵陈蒿汤"), true);
+  assert.equal(trusted("不寐", "心脾两虚证", "补益心脾，养心安神", "归脾汤"), true);
+  assert.equal(trusted("黄疸", "湿热内蕴证", "清热利湿退黄，通腑泄热", "导赤散"), false);
 });
 
 console.log(JSON.stringify({ suite: "formula-textbook-functions", checks, failures }, null, 1));

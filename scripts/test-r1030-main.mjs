@@ -70,31 +70,34 @@ const withChoice = ({ formula, therapy = "辛温解表，宣肺散寒，通窍�
   return reasoning;
 };
 
+// 第四十七轮：流派正例须提供本次主诉覆盖，使用合成外感病例，不靠证候标签授权。
+const lineageClinicalContext = "主诉：恶寒发热伴鼻塞2日\n现病史：汗出恶风。";
+
 // ── 1 流派选方 ──
 await check("1.1 目录主治证候相容：桂枝汤对风寒束表证相容，对风热犯表证、四逆汤对风寒束表证不相容", () => {
-  const signed = (syndrome) => ({ overview: { primarySyndrome: syndrome, primarySyndromeResolution: "bounded" } });
-  assert.deepEqual([...indications.lineageFormulaSyndromeSupportedNames(signed("风寒束表证"), ["桂枝汤"])], ["桂枝汤"]);
-  assert.equal(indications.lineageFormulaSyndromeSupportedNames(signed("风热犯表证"), ["桂枝汤"]).size, 0);
-  assert.equal(indications.lineageFormulaSyndromeSupportedNames(signed("风寒束表证"), ["四逆汤"]).size, 0);
-  assert.equal(indications.lineageFormulaSyndromeSupportedNames(signed("风寒束表证"), ["银翘散"]).size, 0);
-  assert.equal(indications.lineageFormulaSyndromeSupportedNames({ overview: { primarySyndrome: "风寒束表证", primarySyndromeResolution: "unresolved" } }, ["桂枝汤"]).size, 0);
+  const signed = (syndrome) => ({ overview: { tcmDiseaseName: "感冒", primarySyndrome: syndrome, primarySyndromeResolution: "bounded" } });
+  assert.deepEqual([...indications.lineageFormulaSyndromeSupportedNames(signed("风寒束表证"), ["桂枝汤"], lineageClinicalContext)], ["桂枝汤"]);
+  assert.equal(indications.lineageFormulaSyndromeSupportedNames(signed("风热犯表证"), ["桂枝汤"], lineageClinicalContext).size, 0);
+  assert.equal(indications.lineageFormulaSyndromeSupportedNames(signed("风寒束表证"), ["四逆汤"], lineageClinicalContext).size, 0);
+  assert.equal(indications.lineageFormulaSyndromeSupportedNames(signed("风寒束表证"), ["银翘散"], lineageClinicalContext).size, 0);
+  assert.equal(indications.lineageFormulaSyndromeSupportedNames({ overview: { primarySyndrome: "风寒束表证", primarySyndromeResolution: "unresolved" } }, ["桂枝汤"], lineageClinicalContext).size, 0);
   assert.deepEqual(indications.lockableFormulaCatalogFunctions("桂枝汤"), ["解肌发表", "调和营卫"]);
 });
 
 await check("1.2 经方思路、模型写桂枝汤而治法照抄教材行：保留桂枝汤，治法改按桂枝汤功效写并接上对症一句", () => {
-  const out = provenance.withDeterministicFormulaReferences(withChoice({ formula: "桂枝汤", therapy: "辛温解表，宣肺散寒，通窍止痒" }), undefined, "classical-formula");
+  const out = provenance.withDeterministicFormulaReferences(withChoice({ formula: "桂枝汤", therapy: "辛温解表，宣肺散寒，通窍止痒" }), lineageClinicalContext, "classical-formula");
   assert.equal(out.overview.recommendedFormulaDirection, "桂枝汤加减");
   assert.deepEqual(out.overview.recommendedFormulaNames, ["桂枝汤"]);
   assert.equal(out.therapy.overallMethod, "解肌发表，调和营卫，通窍止痒");
   assert.equal(out.overview.overallTherapy, "解肌发表，调和营卫，通窍止痒");
   // 幂等：再锚定一次不变。
-  const again = provenance.withDeterministicFormulaReferences(out, undefined, "classical-formula");
+  const again = provenance.withDeterministicFormulaReferences(out, lineageClinicalContext, "classical-formula");
   assert.equal(again.overview.recommendedFormulaDirection, "桂枝汤加减");
   assert.equal(again.therapy.overallMethod, "解肌发表，调和营卫，通窍止痒");
 });
 
 await check("1.3 模型治法已按方写时保留模型治法", () => {
-  const out = provenance.withDeterministicFormulaReferences(withChoice({ formula: "桂枝汤", therapy: "解肌发表，调和营卫，宣肺通窍" }), undefined, "classical-formula");
+  const out = provenance.withDeterministicFormulaReferences(withChoice({ formula: "桂枝汤", therapy: "解肌发表，调和营卫，宣肺通窍" }), lineageClinicalContext, "classical-formula");
   assert.equal(out.overview.recommendedFormulaDirection, "桂枝汤加减");
   assert.equal(out.therapy.overallMethod, "解肌发表，调和营卫，宣肺通窍");
 });
@@ -108,7 +111,7 @@ await check("1.4 不限定流派 / 模型判不适用 / 非所选流派的方 / 
     ["经方思路选四逆汤", withChoice({ formula: "四逆汤" }), "classical-formula"],
     ["有兼证", withChoice({ ...base, secondary: ["肺气虚证"] }), "classical-formula"],
   ]) {
-    const out = provenance.withDeterministicFormulaReferences(reasoning, undefined, lineage);
+    const out = provenance.withDeterministicFormulaReferences(reasoning, lineageClinicalContext, lineage);
     assert.equal(out.overview.recommendedFormulaDirection, "荆防败毒散加减", label);
   }
 });
@@ -121,7 +124,7 @@ await check("2.1 改回教材方后，「选桂枝汤」那一条去掉；「麻
     { aspect: "方源选择", detail: "麻黄汤等方证眼目不符，暂不套用" },
     { aspect: "方源选择", detail: "未套用葛根汤，改以疏风散寒为主" },
   ];
-  const out = provenance.withDeterministicFormulaReferences(withChoice({ formula: "桂枝汤", applicable: "not-applicable", decisions }), undefined, "classical-formula");
+  const out = provenance.withDeterministicFormulaReferences(withChoice({ formula: "桂枝汤", applicable: "not-applicable", decisions }), lineageClinicalContext, "classical-formula");
   assert.equal(out.overview.recommendedFormulaDirection, "荆防败毒散加减");
   assert.deepEqual(out.lineageAdaptation.influencedDecisions.map((item) => item.detail), [
     "先辨六经表证，再核对方证眼目", "麻黄汤等方证眼目不符，暂不套用", "未套用葛根汤，改以疏风散寒为主",
@@ -131,7 +134,7 @@ await check("2.1 改回教材方后，「选桂枝汤」那一条去掉；「麻
 
 await check("2.2 交付的就是说明里的方时不动", () => {
   const decisions = [{ aspect: "方源选择", detail: "按经方方证相应选桂枝汤加减" }];
-  const out = provenance.withDeterministicFormulaReferences(withChoice({ formula: "桂枝汤", decisions }), undefined, "classical-formula");
+  const out = provenance.withDeterministicFormulaReferences(withChoice({ formula: "桂枝汤", decisions }), lineageClinicalContext, "classical-formula");
   assert.deepEqual(out.lineageAdaptation.influencedDecisions.map((item) => item.detail), ["按经方方证相应选桂枝汤加减"]);
 });
 

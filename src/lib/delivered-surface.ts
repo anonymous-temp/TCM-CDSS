@@ -75,6 +75,8 @@ import { GENERIC_PRIORITY_FIRST_STEP, previousPriorityFirstStepSentences, priori
  * requiredPrecautions 是本例注意事项必须写到的项目（required-precautions.server.ts 由病历算出）。
  */
 export type DeliveredSurfaceOptions = {
+  /** 两步投影沿用已定红旗状态；仅作展示上下文，不重算安全结论。 */
+  safetyGate?: Pick<NonNullable<CaseState["safetyGate"]>, "status">;
   /** 编译、补写与缓存投影使用同一主诉和既定安全门，不从无标题正文猜主诉。 */
   caseState?: Pick<CaseState, "chiefComplaint" | "safetyGate">;
   herbBoundaryAudience?: HerbBoundaryAudience;

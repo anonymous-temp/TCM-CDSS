@@ -3,6 +3,7 @@ import "server-only";
 import type { CaseState } from "./diagnosis-types";
 import { evaluateSafetyGate, sanitizeFreeTextForModel, trustedInputText } from "./diagnosis-safety";
 import { trueHeartPainSignal, withTrueHeartPainFirst } from "./true-heart-pain";
+import { emergencyTextbookCandidates, withEmergencyDiseasesFirst } from "./tcm-emergency-candidates";
 import { REPRODUCTIVE_RECORD_KEYS } from "./followup-conversation";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { textbookDiseaseNamesForCase, textbookDiseaseWesternEquivalents } from "./tcm-textbook-syndromes";
@@ -137,7 +138,7 @@ export function buildTextbookDiseasePickRequest(caseState: CaseState): {
  */
 export async function pickTextbookDiseasesForCase(caseState: CaseState, signal?: AbortSignal): Promise<string[]> {
   const picks = withHistoryStatedDiseaseFirst(await pickTextbookDiseasesByModel(caseState, signal), historyStatedDiseasesForCase(caseState));
-  return withTrueHeartPainFirst(picks, trueHeartPainSignal(trustedInputText(caseState), (caseState.safetyGate || evaluateSafetyGate(caseState)).redFlags || []));
+  return withEmergencyDiseasesFirst(withTrueHeartPainFirst(picks, trueHeartPainSignal(trustedInputText(caseState), (caseState.safetyGate || evaluateSafetyGate(caseState)).redFlags || [])), emergencyTextbookCandidates(caseState));
 }
 
 async function pickTextbookDiseasesByModel(caseState: CaseState, signal?: AbortSignal): Promise<string[]> {

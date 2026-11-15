@@ -160,6 +160,7 @@ export function validateHisPrescriptionForWriteBack(
     trustedWorkbenchEdit,
     true,
     (herb) => herbBarredForCase(herb, clinicalGroundingText(caseState)),
+    clinicalGroundingText(caseState),
   );
   const issues = [...new Set([regimenIssue, editedIssue, floorIssue, formulaIssue]
     .filter((issue): issue is string => Boolean(issue)))];

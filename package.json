@@ -396,7 +396,9 @@
     "report:formula-original-reconciliation": "node scripts/report-formula-original-reconciliation.mjs",
     "test:r1064-crit": "node --max-old-space-size=1280 scripts/test-r1064-crit.mjs",
     "test:r1064-dx": "node --max-old-space-size=1280 scripts/test-r1064-dx.mjs",
-    "test:r1064-mods": "node --max-old-space-size=1280 scripts/test-r1064-mods.mjs"
+    "test:r1064-mods": "node --max-old-space-size=1280 scripts/test-r1064-mods.mjs",
+    "test:r1064-emerg": "node --max-old-space-size=1280 scripts/test-r1064-emerg.mjs",
+    "test:r1064-merge1": "node --max-old-space-size=1280 scripts/test-r1064-merge1.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

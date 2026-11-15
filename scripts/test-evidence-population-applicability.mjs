@@ -53,9 +53,9 @@ assert.deepEqual(references({ age: 45, sex: "男" }, "缺铁性贫血", "乏力�
 assert.deepEqual(references({ age: 40, sex: "男" }, "骨质疏松症", "腰背痛3月", "EVID-GUIDE-002"), ["EVID-GUIDE-002"], "40 岁男性：骨质疏松指南适用");
 assert.deepEqual(references({ age: 30, sex: "女" }, "缺铁性贫血", "乏力头晕2月，月经量多", "EVID-GUIDE-003"), ["EVID-GUIDE-003"], "30 岁女性：对照");
 
-// 2) 胎产严格口径全文命中仍排除：男性 / ≥60 女性 不得引用妊娠期指南（模型点名也不行）。
-assert.deepEqual(references({ age: 45, sex: "男" }, "高血压", "头晕1月，血压偏高", "EVID-GUIDE-004"), [], "男性：妊娠期高血压指南不适用");
-assert.deepEqual(references({ age: 68, sex: "女" }, "高血压", "头晕1月，血压偏高，已绝经", "EVID-GUIDE-004"), [], "绝经后女性：妊娠期高血压指南不适用");
+// 2) 胎产严格口径仍排除。M1 实跑后按 C3/crit 已合入口径：排除错误指南后可回填本病诊断要点表来源。
+assert.deepEqual(references({ age: 45, sex: "男" }, "高血压", "头晕1月，血压偏高", "EVID-GUIDE-004"), ["LOCAL-WESTERN-CRITERIA:高血压病"], "男性：不引用妊娠期指南，回填本病要点表来源");
+assert.deepEqual(references({ age: 68, sex: "女" }, "高血压", "头晕1月，血压偏高，已绝经", "EVID-GUIDE-004"), ["LOCAL-WESTERN-CRITERIA:高血压病"], "绝经后女性：不引用妊娠期指南，回填本病要点表来源");
 assert.deepEqual(references({ age: 28, sex: "女" }, "妊娠期高血压", "孕28周血压升高", "EVID-GUIDE-004"), ["EVID-GUIDE-004"], "育龄女性：妊娠期高血压指南适用（对照）");
 
 // 3) 宽口径词出现在题名里仍排除。

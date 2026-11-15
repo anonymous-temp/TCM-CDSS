@@ -105,6 +105,8 @@ const priorSelfDevised = {
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",
   overview: {
+    // 第四十七轮：组成只能证明方的身份，恢复命名还须主治覆盖本病；补足这份旧夹具省略的病名上下文。
+    tcmDiseaseName: "感冒",
     primarySyndrome: "风寒表实证",
     primarySyndromeResolution: "resolved",
     primarySyndromeBasis: ["恶寒发热无汗"],
@@ -117,6 +119,8 @@ const priorSelfDevised = {
   },
   pathogenesis: { chain: [] },
 };
+// 第四十七轮：本例的主要不适须能核到目录主治；不是仅凭组成就承认任何病都可用这首方。
+const restorationOptions = { clinicalSourceText: "主诉：恶寒发热无汗1天" };
 
 function prescribeWith(name, herbNames) {
   return {
@@ -138,6 +142,7 @@ check("CFI-09 M03 自拟 + 组成为经方 ⇒ 恢复经方名（甲方 M5.2 端
   const restored = restoreGovernedFormulaIdentity(
     prescribeWith("本例辨证组方", ["麻黄", "桂枝", "苦杏仁", "炙甘草", "生姜", "大枣"]),
     priorSelfDevised,
+    restorationOptions,
   );
   const candidate = restored.formula.candidates[0];
   assert.equal(candidate.name, "麻黄汤加味", `仍显示为 ${candidate.name}`);
@@ -150,6 +155,7 @@ check("CFI-10 确无对应经方时保持自拟，不臆造方名", () => {
   const restored = restoreGovernedFormulaIdentity(
     prescribeWith("本例辨证组方", ["丁香", "刺五加", "儿茶"]),
     priorSelfDevised,
+    restorationOptions,
   );
   assert.equal(restored.formula.candidates[0].name, "本例辨证组方");
   assert.deepEqual(restored.formula.candidates[0].formulaNames, []);
@@ -159,6 +165,7 @@ check("CFI-11 方名已由模型写明时不覆盖——不替人做方剂裁定
   const restored = restoreGovernedFormulaIdentity(
     prescribeWith("麻黄汤合桂枝汤化裁", ["麻黄", "桂枝", "苦杏仁", "炙甘草", "生姜", "大枣"]),
     priorSelfDevised,
+    restorationOptions,
   );
   assert.equal(restored.formula.candidates[0].name, "麻黄汤合桂枝汤化裁",
     "模型已给出的合方判断不得被服务端改写");
