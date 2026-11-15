@@ -15,7 +15,7 @@ const classes = source.classes.map((item) => ({
   genericRecordTerms: uniq(item.genericRecordTerms),
   intoleranceTerms: uniq(item.intoleranceTerms),
   singleCharTerms: uniq(item.singleCharTerms),
-  foodTerms: uniq(item.foodTerms),
+  foodTerms: uniq([...(item.foodTerms || []), ...(item.cookedFoodPrefixes || []).flatMap((prefix) => (item.singleCharTerms || []).map((food) => `${prefix}${food}`))]),
   cautionFoodTerms: uniq([...(item.cautionFoodTerms || []), ...(item.crossReactiveFoodTerms?.terms || [])]),
   excludeTerms: uniq([...(item.excludeTerms || []), ...(item.gbExemptTerms || [])]),
   herbs: [...herbEntries(item.herbs), ...herbEntries(item.crossReactiveHerbs).map((herb) => ({ ...herb, action: "caution" }))],

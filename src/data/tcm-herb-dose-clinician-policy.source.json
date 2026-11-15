@@ -854,19 +854,11 @@
         "blockedFormulaCount": 2
       },
       {
-        "name": "猪蹄",
-        "blockedFormulaCount": 2
-      },
-      {
         "name": "柞树皮",
         "blockedFormulaCount": 2
       },
       {
         "name": "沥青",
-        "blockedFormulaCount": 2
-      },
-      {
-        "name": "猪心",
         "blockedFormulaCount": 2
       },
       {
@@ -4301,6 +4293,14 @@
         "name": "黄豆",
         "blockedFormulaCount": 1,
         "basis": "「黄豆」经 2026-09-30 别名错链整改后归入「大豆」（药典未收载/本库无数值边界），剂量由医师确定；见 tcm-herb-identity-supplements 批次 ADJ-WEB-20260930-ALIAS"
+      },
+      {
+        "name": "猪蹄",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "猪心",
+        "blockedFormulaCount": 2
       }
     ],
     "pill_powder_only": [

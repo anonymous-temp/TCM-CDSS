@@ -582,9 +582,8 @@ await checkAsync("8.1 端到端：2 岁儿童 + 成人剂量提案 → 最终页
   const herbs = JSON.parse(final.slice(final.indexOf("<!-- DIAGNOSIS_JSON_START -->") + 29, final.indexOf("<!-- DIAGNOSIS_JSON_END -->"))).formula.candidates[0].herbs;
   const doses = Object.fromEntries(herbs.map((herb) => [herb.name, herb.dose]));
   assert.equal(doses["茯苓"], "7.5g");
-  // 病历写着大便溏薄，白术按教材用途交付为土炒白术（第三十七轮炮制规则；第四十七轮终测复核要求便溏不用生白术），剂量照旧折算。
-  const baizhu = Object.keys(doses).find((name) => name.endsWith("白术"));
-  assert.equal(baizhu && doses[baizhu], "6g", JSON.stringify(doses));
+  // R47 F2：本例明确便溏，交付按本味用途选土炒白术；儿童折算上限仍为6g。
+  assert.equal(doses["土炒白术"], "6g", JSON.stringify(doses));
   assert.equal(doses["炙甘草"], "5g");
   assert.equal(doses["党参"], "12g");
   assert.equal(requests, 1, "折算由编译器确定性完成，不靠修复轮把模型推回去");

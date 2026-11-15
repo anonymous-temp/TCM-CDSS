@@ -4,6 +4,7 @@ import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import triggerPolicy from "../data/tcm-modification-trigger-policy.source.json" with { type: "json" };
 import { redFlagActiveFor } from "./clinical-red-flag-context";
 import { alignQuoteToSource } from "./source-quote-alignment";
+import rxConstraints from "../data/rx-case-constraints.source.json";
 import sameSourceHerbsJson from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, standbyHerbOpposesSyndromePole, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { incidentalSleepSedativeModification, incidentalSleepTriggerModification, mindSymptomsProminentInRecord, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
@@ -49,7 +50,7 @@ import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { fillMedicineRowFromInstructionRecord, type InstructionRecordPool } from "./instruction-record-pool";
 import { formulaAnalysisHerbMentions, formulaAnalysisRoleAssignments, withoutFalseBaseFormulaEdits } from "./formula-analysis-review";
-import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
+import { medicineCandidateExcludedForCase, medicineLabelConflictsWithCase } from "./medicine-candidate-exclusion";
 import { patentMedicineDuplication, patentMedicineMovesBloodDuringBleeding, patentMedicineOpposesSignedDirection, selfTakenMedicationCompositions, signedDirectionOf, withoutRepeatedMedicineNames, withoutSameClassAnalgesics, withoutSameClassMedicines } from "./patent-medicine-duplication.server";
 import { decoctionThermalByComposition, findLocalPatentMedicineLabel, herbThermalSide, patentMedicineCoversMainProblem, patentMedicineMatchesSignedSyndrome } from "./local-patent-medicine-candidates";
 import { herbRecordCautionConflict, herbRecordCautionConflicts, herbStrongRecordCautionConflict, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
@@ -1513,6 +1514,17 @@ function withDistinctConditionsFirst<T>(rows: readonly T[]): T[] {
   return [...first, ...rest.filter((row) => !isAdjust(row)), ...rest.filter(isAdjust)];
 }
 
+/** One independent plan for each condition; only explicit textbook partner rows share it. */
+export function withoutRepeatedModificationConditions<T extends { trigger?: unknown; herbName?: unknown; reason?: unknown }>(rows: readonly T[]): T[] {
+  const kept: T[] = [];
+  for (const row of rows) {
+    const existing = kept.find((other) => distinctModificationConditions([other, row].map((item) => ({ trigger: String(item.trigger || "").replace(/^本例已见/u, "") }))) === 1);
+    const partner = (row as Record<string, unknown>)[PARTNER_ROW] === true || /^与[^，]{2,8}同用，针对/u.test(String(row.reason || ""));
+    if (!existing || partner) kept.push(row);
+  }
+  return kept;
+}
+
 function withSameConditionAdjacent<T extends { trigger?: unknown }>(rows: readonly T[]): T[] {
   const groups = new Map<string, T[]>();
   for (const row of rows) {
@@ -1987,8 +1999,11 @@ function normalizeM04ProposalInput(
     if (normalized) candidate[field] = normalized;
     else if (candidate[field] != null) delete candidate[field];
   }
+  const normalizedHerbs = normalizeHerbs(candidate.herbs ?? candidate.medicines ?? candidate["药味"]);
+  const foodOnlyNames = Array.isArray(normalizedHerbs) ? normalizedHerbs.flatMap((herb) => isRecord(herb) && rxConstraints.foodOnlyHerbs.includes(String(herb.name || "")) ? [String(herb.name)] : []) : [];
+  // Food/vehicles are removed before the dose schema: a pig trotter cannot invalidate the medicine rows.
   candidate.herbs = normalizeEmperorCardinality(
-    mergeSameIdentityHerbRows(normalizeHerbs(candidate.herbs ?? candidate.medicines ?? candidate["药味"])),
+    mergeSameIdentityHerbRows(Array.isArray(normalizedHerbs) ? normalizedHerbs.filter((herb) => !isRecord(herb) || !foodOnlyNames.includes(String(herb.name || ""))) : normalizedHerbs),
   );
 
   const rawDecoction = unwrapRegimenRecord(candidate.decoction ?? candidate["煎服"]);
@@ -2097,7 +2112,7 @@ function normalizeM04ProposalInput(
         ...rawNonPharma,
         // 食疗文字属于建议质量，不拥有对整张已通过剂量/配伍/特殊人群门禁处方的一票否决权。
         // 模型未给出普通餐食示例时只补齐这一段，候选药味和 M03 锁定结论保持不变。
-        diet: ensureConcreteClinicianDietPlan(rawNonPharma.diet),
+        diet: [ensureConcreteClinicianDietPlan(rawNonPharma.diet), ...(foodOnlyNames.length ? [`${foodOnlyNames.join("、")}属食材，如需食用请结合饮食习惯及过敏情况另行安排。`] : [])].join("；"),
         exercise: unwrapSingleText(rawNonPharma.exercise ?? rawNonPharma["运动保健"]) || null,
         acupointCare: null,
         // These are optional recommendations chosen from a server-owned catalog. Extra, repeated,
@@ -2790,6 +2805,7 @@ export function compileM04Proposal(
     patentAndWestern: [...new Map(
       [...parsed.data.patentAndWestern, ...trustedMedicines]
         .filter((item) => !medicineCandidateExcludedForCase(String(item.name || ""), medicineExclusionText))
+        .filter((item) => !medicineLabelConflictsWithCase(findLocalPatentMedicineLabel(String(item.name || "")) || item, medicineExclusionText))
         .map((item) => [`${item.evidenceId}:${item.evidenceFingerprint}`, item] as const),
     ).values()].slice(0, 6),
   };
@@ -3034,7 +3050,7 @@ export function compileM04Proposal(
           },
     }];
   };
-  const modelModifications = withoutOrphanPartnerRows(proposal.modifications.flatMap((item) => compileModification(item)), candidateHerbNames);
+  const modelModifications = withoutRepeatedModificationConditions(withoutOrphanPartnerRows(proposal.modifications.flatMap((item) => compileModification(item)), candidateHerbNames));
   // 随证加减至少两个不同的条件（2026-10-31，甲方 10.29 测评「仅生成 1 个不足以满足临床」；历史 1073 张处方 118 张 ≤1 条）。
   // 编译时备到 MODIFICATION_CONDITION_TARGET 个（交付前的跨厂商核对还可能删行），从本证教材条目补（textbookFallbackModifications，同一套判据）。只增不改模型留下的行。
   const conditionsShort = MODIFICATION_CONDITION_TARGET - distinctModificationConditions(modelModifications);

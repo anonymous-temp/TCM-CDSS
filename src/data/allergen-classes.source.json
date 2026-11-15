@@ -1212,7 +1212,18 @@
       "cautionFoodTerms": [
         "蟹棒",
         "海鲜粥"
-      ]
+      ],
+      "cookedFoodPrefixes": [
+        "清蒸",
+        "红烧",
+        "水煮",
+        "煎",
+        "炸",
+        "烤",
+        "蒸",
+        "煮"
+      ],
+      "cookedFoodNote": "食物类别的烹饪写法闭集（清蒸鱼、红烧虾等），仍沿用本类avoid/caution，不把鱼际、鱼腥草算作食物。"
     },
     {
       "id": "fish",
@@ -1531,7 +1542,18 @@
         "花胶",
         "鱼肝油",
         "深海鱼油"
-      ]
+      ],
+      "cookedFoodPrefixes": [
+        "清蒸",
+        "红烧",
+        "水煮",
+        "煎",
+        "炸",
+        "烤",
+        "蒸",
+        "煮"
+      ],
+      "cookedFoodNote": "食物类别的烹饪写法闭集（清蒸鱼、红烧虾等），仍沿用本类avoid/caution，不把鱼际、鱼腥草算作食物。"
     },
     {
       "id": "egg",
@@ -1822,7 +1844,18 @@
       ],
       "notes": "各种禽蛋之间交叉反应常见，病历只写「鸡蛋」时，其他禽蛋的食物词也按 avoid 处理（不适用 sameAsFood 降级）。",
       "specificMembers": {},
-      "cautionFoodTerms": []
+      "cautionFoodTerms": [],
+      "cookedFoodPrefixes": [
+        "清蒸",
+        "红烧",
+        "水煮",
+        "煎",
+        "炸",
+        "烤",
+        "蒸",
+        "煮"
+      ],
+      "cookedFoodNote": "食物类别的烹饪写法闭集（清蒸鱼、红烧虾等），仍沿用本类avoid/caution，不把鱼际、鱼腥草算作食物。"
     },
     {
       "id": "peanut",
@@ -3611,7 +3644,18 @@
       },
       "cautionFoodTerms": [
         "蚝油"
-      ]
+      ],
+      "cookedFoodPrefixes": [
+        "清蒸",
+        "红烧",
+        "水煮",
+        "煎",
+        "炸",
+        "烤",
+        "蒸",
+        "煮"
+      ],
+      "cookedFoodNote": "食物类别的烹饪写法闭集（清蒸鱼、红烧虾等），仍沿用本类avoid/caution，不把鱼际、鱼腥草算作食物。"
     },
     {
       "id": "seafood",

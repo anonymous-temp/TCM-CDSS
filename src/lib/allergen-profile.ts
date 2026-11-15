@@ -83,7 +83,8 @@ export function recordedAllergensInText(text: string, polarityAt: MentionPolarit
           const isSingle = term.length === 1 && entry.singleCharTerms.includes(term);
           const excluded = entry.excludeTerms.includes(term) && !entry.recordTerms.includes(term);
           if (excluded) { index += term.length - 1; continue; }
-          if (isSingle && !DATA.singleCharRecordFollowers.some((follower) => clause.startsWith(follower, index + 1))) continue;
+          // A named allergy field already supplies the domain; single food names need no second “过敏” suffix.
+          if (isSingle && !allergyLine && !DATA.singleCharRecordFollowers.some((follower) => clause.startsWith(follower, index + 1))) continue;
           const absolute = clauseOffset + index;
           const negated = polarityAt(text, absolute) !== "affirmed";
           if (negated) { index += term.length - 1; continue; }

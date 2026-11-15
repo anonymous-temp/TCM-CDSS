@@ -344,7 +344,7 @@ await check("6.4 瓦楞子知识库功用里的「补气养血」剔除（M 集 
 });
 
 // ───── 7 加减 ─────
-await check("7.1 加减理由里这味药没有的功效从头尾去掉（北沙参「益气养阴，固表止汗」→「养阴」（「止汗」不是它的功效也不留），连翘「清热散结兼通肠腑」→「清热散结」）；讲与别的药关系的小句照留（对照）；条件与药都相同的行只留一条，条件同、药不同的照留（对照）", () => {
+await check("7.1 加减理由里这味药没有的功效从头尾去掉（北沙参「益气养阴，固表止汗」→「养阴」（「止汗」不是它的功效也不留），连翘「清热散结兼通肠腑」→「清热散结」）；讲与别的药关系的小句照留（对照）；同一条件的独立加药只留一条（第四十七轮口径）", () => {
   const modifications = [
     { trigger: "若汗多气短", action: "加", herbName: "北沙参", doseOrHandling: "6g", reason: "益气养阴，固表止汗", riskNote: "" },
     { trigger: "若大便干结难下", action: "加", herbName: "连翘", doseOrHandling: "12g", reason: "清热散结兼通肠腑", riskNote: "" },
@@ -354,11 +354,12 @@ await check("7.1 加减理由里这味药没有的功效从头尾去掉（北沙
     { trigger: "若脾气亏虚，甚或脏器下垂", action: "加", herbName: "党参", doseOrHandling: "10g", reason: "健脾益气", riskNote: "" },
   ];
   const out = project(prescribeOf({ name: "自拟方", herbs: ["黄芪"], analysis: "本方为自拟方。黄芪为君，补气升阳。", modifications })).formula.modifications;
-  assert.equal(out.length, 5);
+  // R1064 F2：同一条件的黄芪、党参是独立方案，未声明教材伙伴关系，只保留第一行。
+  assert.equal(out.length, 4);
   assert.equal(out[0].reason, "养阴");
   assert.equal(out[1].reason, "清热散结");
   assert.equal(out[2].reason, "收敛止血，助凉血", "讲协助别的药的小句不按这味药的功效去");
-  assert.deepEqual(out.slice(3).map((item) => item.herbName), ["黄芪", "党参"]);
+  assert.deepEqual(out.slice(3).map((item) => item.herbName), ["黄芪"]);
 });
 
 await check("7.2 教材加减「通血络非虫蚁所不能」「化络瘀非天麻三七所不能」不当加减条件（M 集 TCM-SD-433619）；同一行其余加减照留（对照）", () => {

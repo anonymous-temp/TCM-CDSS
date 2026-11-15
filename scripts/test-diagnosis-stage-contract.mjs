@@ -4588,8 +4588,9 @@ const boundedModificationProposal = compileM04Proposal({
     reason: "加强宁心安神",
   })),
 }, stable);
-assert.equal(boundedModificationProposal?.formula?.modifications.length, 4, "conditional modifications remain bounded to four visible rows");
-assert.equal(boundedModificationProposal?.formula?.modificationReview?.droppedCount, 1);
+// R47 F2：同一入睡困难条件的五味独立安神备选只留一条；原四行上限仍约束其它条件。
+assert.equal(boundedModificationProposal?.formula?.modifications.length, 1, "one independent addition per condition");
+assert.equal(boundedModificationProposal?.formula?.modificationReview?.droppedCount, 4);
 assert.match(boundedModificationProposal?.formula?.modificationReview?.droppedReason || "", /最多展示 4 条/);
 const nestedCandidateProposal = compileM04Proposal({
   schemaVersion: "tcm-cdss-m04-proposal-v1",

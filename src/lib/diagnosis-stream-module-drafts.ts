@@ -214,7 +214,7 @@ export function newM04ModuleDraftFrames(partial: string, emitted: Set<string>): 
   if (!candidate.herbs.every((herb) => presentText(record(herb)?.name))) return [];
   const herbs = candidate.herbs.slice(0, 30).map((herb) => {
     const row = { ...record(herb)! };
-    if (m04FinalContentPolicy().enabled && m04FinalContentPolicy().functions === "on") row.function = selectGroundedHerbFunction({ name: String(row.name || ""), role: String(row.role || ""), target: "", therapy: "", modelText: String(row.function || "") }).text;
+    if (m04FinalContentPolicy().enabled && m04FinalContentPolicy().functions === "on") row.function = selectGroundedHerbFunction({ name: String(row.name || ""), role: String(row.role || ""), target: String(row.targetPathogenesis || row.targetRef || row.structureRole || ""), therapy: String(candidate.therapyMatch || ""), modelText: String(row.function || "") }).text;
     const parsedRole = PrescriptionRoleSchema.safeParse(row.role);
     const role = parsedRole.success ? `（${parsedRole.data}）` : "";
     return `- ${candidateText(row.name, 60)}${role}${presentText(row.function) ? `：${candidateText(row.function, 100)}` : ""}`;

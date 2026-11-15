@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { CaseState } from "./diagnosis-types";
 import type { AssistedNegationClauses } from "./clinical-polarity";
-import { medicineCandidateExcludedForCase } from "./medicine-candidate-exclusion";
+import { medicineCandidateExcludedForCase, medicineLabelConflictsWithCase } from "./medicine-candidate-exclusion";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 import {
   fetchExternalEvidence,
@@ -610,6 +610,7 @@ export async function planEvidenceBoundMedicineCandidates(
   const selfMedications = selfTakenMedicationCompositions(caseState);
   const screened = [...selectedLocal, ...aiPatent, ...western]
     .filter((item) => !medicineCandidateExcludedForCase(item.candidate.name, exclusionText))
+    .filter((item) => !medicineLabelConflictsWithCase(findLocalPatentMedicineLabel(item.candidate.name) || item.candidate, exclusionText))
     .filter((item) => !patentMedicineDuplication(item.candidate, [], selfMedications))
     .filter((item) => !patentMedicineOpposesSignedDirection(item.candidate, signedDirection));
   const keptCandidates = new Set<EvidenceBoundMedicineProposal>(withoutSameClassMedicines(screened.map((item) => item.candidate)));

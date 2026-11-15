@@ -31,7 +31,8 @@ export function finalAnalysisMatchesSnapshot(text: string, snapshot: FinalM04Sna
 export function projectM04FinalFacts<T>(reasoning: T, context?: Partial<FinalSnapshotContext>, forceSummary = false): T {
   const policy = m04FinalContentPolicy();
   if (!policy.enabled || asRecord(reasoning).stage !== "prescribe") return reasoning;
-  const result = policy.functions === "on" ? projectGroundedHerbFunctions(reasoning) : structuredClone(reasoning);
+  // F2：功效按本例人群与病历选小句；投影拿得到病历时一并传入，与定稿那一次同一份上下文（拿不到时保守去掉人群专属小句）。
+  const result = policy.functions === "on" ? projectGroundedHerbFunctions(reasoning, { recordText: context?.record }) : structuredClone(reasoning);
   if (policy.analysis !== "on") return result;
   const root = asRecord(result);
   const ctx = { record: "", prior: root, ...context };

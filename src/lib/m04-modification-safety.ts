@@ -6,6 +6,7 @@ import { formulaAnalysisAfterHerbRemoval } from "./formula-analysis-review";
 import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbFunctionCategories, isKnownTcmHerbName } from "./tcm-knowledge";
 import { precautionWithoutAbsentHerbs, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs } from "./m04-proposal-compiler";
 import { formulaTextbookCommentary } from "./formula-textbook-commentary";
+import rxConstraints from "../data/rx-case-constraints.source.json";
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { herbAnyRecordCautionConflict, herbRecordCautionIsHard } from "./herb-record-caution";
 import { liquidHerbDoseRule, normalizedLiquidHerbDose } from "./herb-liquid-dose";
@@ -384,6 +385,10 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
       // 药引/辅料（竹沥、姜汁、黄酒、白蜜…，clinicianDoseHerbClass = food_or_vehicle）写成「30ml」「适量」时没有克数，合同按缺剂量整方驳回
       //（第二十五轮甲方 100 例 C048：双合汤带竹沥，整页退成非剂量）。不是君药就单味拿出、写明用量由医师另定；写了克数的照留。
       const comparableDose = normalizeComparableDose(String(recordValue(value)?.dose || ""));
+      if (rxConstraints.foodOnlyHerbs.includes(name)) {
+        removed.push({ name, reason: "食材，另列饮食调护，不作饮片配量" });
+        return false;
+      }
       if (regulatory === "food_or_vehicle" && !liquidHerbDoseRule(name) && roleOf(value) !== "君" && (!comparableDose || comparableDose.endsWith("mL"))) {
         removed.push({ name, reason: "药引/辅料，如需使用请医生另定用量（多为兑服）" });
         return false;
@@ -494,6 +499,13 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
     }
     if (removed.length === 0 || retained.length < SAFETY_PRUNE_MIN_RETAINED) return liquidNormalizedContent;
     candidate.herbs = retained;
+    const foodRows = removed.filter((item) => rxConstraints.foodOnlyHerbs.includes(item.name));
+    if (foodRows.length) {
+      const care = recordValue(reasoning.nonPharma) || {};
+      const note = `${foodRows.map((item) => item.name).join("、")}属食材，如需食用请结合饮食习惯及过敏情况另行安排。`;
+      care.diet = [care.diet, note].filter(Boolean).join("；");
+      reasoning.nonPharma = care;
+    }
     if (typeof candidate.formulaAnalysis === "string") {
       candidate.formulaAnalysis = formulaAnalysisAfterHerbRemoval(candidate.formulaAnalysis, retained.map(nameOf).filter(Boolean));
     }

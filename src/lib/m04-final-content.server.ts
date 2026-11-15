@@ -1,4 +1,6 @@
 import "server-only";
+import { projectDeterministicDecoctionMethod } from "./diagnosis-visible-summary";
+import { authoritativePatientAgeYears } from "./diagnosis-safety";
 import { projectGroundedHerbFunctions } from "./herb-function-display-source";
 import { buildFinalM04Snapshot, type FinalSnapshotContext } from "./m04-final-snapshot";
 import { authorFinalFormulaAnalysis } from "./m04-final-analysis.server";
@@ -31,9 +33,9 @@ export async function finalizeM04Content<T>(reasoning: T, ctx: FinalizeM04Contex
   if (policy.modifications !== "off" && !applicationRecallCatalog().length) {
     io.report?.("configuration_error", { code: "applications_unavailable" }); return reasoning;
   }
-  const result = policy.functions === "on" ? projectGroundedHerbFunctions(reasoning) : structuredClone(reasoning);
+  const result = policy.functions === "on" ? projectGroundedHerbFunctions(reasoning, { sex: String(ctx.caseState.patient.sex || ""), ageYears: authoritativePatientAgeYears(ctx.caseState) ?? undefined, recordText: ctx.record }) : structuredClone(reasoning);
   let finalContext = ctx;
-  if (policy.functions === "shadow") io.report?.("function_shadow", { changed: contentDigest(projectGroundedHerbFunctions(reasoning)) !== contentDigest(reasoning) });
+  if (policy.functions === "shadow") io.report?.("function_shadow", { changed: contentDigest(projectGroundedHerbFunctions(reasoning, { sex: String(ctx.caseState.patient.sex || ""), ageYears: authoritativePatientAgeYears(ctx.caseState) ?? undefined, recordText: ctx.record })) !== contentDigest(reasoning) });
   const root = asRecord(result), formula = asRecord(root.formula);
   const candidates = asRecords(formula.candidates);
   if (!candidates.length) return reasoning;
@@ -85,6 +87,10 @@ export async function finalizeM04Content<T>(reasoning: T, ctx: FinalizeM04Contex
     if (policy.modifications === "on") formula.modifications = planned.rows;
     io.report?.("closed_modifications", { distinctConditions: planned.distinctConditions, shortfall: planned.shortfall, rejected: planned.rejected, shadow: policy.modifications === "shadow" });
   }
+  // Closed-set additions are chosen after the earlier route-level decoction pass.
+  // Refresh the shared method before the authoring snapshot is built.
+  const regimen = asRecords(asRecord(asRecord(projectDeterministicDecoctionMethod(result, ctx.record, authoritativePatientAgeYears(ctx.caseState) ?? undefined)).formula).candidates);
+  candidates.forEach((candidate, index) => { if (regimen[index]?.decoction) candidate.decoction = regimen[index].decoction; });
   if (policy.analysis !== "off") {
     for (let index = 0; index < candidates.length; index++) {
       const snapshot = buildFinalM04Snapshot(result, { ...finalContext, candidateIndex: index });
