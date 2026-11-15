@@ -1,5 +1,6 @@
 import { r1064GenerationIdentity } from "./r1064-generation-identity.server";
 import { withStageGenerationOutcome } from "./stage-generation-outcome.server";
+import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -146,6 +147,7 @@ function generationIdentity(): string {
     process.env.CDSS_BUILD_SOURCE_DIGEST || "",
     process.env.PRIMARY_DIAGNOSE_MODEL || "",
     process.env.PRIMARY_PRESCRIBE_MODEL || "",
+    m04FinalContentPolicy().version,
     process.env.CDSS_HOME_ACUPOINT_CARE || "",
     process.env.CDSS_REDFLAG_EXPLICIT_ONLY || "",
   ].join("|");

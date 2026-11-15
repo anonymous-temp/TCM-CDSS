@@ -1,3 +1,5 @@
+// R1064：自由方义/句内修补断言保留为显式回滚测试；新默认由 test-r1064-m04wire 覆盖，安全断言不变。
+process.env.CDSS_M04_FINAL_CONTENT = "false";
 // 第三十五轮（2026-11-02）：上一轮审计里剩下的「程序把对的内容改坏」逐类收口。量法与材料见 ~/runlogs/r1018/work/r1047。
 // 每条断言都有反证（~/runlogs/r1018/work/r1047/cp/）。
 import assert from "node:assert/strict";

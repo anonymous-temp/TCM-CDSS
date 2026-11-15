@@ -1,3 +1,5 @@
+// R1064：旧开头句修补保留为回滚兼容测试；新终稿摘要由 test-r1064-m04wire 覆盖。
+process.env.CDSS_M04_FINAL_CONTENT = "false";
 // 第四十六轮工作包 D（知识与文字类）：出处、「原方」说法、药味功效、中成药、流派、外治、中医鉴别、西医病名细节、中医病名。
 // 条目来自第四十五轮逐字复核（~/runlogs/r1018/work/r1063/fin2-errors-by-item.json 的 A/C/E/F/J/K/O/P/Q 项）。
 // 每条断言都有反证（~/runlogs/r1018/work/r1063/cp/text.py）。

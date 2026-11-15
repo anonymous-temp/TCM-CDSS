@@ -1,3 +1,5 @@
+// R1064：本套件的自由方义/句内修补断言保留为显式回滚测试；新默认路径由 test-r1064-m04wire 覆盖，安全断言不变。
+process.env.CDSS_M04_FINAL_CONTENT = "false";
 // 10/20 第八轮 WP-C（M04 方义 / 加减 / 出处），2026-10-19 晚。X 集第七轮（r19g、r19h）与留出集 Claude/qwen 评审报出的服务端缺陷。
 //
 // 每条断言都带对照（不该变的输入不变）；反证记录见 ~/runlogs/r1018/work/r1019/counterproofs.txt，前缀 8/formula。

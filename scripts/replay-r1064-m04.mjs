@@ -20,7 +20,7 @@ for(const file of files){
  // No model calls in this replay; input is bound solely for fingerprinting.
  const record=clinicalGroundingText?clinicalGroundingText(state):JSON.stringify(saved.input);
  const ctx={record,prior,caseState:state};
- const off=await finalizeM04Content(r,{...ctx,env:{}},{call:async()=>{modelCalls++;throw Error('off must not call');}});
+ const off=await finalizeM04Content(r,{...ctx,env:{CDSS_M04_FINAL_CONTENT:"false"}},{call:async()=>{modelCalls++;throw Error('off must not call');}});
  if(JSON.stringify(off)!==JSON.stringify(r))offChanges++;
  assert.equal(off,r);
  const on=await finalizeM04Content(r,{...ctx,env:{CDSS_M04_FINAL_CONTENT:'true',CDSS_M04_HERB_FUNCTION_SOURCE_ONLY:'on',CDSS_M04_FINAL_ANALYSIS:'on'}},{});

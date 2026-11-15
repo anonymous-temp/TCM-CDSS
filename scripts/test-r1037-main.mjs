@@ -1,3 +1,5 @@
+// R1064：自由方义/句内修补断言保留为显式回滚测试；新默认由 test-r1064-m04wire 覆盖，安全断言不变。
+process.env.CDSS_M04_FINAL_CONTENT = "false";
 // 第二十五轮（2026-10-27）：婚育史里的「怀孕」、自行停药的读法、病历记载的当前出血、成人用儿科病名、上消化道类目的边界、
 // 辨证依据漏讲表现时重写、居家穴位保健由模型按本例选穴。每条断言都有反证（~/runlogs/r1018/work/r1037/cp/）。
 import assert from "node:assert/strict";
@@ -428,7 +430,8 @@ await check("7.5 小模型按本例选穴：请求里有本例诊断、表现与
   const route = fs.readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
   assert.match(route, /const homeAcupointAuthoring = homeAcupointInput \? authorHomeAcupointCare\(homeAcupointInput, signal\)/);
   // 第四十七轮：教材注意核对加入同一并行组、加减核对带完整分型上下文；居家选穴仍不串行。
-  assert.match(route, /Promise\.all\(\[\s*checkFormulaAnalysisClaimsInContent\(content, transformSignal\),\s*dropMisfitModifications\(content, \{ recordText: structuredClinicalContext, prior: signedPriorReasoning, caseState: safeState \}, transformSignal\),\s*homeAcupointAuthoring,\s*checkHerbCautions\(content, \{ recordText: structuredClinicalContext \}, transformSignal\),?\s*\]\)/);
+  // R1064：候选核对包装器与调护任务继续并行。
+  assert.match(route, /Promise\.all\(\[\s*prepareM04CandidateContent[\s\S]*?homeAcupointAuthoring,[\s\S]*?checkHerbCautions/);
   assert.match(route, /\{ authoredHomeAcupoint \}\)/);
 });
 

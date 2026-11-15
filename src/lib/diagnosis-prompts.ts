@@ -1,3 +1,4 @@
+import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import { evaluateSafetyGate, trustedInputText } from "./diagnosis-safety";
 import { TRUE_HEART_PAIN_DISEASE, trueHeartPainNotice, trueHeartPainSignal, withTrueHeartPainFirst } from "./true-heart-pain";
 import { emergencyTextbookCandidates, emergencyTextbookNotice, withEmergencyDiseasesFirst } from "./tcm-emergency-candidates";
@@ -384,7 +385,7 @@ ${COMPACT_JSON_OUTPUT_RULE}
       {"name":"甘草","dose":"6g","role":"使","targetRef":"FORMULA_STRUCTURE","structureRole":"harmonize","function":"调和诸药"}
     ],
     "decoction": {"doseCount":"5剂","dosesPerDay":1,"administrationTimesPerDay":2},
-    "formulaAnalysis": "本方方解（120–150字一个自然段）：开头点出方名（如“本方以某某汤为基础加减”），再讲君臣佐使如何配伍、为何这样配，结尾呼应治法"
+    "formulaAnalysis": "${m04FinalContentPolicy().enabled && m04FinalContentPolicy().analysis === "on" ? "" : "本方方解（120–150字一个自然段）：开头点出方名（如“本方以某某汤为基础加减”），再讲君臣佐使如何配伍、为何这样配，结尾呼应治法"}"
   },
   "patentAndWestern": [
     {"type":"中成药","evidenceId":"LOCAL-INST-001","correspondingProblem":"本例当前诊断、证候或症状中与该条目适应证对得上的一点（≤20字）","positioning":"替代方案"}
@@ -405,7 +406,7 @@ ${COMPACT_JSON_OUTPUT_RULE}
 硬约束：
 - candidate.herbs 只包含本次真正采用的药味。经典方/合方按服务端给出的基础方组成编译；自拟复方在有依据的前提下应给出完整的君臣佐使层次，常见规模为 8–14 味（不少于4味，明确的单味方案可为1味）。每增加一味都必须同时满足三条：绑定一个真实病机节点 targetRef 或受控 formula_structure 角色、在服务端药味知识库有功能收载、其收载方向与本例某条已锁定治法方向一致；三条任一不满足即不得加入。不得为凑数量增药，不得加入与任何锁定治法方向无关的药味，所有条件性加减不得写在表外。功效重叠的同类药不并用：人参、党参、太子参、西洋参只取其一；同一味药的不同炮制品（生地黄与熟地黄除外）不重复入方。
 - dose 必须是单一数值加单位（如10g），不得用范围、片、枚、酌量或待确认。
-- formulaAnalysis 写**本方的方解**，不是逐味功效的罗列：第一句必须点出方名（与 candidate.name 一致，如“本方以某某汤为基础加减”；自拟方写“本方为自拟方”），最后一句呼应 M03 的治法；君药解决本例哪一层病机、
+${m04FinalContentPolicy().enabled && m04FinalContentPolicy().analysis === "on" ? "- formulaAnalysis 留空。方义在最终药表、炮制和方名确定后另行撰写；此轮只定药味、角色、剂量及目标，不在其他字段补写方义。" : `- formulaAnalysis 写**本方的方解**，不是逐味功效的罗列：第一句必须点出方名（与 candidate.name 一致，如“本方以某某汤为基础加减”；自拟方写“本方为自拟方”），最后一句呼应 M03 的治法；君药解决本例哪一层病机、
   臣药如何助君或治兼证、佐药为何在此（佐助/佐制/反佐）、使药如何调和或引经，
   实际存在且有依据时再说明药对之间的相须、相使、相畏或相恶关系，不得为了凑栏目强行添加。
   君、臣、佐、使各层都用「为君/为臣/为佐/为使」点明是哪几味，角色与 herbs[].role 一致；君药那一句必须写出它的功效和针对的本例病机，不能只点药名。
@@ -420,7 +421,7 @@ ${COMPACT_JSON_OUTPUT_RULE}
   必须写成1个连续自然段；同作用药组可合写一个配伍分句，逐味功用已在 function 中说明，
   此处只补充药组如何协同及其本例依据，不复述完整 M03 病机链。像临床方解一样自然衔接药味与配伍关系；不要使用 Markdown 标题、
   星号加粗、短横线列表或“配伍关系：/相使：/佐制：”式栏目堆砌。没有实际关系就不写，
-  不要输出“未识别到/不强行判定”等系统自述。写不出来就留空——服务端会生成连续方解兜底。
+  不要输出“未识别到/不强行判定”等系统自述。写不出来就留空——服务端会生成连续方解兜底。`}
 - nonPharma.precautions 是 3–5 条**写给患者**的注意事项，每条一句完整的中文（≤45字）。构成：第 1 条按本方与本证写服法和忌口——服药时间随方而定（补益药宜饭前，对胃有刺激的药宜饭后，安神药宜睡前，解表药宜温服后避风），忌口随证而定（寒证忌生冷，热证忌辛辣温燥，痰湿证忌肥甘黏腻，食积忌过饱），不要每例都写成同一句；其后写与本方药味直接相关的服药注意（如方中含解表药时“服后避风，微汗出即止，不可大汗”——是否进热粥以本方煎服法为准，不另写；方中有孕期慎用药、而患者为育龄女性且病历未写明是否怀孕时，写“方中有孕期慎用的药，如已怀孕或备孕请先告知医生”；产后患者病历未写明是否哺乳、方中又有哺乳期慎用药时，写“如正在哺乳请先告知医生”）；病历里记录的患者正在服用或近期自服的中成药、西药（不是本次 patentAndWestern 里推荐的药）与本方功效重复或有相互作用时，写一条它与本方的关系（功效重复的如已自服黄连上清丸而本方含黄连、大黄，写“服本方期间不要再服黄连上清丸”；与饮酒或与本方药味有明确相互作用的写出要避免的事）；所选中医治疗项目的注意、以及与本病相关的起居调摄；注意事项里提到的药名必须是本方药味表里有的药，提到的治疗项目必须是本次确实给出的项目；患者为 75 岁以上高龄或 6 岁以下幼儿时，其中一条写与年龄相关的服药注意（如“高龄者起身宜缓、防跌倒”“幼儿少量多次喂服”）。**不要写**：复诊时机和需要立即就医的表现（这些在复诊计划里说，这里不重复）；“若X天不缓解”“体温≥39℃”这类天数、体温等数字阈值；“请告知医生过敏史/用药史”“须由医生评估后再决定是否使用本方”这类不是给患者执行的话；克数、片数、毫升等剂量；英文单词；“采纳”“候选”“审方”“复评”“辨证”“阳性”等流程用语。不得自行声称某不适是正常反应，不得让患者自行减量、加药、换药；不得编造病历没有的症状。
 - candidate.decoction 必须是单个对象，并同时包含：doseCount（总剂数，1–30整数加“剂”）、dosesPerDay（每日剂数，1–3整数）、administrationTimesPerDay（每日分服次数，1–6整数且不得小于每日剂数）。三者不得省略、写成自由文本或由服务端猜测；总剂数必须能被每日剂数整除，疗程和复诊节点由服务端按这三项统一生成。
 - role 只能是君/臣/佐/使中的一个值；processing 和 decoctionRequirement 有值时写字符串，没有就省略。
@@ -1118,7 +1119,7 @@ M04 提案不允许重写 overview、pathogenesis、therapy 或 lineageAdaptatio
 每味药必须引用后附【M04药味可引用病机节点】中的节点或方内结构作用枚举。每个候选必须恰有 1–2 味君药，且这些君药全部直接引用 P1；君/臣药只能引用病机节点；佐/使药引用 FORMULA_STRUCTURE 时必须选择一个结构枚举。臣药的引用节点必须不同于君药，整方药味必须覆盖 M03 各主要治法方向，服务端按 targetRef/structureRole 逐味生成“角色＋治法方向”的治法→药味映射，重复引用会产生重复方义。不得把肝郁、痰湿、血瘀等 M03 未确认病机塞进自由文本；服务端会忽略模型自写 targetPathogenesis，并根据 targetRef/structureRole 生成最终可见内容。
 
 只输出一个 JSON 对象，不要生成哨兵、Markdown 正文、表格或 JSON 之外的任何内容。服务端会把最小提案编译为完整 V2 契约，并在药味剂量校验、方剂出处复核和证据净化后确定性生成医生可见报告。这样可以确保页面、报告、审方与 HIS 使用同一份方名、药味和剂量。
-`, `${reasoningV2Instruction("prescribe")}
+`, `${reasoningV2Instruction("prescribe")}${m04FinalContentPolicy().enabled && m04FinalContentPolicy().analysis === "on" ? "\n本轮分两步：当前提案的 formulaAnalysis 一律为空串；上文所有方解写法要求留待终稿作者执行，不在其他字段代写。herbs[].function 只选该规格的功效原句，不能逐字确认时留空，不借方义补功效。" : ""}
 
 以上为固定规范。以下是本例患者资料、已签名 M03 结果与检索上下文——只有这部分逐例变化。
 

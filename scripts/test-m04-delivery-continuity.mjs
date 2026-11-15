@@ -212,9 +212,11 @@ test("a structurally broken first draw still regenerates the whole proposal", as
   assert.equal(result.requests[1].response_format?.json_schema?.name, "m04_proposal", "non-candidate failures keep full regeneration");
 });
 
+const { projectDeliveredReasoning } = await jiti.import("../src/lib/delivered-surface.ts");
 const wrap = (reasoning) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
 function checkpointInput() {
-  const reasoning = compileM04Proposal(proposal, prior);
+  // R1064：签名夹具必须使用终稿投影，不能拿旧自由方义的哈希给终稿背书。
+  const reasoning = projectDeliveredReasoning(compileM04Proposal(proposal, prior), { recordText: "食少倦怠；大便溏薄" });
   return { reasoning, content: wrap(reasoning), priorReasoning: prior, clinicalContext: "食少倦怠；大便溏薄" };
 }
 test("checkpoint owns immutable validated bytes and rejects malformed, unsafe and mismatched replacements", () => {
@@ -293,8 +295,9 @@ test("a route projection that rewrites the payload still retains the candidate",
   const checkpoint = retainM04DeliveryCheckpoint(undefined, { ...input, content });
   assert.ok(checkpoint, "投影改写载荷不得导致候选被丢弃");
   // content 与 reasoning 必须仍然同源——取的是 sentinel 那一份，不是调用方那份。
-  assert.equal(checkpoint.payloadHash, clinicalReviewPayloadHash(projected));
-  assert.equal(checkpoint.reasoning.formula.candidates[0].herbs[0].function, "补脾益气（服务端补写）");
+  // R1064：sentinel 是输入事实来源，功效仍须重新按原文定稿。
+  assert.equal(checkpoint.payloadHash, clinicalReviewPayloadHash(projectDeliveredReasoning(projected, { recordText: input.clinicalContext })));
+  assert.equal(checkpoint.reasoning.formula.candidates[0].herbs[0].function, "健脾益肺，养血生津，补脾益肺");
   assert.match(renderM04DeliveryCheckpoint(checkpoint, prior, "contract_rejected"), /党参/);
   // 边界不放宽：sentinel 本身不是合法 prescribe 载荷时仍然丢弃。
   for (const bad of [

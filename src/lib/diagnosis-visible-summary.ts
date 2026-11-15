@@ -1,3 +1,7 @@
+import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
+import { m04FinalContentPolicy } from "./m04-final-content-policy";
+import { projectM04FinalFacts } from "./m04-final-projection";
+import { projectGroundedHerbFunctions } from "./herb-function-display-source";
 import { DELIVERY_REWRITE_RULES, observeTextRewrite } from "./delivery-rewrite-ledger";
 /** Observation only; original clinical transforms and their return values are unchanged. */
 export const VISIBLE_SUMMARY_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.surface, leaves: ["unrecordedNegativesAsNotReported","withoutDenialsOfRecordedFindings","groundDifferentialNegativeAssertions","sanitizeOptionalPathogenesisClassifications","applyM03AdvisoryQualityBoundaries","normalizeM03TcmRationaleEvidenceBoundary","normalizeM03PathogenesisSummaryProjection","alignNormalizedM03WesternClinicalRationale","alignNormalizedM03TcmDiagnosticRationale","normalizeDiagnoseConfidenceAndLabels"] as const });
@@ -2746,6 +2750,9 @@ export function applyDeterministicHerbFunctions(
   try {
     const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
     if (reasoning.stage !== "prescribe") return content;
+    if (m04FinalContentPolicy().enabled && m04FinalContentPolicy().functions === "on") {
+      return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(projectGroundedHerbFunctions(reasoning), null, 2)}\n${content.slice(end)}`;
+    }
     const formula = recordValue(reasoning.formula);
     for (const candidate of recordList(formula?.candidates)) {
       for (const herb of recordList(candidate.herbs)) {
@@ -2869,6 +2876,9 @@ export function applyDeterministicFormulaAnalysis(content: string): string {
   try {
     const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
     if (reasoning.stage !== "prescribe") return content;
+    if (m04FinalContentPolicy().enabled && m04FinalContentPolicy().analysis === "on") {
+      return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(projectM04FinalFacts(reasoning), null, 2)}\n${content.slice(end)}`;
+    }
     const formula = recordValue(reasoning.formula);
     const nodeLabels = pathogenesisNodeShortLabels(reasoning);
     const chainNodes = new Map(recordList(recordValue(reasoning.pathogenesis)?.chain)
@@ -5328,4 +5338,14 @@ function scrubVisibleTextWithoutBlocks(content: string): string {
   const start = masked.indexOf(START_MARKER);
   if (start < 0) return restore(scrubVisibleMarkdownHead(masked));
   return restore(`${scrubVisibleMarkdownHead(masked.slice(0, start))}${masked.slice(start)}`);
+}
+
+/** Render the sealed payload verbatim: no normalization, text repair or identity selection. */
+export function renderFinalM04Content(content: string, reasoning: ClinicalReasoningResultV2, caseState?: Partial<CaseState>): string {
+  const start = content.indexOf(START_MARKER);
+  const heading = content.slice(0, start < 0 ? content.length : start).search(/^# 候选方药\s*$/m);
+  const prefix = heading >= 0 ? content.slice(0, heading) : start >= 0 ? content.slice(0, start) : "";
+  const visible = visiblePrescribeFromReasoning(reasoning as unknown as Record<string, unknown>, caseState || null);
+  const at = visible.search(/^# 候选方药\s*$/m);
+  return `${prefix}${at >= 0 ? visible.slice(at) : visible}${START_MARKER}\n${JSON.stringify(reasoning, null, 2)}\n${END_MARKER}`;
 }

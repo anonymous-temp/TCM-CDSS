@@ -1,3 +1,5 @@
+// R1064：自由方义/句内修补断言保留为显式回滚测试；新默认由 test-r1064-m04wire 覆盖，安全断言不变。
+process.env.CDSS_M04_FINAL_CONTENT = "false";
 // 第二十七轮（2026-10-27）：甲方会看到的「整页退成非剂量」「同一份响应两种说法」按类收口。
 // 每条断言都有反证（~/runlogs/r1018/work/r1039/cp/）。
 import assert from "node:assert/strict";

@@ -1,19 +1,3 @@
 import "server-only";
-export type FinalContentMode = "off" | "shadow" | "on";
-export function m04FinalContentPolicy(env: Readonly<Record<string, string | undefined>> = process.env) {
-  const mode = (value: string | undefined): FinalContentMode => value === "on" || value === "shadow" ? value : "off";
-  const enabled = env.CDSS_M04_FINAL_CONTENT === "true" || env.CDSS_M04_FINAL_CONTENT === "on";
-  const analysis = mode(env.CDSS_M04_FINAL_ANALYSIS), functions = mode(env.CDSS_M04_HERB_FUNCTION_SOURCE_ONLY), modifications = mode(env.CDSS_M04_MODIFICATION_CLOSED_SET);
-  const error = analysis === "on" && functions !== "on" ? "analysis_requires_source_functions"
-    : modifications !== "off" && env.CDSS_STANDBY_MODIFICATIONS === "true" ? "closed_set_incompatible_with_standby" : undefined;
-  const budget = (name: string, fallback: number) => {
-    const n = Number(env[name]); return Number.isFinite(n) && n > 0 ? Math.min(10_000, Math.round(n)) : fallback;
-  };
-  return { enabled: enabled && !error, error, analysis, functions, modifications,
-    applicationPrefetch: env.CDSS_M04_APPLICATION_RETRIEVAL_PREFETCH !== "false",
-    m05Prefetch: env.CDSS_M04_FINAL_CANDIDATE_M05_PREFETCH !== "false",
-    analysisBudgetMs: budget("M04_FINAL_ANALYSIS_TIMEOUT_MS", 2000),
-    modificationBudgetMs: budget("M04_CLOSED_MODIFICATION_BUDGET_MS", 2500),
-    // E must include this in whole-stage reuse/coalescing keys; these modules do not cache.
-    version: `m04-final-v1:${enabled}:${analysis}:${functions}:${modifications}:${error || "ok"}` };
-}
+export { m04FinalContentPolicy } from "./m04-final-content-policy";
+export type { FinalContentMode } from "./m04-final-content-policy";

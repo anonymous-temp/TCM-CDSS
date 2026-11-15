@@ -1,3 +1,5 @@
+// R1064：自由方义/句内修补断言保留为显式回滚测试；新默认由 test-r1064-m04wire 覆盖，安全断言不变。
+process.env.CDSS_M04_FINAL_CONTENT = "false";
 // 第二十九轮（2026-10-29）：甲方红色横幅读的是 clinicalFacts.redFlags（文档 §4.7 列了响应里没有的顶层 redFlags），
 // 以及同一病例顺带看到的三处：药名标签、注意事项里的药名被药味表改字、「服务器红旗」。
 // 红旗筛查出参与文档对账在 test:api-doc-field-parity（DOC-07/08，调真实路由）。每条断言都有反证（~/runlogs/r1018/work/r1041/cp/）。

@@ -135,9 +135,14 @@ const prescribeWith = (fn) => `前言\n${START}\n${JSON.stringify({
   ] }] },
 })}\n${END}\n后语`;
 const functionAfter = (fn, opts) => {
+  // R1064：本辅助函数仅验证保留的旧功效修补；新来源功效由 m04wire 检查03覆盖。
+  const previous = process.env.CDSS_M04_FINAL_CONTENT;
+  process.env.CDSS_M04_FINAL_CONTENT = "false";
+  try {
   const out = applyDeterministicHerbFunctions(prescribeWith(fn), opts);
   const parsed = JSON.parse(out.slice(out.indexOf(START) + START.length, out.indexOf(END)).trim());
   return String(parsed.formula.candidates[0].herbs[0].function || "");
+  } finally { if (previous === undefined) delete process.env.CDSS_M04_FINAL_CONTENT; else process.env.CDSS_M04_FINAL_CONTENT = previous; }
 };
 const BOILERPLATE = /^(?:君|臣|佐|使|配伍)药，.*需医生结合方义复核$/;
 ok("模型写的、能接地的方义被保留", functionAfter("健脾渗湿，杜生痰之源") === "健脾渗湿，杜生痰之源");
@@ -476,6 +481,9 @@ ok("营销词不得活过 finalize", (() => {
     return String(JSON.parse(out.slice(out.indexOf(START) + START.length, out.indexOf(END)).trim())
       .formula.candidates[0].formulaAnalysis || "");
   };
+  // R47: these assertions pin the legacy prose-preservation path; new source-bound authoring is tested in m04wire.
+  const previousM04 = process.env.CDSS_M04_FINAL_CONTENT;
+  process.env.CDSS_M04_FINAL_CONTENT = "false";
   const GOOD = "本方以麻黄为君，开腠发汗、宣肺平喘，直解风寒束表之闭；桂枝为臣，助麻黄透营达卫、解肌发表，二药相须，发汗之力倍增。杏仁为佐，降利肺气，与麻黄一宣一降，复肺之开合。甘草为使，调和诸药并缓麻桂之峻，使汗出而不伤正。";
   ok("模型写的合格方解原样保留", analysisAfter(GOOD) === GOOD);
   ok("模型留空时回落到服务端拼接版", analysisAfter("").includes("麻黄"));
@@ -492,6 +500,7 @@ ok("营销词不得活过 finalize", (() => {
     ok("M04 模板含 formulaAnalysis 字段", /"formulaAnalysis":/.test(prompts));
     ok("提示词说明方解不是逐味功效罗列", /不是逐味功效的罗列/.test(prompts));
   }
+  if (previousM04 === undefined) delete process.env.CDSS_M04_FINAL_CONTENT; else process.env.CDSS_M04_FINAL_CONTENT = previousM04;
 }
 
 if (failures.length > 0) {

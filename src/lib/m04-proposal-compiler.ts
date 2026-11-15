@@ -1,3 +1,4 @@
+import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import triggerPolicy from "../data/tcm-modification-trigger-policy.source.json" with { type: "json" };
 import { redFlagActiveFor } from "./clinical-red-flag-context";
 import { alignQuoteToSource } from "./source-quote-alignment";
@@ -2488,7 +2489,8 @@ function withAnalysisConsistentCandidate(
   prior: ClinicalReasoningResultV2,
   caseState?: CaseState,
 ): M04Proposal["candidate"] {
-  const analysis = candidate.formulaAnalysis || "";
+  const finalPolicy = m04FinalContentPolicy();
+  const analysis = finalPolicy.enabled && finalPolicy.analysis === "on" ? "" : candidate.formulaAnalysis || "";
   const roles = analysis
     ? formulaAnalysisRoleAssignments(analysis, candidate.herbs.map((herb) => herb.name))
     : new Map<string, "君" | "臣" | "佐" | "使">();

@@ -1,3 +1,5 @@
+// R1064：本套件的自由方义/句内修补断言保留为显式回滚测试；新默认路径由 test-r1064-m04wire 覆盖，安全断言不变。
+process.env.CDSS_M04_FINAL_CONTENT = "false";
 import { readFileSync } from "node:fs";
 // 10.12 测评整改之后的余项（2026-10-14）。
 //

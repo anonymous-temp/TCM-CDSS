@@ -89,7 +89,7 @@ await check('2.7 合并按药名匹配，先删行不复活，炮制变化不串
 });
 await check('2.8 本方批任务与适配并行；补写候选同样在既有复核阶段并行核注意',()=>{
   const route=fs.readFileSync('src/app/api/diagnosis/prescribe/route.ts','utf8');const block=route.slice(route.indexOf('m04CandidateTransform: async'),route.indexOf('prescribeSignatureContext:',route.indexOf('m04CandidateTransform: async')));
-  assert.match(block,/Promise\.all\([\s\S]*dropMisfitModifications[\s\S]*checkHerbCautions/);assert.match(block,/applyHerbCautionHits\(toppedUp, cautionHits\)/);
+  assert.match(block,/Promise\.all\([\s\S]*prepareM04CandidateContent[\s\S]*checkHerbCautions/);assert.match(block,/applyHerbCautionHits\(prepared, cautionHits\)/);
   const fit=fs.readFileSync('src/lib/m04-modification-fit.server.ts','utf8');assert.match(fit,/filterProposals: async[\s\S]*checkHerbCautions/);
 });
 await check('3.1 教材独有孕妇慎用药不作君臣，佐位不新增拦截',()=>{
