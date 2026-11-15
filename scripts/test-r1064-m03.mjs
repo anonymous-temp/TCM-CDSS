@@ -138,6 +138,9 @@ await check("3.2", "重写非法则删除首稿违规句；不是把原矛盾稿
 await check("3.3", "链偷加pending、依赖下游递归整节点删除并重排P编号/分治法", async () => {
   const d = fixture(); d.narrative.chain.push({ ...d.narrative.chain[0], id: "bad", unitIds: ["PENDING"] },
     { ...d.narrative.chain[0], id: "downstream", dependsOn: ["bad"] }, { ...d.narrative.chain[0], id: "keep" });
+  // 只测删句器：否则后续 invalid_chain_dependency 会掩盖级联删除失效。
+  const pruned = n.pruneInvalidM03TcmSentences(d.narrative, [violation(["bad"])]);
+  assert.deepEqual(pruned.chain.map(node => node.id), ["ch1", "keep"]);
   const result = delivered(await run(d)); assert.deepEqual(result.half.pathogenesis.chain.map(x => x.nodeId), ["P1", "P2"]);
   assert.deepEqual(result.quality.prunedSentenceIds.sort(), ["bad", "downstream"]); assert.equal(result.half.therapy.subTherapies[1].targetPathogenesis, "P2");
 });
