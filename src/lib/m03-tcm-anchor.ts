@@ -44,6 +44,7 @@ export function resolveM03TcmAnchor(
     const decision = selectM03TcmFormulaIdentity({ disease: record.disease.name, syndrome: record.primary.name,
       direction: record.direction, textbookRowId: candidate.textbookRowId, method: record.methods.map((method) => method.text).join("，"),
       factorLabels: [...record.root, ...record.branch].map((unit) => unit.label),
+      secondarySyndromes: record.secondary.map((syndrome) => syndrome.name),
       keepDirection: Boolean(candidate.jingfangId || record.lineage && record.lineage.applicable !== "not-applicable" && ctx.lineage &&
         formulaNamesCarryLineage(identifyKnownFormulaNames(record.direction), ctx.lineage.code) === true), caseSafety });
     record.direction = decision.direction;

@@ -1702,7 +1702,7 @@ export type FormulaReferenceCaseSafety = { activeBleeding: boolean; barredHerb: 
 
 /** Record-only identity selection for two-pass M03. Does not rename a syndrome or infer factors. */
 export function selectM03TcmFormulaIdentity(input: {
-  disease: string; syndrome: string; direction: string; textbookRowId?: string; method?: string; factorLabels?: readonly string[];
+  disease: string; syndrome: string; direction: string; textbookRowId?: string; method?: string; factorLabels?: readonly string[]; secondarySyndromes?: readonly string[];
   keepDirection: boolean; caseSafety?: FormulaReferenceCaseSafety;
 }): { direction: string; formulaLock: { names: string[]; mode: "single" | "combined" | "alternatives" | "self_devised" | "none"; sourceIds: string[] } } {
   const row = textbookRowForSyndrome(input.disease, input.syndrome);
@@ -1724,8 +1724,11 @@ export function selectM03TcmFormulaIdentity(input: {
   if (barred) { direction = "按已锁定病机与治法辨证组方"; names = []; }
   const mode = formulaSelectionMode(direction, names);
   const methodIds = signedTherapyMethodIds({ therapy: { overallMethod: input.method || "" } });
+  const lineageSupported = input.keepDirection && !input.secondarySyndromes?.length
+    ? lineageFormulaSyndromeSupportedNames({ overview: { primarySyndrome: input.syndrome } }, names) : new Set<string>();
   const lockable = names.filter((name) => formulaCompilationReferences([name]).length === 1 &&
     (exactRow?.formulas.includes(name) || Boolean(jingfangPatternForSignedSyndrome(input.syndrome, direction)) ||
+      lineageSupported.has(normalizedFormulaIdentity(name)) ||
       formulaFunctionsPositivelyAligned(lockableFormulaCatalogFunctions(name), methodIds)) &&
     !(exactRow?.formulas.includes(name) && textbookCitedFormulaIsGovernedHomonym(name, exactRow.id)));
   const locked = mode === "combined" && lockable.length !== names.length ? [] : lockable;
