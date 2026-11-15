@@ -200,7 +200,10 @@ await check("6.2 编译器：72 岁男性服华法林、加桃仁的慎用提示
   const man = note("男", 72);
   assert.match(man, /桃仁[^；]*抗凝状态慎用/u, man);
   assert.doesNotMatch(man, /月经期/u, man);
-  assert.match(note("女", 30), /月经期/u);
+  // 第四十六轮：「本例有…的记录」只写病历里记着的那一类（重跑复核 C067 月经量多加三七写成「出血倾向/月经期/抗凝状态」）。
+  // 30 岁女性服华法林、病历没写月经：写抗凝状态，不写月经期。
+  assert.match(note("女", 30), /抗凝状态/u);
+  assert.doesNotMatch(note("女", 30), /月经期/u);
 });
 
 // ---------- 7 「复评」换成临床写法 ----------

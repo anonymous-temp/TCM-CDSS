@@ -3996,6 +3996,11 @@ const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
    * 否认与否交给孕哺状态的受治理判据（clinical-state，与安全闸门同源，「最后一次当前陈述为准」）。
    */
   denied?: (context: string) => boolean;
+  /**
+   * 知识库人群名合写了几类（「出血倾向/月经期/抗凝状态」）时各类各自的病历写法。拟加药味的慎用提示「本例有…的记录」只写病历里记着的那一类
+   *（第四十六轮复核 C067：月经量多的患者加三七，提示写成「本例有出血倾向/月经期/抗凝状态的记录」，病历并无抗凝）。
+   */
+  members?: ReadonlyArray<{ label: string; patient: RegExp }>;
   code: string;
 }> = [
   {
@@ -4012,14 +4017,28 @@ const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
   // 儿童臂不再自带一份正则：数值年龄按小数年龄判（「患者年龄：0.5岁」「6.0833岁」旧正则匹配不上，月龄婴儿与带月数的儿童整段漏判），
   // 定性词沿用分句开头口径。与安全门、剂量折算读同一份 pediatric-dose-rule。
   { population: /儿童|婴幼儿/, patient: /儿童|婴儿|幼儿|小儿|未成年/, isPatient: isPediatricGroundingText, code: "pediatric" },
-  { population: /出血倾向|月经期|抗凝状态/, patient: /出血倾向|月经期|经期|抗凝|抗血小板|华法林|利伐沙班|阿哌沙班|达比加群|肝素|阿司匹林|氯吡格雷/, code: "bleeding_anticoagulation" },
+  {
+    population: /出血倾向|月经期|抗凝状态/, patient: /出血倾向|月经期|经期|抗凝|抗血小板|华法林|利伐沙班|阿哌沙班|达比加群|肝素|阿司匹林|氯吡格雷/, code: "bleeding_anticoagulation",
+    members: [
+      { label: "出血倾向", patient: /出血倾向/ },
+      { label: "月经期", patient: /月经期|经期/ },
+      { label: "抗凝状态", patient: /抗凝|抗血小板|华法林|利伐沙班|阿哌沙班|达比加群|肝素|阿司匹林|氯吡格雷/ },
+    ],
+  },
   { population: /老年人/, patient: /老年|高龄|(?:年龄|患者年龄)\s*[:：]?\s*(?:6[5-9]|[7-9]\d|1\d{2})\s*岁/, code: "older_adult" },
   // 肝功能异常、转氨酶升高也算（第二十三轮，S-hepatic-014「转氨酶升高」加补骨脂没有任何提示）：知识库这一人群的规则是可致肝损伤的药
   //（何首乌、补骨脂、雷公藤、黄药子…，除朱砂外都是慎用级），已有肝功能异常者同样要避开或监测。
   { population: /肝功能不全/, patient: /肝功能不全|肝衰竭|失代偿期肝硬化|Child-Pugh\s*[BC]|肝功能(?:异常|损害|受损)|肝损伤|(?:谷丙|谷草)?转氨酶(?:明显|轻度|显著)?(?:升高|增高|偏高)|(?:ALT|AST)\s*[:：]?\s*\d{3}/i, code: "hepatic_impairment" },
   { population: /肾功能不全/, patient: /肾功能不全|肾衰竭|尿毒症|慢性肾脏病|慢性肾病|eGFR\s*[:：]?\s*(?:[0-5]?\d(?:\.\d+)?)\b/i, code: "renal_impairment" },
   { population: /心血管病/, patient: /心力衰竭|心衰|冠心病|心律失常|高血压|心肌梗死|心绞痛/, code: "cardiovascular_disease" },
-  { population: /心血管\/青光眼\/前列腺/, patient: /心血管病|心力衰竭|心衰|冠心病|心律失常|高血压|青光眼|前列腺增生/, code: "cardio_glaucoma_prostate" },
+  {
+    population: /心血管\/青光眼\/前列腺/, patient: /心血管病|心力衰竭|心衰|冠心病|心律失常|高血压|青光眼|前列腺增生/, code: "cardio_glaucoma_prostate",
+    members: [
+      { label: "心血管病", patient: /心血管病|心力衰竭|心衰|冠心病|心律失常|高血压/ },
+      { label: "青光眼", patient: /青光眼/ },
+      { label: "前列腺增生", patient: /前列腺增生/ },
+    ],
+  },
   { population: /糖尿病/, patient: /糖尿病|血糖控制不佳|糖化血红蛋白升高/, code: "diabetes" },
   { population: /体虚\/胃弱/, patient: /体虚|体质虚弱|胃弱|脾胃虚弱/, code: "frailty_gastric_weakness" },
   { population: /运动员/, patient: /运动员|竞技体育|兴奋剂检查/, code: "athlete" },
@@ -4044,7 +4063,8 @@ export function recordedPopulationCautions(herbName: string, rawClinicalContext:
     if ((rule.population.includes("孕") || rule.population.includes("哺乳")) && (!reproductive || !boundaryRuleShown(herbName.trim(), rule))) continue;
     const matcher = M04_SPECIAL_POPULATION_MATCHERS.find((item) => item.population.test(rule.population));
     if (matcher && !matcher.denied?.(clinicalContext) && (contextAffirmsTerm(clinicalContext, matcher.patient) || matcher.isPatient?.(clinicalContext))) {
-      populations.add(rule.population.trim());
+      const recorded = (matcher.members || []).filter((member) => contextAffirmsTerm(clinicalContext, member.patient)).map((member) => member.label);
+      populations.add(recorded.length > 0 ? recorded.join("/") : rule.population.trim());
     }
   }
   return [...populations];

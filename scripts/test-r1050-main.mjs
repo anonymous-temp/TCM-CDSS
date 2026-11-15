@@ -177,7 +177,7 @@ await check("4.2 第四十一轮起：依据齐备就按已确定，与舌脉记
   assert.match(completed.nature.basis, /腹胀嗳气/u);
   const thinBasis = axes(axisCase(locationBounded, { ...natureBounded, basis: "口苦" }), "饭后1小时饱胀，工作紧张时加重，口苦。舌红，苔薄黄。");
   assert.equal(thinBasis.nature.resolution, "bounded");
-  assert.match(String(thinBasis.nature.resolutionReason), /“气滞”尚未见到/u);
+  assert.match(String(thinBasis.nature.resolutionReason), /“气滞”尚待核实（可留意/u);
   assert.doesNotMatch(String(thinBasis.nature.resolutionReason || ""), /依据有\d条|少于两个方面|只有一个方面/u);
 });
 

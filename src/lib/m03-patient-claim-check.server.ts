@@ -391,6 +391,18 @@ export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, re
     if (/无/u.test(span) && !/无/u.test(maskNonNegatingWuWords(span))) continue;
     // 片段里夹着病历肯定写着的项：整段删会连它们一起丢（「发热不恶寒、口渴汗出、舌红苔黄腻」），这种留模型原话。
     if (recordText && span.includes("、") && span.split("、").some((part) => part.length >= 3 && recordText.includes(part.trim()))) continue;
+    // 片段前面紧挨着「推之/按之/之/非」这类构词（「推之无固定」只标了「无固定」）：改成「推之未诉固定」读不通（第四十六轮复核 C069）。
+    // 与交付面「无→未诉」改写的 unreadable 同一口径（diagnosis-visible-summary）：这时删掉片段所在的那一项（顿号、逗号之间），不改写。
+    const at = current.indexOf(span);
+    const lead = current.slice(Math.max(0, at - 2), at);
+    if (/^[无不非未没]/u.test(span) && /[之推非]$/u.test(lead)) {
+      const itemStart = Math.max(...["、", "，", ",", "；", ";", "。"].map((mark) => current.lastIndexOf(mark, at - 1))) + 1;
+      const itemEndRaw = current.slice(at + span.length).search(/[、，,；;。]/u);
+      const item = current.slice(itemStart, itemEndRaw < 0 ? current.length : at + span.length + itemEndRaw);
+      const next = withoutClaimSpan(current, item);
+      if (next !== current) { slot.write(next); applied += 1; }
+      continue;
+    }
     const rewritten = recordText ? negativeClaimAsNotReported(span, recordText) : undefined;
     const next = rewritten ? current.replace(span, rewritten) : withoutClaimSpan(current, span);
     if (next !== current) {

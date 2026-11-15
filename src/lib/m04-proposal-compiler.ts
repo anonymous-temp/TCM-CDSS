@@ -962,7 +962,7 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   contains_unaudited_dose: "条件性加减夹带了未经审方的具体剂量",
   trigger_not_current_fact: "触发条件不能回溯到本次病历已确认的当前事实",
   trigger_not_present: "条件所说的表现本例眼下没有，是备用加减，不列入本次加减",
-  trigger_not_symptom: "条件写的是正常情况、病名或病历本身的说明，不是需要加减的表现",
+  trigger_not_symptom: "条件写的是正常情况、病名、病历本身的说明或只有舌脉，不是需要加减的表现",
   unknown_herb: "该药味不在标准药材资料的收录范围",
   invalid_target: "所引病机不属于本次已确认的病机",
   action_conflicts_with_candidate: "增减动作与当前处方药味状态冲突",
@@ -1199,6 +1199,24 @@ export function modificationTriggerIsNormalState(trigger: string): boolean {
   if (items.length > 0 && !items.some((item) => /^(?:无|未|否认|不)/u.test(item)) && !withoutNormalFindingSegments(body).trim()) return true;
   if (!body || !NORMAL_STATE_TAIL.test(body)) return false;
   return !/[痛胀闷痞烦渴干苦汗咳喘呕吐泻秘溏稀黄赤肿痒麻困乏倦眩晕悸梦涩急坠酸软鸣聋燥差少多减退不]/u.test(body.replace(NORMAL_STATE_TAIL, ""));
+}
+
+/**
+ * 条件只有舌象或脉象（「本例已见脉弦：加青皮…以缓弦脉」「脉沉迟：加细辛…以振脉气」，第四十六轮复核 C050、C056、C069、C089、C094，
+ * 四位复核员都判「以脉象作加减条件」）：加减是针对一个表现加药，舌脉是辨证的依据，不是要加药去消的表现。
+ * 只有脉象的一律不算；只有舌象的，教材本证的加减条目写了（「若舌质紫暗或有瘀斑，加桃仁、红花」）才算，模型与补写的不算。
+ * 构词守卫：顿号、逗号分开的每一项都以舌/苔/脉开头（或以「脉」结尾，如「弦脉」），去掉「舌象：」「脉象：」栏目名。
+ */
+export function modificationTriggerTonguePulseOnly(trigger: string): "pulse" | "tongue" | undefined {
+  const body = String(trigger || "").normalize("NFKC").trim().replace(/^(?:本例已见|若|如)/u, "").replace(/[。；;，,\s]+$/u, "")
+    .replace(/(?:舌象|脉象|舌诊|脉诊)\s*[:：]\s*/gu, (label) => (label.startsWith("脉") ? "脉" : "舌"));
+  const items = body.split(/[、，,；;及和与]/u).map((item) => item.trim()).filter(Boolean);
+  if (items.length === 0) return undefined;
+  const pulse = (item: string) => /^脉[^\s]{1,6}$|^[^\s]{1,4}脉$/u.test(item) && !/[痛胀闷痞烦渴汗咳喘呕吐泻秘溏肿痒麻晕悸]/u.test(item);
+  const tongue = (item: string) => /^(?:舌|苔)[^\s]{0,8}$/u.test(item) && !/[痛麻痒烂疮]/u.test(item);
+  if (items.every(pulse)) return "pulse";
+  if (items.every((item) => pulse(item) || tongue(item))) return "tongue";
+  return undefined;
 }
 
 /**
@@ -2592,6 +2610,25 @@ function modificationAddBlock(
 }
 
 /**
+ * 加入的药的提示（编译与补写共用）：特殊煎法、毒性、备孕/妊娠状态未知档的药典孕妇标注、慎用级人群提示（D4，本例病历记有该人群时写明，
+ * 转氨酶升高加补骨脂 →「补骨脂肝功能不全者慎用…」）。人群写法与每味药的人群提示同一个函数（herbBoundaryPopulationLabel）：男性、儿童、
+ * 60 岁以上不写「月经期」（第二十八轮 C023）。「本例有…的记录」只写病历里记着的那一项（recordedPopulationCautions 返回的是记着的成员）。
+ */
+function additionRiskNote(herbName: string, caseState: CaseState | undefined): string {
+  const groundingText = caseState ? clinicalGroundingText(caseState) : "";
+  const conceptionTier = caseState ? chpPregnancyHerbTier(groundingText) : undefined;
+  return [
+    specialDecoctionPhrase(herbName),
+    toxicAdditionNote(herbName),
+    conceptionTier ? conceptionHerbNote(herbName, conceptionTier) || "" : "",
+    ...recordedPopulationCautions(herbName, groundingText)
+      .map((population) => herbBoundaryPopulationLabel(population, caseState ? { reproductive: reproductiveAdviceRelevant(caseState), ageYears: authoritativePatientAgeYears(caseState) ?? null } : undefined))
+      // 不写「本例病历有相应记录」这类讲系统核对的话（第四十一轮 r1054 回顾：系统用语），直接说本例有哪一项。
+      .map((population) => `${herbName}${population}${/[人期态娠]$/u.test(population) ? "" : "者"}慎用；本例有${population.replace(/者$/u, "")}的记录，加用前请医生核对`),
+  ].filter(Boolean).join("；");
+}
+
+/**
  * 补写的条件式加减能不能进（第三十四轮 m04-modification-fit 的补写）：形状、药名、剂量、不重复方中与已有条件、方向（条件写明了才随条件走）、其余判据与编译同一个函数。
  * 能进时返回交付形状的一行，否则 undefined。
  */
@@ -2607,7 +2644,7 @@ export function topUpModificationRow(
   const standby = standbyModificationsDelivered();
   const present = standby ? undefined : presentModificationCondition(row.trigger, modificationPresenceFactsFor(recordText, prior));
   if (standby ? !modelConditionalTriggerShape(row.trigger) : !present) return undefined;
-  if (modificationTriggerIsNormalState(row.trigger)) return undefined;
+  if (modificationTriggerIsNormalState(row.trigger) || modificationTriggerTonguePulseOnly(row.trigger)) return undefined;
   // 补写的行同样不为顺带的睡眠差加安神药（与编译阶段同一判据；2026-11-14 第四十五轮甲方标准病历3「本例已见睡眠差：加酸枣仁」，甲方 10.26 点过名）。
   if (incidentalSleepTriggerModification({ trigger: row.trigger, herbName, reason: row.reason }, prior) &&
     !mindSymptomsProminentInRecord(recordText, caseState?.chiefComplaint || "", "")) return undefined;
@@ -2643,7 +2680,8 @@ export function topUpModificationRow(
     herbName,
     doseOrHandling: modificationAddDose(herbName, dose, pediatric),
     reason: row.reason.trim() || "随证调整治疗重点",
-    riskNote: [specialDecoctionPhrase(herbName), toxicAdditionNote(herbName)].filter(Boolean).join("；"),
+    // 与编译阶段同一个函数：补写的行此前只写煎法与毒性，76 岁慢性肾病患者补写「加细辛」没有肾功能不全、老年人慎用的提示（第四十六轮复核 C094）。
+    riskNote: additionRiskNote(herbName, caseState),
     evidence: present
       ? { evidenceLevel: "model_inference", source: `患者原文：${present.quote}`, confidence: "中" }
       : { evidenceLevel: "model_inference", source: MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, confidence: "低" },
@@ -2866,6 +2904,11 @@ export function compileM04Proposal(
       dropReasons.push("trigger_not_symptom");
       return [];
     }
+    const tonguePulseOnly = item.actionType === "add" ? modificationTriggerTonguePulseOnly(item.trigger) : undefined;
+    if (tonguePulseOnly === "pulse" || (tonguePulseOnly === "tongue" && (!textbookSource || textbookSource.crossDisease))) {
+      dropReasons.push("trigger_not_symptom");
+      return [];
+    }
     // 只交付本例眼下已有表现的加减（第四十四轮）：「若…」的条件病历里没有的，是备用加减，不列。
     // 教材条件、模型条件同一判据；病历原话触发（triggerSource）本来就是已见。
     if (!triggerSource && !standbyModificationsDelivered() && !modificationRowPresentNow(item.trigger, modificationPresenceFacts)) {
@@ -2900,20 +2943,7 @@ export function compileM04Proposal(
       reason: cleanNarrative(item.reason, "随证调整治疗重点"),
       // 加入的药有特殊煎法时写在这一条里（附子「先煎45–60分钟，至口尝无麻辣感」）：用量栏只收「数字g」，
       // 煎服行只列方中原有的药——此前 11 岁患儿「寒痛甚加附子3g」一条没有任何煎法说明（2026-10-14 独立评审）。
-      riskNote: item.actionType === "add"
-        ? [
-          specialDecoctionPhrase(item.herbName.trim()),
-          toxicAdditionNote(item.herbName.trim()),
-          conceptionTier ? conceptionHerbNote(item.herbName.trim(), conceptionTier) || "" : "",
-          // 慎用级人群提示（D4）：本例病历记有该人群时写明（转氨酶升高加补骨脂 → 「补骨脂肝功能不全者慎用…」）。
-          // 人群写法与每味药的人群提示同一个函数（herbBoundaryPopulationLabel）：男性、儿童、60 岁以上不写「月经期」
-          //（第二十八轮甲方 100 例 C023：72 岁男性加桃仁写「桃仁出血倾向/月经期/抗凝状态者慎用」）。
-          ...recordedPopulationCautions(item.herbName, modificationGroundingText)
-            .map((population) => herbBoundaryPopulationLabel(population, caseState ? { reproductive: reproductiveAdviceRelevant(caseState), ageYears: authoritativePatientAgeYears(caseState) ?? null } : undefined))
-            // 不写「本例病历有相应记录」这类讲系统核对的话（第四十一轮 r1054 回顾：系统用语），直接说本例有哪一项。
-            .map((population) => `${item.herbName.trim()}${population}${/[人期态娠]$/u.test(population) ? "" : "者"}慎用；本例有${population.replace(/者$/u, "")}的记录，加用前请医生核对`),
-        ].filter(Boolean).join("；")
-        : "",
+      riskNote: item.actionType === "add" ? additionRiskNote(item.herbName.trim(), caseState) : "",
       ...(substitutions.length > 0 ? { substitutions } : {}),
       // 证据等级按来源（2026-10-22 第十五轮）：教材该证的加减是标准资料（出处由证据清洗按教材表逐字核验）；
       // 病历原文触发是病例内推理；教材没有、模型按本证常见兼症写的条件句是病例内推理、低。

@@ -1490,6 +1490,19 @@ function signedConditionalBranch(reasoning: ClinicalReasoningResultV2, branches:
  * 这几张方里至少有一张按已核对的流派归属属于该派（与 lineageChosenFormulaDirectionKept 同一判据：编译目录条目 × tcm-formula-lineage-affinity）。
  * 方名在目录里一张也查不到时返回 undefined（不判）。
  */
+/**
+ * 辨病依据里的病名跟着改成教材节名。新名里含着旧名时（耳鸣 → 耳鸣耳聋），旧名在句子里多半是症状本身（「双耳鸣响」里的耳鸣），
+ * 全文替换写出「双耳鸣耳聋响」（第四十六轮复核 C056）：这时只换指病名的位置（「属/归/诊为/辨为/定为…」之后、「…范畴」之前），
+ * 别处的旧名本身仍是本例的表现，照留。新名不含旧名时（头风病 → 头痛）照旧全换。
+ */
+export function renamedDiseaseMentions(text: string, from: string, to: string): string {
+  const source = from.trim();
+  if (!source || !to || source === to) return text;
+  if (!to.includes(source)) return text.split(source).join(to);
+  const escaped = source.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  return text.replace(new RegExp(`(?<=(?:属于?|归于?|诊为|辨为|定为|故为|病名为?)\\s*)${escaped}(?!${to.slice(source.length).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")})|${escaped}(?=\\s*(?:范畴|之病))`, "gu"), to);
+}
+
 export function formulaNamesCarryLineage(names: readonly string[], lineageCode: string): boolean | undefined {
   const known = [...new Set(names.flatMap((name) => identifyKnownFormulaNames(String(name || ""))))];
   const references = formulaCompilationReferences(known);
@@ -1791,7 +1804,7 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
           ? {
               tcmDiseaseName: textbookSectionDeliveryName(textbookRow.disease),
               ...(typeof reasoning.overview.tcmDiseaseRationale === "string"
-                ? { tcmDiseaseRationale: reasoning.overview.tcmDiseaseRationale.split(reasoning.overview.tcmDiseaseName).join(textbookSectionDeliveryName(textbookRow.disease)) }
+                ? { tcmDiseaseRationale: renamedDiseaseMentions(reasoning.overview.tcmDiseaseRationale, reasoning.overview.tcmDiseaseName, textbookSectionDeliveryName(textbookRow.disease)) }
                 : {}),
             }
           : {}),

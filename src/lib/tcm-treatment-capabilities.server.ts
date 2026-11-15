@@ -24,7 +24,7 @@ import { affirmedClinicalText } from "./clinical-polarity";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
 import { pediatricDoseRuleForAgeYears, pediatricDoseRuleForStageWords } from "./pediatric-dose-rule";
-import { narrativePediatricAgeConflict, sourceDocumentsAffirmation, pregnancyAdviceRelevant, pregnancyScreenRequired, reproductiveAdviceRelevant, unevaluatedBreastMass } from "./diagnosis-safety";
+import { currentAntithromboticTherapyRecorded, narrativePediatricAgeConflict, sourceDocumentsAffirmation, pregnancyAdviceRelevant, pregnancyScreenRequired, reproductiveAdviceRelevant, unevaluatedBreastMass } from "./diagnosis-safety";
 import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, caseCourse, dietAdviceAvoidsRichFood, facialSoreRecorded, dietAdviceAvoidsTea, syndromeHasHeatNature, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, syndromeLabelFitsSigned, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
 import governanceSourceRegistryJson from "../data/clinical-governance-source-registry.json" with { type: "json" };
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
@@ -942,6 +942,16 @@ export function bleedingTendencyRecorded(affirmedFacts: string): boolean {
   const count = Number(affirmedFacts.match(PLATELET_COUNT)?.[1] ?? NaN);
   return Number.isFinite(count) && count < 50;
 }
+const ANTITHROMBOTIC_EXCLUDED_PROJECTS = new Set<TcmTreatmentProjectCode>([
+  "tuina", "cupping", "guasha", "bloodletting", "needle_knife", "fire_cautery", "hook_cutting", "thread_embedding",
+]);
+function antithromboticTherapyFor(caseState: Partial<TreatmentCaseContext>): boolean {
+  try {
+    return currentAntithromboticTherapyRecorded(caseState as CaseState);
+  } catch {
+    return false;
+  }
+}
 const BLEEDING_EXCLUDED_PROJECTS = new Set<TcmTreatmentProjectCode>([
   "tuina", "moxibustion", "cupping", "guasha", "bloodletting", "needle_knife", "fire_cautery", "hook_cutting", "thread_embedding",
 ]);
@@ -950,6 +960,7 @@ export function tcmTreatmentProjectExclusionReason(
   projectCode: TcmTreatmentProjectCode,
   prior: ClinicalReasoningResultV2,
   caseState?: Partial<TreatmentCaseContext>,
+  options: { homeCare?: boolean } = {},
 ): string | undefined {
   const caseFacts = treatmentCaseFacts(caseState);
   const reasoningFacts = [
@@ -1023,6 +1034,17 @@ export function tcmTreatmentProjectExclusionReason(
   //「凝血功能障碍相关出血待查」，居家保健仍给按揉期门、血海）。
   if (BLEEDING_EXCLUDED_PROJECTS.has(projectCode) && bleedingTendencyRecorded(`${caseFacts}；${prior.westernDiagnosis?.primary?.name || ""}`)) {
     return "出血倾向或血小板明显减少：不推荐按揉、灸、罐、刮痧及侵入性外治项目";
+  }
+
+  // 正在用抗凝或抗血小板药（与剂量边界同一判据）：推拿、拔罐、刮痧与侵入性外治易致瘀斑、出血。《推拿学》禁忌证「有出血倾向」，
+  // 推拿卡自己的禁忌一栏也写着（第四十六轮复核 C086：82 岁、服利伐沙班、反复跌倒，仍给背部滚法、捏脊、掌推）。
+  // 居家轻柔按揉不在此列（按压力度小，护理方案未把服抗凝药列为禁忌），艾灸不涉出血也不在此列。
+  if (!options.homeCare && ANTITHROMBOTIC_EXCLUDED_PROJECTS.has(projectCode) && caseState && antithromboticTherapyFor(caseState)) {
+    return "正在使用抗凝或抗血小板药：易致瘀斑出血，不推荐推拿、拔罐、刮痧及侵入性外治项目";
+  }
+  // 老年骨质疏松（65 岁以上且病历肯定记着骨质疏松）：推拿手法有骨折风险，推拿卡自列禁忌「严重老年性骨质疏松」。居家轻柔按揉不在此列。
+  if (!options.homeCare && projectCode === "tuina" && caseState && (age ?? 0) >= 65 && sourceDocumentsAffirmation(treatmentPregnancyText(caseState), "骨质疏松")) {
+    return "老年骨质疏松：推拿手法有骨折风险，不推荐推拿（推拿禁忌证）";
   }
 
   const pregnancyStatus = treatmentPregnancyStatus(caseState, facts);
@@ -1641,8 +1663,8 @@ function homeAcupointTemplateForCase(
     prior,
     safetyGate: caseState.safetyGate,
     ageYears,
-    acupressureExclusion: tcmTreatmentProjectExclusionReason("tuina", prior, caseState),
-    moxibustionExclusion: tcmTreatmentProjectExclusionReason("moxibustion", prior, caseState),
+    acupressureExclusion: tcmTreatmentProjectExclusionReason("tuina", prior, caseState, { homeCare: true }),
+    moxibustionExclusion: tcmTreatmentProjectExclusionReason("moxibustion", prior, caseState, { homeCare: true }),
     moxibustionBurnRisk: MOXIBUSTION_BURN_RISK.test(treatmentCaseFacts(caseState)) ||
       (Number.isFinite(temperature) && temperature >= 37.3),
     clinicianPointText: recommendations.flatMap((item) => item.suggestedSitesOrPoints || []).join("、"),

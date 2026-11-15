@@ -7362,6 +7362,11 @@ export function highRiskConditionsForPrecautions(state: CaseState): { conditions
   return { conditions, ...(potassium != null ? { potassium: `${potassium}mmol/L` } : {}) };
 }
 
+/** 正在用抗凝或抗血小板药：与剂量边界「当前抗凝或抗血小板治疗」同一判据（外治项目禁忌读它，第四十六轮复核 C086）。 */
+export function currentAntithromboticTherapyRecorded(state: CaseState): boolean {
+  return highRiskDoseBoundaryReasons(state).some((reason) => reason.startsWith("当前抗凝或抗血小板治疗"));
+}
+
 export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
   // 患者本人的病（肾功能不全、心衰、糖尿病足…）不从家族史一栏里读。
   const source = familyHistoryFieldTexts(state).reduce((text, family) => text.split(family).join(""), trustedInputText(state));

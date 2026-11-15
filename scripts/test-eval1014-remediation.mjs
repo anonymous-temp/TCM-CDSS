@@ -608,8 +608,10 @@ const checkAsync = async (name, run) => {
     assert.equal(specialDecoctionPhrase("大黄"), "大黄后下", "几选一没有标注时取所列的第一种");
     assert.equal(specialDecoctionPhrase("砂仁"), "砂仁后下");
     assert.equal(specialDecoctionPhrase("姜半夏"), "", "普通药不写");
-    assert.match(compilerSource, /riskNote: item\.actionType === "add"\s*\?\s*\[\s*specialDecoctionPhrase\(item\.herbName\.trim\(\)\)/,
+    // 第四十六轮：编译与补写共用 additionRiskNote（补写的行此前漏了人群慎用提示），煎法仍是它的第一项。
+    assert.match(compilerSource, /riskNote: item\.actionType === "add" \? additionRiskNote\(item\.herbName\.trim\(\), caseState\)/,
       "加减条目编译时按同一张表写煎法");
+    assert.match(compilerSource, /function additionRiskNote[\s\S]{0,600}?return \[\s*specialDecoctionPhrase\(herbName\)/, "煎法是提示的第一项");
   });
   check("5.2 制川乌同样单列；没有这类药的处方写法不变（对照）", () => {
     assert.match(methodOf(["制川乌", "桂枝", "甘草"]), /制川乌先煎45–60分钟（至口尝无麻辣感）/);

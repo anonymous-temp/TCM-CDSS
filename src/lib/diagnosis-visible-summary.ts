@@ -637,6 +637,9 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
       if (terms.some((term) => /且|为主|沿|分布|呈|局限|而非/u.test(term))) return clause;
       const documented = (term: string) => sourceDocumentsNegation(clinicalContext, term) || recordMentionsNegatedTerm(compactRecord, term);
       if (terms.every(documented)) return clause;
+      // 列举里的一项自己又带否定（「本例无发热、切口无渗液」的「切口无渗液」）：它不是被「无」否认的一个表现名，改成「病历未记录切口无渗液」
+      // 交付成「未诉切口无渗液」，读成双重否定（第四十六轮复核 C050，病历「无发热渗液」）。构词守卫：与 unrecordedNegativesAsNotReported 的 unreadable 同一口径。
+      if (terms.some((term) => !documented(term) && /无|未|没|阴性|正常|不(?!寐|适|安|宁|遂|利|振|畅|固|足|仁|眠|思|欲|食)/u.test(term))) return clause;
       changed = true;
       // 病历里写着否认的那几项（「无明显诱因」）保留「无」，只把病历没写到的改成「病历未记录」。
       const kept = terms.filter(documented);
@@ -668,7 +671,7 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
           //（unrecordedNegativesAsNotReported，与辨病/辨证依据共用）。
           // 否认与病历相反的项（病历肯定写着的表现被写成「未诉/无」）在这之后删掉（withoutDenialsOfRecordedFindings，2026-10-21）。
           const grounded = typeof clauseGrounded === "string"
-            ? withoutDenialsOfRecordedFindings(unrecordedNegativesAsNotReported(clauseGrounded, clinicalContext), clinicalContext)
+            ? withoutDenialsOfRecordedFindings(unrecordedNegativesAsNotReported(clauseGrounded, clinicalContext, { differential: true }), clinicalContext)
             : clauseGrounded;
           if (grounded !== entry[key]) {
             entry[key] = grounded;
@@ -1375,9 +1378,18 @@ function recordMentionsNegatedTerm(record: string, term: string): boolean {
  * reason 与 distinguishingPoints（由 groundDifferentialNegativeAssertions 在分句核对之后再调一次）。此前只有两条依据字段用它，
  * 西医鉴别里句中的「…、无夜间痛；」（甲方标准病历 6 腰椎转移瘤一项）因为不在分句开头而两边都没管。
  */
-export function unrecordedNegativesAsNotReported(text: string, clinicalContext: string): string {
+export function unrecordedNegativesAsNotReported(text: string, clinicalContext: string, options: { differential?: boolean } = {}): string {
   const record = clinicalContext.normalize("NFKC").replace(/\s+/g, "");
   if (!record) return text;
+  // 鉴别行的要点里，同一分句的顿号列举另有一项写「有…/多有…/常见…」（「起病较对称、无典型静止性震颤、有明确用药或脑血管病史」）：
+  // 这一串是在描述被鉴别的那个病，不是本例的阴性（第四十六轮复核 C088：改成「未诉典型静止性震颤」，与病历「静止时右手明显颤抖」相反）。只用于鉴别行。
+  const entityList = (offset: number, whole: string) => {
+    if (!options.differential) return false;
+    const clauseStart = whole.slice(0, offset).search(/[^，,。；;]*$/u);
+    const clauseEnd = whole.slice(offset).search(/[，,。；;]/u);
+    const clause = whole.slice(Math.max(clauseStart, 0), clauseEnd < 0 ? whole.length : offset + clauseEnd);
+    return !/^(?:本例|患者|病人|该患)/u.test(clause.trim()) && clause.split("、").some((item) => /^(?:有|多有|常有|可有|多见|常见)/u.test(item.trim()));
+  };
   // 「无…结果/报告/记录」说的是缺这份资料，不是否认症状，照原样留。「钡透无异常」说的是检查结论，也不是病人否认（第三十三轮 W27 曾改成「钡透未诉异常」）。
   // 查病历时去掉「之…表现/特征/症状/象」：「无善惊易恐之表现」查的是善惊易恐（病历写着它就不改）。
   // 「无典型辐射状血管网」查的是辐射状血管网（D 集 X-D-0379：病历写着「呈辐射状血管网」，却改成了「未诉典型辐射状血管网」）。
@@ -1387,7 +1399,7 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
   // 「…为无热象之佐」「虚劳无传染性」同理：「为无」后接的是判断，「…象」「…性」是推断出的性质，不是病人的症状（2026-10-19 甲方标准病历 3、5 第三轮复测）。
   const inferred = (offset: number, whole: string, term = "") =>
     /(?:示|表明|说明|可知)[^，,。；;]*$/u.test(whole.slice(0, offset)) || /为$/u.test(whole.slice(0, offset)) || /^[\u4e00-\u9fff]{1,3}[象性](?:之|$)/u.test(term) ||
-    notAPatientDenial(offset, whole, term);
+    notAPatientDenial(offset, whole, term) || entityList(offset, whole);
   // 「亦无积滞之脘腹胀满、嗳腐吞酸」：「无」后面先是另一个病或病机（积滞），再「之」接一列症状。说的是本例没有那些症状——病历没写过时
   // 照样是没问到的阴性（第三十八轮，甲方 11.05 病历12 辨证依据，qwen 评审「依据可追溯」判不过）。改成「未诉脘腹胀满、嗳腐吞酸等积滞表现」：
   // 症状一项一项查病历，有一项写到过（肯定或否定）就整段不动；「之」后是「表现/特征/象」的归下面那条，「与…相区分」这类写别的病的不动。

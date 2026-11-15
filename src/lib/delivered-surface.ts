@@ -24,7 +24,7 @@ import purposeProcessingTable from "../data/tcm-herb-purpose-processing.json" wi
 import processingFormsTable from "../data/tcm-herb-processing-forms.source.json" with { type: "json" };
 import { withoutPreparationPrefix, type OriginalFormula } from "./formula-original-composition";
 import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
-import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormulaOriginalPreparations, originalFormulaFor, originalHerbMatches, originalHerbSatisfiedBy, formulaManualDoseIngredients, type OriginalFormulaContext, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource, textbookCitedOriginalSource, deliveredFormulaSource, sourceIsTextbook, formulaNamesCarryLineage } from "./tcm-formula-provenance";
+import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormulaOriginalPreparations, originalFormulaFor, originalHerbMatches, originalHerbSatisfiedBy, formulaManualDoseIngredients, type OriginalFormulaContext, textbookAnchorableMethod, formulaCompilationReferences, formulaNameCatalogCoverage, formulaNameIdentityHerbsMissing, formulaNameWithIdentityHerbsPresent, governedDosageFormVariantComposition, textbookFormulaGovernedEntryIsHomonym, textbookFormulaOriginalSource, textbookCitedOriginalSource, deliveredFormulaSource, sourceIsTextbook } from "./tcm-formula-provenance";
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { drugNamesInAllergyPhrases } from "./clinical-polarity";
@@ -902,8 +902,15 @@ function withoutAdjacentRepeatedClauses(value: string): string {
       (clause.match(/[\u4e00-\u9fff]/gu) || []).length >= 3 ? `${separator}${clause}` : whole);
 }
 
+// 「推之未诉固定」「按之未诉疼痛」：查体动作后面接「未诉」读不通——推之、按之是医生查体所见，不是患者自诉；病历没有这项查体时这一项本就没有依据
+//（第四十六轮复核 C069，模型照提示「病历没记录的写未诉」写出、服务端改写也曾写出）。这一项（顿号之间）去掉。构词守卫。
+const EXAM_ACTION_NOT_REPORTED = /(?:^|[、，,])(?:[^、，,。；;]{0,8})(?:推|按|触|压|叩|扪)之未诉[^、，,。；;]{1,8}(?=[、，,。；;]|$)/gu;
 export function readabilityCleaned(input: string): string {
-  const value = withoutAdjacentRepeatedClauses(input);
+  const repeated = withoutAdjacentRepeatedClauses(input);
+  const value = EXAM_ACTION_NOT_REPORTED.test(repeated)
+    ? repeated.replace(EXAM_ACTION_NOT_REPORTED, (match) => (/^[，,]/u.test(match) ? match[0] : "")).replace(/^[、，,]+/u, "").replace(/([，,；;。])、/gu, "$1")
+    : repeated;
+  EXAM_ACTION_NOT_REPORTED.lastIndex = 0;
   if (!/未诉未诉|[；;，,。、]{2}|[（(]\s*[）)]|参照本方|本方(?:与|合)本方|教材行/u.test(value)) return value;
   return value
     .replace(/未诉(?:未诉)+/gu, "未诉")
@@ -915,6 +922,7 @@ export function readabilityCleaned(input: string): string {
     .replace(/；{2,}|;{2,}/gu, "；")
     .replace(/，{2,}|,{2,}/gu, "，")
     .replace(/、{2,}/gu, "、")
+    .replace(/([，,；;。])、/gu, "$1")
     .replace(/[，,；;]+(?=[。])/gu, "")
     .replace(/。{2,}/gu, "。")
     .replace(/^[，,；;。、\s]+/u, "");
@@ -1266,40 +1274,6 @@ function regradeCkdEverywhere(value: unknown, stage: string, recordText: string)
     return object;
   }
   return value;
-}
-
-/**
- * 流派「部分适用」要有该派实际改变的决定（2026-11-15 第四十六轮逐字复核 C043、C021：温补、经方判 partial，辨证末句却说「以下按常规辨证处理」，
- * 选的是独活寄生汤、血府逐瘀汤，都不是该派的方）。甲方验收表把如实写「不适配，未执行」算合格。
- * 判据：本例选的方（开方阶段的处方方名，辨证阶段的推荐方）没有一张按已核对的流派归属属于所选流派（formulaNamesCarryLineage）时，
- * applicable 写 not-applicable，适用理由里说相符的小句去掉、写明未按该派选方；辨证依据末句里「与…（部分）相符」的小句同样去掉。
- * 选的方查不到目录条目时不判。适用（applicable）与已是不适用的不动。
- */
-function withLineageApplicabilityMatchingFormula(projected: Json): void {
-  const lineage = record(projected.lineageAdaptation);
-  if (!lineage || lineage.applicable !== "partial" || typeof lineage.lineageCode !== "string") return;
-  const overview = record(projected.overview);
-  const candidate = records(record(projected.formula)?.candidates)[0];
-  const names = projected.stage === "prescribe"
-    ? [String(candidate?.name || ""), ...(Array.isArray(candidate?.formulaNames) ? candidate!.formulaNames as unknown[] : []).map(String)]
-    : [...(Array.isArray(overview?.recommendedFormulaNames) ? overview!.recommendedFormulaNames as unknown[] : []).map(String), String(overview?.recommendedFormulaDirection || "")];
-  const chosen = names.map((name) => name.trim()).filter((name) => name && !/^(?:自拟方|本例辨证组方)/u.test(name));
-  if (chosen.length === 0 || formulaNamesCarryLineage(chosen, lineage.lineageCode) !== false) return;
-  // 只在模型自己的辨证末句已说本例按常规辨证（流派不适配）时才改判（第四十六轮复核：只凭方名不在本地流派归属表里就判「不适用」，
-  // 丹溪治气郁痰郁、经方治太阴虚寒、《温病条辨》以茵陈蒿汤治阳明温病发黄都被判成「不在该派用方之列」，10 份流派栏判错）。
-  // 归属表只收得到一部分该派用方，不能拿来说「不在用方之列」。
-  if (!/按常规辨证/u.test(String(overview?.tcmDiagnosticRationale || ""))) return;
-  const label = typeof lineage.label === "string" && lineage.label.trim() ? lineage.label.trim() : "该派";
-  const fitClause = /[，,；;]?[^，,；;。]{0,12}(?:方向|思路|取向)?(?:部分)?相符[^，,；;。]{0,6}/gu;
-  if (typeof lineage.applicabilityReason === "string") {
-    const reason = lineage.applicabilityReason.replace(fitClause, "").replace(/^[，,；;\s]+|[，,；;\s]+$/gu, "").trim();
-    const trimmedReason = reason.replace(/^(?:但|然|而)[，,]?/u, "").trim();
-    lineage.applicabilityReason = `${trimmedReason ? `${trimmedReason}；` : ""}本例按常规辨证论治，未按${label}执行`;
-  }
-  lineage.applicable = "not-applicable";
-  if (overview && typeof overview.tcmDiagnosticRationale === "string") {
-    overview.tcmDiagnosticRationale = overview.tcmDiagnosticRationale.replace(/[，,]\s*与[^，,；;。]{0,16}(?:部分)?相符(?=[，,]\s*以下按常规辨证处理)/gu, "");
-  }
 }
 
 /** 西医鉴别名同样只留名称本身。 */
@@ -2785,15 +2759,17 @@ function presentSameForm(name: string, present: ReadonlyMap<string, readonly str
  * C055「因本方在本地标准剂量资料中暂无可执行的逐味剂量基准」、C041「去川牛膝、五加皮以合十味之限」）。这是提示词里的话，医生读不出意思。
  * 整句讲组成下限、精简佐使的删整句；讲剂量资料的删那一小句；「以合…之限」删这几个字。没有命中时逐字节不变。
  */
+// 提示词【本例高影响治法方向的成立情况】里的话（「改以方向已成立之活血通络药味充实层次」，第四十六轮复核 C042）：讲的是服务端核对，删那一小句。
+const DIRECTION_STATUS_TALK = /方向(?:已|未)成立|(?:已|未)成立(?:之|的)?方向|高影响(?:治法)?方向/u;
 export function withoutInternalCompositionTalk(analysis: string): string {
-  if (!/组成身份下限|精简佐使|剂量资料|剂量基准|以合[^，,。；;]{0,8}之限/u.test(analysis)) return analysis;
+  if (!/组成身份下限|精简佐使|剂量资料|剂量基准|以合[^，,。；;]{0,8}之限/u.test(analysis) && !DIRECTION_STATUS_TALK.test(analysis)) return analysis;
   return analysis
     .split(/(?<=。)/u)
     .filter((sentence) => !/组成身份下限|精简佐使/u.test(sentence))
     .map((sentence) => sentence
       .replace(/以合[^，,。；;]{0,8}之限/gu, "")
       .split(/(?<=[，,；;])/u)
-      .filter((clause) => !/剂量资料|剂量基准/u.test(clause))
+      .filter((clause) => !/剂量资料|剂量基准/u.test(clause) && !DIRECTION_STATUS_TALK.test(clause))
       .join(""))
     .join("")
     .replace(/[，,；;]+(?=。|$)/gu, "")
@@ -3674,7 +3650,6 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
         `辨证要点（${list.split("、").filter((item) => !/胎|带下|月经|经血|经量|经期|崩漏|妇女/u.test(item)).join("、")}）`);
     }
   }
-  withLineageApplicabilityMatchingFormula(projected);
   withSourceBasedReasoningEvidence(projected);
   if (projected.stage === "prescribe") withSourceBasedHerbEvidence(projected);
   // 贫血分度与病历 Hb 读数对齐：病名、编码显示、推理、鉴别、处置与开方各栏同一口径（recordAnemiaGrade）。

@@ -36,6 +36,11 @@ const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const compiler = await jiti.import("../src/lib/m04-proposal-compiler.ts");
 const closure = await jiti.import("../src/lib/analysis-element-closure.ts");
 const basisAuthoring = await jiti.import("../src/lib/western-basis-authoring.server.ts");
+const provenance = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+const claimCheck = await jiti.import("../src/lib/m03-patient-claim-check.server.ts");
+const secondary = await jiti.import("../src/lib/m03-secondary-syndrome-consistency.server.ts");
+const capabilities = await jiti.import("../src/lib/tcm-treatment-capabilities.server.ts");
+const terminology = await jiti.import("../src/lib/clinical-terminology.ts");
 
 const state = (chiefComplaint, history, extra = {}) => types.normalizeCaseStateInput({
   id: `r1063-${Math.random().toString(36).slice(2)}`,
@@ -233,19 +238,7 @@ await check("6.1 舌脉表现照病历字段写法也认（「脉象：弦」「
   assert.deepEqual(closure.recordSignQuotes("头痛\n脉象：弦\n舌淡红", ["脉弦"]), ["脉象：弦"]);
 });
 
-await check("6.2 流派「部分适用」只在辨证末句已说按常规辨证时才改判不适用，理由不写「不在该派用方之列」", () => {
-  const base = (rationale) => ({
-    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
-    overview: { tcmDiseaseName: "郁证", primarySyndrome: "肝气郁结证", tcmDiagnosticRationale: rationale },
-    lineageAdaptation: { lineageCode: "warm-tonify", label: "温补学派思路", applicable: "partial", applicabilityReason: "本例部分相合", influencedDecisions: [] },
-    formula: { candidates: [{ name: "柴胡疏肝散", formulaNames: ["柴胡疏肝散"], herbs: [{ name: "柴胡", dose: "10g", role: "君" }], formulaSource: { source: "" }, formulaAnalysis: "", decoction: { method: "水煎服" } }] },
-  });
-  const kept = surface.projectDeliveredReasoning(base("温补学派看脾肾命门，本例气郁为主，宜疏肝。"));
-  assert.equal(kept.lineageAdaptation.applicable, "partial");
-  const changed = surface.projectDeliveredReasoning(base("温补学派看脾肾命门，本例未见命门火衰实据，以下按常规辨证处理。"));
-  assert.equal(changed.lineageAdaptation.applicable, "not-applicable");
-  assert.doesNotMatch(changed.lineageAdaptation.applicabilityReason, /用方之列/u);
-});
+// 6.2（部分适用按方名改判不适用）已撤回：改判后理由与分析自相矛盾，见 7.9。
 
 await check("6.3 「无」后面的对象自己带否定或检查结论时不改写成「未诉…」（「喉镜未见新生物」）；普通阴性照改（对照）", () => {
   assert.equal(summary.unrecordedNegativesAsNotReported("无喉镜未见新生物", "喉镜：双侧声带小结，未见新生物"), "无喉镜未见新生物");
@@ -281,6 +274,153 @@ await check("6.7 西医依据直说没确立（「诊断尚未确立」「…后
   assert.equal(basisAuthoring.basisSaysNameNotEstablished("打鼾憋醒，阻塞性睡眠呼吸暂停需多导睡眠监测确认。", "阻塞性睡眠呼吸暂停"), true);
   assert.equal(basisAuthoring.basisSaysNameNotEstablished("临床可诊断支气管哮喘，尚缺肺功能确认严重程度。", "支气管哮喘"), false, "对照");
   assert.equal(basisAuthoring.basisSaysNameNotEstablished("符合急性上呼吸道感染。", "急性上呼吸道感染"), false, "对照");
+});
+
+// ───── 7. 重跑复核（review-r46b）找到的服务端成因 ─────
+const PRIOR_HEADACHE = {
+  schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+  overview: { tcmDiseaseName: "头痛", primarySyndrome: "痰浊头痛", primarySyndromeBasis: ["头痛昏蒙，胸脘满闷", "呕恶痰涎"], recommendedFormulaNames: [], formulaSelectionMode: "self_devised", recommendedFormulaDirection: "半夏白术天麻汤加减" },
+  pathogenesis: { chain: [{ nodeId: "P1", patientFact: "头痛昏蒙，胸脘满闷，呕恶痰涎", pathogenesis: "脾失健运，痰浊中阻，上蒙清窍", therapyDirection: "健脾燥湿，化痰降逆" }] },
+  therapy: { overallMethod: "健脾燥湿，化痰降逆", overallPrinciple: "实则泻之" },
+  westernDiagnosis: { primary: { name: "头痛", supportingFacts: ["头痛昏蒙"] }, differentials: [] },
+};
+const headacheHerb = (name, dose, role) => ({ name, dose, role, targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "燥湿化痰", processing: null, isToxic: false, decoctionRequirement: null });
+const headacheProposal = (modifications) => ({
+  candidate: {
+    name: "半夏白术天麻汤加减", applicable: "痰浊头痛。", notApplicable: "阴虚阳亢者不宜。",
+    herbs: [headacheHerb("法半夏", "9g", "君"), headacheHerb("天麻", "10g", "君"), headacheHerb("白术", "12g", "臣"), headacheHerb("茯苓", "12g", "臣"), headacheHerb("陈皮", "6g", "佐"),
+      { ...headacheHerb("甘草", "3g", "使"), targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", function: "调和诸药" }],
+    formulaAnalysis: "本方以半夏白术天麻汤为基础加减。法半夏燥湿化痰、天麻平肝息风共为君，白术、茯苓健脾祛湿为臣，陈皮理气化痰为佐，甘草调和诸药为使。",
+    decoction: { doseCount: "7剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日1剂，水煎分两次温服", followUpNode: "服完7剂复诊" },
+  },
+  patentAndWestern: [], modifications,
+  nonPharma: { diet: "饮食清淡，少食肥甘。", lifestyle: "规律作息。", emotion: "保持心情舒畅。", tcmTreatments: [], precautions: ["若头痛突然加剧，须及时就医。"] },
+});
+const HEADACHE_CASE = { chiefComplaint: "头痛昏蒙2周", patient: { age: 45, sex: "男" }, symptoms: { 现病史: "头痛昏蒙2周，胸脘满闷，呕恶痰涎，纳呆，口苦。舌胖大，苔白腻，脉弦滑。" } };
+
+await check("7.1 加减条件只有舌象或脉象（「本例已见脉弦」「脉象：沉迟」「苔白腻」）不作加减，编译与补写同一判据；舌脉与症状写在同一条、或症状里带「舌痛」照收（对照）", () => {
+  assert.equal(compiler.modificationTriggerTonguePulseOnly("本例已见脉弦"), "pulse");
+  assert.equal(compiler.modificationTriggerTonguePulseOnly("脉象：沉迟"), "pulse");
+  assert.equal(compiler.modificationTriggerTonguePulseOnly("弦脉"), "pulse");
+  assert.equal(compiler.modificationTriggerTonguePulseOnly("苔白腻"), "tongue");
+  assert.equal(compiler.modificationTriggerTonguePulseOnly("舌暗、脉涩"), "tongue");
+  assert.equal(compiler.modificationTriggerTonguePulseOnly("口苦、苔黄"), undefined, "对照：舌脉与症状同一条");
+  assert.equal(compiler.modificationTriggerTonguePulseOnly("舌痛"), undefined, "对照：舌痛是症状");
+  const rows = [
+    { trigger: "脉弦滑", targetRef: "P1", actionType: "add", herbName: "青皮", dose: "6g", reason: "疏肝理气", symptomPathogenesis: "肝气不舒" },
+    { trigger: "苔白腻", targetRef: "P1", actionType: "add", herbName: "苍术", dose: "10g", reason: "燥湿健脾", symptomPathogenesis: "湿浊中阻" },
+    { trigger: "纳呆", targetRef: "P1", actionType: "add", herbName: "焦神曲", dose: "10g", reason: "消食和胃", symptomPathogenesis: "痰湿困脾" },
+  ];
+  // 舌脉写进了辨证依据（病历事实可回溯），这一行才走到条件核对这一步。
+  const priorWithTonguePulse = { ...PRIOR_HEADACHE, overview: { ...PRIOR_HEADACHE.overview, primarySyndromeBasis: [...PRIOR_HEADACHE.overview.primarySyndromeBasis, "苔白腻", "脉弦滑"] } };
+  const out = compiler.compileM04Proposal(headacheProposal(rows), priorWithTonguePulse, HEADACHE_CASE);
+  const delivered = out.formula.modifications;
+  assert.ok((out.formula.modificationReview?.droppedReasons || []).some((item) => item.code === "trigger_not_symptom"), JSON.stringify(out.formula.modificationReview));
+  assert.ok(!delivered.some((row) => row.herbName === "青皮"), JSON.stringify(delivered));
+  assert.ok(!delivered.some((row) => row.herbName === "苍术"), "模型写的单舌象条件同样不收");
+  assert.ok(delivered.some((row) => /神曲/u.test(row.herbName)), "对照：症状条件照收");
+  const top = (trigger) => compiler.topUpModificationRow({ trigger, herbName: "厚朴", dose: "10g", reason: "行气宽中，燥湿除满", symptomPathogenesis: "痰湿阻滞气机" },
+    { prior: PRIOR_HEADACHE, caseState: types.normalizeCaseStateInput(HEADACHE_CASE), candidateHerbNames: ["法半夏", "天麻", "白术", "茯苓", "陈皮", "甘草"], existingTriggers: [] });
+  assert.equal(top("脉弦滑"), undefined, "补写：单写脉象不收");
+  assert.ok(top("胸脘满闷"), "补写对照：症状照收");
+});
+
+await check("7.2 补写的加减行与编译同一份提示：76 岁慢性肾病加细辛写肾功能不全、老年人慎用；病历只记月经量多时加三七只写「月经期」，不写「出血倾向/月经期/抗凝状态」", () => {
+  const ckd = types.normalizeCaseStateInput({ chiefComplaint: "心悸伴头晕1周", patient: { age: 76, sex: "男" }, symptoms: { 现病史: "心悸，头晕，畏寒肢冷，面色苍白。", 既往史: "慢性肾病" }, tongue: "舌淡", pulse: "沉迟" });
+  const prior = { ...PRIOR_HEADACHE, overview: { ...PRIOR_HEADACHE.overview, tcmDiseaseName: "心悸", primarySyndrome: "心阳不振证" }, pathogenesis: { chain: [{ nodeId: "P1", patientFact: "心悸，畏寒肢冷", pathogenesis: "心阳不振", therapyDirection: "温补心阳" }] }, therapy: { overallMethod: "温补心阳，安神定悸", overallPrinciple: "虚则补之" } };
+  const row = compiler.topUpModificationRow({ trigger: "畏寒肢冷", herbName: "细辛", dose: "3g", reason: "温通心阳", symptomPathogenesis: "阳虚失温" },
+    { prior, caseState: ckd, candidateHerbNames: ["桂枝", "炙甘草", "龙骨", "牡蛎"], existingTriggers: [] });
+  assert.ok(row, "这一行应收");
+  assert.match(row.riskNote, /肾功能不全/u, row.riskNote);
+  assert.match(row.riskNote, /老年人/u, row.riskNote);
+  const menses = contract.recordedPopulationCautions("三七", "患者年龄：35岁\n患者性别：女\n现病史：月经量多，经期延长，血块多");
+  assert.deepEqual(menses, ["月经期"], JSON.stringify(menses));
+  const warfarin = contract.recordedPopulationCautions("三七", "患者年龄：60岁\n患者性别：男\n用药史：华法林3mg每日1次");
+  assert.deepEqual(warfarin, ["抗凝状态"], "对照：服华法林写抗凝状态");
+});
+
+await check("7.3 删掉一句的头一个分句后，只剩没有归属词的短续句（「温煦失职」）一并去掉；带「故属」的续句、以病位开头的续句照留（对照）", () => {
+  assert.equal(secondary.withoutClauses("双膝痛，故属痛痹；为脾肾阳虚，温煦失职；苔白、步行缓慢。", ["为脾肾阳虚"]), "双膝痛，故属痛痹；苔白、步行缓慢。");
+  assert.equal(secondary.withoutClauses("双膝痛；为脾肾阳虚，故属痛痹。", ["为脾肾阳虚"]), "双膝痛；故属痛痹。", "对照：带归属词");
+  assert.equal(secondary.withoutClauses("口渴；为胃热炽盛，病位在胃与肾；乏力。", ["为胃热炽盛"]), "口渴；病位在胃与肾；乏力。", "对照：病位句");
+});
+
+await check("7.4 病名改成教材节名时新名含旧名（耳鸣 → 耳鸣耳聋）只换指病名的位置，「双耳鸣响」不变；新名不含旧名（头风病 → 头痛）照旧全换（对照）", () => {
+  assert.equal(provenance.renamedDiseaseMentions("以双耳鸣响为主症，属耳鸣范畴。", "耳鸣", "耳鸣耳聋"), "以双耳鸣响为主症，属耳鸣耳聋范畴。");
+  assert.equal(provenance.renamedDiseaseMentions("头风病以头痛为主，属头风病。", "头风病", "头痛"), "头痛以头痛为主，属头痛。", "对照");
+});
+
+await check("7.5 方义里提示词的「方向已成立」那一小句去掉，别的小句照留", () => {
+  const out = surface.withoutInternalCompositionTalk("三七、蒲黄化瘀止血；改以方向已成立之活血通络药味充实层次；甘草为使，调和诸药。");
+  assert.ok(!/方向已成立/u.test(out), out);
+  assert.match(out, /三七、蒲黄化瘀止血/u);
+  assert.match(out, /甘草为使/u);
+});
+
+await check("7.6 「未诉」改写的三种坏形：鉴别列举里一项自带否定（「本例无发热、切口无渗液」）不改；描述被鉴别病的列举（另一项写「有…」）不改；「推之无固定」只标到「无固定」时删整项、不写「推之未诉固定」", () => {
+  const rec50 = "现病史：术后切口已愈合，屈膝受限，无发热渗液及小腿新发肿痛。";
+  const reasoning = { stage: "diagnose", overview: {}, westernDiagnosis: { primary: { name: "膝关节置换术后", supportingFacts: [] }, differentials: [{ name: "假体周围感染", reason: "需排除", distinguishingPoints: "本例无发热、切口无渗液；但未查炎症指标" }] } };
+  const content = `正文\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const out = summary.groundDifferentialNegativeAssertions(content, rec50);
+  const json = JSON.parse(out.slice(out.indexOf("<!-- DIAGNOSIS_JSON_START -->") + 29, out.indexOf("<!-- DIAGNOSIS_JSON_END -->")));
+  const points = json.westernDiagnosis.differentials[0].distinguishingPoints;
+  assert.ok(!/病历未记录切口无渗液|未诉切口无渗液/u.test(points), points);
+  const rec88 = "主诉：双手颤抖2年。现病史：静止时右手明显颤抖。";
+  assert.equal(summary.unrecordedNegativesAsNotReported("起病较对称、无典型静止性震颤、有明确用药史", rec88, { differential: true }), "起病较对称、无典型静止性震颤、有明确用药史");
+  assert.equal(summary.unrecordedNegativesAsNotReported("本例无口苦、有头晕", "头晕2天", { differential: true }), "本例未诉口苦、有头晕", "对照：本例主语照改");
+  const root = { overview: { tcmDiagnosticRationale: "左乳无痛性结节、推之无固定，为气机不畅、痰凝乳络，故属肝气郁结证。" } };
+  claimCheck.applyPatientClaimRemovals(root, "tcm", [{ field: "tcmDiagnosticRationale", span: "无固定" }], "现病史：左乳无痛性结节1月。");
+  assert.ok(!/未诉固定|推之/u.test(root.overview.tcmDiagnosticRationale), root.overview.tcmDiagnosticRationale);
+  assert.match(root.overview.tcmDiagnosticRationale, /左乳无痛性结节/u);
+});
+
+await check("7.7 依据写「疑诊X」「考虑X…待查」「X诊断依据不足」、或下一句以「但尚缺…确认」接着说时，病名按待查；说临床可诊断的不算（对照）", () => {
+  assert.equal(basisAuthoring.basisSaysNameNotEstablished("有下肢静脉血栓史，临床高度疑诊急性肺血栓栓塞症。但尚缺肺动脉影像学检查，需行CTPA确认。", "急性肺血栓栓塞症"), true);
+  assert.equal(basisAuthoring.basisSaysNameNotEstablished("家属目击呼吸暂停，考虑阻塞性睡眠呼吸暂停低通气综合征待查；尚缺多导睡眠监测。", "阻塞性睡眠呼吸暂停"), true);
+  assert.equal(basisAuthoring.basisSaysNameNotEstablished("双耳嗡鸣半年。目前耳鸣诊断依据不足，尚缺纯音测听。", "耳鸣"), true);
+  assert.equal(basisAuthoring.basisSaysNameNotEstablished("突发胸痛气促，咯血，有下肢静脉血栓史，考虑急性肺血栓栓塞症。但尚缺CTPA，需该检查确认。", "急性肺血栓栓塞症"), true, "下一句接着说缺什么");
+  assert.equal(basisAuthoring.basisSaysNameNotEstablished("咳嗽有痰，临床可诊断急性支气管炎。但尚缺胸片排除肺炎。", "急性支气管炎"), false, "对照");
+  assert.equal(basisAuthoring.basisSaysNameNotEstablished("腹痛转移至右下腹，麦氏点压痛，符合急性阑尾炎。尚需血常规评估严重程度。", "急性阑尾炎"), false, "对照：缺的是严重程度");
+});
+
+await check("7.8 正在服抗凝药的、65 岁以上骨质疏松的不给推拿卡（拔罐、刮痧同样不给抗凝者）；居家按揉不受这两条约束；不服抗凝药、年轻骨质疏松照给（对照）", () => {
+  const prior = { ...PRIOR_HEADACHE, overview: { ...PRIOR_HEADACHE.overview, tcmDiseaseName: "不寐", primarySyndrome: "心脾两虚证" } };
+  const elder = { chiefComplaint: "夜间频醒1月", patient: { age: 82, sex: "女" }, symptoms: { 现病史: "睡眠浅，走路不稳。", 既往史: "慢性肾病、骨质疏松、房颤", 用药史: "地西泮、利伐沙班" } };
+  const s = types.normalizeCaseStateInput(elder);
+  assert.ok(capabilities.tcmTreatmentProjectExclusionReason("tuina", prior, s), "抗凝老人不推拿");
+  assert.ok(capabilities.tcmTreatmentProjectExclusionReason("cupping", prior, s), "抗凝不拔罐");
+  assert.equal(capabilities.tcmTreatmentProjectExclusionReason("tuina", prior, s, { homeCare: true }), undefined, "居家按揉照给");
+  const osteo = types.normalizeCaseStateInput({ ...elder, symptoms: { ...elder.symptoms, 用药史: "地西泮" } });
+  assert.ok(capabilities.tcmTreatmentProjectExclusionReason("tuina", prior, osteo), "老年骨质疏松不推拿");
+  assert.equal(capabilities.tcmTreatmentProjectExclusionReason("acupuncture", prior, osteo), undefined, "对照：针刺不受影响");
+  const young = types.normalizeCaseStateInput({ chiefComplaint: "失眠1月", patient: { age: 50, sex: "女" }, symptoms: { 现病史: "入睡难。", 既往史: "骨质疏松" } });
+  assert.equal(capabilities.tcmTreatmentProjectExclusionReason("tuina", prior, young), undefined, "对照：50 岁");
+  const stopped = types.normalizeCaseStateInput({ ...elder, patient: { age: 60, sex: "女" }, symptoms: { 现病史: "睡眠浅。", 用药史: "利伐沙班已停用半年" } });
+  assert.equal(capabilities.tcmTreatmentProjectExclusionReason("tuina", prior, stopped), undefined, "对照：已停药");
+});
+
+await check("7.9 流派「部分相符」是模型的判断，交付面不再按方名改判「不适用」（第四十六轮重跑复核：改判后理由与分析自相矛盾、留下「脾肾；但…」残句）", () => {
+  const reasoning = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { tcmDiseaseName: "郁证", primarySyndrome: "肝气郁结证", tcmDiagnosticRationale: "情志不舒、胸胁胀满为肝气郁结。丹溪看气血痰郁，本例以气郁为主，与解郁方向部分相符，以下按常规辨证处理。", recommendedFormulaNames: ["柴胡疏肝散"], recommendedFormulaDirection: "柴胡疏肝散加减" },
+    lineageAdaptation: { lineageCode: "nourish-yin-danxi", label: "滋阴/丹溪思路", applicable: "partial", applicabilityReason: "丹溪重气血痰郁，本例以气郁为主；但未见阴虚火旺", influencedDecisions: [] },
+    pathogenesis: { chain: [] }, therapy: { overallMethod: "疏肝解郁" }, westernDiagnosis: { primary: { name: "焦虑状态" }, differentials: [] },
+  };
+  const out = surface.projectDeliveredReasoning(reasoning);
+  assert.equal(out.lineageAdaptation.applicable, "partial");
+  assert.equal(out.lineageAdaptation.applicabilityReason, "丹溪重气血痰郁，本例以气郁为主；但未见阴虚火旺");
+});
+
+await check("7.10 查体动作后接「未诉」（「推之未诉固定」）读不通、也没有依据：交付时这一项去掉；「按压痛」「未诉口苦」照留（对照）", () => {
+  assert.equal(surface.readabilityCleaned("左乳无痛性结节、推之未诉固定，为气机不畅。"), "左乳无痛性结节，为气机不畅。");
+  assert.equal(surface.readabilityCleaned("推之未诉固定、质软，为痰凝。"), "质软，为痰凝。");
+  assert.equal(surface.readabilityCleaned("右下腹按压痛，未诉口苦。"), "右下腹按压痛，未诉口苦。", "对照");
+});
+
+await check("7.11 西医主诊断按受控写法归一时保留「待查」（「阻塞性睡眠呼吸暂停低通气综合征待查」→「阻塞性睡眠呼吸暂停待查」）；不带待查的照旧归一（对照）", () => {
+  const base = (name) => ({ overview: { tcmDiseaseName: "多寐" }, westernDiagnosis: { primary: { name }, differentials: [] }, pathogenesis: {}, therapy: {} });
+  assert.equal(terminology.withCanonicalClinicalTerminology(base("阻塞性睡眠呼吸暂停低通气综合征待查")).westernDiagnosis.primary.name, "阻塞性睡眠呼吸暂停待查");
+  assert.equal(terminology.withCanonicalClinicalTerminology(base("阻塞性睡眠呼吸暂停低通气综合征")).westernDiagnosis.primary.name, "阻塞性睡眠呼吸暂停", "对照");
 });
 
 if (failures > 0) console.error(`\n${failures} check(s) failed`);

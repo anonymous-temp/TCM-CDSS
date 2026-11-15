@@ -345,10 +345,15 @@ export function basisSaysNameNotEstablished(basis: string, name: string): boolea
   if (new RegExp(`考虑${escaped}(?:的)?可能|可能为${escaped}|${escaped}(?:的)?可能(?:性)?(?:大|较大)?[，,；;。]`, "u").test(text)) return true;
   // 直说没确立的写法（第四十六轮复核：「失眠障碍诊断尚未确立」「需排除器质性疾病后方可诊断神经性厌食症」「功能性腹痛诊断尚缺规范评估排除器质性疾病」
   //「需该检查确认」，病名仍写确诊名，C086、C047、C073、C085、n28）。构词守卫，闭集。
-  if (new RegExp(`${escaped}[^。；;]{0,8}?(?:尚未确立|尚不能确立|尚不能诊断|不能确诊|尚未明确诊断)|(?:尚未确立|尚不能确立|尚不能诊断)[^。；;]{0,6}${escaped}|后(?:方可|才能)诊断${escaped}`, "u").test(text)) return true;
-  for (const sentence of text.split(/[。；;]/u)) {
+  if (new RegExp(`${escaped}[^。；;]{0,8}?(?:尚未确立|尚不能确立|尚不能诊断|不能确诊|尚未明确诊断|诊断依据不足)|(?:尚未确立|尚不能确立|尚不能诊断)[^。；;]{0,6}${escaped}|后(?:方可|才能)诊断${escaped}`, "u").test(text)) return true;
+  // 依据自己写「疑诊/拟诊X」或「考虑X…待查」（第四十六轮复核 C098「临床高度疑诊急性肺血栓栓塞症」、C085「考虑阻塞性睡眠呼吸暂停低通气综合征待查」）。
+  if (new RegExp(`(?:疑诊|拟诊|疑为|怀疑)${escaped}|${escaped}[^，,。；;]{0,12}待(?:查|排)`, "u").test(text)) return true;
+  const sentences = text.split(/[。；;]/u);
+  for (const [index, sentence] of sentences.entries()) {
     if (!sentence.includes(core) || /既往已确诊|已确诊/u.test(sentence)) continue;
-    const after = sentence.slice(sentence.indexOf(core));
+    // 下一句以「但/然/尚」接着说缺什么（「…疑诊X。但尚缺肺动脉影像学检查，需行CTPA确认」）：说的仍是这个病名。
+    const next = sentences[index + 1] || "";
+    const after = `${sentence.slice(sentence.indexOf(core))}${/^\s*(?:但|然而?|尚)/u.test(next) ? `，${next}` : ""}`;
     if (/尚缺[^，,。；;]{0,12}(?:评估|检查)[^，,。；;]{0,6}排除/u.test(after)) return true;
     const missing = after.match(/(?:尚缺|尚需|有待|仍需|尚未行|尚未做|需(?:做|行|完善|该|进一步)?)([^，,。；;]{1,30}?)(?:以|来|进一步|等)?(?:确认|确诊|明确诊断)/u);
     // 缺的是哪一层看整个小句（「尚缺病毒学检查确认病原」的病原在「确认」之后）。

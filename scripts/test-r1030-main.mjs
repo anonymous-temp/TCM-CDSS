@@ -263,7 +263,8 @@ await check("12.1 M03 提示词：选流派时要求按该派眼目写一句（�
   const state = { id: "lin", chiefComplaint: "鼻塞流涕、咽痒2天", patient: { sex: "女", age: 24 }, symptoms: { presentHistory: "受凉后出现清涕、喷嚏和轻度咽痒" }, conversation: [{ role: "user", content: "主诉：鼻塞流涕、咽痒2天" }], questionRounds: 1 };
   void base;
   const chosen = prompts.buildDiagnosePrompt({ ...state, tcmLineagePreference: "classical-formula" });
-  for (const eye of ["六经归属与方证眼目", "卫气营血或三焦层次", "气血痰郁与阴虚相火", "脾肾命门与阴阳互济", "阴阳盛衰与阳虚阴盛的实据"]) assert.ok(chosen.includes(eye), eye);
+  // 第四十六轮：丹溪眼目写「或」——适用情形是两种之一，模型曾因缺阴虚相火把以气郁、痰郁为主的病例判不适用（重跑复核 C089、C078）。
+  for (const eye of ["六经归属与方证眼目", "卫气营血或三焦层次", "气血痰郁或阴虚相火", "脾肾命门与阴阳互济", "阴阳盛衰与阳虚阴盛的实据"]) assert.ok(chosen.includes(eye), eye);
   assert.match(chosen, /其中一条 aspect 写「辨证视角」/);
   assert.match(chosen, /不为迎合该派补写病历没有的表现/);
   const plain = prompts.buildDiagnosePrompt({ ...state, tcmLineagePreference: "unrestricted" });

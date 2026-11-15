@@ -147,8 +147,16 @@ export function withoutClauses(value: string, clauses: readonly string[]): strin
     const before = out.slice(0, at);
     const after = out.slice(at + clause.length);
     if (/[，,]$/u.test(before)) out = `${before.slice(0, -1)}${after}`;
-    else if (/^[，,]/u.test(after)) out = `${before}${after.slice(1)}`;
-    else out = `${before}${after.replace(/^[。；;]/u, before && !/[。；;]$/u.test(before) ? "。" : "")}`;
+    else if (/^[，,]/u.test(after)) {
+      // 删掉的是这一句的头一个分句、后面只剩一个没有主语的短续句（「…为脾肾阳虚，温煦失职；」删前半剩「温煦失职；」，
+      // 第四十六轮复核 C043；同类「仍阻于筋脉」「痰湿因之不化」）：续句说的是被删的那一层，一并去掉。
+      // 构词守卫：续句 ≤8 字、不带顿号逗号、没有归属词（故/属/为/示/见/乃/系/致），也不以病位、病性、病机开头。
+      const rest = after.slice(1);
+      const head = rest.split(/[。；;]/u)[0];
+      const dangling = (!before || /[。；;]\s*$/u.test(before)) && head.length > 0 && head.length <= 8 && !/[、，,]/u.test(head) &&
+        !/[故属为示见乃系致]/u.test(head) && !/^病[位性机]/u.test(head);
+      out = dangling ? `${before}${rest.slice(head.length).replace(/^[。；;]/u, before ? "" : "")}` : `${before}${rest}`;
+    } else out = `${before}${after.replace(/^[。；;]/u, before && !/[。；;]$/u.test(before) ? "。" : "")}`;
   }
   // 删掉结论小句后只剩一个结论引语的残句（「…之外候。诸症合参。发声费力…」，第四十六轮重跑 n36）整句去掉。
   return withoutDanglingConclusionLeads(out.replace(/^[，,。；;]+/u, "").replace(/([。；;])[，,]+/gu, "$1").trim());

@@ -329,7 +329,12 @@ function longestLexiconNameContained(value: unknown): string | undefined {
 export function withCanonicalClinicalTerminology<T extends TerminologyReasoning>(
   reasoning: T,
 ): T {
-  const westernName = canonicalWesternDiagnosisName(reasoning.westernDiagnosis.primary.name);
+  // 主诊断归一时保留「待查/待排」：「阻塞性睡眠呼吸暂停低通气综合征待查」按子串归成「阻塞性睡眠呼吸暂停」就把病名核对与依据核对
+  // 定下的待查丢了（第四十六轮重跑 C085：依据写「尚缺多导睡眠监测」，病名成了确诊写法）。鉴别行的身份归一不带这一层（它只用于去重）。
+  const rawPrimary = String(reasoning.westernDiagnosis.primary.name || "").trim();
+  const pending = /待[查排]$/u.exec(rawPrimary)?.[0] || "";
+  const canonicalPrimary = canonicalWesternDiagnosisName(rawPrimary);
+  const westernName = pending && canonicalPrimary && !canonicalPrimary.endsWith(pending) ? `${canonicalPrimary}${pending}` : canonicalPrimary;
   const normalized = {
     ...reasoning,
     westernDiagnosis: {
