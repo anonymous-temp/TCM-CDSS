@@ -137,6 +137,14 @@
           "mottled-ashen",
           "ctx-infection-suspected"
         ]
+      },
+      {
+        "id": "held-wound-infection",
+        "ageMonths": 420,
+        "record": "主诉：左小腿外伤后红肿疼痛3天\n现病史：3天前摔伤左小腿，伤口逐渐红肿热痛，有脓性渗出，今晨发热38.6℃，寒战。",
+        "present": [
+          "ctx-infection-suspected"
+        ]
       }
     ],
     "controls": [
@@ -297,6 +305,15 @@
         "absent": [
           "no-urine-18h",
           "no-urine-12-18h"
+        ]
+      },
+      {
+        "id": "ctrl-ankle-sprain-bruise",
+        "ageMonths": 276,
+        "record": "主诉：右踝扭伤后肿痛1天\n现病史：昨日打球落地时右足内翻扭伤，外踝前下方肿胀疼痛，今日出现青紫瘀斑，行走痛甚。无发热，皮肤无破损。",
+        "absent": [
+          "ctx-infection-suspected",
+          "non-blanching-rash"
         ]
       }
     ]
