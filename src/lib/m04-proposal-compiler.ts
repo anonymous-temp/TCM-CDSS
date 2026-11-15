@@ -966,7 +966,8 @@ type ModificationDropCode =
   | "allergen_conflict"
   | "incidental_digestive"
   | "trigger_is_emergency_sign"
-  | "no_dose_basis";
+  | "no_dose_basis"
+  | "clinician_dosed_regulated_herb";
 
 const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>> = {
   malformed: "条目缺少触发事实、病机引用、动作、药名或理由",
@@ -988,6 +989,7 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   incidental_digestive: "纳差随主病而来，治主病即可，不另加消食药",
   trigger_is_emergency_sign: "这一表现是本例急危重情况的表现，须先急诊处置，不作随证加减",
   no_dose_basis: "拟加药味没有药典或参考用量可依，不列入加减",
+  clinician_dosed_regulated_herb: "须由医生单独定量的管制、毒性或濒危药材，不作为随证加减",
 };
 
 type ModificationRelevanceTable = {
@@ -2628,11 +2630,20 @@ export function modificationHerbOpposesAscending(herbName: string, syndromeText:
  * 一行加减除方向与来源之外的判据（第三十四轮抽出来：编译与补写共用，不各写一份）。
  * 条件与本例相抵或不可能出现；拟加的药与方中同源同向、十八反，或与病历记录的过敏、人群、【使用注意】相抵。
  */
+/** 系统不替医生定量的管制/毒性与濒危药材（方中药味定稿时单味拿出、加减不加，同一判据）。 */
+export function isClinicianDosedRegulatedHerb(name: string): boolean {
+  const regulatory = clinicianDoseHerbClass(name);
+  return regulatory === "controlled_or_toxic" || regulatory === "endangered_or_banned";
+}
+
 function modificationAddBlock(
   item: { actionType: string; trigger: string; herbName: string },
   context: { caseState?: CaseState; candidateHerbNames: readonly string[]; recordText: string; syndromeText: string; groundingText: string; allergens: ReturnType<typeof recordedAllergensInText> },
 ): ModificationDropCode | undefined {
   const add = item.actionType === "add";
+  // 管制/毒性与濒危药材（马钱子、雄黄、生川乌、羚羊角、麝香…，clinicianDoseHerbClass）：方中药味在定稿时单味拿出、请医生另行开具，
+  // 加减这边此前没拦，第四十七轮终测 C042 加了「马钱子0.5g」入汤剂（药典：炮制后入丸散用）。同一判据，加减不加。
+  if (add && isClinicianDosedRegulatedHerb(item.herbName)) return "clinician_dosed_regulated_herb";
   // 拟加的药，教材【使用注意】写明与本例已记录的情况相抵（甲方病历 3：「若头晕耳鸣、虚烦少寐：加熟地黄」，病历食欲下降、大便稀溏，
   //《中药学》熟地黄「食少便溏者忌服」）。教材加减同样不列：教材的条件是证候变化，没有替这位患者的脾胃作主。
   if (add && context.recordText && herbRecordCautionConflict(item.herbName, context.recordText, context.syndromeText, { addition: true })) return "record_caution_conflict";

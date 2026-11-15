@@ -103,3 +103,23 @@ await check("3.2 兜底句不写药名相同的写法差异，同一原方的加
   assert.equal((text.match(/较《温病条辨》桑杏汤原方/gu) || []).length, 1, text);
   assert.match(text, /加白茅根、仙鹤草，去梨皮/u);
 });
+
+const compiler = await jiti.import("../src/lib/m04-proposal-compiler.ts");
+const BI_PRIOR = {
+  stage: "diagnose",
+  overview: { tcmDiseaseName: "痹证", primarySyndrome: "瘀血痹阻证", primarySyndromeBasis: ["腰腿刺痛，夜间加重"], secondarySyndromes: [] },
+  pathogenesis: { chain: [{ nodeId: "P1", patientFact: "腰腿刺痛，夜间加重", pathogenesis: "瘀血阻络，经脉不通", therapyDirection: "活血化瘀，通络止痛" }] },
+  therapy: { overallMethod: "活血化瘀，通络止痛" },
+  westernDiagnosis: { primary: { name: "腰椎间盘突出症待查", supportingFacts: [] } },
+};
+const BI_CASE = { chiefComplaint: "腰腿疼痛2月", patient: { age: 58, sex: "男" }, symptoms: { 现病史: "腰腿刺痛2月，夜间加重，近一周右小腿麻木。" } };
+await check("4.1 加减不加须由医生单独定量的管制/毒性、濒危药材（马钱子、羚羊角）；附子、鸡血藤照常可加", () => {
+  assert.equal(compiler.isClinicianDosedRegulatedHerb("马钱子"), true);
+  assert.equal(compiler.isClinicianDosedRegulatedHerb("制马钱子"), true);
+  assert.equal(compiler.isClinicianDosedRegulatedHerb("羚羊角"), true);
+  assert.equal(compiler.isClinicianDosedRegulatedHerb("附子"), false);
+  const context = { prior: BI_PRIOR, caseState: BI_CASE, candidateHerbNames: ["桃仁", "红花", "当归", "川芎"], existingTriggers: [] };
+  assert.equal(compiler.topUpModificationRow({ trigger: "小腿麻木", herbName: "马钱子", dose: "0.5g", reason: "通络止痛" }, context), undefined);
+  const ok = compiler.topUpModificationRow({ trigger: "小腿麻木", herbName: "鸡血藤", dose: "15g", reason: "活血舒筋通络" }, context);
+  assert.ok(ok, "对照：鸡血藤应能补");
+});
