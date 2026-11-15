@@ -1246,6 +1246,9 @@ export function textbookFormulaLabel(row: TextbookSyndromeRow): string {
  */
 const COMPOSITE_SYNDROME_RULES = (compositeSyndromeSource as { rules: Array<{ primary: string[]; composite: string }> }).rules;
 const DISEASE_SUBTYPES = (subtypeSource as { diseases: Record<string, Record<string, string[]>> }).diseases;
+/** 只在同一句先写到主语时才算该型的写法（「大便…色黑发亮」，第四十七轮 new45-n03）。 */
+const SUBJECT_BOUND_SUBTYPE_FORMS = (subtypeSource as { subjectBoundForms?: Record<string, unknown> }).subjectBoundForms as
+  Record<string, Record<string, { forms: string[]; subjectPattern: string }>> | undefined;
 /** 教材鉴别病属于哪一型的那一段（tcm-textbook-disease-subtypes.source.json differentialSections）。 */
 const DIFFERENTIAL_SECTIONS = ((subtypeSource as unknown as { differentialSections?: Record<string, Record<string, string[]>> }).differentialSections) || {};
 type SubtypeContrast = { differential?: string; text?: string; names: Record<string, string> };
@@ -1304,21 +1307,27 @@ export function textbookDiseaseSubtype(diseaseName: string, chiefComplaint: stri
   const record = String(recordText || "");
   const chief = String(chiefComplaint || "") || /主诉[：:]\s*([^\n]+)/u.exec(record)?.[1] || "";
   const present = /现病史[：:]\s*([^\n]+)/u.exec(record)?.[1] || "";
+  const bound = SUBJECT_BOUND_SUBTYPE_FORMS?.[splitTextbookDiseaseSubtype(diseaseName).disease];
   for (const text of [chief, present, record]) {
-    const found = earliestAffirmedSubtype(text, groups);
+    const found = earliestAffirmedSubtype(text, groups, bound);
     if (found) return found;
   }
   return undefined;
 }
 
-function earliestAffirmedSubtype(rawText: string, groups: Record<string, string[]>): string | undefined {
+function earliestAffirmedSubtype(rawText: string, groups: Record<string, string[]>,
+  bound?: Record<string, { forms: string[]; subjectPattern: string }>): string | undefined {
   const text = String(rawText || "").normalize("NFKC");
   let best: { group: string; at: number; length: number } | undefined;
   for (const [group, forms] of Object.entries(groups)) {
-    for (const form of forms) {
+    const boundForms = bound?.[group];
+    const subject = boundForms ? new RegExp(`(?:${boundForms.subjectPattern})[^。；;\n]*$`, "u") : undefined;
+    for (const form of [...forms, ...(boundForms?.forms || [])]) {
+      const subjectBound = !forms.includes(form);
       for (let at = text.indexOf(form); at >= 0; at = text.indexOf(form, at + 1)) {
         // 舌象里的瘀点、瘀斑不是皮肤紫斑。
         if (group === "紫斑" && /舌[^，,。；;]{0,3}$/u.test(text.slice(Math.max(0, at - 4), at))) continue;
+        if (subjectBound && !subject?.test(text.slice(Math.max(0, text.lastIndexOf("。", at - 1) + 1), at))) continue;
         if (recordMentionPolarityAt(text, at) !== "affirmed") continue;
         // 既往的出血不是本次的型（「既往牙龈出血，近日鼻出血」是鼻衄）。
         const clauseStart = Math.max(...["，", ",", "。", "；", ";", "\n"].map((mark) => text.lastIndexOf(mark, at - 1))) + 1;

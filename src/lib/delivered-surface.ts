@@ -43,6 +43,7 @@ import { textbookOcrFixed } from "./nondrug-text-fixes";
 import { discontinuedMedicationLabel, highRiskConditionLine, highRiskConditionsMissing, type RequiredPrecaution, HIGH_POTASSIUM_FOODS } from "./required-precautions";
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { patentMedicineCompositionIdentities } from "./patent-medicine-duplication.server";
+import { currentHypoglycemiaRecorded } from "./required-precautions.server";
 import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
 import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBaseName, patentMedicineLabelIsTonic, tonicMedicineCategory, TOPICAL_MEDICATION_FORM } from "./local-patent-medicine-candidates";
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
@@ -3545,6 +3546,13 @@ export function principleWhenRedFlag(principle: string, redFlagActive: boolean):
 
 export const RED_FLAG_MEDICINE_WITHHELD_REASON = "急危重征象尚未排除，暂不推荐另行服用中成药或西药，请先到急诊或专科处置。";
 export const RED_FLAG_DIET_ADVICE = "急危重情况尚未排除，请先到急诊就医；就医前饮食、饮水遵急诊医生安排。";
+/**
+ * 红旗是低血糖时的饮食句（第四十七轮，PLAN 阶段 0；第四十六轮复核 C032：格列本脲所致低血糖、血糖 2.4，饮食写「就医前饮食、饮水遵急诊医生安排」，
+ * 与注意事项「立即吃含糖食物」相反，可能延误处置）。依据：ADA Standards of Care（意识清楚者首选 15–20 g 葡萄糖，15 分钟后复测仍低则重复）；
+ * 《中国2型糖尿病防治指南》低血糖处理（意识清楚者口服 15～20 g 糖类食品，每 15 分钟监测血糖）。判据与必写注意事项同一个
+ *（required-precautions.server currentHypoglycemiaRecorded）。
+ */
+export const RED_FLAG_HYPOGLYCEMIA_DIET_ADVICE = "本次是低血糖：能吞咽时立即吃含糖食物或喝含糖饮料（如糖块、果汁，约15～20克糖），15分钟后复测血糖，仍低再吃一次；神志不清、不能吞咽或症状不缓解时立即急诊。";
 export const RED_FLAG_EXERCISE_ADVICE = "急危重情况排除前暂停运动保健，避免活动与用力。";
 export const RED_FLAG_DECOCTION_LEAD = "急诊排除急危重情况、经医生确认后方可服用；";
 
@@ -3629,7 +3637,9 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
     if (redFlagActiveFor(options)) {
       const nonPharmaRecord = record(projected.nonPharma);
       if (nonPharmaRecord) {
-        if (typeof nonPharmaRecord.diet === "string" && nonPharmaRecord.diet.trim()) nonPharmaRecord.diet = RED_FLAG_DIET_ADVICE;
+        if (typeof nonPharmaRecord.diet === "string" && nonPharmaRecord.diet.trim()) {
+          nonPharmaRecord.diet = options?.recordText && currentHypoglycemiaRecorded(options.recordText) ? RED_FLAG_HYPOGLYCEMIA_DIET_ADVICE : RED_FLAG_DIET_ADVICE;
+        }
         if (typeof nonPharmaRecord.exercise === "string" && nonPharmaRecord.exercise.trim()) nonPharmaRecord.exercise = RED_FLAG_EXERCISE_ADVICE;
         if (Array.isArray(nonPharmaRecord.precautions)) {
           nonPharmaRecord.precautions = nonPharmaRecord.precautions.filter((line) => typeof line !== "string" || !/少量多餐|温服|饭[前后]服|喝粥/u.test(line));

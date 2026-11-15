@@ -23,6 +23,7 @@ import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
 import priorityEvaluationWindowTable from "../data/priority-evaluation-windows.source.json";
 import { evaluateDiscriminators, isFatigueFramed, redFeatureChecklistForPatient, WEAK_CONSCIOUSNESS_TERMS, type DiscriminatorOutcome } from "./redflag-discriminators";
 import emergencyDiagnosisNames from "../data/emergency-diagnosis-names.source.json";
+import intracranialBleedingSigns from "../data/intracranial-bleeding-signs.source.json";
 import { generalizeOccupation, shouldRedactNarrativeNameCandidate, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
 import { determineCompletenessLevel, normalizeCaseStateInput } from "./diagnosis-types";
 import {
@@ -580,6 +581,8 @@ const FOCAL_NEUROLOGIC_CONCEPT_GROUPS: readonly (readonly string[])[] = [
   ["偏盲"],
 ];
 const FOCAL_NEUROLOGIC_TERMS = [...new Set(FOCAL_NEUROLOGIC_CONCEPT_GROUPS.flat())];
+// 肢体缺损那一组（含双下肢/四肢活动不利）：颅内出血判据里只在带单侧限定时算脑部表现。
+const FOCAL_LIMB_GROUP_INDEX = FOCAL_NEUROLOGIC_CONCEPT_GROUPS.findIndex((group) => group.includes("肢体无力"));
 
 /**
  * 同一临床概念的各种写法（阳性方向展开、否定方向只认真同义——见下面 NARROWER_THAN_GROUP_CANONICAL）。
@@ -4833,9 +4836,9 @@ function clinicalSentenceAt(text: string, index: number): string {
   return text.slice(start, ends.length > 0 ? Math.min(...ends) : text.length);
 }
 
-function hasCurrentFocalNeurologicDeficit(text: string): boolean {
+function hasCurrentFocalNeurologicDeficit(text: string, terms: readonly string[] = FOCAL_NEUROLOGIC_TERMS): boolean {
   const normalized = normalizeClinicalText(text);
-  for (const term of FOCAL_NEUROLOGIC_TERMS) {
+  for (const term of terms) {
     let index = normalized.indexOf(term);
     while (index >= 0) {
       const context = clinicalAssertionContextAt(normalized, index);
@@ -5724,9 +5727,51 @@ export function activeBleedingWording(text: string, redFlags: readonly string[])
  */
 const NEURO_EMERGENCY_RED_FLAG = /神经系统急症|后循环卒中/u;
 const IMAGING_EXCLUDES_HEMORRHAGE = /(?:CT|MRI|MR|磁共振|影像|头颅)[^。；;\n]{0,24}(?:未见[^。；;\n]{0,6}出血|无[^。；;\n]{0,4}出血|排除[^。；;\n]{0,6}出血|梗死|梗塞|缺血灶|腔隙)/u;
+/**
+ * 「颅内出血未排除」只认脑部表现（第四十七轮，PLAN 阶段 0；第四十六轮复核 C042：马尾综合征的会阴麻木、双下肢无力也报
+ * 「神经系统急症」，于是瘀血腰痛的方里不许用活血药）。脑部表现 = 雷击样头痛、意识改变/抽搐昏迷、言语/面部/视野缺损、
+ * 单侧肢体缺损（带左/右/单/一/偏侧限定或偏瘫、半身不遂类整词）、后循环组合。只有双下肢、四肢、会阴/鞍区表现的不算：
+ * 那是脊髓、马尾或周围神经，不是颅内出血的问题。词表见 intracranial-bleeding-signs.source.json（有限闭集）。
+ */
+const CEREBRAL_FOCAL_TERMS: readonly string[] = [
+  ...FOCAL_NEUROLOGIC_CONCEPT_GROUPS.flat().filter((term) => intracranialBleedingSigns.cerebralFocalTerms.includes(term) ||
+    FOCAL_NEUROLOGIC_CONCEPT_GROUPS.findIndex((group) => group.includes(term)) !== FOCAL_LIMB_GROUP_INDEX),
+  ...intracranialBleedingSigns.cerebralFocalTerms,
+];
+const UNILATERAL_LIMB_DEFICIT = new RegExp(
+  `(?:${intracranialBleedingSigns.unilateralPrefixes.join("|")})[^。；;\\n，,]{0,6}(?:${intracranialBleedingSigns.limbWords.join("|")})[^。；;\\n，,]{0,6}(?:${intracranialBleedingSigns.limbDeficitWords.join("|")})`,
+  "gu",
+);
+export function cerebralNeurologicSignPresent(text: string): boolean {
+  const normalized = normalizeClinicalText(text);
+  if (hasSuddenHeadacheSignal(normalized)) return true;
+  if (hasPatternWithoutNegation(normalized, CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN)) return true;
+  if (hasAcutePositiveTerm(normalized, ACUTE_CONSCIOUSNESS_CHANGE_TERMS)) return true;
+  if (hasAcutePosteriorCirculationCombination(normalized)) return true;
+  // 极性按缺损词所在的小句判（clauseLocalMentionPolarityAt，在词首判）：「右侧肢体无力，言语不清」里「无力」的「无」
+  // 不能把逗号后的言语不清读成否认（isNegatedAt 会这样读），也不能在「无力」的「力」上判成否认。
+  const currentAt = (index: number, matchText: string) => {
+    if (clauseLocalMentionPolarityAt(normalized, index) !== "affirmed") return false;
+    const context = clinicalAssertionContextAt(normalized, index);
+    if (context.subject !== "patient" || context.mood !== "actual") return false;
+    if (neuroAcuteChangeAttachedAt(normalized, index, matchText)) return true;
+    if (clinicalEventTemporalScopeAt(normalized, index, matchText.length) !== "current") return false;
+    return !neuroResidualFramingAt(normalized, index, matchText) && !focalDeficitHasChronicCourseAt(normalized, index, matchText);
+  };
+  for (const term of new Set(CEREBRAL_FOCAL_TERMS)) {
+    for (let index = normalized.indexOf(term); index >= 0; index = normalized.indexOf(term, index + term.length)) {
+      if (currentAt(index, term)) return true;
+    }
+  }
+  for (const match of normalized.matchAll(UNILATERAL_LIMB_DEFICIT)) {
+    if (currentAt(match.index ?? 0, match[0])) return true;
+  }
+  return false;
+}
 export function intracranialHemorrhageNotExcluded(text: string, redFlags: readonly string[]): boolean {
   if (!redFlags.some((flag) => NEURO_EMERGENCY_RED_FLAG.test(flag))) return false;
-  return !IMAGING_EXCLUDES_HEMORRHAGE.test(normalizeClinicalText(text));
+  if (IMAGING_EXCLUDES_HEMORRHAGE.test(normalizeClinicalText(text))) return false;
+  return cerebralNeurologicSignPresent(text);
 }
 
 export function activeBleedingInGroundingText(text: string): boolean {

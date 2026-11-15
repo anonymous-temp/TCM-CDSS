@@ -1,0 +1,8 @@
+{
+  "basis": "颅内出血未排除时活血化瘀药不入方（第四十六轮；AHA/ASA 2019：影像排除出血后才给抗血小板药）只适用于脑部表现。第四十七轮（PLAN 阶段 0，第四十六轮复核 C042）：马尾综合征的会阴/鞍区麻木、双下肢无力、排尿困难是脊髓或马尾受压，不是颅内出血的问题，不应因此停用活血化瘀药。有限闭集：cerebralFocalTerms 是肢体组以外的脑部缺损整词（偏瘫、半身不遂一类单侧整词）；肢体无力/麻木/活动不利只在 unilateralPrefixes 限定下算脑部表现（同一小句，前缀与肢体词、肢体词与缺损词之间各不超过 6 字，不跨逗号）。",
+  "sourceRef": "src/lib/diagnosis-safety.ts cerebralNeurologicSignPresent / intracranialHemorrhageNotExcluded；2026-11-15",
+  "cerebralFocalTerms": ["单侧无力", "半边没劲", "半边身子没劲", "一侧没劲", "半身不遂", "偏身不遂", "半身不用", "肢体不遂", "偏瘫", "偏身麻木", "半身麻木"],
+  "unilateralPrefixes": ["左侧", "右侧", "单侧", "一侧", "偏侧", "左", "右"],
+  "limbWords": ["肢体", "上肢", "下肢", "手脚", "手臂", "胳膊", "腿", "手", "足", "上下肢"],
+  "limbDeficitWords": ["无力", "没劲", "麻木", "活动不利", "不遂", "瘫"]
+}
