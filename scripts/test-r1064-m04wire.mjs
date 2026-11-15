@@ -33,6 +33,14 @@ const signatureContext = {contractVersion:'tcm-cdss-m04-signature-v3',caseId:'sy
 let checks=0,failures=0;
 async function check(id,title,fn){if(process.env.M04WIRE_CHECK && process.env.M04WIRE_CHECK!==id)return;checks++;try{await fn();console.log(`✓ ${id} ${title}`);}catch(e){failures++;console.error(`✗ ${id} ${title}\n${e.stack}`);}}
 const seal = async (r=reasoning(),io={}) => delivery.applyM04FinalContent(wrap(r),binding.clinicalReviewNotPerformedAttestation(r),ctx,undefined,Date.now()+3000,io);
+await check('27','方名身份/方向类问题（路由已按自己的口径放行）不在终稿这一步判死；剂量类照旧拦（第四十七轮新 40 份 3 份无剂量页）',async()=>{
+ const prior2=structuredClone(prior);prior2.overview={...prior2.overview,recommendedFormulaNames:['四君子汤'],formulaSelectionMode:'single'};
+ const ctx2={...ctx,structuredPriorReasoning:prior2};
+ const r=reasoning();r.formula.candidates[0].name='四君子汤加减';r.formula.candidates[0].formulaNames=[];
+ const out=await delivery.applyM04FinalContent(wrap(r),binding.clinicalReviewNotPerformedAttestation(r),ctx2,undefined,Date.now()+3000,{});
+ assert.ok(out.content.includes('DIAGNOSIS_JSON_START'));
+ const bad=reasoning();bad.formula.candidates[0].herbs[0].dose='999g';await assert.rejects(seal(bad),/m04_final_safety:/);
+});
 await check('01','新路径缺省开、闭集待A/B，false逐字返回且不调用模型',async()=>{
  assert.equal(policy.m04FinalContentPolicy({}).enabled,true);assert.equal(policy.m04FinalContentPolicy({}).analysis,'on');assert.equal(policy.m04FinalContentPolicy({}).modifications,'off');
  process.env.CDSS_M04_FINAL_CONTENT='false';try{const r=reasoning(),text=wrap(r),a=binding.clinicalReviewNotPerformedAttestation(r);assert.deepEqual(await delivery.applyM04FinalContent(text,a,ctx,undefined,undefined,{call(){throw Error('unexpected');}}),{content:text,attestation:a});}finally{process.env.CDSS_M04_FINAL_CONTENT='true';}

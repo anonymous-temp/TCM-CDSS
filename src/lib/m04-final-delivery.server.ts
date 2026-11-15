@@ -71,8 +71,12 @@ export async function applyM04FinalContent(content: string, attestation: Clinica
     isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false,
     clinicalContext: record, waiveTherapyCoverageAnnotated: true,
   });
+  // 进到这里的内容已经过路由自己的最终合同核对（含它的放行口径）；这里用的核对选项更严，进来时就有的问题不在这一步判死
+  //（第四十七轮新 40 份实测：合方锁定只用其一的「天王补心丹加减」在这里抛错，3/40 变成无剂量页）。
+  // 只拦本步自己引入的新问题：定稿后的问题与进来时不同才失败。
   const beforeIssue = safety(reasoning);
-  if (beforeIssue) throw new Error(`m04_final_safety:${beforeIssue}`);
+  // 剂量、配伍、人群等安全问题照旧在这里拦（纵深防御）；只有方名身份/方向一类（路由已按自己的口径放行）不在这里判死。
+  if (beforeIssue && !/^formula_(?:direction_drift|reference_|selection_missed_lockable)/u.test(beforeIssue)) throw new Error(`m04_final_safety:${beforeIssue}`);
   // Terminal snapshot must have the same public projection on a second read.
   const projected = projectDeliveredReasoning(reasoning, { caseState, recordText: record });
   let final: ClinicalReasoningResultV2;
@@ -101,7 +105,7 @@ export async function applyM04FinalContent(content: string, attestation: Clinica
   }
   const schemaIssue = reasoningV2SchemaIssueCode(final);
   const issue = safety(final);
-  if (schemaIssue || issue) throw new Error(`m04_final_contract:${schemaIssue || issue}`);
+  if (schemaIssue || (issue && issue !== beforeIssue)) throw new Error(`m04_final_contract:${schemaIssue || issue}`);
   const normalized = normalizeReasoningV2(final);
   if (!normalized || clinicalReviewPayloadHash(normalized) !== clinicalReviewPayloadHash(final)) throw new Error("m04_final_normalization_drift");
   final = normalized;
