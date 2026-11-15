@@ -98,7 +98,9 @@ await check("W08", "非剂量页也核对，失败走有限页审计且整次生
 await check("W09", "策略和治理版本进入生成指纹，降级不进入阶段缓存", async () => {
   const base = r1064GenerationIdentity({});
   for (const key of ["CDSS_M03_TCM_TWO_PASS", "CDSS_M03_TCM_NARRATIVE_REWRITE", "CDSS_M03_TCM_CHECK_PREFETCH", "CDSS_DELIVERY_GATES", "CDSS_FINAL_PATIENT_FACTS", "CDSS_REWRITE_INTEGRITY", "CDSS_DELIVERY_INVARIANTS", "CDSS_DELIVERY_GATE_INCREMENTAL"]) {
-    assert.notEqual(r1064GenerationIdentity({ [key]: key === "CDSS_M03_TCM_TWO_PASS" ? "true" : "false" }), base, key);
+    // 两道靠模型的交付核对第四十七轮终测后缺省关，换成非缺省值 shadow 才是「改了开关」。
+    const changed = key === "CDSS_M03_TCM_TWO_PASS" ? "true" : key === "CDSS_FINAL_PATIENT_FACTS" || key === "CDSS_REWRITE_INTEGRITY" ? "shadow" : "false";
+    assert.notEqual(r1064GenerationIdentity({ [key]: changed }), base, key);
   }
   const source = readFileSync("src/lib/stage-result-coalescing.server.ts", "utf8");
   assert.match(source, /r1064GenerationIdentity\(\)/); assert.match(source, /entry\.cacheable = generationOutcome\.reusable &&/);

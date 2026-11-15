@@ -123,3 +123,12 @@ await check("4.1 加减不加须由医生单独定量的管制/毒性、濒危�
   const ok = compiler.topUpModificationRow({ trigger: "小腿麻木", herbName: "鸡血藤", dose: "15g", reason: "活血舒筋通络" }, context);
   assert.ok(ok, "对照：鸡血藤应能补");
 });
+
+const gates = await jiti.import("../src/lib/delivery-gate-policy.ts");
+await check("5.1 交付总闸里两道靠模型的核对缺省关（0.9 秒上限内 3376/3376 中止、影子模式无任何观测）；确定性不变量扫描仍为影子", () => {
+  const policyNow = gates.deliveryGatePolicy({});
+  assert.equal(policyNow.facts, "off");
+  assert.equal(policyNow.integrity, "off");
+  assert.equal(policyNow.invariants, "shadow");
+  assert.equal(gates.deliveryGatePolicy({ CDSS_FINAL_PATIENT_FACTS: "shadow" }).facts, "shadow");
+});
