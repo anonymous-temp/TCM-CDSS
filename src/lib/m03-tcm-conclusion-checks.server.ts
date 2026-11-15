@@ -10,6 +10,7 @@ import { isCriticalSyndromeName } from "./m03-critical-syndrome";
 import { resolveM03TcmAnchor } from "./m03-tcm-anchor";
 import type { FormulaReferenceCaseSafety } from "./tcm-formula-provenance";
 import { recordAnemiaGrade } from "./delivered-surface";
+import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 
 export type M03TcmCheckInput = {
   baseRevision: number; inputHash: string; proposal: M03TcmConclusionProposal;
@@ -180,9 +181,10 @@ export async function checkM03TcmConclusion(
     const previous = record.primary;
     record.primary = { ...promoted, resolution: "bounded" };
     record.secondary[critical] = { name: previous.name, locationIds: previous.locationIds, elementIds: previous.elementIds };
-    if (!ctx.syndromes.find((item) => item.name === promoted.name)?.textbookRowId && ctx.diseases.some((item) => item.name === "虚脱") && record.disease.name !== "虚脱") {
-      return { kind: "redraw", draft: proposal, violations: [`critical:${record.disease.name}:虚脱`] };
-    }
+  }
+  if (isCriticalSyndromeName(record.primary.name) && record.disease.name !== "虚脱" && !textbookRowForSyndrome(record.disease.name, record.primary.name)) {
+    if (!ctx.diseases.some((item) => item.name === "虚脱")) return { kind: "unusable", reasons: ["critical_disease_candidate_missing"] };
+    return { kind: "redraw", draft: proposal, violations: [`critical:${record.disease.name}:虚脱`] };
   }
   // Naming cannot silently drop a passed factor or leave it asserted outside the name.
   const named = new Set([record.primary, ...record.secondary].flatMap((item) => item.elementIds));

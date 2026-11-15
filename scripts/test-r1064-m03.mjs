@@ -169,6 +169,21 @@ await check("4.1", "红旗沿用安全裁决，治则急则治标，不生成或
   const d = fixture(); d.ctx.safety.redFlag = true; const result = delivered(await run(d));
   assert.equal(result.half.therapy.overallPrinciple, "急则治标"); assert.ok(!("management" in result.half)); assert.ok(!("westernDiagnosis" in result.half));
   assert.equal(result.half.formula, null); assert.equal(d.ctx.safety.redFlag, true);
+  const critical = fixture(); critical.ctx.safety.redFlag = true;
+  critical.ctx.diseases.push({ name: "虚脱", diagnosisPoints: ["循环衰竭表现"], sourceId: "fixture:collapse" });
+  for (const text of ["四肢厥冷", "冷汗淋漓", "脉微欲绝"]) { critical.ctx.facts.push({ ...critical.ctx.facts[0], fieldPath: text, text }); critical.proposal.quotePool.push({ quote: text, sourceHint: null }); }
+  critical.ctx.units.push({ id: "E2", label: "阳虚", kind: "root", locationIds: [], criteriaName: "亡阳证", criteriaIds: ["四肢厥冷", "冷汗淋漓", "脉微欲绝"] });
+  critical.ctx.syndromes.push({ name: "亡阳证", locationIds: [], elementIds: ["E2"], textbookRowId: "supplement|虚脱|阴损亡阳" });
+  critical.ctx.methods.push({ id: "M2", text: "回阳固脱", targets: ["E2"], sourceId: null });
+  critical.proposal.elements.root.push({ id: "E2", quotes: [5,6,7], criteria: ["四肢厥冷", "冷汗淋漓", "脉微欲绝"] });
+  critical.proposal.secondary = ["亡阳证"]; critical.proposal.methods.unshift({ text: "回阳固脱", targets: ["E2"], quotes: [5,6,7] });
+  critical.narrative.diseaseRationale = [critical.sentence("critD", "汗冷肢厥，以虚脱辨治。", ["Q6"], ["E2"])];
+  critical.narrative.rationale = [critical.sentence("critR", "肢冷、冷汗、脉微欲绝，辨为亡阳证。", ["Q6", "Q7", "Q8"], ["E2"])];
+  critical.narrative.overall = [critical.sentence("critO", "阳衰欲脱，温煦失职。", ["Q6"], ["E2"])];
+  critical.narrative.chain.unshift({ ...critical.sentence("critC", "阳衰欲脱，四肢厥冷。", ["Q6"], ["E2"]), factQuoteIds: ["Q6"], evidenceQuoteIds: ["Q6"], methodIds: ["M2"], dependsOn: [] });
+  let proposals = 0;
+  const critIO = fakeIO(critical, { complete: async request => { const value = structuredClone(request.task === "m03_tcm_conclusion" ? critical.proposal : critical.narrative); if (request.task === "m03_tcm_conclusion" && proposals++ > 0) value.disease.name = "虚脱"; return { value, finishReason: "stop" }; } });
+  const promoted = delivered(await run(critical, critIO)); assert.equal(promoted.half.overview.tcmDiseaseName, "虚脱"); assert.equal(promoted.half.overview.primarySyndrome, "亡阳证"); assert.equal(promoted.frozen.revision, 2);
 });
 await check("4.2", "稀疏资料只用受治理中性工作证名、不补虚实", async () => {
   const d = fixture(); d.proposal.elements.root = []; d.proposal.primary = "脾失健运证"; d.proposal.methods = [{ text: "调理脾胃", targets: ["L1"], quotes: [1] }];
