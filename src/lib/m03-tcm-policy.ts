@@ -9,5 +9,5 @@ export function m03TcmCheckPolicy(env: Record<string, string | undefined> = proc
 export function m03TcmTwoPassPolicy(env: Record<string, string | undefined> = process.env) {
   return { enabled: env.CDSS_M03_TCM_TWO_PASS === "true" && env.M03_PARALLEL_GENERATION?.trim().toLowerCase() !== "false",
     prefetch: env.CDSS_M03_TCM_CHECK_PREFETCH !== "false", rewrite: env.CDSS_M03_TCM_NARRATIVE_REWRITE !== "false",
-    checks: m03TcmCheckPolicy(env), version: "m03-tcm-two-pass-v1" };
+    checks: m03TcmCheckPolicy(env), version: "m03-tcm-two-pass-v2" };
 }

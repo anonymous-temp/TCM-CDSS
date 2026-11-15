@@ -29,16 +29,24 @@ await check("1.1", "主开关缺省关且parallel=false冲突关闭，不调用�
   assert.equal(two.m03TcmTwoPassPolicy({ CDSS_M03_TCM_TWO_PASS: "true", M03_PARALLEL_GENERATION: "false" }).enabled, false);
   assert.deepEqual(await two.runM03TcmTwoPass(fixture().ctx, fakeIO(fixture()), { enabled: false }), { kind: "disabled" });
 });
-await check("1.2", "严格schema拒绝安全键与坏数组，两步provider对象拒绝附加字段", () => {
+await check("1.2", "严格schema拒绝安全键；S2fix坏可选项隔离，两步provider拒绝附加字段", () => {
   const d = fixture(); assert.throws(() => c.parseM03TcmProposal({ ...d.proposal, allowDose: true }, d.ctx));
-  assert.throws(() => c.parseM03TcmProposal({ ...d.proposal, locations: [{}] }, d.ctx));
+  // S2fix: baseline 1.2 failed as expected; a malformed optional unit no longer discards a valid root.
+  assert.deepEqual(c.parseM03TcmProposal({ ...d.proposal, locations: [{}] }, d.ctx).locations, []);
   for (const schema of [c.M03_TCM_CONCLUSION_PROVIDER_SCHEMA, n.M03_TCM_NARRATIVE_PROVIDER_SCHEMA]) assert.equal(schema.additionalProperties, false);
 });
-await check("1.3", "所有候选ID/索引/重复引文/证名/治法/流派拒绝越界", () => {
+await check("1.3", "S2fix候选越界局部丢弃；核心证名仍拒绝", () => {
+  // Baseline 1.3 failed: the brief explicitly replaces whole-proposal rejection with local recovery.
   const d = fixture();
-  for (const mutate of [x => x.locations[0].id = "FOREIGN", x => x.locations[0].quotes = [15], x => x.primary = "外来证", x => x.quotePool.push(x.quotePool[0]), x => x.methods[0].text = "虚构治法", x => x.lineage = { applicable: "partial", targets: ["E1"] }]) {
-    const draft = structuredClone(d.proposal); mutate(draft); assert.throws(() => c.parseM03TcmProposal(draft, d.ctx));
+  const variants = [x => x.locations[0].id = "FOREIGN", x => x.locations[0].quotes = [15], x => x.quotePool.push(x.quotePool[0]), x => x.methods[0].text = "虚构治法", x => x.lineage = { applicable: "partial", targets: ["E1"] }];
+  for (const mutate of variants) {
+    const draft = structuredClone(d.proposal); mutate(draft); const violations = [];
+    const parsed = c.parseM03TcmProposal(draft, d.ctx, violations);
+    assert.ok(violations.length > 0); assert.equal(parsed.primary, d.proposal.primary);
+    assert.ok(!parsed.locations.some(unit => unit.id === "FOREIGN"));
+    assert.ok(!parsed.methods.some(method => method.text === "虚构治法"));
   }
+  assert.throws(() => c.parseM03TcmProposal({ ...d.proposal, primary: "外来证" }, d.ctx));
 });
 await check("1.4", "引用精确定位：歧义、伪造引文、其他人的证据不能肯定入组", async () => {
   const d = fixture(); const quotes = c.locateM03TcmQuotes(d.proposal, d.ctx); assert.equal(quotes[0].start, 2);
@@ -61,14 +69,14 @@ await check("2.1", "正常两步：首步不含正文；病位/病性/治法同�
   raw.completeCheck = async request => {
     phases.push(`${request.kind}:${request.phase}`);
     const input = JSON.parse(request.prompt.split("\n").at(-1));
-    if (request.phase === "verify") return { finishReason: "stop", value: { confirmations: input.claims.map(claim => ({ id: claim.id, confirmed: true })) } };
-    const value = request.kind === "units" ? { units: [...input.units.map(unit => ({ id: unit.id, status: "matched", matches: unit.criteria.map((item, i) => ({ item, quoteId: `Q${unit.quotes[Math.min(i, unit.quotes.length - 1)] + 1}` })) })), { corrupt: true }] }
-      : request.kind === "disease" ? { diseases: ["visit_reason", "disease_points"].map(checker => ({ checker, status: "pass", replacement: null, quoteIds: ["Q1"] })) }
-      : request.kind === "methods" ? { methods: [{ id: "M1", status: "pass" }] } : { status: "pass" };
+    // S2fix: both vendors now answer the same batch independently (baseline 2.1 used the old per-kind transport).
+    const value = { units: [...input.units.map(unit => ({ id: unit.id, status: "matched", matches: unit.criteria.map((item, i) => ({ item, quoteId: `Q${unit.quotes[Math.min(i, unit.quotes.length - 1)] + 1}` })) })), { corrupt: true }],
+      diseases: ["visit_reason", "disease_points"].map(checker => ({ checker, status: "pass", replacement: null, quoteIds: ["Q1"] })),
+      methods: [{ id: "M1", status: "pass" }], lineage: null };
     return { finishReason: "stop", value };
   };
   const viaTransport = delivered(await run(d, raw)); assert.deepEqual(viaTransport.half.pathogenesis.natureDifferentiation.rootDeficiency, ["气虚"]);
-  assert.ok(phases.includes("units:verify")); assert.ok(phases.includes("disease:verify"));
+  assert.deepEqual(phases.sort(), ["conclusion:propose", "conclusion:verify"]);
 });
 await check("2.2", "首步越界重抽只一次，仍越界不可进入文字", async () => {
   const d = fixture(); d.proposal.primary = "外来证"; const io = fakeIO(d);
