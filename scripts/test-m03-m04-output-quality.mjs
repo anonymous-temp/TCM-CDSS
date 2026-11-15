@@ -59,9 +59,9 @@ const failures = [];
   if (/暂不锁定剂量级治法/.test(unknown)) failures.push({ case: "病性未定", why: "仍是工程占位串" });
   if (/扶正|祛邪|补之|泻之|热之|寒之/.test(unknown)) failures.push({ case: "病性未定", why: `不得凭空给出补泻寒热: ${unknown}` });
 
-  // 模型另写的与虚实寒热无关的国标治则（急则治标）保留为第二条;括号与治法内容一律不进治则
+  // 第四十七轮：模型写的「急则治标」只有闸门红旗时可留；本例无红旗，不能作补充治则。括号与治法内容仍不进治则。
   const authored = principleOf("脾气虚证", "健脾益气", "急则治标");
-  if (authored !== "虚则补之，急则治标") failures.push({ case: "模型已写治则", why: `应为「虚则补之，急则治标」,实际 ${authored}` });
+  if (authored !== "虚则补之") failures.push({ case: "无红旗不保留急则", why: `应为「虚则补之」,实际 ${authored}` });
   const bracketed = principleOf("胃火上炎证", "清胃泻火，凉血止痛", "实则泻之（清泻胃火） 兼以通腑导热");
   if (/[（(]|通腑|兼以/.test(bracketed)) failures.push({ case: "括号与治法内容", why: `治则不得带括号或治法内容: ${bracketed}` });
 }

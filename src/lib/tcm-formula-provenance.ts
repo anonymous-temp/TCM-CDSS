@@ -3407,8 +3407,22 @@ export function selfDevisedFormulaReferences(herbNames: readonly string[]): Arra
     .map(({ name, source, coverage }) => ({ name, source, coverage }));
 }
 
-function selfDevisedReferenceSource(herbNames: readonly string[]): string | undefined {
-  const references = selfDevisedFormulaReferences(herbNames);
+/** 小方的加味已超过底方两倍，底方不足以承担本方身份；只读原方组成，不删药。 */
+export function smallBaseOverextended(formulaName: string, herbNames: readonly string[]): boolean {
+  const components = formulaNameComponents(formulaName);
+  if (components.length !== 1) return false;
+  // 目录有「原方加一味」的省略条目；完整编译组成超过三味时不能因省略而判成小方。
+  const compiled = formulaCompilationReferences([components[0]])[0]?.ingredients || [];
+  if (new Set(compiled.map(compositionIdentityName).filter(Boolean)).size > 3) return false;
+  const base = new Set(originalBookFormulaIngredients(components[0]).map(compositionIdentityName).filter(Boolean));
+  if (base.size === 0 || base.size > 3) return false;
+  const actual = new Set(herbNames.map(compositionIdentityName).filter(Boolean));
+  return [...actual].filter((herb) => !base.has(herb)).length > base.size * 2;
+}
+
+export function selfDevisedReferenceSource(herbNames: readonly string[], referenceNames: readonly string[] = []): string | undefined {
+  const explicit = formulaCompilationReferences([...referenceNames]).map((row) => ({ name: row.formulaName, source: row.source }));
+  const references = [...new Map([...explicit, ...selfDevisedFormulaReferences(herbNames)].map((row) => [row.name, row])).values()].slice(0, 2);
   if (references.length === 0) return undefined;
   return `自拟方，组方参考：${references.map((item) => `${item.name}${item.source ? `（${item.source}）` : ""}`).join("、")}加减；其余药味按本例证候、病机与药味功效配伍，需医生复核`;
 }

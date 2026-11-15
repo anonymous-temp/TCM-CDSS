@@ -171,11 +171,12 @@ await check("6.1 男性、60 岁以上的人群提示不写「月经期」，育
 });
 
 await check("6.2 编译器：72 岁男性服华法林、加桃仁的慎用提示不写「月经期」；30 岁女性照写", () => {
+  // 第四十七轮：以真实记录的伴随肩部刺痛测加味人群提示，主诉胸痛本身不再作条件；原有慎用正反对照保留。
   const compiler = jitiCompiler;
   const prior = types.ReasoningV2Schema.parse({
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
     overview: { tcmDiseaseName: "胸痹", primarySyndrome: "心血瘀阻证", overallPathogenesis: "瘀阻心脉，不通则痛", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
-    pathogenesis: { chain: [{ nodeId: "P1", patientFact: "胸闷刺痛", syndromeEvidence: "胸闷刺痛，痛有定处", pathogenesis: "瘀阻心脉", therapyDirection: "活血通络" }] },
+    pathogenesis: { chain: [{ nodeId: "P1", patientFact: "胸闷刺痛，伴肩部刺痛", syndromeEvidence: "胸闷刺痛，痛有定处", pathogenesis: "瘀阻心脉", therapyDirection: "活血通络" }] },
     therapy: { overallPrinciple: "实则泻之", overallMethod: "活血化瘀，通脉止痛", subTherapies: [{ therapy: "活血化瘀", targetPathogenesis: "瘀阻心脉", priority: "主要" }] },
     formula: { candidates: [], patentAndWestern: [], modifications: [] },
   });
@@ -190,12 +191,12 @@ await check("6.2 编译器：72 岁男性服华法林、加桃仁的慎用提示
       decoction: { doseCount: "7剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "7日复诊" },
     },
     patentAndWestern: [],
-    modifications: [{ trigger: "胸闷刺痛", targetRef: "P1", actionType: "add", herbName: "桃仁", dose: "9g", reason: "活血通络" }],
+    modifications: [{ trigger: "肩部刺痛", targetRef: "P1", actionType: "add", herbName: "桃仁", dose: "9g", reason: "活血通络" }],
     nonPharma: { diet: "宜清淡。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: [], tcmTreatments: [] },
   }, prior, caseState);
   const note = (sex, age) => compile(types.normalizeCaseStateInput({
     chiefComplaint: "胸闷刺痛1月", patient: { sex, age },
-    symptoms: { 现病史: "胸闷刺痛，痛有定处。房颤病史，长期口服华法林。" },
+    symptoms: { 现病史: "胸闷刺痛，痛有定处，伴肩部刺痛。房颤病史，长期口服华法林。" },
   })).formula.modifications.find((item) => item.herbName === "桃仁")?.riskNote || "";
   const man = note("男", 72);
   assert.match(man, /桃仁[^；]*抗凝状态慎用/u, man);

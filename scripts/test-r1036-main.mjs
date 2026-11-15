@@ -367,13 +367,14 @@ await check("8.11 先就医评估那一句不套两层括号：待排除项自�
   assert.match(safety.priorityEvaluationFirstStep({ focus: "乳腺癌", window: "within_2w" }), /需排除乳腺癌/);
 });
 
-await check("8.12 提示词：开方阶段写明君药承担治法第一项、原方君药不能入汤剂时以同功效药易之、与本例虚寒之象相悖的苦寒药去掉；加减给主症加重时的强化；西医半写诊断依据、脏腑概念不当器官病名、儿科病名不用于成人；病名核对 D 收这两类", () => {
+await check("8.12 提示词：开方阶段写明君药承担治法第一项、原方君药不能入汤剂时以同功效药易之、与本例虚寒之象相悖的苦寒药去掉；加减不再给主症强化；西医半写诊断依据、脏腑概念不当器官病名、儿科病名不用于成人；病名核对 D 收这两类", () => {
   const prompts = fs.readFileSync("src/lib/diagnosis-prompts.ts", "utf8");
   assert.match(prompts, /君药承担 M03 治法的第一项/);
   assert.match(prompts, /用同功效的安全药味替代并承其位（重镇安神可用磁石、珍珠母或生龙骨）/);
   assert.doesNotMatch(prompts.match(/君药承担 M03 治法的第一项[^\n]*/u)?.[0] || "", /朱砂/u, "开方提示词里不点毒性药的名（test:formula-provenance）");
   assert.match(prompts, /便溏、小便清长、舌淡等虚寒之象而无热象/);
-  assert.match(prompts, /主方里承担治法第一项的药只有一味/);
+  // 第四十七轮：主症由主方治疗，提示词不得继续要求用主症凑加减。
+  assert.match(prompts, /主诉主症及其频次、形态已由主方治疗，不为凑条数写主症强化/);
   const packets = fs.readFileSync("src/lib/m03-context-packets.ts", "utf8");
   assert.match(packets, /医生会把它当作这条西医诊断的诊断依据来读/);
   assert.match(packets, /不以该器官疾病为名，加「待查」也不行/);

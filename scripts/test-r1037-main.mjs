@@ -424,7 +424,8 @@ await check("7.5 小模型按本例选穴：请求里有本例诊断、表现与
   });
   const route = fs.readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
   assert.match(route, /const homeAcupointAuthoring = homeAcupointInput \? authorHomeAcupointCare\(homeAcupointInput, signal\)/);
-  assert.match(route, /Promise\.all\(\[\s*checkFormulaAnalysisClaimsInContent\(content, transformSignal\),\s*dropMisfitModifications\(content, \{ recordText: structuredClinicalContext \}, transformSignal\),\s*homeAcupointAuthoring,?\s*\]\)/);
+  // 第四十七轮：并行核对需带完整加减分型上下文，继续精确钉住全部参数。
+  assert.match(route, /Promise\.all\(\[\s*checkFormulaAnalysisClaimsInContent\(content, transformSignal\),\s*dropMisfitModifications\(content, \{ recordText: structuredClinicalContext, prior: signedPriorReasoning, caseState: safeState \}, transformSignal\),\s*homeAcupointAuthoring,?\s*\]\)/);
   assert.match(route, /\{ authoredHomeAcupoint \}\)/);
 });
 

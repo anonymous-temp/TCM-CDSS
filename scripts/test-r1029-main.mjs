@@ -218,7 +218,8 @@ await check("7.1 辨证要点「面、睑、唇、舌色淡白」分到每个部
 await check("8.1 「胃气不和证」这类中性证名不按治法推成「实则泻之」（C091），有邪的证照旧", () => {
   const neutral = { stage: "diagnose", overview: { primarySyndrome: "胃气不和证", secondarySyndromes: [] }, therapy: { overallMethod: "理气和胃，和中止痛" } };
   assert.equal(visible.nationalTreatmentPrinciple("实则泻之", neutral), "调理阴阳");
-  assert.equal(visible.nationalTreatmentPrinciple("急则治标", neutral), "急则治标");
+  // 第四十七轮：无闸门红旗时不得保留模型写的「急则治标」；中性证仍用既有兜底治则。
+  assert.equal(visible.nationalTreatmentPrinciple("急则治标", neutral), "调理阴阳");
   const excess = { stage: "diagnose", overview: { primarySyndrome: "肝气犯胃证", secondarySyndromes: [] }, therapy: { overallMethod: "疏肝理气，和胃止痛" } };
   assert.equal(visible.nationalTreatmentPrinciple("实则泻之", excess), "实则泻之");
 });

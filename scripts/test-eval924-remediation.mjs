@@ -157,8 +157,8 @@ await check("3.2 治则与证名、治法一致：实证不写补、没有虚象
   assert.equal(principleOf("寒者热之，温散祛邪", { items: ["寒"], rootDeficiency: [], branchExcess: ["寒"] }, "风寒束表证", "辛温解表，宣肺散寒"), "寒者热之");
   // 确属虚实夹杂（治法里补与祛并见、证名里有实邪）才是扶正祛邪。
   assert.equal(principleOf("扶正祛邪", { items: ["脾虚", "湿"], rootDeficiency: ["脾虚"], branchExcess: ["湿"] }, "脾虚湿盛证", "健脾益气，化湿和中"), "扶正祛邪");
-  // 模型另写的「急则治标」这类与虚实无关的国标治则保留为第二条。
-  assert.equal(principleOf("急则治标，实则泻之", { items: ["痰热"], rootDeficiency: [], branchExcess: ["痰热"] }, "痰热壅肺证", "清热化痰，宣肺平喘"), "热者寒之，急则治标");
+  // 第四十七轮：这里未提供闸门红旗，模型另写的「急则治标」不再保留为第二条。
+  assert.equal(principleOf("急则治标，实则泻之", { items: ["痰热"], rootDeficiency: [], branchExcess: ["痰热"] }, "痰热壅肺证", "清热化痰，宣肺平喘"), "热者寒之");
   // 独立评审实测（2026-10-13）：脾胃虚寒证、治法「温中健脾，和胃降逆」被推成「实则泻之」——「健脾」「温中」没算作补法。
   assert.equal(principleOf("实则泻之", { items: ["虚寒"], rootDeficiency: ["脾胃虚寒"], branchExcess: [] }, "脾胃虚寒证", "温中健脾，和胃降逆"), "虚则补之");
   assert.equal(principleOf("", { items: [], rootDeficiency: [], branchExcess: [] }, "肾阳虚证", "温肾助阳"), "虚则补之");

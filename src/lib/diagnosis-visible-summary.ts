@@ -1,3 +1,4 @@
+import { redFlagActiveFor } from "./clinical-red-flag-context";
 import { chineseDurationNumber, discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, SERVER_PATHOGENESIS_NO_MECHANISM_NOTE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote, stableM03CoreTextWithoutHedges } from "./diagnosis-stage-contract";
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import coldHeatSignsJson from "../data/tcm-cold-heat-signs.source.json" with { type: "json" };
@@ -2349,12 +2350,12 @@ function derivedTreatmentPrinciple(nature: SignedNatureProfile): string {
  * 交付的治则：由已定证名与治法推出的那一条为主；模型另写的「急则治标/缓则治本/反治」等与虚实寒热无关的
  * 国标治则可作第二条。推不出具体治则时取模型写的首个国标术语，再不行写「调理阴阳」。
  */
-export function nationalTreatmentPrinciple(current: string, reasoning: Record<string, unknown>): string {
+export function nationalTreatmentPrinciple(current: string, reasoning: Record<string, unknown>, context?: Parameters<typeof redFlagActiveFor>[0]): string {
   const nature = signedNatureProfile(reasoning);
   const normalized = current.normalize("NFKC");
   const written = NATIONAL_TREATMENT_PRINCIPLES
     .map((term) => ({ term, at: normalized.indexOf(term) }))
-    .filter((item) => item.at >= 0)
+    .filter((item) => item.at >= 0 && (item.term !== "急则治标" || redFlagActiveFor(context)))
     .sort((left, right) => left.at - right.at)
     .map((item) => item.term as string);
   const derived = derivedTreatmentPrinciple(nature);

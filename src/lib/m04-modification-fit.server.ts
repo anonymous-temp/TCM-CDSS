@@ -1,8 +1,9 @@
+import { patentMedicineDuplication } from "./patent-medicine-duplication.server";
 import "server-only";
 
 import { parseConfirmed, proposeTwiceThenVerifyAll } from "./cross-model-small-task.server";
 import { herbCautionReferenceText, herbClaimReferenceText, herbPropertyReferenceText } from "./m04-formula-analysis-claim-check.server";
-import { distinctModificationConditions, standbyModificationsDelivered, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
+import { modificationTriggerNotFinding, distinctModificationConditions, standbyModificationsDelivered, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { compositionIdentityName } from "./tcm-formula-provenance";
 import { quoteGroundedInText } from "./verbatim-quote";
@@ -40,13 +41,13 @@ const SYSTEM = [
   "misfit：只在 kind 为 model 的行判。这味药的主要功效管不到这个症，或与本证方向相反（虚寒证单加苦寒药、阴虚证单加温燥药；实热、火热证为非主诉的次要表现加温性药，如胃热炽盛证「纳差」加焦山楂——property 是《中药学》药性，次要表现由主证病机所致、主方清其病机即可），或这个条件不是本病会出现的变化；这个表现是主病直接引起的（高热、热毒内陷致拒食纳差，剧痛致失眠，失血、气脱致头晕），治好主病自然缓解，另加偏性药不当（如热毒证拒食加焦山楂、失血头晕加天麻）；药的功效与这个表现在本证里的病机对不上（气血不足的头晕加平肝息风的天麻，固摄缩尿写桑椹、白术）。不因为有更好的选择就判 misfit。",
   "caution：两种 kind 都判。每一行先读 caution（《中药学》使用注意原文）：它点名慎用或忌用的某个症状（自汗、盗汗、便溏、失眠、出血…）本例病历写着，就判 caution，不论这一行的条件写的是什么（如麻黄 caution「表虚自汗、阴虚盗汗…慎用」，病历写「自汗」）。只看症状，「内有实热者慎用」这类说的是证候，不算；quote 摘病历里那个症状的逐字原文。",
   "unrelated：两种 kind 都判。条件说的情况与本例已记录的表现都无关——不是本例已有某个症状的加重或演变，也不是主诉主症的变化，而是另一组本例一条相关表现都没有的情况（如胃痛病例「若兼头晕目眩」而病历没有头晕；咳嗽病例「若兼有瘀血」而病历没有任何瘀象）。条件里的症状本例已有（程度不同也算）、或是本例主症常见的加重，不算 unrelated。quote 留空。",
-  "not_finding：两种 kind 都判。条件说的不是患者此刻的一个症状、体征或舌脉：生活习惯或诱因（熬夜、久坐、加班、屏幕使用时间长、饮食不节）、缓解因素（吃糖后好转、休息后减轻）、病名或基础病（慢性肾病3期、焦虑症病史）、检查或就诊经过（未接受检查、拒绝说明）、病历里的说明（家属与本人描述不同）、正常情况（睡眠尚可）。quote 留空。",
+  "not_finding：两种 kind 都判。主诉主症已经由主方治疗，主症本身、频次或形态不作加减条件；缓解/加重因素、表情神态、闸门红旗或优先评估所引用的危重表现、脱水休克灌注不足征象也不作条件。条件说的不是患者此刻的一个症状、体征或舌脉：生活习惯或诱因（熬夜、久坐、加班、屏幕使用时间长、饮食不节）、缓解因素（吃糖后好转、休息后减轻）、病名或基础病（慢性肾病3期、焦虑症病史）、检查或就诊经过（未接受检查、拒绝说明）、病历里的说明（家属与本人描述不同）、正常情况（睡眠尚可）。quote 留空。",
   "ok：其余。",
   "只输出 JSON：{\"rows\":[{\"line\":0,\"verdict\":\"ok\",\"quote\":\"\"}]}",
 ].join("\n");
 
 const VERIFY_SYSTEM = [
-  "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（not_finding：条件说的不是患者的症状、体征或舌脉，而是习惯、诱因、缓解因素、病名、检查或病历说明；contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症或与本证方向相反，含实热证为非主诉的次要表现加温性药；caution：这味药的使用注意点名慎用或忌用的那个症状，本例病历写着；unrelated：条件说的情况与本例已记录的表现都无关，既不是已有症状的加重或演变，也不是主诉主症的变化）。",
+  "你是中医主治医师。有人认为下面这条随证加减不该留给本例，理由在 verdict 里（not_finding：条件说的不是患者的症状、体征或舌脉，而是习惯、诱因、缓解或加重因素、表情神态、主诉主症本身、急危重征象、病名、检查或病历说明；contradicts：条件与病历已记录的情况相反；misfit：这味药管不到这个症或与本证方向相反，含实热证为非主诉的次要表现加温性药；caution：这味药的使用注意点名慎用或忌用的那个症状，本例病历写着；unrelated：条件说的情况与本例已记录的表现都无关，既不是已有症状的加重或演变，也不是主诉主症的变化）。",
   "只判这一条。理由成立答 true。条件只是病历没提到、或者只是另有更好的药，答 false。",
   "先在 why 里写这条理由依据的病历原文或药的功效（不超过20字），再下结论。",
   "只输出 JSON：{\"why\":\"…\",\"confirmed\":true} 或 {\"why\":\"…\",\"confirmed\":false}",
@@ -90,7 +91,7 @@ export function modificationFindingQualifies(finding: Finding, rows: readonly Js
   // 使用注意点名的症状本例写着（第三十八轮甲方标准病历5：自汗，加减「若气喘加炙麻黄」，麻黄「表虚自汗…慎用」）：摘录要逐字在病历里，
   // 并且摘录与这味药的使用注意原文共有一个两字词——说的是同一个症状，不是证候层面的「内有实热」。
   // 条件不是症状体征（习惯、诱因、缓解因素、病名、检查、病历说明；第四十五轮）：两种 kind 都判，由另一厂商复核确认。
-  if (finding.verdict === "not_finding") return true;
+  if (finding.verdict === "not_finding") return true; // 闭集在调用模型前由 modificationTriggerNotFinding 剔除；开放语义须跨厂商复核。
   if (finding.verdict === "caution") return cautionNamesRecordedSymptom(herbCautionReferenceText(text(row.herbName)), finding.quote, recordText);
   return Boolean(finding.quote) && quoteGroundedInText(finding.quote, recordText, { minChars: 2 });
 }
@@ -141,8 +142,7 @@ export function modificationFitRowPayload(row: Record<string, unknown>, line: nu
   };
 }
 
-export async function dropMisfitModifications(content: string, context: { recordText: string }, signal?: AbortSignal): Promise<string> {
-  if (!modificationFitEnabled()) return content;
+export async function dropMisfitModifications(content: string, context: { recordText: string; caseState?: CaseState; prior?: ClinicalReasoningResultV2 | null }, signal?: AbortSignal): Promise<string> {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -150,8 +150,14 @@ export async function dropMisfitModifications(content: string, context: { record
   try { root = record(JSON.parse(content.slice(start + START_MARKER.length, end).trim())); } catch { return content; }
   const formula = record(root?.formula);
   const overview = record(root?.overview);
-  const rows = Array.isArray(formula?.modifications) ? formula.modifications.map(record).filter((row): row is Json => Boolean(row)) : [];
-  if (!root || !formula || rows.length === 0) return content;
+  const originalRows = Array.isArray(formula?.modifications) ? formula.modifications.map(record).filter((row): row is Json => Boolean(row)) : [];
+  const rows = originalRows.filter((row) => !modificationTriggerNotFinding(text(row.trigger), { ...context, prior: context.prior || { overview: { tcmDiseaseName: text(overview?.tcmDiseaseName) } } }));
+  if (!root || !formula) return content;
+  if (rows.length !== originalRows.length) {
+    formula.modifications = rows;
+    content = `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(root, null, 2)}\n${content.slice(end)}`;
+  }
+  if (!modificationFitEnabled() || rows.length === 0) return content;
   const syndrome = text(overview?.primarySyndrome);
   const method = text(record(root.therapy)?.overallMethod);
   const disease = text(overview?.tcmDiseaseName);
@@ -184,7 +190,7 @@ export async function dropMisfitModifications(content: string, context: { record
     : [];
   formula.modifications = withoutOrphanPartnerRows(rows.filter((_, index) => !bad.has(index)), candidateHerbs);
   console.info("[tcm-cdss:telemetry] m04_modification_fit", { dropped: bad.size, checked: rows.length, verdicts: findings.map((finding) => finding.verdict) });
-  return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(root, null, 2)}\n${content.slice(end)}`;
+  return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(root, null, 2)}\n${content.slice(content.indexOf(END_MARKER, start + START_MARKER.length))}`;
 }
 
 /** 把 source 里核对后的加减行放进 target（两份来自同一份内容、各改一处）。解析不了时返回 target。 */
@@ -207,9 +213,9 @@ export function withModificationsFrom(target: string, source: string): string {
 
 const TOP_UP_SYSTEM = [
   "你是中医主治医师。证型、治法、方药已定，现在为本例补写随证加减。随证加减是给这位患者这次就用的，不写「若…」这种以后才可能出现的备用条件。",
-  "先读 record，找出病历里已经记录、主方 herbs 没有直接照顾到的伴随表现（主诉主症以外的症状，如便溏、口干、咽痛、眠差、咳痰、多汗、小便不利；舌苔、舌质、脉象只能和症状写在同一条里作条件，如「口苦、苔黄」，单写舌象或脉象不作条件，舌淡红、苔薄白、脉缓这类正常所见不写）；这样的表现不够两个时，再从本例较突出、主方照顾力度不足的已记录表现里补（如畏寒肢冷明显、腰膝酸软，加一味同向的药增强）；还不够时，写一条主诉主症的加强：trigger 摘 chiefComplaint 里主症的原话，herbName 优先从 mainSymptomHerbs（教材本证的药与教材加减里点到这一症的药）里选。每个表现写一条，凑够 2 条、最多 3 条：trigger 逐字摘病历里这个表现的原话（2–12 字，不加「若」，不写证候名）；herbName 是不在 herbs 里的一味常用饮片；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个表现；symptomPathogenesis 用一句话（≤20字）写这个表现本身的病机。",
+  "先读 record，找出病历里已经记录、主方 herbs 没有直接照顾到的伴随表现（主诉主症以外的症状，如便溏、口干、咽痛、眠差、咳痰、多汗、小便不利；舌苔、舌质、脉象只能和症状写在同一条里作条件，如「口苦、苔黄」，单写舌象或脉象不作条件，舌淡红、苔薄白、脉缓这类正常所见不写）；这样的表现不够两个时，再从本例较突出、主方照顾力度不足的已记录表现里补（如畏寒肢冷明显、腰膝酸软，加一味同向的药增强）；主诉主症及其频次、形态由主方治疗，不作加减条件，不能为凑条数再写主症加强。每个表现写一条，凑够 2 条、最多 3 条：trigger 逐字摘病历里这个表现的原话（2–12 字，不加「若」，不写证候名）；herbName 是不在 herbs 里的一味常用饮片；dose 写克数（如 10g），在药典常用量内；reason 说这味药怎样管这个表现；symptomPathogenesis 用一句话（≤20字）写这个表现本身的病机。",
   "纳差、食少不是主诉、证候又不涉脾胃食积时，不为它加消食药（焦山楂、神曲、麦芽、鸡内金）；病人高热、意识改变、休克、少尿这类急危重表现不作加减条件。",
-  "trigger 必须是患者此刻的一个症状、体征（不写生活习惯或诱因如熬夜、久坐、屏幕时间长，不写缓解因素如吃糖后好转，不写病名、病史、检查或就诊经过，不写既往史、个人史里的内容）。",
+  "trigger 必须是患者此刻的一个症状、体征（不写生活习惯或诱因如熬夜、久坐、屏幕时间长，不写缓解或加重因素如吃糖后好转、遇冷加重，不写表情神态，不写主诉主症本身，不写急危重征象，不写病名、病史、检查或就诊经过，不写既往史、个人史里的内容）。",
   "主病直接引起的伴随表现不另加药（因疼痛或瘙痒而眠差、因发热而纳差、外感正邪相争而精神差，主病好了自然好）。药的寒热补泻要与证型一致：外感、痰热、湿热、瘀血这类实证不为次要表现加补益药，虚证不加攻伐药。病历否认的、existing 里已有的不写。病历里找不到这样的表现就少写或输出空数组，不要编。",
   // 第四十六轮：补写的行要过编译的全部判据，模型只给一两条时常常一条都进不去（p100c 23 份不足两个条件）。多给几条备选，理由只写这味药对这个表现的作用。
   "给 3–4 条备选，按把握从大到小排；每条的条件不同、药不同。reason 只写这味药针对这个表现的作用，用治法 method 里有的说法；治法里没有的温里、清热、补益、泻下、破血、散结这类方向不要写进 reason。",
@@ -225,7 +231,7 @@ const STANDBY_TOP_UP_SYSTEM = [
 ].join("\n");
 
 const TOP_UP_VERIFY_SYSTEM = [
-  "你是中医主治医师。下面这条随证加减针对本例病历里已有的一个表现，这次就用。默认答 true；只有这味药管不到这个表现、与本证方向相反（实证为次要表现加补益药、虚证加攻伐药、寒证加寒凉药、热证加温热药）、这个表现病历里其实是否认的，或它只是主病直接引起、治好主病自然缓解的表现，或条件根本不是症状体征（习惯、诱因、缓解因素、病名、检查、病历说明）时答 false。",
+  "你是中医主治医师。下面这条随证加减针对本例病历里已有的一个表现，这次就用。默认答 true；只有这味药管不到这个表现、与本证方向相反（实证为次要表现加补益药、虚证加攻伐药、寒证加寒凉药、热证加温热药）、这个表现病历里其实是否认的，或它只是主病直接引起、治好主病自然缓解的表现，或条件只是主诉主症本身，或是急危重表现，或条件根本不是可据以加减的症状体征（习惯、诱因、缓解或加重因素、表情神态、病名、检查、病历说明）时答 false。",
   "只输出 JSON：{\"confirmed\":true} 或 {\"confirmed\":false}",
 ].join("\n");
 
@@ -249,7 +255,7 @@ function parseTopUp(content: unknown): TopUpRow[] | undefined {
 }
 
 /**
- * 主诉主症加强行可选的药（第四十六轮：病历只有主症时，补写给不出第二个条件——C040「多尿乏力」两次提名都是空的）：
+ * 历史兼容工具，第四十七轮补写不再调用。原主诉主症加强行可选的药（第四十六轮：病历只有主症时，补写给不出第二个条件——C040「多尿乏力」两次提名都是空的）：
  * 教材本证一行的组成里不在本方的药，加上教材本证加减里条件点到主诉主症的那几条的药。名字按组成身份比对，至多 8 味。纯函数，供测试。
  */
 export function mainSymptomStrengtheningHerbs(prior: ClinicalReasoningResultV2 | null | undefined, chiefComplaint: string, candidateHerbs: readonly string[]): string[] {
@@ -284,22 +290,25 @@ export async function topUpModificationConditions(
   const formula = record(root?.formula);
   const candidate = record(Array.isArray(formula?.candidates) ? formula.candidates[0] : undefined);
   if (!root || !formula || !candidate || !Array.isArray(candidate.herbs)) return content;
-  const rows = Array.isArray(formula.modifications) ? formula.modifications.map(record).filter((row): row is Json => Boolean(row)) : [];
+  const originalRows = Array.isArray(formula.modifications) ? formula.modifications.map(record).filter((row): row is Json => Boolean(row)) : [];
+  const rows = originalRows.filter((row) => !modificationTriggerNotFinding(text(row.trigger), context));
+  formula.modifications = rows;
   const existing = rows.map((row) => text(row.trigger));
-  if (distinctModificationConditions(rows) >= MIN_DISTINCT_CONDITIONS) return content;
-  const herbs = candidate.herbs.map((herb) => text(record(herb)?.name)).filter(Boolean);
+  if (distinctModificationConditions(rows) >= MIN_DISTINCT_CONDITIONS) return rows.length === originalRows.length ? content
+    : `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(root, null, 2)}\n${content.slice(end)}`;
+  const duplicationHerbs = candidate.herbs.map((herb) => ({ name: text(record(herb)?.name), role: text(record(herb)?.role) }));
+  const herbs = duplicationHerbs.map((herb) => herb.name).filter(Boolean);
   const syndrome = text(record(root.overview)?.primarySyndrome);
   const method = text(record(root.therapy)?.overallMethod);
   const chiefComplaint = text(context.caseState?.chiefComplaint);
-  const mainSymptomHerbs = mainSymptomStrengtheningHerbs(context.prior, chiefComplaint, herbs);
   const added = await proposeTwiceThenVerifyAll<TopUpRow>("m04_modification_top_up", "prescribe", {
     messages: [
       { role: "system", content: standbyModificationsDelivered() ? STANDBY_TOP_UP_SYSTEM : TOP_UP_SYSTEM },
-      { role: "user", content: JSON.stringify({ syndrome, method, herbs, existing, chiefComplaint, mainSymptomHerbs, record: context.recordText.slice(0, 2_400) }) },
+      { role: "user", content: JSON.stringify({ syndrome, method, herbs, existing, chiefComplaint, record: context.recordText.slice(0, 2_400) }) },
     ],
     maxTokens: 700,
     parse: parseTopUp,
-  }, (row) => `${row.trigger}|${row.herbName}`, (row) => ({
+  }, (row) => `${row.trigger}|${row.herbName}`, (row) => modificationTriggerNotFinding(row.trigger, context) ? undefined : ({
     messages: [
       { role: "system", content: TOP_UP_VERIFY_SYSTEM },
       { role: "user", content: JSON.stringify({ syndrome, method, herbs, row, record: context.recordText.slice(0, 1_500) }) },
@@ -318,8 +327,10 @@ export async function topUpModificationConditions(
     triggers.push(row.trigger);
     taken.push(row.herbName);
   }
-  if (delivered.length === rows.length) return content;
+  if (delivered.length === rows.length && rows.length === originalRows.length) return content;
   formula.modifications = delivered;
+  if (Array.isArray(formula.patentAndWestern)) formula.patentAndWestern = formula.patentAndWestern.map(record).filter((row): row is Json => Boolean(row))
+    .filter((medicine) => !patentMedicineDuplication(medicine, duplicationHerbs, [], delivered));
   console.info("[tcm-cdss:telemetry] m04_modification_top_up", { before: rows.length, after: delivered.length });
   return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(root, null, 2)}\n${content.slice(end)}`;
 }
