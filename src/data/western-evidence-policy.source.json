@@ -91,6 +91,12 @@
     },
     {
       "host": "scfcms.cn"
+    },
+    {
+      "host": "pubmed.ncbi.nlm.nih.gov"
+    },
+    {
+      "host": "jstage.jst.go.jp"
     }
   ],
   "nameQualifiers": [
@@ -130,5 +136,6 @@
       "basis": "要点表原来源是慢性咽炎，白名单替换页换成扁桃体咽炎，仅共有咽炎二字不足以据此作为慢性咽炎来源。缺少对题来源时留空。",
       "sourceRef": "western-diagnostic-criteria.source.json:慢性咽炎.originalSource/referenceEvidence"
     }
-  ]
+  ],
+  "sitesNote": "pubmed.ncbi.nlm.nih.gov（PMID 索引的期刊论文）与 jstage.jst.go.jp（学会期刊全文平台）2026-11-15 加入：本地受治理诊断文献目录按 PMID/DOI 收录，题名核验仍照常；白名单原本针对在线检索的门户与博客。"
 }
