@@ -1,3 +1,5 @@
+import { m03TcmTwoPassPolicy } from "@/lib/m03-tcm-two-pass.server";
+import { buildM03TcmRuntimeContext } from "@/lib/m03-tcm-runtime.server";
 import { alignAnalysisWithConclusion } from "@/lib/m03-analysis-alignment.server";
 import { prefetchDiagnoseInputs, prefetchPrescribeInputsFromSignedDiagnose, tapFinalStageContent } from "@/lib/stage-prefetch.server";
 import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.server";
@@ -304,6 +306,7 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
   });
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: signal,
+    ...(m03TcmTwoPassPolicy().enabled ? { m03TcmTwoPass: { context: buildM03TcmRuntimeContext(safeState, textbookDiseasePicks, clinicalGroundingText(safeState)) } } : {}),
     structuredLimitedInformation: limitedInformation,
     initialVisiblePrefix: initialSafetyBanner || undefined,
     upstreamUnavailableFallback: `${cdssReasonCodeMarker("upstream_model_unavailable")}\n${signedLimitedDiagnosis(upstreamGate, "not_attempted_upstream_down")}`,

@@ -14,3 +14,5 @@ export async function withRewriteLedger<T>(context: GateContext, work: () => T |
   const ledger = createRewriteLedger(context);
   return storage.run(ledger, async () => ({ value: await work(), ledger: ledger.events }));
 }
+
+export const currentRewriteLedger = () => storage.getStore();

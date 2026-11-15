@@ -1,9 +1,13 @@
+import { M03_TCM_CONCLUSION_PROVIDER_SCHEMA } from "./m03-tcm-conclusion";
+import { M03_TCM_NARRATIVE_PROVIDER_SCHEMA } from "./m03-tcm-narrative";
 import { z } from "zod";
 import { ReasoningV2Schema } from "./diagnosis-types";
 import { M04ProposalSchema } from "./m04-proposal-compiler";
 import { textModelCapabilities } from "./text-model-capabilities";
 
 export type StructuredOutputTask =
+  | "m03_tcm_conclusion"
+  | "m03_tcm_narrative"
   | "m03_full"
   | "m03_western"
   | "m03_tcm"
@@ -433,6 +437,8 @@ function pruneUnreachableDefs(schema: JsonSchema): JsonSchema {
 }
 
 function schemaForTask(task: StructuredOutputTask): JsonSchema {
+  if (task === "m03_tcm_conclusion") return M03_TCM_CONCLUSION_PROVIDER_SCHEMA;
+  if (task === "m03_tcm_narrative") return M03_TCM_NARRATIVE_PROVIDER_SCHEMA;
   if (task === "m03_full") {
     return pruneUnreachableDefs(stripServerOwnedM03Fields(requireGeneratedM03Content(requireGeneratedM03Chain(fullReasoningSchema()))));
   }
@@ -541,7 +547,7 @@ function omittableOptionalProjection(value: unknown): unknown {
  *  · M04 首轮：不附 14/14 → 附后反而 11/14（括号提前闭合、多出 schema 外的键）。M04 提示词
  *    自带逐字段示例，再叠一份 schema 只会干扰，所以不附；校验与严格兜底照样生效。
  */
-const NON_STRICT_SCHEMA_INSTRUCTION_TASKS: ReadonlySet<StructuredOutputTask> = new Set(["m03_full", "m03_western", "m03_tcm"]);
+const NON_STRICT_SCHEMA_INSTRUCTION_TASKS: ReadonlySet<StructuredOutputTask> = new Set(["m03_full", "m03_western", "m03_tcm", "m03_tcm_conclusion", "m03_tcm_narrative"]);
 
 /**
  * 非严格模型的系统消息附加段；严格模型返回空串（schema 已在 response_format 里，
@@ -555,7 +561,7 @@ export function structuredOutputSchemaInstruction(model: string, task: Structure
     "标了 minItems 的数组必须至少给出相应条数的实质内容；enum 字段只能取列出的值之一；不得输出 schema 未定义的键；",
     "数组元素是对象的，必须写成对象（含其 required 键），不能写成字符串。",
     JSON.stringify(omittableOptionalProjection(providerJsonSchemaForTask(task))),
-    ...(task === "m03_western" ? [] : [NON_STRICT_RESOLUTION_RULE]),
+    ...(task === "m03_western" || task === "m03_tcm_conclusion" || task === "m03_tcm_narrative" ? [] : [NON_STRICT_RESOLUTION_RULE]),
   ].join("\n");
 }
 
@@ -1088,7 +1094,7 @@ export function strictToolParametersForTask(task: StructuredOutputTask): JsonSch
 
 /** strict 工具调用的系统消息附加段：不再附 schema（在工具参数里），只保留中医半的 resolution 定档句。 */
 export function strictToolSystemInstruction(task: StructuredOutputTask): string {
-  return task === "m03_western" ? "" : NON_STRICT_RESOLUTION_RULE;
+  return task === "m03_western" || task === "m03_tcm_conclusion" || task === "m03_tcm_narrative" ? "" : NON_STRICT_RESOLUTION_RULE;
 }
 
 function blankToolValue(value: unknown): boolean {

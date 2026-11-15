@@ -1,3 +1,5 @@
+import { r1064GenerationIdentity } from "./r1064-generation-identity.server";
+import { withStageGenerationOutcome } from "./stage-generation-outcome.server";
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -140,6 +142,7 @@ function fingerprintText(value: string): string {
 /** 结果只在同一版代码、同一组模型下复用：换了版本或换了模型，旧结果不再回放。 */
 function generationIdentity(): string {
   return [
+    r1064GenerationIdentity(),
     process.env.CDSS_BUILD_SOURCE_DIGEST || "",
     process.env.PRIMARY_DIAGNOSE_MODEL || "",
     process.env.PRIMARY_PRESCRIBE_MODEL || "",
@@ -455,8 +458,9 @@ export async function coalesceStageResponse(input: {
   };
   entries.set(input.key, entry);
   let response: Response;
+  const generationOutcome = { reusable: true };
   try {
-    response = await input.compute(controller.signal);
+    response = await withStageGenerationOutcome(generationOutcome, () => input.compute(controller.signal));
   } catch (error) {
     clearTimeout(hardLimit);
     entries.delete(input.key);
@@ -483,7 +487,7 @@ export async function coalesceStageResponse(input: {
     entry.done = true;
     entry.finishedAt = Date.now();
     const final = finalContentFromLines(entry.lines);
-    entry.cacheable = final.ended && !final.errored && input.cacheable(final.content);
+    entry.cacheable = generationOutcome.reusable && final.ended && !final.errored && input.cacheable(final.content);
     if (!entry.cacheable) {
       entries.delete(input.key);
       // 降级结果不能被模型调用这一层固定下来：这次用过的答案作废，下次重试才可能不同。

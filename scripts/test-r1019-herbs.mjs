@@ -401,7 +401,9 @@ check("7.7 接线：开方路由把核对注入 m04CandidateTransform；流层�
     assert.match(api, new RegExp(`${name} = finalizeM04CandidateContent\\(${name}\\);\\n\\s*${name} = await transformM04Candidate\\(${name}\\);`), `${name}：须紧跟 finalize`);
   }
   assert.equal((api.match(/const transformM04Candidate = async/g) || []).length, 1);
-  assert.match(api, /const transformM04Candidate = async[\s\S]{0,400}catch \{\n\s*return content;/);
+  // R47 I1: 先跑旧断言确认仅台账记录增加了字符数；按函数边界检查同一失败隔离。
+  const transform = api.slice(api.indexOf("const transformM04Candidate = async"), api.indexOf("const finalizeM04CandidateContent ="));
+  assert.match(transform, /catch \{\n\s*return content;/);
 });
 check("7.8 参考数据：《中药学》功效与《方剂学》方解生成产物条数够、附药带所附正药；本机有语料时功效行逐字对得上", () => {
   const data = JSON.parse(readFileSync("src/data/tcm-herb-textbook-references.json", "utf8"));

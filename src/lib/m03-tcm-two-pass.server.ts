@@ -1,7 +1,7 @@
 import "server-only";
 import { buildM03TcmConclusionPrompt, freezeM03TcmConclusion, M03_TCM_CONCLUSION_PROVIDER_SCHEMA,
   type FrozenM03TcmConclusion, type M03TcmContext } from "./m03-tcm-conclusion";
-import { checkM03TcmConclusion, m03TcmCheckPolicy, withinM03TcmBudget, type M03TcmConclusionCheckIO } from "./m03-tcm-conclusion-checks.server";
+import { checkM03TcmConclusion, withinM03TcmBudget, type M03TcmConclusionCheckIO } from "./m03-tcm-conclusion-checks.server";
 import { authorM03TcmNarrative, type M03TcmModelIO } from "./m03-tcm-narrative.server";
 import { m03TcmNarrativeSentences, pruneInvalidM03TcmSentences, usableM03TcmNarrative, type NarrativeViolation, type M03TcmNarrative } from "./m03-tcm-narrative";
 import { validateM03TcmNarrative, type M03TcmTextCheckIO } from "./m03-tcm-text-validation.server";
@@ -17,11 +17,8 @@ export type M03TcmTwoPassResult =
   | { kind: "ready" | "bounded"; tcmRaw: string; half: M03TcmHalf; frozen: FrozenM03TcmConclusion;
       narrative: M03TcmNarrative; quality: { rewrites: number; prunedSentenceIds: string[]; reasons: string[] }; reusable: boolean };
 /** Only these non-secret switches are read. P5 must include their effective identity in its cache key. */
-export function m03TcmTwoPassPolicy(env: Record<string, string | undefined> = process.env) {
-  return { enabled: env.CDSS_M03_TCM_TWO_PASS === "true" && env.M03_PARALLEL_GENERATION?.trim().toLowerCase() !== "false",
-    prefetch: env.CDSS_M03_TCM_CHECK_PREFETCH !== "false", rewrite: env.CDSS_M03_TCM_NARRATIVE_REWRITE !== "false",
-    checks: m03TcmCheckPolicy(env), version: "m03-tcm-two-pass-v1" };
-}
+export { m03TcmTwoPassPolicy } from "./m03-tcm-policy";
+import { m03TcmTwoPassPolicy } from "./m03-tcm-policy";
 
 /**
  * P5 integration boundary (main switch defaults off):

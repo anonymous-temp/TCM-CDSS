@@ -46,6 +46,9 @@ const PROMPT_ONLY_FILES = new Set([
   "src/lib/syndrome-hypothesis-rerank.server.ts",        // 证候候选重排提示词
   // 内部口径词**检测器**：它必须含有这些词才能把它们从可见正文里找出来。
   "src/lib/m03-therapy-lock.ts",
+  // R47: 已先跑旧断言；这两处命中均为内部两步提案/核对提示词，W11另钉提案不能进入NDJSON。
+  "src/lib/m03-tcm-conclusion.ts",
+  "src/lib/m03-tcm-check-adapters.server.ts",
 ]);
 
 // 内部口径词。这些是我们自己的实现语汇，医生不需要、也不该在结论里读到。

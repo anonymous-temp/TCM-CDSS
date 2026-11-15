@@ -144,12 +144,18 @@ check("阶段名写入点恰好两处，心跳文案不在 diagnosis-api.ts 内�
 });
 
 check("定稿正文下发即停表，进度行不会挂在已完成的报告下面", () => {
-  const enqueueStart = api.indexOf("const enqueueClient = (content: string) => {");
-  assert.ok(enqueueStart > 0, "未找到 enqueueClient");
-  const body = api.slice(enqueueStart, enqueueStart + api.slice(enqueueStart).indexOf("};") + 2);
-  assert.ok(body.length < 900, `enqueueClient 边界切过头（${body.length} 字符），断言会空转`);
-  assert.ok(/content\.startsWith\(STREAM_REPLACE_MARKER\)\s*\)\s*\{[^}]*stopHeartbeat\(\)/.test(body),
-    "定稿正文下发时未停表：心跳仍会在完整报告下面追加一行「进行中」");
+  // R47 I1: 已先跑旧断言。最终出口新增异步总闸，900字符截断已失效；按AST函数边界检查停表。
+  const tree = ts.createSourceFile("diagnosis-api.ts", api, ts.ScriptTarget.Latest, true);
+  let body;
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === "enqueueClient" && node.initializer && ts.isArrowFunction(node.initializer)) body = node.initializer.body;
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  assert.ok(body && ts.isBlock(body), "未找到 enqueueClient 函数体");
+  const replace = body.statements.find(node => ts.isIfStatement(node) && node.expression.getText(tree) === "content.startsWith(STREAM_REPLACE_MARKER)");
+  assert.ok(replace && ts.isBlock(replace.thenStatement));
+  assert.ok(replace.thenStatement.statements.some(node => node.getText(tree) === "stopHeartbeat();"), "定稿出口必须先停表");
 });
 
 console.log(`\n心跳阶段名：${checks} 项断言全部通过`);
