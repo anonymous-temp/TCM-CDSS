@@ -669,7 +669,7 @@ const checkAsync = async (name, run) => {
     assert.deepEqual(parse([{ ...good, diseaseName: "淋证" }]), [], "闭集外的病名不收");
     assert.deepEqual(parse([{ ...good, distinguishingPoints: "白浊是泌尿生殖系统的化脓性感染，临床特征为尿窍流出混浊如脓之物" }]), [], "照搬教材定义的不收");
     assert.deepEqual(parse([{ ...good, distinguishingPoints: "本例据教材定义可区分" }]), [], "提到教材的不收");
-    assert.deepEqual(parse([{ ...good, typicalManifestation: "" }]), [], "典型表现不得为空");
+    assert.equal(parse([{ ...good, typicalManifestation: "" }])[0]?.typicalManifestation, "", "r1064：定义由服务端逐字回填，模型不填定义不拒收");
     assert.equal(parse([good, { ...good }, { ...good, diseaseName: "白淫" }]).length, 2, "同名去重，最多两条");
     assert.deepEqual(authoring.parseAuthoredTcmDiseaseDifferentials("不是 JSON", allowed), []);
   });
@@ -689,15 +689,14 @@ const checkAsync = async (name, run) => {
       globalThis.fetch = async () => { calls += 1; return completion({ differentials: [{ ...good, diseaseName: textbookNames[0] }] }); };
       const filled = JSON.parse(await authoring.completeTcmDiseaseDifferentials(half([]), { recordText }));
       assert.equal(calls, 1);
-      assert.equal(filled.overview.tcmDiseaseDifferentials[0].diseaseName, textbookNames[0]);
-      assert.match(filled.overview.tcmDiseaseDifferentials[0].distinguishingPoints, /^本例/);
+      assert.deepEqual(filled.overview.tcmDiseaseDifferentials, [], "r1064：尿窍流浊不与本例阴道白带主症相交，宁少不凑");
       assert.equal(filled.overview.primarySyndrome, "脾虚证", "其余字段不动");
       const existing = half([
         { diseaseName: textbookNames[0], reason: "同见白色分泌物", distinguishingPoints: "本例出自阴道，未诉尿痛", typicalManifestation: "尿窍流浊", nextCheck: null },
         { diseaseName: textbookNames[1] || "阴痒", reason: "同属带下异常", distinguishingPoints: "本例无阴痒", typicalManifestation: "阴部瘙痒", nextCheck: null },
       ]);
       assert.equal(await authoring.completeTcmDiseaseDifferentials(existing, { recordText }), existing, "模型已经写了 2 条可保留的鉴别时原样返回");
-      assert.equal(calls, 1, "不发请求");
+      assert.equal(calls, 2, "r1064：两条原有鉴别没有主症交集，仍须尝试补写");
       globalThis.fetch = async () => { throw new Error("upstream down"); };
       const other = half([{ diseaseName: "阴道炎", reason: "x", distinguishingPoints: "y" }]);
       assert.equal(await authoring.completeTcmDiseaseDifferentials(other, { recordText: `${recordText}（第二例）` }), other, "模型不可用时原样返回");
@@ -749,7 +748,7 @@ const checkAsync = async (name, run) => {
       pathogenesis: { chain: [{ pathogenesis: "x" }] }, westernDiagnosis: { primary: { name: "x" }, differentials: [] } });
     const urticaria = projectDeliveredReasoning(diagnose("瘾疹")).overview.tcmDiseaseDifferentials;
     assert.ok(!urticaria.some((item) => /丘疹性荨麻疹/.test(item.diseaseName)), JSON.stringify(urticaria));
-    const lumbago = projectDeliveredReasoning(diagnose("腰痛")).overview.tcmDiseaseDifferentials.map((item) => item.diseaseName);
+    const lumbago = projectDeliveredReasoning(diagnose("腰痛"), { recordText: "主诉：腰背部疼痛半年" }).overview.tcmDiseaseDifferentials.map((item) => item.diseaseName);
     assert.deepEqual(lumbago, ["背痛", "尻痛"]);
   });
 }
@@ -1011,9 +1010,10 @@ const checkAsync = async (name, run) => {
   });
   check("8.3 中医鉴别的教材兜底：理由不写「教材列为本病的鉴别病证」，要点去掉「本病与X相鉴别。」开场句，教材描述照列", () => {
     const out = projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
-      overview: { tcmDiseaseName: "妊娠咳嗽", primarySyndrome: "阴虚肺燥证", tcmDiseaseDifferentials: [] }, westernDiagnosis: { primary: { name: "妊娠合并急性支气管炎" }, differentials: [] } });
+      // 第四十七轮：用有主症交集的普通咳嗽检验文案；妊咳不得为凑数塞入无交集候选。
+      overview: { tcmDiseaseName: "咳嗽", primarySyndrome: "风寒袭肺证", tcmDiseaseDifferentials: [] }, westernDiagnosis: { primary: { name: "急性支气管炎" }, differentials: [] } }, { recordText: "主诉：咳嗽2周" });
     const rows = out.overview.tcmDiseaseDifferentials;
-    assert.ok(rows.length > 0, "夹具前提：教材对妊娠咳嗽列有鉴别病");
+    assert.ok(rows.length > 0, "夹具前提：教材对咳嗽列有共享主症的鉴别病");
     for (const row of rows) {
       assert.doesNotMatch(`${row.reason}${row.distinguishingPoints}`, /教材列为|^本病与/, JSON.stringify(row));
       assert.ok(row.distinguishingPoints.length > 10, "教材描述照列");

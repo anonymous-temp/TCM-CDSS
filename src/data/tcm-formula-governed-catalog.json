@@ -45,7 +45,7 @@
     "sameNamePolicy": "门诊裸词“加味逍遥散”按别名归入丹栀逍遥散；只有明确《审视瑶函》或暴盲语境才进入具名眼科变体。"
   },
   "summary": {
-    "textbookFunctionsFilled": 211,
+    "textbookFunctionsFilled": 210,
     "syndromeTagRouteRejectedCount": 222,
     "syndromeTagCuratedNeutralizedCount": 54,
     "nameCompositionMismatchDropped": [
@@ -457,7 +457,7 @@
       "桂麝散@《药蔹启秘》 → 《药奁启秘》:9味",
       "清神散@《类编朱氏集验方》 → 《类编朱氏集验医方》:10味",
       "固阴煎@《景岳全书》 → 《景岳全书》:8味",
-      "桃红四物汤@《妇科冰鉴》 → 《妇科冰鉴》:6味",
+      "桃红四物汤@《妇科冰鉴》 → 《医宗金鉴》:6味",
       "解郁汤@《傅青主女科》 → 《傅青主女科》:9味",
       "半夏散及汤@《绛雪园古方选注》 → 《伤寒论》:3味",
       "大黄甘遂汤@《三因极一病证方论》 → 《金匮要略》:3味",
@@ -160849,14 +160849,14 @@
       ]
     },
     {
-      "id": "TCM-FORMULA-F1F903491D19",
+      "id": "TCM-FORMULA-4388A3F2131D",
       "name": "桃红四物汤",
       "aliases": [],
-      "source": "《妇科冰鉴》",
-      "sourceOriginal": "《妇科冰鉴》",
-      "prescriptionOriginal": "生地三钱（酒洗），当归四钱（酒洗），白芍钱五分（酒炒），川芎一钱，桃仁十四粒（去皮尖研泥），红花一钱（酒洗）。",
+      "source": "《医宗金鉴》",
+      "sourceOriginal": "《医宗金鉴》",
+      "prescriptionOriginal": "桃仁、红花、当归、白芍、熟地黄、川芎。",
       "ingredients": [
-        "生地",
+        "熟地黄",
         "当归",
         "白芍",
         "川芎",
@@ -160872,8 +160872,8 @@
           "url": "urn:tcm-cdss:official-classic-formula:桃红四物汤"
         },
         {
-          "title": "目录校勘组成重录：药名夹带数量词已剥离：桃仁十四粒→桃仁（原目录解析丢了括号，数量词黏进药名；数量留在recordedComposition）",
-          "url": "urn:tcm-cdss:catalog-parse-repair:quantity-suffix",
+          "title": "目录校勘组成重录：第四十七轮：本机《中医内科学》方剂索引第238136行「桃红四物汤（《医宗金鉴》）：桃仁、红花、当归、白芍、熟地黄、川芎。」；《中医妇科学》月经过少等教材引书同为《医宗金鉴》。通用名锚定到教材这一版本；《妇科冰鉴》生地方仍保留在原方组成表（方名+书名）中，不把它与熟地黄版混为一方，不改变国家目录原始数据。",
+          "url": "urn:tcm-cdss:local-textbook:TCM-Educational-Materials:238136",
           "sourceRef": "ADJ-COLLATION-20260809"
         }
       ],
@@ -160884,12 +160884,10 @@
       "collationAdministration": "internal",
       "ingredientLinks": [
         {
-          "rawName": "生地",
-          "canonicalName": "生地黄",
-          "doseCanonicalName": "地黄",
-          "linkageStatus": "source_backed_clinical_extension",
-          "autoResolvable": true,
-          "preparation": "生品"
+          "rawName": "熟地黄",
+          "canonicalName": "熟地黄",
+          "linkageStatus": "exact_standard_name",
+          "autoResolvable": true
         },
         {
           "rawName": "当归",
@@ -160923,7 +160921,7 @@
         }
       ],
       "indications": [
-        "《妇科冰鉴》"
+        "《医宗金鉴》"
       ],
       "syndromeTags": [
         "TCM-SYNDROME-91C968230D63"
@@ -160976,19 +160974,7 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": [],
-      "functions": [
-        "养血活血"
-      ],
-      "functionsSource": {
-        "work": "联网核对（《中医方剂大辞典》/《方剂学》教材转载等）",
-        "reference": {
-          "title": "A+医学百科「桃红四物汤」条目（转录《中医方剂大辞典》/方剂学条目）",
-          "url": "https://www.a-hospital.com/w/%E6%A1%83%E7%BA%A2%E5%9B%9B%E7%89%A9%E6%B1%A4"
-        },
-        "compositionCheck": "partial",
-        "match": "curated_row"
-      }
+      "blockingReasons": []
     },
     {
       "id": "TCM-FORMULA-EB89439BD5F7",

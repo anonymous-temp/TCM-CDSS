@@ -122,7 +122,9 @@ await check("2.6 教材锚定：活动性出血时不把治法改回教材的「
   assert.equal(modelBarred.overview.recommendedFormulaDirection, "按已锁定病机与治法辨证组方");
   assert.deepEqual(modelBarred.overview.recommendedFormulaNames, []);
   const siwu = provenance.withDeterministicFormulaReferences({ ...diagnose("益气止血固脱", "四物汤加减"), overview: { ...diagnose("", "").overview, tcmDiseaseName: "异位妊娠", primarySyndrome: "气血亏脱证", recommendedFormulaDirection: "四物汤加减" } }, BLEEDING, undefined, safetyBleeding);
-  assert.match(siwu.overview.recommendedFormulaDirection, /四物汤/);
+  // r1064：实跑旧断言失败。异位妊娠这行是术后方，未手术时须切到有出处且过安全层的救脱方向。
+  assert.match(siwu.overview.recommendedFormulaDirection, /手术止血/);
+  assert.doesNotMatch(siwu.overview.recommendedFormulaDirection, /四物汤/);
   const anchored = provenance.withDeterministicFormulaReferences(diagnose("化瘀止痛", "本例辨证组方"), QUIET);
   assert.match(anchored.therapy.overallMethod, /活血化瘀/);
   assert.match(anchored.overview.recommendedFormulaDirection, /少腹逐瘀汤/);
@@ -461,7 +463,7 @@ await check("8.18 教材治法栏只锚打头那串治法短语：异位妊娠·
     pathogenesis: { chain: [], locationDifferentiation: { items: ["胞宫"] } } };
   const out = provenance.withDeterministicFormulaReferences(ectopic, BLEEDING, undefined, { activeBleeding: true, barredHerb: (herb) => contract.herbBarredForCase(herb, BLEEDING) });
   assert.doesNotMatch(out.therapy.overallMethod, /此证为|手术|活血化瘀/, out.therapy.overallMethod);
-  assert.match(out.therapy.overallMethod, /^益气止血固脱/);
+  assert.match(out.therapy.overallMethod, /回阳救脱|补气固脱/, "r1064：未手术不用术后行治法，配合救脱方向仍以手术止血为先");
 });
 
 await check("8.19 出血类红旗连附在后面的原文引文一起认：疑似肺栓塞「原文依据：“…咯血丝”」照样按活动性出血处理（活血化瘀药不入方）——只认红旗本身时生产探针 C098 开出丹参、川芎、桃仁、红花、牛膝；红旗本身写出血的照算、不写出血也不引出血的不算", () => {

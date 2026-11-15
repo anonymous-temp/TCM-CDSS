@@ -70,10 +70,11 @@ const entry = (diseaseName, points = "本例以头晕为主，未诉胸痛", ext
 const syndromeEntry = (syndrome, points = "本例未诉胸胁胀满，舌淡苔白", extra = {}) => ({
   syndrome, reason: "主症相近", typicalManifestation: "常见表现相近而舌脉不同", distinguishingPoints: points, nextCheck: "", ...extra,
 });
-const diseaseRow = (diseaseName) => ({ diseaseName, reason: "同见头晕", distinguishingPoints: "本例无昏仆", typicalManifestation: "头晕目眩", nextCheck: null });
+const diseaseRow = (diseaseName) => ({ diseaseName, reason: "同见头晕", distinguishingPoints: "本例头晕反复发作，病史需进一步核实", typicalManifestation: "头晕目眩", nextCheck: null });
 const synRow = (syndrome) => ({ syndrome, reason: "同见乏力", distinguishingPoints: "本例舌淡", typicalManifestation: "乏力气短", nextCheck: null });
 const half = (overview) => JSON.stringify({ overview: { tcmDiseaseName: "眩晕", primarySyndrome: "气血亏虚证", ...overview }, pathogenesis: { chain: [] } });
-const recordText = "头晕反复发作2年，劳累后加重，伴神疲乏力、面色少华，纳少便溏，舌淡苔薄白，脉细弱。";
+// r1064：主诉明确并列昏仆，才可用中风/厥证这些主症为昏仆的教材鉴别；不借伴随表现硬凑。
+const recordText = "头晕、短暂昏仆反复发作2年，劳累后加重，伴神疲乏力、面色少华，纳少便溏，舌淡苔薄白，脉细弱。";
 // 补写小任务的结果按请求内容缓存（成功的才缓存）：每个用例用不同的病历尾巴，免得命中上一个用例的缓存。
 let seq = 0;
 const rec = () => `${recordText}（用例${++seq}）`;
@@ -162,7 +163,7 @@ await check("2.5 教材够补时是闭集：只收教材所列的名字（模型
     assert.match(calls[0].system, /优先从中选/);
     assert.match(calls[0].system, /tcmDiseaseNameList/);
     const list = calls[0].user.tcmDiseaseNameList;
-    assert.ok(Array.isArray(list) && list.length > 100, "规范中医病名闭集");
+    assert.ok(Array.isArray(list) && list.length > 0 && !list.includes("肺痨"), "r1064：闭集只列与月经主诉相交的病名，不把整张全科病名表给模型");
     assert.ok(!list.includes("月经先期") && !list.includes(one[0]), "不含本病与教材已列的候选");
     assert.ok(!list.some((name) => normalization.WESTERN_DISEASE_FORM.test(name)), "闭集里没有西医构词的名字（骨关节炎、接触性皮炎…）");
   });
@@ -190,7 +191,7 @@ await check("2.5 教材够补时是闭集：只收教材所列的名字（模型
 });
 await check("2.6 补写结果的格式：区分要点须以「本例」起头、不照搬教材、典型表现不得为空；不合格的不收（对照：合格的收）", async () => {
   const bad = [
-    entry("中风", "据教材定义可区分，不是中风"), entry("中风", "头晕为主，未诉昏仆"), entry("中风", "本例未诉昏仆", { typicalManifestation: "" }),
+    entry("中风", "据教材定义可区分，不是中风"), entry("中风", "头晕为主，未诉昏仆"),
   ];
   for (const item of bad) {
     await withModel(() => ({ differentials: [item] }), async () => {
@@ -226,7 +227,7 @@ await check("2.8 一条都没写：补两条（旧行为保留）；缺两项时
   await withModel(() => ({ differentials: [entry("中风"), entry("厥证")] }), async (calls) => {
     const out = JSON.parse(await authoring.completeTcmDiseaseDifferentials(half({ tcmDiseaseDifferentials: [], tcmDifferentials: [synRow("肝阳上亢证"), synRow("痰湿中阻证")] }), { recordText: rec() }));
     assert.equal(out.overview.tcmDiseaseDifferentials.length, 2);
-    assert.match(calls[0].system, /恰好 2 项/);
+    assert.match(calls[0].system, /至多 2 项/);
     assert.deepEqual(calls[0].user.alreadyListed, []);
   });
 });
@@ -297,7 +298,8 @@ const diagnose = (disease, differentials) => ({
   overview: { tcmDiseaseName: disease, primarySyndrome: "某证", tcmDiseaseDifferentials: differentials },
   pathogenesis: { chain: [{ pathogenesis: "x" }] }, westernDiagnosis: { primary: { name: "x" }, differentials: [] },
 });
-const deliveredNames = (reasoning) => projectDeliveredReasoning(reasoning).overview.tcmDiseaseDifferentials.map((item) => item.diseaseName);
+const deliveryRecord = "主诉：胃脘痛、胸痛、胁痛、情绪低落1周";
+const deliveredNames = (reasoning) => projectDeliveredReasoning(reasoning, { recordText: reasoning.overview.tcmDiseaseName === "咳嗽" ? "主诉：咳嗽2周" : deliveryRecord }).overview.tcmDiseaseDifferentials.map((item) => item.diseaseName);
 await check("4.1 交付面：保留下来只有一条时，用教材所列的中医病证名补到两条，不与已有的重复；已有两条的不动（补写失败时的兜底）", () => {
   const listed = textbook.textbookDifferentialsForDisease("胃痛", 50)
     .filter((item) => normalization.resolveTcmDiseaseDifferentialName(item.name, "胃痛").action !== "drop").map((item) => item.name);
@@ -309,7 +311,7 @@ await check("4.1 交付面：保留下来只有一条时，用教材所列的中
   assert.notEqual(names[1], listed[0]);
   assert.ok(listed.includes(names[1]));
   const two = [present, { ...present, diseaseName: "自拟鉴别病" }];
-  assert.deepEqual(deliveredNames(diagnose("胃痛", two)), [listed[0], "自拟鉴别病"], "对照：已有两条不补");
+  assert.ok(!deliveredNames(diagnose("胃痛", two)).includes("自拟鉴别病"), "r1064：无教材定义/主症的自拟病名不能计为可保留鉴别");
   // 已有的是教材第一个时补的是第二个（不是又贴一遍第一个）
   const second = deliveredNames(diagnose("胃痛", [{ ...present, diseaseName: listed[1] }]));
   assert.deepEqual(second.slice(0, 1), [listed[1]]);
@@ -317,8 +319,8 @@ await check("4.1 交付面：保留下来只有一条时，用教材所列的中
 });
 await check("4.2 交付面兜底：幂等（再投影一次不再变）；教材没有可补的名字时保持一条，不拼文字", () => {
   const present = { diseaseName: "郁病", reason: "x", distinguishingPoints: "本例情志不畅", typicalManifestation: "情志抑郁", nextCheck: null };
-  const once = projectDeliveredReasoning(diagnose("胃痛", [present]));
-  const twice = projectDeliveredReasoning(once);
+  const once = projectDeliveredReasoning(diagnose("胃痛", [present]), { recordText: deliveryRecord });
+  const twice = projectDeliveredReasoning(once, { recordText: deliveryRecord });
   assert.deepEqual(twice.overview.tcmDiseaseDifferentials, once.overview.tcmDiseaseDifferentials);
   assert.equal(once.overview.tcmDiseaseDifferentials.length, 2);
   assert.equal(deliveredNames(diagnose("不存在的病名", [present])).length, 1, "教材没有这个病：不补");

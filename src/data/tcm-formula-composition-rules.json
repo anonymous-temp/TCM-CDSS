@@ -933,20 +933,20 @@
     },
     {
       "formulaName": "桃红四物汤",
-      "summary": "组成：生地、当归、白芍、川芎、桃仁、红花。出处：《妇科冰鉴》。",
+      "summary": "组成：熟地黄、当归、白芍、川芎、桃仁、红花。出处：《医宗金鉴》。",
       "ingredients": [
-        "生地",
+        "熟地黄",
         "当归",
         "白芍",
         "川芎",
         "桃仁",
         "红花"
       ],
-      "source": "《妇科冰鉴》",
+      "source": "《医宗金鉴》",
       "tier": "common",
       "sourceRefs": [
         "urn:tcm-cdss:official-classic-formula:桃红四物汤",
-        "urn:tcm-cdss:catalog-parse-repair:quantity-suffix",
+        "urn:tcm-cdss:local-textbook:TCM-Educational-Materials:238136",
         "ADJ-20260727-T14-GRAPH-EXPANSION"
       ]
     },

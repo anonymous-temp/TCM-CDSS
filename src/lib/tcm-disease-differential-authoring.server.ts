@@ -5,7 +5,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { MIN_TCM_DIFFERENTIALS, WESTERN_DISEASE_FORM, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
-import { diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookCandidatesForCase, textbookDiseaseNamesForCase, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
+import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookCandidatesForCase, textbookDiseaseNamesForCase, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
 
 /**
  * 中医鉴别（病名级、证候级）不足两项时，只补写缺的那几项（2026-10-14 起补写病名级为空的；2026-10-19 第九轮改为补到两项）。
@@ -86,7 +86,7 @@ function parseAuthoredEntries<K extends "diseaseName" | "syndrome">(
     const nextCheck = text(item.nextCheck);
     if (!name || out.some((entry) => entry[nameKey] === name)) continue;
     if (!/^本例/.test(distinguishingPoints) || distinguishingPoints.length < 8 || distinguishingPoints.length > 70) continue;
-    if (typicalManifestation.length < 4 || typicalManifestation.length > 60) continue;
+    if ((nameKey === "syndrome" && typicalManifestation.length < 4) || typicalManifestation.length > 600) continue;
     if (reason.length < 2 || reason.length > 30) continue;
     if (/教材|原文|定义为/.test(`${distinguishingPoints}${reason}`)) continue;
     out.push({
@@ -101,10 +101,14 @@ export function parseAuthoredTcmDiseaseDifferentials(
   content: unknown,
   allowedNames: readonly string[] | ((name: string) => string | undefined),
   max = MAX_ENTRIES,
+  recordText?: string,
 ): AuthoredTcmDiseaseDifferential[] {
   const allowed = typeof allowedNames === "function" ? undefined : new Set(allowedNames);
   const accept = (name: string) => allowed ? (allowed.has(name) ? name : undefined) : (allowedNames as (name: string) => string | undefined)(name);
-  return parseAuthoredEntries(content, "diseaseName", accept, max);
+  return parseAuthoredEntries(content, "diseaseName", (name) => {
+    const resolved = accept(name);
+    return resolved && (!recordText || textbookDifferentialSharesChiefComplaint(resolved, recordText)) ? resolved : undefined;
+  }, max).map((entry) => recordText ? { ...entry, typicalManifestation: textbookDiseaseTypicalManifestation(entry.diseaseName) } : entry);
 }
 
 export function parseAuthoredTcmSyndromeDifferentials(
@@ -122,7 +126,7 @@ const record = (value: unknown): Json | undefined => value && typeof value === "
  * 模型写的病名鉴别里能留在交付结果里的行：病名归一得了（不是西医病名）、不与本病同名，按归一后的病名去重。
  * 与 normalizeM03TcmDiseaseDifferentialNames 同一个判据，所以这里数出来的就是交付时留下的。
  */
-export function retainableDiseaseDifferentialRows(rows: unknown, diseaseName: string, patient?: { sex?: string }): Array<{ row: Json; name: string }> {
+export function retainableDiseaseDifferentialRows(rows: unknown, diseaseName: string, patient?: { sex?: string }, recordText?: string): Array<{ row: Json; name: string }> {
   const seen = new Set<string>();
   const out: Array<{ row: Json; name: string }> = [];
   for (const raw of Array.isArray(rows) ? rows : []) {
@@ -130,7 +134,8 @@ export function retainableDiseaseDifferentialRows(rows: unknown, diseaseName: st
     const name = text(row?.diseaseName);
     if (!row || !name) continue;
     const resolved = resolveTcmDiseaseDifferentialName(name, diseaseName);
-    if (resolved.action === "drop" || seen.has(resolved.name) || !tcmDifferentialDiseaseFitsPatient(resolved.name, patient)) continue;
+    if (resolved.action === "drop" || seen.has(resolved.name) || !tcmDifferentialDiseaseFitsPatient(resolved.name, patient) ||
+      (recordText && !textbookDifferentialSharesChiefComplaint(resolved.name, recordText))) continue;
     // 分型病只数讲到本型的（交付面同一个判据 textbookDifferentialFitsSubtype）：血证（鼻衄）不数紫斑段的温病发斑、丹毒。
     const { disease: base, subtype } = splitTextbookDiseaseSubtype(diseaseName);
     if (subtype && !textbookDifferentialFitsSubtype(base, subtype, resolved.name)) continue;
@@ -207,11 +212,11 @@ export async function authorTcmDiseaseDifferentials(
   const need = Math.min(MAX_ENTRIES, Math.max(1, input.need ?? MIN_TCM_DIFFERENTIALS - existing.length));
   const recordText = input.recordText.slice(0, MAX_RECORD_CHARS);
   if (!recordText.trim()) return [];
-  const candidates = input.candidates.slice(0, MAX_CANDIDATES);
+  const candidates = input.candidates.filter((item) => textbookDifferentialSharesChiefComplaint(item.name, input.recordText)).slice(0, MAX_CANDIDATES);
   const names = candidates.map((item) => item.name);
   const closed = candidates.length >= need;
   const taken = new Set([...existing, input.diseaseName.trim()]);
-  const acceptName = closed
+  const resolveName = closed
     ? (name: string) => names.includes(name) ? name : undefined
     : (name: string) => {
       if (names.includes(name)) return name;
@@ -220,10 +225,14 @@ export async function authorTcmDiseaseDifferentials(
       const resolved = resolveTcmDiseaseDifferentialName(name, input.diseaseName);
       return resolved.action === "drop" || taken.has(resolved.name) || WESTERN_DISEASE_FORM.test(resolved.name) ? undefined : resolved.name;
     };
+  const acceptName = (name: string) => {
+    const resolved = resolveName(name);
+    return resolved && textbookDifferentialSharesChiefComplaint(resolved, input.recordText) ? resolved : undefined;
+  };
   const task = existing.length === 0
     ? `请写出 ${need} 项：临床上最需要与本病鉴别的中医病名，并对着本例病历写出据以区分的要点。`
     : `已写的病名鉴别（alreadyListed：${existing.join("、")}）不足两项。请再补 ${need} 项：临床上最需要与本病鉴别、且不在 alreadyListed 里的中医病名，并对着本例病历写出据以区分的要点。`;
-  const nameList = closed ? [] : (input.nameList || []).filter((name) => !taken.has(name) && !names.includes(name));
+  const nameList = closed ? [] : (input.nameList || []).filter((name) => !taken.has(name) && !names.includes(name) && textbookDifferentialSharesChiefComplaint(name, input.recordText));
   const fromList = nameList.length > 0 ? "tcmDiseaseNameList 是规范的中医病名清单（只能从中选），请从中选取临床上确实容易与本病混淆的（diseaseName 逐字取用）；确实都不合适才另提规范的中医病名。" : "";
   const source = closed
     ? "textbookDifferentials 是教材对本病列出的鉴别病证及原文，请从中选出本例最需要鉴别的；diseaseName 只能逐字取自其中。"
@@ -241,11 +250,11 @@ export async function authorTcmDiseaseDifferentials(
         source,
         "规则：",
         `1. diseaseName 必须是中医病名${closed ? "" : "（如对咳嗽写喘证、肺痨，对胁痛写胃脘痛、黄疸）"}，不得写西医病名、证型或症状堆砌，不得与本病同名，不得是本病的别名、异名或亚型，不得与 alreadyListed 重复。`,
-        "2. typicalManifestation：该鉴别病的典型表现，不超过30字。",
+        "2. typicalManifestation：逐字用候选的教材定义；无定义写空串，服务端提供，不自行撰写。",
         "3. distinguishingPoints：本例与它的区别，必须以“本例”开头，只引用病历已记录的表现；病历没有提到的表现写“未诉…”，不要写“无…”；不要复述教材对该病的定义；不超过40字。",
         "4. reason：两者相近之处，只写该鉴别病本身就有、本例病历也记录了的表现（即 typicalManifestation 与本例共有的），不超过15字；不得把只属于本例的表现（如本例的特征性皮损、体征）说成两者共有。",
         "5. nextCheck：必要时需要核实的一项问诊、查体或检查，不超过15字；没有就写空字符串。属急重症的鉴别病名（如真头痛、厥证、肠痈），nextCheck 必须写明相应的急症排查。",
-        `${OUTPUT_FORMAT_DISEASE}（恰好 ${need} 项）`,
+        `${OUTPUT_FORMAT_DISEASE}（至多 ${need} 项；教材主症与本例主诉没有交集的病不列，宁可不足）`,
       ].join("\n"),
     },
     {
@@ -255,12 +264,12 @@ export async function authorTcmDiseaseDifferentials(
         syndrome: input.syndrome || null,
         record: recordText,
         alreadyListed: existing,
-        ...(candidates.length > 0 ? { textbookDifferentials: candidates.map((item) => ({ diseaseName: item.name, textbook: item.text.slice(0, 260) })) } : {}),
+        ...(candidates.length > 0 ? { textbookDifferentials: candidates.map((item) => ({ diseaseName: item.name, textbook: item.text.slice(0, 260), definition: textbookDiseaseTypicalManifestation(item.name) })) } : {}),
         ...(nameList.length > 0 ? { tcmDiseaseNameList: nameList } : {}),
       }),
     },
   ];
-  return runAuthoringTask("tcm_disease_differential_authoring", messages, (content) => parseAuthoredTcmDiseaseDifferentials(content, acceptName, need), need > 1 ? 420 : 260, signal);
+  return runAuthoringTask("tcm_disease_differential_authoring", messages, (content) => parseAuthoredTcmDiseaseDifferentials(content, acceptName, need, input.recordText), need > 1 ? 420 : 260, signal);
 }
 
 /**
@@ -319,10 +328,10 @@ export async function authorTcmSyndromeDifferentials(
 }
 
 /** 教材对本病列出的鉴别病名里，能留在交付结果里的（过同一个归一判据）、不在 taken 里的。 */
-function textbookDiseaseCandidates(diseaseName: string, taken: ReadonlySet<string>, patient?: { sex?: string }): Array<{ name: string; text: string }> {
+function textbookDiseaseCandidates(diseaseName: string, taken: ReadonlySet<string>, recordText: string, patient?: { sex?: string }): Array<{ name: string; text: string }> {
   return textbookDifferentialsForDisease(diseaseName, 50)
     .filter((item) => !taken.has(item.name) && resolveTcmDiseaseDifferentialName(item.name, diseaseName).action === "keep" &&
-      tcmDifferentialDiseaseFitsPatient(item.name, patient))
+      tcmDifferentialDiseaseFitsPatient(item.name, patient) && textbookDifferentialSharesChiefComplaint(item.name, recordText))
     .map((item) => ({ name: item.name, text: item.text }));
 }
 
@@ -372,7 +381,7 @@ function planTopUp(overview: Json | undefined, context: TopUpContext): TopUpPlan
   const diseaseName = diseaseNameWithRecordSubtype(text(overview?.tcmDiseaseName), context.recordText);
   if (!overview || !diseaseName) return undefined;
   const primary = text(overview.primarySyndrome);
-  const diseaseRows = retainableDiseaseDifferentialRows(overview.tcmDiseaseDifferentials, diseaseName, context.patient);
+  const diseaseRows = retainableDiseaseDifferentialRows(overview.tcmDiseaseDifferentials, diseaseName, context.patient, context.recordText);
   const syndromeRows = retainableSyndromeDifferentialRows(overview.tcmDifferentials, primary);
   const needDisease = Math.max(0, MIN_TCM_DIFFERENTIALS - diseaseRows.length);
   // 证候鉴别：模型已经写了至少一项才补；整栏留空的（常伴「资料不足以鉴别」的说明）不替它改口。
@@ -383,10 +392,10 @@ function planTopUp(overview: Json | undefined, context: TopUpContext): TopUpPlan
   const recordText = context.recordText;
   if (needDisease > 0) {
     const taken = new Set([diseaseName, ...diseaseRows.map((item) => item.name)]);
-    const candidates = textbookDiseaseCandidates(diseaseName, taken, context.patient);
+    const candidates = textbookDiseaseCandidates(diseaseName, taken, recordText, context.patient);
     plan.diseaseInput = {
       recordText, diseaseName, syndrome: primary, candidates, existing: diseaseRows.map((item) => item.name), need: needDisease,
-      nameList: nameListEnabled() && candidates.length < needDisease ? governedDiseaseNameList(diseaseName, context.patient) : [],
+      nameList: nameListEnabled() && candidates.length < needDisease ? governedDiseaseNameList(diseaseName, context.patient).filter((name) => textbookDifferentialSharesChiefComplaint(name, recordText)) : [],
     };
   }
   if (needSyndrome > 0) {

@@ -51,12 +51,13 @@ const prescribe = (candidate, extra = {}) => ({
   ...extra,
 });
 
+// r1064 C3：旧 1.1/1.4 已实跑失败；《方剂学》转引医垒元戎的文字保留，但原方记录的证据来自医宗金鉴，按本机内科教材与受治理出处裁定订正。
 // 1. 出处：处方覆盖教材所引原书的原方组成时，出处用那本原书；现有出处已是教材写过的书时不动。
-await check("1.1 一贯煎署《续名医类案》（《方剂学》）并注明国家目录所据《医方絜度》；桃红四物汤署《医垒元戎》（n09、C046）", () => {
+await check("1.1 一贯煎署《续名医类案》（《方剂学》）并注明国家目录所据《医方絜度》；桃红四物汤按 r1064 出处裁定署《医宗金鉴》（n09、C046）", () => {
   const yiguan = provenance.resolveFormulaSources("一贯煎", H(["生地黄", "枸杞子", "当归", "北沙参", "麦冬", "川楝子"]))[0]?.source || "";
   assert.match(yiguan, /^《续名医类案》/);
   assert.match(yiguan, /国家古代经典名方目录据《医方絜度》/);
-  assert.match(provenance.textbookCitedOriginalSource("桃红四物汤", ["桃仁", "红花", "当归", "川芎", "地黄", "酒白芍", "骨碎补", "甘草"], "《妇科冰鉴》") || "", /^《医垒元戎》/);
+  assert.match(provenance.textbookCitedOriginalSource("桃红四物汤", ["桃仁", "红花", "当归", "川芎", "地黄", "酒白芍", "骨碎补", "甘草"], "《妇科冰鉴》") || "", /^《医宗金鉴》/);
 });
 await check("1.2 合方里的小半夏加茯苓汤署《金匮要略》，不署后出的《卫生宝鉴·补遗》（n13）", () => {
   const sources = provenance.resolveFormulaSources("苓桂术甘汤合小半夏加茯苓汤加减", H(["茯苓", "桂枝", "土炒白术", "姜半夏", "生姜", "炙甘草"])).map((item) => item.source);
@@ -74,8 +75,8 @@ await check("1.4 交付面：出处栏与 baseFormulas 同一取法（模型写�
     formulaSource: { evidenceLevel: "model_inference", source: "桃红四物汤：《妇科冰鉴》", confidence: "中" },
     baseFormulas: [{ name: "桃红四物汤", source: "《妇科冰鉴》" }] }));
   const candidate = out.formula.candidates[0];
-  assert.match(candidate.formulaSource.source, /^桃红四物汤：《医垒元戎》/);
-  assert.match(candidate.baseFormulas[0].source, /^《医垒元戎》/);
+  assert.match(candidate.formulaSource.source, /^桃红四物汤：《医宗金鉴》/);
+  assert.match(candidate.baseFormulas[0].source, /^《医宗金鉴》/);
   assert.deepEqual(project(out), out, "幂等");
 });
 await check("1.5 《方剂学》出处表：正方、附方、原名又名都按行号摘到", () => {

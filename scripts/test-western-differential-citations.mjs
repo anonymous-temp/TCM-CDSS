@@ -42,6 +42,7 @@ for (const differential of [gerd, dyspepsia]) {
   assert.doesNotMatch(citation, /支持|本例|病例|思考|推理/);
   assert.match(citation, /20\d{2}/);
 }
-assert.equal(parsed.westernDiagnosis.primary.guidelineReferences[0].appliesTo, "支持反酸鉴别", "后台适用说明仍保留");
+// r1064 C3：已实跑旧断言失败；主诊断“反酸”无对题标题/要点表来源，不能把摘要里的症状当标题命中。两条西医鉴别引用仍照旧。
+assert.deepEqual(parsed.westernDiagnosis.primary.guidelineReferences, []);
 
 console.log(JSON.stringify({ suite: "western-differential-citations", differentials: 2, failures: 0 }));

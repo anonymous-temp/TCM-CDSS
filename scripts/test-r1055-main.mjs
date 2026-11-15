@@ -453,7 +453,8 @@ await check("11.6 中医鉴别同一个病的两种写法只列一次（痫证/�
     { diseaseName: "痫病", reason: "均可抽搐", distinguishingPoints: "y", typicalManifestation: "", nextCheck: null },
     { diseaseName: "大行赤眼", reason: "z", distinguishingPoints: "z", typicalManifestation: "", nextCheck: null },
     { diseaseName: "天行赤眼", reason: "z", distinguishingPoints: "z", typicalManifestation: "", nextCheck: null }] }, therapy: {}, pathogenesis: { chain: [] } };
-  const names = surface.projectDeliveredReasoning(reasoning, { recordText: "主诉：发热1天" }).overview.tcmDiseaseDifferentials.map((row) => row.diseaseName);
+  // r1064：此项只检验名称归一去重，不注入主诉；有病历时的主症过滤由 r1064-dx 独立检查。
+  const names = surface.projectDeliveredReasoning(reasoning).overview.tcmDiseaseDifferentials.map((row) => row.diseaseName);
   assert.deepEqual(names, ["痫证", "天行赤眼"]);
 });
 

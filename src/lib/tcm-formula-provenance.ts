@@ -2,7 +2,7 @@ import { DELIVERY_REWRITE_RULES, traceProjection, observeTextRewrite } from "./d
 /** Observation only; original clinical transforms and their return values are unchanged. */
 export const FORMULA_PROVENANCE_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.provenance, leaves: ["renamedDiseaseMentions","replaceSelfDevisedFormulaClaims","replaceFormulaIdentityClaims","withDeterministicFormulaReferences"] as const });
 import { activeBloodMovingMethodItem, bloodMovingWithoutHemostasis, methodForActiveBleeding } from "./active-bleeding-treatment";
-import { textbookFormulaNames, textbookNearestRow, textbookRowForSyndrome, therapyWithoutUnsupportedSymptomItems } from "./tcm-textbook-syndromes";
+import { settledTextbookSyndromeName, textbookPendingPrecondition, textbookTreatmentRow, textbookFormulaNames, textbookNearestRow, textbookRowForSyndrome, therapyWithoutUnsupportedSymptomItems } from "./tcm-textbook-syndromes";
 import { chpPregnancyLabel } from "./conception-herb-policy";
 import { jingfangPatternForSignedSyndrome } from "./jingfang-patterns";
 import { textbookSectionDeliveryName } from "./clinical-terminology";
@@ -23,7 +23,7 @@ import { lineageAffinitiesForFormula } from "./tcm-formula-lineage-affinity";
 import { LINEAGE_LENS_SUBJECT, lineageLensSubject } from "./tcm-lineages";
 import { formulaInCommonTier, formulaLockTierEnabled } from "./tcm-formula-tier";
 import { compositionLogicWithBaselineNames } from "./formula-baseline-display";
-import { canonicalFormulaBook, originalFormula, originalHerbAcceptedSubstitutes, originalHerbNamesEquivalent, textbookCitedFormulaBooks, textbookRowFormulaBook, type OriginalFormula } from "./formula-original-composition";
+import { formulaCitationAdjudication, canonicalFormulaBook, originalFormula, originalHerbAcceptedSubstitutes, originalHerbNamesEquivalent, textbookCitedFormulaBooks, textbookRowFormulaBook, type OriginalFormula } from "./formula-original-composition";
 import {
   formulaDiscriminationPaths,
   textualModificationsForFormulaNames,
@@ -1602,11 +1602,12 @@ export function withoutForeignLineageLensSentence<T extends ClinicalReasoningRes
   return { ...reasoning, overview: { ...reasoning.overview, tcmDiagnosticRationale: kept.join("").trim() } } as T;
 }
 
-function textbookAnchoredFormulaDirection(reasoning: ClinicalReasoningResultV2, lineagePreference?: string): string {
+function textbookAnchoredFormulaDirection(reasoning: ClinicalReasoningResultV2, lineagePreference?: string, clinicalSourceText = "", barredHerb?: (herb: string) => boolean): string {
   const direction = String(reasoning.overview?.recommendedFormulaDirection || "");
-  const row = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
+  const row = textbookTreatmentRow(textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || "")), clinicalSourceText, barredHerb);
+  if (textbookPendingPrecondition(row, clinicalSourceText)) return row?.formulas.length ? `${row.formulas.join("合")}加减` : "按已锁定病机与治法辨证组方";
   if (!row || row.formulas.length === 0 || row.formulas.length > 2) return direction;
-  if (lineageChosenFormulaDirectionKept(reasoning, direction, lineagePreference)) return direction;
+  if (!textbookPendingPrecondition(row, clinicalSourceText) && lineageChosenFormulaDirectionKept(reasoning, direction, lineagePreference)) return direction;
   const branches = textbookConditionalBranches(row);
   const branch = branches ? signedConditionalBranch(reasoning, branches) : undefined;
   if (branch?.formula) {
@@ -1624,7 +1625,13 @@ function textbookAnchoredFormulaDirection(reasoning: ClinicalReasoningResultV2, 
  * 证名用教材的写法：病名对上教材、证名不是教材写法时，按 textbookNearestRow 找到最接近的教材证型并改用它的名字
  *（辨证依据里出现的旧证名一并替换）。找不准就原样返回。
  */
-function withTextbookSyndromeName(reasoning: ClinicalReasoningResultV2): ClinicalReasoningResultV2 {
+function withTextbookSyndromeName(input: ClinicalReasoningResultV2, recordText = ""): ClinicalReasoningResultV2 {
+  const diseaseName = String(input.overview?.tcmDiseaseName || "");
+  const normalize = (name: string) => settledTextbookSyndromeName(diseaseName, name, recordText, String(input.overview?.recommendedFormulaDirection || ""));
+  const reasoning = { ...input, overview: { ...input.overview,
+    primarySyndrome: normalize(String(input.overview?.primarySyndrome || "")),
+    secondarySyndromes: [...new Set((input.overview?.secondarySyndromes || []).map(normalize))].filter((name) => name !== normalize(String(input.overview?.primarySyndrome || ""))),
+  } };
   const overview = reasoning.overview;
   const disease = String(overview?.tcmDiseaseName || "");
   const syndrome = String(overview?.primarySyndrome || "");
@@ -1769,10 +1776,10 @@ const BLOOD_MOVING_FORMULA_NAME = /逐瘀|活血|化瘀|破血|祛瘀|破瘀/u;
 
 export function withDeterministicFormulaReferences(input: ClinicalReasoningResultV2, clinicalSourceText?: string, lineagePreference?: string, caseSafety?: FormulaReferenceCaseSafety): ClinicalReasoningResultV2 {
   return traceProjection("withDeterministicFormulaReferences", input, () => {
-  const reasoning = input.stage === "diagnose" ? withTextbookSyndromeName(input) : input;
+  const reasoning = input.stage === "diagnose" ? withTextbookSyndromeName(input, clinicalSourceText) : input;
   if (reasoning.stage === "diagnose") {
     const modelDirection = String(reasoning.overview?.recommendedFormulaDirection || "");
-    const anchoredDirection = textbookAnchoredFormulaDirection(reasoning, lineagePreference);
+    const anchoredDirection = textbookAnchoredFormulaDirection(reasoning, lineagePreference, clinicalSourceText, caseSafety?.barredHerb);
     // 教材代表方对本例不宜时不改成它，保留模型写的；模型写的也不宜时，方向改为辨证组方（不再挂一首去掉主药就不成其方的方名）。
     const preferred = caseSafety && anchoredDirection !== modelDirection && directionBarredForCase(anchoredDirection, reasoning, caseSafety)
       ? modelDirection
@@ -1782,7 +1789,7 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     const identifiedMode = formulaSelectionMode(direction, identifiedNames);
     // 方的身份是方名加出处（第四十二轮）：教材这一证的代表方写了出处、而目录里同名条目是另一本书的另一首方时，不按方名锁那一条
     //（子肿·脾虚证「白术散（《全生指迷方》）」锁成了《小儿药证直诀》白术散）；方向里仍写教材方名，开方按教材写的那本书的原方组成组方。
-    const textbookRowForLock = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
+    const textbookRowForLock = textbookTreatmentRow(textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || "")), clinicalSourceText || "", caseSafety?.barredHerb);
     const governedEntryIsOtherBooksHomonym = (name: string): boolean => {
       if (!textbookRowForLock || !textbookRowForLock.formulas.includes(name)) return false;
       // 只按原方组成表里教材写的那本书的原方判（教材常用药不参与，第四十三轮消风散）。
@@ -1793,7 +1800,7 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     const recommendedFormulaNames = incompleteCombined ? [] : identityGovernedNames;
     // 教材代表方在目录里锁不住（同名方多个出处、或目录未收）时，方向仍写教材方名：开方阶段按教材组成与本例病机
     // 组方并沿用这个方名，只是没有目录基准可以逐味核对。其余锁不住的方名照旧改写为辨证组方。
-    const textbookRowForDirection = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
+    const textbookRowForDirection = textbookTreatmentRow(textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || "")), clinicalSourceText || "", caseSafety?.barredHerb);
     const textbookNamed = Boolean(textbookRowForDirection) && identifiedNames.length > 0 &&
       identifiedNames.every((name) => textbookRowForDirection!.formulas.includes(name));
     const governedDirection = identifiedNames.length > 0 && recommendedFormulaNames.length === 0 && !textbookNamed
@@ -1801,7 +1808,7 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
       : direction;
     // 治法同样跟着已定的教材证型走：对上教材的一行时用该行的治法原文（甲方按教材对照；同一病例重新生成 3 次，
     // 治法的写法 10 例里 0 例完全一致）。没对上时保留模型写的治法。
-    const textbookRow = textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || ""));
+    const textbookRow = textbookTreatmentRow(textbookRowForSyndrome(String(reasoning.overview?.tcmDiseaseName || ""), String(reasoning.overview?.primarySyndrome || "")), clinicalSourceText || "", caseSafety?.barredHerb);
     const secondary = Array.isArray(reasoning.overview?.secondarySyndromes) ? reasoning.overview.secondarySyndromes.filter(Boolean) : [];
     // 教材按偏颇分两段写治法的（「偏肾阴虚者…；偏阳虚者…」），只用与已签名病性对得上的那一段；对不上时不锚定，保留模型写的治法——
     // 此前两段照抄进治法栏，医生读到的是一道选择题（2026-10-19，尿浊·肾虚不固证 3 例）。
@@ -1825,7 +1832,7 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
     const recordRowMethod = rowMethod ? supportedByRecord(rowMethod) : "";
     // 按所选流派保留了模型写的方（lineageChosenFormulaDirectionKept）：治法也保留模型按该方写的，不再换成教材行的治法——
     // 否则方是桂枝汤、治法却是「辛温解表，宣肺散寒」，方与治法对不上，开方阶段按治法核方会把它退成自拟方。
-    const lineageKept = Boolean(textbookRow) &&
+    const lineageKept = Boolean(textbookRow) && !textbookPendingPrecondition(textbookRow, clinicalSourceText || "") &&
       lineageChosenFormulaDirectionKept(reasoning, String(reasoning.overview?.recommendedFormulaDirection || ""), lineagePreference);
     const bleedingBarsRowMethod = Boolean(caseSafety?.activeBleeding) && bloodMovingWithoutHemostasis(recordRowMethod);
     const textbookOrLineageMethod = lineageKept
@@ -1866,7 +1873,8 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
             }
           : {}),
         ...(anchoredMethod ? { overallTherapy: anchoredMethod } : {}),
-        recommendedFormulaDirection: governedDirection,
+        recommendedFormulaDirection: textbookPendingPrecondition(textbookRow, clinicalSourceText || "")
+          ? `${textbookRow!.precondition!.priority}配合${governedDirection}` : governedDirection,
         recommendedFormulaNames,
         formulaSelectionMode: formulaSelectionMode(governedDirection, recommendedFormulaNames),
       },
@@ -3162,6 +3170,11 @@ export function deliveredFormulaSource(formulaName: string, source: string): str
 export function textbookCitedOriginalSource(formulaName: string, herbNames: readonly string[], currentSource: string): string | undefined {
   const base = String(formulaName || "").trim().replace(/(?:加减|化裁|加味)$/u, "");
   if (!base || /合/u.test(base) || herbNames.length === 0) return undefined;
+  const adjudication = formulaCitationAdjudication(base);
+  if (adjudication && adjudication.coreHerbs.every((herb) => herbNames.some((name) => originalHerbSatisfiedBy(herb, name)))) {
+    return canonicalFormulaBook(currentSource) === adjudication.book ? undefined
+      : textbookSourceWithOfficialNote(base, canonicalFormulaBook(currentSource), `《${adjudication.book}》`);
+  }
   const normalized = normalizeFormulaName(base);
   const tableEntry = TEXTBOOK_FORMULA_SOURCES[normalized] || TEXTBOOK_FORMULA_SOURCES[base];
   const cited = [...new Set([
@@ -3199,11 +3212,15 @@ export function textbookCitedOriginalSource(formulaName: string, herbNames: read
     const label = (specific || `《${book}》`).trim().replace(/[。．.]+$/u, "");
     // 现有出处是国家《古代经典名方目录》给这首方定的书（一贯煎《医方絜度》、桃红四物汤《妇科冰鉴》：目录取的是载有剂量、可据以制剂的那本书）：
     // 出处写教材的原书，并注明目录所据，两边都不丢。
-    const official = normalizedOfficialClassics.get(normalized)?.variant.source;
-    const officialLabel = official ? official.trim().replace(/[。．.]+$/u, "") : "";
-    return officialLabel && current === canonicalFormulaBook(officialLabel) ? `${label}（国家古代经典名方目录据${officialLabel}）` : label;
+    return textbookSourceWithOfficialNote(normalized, current, label);
   }
   return undefined;
+}
+
+function textbookSourceWithOfficialNote(name: string, currentBook: string, label: string): string {
+  const official = normalizedOfficialClassics.get(normalizeFormulaName(name))?.variant.source;
+  const officialLabel = official ? official.trim().replace(/[。．.]+$/u, "") : "";
+  return officialLabel && currentBook === canonicalFormulaBook(officialLabel) ? `${label}（国家古代经典名方目录据${officialLabel}）` : label;
 }
 
 export function textbookFormulaOriginalSource(
