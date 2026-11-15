@@ -1,0 +1,388 @@
+{
+  "version": "r1064-facts-v1",
+  "authority": "D1-gates sections 5/6; existing tcm-nature-lexicon and analysis-element-closure taxonomy. Exact maps only; unmapped labels remain unknown.",
+  "machineKeys": [
+    "schemaVersion",
+    "stage",
+    "id",
+    "nodeId",
+    "targetRef",
+    "targetKind",
+    "projectCode",
+    "code",
+    "system",
+    "url",
+    "doi",
+    "signature",
+    "contractSignature",
+    "payloadHash",
+    "model",
+    "provider",
+    "confidence",
+    "resolution",
+    "status",
+    "evidenceLevel",
+    "sourceType",
+    "action",
+    "role",
+    "sex",
+    "unit",
+    "executable",
+    "applicable",
+    "triggerSource"
+  ],
+  "machineTrees": [
+    "clinicalReview",
+    "clinicalReviewAttestation",
+    "attestation",
+    "signature",
+    "metadata",
+    "gold",
+    "question",
+    "questions",
+    "prompt",
+    "options",
+    "answerKey"
+  ],
+  "verbatimKeys": [
+    "patientFact",
+    "recordQuote",
+    "sourceQuote",
+    "quote",
+    "originalText",
+    "triggerQuote"
+  ],
+  "sourceKeys": [
+    "source",
+    "sourceBook",
+    "protocolSource",
+    "pointProvenance",
+    "guidelineReferences",
+    "references",
+    "classicEvidence"
+  ],
+  "safetyTrees": [
+    "safetyGate",
+    "safety",
+    "redFlags",
+    "prescriptionSafety",
+    "herbVerification",
+    "warnings",
+    "requiredChecks",
+    "operatorRequirement"
+  ],
+  "hpiKeys": [
+    "现病史",
+    "xianbingshi",
+    "presentIllness",
+    "historyOfPresentIllness"
+  ],
+  "historyKeys": [
+    "既往史",
+    "个人史",
+    "家族史",
+    "过敏史",
+    "用药史",
+    "婚育史",
+    "pastHistory",
+    "medicationHistory",
+    "allergyHistory",
+    "jiwangshi",
+    "guomin",
+    "yongyaoshi"
+  ],
+  "hisKeys": [
+    "sex",
+    "age",
+    "zhushu",
+    "xianbingshi",
+    "jiwangshi",
+    "guomin",
+    "yongyaoshi",
+    "vitalsT",
+    "vitalsP",
+    "vitalsR",
+    "vitalsBP",
+    "vitalsDetail",
+    "tcmFace",
+    "tcmPulse",
+    "tcmTongue",
+    "tcmDetail",
+    "fuzhuJiancha",
+    "extraText"
+  ],
+  "triggerDisplayPrefixes": [
+    "本例已见：",
+    "本例已见:",
+    "本例已见"
+  ],
+  "elementAliases": {
+    "内热": [
+      "heat"
+    ],
+    "寒凝": [
+      "cold"
+    ],
+    "寒湿": [
+      "cold",
+      "dampness"
+    ],
+    "寒湿痹阻": [
+      "cold",
+      "dampness"
+    ],
+    "水饮内停": [
+      "fluid_retention"
+    ],
+    "水湿内停": [
+      "water_dampness"
+    ],
+    "脾虚": [
+      "qi_deficiency"
+    ],
+    "虚热": [
+      "yin_deficiency"
+    ],
+    "虚寒": [
+      "yang_deficiency"
+    ]
+  },
+  "syndromeElements": {
+    "气虚发热证": [
+      "qi_deficiency"
+    ],
+    "心虚胆怯证": [
+      "qi_deficiency"
+    ],
+    "脾气虚证": [
+      "qi_deficiency"
+    ],
+    "脾虚证": [
+      "qi_deficiency"
+    ],
+    "脾虚湿困证": [
+      "qi_deficiency",
+      "dampness"
+    ],
+    "气血虚弱证": [
+      "qi_deficiency",
+      "blood_deficiency"
+    ],
+    "气血两虚证": [
+      "qi_deficiency",
+      "blood_deficiency"
+    ],
+    "肾阳虚证": [
+      "yang_deficiency"
+    ],
+    "阴虚火旺证": [
+      "yin_deficiency"
+    ],
+    "痰火扰心证": [
+      "phlegm",
+      "heat"
+    ],
+    "气滞血瘀证": [
+      "qi_stagnation",
+      "blood_stasis"
+    ],
+    "暑热疫毒证": [
+      "summerheat",
+      "heat",
+      "toxin"
+    ]
+  },
+  "elementImplications": {
+    "fire_heat": [
+      "heat"
+    ],
+    "summerheat": [
+      "heat"
+    ],
+    "water_dampness": [
+      "dampness"
+    ]
+  },
+  "morphologyPatterns": [
+    "未诉未诉",
+    "当归尾尾",
+    "[（(]\\s*[）)]",
+    "(?:^|[，,；;。])并以本方(?=[。；;]|$)"
+  ],
+  "comparisonPrefixes": [
+    "去",
+    "减",
+    "除",
+    "不用",
+    "未用",
+    "原方",
+    "原书",
+    "较",
+    "比",
+    "慎",
+    "忌",
+    "而非"
+  ],
+  "comparisonSuffixes": [
+    "易为",
+    "改为",
+    "换为",
+    "代之",
+    "替之"
+  ],
+  "ruleLabels": {
+    "R01": "证名证素未列病性",
+    "R02": "病性证素未列结论或待核",
+    "R03": "病性分组不闭合或误分",
+    "R04": "治则与本标不相容",
+    "R05": "加减引文非现病史逐字片段",
+    "R06": "方义当前药不在药表",
+    "R07": "方义角色与药表不一致",
+    "R08": "去药不符合锁定原方差异",
+    "R09": "鉴别不足两条",
+    "R10": "鉴别同名或不可区分",
+    "R11": "循环风险与危重证候待治理",
+    "R12": "M04继承结论漂移",
+    "R13": "病机节点引用失联",
+    "R14": "待核重复询问已定证素",
+    "R15": "交付文字形态损坏",
+    "R16": "西医分级不符合当前数值"
+  },
+  "lockedKeys": [
+    "primarySyndrome",
+    "secondarySyndromes",
+    "tcmDiseaseName",
+    "overallMethod",
+    "dose",
+    "dosage",
+    "doseCount",
+    "amount",
+    "frequency",
+    "route"
+  ],
+  "syndromeElementEvidence": {
+    "气虚发热证": {
+      "source": "tcm-textbook-syndrome-formula-table.json",
+      "rowId": "neike|内伤发热|气虚发热",
+      "book": "中医内科学",
+      "line": 237015,
+      "quote": "益气健脾，甘温除热；发热，热势或低或高，常在劳累后发作或加剧，倦怠乏力，气短懒言，自汗，易于感冒，食少便溏；舌质淡，苔薄白，脉细弱。",
+      "scope": "narrow project consistency mapping, not a safety or syndrome diagnosis"
+    },
+    "心虚胆怯证": {
+      "source": "tcm-textbook-syndrome-formula-table.json",
+      "rowId": "neike|心悸|心虚胆怯",
+      "book": "中医内科学",
+      "line": 233606,
+      "quote": "镇惊定志，养心安神；心悸不宁，善惊易恐，坐卧不安，不寐多梦而易惊醒，恶闻声响，食少纳呆；苔薄白，脉细数或细弦。",
+      "scope": "narrow project consistency mapping, not a safety or syndrome diagnosis"
+    },
+    "脾气虚证": {
+      "source": "tcm-textbook-syndrome-formula-table.json",
+      "rowId": "neike|虚劳|脾气虚",
+      "book": "中医内科学",
+      "line": 237182,
+      "quote": "健脾益气；饮食减少，食后胃脘不舒，倦怠乏力，大便溏薄，面色萎黄；舌淡，苔薄，脉弱。",
+      "scope": "narrow project consistency mapping, not a safety or syndrome diagnosis"
+    },
+    "脾虚证": {
+      "source": "tcm-textbook-syndrome-formula-table.json",
+      "rowId": "neike|哮病|脾虚证",
+      "book": "中医内科学",
+      "line": 233138,
+      "quote": "健脾益气；倦怠无力，食少便溏，面色萎黄无华；痰多而黏，咳吐不爽，胸脘满闷，恶心纳呆；或食油腻易腹泻，每因饮食不当而诱发；舌质淡，苔白滑或腻，脉细弱。",
+      "scope": "narrow project consistency mapping, not a safety or syndrome diagnosis"
+    },
+    "脾虚湿困证": {
+      "source": "tcm-textbook-syndrome-formula-table.json",
+      "rowId": "zxy_neike|肾病综合征|脾虚湿困证",
+      "book": "中西医结合内科学",
+      "line": 133413,
+      "quote": "温运脾阳，利水消肿；浮肿，按之凹陷不易恢复，腹胀纳少，面色萎黄，神疲乏力，尿少色清，大便或溏，舌质淡，苔白腻或白滑，脉沉缓或沉弱。",
+      "scope": "narrow project consistency mapping, not a safety or syndrome diagnosis"
+    },
+    "气血虚弱证": {
+      "source": "tcm-textbook-syndrome-formula-table.json",
+      "rowId": "zxy_fuchanke|闭经|气血虚弱证",
+      "book": "中西医结合妇产科学",
+      "line": 120323,
+      "quote": "益气健脾，养血调经；月经周期延后，量少、色淡、质稀，渐致闭经，神疲肢倦，头晕眼花，心悸气短，面色萎黄，唇色淡红。苔少或薄白，脉沉缓或细弱。",
+      "scope": "narrow project consistency mapping, not a safety or syndrome diagnosis"
+    },
+    "气血两虚证": {
+      "source": "tcm-textbook-syndrome-formula-table.json",
+      "rowId": "zxy_neike|胃癌|气血两虚证",
+      "book": "中西医结合内科学",
+      "line": 132094,
+      "quote": "益气养血，健脾和营；神疲乏力，面色无华，少气懒言，动则气促、自汗，消瘦，舌苔薄白，舌质淡白，舌边有齿痕，脉沉细无力或虚大无力。",
+      "scope": "narrow project consistency mapping, not a safety or syndrome diagnosis"
+    },
+    "肾阳虚证": {
+      "source": "tcm-textbook-syndrome-formula-table.json",
+      "rowId": "neike|虚劳|肾阳虚",
+      "book": "中医内科学",
+      "line": 237243,
+      "quote": "温补肾阳；腰背酸痛，遗精，阳痿，多尿或不禁，面色苍白，畏寒肢冷，下利清谷或五更泄泻；舌淡，舌边齿痕，脉沉迟。",
+      "scope": "narrow project consistency mapping, not a safety or syndrome diagnosis"
+    },
+    "阴虚火旺证": {
+      "source": "tcm-textbook-syndrome-formula-table.json",
+      "rowId": "neike|心悸|阴虚火旺",
+      "book": "中医内科学",
+      "line": 233616,
+      "quote": "滋阴清火，养心安神；心悸易惊，心烦失眠，五心烦热，口干，盗汗，思虑劳心则症状加重，伴耳鸣腰酸，头晕目眩，急躁易怒；舌红少津，苔少或无，脉象细数。",
+      "scope": "narrow project consistency mapping, not a safety or syndrome diagnosis"
+    },
+    "痰火扰心证": {
+      "source": "tcm-textbook-syndrome-formula-table.json",
+      "rowId": "neike|心悸|痰火扰心",
+      "book": "中医内科学",
+      "line": 233636,
+      "quote": "清热化痰，宁心安神；心悸时发时止，受惊易作，胸闷烦躁，失眠多梦，口干苦，大便秘结，小便短赤；舌红，苔黄腻，脉弦滑。",
+      "scope": "narrow project consistency mapping, not a safety or syndrome diagnosis"
+    },
+    "气滞血瘀证": {
+      "source": "tcm-textbook-syndrome-formula-table.json",
+      "rowId": "zxy_neike|原发性支气管肺癌|气滞血瘀证",
+      "book": "中西医结合内科学",
+      "line": 129165,
+      "quote": "化瘀散结，行气止痛；咳嗽，咯痰，或痰血暗红，胸闷胀痛或刺痛，面青唇暗，肺中积块，舌质暗紫或有瘀斑瘀点，脉弦或涩。",
+      "scope": "narrow project consistency mapping, not a safety or syndrome diagnosis"
+    },
+    "暑热疫毒证": {
+      "source": "tcm-textbook-syndrome-formula-table.json",
+      "rowId": "erke|急惊风|暑热疫毒",
+      "book": "中医儿科学",
+      "line": 169117,
+      "quote": "清热祛暑，开窍息风；起病急骤，持续高热，神昏谵语，反复抽搐，头痛项强，呕吐，或嗜睡，或皮肤出疹发斑，口渴便秘，舌质红，苔黄，脉弦数。严重者可发生呼吸困难等危象。",
+      "scope": "narrow project consistency mapping, not a safety or syndrome diagnosis"
+    }
+  },
+  "priorityPrinciples": [
+    "急则治标"
+  ],
+  "ownershipProjectionPaths": [
+    "/management/followupSafetyNet"
+  ],
+  "projectionAuthority": "delivered-surface.ts followupWhenDoseWithheld/followupWhenPriorityEvaluation/followup alignment; clinical-terminology.canonicalWesternDiagnosisName. Stage-derived display differences are shadow, not clinical drift.",
+  "shadowSyndromes": [
+    "脾虚证"
+  ],
+  "shadowAxisLabels": [
+    "脾虚",
+    "虚热",
+    "虚寒"
+  ],
+  "alignmentAssertionMarkers": [
+    "支持",
+    "故属",
+    "属于",
+    "证属",
+    "辨为",
+    "故为",
+    "当属",
+    "乃属",
+    "属",
+    "为"
+  ]
+}

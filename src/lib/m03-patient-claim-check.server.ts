@@ -625,3 +625,9 @@ async function patientClaimVerification(
   }, undefined, signal);
   return ids ? new Set(ids) : undefined;
 }
+
+/** Final all-field API (R47). Legacy tcm/western early checks above keep their established behavior.
+ * The final API includes pathogenesis, modifications, full treatment cards, care, Western and unknown fields;
+ * unlike the early compatibility API it requires independent vendors and permits a false-only field to become empty.
+ */
+export { checkFinalPatientFacts, collectDeliveryText, buildTrustedRecordIndex, planMinimalFactCuts } from "./delivery-patient-facts.server";
