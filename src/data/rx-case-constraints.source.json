@@ -117,5 +117,28 @@
     "mollusc",
     "egg",
     "seafood"
+  ],
+  "nonCurrentFindingFields": [
+    "既往史",
+    "家族史",
+    "过敏史",
+    "用药史"
+  ],
+  "stopConditionCues": [
+    "出现",
+    "发生",
+    "伴有",
+    "患有",
+    "患者",
+    "者"
+  ],
+  "ulcerIndicationTerms": [
+    "胃溃疡",
+    "十二指肠溃疡",
+    "消化性溃疡"
+  ],
+  "broaderGastricIndications": [
+    "胃炎",
+    "消化不良"
   ]
 }

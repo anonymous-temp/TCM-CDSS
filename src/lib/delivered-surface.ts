@@ -41,7 +41,7 @@ import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormu
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { drugNamesInAllergyPhrases, medicationStoppedOrOnlyPast, medicationNotTaken } from "./clinical-polarity";
-import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationTriggerNotFinding, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs, withoutMutuallyIncompatibleAdditions } from "./m04-proposal-compiler";
+import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationTriggerNotFinding, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs, withoutMutuallyIncompatibleAdditions, withoutRepeatedModificationConditions } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
@@ -2790,15 +2790,14 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
       modification.reason = withoutUnsupportedReasonPhrases(modification.reason, herbFunctionKnowledgeForDisplay(modification.herbName), modification.herbName.trim());
     }
   }
-  // 条件与所加的药都相同的加减只留一条（同一条教材加减被模型写了两遍）。条件相同、加的药不同（「加龙胆草、夏枯草」拆成两行）是
-  // 一药一行的结构，不并。
+  // 缓存与编译共用每条件一个独立方案；教材明确的伙伴药仍按一药一行保留。
   if (formula && Array.isArray(formula.modifications)) {
     // 触发条件残缺到只剩泛称的加减不留（「若临床」：教材「临床可加槟榔、木香」被切成条件，2026-10-20 第八轮 X-G-0020）。源头已在教材表载入时去掉
     //（tcm-textbook-syndromes TEXTBOOK_GENERIC_CONDITION），这里兜住已缓存的结果与模型自己写出的同类触发。
     formula.modifications = records(formula.modifications).filter((item) => !GENERIC_ONLY_TRIGGER.test(String(item.trigger || "")));
     // 同一味药只加一次（编译与补写之后都可能重复，见 withoutRepeatedAddedHerbs）。
-    formula.modifications = withoutRepeatedAddedHerbs(withoutMutuallyIncompatibleAdditions(records(formula.modifications),
-      records(records(formula.candidates)[0]?.herbs).map((herb) => String(herb.name || ""))));
+    formula.modifications = withoutRepeatedModificationConditions(withoutRepeatedAddedHerbs(withoutMutuallyIncompatibleAdditions(records(formula.modifications),
+      records(records(formula.candidates)[0]?.herbs).map((herb) => String(herb.name || "")))));
     // 「调整/减」某药而这味药已不在最终药味里（第四十六轮 p100c-C018；定稿也做一次，这里兜住缓存与补写之后的行）。
     formula.modifications = withoutModificationsOnAbsentHerbs(records(formula.modifications),
       records(records(formula.candidates)[0]?.herbs).map((herb) => String(herb.name || "")));

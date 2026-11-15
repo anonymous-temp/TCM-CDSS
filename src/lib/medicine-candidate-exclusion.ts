@@ -4,17 +4,17 @@ import { recordedFindingReading } from "./diagnosis-safety";
 /** Only explicit label stop/contraindication instructions and affirmed current patient findings. */
 export function medicineLabelConflictsWithCase(label: { riskNote?: unknown; contraindication?: unknown; precaution?: unknown; indication?: unknown; functionIndication?: unknown }, caseText: string): boolean {
   if (!caseText) return false;
-  const current = caseText.split("\n").filter((line) => !/^\s*(?:既往史|家族史|过敏史|用药史)[:：]/u.test(line)).join("\n");
+  const current = caseText.split("\n").filter((line) => !constraints.nonCurrentFindingFields.includes(line.match(/^\s*([^:：]+)[:：]/u)?.[1].trim() || "")).join("\n");
   const warning = [label.riskNote, label.contraindication, label.precaution].filter((value) => typeof value === "string").join("；");
   for (const clause of warning.split(/[。；;\n]/u)) {
-    if (!/(?:立即|及时|应|须|需|请|即)?停(?:药|用|服)|禁用/u.test(clause)) continue;
+    if (!/停[药用服]|禁用/u.test(clause)) continue;
     // Conditional adverse-event lists are bound to the stop instruction, not unrelated neighboring warnings.
-    if (!/(?:出现|发生|伴有|患有|患者|者)/u.test(clause)) continue;
+    if (!constraints.stopConditionCues.some((cue) => clause.includes(cue))) continue;
     for (const group of constraints.stopSymptoms) if (group.some((term) => clause.includes(term)) && group.some((term) => recordedFindingReading(current, term) === "affirmed")) return true;
   }
   const indication = String(label.indication || label.functionIndication || "");
   // Exclusive labelled ulcer indications cannot be supported by an explicitly ulcer-negative record.
-  if (/(?:胃|十二指肠|消化性)溃疡/u.test(indication) && !/胃炎|消化不良/u.test(indication) && recordedFindingReading(current, "溃疡") === "denied") return true;
+  if (constraints.ulcerIndicationTerms.some((term) => indication.includes(term)) && !constraints.broaderGastricIndications.some((term) => indication.includes(term)) && recordedFindingReading(current, "溃疡") === "denied") return true;
   return false;
 }
 
