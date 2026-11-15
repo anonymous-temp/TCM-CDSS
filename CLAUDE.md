@@ -3420,6 +3420,12 @@ The user asked what the 口径确认书 drafted in round 45 contained, pointed o
 - **Model judgement**: 喉痹 for vocal-cord nodules (喉瘖), 急惊风 without convulsions, 胸痹 for a 76-year-old with shock signs (the 真心痛 pin needs chest pain), 银翘散 for a joint 痹证, 四物汤 for a ruptured ectopic pregnancy, added herbs whose claimed action does not fit the finding (白芷 「止头晕」).
 - **C089** (anxious 30-year-old, 「近日感胸口不适」) is still a red flag from the deterministic chest rule; its case focus says new symptoms must not be dismissed, so it stays.
 
+**In production (c476d797, tag `20261115-c476d79-prebuilt`, deployed 2026-11-15 about 16:13 Beijing; same release directory and `20260927-dsrepair` override).** The final gate on 844d5157 (c476d797 adds only CLAUDE.md) was green: lint, 310 suites, fresh-artifact suites, typecheck. `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 16.0 s, M04 P95 13.1 s).
+- Customer 10 on hospital-b (forced regeneration): every stage 200, disease and syndrome as the standard answers, no red flag.
+- 20 targeted records on hospital-a/b, all 200: red flags with an immediate first step for C013 (shock index), C067, C003, C027, n02 (DKA), n03, rt-909760 (真心痛·心阳欲脱证), C042, C036; C069 two weeks to the breast clinic; n33 within 24 h; n40 「慢性肾脏病4期伴高钾血症」 (no 待查, no criterion rewrite); C085 阻塞性睡眠呼吸暂停待查; C098 急性肺血栓栓塞症待查; C067 「三七月经期慎用；本例有月经期的记录」; C086 (rivaroxaban, osteoporosis, 82) has no tuina card; the eight lineage cases are partial without 「按常规辨证处理」; no tongue/pulse-only modification and none of 「当归尾尾」「耳鸣耳聋响」「未诉体温」「推之未诉」 or orphan mechanism segments.
+- Rollback: image `tcm-cdss:20261114-98b4fd7-prebuilt` with `docker-compose.yml.pre-c476d79` in the release directory.
+- Local build: 1.5 minutes with the temporary 3 GB zram swap (removed afterwards); the build tree and snapshots were deleted.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
