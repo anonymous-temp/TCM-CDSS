@@ -343,10 +343,14 @@ export function basisSaysNameNotEstablished(basis: string, name: string): boolea
   if (CLINICALLY_ESTABLISHED.test(text)) return false;
   const escaped = core.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   if (new RegExp(`考虑${escaped}(?:的)?可能|可能为${escaped}|${escaped}(?:的)?可能(?:性)?(?:大|较大)?[，,；;。]`, "u").test(text)) return true;
+  // 直说没确立的写法（第四十六轮复核：「失眠障碍诊断尚未确立」「需排除器质性疾病后方可诊断神经性厌食症」「功能性腹痛诊断尚缺规范评估排除器质性疾病」
+  //「需该检查确认」，病名仍写确诊名，C086、C047、C073、C085、n28）。构词守卫，闭集。
+  if (new RegExp(`${escaped}[^。；;]{0,8}?(?:尚未确立|尚不能确立|尚不能诊断|不能确诊|尚未明确诊断)|(?:尚未确立|尚不能确立|尚不能诊断)[^。；;]{0,6}${escaped}|后(?:方可|才能)诊断${escaped}`, "u").test(text)) return true;
   for (const sentence of text.split(/[。；;]/u)) {
     if (!sentence.includes(core) || /既往已确诊|已确诊/u.test(sentence)) continue;
     const after = sentence.slice(sentence.indexOf(core));
-    const missing = after.match(/(?:尚缺|尚需|有待|仍需|尚未行|尚未做)([^，,。；;]{1,30}?)(?:以|来|进一步|等)?(?:确认|确诊|明确诊断)/u);
+    if (/尚缺[^，,。；;]{0,12}(?:评估|检查)[^，,。；;]{0,6}排除/u.test(after)) return true;
+    const missing = after.match(/(?:尚缺|尚需|有待|仍需|尚未行|尚未做|需(?:做|行|完善|该|进一步)?)([^，,。；;]{1,30}?)(?:以|来|进一步|等)?(?:确认|确诊|明确诊断)/u);
     // 缺的是哪一层看整个小句（「尚缺病毒学检查确认病原」的病原在「确认」之后）。
     const missingClause = missing ? after.slice(after.indexOf(missing[0])).split(/[，,；;]/u)[0] : "";
     if (missing && !/病因|部位|病原|分型|程度|分级|分期|并发|出血点|性质/u.test(missingClause)) return true;

@@ -237,12 +237,37 @@ export function natureLabelSignTerms(label: string): string[] {
  * 一段话里有没有这一表现。「舌淡」不认「舌淡红」（淡红舌是正常舌象，第四十六轮复核 C081「舌淡红、苔薄示气血不足」）。
  */
 export function textHasSign(value: string, sign: string): boolean {
-  const source = String(value || "");
+  return signOccurrences(String(value || ""), sign).length > 0;
+}
+
+/**
+ * 一种表现在一段话里的出现位置。舌脉照病历字段的写法也认（第四十六轮复核 C041、C042、C069：病历「脉象：弦」「脉沉弦」，
+ * 病性说明却写「尚未见到…脉弦等表现」）：「脉X」认「脉象：X」「脉沉X」「X脉」，「舌X」「苔X」认「舌象：舌X」「舌质：X」「舌苔：X」。
+ * 中间至多隔两个同类描述字。「舌淡」不认「舌淡红」（淡红舌是正常舌象）。
+ */
+const PULSE_QUALIFIERS = "浮沉迟数滑涩弦紧缓虚实洪细弱濡微促结代芤革牢散伏动长短大";
+function signOccurrences(source: string, sign: string): number[] {
+  const out: number[] = [];
   for (let at = source.indexOf(sign); at >= 0; at = source.indexOf(sign, at + 1)) {
     if (sign.endsWith("淡") && source[at + sign.length] === "红") continue;
-    return true;
+    out.push(at);
   }
-  return false;
+  if (out.length > 0) return out;
+  const tongue = sign.match(/^([舌苔])(.+)$/u);
+  const pulse = sign.match(/^脉(.+)$/u);
+  const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const pattern = pulse
+    ? new RegExp(`脉(?:象)?[：:\\s]*[${PULSE_QUALIFIERS}]{0,2}${escape(pulse[1])}|${escape(pulse[1])}脉`, "gu")
+    : tongue
+      ? new RegExp(`${tongue[1] === "舌" ? "舌(?:质|体|象)?" : "(?:舌苔|苔)"}[：:\\s]*(?:舌)?[^，,。；;\\n：:]{0,2}${escape(tongue[2])}`, "gu")
+      : undefined;
+  if (!pattern) return out;
+  for (const match of source.matchAll(pattern)) {
+    const end = (match.index ?? 0) + match[0].length;
+    if (sign.endsWith("淡") && source[end] === "红") continue;
+    out.push(match.index ?? 0);
+  }
+  return out;
 }
 
 /** 病历里这几种表现的肯定提及：所在小句原文（去重，按出现先后）。 */
@@ -251,8 +276,7 @@ export function recordSignQuotes(recordText: string, signs: readonly string[]): 
   if (!source || signs.length === 0) return [];
   const hits: Array<{ at: number; quote: string }> = [];
   for (const sign of [...signs].sort((a, b) => b.length - a.length)) {
-    for (let at = source.indexOf(sign); at >= 0; at = source.indexOf(sign, at + 1)) {
-      if (sign.endsWith("淡") && source[at + sign.length] === "红") continue;
+    for (const at of signOccurrences(source, sign)) {
       if (clauseLocalMentionPolarityAt(source, at) !== "affirmed") continue;
       const left = Math.max(...["，", ",", "。", "；", ";", "\n", "：", ":"].map((mark) => source.lastIndexOf(mark, at)));
       const rights = ["，", ",", "。", "；", ";", "\n"].map((mark) => source.indexOf(mark, at)).filter((index) => index >= 0);

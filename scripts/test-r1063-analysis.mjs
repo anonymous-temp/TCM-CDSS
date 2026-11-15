@@ -186,7 +186,7 @@ await check("3.2 病性有界说明点名缺哪一条与该有的表现；不写
   const record = "主诉：妊娠20周排便困难3周\n现病史：每3至4天排便，粪便硬，无腹痛\n舌象：舌淡红，苔薄\n脉象：滑";
   const nature = unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(reasoning), record)).pathogenesis.natureDifferentiation;
   assert.equal(nature.resolution, "bounded");
-  assert.match(nature.resolutionReason, /“气滞”尚未见到胀闷、胀痛、窜痛、脉弦等表现/u);
+  assert.match(nature.resolutionReason, /“气滞”尚待核实（可留意胀闷、胀痛、窜痛、脉弦等表现）/u);
   assert.doesNotMatch(nature.resolutionReason, /个别要素/u);
 });
 

@@ -4029,8 +4029,11 @@ const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
  * 拟加药味（随证加减）的慎用级人群提示（剂量一致化 D4，第二十三轮）：知识库里该味中等风险（慎用）的人群，本例病历记有其一时返回人群名。
  * 判据与开方核对的高风险拦截同一组人群匹配（M04_SPECIAL_POPULATION_MATCHERS），只是等级不同：高风险拦下，慎用写明。
  */
-export function recordedPopulationCautions(herbName: string, clinicalContext: string): string[] {
-  if (!clinicalContext.trim() || !herbName.trim()) return [];
+export function recordedPopulationCautions(herbName: string, rawClinicalContext: string): string[] {
+  if (!rawClinicalContext.trim() || !herbName.trim()) return [];
+  // 过敏史、家族史一栏里写到的药名与病不是本例的人群状态（第四十六轮复核 C034、C043：过敏史「阿司匹林诱发喘息/胃部不适」，加减行写成
+  //「本例有出血倾向/抗凝状态的记录」）。这里写的是给医生看的「本例有…」，只读本例当前的记载；剔药的人群判据（m04GenerationSpecialPopulationIssue）不动。
+  const clinicalContext = rawClinicalContext.split("\n").filter((line) => !/^\s*(?:药物)?(?:过敏史|家族史)\s*[:：]/u.test(line)).join("\n");
   const populations = new Set<string>();
   // 孕哺两类只给可能属于的人（10 岁以上女性；病历的母亲孕产史不是患者本人，第四十一轮 m24：8 月龄男婴的加减写「佩兰孕期慎用，本例有孕期记录」），
   // 且只列有药典依据的慎用（boundaryRuleShown，与逐味提示同一判据：王不留行是下乳药，「哺乳期慎用」是功效分类抽出来的，第四十一轮 m32）。

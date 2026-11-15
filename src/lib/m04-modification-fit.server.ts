@@ -211,6 +211,8 @@ const TOP_UP_SYSTEM = [
   "纳差、食少不是主诉、证候又不涉脾胃食积时，不为它加消食药（焦山楂、神曲、麦芽、鸡内金）；病人高热、意识改变、休克、少尿这类急危重表现不作加减条件。",
   "trigger 必须是患者此刻的一个症状、体征（不写生活习惯或诱因如熬夜、久坐、屏幕时间长，不写缓解因素如吃糖后好转，不写病名、病史、检查或就诊经过，不写既往史、个人史里的内容）。",
   "主病直接引起的伴随表现不另加药（因疼痛或瘙痒而眠差、因发热而纳差、外感正邪相争而精神差，主病好了自然好）。药的寒热补泻要与证型一致：外感、痰热、湿热、瘀血这类实证不为次要表现加补益药，虚证不加攻伐药。病历否认的、existing 里已有的不写。病历里找不到这样的表现就少写或输出空数组，不要编。",
+  // 第四十六轮：补写的行要过编译的全部判据，模型只给一两条时常常一条都进不去（p100c 23 份不足两个条件）。多给几条备选，理由只写这味药对这个表现的作用。
+  "给 3–4 条备选，按把握从大到小排；每条的条件不同、药不同。reason 只写这味药针对这个表现的作用，用治法 method 里有的说法；治法里没有的温里、清热、补益、泻下、破血、散结这类方向不要写进 reason。",
   "只输出 JSON：{\"rows\":[{\"trigger\":\"\",\"herbName\":\"\",\"dose\":\"\",\"reason\":\"\",\"symptomPathogenesis\":\"\"}]}",
 ].join("\n");
 
@@ -295,7 +297,7 @@ export async function topUpModificationConditions(
       { role: "system", content: standbyModificationsDelivered() ? STANDBY_TOP_UP_SYSTEM : TOP_UP_SYSTEM },
       { role: "user", content: JSON.stringify({ syndrome, method, herbs, existing, chiefComplaint, mainSymptomHerbs, record: context.recordText.slice(0, 2_400) }) },
     ],
-    maxTokens: 400,
+    maxTokens: 700,
     parse: parseTopUp,
   }, (row) => `${row.trigger}|${row.herbName}`, (row) => ({
     messages: [

@@ -910,6 +910,8 @@ export function readabilityCleaned(input: string): string {
     .replace(/[（(]\s*[）)]/gu, "")
     .replace(/(^|[。；;，,])[^。；;，,]*?(?:参照本方|本方(?:与|合)本方)[^。；;，,]*(?:[，,][^。；;，,]*?之意)?[，,]?/gu, "$1")
     .replace(/教材行/gu, "教材证型")
+    // 删句后留下的「。，」（第四十六轮复核 C052「故属风寒束表证。，本例脉浮」）。
+    .replace(/。[，,；;]+/gu, "。")
     .replace(/；{2,}|;{2,}/gu, "；")
     .replace(/，{2,}|,{2,}/gu, "，")
     .replace(/、{2,}/gu, "、")
@@ -1283,17 +1285,16 @@ function withLineageApplicabilityMatchingFormula(projected: Json): void {
     : [...(Array.isArray(overview?.recommendedFormulaNames) ? overview!.recommendedFormulaNames as unknown[] : []).map(String), String(overview?.recommendedFormulaDirection || "")];
   const chosen = names.map((name) => name.trim()).filter((name) => name && !/^(?:自拟方|本例辨证组方)/u.test(name));
   if (chosen.length === 0 || formulaNamesCarryLineage(chosen, lineage.lineageCode) !== false) return;
+  // 只在模型自己的辨证末句已说本例按常规辨证（流派不适配）时才改判（第四十六轮复核：只凭方名不在本地流派归属表里就判「不适用」，
+  // 丹溪治气郁痰郁、经方治太阴虚寒、《温病条辨》以茵陈蒿汤治阳明温病发黄都被判成「不在该派用方之列」，10 份流派栏判错）。
+  // 归属表只收得到一部分该派用方，不能拿来说「不在用方之列」。
+  if (!/按常规辨证/u.test(String(overview?.tcmDiagnosticRationale || ""))) return;
   const label = typeof lineage.label === "string" && lineage.label.trim() ? lineage.label.trim() : "该派";
   const fitClause = /[，,；;]?[^，,；;。]{0,12}(?:方向|思路|取向)?(?:部分)?相符[^，,；;。]{0,6}/gu;
   if (typeof lineage.applicabilityReason === "string") {
     const reason = lineage.applicabilityReason.replace(fitClause, "").replace(/^[，,；;\s]+|[，,；;\s]+$/gu, "").trim();
-    // 交付的方名是自拟方、身份栏里留着参照的成方时，照实写「自拟方，参照X」（重生成 C043：方名自拟方，理由却写「本次选方（乌头汤）」）。
-    const deliveredName = projected.stage === "prescribe" ? String(candidate?.name || "").trim() : "";
-    const referenced = chosen.find((name) => name !== deliveredName) || chosen[0];
-    const formulaLabel = /^(?:自拟方|本例辨证组方)/u.test(deliveredName)
-      ? `自拟方，参照${referenced.replace(/(?:加减|化裁|加味)$/u, "")}`
-      : chosen[0].replace(/(?:加减|化裁|加味)$/u, "");
-    lineage.applicabilityReason = `${reason ? `${reason}；` : ""}本次选方（${formulaLabel}）不在${label}的用方之列，未按该派执行`;
+    const trimmedReason = reason.replace(/^(?:但|然|而)[，,]?/u, "").trim();
+    lineage.applicabilityReason = `${trimmedReason ? `${trimmedReason}；` : ""}本例按常规辨证论治，未按${label}执行`;
   }
   lineage.applicable = "not-applicable";
   if (overview && typeof overview.tcmDiagnosticRationale === "string") {

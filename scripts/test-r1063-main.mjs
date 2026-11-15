@@ -33,6 +33,9 @@ const types = await jiti.import("../src/lib/diagnosis-types.ts");
 const surface = await jiti.import("../src/lib/delivered-surface.ts");
 const summary = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+const compiler = await jiti.import("../src/lib/m04-proposal-compiler.ts");
+const closure = await jiti.import("../src/lib/analysis-element-closure.ts");
+const basisAuthoring = await jiti.import("../src/lib/western-basis-authoring.server.ts");
 
 const state = (chiefComplaint, history, extra = {}) => types.normalizeCaseStateInput({
   id: `r1063-${Math.random().toString(36).slice(2)}`,
@@ -211,6 +214,73 @@ await check("4.2 循环不稳伴阴道少量出血（疑异位妊娠破裂）：
   assert.ok(has(list, /伴阴道少量出血/u), JSON.stringify(list));
   assert.equal(safety.hasActiveBleedingRedFlag(list), true);
   assert.equal(contract.herbBarredForCase("川芎", safety.clinicalGroundingText(ectopic)), true);
+});
+
+await check("5.1 加减条件是舌脉的紧凑写法（「脉弦」）而病历按字段写（「脉象：弦」）时也算本例已见；别的脉、病历没记的不算", () => {
+  const facts = "头痛3个月\n舌象：舌淡红，苔薄白\n脉象：弦\n面象：神清，颈肩紧张";
+  assert.deepEqual(compiler.presentModificationCondition("脉弦", facts), { trigger: "本例已见脉弦", quote: "脉象：弦" });
+  assert.equal(compiler.presentModificationCondition("脉滑", facts), undefined, "对照：病历是弦脉");
+  assert.equal(compiler.presentModificationCondition("苔黄腻", facts), undefined, "对照：病历苔薄白");
+});
+
+await check("6.1 舌脉表现照病历字段写法也认（「脉象：弦」「脉沉弦」「弦脉」算脉弦；「舌淡红」不算舌淡）", () => {
+  assert.equal(closure.textHasSign("脉象：弦", "脉弦"), true);
+  assert.equal(closure.textHasSign("脉沉弦", "脉弦"), true);
+  assert.equal(closure.textHasSign("弦脉", "脉弦"), true);
+  assert.equal(closure.textHasSign("舌苔：黄腻", "苔黄"), true);
+  assert.equal(closure.textHasSign("脉细", "脉弦"), false, "对照");
+  assert.equal(closure.textHasSign("舌象：舌淡红，苔薄白", "舌淡"), false, "对照：淡红舌是正常舌象");
+  assert.deepEqual(closure.recordSignQuotes("头痛\n脉象：弦\n舌淡红", ["脉弦"]), ["脉象：弦"]);
+});
+
+await check("6.2 流派「部分适用」只在辨证末句已说按常规辨证时才改判不适用，理由不写「不在该派用方之列」", () => {
+  const base = (rationale) => ({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    overview: { tcmDiseaseName: "郁证", primarySyndrome: "肝气郁结证", tcmDiagnosticRationale: rationale },
+    lineageAdaptation: { lineageCode: "warm-tonify", label: "温补学派思路", applicable: "partial", applicabilityReason: "本例部分相合", influencedDecisions: [] },
+    formula: { candidates: [{ name: "柴胡疏肝散", formulaNames: ["柴胡疏肝散"], herbs: [{ name: "柴胡", dose: "10g", role: "君" }], formulaSource: { source: "" }, formulaAnalysis: "", decoction: { method: "水煎服" } }] },
+  });
+  const kept = surface.projectDeliveredReasoning(base("温补学派看脾肾命门，本例气郁为主，宜疏肝。"));
+  assert.equal(kept.lineageAdaptation.applicable, "partial");
+  const changed = surface.projectDeliveredReasoning(base("温补学派看脾肾命门，本例未见命门火衰实据，以下按常规辨证处理。"));
+  assert.equal(changed.lineageAdaptation.applicable, "not-applicable");
+  assert.doesNotMatch(changed.lineageAdaptation.applicabilityReason, /用方之列/u);
+});
+
+await check("6.3 「无」后面的对象自己带否定或检查结论时不改写成「未诉…」（「喉镜未见新生物」）；普通阴性照改（对照）", () => {
+  assert.equal(summary.unrecordedNegativesAsNotReported("无喉镜未见新生物", "喉镜：双侧声带小结，未见新生物"), "无喉镜未见新生物");
+  assert.equal(summary.unrecordedNegativesAsNotReported("本例无口苦", "头晕2天"), "本例未诉口苦", "对照");
+});
+
+await check("6.4 病历写明已断奶时注意事项不写「如正在哺乳请先告知医生」的假设小句；在哺乳的照留（对照）", () => {
+  const precautions = ["方中当归、川芎活血，如已怀孕或备孕请先告知医生。", "如正在哺乳请先告知医生。", "饭后温服。"];
+  const weaned = state("腰痛2周", "腰部酸痛。", { sex: "女", age: 35, symptoms: { 婚育史: "已婚，育1子，已断奶2年" } });
+  const out = compiler.casePrecautionsForTest ? compiler.casePrecautionsForTest(precautions, weaned) : null;
+  if (out) {
+    assert.ok(!out.some((line) => /正在哺乳/u.test(line)), JSON.stringify(out));
+    const nursing = state("腰痛2周", "腰部酸痛。", { sex: "女", age: 30, symptoms: { 婚育史: "产后3月，母乳喂养" } });
+    assert.ok(compiler.casePrecautionsForTest(precautions, nursing).some((line) => /正在哺乳/u.test(line)), "对照");
+  } else {
+    throw new Error("casePrecautionsForTest 未导出");
+  }
+});
+
+await check("6.5 加减行的人群提示不读过敏史、家族史：过敏史写阿司匹林不算「本例有抗凝状态的记录」；现用阿司匹林照写（对照）", () => {
+  assert.deepEqual(contract.recordedPopulationCautions("鸡血藤", "患者年龄：60岁\n患者性别：男\n腰痛\n过敏史：阿司匹林诱发喘息"), []);
+  assert.ok(contract.recordedPopulationCautions("鸡血藤", "患者年龄：60岁\n患者性别：男\n腰痛\n用药史：阿司匹林100mg每日1次").length > 0);
+});
+
+await check("6.6 删句后留下的「。，」收成句号", () => {
+  assert.equal(surface.readabilityCleaned("故属风寒束表证。，本例脉浮。"), "故属风寒束表证。本例脉浮。");
+});
+
+await check("6.7 西医依据直说没确立（「诊断尚未确立」「…后方可诊断X」「尚缺规范评估排除…」「需…监测确认」）时病名按待查；只缺严重程度、或说可诊断的不算（对照）", () => {
+  assert.equal(basisAuthoring.basisSaysNameNotEstablished("本次反复跌倒、入睡困难，失眠障碍诊断尚未确立。", "失眠障碍"), true);
+  assert.equal(basisAuthoring.basisSaysNameNotEstablished("需排除器质性疾病后方可诊断神经性厌食症。", "神经性厌食症"), true);
+  assert.equal(basisAuthoring.basisSaysNameNotEstablished("功能性腹痛诊断尚缺规范评估排除器质性疾病。", "功能性腹痛"), true);
+  assert.equal(basisAuthoring.basisSaysNameNotEstablished("打鼾憋醒，阻塞性睡眠呼吸暂停需多导睡眠监测确认。", "阻塞性睡眠呼吸暂停"), true);
+  assert.equal(basisAuthoring.basisSaysNameNotEstablished("临床可诊断支气管哮喘，尚缺肺功能确认严重程度。", "支气管哮喘"), false, "对照");
+  assert.equal(basisAuthoring.basisSaysNameNotEstablished("符合急性上呼吸道感染。", "急性上呼吸道感染"), false, "对照");
 });
 
 if (failures > 0) console.error(`\n${failures} check(s) failed`);

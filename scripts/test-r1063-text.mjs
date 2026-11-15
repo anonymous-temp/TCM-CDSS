@@ -177,10 +177,18 @@ const LINEAGE_HERBS = {
 await check("5.1 选的方不是该派的方：部分适用改为不适用，理由写明未按该派执行，辨证末句的「相符」小句去掉（C043、C021）", () => {
   const out = project(lineageCase("独活寄生汤加减"));
   assert.equal(out.lineageAdaptation.applicable, "not-applicable");
-  assert.match(out.lineageAdaptation.applicabilityReason, /本次选方（独活寄生汤）不在温补学派思路的用方之列，未按该派执行/);
+  // 第四十六轮复核后（总指挥）：不写「本次选方不在该派用方之列」——本地归属表收不全该派用方，这句常常说错（《温病条辨》茵陈蒿汤）；
+  // 只在辨证末句已说按常规辨证时改判，理由写「本例按常规辨证论治，未按该派执行」。
+  assert.match(out.lineageAdaptation.applicabilityReason, /本例按常规辨证论治，未按温补学派思路执行/);
+  assert.doesNotMatch(out.lineageAdaptation.applicabilityReason, /用方之列/);
   assert.doesNotMatch(out.lineageAdaptation.applicabilityReason, /相符/);
   assert.doesNotMatch(out.overview.tcmDiagnosticRationale, /相符/);
   assert.deepEqual(project(out), out);
+});
+await check("5.1b 对照：辨证末句是按该派视角分析、没说按常规辨证时，方名不在归属表里也照旧部分适用（第四十六轮复核 C089 丹溪治气郁、C079 经方太阴虚寒）", () => {
+  const input = lineageCase("独活寄生汤加减");
+  input.overview.tcmDiagnosticRationale = "温补学派看脾肾命门与阴阳互根，本例怕冷、舌淡胖属脾肾阳虚，宜温养脾肾。";
+  assert.equal(project(input).lineageAdaptation.applicable, "partial");
 });
 await check("5.2 对照：选的是该派的方（右归丸属温补）照旧部分适用", () => {
   assert.equal(provenance.formulaNamesCarryLineage(["右归丸"], "warm-tonify"), true);

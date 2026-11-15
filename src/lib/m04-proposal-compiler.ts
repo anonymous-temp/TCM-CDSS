@@ -1,3 +1,4 @@
+import { alignQuoteToSource } from "./source-quote-alignment";
 import sameSourceHerbsJson from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, standbyHerbOpposesSyndromePole, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { incidentalSleepSedativeModification, incidentalSleepTriggerModification, mindSymptomsProminentInRecord, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
@@ -36,7 +37,7 @@ import {
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
-import { activeBleedingInGroundingText, authoritativePatientAgeYears, negationGroundingEquivalents, clinicalGroundingText, clauseLocalMentionPolarityAt, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, sourceDocumentsNegation } from "./diagnosis-safety";
+import { activeBleedingInGroundingText, authoritativePatientAgeYears, recordMentionPolarityAt, negationGroundingEquivalents, clinicalGroundingText, clauseLocalMentionPolarityAt, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, sourceDocumentsNegation } from "./diagnosis-safety";
 import modificationRelevanceJson from "../data/tcm-modification-relevance.source.json";
 import { pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
@@ -48,7 +49,7 @@ import { patentMedicineDuplication, patentMedicineMovesBloodDuringBleeding, pate
 import { decoctionThermalByComposition, findLocalPatentMedicineLabel, herbThermalSide, patentMedicineCoversMainProblem, patentMedicineMatchesSignedSyndrome } from "./local-patent-medicine-candidates";
 import { herbRecordCautionConflict, herbRecordCautionConflicts, herbStrongRecordCautionConflict, textbookBaseIngredients, type HerbRecordCautionConflict } from "./herb-record-caution";
 import { withoutNormalFindingSegments } from "./diagnosis-visible-summary";
-import { assessPregnancyState } from "./clinical-state";
+import { assessLactationState, assessPregnancyState } from "./clinical-state";
 import { specialDecoctionPhrase, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
 import { withheldBaseIngredientNote } from "./formula-withheld-ingredient-note";
 import { chpPregnancyHerbTier, conceptionHerbNote } from "./conception-herb-policy";
@@ -254,6 +255,11 @@ function casePrecautions(precautions: readonly string[], caseState: CaseState | 
     precautions = precautions.map((item) => withoutClauses(item, PREGNANCY_CONDITIONAL_CLAUSE))
       .filter((item) => item && !CONTENTLESS_DOCTOR_CONFIRMATION.test(item));
   }
+  // 病历写明已断奶、不哺乳（哺乳读法为否认）时，不写「如正在哺乳请先告知医生」这个假设小句（第四十六轮复核 n06、m22、m31：婚育史「已断奶2年」）。
+  if (assessLactationState(clinicalGroundingText(caseState)).status === "negative") {
+    precautions = precautions.map((item) => withoutClauses(item, LACTATION_CONDITIONAL_CLAUSE))
+      .filter((item) => item && !CONTENTLESS_DOCTOR_CONFIRMATION.test(item));
+  }
   if (caseState.safetyGate?.status === "red_flag") precautions = precautions.filter((item) => !PRESCRIPTION_ADMINISTRATION_LINE.test(item));
   // 写给某一年龄段的条目只写给这个年龄段（2026-10-17：24 岁体健的感冒患者注意事项里写「高龄或体弱者起身宜缓，防跌倒」，独立评审判套话）。
   const age = authoritativePatientAgeYears(caseState);
@@ -262,6 +268,10 @@ function casePrecautions(precautions: readonly string[], caseState: CaseState | 
   return [...precautions];
 }
 
+/** 测试用：注意事项按本例收口（casePrecautions）。 */
+export const casePrecautionsForTest = (precautions: readonly string[], caseState: CaseState): string[] => casePrecautions(precautions, caseState);
+/** 「如正在哺乳…」「哺乳期请先告知…」这类假设小句（哺乳读法为否认时去掉）。 */
+const LACTATION_CONDITIONAL_CLAUSE = /(?:如|若|如果)(?:正在|仍在|目前)?哺乳|哺乳(?:期间|期)?(?:的话)?请/u;
 /** 写给老年人的条目（「高龄或体弱者起身宜缓」「老年人服药后…」）。 */
 const ELDERLY_ADVICE_LINE = /高龄|老年|老人/;
 /** 写给儿童的条目（「小儿服药宜少量多次」「患儿…」）。 */
@@ -1139,7 +1149,15 @@ export function presentModificationCondition(trigger: string, recordedFacts: str
     const sentence = affirmingRecordSentence(recordedFacts, body);
     if (sentence) return { trigger: `本例已见${body}`, quote: sentence.split(/[，,]/u).find((clause) => clause.includes(body)) || sentence };
   }
-  return modificationConditionAlreadyPresent(raw, recordedFacts);
+  const present = modificationConditionAlreadyPresent(raw, recordedFacts);
+  if (present) return present;
+  // 舌象、脉象的紧凑写法（「脉弦」「苔黄腻」）对病历字段写法（「脉象：弦」「舌苔：黄腻」）：与引文接地同一个对齐函数（source-quote-alignment，
+  // 第二十一轮）。第四十六轮复核：补写提名「脉弦：加柴胡」、复核也确认，却因病历写「脉象：弦」被判本例没有，加减只剩一条（p100c-C030）。
+  if (/^[舌苔脉]/u.test(body) && body.length <= 8) {
+    const aligned = alignQuoteToSource(body, recordedFacts, { excludedAt: (source, index) => recordMentionPolarityAt(source, index) !== "affirmed" });
+    if (aligned) return { trigger: `本例已见${body}`, quote: aligned.span };
+  }
+  return undefined;
 }
 
 /** 判「本例已见」用的材料：病历原文，加辨证阶段采纳的患者原话（主证依据、各病机节点的患者事实）。交付面用同一份。 */

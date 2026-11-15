@@ -1022,7 +1022,9 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
         // 逐字复核 C064、C072、n30 判机械句）：病历里找不到某一条病性的表现时点名这一条与它该有的表现；否则是模型在 uncertainties 里点名的那一项
         //（问的是病历已写明的事、照抄提示段内部说法的不算，C098「舌苔厚薄」而病历记苔薄）；再否则点名认不出表现的那几条。
         const pendingItem = groundedBasis ? natureUncertaintyItem(pathogenesis?.uncertainties, natureLabel, "病性", clinicalContext) : "";
-        const unsupported = elementSupport.unsupported.map((item) => `“${item.label}”尚未见到${item.signs.slice(0, 4).join("、")}等表现`).join("；");
+        // 只点名证名以外、病历里确实找不到表现的那几条；写成「待核实（可留意…）」——「尚未见到…」这种否定句被下游「无/未见→未诉」改写
+        // 改成「尚，未诉到…」，证名自带的病性还会被写成「没见到」与结论相反（第四十六轮复核 C043、C069、C077、C088）。
+        const unsupported = blockingUnsupported.map((item) => `“${item.label}”尚待核实（可留意${item.signs.slice(0, 4).join("、")}等表现）`).join("；");
         nature.resolutionReason = finalResolution === "bounded"
           ? unsupported
             ? `病性${unsupported}`
@@ -1400,8 +1402,11 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
   });
   // 改写后读不通的不改，留模型原话（2026-11-14 第四十五轮，甲方 100 例约 20 份：「未诉痛性乳房肿块」原意无痛性、「非未诉性交而遗」
   //「未诉然阴虚火旺」「未诉多潮热盗汗」）：「无」后是构词（无痛性、无菌、无色、无规律），或前面是「非/之/推/亦非」、后面紧跟虚词（然、多、可、诸、即）。
+  // 对象本身又带否定或检查结论的（「喉镜未见新生物」「心电图正常」「心率86次/分」），前面的「无」不是在否认一个表现，改写成「未诉…」读成反话
+  //（第四十六轮复核 n36「未诉喉镜未见新生物」、m18「未诉心率86次/分」）。构词守卫。
   const unreadable = (term: string, offset: number, whole: string) =>
-    /^(?:痛性|菌|色|规律|诱因|然|多|可|诸|即|其|性|意(?:中|间|地|发现)|症状性)/u.test(term) || /(?:非|之|推|并非)$/u.test(whole.slice(Math.max(0, offset - 2), offset));
+    /^(?:痛性|菌|色|规律|诱因|然|多|可|诸|即|其|性|意(?:中|间|地|发现)|症状性)/u.test(term) || /(?:非|之|推|并非)$/u.test(whole.slice(Math.max(0, offset - 2), offset)) ||
+    /未见|无|未|阴性|正常|异常|\d/u.test(term);
   const out = withMechanismFindings.replace(UNRECORDED_NEGATIVE, (match, term: string, offset: number, whole: string) =>
     inferred(offset, whole, term) || unreadable(term, offset, whole) || recordMentionsNegatedTerm(record, core(term)) || /(?:结果|报告|记录|资料|检查|数据)$/u.test(term) || /^(?:明显|特殊|其他)?异常$/u.test(term) ? match : `未诉${term}`)
     // 「无气从少腹上冲胸咽之奔豚特征」：对象后面接「之…特征/表现/症状」时上面那条够不着（2026-10-19 甲方标准病历 2 第 3 次生成）。
