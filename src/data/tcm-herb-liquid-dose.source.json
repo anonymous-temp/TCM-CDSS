@@ -1,0 +1,15 @@
+{
+ "schemaVersion": 1,
+ "note": "液体药按体积单独核量，不把 mL 折算为 g。仅对已核对的液态药纠正模型误写的克单位，保留数值，超范围仍由合同拒绝。",
+ "herbs": [
+  {
+   "names": ["竹沥", "鲜竹沥"],
+   "minMl": 30,
+   "maxMl": 50,
+   "method": "兑服",
+   "quote": "【用法用量】30～50mL，冲服。",
+   "line": 157446,
+   "source": "《中药学》钟赣生主编，十三五规划教材；中医补充数据/灵丹GitHub/TCM Educational Materials.txt"
+  }
+ ]
+}

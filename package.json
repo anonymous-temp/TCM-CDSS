@@ -387,6 +387,7 @@
     "test:r1063-analysis": "node scripts/test-r1063-analysis.mjs",
     "test:r1063-rx": "node scripts/test-r1063-rx.mjs",
     "test:r1063-text": "node scripts/test-r1063-text.mjs",
+    "test:r1064-herb": "node --max-old-space-size=1280 scripts/test-r1064-herb.mjs",
     "build:formula-original-compositions": "python3 scripts/build-formula-original-compositions.py",
     "report:formula-original-reconciliation": "node scripts/report-formula-original-reconciliation.mjs"
   },

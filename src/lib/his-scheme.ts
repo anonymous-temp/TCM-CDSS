@@ -981,7 +981,7 @@ export function buildHisAiSchemePayload(
     .filter(Boolean)
     .join("；");
   const contentMismatch = suppressDoseLevelOutputs ? false : markdownV2HerbMismatch(markdownHerbal, caseState);
-  const invalidStructuredDose = suppressDoseLevelOutputs ? false : structuredHerbs(caseState).some((herb) => !isValidEditedHerbDose(herb.dose));
+  const invalidStructuredDose = suppressDoseLevelOutputs ? false : structuredHerbs(caseState).some((herb) => !isValidEditedHerbDose(herb.dose, herb.name));
   const unauditedConcreteMedicine = medicineOutsideSubmittedScope(caseState, medicine);
   // 受理裁决范围读取(2026-08-03 根源工程): 生成侧带批注受理的裁决随合同签名下发,
   // HIS 侧**读取并呈现**豁免/批注码,而不是用自己的口径把已受理候选再判一遍——

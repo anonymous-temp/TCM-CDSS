@@ -104,15 +104,18 @@ await check("3.3 出血时开方提示列出本系统归为活血化瘀药的饮
   assert.match(bleedingRules.activeBleedingM04Rule("to_exclude"), /归为活血化瘀药的有：[^；]*降香/);
 });
 
-await check("3.4 定稿剔除：药引/辅料（竹沥、姜汁）写成毫升或「适量」、没有克数且不是君药时单味拿出（C048 双合汤带竹沥整页退成非剂量）；写了克数或是君药的照留", async () => {
+await check("3.4 第四十七轮：竹沥按教材 mL 兑服保留；其它无体积依据的药引仍走旧剔除规则", async () => {
   const pruning = await jiti.import("../src/lib/m04-modification-safety.ts");
   const content = (herbs) => `前文\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [{ name: "双合汤加减", herbs, formulaAnalysis: herbs.map((herb) => `${herb.name}为${herb.role}`).join("，") + "。" }] } })}\n<!-- DIAGNOSIS_JSON_END -->`;
   const candidateOf = (text) => JSON.parse(text.slice(text.indexOf("<!-- DIAGNOSIS_JSON_START -->") + 29, text.indexOf("<!-- DIAGNOSIS_JSON_END -->"))).formula.candidates[0];
   const herbs = (dose) => [{ name: "当归", role: "君", dose: "10g" }, { name: "川芎", role: "臣", dose: "6g" }, { name: "半夏", role: "佐", dose: "9g" }, { name: "竹沥", role: "佐", dose }, { name: "甘草", role: "使", dose: "6g" }];
   const pruned = candidateOf(pruning.dropSafetyConflictingM04CandidateHerbs(content(herbs("30ml")), "关节肿痛3月。"));
-  assert.ok(!pruned.herbs.some((herb) => herb.name === "竹沥"));
-  assert.match(pruned.notApplicable, /竹沥（药引\/辅料/);
-  assert.ok(candidateOf(pruning.dropSafetyConflictingM04CandidateHerbs(content(herbs("10g")), "关节肿痛3月。")).herbs.some((herb) => herb.name === "竹沥"), "写了克数的照留");
+  // C1 修复有意改变旧的「无克数就剔除竹沥」口径：教材明确写体积。姜汁仍作阴性对照。
+  assert.equal(pruned.herbs.find((herb) => herb.name === "竹沥")?.dose, "30mL");
+  assert.equal(pruned.herbs.find((herb) => herb.name === "竹沥")?.decoctionRequirement, "兑服");
+  const vehicle = herbs("30ml").map((herb) => herb.name === "竹沥" ? { ...herb, name: "姜汁" } : herb);
+  assert.ok(!candidateOf(pruning.dropSafetyConflictingM04CandidateHerbs(content(vehicle), "关节肿痛3月。")).herbs.some((herb) => herb.name === "姜汁"));
+  assert.ok(candidateOf(pruning.dropSafetyConflictingM04CandidateHerbs(content(herbs("10g")), "关节肿痛3月。")).herbs.some((herb) => herb.name === "竹沥"), "误写克数的竹沥纠正计量单位后照留");
 });
 
 // ---------- 4 成人用了儿科病名 ----------
@@ -424,7 +427,8 @@ await check("7.5 小模型按本例选穴：请求里有本例诊断、表现与
   });
   const route = fs.readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
   assert.match(route, /const homeAcupointAuthoring = homeAcupointInput \? authorHomeAcupointCare\(homeAcupointInput, signal\)/);
-  assert.match(route, /Promise\.all\(\[\s*checkFormulaAnalysisClaimsInContent\(content, transformSignal\),\s*dropMisfitModifications\(content, \{ recordText: structuredClinicalContext \}, transformSignal\),\s*homeAcupointAuthoring,?\s*\]\)/);
+  // 第四十七轮 C1：教材注意核对加入同一并行组，居家选穴仍不串行。
+  assert.match(route, /Promise\.all\(\[\s*checkFormulaAnalysisClaimsInContent\(content, transformSignal\),\s*dropMisfitModifications\(content, \{ recordText: structuredClinicalContext \}, transformSignal\),\s*homeAcupointAuthoring,\s*checkHerbCautions\(content, \{ recordText: structuredClinicalContext \}, transformSignal\),?\s*\]\)/);
   assert.match(route, /\{ authoredHomeAcupoint \}\)/);
 });
 

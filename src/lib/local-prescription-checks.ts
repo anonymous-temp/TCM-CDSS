@@ -16,6 +16,7 @@ import { sanitizeFreeTextForExternalClinicalService } from "./diagnosis-safety";
 import { parseReasoningV2, prescribeReasoningFromState } from "./diagnosis-parse";
 import type { CaseState } from "./diagnosis-types";
 import { prescriptionRegimenFromDecoction } from "./prescription-regimen-contract";
+import { liquidHerbDoseMl } from "./herb-liquid-dose";
 import { affirmedCurrentMedicationText, canonicalMedicationIdentity, clinicalClausePolarity, medicationContinuationOnly, medicationNameFromEventText } from "./clinical-polarity";
 import { findTcmHerbPairCautions, findTcmHerbPairIncompatibilities, isKnownTcmHerbName } from "./tcm-knowledge";
 import { findLocalPatentMedicineEntry } from "./local-patent-medicine-candidates";
@@ -47,8 +48,10 @@ export function resolvePrescriptionCandidateIndex(state: CaseState, candidateInd
 
 // ── 剂量与服法的提交前核对 ───────────────────────────────────────────────────
 
-/** 只认「数字 + g/克/mg/毫克」的单一剂量，且折算后在 0.001–500 g 之间。 */
-function parsedSingleDose(dose: string | null | undefined): number | undefined {
+/** 固体药认 g/mg；受治理的液体药另认 mL，不进行质量/体积换算。 */
+function parsedSingleDose(dose: string | null | undefined, herbName = ""): number | undefined {
+  const volume = liquidHerbDoseMl(herbName, dose || "");
+  if (volume != null) return volume;
   const text = dose?.trim();
   if (!text) return undefined;
   const normalized = text
@@ -74,7 +77,7 @@ export function prescriptionSubmissionIssue(state: CaseState, candidateIndex?: n
     return "candidate_missing";
   }
   if (!prescriptionRegimenFromDecoction(candidate.decoction)) return "regimen_incomplete";
-  if (candidate.herbs.some((herb) => parsedSingleDose(herb.dose) == null)) return "herb_dose_incomplete";
+  if (candidate.herbs.some((herb) => parsedSingleDose(herb.dose, herb.name) == null)) return "herb_dose_incomplete";
   return undefined;
 }
 
@@ -95,7 +98,7 @@ function structuredHerbDoseRows(state: CaseState, candidateIndex?: number): Herb
         : /^[炙炒制生酒醋蜜盐姜煅]$/.test(processing)
           ? `${processing}${baseName}`
           : `${baseName}（${processing}）`;
-      return { itemNo: index + 1, drugName, hasDose: parsedSingleDose(herb.dose) != null };
+      return { itemNo: index + 1, drugName, hasDose: parsedSingleDose(herb.dose, baseName) != null };
     });
   // 只有中成药/西药、没有饮片的候选同样算「有结构化候选」，不得回落去解析处方 Markdown。
   const hasStructuredMedicine = rows.length < 50 && (state.reasoningPrescribe?.formula?.patentAndWestern || [])
@@ -169,7 +172,7 @@ function markdownHerbDoseRows(prescriptionText: string): HerbDoseRow[] {
       const name = cleanHerbName(cells[nameIndex] || "");
       const doseText = (cells[doseIndex] || "").trim();
       if (!rowLooksLikeHerb(name, doseText)) continue;
-      rows.push({ itemNo: rows.length + 1, drugName: name, hasDose: parsedSingleDose(doseText) != null });
+      rows.push({ itemNo: rows.length + 1, drugName: name, hasDose: parsedSingleDose(doseText, name) != null });
       if (rows.length >= 50) return rows;
     }
     if (rows.length > 0) break;

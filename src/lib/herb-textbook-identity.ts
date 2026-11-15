@@ -11,9 +11,11 @@ import textbookReferencesJson from "../data/tcm-herb-textbook-references.json";
  * 数据 tcm-herb-textbook-references.json 由 scripts/build-herb-textbook-references.py 从本地教材语料生成。
  */
 
+export type TextbookCautionItem = { condition: string; strength: "忌" | "禁" | "慎" | "不宜"; raw: string; line: number };
 type TextbookHerbEntry = {
   function?: string; line?: number; parent?: string | null;
   caution?: string; cautionLine?: number; usage?: string; usageLine?: number;
+  cautionItems?: TextbookCautionItem[]; pregnancy?: TextbookCautionItem[];
 };
 
 const HERBS = ((textbookReferencesJson as { herbs?: Record<string, TextbookHerbEntry> }).herbs || {});
@@ -82,6 +84,24 @@ export function textbookHerbCaution(name: string): { herb: string; text: string;
   const monograph = textbookMonographName(name);
   const entry = monograph ? HERBS[monograph] : undefined;
   return monograph && entry?.caution ? { herb: monograph, text: entry.caution, line: entry.cautionLine } : undefined;
+}
+
+/** 新核对只读该规格适用的条目；生/制用途的限定仍保留在 raw 里供模型核对。 */
+export function textbookHerbCautionItems(name: string): TextbookCautionItem[] {
+  const key = textbookEntryName(name);
+  return (key ? HERBS[key]?.cautionItems || [] : []).filter((item) => {
+    if (/^制/u.test(name) && /^生(?:用|品)/u.test(item.raw)) return false;
+    if (/^生/u.test(name) && (/制用/u.test(item.raw) || Boolean(key && item.raw.startsWith(`制${key}`)))) return false;
+    return true;
+  });
+}
+
+export function textbookPregnancyRestricted(name: string): boolean {
+  return textbookHerbCautionItems(name).some((item) => item.condition === "孕妇" && !/灌肠/u.test(item.raw));
+}
+
+export function textbookPregnancyRestrictedHerbNames(): string[] {
+  return Object.keys(HERBS).filter(textbookPregnancyRestricted);
 }
 
 /** 教材里写了【使用注意】的正文药名。 */

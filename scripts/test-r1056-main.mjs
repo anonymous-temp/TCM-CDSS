@@ -75,15 +75,15 @@ await check("2.3 内服须炮制：裸写半夏按用途补成法半夏/姜半�
   assert.equal(processing.purposeProcessedHerbName("附子", "制", "", 9), undefined);
 });
 
-await check("2.4 给无毒的生品加炮制只认这味药自己功效栏里三字以上的整句用途：黄芪「补气固表止汗」不改炙黄芪，牛膝「补肝肾，强筋骨」改酒牛膝", () => {
+await check("2.4 给无毒的生品按教材明确用途加炮制（第四十七轮含补益的两字用途）：黄芪「补气固表止汗」不改炙黄芪，牛膝「补肝肾，强筋骨」改酒牛膝", () => {
   assert.equal(processing.purposeProcessedHerbName("黄芪", "", "补气固表止汗", 15), undefined);
   assert.equal(processing.purposeProcessedHerbName("黄芪", "", "益气补中，升阳举陷", 15)?.name, "炙黄芪");
   assert.equal(processing.purposeProcessedHerbName("牛膝", "", "补肝肾，强筋骨", 10)?.name, "酒牛膝");
   assert.equal(processing.purposeProcessedHerbName("牛膝", "", "活血通经，补肝肾", 10), undefined, "生品自己的用途也写了的不加");
   assert.equal(processing.purposeProcessedHerbName("甘草", "", "益气和中", 6), undefined);
   assert.equal(processing.purposeProcessedHerbName("枇杷叶", "", "清肺止咳", 9), undefined, "两字的「止咳」不够给生品加炮制");
-  // 第三十七轮那九味仍按旧表（按病历线索加）。
-  assert.equal(processing.purposeProcessedHerbName("白术", "", "补气健脾", 10), undefined);
+  // 第四十七轮 C1：教材已有明确用途时同样生效，不再因旧表管辖而跳过；无明确用途仍按病历线索。
+  assert.equal(processing.purposeProcessedHerbName("白术", "", "补气健脾", 10)?.name, "炒白术");
 });
 
 await check("2.5 目录调剂名不算原方炮制（四妙丸组成里的「盐黄柏」来自调剂标准）：方名不带来盐黄柏；功用写滋阴降火时按教材用途盐炙，写清热燥湿或不给功用时用黄柏", () => {

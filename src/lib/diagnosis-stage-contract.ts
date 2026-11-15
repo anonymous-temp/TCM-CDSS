@@ -2,6 +2,8 @@ import { textbookNamesTheseAsEmperors } from "./formula-textbook-commentary";
 import conditionalDirectionSigns from "../data/tcm-conditional-direction-signs.source.json";
 import { conditionalModificationWithoutTextbook, textbookModificationMatch, textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { textbookBaseIngredients } from "./herb-record-caution";
+import { textbookPregnancyRestricted } from "./herb-textbook-identity";
+import { liquidHerbDoseMl, liquidHerbDoseRule, liquidHerbDoseWithinRange } from "./herb-liquid-dose";
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
 import { chpPregnancyLabel, chpPregnancyHerbTier } from "./conception-herb-policy";
 import { assessLactationState, assessPregnancyState, isPositiveOrPossibleClinicalState, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
@@ -18,7 +20,7 @@ import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName, westernDifferent
 import { canonicalTcmSyndromeTerm, governedTcmLocationsInText, governedTreatmentMethodsInText, governedTreatmentPrinciplesInText, tcmDiagnosticDependencyContexts, treatmentMethodCoveredBy, treatmentPrinciplesInText, westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
 import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy, locationItemsCoverChiefComplaintAnchor, textCarriesChiefComplaintSymptom } from "./tcm-chief-complaint-anchor";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
-import { isPediatricGroundingText, labeledAgeYears, pediatricDoseCeilingG, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
+import { isPediatricGroundingText, labeledAgeYears, pediatricDoseCeilingG, pediatricDoseFractionFor, pediatricDoseRuleFromGroundingText, pediatricHerbRestriction, type PediatricDoseRule } from "./pediatric-dose-rule";
 import { boundaryRuleShown } from "./candidate-boundary-text";
 import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
 import { alignQuoteToSource } from "./source-quote-alignment";
@@ -3760,6 +3762,8 @@ function hasCompleteDecoctionMethod(value: string): boolean {
 }
 
 export function normalizeComparableDose(value: string): string {
+  const volume = value.trim().match(/^(\d+(?:\.\d+)?)\s*(?:mL|毫升)$/iu);
+  if (volume) return Number(volume[1]) > 0 && Number(volume[1]) <= 500 ? `${Number(volume[1])}mL` : "";
   const match = value.trim().match(HERB_DOSE);
   if (!match) return "";
   const amount = Number(match[1]);
@@ -3878,6 +3882,11 @@ export function doseInGrams(dose: string): number | undefined {
 }
 
 export function dosePassesSafetySanityCeiling(name: string, dose: string): boolean {
+  const liquid = liquidHerbDoseRule(name);
+  if (liquid) {
+    const amount = liquidHerbDoseMl(name, dose);
+    return amount != null && amount <= liquid.maxMl;
+  }
   const grams = doseInGrams(dose);
   if (grams == null) return false;
   const regulatoryClass = clinicianDoseHerbClass(name);
@@ -3899,6 +3908,7 @@ export function dosePassesSafetySanityCeiling(name: string, dose: string): boole
  *   只有超过折算上限才算越界；不传则是成人口径，与此前逐字节相同。
  */
 export function doseWithinConservativeModelLimit(name: string, dose: string, decoctionMethod: string, pediatric?: PediatricDoseRule): boolean {
+  if (liquidHerbDoseRule(name)) return liquidHerbDoseWithinRange(name, dose, pediatric ? pediatricDoseFractionFor(pediatric, name) : 1);
   const grams = doseInGrams(dose);
   const regulatoryClass = clinicianDoseHerbClass(name);
   if (regulatoryClass === "controlled_or_toxic" || regulatoryClass === "endangered_or_banned") return false;
@@ -4085,8 +4095,13 @@ export function m04GenerationSpecialPopulationIssue(
   // 第四十六轮（总指挥定）扩到可疑妊娠（「不能排除妊娠」「可能怀孕」）：与剂量一致化 D4 可疑妊娠给剂量、医生确认才可采纳同一口径。
   // 妊娠状态没有记录的育龄女性（pregnancy_unknown 档，第十七轮定）不在此列，那一档只避药典孕妇禁用药。
   if (isPositiveOrPossibleClinicalState(assessPregnancyState(clinicalContext))) {
+    // 教材新增清单只读患者本人的妊娠提及；assessPregnancyState 负责状态，全文极性判据负责主语。
+    const normalizedContext = clinicalContext.replace(/[\r\n]+/gu, "。").replace(/[^\S\r\n]+/gu, "");
+    const pregnancyEvidence = assessPregnancyState(normalizedContext).evidence || "";
+    const patientPregnancy = Boolean(pregnancyEvidence) && [...normalizedContext.matchAll(new RegExp(pregnancyEvidence.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "gu"))]
+      .some((match) => recordMentionPolarityAt(normalizedContext, match.index!) === "affirmed");
     for (const [herbIndex, herb] of herbs.entries()) {
-      if (/君|臣/u.test(String(herb.role || "")) && chpPregnancyLabel(herb.name)?.level === "caution") return `herb_${herbIndex}_special_population_high_risk_pregnancy`;
+      if (/君|臣/u.test(String(herb.role || "")) && (chpPregnancyLabel(herb.name)?.level === "caution" || (patientPregnancy && textbookPregnancyRestricted(String(herb.name || ""))))) return `herb_${herbIndex}_special_population_high_risk_pregnancy`;
     }
   }
   // 儿童禁用药味（药典 2020、十三五教材、国家药监部门通告；数据 tcm-pediatric-dose-rule.source.json）：与知识库里

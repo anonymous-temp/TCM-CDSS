@@ -130,6 +130,80 @@ def parse_formulas(lines: list[str]) -> dict[str, dict]:
     return formulas
 
 
+def caution_items(text: str, line: int) -> list[dict]:
+    """只切教材中的人群/病情条件，不把配伍、用量或不良反应当作患者条件。
+
+    raw 保留整个分号句（含生/制、内外用等限定），模型必须一起读。
+    没有「者」的并列项也保留，如川芎「月经过多及出血性疾病，不宜使用」。
+    """
+    out = []
+    for sentence in re.split(r"[。；;]", text):
+        previous_end = 0
+        for match in re.finditer(r"禁(?:用|服)|忌(?:用|服)|慎(?:用|服)|不宜(?:使用|服用|服|用|内服|单用|多用)?", sentence):
+            subject = sentence[previous_end:match.start()].strip("，, ")
+            previous_end = match.end()
+            if not subject or subject.startswith("不宜与") or "同用" in sentence or subject.endswith("不"):
+                continue
+            # 描述药性的引子到「故/凡/但」结束；无引导词时丢掉以本品起头的描述分句。
+            subject = re.split(r"故|凡|但", subject)[-1]
+            subject = re.sub(r"^本品(?=体虚)", "", subject)
+            parts = re.split(r"[，,]", subject)
+            parts = [part for part in parts if not re.search(r"本品|用量|过量|内服|外用|生用|制用|作用|风险|可能|有毒|性寒|性温|苦寒|宜慎|之性|易伤|易耗|偏于|治疗量|剂服|之品|升散|引起", part)]
+            conditions = []
+            for part in parts:
+                split = re.split(r"、|以及|及|或", part)
+                # 「心、肝、肾器质性病变」不是三个独立病情；保留整段，不能丢掉单字器官。
+                conditions.extend([part] if any(len(item) == 1 for item in split) else split)
+            for part in conditions:
+                condition = re.sub(r"(?:患者|者|等证|等|均当|均|亦应|应|当)+$", "", part.strip())
+                condition = re.sub(r"^(?:对于|若|又|素有)", "", condition)
+                condition = re.sub(r"^(?:制|生)[一-鿿]+(?=孕妇$)", "", condition)
+                if len(condition) < 2 or re.search(r"长期|久服|大量|多服|服用|同服|茶|火煅|煎剂|剂量|早用|宜|不宜|灌肠|\d|入丸|过大|能助湿", condition):
+                    continue
+                strength = "不宜" if match[0].startswith("不宜") else match[0][0]
+                item = {"condition": condition, "strength": strength, "raw": sentence.strip(), "line": line}
+                if item not in out:
+                    out.append(item)
+    return out
+
+
+def enrich_herbs(herbs: dict[str, dict], lines: list[str]) -> None:
+    """新增字段单独抽取；旧 function/usage/caution 等字段保持逐字节不变。"""
+    for name, entry in herbs.items():
+        start = entry.get("propertyLine", entry["line"]) - 1
+        stop = start + 1
+        while stop < min(MATERIA_MEDICA_LINES[1], len(lines)):
+            if lines[stop].startswith("【药性】") or lines[stop].startswith("附药："):
+                break
+            stop += 1
+        applications = []
+        application_line = None
+        active = False
+        processing = []
+        for index in range(start, stop):
+            line = lines[index]
+            heading = re.match(r"^【(.*?)】", line)
+            if heading:
+                active = heading[1] == "应用"
+                if active:
+                    application_line = index + 1
+                    applications.append(line[heading.end():])
+            elif active:
+                applications.append(line)
+            if heading and heading[1] == "用法用量":
+                for sentence in re.split(r"[。；;]", line[heading.end():]):
+                    if re.search(r"(?:生|制|煅|炒|炙|煨|炭)(?:后)?用|长于|偏于|为佳", sentence):
+                        processing.append({"raw": sentence.strip(), "line": index + 1})
+        entry["applications"] = "\n".join(applications).strip() if not entry.get("parent") else ""
+        entry["applicationsLine"] = application_line if not entry.get("parent") else None
+        # 附药没有独立【使用注意】标题，条件写在同一段末尾（如土牛膝孕妇慎用、鹿角胶阴虚火旺者忌服）。
+        # 只增新字段，不倒填旧 caution，以免改变已有消费者的快路径。
+        caution_text = lines[entry["line"] - 1] if entry.get("parent") else entry.get("caution", "")
+        entry["cautionItems"] = caution_items(caution_text, entry.get("cautionLine", entry["line"]))
+        entry["pregnancy"] = [item for item in entry["cautionItems"] if item["condition"] == "孕妇"]
+        entry["processingPurposes"] = processing if not entry.get("parent") else []
+
+
 def main() -> int:
     if not CORPUS.is_file():
         print(f"textbook corpus not found: {CORPUS_REF}", file=sys.stderr)
@@ -137,6 +211,7 @@ def main() -> int:
     raw = CORPUS.read_bytes()
     lines = raw.decode("utf-8").split("\n")
     herbs = parse_herbs(lines)
+    enrich_herbs(herbs, lines)
     formulas = parse_formulas(lines)
     if len(herbs) < 450 or len(formulas) < 200:
         print(f"unexpected corpus layout: herbs={len(herbs)} formulas={len(formulas)}", file=sys.stderr)
