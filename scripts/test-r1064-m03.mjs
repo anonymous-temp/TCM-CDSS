@@ -221,7 +221,8 @@ await check("4.5", "活动出血方锁与同名异方安全适配，命名不从
   const row = provenance.selectM03TcmFormulaIdentity({ disease: "腹痛", syndrome: "瘀血内停证", textbookRowId: "neike|腹痛|瘀血内停", direction: "少腹逐瘀汤加减", method: "活血祛瘀，温经止痛", keepDirection: true,
     caseSafety: { activeBleeding: true, barredHerb: () => false } });
   assert.deepEqual(row.formulaLock.names, []); assert.equal(row.formulaLock.mode, "self_devised");
-  const school = provenance.selectM03TcmFormulaIdentity({ disease: "感冒", syndrome: "风寒束表证", direction: "桂枝汤加减", keepDirection: true, method: "辛温解表，宣肺散寒", caseSafety: { activeBleeding: false, barredHerb: () => false } });
+  // M1：emerg 的覆盖校验需本例主诉；保留桂枝汤正例并维持风热反例。
+  const school = provenance.selectM03TcmFormulaIdentity({ clinicalSourceText: "主诉：恶寒发热、汗出、鼻塞2天", disease: "感冒", syndrome: "风寒束表证", direction: "桂枝汤加减", keepDirection: true, method: "辛温解表，宣肺散寒", caseSafety: { activeBleeding: false, barredHerb: () => false } });
   assert.deepEqual(school.formulaLock.names, ["桂枝汤"]);
   const opposite = provenance.selectM03TcmFormulaIdentity({ disease: "感冒", syndrome: "风热犯表证", direction: "桂枝汤加减", keepDirection: true, method: "清热解毒", caseSafety: { activeBleeding: false, barredHerb: () => false } });
   assert.deepEqual(opposite.formulaLock.names, []);

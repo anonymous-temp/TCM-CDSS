@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const table = JSON.parse(fs.readFileSync(path.join(root, "src/data/tcm-textbook-syndrome-formula-table.json"), "utf8"));
 const supplement = JSON.parse(fs.readFileSync(path.join(root, "src/data/tcm-textbook-syndrome-supplement.source.json"), "utf8"));
+const emergencyRows = new Set(JSON.parse(fs.readFileSync(path.join(root, "src/data/tcm-emergency-redflag-map.source.json"), "utf8")).flatMap((item) => item.candidateRows));
 // 与运行时候选同一范围：以中医病名立节的教材（tcm-textbook-syndromes.ts 的 CANDIDATE_BOOK_PRIORITY）。
 const BOOKS = new Set(["supplement", "neike", "fuke", "waike", "erke", "yanke", "gushang"]);
 // 节名订正（OCR 错字、断行误识；src/data/tcm-textbook-section-names.source.json，与 tcm-textbook-syndromes.ts 读入时同一张表）。
@@ -14,7 +15,7 @@ const sectionNames = JSON.parse(fs.readFileSync(path.join(root, "src/data/tcm-te
 const fixedSection = (bookKey, name) => sectionNames.sectionNameFixes.find((fix) => fix.bookKey === bookKey && fix.from === name)?.to || name;
 const names = new Set();
 for (const row of [...table.rows, ...supplement.rows]) {
-  if (BOOKS.has(row.bookKey) && typeof row.disease === "string" && row.disease.trim() && Array.isArray(row.formulas) && row.formulas.length > 0) names.add(fixedSection(row.bookKey, row.disease.trim()));
+  if ((BOOKS.has(row.bookKey) || emergencyRows.has(row.id)) && typeof row.disease === "string" && row.disease.trim() && Array.isArray(row.formulas) && row.formulas.length > 0) names.add(fixedSection(row.bookKey, row.disease.trim()));
 }
 
 // 教材节名是西医病名、而教材自己在该节定义里写明「属中医学“X”范畴」的（中医外科学「血栓闭塞性脉管炎」：属中医学“脱疽”的范畴），

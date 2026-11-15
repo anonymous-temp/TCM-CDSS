@@ -2,6 +2,9 @@ import subtypeSource from "../data/tcm-textbook-disease-subtypes.source.json" wi
 import compositeSyndromeSource from "../data/tcm-syndrome-composite-names.source.json" with { type: "json" };
 import textbookTableJson from "../data/tcm-textbook-syndrome-formula-table.json" with { type: "json" };
 import supplementJson from "../data/tcm-textbook-syndrome-supplement.source.json" with { type: "json" };
+import emergencyOverridesJson from "../data/tcm-textbook-emergency-overrides.source.json" with { type: "json" };
+import emergencyMapJson from "../data/tcm-emergency-redflag-map.source.json" with { type: "json" };
+import { evaluateTextbookFormulaUse, type TextbookFormulaStageRow, type TextbookRowPrecondition } from "./textbook-formula-stage";
 import sectionNamesJson from "../data/tcm-textbook-section-names.source.json" with { type: "json" };
 import modificationRelevanceSource from "../data/tcm-modification-relevance.source.json" with { type: "json" };
 import chiefConceptSource from "../data/tcm-differential-chief-concepts.source.json" with { type: "json" };
@@ -30,14 +33,9 @@ import { originalPreparedHerbName } from "./formula-baseline-display";
  * 本模块只做检索与渲染，不产生任何诊断。
  */
 
-export type TextbookPreconditionFallback = { book: string; syndrome: string; line: number; quote: string; priorityLine: number; priorityQuote: string; therapy: string; formulas: string[]; formulaBooks: Record<string, string>; alternatives?: TextbookPreconditionFallback[] };
-export type TextbookRowPrecondition = {
-  kind: "post_surgery" | "post_treatment"; book: string; line: number; quote: string; procedureTerms: string[]; genericProcedureTerm?: string; contextExclusions: string[]; nonCompletedPrefixes: string[]; priority: string;
-  fallback?: TextbookPreconditionFallback;
-};
-
-export interface TextbookSyndromeRow {
-  precondition?: TextbookRowPrecondition;
+export type { TextbookRowPrecondition, TextbookPreconditionFallback } from "./textbook-formula-stage";
+export interface TextbookSyndromeRow extends TextbookFormulaStageRow {
+  evidence?: unknown[];
   group?: string;
   id: string;
   book: string;
@@ -77,7 +75,7 @@ interface TextbookDisease {
 }
 
 type RawRow = {
-  precondition?: TextbookRowPrecondition;
+  precondition?: TextbookFormulaStageRow["precondition"]; preconditionNotice?: string; formulaStage?: string; formulaSequence?: TextbookFormulaStageRow["formulaSequence"]; runtimePolicy?: TextbookFormulaStageRow["runtimePolicy"]; evidence?: unknown[];
   compositionByFormula?: unknown;
   id?: unknown; book?: unknown; bookKey?: unknown; department?: unknown; disease?: unknown; diseaseAliases?: unknown;
   westernEquivalents?: unknown; tcmEquivalents?: unknown; group?: unknown; syndrome?: unknown; syndromeName?: unknown; syndromeKind?: unknown;
@@ -189,13 +187,23 @@ function withFixedSectionName<T extends { bookKey?: unknown; disease?: unknown }
   const to = SECTION_NAME_FIXES.get(`${String(raw.bookKey ?? "")}|${String(raw.disease ?? "").trim()}`);
   return to ? { ...raw, disease: to } : raw;
 }
+const EMERGENCY_ROW_IDS = new Set(emergencyMapJson.flatMap((item) => item.candidateRows));
+const EMERGENCY_OVERRIDES = new Map<string, Partial<RawRow>>(emergencyOverridesJson.rows.map((row) => [row.id, row as Partial<RawRow>]));
 const RAW_ROWS = [
   ...((textbookTableJson as { rows?: RawRow[] }).rows || []),
   ...((supplementJson as { rows?: RawRow[] }).rows || []),
-].map(withFixedSectionName);
-const RAW_DISEASES = [
+].map((row) => {
+  const emergency = EMERGENCY_OVERRIDES.get(text(row.id));
+  return withFixedSectionName({ ...row, ...emergency,
+    // 同一行的结构化操作条件与 KD 原文并存；不能被字符串覆盖。
+    ...(typeof row.precondition === "object" ? { precondition: row.precondition,
+      preconditionNotice: typeof emergency?.precondition === "string" ? emergency.precondition : undefined } : {}),
+  });
+});
+const RAW_DISEASES: RawDisease[] = [
   ...((textbookTableJson as { diseases?: RawDisease[] }).diseases || []),
   ...((supplementJson as { diseases?: RawDisease[] }).diseases || []),
+  ...emergencyOverridesJson.diseases,
 ].map(withFixedSectionName);
 
 /**
@@ -263,7 +271,7 @@ function buildDiseases(): TextbookDisease[] {
   const byKey = new Map<string, TextbookDisease>();
   for (const raw of RAW_ROWS) {
     const bookKey = text(raw.bookKey);
-    if (!(bookKey in CANDIDATE_BOOK_PRIORITY)) continue;
+    if (!(bookKey in CANDIDATE_BOOK_PRIORITY) && !EMERGENCY_ROW_IDS.has(text(raw.id))) continue;
     // 分期标题（初期/成痈期…）不是证名，不进候选。
     if (text(raw.syndromeKind) === "stage") continue;
     const disease = text(raw.disease);
@@ -281,8 +289,8 @@ function buildDiseases(): TextbookDisease[] {
     entry.aliases = [...new Set([...entry.aliases, ...strings(raw.diseaseAliases), ...strings(raw.westernEquivalents), ...strings(raw.tcmEquivalents)])];
     entry.westernEquivalents = [...new Set([...(entry.westernEquivalents || []), ...strings(raw.westernEquivalents)])];
     entry.rows.push({
-      ...(raw.precondition ? { precondition: raw.precondition } : {}),
       id: text(raw.id), group: text(raw.group) || undefined, book: text(raw.book), bookKey, department: text(raw.department), disease,
+      precondition: raw.precondition, preconditionNotice: raw.preconditionNotice, formulaStage: raw.formulaStage, formulaSequence: raw.formulaSequence, runtimePolicy: raw.runtimePolicy, evidence: raw.evidence,
       syndrome: bareSyndrome || text(raw.syndrome), syndromeName,
       manifestations: text(raw.manifestations), tongue: text(raw.tongue), pulse: text(raw.pulse),
       therapy: fixTextbookOcr(text(raw.therapy)), formulas, formulaJoin: text(raw.formulaJoin) || "single",
@@ -339,6 +347,17 @@ function buildDiseases(): TextbookDisease[] {
 const DISEASES = buildDiseases();
 const ROW_BY_ID = new Map(DISEASES.flatMap((disease) => disease.rows.map((row) => [row.id, row] as const)));
 
+export function textbookRowById(id: string): TextbookSyndromeRow | undefined { return ROW_BY_ID.get(id); }
+
+/** 主治覆盖核对用，包含教材正式病名、别名与明确的西医对应名。 */
+export function textbookDiseaseIndicationTerms(name: string): string[] {
+  return [...new Set([name, ...diseasesNamed(name).flatMap((disease) => [disease.disease, ...disease.aliases])])].filter((term) => term.length >= 2);
+}
+
+export function textbookFormulaRowsForDisease(name: string): TextbookSyndromeRow[] {
+  return diseasesNamed(name).flatMap((disease) => disease.rows);
+}
+
 export interface TextbookCaseInput {
   /** M04 已签名的配合方向，匹配同一前置条件下受治理且安全的替代方案。 */
   formulaNames?: readonly string[];
@@ -362,6 +381,7 @@ export interface TextbookCaseInput {
    * 证型行与本例更贴合」顶下去——病历2 没写喉核查体，喉痹的「咽部红肿疼痛」比乳蛾的「喉核红肿」更贴字面，按行贴合会把乳蛾挤到第二。
    */
   pinnedDisease?: string;
+  pinnedRowIds?: readonly string[];
 }
 
 export interface TextbookCandidateDisease {
@@ -416,7 +436,8 @@ function departmentFits(disease: TextbookDisease, input: TextbookCaseInput): boo
   const child = typeof age === "number" && age < 14;
   if (disease.bookKey === "erke") return child;
   if (child && disease.bookKey !== "waike" && disease.bookKey !== "yanke" && disease.bookKey !== "supplement") return false;
-  if (disease.bookKey === "fuke") return !/男/.test(input.sex || "");
+  if (disease.bookKey === "fuke" || /妇|产科/u.test(disease.department)) return !/男/.test(input.sex || "");
+  if (/儿科/u.test(disease.department)) return child;
   return true;
 }
 
@@ -512,11 +533,24 @@ export function textbookCandidatesForCase(
   const all = [...byDisease.values()];
   const picked = all.filter((item) => preferred.includes(item.disease));
   if (!wanted && !(input.pinnedDisease && preferred[0] === input.pinnedDisease)) promoteBestFitPickedDisease(picked, preferred);
-  return (picked.length > 0 ? picked : all)
+  const ordinary = (picked.length > 0 ? picked : all)
     .sort((left, right) => right.score - left.score || left.disease.localeCompare(right.disease))
     .map(({ bookKey, ...item }) => { void bookKey; return item; })
     .slice(0, options.maxDiseases ?? 3)
     .map((item) => ({ ...item, rows: item.rows.slice(0, options.maxRowsPerDisease ?? 8) }));
+  const pinned = (input.pinnedRowIds || []).flatMap((id) => {
+    const row = ROW_BY_ID.get(id);
+    const section = row && DISEASES.find((disease) => disease.rows.includes(row));
+    return row && section && departmentFits(section, input) ? [{ row, section }] : [];
+  });
+  if (!pinned.length) return ordinary;
+  const promoted = new Map<string, TextbookCandidateDisease>();
+  for (const { row, section } of pinned) {
+    const item = promoted.get(row.disease) || { disease: row.disease, book: section.book, differentials: section.differentials, rows: [], score: 2000 };
+    item.rows.push({ ...row, score: 2000 });
+    promoted.set(row.disease, item);
+  }
+  return [...promoted.values(), ...ordinary.filter((item) => !promoted.has(item.disease))].slice(0, options.maxDiseases ?? 4);
 }
 
 function cut(value: string, max: number): string {
@@ -524,6 +558,8 @@ function cut(value: string, max: number): string {
 }
 
 function formulaLabel(row: TextbookSyndromeRow): string {
+  if (row.formulaJoin === "sequential") return row.formulaSequence?.map((step) => `${step.stage}${step.formulas.join("、")}`).join("，") || row.formulas.join("，继用");
+  if (row.formulaJoin === "conditional") return `${row.formulas.join("、")}（须按分支择用，不合用）`;
   if (row.formulas.length <= 1) return row.formulas[0] || "";
   return row.formulaJoin === "combined" ? row.formulas.join("合") : row.formulas.join("或");
 }
@@ -578,8 +614,10 @@ export function buildTextbookCandidateContext(input: TextbookCaseInput): string 
     // 模型两次写成「未诉放射痛」）。
     ...textbookDifferentialGist(item.disease, item.book, fittingDifferentials(item.differentials, item.disease).slice(0, 4)),
     ...textbookDiagnosisGist(item.disease, item.book),
-    ...item.rows.map((row) =>
-      `  - ${row.syndromeName}｜主症：${cut(row.manifestations, 90)}｜治法：${row.therapy}｜代表方：${formulaLabel(row)}`),
+    ...item.rows.map((row) => {
+      const decision = evaluateTextbookFormulaUse(row, input.recordText || input.presentHistory)!;
+      return `  - ${row.syndromeName}｜主症：${cut(row.manifestations, 90)}｜治法：${decision.row.therapy || "按当前病情重新辨证"}｜当前参考方：${decision.formulas.length ? formulaLabel(decision.row) : "先完成前置处置并重新辨证"}${decision.notice ? `｜${decision.notice}` : ""}`;
+    }),
   ]);
   return [
     "【教材病证候选】（按与本例主诉、症状的相近程度从规划教材中取出；病名、证名、治法、代表方均为教材原文。候选里有两个以上的病时先定病名：病名必须能解释本次就诊原因——主诉写在最前面的主要不适，或主诉点名要处理的病；只对应伴随症状（「伴」之后、括号里补充的）、自幼或多年的宿疾、已基本痊愈或偶然发现的问题的病，不作本次病名，它的表现可在辨证依据里兼顾。几个候选病都能解释就诊原因时，再对照各病下的「教材定义」「教材诊断依据」，逐病找出其下与本例最贴合的一行证型，比较各病的最贴合行——主症逐项对得上的越多（特别是能把证型分开的表现）、该病的诊断依据越符合，越应归入该病；主诉的主症（头晕、咳嗽、头痛这类）常是几个病共有的，这时不能单凭它在这几个病之间选；教材写明的必备表现而病历已明确否认的，不算符合；西医诊断与检查结果只作旁证，不直接决定中医病名；各病的先后只是检索时的初排，不表示哪个更可能。节名合写两个病名的（如“胎漏、胎动不安”“堕胎、小产”），病名按该节「教材定义」只写与本例相符的那一个。其中有贴合本例的一行时，病名与证名逐字采用、治法以该行为准、推荐方用该行代表方；都不贴合时再自行辨证。同一病下各证型按教材顺序排列，先后不表示可能性大小。「贴合」指该行主症里能把它与同病其他证型分开的表现——寒热、虚实、诱因、伴随症状或舌脉——至少有一项已见于本例记录；本例只记录了本病主症本身时，没有哪一行贴合。同一病性涉及两脏、两脏各有自身成组的表现（每脏至少两条相互印证）而候选只有单脏证型时，证名写两脏合称（如“肺脾两虚证”），治法兼顾两脏，方用两行代表方合用或加减。辨病依据与中医鉴别写本病与相近病的区分点时，以各病下「教材鉴别要点」写的区分依据为准（部位、病程、主症、病势等），不另立教材没有的区分点）",
@@ -619,7 +657,8 @@ function diseasesNamed(diseaseName: string, ageYears?: number): TextbookDisease[
     const name = compact(disease.disease);
     return name.length >= 2 && (wanted.includes(name) || name.includes(wanted));
   });
-  return loose.sort((left, right) => order.indexOf(left.bookKey) - order.indexOf(right.bookKey) || left.disease.localeCompare(right.disease));
+  const rank = (key: string) => order.includes(key) ? order.indexOf(key) : order.length;
+  return loose.sort((left, right) => rank(left.bookKey) - rank(right.bookKey) || left.disease.localeCompare(right.disease));
 }
 
 /**
@@ -910,16 +949,18 @@ export function buildFormulaModificationContext(diseaseName: string, syndromeNam
 }
 
 export function buildTextbookFormulaContext(diseaseName: string, syndromeName: string, input: TextbookCaseInput = {}): string {
-  const row = textbookTreatmentRow(textbookRowForSyndrome(diseaseName, syndromeName, input), input.recordText || "", undefined, input.formulaNames);
-  if (!row) return "";
-  const pending = textbookPendingPrecondition(row, input.recordText || "");
+  const decision = evaluateTextbookFormulaUse(textbookRowForSyndrome(diseaseName, syndromeName, input), input.recordText || "", { formulaNames: input.formulaNames });
+  if (!decision) return "";
+  const { row, pendingPrecondition: pending, notice: stageNotice } = decision;
   if (pending) {
     const fallback = pending.fallback;
     return [
+      stageNotice,
       `【教材方药前置条件】《${row.book}》第${pending.line}行：“${pending.quote}”本例尚未记录本次相应治疗已完成。${pending.priority}`,
       fallback ? `配合方向参考《${fallback.book}》${fallback.syndrome}第${fallback.line}行：“${fallback.quote}”第${fallback.priorityLine}行：“${fallback.priorityQuote}”candidate.name 可用“${fallback.formulas.join("合")}加减”，方义必须写明手术止血、纠正休克优先，中药仅作配合，不得延误抢救。` : "不采用本行治疗后恢复期的代表方，按当前已有证候另行辨证。",
     ].filter(Boolean).join("\n");
   }
+  if (!decision.formulas.length || decision.sequential) return `【教材方药】${row.disease}·${row.syndromeName}（《${row.book}》）：治法 ${row.therapy}；${stageNotice}`;
   const modifications = textbookEntryPromptLines(row, input.recordText);
   // 教材行的组成是教材的「常用药」（已经加减过），不是原方。教材写了代表方出处、原方组成表里有那本书这首方时，把原方组成一并给出
   //（第四十二轮：柴胡葛根汤教材常用药十一味，《外科正宗》原方十味；白术散教材署《全生指迷方》，与目录《小儿药证直诀》白术散是两首方）。
@@ -935,37 +976,19 @@ export function buildTextbookFormulaContext(diseaseName: string, syndromeName: s
       + (originals.length > 0 ? `${originals.join("。")}。` : "")
       + `辨证阶段已定用该代表方：candidate.name 写“${formulaLabel(row)}加减”，candidate.herbs 以该方组成为主体（保留其大部分药味），再按本例病机加减，增减合计不超过 4 味；不要另起一张方。`
       + (originals.length > 0 ? "方义里说「原方」「去某药」「加某药」时对的是上面的原方组成，不是教材常用药。" : ""),
+    stageNotice,
     modifications.length > 0 ? `【教材加减】${modifications.join("；")}。只用条件所说的表现本例已有的条目。` : "",
   ].filter(Boolean).join("\n");
 }
 
-/** 仅本次已完成且肯定记载的对应操作满足前置条件；计划、否认及旧手术史均不算。 */
+/** 兼容旧读者：只投影统一判据，不另作操作完成判断。 */
 export function textbookPendingPrecondition(row: TextbookSyndromeRow | undefined, recordText: string): TextbookRowPrecondition | undefined {
-  const condition = row?.precondition;
-  if (!condition) return undefined;
-  const nonCompleted = new RegExp(`(?:${condition.nonCompletedPrefixes.map((term) => term.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("|")})[^，,。；;]{0,8}$`, "u");
-  const clauses = String(recordText || "").split(/[。；;\n]/u);
-  const completed = clauses.some((clause) => condition.procedureTerms.some((term) => {
-    const at = clause.indexOf(term);
-    if (at < 0 || recordMentionPolarityAt(clause, at) !== "affirmed") return false;
-    if (nonCompleted.test(clause.slice(0, at))) return false;
-    if (condition.contextExclusions.some((term) => clause.slice(0, at).includes(term))) return false;
-    if (term === condition.genericProcedureTerm) return /(?:已|已经)(?:行|接受)?$/u.test(clause.slice(0, at)) || /^已完成/u.test(clause.slice(at + term.length));
-    return /(?:已|完成|接受|行)[^，,。；;]{0,10}$/u.test(clause.slice(0, at)) || /^(?:后|术后|已完成|完成)/u.test(clause.slice(at + term.length));
-  }));
-  return completed ? undefined : condition;
+  return evaluateTextbookFormulaUse(row, recordText)?.pendingPrecondition;
 }
 
-/** 锚定与 M04 提示词用同一前置判据，术前不能把术后代表方读成当前推荐。 */
+/** 兼容旧读者：M04 提示词的治法、组成和加减均来自同一次用方判定。 */
 export function textbookTreatmentRow(row: TextbookSyndromeRow | undefined, recordText: string, barredHerb?: (herb: string) => boolean, formulaNames?: readonly string[]): TextbookSyndromeRow | undefined {
-  const pending = textbookPendingPrecondition(row, recordText);
-  if (!row || !pending) return row;
-  const options = pending.fallback ? [pending.fallback, ...(pending.fallback.alternatives || [])] : [];
-  const composition = (option: TextbookPreconditionFallback) => option.formulas.flatMap((formula) => originalFormula(formula, option.formulaBooks[formula])?.herbs.map((herb) => herb.herb) || []);
-  const fallback = options.find((option) => (formulaNames === undefined || option.formulas.length === formulaNames.length && option.formulas.every((formula) => formulaNames.includes(formula))) &&
-    (!barredHerb || composition(option).length > 0 && composition(option).every((herb) => !barredHerb(herb))));
-  return { ...row, precondition: { ...pending, fallback }, therapy: fallback?.therapy || "", formulas: fallback?.formulas || [], formulaJoin: fallback?.formulas.length === 1 ? "single" : "combined", modifications: [],
-    composition: fallback ? fallback.formulas.flatMap((formula) => originalFormula(formula, fallback.formulaBooks[formula])?.herbs.map((herb) => herb.herb) || []) : [] };
+  return evaluateTextbookFormulaUse(row, recordText, { barredHerb, formulaNames })?.row;
 }
 
 /** 这个名字是教材的一个病（节名）。 */

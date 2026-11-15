@@ -76,8 +76,9 @@ await check("1.1 处方被剥成自拟方（天王补心丹合朱砂安神丸而
     .map((name) => ({ name, dose: "10g", role: "佐", function: "养心" }));
   const enriched = (name) => {
     const analysis = `本方以${name.replace(/加减$/u, "")}为基础加减。${noteModule.withheldBaseIngredientNote(["朱砂粉"], true)}人参大补心气、生地黄滋阴养血，二味为君；炙甘草为使调和诸药。`;
-    const reasoning = { stage: "prescribe", formula: { candidates: [{ name, formulaNames: [], herbs, formulaAnalysis: analysis, therapyMatch: "滋阴养心", applicable: "", notApplicable: "" }], patentAndWestern: [], modifications: [] } };
-    const out = provenance.enrichReasoning(reasoning).reasoning.formula.candidates[0];
+    // 第四十七轮：组成/注记正例补齐病种与主诉，避免因无覆盖上下文提前降级。
+    const reasoning = { stage: "prescribe", overview: { tcmDiseaseName: "不寐" }, formula: { candidates: [{ name, formulaNames: [], herbs, formulaAnalysis: analysis, therapyMatch: "滋阴养心", applicable: "", notApplicable: "" }], patentAndWestern: [], modifications: [] } };
+    const out = provenance.enrichReasoning(reasoning, "主诉：失眠多梦1月").reasoning.formula.candidates[0];
     return { out, final: review.reviewAuthoredFormulaAnalysis(out.formulaAnalysis, herbs.map((herb) => herb.name)).text };
   };
   const stripped = enriched("天王补心丹合朱砂安神丸加减");

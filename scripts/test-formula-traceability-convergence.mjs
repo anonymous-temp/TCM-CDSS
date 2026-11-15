@@ -134,16 +134,17 @@ const candidateFixture = (name, composition) => ({
   baseFormulas: [],
   herbs: composition.map((herbName) => ({ name: herbName, dose: "9g" })),
 });
-const prescribeFixture = (name, composition) => ({
+// 第四十七轮：身份恢复正例补齐病种，麻黄汤外感例不借用脾虚病种。
+const prescribeFixture = (name, composition, disease = "嘈杂") => ({
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "prescribe",
-  overview: { primarySyndrome: "脾气亏虚证", overallPathogenesis: "脾气亏虚，运化失健" },
+  overview: { tcmDiseaseName: disease, primarySyndrome: disease === "感冒" ? "风寒束表证" : "脾气亏虚证", overallPathogenesis: disease === "感冒" ? "风寒束表，肺失宣降" : "脾气亏虚，运化失健" },
   formula: { candidates: [candidateFixture(name, composition)] },
 });
-const priorFixture = (names, mode = "single") => ({
+const priorFixture = (names, mode = "single", disease = "嘈杂") => ({
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",
-  overview: { recommendedFormulaNames: names, formulaSelectionMode: mode },
+  overview: { tcmDiseaseName: disease, recommendedFormulaNames: names, formulaSelectionMode: mode },
 });
 
 check(() => {
@@ -160,8 +161,8 @@ check(() => {
 
 check(() => {
   const restored = restoreGovernedFormulaIdentity(
-    prescribeFixture("本例辨证组方", ["麻黄", "桂枝", "苦杏仁", "炙甘草"]),
-    priorFixture([], "self_devised"),
+    prescribeFixture("本例辨证组方", ["麻黄", "桂枝", "苦杏仁", "炙甘草"], "感冒"),
+    priorFixture([], "self_devised", "感冒"),
   ).formula.candidates[0];
   assert.ok(restored.formulaNames.length === 1, "M03 未锁方名时按组成反查仍须恢复身份");
   assert.notEqual(restored.formulaSource.evidenceLevel, "model_inference", "按组成反查恢复的身份同样必须带出处");
@@ -192,10 +193,10 @@ const renderStream = (reasoning) => [
 
 for (const [label, name, composition, prior] of [
   ["M03 锁定四君子汤 + 党参代人参", "本例辨证组方", ["党参", "白术", "茯苓", "炙甘草"], priorFixture(["四君子汤"])],
-  ["M03 未锁方名 + 组成即麻黄汤", "本例辨证组方", ["麻黄", "桂枝", "苦杏仁", "炙甘草"], priorFixture([], "self_devised")],
+  ["M03 未锁方名 + 组成即麻黄汤", "本例辨证组方", ["麻黄", "桂枝", "苦杏仁", "炙甘草"], priorFixture([], "self_devised", "感冒")],
 ]) {
   check(() => {
-    const enriched = enrichPrescriptionProvenance(renderStream(prescribeFixture(name, composition)), "");
+    const enriched = enrichPrescriptionProvenance(renderStream(prescribeFixture(name, composition, prior.overview.tcmDiseaseName)), "");
     const finalized = applyDeterministicHerbFunctions(enriched, { fillRolePlaceholder: true });
     const restored = restoreGovernedFormulaIdentity(JSON.parse(
       finalized.match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/)[1],

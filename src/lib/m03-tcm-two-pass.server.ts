@@ -98,11 +98,14 @@ export async function runM03TcmTwoPass(ctx: M03TcmContext, io: M03TcmTwoPassIO, 
   if (violations.length) prune();
   const project = () => {
     const assembled = projectM03TcmHalf(frozen!, draft!, ctx);
-    const delivered = projectDeliveredM03TcmDisplay(assembled, { recordText: ctx.facts.map((field) => field.text).join("\n") });
+    // C2 的治则投影按安全快照判断红旗；重复投影也必须携带同一已定状态。
+    const displayOptions = { recordText: ctx.facts.map((field) => field.text).join("\n"),
+      safetyGate: { status: ctx.safety.redFlag ? "red_flag" as const : "ready" as const } };
+    const delivered = projectDeliveredM03TcmDisplay(assembled, displayOptions);
     assertM03TcmProjection(frozen!, delivered, ctx);
-    // Client/HIS consumers can repeat the default projector. Frozen conclusions must remain stable.
-    assertM03TcmProjection(frozen!, projectDeliveredReasoning(delivered), ctx);
-    assertM03TcmProjection(frozen!, projectDeliveredReasoning(delivered, { recordText: ctx.facts.map((field) => field.text).join("\n") }), ctx);
+    // Client/HIS consumers repeat projection with the same safety snapshot; conclusions stay frozen.
+    assertM03TcmProjection(frozen!, projectDeliveredReasoning(delivered, { safetyGate: displayOptions.safetyGate }), ctx);
+    assertM03TcmProjection(frozen!, projectDeliveredReasoning(delivered, displayOptions), ctx);
     return delivered;
   };
   for (let finalCheck = 0; finalCheck < 2; finalCheck++) {

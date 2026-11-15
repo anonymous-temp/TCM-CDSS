@@ -696,7 +696,8 @@ const checkAsync = async (name, run) => {
         { diseaseName: textbookNames[1] || "阴痒", reason: "同属带下异常", distinguishingPoints: "本例无阴痒", typicalManifestation: "阴部瘙痒", nextCheck: null },
       ]);
       assert.equal(await authoring.completeTcmDiseaseDifferentials(existing, { recordText }), existing, "模型已经写了 2 条可保留的鉴别时原样返回");
-      assert.equal(calls, 2, "r1064：两条原有鉴别没有主症交集，仍须尝试补写");
+      // M1：按已在基线的 8ff0356e 口径，主症交集只限制服务端补入，保留现有两条时不再补写。
+      assert.equal(calls, 1, "模型已有两条可保留鉴别，不因补入过滤规则重复调用");
       globalThis.fetch = async () => { throw new Error("upstream down"); };
       const other = half([{ diseaseName: "阴道炎", reason: "x", distinguishingPoints: "y" }]);
       assert.equal(await authoring.completeTcmDiseaseDifferentials(other, { recordText: `${recordText}（第二例）` }), other, "模型不可用时原样返回");

@@ -33,33 +33,34 @@ await check("formula common tier: official/classic always, others need ≥3 mode
 });
 
 // ── ② 信任模型选方 ───────────────────────────────────────────────────────────
-const reasoning = (method, direction) => ({ overview: { recommendedFormulaDirection: direction, primarySyndrome: "测试证候", primarySyndromeResolution: "bounded" }, therapy: { overallMethod: method } });
+// 第四十七轮：所有正例显式给病种；功效/证候的旧断言保持不变。
+const reasoning = (method, direction, disease) => ({ overview: { tcmDiseaseName: disease, recommendedFormulaDirection: direction, primarySyndrome: "测试证候", primarySyndromeResolution: "bounded" }, therapy: { overallMethod: method } });
 await check("trusted model formula names: aligned common formulas kept; misaligned or obscure dropped", async () => {
   const m = await jitiFor().import("../src/lib/tcm-formula-indications.ts");
-  const trusted = (name, method) => m.trustedModelFormulaIdentityNames(reasoning(method, `${name}加减`), [name]).size > 0;
-  assert.equal(trusted("完带汤", "健脾益气，升阳除湿止带"), true, "名医原方完带汤（关系表曾剥离）");
-  assert.equal(trusted("参苓白术散", "健脾益气，渗湿止泻"), true);
-  assert.equal(trusted("银翘散", "辛凉解表，清热解毒"), true);
-  assert.equal(trusted("血府逐瘀汤", "活血化瘀，行气止痛"), true);
-  assert.equal(trusted("导赤散", "清热利湿退黄，通腑泄热"), false, "阳黄例：导赤散功效与签名治法无受控交集，照旧剔除");
-  assert.equal(trusted("藿香正气散", "辛凉解表，清利头目"), false);
-  assert.equal(trusted("防饥救生四果丹", "健脾益气"), false, "not in the common tier");
-  const liverFire = { overview: { recommendedFormulaDirection: "玉女煎加减", primarySyndrome: "肝火扰心证", primarySyndromeResolution: "bounded" }, therapy: { overallMethod: "清肝泻火，安神" } };
+  const trusted = (name, method, disease) => m.trustedModelFormulaIdentityNames(reasoning(method, `${name}加减`, disease), [name]).size > 0;
+  assert.equal(trusted("完带汤", "健脾益气，升阳除湿止带", "带下过多"), true, "名医原方完带汤（关系表曾剥离）");
+  assert.equal(trusted("参苓白术散", "健脾益气，渗湿止泻", "泄泻"), true);
+  assert.equal(trusted("银翘散", "辛凉解表，清热解毒", "感冒"), true);
+  assert.equal(trusted("血府逐瘀汤", "活血化瘀，行气止痛", "胸痹"), true);
+  assert.equal(trusted("导赤散", "清热利湿退黄，通腑泄热", "黄疸"), false, "阳黄例：导赤散功效与签名治法无受控交集，照旧剔除");
+  assert.equal(trusted("藿香正气散", "辛凉解表，清利头目", "感冒"), false);
+  assert.equal(trusted("防饥救生四果丹", "健脾益气", "虚劳"), false, "not in the common tier");
+  const liverFire = { overview: { tcmDiseaseName: "不寐", recommendedFormulaDirection: "玉女煎加减", primarySyndrome: "肝火扰心证", primarySyndromeResolution: "bounded" }, therapy: { overallMethod: "清肝泻火，安神" } };
   assert.equal(m.trustedModelFormulaIdentityNames(liverFire, ["玉女煎"]).size, 0, "syndrome-tag counter-evidence: 玉女煎〔胃热阴虚〕 vs 肝火扰心");
   assert.equal(m.trustedModelFormulaIdentityNames(liverFire, ["龙胆泻肝汤"]).size > 0, true, "compatible syndrome tags are kept");
   // 功效与签名治法精确对齐的方有正面证据：即便目录证候标注与主证不相容也保留（证候反证只管功效为空的方）。
-  const stasisWithLiverQi = { overview: { recommendedFormulaDirection: "血府逐瘀汤加减", primarySyndrome: "肝郁气滞证", primarySyndromeResolution: "bounded" }, therapy: { overallMethod: "活血化瘀，行气止痛" } };
+  const stasisWithLiverQi = { overview: { tcmDiseaseName: "胸痹", recommendedFormulaDirection: "血府逐瘀汤加减", primarySyndrome: "肝郁气滞证", primarySyndromeResolution: "bounded" }, therapy: { overallMethod: "活血化瘀，行气止痛" } };
   assert.equal(m.trustedModelFormulaIdentityNames(stasisWithLiverQi, ["血府逐瘀汤"]).size > 0, true, "aligned functions outweigh an incompatible syndrome tag");
-  const noSyndrome = { overview: { recommendedFormulaDirection: "完带汤加减" }, therapy: { overallMethod: "健脾益气，升阳除湿止带" } };
+  const noSyndrome = { overview: { tcmDiseaseName: "带下过多", recommendedFormulaDirection: "完带汤加减" }, therapy: { overallMethod: "健脾益气，升阳除湿止带" } };
   assert.equal(m.trustedModelFormulaIdentityNames(noSyndrome, ["完带汤"]).size, 0, "no primary syndrome ⇒ nothing to trust against");
-  const noMethod = { overview: { recommendedFormulaDirection: "完带汤加减", primarySyndrome: "脾虚湿盛证" }, therapy: { overallMethod: "" } };
+  const noMethod = { overview: { tcmDiseaseName: "带下过多", recommendedFormulaDirection: "完带汤加减", primarySyndrome: "脾虚湿盛证" }, therapy: { overallMethod: "" } };
   assert.equal(m.trustedModelFormulaIdentityNames(noMethod, ["完带汤"]).size, 0, "no signed method terms ⇒ nothing to trust against");
 });
 await check("M04 recheck uses the same predicate as M03 retention", async () => {
   const m = await jitiFor().import("../src/lib/tcm-formula-indications.ts");
   const r = {
     stage: "diagnose",
-    overview: { recommendedFormulaDirection: "银翘散加减", primarySyndrome: "风热犯肺证", overallPathogenesis: "风热犯肺，肺失宣降" },
+    overview: { tcmDiseaseName: "感冒", recommendedFormulaDirection: "银翘散加减", primarySyndrome: "风热犯肺证", overallPathogenesis: "风热犯肺，肺失宣降" },
     pathogenesis: { chain: [], locationDifferentiation: { items: ["肺"] }, natureDifferentiation: { items: ["热"] } },
     therapy: { overallMethod: "辛凉解表，清热解毒", overallPrinciple: "治病求本" },
   };
@@ -76,7 +77,7 @@ await check("M04 prompt tells the model to carry a trusted M03-locked formula (n
   const m = await jitiFor().import("../src/lib/tcm-formula-indications.ts");
   const r = {
     stage: "diagnose",
-    overview: { recommendedFormulaNames: ["银翘散"], recommendedFormulaDirection: "银翘散加减", primarySyndrome: "风热犯肺证", formulaSelectionMode: "single" },
+    overview: { tcmDiseaseName: "感冒", recommendedFormulaNames: ["银翘散"], recommendedFormulaDirection: "银翘散加减", primarySyndrome: "风热犯肺证", formulaSelectionMode: "single" },
     pathogenesis: { chain: [], locationDifferentiation: { items: ["肺"] }, natureDifferentiation: { items: ["热"] } },
     therapy: { overallMethod: "辛凉解表，清热解毒" },
   };
@@ -89,7 +90,7 @@ await check("trusted-only locks are soft in M04; relation-verified locks stay st
   const m = await jitiFor().import("../src/lib/tcm-formula-indications.ts");
   const r = {
     stage: "diagnose",
-    overview: { recommendedFormulaNames: ["完带汤"], recommendedFormulaDirection: "完带汤加减", primarySyndrome: "脾虚湿盛证", formulaSelectionMode: "single" },
+    overview: { tcmDiseaseName: "带下过多", recommendedFormulaNames: ["完带汤"], recommendedFormulaDirection: "完带汤加减", primarySyndrome: "脾虚湿盛证", formulaSelectionMode: "single" },
     pathogenesis: { chain: [], locationDifferentiation: { items: ["脾"] }, natureDifferentiation: { items: ["湿"] } },
     therapy: { overallMethod: "健脾益气，升阳除湿止带" },
   };

@@ -895,6 +895,10 @@ const scripts = [
   "test:r1064-m04",
   // R47 I1: final delivery barriers, two-pass stream, rollback, shared deadline and cache identity.
   "test:r1064-wire",
+  // 第四十七轮 S4a：急症候选与教材前置用方、缺口病名闭集、跨病选方共用主治覆盖。
+  "test:r1064-emerg",
+  // 第四十七轮 M1：结构化操作与急症阶段共用用方判据，锚定、教材块和身份恢复一致。
+  "test:r1064-merge1",
 ];
 
 // 不进闸门的 test:* 脚本，逐条写明原因。新增 test:* 脚本必须进上面的数组或进这里，否则闸门开头即失败。

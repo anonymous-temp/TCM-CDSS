@@ -87,6 +87,7 @@ const windColdM03 = {
   ...heartSpleenDeficiencyM03(),
   overview: {
     ...heartSpleenDeficiencyM03().overview,
+    tcmDiseaseName: "感冒", // 风寒正例不应继承原不寐夹具的病名。
     primarySyndrome: "风寒束表证",
     overallPathogenesis: "风寒外袭，卫阳被遏",
     overallTherapy: "辛温解表",

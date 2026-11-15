@@ -39,7 +39,7 @@ import { applyServerOwnedM03Fields } from "./m03-server-owned-fields";
 import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, stripUntrustedM04IdentityMetadata, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
 import { clinicalReviewNotPerformedAttestation } from "@/lib/clinical-review-binding";
 import { applyDeliveredSurfaceToContent } from "./delivered-surface";
-import { activeBleedingInGroundingText, clinicalGroundingText } from "./diagnosis-safety";
+import { activeBleedingInGroundingText, clinicalGroundingText, trustedInputText } from "./diagnosis-safety";
 import type { FormulaReferenceCaseSafety } from "@/lib/tcm-formula-provenance";
 
 /** 教材锚定用的本例安全事实（见 withDeterministicFormulaReferences）：与开方核对同一判据、同一份接地正文。 */
@@ -621,7 +621,7 @@ export async function prepareDiagnoseStructuredContent(
   const projected = phase("summary_projection", normalizeM03PathogenesisSummaryProjection(rationaleBound));
   const normalized = phase("confidence_labels", normalizeDiagnoseConfidenceAndLabels(projected, clinicalContext));
   const terminologyAnnotated = phase("terminology", await annotateM03ControlledTerminology(normalized, signal, clinicalContext));
-  const evidenceBound = phase("formula_selection", enforceRetrievedM03FormulaSelection(terminologyAnnotated, allowedFormulaNames));
+  const evidenceBound = phase("formula_selection", enforceRetrievedM03FormulaSelection(terminologyAnnotated, allowedFormulaNames, clinicalContext));
   const formalCriteriaBound = phase("formal_criteria", declassifyUnmetFormalM03WesternPrimary(evidenceBound, clinicalContext));
   const singlePrimary = phase("single_primary", declassifyAmbiguousM03WesternPrimary(formalCriteriaBound, clinicalContext));
   const westernProjection = phase("western_differentials", normalizeM03WesternDifferentials(singlePrimary, clinicalContext, patientAgeYears));
@@ -1044,6 +1044,7 @@ function validatedStructuredReasoning(
         false,
         allowTransparentFormulaDeclassification,
         (herb) => herbBarredForCase(herb, clinicalContext),
+        clinicalContext,
       );
       if (compilationIssue) {
         console.warn("[tcm-cdss:contract] M04 formula-compilation rejection", {
@@ -1165,7 +1166,7 @@ function wrapStructuredJsonObject(
   // 组成确定性满足 M03 锁定基准、模型却把方名写成自拟标签时，服务端按已核验事实补回身份，
   // 而不是把它判成 formula_reference_declassified 再让模型重写（实测会 fixpoint 到 0 味）。
   // 恢复之后所有合同、剂量与安全校验照常完整执行，见 restoreGovernedFormulaIdentity 的说明。
-  return stage === "prescribe" ? applyRestoredGovernedFormulaIdentity(providerOwned, prior) : providerOwned;
+  return stage === "prescribe" ? applyRestoredGovernedFormulaIdentity(providerOwned, prior, { clinicalSourceText: caseState ? trustedInputText(caseState) : "" }) : providerOwned;
 }
 
 /**
@@ -1277,6 +1278,7 @@ function structuredRejectionReason(
         false,
         allowTransparentDeclassification,
         (herb) => herbBarredForCase(herb, clinicalContext),
+        clinicalContext,
       );
       if (formulaIssue) return `m04_${formulaIssue}`;
       if (attributionScope === "safety_floor_waived") {
@@ -4986,6 +4988,7 @@ async function callPrimaryTextModelStream(
                 false,
                 false,
                 (herb) => herbBarredForCase(herb, opts.structuredClinicalContext || ""),
+                opts.structuredClinicalContext || "",
               )
             : undefined;
           // 受理判据取 **waive=true** 口径（甲方 2026-08-08 定：质量类一律不阻断）。
@@ -5178,7 +5181,7 @@ async function callPrimaryTextModelStream(
             authoritativeContent = applyRestoredGovernedFormulaIdentity(
               authoritativeContent,
               opts.structuredPriorReasoning,
-              { preserveServerDeclassification: true },
+              { preserveServerDeclassification: true, clinicalSourceText: opts.structuredClinicalContext },
             );
           }
           // 治则补齐同样必须在 finalize 这一层跑,不能只在 prepareDiagnoseStructuredContent 里(2026-08-05)。
@@ -5619,7 +5622,7 @@ async function callPrimaryTextModelStream(
             ? applyRestoredGovernedFormulaIdentity(
                 finalStageOwned,
                 opts.structuredPriorReasoning,
-                { preserveServerDeclassification: true },
+                { preserveServerDeclassification: true, clinicalSourceText: opts.structuredClinicalContext },
               )
             : finalStageOwned;
           let emissionContent = identityRestored;

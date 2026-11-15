@@ -159,6 +159,7 @@ assert.deepEqual(
 
 const postM03Reasoning = {
   overview: {
+    tcmDiseaseName: "不寐", // 第四十七轮：正例须同时具备病种覆盖上下文。
     primarySyndrome: "思虑伤脾证",
     overallPathogenesis: "思虑伤脾",
     tcmDifferentials: [],
@@ -193,6 +194,7 @@ assert.match(enforceRetrievedM03FormulaSelection(postM03Formula, []), /"recommen
 const officialIdentity = unrelatedFormula.replaceAll("归脾汤", "龙胆泻肝汤");
 const liverFireReasoning = {
   overview: {
+    tcmDiseaseName: "不寐",
     primarySyndrome: "肝火扰心",
     overallPathogenesis: "肝火上扰心神",
     tcmDifferentials: [],
@@ -229,7 +231,7 @@ const weakLiverFireLock = enforceRetrievedM03FormulaSelection(
 );
 assert.match(weakLiverFireLock, /"recommendedFormulaNames": \[\]/, "nature-only score=2 retrieval must not lock 玉女煎 for 肝火扰心");
 const phlegmDampLungReasoning = {
-  overview: { primarySyndrome: "痰湿蕴肺", overallPathogenesis: "痰湿蕴肺，肺失宣降", tcmDifferentials: [] },
+  overview: { tcmDiseaseName: "咳嗽", primarySyndrome: "痰湿蕴肺", overallPathogenesis: "痰湿蕴肺，肺失宣降", tcmDifferentials: [] },
   pathogenesis: {
     summary: "痰湿蕴肺，肺失宣降",
     locationDifferentiation: { items: ["肺"], details: [] },
@@ -355,7 +357,7 @@ const referencedDiagnose = applyDeterministicFormulaReferences([
   JSON.stringify({
     schemaVersion: "tcm-cdss-reasoning-v2",
     stage: "diagnose",
-    overview: { recommendedFormulaDirection: "归脾汤或酸枣仁汤酌选", recommendedFormulaNames: ["伪造方"], formulaSelectionMode: "combined" },
+    overview: { tcmDiseaseName: "不寐", recommendedFormulaDirection: "归脾汤或酸枣仁汤酌选", recommendedFormulaNames: ["伪造方"], formulaSelectionMode: "combined" },
   }),
   "<!-- DIAGNOSIS_JSON_END -->",
 ].join("\n"));
@@ -365,7 +367,7 @@ assert.equal(referencedDiagnoseJson.overview.formulaSelectionMode, "alternatives
 
 const governedStandardDirection = applyDeterministicFormulaReferences([
   "<!-- DIAGNOSIS_JSON_START -->",
-  JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaDirection: "四物汤加减" } }),
+  JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseName: "虚劳", recommendedFormulaDirection: "四物汤加减" } }),
   "<!-- DIAGNOSIS_JSON_END -->",
 ].join("\n"));
 const governedStandardDirectionJson = JSON.parse(governedStandardDirection.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
@@ -375,7 +377,7 @@ assert.equal(governedStandardDirectionJson.overview.recommendedFormulaDirection,
 
 const combinedWithUnrelatedOr = applyDeterministicFormulaReferences([
   "<!-- DIAGNOSIS_JSON_START -->",
-  JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaDirection: "归脾汤合酸枣仁汤加减，或根据症状调整剂量" } }),
+  JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseName: "不寐", recommendedFormulaDirection: "归脾汤合酸枣仁汤加减，或根据症状调整剂量" } }),
   "<!-- DIAGNOSIS_JSON_END -->",
 ].join("\n"));
 const combinedWithUnrelatedOrJson = JSON.parse(combinedWithUnrelatedOr.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
@@ -383,7 +385,7 @@ assert.equal(combinedWithUnrelatedOrJson.overview.formulaSelectionMode, "combine
 
 const trailingAlternative = applyDeterministicFormulaReferences([
   "<!-- DIAGNOSIS_JSON_START -->",
-  JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaDirection: "归脾汤与酸枣仁汤酌情选用" } }),
+  JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { tcmDiseaseName: "不寐", recommendedFormulaDirection: "归脾汤与酸枣仁汤酌情选用" } }),
   "<!-- DIAGNOSIS_JSON_END -->",
 ].join("\n"));
 const trailingAlternativeJson = JSON.parse(trailingAlternative.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
@@ -394,7 +396,7 @@ const referencedPrescribe = applyDeterministicFormulaReferences([
   JSON.stringify({
     schemaVersion: "tcm-cdss-reasoning-v2",
     stage: "prescribe",
-    overview: {},
+    overview: { tcmDiseaseName: "不寐" },
     formula: { candidates: [{ name: "建议采用归脾汤加减", formulaNames: ["伪造方"] }] },
   }),
   "<!-- DIAGNOSIS_JSON_END -->",
@@ -597,9 +599,14 @@ const juyuan = resolveFormulaSources("举元煎", herbs("人参", "黄芪", "炙
 assert.equal(juyuan[0]?.source, "《景岳全书》", "wrapped herb names and quantity ranges must not corrupt official classics");
 
 function reasoning(candidate) {
+  // 第四十七轮：这些组成/出处合成夹具补齐各自的适应病种，仍逐条检验旧身份断言。
+  const fixtureDisease = [
+    ["旋覆代赭汤", "呕吐"], ["清骨散", "内伤发热"], ["清胃散", "牙痛"], ["甘草汤", "咽痛"],
+  ].find(([name]) => candidate.name.startsWith(name))?.[1] || "不寐";
   return {
     schemaVersion: "tcm-cdss-reasoning-v2",
     stage: "prescribe",
+    overview: { tcmDiseaseName: fixtureDisease },
     formula: { candidates: [candidate], patentAndWestern: null, modifications: [] },
   };
 }
