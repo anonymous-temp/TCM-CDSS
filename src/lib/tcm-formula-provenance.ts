@@ -18,7 +18,7 @@ import formulaRoleBindingsJson from "../data/tcm-formula-role-bindings.source.js
 import type { CaseState, ClinicalReasoningResultV2, EvidenceRef } from "./diagnosis-types";
 import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
-import { formulaCoversDiseaseOrComplaint, formulaFunctionsPositivelyAligned, lineageFormulaSyndromeSupportedNames, lockableFormulaCatalogFunctions, lockedFormulaNamesIncludeModelTrustedOnly, normalizedFormulaIdentity, signedTherapyMethodIds, trustedModelFormulaIdentityNames } from "./tcm-formula-indications";
+import { formulaCoversDiseaseOrComplaint, formulaFunctionsPositivelyAligned, formulaNamesCoveringCase, lineageFormulaSyndromeSupportedNames, lockableFormulaCatalogFunctions, lockedFormulaNamesIncludeModelTrustedOnly, normalizedFormulaIdentity, signedTherapyMethodIds, trustedModelFormulaIdentityNames } from "./tcm-formula-indications";
 import { evaluateTextbookFormulaUse } from "./textbook-formula-stage";
 import { lineageAffinitiesForFormula } from "./tcm-formula-lineage-affinity";
 import { LINEAGE_LENS_SUBJECT, lineageLensSubject } from "./tcm-lineages";
@@ -1745,7 +1745,8 @@ export function selectM03TcmFormulaIdentity(input: {
   const methodIds = signedTherapyMethodIds({ therapy: { overallMethod: input.method || "" } });
   const lineageSupported = input.keepDirection && !input.secondarySyndromes?.length
     ? lineageFormulaSyndromeSupportedNames({ overview: { primarySyndrome: input.syndrome, tcmDiseaseName: input.disease } }, names, input.clinicalSourceText) : new Set<string>();
-  const lockable = names.filter((name) => formulaCoversDiseaseOrComplaint({ overview: { tcmDiseaseName: input.disease, primarySyndrome: input.syndrome } }, name, input.clinicalSourceText) && formulaCompilationReferences([name]).length === 1 &&
+  const coveredNames = formulaNamesCoveringCase({ overview: { tcmDiseaseName: input.disease, primarySyndrome: input.syndrome } }, names, input.clinicalSourceText);
+  const lockable = names.filter((name) => coveredNames.has(normalizedFormulaIdentity(name)) && formulaCompilationReferences([name]).length === 1 &&
     (exactRow?.formulas.includes(name) || Boolean(jingfangPatternForSignedSyndrome(input.syndrome, direction)) ||
       lineageSupported.has(normalizedFormulaIdentity(name)) ||
       formulaFunctionsPositivelyAligned(lockableFormulaCatalogFunctions(name), methodIds)) &&
@@ -1803,7 +1804,8 @@ export function withDeterministicFormulaReferences(input: ClinicalReasoningResul
       // 只按原方组成表里教材写的那本书的原方判（教材常用药不参与，第四十三轮消风散）。
       return textbookCitedFormulaIsGovernedHomonym(name, textbookRowForLock.id);
     };
-    const identityGovernedNames = identifiedNames.filter((name) => formulaCompilationReferences([name]).length === 1 && !governedEntryIsOtherBooksHomonym(name) && formulaCoversDiseaseOrComplaint(reasoning, name, clinicalSourceText));
+    const coveredIdentified = formulaNamesCoveringCase(reasoning, identifiedNames, clinicalSourceText);
+    const identityGovernedNames = identifiedNames.filter((name) => formulaCompilationReferences([name]).length === 1 && !governedEntryIsOtherBooksHomonym(name) && coveredIdentified.has(normalizedFormulaIdentity(name)));
     const incompleteCombined = identifiedMode === "combined" && identityGovernedNames.length !== identifiedNames.length;
     const recommendedFormulaNames = incompleteCombined ? [] : identityGovernedNames;
     // 教材代表方在目录里锁不住（同名方多个出处、或目录未收）时，方向仍写教材方名：开方阶段按教材组成与本例病机
@@ -2119,14 +2121,16 @@ export function restoreGovernedFormulaIdentity(
   const restorationInput = withoutUntrustedM04IdentityMetadata(reasoning);
   const claimedNames = restorationInput.formula!.candidates.flatMap((candidate) =>
     [...identifyKnownFormulaNames(candidate.name), ...(candidate.formulaNames || [])]);
-  if (claimedNames.some((name) => !formulaCoversDiseaseOrComplaint(prior, name, options.clinicalSourceText))) {
+  const coveredClaimed = formulaNamesCoveringCase(prior, claimedNames, options.clinicalSourceText);
+  if (claimedNames.some((name) => !coveredClaimed.has(normalizedFormulaIdentity(name)))) {
     return enrichReasoning(restorationInput, options.clinicalSourceText, undefined, prior).reasoning;
   }
   const governedNames = (prior.overview?.recommendedFormulaNames || [])
     .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
   const mode = prior.overview?.formulaSelectionMode || "none";
   // 旧签名或仅凭组成的恢复也要过同一主治覆盖；最后一步不能把已降成自拟的跨病方重新授名。
-  if (governedNames.some((name) => !formulaCoversDiseaseOrComplaint(prior, name, options.clinicalSourceText))) {
+  const coveredGoverned = formulaNamesCoveringCase(prior, governedNames, options.clinicalSourceText);
+  if (governedNames.some((name) => !coveredGoverned.has(normalizedFormulaIdentity(name)))) {
     return enrichReasoning(restorationInput, options.clinicalSourceText, undefined, prior).reasoning;
   }
   // 形态三 **M03 判自拟、但 M04 的组成其实就是某经方**（甲方 2026-08-05 R1/M5.1/M5.2）。
@@ -3549,8 +3553,9 @@ export function enrichReasoning(
     const herbBoundaryText = herbBoundaryTail(herbSafetyProfiles);
     const resolvedSources = resolveFormulaSources(candidate.name, candidate.herbs);
     const claimedFormulaNames = [...identifyKnownFormulaNames(candidate.name), ...(candidate.formulaNames || [])];
-    const claimsCovered = claimedFormulaNames.every((name) => formulaCoversDiseaseOrComplaint(identityContext, name, clinicalContext));
-    const sources = claimsCovered && resolvedSources.every((item) => formulaCoversDiseaseOrComplaint(identityContext, item.formulaName, clinicalContext)) ? resolvedSources : [];
+    const coveredClaims = formulaNamesCoveringCase(identityContext, [...claimedFormulaNames, ...resolvedSources.map((item) => item.formulaName)], clinicalContext);
+    const claimsCovered = claimedFormulaNames.every((name) => coveredClaims.has(normalizedFormulaIdentity(name)));
+    const sources = claimsCovered && resolvedSources.every((item) => coveredClaims.has(normalizedFormulaIdentity(item.formulaName))) ? resolvedSources : [];
     const sourceLabel = formulaSourceLabel(sources.map((item) => [item.formulaName, item.source] as const));
     sourceLabels.push(sourceLabel);
     const constructionType = candidate.herbs.length === 1

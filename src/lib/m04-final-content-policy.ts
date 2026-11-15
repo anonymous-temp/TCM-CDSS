@@ -1,9 +1,14 @@
-/** Shared presentation policy. Closed-set selection stays opt-in until paired model/budget validation. */
+/** Shared presentation policy. Closed-set selection stays opt-in until paired model/budget validation.
+ * Final-table analysis is opt-in too (2026-11-15, round 47 acceptance): its model call aborted at the
+ * 0.9 s budget in 269/269 live prescriptions, so every 方义 was the per-herb fallback list
+ * (「X为君药，<药典功效>。」「原方写作陈皮，本方用陈皮」, 「本方为自拟方」 under a named formula);
+ * independent reviewers failed 出处方义 in 40–62% of outputs against 5–9% for the model-written path.
+ * Off = the first pass writes 方义 and the delivered surface checks it against the final table. */
 export type FinalContentMode = "off" | "shadow" | "on";
 export function m04FinalContentPolicy(env: Readonly<Record<string, string | undefined>> = process.env) {
   const mode = (value: string | undefined, fallback: FinalContentMode): FinalContentMode => value === undefined ? fallback : value === "on" || value === "true" ? "on" : value === "shadow" ? "shadow" : "off";
   const enabled = env.CDSS_M04_FINAL_CONTENT !== "false" && env.CDSS_M04_FINAL_CONTENT !== "off";
-  const analysis = mode(env.CDSS_M04_FINAL_ANALYSIS, "on"), functions = mode(env.CDSS_M04_HERB_FUNCTION_SOURCE_ONLY, "on"), modifications = mode(env.CDSS_M04_MODIFICATION_CLOSED_SET, "off");
+  const analysis = mode(env.CDSS_M04_FINAL_ANALYSIS, "off"), functions = mode(env.CDSS_M04_HERB_FUNCTION_SOURCE_ONLY, "on"), modifications = mode(env.CDSS_M04_MODIFICATION_CLOSED_SET, "off");
   const error = analysis === "on" && functions !== "on" ? "analysis_requires_source_functions"
     : modifications !== "off" && env.CDSS_STANDBY_MODIFICATIONS === "true" ? "closed_set_incompatible_with_standby" : undefined;
   const budget = (name: string, fallback: number) => {
@@ -12,7 +17,7 @@ export function m04FinalContentPolicy(env: Readonly<Record<string, string | unde
   return { enabled: enabled && !error, error, analysis, functions, modifications,
     applicationPrefetch: env.CDSS_M04_APPLICATION_RETRIEVAL_PREFETCH !== "false",
     m05Prefetch: env.CDSS_M04_FINAL_CANDIDATE_M05_PREFETCH !== "false",
-    analysisBudgetMs: budget("M04_FINAL_ANALYSIS_TIMEOUT_MS", 900),
+    analysisBudgetMs: budget("M04_FINAL_ANALYSIS_TIMEOUT_MS", 3500),
     modificationBudgetMs: budget("M04_CLOSED_MODIFICATION_BUDGET_MS", 2500),
     // E must include this in whole-stage reuse/coalescing keys; these modules do not cache.
     version: `m04-final-v2:${enabled}:${analysis}:${functions}:${modifications}:${error || "ok"}` };

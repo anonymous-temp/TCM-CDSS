@@ -78,19 +78,31 @@ export function validateFinalFormulaAnalysis(snapshot: FinalM04Snapshot, draft: 
 
 export function renderFinalFormulaAnalysis(snapshot: FinalM04Snapshot, sentences: readonly AnalysisSentence[]): string {
   const { accepted } = validateFinalFormulaAnalysis(snapshot, sentences);
-  const selfDevised = snapshot.constructionType === "self_devised" || snapshot.delta.status === "self_devised";
+  // 开头跟交付的方名走：方名是成方（含「X加减」）就不写「本方为自拟方」（第四十七轮复核：方名「八正散加减」、方义却说自拟方）。
+  const selfDevised = (snapshot.constructionType === "self_devised" || snapshot.delta.status === "self_devised") && /自拟/u.test(snapshot.name || "自拟");
   const opening = selfDevised ? "本方为自拟方。" : `本方为${snapshot.name}。`;
-  const changes = snapshot.delta.status === "known" ? snapshot.delta.changes.flatMap((change) => {
+  // 同一首原方的加、去合成一句；药名相同的「原方写作陈皮，本方用陈皮」不写（复核：读不通）。
+  const grouped = new Map<string, { prefix: string; added: string[]; removed: string[]; other: string[] }>();
+  if (snapshot.delta.status === "known") for (const change of snapshot.delta.changes) {
     const base = snapshot.delta.bases.find((base) => base.key === change.baseKey);
     const prefix = base ? `较《${base.book}》${base.name}原方` : "较所参照原方";
-    if (change.kind === "added") return `${prefix}加${change.to}。`;
-    if (change.kind === "removed") return `${prefix}去${change.from}。`;
-    if (change.kind === "substituted") return `${prefix}以${change.to}替代${change.from}。`;
-    if (change.kind === "preparation_changed") return `原方写作${change.from}，本方用${change.to}。`;
-    if (change.kind === "guide_omitted") return `原方药引为${change.from}，本方未列此药引。`;
-    if (change.guideLocation === "modification") return `原方药引${change.from}列于随证加减，未列入主方。`;
-    return [];
-  }) : [];
+    const group = grouped.get(prefix) || { prefix, added: [], removed: [], other: [] };
+    grouped.set(prefix, group);
+    if (change.kind === "added" && change.to) group.added.push(change.to);
+    else if (change.kind === "removed" && change.from) group.removed.push(change.from);
+    else if (change.kind === "substituted") group.other.push(`以${change.to}替代${change.from}`);
+    else if (change.kind === "preparation_changed" && change.from && change.to && change.from !== change.to) group.other.push(`原方用${change.from}，本方用${change.to}`);
+    else if (change.kind === "guide_omitted") group.other.push(`原方药引${change.from}本方未列`);
+    else if (change.guideLocation === "modification") group.other.push(`原方药引${change.from}列于随证加减`);
+  }
+  const changes = [...grouped.values()].flatMap((group) => {
+    const parts = [
+      ...(group.added.length ? [`加${[...new Set(group.added)].join("、")}`] : []),
+      ...(group.removed.length ? [`去${[...new Set(group.removed)].join("、")}`] : []),
+      ...[...new Set(group.other)],
+    ];
+    return parts.length ? [`${group.prefix}${parts.join("，")}。`] : [];
+  });
   const explained = new Set(accepted.flatMap((sentence) => sentence.herbIds));
   const facts = snapshot.herbs.filter((herb) => !explained.has(herb.id)).flatMap((herb) => {
     const selected = herb.functionSources.filter((source) => herb.functionText.includes(source.text));

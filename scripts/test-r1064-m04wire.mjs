@@ -5,7 +5,7 @@ import { wireFixture } from './fixtures/r1064-m04/wire-fixture.mjs';
 // No test or mutation may escape to a real provider. wire() installs its own synthetic responder.
 globalThis.fetch = async () => { throw new Error('m04wire_offline_only'); };
 const jiti = createJiti(import.meta.url, { alias: { '@': `${process.cwd()}/src`, 'server-only': `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
-Object.assign(process.env, { OPENAI_API_KEY:'test-only',OPENAI_BASE_URL:'https://api.deepseek.com',CONTROLLED_TERMINOLOGY_MODEL:'deepseek-flash',AI_TEXT_PROVIDER:'bailian-qwen',BAILIAN_QWEN_API_KEY:'test-only',BAILIAN_QWEN_BASE_URL:'https://dashscope.aliyuncs.com/compatible-mode/v1',BAILIAN_QWEN_MODEL:'qwen3.7-plus',PRIMARY_PRESCRIBE_MODEL:'qwen3.7-plus',PRIMARY_PRESCRIBE_REPAIR_MODEL:'qwen3.8-max',M04_ORCHESTRATION_DEADLINE_MS:'60000', CDSS_M04_FINAL_CONTENT:'true', CDSS_M04_MODIFICATION_CLOSED_SET:'off', CDSS_M05_PREFETCH:'false', REASONING_CONTRACT_SIGNING_KEY:'m04wire-synthetic-signing-key-more-than-32-characters' });
+Object.assign(process.env, { OPENAI_API_KEY:'test-only',OPENAI_BASE_URL:'https://api.deepseek.com',CONTROLLED_TERMINOLOGY_MODEL:'deepseek-flash',AI_TEXT_PROVIDER:'bailian-qwen',BAILIAN_QWEN_API_KEY:'test-only',BAILIAN_QWEN_BASE_URL:'https://dashscope.aliyuncs.com/compatible-mode/v1',BAILIAN_QWEN_MODEL:'qwen3.7-plus',PRIMARY_PRESCRIBE_MODEL:'qwen3.7-plus',PRIMARY_PRESCRIBE_REPAIR_MODEL:'qwen3.8-max',M04_ORCHESTRATION_DEADLINE_MS:'60000', CDSS_M04_FINAL_CONTENT:'true', CDSS_M04_FINAL_ANALYSIS:'on', CDSS_M04_MODIFICATION_CLOSED_SET:'off', CDSS_M05_PREFETCH:'false', REASONING_CONTRACT_SIGNING_KEY:'m04wire-synthetic-signing-key-more-than-32-characters' });
 const types = await jiti.import('../src/lib/diagnosis-types.ts');
 const compiler = await jiti.import('../src/lib/m04-proposal-compiler.ts');
 const surface = await jiti.import('../src/lib/delivered-surface.ts');
@@ -41,10 +41,11 @@ await check('27','方名身份/方向类问题（路由已按自己的口径放�
  assert.ok(out.content.includes('DIAGNOSIS_JSON_START'));
  const bad=reasoning();bad.formula.candidates[0].herbs[0].dose='999g';await assert.rejects(seal(bad),/m04_final_safety:/);
 });
-await check('01','新路径缺省开、闭集待A/B，false逐字返回且不调用模型',async()=>{
- assert.equal(policy.m04FinalContentPolicy({}).enabled,true);assert.equal(policy.m04FinalContentPolicy({}).analysis,'on');assert.equal(policy.m04FinalContentPolicy({}).modifications,'off');
+// 第四十七轮终测：终表方义的模型调用在 0.9 秒预算内 269/269 超时、全部落成逐味功效罗列，复核出处方义失败率 40–62%；缺省改关，本套件显式开启以继续钉住该路径的接线。
+await check('01','终表方义缺省关（显式开启才走）、闭集待A/B，false逐字返回且不调用模型',async()=>{
+ assert.equal(policy.m04FinalContentPolicy({}).enabled,true);assert.equal(policy.m04FinalContentPolicy({}).analysis,'off');assert.equal(policy.m04FinalContentPolicy({CDSS_M04_FINAL_ANALYSIS:'on'}).analysis,'on');assert.equal(policy.m04FinalContentPolicy({}).modifications,'off');
  process.env.CDSS_M04_FINAL_CONTENT='false';try{const r=reasoning(),text=wrap(r),a=binding.clinicalReviewNotPerformedAttestation(r);assert.deepEqual(await delivery.applyM04FinalContent(text,a,ctx,undefined,undefined,{call(){throw Error('unexpected');}}),{content:text,attestation:a});}finally{process.env.CDSS_M04_FINAL_CONTENT='true';}
- assert.equal(policy.m04FinalContentPolicy({CDSS_M04_HERB_FUNCTION_SOURCE_ONLY:'false'}).enabled,false);
+ assert.equal(policy.m04FinalContentPolicy({CDSS_M04_FINAL_ANALYSIS:'on',CDSS_M04_HERB_FUNCTION_SOURCE_ONLY:'false'}).enabled,false);assert.equal(policy.m04FinalContentPolicy({CDSS_M04_HERB_FUNCTION_SOURCE_ONLY:'false'}).enabled,true);
 });
 await check('02','编译角色以药表为准，旧开关仍随方义校正臣佐',()=>{
  const p=structuredClone(proposal.candidate);p.formulaAnalysis='党参为君药，白术为佐药，茯苓为臣药，炙甘草为使药。';
@@ -153,8 +154,8 @@ await check('23','来源功效不能反向选择炮制；药名、剂量与功�
  const r=reasoning();const h=r.formula.candidates[0].herbs[0];Object.assign(h,{name:'牛膝',function:'补肝肾，强筋骨',processing:null});
  const a=surface.projectDeliveredReasoning(projection.projectM04FinalFacts(r),{caseState:state,recordText:record});const b=surface.projectDeliveredReasoning(a,{caseState:state,recordText:record});assert.equal(a.formula.candidates[0].herbs[0].name,'牛膝');assert.deepEqual(b,a);
 });
-await check('24','缺省作者等待预算小于一秒；中止时无模型调用',async()=>{
- assert.ok(policy.m04FinalContentPolicy({}).analysisBudgetMs<=900);const c=new AbortController();c.abort();let calls=0;const result=await delivery.applyM04FinalContent(wrap(reasoning()),undefined,ctx,c.signal,Date.now()+3000,{call:async()=>{calls++;return {};}});assert.equal(calls,0);assert.ok(parse(result.content).formula.candidates[0].formulaAnalysis);
+await check('24','缺省作者等待预算够写完一段（0.9 秒时 269/269 超时）且有上限；中止时无模型调用',async()=>{
+ assert.ok(policy.m04FinalContentPolicy({}).analysisBudgetMs>900&&policy.m04FinalContentPolicy({}).analysisBudgetMs<=4000);const c=new AbortController();c.abort();let calls=0;const result=await delivery.applyM04FinalContent(wrap(reasoning()),undefined,ctx,c.signal,Date.now()+3000,{call:async()=>{calls++;return {};}});assert.equal(calls,0);assert.ok(parse(result.content).formula.candidates[0].formulaAnalysis);
 });
 await check('25','新路径关闭旧草稿M05预取，只给终稿药表',()=>{
  const raw=readFileSync(new URL('../src/lib/stage-prefetch.server.ts',import.meta.url),'utf8').split('export function prefetchAssessFollowupFromDraftCandidate')[1];assert.match(raw,/if \(m04FinalContentPolicy\(\).enabled \|\|/);

@@ -1201,6 +1201,33 @@ export function formulaCoversDiseaseOrComplaint(reasoning: unknown, name: string
 }
 
 /**
+ * 合方里每首方的主治覆盖：至少一首按 formulaCoversDiseaseOrComplaint 覆盖本病/主诉时，同组其余各首只要主治与本例已肯定的表现
+ * 共有 FORMULA_COMPANION_PRESENTATION_MIN_CONCEPTS 个以上受控临床概念，也算覆盖（它在合方里管本例确有的那一组表现）。
+ * 甲方标准病例5「虚劳·肺脾两虚证」：玉屏风散管主诉反复感冒，补中益气汤主治「脾胃气虚证…体倦肢软，少气懒言，大便稀溏」
+ * 管本例乏力、短气、便溏、面色萎黄——逐首要求覆盖病名或主诉时 3/3 被改成自拟方（第四十七轮终测）。
+ * 单方不走这条：单方的主治对不上病名和主诉，表现再多重合也不放行（风热痹阻用银翘散，第四十六轮复核点名）。
+ * 只认肯定的表现（否认、未问的不算），概念取自同一张受控概念表。返回被覆盖方名的归一身份集合。
+ */
+export const FORMULA_COMPANION_PRESENTATION_MIN_CONCEPTS = 2;
+export function formulaNamesCoveringCase(reasoning: unknown, names: readonly string[], clinicalSourceText = ""): Set<string> {
+  const covered = new Set<string>();
+  const distinct = [...new Map(names.map((name) => [normalizedFormulaIdentity(name), name])).entries()];
+  for (const [identity, name] of distinct) if (formulaCoversDiseaseOrComplaint(reasoning, name, clinicalSourceText)) covered.add(identity);
+  if (covered.size === 0 || covered.size === distinct.length) return covered;
+  const presentation = affirmedClinicalText(clinicalSourceText) || "";
+  if (!presentation) return covered;
+  for (const [identity] of distinct) {
+    if (covered.has(identity)) continue;
+    const entry = ENTRIES.find((item) => [item.name, ...item.aliases].some((alias) => normalizedFormulaIdentity(alias) === identity));
+    if (!entry) continue;
+    const indications = [...entry.indications, ...entry.functions].join("；");
+    const shared = new Set(CLINICAL_CONCEPTS.filter((concept) => concept.patient.test(presentation) && concept.indication.test(indications)).map((concept) => concept.key));
+    if (shared.size >= FORMULA_COMPANION_PRESENTATION_MIN_CONCEPTS) covered.add(identity);
+  }
+  return covered;
+}
+
+/**
  * M03 锁定的方名里是否有「只靠信任模型选方保留」的（没有受控证候—方剂正向充分性）。
  * 这类方名是模型推荐的方向，不是受控关系核验过的身份：M04 若按本例病机另行组方，不强制修复
  * （formulaCompilationContractIssue 据此放行透明降级）。9/27 本机实测：强制时 M04 组成修复
