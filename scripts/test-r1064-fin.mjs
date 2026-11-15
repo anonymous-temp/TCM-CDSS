@@ -165,3 +165,11 @@ await check("6.1 主诉「胃中嘈杂」无教材交集鉴别时，规范病名
     assert.deepEqual(out.overview.tcmDiseaseDifferentials.map((item) => item.diseaseName), ["胃痞", "吐酸"]);
   } finally { globalThis.fetch = savedFetch; }
 });
+
+const commentary = await jiti.import("../src/lib/formula-textbook-commentary.ts");
+await check("7.1 方解列为君药的几味，药表按用途写成炮制名（土炒白术）时仍认得出；不是方解列的那几味照旧不算", () => {
+  assert.equal(commentary.textbookNamesTheseAsEmperors("参苓白术散", ["人参", "白术", "茯苓"]), true);
+  assert.equal(commentary.textbookNamesTheseAsEmperors("参苓白术散", ["人参", "土炒白术", "茯苓"]), true);
+  assert.equal(commentary.textbookNamesTheseAsEmperors("参苓白术散加减", ["人参", "麸炒白术", "茯苓"]), true);
+  assert.equal(commentary.textbookNamesTheseAsEmperors("参苓白术散", ["人参", "土炒白术", "陈皮"]), false);
+});
