@@ -1,0 +1,34 @@
+R47 / I1-wire 集成交付说明（本机，不部署）
+
+接线与权威
+- diagnosis-api.ts 的 callDiagnosisStream 建立请求级 rewrite ledger；prepare/finalize/route 变换记录快照。
+- createFinalDeliveryBarrier 收口普通定稿、提前签出的 M04 checkpoint、全部最终 replacement、非剂量页、有限页、deadline/abort。END/close 等待屏障，END 只发一次。
+- 检查对象是最后投影后的结构化载荷及可见文字。入口只归一签名所需结构，不重复交付投影；签名后再核临床快照 hash。拒绝多个 sentinel，避免检查第一份而签最后一份。
+- 原有安全层、剂量阈值、处方采纳条件及外部 schema 不改。原有管线已接受的“展示投影”按精确临床 hash 绑定，防止将“辨证组方→自拟方”的展示名称再送生成身份判据而丢掉整方；闸门一旦改临床载荷，原受理绑定失效，重跑原安全合同。
+- 事实与完整性使用同一事实批次的两厂商调用，完整性列不再另起串行调用。不变量扫描不调用模型；R11 永远 shadow。引用、出处、药表、确定性安全字段与其可见实例受保护；其余自然语言仍扫描。
+- 所有删除先绑定原字符串/offset，合并后一次执行。修复回调拿副本、只能改允许字段，追加鉴别不能覆盖旧条目；渲染器不得补回已删正文。新文字重过剩余时间内的检查。
+- 当前既有文档质量重试预算为零，生产不凭新 finding 增发修复模型调用；执行可确定的 ownership 恢复与有地址的整句删除，未解决项保留 findings。原安全合同允许的质量候选仍可保留，accepted（可交付）与 passed（核对通过）分开；unknown/未解决/改写/降级均不缓存，不冒充检查通过。
+
+两步写
+- diagnose route 注入受治理病名/证素/教材定义/治法候选。原文事实范围、肯否、正常性由两厂商对逐字区间一致核对，不新造正则医学判断。
+- TCM 新分支为 proposal→结论核对/冻结→narrative→至多一次重写/删句→外部投影；原西医腿仍并行。
+- 两个小 schema 分别登记，strict fallback 保持原 task/schema 和同一个 absoluteDeadline；不回旧整半修复，不触发旧 overview 后的作文/治法预取。输出变换后再次核对全文及 frozen footprint；不能交付时走原有限合同，提案不外泄。
+- M04 预取仍只来自 route 的最终签名回调。有效开关、schema/检查版本、治理数据摘要进入阶段指纹和生成提示身份；请求降级清除模型 memo，即使阶段复用关闭也生效。
+
+缺省与启用边界
+- 总闸缺省 enforce（启用编排），ledger 缺省 memory；事实、完整性、不变量缺省 shadow。
+- CDSS_M03_TCM_TWO_PASS 缺省 false，显式 true 且 parallel 未关才启用。所有相关 false/off 均可关闭；总闸 false 返回原内容，不增加模型调用。纯策略抽到 m03-tcm-policy.ts，运行时与缓存共用，避免缓存模块加载模型依赖。
+- 风险例外理由：无真实模型 A/B，不应把未校准的阴性/时间范围、证素映射和当前 HPI 引用差异直接用于删除；有限病例缺鉴别属于质量，不能全部变为空方。结论闭集映射覆盖有限，新两步还增加事实范围与最终全文核对波次，需先测误删率、有限率与急症覆盖。
+- 单请求所有最终屏障共享 900ms 额外等待预算，并受原总钟约束。常见一次批次=2家并行；完整性增加0调用，不变量为本地CPU；最长4个事实批次、两批并行（最多8个调用，仍共享900ms）。现行质量预算0，所以默认新增修复调用0。保存输出无模型回放的时间不是线上p50证明。
+- 两步正常无重写时：2次生成、2次事实范围调用、6次结论核对（有流派再+2）、3组各4次的全文事实/关系核对，另加原西医腿与最终总闸。不同组有先后依赖，不能宣称新增耗时<=1秒。它保守缺省关闭，必须做同日200例冷/暖memo分列A/B、甲方10×3、急症/稀疏分层后再评估开启。
+
+验收与回放
+- scripts/test-r1064-wire.mjs：17组，覆盖开关、同批核对、保护区、unknown/超时、限域修复、渲染复活、最终hash/签名、非剂量、缓存、两步strict/时钟/NDJSON/取消、R11与质量受理。
+- scripts/replay-r1064-wire.mjs：读取200份 r46c（400阶段），无网络，无模型，不复制病历进夹具；输出 /var/tmp/r1064-wire-replay.json。
+- 初版重复投影造成56个阶段变化，差异检查定位到既有投影再次处理（含炮制重复后缀、方义展示与未带回注意事项选项）。取消屏障中的重复投影后重跑：400阶段结构化临床字段/可见正文变化均0，三道默认shadow闸改写0。这不表示原有209条问题已修复。
+- /var/tmp/r1064/cp/wire.py 在真实源码副本逐条变异；data/node_modules只做链接，未复制任何.env/密钥。每条须让对应编号检查失败；结果 /var/tmp/r1064/cp/wire.json。
+- 旧套件清单与首跑：/var/tmp/r1064-wire-suites.json、/var/tmp/r1064-wire-tests/results.json。test:upstream-guards明确读.env.example，遵守本任务更强禁令不执行。其余逐个加共享flock运行；未跑verify:release/test:deterministic全量。
+- 旧断言先失败后调整：doctor-facing-vocabulary把两步内部提示词识别为医生文案，按既有提示词豁免表分类，W11另证无提案泄漏；r1019-herbs和stage-progress-phase的固定字符窗口被新增异步/台账代码拉长，改按函数/AST边界检查，保留失败隔离与先停心跳的要求。其余旧断言不改。
+- 另由旧套件抓到并修复：缓存身份引入server-only传递依赖；M04展示名称再判为生成身份导致候选丢失。前者提取纯策略，后者用原受理的精确投影hash绑定，未放宽安全判据。
+- 最终结果：新增17组全通过（/var/tmp/r1064-wire-tests/new.log）；源码变异23/23均由指定检查抓到（/var/tmp/r1064/cp/wire.json）；旧套件85通过、1跳过、0失败，逐套件名称及最终日志见 /var/tmp/r1064-wire-tests/final-results.json。npm run typecheck通过（/var/tmp/r1064-wire-typecheck.log），git diff --check通过。
+- 总指挥仍需在允许读取配置的环境执行test:upstream-guards，并统一执行verify:release和test:deterministic；启用两步/删句前补真实模型A/B及甲方10×3。未部署、未SSH、未push，未读取密钥或.env文件；原有6张参考图片类型改动未纳入提交。

@@ -60,12 +60,8 @@ export function acceptM03TcmCheck<T>(input: M03TcmCheckInput, envelope: M03TcmCh
 const unique = <T>(values: readonly T[]) => [...new Set(values)];
 const currentAbnormal = (quote: RecordQuote) => quote.scope === "current" && quote.polarity === "affirmed" && quote.observation === "abnormal";
 
-export function m03TcmCheckPolicy(env: Record<string, string | undefined> = process.env) {
-  return { elements: env.CDSS_M03_ELEMENT_SUPPORT !== "false",
-    secondary: env.CDSS_M03_SECONDARY_CRITERIA !== "false" && env.CDSS_M03_SECONDARY_CONSISTENCY !== "false",
-    diseasePoints: env.CDSS_M03_DISEASE_POINTS_CHECK !== "false", visitReason: env.CDSS_M03_VISIT_REASON_CHECK !== "false",
-    methods: env.CDSS_M03_METHOD_COVERAGE !== "false", lineage: env.CDSS_M03_LENS_CONSISTENCY !== "false" };
-}
+export { m03TcmCheckPolicy } from "./m03-tcm-policy";
+import { m03TcmCheckPolicy } from "./m03-tcm-policy";
 
 export async function checkM03TcmConclusion(
   value: unknown, ctx: M03TcmContext, io: M03TcmConclusionCheckIO,
