@@ -3364,6 +3364,62 @@ The user asked for every gap to be found from all local material, not only what 
 - Model judgement: compound syndromes named by one element (脾虚证 for 脾虚湿蕴), 「原方」 for formulas whose original preparations or proportions differ, blood-moving herbs in suspected intracranial bleeding, 四物汤 for a ruptured ectopic pregnancy.
 - Latency was not worked on this round.
 
+### 11/15 round 46: the round-45 leftovers by class; the 口径 letter withdrawn (2026-11-15)
+
+The user asked what the 口径确认书 drafted in round 45 contained, pointed out that the customer had already stated their positions over three rounds of feedback, and asked for every leftover to be checked, researched online and fixed by class, then deployed. Material: `~/runlogs/r1018/work/r1063/` (`COMMON.md` brief for the work packages, `fin2-errors-by-item.json` = round 45's remaining 「错」 by item, `probe/`, `replay/` (`gate.mjs`, `mkarm.sh`, `snapshot.sh`, `NOTES.md`), `cp/` (`main.py`, `analysis.py`, `rx.py`, `text.py`), `gen.sh`, `mkpanels.py`, `tally-review.py`, `out/`, `review-r46a|b|c/`). Suites `test:r1063-main|analysis|rx|text`.
+
+**The 口径 letter.** Checked against the ledger of the customer's own words (`r1039/ledger/ledger.json`): 待查 wording, 兼证 only with grouped evidence, 出处 as the original book, the red-flag prescription kept but hidden, the pregnancy herb rule are the customer's own positions; the "may give 0 modifications" item contradicted their 10/29 complaint (「仅生成1个不足矣」); the banner-field advice was obsolete since round 32 (`clinicalFacts.redFlags` follows the gate for API callers); 婚育史 has been sent since 11/2. Withdrawn; nothing to send.
+
+**How the work was split.** Three agents in the main tree with their own files and suites (B analysis/name, C prescription/precautions, D knowledge/text); the main session took red flags, follow-up and record reading, then a second batch from an independent rerun review. Lesson: a hard-linked copy (`cp -al`) is **not** a snapshot while agents edit with an editor (in-place writes reach every link); counter-proof and measurement copies now copy code for real and hard-link only `src/data` and `node_modules` (`replay/snapshot.sh`), and later data edits must write a new file.
+
+**What changed, by class.**
+- **Red flags read the vitals together.** Adult NEWS2 ≥7 (RCP 2017) and shock index ≥1 with SBP ≤100 or HR ≥100 plus blood/fluid loss or poor perfusion are deterministic red flags whose reason names the readings (`vitalInstabilityRedFlag`; data `priority-evaluation-windows.source.json` `vitalInstability`). Severe DKA: the ADA/EASD 2024 glucose + ketone criteria plus altered consciousness or deep rapid breathing. Hyperglycaemia explains weight loss (not an upper-GI alarm). Chest tightness during a known asthma/COPD attack with wheeze is not ACS (GINA; `bronchospasmChestTightness`). Acute vertigo with inability to stand or walking deviation is posterior-circulation stroke (NG127). 「走路发飘」 inside a systemic-weakness sentence is not a focal sign. SpO₂ written with subscripts or 指脉氧 is read.
+- **Red-flag first step has two tiers**: ongoing emergencies say 「立即急诊/呼叫120」, the day tier (upper-GI alarm, haemoptysis with weight loss, recent fracture, severe thrombocytopenia) keeps 「当天」 (`redFlagNeedsImmediateCare`). When the first step changes, the previous stage's first-step sentence is removed instead of kept beside it; the anticoagulant after-step survives a merge. Findings the record already has are not written as future warning signs; diseases whose chief complaint follows the menstrual cycle get cycle-based follow-up.
+- **Record reading.** Clauses whose subject is a body function (小便/大便/面色/精神/饮食…) are not bare items of a preceding denial; time-scoped denials keep their scope; a normal statement ends a denial run; qualified synonym forms count (进行性黄疸 ↔ 进行性巩膜黄染).
+- **Bleeding not excluded keeps blood movers out**: thunderclap headache, stroke-like signs without imaging that excludes haemorrhage, circulatory instability with vaginal bleeding (`intracranialHemorrhageNotExcluded`, wording `to_exclude`).
+- **Analysis closes into the name (B).** Nature elements either close into the delivered syndrome name or are withdrawn; pending notes read tongue/pulse field forms and name only unsupported elements outside the name.
+- **Prescription (C).** Modifications reach two present-finding conditions; incidental digestants and red-flag signs are not triggers; textbook strong cautions; one herb in two processings is one herb; duplicate and drug-condition precautions; weaned patients get no lactation clause; allergy and family-history lines are not population evidence.
+- **Knowledge and text (D).** 《方剂学》-cited original books; 「原方」 only when the table agrees; herb function corrections; topical medicine wording; CKD stage by eGFR; TCM names for Western-titled textbook sections.
+
+**Second batch, from the rerun review (458c2e2c).** Thirteen reviewers read the first build (r46a) and found that some of this round's own changes had made things worse; after the fixes (2ce4bb35) three reviewers re-read the 33 affected outputs (r46b, 「错」 64 → 42) and found these, all fixed with tests and 21 counter-proofs (all caught):
+- **The lineage downgrade was the main source of 流派 errors.** It turned a model-written `partial` into `not-applicable` whenever the chosen formula was not in the school's attribution list and the rationale said 「按常规辨证」 — but the M03 prompt *requires* that sentence for every partial lens, so it fired on 36 of 70 lineage cases and left reasons that contradicted the analysis (「丹溪重气血痰郁，本例以气郁为主…未按滋阴/丹溪思路执行」) or fragments (「脾肾；但…」). Removed; `applicable` is the model's judgement again (round 13/18 doctrine). The 丹溪 lens now says 气血痰郁**或**阴虚相火, and the prompt says a school whose applicability lists several situations fits when any one holds.
+- **Tongue/pulse-only modification triggers** (「本例已见脉弦：加青皮…以缓弦脉」, 4 reviewers) are not modification targets (`modificationTriggerTonguePulseOnly`): pulse-only never, tongue-only only for a textbook entry of this syndrome; the top-up prompt and M04 prompt say so.
+- **Top-up rows skipped population cautions** (76-year-old with CKD, 「加细辛」 without 肾功能不全/老年人慎用): compile and top-up share `additionRiskNote`. The caution names only the recorded member of a combined KB population (`members` on the matcher: 「月经期」 for a menorrhagia case, not 「出血倾向/月经期/抗凝状态」).
+- **Text the server damaged:** a dangling continuation clause after an element withdrawal (「故属痛痹；温煦失职；」); renaming 耳鸣 → 耳鸣耳聋 inside 「双耳鸣响」 (`renamedDiseaseMentions`: when the new name contains the old one, only name positions change); the prompt's 「方向已成立」 in 方义; three 「未诉」 rewrites (a self-negated list item 「切口无渗液」, a differential's own feature list 「起病较对称、无典型静止性震颤、有明确用药史」, an exam action 「推之未诉固定」 — the last one is often model-written because the M03 prompt asks for 「未诉X」, so delivery drops the item).
+- **Western name vs basis:** 「疑诊X」, 「考虑X…待查」, 「X诊断依据不足」 and a following 「但尚缺…确认」 sentence count as not established; `withCanonicalClinicalTerminology` kept the governed name but dropped 「待查」 (「阻塞性睡眠呼吸暂停低通气综合征待查」 → 「阻塞性睡眠呼吸暂停」), now kept.
+- **Treatment cards:** current anticoagulant/antiplatelet use (same predicate as the dose boundary, `currentAntithromboticTherapyRecorded`) excludes tuina, cupping, guasha and invasive projects; elderly (65+) recorded osteoporosis excludes tuina. Home acupressure is not affected.
+
+**Third batch, from the final review (r46c) and after it (e9a05c14 … 844d5157).** Fixed with tests (`test:r1063-main` 7.10–7.21) and counter-proofs (M60–M76, all caught):
+- **CKD stage regrade rewrote a criterion sentence**: the model's correct 「eGFR 17，尚未达到慢性肾脏病5期eGFR<15的标准」 became 「…4期eGFR<15…」. A stage mention after 达到/未达/进入/进展为 or right before a threshold comparison is not the patient's stage.
+- **「当归尾尾」**: renaming 当归 → 当归尾 in 方义 hit text that already said 当归尾 (`withProcessedHerbMentions` checks the added suffix).
+- **A normal measured temperature documents 「无发热」** in the sanitizer (`measuredTemperatureDocumentsNoFever`, numeric threshold; every NN.N℃ in the record must be below the floor and the record must not affirm fever). Before, 「无发热（体温36.4℃）」 became 「病历尚未确认发热是否存在」 or 「未诉体温36.4℃」.
+- **More 「未诉」 forms**: measurement terms are not unrecorded negatives; 「无停经史」 against 「月经未按时来潮」 counts as written (`recordWritesStoppedPeriod`); an exam action followed by 「未诉」 (「推之未诉固定」, often model-written because the M03 prompt asks for 「未诉X」) is dropped on delivery.
+- **Orphan mechanism segments** (「…尿频尿急。温煦失司；舌脉未记录」) are dropped from the syndrome rationale.
+- **No lineage chosen**: a model-written school lens sentence (「从李东垣脾胃学派升阳益气思路看…」) is dropped at the diagnose stage.
+- **Partial lineage verdicts**: the M03 prompt itself told the model to end every partial lens with 「以下按常规辨证处理」, which 7 reviewers read as a contradiction. Partial now says which recorded findings fit the school's lens and what was taken from it; only not-applicable says routine. Regenerated 8 lineage cases: 7 partial (the four 丹溪 cases among them) without 「按常规辨证」, 1 not-applicable with it.
+- **Wording**: 「考虑X待查可能」「符合X待查」 → 「考虑X可能」; inhaled medicines are 「正在使用」, not 「服用」; record notes (「吸入器使用方法未核实」) are not medicine names.
+- **Pending items**: the syndrome-level reason moved into 待核实 is not added when every item it names is already listed (7 reviewers: 「末条把前几条再说一遍」); the boilerplate 「证候边界待定」 is replaced.
+
+**Measured.** Independent Claude reviewers with the audit brief (`r1061/BRIEF.md`), only 「错」 counted, same 200 records (customer 100, new40, new45, retest 20), each review by different reviewers:
+
+| | Round 45 final (fin2) | Round 46 first build (r46a) | Round 46 after the second batch (r46c, 458c2e2c) |
+|---|---|---|---|
+| 「错」 / outputs with none | 244 / 69 | 228 / 73 | 209 / 71 |
+| customer 100 / new40 / new45 / retest | 130 / 37 / 69 / 8 | 149 / 27 / 41 / 11 | 108 / 25 / 57 / 19 |
+| 文字加工痕迹 / 前后矛盾 / 知识错误 | 50 / 52 / 27 | 29 / 71 / 9 | 23 / 59 / 18 |
+| 病机分析 / 诊断依据 / 流派 (outputs with a 「错」) | 24 / 17 / 2 | 38 / 27 / 10 | 39 / 22 / 3 |
+
+- Reviewer-to-reviewer variance is large on the small sets (retest 8 → 11 → 19 with mostly model-judgement items); the third batch above was fixed after r46c and was checked by tests and the 8-case lineage rerun, not by another full review.
+- The rerun of the 33 outputs that had server-caused 「错」 in r46a went 64 → 42 (r46b).
+- P0 audit on all 200 r46c chains: dosed 200/200; dose over ChP, over 2×, 十八反 incl. 加减, pregnancy-prohibited, child-toxic, organ, active-bleed blood movers all 0; 51 red-flag cases dosed with adoption blocked; fewer than 2 TCM disease differentials 4/200.
+- Gate replay (21,561 records, HEAD vs round-46 safety code, every change read; `replay/NOTES.md`): 1,834 red-flag first steps 当天 → 立即; 20 new red flags (NEWS2 ≥7, shock index with blood/fluid loss, severe DKA, acute vertigo with imbalance — the customer 100-case expectations for C008/C027/C044/C065/C067 are red); 5 asthma/COPD attacks no longer called ACS; reasons renamed to the real emergency.
+
+**Left as is.**
+- **病机分析 is still the weakest item** (39 outputs with a 「错」): the model's location/nature basis and chain evidence often do not match the node, pending items contradict the record (「寒热喜恶未记录」 next to 「热敷减轻」), and the location reason 「病位“脾、胃”尚缺直接的病历依据」 appears when the model wrote no basis details although the record has them. A deterministic fix would need the location basis re-derived from the record.
+- **Compound element words** (气阴两伤, 阴血不足, 耗伤阴津) are not in the deficiency lexicon, so a withdrawn 阴虚 can leave 「气阴两伤」 in the overall pathogenesis; adding them changes when the element check runs and needs its own measurement.
+- **Model judgement**: 喉痹 for vocal-cord nodules (喉瘖), 急惊风 without convulsions, 胸痹 for a 76-year-old with shock signs (the 真心痛 pin needs chest pain), 银翘散 for a joint 痹证, 四物汤 for a ruptured ectopic pregnancy, added herbs whose claimed action does not fit the finding (白芷 「止头晕」).
+- **C089** (anxious 30-year-old, 「近日感胸口不适」) is still a red flag from the deterministic chest rule; its case focus says new symptoms must not be dismissed, so it stays.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
