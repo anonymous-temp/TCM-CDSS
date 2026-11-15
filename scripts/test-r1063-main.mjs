@@ -492,5 +492,27 @@ await check("7.20 M03 提示：流派部分相符时写取了什么、不写「�
   assert.match(text, /不相符时（not-applicable）写这一派要看什么、本例缺什么，再说以下按常规辨证处理/u);
 });
 
+await check("7.21 证候「有界」理由挪进待核实时，说的几项前面已逐项列过的不再加（「缺寒热喜恶、二便饮食，证候边界待定」）；没列过的照加、套话理由换成说影响什么（对照）", () => {
+  const recordText = "现病史：肩痛3月，活动受限。\n舌象：舌淡红，苔薄白\n脉象：弦";
+  const base = (reason, uncertainties) => ({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { tcmDiseaseName: "漏肩风", primarySyndrome: "气滞血瘀证", primarySyndromeResolution: "bounded", primarySyndromeResolutionReason: reason, primarySyndromeBasis: ["肩痛3月"], evidence: { evidenceLevel: "model_inference", source: "病例内推理", confidence: "低" } },
+    pathogenesis: {
+      locationDifferentiation: { items: ["肩"], resolution: "resolved", details: [] },
+      natureDifferentiation: { items: ["气滞", "血瘀"], resolution: "resolved", details: [] },
+      chain: [{ nodeId: "P1", patientFact: "肩痛3月", pathogenesis: "气滞血瘀", therapyDirection: "行气活血" }],
+      uncertainties,
+    },
+    therapy: { overallMethod: "行气活血，通络止痛" }, westernDiagnosis: { primary: { name: "肩周炎" }, differentials: [] },
+  });
+  const listed = [{ item: "寒热喜恶", reason: "病历未记录，尚待核实" }, { item: "二便饮食情况", reason: "未记录，尚待核实" }];
+  const out = surface.projectDeliveredReasoning(base("缺寒热喜恶、二便饮食，证候边界待定", listed), { recordText });
+  assert.equal(out.pathogenesis.uncertainties.length, 2, JSON.stringify(out.pathogenesis.uncertainties));
+  const fresh = surface.projectDeliveredReasoning(base("晨僵时长未记录，证候边界待定", []), { recordText });
+  const added = fresh.pathogenesis.uncertainties.find((row) => /晨僵/u.test(row.item));
+  assert.ok(added, JSON.stringify(fresh.pathogenesis.uncertainties));
+  assert.doesNotMatch(added.reason, /证候边界/u, added.reason);
+});
+
 if (failures > 0) console.error(`\n${failures} check(s) failed`);
 else console.log("\nAll r1063 main checks passed");

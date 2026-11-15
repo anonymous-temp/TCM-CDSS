@@ -3311,10 +3311,18 @@ function withSyndromeResolutionFromAxes(reasoning: Json, recordText: string): vo
     const [head, ...rest] = reason.split(/[，,；;。]/u).map((part) => part.trim()).filter(Boolean);
     const item = (head || "证候细节").slice(0, 30);
     const remainder = rest.join("，");
-    if (!records(uncertainties).some((row) => String(row.reason || "") === reason || String(row.item || "") === item)) {
+    // 这一条说的几项前面的待核实已经都列过（「缺寒热喜恶、二便饮食…，证候边界待定」紧跟在逐项的待核实后面，第四十六轮终审 7 位复核员都记
+    //「末条把前几条再说一遍」）：不再加。逐项拆开（去掉缺、未记录这类说法），每项都在已有某一条里出现过就算列过。
+    const listed = records(uncertainties).map((row) => `${String(row.item || "")}${String(row.reason || "")}`).join("；");
+    const parts = item.replace(/^(?:缺|缺少|尚缺|未记录|未述|未诉)/u, "").replace(/(?:未记录|未明|未核实|不详|待定)$/u, "")
+      .split(/[、及和与]/u).map((part) => part.trim()).filter((part) => part.length >= 2);
+    const alreadyListed = parts.length > 0 && parts.every((part) => listed.includes(part) || (part.length >= 4 && listed.includes(part.slice(0, 2)) && listed.includes(part.slice(-2))));
+    if (!alreadyListed && !records(uncertainties).some((row) => String(row.reason || "") === reason || String(row.item || "") === item)) {
       // 余下的话自己已经说了待定（「寒热虚实细节待复诊」）时不再补「尚待核实」（第四十五轮终审：读来同一意思说两遍）。
-      const pending = /待|未|尚缺|核实|不明|不详/u.test(remainder);
-      pathogenesis.uncertainties = [...uncertainties, { item, reason: remainder ? (pending ? remainder : `${remainder}，尚待核实`) : "尚待核实", affects: "证候细节与随证加减" }].slice(0, 12);
+      // 「证候边界待定/受限」是套话，换成说清楚影响什么。
+      const plainRemainder = remainder.replace(/^证候边界(?:待定|受限)(?:，?尚待核实)?$/u, "");
+      const pending = /待|未|尚缺|核实|不明|不详/u.test(plainRemainder);
+      pathogenesis.uncertainties = [...uncertainties, { item, reason: plainRemainder ? (pending ? plainRemainder : `${plainRemainder}，尚待核实`) : "影响证候细节的判断，尚待核实", affects: "证候细节与随证加减" }].slice(0, 12);
     }
   }
 }
