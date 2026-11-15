@@ -877,6 +877,8 @@ const scripts = [
   "test:nihaisha-fusion",
   "test:nihaisha-replay",
   "test:prompt-injection",
+  // 第四十七轮 S4a：急症候选与教材前置用方、缺口病名闭集、跨病选方共用主治覆盖。
+  "test:r1064-emerg",
 ];
 
 // 不进闸门的 test:* 脚本，逐条写明原因。新增 test:* 脚本必须进上面的数组或进这里，否则闸门开头即失败。

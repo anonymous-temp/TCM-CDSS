@@ -1,5 +1,6 @@
 import { evaluateSafetyGate, trustedInputText } from "./diagnosis-safety";
 import { TRUE_HEART_PAIN_DISEASE, trueHeartPainNotice, trueHeartPainSignal, withTrueHeartPainFirst } from "./true-heart-pain";
+import { emergencyTextbookCandidates, emergencyTextbookNotice, withEmergencyDiseasesFirst } from "./tcm-emergency-candidates";
 // src/lib/diagnosis-prompts.ts
 import { formulaCommentaryPromptBlock } from "./formula-textbook-commentary";
 import { isM02PromptRedFlagFact } from "./clinical-facts";
@@ -595,6 +596,7 @@ function textbookCaseInput(caseState: CaseState): TextbookCaseInput {
     .find((value): value is string => typeof value === "string" && Boolean(value.trim())) || "";
   const answers = caseState.conversation.filter((message) => message.role === "user").map((message) => message.content).join("。");
   return {
+    recordText: trustedInputText(caseState),
     chiefComplaint: caseState.chiefComplaint,
     presentHistory: [presentHistory, answers].filter(Boolean).join("。"),
     tongue: typeof caseState.tongue === "string" ? caseState.tongue : "",
@@ -767,11 +769,13 @@ export function buildDiagnosePrompt(caseState: CaseState, retrieval: M03FormulaR
   const historyStatedUnique = uniqueHistoryStatedDisease(historyStated);
   // 真心痛（第四十二轮）：胸痛持续不缓解并见汗出肢冷一类危候、安全门判了急性心血管事件时，真心痛排在最前并附说明段。
   const trueHeartPain = trueHeartPainSignal(trustedInputText(caseState), (caseState.safetyGate || evaluateSafetyGate(caseState)).redFlags || []);
+  const emergencyCandidates = emergencyTextbookCandidates(caseState);
   const textbookCandidateContext = buildTextbookCandidateContext({
     ...textbookCaseInput(caseState),
-    preferredDiseases: withTrueHeartPainFirst(withHistoryStatedDiseaseFirst(retrieval.textbookDiseasePicks || [], historyStated), trueHeartPain),
-    pinnedDisease: trueHeartPain ? TRUE_HEART_PAIN_DISEASE : historyStatedUnique?.disease,
-  }) + historyStatedDiseaseNotice(historyStatedUnique ? [historyStatedUnique] : []) + trueHeartPainNotice(trueHeartPain);
+    preferredDiseases: withEmergencyDiseasesFirst(withTrueHeartPainFirst(withHistoryStatedDiseaseFirst(retrieval.textbookDiseasePicks || [], historyStated), trueHeartPain), emergencyCandidates),
+    pinnedDisease: emergencyCandidates[0]?.disease || (trueHeartPain ? TRUE_HEART_PAIN_DISEASE : historyStatedUnique?.disease),
+    pinnedRowIds: emergencyCandidates.map((item) => item.rowId),
+  }) + historyStatedDiseaseNotice(historyStatedUnique ? [historyStatedUnique] : []) + trueHeartPainNotice(trueHeartPain) + emergencyTextbookNotice(emergencyCandidates, trustedInputText(caseState));
   // 经方方证候选（《伤寒论》《金匮要略》方证；规则写在段内，没有选出方证时为空串，不增加任何提示词）。
   const jingfangCandidateContext = buildJingfangCandidateContext(retrieval.jingfangPatternPicks, getLineageCard(caseState.tcmLineagePreference).code);
 
@@ -985,7 +989,7 @@ export function buildPrescribePrompt(caseState: CaseState, extras: M04PromptExtr
   // 该代表方……不要另起一张方」这段，它与锁定方相反（2026-10-24）。
   const lockedOutsideTextbookRow = Boolean(textbookRow) && lockedFormulaNames.length > 0 &&
     !lockedFormulaNames.some((name) => textbookRow!.formulas.includes(name));
-  const textbookFormulaContext = diagnoseReasoning && !lockedOutsideTextbookRow
+  const textbookFormulaContext = diagnoseReasoning && (!lockedOutsideTextbookRow || textbookRow?.precondition)
     ? [
         buildTextbookFormulaContext(diagnoseReasoning.overview.tcmDiseaseName || "", diagnoseReasoning.overview.primarySyndrome || "", { recordText: trustedInputText(caseState) }),
         textbookNonDecoction.length > 0

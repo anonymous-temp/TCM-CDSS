@@ -9,7 +9,7 @@ import { classicEvidenceForFormulaNames } from "./tcm-classic-evidence.server";
 export function enrichReasoning(
   ...args: Parameters<typeof enrichReasoningCore>
 ): ReturnType<typeof enrichReasoningCore> {
-  return enrichReasoningCore(args[0], args[1], classicEvidenceForFormulaNames);
+  return enrichReasoningCore(args[0], args[1], classicEvidenceForFormulaNames, args[3]);
 }
 
 export function enrichPrescriptionProvenance(

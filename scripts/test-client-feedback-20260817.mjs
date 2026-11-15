@@ -127,7 +127,8 @@ const mahuangHerbs = [
   const reasoning = {
     schemaVersion: "tcm-cdss-reasoning-v2",
     stage: "prescribe",
-    overview: { primarySyndrome: "风寒束表证", overallPathogenesis: "风寒束表，肺气失宣" },
+    // 第四十七轮：经典方命名还核病种覆盖；补齐原夹具未写的病名，不改变角色/方义断言。
+    overview: { tcmDiseaseName: "感冒", primarySyndrome: "风寒束表证", overallPathogenesis: "风寒束表，肺气失宣" },
     westernDiagnosis: { primary: { name: "急性上呼吸道感染" }, differentials: [] },
     pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "风寒束表，肺气失宣" }] },
     therapy: { overallPrinciple: "寒者热之", overallMethod: "辛温解表，宣肺散寒", subTherapies: [] },
