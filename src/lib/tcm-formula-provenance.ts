@@ -1699,6 +1699,45 @@ export function withSymptomDirectedClause(rowMethod: string, modelMethod: string
  *   · barredHerb：教材代表方或锁定方的组成里有本例不宜的药时，不把方向改成那首方，保留模型写的方向。
  */
 export type FormulaReferenceCaseSafety = { activeBleeding: boolean; barredHerb: (herb: string) => boolean };
+
+/** Record-only identity selection for two-pass M03. Does not rename a syndrome or infer factors. */
+export function selectM03TcmFormulaIdentity(input: {
+  disease: string; syndrome: string; direction: string; textbookRowId?: string; method?: string; factorLabels?: readonly string[];
+  keepDirection: boolean; caseSafety?: FormulaReferenceCaseSafety;
+}): { direction: string; formulaLock: { names: string[]; mode: "single" | "combined" | "alternatives" | "self_devised" | "none"; sourceIds: string[] } } {
+  const row = textbookRowForSyndrome(input.disease, input.syndrome);
+  const exactRow = row && row.id === input.textbookRowId ? row : undefined;
+  const branches = exactRow && textbookConditionalBranches(exactRow);
+  const matchingBranches = branches?.filter((branch) => [input.syndrome, ...(input.factorLabels || [])].some((label) => label.includes(branch.condition.slice(-2))));
+  const rowNames = matchingBranches?.length === 1 && matchingBranches[0].formula ? [matchingBranches[0].formula]
+    : exactRow && !branches ? (exactRow.formulaJoin === "alternative" ? exactRow.formulas.slice(0, 1) : exactRow.formulas) : [];
+  let direction = !input.keepDirection && rowNames.length > 0 && rowNames.length <= 2
+    ? `${rowNames.join("合")}加减` : input.direction;
+  let names = identifyKnownFormulaNames(direction);
+  const barred = names.some((name) => {
+    if (!input.caseSafety) return false;
+    if (input.caseSafety.activeBleeding && BLOOD_MOVING_FORMULA_NAME.test(name)) return true;
+    const herbs = [...new Set(formulaCompilationReferences([name])[0]?.ingredients || (exactRow?.formulas.includes(name) ? exactRow.composition : []) || [])];
+    const count = herbs.filter(input.caseSafety.barredHerb).length;
+    return count >= 3 || herbs.length > 0 && count * 3 >= herbs.length;
+  });
+  if (barred) { direction = "按已锁定病机与治法辨证组方"; names = []; }
+  const mode = formulaSelectionMode(direction, names);
+  const methodIds = signedTherapyMethodIds({ therapy: { overallMethod: input.method || "" } });
+  const lockable = names.filter((name) => formulaCompilationReferences([name]).length === 1 &&
+    (exactRow?.formulas.includes(name) || Boolean(jingfangPatternForSignedSyndrome(input.syndrome, direction)) ||
+      formulaFunctionsPositivelyAligned(lockableFormulaCatalogFunctions(name), methodIds)) &&
+    !(exactRow?.formulas.includes(name) && textbookCitedFormulaIsGovernedHomonym(name, exactRow.id)));
+  const locked = mode === "combined" && lockable.length !== names.length ? [] : lockable;
+  const textbookNamed = names.length > 0 && names.every((name) => exactRow?.formulas.includes(name));
+  if (names.length > 0 && locked.length === 0 && !textbookNamed) direction = "按已锁定病机与治法辨证组方";
+  // Direction is a server-owned identity, not an unchecked channel for doses or instructions.
+  direction = locked.length > 0 || textbookNamed
+    ? `${names.join(mode === "alternatives" ? "或" : "合")}加减` : "辨证组方";
+  return { direction, formulaLock: { names: locked,
+    mode: locked.length > 0 ? mode : direction ? "self_devised" : "none",
+    sourceIds: locked.flatMap((name) => formulaCompilationReferences([name]).map((item) => item.source)) } };
+}
 /**
  * 方向里的方对本例是不是「去掉不宜的药就不成其方」：本例不宜的药占该方组成的三分之一以上或达 3 味，或活动性出血时方名本身就是
  * 逐瘀、活血、化瘀、破血一类（少腹逐瘀汤、会厌逐瘀汤）。只去一两味次要药的（四物汤去川芎、仙方活命饮去乳香没药）不算，方名照留，

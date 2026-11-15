@@ -1331,11 +1331,11 @@ export function recordedAccountConflict(recordText: string | undefined): string 
   return undefined;
 }
 
-function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): void {
+function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, readOnlyConclusions = false): void {
   // 证名跟着辨证依据（第三十七轮）：病历原文在手时才判（开方阶段回传的是已投影的辨证结果，不再判）。
   // 治法在治的实邪（渗湿、化痰、活血…），分析也写了、病历有两条以上表现时，病性栏列出它（analysis-element-closure，第四十六轮
   // new45-n20「水湿内停…健脾渗湿」而病性只有气虚）；随后的国标合称按补齐后的病性栏判（脾虚证 + 湿 → 脾虚湿困证）。
-  if (options?.recordText && !isLimitedDiagnose(reasoning)) {
+  if (!readOnlyConclusions && options?.recordText && !isLimitedDiagnose(reasoning)) {
     withMethodImpliedNatureElements(reasoning, options.recordText);
     compositeSyndromeRename(reasoning, options.recordText);
   }
@@ -3590,12 +3590,21 @@ function withEstablishedDiagnosis(projected: Json, options?: DeliveredSurfaceOpt
 }
 
 export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: DeliveredSurfaceOptions): T {
+  return projectDeliveredReasoningInternal(reasoning, rawOptions, false);
+}
+
+/** Two-pass M03 display pass. The caller must also assert a default-projection fixed point. */
+export function projectDeliveredM03TcmDisplay<T>(reasoning: T, options?: DeliveredSurfaceOptions): T {
+  return projectDeliveredReasoningInternal(reasoning, options, true);
+}
+
+function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: DeliveredSurfaceOptions | undefined, readOnlyConclusions: boolean): T {
   const object = record(reasoning);
   if (!object || object.schemaVersion !== "tcm-cdss-reasoning-v2") return reasoning;
   const projected = structuredClone(object);
   let options = rawOptions;
   if (projected.stage === "diagnose") {
-    deliveredDiagnose(projected, options);
+    deliveredDiagnose(projected, options, readOnlyConclusions);
     options = withEstablishedDiagnosis(projected, options);
     // 模型偶尔不写这个键（第三十六轮 30 份里 3 份）：接口文档写明无兼证时是空数组，强类型集成方读不到键会报错。
     const declaredOverview = record(projected.overview);

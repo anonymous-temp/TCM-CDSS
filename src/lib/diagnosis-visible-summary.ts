@@ -2367,6 +2367,14 @@ export function nationalTreatmentPrinciple(current: string, reasoning: Record<st
   return written.find((term) => term !== "正治法" && term !== "反治法" && (!NATURE_BOUND.has(term) || treatmentPrincipleFitsNature(term, nature))) || "调理阴阳";
 }
 
+/** Two-pass axes already passed strict criteria; methods must never create new factors here. */
+export function treatmentPrincipleForCheckedTcmAxes(root: readonly string[], branch: readonly string[], method: string, redFlag: boolean): string {
+  if (redFlag) return "急则治标";
+  const profile = signedNatureProfile({ overview: { primarySyndrome: [...root, ...branch].join("，") }, therapy: { overallMethod: method } });
+  return derivedTreatmentPrinciple({ ...profile, deficient: root.length > 0, excess: branch.length > 0,
+    rootTonifying: root.length > 0 }) || "调理阴阳";
+}
+
 const SYNDROME_HEDGE_SUFFIX = /^(.+?证)\s*(?:[（(]\s*(?:倾向|可能|待排除?|待定|待查)\s*[）)]|之?(?:倾向|可能|待排除?|待定|待查)|(?:症状)?[层级]?工作判断)$/;
 
 /** 「X证倾向」「X证（可能）」「X证症状层工作判断」→「X证」；其余原样返回。 */
