@@ -35,11 +35,12 @@ const unwrap = (content) => {
   return m ? JSON.parse(m[1]) : null;
 };
 
-// 最小 M03 结论骨架。证候/病机/治法是检索的唯一输入——本层只读已签名结论,不读 caseState。
-const m03 = ({ syndrome, pathogenesis, therapy, names, mode }) => ({
+// 最小 M03 结论骨架。第四十七轮具名锁定还须病种覆盖；本层只读签名结论。
+const m03 = ({ disease = "", syndrome, pathogenesis, therapy, names, mode }) => ({
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",
   overview: {
+    tcmDiseaseName: disease,
     primarySyndrome: syndrome,
     overallPathogenesis: pathogenesis,
     recommendedFormulaNames: names,
@@ -53,12 +54,12 @@ const m03 = ({ syndrome, pathogenesis, therapy, names, mode }) => ({
 
 const failures = [];
 const check = (name, fn) => { try { fn(); } catch (e) { failures.push({ name, message: e?.message || String(e) }); } };
-const run = (reasoning) => unwrap(ind.enforceRetrievedM03FormulaSelection(wrap(reasoning), []));
+const run = (reasoning, clinicalSourceText = "") => unwrap(ind.enforceRetrievedM03FormulaSelection(wrap(reasoning), [], clinicalSourceText));
 
 // ── 一、模型未给方名,系统检索到已核验方 ⇒ 必须锁定 ────────────────────
 {
   const out = run(m03({
-    syndrome: "风热犯表证",
+    disease: "感冒", syndrome: "风热犯表证",
     pathogenesis: "风热之邪犯于肺卫，卫表失和",
     therapy: "辛凉解表，清热解毒",
     names: [],
@@ -84,7 +85,7 @@ const run = (reasoning) => unwrap(ind.enforceRetrievedM03FormulaSelection(wrap(r
 {
   const bogus = "某某未收载经验方";
   const out = run(m03({
-    syndrome: "风热犯表证",
+    disease: "感冒", syndrome: "风热犯表证",
     pathogenesis: "风热之邪犯于肺卫，卫表失和",
     therapy: "辛凉解表，清热解毒",
     names: [bogus],
@@ -124,13 +125,13 @@ const run = (reasoning) => unwrap(ind.enforceRetrievedM03FormulaSelection(wrap(r
 // ── 四、模型选的方本就通过核验 ⇒ 原样保留,不得被系统候选顶掉 ──────────
 {
   const first = run(m03({
-    syndrome: "风热犯表证", pathogenesis: "风热之邪犯于肺卫，卫表失和",
+    disease: "感冒", syndrome: "风热犯表证", pathogenesis: "风热之邪犯于肺卫，卫表失和",
     therapy: "辛凉解表，清热解毒", names: [], mode: "self_devised",
   }));
   const systemPick = (first?.overview?.recommendedFormulaNames || [])[0];
   if (systemPick) {
     const out = run(m03({
-      syndrome: "风热犯表证", pathogenesis: "风热之邪犯于肺卫，卫表失和",
+      disease: "感冒", syndrome: "风热犯表证", pathogenesis: "风热之邪犯于肺卫，卫表失和",
       therapy: "辛凉解表，清热解毒", names: [systemPick], mode: "single",
     }));
     const locked = out?.overview?.recommendedFormulaNames || [];
@@ -151,6 +152,7 @@ const run = (reasoning) => unwrap(ind.enforceRetrievedM03FormulaSelection(wrap(r
 //      「已通过正向充分性核验……逐字抄写」喂回模型,反向指挥它改错。
 // 也就是说:删掉对的方(茵陈蒿汤,本例金标准),再把错的方标成已核验推回去。
 const YANGHUANG = {
+  disease: "黄疸",
   syndrome: "湿热内蕴证",
   pathogenesis: "湿热蕴结中焦，熏蒸肝胆，胆汁不循常道",
   therapy: "清热利湿退黄，通腑泄热",
@@ -383,19 +385,20 @@ assert.equal(
 // 「部分通过 / 全部未通过」的机制本身改用治法对立的藿香正气散、导赤散作夹具，断言一条不减。
 {
   const combinedInput = m03({
-    syndrome: "心脾两虚证",
+    disease: "不寐", syndrome: "心脾两虚证",
     pathogenesis: "心脾两虚，气血不足，心神失养",
     therapy: "健脾养心，益气补血",
     names: ["归脾汤", "温胆汤"],
     mode: "combined",
   });
   combinedInput.overview.secondarySyndromes = ["痰热内扰证"];
-  const combinedKept = run(combinedInput);
+  // 温胆汤目录写「不得眠」；给出本例主诉，不能只靠证候标签授权。
+  const combinedKept = run(combinedInput, "主诉：失眠多梦伴心悸1月");
   check("信任模型选方：兼证对应的常用合方整组保留", () => {
     assert.deepEqual([...(combinedKept?.overview?.recommendedFormulaNames || [])].sort(), ["归脾汤", "温胆汤"].sort());
   });
   const out = run(m03({
-    syndrome: "心脾两虚证",
+    disease: "不寐", syndrome: "心脾两虚证",
     pathogenesis: "心脾两虚，气血不足，心神失养",
     therapy: "健脾养心，益气补血",
     names: ["归脾汤", "藿香正气散"],
@@ -421,7 +424,7 @@ assert.equal(
 // 反证：合方里**全部**未通过核验时，维持既有整组撤销 + 自拟方（fail-closed 不变）。
 {
   const out = run(m03({
-    syndrome: "心脾两虚证",
+    disease: "不寐", syndrome: "心脾两虚证",
     pathogenesis: "心脾两虚，气血不足",
     therapy: "健脾养心，益气补血",
     names: ["导赤散", "藿香正气散"],

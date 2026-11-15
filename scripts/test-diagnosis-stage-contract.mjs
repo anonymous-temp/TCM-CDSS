@@ -2757,10 +2757,13 @@ assert.match(
   "a concept-bearing secondary declaration still cannot hide an opposing high-impact action (乌药 温肾散寒 vs 泄热)",
 );
 const leftGoldPrior = structuredClone(liverStomachHeatPrior);
+// 第四十七轮：反佐结构正例按原夹具「反酸烧心」明确为吐酸，不继承无关基础病名。
+leftGoldPrior.overview.tcmDiseaseName = "吐酸";
 leftGoldPrior.overview.recommendedFormulaNames = ["左金丸"];
 leftGoldPrior.overview.formulaSelectionMode = "single";
 leftGoldPrior.overview.recommendedFormulaDirection = "左金丸";
 const leftGoldM04 = structuredClone(liverStomachHeatM04);
+leftGoldM04.overview.tcmDiseaseName = "吐酸";
 leftGoldM04.formula.candidates[0].name = "左金丸加减";
 leftGoldM04.formula.candidates[0].formulaNames = ["左金丸"];
 leftGoldM04.formula.candidates[0].constructionType = "classic";
@@ -3285,7 +3288,7 @@ assert.match(
 );
 const spleenDeficiencyPrior = {
   ...stable,
-  overview: { primarySyndrome: "心脾两虚证", overallPathogenesis: "脾气虚弱，心血不足，心神失养", recommendedFormulaDirection: "酸枣仁汤加减", recommendedFormulaNames: ["酸枣仁汤"], formulaSelectionMode: "single" },
+  overview: { tcmDiseaseName: "不寐", primarySyndrome: "心脾两虚证", overallPathogenesis: "脾气虚弱，心血不足，心神失养", recommendedFormulaDirection: "酸枣仁汤加减", recommendedFormulaNames: ["酸枣仁汤"], formulaSelectionMode: "single" },
   pathogenesis: { chain: [{ nodeId: "P1", patientFact: "心悸健忘、纳差便溏", syndromeEvidence: "心悸健忘、纳差便溏支持心脾两虚", pathogenesis: "脾气虚弱，心血不足", therapyDirection: "健脾益气，养血安神" }] },
   therapy: { overallPrinciple: "健脾益气，养血安神" },
 };
@@ -3299,6 +3302,9 @@ const spleenDeficiencyM04 = {
   ] }], modifications: [] },
 };
 assert.equal(isCompleteM04Reasoning(spleenDeficiencyM04, visiblePrescription(), spleenDeficiencyPrior), true, m04SemanticIssue(spleenDeficiencyM04, visiblePrescription(), spleenDeficiencyPrior));
+// 第四十七轮：补益合方结构用例以原病历的纳差便溏为主诉补证，不借用证候标签授权。
+// isCompleteM04Reasoning 便捷入口没有临床上下文参数；以下同层正例改用 semantic 入口给第九参数。
+const tonicStructuralClinicalContext = "主诉：纳差便溏1月";
 const tonicStructuralPrior = {
   ...spleenDeficiencyPrior,
   overview: { ...spleenDeficiencyPrior.overview, recommendedFormulaDirection: "归脾汤合参苓白术散加减", recommendedFormulaNames: ["归脾汤", "参苓白术散"], formulaSelectionMode: "combined" },
@@ -3326,12 +3332,12 @@ const legacyFreeTextTargetM04 = {
   }] },
 };
 assert.match(m04SemanticIssue(legacyFreeTextTargetM04, "", spleenDeficiencyPrior) || "", /target_ref_missing/);
-assert.match(m04SemanticIssue(tonicStructuralM04, "", tonicStructuralPrior) || "", /structure_target_mismatch/);
+assert.match(m04SemanticIssue(tonicStructuralM04, "", tonicStructuralPrior, undefined, false, false, false, false, tonicStructuralClinicalContext) || "", /structure_target_mismatch/);
 const tonicStructuralContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(tonicStructuralM04)}\n<!-- DIAGNOSIS_JSON_END -->`;
 const groundedTonicStructuralContent = applyDeterministicHerbDecoctionRequirements(applyDeterministicHerbTargets(tonicStructuralContent, tonicStructuralPrior));
 const groundedTonicStructuralM04 = JSON.parse(groundedTonicStructuralContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0].trim());
 assert.equal(groundedTonicStructuralM04.formula.candidates[0].herbs[1].targetPathogenesis, "顾护中焦，防补药滋腻");
-assert.equal(isCompleteM04Reasoning(groundedTonicStructuralM04, "", tonicStructuralPrior), true, m04SemanticIssue(groundedTonicStructuralM04, "", tonicStructuralPrior));
+assert.equal(m04SemanticIssue(groundedTonicStructuralM04, "", tonicStructuralPrior, undefined, false, false, false, false, tonicStructuralClinicalContext), undefined);
 const tonicMessengerM04 = {
   ...tonicStructuralM04,
   formula: { ...tonicStructuralM04.formula, candidates: [{ ...tonicStructuralM04.formula.candidates[0], herbs: [
@@ -3342,7 +3348,7 @@ const tonicMessengerM04 = {
 const tonicMessengerContent = applyDeterministicHerbTargets(`<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(tonicMessengerM04)}\n<!-- DIAGNOSIS_JSON_END -->`, tonicStructuralPrior);
 const groundedTonicMessengerM04 = JSON.parse(tonicMessengerContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0].trim());
 assert.equal(groundedTonicMessengerM04.formula.candidates[0].herbs[1].targetPathogenesis, "引经载药，调和诸药");
-assert.equal(isCompleteM04Reasoning(groundedTonicMessengerM04, "", tonicStructuralPrior), true, m04SemanticIssue(groundedTonicMessengerM04, "", tonicStructuralPrior));
+assert.equal(m04SemanticIssue(groundedTonicMessengerM04, "", tonicStructuralPrior, undefined, false, false, false, false, tonicStructuralClinicalContext), undefined);
 const nodeReferencedM04 = {
   ...tonicStructuralM04,
   formula: { ...tonicStructuralM04.formula, candidates: [{ ...tonicStructuralM04.formula.candidates[0], herbs: [
@@ -3353,8 +3359,8 @@ const nodeReferencedM04 = {
 const groundedNodeContent = applyDeterministicHerbDecoctionRequirements(applyDeterministicHerbTargets(`<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(nodeReferencedM04)}\n<!-- DIAGNOSIS_JSON_END -->`, tonicStructuralPrior));
 const groundedNodeM04 = JSON.parse(groundedNodeContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0].trim());
 assert.equal(groundedNodeM04.formula.candidates[0].herbs[0].targetPathogenesis, tonicStructuralPrior.pathogenesis.chain[0].pathogenesis);
-assert.equal(isCompleteM04Reasoning(groundedNodeM04, "", tonicStructuralPrior), true, m04SemanticIssue(groundedNodeM04, "", tonicStructuralPrior));
-assert.match(m04SemanticIssue({ ...groundedNodeM04, formula: { ...groundedNodeM04.formula, candidates: [{ ...groundedNodeM04.formula.candidates[0], herbs: [{ ...groundedNodeM04.formula.candidates[0].herbs[0], targetRef: "P9" }, groundedNodeM04.formula.candidates[0].herbs[1]] }] } }, "", tonicStructuralPrior) || "", /target_ref_invalid/);
+assert.equal(m04SemanticIssue(groundedNodeM04, "", tonicStructuralPrior, undefined, false, false, false, false, tonicStructuralClinicalContext), undefined);
+assert.match(m04SemanticIssue({ ...groundedNodeM04, formula: { ...groundedNodeM04.formula, candidates: [{ ...groundedNodeM04.formula.candidates[0], herbs: [{ ...groundedNodeM04.formula.candidates[0].herbs[0], targetRef: "P9" }, groundedNodeM04.formula.candidates[0].herbs[1]] }] } }, "", tonicStructuralPrior, undefined, false, false, false, false, tonicStructuralClinicalContext) || "", /target_ref_invalid/);
 const groundedM03IdContent = groundStructuredPatientFacts(`<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(stable)}\n<!-- DIAGNOSIS_JSON_END -->`, "患者入睡困难；舌淡；脉细");
 assert.match(groundedM03IdContent, /"nodeId":\s*"P1"/);
 const tonicStructuralMonarch = {

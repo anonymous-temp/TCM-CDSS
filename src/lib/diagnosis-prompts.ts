@@ -967,7 +967,7 @@ export function buildPrescribePrompt(caseState: CaseState, extras: M04PromptExtr
         : []),
     ].join("\n");
   }).join("\n");
-  const m03FormulaRetrievalContext = buildTcmFormulaReasoningContext(diagnoseReasoning, 5, caseState.tcmLineagePreference);
+  const m03FormulaRetrievalContext = buildTcmFormulaReasoningContext(diagnoseReasoning, 5, caseState.tcmLineagePreference, trustedInputText(caseState));
   const classicSafetyContext = buildM04ClassicSafetyContext(
     lockedFormulaNames,
     tcmFusionClinicalText(caseState),

@@ -138,6 +138,7 @@ await check('4.2','目录主治覆盖及主诉覆盖可用，对照无覆盖拒�
  assert.equal(indications.formulaCoversDiseaseOrComplaint(reasoning('未入表病','新证','银翘散'),'银翘散','主诉：关节疼痛2月\n现病史：发热。'),false);
  assert.equal(indications.formulaCoversDiseaseOrComplaint(reasoning('未入表病','新证','银翘散'),'银翘散','患者年龄：40岁\n患者性别：女\n发热咽痛2天\n无其他不适。'),true);
  assert.equal(indications.formulaCoversDiseaseOrComplaint(reasoning('痹证','风热痹阻证','银翘散'),'银翘散','膝关节疼痛伴发热1周\n现病史：发热。'),false);
+ assert.ok(indications.buildTcmFormulaReasoningContext(reasoning('未入表病','风热犯表证','银翘散'),5,'unrestricted','主诉：发热咽痛2天').includes('M03 已锁定方：银翘散'));
 });
 await check('4.3','流派、信任模型、M03 锁方和二次核验共用主治覆盖',()=>{
  const r=reasoning();assert.ok(!indications.lineageFormulaSyndromeSupportedNames(r,['银翘散']).has('银翘散'));
@@ -155,6 +156,8 @@ await check('4.4','M04 组成虽像成方，跨病也按自拟交付并保留参
  assert.equal(c.constructionType,'self_devised');assert.equal(c.name,'本例辨证组方');assert.deepEqual(c.formulaNames,[]);assert.equal(c.herbs.length,herbs.length);assert.match(c.formulaSource.source,/参考.*银翘散/u);
  const control=structuredClone(r);control.overview.tcmDiseaseName='感冒';assert.equal(provenance.enrichReasoning(control).reasoning.formula.candidates[0].constructionType,'single_base');
  const mixed=structuredClone(control);mixed.formula.candidates[0].name='银翘散合毓麟珠';mixed.formula.candidates[0].formulaNames=['银翘散','毓麟珠'];assert.equal(provenance.enrichReasoning(mixed).reasoning.formula.candidates[0].constructionType,'self_devised');
+ // 单方显示名可解析，载荷却额外声称另一张跨病方：独立钉住全部声明都须覆盖。
+ const stale=structuredClone(mixed);stale.formula.candidates[0].name='银翘散';assert.equal(provenance.resolveFormulaSources(stale.formula.candidates[0].name,herbs).length,1);assert.equal(provenance.enrichReasoning(stale).reasoning.formula.candidates[0].constructionType,'self_devised');
 });
 await check('4.5','签名前最后的身份恢复不能绕过覆盖；自拟按组成恢复也同判据',()=>{
  const ingredients=provenance.formulaCompilationReferences(['银翘散'])[0].ingredients;

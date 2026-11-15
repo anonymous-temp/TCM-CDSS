@@ -383,25 +383,29 @@ const reasoningOf = ({ disease, syndrome, direction, method = "温通" }) => ({
   pathogenesis: { chain: [], locationDifferentiation: { items: [] } },
 });
 
-await check("4.1 证名与方向正是方证表里的一项：不改名、不覆盖治法与方向、方名锁定；对照：同样的病名与证名，方向里没写该经方（自拟）或写了别的经方时，照旧锚定到教材最近的行（证名被改）", () => {
-  const overviewOf = (input) => provenance.withDeterministicFormulaReferences(reasoningOf(input)).overview;
+await check("4.1 方证关系保留证名；具名方向另须本病或主诉覆盖，缺覆盖降自拟；未采用方证时照旧教材锚定", () => {
+  const overviewOf = (input, clinicalSourceText = "") => provenance.withDeterministicFormulaReferences(reasoningOf(input), clinicalSourceText).overview;
   const kept = overviewOf({ disease: "胸痹", syndrome: "心阳虚证", direction: "桂枝甘草汤加减" });
   assert.equal(kept.primarySyndrome, "心阳虚证");
-  assert.equal(kept.recommendedFormulaDirection, "桂枝甘草汤加减");
-  assert.deepEqual(kept.recommendedFormulaNames, ["桂枝甘草汤"]);
+  // 第四十七轮：方证关系仍保留证名；缺主治覆盖时不得仅凭方证跨病授予方名。
+  assert.equal(kept.recommendedFormulaDirection, "按已锁定病机与治法辨证组方");
+  assert.deepEqual(kept.recommendedFormulaNames, []);
+  const supported = overviewOf({ disease: "心悸", syndrome: "心阳虚证", direction: "桂枝甘草汤加减" }, "主诉：汗出过多伴心悸2日");
+  assert.equal(supported.recommendedFormulaDirection, "桂枝甘草汤加减");
+  assert.deepEqual(supported.recommendedFormulaNames, ["桂枝甘草汤"]);
   assert.equal(kept.overallTherapy, "温通", "不覆盖模型写的治法");
   // 本机回放：179 个「方证 × 教材病」组合里，教材最近行会把方证证名改走（桂枝去芍药汤证·心悸 → 教材「心阳不振证」，
   // 真武汤证·痰饮 → 教材「脾肾阳虚证」，并把治法与方向一并锚到那一行）。下面几组各有「保留」和「对照改名」两个方向。
-  for (const [disease, syndrome, formula, becomes] of [
-    ["心悸", "胸阳不振证", "桂枝去芍药汤", "心阳不振证"],
-    ["痰饮", "阳虚水泛证", "真武汤", "脾肾阳虚证"],
-    ["痰饮", "脾阳虚中焦水停证", "苓桂术甘汤", "脾阳虚弱证"],
-    ["喘证", "表寒里热证", "大青龙汤", "表寒肺热证"],
+  for (const [disease, syndrome, formula, becomes, covered] of [
+    ["心悸", "胸阳不振证", "桂枝去芍药汤", "心阳不振证", false],
+    ["痰饮", "阳虚水泛证", "真武汤", "脾肾阳虚证", false],
+    ["痰饮", "脾阳虚中焦水停证", "苓桂术甘汤", "脾阳虚弱证", true],
+    ["喘证", "表寒里热证", "大青龙汤", "表寒肺热证", false],
   ]) {
     const kept2 = overviewOf({ disease, syndrome, direction: `${formula}加减` });
     assert.equal(kept2.primarySyndrome, syndrome, `${disease}·${syndrome} 应保留`);
-    assert.equal(kept2.recommendedFormulaDirection, `${formula}加减`);
-    assert.ok(kept2.recommendedFormulaNames.includes(formula), `${formula} 应锁定`);
+    assert.equal(kept2.recommendedFormulaDirection, covered ? `${formula}加减` : "按已锁定病机与治法辨证组方");
+    assert.deepEqual(kept2.recommendedFormulaNames, covered ? [formula] : [], `${formula} 须同时覆盖本病；本夹具没有主诉补证`);
     const selfDevised = overviewOf({ disease, syndrome, direction: "按已锁定病机与治法辨证组方" });
     assert.equal(selfDevised.primarySyndrome, becomes, `对照：自拟方向走教材锚定 ${disease}·${syndrome}`);
     const otherFormula = overviewOf({ disease, syndrome, direction: formula === "四逆汤" ? "理中丸加减" : "四逆汤加减" });
@@ -414,10 +418,11 @@ await check("4.1 证名与方向正是方证表里的一项：不改名、不覆
   assert.equal(jp.jingfangPatternForSignedSyndrome("风寒束表证", "麻黄汤"), undefined, "教材证名不是方证表的证名");
 });
 
-await check("4.2 经方方证与教材行同为「证名—方」的正向依据：证名+方向正是方证表里的一项时，该经方进入 trustedModelFormulaIdentityNames（不必再经功效词对齐）；对照：方向里没有它 / 别的证名 / 未定证型 时不进", () => {
-  const trusted = (reasoning, names) => [...indications.trustedModelFormulaIdentityNames(reasoning, names)];
+await check("4.2 方证关系须同时有本病/主诉覆盖才可信；关系判据仍拒绝不同方向、证名和未定证型", () => {
+  const trusted = (reasoning, names, clinicalSourceText = "") => [...indications.trustedModelFormulaIdentityNames(reasoning, names, clinicalSourceText)];
   const hit = reasoningOf({ disease: "胸痹", syndrome: "心阳虚证", direction: "桂枝甘草汤加减" });
-  assert.deepEqual(trusted(hit, ["桂枝甘草汤"]), ["桂枝甘草汤"]);
+  assert.deepEqual(trusted(hit, ["桂枝甘草汤"]), [], "第四十七轮：方证关系不能代替病种/主诉覆盖");
+  assert.deepEqual(trusted(hit, ["桂枝甘草汤"], "主诉：汗出过多伴心悸2日"), ["桂枝甘草汤"]);
   assert.deepEqual([...jp.jingfangRelationFormulaIdentityNames(hit, ["桂枝甘草汤", "四逆汤"])], ["桂枝甘草汤"]);
   const otherDirection = reasoningOf({ disease: "胸痹", syndrome: "心阳虚证", direction: "四逆汤加减" });
   assert.deepEqual([...jp.jingfangRelationFormulaIdentityNames(otherDirection, ["桂枝甘草汤"])], []);

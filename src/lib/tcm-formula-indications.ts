@@ -1129,6 +1129,7 @@ export function buildTcmFormulaReasoningContext(
   reasoning: FormulaReasoningProjection | undefined,
   limit = 5,
   lineagePreference?: string,
+  clinicalSourceText = "",
 ): string {
   if (!reasoning) return "【M03后方剂精确检索】无已签名结构化辨证结果，未执行证候/病机召回。";
   // M03 已锁定、且经「信任模型选方」核验（常用层 + 与签名治法二级类相容，trustedModelFormulaIdentityNames）
@@ -1139,7 +1140,7 @@ export function buildTcmFormulaReasoningContext(
     ? ((reasoning as { overview: { recommendedFormulaNames: unknown[] } }).overview.recommendedFormulaNames)
       .filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
     : [];
-  const trustedLocked = trustedModelFormulaIdentityNames(reasoning, lockedNames);
+  const trustedLocked = trustedModelFormulaIdentityNames(reasoning, lockedNames, clinicalSourceText);
   const carriedLocked = lockedNames.filter((name) => trustedLocked.has(normalizedFormulaIdentity(name)));
   const lockedCarryLine = carriedLocked.length > 0
     ? `M03 已锁定方：${carriedLocked.join("、")}（常用方，功效与已签名治法同类，已通过承接核验）。M04 优先承接该方：candidate.name 写「${carriedLocked[0]}加减」，保留服务端给出的基础组成并在其上随证加减。只有本例病机确需另起组方、基础组成大部分不适用时，才写「本例辨证组方」，并在 candidate.applicable 用一句话写明未沿用该方的病例内理由。`
