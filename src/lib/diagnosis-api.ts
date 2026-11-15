@@ -1,3 +1,5 @@
+import { m04FinalContentPolicy } from "./m04-final-content-policy";
+import { applyM04FinalContent } from "./m04-final-delivery.server";
 import { finalizeWesternGuidelineContent } from "./western-guideline-references";
 // src/lib/diagnosis-api.ts
 import { explicitPromptCacheMessages } from "./model-prompt-cache";
@@ -3178,6 +3180,12 @@ async function callPrimaryTextModelStream(
         let signedContent: string | undefined;
         const checkpoint = m04PendingDeliveryCheckpoint?.payloadHash === clinicalReviewPayloadHash(reasoning)
           ? m04PendingDeliveryCheckpoint : m04DeliveryCheckpoint;
+        // retainM04DeliveryCheckpoint synchronously seals new-policy continuity content.
+        // Bind/sign that checked checkpoint, never the earlier caller's prose hash.
+        if (checkpoint && m04FinalContentPolicy().enabled) {
+          reasoning = checkpoint.reasoning;
+          attestation = { ...attestation, reviewedPayloadHash: checkpoint.payloadHash };
+        }
         const scopedAttestation = {
           ...attestation,
           ...(m04AcceptanceScope ? { acceptanceScope: m04AcceptanceScope } : {}),
@@ -5533,6 +5541,9 @@ async function callPrimaryTextModelStream(
               }
             }
           }
+          ({ content: emissionContent, attestation: emissionM04Attestation } = await applyM04FinalContent(
+            emissionContent, emissionM04Attestation, opts, upstreamController.signal, absoluteRunDeadline,
+          ));
           let signedContent = opts.structuredStage === "diagnose"
             ? attachClinicalReviewAttestation(emissionContent, emissionM03Attestation)
             : opts.structuredStage === "prescribe"

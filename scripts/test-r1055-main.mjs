@@ -1,3 +1,5 @@
+// R1064：自由方义/句内修补断言保留为显式回滚测试；新默认由 test-r1064-m04wire 覆盖，安全断言不变。
+process.env.CDSS_M04_FINAL_CONTENT = "false";
 // 第四十一轮（2026-11-10）：r1054 回顾报告的 10 类按根源收口。每条断言都有反证（~/runlogs/r1018/work/r1055/cp/）。
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";

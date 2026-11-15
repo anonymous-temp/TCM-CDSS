@@ -394,7 +394,8 @@ check("7.7 接线：开方路由把核对注入 m04CandidateTransform；流层�
   const api = readFileSync("src/lib/diagnosis-api.ts", "utf8");
   const route = readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
   // 第四十七轮：C1 在同一个 Promise.all 另加教材注意核对；mods 让加减核对带完整加减分型上下文。四件并行，不放宽接线检查。
-  assert.match(route, /m04CandidateTransform: async \(content, transformSignal\) => \{\n\s*const \[checked, fitted, authored, cautionHits\] = await Promise\.all\(\[\s*checkFormulaAnalysisClaimsInContent\(content, transformSignal\),\s*dropMisfitModifications\(content, \{ recordText: structuredClinicalContext, prior: signedPriorReasoning, caseState: safeState \}, transformSignal\),\s*homeAcupointAuthoring,\s*checkHerbCautions\(content, \{ recordText: structuredClinicalContext \}, transformSignal\),?\s*\]\);/);
+  // R1064：旧核对与fit/topup迁入策略包装器，主路由只保留一个候选接点。
+  assert.match(route, /prepareM04CandidateContent\(content, \{ recordText: structuredClinicalContext, prior: signedPriorReasoning, caseState: safeState \}, transformSignal\)/);
   const calls = [...api.matchAll(/(\w+) = await transformM04Candidate\(\1\);/g)].map((match) => match[1]);
   assert.equal(new Set(calls).size, 3, JSON.stringify(calls));
   assert.deepEqual(new Set(calls), new Set(["authoritativeContent", "resolvedRetryContent", "secondResolved"]));

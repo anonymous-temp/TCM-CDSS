@@ -893,6 +893,8 @@ const scripts = [
   "test:r1064-mods",
   // Round 47 S3: final snapshot/delta, verbatim functions, closed modifications and sentence rejection.
   "test:r1064-m04",
+  // R47: final M04 authoring, source functions, rollback, projection and signature seams.
+  "test:r1064-m04wire",
 ];
 
 // 不进闸门的 test:* 脚本，逐条写明原因。新增 test:* 脚本必须进上面的数组或进这里，否则闸门开头即失败。

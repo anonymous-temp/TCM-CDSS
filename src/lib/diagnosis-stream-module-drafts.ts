@@ -1,3 +1,5 @@
+import { m04FinalContentPolicy } from "./m04-final-content-policy";
+import { selectGroundedHerbFunction } from "./herb-function-display-source";
 import { clinicalOutputLabel } from "./clinical-output-authority";
 import { completedTopLevelKeys, completedTopLevelValueJson } from "./diagnosis-stream-modules";
 import type { M03DraftModule, StreamModuleDraftFrame } from "./diagnosis-stream-protocol";
@@ -211,7 +213,8 @@ export function newM04ModuleDraftFrames(partial: string, emitted: Set<string>): 
   if (!candidate || !presentText(candidate.name) || !Array.isArray(candidate.herbs) || !candidate.herbs.length) return [];
   if (!candidate.herbs.every((herb) => presentText(record(herb)?.name))) return [];
   const herbs = candidate.herbs.slice(0, 30).map((herb) => {
-    const row = record(herb)!;
+    const row = { ...record(herb)! };
+    if (m04FinalContentPolicy().enabled && m04FinalContentPolicy().functions === "on") row.function = selectGroundedHerbFunction({ name: String(row.name || ""), role: String(row.role || ""), target: "", therapy: "", modelText: String(row.function || "") }).text;
     const parsedRole = PrescriptionRoleSchema.safeParse(row.role);
     const role = parsedRole.success ? `（${parsedRole.data}）` : "";
     return `- ${candidateText(row.name, 60)}${role}${presentText(row.function) ? `：${candidateText(row.function, 100)}` : ""}`;

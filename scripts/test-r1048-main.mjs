@@ -1,3 +1,5 @@
+// R1064：自由方义/句内修补断言保留为显式回滚测试；新默认由 test-r1064-m04wire 覆盖，安全断言不变。
+process.env.CDSS_M04_FINAL_CONTENT = "false";
 // 第三十六轮（2026-11-02）：甲方 11/2 实测（开始传体格检查、16 条链路全选扶阳）读出来的缺陷。
 // 每条断言都有反证（~/runlogs/r1018/work/r1048/cp/）。
 import assert from "node:assert/strict";

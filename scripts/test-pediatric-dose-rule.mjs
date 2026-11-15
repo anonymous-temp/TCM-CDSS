@@ -560,7 +560,8 @@ async function replayProposal(caseState, clinicalContext) {
     const wire = await response.text();
     const frames = wire.trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
     const final = frames.filter((frame) => frame.content?.startsWith("<<<CDSS_STREAM_FINAL>>>")).at(-1)?.content || "";
-    return { final, requests: requests.length };
+    // R1064：末端方义作者是独立调用；仍严格要求剂量提案/修复调用只有一次。
+    return { final, requests: requests.filter((r) => !r.messages?.some((m) => String(m.content).includes("只为最终药表写方义"))).length };
   } finally { globalThis.fetch = originalFetch; console.info = originalInfo; }
 }
 const doseRows = (content) => Object.fromEntries([...content.matchAll(/(党参|白术|茯苓|炙甘草)[^\n|]*?\|?\s*(\d+(?:\.\d+)?)\s*g/g)].map((m) => [m[1], m[2]]));
@@ -579,7 +580,7 @@ await checkAsync("8.1 端到端：2 岁儿童 + 成人剂量提案 → 最终页
   const herbs = JSON.parse(final.slice(final.indexOf("<!-- DIAGNOSIS_JSON_START -->") + 29, final.indexOf("<!-- DIAGNOSIS_JSON_END -->"))).formula.candidates[0].herbs;
   const doses = Object.fromEntries(herbs.map((herb) => [herb.name, herb.dose]));
   assert.equal(doses["茯苓"], "7.5g");
-  assert.equal(doses["白术"], "6g");
+  assert.equal(doses["白术"], "6g", JSON.stringify(doses));
   assert.equal(doses["炙甘草"], "5g");
   assert.equal(doses["党参"], "12g");
   assert.equal(requests, 1, "折算由编译器确定性完成，不靠修复轮把模型推回去");

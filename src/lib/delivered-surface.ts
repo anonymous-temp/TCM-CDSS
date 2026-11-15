@@ -1,3 +1,6 @@
+import { m04FinalContentPolicy } from "./m04-final-content-policy";
+import { projectM04FinalFacts } from "./m04-final-projection";
+import { projectGroundedHerbFunctions } from "./herb-function-display-source";
 import { DELIVERY_REWRITE_RULES, traceProjection, observeTextRewrite } from "./delivery-rewrite-ledger";
 /** Observation only; original clinical transforms and their return values are unchanged. */
 export const DELIVERED_SURFACE_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.surface, leaves: ["applyDeliveredSurfaceToContent","projectDeliveredReasoning","clinicalWordingForSyntheticPhrases","readabilityCleaned"] as const });
@@ -1611,7 +1614,7 @@ export function processedNameFromColumn(name: string, processing: string): strin
  *（命名方原文的炮制优先，其次《中药炮制学》按病历与这味药在方中的功用选）。加减行另看所引教材条目原文写的炮制（「加…煅龙骨、煅牡蛎」）。
  * 方义、煎服法、注意事项、加减理由里的生品名同步换掉。改出来的名字都是知识库认得、剂量边界不变的饮片名。
  */
-function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurfaceOptions, originalContext: OriginalFormulaContext = {}): void {
+function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurfaceOptions, originalContext: OriginalFormulaContext = {}, finalHerbs: ReadonlySet<Json> = new Set()): void {
   const formula = record(reasoning.formula);
   const recordText = options?.recordText || "";
   const renames = new Map<string, string>();
@@ -1643,9 +1646,12 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
     herb.processing = decision.name.endsWith(decision.base) && decision.name !== decision.base ? decision.name.slice(0, decision.name.length - decision.base.length) : herb.processing ?? null;
     return true;
   };
-  const purposeOf = (herb: Json) => [herb.function, herb.prescriptionRole, herb.targetPathogenesis].filter((item) => typeof item === "string").join("；");
+  // Source display lists describe a drug, not this prescription's intended use.
+  // Never feed them back into purpose-based preparation selection on a second read.
+  const sourceDisplay = (herb: Json) => finalHerbs.has(herb);
+  const purposeOf = (herb: Json) => sourceDisplay(herb) ? "" : [herb.function, herb.prescriptionRole, herb.targetPathogenesis].filter((item) => typeof item === "string").join("；");
   // 按用途选规格只看这味药自己的功效栏：角色与病机指向常借用全方的话（「益气固表」写在黄芪的病机指向里，说的是全方）。
-  const ownFunction = (herb: Json) => (typeof herb.function === "string" ? herb.function : "");
+  const ownFunction = (herb: Json) => sourceDisplay(herb) ? "" : (typeof herb.function === "string" ? herb.function : "");
   for (const candidate of records(formula?.candidates)) {
     const formulaName = typeof candidate.name === "string" ? candidate.name : "";
     for (const herb of records(candidate.herbs)) {
@@ -1825,7 +1831,7 @@ function withoutTextbookFormulaSources(reasoning: Json): void {
   }
 }
 
-function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions): void {
+function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, finalHerbs?: ReadonlySet<Json>): void {
   withoutTextbookFormulaSources(reasoning);
   // 开方结果里带着辨证阶段的副本：同一口径再投影一次（调用方回传的是已投影的那份，幂等）。
   deliveredDiagnose(reasoning);
@@ -1840,6 +1846,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
   // 功效栏先定稿、再按功效选炮制规格（第四十六轮：先选规格时看的是模型原话，功效栏随后被换成知识库功效，同一结果再投影一次
   // 牛膝就按「补肝肾，强筋骨」改成酒牛膝——投影不幂等，辨证页与开方页、复用的旧结果对不上；test:r1019-round4-decoction 3.2）。
   for (const candidate of records(formula?.candidates)) {
+    if (m04FinalContentPolicy().enabled && m04FinalContentPolicy().functions === "on") continue;
     // 内服方的药味功效栏不印「外用＋功效」小句（补骨脂「外用消风祛斑」，留出例 S054）：模型照抄知识库原文时也会带上。
     // 外洗、外敷、熏洗类方子不动。
     const decoctionText = JSON.stringify(candidate.decoction ?? "");
@@ -1932,7 +1939,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
         `${herbFunctionKnowledgeForDisplay(name)}；${getTcmHerbFunctionText(name)}`));
     }
   }
-  deliveredProcessedHerbNames(reasoning, options, originalContext);
+  deliveredProcessedHerbNames(reasoning, options, originalContext, finalHerbs);
   for (const candidate of records(formula?.candidates)) {
     // 名实相符（2026-10-19 M 集 Claude 评审：「乌头汤加减」方中无川乌、「沙参麦冬汤加减」无沙参）：方名承载药不在处方里的那张方
     // 不再用它命名——多为系统不编制用量、要求不写进药味表的毒性或品种未定的味（制川乌、朱砂、沙参）。合方去掉那一张；
@@ -2148,7 +2155,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     // 原方的药引（甲方 10.29 测评：归脾汤原方「加姜、枣，水煎服」，处方不便列时在用法里说明；第四十六轮起姜枣以外的药引也写：
     // 八正散灯心、银翘散鲜苇根汤煎）。用法里已写到的药引不再加。
     const candidateDecoction = record(candidate.decoction);
-    const guideNote = omittedGuideHerbNote(candidate.name, records(candidate.herbs), originalContext, typeof candidate.formulaAnalysis === "string" ? candidate.formulaAnalysis : "",
+    const guideNote = m04FinalContentPolicy().enabled && m04FinalContentPolicy().analysis === "on" ? undefined : omittedGuideHerbNote(candidate.name, records(candidate.herbs), originalContext, typeof candidate.formulaAnalysis === "string" ? candidate.formulaAnalysis : "",
       typeof candidateDecoction?.method === "string" ? candidateDecoction.method : "");
     if (guideNote && candidateDecoction && typeof candidateDecoction.method === "string") {
       candidateDecoction.method = `${candidateDecoction.method.replace(/[。；;\s]+$/u, "")}；${guideNote}`;
@@ -2723,7 +2730,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions):
     if (typeof modification.riskNote === "string" && /药味工作台|重新审方/.test(modification.riskNote)) modification.riskNote = "";
     // 加减理由里这味药没有的功效（2026-10-19 M 集 BEST4SDT-193 北沙参「益气养阴」、TCM-SD-448967 连翘「清热散结兼通肠腑」）：
     // 与药味功效栏同一判据（herbFunctionClaimUnsupportedPhrases），从小句头尾去掉；夹在中间去不干净的小句整句不留（只剩它时不动）。
-    if (typeof modification.reason === "string" && typeof modification.herbName === "string" && modification.reason.trim()) {
+    if (!(m04FinalContentPolicy().enabled && m04FinalContentPolicy().modifications === "on") && typeof modification.reason === "string" && typeof modification.herbName === "string" && modification.reason.trim()) {
       modification.reason = withoutUnsupportedReasonPhrases(modification.reason, herbFunctionKnowledgeForDisplay(modification.herbName), modification.herbName.trim());
     }
   }
@@ -3660,7 +3667,23 @@ export function projectDeliveredM03TcmDisplay<T>(reasoning: T, options?: Deliver
 function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: DeliveredSurfaceOptions | undefined, readOnlyConclusions: boolean): T {
   const object = record(reasoning);
   if (!object || object.schemaVersion !== "tcm-cdss-reasoning-v2") return reasoning;
+  const policy = m04FinalContentPolicy();
+  const finalAnalysis = object.stage === "prescribe" && policy.enabled && policy.analysis === "on";
   const projected = structuredClone(object);
+  // Old prose cannot influence naming, processing, roles, functions or guide instructions.
+  const previousAnalyses = records(record(projected.formula)?.candidates).map((candidate) => candidate.formulaAnalysis);
+  const finalHerbs = new Set<Json>();
+  if (finalAnalysis) {
+    const sourceView = records(record(projectM04FinalFacts(projected).formula)?.candidates);
+    records(record(projected.formula)?.candidates).forEach((candidate, index) => {
+      // Reconstruct and validate all public sentences against this exact table;
+      // a caller-supplied flag cannot turn a free function into a terminal fact.
+      if (candidate.formulaAnalysis && candidate.formulaAnalysis === sourceView[index]?.formulaAnalysis) {
+        for (const herb of records(candidate.herbs)) finalHerbs.add(herb);
+      }
+    });
+  }
+  if (finalAnalysis) for (const candidate of records(record(projected.formula)?.candidates)) delete candidate.formulaAnalysis;
   let options = rawOptions;
   if (projected.stage === "diagnose") {
     deliveredDiagnose(projected, options, readOnlyConclusions);
@@ -3692,7 +3715,7 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
     if (incomingCare && Array.isArray(incomingCare.precautions) && incomingCareSentences.size > 0) {
       incomingCare.precautions = incomingCare.precautions.filter((line) => typeof line !== "string" || !incomingCareSentences.has(line));
     }
-    deliveredPrescribe(projected, options);
+    deliveredPrescribe(projected, options, finalHerbs);
     options = withEstablishedDiagnosis(projected, options);
     // 红旗未解除时不列中成药、西药（2026-11-08 第三十七轮，甲方 11.05 病历16：急性胸痛 2 小时、疑急性心梗，推荐了参芍片）。
     // 汤药照 D4 给剂量、急诊放行前不可采纳；可以自行购服的成药会让患者以为可以先吃药观察。说明写在 medicineCandidateStatus.reason。
@@ -3817,7 +3840,11 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
       care.precautions = [...careItems.filter((item) => !diseaseCareItemCovered(item, lines)).map((item) => item.sentence), ...lines];
     }
   }
-  return projected as T;
+  if (finalAnalysis) {
+    records(record(projected.formula)?.candidates).forEach((candidate, index) => { candidate.formulaAnalysis = previousAnalyses[index]; });
+    return projectM04FinalFacts(projected, { record: options?.recordText || "" }) as T;
+  }
+  return (projected.stage === "prescribe" && policy.enabled && policy.functions === "on" ? projectGroundedHerbFunctions(projected) : projected) as T;
 }
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";

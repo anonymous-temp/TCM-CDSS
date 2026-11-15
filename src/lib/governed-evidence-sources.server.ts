@@ -1,3 +1,4 @@
+import { applicationCitationVerified } from "./herb-application-index.server";
 import "server-only";
 
 import { diagnosticsCriteriaFor } from "./m03-secondary-syndrome-consistency.server";
@@ -13,7 +14,7 @@ import { textbookProvenanceVerified } from "./tcm-textbook-syndromes";
 export function governedEvidenceSourceVerified(source: string): boolean {
   const clean = source.trim();
   if (!clean) return false;
-  if (textbookProvenanceVerified(clean)) return true;
+  if (textbookProvenanceVerified(clean) || applicationCitationVerified(clean)) return true;
   const criteria = clean.match(/^《中医诊断学》(.+证)辨证要点$/u);
   return Boolean(criteria && diagnosticsCriteriaFor(criteria[1])?.name === criteria[1]);
 }

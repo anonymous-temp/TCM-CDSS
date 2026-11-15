@@ -124,7 +124,8 @@ await check("2.6 交付面：药表、方义、煎服与注意事项里的「煅
   const ownOnly = surface.projectDeliveredReasoning(prescription([{ name: "石决明", processing: "煅", dose: "12g", role: "佐", function: "收涩止汗", targetPathogenesis: "平肝潜阳以止眩" }]), { recordText: "主诉：眩晕" });
   assert.equal(ownOnly.formula.candidates[0].herbs[0].name, "煅石决明", "功效栏没写平肝，病机指向里的「平肝潜阳」不据此改");
   assert.doesNotMatch(out.formula.candidates[0].formulaAnalysis, /煅石决明/u);
-  assert.match(out.formula.candidates[0].formulaAnalysis, /法半夏燥湿化痰/u);
+  // R1064：终稿源句固定写明结构化角色，保留原炮制与功效要求。
+  assert.match(out.formula.candidates[0].formulaAnalysis, /法半夏为佐药，燥湿化痰/u);
   assert.doesNotMatch(out.formula.candidates[0].decoction.method, /煅石决明/u);
   assert.match(out.nonPharma.precautions[0], /法半夏/u);
   assert.equal(out.formula.modifications[0].herbName, "姜半夏");

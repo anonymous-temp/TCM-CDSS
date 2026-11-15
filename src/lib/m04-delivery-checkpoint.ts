@@ -1,3 +1,6 @@
+import { m04FinalContentPolicy } from "./m04-final-content-policy";
+import { renderFinalM04Content } from "./diagnosis-visible-summary";
+import { projectM04FinalFacts, m04FinalContractView } from "./m04-final-projection";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode, type ClinicalReasoningResultV2, type ClinicalReviewAttestation } from "./diagnosis-types";
 import { clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation, sha256CanonicalForContract } from "./clinical-review-binding";
 import { herbBarredForCase, m04SafetyContractIssue } from "./diagnosis-stage-contract";
@@ -122,7 +125,17 @@ export function retainM04DeliveryCheckpoint(
       payloadHash = reprojectedHash;
     }
   } catch { return previous; }
-  const enriched = enrichReasoning(reasoning).reasoning;
+  if (m04FinalContentPolicy().enabled) {
+    // Synchronous continuity seal: no author wait and no free/unchecked new rows.
+    let final = projectDeliveredReasoning(reasoning, { recordText: input.clinicalContext });
+    if (m04FinalContentPolicy().modifications === "on" && final.formula) final.formula.modifications = [];
+    final = projectM04FinalFacts(final, { record: input.clinicalContext || "", prior: input.priorReasoning });
+    reasoning = normalizeReasoningV2(final);
+    payloadHash = clinicalReviewPayloadHash(reasoning);
+    if (!reasoning || !payloadHash) return previous;
+    input = { ...input, content: renderFinalM04Content(input.content, reasoning) };
+  }
+  const enriched = enrichReasoning(m04FinalContentPolicy().enabled ? m04FinalContractView(reasoning) : reasoning).reasoning;
   // ── 合同不过**不再丢弃候选**（owner 决策 2026-09-13）─────────────────────────────
   //
   // 222 例实测第四类 13 例：流中已经出现 7–11 味药的候选草稿，全部 finishReason=stop、
@@ -291,7 +304,7 @@ export function renderM04DeliveryCheckpoint(
   // 非剂量页与带剂量页走同一份交付面投影（2026-10-13）：此前这一页直接渲染未投影的结果，方名显示
   //「本例辨证组方」、方义写「本方以本方案为基础加减」、适用栏是「适用于与本例锁定证候…及病机链一致的情况」。
   const prior = priorReasoning ? projectDeliveredReasoning(priorReasoning, surfaceOptions) : priorReasoning;
-  if (checkpoint) checkpoint = { ...checkpoint, reasoning: projectDeliveredReasoning(checkpoint.reasoning, { ...surfaceOptions, nonDosePage: true }) };
+  if (checkpoint) checkpoint = { ...checkpoint, reasoning: projectM04FinalFacts(projectDeliveredReasoning(checkpoint.reasoning, { ...surfaceOptions, nonDosePage: true }), { record: surfaceOptions?.recordText || "", prior: priorReasoning }) };
   // 机器码随页交付（2026-09-13）：此前这一整类非剂量页**不带任何 reasonCode**，前端只能靠
   // 文案正则分流，服务端改一句措辞前端就瞎。三种处置各有各的恢复动作，必须分开。
   const reasonMarker = cdssReasonCodeMarker(

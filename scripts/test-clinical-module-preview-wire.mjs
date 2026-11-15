@@ -61,7 +61,8 @@ try {
   })]);
   assert.equal(preview.module, "m04.candidate");
   assert.match(preview.content, /四君子汤/);
-  assert.match(preview.content, /益气健脾/);
+  // R47: source-only wording is also mandatory before the final frame.
+  assert.match(preview.content, /健脾益肺/);
   assert.doesNotMatch(preview.content, /12g|5剂|targetRef/);
   assert.equal(fetches, 1, "只读预览不得新增模型调用");
   assert.ok(wireRequest.response_format.json_schema.schema.properties.candidate, "测试必须走实际 m04_proposal 格式");

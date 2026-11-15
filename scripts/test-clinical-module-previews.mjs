@@ -55,7 +55,8 @@ for (let end = 0; end < providerPartial.length; end += 1) {
 const frame = drafts.newM04ModuleDraftFrames(partial, new Set())[0];
 assert.equal(frame?.module, "m04.candidate", "完整候选闭合后即上流，不等待 candidates/formula/nonPharma 结束");
 assert.match(frame.content, /候选建议，补充中/);
-for (const value of ["四君子汤", "党参", "白术", "益气健脾", "君"]) assert.ok(frame.content.includes(value));
+// R47: provisional functions use verified source wording, never the model paraphrase.
+for (const value of ["四君子汤", "党参", "白术", "健脾益肺", "君"]) assert.ok(frame.content.includes(value));
 assert.doesNotMatch(frame.content, /12g|9g|SECRET_EVIDENCE|dose|evidence/);
 const labeledRoleCandidate = { ...candidate, herbs: [{ ...candidate.herbs[0], role: "君药" }] };
 const labeledRolePreview = drafts.newM04ModuleDraftFrames('{"candidate":' + JSON.stringify(labeledRoleCandidate), new Set())[0];
@@ -71,7 +72,8 @@ for (const quantity of ["12g", "十二克", "0.5mg", "每日1剂", "连服5天"]
   embedded.herbs[0].function += quantity;
   const preview = drafts.newM04ModuleDraftFrames('{"formula":{"candidates":[' + JSON.stringify(embedded), new Set())[0];
   assert.ok(!preview.content.includes(quantity), `名称和功效中的剂量也只留审定提示：${quantity}`);
-  assert.match(preview.content, /益气健脾/);
+  // R1064：被剂量污染的药名无原文来源时留空；另一味白术仍显示可核原句。
+  assert.match(preview.content, /健脾益气/);
 }
 assert.equal(parseStreamModuleDraftFrame({ ...frame, futureOptionalField: true })?.module, "m04.candidate");
 for (let end = partial.indexOf('"herbs"'); end < partial.length; end += 1) {

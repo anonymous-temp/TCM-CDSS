@@ -1,3 +1,4 @@
+import { prepareM04CandidateContent } from "@/lib/m04-final-delivery.server";
 import { requiredPrecautionsForCase, requiredPrecautionsPromptSection } from "@/lib/required-precautions.server";
 import { governedEvidenceSourceVerified } from "@/lib/governed-evidence-sources.server";
 import { textbookDietPromptSection } from "@/lib/tcm-nondrug-textbook-plan.server";
@@ -41,8 +42,6 @@ import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
 import { compactEvidenceContextForPrompt, m04EvidencePromptBudgetChars, m04ExternalEvidenceSoftDeadlineMs, promptSectionHeaders } from "@/lib/prompt-budget";
 import { declassifyAndDropOpposingM04CandidateHerbs } from "@/lib/m04-modification-safety";
-import { checkFormulaAnalysisClaimsInContent } from "@/lib/m04-formula-analysis-claim-check.server";
-import { dropMisfitModifications, withModificationsFrom, topUpModificationConditions } from "@/lib/m04-modification-fit.server";
 import { applyHerbCautionHits, checkHerbCautions } from "@/lib/herb-caution-check.server";
 import { textbookPregnancyRestrictedHerbNames } from "@/lib/herb-textbook-identity";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
@@ -546,17 +545,15 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     },
     // 方义药物功效核对（小模型报疑、确定性核实后只删那一小段；见 m04-formula-analysis-claim-check.server.ts）。签名与合同核对之前执行。
     m04CandidateTransform: async (content, transformSignal) => {
-      const [checked, fitted, authored, cautionHits] = await Promise.all([
-        checkFormulaAnalysisClaimsInContent(content, transformSignal),
-        dropMisfitModifications(content, { recordText: structuredClinicalContext, prior: signedPriorReasoning, caseState: safeState }, transformSignal),
+      const [prepared, authored, cautionHits] = await Promise.all([
+        prepareM04CandidateContent(content, { recordText: structuredClinicalContext, prior: signedPriorReasoning, caseState: safeState }, transformSignal),
         homeAcupointAuthoring,
         checkHerbCautions(content, { recordText: structuredClinicalContext }, transformSignal),
       ]);
       authoredHomeAcupoint = authored;
       // 两件核对都在同一份内容上并行，方义与加减互不相干：取方义核对的结果，把加减行换成核对后的。
       // 核对之后不同的条件不足两个时补写（教材没有这一证、模型也没写时，其余病例不发请求）。
-      const toppedUp = await topUpModificationConditions(withModificationsFrom(checked, fitted), { recordText: structuredClinicalContext, prior: signedPriorReasoning, caseState: safeState }, transformSignal);
-      return applyHerbCautionHits(toppedUp, cautionHits);
+      return applyHerbCautionHits(prepared, cautionHits);
     },
     prescribeSignatureContext: buildPrescribeContractSignatureContext({ ...gated, reasoningDiagnose: deliveredSignedPriorReasoning }),
     // 医生点「重新生成候选方药」时前端原样重发同一份 caseState 与同一份已签名 M03，

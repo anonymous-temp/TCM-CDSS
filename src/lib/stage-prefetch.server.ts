@@ -1,3 +1,4 @@
+import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import { pickTextbookDiseasesForCase } from "./textbook-disease-pick.server";
 import { pickJingfangPatternsForCase } from "./jingfang-pattern-pick.server";
 import type { CaseState } from "./diagnosis-types";
@@ -186,7 +187,7 @@ export function prefetchAssessFollowupFromSignedPrescribe(requestCaseState: Case
  * `CDSS_M05_DRAFT_PREFETCH=false` 单独关闭（`CDSS_M05_PREFETCH=false` 连同签名后预取一起关）。
  */
 export function prefetchAssessFollowupFromDraftCandidate(requestCaseState: CaseState, rawCandidate: Record<string, unknown>): Promise<void> {
-  if (process.env.CDSS_M05_PREFETCH === "false" || process.env.CDSS_M05_DRAFT_PREFETCH === "false") return Promise.resolve();
+  if (m04FinalContentPolicy().enabled || process.env.CDSS_M05_PREFETCH === "false" || process.env.CDSS_M05_DRAFT_PREFETCH === "false") return Promise.resolve();
   return (async () => {
     const prior = diagnoseReasoningFromState(requestCaseState);
     if (!prior) return;
@@ -234,4 +235,10 @@ async function authorFollowupFromPrescribeHandoff(
   ].filter(Boolean).join("\n\n");
   const assessed = withSafetyGate({ ...gated, riskAssessment: postPrescriptionRisk, safetyLocked: deriveSafetyLocked(gated) });
   await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate);
+}
+
+/** Uses the frozen final table/regimen; never re-normalizes a draft or waits on M04 prose. */
+export function prefetchAssessFollowupFromFinalCandidate(requestCaseState: CaseState, reasoning: NonNullable<CaseState["reasoningPrescribe"]>): Promise<void> {
+  if (process.env.CDSS_M05_PREFETCH === "false" || !m04FinalContentPolicy().m05Prefetch) return Promise.resolve();
+  return authorFollowupFromPrescribeHandoff(requestCaseState, reasoning, "").catch(() => undefined);
 }

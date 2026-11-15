@@ -1,3 +1,5 @@
+// R1064：自由方义/句内修补断言保留为显式回滚测试；新默认由 test-r1064-m04wire 覆盖，安全断言不变。
+process.env.CDSS_M04_FINAL_CONTENT = "false";
 // 第三十四轮（2026-11-01）：同病历波动与耗时、改坏余项。量法与材料见 ~/runlogs/r1018/work/r1046。
 // 1. 同内容的模型调用只算一次（model-call-memo.server.ts）：作用域、键、完整响应、作废、加密落盘、合流。
 // 2. regenerate=1 不再重抽；force 才重抽。
