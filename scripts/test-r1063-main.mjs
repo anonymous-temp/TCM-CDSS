@@ -247,14 +247,15 @@ await check("6.3 「无」后面的对象自己带否定或检查结论时不改
   assert.equal(summary.unrecordedNegativesAsNotReported("本例无口苦", "头晕2天"), "本例未诉口苦", "对照");
 });
 
-await check("6.4 病历写明已断奶时注意事项不写「如正在哺乳请先告知医生」的假设小句；在哺乳的照留（对照）", () => {
+await check("6.4 已断奶不写哺乳提示；已知哺乳不写假设人群提示", () => {
   const precautions = ["方中当归、川芎活血，如已怀孕或备孕请先告知医生。", "如正在哺乳请先告知医生。", "饭后温服。"];
   const weaned = state("腰痛2周", "腰部酸痛。", { sex: "女", age: 35, symptoms: { 婚育史: "已婚，育1子，已断奶2年" } });
   const out = compiler.casePrecautionsForTest ? compiler.casePrecautionsForTest(precautions, weaned) : null;
   if (out) {
     assert.ok(!out.some((line) => /正在哺乳/u.test(line)), JSON.stringify(out));
     const nursing = state("腰痛2周", "腰部酸痛。", { sex: "女", age: 30, symptoms: { 婚育史: "产后3月，母乳喂养" } });
-    assert.ok(compiler.casePrecautionsForTest(precautions, nursing).some((line) => /正在哺乳/u.test(line)), "对照");
+    // 第四十七轮F3：病历已知哺乳，不再保留「如正在哺乳」；交付时必写项另给直接哺乳提示。
+    assert.ok(!compiler.casePrecautionsForTest(precautions, nursing).some((line) => /如正在哺乳|怀孕|备孕/u.test(line)), "已知人群不假设");
   } else {
     throw new Error("casePrecautionsForTest 未导出");
   }

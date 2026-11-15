@@ -1,3 +1,4 @@
+import bleedingPolicy from "../data/tcm-treatment-bleeding-policy.source.json";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { compileHomeAcupointCare } from "./home-acupoint-care.server";
 import { renderAuthoredHomeAcupointCare, type AuthoredHomeAcupoint, type HomeAcupointAuthoringInput } from "./home-acupoint-authoring.server";
@@ -24,8 +25,8 @@ import { affirmedClinicalText } from "./clinical-polarity";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { assessPregnancyState, conceptionWithoutPregnancyOrLactation } from "./clinical-state";
 import { pediatricDoseRuleForAgeYears, pediatricDoseRuleForStageWords } from "./pediatric-dose-rule";
-import { currentAntithromboticTherapyRecorded, narrativePediatricAgeConflict, sourceDocumentsAffirmation, pregnancyAdviceRelevant, pregnancyScreenRequired, reproductiveAdviceRelevant, unevaluatedBreastMass } from "./diagnosis-safety";
-import { cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, caseCourse, dietAdviceAvoidsRichFood, facialSoreRecorded, dietAdviceAvoidsTea, syndromeHasHeatNature, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, syndromeLabelFitsSigned, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
+import { medicationPopulationAudience, activeBleedingInGroundingText, currentAntithromboticTherapyRecorded, narrativePediatricAgeConflict, sourceDocumentsAffirmation, pregnancyAdviceRelevant, pregnancyScreenRequired, reproductiveAdviceRelevant, unevaluatedBreastMass } from "./diagnosis-safety";
+import { strokeRecoveryCard, cardApplicabilityExcludesSyndrome, cardSentencesMatchedToSyndrome, caseCourse, dietAdviceAvoidsRichFood, facialSoreRecorded, dietAdviceAvoidsTea, syndromeHasHeatNature, cardSentencesNamingListedPoints, cardTextForPopulation, manipulationMatchedToSyndrome, moxibustionUnsuitableForSyndrome, signedSyndromeDeficiencyExcess, syndromeLabelFitsSigned, textbookPlanExistsForDisease, textbookSectionNames, textbookTreatmentPlan, type TextbookPlan, type TextbookPlanInput } from "./tcm-nondrug-textbook-plan.server";
 import governanceSourceRegistryJson from "../data/clinical-governance-source-registry.json" with { type: "json" };
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 
@@ -943,7 +944,7 @@ export function bleedingTendencyRecorded(affirmedFacts: string): boolean {
   return Number.isFinite(count) && count < 50;
 }
 const ANTITHROMBOTIC_EXCLUDED_PROJECTS = new Set<TcmTreatmentProjectCode>([
-  "tuina", "cupping", "guasha", "bloodletting", "needle_knife", "fire_cautery", "hook_cutting", "thread_embedding",
+  "acupuncture", "auricular", "tuina", "cupping", "guasha", "bloodletting", "needle_knife", "fire_cautery", "hook_cutting", "thread_embedding", "thread_drainage", "ligation",
 ]);
 function antithromboticTherapyFor(caseState: Partial<TreatmentCaseContext>): boolean {
   try {
@@ -1041,6 +1042,10 @@ export function tcmTreatmentProjectExclusionReason(
   // 居家轻柔按揉不在此列（按压力度小，护理方案未把服抗凝药列为禁忌），艾灸不涉出血也不在此列。
   if (!options.homeCare && ANTITHROMBOTIC_EXCLUDED_PROJECTS.has(projectCode) && caseState && antithromboticTherapyFor(caseState)) {
     return "正在使用抗凝或抗血小板药：易致瘀斑出血，不推荐推拿、拔罐、刮痧及侵入性外治项目";
+  }
+  if (projectCode === "moxibustion" && caseState && antithromboticTherapyFor(caseState) &&
+    (activeBleedingInGroundingText(treatmentPregnancyText(caseState)) || bleedingTendencyRecorded(caseFacts) || new RegExp(bleedingPolicy.menstrualBleedingQuantityPattern, "u").test(caseFacts))) {
+    return "正在使用抗凝或抗血小板药且有出血表现：先评估出血，不推荐艾灸";
   }
   // 老年骨质疏松（65 岁以上且病历肯定记着骨质疏松）：推拿手法有骨折风险，推拿卡自列禁忌「严重老年性骨质疏松」。居家轻柔按揉不在此列。
   if (!options.homeCare && projectCode === "tuina" && caseState && (age ?? 0) >= 65 && sourceDocumentsAffirmation(treatmentPregnancyText(caseState), "骨质疏松")) {
@@ -1428,8 +1433,9 @@ export function compileTcmTreatmentRecommendations(
       ? plannedTreatment.suggestedSitesOrPoints.filter((point): point is string => typeof point === "string")
       : [];
     const reproductiveRelevant = caseState?.patient ? reproductiveAdviceRelevant(caseState as CaseState) : true;
+    const populationAudience = caseState?.patient ? medicationPopulationAudience(caseState as CaseState) : undefined;
     const cardText = (value: string) => cardTextForPopulation(clinicalTreatmentScheduleWording(cardSentencesNamingListedPoints(cardSentences(
-      definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText, prior.therapy?.overallPrinciple || "") : value), cardPoints)), reproductiveRelevant);
+      definition.code === "acupuncture" ? manipulationMatchedToSyndrome(value, signedSyndromeText, prior.therapy?.overallPrinciple || "", strokeRecoveryCard(diseaseNamesForCard, [prior.westernDiagnosis?.primary?.name || ""], typeof caseState?.chiefComplaint === "string" ? caseState.chiefComplaint : "")) : value), cardPoints)), reproductiveRelevant, populationAudience);
     // 卡片写明只适用于本病另几个类型、本例的证不在其中时整张不出（cardApplicabilityExcludesSyndrome）。
     if ([plannedTreatment.treatmentContent, plannedTreatment.techniqueBoundary]
       .some((value) => typeof value === "string" && cardApplicabilityExcludesSyndrome(value, diseaseNamesForCard, prior.overview.primarySyndrome || ""))) return [];
@@ -1506,7 +1512,7 @@ export function compileTcmTreatmentRecommendations(
       })(),
       operatorRequirement: definition.operatorRequirement,
       requiredChecks: [
-        cardTextForPopulation(definition.safetyFocus, reproductiveRelevant),
+        cardTextForPopulation(definition.safetyFocus, reproductiveRelevant, populationAudience),
         ...(definition.requiresMedicationAudit ? ["含药外治采用前须完成成分、过敏、禁忌、相互作用及重复用药的独立用药审方。"] : []),
       ],
       containsMedication: definition.containsMedication,
@@ -1583,6 +1589,7 @@ const RECORDED_DIABETES = /糖尿病|消渴/u;
 // 没有写明否认妊娠时，居家保健按妊娠禁忌从严去掉禁用穴与腹部、腰骶部穴位。
 function homeCarePregnancyUnresolved(caseState: Partial<TreatmentCaseContext>): boolean {
   if (!pregnancyScreenRequired(caseState as CaseState)) return false;
+  if (!medicationPopulationAudience(caseState as CaseState).pregnancy) return false;
   return assessPregnancyState(treatmentPregnancyText(caseState)).status !== "negative";
 }
 

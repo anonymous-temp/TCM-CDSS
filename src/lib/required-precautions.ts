@@ -22,7 +22,7 @@ export type RequiredPrecaution =
       /** 本地说明书目录里有说明书写明该药与酒同用会引起双硫仑样反应或须戒酒。 */
       alcoholWarning: boolean;
     }
-  | { kind: "postpartum_lactation" }
+  | { kind: "postpartum_lactation"; confirmed?: true }
   | { kind: "skin_infection_antibiotic"; disease: string }
   /** 未满 12 岁（儿科剂量按年龄折算的年龄段）：少量多次喂服、不强灌、不自行加量。2026-10-18 留出集 4 例患儿没有这一条。 */
   | { kind: "pediatric_administration"; ageYears: number }

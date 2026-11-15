@@ -295,6 +295,9 @@ function isHistoricalContext(text: string, index: number, matchText: string, sta
   // "既往史：高血压；妊娠8周"). Only a marker immediately governing the pregnancy phrase may
   // turn it into historical context.
   if (isExplicitCurrentGestation(matchText)) {
+    // 「既往史：体健；孕晚期贫血」的分号不改变栏目归属。孕期分段名不是本次孕周。
+    if (/(?:孕|妊娠)(?:早|中|晚)期/u.test(matchText) && !hasCurrentMarker(before) &&
+      /既往史[:：][^\n]*$/u.test(text.slice(0, index))) return true;
     // 「孕32周出生」「孕38周顺产」「孕36周早产」说的是一次出生/分娩（儿科病历的出生史、产妇的既往孕产），不是当前妊娠
     //（2026-10-24 甲方 100 例 C077：3 岁女童「早产儿，孕32周出生」被判妊娠阳性，整方不给剂量、要求 3 天内去产科）。
     if (/^(?:\+?\d+\s*(?:周|天|日)?)?(?:天|日)?(?:时)?(?:后)?(?:自然)?(?:流产|终止妊娠|引产|分娩|已结束|出生|早产|娩出|产下|剖宫产|剖腹产|顺产|生产|产出)/.test(after)) return true;
@@ -644,7 +647,15 @@ export function isPositiveOrPossibleClinicalState(state: ClinicalStateResult): b
  * 50 岁及以上写「已停经」也算（更年轻的「已停经」可能就是妊娠）。安全闸门的孕哺筛查（pregnancyScreenRequired）与
  * 药典孕妇禁用档（conception-herb-policy）读的是这一个判据。
  */
-export function recordExcludesPregnancyPotential(text: string, ageYears?: number): boolean {
+export function recordExcludesPregnancyPotential(text: string, ageYears?: number, includeSterilization = true): boolean {
+  // 年龄数值比较：「51岁绝经」在56岁时已满一年；不能把「绝经年龄未详」当已绝经。
+  const menopauseAge = [...text.matchAll(/(\d{2})\s*岁(?:时)?绝经/gu)].some((hit) =>
+    ageYears != null && ageYears - Number(hit[1]) >= 1 && !isNegatedPositiveContext(text, hit.index ?? 0));
+  const sterilized = [...text.matchAll(/双侧输卵管(?:已)?切除|(?:双侧)?输卵管(?:已)?结扎/gu)].some((hit) =>
+    !isNegatedPositiveContext(text, hit.index ?? 0) && !/(?:未|没有)(?:行|做)?$/u.test(text.slice(0, hit.index)) &&
+    !/(?:单侧|左侧|右侧)$/u.test(text.slice(0, hit.index)) &&
+    !/(?:拟|计划|准备)[^，,。；;\n]{0,4}$/u.test(text.slice(0, hit.index)));
+  if (menopauseAge || (includeSterilization && sterilized)) return true;
   return /(绝经|停经)\s*(?:已|约)?\s*(?:1[2-9]|[2-9]\d)\s*(?:个月|月)|绝经\s*(?:已|约)?\s*[1-9]\d*\s*年|绝经后|双侧卵巢切除|子宫全切(?:除)?|无子宫/.test(text) ||
     // 子宫已切除（含次全切、广泛子宫加双附件切除），或病历直接写「已绝经/月经已绝」（2026-10-19 Claude 评审 M 集）。
     /(?:全|广泛|次全)?子宫(?:加|及|和|\+|＋)?(?:双(?:侧)?附件)?(?:次全)?切除(?!前)/.test(text) ||

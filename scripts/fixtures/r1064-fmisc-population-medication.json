@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "cdss-open-language-class-v1",
+  "id": "r1064-fmisc-population-medication",
+  "mode": "deterministic",
+  "layerAttribution": {
+    "layer": "population_wording_and_current_medication_readers",
+    "mechanism": "绝经年龄未与登记年龄比较、结扎与有月经混为一类、既往栏目被分号截断、药物给药动词后残片未过身份守卫、有时间锚点的旧疗程被当现用。",
+    "exception": "只新增数值比较、有限手术类型与给药/剂型构词守卫；复用已有病历时间域判据，不新增开放语言临床推断。",
+    "sources": "临床交付面按病历直接事实筛人群；中风手法原文与边界另见tcm-stroke-recovery-card-policy.source.json；安全门差异另存fmisc-replay/gates.json。"
+  },
+  "sets": {
+    "development": {
+      "menopause": [
+        {
+          "text": "49岁绝经",
+          "age": 55,
+          "excluded": true
+        },
+        {
+          "text": "输卵管结扎术后",
+          "age": 39,
+          "excluded": true
+        }
+      ],
+      "medication": [
+        {
+          "text": "1年前口服左氧氟沙星5天。本次未服药。",
+          "name": "左氧氟沙星",
+          "current": false
+        },
+        {
+          "text": "自行将吸入剂加至每日5次",
+          "name": "剂加至",
+          "current": false
+        }
+      ]
+    },
+    "heldOut": {
+      "menopause": [
+        {
+          "text": "50岁时绝经",
+          "age": 57,
+          "excluded": true
+        },
+        {
+          "text": "双侧输卵管已结扎",
+          "age": 42,
+          "excluded": true
+        },
+        {
+          "text": "计划输卵管结扎",
+          "age": 40,
+          "excluded": false
+        },
+        {
+          "text": "单侧输卵管切除",
+          "age": 37,
+          "excluded": false
+        }
+      ],
+      "medication": [
+        {
+          "text": "2年前口服阿莫西林7天。本次尚未用药。",
+          "name": "阿莫西林",
+          "current": false
+        },
+        {
+          "text": "1年前开始口服氨氯地平，规律服用至今。",
+          "name": "氨氯地平",
+          "current": true
+        },
+        {
+          "text": "1年前服阿莫西林。本次重新口服阿莫西林。",
+          "name": "阿莫西林",
+          "current": true
+        },
+        {
+          "text": "4天前头晕，自服卡托普利后缓解",
+          "name": "卡托普利",
+          "current": true
+        },
+        {
+          "text": "8年前开始用药，一直口服二甲双胍，后加用格列齐特，每日服用。",
+          "name": "格列齐特",
+          "current": true
+        }
+      ]
+    }
+  },
+  "measurements": {
+    "before": {
+      "development": "0/4",
+      "heldOut": "6/9",
+      "total": "6/13"
+    },
+    "after": {
+      "development": "4/4",
+      "heldOut": "9/9",
+      "total": "13/13"
+    },
+    "method": "本地两棵代码树，复用同一合成输入，无模型/网络；逐条存于/var/tmp/r1064/fmisc-replay-final/parity.json。"
+  }
+}

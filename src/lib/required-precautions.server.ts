@@ -175,7 +175,9 @@ export function requiredPrecautionsForCase(
     if (items.length >= 2) break;
   }
   const grounding = clinicalGroundingText(state);
-  if (reproductiveAdviceRelevant(state) && recentChildbirthMentioned(grounding) && assessLactationState(grounding).status === "unknown") {
+  if (assessLactationState(grounding).status === "positive" && pregnancyAdviceRelevant(state)) {
+    items.push({ kind: "postpartum_lactation", confirmed: true });
+  } else if (reproductiveAdviceRelevant(state) && recentChildbirthMentioned(grounding) && assessLactationState(grounding).status === "unknown") {
     items.push({ kind: "postpartum_lactation" });
   }
   const disease = [prior?.westernDiagnosis?.primary?.name, prior?.overview?.tcmDiseaseName]
@@ -389,6 +391,7 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
       return `${order}${parts.join("")}。`;
     }
     if (item.kind === "postpartum_lactation") {
+      if (item.confirmed) return `${order}患者已在哺乳：直接写哺乳期用药须医生评估，观察婴儿吃奶、精神及排便变化；不得写「如正在哺乳」；孕期提示须另有当前妊娠事实，不从哺乳推定妊娠。按方中真实哺乳期禁慎用标签点名药物，没有标签不编造。`;
       // 不用「患者一年内分娩、哺乳情况未记录：」这样的标题：模型会照抄成写给患者的第三人称（2026-10-19 甲方病历 3「患者一年内分娩，如正在哺乳…」）。
       return `${order}写一句给产后一年内的患者：「产后如正在哺乳，请服药前告知医生」，并点名方中哺乳期禁用、慎用的药（禁用、慎用分开写；回乳的药如麦芽也点名）。`;
     }

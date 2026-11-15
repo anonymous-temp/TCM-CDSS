@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import strokeRecoveryPolicy from "../data/tcm-stroke-recovery-card-policy.source.json";
 import path from "node:path";
 import webSourcesJson from "../data/tcm-nondrug-web-sources.source.json" with { type: "json" };
 import webSchedulesJson from "../data/tcm-nondrug-web-schedules.source.json" with { type: "json" };
@@ -994,10 +995,16 @@ function withSyndromeMatchedClauses(text: string, input: TextbookPlanInput): str
  * 不动的句子：点名到具体穴位的（醒脑开窍法「三阴交用提插补法」、牙痛「配穴太溪用补法」是该穴的定法，不随证候改）、
  * 含平补平泻或「按虚补实泻」的；虚实判不出时整段不动。教材卡与目录卡在卡片汇总处（tcm-treatment-capabilities）都过这一道。
  */
-export function manipulationMatchedToSyndrome(text: string, signedSyndromeText: string, signedPrinciple = ""): string {
+export function manipulationMatchedToSyndrome(text: string, signedSyndromeText: string, signedPrinciple = "", recovery = false): string {
   // 虚实按主证（主证判不出时按已签名治则）定，与教材分套取舍同一判据 signedCardNature（2026-10-19：心肾不交证兼血瘀证曾被兼证的「瘀」
   // 判成实证，目录失眠模板的「留针用补法」被改成「针用泻法」，同卡却加太溪、肾俞补肾）。
   const nature = signedCardNature(signedSyndromeText, signedPrinciple);
+  if (recovery) {
+    // 点名穴位也不能跳过病期/虚实核对；没有可用的原文手法就少说，不把泻法换写成补法。
+    text = text.split(/(?<=[。；;])/u).filter((sentence) =>
+      !strokeRecoveryPolicy.acuteOperationTerms.some((term) => sentence.includes(term)) &&
+      !(signedPrimaryHasDeficiency(signedSyndromeText, signedPrinciple) && /泻法/u.test(sentence) && !/平补平泻/u.test(sentence))).join("").trim();
+  }
   if (!nature) return text;
   const wrong = nature === "excess" ? /补法/ : /泻法/;
   const primary = String(signedSyndromeText || "").split(/[；;]/)[0] || "";
@@ -1115,6 +1122,7 @@ function courseNumber(raw: string): number | undefined {
 }
 export function caseCourse(westernNames: readonly string[], chiefComplaint: string): "acute" | "chronic" | undefined {
   const western = westernNames.join("；");
+  if (strokeRecoveryPolicy.stageTerms.some((term) => `${western}；${chiefComplaint}`.includes(term))) return "chronic";
   if (/慢性/u.test(western)) return "chronic";
   if (/急性/u.test(western)) return "acute";
   const match = String(chiefComplaint || "").normalize("NFKC")
@@ -1123,6 +1131,11 @@ export function caseCourse(westernNames: readonly string[], chiefComplaint: stri
   if (!match || amount == null) return undefined;
   const days = amount * ({ 年: 365, 个月: 30, 月: 30, 周: 7, 星期: 7, 天: 1, 日: 1 } as Record<string, number>)[match[2]];
   return days >= 90 ? "chronic" : days <= 14 ? "acute" : undefined;
+}
+
+export function strokeRecoveryCard(diseaseNames: readonly string[], westernNames: readonly string[], chiefComplaint: string): boolean {
+  return diseaseNames.some((name) => strokeRecoveryPolicy.diseaseNames.includes(name) || strokeRecoveryPolicy.diseaseNames.includes(canonicalDisease(name))) &&
+    caseCourse([...westernNames, ...diseaseNames], chiefComplaint) === "chronic";
 }
 
 const SYNDROME_DESCRIPTOR_CHAR = /[寒湿热风暑燥火瘀血气虚实阴阳肾肝脾肺心胃胆痰郁滞亏损食积水饮]/u;
@@ -1323,26 +1336,29 @@ const REPRODUCTIVE_CARD_ITEM = /妊娠|孕|哺乳|经期|月经期/u;
  */
 const REPRODUCTIVE_ITEM_LEAD = /^(?:(?:孕期|孕妇|妊娠期|妊娠|哺乳期|哺乳|经期|月经期)、?)+(?:妇女)?(?:及|和|或|与)/u;
 const REPRODUCTIVE_ITEM_PREDICATE = /(?:不宜|禁用|慎用|忌用|禁止|不可|请先|须|应)[^、]*$/u;
-function itemWithoutReproductive(item: string): string | undefined {
-  if (!REPRODUCTIVE_CARD_ITEM.test(item)) return item;
+function itemWithoutReproductive(item: string, outside = (text: string) => REPRODUCTIVE_CARD_ITEM.test(text)): string | undefined {
+  if (!outside(item)) return item;
   const rest = item.replace(REPRODUCTIVE_ITEM_LEAD, "");
-  return rest !== item && rest.length >= 2 && !REPRODUCTIVE_CARD_ITEM.test(rest) ? rest : undefined;
+  return rest !== item && rest.length >= 2 && !outside(rest) ? rest : undefined;
 }
-export function cardTextForPopulation(text: string, reproductiveRelevant: boolean): string {
-  if (reproductiveRelevant || !text || !REPRODUCTIVE_CARD_ITEM.test(text)) return text;
+export function cardTextForPopulation(text: string, reproductiveRelevant: boolean, audience?: { pregnancy: boolean; lactation: boolean }): string {
+  const outside = (item: string) => audience
+    ? ((!audience.pregnancy && /孕|妊娠/u.test(item)) || (!audience.lactation && /哺乳/u.test(item)) || (!reproductiveRelevant && /经期/u.test(item)))
+    : !reproductiveRelevant && REPRODUCTIVE_CARD_ITEM.test(item);
+  if (!text || !outside(text)) return text;
   const out = text.split(/(?<=[，,；;。])/u).flatMap((clause) => {
-    if (!REPRODUCTIVE_CARD_ITEM.test(clause)) return [clause];
+    if (!outside(clause)) return [clause];
     const ending = clause.match(/[，,；;。]$/u)?.[0] || "";
     const items = clause.slice(0, clause.length - ending.length).split("、");
-    const keptItems = items.map(itemWithoutReproductive).filter((item): item is string => Boolean(item));
+    const keptItems = items.map((item) => itemWithoutReproductive(item, outside)).filter((item): item is string => Boolean(item));
     if (keptItems.length === 0) return [];
     // 去掉的是带谓语的最后一项（「颜面部、大血管部位、孕妇腹部及腰骶部不宜施灸」）：谓语接回剩下的列举，不留「颜面部、大血管部位；」。
     const last = items[items.length - 1];
-    const predicate = itemWithoutReproductive(last) === undefined ? last.match(REPRODUCTIVE_ITEM_PREDICATE)?.[0] : undefined;
+    const predicate = itemWithoutReproductive(last, outside) === undefined ? last.match(REPRODUCTIVE_ITEM_PREDICATE)?.[0] : undefined;
     if (predicate) keptItems[keptItems.length - 1] = `${keptItems[keptItems.length - 1]}${predicate}`;
     return [`${keptItems.join("、")}${ending}`];
   }).join("");
-  return out.replace(/[，,；;]$/u, "。").trim() || text;
+  return out.replace(/[，,；;]$/u, "。").trim();
 }
 
 /** 刺络放血类操作（刺络拔罐、点刺出血、三棱针）。 */
@@ -1776,8 +1792,10 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
   let base: { points: string[]; content: string; system: string; line: number; entry: AcupunctureEntry } | undefined;
   // 教材分套写基本治疗的病：按本例证候只取对应的一套（见 pickBasicTreatmentVariant）。
   const variant = code === "acupuncture" ? pickBasicTreatmentVariant(primary, input) : undefined;
+  const recovery = code === "acupuncture" && strokeRecoveryCard(input.diseaseNames, input.westernNames, input.chiefComplaint || "");
   if (code === "acupuncture") {
     base = { points: variant?.mainPoints || primary.mainPoints, content: textbookOcrFixed(variant?.therapy || primary.therapy), system: "body", line: primary.line, entry: primary };
+    if (recovery) base = { ...base, points: base.points.filter((point) => !strokeRecoveryPolicy.openingPoints.includes(point)), content: "" };
   } else {
     for (const entry of [primary, ...entries.filter((item) => item !== primary)]) {
       const items = entry.projects[code] || [];
@@ -1970,7 +1988,10 @@ function acupointPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPla
       : /^取/u.test(meridianSentence) ? `${cutText(meridianSentence, 70)}。` : `取穴：${cutText(meridianSentence, 70)}。`
     : `${projectName}${cutText(operationClausesForAge(withoutFacialPointBloodletting(withoutBloodlettingWhenUnsuitable(
       withSyndromeMatchedClauses(projectContent, input), input), base.points), input.patientAgeYears), 240)}`;
-  const variantOperation = textbookOcrFixed(variant?.operation || primary.operation);
+  const rawVariantOperation = textbookOcrFixed(variant?.operation || primary.operation);
+  const variantOperation = recovery
+    ? manipulationMatchedToSyndrome(rawVariantOperation, input.signedSyndromeText, input.signedPrinciple, true)
+    : rawVariantOperation;
   const operation = code === "acupuncture" ? variantOperation : projectContent;
   // 其他疗法不借针刺的操作句：此前耳穴、拔罐卡的疗程栏里出现「外感咳嗽针用泻法，肺俞可配闪罐」（2026-10-14 独立评审）。
   const ageFit = (text: string) => operationClausesForAge(text, input.patientAgeYears);

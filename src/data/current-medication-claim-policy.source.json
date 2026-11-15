@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "basis": "只校验 delivered-surface.requiredPrecautionLine 生成的封闭现用药清单句式；药名及时间状态复用 clinical-polarity。无效清单整条舍弃，由本例必写项重新提供有依据的提示；不改写句内药名，不匹配相互作用或抗凝风险提示。",
+  "claimPattern": "(?:^|[；;])(?:您)?正在(?:服用|使用|外用|吸入)的([^。；;]{1,100}?)请(?:先)?告知医生"
+}

@@ -1,3 +1,5 @@
+import { populationMatchedPrecautions } from "./population-matched-precautions";
+import { currentMedicationPrecautions } from "./current-medication-precautions";
 import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import triggerPolicy from "../data/tcm-modification-trigger-policy.source.json" with { type: "json" };
 import { redFlagActiveFor } from "./clinical-red-flag-context";
@@ -258,7 +260,9 @@ const PRESCRIPTION_ADMINISTRATION_LINE = /温服|冷服|顿服|煎服|先煎|后
  * 没有病例信息（直接调编译器）时不过滤。
  */
 function casePrecautions(precautions: readonly string[], caseState: CaseState | undefined): string[] {
+  precautions = populationMatchedPrecautions(precautions, caseState);
   if (!caseState) return [...precautions];
+  precautions = currentMedicationPrecautions(precautions, clinicalGroundingText(caseState));
   if (!pregnancyAdviceRelevant(caseState)) precautions = precautions.filter((item) => !REPRODUCTIVE_ADVICE_LINE.test(item));
   else if (assessPregnancyState(clinicalGroundingText(caseState)).status === "positive" || pregnancyPainOrBleedingSignal(caseState)) {
     // 已确认妊娠，或停经伴腹痛、阴道出血已按早孕/异位妊娠急症转诊的（与闸门产科红旗同一判据；第四十轮 11.05 病历17）：不写「如已怀孕/备孕」的假设小句。

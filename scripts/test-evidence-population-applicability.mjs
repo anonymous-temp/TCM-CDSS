@@ -28,11 +28,11 @@ const evidence = [
   "## EviMed 指南/共识检索",
   "用途：诊断、治疗原则、随访与转诊依据",
   "命中证据摘要（仅引用下列真实题名、机构、年份和URL；不得编造未列出的资料；引用时使用方括号ID）：",
-  "[EVID-GUIDE-001] 儿童骨质疏松症诊断与治疗专家共识（中华医学会儿科学分会，2022）：本共识针对儿童及青少年骨质疏松的诊断标准。 URL:https://example.org/g1",
-  "[EVID-GUIDE-002] 原发性骨质疏松症诊疗指南（2022）（中华医学会骨质疏松和骨矿盐疾病分会，2022）：适用于绝经后妇女及老年人原发性骨质疏松症的诊断与治疗。 URL:https://example.org/g2",
-  "[EVID-GUIDE-003] 缺铁性贫血诊断与治疗中国专家共识（中华医学会血液学分会，2021）：适用于成人缺铁性贫血，包括育龄妇女月经量增多所致者。 URL:https://example.org/g3",
-  "[EVID-GUIDE-004] 妊娠期高血压疾病诊治指南（2020）（中华医学会妇产科学分会，2020）：妊娠期及产后高血压疾病的诊断与处理。 URL:https://example.org/g4",
-  "[EVID-GUIDE-005] 月经过多诊治指南（中华医学会妇产科学分会，2021）：经量异常增多的评估、鉴别与治疗。 URL:https://example.org/g5",
+  "[EVID-GUIDE-001] 儿童骨质疏松症诊断与治疗专家共识（中华医学会儿科学分会，2022）：本共识针对儿童及青少年骨质疏松的诊断标准。 URL:https://www.cma.org.cn/g1",
+  "[EVID-GUIDE-002] 原发性骨质疏松症诊疗指南（2022）（中华医学会骨质疏松和骨矿盐疾病分会，2022）：适用于绝经后妇女及老年人原发性骨质疏松症的诊断与治疗。 URL:https://www.cma.org.cn/g2",
+  "[EVID-GUIDE-003] 缺铁性贫血诊断与治疗中国专家共识（中华医学会血液学分会，2021）：适用于成人缺铁性贫血，包括育龄妇女月经量增多所致者。 URL:https://www.cma.org.cn/g3",
+  "[EVID-GUIDE-004] 妊娠期高血压疾病诊治指南（2020）（中华医学会妇产科学分会，2020）：妊娠期及产后高血压疾病的诊断与处理。 URL:https://www.cma.org.cn/g4",
+  "[EVID-GUIDE-005] 月经过多诊治指南（中华医学会妇产科学分会，2021）：经量异常增多的评估、鉴别与治疗。 URL:https://www.cma.org.cn/g5",
 ].join("\n");
 
 function references(patient, primaryName, chiefComplaint, claimedId) {
@@ -53,9 +53,10 @@ assert.deepEqual(references({ age: 45, sex: "男" }, "缺铁性贫血", "乏力�
 assert.deepEqual(references({ age: 40, sex: "男" }, "骨质疏松症", "腰背痛3月", "EVID-GUIDE-002"), ["EVID-GUIDE-002"], "40 岁男性：骨质疏松指南适用");
 assert.deepEqual(references({ age: 30, sex: "女" }, "缺铁性贫血", "乏力头晕2月，月经量多", "EVID-GUIDE-003"), ["EVID-GUIDE-003"], "30 岁女性：对照");
 
-// 2) 胎产严格口径仍排除。M1 实跑后按 C3/crit 已合入口径：排除错误指南后可回填本病诊断要点表来源。
-assert.deepEqual(references({ age: 45, sex: "男" }, "高血压", "头晕1月，血压偏高", "EVID-GUIDE-004"), ["LOCAL-WESTERN-CRITERIA:高血压病"], "男性：不引用妊娠期指南，回填本病要点表来源");
-assert.deepEqual(references({ age: 68, sex: "女" }, "高血压", "头晕1月，血压偏高，已绝经", "EVID-GUIDE-004"), ["LOCAL-WESTERN-CRITERIA:高血压病"], "绝经后女性：不引用妊娠期指南，回填本病要点表来源");
+// F3：已实跑旧套件；合成来源改白名单URL，反伪造与人群过滤断言保留。
+// 2) 胎产严格口径仍排除；高血压要点表题名为科普不对题，不能为了填栏回填。
+assert.deepEqual(references({ age: 45, sex: "男" }, "高血压", "头晕1月，血压偏高", "EVID-GUIDE-004"), [], "男性：不引用妊娠期指南或不对题的表来源");
+assert.deepEqual(references({ age: 68, sex: "女" }, "高血压", "头晕1月，血压偏高，已绝经", "EVID-GUIDE-004"), [], "绝经后女性：不引用妊娠期指南或不对题的表来源");
 assert.deepEqual(references({ age: 28, sex: "女" }, "妊娠期高血压", "孕28周血压升高", "EVID-GUIDE-004"), ["EVID-GUIDE-004"], "育龄女性：妊娠期高血压指南适用（对照）");
 
 // 3) 宽口径词出现在题名里仍排除。
