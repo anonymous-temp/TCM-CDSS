@@ -191,6 +191,10 @@ type RequiredLineContext = {
   /** 方中知识库标注「出血倾向/月经期/抗凝状态」慎用的药（活血化瘀类）。 */
   bleedingHerbs?: string[];
 };
+/** 测试用：单条规则注意事项的写法。 */
+export function requiredPrecautionLineForTest(item: RequiredPrecaution): string {
+  return requiredPrecautionLine(item, new Set(), []);
+}
 function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: ReadonlySet<string>, lactationHerbs: readonly string[], pregnancyLabelledHerbs: readonly string[] = [], decoctionMethod = "", currentLines: readonly string[] = [], context: RequiredLineContext = {}): string {
   if (item.kind === "self_medication") {
     const overlap = item.composition.filter((herb) => herbIdentities.has(herb));
@@ -268,12 +272,16 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
     const names = missing.length > 0 ? missing : item.names;
     const given = new Set(item.given || []);
     const isTopical = (name: string) => TOPICAL_MEDICATION_FORM.test(name) || (item.topical || []).includes(name);
-    const topical = names.filter((name) => isTopical(name) && !given.has(name));
-    const oral = names.filter((name) => !isTopical(name) && !given.has(name));
+    // 吸入剂（吸入性糖皮质激素、气雾剂）不说「服用」也不说「外用」（第四十六轮终审 C074「正在服用的…吸入性糖皮质激素」）。
+    const isInhaled = (name: string) => /吸入|气雾剂|喷雾剂/u.test(name);
+    const inhaled = names.filter((name) => isInhaled(name) && !given.has(name));
+    const topical = names.filter((name) => !isInhaled(name) && isTopical(name) && !given.has(name));
+    const oral = names.filter((name) => !isInhaled(name) && !isTopical(name) && !given.has(name));
     const recorded = names.filter((name) => given.has(name));
     return [
       oral.length > 0 ? `正在服用的${oral.join("、")}请告知医生，是否继续服用、与本方如何错开服用由医生决定` : "",
       topical.length > 0 ? `正在外用的${topical.join("、")}请告知医生，是否继续使用由医生决定` : "",
+      inhaled.length > 0 ? `正在使用的${inhaled.join("、")}请告知医生，按医生交代规律使用，不要自行停用` : "",
       recorded.length > 0 ? `病历记录用过的${recorded.join("、")}，请告知医生现在是否还在用，能否与本方同用由医生决定` : "",
       noSelfStopLine,
     ].filter(Boolean).join("；") + "。";
@@ -906,7 +914,10 @@ function withoutAdjacentRepeatedClauses(value: string): string {
 //（第四十六轮复核 C069，模型照提示「病历没记录的写未诉」写出、服务端改写也曾写出）。这一项（顿号之间）去掉。构词守卫。
 const EXAM_ACTION_NOT_REPORTED = /(?:^|[、，,])(?:[^、，,。；;]{0,8})(?:推|按|触|压|叩|扪)之未诉[^、，,。；;]{1,8}(?=[、，,。；;]|$)/gu;
 export function readabilityCleaned(input: string): string {
-  const repeated = withoutAdjacentRepeatedClauses(input);
+  // 「考虑X待查可能」「符合X待查」（病名带待查后依据里照写，第四十六轮终审 C083、C037、C038）：读不通，写「考虑X可能」。
+  const repeated = withoutAdjacentRepeatedClauses(input)
+    .replace(/考虑([\u4e00-\u9fff]{2,20}?)待[查排](?:的)?可能/gu, "考虑$1可能")
+    .replace(/(?:符合|支持)([\u4e00-\u9fff]{2,20}?)待[查排](?:的?(?:表现|诊断|特点))?/gu, "考虑$1可能");
   const value = EXAM_ACTION_NOT_REPORTED.test(repeated)
     ? repeated.replace(EXAM_ACTION_NOT_REPORTED, (match) => (/^[，,]/u.test(match) ? match[0] : "")).replace(/^[、，,]+/u, "").replace(/([，,；;。])、/gu, "$1")
     : repeated;

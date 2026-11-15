@@ -8,6 +8,8 @@
 //  4. 出血未排除（雷击样头痛、未做影像的卒中样表现、循环不稳伴阴道出血）时活血化瘀药不入方。
 // 每条断言都有反证（~/runlogs/r1018/work/r1063/cp/main.py）。
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, {
@@ -465,6 +467,29 @@ await check("7.17 没选流派时辨证依据里模型自写的「从…学派�
   const own = "久泻乏力为脾气虚弱。温补学派看脾肾命门，本例脾虚为主。";
   assert.equal(provenance.withoutForeignLineageLensSentence(base(own, { applicable: "partial" }), "warm-tonify").overview.tcmDiagnosticRationale, own, "对照：选了温补");
   assert.equal(provenance.withoutForeignLineageLensSentence({ ...base(text), stage: "prescribe" }, "unrestricted").overview.tcmDiagnosticRationale, text, "对照：开方阶段不动");
+});
+
+await check("7.18 「考虑X待查可能」「符合X待查」交付成「考虑X可能」；「考虑X可能」照留（对照）", () => {
+  assert.equal(surface.readabilityCleaned("咳嗽2周，考虑急性支气管炎待查可能。"), "咳嗽2周，考虑急性支气管炎可能。");
+  assert.equal(surface.readabilityCleaned("夜间憋醒，符合阻塞性睡眠呼吸暂停待查的表现。"), "夜间憋醒，考虑阻塞性睡眠呼吸暂停可能。");
+  assert.equal(surface.readabilityCleaned("考虑急性支气管炎可能。"), "考虑急性支气管炎可能。", "对照");
+});
+
+await check("7.19 吸入剂不写「正在服用的」；「器使用方法未核实」这类说明不当药名", async () => {
+  const polarity = await jiti.import("../src/lib/clinical-polarity.ts");
+  assert.equal(polarity.cleanedMedicationNameCandidate("器使用方法未核实"), "");
+  assert.notEqual(polarity.cleanedMedicationNameCandidate("布地奈德吸入剂"), "", "对照：药名照认");
+  const line = surface.requiredPrecautionLineForTest({ kind: "current_medications", names: ["吸入性糖皮质激素", "孟鲁司特钠片"] });
+  assert.match(line, /正在使用的吸入性糖皮质激素/u, line);
+  assert.match(line, /正在服用的孟鲁司特钠片/u, line);
+  assert.doesNotMatch(line, /正在服用的[^；]*吸入/u, line);
+});
+
+await check("7.20 M03 提示：流派部分相符时写取了什么、不写「按常规辨证处理」；不相符时照写", () => {
+  const prompts = jiti.import ? null : null; void prompts;
+  const text = require("node:fs").readFileSync("src/lib/diagnosis-prompts.ts", "utf8");
+  assert.match(text, /部分相符时（lineageAdaptation\.applicable 为 partial）[^；]*不写“按常规辨证处理”/u);
+  assert.match(text, /不相符时（not-applicable）写这一派要看什么、本例缺什么，再说以下按常规辨证处理/u);
 });
 
 if (failures > 0) console.error(`\n${failures} check(s) failed`);
