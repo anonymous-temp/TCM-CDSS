@@ -877,6 +877,8 @@ const scripts = [
   "test:nihaisha-fusion",
   "test:nihaisha-replay",
   "test:prompt-injection",
+  // 第四十七轮 C1：教材注意与病历引文、在孕角色、用途炮制与液体剂量。
+  "test:r1064-herb",
 ];
 
 // 不进闸门的 test:* 脚本，逐条写明原因。新增 test:* 脚本必须进上面的数组或进这里，否则闸门开头即失败。

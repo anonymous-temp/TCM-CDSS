@@ -43,6 +43,8 @@ import { compactEvidenceContextForPrompt, m04EvidencePromptBudgetChars, m04Exter
 import { declassifyAndDropOpposingM04CandidateHerbs } from "@/lib/m04-modification-safety";
 import { checkFormulaAnalysisClaimsInContent } from "@/lib/m04-formula-analysis-claim-check.server";
 import { dropMisfitModifications, withModificationsFrom, topUpModificationConditions } from "@/lib/m04-modification-fit.server";
+import { applyHerbCautionHits, checkHerbCautions } from "@/lib/herb-caution-check.server";
+import { textbookPregnancyRestrictedHerbNames } from "@/lib/herb-textbook-identity";
 import { buildSimilarModernCaseContext } from "@/lib/modern-case-exemplars.server";
 import { memoizedScopeText } from "@/lib/model-call-memo.server";
 import { withClinicalResponseArchive } from "@/lib/request-archive.server";
@@ -357,6 +359,7 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
   // 第四十六轮扩到可疑妊娠（与合同 m04GenerationSpecialPopulationIssue 同一判据 isPositiveOrPossibleClinicalState）。
   const pregnancyStatus = assessPregnancyState(structuredClinicalContext);
   if (isPositiveOrPossibleClinicalState(pregnancyStatus)) {
+    promptSuffixes.push(`《中药学》教材另有孕妇禁、忌、慎用记载的药（${textbookPregnancyRestrictedHerbNames().join("、")}）同样不作君药、臣药；教材禁忌用的优先避开。`);
     promptSuffixes.push(`【在孕】病历记录患者${pregnancyStatus.status === "positive" ? "在孕" : "可能妊娠（尚未排除）"}：《中国药典》2020年版孕妇禁用/忌用的饮片不用；孕妇慎用的饮片（${chpPregnancyCautionHerbNames().slice(0, 30).join("、")}等）不作君药、臣药，确需时只作佐使并少量；行气活血、攻下、滑利的药慎选，优先安胎护胎的配伍。`);
   }
   if (pregnancyHerbTier === "conception") {
@@ -543,15 +546,17 @@ async function computePrescribe(parsed: ParsedStageRequest, signal: AbortSignal,
     },
     // 方义药物功效核对（小模型报疑、确定性核实后只删那一小段；见 m04-formula-analysis-claim-check.server.ts）。签名与合同核对之前执行。
     m04CandidateTransform: async (content, transformSignal) => {
-      const [checked, fitted, authored] = await Promise.all([
+      const [checked, fitted, authored, cautionHits] = await Promise.all([
         checkFormulaAnalysisClaimsInContent(content, transformSignal),
         dropMisfitModifications(content, { recordText: structuredClinicalContext }, transformSignal),
         homeAcupointAuthoring,
+        checkHerbCautions(content, { recordText: structuredClinicalContext }, transformSignal),
       ]);
       authoredHomeAcupoint = authored;
       // 两件核对都在同一份内容上并行，方义与加减互不相干：取方义核对的结果，把加减行换成核对后的。
       // 核对之后不同的条件不足两个时补写（教材没有这一证、模型也没写时，其余病例不发请求）。
-      return topUpModificationConditions(withModificationsFrom(checked, fitted), { recordText: structuredClinicalContext, prior: signedPriorReasoning, caseState: safeState }, transformSignal);
+      const toppedUp = await topUpModificationConditions(withModificationsFrom(checked, fitted), { recordText: structuredClinicalContext, prior: signedPriorReasoning, caseState: safeState }, transformSignal);
+      return applyHerbCautionHits(toppedUp, cautionHits);
     },
     prescribeSignatureContext: buildPrescribeContractSignatureContext({ ...gated, reasoningDiagnose: deliveredSignedPriorReasoning }),
     // 医生点「重新生成候选方药」时前端原样重发同一份 caseState 与同一份已签名 M03，

@@ -51,6 +51,7 @@ import { herbRecordCautionConflict, herbRecordCautionConflicts, herbStrongRecord
 import { withoutNormalFindingSegments } from "./diagnosis-visible-summary";
 import { assessLactationState, assessPregnancyState } from "./clinical-state";
 import { specialDecoctionPhrase, withoutUnsupportedDecoctionLabels } from "./herb-decoction-rules";
+import { liquidHerbDoseRule, liquidHerbDoseWithinRange, normalizedLiquidHerbDose, suggestedLiquidHerbDose } from "./herb-liquid-dose";
 import { withheldBaseIngredientNote } from "./formula-withheld-ingredient-note";
 import { chpPregnancyHerbTier, conceptionHerbNote } from "./conception-herb-policy";
 import { allergenHerbMatch, recordedAllergensInText } from "./allergen-profile";
@@ -70,6 +71,13 @@ function compileHerbVerification(name: string, dose: string, method: string, mod
   verificationReasons: string[];
   isToxic: boolean;
 } {
+  const liquid = liquidHerbDoseRule(name);
+  if (liquid) return {
+    verificationTier: "unverified_dose",
+    doseSource: "governed_boundary",
+    verificationReasons: [`本次 ${dose}；《中药学》成人参考用量 ${liquid.minMl}–${liquid.maxMl}mL，本方${liquid.method}；${liquidHerbDoseWithinRange(name, dose, pediatric?.fraction) ? "请医生确认用量" : "用量未与适用参考范围核对一致"}。`],
+    isToxic: false,
+  };
   const identity = resolveGovernedTcmHerbIdentity(name);
   const canonicalName = identity.doseCanonicalName || identity.canonicalName;
   if (!canonicalName) {
@@ -1691,6 +1699,7 @@ function normalizeHerb(
     }
   }
   herb.dose = normalizeDose(herb.dose ?? herb["剂量"]);
+  if (typeof herb.name === "string" && typeof herb.dose === "string") herb.dose = normalizedLiquidHerbDose(herb.name, herb.dose);
 
   const processing = unwrapSingleText(herb.processing ?? herb["炮制"] ?? herb["规格"]);
   if (processing) herb.processing = processing;
@@ -2082,6 +2091,8 @@ export function normalizeM04DraftCandidate(
  *（常用量）。儿童按年龄分数法的逐味上限再封顶。药典没有内服剂量范围的药味不给剂量（由医生定）。
  */
 function modificationAddDose(herbName: string, modelDose: string | undefined, pediatric?: PediatricDoseRule): string | null {
+  const volumeDose = suggestedLiquidHerbDose(herbName, modelDose, pediatric?.fraction);
+  if (volumeDose) return volumeDose;
   // 教材加减写的炮制品名（炒麦芽、焦山楂）知识库没有单列剂量时，按生品的药典剂量（普通炮制前缀 + 药典名、非毒性药，ordinaryProcessedBaseHerbName；
   // 第四十一轮 11.05 病历9「若脘胀纳少加炒麦芽」没有剂量）。
   const processedBase = getTcmHerbDoseLimit(herbName) ? undefined : ordinaryProcessedBaseHerbName(herbName);

@@ -7,6 +7,7 @@ import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { compositionIdentityName } from "./tcm-formula-provenance";
 import { quoteGroundedInText } from "./verbatim-quote";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
+import { applyHerbCautionHits, checkHerbCautions } from "./herb-caution-check.server";
 import modificationRelevance from "../data/tcm-modification-relevance.source.json" with { type: "json" };
 
 const MECHANISM_HALVES = new Set((modificationRelevance as { mechanismHalvesNotFindings?: string[] }).mechanismHalvesNotFindings || []);
@@ -292,6 +293,7 @@ export async function topUpModificationConditions(
   const method = text(record(root.therapy)?.overallMethod);
   const chiefComplaint = text(context.caseState?.chiefComplaint);
   const mainSymptomHerbs = mainSymptomStrengtheningHerbs(context.prior, chiefComplaint, herbs);
+  const cautionNotes: string[] = [];
   const added = await proposeTwiceThenVerifyAll<TopUpRow>("m04_modification_top_up", "prescribe", {
     messages: [
       { role: "system", content: standbyModificationsDelivered() ? STANDBY_TOP_UP_SYSTEM : TOP_UP_SYSTEM },
@@ -306,7 +308,21 @@ export async function topUpModificationConditions(
     ],
     maxTokens: 40,
     parse: parseConfirmed,
-  }), 8, TIMEOUT_MS, signal);
+  }), 8, TIMEOUT_MS, signal, {
+    // 补写的新药尚未进入外层并行批次；与已有逐行复核同时核教材条件，避免交付时出现未核对的新加味。
+    filterProposals: async (proposals) => {
+      const draft = { formula: { candidates: [], modifications: proposals.map((row) => ({ ...row, action: "加" })) } };
+      const wrapped = `${START_MARKER}\n${JSON.stringify(draft)}\n${END_MARKER}`;
+      const hits = await checkHerbCautions(wrapped, context, signal);
+      const checked = applyHerbCautionHits(wrapped, hits);
+      if (checked === wrapped) return proposals;
+      const value = record(JSON.parse(checked.slice(checked.indexOf(START_MARKER) + START_MARKER.length, checked.indexOf(END_MARKER)).trim()));
+      const kept = Array.isArray(record(value?.formula)?.modifications) ? record(value?.formula)!.modifications as Json[] : [];
+      const precautions = record(value?.nonPharma)?.precautions;
+      if (Array.isArray(precautions)) cautionNotes.push(...precautions.filter((note): note is string => typeof note === "string"));
+      return proposals.filter((row) => kept.some((item) => item.herbName === row.herbName && item.trigger === row.trigger));
+    },
+  });
   const delivered = [...rows];
   const triggers = [...existing];
   const taken = [...herbs, ...rows.map((row) => text(row.herbName))];
@@ -318,7 +334,12 @@ export async function topUpModificationConditions(
     triggers.push(row.trigger);
     taken.push(row.herbName);
   }
-  if (delivered.length === rows.length) return content;
+  if (delivered.length === rows.length && cautionNotes.length === 0) return content;
+  if (cautionNotes.length) {
+    const nonPharma = record(root.nonPharma) || {};
+    nonPharma.precautions = [...new Set([...(Array.isArray(nonPharma.precautions) ? nonPharma.precautions : []), ...cautionNotes])];
+    root.nonPharma = nonPharma;
+  }
   formula.modifications = delivered;
   console.info("[tcm-cdss:telemetry] m04_modification_top_up", { before: rows.length, after: delivered.length });
   return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(root, null, 2)}\n${content.slice(end)}`;

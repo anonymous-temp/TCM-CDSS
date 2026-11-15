@@ -1,6 +1,7 @@
 import knowledge from "../data/tcm-knowledge.json" with { type: "json" };
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { textbookHerbUsage } from "./herb-textbook-identity";
+import { liquidHerbDoseRule } from "./herb-liquid-dose";
 
 type HerbEntry = Record<string, unknown>;
 type HerbRecord = { name: string; aliases?: string[]; entries?: HerbEntry[] };
@@ -177,6 +178,8 @@ function hasSpecificDecoctionTiming(required: ReadonlySet<string>, oneOf: readon
 }
 
 export function decoctionRuleForHerb(value: string): DecoctionRule | undefined {
+  const volumeRule = liquidHerbDoseRule(value);
+  if (volumeRule) return { required: [volumeRule.method], oneOf: [], prohibited: [] };
   const liquid = LIQUID_ADJUNCT_METHODS[normalizedName(String(value || ""))];
   // 不写 prohibited「同煎」：合同把它读成「不入汤剂、须从方中删除」（route_not_decoction），而汁、乳是要随汤服的。
   if (liquid) return { required: [...liquid], oneOf: [], prohibited: [] };

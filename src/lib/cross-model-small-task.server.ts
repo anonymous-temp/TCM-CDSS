@@ -121,7 +121,7 @@ export async function proposeTwiceThenVerifyAll<P>(
   limit: number,
   timeoutMs: number,
   signal?: AbortSignal,
-  options: { recheckAgreed?: boolean; needsBothSamples?: (proposal: P) => boolean } = {},
+  options: { recheckAgreed?: boolean; needsBothSamples?: (proposal: P) => boolean; filterProposals?: (proposals: P[]) => Promise<readonly P[]> } = {},
 ): Promise<P[]> {
   const primary = getControlledTerminologyModelConfig();
   const [first, second] = await Promise.all([
@@ -138,7 +138,7 @@ export async function proposeTwiceThenVerifyAll<P>(
     return !options.needsBothSamples?.(proposal) || (inFirst.has(key) && inSecond.has(key));
   });
   if (proposals.length === 0) return [];
-  const verdicts = await Promise.all(proposals.map(async (proposal) => {
+  const [verdicts, filtered] = await Promise.all([Promise.all(proposals.map(async (proposal) => {
     const request = verify(proposal);
     if (!request) return undefined;
     const verdict = await runOne(`${namespace}_verify`, stage, textModelConfigForModel(CROSS_CHECK_MODEL()), request.messages, request.maxTokens, timeoutMs, request.parse, signal);
@@ -148,8 +148,8 @@ export async function proposeTwiceThenVerifyAll<P>(
       return runOne(`${namespace}_recheck`, stage, primary, request.messages, request.maxTokens, timeoutMs, request.parse, signal);
     }
     return verdict;
-  }));
-  return proposals.filter((_, index) => verdicts[index] === true).slice(0, limit);
+  })), options.filterProposals?.(proposals)]);
+  return proposals.filter((proposal, index) => verdicts[index] === true && (!filtered || filtered.includes(proposal))).slice(0, limit);
 }
 
 /** 一批已有的说法直接问复核（不再提名）：返回与 proposals 同序的答案。 */

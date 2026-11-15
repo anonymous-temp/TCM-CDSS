@@ -8,6 +8,7 @@ import { precautionWithoutAbsentHerbs, sameDrugDifferentProcessing, withoutModif
 import { formulaTextbookCommentary } from "./formula-textbook-commentary";
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import { herbAnyRecordCautionConflict, herbRecordCautionIsHard } from "./herb-record-caution";
+import { liquidHerbDoseRule, normalizedLiquidHerbDose } from "./herb-liquid-dose";
 
 const SAME_SOURCE_HERB_GROUPS = (sameSourceHerbs as { groups: ReadonlyArray<{ id: string; herbs: string[]; reason: string }> }).groups;
 
@@ -356,6 +357,19 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
     const nameOf = (value: unknown) => String(recordValue(value)?.name || "").trim();
     const roleOf = (value: unknown) => String(recordValue(value)?.role || "").trim();
     const removed: Array<{ name: string; reason: string }> = [];
+    let liquidChanged = false;
+    for (const value of herbs) {
+      const name = nameOf(value);
+      const herbRow = recordValue(value);
+      const liquid = liquidHerbDoseRule(name);
+      if (!herbRow || !liquid) continue;
+      const normalized = typeof herbRow.dose === "string" ? normalizedLiquidHerbDose(name, herbRow.dose) : herbRow.dose;
+      liquidChanged ||= normalized !== herbRow.dose || herbRow.decoctionRequirement !== liquid.method;
+      herbRow.dose = normalized;
+      herbRow.decoctionRequirement = liquid.method;
+    }
+    const liquidNormalizedContent = liquidChanged
+      ? `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}` : content;
     // 须由医生单独定量的管制或濒危药材（羚羊角、麝香、生川乌…，clinicianDoseHerbClass）：合同不许系统给它们剂量，
     // 模型写了剂量整方就退成非剂量页（第二十三轮红旗集：羚角钩藤汤 2 例）。单味拿出、写明请医生另行开具；
     // 它是唯一的君药时不拿（交给修复轮重选）。
@@ -369,7 +383,8 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
       const regulatory = clinicianDoseHerbClass(name);
       // 药引/辅料（竹沥、姜汁、黄酒、白蜜…，clinicianDoseHerbClass = food_or_vehicle）写成「30ml」「适量」时没有克数，合同按缺剂量整方驳回
       //（第二十五轮甲方 100 例 C048：双合汤带竹沥，整页退成非剂量）。不是君药就单味拿出、写明用量由医师另定；写了克数的照留。
-      if (regulatory === "food_or_vehicle" && roleOf(value) !== "君" && !normalizeComparableDose(String(recordValue(value)?.dose || ""))) {
+      const comparableDose = normalizeComparableDose(String(recordValue(value)?.dose || ""));
+      if (regulatory === "food_or_vehicle" && !liquidHerbDoseRule(name) && roleOf(value) !== "君" && (!comparableDose || comparableDose.endsWith("mL"))) {
         removed.push({ name, reason: "药引/辅料，如需使用请医生另定用量（多为兑服）" });
         return false;
       }
@@ -477,7 +492,7 @@ export function dropSafetyConflictingM04CandidateHerbs(content: string, clinical
         retained = retained.filter((value) => value !== drop);
       }
     }
-    if (removed.length === 0 || retained.length < SAFETY_PRUNE_MIN_RETAINED) return content;
+    if (removed.length === 0 || retained.length < SAFETY_PRUNE_MIN_RETAINED) return liquidNormalizedContent;
     candidate.herbs = retained;
     if (typeof candidate.formulaAnalysis === "string") {
       candidate.formulaAnalysis = formulaAnalysisAfterHerbRemoval(candidate.formulaAnalysis, retained.map(nameOf).filter(Boolean));

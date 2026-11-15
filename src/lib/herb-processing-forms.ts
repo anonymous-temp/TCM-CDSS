@@ -19,7 +19,7 @@ type ProcessingRule = {
   purposeWords: string[];
   rawPurposeWords: string[];
 };
-const SOURCE = processingSource as { rules: ProcessingRule[]; preparedPrefixes: string[]; formulaNameSuffixes: string[] };
+const SOURCE = processingSource as { rules: ProcessingRule[]; preparedPrefixes: string[]; formulaNameSuffixes: string[]; purposeEquivalences?: Array<{ purpose: string; aliases: string[] }> };
 const RULES = SOURCE.rules;
 /** 已带炮制或另一种饮片名的不动（「炒白术」「生白术」「白术炭」）。前缀表在数据文件里。 */
 const PREPARED_PREFIX = new RegExp(`^(?:${[...SOURCE.preparedPrefixes].sort((a, b) => b.length - a.length).join("|")})`, "u");
@@ -92,7 +92,7 @@ export function withProcessedHerbMentions(text: string, renames: ReadonlyMap<str
  * 两例内服写了裸半夏。这一处只做一件事：给定药名、已写的规格、这味药在方中写的功用和剂量，按教材原句判该交付哪种规格。
  *  · 改规格（已写了炮制，或方剂目录给了调剂名）：只在功用里完整出现另一规格的用途短语、而当前规格的用途一个字都对不上时改
  *   （煅石决明「平肝潜阳」→ 石决明）；内服须炮制的药不改回生品；
- *  · 加炮制（生品名）：第三十七轮那九味仍按旧表（按病历线索加）；其余按用途短语的半词对上的规格，生品自己的用途也对上时不加；
+ *  · 加炮制（生品名）：第三十七轮那九味仍按旧表（按病历线索加）；其余按教材明确的用途及受治理同义短语选规格，生品自身的完整用途也命中时不加；
  *  · 内服须炮制的药写了裸名：按用途选规格，选不出用教材第一个规格（法半夏）或制品（制天南星、制川乌…）；
  *  · 「多…用」「可…用」一类倾向性说法（weak）不据此改；
  *  · 改出来的名字须是知识库认得、有剂量上限的饮片名，且已开剂量不超过它的上限，否则不改。
@@ -101,7 +101,6 @@ export function withProcessedHerbMentions(text: string, renames: ReadonlyMap<str
 type PurposeFormRow = { prefix: string; purposes: string[]; weak: boolean; quote: string };
 type PurposeHerbRow = { herb: string; forms: PurposeFormRow[]; internalMustProcess?: { quote: string } };
 const PURPOSE_HERBS = new Map((purposeProcessingSource as { herbs: PurposeHerbRow[] }).herbs.map((row) => [row.herb, row]));
-const RULE_MANAGED_HERBS = new Set(RULES.map((rule) => rule.herb));
 
 /** 炮制栏或药名前缀的写法折成表里的规格前缀（蜜炙→蜜、酒炙→酒、姜汁炙→姜、炒焦→焦、炒炭→炭、麸炒→炒、生→""）。 */
 export function processingPrefixOf(processing: string): string {
@@ -146,7 +145,8 @@ function scoreForms(row: PurposeHerbRow, purposeText: string): FormScore[] {
   const byPrefix = new Map<string, string[]>();
   for (const form of row.forms) {
     if (form.weak) continue;
-    byPrefix.set(form.prefix, [...(byPrefix.get(form.prefix) || []), ...form.purposes]);
+    const phrases = form.purposes.flatMap((purpose) => [purpose, ...(SOURCE.purposeEquivalences?.find((item) => item.purpose === purpose)?.aliases || [])]);
+    byPrefix.set(form.prefix, [...(byPrefix.get(form.prefix) || []), ...phrases]);
   }
   // 同一味药几个规格共有的词（半夏三个规格都「化痰」）不算区分。
   const unitOwners = new Map<string, Set<string>>();
@@ -156,8 +156,8 @@ function scoreForms(row: PurposeHerbRow, purposeText: string): FormScore[] {
     units: new Set(phrases.flatMap(purposeUnits).filter((unit) => (unitOwners.get(unit)?.size || 0) === 1 && purposeText.includes(unit))).size,
     // 改规格：整句用途短语出现，两个字的泛词不算。
     phrases: phrases.filter((phrase) => purposeText.includes(phrase) && !GENERIC_PURPOSE_PHRASES.has(phrase)).length,
-    // 给生品加炮制：整句用途短语出现且不短于三个字（「益气补中」「补肝肾」「升阳举陷」）。
-    addPhrases: phrases.filter((phrase) => phrase.length >= 3 && purposeText.includes(phrase)).length,
+    // 给生品加炮制：完整用途短语或受治理同义词命中（含「补益」「养血」）；两字泛词仍不算。
+    addPhrases: phrases.filter((phrase) => !GENERIC_PURPOSE_PHRASES.has(phrase) && purposeText.includes(phrase)).length,
   }));
 }
 
@@ -213,7 +213,6 @@ export function purposeProcessedHerbName(
     const mine = scoreOf(current);
     if (top && top.prefix !== current && !(mine && (mine.units > 0 || mine.phrases > 0)) && !(mustProcess && top.prefix === "")) target = top.prefix;
   } else {
-    if (RULE_MANAGED_HERBS.has(base) && !mustProcess) return undefined;
     const raw = scoreOf("");
     if (mustProcess) {
       // 内服须炮制：在几种炮制品里按用途的区分词选（姜半夏「降逆止呕」），选不出用默认规格。
@@ -221,7 +220,7 @@ export function purposeProcessedHerbName(
       target = top ? top.prefix : defaultMustProcessPrefix(row);
     } else {
       const top = uniqueTop(scores.filter((item) => item.prefix !== ""), "addPhrases");
-      if (top && !(raw && raw.units > 0)) target = top.prefix;
+      if (top && !(raw && raw.phrases > 0)) target = top.prefix;
     }
   }
   if (target === undefined || target === current) return undefined;

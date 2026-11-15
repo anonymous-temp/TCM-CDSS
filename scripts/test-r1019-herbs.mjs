@@ -392,8 +392,8 @@ check("7.6 内容进出：小模型报青蒿「生津」→ 只改方义这一�
 check("7.7 接线：开方路由把核对注入 m04CandidateTransform；流层在首轮与两处修复轮的 finalize 之后各调一次，失败隔离只有一份", () => {
   const api = readFileSync("src/lib/diagnosis-api.ts", "utf8");
   const route = readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
-  // 第二十五轮起同一处还等居家穴位保健的选穴结果（两件并行），方义核对照旧注入这里。
-  assert.match(route, /m04CandidateTransform: async \(content, transformSignal\) => \{\n\s*const \[checked, fitted, authored\] = await Promise\.all\(\[\s*checkFormulaAnalysisClaimsInContent\(content, transformSignal\),\s*dropMisfitModifications\(content, \{ recordText: structuredClinicalContext \}, transformSignal\),\s*homeAcupointAuthoring,?\s*\]\);/);
+  // 第四十七轮 C1 在同一个 Promise.all 另加教材注意核对；原三项仍并行，不放宽接线检查。
+  assert.match(route, /m04CandidateTransform: async \(content, transformSignal\) => \{\n\s*const \[checked, fitted, authored, cautionHits\] = await Promise\.all\(\[\s*checkFormulaAnalysisClaimsInContent\(content, transformSignal\),\s*dropMisfitModifications\(content, \{ recordText: structuredClinicalContext \}, transformSignal\),\s*homeAcupointAuthoring,\s*checkHerbCautions\(content, \{ recordText: structuredClinicalContext \}, transformSignal\),?\s*\]\);/);
   const calls = [...api.matchAll(/(\w+) = await transformM04Candidate\(\1\);/g)].map((match) => match[1]);
   assert.equal(new Set(calls).size, 3, JSON.stringify(calls));
   assert.deepEqual(new Set(calls), new Set(["authoritativeContent", "resolvedRetryContent", "secondResolved"]));

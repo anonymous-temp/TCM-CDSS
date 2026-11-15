@@ -3,6 +3,7 @@ import { canonicalTcmHerbIdentity, m04SemanticIssue } from "./diagnosis-stage-co
 import { isKnownTcmHerbName } from "./tcm-knowledge";
 import { buildFormulaAnalysis } from "./herb-target-contract";
 import { normalizedFormulaModificationFields } from "./formula-modification";
+import { liquidHerbDoseMl, liquidHerbDoseRule } from "./herb-liquid-dose";
 
 type Formula = NonNullable<ClinicalReasoningResultV2["formula"]>;
 type Candidate = Formula["candidates"][number];
@@ -11,7 +12,8 @@ type Herb = Candidate["herbs"][number];
 const EDIT_PLACEHOLDER = /(待医生|待填写|待补充|待确认|待核实|未填写|未说明|占位)/;
 const EDIT_DOSE = /^(\d+(?:\.\d+)?)\s*(g|克|mg|毫克)$/i;
 
-export function isValidEditedHerbDose(value: unknown): boolean {
+export function isValidEditedHerbDose(value: unknown, herbName = ""): boolean {
+  if (liquidHerbDoseRule(herbName)) return liquidHerbDoseMl(herbName, String(value ?? "")) != null;
   const match = String(value ?? "").trim().match(EDIT_DOSE);
   if (!match) return false;
   const amount = Number(match[1]);
@@ -29,7 +31,7 @@ export function hasIncompleteEditedHerb(herb: Herb): boolean {
       ? herb.targetRef !== "FORMULA_STRUCTURE" || !herb.structureRole || (herb.role !== "佐" && herb.role !== "使")
       : true;
   return !herb.name.trim() ||
-    !isValidEditedHerbDose(herb.dose) ||
+    !isValidEditedHerbDose(herb.dose, herb.name) ||
     !herb.role ||
     invalidTarget ||
     !herb.targetPathogenesis.trim() ||

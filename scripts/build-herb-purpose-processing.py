@@ -88,6 +88,11 @@ def form_rows(herb: str, entry: dict) -> list[dict]:
                 biased = re.match(rf"^(?P<word>{PROCESS_ALT})用偏于(?P<purposes>.+)$", part.strip())
                 if biased:
                     rows.append({"prefix": PREFIX_OF[biased.group("word")], "purposes": purposes_of(biased.group("purposes")), "weak": False, "quote": part.strip(), "field": "usage", "line": line})
+    # 新字段保留跨行【用法用量】原句；旧 usage 只有第一行。仍用同一套句式解析，不另列药名。
+    for purpose in entry.get("processingPurposes", []):
+        if purpose["raw"] in usage:
+            continue
+        rows.extend(form_rows(herb, {"usage": purpose["raw"], "usageLine": purpose["line"]}))
     # ③ 【功效】分规格（「制何首乌：…。生何首乌：…」）与【使用注意】「制用偏于补益…；生用滑肠通便」
     for match in re.finditer(rf"(?P<prefix>{PROCESS_ALT}){re.escape(herb)}[：:](?P<purposes>[^。]+)", entry.get("function") or ""):
         rows.append({"prefix": PREFIX_OF[match.group("prefix")], "purposes": purposes_of(match.group("purposes")), "weak": False, "quote": match.group(0), "field": "function", "line": entry.get("line")})

@@ -48,6 +48,7 @@ import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concep
 import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBaseName, patentMedicineLabelIsTonic, tonicMedicineCategory, TOPICAL_MEDICATION_FORM } from "./local-patent-medicine-candidates";
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { internalMustProcessHerb, processedHerbName, purposeProcessedHerbName, withProcessedHerbMentions } from "./herb-processing-forms";
+import { liquidHerbDoseRule, normalizedLiquidHerbDose } from "./herb-liquid-dose";
 import { westernBasisWithoutEstablishmentContradiction, withoutMissingClaimsForRecordedTests, withoutUnrecordedTestCitations } from "./recorded-test-claims";
 import { withoutLabelPlaceholders } from "./instruction-record-pool";
 import { resolveTcmDiseaseName } from "./clinical-terminology";
@@ -1625,6 +1626,11 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
     for (const herb of records(candidate.herbs)) {
       const name = typeof herb.name === "string" ? herb.name.trim() : "";
       if (!name) continue;
+      const liquid = liquidHerbDoseRule(name);
+      if (liquid) {
+        if (typeof herb.dose === "string") herb.dose = normalizedLiquidHerbDose(name, herb.dose);
+        herb.decoctionRequirement = liquid.method;
+      }
       const processing = typeof herb.processing === "string" ? herb.processing.trim() : "";
       // 命名方原书写了炮制的那一味（完带汤「白术（土炒）」）不按用途改。
       const identity = compositionIdentityName(name);
@@ -1654,6 +1660,7 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
         if (!originalPrepared) byPurpose(herb, name, "", ownFunction(herb));
         continue;
       }
+      if (!originalPrepared && byPurpose(herb, name, "", ownFunction(herb))) continue;
       const fromRules = processedHerbName(name, { purposeText: purposeOf(herb), recordText, formulaName, formulaContext: originalContext });
       if (fromRules) rename(herb, fromRules);
       else if (!originalPrepared) byPurpose(herb, name, "", ownFunction(herb));
@@ -1662,6 +1669,13 @@ function deliveredProcessedHerbNames(reasoning: Json, options?: DeliveredSurface
   for (const row of records(formula?.modifications)) {
     if (row.action !== "加" || typeof row.herbName !== "string" || !row.herbName.trim()) continue;
     const name = row.herbName.trim();
+    const liquid = liquidHerbDoseRule(name);
+    if (liquid) {
+      if (typeof row.doseOrHandling === "string") row.doseOrHandling = normalizedLiquidHerbDose(name, row.doseOrHandling);
+      const handling = `${name}${liquid.method}`;
+      const riskNote = typeof row.riskNote === "string" ? row.riskNote : "";
+      if (!riskNote.includes(handling)) row.riskNote = [riskNote, handling].filter(Boolean).join("；");
+    }
     const entry = String(record(row.evidence)?.source || "");
     const textbookForm = [...entry.matchAll(new RegExp(`([煅炒焦蜜炙酒醋盐姜制煨]{1,2})${name}`, "gu"))].map((match) => `${match[1]}${name}`)
       .find((form) => isKnownTcmHerbName(form) && getTcmHerbDoseLimit(form));
