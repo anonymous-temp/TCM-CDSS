@@ -251,6 +251,7 @@ check("⑪ 未命中证型加减时必须标第三态，不得冒充个体化方
   assert.doesNotMatch(item.suggestedSitesOrPoints.join("；"), /关元/);
 });
 
+// r1064 C3：已实跑旧断言失败。反伪造、人群过滤用最终名“咳嗽”与咳嗽指南对题；题名无交集且无要点表来源则显式 []。
 // ── ⑩ 指南依据必须由 evidenceId 反查渲染，模型不得引入新字符串 ──────────────────
 const GUIDE_CONTEXT = [
   "## EviMed 指南/共识检索",
@@ -282,7 +283,7 @@ check("⑩ 模型自撰的题名/集外 id 一律丢弃，且不得回落到自�
   const payload = {
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
     westernDiagnosis: { primary: {
-      name: "急性上呼吸道感染",
+      name: "咳嗽",
       guidelineRefs: [
         { evidenceId: "EVID-GUIDE-002", appliesTo: "支持本例咳嗽的分层评估口径" },
         { evidenceId: "EVID-GUIDE-777", appliesTo: "集外条目" },
@@ -311,7 +312,7 @@ check("⑩ 模型漏填 evidenceId 时，M03 必须从本轮真实检索结果�
 
   const noRetrievedEvidence = buildEvidenceOutputTransform("无 EVID-GUIDE 或 EVID-PAPER 条目");
   const failClosed = readSentinel(noRetrievedEvidence(wrap(payload))).westernDiagnosis.primary;
-  assert.equal(failClosed.guidelineReferences, undefined, "本轮没有真实检索条目时不得补造引用");
+  assert.deepEqual(failClosed.guidelineReferences, [], "本轮没有真实检索条目时不得补造引用");
 });
 
 check("⑩ 自动补位必须排除与患者年龄不符的人群指南", () => {
@@ -329,7 +330,7 @@ check("⑩ 自动补位必须排除与患者年龄不符的人群指南", () => 
   });
   const payload = {
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
-    westernDiagnosis: { primary: { name: "感染后咳嗽", supportingFacts: ["干咳4周"], guidelineRefs: [] } },
+    westernDiagnosis: { primary: { name: "咳嗽", supportingFacts: ["干咳4周"], guidelineRefs: [] } },
   };
   const resolved = readSentinel(transform(wrap(payload))).westernDiagnosis.primary.guidelineReferences;
   assert.equal(resolved.length, 1);
@@ -378,7 +379,7 @@ check("⑩ 真实但与主诊断无关的检索结果不得为了填栏被强行
     westernDiagnosis: { primary: { name: "反酸", supportingFacts: ["反酸、嗳气"] } },
   };
   const primary = readSentinel(transform(wrap(payload))).westernDiagnosis.primary;
-  assert.equal(primary.guidelineReferences, undefined, "无主诊断相关性时宁可不展示，也不能塞无关真文献");
+  assert.deepEqual(primary.guidelineReferences, [], "无主诊断相关性时宁可不展示，也不能塞无关真文献");
 });
 
 check("⑩ 中医共识不得进入西医诊断参考文献栏，命中中医病名时应留在中医辨病依据", () => {
@@ -397,7 +398,7 @@ check("⑩ 中医共识不得进入西医诊断参考文献栏，命中中医病
     westernDiagnosis: { primary: { name: "反酸", supportingFacts: ["反酸、嗳气反复1年"] } },
   };
   const parsed = readSentinel(transform(wrap(payload)));
-  assert.equal(parsed.westernDiagnosis.primary.guidelineReferences, undefined, "中医共识不能替西医工作诊断背书");
+  assert.deepEqual(parsed.westernDiagnosis.primary.guidelineReferences, [], "中医共识不能替西医工作诊断背书");
   assert.equal(parsed.overview.tcmDiseaseReferences?.[0]?.evidenceId, "EVID-GUIDE-001", "中医共识应绑定到中医辨病依据");
 });
 

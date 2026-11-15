@@ -1,3 +1,4 @@
+import { finalizeWesternGuidelineContent } from "./western-guideline-references";
 // src/lib/diagnosis-api.ts
 import { explicitPromptCacheMessages } from "./model-prompt-cache";
 import { memoizedModelFetch } from "./model-call-memo.server";
@@ -644,10 +645,10 @@ function settleM03ClinicalOutput(content: string, clinicalContext: string): stri
   const aligned = alignNormalizedM03TcmDiagnosticRationale(
     alignNormalizedM03WesternClinicalRationale(content),
   );
-  return applyM03KeySyndromeDiscriminatorsToContent(
+  return finalizeWesternGuidelineContent(applyM03KeySyndromeDiscriminatorsToContent(
     applyDeterministicTreatmentPrinciple(aligned),
     clinicalContext,
-  );
+  ));
 }
 
 // 导出供 scripts/test-transparent-declassification.mjs 使用：剥离器产出的形态必须与

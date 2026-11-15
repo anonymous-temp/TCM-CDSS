@@ -156,7 +156,11 @@ check("症状性诊断长尾只注入真实且问题匹配的本地权威依据"
       `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(payload)}\n<!-- DIAGNOSIS_JSON_END -->`,
     );
     const parsed = JSON.parse(transformed.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
-    assert.equal(parsed.westernDiagnosis.primary.guidelineReferences?.[0]?.evidenceId, evidenceId, `${evidenceId} 未进入最终诊断引用`);
+    // r1064 C3：旧套件实跑失败后逐条读了25个标题。只有下列4条标题含最终病名；其余不能用摘要中的中文症状凑题，允许要点表来源或 []。
+    const titleMatches = new Set(["EVID-PAPER-904", "EVID-PAPER-905", "EVID-GUIDE-908", "EVID-GUIDE-925"]);
+    const references = parsed.westernDiagnosis.primary.guidelineReferences || [];
+    if (titleMatches.has(evidenceId)) assert.equal(references[0]?.evidenceId, evidenceId, `${evidenceId} 对题引用必须保留`);
+    else assert.ok(references.every((reference) => reference.evidenceId.startsWith("LOCAL-WESTERN-CRITERIA:")), `${evidenceId} 标题未含最终病名，不得借摘要回填`);
   }
   assert.equal(localDiagnosticReferenceContext("精神尚可，要求健康咨询"), "", "无匹配问题不得注入通用文献凑数");
 });

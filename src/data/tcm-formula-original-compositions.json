@@ -3,9 +3,9 @@
  "generatedBy": "scripts/build-formula-original-compositions.py",
  "note": "原方组成的唯一权威（生成物，勿手改；改 tcm-formula-original-compositions.source.json 后重跑生成器）。herbs[].herb 是饮片基础名，written 是原文写法，preparation 是原文炮制，deliver=true 的炮制交付时随方写进药名；guides 是煎服法里的药引。",
  "counts": {
-  "entries": 3383,
+  "entries": 3382,
   "tiers": {
-   "original_text": 3236,
+   "original_text": 3235,
    "national_catalog": 2,
    "fangjixue": 11,
    "textbook_appendix": 99,
@@ -69280,46 +69280,6 @@
     "ref": "外台秘要",
     "url": "https://jicheng.tw/tcm/book/外台秘要/index.html",
     "quote": "煮槐根洗之，又煮桃根洗之。（千金备急同并出第九卷中）"
-   }
-  },
-  {
-   "name": "桃红四物汤",
-   "book": "医垒元戎",
-   "variant": "即四物汤加桃仁红花",
-   "tier": "original_text",
-   "herbs": [
-    {
-     "herb": "熟地黄",
-     "written": "熟地"
-    },
-    {
-     "herb": "川芎",
-     "written": "川芎"
-    },
-    {
-     "herb": "白芍",
-     "written": "白芍",
-     "preparation": "炒"
-    },
-    {
-     "herb": "当归",
-     "written": "当归"
-    },
-    {
-     "herb": "桃仁",
-     "written": "桃仁"
-    },
-    {
-     "herb": "红花",
-     "written": "红花"
-    }
-   ],
-   "guides": [],
-   "evidence": {
-    "kind": "jicheng",
-    "ref": "医宗金鉴_1",
-    "url": "https://jicheng.tw/tcm/book/醫宗金鑑_1/index.html",
-    "quote": "四物汤熟地二钱 川芎一钱 白芍 ( 炒 ) 二钱 当归二钱上为粗末, 水煎服.14.芩连四物汤即本方加黄芩, 黄连.15.芩术四物汤即本方加黄芩, 白术.16.桃红四物汤即本方加桃仁, 红花"
    }
   },
   {
@@ -156515,5 +156475,25 @@
    "通脉四逆加猪胆汤": "伤寒论",
    "参附汤": "医方类聚"
   }
- }
+ },
+ "citationAdjudications": [
+  {
+   "name": "桃红四物汤",
+   "book": "医宗金鉴",
+   "coreHerbs": [
+    "当归",
+    "川芎",
+    "白芍",
+    "桃仁",
+    "红花"
+   ],
+   "evidence": {
+    "kind": "local",
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 238136,
+    "quote": "桃红四物汤（《医宗金鉴》）：桃仁、红花、当归、白芍、熟地黄、川芎。"
+   },
+   "note": "通用教材名的出处采用《医宗金鉴》；改用生地仍为此方的加减，不另借后出书冒充初出处。核心五味齐备才作出处订正；此裁定不改变任何药味等价关系，也不授予原方组成身份。《妇科冰鉴》原文生地版本仍按书名单列。"
+  }
+ ]
 }

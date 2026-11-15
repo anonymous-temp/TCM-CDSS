@@ -13,6 +13,7 @@ import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concep
 import { recordCdssKnowledgeTrace } from "./cdss-knowledge-telemetry";
 import { localDiagnosticReferenceContext } from "./diagnostic-reference-catalog";
 import { tcmDiseaseStandardCitations } from "./tcm-diagnostic-citations";
+import { finalWesternGuidelineReferences, westernGuidelineCore, westernGuidelineTitleMatches } from "./western-guideline-references";
 import { normalizedFormulaModificationFields } from "./formula-modification";
 
 export type EvidenceStage = "diagnose" | "prescribe" | "assess";
@@ -153,45 +154,20 @@ function diagnosticReferenceAppliesToPatient(
   return true;
 }
 
-function diagnosticReferenceAnchors(payload: Record<string, unknown>, caseState?: CaseState): string[] {
-  const western = payload.westernDiagnosis;
-  const primary = western && typeof western === "object" && !Array.isArray(western)
-    ? (western as { primary?: unknown }).primary
-    : undefined;
-  const primaryName = primary && typeof primary === "object" && !Array.isArray(primary)
-    ? String((primary as { name?: unknown }).name || "").trim()
-    : "";
-  const normalizedPrimary = primaryName
-    .replace(/[，,（(]?(?:病因待查|待查|症状性)[）)]?$/g, "")
-    .replace(/^(?:急性|亚急性|慢性|反复性)/, "")
-    .trim();
-  const caseText = [primaryName, caseState?.chiefComplaint].filter(Boolean).join("；");
-  return [...new Set([
-    normalizedPrimary,
-    ...matchingMedicineClinicalProblemTerms(caseText),
-  ].map((item) => item.trim()).filter((item) => item.length >= 2))];
-}
-
-function preferredDiagnosticCitation(
-  payload: Record<string, unknown>,
-  scope: EvidenceScope,
-  caseState?: CaseState,
-): ReturnType<typeof governedEvidenceCitation> {
-  return preferredDiagnosticCitationForAnchors(diagnosticReferenceAnchors(payload, caseState), scope, caseState);
-}
-
 function preferredDiagnosticCitationForAnchors(
   anchors: readonly string[],
   scope: EvidenceScope,
   caseState?: CaseState,
+  primaryName?: string,
 ): ReturnType<typeof governedEvidenceCitation> {
   const candidates = scope.records.flatMap((evidenceRecord, recordIndex) =>
     [...evidenceRecord.ids].flatMap((evidenceId) => {
       if (!/^EVID-(?:GUIDE|PAPER)-\d{3}$/.test(evidenceId) ||
         !diagnosticReferenceAppliesToPatient(evidenceId, scope, caseState)) return [];
       const citation = governedEvidenceCitation(evidenceId, scope);
-      if (!citation || !westernDiagnosticEvidenceApplies(evidenceId, scope)) return [];
-      let relevance = 0;
+      if (!citation || !westernDiagnosticEvidenceApplies(evidenceId, scope) ||
+        (primaryName && !westernGuidelineTitleMatches(primaryName, citation.citation))) return [];
+      let relevance = primaryName ? 1 : 0;
       for (const anchor of anchors) {
         const titleIndex = citation.citation.indexOf(anchor);
         if (titleIndex >= 0) relevance = Math.max(relevance, 100 - Math.min(60, titleIndex));
@@ -294,12 +270,13 @@ function resolveGovernedGuidelineReferences(
     resolved.push({ ...citation, ...(appliesTo ? { appliesTo } : {}) });
     if (resolved.length >= 3) break;
   }
-  // 甲方要求诊断终稿必须携带本轮参考的指南/共识或文献依据。M03 统一采用服务端
-  // 检索排序中首条人群适用的 GUIDE（没有才用 PAPER），而不是让模型任意跳到更窄病因。
+  // 第四十七轮：M03 只从标题含最终病名核心概念的条目中排序；没有对题检索条目时，
+  // 使用受治理诊断要点表的来源，再没有则留空。主诉、摘要中的伴随表现不能替代病名。
   // 模型只在恰好选中同一条时贡献 appliesTo；题名、年份、URL 与排序权均不交给模型。
   // 没有真实检索记录就保持空，绝不自造。
   if (payload.stage === "diagnose") {
-    const authoritative = preferredDiagnosticCitation(payload, scope, caseState);
+    const name = String(record.name || "");
+    const authoritative = preferredDiagnosticCitationForAnchors([westernGuidelineCore(name)], scope, caseState, name);
     if (authoritative) {
       const sameClaim = resolved.find((item) => item.evidenceId === authoritative?.evidenceId);
       resolved.splice(0, resolved.length, {
@@ -309,8 +286,7 @@ function resolveGovernedGuidelineReferences(
     }
   }
   delete record.guidelineRefs;
-  if (resolved.length > 0) record.guidelineReferences = resolved;
-  else delete record.guidelineReferences;
+  record.guidelineReferences = finalWesternGuidelineReferences(String(record.name || ""), resolved);
 
   const differentials = (western as { differentials?: unknown }).differentials;
   if (!Array.isArray(differentials)) return;

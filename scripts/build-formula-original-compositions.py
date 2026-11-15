@@ -263,6 +263,16 @@ def build(source):
             "evidence": {"kind": first["kind"], "ref": reference, **({"url": first["url"]} if first.get("url") else {}), "quote": first["quote"][:200]},
         })
         entries.append(entry)
+    for adjudication in source.get("citationAdjudications", []):
+        matching = [entry for entry in entries if entry["name"] == adjudication["name"] and entry["book"] == adjudication["book"]]
+        if not matching or not any(set(adjudication["coreHerbs"]).issubset({herb["herb"] for herb in entry["herbs"]}) for entry in matching):
+            fail([f"出处裁定没有该书原方核心组成：{adjudication['name']}"])
+        evidence = adjudication["evidence"]
+        if os.path.exists(EDU):
+            with open(EDU, encoding="utf-8") as handle:
+                quote_line = handle.read().splitlines()[evidence["line"] - 1]
+            if norm(evidence["quote"]) not in norm(quote_line):
+                fail([f"出处裁定原文/行号不符：{adjudication['name']}"])
     tiers = {tier: sum(1 for entry in entries if entry["tier"] == tier) for tier in TIERS}
     return {
         "schemaVersion": 1,
@@ -278,6 +288,7 @@ def build(source):
         "preparationPrefixes": ["蜜炙", "麸炒", "土炒", "炙", "炒", "煅", "酒", "盐", "醋", "姜", "煨", "焦"],
         "entries": entries,
         "textbookCitations": textbook_citations(aliases),
+        "citationAdjudications": source.get("citationAdjudications", []),
     }
 
 

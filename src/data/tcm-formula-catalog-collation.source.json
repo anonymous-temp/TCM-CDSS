@@ -64,6 +64,13 @@
    "name": "目录组成按原方组成表订正（第四十二轮，根因一全表对账）",
    "date": "2026-11-10",
    "detail": "受治理目录条目与原方组成表（方名+出处，逐字摘自原书）同名同书而药味不一致、裁决为目录有误的，组成改为原书组成；出处、主治不动。逐条理由见各行 collationNote；原方表 src/data/tcm-formula-original-compositions.source.json 带原文摘句。"
+  },
+  {
+   "ref": "ADJ-LOCAL-20261115-TEXTBOOK-SOURCE",
+   "name": "桃红四物汤通用教材版本出处与组成核定",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 238136,
+   "quote": "桃红四物汤（《医宗金鉴》）：桃仁、红花、当归、白芍、熟地黄、川芎。"
   }
  ],
  "removals": [
@@ -11177,19 +11184,19 @@
   },
   {
    "action": "rewrite",
-   "adjudicationRef": "ADJ-WEB-20260930",
+   "adjudicationRef": "ADJ-LOCAL-20261115-TEXTBOOK-SOURCE",
    "name": "桃红四物汤",
    "displayName": "桃红四物汤",
-   "source": "《妇科冰鉴》",
+   "source": "《医宗金鉴》",
    "ingredients": [
-    "生地",
+    "熟地黄",
     "当归",
     "白芍",
     "川芎",
     "桃仁",
     "红花"
    ],
-   "recordedComposition": "生地三钱（酒洗），当归四钱（酒洗），白芍钱五分（酒炒），川芎一钱，桃仁十四粒（去皮尖研泥），红花一钱（酒洗）。",
+   "recordedComposition": "桃仁、红花、当归、白芍、熟地黄、川芎。",
    "sectionBoundary": "联网原文核对·桃红四物汤",
    "dosageForm": "汤剂",
    "indications": [],
@@ -11198,8 +11205,8 @@
    "administration": "internal",
    "replacesEntry": "桃红四物汤（《妇科冰鉴》）",
    "peonyCollation": "不涉及",
-   "collationNote": "药名夹带数量词已剥离：桃仁十四粒→桃仁（原目录解析丢了括号，数量词黏进药名；数量留在 recordedComposition）",
-   "evidenceUrl": "urn:tcm-cdss:catalog-parse-repair:quantity-suffix",
+   "collationNote": "第四十七轮：本机《中医内科学》方剂索引第238136行「桃红四物汤（《医宗金鉴》）：桃仁、红花、当归、白芍、熟地黄、川芎。」；《中医妇科学》月经过少等教材引书同为《医宗金鉴》。通用名锚定到教材这一版本；《妇科冰鉴》生地方仍保留在原方组成表（方名+书名）中，不把它与熟地黄版混为一方，不改变国家目录原始数据。",
+   "evidenceUrl": "urn:tcm-cdss:local-textbook:TCM-Educational-Materials:238136",
    "replaceSourceOf": {
     "name": "桃红四物汤",
     "source": "《妇科冰鉴》"

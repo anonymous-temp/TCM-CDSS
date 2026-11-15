@@ -875,6 +875,8 @@ const scripts = [
   "test:nihaisha-fusion",
   "test:nihaisha-replay",
   "test:prompt-injection",
+  // 第四十七轮 C3：鉴别主症交集与教材定义、最终病名指南、出处、病类证名、术后方前置条件。
+  "test:r1064-dx",
 ];
 
 // 不进闸门的 test:* 脚本，逐条写明原因。新增 test:* 脚本必须进上面的数组或进这里，否则闸门开头即失败。

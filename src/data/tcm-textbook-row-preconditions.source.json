@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "source": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+  "review": "第四十七轮逐行核对：只标不可跳过的先行操作；可见于术后不等于必须已手术。",
+  "entries": {
+    "fuke|异位妊娠|气血亏脱证": {
+      "kind": "post_surgery",
+      "book": "中医妇科学",
+      "line": 178240,
+      "quote": "此证为腹腔内出血所致，首应及时手术止血治疗。术后再辅以益气养血，活血化瘀治疗。",
+      "procedureTerms": [
+        "异位妊娠手术",
+        "宫外孕手术",
+        "输卵管切除术",
+        "输卵管切除",
+        "输卵管开窗取胚术",
+        "开腹止血",
+        "腹腔镜止血",
+        "手术止血",
+        "手术"
+      ],
+      "priority": "立即手术止血、纠正休克为先，中药仅作配合，不得延误抢救。",
+      "fallback": {
+        "book": "中西医结合妇产科学",
+        "syndrome": "气陷血脱证",
+        "line": 122273,
+        "quote": "方药：参附汤（《世医得效方》）合生脉散（《内外伤辨惑论》）加黄芪、柴胡、炒白术。",
+        "priorityLine": 122274,
+        "priorityQuote": "在纠正休克的同时应立即开腹手术。",
+        "therapy": "回阳救脱，补气举陷",
+        "formulas": [
+          "参附汤",
+          "生脉散"
+        ],
+        "formulaBooks": {
+          "参附汤": "世医得效方",
+          "生脉散": "内外伤辨惑论"
+        },
+        "alternatives": [
+          {
+            "book": "中西医结合妇产科学",
+            "syndrome": "气随血脱",
+            "line": 123654,
+            "quote": "若昏不知人，肢冷汗出，脉微细欲绝者，为气随血脱，宜补气固脱，方用独参汤（《景岳全书》）；若冷汗淋漓、四肢厥逆，宜回阳救逆，方用参附汤（《正体类要》）。",
+            "priorityLine": 122274,
+            "priorityQuote": "在纠正休克的同时应立即开腹手术。",
+            "therapy": "补气固脱",
+            "formulas": [
+              "独参汤"
+            ],
+            "formulaBooks": {
+              "独参汤": "景岳全书"
+            },
+            "note": "妊娠等确定性禁忌使参附方向不可采用时，依同书气随血脱的救急原文选安全配合方；不退回术后四物汤，不放宽任何禁忌。"
+          }
+        ]
+      },
+      "contextExclusions": [
+        "既往",
+        "曾",
+        "去年",
+        "年前",
+        "家族",
+        "母亲",
+        "父亲",
+        "同事"
+      ],
+      "genericProcedureTerm": "手术",
+      "nonCompletedPrefixes": [
+        "拟",
+        "计划",
+        "准备",
+        "建议",
+        "应",
+        "需",
+        "待",
+        "未",
+        "尚未",
+        "拒绝"
+      ]
+    },
+    "zxy_waike|乳腺癌|脾虚胃弱证": {
+      "kind": "post_treatment",
+      "book": "中西医结合外科学",
+      "line": 146200,
+      "quote": "证候：手术或放化疗后，食欲不振，神疲肢软，恶心欲呕，肢肿怠倦；舌质淡，苔薄白，脉细。",
+      "procedureTerms": [
+        "手术",
+        "放化疗",
+        "放疗",
+        "化疗"
+      ],
+      "genericProcedureTerm": "手术",
+      "contextExclusions": [
+        "既往",
+        "曾",
+        "去年",
+        "年前",
+        "家族",
+        "母亲",
+        "父亲",
+        "同事"
+      ],
+      "nonCompletedPrefixes": [
+        "拟",
+        "计划",
+        "准备",
+        "建议",
+        "应",
+        "需",
+        "待",
+        "未",
+        "尚未",
+        "拒绝"
+      ],
+      "priority": "本行适用于手术或放化疗后恢复期；本例尚无该前提，按当前已有证候另行辨证，不据本行代表方定方。"
+    },
+    "waike|乳岩|脾虚胃弱证": {
+      "kind": "post_treatment",
+      "book": "中医外科学",
+      "line": 205240,
+      "quote": "证候：手术或放化疗后食欲不振，神疲肢软，恶心欲呕，肢肿倦",
+      "procedureTerms": [
+        "手术",
+        "放化疗",
+        "放疗",
+        "化疗"
+      ],
+      "genericProcedureTerm": "手术",
+      "contextExclusions": [
+        "既往",
+        "曾",
+        "去年",
+        "年前",
+        "家族",
+        "母亲",
+        "父亲",
+        "同事"
+      ],
+      "nonCompletedPrefixes": [
+        "拟",
+        "计划",
+        "准备",
+        "建议",
+        "应",
+        "需",
+        "待",
+        "未",
+        "尚未",
+        "拒绝"
+      ],
+      "priority": "本行适用于手术或放化疗后恢复期；本例尚无该前提，按当前已有证候另行辨证，不据本行代表方定方。"
+    }
+  },
+  "scan": {
+    "fields": [
+      "manifestations",
+      "therapy",
+      "formulaText",
+      "notes"
+    ],
+    "requiredPreconditionRows": 3,
+    "optionalPostoperativeContexts": [
+      "zxy_waike|肾损伤|气阴两虚证",
+      "zxy_waike|乳腺癌|气血两亏证",
+      "zxy_waike|肠梗阻|气阴亏虚证",
+      "zxy_waike|结直肠肿瘤|肝肾阴虚证",
+      "waike|乳岩|气血两亏证",
+      "yanke|视衣脱离|脾虚湿泛证",
+      "yanke|视衣脱离|脉络瘀滞证",
+      "yanke|视衣脱离|肝肾阴虚证"
+    ],
+    "otherAlternativeContexts": [
+      "zxy_waike|乳腺癌|气阴两虚证",
+      "zxy_waike|乳腺癌|邪毒旁窜证",
+      "waike|肾岩|阴虚火旺证",
+      "waike|粉刺性乳痈|余毒未清证"
+    ],
+    "historyOrCauseContexts": [
+      "zxy_waike|勃起功能障碍|气滞血瘀证",
+      "fuke|胎漏、胎动不安|血瘀证",
+      "waike|阳痿|气血瘀阻证"
+    ]
+  }
+}

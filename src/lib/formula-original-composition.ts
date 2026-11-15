@@ -55,6 +55,7 @@ const TABLE = originalCompositionsJson as unknown as {
   preparationPrefixes: string[];
   entries: OriginalFormula[];
   textbookCitations: Record<string, Record<string, string>>;
+  citationAdjudications?: Array<{ name: string; book: string; coreHerbs: string[] }>;
 };
 
 const escapeForPattern = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
@@ -156,6 +157,7 @@ export function textbookCitedFormulaBooks(name: string): string[] {
     const canonical = canonicalFormulaBook(book);
     if (canonical && !books.includes(canonical)) books.push(canonical);
   };
+  add(formulaCitationAdjudication(name)?.book);
   for (const [formula, entry] of Object.entries(FANGJIXUE_CITATIONS)) if (originalFormulaNameKey(formula) === key) add(entry.book);
   const counts = new Map<string, number>();
   for (const cited of Object.values(TABLE.textbookCitations)) {
@@ -193,4 +195,10 @@ export function originalFormulaSourceLabel(entry: OriginalFormula): string {
 
 export function originalFormulaTableStatus(): { entries: number; textbookRowsWithCitations: number } {
   return { entries: TABLE.entries.length, textbookRowsWithCitations: Object.keys(TABLE.textbookCitations).length };
+}
+
+/** 经原方与教材逐字核定的通用名出处裁定；只决定引用，不声明原方或药味等价。 */
+export function formulaCitationAdjudication(name: string): { book: string; coreHerbs: readonly string[] } | undefined {
+  const key = originalFormulaNameKey(name);
+  return TABLE.citationAdjudications?.find((entry) => originalFormulaNameKey(entry.name) === key);
 }

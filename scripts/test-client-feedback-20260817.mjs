@@ -411,7 +411,7 @@ const mahuangHerbs = [
   );
   assert.match(
     diagnosisApi,
-    /function settleM03ClinicalOutput[\s\S]*return applyM03KeySyndromeDiscriminatorsToContent\(\s*applyDeterministicTreatmentPrinciple\(aligned\),\s*clinicalContext/,
+    /function settleM03ClinicalOutput[\s\S]*return finalizeWesternGuidelineContent\(applyM03KeySyndromeDiscriminatorsToContent\(\s*applyDeterministicTreatmentPrinciple\(aligned\),\s*clinicalContext/,
     "M03 医生可见输出净化后必须再次清理总体病机与病机联系中的事实状态模板",
   );
   const diagnosisClient = readFileSync(path.join(repoRoot, "src/app/diagnosis/DiagnosisClient.tsx"), "utf8");

@@ -33,7 +33,7 @@ import {
 } from "./tcm-classic-inference";
 import { buildM04ClassicSafetyContext } from "./tcm-classic-context.server";
 import { governedTreatmentPrinciplePromptContext } from "./clinical-governance-tables";
-import { buildTextbookCandidateContext, buildFormulaModificationContext, buildTextbookFormulaContext, textbookRowForSyndrome, type TextbookCaseInput } from "./tcm-textbook-syndromes";
+import { textbookTreatmentRow, buildTextbookCandidateContext, buildFormulaModificationContext, buildTextbookFormulaContext, textbookRowForSyndrome, type TextbookCaseInput } from "./tcm-textbook-syndromes";
 import { historyStatedDiseaseNotice, historyStatedDiseasesForCase, uniqueHistoryStatedDisease, withHistoryStatedDiseaseFirst } from "./history-stated-textbook-disease";
 import { buildJingfangCandidateContext, type JingfangPick } from "./jingfang-patterns";
 
@@ -971,7 +971,7 @@ export function buildPrescribePrompt(caseState: CaseState, extras: M04PromptExtr
   const kbShortlistContext = kbCoveredHerbShortlistContext(diagnoseReasoning);
   // 已定病名、证名对上教材的一行时，把该行的代表方组成与教材加减给到开方（随证加减优先照教材选药）。
   const textbookRow = diagnoseReasoning
-    ? textbookRowForSyndrome(diagnoseReasoning.overview.tcmDiseaseName || "", diagnoseReasoning.overview.primarySyndrome || "")
+    ? textbookTreatmentRow(textbookRowForSyndrome(diagnoseReasoning.overview.tcmDiseaseName || "", diagnoseReasoning.overview.primarySyndrome || ""), trustedInputText(caseState), undefined, lockedFormulaNames)
     : undefined;
   // 教材行自带的组成常不全（外科的防风通圣散只列了几味），方剂目录里该方的组成一并看——
   // 合成集 S128：防风通圣散的芒硝被模型照原方写进去，三轮驳回后整方退成非剂量页。
@@ -987,7 +987,7 @@ export function buildPrescribePrompt(caseState: CaseState, extras: M04PromptExtr
     !lockedFormulaNames.some((name) => textbookRow!.formulas.includes(name));
   const textbookFormulaContext = diagnoseReasoning && !lockedOutsideTextbookRow
     ? [
-        buildTextbookFormulaContext(diagnoseReasoning.overview.tcmDiseaseName || "", diagnoseReasoning.overview.primarySyndrome || "", { recordText: trustedInputText(caseState) }),
+        buildTextbookFormulaContext(diagnoseReasoning.overview.tcmDiseaseName || "", diagnoseReasoning.overview.primarySyndrome || "", { recordText: trustedInputText(caseState), formulaNames: lockedFormulaNames }),
         textbookNonDecoction.length > 0
           ? `教材方中不入煎的药味：${textbookNonDecoction.join("、")}（溶服或冲服，本次不编制用量）。不要写进 candidate.herbs，由医师另行决定是否使用。`
           : "",

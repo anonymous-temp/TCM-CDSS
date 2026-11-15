@@ -1039,6 +1039,7 @@ def cut_table_reference(text: str) -> str:
 # --------------------------------------------------------------------------------------
 class BookParser:
     def __init__(self, book: dict, lines: list[str], start: int, end: int):
+        self.lines = lines
         self.book = book
         self.start = start
         self.end = end
@@ -2330,6 +2331,24 @@ def finalize_rows(parsers: list[BookParser], lexicon: set[str], stats: dict, kno
         for row in book_rows:
             del row["_span"]
         rows.extend(book_rows)
+    # 受治理操作前置条件：逐字引文必须在指定行，不从“可见于术后”推断强制条件。
+    preconditions = json.loads((ROOT / "src/data/tcm-textbook-row-preconditions.source.json").read_text())
+    source_lines = parsers[0].lines
+    for row in rows:
+        condition = preconditions["entries"].get(row["id"])
+        if condition:
+            if condition["quote"] not in source_lines[condition["line"] - 1]:
+                raise ValueError(f"precondition quote/line mismatch: {row['id']}")
+            fallback = condition.get("fallback")
+            for fallback in [fallback, *(fallback.get("alternatives", []) if fallback else [])]:
+                if not fallback:
+                    continue
+                for line_key, quote_key in [("line", "quote"), ("priorityLine", "priorityQuote")]:
+                    if fallback[quote_key] not in source_lines[fallback[line_key] - 1]:
+                        raise ValueError(f"precondition fallback quote/line mismatch: {row['id']}")
+            row["precondition"] = condition
+    if set(preconditions["entries"]) - {row["id"] for row in rows}:
+        raise ValueError("precondition references unknown textbook row")
     rows.sort(key=lambda row: (BOOK_ORDER[row["bookKey"]], row["line"], row["id"]))
     diseases.sort(key=lambda item: (BOOK_ORDER[item["bookKey"]], item["line"], item["disease"]))
     return rows, diseases

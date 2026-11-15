@@ -54,7 +54,7 @@
       "id": "T8",
       "file": "tcm-formula-governed-catalog.json",
       "schemaVersion": "tcm-formula-governed-catalog-v2",
-      "sha256": "509228fcaf717aea1a1eef6f126cd54024896e0d4eecbeb0fee767c204a80513",
+      "sha256": "f41bde49457958cab565ca5359ae2a5533b894e3e76c7bdbfd2e15de2eafe594",
       "recordCount": 3018
     },
     {
@@ -96,7 +96,7 @@
       "governanceTable": "T8",
       "file": "tcm-formula-retrieval-index.json",
       "schemaVersion": "tcm-formula-retrieval-index-v2",
-      "sha256": "3351f848a04a54c253dc4e8bb0695365b84407f01b1512bf854c597678f7839d",
+      "sha256": "dc164d44c77b053d7fb03e3d5502cdede1d3c4357e6cfc90150c700e1503bb82",
       "recordCount": 2942
     }
   ],

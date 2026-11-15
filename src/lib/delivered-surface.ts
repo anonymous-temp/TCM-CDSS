@@ -31,7 +31,7 @@ import { drugNamesInAllergyPhrases } from "./clinical-polarity";
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
-import { diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
+import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
@@ -1490,6 +1490,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
     const seenNames = new Set<string>();
     overview.tcmDiseaseDifferentials = records(overview.tcmDiseaseDifferentials)
       .filter((item) => maleOnlyFilter(String(item.diseaseName || "")))
+      .filter((item) => !options?.recordText || textbookDifferentialSharesChiefComplaint(String(item.diseaseName || ""), options.recordText))
       .map((item) => (typeof item.diseaseName === "string" ? { ...item, diseaseName: ocrName(item.diseaseName) } : item))
       .filter((item) => {
         const key = canonical(String(item.diseaseName || ""));
@@ -1511,7 +1512,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
         const resolved = resolveTcmDiseaseDifferentialName(item.name, diseaseName);
         return resolved.action === "drop" ? [] : [{ ...item, name: resolved.name }];
       })
-      .filter((item) => !presentNames.has(item.name) && maleOnlyFilter(item.name))
+      .filter((item) => !presentNames.has(item.name) && maleOnlyFilter(item.name) && Boolean(options?.recordText) && textbookDifferentialSharesChiefComplaint(item.name, options!.recordText!))
       .filter((item, index, list) => list.findIndex((other) => other.text === item.text) === index)
       .slice(0, MIN_TCM_DIFFERENTIALS - presentDifferentials.length);
     // 理由不写来源口吻（「教材列为本病的鉴别病证」），要点去掉「本病与X相鉴别。」这类开场句（2026-10-14 独立评审：元话语）。
@@ -1523,7 +1524,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
           .replace(/^(?:本病|本证)?(?:应|需|须)?与[^。；;]{1,40}(?:相)?鉴别[。；;]\s*/u, "")
           .replace(/。[；;]/g, "。")
           .trim() || item.text,
-        typicalManifestation: "",
+        typicalManifestation: textbookDiseaseTypicalManifestation(item.name),
         nextCheck: null,
       }))];
     }
@@ -1533,7 +1534,9 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions): 
     overview.recommendedFormulaDirection = overview.recommendedFormulaDirection.replace(/[（(]按已签名证候反查受控目录锁定[^）)]*[）)]/g, "").trim();
   }
   for (const item of records(overview?.tcmDiseaseDifferentials)) {
-    if (typeof item.diseaseName === "string") item.diseaseName = item.diseaseName.replace(/类病$/u, "");
+    if (typeof item.diseaseName === "string") {
+      item.diseaseName = item.diseaseName.replace(/类病$/u, "");
+    }
   }
   // 中医鉴别的理由写病证本身为何相近，不写「以免漏诊」「避免误诊」这类处置口吻（甲方 10.12 测评；提示词已要求，模型仍偶有，
   // 2026-10-14 评测 28 例里 3 例）。只删这半句；删完为空时保留原句。
@@ -3697,6 +3700,13 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
     managementForSigns.followupSafetyNet = followupSignsForPopulation(managementForSigns.followupSafetyNet, options.herbBoundaryAudience);
   }
   rewordDeep(projected);
+  // 定义是逐字引文，放在文字投影之后，避免通用措辞规则改写教材原文。
+  if (projected.stage === "diagnose") {
+    for (const item of records(record(projected.overview)?.tcmDiseaseDifferentials)) {
+      const definition = textbookDiseaseTypicalManifestation(String(item.diseaseName || ""));
+      item.typicalManifestation = definition;
+    }
+  }
   // 去理由里的重复放在措辞替换之后：红旗边界句先换成「急危重风险未排除，请先完成急诊或转诊评估…」才对得上项目「急危重风险尚未排除」
   //（此前在替换前比，理由开头是「急危重风险未排除：以下辨证…」，冒号连着后半句，比不上，红旗病例的待核实照样重复；第四十五轮复核 20 余份）。
   withoutReasonEchoingItem(record(projected.pathogenesis));

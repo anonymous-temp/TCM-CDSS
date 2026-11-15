@@ -93254,56 +93254,6 @@
   },
   {
    "name": "桃红四物汤",
-   "book": "医垒元戎",
-   "variant": "即四物汤加桃仁红花",
-   "status": "verified_other_edition",
-   "tier": "original_text",
-   "ingredients": [
-    {
-     "written": "熟地",
-     "herb": "熟地黄",
-     "dose": "二钱"
-    },
-    {
-     "written": "川芎",
-     "herb": "川芎",
-     "dose": "一钱"
-    },
-    {
-     "written": "白芍",
-     "herb": "白芍",
-     "preparation": "炒",
-     "preparationRaw": "炒",
-     "dose": "二钱"
-    },
-    {
-     "written": "当归",
-     "herb": "当归",
-     "dose": "二钱"
-    },
-    {
-     "written": "桃仁",
-     "herb": "桃仁"
-    },
-    {
-     "written": "红花",
-     "herb": "红花"
-    }
-   ],
-   "guideHerbs": [],
-   "evidence": [
-    {
-     "kind": "jicheng",
-     "book": "医宗金鉴_1",
-     "url": "https://jicheng.tw/tcm/book/醫宗金鑑_1/index.html",
-     "quote": "四物汤熟地二钱 川芎一钱 白芍 ( 炒 ) 二钱 当归二钱上为粗末, 水煎服.14.芩连四物汤即本方加黄芩, 黄连.15.芩术四物汤即本方加黄芩, 白术.16.桃红四物汤即本方加桃仁, 红花"
-    }
-   ],
-   "note": "《医垒元戎》jc 缓存里没有桃红四物汤，教材署此出处但未能在该书原文核到；组成取《医宗金鉴·妇科心法》「桃红四物汤即本方（四物汤）加桃仁、红花」，四物汤剂量为该书所载。请复核出处归属。",
-   "review": "agent:w114"
-  },
-  {
-   "name": "桃红四物汤",
    "book": "医宗金鉴",
    "volume": "妇科心法要诀·经水先期",
    "status": "verified",
@@ -201453,6 +201403,79 @@
    ],
    "note": "本次按《医方集解》编录写法核对；条文未明确前出书名者，不据作者署名臆定原出书名。",
    "review": "agent:w310"
+  }
+ ],
+ "disputedRows": [
+  {
+   "name": "桃红四物汤",
+   "book": "医垒元戎",
+   "variant": "即四物汤加桃仁红花",
+   "status": "verified_other_edition",
+   "tier": "original_text",
+   "ingredients": [
+    {
+     "written": "熟地",
+     "herb": "熟地黄",
+     "dose": "二钱"
+    },
+    {
+     "written": "川芎",
+     "herb": "川芎",
+     "dose": "一钱"
+    },
+    {
+     "written": "白芍",
+     "herb": "白芍",
+     "preparation": "炒",
+     "preparationRaw": "炒",
+     "dose": "二钱"
+    },
+    {
+     "written": "当归",
+     "herb": "当归",
+     "dose": "二钱"
+    },
+    {
+     "written": "桃仁",
+     "herb": "桃仁"
+    },
+    {
+     "written": "红花",
+     "herb": "红花"
+    }
+   ],
+   "guideHerbs": [],
+   "evidence": [
+    {
+     "kind": "jicheng",
+     "book": "医宗金鉴_1",
+     "url": "https://jicheng.tw/tcm/book/醫宗金鑑_1/index.html",
+     "quote": "四物汤熟地二钱 川芎一钱 白芍 ( 炒 ) 二钱 当归二钱上为粗末, 水煎服.14.芩连四物汤即本方加黄芩, 黄连.15.芩术四物汤即本方加黄芩, 白术.16.桃红四物汤即本方加桃仁, 红花"
+    }
+   ],
+   "note": "《医垒元戎》jc 缓存里没有桃红四物汤，教材署此出处但未能在该书原文核到；组成取《医宗金鉴·妇科心法》「桃红四物汤即本方（四物汤）加桃仁、红花」，四物汤剂量为该书所载。请复核出处归属。",
+   "review": "agent:w114",
+   "quarantineReason": "第四十七轮：证据引《医宗金鉴》却署《医垒元戎》，不能把别书逐字证据登记成该书原方。《方剂学》附方署《医垒元戎》原名加味四物汤仍原样保留，待核得该书原方再恢复此身份。"
+  }
+ ],
+ "citationAdjudications": [
+  {
+   "name": "桃红四物汤",
+   "book": "医宗金鉴",
+   "coreHerbs": [
+    "当归",
+    "川芎",
+    "白芍",
+    "桃仁",
+    "红花"
+   ],
+   "evidence": {
+    "kind": "local",
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 238136,
+    "quote": "桃红四物汤（《医宗金鉴》）：桃仁、红花、当归、白芍、熟地黄、川芎。"
+   },
+   "note": "通用教材名的出处采用《医宗金鉴》；改用生地仍为此方的加减，不另借后出书冒充初出处。核心五味齐备才作出处订正；此裁定不改变任何药味等价关系，也不授予原方组成身份。《妇科冰鉴》原文生地版本仍按书名单列。"
   }
  ]
 }
