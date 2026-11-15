@@ -51,7 +51,9 @@ export function buildDeliveryInvariantGovernance(input: Omit<InvariantScanInput,
   if (currentPrinciple) {
     const axisProfile = { ...final, overview: { ...overview, primarySyndrome: [...asStrings(nature.rootDeficiency), ...asStrings(nature.branchExcess)].join("、"), secondarySyndromes: [] } };
     const expected = nationalTreatmentPrinciple(currentPrinciple, axisProfile);
-    const terms = (value: string) => [...new Set(value.split(/[，,、；;]/u).map((term) => term.trim()).filter(Boolean))].sort().join("|");
+    // 「急则治标」是缓急次序（红旗时由交付层置首），不是本虚标实的判断；比较时两边都不算（第四十七轮合并后，
+    // nationalTreatmentPrinciple 无红旗上下文时会去掉它，红旗病例就会被误报 R04）。
+    const terms = (value: string) => [...new Set(value.split(/[，,、；;]/u).map((term) => term.trim()).filter((term) => term && term !== "急则治标"))].sort().join("|");
     const compatible = terms(expected) === terms(currentPrinciple);
     gov.principle = { compatible, expected, authority: "shadow candidate from final root/branch labels; nationalTreatmentPrinciple governs names, not clinical root/branch priorities", complete: false };
   }
