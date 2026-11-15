@@ -1,3 +1,6 @@
+import { DELIVERY_REWRITE_RULES, traceProjection, observeTextRewrite } from "./delivery-rewrite-ledger";
+/** Observation only; original clinical transforms and their return values are unchanged. */
+export const DELIVERED_SURFACE_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.surface, leaves: ["applyDeliveredSurfaceToContent","projectDeliveredReasoning","clinicalWordingForSyntheticPhrases","readabilityCleaned"] as const });
 /**
  * 交付面：调用方实际收到的结构化结果里，哪些字段不再带内容、哪些服务端生成的措辞要换成临床语言。
  *
@@ -870,6 +873,7 @@ export function labelCourseBoundary(riskNote: string): string {
 
 /** 把系统句式换成临床写法；没有命中时原样返回（逐字节不变）。 */
 export function clinicalWordingForSyntheticPhrases(value: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.syntheticPhrases" }, value, () => {
   if (/记录排除或处置依据|正式采纳(?:与具体用量)?需先完成上述事项/u.test(value)) {
     for (const [pattern, replacement] of RED_FLAG_BOUNDARY_WORDING) value = value.replace(pattern, replacement);
   }
@@ -884,6 +888,7 @@ export function clinicalWordingForSyntheticPhrases(value: string): string {
     .replace(/(未诉[^，,。；;\n]{1,40})[，,；;]\s*未诉/g, "$1、")
     .replace(/(未诉[^，,。；;\n]{1,40})[，,；;]\s*未诉/g, "$1、")
     .replace(/[，,]{2,}/g, "，");
+  });
 }
 
 /** 这些键的值是机器取值或逐字引用，不做措辞替换。 */
@@ -916,6 +921,7 @@ function withoutAdjacentRepeatedClauses(value: string): string {
 //（第四十六轮复核 C069，模型照提示「病历没记录的写未诉」写出、服务端改写也曾写出）。这一项（顿号之间）去掉。构词守卫。
 const EXAM_ACTION_NOT_REPORTED = /(?:^|[、，,])(?:[^、，,。；;]{0,8})(?:推|按|触|压|叩|扪)之未诉[^、，,。；;]{1,8}(?=[、，,。；;]|$)/gu;
 export function readabilityCleaned(input: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.readability" }, input, () => {
   // 「考虑X待查可能」「符合X待查」（病名带待查后依据里照写，第四十六轮终审 C083、C037、C038）：读不通，写「考虑X可能」。
   const repeated = withoutAdjacentRepeatedClauses(input)
     .replace(/考虑([\u4e00-\u9fff]{2,20}?)待[查排](?:的)?可能/gu, "考虑$1可能")
@@ -939,6 +945,7 @@ export function readabilityCleaned(input: string): string {
     .replace(/[，,；;]+(?=[。])/gu, "")
     .replace(/。{2,}/gu, "。")
     .replace(/^[，,；;。、\s]+/u, "");
+  });
 }
 
 function rewordDeep(value: unknown, key = ""): unknown {
@@ -3604,6 +3611,7 @@ function withEstablishedDiagnosis(projected: Json, options?: DeliveredSurfaceOpt
 }
 
 export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: DeliveredSurfaceOptions): T {
+  return traceProjection("projectDeliveredReasoning", reasoning, () => {
   const object = record(reasoning);
   if (!object || object.schemaVersion !== "tcm-cdss-reasoning-v2") return reasoning;
   const projected = structuredClone(object);
@@ -3725,6 +3733,8 @@ export function projectDeliveredReasoning<T>(reasoning: T, rawOptions?: Delivere
   //（此前在替换前比，理由开头是「急危重风险未排除：以下辨证…」，冒号连着后半句，比不上，红旗病例的待核实照样重复；第四十五轮复核 20 余份）。
   withoutReasonEchoingItem(record(projected.pathogenesis));
   return projected as T;
+
+  }, { ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.projectDeliveredReasoning" });
 }
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
@@ -3787,6 +3797,7 @@ export function operatorRequirementWording(text: string): string {
 }
 
 export function applyDeliveredSurfaceToContent(content: string, options?: DeliveredSurfaceOptions): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.surface, ruleId: "surface.applyDeliveredSurfaceToContent" }, content, () => {
   const start = content.lastIndexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -3801,6 +3812,8 @@ export function applyDeliveredSurfaceToContent(content: string, options?: Delive
   } catch {
     return content;
   }
+
+  });
 }
 
 /**

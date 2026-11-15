@@ -1,3 +1,6 @@
+import { DELIVERY_REWRITE_RULES, observeTextRewrite } from "./delivery-rewrite-ledger";
+/** Observation only; original clinical transforms and their return values are unchanged. */
+export const FORMULA_ANALYSIS_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.formula, leaves: ["tidyPunctuation","withProcessingFromTable","reviewAuthoredFormulaAnalysis","withShorthandPairsMatchingHerbs","withRecountedHerbCountWords","withMentionsAlignedToTableNames","withoutDecoctionMethodHarmonizingClaims","withOpeningMatchingFormulaName","withoutChartAssertionClauses","withoutProcessParentheticals","withoutStrayLeadingRoleVerb","withoutRepeatedEffectEcho"] as const });
 import { getTcmHerbDoseLimit, herbFunctionKnowledgeForDisplay, isKnownTcmHerbName } from "./tcm-knowledge";
 import { compositionIdentityName, formulaNameComponents, formulaNameIsVerbPhrase, isKnownFormulaNameFragment } from "./tcm-formula-provenance";
 import { textbookDistinctHerbKey, textbookEntryName } from "./herb-textbook-identity";
@@ -282,6 +285,7 @@ function withoutForeignHerbNames(clause: string, foreignSpans: readonly Span[], 
 }
 
 export function tidyPunctuation(text: string): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.formula, ruleId: "formula.tidyPunctuation" }, text, () => {
   return text
     .replace(/([，,；;、])\s*(?=[，,；;。])/g, "")
     // 逗号后面直接是冒号（「本方以温脾汤加减，：附子…」，2026-10-20 X-G-0382）：删去的是冒号前那一小句，留下的逗号是多余的；冒号后面紧跟标点则冒号是多余的。
@@ -292,6 +296,8 @@ export function tidyPunctuation(text: string): string {
     .replace(/[，,；;、]+$/g, "")
     .replace(/\s{2,}/g, " ")
     .trim();
+
+  });
 }
 
 function replaceInternalReferences(text: string, nodeLabels: Readonly<Record<string, string>>): { text: string; changed: boolean } {
@@ -400,6 +406,7 @@ const SHORTHAND_PAIRS = ((herbClaimConceptsJson as unknown as { shorthandPairs?:
  * 两味都在、都不在，或合称是方名的一部分（银翘散、知柏地黄丸）时不动。
  */
 export function withShorthandPairsMatchingHerbs(text: string, candidateHerbs: readonly string[]): { text: string; changed: boolean } {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.formula, ruleId: "formula.withShorthandPairsMatchingHerbs" }, text, () => {
   const own = new Set(candidateHerbs.map(identityOf).filter(Boolean));
   let changed = false;
   let next = text;
@@ -421,6 +428,8 @@ export function withShorthandPairsMatchingHerbs(text: string, candidateHerbs: re
     next = built;
   }
   return { text: next, changed };
+
+  }, result => result.text);
 }
 
 /**
@@ -441,6 +450,7 @@ const COUNT_WORD_IN_FORMULA_NAME = /^[^，,。；;：:、\s]{0,5}?(?:汤|丸|散
  * 落在药名或方名里的数字（五味子、六味地黄丸）不算数量词。
  */
 export function withRecountedHerbCountWords(text: string, candidateHerbs: readonly string[]): { text: string; changed: boolean } {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.formula, ruleId: "formula.withRecountedHerbCountWords" }, text, () => {
   const own = new Set(candidateHerbs.map(identityOf).filter(Boolean));
   if (own.size === 0 || !HERB_COUNT_WORD.test(text)) return { text, changed: false };
   HERB_COUNT_WORD.lastIndex = 0;
@@ -498,6 +508,8 @@ export function withRecountedHerbCountWords(text: string, candidateHerbs: readon
     });
   }).join("");
   return { text: rewritten, changed };
+
+  }, result => result.text);
 }
 
 /**
@@ -514,6 +526,7 @@ export function withRecountedHerbCountWords(text: string, candidateHerbs: readon
  * 2026-10-29 甲方病例：药味表有广藿香，注意事项「您已自服藿香正气水」被改成「广藿香正气水」，那是另一个药名。
  */
 export function withMentionsAlignedToTableNames(text: string, candidateHerbs: readonly string[], medicineNames: readonly string[] = []): { text: string; changed: boolean } {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.formula, ruleId: "formula.withMentionsAlignedToTableNames" }, text, () => {
   const tableNames = [...new Set(candidateHerbs.map(stripAnnotation).filter(Boolean))];
   if (tableNames.length === 0) return { text, changed: false };
   const shielded: Span[] = [];
@@ -570,6 +583,8 @@ export function withMentionsAlignedToTableNames(text: string, candidateHerbs: re
     out = `${out.slice(0, item.start)}${item.name}${out.slice(item.end)}`;
   }
   return { text: out, changed: out !== text };
+
+  }, result => result.text);
 }
 
 /**
@@ -579,6 +594,7 @@ export function withMentionsAlignedToTableNames(text: string, candidateHerbs: re
  */
 const PROCESSING_NAME_PREFIX = /^(?:煨|土|麸炒|土炒|米炒|蜜炙|醋炙|酒炙|盐炙|姜炙|醋炒|酒炒|盐炒|姜炒|炒|炙|煅|焦|生|蜜|盐|酒|醋|姜|燀|炮|制)$/u;
 export function withProcessingFromTable(text: string, herbs: ReadonlyArray<{ name?: unknown; processing?: unknown }>): string {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.formula, ruleId: "formula.withProcessingFromTable" }, text, () => {
   const prefixOf = new Map<string, string>();
   for (const herb of herbs) {
     const name = String(herb.name || "").trim();
@@ -593,6 +609,8 @@ export function withProcessingFromTable(text: string, herbs: ReadonlyArray<{ nam
     out = `${out.slice(0, mention.start)}${prefix}${out.slice(mention.start)}`;
   }
   return out;
+
+  });
 }
 
 /**
@@ -602,6 +620,7 @@ export function withProcessingFromTable(text: string, herbs: ReadonlyArray<{ nam
  */
 const DECOCTION_METHOD_AS_HARMONIZER = /以[^，,。；;]{0,24}(?:烊化|包煎|先煎|后下|另煎|冲服|兑服|久煎)[^，,。；;]{0,8}调和/u;
 export function withoutDecoctionMethodHarmonizingClaims(text: string): { text: string; changed: boolean } {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.formula, ruleId: "formula.withoutDecoctionMethodHarmonizingClaims" }, text, () => {
   if (!DECOCTION_METHOD_AS_HARMONIZER.test(text)) return { text, changed: false };
   const kept: string[] = [];
   for (const segment of text.split(/(?<=[；;。])/u)) {
@@ -614,6 +633,8 @@ export function withoutDecoctionMethodHarmonizingClaims(text: string): { text: s
   }
   const out = kept.join("");
   return { text: out, changed: out !== text };
+
+  }, result => result.text);
 }
 
 /** 组成身份，生用写法算同一味（生地黄 = 地黄、生石膏 = 石膏）：与交付面判断加药说法是否属实同一口径。 */
@@ -1273,6 +1294,7 @@ export function reviewAuthoredFormulaAnalysis(
   candidateHerbs: readonly string[],
   opts: { nodeLabels?: Readonly<Record<string, string>> } = {},
 ): FormulaAnalysisReview {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.formula, ruleId: "formula.reviewAuthoredFormulaAnalysis" }, raw, () => {
   const adjustments: string[] = [];
   let text = typeof raw === "string" ? raw.trim() : "";
   if (!text || PLACEHOLDER_ANALYSIS.test(text)) {
@@ -1446,6 +1468,8 @@ export function reviewAuthoredFormulaAnalysis(
   const usable = text.length >= 24 && ownMentioned >= requiredCoverage;
   if (!usable) adjustments.push(ownMentioned < requiredCoverage ? "not_about_candidate" : "too_short_after_cleanup");
   return { text, usable, ownMentioned, foreignHerbs, adjustments };
+
+  }, result => result.text);
 }
 
 /** 方义开头说本方是自拟方（「本方为自拟方」「本方系辨证自拟」）。 */
@@ -1463,6 +1487,7 @@ const BASE_FORMULA_OPENING = /^本方(?:为|系|乃)?(以)?([^，,。；;：:、
  * 最终方名由服务端定（目录方或教材代表方，教材方不一定在方剂目录里，如鹿茸补涩丸），这里不再查它是否收录。
  */
 export function withOpeningMatchingFormulaName(analysis: string, finalName: string, original = false): { text: string; changed: boolean } {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.formula, ruleId: "formula.withOpeningMatchingFormulaName" }, analysis, () => {
   if (typeof analysis !== "string" || !analysis.trim()) return { text: analysis, changed: false };
   const name = String(finalName || "").trim();
   const selfComposed = !name || /^(?:自拟方?|本例辨证组方|辨证组方)(?:加减|加味)?$/u.test(name);
@@ -1491,6 +1516,8 @@ export function withOpeningMatchingFormulaName(analysis: string, finalName: stri
   else return { text: analysis, changed: false };
   const text = `${opening}${rest}`;
   return { text, changed: text !== analysis };
+
+  }, result => result.text);
 }
 
 /** 「X、Y为君」「X为佐」这一类只点角色的小句：药名串＋（共/同/均）为君臣佐使（药）。 */
@@ -1553,6 +1580,7 @@ export function withRoleOnlyHerbsExplained(
  * 没头没尾的病历断言，不讲配伍。方义里整小句去掉（只认净化器写的那几种固定句式）。
  */
 export function withoutChartAssertionClauses(analysis: string): { text: string; changed: boolean } {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.formula, ruleId: "formula.withoutChartAssertionClauses" }, analysis, () => {
   if (typeof analysis !== "string" || !/病历(?:中)?(?:已记录|尚未确认|未记录)|是否存在尚未/u.test(analysis)) return { text: analysis, changed: false };
   const pieces = analysis.split(/([，,；;。])/u);
   const kept: string[] = [];
@@ -1569,6 +1597,8 @@ export function withoutChartAssertionClauses(analysis: string): { text: string; 
   }
   const text = tidyPunctuation(kept.join(""));
   return { text, changed: text !== analysis };
+
+  }, result => result.text);
 }
 
 /**
@@ -1699,9 +1729,12 @@ export function withoutUnsupportedHarmonizingClaims(
  */
 const PROCESS_PARENTHETICAL = /[（(][^（）()]{0,40}?(?:审方|复核|单独确定|编制用量|药味表|系统|服务端)[^（）()]{0,40}?[）)]/gu;
 export function withoutProcessParentheticals(text: string): { text: string; changed: boolean } {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.formula, ruleId: "formula.withoutProcessParentheticals" }, text, () => {
   if (typeof text !== "string") return { text, changed: false };
   const next = text.replace(PROCESS_PARENTHETICAL, "");
   return { text: next, changed: next !== text };
+
+  }, result => result.text);
 }
 
 /**
@@ -1709,6 +1742,7 @@ export function withoutProcessParentheticals(text: string): { text: string; chan
  * 开头的「为」紧跟一串本方药名、同一小句里再有「为君/臣/佐/使」时，去掉开头这个「为」（构词式守卫）。
  */
 export function withoutStrayLeadingRoleVerb(text: string): { text: string; changed: boolean } {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.formula, ruleId: "formula.withoutStrayLeadingRoleVerb" }, text, () => {
   if (typeof text !== "string" || !/[，,；;。]\s*为/u.test(text)) return { text, changed: false };
   const next = text.replace(/([，,；;。]\s*)为(?=[^，,。；;]{2,40}?为[君臣佐使])/gu, (match: string, lead: string, offset: number, whole: string) => {
     const following = whole.slice(offset + match.length);
@@ -1716,6 +1750,8 @@ export function withoutStrayLeadingRoleVerb(text: string): { text: string; chang
     return first ? lead : match;
   });
   return { text: next, changed: next !== text };
+
+  }, result => result.text);
 }
 
 /**
@@ -1726,6 +1762,7 @@ export function withoutStrayLeadingRoleVerb(text: string): { text: string; chang
  */
 const ECHO_TAIL = /[，,]\s*(?:与|契合|符合|合于|切合)([^，,。；;]{3,40}?)之?(?:治法|治则|法)(?:相合|相符|相契|相应|相吻合|吻合|契合)(?=[。！!；;]|$)/u;
 export function withoutRepeatedEffectEcho(text: string): { text: string; changed: boolean } {
+  return observeTextRewrite({ ...DELIVERY_REWRITE_RULES.formula, ruleId: "formula.withoutRepeatedEffectEcho" }, text, () => {
   if (typeof text !== "string" || !ECHO_TAIL.test(text)) return { text, changed: false };
   let changed = false;
   const out = text.split(/(?<=[。！!])/u).map((sentence) => {
@@ -1738,6 +1775,8 @@ export function withoutRepeatedEffectEcho(text: string): { text: string; changed
     return `${head}${sentence.slice(match.index + match[0].length)}`;
   });
   return { text: out.join(""), changed };
+
+  }, result => result.text);
 }
 
 /**
