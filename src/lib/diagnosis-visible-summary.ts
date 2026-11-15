@@ -1,4 +1,5 @@
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
+import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
 import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import { projectM04FinalFacts } from "./m04-final-projection";
 import { projectGroundedHerbFunctions } from "./herb-function-display-source";
@@ -611,6 +612,7 @@ export function groundDifferentialNegativeAssertions(content: string, clinicalCo
     const groundClause = (clause: string, entryName: string): string => {
       const trimmed = clause.trim();
       if (!trimmed) return clause;
+      if (textConsistency.nonNegativeWuTails.some((tail) => trimmed.replace(/^(?:本例|患者)/u, "").startsWith(`无${tail}`))) return clause;
       if (SEASON_CLAUSE.test(trimmed) && !/(季节|时令|长夏|夏|冬|春|秋)/.test(clinicalContext)) {
         changed = true;
         return "发病季节病历未记录，需核实后方可用于排除";
@@ -856,6 +858,9 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       ? reasoning.overview as Record<string, unknown>
       : null;
     if (overview) {
+      if (typeof overview.tcmDiagnosticRationale === "string") {
+        overview.tcmDiagnosticRationale = withoutUnrecordedNormalCommentary(overview.tcmDiagnosticRationale, clinicalContext);
+      }
       overview.primarySyndromeBasis = semanticItems(overview.primarySyndromeBasis)
         .flatMap((item) => {
           const quote = groundedQuote(item);
@@ -913,6 +918,31 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
         seenLocations.add(detail.location);
         return true;
       });
+      // 只认已经逐字接地、非正常且肯定的依据里的直接部位；不从症状反推脏腑。
+      const chainQuotes = Array.isArray(pathogenesis?.chain) ? pathogenesis.chain.flatMap((node) => {
+        if (!node || typeof node !== "object" || Array.isArray(node)) return [];
+        const entry = node as Record<string, unknown>;
+        return [entry.patientFact, entry.syndromeEvidence].flatMap((value) => typeof value === "string"
+          ? affirmedClinicalSourceClauses(value).flatMap((quote) => quote.split(/[，,。；;、]/u)) : []);
+      }) : [];
+      // 混合列举中的“怕冷、无汗”会被旧引文对齐整段拒绝；已有极性层肯定的原文子串仍是直接依据。
+      const affirmedSource = affirmedClinicalSourceClauses(clinicalContext);
+      const directQuote = (quote: unknown) => typeof quote === "string" && affirmedSource.some((source) => source.includes(quote))
+        ? quote : groundedQuote(quote);
+      const quotePool = [...semanticItems(overview?.primarySyndromeBasis), ...groundedDetails.map((detail) => detail.basis), ...chainQuotes]
+        .flatMap((quote) => affirmedClinicalSourceClauses(withoutNormalFindingSegments(directQuote(quote))))
+        .filter((quote) => clinicalClausePolarity(quote) === "affirmed");
+      const locationSignText = (quote: string) => quote.replace(/脉(?:象)?[：:]\s*/gu, "脉");
+      for (const item of location.items as string[]) {
+        if ((location.details as unknown[]).length >= 8) break;
+        if (seenLocations.has(item)) continue;
+        const rule = textConsistency.directLocations.find((row) => row.names.includes(item));
+        if (!rule) continue;
+        const quotes = quotePool.filter((quote) => rule.signs.some((sign) => locationSignText(quote).includes(sign)));
+        if (rule.signs.filter((sign) => quotes.some((quote) => locationSignText(quote).includes(sign))).length < rule.minSigns) continue;
+        (location.details as Array<{ location: string; basis: string }>).push({ location: item, basis: [...new Set(quotes)].join("；") });
+        seenLocations.add(item);
+      }
       // 模型写了 items 但全是纯标点、同一份输出的 details 却给出了已接地的病位：以 details 的病位
       // 作 items。只在这一种退化形态下投影——不新增病位，模型本就没写 items 的情形保持原判。
       if (modelWroteItems && (location.items as string[]).length === 0) {
@@ -977,9 +1007,10 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       // 虚热、虚火（「虚火上扰」「虚热内扰」）是阴虚所生的热，属本虚，不是标实（第四十一轮 r1054 回顾：标实栏写「虚热」，
       // 治则写虚则补之，读来自相矛盾）。只挪栏位，不增删病性。
       const deficiencyHeat = (item: string) => /^虚(?:热|火)|阴虚(?:火旺|内热)/u.test(item);
-      const movedToRoot = (nature.branchExcess as string[]).filter(deficiencyHeat);
+      const isRoot = (item: string) => deficiencyHeat(item) || natureItemDeficiencyOrExcess(item) === "root";
+      const movedToRoot = (nature.branchExcess as string[]).filter(isRoot);
       if (movedToRoot.length > 0) {
-        nature.branchExcess = (nature.branchExcess as string[]).filter((item) => !deficiencyHeat(item));
+        nature.branchExcess = (nature.branchExcess as string[]).filter((item) => !isRoot(item));
         nature.rootDeficiency = [...new Set([...(nature.rootDeficiency as string[]), ...movedToRoot])];
       }
       // 病性列了、本虚标实两栏都没放的条目，按受治理病性词表归栏（2026-11-14 第四十五轮：甲方 100 例 C073「气滞（本虚：无；标实：无）」、
@@ -1089,7 +1120,7 @@ const UNRECORDED_INSPECTION = /舌[^，,。；;\n]{0,4}(?:未|不详|未查|未�
  * 「肺←无明显咳嗽」「气机逆乱←舌淡红，薄白苔」）。依据按「；」分段，每段再按逗号、顿号分项；一段里全是正常所见或否认的，整段去掉，
  * 只要有一项是异常表现就整段留着。正常所见是有限闭集（淡红舌、薄白苔、平脉/和缓、纳眠可、二便调、神清、呼吸平稳、面色红润）。
  */
-const NORMAL_FINDING_ITEM = /^(?:舌(?:质|象)?[:：]?\s*淡红(?:舌)?|淡红舌|舌淡红|(?:舌)?苔(?:质)?[:：]?\s*薄白?|薄白苔|苔薄白|脉(?:象)?[:：]?\s*(?:平|和缓|从容|平和)|(?:纳|饮食|食欲|胃纳)(?:眠)?(?:尚)?可|眠(?:尚)?可|睡眠(?:尚)?(?:可|正常)|二便(?:尚)?(?:调|正常|可)|大小便(?:正常|调)|神清(?:语利)?|精神(?:尚)?(?:可|好)|呼吸(?:目前)?(?:平稳|平顺|均匀)|面色(?:红润|正常)|生命体征平稳)$/u;
+const NORMAL_FINDING_ITEM = /^(?:舌(?:质|象)?[:：]?\s*淡红(?:舌)?|淡红舌|舌淡红|(?:舌)?苔(?:质)?[:：]?\s*(?:薄白?|白)|薄白苔|苔薄白|脉(?:象)?[:：]?\s*(?:平缓|平|和缓|从容|平和)|(?:纳|饮食|食欲|胃纳)(?:眠)?(?:尚)?可|眠(?:尚)?可|睡眠(?:尚)?(?:可|正常)|二便(?:尚)?(?:调|正常|可)|大小便(?:正常|调)|神清(?:语利)?|精神(?:尚)?(?:可|好)|呼吸(?:目前)?(?:平稳|平顺|均匀)|面色(?:红润|正常)|生命体征平稳)$/u;
 export function withoutNormalFindingSegments(basis: string): string {
   if (!basis) return basis;
   const segments = basis.split(/[；;]/u).map((segment) => segment.trim()).filter(Boolean);
@@ -1098,6 +1129,18 @@ export function withoutNormalFindingSegments(basis: string): string {
     return !items.every((item) => NORMAL_FINDING_ITEM.test(item) || /^(?:无|未见|否认|不)/u.test(item));
   });
   return kept.join("；");
+}
+
+/** 模型照抄“正常所见不参与辨证”时，所举所见也必须逐项出自本例；不改写舌脉成另一种舌脉。 */
+export function withoutUnrecordedNormalCommentary(value: string, recordText: string): string {
+  const source = String(recordText || "").normalize("NFKC").replace(/\s+/gu, "");
+  return (String(value || "").match(/[^。；;]+[。；;]?/gu) || []).filter((sentence) => {
+    if (!/正常所见|不参与辨证/u.test(sentence)) return true;
+    const named = textConsistency.normalFindingForms.filter((form) => sentence.includes(form) &&
+      !textConsistency.normalFindingForms.some((longer) => longer !== form && longer.includes(form) && sentence.includes(longer)));
+    // 苔薄白腻、脉平缓而无力不能只截前半词当作正常所见。
+    return named.length > 0 && named.every((form) => new RegExp(`${form}(?=$|[，,。；;：:、苔脉舌])`, "u").test(source));
+  }).join("");
 }
 
 /** 病性条目归本虚还是标实（tcm-nature-lexicon 的类别）；判不出时 undefined。 */
@@ -1353,6 +1396,7 @@ function qualifiedGroupForms(term: string): string[] {
 }
 
 function recordMentionsNegatedTerm(record: string, term: string): boolean {
+  if (textConsistency.affirmativeStateGroups.some((group) => group.includes(term) && group.some((form) => record.includes(form)))) return true;
   if (record.includes(term) || recordShowsRashForm(record, term)) return true;
   // 「无停经史」对病历「本次月经未按时来潮」：停经的别的写法也算写到过（第四十六轮复核 n17，曾改成「未诉停经史」，与病历相反）。
   if (/^停经(?:史)?$/u.test(term) && recordWritesStoppedPeriod(record)) return true;
@@ -1434,6 +1478,7 @@ export function unrecordedNegativesAsNotReported(text: string, clinicalContext: 
   // 对象本身又带否定或检查结论的（「喉镜未见新生物」「心电图正常」「心率86次/分」），前面的「无」不是在否认一个表现，改写成「未诉…」读成反话
   //（第四十六轮复核 n36「未诉喉镜未见新生物」、m18「未诉心率86次/分」）。构词守卫。
   const unreadable = (term: string, offset: number, whole: string) =>
+    textConsistency.nonNegativeWuTails.some((tail) => term.startsWith(tail)) ||
     /^(?:痛性|菌|色|规律|诱因|然|多|可|诸|即|其|性|意(?:中|间|地|发现)|症状性)/u.test(term) || /(?:非|之|推|并非)$/u.test(whole.slice(Math.max(0, offset - 2), offset)) ||
     /未见|无|未|阴性|正常|异常|\d/u.test(term);
   const out = withMechanismFindings.replace(UNRECORDED_NEGATIVE, (match, term: string, offset: number, whole: string) =>
@@ -1509,6 +1554,8 @@ export function recordAffirmsDeniedFinding(clinicalContext: string, rawTerm: str
   if (new RegExp(`^(?:${NEGATED_TERM_QUALIFIER_SOURCE})`, "u").test(term)) return false;
   if (sourceDocumentsNegation(clinicalContext, term)) return false;
   const affirmed = (affirmedClinicalText(clinicalContext) || "").normalize("NFKC").replace(/\s+/g, "");
+  if (textConsistency.affirmativeStateGroups.some((group) => group.includes(term) &&
+      group.some((form) => affirmed.includes(form) && !sourceDocumentsNegation(clinicalContext, form)))) return true;
   // 被否认的是同义组里的下位词（咳痰、高热、胃脘痛、入睡困难、眩晕…）时，病历只写了上位词不算矛盾：
   //「咳嗽不重」证明不了有咳痰，「发热3天」证明不了有高热（2026-10-21 甲方历史 aug-B-fenghan「未诉咳痰」本是对的）。
   // 这时要病历肯定写到这个词本身。与否定方向收窄用同一张表（NARROWER_THAN_GROUP_CANONICAL）。

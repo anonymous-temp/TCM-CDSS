@@ -4,7 +4,7 @@ import { crossVendorConfirm, primaryModelJsonTask } from "./cross-model-small-ta
 import { applyPatientClaimRemovalsToContent, decidePatientClaimRemovals } from "./m03-patient-claim-check.server";
 import { recordMentionPolarityAt } from "./diagnosis-safety";
 import { alignQuoteToSource, normalizedQuoteText } from "./source-quote-alignment";
-import { recordHasTestResultFor, westernBasisWithoutEstablishmentContradiction } from "./recorded-test-claims";
+import { recordHasTestResultFor, westernBasisWithoutEstablishmentContradiction, settleWesternDiagnosisBasis } from "./recorded-test-claims";
 import emergencyDiagnosisNames from "../data/emergency-diagnosis-names.source.json" with { type: "json" };
 import establishmentCheckSource from "../data/western-establishment-check.source.json" with { type: "json" };
 import { quoteGroundedInText } from "./verbatim-quote";
@@ -333,54 +333,26 @@ export async function withAuthoredWesternBasis(
  * 不再另问；缺的是病因、部位、分型、程度这一层（MISSING_FOR_SUBLEVEL 同一判据）的不算。病名已带待查、病历写明既往已确诊的不动。
  */
 /** 依据句同时写着这个病可凭临床诊断（「临床可诊断」「依据临床表现可临床诊断」「诊断成立」「符合…诊断标准」）。 */
-const CLINICALLY_ESTABLISHED = /可(?:以)?临床诊断|临床(?:即)?可(?:以)?诊断|可凭临床诊断|临床诊断(?:成立|明确)|诊断(?:已)?成立|符合[^，,。；;]{0,12}诊断标准/u;
-export function basisSaysNameNotEstablished(basis: string, name: string): boolean {
-  const core = westernNameCore(name);
-  if (!core || core.length < 2 || !basis) return false;
-  const text = basis.normalize("NFKC");
-  // 同一句又说可凭临床诊断（2026-11-14 第四十五轮甲方标准病历8：「考虑带状疱疹可能，临床可诊断带状疱疹，尚缺病毒学检查确认病原」）：
-  // 依据前后自相矛盾，按已确立看，交给 withNameMatchingBasisCertainty 去掉「考虑X可能」那一小句，不改病名。
-  if (CLINICALLY_ESTABLISHED.test(text)) return false;
-  const escaped = core.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  if (new RegExp(`考虑${escaped}(?:的)?可能|可能为${escaped}|${escaped}(?:的)?可能(?:性)?(?:大|较大)?[，,；;。]`, "u").test(text)) return true;
-  // 直说没确立的写法（第四十六轮复核：「失眠障碍诊断尚未确立」「需排除器质性疾病后方可诊断神经性厌食症」「功能性腹痛诊断尚缺规范评估排除器质性疾病」
-  //「需该检查确认」，病名仍写确诊名，C086、C047、C073、C085、n28）。构词守卫，闭集。
-  if (new RegExp(`${escaped}[^。；;]{0,8}?(?:尚未确立|尚不能确立|尚不能诊断|不能确诊|尚未明确诊断|诊断依据不足)|(?:尚未确立|尚不能确立|尚不能诊断)[^。；;]{0,6}${escaped}|后(?:方可|才能)诊断${escaped}`, "u").test(text)) return true;
-  // 依据自己写「疑诊/拟诊X」或「考虑X…待查」（第四十六轮复核 C098「临床高度疑诊急性肺血栓栓塞症」、C085「考虑阻塞性睡眠呼吸暂停低通气综合征待查」）。
-  if (new RegExp(`(?:疑诊|拟诊|疑为|怀疑)${escaped}|${escaped}[^，,。；;]{0,12}待(?:查|排)`, "u").test(text)) return true;
-  const sentences = text.split(/[。；;]/u);
-  for (const [index, sentence] of sentences.entries()) {
-    if (!sentence.includes(core) || /既往已确诊|已确诊/u.test(sentence)) continue;
-    // 下一句以「但/然/尚」接着说缺什么（「…疑诊X。但尚缺肺动脉影像学检查，需行CTPA确认」）：说的仍是这个病名。
-    const next = sentences[index + 1] || "";
-    const after = `${sentence.slice(sentence.indexOf(core))}${/^\s*(?:但|然而?|尚)/u.test(next) ? `，${next}` : ""}`;
-    if (/尚缺[^，,。；;]{0,12}(?:评估|检查)[^，,。；;]{0,6}排除/u.test(after)) return true;
-    const missing = after.match(/(?:尚缺|尚需|有待|仍需|尚未行|尚未做|需(?:做|行|完善|该|进一步)?)([^，,。；;]{1,30}?)(?:以|来|进一步|等)?(?:确认|确诊|明确诊断)/u);
-    // 缺的是哪一层看整个小句（「尚缺病毒学检查确认病原」的病原在「确认」之后）。
-    const missingClause = missing ? after.slice(after.indexOf(missing[0])).split(/[，,；;]/u)[0] : "";
-    if (missing && !/病因|部位|病原|分型|程度|分级|分期|并发|出血点|性质/u.test(missingClause)) return true;
-  }
-  return false;
-}
-
+export { basisSaysNameNotEstablished } from "./recorded-test-claims";
 export function withNameMatchingBasisCertainty(westernContent: string, recordText: string): string {
   try {
-    const western = record(record(JSON.parse(westernContent))?.westernDiagnosis);
+    const root = record(JSON.parse(westernContent));
+    const western = record(root?.westernDiagnosis);
     const primary = record(western?.primary);
     const name = text(primary?.name);
     const basis = text(primary?.clinicalRationale);
-    if (!name || westernNameCore(name) !== compact(name) || /^疑似|症状$/u.test(compact(name))) return westernContent;
-    // 依据自相矛盾（既说可凭临床诊断、又说「考虑X可能」）：病名照留，去掉「考虑X可能」那一小句。
-    const core = westernNameCore(name);
-    if (primary && CLINICALLY_ESTABLISHED.test(basis) && basis.includes(`考虑${core}可能`)) {
-      const cleaned = basis.replace(new RegExp(`考虑${core.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}(?:的)?可能[，,；;]?`, "u"), "");
-      primary.clinicalRationale = cleaned;
-      if (Array.isArray(primary.supportingFacts)) primary.supportingFacts = primary.supportingFacts.map((fact) => fact === basis ? cleaned : fact);
-      return JSON.stringify({ ...JSON.parse(westernContent), westernDiagnosis: { ...western, primary } });
-    }
-    if (recordStatesWesternDiagnosis(name, recordText) || !basisSaysNameNotEstablished(basis, name)) return westernContent;
-    console.info("[tcm-cdss:telemetry] western_name_basis_certainty", { renamed: true });
-    return applyWesternNameCorrection(westernContent, { supportedName: `${name}待查`, quote: "", reason: "依据所述尚未确立", type: "D" });
+    if (!name || !primary || !western || !root) return westernContent;
+    const settled = settleWesternDiagnosisBasis(name, basis, recordText);
+    if (settled.name === name && settled.basis === basis) return westernContent;
+    // 这里只改变同一病名的确定度，不是另选疾病；不能把恢复确定的在治慢病又列成自身鉴别。
+    primary.name = settled.name;
+    primary.clinicalRationale = settled.basis;
+    if (Array.isArray(primary.supportingFacts)) primary.supportingFacts = primary.supportingFacts.map((fact) => fact === basis ? settled.basis : fact);
+    if (Array.isArray(western.candidates)) western.candidates = western.candidates.map((candidate, index) => {
+      const row = record(candidate);
+      return row && (index === 0 || row.name === name) ? { ...row, name: settled.name } : candidate;
+    });
+    return JSON.stringify(root);
   } catch {
     return westernContent;
   }

@@ -2,9 +2,9 @@ import "server-only";
 
 import { parseConfirmed, proposeTwiceThenVerifyAll, verifyProposals } from "./cross-model-small-task.server";
 import { isUnstableM03CoreText } from "./diagnosis-stage-contract";
-import { methodItemAlreadyCovered, textbookAnchorableMethod } from "./tcm-formula-provenance";
+import { textbookAnchorableMethod } from "./tcm-formula-provenance";
 import { textbookRowForSyndrome, therapyWithoutUnsupportedSymptomItems } from "./tcm-textbook-syndromes";
-import { DELIVERED_METHOD_ITEM_CAP, NOT_A_TREATMENT_METHOD, isStandardMethodItem } from "./tcm-therapy-phrasing";
+import { DELIVERED_METHOD_ITEM_CAP, NOT_A_TREATMENT_METHOD, isStandardMethodItem, therapyItemAlreadyCovered } from "./tcm-therapy-phrasing";
 import { quoteGroundedInText } from "./verbatim-quote";
 
 /**
@@ -111,7 +111,7 @@ export function methodItemQualifies(
   proposal: Uncovered,
   context: { method: string; recordText: string; chiefComplaint?: string },
 ): boolean {
-  if (!METHOD_ITEM.test(proposal.item) || isUnstableM03CoreText(proposal.item) || methodItemAlreadyCovered(proposal.item, context.method)) return false;
+  if (!METHOD_ITEM.test(proposal.item) || isUnstableM03CoreText(proposal.item) || therapyItemAlreadyCovered(proposal.item, context.method)) return false;
   // 只收四字治法（第三十七轮）：两字的「化痰」「止泻」交付面也不留，补了只多一次复核。
   if (!isStandardMethodItem(proposal.item)) return false;
   // 「忌口避敏」是医嘱不是治法（第三十五轮 C052）。
@@ -208,8 +208,8 @@ export async function completeMethodCoverage(content: string, context: { recordT
     verifyProposals("m03_method_coverage", "diagnose", own, (candidate) => verifyRequest(candidate, syndrome, method, context), TIMEOUT_MS, signal),
   ]);
   // 模型自己写的排前面；同一件事提名又说了一遍（「化痰止咳」与「化痰」）只留前一个。
-  const items = [...own.filter((_, index) => ownVerdicts[index] === true), ...named].slice(0, room)
-    .reduce<string[]>((kept, { item }) => (methodItemAlreadyCovered(item, kept.join("，")) ? kept : [...kept, item]), []);
+  const items = [...own.filter((_, index) => ownVerdicts[index] === true), ...named]
+    .reduce<string[]>((kept, { item }) => (therapyItemAlreadyCovered(item, [method, ...kept].join("，")) ? kept : [...kept, item]), []).slice(0, room);
   if (items.length === 0) return content;
   // 教材锚定随后会把治法换回教材原文，这几项要带过去（tcm-formula-provenance 接上后，交付面去掉这个键）。
   therapy.verifiedMethodItem = items.join("，");
@@ -233,7 +233,7 @@ export function withVerifiedMethodItemFrom(target: string, source: string): stri
     if (!to || !toTherapy || !item) return target;
     toTherapy.verifiedMethodItem = item;
     const method = text(toTherapy.overallMethod);
-    const merged = methodItems(item).reduce((text_, one) => (!text_ || methodItemAlreadyCovered(one, text_) ? text_ : `${text_.replace(/[，,。；;\s]+$/u, "")}，${one}`), method);
+    const merged = methodItems(item).reduce((text_, one) => (!text_ || therapyItemAlreadyCovered(one, text_) ? text_ : `${text_.replace(/[，,。；;\s]+$/u, "")}，${one}`), method);
     if (merged !== method) toTherapy.overallMethod = merged;
     const toOverview = record(to.overview);
     if (toOverview && typeof toOverview.overallTherapy === "string") toOverview.overallTherapy = toTherapy.overallMethod;

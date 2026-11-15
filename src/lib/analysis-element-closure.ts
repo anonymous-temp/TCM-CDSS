@@ -34,7 +34,7 @@ const CLOSURE = closureJson as unknown as {
   minRecordSigns: number;
   conclusionLeads: string[];
   conclusionMarkers: string[];
-  uncertaintyAnswers: { rows: Array<{ asked: string; answered: string }> };
+  uncertaintyAnswers: { rows: Array<{ asked: string; answered: string }>; itemGlue: string };
   promptInternalWording: { phrases: string[] };
   metaUncertaintyWording: { phrases: string[] };
 };
@@ -184,11 +184,30 @@ export function withoutDanglingConclusionLeads(value: string): string {
  * 只看待核实的那件事（item）：病历里有对这件事的回答（肯定或否定）即算已写明。
  */
 const ANSWER_ROWS = CLOSURE.uncertaintyAnswers.rows.map((row) => ({ asked: new RegExp(row.asked, "u"), answered: new RegExp(row.answered, "u") }));
+const ANSWER_ITEM_GLUE = new RegExp(CLOSURE.uncertaintyAnswers.itemGlue, "u");
+function answerRowsCoverItem(item: string, matches: typeof ANSWER_ROWS): boolean {
+  const remainder = matches.reduce((rest, row) => rest.replace(new RegExp(row.asked.source, "gu"), ""), item);
+  return ANSWER_ITEM_GLUE.test(remainder);
+}
 export function uncertaintyAnsweredByRecord(item: string, recordText: string): boolean {
   const asked = String(item || "");
   const source = String(recordText || "");
   if (!asked || !source) return false;
-  return ANSWER_ROWS.some((row) => row.asked.test(asked) && row.answered.test(source));
+  const matches = ANSWER_ROWS.filter((row) => row.asked.test(asked));
+  if (!answerRowsCoverItem(asked, matches)) return false;
+  return matches.length > 0 && matches.every((row) => row.answered.test(source));
+}
+
+/** 组合问项只剩一部分未答时，交付剩余问项，不能把已有回答也写成“未记录”。 */
+export function uncertaintyWithRecordedAnswers<T extends { item?: unknown; reason?: unknown }>(row: T, recordText: string): T | undefined {
+  const item = text(row.item);
+  const matches = ANSWER_ROWS.filter((entry) => entry.asked.test(item));
+  if (!answerRowsCoverItem(item, matches)) return row;
+  if (!matches.some((entry) => entry.answered.test(recordText))) return row;
+  const missing = matches.filter((entry) => !entry.answered.test(recordText));
+  if (missing.length === 0) return undefined;
+  const pending = [...new Set(missing.map((entry) => entry.asked.exec(item)?.[0]).filter(Boolean))].join("、");
+  return { ...row, item: pending, reason: `尚需核实${pending}` };
 }
 
 const PROMPT_INTERNAL = new RegExp(CLOSURE.promptInternalWording.phrases.map((phrase) => phrase.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("|"), "u");

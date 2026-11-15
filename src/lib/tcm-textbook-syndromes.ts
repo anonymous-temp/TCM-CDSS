@@ -12,6 +12,7 @@ import categorySource from "../data/tcm-syndrome-disease-category.source.json" w
 import { chiefComplaintPhrase } from "./rationale-findings-checklist";
 import { affirmedClinicalSourceClauses, clinicalClausePolarity } from "./clinical-polarity";
 import { resolveTcmDiseaseName, textbookSectionDeliveryName } from "./clinical-terminology";
+import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
 import { POSITIVE_FACT_EQUIVALENT_GROUPS, recordMentionPolarityAt, sourceDocumentsNegation } from "./diagnosis-safety";
 import { textbookModificationIsIncidentalSleep } from "./incidental-sleep-modification";
 import { governedSyndromeLabelAxes } from "./clinical-vocabulary";
@@ -738,7 +739,10 @@ export function textbookDiseaseDefinition(diseaseName: string, ageYears?: number
 
 /** 鉴别病的典型表现直接取该病教材定义全文；不截成半句话，不让模型补定义。 */
 export function textbookDiseaseTypicalManifestation(diseaseName: string): string {
-  return differentialDefinitionEntries(diseaseName).map((entry) => text(entry.definition)).find(Boolean) || "";
+  return differentialDefinitionEntries(diseaseName).map((entry) => text(entry.definition)).find((definition) =>
+    Boolean(definition) && !/[A-Za-z■�]/u.test(definition) &&
+    !textConsistency.damagedTextTerms.some((term) => definition.includes(term)) &&
+    !textConsistency.westernDefinitionMarkers.some((term) => definition.includes(term))) || "";
 }
 
 /** 鉴别用定义不依赖“有可开内服方”候选资格；西医章节/无方药章节仍可提供原文。 */

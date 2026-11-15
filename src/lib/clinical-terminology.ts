@@ -270,10 +270,14 @@ const TEXTBOOK_DISEASE_NAMES = new Set<string>((textbookDiseaseNamesJson as { na
 const TEXTBOOK_SECTION_TCM_NAME = new Map<string, string>(
   Object.entries((textbookDiseaseNamesJson as { tcmNameBySectionName?: Record<string, string> }).tcmNameBySectionName || {}),
 );
+const TEXTBOOK_WESTERN_TCM_NAME = new Map<string, string>(
+  Object.entries((textbookDiseaseNamesJson as { tcmNameByWesternName?: Record<string, string> }).tcmNameByWesternName || {}),
+);
 
 /** 教材节名 → 交付用的中医病名；不是「西医节名」时原样返回。 */
 export function textbookSectionDeliveryName(sectionName: string): string {
-  return TEXTBOOK_SECTION_TCM_NAME.get(String(sectionName || "").trim()) || sectionName;
+  const name = String(sectionName || "").trim();
+  return TEXTBOOK_SECTION_TCM_NAME.get(name) || (!TEXTBOOK_DISEASE_NAMES.has(name) ? TEXTBOOK_WESTERN_TCM_NAME.get(name) : undefined) || sectionName;
 }
 
 /**
@@ -297,6 +301,8 @@ export function canonicalTcmDiseaseName(
   if (subtype && TEXTBOOK_DISEASE_SUBTYPES[subtype[1]]?.[subtype[2]]) return value as string;
   const textbook = textbookTcmDiseaseName(value);
   if (textbook) return textbookSectionDeliveryName(textbook);
+  const byWesternEquivalent = TEXTBOOK_WESTERN_TCM_NAME.get(typeof value === "string" ? value.trim() : "");
+  if (byWesternEquivalent) return byWesternEquivalent;
   const resolved = resolveTcmDiseaseName(value);
   if (resolved && resolved.status !== "unverified") return resolved.canonical;
   // Do not turn a Western diagnosis or a short-lived symptom into a TCM disease automatically.
