@@ -1340,7 +1340,7 @@ const checkAsync = async (name, run) => {
     assert.deepEqual(catalogSharedComposition("甲硝唑片"), []);
   });
   const prior = (western, tcm) => ({ westernDiagnosis: { primary: { name: western } }, overview: { tcmDiseaseName: tcm } });
-  check("14.5 必写项目：自服中成药带组成、西药带说明书的戒酒；产后哺乳未记录；丹毒；男性、哺乳已记录、无自服药时不出（对照）", () => {
+  check("14.5 必写项目：自服药、产后哺乳未知/已知分开、丹毒；男性与无自服药的对照", () => {
     const toothItems = requiredPrecautionsForCase(stateOf(tooth), prior("急性牙髓炎", "牙痛"));
     assert.deepEqual(toothItems.map((item) => item.kind), ["self_medication", "self_medication"]);
     assert.equal(toothItems[0].name, "黄连上清丸");
@@ -1351,7 +1351,8 @@ const checkAsync = async (name, run) => {
     const postpartum = stateOf("两个多月前患者生产后出现头痛，呈隐痛。", { symptoms: { 既往史: "2+月前行“剖宫产术”，术后产下1女。" } });
     assert.deepEqual(requiredPrecautionsForCase(postpartum, prior("产后头痛", "头痛")).map((item) => item.kind), ["postpartum_lactation"]);
     const recordedLactation = stateOf("两个多月前患者生产后出现头痛，呈隐痛，现母乳喂养。");
-    assert.deepEqual(requiredPrecautionsForCase(recordedLactation, prior("产后头痛", "头痛")), [], "哺乳已记录时由妊娠哺乳的硬边界处理，不在这里重复");
+    // 第四十七轮F3：已实跑旧断言失败；已知哺乳也须直接提示用药与观察婴儿，不能仅依靠硬边界。
+    assert.deepEqual(requiredPrecautionsForCase(recordedLactation, prior("产后头痛", "头痛")), [{ kind: "postpartum_lactation", confirmed: true }]);
     const male = stateOf("两个多月前妻子生产后，患者熬夜后出现头痛。", { patient: { sex: "男", age: 35 } });
     assert.deepEqual(requiredPrecautionsForCase(male, prior("紧张型头痛", "头痛")), []);
     assert.deepEqual(requiredPrecautionsForCase(stateOf("左小腿红肿热痛2天。", { patient: { sex: "男", age: 57 } }), prior("下肢丹毒", "丹毒")).map((item) => item.kind), ["skin_infection_antibiotic"]);

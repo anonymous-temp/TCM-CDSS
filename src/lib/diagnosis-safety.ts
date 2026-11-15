@@ -6742,8 +6742,9 @@ export function authoritativePatientAgeYears(state: CaseState): number | undefin
  */
 export function reproductiveAdviceRelevant(state: CaseState): boolean {
   if (!/女/.test(patientSexText(state))) return false;
-  if (!pregnancyScreenRequired(state)) return false;
   const age = authoritativePatientAgeYears(state);
+  // 结扎关闭孕期提示，不关闭仍有月经的患者的经期提示与随访。
+  if ((age != null && age >= 60) || recordExcludesPregnancyPotential(normalizeClinicalText(trustedInputText(state)), age, false)) return false;
   if (age == null) return true;
   if (age < 12) return false;
   if (age >= 45 && /(?:月经|经水)(?:已)?(?:停|断|绝)[^，,。；;\n]{0,6}[1-9]\d*\s*年|(?:停经|绝经|经断)[^，,。；;\n]{0,6}[1-9]\d*\s*年/.test(normalizeClinicalText(trustedInputText(state)))) return false;
@@ -6758,7 +6759,12 @@ export function reproductiveAdviceRelevant(state: CaseState): boolean {
  */
 const YOUNG_ADOLESCENT_PREGNANCY_CONTEXT = /停经|月经(?:推迟|延后|逾期|未至|未来)|性生活|同房|怀孕|妊娠|早孕|哺乳|HCG/iu;
 export function pregnancyAdviceRelevant(state: CaseState): boolean {
+  const maternal = maternalStateText(state, normalizeClinicalText(trustedInputText(state)));
+  // 明确的本人孕哺事实优先于年龄/结扎等常规提示筛选；此函数只管提示，不改变风险判定。
+  if ([assessPregnancyState(maternal), assessLactationState(maternal)].some(isPositiveOrPossibleClinicalState) &&
+    /女/.test(patientSexText(state)) && (authoritativePatientAgeYears(state) ?? 30) >= REPRODUCTIVE_STATE_MIN_AGE_YEARS) return true;
   if (!reproductiveAdviceRelevant(state)) return false;
+  if (recordExcludesPregnancyPotential(maternal, authoritativePatientAgeYears(state))) return false;
   // 病历明确否认妊娠、也不在备孕：不再写孕期提示与逐味「孕期慎用」（2026-10-24 甲方 100 例 C018「明确否认妊娠，近两周月经正常」
   // 仍出现「孕期/妊娠慎用」「如已怀孕请先告知」，测试重点即「明确妊娠阴性不应触发孕期提示」）。
   const recorded = normalizeClinicalText(trustedInputText(state));
@@ -6767,6 +6773,16 @@ export function pregnancyAdviceRelevant(state: CaseState): boolean {
   const age = authoritativePatientAgeYears(state);
   if (age == null || age >= 15) return true;
   return YOUNG_ADOLESCENT_PREGNANCY_CONTEXT.test(normalizeClinicalText(trustedInputText(state)));
+}
+
+/** 注意事项、逐味标签与治疗卡共用；哺乳已知时只给哺乳期提示。安全门仍独立读阳性事实。 */
+export function medicationPopulationAudience(state: CaseState): { reproductive: boolean; pregnancy: boolean; lactation: boolean; ageYears: number | null } {
+  const maternal = maternalStateText(state, clinicalGroundingText(state));
+  const pregnant = isPositiveOrPossibleClinicalState(assessPregnancyState(maternal));
+  const lactating = isPositiveOrPossibleClinicalState(assessLactationState(maternal));
+  const relevant = pregnancyAdviceRelevant(state);
+  return { reproductive: reproductiveAdviceRelevant(state), pregnancy: relevant && (pregnant || !lactating),
+    lactation: relevant && (lactating || (!pregnant && assessLactationState(maternal).status !== "negative")), ageYears: authoritativePatientAgeYears(state) ?? null };
 }
 
 /**

@@ -26,12 +26,17 @@ await check("1.2", "临床上感不强要检查、缺铁贫血仍要铁代谢，
   assert.match(criteria.westernCriteriaEntry("缺铁性贫血").requiredTests.join(""), /铁/);
   assert.ok(entries.filter((e) => e.retrievedAt === "2026-11-15").every((e) => e.reviewedAt));
 });
-await check("1.3", "每条最终病名均可返回白名单内、非空引用，未知病名不伪造", () => {
+await check("1.3", "每条最终病名仅返回白名单内且题名对题的引用，否则空列表", () => {
   for (const e of entries) {
     const refs = criteria.westernGuidelineReferencesForName(e.name);
-    assert.equal(refs.length, 1, e.name);
-    assert.ok(policy.isAllowedWesternEvidenceUrl(refs[0].url), e.name);
-    assert.ok(refs[0].title && refs[0].siteName, e.name);
+    // F3：不对题宁可不给；旧断言强迫每个表条目都给引用，掩盖了回填跳过核题。
+    const matched = policy.isAllowedWesternEvidenceUrl(e.url) && policy.westernEvidenceTitleMatches(e.title, [e.name, ...(e.aliases || [])]);
+    assert.equal(refs.length, matched ? 1 : 0, e.name);
+    for (const ref of refs) {
+      assert.ok(policy.isAllowedWesternEvidenceUrl(ref.url), e.name);
+      assert.ok(policy.westernEvidenceTitleMatches(ref.title, [e.name, ...(e.aliases || [])]), e.name);
+      assert.ok(ref.title && ref.siteName, e.name);
+    }
   }
   assert.deepEqual(criteria.westernGuidelineReferencesForName("不存在的合成病名"), []);
 });

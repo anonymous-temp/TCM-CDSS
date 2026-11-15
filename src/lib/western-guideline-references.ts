@@ -1,5 +1,6 @@
 import referenceRules from "../data/western-guideline-reference-rules.source.json" with { type: "json" };
 import criteriaSource from "../data/western-diagnostic-criteria.source.json" with { type: "json" };
+import { isAllowedWesternEvidenceUrl, westernEvidenceTitleMatches } from "./western-evidence-policy";
 
 type Citation = { evidenceId: string; citation: string; url?: string; appliesTo?: string };
 type Criteria = { name: string; aliases?: string[]; title: string; siteName: string; url: string };
@@ -27,15 +28,16 @@ export function westernGuidelineTitleMatches(name: string, title: string): boole
   const concepts = [westernGuidelineCore(name), ...(entry ? [entry.name, ...(entry.aliases || [])].map(westernGuidelineCore) : [])];
   // citation 的末尾括注是机构/年份；学组名或摘要里的病名不能冒充题名命中。
   const normalized = String(title || "").normalize("NFKC").replace(/\s*(?:URL:)?https?:\/\/\S+.*$/iu, "").replace(/\s+/gu, "").replace(/\([^()]*\)$/u, "");
-  return concepts.some((concept) => concept.length >= 2 && normalized.includes(concept));
+  // 病名修饰和「病因待查」只在这一份既有病名核题器中去掉；范围/病程冲突仍核对未剥限定的最终病名。
+  return westernEvidenceTitleMatches(normalized, concepts, withoutPending(name));
 }
 
 /** 输入的引用已由 evidence scope 核真；此处只按最终病名核题，查表兜底绝不接受模型的 URL/title。 */
 export function finalWesternGuidelineReferences(name: string, verified: readonly Citation[]): Citation[] {
-  const relevant = verified.filter((citation) => citation && typeof citation.citation === "string" && westernGuidelineTitleMatches(name, citation.citation));
+  const relevant = verified.filter((citation) => citation && typeof citation.citation === "string" && citation.url && isAllowedWesternEvidenceUrl(citation.url) && westernGuidelineTitleMatches(name, citation.citation));
   if (relevant.length) return relevant.slice(0, 1);
   const entry = criteriaForGuideline(name);
-  return entry?.url && entry.title ? [{ evidenceId: `LOCAL-WESTERN-CRITERIA:${entry.name}`, citation: [entry.title, entry.siteName].filter(Boolean).join("（") + (entry.siteName ? "）" : ""), url: entry.url }] : [];
+  return entry?.url && entry.title && isAllowedWesternEvidenceUrl(entry.url) && westernGuidelineTitleMatches(name, entry.title) ? [{ evidenceId: `LOCAL-WESTERN-CRITERIA:${entry.name}`, citation: [entry.title, entry.siteName].filter(Boolean).join("（") + (entry.siteName ? "）" : ""), url: entry.url }] : [];
 }
 
 /** 定稿（所有病名核对与 certainty 改名）之后再次核题；重复调用不会复活旧病名的引用。 */

@@ -733,7 +733,7 @@ export function recordedMedicationMentions(text: string | null | undefined): { n
           .replace(/^.*(?:给予|给与|予以)/u, "")
           .replace(/^(?:长期|规律|平素|平时|自行|使用|应用|了|过|用|以|口服|服用|改用|换用|外擦|外搽|取|舌下含服|含)+/u, "")
           .replace(/[“”"「」《》)）]/gu, "").replace(/泵$/u, "").replace(/[可以的]$/u, "").replace(/\s+/gu, "").trim();
-        const valid = name.length >= 2 && name.length <= 14 && !NOT_A_MEDICATION_NAME.test(name) &&
+        const valid = name.length >= 2 && name.length <= 14 && !medicationCandidateFragment(name) && !NOT_A_MEDICATION_NAME.test(name) &&
           (/接受/u.test(verb[0]) ? /^[\u4e00-\u9fff]{2,}/u.test(name) : /[\u4e00-\u9fff]{2,}|[A-Za-z]{3,}/u.test(name));
         // 前面已取到的药再出现（「予他克莫司加量为早2片晚1片，奥美沙坦1片bid」）也算这一串列举的开头，后面「药名＋用量」的小句照接（M 集 TCM-SD-463912）。
         if (valid) listContinues = true;
@@ -752,7 +752,8 @@ export function recordedMedicationMentions(text: string | null | undefined): { n
     }
     previousSentenceNames = names.slice(before);
   }
-  return { names, given, unnamed: unnamed && names.length === 0, herbal: herbal && names.length === 0 };
+  const current = names.filter((name) => medicationOnlyPastMentions(source, name) !== "past");
+  return { names: current, given: given.filter((name) => current.includes(name)), unnamed: unnamed && current.length === 0, herbal: herbal && current.length === 0 };
 }
 
 /**
@@ -835,8 +836,15 @@ export function medicationOnlyPastMentions(text: string, name: string): "past" |
   if (!name) return undefined;
   const { mentions } = medicationMentionClauses(text, name);
   if (mentions.length === 0) return undefined;
+  if (String(text || "").normalize("NFKC").split(/[。；;\n]+/u).some((sentence) => sentence.includes(name) &&
+    (MEDICATION_STILL_TAKING.test(sentence) || MEDICATION_CURRENT_CONTINUATION.test(sentence)))) return undefined;
   const cues = mentions.map(({ clause, before }) => {
     const lead = before + clause.slice(0, clause.indexOf(name));
+    // 年前旧疗程且无继续用药事实，不能写「正在服用」；本次近日自服仍保留供核实。
+    // 年界复用下方 medicationTimelineStatuses 的 gap>=1 口径，近期已结束疗程仍由 COMPLETED_COURSE 处理。
+    const anchor = timelineAnchor(lead);
+    if (!CURRENT_MEDICATION_CUE.test(clause) && !ONGOING_MEDICATION_CUE.test(clause) &&
+      clinicalEventTemporalScopeAt(lead + name, lead.length, name.length) !== "current" && anchor?.kind === "rel" && anchor.value >= 1) return "既往";
     return PAST_MEDICATION_CUE.test(lead) && !CURRENT_MEDICATION_CUE.test(clause) ? lead.match(PAST_MEDICATION_CUE)![0] : undefined;
   });
   if (cues.some((cue) => !cue)) {
@@ -1111,9 +1119,16 @@ export function medicationHistoryItemCandidate(item: string): { candidate: strin
     candidate = candidate.replace(/^(?:长期|规律|平素|目前|现在?|正在|偶尔|偶有|偶|常备|自行|自己|网购的?|购买的?|孕期|外用|吸入(?![性剂])|口服|服用|使用|服|用|饮)/u, "");
   }
   candidate = candidate.replace(/(?:近期|近一?[周月日天]|偶有|偶尔|漏用|漏服|不规律|按[^，,]*医嘱|服用|使用|治疗|剂量|名称|成分|品牌|处方|服后|后困倦|饮料|[一二两三四五六七八九十\d]+次).*$/u, "");
+  if (!MEDICATION_HISTORY_CLASS_WORD.test(candidate)) candidate = cleanedMedicationNameCandidate(candidate);
   // 「一袋混合药片」「药名不明」：说不出是什么药，不当药名。
   if (/^[一两几][袋盒瓶包]|混合|不明|不详|待核实/u.test(candidate)) candidate = "";
   return { candidate, notCurrent };
+}
+
+function medicationCandidateFragment(name: string): boolean {
+  // 剂型/调量片段无药物身份；饮食中的肉丸、鱼丸不因末字「丸」成为中成药。
+  return /^剂|^(?:吸入剂|气雾剂)(?:加|增)|(?:加至|增至|增加至)$/u.test(name) ||
+    /(?:[猪牛羊鸡]肉|肉|鱼)丸$/u.test(name);
 }
 
 export function cleanedMedicationNameCandidate(raw: string): string {
@@ -1123,6 +1138,8 @@ export function cleanedMedicationNameCandidate(raw: string): string {
     previous = name;
     name = name.replace(MEDICATION_CANDIDATE_LEAD, "");
   }
+  // 给药动作后的剂型/调量残片没有药物身份（「吸入剂加至每日4次」）。
+  if (medicationCandidateFragment(name)) return "";
   // 「通络止痛类中成药」「降压类药物」：类别说法，截断之前就认（截断会剩下「通络」）。
   if (/^[\u4e00-\u9fff]{1,6}类(?:中成)?(?:药|制剂)/u.test(name)) return "";
   // 「吃点止咳糖浆」切出的「点」（第四十六轮 new45-n18）：「点」后至少两个字再接剂型时去掉（「点舌丸」不动）。

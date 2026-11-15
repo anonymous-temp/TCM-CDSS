@@ -22,9 +22,14 @@ export function westernDiseaseCore(name: string): string {
 }
 
 /** 标题必须命中完整病名或受治理同义名的核心；不以相邻病名的共有二字当概念。 */
-export function westernEvidenceTitleMatches(title: string, names: readonly string[]): boolean {
-  const compact = title.normalize("NFKC").replace(/\s+/gu, "").toLocaleLowerCase();
+export function westernEvidenceTitleMatches(title: string, names: readonly string[], requestedName = names[0] || ""): boolean {
+  const compact = title.normalize("NFKC").replace(/\s*(?:URL:)?https?:\/\/\S+.*$/iu, "").replace(/\s+/gu, "").toLocaleLowerCase();
+  if (policy.nonGuidelineTitleGenres.some((genre) => compact.includes(genre))) return false;
+  if (policy.titleSubjectExclusions.some((row) => requestedName.replace(/待[查排]$/u, "") === row.name && compact.includes(row.titleSubject))) return false;
+  if (policy.titleScopeQualifiers.some((scope) => compact.includes(scope) && ![...names, requestedName].some((name) => name.includes(scope)))) return false;
+  if (policy.courseQualifiers.some((course) => requestedName.includes(course) && policy.courseQualifiers.some((other) => other !== course && compact.includes(other)))) return false;
   return names.some((name) => {
+    // 急、慢性不能互借证据；人群、病因限定也不能因共有症状而消失。
     const core = westernDiseaseCore(name).toLocaleLowerCase();
     return core.length >= 2 && compact.includes(core);
   });

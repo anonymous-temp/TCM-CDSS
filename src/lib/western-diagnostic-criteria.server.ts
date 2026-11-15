@@ -1,7 +1,7 @@
 import "server-only";
 
 import criteriaSource from "../data/western-diagnostic-criteria.source.json";
-import { isAllowedWesternEvidenceUrl } from "./western-evidence-policy";
+import { isAllowedWesternEvidenceUrl, westernEvidenceTitleMatches } from "./western-evidence-policy";
 import { symptomLevelWesternName } from "./western-symptom-name.server";
 import { webSearchGovernedTerm } from "./deepseek-web-search.server";
 
@@ -142,6 +142,7 @@ export function westernCriteriaPromptValue(reference: WesternCriteriaReference |
 /** 按最终病名取要点表来源；纯查表，不联网。供 dx 工作包接回 guidelineReferences。 */
 export function westernGuidelineReferencesForName(name: string): Array<{ url: string; title: string; siteName: string }> {
   const entry = westernCriteriaEntry(name);
-  if (!entry || !isAllowedWesternEvidenceUrl(entry.url) || !entry.title || !entry.siteName) return [];
+  if (!entry || !isAllowedWesternEvidenceUrl(entry.url) || !entry.title || !entry.siteName ||
+    !westernEvidenceTitleMatches(entry.title, [name, entry.name, ...(entry.aliases || [])])) return [];
   return [{ url: entry.url, title: entry.title, siteName: entry.siteName }];
 }

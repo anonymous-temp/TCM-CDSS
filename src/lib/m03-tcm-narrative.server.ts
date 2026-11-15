@@ -18,6 +18,7 @@ export function buildM03TcmNarrativePrompt(conclusion: FrozenM03TcmConclusion, c
     "一次写辨病依据、辨证依据、总体病机、链、真正尚缺的信息及鉴别；总体病机与链同源。不得补写病历未载的久则/先后因果，不得把正常观察当虚实依据，不得用耗伤阴津等同义语引入待核实证素。",
     "待核实的 pendingId 必须来自冻结记录，已记录或否认的项目不写未记录。鉴别仅选给定 candidateId，典型表现由服务端取原文；reason/distinguishingPoints区分本例与参考知识。病名鉴别尽量2项，证型鉴别可为空，不凑无关病。",
     "病位/病性轴、治则、总治法、方名、出处、安全裁决都由服务端给定，不输出这些键。流派只引用冻结 targets，不另立病性，不选未交付的方。无流派写null。",
+    "流派视角与influencedDecisions点名采用的方必须等于最终交付方；未采用的方须明确写未用。选择经方流派却交付非经方时，须按本例表现解释经方候选为何没有方证相合者，再说明实际选方，不得只写部分适配；没有冻结依据时少说，不编造方证。",
     "句子必须完整，删去一句后剩余句仍可独立阅读；明确因果依赖的链节点在 dependsOn 引前序节点id。主诉和有意义舌脉应解释，但不要求每个伴随表现都立证。",
     JSON.stringify({ conclusion, expanded, facts: ctx.facts, findingsChecklist: ctx.findingsChecklist, differentials: ctx.differentials, lineage: ctx.lineage, violations }),
   ].join("\n");

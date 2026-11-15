@@ -1,3 +1,7 @@
+import { lineageWordingMatchingDirection } from "./lineage-formula-wording";
+import { populationMatchedPrecautions } from "./population-matched-precautions";
+import { currentMedicationPrecautions } from "./current-medication-precautions";
+import { clinicalGroundingText, medicationPopulationAudience } from "./diagnosis-safety";
 import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import { projectM04FinalFacts } from "./m04-final-projection";
 import { isSourceFallbackFunctionDisplay, projectGroundedHerbFunctions } from "./herb-function-display-source";
@@ -45,7 +49,7 @@ import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMe
 import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
-import { followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
+import { boundaryRuleShown, followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, herbFunctionKnowledgeForDisplay, isExternalUseEfficacyClause, isKnownTcmHerbName } from "./tcm-knowledge";
 import { herbFunctionClaimUnsupportedPhrases, herbFunctionPhraseRecognized, herbFunctionPhraseSupported } from "./diagnosis-stage-contract";
 import { deliveredTreatmentCodes, precautionMentionsUndeliveredTreatment, treatmentCardUndeliverable } from "./tcm-treatment-capabilities.server";
@@ -81,7 +85,7 @@ export type DeliveredSurfaceOptions = {
   /** 两步投影沿用已定红旗状态；仅作展示上下文，不重算安全结论。 */
   safetyGate?: Pick<NonNullable<CaseState["safetyGate"]>, "status">;
   /** 编译、补写与缓存投影使用同一主诉和既定安全门，不从无标题正文猜主诉。 */
-  caseState?: Pick<CaseState, "chiefComplaint" | "safetyGate">;
+  caseState?: Pick<CaseState, "chiefComplaint" | "safetyGate"> & Partial<CaseState>;
   herbBoundaryAudience?: HerbBoundaryAudience;
   requiredPrecautions?: readonly RequiredPrecaution[];
   /**
@@ -145,7 +149,7 @@ function requiredPrecautionCovered(item: RequiredPrecaution, lines: readonly str
   if (item.kind === "current_medications" && item.urgent) return item.names.every((name) => lines.some((line) => line.includes(medicationBaseName(name)) &&
     /带|携带|就医|急诊/u.test(line) && !URGENT_INTERVAL_CLAUSE.test(line)));
   if (item.kind === "self_medication") return lines.some((line) => line.includes(item.base) || line.includes(item.name));
-  if (item.kind === "postpartum_lactation") return lines.some((line) => /哺乳|喂奶|母乳|授乳|乳汁/.test(line));
+  if (item.kind === "postpartum_lactation") return lines.some((line) => /哺乳|喂奶|母乳|授乳|乳汁/.test(line) && (!item.confirmed || (!/(?:如|若)[^。]{0,16}(?:哺乳|喂奶)/u.test(line) && /婴儿|孩子/u.test(line))));
   if (item.kind === "pediatric_administration") return lines.some((line) => /小儿|患儿|儿童|幼儿|孩子|宝宝/.test(line) && /少量|多次|分次|频服|喂/.test(line));
   // 模型常只写「起身宜缓，防止跌倒」不点年龄：说到跌倒就算写到了，不再补一句同义的（2026-10-18 甲方病历 6 两句防跌倒）。
   if (item.kind === "elderly_administration") return lines.some((line) => /高龄|老年|老人|年老|年长|跌倒|摔倒/.test(line));
@@ -230,6 +234,7 @@ function requiredPrecautionLine(item: RequiredPrecaution, herbIdentities: Readon
     const named = tiers && (tiers.prohibited.length > 0 || tiers.caution.length > 0)
       ? [tiers.prohibited.length > 0 ? `${tiers.prohibited.slice(0, 6).join("、")}哺乳期禁用` : "", tiers.caution.length > 0 ? `${tiers.caution.slice(0, 6).join("、")}哺乳期须慎用` : ""].filter(Boolean).join("，")
       : lactationHerbs.length > 0 ? `${lactationHerbs.slice(0, 4).join("、")}哺乳期须慎用` : "";
+    if (item.confirmed) return `您正在哺乳，服药前请医生评估哺乳期用药安全${named ? `（方中${named}）` : ""}；留意婴儿吃奶、精神及排便变化，出现异常请及时就医。`;
     return `产后如正在哺乳，请服药前告知医生${named ? `（方中${named}）` : ""}，由医生评估后再服。`;
   }
   if (item.kind === "antithrombotic_bleeding") {
@@ -2550,8 +2555,9 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
       // 哺乳期慎用的药按逐味人群提示同一份知识库、同一档（中、高）列；模型写「方中暂无哺乳期慎用药」而知识库列了的，换成规则那一句
       //（2026-10-17 本地复测病历 3：同一页的逐味提示写着川芎哺乳期慎用）。
       const candidateHerbNames = records(records(formula?.candidates)[0]?.herbs).map((herb) => String(herb.name || "").trim()).filter(Boolean);
+      const confirmedLactation = required.some((item) => item.kind === "postpartum_lactation" && item.confirmed);
       const lactationSeverity = (name: string) => getTcmHerbGenerationSafetyProfile(name).populationRules
-        .find((rule) => rule.population.includes("哺乳") && (rule.severity === "HIGH" || rule.severity === "MEDIUM"))?.severity;
+        .find((rule) => rule.population.includes("哺乳") && (!confirmedLactation || boundaryRuleShown(name, rule)) && (rule.severity === "HIGH" || rule.severity === "MEDIUM"))?.severity;
       const lactationHerbs = candidateHerbNames.filter((name) => lactationSeverity(name));
       const lactationTiers = {
         prohibited: lactationHerbs.filter((name) => lactationSeverity(name) === "HIGH"),
@@ -3675,6 +3681,9 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
   const policy = m04FinalContentPolicy();
   const finalAnalysis = object.stage === "prescribe" && policy.enabled && policy.analysis === "on";
   const projected = structuredClone(object);
+  if (projected.stage === "diagnose" || projected.stage === "prescribe") {
+    Object.assign(projected, lineageWordingMatchingDirection(projected as unknown as import("./diagnosis-types").ClinicalReasoningResultV2));
+  }
   // Old prose cannot influence naming, processing, roles, functions or guide instructions.
   const previousAnalyses = records(record(projected.formula)?.candidates).map((candidate) => candidate.formulaAnalysis);
   const finalHerbs = new Set<Json>();
@@ -3690,6 +3699,17 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
   }
   if (finalAnalysis) for (const candidate of records(record(projected.formula)?.candidates)) delete candidate.formulaAnalysis;
   let options = rawOptions;
+  const nonPharmaForMedication = record(projected.nonPharma);
+  if (nonPharmaForMedication && Array.isArray(nonPharmaForMedication.precautions)) {
+    const grounding = options?.recordText || (options?.caseState?.patient ? clinicalGroundingText(options.caseState as CaseState) : undefined);
+    nonPharmaForMedication.precautions = currentMedicationPrecautions(nonPharmaForMedication.precautions.filter((line): line is string => typeof line === "string"), grounding);
+  }
+  if (options?.caseState?.patient) {
+    const state = options.caseState as CaseState;
+    options = { ...options, herbBoundaryAudience: medicationPopulationAudience(state) };
+    const nonPharma = record(projected.nonPharma);
+    if (nonPharma && Array.isArray(nonPharma.precautions)) nonPharma.precautions = populationMatchedPrecautions(nonPharma.precautions.filter((line): line is string => typeof line === "string"), state);
+  }
   if (projected.stage === "diagnose") {
     deliveredDiagnose(projected, options, readOnlyConclusions);
     options = withEstablishedDiagnosis(projected, options);

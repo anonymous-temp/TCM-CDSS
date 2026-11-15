@@ -65,7 +65,7 @@
     "lactation_review": {
       "window": "within_3d",
       "focus": "哺乳期用药安全",
-      "visit": "到医院面诊，确认哺乳情况、孩子月龄与哺乳期可否服用本方",
+      "visit": "到医院面诊，评估哺乳期用药安全及婴儿观察安排",
       "nodeVisit": "到医院面诊确认哺乳期用药",
       "clearance": "医生确认哺乳期可以服用后",
       "withoutRegimenTail": "医生确认哺乳期可以服用后再按医生安排服药与复诊",

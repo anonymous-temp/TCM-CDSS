@@ -253,12 +253,13 @@ check("⑪ 未命中证型加减时必须标第三态，不得冒充个体化方
   assert.doesNotMatch(item.suggestedSitesOrPoints.join("；"), /关元/);
 });
 
+// r1064 F3：末端核引用URL白名单，合成检索夹具补白名单URL；不放宽真实来源过滤。
 // r1064 C3：已实跑旧断言失败。反伪造、人群过滤用最终名“咳嗽”与咳嗽指南对题；题名无交集且无要点表来源则显式 []。
 // ── ⑩ 指南依据必须由 evidenceId 反查渲染，模型不得引入新字符串 ──────────────────
 const GUIDE_CONTEXT = [
   "## EviMed 指南/共识检索",
   "命中证据摘要（仅引用下列真实题名、机构、年份和URL；引用时使用方括号ID）：",
-  "[EVID-GUIDE-002] 中国咳嗽基层诊疗与管理指南（2024年）（中华医学会呼吸病学分会，2024）：慢性咳嗽的分层评估。 URL:https://www.evimed.com/guide/002",
+  "[EVID-GUIDE-002] 中国咳嗽基层诊疗与管理指南（2024年）（中华医学会呼吸病学分会，2024）：慢性咳嗽的分层评估。 URL:https://www.cma.org.cn/guide/002",
 ].join("\n");
 
 check("⑩ 模型只回 evidenceId，题名/机构/年份/URL 由服务端反查渲染", () => {
@@ -266,7 +267,7 @@ check("⑩ 模型只回 evidenceId，题名/机构/年份/URL 由服务端反查
   const citation = governedEvidenceCitation("EVID-GUIDE-002", scope);
   assert.ok(citation, "本轮真检索到的条目必须能被 id 反查到");
   assert.match(citation.citation, /中国咳嗽基层诊疗与管理指南/);
-  assert.equal(citation.url, "https://www.evimed.com/guide/002");
+  assert.equal(citation.url, "https://www.cma.org.cn/guide/002");
   assert.equal(governedEvidenceCitation("EVID-GUIDE-999", scope), undefined, "集外 id 必须取不到");
 });
 
@@ -310,7 +311,7 @@ check("⑩ 模型漏填 evidenceId 时，M03 必须从本轮真实检索结果�
   assert.equal(resolved.guidelineReferences.length, 1, "模型漏填不能再让整栏静默为空");
   assert.equal(resolved.guidelineReferences[0].evidenceId, "EVID-GUIDE-002");
   assert.match(resolved.guidelineReferences[0].citation, /中国咳嗽基层诊疗与管理指南/);
-  assert.equal(resolved.guidelineReferences[0].url, "https://www.evimed.com/guide/002");
+  assert.equal(resolved.guidelineReferences[0].url, "https://www.cma.org.cn/guide/002");
 
   const noRetrievedEvidence = buildEvidenceOutputTransform("无 EVID-GUIDE 或 EVID-PAPER 条目");
   const failClosed = readSentinel(noRetrievedEvidence(wrap(payload))).westernDiagnosis.primary;
@@ -319,8 +320,8 @@ check("⑩ 模型漏填 evidenceId 时，M03 必须从本轮真实检索结果�
 
 check("⑩ 自动补位必须排除与患者年龄不符的人群指南", () => {
   const context = [
-    "[EVID-GUIDE-001] 中国儿童慢性湿性咳嗽诊疗共识（儿科学组，2023）：儿童湿性咳嗽。",
-    "[EVID-GUIDE-002] 咳嗽的诊断与治疗指南（呼吸病学分会，2021）：成人与儿童咳嗽分层评估。",
+    "[EVID-GUIDE-001] 中国儿童慢性湿性咳嗽诊疗共识（儿科学组，2023）：儿童湿性咳嗽。 URL:https://www.cma.org.cn/guide/child",
+    "[EVID-GUIDE-002] 咳嗽的诊断与治疗指南（呼吸病学分会，2021）：成人与儿童咳嗽分层评估。 URL:https://www.cma.org.cn/guide/cough",
   ].join("\n");
   const transform = buildEvidenceOutputTransform(context, undefined, {
     id: "adult-cough",
@@ -341,8 +342,8 @@ check("⑩ 自动补位必须排除与患者年龄不符的人群指南", () => 
 
 check("⑩ 模型不得跳过通用指南改绑更窄且病例未证实的病因共识", () => {
   const context = [
-    "[EVID-GUIDE-001] 新型冠状病毒感染咳嗽诊疗共识（呼吸病学分会，2023）：新冠感染相关咳嗽。",
-    "[EVID-GUIDE-002] 咳嗽的诊断与治疗指南（呼吸病学分会，2021）：咳嗽分层评估。",
+    "[EVID-GUIDE-001] 新型冠状病毒感染咳嗽诊疗共识（呼吸病学分会，2023）：新冠感染相关咳嗽。 URL:https://www.cma.org.cn/guide/covid",
+    "[EVID-GUIDE-002] 咳嗽的诊断与治疗指南（呼吸病学分会，2021）：咳嗽分层评估。 URL:https://www.cma.org.cn/guide/cough",
   ].join("\n");
   const transform = buildEvidenceOutputTransform(context, undefined, {
     id: "generic-cough",
@@ -474,7 +475,7 @@ check("⑩ 指南/文献依据必须真的出现在医生可见正文里（此�
       supportingFacts: ["咽痛3天", "体温38.2℃"],
       supportingFactKinds: [{ fact: "咽痛3天", kind: "symptom" }, { fact: "体温38.2℃", kind: "sign" }],
       limitations: [], suggestedChecks: [],
-      guidelineReferences: [{ evidenceId: "EVID-GUIDE-002", citation: "中国咳嗽基层诊疗与管理指南（2024年）（中华医学会呼吸病学分会，2024）", url: "https://www.evimed.com/guide/002", appliesTo: "咳嗽分层评估口径" }],
+      guidelineReferences: [{ evidenceId: "EVID-GUIDE-002", citation: "中国咳嗽基层诊疗与管理指南（2024年）（中华医学会呼吸病学分会，2024）", url: "https://www.cma.org.cn/guide/002", appliesTo: "咳嗽分层评估口径" }],
       evidence: { evidenceLevel: "model_inference", source: "病例内推理", confidence: "中" },
     }, differentials: [] },
     pathogenesis: { summary: "", chain: [], uncertainties: [] },

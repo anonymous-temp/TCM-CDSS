@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "reviewedAt": "2026-11-15",
-  "note": "第四十七轮：只接受卫生行政/疾控、学会与期刊全文、人卫、默沙东专业版、BMJ BP、UpToDate、WHO、NICE。按实际 URL 校验，不信搜索站名或 authority；域名边界与路径同时核。",
+  "note": "第四十七轮：只接受卫生行政/疾控、学会与期刊全文、人卫、默沙东专业版、BMJ BP、UpToDate、WHO、NICE。按实际 URL 校验，不信搜索站名或 authority；域名边界与路径同时核。 本地回填与在线检索共用题名核验，急慢性互斥；不对题返回空列表。",
   "sites": [
     {
       "host": "nhc.gov.cn"
@@ -104,5 +104,31 @@
     "老年性"
   ],
   "conflictRestrictionPattern": "勿|不宜|不要|禁止|避免|忌|限制|少吃|少食|少饮|减少|戒|禁用|慎用",
-  "careDiagnosisSeparators": "伴有|伴|合并|并发|并|[，,；;、]"
+  "careDiagnosisSeparators": "伴有|伴|合并|并发|并|[，,；;、]",
+  "courseQualifiers": [
+    "急性",
+    "慢性"
+  ],
+  "nonGuidelineTitleGenres": [
+    "质量评价",
+    "比较分析",
+    "述评",
+    "指南简介",
+    "指南解读"
+  ],
+  "titleScopeQualifiers": [
+    "化疗",
+    "感染性",
+    "共病",
+    "功能性"
+  ],
+  "titleScopeBasis": "病因、功能性疾病及共病限定须在最终病名或受治理同义名中成立；人群复用上游diagnosticReferenceAppliesToPatient按实际年龄/性别核查，不因病名未冠儿童而再次排除适龄指南。述评/评价不冒充原指南。",
+  "titleSubjectExclusions": [
+    {
+      "name": "慢性咽炎",
+      "titleSubject": "扁桃体咽炎",
+      "basis": "要点表原来源是慢性咽炎，白名单替换页换成扁桃体咽炎，仅共有咽炎二字不足以据此作为慢性咽炎来源。缺少对题来源时留空。",
+      "sourceRef": "western-diagnostic-criteria.source.json:慢性咽炎.originalSource/referenceEvidence"
+    }
+  ]
 }

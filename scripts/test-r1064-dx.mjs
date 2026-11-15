@@ -67,21 +67,28 @@ await check("2.1 指南标题核最终病名核心，摘要/主诉相近不够",
  assert.equal(guidelines.westernGuidelineTitleMatches("急性胆囊炎待查", "胆囊炎诊疗指南"), true);
  assert.equal(guidelines.westernGuidelineTitleMatches("急性胆囊炎", "化疗指南 URL:https://example.com/胆囊炎"), false);
 });
-await check("2.2 不对题改为受治理要点表来源，查无来源时输出空数组", () => {
+await check("2.2 不对题只回填经核题的表来源，表来源也不对题时输出空数组", () => {
  const wrong = [{ evidenceId: "EVID-GUIDE-001", citation: "化疗所致恶心呕吐指南", url: "https://example.com/wrong" }];
  const good = guidelines.finalWesternGuidelineReferences("急性胆囊炎", wrong);
  const table = JSON.parse(fs.readFileSync("src/data/western-diagnostic-criteria.source.json", "utf8")).entries;
  const row = table.find(x => x.name === "急性胆囊炎") || table.find(x => x.name === "胆囊炎");
- assert.equal(good[0]?.url, row.url);
- assert.equal(guidelines.finalWesternGuidelineReferences("急性胆囊炎待查", wrong)[0]?.url, row.url);
- assert.ok(good[0]?.citation.includes(row.title));
+ // F3：已实跑旧断言失败；表条目存在不能绕过标题核题（英文来源尚无受治理同义名时同样宁缺）。
+ if (guidelines.westernGuidelineTitleMatches("急性胆囊炎", row.title)) {
+  assert.equal(good[0]?.url, row.url);
+  assert.equal(guidelines.finalWesternGuidelineReferences("急性胆囊炎待查", wrong)[0]?.url, row.url);
+  assert.ok(good[0]?.citation.includes(row.title));
+ } else {
+  assert.deepEqual(good, []);
+  assert.deepEqual(guidelines.finalWesternGuidelineReferences("急性胆囊炎待查", wrong), []);
+ }
  assert.deepEqual(guidelines.finalWesternGuidelineReferences("未收录的合成诊断", wrong), []);
 });
 await check("2.3 服务端检索引用不被排序第一条劫持，改名定稿后重新判题", () => {
  const data = dx("胁痛", "肝郁气滞证");
  data.westernDiagnosis = { primary: { name: "急性胆囊炎", guidelineReferences: [{ evidenceId: "EVID-GUIDE-001" }] } };
  // 错题的机构名靠前，按旧排序会赢；末端回退不能冒充检索阶段已选中正确题名。
- const transform = evidence.buildEvidenceOutputTransform("- [EVID-GUIDE-001] 化疗指南（胆囊炎研究组，2024） URL:https://example.com/a\n- [EVID-GUIDE-002] 临床常见急腹症专家协作组关于胆囊炎诊疗指南（某学会，2024） URL:https://example.com/b");
+ // F3：末端统一核URL白名单，合成检索夹具也须使用白名单主机。
+ const transform = evidence.buildEvidenceOutputTransform("- [EVID-GUIDE-001] 化疗指南（胆囊炎研究组，2024） URL:https://www.cma.org.cn/a\n- [EVID-GUIDE-002] 临床常见急腹症专家协作组关于胆囊炎诊疗指南（某学会，2024） URL:https://www.cma.org.cn/b");
  const result = unwrap(transform(wrap(data)));
  assert.equal(result.westernDiagnosis.primary.guidelineReferences[0]?.evidenceId, "EVID-GUIDE-002");
  result.westernDiagnosis.primary.name = "未收录的合成诊断";

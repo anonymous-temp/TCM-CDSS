@@ -32,12 +32,13 @@ const SEVERITY_WORDING = [
  * 病历未必写全，一律保留。孕哺是否适用用 reproductiveAdviceRelevant 的同一判据（育龄女性；年龄不详按适用）。
  */
 /** reproductive：月经、带下类（reproductiveAdviceRelevant）；pregnancy：孕哺类（pregnancyAdviceRelevant），缺省同 reproductive。 */
-export type HerbBoundaryAudience = { reproductive: boolean; pregnancy?: boolean; ageYears: number | null };
+export type HerbBoundaryAudience = { reproductive: boolean; pregnancy?: boolean; lactation?: boolean; ageYears: number | null };
 
 export function herbBoundaryPopulationRelevant(population: string, audience?: HerbBoundaryAudience): boolean {
   if (!audience) return true;
   // 知识库的人群标签是一个小闭集（孕期/妊娠、哺乳期、儿童/婴幼儿、老年人…），按标签里的字判断即可，不另立词表。
-  if (population.includes("孕") || population.includes("哺乳")) return audience.pregnancy ?? audience.reproductive;
+  if (population.includes("哺乳")) return audience.lactation ?? audience.pregnancy ?? audience.reproductive;
+  if (population.includes("孕")) return audience.pregnancy ?? audience.reproductive;
   if (population.includes("儿童") || population.includes("婴幼儿")) return audience.ageYears == null || audience.ageYears < 18;
   if (population.includes("老年")) return audience.ageYears == null || audience.ageYears >= 60;
   return true;
@@ -139,7 +140,8 @@ export function followupSignOutsidePopulation(item: string, audience?: HerbBound
   if (!audience) return false;
   const text = String(item || "");
   return (!audience.reproductive && FEMALE_REPRODUCTIVE_SIGN_TERMS.some((term) => text.includes(term))) ||
-    (!(audience.pregnancy ?? audience.reproductive) && PREGNANCY_LACTATION_SIGN_TERMS.some((term) => text.includes(term)));
+    PREGNANCY_LACTATION_SIGN_TERMS.some((term) => text.includes(term) &&
+      !(term.includes("哺乳") ? audience.lactation ?? audience.pregnancy ?? audience.reproductive : audience.pregnancy ?? audience.reproductive));
 }
 
 export function followupSignsForPopulation(text: string, audience?: HerbBoundaryAudience): string {
