@@ -891,6 +891,8 @@ const scripts = [
   "test:r1064-dx",
   // 第四十七轮 C2：加减条件分型、主方加味与成药重复、小方身份和治法同义/流程/红旗治则。
   "test:r1064-mods",
+  // Round 47 S3: final snapshot/delta, verbatim functions, closed modifications and sentence rejection.
+  "test:r1064-m04",
 ];
 
 // 不进闸门的 test:* 脚本，逐条写明原因。新增 test:* 脚本必须进上面的数组或进这里，否则闸门开头即失败。
