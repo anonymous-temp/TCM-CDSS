@@ -885,6 +885,8 @@ const scripts = [
   "test:r1064-crit",
   // R47 C/D: final patient facts, governed R01–R16 and no contradictory prose after rejected alignment.
   "test:r1064-facts",
+  // 第四十七轮 S2：中医结论先核对冻结，再作文；全字段检查、一次重写后整句删除、投影闭包与注入IO两步夹具。
+  "test:r1064-m03",
 ];
 
 // 不进闸门的 test:* 脚本，逐条写明原因。新增 test:* 脚本必须进上面的数组或进这里，否则闸门开头即失败。

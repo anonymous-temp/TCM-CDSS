@@ -384,6 +384,7 @@
     "test:r1060-main": "node scripts/test-r1060-main.mjs",
     "test:r1062-main": "node scripts/test-r1062-main.mjs",
     "test:r1064-ledger": "node --max-old-space-size=1280 scripts/test-r1064-ledger.mjs",
+    "test:r1064-m03": "node --max-old-space-size=1280 scripts/test-r1064-m03.mjs",
     "test:r1063-main": "node scripts/test-r1063-main.mjs",
     "test:r1064-main": "node --max-old-space-size=1280 scripts/test-r1064-main.mjs",
     "test:r1064-facts": "node --max-old-space-size=1280 scripts/test-r1064-facts.mjs",

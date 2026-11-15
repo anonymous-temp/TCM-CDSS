@@ -438,8 +438,8 @@ await check("5.1 diagnose 路由在 M03 前置并行任务里调用闭集选择�
   const prefetch = readFileSync("src/lib/stage-prefetch.server.ts", "utf8");
   assert.ok(prefetch.includes("void pickJingfangPatternsForCase(safeState).catch(() => undefined);"));
   assert.ok(prefetch.includes('import { pickJingfangPatternsForCase } from "./jingfang-pattern-pick.server";'));
-  // 锚定与正向依据两处各有一个分支，且只有这一个
-  assert.equal((readFileSync("src/lib/tcm-formula-provenance.ts", "utf8").match(/jingfangPatternForSignedSyndrome\(/gu) || []).length, 1);
+  // 第四十七轮 S2 新增记录式纯选方入口也复用方证身份判据；旧锚定分支保留，故本文件现在为两处调用。
+  assert.equal((readFileSync("src/lib/tcm-formula-provenance.ts", "utf8").match(/jingfangPatternForSignedSyndrome\(/gu) || []).length, 2);
   assert.equal((readFileSync("src/lib/tcm-formula-indications.ts", "utf8").match(/jingfangRelationFormulaIdentityNames\(/gu) || []).length, 1);
 });
 
