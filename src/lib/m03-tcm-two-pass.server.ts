@@ -1,5 +1,5 @@
 import "server-only";
-import { buildM03TcmConclusionPrompt, freezeM03TcmConclusion, M03_TCM_CONCLUSION_PROVIDER_SCHEMA,
+import { buildM03TcmConclusionPrompt, freezeM03TcmConclusion, m03TcmHash, M03_TCM_CONCLUSION_PROVIDER_SCHEMA,
   type FrozenM03TcmConclusion, type M03TcmContext } from "./m03-tcm-conclusion";
 import { checkM03TcmConclusion, withinM03TcmBudget, type M03TcmConclusionCheckIO } from "./m03-tcm-conclusion-checks.server";
 import { authorM03TcmNarrative, type M03TcmModelIO } from "./m03-tcm-narrative.server";
@@ -79,23 +79,6 @@ export async function runM03TcmTwoPass(ctx: M03TcmContext, io: M03TcmTwoPassIO, 
   if (!frozen) return { kind: "unusable", reasons: ["conclusion_missing"], reusable: false };
   let draft = await authorM03TcmNarrative(frozen, ctx, io, signal, deadline);
   if (!draft) return { kind: "upstream_unavailable", reasons: ["narrative_unavailable"], reusable: false };
-  let checked = await validateM03TcmNarrative(draft, frozen, ctx, io, signal, deadline);
-  let rewrites = 0;
-  if (checked.status !== "pass" && (options.rewrite ?? policy.rewrite)) {
-    rewrites = 1;
-    const rewritten = await authorM03TcmNarrative(frozen, ctx, io, signal, deadline, checked.violations);
-    // Invalid rewrite: prune all known offending units of the first draft; never return it unchanged.
-    if (rewritten) { draft = rewritten; checked = await validateM03TcmNarrative(draft, frozen, ctx, io, signal, deadline); }
-  }
-  const violations: NarrativeViolation[] = [...checked.violations];
-  const prunedIds = new Set<string>();
-  const prune = () => {
-    const before = m03TcmNarrativeSentences(draft!).map((slot) => slot.sentence.id);
-    draft = pruneInvalidM03TcmSentences(draft!, violations);
-    const kept = new Set(m03TcmNarrativeSentences(draft).map((slot) => slot.sentence.id));
-    before.filter((id) => !kept.has(id)).forEach((id) => prunedIds.add(id));
-  };
-  if (violations.length) prune();
   const project = () => {
     const assembled = projectM03TcmHalf(frozen!, draft!, ctx);
     // C2 的治则投影按安全快照判断红旗；重复投影也必须携带同一已定状态。
@@ -108,12 +91,42 @@ export async function runM03TcmTwoPass(ctx: M03TcmContext, io: M03TcmTwoPassIO, 
     assertM03TcmProjection(frozen!, projectDeliveredReasoning(delivered, displayOptions), ctx);
     return delivered;
   };
+  // Check the authored sentences and their actual display projection together.
+  // Reuse only a successful check of the same complete payload, within this run.
+  const textChecks = new Map<string, Awaited<ReturnType<typeof validateM03TcmNarrative>>>();
+  const validate = async (projected?: M03TcmHalf) => {
+    let half: M03TcmHalf | null = projected || null;
+    if (!half) { try { half = project(); } catch { /* structural checks still get a chance to request a rewrite */ } }
+    const key = m03TcmHash({ frozen, ctx, draft, half });
+    const previous = textChecks.get(key);
+    if (previous) return previous;
+    const result = await validateM03TcmNarrative(draft!, frozen!, ctx, io, signal, deadline, half);
+    if (half && result.status === "pass") textChecks.set(key, result);
+    return result;
+  };
+  let checked = await validate();
+  let rewrites = 0;
+  if (checked.status !== "pass" && (options.rewrite ?? policy.rewrite)) {
+    rewrites = 1;
+    const rewritten = await authorM03TcmNarrative(frozen, ctx, io, signal, deadline, checked.violations);
+    // Invalid rewrite: prune all known offending units of the first draft; never return it unchanged.
+    if (rewritten) { draft = rewritten; checked = await validate(); }
+  }
+  const violations: NarrativeViolation[] = [...checked.violations];
+  const prunedIds = new Set<string>();
+  const prune = () => {
+    const before = m03TcmNarrativeSentences(draft!).map((slot) => slot.sentence.id);
+    draft = pruneInvalidM03TcmSentences(draft!, violations);
+    const kept = new Set(m03TcmNarrativeSentences(draft).map((slot) => slot.sentence.id));
+    before.filter((id) => !kept.has(id)).forEach((id) => prunedIds.add(id));
+  };
+  if (violations.length) prune();
   for (let finalCheck = 0; finalCheck < 2; finalCheck++) {
     if (!usableM03TcmNarrative(draft)) return { kind: "unusable", reasons: ["narrative_core_pruned"], reusable: false };
     let half: M03TcmHalf;
     try { half = project(); }
     catch { return { kind: "unusable", reasons: ["conclusion_projection_drift"], reusable: false }; }
-    const final = await validateM03TcmNarrative(draft, frozen, ctx, io, signal, deadline, half);
+    const final = await validate(half);
     if (final.status === "pass") {
       const bounded = prunedIds.size > 0 || frozen.primary.resolution !== "resolved" || half.overview.tcmDiseaseDifferentials!.length < 2;
       return { kind: bounded ? "bounded" : "ready", tcmRaw: JSON.stringify(half), half, frozen, narrative: draft,

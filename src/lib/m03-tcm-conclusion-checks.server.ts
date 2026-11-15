@@ -67,9 +67,10 @@ export async function checkM03TcmConclusion(
   value: unknown, ctx: M03TcmContext, io: M03TcmConclusionCheckIO,
   signal: AbortSignal, absoluteDeadline: number, revision = 1, enabled = m03TcmCheckPolicy(),
 ): Promise<ConclusionCheckResult> {
+  const parseViolations: string[] = [];
   let proposal: M03TcmConclusionProposal;
-  try { proposal = parseM03TcmProposal(value, ctx); }
-  catch { return { kind: "unusable", reasons: ["invalid_proposal"] }; }
+  try { proposal = parseM03TcmProposal(value, ctx, parseViolations); }
+  catch (error) { return { kind: "unusable", reasons: ["invalid_proposal", error instanceof Error ? error.message : "proposal_shape"] }; }
   const quotes = locateM03TcmQuotes(proposal, ctx);
   const input: M03TcmCheckInput = deepFreezeM03(structuredClone({ baseRevision: revision,
     inputHash: m03TcmHash({ revision, proposal, ctx }), proposal, quotes, context: ctx })) as M03TcmCheckInput;
@@ -117,7 +118,7 @@ export async function checkM03TcmConclusion(
     const replies = units.filter((item) => item.id === unit.id);
     const reply = replies.length === 1 && (candidate.kind === "location" || enabled.elements) ? replies[0] : undefined;
     const refs = quoteIds(unit.quotes);
-    const matches = reply?.status === "matched" ? reply.matches.filter((match) => unit.criteria.includes(match.item) && candidate.criteriaIds.includes(match.item) && refs.includes(match.quoteId) && quotes.some((quote) => quote.id === match.quoteId && currentAbnormal(quote))) : [];
+    const matches = reply?.status === "matched" ? reply.matches.filter((match) => candidate.criteriaIds.includes(match.item) && refs.includes(match.quoteId) && quotes.some((quote) => quote.id === match.quoteId && currentAbnormal(quote))) : [];
     const entry = candidate.criteriaName ? diagnosticsCriteriaFor(candidate.criteriaName) : undefined;
     const criterionMatches = entry ? matches.filter((match) => criteriaItemsFor(entry).includes(match.item)).map((match) => ({ item: match.item, quote: quotes.find((quote) => quote.id === match.quoteId)!.text })) : [];
     // Primary and base factors must not subtract their own manifestations. Secondary independence is checked below.
@@ -203,5 +204,5 @@ export async function checkM03TcmConclusion(
   record.primary.resolution = record.pending.length === 0 && primary && primary.elementIds.length > 0 ? "resolved" : "bounded";
   const anchored = resolveM03TcmAnchor(record, ctx, io.caseSafety);
   if (anchored.record.methods.length === 0) return { kind: "unusable", reasons: ["methods_unverified"] };
-  return { kind: record.primary.resolution === "bounded" ? "bounded" : "ready", record: anchored.record, reasons: anchored.reasons };
+  return { kind: record.primary.resolution === "bounded" ? "bounded" : "ready", record: anchored.record, reasons: [...parseViolations, ...anchored.reasons] };
 }
