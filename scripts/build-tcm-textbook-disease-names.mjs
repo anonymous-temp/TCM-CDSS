@@ -33,14 +33,14 @@ for (const entry of lexicon) {
 const governed = (name) => canonicalOf.get(name) || canonicalOf.get(`${name}病`) || canonicalOf.get(name.replace(/病$/u, ""));
 const tcmNameBySectionName = {};
 const tcmNameBasis = {};
-for (const disease of table.diseases) {
+for (const disease of [...table.diseases, ...(supplement.diseases || [])]) {
   if (!BOOKS.has(disease.bookKey) || !names.has(disease.disease) || tcmNameBySectionName[disease.disease]) continue;
   const own = governed(disease.disease);
   if (own && canonicalNames.has(disease.disease)) continue;
   // 「属中医学“骨痹”“骨蚀”范畴」：紧接着的几个引号名都是该节对应的中医病名。
   const quoted = [...String(disease.definition || "").matchAll(/中医学?((?:[“"][^”"]{2,8}[”"])+)/gu)]
     .flatMap((match) => [...match[1].matchAll(/[“"]([^”"]{2,8})[”"]/gu)].map((item) => item[1]));
-  const resolved = quoted.map((name) => ({ name, canonical: governed(name) })).filter((item) => item.canonical);
+  const resolved = [...(disease.tcmEquivalents || []), ...quoted].map((name) => ({ name, canonical: governed(name) })).filter((item) => item.canonical);
   if (resolved.length === 0) continue;
   const pick = resolved.find((item) => item.canonical === own) || resolved[0];
   tcmNameBySectionName[disease.disease] = pick.canonical;
@@ -53,6 +53,22 @@ for (const item of sectionNames.sectionTcmNames) {
   tcmNameBySectionName[item.section] = item.tcmName;
   tcmNameBasis[item.section] = { line: item.line, quote: item.quote };
 }
-const out = { generatedBy: "scripts/build-tcm-textbook-disease-names.mjs", count: names.size, names: [...names].sort((a, b) => a.localeCompare(b, "zh-Hans-CN")), tcmNameBySectionName, tcmNameBasis };
+// westernEquivalents 反查只交付教材节名/其有原文依据的中医归属，不用模糊词相似度。
+const westernTargets = new Map();
+for (const disease of [...table.diseases, ...(supplement.diseases || [])]) {
+  if (!BOOKS.has(disease.bookKey) || !names.has(disease.disease)) continue;
+  const target = tcmNameBySectionName[disease.disease] || disease.disease;
+  for (const western of disease.westernEquivalents || []) {
+    if (names.has(western) && !tcmNameBySectionName[western]) continue;
+    if (western !== target) {
+      const targets = westernTargets.get(western) || new Set();
+      targets.add(target);
+      westernTargets.set(western, targets);
+    }
+  }
+}
+// 同一西医病可归多个中医病，不能由表顺序替模型定病。
+const tcmNameByWesternName = Object.fromEntries([...westernTargets].filter(([, targets]) => targets.size === 1).map(([western, targets]) => [western, [...targets][0]]));
+const out = { generatedBy: "scripts/build-tcm-textbook-disease-names.mjs", count: names.size, names: [...names].sort((a, b) => a.localeCompare(b, "zh-Hans-CN")), tcmNameBySectionName, tcmNameBasis, tcmNameByWesternName };
 fs.writeFileSync(path.join(root, "src/data/tcm-textbook-disease-names.json"), `${JSON.stringify(out, null, 1)}\n`);
 console.log(`textbook disease names: ${names.size}; western-titled sections with a TCM name: ${JSON.stringify(tcmNameBySectionName)}`);

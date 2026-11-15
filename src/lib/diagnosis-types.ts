@@ -2186,37 +2186,41 @@ export function normalizeReasoningV2(value: unknown): ClinicalReasoningResultV2 
     || (nature.items.length === 0 && !(nature.rootDeficiency?.length || nature.branchExcess?.length)
       ? "unresolved"
       : nature.basis?.trim() ? "resolved" : "bounded");
+  // 这些是本函数旧版写出的整字段默认说明，不能当作模型按本例写的说明沿用；从当前条目和依据重新生成。
+  const syndromeReason = /目前只有\d+条病历依据支持/u.test(normalized.overview.primarySyndromeResolutionReason || "") ? undefined : normalized.overview.primarySyndromeResolutionReason;
+  const locationReason = /目前只有\d+条病历依据支持/u.test(location.resolutionReason || "") ? undefined : location.resolutionReason;
+  const natureReason = /^病性“[^”]*”缺少可回溯的病历依据$/u.test(nature.resolutionReason || "") ? undefined : nature.resolutionReason;
   return {
     ...normalized,
     overview: {
       ...normalized.overview,
       primarySyndromeResolution: syndromeResolution,
       primarySyndromeBasis: syndromeBasis,
-      primarySyndromeResolutionReason: normalized.overview.primarySyndromeResolutionReason
+      primarySyndromeResolutionReason: syndromeReason
         || (syndromeResolution === "resolved"
           ? undefined
-          : `证型“${normalized.overview.primarySyndrome || "未定"}”目前只有${syndromeBasis.length}条病历依据支持`),
+          : `证型“${normalized.overview.primarySyndrome || "未定"}”${syndromeBasis.length > 0 ? "尚待复诊进一步核实" : "尚缺直接的病历依据"}`),
     },
     pathogenesis: {
       ...normalized.pathogenesis,
       locationDifferentiation: {
         ...location,
         resolution: locationResolution,
-        resolutionReason: location.resolutionReason
+        resolutionReason: locationReason
           || (locationResolution === "resolved"
             ? undefined
             : locationResolution === "bounded"
-              ? `病位“${location.items.join("、")}”目前只有${location.details?.length || 0}条病历依据支持`
+              ? `病位“${[...new Set(location.items.filter((item) => !location.details?.some((detail) => detail.location === item && detail.basis.trim())))].join("、") || location.items.join("、")}”${location.details?.some((detail) => detail.basis.trim()) ? "尚待逐项核实" : "尚缺直接的病历依据"}`
               : "病历里没有可以支持病位判断的依据"),
       },
       natureDifferentiation: {
         ...nature,
         resolution: natureResolution,
-        resolutionReason: nature.resolutionReason
+        resolutionReason: natureReason
           || (natureResolution === "resolved"
             ? undefined
             : natureResolution === "bounded"
-              ? `病性“${[...nature.items, ...(nature.rootDeficiency || []), ...(nature.branchExcess || [])].join("、")}”缺少可回溯的病历依据`
+              ? `病性“${[...new Set([...nature.items, ...(nature.rootDeficiency || []), ...(nature.branchExcess || [])])].join("、")}”${nature.basis?.trim() ? "的病历依据尚待逐项核实" : "尚缺直接的病历依据"}`
               : "病历里没有可以支持病性判断的依据"),
       },
     },

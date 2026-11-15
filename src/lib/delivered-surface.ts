@@ -31,7 +31,7 @@ import { smallBaseOverextended, selfDevisedReferenceSource } from "./tcm-formula
  * 守得对；不对的只是把守的过程原样念给了医生听。
  */
 
-import { RED_FLAG_SAFETY_NET_VISIT, recordHasTongueAndPulse } from "./diagnosis-visible-summary";
+import { RED_FLAG_SAFETY_NET_VISIT, recordHasTongueAndPulse, withoutUnrecordedNormalCommentary } from "./diagnosis-visible-summary";
 import { formulaTextbookCommentary } from "./formula-textbook-commentary";
 import sameSourceHerbs from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
 import originalFormDistinctions from "../data/tcm-formula-original-form-distinctions.source.json" with { type: "json" };
@@ -64,7 +64,7 @@ import { findLocalPatentMedicineLabel, labelledMedicineNamesIn, patentMedicineBa
 import { textbookDistinctHerbKey } from "./herb-textbook-identity";
 import { internalMustProcessHerb, processedHerbName, purposeProcessedHerbName, withProcessedHerbMentions } from "./herb-processing-forms";
 import { liquidHerbDoseRule, normalizedLiquidHerbDose } from "./herb-liquid-dose";
-import { westernBasisWithoutEstablishmentContradiction, withoutMissingClaimsForRecordedTests, withoutUnrecordedTestCitations } from "./recorded-test-claims";
+import { settleWesternDiagnosisBasis, withoutUnrecordedTestCitations } from "./recorded-test-claims";
 import { withoutLabelPlaceholders } from "./instruction-record-pool";
 import { resolveTcmDiseaseName } from "./clinical-terminology";
 import { governedTcmHerbAdjudicatedCanonical } from "./tcm-herb-identity";
@@ -74,7 +74,7 @@ import { assessPregnancyState } from "./clinical-state";
 import { allergenAvoidPhrase, allergenHerbMatch, allergenMatchesInText, allergenRecordPhrase } from "./allergen-profile";
 import dietRestrictionCategoriesJson from "../data/diet-restriction-food-categories.source.json" with { type: "json" };
 import drugConditionCautionsJson from "../data/western-drug-condition-cautions.source.json" with { type: "json" };
-import { MIN_RECORD_SIGNS, excessElementMentionsIn, methodImpliedExcessElements, namedExcessElements, recordExcessSigns, uncertaintyAnsweredByRecord, uncertaintyAsksListedElement, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording, withMethodImpliedNatureElements } from "./analysis-element-closure";
+import { MIN_RECORD_SIGNS, excessElementMentionsIn, methodImpliedExcessElements, namedExcessElements, recordExcessSigns, uncertaintyAnsweredByRecord, uncertaintyWithRecordedAnswers, uncertaintyAsksListedElement, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording, withMethodImpliedNatureElements } from "./analysis-element-closure";
 import { GENERIC_PRIORITY_FIRST_STEP, previousPriorityFirstStepSentences, priorityEvaluationFirstStep, priorityEvaluationFollowUpNode, priorityTargetWithEstablishedDiagnosis, quoteWithoutDeniedLeadingItems, recordedFindingReading, type DoseWithheldFollowupKind, type PriorityEvaluationTarget } from "./diagnosis-safety";
 
 /**
@@ -1371,11 +1371,16 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
   const overviewForSecondaryNote = record(reasoning.overview);
   if (overviewForSecondaryNote && typeof overviewForSecondaryNote.tcmDiagnosticRationale === "string") {
     overviewForSecondaryNote.tcmDiagnosticRationale = withoutOrphanMechanismFragments(withoutSecondaryRuleNote(overviewForSecondaryNote.tcmDiagnosticRationale));
+    if (options?.recordText) overviewForSecondaryNote.tcmDiagnosticRationale = withoutUnrecordedNormalCommentary(String(overviewForSecondaryNote.tcmDiagnosticRationale), options.recordText);
   }
   // 待核实栏问的是病历已经否认的事（「有无咳嗽咯血」而病历写「无咳嗽、咯血」，第四十一轮 r1054 回顾）：这一条不留。
   // 只认「有无/是否有/是否伴」后面的那几项都被病历否认（recordedFindingReading = denied）；有一项没被否认就整条照留。
   const pathogenesisForUncertainty = record(reasoning.pathogenesis);
   if (options?.recordText && pathogenesisForUncertainty && Array.isArray(pathogenesisForUncertainty.uncertainties)) {
+    pathogenesisForUncertainty.uncertainties = records(pathogenesisForUncertainty.uncertainties).flatMap((row) => {
+      const pending = uncertaintyWithRecordedAnswers(row, options.recordText!);
+      return pending ? [pending] : [];
+    });
     pathogenesisForUncertainty.uncertainties = records(pathogenesisForUncertainty.uncertainties).filter((row) => !uncertaintyAsksDeniedFinding(String(row.item || ""), options.recordText || ""));
   }
   // 待核实栏里写着「已明」「已排除」的条目（模型写「有汗无汗已明…表虚表实鉴别已排除」，第四十四轮回看）：自己说已经定了，就不是待核实的事，不留。
@@ -1438,11 +1443,13 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
     // 说「尚缺X检查」而病历已有X结果的那几项先删掉（withoutMissingClaimsForRecordedTests，第四十一轮 r1054 回顾 n12）；改的是 clinicalRationale 本身，
     // 读回时 isDeliveredWesternBasisOnly 与这一句仍逐字相同。
     if (typeof primary.clinicalRationale === "string" && options?.recordText) {
-      primary.clinicalRationale = westernBasisWithoutEstablishmentContradiction(
-        withoutUnrecordedTestCitations(withoutMissingClaimsForRecordedTests(primary.clinicalRationale, options.recordText), options.recordText),
+      const settled = settleWesternDiagnosisBasis(
         typeof primary.name === "string" ? primary.name : "",
+        withoutUnrecordedTestCitations(primary.clinicalRationale, options.recordText),
         options.recordText,
       );
+      if (!readOnlyConclusions) primary.name = settled.name;
+      primary.clinicalRationale = settled.basis;
     }
     const basis = deliveredWesternBasis(western);
     primary.supportingFacts = basis ? [basis] : [];
@@ -1518,7 +1525,10 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
     const seenNames = new Set<string>();
     overview.tcmDiseaseDifferentials = records(overview.tcmDiseaseDifferentials)
       .filter((item) => maleOnlyFilter(String(item.diseaseName || "")))
-      .map((item) => (typeof item.diseaseName === "string" ? { ...item, diseaseName: ocrName(item.diseaseName) } : item))
+      .flatMap((item) => {
+        const resolved = resolveTcmDiseaseDifferentialName(ocrName(String(item.diseaseName || "")), String(overview.tcmDiseaseName || ""));
+        return resolved.action === "drop" ? [] : [{ ...item, diseaseName: resolved.name }];
+      })
       .filter((item) => {
         const key = canonical(String(item.diseaseName || ""));
         if (!key || key === own || seenNames.has(key)) return false;

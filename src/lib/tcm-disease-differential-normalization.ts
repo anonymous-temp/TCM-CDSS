@@ -3,7 +3,7 @@ import abbreviationsJson from "../data/western-diagnosis-abbreviations.source.js
 import textbookDiseaseNamesJson from "../data/tcm-textbook-disease-names.json" with { type: "json" };
 import icd10IndexJson from "../data/icd10-diagnosis-index.json" with { type: "json" };
 import { governedTcmDiseaseCode, resolveTcmDiseaseName, textbookSectionDeliveryName } from "./clinical-terminology";
-import { diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, subtypeTextbookDifferentialName, textbookDiseaseDefinitionText, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
+import { diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, subtypeParentDisease, subtypeTextbookDifferentialName, textbookDiseaseDefinitionText, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
 
 /**
  * 中医病名鉴别栏只收中医病名（2026-09-29，甲方 9.24/9.27 测评 1.1：风寒感冒例的中医鉴别写了「流感」）。
@@ -47,7 +47,7 @@ function governedCanonical(value: string): string {
  * 教材外科、妇科各节也列西医病名（瘾疹节的丘疹性荨麻疹、蛇串疮节的肋间神经痛），所以西医写法（对照表或缩写表里有、或带西医构词）
  * 仍走下面的对照归一或丢弃。
  */
-export const WESTERN_DISEASE_FORM = /性|炎|综合征|症$|瘤|癌|感染|溃疡|结石|梗[死塞]|增生|硬化|障碍|紊乱|病毒|细菌|神经|血管|细胞|淋巴|[A-Za-z]/u;
+export const WESTERN_DISEASE_FORM = /性|炎|综合征|症$|椎病$|瘤|癌|感染|溃疡|结石|梗[死塞]|增生|硬化|障碍|紊乱|病毒|细菌|神经|血管|细胞|淋巴|[A-Za-z]/u;
 /**
  * 只收中医病证名的构词：二到四个字、以痛/疮/痹/汗/衄/证/痨收尾（背痛、尻痛、真头痛、胃脘痛、脱汗、战汗、舌衄、抱儿痨、脓窝疮）。
  * 教材全表 460 对鉴别里，放宽到「教材列了就收」会新收进肠梗阻、直肠息肉、尖锐湿疣、血友病这类西医病名，并让荨麻疹不再归一成瘾疹，
@@ -68,7 +68,12 @@ function isIcd10DiseaseName(value: string): boolean {
   if (!icd10DiseaseNames) {
     icd10DiseaseNames = new Set();
     for (const entry of (icd10IndexJson as { entries: Array<{ name?: unknown; aliases?: unknown }> }).entries) {
-      if (typeof entry.name === "string") icd10DiseaseNames.add(entry.name);
+      if (typeof entry.name === "string") {
+        icd10DiseaseNames.add(entry.name);
+        // 索引只列各型（神经根型颈椎病等）时，其去“X型”的病名仍属西医身份。
+        const base = entry.name.replace(/^[\u4e00-\u9fff]{1,12}?型/u, "");
+        if (base !== entry.name) icd10DiseaseNames.add(base);
+      }
       if (Array.isArray(entry.aliases)) for (const alias of entry.aliases) if (typeof alias === "string") icd10DiseaseNames.add(alias);
     }
   }
@@ -128,12 +133,16 @@ export function resolveTcmDiseaseDifferentialName(rawName: string, currentDiseas
   // 分型病（血证（鼻衄））：与本病同名按所属的病比（「血证」不是血证（鼻衄）的鉴别）；教材按分段写明的本型鉴别病名照留。
   if (subtypeTextbookDifferentialName(currentDiseaseWritten, name)) return { action: "keep", name };
   const currentDisease = splitTextbookDiseaseSubtype(currentDiseaseWritten).disease;
+  // 吐血等教材分组虽在国标里标作临时术语，仍是有原文的中医子病名；与其它病鉴别时保留，不当成无名词条删除。
+  const subtypeParent = subtypeParentDisease(name);
+  if (subtypeParent && subtypeParent !== currentDisease) return { action: "keep", name };
   // 教材的节名是可交付的规范病名（clinical-terminology.canonicalTcmDiseaseName 同一口径）：原样保留，
   // 不归一到国标条目（「头痛」→「头风病」），也不因国标没有收录而丢掉（教材的鉴别病名如「奔豚」「热疮」）。
   const textbookName = name.replace(/类病$/u, "");
   if (TEXTBOOK_DISEASE_NAMES.has(textbookName)) {
     // 教材节名是西医病名而教材写明它属哪个中医病的（血栓闭塞性脉管炎 → 脱疽），鉴别栏也写中医病名；与当前病名同一个病时不构成鉴别。
     const delivered = textbookSectionDeliveryName(textbookName);
+    if (delivered === textbookName && WESTERN_DISEASE_FORM.test(textbookName) && !governedCanonical(textbookName)) return { action: "drop", from: name };
     return delivered === currentDisease.trim().replace(/类病$/u, "")
       ? { action: "drop", from: name }
       : delivered === name ? { action: "keep", name } : { action: "rename", name: delivered, from: name };
@@ -142,6 +151,8 @@ export function resolveTcmDiseaseDifferentialName(rawName: string, currentDiseas
   const currentCanonical = governedCanonical(currentDisease);
   const direct = governedCanonical(name);
   if (direct) {
+    // 国标也收西医正名（颈椎病等）；没有教材中医节名或可追溯中医别名时，不能凭国标身份放进中医鉴别。
+    if (direct === name && isIcd10DiseaseName(name) && WESTERN_DISEASE_FORM.test(name)) return { action: "drop", from: name };
     // 与当前病名是同一病名（含别名，如「伤风」对「感冒」之外的同一条目）不构成鉴别。
     if (currentCanonical && direct === currentCanonical) return { action: "drop", from: name };
     // GB/T 15657 把「带状疱疹」「荨麻疹」「湿疹」「偏头痛」收为别名：鉴别栏写正名（蛇串疮/瘾疹/湿疮/偏头风）。

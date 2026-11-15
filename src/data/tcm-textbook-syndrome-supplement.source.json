@@ -1378,8 +1378,17 @@
     "肩凝症",
     "粘连性关节囊炎"
    ],
-   "westernEquivalents": [],
-   "tcmEquivalents": [],
+   "westernEquivalents": [
+    "肩关节周围炎",
+    "肩周炎",
+    "粘连性关节囊炎"
+   ],
+   "tcmEquivalents": [
+    "漏肩风",
+    "露肩风",
+    "肩凝风",
+    "肩凝症"
+   ],
    "evidence": [
     {
      "kind": "local",
@@ -1450,9 +1459,7 @@
    ],
    "notes": "按原文收录；未给出的西医对应名、舌脉或逐型证候不推填。通治行以原文“药物治疗”为标签，分期行按原文分期收录，均使用syndromeKind=type。",
    "syndromeCount": 3,
-   "missingFields": [
-    "westernEquivalents"
-   ]
+   "missingFields": []
   },
   {
    "bookKey": "supplement",

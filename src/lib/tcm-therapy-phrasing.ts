@@ -1,4 +1,5 @@
 import therapyPhrasePolicy from "../data/tcm-therapy-phrase-policy.source.json" with { type: "json" };
+import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
 import { governedTreatmentMethodOccurrencesInText, type TreatmentPrincipleEntry } from "./clinical-governance-tables";
 /**
  * 治法表述的**确定性归一**（L2 规则层）。
@@ -228,6 +229,8 @@ export function negativeInferenceClaim(span: string): boolean {
 }
 export function negativeClaimItems(span: string): { subject: string; items: string[] } | undefined {
   const value = span.trim();
+  // 「无出路/无所/无从」里的无是构词，不能拆成病人的阴性自诉。
+  if (textConsistency.nonNegativeWuTails.some((tail) => value.includes(`无${tail}`))) return undefined;
   if (!NEGATIVE_FORM_CLAIM.test(value) || /[，,。；;：:]/u.test(value) || negativeInferenceClaim(value)) return undefined;
   const subject = /^(本例|患者|病人|该患者)/u.exec(value)?.[0] || "";
   const body = value.slice(subject.length);
@@ -317,7 +320,7 @@ function governedTherapyUnits(phrase: string): Array<{ text: string; key: string
 }
 
 export function withoutRedundantTherapyPhrases(method: string): string {
-  const treatments = String(method || "").split(/[，,、；;]/u).map((item) => item.trim()).filter((item) => item && !NOT_A_TREATMENT_METHOD.test(item));
+  const treatments = String(method || "").split(/[，,、；;]/u).map((item) => item.trim().replace(LEADING_MODIFIER, "")).filter((item) => item && !NOT_A_TREATMENT_METHOD.test(item));
   const text = withoutRepeatedPurposeTail(withTwoCharacterRunsJoined(treatments.join("，")));
   const phrases = text.split(/[，,、；;]/u).map((item) => item.trim()).filter(Boolean);
   const units = phrases.map(governedTherapyUnits);
@@ -325,6 +328,7 @@ export function withoutRedundantTherapyPhrases(method: string): string {
   const covered = new Set<string>();
   phrases.forEach((phrase, index) => {
     const own = units[index];
+    if (therapyPhrasePolicy.coveredPhrases.some((rule) => rule.covered.includes(phrase) && kept.some((prior) => rule.by.includes(prior)))) return;
     // 单独两字项被另一个完整项覆盖（益气，益气扶正）。只比明列概念或完整词。
     if (phrase.length === 2 && units.some((other, at) => at !== index && phrases[at].length > 2 && own.every((unit) => other.some((item) => item.key === unit.key)))) return;
     if (own.length > 0 && own.every((unit) => covered.has(unit.key))) return;
@@ -336,6 +340,15 @@ export function withoutRedundantTherapyPhrases(method: string): string {
     for (const unit of governedTherapyUnits(item)) covered.add(unit.key);
   });
   return mergedSameHeadTherapyPhrases(kept.join("，"));
+}
+
+/** 补项与合并共用受治理同义单元，不能一个按字面补、另一个按同义删。 */
+export function therapyItemAlreadyCovered(item: string, method: string): boolean {
+  if (!item.trim()) return true;
+  const prior = method.split(/[，,、；;]/u).map((part) => part.trim().replace(LEADING_MODIFIER, ""));
+  if (therapyPhrasePolicy.coveredPhrases.some((rule) => rule.covered.includes(item) && prior.some((part) => rule.by.includes(part)))) return true;
+  const covered = new Set(prior.flatMap(governedTherapyUnits).map((unit) => unit.key));
+  return governedTherapyUnits(item).every((unit) => covered.has(unit.key));
 }
 
 /**

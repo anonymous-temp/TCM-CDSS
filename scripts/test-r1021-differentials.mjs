@@ -311,8 +311,13 @@ await check("4.1 交付面：保留下来只有一条时，用教材所列的中
   assert.notEqual(names[1], listed[0]);
   assert.ok(listed.includes(names[1]));
   const two = [present, { ...present, diseaseName: "自拟鉴别病" }];
-  // M1 实跑后按基线 8ff0356e：模型已有两项且删后不足两项时保留；主症交集仍严格限制服务端补入。
-  assert.deepEqual(deliveredNames(diagnose("胃痛", two)), two.map((item) => item.diseaseName), "保留模型已有两项，不用补入过滤规则删成一项");
+  // r1064 F1：旧 4.1 已实跑失败。交付与归一共用病名判据，“自拟鉴别病”不再因凑数保留；合法的两项仍保留。
+  const filtered = deliveredNames(diagnose("胃痛", two));
+  assert.equal(filtered.length, 2);
+  assert.equal(filtered[0], listed[0]);
+  assert.ok(filtered.every((name) => listed.includes(name)), "未知名称不用作中医鉴别，按教材补合法病名");
+  const validTwo = [present, { ...present, diseaseName: listed[1] }];
+  assert.deepEqual(deliveredNames(diagnose("胃痛", validTwo)), validTwo.map((item) => item.diseaseName));
   // 已有的是教材第一个时补的是第二个（不是又贴一遍第一个）
   const second = deliveredNames(diagnose("胃痛", [{ ...present, diseaseName: listed[1] }]));
   assert.deepEqual(second.slice(0, 1), [listed[1]]);
