@@ -561,7 +561,9 @@ async function replayProposal(caseState, clinicalContext) {
     const frames = wire.trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
     const final = frames.filter((frame) => frame.content?.startsWith("<<<CDSS_STREAM_FINAL>>>")).at(-1)?.content || "";
     // R1064：末端方义作者是独立调用；仍严格要求剂量提案/修复调用只有一次。
-    return { final, requests: requests.filter((r) => !r.messages?.some((m) => String(m.content).includes("只为最终药表写方义"))).length };
+    // 第四十七轮：总闸（后台）、教材注意核对等小任务也会发请求；只数带本次开方提示词的生成/修复调用。
+    return { final, requests: requests.filter((r) => !r.messages?.some((m) => String(m.content).includes("只为最终药表写方义")) &&
+      r.messages?.some((m) => String(m.content).includes("synthetic pediatric fixture"))).length };
   } finally { globalThis.fetch = originalFetch; console.info = originalInfo; }
 }
 const doseRows = (content) => Object.fromEntries([...content.matchAll(/(党参|白术|茯苓|炙甘草)[^\n|]*?\|?\s*(\d+(?:\.\d+)?)\s*g/g)].map((m) => [m[1], m[2]]));

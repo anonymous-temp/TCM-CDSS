@@ -1195,6 +1195,8 @@ export function formulaCoversDiseaseOrComplaint(reasoning: unknown, name: string
   const labeled = clinicalSourceText.match(/(?:^|\n)主诉\s*[:：]([^\n]+)/u)?.[1];
   const complaint = labeled || clinicalSourceText.split("\n").map((line) => line.trim()).find((line) => line && !SERVER_LABELED_GROUNDING_LINE.test(line)) || "";
   const chief = affirmedClinicalText(complaint.split(/伴(?:有)?|[（(]/u)[0] || "") || "";
+  // 病名与主诉都没有时判不了覆盖，不据此拦（医生确认术语后恢复延后方名的路径只有证候，test:reasoning-signature）。
+  if (!disease && !chief) return true;
   return Boolean(chief) && CLINICAL_CONCEPTS.some((concept) => concept.patient.test(chief) && concept.indication.test(indications));
 }
 
