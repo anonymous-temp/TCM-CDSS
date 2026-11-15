@@ -394,7 +394,8 @@ await check("6.3 预取不该发的不发：鉴别已够两项、开关关闭、
 });
 await check("6.4 接线（源码）：流式层在首轮 overview 闭合时回调一次；诊断路由只在并行两半时传入，并与收口用同一份上下文", () => {
   const api = fs.readFileSync("src/lib/diagnosis-api.ts", "utf8");
-  assert.match(api, /opts\.onInitialM03Overview && !initialM03OverviewReported && structuredRetryCount === 0/);
+  // 第四十七轮：两步写开着时中医半没有首轮 overview（结论记录先定），预取不在那条路径上触发。
+  assert.match(api, /opts\.onInitialM03Overview && !\(opts\.m03TcmTwoPass && m03TcmTwoPassPolicy\(\)\.enabled\) && !initialM03OverviewReported && structuredRetryCount === 0/);
   assert.match(api, /completedM03Overview\(partial\)/);
   const route = fs.readFileSync("src/app/api/diagnosis/diagnose/route.ts", "utf8");
   assert.match(route, /onInitialM03Overview: \(overview: Record<string, unknown>\) => \{\s*prefetchTcmDifferentialTopUp\(overview, differentialTopUpContext\);/);

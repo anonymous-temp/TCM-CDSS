@@ -52,7 +52,8 @@ await check("1.4 教材候选鉴别也按相同主诉判据过滤，病名定义
  assert.ok(tb.textbookDifferentialsForDisease("噎膈", 50, chief("吞咽困难1月")).every(x => tb.textbookDifferentialSharesChiefComplaint(x.name, chief("吞咽困难1月"))));
  assert.ok(!tb.buildTextbookCandidateContext({ chiefComplaint: "阴道不规则流血20天", diseaseName: "崩漏", sex: "女" }).includes("教材鉴别病名：带下"));
  const source = fs.readFileSync("src/lib/tcm-disease-differential-authoring.server.ts", "utf8");
- assert.match(source, /resolved && textbookDifferentialSharesChiefComplaint\(resolved, input.recordText\)/);
+ // 第四十七轮总指挥订正：教材为本病列出的鉴别（textbookListed）不够两项时可补足；模型另提的名字仍须与主诉主症有交集。
+ assert.match(source, /resolved && \(textbookListed\.has\(resolved\) \|\| textbookDifferentialSharesChiefComplaint\(resolved, input\.recordText\)\)/);
  assert.match(source, /parseAuthoredTcmDiseaseDifferentials\(content, acceptName, need, input.recordText\)/);
  const authored = name => JSON.stringify({ differentials: [{ ...differential(name), reason: "主症相近", distinguishingPoints: "本例表现尚需进一步核实" }] });
  assert.deepEqual(authoring.parseAuthoredTcmDiseaseDifferentials(authored("郁证"), ["郁证"], 2, chief("咽痛半年")), []);

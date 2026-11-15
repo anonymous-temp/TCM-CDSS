@@ -212,7 +212,11 @@ export async function authorTcmDiseaseDifferentials(
   const need = Math.min(MAX_ENTRIES, Math.max(1, input.need ?? MIN_TCM_DIFFERENTIALS - existing.length));
   const recordText = input.recordText.slice(0, MAX_RECORD_CHARS);
   if (!recordText.trim()) return [];
-  const candidates = input.candidates.filter((item) => textbookDifferentialSharesChiefComplaint(item.name, input.recordText)).slice(0, MAX_CANDIDATES);
+  // 教材为本病列出的鉴别病：先取与本例主诉主症有交集的；不够 need 项时再用教材列出的其余鉴别病补足（甲方要求至少两个鉴别；
+  // 第四十七轮新 40 份实测：真心痛的「胃痛」、淋证的「癃闭」、缺乳的「乳岩」都是教材列出的鉴别，只按交集过滤就只剩一项）。
+  const sharing = input.candidates.filter((item) => textbookDifferentialSharesChiefComplaint(item.name, input.recordText));
+  const textbookListed = new Set(input.candidates.map((item) => item.name));
+  const candidates = (sharing.length >= need ? sharing : [...sharing, ...input.candidates.filter((item) => !sharing.includes(item))]).slice(0, MAX_CANDIDATES);
   const names = candidates.map((item) => item.name);
   const closed = candidates.length >= need;
   const taken = new Set([...existing, input.diseaseName.trim()]);
@@ -227,7 +231,7 @@ export async function authorTcmDiseaseDifferentials(
     };
   const acceptName = (name: string) => {
     const resolved = resolveName(name);
-    return resolved && textbookDifferentialSharesChiefComplaint(resolved, input.recordText) ? resolved : undefined;
+    return resolved && (textbookListed.has(resolved) || textbookDifferentialSharesChiefComplaint(resolved, input.recordText)) ? resolved : undefined;
   };
   const task = existing.length === 0
     ? `请写出 ${need} 项：临床上最需要与本病鉴别的中医病名，并对着本例病历写出据以区分的要点。`
@@ -331,7 +335,9 @@ export async function authorTcmSyndromeDifferentials(
 function textbookDiseaseCandidates(diseaseName: string, taken: ReadonlySet<string>, recordText: string, patient?: { sex?: string }): Array<{ name: string; text: string }> {
   return textbookDifferentialsForDisease(diseaseName, 50)
     .filter((item) => !taken.has(item.name) && resolveTcmDiseaseDifferentialName(item.name, diseaseName).action === "keep" &&
-      tcmDifferentialDiseaseFitsPatient(item.name, patient) && textbookDifferentialSharesChiefComplaint(item.name, recordText))
+      tcmDifferentialDiseaseFitsPatient(item.name, patient))
+    // 与主诉主症有交集的排在前面；交集筛选与补足在 authorTcmDiseaseDifferentials 里做（同一个判据）。
+    .sort((a, b) => Number(textbookDifferentialSharesChiefComplaint(b.name, recordText)) - Number(textbookDifferentialSharesChiefComplaint(a.name, recordText)))
     .map((item) => ({ name: item.name, text: item.text }));
 }
 
