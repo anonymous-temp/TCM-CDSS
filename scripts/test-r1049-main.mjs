@@ -179,9 +179,10 @@ await check("5.3 交付面：药名带上炮制（processing 栏写的并进药�
   const once = surface.projectDeliveredReasoning(reasoning, { recordText: "伴神疲乏力，大便溏薄。" });
   const herbs = once.formula.candidates[0].herbs.map((herb) => herb.name);
   assert.deepEqual(herbs, ["土炒白术", "煅龙骨", "黄芪"]);
-  // R1064：精确炮制规格缺原文功效时不从旧方义补写；药表规格、角色仍保留。
+  // R1064：精确炮制规格缺原文功效时不从旧方义补写；药表规格、角色仍保留。第四十七轮总指挥订正：炮制前缀品没有自己的原文时
+  // 借《中药学》原药条目的功效原文（实测功效栏留空），不留空。
   assert.equal(once.formula.candidates[0].herbs[0].role, "臣");
-  assert.equal(once.formula.candidates[0].herbs[0].function, "");
+  assert.match(once.formula.candidates[0].herbs[0].function, /补气健脾/u);
   assert.equal(once.formula.modifications[0].herbName, "煅牡蛎");
   assert.match(once.formula.modifications[0].riskNote, /煅牡蛎先煎/u);
   // 第四十二轮起（用户定）：《中药学》写明内服须炮制的有毒药（附子、半夏…）把炮制栏并进药名，剂量须在该饮片的药典上限内；
