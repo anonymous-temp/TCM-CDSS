@@ -89,6 +89,23 @@ export function createFinalDeliveryBarrier(options: FinalDeliveryOptions) {
     // Mixed safety fields are locked as entire occurrences until their producer supplies narrower provenance.
     const locks = protectedDeliveryRanges(candidate, ["/structured/management/redFlagLoop", "/structured/management/followupSafetyNet",
       "/structured/formula/precautions", "/structured/nonPharma/precautions", ...(kind === "visible" ? ["/visibleText"] : [])]);
+    // 三项子检查都只记录（shadow）时，检查改动不了交付内容：在后台跑完只留遥测，不让每个阶段白等约 0.9 秒
+    //（第四十七轮新 40 份实测：M03、M04 各 +0.9 秒）。任何一项 enforce 时照旧同步等。
+    if (policy.integrity !== "enforce" && policy.facts !== "enforce" && policy.invariants !== "enforce" && kind === "reasoning" && options.accept(joinDeliveryContent(candidate, kind))) {
+      void runDeliveryGates({ candidate, caseState: options.caseState, priorM03: options.priorM03,
+        events: currentRewriteLedger()?.events, protectedRanges: locks, policy, signal: options.signal,
+        absoluteDeadline: Math.min(options.deadline(), Date.now() + policy.timeoutMs), cache, repairAvailable: false }, {
+        ...options.io,
+        render: next => splitDeliveryContent(clean(options.render(joinDeliveryContent(next, kind))), options.stage).candidate,
+        accept: next => options.accept(joinDeliveryContent(next, kind)),
+      }).then((checked) => console.info("[tcm-cdss:timing] delivery_gates", { stage: options.stage, background: true, durationMs: checked.durationMs,
+        unknown: checked.unknown, findings: checked.findings.length, passed: checked.passed })).catch(() => undefined);
+      const signed = clean(options.sign(prepared));
+      const hash = deliveryHash(splitDeliveryContent(signed, options.stage).candidate);
+      verified.set(hash, signed);
+      verified.set(deliveryHash(first.candidate), signed);
+      return signed;
+    }
     const checked = await runDeliveryGates({ candidate, caseState: options.caseState, priorM03: options.priorM03,
       events: currentRewriteLedger()?.events, protectedRanges: locks, policy, signal: options.signal,
       absoluteDeadline: Math.min(options.deadline(), Date.now() + Math.max(0, policy.timeoutMs - spentMs)),
