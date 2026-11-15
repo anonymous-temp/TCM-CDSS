@@ -122,7 +122,7 @@ await check("C11", "缺失必须覆盖全部来源检索，supported不能无引
   assert.equal(facts.parseFinalPatientFactVerdicts({ verdicts: [verdict(unit, "supported")] }, [unit], record)[0].verdict, "unknown");
 });
 await check("C12", "安全结论/证名/药名剂量锁与原引文不会被事实模型删除", async () => {
-  const value = candidate({ overview: { primarySyndrome: "脾气虚证" }, safetyGate: { note: "冻结安全结果" }, formula: { candidates: [{ herbs: [{ name: "白术", dose: "9g", function: "本例咽痛。" }] }] } });
+  const value = candidate({ contractSignatureVersion: "schema-signature-v3", coding: { display: "冻结编码显示" }, terminologyMappings: [{ input: "原术语", standardTerm: "冻结术语" }], overview: { primarySyndrome: "脾气虚证" }, safetyGate: { note: "冻结安全结果" }, formula: { candidates: [{ herbs: [{ name: "白术", dose: "9g", function: "本例咽痛。" }] }] } });
   const result = await facts.checkFinalPatientFacts(value, record, {}, undefined, { reviewer: reviewer("unsupported") });
   assert.equal(result.cuts.length, 1);
   const changed = facts.applyDeliveryTextCuts(value, result.cuts).value;

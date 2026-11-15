@@ -29,6 +29,7 @@
     "unit",
     "executable",
     "applicable",
+    "contractSignatureVersion",
     "triggerSource"
   ],
   "machineTrees": [
@@ -42,6 +43,8 @@
     "questions",
     "prompt",
     "options",
+    "coding",
+    "terminologyMappings",
     "answerKey"
   ],
   "verbatimKeys": [

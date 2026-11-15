@@ -26,7 +26,11 @@ R47 S1b facts: F integration contract (no route/finalize wiring in this package)
 3. Fact result paths are JSON Pointer into final (/structured/... or /visibleText); occurrenceId includes exact path.
    Invariants/repair use the paired root {m03,m04} (/m03/... or /m04/...). Convert these bases explicitly when merging A/B/C edit plans.
    UTF-16 offsets and complete before-text bind each cut to its snapshot. planMinimalFactCuts also checks whole-candidate hash.
-   applyDeliveryTextCuts(final, facts.cuts) is an explicit pure operation, not performed by checkFinalPatientFacts.
+   applyDeliveryTextCuts(final, approvedFactCuts) is an explicit pure operation, not performed by checkFinalPatientFacts.
+   Before applying, F MUST intersect facts.cuts with A/F's authoritative protected occurrence/range map. Static schema roles in
+   delivery-text cover universal machine/source/safety trees; generic narrative paths can mix model text and server-owned safety
+   sentences (for example generated precautions/redFlagLoop). Those origins cannot be inferred from field names. Reject every cut
+   overlapping a protected range, and keep any resulting unknown/finding unresolved rather than claiming pass.
    Independent clauses require both models' matching boundary+unitKind; otherwise the minimum complete sentence is removed.
    A false-only string may become empty. Do not restore it because a contract requires a value.
    Raw quotations, source citations, deterministic safety output, diagnosis names and dose/name/role locks cannot be cut.
