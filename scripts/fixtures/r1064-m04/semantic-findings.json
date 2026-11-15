@@ -1,0 +1,173 @@
+{
+  "schemaVersion": "m04-finding-fixtures-v1",
+  "mode": "injected_reader_contract",
+  "layerAttribution": "M04语义读取/主方覆盖；不是红旗、极性或安全闸门规则。程序只验证引文位置与闭集协议。",
+  "measurement": {
+    "realModelRuns": 0,
+    "accuracy": null
+  },
+  "frozenSources": {
+    "src/lib/m04-final-content.server.ts": "776a10f3efec84466f2795323c3044875e8246348cdda84daaf3b63b25b831fb",
+    "src/lib/m04-modification-closed-set.server.ts": "1a5924c5227099859b47cde967902030f3fd138e0414d4c134f5c75224bcfa61"
+  },
+  "development": [
+    {
+      "id": "normal",
+      "record": "食欲尚可，二便调。",
+      "quote": "二便调",
+      "reading": {
+        "current": true,
+        "affirmed": true,
+        "eligible": false
+      },
+      "expectedEligible": false
+    },
+    {
+      "id": "denied",
+      "record": "否认恶心及呕吐。",
+      "quote": "恶心",
+      "reading": {
+        "current": true,
+        "affirmed": false,
+        "eligible": true
+      },
+      "expectedEligible": false
+    },
+    {
+      "id": "past",
+      "record": "去年曾有胸闷，现已消失。",
+      "quote": "胸闷",
+      "reading": {
+        "current": false,
+        "affirmed": true,
+        "eligible": true
+      },
+      "expectedEligible": false
+    },
+    {
+      "id": "relief",
+      "record": "腹部热敷后好转。",
+      "quote": "热敷后好转",
+      "reading": {
+        "current": true,
+        "affirmed": true,
+        "eligible": false
+      },
+      "expectedEligible": false
+    },
+    {
+      "id": "expression",
+      "record": "问诊时皱眉。",
+      "quote": "皱眉",
+      "reading": {
+        "current": true,
+        "affirmed": true,
+        "eligible": false
+      },
+      "expectedEligible": false
+    },
+    {
+      "id": "emergency",
+      "record": "突然昏厥，需立即急诊。",
+      "quote": "昏厥",
+      "reading": {
+        "current": true,
+        "affirmed": true,
+        "eligible": false
+      },
+      "expectedEligible": false
+    },
+    {
+      "id": "covered",
+      "record": "关节痛导致夜间睡不好。",
+      "quote": "夜间睡不好",
+      "reading": {
+        "current": true,
+        "affirmed": true,
+        "eligible": false
+      },
+      "expectedEligible": false
+    }
+  ],
+  "heldOutWrittenAfterFreeze": [
+    {
+      "id": "normal_hold",
+      "record": "近来吃睡均佳。",
+      "quote": "吃睡均佳",
+      "reading": {
+        "current": true,
+        "affirmed": true,
+        "eligible": false
+      },
+      "expectedEligible": false
+    },
+    {
+      "id": "unknown_hold",
+      "record": "是否口渴尚未询问。",
+      "quote": "口渴",
+      "reading": {
+        "current": true,
+        "affirmed": false,
+        "eligible": true
+      },
+      "expectedEligible": false
+    },
+    {
+      "id": "history_hold",
+      "record": "幼时偶有鼻塞，此后未再出现。",
+      "quote": "鼻塞",
+      "reading": {
+        "current": false,
+        "affirmed": true,
+        "eligible": true
+      },
+      "expectedEligible": false
+    },
+    {
+      "id": "trigger_hold",
+      "record": "每逢焦虑便头痛。",
+      "quote": "焦虑",
+      "reading": {
+        "current": true,
+        "affirmed": true,
+        "eligible": false
+      },
+      "expectedEligible": false
+    },
+    {
+      "id": "tongue_hold",
+      "record": "舌苔白腻，脉弦滑。",
+      "quote": "舌苔白腻",
+      "reading": {
+        "current": true,
+        "affirmed": true,
+        "eligible": false
+      },
+      "expectedEligible": false
+    }
+  ],
+  "negativeControls": [
+    {
+      "id": "unrecorded",
+      "record": "仅有恶心，无胸闷。",
+      "quote": "胸闷",
+      "reading": {
+        "current": true,
+        "affirmed": false,
+        "eligible": true
+      },
+      "expectedEligible": false
+    },
+    {
+      "id": "sign_hold",
+      "record": "哭时口角牵动。",
+      "quote": "口角牵动",
+      "reading": {
+        "current": true,
+        "affirmed": true,
+        "eligible": false
+      },
+      "expectedEligible": false
+    }
+  ]
+}

@@ -8,6 +8,10 @@ import { compositionIdentityName } from "./tcm-formula-provenance";
 import { combinedEffectMarkerPattern, contradictedHerbClaims, removeVerifiedHerbClaims, withoutUnsupportedSummaryEffects, type FormulaAnalysisHerbClaim } from "./formula-analysis-review";
 import textbookReferencesJson from "../data/tcm-herb-textbook-references.json";
 
+// New path: a read-only, whole-sentence verifier. The legacy claim-removal path below
+// keeps its original semantics and switches; it never receives final-authored prose.
+export { validateFinalFormulaAnalysis as checkFinalFormulaAnalysisSentences } from "./m04-final-analysis-validation";
+
 /**
  * M04 方义里「药物功效写错」的核对（2026-10-19，两道）。
  *

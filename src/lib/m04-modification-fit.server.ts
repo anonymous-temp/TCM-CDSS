@@ -130,8 +130,13 @@ export function modificationFindingNeedsBothSamples(finding: { verdict: string }
 }
 
 /** 提名与复核看到的一行：条件、药、药的功效参考，以及《中药学》药性（第三十八轮：看所加药的寒热与本证是否相反）。纯函数，供测试。 */
-export function modificationFitRowPayload(row: Record<string, unknown>, line: number, disease = "") {
-  return {
+export type ApplicationEvidenceContext = {
+  applications: readonly import("./m04-final-content-types").SourceSpan[];
+  patientQuote: string; primaryCoverage: "uncovered" | "weakly_covered";
+  therapy: string;
+};
+export function modificationFitRowPayload(row: Record<string, unknown>, line: number, disease = "", evidenceContext?: ApplicationEvidenceContext) {
+  const legacy = {
     line,
     kind: isModelWritten(row, disease) ? "model" : "textbook",
     condition: text(row.trigger),
@@ -140,6 +145,7 @@ export function modificationFitRowPayload(row: Record<string, unknown>, line: nu
     property: herbPropertyReferenceText(text(row.herbName)) || null,
     caution: herbCautionReferenceText(text(row.herbName)) || null,
   };
+  return evidenceContext ? { ...legacy, ...evidenceContext } : legacy;
 }
 
 export async function dropMisfitModifications(content: string, context: { recordText: string }, signal?: AbortSignal): Promise<string> {
