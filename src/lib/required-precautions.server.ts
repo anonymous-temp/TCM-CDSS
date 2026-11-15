@@ -1,3 +1,4 @@
+import { diseaseCareItemsForName } from "./western-disease-care";
 import { cleanedMedicationNameCandidate, medicationHistoryItemCandidate, MEDICATION_HISTORY_CLASS_WORD, recordedDrugAllergyPhrases, currentMensesOverdue, splitMedicationList, formallyAdministeredMedicationMentions, medicationOnlyPastMentions, MEDICATION_STILL_TAKING, medicationNotTaken, medicationStopped, medicationStoppedInNextSentence, medicationTimelineStatuses, recordedMedicationMentions, recordedMobilityLimitation, recordedSystemicTherapyClasses, recordsAlcoholUse, selfDiscontinuedMedication, selfPreparedMedicationSentence, selfTakenMedicationMentions } from "./clinical-polarity";
 import { assessLactationState, assessPregnancyState, conceptionWithoutPregnancyOrLactation, recentChildbirthMentioned } from "./clinical-state";
 import drugConditionJson from "../data/western-drug-condition-cautions.source.json";
@@ -145,6 +146,7 @@ export function requiredPrecautionsForCase(
   prior?: ClinicalReasoningResultV2 | null,
 ): RequiredPrecaution[] {
   const items: RequiredPrecaution[] = [];
+  items.push(...diseaseCareItemsForName(prior?.westernDiagnosis?.primary?.name || "", state.safetyGate?.status === "red_flag"));
   // 红旗未解除或不给剂量的页面只有药味与方义：不写怎么服（年龄相关的服药方法、与中药间隔服用）。
   // 给不给剂量按开方阶段同一个判据（derivePrescriptionPermission）：安全门的 allowDosePrescription 在信息待补的病例里也是 false，
   // 而这些病例照常按有限剂量出方——此前按它判，留出集 S158/S160 两个患儿没有儿童服药一条，多数病例也没有服法一条（2026-10-19）。
@@ -378,6 +380,7 @@ export function requiredPrecautionsPromptSection(items: readonly RequiredPrecaut
   if (listed.length === 0) return exerciseNote.trim();
   const lines = listed.map((item, index) => {
     const order = `${index + 1}.`;
+    if (item.kind === "disease_care") return `${order}${item.disease}：必须写到「${item.sentence}」；时限只写在注意事项，复诊首句仍服从本例优先评估安排。同页不写：${item.conflictsWith.join("、") || "无"}。`;
     if (item.kind === "self_medication") {
       const parts = [`患者已自服${item.name}`];
       if (item.composition.length > 0) parts.push(`（方剂目录组成含${item.composition.join("、")}）：写明它与本方处方里都有的药（只列你开的处方里也有的那几味）、服本方期间是否停服及原因`);

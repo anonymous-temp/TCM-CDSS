@@ -1350,8 +1350,10 @@ const checkAsync = async (name, run) => {
     const male = stateOf("两个多月前妻子生产后，患者熬夜后出现头痛。", { patient: { sex: "男", age: 35 } });
     assert.deepEqual(requiredPrecautionsForCase(male, prior("紧张型头痛", "头痛")), []);
     assert.deepEqual(requiredPrecautionsForCase(stateOf("左小腿红肿热痛2天。", { patient: { sex: "男", age: 57 } }), prior("下肢丹毒", "丹毒")).map((item) => item.kind), ["skin_infection_antibiotic"]);
-    assert.deepEqual(requiredPrecautionsForCase(stateOf("发病后未服药。"), prior("急性上呼吸道感染", "感冒")), []);
-    assert.deepEqual(requiredPrecautionsForCase(stateOf("前日吃山楂后胃脘胀满。"), prior("消化不良", "胃痞")), [], "食物名只靠去剂型的基础名对上山楂丸，不算自服药");
+    // 第四十七轮：无自服药仍有按最终病名要求的调护；原用药风险阴性对照继续钉住。
+    const uriRequired = requiredPrecautionsForCase(stateOf("发病后未服药。"), prior("急性上呼吸道感染", "感冒"));
+    assert.ok(uriRequired.length > 0 && uriRequired.every((item) => item.kind === "disease_care"));
+    assert.ok(requiredPrecautionsForCase(stateOf("前日吃山楂后胃脘胀满。"), prior("消化不良", "胃痞")).every((item) => item.kind === "disease_care"), "食物不算自服药；可有最终病名的调护");
   });
   const prescription = (precautions, herbs = ["黄连", "生地黄", "牡丹皮", "升麻", "当归", "大黄"]) => ({
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
@@ -1717,6 +1719,7 @@ const checkAsync = async (name, run) => {
 {
   const westernCheck = await jiti.import("../src/lib/western-name-evidence-check.server.ts");
   const criteria = await jiti.import("../src/lib/western-diagnostic-criteria.server.ts");
+  // 第四十七轮：现场检索只认白名单专业版路径，保留病历不入查询与失败退路。
   await checkAsync("15.17 西医核对带上诊断标准要点：表里没有的病名现场检索（只用病名、权威度≥3、相关度≥1.5），摘要进核对模型的输入；检索失败照常核对；关掉开关不检索（对照）", async () => {
     const savedFetch = globalThis.fetch;
     const requests = [];
@@ -1729,7 +1732,7 @@ const checkAsync = async (name, run) => {
         requests.push({ target, body: String(init?.body || "") });
         if (target.endsWith("/v1/tools/search")) {
           return new Response(JSON.stringify({ results: [
-            { title: `${name}诊断标准`, url: "https://www.msdmanuals.cn/x", site_name: "默沙东诊疗手册", summary: "确诊需要基因检测，单凭临床表现不能诊断。".repeat(4), authority: 4, rerank_score: 2.1 },
+            { title: `${name}诊断标准`, url: "https://www.msdmanuals.cn/professional/test-only", site_name: "默沙东诊疗手册", summary: "确诊需要基因检测，单凭临床表现不能诊断。".repeat(4), authority: 4, rerank_score: 2.1 },
             { title: "论坛帖子", url: "https://bbs.example.com/1", site_name: "论坛", summary: "随便说说".repeat(20), authority: 1, rerank_score: 2.5 },
             { title: "相关度低的权威页", url: "https://www.example.gov.cn/2", site_name: "某卫健委", summary: "与本病关系不大的内容。".repeat(10), authority: 4, rerank_score: 1.0 },
           ] }), { headers: { "content-type": "application/json" } });

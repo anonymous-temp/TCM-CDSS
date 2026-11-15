@@ -215,7 +215,9 @@ const completion = (payload) => new Response(JSON.stringify({
     const glaucoma = criteria.westernCriteriaEntry("糖皮质激素性青光眼");
     assert.ok(glaucoma);
     assert.ok(glaucoma.definingFeatures.some((item) => /高眼压症/.test(item)));
-    assert.equal(criteria.westernCriteriaEntry("急性肾小球肾炎"), undefined, "对照：上一级病名不受新条目影响");
+    // 第四十七轮补入上一级急性肾炎；不能把它和链球菌感染后分型的必需病原证据混为一条。
+    assert.equal(criteria.westernCriteriaEntry("急性肾小球肾炎")?.name, "急性肾小球肾炎");
+    assert.ok(!criteria.westernCriteriaEntry("急性肾小球肾炎").requiredTests.join("").includes("抗链球菌溶血素O"));
   });
   await check("6.3 去掉病程限定前缀的查名：急性尿潴留→尿潴留；没有前缀时为空（对照）", () => {
     assert.equal(criteria.westernNameWithoutCourseOrSideQualifier("急性尿潴留"), "尿潴留");

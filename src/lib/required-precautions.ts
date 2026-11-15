@@ -1,3 +1,4 @@
+import type { DiseaseCareItem } from "./western-disease-care";
 import drugConditionJson from "../data/western-drug-condition-cautions.source.json";
 /**
  * 本例注意事项里必须写到的内容（2026-10-17，甲方标准病历 3、7 与留出例 S143 的独立评审）。
@@ -9,6 +10,7 @@ import drugConditionJson from "../data/western-drug-condition-cautions.source.js
  * 这里只有类型；由病历算出项目在 required-precautions.server.ts，核对与补写在 delivered-surface.ts（交付面，签名之前）。
  */
 export type RequiredPrecaution =
+  | DiseaseCareItem
   | {
       kind: "self_medication";
       /** 病历原文里的药名（「黄连上清丸」「甲硝唑片」）。 */

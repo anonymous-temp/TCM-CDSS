@@ -6,7 +6,7 @@ import { createTextModelClient, getControlledTerminologyModelConfig, textModelRe
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
 import { westernCriteriaEntry, westernCriteriaPromptValue, westernCriteriaReference, westernNameWithoutCourseOrSideQualifier } from "./western-diagnostic-criteria.server";
-import { resolveIcd10Diagnosis } from "./icd10-diagnosis-coding.server";
+import { symptomLevelWesternName } from "./western-symptom-name.server";
 import { quoteGroundedInText } from "./verbatim-quote";
 import { rationaleAlignedWithCourseRename, rationaleAlignedWithRenamedPrimary } from "./western-rationale-alignment";
 
@@ -237,13 +237,7 @@ const COURSE_WORDS = /病程|门槛|时长|持续|\d\s*个?(?:月|年|周|天)|[
  * M79.6、便秘 K59.0、腹泻 A09.9、便血 K92.2、耳鸣 H93.1）。查不到编码时去掉开头的「多/双/单/左/右」再查一次（「多关节痛」）。
  * 核对给的上一级写成这种名称时补「待查」（2026-10-19 留出例 S077 交付「乏力」，复核：主诊断只写症状且未写待查）。
  */
-const SYMPTOM_CODE_OUTSIDE_R = /^(?:M25\.5|M54|M79\.6|K59\.0|A09\.9|K92\.2|H93\.1)/u;
-export function symptomLevelWesternName(name: string): boolean {
-  const core = name.trim().replace(/待查$/u, "");
-  if (core.length < 2) return false;
-  const code = resolveIcd10Diagnosis(core)?.code || resolveIcd10Diagnosis(core.replace(/^[多双单左右]{1,2}/u, ""))?.code || "";
-  return /^R/iu.test(code) || SYMPTOM_CODE_OUTSIDE_R.test(code);
-}
+export { symptomLevelWesternName } from "./western-symptom-name.server";
 
 /**
  * D 类的前置核对结果是否否决这次改名：meetsCriteria 明确为 true；或 decisive 是病历里逐字存在的一段（≥4 字）而 meetsCriteria 没有

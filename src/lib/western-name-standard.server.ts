@@ -39,7 +39,7 @@ export function primaryNameIsSymptomLevel(name: string): boolean {
 }
 
 /** 诊断标准表里收的病名已经是临床规范写法（围绝经期综合征），不再往 ICD 同义词上归。 */
-const CRITERIA_NAMES = new Set(((criteriaJson as unknown as { entries?: Array<{ name: string }> }).entries || []).map((entry) => entry.name));
+const CRITERIA_NAMES = new Set(((criteriaJson as unknown as { entries?: Array<{ name: string; aliases?: string[] }> }).entries || []).flatMap((entry) => [entry.name, ...(entry.aliases || [])]));
 const PREFERRED = (preferredNames as { names: Record<string, string> }).names;
 
 const LINK_SYSTEM = [
