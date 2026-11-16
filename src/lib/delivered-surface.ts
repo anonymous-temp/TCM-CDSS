@@ -1079,6 +1079,9 @@ function originalFormMismatch(entry: OriginalFormula, present: readonly string[]
  *  · 煎服法里的药引（八正散灯心、银翘散鲜苇根汤煎、参苓白术散枣汤调下）：处方没有列。
  * 返回「黄芩、槐角炒炭」「大黄煨用」「以灯心草为引」这样的短语；没有差别时为空。剂量比例不核（原书多为散剂、丸剂用量）。
  */
+/** originalFormulaDeliveryNotes 里「本方用了原书没写的炮制」一项的开头；方义括注按它与「原方…本方未照用」分开写。 */
+export const ORIGINAL_PREPARATION_CHANGE_LEAD = "原方作";
+
 export function originalFormulaDeliveryNotes(name: string, herbs: readonly Record<string, unknown>[], context: OriginalFormulaContext = {}, methodText = ""): string[] {
   const trimmed = String(name || "").trim();
   if (!trimmed || /(?:加减|化裁|加味)$/u.test(trimmed) || /合/u.test(trimmed)) return [];
@@ -1087,6 +1090,9 @@ export function originalFormulaDeliveryNotes(name: string, herbs: readonly Recor
   const rows = herbs.map((herb) => ({ name: bareHerbName(String(herb.name || "")), processing: String(herb.processing || "") })).filter((row) => row.name);
   const byPhrase = new Map<string, string[]>();
   const add = (phrase: string, herb: string) => byPhrase.set(phrase, [...(byPhrase.get(phrase) || []), herb]);
+  // 原书没写炮制、本方用了炮制品：这是本方的改动，不是「原方…本方未照用」（第四十八轮配对复核：「原方白术改用土炒白术，本方未照用」读不通）。
+  const changedWritten: string[] = [];
+  const changedUsed: string[] = [];
   for (const item of entry.herbs) {
     const row = rows.find((candidate) => originalHerbMatches(item.herb, candidate.name));
     if (!row) continue;
@@ -1094,7 +1100,8 @@ export function originalFormulaDeliveryNotes(name: string, herbs: readonly Recor
     if (part && !part.prescriptionNames.includes(row.name)) add(part.phrase, "");
     const preparation = item.preparation || "";
     if (!preparation && row.name !== withoutPreparationPrefix(row.name)) {
-      add(`${item.written}改用${row.name}`, "");
+      changedWritten.push(item.written);
+      changedUsed.push(row.name);
     }
     const phrase = ORIGINAL_FORMS.preparationPhrases[preparation];
     if (!preparation || !phrase || (ORIGINAL_FORMS.preparationsNotNoted.includes(preparation) && !item.deliver)) continue;
@@ -1111,8 +1118,10 @@ export function originalFormulaDeliveryNotes(name: string, herbs: readonly Recor
     return listed.length > 0 ? `${listed.join("、")}${phrase}` : phrase;
   });
   const present = rows.map((row) => row.name);
-  const guides = entry.guides.filter((guide) => !present.some((herb) => originalHerbMatches(guide, herb)) && !guideWrittenInMethod(guide, methodText));
-  if (guides.length > 0) notes.push(`以${guides.join("、")}为引`);
+  // 用法里写到了一部分药引时，这里把原书药引写全（胃苓汤《世医得效方》紫苏、乌梅：只写紫苏，读者以为与用法里的乌梅矛盾）；全写到了就不再提。
+  const guides = entry.guides.filter((guide) => !present.some((herb) => originalHerbMatches(guide, herb)));
+  if (guides.some((guide) => !guideWrittenInMethod(guide, methodText))) notes.push(`以${guides.join("、")}为引`);
+  if (changedWritten.length > 0) notes.push(`${ORIGINAL_PREPARATION_CHANGE_LEAD}${changedWritten.join("、")}，本方用${changedUsed.join("、")}`);
   return notes;
 }
 
@@ -2275,8 +2284,11 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
       const opening = openings.find((text) => String(candidate.formulaAnalysis).startsWith(text));
       if (opening) {
         const tail = candidate.formulaAnalysis.slice(opening.length).replace(/^（原方[^）]*）/u, "");
+        const unfollowed = notes.filter((note) => !note.startsWith(ORIGINAL_PREPARATION_CHANGE_LEAD));
+        const changed = notes.filter((note) => note.startsWith(ORIGINAL_PREPARATION_CHANGE_LEAD));
+        const parts = [...(unfollowed.length > 0 ? [`原方${unfollowed.join("，")}，本方未照用`] : []), ...changed];
         candidate.formulaAnalysis = notes.length > 0
-          ? `本方药味同${label}原方（原方${notes.join("，")}，本方未照用）${tail}`
+          ? `本方药味同${label}原方（${parts.join("；")}）${tail}`
           : `本方用${label}原方${tail}`;
       }
     }
