@@ -9,6 +9,8 @@ export type M03TcmHalf = Pick<ClinicalReasoningResultV2, "overview" | "pathogene
 };
 const joined = (sentences: readonly M03TcmSentence[]) => sentences.map((sentence) => sentence.text).join("");
 const unique = <T>(values: readonly T[]) => [...new Set(values)];
+// Axis labels are sets. The shared delivery derivation orders them by the delivered names/chain.
+const axisSet = (values: readonly string[]) => unique(values).sort();
 export function m03TcmPrinciple(record: FrozenM03TcmConclusion, ctx: M03TcmContext): string {
   return treatmentPrincipleForCheckedTcmAxes(record.root.map((unit) => unit.label), record.branch.map((unit) => unit.label),
     record.methods.map((method) => method.text).join("，"), ctx.safety.redFlag);
@@ -89,18 +91,18 @@ export function projectM03TcmHalf(record: FrozenM03TcmConclusion, narrative: M03
 export function conclusionFootprint(value: M03TcmHalf): string {
   return m03TcmHash({ disease: value.overview.tcmDiseaseName, primary: value.overview.primarySyndrome,
     secondary: value.overview.secondarySyndromes || [], resolution: value.overview.primarySyndromeResolution,
-    locations: value.pathogenesis.locationDifferentiation.items,
-    nature: value.pathogenesis.natureDifferentiation.items, root: value.pathogenesis.natureDifferentiation.rootDeficiency || [],
-    branch: value.pathogenesis.natureDifferentiation.branchExcess || [],
+    locations: axisSet(value.pathogenesis.locationDifferentiation.items),
+    nature: axisSet(value.pathogenesis.natureDifferentiation.items), root: axisSet(value.pathogenesis.natureDifferentiation.rootDeficiency || []),
+    branch: axisSet(value.pathogenesis.natureDifferentiation.branchExcess || []),
     method: value.therapy.overallMethod, therapy: value.overview.overallTherapy, principle: value.therapy.overallPrinciple,
     direction: value.overview.recommendedFormulaDirection, names: value.overview.recommendedFormulaNames || [], mode: value.overview.formulaSelectionMode,
     lineage: value.lineageAdaptation ? { code: value.lineageAdaptation.lineageCode, applicable: value.lineageAdaptation.applicable } : null });
 }
 export function frozenM03TcmFootprint(record: FrozenM03TcmConclusion, ctx: M03TcmContext, hasLineage: boolean): string {
-  const root = record.root.map((unit) => unit.label), branch = record.branch.map((unit) => unit.label);
+  const root = axisSet(record.root.map((unit) => unit.label)), branch = axisSet(record.branch.map((unit) => unit.label));
   const method = record.methods.map((item) => item.text).join("，");
   return m03TcmHash({ disease: record.disease.name, primary: record.primary.name, secondary: record.secondary.map((item) => item.name),
-    resolution: record.primary.resolution, locations: record.locations.map((unit) => unit.label), nature: unique([...root, ...branch]), root, branch,
+    resolution: record.primary.resolution, locations: axisSet(record.locations.map((unit) => unit.label)), nature: axisSet([...root, ...branch]), root, branch,
     method, therapy: method, principle: m03TcmPrinciple(record, ctx), direction: record.direction, names: record.formulaLock.names, mode: record.formulaLock.mode,
     lineage: hasLineage && record.lineage && ctx.lineage ? { code: ctx.lineage.code, applicable: record.lineage.applicable } : null });
 }

@@ -1,3 +1,4 @@
+// R48：旧断言先跑失败后迁移；病机轴来源为证名和有原文的病机链。
 // 第四十六轮（2026-11-15）工作包 B「结论与分析说的不是一回事」：证名、病性轴、病机链、总体病机、治法、辨证依据对同一组证素说同一句话。
 // 甲方 11.05「病机分析」17/17 不合格、两次点名「分析为脾虚湿蕴，证名只写脾虚证」；第四十五轮逐字复核 200 份 C/D/H/G 四项的「错」。
 //  1. 治法在治的实邪（渗湿、化痰、活血…）：分析也写了、病历有两条以上表现时病性栏补上，交付面国标合称接上（脾虚证 + 湿 → 脾虚湿困证）；
@@ -56,7 +57,7 @@ const n20 = () => ({
   pathogenesis: {
     natureDifferentiation: { items: ["气虚"], rootDeficiency: ["气虚"], branchExcess: [], basis: "神疲肢倦", resolution: "resolved" },
     locationDifferentiation: { items: ["脾"], details: [{ location: "脾", basis: "大便溏泄" }], resolution: "resolved" },
-    chain: [{ pathogenesis: "经行脾虚湿盛，湿浊下注大肠", therapyDirection: "健脾渗湿止泻" }],
+    chain: [{ patientFact: "神疲肢倦；面浮肢肿", pathogenesis: "经行脾虚湿盛，湿浊下注大肠", therapyDirection: "健脾渗湿止泻" }],
     uncertainties: [],
   },
   therapy: { overallMethod: "健脾渗湿，理气调经", overallPrinciple: "虚则补之" },
@@ -186,7 +187,9 @@ await check("3.2 病性有界说明点名缺哪一条与该有的表现；不写
   const record = "主诉：妊娠20周排便困难3周\n现病史：每3至4天排便，粪便硬，无腹痛\n舌象：舌淡红，苔薄\n脉象：滑";
   const nature = unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(reasoning), record)).pathogenesis.natureDifferentiation;
   assert.equal(nature.resolution, "bounded");
-  assert.match(nature.resolutionReason, /“气滞”尚待核实（可留意胀闷、胀痛、窜痛、脉弦等表现）/u);
+  // R48：只有证名/链能立病性；模型另填气滞被移除，核实热的具体表现。
+  assert.deepEqual(nature.items, ["热"]);
+  assert.match(nature.resolutionReason, /“热”.*发热/);
   assert.doesNotMatch(nature.resolutionReason, /个别要素/u);
 });
 
@@ -194,7 +197,7 @@ await check("3.2c 证名本身就是这一类的病性（心虚胆怯证之于�
   const reasoning = {
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
     overview: { primarySyndrome: "心虚胆怯证", primarySyndromeBasis: ["善惊易恐"], primarySyndromeResolution: "bounded" },
-    pathogenesis: { natureDifferentiation: { items: ["气虚"], rootDeficiency: ["气虚"], branchExcess: [], basis: "善惊易恐", resolution: "bounded" }, chain: [], uncertainties: [] },
+    pathogenesis: { natureDifferentiation: { items: ["气虚"], rootDeficiency: ["气虚"], branchExcess: [], basis: "善惊易恐", resolution: "bounded" }, chain: [{pathogenesis:"心胆气虚",patientFact:"善惊易恐"}], uncertainties: [] },
   };
   const nature = unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(reasoning), "主诉：心悸1月\n现病史：心悸不宁，善惊易恐，夜寐多梦")).pathogenesis.natureDifferentiation;
   assert.equal(nature.resolution, "resolved");
@@ -250,7 +253,8 @@ await check("3.5 寒热有界说明写还缺哪几项、已见的写全（舌红
     pathogenesis: { symptomClusters: [], chain: [], uncertainties: [], natureDifferentiation: { items: ["寒"], rootDeficiency: [], branchExcess: ["寒"], basis: "舌象：舌质淡，苔薄白", resolution: "resolved", evidence: { evidenceLevel: "model_inference", source: "本例", confidence: "中" } }, locationDifferentiation: { items: [], details: [], resolution: "unresolved" } },
     therapy: { overallPrinciple: "寒者热之", overallMethod: "温脾散寒" } };
   const bounded = unwrap(summary.applyM03AdvisoryQualityBoundaries(wrap(diagnose), "主诉：夜间啼哭2周\n舌象：舌质淡，苔薄白")).pathogenesis.natureDifferentiation;
-  assert.match(bounded.resolutionReason, /^寒热尚需结合.*判断（已见舌质淡）$/u);
+  // R48：不再按寒热维度计数；没有气滞表现时具体点名气滞。
+  assert.match(bounded.resolutionReason, /气滞.*胀闷/);
 });
 
 await check("3.6 寒热见证：红斑、眼红与结膜充血、眼眵色黄算热象", () => {
