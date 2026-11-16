@@ -5,7 +5,7 @@ import { rationaleMentionsFinding } from "./m03-rationale-coverage.server";
 import { GROUP_CHECK_FIT_CEILING, applySecondaryConsistencyDecision, diagnosticsCriteriaFor, primaryManifestationTerms, secondaryStructurallyInvalid, textbookPatternFit, verifySecondaryByCriteria, withoutClauses, type CriteriaVerdict } from "./m03-secondary-syndrome-consistency.server";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { compositeSyndromeRename } from "./delivered-surface";
-import { EXCESS_ELEMENTS, excessElement, excessElementMentionsIn, methodImpliedExcessElements, namedExcessElements, natureListsElement, rationaleConclusionClauses, withMethodImpliedNatureElements, withoutDanglingConclusionLeads, type ExcessElementId } from "./analysis-element-closure";
+import { EXCESS_ELEMENTS, elementPendingReason, excessElement, excessElementMentionsIn, methodImpliedExcessElements, namedExcessElements, natureListsElement, rationaleConclusionClauses, withMethodImpliedNatureElements, withoutDanglingConclusionLeads, type ExcessElementId } from "./analysis-element-closure";
 import { textbookAnchorableMethod } from "./tcm-formula-provenance";
 import { activeBleedingInGroundingText } from "./diagnosis-safety";
 import { resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
@@ -495,25 +495,15 @@ export function diagnosticsCriteriaEvidence(entryName: string, confidence: "中"
 
 /**
  * 不确定项按所核的条目写（「是否兼脾气虚」），不按类别写：主证肾气虚证、多写的是脾气不足时，「是否兼气虚」与主证自相矛盾
- *（2026-10-22 实测 S-renal-006）。脏腑条目的辨证要点取《中医诊断学》原文；类别总条目取本表 keyPoints（阳虚证原文本地语料缺字）。
+ *（2026-10-22 实测 S-renal-006）。第四十八轮：列出已接地表现，仅提示还需核实独立表现，不将整份教材要点写成缺项。
  */
 function uncertaintyFor(type: DeficiencyType, entryName: string, seen: readonly string[] = []): Json {
   const config = LEXICON.types[type];
   const generic = entryName === config.genericEntry;
   const label = generic ? type : entryName.replace(/证$/u, "");
-  // 要点里的逗号换成顿号：整段要点与「未见」同在一个小句里，舌脉净化把它读成对本例的否认语境，不把要点原文里的「脉细」改成「脉象待核实」
-  //（第四十四轮回看：15 份这一条里有一处成了「脉象待核实」）。
-  const keyPoints = (generic
-    ? config.keyPoints
-    : (diagnosticsCriteriaFor(entryName)?.keyPointsText || config.keyPoints).replace(/(?:等)?为主要表现/u, "").replace(/[。；;，,\s]+$/u, ""))
-    .replace(/[，,；;]/gu, "、");
-  // 写本例已见的那几项（核对引文里的短句），不是每例同一句套话（第四十四轮甲方澄清后回看：15 份同一句式）。
-  const shown = [...new Set(seen.map((quote) => quote.trim()).filter((quote) => quote.length >= 2 && quote.length <= 10))].slice(0, 3);
   return {
     item: `是否兼${label}`,
-    reason: shown.length > 0
-      ? `本例虽见${shown.join("、")}，未见${label}的辨证要点（${keyPoints}）成组出现`
-      : `本例未见${label}的辨证要点（${keyPoints}）成组出现`,
+    reason: elementPendingReason(seen),
     affects: `望诊、问诊核实后再定是否兼顾${config.therapyWord}`,
   };
 }
@@ -621,11 +611,9 @@ export function applyExcessElementDecisions(root: Json, excess: NonNullable<Elem
     }
     // 待核实。
     const uncertainties = Array.isArray(pathogenesis.uncertainties) ? pathogenesis.uncertainties : [];
-    const shown = [...new Set((verdict.quotes || []).map((quote) => quote.trim()).filter((quote) => quote.length >= 2 && quote.length <= 10))].slice(0, 3);
-    const keyPoints = (diagnosticsCriteriaFor(unit.entryName)?.keyPointsText || "").replace(/(?:等)?为主要表现/u, "").replace(/[。；;，,\s]+$/u, "").replace(/[，,；;]/gu, "、");
     const entry: Json = {
       item: pendingItem,
-      reason: `${shown.length > 0 ? `本例虽见${shown.join("、")}，` : "本例"}未见${unit.label}${keyPoints ? `的辨证要点（${keyPoints}）` : "的表现"}成组出现`,
+      reason: elementPendingReason(verdict.observedQuotes || verdict.quotes || []),
       affects: `核实后再定是否兼顾${unit.methodItem}`,
     };
     if (!records(uncertainties).some((row) => text(row.item) === pendingItem)) uncertainties.unshift(entry);
@@ -784,11 +772,11 @@ export function applyElementSupportDecision(tcmContent: string, decision: Elemen
     if (next.length >= minimum && next !== value) { overview[key] = next; changed = true; }
   }
 
-  // 不确定项：写明这一证素的要点尚未成组出现，供医生望诊、问诊核实。
+  // 不确定项：区分已见表现与仍需核实的独立表现，不把共有表现说成未见。
   const uncertainties = Array.isArray(pathogenesis.uncertainties) ? pathogenesis.uncertainties : [];
   for (const type of failed) {
     const unit = decision.verdicts.find((item) => item.unit.type === type);
-    const entry = uncertaintyFor(type, unit?.verdict.entry || unit?.unit.entryName || LEXICON.types[type].genericEntry, unit?.verdict.quotes || []);
+    const entry = uncertaintyFor(type, unit?.verdict.entry || unit?.unit.entryName || LEXICON.types[type].genericEntry, unit?.verdict.observedQuotes || unit?.verdict.quotes || []);
     if (!records(uncertainties).some((item) => text(item.item) === entry.item)) uncertainties.unshift(entry);
   }
   pathogenesis.uncertainties = uncertainties;

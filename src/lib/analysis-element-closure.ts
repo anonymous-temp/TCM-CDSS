@@ -34,7 +34,7 @@ const CLOSURE = closureJson as unknown as {
   minRecordSigns: number;
   conclusionLeads: string[];
   conclusionMarkers: string[];
-  uncertaintyAnswers: { rows: Array<{ asked: string; answered: string }>; itemGlue: string };
+  uncertaintyAnswers: { rows: Array<{ asked: string; answered: string }>; projectionRows: Array<{ asked: string; answered: string }>; itemGlue: string; projectionItemGlue: string; missingClaimPattern: string; unknownAnswerPattern: string };
   promptInternalWording: { phrases: string[] };
   metaUncertaintyWording: { phrases: string[] };
 };
@@ -181,13 +181,21 @@ export function withoutDanglingConclusionLeads(value: string): string {
 
 /**
  * 待核实项问的是病历已经写明的四诊属性（舌苔厚薄而病历记苔薄、肢温而病历记皮肤湿冷）。有限闭集（uncertaintyAnswers），
- * 只看待核实的那件事（item）：病历里有对这件事的回答（肯定或否定）即算已写明。
+ * 病历里对这件事有肯定或否定回答才算已写明；未知记载不算回答。宽标题还需读取理由中的完整缺项声明。
  */
 const ANSWER_ROWS = CLOSURE.uncertaintyAnswers.rows.map((row) => ({ asked: new RegExp(row.asked, "u"), answered: new RegExp(row.answered, "u") }));
 const ANSWER_ITEM_GLUE = new RegExp(CLOSURE.uncertaintyAnswers.itemGlue, "u");
-function answerRowsCoverItem(item: string, matches: typeof ANSWER_ROWS): boolean {
+// 轴的已明确/有界读原表；新覆盖仅用于待核实文字，避免把内容过滤扩散为轴判定变化。
+const PROJECTION_ANSWER_ROWS = [...ANSWER_ROWS, ...CLOSURE.uncertaintyAnswers.projectionRows.map((row) => ({ asked: new RegExp(row.asked, "u"), answered: new RegExp(row.answered, "u") }))];
+const PROJECTION_ITEM_GLUE = new RegExp(CLOSURE.uncertaintyAnswers.projectionItemGlue, "u");
+const MISSING_ANSWER_CLAIM = new RegExp(CLOSURE.uncertaintyAnswers.missingClaimPattern, "u");
+const UNKNOWN_ANSWER = new RegExp(CLOSURE.uncertaintyAnswers.unknownAnswerPattern, "u");
+function documentedAnswerSource(recordText: string): string {
+  return recordText.split(/[，,。；;\n]/u).filter((clause) => !UNKNOWN_ANSWER.test(clause)).join("\n");
+}
+function answerRowsCoverItem(item: string, matches: typeof ANSWER_ROWS, glue = ANSWER_ITEM_GLUE): boolean {
   const remainder = matches.reduce((rest, row) => rest.replace(new RegExp(row.asked.source, "gu"), ""), item);
-  return ANSWER_ITEM_GLUE.test(remainder);
+  return glue.test(remainder);
 }
 export function uncertaintyAnsweredByRecord(item: string, recordText: string): boolean {
   const asked = String(item || "");
@@ -200,14 +208,55 @@ export function uncertaintyAnsweredByRecord(item: string, recordText: string): b
 
 /** 组合问项只剩一部分未答时，交付剩余问项，不能把已有回答也写成“未记录”。 */
 export function uncertaintyWithRecordedAnswers<T extends { item?: unknown; reason?: unknown }>(row: T, recordText: string): T | undefined {
-  const item = text(row.item);
-  const matches = ANSWER_ROWS.filter((entry) => entry.asked.test(item));
-  if (!answerRowsCoverItem(item, matches)) return row;
-  if (!matches.some((entry) => entry.answered.test(recordText))) return row;
-  const missing = matches.filter((entry) => !entry.answered.test(recordText));
+  // 兼证判据计的是“独立于主证”的表现，并不表示整组教材要点在病历中缺失。
+  // 旧缓存中的服务端句式整条重新写，不能继续交付那份与本例混在一起的要点目录。
+  if (/未见[^，,。；;]*的辨证要点（[^）]*）成组出现/u.test(text(row.reason))) {
+    const seen = /^本例虽见([^，]+)，/u.exec(text(row.reason))?.[1]?.split("、") || [];
+    row = { ...row, reason: elementPendingReason(seen.filter((quote) => recordText.includes(quote))) };
+  }
+  let item = text(row.item);
+  let matches = PROJECTION_ANSWER_ROWS.filter((entry) => entry.asked.test(item));
+  // 问项写成宽标题（「饮食偏好细节」）时，实际说缺什么的是 reason。
+  // 只接收完整的缺项声明且其所有名词均能归入闭集，不能用其中一个已答词删除整条复合问题。
+  const claims = text(row.reason).split(/[，,。；;]/u).flatMap((clause) => {
+    const claim = MISSING_ANSWER_CLAIM.exec(clause)?.[1]?.replace(/等[^、及和与]*$/u, "");
+    return claim ? [claim] : [];
+  });
+  if (claims.length > 0) {
+    if (claims.length !== 1) return row;
+    item = claims[0];
+    matches = PROJECTION_ANSWER_ROWS.filter((entry) => entry.asked.test(item));
+  }
+  if (!answerRowsCoverItem(item, matches, PROJECTION_ITEM_GLUE)) return row;
+  const source = documentedAnswerSource(recordText);
+  if (!matches.some((entry) => entry.answered.test(source))) return row;
+  const missing = matches.filter((entry) => !entry.answered.test(source));
   if (missing.length === 0) return undefined;
   const pending = [...new Set(missing.map((entry) => entry.asked.exec(item)?.[0]).filter(Boolean))].join("、");
   return { ...row, item: pending, reason: `尚需核实${pending}` };
+}
+
+/** 只说还需核实的独立表现；已记录的原文单列，不复制整段教材定义作为本例缺项。 */
+export function elementPendingReason(seen: readonly string[]): string {
+  const quotes = [...new Set(seen.map((quote) => quote.trim()).filter((quote) => quote.length >= 2 && quote.length <= 20))].slice(0, 3);
+  return `${quotes.length > 0 ? `已记录${quotes.join("、")}；` : ""}需核实是否另有独立于主证的表现`;
+}
+
+/** 组合题缩成剩余问项后若已有原问项，保留原题的具体理由，不另造同名泛问。 */
+export function uncertaintiesWithRecordedAnswers<T extends { item?: unknown; reason?: unknown }>(rows: readonly T[], recordText: string): T[] {
+  const projected = rows.flatMap((original) => {
+    const row = uncertaintyWithRecordedAnswers(original, recordText);
+    return row ? [{ row, originalItem: text(original.item) }] : [];
+  });
+  const unchanged = new Set(projected.filter(({ row, originalItem }) => text(row.item) === originalItem).map(({ row }) => text(row.item)));
+  const narrowed = new Set<string>();
+  return projected.flatMap(({ row, originalItem }) => {
+    const item = text(row.item);
+    if (item === originalItem) return [row];
+    if (unchanged.has(item) || narrowed.has(item)) return [];
+    narrowed.add(item);
+    return [row];
+  });
 }
 
 const PROMPT_INTERNAL = new RegExp(CLOSURE.promptInternalWording.phrases.map((phrase) => phrase.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("|"), "u");

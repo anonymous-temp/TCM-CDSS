@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "source": "本地 western-diagnostic-criteria.source.json 的复发性阿弗他溃疡、复发性尿路感染要点：复发须有同病再次发作的病史。这里只去掉缺证据的病程限定，不判断新的病因、确定度或安全等级。",
+  "rows": [
+    {
+      "names": [
+        "复发性阿弗他溃疡",
+        "复发性口腔溃疡"
+      ],
+      "fallback": "口腔溃疡",
+      "recordNames": [
+        "口腔溃疡",
+        "口疮",
+        "阿弗他溃疡"
+      ]
+    },
+    {
+      "names": [
+        "复发性尿路感染"
+      ],
+      "fallback": "尿路感染",
+      "recordNames": [
+        "尿路感染",
+        "膀胱炎",
+        "尿频尿急尿痛"
+      ],
+      "requiresExplicitFirstEpisode": true
+    }
+  ],
+  "recurrenceMarkers": [
+    "反复",
+    "复发",
+    "再发",
+    "多次",
+    "再次"
+  ],
+  "firstEpisodePattern": "(?:首次|初次|第一次)(?:发作|出现|发生)|(?:既往|从前|以前)[^，,。；;\\n]{0,6}(?:无|没有|未患|否认)",
+  "spanLimit": 16,
+  "recurrenceConnectorPattern": "^(?:性|的|发作|出现|发生|患|有|病史|曾|多年来|多年|\\s)*$",
+  "polaritySource": "否认、未问及、不详等由既有 clauseLocalMentionPolarityAt 统一读取，不再维护第二张未知词表。"
+}
