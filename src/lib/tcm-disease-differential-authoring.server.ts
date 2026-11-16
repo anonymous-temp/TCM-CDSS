@@ -5,7 +5,7 @@ import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { MIN_TCM_DIFFERENTIALS, WESTERN_DISEASE_FORM, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
-import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookCandidatesForCase, textbookDiseaseNamesForCase, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
+import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesAffirmedFinding, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookCandidatesForCase, textbookDiseaseNamesForCase, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease } from "./tcm-textbook-syndromes";
 
 /**
  * 中医鉴别（病名级、证候级）不足两项时，只补写缺的那几项（2026-10-14 起补写病名级为空的；2026-10-19 第九轮改为补到两项）。
@@ -231,9 +231,8 @@ export async function authorTcmDiseaseDifferentials(
       const resolved = resolveTcmDiseaseDifferentialName(name, input.diseaseName);
       return resolved.action === "drop" || taken.has(resolved.name) || WESTERN_DISEASE_FORM.test(resolved.name) ? undefined : resolved.name;
     };
-  // 规范病名闭集（nameList）里的名字也收：教材列出的与主症有交集的不够两项时，planTopUp 才把同科规范病名整张给出（主症相交的排前）。
-  // 只认交集时，主诉写法不在主症概念表里（「胃中嘈杂」「口腔白屑」）就一项也补不上，第四十七轮终测鉴别不足 2 项 3→10/100。
-  const governedNames = new Set(input.nameList || []);
+  // 名单入参也再核一次肯定表现交集，调用方或旧缓存不能绕过。
+  const governedNames = new Set((input.nameList || []).filter((name) => textbookDifferentialSharesAffirmedFinding(name, input.recordText)));
   const acceptName = (name: string) => {
     const resolved = resolveName(name);
     return resolved && (textbookListed.has(resolved) || governedNames.has(resolved) || textbookDifferentialSharesChiefComplaint(resolved, input.recordText)) ? resolved : undefined;
@@ -362,14 +361,10 @@ function governedDiseaseNameList(diseaseName: string, patient?: { sex?: string; 
   return list;
 }
 
-/**
- * 补鉴别用的规范病名清单：与主诉主症有交集的在前；交集的不够补足时整张同科清单都给（交集的仍排前），由模型按「临床上确实容易混淆」挑。
- * 第四十七轮只给交集的：主诉写法不在主症概念表里时清单为空，终测 p100c 鉴别不足 2 项 3→10、new40 0→5。
- */
-function governedNameListForTopUp(diseaseName: string, recordText: string, patient: TopUpContext["patient"], short: number): string[] {
-  const all = governedDiseaseNameList(diseaseName, patient);
-  const sharing = all.filter((name) => textbookDifferentialSharesChiefComplaint(name, recordText));
-  return sharing.length >= short ? sharing : [...sharing, ...all.filter((name) => !sharing.includes(name))];
+/** 补鉴别的规范名单只收与本次任一肯定表现共享教材概念的病名；交集不足时保持不足。 */
+export function governedNameListForTopUp(diseaseName: string, recordText: string, patient: TopUpContext["patient"], _short: number): string[] {
+  void _short;
+  return governedDiseaseNameList(diseaseName, patient).filter((name) => textbookDifferentialSharesAffirmedFinding(name, recordText));
 }
 
 /** 教材该病下的其他证型（按与本例表现的相近程度排序），不含 taken 里的。 */

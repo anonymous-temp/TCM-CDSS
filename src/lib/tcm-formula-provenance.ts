@@ -3500,7 +3500,7 @@ export function selfDevisedFormulaReferences(herbNames: readonly string[]): Arra
     .map(({ name, source, coverage }) => ({ name, source, coverage }));
 }
 
-/** 小方的加味已超过底方两倍，底方不足以承担本方身份；只读原方组成，不删药。 */
+/** 小方缺核心药且加味超过底方两倍才撤身份；完整保留核心不因加味数降名，不删药。 */
 export function smallBaseOverextended(formulaName: string, herbNames: readonly string[]): boolean {
   const components = formulaNameComponents(formulaName);
   if (components.length !== 1) return false;
@@ -3510,14 +3510,21 @@ export function smallBaseOverextended(formulaName: string, herbNames: readonly s
   const base = new Set(originalBookFormulaIngredients(components[0]).map(compositionIdentityName).filter(Boolean));
   if (base.size === 0 || base.size > 3) return false;
   const actual = new Set(herbNames.map(compositionIdentityName).filter(Boolean));
-  return [...actual].filter((herb) => !base.has(herb)).length > base.size * 2;
+  return [...base].some((herb) => !actual.has(herb)) && [...actual].filter((herb) => !base.has(herb)).length > base.size * 2;
 }
 
-export function selfDevisedReferenceSource(herbNames: readonly string[], referenceNames: readonly string[] = []): string | undefined {
-  const explicit = formulaCompilationReferences([...referenceNames]).map((row) => ({ name: row.formulaName, source: row.source }));
-  const references = [...new Map([...explicit, ...selfDevisedFormulaReferences(herbNames)].map((row) => [row.name, row])).values()].slice(0, 2);
-  if (references.length === 0) return undefined;
-  return `自拟方，组方参考：${references.map((item) => `${item.name}${item.source ? `（${item.source}）` : ""}`).join("、")}加减；其余药味按本例证候、病机与药味功效配伍，需医生复核`;
+/** 自拟方的出处只追溯方义明说的基础方，绝不按药味重合度补推谱系。 */
+export function selfDevisedReferenceSource(_herbNames: readonly string[], referenceNames: readonly string[] = []): string {
+  const references = referenceNames.flatMap((name) => {
+    const entry = originalFormula(name);
+    return entry && !sourceIsTextbook(`《${entry.book}》`) ? [`${entry.name}《${entry.book}》`] : [];
+  });
+  return references.length ? `自拟方（以${[...new Set(references)].join("合")}为基础加减）` : "自拟方";
+}
+
+export function selfDevisedSourceForAnalysis(analysis: string): string {
+  const basis = /(?:以|参照)([^。；;]{2,60}?)(?:为基础|化裁)/u.exec(analysis)?.[1] || "";
+  return selfDevisedReferenceSource([], identifyKnownFormulaNames(basis));
 }
 
 function professionalModelInferenceEvidence(source: string | undefined): EvidenceRef {
@@ -3526,7 +3533,7 @@ function professionalModelInferenceEvidence(source: string | undefined): Evidenc
   }
   return {
     evidenceLevel: "model_inference",
-    source: "自拟方，按本例证候、病机、治法与药味功效配伍，无对应的常用成方，需医生复核",
+    source: "自拟方",
     confidence: "中",
   };
 }
@@ -3630,7 +3637,7 @@ export function enrichReasoning(
               ? "高" as const
               : "中" as const,
           }
-        : professionalModelInferenceEvidence(selfDevisedReferenceSource(candidate.herbs.map((herb) => herb.name))),
+        : professionalModelInferenceEvidence(selfDevisedSourceForAnalysis(candidate.formulaAnalysis || "")),
       herbs: governedHerbs.map((herb, herbIndex) => ({
         ...herb,
         isToxic: herbSafetyProfiles[herbIndex]?.isToxic === true,

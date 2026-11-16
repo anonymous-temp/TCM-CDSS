@@ -148,7 +148,7 @@ const completion = (payload) => new Response(JSON.stringify({
 }), { headers: { "content-type": "application/json" } });
 const differentialEntry = (diseaseName) => ({ diseaseName, reason: "同见胃中不适", typicalManifestation: "", distinguishingPoints: "本例以胃中嘈杂为主，未诉吐酸水", nextCheck: "" });
 let caseSeq = 0;
-await check("6.1 主诉「胃中嘈杂」无教材交集鉴别时，规范病名清单整张给出，模型选的吐酸被收下（鉴别补到两项）", async () => {
+await check("6.1 R48：无肯定表现交集的病名不进补足清单，宁可不足两项", async () => {
   const recordText = `主诉：胃中嘈杂反复3月\n现病史：胃中空虚似饥、似痛非痛，时作时止，伴嗳气、口苦，舌红苔黄，脉弦。（用例${++caseSeq}）`;
   const overview = { tcmDiseaseName: "嘈杂", primarySyndrome: "胃热证", tcmDiseaseDifferentials: [{ diseaseName: "胃痞", reason: "同见胃部不适", distinguishingPoints: "本例以嘈杂为主", typicalManifestation: "", nextCheck: null }], tcmDifferentials: [] };
   const calls = [];
@@ -161,8 +161,8 @@ await check("6.1 主诉「胃中嘈杂」无教材交集鉴别时，规范病名
     const out = JSON.parse(await authoring.completeTcmDiseaseDifferentials(JSON.stringify({ overview, pathogenesis: { chain: [] } }), { recordText, patient: { sex: "女", age: 45 } }));
     assert.ok(calls.length >= 1, "应发出补写请求");
     const list = calls[0].tcmDiseaseNameList || [];
-    assert.ok(list.includes("吐酸"), `清单应含吐酸（实际 ${list.length} 项）`);
-    assert.deepEqual(out.overview.tcmDiseaseDifferentials.map((item) => item.diseaseName), ["胃痞", "吐酸"]);
+    assert.ok(!list.includes("吐酸"), "本例无吐酸的肯定表现，不能用同科病名凑数");
+    assert.deepEqual(out.overview.tcmDiseaseDifferentials.map((item) => item.diseaseName), ["胃痞"]);
   } finally { globalThis.fetch = savedFetch; }
 });
 

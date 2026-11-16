@@ -271,13 +271,13 @@ await check("19.1 推测里的「癌」不是病史；主动控制饮食减下�
   assert.equal(safety.withoutSpeculativeCancerClauses("胃癌术后2年，近1月上腹胀痛。"), "胃癌术后2年，近1月上腹胀痛。", "对照：本人病史不动");
 });
 
-await check("12.1 「诊断已确立；但…尚需专科评估确认」撤去确立断言并定稿为待查", () => {
+await check("12.1 R48：帕金森病按表可临床诊断，专科评估措辞不反过来改病名", () => {
   const out = claims.westernBasisWithoutEstablishmentContradiction("帕金森病诊断已确立；但未接受神经科专科检查，尚需专科评估确认", "帕金森病", "动作迟缓、静止性震颤1年");
-  // r1064 F1：旧断言已实跑失败；不在原句里换词，依据留缺项，病名由同一判据定为待查。
-  assert.doesNotMatch(out, /诊断已确立/u);
-  assert.match(out, /尚需专科评估确认/u);
+  // R48：表内可凭临床诊断，整句撤去相反的确认要求，不由措辞降名。
+  assert.match(out, /诊断已确立/u);
+  assert.doesNotMatch(out, /尚需专科评估确认/u);
   const settled = claims.settleWesternDiagnosisBasis("帕金森病", out, "动作迟缓、静止性震颤1年");
-  assert.equal(settled.name, "帕金森病待查");
+  assert.equal(settled.name, "帕金森病");
 });
 
 await check("13.1 血虚：要点与主证共有的一条连同特异表现够三条算成组；血红蛋白偏低算一条", () => {

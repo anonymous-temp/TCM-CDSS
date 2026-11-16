@@ -154,7 +154,7 @@ await check('4.4','M04 组成虽像成方，跨病也按自拟交付并保留参
  const herbs=ingredients.map(name=>({name,dose:'6g',role:'佐药',function:'疏风清热',targetPathogenesis:'风热',evidence:{evidenceLevel:'kb_entry',source:'目录',confidence:'中'}}));
  const r={...reasoning(),stage:'prescribe',formula:{candidates:[{name:'银翘散',herbs,applicable:'风热证',notApplicable:'寒证',formulaAnalysis:'以银翘散为基础',therapyMatch:'疏风清热'}]}};
  const c=provenance.enrichReasoning(r).reasoning.formula.candidates[0];
- assert.equal(c.constructionType,'self_devised');assert.equal(c.name,'本例辨证组方');assert.deepEqual(c.formulaNames,[]);assert.equal(c.herbs.length,herbs.length);assert.match(c.formulaSource.source,/参考.*银翘散/u);
+ assert.equal(c.constructionType,'self_devised');assert.equal(c.name,'本例辨证组方');assert.deepEqual(c.formulaNames,[]);assert.equal(c.herbs.length,herbs.length);assert.match(c.formulaSource.source,/以银翘散.*为基础/u);
  const control=structuredClone(r);control.overview.tcmDiseaseName='感冒';assert.equal(provenance.enrichReasoning(control).reasoning.formula.candidates[0].constructionType,'single_base');
  const mixed=structuredClone(control);mixed.formula.candidates[0].name='银翘散合毓麟珠';mixed.formula.candidates[0].formulaNames=['银翘散','毓麟珠'];assert.equal(provenance.enrichReasoning(mixed).reasoning.formula.candidates[0].constructionType,'self_devised');
  // 单方显示名可解析，载荷却额外声称另一张跨病方：独立钉住全部声明都须覆盖。

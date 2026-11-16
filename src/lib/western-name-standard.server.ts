@@ -1,3 +1,4 @@
+import { establishedDiseaseExplainsEncounter, encounterChief, settleEncounterPrimary } from "./western-encounter-primary";
 import "server-only";
 
 import icdIndex from "../data/icd10-diagnosis-index.json" with { type: "json" };
@@ -43,7 +44,7 @@ const CRITERIA_NAMES = new Set(((criteriaJson as unknown as { entries?: Array<{ 
 const PREFERRED = (preferredNames as { names: Record<string, string> }).names;
 
 const LINK_SYSTEM = [
-  "你是全科主治医师。当前西医诊断只写到症状或笼统的综合征层面（已是明确病因的病名时答 null）。判断：病历既往史明确写着的、已确诊的慢性病，是不是这次主诉主症最常见的原因。",
+  "你是全科主治医师。当前西医诊断只写到症状或笼统的综合征层面（已是明确病因的病名时答 null）。判断：病历既往史明确写着的、已确诊的慢性病，是不是这次就诊本身的直接表现或加重，不能仅为本次问题的易感因素或相关背景。",
   "是：高血压病史多年、这次头晕；冠心病史、这次活动后胸闷。不是：高血压病史、这次咳嗽；只有家族史、“可疑”“待查”的病。",
   "name 写规范病名（如 高血压病），quote 从病历逐字摘录写明这个病的那一句，rationale 用不超过80字说明这次主症与它的关系、以及还要排除什么。不成立时 established 为 null。",
   "只输出 JSON：{\"established\":null} 或 {\"established\":{\"name\":\"\",\"quote\":\"\",\"rationale\":\"\"}}",
@@ -67,7 +68,7 @@ function parseLink(content: unknown): Established | undefined {
 
 const LINK_VERIFY_SYSTEM = [
   "你是全科主治医师。门诊写诊断的习惯：已确诊的慢性病能解释这次主症时，西医诊断直接写这个病，不写症状（高血压病史的老人以头晕就诊，诊断写高血压病）。",
-  "判断这次主诉主症是不是这个慢性病的常见表现。不要求是唯一解释，不要求先排除别的原因，慢性病当前控制得好（如血压控制尚可）也算；只有这个病一般不引起这个症状时才答 false（高血压病之于咳嗽、冠心病之于消瘦）。",
+  "判断这次主诉主症是不是这个慢性病的常见表现。必须是该病本身的直接表现或加重；糖尿病是尿路感染的易感因素、帕金森病可能导致便秘，均答 false，保留本次问题名。高血压病史加头晕可答 true。",
   "只输出 JSON：{\"confirmed\":true} 或 {\"confirmed\":false}",
 ].join("\n");
 
@@ -173,6 +174,7 @@ export async function finalizeWesternPrimaryName(
   try { root = record(JSON.parse(westernContent)); } catch { return westernContent; }
   const western = record(root?.westernDiagnosis);
   const primary = record(western?.primary);
+  if (western) settleEncounterPrimary(western, context.recordText);
   const name = text(primary?.name);
   if (!root || !western || !primary || !name) return westernContent;
   const previous = name;
@@ -185,7 +187,7 @@ export async function finalizeWesternPrimaryName(
       ],
       maxTokens: 240,
       parse: parseLink,
-    }, (candidate) => (establishedDiseaseQualifies(candidate, context.recordText)
+    }, (candidate) => (establishedDiseaseQualifies(candidate, context.recordText) && establishedDiseaseExplainsEncounter(candidate.name, context.chiefComplaint || encounterChief(context.recordText))
       ? {
           messages: [
             { role: "system", content: LINK_VERIFY_SYSTEM },
@@ -199,7 +201,7 @@ export async function finalizeWesternPrimaryName(
   }
   const preferred = PREFERRED[name.replace(/待查$/u, "")];
   const next = established?.name ?? (preferred ? `${preferred}${/待查$/u.test(name) ? "待查" : ""}` : await standardIcdSynonym(name, signal));
-  if (!next || next === name) return westernContent;
+  if (!next || next === name) return JSON.stringify(root);
   primary.name = next;
   if (established?.rationale) primary.clinicalRationale = establishedRationale(established, context.recordText);
   // 原名留在候选（医生还看得到这个方向）；同义归一不留，是同一个病。不放进鉴别：「眩晕综合征」是症状本身，不是要与高血压鉴别的另一个病，

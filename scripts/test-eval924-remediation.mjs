@@ -391,7 +391,7 @@ await check("9.2 自拟方出处：写「组方参考：某方（《出处》）
   assert.deepEqual(provenance.selfDevisedFormulaReferences(["朱砂", "冰片", "麝香"]), [], "无关组成不得硬凑参考");
 });
 
-await check("9.4 自拟方候选的出处栏：有近似常用成方写「组方参考」，没有写「自拟方」；两者都不再是工程话术", () => {
+await check("9.4 R48：自拟方方义未声明基础方时，出处统一自拟方，不按重合度推断", () => {
   const candidateFor = (herbs) => ({
     name: "本例辨证组方", formulaNames: [], constructionType: "self_devised", modificationStatus: "modified",
     therapyMatch: "滋补肾阴", formulaAnalysis: "滋补肾阴为主，兼清虚热。", applicable: "适用于肾阴不足证。", notApplicable: "证候变化时暂停。",
@@ -401,10 +401,10 @@ await check("9.4 自拟方候选的出处栏：有近似常用成方写「组方
   const sourceOf = (herbs) => provenance.enrichReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [candidateFor(herbs)] } })
     .reasoning.formula.candidates[0].formulaSource.source;
   const near = sourceOf(["熟地黄", "山茱萸", "山药", "牡丹皮", "茯苓", "泽泻", "知母", "黄柏"]);
-  assert.match(near, /^自拟方，组方参考：.*地黄丸/, near);
+  assert.equal(near, "自拟方");
   assert.ok(!/结构化匹配/.test(near));
   const none = sourceOf(["朱砂", "冰片", "麝香", "珍珠"]);
-  assert.match(none, /^自拟方，按本例证候/, none);
+  assert.equal(none, "自拟方");
   assert.ok(!/组方参考/.test(none));
 });
 

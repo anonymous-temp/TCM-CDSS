@@ -404,6 +404,7 @@ export async function withEstablishmentDowngrade(
   context: Pick<WesternBasisApplyContext, "recordText" | "establishmentConfirm">,
   signal?: AbortSignal,
 ): Promise<string> {
+  if (westernBasisCriteriaEntry(name)) return withNameMatchingBasisCertainty(westernContent, context.recordText);
   if (!westernEstablishmentCheckEnabled() || proposal.established !== "no") return westernContent;
   const current = westernPrimaryOf(westernContent);
   if (!current || compact(current.name) !== compact(name)) return westernContent;

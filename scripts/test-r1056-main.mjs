@@ -186,7 +186,7 @@ await check("3.3 交付面（开方页）：辨证页按旧写法写的「需排
   };
   reasoning.formula.candidates[0].decoction.followUpAfterDoses = 7;
   reasoning.formula.candidates[0].decoction.followUpAfterDays = 7;
-  const options = { recordText: "主诉：腹胀1月", priorityEvaluation: { focus: "肝硬化失代偿", window: "within_48h" } };
+  const options = { recordText: "主诉：腹胀1月\n既往史：乙型肝炎后肝硬化失代偿期3年", priorityEvaluation: { focus: "肝硬化失代偿", window: "within_48h" } };
   const out = surface.projectDeliveredReasoning(reasoning, options);
   assert.match(out.management.followupSafetyNet, /^已考虑乙型肝炎后肝硬化失代偿期，请在48小时内到相关专科就诊，评估病情轻重；医生确认可以服药后，服完7剂药（约7天后）再复诊。若出现呕血黑便/u);
   assert.doesNotMatch(out.management.followupSafetyNet, /需排除肝硬化失代偿/u);
@@ -212,14 +212,14 @@ await check("3.4 M05 首次复诊读已签名的西医主诊断，与开方页�
 const western = (name, rationale) => JSON.stringify({ westernDiagnosis: { primary: { name, clinicalRationale: rationale }, candidates: [{ name, likelihood: "高", keyEvidence: [], againstEvidence: [] }], differentials: [] } });
 const proposal = (established, level = "病程未满6个月，尚不能确诊") => ({ summary: "", criteria: [], negatives: [], established, level, exclude: [], text: "" });
 
-await check("4.1 依据提纲答「尚未确立」、另一家确认：病名改「X待查」，候选首位同名，推理说明「符合X」改「考虑X可能」", async () => {
+await check("4.1 R48：表内疾病按病程定稿为待查，不再问依据提纲复核，撤去完整确诊断言", async () => {
   let asked = 0;
   const confirm = async () => { asked += 1; return true; };
   const out = JSON.parse(await basis.withEstablishmentDowngrade(western("功能性消化不良", "上腹嘈杂3月，符合功能性消化不良；病程未满6个月，尚不能确诊。"), "功能性消化不良", proposal("no"), { recordText: "上腹嘈杂3月", establishmentConfirm: confirm }));
-  assert.equal(asked, 1);
+  assert.equal(asked, 0);
   assert.equal(out.westernDiagnosis.primary.name, "功能性消化不良待查");
   assert.equal(out.westernDiagnosis.candidates[0].name, "功能性消化不良待查");
-  assert.match(out.westernDiagnosis.primary.clinicalRationale, /考虑功能性消化不良可能/u);
+  assert.match(out.westernDiagnosis.primary.clinicalRationale, /病程满180天/u);
   assert.doesNotMatch(out.westernDiagnosis.primary.clinicalRationale, /符合功能性消化不良/u);
 });
 
@@ -227,9 +227,9 @@ await check("4.2 不改也不发请求：提纲答已确立、已带待查、病
   let asked = 0;
   const counted = async () => { asked += 1; return true; };
   const content = western("功能性消化不良", "符合功能性消化不良。");
-  assert.equal(await basis.withEstablishmentDowngrade(content, "功能性消化不良", proposal("yes"), { recordText: "x", establishmentConfirm: counted }), content);
+  assert.equal(JSON.parse(await basis.withEstablishmentDowngrade(content, "功能性消化不良", proposal("yes"), { recordText: "主诉：餐后饱胀1年", establishmentConfirm: counted })).westernDiagnosis.primary.name, "功能性消化不良");
   const pending = western("功能性消化不良待查", "");
-  assert.equal(await basis.withEstablishmentDowngrade(pending, "功能性消化不良待查", proposal("no"), { recordText: "x", establishmentConfirm: counted }), pending);
+  assert.equal(JSON.parse(await basis.withEstablishmentDowngrade(pending, "功能性消化不良待查", proposal("no"), { recordText: "主诉：餐后饱胀1月", establishmentConfirm: counted })).westernDiagnosis.primary.name, "功能性消化不良待查");
   const stated = western("慢性乙型肝炎", "");
   assert.equal(await basis.withEstablishmentDowngrade(stated, "慢性乙型肝炎", proposal("no"), { recordText: "既往史：慢性乙型肝炎10年，规律服用恩替卡韦。", establishmentConfirm: counted }), stated);
   // 四类之内（功能性、有病程门槛、理由说病程），但病历写明既往已确诊：不问。
@@ -238,7 +238,7 @@ await check("4.2 不改也不发请求：提纲答已确立、已带待查、病
   const urti = western("急性上呼吸道感染", "");
   assert.equal(await basis.withEstablishmentDowngrade(urti, "急性上呼吸道感染", proposal("no"), { recordText: "咽痛2天", establishmentConfirm: counted }), urti);
   assert.equal(asked, 0);
-  assert.equal(await basis.withEstablishmentDowngrade(content, "功能性消化不良", proposal("no"), { recordText: "x", establishmentConfirm: async () => false }), content);
+  assert.equal(JSON.parse(await basis.withEstablishmentDowngrade(content, "功能性消化不良", proposal("no"), { recordText: "主诉：餐后饱胀1月", establishmentConfirm: async () => false })).westernDiagnosis.primary.name, "功能性消化不良待查");
 });
 
 await check("4.2a 只问四类病名：要点表要求检查且病历一项都没有（典型症状＋空腹血糖 9.8 的 2 型糖尿病不问）；有病程门槛且理由说的是病程；急危重病名；排除性诊断", async () => {
@@ -256,7 +256,8 @@ await check("4.2b 依据写作接上确立程度核对：成句没过核对（�
   const authored = { name: "化脓性脑膜炎", proposal: { ...proposal("no", "尚缺脑脊液检查"), text: "太短" } };
   const out = JSON.parse(await basis.withAuthoredWesternBasis(western("化脓性脑膜炎", "高热、颈项抵抗，支持化脓性脑膜炎。"), { recordText: "发热2天，颈项抵抗阳性", chiefComplaint: "发热2天", establishmentConfirm: async () => true }, Promise.resolve(authored)));
   assert.equal(out.westernDiagnosis.primary.name, "化脓性脑膜炎待查");
-  assert.match(out.westernDiagnosis.primary.clinicalRationale, /考虑化脓性脑膜炎可能/u);
+  assert.match(out.westernDiagnosis.primary.clinicalRationale, /尚缺脑脊液/u);
+  assert.doesNotMatch(out.westernDiagnosis.primary.clinicalRationale, /支持化脓性脑膜炎/u);
 });
 
 await check("4.3 提纲解析出 established；提示词按推理顺序在 level 之前问它", () => {

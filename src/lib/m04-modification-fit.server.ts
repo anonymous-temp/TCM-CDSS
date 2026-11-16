@@ -3,7 +3,7 @@ import "server-only";
 
 import { parseConfirmed, proposeTwiceThenVerifyAll } from "./cross-model-small-task.server";
 import { herbCautionReferenceText, herbClaimReferenceText, herbPropertyReferenceText } from "./m04-formula-analysis-claim-check.server";
-import { modificationTriggerNotFinding, distinctModificationConditions, standbyModificationsDelivered, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
+import { retainModificationFindings, modificationTriggerNotFinding, distinctModificationConditions, standbyModificationsDelivered, topUpModificationRow, withoutOrphanPartnerRows } from "./m04-proposal-compiler";
 import { textbookRowForSyndrome } from "./tcm-textbook-syndromes";
 import { compositionIdentityName } from "./tcm-formula-provenance";
 import { quoteGroundedInText } from "./verbatim-quote";
@@ -158,7 +158,7 @@ export async function dropMisfitModifications(content: string, context: { record
   const formula = record(root?.formula);
   const overview = record(root?.overview);
   const originalRows = Array.isArray(formula?.modifications) ? formula.modifications.map(record).filter((row): row is Json => Boolean(row)) : [];
-  const rows = originalRows.filter((row) => !modificationTriggerNotFinding(text(row.trigger), { ...context, prior: context.prior || { overview: { tcmDiseaseName: text(overview?.tcmDiseaseName) } } }));
+  const rows = retainModificationFindings(originalRows, { ...context, prior: context.prior || { overview: { tcmDiseaseName: text(overview?.tcmDiseaseName), primarySyndrome: text(overview?.primarySyndrome) } } });
   if (!root || !formula) return content;
   if (rows.length !== originalRows.length) {
     formula.modifications = rows;
@@ -298,7 +298,7 @@ export async function topUpModificationConditions(
   const candidate = record(Array.isArray(formula?.candidates) ? formula.candidates[0] : undefined);
   if (!root || !formula || !candidate || !Array.isArray(candidate.herbs)) return content;
   const originalRows = Array.isArray(formula.modifications) ? formula.modifications.map(record).filter((row): row is Json => Boolean(row)) : [];
-  const rows = originalRows.filter((row) => !modificationTriggerNotFinding(text(row.trigger), context));
+  const rows = retainModificationFindings(originalRows, context);
   formula.modifications = rows;
   const existing = rows.map((row) => text(row.trigger));
   if (distinctModificationConditions(rows) >= MIN_DISTINCT_CONDITIONS) return rows.length === originalRows.length ? content

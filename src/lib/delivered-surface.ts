@@ -1,3 +1,5 @@
+import { afterMealAdministrationRequired, afterMealAdministration, afterMealPrecaution } from "./hypoglycemia-administration";
+import { settleEncounterPrimary } from "./western-encounter-primary";
 import { lineageWordingMatchingDirection } from "./lineage-formula-wording";
 import { populationMatchedPrecautions } from "./population-matched-precautions";
 import { currentMedicationPrecautions } from "./current-medication-precautions";
@@ -9,12 +11,12 @@ import { DELIVERY_REWRITE_RULES, traceProjection, observeTextRewrite } from "./d
 /** Observation only; original clinical transforms and their return values are unchanged. */
 export const DELIVERED_SURFACE_REWRITE_RULES = Object.freeze({ family: DELIVERY_REWRITE_RULES.surface, leaves: ["applyDeliveredSurfaceToContent","projectDeliveredReasoning","clinicalWordingForSyntheticPhrases","readabilityCleaned"] as const });
 import { diseaseCareItemCovered, withoutDiseaseCareConflicts } from "./western-disease-care";
-import type { CaseState } from "./diagnosis-types";
+import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import rxConstraints from "../data/rx-case-constraints.source.json";
 import { medicineLabelConflictsWithCase } from "./medicine-candidate-exclusion";
 import therapyPhrasePolicy from "../data/tcm-therapy-phrase-policy.source.json" with { type: "json" };
 import { redFlagActiveFor } from "./clinical-red-flag-context";
-import { smallBaseOverextended, selfDevisedReferenceSource } from "./tcm-formula-provenance";
+import { smallBaseOverextended, selfDevisedSourceForAnalysis } from "./tcm-formula-provenance";
 /**
  * 交付面：调用方实际收到的结构化结果里，哪些字段不再带内容、哪些服务端生成的措辞要换成临床语言。
  *
@@ -45,7 +47,7 @@ import { compositionIdentityName, formulaEditClaimBaseIngredients, governedFormu
 import { textbookBaseIngredients } from "./herb-record-caution";
 import { mindSymptomsProminentInRecord, signedScopeInvolvesMind, type SignedScopeLike } from "./incidental-sleep-modification";
 import { drugNamesInAllergyPhrases, medicationStoppedOrOnlyPast, medicationNotTaken } from "./clinical-polarity";
-import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, modificationTriggerNotFinding, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs, withoutMutuallyIncompatibleAdditions, withoutRepeatedModificationConditions } from "./m04-proposal-compiler";
+import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, retainModificationFindings, topUpTextbookMainSymptom, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs, withoutMutuallyIncompatibleAdditions, withoutRepeatedModificationConditions } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
@@ -1435,6 +1437,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
     }
   }
   const western = record(reasoning.westernDiagnosis);
+  if (western && options?.recordText && !readOnlyConclusions) settleEncounterPrimary(western, options.recordText);
   const primary = record(western?.primary);
   if (primary && !isLimitedDiagnose(reasoning)) {
     primary.name = deliveredWesternDiagnosisName(primary.name, primary.coding);
@@ -2194,8 +2197,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     if (original === false && typeof candidate.name === "string") candidate.name = `${candidate.name.trim()}加减`;
     // 名称身份在方名恢复、原方核验后定稿；方义开头仍走已有的同一函数。
     if (typeof candidate.name === "string" && smallBaseOverextended(candidate.name, records(candidate.herbs).map((herb) => String(herb.name || "")))) {
-      const referenceName = candidate.name.replace(/(?:加减|化裁|加味)$/u, "");
-      const source = selfDevisedReferenceSource(records(candidate.herbs).map((herb) => String(herb.name || "")), [referenceName]);
+      const source = selfDevisedSourceForAnalysis(String(candidate.formulaAnalysis || ""));
       candidate.name = "自拟方";
       candidate.constructionType = "self_devised";
       candidate.formulaNames = [];
@@ -2776,9 +2778,8 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
   }
   // 辨证阶段已采纳的患者原话（主证依据与各病机节点的患者事实）：随证加减的触发条件说的症状这里已有，就不是「若」出现的变化。
   const recordedFacts = modificationPresenceFactsFor(options?.recordText || "", { overview: priorOverview as { primarySyndromeBasis?: unknown } | undefined, pathogenesis: { chain: records(record(reasoning.pathogenesis)?.chain) } });
-  const triggerContext = { caseState: options?.caseState, recordText: options?.recordText, prior: { overview: { tcmDiseaseName: String(priorOverview?.tcmDiseaseName || "") } }, priorityEvaluation: options?.priorityEvaluation };
-  if (formula && Array.isArray(formula.modifications)) formula.modifications = records(formula.modifications)
-    .filter((item) => !modificationTriggerNotFinding(String(item.trigger || ""), triggerContext));
+  const triggerContext = { caseState: options?.caseState, recordText: options?.recordText, prior: { overview: { tcmDiseaseName: String(priorOverview?.tcmDiseaseName || ""), primarySyndrome: String(priorOverview?.primarySyndrome || "") } }, priorityEvaluation: options?.priorityEvaluation };
+  if (formula && Array.isArray(formula.modifications)) formula.modifications = retainModificationFindings(records(formula.modifications), triggerContext);
   // 备用加减（「若X」而病历里没有X）不交付（第四十四轮，2026-11-14 用户：甲方页面默认勾选、没有确认的地方，评审按患者实际病情判）。
   // 编译阶段已按同一判据不列；这里兜住补写、核对之后的行与旧缓存。病历原文拿不到时（没传 recordText）不动，免得把已见的也删了。
   if (formula && Array.isArray(formula.modifications) && options?.recordText && !standbyModificationsDelivered()) {
@@ -2824,6 +2825,10 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
       seen.add(key);
       return true;
     });
+  }
+  if (formula && options?.caseState && options.recordText && Array.isArray(formula.modifications)) {
+    formula.modifications = topUpTextbookMainSymptom(records(formula.modifications), reasoning as ClinicalReasoningResultV2, options.caseState as CaseState,
+      records(records(formula.candidates)[0]?.herbs).map((herb) => String(herb.name || "")));
   }
   if (formula && Array.isArray(formula.patentAndWestern)) {
     const herbs = records(records(formula.candidates)[0]?.herbs).map((herb) => ({ name: String(herb.name || ""), role: String(herb.role || "") }));
@@ -3802,6 +3807,15 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
       incomingCare.precautions = incomingCare.precautions.filter((line) => typeof line !== "string" || !incomingCareSentences.has(line));
     }
     deliveredPrescribe(projected, options, finalHerbs);
+    const administrationRecord = options?.recordText || (options?.caseState?.patient ? clinicalGroundingText(options.caseState as CaseState) : "");
+    if (afterMealAdministrationRequired(administrationRecord)) {
+      for (const candidate of records(record(projected.formula)?.candidates)) {
+        const decoction = record(candidate.decoction);
+        if (decoction && typeof decoction.method === "string") decoction.method = afterMealAdministration(decoction.method);
+      }
+      const care = record(projected.nonPharma);
+      if (care && Array.isArray(care.precautions)) care.precautions = care.precautions.map((line) => typeof line === "string" ? afterMealPrecaution(line) : line);
+    }
     options = withEstablishedDiagnosis(projected, options);
     // 红旗未解除时不列中成药、西药（2026-11-08 第三十七轮，甲方 11.05 病历16：急性胸痛 2 小时、疑急性心梗，推荐了参芍片）。
     // 汤药照 D4 给剂量、急诊放行前不可采纳；可以自行购服的成药会让患者以为可以先吃药观察。说明写在 medicineCandidateStatus.reason。
@@ -3930,7 +3944,14 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
     records(record(projected.formula)?.candidates).forEach((candidate, index) => { candidate.formulaAnalysis = previousAnalyses[index]; });
     return projectM04FinalFacts(projected, { record: options?.recordText || "" }) as T;
   }
-  return (projected.stage === "prescribe" && policy.enabled && policy.functions === "on" ? projectGroundedHerbFunctions(projected, { sex: options?.patientSex, ageYears: options?.herbBoundaryAudience?.ageYears ?? undefined, recordText: options?.recordText }) : projected) as T;
+  const delivered = projected.stage === "prescribe" && policy.enabled && policy.functions === "on" ? projectGroundedHerbFunctions(projected, { sex: options?.patientSex, ageYears: options?.herbBoundaryAudience?.ageYears ?? undefined, recordText: options?.recordText }) : projected;
+  // 终表作者也会写出处，须在全部作者与投影之后定稿，避免二次投影才清理旧出处。
+  for (const candidate of records(record(delivered.formula)?.candidates)) {
+    if (candidate.name !== "自拟方") continue;
+    candidate.formulaSource = { ...record(candidate.formulaSource), evidenceLevel: "model_inference", confidence: record(candidate.formulaSource)?.confidence || "中",
+      source: selfDevisedSourceForAnalysis(String(candidate.formulaAnalysis || "")) };
+  }
+  return delivered as T;
 }
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";

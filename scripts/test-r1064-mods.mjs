@@ -124,21 +124,24 @@ await check('2.3', '交付最终加味与成药同判，未重复成药保留', 
 });
 const leftGoldHerbs = ['黄连', '吴茱萸', '白芍', '香附', '陈皮', '枳壳', '竹茹', '茯苓', '甘草', '生姜'];
 await check('3.1', '小方命名阈值按原方味数和新增身份计，严格大于两倍', () => {
-  assert.equal(provenance.smallBaseOverextended('左金丸加减', leftGoldHerbs), true);
+  // R48：完整保留底方核心药时，加味多不单独构成降名理由。
+  assert.equal(provenance.smallBaseOverextended('左金丸加减', leftGoldHerbs), false);
   assert.equal(provenance.smallBaseOverextended('左金丸加减', leftGoldHerbs.slice(0, 6)), false, '新增4味=两倍不降名');
   assert.equal(provenance.smallBaseOverextended('左金丸加减', ['黄连', '吴茱萸', '酒黄连', '白芍']), false, '炮制不重复计数');
   assert.equal(provenance.smallBaseOverextended('四君子汤加减', leftGoldHerbs), false, '底方超过3味不适用');
   assert.equal(provenance.smallBaseOverextended('黄连温胆汤加减', leftGoldHerbs), false, '省略的原书条目不能把完整复方判成小方');
 });
 await check('3.2', '小方过度加味交付自拟，参考与原书保留，方义开头同步且幂等', () => {
-  const candidate = { name: '左金丸加减', formulaNames: ['左金丸'], baseFormulas: [{ name: '左金丸' }], constructionType: 'single_base', herbs: leftGoldHerbs.map(name => herb(name)), formulaAnalysis: '本方以左金丸为基础加减。黄连清热，吴茱萸降逆，白芍柔肝。', formulaSource: { source: '左金丸：《丹溪心法》', evidenceLevel: 'classic_text' } };
+  const candidate = { name: '左金丸加减', formulaNames: ['左金丸'], baseFormulas: [{ name: '左金丸' }], constructionType: 'single_base', herbs: leftGoldHerbs.filter(name => name !== '吴茱萸').map(name => herb(name)), formulaAnalysis: '本方以左金丸为基础加减。黄连清热，吴茱萸降逆，白芍柔肝。', formulaSource: { source: '左金丸：《丹溪心法》', evidenceLevel: 'classic_text' } };
   const input = rx([], [], candidate);
   input.overview = { ...input.overview, recommendedFormulaNames: ["左金丸"], recommendedFormulaDirection: "左金丸加减" };
   const result = surface.projectDeliveredReasoning(input);
   const c = result.formula.candidates[0];
   assert.equal(c.name, '自拟方'); assert.equal(c.constructionType, 'self_devised');
   assert.deepEqual(c.formulaNames, []); assert.deepEqual(c.baseFormulas, []);
-  assert.match(c.formulaSource.source, /组方参考：.*左金丸.*丹溪心法/u);
+  // R48：只引用方义明说的底方，不按药味重合度另挑。
+  assert.match(c.formulaSource.source, /自拟方/u);
+  assert.doesNotMatch(c.formulaSource.source, /组方参考/u);
   assert.match(c.formulaAnalysis, /^本方为自拟方/u);
   assert.deepEqual(surface.projectDeliveredReasoning(result), result, '重复投影不恢复为小方加减');
   const alreadySelf = rx([], [], { ...candidate, name: '自拟方', formulaNames: [], baseFormulas: [], constructionType: 'self_devised', formulaAnalysis: '本方为自拟方。黄连清热，吴茱萸降逆，白芍柔肝。', formulaSource: { evidenceLevel: 'model_inference', source: '自拟方，组方参考：左金丸（《丹溪心法》）加减' } });
@@ -205,7 +208,7 @@ await check('1.11', '同类构词的留出写法与开发集同判，餐后症�
 });
 
 await check('3.3', '教材方向锁定小方时重复投影也不恢复名字或重复方义', () => {
-  const input = rx([], [], { name: '左金丸加减', herbs: leftGoldHerbs.map(name => herb(name)), formulaAnalysis: '本方以左金丸为基础加减。黄连清热，吴茱萸降逆。', formulaSource: { source: '左金丸：《丹溪心法》' } });
+  const input = rx([], [], { name: '左金丸加减', herbs: leftGoldHerbs.filter(name => name !== '吴茱萸').map(name => herb(name)), formulaAnalysis: '本方以左金丸为基础加减。黄连清热，吴茱萸降逆。', formulaSource: { source: '左金丸：《丹溪心法》' } });
   input.overview = { ...input.overview, tcmDiseaseName: '吐酸', primarySyndrome: '热证', primarySyndromeBasis: ['吞酸，胃脘胀满'], recommendedFormulaNames: ['左金丸'], recommendedFormulaDirection: '左金丸加减' };
   const once = surface.projectDeliveredReasoning(input);
   const twice = surface.projectDeliveredReasoning(once);

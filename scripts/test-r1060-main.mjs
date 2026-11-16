@@ -246,7 +246,7 @@ await check("2.1 依据一句里既说诊断已确立又说尚缺检查确认：
   const sublevelConfirm = "反复鼻出血3天，鼻出血诊断成立；尚缺鼻内镜检查确认出血部位，需排除血液系统疾病。";
   assert.equal(claims.westernBasisWithoutEstablishmentContradiction(sublevelConfirm, "鼻出血", "反复鼻出血3天"), sublevelConfirm, "缺的检查是为了确认部位：不算矛盾");
   const clean = "上腹胀满2月，考虑慢性胃炎；尚缺胃镜确认。";
-  assert.equal(claims.westernBasisWithoutEstablishmentContradiction(clean, "慢性胃炎待查", REC5), clean);
+  assert.equal(claims.westernBasisWithoutEstablishmentContradiction(clean, "慢性胃炎待查", REC5), "上腹胀满2月，考虑慢性胃炎。");
 });
 
 await check("2.2 依据里引用病历没有的检查（结合血象、血常规示…）去掉；病历有这项结果时不动", () => {

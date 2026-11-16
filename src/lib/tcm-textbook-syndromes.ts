@@ -774,6 +774,17 @@ export function textbookDifferentialSharesChiefComplaint(diseaseName: string, re
   const chief = /主诉[：:]\s*([^\n]+)/u.exec(recordText)?.[1] || recordText.split("\n").find((line) => line.trim() && !/^患者/u.test(line)) || "";
   const first = chiefComplaintPhrase(chief);
   const findings = chiefFindings.length ? chiefFindings.filter((finding) => first.includes(finding) || chiefConceptSource.concepts.some((group) => group.forms.some((form) => first.includes(form)) && group.forms.some((form) => finding.includes(form)))) : [first];
+  return textbookDifferentialSharesFindings(diseaseName, findings);
+}
+
+/** 补足名单用本次病历全部肯定表现；否认、家族史与既往病史不提供交集。 */
+export function textbookDifferentialSharesAffirmedFinding(diseaseName: string, recordText: string): boolean {
+  const current = recordText.split("\n").filter((line) => !chiefConceptSource.excludedSections.some((name) => new RegExp(`^\\s*${name}\\s*[:：]`, "u").test(line))).join("\n");
+  const findings = affirmedClinicalSourceClauses(current);
+  return textbookDifferentialSharesFindings(diseaseName, findings, true);
+}
+
+function textbookDifferentialSharesFindings(diseaseName: string, findings: readonly string[], affirmed = false): boolean {
   const definitions = differentialDefinitionEntries(diseaseName);
   const keys = new Set(definitions.map((entry) => `${text(entry.bookKey)}|${text(entry.disease)}`));
   const matches = (group: { forms: string[]; allOf?: string[][] }, value: string) => group.forms.some((form) => value.includes(form)) || group.allOf?.some((parts) => parts.every((part) => value.includes(part)));
@@ -790,7 +801,9 @@ export function textbookDifferentialSharesChiefComplaint(diseaseName: string, re
   const parent = subtypeParentDisease(diseaseName);
   const subtypeFindings = parent ? DISEASE_SUBTYPES[parent]?.[diseaseName] || [] : [];
   const texts = [...definitionTexts, ...mainTexts, ...inline, ...subtypeFindings];
-  const concepts = chiefConceptSource.concepts.filter((group) => findings.some((finding) => matches(group, finding)));
+  const positive = (finding: string, form: string) => finding.includes(form) && recordMentionPolarityAt(finding, finding.indexOf(form)) === "affirmed";
+  const concepts = chiefConceptSource.concepts.filter((group) => findings.some((finding) => matches(group, finding) && (!affirmed ||
+    group.forms.some((form) => positive(finding, form)) || group.allOf?.some((parts) => parts.every((part) => positive(finding, part))))));
   if (concepts.length) return concepts.some((group) => texts.some((value) => matches(group, value)));
   return findings.some((finding) => finding.length >= 2 && texts.some((value) => value.includes(finding)));
 }

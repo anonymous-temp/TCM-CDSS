@@ -67,11 +67,12 @@ await check('F04', '表证已接地的成组见证支持卫表；一项不据以
 });
 await check('F05', '西医考虑/成立/缺确认只保留一种确定度；临床可诊断且只缺病原时不降级', () => {
  const n=settle('过敏性鼻炎','鼻痒喷嚏，考虑过敏性鼻炎可能，诊断过敏性鼻炎成立，尚缺过敏原检测确认。');
- assert.equal(n.name,'过敏性鼻炎待查');assert.doesNotMatch(n.basis,/成立/u);
+ // R48：要点表可临床诊断，缺过敏原检测不降名。
+ assert.equal(n.name,'过敏性鼻炎');assert.doesNotMatch(n.basis,/尚缺/u);
  assert.equal(settle('带状疱疹','单侧水疱，考虑带状疱疹可能，临床可诊断带状疱疹，尚缺病毒学确认病原。').name,'带状疱疹');
 });
 await check('F06', '方可确诊/方能确立决定待查；仅缺分型不影响病名', () => {
- for(const [name,text] of [['糖尿病酮症酸中毒','高血糖尿酮阳性，需血气证实酸中毒方可确诊糖尿病酮症酸中毒。'],['急性痛风性关节炎','关节急性红肿，需关节液检查确认急性痛风性关节炎。'],['急性冠脉综合征','持续胸痛，尚缺心肌肌钙蛋白，需结合检查分型，方能确立急性冠脉综合征。']]) assert.equal(settle(name,text).name,`${name}待查`,name);
+ for(const [name,text] of [['糖尿病酮症酸中毒','高血糖尿酮阳性，需血气证实酸中毒方可确诊糖尿病酮症酸中毒。'],['急性痛风性关节炎','关节急性红肿，需关节液检查确认急性痛风性关节炎。'],['急性冠脉综合征','持续胸痛，尚缺心肌肌钙蛋白，需结合检查分型，方能确立急性冠脉综合征。']]) assert.equal(settle(name,text).name,name === '急性痛风性关节炎' ? name : `${name}待查`,name);
  assert.equal(settle('鼻出血','鼻出血诊断成立；尚缺鼻内镜明确出血部位。').name,'鼻出血');
  assert.equal(settle('产后泌乳不足','乳汁量少，产后泌乳不足诊断已确立；尚缺甲状腺功能检查排除甲状腺功能异常。').name,'产后泌乳不足');
 });
@@ -115,7 +116,8 @@ await check('F12', '服务端定稿与交付投影使用同一西医确定度', 
  const r=reasoning();r.westernDiagnosis.primary.name='急性痛风性关节炎';r.westernDiagnosis.primary.clinicalRationale='关节红肿热痛；尚缺关节液检查确认急性痛风性关节炎。';
  const a=JSON.parse(basis.withNameMatchingBasisCertainty(JSON.stringify(r),'关节红肿热痛。'));
  const b=surface.projectDeliveredReasoning(r,{recordText:'关节红肿热痛。'});
- assert.equal(a.westernDiagnosis.primary.name,'急性痛风性关节炎待查');assert.equal(b.westernDiagnosis.primary.name,a.westernDiagnosis.primary.name);
+ // R48：痛风按诊断要点表可临床诊断，两条定稿路径一致。
+ assert.equal(a.westernDiagnosis.primary.name,'急性痛风性关节炎');assert.equal(b.westernDiagnosis.primary.name,a.westernDiagnosis.primary.name);
  assert.equal(surface.projectDeliveredReasoning(b,{recordText:'关节红肿热痛。'}).westernDiagnosis.primary.name,b.westernDiagnosis.primary.name);
 });
 await check('F13', '无出路/无所/无从属固定搭配，不变成未诉；真正未记录阴性仍改写', () => {

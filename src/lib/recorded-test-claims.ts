@@ -1,3 +1,7 @@
+import { establishedHistoryText } from "./western-encounter-primary";
+import { westernCriteriaEntry } from "./western-criteria-table";
+import { recordCourseDays } from "./western-record-course";
+import certaintyPolicy from "../data/western-certainty-policy.source.json";
 import testNameGroupsJson from "../data/clinical-test-name-groups.source.json" with { type: "json" };
 import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
 import westernAbbreviations from "../data/western-diagnosis-abbreviations.source.json" with { type: "json" };
@@ -37,7 +41,7 @@ function recordHasResult(recordText: string, group: readonly string[], currentOn
       const left = Math.max(...["，", ",", "。", "；", ";", "\n"].map((mark) => text.lastIndexOf(mark, at - 1))) + 1;
       const rights = ["，", ",", "。", "；", ";", "\n"].map((mark) => text.indexOf(mark, at)).filter((index) => index >= 0);
       const clause = text.slice(left, rights.length > 0 ? Math.min(...rights) : text.length);
-      if (PENDING_IN_CLAUSE.test(clause)) continue;
+      if (PENDING_IN_CLAUSE.test(clause) || certaintyPolicy.pendingTestMarkers.some((marker) => clause.includes(marker))) continue;
       if (currentOnly && (/既往|曾查|去年|年前/u.test(clause) ||
           [...clause.matchAll(/(?:19|20)\d{2}(?=年|[-/])/gu)].some((match) => Number(match[0]) < new Date().getUTCFullYear()))) continue;
       return true;
@@ -139,7 +143,7 @@ export function recordStatesTreatedHypertension(name: string, recordText: string
     const at = source.indexOf(term);
     return at >= 0 && recordMentionPolarityAt(source, at) === "affirmed" && /\d+\s*年/u.test(source.slice(at, at + term.length + 12));
   });
-  return history && source.split(/[。；;\n]/u).some((line) => /用药史|现用药|正在(?:使用|服用)|长期(?:使用|服用)/u.test(line) &&
+  return history && source.split(/[。；;\n]/u).some((line) => (/用药史|现用药|正在(?:使用|服用)|长期(?:使用|服用)/u.test(line) || /\d+(?:\.\d+)?\s*(?:mg|毫克|片|粒)/iu.test(line)) &&
     rule.medicines.some((medicine) => {
       const at = line.indexOf(medicine);
       const clause = line.slice(Math.max(line.lastIndexOf("，", at), line.lastIndexOf(",", at)) + 1).split(/[，,]/u)[0];
@@ -158,7 +162,7 @@ export function basisSaysNameNotEstablished(basis: string, name: string): boolea
   if (core.length < 2 || !basis) return false;
   const source = basis.normalize("NFKC");
   const escaped = escapePattern(core);
-  if (new RegExp(`${escaped}[^。；;]{0,8}?(?:尚未确立|尚不能确立|尚不能诊断|不能确诊|尚未明确诊断|诊断依据不足)|(?:尚未确立|尚不能确立|尚不能诊断)[^。；;]{0,6}${escaped}|后(?:方可|才能)诊断${escaped}`, "u").test(source)) return true;
+  if (new RegExp(`${escaped}[^。；;]{0,8}?(?:尚未确立|尚不能确立|尚不能诊断|不能确诊|尚未明确诊断|诊断未确立|诊断依据不足)|(?:尚未确立|尚不能确立|尚不能诊断)[^。；;]{0,6}${escaped}|后(?:方可|才能)诊断${escaped}`, "u").test(source)) return true;
   // 「分型」不能遮住同句的「方能确立X」（ACS、DKA）。
   if (new RegExp(`(?:方可|才能|方能)(?:确诊|确立|诊断)${escaped}`, "u").test(source)) return true;
   if (new RegExp(`${escaped}(?:诊断)?尚缺[^，,。；;]{0,12}(?:评估|检查)[^，,。；;]{0,6}排除`, "u").test(source)) return true;
@@ -168,10 +172,45 @@ export function basisSaysNameNotEstablished(basis: string, name: string): boolea
   return new RegExp(`考虑${escaped}(?:的)?可能|可能为${escaped}|${escaped}(?:的)?可能(?:性)?(?:大|较大)?[，；。]|(?:疑诊|拟诊|疑为|怀疑)${escaped}|${escaped}[^，。；;]{0,12}待(?:查|排)`, "u").test(source);
 }
 
+/** 表内疾病先按要点表定确定度，依据措辞不再参与命名。表外保持现行判据。 */
+export function westernCriteriaCertainty(name: string, recordText: string, known = false): { pending: boolean; missing: string[]; courseMet?: boolean } | undefined {
+  const entry = westernCriteriaEntry(name);
+  if (!entry) return undefined;
+  if (known) return { pending: false, missing: [] };
+  const age = /(?:年龄[：:]?\s*|患者[^\n]{0,12}?)(\d+)岁/u.exec(recordText);
+  const child = age && Number(age[1]) < 18;
+  const threshold = child ? entry.courseThresholdDays?.under18 ?? entry.courseThresholdDays?.adult : entry.courseThresholdDays?.adult;
+  const course = recordCourseDays(recordText);
+  const missing: string[] = [];
+  if (threshold && (!course || course.lower < threshold)) missing.push(`病程满${threshold}天的记录`);
+  if (!entry.clinicallyDiagnosable) {
+    const groups = (certaintyPolicy.testGroups as Record<string, string[][]>)[entry.name];
+    if (groups) {
+      for (const group of groups) if (!group.some((test) => recordHasTestResultFor(test, recordText))) missing.push(group.join("或"));
+    } else {
+      // 要点表的 requiredTests 多是整句说明（「已有可靠COPD诊断记录；初次确认需肺功能…」「既往脑梗死明确诊断记录/影像依据…」），
+      // 只认其中能按同项写法表精确认出的检查名；一项都认不出时表不下结论，沿用现行判据（第四十八轮：整句当缺项把
+      // 既往确诊的脑梗死后遗症、乙肝肝硬化改成待查，又按整句模糊匹配把只有一项主要表现的风湿热的待查去掉）。
+      // 16 字以内的条目是检查名（「头颅CT平扫」「腰穿脑脊液分析」），更长的是说明句，整条不用。
+      const tests = [...new Set(entry.requiredTests.filter((test) => test.trim().length <= 16)
+        .flatMap((test) => test.replace(/[（(][^）)]*[）)]/gu, "").split(/[、，,/或及和]/u))
+        .map((test) => test.trim()).filter((test) => test.length >= 2 && groupFor(test)))];
+      if (!tests.length) {
+        if (!threshold) return undefined;
+      } else if (!tests.some((test) => recordHasTestResultFor(test, recordText))) {
+        missing.push(tests.join("或"));
+      }
+    }
+  }
+  const low = certaintyPolicy.lowGlucoseConfirmation;
+  if (entry.name === low.name && ![...recordText.normalize("NFKC").matchAll(new RegExp(low.pattern, "giu"))].some((match) => Number(match[1]) < low.below)) missing.push(low.missing);
+  return { pending: missing.length > 0, missing, ...(threshold ? { courseMet: Boolean(course && course.lower >= threshold) } : {}) };
+}
+
 /** 先定病名确定度，再以完整分句为单位舍弃互相冲突的断言；不把一个结论换词成另一个结论。 */
 export function settleWesternDiagnosisBasis(name: string, basis: string, recordText: string): { name: string; basis: string } {
   const core = String(name || "").trim().replace(/(?:待[查排]|可能)$/u, "");
-  if (!core || !basis) return { name, basis };
+  if (!core) return { name, basis };
   const cleaned = withoutMissingClaimsForRecordedTests(basis, recordText);
   const treated = recordStatesTreatedHypertension(core, recordText);
   // 原词写在主诉（如“经期腹泻2月”）只证明症状被记录；既往/明确诊断语境才可免去首次确诊要求。
@@ -181,8 +220,9 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
     recordStatesWesternDiagnosis(core, recordText.split(alias).join(core))) &&
     recordText.split(/[。；;\n]/u).some((sentence) => sentence.includes(alias.slice(0, 3)) &&
       /既往|病史|已确诊|确诊为|诊断为|曾诊断|镜示|镜检查示/u.test(sentence)));
-  const known = diagnosedContext || treated;
-  const pending = !treated && (/待[查排]$/u.test(name) || (!known && basisSaysNameNotEstablished(cleaned, core)));
+  const known = diagnosedContext || treated || Boolean(establishedHistoryText(core, recordText));
+  const criteria = westernCriteriaCertainty(core, recordText, known);
+  const pending = criteria?.pending ?? (!treated && (/待[查排]$/u.test(name) || (!known && basisSaysNameNotEstablished(cleaned, core))));
   const escaped = escapePattern(core);
   const established = new RegExp(`(?:${escaped})?诊断(?:${escaped})?(?:已|可)?(?:确立|成立|明确)|据此临床诊断${escaped}`, "u");
   const speculative = new RegExp(`考虑${escaped}(?:的)?可能|可能为${escaped}`, "u");
@@ -198,20 +238,27 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
     const separator = parts[index + 1] || "";
     if (!clause.trim()) continue;
     const gap = CONFIRMATION_GAP.test(clause) && !SUBLEVEL.test(clause);
+    const assertsName = new RegExp(`^\\s*(?:符合|支持)${escaped}\\s*$`, "u").test(clause);
     const excludes = /^\s*需排除/u.test(clause) ? exclusionItems(clause, "需排除") : undefined;
     const keptExcludes = excludes?.filter((disease) => ![core, ...possibilities].includes(disease));
     // 「可排除」与「仍需排除」冲突时不输出排除结论，保留鉴别任务。
     const reversedExclusion = /可排除/u.test(clause) && exclusionItems(clause, "可排除").some((disease) => stillToExclude.includes(disease));
     if (oppositeName && clause.includes(oppositeName) && /按|考虑|诊断|属/u.test(clause)) continue;
-    if (reversedExclusion || (pending && established.test(clause)) ||
-        (known && !pending && gap) || (!pending && speculative.test(clause) && (known || established.test(cleaned) || CLINICAL_ESTABLISHMENT.test(cleaned)))) continue;
+    if ((criteria?.courseMet && new RegExp(certaintyPolicy.unmetCoursePattern, "u").test(clause)) || reversedExclusion || (pending && (established.test(clause) || assertsName)) ||
+        ((known || criteria) && !pending && (gap || basisSaysNameNotEstablished(clause, core))) || (!pending && speculative.test(clause) && (known || criteria || established.test(cleaned) || CLINICAL_ESTABLISHMENT.test(cleaned)))) continue;
     if (excludes && keptExcludes && keptExcludes.length < excludes.length) {
       if (keptExcludes.length > 0) out.push(`需排除${keptExcludes.join("、")}${separator}`);
       continue;
     }
     out.push(clause + separator);
   }
-  return { name: pending && !/待[查排]$/u.test(name) ? `${core}待查` : treated ? core : name,
+  if (criteria?.pending && criteria.missing.length > 0) {
+    const missingSentence = `尚缺${criteria.missing.join("、")}，需核实后确认${core}。`;
+    // 文字跟着结论走；避免把旧的缺检查断言和确定的缺项并列。
+    const retained = out.join("").split(/[。；;]/u).filter((part) => !CONFIRMATION_GAP.test(part) && !part.startsWith("尚缺"));
+    out.splice(0, out.length, ...retained.filter(Boolean).map((part) => `${part}。`), missingSentence);
+  }
+  return { name: criteria ? (pending ? `${core}待查` : core) : pending && !/待[查排]$/u.test(name) ? `${core}待查` : treated ? core : name,
     basis: out.join("").replace(/[，,；;]+。/gu, "。").replace(/^[，,。；;]+/u, "").replace(/[，,；;]+$/u, /。\s*$/u.test(basis) ? "。" : "").trim() };
 }
 

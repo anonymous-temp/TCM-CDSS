@@ -488,7 +488,8 @@ await check("10.3 功效栏同义叠写（模型自己写的也过）：龙胆�
 await check("10.4 合方出处各条收尾的句号去掉，不再「《辨证录》卷十三。；」（S143）；交付面兜住已有的；句中的句号与没有句号的不动（对照）", () => {
   assert.equal(provenance.formulaSourceLabel([["五神汤", "《辨证录》卷十三。"], ["萆薢渗湿汤", "《疡科心得集》"]]), "五神汤：《辨证录》卷十三；萆薢渗湿汤：《疡科心得集》");
   const out = candidateAfter(prescribeOf({ name: "自拟方", herbs: ["金银花"], source: "五神汤：《辨证录》卷十三。；萆薢渗湿汤：《疡科心得集》", analysis: "本方为自拟方。金银花为君。" }));
-  assert.equal(out.formulaSource.source, "五神汤：《辨证录》卷十三；萆薢渗湿汤：《疡科心得集》");
+  // R48：此夹具为自拟方且方义未声明底方，交付面不再保留不相干成方出处。上面仍单独钉住合方出处格式。
+  assert.equal(out.formulaSource.source, "自拟方");
   const keep = "黄连解毒汤：方出《肘后方》卷二，名见《外台》卷一引《崔氏方》";
   assert.equal(candidateAfter(prescribeOf({ name: "黄连解毒汤", herbs: ["黄连", "黄芩", "黄柏", "栀子"], source: keep, analysis: "本方以黄连解毒汤为基础加减。黄连为君。" })).formulaSource.source, keep);
 });

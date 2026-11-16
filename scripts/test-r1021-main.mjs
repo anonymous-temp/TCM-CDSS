@@ -52,7 +52,8 @@ await check("1.2 编译出口经过这道筛（模型加减与教材兜底加减
   const source = readFileSync("src/lib/m04-proposal-compiler.ts", "utf8");
   // 第四十一轮在这道筛前面多了一步「去掉无剂量的调整行」（conditionRows 仍由 withConditionals 得来）。
   // 第四十四轮外面又包了一层「同一味药只加一次」（withoutRepeatedAddedHerbs）。
-  assert.match(source, /const compiledModifications = withSameConditionAdjacent\((?:withoutRepeatedAddedHerbs\()?withoutMutuallyIncompatibleAdditions\((?:withConditionals|conditionRows)/);
+  // R48：普通行先过同一配伍筛，再接入也逐味核对配伍的教材补足。
+  assert.match(source, /const ordinaryCompiledModifications = withSameConditionAdjacent\((?:withoutRepeatedAddedHerbs\()?withoutMutuallyIncompatibleAdditions\((?:withConditionals|conditionRows)/);
   assert.match(source, /const withoutDoselessAdjust = withConditionals\.filter\(/);
 });
 
