@@ -113,9 +113,10 @@ await check('12','后改角色/药名会使旧方义失效，源句仍可重复�
 await check('13','剂量安全检查独立于方义质量，危险剂量不能定稿签名',async()=>{
  const r=reasoning();r.formula.candidates[0].herbs[0].dose='999g';await assert.rejects(seal(r),/m04_final_safety:/);
 });
+// r48 C3：调整须保留明确目标量，经同一编译审方；缺量不编造。
 await check('14','调整/减药复用确定性编译，不能针对表外药',()=>{
- const r=reasoning();const row={trigger:'脘腹胀满',action:'调整',herbName:'党参',reason:'健脾益气',targetPathogenesis:prior.pathogenesis.chain[0].pathogenesis};
- const modifiedState=types.normalizeCaseStateInput({...state,symptoms:{presentHistory:'食少倦怠，大便溏薄，脘腹胀满。'}});const modifiedPrior=structuredClone(prior);modifiedPrior.pathogenesis.chain[0].patientFact+='，脘腹胀满';const accepted=delivery.compileFinalExistingModification(row,r,{prior:modifiedPrior,caseState:modifiedState});assert.equal(accepted?.action,'调整');assert.equal(accepted?.doseOrHandling,null);assert.equal(delivery.compileFinalExistingModification({...row,herbName:'白芷'},r,{prior,caseState:state}),undefined);
+ const r=reasoning();const row={trigger:'脘腹胀满',action:'调整',herbName:'党参',doseOrHandling:'15g',reason:'健脾益气',targetPathogenesis:prior.pathogenesis.chain[0].pathogenesis};
+ const modifiedState=types.normalizeCaseStateInput({...state,symptoms:{presentHistory:'食少倦怠，大便溏薄，脘腹胀满。'}});const modifiedPrior=structuredClone(prior);modifiedPrior.pathogenesis.chain[0].patientFact+='，脘腹胀满';const accepted=delivery.compileFinalExistingModification(row,r,{prior:modifiedPrior,caseState:modifiedState});assert.equal(accepted?.action,'调整');assert.equal(accepted?.doseOrHandling,'15g');assert.equal(delivery.compileFinalExistingModification({...row,doseOrHandling:null},r,{prior:modifiedPrior,caseState:modifiedState}),undefined);assert.equal(delivery.compileFinalExistingModification({...row,herbName:'白芷'},r,{prior,caseState:state}),undefined);
 });
 await check('15','旧作者/自由补写只在各自回退策略运行',async()=>{
  process.env.CDSS_M04_MODIFICATION_CLOSED_SET='on';try{const text=wrap(reasoning());assert.equal(await delivery.prepareM04CandidateContent(text,{recordText:record,prior,caseState:state}),text);const raw=readFileSync(new URL('../src/lib/m04-final-delivery.server.ts',import.meta.url),'utf8');assert.match(raw,/policy.enabled && policy.analysis === "on" \? content : checkFormulaAnalysisClaims/);assert.match(raw,/policy.enabled && policy.modifications === "on" \? content : dropMisfit/);assert.match(raw,/policy.enabled && policy.modifications === "on" \? combined : topUp/);}finally{process.env.CDSS_M04_MODIFICATION_CLOSED_SET='off';}

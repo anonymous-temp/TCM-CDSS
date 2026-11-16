@@ -1,3 +1,4 @@
+import rxtextPolicy from "../data/rxtext-content-policy.source.json";
 import { populationMatchedPrecautions } from "./population-matched-precautions";
 import { currentMedicationPrecautions } from "./current-medication-precautions";
 import { m04FinalContentPolicy } from "./m04-final-content-policy";
@@ -41,7 +42,7 @@ import {
   recordedPopulationCautions,
 } from "./diagnosis-stage-contract";
 import { getM03TherapyLock } from "./m03-therapy-lock";
-import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
+import { RECORD_GAP_MARKER, affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
 import { activeBleedingInGroundingText, authoritativePatientAgeYears, recordMentionPolarityAt, negationGroundingEquivalents, clinicalGroundingText, clauseLocalMentionPolarityAt, pregnancyAdviceRelevant, pregnancyPainOrBleedingSignal, reproductiveAdviceRelevant, sourceDocumentsNegation } from "./diagnosis-safety";
 import modificationRelevanceJson from "../data/tcm-modification-relevance.source.json";
@@ -1047,7 +1048,8 @@ function recordAffirmsTerm(recordText: string, term: string): boolean {
   return affirmingRecordSentence(recordText, term) !== undefined;
 }
 function affirmingRecordSentence(recordText: string, term: string): string | undefined {
-  return recordText.split(/[。；;\n]+/u).find((sentence) => sentence.includes(term) && !sourceDocumentsNegation(sentence, term));
+  return recordText.split(/[。；;\n]+/u).find((sentence) => sentence.includes(term) && !sourceDocumentsNegation(sentence, term) &&
+    sentence.split(/[，,]/u).some((clause) => clause.includes(term) && !RECORD_GAP_MARKER.test(clause) && !new RegExp(`未(?:${rxtextPolicy.recordGapVerbs.join("|")})`, "u").test(clause)));
 }
 
 /** 模型的条件式加减（教材没有可用加减时）在 evidence.source 里的统一写法。改写成「本例已见X」时换成病历原句。 */
@@ -1233,7 +1235,7 @@ const PERFUSION_PATTERNS = triggerPolicy.perfusionPatterns.map((pattern) => new 
 
 export function modificationTriggerNotFinding(trigger: string, context: ModificationTriggerContext = {}): "normal_or_meta" | "factor" | "demeanor" | "main_symptom" | "emergency_sign" | undefined {
   const body = String(trigger || "").normalize("NFKC").trim().replace(TRIGGER_LEAD, "").replace(/[。；;，,\s]+$/u, "");
-  if (normalOrRecordMetaTrigger(body)) return "normal_or_meta";
+  if (rxtextPolicy.normalNegativeTriggers.includes(body) || normalOrRecordMetaTrigger(body)) return "normal_or_meta";
   if (FACTOR_PATTERNS.some((pattern) => pattern.test(body))) return "factor";
   if (DEMEANOR_PATTERNS.some((pattern) => pattern.test(body))) return "demeanor";
   const gate = context.caseState?.safetyGate;
@@ -1294,10 +1296,18 @@ export function textbookMainSymptomPresent(trigger: string, herbName: string, co
  *（第四十八轮用户定：稀疏病历允许主症加强补足；第四十七轮起主症一律不算条件，p100c 非红旗病例不足两条 8/58 → 21/58）。
  */
 export function retainModificationFindings<T extends { trigger?: unknown; herbName?: unknown }>(rows: readonly T[], context: ModificationTriggerContext): T[] {
-  const ordinary = rows.filter((row) => !modificationTriggerNotFinding(String(row.trigger || ""), context));
+  const supported = rows.filter((row) => {
+    if (!context.recordText || standbyModificationsDelivered()) return true;
+    const body = String(row.trigger || "").replace(TRIGGER_LEAD, "");
+    // Missing trigger is handled by the stage contract; never pass an empty term to polarity scanners.
+    if (!body.trim()) return true;
+    const chart = currentPresentationText(context.recordText);
+    return Boolean(affirmingRecordSentence(chart, body) || modificationConditionAlreadyPresent(body, chart));
+  });
+  const ordinary = supported.filter((row) => !modificationTriggerNotFinding(String(row.trigger || ""), context));
   if (distinctModificationConditions(ordinary.map((row) => ({ trigger: String(row.trigger || "") }))) >= 2) return ordinary;
-  const strengthening = rows.find((row) => textbookMainSymptomPresent(String(row.trigger || ""), String(row.herbName || ""), context)) ||
-    rows.find((row) => modificationTriggerNotFinding(String(row.trigger || ""), context) === "main_symptom" &&
+  const strengthening = supported.find((row) => textbookMainSymptomPresent(String(row.trigger || ""), String(row.herbName || ""), context)) ||
+    supported.find((row) => modificationTriggerNotFinding(String(row.trigger || ""), context) === "main_symptom" &&
       Boolean(modificationConditionAlreadyPresent(String(row.trigger || "").replace(TRIGGER_LEAD, ""), currentPresentationText(context.recordText || ""))));
   return strengthening ? [...ordinary, strengthening] : ordinary;
 }
@@ -1477,10 +1487,10 @@ type ModificationNormalization = {
 /**
  * 加的药本就在方中（2026-10-19 第六轮；本地甲方 10 例病历 7 两次生成，清胃散的三条加减「加石膏」「加黄连」…全因
  * action_conflicts_with_candidate 删光，交付为空）：模型说的是这味药要多用，写成「调整」这一行（接口原有的动作取值），
- * 理由前说明「加重X用量」。不写克数：调整行不带剂量（modificationDoseWithinPharmacopoeia 只许「加」行带），用量由医生定。
+ * 理由说明调整意图；第四十八轮起仅保留有明确、经药典及儿童上限核对的目标量，不猜测加量。
  */
 function increasedDoseReason(herbName: string, reason: string): string {
-  return /加重|加大|增加|重用|增量|加量/u.test(reason) ? reason : `加重${herbName}用量，${reason}`;
+  return rxtextPolicy.doseIncreaseVerbs.some((word) => reason.includes(word)) ? reason : `加重${herbName}用量，${reason}`;
 }
 
 /** 「加」这一行的理由说的是把这味药去掉（暂去、去之、删去、去+药名）：动作与理由相反。 */
@@ -1688,7 +1698,7 @@ function normalizeModifications(
         targetRef,
         actionType: "adjust" as const,
         herbName: prescribedName,
-        dose: undefined,
+        dose,
         reason: increasedDoseReason(prescribedName, reason),
         ...(symptomPathogenesis ? { symptomPathogenesis } : { symptomPathogenesis: undefined }),
       }];
@@ -3080,10 +3090,18 @@ export function compileM04Proposal(
     }
     const actionVerb = item.actionType === "add" ? "加" : item.actionType === "remove" ? "减" : "调整";
     // 拟加的药算不出用量（药典与参考用量都没有，琥珀一类）：不列（第四十六轮 p100c-C090「心悸：加琥珀」无剂量、未注冲服）。补写会按别的表现补足条数。
-    const addDose = item.actionType === "add" ? modificationAddDose(item.herbName, item.dose, pediatric) : null;
-    if (item.actionType === "add" && !addDose) {
+    const addDose = item.actionType === "add" || (item.actionType === "adjust" && item.dose) ? modificationAddDose(item.herbName, item.dose, pediatric) : null;
+    if (item.actionType !== "remove" && !addDose) {
       dropReasons.push("no_dose_basis");
       return [];
+    }
+    if (item.actionType === "adjust") {
+      const currentDose = gramsOf(compiledHerbs.find((herb) => modificationHerbIdentity(herb.name) === modificationHerbIdentity(item.herbName))?.dose);
+      const targetDose = gramsOf(addDose);
+      if (currentDose != null && targetDose != null && rxtextPolicy.doseIncreaseVerbs.some((word) => item.reason.includes(word)) && targetDose <= currentDose) {
+        dropReasons.push("action_conflicts_with_candidate");
+        return [];
+      }
     }
     // 可替换药味（甲方 2026-08-05）。**只对 add 行给**：remove/adjust 针对的是现方已有药味，
     // 「替代」在那里没有语义。候选完全由受治理数据确定性推导（同功效分类 + 药典剂量边界 +
@@ -3097,7 +3115,7 @@ export function compileM04Proposal(
       targetPathogenesis: modificationTargetPathogenesis(item, node, cleanNarrative),
       action: actionVerb,
       herbName: item.herbName.trim(),
-      doseOrHandling: item.actionType === "add" ? addDose : null,
+      doseOrHandling: item.actionType !== "remove" ? addDose : null,
       reason: cleanNarrative(item.reason, "随证调整治疗重点"),
       // 加入的药有特殊煎法时写在这一条里（附子「先煎45–60分钟，至口尝无麻辣感」）：用量栏只收「数字g」，
       // 煎服行只列方中原有的药——此前 11 岁患儿「寒痛甚加附子3g」一条没有任何煎法说明（2026-10-14 独立评审）。

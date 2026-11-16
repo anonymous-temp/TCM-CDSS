@@ -2666,7 +2666,8 @@ function normalizedModificationTrigger(value: string): string {
 /**
  * 加减行的剂量栏（2026-10-13 起允许带剂量）。此前一律不许带——自由文本会变成绕过审方的剂量通道。
  * 现在只接受一种形态：「加」某味药、单一数值加 g、且落在该药的药典内服范围内（服务端编译时写入）。
- * 其余形态（范围、片/枚、文字说明、减/调整行带剂量、药典无范围的药带剂量）仍按未经审方的剂量驳回；
+ * 其余形态（范围、片/枚、文字说明、减味行带剂量、药典无范围的药带剂量）仍按未经审方的剂量驳回；
+ * 调整行的目标量与加味同核药典上限；减味不带克数。
  * trigger / reason / riskNote 等文字里出现克数同样驳回，那条检查不变。
  */
 export function modificationDoseWithinPharmacopoeia(doseOrHandling: unknown, herbName: string, action: string): boolean {
@@ -2674,7 +2675,7 @@ export function modificationDoseWithinPharmacopoeia(doseOrHandling: unknown, her
   if (typeof doseOrHandling !== "string") return false;
   const text = doseOrHandling.trim();
   if (!text) return true;
-  if (action !== "加") return false;
+  if (action !== "加" && action !== "调整") return false;
   const match = /^(\d{1,3}(?:\.\d)?)g$/.exec(text);
   if (!match) return false;
   // 炮制品名（炒麦芽）知识库没有单列剂量时按生品的药典剂量核（与编译器 modificationAddDose 同一口径，非毒性药才这样借）。

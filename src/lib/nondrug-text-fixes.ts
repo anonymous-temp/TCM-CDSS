@@ -6,6 +6,7 @@ const NONDRUG_TEXTBOOK_OCR_FIXES: ReadonlyArray<readonly [string, string]> = [
   ["顽同性", "顽固性"],
   ["以法作用", "以滚法作用"],
   ["以法施", "以滚法施"],
+  ["以法在", "以滚法在"],
   ["施法于", "施滚法于"],
   ["用法在", "用滚法在"],
   ["、法、", "、滚法、"],
