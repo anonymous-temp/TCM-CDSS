@@ -1234,6 +1234,15 @@ export function textbookModificationMatch(
 }
 
 /** 教材证型行的出处写法（证据标签与出处核验共用这一种）：《中医内科学》心悸·心虚胆怯证。 */
+/**
+ * 只有网页转录依据（没有本机教材语料行号）的补充行（第四十八轮 G3：喉瘖、耳胀的几型取自健康网站转载的教材文字）：
+ * 用于选病、选证和加减候选，但不作「《书》病·证」出处——网页上的「诊疗资料」不是书名，印成出处甲方会读成编造的书。
+ */
+export function textbookRowCitable(row: Pick<TextbookSyndromeRow, "evidence">): boolean {
+  const kinds = (Array.isArray(row.evidence) ? row.evidence : []).map((item) => item && typeof item === "object" ? String((item as { kind?: unknown }).kind || "") : "");
+  return !(kinds.length > 0 && kinds.every((kind) => kind === "web"));
+}
+
 export function textbookRowProvenance(row: Pick<TextbookSyndromeRow, "book" | "disease" | "syndromeName">): string {
   return `《${row.book}》${row.disease}·${row.syndromeName}`;
 }
@@ -1248,7 +1257,7 @@ export function textbookProvenanceVerified(source: string): boolean {
   if (!match) return false;
   const [, book, disease, syndromeName, raw] = match;
   return DISEASES.some((entry) => entry.rows.some((row) =>
-    row.book === book && row.disease === disease && row.syndromeName === syndromeName &&
+    textbookRowCitable(row) && row.book === book && row.disease === disease && row.syndromeName === syndromeName &&
     (raw === undefined || row.modifications.some((item) => item.raw === raw))));
 }
 
