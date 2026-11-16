@@ -6,6 +6,7 @@ import testNameGroupsJson from "../data/clinical-test-name-groups.source.json" w
 import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
 import westernAbbreviations from "../data/western-diagnosis-abbreviations.source.json" with { type: "json" };
 import { recordMentionPolarityAt } from "./diagnosis-safety";
+import { settleWesternRecurrenceQualifier } from "./western-recurrence-qualifier";
 
 /**
  * 西医依据里说「尚缺/未查 X 检查」、而病历已经写了 X 的结果（第四十一轮，r1054 回顾 n12：病历「肌酸激酶正常，甲状腺功能正常，
@@ -214,6 +215,8 @@ export function westernCriteriaCertainty(name: string, recordText: string, known
 
 /** 先定病名确定度，再以完整分句为单位舍弃互相冲突的断言；不把一个结论换词成另一个结论。 */
 export function settleWesternDiagnosisBasis(name: string, basis: string, recordText: string): { name: string; basis: string } {
+  const qualified = settleWesternRecurrenceQualifier(name, basis, recordText);
+  if (qualified.name !== name) return qualified;
   const core = String(name || "").trim().replace(/(?:待[查排]|可能)$/u, "");
   if (!core) return { name, basis };
   const cleaned = withoutMissingClaimsForRecordedTests(basis, recordText);

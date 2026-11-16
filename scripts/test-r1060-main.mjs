@@ -326,9 +326,10 @@ await check("5.1 待核实项自己说已经定了（已明、已排除）的不
   assert.equal(surface.uncertaintyAlreadySettled({ item: "症状明显程度", reason: "已明显减轻" }), false, "「已明显」不是「已明」");
 });
 
-await check("5.2 证素核对的不确定项：要点与「未见」同一小句（逗号换顿号），舌脉净化不把要点原文改成「脉象待核实」", () => {
+await check("5.2 证素待核实不再生成整组未见目录；旧缓存的净化器边界仍保留", () => {
   const src = readSource("../src/lib/m03-element-support.server.ts");
-  assert.match(src, /本例未见\$\{label\}的辨证要点（\$\{keyPoints\}）成组出现/u);
+  // 第四十八轮 C2：评审 m20/n19 表明共有表现已见，不能按独立计数不足写成整组未见。
+  assert.match(src, /reason: elementPendingReason\(seen\)/u);
   const reason = "本例未见血虚的辨证要点（面、睑、唇、舌色淡白、脉细）成组出现";
   const state = { chiefComplaint: "头晕乏力1月", patient: { age: 45, sex: "女" }, symptoms: { 现病史: "头晕乏力1月，纳差。" } };
   const sanitized = safety.sanitizeUngroundedRedFlagNegations(reason, state);

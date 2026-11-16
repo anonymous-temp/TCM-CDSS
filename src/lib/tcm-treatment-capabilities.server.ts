@@ -1,3 +1,4 @@
+import rxtextPolicy from "../data/rxtext-content-policy.source.json";
 import bleedingPolicy from "../data/tcm-treatment-bleeding-policy.source.json";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { compileHomeAcupointCare } from "./home-acupoint-care.server";
@@ -971,6 +972,7 @@ export function tcmTreatmentProjectExclusionReason(
   const facts = `${caseFacts}；${reasoningFacts}`;
   const age = treatmentPatientAgeYears(caseState);
   const infant = (age != null && age < 1) || /新生儿|婴儿|婴幼儿|乳儿|\d+\s*(?:个)?月龄/.test(caseFacts);
+  if (projectCode === "acupuncture" && age != null && age < rxtextPolicy.infantAgeYears) return "婴儿针刺须儿科专科评估，不套用成人操作与频次";
   const eczema = /湿疹|湿疮|特应性皮炎|皮损/.test(reasoningFacts);
   if (infant && eczema && new Set<TcmTreatmentProjectCode>([
     "acupuncture", "guasha", "bloodletting", "fire_cautery", "needle_knife", "hook_cutting", "thread_embedding",

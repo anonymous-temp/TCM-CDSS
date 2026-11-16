@@ -314,9 +314,10 @@ await check("5.2 交付面：注意事项写禁食并暂缓经口进食时，饮
   const control = projectDiet(rx({ diet, precautions: ["如正在服用其他药物，请先告知医生。"], cards: [dietCardItem("食疗原则：行气。小米粥：小米50g煮粥。")] }));
   assert.equal(control.diet, diet);
   assert.equal(control.tcmTreatments.length, 1);
-  // 「禁食辛辣」是忌口：饮食栏照旧。
+  // r48 C3：「禁食辛辣」是忌口，照留餐食；同时撤下“少食辛辣”的较弱重复建议。
   const taboo = projectDiet(rx({ diet, precautions: ["服药期间禁食辛辣生冷。"] }));
-  assert.equal(taboo.diet, diet);
+  assert.equal(taboo.diet, diet.replace("少食辛辣油腻；", ""));
+  assert.match(taboo.diet, /小米粥、蒸蛋/u);
 });
 
 // ── 6 在用抗栓药 ──────────────────────────────────────────────────────────────

@@ -752,6 +752,7 @@ export function textbookDiseaseOnlyGynecologic(diseaseName: string): boolean {
  * 交付面兜底补齐都用这一个判据（第二十八轮：此前只有交付面过滤，C015 男性肠痈的模型鉴别「异位妊娠」在补写之后才被删掉，只剩一项）。
  */
 export function tcmDifferentialDiseaseFitsPatient(diseaseName: string, patient?: { sex?: string }): boolean {
+  if (/女/u.test(String(patient?.sex || "")) && textConsistency.maleOnlyDifferentialNames.includes(splitTextbookDiseaseSubtype(diseaseName).disease)) return false;
   if (!/男/u.test(String(patient?.sex || ""))) return true;
   if (textbookDiseaseOnlyGynecologic(diseaseName)) return false;
   // 病名本身是月经、带下、妊娠、产后的病（「经行衄血」列在内科血证节、不只属妇科，第四十轮 11.05 病历8 男性复测）：词取随证加减同一份
@@ -780,10 +781,14 @@ export function textbookDiseaseDefinition(diseaseName: string, ageYears?: number
 
 /** 鉴别病的典型表现直接取该病教材定义全文；不截成半句话，不让模型补定义。 */
 export function textbookDiseaseTypicalManifestation(diseaseName: string): string {
-  return differentialDefinitionEntries(diseaseName).map((entry) => text(entry.definition)).find((definition) =>
-    Boolean(definition) && !/[A-Za-z■�]/u.test(definition) &&
+  return differentialDefinitionEntries(diseaseName).map((entry) => text(entry.definition)).find(textbookDefinitionSuitableForDisplay) || "";
+}
+
+/** 有乱码或西医转述的整段不交付，不用换字规则猜测教材原句。 */
+export function textbookDefinitionSuitableForDisplay(definition: string): boolean {
+  return Boolean(definition) && !/[A-Za-z■�→]/u.test(definition) &&
     !textConsistency.damagedTextTerms.some((term) => definition.includes(term)) &&
-    !textConsistency.westernDefinitionMarkers.some((term) => definition.includes(term))) || "";
+    !textConsistency.westernDefinitionMarkers.some((term) => definition.includes(term));
 }
 
 /** 鉴别用定义不依赖“有可开内服方”候选资格；西医章节/无方药章节仍可提供原文。 */
@@ -1603,6 +1608,11 @@ export function textbookDifferentialFitsSubtype(diseaseName: string, subtype: st
   return !Object.entries(groups).some(([group, forms]) => group !== subtype && forms.some((form) => text.includes(form)));
 }
 
+/** 仅去目录编号；38.5℃等临床小数不能当成第38条。生成兜底与缓存投影共用。 */
+export function textbookDifferentialTextWithoutNumber(value: string): string {
+  return value.replace(/^\s*\d+[.．、](?!\d)\s*/u, "");
+}
+
 export function textbookDifferentialsForDisease(diseaseName: string, limit = 2, recordText?: string): Array<{ name: string; text: string; book: string }> {
   const { disease: baseName, subtype } = splitTextbookDiseaseSubtype(diseaseName);
   const wanted = compact(baseName).replace(/类病$/u, "");
@@ -1619,7 +1629,8 @@ export function textbookDifferentialsForDisease(diseaseName: string, limit = 2, 
   return [...listed, ...contrasts].flatMap(({ name, key, inline }) => {
     if (recordText && !textbookDifferentialSharesChiefComplaint(name, recordText)) return [];
     // 病名里可能带正则元字符（「β受体…」、括注），按字面去掉段首的病名。
-    const raw = inline || (disease.differentialTexts[key] || "").replace(new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`), "").trim();
+    const raw = textbookDifferentialTextWithoutNumber(inline || disease.differentialTexts[key] || "")
+      .replace(new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`), "").trim();
     const sentences = raw.split(/(?<=。)/).slice(0, 2).join("").trim();
     const textValue = sentences.length > 110 ? `${sentences.slice(0, 108)}…` : sentences;
     return textValue.length >= 8 ? [{ name, text: textValue, book: disease.book }] : [];

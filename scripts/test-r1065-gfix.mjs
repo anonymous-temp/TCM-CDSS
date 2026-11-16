@@ -25,11 +25,12 @@ await check('1.1', '教材主症加强只在本例肯定存在时可用', () => 
   assert.ok(compiler.textbookMainSymptomPresent(main.condition, herb, context));
   assert.equal(compiler.textbookMainSymptomPresent(main.condition, herb, { ...context, recordText: '主诉：腹胀3天\n现病史：无胃痛' }), undefined);
 });
+// r48 C3：条件条数夹具同时补上病历现症，不能凭空声明口干便溏。
 await check('1.2', '主症最多一项，普通条件足两项及红旗条件均不豁免', () => {
   const found = textbook.textbookRowForSyndrome('胃痛', '肝气犯胃证').modifications.find(row => /胃痛.*甚/u.test(row.condition));
   const rows = found.herbs.map(herbName => ({ trigger: '本例已见胃痛', herbName }));
   assert.equal(compiler.retainModificationFindings(rows, context).length, 1);
-  assert.equal(compiler.retainModificationFindings([...rows, { trigger: '口干' }, { trigger: '便溏' }], context).length, 2);
+  assert.equal(compiler.retainModificationFindings([...rows, { trigger: '口干' }, { trigger: '便溏' }], { ...context, recordText: `${context.recordText}。口干，便溏。` }).length, 2);
   const red = { ...context, caseState: { ...state, safetyGate: { status: 'red_flag', redFlagFindings: [{ sourceQuote: '胃痛' }] } } };
   assert.equal(compiler.retainModificationFindings(rows, red).length, 0);
 });
@@ -48,8 +49,8 @@ await check('1.4', '教材主症补足走剂量配伍核对，已有药和条件
   assert.ok(result[0].doseOrHandling);
   assert.equal(compiler.topUpTextbookMainSymptom([], acid, patient, ['海螵蛸', '煅瓦楞子']).length, 0);
   const full = [{ trigger: '腹胀', herbName: '厚朴' }, { trigger: '嗳气', herbName: '木香' }];
-  assert.equal(compiler.topUpTextbookMainSymptom(full, acid, patient).length, 2);
-  assert.equal(compiler.topUpTextbookMainSymptom([{ trigger: '夜间嗳气', reason: '制酸以减轻反酸' }], acid, patient, ['海螵蛸']).length, 1);
+  assert.equal(compiler.topUpTextbookMainSymptom(full, acid, { ...patient, symptoms: { 现病史: '反酸，腹胀，嗳气。' } }).length, 2);
+  assert.equal(compiler.topUpTextbookMainSymptom([{ trigger: '夜间嗳气', reason: '制酸以减轻反酸' }], acid, { ...patient, symptoms: { 现病史: '反酸，夜间嗳气。' } }, ['海螵蛸']).length, 1);
 });
 await check('1.5', '教材主症补足先核对功效，不将制酸药的止血功效混作本例目的', () => {
   const acid = { ...prior, pathogenesis: { chain: [{ nodeId: 'P1', patientFact: '反酸', pathogenesis: '肝火犯胃', therapyDirection: '清肝和胃' }] }, overview: { ...prior.overview, tcmDiseaseName: '吐酸', primarySyndrome: '热证', recommendedFormulaNames: ['左金丸'] }, therapy: { overallMethod: '清肝泻火，和胃降逆' } };

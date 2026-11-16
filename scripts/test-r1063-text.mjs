@@ -103,7 +103,9 @@ await check("2.2 原方写明、本方未照用的炮制、药用部位、药引
 });
 await check("2.3 交付面：开头改说「本方药味同X原方（原方…，本方未照用）」，幂等；对照：丸散制备的焙炒（柴胡疏肝散陈皮醋、枳壳麸炒）不写", () => {
   const out = project(prescribe({ name: "八正散", herbs: H(["车前子", "瞿麦", "萹蓄", "滑石", "栀子", "炙甘草", "木通", "大黄"]), formulaAnalysis: "本方以八正散为基础加减。滑石、木通为君。" }));
-  assert.equal(out.formula.candidates[0].formulaAnalysis, "本方药味同八正散原方（原方大黄煨用，以灯心草为引，本方未照用）。滑石、木通为君。");
+  // r48 C3：煎服法已列灯心草药引，方义不能再称该药引未照用。
+  assert.equal(out.formula.candidates[0].formulaAnalysis, "本方药味同八正散原方（原方大黄煨用，本方未照用）。滑石、木通为君。");
+  assert.match(out.formula.candidates[0].decoction.method, /灯心草/);
   assert.deepEqual(project(out), out);
   const chaihu = project(prescribe({ name: "柴胡疏肝散", herbs: H(["柴胡", "陈皮", "川芎", "香附", "枳壳", "白芍", "甘草"]), formulaAnalysis: "本方用柴胡疏肝散原方。柴胡为君。" }));
   assert.equal(chaihu.formula.candidates[0].formulaAnalysis, "本方用柴胡疏肝散原方。柴胡为君。");

@@ -65,23 +65,26 @@ const QINGWEI = [herbRow("黄连", "6g", "君", "清胃泻火"), herbRow("升麻
   herbRow("石膏", "20g", "佐", "清热泻火"), herbRow("知母", "9g", "佐", "清热泻火")];
 const toothPrior = priorOf("牙痛", "胃火上炎证", "胃火炽盛，循经上炎", "清胃泻火");
 
-await check("1.1 加的药本就在方中（本地甲方病历 7：清胃散，教材「若大便秘结，加大黄」「若口渴饮冷，加石膏、知母」，模型三条都因 action_conflicts_with_candidate 被删光）：改写成「调整」行、药名与方中那一行相同、不带克数、理由前写「加重X用量」，成方合同的加减核对过得了；减、调整方中没有的药照旧删（对照）", () => {
+await check("1.1 加的药本就在方中（本地甲方病历 7：清胃散，教材「若大便秘结，加大黄」「若口渴饮冷，加石膏、知母」，模型三条都因 action_conflicts_with_candidate 被删光）：改写成「调整」行、药名与方中那一行相同、带经核验的目标量、理由前写「加重X用量」，成方合同的加减核对过得了；减、调整方中没有的药照旧删（对照）", () => {
   const out = compileM04Proposal(proposalOf("清胃散加减", QINGWEI, [
     mod("若大便秘结", "大黄", "泻热通便，使胃火从下而泄", "add", "9g"),
-    mod("若口渴饮冷", "石膏", "清胃泻火，生津止渴"),
+    mod("若口渴饮冷", "石膏", "清胃泻火，生津止渴", "add", "30g"),
     mod("若口渴饮冷", "白茅根", "清热生津", "remove"),
   ]), toothPrior);
   assert.ok(out, "编出候选");
   const rows = out.formula.modifications;
-  assert.deepEqual(rows.map((row) => [row.action, row.herbName, row.doseOrHandling]), [["调整", "大黄", null], ["调整", "石膏", null]]);
+  assert.deepEqual(rows.map((row) => [row.action, row.herbName, row.doseOrHandling]), [["调整", "大黄", "9g"], ["调整", "石膏", "30g"]]);
   assert.match(rows[0].reason, /^加重大黄用量，泻热通便/u);
   assert.match(rows[1].reason, /^加重石膏用量，清胃泻火/u);
   assert.equal(out.formula.modificationReview.retainedCount, 2);
   const issue = contract.m04SemanticIssue(out, "", toothPrior, undefined, true, true) || "";
   assert.doesNotMatch(issue, /^modification_/u, issue);
   // 理由里已经说了加量的不再叠「加重」。
-  const already = compileM04Proposal(proposalOf("清胃散加减", QINGWEI, [mod("若大便秘结", "大黄", "加大大黄用量以通腑泄热")]), toothPrior);
+  const already = compileM04Proposal(proposalOf("清胃散加减", QINGWEI, [mod("若大便秘结", "大黄", "加大大黄用量以通腑泄热", "add", "9g")]), toothPrior);
   assert.equal(already.formula.modifications[0].reason, "加大大黄用量以通腑泄热");
+  // r48 C3：缺目标剂量不编造，不再交付只有“加重用量”的调整行。
+  const noTarget = compileM04Proposal(proposalOf("清胃散加减", QINGWEI, [mod("若大便秘结", "大黄", "加大大黄用量以通腑泄热")]), toothPrior);
+  assert.deepEqual(noTarget.formula.modifications, []);
 });
 
 await check("1.2 模型的加减全部剔除、教材行列有加减时按教材条目补：呕吐·外邪犯胃证「若见壮热口渴，便秘尿赤，加黄芩」（留出例 S044）→ 一条，剂量取药典下限 3g，条件照教材写「若…」，出处是教材本证加减；模型自己的加减还在时不补（对照）；教材加减的药都在方中时保持为空（对照：清胃散教材两条的药都在方中）", () => {

@@ -42,6 +42,7 @@ export function compileFinalExistingModification(row: Record<string, unknown>, r
   const compiled = compileM04Proposal({ candidate, patentAndWestern: [], nonPharma: reasoning.nonPharma, modifications: [{
     trigger: asText(asRecord(row.triggerSource).sourceQuote) || asText(row.trigger), herbName: row.herbName,
     actionType: row.action === "减" ? "remove" : "adjust", targetRef, reason: row.reason,
+    ...(row.action === "调整" ? { dose: row.doseOrHandling } : {}),
   }] }, ctx.prior, ctx.caseState);
   return compiled?.formula?.modifications.find((item) => item.herbName === row.herbName && item.action === row.action) as unknown as Record<string, unknown> | undefined;
 }

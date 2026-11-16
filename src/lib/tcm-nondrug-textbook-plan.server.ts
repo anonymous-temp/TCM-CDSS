@@ -1,3 +1,4 @@
+import rxtextPolicy from "../data/rxtext-content-policy.source.json";
 import { readFileSync } from "node:fs";
 import strokeRecoveryPolicy from "../data/tcm-stroke-recovery-card-policy.source.json";
 import path from "node:path";
@@ -627,7 +628,8 @@ export function dietAdviceAvoidsRichFood(dietAdvice: string): boolean {
   return DIET_ADVICE_AVOIDS_RICH_FOOD.test(String(dietAdvice || ""));
 }
 export function recipeHasRichIngredient(recipeText: string): boolean {
-  return RICH_RECIPE_INGREDIENT_PATTERN.test(String(recipeText || ""));
+  const oilAmounts = [...String(recipeText || "").matchAll(/油\s*(\d+(?:\.\d+)?)\s*(?:g|克)/gu)];
+  return RICH_RECIPE_INGREDIENT_PATTERN.test(String(recipeText || "")) || oilAmounts.some((match) => Number(match[1]) >= rxtextPolicy.richCookingOilG);
 }
 
 /**
@@ -2106,7 +2108,12 @@ function tuinaPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan |
   const entry = entries[0];
   if (!entry) return undefined;
   const backShu = tuinaBackShuForSyndrome([...entry.sites, ...entry.points], input.signedSyndromeText);
-  const sites = backShu.sites;
+  const operationSites = () => {
+    namesAcupoint("");
+    return uniq(entry.operation.flatMap((text) => [...text.matchAll(new RegExp(acupointNamePattern!.source, "gu"))].map((match) => match[0])));
+  };
+  const sites = backShu.sites.length ? backShu.sites
+    : input.patientAgeYears != null && input.patientAgeYears < rxtextPolicy.adultDietAgeYears ? operationSites() : [];
   if (sites.length === 0) return undefined;
   const picked = pickSyndromes(entry.syndromeModifications.map((item) => ({ ...item, keySymptoms: "" })), input.signedSyndromeText, input.currentFacts);
   const modification = picked[0];
@@ -2170,6 +2177,7 @@ function recipeUsageClause(text: string): string {
 }
 
 function dietPlan(data: ProtocolData, input: TextbookPlanInput): TextbookPlan | undefined {
+  if (input.patientAgeYears != null && input.patientAgeYears < rxtextPolicy.adultDietAgeYears) return undefined;
   const entries = matchDiseaseEntries(data.diet, input.diseaseNames, input.westernNames, "", input.patientAgeYears);
   const entry = entries[0];
   if (!entry) return undefined;

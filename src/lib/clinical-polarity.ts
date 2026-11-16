@@ -731,7 +731,7 @@ export function recordedMedicationMentions(text: string | null | undefined): { n
         const cut = part.search(RECORDED_MEDICATION_CUT);
         const name = (cut >= 0 ? part.slice(0, cut) : part)
           .replace(/^.*(?:给予|给与|予以)/u, "")
-          .replace(/^(?:长期|规律|平素|平时|自行|使用|应用|了|过|用|以|口服|服用|改用|换用|外擦|外搽|取|舌下含服|含)+/u, "")
+          .replace(/^(?:长期|规律|平素|平时|自行|使用|应用|了|过(?!氧)|用|以|口服|服用|改用|换用|外擦|外搽|取|舌下含服|含)+/u, "")
           .replace(/[“”"「」《》)）]/gu, "").replace(/泵$/u, "").replace(/[可以的]$/u, "").replace(/\s+/gu, "").trim();
         const valid = name.length >= 2 && name.length <= 14 && !medicationCandidateFragment(name) && !NOT_A_MEDICATION_NAME.test(name) &&
           (/接受/u.test(verb[0]) ? /^[\u4e00-\u9fff]{2,}/u.test(name) : /[\u4e00-\u9fff]{2,}|[A-Za-z]{3,}/u.test(name));
@@ -1112,7 +1112,7 @@ export const MEDICATION_HISTORY_CLASS_WORD = /^(?:(?:复方)?感冒药|降压药
 export function medicationHistoryItemCandidate(item: string): { candidate: string; notCurrent: boolean } {
   const text = String(item || "").normalize("NFKC").replace(/\s+/gu, "").replace(/[“”"「」『』]/gu, "");
   // 「用过布洛芬」切栏时「用」已被前面一步去掉，剩下「过布洛芬」：开头的「过」同样是用过。
-  const notCurrent = /^过|服过|用过|吃过|曾|既往|尚未|未用|未服|未曾|没有用|没用|停用|已停|停药|停服/u.test(text);
+  const notCurrent = /^过(?!氧)|服过|用过|吃过|曾|既往|尚未|未用|未服|未曾|没有用|没用|停用|已停|停药|停服/u.test(text);
   let candidate = text;
   for (let previous = ""; previous !== candidate;) {
     previous = candidate;
@@ -1351,7 +1351,7 @@ export function recordedDrugAllergyPhrases(text: string | null | undefined): str
       if (!match) continue;
       // 小句里在命中处之前有否定或「不详/未知」：「否认药物过敏」「无青霉素过敏」「青霉素过敏史不详」不算。
       if (/(?:否认|无|未发现|未见|没有|不详|未知|尚未)/u.test(cleaned.slice(0, match.index ?? 0)) || /^(?:否认|无|未发现|没有)/u.test(cleaned)) continue;
-      const phrase = cleaned.slice(0, 40);
+      const phrase = cleaned; // Keep a complete evidence clause; never cut a drug/reaction mid-word.
       if (!phrases.includes(phrase)) phrases.push(phrase);
     }
   }
