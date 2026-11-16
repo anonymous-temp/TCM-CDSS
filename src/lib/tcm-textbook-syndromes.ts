@@ -1222,7 +1222,7 @@ export function textbookModificationMatch(
   sameHerb?: (textbookName: string, herbName: string) => boolean,
   /** 证名查不到教材行时，用这张方在教材里的行（textbookRowForFormula）。 */
   formulaNames: readonly string[] = [],
-): { book: string; disease: string; syndromeName: string; condition: string; raw: string; herbs: readonly string[]; crossDisease: boolean } | undefined {
+): { book: string; disease: string; syndromeName: string; condition: string; raw: string; herbs: readonly string[]; crossDisease: boolean; evidence?: unknown[] } | undefined {
   const row = textbookRowForSyndrome(diseaseName, syndromeName) || textbookRowForFormula(diseaseName, formulaNames, syndromeName);
   if (!row) return undefined;
   const crossDisease = !diseasesNamed(diseaseName).some((disease) => disease.rows.includes(row));
@@ -1241,7 +1241,7 @@ export function textbookModificationMatch(
       const candidate = compact(name);
       return candidate === herb || (sameHerb ? sameHerb(name, herbName as string) : candidate.includes(herb) || herb.includes(candidate));
     })) continue;
-    return { book: row.book, disease: row.disease, syndromeName: row.syndromeName, condition: item.condition, raw: item.raw, herbs: item.herbs, crossDisease };
+    return { book: row.book, disease: row.disease, syndromeName: row.syndromeName, condition: item.condition, raw: item.raw, herbs: item.herbs, crossDisease, evidence: row.evidence };
   }
   return undefined;
 }

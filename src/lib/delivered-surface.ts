@@ -51,7 +51,7 @@ import { drugNamesInAllergyPhrases, medicationStoppedOrOnlyPast, medicationNotTa
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, retainModificationFindings, topUpTextbookMainSymptom, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs, withoutMutuallyIncompatibleAdditions, withoutRepeatedModificationConditions } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
-import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
+import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance, textbookRowCitable } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { boundaryRuleShown, followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
@@ -3501,7 +3501,7 @@ function withSourceBasedReasoningEvidence(reasoning: Json): void {
   // 不标该行出处（第四十六轮逐字复核 C070「来源又标痛经·气血虚弱证」）。
   const rowElements = row ? new Set([...namedExcessElements([row.syndromeName]), ...methodImpliedExcessElements(row.therapy)]) : new Set<string>();
   const firstNodeOutsideRow = [...excessElementMentionsIn(String(first?.pathogenesis || ""))].some((id) => !rowElements.has(id));
-  if (row && rowNamesDeliveredSyndrome && first && !firstNodeOutsideRow && !(firstEvidence?.evidenceLevel === "kb_entry" && DIAGNOSTICS_CRITERIA_SOURCE.test(String(firstEvidence.source || "")))) {
+  if (row && textbookRowCitable(row) && rowNamesDeliveredSyndrome && first && !firstNodeOutsideRow && !(firstEvidence?.evidenceLevel === "kb_entry" && DIAGNOSTICS_CRITERIA_SOURCE.test(String(firstEvidence.source || "")))) {
     first.evidence = { evidenceLevel: "kb_entry", source: textbookRowProvenance(row), confidence: overview.primarySyndromeResolution === "unresolved" ? "低" : "中" };
   }
   for (const item of records(record(reasoning.therapy)?.subTherapies)) {

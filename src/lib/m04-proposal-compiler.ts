@@ -6,7 +6,7 @@ import { redFlagActiveFor } from "./clinical-red-flag-context";
 import { alignQuoteToSource } from "./source-quote-alignment";
 import rxConstraints from "../data/rx-case-constraints.source.json";
 import sameSourceHerbsJson from "../data/tcm-same-source-herbs.source.json" with { type: "json" };
-import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, standbyHerbOpposesSyndromePole, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowProvenance } from "./tcm-textbook-syndromes";
+import { conditionWithoutTonguePulseClauses, conditionalModificationWithoutTextbook, standbyHerbOpposesSyndromePole, modelConditionalTriggerShape, modificationConditionTonguePulseConflict, textbookEntryById, textbookModificationMatch, textbookRowForFormula, textbookRowForSyndrome, textbookRowProvenance, textbookRowCitable } from "./tcm-textbook-syndromes";
 import { incidentalSleepSedativeModification, incidentalSleepTriggerModification, mindSymptomsProminentInRecord, SEDATIVE_CATEGORY, signedScopeInvolvesMind } from "./incidental-sleep-modification";
 
 import { z } from "zod";
@@ -3106,7 +3106,7 @@ export function compileM04Proposal(
       // 证据等级按来源（2026-10-22 第十五轮）：教材该证的加减是标准资料（出处由证据清洗按教材表逐字核验）；
       // 病历原文触发是病例内推理；教材没有、模型按本证常见兼症写的条件句是病例内推理、低。
       // 此前一律写 model_inference，教材出处又带书名号，被证据清洗降成「证据不足」并清空出处（已存 567 条里 499 条）。
-      evidence: textbookSource && !textbookSource.crossDisease
+      evidence: textbookSource && !textbookSource.crossDisease && textbookRowCitable(textbookSource)
         ? {
             evidenceLevel: "kb_entry" as const,
             source: `${textbookRowProvenance(textbookSource)}加减：${textbookSource.raw}`,

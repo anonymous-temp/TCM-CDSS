@@ -26,4 +26,16 @@ await check('1.3', '红旗病例的危重征象不因主症口径放行', () => 
   const rc = { prior: { overview: { tcmDiseaseName: '真心痛', primarySyndrome: '心阳欲脱证' } }, caseState: red, recordText: safety.clinicalGroundingText(red) };
   assert.equal(compiler.retainModificationFindings([{ trigger: '本例已见胸痛', herbName: '丹参' }], rc).length, 0);
 });
+const textbook = await jiti.import('../src/lib/tcm-textbook-syndromes.ts');
+await check('2.1', '只有网页转录依据的教材补充行不作出处；本机语料行照常', () => {
+  const web = textbook.textbookRowForSyndrome('耳胀耳闭', '气血瘀阻证');
+  assert.ok(web, '耳胀耳闭·气血瘀阻证应可检索');
+  assert.equal(textbook.textbookRowCitable(web), false);
+  assert.equal(textbook.textbookProvenanceVerified(textbook.textbookRowProvenance(web)), false);
+  const local = textbook.textbookRowForSyndrome('耳胀耳闭', '风邪袭耳证') || textbook.textbookRowForSyndrome('心悸', '心虚胆怯证');
+  assert.equal(textbook.textbookRowCitable(local), true);
+  assert.equal(textbook.textbookProvenanceVerified(textbook.textbookRowProvenance(local)), true);
+  const match = textbook.textbookModificationMatch('耳胀耳闭', '气血瘀阻证', '耳鸣', undefined);
+  if (match) assert.equal(textbook.textbookRowCitable(match), false);
+});
 console.log(JSON.stringify({ failed })); process.exitCode = failed ? 1 : 0;
