@@ -441,8 +441,9 @@ await check("15.1 模型自定病性为有界、依据逐字可回溯时，不�
   // 第四十六轮：模型没点名、而依据里阳虚（畏寒、肢冷）与寒凝（畏寒）各有自己的表现时，每条都有依据，按已确定交付；
   // 此前写「中个别要素尚缺直接的病历依据」，逐字复核判机械句（C064、C072、n30）。有一条病历里找不到表现时点名那一条（test:r1063-analysis 3.2）。
   const unnamed = natureOut(natureCase({ ...nature }), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
-  assert.equal(unnamed.resolution, "bounded");
-  assert.equal(unnamed.resolutionReason, "病性“风”的病历依据尚待逐项核实");
+  // 第四十七轮终测：没有哪一条已知缺表现、模型也没点名，剩下的「风」只是表现表认不出——按已确定交付，不再写「病历依据尚待逐项核实」（复核 25 处判机械句）。
+  assert.equal(unnamed.resolution, "resolved");
+  assert.equal(unnamed.resolutionReason, undefined);
   const ungrounded = natureOut(natureCase({ ...nature, basis: "四肢厥逆" }), summary.sanitizeOptionalPathogenesisClassifications, coldRecord);
   assert.match(ungrounded.resolutionReason, /尚缺直接的病历依据/u);
 });

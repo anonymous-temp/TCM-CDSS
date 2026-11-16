@@ -1051,8 +1051,13 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       const syndromeNames = [overview?.primarySyndrome, ...(Array.isArray(overview?.secondarySyndromes) ? overview!.secondarySyndromes as unknown[] : [])]
         .map((name) => String(name || "").replace(/证$/u, "")).join("、");
       const blockingUnsupported = elementSupport.unsupported.filter((item) => !natureLabelNamedBySyndrome(item.label, syndromeNames));
+      // 第四十七轮终测：依据已接地、没有哪一条已知缺表现、模型也没在待核实里点名病性时，剩下的只是表现表认不出的要素（毒、风、表虚、肝阳上亢…），
+      // 此前写「病性“X”的病历依据尚待逐项核实」，逐字复核 25 处判机械句（依据就列在同一行）。这种情形同样按已确定交付。
+      const natureLabelForPending = joinClinicalClauses(natureElements, "、") || "未定";
+      const modelNamedPending = groundedBasis ? Boolean(natureUncertaintyItem(pathogenesis?.uncertainties, natureLabelForPending, "病性", clinicalContext)) : false;
+      const onlyUncheckableElements = elementSupport.unsupported.length === 0 && !modelNamedPending;
       const unexplainedBounded = requested === "bounded" && Boolean(groundedBasis) && natureElements.length > 0 &&
-        blockingUnsupported.length === 0 && (basisSegments.length >= natureElements.length || everyElementSupported);
+        blockingUnsupported.length === 0 && (basisSegments.length >= natureElements.length || everyElementSupported || onlyUncheckableElements);
       const finalResolution: ClinicalResolutionValue = !hasClassification
         ? "unresolved"
         : (requested === "resolved" || unexplainedBounded) && Boolean(groundedBasis) ? "resolved" : "bounded";
@@ -1077,9 +1082,10 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
             : groundedBasis
               ? pendingItem
                 ? `病性“${natureLabel}”中${pendingItem}尚待核实`
-                : `病性“${joinClinicalClauses(elementSupport.unknown.length > 0 ? elementSupport.unknown : [natureLabel], "、")}”的病历依据尚待逐项核实`
+                : ""
               : `病性“${natureLabel}”尚缺直接的病历依据`
           : "本例记录中没有可稳定归纳的病性及其依据";
+        if (!nature.resolutionReason) delete nature.resolutionReason;
         if (groundedBasis && finalResolution === "bounded") setEvidenceConfidence(nature.evidence, "中");
         else lowerEvidenceConfidence(nature.evidence);
       }

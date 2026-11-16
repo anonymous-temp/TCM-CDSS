@@ -2189,7 +2189,8 @@ export function normalizeReasoningV2(value: unknown): ClinicalReasoningResultV2 
   // 这些是本函数旧版写出的整字段默认说明，不能当作模型按本例写的说明沿用；从当前条目和依据重新生成。
   const syndromeReason = /目前只有\d+条病历依据支持/u.test(normalized.overview.primarySyndromeResolutionReason || "") ? undefined : normalized.overview.primarySyndromeResolutionReason;
   const locationReason = /目前只有\d+条病历依据支持/u.test(location.resolutionReason || "") ? undefined : location.resolutionReason;
-  const natureReason = /^病性“[^”]*”缺少可回溯的病历依据$/u.test(nature.resolutionReason || "") ? undefined : nature.resolutionReason;
+  // 本函数旧版写出的「…的病历依据尚待逐项核实」（第四十七轮终测逐字复核判机械句 25 处）同样不沿用。
+  const natureReason = /^病性“[^”]*”(?:缺少可回溯的病历依据|的病历依据尚待逐项核实)$/u.test(nature.resolutionReason || "") ? undefined : nature.resolutionReason;
   return {
     ...normalized,
     overview: {
@@ -2210,7 +2211,11 @@ export function normalizeReasoningV2(value: unknown): ClinicalReasoningResultV2 
           || (locationResolution === "resolved"
             ? undefined
             : locationResolution === "bounded"
-              ? `病位“${[...new Set(location.items.filter((item) => !location.details?.some((detail) => detail.location === item && detail.basis.trim())))].join("、") || location.items.join("、")}”${location.details?.some((detail) => detail.basis.trim()) ? "尚待逐项核实" : "尚缺直接的病历依据"}`
+              ? location.details?.some((detail) => detail.basis.trim()) && location.items.every((item) => location.details?.some((detail) => detail.location === item && detail.basis.trim()))
+                ? undefined
+                : location.details?.some((detail) => detail.basis.trim())
+                  ? `病位“${[...new Set(location.items.filter((item) => !location.details?.some((detail) => detail.location === item && detail.basis.trim())))].join("、")}”尚待核实`
+                  : `病位“${location.items.join("、")}”尚缺直接的病历依据`
               : "病历里没有可以支持病位判断的依据"),
       },
       natureDifferentiation: {
@@ -2220,7 +2225,8 @@ export function normalizeReasoningV2(value: unknown): ClinicalReasoningResultV2 
           || (natureResolution === "resolved"
             ? undefined
             : natureResolution === "bounded"
-              ? `病性“${[...new Set([...nature.items, ...(nature.rootDeficiency || []), ...(nature.branchExcess || [])])].join("、")}”${nature.basis?.trim() ? "的病历依据尚待逐项核实" : "尚缺直接的病历依据"}`
+              // 有逐字依据时不写说明（「依据尚待逐项核实」就挨着列出的依据，复核判机械句）；具体待核实的一项由交付面按模型点名的写。
+              ? nature.basis?.trim() ? undefined : `病性“${[...new Set([...nature.items, ...(nature.rootDeficiency || []), ...(nature.branchExcess || [])])].join("、")}”尚缺直接的病历依据`
               : "病历里没有可以支持病性判断的依据"),
       },
     },

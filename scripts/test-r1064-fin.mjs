@@ -173,3 +173,24 @@ await check("7.1 方解列为君药的几味，药表按用途写成炮制名（
   assert.equal(commentary.textbookNamesTheseAsEmperors("参苓白术散加减", ["人参", "麸炒白术", "茯苓"]), true);
   assert.equal(commentary.textbookNamesTheseAsEmperors("参苓白术散", ["人参", "土炒白术", "陈皮"]), false);
 });
+
+const summary = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+const typesForNature = await jiti.import("../src/lib/diagnosis-types.ts");
+const E8 = { evidenceLevel: "model_inference", source: "本例", confidence: "中" };
+const natureFixture = () => ({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", formula: null,
+  overview: { tcmDiseaseName: "痹证", primarySyndrome: "湿热痹阻证", primarySyndromeResolution: "resolved", primarySyndromeBasis: ["膝关节红肿热痛"], secondarySyndromes: [], tcmDiseaseDifferentials: [], tcmDifferentials: [], overallPathogenesis: "湿热痹阻", overallTherapy: "清热利湿", evidence: E8 },
+  westernDiagnosis: { primary: { name: "膝关节炎待查", clinicalRationale: "膝关节红肿热痛", evidence: E8, status: "考虑", confidence: "中" }, candidates: [], differentials: [] },
+  pathogenesis: { summary: "湿热痹阻", locationDifferentiation: { items: ["关节"], details: [{ location: "关节", basis: "膝关节红肿热痛" }], resolution: "resolved", evidence: E8 },
+    natureDifferentiation: { items: ["湿热", "毒", "风"], rootDeficiency: [], branchExcess: ["湿热", "毒", "风"], basis: "膝关节红肿热痛，苔黄腻", resolution: "bounded", evidence: E8 }, chain: [], uncertainties: [] },
+  therapy: { overallMethod: "清热利湿", overallPrinciple: "热者寒之", subTherapies: [] } });
+await check("8.1 病性有逐字依据、没有哪一条已知缺表现、模型也没点名待核实时，不写「病历依据尚待逐项核实」；归一默认说明同样不写", () => {
+  const base = typesForNature.normalizeReasoningV2(natureFixture());
+  assert.ok(base, typesForNature.reasoningV2SchemaIssueCode(natureFixture()));
+  assert.doesNotMatch(String(base.pathogenesis.natureDifferentiation.resolutionReason || ""), /尚待逐项核实/u);
+  const record = "膝关节红肿热痛3天，屈伸不利。舌红，苔黄腻，脉滑数。";
+  const out = summary.sanitizeOptionalPathogenesisClassifications(`<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(base)}\n<!-- DIAGNOSIS_JSON_END -->`, record);
+  const nature = JSON.parse(out.slice(out.indexOf("START -->") + 9, out.indexOf("<!-- DIAGNOSIS_JSON_END"))).pathogenesis.natureDifferentiation;
+  assert.doesNotMatch(String(nature.resolutionReason || ""), /尚待逐项核实/u);
+  // 只剩表现表认不出的要素（毒）、没有已知缺表现、模型未点名：按已确定交付。
+  assert.equal(nature.resolution, "resolved");
+});

@@ -29,11 +29,12 @@ const unwrap = s => JSON.parse(s.split('<!-- DIAGNOSIS_JSON_START -->')[1].split
 const settle = (name, text, record = '主诉：合成病历') => claims.settleWesternDiagnosisBasis(name, text, record);
 await check('F01', '病性说明去重、有依据不说缺依据；无依据仍明示缺项', () => {
  const r = reasoning(), n = types.normalizeReasoningV2(r); assert.ok(n,types.reasoningV2SchemaIssueCode(r));
- const labels=n.pathogenesis.natureDifferentiation.resolutionReason.match(/“([^”]+)”/u)[1].split('、');
- assert.deepEqual(labels,['湿热','毒']);
- assert.doesNotMatch(n.pathogenesis.natureDifferentiation.resolutionReason, /缺少|尚缺/u);
+ // 第四十七轮终测：有逐字依据时不写说明（「病历依据尚待逐项核实」复核判机械句）；旧版写出的默认说明不沿用。
+ assert.equal(n.pathogenesis.natureDifferentiation.resolutionReason, undefined);
  r.pathogenesis.natureDifferentiation.resolutionReason='病性“湿热、毒、湿热、毒”缺少可回溯的病历依据';
- assert.equal(types.normalizeReasoningV2(r).pathogenesis.natureDifferentiation.resolutionReason,'病性“湿热、毒”的病历依据尚待逐项核实');
+ assert.equal(types.normalizeReasoningV2(r).pathogenesis.natureDifferentiation.resolutionReason, undefined);
+ r.pathogenesis.natureDifferentiation.resolutionReason='病性“湿热、毒”的病历依据尚待逐项核实';
+ assert.equal(types.normalizeReasoningV2(r).pathogenesis.natureDifferentiation.resolutionReason, undefined);
  r.pathogenesis.natureDifferentiation.basis = '';
  assert.match(types.normalizeReasoningV2(r).pathogenesis.natureDifferentiation.resolutionReason, /尚缺直接/u);
 });
