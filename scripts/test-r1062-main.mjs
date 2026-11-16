@@ -427,7 +427,8 @@ await check("20.5 「无痛性」「无意中」不是否认：辨证核对与�
 await check("20.6 方义里照抄的组方规则与剂量数据用语去掉：组成身份下限、精简佐使、本地剂量资料、「以合十味之限」", () => {
   assert.equal(surface.withoutInternalCompositionTalk("本方用养心汤加减。因组成身份下限需保留十一味，本方仅取十味，余一味以精简佐使处理。黄芪为君。"), "本方用养心汤加减。黄芪为君。");
   assert.equal(surface.withoutInternalCompositionTalk("本方为自拟方，因本方在本地标准剂量资料中暂无可执行的逐味剂量基准，故按本例病机另行组方。"), "本方为自拟方，故按本例病机另行组方。");
-  assert.equal(surface.withoutInternalCompositionTalk("本方以舒筋活血汤为基础加减，去川牛膝、五加皮以合十味之限。"), "本方以舒筋活血汤为基础加减，去川牛膝、五加皮。");
+  // r48 C3：删除带工程动机的完整小句，不在句内去掉规则后制造新的临床去药结论。
+  assert.equal(surface.withoutInternalCompositionTalk("本方以舒筋活血汤为基础加减，去川牛膝、五加皮以合十味之限。"), "本方以舒筋活血汤为基础加减。");
   assert.equal(surface.withoutInternalCompositionTalk("黄芪补气固表为君。"), "黄芪补气固表为君。", "对照：没有这类话的不动");  const projected = surface.projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {}, westernDiagnosis: {}, pathogenesis: { chain: [], uncertainties: [] }, therapy: {},
     formula: { candidates: [{ name: "自拟方", herbs: [{ name: "黄芪", dose: "15g", role: "君" }, { name: "当归", dose: "10g", role: "臣" }], formulaAnalysis: "本方为自拟方，因本方在本地标准剂量资料中暂无可执行的逐味剂量基准，故按本例病机另行组方。黄芪为君，当归为臣。" }], modifications: [] }, nonPharma: {} }, {});
   assert.equal(projected.formula.candidates[0].formulaAnalysis, "本方为自拟方，故按本例病机另行组方。黄芪为君，当归为臣。", "交付投影里生效");

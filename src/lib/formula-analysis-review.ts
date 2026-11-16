@@ -530,6 +530,9 @@ export function withMentionsAlignedToTableNames(text: string, candidateHerbs: re
   const tableNames = [...new Set(candidateHerbs.map(stripAnnotation).filter(Boolean))];
   if (tableNames.length === 0) return { text, changed: false };
   const shielded: Span[] = [];
+  for (const match of text.matchAll(/（原方[^）]*）|\(原方[^)]*\)|(?:^|[。；;，,])原方[^。；;，,]*/gu)) {
+    shielded.push({ start: match.index!, end: match.index! + match[0].length, token: match[0] });
+  }
   // 本身就是饮片名的不挡（说明书目录里有「黄芩片」「黄连片」这样的成药名，方义里的「黄芩片」仍按药味表写成黄芩；
   // 2026-10-29 回放 1,808 份留存结果时抓到 5 例方义由此改不回来）。
   for (const name of new Set(medicineNames.map((item) => String(item || "").trim()).filter((item) => item.length >= 3 && !isKnownTcmHerbName(item)))) {

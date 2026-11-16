@@ -313,11 +313,15 @@ check("9.7 颜面穴位的拔罐卡不写刺络放血（面瘫：取阳白、颧
   assert.match(stye?.techniqueBoundary || "", /太阳.*点刺出血/);
 });
 
-check("9.4 病历写明「患儿，8个月」而登记年龄是成人：针刺卡按小儿写", () => {
+// r48 C3：婴儿不再交付成人针刺卡；仍核实病历月龄优先于错误登记年龄。
+check("9.4 病历写明八月龄而登记成人：按婴儿限制针刺", () => {
   const cards = compile(signedPrior("泄泻", "脾胃虚弱证", "腹泻20余日"), "患儿，8个月，腹泻20余日", "患儿，8个月，腹泻20余日，为黄绿色水样便",
     [{ projectCode: "acupuncture", targetRef: "P1" }], { sex: "男", age: 45 });
   const needle = cards.find((item) => item.projectCode === "acupuncture");
-  assert.match(needle?.techniqueBoundary || "", /小儿针刺/);
+  assert.equal(needle, undefined);
+  assert.match(cap.tcmTreatmentProjectExclusionReason("acupuncture", signedPrior("泄泻", "脾胃虚弱证", "腹泻20余日"), {
+    chiefComplaint: "患儿，8个月，腹泻20余日", symptoms: { 现病史: "患儿，8个月，腹泻20余日，为黄绿色水样便" }, patient: { sex: "男", age: 45 },
+  }) || "", /婴儿/);
 });
 
 check("9.5 部位词要与不适同在一小句：查体「颈部对称」「踝关节X线示」不算本例表现", () => {
@@ -432,7 +436,8 @@ check("10.5 小儿耳穴只写压丸法：教材「毫针刺法，或压丸法�
   const adult = plan.textbookTreatmentPlan({ projectCode: "auricular", diseaseNames: ["遗尿"], westernNames: [], signedSyndromeText: "肺脾气虚证", currentFacts: "夜间遗尿", patientAgeYears: 30 });
   assert.match(adult?.treatmentContent || "", /毫针刺法/, "成人照写（对照）");
   const cards = compile(signedPrior("咳嗽", "痰热咳嗽", "痰热壅肺，肺失宣肃", "急性支气管炎"), "咳嗽1周", "咳嗽、咳黄痰1周",
-    [{ projectCode: "auricular", targetRef: "P1" }], { sex: "男", age: 7 });
+    // r48 C3 新增可交付的小儿推拿；本条专测耳穴文字，限定机构能力避免三个名额排序影响夹具。
+    [{ projectCode: "auricular", targetRef: "P1" }], { sex: "男", age: 7 }, { clinicTreatmentCapabilities: ["auricular"], clinicTreatmentCapabilitiesRestricted: true });
   const ear = cards.find((item) => item.projectCode === "auricular");
   assert.match(ear?.techniqueBoundary || "", /^小儿耳穴宜用贴压/);
   assert.doesNotMatch(`${ear?.treatmentContent}${ear?.techniqueBoundary}`.replace(/不用毫针/g, ""), /毫针|埋针/, `${ear?.treatmentContent} ${ear?.techniqueBoundary}`);

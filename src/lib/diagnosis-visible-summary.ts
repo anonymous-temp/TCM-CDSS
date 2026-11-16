@@ -2129,8 +2129,8 @@ function decoctionProfileFromSignedTherapy(
   if (!signed.trim()) return REGULAR;
   // 命名方有教材原文用法时以教材为准（formula-decoction-profile.ts）：银翘散「勿过煮」、麻黄汤「不须啜粥」。
   const formulaNames = Array.isArray(candidate.formulaNames) ? candidate.formulaNames : [];
-  const named = candidate.constructionType === "self_devised" ? undefined
-    : namedFormulaDecoctionProfile(formulaNames.length === 1 ? formulaNames[0] : undefined);
+  const named = namedFormulaDecoctionProfile(candidate.name) || (candidate.constructionType === "self_devised" ? undefined
+    : namedFormulaDecoctionProfile(formulaNames.length === 1 ? formulaNames[0] : undefined));
   const exteriorBase = { soakMinutes: 20, firstMinutes: 15, secondMinutes: 10 };
   const sweatingAdministration = (kind: string): string => kind === "porridge_and_cover"
     ? "温服，服后可少进热粥、加衣覆被以助微汗；以遍身微汗为度，得汗即停后服，不必尽剂"

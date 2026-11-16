@@ -45304,7 +45304,9 @@
     },
     {
      "herb": "荆芥穗",
-     "written": "黑芥穗"
+     "written": "黑芥穗",
+     "preparation": "炭",
+     "deliver": true
     },
     {
      "herb": "柴胡",
@@ -49732,7 +49734,9 @@
      "deliver": true
     }
    ],
-   "guides": [],
+   "guides": [
+    "茶叶"
+   ],
    "evidence": {
     "kind": "jicheng",
     "ref": "太平惠民和剂局方",

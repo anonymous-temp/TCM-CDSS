@@ -1,0 +1,62 @@
+{
+  "note": "r48 服务端内容不变量；闭集是工程用语、药名、目录动作和药典标签的构词，不扩展红旗或病历极性判据。",
+  "internalCompositionTerms": [
+    "组成身份下限",
+    "精简佐使",
+    "剂量资料",
+    "剂量基准",
+    "十味以内之限",
+    "十味之限",
+    "味数上限",
+    "仅保留十味"
+  ],
+  "pregnancyCautionPattern": "孕(?:期|妇)(?:属|均属|应|宜|需)?(?:慎用|禁用|忌用)",
+  "normalNegativeTriggers": [
+    "不口渴",
+    "无口渴",
+    "不渴"
+  ],
+  "infantAgeYears": 1,
+  "adultDietAgeYears": 14,
+  "noteOnChildren": "成人食疗未提供儿科份量时不照搬、不按汤药分数外推；婴儿针刺只保留专科评估，不交付成人频次操作。",
+  "bloodMovingSelfMedicationNames": [
+    "三七粉"
+  ],
+  "unidentifiedWeightLossMedicines": [
+    "减肥药",
+    "减肥产品"
+  ],
+  "unknownOriginTerms": [
+    "来历不明",
+    "来源不明",
+    "成分不明",
+    "不明成分"
+  ],
+  "selfMedicationAdvice": "请勿继续自行服用来历或成分不明的减肥产品，并把包装及已服用的情况告知医生。",
+  "bloodMovingAdvice": "您已自行服用三七粉，请把用量与服用时间告知医生；与本方活血药可能叠加，未经医生评估不要同服。",
+  "mentalDietAdvice": "请立即由精神专科或急诊进行现场安全评估，家人全程陪同；饮食保持规律，由陪护协助安排。",
+  "mentalExerciseAdvice": "请由家人全程陪同，立即完成精神专科或急诊安全评估，再按医生安排活动，避免独处。",
+  "recordGapVerbs": [
+    "描述",
+    "记录",
+    "提及",
+    "说明"
+  ],
+  "doseIncreaseVerbs": [
+    "加重",
+    "加大",
+    "增加",
+    "重用",
+    "增量",
+    "加量"
+  ],
+  "numericContinuedMedicationPattern": "已(?:吃|服用|服)\\s*\\d+(?:\\.\\d+)?\\s*(?:天|日|周|月)",
+  "richCookingOilG": 100,
+  "richCookingOilBasis": "只识别食谱中大量烹调油的数值形态，不据此判断患者摄入量；少量用油不当作油炸。",
+  "orphanSwapOpeningPattern": "^(?:改以|改用|换用)",
+  "compositionLimitPattern": "(?:为守|以合)[^，,。；;]{0,12}味(?:以内)?之限|仅保留(?:\\d+|[一二三四五六七八九十两]+)味",
+  "internalCompositionWholeSentenceTerms": [
+    "组成身份下限",
+    "精简佐使"
+  ]
+}

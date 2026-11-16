@@ -60709,7 +60709,9 @@
     {
      "written": "黑芥穗",
      "herb": "荆芥穗",
-     "dose": "五分"
+     "dose": "五分",
+     "preparation": "炭",
+     "preparationRaw": "黑"
     },
     {
      "written": "柴胡",
@@ -66792,7 +66794,12 @@
      "preparationRaw": "爁"
     }
    ],
-   "guideHerbs": [],
+   "guideHerbs": [
+    {
+     "herb": "茶叶",
+     "written": "茶清"
+    }
+   ],
    "evidence": [
     {
      "kind": "jicheng",
