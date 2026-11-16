@@ -173,6 +173,8 @@ export function basisSaysNameNotEstablished(basis: string, name: string): boolea
 }
 
 /** 表内疾病先按要点表定确定度，依据措辞不再参与命名。表外保持现行判据。 */
+const COURSE_GAP_PREFIX = "病程未满";
+
 export function westernCriteriaCertainty(name: string, recordText: string, known = false): { pending: boolean; missing: string[]; courseMet?: boolean; clinicalOnly?: boolean } | undefined {
   const entry = westernCriteriaEntry(name);
   if (!entry) return undefined;
@@ -182,7 +184,8 @@ export function westernCriteriaCertainty(name: string, recordText: string, known
   const threshold = child ? entry.courseThresholdDays?.under18 ?? entry.courseThresholdDays?.adult : entry.courseThresholdDays?.adult;
   const course = recordCourseDays(recordText);
   const missing: string[] = [];
-  if (threshold && (!course || course.lower < threshold)) missing.push(`病程满${threshold}天的记录`);
+  // 病程门槛按月写（「病程未满6个月」），不写「尚缺病程满180天的记录」——复核员判机械句（第四十八轮 n16）。
+  if (threshold && (!course || course.lower < threshold)) missing.push(`${COURSE_GAP_PREFIX}${Math.round(threshold / 30)}个月`);
   if (!entry.clinicallyDiagnosable) {
     const groups = (certaintyPolicy.testGroups as Record<string, string[][]>)[entry.name];
     if (groups) {
@@ -227,9 +230,12 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
   // 第四十八轮配对盲评：可凭临床诊断的病，要点表把「待查」去掉时依据句却说「需先排除」「需专科检查确立诊断」「暂按此考虑」
   //（痛风伴脓毒症待排、重症肌无力未做抗体、慢性疲劳综合征等排除性诊断），复核员判西医确定程度错。这类病名跟着依据句自己的表态走，
   // 两头一致：依据说未确立就待查，依据说可临床诊断就不待查（上感待查而依据说「临床可以诊断」的另一类错同样消失）。
-  const pending = criteria && !criteria.clinicalOnly ? criteria.pending
-    : criteria?.clinicalOnly ? !known && !treated && (new RegExp(certaintyPolicy.clinicalNotEstablishedPattern, "u").test(cleaned) ||
-      basisSaysNameNotEstablished(cleaned.split(/[。；;]/u).filter((part) => !CONFIRMATION_GAP.test(part)).join("。"), core))
+  // 依据句明说未确立（须先排除另一严重病、需专科检查确立诊断、暂按此考虑、写待查）时，表里任何一类病都不去掉待查——
+  // 第二轮配对盲评：有病程门槛的焦虑障碍、慢性疲劳综合征病程够了就去掉待查，依据却写「故写症状名待查」「暂按此考虑」。
+  const explicitlyNotEstablished = !known && !treated && new RegExp(certaintyPolicy.clinicalNotEstablishedPattern, "u").test(cleaned);
+  const pending = criteria && !criteria.clinicalOnly ? criteria.pending || explicitlyNotEstablished
+    : criteria?.clinicalOnly ? explicitlyNotEstablished ||
+      (!known && !treated && basisSaysNameNotEstablished(cleaned.split(/[。；;]/u).filter((part) => !CONFIRMATION_GAP.test(part)).join("。"), core))
       : (!treated && (/待[查排]$/u.test(name) || (!known && basisSaysNameNotEstablished(cleaned, core))));
   const escaped = escapePattern(core);
   const established = new RegExp(`(?:${escaped})?诊断(?:${escaped})?(?:已|可)?(?:确立|成立|明确)|据此临床诊断${escaped}`, "u");
@@ -261,7 +267,12 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
     out.push(clause + separator);
   }
   if (criteria?.pending && criteria.missing.length > 0) {
-    const missingSentence = `尚缺${criteria.missing.join("、")}，需核实后确认${core}。`;
+    const courseGap = criteria.missing.filter((item) => item.startsWith(COURSE_GAP_PREFIX));
+    const tests = criteria.missing.filter((item) => !item.startsWith(COURSE_GAP_PREFIX));
+    const missingSentence = [
+      ...courseGap.map((item) => `${item}，${core}需随访后确认。`),
+      ...(tests.length ? [`尚缺${tests.join("、")}，需核实后确认${core}。`] : []),
+    ].join("");
     // 文字跟着结论走；避免把旧的缺检查断言和确定的缺项并列。
     const retained = out.join("").split(/[。；;]/u).filter((part) => !CONFIRMATION_GAP.test(part) && !part.startsWith("尚缺"));
     out.splice(0, out.length, ...retained.filter(Boolean).map((part) => `${part}。`), missingSentence);

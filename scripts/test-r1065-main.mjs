@@ -54,4 +54,12 @@ await check('4.1', '可凭临床诊断的病跟着依据句的明确表态：须
 await check('4.2', '尿常规「酮体3+」算已有尿酮体结果', () => {
   assert.equal(claims.recordHasTestResultFor('尿酮体', '辅助检查：尿常规：酮体3+，葡萄糖4+'), true);
 });
+await check('4.3', '有病程门槛的病：依据明说未确立时不去掉待查；病程缺口写「病程未满N个月」不写天数记录', () => {
+  const rec = '主诉：反复担心患严重疾病半年\n现病史：反复担心患病半年，多次就医。';
+  assert.equal(claims.settleWesternDiagnosisBasis('焦虑障碍', '反复担心患病半年，暂不能指向具体病种，故写症状名待查。', rec).name, '焦虑障碍待查');
+  const ed = claims.settleWesternDiagnosisBasis('勃起功能障碍', '勃起不坚3个月，符合勃起功能障碍。', '主诉：勃起不坚3个月');
+  assert.equal(ed.name, '勃起功能障碍待查');
+  assert.doesNotMatch(ed.basis, /天的记录/u);
+  assert.match(ed.basis, /病程未满6个月/u);
+});
 console.log(JSON.stringify({ failed })); process.exitCode = failed ? 1 : 0;
