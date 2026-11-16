@@ -3426,6 +3426,57 @@ The user asked what the 口径确认书 drafted in round 45 contained, pointed o
 - Rollback: image `tcm-cdss:20261114-98b4fd7-prebuilt` with `docker-compose.yml.pre-c476d79` in the release directory.
 - Local build: 1.5 minutes with the temporary 3 GB zram swap (removed afterwards); the build tree and snapshots were deleted.
 
+### 11/15–11/16 round 47: the r1064 plan carried out by a worker swarm; the first merged build regressed and was fixed before release (2026-11-16)
+
+The user asked for the round-47 plan (`~/runlogs/r1018/work/r1064/PLAN.md`, written from the 11/15 audit) to be carried out in full by a swarm (Codex gpt-6.1-sol/gpt-6-astra, Kimi for knowledge collection, Claude subagents for review), then tested and deployed. Material: `~/runlogs/r1018/work/r1064/` (`PLAN.md`, `BRIEF-r47.md`, `gen.sh`, `scan.mjs`, `gold.py`, `tally-review.py`, `review-*/chunk-*.json`, `cp/` counter-proofs, `deploy/`); worker briefs, logs and reports in `/var/tmp/r1064/` (`briefs/`, `logs/`, `*-report.json`). Suites `test:r1064-main|herb|ledger|crit|facts|m03|dx|mods|m04|emerg|merge1|wire|m04wire|m03fix|fin|fmisc|ftext|frx`.
+
+**What the plan's work packages built** (each merged with its own suite and counter-proofs):
+- herb textbook fields (applications, cautions, pregnancy roles, processing purposes, liquid doses) and a textbook caution check for added herbs;
+- a rewrite ledger and three delivery gates (rewrite integrity, final patient-fact check, invariant scanner R01–R16);
+- Western diagnostic criteria 143 → 456 rows with aliases, a governed evidence-site whitelist, guideline references re-chosen by the final name, care items for 120 Western diseases;
+- an emergency syndrome layer and one textbook-formula eligibility rule shared by M03 anchoring and the emergency stage; a disease-coverage gate for named formulas (named formula must be the disease's textbook row or its indications must cover the disease or chief complaint);
+- modification trigger types (normal findings, record notes, main symptom, red-flag signs are not triggers), patent-medicine duplication incl. modifications, small-formula naming;
+- M04 "write after the final table": final snapshot, source-only herb functions, closed-set modifications (off), final-table 方义 author;
+- M03 two-pass (proposal → checked → narrative) behind `CDSS_M03_TCM_TWO_PASS` (off).
+
+**The first merged build (6c372d9c) was worse than production, and the gate could not see it.** 19 independent Opus reviewers read 200 + 40 + 40 outputs word by word: 「错」 209 (round 46) → 431, outputs with none 71 → 24; on the held-out 40, production code 53 → new code 89. Lint, all 328 suites, the invariant scanner, the P0 audit and the gold comparison were all green. Causes, all server text from this round:
+- **The final-table 方义 author never ran.** Its model call aborted at the 0.9 s budget in 269/269 prescriptions (telemetry `final_analysis degraded: true`), so every 方义 was the fallback list 「X为君药，<药典全功效>。」, with 「原方写作陈皮，本方用陈皮」 and 「本方为自拟方」 under named formulas. 出处方义 passed 91–95% in round 46 and 38–60% here.
+- **Source-only herb functions printed every KB clause** (「调经」「安胎」 for men and children, 淡竹叶 「利尿通淋」).
+- `diagnosis-types.ts` wrote 「病性“湿热、毒、湿热、毒”缺少可回溯的病历依据」 (items and root/branch concatenated twice).
+- The caution check's internal note 「未加陈皮：《中药学》…」 leaked into patient precautions.
+- The coverage gate judged each formula of a combination alone: customer standard case 5 补中益气汤合玉屏风散 became 自拟方 in 3/3.
+- The differential top-up accepted only names sharing the chief complaint's main symptom, and the parser filtered a second time: fewer than two TCM differentials 3 → 10/100.
+- Also found by telemetry: the shadow delivery-gate model checks (capped at 0.9 s, up to 5,000 output tokens) aborted 3,376/3,376 times — pure cost, no observation.
+
+**Fixed before release** (branch r1064-fin by the main session; F1 ftext, F2 frx, F3 fmisc by three gpt-6.1-sol workers, each with a suite and counter-proofs; 18 + 51 + 52 + 40 mutations, all caught):
+- `CDSS_M04_FINAL_ANALYSIS` defaults off (the first pass writes 方义, the existing consistency rules check it against the final table); budget 3.5 s if switched on; the fallback no longer writes same-name lines or 「自拟方」 under a named formula. Old suites that had been migrated to the template were restored.
+- `formulaNamesCoveringCase`: in a combination, once one formula covers the disease or chief complaint, the others count when their indications share ≥2 governed concepts with the affirmed presentation; single formulas unchanged (银翘散 for 风热痹阻 still declassified).
+- Delivery-gate model checks default off (`CDSS_REWRITE_INTEGRITY`, `CDSS_FINAL_PATIENT_FACTS`); the deterministic invariant scan stays shadow.
+- Differential top-up falls back to the governed department name list (shared names first); textbook-listed differentials fill to two.
+- Modifications never add clinician-dosed regulated herbs (马钱子 0.5 g had been added to a decoction).
+- Herb functions are chosen by role/target/method from the source clauses, population-inapplicable clauses dropped (F2); caution-check notes stay out of precautions; modification herbs' special decoction steps join the usage line; food items leave the herb table instead of voiding the page; label stop/contraindication vs record; trigger foods, vegetarian and warfarin diet conflicts.
+- 病性/病位 notes deduplicated and grounded, Western name/basis contradictions settled in one place, 「未诉」 damage on fixed 无-words, pending items checked against the record, Western-titled TCM names mapped back, pasted Western text kept out of differentials, synonym-aware method dedupe (F1).
+- Guideline references must match the final name (PubMed and J-STAGE stay on the governed site list for the curated catalog), pregnancy/lactation wording by population (menopause by age, tubal ligation), lineage sentence names the delivered formula, current-medication reader rejects fragments and dated past use, stroke-recovery and anticoagulation card rules (F3).
+- Found by the final run and fixed: 参苓白术散 with 土炒白术 became a non-dose page via `emperor_excess` (the textbook emperor list is now compared without processing prefixes); an ankle sprain's 「青紫瘀斑」 was read as suspected infection and flagged by the sepsis non-blanching-rash row (the context definition now excludes closed-injury bruising; live reader run held-out 16/16, controls 84 checks 0 false); the note 「病历依据尚待逐项核实」 (25 of 78 病机 errors in the final review) is no longer written and the nature axis settles when only table-uncheckable elements remain.
+
+**Not shipped:** M03 two-pass (40/40 live fallbacks on the first wiring, still 30/30 and 12/12 after two fixes; M03 11–47 s; branch `r1064-m03fix2` kept); closed-set modifications (off); the delivery gates stay shadow.
+
+**Measured** (final measurement on c05c8bf6 plus three regenerated chains on the final code; independent Opus reviewers, same brief as round 46):
+
+| | Round 46 (production) | First merged build | Final |
+|---|---|---|---|
+| 200-set 「错」 / outputs with none | 209 / 71 | 431 / 24 | 229 / 64 |
+| Held-out 40 (same day): 「错」 / outputs with none | 53 / 12 (production code) | 89 / 0 | 39 / 18 |
+| Template 方义 / same-name lines | 0 | 269 / many | 0 / 0 |
+| Fewer than 2 TCM differentials (p100c) | 3 | 10 | 2 |
+
+- P0 audit on 270 final outputs: all dosed; dose over ChP / over 2× / 十八反十九畏 / pregnancy-prohibited / child-toxic / organ all 0.
+- Customer 10 × 3: disease, syndrome and formula equal the standard answers in 3/3 runs (病历5 玉屏风散加减), no red flag, all dosed. Held-out gold: disease 39/40, syndrome 39/40, formula 34/40 (production code 37/37/34).
+- Medians (different days): M03 12.0–15.1 s vs round 46 13.2–15.5 s; M04 11.3–12.3 s vs 10.4–11.6 s. Held-out same day: M03 13.4 → 13.1 s, M04 10.9 → 11.3 s.
+- The 200-set is back to round 46's level, not better; the plan's targets (「错」 <120, 前后矛盾 <15, 文字加工 <5) were not met. 病机分析 is still the weakest item (59–80%): 「病位“X”尚缺直接的病历依据」 where the record supports it (18), 本虚/标实 columns that contradict the chain (14), pending items that contradict the record (10).
+
+**Process lessons.** Look at every new model step's telemetry success rate before measuring quality (two new steps were silently 100% aborted). A green gate plus deterministic scans did not detect a doubling of reviewer errors; word-by-word review against production on the same day is the release criterion. Counter-proof copies must be refreshed after merges (a stale data directory made a suite crash and read as "missed").
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
