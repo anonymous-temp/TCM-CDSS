@@ -74,6 +74,13 @@ export async function applyM04FinalContent(content: string, attestation: Clinica
   // 进到这里的内容已经过路由自己的最终合同核对（含它的放行口径）；这里用的核对选项更严，进来时就有的问题不在这一步判死
   //（第四十七轮新 40 份实测：合方锁定只用其一的「天王补心丹加减」在这里抛错，3/40 变成无剂量页）。
   // 只拦本步自己引入的新问题：定稿后的问题与进来时不同才失败。
+  // 一条随证加减过不了这里更严的核对时只删这一条（与第三十一轮定稿口径一致：加减行不合格只删行，不连累整方），
+  // 不再整页退成无剂量页（第四十八轮 a3 rt-923584：补写的「本例已见大便秘结：加瓜蒌」被判软坚散结方向不成立）。
+  for (let guard = 0; guard < 6; guard += 1) {
+    const rowIssue = /^modification_(\d+)_/u.exec(safety(reasoning) || "");
+    if (!rowIssue || !reasoning.formula?.modifications?.[Number(rowIssue[1])]) break;
+    reasoning.formula.modifications.splice(Number(rowIssue[1]), 1);
+  }
   const beforeIssue = safety(reasoning);
   // 剂量、配伍、人群等安全问题照旧在这里拦（纵深防御）；只有方名身份/方向一类（路由已按自己的口径放行）不在这里判死。
   if (beforeIssue && !/^formula_(?:direction_drift|reference_|selection_missed_lockable)/u.test(beforeIssue)) throw new Error(`m04_final_safety:${beforeIssue}`);

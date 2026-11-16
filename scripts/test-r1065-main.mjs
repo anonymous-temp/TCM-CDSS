@@ -38,4 +38,10 @@ await check('2.1', '只有网页转录依据的教材补充行不作出处；本
   const match = textbook.textbookModificationMatch('耳胀耳闭', '气血瘀阻证', '耳鸣', undefined);
   if (match) assert.equal(textbook.textbookRowCitable(match), false);
 });
+const commentary = await jiti.import('../src/lib/formula-textbook-commentary.ts');
+await check('3.1', '方解定的君药与药表比对去掉剂型后缀（滑石粉=滑石），不去生熟', () => {
+  assert.equal(commentary.textbookNamesTheseAsEmperors('甘露消毒丹', ['滑石粉', '黄芩', '茵陈']), commentary.textbookNamesTheseAsEmperors('甘露消毒丹', ['滑石', '黄芩', '茵陈']));
+  assert.equal(commentary.textbookNamesTheseAsEmperors('甘露消毒丹', ['滑石', '黄芩', '茵陈']), true);
+  assert.equal(commentary.textbookNamesTheseAsEmperors('甘露消毒丹', ['滑石粉', '黄芩', '连翘']), false);
+});
 console.log(JSON.stringify({ failed })); process.exitCode = failed ? 1 : 0;

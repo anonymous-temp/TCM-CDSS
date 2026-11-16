@@ -41,6 +41,15 @@ await check('27','方名身份/方向类问题（路由已按自己的口径放�
  assert.ok(out.content.includes('DIAGNOSIS_JSON_START'));
  const bad=reasoning();bad.formula.candidates[0].herbs[0].dose='999g';await assert.rejects(seal(bad),/m04_final_safety:/);
 });
+await check('28','一条加减过不了终稿核对时只删这一行、整方照常交付；药味剂量问题照旧拦（第四十八轮 a3 rt-923584）',async()=>{
+ const r=reasoning();const base=r.formula.modifications.length;
+ r.formula.modifications.push({trigger:'本例已见大便溏薄',targetPathogenesis:'脾虚失运',action:'加',herbName:'山药',doseOrHandling:'15g',reason:'健脾止泻，用至30g',riskNote:'',evidence:{evidenceLevel:'model_inference',source:'患者原文：大便溏薄',confidence:'中'}});
+ const out=await seal(r);
+ const rows=parse(out.content).formula.modifications;
+ assert.ok(!rows.some(row=>/30g/u.test(String(row.reason||''))),JSON.stringify(rows));
+ assert.ok(rows.length<=base+0||rows.every(row=>row.herbName!=='山药'||!/30g/u.test(row.reason)));
+ const bad=reasoning();bad.formula.candidates[0].herbs[0].dose='999g';await assert.rejects(seal(bad),/m04_final_safety:/);
+});
 // 第四十七轮终测：终表方义的模型调用在 0.9 秒预算内 269/269 超时、全部落成逐味功效罗列，复核出处方义失败率 40–62%；缺省改关，本套件显式开启以继续钉住该路径的接线。
 await check('01','终表方义缺省关（显式开启才走）、闭集待A/B，false逐字返回且不调用模型',async()=>{
  assert.equal(policy.m04FinalContentPolicy({}).enabled,true);assert.equal(policy.m04FinalContentPolicy({}).analysis,'off');assert.equal(policy.m04FinalContentPolicy({CDSS_M04_FINAL_ANALYSIS:'on'}).analysis,'on');assert.equal(policy.m04FinalContentPolicy({}).modifications,'off');

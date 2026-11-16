@@ -41,7 +41,12 @@ export function textbookNamesTheseAsEmperors(formulaName: string, herbNames: rea
   if (!text || herbNames.length === 0) return false;
   // 药表里是按用途写了炮制的名字（便溏用土炒白术，第三十七轮起），方解写的是白术：去掉炮制前缀再比。生/熟不去（生地黄与熟地黄是两味药）。
   // 第四十七轮终测 m23、n20：参苓白术散「人参、土炒白术、茯苓」三味为君，按字面比不上方解，整页退成无剂量页。
-  const forms = (name: string) => [name, name.replace(PROCESSING_PREFIX, "")].filter((form) => form.length >= 2);
+  // 剂型后缀同理（第四十八轮 a3 new40-m26：甘露消毒丹「滑石粉、黄芩、茵陈」三味为君，方解写滑石，又退成无剂量页）。
+  const forms = (name: string) => {
+    const bare = name.replace(PROCESSING_PREFIX, "");
+    return [name, bare, name.replace(FORM_SUFFIX, ""), bare.replace(FORM_SUFFIX, "")].filter((form) => form.length >= 2);
+  };
   return text.split(/[。；;]/u).some((sentence) => /为君|君药/u.test(sentence) && herbNames.every((name) => forms(name).some((form) => sentence.includes(form))));
 }
+const FORM_SUFFIX = /(?:粉|片|末|饮片)$/u;
 const PROCESSING_PREFIX = /^(?:土炒|麸炒|清炒|蜜炙|酒炙|盐炙|醋炙|姜炙|炒|炙|蜜|酒|盐|醋|姜|煅|焦|制)/u;
