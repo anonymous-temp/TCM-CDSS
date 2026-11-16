@@ -1289,11 +1289,16 @@ export function textbookMainSymptomPresent(trigger: string, herbName: string, co
   return undefined;
 }
 
-/** 所有普通条件过滤后不足两项，才保留至多一项教材主症加强行。 */
+/**
+ * 所有普通条件过滤后不足两项，才保留至多一项主症加强行：先认教材「主症甚」条目，其次认针对本例已见主症的一行
+ *（第四十八轮用户定：稀疏病历允许主症加强补足；第四十七轮起主症一律不算条件，p100c 非红旗病例不足两条 8/58 → 21/58）。
+ */
 export function retainModificationFindings<T extends { trigger?: unknown; herbName?: unknown }>(rows: readonly T[], context: ModificationTriggerContext): T[] {
   const ordinary = rows.filter((row) => !modificationTriggerNotFinding(String(row.trigger || ""), context));
   if (distinctModificationConditions(ordinary.map((row) => ({ trigger: String(row.trigger || "") }))) >= 2) return ordinary;
-  const strengthening = rows.find((row) => textbookMainSymptomPresent(String(row.trigger || ""), String(row.herbName || ""), context));
+  const strengthening = rows.find((row) => textbookMainSymptomPresent(String(row.trigger || ""), String(row.herbName || ""), context)) ||
+    rows.find((row) => modificationTriggerNotFinding(String(row.trigger || ""), context) === "main_symptom" &&
+      Boolean(modificationConditionAlreadyPresent(String(row.trigger || "").replace(TRIGGER_LEAD, ""), currentPresentationText(context.recordText || ""))));
   return strengthening ? [...ordinary, strengthening] : ordinary;
 }
 
@@ -3004,7 +3009,9 @@ export function compileM04Proposal(
     .filter(Boolean);
   type ProposalModification = M04Proposal["modifications"][number];
   const candidateIdentities = new Set(candidateHerbNames.map((name) => modificationHerbIdentity(name)));
-  const compileModification = (item: ProposalModification, dropReasons: ModificationDropCode[] = directionDropReasons) => {
+  // 第四十八轮（用户定）：普通条件不足两项时，可保留一条针对本例主症的加强行；先把只因「是主症」被拦的行另放一边。
+  const mainSymptomItems: ProposalModification[] = [];
+  const compileModification = (item: ProposalModification, dropReasons: ModificationDropCode[] = directionDropReasons, allowMainSymptom = false) => {
     // 减、调整的药得还在最终药味里（编译时可能去掉了顺带的安神药、合并了同身份的行）：成方合同按最终药味核，对不上就整份修复。
     if (item.actionType !== "add" && !candidateIdentities.has(modificationHerbIdentity(item.herbName))) {
       dropReasons.push("action_conflicts_with_candidate");
@@ -3049,7 +3056,9 @@ export function compileM04Proposal(
       dropReasons.push("trigger_not_current_fact");
       return [];
     }
-    if (modificationTriggerIsNormalState(item.trigger, { caseState, prior, recordText: modificationRecordText })) {
+    const notFinding = modificationTriggerNotFinding(item.trigger, { caseState, prior, recordText: modificationRecordText });
+    if (notFinding && !(allowMainSymptom && notFinding === "main_symptom")) {
+      if (notFinding === "main_symptom" && item.actionType === "add" && dropReasons === directionDropReasons) mainSymptomItems.push(item);
       dropReasons.push("trigger_not_symptom");
       return [];
     }
@@ -3136,6 +3145,15 @@ export function compileM04Proposal(
       [],
       MIN_DELIVERED_MODIFICATIONS - withConditionals.length,
     ));
+  }
+  // 普通条件仍不足两项：取第一条主症加强行（所加药、剂量、方向、人群与配伍核对照旧），至多一条。
+  if (distinctModificationConditions(withConditionals) < MIN_DELIVERED_MODIFICATIONS) {
+    const existing = withConditionals.map((row) => row.trigger);
+    for (const item of mainSymptomItems) {
+      const compiled = compileModification(item, [], true).filter((row) => !existing.includes(row.trigger) &&
+        !candidateHerbNames.concat(withConditionals.map((r) => r.herbName)).some((name) => modificationHerbIdentity(name) === modificationHerbIdentity(row.herbName)));
+      if (compiled.length) { withConditionals.push(compiled[0]); break; }
+    }
   }
   // 「加」的药本就在方中、改成的「调整」行没有剂量（第四十一轮 r1054 回顾：甲方读成「调整白术」没有药名剂量，13 份）：
   // 去掉这些行后仍有两个以上不同条件时不交付它们；不够两个时保留（宁可有一行加量提示，不让加减不足两条）。

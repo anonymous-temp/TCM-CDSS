@@ -74,11 +74,14 @@ await check('1.5', '原话接地也不能让非加减表现进入 present；正�
   assert.equal(compiler.modificationTriggerIsNormalState('未接受检查'), true);
   assert.ok(compiler.presentModificationCondition('腹胀', recordText));
 });
-await check('1.6', '编译不交付主症和缓解因素行', () => {
+await check('1.6', '编译不交付缓解因素行；主症只在普通条件不足两项时保留一条（第四十八轮用户定）', () => {
   const result = compiler.compileM04Proposal(proposal([mod('胃痛'), mod('排气后减轻', '厚朴'), mod('腹胀', '枳壳'), { ...mod('胃痛', '佛手'), actionType: 'adjust', dose: '3g' }, { ...mod('胃痛', '香橼'), actionType: 'remove' }]), prior, caseState);
   assert.ok(result, '合成处方应可编译');
-  assert.ok(!result.formula.modifications.some(row => /胃痛|减轻/u.test(row.trigger)), JSON.stringify(result.formula.modifications));
+  assert.ok(!result.formula.modifications.some(row => /减轻/u.test(row.trigger)), JSON.stringify(result.formula.modifications));
   assert.ok(result.formula.modifications.some(row => row.herbName === '枳壳'));
+  // 普通条件只有「腹胀」一项：保留一条主症加强行（只一条，且不是减/调整行）。
+  assert.equal(result.formula.modifications.filter(row => /胃痛/u.test(row.trigger)).length, 1, JSON.stringify(result.formula.modifications));
+  assert.ok(result.formula.modifications.filter(row => /胃痛/u.test(row.trigger)).every(row => row.action === '加'));
   assert.match(result.formula.modificationReview.droppedReasons.find(row => row.code === 'trigger_not_symptom').message, /另行加减的伴随表现/u, '主症存在，只是不另加药，不能误说成正常或未见症状');
 });
 await check('1.7', '补写使用同一分型，主症不因条数不足放行', () => {
@@ -98,11 +101,13 @@ await check('1.8', '核对在模型关闭时仍先清理确定性非表现行', 
     assert.deepEqual(result.formula.modifications.map(row => row.trigger), ['腹胀']);
   } finally { if (original === undefined) delete process.env.CDSS_M04_MODIFICATION_FIT; else process.env.CDSS_M04_MODIFICATION_FIT = original; }
 });
-await check('1.9', '交付缓存也按同一分型清理，剩余不足两条不造行', () => {
+await check('1.9', '交付缓存也按同一分型清理，剩余不足两条时只多留一条主症行、不造行', () => {
   const result = surface.projectDeliveredReasoning(rx([{ trigger: '胃痛', action: '加', herbName: '木香' }, { trigger: '表情痛苦', action: '加', herbName: '厚朴' }, { trigger: '腹胀', action: '加', herbName: '枳壳' }]), { recordText });
-  assert.deepEqual(result.formula.modifications.map(row => row.trigger), ['腹胀']);
+  assert.deepEqual(result.formula.modifications.map(row => row.trigger), ['腹胀', '胃痛']);
   const unlabeled = surface.projectDeliveredReasoning(rx([{ trigger: '胃痛', action: '加', herbName: '木香' }]), { recordText: recordText.replace('主诉：', ''), caseState });
-  assert.deepEqual(unlabeled.formula.modifications, [], '无标题的正文仍读结构化主诉');
+  // 无标题的正文仍读结构化主诉认出主症；唯一一行是主症时作为主症加强行保留（第四十八轮），不另造行。
+  assert.equal(compiler.modificationTriggerNotFinding('胃痛', { caseState, recordText: recordText.replace('主诉：', '') }), 'main_symptom', '无标题的正文仍读结构化主诉');
+  assert.deepEqual(unlabeled.formula.modifications.map(row => row.trigger), ['胃痛']);
 });
 const medicine = { type: '中成药', name: '潞党参口服液', route: '口服', positioning: '需医生评估' };
 await check('2.1', '单味成药与加味重复；减/调整/替代/外用例外保持', () => {
