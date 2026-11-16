@@ -316,9 +316,7 @@ await check("D20", "缺项不编依据或抹掉真实分析，未解决finding�
   const out = alignment.withoutMisalignedAnalysis(value, "舌淡");
   assert.equal(out.overview.tcmDiagnosticRationale, value.overview.tcmDiagnosticRationale);
   assert.equal(out.pathogenesis.natureDifferentiation.basis, value.pathogenesis.natureDifferentiation.basis);
-  // R48：缺失要素从已交付证名/链补齐，不再把缺项留给第二套病性判据；仍不编造引文。
-  assert.deepEqual(out.pathogenesis.natureDifferentiation.items, ["气滞", "血瘀"]);
-  assert.ok(!alignment.analysisMisalignments(out, "舌淡").some((issue) => issue.code === "syndrome_element_missing"));
+  assert.ok(alignment.analysisMisalignments(out, "舌淡").some((issue) => issue.code === "syndrome_element_missing"));
   const rewrite = { rationale: "患者症状形成气滞血瘀，病机与证候相符，诸症合参进一步说明病机演变，辨证属于气滞血瘀证。", natureItems: ["气滞", "血瘀"], rootDeficiency: [], branchExcess: ["气滞", "血瘀"], natureBasis: "捏造引文", overallPathogenesis: "气滞血瘀", uncertainties: [] };
   assert.equal(alignment.acceptedAlignmentRewrite(value, rewrite, "舌淡"), undefined);
 });

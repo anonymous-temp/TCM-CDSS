@@ -1,4 +1,3 @@
-import { derivePathogenesisFromConclusions } from "./pathogenesis-single-source";
 import "server-only";
 
 import factPolicy from "../data/delivery-facts-policy.source.json";
@@ -247,15 +246,11 @@ export function acceptedAlignmentRewrite(reasoning: Json, rewrite: Rewrite, reco
 
 /**
  * R47 rejection fallback. Whole offending sentences/items are removed; locked conclusions and patient quotations stay.
- * R48: missing axes are regenerated from names/chain; evidence is never invented.
+ * Omissions cannot be repaired by inventing evidence or erasing all valid analysis; leave contract failure visible.
  */
 export function withoutMisalignedAnalysis(reasoning: Json, recordText: string): Json {
   const issues = analysisMisalignments(reasoning, recordText);
-  if (!issues.length) {
-    const next = structuredClone(reasoning);
-    derivePathogenesisFromConclusions(next, recordText);
-    return next;
-  }
+  if (!issues.length) return structuredClone(reasoning);
   const next = structuredClone(reasoning);
   const overview = record(next.overview)!;
   const pathogenesis = record(next.pathogenesis)!;
@@ -268,7 +263,7 @@ export function withoutMisalignedAnalysis(reasoning: Json, recordText: string): 
     .flatMap((item) => { const governed = governedAxisElements(item); return governed.complete ? governed.ids.map(groupOf) : []; })
     .filter((id) => !concluded.has(id)) : []);
   // A missing element/root is an unresolved omission, not proof that every authored sentence is false.
-  // Remove only contradicted material below; regenerate axes after cutting without inventing evidence.
+  // Remove only contradicted material below; leave the omission visible to final contracts/findings.
   const contradicts = (value: string): boolean => {
     for (const entry of LEXICON) {
       if (!forbidden.has(groupOf(entry.id))) continue;
@@ -317,11 +312,6 @@ export function withoutMisalignedAnalysis(reasoning: Json, recordText: string): 
     record(probe.pathogenesis)!.uncertainties = [item];
     return !analysisMisalignments(probe, recordText).some((issue) => issue.code === "uncertainty_asks_named_element");
   });
-  derivePathogenesisFromConclusions(next, recordText);
-  if (!text(overview.overallPathogenesis)) overview.overallPathogenesis = (Array.isArray(pathogenesis.chain) ? pathogenesis.chain : []).map((node) => text(record(node)?.pathogenesis)).filter(Boolean).join("；") || primary;
-  if (!text(overview.tcmDiagnosticRationale)) overview.tcmDiagnosticRationale = [text(record(pathogenesis.natureDifferentiation)?.basis), primary].filter(Boolean).join("；");
-  if (!text(pathogenesis.summary)) pathogenesis.summary = overview.overallPathogenesis;
-  if ("natureSummary" in pathogenesis && !text(pathogenesis.natureSummary)) pathogenesis.natureSummary = strings(record(pathogenesis.natureDifferentiation)?.items).join("、");
   return next;
 }
 function asSentences(value: string): string[] {

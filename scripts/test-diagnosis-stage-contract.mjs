@@ -1654,13 +1654,12 @@ const optionalClassificationContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.str
 const sanitizedOptionalClassificationContent = sanitizeOptionalPathogenesisClassifications(optionalClassificationContent, "入睡困难；舌淡；脉细");
 const sanitizedOptionalClassification = JSON.parse(sanitizedOptionalClassificationContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
 // 第四十五轮起：没依据、又不在证名里的病位（肾）是模型顺手多列的，不列入；证名里有的（心）缺依据照旧有界。
-// R48：主证心肝血虚的肝不能被候选漏掉；心有链原文、肝缺定位表现。
-assert.deepEqual(sanitizedOptionalClassification.pathogenesis.locationDifferentiation.items, ["心", "肝"]);
-assert.ok(sanitizedOptionalClassification.pathogenesis.locationDifferentiation.details.some(d=>d.location==="心"&&d.basis.includes("入睡困难")));
+assert.deepEqual(sanitizedOptionalClassification.pathogenesis.locationDifferentiation.items, ["心"]);
+assert.deepEqual(sanitizedOptionalClassification.pathogenesis.locationDifferentiation.details, []);
 assert.equal(sanitizedOptionalClassification.pathogenesis.locationDifferentiation.resolution, "bounded");
-assert.deepEqual(sanitizedOptionalClassification.pathogenesis.natureDifferentiation.items, ["血虚"]);
-assert.deepEqual(sanitizedOptionalClassification.pathogenesis.natureDifferentiation.branchExcess, []);
-assert.equal(sanitizedOptionalClassification.pathogenesis.natureDifferentiation.resolution, "resolved");
+assert.deepEqual(sanitizedOptionalClassification.pathogenesis.natureDifferentiation.items, ["血虚", "痰", "热"]);
+assert.deepEqual(sanitizedOptionalClassification.pathogenesis.natureDifferentiation.branchExcess, ["痰", "热"]);
+assert.equal(sanitizedOptionalClassification.pathogenesis.natureDifferentiation.resolution, "bounded");
 assert.equal(sanitizedOptionalClassification.pathogenesis.symptomClusters.length, 1);
 assert.deepEqual(
   sanitizedOptionalClassification.pathogenesis.symptomClusters[0].symptoms,
@@ -1730,9 +1729,7 @@ assert.deepEqual(
   "正常生命体征从西医支持依据局部删除，不得连带清空中医辨证",
 );
 assert.equal(advisoryQuality.overview.primarySyndromeResolution, "bounded", "证候依据不足时 resolved 必须局部降为 bounded");
-// R48：不再让模型另填的热覆盖心肝血虚；链及脉细支持血虚，不按维度计数降档。
-assert.deepEqual(advisoryQuality.pathogenesis.natureDifferentiation.items, ["血虚"]);
-assert.equal(advisoryQuality.pathogenesis.natureDifferentiation.resolution, "resolved");
+assert.equal(advisoryQuality.pathogenesis.natureDifferentiation.resolution, "bounded", "单一寒热证据维度必须局部降为 bounded");
 assert.equal(advisoryQuality.therapy.subTherapies.length, 1, "分治表从既有病机链做无新增结论的确定性投影");
 assert.equal(advisoryQuality.pathogenesis.chain[0].pathogenesis, stable.pathogenesis.chain[0].pathogenesis, "质量降级不得改写既有病机");
 assert.ok(
@@ -1742,10 +1739,10 @@ assert.ok(
 
 const middleJiaoClassificationContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
   ...groundedPathogenesisClassification,
-  overview: { ...groundedPathogenesisClassification.overview, primarySyndrome: "脾虚湿困证", overallPathogenesis: "脾失健运，湿困中焦" },
+  overview: { ...groundedPathogenesisClassification.overview, overallPathogenesis: "脾失健运，湿困中焦" },
   pathogenesis: {
     ...groundedPathogenesisClassification.pathogenesis,
-    chain: [{ ...groundedPathogenesisClassification.pathogenesis.chain[0], patientFact: "纳差", syndromeEvidence:"纳差", pathogenesis: "脾失健运，湿困中焦" }],
+    chain: [{ ...groundedPathogenesisClassification.pathogenesis.chain[0], pathogenesis: "脾失健运，湿困中焦" }],
     locationDifferentiation: { items: ["脾", "中焦"], details: [{ location: "中焦", basis: "纳差 → 脾失健运，湿困中焦" }] },
   },
 })}\n<!-- DIAGNOSIS_JSON_END -->`;
@@ -1755,8 +1752,7 @@ const middleJiaoClassification = JSON.parse(
     .split("<!-- DIAGNOSIS_JSON_END -->")[0],
 );
 assert.deepEqual(middleJiaoClassification.pathogenesis.locationDifferentiation.items, ["脾", "中焦"]);
-// R48：同一链的原文支持它明确列出的脾与中焦。
-assert.deepEqual(middleJiaoClassification.pathogenesis.locationDifferentiation.details, [{ location: "脾", basis: "纳差" }, { location: "中焦", basis: "纳差" }]);
+assert.deepEqual(middleJiaoClassification.pathogenesis.locationDifferentiation.details, [{ location: "中焦", basis: "纳差" }]);
 
 const duplicatedLocationBasisContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
   ...groundedPathogenesisClassification,

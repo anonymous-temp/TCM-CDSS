@@ -41,9 +41,9 @@ const S = "<!-- DIAGNOSIS_JSON_START -->";
 const E = "<!-- DIAGNOSIS_JSON_END -->";
 const wrap = (reasoning) => `${S}\n${JSON.stringify(reasoning)}\n${E}`;
 const unwrap = (content) => JSON.parse(content.slice(content.indexOf(S) + S.length, content.indexOf(E)));
-const diagnose = (pathogenesis, primarySyndrome = "脾寒气滞证") => ({
+const diagnose = (pathogenesis) => ({
   schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
-  overview: { primarySyndrome, primarySyndromeResolution: "resolved", primarySyndromeBasis: ["夜间啼哭"] }, westernDiagnosis: {},
+  overview: { primarySyndrome: "脾寒气滞证", primarySyndromeResolution: "resolved", primarySyndromeBasis: ["夜间啼哭"] }, westernDiagnosis: {},
   pathogenesis: { symptomClusters: [], chain: [], uncertainties: [], ...pathogenesis },
   therapy: { overallPrinciple: "寒者热之", overallMethod: "温脾散寒" },
 });
@@ -52,11 +52,9 @@ const nightCryRecord = "主诉：夜间啼哭2周\n现病史：伴面色无华�
 // ───── 1 病机分析：依据齐备即已明确，寒热属性读病历本身，不写计数句 ─────
 await check("1.1 病位每项都有病历原文依据即已明确（与舌脉、模型点名的待核实项无关）；同一病位的两种写法（皮毛/肌表）算有依据；缺依据时点名哪一项", () => {
   const loc = (details, items = ["肺", "皮毛"]) => unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(diagnose({
-    // R48：共同原文明确挂在链上，候选本身不再构成定位结论。
-    chain: details.map(d=>({pathogenesis:`${d.location}受邪`,patientFact:d.basis})),
     locationDifferentiation: { items, details, resolution: "bounded" }, natureDifferentiation: { items: [], resolution: "unresolved" },
     uncertainties: [{ item: "皮疹性质", reason: "", affects: "病位" }],
-  }, items.includes("脾") ? "脾寒气滞证" : "风热犯肺证")), "伴鼻塞、流涕、偶咳。躯干部出现红色斑丘疹")).pathogenesis.locationDifferentiation;
+  })), "伴鼻塞、流涕、偶咳。躯干部出现红色斑丘疹")).pathogenesis.locationDifferentiation;
   const both = loc([{ location: "肺", basis: "伴鼻塞、流涕、偶咳" }, { location: "肌表", basis: "躯干部出现红色斑丘疹" }]);
   assert.equal(both.resolution, "resolved");
   // 第四十五轮起：没依据、又不在证名里的病位是模型顺手多列的，不列入病位（这里的「皮毛」），剩下的都有依据即已明确。
@@ -66,22 +64,19 @@ await check("1.1 病位每项都有病历原文依据即已明确（与舌脉、
   // 缺依据的病位在证名里（脾寒气滞证之脾）：照旧有界，点名哪一项。
   const named = loc([{ location: "肺", basis: "伴鼻塞、流涕、偶咳" }], ["肺", "脾"]);
   assert.equal(named.resolution, "bounded");
-  assert.match(named.resolutionReason, /脾.*食少/);
+  assert.equal(named.resolutionReason, "病位“脾”尚缺直接的病历依据");
   assert.equal(named.evidence?.confidence ?? "低", "低");
 });
 
 await check("1.2 病性写寒、依据栏只摘了舌象：病历另有四肢欠温、喜温喜按、小便清、大便溏薄时读病历补足依据、仍已明确；病历只有舌象时有界并点名", () => {
   const nature = { items: ["寒"], rootDeficiency: [], branchExcess: ["寒"], basis: "舌象：舌质淡，苔薄白", resolution: "resolved", evidence: { evidenceLevel: "model_inference", source: "本例", confidence: "中" } };
   const full = unwrap(summary.applyM03AdvisoryQualityBoundaries(wrap(diagnose({ natureDifferentiation: nature, locationDifferentiation: { items: [], details: [], resolution: "unresolved" } })), nightCryRecord)).pathogenesis.natureDifferentiation;
-  // R48：寒有见证，但证名的气滞没有胀闷等见证，须点名缺项。
-  assert.equal(full.resolution, "bounded");
-  assert.match(full.resolutionReason, /气滞/);
-  // R48：仅逐字接地的肯定原文作依据，保留已通过极性核验的寒证见证。
-  assert.match(full.basis, /小便清|大便溏薄/u);
+  assert.equal(full.resolution, "resolved");
+  assert.match(full.basis, /四肢欠温|喜温喜按/u);
   const sparse = unwrap(summary.applyM03AdvisoryQualityBoundaries(wrap(diagnose({ natureDifferentiation: nature, locationDifferentiation: { items: [], details: [], resolution: "unresolved" } })), "主诉：夜间啼哭2周\n舌象：舌质淡，苔薄白")).pathogenesis.natureDifferentiation;
   assert.equal(sparse.resolution, "bounded");
   // 第四十六轮：说明写还缺哪几项、已见的放括号（test:r1063-analysis 3.5），不写「目前只见于」。
-  assert.match(sparse.resolutionReason, /气滞.*胀闷/);
+  assert.match(sparse.resolutionReason, /^寒热尚需结合.*判断（已见舌质淡）$/u);
   assert.doesNotMatch(sparse.resolutionReason, /少于两个方面|只有一个方面|依据有\d条/u);
   assert.equal(sparse.evidence.confidence, "中");
 });
@@ -98,10 +93,9 @@ await check("1.4 病性栏的虚热、虚火挪到本虚，不当标实", () => 
   const out = unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(diagnose({
     locationDifferentiation: { items: [], details: [], resolution: "unresolved" },
     natureDifferentiation: { items: ["阴虚", "虚热"], rootDeficiency: ["阴虚"], branchExcess: ["虚热", "气滞"], basis: "五心烦热；舌红少苔", resolution: "resolved" },
-  }, "阴虚气滞证")), "五心烦热，舌红少苔")).pathogenesis.natureDifferentiation;
+  })), "五心烦热，舌红少苔")).pathogenesis.natureDifferentiation;
   assert.deepEqual(out.branchExcess, ["气滞"]);
-  // R48：阴虚与虚热是同一要素，不重复列两项。
-  assert.deepEqual(out.rootDeficiency,["阴虚"]);
+  assert.ok(out.rootDeficiency.includes("虚热"));
 });
 
 // ───── 2 血证分型 ─────
