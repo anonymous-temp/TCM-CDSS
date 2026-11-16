@@ -2828,7 +2828,7 @@ function deliveredPrescribe(reasoning: Json, options?: DeliveredSurfaceOptions, 
     });
   }
   if (formula && options?.caseState && options.recordText && Array.isArray(formula.modifications)) {
-    formula.modifications = topUpTextbookMainSymptom(records(formula.modifications), reasoning as ClinicalReasoningResultV2, options.caseState as CaseState,
+    formula.modifications = topUpTextbookMainSymptom(records(formula.modifications), reasoning as unknown as ClinicalReasoningResultV2, options.caseState as CaseState,
       records(records(formula.candidates)[0]?.herbs).map((herb) => String(herb.name || "")));
   }
   if (formula && Array.isArray(formula.patentAndWestern)) {
