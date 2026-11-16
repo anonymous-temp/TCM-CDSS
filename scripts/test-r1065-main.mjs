@@ -44,4 +44,14 @@ await check('3.1', '方解定的君药与药表比对去掉剂型后缀（滑石
   assert.equal(commentary.textbookNamesTheseAsEmperors('甘露消毒丹', ['滑石', '黄芩', '茵陈']), true);
   assert.equal(commentary.textbookNamesTheseAsEmperors('甘露消毒丹', ['滑石粉', '黄芩', '连翘']), false);
 });
+const claims = await jiti.import('../src/lib/recorded-test-claims.ts');
+await check('4.1', '可凭临床诊断的病跟着依据句的明确表态：须先排除/需专科确立/暂按此考虑 → 待查；单纯尚缺某检查不算', () => {
+  const rec = '主诉：右足第一跖趾关节红肿热痛1天\n辅助检查：血尿酸560μmol/L，WBC 16.8';
+  assert.equal(claims.settleWesternDiagnosisBasis('急性痛风性关节炎', '单关节夜间突发红肿热痛，需先排除化脓性关节炎与脓毒症。', rec).name, '急性痛风性关节炎待查');
+  assert.equal(claims.settleWesternDiagnosisBasis('急性痛风性关节炎', '单关节夜间突发红肿热痛，血尿酸560，符合急性痛风性关节炎。', rec).name, '急性痛风性关节炎');
+  assert.equal(claims.settleWesternDiagnosisBasis('急性上呼吸道感染待查', '鼻塞流涕咽痛，符合急性上呼吸道感染；尚缺血常规确认。', '主诉：鼻塞流涕2天').name, '急性上呼吸道感染');
+});
+await check('4.2', '尿常规「酮体3+」算已有尿酮体结果', () => {
+  assert.equal(claims.recordHasTestResultFor('尿酮体', '辅助检查：尿常规：酮体3+，葡萄糖4+'), true);
+});
 console.log(JSON.stringify({ failed })); process.exitCode = failed ? 1 : 0;

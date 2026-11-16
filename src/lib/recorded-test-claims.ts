@@ -173,7 +173,7 @@ export function basisSaysNameNotEstablished(basis: string, name: string): boolea
 }
 
 /** 表内疾病先按要点表定确定度，依据措辞不再参与命名。表外保持现行判据。 */
-export function westernCriteriaCertainty(name: string, recordText: string, known = false): { pending: boolean; missing: string[]; courseMet?: boolean } | undefined {
+export function westernCriteriaCertainty(name: string, recordText: string, known = false): { pending: boolean; missing: string[]; courseMet?: boolean; clinicalOnly?: boolean } | undefined {
   const entry = westernCriteriaEntry(name);
   if (!entry) return undefined;
   if (known) return { pending: false, missing: [] };
@@ -204,7 +204,9 @@ export function westernCriteriaCertainty(name: string, recordText: string, known
   }
   const low = certaintyPolicy.lowGlucoseConfirmation;
   if (entry.name === low.name && ![...recordText.normalize("NFKC").matchAll(new RegExp(low.pattern, "giu"))].some((match) => Number(match[1]) < low.below)) missing.push(low.missing);
-  return { pending: missing.length > 0, missing, ...(threshold ? { courseMet: Boolean(course && course.lower >= threshold) } : {}) };
+  // 可凭临床诊断、又没有病程门槛的病：要点表本身不给结论（clinicalOnly），由依据句自己的表态定（见 settleWesternDiagnosisBasis）。
+  const clinicalOnly = entry.clinicallyDiagnosable && !threshold && missing.length === 0;
+  return { pending: missing.length > 0, missing, ...(threshold ? { courseMet: Boolean(course && course.lower >= threshold) } : {}), ...(clinicalOnly ? { clinicalOnly } : {}) };
 }
 
 /** 先定病名确定度，再以完整分句为单位舍弃互相冲突的断言；不把一个结论换词成另一个结论。 */
@@ -222,7 +224,13 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
       /既往|病史|已确诊|确诊为|诊断为|曾诊断|镜示|镜检查示/u.test(sentence)));
   const known = diagnosedContext || treated || Boolean(establishedHistoryText(core, recordText));
   const criteria = westernCriteriaCertainty(core, recordText, known);
-  const pending = criteria?.pending ?? (!treated && (/待[查排]$/u.test(name) || (!known && basisSaysNameNotEstablished(cleaned, core))));
+  // 第四十八轮配对盲评：可凭临床诊断的病，要点表把「待查」去掉时依据句却说「需先排除」「需专科检查确立诊断」「暂按此考虑」
+  //（痛风伴脓毒症待排、重症肌无力未做抗体、慢性疲劳综合征等排除性诊断），复核员判西医确定程度错。这类病名跟着依据句自己的表态走，
+  // 两头一致：依据说未确立就待查，依据说可临床诊断就不待查（上感待查而依据说「临床可以诊断」的另一类错同样消失）。
+  const pending = criteria && !criteria.clinicalOnly ? criteria.pending
+    : criteria?.clinicalOnly ? !known && !treated && (new RegExp(certaintyPolicy.clinicalNotEstablishedPattern, "u").test(cleaned) ||
+      basisSaysNameNotEstablished(cleaned.split(/[。；;]/u).filter((part) => !CONFIRMATION_GAP.test(part)).join("。"), core))
+      : (!treated && (/待[查排]$/u.test(name) || (!known && basisSaysNameNotEstablished(cleaned, core))));
   const escaped = escapePattern(core);
   const established = new RegExp(`(?:${escaped})?诊断(?:${escaped})?(?:已|可)?(?:确立|成立|明确)|据此临床诊断${escaped}`, "u");
   const speculative = new RegExp(`考虑${escaped}(?:的)?可能|可能为${escaped}`, "u");
