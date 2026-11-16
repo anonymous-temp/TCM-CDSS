@@ -1,3 +1,4 @@
+// R48：定位夹具把依据明确挂在链节点，模型另填病位不再是结论来源。
 // R1064：自由方义/句内修补断言保留为显式回滚测试；新默认由 test-r1064-m04wire 覆盖，安全断言不变。
 process.env.CDSS_M04_FINAL_CONTENT = "false";
 // 第四十五轮（2026-11-14）：甲方 100 例首次逐字复核（144 份，256 条「错」）之后按类收口。方案在 ~/runlogs/r1018/work/r1061/PLAN.md。
@@ -103,7 +104,7 @@ await check("2.1 待核实项理由开头重复项目的那一段去掉", () => 
 const locationContent = (location, primarySyndrome = "风热犯肺证") => wrap({
   schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
   overview: { primarySyndrome, primarySyndromeResolution: "resolved", primarySyndromeBasis: ["咳嗽伴咽痛3天"], secondarySyndromes: [] },
-  pathogenesis: { locationDifferentiation: location, natureDifferentiation: { items: [], rootDeficiency: [], branchExcess: [], basis: "", resolution: "unresolved" }, chain: [], uncertainties: [] },
+  pathogenesis: { locationDifferentiation: location, natureDifferentiation: { items: [], rootDeficiency: [], branchExcess: [], basis: "", resolution: "unresolved" }, chain: location.details.map(d=>({pathogenesis:`${d.location}气机不利`,patientFact:d.basis})), uncertainties: [] },
 });
 const record3 = "咳嗽伴咽痛3天，左腰腹绞痛伴血尿，超声左肾积水轻度，尿频";
 
@@ -115,7 +116,9 @@ await check("3.1 几个病位共用同一句原文照样算有依据", () => {
 
 await check("3.2 三焦随所含脏腑有依据；证名外又没依据的病位不列", () => {
   const out = unwrap(summary.sanitizeOptionalPathogenesisClassifications(locationContent({ items: ["肾", "下焦"], details: [{ location: "肾", basis: "超声左肾积水轻度" }], resolution: "bounded" }, "湿热下注证"), record3));
-  assert.equal(out.pathogenesis.locationDifferentiation.resolution, "resolved", "下焦随肾");
+  // R48：三焦与脏腑不再互相推断；只有链明确写到的肾。
+  assert.deepEqual(out.pathogenesis.locationDifferentiation.items,["肾"]);
+  assert.equal(out.pathogenesis.locationDifferentiation.resolution, "resolved");
   const pruned = unwrap(summary.sanitizeOptionalPathogenesisClassifications(locationContent({ items: ["肺", "大肠"], details: [{ location: "肺", basis: "咳嗽伴咽痛3天" }], resolution: "bounded" }), record3));
   assert.deepEqual(pruned.pathogenesis.locationDifferentiation.items, ["肺"]);
   assert.equal(pruned.pathogenesis.locationDifferentiation.resolution, "resolved");

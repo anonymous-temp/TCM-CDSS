@@ -1,5 +1,6 @@
 import { afterMealAdministrationRequired, afterMealAdministration, afterMealPrecaution } from "./hypoglycemia-administration";
 import { settleEncounterPrimary } from "./western-encounter-primary";
+import { derivePathogenesisFromConclusions } from "./pathogenesis-single-source";
 import { lineageWordingMatchingDirection } from "./lineage-formula-wording";
 import { populationMatchedPrecautions } from "./population-matched-precautions";
 import { currentMedicationPrecautions } from "./current-medication-precautions";
@@ -3917,6 +3918,7 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
   }
   // 去理由里的重复放在措辞替换之后：红旗边界句先换成「急危重风险未排除，请先完成急诊或转诊评估…」才对得上项目「急危重风险尚未排除」
   //（此前在替换前比，理由开头是「急危重风险未排除：以下辨证…」，冒号连着后半句，比不上，红旗病例的待核实照样重复；第四十五轮复核 20 余份）。
+  if (options?.recordText) derivePathogenesisFromConclusions(projected, options.recordText);
   withoutReasonEchoingItem(record(projected.pathogenesis));
   if (projected.stage === "prescribe") {
     const careItems = (options?.requiredPrecautions || []).filter((item) => item.kind === "disease_care");

@@ -1,3 +1,4 @@
+// R48：先跑旧断言后迁移：模型独填的气脱不交付，病位候选须在链/证名中。
 // 第四十七轮 F1：全为合成片段；对应变异表 /var/tmp/r1064/cp/ftext.py。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -36,32 +37,33 @@ await check('F01', '病性说明去重、有依据不说缺依据；无依据仍
  r.pathogenesis.natureDifferentiation.resolutionReason='病性“湿热、毒”的病历依据尚待逐项核实';
  assert.equal(types.normalizeReasoningV2(r).pathogenesis.natureDifferentiation.resolutionReason, undefined);
  r.pathogenesis.natureDifferentiation.basis = '';
- assert.match(types.normalizeReasoningV2(r).pathogenesis.natureDifferentiation.resolutionReason, /尚缺直接/u);
+ // R48：无病历的类型读者不得编造缺项说明。
+ assert.equal(types.normalizeReasoningV2(r).pathogenesis.natureDifferentiation.resolutionReason, undefined);
 });
-await check('F02', '病位说明不计数；有依据时指明待核实病位', () => {
+await check('F02', '无病历的类型读者不编造病位说明，旧计数句不沿用', () => {
  const r=reasoning();r.pathogenesis.locationDifferentiation.details=[{location:'肌肤',basis:'水疱'}];
- const why=types.normalizeReasoningV2(r).pathogenesis.locationDifferentiation.resolutionReason;
- assert.match(why,/胸胁/u);assert.doesNotMatch(why,/目前只有|尚缺/u);
+ // R48：具体缺项只能由有病历的同源生成器填写。
+ assert.equal(types.normalizeReasoningV2(r).pathogenesis.locationDifferentiation.resolutionReason,undefined);
  r.pathogenesis.locationDifferentiation.resolutionReason='病位“胸胁、肌肤”目前只有1条病历依据支持';
- assert.doesNotMatch(types.normalizeReasoningV2(r).pathogenesis.locationDifferentiation.resolutionReason,/目前只有/u);
- r.pathogenesis.locationDifferentiation.details=[];assert.match(types.normalizeReasoningV2(r).pathogenesis.locationDifferentiation.resolutionReason,/尚缺/u);
+ assert.equal(types.normalizeReasoningV2(r).pathogenesis.locationDifferentiation.resolutionReason,undefined);
 });
 await check('F03', '已接地的胸肋水疱支持直接病位；不据此反推胆', () => {
- const r=reasoning();r.pathogenesis.locationDifferentiation.items.push('胆');r.overview.primarySyndrome='肝胆湿热证';
+ const r=reasoning();r.pathogenesis.chain=[{pathogenesis:'湿热蕴于胸胁肌肤',patientFact:'右侧胸肋部簇集水疱'}];r.pathogenesis.locationDifferentiation.items.push('胆');r.overview.primarySyndrome='肝胆湿热证';
  const n=unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(r),'右侧胸肋部簇集水疱，灼痛。舌红苔黄腻。'));
  assert.ok(n.pathogenesis.locationDifferentiation.details.some(x=>x.location==='胸胁'));
  assert.ok(n.pathogenesis.locationDifferentiation.details.some(x=>x.location==='肌肤'));
  assert.match(n.pathogenesis.locationDifferentiation.resolutionReason,/胆/u);
 });
 await check('F04', '表证已接地的成组见证支持卫表；一项不据以补表', () => {
- const r=reasoning();r.overview.primarySyndromeBasis=['怕冷，鼻塞，流清涕'];r.pathogenesis.locationDifferentiation.items=['卫表'];
+ const r=reasoning();r.overview.primarySyndrome='风寒束表证';r.overview.primarySyndromeBasis=['怕冷，鼻塞，流清涕'];r.pathogenesis.locationDifferentiation.items=['卫表'];
  assert.equal(unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(r),'怕冷，鼻塞，流清涕。')).pathogenesis.locationDifferentiation.resolution,'resolved');
  r.overview.primarySyndromeBasis=['鼻塞'];assert.equal(unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(r),'鼻塞。')).pathogenesis.locationDifferentiation.resolution,'bounded');
  r.overview.primarySyndromeBasis=[];r.pathogenesis.chain=[{patientFact:'鼻塞',syndromeEvidence:'怕冷，流清涕'}];
  assert.equal(unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(r),'怕冷，鼻塞，流清涕。')).pathogenesis.locationDifferentiation.resolution,'resolved');
  assert.equal(unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(r),'鼻塞。')).pathogenesis.locationDifferentiation.resolution,'bounded');
- r.overview.primarySyndromeBasis=['脉浮紧'];r.pathogenesis.chain=[{patientFact:'喘息',syndromeEvidence:'昨夜外出受凉后气喘；怕冷、无汗、鼻塞流清涕'}];
- assert.equal(unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(r),'昨夜外出受凉后气喘，伴怕冷、无汗、鼻塞流清涕、头痛。脉象：浮紧。')).pathogenesis.locationDifferentiation.resolution,'resolved');
+ // R48：定位见证必须肯定；用独立肯定小句，避免将无汗后的顿号项目作为否认继承。
+ r.overview.primarySyndromeBasis=['脉浮紧'];r.pathogenesis.chain=[{patientFact:'喘息',syndromeEvidence:'昨夜外出受凉后气喘；怕冷；有鼻塞流清涕'}];
+ assert.equal(unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(r),'昨夜外出受凉后气喘，伴怕冷，有鼻塞流清涕，头痛。脉象：浮紧。')).pathogenesis.locationDifferentiation.resolution,'resolved');
  r.pathogenesis.chain=[{patientFact:'喘息',syndromeEvidence:'否认怕冷、鼻塞流清涕'}];
  assert.equal(unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(r),'否认怕冷、鼻塞流清涕。脉浮紧。')).pathogenesis.locationDifferentiation.resolution,'bounded');
 });
@@ -160,7 +162,7 @@ await check('F16', '正常舌脉句逐项核对；薄腻弦脉不能被说成薄
 await check('F17', '虚证已有病性要素归本虚，实证不凭空补虚', () => {
  const r=reasoning();r.overview.primarySyndrome='心阳欲脱证';r.pathogenesis.natureDifferentiation={items:['阳虚','气脱'],rootDeficiency:[],branchExcess:['阳虚','气脱'],basis:'大汗，四肢冰冷',resolution:'bounded',evidence:E};
  const n=unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(r),'大汗，四肢冰冷。'));
- assert.deepEqual(n.pathogenesis.natureDifferentiation.rootDeficiency,['阳虚','气脱']);assert.deepEqual(n.pathogenesis.natureDifferentiation.branchExcess,[]);
+ assert.deepEqual(n.pathogenesis.natureDifferentiation.rootDeficiency,['阳虚']);assert.deepEqual(n.pathogenesis.natureDifferentiation.branchExcess,[]);
  assert.equal(unwrap(summary.sanitizeOptionalPathogenesisClassifications(wrap(reasoning()),'舌红苔黄腻。')).pathogenesis.natureDifferentiation.rootDeficiency.length,0);
 });
 await check('F18', '肩关节周围炎按教材原句交付漏肩风；颈椎病不冒充中医鉴别', () => {

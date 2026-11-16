@@ -1,4 +1,5 @@
 import closureJson from "../data/tcm-analysis-element-closure.source.json" with { type: "json" };
+import { clinicalEventTemporalScopeAt } from "./clinical-polarity";
 import { clauseLocalMentionPolarityAt } from "./diagnosis-safety";
 
 /**
@@ -189,13 +190,22 @@ function answerRowsCoverItem(item: string, matches: typeof ANSWER_ROWS): boolean
   const remainder = matches.reduce((rest, row) => rest.replace(new RegExp(row.asked.source, "gu"), ""), item);
   return ANSWER_ITEM_GLUE.test(remainder);
 }
+function answerIsRecorded(row: typeof ANSWER_ROWS[number], source: string): boolean {
+  for (const hit of source.matchAll(new RegExp(row.answered.source, "gu"))) {
+    const at = hit.index ?? 0;
+    if (clauseLocalMentionPolarityAt(source, at) === "excluded") continue;
+    if (clinicalEventTemporalScopeAt(source, at, hit[0].length, { groundingQuote: true }) !== "current") continue;
+    return true; // Positive, negative and normal findings all answer an existence/attribute question.
+  }
+  return false;
+}
 export function uncertaintyAnsweredByRecord(item: string, recordText: string): boolean {
   const asked = String(item || "");
   const source = String(recordText || "");
   if (!asked || !source) return false;
   const matches = ANSWER_ROWS.filter((row) => row.asked.test(asked));
   if (!answerRowsCoverItem(asked, matches)) return false;
-  return matches.length > 0 && matches.every((row) => row.answered.test(source));
+  return matches.length > 0 && matches.every((row) => answerIsRecorded(row, source));
 }
 
 /** 组合问项只剩一部分未答时，交付剩余问项，不能把已有回答也写成“未记录”。 */
@@ -203,8 +213,8 @@ export function uncertaintyWithRecordedAnswers<T extends { item?: unknown; reaso
   const item = text(row.item);
   const matches = ANSWER_ROWS.filter((entry) => entry.asked.test(item));
   if (!answerRowsCoverItem(item, matches)) return row;
-  if (!matches.some((entry) => entry.answered.test(recordText))) return row;
-  const missing = matches.filter((entry) => !entry.answered.test(recordText));
+  if (!matches.some((entry) => answerIsRecorded(entry, recordText))) return row;
+  const missing = matches.filter((entry) => !answerIsRecorded(entry, recordText));
   if (missing.length === 0) return undefined;
   const pending = [...new Set(missing.map((entry) => entry.asked.exec(item)?.[0]).filter(Boolean))].join("、");
   return { ...row, item: pending, reason: `尚需核实${pending}` };

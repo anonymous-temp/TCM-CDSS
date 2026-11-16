@@ -451,7 +451,11 @@ try {
   // ["气虚", "血虚"]——病性列了、本虚标实两栏都没放的条目按受治理病性词表归栏（甲方 100 例「气滞（本虚：无；标实：无）」同一行自相矛盾）。
   // 2026-11-15 第四十六轮：本夹具病性依据为空、证名心脾两虚已含气虚血虚，说明句照旧（只点名证名以外病历找不到表现的那几条），指纹不变。
   // r1064 C3：HEAD/当前各导出 synthetic signed 后逐字段核对，仅多寐鉴别增加教材定义、primary.guidelineReferences 缺省改为 []；/var/tmp/r1064/dx/orchestration-*-signed.json。
-  assert.equal(m03ClinicalDecisionHash(signed), "sha256:a3df60311de8b8df1048feb606792f205830ce1a77a7d600c624c67e14101686", "the settled projection must preserve the final clinical payload");
+  // R48 G2：隔离副本逐字段比对，仅病位/病性依链补原文、bounded→resolved及相应说明/置信变化；其余临床载荷不变。
+  // 证据：/var/tmp/r1065/gsrc-orchestration-{baseline,current}.json（合成夹具）。
+  // R48 主会话收窄：与 G2 版逐字段比对，唯一临床差异是病位依据——心、脾各取与本脏对得上的原文（心悸健忘 / 纳差便溏），
+  // 不再两处都写同一串链上原文；病性依据保留模型原写的接地片段（/var/tmp/r1065/gsrc-orchestration-mine.json）。
+  assert.equal(m03ClinicalDecisionHash(signed), "sha256:46d925c21ed44dccafa149ae0fecd17b37fbf6fb0d1f88bad7748a2c183dda50", "the settled projection must preserve the final clinical payload");
   assert.deepEqual(signed.westernDiagnosis.primary.supportingFacts, [signed.westernDiagnosis.primary.clinicalRationale], "交付的辨证结果症状依据栏只放一句诊断依据");
   assert.deepEqual(signed.westernDiagnosis.primary.limitations, [], "交付的辨证结果不带待查依据");
   assert.deepEqual(signed.westernDiagnosis.primary.suggestedChecks, [], "交付的辨证结果不带检查建议");

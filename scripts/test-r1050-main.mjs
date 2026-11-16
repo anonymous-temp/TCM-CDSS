@@ -158,17 +158,18 @@ const natureBounded = { items: ["气滞", "热"], basis: "工作紧张时加重�
 
 await check("4.1 舌脉都记录、每个病位都有逐字依据、不确定项没说病位：有界 → 已确定；病性按段摘了原文（段数不少于病性个数）同理", () => {
   const out = axes(axisCase(locationBounded, natureBounded), fullRecord);
-  assert.equal(out.location.resolution, "resolved");
-  assert.equal(out.location.resolutionReason, undefined);
+  // R48：无链定位的候选依据不能单独立病位；触发因素不能作肝的依据。
+  assert.equal(out.location.resolution, "bounded");
+  assert.match(out.location.resolutionReason, /肝.*胁胀/);
   assert.equal(out.nature.resolution, "resolved");
 });
 
 await check("4.2 第四十一轮起：依据齐备就按已确定，与舌脉记没记、模型点没点名待核实项无关；病性依据段数少于病性个数、或病位缺依据时仍有界", () => {
   const noPulse = axes(axisCase(locationBounded, natureBounded), "饭后1小时腹胀嗳气，工作紧张时加重，口苦。舌红，苔薄黄。");
-  assert.equal(noPulse.location.resolution, "resolved");
+  assert.equal(noPulse.location.resolution, "bounded");
   assert.equal(noPulse.nature.resolution, "resolved");
   const named = axes(axisCase(locationBounded, natureBounded, [{ item: "肝郁程度", reason: "未记录胁痛", affects: "病位判断" }, { item: "热象轻重", reason: "", affects: "病性" }]), fullRecord);
-  assert.equal(named.location.resolution, "resolved");
+  assert.equal(named.location.resolution, "bounded");
   assert.equal(named.nature.resolution, "resolved");
   // 第四十六轮：依据栏漏摘、而病历里另有这一条病性的表现时，把病历原文补进依据（natureAxisElementSupport；气滞补「腹胀嗳气」、热补「舌红」），
   // 补齐后每条都有依据，按已确定交付。依据薄、病历里也没有气滞的表现时照旧有界，说明点名缺哪一条。
@@ -177,7 +178,7 @@ await check("4.2 第四十一轮起：依据齐备就按已确定，与舌脉记
   assert.match(completed.nature.basis, /腹胀嗳气/u);
   const thinBasis = axes(axisCase(locationBounded, { ...natureBounded, basis: "口苦" }), "饭后1小时饱胀，工作紧张时加重，口苦。舌红，苔薄黄。");
   assert.equal(thinBasis.nature.resolution, "bounded");
-  assert.match(String(thinBasis.nature.resolutionReason), /“气滞”尚待核实（可留意/u);
+  assert.match(String(thinBasis.nature.resolutionReason), /“气滞”.*胀闷/u);
   assert.doesNotMatch(String(thinBasis.nature.resolutionReason || ""), /依据有\d条|少于两个方面|只有一个方面/u);
 });
 
