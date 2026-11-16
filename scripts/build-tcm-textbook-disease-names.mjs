@@ -15,7 +15,7 @@ const sectionNames = JSON.parse(fs.readFileSync(path.join(root, "src/data/tcm-te
 const fixedSection = (bookKey, name) => sectionNames.sectionNameFixes.find((fix) => fix.bookKey === bookKey && fix.from === name)?.to || name;
 const names = new Set();
 for (const row of [...table.rows, ...supplement.rows]) {
-  if ((BOOKS.has(row.bookKey) || emergencyRows.has(row.id)) && typeof row.disease === "string" && row.disease.trim() && Array.isArray(row.formulas) && row.formulas.length > 0) names.add(fixedSection(row.bookKey, row.disease.trim()));
+  if ((BOOKS.has(row.bookKey) || emergencyRows.has(row.id)) && typeof row.disease === "string" && row.disease.trim() && Array.isArray(row.formulas) && (row.formulas.length > 0 || row.referenceOnly === true && row.therapy)) names.add(fixedSection(row.bookKey, row.disease.trim()));
 }
 
 // 教材节名是西医病名、而教材自己在该节定义里写明「属中医学“X”范畴」的（中医外科学「血栓闭塞性脉管炎」：属中医学“脱疽”的范畴），

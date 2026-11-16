@@ -6,7 +6,7 @@ import { trueHeartPainSignal, withTrueHeartPainFirst } from "./true-heart-pain";
 import { emergencyTextbookCandidates, withEmergencyDiseasesFirst } from "./tcm-emergency-candidates";
 import { REPRODUCTIVE_RECORD_KEYS } from "./followup-conversation";
 import { memoizedSmallTask, smallTaskMemoKey } from "./small-task-memo.server";
-import { textbookDiseaseNamesForCase, textbookDiseaseWesternEquivalents } from "./tcm-textbook-syndromes";
+import { knowledgeGapPreferredDiseases, textbookDiseaseNamesForCase, textbookDiseaseWesternEquivalents } from "./tcm-textbook-syndromes";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 import { historyStatedDiseasesForCase, withHistoryStatedDiseaseFirst } from "./history-stated-textbook-disease";
@@ -138,7 +138,9 @@ export function buildTextbookDiseasePickRequest(caseState: CaseState): {
  */
 export async function pickTextbookDiseasesForCase(caseState: CaseState, signal?: AbortSignal): Promise<string[]> {
   const picks = withHistoryStatedDiseaseFirst(await pickTextbookDiseasesByModel(caseState, signal), historyStatedDiseasesForCase(caseState));
-  return withEmergencyDiseasesFirst(withTrueHeartPainFirst(picks, trueHeartPainSignal(trustedInputText(caseState), (caseState.safetyGate || evaluateSafetyGate(caseState)).redFlags || [])), emergencyTextbookCandidates(caseState));
+  const gaps = knowledgeGapPreferredDiseases({ chiefComplaint: caseState.chiefComplaint, recordText: trustedInputText(caseState) });
+  const retrieved = [...gaps, ...picks.filter((name) => !gaps.includes(name))].slice(0, MAX_PICKS);
+  return withEmergencyDiseasesFirst(withTrueHeartPainFirst(retrieved, trueHeartPainSignal(trustedInputText(caseState), (caseState.safetyGate || evaluateSafetyGate(caseState)).redFlags || [])), emergencyTextbookCandidates(caseState));
 }
 
 async function pickTextbookDiseasesByModel(caseState: CaseState, signal?: AbortSignal): Promise<string[]> {
