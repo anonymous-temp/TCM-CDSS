@@ -590,6 +590,7 @@
     "ageOnly": "^\\d+(?:岁|月龄|日龄)(?:半)?$",
     "sourceRef": "《中医诊断学》病位、病性辨证；复用本仓库tcm-nature-lexicon、tcm-location-lexicon及analysis-element-closure治理项；问句和病历栏名前缀仅作构词守卫。",
     "askedElement": "^(?:是否|有无)(?:兼|夹|合并|有|伴)?(.+?)(?:证)?$",
-    "questionIdentityPrefix": "^(?:是否|有无)(?:有|伴)?"
+    "questionIdentityPrefix": "^(?:是否|有无)(?:有|伴)?",
+    "explicitPastBeforeQuote": "既往|曾经?|以往|已愈|治愈|痊愈|已缓解|旧病|宿疾已"
   }
 }

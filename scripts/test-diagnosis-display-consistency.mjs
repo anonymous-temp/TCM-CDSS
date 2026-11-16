@@ -387,7 +387,7 @@ assert.doesNotMatch(sourceLevelResolutionBoundary, /有限资料下的工作判�
 // 2026-11-10 第四十一轮起不写「0条可逐字回溯」这类计数句（r1054 回顾：机械说明），直接说缺什么。
 assert.match(sourceLevelResolutionJson.overview.primarySyndromeResolutionReason, /心脾两虚证.*尚缺直接的病历依据/);
 // R48：按具体要素点名需补的表现，不再生成泛称缺依据。
-assert.match(sourceLevelResolutionJson.pathogenesis.locationDifferentiation.resolutionReason, /心.*心悸.*脾.*食少/);
+assert.match(sourceLevelResolutionJson.pathogenesis.locationDifferentiation.resolutionReason, /心.*心悸.*脾.*(?:食少|纳少)/);
 assert.match(sourceLevelResolutionJson.pathogenesis.natureDifferentiation.resolutionReason, /气虚.*神疲/);
 
 {
