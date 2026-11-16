@@ -1,3 +1,4 @@
+import textConsistency from "../data/diagnosis-text-consistency.source.json";
 import "server-only";
 import { recordAnemiaGrade } from "./delivered-surface";
 import secondaryStructureJson from "../data/tcm-secondary-syndrome-structure.source.json" with { type: "json" };
@@ -154,7 +155,7 @@ export function withoutClauses(value: string, clauses: readonly string[]): strin
       const rest = after.slice(1);
       const head = rest.split(/[。；;]/u)[0];
       const dangling = (!before || /[。；;]\s*$/u.test(before)) && head.length > 0 && head.length <= 8 && !/[、，,]/u.test(head) &&
-        !/[故属为示见乃系致]/u.test(head) && !/^病[位性机]/u.test(head);
+        ((!/[故属为示见乃系致]/u.test(head) && !/^病[位性机]/u.test(head)) || textConsistency.danglingAttributionOpeners.some((opener) => head.startsWith(opener)));
       out = dangling ? `${before}${rest.slice(head.length).replace(/^[。；;]/u, before ? "" : "")}` : `${before}${rest}`;
     } else out = `${before}${after.replace(/^[。；;]/u, before && !/[。；;]$/u.test(before) ? "。" : "")}`;
   }
@@ -446,7 +447,7 @@ const sharesPrimaryManifestation = (quote: string, primaryTerms: readonly string
 
 /** quotes：计入判定的病历摘录（去重、已排除主证同一表现），证素核对给证据标签用。 */
 /** strict：不靠证素宽路径（breadth）也够数，即按辨证要点成组（第四十六轮：证名带上分析里的证素要按这一档，立兼证同一判据）。 */
-export type CriteriaVerdict = { verdict: "pass" | "fail" | "unknown"; entry?: string; specific: number; category: number; listed: number; distinct: number; quotes?: string[]; strict?: boolean };
+export type CriteriaVerdict = { verdict: "pass" | "fail" | "unknown"; entry?: string; specific: number; category: number; listed: number; distinct: number; quotes?: string[]; observedQuotes?: string[]; strict?: boolean };
 
 /** 小任务给出的对应 → 判定。纯函数，供测试。 */
 export function evaluateCriteriaMatches(
@@ -459,6 +460,8 @@ export function evaluateCriteriaMatches(
   const manifestSet = new Set(entry.manifestations);
   const affirmedClauses = affirmedClinicalSourceClauses(context.recordText).flatMap((clause) => clause.split(/[，,]/u)).map(compact).filter(Boolean);
   const seenQuotes = new Set<string>();
+  // 成组计数可扣除主证共有表现；文字不能把已见的共有表现写成「未见」。
+  const observedQuotes = new Set<string>();
   const componentHits = new Map<string, number>();
   let specific = 0;
   // 特异表现病历里有、但与主证同脏同一表现而扣掉的条数（主证心血瘀阻、兼证心阳虚：心悸、胸闷两边都有）。
@@ -469,6 +472,8 @@ export function evaluateCriteriaMatches(
     const quote = compact(match.quote || "");
     if (quote.length < 2 || quote.length > 20 || seenQuotes.has(quote)) continue;
     if (!affirmedClauses.some((clause) => clause.includes(quote) || orderedWithin(clause, quote, quote.length + 3))) continue;
+    if (!specificSet.has(match.item) && !categorySet.has(match.item) && !manifestSet.has(match.item)) continue;
+    observedQuotes.add(quote);
     if (sharesPrimaryManifestation(quote, context.primaryTerms)) {
       if (specificSet.has(match.item)) sharedSpecific += 1;
       continue;
@@ -512,7 +517,7 @@ export function evaluateCriteriaMatches(
   // 要点是教材的一句话，切出来的条目常对不上写法（血瘀证的要点切成「疼痛」「舌色青紫等」）：第三十三轮刺痛固定、舌有瘀点、脉涩、经血块 6 条独立表现，因为要点只对上 1 条被撤。
   // 主证解释不了的独立表现有 4 条以上、其中至少 1 条对上要点或共见类，算成组。
   if (!pass && !entry.components?.length && distinct >= 4 && specific + category >= 1) pass = true;
-  return { verdict: pass ? "pass" : "fail", entry: entry.name, specific, category, listed, distinct, quotes: [...seenQuotes], strict };
+  return { verdict: pass ? "pass" : "fail", entry: entry.name, specific, category, listed, distinct, quotes: [...seenQuotes], observedQuotes: [...observedQuotes], strict };
 }
 
 const CRITERIA_MATCH_SYSTEM = [

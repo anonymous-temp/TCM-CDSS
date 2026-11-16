@@ -1,5 +1,6 @@
 import { afterMealAdministrationRequired, afterMealAdministration, afterMealPrecaution } from "./hypoglycemia-administration";
 import { settleEncounterPrimary } from "./western-encounter-primary";
+import { settleWesternRecurrenceQualifier } from "./western-recurrence-qualifier";
 import { lineageWordingMatchingDirection } from "./lineage-formula-wording";
 import { populationMatchedPrecautions } from "./population-matched-precautions";
 import { currentMedicationPrecautions } from "./current-medication-precautions";
@@ -50,7 +51,7 @@ import { drugNamesInAllergyPhrases, medicationStoppedOrOnlyPast, medicationNotTa
 import { MODEL_CONDITIONAL_MODIFICATION_EVIDENCE_SOURCE, retainModificationFindings, topUpTextbookMainSymptom, modificationPresenceFactsFor, precautionWithoutAbsentHerbs, presentModificationCondition, standbyModificationsDelivered, sameDrugDifferentProcessing, withoutModificationsOnAbsentHerbs, withoutRepeatedAddedHerbs, withoutMutuallyIncompatibleAdditions, withoutRepeatedModificationConditions } from "./m04-proposal-compiler";
 import { canonicalTcmHerbIdentity } from "./diagnosis-stage-contract";
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
-import { textbookDiseaseTypicalManifestation, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance, textbookRowCitable } from "./tcm-textbook-syndromes";
+import { textbookDiseaseTypicalManifestation, textbookDefinitionSuitableForDisplay, textbookDifferentialTextWithoutNumber, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance, textbookRowCitable } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { boundaryRuleShown, followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
@@ -78,7 +79,7 @@ import { assessPregnancyState } from "./clinical-state";
 import { allergenAvoidPhrase, allergenHerbMatch, allergenMatchesInText, allergenRecordPhrase, recordedAllergensInText } from "./allergen-profile";
 import dietRestrictionCategoriesJson from "../data/diet-restriction-food-categories.source.json" with { type: "json" };
 import drugConditionCautionsJson from "../data/western-drug-condition-cautions.source.json" with { type: "json" };
-import { MIN_RECORD_SIGNS, excessElementMentionsIn, methodImpliedExcessElements, namedExcessElements, recordExcessSigns, uncertaintyAnsweredByRecord, uncertaintyWithRecordedAnswers, uncertaintyAsksListedElement, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording, withMethodImpliedNatureElements } from "./analysis-element-closure";
+import { MIN_RECORD_SIGNS, excessElementMentionsIn, methodImpliedExcessElements, namedExcessElements, recordExcessSigns, uncertaintyAnsweredByRecord, uncertaintiesWithRecordedAnswers, uncertaintyAsksListedElement, uncertaintyDiscussesSyndromeNaming, uncertaintyLeaksPromptWording, withMethodImpliedNatureElements } from "./analysis-element-closure";
 import { GENERIC_PRIORITY_FIRST_STEP, previousPriorityFirstStepSentences, priorityEvaluationFirstStep, priorityEvaluationFollowUpNode, priorityTargetWithEstablishedDiagnosis, quoteWithoutDeniedLeadingItems, recordedFindingReading, recordedMedicationHistoryList, type DoseWithheldFollowupKind, type PriorityEvaluationTarget } from "./diagnosis-safety";
 
 /**
@@ -931,13 +932,16 @@ const VERBATIM_KEYS = new Set([
  */
 /**
  * 紧挨着重复的同一小句只留一个（第四十六轮复核：「未发现感染灶，未发现感染灶，未发现感染灶」「病历记录心电图：窦性心律，」连写三遍，
- * 都是前面几步各替换一次留下的）。小句至少 3 个汉字、分隔符相同时才算，列举「A、A」这类不同分隔的不动。
+ * 都是前面几步各替换一次留下的）。小句至少 3 个汉字，句首、句尾、混用逗号/分号也收口；顿号列举不动。
  */
 function withoutAdjacentRepeatedClauses(value: string): string {
-  return value.replace(/([^，,；;。、]*[\u4e00-\u9fff][^，,；;。、]*?)([，,；;])(?:\s*\1\2)+/gu, (whole, clause: string, separator: string) =>
-    (clause.match(/[\u4e00-\u9fff]/gu) || []).length >= 3 ? `${clause}${separator}` : whole)
-    .replace(/([，,；;])([^，,；;。、]*[\u4e00-\u9fff][^，,；;。、]*?)(?:[，,；;]\2)+(?=[。]|$)/gu, (whole, separator: string, clause: string) =>
-      (clause.match(/[\u4e00-\u9fff]/gu) || []).length >= 3 ? `${separator}${clause}` : whole);
+  let out = value;
+  for (;;) {
+    const next = out.replace(/(^|[，,；;。])([^，,；;。、\n]*[\u4e00-\u9fff][^，,；;。、\n]*?)([，,；;])\s*\2(?=[，,；;。]|$)/gu, (whole, lead: string, clause: string) =>
+      (clause.match(/[\u4e00-\u9fff]/gu) || []).length >= 3 ? `${lead}${clause}` : whole);
+    if (next === out) return out;
+    out = next;
+  }
 }
 
 // 「推之未诉固定」「按之未诉疼痛」：查体动作后面接「未诉」读不通——推之、按之是医生查体所见，不是患者自诉；病历没有这项查体时这一项本就没有依据
@@ -1381,10 +1385,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
   // 只认「有无/是否有/是否伴」后面的那几项都被病历否认（recordedFindingReading = denied）；有一项没被否认就整条照留。
   const pathogenesisForUncertainty = record(reasoning.pathogenesis);
   if (options?.recordText && pathogenesisForUncertainty && Array.isArray(pathogenesisForUncertainty.uncertainties)) {
-    pathogenesisForUncertainty.uncertainties = records(pathogenesisForUncertainty.uncertainties).flatMap((row) => {
-      const pending = uncertaintyWithRecordedAnswers(row, options.recordText!);
-      return pending ? [pending] : [];
-    });
+    pathogenesisForUncertainty.uncertainties = uncertaintiesWithRecordedAnswers(records(pathogenesisForUncertainty.uncertainties), options.recordText);
     pathogenesisForUncertainty.uncertainties = records(pathogenesisForUncertainty.uncertainties).filter((row) => !uncertaintyAsksDeniedFinding(String(row.item || ""), options.recordText || ""));
   }
   // 待核实栏里写着「已明」「已排除」的条目（模型写「有汗无汗已明…表虚表实鉴别已排除」，第四十四轮回看）：自己说已经定了，就不是待核实的事，不留。
@@ -3907,12 +3908,36 @@ function projectDeliveredReasoningInternal<T>(reasoning: T, rawOptions: Delivere
   if (managementForSigns && typeof managementForSigns.followupSafetyNet === "string" && options?.herbBoundaryAudience) {
     managementForSigns.followupSafetyNet = followupSignsForPopulation(managementForSigns.followupSafetyNet, options.herbBoundaryAudience);
   }
+  // 开方载荷携带上一步诊断；同样收口已答问题、性别和复发限定，不重算轴或西医确定度。
+  // 只读签名投影不更改已签结论。
+  if (projected.stage === "prescribe" && options?.recordText) {
+    const pending = record(projected.pathogenesis);
+    if (pending && Array.isArray(pending.uncertainties)) pending.uncertainties = uncertaintiesWithRecordedAnswers(records(pending.uncertainties), options.recordText);
+    const overview = record(projected.overview);
+    if (overview && Array.isArray(overview.tcmDiseaseDifferentials)) overview.tcmDiseaseDifferentials = records(overview.tcmDiseaseDifferentials)
+      .filter((row) => tcmDifferentialDiseaseFitsPatient(String(row.diseaseName || ""), { sex: options.patientSex }));
+    const western = record(projected.westernDiagnosis);
+    const primary = record(western?.primary);
+    if (!readOnlyConclusions && primary && typeof primary.name === "string") {
+      const oldName = primary.name;
+      const oldBasis = String(primary.clinicalRationale || "");
+      const settled = settleWesternRecurrenceQualifier(oldName, oldBasis, options.recordText);
+      if (settled.name !== oldName) {
+        primary.name = settled.name;
+        primary.clinicalRationale = settled.basis;
+        if (Array.isArray(primary.supportingFacts)) primary.supportingFacts = primary.supportingFacts.map((fact) => fact === oldBasis ? settled.basis : fact);
+        for (const candidate of records(western?.candidates)) if (candidate.name === oldName) candidate.name = settled.name;
+      }
+    }
+  }
   rewordDeep(projected);
   // 定义是逐字引文，放在文字投影之后，避免通用措辞规则改写教材原文。
-  if (projected.stage === "diagnose") {
+  if (projected.stage === "diagnose" || projected.stage === "prescribe") {
     for (const item of records(record(projected.overview)?.tcmDiseaseDifferentials)) {
-      const definition = textbookDiseaseTypicalManifestation(String(item.diseaseName || ""));
-      item.typicalManifestation = definition;
+      if (projected.stage === "diagnose") item.typicalManifestation = textbookDiseaseTypicalManifestation(String(item.diseaseName || ""));
+      else if (typeof item.typicalManifestation === "string" && !textbookDefinitionSuitableForDisplay(item.typicalManifestation)) item.typicalManifestation = "";
+      // 教材兜底条目的序号只是目录结构，不能作为临床区分要点交付（含旧缓存）。
+      if (typeof item.distinguishingPoints === "string") item.distinguishingPoints = textbookDifferentialTextWithoutNumber(item.distinguishingPoints);
     }
   }
   // 去理由里的重复放在措辞替换之后：红旗边界句先换成「急危重风险未排除，请先完成急诊或转诊评估…」才对得上项目「急危重风险尚未排除」
