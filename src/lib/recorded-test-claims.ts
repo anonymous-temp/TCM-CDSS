@@ -274,7 +274,10 @@ export function settleWesternDiagnosisBasis(name: string, basis: string, recordT
       ...(tests.length ? [`尚缺${tests.join("、")}，需核实后确认${core}。`] : []),
     ].join("");
     // 文字跟着结论走；避免把旧的缺检查断言和确定的缺项并列。
-    const retained = out.join("").split(/[。；;]/u).filter((part) => !CONFIRMATION_GAP.test(part) && !part.startsWith("尚缺"));
+    // 模型已写的「病程未满N个月」一句由定稿的缺项句代替，不并列重复。
+    const unmetCourse = new RegExp(certaintyPolicy.unmetCoursePattern, "u");
+    const retained = out.join("").split(/[。；;]/u).filter((part) => !CONFIRMATION_GAP.test(part) && !part.startsWith("尚缺") &&
+      !(courseGap.length && unmetCourse.test(part)));
     out.splice(0, out.length, ...retained.filter(Boolean).map((part) => `${part}。`), missingSentence);
   }
   return { name: criteria ? (pending ? `${core}待查` : core) : pending && !/待[查排]$/u.test(name) ? `${core}待查` : treated ? core : name,

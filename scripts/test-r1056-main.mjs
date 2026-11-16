@@ -219,7 +219,9 @@ await check("4.1 R48：表内疾病按病程定稿为待查，不再问依据提
   assert.equal(asked, 0);
   assert.equal(out.westernDiagnosis.primary.name, "功能性消化不良待查");
   assert.equal(out.westernDiagnosis.candidates[0].name, "功能性消化不良待查");
-  assert.match(out.westernDiagnosis.primary.clinicalRationale, /病程满180天/u);
+  // r48：病程缺项按月写（「病程未满6个月」），模型原句里同样的病程话不再并列重复。
+  assert.match(out.westernDiagnosis.primary.clinicalRationale, /病程未满6个月，功能性消化不良需随访后确认/u);
+  assert.equal(out.westernDiagnosis.primary.clinicalRationale.match(/病程未满/gu)?.length, 1);
   assert.doesNotMatch(out.westernDiagnosis.primary.clinicalRationale, /符合功能性消化不良/u);
 });
 
