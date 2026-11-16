@@ -389,7 +389,7 @@ await check("8.1 教材代表方的原书：化肝煎取国家经典名方目录
   assert.match(provenance.textbookFormulaOriginalSource("竹叶石膏汤", ["竹叶", "石膏", "半夏", "麦冬", "人参", "甘草", "粳米"]), /伤寒论/);
 });
 
-await check("8.2 不给剂量页合方出处每张方名都留（H 集 12291「《三因极一病证方论》；四神丸：《内科摘要》」）；单方去掉方名前缀（对照）", async () => {
+await check("8.2 不给剂量页：自拟方不沿用缓存里的成方出处（第四十八轮，单方、合方写法都写自拟方）", async () => {
   const checkpointModule = await jiti.import("../src/lib/m04-delivery-checkpoint.ts");
   const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
   const { compileM04Proposal } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
@@ -424,8 +424,11 @@ await check("8.2 不给剂量页合方出处每张方名都留（H 集 12291「�
     });
     return checkpointModule.renderM04DeliveryCheckpoint(checkpoint, prior, "dose_withheld", ["占位原因"]);
   };
-  assert.match(render("附子理中汤：《三因极一病证方论》；四神丸：《内科摘要》"), /出处：附子理中汤：《三因极一病证方论》；四神丸：《内科摘要》/);
-  assert.match(render("化肝煎：《景岳全书》"), /出处：《景岳全书》/);
+  // 第四十八轮：自拟方不再沿用按药味重合挑出的旧出处（甲方 11.15 复核「组方参考…需医生复核」与方义不是一张方），只写自拟方；
+  // 合方出处「A：《书》；B：《书》」逐张保留的渲染分支本轮未改（m04-delivery-checkpoint.ts 出处一行）。
+  assert.match(render("附子理中汤：《三因极一病证方论》；四神丸：《内科摘要》"), /出处：自拟方/);
+
+  assert.match(render("化肝煎：《景岳全书》"), /出处：自拟方/);
 });
 
 // ───── 9 原方扣除药味的说明 ─────

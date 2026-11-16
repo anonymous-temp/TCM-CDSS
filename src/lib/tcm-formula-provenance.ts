@@ -3523,7 +3523,7 @@ export function selfDevisedReferenceSource(_herbNames: readonly string[], refere
 }
 
 export function selfDevisedSourceForAnalysis(analysis: string): string {
-  const basis = /(?:以|参照)([^。；;]{2,60}?)(?:为基础|化裁)/u.exec(analysis)?.[1] || "";
+  const basis = /以([^。；;]{2,60}?)为基础/u.exec(analysis)?.[1] || "";
   return selfDevisedReferenceSource([], identifyKnownFormulaNames(basis));
 }
 
