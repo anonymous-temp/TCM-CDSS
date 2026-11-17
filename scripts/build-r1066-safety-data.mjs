@@ -11,7 +11,7 @@ const ensure=(ok,message)=>{if(!ok)throw Error(message);};
 ensure(herbs.category==='活血化瘀药','herb category');
 ensure(Array.isArray(drug.medicationListLabels)&&drug.medicationListLabels.length>0,'medication list labels');
 for(const row of herbs.entries){
- ensure(row.name&&Array.isArray(row.aliases)&&['increase_bleeding','decrease_anticoagulation'].includes(row.direction),`herb identity/direction ${row.name}`);
+ ensure(row.name&&Array.isArray(row.aliases)&&['increase_bleeding','decrease_anticoagulation','conflicting_evidence'].includes(row.direction),`herb identity/direction ${row.name}`);
  ensure(row.basisType&&row.source?.url&&row.source?.quote,`herb provenance ${row.name}`);
 }
 const rules=[...new Map([...oldDrug.rules,...drug.rules].map(row=>[row.id,row])).values()];

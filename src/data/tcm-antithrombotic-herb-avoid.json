@@ -904,7 +904,7 @@
         "炙甘草",
         "生甘草"
       ],
-      "direction": "increase_bleeding",
+      "direction": "conflicting_evidence",
       "basisType": "interaction_database_review",
       "confidence": "medium",
       "source": {
@@ -945,7 +945,8 @@
           "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
         }
       ],
-      "evidence": "抗栓药物数据库将甘草与抗凝/抗血小板药的相互作用评为严重级（major），国内药学科普称其抑制代谢酶而增强华法林作用；但另有资料认为甘草可能增加华法林清除。"
+      "evidence": "抗栓药物数据库将甘草与抗凝/抗血小板药的相互作用评为严重级（major），国内药学科普称其抑制代谢酶而增强华法林作用；但另有资料认为甘草可能增加华法林清除。",
+      "directionNote": "研究文件 R1-antithrombotic-herbs.json 记甘草与华法林相互作用的方向互相矛盾（directionNote），不入 D2 禁用闭集；总指挥 2026-11-17 定：甘草/炙甘草作使药调和，在抗凝患者处方中保留。"
     },
     {
       "name": "生姜",
@@ -1544,6 +1545,6 @@
     ]
   },
   "sourceHashes": {
-    "tcm-antithrombotic-herb-avoid.source.json": "b2caf03596682b94ba50dec783c4ecb206ecf6c43f6dc00abbde6f9b3b4905e6"
+    "tcm-antithrombotic-herb-avoid.source.json": "6d8ea0308548d0c2195ede067357750adce61a4e4b6d59196ded35105ef978e8"
   }
 }

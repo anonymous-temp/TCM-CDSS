@@ -1,1546 +1,1547 @@
 {
-  "schemaVersion": "tcm-antithrombotic-herb-avoid-v1",
-  "note": "第四十九轮 D2：当前抗凝或抗血小板治疗时，活血化瘀药及增强抗凝/出血方向的研究条目不入方；减弱抗凝不作为禁药。教材分类沿用知识库判据，出处指向受治理知识库原条目。",
-  "category": "活血化瘀药",
-  "entries": [
+ "schemaVersion": "tcm-antithrombotic-herb-avoid-v1",
+ "note": "第四十九轮 D2：当前抗凝或抗血小板治疗时，活血化瘀药及增强抗凝/出血方向的研究条目不入方；减弱抗凝不作为禁药。教材分类沿用知识库判据，出处指向受治理知识库原条目。",
+ "category": "活血化瘀药",
+ "entries": [
+  {
+   "name": "三棱",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/三棱",
+    "quote": "三棱：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "丹参",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/丹参",
+    "quote": "丹参：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "乳香",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/乳香",
+    "quote": "乳香：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "五灵脂",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/五灵脂",
+    "quote": "五灵脂：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "儿茶",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/儿茶",
+    "quote": "儿茶：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "凌霄花",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/凌霄花",
+    "quote": "凌霄花：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "刘寄奴",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/刘寄奴",
+    "quote": "刘寄奴：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "北刘寄奴",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/北刘寄奴",
+    "quote": "北刘寄奴：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "土牛膝",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/土牛膝",
+    "quote": "土牛膝：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "土鳖虫",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/土鳖虫",
+    "quote": "土鳖虫：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "姜黄",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/姜黄",
+    "quote": "姜黄：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "川牛膝",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/川牛膝",
+    "quote": "川牛膝：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "川芎",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/川芎",
+    "quote": "川芎：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "延胡索",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/延胡索",
+    "quote": "延胡索：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "斑鳌",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/斑鳌",
+    "quote": "斑鳌：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "月季花",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/月季花",
+    "quote": "月季花：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "桃仁",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/桃仁",
+    "quote": "桃仁：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "水蛭",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/水蛭",
+    "quote": "水蛭：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "没药",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/没药",
+    "quote": "没药：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "泽兰",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/泽兰",
+    "quote": "泽兰：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "牛膝",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/牛膝",
+    "quote": "牛膝：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "王不留行",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/王不留行",
+    "quote": "王不留行：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "益母草",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/益母草",
+    "quote": "益母草：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "穿山甲",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/穿山甲",
+    "quote": "穿山甲：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "红花",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/红花",
+    "quote": "红花：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "自然铜",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/自然铜",
+    "quote": "自然铜：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "苏木",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/苏木",
+    "quote": "苏木：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "茺蔚子",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/茺蔚子",
+    "quote": "茺蔚子：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "莪术",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/莪术",
+    "quote": "莪术：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "虻虫",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/虻虫",
+    "quote": "虻虫：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "血竭",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/血竭",
+    "quote": "血竭：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "郁金",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/郁金",
+    "quote": "郁金：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "降香",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/降香",
+    "quote": "降香：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "马钱子",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/马钱子",
+    "quote": "马钱子：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "骨碎补",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/骨碎补",
+    "quote": "骨碎补：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "鸡血藤",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "textbook_category",
+   "source": {
+    "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
+    "url": "kb://tcm-herb-function-categories/鸡血藤",
+    "quote": "鸡血藤：活血化瘀药、活血止痛药",
+    "file": "src/data/tcm-herb-function-categories.json",
+    "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
+   }
+  },
+  {
+   "name": "丹参",
+   "aliases": [
+    "紫丹参"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "clinical_review",
+   "confidence": "high",
+   "source": {
+    "url": "https://pubmed.ncbi.nlm.nih.gov/11302416/",
+    "title": "Chan TY. Interaction between warfarin and danshen (Salvia miltiorrhiza). Ann Pharmacother 2001;35(4):501-4（摘要）",
+    "quote": "Because of both pharmacokinetic and pharmacodynamic interactions, danshen should be avoided in patients taking warfarin.",
+    "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=11302416&rettype=abstract&retmode=text",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
     {
-      "name": "三棱",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/三棱",
-        "quote": "三棱：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
+     "url": "https://pubmed.ncbi.nlm.nih.gov/11302416/",
+     "title": "Chan TY. Interaction between warfarin and danshen (Salvia miltiorrhiza). Ann Pharmacother 2001;35(4):501-4（摘要）",
+     "quote": "Because of both pharmacokinetic and pharmacodynamic interactions, danshen should be avoided in patients taking warfarin.",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=11302416&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
     },
     {
-      "name": "丹参",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/丹参",
-        "quote": "丹参：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
+     "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
+     "quote": "interaction between Danshen and warfarin can be considered as highly probable",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
     },
     {
-      "name": "乳香",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/乳香",
-        "quote": "乳香：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
+     "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
+     "quote": "Therefore, it may be prudent to advice against concurrent use of Danshen with warfarin.",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
     },
     {
-      "name": "五灵脂",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/五灵脂",
-        "quote": "五灵脂：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "For instance, commonly used CHMs including danshen ( Salvia miltiorrhiza ), dong quai ( Angelica sinensis ), ginger ( Zingiber officinale ), and licorice ( Glycyrrhizae uralensis ) were documented to have major interactions with anticoagulants or antiplatelet drugs.",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
     },
     {
-      "name": "儿茶",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/儿茶",
-        "quote": "儿茶：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
+     "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
+     "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
+     "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
     },
     {
-      "name": "凌霄花",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/凌霄花",
-        "quote": "凌霄花：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "刘寄奴",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/刘寄奴",
-        "quote": "刘寄奴：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "北刘寄奴",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/北刘寄奴",
-        "quote": "北刘寄奴：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "土牛膝",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/土牛膝",
-        "quote": "土牛膝：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "土鳖虫",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/土鳖虫",
-        "quote": "土鳖虫：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "姜黄",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/姜黄",
-        "quote": "姜黄：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "川牛膝",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/川牛膝",
-        "quote": "川牛膝：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "川芎",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/川芎",
-        "quote": "川芎：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "延胡索",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/延胡索",
-        "quote": "延胡索：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "斑鳌",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/斑鳌",
-        "quote": "斑鳌：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "月季花",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/月季花",
-        "quote": "月季花：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "桃仁",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/桃仁",
-        "quote": "桃仁：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "水蛭",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/水蛭",
-        "quote": "水蛭：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "没药",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/没药",
-        "quote": "没药：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "泽兰",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/泽兰",
-        "quote": "泽兰：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "牛膝",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/牛膝",
-        "quote": "牛膝：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "王不留行",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/王不留行",
-        "quote": "王不留行：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "益母草",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/益母草",
-        "quote": "益母草：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "穿山甲",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/穿山甲",
-        "quote": "穿山甲：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "红花",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/红花",
-        "quote": "红花：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "自然铜",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/自然铜",
-        "quote": "自然铜：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "苏木",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/苏木",
-        "quote": "苏木：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "茺蔚子",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/茺蔚子",
-        "quote": "茺蔚子：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "莪术",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/莪术",
-        "quote": "莪术：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "虻虫",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/虻虫",
-        "quote": "虻虫：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "血竭",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/血竭",
-        "quote": "血竭：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "郁金",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/郁金",
-        "quote": "郁金：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "降香",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/降香",
-        "quote": "降香：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "马钱子",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/马钱子",
-        "quote": "马钱子：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "骨碎补",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/骨碎补",
-        "quote": "骨碎补：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "鸡血藤",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "textbook_category",
-      "source": {
-        "title": "中药学（第十版）功效归类；仅用于功效语义校验，不替代药典剂量与院内审方",
-        "url": "kb://tcm-herb-function-categories/鸡血藤",
-        "quote": "鸡血藤：活血化瘀药、活血止痛药",
-        "file": "src/data/tcm-herb-function-categories.json",
-        "sourceSha256": "6d7c8a406b37fae6746801dbca2d0d72548e1d2bb2214ee680b12cb1337fc5f3"
-      }
-    },
-    {
-      "name": "丹参",
-      "aliases": [
-        "紫丹参"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "clinical_review",
-      "confidence": "high",
-      "source": {
-        "url": "https://pubmed.ncbi.nlm.nih.gov/11302416/",
-        "title": "Chan TY. Interaction between warfarin and danshen (Salvia miltiorrhiza). Ann Pharmacother 2001;35(4):501-4（摘要）",
-        "quote": "Because of both pharmacokinetic and pharmacodynamic interactions, danshen should be avoided in patients taking warfarin.",
-        "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=11302416&rettype=abstract&retmode=text",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/11302416/",
-          "title": "Chan TY. Interaction between warfarin and danshen (Salvia miltiorrhiza). Ann Pharmacother 2001;35(4):501-4（摘要）",
-          "quote": "Because of both pharmacokinetic and pharmacodynamic interactions, danshen should be avoided in patients taking warfarin.",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=11302416&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
-          "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
-          "quote": "interaction between Danshen and warfarin can be considered as highly probable",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
-          "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
-          "quote": "Therefore, it may be prudent to advice against concurrent use of Danshen with warfarin.",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "For instance, commonly used CHMs including danshen ( Salvia miltiorrhiza ), dong quai ( Angelica sinensis ), ginger ( Zingiber officinale ), and licorice ( Glycyrrhizae uralensis ) were documented to have major interactions with anticoagulants or antiplatelet drugs.",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
-          "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
-          "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
-          "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
-          "quote": "对照组患者使用的口服抗凝血药包括华法林、利伐沙班、达比加群酯;联合组患者联合应用的活血化瘀类中药饮片包括丹参、川芎、牛膝等。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "丹参兼有抗血小板、抗凝与促纤溶作用，并可改变华法林药代动力学；已有服华法林者加服丹参后INR显著升高并出血的病例，综述将其与华法林的相互作用评为“极可能”，建议服华法林者避免合用；国内回顾性研究显示含丹参等的活血化瘀饮片与华法林/利伐沙班/达比加群合用时出血事件增多。"
-    },
-    {
-      "name": "当归",
-      "aliases": [
-        "全当归",
-        "当归身",
-        "当归尾",
-        "酒当归"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "case_report",
-      "confidence": "high",
-      "source": {
-        "url": "https://pubmed.ncbi.nlm.nih.gov/10417036/",
-        "title": "Page RL 2nd, Lawrence JD. Potentiation of warfarin by dong quai. Pharmacotherapy 1999;19(7):870-6（摘要）",
-        "quote": "A 46-year-old African-American woman with atrial fibrillation stabilized on warfarin experienced a greater than 2-fold elevation in prothrombin time and international normalized ratio after taking dong quai concurrently for 4 weeks.",
-        "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=10417036&rettype=abstract&retmode=text",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/10417036/",
-          "title": "Page RL 2nd, Lawrence JD. Potentiation of warfarin by dong quai. Pharmacotherapy 1999;19(7):870-6（摘要）",
-          "quote": "A 46-year-old African-American woman with atrial fibrillation stabilized on warfarin experienced a greater than 2-fold elevation in prothrombin time and international normalized ratio after taking dong quai concurrently for 4 weeks.",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=10417036&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
-          "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
-          "quote": "However, for safety, the use of Chinese angelica should be avoided unless the effects on anticoagulation can be monitored.",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/dong-quai",
-          "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Dong Quai",
-          "quote": "Dong quai may increase your risk of bleeding.",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "For instance, commonly used CHMs including danshen ( Salvia miltiorrhiza ), dong quai ( Angelica sinensis ), ginger ( Zingiber officinale ), and licorice ( Glycyrrhizae uralensis ) were documented to have major interactions with anticoagulants or antiplatelet drugs.",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
-          "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
-          "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "当归含香豆素类成分，已有稳定服华法林者加服当归后PT/INR升高超过1倍、停用后恢复的病例；综述将相互作用评为“很可能”，建议除非能监测抗凝否则避免合用；抗栓药物数据库评为严重级（major）相互作用。"
-    },
-    {
-      "name": "银杏叶",
-      "aliases": [
-        "银杏叶提取物",
-        "白果叶"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "clinical_review",
-      "confidence": "high",
-      "source": {
-        "url": "https://pubmed.ncbi.nlm.nih.gov/19719333/",
-        "title": "Izzo AA, Ernst E. Interactions between herbal medicines and prescribed drugs: an updated systematic review. Drugs 2009;69(13):1777-98（摘要）",
-        "quote": "Clinical cases indicate interactions of ginkgo with antiepileptics, aspirin (acetylsalicylic acid), diuretics, ibuprofen, risperidone, rofecoxib, trazodone and warfarin.",
-        "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=19719333&rettype=abstract&retmode=text",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/19719333/",
-          "title": "Izzo AA, Ernst E. Interactions between herbal medicines and prescribed drugs: an updated systematic review. Drugs 2009;69(13):1777-98（摘要）",
-          "quote": "Clinical cases indicate interactions of ginkgo with antiepileptics, aspirin (acetylsalicylic acid), diuretics, ibuprofen, risperidone, rofecoxib, trazodone and warfarin.",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=19719333&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
-          "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
-          "quote": "Evidences are insufficient to justify advising patients taking warfarin to avoid ginkgo, but patients are suggested to monitor their INR when co-administrated ginkgo with warfarin.",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/ginkgo",
-          "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Ginkgo",
-          "quote": "Human studies and case reports indicate that ginkgo may induce or prolong bleeding time",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/21649517/",
-          "title": "Chan AL, et al. Risk of hemorrhage associated with co-prescriptions for Ginkgo biloba and antiplatelet or anticoagulant drugs. J Altern Complement Med 2011;17(6):513-7（摘要）",
-          "quote": "Although the combination of G. biloba extract with antiplatelet or anticoagulants showed insignificant correlation to the risk of hemorrhage, patients using ginkgo, particularly those with known bleeding risks and elderly, should take a particular attention to the possibility of increasing risk of bleeding.",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=21649517&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "The major consequences of these interactions were increased bleeding risks due to the additive anticoagulant or antiplatelet effects of the CHMs, specifically danshen, dong quai, ginger, ginkgo, licorice, and turmeric.",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
-          "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
-          "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "银杏内酯有抗血小板活化因子作用，有与华法林、阿司匹林合用后出血（含颅内出血）的病例报告，多篇综述与数据库将其列为与抗栓药存在出血风险的药物；但对照研究未证实其改变华法林药效，综述建议合用时监测INR而非一律禁用。证据多来自银杏叶提取物而非饮片煎剂。"
-    },
-    {
-      "name": "枸杞子",
-      "aliases": [
-        "枸杞",
-        "宁夏枸杞"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "case_report",
-      "confidence": "high",
-      "source": {
-        "url": "https://pubmed.ncbi.nlm.nih.gov/18281140/",
-        "title": "Leung H, et al. Warfarin overdose due to the possible effects of Lycium barbarum L. Food Chem Toxicol 2008;46(5):1860-2（摘要）",
-        "quote": "We reported an 80-year-old Chinese woman on chronic stable dose of warfarin who experienced two episodes of an elevated international normalized ratio (INR) after drinking herbal tea containing Lycium barbarum L.",
-        "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=18281140&rettype=abstract&retmode=text",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/18281140/",
-          "title": "Leung H, et al. Warfarin overdose due to the possible effects of Lycium barbarum L. Food Chem Toxicol 2008;46(5):1860-2（摘要）",
-          "quote": "We reported an 80-year-old Chinese woman on chronic stable dose of warfarin who experienced two episodes of an elevated international normalized ratio (INR) after drinking herbal tea containing Lycium barbarum L.",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=18281140&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
-          "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
-          "quote": "These cases reports showed that Lycium might potentiate effects of warfarin.",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/lycium",
-          "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Lycium",
-          "quote": "You are taking warfarin or other anticoagulants: A few cases of elevated INR were reported in patients on anticoagulant therapy following consumption of Lycium products.",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
-          "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
-          "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
-          "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
-          "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "多例稳定服用华法林的患者饮用含枸杞的茶、果汁或酒后INR升高，并有鼻出血、皮下瘀斑、直肠出血的报告；MSKCC 将服用华法林或其他抗凝药列为不宜服用枸杞产品的情形。"
-    },
-    {
-      "name": "大蒜",
-      "aliases": [
-        "独头蒜"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "clinical_review",
-      "confidence": "high",
-      "source": {
-        "url": "https://pubmed.ncbi.nlm.nih.gov/19719333/",
-        "title": "Izzo AA, Ernst E. Interactions between herbal medicines and prescribed drugs: an updated systematic review. Drugs 2009;69(13):1777-98（摘要）",
-        "quote": "Garlic (Allium sativum) interacts with chlorpropamide, fluindione, ritonavir and warfarin; it also reduces plasma concentrations of chlorzoxazone (a CYP2E1 probe).",
-        "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=19719333&rettype=abstract&retmode=text",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/19719333/",
-          "title": "Izzo AA, Ernst E. Interactions between herbal medicines and prescribed drugs: an updated systematic review. Drugs 2009;69(13):1777-98（摘要）",
-          "quote": "Garlic (Allium sativum) interacts with chlorpropamide, fluindione, ritonavir and warfarin; it also reduces plasma concentrations of chlorzoxazone (a CYP2E1 probe).",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=19719333&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
-          "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
-          "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-          "locator": "Table 3：Severity “Major”，“documented to increase bleeding risks of the six anticoagulant/antiplatelet drugs” 一栏列有 Garlic",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "大蒜与华法林合用有抗凝过度的临床报告，系统综述列为与华法林有相互作用的草药，抗栓药物数据库评为严重级（major）出血风险相互作用（证据多为大蒜制剂/补充剂）。"
-    },
-    {
-      "name": "西洋参",
-      "aliases": [
-        "花旗参",
-        "洋参"
-      ],
-      "direction": "decrease_anticoagulation",
-      "basisType": "randomized_trial",
-      "confidence": "high",
-      "source": {
-        "url": "https://pubmed.ncbi.nlm.nih.gov/15238367/",
-        "title": "Yuan CS, et al. American ginseng reduces warfarin's effect in healthy patients: a randomized, controlled trial. Ann Intern Med 2004;141(1):23-7（摘要）",
-        "quote": "CONCLUSIONS: American ginseng reduces warfarin's anticoagulant effect. When prescribing warfarin, physicians should ask patients about ginseng use.",
-        "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15238367&rettype=abstract&retmode=text",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/15238367/",
-          "title": "Yuan CS, et al. American ginseng reduces warfarin's effect in healthy patients: a randomized, controlled trial. Ann Intern Med 2004;141(1):23-7（摘要）",
-          "quote": "CONCLUSIONS: American ginseng reduces warfarin's anticoagulant effect. When prescribing warfarin, physicians should ask patients about ginseng use.",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15238367&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/ginseng-american",
-          "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Ginseng (American)",
-          "quote": "Warfarin: American ginseng has been shown to antagonize warfarin's effects in humans",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
-          "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
-          "quote": "另外，人参、西洋参、连翘等可减弱华法林的抗凝效果。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "随机双盲安慰剂对照试验显示，服用西洋参2周后华法林血药浓度与INR峰值显著下降，作者建议开华法林时询问人参类使用；合用可能导致抗凝不足、血栓风险。"
-    },
-    {
-      "name": "贯叶金丝桃",
-      "aliases": [
-        "圣约翰草",
-        "贯叶连翘"
-      ],
-      "direction": "decrease_anticoagulation",
-      "basisType": "clinical_trial_and_label",
-      "confidence": "high",
-      "source": {
-        "url": "https://pubmed.ncbi.nlm.nih.gov/15089812/",
-        "title": "Jiang X, et al. Effect of St John's wort and ginseng on the pharmacokinetics and pharmacodynamics of warfarin in healthy subjects. Br J Clin Pharmacol 2004;57(5):592-9（摘要）",
-        "quote": "St John's wort significantly induced the apparent clearance of both S-warfarin and R-warfarin, which in turn resulted in a significant reduction in the pharmacological effect of rac-warfarin.",
-        "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15089812&rettype=abstract&retmode=text",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/15089812/",
-          "title": "Jiang X, et al. Effect of St John's wort and ginseng on the pharmacokinetics and pharmacodynamics of warfarin in healthy subjects. Br J Clin Pharmacol 2004;57(5):592-9（摘要）",
-          "quote": "St John's wort significantly induced the apparent clearance of both S-warfarin and R-warfarin, which in turn resulted in a significant reduction in the pharmacological effect of rac-warfarin.",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15089812&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=10db92f9-2300-4a80-836b-673e1ae91610",
-          "title": "XARELTO (rivaroxaban) US prescribing information, DailyMed",
-          "quote": "Avoid concomitant use of XARELTO with drugs that are combined P-gp and strong CYP3A inducers (e.g., carbamazepine, phenytoin, rifampin, St. John's wort)",
-          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/10db92f9-2300-4a80-836b-673e1ae91610.xml",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=e9481622-7cc6-418a-acb6-c5450daae9b0",
-          "title": "ELIQUIS (apixaban) US prescribing information, DailyMed",
-          "quote": "Avoid concomitant use of ELIQUIS with combined P-gp and strong CYP3A4 inducers (e.g., rifampin, carbamazepine, phenytoin, St. John’s wort) because such drugs will decrease exposure to apixaban",
-          "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/e9481622-7cc6-418a-acb6-c5450daae9b0.xml",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
-          "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
-          "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "贯叶金丝桃诱导CYP3A4/P-gp，随机交叉试验显示其显著加快华法林清除、降低抗凝作用；利伐沙班与阿哌沙班美国说明书均要求避免与其合用（会降低药物暴露）。"
-    },
-    {
-      "name": "人参",
-      "aliases": [
-        "红参",
-        "生晒参",
-        "园参"
-      ],
-      "direction": "decrease_anticoagulation",
-      "basisType": "clinical_review",
-      "confidence": "medium",
-      "source": {
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
-        "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
-        "quote": "One study showed that Ginseng (Ginseng capsules three times daily for two weeks) modestly decreased the anticoagulant effects of warfarin (INR decreased from 3.1 to 1.5)",
-        "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
-          "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
-          "quote": "One study showed that Ginseng (Ginseng capsules three times daily for two weeks) modestly decreased the anticoagulant effects of warfarin (INR decreased from 3.1 to 1.5)",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
-          "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
-          "quote": "Based on the above, interaction between Ginseng and warfarin was defined as possible .",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/15089812/",
-          "title": "Jiang X, et al. Br J Clin Pharmacol 2004;57(5):592-9（摘要）",
-          "quote": "Coadministration of warfarin with ginseng did not affect the pharmacokinetics or pharmacodynamics of either S-warfarin or R-warfarin.",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15089812&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/ginseng-asian",
-          "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Ginseng (Asian)",
-          "quote": "Anticoagulants: Studies on whether P. ginseng can antagonize the effects of anticoagulants are mixed",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/ginseng-asian",
-          "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Ginseng (Asian)",
-          "quote": "Antiplatelets : P. ginseng may increase aspirin bioavailability",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
-          "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
-          "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
-          "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
-          "quote": "另外，人参、西洋参、连翘等可减弱华法林的抗凝效果。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "有服华法林者加服人参后INR下降、甚至抗凝不足并发血栓的病例；但健康受试者随机交叉试验未见人参改变华法林药动学/药效学，证据不一致；另有资料提示人参可增加阿司匹林生物利用度。合用宜监测INR。"
-    },
-    {
-      "name": "甘草",
-      "aliases": [
-        "炙甘草",
-        "生甘草"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "interaction_database_review",
-      "confidence": "medium",
-      "source": {
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-        "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-        "quote": "For instance, commonly used CHMs including danshen ( Salvia miltiorrhiza ), dong quai ( Angelica sinensis ), ginger ( Zingiber officinale ), and licorice ( Glycyrrhizae uralensis ) were documented to have major interactions with anticoagulants or antiplatelet drugs.",
-        "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-        "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "For instance, commonly used CHMs including danshen ( Salvia miltiorrhiza ), dong quai ( Angelica sinensis ), ginger ( Zingiber officinale ), and licorice ( Glycyrrhizae uralensis ) were documented to have major interactions with anticoagulants or antiplatelet drugs.",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "The major consequences of these interactions were increased bleeding risks due to the additive anticoagulant or antiplatelet effects of the CHMs, specifically danshen, dong quai, ginger, ginkgo, licorice, and turmeric.",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
-          "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
-          "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/licorice",
-          "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Licorice",
-          "quote": "Anticoagulants: Licorice may increase the metabolism and clearance of warfarin",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "抗栓药物数据库将甘草与抗凝/抗血小板药的相互作用评为严重级（major），国内药学科普称其抑制代谢酶而增强华法林作用；但另有资料认为甘草可能增加华法林清除。"
-    },
-    {
-      "name": "生姜",
-      "aliases": [
-        "干姜"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "clinical_review",
-      "confidence": "medium",
-      "source": {
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
-        "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
-        "quote": "Moreover, in a prospective, longitudinal study of patients taking warfarin and herbal product, there was a statistically significant increased risk of bleeding events in patients taking warfarin and Ginger",
-        "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
-          "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
-          "quote": "Moreover, in a prospective, longitudinal study of patients taking warfarin and herbal product, there was a statistically significant increased risk of bleeding events in patients taking warfarin and Ginger",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "For instance, commonly used CHMs including danshen ( Salvia miltiorrhiza ), dong quai ( Angelica sinensis ), ginger ( Zingiber officinale ), and licorice ( Glycyrrhizae uralensis ) were documented to have major interactions with anticoagulants or antiplatelet drugs.",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "The major consequences of these interactions were increased bleeding risks due to the additive anticoagulant or antiplatelet effects of the CHMs, specifically danshen, dong quai, ginger, ginkgo, licorice, and turmeric.",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
-          "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
-          "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "生姜有体外抗血小板作用；一项前瞻性纵向研究显示服华法林并用生姜者出血事件风险显著增加，另有INR明显升高的个案，但健康受试者对照研究未见药效改变；综述评为“很可能”。干姜为同一药材的干燥炮制品，证据未单独区分。"
-    },
-    {
-      "name": "姜黄",
-      "aliases": [
-        "片姜黄"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "interaction_database_review",
-      "confidence": "medium",
-      "source": {
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-        "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-        "quote": "The major consequences of these interactions were increased bleeding risks due to the additive anticoagulant or antiplatelet effects of the CHMs, specifically danshen, dong quai, ginger, ginkgo, licorice, and turmeric.",
-        "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-        "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "The major consequences of these interactions were increased bleeding risks due to the additive anticoagulant or antiplatelet effects of the CHMs, specifically danshen, dong quai, ginger, ginkgo, licorice, and turmeric.",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/turmeric",
-          "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Turmeric",
-          "quote": "suggest that turmeric can increase risk of bleeding",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/turmeric",
-          "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Turmeric",
-          "quote": "Turmeric may increase your risk of bleeding.",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "临床前研究与个案报告提示姜黄（姜黄素）可增加与抗凝/抗血小板药合用时的出血风险，数据库评为严重级（major）。证据主要来自姜黄/姜黄素补充剂。"
-    },
-    {
-      "name": "红花",
-      "aliases": [
-        "草红花",
-        "红蓝花"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "retrospective_study",
-      "confidence": "medium",
-      "source": {
-        "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
-        "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
-        "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
-          "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
-          "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
-          "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
-          "quote": "对照组患者使用的口服抗凝血药包括华法林、利伐沙班、达比加群酯;联合组患者联合应用的活血化瘀类中药饮片包括丹参、川芎、牛膝等。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
-          "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
-          "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-          "locator": "Table 3：Severity “Moderate”，“at least one of the six” 一栏列有 Safflower",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "国内回顾性研究发现含红花等活血化瘀饮片与口服抗凝药（华法林、利伐沙班、达比加群）合用时出血事件发生率更高；抗栓药物数据库将红花列为与至少一种抗凝/抗血小板药存在中等级出血风险相互作用。"
-    },
-    {
-      "name": "川芎",
-      "aliases": [
-        "芎䓖",
-        "抚芎"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "retrospective_study",
-      "confidence": "medium",
-      "source": {
-        "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
-        "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
-        "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
-          "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
-          "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
-          "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
-          "quote": "对照组患者使用的口服抗凝血药包括华法林、利伐沙班、达比加群酯;联合组患者联合应用的活血化瘀类中药饮片包括丹参、川芎、牛膝等。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "国内回顾性研究（158例住院患者）显示联用丹参、川芎、牛膝等活血化瘀饮片的口服抗凝药患者，凝血指标虽无显著差异，但出血事件发生率显著升高（66.25% vs 42.31%），作者提示需重点关注川芎。临床证据仅此一项回顾性研究，动物研究提示川芎可影响华法林处置。"
-    },
-    {
-      "name": "牛膝",
-      "aliases": [
-        "怀牛膝",
-        "川牛膝"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "retrospective_study",
-      "confidence": "medium",
-      "source": {
-        "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
-        "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
-        "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
-          "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
-          "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
-          "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
-          "quote": "对照组患者使用的口服抗凝血药包括华法林、利伐沙班、达比加群酯;联合组患者联合应用的活血化瘀类中药饮片包括丹参、川芎、牛膝等。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "同上回顾性研究将牛膝列为与口服抗凝药合用时需重点关注出血风险的活血化瘀饮片之一（研究未区分怀牛膝/川牛膝，原文英文名为 Achyranthis Bidentatae Radix）。"
-    },
-    {
-      "name": "灵芝",
-      "aliases": [
-        "赤芝",
-        "紫芝"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "interaction_database_review",
-      "confidence": "medium",
-      "source": {
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-        "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-        "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-        "locator": "Table 3：Severity “Major”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Reishi（脚注c：与肝素相互作用缺严重度信息）",
-        "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-        "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-          "locator": "Table 3：Severity “Major”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Reishi（脚注c：与肝素相互作用缺严重度信息）",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
-          "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
-          "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "抗栓药物数据库将灵芝（Reishi）与抗凝/抗血小板药的相互作用评为严重级（major），国内药学科普亦列其抑制血小板聚集、与华法林协同增强抗凝。缺少人体临床研究。"
-    },
-    {
-      "name": "穿心莲",
-      "aliases": [],
-      "direction": "increase_bleeding",
-      "basisType": "interaction_database_review",
-      "confidence": "medium",
-      "source": {
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-        "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-        "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-        "locator": "Table 3：Severity “Moderate”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Andrographis",
-        "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-        "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-          "locator": "Table 3：Severity “Moderate”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Andrographis",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
-          "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
-          "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "抗栓药物数据库将穿心莲与6种抗凝/抗血小板药的相互作用评为中等级（moderate）出血风险；国内药学科普称其抑制血小板聚集、与华法林协同。缺少人体临床研究。"
-    },
-    {
-      "name": "葛根",
-      "aliases": [
-        "粉葛"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "interaction_database_review",
-      "confidence": "medium",
-      "source": {
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-        "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-        "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-        "locator": "Table 3：Severity “Moderate”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Kudzu",
-        "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-        "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-          "locator": "Table 3：Severity “Moderate”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Kudzu",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "抗栓药物数据库将葛根（Kudzu）与6种抗凝/抗血小板药的相互作用评为中等级（moderate）出血风险。仅有数据库评级，缺少人体临床报告。"
-    },
-    {
-      "name": "丁香",
-      "aliases": [
-        "公丁香"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "interaction_database_review",
-      "confidence": "medium",
-      "source": {
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-        "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-        "quote": "For example, some CHMs, i.e., clove ( Eugenia caryophyllata ), cat's claw ( Uncaria tomentosa ), and ginger ( Zingiber officinale ), were reported to inhibit cyclooxygenase activity, platelet aggregation, and thromboxane synthetase activity, respectively",
-        "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-        "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "For example, some CHMs, i.e., clove ( Eugenia caryophyllata ), cat's claw ( Uncaria tomentosa ), and ginger ( Zingiber officinale ), were reported to inhibit cyclooxygenase activity, platelet aggregation, and thromboxane synthetase activity, respectively",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-          "locator": "Table 3：Severity “Moderate”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Clove",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "丁香被报道可抑制环氧化酶活性，抗栓药物数据库将其与6种抗凝/抗血小板药的相互作用评为中等级（moderate）出血风险。缺少人体临床报告。"
-    },
-    {
-      "name": "大黄",
-      "aliases": [
-        "生大黄",
-        "酒大黄",
-        "熟大黄"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "interaction_database_review",
-      "confidence": "medium",
-      "source": {
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-        "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-        "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-        "locator": "Table 3：Severity “Moderate”，“at least one of the six” 一栏列有 Da huang",
-        "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-        "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-          "locator": "Table 3：Severity “Moderate”，“at least one of the six” 一栏列有 Da huang",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "抗栓药物数据库将大黄（Da huang）列为与至少一种抗凝/抗血小板药存在中等级（moderate）出血风险相互作用。仅有数据库评级。"
-    },
-    {
-      "name": "胡芦巴",
-      "aliases": [
-        "葫芦巴"
-      ],
-      "direction": "increase_bleeding",
-      "basisType": "clinical_review",
-      "confidence": "medium",
-      "source": {
-        "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
-        "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
-        "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
-        "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      "sources": [
-        {
-          "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
-          "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
-          "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
-          "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-          "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-          "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-          "locator": "Table 3：Severity “Major”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Fenugreek",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-          "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        },
-        {
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
-          "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
-          "quote": "Therefore, interaction between Fenugreek and warfarin was defined as doubtful .",
-          "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
-          "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-        }
-      ],
-      "evidence": "有服华法林者并用胡芦巴（与 boldo 同服）后INR升高的个案，心血管药物与草药相互作用综述列为致抗凝过度的草药之一，数据库评为严重级（major）；另一综述因混杂因素将其评为“可疑”。"
+     "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
+     "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
+     "quote": "对照组患者使用的口服抗凝血药包括华法林、利伐沙班、达比加群酯;联合组患者联合应用的活血化瘀类中药饮片包括丹参、川芎、牛膝等。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
     }
-  ],
-  "research": {
-    "file": "R1-antithrombotic-herbs.json",
-    "sha256": "64709f5dfc99d94aa7fc0ddd0fa3cbbe66ae324696d36dfad34db310ea7cfbde",
-    "principleSources": [
-      {
-        "url": "https://bookcafe.yuntsg.com/ueditor/jsp/upload/file/20251108/1762571018326029630.pdf",
-        "title": "中国中医药研究促进会,中国民族医药学会整合医学分会.中成药防治泛血管疾病及其靶器官损害的专家共识.中国全科医学（排版稿）,DOI:10.12114/j.issn.1007-9572.2025.0297",
-        "quote": "要注意同类不叠加，在出血风险高的人群，避免活血类与抗血小板聚集、抗凝药联合使用",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      {
-        "url": "https://bookcafe.yuntsg.com/ueditor/jsp/upload/file/20251108/1762571018326029630.pdf",
-        "title": "中国中医药研究促进会,中国民族医药学会整合医学分会.中成药防治泛血管疾病及其靶器官损害的专家共识.中国全科医学（排版稿）,DOI:10.12114/j.issn.1007-9572.2025.0297",
-        "quote": "有活动性出血，如消化道出血、出血性脑卒中急性期、凝血功能异常（INR>3.0）者，禁用活血类药",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      {
-        "url": "https://bookcafe.yuntsg.com/ueditor/jsp/upload/file/20251108/1762571018326029630.pdf",
-        "title": "中国中医药研究促进会,中国民族医药学会整合医学分会.中成药防治泛血管疾病及其靶器官损害的专家共识.中国全科医学（排版稿）,DOI:10.12114/j.issn.1007-9572.2025.0297",
-        "quote": "围手术期，术前 7 天停用活血类中成药，以降低术中出血风险",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      {
-        "url": "https://bookcafe.yuntsg.com/ueditor/jsp/upload/file/20251108/1762571018326029630.pdf",
-        "title": "中国中医药研究促进会,中国民族医药学会整合医学分会.中成药防治泛血管疾病及其靶器官损害的专家共识.中国全科医学（排版稿）,DOI:10.12114/j.issn.1007-9572.2025.0297",
-        "quote": "慢性病长期用药应定期监测肝肾功能、凝血指标（每 3~6 个月）",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      {
-        "url": "https://wap.china-pharmacy.com/attached/wenjian/14/201908/02111749_7933.pdf",
-        "title": "钱凤丹,等.活血化瘀类中成药与口服抗栓药相互作用的研究进展.中国药房,2019,30(14):2008-2012",
-        "quote": "其中活血化瘀中成药联合抗血小板药治疗时不增加出血风险；而联合抗凝药物治疗时，出血风险增加，临床应密切关注用药安全。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      {
-        "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
-        "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
-        "quote": "结论:患者联合应用活血化瘀类中药饮片与口服抗凝血药后,虽然相关凝血指标并未出现明显变化,但是出血事件发生率显著升高。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      {
-        "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
-        "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
-        "quote": "患者使用华法林治疗期间应避免自行服用任何中药，特别是具有活血化瘀作用的中药。",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      },
-      {
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-        "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-        "quote": "However, these blood-activating or stasis-resolving CHMs (e.g., danshen, and dong quai) are widely used in TCM for the treatment of cardiovascular or cerebrovascular diseases.",
-        "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-        "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-      }
-    ],
-    "scopeNote": "D2 是用户的统一避免政策，主表增强方向全部采纳（包括 medium 数据库级证据），不声称说明书对所有抗栓药均为绝对禁忌；仅减弱方向不禁，须监测INR。 低证据候选不按研究单独触发；其中已有活血化瘀教材分类者仍按教材禁用。三七不因混合方向研究或“化瘀”字样被移入活血化瘀药类，沿用止血药口径。",
-    "notAdopted": [
-      {
-        "name": "黄芪",
-        "reason": "抗栓药物数据库汇总将黄芪（Astragalus）列在“记载可增加6种抗凝/抗血小板药出血风险”一栏，但无严重程度分级信息，未检索到临床报告。不建议据此单独触发提示。",
-        "sources": [
-          {
-            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-            "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-            "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-            "locator": "Table 3：Severity “No available information for the item”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Astragalus",
-            "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-            "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-            "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-          }
-        ]
-      },
-      {
-        "name": "益母草",
-        "reason": "仅见于抗栓药物数据库汇总，列为“记载可增加至少一种抗凝/抗血小板药出血风险”，但三大数据库均无严重程度分级信息，缺乏临床报告。不建议据此单独触发提示。",
-        "sources": [
-          {
-            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-            "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-            "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-            "locator": "Table 3：Severity “No available information for the item”，“at least one of the six” 一栏列有 Motherwort",
-            "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-            "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-            "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-          }
-        ]
-      },
-      {
-        "name": "延胡索",
-        "reason": "仅见于抗栓药物数据库汇总，列为“记载可增加至少一种抗凝/抗血小板药出血风险”，但三大数据库均无严重程度分级信息，缺乏临床报告。不建议据此单独触发提示。",
-        "sources": [
-          {
-            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-            "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-            "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-            "locator": "Table 3：Severity “No available information for the item”，“at least one of the six” 一栏列有 Corydalis yanhuso",
-            "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-            "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-            "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-          }
-        ]
-      },
-      {
-        "name": "党参",
-        "reason": "仅见于抗栓药物数据库汇总，列为“记载可增加至少一种抗凝/抗血小板药出血风险”，但三大数据库均无严重程度分级信息，缺乏临床报告。不建议据此单独触发提示。",
-        "sources": [
-          {
-            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-            "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-            "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-            "locator": "Table 3：Severity “No available information for the item”，“at least one of the six” 一栏列有 Dang shen",
-            "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-            "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-            "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-          }
-        ]
-      },
-      {
-        "name": "山楂",
-        "reason": "仅见于抗栓药物数据库汇总，列为“记载可增加至少一种抗凝/抗血小板药出血风险”，但三大数据库均无严重程度分级信息，缺乏临床报告。不建议据此单独触发提示。",
-        "sources": [
-          {
-            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-            "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-            "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-            "locator": "Table 3：Severity “No available information for the item”，“at least one of the six” 一栏列有 Hawthorn",
-            "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-            "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-            "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-          }
-        ]
-      },
-      {
-        "name": "菊花",
-        "reason": "仅见于抗栓药物数据库汇总，列为“记载可增加至少一种抗凝/抗血小板药出血风险”，但三大数据库均无严重程度分级信息，缺乏临床报告。不建议据此单独触发提示。",
-        "sources": [
-          {
-            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
-            "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
-            "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
-            "locator": "Table 3：Severity “No available information for the item”，“at least one of the six” 一栏列有 Chrysanthemum flower",
-            "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
-            "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
-            "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-          }
-        ]
-      },
-      {
-        "name": "连翘",
-        "reason": "仅见于《中国医药报》药学科普文章（称可减弱华法林抗凝效果），未检索到原始研究或综述支持。",
-        "sources": [
-          {
-            "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
-            "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
-            "quote": "另外，人参、西洋参、连翘等可减弱华法林的抗凝效果。",
-            "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-          }
-        ]
-      },
-      {
-        "name": "三七",
-        "reason": "证据方向相互矛盾：大鼠研究显示三七总皂苷与华法林合用使PT/INR升高；另一研究报告临床中三七与华法林合用出现拮抗；健康志愿者研究显示丹参+三七复方（T89）不改变华法林稳态药效/药动学。三七本身兼有止血与活血作用。未纳入主表，建议按“活血化瘀类”总体原则处理并监测INR。",
-        "sources": [
-          {
-            "url": "https://pubmed.ncbi.nlm.nih.gov/35138605/",
-            "title": "Qian J, et al. Effects and Mechanism of Action of Panax notoginseng Saponins on the Pharmacokinetics of Warfarin. Eur J Drug Metab Pharmacokinet 2022;47(3):331-342（摘要）",
-            "quote": "When warfarin and PNS were co-administered, the PT and INR increased compared to when warfarin was given alone.",
-            "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=35138605&rettype=abstract&retmode=text",
-            "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-          },
-          {
-            "url": "https://pubmed.ncbi.nlm.nih.gov/39263307/",
-            "title": "Yang Y, et al. Mechanism of Panax notoginseng saponins modulation of miR-214-3p/NR1I3 affecting the pharmacodynamics and pharmacokinetics of warfarin. J Ginseng Res 2024;48(5):494-503（摘要）",
-            "quote": "In our clinical work, we unexpectedly found that the combination of Panax notoginseng and warfarin, which are herbs that activate blood circulation and remove blood stasis, showed antagonistic effects instead.",
-            "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=39263307&rettype=abstract&retmode=text",
-            "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-          },
-          {
-            "url": "https://pubmed.ncbi.nlm.nih.gov/24142885/",
-            "title": "Wang P, et al. Absence of an effect of T89 on the steady-state pharmacokinetics and pharmacodynamics of warfarin in healthy volunteers. J Clin Pharmacol 2014;54(2):234-9（摘要）",
-            "quote": "These results indicate that T89 has no effect on the steady-state PD and PK of warfarin.",
-            "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=24142885&rettype=abstract&retmode=text",
-            "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
-          }
-        ]
-      }
-    ]
+   ],
+   "evidence": "丹参兼有抗血小板、抗凝与促纤溶作用，并可改变华法林药代动力学；已有服华法林者加服丹参后INR显著升高并出血的病例，综述将其与华法林的相互作用评为“极可能”，建议服华法林者避免合用；国内回顾性研究显示含丹参等的活血化瘀饮片与华法林/利伐沙班/达比加群合用时出血事件增多。"
+  },
+  {
+   "name": "当归",
+   "aliases": [
+    "全当归",
+    "当归身",
+    "当归尾",
+    "酒当归"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "case_report",
+   "confidence": "high",
+   "source": {
+    "url": "https://pubmed.ncbi.nlm.nih.gov/10417036/",
+    "title": "Page RL 2nd, Lawrence JD. Potentiation of warfarin by dong quai. Pharmacotherapy 1999;19(7):870-6（摘要）",
+    "quote": "A 46-year-old African-American woman with atrial fibrillation stabilized on warfarin experienced a greater than 2-fold elevation in prothrombin time and international normalized ratio after taking dong quai concurrently for 4 weeks.",
+    "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=10417036&rettype=abstract&retmode=text",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/10417036/",
+     "title": "Page RL 2nd, Lawrence JD. Potentiation of warfarin by dong quai. Pharmacotherapy 1999;19(7):870-6（摘要）",
+     "quote": "A 46-year-old African-American woman with atrial fibrillation stabilized on warfarin experienced a greater than 2-fold elevation in prothrombin time and international normalized ratio after taking dong quai concurrently for 4 weeks.",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=10417036&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
+     "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
+     "quote": "However, for safety, the use of Chinese angelica should be avoided unless the effects on anticoagulation can be monitored.",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/dong-quai",
+     "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Dong Quai",
+     "quote": "Dong quai may increase your risk of bleeding.",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "For instance, commonly used CHMs including danshen ( Salvia miltiorrhiza ), dong quai ( Angelica sinensis ), ginger ( Zingiber officinale ), and licorice ( Glycyrrhizae uralensis ) were documented to have major interactions with anticoagulants or antiplatelet drugs.",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
+     "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
+     "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "当归含香豆素类成分，已有稳定服华法林者加服当归后PT/INR升高超过1倍、停用后恢复的病例；综述将相互作用评为“很可能”，建议除非能监测抗凝否则避免合用；抗栓药物数据库评为严重级（major）相互作用。"
+  },
+  {
+   "name": "银杏叶",
+   "aliases": [
+    "银杏叶提取物",
+    "白果叶"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "clinical_review",
+   "confidence": "high",
+   "source": {
+    "url": "https://pubmed.ncbi.nlm.nih.gov/19719333/",
+    "title": "Izzo AA, Ernst E. Interactions between herbal medicines and prescribed drugs: an updated systematic review. Drugs 2009;69(13):1777-98（摘要）",
+    "quote": "Clinical cases indicate interactions of ginkgo with antiepileptics, aspirin (acetylsalicylic acid), diuretics, ibuprofen, risperidone, rofecoxib, trazodone and warfarin.",
+    "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=19719333&rettype=abstract&retmode=text",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/19719333/",
+     "title": "Izzo AA, Ernst E. Interactions between herbal medicines and prescribed drugs: an updated systematic review. Drugs 2009;69(13):1777-98（摘要）",
+     "quote": "Clinical cases indicate interactions of ginkgo with antiepileptics, aspirin (acetylsalicylic acid), diuretics, ibuprofen, risperidone, rofecoxib, trazodone and warfarin.",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=19719333&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
+     "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
+     "quote": "Evidences are insufficient to justify advising patients taking warfarin to avoid ginkgo, but patients are suggested to monitor their INR when co-administrated ginkgo with warfarin.",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/ginkgo",
+     "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Ginkgo",
+     "quote": "Human studies and case reports indicate that ginkgo may induce or prolong bleeding time",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/21649517/",
+     "title": "Chan AL, et al. Risk of hemorrhage associated with co-prescriptions for Ginkgo biloba and antiplatelet or anticoagulant drugs. J Altern Complement Med 2011;17(6):513-7（摘要）",
+     "quote": "Although the combination of G. biloba extract with antiplatelet or anticoagulants showed insignificant correlation to the risk of hemorrhage, patients using ginkgo, particularly those with known bleeding risks and elderly, should take a particular attention to the possibility of increasing risk of bleeding.",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=21649517&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "The major consequences of these interactions were increased bleeding risks due to the additive anticoagulant or antiplatelet effects of the CHMs, specifically danshen, dong quai, ginger, ginkgo, licorice, and turmeric.",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
+     "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
+     "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "银杏内酯有抗血小板活化因子作用，有与华法林、阿司匹林合用后出血（含颅内出血）的病例报告，多篇综述与数据库将其列为与抗栓药存在出血风险的药物；但对照研究未证实其改变华法林药效，综述建议合用时监测INR而非一律禁用。证据多来自银杏叶提取物而非饮片煎剂。"
+  },
+  {
+   "name": "枸杞子",
+   "aliases": [
+    "枸杞",
+    "宁夏枸杞"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "case_report",
+   "confidence": "high",
+   "source": {
+    "url": "https://pubmed.ncbi.nlm.nih.gov/18281140/",
+    "title": "Leung H, et al. Warfarin overdose due to the possible effects of Lycium barbarum L. Food Chem Toxicol 2008;46(5):1860-2（摘要）",
+    "quote": "We reported an 80-year-old Chinese woman on chronic stable dose of warfarin who experienced two episodes of an elevated international normalized ratio (INR) after drinking herbal tea containing Lycium barbarum L.",
+    "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=18281140&rettype=abstract&retmode=text",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/18281140/",
+     "title": "Leung H, et al. Warfarin overdose due to the possible effects of Lycium barbarum L. Food Chem Toxicol 2008;46(5):1860-2（摘要）",
+     "quote": "We reported an 80-year-old Chinese woman on chronic stable dose of warfarin who experienced two episodes of an elevated international normalized ratio (INR) after drinking herbal tea containing Lycium barbarum L.",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=18281140&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
+     "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
+     "quote": "These cases reports showed that Lycium might potentiate effects of warfarin.",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/lycium",
+     "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Lycium",
+     "quote": "You are taking warfarin or other anticoagulants: A few cases of elevated INR were reported in patients on anticoagulant therapy following consumption of Lycium products.",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
+     "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
+     "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
+     "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
+     "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "多例稳定服用华法林的患者饮用含枸杞的茶、果汁或酒后INR升高，并有鼻出血、皮下瘀斑、直肠出血的报告；MSKCC 将服用华法林或其他抗凝药列为不宜服用枸杞产品的情形。"
+  },
+  {
+   "name": "大蒜",
+   "aliases": [
+    "独头蒜"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "clinical_review",
+   "confidence": "high",
+   "source": {
+    "url": "https://pubmed.ncbi.nlm.nih.gov/19719333/",
+    "title": "Izzo AA, Ernst E. Interactions between herbal medicines and prescribed drugs: an updated systematic review. Drugs 2009;69(13):1777-98（摘要）",
+    "quote": "Garlic (Allium sativum) interacts with chlorpropamide, fluindione, ritonavir and warfarin; it also reduces plasma concentrations of chlorzoxazone (a CYP2E1 probe).",
+    "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=19719333&rettype=abstract&retmode=text",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/19719333/",
+     "title": "Izzo AA, Ernst E. Interactions between herbal medicines and prescribed drugs: an updated systematic review. Drugs 2009;69(13):1777-98（摘要）",
+     "quote": "Garlic (Allium sativum) interacts with chlorpropamide, fluindione, ritonavir and warfarin; it also reduces plasma concentrations of chlorzoxazone (a CYP2E1 probe).",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=19719333&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
+     "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
+     "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+     "locator": "Table 3：Severity “Major”，“documented to increase bleeding risks of the six anticoagulant/antiplatelet drugs” 一栏列有 Garlic",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "大蒜与华法林合用有抗凝过度的临床报告，系统综述列为与华法林有相互作用的草药，抗栓药物数据库评为严重级（major）出血风险相互作用（证据多为大蒜制剂/补充剂）。"
+  },
+  {
+   "name": "西洋参",
+   "aliases": [
+    "花旗参",
+    "洋参"
+   ],
+   "direction": "decrease_anticoagulation",
+   "basisType": "randomized_trial",
+   "confidence": "high",
+   "source": {
+    "url": "https://pubmed.ncbi.nlm.nih.gov/15238367/",
+    "title": "Yuan CS, et al. American ginseng reduces warfarin's effect in healthy patients: a randomized, controlled trial. Ann Intern Med 2004;141(1):23-7（摘要）",
+    "quote": "CONCLUSIONS: American ginseng reduces warfarin's anticoagulant effect. When prescribing warfarin, physicians should ask patients about ginseng use.",
+    "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15238367&rettype=abstract&retmode=text",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/15238367/",
+     "title": "Yuan CS, et al. American ginseng reduces warfarin's effect in healthy patients: a randomized, controlled trial. Ann Intern Med 2004;141(1):23-7（摘要）",
+     "quote": "CONCLUSIONS: American ginseng reduces warfarin's anticoagulant effect. When prescribing warfarin, physicians should ask patients about ginseng use.",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15238367&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/ginseng-american",
+     "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Ginseng (American)",
+     "quote": "Warfarin: American ginseng has been shown to antagonize warfarin's effects in humans",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
+     "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
+     "quote": "另外，人参、西洋参、连翘等可减弱华法林的抗凝效果。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "随机双盲安慰剂对照试验显示，服用西洋参2周后华法林血药浓度与INR峰值显著下降，作者建议开华法林时询问人参类使用；合用可能导致抗凝不足、血栓风险。"
+  },
+  {
+   "name": "贯叶金丝桃",
+   "aliases": [
+    "圣约翰草",
+    "贯叶连翘"
+   ],
+   "direction": "decrease_anticoagulation",
+   "basisType": "clinical_trial_and_label",
+   "confidence": "high",
+   "source": {
+    "url": "https://pubmed.ncbi.nlm.nih.gov/15089812/",
+    "title": "Jiang X, et al. Effect of St John's wort and ginseng on the pharmacokinetics and pharmacodynamics of warfarin in healthy subjects. Br J Clin Pharmacol 2004;57(5):592-9（摘要）",
+    "quote": "St John's wort significantly induced the apparent clearance of both S-warfarin and R-warfarin, which in turn resulted in a significant reduction in the pharmacological effect of rac-warfarin.",
+    "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15089812&rettype=abstract&retmode=text",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/15089812/",
+     "title": "Jiang X, et al. Effect of St John's wort and ginseng on the pharmacokinetics and pharmacodynamics of warfarin in healthy subjects. Br J Clin Pharmacol 2004;57(5):592-9（摘要）",
+     "quote": "St John's wort significantly induced the apparent clearance of both S-warfarin and R-warfarin, which in turn resulted in a significant reduction in the pharmacological effect of rac-warfarin.",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15089812&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=10db92f9-2300-4a80-836b-673e1ae91610",
+     "title": "XARELTO (rivaroxaban) US prescribing information, DailyMed",
+     "quote": "Avoid concomitant use of XARELTO with drugs that are combined P-gp and strong CYP3A inducers (e.g., carbamazepine, phenytoin, rifampin, St. John's wort)",
+     "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/10db92f9-2300-4a80-836b-673e1ae91610.xml",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=e9481622-7cc6-418a-acb6-c5450daae9b0",
+     "title": "ELIQUIS (apixaban) US prescribing information, DailyMed",
+     "quote": "Avoid concomitant use of ELIQUIS with combined P-gp and strong CYP3A4 inducers (e.g., rifampin, carbamazepine, phenytoin, St. John’s wort) because such drugs will decrease exposure to apixaban",
+     "verifiedVia": "https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/e9481622-7cc6-418a-acb6-c5450daae9b0.xml",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
+     "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
+     "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "贯叶金丝桃诱导CYP3A4/P-gp，随机交叉试验显示其显著加快华法林清除、降低抗凝作用；利伐沙班与阿哌沙班美国说明书均要求避免与其合用（会降低药物暴露）。"
+  },
+  {
+   "name": "人参",
+   "aliases": [
+    "红参",
+    "生晒参",
+    "园参"
+   ],
+   "direction": "decrease_anticoagulation",
+   "basisType": "clinical_review",
+   "confidence": "medium",
+   "source": {
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
+    "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
+    "quote": "One study showed that Ginseng (Ginseng capsules three times daily for two weeks) modestly decreased the anticoagulant effects of warfarin (INR decreased from 3.1 to 1.5)",
+    "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
+     "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
+     "quote": "One study showed that Ginseng (Ginseng capsules three times daily for two weeks) modestly decreased the anticoagulant effects of warfarin (INR decreased from 3.1 to 1.5)",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
+     "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
+     "quote": "Based on the above, interaction between Ginseng and warfarin was defined as possible .",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/15089812/",
+     "title": "Jiang X, et al. Br J Clin Pharmacol 2004;57(5):592-9（摘要）",
+     "quote": "Coadministration of warfarin with ginseng did not affect the pharmacokinetics or pharmacodynamics of either S-warfarin or R-warfarin.",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15089812&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/ginseng-asian",
+     "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Ginseng (Asian)",
+     "quote": "Anticoagulants: Studies on whether P. ginseng can antagonize the effects of anticoagulants are mixed",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/ginseng-asian",
+     "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Ginseng (Asian)",
+     "quote": "Antiplatelets : P. ginseng may increase aspirin bioavailability",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
+     "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
+     "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
+     "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
+     "quote": "另外，人参、西洋参、连翘等可减弱华法林的抗凝效果。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "有服华法林者加服人参后INR下降、甚至抗凝不足并发血栓的病例；但健康受试者随机交叉试验未见人参改变华法林药动学/药效学，证据不一致；另有资料提示人参可增加阿司匹林生物利用度。合用宜监测INR。"
+  },
+  {
+   "name": "甘草",
+   "aliases": [
+    "炙甘草",
+    "生甘草"
+   ],
+   "direction": "conflicting_evidence",
+   "basisType": "interaction_database_review",
+   "confidence": "medium",
+   "source": {
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+    "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+    "quote": "For instance, commonly used CHMs including danshen ( Salvia miltiorrhiza ), dong quai ( Angelica sinensis ), ginger ( Zingiber officinale ), and licorice ( Glycyrrhizae uralensis ) were documented to have major interactions with anticoagulants or antiplatelet drugs.",
+    "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+    "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "For instance, commonly used CHMs including danshen ( Salvia miltiorrhiza ), dong quai ( Angelica sinensis ), ginger ( Zingiber officinale ), and licorice ( Glycyrrhizae uralensis ) were documented to have major interactions with anticoagulants or antiplatelet drugs.",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "The major consequences of these interactions were increased bleeding risks due to the additive anticoagulant or antiplatelet effects of the CHMs, specifically danshen, dong quai, ginger, ginkgo, licorice, and turmeric.",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
+     "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
+     "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/licorice",
+     "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Licorice",
+     "quote": "Anticoagulants: Licorice may increase the metabolism and clearance of warfarin",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "抗栓药物数据库将甘草与抗凝/抗血小板药的相互作用评为严重级（major），国内药学科普称其抑制代谢酶而增强华法林作用；但另有资料认为甘草可能增加华法林清除。",
+   "directionNote": "研究文件 R1-antithrombotic-herbs.json 记甘草与华法林相互作用的方向互相矛盾（directionNote），不入 D2 禁用闭集；总指挥 2026-11-17 定：甘草/炙甘草作使药调和，在抗凝患者处方中保留。"
+  },
+  {
+   "name": "生姜",
+   "aliases": [
+    "干姜"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "clinical_review",
+   "confidence": "medium",
+   "source": {
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
+    "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
+    "quote": "Moreover, in a prospective, longitudinal study of patients taking warfarin and herbal product, there was a statistically significant increased risk of bleeding events in patients taking warfarin and Ginger",
+    "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
+     "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
+     "quote": "Moreover, in a prospective, longitudinal study of patients taking warfarin and herbal product, there was a statistically significant increased risk of bleeding events in patients taking warfarin and Ginger",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "For instance, commonly used CHMs including danshen ( Salvia miltiorrhiza ), dong quai ( Angelica sinensis ), ginger ( Zingiber officinale ), and licorice ( Glycyrrhizae uralensis ) were documented to have major interactions with anticoagulants or antiplatelet drugs.",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "The major consequences of these interactions were increased bleeding risks due to the additive anticoagulant or antiplatelet effects of the CHMs, specifically danshen, dong quai, ginger, ginkgo, licorice, and turmeric.",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
+     "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
+     "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "生姜有体外抗血小板作用；一项前瞻性纵向研究显示服华法林并用生姜者出血事件风险显著增加，另有INR明显升高的个案，但健康受试者对照研究未见药效改变；综述评为“很可能”。干姜为同一药材的干燥炮制品，证据未单独区分。"
+  },
+  {
+   "name": "姜黄",
+   "aliases": [
+    "片姜黄"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "interaction_database_review",
+   "confidence": "medium",
+   "source": {
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+    "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+    "quote": "The major consequences of these interactions were increased bleeding risks due to the additive anticoagulant or antiplatelet effects of the CHMs, specifically danshen, dong quai, ginger, ginkgo, licorice, and turmeric.",
+    "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+    "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "The major consequences of these interactions were increased bleeding risks due to the additive anticoagulant or antiplatelet effects of the CHMs, specifically danshen, dong quai, ginger, ginkgo, licorice, and turmeric.",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/turmeric",
+     "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Turmeric",
+     "quote": "suggest that turmeric can increase risk of bleeding",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://www.mskcc.org/cancer-care/integrative-medicine/herbs/turmeric",
+     "title": "Memorial Sloan Kettering Cancer Center. About Herbs: Turmeric",
+     "quote": "Turmeric may increase your risk of bleeding.",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "临床前研究与个案报告提示姜黄（姜黄素）可增加与抗凝/抗血小板药合用时的出血风险，数据库评为严重级（major）。证据主要来自姜黄/姜黄素补充剂。"
+  },
+  {
+   "name": "红花",
+   "aliases": [
+    "草红花",
+    "红蓝花"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "retrospective_study",
+   "confidence": "medium",
+   "source": {
+    "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
+    "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
+    "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
+     "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
+     "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
+     "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
+     "quote": "对照组患者使用的口服抗凝血药包括华法林、利伐沙班、达比加群酯;联合组患者联合应用的活血化瘀类中药饮片包括丹参、川芎、牛膝等。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
+     "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
+     "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+     "locator": "Table 3：Severity “Moderate”，“at least one of the six” 一栏列有 Safflower",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "国内回顾性研究发现含红花等活血化瘀饮片与口服抗凝药（华法林、利伐沙班、达比加群）合用时出血事件发生率更高；抗栓药物数据库将红花列为与至少一种抗凝/抗血小板药存在中等级出血风险相互作用。"
+  },
+  {
+   "name": "川芎",
+   "aliases": [
+    "芎䓖",
+    "抚芎"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "retrospective_study",
+   "confidence": "medium",
+   "source": {
+    "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
+    "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
+    "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
+     "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
+     "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
+     "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
+     "quote": "对照组患者使用的口服抗凝血药包括华法林、利伐沙班、达比加群酯;联合组患者联合应用的活血化瘀类中药饮片包括丹参、川芎、牛膝等。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "国内回顾性研究（158例住院患者）显示联用丹参、川芎、牛膝等活血化瘀饮片的口服抗凝药患者，凝血指标虽无显著差异，但出血事件发生率显著升高（66.25% vs 42.31%），作者提示需重点关注川芎。临床证据仅此一项回顾性研究，动物研究提示川芎可影响华法林处置。"
+  },
+  {
+   "name": "牛膝",
+   "aliases": [
+    "怀牛膝",
+    "川牛膝"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "retrospective_study",
+   "confidence": "medium",
+   "source": {
+    "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
+    "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
+    "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
+     "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
+     "quote": "临床用药时,需重点关注含有丹参、川芎、牛膝和红花等的活血化瘀类中药饮片或中药复方制剂与口服抗凝血药联合应用会增加出血的风险。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
+     "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
+     "quote": "对照组患者使用的口服抗凝血药包括华法林、利伐沙班、达比加群酯;联合组患者联合应用的活血化瘀类中药饮片包括丹参、川芎、牛膝等。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "同上回顾性研究将牛膝列为与口服抗凝药合用时需重点关注出血风险的活血化瘀饮片之一（研究未区分怀牛膝/川牛膝，原文英文名为 Achyranthis Bidentatae Radix）。"
+  },
+  {
+   "name": "灵芝",
+   "aliases": [
+    "赤芝",
+    "紫芝"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "interaction_database_review",
+   "confidence": "medium",
+   "source": {
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+    "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+    "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+    "locator": "Table 3：Severity “Major”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Reishi（脚注c：与肝素相互作用缺严重度信息）",
+    "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+    "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+     "locator": "Table 3：Severity “Major”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Reishi（脚注c：与肝素相互作用缺严重度信息）",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
+     "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
+     "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "抗栓药物数据库将灵芝（Reishi）与抗凝/抗血小板药的相互作用评为严重级（major），国内药学科普亦列其抑制血小板聚集、与华法林协同增强抗凝。缺少人体临床研究。"
+  },
+  {
+   "name": "穿心莲",
+   "aliases": [],
+   "direction": "increase_bleeding",
+   "basisType": "interaction_database_review",
+   "confidence": "medium",
+   "source": {
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+    "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+    "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+    "locator": "Table 3：Severity “Moderate”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Andrographis",
+    "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+    "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+     "locator": "Table 3：Severity “Moderate”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Andrographis",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
+     "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
+     "quote": "安息香、甘草、枸杞子、水飞蓟均可抑制代谢酶活性，从而增强华法林的抗凝效果；穿心莲、银杏叶、灵芝、红花、生姜可抑制血小板聚集，当归中的香豆素衍生物具有抗血栓作用，这些中药均可与华法林产生协同作用从而增强抗凝效果。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "抗栓药物数据库将穿心莲与6种抗凝/抗血小板药的相互作用评为中等级（moderate）出血风险；国内药学科普称其抑制血小板聚集、与华法林协同。缺少人体临床研究。"
+  },
+  {
+   "name": "葛根",
+   "aliases": [
+    "粉葛"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "interaction_database_review",
+   "confidence": "medium",
+   "source": {
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+    "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+    "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+    "locator": "Table 3：Severity “Moderate”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Kudzu",
+    "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+    "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+     "locator": "Table 3：Severity “Moderate”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Kudzu",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "抗栓药物数据库将葛根（Kudzu）与6种抗凝/抗血小板药的相互作用评为中等级（moderate）出血风险。仅有数据库评级，缺少人体临床报告。"
+  },
+  {
+   "name": "丁香",
+   "aliases": [
+    "公丁香"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "interaction_database_review",
+   "confidence": "medium",
+   "source": {
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+    "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+    "quote": "For example, some CHMs, i.e., clove ( Eugenia caryophyllata ), cat's claw ( Uncaria tomentosa ), and ginger ( Zingiber officinale ), were reported to inhibit cyclooxygenase activity, platelet aggregation, and thromboxane synthetase activity, respectively",
+    "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+    "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "For example, some CHMs, i.e., clove ( Eugenia caryophyllata ), cat's claw ( Uncaria tomentosa ), and ginger ( Zingiber officinale ), were reported to inhibit cyclooxygenase activity, platelet aggregation, and thromboxane synthetase activity, respectively",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+     "locator": "Table 3：Severity “Moderate”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Clove",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "丁香被报道可抑制环氧化酶活性，抗栓药物数据库将其与6种抗凝/抗血小板药的相互作用评为中等级（moderate）出血风险。缺少人体临床报告。"
+  },
+  {
+   "name": "大黄",
+   "aliases": [
+    "生大黄",
+    "酒大黄",
+    "熟大黄"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "interaction_database_review",
+   "confidence": "medium",
+   "source": {
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+    "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+    "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+    "locator": "Table 3：Severity “Moderate”，“at least one of the six” 一栏列有 Da huang",
+    "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+    "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+     "locator": "Table 3：Severity “Moderate”，“at least one of the six” 一栏列有 Da huang",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "抗栓药物数据库将大黄（Da huang）列为与至少一种抗凝/抗血小板药存在中等级（moderate）出血风险相互作用。仅有数据库评级。"
+  },
+  {
+   "name": "胡芦巴",
+   "aliases": [
+    "葫芦巴"
+   ],
+   "direction": "increase_bleeding",
+   "basisType": "clinical_review",
+   "confidence": "medium",
+   "source": {
+    "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
+    "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
+    "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
+    "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   "sources": [
+    {
+     "url": "https://pubmed.ncbi.nlm.nih.gov/15676159/",
+     "title": "Izzo AA, et al. Cardiovascular pharmacotherapy and herbal medicines: the risk of drug interaction. Int J Cardiol 2005;98(1):1-14（摘要）",
+     "quote": "It was found to interact with boldo, curbicin, fenugreek, garlic, danshen, devil's claw, don quai, ginkgo, papaya, lycium, mango, PC-SPES (resulting in over-anticoagulation) and with ginseng, green tea, soy and St. John's wort (causing decreased anticoagulant effect).",
+     "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15676159&rettype=abstract&retmode=text",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+     "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+     "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+     "locator": "Table 3：Severity “Major”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Fenugreek",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+     "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    },
+    {
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3976951/",
+     "title": "Ge B, Zhang Z, Zuo Z. Updates on the clinical evidenced herb-warfarin interactions. Evid Based Complement Alternat Med 2014;2014:957362",
+     "quote": "Therefore, interaction between Fenugreek and warfarin was defined as doubtful .",
+     "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3976951/fullTextXML",
+     "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+    }
+   ],
+   "evidence": "有服华法林者并用胡芦巴（与 boldo 同服）后INR升高的个案，心血管药物与草药相互作用综述列为致抗凝过度的草药之一，数据库评为严重级（major）；另一综述因混杂因素将其评为“可疑”。"
   }
+ ],
+ "research": {
+  "file": "R1-antithrombotic-herbs.json",
+  "sha256": "64709f5dfc99d94aa7fc0ddd0fa3cbbe66ae324696d36dfad34db310ea7cfbde",
+  "principleSources": [
+   {
+    "url": "https://bookcafe.yuntsg.com/ueditor/jsp/upload/file/20251108/1762571018326029630.pdf",
+    "title": "中国中医药研究促进会,中国民族医药学会整合医学分会.中成药防治泛血管疾病及其靶器官损害的专家共识.中国全科医学（排版稿）,DOI:10.12114/j.issn.1007-9572.2025.0297",
+    "quote": "要注意同类不叠加，在出血风险高的人群，避免活血类与抗血小板聚集、抗凝药联合使用",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   {
+    "url": "https://bookcafe.yuntsg.com/ueditor/jsp/upload/file/20251108/1762571018326029630.pdf",
+    "title": "中国中医药研究促进会,中国民族医药学会整合医学分会.中成药防治泛血管疾病及其靶器官损害的专家共识.中国全科医学（排版稿）,DOI:10.12114/j.issn.1007-9572.2025.0297",
+    "quote": "有活动性出血，如消化道出血、出血性脑卒中急性期、凝血功能异常（INR>3.0）者，禁用活血类药",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   {
+    "url": "https://bookcafe.yuntsg.com/ueditor/jsp/upload/file/20251108/1762571018326029630.pdf",
+    "title": "中国中医药研究促进会,中国民族医药学会整合医学分会.中成药防治泛血管疾病及其靶器官损害的专家共识.中国全科医学（排版稿）,DOI:10.12114/j.issn.1007-9572.2025.0297",
+    "quote": "围手术期，术前 7 天停用活血类中成药，以降低术中出血风险",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   {
+    "url": "https://bookcafe.yuntsg.com/ueditor/jsp/upload/file/20251108/1762571018326029630.pdf",
+    "title": "中国中医药研究促进会,中国民族医药学会整合医学分会.中成药防治泛血管疾病及其靶器官损害的专家共识.中国全科医学（排版稿）,DOI:10.12114/j.issn.1007-9572.2025.0297",
+    "quote": "慢性病长期用药应定期监测肝肾功能、凝血指标（每 3~6 个月）",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   {
+    "url": "https://wap.china-pharmacy.com/attached/wenjian/14/201908/02111749_7933.pdf",
+    "title": "钱凤丹,等.活血化瘀类中成药与口服抗栓药相互作用的研究进展.中国药房,2019,30(14):2008-2012",
+    "quote": "其中活血化瘀中成药联合抗血小板药治疗时不增加出血风险；而联合抗凝药物治疗时，出血风险增加，临床应密切关注用药安全。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   {
+    "url": "https://yypf-china.com/Periodical/DownPdf?articleID=1162",
+    "title": "杜秋,丁淜,郭华.活血化瘀类中药饮片与口服抗凝血药联合应用的出血风险研究.中国医院用药评价与分析,2024,24(3):283-286",
+    "quote": "结论:患者联合应用活血化瘀类中药饮片与口服抗凝血药后,虽然相关凝血指标并未出现明显变化,但是出血事件发生率显著升高。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   {
+    "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
+    "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
+    "quote": "患者使用华法林治疗期间应避免自行服用任何中药，特别是具有活血化瘀作用的中药。",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   },
+   {
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+    "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+    "quote": "However, these blood-activating or stasis-resolving CHMs (e.g., danshen, and dong quai) are widely used in TCM for the treatment of cardiovascular or cerebrovascular diseases.",
+    "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+    "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+   }
+  ],
+  "scopeNote": "D2 是用户的统一避免政策，主表增强方向全部采纳（包括 medium 数据库级证据），不声称说明书对所有抗栓药均为绝对禁忌；仅减弱方向不禁，须监测INR。 低证据候选不按研究单独触发；其中已有活血化瘀教材分类者仍按教材禁用。三七不因混合方向研究或“化瘀”字样被移入活血化瘀药类，沿用止血药口径。",
+  "notAdopted": [
+   {
+    "name": "黄芪",
+    "reason": "抗栓药物数据库汇总将黄芪（Astragalus）列在“记载可增加6种抗凝/抗血小板药出血风险”一栏，但无严重程度分级信息，未检索到临床报告。不建议据此单独触发提示。",
+    "sources": [
+     {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+      "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+      "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+      "locator": "Table 3：Severity “No available information for the item”，“the six anticoagulant/antiplatelet drugs” 一栏列有 Astragalus",
+      "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+      "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+      "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+     }
+    ]
+   },
+   {
+    "name": "益母草",
+    "reason": "仅见于抗栓药物数据库汇总，列为“记载可增加至少一种抗凝/抗血小板药出血风险”，但三大数据库均无严重程度分级信息，缺乏临床报告。不建议据此单独触发提示。",
+    "sources": [
+     {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+      "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+      "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+      "locator": "Table 3：Severity “No available information for the item”，“at least one of the six” 一栏列有 Motherwort",
+      "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+      "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+      "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+     }
+    ]
+   },
+   {
+    "name": "延胡索",
+    "reason": "仅见于抗栓药物数据库汇总，列为“记载可增加至少一种抗凝/抗血小板药出血风险”，但三大数据库均无严重程度分级信息，缺乏临床报告。不建议据此单独触发提示。",
+    "sources": [
+     {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+      "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+      "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+      "locator": "Table 3：Severity “No available information for the item”，“at least one of the six” 一栏列有 Corydalis yanhuso",
+      "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+      "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+      "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+     }
+    ]
+   },
+   {
+    "name": "党参",
+    "reason": "仅见于抗栓药物数据库汇总，列为“记载可增加至少一种抗凝/抗血小板药出血风险”，但三大数据库均无严重程度分级信息，缺乏临床报告。不建议据此单独触发提示。",
+    "sources": [
+     {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+      "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+      "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+      "locator": "Table 3：Severity “No available information for the item”，“at least one of the six” 一栏列有 Dang shen",
+      "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+      "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+      "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+     }
+    ]
+   },
+   {
+    "name": "山楂",
+    "reason": "仅见于抗栓药物数据库汇总，列为“记载可增加至少一种抗凝/抗血小板药出血风险”，但三大数据库均无严重程度分级信息，缺乏临床报告。不建议据此单独触发提示。",
+    "sources": [
+     {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+      "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+      "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+      "locator": "Table 3：Severity “No available information for the item”，“at least one of the six” 一栏列有 Hawthorn",
+      "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+      "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+      "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+     }
+    ]
+   },
+   {
+    "name": "菊花",
+    "reason": "仅见于抗栓药物数据库汇总，列为“记载可增加至少一种抗凝/抗血小板药出血风险”，但三大数据库均无严重程度分级信息，缺乏临床报告。不建议据此单独触发提示。",
+    "sources": [
+     {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3650066/",
+      "title": "Tsai HH, et al. A Review of Potential Harmful Interactions between Anticoagulant/Antiplatelet Agents and Chinese Herbal Medicines. PLoS One 2013;8(5):e64255",
+      "quote": "Table 3 Documented interactions between anticoagulant/antiplatelet drugs and Chinese herbal medicine, a which might increase the risks of bleeding.",
+      "locator": "Table 3：Severity “No available information for the item”，“at least one of the six” 一栏列有 Chrysanthemum flower",
+      "verifiedVia": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC3650066/fullTextXML",
+      "note": "该综述纳入的6种抗栓药：华法林、肝素、阿司匹林、氯吡格雷、双嘧达莫、噻氯匹定；严重程度按 MicroMedex/Lexicomp/Natural Medicines 数据库评级。",
+      "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+     }
+    ]
+   },
+   {
+    "name": "连翘",
+    "reason": "仅见于《中国医药报》药学科普文章（称可减弱华法林抗凝效果），未检索到原始研究或综述支持。",
+    "sources": [
+     {
+      "url": "https://bk.cnpharm.com/zgyyb/2025/06/10/app_321106.html",
+      "title": "黄江云.华法林与中药联用有风险.中国医药报,2025-06-10（安全用药版）",
+      "quote": "另外，人参、西洋参、连翘等可减弱华法林的抗凝效果。",
+      "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+     }
+    ]
+   },
+   {
+    "name": "三七",
+    "reason": "证据方向相互矛盾：大鼠研究显示三七总皂苷与华法林合用使PT/INR升高；另一研究报告临床中三七与华法林合用出现拮抗；健康志愿者研究显示丹参+三七复方（T89）不改变华法林稳态药效/药动学。三七本身兼有止血与活血作用。未纳入主表，建议按“活血化瘀类”总体原则处理并监测INR。",
+    "sources": [
+     {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/35138605/",
+      "title": "Qian J, et al. Effects and Mechanism of Action of Panax notoginseng Saponins on the Pharmacokinetics of Warfarin. Eur J Drug Metab Pharmacokinet 2022;47(3):331-342（摘要）",
+      "quote": "When warfarin and PNS were co-administered, the PT and INR increased compared to when warfarin was given alone.",
+      "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=35138605&rettype=abstract&retmode=text",
+      "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+     },
+     {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/39263307/",
+      "title": "Yang Y, et al. Mechanism of Panax notoginseng saponins modulation of miR-214-3p/NR1I3 affecting the pharmacodynamics and pharmacokinetics of warfarin. J Ginseng Res 2024;48(5):494-503（摘要）",
+      "quote": "In our clinical work, we unexpectedly found that the combination of Panax notoginseng and warfarin, which are herbs that activate blood circulation and remove blood stasis, showed antagonistic effects instead.",
+      "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=39263307&rettype=abstract&retmode=text",
+      "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+     },
+     {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/24142885/",
+      "title": "Wang P, et al. Absence of an effect of T89 on the steady-state pharmacokinetics and pharmacodynamics of warfarin in healthy volunteers. J Clin Pharmacol 2014;54(2):234-9（摘要）",
+      "quote": "These results indicate that T89 has no effect on the steady-state PD and PK of warfarin.",
+      "verifiedVia": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=24142885&rettype=abstract&retmode=text",
+      "verification": "已下载页面全文并逐字（忽略空白/换行）核对"
+     }
+    ]
+   }
+  ]
+ }
 }

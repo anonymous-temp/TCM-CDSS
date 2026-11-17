@@ -118,8 +118,9 @@ await check('S20','生成数据与治理输入指纹一致，逐条保留方向�
 const risks=s=>required.requiredPrecautionsForCase(s).filter(x=>x.kind==='drug_condition_caution');
 const ids=s=>risks(s).map(x=>x.ruleId);
 await check('S21','研究主表增强方向及别名不用；止血类与不同药用部位不泛禁',()=>{
- for(const name of ['当归','酒当归','当归尾','炙甘草','干姜','枸杞子','银杏叶','葛根'])assert.equal(contract.herbBarredForCase(name,on),true,name);
- for(const name of ['白果','三七','蒲黄','茜草'])assert.equal(contract.herbBarredForCase(name,on),false,name);
+ for(const name of ['当归','酒当归','当归尾','干姜','枸杞子','银杏叶','葛根'])assert.equal(contract.herbBarredForCase(name,on),true,name);
+ // 总指挥 11/17：甘草与华法林相互作用的证据方向互相矛盾（研究 directionNote），不入禁用闭集，炙甘草照常作使药。
+ for(const name of ['白果','三七','蒲黄','茜草','甘草','炙甘草'])assert.equal(contract.herbBarredForCase(name,on),false,name);
 });
 await check('S22','eGFR区间沿用化验读法：30–45的二甲双胍只评估，30–50的螺内酯提示监测',()=>{
  assert.deepEqual(ids(state('二甲双胍片0.5g每日2次','eGFR 29.9。')),['metformin_egfr_below_30']);
