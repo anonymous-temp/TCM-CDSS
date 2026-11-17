@@ -2917,7 +2917,7 @@ export function topUpModificationRow(
   // CDSS_STANDBY_MODIFICATIONS=true 时仍按旧口径补「若…」备用加减。
   const standby = standbyModificationsDelivered();
   const strengthening = context.allowTextbookMain ? textbookMainSymptomPresent(row.trigger, row.herbName, { caseState, prior, recordText, priorityEvaluation: context.priorityEvaluation }) : undefined;
-  const source = (context.textbookFill && modificationTextbookFillEnabled()) || strengthening ? textbookFillSource(row.trigger, herbName, { prior }) : undefined;
+  const source = (context.textbookFill && modificationTextbookFillEnabled()) || strengthening ? textbookFillSource(row.trigger, herbName, { prior, recordText }) : undefined;
   if (source && textbookFillRemovalConflict(source.entry, candidateHerbNames)) return undefined;
   const present = strengthening || (standby ? undefined : presentModificationCondition(row.trigger, modificationPresenceFactsFor(recordText, prior), { caseState, prior, recordText, priorityEvaluation: context.priorityEvaluation }));
   if (!source && (standby ? !modelConditionalTriggerShape(row.trigger) : !present)) return undefined;
@@ -2954,6 +2954,9 @@ export function topUpModificationRow(
         prior.pathogenesis?.chain?.[0],
         (value, fallback) => String(value || "").trim() || fallback,
       )
+      // 尚未出现的教材变化不照抄首个病机节点（第四十九轮甲方病历3：「若见头晕耳鸣、腰膝酸软」写成「针对：脾运不健，气血生化不足」）。
+      : source
+      ? `${String(source.row.syndromeName || prior.overview?.primarySyndrome || "本证").replace(/证$/u, "")}可能出现的变化`
       : String(prior.pathogenesis?.chain?.[0]?.pathogenesis || prior.overview?.primarySyndrome || "随证调整"),
     action: "加",
     herbName,

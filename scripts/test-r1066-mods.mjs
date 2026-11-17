@@ -195,3 +195,11 @@ await check('25','中性证名没有对应教材行时，从本病证型行里�
  const st2=types.normalizeCaseStateInput({patient:{age:40,sex:'男'},chiefComplaint:'腹痛2天',symptoms:{现病史:'腹痛2天。'}});
  assert.equal(c.fillTextbookModificationConditions([],p,st2,['柴胡','枳壳','白芍','甘草'],{recordText:safe.clinicalGroundingText(st2)}).length,0,'无相关表现不补');
 });
+await check('26','尚未出现的教材补位行「针对」写本证可能出现的变化，不抄首个病机节点（甲方病历3）',()=>{
+ const st=types.normalizeCaseStateInput({patient:{age:30,sex:'女'},chiefComplaint:'头痛2月余',symptoms:{现病史:'产后头痛，隐痛，伴头晕、心悸、神疲乏力，面色少华。舌淡，苔薄白，脉细弱。'}});
+ const p={...prior,overview:{tcmDiseaseName:'头痛',primarySyndrome:'血虚头痛',recommendedFormulaNames:['加味四物汤']},therapy:{overallMethod:'养血滋阴，和络止痛'},pathogenesis:{chain:[{nodeId:'P1',patientFact:'食欲下降',pathogenesis:'脾运不健，气血生化不足',therapyDirection:'养血'}]}};
+ const out=c.fillTextbookModificationConditions([],p,st,['熟地黄','白芍','当归','川芎','党参','白术','蔓荆子','菊花','炙甘草'],{recordText:safe.clinicalGroundingText(st)});
+ const standby=out.filter(r=>/^若见/.test(String(r.trigger)));
+ assert.ok(standby.length>0,JSON.stringify(out.map(r=>r.trigger)));
+ for(const r of standby){assert.ok(!/脾运不健/.test(String(r.targetPathogenesis)),String(r.targetPathogenesis));assert.match(String(r.targetPathogenesis),/可能出现的变化$/);}
+});
