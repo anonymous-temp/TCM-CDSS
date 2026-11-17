@@ -414,7 +414,8 @@
     "build:textbook-disease-names": "node --max-old-space-size=1280 scripts/build-tcm-textbook-disease-names.mjs",
     "test:r1066-text": "node --max-old-space-size=1280 scripts/test-r1066-text.mjs",
     "test:r1065-rxtext": "node --max-old-space-size=1280 scripts/test-r1065-rxtext.mjs",
-    "test:r1066-gate": "node --max-old-space-size=1280 scripts/test-r1066-gate.mjs"
+    "test:r1066-gate": "node --max-old-space-size=1280 scripts/test-r1066-gate.mjs",
+    "test:r1066-names": "node --max-old-space-size=1280 scripts/test-r1066-names.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

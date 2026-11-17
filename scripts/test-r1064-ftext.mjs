@@ -171,7 +171,8 @@ await check('F18', '肩关节周围炎按教材原句交付漏肩风；颈椎病
  assert.equal(diff.resolveTcmDiseaseDifferentialName('白喉','口疮').action,'keep');
  assert.equal(diff.resolveTcmDiseaseDifferentialName('虱病','瘾疹').action,'keep');
  assert.equal(diff.resolveTcmDiseaseDifferentialName('吐血','咳嗽').action,'keep');
- assert.equal(diff.resolveTcmDiseaseDifferentialName('骨关节炎','痹证').action,'drop');
+ // 第四十九轮P5有意改口径：教材映射已补骨关节炎→骨痹，鉴别交付规范中医名；不再因原节名为西医名丢弃。
+ assert.deepEqual(diff.resolveTcmDiseaseDifferentialName('骨关节炎','痹证'),{action:'rename',name:'骨痹',from:'骨关节炎'});
  assert.equal(terms.textbookSectionDeliveryName('黄疸'),'黄疸');
  assert.equal(terms.textbookSectionDeliveryName('虚脱'),'虚脱');
 });

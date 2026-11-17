@@ -357,10 +357,8 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
             const disease = tcmHalfDiseaseName(tcmContent);
             // 既往确诊病对照（第三十八轮）：辨证半写成了既往确诊病在教材里的邻近病（乳蛾 ↔ 喉痹）时，按既往病的发作重写一次。
             // 触发是确定性的（教材写明的西医对应 + 主诉主症 + 教材鉴别病名），不另发核对请求；与收口并行，不占关键路径。
-            const historyRedraw = historyStatedUnique && redraw && writtenDiseaseIsTextbookNeighbour(disease, historyStatedUnique, textbookDiseaseDifferentialNames)
-              ? redraw(historyStatedDiseaseRedrawInstruction(disease, historyStatedUnique))
-              : undefined;
-            // 病名与教材诊断要点的核对（第四十二轮，m03-disease-points-check；缺省关）：与就诊原因核对、收口并行，只在就诊原因核对没有重抽时用。
+            const historyRedraw = historyStatedUnique && redraw && writtenDiseaseIsTextbookNeighbour(disease, historyStatedUnique, textbookDiseaseDifferentialNames);
+            // 定义性表现缺项/教材病名细分确定性触发，其余诊断要点仍用既有提名复核；全程至多重抽一次。
             const [visit, finished, points] = await Promise.all([
               checkDiseaseExplainsVisitReason({ ...visitReasonInput, disease, picks: textbookDiseasePicks }, transformSignal),
               finishTcmHalf(tcmContent),
@@ -372,14 +370,14 @@ async function computeDiagnose(parsed: ParsedStageRequest, signal: AbortSignal):
                 ageYears: visitReasonInput.ageYears,
               }, transformSignal),
             ]);
-            if (visit.status !== "not_covered" && historyRedraw && historyStatedUnique) {
-              const redrawn = await historyRedraw;
+            if (visit.status !== "not_covered" && historyRedraw && historyStatedUnique && !(points.status === "mismatch" && points.kind === "defining_missing")) {
+              const redrawn = await redraw!(historyStatedDiseaseRedrawInstruction(disease, historyStatedUnique));
               const redrawnDisease = redrawn ? tcmHalfDiseaseName(redrawn) : "";
               const adopted = Boolean(redrawn && redrawnDisease === historyStatedUnique.disease);
               console.info("[tcm-cdss:telemetry] m03_history_stated_disease", { disease, stated: historyStatedUnique.disease, redrawnDisease: redrawnDisease || null, adopted });
               return adopted && redrawn ? finishTcmHalf(redrawn) : finished;
             }
-            if (visit.status !== "not_covered" && points.status === "mismatch" && redraw) {
+            if (points.status === "mismatch" && redraw && (visit.status !== "not_covered" || points.kind === "defining_missing" || points.kind === "refinement")) {
               const redrawn = await redraw(diseasePointsRedrawInstruction(disease, points));
               const redrawnDisease = redrawn ? tcmHalfDiseaseName(redrawn) : "";
               const adopted = Boolean(redrawn && redrawnDisease && redrawnDisease !== disease);

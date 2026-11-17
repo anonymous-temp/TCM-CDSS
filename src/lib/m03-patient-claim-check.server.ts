@@ -18,6 +18,8 @@ import { observeModelTask } from "./cdss-model-task-telemetry";
 import { maskNonNegatingWuWords, recordedFindingReading, recordMentionPolarityAt } from "./diagnosis-safety";
 import { recordAffirmsDeniedFinding } from "./diagnosis-visible-summary";
 import { alignQuoteToSource } from "./source-quote-alignment";
+import { textbookDiseaseDiagnosisPoints, textbookDiseaseDefinition } from "./tcm-textbook-syndromes";
+import definingFindingsSource from "../data/tcm-disease-defining-findings.source.json" with { type: "json" };
 
 /**
  * 辨病辨证里关于本例患者的说法要有病历依据（2026-10-19，独立评审通则 1）。
@@ -69,7 +71,7 @@ const compact = (value: string) => arabicNumerals(value.normalize("NFKC")).repla
 
 export type PatientClaimHalf = "tcm" | "western";
 export type PatientClaimField = { id: string; text: string };
-export type PatientClaimRemoval = { field: string; span: string };
+export type PatientClaimRemoval = { field: string; span: string; textbookDefinition?: true };
 
 const CLAUSE_DELIMITERS = "，,。；;：:（）()";
 
@@ -115,6 +117,50 @@ export function patientClaimFields(root: Json, half: PatientClaimHalf): PatientC
   return fieldSlots(root, half).map(({ id, text: value }) => ({ id, text: value.slice(0, MAX_FIELD_CHARS) }));
 }
 
+/** 只提名辨病文字中的定义重合子句，供既有事实复核；重合本身绝不等于无据。 */
+export function textbookCopiedDiseaseClaims(root: Json, recordText: string): PatientClaimRemoval[] {
+  const overview = record(root.overview);
+  const disease = text(overview?.tcmDiseaseName);
+  if (!disease || !recordText.trim()) return [];
+  const reference = textbookDiseaseDiagnosisPoints(disease);
+  const textbook = compact([reference?.definition || textbookDiseaseDefinition(disease) || "", ...(reference?.points || [])].join("；"));
+  if (!textbook) return [];
+  const result: PatientClaimRemoval[] = [];
+  for (const field of patientClaimFields(root, "tcm")) {
+    if (field.id !== "tcmDiseaseRationale" && !field.id.startsWith("tcmDiseaseDifferentials[")) continue;
+    for (const sentence of field.text.split(/[。；;\n]/u)) {
+      // 鉴别里介绍别的病的通则仍不当本例断言；缺项/待核实句也不是肯定断言。
+      if (field.id !== "tcmDiseaseRationale" && !PATIENT_SELF_REFERENCE.test(sentence)) continue;
+      let patientSeen = false;
+      for (const clause of sentence.split(/[，,]/u).map((part) => part.trim()).filter(Boolean)) {
+        patientSeen ||= PATIENT_SELF_REFERENCE.test(clause);
+        if (field.id !== "tcmDiseaseRationale" && !patientSeen) continue;
+        if (RECORD_GAP_MARKER.test(clause) || RECORD_CONSIDERATION_MARKER.test(clause)) continue;
+        const key = compact(clause);
+        if (key.length < 6 || key.length > 80) continue;
+        const findingText = definingFindingsSource.definitionClaimGlue.reduce((value, word) => value.replaceAll(word, ""), key.replaceAll(compact(disease), ""));
+        if (findingText.length < 4) continue;
+        const shared = longestSharedRun(key, textbook);
+        const pairs = [...new Set([...key].slice(0, -1).map((_, i) => key.slice(i, i + 2)))];
+        const overlap = pairs.filter((pair) => textbook.includes(pair)).length;
+        const definingPhrase = definingFindingsSource.entries.find((entry) => entry.names.includes(disease))?.claimPhrases
+          ?.some((phrase) => key.includes(phrase));
+        if (!definingPhrase && shared < 6 && !(shared >= 4 && overlap >= 5 && overlap / pairs.length >= 0.5)) continue;
+        // 只要病历逐字肯定写了该子句，就不再送核；同义/术语化留给既有模型复核。
+        if (alignQuoteToSource(clause, recordText, { excludedAt: (value, at) => recordMentionPolarityAt(value, at) !== "affirmed" })) continue;
+        // 截最相关的原文片段，避免超过既有 span 的 20 字上限。删除时按它所在整句处理。
+        let span = clause;
+        if (span.length > MAX_SPAN_CHARS) {
+          const windows = Array.from({ length: clause.length - MAX_SPAN_CHARS + 1 }, (_, i) => clause.slice(i, i + MAX_SPAN_CHARS));
+          span = windows.sort((a, b) => longestSharedRun(compact(b), textbook) - longestSharedRun(compact(a), textbook))[0];
+        }
+        if (!result.some((item) => item.field === field.id && item.span === span)) result.push({ field: field.id, span, textbookDefinition: true });
+      }
+    }
+  }
+  return result.slice(0, MAX_CLAIMS);
+}
+
 /**
  * 交给核对的病历：首行补性别、年龄、带名称的生命体征（病历正文里没有前两项，生命体征只有裸数字「生命体征：46」——
  * 结论里的「本例36岁」「老年男性」「心动过缓」要有据可查）。只给这一个核对用，不进任何安全判断。
@@ -147,6 +193,7 @@ export function buildPatientClaimMessages(recordText: string, fields: readonly P
         "同一类错误还有三种写法：写某项“正常、如常、清楚”（如“神志清楚”“四肢活动自如”“饮食如常”）而病历没写这一项；写症状“不在某处”“与某事无关”（如“痛不在胁下”“与进食无关”）而病历没写部位或这层关系；把病历里笼统的“不适”写成具体性质（病历只写“腹部不适”，文字写“腹部痞满”“腹部胀痛”）。",
         "还有一种容易漏的：病历写了这个症状或体征，文字在它前后加上病历没有的限定——程度（病历“发热”，文字“壮热”）、颜色或性状（病历“身黄”，文字“黄色鲜明”）、固定与否或范围（病历“刺痛”，文字“痛有定处”“肿势散漫”）。这类限定词要逐个对照病历，病历没写的那个限定词就是错误，span 取该限定词连同它修饰的症状（如“壮热”“黄色鲜明”）；病历用另一种说法写了同样的意思（“针刺样痛”与“刺痛如针扎”）不算。",
         "辨证依据常把体征和病机写在同一句里（如“痛剧、XX属热毒”“皮损为XX，与之不同”）：病机部分不用管，但句中每个体征、性状词都要逐个对照病历——病历没写的那个词就是错误。",
+        "辨病依据 tcmDiseaseRationale 中引用本病的教材定义或诊断要点来说明为何定此病，也是在断言本例符合这些表现，即使未写“本例”也须核对。不能把“反复发作性哮鸣”“胃内容物自口而出”“痛位在胃脘以下耻骨毛际以上”当作通则而豁免；仅说明待核实的缺项、或明确在介绍另一个鉴别病的通则时才豁免。",
         "以下不算错误，不要列出：",
         "- 鉴别诊断里写别的病、别的证的典型表现或一般规律：没有“本例/患者/患儿/该患者”这类主语、只是罗列特征的话（如“搏动性、单侧、伴畏光”“起病即发热重”“多见于中老年”“需排除占位”），默认是在写那个病；",
         "- 病机、推理、归纳、风险判断、诊断结论（如“属风寒束表”“为热毒壅于肝经”“提示免疫功能偏低”“存在心血管危险因素”）；",
@@ -382,11 +429,16 @@ export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, re
   if (removals.length === 0) return 0;
   const slots = new Map(fieldSlots(root, half).map((slot) => [slot.id, slot]));
   let applied = 0;
-  for (const { field, span } of removals) {
+  for (const { field, span, textbookDefinition } of removals) {
     const slot = slots.get(field);
     if (!slot) continue;
     const current = slot.read();
     if (!current.includes(span) || negativeInferenceClaim(span)) continue;
+    if (textbookDefinition && half === "tcm") {
+      const next = withoutTextbookClaimSentence(current, span);
+      if (next !== current) { slot.write(next); applied += 1; }
+      continue;
+    }
     // 片段里的「无」全是固定说法（无痛性、无意中、面色无华…，maskNonNegatingWuWords）：不是阴性说法，留模型原话（第四十五轮复核 C069、n30）。
     if (/无/u.test(span) && !/无/u.test(maskNonNegatingWuWords(span))) continue;
     // 片段里夹着病历肯定写着的项：整段删会连它们一起丢（「发热不恶寒、口渴汗出、舌红苔黄腻」），这种留模型原话。
@@ -411,6 +463,21 @@ export function applyPatientClaimRemovals(root: Json, half: PatientClaimHalf, re
     }
   }
   return applied;
+}
+
+/** 不拼接被删句的主语/谓语。删后不足一个完整句时保留原句，明确待核实。 */
+export function withoutTextbookClaimSentence(value: string, span: string): string {
+  const at = value.indexOf(span);
+  if (at < 0) return value;
+  const start = Math.max(...["。", "；", ";", "\n"].map((mark) => value.lastIndexOf(mark, at - 1))) + 1;
+  const stops = ["。", "；", ";", "\n"].map((mark) => value.indexOf(mark, at + span.length)).filter((index) => index >= 0);
+  const end = stops.length ? Math.min(...stops) + 1 : value.length;
+  const rest = (value.slice(0, start) + value.slice(end)).trim();
+  if (rest.length >= 6 && /[^。；;\n]{4,}[。；;]/u.test(rest)) return rest;
+  const sentence = value.slice(start, end);
+  if (sentence.includes("待核实")) return value;
+  const marked = sentence.replace(/([。；;\n]?)$/u, "（待核实）$1");
+  return value.slice(0, start) + marked + value.slice(end);
 }
 
 /** 内容（一半的 JSON 串）上落实删除；解析失败或没删任何东西时原样返回。 */
@@ -474,6 +541,7 @@ export function buildPatientClaimVerificationMessages(recordText: string, claims
         "你是病历核对员。给你一份门诊病历（record，首行是性别、年龄、生命体征）和几条从辨病辨证结论里摘出的、关于本例患者的说法（claims，每条附它所在的那句话 context）。",
         "逐条判断：病历里有没有写到这条说法的全部内容——同义的说法、术语化的说法（病历描述换成中医或西医术语，如“心痛如绞”与“绞痛”、“红斑风团”与“风团色红”、“不想吃饭”与“纳呆”、“手脚发麻”与“四肢麻木”）、几处合起来能得出的，都算写到了。",
         "只有说法里多出了病历根本没有的内容——新的症状、部位、侧别、性质、程度（病历“发热”，说法“壮热”）、颜色或性状（病历“身黄”，说法“黄色鲜明”）、固定与否、诱因、起病时间、与某事的关系、“正常/如常/清楚”这类判断——才算 partial 或 absent。",
+        "来自辨病依据的本病教材定义或诊断要点也按本例断言核对，不能因其是教材通则就判 supported；其中病机本身不核，定义所包含的具体表现仍须在病历中有对应记载。",
         "- supported：写到了全部内容，quote 给出病历里的原文（逐字复制，不超过40字）；",
         "- partial：只写到一部分（如病历只写“隐痛”，说法是“双侧隐痛”；病历只写“胃脘不适”，说法是“胃脘痞闷”）；",
         "- absent：没写到，或与病历写的相反。",
@@ -564,6 +632,7 @@ export async function decidePatientClaimRemovals(
   if (fields.length === 0 || !recordText) return [];
   if (!getControlledTerminologyModelConfig().configured) return [];
   const task = `m03_patient_claim_${half}`;
+  const textbookClaims = half === "tcm" ? textbookCopiedDiseaseClaims(root, recordText) : [];
   const [first, second] = await Promise.all([
     patientClaimPass(task, buildPatientClaimMessages(recordText, fields), fields, recordText, signal),
     patientClaimPass(task, buildPatientClaimMessages(recordText, [...fields].reverse()), fields, recordText, signal),
@@ -571,6 +640,11 @@ export async function decidePatientClaimRemovals(
   const agreed = first && second
     ? patientClaimCandidatesForVerification(first, second, { eitherPass: process.env.CDSS_M03_PATIENT_CLAIM_EITHER_PASS === "true" })
     : undefined;
+  // 定义重合只增加送核候选，仍沿用原事实复核这一次调用；配置缺失、超时或复核失败都不删。
+  if (agreed && textbookClaims.length) {
+    const other = agreed.filter((row) => !textbookClaims.some((item) => row.field === item.field && (row.span.includes(item.span) || item.span.includes(row.span))));
+    agreed.splice(0, agreed.length, ...textbookClaims, ...other.slice(0, Math.max(0, MAX_CLAIMS - textbookClaims.length)));
+  }
   let removals = agreed;
   if (agreed && agreed.length > 0) {
     const byId = new Map(fields.map((field) => [field.id, field.text]));

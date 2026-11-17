@@ -3,8 +3,11 @@ import "server-only";
 import { recordMentionPolarityAt, sanitizeFreeTextForModel } from "./diagnosis-safety";
 import { proposeThenVerify } from "./cross-model-small-task.server";
 import { alignQuoteToSource } from "./source-quote-alignment";
+import { diseaseDefiningFindingStatus, textbookDiseaseRefinement } from "./tcm-disease-defining-findings";
 import pointsCheckSource from "../data/tcm-disease-points-check.source.json" with { type: "json" };
 import { diseaseNameWithRecordSubtype, textbookDiseaseDefinition, textbookDiseaseDiagnosisPoints } from "./tcm-textbook-syndromes";
+import chiefConceptSource from "../data/tcm-differential-chief-concepts.source.json" with { type: "json" };
+import { chiefComplaintPhrase } from "./rationale-findings-checklist";
 
 /**
  * 中医病名与教材诊断要点的核对（2026-11-11 第四十二轮）。
@@ -41,7 +44,7 @@ export type DiseasePointsInput = {
   ageYears?: number;
 };
 
-export type DiseasePointsProposal = { kind: "contradicted" | "missing_sign"; point: string; recordQuote: string; better: string; reason: string };
+export type DiseasePointsProposal = { kind: "contradicted" | "missing_sign" | "defining_missing" | "refinement"; point: string; recordQuote: string; better: string; reason: string };
 export type DiseasePointsVerdict = { status: "fits" } | ({ status: "mismatch" } & DiseasePointsProposal);
 
 const PROPOSE_SYSTEM = [
@@ -64,6 +67,23 @@ export function diseasePointsCheckApplies(input: DiseasePointsInput): boolean {
   if (!diseasePointsCheckEnabled() || !compact(input.disease) || !compact(input.recordText)) return false;
   if (!input.candidates.some((name) => !sameDisease(name, input.disease))) return false;
   return Boolean(textbookDiseaseDiagnosisPoints(input.disease, input.ageYears));
+}
+
+/** 第四十九轮：定义缺项无需模型提名。候选只按同一张表的肯定表现推荐，表外病不算「已成立」。 */
+export function deterministicDiseasePointsVerdict(input: DiseasePointsInput): DiseasePointsVerdict {
+  if (!compact(input.disease) || !compact(input.recordText)) return { status: "fits" };
+  const refined = textbookDiseaseRefinement(input.disease, input.recordText, input.candidates);
+  if (refined) return { status: "mismatch", kind: "refinement", point: "便时疼痛、出血、便秘", recordQuote: "", better: refined, reason: "教材局部病名细分需核对" };
+  const result = diseaseDefiningFindingStatus(input.disease, input.recordText);
+  if (result.status !== "missing" || !result.rule) return { status: "fits" };
+  const explainsChief = (name: string) => {
+    const chief = chiefComplaintPhrase(input.chiefComplaint);
+    const definition = textbookDiseaseDefinition(name, input.ageYears) || "";
+    // 只比较病名定义，不借某一证型的兼见症（例如呕吐某型兼发热）替代本次主诉。
+    return chiefConceptSource.concepts.some((group) => group.forms.some((form) => chief.includes(form)) && group.forms.some((form) => definition.includes(form)));
+  };
+  const better = input.candidates.find((name) => !sameDisease(name, input.disease) && diseaseDefiningFindingStatus(name, input.recordText).status === "supported" && explainsChief(name)) || "";
+  return { status: "mismatch", kind: "defining_missing", point: result.rule.missing, recordQuote: "", better, reason: `${result.rule.sourceRef.book}:${result.rule.sourceRef.line}` };
 }
 
 /** 模型提名 → 合格的提名：要点逐字出自教材要点，病历原文逐字出自病历且是本人的、问到了的记载，更合适的病在候选里。否则 undefined。 */
@@ -104,7 +124,10 @@ function parseConfirmedVerdict(content: unknown): boolean | undefined {
 }
 
 export async function checkDiseaseAgainstDiagnosisPoints(input: DiseasePointsInput, signal?: AbortSignal): Promise<DiseasePointsVerdict> {
-  if (signal?.aborted || !diseasePointsCheckApplies(input)) return { status: "fits" };
+  if (signal?.aborted || !diseasePointsCheckEnabled()) return { status: "fits" };
+  const deterministic = deterministicDiseasePointsVerdict(input);
+  if (deterministic.status === "mismatch") return deterministic;
+  if (!diseasePointsCheckApplies(input)) return { status: "fits" };
   const reference = textbookDiseaseDiagnosisPoints(input.disease, input.ageYears)!;
   const candidates = input.candidates.filter((name) => !sameDisease(name, input.disease));
   const describe = (name: string) => ({ name: diseaseNameWithRecordSubtype(name, input.recordText), definition: textbookDiseaseDefinition(name, input.ageYears) || null });
@@ -136,6 +159,11 @@ export async function checkDiseaseAgainstDiagnosisPoints(input: DiseasePointsInp
 
 /** 重抽辨证半时附在中医半提示词末尾的一段（只在 mismatch 时用）。 */
 export function diseasePointsRedrawInstruction(disease: string, verdict: Extract<DiseasePointsVerdict, { status: "mismatch" }>): string {
+  if (verdict.kind === "defining_missing" || verdict.kind === "refinement") return [
+    "【病名须符合教材定义性表现】",
+    verdict.kind === "defining_missing" ? `上一稿病名「${disease}」所需的「${verdict.point}」在病历中尚无肯定记载，不能把教材定义写成本例所见。` : `请核对「${disease}」与「${verdict.better}」的教材判别表现，只依据本例原文细分病名。`,
+    `在原有【教材病证候选】闭集内重定病名${verdict.better ? `，优先核对「${verdict.better}」` : "，没有更合适的病则保留原名并写清待核实的定义性表现"}；根据病历重写本半，不补造症状、体征或检查。`,
+  ].join("\n");
   const why = verdict.kind === "contradicted"
     ? `病历「${verdict.recordQuote}」与教材${disease}的诊断要点「${verdict.point}」相反`
     : `${disease}要靠「${verdict.point}」确立，病历写的是「${verdict.recordQuote}」`;

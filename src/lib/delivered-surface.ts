@@ -59,6 +59,7 @@ import { modificationDoseWithinPharmacopoeia, canonicalTcmHerbIdentity } from ".
 import { conciseHerbFunctionLabel, withEveryHerbExplained, formulaAnalysisHerbMentions, herbFunctionFromFormulaAnalysis, tidyPunctuation, withMentionsAlignedToTableNames, withOpeningMatchingFormulaName, withoutChartAssertionClauses, withoutProcessParentheticals, withoutStrayLeadingRoleVerb, withProcessingFromTable, withoutUnsupportedHarmonizingClaims, withoutUnsupportedHarmonizingClause, withRoleOnlyHerbsExplained } from "./formula-analysis-review";
 import { textbookDiseaseTypicalManifestation, textbookDefinitionSuitableForDisplay, textbookDifferentialTextWithoutNumber, textbookDifferentialSharesChiefComplaint, diseaseNameWithRecordSubtype, textbookTherapyItems, splitTextbookDiseaseSubtype, tcmDifferentialDiseaseFitsPatient, textbookDifferentialFitsSubtype, textbookDifferentialsForDisease, textbookRowForSyndrome, textbookRowProvenance, textbookRowCitable } from "./tcm-textbook-syndromes";
 import { MIN_TCM_DIFFERENTIALS, resolveTcmDiseaseDifferentialName } from "./tcm-disease-differential-normalization";
+import { withDiseaseDefiningFindingCaveat } from "./tcm-disease-defining-findings";
 import { clinicalTreatmentScheduleWording } from "./treatment-schedule-wording";
 import { boundaryRuleShown, followupSignsForPopulation, hasHerbBoundaryTail, herbBoundaryTail, stripHerbBoundaryTail, type HerbBoundaryAudience } from "./candidate-boundary-text";
 import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, herbFunctionKnowledgeForDisplay, isExternalUseEfficacyClause, isKnownTcmHerbName } from "./tcm-knowledge";
@@ -1646,6 +1647,7 @@ function deliveredDiagnose(reasoning: Json, options?: DeliveredSurfaceOptions, r
           .filter((item) => textbookDifferentialFitsSubtype(split.disease, subtype, String(item.diseaseName || "")));
       }
     }
+    withDiseaseDefiningFindingCaveat(overview, options.recordText);
   }
   // 中医鉴别诊断每例必出（甲方 10.12 测评 2.3「中医鉴别诊断未生成」），且至少两项（甲方验收「鉴别诊断覆盖率」，2026-10-19）：
   // 模型没写、写的病名被归一丢掉、或只剩一项而补写小任务也没补上时，用教材【鉴别诊断】对该病列出的病证补齐，要点是教材原文。

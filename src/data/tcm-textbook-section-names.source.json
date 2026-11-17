@@ -1,6 +1,6 @@
 {
  "schemaVersion": "tcm-textbook-section-names-v1",
- "note": "教材节名的两类订正（2026-11-15 第四十六轮）：① sectionNameFixes：扫描件 OCR 错字与断行误识的节名（大行赤眼=天行赤眼；「巴细胞升高」是猩红热一节里「淋巴细胞升高」断行，三条证型挂错了节），读入证型表时按 to 改名（tcm-textbook-syndromes.ts），病名清单同一取法（scripts/build-tcm-textbook-disease-names.mjs）；② sectionTcmNames：节名是西医病名、教材在该节自己写明中医归属的（「中医称为痄腮」「属于中医“血虚”“虚劳”范畴」），交付时中医病名栏写 tcmName。教材列了几个中医名的取第一个本身是教材病名或国标病名的（病毒性心肌炎「风温、心悸、怔忡…」取心悸，营养性缺铁性贫血「血虚、虚劳」取虚劳，硬肿症「胎寒、五硬」取五硬）；扫描错字照原句录（「瘙瘕」即癥瘕、「烂喉丹痴」即烂喉丹痧）。只列「肝风、抽搐、瘛疭」这类证候或症状名的（抽动障碍）、或节内没有写中医归属的（性早熟、注意力缺陷多动障碍等）不收，节名照旧。",
+ "note": "教材节名的两类订正（2026-11-15 第四十六轮）：① sectionNameFixes：扫描件 OCR 错字与断行误识的节名（大行赤眼=天行赤眼；「巴细胞升高」是猩红热一节里「淋巴细胞升高」断行，三条证型挂错了节），读入证型表时按 to 改名（tcm-textbook-syndromes.ts），病名清单同一取法（scripts/build-tcm-textbook-disease-names.mjs）；② sectionTcmNames：节名是西医病名、教材在该节自己写明中医归属的（「中医称为痄腮」「属于中医“血虚”“虚劳”范畴」），交付时中医病名栏写 tcmName。教材列了几个中医名的取第一个本身是教材病名或国标病名的（病毒性心肌炎「风温、心悸、怔忡…」取心悸，营养性缺铁性贫血「血虚、虚劳」取虚劳，硬肿症「胎寒、五硬」取五硬）；扫描错字照原句录（「瘙瘕」即癥瘕、「烂喉丹痴」即烂喉丹痧）。只列「肝风、抽搐、瘛疭」这类证候或症状名的（抽动障碍）、或节内没有写中医归属的（性早熟、注意力缺陷多动障碍等）不收，节名照旧。 第四十九轮新增 deliveryAliases：旧名及西医标题的显式交付映射，每项 sourceRef 带本地教材逐字引文与行号；骨关节炎通用写骨痹，明确膝部的西医名写膝痹，不能把泛指骨关节炎默认定位在膝部。",
  "sectionNameFixes": [
   {
    "bookKey": "yanke",
@@ -143,6 +143,100 @@
    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
    "line": 194975,
    "quote": "节和膝关节。化脓性关节炎属中医“无头疽”范畴"
+  },
+  {
+   "bookKey": "waike",
+   "section": "虫咬皮炎",
+   "tcmName": "恶虫叮咬",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 207181,
+   "quote": "虫咬皮炎为西医学病名，相当于中医学的恶虫叮咬。《外科正宗•"
+  },
+  {
+   "bookKey": "gushang",
+   "section": "挤压综合征",
+   "tcmName": "压迮伤",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 187057,
+   "quote": "急性肾衰竭和低血容量性休克等症候群。中医学称之为“压迮伤”。从发"
+  },
+  {
+   "bookKey": "gushang",
+   "section": "骨关节结核",
+   "tcmName": "流痰",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 195061,
+   "quote": "痰，发于胸背部称龟背痰，发于腰椎两旁称肾俞虚痰，发于膝部称鹤膝\n痰，发于踝部称穿拐痰等，统称流痰。本病后期因耗损气血严重，呈虚\n劳征象，故又称骨痨。以青少年及10岁以下儿童多见，发病部位以脊柱"
+  },
+  {
+   "bookKey": "waike",
+   "section": "胆石症",
+   "tcmName": "胆胀",
+   "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+   "line": 215136,
+   "quote": "胆石症在中医学中属于“胆胀”“胁痛”“结胸”“黄疸”等范畴。《灵枢■经脉》\n中记载：“胆足少阳之脉是动则病口苦，善太息，心胁痛，不能转"
+  }
+ ],
+ "deliveryAliases": [
+  {
+   "fromName": "骨关节炎",
+   "to": "骨痹",
+   "sourceRef": {
+    "book": "推拿治疗学",
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 99947,
+    "endLine": 99948,
+    "quote": "要表现为慢性腰腿疼痛。本病起病缓慢，病程较长，症状迁延，多见于中老年人，男性多于女性。长期从\n事重体力劳动者、运动员及肥胖者则更早、更易患本病。本病属中医“骨痹”“骨痿”范畴。"
+   },
+   "note": "骨关节炎不限膝，通用映射骨痹；膝部另取膝痹"
+  },
+  {
+   "fromName": "膝骨关节炎",
+   "to": "膝痹",
+   "sourceRef": {
+    "book": "推拿学",
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 75733,
+    "endLine": 75733,
+    "quote": "膝骨关节炎是指膝关节的退行性改变和慢性积累性关节磨损造成的一种以关节软骨的变性、破坏及骨质增生为主要病理特征的慢性关节病，又称退行性关节炎、老年性关节炎等。膝骨关节炎是最常见的骨关节炎，女性多于男性。本病属中医“骨痹”范畴。"
+   },
+   "note": "本病属骨痹，按国标膝部病名细分为膝痹",
+   "sourceSection": "骨关节炎"
+  },
+  {
+   "fromName": "膝骨性关节炎",
+   "to": "膝痹",
+   "sourceRef": {
+    "book": "针灸治疗学",
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 11782,
+    "endLine": 11782,
+    "quote": "膝骨性关节炎属中医“痹病”“骨痹”范畴，其发生常与劳伤→行走过多或跑跳跌撞等因素有关。病位在膝部筋骨，属本虚标实之证。基本病机是气血瘀滞，筋骨失养。"
+   },
+   "sourceSection": "骨关节炎"
+  },
+  {
+   "fromName": "风热赤眼",
+   "to": "暴风客热",
+   "sourceRef": {
+    "book": "中医眼科学",
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 222840,
+    "endLine": 222841,
+    "quote": "教材■中医眼科学》称本病为“风热眼”。又名暴风客热、暴风客热外障，\n俗称暴发火眼。《秘传眼科龙木论■暴风客热外障》说：“此眼初患之"
+   }
+  },
+  {
+   "fromName": "葡萄疫",
+   "to": "紫癜",
+   "sourceRef": {
+    "book": "中医儿科学",
+    "file": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+    "line": 172828,
+    "endLine": 172830,
+    "quote": "紫瘢亦称紫斑，是小儿时期常见的出血性疾病之一，临床以血液溢\n于皮肤、黏膜之下，出现瘀点瘀斑、压之不退色为特征，常伴有鼻衄、\n齿衄、尿血、呕血、便血等症状，属中医学血证范畴，其临床表现与西"
+   },
+   "note": "按任务书采用教材紫癜节名，紫斑是其别名；不沿用葡萄疫对血管炎病因的限定"
   }
  ]
 }
