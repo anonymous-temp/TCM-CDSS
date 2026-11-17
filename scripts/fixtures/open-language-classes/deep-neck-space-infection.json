@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "cdss-open-language-class-v1",
+  "id": "deep-neck-space-infection",
+  "mode": "deterministic",
+  "paritySchema": "sibling-phrasing",
+  "addedAt": "2026-11-17",
+  "trigger": "第四十九轮 F1：颌面/颈深部感染的局部体征未构成确定性组合，事实模型不返回时只给24小时就诊。全部为合成病例。",
+  "layerAttribution": {
+    "layer": "deterministic_red_flag_rules",
+    "mechanism": "既有发热、吞咽及呼吸规则未读取张口受限与局部感染征象的组合，缺少立即急诊兜底。初次语料回放发现慢性吞咽障碍伴呼吸困难不能单独归为颈深感染，气道分支须有张口异常或颈部/口底肿胀锚点。R1研究补充：感染背景伴转诊征象不要求发热；吞咽痛不等于吞咽困难。最终回放中的哮喘伴咽痛发热沿用呼吸红旗，不能单独增加颈深感染原因。",
+    "exception": "冻结令允许的有限闭集、构词守卫与数值阈值：受治理表维护感染背景、转诊征象、张口及局部伴随词形；弱咽痛与吞咽障碍须有相连构词或另有强感染证据，逐处复用子句极性、时态与主体守卫，不新增模型调用。",
+    "sources": "src/data/redflag-discriminators.source.json deterministicCombinations，依据 R1-deep-neck-infection.json 核定的 SDCEP / NHS / NICE NG84 原文；回放 /var/tmp/r1066/gate/replay.mjs。"
+  },
+  "contexts": [
+    "outpatient_record",
+    "sparse"
+  ],
+  "parity": {
+    "note": "同一组感染危险征象的闭集词形与不同背景叙述必须同档。",
+    "pairs": [
+      {
+        "subject": "牙关紧闭，吞咽稍痛，发热。",
+        "sibling": "张口受限，吞咽痛，发热。",
+        "siblingExpect": "flagged"
+      },
+      {
+        "subject": "否认牙痛，张口受限，吞咽稍痛，发热。",
+        "sibling": "张口受限，吞咽稍痛，发热。",
+        "siblingExpect": "flagged"
+      },
+      {
+        "subject": "张口明显受限，口底肿胀，发热。",
+        "sibling": "张口受限，口底肿胀，发热。",
+        "siblingExpect": "flagged"
+      },
+      {
+        "subject": "牙关紧闭，流涎，体温38.4℃。",
+        "sibling": "张口受限，流涎，体温38.4℃。",
+        "siblingExpect": "flagged"
+      },
+      {
+        "subject": "重症肌无力病史5年，长期吞咽困难、饮水呛咳，呼吸困难，无发热。",
+        "sibling": "重症肌无力病史5年，长期吞咽困难、饮水呛咳，无发热。",
+        "siblingExpect": "ready"
+      },
+      {
+        "subject": "牙痛，牙关紧闭，无发热。",
+        "sibling": "牙痛，张口受限，无发热。",
+        "siblingExpect": "flagged"
+      },
+      {
+        "subject": "吞咽困难伴咽痛，无发热。",
+        "sibling": "咽痛，吞咽困难，无发热。",
+        "siblingExpect": "flagged"
+      },
+      {
+        "subject": "哮喘发作，呼吸困难、喘鸣，咽痛，发热，SpO2 82%。",
+        "sibling": "哮喘发作，呼吸困难、喘鸣，发热，SpO2 82%。",
+        "siblingExpect": "flagged"
+      }
+    ]
+  },
+  "controls": {
+    "mustStayReady": [
+      "普通牙痛两天，体温正常。",
+      "牙龈肿痛，发热，无张口受限。",
+      "扁桃体炎，咽痛发热，否认吞咽困难，无张口受限。",
+      "颞下颌关节紊乱，张口受限，无发热。",
+      "否认张口受限，吞咽痛、发热。",
+      "张口受限阴性，吞咽痛、发热。",
+      "既往牙关紧闭已缓解；现咽痛、发热。",
+      "父亲牙关紧闭；患者吞咽稍痛、发热。",
+      "普通咽痛，吞咽稍痛，无发热。",
+      "咽痛，颈部淋巴结肿大，低热。"
+    ],
+    "mustStillFlag": []
+  },
+  "measurements": {
+    "method": "最终HEAD基线/工作树确定性回放，outpatient_record与sparse两种上下文，兄弟句逐项比较；报告 /var/tmp/r1066/gate/replay-final.json classMeasurement。",
+    "before": "24条目标感染表述均无本类感染红旗；32条兄弟句中8条已有其他红旗。",
+    "after": "24/24条目标感染表述报本类红旗；8条非感染兄弟句维持原档；20/20普通对照无红旗。",
+    "corpusReplay": "24,072条非甲方病例，43处变化逐条核读通过，0时限放宽，0剂量档变化；详 /var/tmp/r1066/gate/replay-review.md。"
+  }
+}

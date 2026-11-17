@@ -1094,5 +1094,54 @@
     "purpose": "「走路发飘」「脚下发飘」这类口语步态词在同一句里与全身乏力、起身时头晕或眼前发黑同时出现时，说的是全身虚弱或体位性头晕，不作为卒中的局灶体征（第四十六轮新病历 n03：上消化道出血伴循环不稳，「近3天自觉全身乏力，走路发飘」被报「意识或神经功能异常」，患者神清）。NICE NG127：无失衡或其他局灶缺损的头晕不太可能是严重神经疾病；能用体位性低血压解释的不按卒中通路。",
     "gaitTerms": ["走路发飘", "脚下发飘", "走路发软", "走路打晃"],
     "systemicContextTerms": ["全身乏力", "全身无力", "周身乏力", "浑身无力", "浑身没劲", "四肢乏力", "起身时", "站起时", "站起来时", "蹲下站起", "蹲起时", "眼前发黑", "眼前发花"]
+  },
+  "abdominalPainVomitingFever": {
+    "purpose": "腹痛伴呕吐、发热即需当面紧急评估，不能落回默认三天；已有急腹症/循环不稳红旗照常优先。",
+    "vomitingPatterns": [
+      "呕吐",
+      "呕出(?:食物|胃内容物)",
+      "吐出(?:食物|胃内容物)"
+    ],
+    "feverPatterns": [
+      "发热",
+      "发烧",
+      "高热"
+    ],
+    "feverTemperatureAtLeast": 38,
+    "window": "within_24h",
+    "focus": "腹部急性感染或急腹症",
+    "text": "腹痛伴呕吐、发热，需24小时内当面完成腹部查体与严重度评估（需排除：腹部急性感染或急腹症）；处方前需完成评估",
+    "evidence": {
+      "researchTitle": "R1-abdominal-pain-fever-vomiting.json（2026-11-17）",
+      "confidence": "medium",
+      "windowInterpretationZh": "研究没有找到三联征须在24小时内评估的数字条文；within_24h 是将 NHS urgent 当日面对面评估映射到现有枚举，不建议等待满24小时。急腹症及循环/呼吸不稳按原红旗立即处置。",
+      "sources": [
+        {
+          "source": "University Hospitals Plymouth NHS Trust, Non-Specific Abdominal Pain, May 2026",
+          "url": "https://www.plymouthhospitals.nhs.uk/display-pil/pil-nonspecific-abdominal-pain-9124/",
+          "accessed": "2026-11-17",
+          "quotes": [
+            "Seek urgent medical advice immediately if you develop:",
+            "Fever or shivering",
+            "Persistent vomiting"
+          ],
+          "applicationZh": "腹痛合并发热或持续呕吐需紧急评估。within_24h 是本表非红旗最紧档，代表当天评估，并非建议等待24小时；没有由此把稳定病例一律升为红旗。"
+        },
+        {
+          "source": "NHS Stomach ache",
+          "url": "https://www.nhs.uk/symptoms/stomach-ache/",
+          "quote": "diarrhoea or vomiting that has not gone away after a few days",
+          "accessed": "2026-11-17",
+          "verification": "研究文件已逐字核对原页"
+        },
+        {
+          "source": "AAFP Acute Abdominal Pain in Adults: Evaluation and Diagnosis, 2023",
+          "url": "https://www.aafp.org/pubs/afp/issues/2023/0600/acute-abdominal-pain-adults.html",
+          "quote": "Abnormal vital signs such as fever, tachycardia, and hypotension help identify patients at the highest risk.",
+          "accessed": "2026-11-17",
+          "verification": "研究文件已逐字核对原页"
+        }
+      ]
+    }
   }
 }
