@@ -825,9 +825,58 @@ function lowerEvidenceConfidence(value: unknown): void {
   setEvidenceConfidence(value, "低");
 }
 
-function setEvidenceConfidence(value: unknown, level: "低" | "中"): void {
+function setEvidenceConfidence(value: unknown, level: "低" | "中" | "高"): void {
   if (!value || typeof value !== "object" || Array.isArray(value)) return;
   (value as Record<string, unknown>).confidence = level;
+}
+
+
+/** 与 resolved 判据同源：每个病位在已接地的 details 中各有依据。 */
+function locationHasBasis(item: string, detailedLocations: readonly string[]): boolean {
+  const sameLocation = (a: string, b: string) => {
+    if (a === b) return true;
+    const ca = canonicalTcmLocationTerm(a)?.id, cb = canonicalTcmLocationTerm(b)?.id;
+    if (ca && cb) return ca === cb;
+    return a.length >= 1 && b.length >= 1 && (a.includes(b) || b.includes(a));
+  };
+  // 三焦与所属脏腑沿用原 resolved 判据。
+  const BURNER_ORGANS: Readonly<Record<string, readonly string[]>> = {
+    上焦: ["心", "肺", "心包", "咽喉"], 中焦: ["脾", "胃", "脾胃", "肝", "胆"], 下焦: ["肾", "膀胱", "大肠", "小肠", "肠", "肝", "胞宫", "子宫", "精室"],
+  };
+  return detailedLocations.some((detail) => sameLocation(item, detail)) ||
+    (BURNER_ORGANS[item] || []).some((organ) => detailedLocations.some((detail) => sameLocation(organ, detail)));
+}
+
+/** 最后交付时统一决定两轴的「高」；不改轴内容、不改变安全门，红旗不升。 */
+export function withResolvedAxisEvidenceConfidence(reasoning: Record<string, unknown>, clinicalContext: string, redFlag: boolean): void {
+  if (!clinicalContext || redFlag) return;
+  const pathogenesis = recordValue(reasoning.pathogenesis);
+  const location = recordValue(pathogenesis?.locationDifferentiation);
+  const nature = recordValue(pathogenesis?.natureDifferentiation);
+  const grounded = (value: unknown) => {
+    if (typeof value !== "string") return "";
+    // 最终可信度只读已交付的逐字引文，不把未对上的修饰词裁短后再升档。
+    const verbatim = value.split(/[；;，,。]/u).map((piece) => piece.trim())
+      .filter((piece) => piece.length >= 2 && clinicalContext.includes(piece));
+    return withoutNormalFindingSegments(exactClinicalSourceQuotes(verbatim.join("；"), clinicalContext).join("；"));
+  };
+  if (location?.resolution === "resolved") {
+    const items = semanticItems(location.items);
+    const details = Array.isArray(location.details) ? location.details.flatMap((detail) => {
+      const row = recordValue(detail);
+      return row && grounded(row.basis) ? semanticItems([row.location]) : [];
+    }) : [];
+    if (items.length > 0 && items.every((item) => locationHasBasis(item, details))) setEvidenceConfidence(location.evidence, "高");
+  }
+  if (nature?.resolution === "resolved") {
+    const labels = [...new Set([...semanticItems(nature.items), ...semanticItems(nature.rootDeficiency), ...semanticItems(nature.branchExcess)])];
+    const basis = grounded(nature.basis);
+    // 不给空依据补引文；复用原有逐要素判据。未知要素仍须各有一段逐字原文。
+    const support = natureAxisElementSupport(labels, basis, "");
+    const segments = basis.split(/[；;]/u).filter((part) => part.trim().length >= 2);
+    if (labels.length > 0 && basis && support.unsupported.length === 0 &&
+      (support.unknown.length === 0 || segments.length >= labels.length)) setEvidenceConfidence(nature.evidence, "高");
+  }
 }
 
 /**
@@ -950,20 +999,7 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       }
       const itemSet = new Set(location.items as string[]);
       const detailedLocations = new Set((location.details as Array<{ location: string }>).map((detail) => detail.location));
-      // 病位栏与依据栏写法不同的同一病位（皮毛/肌表、胃/胃脘，按受治理病位词表；脾胃之于脾、胃这类包含关系）算有依据：
-      // 此前逐字比，「肺、皮毛」配「肌表←躯干部出现红色斑丘疹」被判皮毛无依据而整轴有界（第四十一轮，r1054 回顾 n25、n27）。
-      const sameLocation = (a: string, b: string) => {
-        if (a === b) return true;
-        const ca = canonicalTcmLocationTerm(a)?.id, cb = canonicalTcmLocationTerm(b)?.id;
-        if (ca && cb) return ca === cb;
-        return a.length >= 1 && b.length >= 1 && (a.includes(b) || b.includes(a));
-      };
-      // 三焦是脏腑的部位总称：下焦之于肾、膀胱、大小肠、肝，中焦之于脾、胃，上焦之于心、肺。所含的脏腑有依据，这一焦也算有依据（C038）。
-      const BURNER_ORGANS: Readonly<Record<string, readonly string[]>> = {
-        上焦: ["心", "肺", "心包", "咽喉"], 中焦: ["脾", "胃", "脾胃", "肝", "胆"], 下焦: ["肾", "膀胱", "大肠", "小肠", "肠", "肝", "胞宫", "子宫", "精室"],
-      };
-      const locationGrounded = (item: string) => [...detailedLocations].some((detail) => sameLocation(item, detail)) ||
-        (BURNER_ORGANS[item] || []).some((organ) => [...detailedLocations].some((detail) => sameLocation(organ, detail)));
+      const locationGrounded = (item: string) => locationHasBasis(item, [...detailedLocations]);
       const requested = resolutionValue(location.resolution);
       // 每个病位都有逐字依据：按已确定交付，模型写的「有界」不改变结论；它点名的待核实项照旧留在「待核实」栏
       //（第四十一轮，r1054 回顾：甲方 11/4–11/6 自己的 25 份里 21 份病位/病性标「初步判断、可信度低」，病位靠的是主症本身——咳嗽之于肺、
@@ -1663,6 +1699,13 @@ function notAPatientDenial(offset: number, whole: string, term: string): boolean
   // 只看「无」紧前面同一列举项里的几个字和对象本身：「未提供血常规结果、无面色苍白」的面色苍白仍是症状。
   const nearBefore = before.slice(-6).split(/[、，,；;：:]/u).at(-1) || "";
   if (TEST_FINDING_CONTEXT.test(`${nearBefore}${term}`)) return true;
+  return isGenericClinicalDescription(offset, whole);
+}
+
+/** 复用净化器的既有主语判据：教材鉴别中另一个病的泛述不是本例断言。 */
+export function isGenericClinicalDescription(offset: number, whole: string, includeWholeLead = false): boolean {
+  const before = whole.slice(0, offset);
+  const clause = before.slice(Math.max(before.search(/[^，,。；;\n]*$/u), 0));
   const lead = clause.replace(/^[\s（(]+/u, "");
   if (/^(?:本例|患者|病人|该患)/u.test(lead)) return false;
   // 「与痈初起光软无头相区分」「与癃闭之尿少无尿痛相区分」：「与…」这半句写的是被鉴别的那个病（第三十五轮 A22、C11 曾改成「光软未诉头」「尿少未诉尿痛」）。
@@ -1670,9 +1713,9 @@ function notAPatientDenial(offset: number, whole: string, term: string): boolean
   // 「痿证无口舌歪斜」：分句以「X证/X病」打头，写的是那个病（表里的名字是「痿病」，上面的表对不上这种写法）。
   if (/^[\u4e00-\u9fff]{1,3}[证病](?=[^\u4e00-\u9fff]|$)/u.test(lead)) return true;
   if (GENERIC_DESCRIPTION_LEAD.test(clause)) return true;
-  if (textbookDiseaseNames.some((name) => lead.startsWith(name) && lead.length > name.length)) return true;
+  if (textbookDiseaseNames.some((name) => lead.startsWith(name) && (lead.length > name.length || includeWholeLead))) return true;
   // 教材表以外的国标病名（口僻、厥证…）：分句开头 2–4 个字正好是一个受控中医病名。
-  return [4, 3, 2].some((length) => lead.length > length && isGovernedTcmDiseaseName(lead.slice(0, length)));
+  return [4, 3, 2].some((length) => (lead.length > length || includeWholeLead && lead.length === length) && isGovernedTcmDiseaseName(lead.slice(0, length)));
 }
 
 export function applyM03AdvisoryQualityBoundaries(content: string, clinicalContext: string): string {
