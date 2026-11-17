@@ -3517,6 +3517,119 @@ The user forwarded the post-round-47 analysis (`~/runlogs/r1018/work/r1065/ANALY
 **In production (08f12eb3, tag `20261116-08f12eb-prebuilt`, deployed 2026-11-16 10:43 UTC; same release directory and `20260927-dsrepair` override).** Full gate green (lint, 333 suites, fresh-artifact suites; typecheck run directly because the gate's 2.9 GB free-RAM wait never cleared). `verify:deployed-image` passed (commit, digest, strictReady, both families); `regress:prod-smoke` 0 failures (M03 P95 17.3 s, M04 P95 15.2 s). Customer 10 on hospital-b (forced regeneration): every stage 200, all dosed, no red flag, disease and syndrome as the standard answers (病历10 阳盛血热证, as before). 14 targeted records on hospital-a: «原方作白术，本方用土炒白术» / «原方作杜仲、牛膝，本方用盐杜仲、酒牛膝», 胃苓汤 «以紫苏、乌梅为引», 补阳还五汤 «原方当归用归尾», no undosed 调整 rows, at least two conditions everywhere, no 精浊 for a woman. Rollback: image `tcm-cdss:20261116-c7aa90a-prebuilt` with `docker-compose.yml.pre-08f12eb` in the release directory; container log before the replacement in `~/telemetry-archive/container-pre-08f12eb-*.log.gz` on the host (the container is `tcm-cdss-deepseek-green-20260911-tcm-cdss-1`).
 - **Local build:** the first prebuild was killed by a global OOM — other sessions' headless browsers and a video encode held the RAM, and two 3 GB zram devices made «available + free swap» look sufficient. It went through at 3.0 GB of available RAM alone (`deploy/pb-wait2.sh`, `PB_MEM=2900`). A kill loop with `awk '/[p]b-wait2.sh/'` killed its own shell again because the same command line launched `pb-wait2.sh`; kill and launch in separate commands.
 
+### 11/17 round 49: the customer's P0 lines, judged by qwen4-max; a swarm round plus a fix pass (2026-11-17)
+
+**Why and how the round was set.**
+- **What the user asked.** Whether the customer's acceptance-standard P0 items reach their numeric lines. The answer on production code (08f12eb3) was no:
+  - red flags, Western, dose and 十八反 passed;
+  - 中医诊断 was about 82%, 随症加减 about 74%, 诊断依据 about 89%, 特殊人群 98.6%.
+- **The judge.** The user switched the judge to **qwen4-max** (`JUDGE_MODEL`). `r1066/judge-accept.mjs` scores the customer's 20-item table with the customer's own precedents. It was calibrated on the customer's 11.05 outputs: it caught 87% of the customer's fail cells, and its 「欠妥算过」 rate is within 0–6 points of the customer's own scores (more lenient on 中医诊断 and 诊断依据).
+- **The plan.** `~/runlogs/r1018/work/r1066/PLAN.md` (25-item TODO). The user took every recommendation (「都按你推荐的来，带领军团全部执行到位」); decisions are in memory `cdss-decisions-20261117`:
+  - **D1.** Fill modifications to two conditions with the disease's own textbook 「若见X」 rows. Fill only, same thermal direction, no tongue/pulse contradiction, `kb_entry` source.
+  - **D2.** While an anticoagulant or antiplatelet drug is in use, no blood-moving herbs and no herbs with a documented warfarin interaction.
+  - **D3.** Elements that pass the criteria go into the syndrome name (GB composite or secondary); elements that fail are withdrawn from every column. The customer's 10 standard cases are the guard rail.
+- **Material:** `~/runlogs/r1018/work/r1066/` (`gen.sh` paired memo-replay arms, `p0-audit.mjs`, `tally-p0.py`, `judge/`, `fails/`, `sets/hold40.json` = a new blind 40-record holdout, `replay/`, `deploy/`); worker briefs and logs in `/var/tmp/r1066/`.
+
+**Swarm packages (Codex gpt-6.1-sol, one worktree each, merged into `fix/r1066`, each with its own suite and counter-proofs).**
+- **text** (`test:r1066-text`):
+  - an axis is delivered with confidence 「高」 when each element has its own verbatim basis (not on red flags);
+  - delivered syndrome names must be governed (`governedSyndromeName`, mapping table `tcm-syndrome-name-policy.source.json`);
+  - course, onset and site claims the record does not support are deleted.
+- **gate** (`test:r1066-gate`):
+  - deep neck space infection is a red flag (trismus, dysphagia, drooling, voice change or swelling in an oral/throat infection; fixture `deep-neck-space-infection`);
+  - abdominal pain + vomiting + fever gets a 24 h evaluation window.
+- **names** (`test:r1066-names`): `tcm-disease-defining-findings.source.json` (17 diseases, verbatim from the textbooks) triggers the TCM-half redraw deterministically when a disease's defining finding is absent. Textbook-definition claim checking is **off by default** (`CDSS_TEXTBOOK_DEFINITION_CLAIMS`): its whole-sentence deletion removed positive disease conclusions, and 诊断依据 fell on the customer's cases in r49a.
+- **safety** (`test:r1066-safety`):
+  - D2 (`antithrombotic-herb-policy.ts`, `tcm-antithrombotic-herb-avoid.source.json`; 甘草 stays out because the research records conflicting direction);
+  - `drug-condition-contraindications.source.json` (32 rules, e.g. metformin with eGFR < 30) feeds the required precautions.
+- **mods** (`test:r1066-mods`):
+  - the M04 prompt asks for 3–4 rows;
+  - trigger quality gates (`tcm-modification-trigger-policy.source.json`);
+  - D1 fill `fillTextbookModificationConditions` (`CDSS_MODIFICATION_TEXTBOOK_FILL`), with a terminal floor in final delivery.
+- **elements** (`test:r1066-elements`): `m03-syndrome-element-closure.server.ts` + `tcm-syndrome-element-promotion.source.json`. Promote to a composite or secondary syndrome, otherwise withdraw; emergency collapse syndromes.
+- **columns** (`test:r1066-columns`):
+  - one 本虚/标实 classifier;
+  - pending items reconciled with the record;
+  - chain-node therapy restricted to a subset of the overall method;
+  - a rejected alignment rewrite retries once with the reason, then cuts the contradicting sentences.
+
+**What the measurement found after the merge, and the fix pass (main session, each with a test and a counter-proof; `test:r1066-*`).**
+- **Withdrawals voided pages** (r49a, 5 non-dose pages against 0):
+  - cuts emptied overall pathogenesis → `m03-core-prose-floor.ts`;
+  - removing chain node P1 left M04 targeting a missing node → contiguous renumbering on the diagnose surface;
+  - final delivery threw on the sufficiency code → exempted.
+- **A schema wipe made a textbook 风寒 cold a limited M03** (rt-848256, 104 s): the projection added 无汗/脉浮紧 as a ninth basis item and `primarySyndromeBasis` `.max(8).catch([])` emptied the list, failing the discriminator check three times. The list is now truncated, and projected quotes go first. Same class as precautions C051.
+- **Precautions.** The interface keeps six. Disease-care sentences prepended late pushed the metformin and potassium lines off (n40). Over six, rule lines for safety kinds are now chosen first and delivered in their original order (`precautionsWithSafetyFirst`); a care sentence whose topic a rule line covers is not added.
+- **D1 fill:**
+  - a row borrowed from another disease's same-name syndrome fills only conditions related to the record (customer case 5 had 肺胀's 「痰多色黄稠」);
+  - no condition opposite to the recorded cold/heat;
+  - the adult midpoint dose is used instead of the floor;
+  - site variants the record contradicts are skipped (case 8 「若见发于头面」);
+  - neutral syndromes without a textbook row fill from the disease's most related row whose own cold/heat does not oppose the record;
+  - a standby row's 「针对」 reads 「X可能出现的变化」 instead of copying the first chain node.
+- **Children:** a modification dose is scaled by the age fraction (an 8-month-old got 党参 9g next to a 2–3g main formula).
+- **Population notes** read only the patient's own history (`recordedPopulationCautions` uses the ConText reading): an unlabelled 「母亲肥胖、高血压」 gave 附子 「本例有心血管病记录」.
+- **Names and text:**
+  - 「感冒（湿滞中焦、气机不畅）」 maps to the governed mechanism-phrase name (`governedSyndromeFromMechanismPhrases`; only the stagnation verb may change);
+  - 肺气郁痹证 → 肺气上逆证 for the lung neutral name;
+  - a promoted secondary brings its governed four-character method;
+  - textbook-definition site clauses (「胃脘以下、耻骨毛际以上」) are dropped when the record names no abdominal site;
+  - a short unpunctuated tail and a bare trailing finding clause are dropped from rationale prose;
+  - 时有时无/若有若无 are not denials;
+  - 痴呆's defining findings accept concrete functional-loss events and MMSE.
+- **Collapse:** with the 真心痛 signal (`trueHeartPainSignal`, the same predicate as the disease pick), the collapse promotion uses 真心痛's own 心阳欲脱证 row instead of renaming the disease 虚脱. rt-450368 alternated between the two.
+- **Sparse records** with one separating finding take the most likely textbook row (bounded) instead of a neutral name (prompt rule 7).
+
+**Measured** (local route harness, customer request shape, memo-replayed paired arms; qwen4-max; 「欠妥算过」; base49 = production 08f12eb3, 210 outputs; r49c = merged packages + first fixes, 250 outputs including hold40; r49e = 7cb5757b, before the last ten fixes; only the 30 customer records were rerun on the final code (r49f)).
+
+| Set (n) — 中医诊断 / 诊断依据 / 随症加减 | base49 | r49c | r49e |
+|---|---|---|---|
+| customer 10 standard cases | 100 / 100 / 100 | 100 / 100 / 80 | 100 / 90 / 90 |
+| customer retest (20, sparse 「XXX天」 records) | 75 / 85 / 85 | 80 / 80 / 80 | 85 / 80 / 90 |
+| new40 | 85 / 97.5 / 95 | 90 / 92.5 / 97.5 | 87.5 / 97.5 / 92.5 |
+| new45 | 80 / 90 / 85 | 87.5 / 90 / 80 | 80 / 82.5 / 82.5 |
+| customer 100-case set, customer shape | 81 / 85 / 56 | 83 / 83 / 78 | 84.1 / 85.5 / 73.9 (69 of 100 judged) |
+| hold40 (blind holdout, new this round) | — | 92.5 / 92.5 / 87.5 | 85 / 92.5 / 89.7 |
+
+- **Other P0 items.**
+  - 红旗 97.5–100 on every set; 剂量 and 十八反十九畏 100.
+  - 特殊人群 98.6 → 100 on the four sets of the first rows (C070/n33 anticoagulant blood movers, n40 metformin).
+  - 西医 90–97.5.
+- **Deterministic P0 audit on r49c (250 outputs):**
+  - every chain dosed;
+  - blood movers under a current anticoagulant 13 → 0;
+  - non-red-flag prescriptions with fewer than two modification conditions 29 → 14 (red-flag 18 → 7).
+- **The final code (1c7fcfa4) on the 30 customer records (r49f):** 红旗/剂量/十八反/特殊人群 100, 西医 90, 诊断依据 86.7, 随症加减 83.3, 中医诊断 80.
+  - On customer case 3, r49e and r49f have byte-identical text and different verdicts. On 10- and 20-case sets the judge's own variance is ±10 points, so only the 100-case and pooled numbers show direction.
+- **Where the gains are, and the lines not reached.**
+  - 随症加减 on sparse records (56 → 74–78) and 特殊人群 are the clear gains. 中医诊断 is +2 to +5.
+  - 诊断依据 did not move.
+  - **The P0 lines 中医诊断 ≥95 and 随症加减 ≥90 are not reached pooled under this judge.**
+  - The remaining 中医诊断 misses are mostly the judge wanting a compound or more specific name (气血两虚 for 血虚头痛 — the customer's own answer is 血虚头痛 — 骨痹 vs 痹证, 疳证 vs 虚劳, 消渴 vs 呕吐) and the sparse retest records, where any committed syndrome is judged unsupported and a neutral one non-standard.
+- **Red-flag replay** (21,277 records, production vs this round): 62 changes, all read.
+  - deep neck space infection and scarlet fever become red flags;
+  - abdominal pain + vomiting + fever moves from 3 days to 24 h;
+  - no red flag lost.
+
+**Left as is.**
+- Sparse 「XXX天」 records (customer retest): rt-273344 still delivers no modification rows on production (the fallback finds no row whose cold/heat fits a febrile record); neutral names such as 气机失调证 stay governed but the judge calls them non-standard.
+- Model judgement the reviews keep naming: compound syndrome breadth (气血两虚, 脾肾阳虚, 血瘀 secondary), 疳证/虚劳 and 骨痹/痹证 granularity, 「小便清长 → 桑椹」-type model modification rows the fit check does not catch, warm digestive herbs for an incidental 纳差 under heat.
+- 赤芍 under apixaban is not barred (not 活血化瘀 in 《中药学》 and not in the D2 research list); the precaution says not to add blood movers next to it.
+- Upper-GI alarm over-calls with a malignancy history (h09, h11) are the owner's existing policy.
+- qwen4-max judging runs about 2 cases a minute across 8 workers, and shares the Bailian account with production; do not judge during a production measurement.
+
+**In production.** 1c7fcfa4 (tag `20261117-1c7fcfa-prebuilt`, deployed 2026-11-17 10:26 UTC; same release directory and `20260927-dsrepair` override). Before it:
+- **Gate.** Lint, typecheck, all 340 deterministic suites and the fresh-artifact suites, run as parts:
+  - the fail-fast gate stopped at suite 96 on an old precaution order pin;
+  - the remaining 245 ran in a non-stopping loop (`/var/tmp/r1066/run-all-nofail.sh`), whose three failures were fixed and rerun;
+  - then 1–95 ran again on the final code.
+- **Verification.** `verify:deployed-image` passed (commit, digest, strictReady, both families). `regress:prod-smoke` had 0 failures (M03 P95 14.0 s, M04 P95 13.4 s). Its first run died on a socket closed by the just-restarted container and still logged exit 0, so read the log, not only the exit code.
+- **Probes:**
+  - customer 10 on hospital-b (forced regeneration): every stage 200, the standard disease and syndrome, no red flag, all dosed;
+  - targets on hospital-a: rt-450368 真心痛·心阳欲脱证 → 参附龙牡汤, rt-848256 风寒束表证 complete, n40 keeps the metformin line, h08 has no false cardiovascular note, the infant n27's added herbs are 3 g/2 g, h04 痴呆 without 「病名待核实」.
+- **Rollback.** Image `tcm-cdss:20261116-08f12eb-prebuilt` with the compose backup in the release directory. The container log before the replacement is in `~/telemetry-archive/container-pre-1c7fcfa-*.log.gz` on the host.
+- **Local build.** Two minutes with 3.5 GB available.
+
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
 Until 10/12 the server kept no request bodies (nginx logs time/IP/path/status/bytes; container logs carry telemetry codes only), so a customer case could only be reverse-engineered from byte counts. The owner decided to keep request content server-side, with no time limit (compliance confirmed).
