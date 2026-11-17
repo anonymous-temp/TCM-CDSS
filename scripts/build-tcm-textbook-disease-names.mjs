@@ -53,6 +53,13 @@ for (const item of sectionNames.sectionTcmNames) {
   tcmNameBySectionName[item.section] = item.tcmName;
   tcmNameBasis[item.section] = { line: item.line, quote: item.quote };
 }
+// 第四十九轮：教材逐字引文核定的旧名与西医标题映射。显式裁定优先于历史自动归一。
+for (const item of sectionNames.deliveryAliases || []) {
+  if (names.has(item.fromName)) {
+    tcmNameBySectionName[item.fromName] = item.to;
+    tcmNameBasis[item.fromName] = item.sourceRef;
+  }
+}
 // westernEquivalents 反查只交付教材节名/其有原文依据的中医归属，不用模糊词相似度。
 const westernTargets = new Map();
 for (const disease of [...table.diseases, ...(supplement.diseases || [])]) {
@@ -69,6 +76,9 @@ for (const disease of [...table.diseases, ...(supplement.diseases || [])]) {
 }
 // 同一西医病可归多个中医病，不能由表顺序替模型定病。
 const tcmNameByWesternName = Object.fromEntries([...westernTargets].filter(([, targets]) => targets.size === 1).map(([western, targets]) => [western, [...targets][0]]));
+for (const item of sectionNames.deliveryAliases || []) {
+  if (!names.has(item.fromName)) tcmNameByWesternName[item.fromName] = item.to;
+}
 const out = { generatedBy: "scripts/build-tcm-textbook-disease-names.mjs", count: names.size, names: [...names].sort((a, b) => a.localeCompare(b, "zh-Hans-CN")), tcmNameBySectionName, tcmNameBasis, tcmNameByWesternName };
 fs.writeFileSync(path.join(root, "src/data/tcm-textbook-disease-names.json"), `${JSON.stringify(out, null, 1)}\n`);
 console.log(`textbook disease names: ${names.size}; western-titled sections with a TCM name: ${JSON.stringify(tcmNameBySectionName)}`);

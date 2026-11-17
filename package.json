@@ -412,7 +412,8 @@
     "test:r1065-gknow": "node --max-old-space-size=1280 scripts/test-r1065-gknow.mjs",
     "test:r1065-dxtext": "node --max-old-space-size=1280 scripts/test-r1065-dxtext.mjs",
     "build:textbook-disease-names": "node --max-old-space-size=1280 scripts/build-tcm-textbook-disease-names.mjs",
-    "test:r1065-rxtext": "node --max-old-space-size=1280 scripts/test-r1065-rxtext.mjs"
+    "test:r1065-rxtext": "node --max-old-space-size=1280 scripts/test-r1065-rxtext.mjs",
+    "test:r1066-names": "node --max-old-space-size=1280 scripts/test-r1066-names.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

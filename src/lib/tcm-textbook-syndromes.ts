@@ -353,6 +353,10 @@ function buildDiseases(): TextbookDisease[] {
   for (const entry of byKey.values()) {
     const delivered = textbookSectionDeliveryName(entry.disease);
     if (delivered !== entry.disease && !sectionNames.has(delivered) && !rowTypeNames.has(delivered) && !entry.aliases.includes(delivered)) entry.aliases = [...entry.aliases, delivered];
+    // 明确部位的西医别名也须找回原节（膝骨关节炎→膝痹，仍读骨关节炎的同一批教材行）。
+    for (const alias of sectionNamesJson.deliveryAliases) {
+      if (alias.sourceSection === entry.disease && !sectionNames.has(alias.to) && !rowTypeNames.has(alias.to)) entry.aliases = [...new Set([...entry.aliases, alias.fromName, alias.to])];
+    }
   }
   return [...byKey.values()];
 }
