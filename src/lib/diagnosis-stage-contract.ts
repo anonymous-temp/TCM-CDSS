@@ -4061,6 +4061,17 @@ const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
  * 拟加药味（随证加减）的慎用级人群提示（剂量一致化 D4，第二十三轮）：知识库里该味中等风险（慎用）的人群，本例病历记有其一时返回人群名。
  * 判据与开方核对的高风险拦截同一组人群匹配（M04_SPECIAL_POPULATION_MATCHERS），只是等级不同：高风险拦下，慎用写明。
  */
+/**
+ * 病历肯定记载、且是患者本人的（不是「母亲…高血压」「父亲有冠心病」这类他人的病史）：customer 形状的家族史常不带栏目名，
+ * 按行去掉家族史一栏不可靠（第四十九轮 hold40 h08：「母亲肥胖、高血压」写成「附子心血管病慎用；本例有心血管病记录」）。与安全门同一套语境判定。
+ */
+function patientOwnTermAffirmed(clinicalContext: string, pattern: RegExp): boolean {
+  if (!contextAffirmsTerm(clinicalContext, pattern)) return false;
+  const normalized = clinicalContext.replace(/[\r\n]+/gu, "。").replace(/[^\S\r\n]+/gu, "");
+  const global = new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+  return [...normalized.matchAll(global)].some((match) => recordMentionPolarityAt(normalized, match.index ?? 0) === "affirmed");
+}
+
 export function recordedPopulationCautions(herbName: string, rawClinicalContext: string): string[] {
   if (!rawClinicalContext.trim() || !herbName.trim()) return [];
   // 过敏史、家族史一栏里写到的药名与病不是本例的人群状态（第四十六轮复核 C034、C043：过敏史「阿司匹林诱发喘息/胃部不适」，加减行写成
@@ -4075,8 +4086,8 @@ export function recordedPopulationCautions(herbName: string, rawClinicalContext:
     if (rule.severity !== "MEDIUM") continue;
     if ((rule.population.includes("孕") || rule.population.includes("哺乳")) && (!reproductive || !boundaryRuleShown(herbName.trim(), rule))) continue;
     const matcher = M04_SPECIAL_POPULATION_MATCHERS.find((item) => item.population.test(rule.population));
-    if (matcher && !matcher.denied?.(clinicalContext) && (contextAffirmsTerm(clinicalContext, matcher.patient) || matcher.isPatient?.(clinicalContext))) {
-      const recorded = (matcher.members || []).filter((member) => member.isPatient ? member.isPatient(clinicalContext) : contextAffirmsTerm(clinicalContext, member.patient)).map((member) => member.label);
+    if (matcher && !matcher.denied?.(clinicalContext) && (patientOwnTermAffirmed(clinicalContext, matcher.patient) || matcher.isPatient?.(clinicalContext))) {
+      const recorded = (matcher.members || []).filter((member) => member.isPatient ? member.isPatient(clinicalContext) : patientOwnTermAffirmed(clinicalContext, member.patient)).map((member) => member.label);
       populations.add(recorded.length > 0 ? recorded.join("/") : rule.population.trim());
     }
   }

@@ -255,4 +255,8 @@ await check('S40','注意事项超过 6 条时安全类必写句排前不被截�
  assert.deepEqual(surface.precautionsWithSafetyFirst(out,req,['血钾偏高时应少吃含钾高的食物。']),out);
  const short=['饮食清淡。','注意保暖。'];assert.deepEqual(surface.precautionsWithSafetyFirst(short,req,[]),short);
 });
+await check('S41','人群慎用提示只读患者本人的病史：家族史不带栏目名的「母亲肥胖、高血压」不写「本例有心血管病记录」（hold40 h08），本人高血压照写',()=>{
+ assert.deepEqual(contract.recordedPopulationCautions('附子','患者性别：女\n近半年神疲乏力，畏寒肢冷。\n否认高血压、糖尿病、甲状腺疾病史\n母亲肥胖、高血压'),[]);
+ assert.deepEqual(contract.recordedPopulationCautions('附子','患者性别：男\n高血压病史10年，规律服药。'),['心血管病']);
+});
 console.log(JSON.stringify({checks,failed}));process.exitCode=failed?1:0;
