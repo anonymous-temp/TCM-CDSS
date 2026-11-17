@@ -127,10 +127,14 @@ for (const [label, path, invalidItem] of ISOLATED_ARRAYS) {
       Array.isArray(result),
       `${label} 注入一条非法后整块变成 ${JSON.stringify(result)}（应仍是数组）`,
     );
+    // 第四十九轮（P6b）：病性栏规范化会把本虚/标实栏里的独立证素并进 items（classifyNatureColumns），
+    // 合法基线规范化后本身就可能多于原始条数。比较对象是「不注入时规范化的条数」，隔离的本意不变。
+    const normalizedBase = at(normalizeReasoningV2(clone(BASE)), path);
+    const expectedLength = Array.isArray(normalizedBase) ? normalizedBase.length : baseArray.length;
     assert.equal(
       result.length,
-      baseArray.length,
-      `${label} 注入 1 条非法后剩 ${result.length} 条，原有 ${baseArray.length} 条合法条目被连坐`,
+      expectedLength,
+      `${label} 注入 1 条非法后剩 ${result.length} 条，原有 ${expectedLength} 条合法条目被连坐`,
     );
   });
 }
