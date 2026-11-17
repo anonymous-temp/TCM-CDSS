@@ -1006,9 +1006,11 @@ export function readabilityCleaned(input: string): string {
     ? repeated.replace(EXAM_ACTION_NOT_REPORTED, (match) => (/^[，,]/u.test(match) ? match[0] : "")).replace(/^[、，,]+/u, "").replace(/([，,；;。])、/gu, "$1")
     : repeated;
   EXAM_ACTION_NOT_REPORTED.lastIndex = 0;
-  if (!/未诉未诉|[；;，,。、]{2}|[（(]\s*[）)]|参照本方|本方(?:与|合)本方|教材行/u.test(value)) return value;
+  if (!/未诉未诉|[；;，,。、]{2}|[（(]\s*[）)]|参照本方|本方(?:与|合)本方|教材行|(?:与|和|及|或)、/u.test(value)) return value;
   return value
     .replace(/未诉(?:未诉)+/gu, "未诉")
+    // 删掉一项后「与、连及项背的外感头痛」（第四十九轮甲方病历3）：连词后的顿号去掉。
+    .replace(/(与|和|及|或)、/gu, "$1")
     .replace(/[（(]\s*[）)]/gu, "")
     .replace(/(^|[。；;，,])[^。；;，,]*?(?:参照本方|本方(?:与|合)本方)[^。；;，,]*(?:[，,][^。；;，,]*?之意)?[，,]?/gu, "$1")
     .replace(/教材行/gu, "教材证型")

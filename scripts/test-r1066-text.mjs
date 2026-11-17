@@ -131,4 +131,8 @@ await check('T42','依据段末尾不带标点、不到 8 字的残段去掉（r
  const r={schemaVersion:'tcm-cdss-reasoning-v2',stage:'diagnose',overview:{tcmDiseaseName:'眩晕',primarySyndrome:'气机失调证',tcmDiagnosticRationale:'头晕为主症，故暂按气机失调证考虑。以下按常规辨证处理。发热一症归'},pathogenesis:{}};
  const out=surface.projectDeliveredReasoning(r,{});assert.ok(!/一症归$/.test(out.overview.tcmDiagnosticRationale),out.overview.tcmDiagnosticRationale);
 });
+await check('T43','删掉一项后连词后留下的顿号去掉（甲方病历3「与、连及项背的外感头痛相区分」）',()=>{
+ assert.equal(surface.readabilityCleaned('其痛势缓，与、连及项背的外感头痛相区分。'),'其痛势缓，与连及项背的外感头痛相区分。');
+ assert.equal(surface.readabilityCleaned('头痛、头晕与心悸。'),'头痛、头晕与心悸。');
+});
 console.log(`${count-failed}/${count} passed`);if(failed)process.exitCode=1;
