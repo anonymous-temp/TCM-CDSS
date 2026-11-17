@@ -1,3 +1,4 @@
+import { modificationDecoctionPhrase } from "./herb-decoction-rules";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import textConsistency from "../data/diagnosis-text-consistency.source.json" with { type: "json" };
 import { m04FinalContentPolicy } from "./m04-final-content-policy";
@@ -2706,12 +2707,13 @@ export function applyDeterministicDecoctionMethod(content: string, clinicalConte
       // 处理的药味（2026-10-13，甲方 10.12 测评 4.2：龙齿先煎、人参另煎、杏仁后下在煎服方法里都没体现——
       // 此前这里以「特殊药味按药味表执行」收尾，回归 86 例有特殊煎法的处方 86 例没点名）。
       // 特殊煎法取自药典数据（herb-decoction-rules），不是模型自述；浸泡、火候、时间仍随已签名治法的煎法档位。
-      const additions = Array.isArray(formula?.modifications) ? formula.modifications.flatMap((value) => {
+      for (const value of Array.isArray(formula?.modifications) ? formula.modifications : []) {
         const row = recordValue(value);
-        return row?.action === "加" && !/^\s*若/u.test(String(row.trigger || ""))
-          ? [{ name: row.herbName, decoctionRequirement: [row.doseOrHandling, row.riskNote, requiredDecoctionRequirement(String(row.herbName || ""))].filter(Boolean).join("；") }] : [];
-      }) : [];
-      const special = specialDecoctionClauses([...(Array.isArray(candidate.herbs) ? candidate.herbs : []), ...additions]);
+        if (!row || row.action !== "加") continue;
+        const phrase = modificationDecoctionPhrase(String(row.herbName || ""));
+        if (phrase && !String(row.riskNote || "").includes(phrase)) row.riskNote = [phrase, row.riskNote].filter(Boolean).join("；");
+      }
+      const special = specialDecoctionClauses(Array.isArray(candidate.herbs) ? candidate.herbs : []);
       const administrationLead = profile.administration.split(/[；;]/)[0].trim();
       decoction.method = [
         `每日${dosesPerDay}剂`,

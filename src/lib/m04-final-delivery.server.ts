@@ -6,7 +6,7 @@ import { m04FinalContentPolicy } from "./m04-final-content-policy";
 import { contentDigest } from "./m04-content-fingerprint";
 import { projectM04FinalFacts, m04FinalContractView } from "./m04-final-projection";
 import { asRecord, asText, type M04FinalContentIO } from "./m04-final-content-types";
-import { compileM04Proposal } from "./m04-proposal-compiler";
+import { compileM04Proposal, distinctModificationConditions } from "./m04-proposal-compiler";
 import { m04SafetyContractIssue } from "./diagnosis-stage-contract";
 import { isKnownTcmHerbName } from "./tcm-knowledge";
 import { clinicalReviewNotPerformedAttestation, clinicalReviewPayloadHash } from "./clinical-review-binding";
@@ -100,8 +100,8 @@ export async function applyM04FinalContent(content: string, attestation: Clinica
     if (policy.modifications === "on" && projected.formula) projected.formula.modifications = [];
     final = projectM04FinalFacts(projected, { record, prior }, true);
   }
-  // No free selection after projection. If the delivered view changes rows, keep only
-  // the previously verified survivors; no new drug can be introduced here.
+  // Reproject against the final table. Optional D1 additions still use the shared
+  // deterministic compiler and safety predicates; closed-set verdicts bind to this table.
   const selectedTable = contentDigest(final.formula?.candidates.map(({ name, herbs }) => ({ name, herbs })));
   final = projectDeliveredReasoning(final, { caseState, recordText: record });
   if (policy.modifications === "on" && selectedTable !== contentDigest(final.formula?.candidates.map(({ name, herbs }) => ({ name, herbs })))) {
@@ -110,6 +110,13 @@ export async function applyM04FinalContent(content: string, attestation: Clinica
     if (final.formula) final.formula.modifications = [];
     final = projectM04FinalFacts(final, { record, prior }, true);
     io.report?.("closed_modifications_invalidated", { reason: "final_table_changed" });
+  }
+  // 最后删改之后补位；现有补写最多再跑一次，仍由编译与投影的同一组判据收口。
+  if (caseState && prior && final.formula && distinctModificationConditions(final.formula.modifications) < 2 && policy.modifications !== "on") {
+    const topped = await topUpModificationConditions(renderFinalM04Content(content, final, caseState), { recordText: record, prior, caseState }, signal);
+    const topStart = topped.lastIndexOf("<!-- DIAGNOSIS_JSON_START -->"), topEnd = topped.indexOf("<!-- DIAGNOSIS_JSON_END -->", topStart);
+    const candidate = topStart >= 0 && topEnd > topStart ? normalizeReasoningV2(JSON.parse(topped.slice(topStart + "<!-- DIAGNOSIS_JSON_START -->".length, topEnd))) : undefined;
+    if (candidate) final = projectDeliveredReasoning(candidate, { caseState, recordText: record });
   }
   const schemaIssue = reasoningV2SchemaIssueCode(final);
   const issue = safety(final);

@@ -1,3 +1,5 @@
+// 第四十九轮：本套件关闭 D1，仅验证既有教材主症甚判据；裸主症不再凑数，条件保留教材程度词。
+process.env.CDSS_MODIFICATION_TEXTBOOK_FILL = "false";
 import assert from 'node:assert/strict';
 import { createJiti } from 'jiti';
 const jiti = createJiti(import.meta.url, { alias: { '@': `${process.cwd()}/src`, 'server-only': `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
@@ -26,10 +28,10 @@ await check('1.1', '教材主症加强只在本例肯定存在时可用', () => 
   assert.equal(compiler.textbookMainSymptomPresent(main.condition, herb, { ...context, recordText: '主诉：腹胀3天\n现病史：无胃痛' }), undefined);
 });
 // r48 C3：条件条数夹具同时补上病历现症，不能凭空声明口干便溏。
-await check('1.2', '主症最多一项，普通条件足两项及红旗条件均不豁免', () => {
+await check('1.2', '裸主症不凑条数，普通条件与红旗排除仍成立', () => {
   const found = textbook.textbookRowForSyndrome('胃痛', '肝气犯胃证').modifications.find(row => /胃痛.*甚/u.test(row.condition));
   const rows = found.herbs.map(herbName => ({ trigger: '本例已见胃痛', herbName }));
-  assert.equal(compiler.retainModificationFindings(rows, context).length, 1);
+  assert.equal(compiler.retainModificationFindings(rows, context).length, 0);
   assert.equal(compiler.retainModificationFindings([...rows, { trigger: '口干' }, { trigger: '便溏' }], { ...context, recordText: `${context.recordText}。口干，便溏。` }).length, 2);
   const red = { ...context, caseState: { ...state, safetyGate: { status: 'red_flag', redFlagFindings: [{ sourceQuote: '胃痛' }] } } };
   assert.equal(compiler.retainModificationFindings(rows, red).length, 0);
@@ -44,8 +46,9 @@ await check('1.4', '教材主症补足走剂量配伍核对，已有药和条件
   const patient = { ...state, chiefComplaint: '反酸1月', symptoms: { 现病史: '反酸，烧心。' } };
   const result = compiler.topUpTextbookMainSymptom([], acid, patient, ['海螵蛸']);
   assert.equal(result.length, 1);
-  assert.match(result[0].trigger, /^本例已见/u);
-  assert.match(result[0].evidence.source, /反酸/u);
+  assert.match(result[0].trigger, /^若见/u);
+  assert.equal(result[0].evidence.evidenceLevel, "kb_entry");
+  assert.match(result[0].evidence.source, /加减/u);
   assert.ok(result[0].doseOrHandling);
   assert.equal(compiler.topUpTextbookMainSymptom([], acid, patient, ['海螵蛸', '煅瓦楞子']).length, 0);
   const full = [{ trigger: '腹胀', herbName: '厚朴' }, { trigger: '嗳气', herbName: '木香' }];
