@@ -117,6 +117,10 @@ export function patientClaimFields(root: Json, half: PatientClaimHalf): PatientC
   return fieldSlots(root, half).map(({ id, text: value }) => ({ id, text: value.slice(0, MAX_FIELD_CHARS) }));
 }
 
+export function textbookDefinitionClaimsEnabled(): boolean {
+  return process.env.CDSS_TEXTBOOK_DEFINITION_CLAIMS === "true";
+}
+
 /** 只提名辨病文字中的定义重合子句，供既有事实复核；重合本身绝不等于无据。 */
 export function textbookCopiedDiseaseClaims(root: Json, recordText: string): PatientClaimRemoval[] {
   const overview = record(root.overview);
@@ -632,7 +636,9 @@ export async function decidePatientClaimRemovals(
   if (fields.length === 0 || !recordText) return [];
   if (!getControlledTerminologyModelConfig().configured) return [];
   const task = `m03_patient_claim_${half}`;
-  const textbookClaims = half === "tcm" ? textbookCopiedDiseaseClaims(root, recordText) : [];
+  // 第四十九轮实测（r49a 对线上同日配对）：核对判「病历没有」时整句删除，把「以咽痛、喉核红肿为主症，属乳蛾」这类正面辨病结论
+  // 一并删掉，辨病依据只剩鉴别排除语，评审「诊断依据」复测集 85%→70%。缺省关；CDSS_TEXTBOOK_DEFINITION_CLAIMS=true 打开。
+  const textbookClaims = half === "tcm" && textbookDefinitionClaimsEnabled() ? textbookCopiedDiseaseClaims(root, recordText) : [];
   const [first, second] = await Promise.all([
     patientClaimPass(task, buildPatientClaimMessages(recordText, fields), fields, recordText, signal),
     patientClaimPass(task, buildPatientClaimMessages(recordText, [...fields].reverse()), fields, recordText, signal),

@@ -141,4 +141,10 @@ await check('N30', '膝痹和膝骨关节炎能找回骨关节炎原节，映射
   assert.deepEqual(textbook.textbookFormulaRowsForDisease('膝痹').map(x => x.id), original.map(x => x.id));
   assert.deepEqual(textbook.textbookFormulaRowsForDisease('膝骨关节炎').map(x => x.id), original.map(x => x.id));
 });
+await check('N31', '辨病依据定义重合子句送核缺省关闭（整句删除会删掉正面辨病结论，r49a 诊断依据复测集 85%→70%）', () => {
+  const saved = process.env.CDSS_TEXTBOOK_DEFINITION_CLAIMS;
+  delete process.env.CDSS_TEXTBOOK_DEFINITION_CLAIMS; assert.equal(claims.textbookDefinitionClaimsEnabled(), false);
+  process.env.CDSS_TEXTBOOK_DEFINITION_CLAIMS = 'true'; assert.equal(claims.textbookDefinitionClaimsEnabled(), true);
+  if (saved === undefined) delete process.env.CDSS_TEXTBOOK_DEFINITION_CLAIMS; else process.env.CDSS_TEXTBOOK_DEFINITION_CLAIMS = saved;
+});
 console.log(JSON.stringify({ total, failed })); process.exitCode = failed ? 1 : 0;
