@@ -1028,15 +1028,16 @@ export function readabilityCleaned(input: string): string {
  * 依据、病机段末尾残留的半截句（第四十九轮 r49e 甲方复测 rt-923584：「…以下按常规辨证处理。发热一症归」）：最后一个句号之后、
  * 不带句末标点且不到 8 个汉字的残段去掉。只作用于这几段长文，短字段（病名、证名）不动。
  */
-const PROSE_FRAGMENT_KEYS = new Set(["tcmDiagnosticRationale", "tcmDiseaseRationale", "overallPathogenesis", "summary"]);
+// 只作用于两段依据：总体病机常写成不带句号的几个病机短语，删末一短语会与签名的 M03 不一致（M04 pathogenesis_drift）。
+const PROSE_FRAGMENT_KEYS = new Set(["tcmDiagnosticRationale", "tcmDiseaseRationale"]);
 export function withoutTrailingFragment(text: string): string {
   // 整段不以句末标点收尾、最后一小句只是一个裸表现（不到 7 个汉字、不带「为/属/故/示」这类结论词）：去掉这一小句，句号收尾
   //（第四十九轮 r49f 甲方病历3：「…食欲下降、大便稀溏为脾运不健、气血生化乏源；小便清长」）。
   const trimmed = text.trim();
   if (trimmed && !/[。！？!?）)」”]$/u.test(trimmed)) {
-    const cut = Math.max(trimmed.lastIndexOf("；"), trimmed.lastIndexOf(";"), trimmed.lastIndexOf("，"), trimmed.lastIndexOf(","));
+    const cut = Math.max(trimmed.lastIndexOf("；"), trimmed.lastIndexOf(";"));
     const last = cut >= 0 ? trimmed.slice(cut + 1) : "";
-    if (cut > 0 && (last.match(/[\u4e00-\u9fff]/gu) || []).length < 7 && !/为|属|故|示|提示|乃|系|致|所/u.test(last)) {
+    if (cut > 0 && (last.match(/[\u4e00-\u9fff]/gu) || []).length < 7 && !/为|属|故|示|提示|乃|系|致|所|在|见|主|因|则/u.test(last)) {
       return `${trimmed.slice(0, cut).replace(/[，,；;、\s]+$/u, "")}。`;
     }
   }
