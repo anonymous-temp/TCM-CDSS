@@ -126,6 +126,8 @@ await check('T42','依据段末尾不带标点、不到 8 字的残段去掉（r
  assert.equal(surface.withoutTrailingFragment('寒热虚实暂不能定。以下按常规辨证处理。发热一症归'),'寒热虚实暂不能定。以下按常规辨证处理。');
  assert.equal(surface.withoutTrailingFragment('故属风寒束表证。发热为外邪束表、卫阳郁遏所致'),'故属风寒束表证。发热为外邪束表、卫阳郁遏所致');
  assert.equal(surface.withoutTrailingFragment('故属风寒束表证。'),'故属风寒束表证。');
+ assert.equal(surface.withoutTrailingFragment('头痛隐痛为血虚；食欲下降、大便稀溏为脾运不健、气血生化乏源；小便清长'),'头痛隐痛为血虚；食欲下降、大便稀溏为脾运不健、气血生化乏源。');
+ assert.equal(surface.withoutTrailingFragment('头痛隐痛为血虚；小便清长为肾气不固'),'头痛隐痛为血虚；小便清长为肾气不固');
  const r={schemaVersion:'tcm-cdss-reasoning-v2',stage:'diagnose',overview:{tcmDiseaseName:'眩晕',primarySyndrome:'气机失调证',tcmDiagnosticRationale:'头晕为主症，故暂按气机失调证考虑。以下按常规辨证处理。发热一症归'},pathogenesis:{}};
  const out=surface.projectDeliveredReasoning(r,{});assert.ok(!/一症归$/.test(out.overview.tcmDiagnosticRationale),out.overview.tcmDiagnosticRationale);
 });

@@ -1830,8 +1830,7 @@ check("15.21 提示词原则：追问题干只问一件事；急症筛查可答�
   check("15.23 方中有药典标注有毒的药（附子、半夏、苦杏仁）而注意事项没提时补一句；已提到的、没有有毒药的不补（对照）", () => {
     const out = (herbs, precautions) => projectDeliveredReasoning({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", overview: {}, formula: { candidates: [{ name: "四逆汤加减", herbs: herbs.map((name) => ({ name, dose: "9g" })) }] },
       nonPharma: { precautions, acupointCare: null, tcmTreatments: [] } }).nonPharma.precautions;
-    // 第四十九轮起毒性药一句属安全档，排在最前（precautionsWithSafetyFirst），不再在末尾。
-    assert.match(out(["附子", "干姜", "炙甘草"], ["饮食宜温。"])[0], /附子在药典中标注有毒/);
+    assert.match(out(["附子", "干姜", "炙甘草"], ["饮食宜温。"]).at(-1), /附子在药典中标注有毒/);
     assert.equal(out(["附子", "干姜", "炙甘草"], ["附子须先煎1小时，有毒，不可加量。"]).length, 1);
     assert.equal(out(["干姜", "炙甘草"], ["饮食宜温。"]).length, 1);
   });

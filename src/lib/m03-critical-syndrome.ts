@@ -64,10 +64,12 @@ export function promoteCriticalSecondarySyndrome(tcmContent: string, options: { 
   // 病历符合真心痛（持续胸痛 + 脱象 + 急性心脏红旗，true-heart-pain.ts 同一判据）时，脱证落在真心痛自己的脱证行（心阳欲脱证），
   // 不改成「虚脱」（第四十九轮 r49e 甲方复测 rt-450368：同一病历一次真心痛·心阳欲脱证、一次虚脱·正虚阳脱证）。
   const preferred = options.preferredCollapseDisease;
-  const preferredRow = preferred && preferred !== disease
+  const preferredRow = preferred
     ? textbookFormulaRowsForDisease(preferred).find((row) => isCriticalSyndromeName(row.syndromeName) || /欲脱|暴脱/u.test(row.syndromeName))
     : undefined;
-  if (preferred && preferredRow && (!disease || disease === "虚脱" || !textbookRowForSyndrome(disease, critical))) {
+  // 模型已写真心痛、脱证却是真心痛没有的证名（正虚阳脱证）时同样落在真心痛自己的脱证行，不把病名改成虚脱（r49f rt-450368）。
+  if (preferred && preferredRow && !(disease === preferred && textbookRowForSyndrome(disease, critical))
+    && (!disease || disease === preferred || disease === "虚脱" || !textbookRowForSyndrome(disease, critical))) {
     const name = preferredRow.syndromeName.endsWith("证") ? preferredRow.syndromeName : `${preferredRow.syndromeName}证`;
     overview.tcmDiseaseName = preferred;
     overview.primarySyndrome = name;

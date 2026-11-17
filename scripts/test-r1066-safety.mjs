@@ -250,7 +250,8 @@ await check('S40','注意事项超过 6 条时安全类必写句排前不被截�
  const potassium='本次血钾偏高（5.7mmol/L），请遵医嘱尽快复查血钾，不要自行服用补钾药；少吃香蕉、橙子等含钾高的食物。';
  const lines=['饮食清淡，忌辛辣。','避风寒，注意保暖。','情绪舒畅，规律作息。','年长者服药后起身宜缓，注意防跌倒。','血钾偏高时应少吃含钾高的食物。','服药期间如有不适请就医。',metformin,potassium];
  const out=surface.precautionsWithSafetyFirst(lines,req,['血钾偏高时应少吃含钾高的食物。']);
- assert.equal(out.length,6); assert.equal(out[0],metformin); assert.equal(out[1],potassium); assert.ok(out.includes('年长者服药后起身宜缓，注意防跌倒。'));
+ assert.equal(out.length,6); assert.ok(out.includes(metformin)&&out.includes(potassium)&&out.includes('年长者服药后起身宜缓，注意防跌倒。'),JSON.stringify(out));
+ assert.deepEqual(out,lines.filter(line=>out.includes(line)),'留下的按原顺序');
  assert.ok(!out.includes('血钾偏高时应少吃含钾高的食物。'),'调护补句排最后被截');
  assert.deepEqual(surface.precautionsWithSafetyFirst(out,req,['血钾偏高时应少吃含钾高的食物。']),out);
  const short=['饮食清淡。','注意保暖。'];assert.deepEqual(surface.precautionsWithSafetyFirst(short,req,[]),short);

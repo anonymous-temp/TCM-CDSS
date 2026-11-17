@@ -548,12 +548,13 @@ function lineAddressesRequired(item: RequiredPrecaution, line: string): boolean 
   return requiredPrecautionCovered(item, [line]);
 }
 /**
- * 注意事项按档排：写到安全类必写项的（含方中毒性药一句）→ 写到其他必写项的 → 其余（调护表补句、模型写的）；档内保持原顺序。
- * 超过接口上限时截掉末尾，安全档不截。
+ * 注意事项超过接口上限 6 条时选留哪几条：写到安全类必写项的（含方中毒性药一句）→ 写到其他必写项的 → 其余（调护表补句、模型写的）；
+ * 档内按必写项的固定顺序（不按当前位置），截掉的总是同几条，再投影一次补回来又截掉，结果不变（幂等）。留下的按原顺序交付，
+ * 不重排（「立即急诊…禁食」这类句子原在最前就仍在最前）。不超过 6 条时原样。安全档不截。
  */
 export function precautionsWithSafetyFirst(lines: readonly unknown[], required: readonly RequiredPrecaution[], careSentences: readonly string[] = []): unknown[] {
   const strings = lines.filter((line): line is string => typeof line === "string");
-  // 档、档内按必写项的固定顺序（不按当前位置）：截掉的总是同几条，再投影一次补回来又截掉，结果不变（幂等）。
+  if (strings.length <= PRECAUTION_SCHEMA_LIMIT) return [...lines];
   const rank = (line: string, position: number): [number, number, number] => {
     if (careSentences.includes(line)) return [2, 0, position];
     if (/方中/u.test(line) && /有毒|毒性/u.test(line)) return [0, required.length, position];
@@ -562,11 +563,11 @@ export function precautionsWithSafetyFirst(lines: readonly unknown[], required: 
     const other = required.findIndex((item) => !SAFETY_PRECAUTION_KINDS.has(item.kind) && lineAddressesRequired(item, line));
     return other >= 0 ? [1, other, position] : [2, 0, position];
   };
-  const ranked = strings.map((line, position) => ({ line, key: rank(line, position) }));
+  const ranked = strings.map((line, position) => ({ line, position, key: rank(line, position) }));
   const sorted = [...ranked].sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.key[2] - b.key[2]);
-  if (strings.length <= PRECAUTION_SCHEMA_LIMIT && sorted.every((entry, index) => entry === ranked[index])) return [...lines];
   const safetyCount = ranked.filter((entry) => entry.key[0] === 0).length;
-  return sorted.slice(0, Math.max(PRECAUTION_SCHEMA_LIMIT, safetyCount)).map((entry) => entry.line);
+  const kept = new Set(sorted.slice(0, Math.max(PRECAUTION_SCHEMA_LIMIT, safetyCount)).map((entry) => entry.position));
+  return ranked.filter((entry) => kept.has(entry.position)).map((entry) => entry.line);
 }
 
 function withinPrecautionCap(lines: readonly unknown[]): unknown[] {
@@ -1029,6 +1030,16 @@ export function readabilityCleaned(input: string): string {
  */
 const PROSE_FRAGMENT_KEYS = new Set(["tcmDiagnosticRationale", "tcmDiseaseRationale", "overallPathogenesis", "summary"]);
 export function withoutTrailingFragment(text: string): string {
+  // 整段不以句末标点收尾、最后一小句只是一个裸表现（不到 7 个汉字、不带「为/属/故/示」这类结论词）：去掉这一小句，句号收尾
+  //（第四十九轮 r49f 甲方病历3：「…食欲下降、大便稀溏为脾运不健、气血生化乏源；小便清长」）。
+  const trimmed = text.trim();
+  if (trimmed && !/[。！？!?）)」”]$/u.test(trimmed)) {
+    const cut = Math.max(trimmed.lastIndexOf("；"), trimmed.lastIndexOf(";"), trimmed.lastIndexOf("，"), trimmed.lastIndexOf(","));
+    const last = cut >= 0 ? trimmed.slice(cut + 1) : "";
+    if (cut > 0 && (last.match(/[\u4e00-\u9fff]/gu) || []).length < 7 && !/为|属|故|示|提示|乃|系|致|所/u.test(last)) {
+      return `${trimmed.slice(0, cut).replace(/[，,；;、\s]+$/u, "")}。`;
+    }
+  }
   const at = text.lastIndexOf("。");
   if (at < 0 || at === text.length - 1) return text;
   const tail = text.slice(at + 1);

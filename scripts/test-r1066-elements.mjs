@@ -263,6 +263,8 @@ await check('E50','真心痛判据成立时脱证落在真心痛的心阳欲脱�
   assert.ok(!out.overview.tcmDiseaseRationale.includes('虚脱'), out.overview.tcmDiseaseRationale);
   const kept = JSON.parse(crit.promoteCriticalSecondarySyndrome(half('虚脱', '正虚阳脱证')));
   assert.equal(kept.overview.tcmDiseaseName, '虚脱');
+  const own = JSON.parse(crit.promoteCriticalSecondarySyndrome(half('真心痛', '正虚阳脱证'), { preferredCollapseDisease: '真心痛' }));
+  assert.equal(own.overview.tcmDiseaseName, '真心痛'); assert.equal(own.overview.primarySyndrome, '心阳欲脱证');
   const same = crit.promoteCriticalSecondarySyndrome(half('真心痛', '心阳欲脱证'), { preferredCollapseDisease: '真心痛' });
   assert.equal(JSON.parse(same).overview.primarySyndrome, '心阳欲脱证');
 });
