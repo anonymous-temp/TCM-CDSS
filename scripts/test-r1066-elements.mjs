@@ -248,4 +248,11 @@ await check('E31', '无力是肯定表现，后置未见不算证素断言，失
   const ledger=element.syndromeElementLedger(r);assert.ok(ledger.some(x=>x.type==='气虚'&&x.sources.includes('rationale')));assert.ok(!ledger.some(x=>x.type==='阴虚'));
   const out=await apply(r,'fail');assert.doesNotMatch(out.overview.tcmDiagnosticRationale,/气弱/);assert.match(out.overview.tcmDiagnosticRationale,/脉沉细无力/);assert.match(out.overview.tcmDiagnosticRationale,/阴虚火旺、相火妄动之象未见/);
 });
+await check('E40', '立兼证时补进总治法的是四字规范治法（脾气虚证→健脾益气），不是会被四字规则去掉的两字「益气」（甲方病历3）', async () => {
+  const promo = JSON.parse(fs.readFileSync('src/data/tcm-syndrome-element-promotion.source.json', 'utf8'));
+  const G = await jiti.import('../src/lib/clinical-governance-tables.ts');
+  const governed = new Set(G.governedFourCharacterMethodTerms());
+  for (const [name, method] of Object.entries(promo.secondaryMethods)) if (!name.startsWith('_')) assert.ok(governed.has(method), `${name}→${method}`);
+  assert.equal(promo.secondaryMethods['脾气虚证'], '健脾益气');
+});
 console.log(JSON.stringify({checks,failed}));process.exitCode=failed?1:0;

@@ -9,7 +9,7 @@ import { EXCESS_ELEMENTS, namedExcessElements, methodImpliedExcessElements, with
 import { diagnosticsCriteriaFor, primaryManifestationTerms, textbookPatternFit, GROUP_CHECK_FIT_CEILING, verifySecondaryByCriteria, secondaryStructurallyInvalid, applySecondaryConsistencyDecision, withoutClauses, type CriteriaVerdict } from "./m03-secondary-syndrome-consistency.server";
 import { textbookRowForSyndrome, textbookFormulaRowsForDisease } from "./tcm-textbook-syndromes";
 import { compositeSyndromeRename } from "./delivered-surface";
-import { resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
+import { governedFourCharacterMethodTerms, resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
 import { clauseLocalMentionPolarityAt, currentVitalMeasurements, maskNonNegatingWuWords } from "./diagnosis-safety";
 import { isCriticalSyndromeName } from "./m03-critical-syndrome";
 import { trueHeartPainSignal } from "./true-heart-pain";
@@ -335,7 +335,9 @@ function promote(root: Json, unit: LedgerElement, verdict: CriteriaVerdict): boo
   const secondaries = strings(overview.secondarySyndromes);
   if (secondaries.includes(name) || secondaries.length >= 6) return false;
   const alreadyTreats = typesIn(text(object(root.therapy)?.overallMethod), false, true).has(unit.type);
-  applySecondaryConsistencyDecision(root, { decision: "add", secondarySyndrome: name, method: alreadyTreats ? "" : unit.method, evidence: verdict.quotes || [] });
+  const governed = (promotion as { secondaryMethods?: Record<string, string> }).secondaryMethods?.[name];
+  const method = governed && governedFourCharacterMethodTerms().includes(governed) ? governed : unit.method;
+  applySecondaryConsistencyDecision(root, { decision: "add", secondarySyndrome: name, method: alreadyTreats ? "" : method, evidence: verdict.quotes || [] });
   if (!alreadyTreats && unit.method && typeof overview.overallTherapy === "string") overview.overallTherapy = text(object(root.therapy)?.overallMethod);
   overview.secondarySyndromes = [...secondaries, name];
   const path = object(root.pathogenesis);

@@ -1,468 +1,494 @@
 {
-  "schemaVersion": 1,
-  "sourceRef": "GB/T 16751.2-2021；《中医诊断学》气血阴阳虚证、脏腑辨证、八纲辨证各条；本项目 tcm-syndrome-composite-names.source.json 已核对合称。运行时逐项 resolveNationalStandardTcmSyndromeTerm 核对；不存在的名称不采用。",
-  "note": "D3：辨证要点成组才命名；宽路径够数而未成组保留、遥测。教材吻合度闸门仅沿用既有实邪兼证触发口径，不扩至虚性证素；标准病历不按ID豁免。合称不改变原教材方与治法。无合称立判据条目名，容量沿用接口的六项上限。",
-  "rules": [
-    {
-      "primary": [
-        "血虚证",
-        "血虚失养证"
-      ],
-      "element": "气虚",
-      "composite": "气血两虚证"
-    },
-    {
-      "primary": [
-        "气虚证"
-      ],
-      "element": "血虚",
-      "composite": "气血两虚证"
-    },
-    {
-      "primary": [
-        "气虚证",
-        "脾气虚证"
-      ],
-      "element": "stasis",
-      "composite": "气虚血瘀证"
-    },
-    {
-      "primary": [
-        "血瘀证",
-        "心血瘀阻证"
-      ],
-      "element": "气虚",
-      "composite": "气虚血瘀证"
-    },
-    {
-      "primary": [
-        "气虚证"
-      ],
-      "element": "阴虚",
-      "composite": "气阴两虚证"
-    },
-    {
-      "primary": [
-        "阴虚证"
-      ],
-      "element": "气虚",
-      "composite": "气阴两虚证"
-    },
-    {
-      "primary": [
-        "阳虚证"
-      ],
-      "element": "阴虚",
-      "composite": "阴阳两虚证"
-    },
-    {
-      "primary": [
-        "阴虚证"
-      ],
-      "element": "阳虚",
-      "composite": "阴阳两虚证"
-    },
-    {
-      "primary": [
-        "脾阳虚证",
-        "脾阳虚衰证"
-      ],
-      "element": "location",
-      "composite": "脾肾阳虚证",
-      "organ": "肾",
-      "requires": "阳虚"
-    },
-    {
-      "primary": [
-        "肾阳虚证"
-      ],
-      "element": "location",
-      "composite": "脾肾阳虚证",
-      "organ": "脾",
-      "requires": "阳虚"
-    },
-    {
-      "primary": [
-        "肾阴虚证"
-      ],
-      "element": "location",
-      "composite": "肝肾阴虚证",
-      "organ": "肝",
-      "requires": "阴虚"
-    },
-    {
-      "primary": [
-        "心血不足证",
-        "心血虚证"
-      ],
-      "element": "location",
-      "composite": "心脾两虚证",
-      "organ": "脾",
-      "requires": "气虚"
-    },
-    {
-      "primary": [
-        "胃虚证",
-        "胃气虚证"
-      ],
-      "element": "location",
-      "composite": "脾胃气虚证",
-      "organ": "脾",
-      "requires": "气虚"
-    },
-    {
-      "primary": [
-        "肺气虚证"
-      ],
-      "element": "location",
-      "composite": "肺脾气虚证",
-      "organ": "脾",
-      "requires": "气虚"
-    },
-    {
-      "primary": [
-        "心气虚证"
-      ],
-      "element": "location",
-      "composite": "心肺气虚证",
-      "organ": "肺",
-      "requires": "气虚"
-    },
-    {
-      "primary": [
-        "脾虚证",
-        "脾气虚证"
-      ],
-      "element": "damp",
-      "composite": "脾虚湿困证"
-    }
-  ],
-  "extras": [
-    {
-      "type": "qi-stagnation",
-      "label": "气滞",
-      "entryName": "气滞证",
-      "mentions": [
-        "气滞",
-        "气机郁滞",
-        "气机不畅",
-        "肝郁"
-      ],
-      "nameMarkers": [
-        "气滞",
-        "气郁",
-        "肝郁",
-        "气结",
-        "气秘"
-      ],
-      "methods": [
-        "理气",
-        "行气",
-        "疏肝",
-        "解郁"
-      ]
-    },
-    {
-      "type": "heat",
-      "label": "热",
-      "entryName": "热证",
-      "mentions": [
-        "热邪",
-        "火热",
-        "实热",
-        "血热",
-        "肝火",
-        "胃火",
-        "郁热",
-        "热盛",
-        "热炽",
-        "热灼"
-      ],
-      "natureLabels": [
-        "热",
-        "火"
-      ],
-      "nameMarkers": [
-        "热",
-        "火",
-        "阳盛"
-      ],
-      "methods": [
-        "清热",
-        "泻火",
-        "清火",
-        "清肝",
-        "凉血"
-      ]
-    },
-    {
-      "type": "cold",
-      "label": "寒",
-      "entryName": "寒证",
-      "mentions": [
-        "寒邪",
-        "寒凝",
-        "寒盛",
-        "风寒",
-        "寒湿",
-        "内寒",
-        "虚寒"
-      ],
-      "natureLabels": [
-        "寒"
-      ],
-      "nameMarkers": [
-        "寒",
-        "阳虚",
-        "阳衰",
-        "火衰"
-      ],
-      "methods": [
-        "散寒",
-        "温中",
-        "祛寒"
-      ]
-    },
-    {
-      "type": "wind",
-      "label": "风",
-      "entryName": "风淫证",
-      "mentions": [
-        "风邪",
-        "风寒",
-        "风热",
-        "风袭",
-        "外风"
-      ],
-      "natureLabels": [
-        "风"
-      ],
-      "nameMarkers": [
-        "风寒",
-        "风热",
-        "风湿",
-        "风燥",
-        "风火",
-        "风邪",
-        "外风",
-        "风袭"
-      ],
-      "methods": [
-        "祛风",
-        "疏风",
-        "散风"
-      ],
-      "secondaryNames": [
-        "外风证",
-        "风邪外袭证"
-      ]
-    },
-    {
-      "type": "yingwei",
-      "label": "营卫不和",
-      "entryName": "营卫不和证",
-      "mentions": [
-        "营卫不和",
-        "营卫失和"
-      ],
-      "nameMarkers": [
-        "营卫不和",
-        "营卫失和"
-      ],
-      "methods": [
-        "调和营卫"
-      ]
-    },
-    {
-      "type": "collapse",
-      "label": "阳脱·气脱",
-      "entryName": "气脱证",
-      "mentions": [
-        "阳脱",
-        "气脱",
-        "亡阳",
-        "阳气虚脱",
-        "阳气暴脱",
-        "心阳欲脱",
-        "气随汗泄",
-        "气欲脱",
-        "正气欲脱",
-        "阳气欲脱"
-      ],
-      "nameMarkers": [
-        "阳脱",
-        "气脱",
-        "亡阳",
-        "阳气虚脱",
-        "阳气暴脱",
-        "心阳欲脱",
-        "虚脱"
-      ],
-      "methods": [
-        "回阳救逆",
-        "益气固脱",
-        "回阳固脱"
-      ],
-      "secondaryNames": [
-        "阳气暴脱证",
-        "阳气虚脱证",
-        "气脱证"
-      ]
-    }
-  ],
-  "explicitNameEntailments": [
-    {
-      "names": [
-        "心脾两虚证"
-      ],
-      "types": [
-        "气虚",
-        "血虚"
-      ],
-      "organs": [
-        "心",
-        "脾"
-      ]
-    },
-    {
-      "names": [
-        "肺脾两虚证"
-      ],
-      "types": [
-        "气虚"
-      ],
-      "organs": [
-        "肺",
-        "脾"
-      ]
-    }
-  ],
-  "deficiencyMethods": {
-    "气虚": [
-      "益气",
-      "补气",
-      "健脾"
-    ],
-    "血虚": [
-      "养血",
-      "补血",
-      "益血"
-    ],
-    "阴虚": [
-      "滋阴",
-      "养阴",
-      "育阴",
-      "滋补肝肾"
-    ],
-    "阳虚": [
-      "温阳",
-      "补阳",
-      "助阳",
-      "温肾"
-    ]
+ "schemaVersion": 1,
+ "sourceRef": "GB/T 16751.2-2021；《中医诊断学》气血阴阳虚证、脏腑辨证、八纲辨证各条；本项目 tcm-syndrome-composite-names.source.json 已核对合称。运行时逐项 resolveNationalStandardTcmSyndromeTerm 核对；不存在的名称不采用。",
+ "note": "D3：辨证要点成组才命名；宽路径够数而未成组保留、遥测。教材吻合度闸门仅沿用既有实邪兼证触发口径，不扩至虚性证素；标准病历不按ID豁免。合称不改变原教材方与治法。无合称立判据条目名，容量沿用接口的六项上限。",
+ "rules": [
+  {
+   "primary": [
+    "血虚证",
+    "血虚失养证"
+   ],
+   "element": "气虚",
+   "composite": "气血两虚证"
   },
-  "analysisNegationBefore": [
-    "无",
-    "非",
-    "不属",
-    "未见",
-    "尚无",
-    "并非",
-    "不是",
-    "未及",
-    "否认",
-    "未有",
-    "排除"
-  ],
-  "analysisNegationAfter": [
-    "未甚",
-    "不甚",
-    "不显",
-    "不明显",
-    "待核实",
-    "尚待核实"
-  ],
-  "locationOrgans": [
+  {
+   "primary": [
+    "气虚证"
+   ],
+   "element": "血虚",
+   "composite": "气血两虚证"
+  },
+  {
+   "primary": [
+    "气虚证",
+    "脾气虚证"
+   ],
+   "element": "stasis",
+   "composite": "气虚血瘀证"
+  },
+  {
+   "primary": [
+    "血瘀证",
+    "心血瘀阻证"
+   ],
+   "element": "气虚",
+   "composite": "气虚血瘀证"
+  },
+  {
+   "primary": [
+    "气虚证"
+   ],
+   "element": "阴虚",
+   "composite": "气阴两虚证"
+  },
+  {
+   "primary": [
+    "阴虚证"
+   ],
+   "element": "气虚",
+   "composite": "气阴两虚证"
+  },
+  {
+   "primary": [
+    "阳虚证"
+   ],
+   "element": "阴虚",
+   "composite": "阴阳两虚证"
+  },
+  {
+   "primary": [
+    "阴虚证"
+   ],
+   "element": "阳虚",
+   "composite": "阴阳两虚证"
+  },
+  {
+   "primary": [
+    "脾阳虚证",
+    "脾阳虚衰证"
+   ],
+   "element": "location",
+   "composite": "脾肾阳虚证",
+   "organ": "肾",
+   "requires": "阳虚"
+  },
+  {
+   "primary": [
+    "肾阳虚证"
+   ],
+   "element": "location",
+   "composite": "脾肾阳虚证",
+   "organ": "脾",
+   "requires": "阳虚"
+  },
+  {
+   "primary": [
+    "肾阴虚证"
+   ],
+   "element": "location",
+   "composite": "肝肾阴虚证",
+   "organ": "肝",
+   "requires": "阴虚"
+  },
+  {
+   "primary": [
+    "心血不足证",
+    "心血虚证"
+   ],
+   "element": "location",
+   "composite": "心脾两虚证",
+   "organ": "脾",
+   "requires": "气虚"
+  },
+  {
+   "primary": [
+    "胃虚证",
+    "胃气虚证"
+   ],
+   "element": "location",
+   "composite": "脾胃气虚证",
+   "organ": "脾",
+   "requires": "气虚"
+  },
+  {
+   "primary": [
+    "肺气虚证"
+   ],
+   "element": "location",
+   "composite": "肺脾气虚证",
+   "organ": "脾",
+   "requires": "气虚"
+  },
+  {
+   "primary": [
+    "心气虚证"
+   ],
+   "element": "location",
+   "composite": "心肺气虚证",
+   "organ": "肺",
+   "requires": "气虚"
+  },
+  {
+   "primary": [
+    "脾虚证",
+    "脾气虚证"
+   ],
+   "element": "damp",
+   "composite": "脾虚湿困证"
+  }
+ ],
+ "extras": [
+  {
+   "type": "qi-stagnation",
+   "label": "气滞",
+   "entryName": "气滞证",
+   "mentions": [
+    "气滞",
+    "气机郁滞",
+    "气机不畅",
+    "肝郁"
+   ],
+   "nameMarkers": [
+    "气滞",
+    "气郁",
+    "肝郁",
+    "气结",
+    "气秘"
+   ],
+   "methods": [
+    "理气",
+    "行气",
+    "疏肝",
+    "解郁"
+   ]
+  },
+  {
+   "type": "heat",
+   "label": "热",
+   "entryName": "热证",
+   "mentions": [
+    "热邪",
+    "火热",
+    "实热",
+    "血热",
+    "肝火",
+    "胃火",
+    "郁热",
+    "热盛",
+    "热炽",
+    "热灼"
+   ],
+   "natureLabels": [
+    "热",
+    "火"
+   ],
+   "nameMarkers": [
+    "热",
+    "火",
+    "阳盛"
+   ],
+   "methods": [
+    "清热",
+    "泻火",
+    "清火",
+    "清肝",
+    "凉血"
+   ]
+  },
+  {
+   "type": "cold",
+   "label": "寒",
+   "entryName": "寒证",
+   "mentions": [
+    "寒邪",
+    "寒凝",
+    "寒盛",
+    "风寒",
+    "寒湿",
+    "内寒",
+    "虚寒"
+   ],
+   "natureLabels": [
+    "寒"
+   ],
+   "nameMarkers": [
+    "寒",
+    "阳虚",
+    "阳衰",
+    "火衰"
+   ],
+   "methods": [
+    "散寒",
+    "温中",
+    "祛寒"
+   ]
+  },
+  {
+   "type": "wind",
+   "label": "风",
+   "entryName": "风淫证",
+   "mentions": [
+    "风邪",
+    "风寒",
+    "风热",
+    "风袭",
+    "外风"
+   ],
+   "natureLabels": [
+    "风"
+   ],
+   "nameMarkers": [
+    "风寒",
+    "风热",
+    "风湿",
+    "风燥",
+    "风火",
+    "风邪",
+    "外风",
+    "风袭"
+   ],
+   "methods": [
+    "祛风",
+    "疏风",
+    "散风"
+   ],
+   "secondaryNames": [
+    "外风证",
+    "风邪外袭证"
+   ]
+  },
+  {
+   "type": "yingwei",
+   "label": "营卫不和",
+   "entryName": "营卫不和证",
+   "mentions": [
+    "营卫不和",
+    "营卫失和"
+   ],
+   "nameMarkers": [
+    "营卫不和",
+    "营卫失和"
+   ],
+   "methods": [
+    "调和营卫"
+   ]
+  },
+  {
+   "type": "collapse",
+   "label": "阳脱·气脱",
+   "entryName": "气脱证",
+   "mentions": [
+    "阳脱",
+    "气脱",
+    "亡阳",
+    "阳气虚脱",
+    "阳气暴脱",
+    "心阳欲脱",
+    "气随汗泄",
+    "气欲脱",
+    "正气欲脱",
+    "阳气欲脱"
+   ],
+   "nameMarkers": [
+    "阳脱",
+    "气脱",
+    "亡阳",
+    "阳气虚脱",
+    "阳气暴脱",
+    "心阳欲脱",
+    "虚脱"
+   ],
+   "methods": [
+    "回阳救逆",
+    "益气固脱",
+    "回阳固脱"
+   ],
+   "secondaryNames": [
+    "阳气暴脱证",
+    "阳气虚脱证",
+    "气脱证"
+   ]
+  }
+ ],
+ "explicitNameEntailments": [
+  {
+   "names": [
+    "心脾两虚证"
+   ],
+   "types": [
+    "气虚",
+    "血虚"
+   ],
+   "organs": [
     "心",
-    "肝",
-    "脾",
-    "肺",
-    "肾",
-    "胃",
-    "胆"
-  ],
-  "nameImpliedElements": [
-    {
-      "markers": [
-        "热哮"
-      ],
-      "types": [
-        "phlegm",
-        "heat"
-      ],
-      "organs": [
-        "肺"
-      ]
-    },
-    {
-      "markers": [
-        "痰气互结",
-        "痰气郁结",
-        "气机不畅",
-        "气机不和",
-        "气机失和",
-        "气机逆乱",
-        "胃气不和",
-        "胃气壅滞",
-        "肺气壅塞"
-      ],
-      "types": [
-        "qi-stagnation"
-      ],
-      "organs": []
-    },
-    {
-      "markers": [
-        "下元虚寒",
-        "下元虚冷",
-        "下焦虚寒",
-        "下焦虚冷"
-      ],
-      "types": [
-        "阳虚",
-        "气虚"
-      ],
-      "organs": [
-        "肾"
-      ]
-    }
-  ],
-  "natureElementMarkers": {
-    "damp": [
-      "湿"
-    ],
-    "water": [
-      "水"
-    ],
-    "phlegm": [
-      "痰"
-    ],
-    "stasis": [
-      "瘀"
-    ],
-    "fluid": [
-      "饮"
-    ]
+    "脾"
+   ]
   },
-  "pendingQuestionPrefixes": [
-    "是否合并",
-    "是否兼",
-    "是否夹"
+  {
+   "names": [
+    "肺脾两虚证"
+   ],
+   "types": [
+    "气虚"
+   ],
+   "organs": [
+    "肺",
+    "脾"
+   ]
+  }
+ ],
+ "deficiencyMethods": {
+  "气虚": [
+   "益气",
+   "补气",
+   "健脾"
   ],
-  "analysisNegatedClauseSuffixes": [
-    "之象未见",
-    "之征未见",
-    "之象未显",
-    "之征未显"
+  "血虚": [
+   "养血",
+   "补血",
+   "益血"
+  ],
+  "阴虚": [
+   "滋阴",
+   "养阴",
+   "育阴",
+   "滋补肝肾"
+  ],
+  "阳虚": [
+   "温阳",
+   "补阳",
+   "助阳",
+   "温肾"
   ]
+ },
+ "analysisNegationBefore": [
+  "无",
+  "非",
+  "不属",
+  "未见",
+  "尚无",
+  "并非",
+  "不是",
+  "未及",
+  "否认",
+  "未有",
+  "排除"
+ ],
+ "analysisNegationAfter": [
+  "未甚",
+  "不甚",
+  "不显",
+  "不明显",
+  "待核实",
+  "尚待核实"
+ ],
+ "locationOrgans": [
+  "心",
+  "肝",
+  "脾",
+  "肺",
+  "肾",
+  "胃",
+  "胆"
+ ],
+ "nameImpliedElements": [
+  {
+   "markers": [
+    "热哮"
+   ],
+   "types": [
+    "phlegm",
+    "heat"
+   ],
+   "organs": [
+    "肺"
+   ]
+  },
+  {
+   "markers": [
+    "痰气互结",
+    "痰气郁结",
+    "气机不畅",
+    "气机不和",
+    "气机失和",
+    "气机逆乱",
+    "胃气不和",
+    "胃气壅滞",
+    "肺气壅塞"
+   ],
+   "types": [
+    "qi-stagnation"
+   ],
+   "organs": []
+  },
+  {
+   "markers": [
+    "下元虚寒",
+    "下元虚冷",
+    "下焦虚寒",
+    "下焦虚冷"
+   ],
+   "types": [
+    "阳虚",
+    "气虚"
+   ],
+   "organs": [
+    "肾"
+   ]
+  }
+ ],
+ "natureElementMarkers": {
+  "damp": [
+   "湿"
+  ],
+  "water": [
+   "水"
+  ],
+  "phlegm": [
+   "痰"
+  ],
+  "stasis": [
+   "瘀"
+  ],
+  "fluid": [
+   "饮"
+  ]
+ },
+ "pendingQuestionPrefixes": [
+  "是否合并",
+  "是否兼",
+  "是否夹"
+ ],
+ "analysisNegatedClauseSuffixes": [
+  "之象未见",
+  "之征未见",
+  "之象未显",
+  "之征未显"
+ ],
+ "secondaryMethods": {
+  "_note": "第四十九轮总指挥：立兼证时补进总治法的那一项用四字规范治法（GB/T 16751.3 治法表实有，运行时 governedFourCharacterMethodTerms 核对）；两字的「益气」「养血」会被交付的四字治法规则去掉（甲方病历3 立了兼证脾气虚证、治法没跟上，评审判治则治法错）。",
+  "脾气虚证": "健脾益气",
+  "脾虚证": "健脾益气",
+  "脾胃气虚证": "补脾益气",
+  "气虚证": "补脾益气",
+  "心血虚证": "养血安神",
+  "心血不足证": "养血安神",
+  "血虚证": "补气养血",
+  "心气虚证": "补益心气",
+  "肝血虚证": "养血柔肝",
+  "肾阴虚证": "滋补肾阴",
+  "肝肾阴虚证": "滋补肝肾",
+  "阴虚证": "益气养阴",
+  "肾阳虚证": "温补肾阳",
+  "脾阳虚证": "温补脾阳",
+  "阳虚证": "温阳散寒",
+  "肺气虚证": "补益肺气",
+  "气阴两虚证": "益气养阴",
+  "气血两虚证": "补气养血",
+  "血瘀证": "活血化瘀",
+  "瘀血证": "活血化瘀",
+  "阳气暴脱证": "回阳固脱",
+  "心阳暴脱证": "回阳固脱",
+  "气脱证": "益气固脱"
+ }
 }
