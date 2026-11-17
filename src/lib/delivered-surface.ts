@@ -1023,9 +1023,25 @@ export function readabilityCleaned(input: string): string {
   });
 }
 
+/**
+ * 依据、病机段末尾残留的半截句（第四十九轮 r49e 甲方复测 rt-923584：「…以下按常规辨证处理。发热一症归」）：最后一个句号之后、
+ * 不带句末标点且不到 8 个汉字的残段去掉。只作用于这几段长文，短字段（病名、证名）不动。
+ */
+const PROSE_FRAGMENT_KEYS = new Set(["tcmDiagnosticRationale", "tcmDiseaseRationale", "overallPathogenesis", "summary"]);
+export function withoutTrailingFragment(text: string): string {
+  const at = text.lastIndexOf("。");
+  if (at < 0 || at === text.length - 1) return text;
+  const tail = text.slice(at + 1);
+  if (/[。！？!?；;）)」”]$/u.test(tail.trim())) return text;
+  return (tail.match(/[\u4e00-\u9fff]/gu) || []).length < 8 ? text.slice(0, at + 1) : text;
+}
+
 function rewordDeep(value: unknown, key = ""): unknown {
   if (VERBATIM_KEYS.has(key)) return value;
-  if (typeof value === "string") return readabilityCleaned(clinicalWordingForSyntheticPhrases(value));
+  if (typeof value === "string") {
+    const cleaned = readabilityCleaned(clinicalWordingForSyntheticPhrases(value));
+    return PROSE_FRAGMENT_KEYS.has(key) ? withoutTrailingFragment(cleaned) : cleaned;
+  }
   if (Array.isArray(value)) return value.map((item) => rewordDeep(item, key));
   const object = record(value);
   if (!object) return value;

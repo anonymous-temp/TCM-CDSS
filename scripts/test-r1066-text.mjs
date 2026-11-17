@@ -122,4 +122,11 @@ await check('T41','腹痛定义部位（胃脘以下、耻骨毛际以上）写�
  const out=make('患者3天前出现腹痛、恶心、呕吐伴发热。');assert.ok(!/胃脘以下/.test(out),out);assert.match(out,/恶心、呕吐/);
  assert.match(make('患者3天前出现下腹疼痛、恶心、呕吐。'),/胃脘以下/);
 });
+await check('T42','依据段末尾不带标点、不到 8 字的残段去掉（rt-923584「…以下按常规辨证处理。发热一症归」）；完整的末句照留',()=>{
+ assert.equal(surface.withoutTrailingFragment('寒热虚实暂不能定。以下按常规辨证处理。发热一症归'),'寒热虚实暂不能定。以下按常规辨证处理。');
+ assert.equal(surface.withoutTrailingFragment('故属风寒束表证。发热为外邪束表、卫阳郁遏所致'),'故属风寒束表证。发热为外邪束表、卫阳郁遏所致');
+ assert.equal(surface.withoutTrailingFragment('故属风寒束表证。'),'故属风寒束表证。');
+ const r={schemaVersion:'tcm-cdss-reasoning-v2',stage:'diagnose',overview:{tcmDiseaseName:'眩晕',primarySyndrome:'气机失调证',tcmDiagnosticRationale:'头晕为主症，故暂按气机失调证考虑。以下按常规辨证处理。发热一症归'},pathogenesis:{}};
+ const out=surface.projectDeliveredReasoning(r,{});assert.ok(!/一症归$/.test(out.overview.tcmDiagnosticRationale),out.overview.tcmDiagnosticRationale);
+});
 console.log(`${count-failed}/${count} passed`);if(failed)process.exitCode=1;
