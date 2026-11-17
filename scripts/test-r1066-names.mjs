@@ -147,4 +147,13 @@ await check('N31', '辨病依据定义重合子句送核缺省关闭（整句删
   process.env.CDSS_TEXTBOOK_DEFINITION_CLAIMS = 'true'; assert.equal(claims.textbookDefinitionClaimsEnabled(), true);
   if (saved === undefined) delete process.env.CDSS_TEXTBOOK_DEFINITION_CLAIMS; else process.env.CDSS_TEXTBOOK_DEFINITION_CLAIMS = saved;
 });
+await check('N40','痴呆的定义性表现认具体失能事件与 MMSE（hold40 h04：忘关火、买菜算错账、走错单元楼不写「病名待核实」）；只有健忘、无失能的照旧待核实', () => {
+  assert.equal(defining.diseaseDefiningFindingStatus('痴呆', '近1年记忆力差，忘关火2次，买菜常算错账，走错单元楼，MMSE 20分。').status, 'supported');
+  assert.equal(defining.diseaseDefiningFindingStatus('痴呆', '近一年反复忘事，生活可自理。').status, 'missing');
+});
+await check('N41','「时有时无」「若有若无」不是否认：不改写成「时有时未诉」（new45 n16）', async () => {
+  const safety = await jiti.import('../src/lib/diagnosis-safety.ts');
+  assert.ok(!safety.maskNonNegatingWuWords('晨勃时有时无').includes('无'));
+  assert.ok(safety.maskNonNegatingWuWords('无晨勃').includes('无'));
+});
 console.log(JSON.stringify({ total, failed })); process.exitCode = failed ? 1 : 0;
