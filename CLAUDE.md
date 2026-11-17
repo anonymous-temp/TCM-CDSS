@@ -3579,6 +3579,8 @@ The user forwarded the post-round-47 analysis (`~/runlogs/r1018/work/r1065/ANALY
   - 痴呆's defining findings accept concrete functional-loss events and MMSE.
 - **Collapse:** with the 真心痛 signal (`trueHeartPainSignal`, the same predicate as the disease pick), the collapse promotion uses 真心痛's own 心阳欲脱证 row instead of renaming the disease 虚脱. rt-450368 alternated between the two.
 - **Sparse records** with one separating finding take the most likely textbook row (bounded) instead of a neutral name (prompt rule 7).
+- **Powder-route doses:** 「三七6g（冲服）」 passed because the knowledge base only has the decoction range (3–9g). `herb-powder-route-dose.ts` reads the textbook single doses for 冲服/吞服 (三七 1–3g, 川贝母/平贝母 1–2g, 芫花, 蕲蛇); above them, the compiler caps and says so in the herb's notes (p100c C070).
+- **Order of the precaution cap:** over six, safety lines are chosen first but delivered in their original order (an 「立即急诊…禁食」 line must stay first). The rationale-fragment cleanup touches only the two rationale fields: dropping the last comma phrase of overall pathogenesis made M04 drift from the signed M03.
 
 **Measured** (local route harness, customer request shape, memo-replayed paired arms; qwen4-max; 「欠妥算过」; base49 = production 08f12eb3, 210 outputs; r49c = merged packages + first fixes, 250 outputs including hold40; r49e = 7cb5757b, before the last ten fixes; only the 30 customer records were rerun on the final code (r49f)).
 
@@ -3588,7 +3590,7 @@ The user forwarded the post-round-47 analysis (`~/runlogs/r1018/work/r1065/ANALY
 | customer retest (20, sparse 「XXX天」 records) | 75 / 85 / 85 | 80 / 80 / 80 | 85 / 80 / 90 |
 | new40 | 85 / 97.5 / 95 | 90 / 92.5 / 97.5 | 87.5 / 97.5 / 92.5 |
 | new45 | 80 / 90 / 85 | 87.5 / 90 / 80 | 80 / 82.5 / 82.5 |
-| customer 100-case set, customer shape | 81 / 85 / 56 | 83 / 83 / 78 | 84.1 / 85.5 / 73.9 (69 of 100 judged) |
+| customer 100-case set, customer shape | 81 / 85 / 56 | 83 / 83 / 78 | 82 / 85 / 65 |
 | hold40 (blind holdout, new this round) | — | 92.5 / 92.5 / 87.5 | 85 / 92.5 / 89.7 |
 
 - **Other P0 items.**
@@ -3602,7 +3604,8 @@ The user forwarded the post-round-47 analysis (`~/runlogs/r1018/work/r1065/ANALY
 - **The final code (1c7fcfa4) on the 30 customer records (r49f):** 红旗/剂量/十八反/特殊人群 100, 西医 90, 诊断依据 86.7, 随症加减 83.3, 中医诊断 80.
   - On customer case 3, r49e and r49f have byte-identical text and different verdicts. On 10- and 20-case sets the judge's own variance is ±10 points, so only the 100-case and pooled numbers show direction.
 - **Where the gains are, and the lines not reached.**
-  - 随症加减 on sparse records (56 → 74–78) and 特殊人群 are the clear gains. 中医诊断 is +2 to +5.
+  - 随症加减 on sparse records (56 → 65–78) and 特殊人群 are the clear gains. 中医诊断 is +1 to +5.
+  - On the 100-case set r49e fell back to 65 from r49c's 78 although the row counts are the same (non-red-flag cases under two conditions 6 vs 7): M04 redrew after the M03 prompt change, and the judge rejected more model rows as herb–symptom mismatches (金沸草 for 咽痒, 延胡索 for 汗出, 钩藤 「通络止麻」).
   - 诊断依据 did not move.
   - **The P0 lines 中医诊断 ≥95 and 随症加减 ≥90 are not reached pooled under this judge.**
   - The remaining 中医诊断 misses are mostly the judge wanting a compound or more specific name (气血两虚 for 血虚头痛 — the customer's own answer is 血虚头痛 — 骨痹 vs 痹证, 疳证 vs 虚劳, 消渴 vs 呕吐) and the sparse retest records, where any committed syndrome is judged unsupported and a neutral one non-standard.
@@ -3614,11 +3617,12 @@ The user forwarded the post-round-47 analysis (`~/runlogs/r1018/work/r1065/ANALY
 **Left as is.**
 - Sparse 「XXX天」 records (customer retest): rt-273344 still delivers no modification rows on production (the fallback finds no row whose cold/heat fits a febrile record); neutral names such as 气机失调证 stay governed but the judge calls them non-standard.
 - Model judgement the reviews keep naming: compound syndrome breadth (气血两虚, 脾肾阳虚, 血瘀 secondary), 疳证/虚劳 and 骨痹/痹证 granularity, 「小便清长 → 桑椹」-type model modification rows the fit check does not catch, warm digestive herbs for an incidental 纳差 under heat.
+- C088: a textbook food-therapy recipe prints 山茱萸 30 g (ChP 6–12 g). 山茱萸 is on the national food–medicine pilot list, and the existing rule (`recipeExceedsHighRiskHerbDose`) treats such items by food quantity; capping recipe amounts would also cap 山药/百合 porridge. Left for a decision on the pilot-list herbs' daily food limits.
 - 赤芍 under apixaban is not barred (not 活血化瘀 in 《中药学》 and not in the D2 research list); the precaution says not to add blood movers next to it.
 - Upper-GI alarm over-calls with a malignancy history (h09, h11) are the owner's existing policy.
 - qwen4-max judging runs about 2 cases a minute across 8 workers, and shares the Bailian account with production; do not judge during a production measurement.
 
-**In production.** 1c7fcfa4 (tag `20261117-1c7fcfa-prebuilt`, deployed 2026-11-17 10:26 UTC; same release directory and `20260927-dsrepair` override). Before it:
+**In production.** 2967ecd9 (tag `20261117-2967ecd-prebuilt`, deployed 2026-11-17 11:31 UTC; same release directory and `20260927-dsrepair` override). 1c7fcfa4 went out at 10:26 UTC first; the second deploy adds only the powder-route cap. Before them:
 - **Gate.** Lint, typecheck, all 340 deterministic suites and the fresh-artifact suites, run as parts:
   - the fail-fast gate stopped at suite 96 on an old precaution order pin;
   - the remaining 245 ran in a non-stopping loop (`/var/tmp/r1066/run-all-nofail.sh`), whose three failures were fixed and rerun;
@@ -3627,8 +3631,9 @@ The user forwarded the post-round-47 analysis (`~/runlogs/r1018/work/r1065/ANALY
 - **Probes:**
   - customer 10 on hospital-b (forced regeneration): every stage 200, the standard disease and syndrome, no red flag, all dosed;
   - targets on hospital-a: rt-450368 真心痛·心阳欲脱证 → 参附龙牡汤, rt-848256 风寒束表证 complete, n40 keeps the metformin line, h08 has no false cardiovascular note, the infant n27's added herbs are 3 g/2 g, h04 痴呆 without 「病名待核实」.
-- **Rollback.** Image `tcm-cdss:20261116-08f12eb-prebuilt` with the compose backup in the release directory. The container log before the replacement is in `~/telemetry-archive/container-pre-1c7fcfa-*.log.gz` on the host.
-- **Local build.** Two minutes with 3.5 GB available.
+- **2967ecd9:** all 340 suites and the fresh-artifact suites pass. `verify:deployed-image` passed and `regress:prod-smoke` had 0 failures (M03 P95 18.7 s, M04 P95 14.2 s).
+- **Rollback.** Image `tcm-cdss:20261117-1c7fcfa-prebuilt` (or `…20261116-08f12eb…`) with the compose backups in the release directory. Container logs before each replacement are in `~/telemetry-archive/container-pre-{1c7fcfa,2967ecd}-*.log.gz` on the host.
+- **Local build.** The first took two minutes with 3.5 GB available. The second was OOM-killed with 3.5 GB of memory plus swap, then went through with a temporary 3 GB zram swap (removed afterwards).
 
 ### Clinical request archive — `src/lib/request-archive.server.ts` (2026-10-12)
 
