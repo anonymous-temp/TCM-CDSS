@@ -1519,7 +1519,13 @@ export function withoutUnrecordedCourseAndLocation(text: string, recordText: str
     const site = place.replace(/[\s“”「」]/gu, "").replace(new RegExp(ASSERTION_POLICY.locationAssertionTailPattern, "u"), "");
     return site.length > 0 && (recordText.includes(site) || ASSERTION_POLICY.locationEquivalents.some((row) => row.claim === site && row.record.some((term) => recordText.includes(term)))) ? whole : "";
   });
-  return withoutLocation === text ? text : clean(withoutLocation);
+  // 教材定义里的部位（腹痛「胃脘以下、耻骨毛际以上」）写成本例所见、病历却没有具体腹部部位：删这一分句。
+  const definitionSites = (ASSERTION_POLICY as { definitionSitePhrases?: string[] }).definitionSitePhrases || [];
+  const siteTerms = (ASSERTION_POLICY as { definitionSiteRecordTerms?: string[] }).definitionSiteRecordTerms || [];
+  const withoutDefinitionSite = definitionSites.length && !siteTerms.some((term) => recordText.includes(term))
+    ? withoutLocation.split(/(?<=[，,；;。])/u).filter((clause) => !definitionSites.some((phrase) => clause.includes(phrase))).join("")
+    : withoutLocation;
+  return withoutDefinitionSite === text ? text : clean(withoutDefinitionSite);
 }
 
 function withRecordBoundAssertions(reasoning: Json, recordText: string, presentIllness?: unknown): void {

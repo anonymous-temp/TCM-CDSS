@@ -117,4 +117,9 @@ await check('T40','病名加括号当证名、病机短语当证名时，取第�
  const r={schemaVersion:'tcm-cdss-reasoning-v2',stage:'diagnose',overview:{tcmDiseaseName:'感冒',primarySyndrome:'感冒（湿滞中焦、气机不畅）',secondarySyndromes:[],tcmDiagnosticRationale:'头晕、食欲减退为湿滞中焦。'},pathogenesis:{natureDifferentiation:{items:['湿']}}};
  surface.withGovernedSyndromeNames(r);assert.equal(r.overview.primarySyndrome,'湿滞中焦证');
 });
+await check('T41','腹痛定义部位（胃脘以下、耻骨毛际以上）写成本例所见而病历无具体腹部部位时删这一分句；病历写了下腹的保留（retest rt-273344）',()=>{
+ const make=(rec)=>surface.withoutUnrecordedCourseAndLocation('以胃脘以下腹痛为主症，伴恶心、呕吐，故归腹痛。',rec);
+ const out=make('患者3天前出现腹痛、恶心、呕吐伴发热。');assert.ok(!/胃脘以下/.test(out),out);assert.match(out,/恶心、呕吐/);
+ assert.match(make('患者3天前出现下腹疼痛、恶心、呕吐。'),/胃脘以下/);
+});
 console.log(`${count-failed}/${count} passed`);if(failed)process.exitCode=1;

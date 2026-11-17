@@ -209,6 +209,28 @@
     "calendarRoundingNote": "现有解析年按365日、月按30日；涉及年月的表述容许2%日历换算差（半年=6个月），不用于疾病诊断阈值。",
     "nonCoursePrefixPattern": "(?:妊娠|怀孕|孕)(?:期|约|已满|已|满)?\\s*$",
     "nonAssertionSuffixPattern": "^(?:未|不|待|尚|需|有待|不足|不详|不明)",
-    "locationAssertionTailPattern": "(?:为主|为主症|为主要表现)$"
+    "locationAssertionTailPattern": "(?:为主|为主症|为主要表现)$",
+    "definitionSitePhrases": [
+      "胃脘以下",
+      "耻骨毛际以上",
+      "耻骨毛际",
+      "非心下胃脘",
+      "非胃脘之处",
+      "心下胃脘之处"
+    ],
+    "definitionSiteRecordTerms": [
+      "下腹",
+      "小腹",
+      "少腹",
+      "脐",
+      "肚脐",
+      "全腹",
+      "中腹",
+      "左腹",
+      "右腹",
+      "胃脘以下",
+      "绕脐"
+    ],
+    "definitionSiteNote": "第四十九轮 retest rt-273344/rt-621376：病历只写「腹痛」不写部位时，模型把《中医内科学》腹痛定义的部位（胃脘以下、耻骨毛际以上）写成本例所见；病历没有具体腹部部位时删这一分句。"
   }
 }
